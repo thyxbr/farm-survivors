@@ -196,7 +196,13 @@ func _apply_update() -> String:
 		return "Não foi possível instalar o executável novo (erro %d)." % err
 
 	print("[update] instalado %s; reabrindo o jogo" % latest_version)
-	var pid := OS.create_process(exe, OS.get_cmdline_args())
+	# get_cmdline_args() não inclui o que vem depois de "--": repassa os dois
+	var args := OS.get_cmdline_args()
+	var user_args := OS.get_cmdline_user_args()
+	if not user_args.is_empty():
+		args.append("--")
+		args.append_array(user_args)
+	var pid := OS.create_process(exe, args)
 	if pid <= 0:
 		return "Atualização instalada, mas o jogo não reabriu sozinho. Abra-o de novo."
 	get_tree().quit()
