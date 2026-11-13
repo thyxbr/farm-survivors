@@ -6,14 +6,13 @@ extends RefCounted
 
 ## Peças do modelo knight.glb tingidas por cada espaço de equipamento.
 const PARTS := {
-	"head": ["Helmet", "HelmetDome", "Visor", "HelmetBand"],
-	"armor": ["Torso", "Plackart", "ChestRidge", "Fauld1", "Fauld2", "ArmL_Pauldron", "ArmR_Pauldron"],
-	"hands": ["ArmL_Gauntlet", "ArmR_Gauntlet", "ArmL_Hand", "ArmR_Hand", "ArmL_Thumb", "ArmR_Thumb"],
-	"feet": ["LegL_Sabaton", "LegR_Sabaton", "LegL_Greave", "LegR_Greave", "LegL_SabPlate0", "LegR_SabPlate0",
-		"LegL_SabPlate1", "LegR_SabPlate1"],
+	"head": ["Helmet", "HelmetDome"],
+	"armor": ["Torso", "Fauld", "ArmL_Pauldron", "ArmR_Pauldron"],
+	"hands": ["ArmL_Gauntlet", "ArmR_Gauntlet", "ArmL_Hand", "ArmR_Hand"],
+	"feet": ["LegL_Sabaton", "LegR_Sabaton"],
 }
-const SWORD_PARTS := ["Grip", "Pommel", "Guard", "Blade", "BladeTip"]
-const SHIELD_PARTS := ["ShieldRim", "Shield", "ShieldCrossV", "ShieldCrossH", "ShieldBoss"]
+const SWORD_PARTS := ["Grip", "Blade"]
+const SHIELD_PARTS := ["ShieldRim", "Shield"]
 ## Quanto o suporte da arma "desfaz" a rotação do braço (cajado fica quase de pé, arco fica vertical ao mirar).
 const COUNTER := {"sword": 0.0, "staff": 0.75, "bow": 1.0}
 
