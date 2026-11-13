@@ -24,8 +24,16 @@ func _ready() -> void:
 	v.custom_minimum_size = Vector2(340, 0)
 	p.add_child(v)
 	var w = get_tree().current_scene
-	var colony_mode: bool = w != null and w.has_method("save_colony")
-	if mode == "pause" and colony_mode:
+	var colony_mode: bool = w != null and w.has_method("save_colony") and w.get("role") == "solo"
+	if mode == "pause" and w != null and w.get("role") == "client":
+		# Defesa da Cidade em grupo: não há save; as recompensas já foram para o personagem
+		v.add_child(_title("Cidade em grupo", UITheme.GOLD))
+		v.add_child(UITheme.button("Continuar", _close))
+		v.add_child(UITheme.button("Voltar ao salão (sair da partida)", func() -> void: Lobby.go_lobby()))
+		v.add_child(UITheme.button("Opções", _options))
+		v.add_child(UITheme.button("Menu principal", func() -> void: Game.go_to_menu()))
+		v.add_child(UITheme.button("Sair do jogo", _quit))
+	elif mode == "pause" and colony_mode:
 		v.add_child(_title("Pausado", UITheme.GOLD))
 		v.add_child(UITheme.button("Continuar", _close))
 		v.add_child(UITheme.button("Salvar cidade", func() -> void:
@@ -45,9 +53,14 @@ func _ready() -> void:
 			v.add_child(UITheme.button("Abandonar desafio", _abandon))
 		else:
 			v.add_child(UITheme.button("Salvar jogo", _save))
-		var lb := UITheme.button("Carregar jogo", func() -> void: Game.load_game())
-		lb.disabled = not Game.has_save() or Network.is_online()
-		v.add_child(lb)
+		if Network.is_online():
+			var back := UITheme.button("Voltar ao salão", func() -> void: Lobby.go_lobby())
+			back.disabled = Game.run_mods.active   # no Desafio da Horda, abandone primeiro
+			v.add_child(back)
+		else:
+			var lb := UITheme.button("Carregar jogo", func() -> void: Game.load_game())
+			lb.disabled = not Game.has_save()
+			v.add_child(lb)
 		v.add_child(UITheme.button("Opções", _options))
 		v.add_child(UITheme.button("Menu principal", func() -> void: Game.go_to_menu()))
 		v.add_child(UITheme.button("Sair do jogo", _quit))

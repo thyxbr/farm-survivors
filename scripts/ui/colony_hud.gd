@@ -16,6 +16,8 @@ var reason_label: Label
 var _style_on: StyleBoxFlat
 var _style_off: StyleBoxFlat
 var _last_status := ""
+var _reward_label: Label
+var _reward_t := 0.0
 
 
 func _ready() -> void:
@@ -104,6 +106,30 @@ func _ready() -> void:
 	v.add_child(keys)
 	build_panel.visible = false
 
+	# --- aviso de recompensa (cidade em grupo)
+	_reward_label = _outlined("", 24, UITheme.GOLD)
+	_reward_label.anchor_left = 0.5
+	_reward_label.anchor_right = 0.5
+	_reward_label.anchor_top = 0.3
+	_reward_label.offset_left = -420
+	_reward_label.offset_right = 420
+	_reward_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_reward_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_reward_label.visible = false
+	root.add_child(_reward_label)
+
+
+## Cidade em grupo: recompensa da noite vencida no centro da tela por alguns segundos.
+func show_reward(n: int, gold: int, xp: int, items: Array) -> void:
+	var t := "Noite %d vencida!\n+%d ouro  ·  +%d XP" % [n, gold, xp]
+	for id in items:
+		if ItemDB.ITEMS.has(str(id)) and str(id) != "health_potion":
+			t += "\nBaú: %s" % ItemDB.ITEMS[str(id)].name
+	_reward_label.text = t
+	_reward_label.visible = true
+	_reward_label.modulate.a = 1.0
+	_reward_t = 5.0
+
 
 func _outlined(t: String, size: int, c: Color) -> Label:
 	var l := UITheme.label(t, size, c)
@@ -136,6 +162,10 @@ func _card(parent: Control, kind: String, key: String) -> Dictionary:
 
 
 func _process(_delta: float) -> void:
+	if _reward_t > 0.0:
+		_reward_t -= _delta
+		_reward_label.modulate.a = clampf(_reward_t, 0.0, 1.0)
+		_reward_label.visible = _reward_t > 0.0
 	if colony == null:
 		return
 	_update_status()
@@ -146,13 +176,28 @@ func _process(_delta: float) -> void:
 func _update_status() -> void:
 	var f := colony.forecast()
 	var lines: Array[String] = []
-	lines.append("[b][color=#dcae52]Cidade — dia %d[/color][/b]" % colony.day)
-	lines.append("Ouro  [b]%d[/b]   [color=%s](%+d/dia)[/color]" % [Game.gold, _col(f.gold_net), f.gold_net])
+	if colony.is_coop():
+		lines.append("[b][color=#dcae52]Cidade em grupo — dia %d[/color][/b]  ·  %d jogador(es)" % [colony.day, colony.team_size])
+		lines.append("Cofre  [b]%d[/b]   [color=%s](%+d/dia)[/color]" % [colony.get_gold(), _col(f.gold_net), f.gold_net])
+	else:
+		lines.append("[b][color=#dcae52]Cidade — dia %d[/color][/b]" % colony.day)
+		lines.append("Ouro  [b]%d[/b]   [color=%s](%+d/dia)[/color]" % [Game.gold, _col(f.gold_net), f.gold_net])
 	lines.append("Comida  [b]%d[/b]   [color=%s](%+d/dia)[/color]" % [colony.food, _col(f.food_net), f.food_net])
 	lines.append("Moradores  [b]%d[/b] / %d   (%d trabalhando)" % [colony.citizens, colony.pop_cap(), f.employed])
 	lines.append("Exército  [b]%d[/b] / %d   salários %d/dia" % [colony.soldier_count(), colony.army_cap(), f.salaries])
 	lines.append("Imposto: %s   ·   [color=#9fc4ff]%s[/color] [G]" % [ColonyData.TAX_NAMES[colony.tax_level],
-		"seguindo você" if colony.army_mode == "follow" else "defendendo"])
+		("seguindo" if colony.is_coop() else "seguindo você") if colony.army_mode == "follow" else "defendendo"])
+	if colony.is_coop():
+		if f.upkeep > 0:
+			lines.append("Manutenção  %d/dia" % f.upkeep)
+		var mod := colony.next_mod if colony.phase == "day" else colony.night_mod
+		if mod != "":
+			var m: Dictionary = ColonyData.NIGHT_MODS[mod]
+			lines.append("[color=#%s]%s %s[/color]: %s" % [m.color.to_html(false), "Esta noite:" if colony.phase == "night" else "Próxima noite:", m.name, m.desc])
+		if colony.phase == "day" or colony.phase == "night":
+			var rw := ColonyData.night_reward(colony.day)
+			var chest := "  + baú" if colony.day % ColonyData.BOSS_EVERY == 0 else ""
+			lines.append("[color=#a39d8c]Vencer a noite %d: +%d ouro, +%d XP%s[/color]" % [colony.day, rw.gold, rw.xp, chest])
 	var s := "\n".join(lines)
 	if s != _last_status:
 		_last_status = s
@@ -174,6 +219,8 @@ func _update_phase() -> void:
 			phase_label.text = "Dia %d  ·  %d:%02d" % [colony.day, t / 60, t % 60]
 			phase_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4) if t > 25 else Color(1.0, 0.55, 0.35))
 			phase_sub.text = "Construa, recrute e saia para caçar — a noite traz monstros" if t > 25 else "A noite se aproxima! Prepare as defesas"
+			if colony.is_coop() and colony.night_votes() > 0:
+				phase_sub.text += "  ·  noite pedida %d/%d [N]" % [colony.night_votes(), colony.votes_needed()]
 		"night":
 			phase_label.text = "Noite %d  ·  %d monstros" % [colony.day, colony.wave_left()]
 			phase_label.add_theme_color_override("font_color", Color(0.65, 0.7, 1.0))
@@ -201,7 +248,11 @@ func _update_build() -> void:
 		c.panel.visible = no_hall if kind == "town_hall" else not no_hall
 		var sel: bool = build.selected == kind
 		c.panel.add_theme_stylebox_override("panel", _style_on if sel else _style_off)
-		var afford: bool = Game.gold >= int(c.price)
+		var price := colony.cost_of(kind) if kind != "demolish" else 0
+		var afford: bool = colony.get_gold() >= price
+		if kind != "demolish" and kind != "town_hall" and int(c.price) != price:
+			c.price = price
+			c.cost.text = "%d ouro" % price
 		c.cost.add_theme_color_override("font_color", UITheme.GOLD if afford else UITheme.BAD)
 		c.name.add_theme_color_override("font_color", UITheme.TEXT if afford or sel else UITheme.DIM)
 	var sz := build_panel.get_combined_minimum_size()

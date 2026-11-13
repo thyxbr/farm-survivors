@@ -6,6 +6,8 @@ extends Node
 ## --probe: só entra, confere versão e snapshots e sai (usado pelo CI contra o servidor público).
 ## --horde=lead|join: testa o Desafio da Horda em grupo (lead abre o portal, join aceita o convite).
 ##   Use com o servidor em --horde-round=8 --horde-pick=5 para as rodadas e escolhas não demorarem.
+## --city=lead|join: testa a Defesa da Cidade em grupo pelo salão (lead cria a sala e começa, join entra).
+##   Use com o servidor em --city-day=12 para o dia não demorar.
 
 var fails := 0
 var address := "127.0.0.1"
@@ -13,6 +15,7 @@ var peers := 1
 var my_name := "Teste"
 var probe := false
 var horde_role := ""
+var city_role := ""
 var chat_got: Array = []   # [nome, texto]
 
 
@@ -39,6 +42,8 @@ func _ready() -> void:
 			probe = true
 		elif a.begins_with("--horde="):
 			horde_role = a.substr(8)
+		elif a.begins_with("--city="):
+			city_role = a.substr(7)
 	Network.chat_received.connect(func(from: String, text: String) -> void: chat_got.append([from, text]))
 	Game.save_path = "user://nettest_%s.json" % my_name
 	Game.new_game()
@@ -46,11 +51,27 @@ func _ready() -> void:
 	Network.join_failed.connect(func(r: String) -> void: failed[0] = r)
 	Network.join(address, my_name)
 
+	# todo mundo chega pelo salão
 	var t := 0.0
-	while Network.world == null and failed[0] == "" and t < 15.0:
+	while not _in_lobby() and failed[0] == "" and t < 15.0:
 		await wait(0.2)
 		t += 0.2
 	check(failed[0] == "", "conectou sem erro %s" % failed[0])
+	check(_in_lobby(), "chegou ao salão (lobby)")
+	if not _in_lobby():
+		_finish()
+		return
+	check(await _wait_until(func() -> bool: return Network.zone_of(multiplayer.get_unique_id()) == "lobby", 5.0),
+		"servidor vê o jogador no salão")
+	if city_role != "":
+		await _test_city()
+		_finish()
+		return
+	Lobby.go_world()
+	t = 0.0
+	while Network.world == null and t < 15.0:
+		await wait(0.2)
+		t += 0.2
 	check(Network.world != null and Network.world.player != null, "entrou no mundo com personagem local")
 	if Network.world == null:
 		_finish()
@@ -284,6 +305,117 @@ func _test_horde(w: Node) -> void:
 		w.modal._finish()
 	await wait(0.3)
 	check(w.survival == null and p.global_position.distance_to(w.VILLAGE_SPAWN) < 3.0, "voltou para a vila")
+
+
+# ---------------------------------------------------------------- salão e Defesa da Cidade em grupo
+func _in_lobby() -> bool:
+	var s := get_tree().current_scene
+	return s != null and s.get("is_lobby") == true
+
+
+func _city_colony() -> Colony:
+	return Lobby.city.colony if Lobby.city != null and is_instance_valid(Lobby.city) else null
+
+
+func _test_city() -> void:
+	# --- sala no salão
+	if city_role == "lead":
+		Lobby.room_send("create")
+		check(await _wait_until(func() -> bool: return Lobby.in_room() and Lobby.is_leader(), 5.0), "criou a sala da cidade (líder)")
+		check(await _wait_until(func() -> bool:
+			return Lobby.room.get("members", []).size() == peers and Lobby.room.get("ready", []).size() >= peers - 1, 30.0),
+			"todos entraram na sala e ficaram prontos (%d)" % Lobby.room.get("members", []).size())
+		Lobby.room_send("start")
+	else:
+		check(await _wait_until(func() -> bool: return not Lobby.room.is_empty(), 30.0), "vê a sala aberta no salão")
+		Lobby.room_send("join")
+		check(await _wait_until(func() -> bool: return Lobby.in_room(), 5.0), "entrou na sala")
+		Lobby.room_send("ready")
+		check(await _wait_until(func() -> bool: return Lobby.is_ready(), 5.0), "ficou pronto")
+
+	# --- a cidade
+	check(await _wait_until(func() -> bool: return _city_colony() != null, 20.0), "carregou a cidade em grupo")
+	var c := _city_colony()
+	if c == null:
+		return
+	var w: Node = Lobby.city
+	check(c.role == "client" and w.role == "client", "cidade como réplica do servidor")
+	var start_gold := ColonyData.COOP_START_GOLD + ColonyData.COOP_GOLD_PER_PLAYER * (peers - 1)
+	check(await _wait_until(func() -> bool: return c.gold > 0, 5.0) and c.gold == start_gold, "cofre inicial do grupo %d (%d)" % [start_gold, c.gold])
+	check(await _wait_until(func() -> bool: return Network.zone_of(multiplayer.get_unique_id()) == "city", 5.0), "servidor vê o jogador na cidade")
+	if peers > 1:
+		check(await _wait_until(func() -> bool: return Network.remote_players.size() == peers - 1, 10.0),
+			"vê os outros jogadores na cidade (%d)" % Network.remote_players.size())
+
+	if city_role == "lead":
+		w.player.global_position = Vector3(0, 0.5, 14)
+		c.place("town_hall", Vector3(0, 0, -6), 0.0)
+	check(await _wait_until(func() -> bool: return c.hall != null and c.phase == "day", 10.0), "prefeitura fundada chega a todos")
+	check(await _wait_until(func() -> bool: return c.amap.size() > 0, 5.0), "animais de caça replicados (%d)" % c.amap.size())
+	if city_role == "lead":
+		var g0 := c.gold
+		c.place("house", Vector3(-12, 0, -6), PI / 2)
+		check(await _wait_until(func() -> bool: return c.count_of("house") == 1, 5.0), "casa construída pelo servidor")
+		check(await _wait_until(func() -> bool: return c.gold == g0 - 60, 3.0), "casa cobra 60 do cofre (%d → %d)" % [g0, c.gold])
+	else:
+		check(await _wait_until(func() -> bool: return c.count_of("house") == 1, 10.0), "vê a casa do colega")
+		await wait(2.0)   # o líder confere o cofre antes deste gasto
+		c.place("barracks", Vector3(12, 0, -6), -PI / 2)
+		check(await _wait_until(func() -> bool: return c.count_of("barracks") == 1, 5.0), "quartel construído pelo servidor")
+		check(c.recruit("soldier") == "", "pede um soldado")
+	if peers == 1:
+		c.place("barracks", Vector3(12, 0, -6), -PI / 2)
+		await _wait_until(func() -> bool: return c.count_of("barracks") == 1, 5.0)
+		c.recruit("soldier")
+	check(await _wait_until(func() -> bool: return c.soldier_count() == 1 and c.count_of("barracks") == 1, 10.0), "soldado replicado para todos")
+	check(c.cost_of("house") == ColonyData.coop_cost("house", 1), "segunda casa custa mais (%d)" % c.cost_of("house"))
+	check(c.upkeep() == int(ColonyData.UPKEEP.barracks), "quartel tem manutenção (%d)" % c.upkeep())
+	await wait(1.0)
+
+	# --- a noite: votação, monstros replicados, abates pagam o cofre
+	var rgold := Game.gold
+	var rxp := Game.xp + Game.level * 100000
+	if city_role == "lead":
+		c.start_night()
+	check(await _wait_until(func() -> bool: return c.phase == "night", 25.0), "a noite começa (votada ou pelo relógio)")
+	check(await _wait_until(func() -> bool: return not c.live_enemies().is_empty(), 10.0), "monstros da noite replicados (%d)" % c.live_enemies().size())
+	var e0: Enemy = null
+	for e in c.live_enemies():
+		e0 = e
+		break
+	check(e0 != null and e0.puppet, "monstros no cliente são réplicas")
+	var n0 := Network.snapshots_received
+	await wait(1.0)
+	check(Network.snapshots_received - n0 >= int(Network.SEND_RATE * 0.5), "snapshots dos monstros da cidade (%d/s)" % (Network.snapshots_received - n0))
+	var killed := 0
+	var tt := 0.0
+	while c.phase == "night" and tt < 60.0:
+		for e in c.live_enemies():
+			w.player.global_position = e.global_position + Vector3(0, 0.5, 2.5)
+			e.take_damage(99999.0, w.player.global_position, false)
+			killed += 1
+		await wait(0.4)
+		tt += 0.4
+	check(c.phase == "day" and c.day == 2, "amanheceu: dia %d" % c.day)
+	check(killed > 0 and c.total_kills > 0, "abates contados pelo servidor (%d)" % c.total_kills)
+	var rw := ColonyData.night_reward(1)
+	check(await _wait_until(func() -> bool: return Game.gold >= rgold + int(rw.gold), 5.0),
+		"recompensa da noite no personagem (+%d ouro: %d → %d)" % [rw.gold, rgold, Game.gold])
+	check(Game.xp + Game.level * 100000 > rxp, "recompensa de XP no personagem")
+	check(int(Game.flags.get("city_best", 0)) >= 1, "melhor noite salva no personagem")
+
+	# --- volta ao salão: o join sai primeiro, o líder em seguida (a partida acaba quando todos saem)
+	await wait(0.5 if city_role == "join" else 2.5)
+	Lobby.go_lobby()
+	check(await _wait_until(func() -> bool: return _in_lobby(), 10.0), "voltou ao salão")
+	check(await _wait_until(func() -> bool: return Network.zone_of(multiplayer.get_unique_id()) == "lobby", 5.0), "servidor vê o jogador de volta no salão")
+	if city_role == "lead":
+		check(await _wait_until(func() -> bool: return Lobby.room.is_empty(), 8.0), "partida encerrada quando todos saíram")
+		check(int(Lobby.record.get("day", 0)) >= 1, "recorde do servidor registrado (%d)" % int(Lobby.record.get("day", 0)))
+	# o personagem continua o mesmo em Valdoria
+	Lobby.go_world()
+	check(await _wait_until(func() -> bool: return Network.world != null and Network.world.get("player") != null, 15.0), "entrou em Valdoria depois da cidade")
+	await wait(1.0)
 
 
 ## Nível do grupo: o XP de um sobe o nível de todos; a horda congela até todos escolherem.

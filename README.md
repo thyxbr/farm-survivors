@@ -106,7 +106,7 @@ atacam a cidade, cada noite mais fortes (a cada 5 noites vem o Rei Goblin). Se a
   Novo: **Goblin Bruto** (dano triplo em construções). O HUD mostra de que direção vem a onda.
 - Se você cair, renasce na Prefeitura em 6 s (as torres continuam lutando). Salva automaticamente a cada amanhecer
   (F5 também salva, só de dia); o personagem deste modo tem save próprio, separado do RPG.
-- Só para um jogador.
+- Pelo menu principal é só para um jogador; em grupo, entre pelo **salão do multiplayer** (abaixo).
 
 ## Multiplayer (servidor dedicado)
 O servidor roda o Godot sem tela e é dono dos inimigos (IA, vida, morte). Cada jogador é dono
@@ -127,7 +127,7 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
   Para destravar na VPS: `docker service scale <serviço>=0` e depois `=1`.
 - **Firewall da VPS (Hostinger):** o firewall do painel recusa tudo por padrão; adicione *Aceitar · UDP · 7777*
   (e TCP 22/80/443/3000 para SSH e o painel) antes do *Drop*.
-- **Jogadores:** menu principal → *Multiplayer* → nome + endereço (`ip` ou `ip:porta`) → *Entrar*.
+- **Jogadores:** menu principal → *Multiplayer* → nome + endereço (`ip` ou `ip:porta`) → *Entrar* → **Salão de Valdoria**.
   Antes de exportar, coloque o IP/domínio do servidor em `DEFAULT_ADDRESS` (`scripts/autoload/network.gd`).
 - **Versão:** o servidor recusa clientes com `application/config/version` diferente (*Projeto → Configurações → Application → Config*).
   Para lançar uma versão nova basta aumentar a versão e dar push no `main`: o CI publica o cliente e atualiza o servidor.
@@ -147,6 +147,49 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
   Se a pasta do jogo não aceitar gravação (ex.: *Arquivos de Programas*), oferece abrir a página de download.
   Para testar com outro manifesto: `EcosDeValdoria.exe -- --update-manifest=http://127.0.0.1:8765/latest.json --update-now`.
 - Ainda só para um jogador: o "carregar save" durante a partida. No multiplayer os menus não pausam o mundo.
+
+### Salão de Valdoria (lobby central)
+- Todo jogador chega ao servidor pelo **salão**: uma fogueira com o cavaleiro de cada um que está ali, a lista de quem
+  está online e **onde** (no salão, em Valdoria ou na Defesa da Cidade) e os dois modos:
+  **Explorar Valdoria** (o mundo do RPG, missões, horta e o Desafio da Horda) e a **Defesa da Cidade em grupo**.
+- O personagem é o mesmo em tudo (o save do PC de cada jogador). Esc → *Voltar ao salão* sai de Valdoria
+  (no Desafio da Horda, abandone primeiro) e da cidade; ao voltar para Valdoria você reaparece onde estava.
+- O chat (**Enter**) é do servidor inteiro: funciona no salão, em Valdoria e na cidade em grupo.
+- O servidor guarda a zona de cada jogador (`players[id].zone`): inimigos, posições e efeitos só vão para quem está
+  na mesma zona.
+
+### Defesa da Cidade em grupo
+- No salão: **Criar sala** → os outros clicam *Entrar na sala* e *Estou pronto* → o líder clica **Começar**
+  (até 6 jogadores). Com a partida rolando, quem estiver no salão pode **Entrar na partida** no meio.
+- Uma cidade por vez no servidor. Ela roda no servidor num `SubViewport` com mundo 3D próprio (física separada de
+  Valdoria, que continua rodando); o servidor simula economia, ondas, torres, soldados e animais, e cada cliente vê
+  réplicas. Construir, melhorar, reparar, demolir, recrutar, impostos e ponto de reunião viram pedidos que o servidor
+  valida (`Colony.net_request`). O **cofre é compartilhado**; **N** é um voto para chamar a noite (basta metade do grupo);
+  **G** faz o exército seguir quem apertou.
+- **Recompensas** (no personagem do RPG de cada um, ao amanhecer, para quem estava na cidade durante a noite):
+  `15 + 6n` ouro e `30 + 12n + n²` XP pela noite *n*; nas noites de chefe (a cada 5) um **baú** com um equipamento:
+  noite 5 incomum, 10 raro (60%), 15 épico (35%), 20 lendário (15%), 25 lendário (50%), 30+ lendário. Abates dão XP
+  a quem acertou e ouro ao cofre (elites valem o dobro). O recorde do servidor aparece no salão.
+- **Curva de dificuldade** (tabelas em `colony_data.gd`, bloco *cooperativo*):
+  - *Começo fácil:* cofre de 450 (+150 por jogador extra), 40 de comida, 6 moradores, primeiro dia de 4 min, as três
+    primeiras noites pequenas e de uma direção só.
+  - *Recursos sobem aos poucos:* a economia é a mesma do solo, mas **cada cópia** de uma construção custa mais
+    (casa +10% por casa existente, torres +14–18%, mercado +30%, muro +1,5%); mercados além do 2º rendem 20% a menos
+    cada (mínimo 40%); torres e quartéis cobram **manutenção** por nível ao amanhecer (sem ouro, elas se desgastam).
+    Cada jogador extra rende +15/dia na prefeitura.
+  - *Fim de jogo duro:* a vida dos monstros sobe 12% por noite e, depois da noite 10, mais 6% compostos por noite;
+    da noite 6 surgem **elites** (até 45% da onda): *Blindado* (resiste a flechas e soldados), *Arcano* (resiste à Torre
+    Arcana e não fica lento), *Ágil* (rápido, resiste a explosões) e, da noite 12, *Colosso* (vida ×2,2, derruba muros) —
+    é preciso misturar torres. A partir da noite 7, **noites especiais** são avisadas um amanhecer antes: Lua de Sangue,
+    Névoa Densa (torres −30% de alcance), Enxame e Cerco Pesado. Da noite 12 os ataques vêm de 4 direções; a noite 15
+    traz 2 Reis Goblin e a 25, 3. Acima de um teto o orçamento da onda vira vida extra (menos monstros, mais duros).
+  - *Grupo:* cada jogador extra dá +45% de monstros e +10% de vida.
+  - *Para não ficar impossível:* a prefeitura recupera 25% da vida a cada amanhecer; a partir do dia 3, se o cofre está
+    vazio ou a prefeitura muito ferida, chega a **ajuda do reino** (no máximo a cada 4 dias); 25% das manhãs trazem um
+    evento bom (caravana, refugiados, colheita farta); quem cai renasce em 6 s.
+- A partida acaba quando a prefeitura cai (tela de resultado com as recompensas) ou quando todos voltam ao salão.
+  Não há save da cidade em grupo: o que fica é o que foi para o personagem.
+- Para testes, o servidor aceita `--city-day=SEG` (duração do dia na cidade).
 
 ### Desafio da Horda em grupo
 - Quem entra no **Portal do Desafio** abre uma fila de 15 s e **todos os jogadores online recebem o convite**
@@ -193,7 +236,8 @@ assets/models/        GLBs low-poly gerados pelo Blender
 tools/blender/        build_assets.py (cenário + chama characters.py), characters.py (personagens detalhados),
                       preview_assets.py / preview_characters.py / preview_closeup.py (renders de conferência)
 scripts/autoload/     game.gd (estado, save/load), item_db.gd (itens/magias/missões), sfx.gd (sons sintetizados),
-                      network.gd (multiplayer: servidor dedicado, réplicas, RPCs), updater.gd (auto update)
+                      network.gd (multiplayer: servidor dedicado, zonas, réplicas, RPCs), updater.gd (auto update),
+                      lobby.gd (salão central, sala e replicação da Defesa da Cidade em grupo)
 scripts/player/       player.gd (controle, combate, magias), fireball.gd, cape_rig.gd (física da capa)
 scripts/enemies/      enemy.gd (slimes, goblins, rei goblin e os monstros da horda — IA e animação procedural), enemy_arrow.gd
 scripts/world/        world.gd (monta o mapa e gerencia UI modal), npc.gd, pickup.gd, challenge_portal.gd
@@ -203,10 +247,10 @@ scripts/survival/     survival_mode.gd (rodadas, spawn, XP, nível do grupo), ho
 scripts/colony/       Defesa da Cidade: colony_world.gd (cena, luz dia/noite, entrada, save), colony.gd (economia,
                       ciclo, ondas, regras de construção), colony_data.gd (tabelas de balanceamento), building.gd,
                       building_visuals.gd, tower_shot.gd, soldier.gd, animal.gd, build_mode.gd
-scripts/ui/           chat_ui.gd (chat), survival_hud.gd / skill_icon.gd (HUD da horda), horde_invite_ui.gd (convite/fila da horda em grupo), plant_ui.gd (plantio), cooking_ui.gd (receitas), hud, diálogo, inventário/personagem/missões, loja, pausa/morte, opções, menu principal
+scripts/ui/           lobby_ui.gd (salão do multiplayer), chat_ui.gd (chat), survival_hud.gd / skill_icon.gd (HUD da horda), horde_invite_ui.gd (convite/fila da horda em grupo), plant_ui.gd (plantio), cooking_ui.gd (receitas), hud, diálogo, inventário/personagem/missões, loja, pausa/morte, opções, menu principal
 tests/smoke_test.gd   teste automatizado do gameplay
 tests/colony_test.gd  teste automatizado da Defesa da Cidade
-tests/net_test.gd     teste do multiplayer (cliente headless contra um servidor)
+tests/net_test.gd     teste do multiplayer (cliente headless contra um servidor; --city=lead|join testa a cidade em grupo)
 Dockerfile            imagem do servidor dedicado
 ```
 O mapa, a UI e as animações são montados por código; para mudar dados de itens, missões e

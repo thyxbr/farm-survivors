@@ -159,7 +159,7 @@ func try_place() -> void:
 		return
 	var kind := selected
 	colony.place(kind, place_pos, rot)
-	if kind == "town_hall":
+	if kind == "town_hall" and colony.role != "client":   # em grupo a prefeitura chega do servidor
 		select("house")
 
 

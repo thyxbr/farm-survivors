@@ -108,6 +108,16 @@ func _ready() -> void:
 	if is_instance_valid(brute):
 		brute.take_damage(999999, brute.global_position, false)
 
+	# --- regras do modo em grupo (tabelas): elites resistem, cópias custam mais
+	var elite := colony.spawn_enemy("goblin", Vector3(30, 0, 40), -1.0, "blindado")
+	check(elite.affix == "blindado" and is_equal_approx(elite.resist_mult("arrow"), 0.5) and elite.resist_mult("ball") == 1.0,
+		"elite Blindado resiste a flechas e não a canhão")
+	check(elite.max_hp > 80.0 * (1.0 + 0.12 * (colony.day - 1)) * 1.2, "elite tem mais vida (%d)" % elite.max_hp)
+	elite.take_damage(999999, elite.global_position, false)
+	check(ColonyData.coop_cost("house", 0) == 60 and ColonyData.coop_cost("house", 5) == 90, "em grupo a 6ª casa custa 90")
+	check(ColonyData.coop_hp_mult(20) > ColonyData.coop_hp_mult(10) * 2.0, "vida dos monstros acelera no fim de jogo")
+	check(ColonyData.chest_rarities(20)[0][0] == "legendary", "baú da noite 20 pode ser lendário")
+
 	# --- reparo e demolição
 	if is_instance_valid(wall) and not wall.dead:
 		var rc := colony.repair_cost(wall)
