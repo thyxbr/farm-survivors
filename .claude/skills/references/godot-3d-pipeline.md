@@ -7,7 +7,9 @@ Quando algo aqui contradiz uma skill genérica, **este arquivo vence**.
 
 - "Ecos de Valdoria": RPG de fantasia low-poly estilizado (Godot 4.7, Forward+), multiplayer.
 - Visual: cores chapadas por material (Principled BSDF com Base Color/Roughness/Metallic/Emission),
-  **sem texturas e sem UV** hoje. Leitura de silhueta e paleta valem mais que detalhe.
+  **sem texturas e sem UV** nos personagens e props. Leitura de silhueta e paleta valem mais que detalhe.
+  Exceção: as armas (`w_<id>.glb`) seguem a folha de conceito e levam a pintura dela como textura
+  projetada de frente (ou cor por vértice), com um material só (ver "Armas" abaixo).
 - Personagens **sem armature**: o jogo anima rotacionando nós (empties) por código.
 
 ## Como os modelos são feitos (código, não clique)
@@ -21,8 +23,15 @@ Quando algo aqui contradiz uma skill genérica, **este arquivo vence**.
 | `tools/blender/preview_assets.py` | todos os GLBs lado a lado |
 | `tools/blender/preview_closeup.py`, `preview_face.py` | close-ups de busto/rosto |
 | `assets/models/*.glb` | saída (nome minúsculo, ex.: `knight.glb`) |
+| `tools/blender/weapons.py` | armas `w_<id>` (registro `WEAPONS`, carregado por `build_assets.py`; `ASSETS=weapons` gera todas): `build_traced` (do traçado), `slab` (placa inflada de um contorno), `lathe` (revolução), `tex_mat`/`project_uv` (textura projetada de frente), `vc_mat`/`paint` (cor por vértice, Chama Rosada), `finish` (junta e põe o empty `Tip`) |
+| `tools/blender/trace_swords.py` | traça a folha `refs/espadas.webp`: config `SWORDS` (caixa, cabo e cortes `slab`/`lathe` em pixels da folha); sem argumento grava `traced/`; `comps` lista as manchas da folha; `grid <id> <png>` recorta a arma 3× com grade de 10 px para decidir os cortes |
+| `tools/blender/traced/` | **versionado**: `espadas_trace.json` (contornos e perfis) e `tex/<id>.png` (recorte com o fundo preenchido). O build só lê daqui; `refs/` é local (`.gitignore`) |
+| `tools/blender/preview_weapon_eevee.py` | uma arma em Eevee, de frente ou `3q`; imprime `TRIS <id> <tris> <materiais>` |
+| `tools/weapon_shot.gd` | foto de uma arma no Godot com a luz do jogo; precisa de `--import` antes e de janela (sem `--headless`) |
+| `scripts/player/weapon_model.gd` | `WeaponModel.use_vertex_color()`: liga a cor por vértice como albedo ao instanciar um GLB de arma |
 
-Alvo visual dos personagens: `tools/blender/STYLE.md`. Workflow completo de ponta a ponta: comando `/modelar`.
+Alvo visual dos personagens: `tools/blender/STYLE.md`; das armas, a folha de conceito. Workflow completo de
+ponta a ponta: comando `/modelar` (armas: `/modelar w_<id> arma`).
 
 Novo asset = nova função `build_<nome>()` que usa os helpers e termina em `export("<nome>")`,
 registrada em `BUILDERS`. Não crie arquivos `.blend` para assets do jogo.
@@ -79,6 +88,28 @@ ou, preferível, os scripts `preview_*.py`; `get_scene_info` → `mcp__Blender__
   das skills genéricas **não** se aplicam aos assets existentes.
 - Materiais: nome curto com prefixo do asset (`k_steel`, `k_red`…); cor via `hexc("#RRGGBB")`.
 
+### Armas (`w_<id>.glb`)
+
+- Centro do cabo na origem, lâmina em +Z, largura em X, espessura em Y; empty `Tip` na ponta (rastro e
+  alcance). `knight_look.gd` instancia o GLB quando o item de `item_db.gd` tem `"model": "w_<id>"`.
+- Escala única por folha: 1,2 m por 426 px na `espadas.webp` (`TRACE_S`). Um material por arma.
+- Godot: o importador glTF não liga a cor por vértice como albedo; todo código que instancia uma arma
+  chama `WeaponModel.use_vertex_color()`, senão a arma pintada por vértice sai branca.
+- Especular baixo (`Specular IOR Level` ≈ 0.12 na textura, 0.2–0.25 por vértice), senão o gume fica cinza.
+- O fundo da textura é preenchido a partir do miolo com cor de verdade (`fill_bg`), senão o gume pega a
+  franja branca da folha.
+- Conferir no Godot com `weapon_shot.gd` (o Blender em Workbench engana na cor e no bisel). Fluxo completo:
+  `/modelar` → "Modo arma".
+
+```bash
+python tools/blender/trace_swords.py grid w_azure_edge <scratchpad>/grid.png   # decidir cortes
+python tools/blender/trace_swords.py > <scratchpad>/trace.log 2>&1             # regrava traced/
+G="C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe"
+"$G" --headless --path . --import > <scratchpad>/import.log 2>&1
+"$G" --path . --resolution 420x900 --script res://tools/weapon_shot.gd -- w_azure_edge <scratchpad>/shot.png [3q] > <scratchpad>/shot.log 2>&1
+"$B" -b --factory-startup --python tools/blender/preview_weapon_eevee.py -- w_azure_edge <scratchpad>/eevee.png 900 [3q] 2>&1 | grep -E "^TRIS|Error"
+```
+
 ## Orçamentos (calibrados nos modelos atuais, nov/2026)
 
 | Tipo | Atual | Alvo |
@@ -88,6 +119,7 @@ ou, preferível, os scripts `preview_*.py`; `get_scene_info` → `mcp__Blender__
 | Construção (casa) | 1.148 (1 objeto) | ≤ 1.200 |
 | Inimigo simples (slime) | 224 | ≤ 600 |
 | Personagem humanoide (knight, elder, merchant, goblin) | 2,4k–4,3k em 77–110 objetos | ≤ 5k tris, ≤ 20 materiais |
+| Arma (espada traçada da folha) | 1,8k–3,6k, 1 material | ≤ 4k tris, 1 material |
 
 Godot gera LODs no import (`meshes/generate_lods=true`), então não crie LODs manuais.
 Cada objeto vira um `MeshInstance3D`; ao criar personagens novos prefira juntar peças que nunca são

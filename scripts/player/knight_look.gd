@@ -136,6 +136,8 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 # ------------------------------------------------------------------ armas
 static func _build_sword(h: Node3D, tip: Node3D, id: String) -> void:
 	var it := ItemDB.get_item(id)
+	if it.has("model") and _build_model(h, tip, it.model):
+		return
 	var shape: String = it.get("shape", "")
 	var length := 0.86
 	var width := 0.052
@@ -183,6 +185,21 @@ static func _build_sword(h: Node3D, tip: Node3D, id: String) -> void:
 			h.add_child(_box(Vector3(0.018, width * 0.22, length * 0.8), _glow_mat(it.color.lightened(0.3), 0.6 + it.get("glow", 0.0)),
 				Vector3(0, y_off, z0 + length * 0.45)))
 		tip.position = Vector3(0, 0, z0 + length)
+
+
+## Arma modelada no Blender (assets/models/<model>.glb): cabo na origem, lâmina em +Y do GLB, largura em X.
+## O suporte usa +Z como direção da lâmina e Y como largura; o empty "Tip" do GLB vira a ponta.
+static func _build_model(h: Node3D, tip: Node3D, model: String) -> bool:
+	var path := "res://assets/models/%s.glb" % model
+	if not ResourceLoader.exists(path):
+		return false
+	var w := (load(path) as PackedScene).instantiate() as Node3D
+	WeaponModel.use_vertex_color(w)
+	w.transform = Transform3D(Basis(Vector3(0, 1, 0), Vector3(0, 0, 1), Vector3(1, 0, 0)), Vector3.ZERO)
+	h.add_child(w)
+	var t := w.find_child("Tip", true, false) as Node3D
+	tip.position = w.transform * t.position if t else Vector3(0, 0, 1.0)
+	return true
 
 
 static func _build_staff(h: Node3D, tip: Node3D, id: String) -> void:
