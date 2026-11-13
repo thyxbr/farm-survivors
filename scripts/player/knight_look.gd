@@ -35,6 +35,7 @@ const COUNTER := {"sword": 0.0, "staff": 0.75, "bow": 1.0}
 ## As armas ficam presas no antebraço (ElbowX) para acompanhar a mão quando o cotovelo dobra;
 ## "arm" e "elbow" são os pivôs que o suporte precisa desfazer (veja COUNTER).
 static func apply(model: Node3D, look: Dictionary) -> Dictionary:
+	WeaponModel.use_vertex_color(model)   # sombra assada (AO) das placas do knight.glb
 	for n in model.get_meta("look_nodes", []):
 		if is_instance_valid(n):
 			n.free()
@@ -163,7 +164,7 @@ static func gear_style(slot: String, id: String) -> String:
 
 ## Veste o GLB assets/models/gear/<style>.glb: ele tem os mesmos pivôs do knight.glb (LegL, KneeL, Body,
 ## Head, ArmL, ElbowL...), então cada malha passa para o pivô de mesmo nome do cavaleiro e anima junto.
-## Materiais t1_/t2_ recebem a cor do item ("color" e "color2") e tp_ a cor da calça.
+## A cor por vértice é a sombra assada (AO) no Blender. Materiais t1_/t2_ (t1d_/t2d_ escurecidos) recebem a cor do item ("color" e "color2") e tp_ a cor da calça.
 static func _attach_gear(model: Node3D, style: String, id: String, pants: Color, made: Array) -> void:
 	var path := "res://assets/models/gear/%s.glb" % style
 	if not ResourceLoader.exists(path):
@@ -174,11 +175,15 @@ static func _attach_gear(model: Node3D, style: String, id: String, pants: Color,
 	if it.has("color"):
 		var c: Color = it.color
 		tints["t1_"] = c
-		tints["t2_"] = it.get("color2", c.darkened(0.45))
+		var c2: Color = it.get("color2", c.darkened(0.45))
+		tints["t2_"] = c2
+		tints["t1d"] = c.darkened(0.42)      # tons escurecidos (linhas da malha, gibão sob o couro)
+		tints["t2d"] = c2.darkened(0.42)
 	if pants.a > 0.0:
 		tints["tp_"] = pants
 	var glow: float = it.get("glow", 0.0)
 	var g := (load(path) as PackedScene).instantiate() as Node3D
+	WeaponModel.use_vertex_color(g)    # sombra assada (AO) na cor por vértice multiplica o albedo
 	for mi: MeshInstance3D in g.find_children("*", "MeshInstance3D", true, false):
 		var pivot := mi.get_parent()
 		var target := model.find_child(pivot.name, true, false) as Node3D
@@ -376,6 +381,10 @@ static func _chain(n: Node3D, top: Node3D, rest := false) -> Transform3D:
 static func _item_mat(id: String) -> StandardMaterial3D:
 	var it := ItemDB.get_item(id)
 	var m := _mat(it.get("color", Color.GRAY), it.get("metal", false))
+	m.vertex_color_use_as_albedo = true      # peças de placas tingidas mantêm a sombra assada
+	if it.get("metal", false):               # metal fosco, como as peças modulares (não espelha o céu)
+		m.metallic = 0.6
+		m.roughness = 0.45
 	if it.get("glow", 0.0) > 0.0:
 		m.emission_enabled = true
 		m.emission = it.color

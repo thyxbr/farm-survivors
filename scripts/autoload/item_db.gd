@@ -112,13 +112,13 @@ const ITEMS := {
 
 	# ================================================================ ARMADURAS (peito)
 	"leather_armor": {"name": "Armadura de Couro", "type": "armor", "rarity": "common", "defense": 3, "price": 40,
-		"color": Color(0.45, 0.28, 0.13), "style": "a_leather", "pants": Color(0.3, 0.24, 0.18), "desc": "Couro curtido. Leve e flexível."},
+		"color": Color(0.45, 0.28, 0.13), "style": "a_leather", "color2": Color(0.2, 0.12, 0.06), "pants": Color(0.3, 0.24, 0.18), "desc": "Couro curtido. Leve e flexível."},
 	"chain_mail": {"name": "Cota de Malha", "type": "armor", "rarity": "uncommon", "defense": 7, "price": 120,
 		"color": Color(0.55, 0.58, 0.65), "metal": true, "stats": {"vit": 1}, "style": "a_mail", "pants": Color(0.26, 0.24, 0.23), "desc": "Anéis de aço entrelaçados."},
 	"mage_robe": {"name": "Manto Arcano", "type": "armor", "rarity": "rare", "defense": 3, "price": 200,
 		"color": Color(0.3, 0.25, 0.65), "stats": {"int": 4, "mp": 30}, "style": "a_robe", "color2": Color(0.17, 0.13, 0.38), "pants": Color(0.2, 0.18, 0.25), "desc": "Bordado com fios que brilham na escuridão."},
 	"ranger_vest": {"name": "Gibão do Patrulheiro", "type": "armor", "rarity": "rare", "defense": 6, "price": 200,
-		"color": Color(0.25, 0.4, 0.22), "stats": {"agi": 4, "crit": 0.03}, "style": "a_leather", "color2": Color(0.14, 0.22, 0.12), "pants": Color(0.3, 0.25, 0.17), "desc": "Couro reforçado em tons de floresta."},
+		"color": Color(0.25, 0.4, 0.22), "stats": {"agi": 4, "crit": 0.03}, "style": "a_leather", "color2": Color(0.24, 0.16, 0.08), "pants": Color(0.3, 0.25, 0.17), "desc": "Couro reforçado em tons de floresta."},
 	"royal_plate": {"name": "Placas Reais", "type": "armor", "rarity": "epic", "defense": 12, "price": 300,
 		"color": Color(0.85, 0.7, 0.35), "metal": true, "stats": {"vit": 3, "hp": 20}, "desc": "Armadura de placas digna de um herói."},
 	"traveler_tunic": {"name": "Túnica de Viajante", "type": "armor", "rarity": "common", "defense": 2, "price": 30,

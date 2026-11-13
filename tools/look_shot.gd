@@ -2,7 +2,7 @@ extends Node3D
 ## Foto de vários cavaleiros lado a lado, cada um vestido com um conjunto de equipamento (KnightLook),
 ## com a luz do jogo. Serve para conferir roupas e armaduras (assets/models/gear/*.glb) sem abrir o jogo.
 ## Precisa de janela (sem --headless) e do --import feito antes:
-##   godot --path . --resolution 1800x900 res://tools/look_shot.tscn -- <saida.png> [conjunto] [3q|back|close] [run]
+##   godot --path . --resolution 1800x900 res://tools/look_shot.tscn -- <saida.png> [conjunto] [3q|back|close|torso|legs|hands] [run]
 ## run = pose de corrida no meio da passada.
 ## conjunto: "leves", "pesados", "todos" (padrão) ou ids separados por vírgula num só personagem.
 
@@ -65,7 +65,16 @@ func _ready() -> void:
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
 	var vp := get_viewport().get_visible_rect().size
 	var w := looks.size() * 0.95 + 0.2
-	if "close" in args:
+	if "legs" in args:
+		cam.size = 0.85
+		cam.position = Vector3(0, 0.4, 4.0)
+	elif "hands" in args:
+		cam.size = 0.6
+		cam.position = Vector3(0, 0.98, 4.0)
+	elif "torso" in args:
+		cam.size = 1.25
+		cam.position = Vector3(0, 1.08, 4.0)
+	elif "close" in args:
 		cam.size = 0.75
 		cam.position = Vector3(0, 1.5, 4.0)
 	else:
