@@ -330,3 +330,89 @@ func test_loot_roll_deterministic() -> void:
 	T.ok(int(a.gold) >= 90 and int(a.gold) <= 130, "ouro na faixa")
 	T.eq(int(a.items.get("goblin_crown", 0)), 1, "chance 1.0 sempre cai")
 	T.eq(LootRules.roll(bt, "nao_existe", _rng(1)), {"gold": 0, "items": {}}, "tipo desconhecido")
+
+
+# ---------------------------------------------------------------- correções da revisão
+func test_counts_are_bounded() -> void:
+	var bt := _tables()
+	var s := _blank(1000)
+	s.inventory = [{"id": "wheat", "qty": 400}]
+	var before := s.to_dict()
+	for q in [0, -1, 100, 1 << 62, 2.0, "3"]:
+		T.eq(CharRules.buy(s, bt, "health_potion", q).err, "args", "buy qty %s" % var_to_str(q))
+		T.eq(CharRules.buy(s, bt, "iron_sword", q).err, "args", "buy não empilhável qty %s" % var_to_str(q))
+		T.eq(CharRules.cook(s, bt, "bread", q).err, "args", "cook times %s" % var_to_str(q))
+	T.eq(s.to_dict(), before, "estado igual")
+	T.ok(CharRules.buy(s, bt, "health_potion", 5).ok, "5 pode")
+	T.eq(CharRules.cook(s, bt, "bread", 99).n, 99, "99 pode")
+
+
+func test_from_dict_rejects_malicious() -> void:
+	var bt := _tables()
+	var d := {"level": 0, "xp": -10, "gold": -5, "stat_points": [], "kills": null,
+		"attributes": {"str": 5, "int": 0, "vit": "x", "hack": 99},
+		"inventory": [{"id": "nao_existe", "qty": 3}, {"id": "slime_gel", "qty": -2}, {"id": "slime_gel", "qty": 4},
+			{"id": "iron_sword", "qty": 50}, {"id": null, "qty": 1}, "lixo"],
+		"equipment": {"weapon": "health_potion", "head": "iron_helm", "ring": 7, "cauda": "x"},
+		"quests": {"slimes": {"state": "ready", "progress": 5}, "goblins": {"state": "hack"}, "falsa": {"state": "done"},
+			"goblin_king": "x"},
+		"flags": null, "farm": {"unlocked": 99, "plots": [{"crop": "trufa", "growth": 1.0}, null,
+			{"crop": "carrot", "growth": "x", "t": null, "watered": "sim"}]},
+		"hp": null, "mp": -3, "world_pos": [1, null, 2], "world_yaw": "x"}
+	var s := CharState.from_dict(d, bt)
+	T.eq(s.level, 1, "nível ≥ 1")
+	T.eq([s.xp, s.gold, s.stat_points, s.kills], [0, 0, 0, 0], "não negativos / tipo errado = 0")
+	T.eq(s.attributes, {"str": 5, "int": 1, "vit": 5, "agi": 5}, "só os 4 atributos, ≥ 1")
+	T.eq(s.inventory, [{"id": "slime_gel", "qty": 4}, {"id": "iron_sword", "qty": 1}], "ids e qty válidos")
+	T.eq(s.equipment.weapon, "", "poção não é arma")
+	T.eq(s.equipment.head, "iron_helm", "elmo na cabeça")
+	T.eq(s.equipment.ring, "", "anel de tipo errado")
+	T.ok(not s.equipment.has("cauda"), "espaço desconhecido some")
+	T.eq(s.quests, {"slimes": {"state": "ready", "progress": 5}}, "só missões e estados conhecidos")
+	T.eq(s.flags, {}, "flags padrão")
+	T.eq(s.farm.unlocked, 12, "abertos limitados")
+	T.eq(s.farm.plots.size(), 12, "12 canteiros")
+	T.eq(s.farm.plots[0].crop, "", "cultura desconhecida some")
+	T.eq(s.farm.plots[2].crop, "carrot", "cenoura fica")
+	T.eq(s.farm.plots[2].growth, 0.0, "crescimento de tipo errado")
+	T.eq(s.farm.plots[2].watered, false, "regado de tipo errado")
+	T.eq([s.hp, s.mp], [0.0, 0.0], "vida/mana padrão")
+	T.eq(s.world_pos, null, "posição inválida")
+	T.eq(s.world_yaw, 0.0, "yaw padrão")
+	T.eq(CharState.from_dict(null).level, 1, "nem é dicionário")
+	# sem bt: só tipos e faixas
+	var nb := CharState.from_dict(d)
+	T.eq(nb.gold, 0, "sem bt também limita")
+	T.eq(nb.inventory.size(), 3, "sem bt não confere ids")
+
+
+func test_settle_clock_backwards() -> void:
+	var bt := _tables()
+	var s := _blank()
+	s.inventory = [{"id": "seed_carrot", "qty": 1}]
+	var time := float(bt.get_table("crops")["carrot"]["time"])
+	CharRules.plant(s, bt, 0, "carrot", false, 1000.0)
+	T.ok(CharRules.water(s, bt, 0, 1000.0 - time / 4.0).ok, "rega com relógio atrasado")
+	T.ok(absf(CharRules.farm_growth(s.farm.plots[0], bt, 1000.0 + time / 4.0) - 0.5) < 0.001,
+		"não conta o mesmo intervalo duas vezes")
+
+
+func test_farm_fail_keeps_state() -> void:
+	var bt := _tables()
+	var s := _blank()
+	s.farm = {"unlocked": 2, "plots": [CharRules._empty_plot(), CharRules._empty_plot()]}
+	var before := s.to_dict()
+	T.eq(CharRules.water(s, bt, 0, 1000.0).err, "canteiro_vazio", "falha")
+	T.eq(s.to_dict(), before, "horta não foi normalizada na falha")
+	s.inventory = [{"id": "seed_carrot", "qty": 1}]
+	T.ok(CharRules.plant(s, bt, 0, "carrot", false, 1000.0).ok, "sucesso")
+	T.eq(s.farm.plots.size(), 12, "normalizada no sucesso")
+
+
+func test_kill_boss_sets_flag() -> void:
+	var bt := _tables()
+	var s := _blank()
+	CharRules.kill(s, bt, "goblin", 0)
+	T.ok(not s.flags.has("king_dead"), "goblin comum")
+	CharRules.kill(s, bt, "goblin_king", 0)
+	T.eq(s.flags.get("king_dead"), true, "rei morto")

@@ -52,59 +52,99 @@ func to_dict() -> Dictionary:
 
 
 ## Inverso de to_dict; aceita o que volta do JSON (todo número como float).
+## Valida valores, não só formatos: o dicionário pode vir de save adulterado ou da rede.
+## Campo de tipo errado volta ao padrão sem erro de execução; números fora da faixa são
+## limitados (nível ≥ 1, ouro/xp/pontos/abates ≥ 0, atributos só str/int/vit/agi e ≥ 1).
+## Com `bt`, também descarta ids desconhecidos (itens, equipamento no espaço errado, missões,
+## culturas) e normaliza a horta pelas regras; sem `bt` só tipos e faixas são conferidos.
 ## Canteiro sem "t" (save antigo) volta a crescer a partir de agora.
-static func from_dict(d: Dictionary) -> CharState:
+static func from_dict(d, bt: BalanceTables = null) -> CharState:
 	var s := CharState.new()
-	s.level = int(d.get("level", 1))
-	s.xp = int(d.get("xp", 0))
-	s.gold = int(d.get("gold", 0))
-	s.stat_points = int(d.get("stat_points", 0))
-	var attrs = d.get("attributes", {})
-	if attrs is Dictionary:
-		for k in attrs:
-			s.attributes[str(k)] = int(attrs[k])
-	var inv = d.get("inventory", [])
+	if not (d is Dictionary):
+		d = {}
+	var items: Dictionary = bt.get_table("items") if bt != null else {}
+	var quest_t: Dictionary = bt.get_table("quests") if bt != null else {}
+	s.level = maxi(1, _int(d.get("level"), 1))
+	s.xp = maxi(0, _int(d.get("xp"), 0))
+	s.gold = maxi(0, _int(d.get("gold"), 0))
+	s.stat_points = maxi(0, _int(d.get("stat_points"), 0))
+	s.kills = maxi(0, _int(d.get("kills"), 0))
+	var attrs = d.get("attributes")
+	for k in s.attributes:
+		if attrs is Dictionary:
+			s.attributes[k] = maxi(1, _int(attrs.get(k), 5))
+	var inv = d.get("inventory")
 	if inv is Array:
 		for slot in inv:
-			if slot is Dictionary and int(slot.get("qty", 0)) > 0:
-				s.inventory.append({"id": str(slot.get("id", "")), "qty": int(slot.qty)})
+			if not (slot is Dictionary) or not (slot.get("id") is String):
+				continue
+			var id: String = slot.id
+			var qty := _int(slot.get("qty"), 0)
+			if id == "" or qty < 1 or (bt != null and not items.has(id)):
+				continue
+			if bt != null and not items[id].get("stack", false):
+				qty = 1   # item não empilhável ocupa um espaço por unidade
+			s.inventory.append({"id": id, "qty": qty})
 	s.equipment = CharRules.empty_equipment()
-	var eq = d.get("equipment", {})
+	var eq = d.get("equipment")
 	if eq is Dictionary:
 		for k in s.equipment:
-			s.equipment[k] = str(eq.get(k, ""))
-	var qs = d.get("quests", {})
+			var v = eq.get(k)
+			if v is String and (bt == null or CharRules.slot_of(bt, v) == k):
+				s.equipment[k] = v
+	var qs = d.get("quests")
 	if qs is Dictionary:
 		for id in qs:
 			var q = qs[id]
-			if q is Dictionary:
-				s.quests[str(id)] = {"state": str(q.get("state", "active")), "progress": int(q.get("progress", 0))}
-	var fl = d.get("flags", {})
+			if not (id is String) or not (q is Dictionary) or (bt != null and not quest_t.has(id)):
+				continue
+			var st = q.get("state")
+			if not (st is String and st in ["active", "ready", "done"]):   # "none" = sem entrada
+				continue
+			s.quests[id] = {"state": st, "progress": maxi(0, _int(q.get("progress"), 0))}
+	var fl = d.get("flags")
 	s.flags = fl.duplicate(true) if fl is Dictionary else {}
-	s.farm = _parse_farm(d.get("farm", null))
-	s.hp = float(d.get("hp", 0.0))
-	s.mp = float(d.get("mp", 0.0))
-	var p = d.get("world_pos", null)
-	if p is Array and p.size() == 3:
+	s.farm = _parse_farm(d.get("farm"), bt)
+	s.hp = maxf(0.0, _float(d.get("hp"), 0.0))
+	s.mp = maxf(0.0, _float(d.get("mp"), 0.0))
+	var p = d.get("world_pos")
+	if p is Array and p.size() == 3 and _num(p[0]) and _num(p[1]) and _num(p[2]):
 		s.world_pos = Vector3(float(p[0]), float(p[1]), float(p[2]))
-	elif p is Vector3:
+	elif p is Vector3 and p.is_finite():
 		s.world_pos = p
-	s.world_yaw = float(d.get("world_yaw", 0.0))
-	s.kills = int(d.get("kills", 0))
+	s.world_yaw = _float(d.get("world_yaw"), 0.0)
 	return s
 
 
-static func _parse_farm(data) -> Dictionary:
+## Número finito (int ou float)?
+static func _num(v) -> bool:
+	return v is int or (v is float and is_finite(v))
+
+
+static func _int(v, def: int) -> int:
+	if v is int:
+		return v
+	if v is float and is_finite(v) and absf(v) < 9.0e18:
+		return int(v)
+	return def
+
+
+static func _float(v, def: float) -> float:
+	return float(v) if _num(v) else def
+
+
+static func _parse_farm(data, bt: BalanceTables) -> Dictionary:
 	var out := {"unlocked": 0, "plots": []}
-	if not (data is Dictionary):
-		return out
-	out.unlocked = int(data.get("unlocked", 0))
-	var now := Time.get_unix_time_from_system()
-	var plots = data.get("plots", [])
-	if plots is Array:
-		for p in plots:
-			if not (p is Dictionary):
-				p = {}
-			out.plots.append({"crop": str(p.get("crop", "")), "growth": clampf(float(p.get("growth", 0.0)), 0.0, 1.0),
-				"t": float(p.get("t", now)), "watered": bool(p.get("watered", false)), "fert": bool(p.get("fert", false))})
+	if data is Dictionary:
+		out.unlocked = maxi(0, _int(data.get("unlocked"), 0))
+		var plots = data.get("plots")
+		if plots is Array:
+			var now := Time.get_unix_time_from_system()
+			for p in plots:
+				out.plots.append(CharRules.sanitize_plot(p, now))
+	if bt != null:
+		var tmp := CharState.new()
+		tmp.farm = out
+		CharRules._ensure_farm(tmp, bt)
+		out = tmp.farm
 	return out

@@ -18,6 +18,9 @@ const C_GOLD := Color(1, 0.85, 0.3)
 const C_BAD := Color(1, 0.5, 0.5)
 const C_QUEST := Color(1.0, 0.8, 0.35)
 const C_FARM := Color(0.8, 1.0, 0.6)
+## Teto de toda quantidade escolhida pelo cliente (compra, vezes de cozinhar): evita estouro de
+## int64 em preço*qty e laço gigante de add_item em item não empilhável no servidor.
+const MAX_COUNT := 99
 
 
 # ================================================================ apoio
@@ -27,6 +30,11 @@ static func _ok(events: Array = []) -> Dictionary:
 
 static func _fail(err: String, events: Array = []) -> Dictionary:
 	return {"ok": false, "err": err, "events": events}
+
+
+## true se `n` é um int entre 1 e MAX_COUNT (contagem vinda do cliente).
+static func _valid_count(n) -> bool:
+	return typeof(n) == TYPE_INT and n >= 1 and n <= MAX_COUNT
 
 
 static func _notify(text: String, color: Color) -> Dictionary:
@@ -215,6 +223,9 @@ static func kill(s: CharState, bt: BalanceTables, kind: String, xp: int) -> Dict
 		return _fail("valor_invalido")
 	var ev: Array = []
 	s.kills += 1
+	# chefe derrotado (o Rei Goblin): o mundo deixa de gerá-lo, como fazia Enemy._die
+	if bt.get_table("enemies").get(kind, {}).get("boss", false):
+		s.flags["king_dead"] = true
 	_add_xp(s, bt, xp, ev)
 	var qt := bt.get_table("quests")
 	var changed := false
@@ -247,9 +258,9 @@ static func spend_point(s: CharState, bt: BalanceTables, attr: String) -> Dictio
 
 # ================================================================ loja
 ## Compra `qty` (padrão 1) de um item da loja ou de uma semente da horta.
-static func buy(s: CharState, bt: BalanceTables, id: String, qty := 1) -> Dictionary:
-	if qty <= 0:
-		return _fail("valor_invalido")
+static func buy(s: CharState, bt: BalanceTables, id: String, qty = 1) -> Dictionary:
+	if not _valid_count(qty):
+		return _fail("args")
 	if not _sold_in_shop(bt, id):
 		return _fail("nao_vende")
 	var price: int = int(_item(bt, id).get("price", 0)) * qty
@@ -358,12 +369,12 @@ static func can_cook(s: CharState, bt: BalanceTables, recipe: String) -> int:
 
 
 ## Cozinha até `times` vezes (o que os ingredientes deixarem). Resultado traz "n" = quantas.
-static func cook(s: CharState, bt: BalanceTables, recipe: String, times := 1) -> Dictionary:
+static func cook(s: CharState, bt: BalanceTables, recipe: String, times = 1) -> Dictionary:
+	if not _valid_count(times):
+		return _fail("args")
 	var ing: Dictionary = bt.get_table("recipes").get(recipe, {})
 	if ing.is_empty():
 		return _fail("receita_invalida")
-	if times <= 0:
-		return _fail("valor_invalido")
 	var n: int = mini(times, can_cook(s, bt, recipe))
 	if n <= 0:
 		var r := _fail("faltam_ingredientes", [_notify("Faltam ingredientes.", Color(1, 0.6, 0.5))])
@@ -430,6 +441,20 @@ static func _empty_plot() -> Dictionary:
 	return {"crop": "", "growth": 0.0, "t": 0.0, "watered": false, "fert": false}
 
 
+## Canteiro de fonte não confiável -> canteiro bem formado (tipo errado vira o padrão).
+## `now` = "t" para canteiro sem relógio (save antigo).
+static func sanitize_plot(p, now: float) -> Dictionary:
+	if not (p is Dictionary):
+		return _empty_plot()
+	var crop = p.get("crop")
+	var g = p.get("growth")
+	var t = p.get("t")
+	return {"crop": crop if crop is String else "",
+		"growth": clampf(float(g), 0.0, 1.0) if (g is int or (g is float and is_finite(g))) else 0.0,
+		"t": float(t) if (t is int or (t is float and is_finite(t))) else now,
+		"watered": p.get("watered") is bool and p.watered, "fert": p.get("fert") is bool and p.fert}
+
+
 ## Ajusta uma horta vinda de save (número de canteiros, faixa de abertos, cultura desconhecida).
 static func _ensure_farm(s: CharState, bt: BalanceTables) -> void:
 	var fr := _farm_rules(bt)
@@ -441,11 +466,27 @@ static func _ensure_farm(s: CharState, bt: BalanceTables) -> void:
 		s.farm.plots.append(_empty_plot())
 	if s.farm.plots.size() > total:
 		s.farm.plots.resize(total)
-	s.farm.unlocked = clampi(int(s.farm.get("unlocked", 0)), int(fr.get("start", 6)), total)
+	var u = s.farm.get("unlocked")
+	s.farm.unlocked = clampi(u if u is int else (int(u) if u is float and is_finite(u) and absf(u) < 1e9 else 0),
+		int(fr.get("start", 6)), total)
 	var crops := bt.get_table("crops")
+	var now := Time.get_unix_time_from_system()
 	for i in total:
-		if s.farm.plots[i].crop != "" and not crops.has(s.farm.plots[i].crop):
-			s.farm.plots[i] = _empty_plot()
+		var p := sanitize_plot(s.farm.plots[i], now)
+		if p.crop != "" and not crops.has(p.crop):
+			p = _empty_plot()
+		s.farm.plots[i] = p
+
+
+## Roda uma op da horta sobre a horta normalizada; se a op falhar, devolve a horta como estava
+## (a normalização também é mutação: só vale se a op deu certo).
+static func _farm_op(s: CharState, bt: BalanceTables, op: Callable) -> Dictionary:
+	var backup: Dictionary = s.farm.duplicate(true)
+	_ensure_farm(s, bt)
+	var r: Dictionary = op.call()
+	if not r.ok:
+		s.farm = backup
+	return r
 
 
 ## Crescimento de um canteiro no instante `now` (unix s). O cliente usa a mesma função para desenhar.
@@ -473,7 +514,8 @@ static func plot_state(s: CharState, bt: BalanceTables, i: int, now: float) -> S
 ## Grava no canteiro o crescimento até `now` (antes de mudar rega/adubo).
 static func _settle(p: Dictionary, bt: BalanceTables, now: float) -> void:
 	p.growth = farm_growth(p, bt, now)
-	p.t = now
+	# relógio voltou para trás: não recua `t` (senão o mesmo intervalo contaria duas vezes)
+	p.t = maxf(float(p.t), now)
 
 
 static func _plot_err(st: String) -> String:
@@ -495,7 +537,10 @@ static func unlock_cost(s: CharState, bt: BalanceTables) -> int:
 
 
 static func unlock_plot(s: CharState, bt: BalanceTables) -> Dictionary:
-	_ensure_farm(s, bt)
+	return _farm_op(s, bt, func(): return _unlock_plot(s, bt))
+
+
+static func _unlock_plot(s: CharState, bt: BalanceTables) -> Dictionary:
 	if int(s.farm.unlocked) >= s.farm.plots.size():
 		return _fail("horta_cheia")
 	var cost := unlock_cost(s, bt)
@@ -508,7 +553,10 @@ static func unlock_plot(s: CharState, bt: BalanceTables) -> Dictionary:
 
 ## Planta no canteiro i. Se faltar semente e buy_missing, compra uma.
 static func plant(s: CharState, bt: BalanceTables, i: int, crop: String, buy_missing: bool, now: float) -> Dictionary:
-	_ensure_farm(s, bt)
+	return _farm_op(s, bt, func(): return _plant(s, bt, i, crop, buy_missing, now))
+
+
+static func _plant(s: CharState, bt: BalanceTables, i: int, crop: String, buy_missing: bool, now: float) -> Dictionary:
 	var crops := bt.get_table("crops")
 	if not crops.has(crop):
 		return _fail("cultura_invalida")
@@ -530,7 +578,10 @@ static func plant(s: CharState, bt: BalanceTables, i: int, crop: String, buy_mis
 
 
 static func water(s: CharState, bt: BalanceTables, i: int, now: float) -> Dictionary:
-	_ensure_farm(s, bt)
+	return _farm_op(s, bt, func(): return _water(s, bt, i, now))
+
+
+static func _water(s: CharState, bt: BalanceTables, i: int, now: float) -> Dictionary:
 	var st := plot_state(s, bt, i, now)
 	if st != "growing":
 		return _fail(_plot_err(st))
@@ -544,7 +595,10 @@ static func water(s: CharState, bt: BalanceTables, i: int, now: float) -> Dictio
 
 ## Adubo de gel de slime: +fert_bonus de crescimento na hora (uma vez por plantio).
 static func fertilize(s: CharState, bt: BalanceTables, i: int, now: float) -> Dictionary:
-	_ensure_farm(s, bt)
+	return _farm_op(s, bt, func(): return _fertilize(s, bt, i, now))
+
+
+static func _fertilize(s: CharState, bt: BalanceTables, i: int, now: float) -> Dictionary:
 	var st := plot_state(s, bt, i, now)
 	if st != "growing":
 		return _fail(_plot_err(st))
@@ -562,7 +616,10 @@ static func fertilize(s: CharState, bt: BalanceTables, i: int, now: float) -> Di
 
 ## Colhe o canteiro i. O resultado traz "harvest" = {"crop", "qty", "bonus", "seed"}.
 static func harvest(s: CharState, bt: BalanceTables, i: int, now: float, rng: RandomNumberGenerator) -> Dictionary:
-	_ensure_farm(s, bt)
+	return _farm_op(s, bt, func(): return _harvest(s, bt, i, now, rng))
+
+
+static func _harvest(s: CharState, bt: BalanceTables, i: int, now: float, rng: RandomNumberGenerator) -> Dictionary:
 	var st := plot_state(s, bt, i, now)
 	if st != "ready":
 		return _fail("nao_pronto" if st == "growing" else _plot_err(st))
