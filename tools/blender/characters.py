@@ -518,7 +518,9 @@ def build_knight():
     join_objs("ShieldRim", rim)
     tbox("Shield", (sxp + 0.008, 0, sz + 0.005), (0.026, 0.38, 0.48), red_c, bottom=(1, 0.2), bevel=0.008,
          parent=el_l)
-    export("knight")
+    # sombra assada nas dobras (gear.py): mesma leitura das roupas modulares
+    bake_ao([o for o in scn.objects if o.type == 'MESH'], [])
+    export("knight", export_vertex_color='ACTIVE')
 
 
 # ================================================================== ANCIÃO (NPC)

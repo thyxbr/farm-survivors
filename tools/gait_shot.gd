@@ -4,6 +4,7 @@ extends SceneTree
 ## Precisa de janela (não use --headless) e do --import feito antes:
 ##   godot --path . --resolution 2000x520 --script res://tools/gait_shot.gd -- <saida.png> [vel] [corre 0..1]
 ## vel em m/s (padrão 5,2 = WALK_SPEED); corre = KnightAnim run (0 andar normal, 1 correndo).
+## Com "roupa" no fim, calça os sapatos padrão (assets/models/gear/f_shoes.glb) em vez das placas.
 
 const N := 8
 
@@ -27,6 +28,9 @@ func _initialize() -> void:
 		var m := scene.instantiate() as Node3D
 		root.add_child(m)
 		m.position.z = i * 1.25
+		if "roupa" in args:
+			_wear(m, "f_shoes", ["LegL_Sabaton", "LegR_Sabaton", "LegL_Knee", "LegR_Knee", "LegL_Foot", "LegR_Foot",
+				"LegL_Sole", "LegR_Sole"])
 		var ri := KnightAnim.rig(m)
 		var p := KnightAnim.locomotion_pose(ri, TAU * i / N, move, run)
 		KnightAnim.apply(ri, p, 1.0)
@@ -38,6 +42,25 @@ func _initialize() -> void:
 	g.mesh = bm
 	g.position = Vector3(0, -0.01, (N - 1) * 1.25 / 2.0)
 	root.add_child(g)
+
+
+## Como KnightLook._attach_gear (sem tingir): cada malha do GLB vai para o pivô de mesmo nome.
+## KnightLook não é usado aqui porque depende do autoload ItemDB, que não existe com --script.
+func _wear(m: Node3D, style: String, hide: Array) -> void:
+	for pn in hide:
+		var n := m.find_child(pn, true, false) as Node3D
+		if n:
+			n.visible = false
+	var g := (load("res://assets/models/gear/%s.glb" % style) as PackedScene).instantiate() as Node3D
+	for mi: MeshInstance3D in g.find_children("*", "MeshInstance3D", true, false):
+		var target := m.find_child(mi.get_parent().name, true, false) as Node3D
+		if target:
+			var xf := mi.transform
+			mi.owner = null
+			mi.get_parent().remove_child(mi)
+			target.add_child(mi)
+			mi.transform = xf
+	g.free()
 
 
 var _probe: Node3D
