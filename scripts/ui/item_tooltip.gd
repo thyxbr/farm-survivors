@@ -132,6 +132,9 @@ static func build_text(id: String, context := "bag") -> String:
 	# preço e dicas
 	var price: int = it.price
 	match context:
+		"loot":
+			t += "[color=#%s]Valor: %d ◆[/color]\n" % [dim, price]
+			t += "[color=#%s]Clique: pegar (vai para a mochila)[/color]" % _hex(UITheme.GOLD)
 		"buy":
 			t += "[color=#%s]Preço: %d ◆[/color]\n" % [_hex(UITheme.GOLD) if Game.gold >= price else bad, price]
 			t += "[color=#%s]Clique direito ou duplo clique: comprar[/color]" % dim

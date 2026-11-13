@@ -396,6 +396,20 @@ func _test_city() -> void:
 		c.place("town_hall", Vector3(0, 0, -6), 0.0)
 	check(await _wait_until(func() -> bool: return c.hall != null and c.phase == "day", 10.0), "prefeitura fundada chega a todos")
 	check(await _wait_until(func() -> bool: return c.amap.size() > 0, 5.0), "animais de caça replicados (%d)" % c.amap.size())
+	# --- o fantasma da construção do líder aparece para o colega antes de ser confirmado
+	if peers > 1:
+		if city_role == "lead":
+			w.build.set_active(true)
+			w.build.select("archer_tower")
+			await wait(3.5)
+			w.build.set_active(false)
+			await wait(0.5)
+		else:
+			var gh: Node = w.ghosts
+			check(await _wait_until(func() -> bool: return gh.count() > 0 and gh.ghost_kind(gh._g.keys()[0]) == "archer_tower", 6.0),
+				"vê o fantasma da torre que o colega está posicionando")
+			check(await _wait_until(func() -> bool: return gh.count() == 0, 6.0), "fantasma some quando o colega sai do modo construção")
+			check(c.count_of("archer_tower") == 0, "fantasma não constrói nada")
 	if city_role == "lead":
 		var g0 := c.gold
 		c.place("house", Vector3(-12, 0, -6), PI / 2)
@@ -447,12 +461,17 @@ func _test_city() -> void:
 		"recompensa da noite no personagem (+%d ouro: %d → %d)" % [rw.gold, rgold, Game.gold])
 	check(Game.xp + Game.level * 100000 > rxp, "recompensa de XP no personagem")
 	check(int(Game.flags.get("city_best", 0)) >= 1, "melhor noite salva no personagem")
+	if "--city-chests" in OS.get_cmdline_user_args():   # o servidor também roda com --city-chests
+		await _test_city_chest(w)
 
 	# --- volta ao salão: o join sai primeiro, o líder em seguida (a partida acaba quando todos saem)
 	await wait(0.5 if city_role == "join" else 2.5)
 	Lobby.go_lobby()
 	check(await _wait_until(func() -> bool: return _in_lobby(), 10.0), "voltou ao salão")
 	check(await _wait_until(func() -> bool: return Network.zone_of(multiplayer.get_unique_id()) == "lobby", 5.0), "servidor vê o jogador de volta no salão")
+	if _chest_expect >= 0:
+		check(await _wait_until(func() -> bool: return _bag_count() == _chest_expect, 5.0),
+			"saiu com itens no baú: foram para a mochila (%d/%d)" % [_bag_count(), _chest_expect])
 	if city_role == "lead":
 		check(await _wait_until(func() -> bool: return Lobby.room.is_empty(), 8.0), "partida encerrada quando todos saíram")
 		check(int(Lobby.record.get("day", 0)) >= 1, "recorde do servidor registrado (%d)" % int(Lobby.record.get("day", 0)))
@@ -460,6 +479,61 @@ func _test_city() -> void:
 	Lobby.go_world()
 	check(await _wait_until(func() -> bool: return Network.world != null and Network.world.get("player") != null, 15.0), "entrou em Valdoria depois da cidade")
 	await wait(1.0)
+
+
+var _chest_expect := -1
+
+
+func _bag_count() -> int:
+	var n := 0
+	for s in Game.inventory:
+		n += int(s.qty)
+	return n
+
+
+## Baú da noite (servidor com --city-chests): aparece no chão, abre com E, o saque é de cada um,
+## pegar um item e "pegar tudo" põem na mochila, e o baú some quando todos esvaziam o seu.
+func _test_city_chest(w: Node) -> void:
+	check(await _wait_until(func() -> bool: return w.chests.size() > 0, 6.0), "baú da noite apareceu na cidade")
+	if w.chests.is_empty():
+		return
+	var ch: Node3D = w.chests.values()[0]
+	check(ch.count >= 2 and ch.rarity != "", "baú tem saque para mim (%d itens, %s)" % [ch.count, ch.rarity])
+	check(w.colony.can_place("house", ch.global_position, 0.0, true) != "", "não dá para construir em cima do baú")
+	w.player.global_position = ch.global_position + Vector3(0, 0.5, 1.8)
+	await wait(0.4)
+	check(w.player.interact_target == ch, "baú é o alvo do E")
+	var bag0 := _bag_count()
+	ch.interact(w.player)
+	var ui: Control = w.modal
+	check(ui != null and ui.get("chest") == ch, "E abre a janela do baú")
+	if ui == null or ui.get("chest") != ch:
+		return
+	check(await _wait_until(func() -> bool: return ui.loaded, 5.0) and ui.items.size() == ch.count,
+		"conteúdo chegou do servidor (%d itens)" % ui.items.size())
+	check(await _wait_until(func() -> bool: return ch.is_lid_open(), 2.0), "tampa do baú aberta")
+	check(_bag_count() == bag0, "nada vai para a mochila antes de pegar")
+	var total: int = ui.items.size()
+	ui.take(0)
+	check(await _wait_until(func() -> bool: return _bag_count() == bag0 + 1 and ui.items.size() == total - 1, 5.0),
+		"pegou um item: foi para a mochila (%d → %d)" % [bag0, _bag_count()])
+	if city_role == "join":
+		# deixa o resto no baú e sai da cidade: o servidor manda o que sobrou para a mochila
+		ui._close()
+		await wait(0.3)
+		check(w.modal == null and not w.player.input_locked, "janela do baú fechou e o controle voltou")
+		check(ch.count == total - 1 and ch.interact_prompt().begins_with("Abrir"), "o resto continua no baú (%d)" % ch.count)
+		_chest_expect = bag0 + total
+		return
+	ui.take_everything()
+	check(await _wait_until(func() -> bool: return _bag_count() == bag0 + total and ui.items.is_empty(), 5.0),
+		"pegar tudo esvaziou o baú (%d itens na mochila)" % (_bag_count() - bag0))
+	check(ch.count == 0 and ch.interact_prompt() == "Baú vazio", "baú vazio para mim")
+	ui._close()
+	await wait(0.3)
+	check(w.modal == null and not w.player.input_locked, "janela do baú fechou e o controle voltou")
+	check(await _wait_until(func() -> bool: return w.chests.is_empty(), 12.0), "baú some quando ninguém tem mais nada nele")
+	check(w.colony.chests.is_empty(), "lugar do baú liberado para construir")
 
 
 ## Nível do grupo: o XP de um sobe o nível de todos; a horda congela até todos escolherem.

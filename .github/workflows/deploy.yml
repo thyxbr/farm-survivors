@@ -74,10 +74,10 @@ jobs:
 
       - name: Teste da Defesa da Cidade em grupo (salão + servidor + 2 clientes)
         run: |
-          godot --headless --path . -- --server --port=7791 --city-day=12 > city_server.log 2>&1 &
+          godot --headless --path . -- --server --port=7791 --city-day=12 --city-chests > city_server.log 2>&1 &
           for i in $(seq 1 30); do grep -q "ouvindo em UDP" city_server.log && break; sleep 1; done
-          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7791 --peers=2 --name=Caio --city=lead > caio.log 2>&1 & A=$!
-          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7791 --peers=2 --name=Duda --city=join > duda.log 2>&1 & B=$!
+          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7791 --peers=2 --name=Caio --city=lead --city-chests > caio.log 2>&1 & A=$!
+          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7791 --peers=2 --name=Duda --city=join --city-chests > duda.log 2>&1 & B=$!
           wait $A; RA=$?
           wait $B; RB=$?
           grep -hE "PASS|FAIL|NETTEST" caio.log duda.log

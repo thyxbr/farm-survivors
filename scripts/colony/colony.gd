@@ -58,6 +58,8 @@ var actor := 0
 var bmap := {}                # net_id -> construção
 var smap := {}                # net_id -> soldado
 var amap := {}                # net_id -> animal
+## Baús de recompensa no chão (id -> posição): ninguém constrói em cima deles.
+var chests := {}
 var _next_id := 1
 var _net_wave_left := 0
 var _net_votes := 0
@@ -372,6 +374,9 @@ func can_place(kind: String, pos: Vector3, rot: float, ignore_cost := false) -> 
 	for o in obstacles:
 		if _circle_hits(rect, o[0], o[1]):
 			return "Há árvores ou pedras no caminho."
+	for q in chests.values():
+		if _circle_hits(rect, Vector2(q.x, q.z), 0.9):
+			return "Tem um baú no caminho (abra-o primeiro)."
 	if kind not in ["gate", "spikes", "farm"]:   # dá para ficar em cima destes (não bloqueiam a passagem)
 		for u in get_tree().get_nodes_in_group("colony_units"):
 			if u.get_world_3d() != get_world_3d():
@@ -1559,6 +1564,39 @@ func from_dict(d: Dictionary) -> void:
 
 # ================================================================ geometria (retângulos girados)
 ## Retângulo no plano XZ: [centro, eixo x, eixo z, meia largura, meia profundidade]
+## Servidor: lugar livre para o baú de recompensa, de preferência na frente da prefeitura.
+func chest_spot() -> Vector3:
+	var c := Vector3.ZERO
+	var fwd := Vector3(0, 0, 1)
+	var r0 := 6.0
+	if hall and is_instance_valid(hall):
+		c = hall.global_position
+		fwd = Vector3(hall.global_basis.z.x, 0, hall.global_basis.z.z).normalized()
+		r0 = hall.size.y / 2.0 + 3.5
+	for ring in 6:
+		var r := r0 + ring * 2.5
+		for k in 12:
+			var a := int((k + 1) / 2.0) * (1.0 if k % 2 == 1 else -1.0) * PI / 6.0
+			var p := c + fwd.rotated(Vector3.UP, a) * r
+			if _chest_free(p):
+				return Vector3(p.x, 0.0, p.z)
+	return c + fwd * r0
+
+
+func _chest_free(p: Vector3) -> bool:
+	var rect := _rect(Vector2(p.x, p.z), 0.0, Vector2(1.8, 1.8))
+	for b in buildings():
+		if _overlap(rect, _rect(Vector2(b.global_position.x, b.global_position.z), b.rotation.y, b.size)):
+			return false
+	for o in obstacles:
+		if _circle_hits(rect, o[0], o[1]):
+			return false
+	for q in chests.values():
+		if Vector2(q.x - p.x, q.z - p.z).length() < 2.5:
+			return false
+	return true
+
+
 func _rect(c: Vector2, rot: float, size: Vector2) -> Array:
 	return [c, Vector2(cos(rot), -sin(rot)), Vector2(sin(rot), cos(rot)), size.x / 2.0 - 0.05, size.y / 2.0 - 0.05]
 

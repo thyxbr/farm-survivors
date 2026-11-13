@@ -51,6 +51,12 @@ var _rewards := {}              # peer -> {"gold", "xp", "items": []} somado na 
 ## Duração do dia na cidade (--city-day=SEG encurta para os testes).
 var city_day_time := ColonyData.DAY_LENGTH
 var city_first_bonus := ColonyData.FIRST_DAY_BONUS
+## Baús de recompensa no chão: id -> {"n": noite, "pos": Vector3, "loot": {peer: [itens]}}.
+var _chests := {}
+var _chest_id := 0
+## --city-chests: baú em toda noite vencida (para os testes não esperarem a noite de chefe).
+var chests_every_night := false
+const CHEST_REACH := 6.0
 
 
 func _ready() -> void:
@@ -59,6 +65,8 @@ func _ready() -> void:
 		if a.begins_with("--city-day="):
 			city_day_time = maxf(5.0, float(a.substr(11)))
 			city_first_bonus = 0.0
+		elif a == "--city-chests":
+			chests_every_night = true
 
 
 # ================================================================ cliente: navegação
@@ -170,6 +178,23 @@ func city_request(action: String, args: Array) -> void:
 func city_hit_animal(net_id: int, amount: float, from_pos: Vector3, slow: float) -> void:
 	if Network.is_client():
 		_city_hit_animal.rpc_id(1, net_id, amount, from_pos, slow)
+
+
+## O que este jogador está posicionando no modo construção (kind "" = saiu do modo).
+func city_ghost(kind: String, x: float, z: float, rot: float, ok: bool, target: int) -> void:
+	if Network.is_client():
+		_city_ghost.rpc_id(1, kind, x, z, rot, ok, target)
+
+
+func city_chest_open(id: int) -> void:
+	if Network.is_client():
+		_city_chest_open.rpc_id(1, id)
+
+
+## Pega o item `index` (conferido pelo id) do seu saque no baú; index -1 pega tudo.
+func city_chest_take(id: int, index: int, item_id: String) -> void:
+	if Network.is_client():
+		_city_chest_take.rpc_id(1, id, index, item_id)
 
 
 func _colony() -> Colony:
@@ -341,6 +366,7 @@ func _start_city() -> void:
 		_room.members[pid] = true
 	_present.clear()
 	_rewards.clear()
+	_chests.clear()
 	_vp = SubViewport.new()
 	_vp.own_world_3d = true          # física e mundo separados de Valdoria
 	_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
@@ -359,6 +385,7 @@ func _start_city() -> void:
 ## Um jogador saiu da cidade (voltou ao salão, caiu a conexão...).
 func server_city_left(id: int) -> void:
 	_present.erase(id)
+	_flush_chests(id)
 	if _room.is_empty():
 		return
 	_room.members.erase(id)
@@ -407,6 +434,9 @@ func _end_city(reason: String, extra_peers: Array = []) -> void:
 	for pid in extra_peers:
 		if Network.players.has(pid) and not (pid in to):
 			to.append(pid)
+	for pid in to:
+		_flush_chests(pid)   # o que ficou nos baús vai para a mochila antes do resumo
+	_chests.clear()
 	for pid in to:
 		var r: Dictionary = _rewards.get(pid, {"gold": 0, "xp": 0, "items": []})
 		_city_over.rpc_id(pid, {"reason": reason, "nights": nights, "kills": kills, "gold": r.gold, "xp": r.xp,
@@ -457,6 +487,8 @@ func _city_ready() -> void:
 	for e in c.live_enemies():
 		if e.affix != "" and e.net_id != 0:
 			_city_enemy_meta.rpc_id(id, e.net_id, e.affix)
+	for cid in _chests:
+		_send_chest(id, cid)
 	if c.phase == "night":
 		_present[id] = true
 	c.say("%s chegou à cidade (%d jogador(es))." % [_name(id), c.team_size], Color(0.6, 0.9, 1.0))
@@ -507,27 +539,167 @@ func city_night_started() -> void:
 
 
 ## Amanheceu depois da noite n: cada jogador que segurou a noite ganha ouro e XP no próprio personagem;
-## nas noites de chefe, um baú com equipamento (raridade sobe com a noite).
+## nas noites de chefe aparece um baú perto da prefeitura com o saque de cada um (raridade sobe com a noite).
 func city_night_survived(n: int) -> void:
 	var rw := ColonyData.night_reward(n)
+	var chest_night := n % ColonyData.BOSS_EVERY == 0 or chests_every_night
+	var loot := {}
 	for pid in Network.zone_peers("city"):
 		if not _present.has(pid):
 			continue
-		var items: Array = []
-		if n % ColonyData.BOSS_EVERY == 0:
+		var acc := _reward_acc(pid)
+		acc.gold += int(rw.gold)
+		acc.xp += int(rw.xp)
+		_city_reward.rpc_id(pid, n, int(rw.gold), int(rw.xp), chest_night)
+		if chest_night:
+			var items: Array = []
 			var it := _roll_item(n)
 			if it != "":
 				items.append(it)
 			items.append("health_potion")
 			items.append("health_potion")
-		var acc: Dictionary = _rewards.get(pid, {"gold": 0, "xp": 0, "items": []})
-		acc.gold += int(rw.gold)
-		acc.xp += int(rw.xp)
-		acc.items.append_array(items)
-		_rewards[pid] = acc
-		_city_reward.rpc_id(pid, n, int(rw.gold), int(rw.xp), items)
+			loot[pid] = items
+	if not loot.is_empty():
+		_spawn_chest(n, loot)
 	_update_record(n)
 	_broadcast_room()
+
+
+func _reward_acc(pid: int) -> Dictionary:
+	if not _rewards.has(pid):
+		_rewards[pid] = {"gold": 0, "xp": 0, "items": []}
+	return _rewards[pid]
+
+
+# ---------------------------------------------------------------- baús (servidor)
+func _spawn_chest(n: int, loot: Dictionary) -> void:
+	var c := _colony()
+	if c == null:
+		return
+	_chest_id += 1
+	var pos := c.chest_spot()
+	_chests[_chest_id] = {"n": n, "pos": pos, "loot": loot}
+	c.chests[_chest_id] = pos
+	print("[server] baú %d da noite %d em (%.1f, %.1f) para %d jogador(es)" % [_chest_id, n, pos.x, pos.z, loot.size()])
+	for pid in Network.zone_peers("city"):
+		_send_chest(pid, _chest_id)
+	c.say("Um baú da noite %d apareceu na frente da prefeitura! Cada um que segurou a noite tem o seu saque lá dentro." % n,
+		Color(1, 0.85, 0.35))
+
+
+func _send_chest(pid: int, id: int) -> void:
+	var ch: Dictionary = _chests[id]
+	var mine: Array = ch.loot.get(pid, [])
+	_city_chest_add.rpc_id(pid, id, int(ch.n), ch.pos.x, ch.pos.z, _best_rarity(mine), mine.size())
+
+
+static func _best_rarity(items: Array) -> String:
+	var best := ""
+	for id in items:
+		var r := ItemDB.rarity_of(str(id))
+		if best == "" or ItemDB.RARITY[r].rank > ItemDB.RARITY[best].rank:
+			best = r
+	return best
+
+
+func _remove_chest(id: int) -> void:
+	_chests.erase(id)
+	var c := _colony()
+	if c != null:
+		c.chests.erase(id)
+	_to_city("_city_chest_del", [id])
+
+
+## O jogador saiu da cidade (ou a partida acabou): o que ele deixou nos baús vai direto para a mochila.
+func _flush_chests(pid: int) -> void:
+	var left: Array = []
+	for cid in _chests.keys():
+		var ch: Dictionary = _chests[cid]
+		if ch.loot.has(pid):
+			left.append_array(ch.loot[pid])
+			ch.loot.erase(pid)
+		if ch.loot.is_empty():
+			_remove_chest(cid)
+	if left.is_empty():
+		return
+	_reward_acc(pid).items.append_array(left)
+	if pid in Network._all_peers():
+		_city_chest_auto.rpc_id(pid, left)
+
+
+func _near_chest(pid: int, id: int) -> bool:
+	var rp = Network.remote_players.get(pid)
+	if rp == null or not is_instance_valid(rp):
+		return true   # ainda sem posição no servidor: confia
+	var p: Vector3 = _chests[id].pos
+	return Vector2(rp.global_position.x - p.x, rp.global_position.z - p.z).length() <= CHEST_REACH
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _city_chest_open(id: int) -> void:
+	var pid := _sender()
+	if pid == 0 or _colony() == null or Network.zone_of(pid) != "city" or not _chests.has(id):
+		return
+	if not _near_chest(pid, id):
+		_notice.rpc_id(pid, "Chegue mais perto do baú.")
+		_city_chest_loot.rpc_id(pid, id, [], false)
+		return
+	var mine: Array = _chests[id].loot.get(pid, [])
+	_city_chest_loot.rpc_id(pid, id, mine, true)
+	for other in Network.zone_peers("city"):
+		if other != pid:
+			_city_chest_fx.rpc_id(other, id, pid)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _city_chest_take(id: int, index: int, item_id: String) -> void:
+	var pid := _sender()
+	if pid == 0 or _colony() == null or Network.zone_of(pid) != "city" or not _chests.has(id):
+		return
+	var ch: Dictionary = _chests[id]
+	var mine: Array = ch.loot.get(pid, [])
+	if mine.is_empty() or not _near_chest(pid, id):
+		return
+	var given: Array = []
+	if index < 0:
+		given = mine.duplicate()
+		mine.clear()
+	else:
+		# confere pelo id (cliques rápidos podem chegar com a lista já mudada)
+		var i := index if index < mine.size() and str(mine[index]) == item_id else mine.find(item_id)
+		if i < 0:
+			return
+		given.append(mine[i])
+		mine.remove_at(i)
+	_reward_acc(pid).items.append_array(given)
+	_city_chest_given.rpc_id(pid, id, given, mine)
+	var who := _name(pid)
+	for it in given:
+		var r := ItemDB.rarity_of(str(it))
+		if ItemDB.RARITY[r].rank >= ItemDB.RARITY["rare"].rank:
+			for other in Network.zone_peers("city"):
+				if other != pid:
+					_city_say.rpc_id(other, "%s pegou %s (%s) do baú!" % [who, ItemDB.get_item(str(it)).get("name", it), ItemDB.RARITY[r].name],
+						ItemDB.RARITY[r].color)
+	if mine.is_empty():
+		ch.loot.erase(pid)
+	if ch.loot.is_empty():
+		await get_tree().create_timer(1.5).timeout   # deixa a tampa aberta um instante antes de sumir
+		if _chests.get(id) == ch:
+			_remove_chest(id)
+
+
+# ---------------------------------------------------------------- fantasma da construção (servidor)
+@rpc("any_peer", "call_remote", "unreliable_ordered", 4)
+func _city_ghost(kind: String, x: float, z: float, rot: float, ok: bool, target: int) -> void:
+	var id := _sender()
+	if id == 0 or Network.zone_of(id) != "city" or _colony() == null:
+		return
+	if kind != "" and kind != "demolish" and not ColonyData.BUILDINGS.has(kind):
+		return
+	for pid in Network.zone_peers("city"):
+		if pid != id:
+			_city_ghost_of.rpc_id(pid, id, kind, x, z, rot, ok, target)
 
 
 func _roll_item(n: int) -> String:
@@ -752,23 +924,84 @@ func _city_xp(kind: String, xp: int) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _city_reward(n: int, gold: int, xp: int, items: Array) -> void:
+func _city_reward(n: int, gold: int, xp: int, chest: bool) -> void:
 	Game.add_gold(gold)
 	Game.add_xp(xp)
-	var got: Array[String] = []
-	for id in items:
-		if ItemDB.ITEMS.has(str(id)):
-			Game.add_item(str(id), 1, true)
-			if str(id) != "health_potion":
-				got.append(ItemDB.ITEMS[str(id)].name)
 	Game.flags["city_best"] = maxi(int(Game.flags.get("city_best", 0)), n)
 	Game.notify.emit("Noite %d vencida! Recompensa: +%d ouro e +%d XP para o seu personagem." % [n, gold, xp], Color(1, 0.85, 0.35))
-	if not got.is_empty():
-		Game.notify.emit("Baú da noite %d: %s!" % [n, ", ".join(got)], ItemDB.rarity_color(str(items[0])))
 	Sfx.play("quest", 0.0, -2.0)
 	save_character()
 	if city and city.has_method("on_reward"):
-		city.on_reward(n, gold, xp, items)
+		city.on_reward(n, gold, xp, chest)
+
+
+# ---------------------------------------------------------------- baús e fantasmas (cliente)
+@rpc("authority", "call_remote", "reliable")
+func _city_chest_add(id: int, n: int, x: float, z: float, rarity: String, count: int) -> void:
+	if city and city.has_method("on_chest_add"):
+		city.on_chest_add(id, n, x, z, rarity, count)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _city_chest_del(id: int) -> void:
+	if city and city.has_method("on_chest_del"):
+		city.on_chest_del(id)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _city_chest_fx(id: int, pid: int) -> void:
+	if city and city.has_method("on_chest_fx"):
+		city.on_chest_fx(id, pid)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _city_chest_loot(id: int, items: Array, ok: bool) -> void:
+	if city and city.has_method("on_chest_loot"):
+		city.on_chest_loot(id, _clean_items(items), ok)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _city_chest_given(id: int, given: Array, left: Array) -> void:
+	_receive_items(_clean_items(given))
+	if city and city.has_method("on_chest_given"):
+		city.on_chest_given(id, _clean_items(given), _clean_items(left))
+
+
+## Itens que ficaram no baú quando você saiu da cidade (ou a partida acabou).
+@rpc("authority", "call_remote", "reliable")
+func _city_chest_auto(items: Array) -> void:
+	var list := _clean_items(items)
+	if list.is_empty():
+		return
+	_receive_items(list, true)
+	var names: Array[String] = []
+	for id in list:
+		if id != "health_potion":
+			names.append(str(ItemDB.ITEMS[id].name))
+	var extra := (": " + ", ".join(names)) if not names.is_empty() else ""
+	Game.notify.emit("O que você deixou no baú foi para a mochila%s." % extra, Color(1, 0.85, 0.35))
+
+
+@rpc("authority", "call_remote", "unreliable_ordered", 4)
+func _city_ghost_of(pid: int, kind: String, x: float, z: float, rot: float, ok: bool, target: int) -> void:
+	if city and city.has_method("on_remote_ghost"):
+		city.on_remote_ghost(pid, kind, x, z, rot, ok, target)
+
+
+static func _clean_items(items: Array) -> Array:
+	var out: Array = []
+	for id in items:
+		if ItemDB.ITEMS.has(str(id)):
+			out.append(str(id))
+	return out
+
+
+func _receive_items(items: Array, silent := false) -> void:
+	if items.is_empty():
+		return
+	for id in items:
+		Game.add_item(str(id), 1, silent)
+	save_character()
 
 
 @rpc("authority", "call_remote", "reliable")

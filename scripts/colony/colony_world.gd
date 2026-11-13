@@ -16,6 +16,9 @@ const PAUSE := preload("res://scripts/ui/pause_menu.gd")
 const COLONY := preload("res://scripts/colony/colony.gd")
 const BUILD := preload("res://scripts/colony/build_mode.gd")
 const CHAT := preload("res://scripts/ui/chat_ui.gd")
+const REMOTE_GHOSTS := preload("res://scripts/colony/remote_ghosts.gd")
+const LOOT_CHEST := preload("res://scripts/colony/loot_chest.gd")
+const CHEST_UI := preload("res://scripts/ui/chest_ui.gd")
 const M := {
 	"tree_pine": preload("res://assets/models/tree_pine.glb"),
 	"tree_oak": preload("res://assets/models/tree_oak.glb"),
@@ -41,6 +44,9 @@ var ui_layer: CanvasLayer
 var modal: Control = null
 var colony: Colony
 var build: Node3D
+## Cidade em grupo: fantasmas do que os outros estão posicionando e os baús de recompensa (id -> baú).
+var ghosts: Node3D
+var chests := {}
 var rng := RandomNumberGenerator.new()
 
 var _sun: DirectionalLight3D
@@ -120,6 +126,9 @@ func _ready() -> void:
 	add_child(colony_hud)
 
 	if role == "client":
+		ghosts = REMOTE_GHOSTS.new()
+		ghosts.colony = colony
+		add_child(ghosts)
 		var chat := CHAT.new()
 		chat.world = self
 		add_child(chat)
@@ -155,9 +164,94 @@ func on_city_synced() -> void:
 
 
 ## Cliente: recompensa de uma noite vencida (aviso grande no centro).
-func on_reward(n: int, gold: int, xp: int, items: Array) -> void:
+func on_reward(n: int, gold: int, xp: int, chest: bool) -> void:
 	if colony_hud and colony_hud.has_method("show_reward"):
-		colony_hud.show_reward(n, gold, xp, items)
+		colony_hud.show_reward(n, gold, xp, chest)
+
+
+# ================================================================ grupo: fantasmas e baús
+func on_remote_ghost(pid: int, kind: String, x: float, z: float, rot: float, ok: bool, target: int) -> void:
+	if ghosts and colony.phase != "over":
+		ghosts.update_ghost(pid, kind, x, z, rot, ok, target)
+
+
+func on_chest_add(id: int, n: int, x: float, z: float, rarity: String, count: int) -> void:
+	if chests.has(id):
+		return
+	var ch: Node3D = LOOT_CHEST.new()
+	ch.world = self
+	ch.chest_id = id
+	ch.night = n
+	ch.rarity = rarity
+	ch.count = count
+	ch.position = Vector3(x, 0.0, z)
+	add_child(ch)
+	chests[id] = ch
+	colony.chests[id] = ch.position
+
+
+func on_chest_del(id: int) -> void:
+	var ch = chests.get(id)
+	chests.erase(id)
+	colony.chests.erase(id)
+	if modal != null and modal.get("chest") == ch:
+		modal.call("set_items", [])
+	if ch != null and is_instance_valid(ch):
+		ch.vanish()
+
+
+func on_chest_fx(id: int, pid: int) -> void:
+	var ch = chests.get(id)
+	if ch != null and is_instance_valid(ch):
+		ch.opened_by(REMOTE_GHOSTS.player_name(pid))
+
+
+## O jogador apertou E no baú: abre a janela (o conteúdo chega do servidor).
+func open_chest(ch: Node3D) -> void:
+	if build.active:
+		build.set_active(false)
+	if modal != null:
+		return
+	var ui := CHEST_UI.new()
+	ui.world = self
+	ui.chest = ch
+	_open_modal(ui)
+	Lobby.city_chest_open(int(ch.chest_id))
+
+
+func _chest_modal(id: int) -> Control:
+	if modal != null and modal.get("chest") != null and is_instance_valid(modal.chest) and int(modal.chest.chest_id) == id:
+		return modal
+	return null
+
+
+func on_chest_loot(id: int, items: Array, ok: bool) -> void:
+	var ch = chests.get(id)
+	if ch != null and is_instance_valid(ch):
+		ch.set_remaining(items.size(), "")
+	var ui := _chest_modal(id)
+	if ui == null:
+		return
+	if not ok:
+		ui.call("_close")
+		return
+	ui.call("set_items", items)
+
+
+func on_chest_given(id: int, given: Array, left: Array) -> void:
+	var ch = chests.get(id)
+	if ch != null and is_instance_valid(ch):
+		var best := ""
+		for it in left:
+			var r := ItemDB.rarity_of(str(it))
+			if best == "" or ItemDB.RARITY[r].rank > ItemDB.RARITY[best].rank:
+				best = r
+		ch.set_remaining(left.size(), best)
+	var ui := _chest_modal(id)
+	if ui != null:
+		ui.call("set_items", left)
+	if not given.is_empty():
+		Sfx.play("coin", 0.05, -4.0)
 
 
 ## Cliente: a partida acabou (a cidade caiu ou todos saíram).
