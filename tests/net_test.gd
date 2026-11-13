@@ -1,9 +1,12 @@
 extends Node
 ## Teste do multiplayer: entra num servidor como cliente headless e verifica a sincronia.
-##   godot --headless --path . -- --server --port=7777                      (terminal 1)
-##   godot --headless --path . -- --nettest=127.0.0.1:7777 [--peers=2] [--name=A]   (terminal 2, 3...)
+##   godot --headless --path . -- --server --port=7777 --http-port=8790 --db=<banco novo>      (terminal 1)
+##   godot --headless --path . -- --nettest=127.0.0.1:7777 --auth-url=http://127.0.0.1:8790 [--peers=2] [--name=Ana]
+## --name é o usuário da conta de teste (senha fixa TEST_PASS): o teste cadastra (409 é ok), loga e entra com o token.
 ## --peers=N espera ver N-1 outros jogadores. Sai com código 0 (ok) ou 1 (falhas).
-## --probe: só entra, confere versão e snapshots e sai (usado pelo CI contra o servidor público).
+## --probe: só confere a versão do servidor por GET /health, sem conta (usado pelo CI contra o servidor público).
+## --relogin: no fim, abre uma segunda conexão (outro processo, mesmo token) e espera esta ser derrubada.
+## --token=T: entra direto com o token (é o processo da segunda conexão do --relogin).
 ## --horde=lead|join: testa o Desafio da Horda em grupo (lead abre o portal, join aceita o convite).
 ##   Use com o servidor em --horde-round=8 --horde-pick=5 para as rodadas e escolhas não demorarem.
 ## --city=lead|join: testa a Defesa da Cidade em grupo pelo salão (lead cria a sala e começa, join entra).
@@ -17,6 +20,11 @@ var probe := false
 var horde_role := ""
 var city_role := ""
 var chat_got: Array = []   # [nome, texto]
+var relogin := false
+var token := ""
+var join_error := ""
+
+const TEST_PASS := "teste-1234"
 
 
 func check(cond: bool, what: String) -> void:
@@ -44,21 +52,52 @@ func _ready() -> void:
 			horde_role = a.substr(8)
 		elif a.begins_with("--city="):
 			city_role = a.substr(7)
+		elif a == "--relogin":
+			relogin = true
+		elif a.begins_with("--token="):
+			token = a.substr(8)
+	if probe:
+		await _probe()
+		_finish()
+		return
+	var second := token != ""   # processo da segunda conexão do --relogin
 	Network.chat_received.connect(func(from: String, text: String) -> void: chat_got.append([from, text]))
-	Game.save_path = "user://nettest_%s.json" % my_name
+	Network.join_failed.connect(func(r: String) -> void: join_error = r)
+	Game.save_path = "user://nettest_%s%s.json" % [my_name, "_2" if second else ""]
 	Game.new_game()
-	var failed := [""]
-	Network.join_failed.connect(func(r: String) -> void: failed[0] = r)
-	Network.join(address, my_name)
+	if not second:
+		var reg: Dictionary = await Auth.register(address, my_name, TEST_PASS)
+		check(reg.ok or reg.err == "nome_em_uso", "cadastro da conta de teste (%s)" % reg.get("err", "201"))
+		var log_r: Dictionary = await Auth.login(address, my_name, TEST_PASS)
+		check(log_r.ok and str(log_r.get("token", "")) != "", "login devolve token (%s)" % log_r.get("err", "ok"))
+		if not log_r.ok:
+			_finish()
+			return
+		token = log_r.token
+		if relogin:
+			await _test_bad_token()
+	Network.join(address, token)
 
 	# todo mundo chega pelo salão
 	var t := 0.0
-	while not _in_lobby() and failed[0] == "" and t < 15.0:
+	while not _in_lobby() and join_error == "" and t < 15.0:
 		await wait(0.2)
 		t += 0.2
-	check(failed[0] == "", "conectou sem erro %s" % failed[0])
+	check(join_error == "", "conectou sem erro %s" % join_error)
 	check(_in_lobby(), "chegou ao salão (lobby)")
 	if not _in_lobby():
+		_finish()
+		return
+	check(Network.my_name == my_name, "nome no servidor é o da conta (%s)" % Network.my_name)
+	var me_info: Dictionary = Network.players.get(multiplayer.get_unique_id(), {})
+	check(int(me_info.get("account", 0)) > 0, "servidor associou a conta ao jogador (%s)" % str(me_info.get("account")))
+	if second:
+		var same := 0
+		for pid in Network.players:
+			if Network.players[pid].name == my_name:
+				same += 1
+		check(same == 1, "só uma sessão da conta no servidor (%d)" % same)
+		await wait(1.0)
 		_finish()
 		return
 	check(await _wait_until(func() -> bool: return Network.zone_of(multiplayer.get_unique_id()) == "lobby", 5.0),
@@ -90,12 +129,6 @@ func _ready() -> void:
 	await wait(2.0)
 	var rate := (Network.snapshots_received - n0) / 2.0
 	check(rate >= Network.SEND_RATE * 0.75, "recebendo snapshots dos inimigos (%.1f/s)" % rate)
-	# --probe: só confere que o servidor aceitou esta versão e está mandando o mundo; não mexe em nada lá
-	if probe:
-		print("[%s] servidor aceitou a versão %s" % [my_name, Network.version()])
-		_finish()
-		return
-
 	# save automático periódico: o personagem é gravado sem o jogador sair do servidor
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(Game.save_path))
 	Network.autosave_interval = 1.0
@@ -205,7 +238,54 @@ func _ready() -> void:
 
 	# fica um pouco para os outros testes verem este jogador
 	await wait(3.0 if peers > 1 else 0.5)
+	if relogin:
+		await _test_second_login_kicks_first()
 	_finish()
+
+
+# ---------------------------------------------------------------- conta e sessão
+## --probe: o servidor público responde /health com a versão deste build (sem conta, sem entrar no mundo).
+func _probe() -> void:
+	var h: Dictionary = await Auth.health(address)
+	check(h.ok, "API respondeu /health (%s)" % h.get("err", "ok"))
+	var v := str(h.get("version", ""))
+	check(v == Network.version(), "servidor na versão %s (está na %s)" % [Network.version(), v])
+	if h.ok and v == Network.version():
+		print("[%s] servidor aceitou a versão %s" % [my_name, v])
+
+
+## Token que o servidor não conhece: recusado com a mensagem de sessão expirada.
+func _test_bad_token() -> void:
+	join_error = ""
+	Network.join(address, "token-que-nao-existe")
+	await _wait_until(func() -> bool: return join_error != "", 8.0)
+	check(join_error.begins_with("Sessão expirada"), "token inválido é recusado (%s)" % join_error)
+	Network.leave()
+	join_error = ""
+
+
+## Outro processo entra com o mesmo token: o servidor derruba esta conexão antes de aceitar a nova.
+func _test_second_login_kicks_first() -> void:
+	var result := "user://nettest_%s_2.result" % my_name
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(result))
+	join_error = ""
+	var args := ["--headless", "--path", ProjectSettings.globalize_path("res://"), "--",
+		"--nettest=" + address, "--name=" + my_name, "--token=" + token]
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--auth-url="):
+			args.append(a)
+	var pid := OS.create_process(OS.get_executable_path(), args)
+	check(pid > 0, "abriu a segunda conexão (pid %d)" % pid)
+	if pid <= 0:
+		return
+	check(await _wait_until(func() -> bool: return not Network.is_online(), 40.0),
+		"segunda conexão com o mesmo token derruba a primeira")
+	check(join_error.contains("outro lugar"), "aviso de conta aberta em outro lugar (%s)" % join_error)
+	var done: bool = await _wait_until(func() -> bool: return FileAccess.file_exists(result), 30.0)
+	var txt := FileAccess.get_file_as_string(result) if done else ""
+	check(txt == "OK", "segunda conexão entrou no salão (%s)" % (txt if done else "sem resultado"))
+	if OS.is_process_running(pid):
+		OS.kill(pid)
 
 
 # ---------------------------------------------------------------- Desafio da Horda em grupo
@@ -561,5 +641,11 @@ func _build_size(sv) -> int:
 
 func _finish() -> void:
 	print("[%s] %s (%d falhas)" % [my_name, "NETTEST OK" if fails == 0 else "NETTEST FALHOU", fails])
+	if token != "" and not relogin and OS.get_cmdline_user_args().has("--token=" + token):
+		# processo da segunda conexão: o primeiro lê o resultado deste arquivo
+		var f := FileAccess.open("user://nettest_%s_2.result" % my_name, FileAccess.WRITE)
+		if f:
+			f.store_string("OK" if fails == 0 else "FALHOU")
+			f.close()
 	Network.leave()
 	get_tree().quit(1 if fails > 0 else 0)

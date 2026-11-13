@@ -8,9 +8,11 @@ var pivot: Node3D
 var menu_box: VBoxContainer
 var mp_box: VBoxContainer
 var mp_name: LineEdit
+var mp_pass: LineEdit
 var mp_address: LineEdit
 var mp_status: Label
 var mp_join: Button
+var mp_create: Button
 var upd_box: PanelContainer
 
 
@@ -69,7 +71,7 @@ func _ready() -> void:
 			Sfx.play("click", 0.0)
 			Game.start_colony(true), 320))
 		menu_box.add_child(UITheme.label("   " + Game.colony_save_info(), 15, UITheme.DIM))
-	menu_box.add_child(UITheme.button("Multiplayer", _open_multiplayer, 320))
+	menu_box.add_child(UITheme.button("Jogar online", _open_multiplayer, 320))
 	menu_box.add_child(UITheme.button("Opções", _options, 320))
 	menu_box.add_child(UITheme.button("Sair", func() -> void: get_tree().quit(), 320))
 	(cont if not cont.disabled else new_btn).grab_focus.call_deferred()
@@ -95,27 +97,37 @@ func _new_game() -> void:
 	Game.start_new_game()
 
 
-# ---------------------------------------------------------------- multiplayer
+# ---------------------------------------------------------------- jogar online (login + ENet)
 func _build_multiplayer() -> void:
 	mp_box = VBoxContainer.new()
 	mp_box.anchor_top = 0.5
 	mp_box.anchor_bottom = 0.5
 	mp_box.offset_left = 90
-	mp_box.offset_top = -230
+	mp_box.offset_top = -300
 	mp_box.offset_right = 560
-	mp_box.offset_bottom = 230
+	mp_box.offset_bottom = 300
 	mp_box.add_theme_constant_override("separation", 10)
 	mp_box.visible = false
 	add_child(mp_box)
-	mp_box.add_child(UITheme.label("Multiplayer", 48, UITheme.GOLD))
-	mp_box.add_child(UITheme.label("Entre no servidor e jogue com seus amigos.", 18, UITheme.DIM))
-	mp_box.add_child(UITheme.label("Seu nome", 16))
+	mp_box.add_child(UITheme.label("Jogar online", 48, UITheme.GOLD))
+	mp_box.add_child(UITheme.label("Entre com a sua conta e jogue com seus amigos.", 18, UITheme.DIM))
+	mp_box.add_child(UITheme.label("Usuário", 16))
 	mp_name = LineEdit.new()
 	mp_name.max_length = 16
-	mp_name.placeholder_text = "Aventureiro"
+	mp_name.placeholder_text = "3 a 16 letras, números ou _"
+	# o nome salvo é o usuário do último login (a senha nunca é salva)
 	mp_name.text = str(Game.settings.player_name)
 	mp_name.custom_minimum_size = Vector2(320, 40)
+	mp_name.text_submitted.connect(func(_t: String) -> void: mp_pass.grab_focus())
 	mp_box.add_child(mp_name)
+	mp_box.add_child(UITheme.label("Senha", 16))
+	mp_pass = LineEdit.new()
+	mp_pass.secret = true
+	mp_pass.max_length = 128
+	mp_pass.placeholder_text = "pelo menos 8 caracteres"
+	mp_pass.custom_minimum_size = Vector2(320, 40)
+	mp_pass.text_submitted.connect(func(_t: String) -> void: _join())
+	mp_box.add_child(mp_pass)
 	mp_box.add_child(UITheme.label("Servidor (endereço ou endereço:porta)", 16))
 	mp_address = LineEdit.new()
 	mp_address.placeholder_text = Network.DEFAULT_ADDRESS
@@ -126,8 +138,13 @@ func _build_multiplayer() -> void:
 	mp_box.add_child(mp_address)
 	var who := "Personagem: " + (Game.save_info() if Game.has_save() else "novo (nenhum save neste PC)")
 	mp_box.add_child(UITheme.label(who, 15, UITheme.DIM))
-	mp_join = UITheme.button("Entrar", _join, 320)
-	mp_box.add_child(mp_join)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	mp_box.add_child(row)
+	mp_join = UITheme.button("Entrar", _join, 155)
+	row.add_child(mp_join)
+	mp_create = UITheme.button("Criar conta", _create_account, 155)
+	row.add_child(mp_create)
 	mp_box.add_child(UITheme.button("Voltar", _close_multiplayer, 320))
 	mp_status = UITheme.label("", 16, UITheme.DIM)
 	mp_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -140,34 +157,76 @@ func _open_multiplayer() -> void:
 	menu_box.visible = false
 	mp_box.visible = true
 	_set_status("v" + Network.version(), UITheme.DIM)
-	(mp_name if mp_name.text == "" else mp_join).grab_focus.call_deferred()
+	(mp_name if mp_name.text == "" else mp_pass).grab_focus.call_deferred()
 
 
 func _close_multiplayer() -> void:
 	Network.leave()
 	mp_box.visible = false
 	menu_box.visible = true
-	mp_join.disabled = false
+	mp_pass.text = ""
+	_set_busy(false)
 
 
-func _join() -> void:
-	if mp_join.disabled:
-		return
-	Sfx.play("click", 0.0)
+func _set_busy(busy: bool) -> void:
+	mp_join.disabled = busy
+	mp_create.disabled = busy
+
+
+## Confere os campos, lembra usuário e endereço (nunca a senha). Devolve false se falta algo.
+func _read_form() -> bool:
+	if mp_name.text.strip_edges() == "" or mp_pass.text == "":
+		_set_status("Digite o usuário e a senha.", Color(1, 0.6, 0.5))
+		return false
+	if mp_address.text.strip_edges() == "":
+		_set_status("Digite o endereço do servidor.", Color(1, 0.6, 0.5))
+		return false
 	Game.settings.player_name = mp_name.text.strip_edges()
 	Game.settings.server_address = mp_address.text.strip_edges()
 	Game.save_settings()
+	return true
+
+
+func _join() -> void:
+	if mp_join.disabled or not _read_form():
+		return
+	Sfx.play("click", 0.0)
+	_set_busy(true)
+	await _login_and_connect()
+
+
+func _create_account() -> void:
+	if mp_create.disabled or not _read_form():
+		return
+	Sfx.play("click", 0.0)
+	_set_busy(true)
+	_set_status("Criando a conta...", UITheme.TEXT)
+	var r: Dictionary = await Auth.register(mp_address.text, mp_name.text.strip_edges(), mp_pass.text)
+	if not r.ok:
+		_on_join_failed(r.msg)
+		return
+	_set_status("Conta criada! Entrando...", UITheme.TEXT)
+	await _login_and_connect()
+
+
+func _login_and_connect() -> void:
+	var address := mp_address.text.strip_edges()
+	_set_status("Entrando...", UITheme.TEXT)
+	var r: Dictionary = await Auth.login(address, mp_name.text.strip_edges(), mp_pass.text)
+	if not r.ok:
+		_on_join_failed(r.msg)
+		return
+	mp_pass.text = ""
 	# o personagem é o save deste PC (ou um novo, se não houver)
 	if not (Game.has_save() and Game.load_character()):
 		Game.new_game()
-	mp_join.disabled = true
-	_set_status("Conectando a %s..." % mp_address.text.strip_edges(), UITheme.TEXT)
-	Network.join(mp_address.text, mp_name.text)
+	_set_status("Conectando a %s como %s..." % [address, r.get("name", "")], UITheme.TEXT)
+	Network.join(address, str(r.token))
 
 
 func _on_join_failed(reason: String) -> void:
 	if mp_join:
-		mp_join.disabled = false
+		_set_busy(false)
 	_set_status(reason, Color(1, 0.6, 0.5))
 	# servidor com outra versão: procura de novo (a release nova pode ter acabado de sair)
 	if reason.begins_with("Versão diferente") and not Updater.can_install():

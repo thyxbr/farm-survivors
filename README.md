@@ -304,14 +304,18 @@ Cidade de exemplo para screenshots: `... res://scenes/colony.tscn -- --colonydem
 Multiplayer (servidor + 2 clientes headless; cada cliente sai com código 0 se tudo passar):
 ```
 G=C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe
-$G --headless --path . -- --server --port=7790 --horde-round=8 --horde-pick=5 &
-$G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Ana --horde=lead --horde-pick=5 &
-$G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Beto --horde=join --horde-pick=5
+rm -f "$TEMP/nettest.db"
+$G --headless --path . -- --server --port=7790 --http-port=8790 --db="$TEMP/nettest.db" --horde-round=8 --horde-pick=5 &
+$G --headless --path . -- --nettest=127.0.0.1:7790 --auth-url=http://127.0.0.1:8790 --peers=2 --name=Ana --horde=lead --horde-pick=5 &
+$G --headless --path . -- --nettest=127.0.0.1:7790 --auth-url=http://127.0.0.1:8790 --peers=2 --name=Beto --horde=join --horde-pick=5 --relogin
 ```
+Os clientes entram com conta: `--name` é o usuário (senha fixa `teste-1234`); o teste cadastra a conta (se já existe,
+segue), faz login pela API HTTP do servidor (`--auth-url`) e entra no ENet com o token. `--relogin` confere, no fim, que
+uma segunda conexão com o mesmo token derruba a primeira (abre outro processo do Godot) e que um token inválido é recusado.
 `--horde=lead|join` testa o Desafio da Horda em grupo (Ana abre o portal, Beto aceita o convite; nível do grupo com
 a horda congelada até os dois escolherem, Beto "AFK" recebe carta sorteada; Beto cai e volta, os dois escolhem bênçãos
 e se retiram); sem ele o teste pula essa parte. Com `--peers=2` também testa o chat (entrega e anti-spam).
-`--probe` só entra, confere a versão e os snapshots e sai (não mexe no mundo); serve para testar o servidor público.
+`--probe` só confere a versão do servidor por `GET /health` (sem conta nem ENet); serve para testar o servidor público.
 Cobre conexão, inimigos replicados (snapshots a 20/s), ver o outro jogador, dano pelo servidor, morte, XP, loot
 e a horda em grupo.
 `--netstats` no servidor imprime jogadores, fps e snapshots/s a cada 5 s.

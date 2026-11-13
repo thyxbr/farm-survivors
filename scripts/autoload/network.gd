@@ -1,8 +1,8 @@
 extends Node
 ## Multiplayer: servidor dedicado (headless) + clientes, via ENet (UDP).
 ##
-## Servidor:  godot --headless --path . -- --server [--port=7777]
-## Cliente:   menu principal → Multiplayer → Entrar.
+## Servidor:  godot --headless --path . -- --server [--port=7777] [--http-port=8080] [--db=user://server.db]
+## Cliente:   menu principal → Multiplayer → Entrar (login pela API HTTP; o ENet recebe o token da sessão).
 ##
 ## Modelo: o servidor é dono dos inimigos (IA, vida, morte). Cada cliente é dono do próprio
 ## personagem (movimento, atributos, inventário, save local) e envia a posição ~20x/s.
@@ -46,9 +46,12 @@ enum Mode { OFFLINE, SERVER, CLIENT }
 
 var mode := Mode.OFFLINE
 var port := DEFAULT_PORT
-## peer_id -> {"name": String, "look": Dictionary (espaço -> item), "ready": bool}
+## peer_id -> {"name": String (nome da conta), "account": int, "admin": bool, "look": Dictionary (espaço -> item),
+## "ready": bool, "zone": String}
 var players := {}
 var my_name := ""
+## Cliente: token da sessão (do Auth.login) mandado no _register.
+var my_token := ""
 ## Mensagem mostrada no menu principal depois de uma desconexão.
 var last_error := ""
 var world: Node = null
@@ -59,6 +62,8 @@ var remote_players := {}  # peer_id -> Player (réplica)
 var db: Db = null
 var accounts: AccountStore = null
 var auth_http: AuthHttp = null
+## Servidor: personagens das contas (sessão = peer id do ENet).
+var characters: CharacterService = null
 var http_port := 0
 var db_path := ""
 var admin_users := PackedStringArray()
@@ -161,6 +166,7 @@ func start_server() -> void:
 		return
 	Migrations.apply(db)
 	accounts = AccountStore.new(db, admin_users)
+	characters = CharacterService.new(db, Balance.tables)
 	for n in accounts.missing_admins():
 		var msg := "[server] aviso: admin '%s' ainda não tem conta — crie a conta antes que outro jogador registre esse nome" % n
 		print(msg)
@@ -208,21 +214,31 @@ func _on_peer_disconnected(id: int) -> void:
 	_chat_log.erase(id)
 	if is_server() and players.has(id):
 		print("[server] %s saiu (%d online)" % [players[id].name, players.size() - 1])
-		var was_city: bool = players[id].get("zone", "") == "city"
-		players.erase(id)
-		_remove_remote_player(id)
-		for pid in _all_peers():
-			_player_left.rpc_id(pid, id)
-		players_changed.emit()
-		_horde_peer_gone(id)
-		Lobby.server_peer_gone(id, was_city)
+		_drop_player(id)
+
+
+## Servidor: tira o jogador do jogo (saiu ou foi substituído por uma conexão nova da mesma conta).
+func _drop_player(id: int) -> void:
+	var was_city: bool = players[id].get("zone", "") == "city"
+	var account := int(players[id].get("account", 0))
+	players.erase(id)
+	_remove_remote_player(id)
+	for pid in _all_peers():
+		_player_left.rpc_id(pid, id)
+	players_changed.emit()
+	_horde_peer_gone(id)
+	Lobby.server_peer_gone(id, was_city)
+	if characters != null and account > 0:
+		# por sessão: a queda tardia de uma conexão velha não descarrega a sessão nova
+		characters.unload(account, id)
 
 
 @rpc("any_peer", "call_remote", "reliable")
-## Assinatura estável entre versões: (nome, versão, visual, extra). Os dois últimos ficam sem tipo para que
-## um cliente de versão antiga (que mandava arma e armadura como texto) ainda chegue à checagem de versão
-## e receba a mensagem "atualize o jogo" em vez de um erro de RPC. Não mude a quantidade de argumentos.
-func _register(player_name: String, client_version: String, look = {}, _extra = "") -> void:
+## Assinatura estável entre versões: (token, versão, visual, extra). O 1º argumento já foi o nome digitado
+## (também texto); os dois últimos ficam sem tipo para que um cliente de versão antiga (que mandava arma e
+## armadura como texto) ainda chegue à checagem de versão e receba a mensagem "atualize o jogo" em vez de
+## um erro de RPC. Não mude a quantidade de argumentos.
+func _register(token: String, client_version: String, look = {}, _extra = "") -> void:
 	if not is_server():
 		return
 	var id := multiplayer.get_remote_sender_id()
@@ -234,11 +250,25 @@ func _register(player_name: String, client_version: String, look = {}, _extra = 
 		_rejected.rpc_id(id, "Versão diferente do servidor (sua: %s, servidor: %s). Atualize o jogo." % [client_version, version()])
 		_kick_later(id)
 		return
-	var name_clean := _clean_name(player_name)
+	var acc: Dictionary = accounts.resolve_token(token) if accounts != null else {}
+	if acc.is_empty():
+		print("[server] recusado peer %d: token inválido ou expirado" % id)
+		_rejected.rpc_id(id, "Sessão expirada. Entre de novo.")
+		_kick_later(id)
+		return
+	var account := int(acc.id)
+	# uma sessão por conta: a conexão antiga cai antes de aceitar a nova
+	for old in players.keys():
+		if int(players[old].get("account", 0)) == account:
+			print("[server] %s entrou de novo (peer %d): derrubando o peer %d" % [acc.name, id, old])
+			_drop_player(old)
+			_rejected.rpc_id(old, "Sua conta entrou no jogo em outro lugar. Esta conexão foi encerrada.")
+			_kick_later(old)
+	characters.set_session(account, id)
 	# todo jogador começa no salão (lobby); "ready" = já carregou a cena da zona em que está
-	players[id] = {"name": name_clean, "look": _clean_look(look if look is Dictionary else {}), "ready": false,
-		"zone": "lobby"}
-	print("[server] %s entrou (peer %d, %d online)" % [name_clean, id, players.size()])
+	players[id] = {"name": str(acc.name), "account": account, "admin": bool(acc.get("is_admin", false)),
+		"look": _clean_look(look if look is Dictionary else {}), "ready": false, "zone": "lobby"}
+	print("[server] %s entrou (peer %d, conta %d, %d online)" % [acc.name, id, account, players.size()])
 	_accepted.rpc_id(id, players)
 	for pid in _all_peers():
 		if pid != id:
@@ -326,24 +356,6 @@ func _player_zone(id: int, zone: String) -> void:
 	if id != me and zone != zone_of(me):
 		_remove_remote_player(id)
 	players_changed.emit()
-
-
-func _clean_name(n: String) -> String:
-	var s := n.strip_edges().substr(0, 16)
-	if s == "":
-		s = "Aventureiro"
-	var base := s
-	var i := 2
-	var taken := true
-	while taken:
-		taken = false
-		for pid in players:
-			if players[pid].name == s:
-				taken = true
-				s = "%s %d" % [base, i]
-				i += 1
-				break
-	return s
 
 
 func _kick_later(id: int) -> void:
@@ -556,8 +568,8 @@ func _player_event(kind: String, a: Vector3, b: Vector3) -> void:
 
 
 # ================================================================ cliente
-## Conecta em "host" ou "host:porta". O personagem (Game) já deve estar carregado.
-func join(address: String, player_name: String) -> void:
+## Conecta em "host" ou "host:porta" com o token da sessão (Auth.login). O personagem (Game) já deve estar carregado.
+func join(address: String, token: String) -> void:
 	leave()
 	var host := address.strip_edges()
 	var p := DEFAULT_PORT
@@ -574,7 +586,8 @@ func join(address: String, player_name: String) -> void:
 		return
 	multiplayer.multiplayer_peer = peer
 	mode = Mode.CLIENT
-	my_name = player_name
+	my_token = token
+	my_name = ""
 	last_error = ""
 	_connect_t = CONNECT_TIMEOUT
 	_autosave_t = autosave_interval
@@ -595,7 +608,7 @@ func leave() -> void:
 
 func _on_connected_to_server() -> void:
 	_no_throttle(1)
-	_register.rpc_id(1, my_name, version(), Game.equipment.duplicate(), "")
+	_register.rpc_id(1, my_token, version(), Game.equipment.duplicate(), "")
 
 
 func _on_connection_failed() -> void:
@@ -619,7 +632,16 @@ func _on_server_disconnected() -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func _rejected(reason: String) -> void:
-	_fail(explain_rejection(reason, version()))
+	var why := explain_rejection(reason, version())
+	if world != null or Lobby.in_session():
+		# já estava jogando (a conta entrou em outro lugar): salva e volta ao menu com o aviso
+		autosave()
+		leave()
+		last_error = why
+		join_failed.emit(why)
+		Game.go_to_menu()
+		return
+	_fail(why)
 
 
 ## O texto de recusa vem do servidor, que pode ser o antigo: quando o jogador já atualizou e o servidor

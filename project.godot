@@ -23,6 +23,7 @@ ItemDB="*res://scripts/autoload/item_db.gd"
 Game="*res://scripts/autoload/game.gd"
 Sfx="*res://scripts/autoload/sfx.gd"
 Network="*res://scripts/autoload/network.gd"
+Auth="*res://scripts/autoload/auth.gd"
 Lobby="*res://scripts/autoload/lobby.gd"
 Updater="*res://scripts/autoload/updater.gd"
 
