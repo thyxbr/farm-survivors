@@ -39,11 +39,11 @@ func _ready() -> void:
 				b.size = Vector3(0.08, 0.8, 0.04)
 				mi.mesh = b
 				col_c = it.get("color", Color.GRAY)
-			"armor":
+			"armor", "gear":
 				var b := BoxMesh.new()
-				b.size = Vector3(0.45, 0.45, 0.2)
+				b.size = Vector3(0.45, 0.45, 0.2) if it.type == "armor" else Vector3(0.3, 0.3, 0.2)
 				mi.mesh = b
-				col_c = Color(0.6, 0.6, 0.7)
+				col_c = it.get("color", Color(0.6, 0.6, 0.7))
 			"consumable":
 				var s := SphereMesh.new()
 				s.radius = 0.15
@@ -69,6 +69,27 @@ func _ready() -> void:
 	light.light_energy = 0.8
 	light.omni_range = 1.6
 	_vis.add_child(light)
+	# feixe de luz para equipamentos raros ou melhores (cor da raridade)
+	if item_id != "" and ItemDB.is_equippable(item_id) and ItemDB.RARITY[ItemDB.rarity_of(item_id)].rank >= 2:
+		var rc := ItemDB.rarity_color(item_id)
+		var beam := MeshInstance3D.new()
+		var cyl := CylinderMesh.new()
+		cyl.top_radius = 0.02
+		cyl.bottom_radius = 0.09
+		cyl.height = 3.5
+		var bm := StandardMaterial3D.new()
+		bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		bm.albedo_color = Color(rc.r, rc.g, rc.b, 0.35)
+		bm.cull_mode = BaseMaterial3D.CULL_DISABLED
+		cyl.material = bm
+		beam.mesh = cyl
+		beam.position.y = 1.6
+		beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(beam)
+		light.light_color = rc
+		light.light_energy = 1.6
+		light.omni_range = 2.6
 	body_entered.connect(_on_body)
 	_vel = Vector3(randf_range(-2, 2), 5.0, randf_range(-2, 2))
 

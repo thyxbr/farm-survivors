@@ -112,6 +112,9 @@ func _ready() -> void:
 	world.modal._close()
 	await wait(0.05)
 
+	# --- novas armas, armaduras e equipamentos
+	await _test_gear()
+
 	# --- save / load
 	Game.save_game(player.global_position, 0.0)
 	var saved_gold := Game.gold
@@ -124,6 +127,7 @@ func _ready() -> void:
 	player = get_tree().get_first_node_in_group("player")
 	check(Game.gold == saved_gold and Game.level == saved_lvl, "save/load restaura ouro e nível")
 	check(Game.equipment.weapon == "iron_sword", "save/load restaura equipamento")
+	check(Game.equipment.head == "leather_cap" and Game.equipment.feet == "leather_boots", "save/load restaura cabeça e pés")
 
 	# --- missões goblin e chefe
 	Game.start_quest("goblins")
@@ -397,6 +401,109 @@ func _pause_menu() -> Control:
 	var p := preload("res://scripts/ui/pause_menu.gd").new()
 	p.mode = "pause"
 	return p
+
+
+func _count_projectiles(kind: String) -> int:
+	var n := 0
+	for c in world.get_children():
+		if c is Area3D and c.get_script() == preload("res://scripts/player/projectile.gd") and c.kind == kind:
+			n += 1
+	return n
+
+
+func _test_gear() -> void:
+	# dados consistentes
+	var bad: Array[String] = []
+	for id in ItemDB.ITEMS:
+		var it: Dictionary = ItemDB.ITEMS[id]
+		if it.type in ["weapon", "armor", "gear"] and not ItemDB.SLOTS.has(ItemDB.slot_of(id)):
+			bad.append(id)
+		for k in it.get("stats", {}):
+			if not ItemDB.STAT_NAMES.has(k):
+				bad.append("%s.%s" % [id, k])
+		if ItemTooltip.build_text(id) == "":
+			bad.append(id + " (dica)")
+	for id in ItemDB.SHOP_STOCK:
+		if not ItemDB.ITEMS.has(id):
+			bad.append("loja:" + id)
+	for k in Enemy.TYPES:
+		for entry in Enemy.TYPES[k].loot:
+			if not ItemDB.ITEMS.has(entry[0]):
+				bad.append("saque:" + entry[0])
+	check(bad.is_empty(), "itens novos consistentes (%d itens) %s" % [ItemDB.ITEMS.size(), bad])
+
+	# cajado: ataque básico dispara projétil arcano
+	check(Game.count_item("apprentice_staff") == 1 and Game.count_item("short_bow") == 1, "kit inicial tem cajado e arco")
+	var dmg_sword := Game.melee_damage()
+	check(Game.equip("apprentice_staff"), "equipou cajado")
+	await wait(0.05)
+	check(Game.weapon_class() == "staff" and player.look["class"] == "staff", "classe da arma: cajado")
+	check(player.look.holder != null and is_instance_valid(player.look.holder), "modelo do cajado montado na mão")
+	player.attacking = false
+	player.combo_window = 0.0
+	player._start_swing()
+	await wait(0.3)
+	check(_count_projectiles("bolt") >= 1, "cajado dispara faísca arcana")
+	await wait(0.5)
+
+	# arco: tensionar e soltar
+	check(Game.equip("short_bow"), "equipou arco")
+	await wait(0.05)
+	check(player.look["class"] == "bow" and player.look.arrow != null, "classe da arma: arco (com flecha encaixável)")
+	player.attacking = false
+	player.drawing = true
+	player.draw_t = player.BOW_FULL
+	check(player.bow_charge() >= 0.99, "arco totalmente tensionado")
+	player.release_arrow()
+	await wait(0.05)
+	check(_count_projectiles("arrow") >= 1, "arco dispara flecha")
+	check(not player.drawing, "soltar encerra a tensão")
+
+	# mão secundária combina com a arma
+	Game.add_item("wooden_shield", 1, true)
+	check(not Game.equip("wooden_shield"), "escudo recusado com arco")
+	Game.equip("iron_sword")
+	check(Game.equip("wooden_shield") and Game.equipment.offhand == "wooden_shield", "escudo equipado com espada")
+	var shield_mesh := player.model.find_child("Shield", true, false) as MeshInstance3D
+	check(shield_mesh == null or shield_mesh.visible, "escudo aparece no modelo")
+	Game.equip("apprentice_staff")
+	check(Game.equipment.offhand == "" and Game.count_item("wooden_shield") == 1, "trocar para cajado guarda o escudo")
+	Game.equip("iron_sword")
+	check(is_equal_approx(Game.melee_damage(), dmg_sword), "dano da espada volta ao trocar de volta")
+
+	# armaduras: defesa e bônus somam
+	var def0 := Game.defense()
+	var hp0 := Game.max_hp()
+	Game.add_item("leather_boots", 1, true)
+	Game.add_item("life_amulet", 1, true)
+	var prev := Game.preview_equip("life_amulet")
+	check(prev.get("hp", 0.0) > 0.0, "comparação prevê +vida do amuleto (%+.0f)" % prev.get("hp", 0.0))
+	Game.equip("leather_cap")
+	Game.equip("leather_boots")
+	Game.equip("life_amulet")
+	check(Game.defense() > def0, "capuz e botas aumentam a defesa (%.1f -> %.1f)" % [def0, Game.defense()])
+	check(Game.max_hp() > hp0 and Game.attr("vit") == Game.attributes.vit + 1, "amuleto dá vida e vitalidade")
+	check(Game.speed_multiplier() > 1.0, "botas dão velocidade")
+	Game.sort_inventory()
+	check(ItemDB.category(Game.inventory[0].id) == "equip", "organizar coloca equipamentos primeiro")
+
+	# telas novas abrem
+	world._open_menu(0)
+	await wait(0.15)
+	var m = world.modal
+	check(m != null and m.equip_slots.size() == 8 and m.bag_slots.size() >= 54, "inventário com boneco (8 espaços) e grade")
+	check(m.equip_slots.head.item_id == "leather_cap", "boneco mostra o capuz equipado")
+	m._show_tab(1)
+	await wait(0.05)
+	m._show_tab(2)
+	await wait(0.05)
+	m._close()
+	await wait(0.05)
+	world.open_shop()
+	await wait(0.1)
+	check(world.modal != null and world.modal.buy_grid.get_child_count() > 10, "loja mostra a grade de mercadorias")
+	world.modal._close()
+	await wait(0.05)
 
 
 ## Escolhe cartas de nível enquanto houver; se check_weapon, confere que a arma escolhida subiu.

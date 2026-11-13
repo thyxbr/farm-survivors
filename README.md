@@ -11,7 +11,7 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
 |---|---|
 | Mover / correr / pular | WASD · Shift · Espaço |
 | Câmera | Mouse |
-| Atacar (combo de 3 golpes) | Clique esquerdo |
+| Atacar | Clique esquerdo — espada: combo de 3 golpes · cajado: projéteis (3º golpe em leque) · arco: segure para tensionar e solte |
 | Esquivar (invulnerável) | Clique direito ou Ctrl |
 | Magias | 1 Bola de Fogo · 2 Cura (nível 2) · 3 Nova Gélida (nível 4) |
 | Poções | R vida · F mana |
@@ -26,7 +26,23 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
 - **Vila** com o Ancião Bram (missões) e a Mira (loja: compra e venda).
 - **3 missões em cadeia**: slimes nos campos → batedores goblins na floresta a leste → **Rei Goblin** nas ruínas ao norte (chefe com ataque em área, fúria e invocação).
 - **Progressão**: XP, níveis, 3 pontos de atributo por nível (Força, Inteligência, Vitalidade, Agilidade), magias liberadas por nível.
-- **Itens**: armas e armaduras (mudam o visual do cavaleiro), poções, materiais para vender, loot aleatório.
+- **Itens**: 70 itens com 5 raridades (Comum, Incomum, Raro, Épico, Lendário), poções, materiais para vender, loot aleatório.
+- **Armas por classe** (o ataque básico muda com a arma; o modelo 3D é montado por código em `knight_look.gd`):
+  - **Espadas** (escala com Força): Madeira, Ferro, Sabre de Aço, Lâmina do Cavaleiro, Marca Gélida (deixa lento),
+    Cutelo do Rei Goblin, Montante do Guardião, Presa do Dragão (lendária, rouba vida).
+  - **Cajados** (escala com Inteligência e Poder mágico): Aprendiz, Carvalho Antigo, Brasas (explosão em área),
+    Cetro da Geada (deixa lento), Cajado do Arquimago (lendário).
+  - **Arcos** (escala com Agilidade; tensão total dá crítico extra e perfura): Curto, Caçador, Élfico,
+    Arco de Guerra Goblin (sempre perfura), Arco da Tempestade (lendário, 3 flechas).
+- **8 espaços de equipamento**: arma, mão secundária (escudo exige espada, orbe exige cajado, aljava exige arco),
+  cabeça, peito, mãos, pés, amuleto e anel. Itens dão defesa e bônus (atributos, vida, mana, poder mágico,
+  crítico, velocidade, recarga, roubo de vida). Elmo, peitoral, manoplas, botas, escudo, orbe, aljava e chapéu
+  do mago aparecem no cavaleiro. Equipamentos raros ou melhores caem com um feixe de luz na cor da raridade.
+- **Interface** (referências: Diablo/Path of Exile para boneco, grade e raridade; World of Warcraft para
+  recarga radial; Dark Souls para a barra do chefe): globos de vida/mana com rastro de dano, barra de ações
+  com ícones, mira que mostra a tensão do arco, avisos de saque, inventário com prévia 3D, arrastar e soltar,
+  filtros, "Organizar" e dica que calcula o que muda se equipar o item. Ícones desenhados por código
+  (`icon_painter.gd`); tema em `ui_theme.gd`.
 - **Save/Load** em JSON (`user://savegame.json`), opções persistentes (volume, sensibilidade, inverter Y, tela cheia).
 - Morte com opção de renascer na vila (perde 10% do ouro) ou carregar o save.
 
@@ -112,6 +128,8 @@ Cobre diálogo/missões, combate, loot, magias, loja, equipamento, save/load, ch
 (plantar, regar, adubar, colher, liberar canteiro, cozinhar, comer, save) e o Desafio da Horda (inclusive comer na rodada).
 Para ver a horta cheia: `... -- --farmdemo --at=1,24.5,0` (acrescente `--ui=cook` ou `--ui=plant` para abrir os menus).
 Para começar direto na arena: `... res://scenes/world.tscn -- --survival`.
+Para ver as telas novas: `... -- --geardemo --weapon=storm_bow --ui=inv --shot=inv.png --delay=3`
+(`--ui=inv|char|quests|shop`; `--geardemo` dá vários equipamentos, `--weapon=<id>` equipa uma arma).
 Para tirar um screenshot da arena: `... -- --survival --shot=shot.png --delay=15` (o PNG vai para a pasta atual;
 evite a raiz `C:/`, que o Windows não deixa gravar sem administrador).
 Usa um arquivo de save separado, então não mexe no seu save.

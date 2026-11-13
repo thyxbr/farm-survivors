@@ -6,6 +6,7 @@ signal died
 
 const KNIGHT := preload("res://assets/models/knight.glb")
 const FIREBALL := preload("res://scripts/player/fireball.gd")
+const PROJECTILE := preload("res://scripts/player/projectile.gd")
 
 const WALK_SPEED := 5.2
 const SPRINT_SPEED := 8.6
@@ -15,6 +16,9 @@ const DODGE_SPEED := 13.0
 const DODGE_TIME := 0.36
 const SWING_TIMES := [0.42, 0.42, 0.6]
 const SWING_MULT := [1.0, 1.1, 1.6]
+const STAFF_TIMES := [0.4, 0.4, 0.6]
+const BOW_FULL := 0.85        # segundos para tensionar o arco por completo
+const BOW_RECOVER := 0.28
 
 var dead := false
 var cam_yaw: Node3D
@@ -23,8 +27,11 @@ var spring: SpringArm3D
 var camera: Camera3D
 var model: Node3D
 var parts := {}
-var blade_meshes: Array[MeshInstance3D] = []
-var torso_mesh: MeshInstance3D
+## Referências do visual da arma (KnightLook.apply): classe, suporte, ponta, flecha.
+var look := {"class": "sword", "holder": null, "tip": null, "arrow": null, "arm": null, "counter": 0.0}
+## Arco: tensionando (segurando o ataque) e quanto já tensionou.
+var drawing := false
+var draw_t := 0.0
 
 var anim_t := 0.0
 var idle_t := 0.0
@@ -121,11 +128,6 @@ func _build_model() -> void:
 	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head"]:
 		parts[n] = model.find_child(n, true, false)
 	parts["body_y"] = parts.Body.position.y
-	for n in ["Blade", "BladeTip"]:
-		var m := model.find_child(n, true, false) as MeshInstance3D
-		if m:
-			blade_meshes.append(m)
-	torso_mesh = model.find_child("Torso", true, false) as MeshInstance3D
 
 
 func _ready_remote() -> void:
@@ -194,13 +196,15 @@ func _physics_process(delta: float) -> void:
 	if dir.length() > 1.0:
 		dir = dir.normalized()
 
-	var sprinting := Input.is_action_pressed("sprint") and dir.length() > 0.1 and Game.stamina > 1.0 and not attacking
+	var sprinting := Input.is_action_pressed("sprint") and dir.length() > 0.1 and Game.stamina > 1.0 and not attacking and not drawing
 	if sprinting:
 		Game.stamina = max(0.0, Game.stamina - 20.0 * delta)
 		stamina_delay = 0.6
 	var speed := (SPRINT_SPEED if sprinting else WALK_SPEED) * Game.speed_multiplier()
 	if attacking:
-		speed *= 0.3
+		speed *= 0.3 if look["class"] == "sword" else 0.55
+	elif drawing:
+		speed *= 0.45
 	elif cast_timer > 0:
 		speed *= 0.6
 
@@ -217,7 +221,9 @@ func _physics_process(delta: float) -> void:
 		velocity.y = JUMP_VELOCITY
 	if Input.is_action_just_pressed("dodge"):
 		_try_dodge(dir)
-	if Input.is_action_just_pressed("attack"):
+	if look["class"] == "bow":
+		_update_bow(delta)
+	elif Input.is_action_just_pressed("attack"):
 		_try_attack()
 	for i in 3:
 		if Input.is_action_just_pressed("spell_%d" % (i + 1)):
@@ -245,7 +251,7 @@ func _physics_process(delta: float) -> void:
 
 	# orientação do modelo: mira para frente da câmera ao atacar/conjurar, senão para onde anda
 	var face := Vector3.ZERO
-	if attacking or cast_timer > 0:
+	if attacking or cast_timer > 0 or drawing:
 		face = fwd
 	elif dodge_timer > 0:
 		face = dodge_dir
@@ -274,8 +280,8 @@ func _tick_timers(delta: float) -> void:
 
 
 func _regen(delta: float) -> void:
-	Game.mp = min(Game.max_mp(), Game.mp + (0.8 + Game.attributes.int * 0.15) * delta)
-	Game.hp = min(Game.max_hp(), Game.hp + (0.3 + Game.attributes.vit * 0.05 + Game.mod("regen")) * delta)
+	Game.mp = min(Game.max_mp(), Game.mp + (0.8 + Game.attr("int") * 0.15) * delta)
+	Game.hp = min(Game.max_hp(), Game.hp + (0.3 + Game.attr("vit") * 0.05 + Game.mod("regen")) * delta)
 	if stamina_delay <= 0:
 		Game.stamina = min(Game.max_stamina(), Game.stamina + 32.0 * delta)
 
@@ -295,6 +301,7 @@ func _try_dodge(dir: Vector3) -> void:
 	invuln = DODGE_TIME + 0.08
 	attacking = false
 	buffered_attack = false
+	_cancel_draw()
 	Sfx.play("swing", 0.1, -6.0)
 
 
@@ -303,7 +310,7 @@ func _try_attack() -> void:
 	if dodge_timer > 0:
 		return
 	if attacking:
-		if attack_timer > SWING_TIMES[combo - 1] * 0.35:
+		if attack_timer > _swing_time(combo) * 0.35:
 			buffered_attack = true
 		return
 	_start_swing()
@@ -317,8 +324,12 @@ func _start_swing() -> void:
 	attacking = true
 	attack_timer = 0.0
 	hit_done = false
-	Game.stamina -= 8.0 + combo * 2.0
+	var staff: bool = look["class"] == "staff"
+	Game.stamina -= (4.0 + combo * 1.5) if staff else (8.0 + combo * 2.0)
 	stamina_delay = 0.6
+	if staff:
+		Sfx.play("swing", 0.15, -10.0)
+		return
 	if is_on_floor():
 		var f := facing()
 		velocity.x += f.x * 3.0
@@ -331,11 +342,17 @@ func _update_attack(delta: float) -> void:
 		combo_window = max(0.0, combo_window - delta)
 		return
 	attack_timer += delta
-	var dur: float = SWING_TIMES[combo - 1]
+	var dur := _swing_time(combo)
 	var t := attack_timer / dur
-	if t >= 0.42 and not hit_done:
+	if t >= (0.35 if look["class"] == "staff" else 0.42) and not hit_done:
 		hit_done = true
-		_do_hit()
+		match look["class"]:
+			"staff":
+				_staff_shot()
+			"bow":
+				pass   # o disparo do arco acontece ao soltar o botão
+			_:
+				_do_hit()
 	if t >= 1.0:
 		attacking = false
 		combo_window = 0.45
@@ -360,13 +377,136 @@ func _do_hit() -> void:
 			continue
 		if combo < 3 and dist > 0.6 and f.dot(to.normalized()) < 0.3:
 			continue
-		var crit: bool = randf() < 0.08 + Game.attributes.agi * 0.004 + Game.mod("crit")
+		var crit: bool = randf() < Game.crit_chance()
 		var dmg: float = Game.melee_damage() * mult * randf_range(0.9, 1.1) * (1.8 if crit else 1.0)
-		e.take_damage(dmg, global_position, crit)
+		e.take_damage(dmg, global_position, crit, 2.5 if _weapon_fx() == "slow" else 0.0)
+		Game.on_damage_dealt(dmg)
 		hit_any = true
 	if hit_any:
 		Sfx.play("hit")
 		add_shake(0.12 if combo < 3 else 0.22)
+
+
+func _swing_time(c: int) -> float:
+	match look["class"]:
+		"staff":
+			return STAFF_TIMES[clampi(c, 1, 3) - 1]
+		"bow":
+			return BOW_RECOVER
+	return SWING_TIMES[clampi(c, 1, 3) - 1]
+
+
+func _weapon_fx() -> String:
+	return ItemDB.get_item(Game.equipment.weapon).get("fx", "")
+
+
+func _weapon_color() -> Color:
+	return ItemDB.get_item(Game.equipment.weapon).get("color", Color(0.6, 0.8, 1.0))
+
+
+# ------------------------------------------------------------ ataque à distância (cajado e arco)
+## Direção da mira: do ponto de origem até onde a câmera aponta.
+func aim_dir(origin: Vector3) -> Vector3:
+	var from := camera.global_position
+	var to := from - camera.global_basis.z * 80.0
+	var q := PhysicsRayQueryParameters3D.create(from, to, 1 | 4)
+	q.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	var target: Vector3 = hit.position if not hit.is_empty() else to
+	return (target - origin).normalized()
+
+
+func weapon_tip() -> Vector3:
+	var tip: Node3D = look.get("tip")
+	if tip and is_instance_valid(tip) and tip.is_inside_tree():
+		return tip.global_position
+	return global_position + Vector3.UP * 1.3 + facing() * 0.6
+
+
+## Cajado: faísca arcana; o 3º golpe do combo dispara um leque de 3 mais fortes.
+func _staff_shot() -> void:
+	var origin := weapon_tip()
+	var dir := aim_dir(origin)
+	var spread := [0.0] if combo < 3 else [-0.14, 0.0, 0.14]
+	for a in spread:
+		var crit: bool = randf() < Game.crit_chance()
+		var d: Vector3 = dir.rotated(Vector3.UP, a)
+		_spawn_projectile("bolt", origin, d, Game.melee_damage() * (1.25 if combo == 3 else 1.0) * (1.8 if crit else 1.0), crit, 0)
+		Network.send_event("bolt", origin, d)
+	Sfx.play("fire", 0.2, -8.0)
+
+
+## Arco: segurar o ataque tensiona, soltar dispara (dano e alcance crescem com a tensão).
+func _update_bow(delta: float) -> void:
+	if Input.is_action_just_pressed("attack") and not drawing and not attacking and dodge_timer <= 0:
+		if Game.stamina < 5.0:
+			Game.notify.emit("Sem fôlego!", Color(1, 0.8, 0.5))
+		else:
+			drawing = true
+			draw_t = 0.0
+			Sfx.play("swing", 0.3, -12.0)
+	if not drawing:
+		return
+	var was := draw_t
+	draw_t = min(draw_t + delta, BOW_FULL)
+	if was < BOW_FULL and draw_t >= BOW_FULL:
+		Sfx.play("click", 0.0, -4.0)
+	stamina_delay = 0.4
+	if not Input.is_action_pressed("attack"):
+		release_arrow()
+
+
+func bow_charge() -> float:
+	return clampf(draw_t / BOW_FULL, 0.0, 1.0) if drawing else 0.0
+
+
+func release_arrow() -> void:
+	var charge := bow_charge()
+	drawing = false
+	draw_t = 0.0
+	Game.stamina = max(0.0, Game.stamina - 5.0)
+	var origin := weapon_tip()
+	var dir := aim_dir(origin)
+	var full := charge >= 0.99
+	var fx := _weapon_fx()
+	var crit: bool = randf() < Game.crit_chance() + (0.1 if full else 0.0)
+	var dmg := Game.melee_damage() * lerpf(0.45, 1.5, charge) * (1.8 if crit else 1.0)
+	var pierce := 2 if full else 0
+	if fx == "pierce":
+		pierce += 2
+	var dirs := [dir]
+	if full and fx == "multishot":
+		dirs = [dir.rotated(Vector3.UP, -0.1), dir, dir.rotated(Vector3.UP, 0.1)]
+	for d in dirs:
+		_spawn_projectile("arrow", origin, d, dmg, crit, pierce, lerpf(22.0, 42.0, charge))
+		Network.send_event("arrow", origin, d)
+	attacking = true
+	combo = 1
+	attack_timer = 0.0
+	hit_done = true
+	Sfx.play("swing", 0.1, -2.0 if full else -6.0)
+	if full:
+		add_shake(0.06)
+
+
+func _cancel_draw() -> void:
+	drawing = false
+	draw_t = 0.0
+
+
+func _spawn_projectile(kind: String, origin: Vector3, d: Vector3, dmg: float, crit: bool, pierce: int, spd := 30.0) -> void:
+	var p := PROJECTILE.new()
+	p.kind = kind
+	p.direction = d
+	p.damage = dmg
+	p.crit = crit
+	p.pierce = pierce
+	p.fx = _weapon_fx() if _weapon_fx() != "multishot" else ""
+	p.color = _weapon_color()
+	p.speed = spd if kind == "arrow" else 26.0
+	p.life = 1.8 if kind == "arrow" else 1.2
+	get_tree().current_scene.add_child(p)
+	p.global_position = origin
 
 
 # ------------------------------------------------------------ magias
@@ -380,8 +520,9 @@ func cast(id: String) -> void:
 	if Game.mp < sp.cost:
 		Game.notify.emit("Mana insuficiente!", Color(0.6, 0.7, 1.0))
 		return
+	_cancel_draw()
 	Game.mp -= sp.cost
-	cooldowns[id] = sp.cooldown
+	cooldowns[id] = sp.cooldown * Game.cooldown_mult()
 	cast_timer = 0.4
 	match id:
 		"fireball":
@@ -399,14 +540,8 @@ func cast(id: String) -> void:
 
 func _cast_fireball() -> void:
 	var origin := global_position + Vector3.UP * 1.3 + facing() * 0.6
-	var from := camera.global_position
-	var to := from - camera.global_basis.z * 80.0
-	var q := PhysicsRayQueryParameters3D.create(from, to, 1 | 4)
-	q.exclude = [get_rid()]
-	var hit := get_world_3d().direct_space_state.intersect_ray(q)
-	var target: Vector3 = hit.position if not hit.is_empty() else to
 	var fb := FIREBALL.new()
-	fb.direction = (target - origin).normalized()
+	fb.direction = aim_dir(origin)
 	fb.damage = (18.0 + Game.spell_power() * 2.5) * Game.damage_mult()
 	get_tree().current_scene.add_child(fb)
 	fb.global_position = origin
@@ -545,6 +680,7 @@ func _die() -> void:
 	Game.hp = 0
 	Game.clear_food()
 	attacking = false
+	_cancel_draw()
 	Sfx.play("death", 0.0)
 	var tw := create_tween()
 	tw.tween_property(parts.Body, "rotation:x", -1.4, 0.6).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
@@ -578,32 +714,26 @@ func _find_interact_target() -> void:
 
 
 # ------------------------------------------------------------ visual
+var _last_look := {}
+
+
 func _update_equipment_visual() -> void:
-	apply_look(Game.equipment.weapon, Game.equipment.armor)
-	Network.send_look(Game.equipment.weapon, Game.equipment.armor)
+	var l: Dictionary = Game.equipment.duplicate()
+	if l == _last_look:
+		return
+	apply_look(l)
+	Network.send_look(l)
 
 
-func apply_look(wid: String, armor: String) -> void:
-	var col: Color = ItemDB.get_item(wid).get("color", Color(0.5, 0.5, 0.5)) if wid != "" else Color(0, 0, 0, 0)
-	for b in blade_meshes:
-		b.visible = wid != ""
-		var m := StandardMaterial3D.new()
-		m.albedo_color = col
-		m.metallic = 0.0 if wid == "wooden_sword" else 0.85
-		m.roughness = 0.8 if wid == "wooden_sword" else 0.25
-		if wid == "knight_blade" or wid == "goblin_cleaver":
-			m.emission_enabled = true
-			m.emission = col
-			m.emission_energy_multiplier = 0.6
-		b.material_override = m
-	if torso_mesh:
-		var armor_colors := {"": Color(0.35, 0.25, 0.18), "leather_armor": Color(0.45, 0.28, 0.13),
-			"chain_mail": Color(0.55, 0.58, 0.65), "royal_plate": Color(0.85, 0.7, 0.35)}
-		var tm := StandardMaterial3D.new()
-		tm.albedo_color = armor_colors.get(armor, Color.GRAY)
-		tm.metallic = 0.0 if armor in ["", "leather_armor"] else 0.85
-		tm.roughness = 0.8 if armor in ["", "leather_armor"] else 0.35
-		torso_mesh.material_override = tm
+func apply_look(l: Dictionary) -> void:
+	_last_look = l.duplicate()
+	var old_class: String = look["class"]
+	look = KnightLook.apply(model, l)
+	if old_class != look["class"]:
+		attacking = false
+		combo = 0
+		_cancel_draw()
+		parts.Body.rotation.y = 0.0
 
 
 func _on_level_up(_lvl: int) -> void:
@@ -626,6 +756,7 @@ const NF_ATTACK := 2
 const NF_DODGE := 4
 const NF_CAST := 8
 const NF_DEAD := 16
+const NF_DRAW := 32
 
 
 func _net_send(delta: float) -> void:
@@ -634,7 +765,7 @@ func _net_send(delta: float) -> void:
 		return
 	_net_send_t = maxf(_net_send_t + 1.0 / Network.SEND_RATE, 0.0)
 	var flags := (NF_FLOOR if is_on_floor() else 0) | (NF_ATTACK if attacking else 0) \
-		| (NF_DODGE if dodge_timer > 0 else 0) | (NF_CAST if cast_timer > 0 else 0) | (NF_DEAD if dead else 0)
+		| (NF_DODGE if dodge_timer > 0 else 0) | (NF_CAST if cast_timer > 0 else 0) | (NF_DEAD if dead else 0) | (NF_DRAW if drawing else 0)
 	Network.send_player_state(global_position, model.rotation.y, velocity, flags, combo, attack_timer)
 
 
@@ -645,6 +776,12 @@ func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int,
 	_net_floor = flags & NF_FLOOR != 0
 	dodge_timer = 0.12 if flags & NF_DODGE else 0.0
 	cast_timer = 0.15 if flags & NF_CAST else 0.0
+	if flags & NF_DRAW:
+		if not drawing:
+			draw_t = 0.0
+		drawing = true
+	else:
+		drawing = false
 	if flags & NF_ATTACK:
 		if not attacking or c != combo:
 			Sfx.play("swing", 0.12, -6.0)
@@ -678,7 +815,9 @@ func _remote_process(delta: float) -> void:
 	dodge_timer = max(0.0, dodge_timer - delta)
 	cast_timer = max(0.0, cast_timer - delta)
 	if attacking:
-		attack_timer = minf(attack_timer + delta, SWING_TIMES[combo - 1])
+		attack_timer = minf(attack_timer + delta, _swing_time(combo))
+	if drawing:
+		draw_t = min(draw_t + delta, BOW_FULL)
 	_animate(delta)
 
 
@@ -696,6 +835,16 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 			_frost_fx(6.5)
 		"heal":
 			_heal_fx()
+		"bolt", "arrow":
+			var p := PROJECTILE.new()
+			p.kind = kind
+			p.direction = b
+			p.visual_only = true
+			p.color = ItemDB.get_item(_last_look.get("weapon", "")).get("color", Color(0.6, 0.8, 1.0))
+			p.speed = 34.0 if kind == "arrow" else 26.0
+			p.life = 1.6 if kind == "arrow" else 1.2
+			get_tree().current_scene.add_child(p)
+			p.global_position = a
 
 
 func _update_camera(delta: float) -> void:
@@ -733,12 +882,30 @@ func _animate(delta: float) -> void:
 	var arm_l := Vector3(-s * amp * 0.5, 0, 0)
 	if cast_timer > 0:
 		arm_l = Vector3(-1.5, 0, 0.5)
-	parts.ArmL.rotation = parts.ArmL.rotation.lerp(arm_l, k)
+	var cls: String = look["class"]
+	if cls == "bow" and (drawing or attacking):
+		arm_l = Vector3(-1.52, 0, -0.12)
+	parts.ArmL.rotation = parts.ArmL.rotation.lerp(arm_l, minf(1.0, k * (1.6 if cls == "bow" else 1.0)))
+	var arrow: Node3D = look.get("arrow")
+	if arrow and is_instance_valid(arrow):
+		arrow.visible = drawing
 
-	# braço da espada
+	# braço da arma
 	var arm_r := Vector3(s * amp * 0.4 - 0.15, 0, 0)
-	if attacking:
-		var t: float = clamp(attack_timer / SWING_TIMES[combo - 1], 0.0, 1.0)
+	if cls == "bow" and (drawing or attacking):
+		var c := bow_charge()
+		arm_r = Vector3(-1.45, 0, 0.35).lerp(Vector3(-1.35, 0.2, 1.05), c) if drawing else Vector3(-1.1, 0, 0.2)
+		parts.Body.rotation.y = lerp(parts.Body.rotation.y, 0.35 if drawing else 0.0, k)
+		parts.ArmR.rotation = parts.ArmR.rotation.lerp(arm_r, minf(1.0, k * 1.5))
+	elif attacking and cls == "staff":
+		var t: float = clamp(attack_timer / _swing_time(combo), 0.0, 1.0)
+		if combo < 3:
+			arm_r = _swing_pose(t, Vector3(-0.9, 0, -0.3), Vector3(-1.55, 0, 0.15))
+		else:
+			arm_r = _swing_pose(t, Vector3(-2.5, 0, 0.0), Vector3(-1.4, 0, 0.0))
+		parts.ArmR.rotation = arm_r
+	elif attacking and cls == "sword":
+		var t: float = clamp(attack_timer / SWING_TIMES[clampi(combo, 1, 3) - 1], 0.0, 1.0)
 		match combo:
 			1:
 				arm_r = _swing_pose(t, Vector3(-2.8, 0, -0.2), Vector3(0.5, 0, 0.1))
@@ -752,6 +919,11 @@ func _animate(delta: float) -> void:
 	else:
 		parts.Body.rotation.y = lerp(parts.Body.rotation.y, 0.0, k)
 		parts.ArmR.rotation = parts.ArmR.rotation.lerp(arm_r, k)
+	# cajado e arco ficam de pé mesmo com o braço erguido
+	var holder: Node3D = look.get("holder")
+	var arm: Node3D = look.get("arm")
+	if holder and is_instance_valid(holder) and arm:
+		holder.rotation.x = -arm.rotation.x * float(look.counter)
 
 	if on_floor and hspeed > 1.0:
 		_footstep -= delta * hspeed

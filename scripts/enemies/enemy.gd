@@ -14,7 +14,8 @@ const TYPES := {
 	"slime": {"name": "Slime", "model": "slime", "hp": 40, "damage": 9, "speed": 2.8, "xp": 18,
 		"gold": [1, 5], "aggro": 11.0, "reach": 1.5, "cooldown": 1.5, "radius": 0.5, "height": 0.8,
 		"scale": 1.0, "color": Color(0.3, 0.9, 0.35),
-		"loot": [["slime_gel", 0.6], ["health_potion", 0.08], ["mana_potion", 0.06], ["seed_tomato", 0.12]]},
+		"loot": [["slime_gel", 0.6], ["health_potion", 0.08], ["mana_potion", 0.06], ["seed_tomato", 0.12],
+			["leather_gloves", 0.02], ["leather_boots", 0.02], ["apprentice_staff", 0.015], ["short_bow", 0.015], ["life_amulet", 0.01]]},
 	# variantes usadas no Desafio da Horda
 	"slime_grande": {"name": "Slime Grande", "model": "slime", "hp": 150, "damage": 16, "speed": 2.3, "xp": 40,
 		"gold": [3, 8], "aggro": 14.0, "reach": 2.2, "cooldown": 1.8, "radius": 0.85, "height": 1.3,
@@ -27,11 +28,17 @@ const TYPES := {
 	"goblin": {"name": "Goblin Batedor", "model": "goblin", "hp": 80, "damage": 14, "speed": 4.2, "xp": 42,
 		"gold": [4, 11], "aggro": 15.0, "reach": 1.8, "cooldown": 1.3, "radius": 0.4, "height": 1.35,
 		"scale": 1.0, "color": Color(0.7, 0.1, 0.05),
-		"loot": [["goblin_ear", 0.7], ["health_potion", 0.18], ["mana_potion", 0.15], ["iron_sword", 0.05], ["leather_armor", 0.05], ["seed_pepper", 0.15], ["seed_mint", 0.1]]},
+		"loot": [["goblin_ear", 0.7], ["health_potion", 0.18], ["mana_potion", 0.15], ["iron_sword", 0.05], ["leather_armor", 0.05],
+			["seed_pepper", 0.15], ["seed_mint", 0.1], ["leather_cap", 0.04], ["leather_gloves", 0.04], ["leather_boots", 0.04],
+			["hunter_bow", 0.03], ["oak_staff", 0.03], ["wooden_shield", 0.04], ["strength_ring", 0.02], ["wind_ring", 0.02],
+			["ranger_hood", 0.015], ["frost_brand", 0.01], ["ember_staff", 0.01], ["elven_bow", 0.01]]},
 	"goblin_king": {"name": "Rei Goblin", "model": "goblin", "hp": 900, "damage": 26, "speed": 3.6, "xp": 450,
 		"gold": [90, 130], "aggro": 20.0, "reach": 3.2, "cooldown": 1.5, "radius": 0.95, "height": 2.9,
 		"scale": 2.2, "color": Color(0.7, 0.1, 0.05), "boss": true,
-		"loot": [["goblin_crown", 1.0], ["goblin_cleaver", 1.0], ["health_potion", 1.0], ["seed_pumpkin", 1.0], ["seed_mint", 1.0]]},
+		"loot": [["goblin_crown", 1.0], ["goblin_cleaver", 1.0], ["health_potion", 1.0], ["seed_pumpkin", 1.0], ["seed_mint", 1.0],
+			["goblin_warbow", 0.5], ["knight_helm", 0.35], ["guardian_greatsword", 0.25], ["vampire_ring", 0.2],
+			["frost_scepter", 0.3], ["swift_boots", 0.3], ["sage_amulet", 0.25],
+			["dragonfang", 0.06], ["archmage_staff", 0.06], ["storm_bow", 0.06], ["dragon_plate", 0.06]]},
 }
 
 @export var kind := "slime"
