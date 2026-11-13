@@ -12,9 +12,9 @@ p_wood_end = mat("p_wood_end", (0.66, 0.48, 0.28), 0.9)     # topo de tora corta
 p_iron = mat("p_iron", (0.13, 0.13, 0.15), 0.55, 0.7)
 p_iron_lt = mat("p_iron_light", (0.32, 0.33, 0.36), 0.45, 0.8)
 p_gold = mat("p_gold", (0.95, 0.66, 0.18), 0.3, 1.0)
-p_stone = mat("p_stone", (0.46, 0.45, 0.43), 0.95)
-p_stone_lt = mat("p_stone_light", (0.60, 0.58, 0.54), 0.95)
-p_stone_dk = mat("p_stone_dark", (0.29, 0.28, 0.28), 0.95)
+p_stone = mat("p_stone", (0.22, 0.21, 0.20), 0.95)          # linear: ~0,5 sRGB, não estoura no sol
+p_stone_lt = mat("p_stone_light", (0.32, 0.31, 0.29), 0.95)
+p_stone_dk = mat("p_stone_dark", (0.12, 0.115, 0.11), 0.95)
 p_moss = mat("p_moss", (0.20, 0.34, 0.10), 0.95)
 p_moss_lt = mat("p_moss_light", (0.32, 0.46, 0.14), 0.95)
 p_canvas = mat("p_canvas", (0.62, 0.52, 0.36), 0.95)
@@ -545,6 +545,159 @@ def build_well():
     export("well")
 
 
+# ======================================================== RUÍNAS
+# Muro: ~4,2 (X) x 0,9 (Y) x 2,0 (Z); pilar: raio ~0,5, ~4 m. Colisões em world.gd (_build_ruins).
+def _stone_pick(rnd):
+    r = rnd.random()
+    return p_stone_dk if r < 0.3 else (p_stone_lt if r > 0.82 else p_stone)
+
+
+def build_ruin_wall():
+    rnd = random.Random(21)
+    bag = Bag()
+    a = bag.add
+    L, D = 4.2, 0.8
+
+    def top(x):   # topo quebrado: alto à esquerda, desaba no meio, sobe um pouco à direita
+        t = (x + L / 2) / L
+        if t < 0.35:
+            return 2.0 - t * 0.6
+        if t < 0.62:
+            return 1.25 - (t - 0.35) * 1.2
+        return 0.95 + (t - 0.62) * 1.6
+
+    # núcleo escuro tapa as frestas entre blocos
+    a(bx("Core", (0, 0, 0.55), (L - 0.3, D - 0.2, 1.1), p_stone_dk, bev=0))
+    a(bx("CoreHi", (-1.2, 0, 1.3), (1.5, D - 0.2, 1.1), p_stone_dk, bev=0))
+    # sapata larga
+    x = -L / 2 - 0.05
+    while x < L / 2 + 0.05:
+        w = min(rnd.uniform(0.6, 0.95), L / 2 + 0.1 - x)
+        if w > 0.15:
+            a(bx(bag.nm("Footing"), (x + w / 2, rnd.uniform(-0.02, 0.02), 0.11), (w - 0.03, D + 0.12, 0.22), p_stone_dk,
+                 bev=0.04, rot=(0, 0, rnd.uniform(-0.03, 0.03))))
+        x += w
+    # fiadas desencontradas de blocos de tamanhos variados
+    tops = []   # (x0, x1, z do topo) de cada bloco, para assentar cascalho e musgo
+
+    def surf(x0, x1):   # altura mais baixa do topo do muro no trecho (nada flutua)
+        hs = []
+        for k in range(5):
+            xs = x0 + (x1 - x0) * k / 4
+            hs.append(max([t[2] for t in tops if t[0] <= xs <= t[1]] or [0.22]))
+        return min(hs)
+
+    z = 0.22
+    row = 0
+    while z < 2.0:
+        hgt = rnd.uniform(0.36, 0.5)
+        x = -L / 2 - (0.0 if row % 2 == 0 else rnd.uniform(0.25, 0.45))
+        while x < L / 2 - 0.05:
+            w = rnd.uniform(0.5, 1.05)
+            x0, x1 = max(x, -L / 2), min(x + w, L / 2)
+            cx, ww = (x0 + x1) / 2, x1 - x0
+            if ww > 0.2 and z + hgt * 0.5 < top(cx):
+                hh = hgt
+                if z + hgt > top(cx):   # bloco do topo: mais baixo e torto
+                    hh = max(0.18, top(cx) - z + 0.08)
+                rot = (rnd.uniform(-0.04, 0.04), rnd.uniform(-0.05, 0.05), rnd.uniform(-0.04, 0.04))
+                a(bx(bag.nm("Block"), (cx, rnd.uniform(-0.04, 0.04), z + hh / 2),
+                     (ww - 0.04, D * rnd.uniform(0.94, 1.0), hh - 0.03), _stone_pick(rnd), rot=rot, bev=0.045))
+                tops.append((x0, x1, z + hh - 0.03))
+            x += w
+        z += hgt
+        row += 1
+    # pedras soltas no topo quebrado
+    for i, px in enumerate((-0.35, 0.75, 1.6)):
+        a(boulder(bag.nm("Rubble"), (px, rnd.uniform(-0.1, 0.1), surf(px - 0.15, px + 0.15) - 0.06), (0.42, 0.36, 0.26),
+                  _stone_pick(rnd), n=10, seed=40 + i))
+    # blocos caídos ao pé (frente -Y e trás +Y)
+    for px, py, yaw, tilt in ((0.35, -0.85, 0.5, 0.25), (1.1, -0.72, -0.3, -0.15), (-1.4, 0.82, 0.9, 0.2), (0.6, 0.95, 0.2, 0.0)):
+        a(bx(bag.nm("Fallen"), (px, py, 0.17), (rnd.uniform(0.5, 0.75), 0.42, 0.36), _stone_pick(rnd),
+             rot=(tilt, 0.1, yaw), bev=0.045))
+    for i, (px, py) in enumerate(((-0.4, -0.75), (1.55, 0.7), (-1.9, -0.6))):
+        a(boulder(bag.nm("Chunk"), (px, py, 0), (0.3, 0.26, 0.2), p_stone_dk, n=8, seed=60 + i))
+    # musgo: na base, no topo e numa junta
+    a(boulder("MossFoot", (-1.1, -0.58, 0), (1.4, 0.45, 0.42), p_moss, n=12, seed=71))
+    a(boulder("MossFoot2", (1.3, 0.58, 0), (1.0, 0.4, 0.34), p_moss, n=10, seed=72))
+    for i, (px, w, m) in enumerate(((-1.55, 0.8, p_moss), (-0.85, 0.5, p_moss_lt), (1.35, 0.6, p_moss_lt), (0.3, 0.45, p_moss))):
+        a(boulder(bag.nm("MossTop"), (px, rnd.uniform(-0.08, 0.08), surf(px - w / 2, px + w / 2) + 0.01), (w, 0.86, 0.16), m,
+                  n=11, seed=73 + i, flat_bottom=False))
+    a(boulder("MossDrip", (-1.5, -0.42, 1.45), (0.5, 0.14, 0.55), p_moss, n=9, seed=79, flat_bottom=False))
+    a(boulder("MossFallen", (0.35, -0.85, 0.32), (0.4, 0.3, 0.12), p_moss_lt, n=8, seed=76, flat_bottom=False))
+    join(bag.items, "RuinWall")
+    export("ruin_wall")
+
+
+def _fluted(name, r, z0, z1, material, seg=16, flute=0.08, twist=0.0, top_cut=None, seed=1):
+    """Tambor de coluna com caneluras (o raio alterna a cada vértice). top_cut=(inclinação, ruído)
+    parte o topo num plano torto e irregular, com o centro afundado."""
+    rnd = random.Random(seed)
+    bm = bmesh.new()
+    rings = []
+    for k, z in enumerate((z0, z1)):
+        ring = []
+        for i in range(seg):
+            ang = 2 * PI * i / seg + twist
+            rr = r * (1 - flute * (i % 2))
+            zz = z
+            if k == 1 and top_cut:
+                zz = z + math.cos(ang) * rr * top_cut[0] + rnd.uniform(-top_cut[1], top_cut[1])
+            ring.append(bm.verts.new((math.cos(ang) * rr, math.sin(ang) * rr, zz)))
+        rings.append(ring)
+    for i in range(seg):
+        j = (i + 1) % seg
+        bm.faces.new((rings[0][i], rings[0][j], rings[1][j], rings[1][i]))
+    bm.faces.new(list(reversed(rings[0])))
+    if top_cut:
+        c = bm.verts.new((rnd.uniform(-0.05, 0.05), rnd.uniform(-0.05, 0.05), z1 - top_cut[1]))
+        for i in range(seg):
+            bm.faces.new((rings[1][i], rings[1][(i + 1) % seg], c))
+    else:
+        bm.faces.new(rings[1])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return _mesh_obj(name, bm, material)
+
+
+def build_ruin_pillar():
+    rnd = random.Random(33)
+    bag = Bag()
+    a = bag.add
+    # base em degraus + toro
+    a(bx("Step0", (0, 0, 0.09), (1.12, 1.12, 0.18), p_stone_dk, bev=0.04, rot=(0, 0, 0.02)))
+    a(bx("Step1", (0, 0, 0.27), (0.92, 0.92, 0.18), p_stone, bev=0.04, rot=(0, 0, -0.03)))
+    a(lathe("Torus", [(0.44, 0.36), (0.47, 0.4), (0.47, 0.46), (0.42, 0.5)], p_stone_lt, seg=16))
+    # fuste: tambores com caneluras, levemente desalinhados; o último partido
+    z = 0.5
+    hs = (0.78, 0.74, 0.8, 0.7)
+    for i, h in enumerate(hs):
+        r = 0.38 - i * 0.012
+        last = i == len(hs) - 1
+        ob = _fluted(bag.nm("Drum"), r, z + 0.012, z + h, (p_stone, p_stone_lt, p_stone, p_stone_dk)[i], flute=0.14,
+                     twist=rnd.uniform(0, 0.4), top_cut=(0.75, 0.07) if last else None, seed=50 + i)
+        ob.data.transform(Matrix.Translation((rnd.uniform(-0.025, 0.025), rnd.uniform(-0.025, 0.025), 0))
+                          @ Euler((rnd.uniform(-0.012, 0.012), rnd.uniform(-0.012, 0.012), 0)).to_matrix().to_4x4())
+        a(ob)
+        if not last:   # junta escura entre tambores
+            a(lathe(bag.nm("Joint"), [(r - 0.04, z + h - 0.01), (r - 0.04, z + h + 0.02)], p_stone_dk, seg=16))
+        z += h
+    a(boulder("Chip", (-0.18, 0.08, z + 0.05), (0.25, 0.2, 0.16), p_stone_dk, n=8, seed=61, flat_bottom=False))
+    # tambor caído (deitado), capitel quebrado e cascalho
+    fallen = _fluted("FallenDrum", 0.34, -0.3, 0.3, p_stone, twist=0.2, top_cut=(0.5, 0.06), seed=70)
+    fallen.data.transform(Matrix.Translation((0.95, -0.55, 0.34)) @ Euler((PI / 2, 0, 0.7)).to_matrix().to_4x4())
+    a(fallen)
+    a(bx("Capital", (-0.85, 0.45, 0.13), (0.62, 0.62, 0.24), p_stone_lt, rot=(0.12, -0.18, 0.5), bev=0.05))
+    a(boulder("Rubble1", (-0.62, -0.62, 0), (0.28, 0.24, 0.2), p_stone_dk, n=8, seed=81))
+    a(boulder("Rubble2", (0.7, 0.62, 0), (0.22, 0.2, 0.15), p_stone, n=8, seed=82))
+    # musgo na base e subindo no fuste
+    a(boulder("MossBase", (0.3, -0.45, 0.1), (0.75, 0.4, 0.32), p_moss, n=11, seed=91))
+    a(boulder("MossBase2", (-0.45, 0.3, 0.1), (0.5, 0.55, 0.26), p_moss_lt, n=9, seed=92))
+    a(boulder("MossShaft", (0.3, -0.24, 0.85), (0.22, 0.2, 0.5), p_moss, n=9, seed=93, flat_bottom=False))
+    a(boulder("MossFallen", (0.95, -0.55, 0.62), (0.4, 0.35, 0.12), p_moss_lt, n=8, seed=94, flat_bottom=False))
+    join(bag.items, "RuinPillar")
+    export("ruin_pillar")
+
+
 # ======================================================== ROCHA
 def build_rock():
     bag = Bag()
@@ -816,10 +969,90 @@ def rnd_pitch(j):
     return 0.15 + 0.12 * ((j * 37) % 5) / 5.0
 
 
+# ======================================================== VEGETAÇÃO (MultiMesh em ground.gd)
+# Uma malha só por planta, origem no chão; sem colisão (decoração espalhada aos milhares).
+v_bush = mat("v_bush", _lin(0.24, 0.50, 0.15), 0.9)
+v_bush_dk = mat("v_bush_dark", _lin(0.14, 0.36, 0.10), 0.9)
+v_bush_lt = mat("v_bush_light", _lin(0.40, 0.64, 0.20), 0.9)
+v_fern = mat("v_fern", _lin(0.22, 0.52, 0.16), 0.85)
+v_fern_dk = mat("v_fern_dark", _lin(0.14, 0.40, 0.12), 0.85)
+v_berry = mat("v_berry", _lin(0.80, 0.12, 0.16), 0.4)
+
+
+def _bush(name, berries):
+    rnd = random.Random(7 if berries else 5)
+    objs = []
+    # tufos de folhagem facetados: um central alto e outros em volta, mais baixos
+    blobs = [((0, 0, 0), (1.0, 0.9, 0.78), v_bush)]
+    for k in range(5):
+        a = k / 5 * 2 * PI + rnd.uniform(-0.3, 0.3)
+        d = rnd.uniform(0.32, 0.45)
+        s = rnd.uniform(0.55, 0.72)
+        blobs.append(((math.cos(a) * d, math.sin(a) * d, 0), (s, s * 0.9, s * 0.8), (v_bush_dk, v_bush, v_bush_lt)[k % 3]))
+    for i, (p, s, m) in enumerate(blobs):
+        objs.append(boulder("%s_B%d" % (name, i), p, s, m, n=12, seed=100 + i * 7 + (50 if berries else 0)))
+    # topo mais claro (luz de cima)
+    objs.append(boulder(name + "_Top", (0.05, -0.05, 0.42), (0.6, 0.55, 0.3), v_bush_lt, n=9, seed=31, flat_bottom=False))
+    # folhas soltas na borda quebram a silhueta redonda
+    for k in range(9):
+        a = k / 9 * 2 * PI + rnd.uniform(-0.2, 0.2)
+        r = rnd.uniform(0.45, 0.6)
+        objs.append(leaf("%s_L%d" % (name, k), (math.cos(a) * r * 0.8, math.sin(a) * r * 0.8, rnd.uniform(0.15, 0.45)),
+                         a - PI / 2, rnd.uniform(0.1, 0.5), 0.28, 0.16, (v_bush, v_bush_dk)[k % 2], droop=0.2))
+    if berries:
+        for k in range(16):   # na casca de um dos tufos (boulder: centro em z = 0,55*meia-altura)
+            p, s, _m = blobs[k % len(blobs)]
+            a = rnd.uniform(0, 2 * PI)
+            el = rnd.uniform(0.1, 0.9)
+            hx, hy, hz = s[0] / 2 * 0.86, s[1] / 2 * 0.86, s[2] / 2 * 0.86
+            c = (p[0] + math.cos(a) * math.cos(el) * hx, p[1] + math.sin(a) * math.cos(el) * hy,
+                 0.55 * s[2] / 2 + math.sin(el) * hz)
+            objs.append(boulder("%s_Berry%d" % (name, k), c, (0.08, 0.08, 0.08), v_berry, n=6, seed=200 + k, flat_bottom=False))
+    join(objs, name)
+
+
+def build_bush():
+    _bush("Bush", False)
+    export("bush")
+
+
+def build_bush_berry():
+    _bush("BushBerry", True)
+    export("bush_berry")
+
+
+def build_fern():
+    rnd = random.Random(9)
+    objs = []
+    n = 9
+    for j in range(n):
+        yaw = j / n * 2 * PI + rnd.uniform(-0.2, 0.2)
+        pitch = rnd.uniform(0.55, 0.95)
+        L = rnd.uniform(0.55, 0.75)
+        droop = 0.55
+        m = v_fern if j % 2 else v_fern_dk
+        objs.append(leaf("Frond%d" % j, (0, 0, 0.02), yaw, pitch, L, 0.1, m, droop=droop, fold=0.1))
+        # folíolos em pares ao longo da fronde (segue o arco aproximado da folha)
+        fwd = Vector((math.cos(yaw + PI / 2), math.sin(yaw + PI / 2), 0))
+        for k in range(1, 5):
+            t = k / 5
+            hz = t * L * math.cos(pitch)
+            z = 0.02 + t * L * math.sin(pitch) - droop * L * t * t * 0.9
+            base = fwd * hz + Vector((0, 0, z))
+            size = 0.2 * (1.1 - t * 0.6)
+            for side in (-1, 1):
+                objs.append(leaf("Leaflet%d_%d_%d" % (j, k, side + 1), base, yaw + side * 1.0, 0.1 - t * 0.5, size, size * 0.45,
+                                 m, droop=0.15, fold=0.2))
+    join(objs, "Fern")
+    export("fern")
+
+
 PROP_BUILDERS = {
     "chest": build_chest, "fence": build_fence, "crate": build_crate, "barrel": build_barrel,
     "lamp": build_lamp, "campfire": build_campfire, "tent": build_tent, "well": build_well, "rock": build_rock,
+    "ruin_wall": build_ruin_wall, "ruin_pillar": build_ruin_pillar,
     "crop_carrot": build_crop_carrot, "crop_wheat": build_crop_wheat, "crop_tomato": build_crop_tomato,
     "crop_pepper": build_crop_pepper, "crop_mint": build_crop_mint, "crop_pumpkin": build_crop_pumpkin,
     "field_crop": build_field_crop,
+    "bush": build_bush, "bush_berry": build_bush_berry, "fern": build_fern,
 }

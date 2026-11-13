@@ -8,6 +8,7 @@ render_mode diffuse_burley;
 const int MAX_SHAPES = 40;
 uniform vec4 shapes[MAX_SHAPES];      // retângulo: (cx, cz, meia_x, meia_z); disco: (cx, cz, raio, -1)
 uniform vec4 shape_cols[MAX_SHAPES];  // rgb linear + maciez da borda (m)
+uniform float shape_grass[MAX_SHAPES]; // 0 = terra lisa; > 0 = grama baixa/pisada manchada com a cor
 uniform int shape_count = 0;
 
 varying vec2 wxz;
@@ -22,7 +23,8 @@ float sd_box(vec2 p, vec2 h) {
 }
 
 void fragment() {
-	vec3 col = grass_color(wxz);
+	vec3 grass = grass_color(wxz);
+	vec3 col = grass;
 	float n2 = texture(noise_tex, wxz * 0.047 + vec2(0.37, 0.11)).r;
 	float n3 = texture(noise_tex, wxz * 0.23 + vec2(0.71, 0.53)).r;
 	float n4 = texture(noise_tex, wxz * 1.3).r;
@@ -37,6 +39,14 @@ void fragment() {
 		float a = 1.0 - smoothstep(-soft * 0.3 - 0.02, soft * 0.3 + 0.02, d);
 		// terra batida: pedrisco claro e marcas escuras
 		vec3 sc = c.rgb * (0.85 + 0.25 * n3) * (0.9 + 0.2 * n4);
+		float g = shape_grass[i];
+		if (g > 0.0) {
+			// grama baixa: a grama do chão tingida pela cor da forma, com manchas gastas
+			// (mais claras e secas) onde o ruído médio sobe e riscos finos de pisada
+			float worn = smoothstep(0.5, 0.72, n3) * 0.6 + smoothstep(0.55, 0.8, n4) * 0.25;
+			vec3 low = mix(grass, c.rgb, 0.35) * (0.95 + 0.1 * n4);
+			sc = mix(sc, mix(low, sc * 1.05, worn), g);
+		}
 		col = mix(col, sc, a);
 	}
 	ALBEDO = col;
