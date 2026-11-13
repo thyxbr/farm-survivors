@@ -20,8 +20,6 @@ const SWING_MULT := [1.0, 1.1, 1.6]
 const STAFF_TIMES := [0.4, 0.4, 0.6]
 const BOW_FULL := 0.85        # segundos para tensionar o arco por completo
 const BOW_RECOVER := 0.28
-## Comprimento da perna (quadril ao chão): casa a passada com a velocidade para o pé não deslizar.
-const LEG_LEN := 0.95
 ## Ganho da aproximação exponencial da velocidade (chão: andando, parando, invertendo; ar).
 const ACCEL_RUN := 14.0
 const ACCEL_STOP := 18.0
@@ -36,7 +34,7 @@ var camera: Camera3D
 var model: Node3D
 var parts := {}
 ## Referências do visual da arma (KnightLook.apply): classe, suporte, ponta, flecha.
-var look := {"class": "sword", "holder": null, "tip": null, "arrow": null, "arm": null, "counter": 0.0}
+var look := {"class": "sword", "holder": null, "tip": null, "arrow": null, "arm": null, "elbow": null, "counter": 0.0}
 ## Arco: tensionando (segurando o ataque) e quanto já tensionou.
 var drawing := false
 var draw_t := 0.0
@@ -44,7 +42,9 @@ var draw_t := 0.0
 var anim_t := 0.0
 var idle_t := 0.0
 ## Animação procedural: amplitude da passada, inclinação, curva e impacto da aterrissagem (suavizados).
-var _amp := 0.0
+var _amp := 0.0      # 0..1: quanto está andando (suavizado)
+var _run := 0.0      # 0..1: quanto está correndo
+var _air := 0.0      # 0..1: quanto está no ar
 var _lean := 0.0
 var _bank := 0.0
 var _land := 0.0
@@ -161,9 +161,7 @@ func _build_model() -> void:
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
 	model = KNIGHT.instantiate()
 	add_child(model)
-	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head"]:
-		parts[n] = model.find_child(n, true, false)
-	parts["body_y"] = parts.Body.position.y
+	parts = KnightAnim.rig(model)
 	var cape_mesh := model.find_child("Cape", true, false) as MeshInstance3D
 	if cape_mesh:
 		cape = CapeRig.attach(cape_mesh)
@@ -989,14 +987,15 @@ func _animate(delta: float) -> void:
 	idle_t += delta
 	var k := 1.0 - exp(-14.0 * delta)
 
-	# passada: amplitude cresce com a velocidade (corrida abre mais) e a fase avança pela distância
-	# percorrida, então o pé acompanha o chão em qualquer velocidade
-	var walk_amp := clampf(hspeed / WALK_SPEED, 0.0, 1.0) * 0.6 \
-		+ clampf((hspeed - WALK_SPEED) / (SPRINT_SPEED - WALK_SPEED), 0.0, 1.0) * 0.25
-	_amp = lerpf(_amp, walk_amp if on_floor else 0.0, 1.0 - exp(-10.0 * delta))
-	anim_t += delta * minf(hspeed * PI / (2.0 * LEG_LEN * maxf(_amp, 0.3)) * 0.85, 18.0)
-	var s := sin(anim_t)
-	var amp := _amp
+	# quanto anda (0..1) e quanto corre (0..1), suavizados: as transições parado/andar/correr misturam
+	# as poses em vez de trocar de uma vez (parar é um pouco mais lento que arrancar)
+	var move_t := clampf(hspeed / WALK_SPEED, 0.0, 1.0) if on_floor else 0.0
+	var run_t := clampf((hspeed - WALK_SPEED) / (SPRINT_SPEED - WALK_SPEED), 0.0, 1.0)
+	_amp = lerpf(_amp, move_t, 1.0 - exp(-(10.0 if move_t > _amp else 6.0) * delta))
+	_run = lerpf(_run, run_t, 1.0 - exp(-6.0 * delta))
+	_air = lerpf(_air, 0.0 if on_floor else 1.0, 1.0 - exp(-12.0 * delta))
+	# a fase avança pela distância percorrida: meia volta = uma passada, então o pé não desliza
+	anim_t += delta * KnightAnim.cadence(parts, hspeed, _amp, _run)
 
 	# inclinação para a frente com a velocidade e a aceleração; para o lado nas curvas
 	var fwd := Vector3(sin(model.rotation.y), 0, cos(model.rotation.y))
@@ -1004,7 +1003,10 @@ func _animate(delta: float) -> void:
 	_prev_hvel = hvel
 	if remote:
 		accel = Vector3.ZERO   # a velocidade da réplica muda aos saltos (pacotes): só a local dá aceleração confiável
-	var lean_t := clampf(0.06 * hspeed / WALK_SPEED + accel.dot(fwd) * 0.01, -0.12, 0.28) if on_floor else 0.0
+	var lean_t := 0.0
+	if on_floor:
+		lean_t = clampf(lerpf(KnightAnim.LEAN_WALK, KnightAnim.LEAN_RUN, _run) * clampf(hspeed / WALK_SPEED, 0.0, 1.0)
+			+ accel.dot(fwd) * KnightAnim.LEAN_ACCEL, KnightAnim.LEAN_MIN, KnightAnim.LEAN_MAX)
 	_lean = lerpf(_lean, lean_t, 1.0 - exp(-8.0 * delta))
 	var yaw_rate := wrapf(model.rotation.y - _prev_yaw, -PI, PI) / maxf(delta, 0.001)
 	_prev_yaw = model.rotation.y
@@ -1012,7 +1014,7 @@ func _animate(delta: float) -> void:
 	_bank = lerpf(_bank, bank_t, 1.0 - exp(-8.0 * delta))
 	model.rotation.z = _bank
 
-	# aterrissagem: o tronco afunda e inclina conforme a velocidade da queda, depois volta
+	# aterrissagem: agacha conforme a velocidade da queda, depois volta
 	if not on_floor:
 		_air_vy = velocity.y
 	elif not _was_floor and _air_vy < -3.0:
@@ -1021,88 +1023,55 @@ func _animate(delta: float) -> void:
 	_land = move_toward(_land, 0.0, delta * 3.5)
 	var land := _land * _land * (3.0 - 2.0 * _land)
 
-	var leg_l := s * amp
-	var leg_r := -s * amp
-	var body_x := _lean + land * 0.3
-	# o quadril desce quando as pernas abrem (pés no chão) e respira parado
-	var body_y: float = parts.body_y + sin(idle_t * 2.0) * 0.01 * (1.0 - amp) - land * 0.14
-	var drop := LEG_LEN * (1.0 - cos(absf(s) * amp)) * 0.35 if on_floor else 0.0
-	if not on_floor:
-		# subindo: pernas recolhidas e tronco para trás; caindo: pernas descem para o chão
-		var rise := clampf(velocity.y / JUMP_VELOCITY, -1.0, 1.0)
-		leg_l = lerpf(-0.2, -0.65, maxf(rise, 0.0))
-		leg_r = lerpf(0.15, 0.35, maxf(rise, 0.0))
-		body_x = -0.12 * maxf(rise, 0.0) + 0.1 * maxf(-rise, 0.0)
-	if dodge_timer > 0:
-		body_x = 0.7
-		body_y = parts.body_y - 0.25
-		leg_l = -0.9
-		leg_r = 0.6
-		drop = 0.0
-	parts.LegL.rotation.x = lerp(parts.LegL.rotation.x, leg_l, k)
-	parts.LegR.rotation.x = lerp(parts.LegR.rotation.x, leg_r, k)
-	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x, k)
-	parts.Body.position.y = lerp(parts.Body.position.y, body_y, k)
-	model.position.y = lerpf(model.position.y, -drop, k)
+	# pose: parado -> andar/correr -> ar, misturados pelos pesos suavizados
+	var p := KnightAnim.blend(KnightAnim.idle_pose(idle_t), KnightAnim.locomotion_pose(parts, anim_t, _amp, _run), _amp)
+	if _air > 0.001:
+		p = KnightAnim.blend(p, KnightAnim.air_pose(clampf(velocity.y / JUMP_VELOCITY, -1.0, 1.0)), _air)
+	KnightAnim.add_landing(p, land)
+	p.body_x += _lean * (1.0 - _air)
 	# a cabeça compensa parte da inclinação e continua olhando para a frente
-	parts.Head.rotation.x = lerpf(parts.Head.rotation.x, -(_lean + land * 0.3) * 0.5 if dodge_timer <= 0 else 0.0, k)
+	p.head_x -= (_lean + land * KnightAnim.LAND_BODY_X) * 0.5
+	if dodge_timer > 0:
+		p.body_x = 0.7
+		p.body_y = -0.25
+		p.leg_l = -0.9
+		p.leg_r = 0.6
+		p.knee_l = 1.1
+		p.knee_r = 0.9
+		p.head_x = 0.0
+		p.ground = 0.0
 
 	# braço do escudo / conjuração
-	var arm_l := Vector3(-s * amp * 0.65, 0, 0)
 	if cast_timer > 0:
-		arm_l = Vector3(-1.5, 0, 0.5)
+		p.arm_l = Vector3(-1.5, 0, 0.5)
+		p.elbow_l = -0.25
 	var cls: String = look["class"]
 	if cls == "bow" and (drawing or attacking):
-		arm_l = Vector3(-1.52, 0, -0.12)
-	parts.ArmL.rotation = parts.ArmL.rotation.lerp(arm_l, minf(1.0, k * (1.6 if cls == "bow" else 1.0)))
+		p.arm_l = Vector3(-1.52, 0, -0.12)
+		p.elbow_l = -0.05
+		p.speed["arm_l"] = 1.6
+		p.speed["elbow_l"] = 1.6
 	var arrow: Node3D = look.get("arrow")
 	if arrow and is_instance_valid(arrow):
 		arrow.visible = drawing
 
 	# braço da arma
-	var arm_r := Vector3(s * amp * 0.5 - 0.15, 0, 0)
 	if cls == "bow" and (drawing or attacking):
 		var c := bow_charge()
-		arm_r = Vector3(-1.45, 0, 0.35).lerp(Vector3(-1.35, 0.2, 1.05), c) if drawing else Vector3(-1.1, 0, 0.2)
-		parts.Body.rotation.y = lerp(parts.Body.rotation.y, 0.35 if drawing else 0.0, k)
-		parts.ArmR.rotation = parts.ArmR.rotation.lerp(arm_r, minf(1.0, k * 1.5))
+		p.arm_r = Vector3(-1.45, 0, 0.35).lerp(Vector3(-1.35, 0.2, 1.05), c) if drawing else Vector3(-1.1, 0, 0.2)
+		p.elbow_r = lerpf(-0.15, -0.35, c) if drawing else -0.15
+		p.twist = 0.35 if drawing else 0.0
+		p.speed["arm_r"] = 1.5
+		p.speed["elbow_r"] = 1.5
 	elif attacking and cls == "staff":
-		var t: float = clamp(attack_timer / _swing_time(combo), 0.0, 1.0)
-		if combo < 3:
-			arm_r = _swing_pose(t, Vector3(-0.9, 0, -0.3), Vector3(-1.55, 0, 0.15))
-		else:
-			arm_r = _swing_pose(t, Vector3(-2.5, 0, 0.0), Vector3(-1.4, 0, 0.0))
-		parts.ArmR.rotation = arm_r
+		KnightAnim.staff_pose(p, combo, attack_timer / _swing_time(combo), _amp)
 	elif attacking and cls == "sword":
-		var t: float = clamp(attack_timer / SWING_TIMES[clampi(combo, 1, 3) - 1], 0.0, 1.0)
-		match combo:
-			1:
-				arm_r = _swing_pose(t, Vector3(-2.8, 0, -0.2), Vector3(0.5, 0, 0.1))
-			2:
-				arm_r = _swing_pose(t, Vector3(-1.6, 0, -1.3), Vector3(-1.4, 0, 1.0))
-				parts.Body.rotation.y = lerp(0.5, -0.6, smoothstep(0.25, 0.55, t))
-			3:
-				arm_r = Vector3(-1.5, 0, -0.5)
-				parts.Body.rotation.y = -TAU * smoothstep(0.2, 0.75, t)
-		parts.ArmR.rotation = arm_r
-	else:
-		parts.Body.rotation.y = lerp(parts.Body.rotation.y, 0.0, k)
-		parts.ArmR.rotation = parts.ArmR.rotation.lerp(arm_r, k)
-	# cajado e arco ficam de pé mesmo com o braço erguido
-	var holder: Node3D = look.get("holder")
-	var arm: Node3D = look.get("arm")
-	if holder and is_instance_valid(holder) and arm:
-		holder.rotation.x = -arm.rotation.x * float(look.counter)
+		KnightAnim.sword_pose(p, combo, attack_timer / SWING_TIMES[clampi(combo, 1, 3) - 1], _amp)
+	KnightAnim.apply(parts, p, k)
+
+	KnightAnim.hold_weapon_upright(look)
 
 	if on_floor and hspeed > 1.0:
 		_footstep -= delta * hspeed
 		if _footstep <= 0:
 			_footstep = 2.2
-
-
-func _swing_pose(t: float, windup: Vector3, strike: Vector3) -> Vector3:
-	if t < 0.3:
-		return Vector3(-0.15, 0, 0).lerp(windup, smoothstep(0.0, 0.3, t))
-	if t < 0.5:
-		return windup.lerp(strike, smoothstep(0.3, 0.5, t))
-	return strike.lerp(Vector3(-0.15, 0, 0), smoothstep(0.5, 1.0, t))

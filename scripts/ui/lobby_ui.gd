@@ -52,6 +52,12 @@ func _process(delta: float) -> void:
 	_t += delta
 	if _pivot:
 		_pivot.rotation.y += delta * 0.05
+	# cavaleiros em volta da fogueira respiram e trocam o peso de perna (cada um no seu tempo)
+	var kk := 1.0 - exp(-14.0 * delta)
+	for id in _knights:
+		var r: Dictionary = _knights[id].get_meta("rig")
+		KnightAnim.apply(r, KnightAnim.idle_pose(_t + float(id % 97) * 1.7), kk)
+		KnightAnim.hold_weapon_upright(_knights[id].get_meta("look"))
 	if _dirty:
 		_dirty = false
 		_refresh()
@@ -422,7 +428,8 @@ func _refresh_knights() -> void:
 			k = Node3D.new()
 			var m: Node3D = KNIGHT.instantiate()
 			k.add_child(m)
-			KnightLook.apply(m, Network.players[id].get("look", {}))
+			k.set_meta("look", KnightLook.apply(m, Network.players[id].get("look", {})))
+			k.set_meta("rig", KnightAnim.rig(m))
 			var tag := Label3D.new()
 			tag.text = str(Network.players[id].name)
 			tag.font_size = 48
