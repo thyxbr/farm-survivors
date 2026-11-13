@@ -129,3 +129,33 @@ func test_steam_unsupported() -> void:
 	var r := SteamProvider.new().verify({"ticket": "x"}, "ip")
 	T.ok(not r["ok"], "steam falha")
 	T.eq(r["err"], "não suportado", "mensagem")
+
+
+func test_name_trailing_chars() -> void:
+	var s := _store()
+	T.eq(s.register("Ana
+", "senha1234")["err"], "nome_invalido", "newline no fim")
+	T.eq(s.register("Ana ", "senha1234")["err"], "nome_invalido", "espaço no fim")
+
+
+func test_password_too_long() -> void:
+	var s := _store()
+	var longa := "a".repeat(129)
+	T.eq(s.register("Ana", longa)["err"], "senha_longa", "register recusa")
+	T.ok(s.register("Ana", "a".repeat(128))["ok"], "128 bytes passa")
+	T.eq(s.login("Ana", longa, "1.1.1.1")["err"], "credenciais", "login longo = credenciais")
+	for i in 4:
+		s.login("Ana", longa, "1.1.1.1")
+	T.eq(s.login("Ana", "a".repeat(128), "1.1.1.1")["err"], "muitas_tentativas", "conta como falha")
+
+
+func test_missing_admins() -> void:
+	var s := _store(PackedStringArray(["Rique", "Fulano"]))
+	s.register("rique", "senha1234")
+	T.eq(s.missing_admins(), PackedStringArray(["Fulano"]), "só Fulano sem conta")
+
+
+func test_pbkdf2_known_answer() -> void:
+	var salt := "salt".to_utf8_buffer()
+	T.eq(Password.derive("password", salt, 1).hex_encode(), "120fb6cffcf8b32c43e7225256c4f837a86548c92ccc35480805987cb70be17b", "c=1")
+	T.eq(Password.derive("password", salt, 4096).hex_encode(), "c5e478d59288c841aa530db6845c4c8d962893a001ce4e11a4963873aa98134a", "c=4096")

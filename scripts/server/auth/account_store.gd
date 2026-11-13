@@ -3,6 +3,7 @@ extends RefCounted
 ## Contas, senhas (PBKDF2) e sessões por token. Só o SHA-256 do token vai para o banco.
 
 const SESSION_SECS := 86400
+const MAX_PASS_BYTES := 128
 const MAX_FAILS := 5
 const FAIL_WINDOW := 300.0
 
@@ -19,11 +20,13 @@ func _init(p_db: Db, p_admin_users: PackedStringArray = PackedStringArray()) -> 
 
 
 func register(username: String, password: String) -> Dictionary:
-	var re := RegEx.create_from_string("^[A-Za-z0-9_]{3,16}$")
+	var re := RegEx.create_from_string("^[A-Za-z0-9_]{3,16}\\z")
 	if re.search(username) == null:
 		return {"ok": false, "err": "nome_invalido"}
 	if password.length() < 8:
 		return {"ok": false, "err": "senha_curta"}
+	if password.to_utf8_buffer().size() > MAX_PASS_BYTES:
+		return {"ok": false, "err": "senha_longa"}
 	var salt := Password.new_salt()
 	var h := Password.derive(password, salt, iterations)
 	if not db.exec("INSERT INTO accounts(username, pass_hash, pass_salt, created_at) VALUES(?,?,?,?)",
@@ -40,7 +43,9 @@ func login(username: String, password: String, ip: String) -> Dictionary:
 		return {"ok": false, "err": "muitas_tentativas"}
 	var rows := db.query("SELECT id, username, pass_hash, pass_salt FROM accounts WHERE username = ?", [username])
 	var ok := false
-	if rows.is_empty():
+	if password.is_empty() or password.to_utf8_buffer().size() > MAX_PASS_BYTES:
+		pass  # vazia ou longa demais: não deriva; conta como falha
+	elif rows.is_empty():
 		# gasta o mesmo tempo para não revelar se o nome existe
 		Password.derive(password, Password.new_salt(), iterations)
 	else:
@@ -69,6 +74,15 @@ func resolve_token(token: String) -> Dictionary:
 		return {}
 	var name := String(rows[0]["name"])
 	return {"id": int(rows[0]["id"]), "name": name, "is_admin": _is_admin(name)}
+
+
+## Nomes de admin_users que ainda não têm conta (o servidor avisa na partida).
+func missing_admins() -> PackedStringArray:
+	var out := PackedStringArray()
+	for a in admin_users:
+		if db.query("SELECT id FROM accounts WHERE username = ?", [a]).is_empty():
+			out.append(a)
+	return out
 
 
 func _is_admin(name: String) -> bool:
