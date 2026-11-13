@@ -47,6 +47,8 @@ var _run := 0.0      # 0..1: quanto está correndo
 var _air := 0.0      # 0..1: quanto está no ar
 var _cast_t := 99.0  # segundos desde a última magia (a pose toca até KnightMoves.CAST_TIME)
 var _cast_kind := "fireball"
+var _pending_spell := ""   # magia esperando o fim do movimento de apontar
+var _pending_t := 0.0
 var _lean := 0.0
 var _bank := 0.0
 var _land := 0.0
@@ -371,6 +373,12 @@ func _local_process(delta: float) -> void:
 
 
 func _tick_timers(delta: float) -> void:
+	if _pending_spell != "":
+		_pending_t -= delta
+		if _pending_t <= 0.0:
+			_pending_spell = ""
+			if not dead:
+				_cast_fireball()
 	invuln = max(0.0, invuln - delta)
 	cast_timer = max(0.0, cast_timer - delta)
 	stamina_delay = max(0.0, stamina_delay - delta)
@@ -516,6 +524,16 @@ func aim_dir(origin: Vector3) -> Vector3:
 	return (target - origin).normalized()
 
 
+## De onde saem as magias: a gema do cajado, ou a mão esquerda sem cajado.
+func spell_origin() -> Vector3:
+	if look["class"] == "staff":
+		return weapon_tip()
+	var hand := model.find_child("ArmL_Hand", true, false) as MeshInstance3D
+	if hand and hand.is_inside_tree():
+		return hand.global_transform * hand.get_aabb().get_center() + facing() * 0.25
+	return global_position + Vector3.UP * 1.3 + facing() * 0.6
+
+
 func weapon_tip() -> Vector3:
 	var tip: Node3D = look.get("tip")
 	if tip and is_instance_valid(tip) and tip.is_inside_tree():
@@ -627,7 +645,9 @@ func cast(id: String) -> void:
 	_start_cast_pose(id)
 	match id:
 		"fireball":
-			_cast_fireball()
+			# sai da gema do cajado (ou da mão) depois do movimento de apontar
+			_pending_spell = id
+			_pending_t = KnightMoves.CAST_RELEASE * KnightMoves.CAST_TIME
 		"heal":
 			var amount := 30.0 + Game.spell_power() * 4.0
 			Game.hp = min(Game.max_hp(), Game.hp + amount)
@@ -640,7 +660,7 @@ func cast(id: String) -> void:
 
 
 func _cast_fireball() -> void:
-	var origin := global_position + Vector3.UP * 1.3 + facing() * 0.6
+	var origin := spell_origin()
 	var fb := FIREBALL.new()
 	fb.direction = aim_dir(origin)
 	fb.damage = (18.0 + Game.spell_power() * 2.5) * Game.damage_mult()
@@ -944,6 +964,7 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 	match kind:
 		"fireball":
 			_start_cast_pose(kind)
+			_cast_t = KnightMoves.CAST_RELEASE * KnightMoves.CAST_TIME   # o evento chega no disparo
 			var fb := FIREBALL.new()
 			fb.direction = b
 			fb.visual_only = true
@@ -1068,7 +1089,7 @@ func _animate(delta: float) -> void:
 	elif attacking and cls == "sword":
 		KnightAnim.sword_pose(p, combo, attack_timer / SWING_TIMES[clampi(combo, 1, 3) - 1], _amp)
 	elif _cast_t < KnightMoves.CAST_TIME:
-		KnightAnim.cast_pose(p, _cast_kind, _cast_t / KnightMoves.CAST_TIME, _amp)
+		KnightAnim.cast_pose(p, _cast_kind, _cast_t / KnightMoves.CAST_TIME, _amp, cls == "staff")
 	KnightAnim.apply(parts, p, k)
 
 	KnightAnim.hold_weapon_upright(look, parts)

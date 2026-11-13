@@ -57,52 +57,63 @@ const SPIN_START := 0.24        ## o giro começa logo depois da antecipação
 const SPIN_END := 0.78          ## e termina aqui (uma volta inteira)
 
 # ------------------------------------------------------------------ cajado (0,4 s / 0,4 s / 0,6 s)
-## O disparo sai da gema em 0,35 do golpe: a chave de impacto aponta a gema para a frente.
+## Mira: braço estendido, cajado inclinado quase na horizontal com a gema à frente. O disparo
+## (0,35 do golpe) e a bola de fogo saem da gema, então ela fica parada nessa pose no disparo.
+## wrist_r: quanto o cajado tomba para a frente (com o braço erguido ~1,4 = gema bem à frente).
+const STAFF_AIM := {"arm_r": Vector3(-1.4, -0.12, 0.0), "elbow_r": -0.12, "wrist_r": 1.75,
+	"twist": 0.12, "body_x": 0.12, "head_y": -0.15,
+	"arm_l": Vector3(-0.95, -0.15, 0.3), "elbow_l": -1.0}
+## Passo à frente ao mirar (só com o jogador parado).
+const STAFF_AIM_LEGS := {"leg_l": -0.32, "knee_l": 0.32, "leg_r": 0.22, "knee_r": 0.2}
+## Coice depois do disparo: a gema sobe um pouco e o braço recua.
+const STAFF_RECOIL := {"arm_r": Vector3(-1.55, -0.1, 0.0), "elbow_r": -0.4, "wrist_r": 1.4, "body_x": 0.02,
+	"twist": 0.2}
 const STAFF := [
-	[  # 1: recolhe o cajado junto ao ombro e estoca para a frente
-		[0.2, {"arm_r": Vector3(-0.55, 0.25, -0.3), "elbow_r": -1.55, "wrist_r": -0.35, "twist": -0.4,
+	[  # 1: recolhe o cajado junto ao ombro, aponta a gema e dispara
+		[0.16, {"arm_r": Vector3(-0.45, 0.3, -0.3), "elbow_r": -1.6, "wrist_r": -0.25, "twist": -0.4,
 			"body_x": -0.08, "head_y": 0.3,
-			"arm_l": Vector3(-1.0, 0.45, 0.15), "elbow_l": -1.5, "wrist_l": 0.0,
+			"arm_l": Vector3(-1.0, 0.45, 0.15), "elbow_l": -1.5,
 			"leg_r": 0.15, "knee_r": 0.3}],
-		[0.35, {"arm_r": Vector3(-1.45, 0.15, 0.05), "elbow_r": -0.05, "wrist_r": 0.95, "twist": 0.3,
-			"body_x": 0.16, "head_y": -0.15,
-			"arm_l": Vector3(-0.5, -0.1, 0.5), "elbow_l": -0.45,
-			"leg_l": -0.32, "knee_l": 0.32, "leg_r": 0.22, "knee_r": 0.2}, "in"],
-		[0.52, {"arm_r": Vector3(-1.5, 0.15, 0.05), "elbow_r": -0.08, "wrist_r": 1.05}, "out"],
+		[0.3, [STAFF_AIM, STAFF_AIM_LEGS], "in"],
+		[0.37, [STAFF_AIM], "lin"],   # firme no disparo
+		[0.48, [STAFF_RECOIL], "out"],
 	],
-	[  # 2: varre da direita para a frente, a mão esquerda empurra a magia junto
-		[0.2, {"arm_r": Vector3(-1.1, -0.85, -0.35), "elbow_r": -0.9, "wrist_r": 0.2, "twist": -0.45,
+	[  # 2: traz o cajado da direita, varrendo até a mira
+		[0.16, {"arm_r": Vector3(-1.0, -0.85, -0.3), "elbow_r": -0.9, "wrist_r": 0.6, "twist": -0.45,
 			"body_x": 0.0, "head_y": 0.35,
 			"arm_l": Vector3(-1.1, 0.6, 0.1), "elbow_l": -1.6,
 			"leg_l": -0.1, "knee_l": 0.25, "leg_r": 0.15, "knee_r": 0.25}],
-		[0.35, {"arm_r": Vector3(-1.45, 0.3, 0.05), "elbow_r": -0.1, "wrist_r": 1.0, "twist": 0.35,
-			"body_x": 0.14, "head_y": -0.1,
-			"arm_l": Vector3(-1.35, 0.2, 0.2), "elbow_l": -0.2,
-			"leg_l": -0.3, "knee_l": 0.3, "leg_r": 0.25, "knee_r": 0.2}, "in"],
-		[0.52, {"arm_r": Vector3(-1.4, 0.45, 0.1), "elbow_r": -0.15, "wrist_r": 1.05}, "out"],
+		[0.3, [STAFF_AIM, STAFF_AIM_LEGS], "in"],
+		[0.37, [STAFF_AIM], "lin"],
+		[0.48, [STAFF_RECOIL], "out"],
 	],
-	[  # 3: ergue o cajado com as duas mãos e crava para a frente (três disparos)
+	[  # 3: ergue o cajado com as duas mãos e baixa a gema apontando (três disparos)
 		[0.22, {"arm_r": Vector3(-2.75, 0.1, -0.1), "elbow_r": -0.55, "wrist_r": -0.4,
 			"arm_l": Vector3(-2.6, -0.1, 0.25), "elbow_l": -0.75, "body_x": -0.22, "head_x": -0.1,
 			"twist": -0.1, "leg_l": -0.05, "knee_l": 0.15, "knee_r": 0.15}],
-		[0.35, {"arm_r": Vector3(-1.1, 0.1, 0.1), "elbow_r": -0.05, "wrist_r": 1.25,
-			"arm_l": Vector3(-1.0, -0.2, 0.3), "elbow_l": -0.35, "body_x": 0.42, "head_x": -0.2,
-			"twist": 0.1, "leg_l": -0.38, "knee_l": 0.75, "leg_r": 0.3, "knee_r": 0.6}, "in"],
-		[0.58, {"arm_r": Vector3(-1.05, 0.1, 0.1), "elbow_r": -0.08, "wrist_r": 1.3, "body_x": 0.4}, "out"],
+		[0.32, [STAFF_AIM, {"arm_r": Vector3(-1.3, -0.12, 0.0), "wrist_r": 1.55, "body_x": 0.35, "head_x": -0.15,
+			"arm_l": Vector3(-1.25, -0.3, 0.25), "elbow_l": -0.3,
+			"leg_l": -0.38, "knee_l": 0.7, "leg_r": 0.3, "knee_r": 0.55}], "in"],
+		[0.4, [STAFF_AIM, {"arm_r": Vector3(-1.3, -0.12, 0.0), "wrist_r": 1.55, "body_x": 0.35,
+			"arm_l": Vector3(-1.25, -0.3, 0.25), "elbow_l": -0.3}], "lin"],
+		[0.6, [STAFF_RECOIL, {"body_x": 0.25}], "out"],
 	],
 ]
 
 # ------------------------------------------------------------------ magias
-const CAST_TIME := 0.45         ## duração da pose de magia (s); o efeito sai no começo
+const CAST_TIME := 0.45         ## duração da pose de magia (s)
+## Fração de CAST_TIME em que a bola de fogo sai (da gema do cajado, ou da mão esquerda sem
+## cajado): o tempo de apontar antes do disparo.
+const CAST_RELEASE := 0.27
 const CAST := {
-	# bola de fogo: a mão esquerda recua junto ao peito e empurra a palma para a frente
+	# bola de fogo sem cajado: a mão esquerda recua junto ao peito e empurra a palma para a frente
 	"fireball": [
-		[0.15, {"arm_l": Vector3(-0.85, -0.35, 0.55), "elbow_l": -1.9, "twist": 0.35, "body_x": -0.06,
+		[0.12, {"arm_l": Vector3(-0.85, -0.35, 0.55), "elbow_l": -1.9, "twist": 0.35, "body_x": -0.06,
 			"head_y": -0.2}],
-		[0.35, {"arm_l": Vector3(-1.55, 0.3, 0.05), "elbow_l": -0.05, "twist": -0.3, "body_x": 0.18,
+		[0.27, {"arm_l": Vector3(-1.55, 0.3, 0.05), "elbow_l": -0.05, "twist": -0.3, "body_x": 0.18,
 			"head_y": 0.15, "arm_r": Vector3(-0.1, 0.0, -0.35), "elbow_r": -0.4,
 			"leg_l": -0.3, "knee_l": 0.3, "leg_r": 0.2, "knee_r": 0.15}, "in"],
-		[0.7, {"arm_l": Vector3(-1.5, 0.3, 0.05), "elbow_l": -0.1}, "out"],
+		[0.65, {"arm_l": Vector3(-1.5, 0.3, 0.05), "elbow_l": -0.1}, "out"],
 	],
 	# cura: braços se abrem para o alto, peito para cima, olhar para o céu
 	"heal": [
@@ -118,6 +129,17 @@ const CAST := {
 			"elbow_r": -0.1, "body_x": 0.5, "head_x": -0.25,
 			"leg_l": -0.6, "knee_l": 1.0, "leg_r": -0.3, "knee_r": 0.8}, "in"],
 		[0.7, {"body_x": 0.48, "leg_l": -0.58, "knee_l": 0.95, "leg_r": -0.3, "knee_r": 0.78}],
+	],
+}
+## Com cajado, a bola de fogo usa a mira do cajado: recolhe, aponta a gema (dispara em CAST_RELEASE)
+## e dá o coice.
+const CAST_STAFF := {
+	"fireball": [
+		[0.12, {"arm_r": Vector3(-0.45, 0.3, -0.3), "elbow_r": -1.6, "wrist_r": -0.25, "twist": -0.4,
+			"body_x": -0.08, "head_y": 0.3, "arm_l": Vector3(-1.0, 0.45, 0.15), "elbow_l": -1.5}],
+		[0.24, [STAFF_AIM, STAFF_AIM_LEGS], "in"],
+		[0.36, [STAFF_AIM], "lin"],
+		[0.55, [STAFF_RECOIL], "out"],
 	],
 }
 

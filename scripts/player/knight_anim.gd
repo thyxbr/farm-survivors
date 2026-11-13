@@ -246,18 +246,32 @@ static func play_track(p: Dictionary, track: Array, t: float, move: float) -> vo
 	var legs_w := lerpf(1.0, ATK_LEGS_WHILE_MOVING, move)
 	var snap: Array = p.snap
 	var joints: Array = []
+	var keys: Array = []
 	for key in track:
-		for j in key[1]:
+		var pose := key_pose(key)
+		keys.append([key[0], pose, key[2] if key.size() > 2 else "io"])
+		for j in pose:
 			if not (j in joints):
 				joints.append(j)
 	for j in joints:
 		var base = p[j]
-		var v = sample_track(track, j, base, clampf(t - float(JOINT_LAG.get(j, 0.0)), 0.0, 1.0))
+		var v = sample_track(keys, j, base, clampf(t - float(JOINT_LAG.get(j, 0.0)), 0.0, 1.0))
 		if j in LEG_KEYS:
 			p[j] = lerp(base, v, legs_w)
 		else:
 			p[j] = v
 			snap.append(j)
+
+
+## Pose de uma chave: um Dictionary, ou uma lista deles somados (o último manda), para reaproveitar
+## poses como KnightMoves.STAFF_AIM.
+static func key_pose(key: Array) -> Dictionary:
+	if key[1] is Dictionary:
+		return key[1]
+	var pose := {}
+	for part in key[1]:
+		pose.merge(part, true)
+	return pose
 
 
 ## Valor da articulação `j` na trilha no instante `t` (a pose base nas pontas).
@@ -302,8 +316,11 @@ static func staff_pose(p: Dictionary, combo: int, t: float, move: float) -> void
 
 
 ## Magia (`kind` = "fireball", "heal", "frost_nova"); `t` 0..1 dentro de KnightMoves.CAST_TIME.
-static func cast_pose(p: Dictionary, kind: String, t: float, move: float) -> void:
-	play_track(p, KnightMoves.CAST.get(kind, KnightMoves.CAST.fireball), t, move)
+## Com cajado (`staff`), magias que têm versão própria apontam a gema (KnightMoves.CAST_STAFF).
+static func cast_pose(p: Dictionary, kind: String, t: float, move: float, staff := false) -> void:
+	var track: Array = KnightMoves.CAST_STAFF[kind] if staff and KnightMoves.CAST_STAFF.has(kind) \
+		else KnightMoves.CAST.get(kind, KnightMoves.CAST.fireball)
+	play_track(p, track, t, move)
 
 
 ## Arco tensionando: `c` 0..1 (0 = flecha encaixada, 1 = corda no queixo).
