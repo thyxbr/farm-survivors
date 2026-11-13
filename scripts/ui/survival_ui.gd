@@ -1,6 +1,8 @@
 extends Control
 ## Telas do Desafio da Horda: escolha de melhoria (mode = "levelup"), bênção de fim de rodada
 ## ("round") e resultados da partida ("results").
+## No grupo, as cartas mostram o tempo que falta e quem já escolheu; quando o tempo acaba o
+## servidor manda seguir e a carta é sorteada (auto_pick).
 
 signal closed
 
@@ -9,6 +11,8 @@ var survival: Node
 var choices: Array = []
 var _cards: Array[Button] = []
 var _lock := 0.4   # evita escolher sem querer com um clique de ataque
+var _timer_bar: ProgressBar
+var _timer_label: Label
 
 
 func _ready() -> void:
@@ -21,13 +25,16 @@ func _ready() -> void:
 	p.add_child(v)
 	match mode:
 		"levelup":
-			v.add_child(_title("Subiu de nível! — Nv %d" % survival.run_level, Color(0.5, 0.85, 1.0)))
-			v.add_child(_sub("Escolha uma melhoria  (1 · 2 · 3)"))
+			var who := "O grupo subiu" if survival.is_group() else "Subiu"
+			v.add_child(_title("%s de nível! — Nv %d" % [who, survival.run_level], Color(0.5, 0.85, 1.0)))
+			v.add_child(_sub("Escolha uma melhoria  (1 · 2 · 3)" + ("  ·  a horda espera todos escolherem" if survival.is_group() else "")))
 			_build_cards(v)
+			_build_timer(v)
 		"round":
 			v.add_child(_title("Rodada %d concluída!" % survival.round_num, UITheme.GOLD))
 			v.add_child(_sub("Escolha uma bênção para a próxima rodada  (1 · 2 · 3)"))
 			_build_cards(v)
+			_build_timer(v)
 			v.add_child(_sub("%d abates · Nv %d · %s" % [survival.kills, survival.run_level, _time(survival.elapsed)]))
 			v.add_child(_sub("Dica: coma com [Q] durante a rodada — comidas do Caldeirão dão bônus."))
 			var center := CenterContainer.new()
@@ -66,7 +73,7 @@ func _build_cards(parent: Control) -> void:
 		var info: Dictionary = survival.describe(choices[i])
 		var c: Color = info.color
 		var b := Button.new()
-		b.custom_minimum_size = Vector2(270, 220)
+		b.custom_minimum_size = Vector2(290, 215)
 		b.focus_mode = Control.FOCUS_ALL
 		var normal := StyleBoxFlat.new()
 		normal.bg_color = Color(0.09, 0.08, 0.1, 0.97)
@@ -95,11 +102,29 @@ func _build_cards(parent: Control) -> void:
 		col.add_theme_constant_override("separation", 8)
 		col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		m.add_child(col)
-		var key := UITheme.label("[%d]" % (i + 1), 15, UITheme.DIM)
-		col.add_child(key)
-		var name_l := UITheme.label(info.name, 24, c.lightened(0.25))
+		var head := HBoxContainer.new()
+		head.add_theme_constant_override("separation", 12)
+		head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		col.add_child(head)
+		var ch: Dictionary = choices[i]
+		var cur := 0
+		if ch.type == "weapon":
+			cur = survival.weapon_levels.get(ch.id, 0)
+		elif ch.type == "passive":
+			cur = survival.passive_levels.get(ch.id, 0)
+		var icon := SkillIcon.new(64).setup(ch.type, ch.id, cur)
+		icon.highlight = true
+		head.add_child(icon)
+		var titles := VBoxContainer.new()
+		titles.add_theme_constant_override("separation", 2)
+		titles.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		titles.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		head.add_child(titles)
+		var key := UITheme.label("[%d]" % (i + 1), 14, UITheme.DIM)
+		titles.add_child(key)
+		var name_l := UITheme.label(info.name, 22, c.lightened(0.25))
 		name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		col.add_child(name_l)
+		titles.add_child(name_l)
 		var lvl := UITheme.label(info.level, 16, UITheme.GOLD)
 		col.add_child(lvl)
 		var desc := UITheme.label(info.desc, 17)
@@ -108,12 +133,54 @@ func _build_cards(parent: Control) -> void:
 		col.add_child(desc)
 		for l in [key, name_l, lvl, desc]:
 			l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var tw := b.create_tween()
+		tw.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+		b.modulate.a = 0.0
+		tw.tween_interval(0.06 * i)
+		tw.tween_property(b, "modulate:a", 1.0, 0.18)
 	if not _cards.is_empty():
 		_cards[0].grab_focus.call_deferred()
 
 
+## Grupo: barra de tempo e quem ainda está escolhendo.
+func _build_timer(parent: Control) -> void:
+	if not survival.is_group():
+		return
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	parent.add_child(box)
+	_timer_label = _sub("")
+	box.add_child(_timer_label)
+	_timer_bar = UITheme.bar(Color(0.45, 0.78, 1.0) if mode == "levelup" else UITheme.GOLD, 600, 8)
+	_timer_bar.custom_minimum_size = Vector2(600, 8)
+	_timer_bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(_timer_bar)
+
+
 func _process(delta: float) -> void:
 	_lock = max(0.0, _lock - delta)
+	if _timer_bar == null or survival == null:
+		return
+	var left: float = survival.lv_left if mode == "levelup" else survival.break_left
+	var total: float = survival.lv_total if mode == "levelup" else survival.break_total
+	_timer_bar.max_value = total
+	_timer_bar.value = left
+	var key := "lv_ready" if mode == "levelup" else "ready"
+	var parts: Array[String] = []
+	for pid in survival.team:
+		var m: Dictionary = survival.team[pid]
+		var ok: bool = m.get(key, false)
+		parts.append(("✓ " if ok else "… ") + str(m.get("name", "?")))
+	_timer_label.text = "⏱ %ds   ·   %s" % [int(ceil(left)), "   ".join(parts)]
+	_timer_label.add_theme_color_override("font_color", Color(1, 0.55, 0.4) if left <= 5.0 else UITheme.DIM)
+
+
+## Tempo esgotado no grupo: escolhe uma carta ao acaso e fecha.
+func auto_pick() -> void:
+	if is_queued_for_deletion() or choices.is_empty():
+		return
+	_lock = 0.0
+	_pick(randi() % choices.size())
 
 
 func _pick(i: int) -> void:
@@ -149,6 +216,7 @@ func _build_results(v: VBoxContainer) -> void:
 		["Tempo", _time(survival.elapsed)],
 		["Abates", str(survival.kills)],
 		["Nível alcançado", str(survival.run_level)],
+		["Caçadas concluídas", str(survival.hunts_won)],
 		["Ouro coletado", "◆ %d" % survival.rewards.gold],
 		["Sementes para a Horta", str(survival.seeds_won)],
 		["XP de recompensa", "+%d XP" % survival.rewards.xp],

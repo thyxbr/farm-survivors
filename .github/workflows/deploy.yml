@@ -56,10 +56,10 @@ jobs:
 
       - name: Teste de multiplayer (servidor + 2 clientes)
         run: |
-          godot --headless --path . -- --server --port=7790 --horde-round=8 > server.log 2>&1 &
+          godot --headless --path . -- --server --port=7790 --horde-round=8 --horde-pick=5 > server.log 2>&1 &
           for i in $(seq 1 30); do grep -q "ouvindo em UDP" server.log && break; sleep 1; done
-          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Ana --horde=lead > ana.log 2>&1 & A=$!
-          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Beto --horde=join > beto.log 2>&1 & B=$!
+          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Ana --horde=lead --horde-pick=5 > ana.log 2>&1 & A=$!
+          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Beto --horde=join --horde-pick=5 > beto.log 2>&1 & B=$!
           wait $A; RA=$?
           wait $B; RB=$?
           grep -hE "PASS|FAIL|NETTEST" ana.log beto.log

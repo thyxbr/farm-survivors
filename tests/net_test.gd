@@ -5,7 +5,7 @@ extends Node
 ## --peers=N espera ver N-1 outros jogadores. Sai com código 0 (ok) ou 1 (falhas).
 ## --probe: só entra, confere versão e snapshots e sai (usado pelo CI contra o servidor público).
 ## --horde=lead|join: testa o Desafio da Horda em grupo (lead abre o portal, join aceita o convite).
-##   Use com o servidor em --horde-round=8 para as rodadas não demorarem.
+##   Use com o servidor em --horde-round=8 --horde-pick=5 para as rodadas e escolhas não demorarem.
 
 var fails := 0
 var address := "127.0.0.1"
@@ -13,6 +13,7 @@ var peers := 1
 var my_name := "Teste"
 var probe := false
 var horde_role := ""
+var chat_got: Array = []   # [nome, texto]
 
 
 func check(cond: bool, what: String) -> void:
@@ -38,6 +39,7 @@ func _ready() -> void:
 			probe = true
 		elif a.begins_with("--horde="):
 			horde_role = a.substr(8)
+	Network.chat_received.connect(func(from: String, text: String) -> void: chat_got.append([from, text]))
 	Game.save_path = "user://nettest_%s.json" % my_name
 	Game.new_game()
 	var failed := [""]
@@ -86,6 +88,34 @@ func _ready() -> void:
 				"vê o arco e o capuz de %s" % rp.display_name)
 			var holder: Node3D = rp.look.get("holder")
 			check(holder != null and is_instance_valid(holder), "modelo do arco montado na réplica de %s" % rp.display_name)
+
+	# chat: cada um manda uma mensagem e recebe a do outro (com o próprio eco)
+	if peers > 1:
+		check(w.chat != null, "caixa de chat criada no mundo")
+		Network.send_chat("  Olá de %s!
+  " % my_name)
+		check(await _wait_until(func() -> bool:
+			var others := 0
+			var mine := false
+			for m in chat_got:
+				if m[0] == Network.my_name and m[1] == "Olá de %s!" % my_name:
+					mine = true
+				elif m[0] != "" and str(m[1]).begins_with("Olá de "):
+					others += 1
+			return mine and others >= peers - 1, 6.0), "chat chega para todos (%s)" % str(chat_got))
+		# anti-spam: a 6ª mensagem seguida recebe o aviso do servidor
+		for i in 6:
+			Network.send_chat("spam %d" % i)
+		check(await _wait_until(func() -> bool:
+			for m in chat_got:
+				if m[0] == "" and str(m[1]).begins_with("Calma"):
+					return true
+			return false, 4.0), "chat limita mensagens em sequência")
+		# abrir o chat trava o personagem; Esc fecha
+		w.chat._set_open(true)
+		check(w.chat.is_open() and w.player.chat_typing, "Enter abre o chat e trava o personagem")
+		w.chat._set_open(false)
+		check(not w.player.chat_typing, "fechar o chat devolve o controle")
 
 	# acerta um slime até morrer: o servidor aplica o dano e devolve XP/loot
 	var target: Enemy = null
@@ -216,6 +246,9 @@ func _test_horde(w: Node) -> void:
 	check(get_tree().get_nodes_in_group("xp_gems").size() > 0 or sv.run_xp > 0 or sv.run_level > 1, "gema de XP pessoal caiu")
 	check(Game.xp + Game.level * 100000 == xp0, "horda não dá XP do RPG")
 
+	if peers > 1:
+		await _test_shared_level(w, sv)
+
 	# quem cai no grupo não sai: volta no fim da rodada
 	if horde_role == "join" and peers > 1:
 		p.invuln = 0
@@ -251,6 +284,76 @@ func _test_horde(w: Node) -> void:
 		w.modal._finish()
 	await wait(0.3)
 	check(w.survival == null and p.global_position.distance_to(w.VILLAGE_SPAWN) < 3.0, "voltou para a vila")
+
+
+## Nível do grupo: o XP de um sobe o nível de todos; a horda congela até todos escolherem.
+## Depois, um dos dois "fica AFK": o servidor espera --horde-pick segundos e sorteia a carta dele.
+func _test_shared_level(w: Node, sv) -> void:
+	await _pick_levelups(w)
+	await _wait_until(func() -> bool: return not sv.frozen, 10.0)
+	var lv0: int = sv.run_level
+	if horde_role == "lead":
+		await wait(0.5)
+		sv.add_xp(sv.xp_needed() * sv.team.size() + 2)
+	var opened: bool = await _wait_until(func() -> bool:
+		return sv.frozen and w.modal != null and w.modal.get("mode") == "levelup", 8.0)
+	check(opened, "grupo sobe de nível junto: cartas abrem e a horda congela")
+	check(sv.run_level >= lv0 + 1, "nível compartilhado (%d → %d)" % [lv0, sv.run_level])
+	check(w.modal != null and w.modal.get("_timer_bar") != null, "cartas mostram o tempo para escolher")
+	var picks0: int = _build_size(sv)
+	if horde_role == "lead":
+		await wait(0.5)
+		if w.modal != null and w.modal.get("mode") == "levelup":
+			w.modal._pick(0)
+		await wait(1.5)
+		check(sv.frozen and w.player.horde_frozen, "continua congelado esperando o colega escolher")
+		check(sv.hud.wait_panel.visible, "faixa 'esperando o grupo' aparece")
+	else:
+		var pos := {}
+		for e in Network.enemies.values():
+			if is_instance_valid(e) and e.horde and not e.dead:
+				pos[e] = e.global_position
+		await wait(2.5)
+		var moved := 0.0
+		for e in pos:
+			if is_instance_valid(e) and not e.dead:
+				moved = maxf(moved, e.global_position.distance_to(pos[e]))
+		check(moved < 0.5, "inimigos parados enquanto o grupo escolhe (%.2f m)" % moved)
+		if w.modal != null and w.modal.get("mode") == "levelup":
+			w.modal._pick(0)
+	check(await _wait_until(func() -> bool: return not sv.frozen, 6.0), "horda volta quando todos escolhem")
+	check(not w.player.horde_frozen, "jogador volta a se mexer")
+	check(_build_size(sv) >= picks0 + 1, "carta escolhida aplicada")
+
+	# tempo esgotado: quem não escolhe recebe uma carta sorteada
+	await _pick_levelups(w)
+	await _wait_until(func() -> bool: return not sv.frozen, 10.0)
+	if horde_role == "lead":
+		await wait(1.0)
+		sv.add_xp(sv.xp_needed() * sv.team.size() + 2)
+	check(await _wait_until(func() -> bool:
+		return sv.frozen and w.modal != null and w.modal.get("mode") == "levelup", 8.0), "nova subida de nível do grupo")
+	var picks1: int = _build_size(sv)
+	if horde_role == "lead":
+		await wait(0.5)
+		if w.modal != null and w.modal.get("mode") == "levelup":
+			w.modal._pick(0)
+	# join fica "AFK" com as cartas abertas
+	check(await _wait_until(func() -> bool: return not sv.frozen, Network.horde_pick_time + 12.0),
+		"servidor não espera para sempre: a horda volta depois do tempo limite")
+	if horde_role == "join":
+		await wait(0.3)
+		check(w.modal == null or w.modal.get("mode") != "levelup", "cartas do jogador AFK fecham sozinhas")
+		check(_build_size(sv) >= picks1 + 1, "carta sorteada para quem não escolheu (%d → %d)" % [picks1, _build_size(sv)])
+
+
+func _build_size(sv) -> int:
+	var n := 0
+	for id in sv.weapon_levels:
+		n += sv.weapon_levels[id]
+	for id in sv.passive_levels:
+		n += sv.passive_levels[id]
+	return n
 
 
 func _finish() -> void:

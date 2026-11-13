@@ -365,6 +365,8 @@ func _test_survival() -> void:
 	await wait(0.1)
 	check(Game.flags.get("king_dead", false) == king_flag and not sv.boss_alive(), "chefe da horda derrotado sem afetar missões")
 
+	await _test_horde_extras(sv)
+
 	# retirada pelo menu de pausa
 	world._open_modal(_pause_menu())
 	await wait(0.1)
@@ -395,6 +397,182 @@ func _test_survival() -> void:
 	await wait(0.2)
 	check(not player.dead and Game.gold == gold1 and Game.hp == Game.max_hp(), "volta à vila sem perder ouro")
 	check(gold1 >= gold0, "ouro não diminuiu durante o desafio")
+
+
+## Monstros novos, eventos e Caçada (solo). As armas automáticas ficam desligadas para não
+## matarem os monstros antes de eles mostrarem o comportamento.
+func _test_horde_extras(sv) -> void:
+	await _pick_levelups(false)
+	sv.weapons.process_mode = Node.PROCESS_MODE_DISABLED
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.horde and not e.dead:
+			e._die()
+	sv.round_left = 999.0
+	sv._spawn_acc = -9999.0   # sem spawns normais durante o teste
+	sv.event = ""
+	sv.hunt_target = 0
+	await wait(0.3)
+	var base: Vector3 = player.global_position
+
+	# slime explosivo: corre até o jogador, explode (dano em área) e morre
+	player.invuln = 0
+	Game.hp = Game.max_hp()
+	var hp0 := Game.hp
+	var bomb: Enemy = sv._spawn_enemy("slime_explosivo", base + Vector3(3.0, 0.2, 0))
+	var kills0: int = sv.kills
+	check(await _until(func() -> bool: return not is_instance_valid(bomb) or bomb.dead, 5.0), "slime explosivo explode")
+	check(Game.hp < hp0, "explosão fere o jogador (%.0f → %.0f)" % [hp0, Game.hp])
+	check(sv.kills == kills0 + 1, "explosão conta como abate")
+	Game.hp = Game.max_hp()
+
+	# Slime Mãe se divide em 3 slimes velozes
+	var veloz0 := _count_alive("slime_veloz")
+	var mae: Enemy = sv._spawn_enemy("slime_mae", base + Vector3(-12, 0.2, 0))
+	await wait(0.1)
+	mae.take_damage(99999, base, false)
+	await wait(0.2)
+	check(_count_alive("slime_veloz") == veloz0 + 3, "Slime Mãe se divide em 3 (%d)" % (_count_alive("slime_veloz") - veloz0))
+	_kill_horde()
+	await wait(0.2)
+
+	# Goblin Arqueiro mantém distância e atira flechas
+	var archer: Enemy = sv._spawn_enemy("goblin_arqueiro", base + Vector3(0, 0.2, 9.0))
+	var arrow_seen := await _until(func() -> bool: return _count_script(sv, preload("res://scripts/enemies/enemy_arrow.gd")) > 0, 6.0)
+	check(arrow_seen, "Goblin Arqueiro atira flechas")
+	check(archer.global_position.distance_to(player.global_position) > 4.0, "arqueiro mantém distância (%.1f m)" % archer.global_position.distance_to(player.global_position))
+	player.invuln = 0
+	Game.hp = Game.max_hp()
+	var hp1 := Game.hp
+	check(await _until(func() -> bool: return Game.hp < hp1, 6.0), "flecha acerta o jogador")
+	_kill_horde()
+	Game.hp = Game.max_hp()
+	await wait(0.2)
+
+	# Goblin Xamã cura os aliados em volta
+	var shaman: Enemy = sv._spawn_enemy("goblin_xama", base + Vector3(8.0, 0.2, 0))
+	var hurt: Enemy = sv._spawn_enemy("slime_grande", base + Vector3(9.0, 0.2, 1.0))
+	await wait(0.1)
+	hurt.hp = hurt.max_hp * 0.3
+	var hhp := hurt.hp
+	check(await _until(func() -> bool: return is_instance_valid(hurt) and hurt.hp > hhp, 7.0), "Goblin Xamã cura aliados (%.0f → %.0f)" % [hhp, hurt.hp])
+	check(is_instance_valid(shaman) and shaman.data.get("tint") != null, "xamã com cor própria")
+	_kill_horde()
+	Game.hp = Game.max_hp()
+	await wait(0.2)
+
+	# Goblin Dourado: foge e some sem contar abate; abatido, solta ouro
+	var gold_g: Enemy = sv._spawn_enemy("goblin_dourado", base + Vector3(5, 0.2, 0))
+	await wait(1.0)
+	check(gold_g.global_position.distance_to(player.global_position) > 5.5, "Goblin Dourado foge do jogador")
+	var k1: int = sv.kills
+	gold_g.born_t = sv.GOLD_ESCAPE + 1.0
+	await wait(0.2)
+	check(gold_g.dead and gold_g.escaped and sv.kills == k1, "Goblin Dourado escapa sem contar abate")
+	var gold_g2: Enemy = sv._spawn_enemy("goblin_dourado", base + Vector3(2, 0.2, 0))
+	await wait(0.1)
+	var coins0 := _count_script(sv, preload("res://scripts/world/pickup.gd"))
+	gold_g2.take_damage(99999, base, false)
+	await wait(0.1)
+	check(_count_script(sv, preload("res://scripts/world/pickup.gd")) >= coins0 + 3 or Game.gold > 0, "Goblin Dourado abatido solta ouro")
+
+	# Campeão Goblin: elite com barra de vida sempre visível
+	var champ: Enemy = sv._spawn_enemy("goblin_campeao", base + Vector3(-6, 0.2, 0))
+	await wait(0.1)
+	check(champ.bar_root.visible and champ.max_hp > 400, "Campeão Goblin (elite, %d de vida)" % champ.max_hp)
+	_kill_horde()
+	Game.hp = Game.max_hp()
+	await wait(0.3)
+
+	# Chuva de Meteoros: o círculo avisa e o impacto fere quem ficou dentro
+	_clear_gems()
+	await _pick_levelups(false)
+	sv.event = "meteoros"
+	player.invuln = 0
+	Game.hp = Game.max_hp()
+	var hp2 := Game.hp
+	sv._meteor_t = 999.0
+	sv._drop_meteor(player.global_position)
+	check(sv._meteors.size() == 1, "meteoro anunciado com aviso")
+	# cartas de nível (gemas ainda chegando) pausam o jogo: escolhe e segue esperando
+	await _until(func() -> bool:
+		if world.modal != null and world.modal.get("mode") == "levelup" and world.modal._lock <= 0.0:
+			world.modal._pick(0)
+		return sv._meteors.is_empty(), 8.0)
+	check(Game.hp < hp2 and sv._meteors.is_empty(), "meteoro cai e fere quem ficou no círculo (hp %.0f→%.0f, %d pendentes, fase %s, pausado %s, modal %s)" % [hp2, Game.hp, sv._meteors.size(), sv.phase, get_tree().paused, world.modal])
+	sv.event = ""
+	Game.hp = Game.max_hp()
+
+	# sorteio dos eventos
+	var seen := {}
+	for i in 200:
+		var ev: String = sv.EVT.roll_event(3 + i % 4, false, "")
+		if ev != "":
+			seen[ev] = true
+	check(seen.size() >= 5, "eventos sorteados variam (%s)" % ", ".join(seen.keys()))
+	check(sv.EVT.roll_event(5, true) == "" and sv.EVT.roll_event(1, false) == "", "sem evento na rodada 1 e na do chefe")
+
+	# Caçada: bater a meta dá o baú (gemas e ouro em volta do jogador)
+	_clear_gems()
+	await _pick_levelups(false)
+	sv.hunt_target = sv.hunt_kills + 1
+	sv.hunt_done = false
+	var won0: int = sv.hunts_won
+	var gems0 := get_tree().get_nodes_in_group("xp_gems").size()
+	var victim: Enemy = sv._spawn_enemy("slime", base + Vector3(4, 0.2, 0))
+	await wait(0.1)
+	victim.take_damage(99999, base, false)
+	# conta logo: o ímã recolhe as gemas em poucos quadros
+	var gems1 := get_tree().get_nodes_in_group("xp_gems").size()
+	check(sv.hunt_done and sv.hunts_won == won0 + 1, "Caçada concluída dá o baú")
+	check(gems1 >= gems0 + 6, "baú da Caçada solta gemas (%d)" % (gems1 - gems0))
+	await wait(0.1)
+	sv.hunt_target = 0
+
+	# HUD da horda mostra nível e habilidades
+	var hud = sv.hud
+	check(hud.lvl_badge.text == str(sv.run_level), "HUD mostra o nível (%s)" % hud.lvl_badge.text)
+	check(hud.weapons_row.get_child_count() == sv.weapon_levels.size(), "HUD mostra os ícones das armas (%d)" % hud.weapons_row.get_child_count())
+	check(hud.passives_row.get_child_count() == sv.passive_levels.size(), "HUD mostra os ícones das passivas")
+
+	sv.weapons.process_mode = Node.PROCESS_MODE_INHERIT
+	sv._spawn_acc = 0.0
+	await _pick_levelups(false)
+
+
+func _until(cond: Callable, max_t: float) -> bool:
+	var t := 0.0
+	while not cond.call() and t < max_t:
+		await wait(0.1)
+		t += 0.1
+	return cond.call()
+
+
+func _count_alive(kind: String) -> int:
+	var n := 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.kind == kind and not e.dead:
+			n += 1
+	return n
+
+
+func _count_script(parent: Node, scr: Script) -> int:
+	var n := 0
+	for c in parent.get_children():
+		if c.get_script() == scr:
+			n += 1
+	return n
+
+
+func _clear_gems() -> void:
+	for g in get_tree().get_nodes_in_group("xp_gems"):
+		g.remove_from_group("xp_gems")
+		g.queue_free()
+
+
+func _kill_horde() -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.horde and not e.dead:
+			e.take_damage(99999, player.global_position, false)
 
 
 func _pause_menu() -> Control:
