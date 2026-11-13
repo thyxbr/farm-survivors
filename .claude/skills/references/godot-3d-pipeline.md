@@ -15,7 +15,7 @@ Quando algo aqui contradiz uma skill genérica, **este arquivo vence**.
 | Arquivo | Papel |
 |---|---|
 | `tools/blender/build_assets.py` | helpers `mat()`, `empty()`, `part()`, `export()` + builders dos props; registro `BUILDERS` |
-| `tools/blender/characters.py` | personagens (`build_knight`, `build_elder`, `build_merchant`, `build_goblin`); helpers `limb`, `tbox`, `_finish`, `_place` |
+| `tools/blender/characters.py` | personagens (`build_knight`, `build_elder`, `build_merchant`, `build_goblin`); helpers `limb`, `tbox`, `_finish`, `_place`; frisos `band`, asas `wing`, tiras `strap` |
 | `tools/blender/body.py` | corpo-base humanoide em loft de anéis: `loft`/`sec`/`dome`, `body_proportions` (altura, cabeças, ombros, cintura, mãos, pés), `humanoid_rig` (pivôs com joelho/cotovelo), `limb_sections`/`torso_sections`, `fist`, `humanoid_base`; armadura sai das mesmas seções com `grow`/`span`/`stepped`; `join_objs` junta peças de um pivô |
 | `tools/blender/preview_single.py` | folha frente / 3/4 / costas de um GLB; imprime `TRIS <nome> <n>`; modo `silhouette` |
 | `tools/blender/preview_assets.py` | todos os GLBs lado a lado |

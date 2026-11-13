@@ -242,6 +242,31 @@ exec(open(OUT.replace("assets/models/", "tools/blender/body.py"), encoding="utf-
 # Peças tingidas por scripts/player/knight_look.gd (cada uma com um material só):
 #   Helmet, HelmetDome | Torso, Fauld, ArmX_Pauldron | ArmX_Gauntlet, ArmX_Hand | LegX_Sabaton | Shield.
 # O resto é juntado por pivô para reduzir objetos. KneeX/ElbowX ficam retos (o jogo ainda não os anima).
+def band(name, s, axis, w, material, parent, sides=10, phase=0.5, arc=None, fwd=(0, -1, 0), out=0.004,
+         thick=0.006):
+    """Friso: faixa fina (sem tampas) logo por fora da seção s, com largura w ao longo de axis."""
+    ax = Vector(axis).normalized()
+    a = dict(s, rx=s["rx"] + out, ry=s["ry"] + out)
+    b = dict(a, c=s["c"] + ax * w)
+    return loft(name, [a, b], material, parent, sides=sides, phase=phase, axis=ax, fwd=fwd, arc=arc,
+                thick=thick, caps=(False, False))
+
+
+def wing(name, c, w, h, t, material, parent):
+    """Asa lateral de joelheira/cotoveleira: losango vertical fino (largura w em Y, altura h, espessura t)."""
+    c = Vector(c)
+    return loft(name, [sec(c + Vector((0, 0.01, -h / 2)), t * 0.7, 0.008),
+                       sec(c, t, w / 2),
+                       sec(c + Vector((0, -0.004, h * 0.42)), t * 0.7, 0.01)],
+                material, parent, sides=4, axis=(0, 0, 1))
+
+
+def strap(name, p0, p1, width, material, parent, radial, t=0.005):
+    """Tira de couro chata de p0 a p1; radial = direção da espessura (para fora do corpo)."""
+    return loft(name, [sec(p0, width / 2, t), sec(p1, width * 0.45, t)], material, parent, sides=4,
+                fwd=radial)
+
+
 def build_knight():
     steel = mat("k_steel", hexc("#A9B1BE"), 0.35, 0.85)
     steel_d = mat("k_steel_dark", hexc("#5D6573"), 0.45, 0.85)
@@ -275,7 +300,10 @@ def build_knight():
         heel_y, toe_y = sab_s[0]["c"].y, sab_s[-1]["c"].y
         sole = tbox("Leg%s_Sole" % n, (K.x, (heel_y + toe_y) / 2 - 0.004, 0.011),
                     (0.15 * P["ft"], heel_y - toe_y + 0.05, 0.022), lea_d, bevel=0.006, parent=knee)
-        join_objs("Leg%s_Knee" % n, [pol, sole])
+        kw = wing("Leg%s_KneeWing" % n, (K.x + s * 0.066, K.y - 0.035, K.z), 0.075, 0.1, 0.009, steel, knee)
+        gband = band("Leg%s_GreaveTrim" % n, grow([sample(S["shin"], 0.2)], 1.13, 0.008, keel=0.12)[0],
+                     S["shin"][-1]["c"] - S["shin"][0]["c"], 0.016, trim, knee, sides=8, phase=0)
+        join_objs("Leg%s_Knee" % n, [pol, sole, kw, gband])
         gr = loft("Leg%s_Sabaton" % n, grow(span(S["shin"], 0.04, 0.97), 1.13, 0.008, keel=0.12), steel, knee,
                   phase=0, chamfer=(0.006, 0.0))
         sb = loft("Leg%s_Foot" % n, stepped(sab_s, (0.42, 0.58, 0.74), drop=0.92, keep_bottom=True), steel, knee,
@@ -303,17 +331,41 @@ def build_knight():
                                                       (0.89, 0.81, 0.19, 0.218, 0.152, 0.175))):
         lames.append(loft("Fauld%d" % i, [sec((0, 0, z0), rx0, ry0, fr=1.06), sec((0, 0, z1), rx1, ry1, fr=1.06)],
                           steel, body, sides=12, phase=0, axis=(0, 0, 1), chamfer=(0.0, 0.006)))
+    ZUP = (0, 0, 1)
+    btrim = [band("FauldTrim", sec((0, 0, 0.81), 0.218, 0.175, fr=1.06), ZUP, 0.016, trim, body, sides=12, phase=0)]
+    # tassets: duas placas por coxa, a de baixo saindo por baixo da de cima, com friso na borda
     for n, s in (("L", 1), ("R", -1)):
-        for i, (z0, z1, r0, r1) in enumerate(((0.87, 0.78, 0.0, 0.008), (0.79, 0.7, 0.01, 0.02))):
-            lames.append(loft("Tasset%s%d" % (n, i), [sec((s * (0.105 + r0), -r0, z0), 0.118 + r0, 0.156 + r0),
-                                                      sec((s * (0.11 + r1), -r1, z1), 0.118 + r1, 0.156 + r1)],
-                              steel, body, sides=4, axis=(0, 0, 1), arc=2.0, thick=0.012))
+        for i, (z0, z1, r0, r1) in enumerate(((0.86, 0.75, 0.0, 0.012), (0.77, 0.66, 0.014, 0.028))):
+            lo = sec((s * (0.11 + r1), -r1, z1), 0.122 + r1, 0.16 + r1)
+            lames.append(loft("Tasset%s%d" % (n, i), [sec((s * (0.105 + r0), -r0, z0), 0.122 + r0, 0.16 + r0), lo],
+                              steel, body, sides=4, axis=ZUP, arc=2.0, thick=0.012))
+            btrim.append(band("Tasset%s%dTrim" % (n, i), lo, ZUP, 0.014, trim, body, sides=4, arc=2.0,
+                              out=0.003))
     join_objs("Fauld", lames)
+    # frisos do peitoral: borda de cima do plackart e decote da couraça
+    btrim.append(band("PlackTrim", sec((0, 0, 1.178), 0.182, 0.143, fr=1.13, keel=0.05), ZUP, 0.016, trim, body,
+                      sides=8, arc=2.5))
+    btrim.append(band("NeckTrim", sec((0, 0, 1.425), 0.18, 0.115, fr=1.05), ZUP, 0.016, trim, body, sides=12,
+                      phase=0))
     belt = loft("Belt", [sec((0, 0, 1.03), 0.168, 0.13, fr=1.06), sec((0, 0, 0.982), 0.172, 0.134, fr=1.06)],
-                lea, body, sides=12, phase=0, axis=(0, 0, 1))
-    buckle = tbox("Buckle", (0, -0.147, 1.006), (0.05, 0.014, 0.046), trim, bevel=0.004, parent=body)
-    join_objs("Belt", [belt, buckle])
-    tbox("Tabard", (0, -0.17, 0.7), (0.15, 0.012, 0.3), red_c, bottom=(1.25, 1), bevel=0.004, parent=body)
+                lea, body, sides=12, phase=0, axis=ZUP)
+    # fivela: aro dourado com o couro aparecendo no meio, pino, e a ponta do cinto pendurada
+    bk = [tbox("Buckle", (0, -0.147, 1.006), (0.058, 0.012, 0.05), trim, bevel=0.003, parent=body),
+          tbox("BuckleHole", (0, -0.153, 1.006), (0.032, 0.004, 0.026), lea_d, parent=body),
+          tbox("BucklePin", (0.004, -0.157, 1.006), (0.034, 0.005, 0.006), trim, parent=body),
+          strap("BeltEnd", (0.05, -0.15, 0.995), (0.062, -0.158, 0.9), 0.034, lea, body, (0.2, -1, 0))]
+    # alças: tiras de couro penduradas do cinto por cima das faldas, com ponteira dourada
+    for k, a in enumerate((-1.25, -0.6, 0.6, 1.25)):
+        rad = Vector((math.sin(a), -math.cos(a), 0))
+        p0 = Vector((math.sin(a) * 0.18, -math.cos(a) * 0.15, 0.99))
+        p1 = Vector((math.sin(a) * 0.246, -math.cos(a) * 0.214, 0.77))
+        bk.append(strap("Strap%d" % k, p0, p1, 0.03, lea, body, rad))
+        bk.append(strap("StrapTip%d" % k, p1 + rad * 0.002, p1 + (p1 - p0).normalized() * 0.025 + rad * 0.003,
+                        0.026, trim, body, rad, t=0.006))
+    join_objs("Belt", [belt] + bk + btrim)
+    # tabardo pendurado do cinto, inclinado para ficar por fora das faldas e dos frisos
+    tbox("Tabard", (0, -0.207, 0.745), (0.15, 0.012, 0.42), red_c, bottom=(1.25, 1), bevel=0.004, rot=(-0.14, 0, 0),
+         parent=body)
     loft("Gorget", [sec((0, 0, 1.43), 0.15, 0.115), sec((0, 0, 1.47), 0.11, 0.09), sec((0, 0.004, 1.52), 0.08, 0.075),
                     sec((0, 0.006, 1.55), 0.075, 0.072)], steel_d, body, sides=10, axis=(0, 0, 1),
          chamfer=(0.0, 0.006))
@@ -341,36 +393,53 @@ def build_knight():
     loft("VisorSlit", [sec((0, 0.005, 1.678), 0.13, 0.143, fr=1.162, keel=0.145),
                        sec((0, 0.005, 1.692), 0.13, 0.143, fr=1.162, keel=0.145)],
          slit, head, sides=6, axis=(0, 0, 1), arc=1.7, thick=0.01)
-    loft("Plume", [sec((0, 0.0, 1.84), 0.035, 0.016), sec((0, 0.035, 1.92), 0.052, 0.022),
+    brim = band("HelmetTrim", sec((0, 0.005, 1.731), 0.13, 0.14), (0, 0, 1), 0.016, trim, head)
+    plume = loft("Plume", [sec((0, 0.0, 1.84), 0.035, 0.016), sec((0, 0.035, 1.92), 0.052, 0.022),
                    sec((0, 0.11, 1.965), 0.05, 0.022), sec((0, 0.2, 1.96), 0.042, 0.018),
                    sec((0, 0.27, 1.91), 0.028, 0.012), sec((0, 0.3, 1.84), 0.008, 0.004)],
          red_c, head, sides=6, phase=0, fwd=(1, 0, 0))
+    join_objs("Plume", [plume, brim])
 
     # ---------------- braços
     for n, s in (("R", -1), ("L", 1)):
         S = limb_sections(P, s)
         arm, elbow = R["Arm" + n], R["Elbow" + n]
         U = S["upper"]
-        loft("Arm%s_Upper" % n, U, chain, arm)
+        up = loft("Arm%s_Upper" % n, U, chain, arm)
         sh = mirror(P["shoulder"], s)
         tilt = Vector((s * math.sin(0.75), 0, math.cos(0.75)))
-        pl = [dome("Arm%s_Pauldron" % n, sh + Vector((s * 0.01, 0, -0.005)), tilt, 0.15, 0.14, 0.085, steel, arm,
-                   sides=10, lip=0.025)]
-        for i, (t0, t1, a0, a1) in enumerate(((0.1, 0.3, 0.092, 0.1), (0.25, 0.44, 0.084, 0.092))):
+        down = (U[-1]["c"] - U[0]["c"]).normalized()
+        pbase = sh + Vector((s * 0.012, 0, -0.002))
+        pl = [dome("Arm%s_Pauldron" % n, pbase, tilt, 0.158, 0.148, 0.088, steel, arm, sides=10, lip=0.025)]
+        atrim = [band("Arm%s_PauldronTrim" % n, sec(pbase - tilt * 0.014, 0.158, 0.148), tilt, 0.016, trim, arm)]
+        # três lâminas em degrau sob a calota: cada uma termina mais larga que o início da de baixo
+        for i, (t0, t1, a0, a1) in enumerate(((0.12, 0.3, 0.104, 0.114), (0.27, 0.45, 0.097, 0.107),
+                                              (0.42, 0.6, 0.09, 0.1))):
             c0, c1 = sample(U, t0), sample(U, t1)
-            pl.append(loft("Arm%s_Lame%d" % (n, i), [sec(c0["c"], a0, a0 + 0.008), sec(c1["c"], a1, a1 + 0.008)],
-                           steel, arm, sides=8, chamfer=(0.0, 0.006)))
-        pl.append(loft("Arm%s_Rerebrace" % n, grow(span(U, 0.42, 0.93), 1.14, 0.008), steel, arm,
+            lo = sec(c1["c"] + Vector((s * 0.006, 0, 0)), a1, a1 + 0.01)
+            pl.append(loft("Arm%s_Lame%d" % (n, i), [sec(c0["c"], a0, a0 + 0.01), lo],
+                           steel, arm, sides=10, chamfer=(0.0, 0.006)))
+            if i == 2:
+                atrim.append(band("Arm%s_LameTrim" % n, lo, -down, 0.014, trim, arm, out=0.003))
+        pl.append(loft("Arm%s_Rerebrace" % n, grow(span(U, 0.56, 0.93), 1.14, 0.008), steel, arm,
                        chamfer=(0.0, 0.006)))
         join_objs("Arm%s_Pauldron" % n, pl)
+        join_objs("Arm%s_Upper" % n, [up] + atrim)
         E = mirror(P["elbow"], s)
+        F = S["fore"]
+        fdown = (F[-1]["c"] - F[0]["c"]).normalized()
         cop = dome("Arm%s_Couter" % n, E + Vector((0, 0.012, 0)), (s * 0.35, 1, 0), 0.056, 0.06, 0.05, steel, elbow,
                    fwd=(0, 0, 1))
-        vb = loft("Arm%s_Vambrace" % n, grow(span(S["fore"], 0.1, 0.92), 1.16, 0.006), steel, elbow,
+        ew = wing("Arm%s_CouterWing" % n, E + Vector((s * 0.056, 0.012, 0)), 0.07, 0.09, 0.008, steel, elbow)
+        vb = loft("Arm%s_Vambrace" % n, grow(span(F, 0.1, 0.92), 1.16, 0.006), steel, elbow,
                   chamfer=(0.006, 0.006))
-        join_objs("Arm%s_Vambrace" % n, [vb, cop])
+        vtop = grow([sample(F, 0.12)], 1.16, 0.006)[0]
+        vt = band("Arm%s_VambraceTrim" % n, vtop, fdown, 0.014, trim, elbow, sides=8, out=0.003)
+        cuff0 = sample(F, 0.68)
+        gt = band("Arm%s_CuffTrim" % n, sec(cuff0["c"], 0.05, 0.056), fdown, 0.012, trim, elbow, sides=8,
+                  out=0.004)
+        join_objs("Arm%s_Vambrace" % n, [vb, cop, ew, vt, gt])
         W = mirror(P["wrist"], s)
-        cuff0 = sample(S["fore"], 0.68)
         loft("Arm%s_Gauntlet" % n, [sec(cuff0["c"], 0.05, 0.056), sec(W + Vector((0, 0, -0.018)), 0.058, 0.066)],
              steel_d, elbow, sides=8, chamfer=(0.0, 0.006))
         fist("Arm" + n, P, s, steel_d, elbow)
