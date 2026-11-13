@@ -62,7 +62,7 @@ ou, preferível, os scripts `preview_*.py`; `get_scene_info` → `mcp__Blender__
 |---|---|---|
 | Prop pequeno (caixa, barril, baú, lamparina) | 36–108 tris | ≤ 200 |
 | Prop médio (poço, fogueira, ruína, árvore) | 56–154 | ≤ 400 |
-| Construção (casa) | 244 | ≤ 1.200 |
+| Construção (casa) | 1.148 (1 objeto) | ≤ 1.200 |
 | Inimigo simples (slime) | 224 | ≤ 600 |
 | Personagem humanoide (knight, elder, merchant, goblin) | 2,4k–4,3k em 77–110 objetos | ≤ 5k tris, ≤ 20 materiais |
 

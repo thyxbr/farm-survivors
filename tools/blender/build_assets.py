@@ -2,10 +2,14 @@
 # Uso dentro do Blender:  exec(open(r"C:/Games/godot-3d/tools/blender/build_assets.py").read())
 # Cada asset é montado numa cena separada ("RPG_Assets"), exportado e depois apagado,
 # então a cena padrão do usuário não é tocada.
-import bpy, bmesh, math, random
+import bpy, bmesh, math, os, random
 from mathutils import Matrix, Euler, Vector
 
-OUT = "C:/Games/godot-3d/assets/models/"
+# Saída relativa ao próprio script (funciona em worktrees); via exec() no Blender cai no caminho fixo.
+try:
+    OUT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "assets", "models")).replace("\\", "/") + "/"
+except NameError:
+    OUT = "C:/Games/godot-3d/assets/models/"
 PI = math.pi
 
 scn = bpy.context.scene if bpy.app.background else (bpy.data.scenes.get("RPG_Assets") or bpy.data.scenes.new("RPG_Assets"))
@@ -175,24 +179,171 @@ def build_rock():
     export("rock")
 
 
+def hull(name, verts, material):
+    """Malha convexa a partir de pontos (empenas, prismas) — normais saem certas sozinhas."""
+    bm = bmesh.new()
+    vs = [bm.verts.new(v) for v in verts]
+    bmesh.ops.convex_hull(bm, input=vs)
+    bmesh.ops.dissolve_limit(bm, angle_limit=0.01, verts=bm.verts, edges=bm.edges)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    me.materials.append(material)
+    ob = bpy.data.objects.new(name, me)
+    coll.objects.link(ob)
+    return ob
+
+
+def join_all(name):
+    """Junta todas as malhas da cena num objeto só (um MeshInstance3D no Godot, uma superfície por material)."""
+    objs = [o for o in coll.all_objects if o.type == 'MESH']
+    with bpy.context.temp_override(active_object=objs[0], object=objs[0], selected_objects=objs,
+                                   selected_editable_objects=objs):
+        bpy.ops.object.join()
+    objs[0].name = name
+    objs[0].data.name = name
+
+
 def build_house():
-    part("Foundation", "cube", (0, 0, 0.15), (5.2, 4.2, 0.3), stone_dark)
-    part("Walls", "cube", (0, 0, 1.55), (5.0, 4.0, 2.5), plaster)
-    for x in (-2.45, 2.45):
-        for y in (-1.95, 1.95):
-            part("Beam_%d_%d" % (x * 10, y * 10), "cube", (x, y, 1.55), (0.22, 0.22, 2.5), wood_dark)
-    part("BeamTopF", "cube", (0, -2.0, 2.75), (5.1, 0.16, 0.18), wood_dark)
-    part("BeamTopB", "cube", (0, 2.0, 2.75), (5.1, 0.16, 0.18), wood_dark)
-    part("BeamMid", "cube", (0, -2.02, 1.55), (5.0, 0.1, 0.14), wood_dark)
-    part("Roof", "cyl", (0, 0, 3.6), (2.9, 5.6, 5.8), roof_m, rot=(0, -PI / 2, 0), seg=3)
-    part("Door", "cube", (0, -2.03, 1.1), (0.95, 0.08, 1.6), wood)
-    part("DoorKnob", "ico", (0.3, -2.09, 1.1), (0.08, 0.06, 0.08), gold)
-    for x in (-1.55, 1.55):
-        part("Window_%d" % (x * 10), "cube", (x, -2.03, 1.85), (0.75, 0.06, 0.6), glass)
-        part("WinFrameH_%d" % (x * 10), "cube", (x, -2.06, 1.85), (0.8, 0.04, 0.06), wood_dark)
-        part("WinFrameV_%d" % (x * 10), "cube", (x, -2.06, 1.85), (0.06, 0.04, 0.65), wood_dark)
-    part("Chimney", "cube", (1.4, 0.9, 4.0), (0.55, 0.55, 1.8), stone)
-    part("Step", "cube", (0, -2.35, 0.1), (1.3, 0.5, 0.2), stone)
+    # Chalé em enxaimel: pegada 5 x 4 m (paredes), frente em -Y, cumeeira ao longo de X.
+    h_plaster = mat("h_plaster", (0.86, 0.77, 0.60), 0.95)
+    h_timber = mat("h_timber", (0.24, 0.14, 0.07), 0.9)
+    h_door = mat("h_door", (0.46, 0.28, 0.13), 0.85)
+    h_stone = mat("h_stone", (0.52, 0.50, 0.47), 0.95)
+    h_stone_dk = mat("h_stone_dark", (0.33, 0.32, 0.31), 0.95)
+    h_roof = mat("h_roof", (0.48, 0.15, 0.08), 0.85)
+    h_ridge = mat("h_roof_dark", (0.30, 0.09, 0.05), 0.85)
+    h_shutter = mat("h_shutter", (0.17, 0.36, 0.20), 0.8)
+    h_glass = mat("h_glass", (0.20, 0.33, 0.45), 0.2, 0.0, emit=(0.95, 0.72, 0.35), strength=0.5)
+    h_iron = mat("h_iron", (0.10, 0.10, 0.11), 0.6, 0.6)
+    h_leaf = mat("h_leaf", (0.22, 0.48, 0.15), 0.9)
+    h_flower = mat("h_flower", (0.88, 0.25, 0.30), 0.7)
+    h_flower2 = mat("h_flower2", (0.98, 0.80, 0.25), 0.7)
+    h_lamp = mat("h_lamp", (1.0, 0.8, 0.4), 0.5, 0.0, emit=(1.0, 0.75, 0.35), strength=5.0)
+
+    W, D = 2.5, 2.0              # meia largura (X) e meia profundidade (Y) das paredes
+    Z0, ZT = 0.3, 3.1            # piso (topo da fundação) e topo das paredes
+    th = math.radians(40)        # caimento do telhado
+    cs, sn, tn = math.cos(th), math.sin(th), math.tan(th)
+    ZR = ZT + 0.02 + D * tn           # face de baixo do telhado na linha da cumeeira
+    n = [0]
+
+    def nm(p):
+        n[0] += 1
+        return "%s_%d" % (p, n[0])
+
+    def fp(prefix, face, u, out, z, su, so, sz, m, tilt=0.0, kind="cube"):
+        """Peça presa a uma fachada. u = lateral na fachada, out = afastamento da parede.
+        tilt > 0 faz o eixo longo (su) subir no sentido +u."""
+        if face == "-y":
+            loc, size, rot = (u, -D - out, z), (su, so, sz), (0, -tilt, 0)
+        elif face == "+y":
+            loc, size, rot = (-u, D + out, z), (su, so, sz), (0, tilt, 0)
+        elif face == "+x":
+            loc, size, rot = (W + out, u, z), (so, su, sz), (tilt, 0, 0)
+        else:
+            loc, size, rot = (-W - out, -u, z), (so, su, sz), (-tilt, 0, 0)
+        return part(nm(prefix), kind, loc, size, m, rot=rot)
+
+    def window(face, u, z, w, h, cross=True, shutters=False, flowers=None):
+        fp("WinFrame", face, u, 0.0, z, w + 0.16, 0.08, h + 0.16, h_timber)
+        fp("WinGlass", face, u, 0.03, z, w, 0.04, h, h_glass)
+        if cross:
+            fp("WinBarV", face, u, 0.06, z, 0.05, 0.03, h, h_timber)
+            fp("WinBarH", face, u, 0.06, z, w, 0.03, 0.05, h_timber)
+        if shutters:
+            for s in (-1, 1):
+                fp("Shutter", face, u + s * (w / 2 + 0.1 + w / 4), 0.04, z, w / 2, 0.05, h + 0.08, h_shutter)
+        if flowers:
+            bz = z - h / 2 - 0.2
+            fp("FlowerBox", face, u, 0.13, bz, w + 0.2, 0.26, 0.2, h_door)
+            fp("Leaves", face, u, 0.13, bz + 0.13, w + 0.1, 0.24, 0.16, h_leaf, kind="ico")
+            fp("Flowers", face, u + 0.05, 0.13, bz + 0.2, w - 0.15, 0.2, 0.13, flowers, kind="ico")
+
+    # ---- base e paredes
+    part("Foundation", "cube", (0, 0, 0.16), (2 * W + 0.3, 2 * D + 0.3, 0.32), h_stone_dk)
+    part("Walls", "cube", (0, 0, (Z0 + ZT) / 2), (2 * W, 2 * D, ZT - Z0), h_plaster)
+    for sx in (-1, 1):
+        g = W * sx
+        gi = (W - 0.2) * sx
+        hull("Gable", [(g, -D, ZT), (g, D, ZT), (g, 0, ZT + D * tn - 0.02),
+                       (gi, -D, ZT), (gi, D, ZT), (gi, 0, ZT + D * tn - 0.02)], h_plaster)
+
+    # ---- enxaimel (madeira aparente)
+    hpost = ZT - Z0
+    for x in (-1, 1):
+        for y in (-1, 1):
+            part(nm("Post"), "cube", (x * (W - 0.04), y * (D - 0.04), Z0 + hpost / 2), (0.24, 0.24, hpost), h_timber)
+    for sy in (-1, 1):
+        part(nm("SillPlate"), "cube", (0, sy * (D + 0.03), Z0 + 0.08), (2 * W, 0.2, 0.16), h_timber)
+        part(nm("TopPlate"), "cube", (0, sy * (D + 0.03), ZT - 0.08), (2 * W + 0.15, 0.22, 0.2), h_timber)
+    for sx in (-1, 1):
+        part(nm("SillPlate"), "cube", (sx * (W + 0.03), 0, Z0 + 0.08), (0.2, 2 * D, 0.16), h_timber)
+        part(nm("TopPlate"), "cube", (sx * (W + 0.03), 0, ZT - 0.08), (0.22, 2 * D + 0.1, 0.2), h_timber)
+    rail_z = 1.15
+    for s in (-1, 1):
+        fp("Rail", "-y", s * 1.49, 0.03, rail_z, 1.7, 0.12, 0.14, h_timber)
+        fp("Brace", "-y", s * 1.83, 0.03, 0.75, 1.1, 0.1, 0.14, h_timber, tilt=-s * math.radians(30.5))
+        fp("Brace", "+y", s * 1.83, 0.03, 0.75, 1.1, 0.1, 0.14, h_timber, tilt=-s * math.radians(30.5))
+    fp("Rail", "+y", 0, 0.03, rail_z, 2 * W, 0.12, 0.14, h_timber)
+    for face in ("-x", "+x"):
+        fp("Rail", face, 0, 0.03, rail_z, 2 * D, 0.12, 0.14, h_timber)
+        for s in (-1, 1):   # escoras da empena, paralelas ao telhado
+            fp("GableStrut", face, s * 1.0, 0.03, ZT + 0.43, 1.28, 0.1, 0.13, h_timber, tilt=-s * math.radians(38.7))
+
+    # ---- porta, alpendre e lampião
+    dz = Z0 + 0.975
+    fp("Door", "-y", 0, 0.0, dz, 1.0, 0.08, 1.95, h_door)
+    for s in (-1, 1):
+        fp("Jamb", "-y", s * 0.57, 0.03, Z0 + hpost / 2, 0.14, 0.12, hpost - 0.1, h_timber)
+    fp("Lintel", "-y", 0, 0.03, Z0 + 2.03, 1.3, 0.12, 0.16, h_timber)
+    fp("DoorStrap", "-y", 0, 0.06, 0.8, 0.9, 0.03, 0.07, h_iron)
+    fp("DoorStrap", "-y", 0, 0.06, 1.9, 0.9, 0.03, 0.07, h_iron)
+    fp("DoorKnob", "-y", 0.32, 0.08, dz, 0.09, 0.07, 0.09, h_iron, kind="ico")
+    part("Step", "cube", (0, -D - 0.38, 0.14), (1.5, 0.6, 0.28), h_stone)
+    part("Awning", "cube", (0, -D - 0.4, 2.72), (1.7, 0.9, 0.08), h_roof, rot=(0.35, 0, 0))
+    for s in (-1, 1):
+        part(nm("AwningBracket"), "cube", (s * 0.72, -D - 0.28, 2.48), (0.08, 0.62, 0.08), h_timber, rot=(-0.55, 0, 0))
+    fp("LampArm", "-y", 1.05, 0.15, 2.74, 0.06, 0.3, 0.06, h_iron)
+    fp("Lamp", "-y", 1.05, 0.28, 2.56, 0.17, 0.17, 0.22, h_lamp)
+    fp("LampCap", "-y", 1.05, 0.28, 2.7, 0.24, 0.24, 0.06, h_iron)
+
+    # ---- janelas
+    for s, fl in ((-1, h_flower), (1, h_flower2)):
+        window("-y", s * 1.45, 1.95, 0.7, 0.8, shutters=True, flowers=fl)
+        window("+y", s * 1.4, 1.95, 0.75, 0.75)
+    for face in ("-x", "+x"):
+        window(face, 0, 1.95, 0.7, 0.75, cross=False)
+        window(face, 0, ZT + 0.65, 0.4, 0.4, cross=False)
+
+    # ---- telhado em fiadas (a de cima sobrepõe a de baixo), cumeeira e testeiras
+    rows, t = 4, 0.12
+    ls = (D + 0.5) / cs                       # comprimento da água (beiral de 0,5 m)
+    step = ls / rows
+    rx = 2 * W + 0.76                         # beiral de 0,38 m nas empenas
+
+    def slope(side, s, off):
+        return (0, side * (s * cs + sn * off), ZR - s * sn + cs * off)
+
+    for side in (-1, 1):
+        for i in range(rows):
+            off = t / 2 + 0.05 * (rows - 1 - i)
+            part(nm("RoofRow"), "cube", slope(side, (i + 0.5) * step, off), (rx, step + 0.12, t), h_roof,
+                 rot=(-side * th, 0, 0))
+        for sx in (-1, 1):
+            p = slope(side, ls / 2, -0.11)
+            part(nm("BargeBoard"), "cube", (sx * (W + 0.32), p[1], p[2]), (0.08, ls, 0.2), h_timber,
+                 rot=(-side * th, 0, 0))
+    top = (t + 0.05 * (rows - 1)) / cs
+    part("Ridge", "cube", (0, 0, ZR + top - 0.02), (rx + 0.1, 0.3, 0.3), h_ridge, rot=(PI / 4, 0, 0))
+
+    # ---- chaminé de pedra atravessando a água de trás
+    part("Chimney", "cube", (1.5, 1.0, ZT + 1.22), (0.62, 0.62, 2.45), h_stone)
+    part("ChimneyCap", "cube", (1.5, 1.0, ZT + 2.48), (0.78, 0.78, 0.12), h_stone_dk)
+    part("ChimneyFlue", "cube", (1.5, 1.0, ZT + 2.62), (0.34, 0.34, 0.18), h_stone_dk)
+
+    join_all("House")
     export("house")
 
 
