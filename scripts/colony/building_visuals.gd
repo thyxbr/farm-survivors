@@ -56,8 +56,10 @@ static func make(kind: String, level := 1) -> Node3D:
 static func height(kind: String) -> float:
 	match kind:
 		"town_hall":
-			return 6.5
-		"house", "market", "barracks":
+			return 7.6
+		"house":
+			return 5.0
+		"market", "barracks":
 			return 4.2
 		"farm", "spikes":
 			return 1.6
@@ -77,11 +79,11 @@ static func _town_hall(r: Node3D, level: int) -> void:
 	_box(r, Vector3(7.4, 0.35, 6.4), Vector3(0, 0.17, 0), STONE_DARK)
 	var h := _glb(r, HOUSE, Vector3(0, 0.3, 0), 0.0, 1.3)
 	h.scale = Vector3(1.3, 1.25 + 0.08 * (level - 1), 1.3)
-	# torre do sino com bandeira
-	_box(r, Vector3(1.6, 5.4 + level * 0.4, 1.6), Vector3(2.6, 2.7 + level * 0.2, -1.8), STONE)
-	_cyl(r, 0.0, 1.25, 1.4, Vector3(2.6, 6.1 + level * 0.4, -1.8), ROOF_RED, 4, Vector3(0, PI / 4, 0))
-	_cyl(r, 0.05, 0.05, 2.2, Vector3(2.6, 7.6 + level * 0.4, -1.8), WOOD_DARK)
-	_box(r, Vector3(1.2, 0.7, 0.04), Vector3(3.2, 8.2 + level * 0.4, -1.8), Color(0.85, 0.65, 0.2))
+	# torre do sino com bandeira (lado esquerdo: a chaminé da casa fica no direito)
+	_box(r, Vector3(1.6, 6.8 + level * 0.4, 1.6), Vector3(-2.6, 3.4 + level * 0.2, -1.8), STONE)
+	_cyl(r, 0.0, 1.25, 1.4, Vector3(-2.6, 7.5 + level * 0.4, -1.8), ROOF_RED, 4, Vector3(0, PI / 4, 0))
+	_cyl(r, 0.05, 0.05, 2.2, Vector3(-2.6, 9.0 + level * 0.4, -1.8), WOOD_DARK)
+	_box(r, Vector3(1.2, 0.7, 0.04), Vector3(-2.0, 9.6 + level * 0.4, -1.8), Color(0.85, 0.65, 0.2))
 	# degraus e tochas
 	_box(r, Vector3(2.4, 0.2, 0.8), Vector3(0, 0.1, 3.4), STONE)
 	for x in [-1.6, 1.6]:
@@ -90,8 +92,11 @@ static func _town_hall(r: Node3D, level: int) -> void:
 	if level >= 2:
 		for x in [-3.3, 3.3]:
 			_box(r, Vector3(0.6, 1.2, 0.6), Vector3(x, 0.6, 2.9), STONE)
-	if level >= 3:
-		_box(r, Vector3(0.9, 1.5, 0.05), Vector3(0, 3.6, 3.0), BANNER)
+	if level >= 3:   # estandartes nos pilares da frente (a porta agora tem alpendre)
+		for x in [-3.3, 3.3]:
+			_cyl(r, 0.05, 0.05, 2.0, Vector3(x, 2.2, 2.9), WOOD_DARK)
+			_box(r, Vector3(0.8, 0.06, 0.06), Vector3(x, 3.15, 2.96), WOOD_DARK)
+			_box(r, Vector3(0.7, 1.1, 0.04), Vector3(x, 2.6, 2.98), BANNER)
 
 
 static func _house(r: Node3D, level: int) -> void:
@@ -100,7 +105,7 @@ static func _house(r: Node3D, level: int) -> void:
 		_glb(r, BARREL, Vector3(2.6, 0, 1.6), 0.0, 0.8)
 		_box(r, Vector3(1.4, 0.5, 0.6), Vector3(-1.8, 0.25, 2.4), WOOD)
 	if level >= 3:
-		_box(r, Vector3(0.6, 1.4, 0.6), Vector3(1.4, 4.0, -0.6), STONE_DARK)   # chaminé
+		_box(r, Vector3(0.44, 0.5, 0.44), Vector3(1.5, 5.89, -1.0), STONE_DARK)   # chaminé mais alta
 
 
 static func _farm(r: Node3D, level: int) -> void:
