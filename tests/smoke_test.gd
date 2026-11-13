@@ -431,6 +431,12 @@ func _test_update() -> void:
 	Updater.latest_version = ""
 	Updater._set_state(Updater.State.DISABLED)
 	check(not Updater._toast.visible, "aviso some quando não há versão nova")
+	# recusa por versão: servidor antigo (deploy em andamento) x jogo desatualizado
+	var r := "Versão diferente do servidor (sua: %s, servidor: %s). Atualize o jogo."
+	check(Network.explain_rejection(r % ["0.5.3", "0.5.2"], "0.5.3").begins_with("O servidor ainda está na v0.5.2"),
+		"jogo mais novo que o servidor: avisa que o servidor está sendo atualizado")
+	check(Network.explain_rejection(r % ["0.5.2", "0.5.3"], "0.5.2") == r % ["0.5.2", "0.5.3"],
+		"jogo mais velho que o servidor: mantém o pedido para atualizar")
 
 
 func _pause_menu() -> Control:

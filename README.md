@@ -131,6 +131,9 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
   Antes de exportar, coloque o IP/domínio do servidor em `DEFAULT_ADDRESS` (`scripts/autoload/network.gd`).
 - **Versão:** o servidor recusa clientes com `application/config/version` diferente (*Projeto → Configurações → Application → Config*).
   Para lançar uma versão nova basta aumentar a versão e dar push no `main`: o CI publica o cliente e atualiza o servidor.
+  **Mudou o jogo, suba a versão:** se a versão já tem release e algo fora de docs/testes/CI mudou desde a tag,
+  o CI falha antes do deploy. Sem isso o servidor receberia o código novo e os jogadores ficariam com o antigo
+  na mesma versão (o servidor aceitaria a conexão e as RPCs sairiam dessincronizadas).
 - **Auto update (cliente Windows):** quando a versão do `project.godot` ainda não tem release, o job
   *Publicar cliente* do CI exporta o jogo e cria a release `v<versão>` no GitHub com o zip e um `latest.json`
   (versão, link, SHA-256). O deploy do servidor só roda depois disso. No jogo, o autoload `Updater`
@@ -138,7 +141,9 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
   mostra *Atualizar agora*, baixa o zip, confere o hash, troca o exe (o atual vira `.old`, apagado na próxima abertura)
   e reabre o jogo. Com o jogo aberto procura de novo a cada 5 minutos; se a versão nova sair durante a partida,
   aparece um aviso no topo da tela e o *Atualizar agora* fica no menu de pausa (Esc), que salva antes de reabrir.
-  Também procura de novo quando o servidor recusa a versão. Só roda no build exportado para Windows.
+  Também procura de novo sempre que o menu principal abre (ex.: depois de cair quando o servidor reinicia) e
+  quando o servidor recusa a versão. Se o jogo já está mais novo que o servidor (o deploy leva alguns minutos
+  depois da release), o aviso diz que o servidor está sendo atualizado em vez de pedir para atualizar o jogo. Só roda no build exportado para Windows.
   Se a pasta do jogo não aceitar gravação (ex.: *Arquivos de Programas*), oferece abrir a página de download.
   Para testar com outro manifesto: `EcosDeValdoria.exe -- --update-manifest=http://127.0.0.1:8765/latest.json --update-now`.
 - Ainda só para um jogador: o "carregar save" durante a partida. No multiplayer os menus não pausam o mundo.

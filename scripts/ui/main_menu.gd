@@ -189,8 +189,7 @@ func _build_update_banner() -> void:
 	upd_box.add_child(panel)
 	upd_box.visible = panel.visible
 	panel.visibility_changed.connect(func() -> void: upd_box.visible = panel.visible)
-	if Updater.state == Updater.State.IDLE:
-		Updater.check()
+	Updater.recheck()
 
 
 func _set_status(t: String, c: Color) -> void:

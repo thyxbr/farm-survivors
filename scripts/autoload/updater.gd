@@ -64,12 +64,13 @@ func _ready() -> void:
 	var t := Timer.new()
 	t.wait_time = _interval
 	t.autostart = true
-	t.timeout.connect(_on_recheck_timer)
+	t.timeout.connect(recheck)
 	add_child(t)
 
 
-## Procura de novo periodicamente, menos quando já há versão nova conhecida ou algo em andamento.
-func _on_recheck_timer() -> void:
+## Procura de novo, menos quando já há versão nova conhecida ou algo em andamento.
+## Chamado pelo timer e sempre que o menu principal abre (ex.: depois de cair do servidor que reiniciou).
+func recheck() -> void:
 	if state in [State.IDLE, State.UP_TO_DATE] or (state == State.FAILED and not has_newer()):
 		check()
 
