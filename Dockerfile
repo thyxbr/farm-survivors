@@ -14,9 +14,12 @@ RUN apt-get update \
  && chmod +x /usr/local/bin/godot \
  && rm /tmp/godot.zip
 
-RUN useradd --create-home valdoria
+RUN useradd --create-home valdoria \
+ && mkdir /game \
+ && chown valdoria:valdoria /game
 WORKDIR /game
 COPY --chown=valdoria:valdoria . .
+# o Godot grava o cache de import em /game/.godot: a pasta precisa ser do usuário
 USER valdoria
 
 # importa os assets (.glb etc.) uma vez, na build da imagem
@@ -26,4 +29,4 @@ RUN godot --headless --path /game --import \
 ENV GAME_PORT=7777
 EXPOSE 7777/udp
 # "exec" deixa o Godot receber o SIGTERM direto (o container para na hora)
-CMD exec godot --headless --path /game -- --server --port=${GAME_PORT}
+CMD ["sh", "-c", "exec godot --headless --path /game -- --server --port=${GAME_PORT}"]
