@@ -8,6 +8,10 @@ extends CanvasLayer
 
 var player: Player
 var boss: Enemy
+## Defesa da Cidade: texto de ajuda próprio e sem o painel de missões.
+var help_text := ""
+var hide_quests := false
+var boss_top := 24.0
 
 var root: Control
 var hp_orb: StatOrb
@@ -267,7 +271,7 @@ func _build_boss() -> void:
 func _build_help() -> void:
 	help_panel = PanelContainer.new()
 	help_panel.add_theme_stylebox_override("panel", UITheme.frame_box(Color(0.04, 0.035, 0.03, 0.78), Color(0.3, 0.25, 0.18), 12))
-	var help := UITheme.label(
+	var help := UITheme.label(help_text if help_text != "" else
 		"WASD mover · Shift correr · Espaço pular · Ctrl/Clique dir. esquivar\n" +
 		"Clique esq.: atacar — espada: combo · cajado: projéteis · arco: segure e solte\n" +
 		"1 Bola de Fogo · 2 Cura · 3 Nova Gélida · R/F poções · Q comer · T trocar\n" +
@@ -314,8 +318,8 @@ func _process(delta: float) -> void:
 
 	# Desafio da Horda: esconde as missões e desce a barra do chefe para não cobrir o HUD da horda
 	var horde: bool = Game.run_mods.active
-	quest_box.visible = not horde
-	boss_panel.offset_top = 100.0 if horde else 24.0
+	quest_box.visible = not horde and not hide_quests
+	boss_panel.offset_top = 100.0 if horde else boss_top
 	boss_panel.offset_bottom = boss_panel.offset_top + 56.0
 	if boss and is_instance_valid(boss) and not boss.dead and boss.state != "idle" and boss.state != "wander" and player \
 			and player.global_position.distance_to(boss.global_position) < 40.0:

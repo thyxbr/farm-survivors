@@ -59,6 +59,8 @@ var peer_id := 0
 var display_name := ""
 ## Bloqueia o controle sem pausar a árvore (menus abertos no multiplayer).
 var input_locked := false
+## Defesa da Cidade: no modo construção o clique posiciona prédios (sem atacar, esquivar ou conjurar).
+var build_lock := false
 var name_tag: Label3D
 var _net_pos := Vector3.ZERO
 var _net_yaw := 0.0
@@ -222,16 +224,18 @@ func _physics_process(delta: float) -> void:
 
 	if Input.is_action_just_pressed("jump") and is_on_floor() and not attacking and dodge_timer <= 0:
 		velocity.y = JUMP_VELOCITY
-	if Input.is_action_just_pressed("dodge"):
+	if Input.is_action_just_pressed("dodge") and not build_lock:
 		_try_dodge(dir)
-	if look["class"] == "bow":
+	if build_lock:
+		_cancel_draw()
+	elif look["class"] == "bow":
 		_update_bow(delta)
 	elif Input.is_action_just_pressed("attack"):
 		_try_attack()
 	for i in 3:
-		if Input.is_action_just_pressed("spell_%d" % (i + 1)):
+		if Input.is_action_just_pressed("spell_%d" % (i + 1)) and not build_lock:
 			cast(["fireball", "heal", "frost_nova"][i])
-	if Input.is_action_just_pressed("potion"):
+	if Input.is_action_just_pressed("potion") and not build_lock:   # R gira a construção no modo construção
 		_quick_potion("health_potion")
 	if Input.is_action_just_pressed("mana_potion"):
 		_quick_potion("mana_potion")
@@ -239,10 +243,17 @@ func _physics_process(delta: float) -> void:
 		Game.eat_selected()
 	if Input.is_action_just_pressed("food_next"):
 		Game.cycle_food()
+	var scene := get_tree().current_scene
 	if Input.is_action_just_pressed("quicksave"):
-		Game.save_game(global_position, model.rotation.y)
+		if scene.has_method("quick_save"):
+			scene.quick_save()
+		else:
+			Game.save_game(global_position, model.rotation.y)
 	if Input.is_action_just_pressed("quickload"):
-		if Network.is_online():
+		if scene.has_method("quick_load"):
+			scene.quick_load()
+			return
+		elif Network.is_online():
 			Game.notify.emit("Carregar save não funciona no multiplayer.", Color(1, 0.6, 0.5))
 		else:
 			Game.load_game()
