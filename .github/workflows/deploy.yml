@@ -54,6 +54,9 @@ jobs:
       - name: Teste de gameplay (smoke test)
         run: timeout 600 godot --headless --path . res://scenes/world.tscn -- --smoketest
 
+      - name: Teste da Defesa da Cidade
+        run: timeout 600 godot --headless --path . res://scenes/colony.tscn -- --colonytest
+
       - name: Teste de multiplayer (servidor + 2 clientes)
         run: |
           godot --headless --path . -- --server --port=7790 --horde-round=8 > server.log 2>&1 &
