@@ -140,7 +140,7 @@ func _ready() -> void:
 	cam_pitch.add_child(spring)
 	camera = Camera3D.new()
 	camera.fov = 70.0
-	camera.far = 400.0
+	camera.far = 650.0   # a serra em volta do mapa fica a até ~400 m
 	spring.add_child(camera)
 	camera.current = true
 
