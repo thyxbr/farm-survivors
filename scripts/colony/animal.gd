@@ -116,7 +116,7 @@ func _physics_process(delta: float) -> void:
 				if dist < radius + 1.0 and _cd <= 0.0:
 					_cd = 1.4
 					p.take_damage(float(data.damage), global_position)
-					Sfx.play("hit", 0.2, -4.0)
+					Sfx.play_at("hit", global_position, 0.2, -4.0)
 					velocity.x = -to_p.normalized().x * 5.0
 					velocity.z = -to_p.normalized().z * 5.0
 	if move.length() > 0.1:
@@ -174,7 +174,7 @@ func _die() -> void:
 	remove_from_group("animals")
 	collision_layer = 0
 	_set_overlay(null)
-	Sfx.play("bloop", 0.2, -4.0)
+	Sfx.play_at("bloop", global_position, 0.2, -4.0)
 	if colony:
 		colony.on_animal_killed(self)
 	var tw := create_tween()

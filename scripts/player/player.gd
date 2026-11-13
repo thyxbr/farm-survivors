@@ -578,12 +578,12 @@ func _cast_frost_nova() -> void:
 func _frost_fx(radius: float) -> void:
 	FX.ring(global_position, Color(0.55, 0.85, 1.0, 0.9), radius, 0.5)
 	FX.burst(global_position + Vector3.UP * 0.5, Color(0.7, 0.9, 1.0), 50, 9.0, 0.14, 0.7, -2.0)
-	Sfx.play("frost", 0.0)
+	Sfx.play_at("frost", global_position, 0.0)
 
 
 func _heal_fx() -> void:
 	FX.burst(global_position + Vector3.UP, Color(0.4, 1.0, 0.5), 30, 3.0, 0.1, 1.0, 2.0)
-	Sfx.play("heal", 0.0)
+	Sfx.play_at("heal", global_position, 0.0)
 
 
 func _quick_potion(id: String) -> void:
@@ -798,7 +798,7 @@ func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int,
 		drawing = false
 	if flags & NF_ATTACK:
 		if not attacking or c != combo:
-			Sfx.play("swing", 0.12, -6.0)
+			Sfx.play_at("swing", global_position, 0.12, -6.0)
 		attacking = true
 		combo = clampi(c, 1, 3)
 		attack_timer = attack_t
@@ -850,7 +850,7 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 			fb.visual_only = true
 			get_tree().current_scene.add_child(fb)
 			fb.global_position = a
-			Sfx.play("fire", 0.08, -4.0)
+			Sfx.play_at("fire", a, 0.08, -4.0)
 		"frost_nova":
 			_frost_fx(6.5)
 		"heal":
@@ -867,7 +867,7 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 			p.global_position = a
 		"zap":
 			AUTO_WEAPONS.bolt_fx(get_tree().current_scene, a)
-			Sfx.play("zap", 0.15, -8.0)
+			Sfx.play_at("zap", a, 0.15, -8.0)
 		"horde_gear":
 			# armas automáticas do Desafio da Horda girando em volta do outro jogador
 			var aw: Node = get_node_or_null("HordeGear")

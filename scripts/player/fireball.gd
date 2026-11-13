@@ -83,7 +83,7 @@ func _explode() -> void:
 	set_deferred("monitoring", false)
 	FX.burst(global_position, Color(1, 0.5, 0.1), 30, 6.0, 0.14, 0.5, -4.0)
 	FX.ring(global_position - Vector3.UP * 0.5, Color(1, 0.5, 0.1, 0.8), 2.2, 0.3)
-	Sfx.play("explode")
+	Sfx.play_at("explode", global_position)
 	if visual_only:
 		queue_free()
 		return

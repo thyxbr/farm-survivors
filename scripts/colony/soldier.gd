@@ -190,7 +190,7 @@ func _begin_attack() -> void:
 	_attack_t = 0.0
 	_hit_done = false
 	if not is_ranged():
-		Sfx.play("swing", 0.15, -12.0)
+		Sfx.play_at("swing", global_position, 0.15, -12.0)
 
 
 func _update_attack(delta: float) -> void:
@@ -206,7 +206,7 @@ func _update_attack(delta: float) -> void:
 				s.damage = float(data.damage)
 				get_parent().add_child(s)
 				s.global_position = global_position + Vector3.UP * 1.45 + model.global_basis.z * 0.4
-				Sfx.play("swing", 0.25, -16.0)
+				Sfx.play_at("swing", global_position, 0.25, -16.0)
 			else:
 				var to := target.global_position - global_position
 				to.y = 0.0
@@ -244,7 +244,7 @@ func _die() -> void:
 	remove_from_group("colony_units")
 	collision_layer = 0
 	_bar_root.visible = false
-	Sfx.play("hurt", 0.1, -4.0)
+	Sfx.play_at("hurt", global_position, 0.1, -4.0)
 	if colony:
 		colony.on_soldier_died(self)
 	var tw := create_tween()

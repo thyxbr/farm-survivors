@@ -91,7 +91,7 @@ func _impact() -> void:
 	set_physics_process(false)
 	match kind:
 		"ball":
-			Sfx.play("explode", 0.15, -6.0)
+			Sfx.play_at("explode", global_position, 0.15, -6.0)
 			FX.burst(global_position, Color(1.0, 0.6, 0.25), 26, 6.0, 0.14, 0.45, -3.0)
 			FX.burst(global_position, Color(0.35, 0.33, 0.3), 16, 3.0, 0.25, 0.9, -1.0)
 			FX.ring(Vector3(global_position.x, 0.05, global_position.z), Color(1.0, 0.6, 0.3, 0.8), splash, 0.35)
