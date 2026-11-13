@@ -194,7 +194,7 @@ tools/blender/        build_assets.py (cenário + chama characters.py), characte
                       preview_assets.py / preview_characters.py / preview_closeup.py (renders de conferência)
 scripts/autoload/     game.gd (estado, save/load), item_db.gd (itens/magias/missões), sfx.gd (sons sintetizados),
                       network.gd (multiplayer: servidor dedicado, réplicas, RPCs), updater.gd (auto update)
-scripts/player/       player.gd (controle, combate, magias), fireball.gd
+scripts/player/       player.gd (controle, combate, magias), fireball.gd, cape_rig.gd (física da capa)
 scripts/enemies/      enemy.gd (slimes, goblins, rei goblin e os monstros da horda — IA e animação procedural), enemy_arrow.gd
 scripts/world/        world.gd (monta o mapa e gerencia UI modal), npc.gd, pickup.gd, challenge_portal.gd
 scripts/farm/         farm_plot.gd (canteiro: plantar/regar/adubar/colher), kitchen.gd (caldeirão)
