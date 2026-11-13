@@ -3,6 +3,8 @@
 # "small" renderiza em 900x573 (iterações de forma/proporção, imagem ~4x mais barata de ler);
 # sem ele sai em 1650x1050 (conferência final de detalhes).
 import bpy, sys, math
+import os
+D = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "assets", "models")).replace("\\", "/") + "/"  # funciona em worktrees
 args = sys.argv[sys.argv.index("--") + 1:]
 name, out = args[0], args[1]
 flags = set(args[2:])
@@ -14,7 +16,7 @@ for o in list(scn.objects):
 tris = 0
 for i, ang in enumerate((0.0, 0.75, math.pi)):
     before = set(scn.objects)
-    bpy.ops.import_scene.gltf(filepath="C:/Games/godot-3d/assets/models/" + name + ".glb")
+    bpy.ops.import_scene.gltf(filepath=D + name + ".glb")
     for o in set(scn.objects) - before:
         if i == 0 and o.type == 'MESH':
             o.data.calc_loop_triangles()

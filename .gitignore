@@ -12,3 +12,6 @@
 *.blend1
 .DS_Store
 Thumbs.db
+
+# Referências visuais (imagens de terceiros, só para uso local)
+/tools/blender/refs/
