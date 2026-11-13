@@ -136,7 +136,9 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
   (versão, link, SHA-256). O deploy do servidor só roda depois disso. No jogo, o autoload `Updater`
   (`scripts/autoload/updater.gd`) lê `releases/latest/download/latest.json` ao abrir o menu; se houver versão maior,
   mostra *Atualizar agora*, baixa o zip, confere o hash, troca o exe (o atual vira `.old`, apagado na próxima abertura)
-  e reabre o jogo. Também procura de novo quando o servidor recusa a versão. Só roda no build exportado para Windows.
+  e reabre o jogo. Com o jogo aberto procura de novo a cada 5 minutos; se a versão nova sair durante a partida,
+  aparece um aviso no topo da tela e o *Atualizar agora* fica no menu de pausa (Esc), que salva antes de reabrir.
+  Também procura de novo quando o servidor recusa a versão. Só roda no build exportado para Windows.
   Se a pasta do jogo não aceitar gravação (ex.: *Arquivos de Programas*), oferece abrir a página de download.
   Para testar com outro manifesto: `EcosDeValdoria.exe -- --update-manifest=http://127.0.0.1:8765/latest.json --update-now`.
 - Ainda só para um jogador: o "carregar save" durante a partida. No multiplayer os menus não pausam o mundo.

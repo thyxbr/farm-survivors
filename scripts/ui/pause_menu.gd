@@ -5,6 +5,7 @@ signal closed
 signal respawn_requested
 
 const OPTIONS := preload("res://scripts/ui/options_panel.gd")
+const UPDATE_PANEL := preload("res://scripts/ui/update_panel.gd")
 
 var mode := "pause"
 var player_pos := Vector3.ZERO
@@ -61,6 +62,10 @@ func _ready() -> void:
 	_status = UITheme.label("", 15, Color(0.7, 1, 0.7))
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(_status)
+	if mode == "pause":
+		var upd := UPDATE_PANEL.new()
+		upd.before_install = _save_before_update.bind(colony_mode)
+		v.add_child(upd)
 	if colony_mode:
 		if Game.has_colony_save():
 			_status.text = "Save: " + Game.colony_save_info()
@@ -84,6 +89,17 @@ func _save() -> void:
 		_status.text = "Jogo salvo!"
 		_status.add_theme_color_override("font_color", Color(0.7, 1, 0.7))
 		Sfx.play("pickup", 0.0)
+
+
+## O jogo reabre sozinho depois de atualizar: salva antes para não perder o progresso.
+func _save_before_update(colony_mode: bool) -> void:
+	var w = get_tree().current_scene
+	if Network.is_online():
+		Network.autosave()
+	elif colony_mode:
+		w.save_colony()
+	elif not Game.run_mods.active:
+		Game.save_game(player_pos, player_yaw)
 
 
 func _quit() -> void:

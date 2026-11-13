@@ -10,9 +10,12 @@ extends Node
 ## renomeia o exe em uso para `.old` (o Windows deixa renomear um exe aberto, só não sobrescrever),
 ## coloca o novo no lugar, abre o jogo de novo e fecha este. Na próxima abertura o `.old` é apagado.
 ##
+## Com o jogo aberto, procura de novo a cada CHECK_INTERVAL segundos; se achar versão nova durante a partida,
+## mostra um aviso no topo da tela (a instalação fica no menu de pausa, que salva antes de reabrir).
+##
 ## Só funciona no jogo exportado para Windows; no editor, no servidor e nos testes headless fica desligado.
 ## Para testar com outro manifesto: `EcosDeValdoria.exe -- --update-manifest=http://127.0.0.1:8000/latest.json`
-## (`--update-now` instala sem esperar o clique no botão).
+## (`--update-now` instala sem esperar o clique no botão; `--update-interval=30` muda o intervalo em segundos).
 
 signal state_changed(state: int)
 signal progress(fraction: float)
@@ -23,6 +26,10 @@ const REPO := "thyxbr/farm-survivors"
 const MANIFEST_URL := "https://github.com/" + REPO + "/releases/latest/download/latest.json"
 const RELEASES_PAGE := "https://github.com/" + REPO + "/releases/latest"
 const CHECK_TIMEOUT := 15.0
+## De quanto em quanto tempo procura de novo com o jogo aberto.
+const CHECK_INTERVAL := 300.0
+## Quanto tempo o aviso de versão nova fica na tela durante a partida.
+const TOAST_TIME := 15.0
 
 var state := State.DISABLED
 ## Versão oferecida pelo manifesto (vazia até a checagem terminar).
@@ -36,6 +43,10 @@ var _manifest := {}
 var _manifest_url := MANIFEST_URL
 var _http: HTTPRequest
 var _zip_path := ""
+var _interval := CHECK_INTERVAL
+var _toast: CanvasLayer
+var _toast_label: Label
+var _toast_tween: Tween
 
 
 func _ready() -> void:
@@ -43,10 +54,24 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--update-manifest="):
 			_manifest_url = a.substr(18)
+		elif a.begins_with("--update-interval="):
+			_interval = maxf(a.substr(18).to_float(), 5.0)
+	state_changed.connect(_on_state_for_toast)
 	if not is_supported():
 		return
 	state = State.IDLE
 	_cleanup_leftovers()
+	var t := Timer.new()
+	t.wait_time = _interval
+	t.autostart = true
+	t.timeout.connect(_on_recheck_timer)
+	add_child(t)
+
+
+## Procura de novo periodicamente, menos quando já há versão nova conhecida ou algo em andamento.
+func _on_recheck_timer() -> void:
+	if state in [State.IDLE, State.UP_TO_DATE] or (state == State.FAILED and not has_newer()):
+		check()
 
 
 ## Só o jogo exportado para Windows, com tela, se atualiza sozinho.
@@ -69,6 +94,11 @@ static func compare_versions(a: String, b: String) -> int:
 		if x != y:
 			return 1 if x > y else -1
 	return 0
+
+
+## O manifesto já informou uma versão maior que esta.
+func has_newer() -> bool:
+	return latest_version != "" and compare_versions(latest_version, current_version()) > 0
 
 
 ## Pergunta ao GitHub qual é a versão mais nova. Pode ser chamado de novo (ex.: servidor recusou a versão).
@@ -94,7 +124,7 @@ func _on_manifest(result: int, code: int, _headers: PackedStringArray, body: Pac
 		return
 	_manifest = data
 	latest_version = str(data.version)
-	if compare_versions(latest_version, current_version()) > 0:
+	if has_newer():
 		print("[update] versão nova disponível: %s (esta: %s)" % [latest_version, current_version()])
 		_set_state(State.AVAILABLE)
 		if "--update-now" in OS.get_cmdline_user_args():
@@ -127,7 +157,7 @@ func install() -> void:
 func can_install() -> bool:
 	if manual_only:
 		return false
-	return state == State.AVAILABLE or (state == State.FAILED and not _manifest.is_empty() 		and compare_versions(latest_version, current_version()) > 0)
+	return state == State.AVAILABLE or (state == State.FAILED and not _manifest.is_empty() and has_newer())
 
 
 func _process(_delta: float) -> void:
@@ -259,3 +289,56 @@ func _fail(msg: String) -> void:
 func _set_state(s: State) -> void:
 	state = s
 	state_changed.emit(s)
+
+
+# ---------------------------------------------------------------- aviso durante a partida
+## O menu principal tem o próprio aviso; nas outras cenas aparece este, no topo da tela.
+func _on_state_for_toast(s: int) -> void:
+	if s != State.AVAILABLE:
+		_hide_toast()
+		return
+	var scene := get_tree().current_scene
+	if scene == null or scene.scene_file_path == ProjectSettings.get_setting("application/run/main_scene", ""):
+		return
+	_show_toast("Nova versão disponível: v%s (você tem v%s).
+Aperte Esc e escolha \"Atualizar agora\" — o jogo salva e reabre sozinho." 		% [latest_version, current_version()])
+
+
+func _show_toast(text: String) -> void:
+	if _toast == null:
+		_toast = CanvasLayer.new()
+		_toast.layer = 90
+		add_child(_toast)
+		var root := Control.new()
+		root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		root.theme = UITheme.get_theme()
+		_toast.add_child(root)
+		var box := PanelContainer.new()
+		box.add_theme_stylebox_override("panel", UITheme.frame_box(UITheme.BG, UITheme.GOLD, 14))
+		box.anchor_left = 0.5
+		box.anchor_right = 0.5
+		box.offset_top = 18
+		box.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		root.add_child(box)
+		_toast_label = UITheme.label("", 18)
+		_toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		box.add_child(_toast_label)
+	_toast_label.text = text
+	var box := _toast_label.get_parent() as Control
+	box.modulate.a = 1.0
+	_toast.visible = true
+	if _toast_tween:
+		_toast_tween.kill()
+	_toast_tween = create_tween()
+	_toast_tween.tween_interval(TOAST_TIME)
+	_toast_tween.tween_property(box, "modulate:a", 0.0, 1.0)
+	_toast_tween.tween_callback(func() -> void: _toast.visible = false)
+
+
+func _hide_toast() -> void:
+	if _toast_tween:
+		_toast_tween.kill()
+	if _toast:
+		_toast.visible = false
