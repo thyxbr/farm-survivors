@@ -19,7 +19,7 @@ const TYPES := {
 	# variantes usadas no Desafio da Horda
 	"slime_grande": {"name": "Slime Grande", "model": "slime", "hp": 150, "damage": 16, "speed": 2.3, "xp": 40,
 		"gold": [3, 8], "aggro": 14.0, "reach": 2.2, "cooldown": 1.8, "radius": 0.85, "height": 1.3,
-		"scale": 1.7, "color": Color(0.6, 0.3, 0.9), "goo": Color(0.55, 0.25, 0.85, 0.8),
+		"scale": 1.7, "color": Color(0.6, 0.3, 0.9), "goo": Color(0.55, 0.25, 0.85, 0.8), "bld": 1.5,
 		"loot": [["slime_gel", 0.8]]},
 	"slime_veloz": {"name": "Slime Veloz", "model": "slime", "hp": 24, "damage": 7, "speed": 5.2, "xp": 12,
 		"gold": [1, 3], "aggro": 14.0, "reach": 1.3, "cooldown": 1.2, "radius": 0.36, "height": 0.6,
@@ -27,14 +27,19 @@ const TYPES := {
 		"loot": [["slime_gel", 0.4]]},
 	"goblin": {"name": "Goblin Batedor", "model": "goblin", "hp": 80, "damage": 14, "speed": 4.2, "xp": 42,
 		"gold": [4, 11], "aggro": 15.0, "reach": 1.8, "cooldown": 1.3, "radius": 0.4, "height": 1.35,
-		"scale": 1.0, "color": Color(0.7, 0.1, 0.05),
+		"scale": 1.0, "color": Color(0.7, 0.1, 0.05), "bld": 1.5,
 		"loot": [["goblin_ear", 0.7], ["health_potion", 0.18], ["mana_potion", 0.15], ["iron_sword", 0.05], ["leather_armor", 0.05],
 			["seed_pepper", 0.15], ["seed_mint", 0.1], ["leather_cap", 0.04], ["leather_gloves", 0.04], ["leather_boots", 0.04],
 			["hunter_bow", 0.03], ["oak_staff", 0.03], ["wooden_shield", 0.04], ["strength_ring", 0.02], ["wind_ring", 0.02],
 			["ranger_hood", 0.015], ["frost_brand", 0.01], ["ember_staff", 0.01], ["elven_bow", 0.01]]},
+	# Defesa da Cidade: brutamontes que derruba muros (dano em construções x3)
+	"goblin_bruto": {"name": "Goblin Bruto", "model": "goblin", "hp": 280, "damage": 24, "speed": 2.9, "xp": 70,
+		"gold": [8, 14], "aggro": 8.0, "reach": 2.2, "cooldown": 1.8, "radius": 0.62, "height": 1.35,
+		"scale": 1.5, "color": Color(0.7, 0.1, 0.05), "bld": 3.0,
+		"loot": [["goblin_ear", 0.8], ["health_potion", 0.12], ["iron_helm", 0.02], ["chain_mail", 0.02]]},
 	"goblin_king": {"name": "Rei Goblin", "model": "goblin", "hp": 900, "damage": 26, "speed": 3.6, "xp": 450,
 		"gold": [90, 130], "aggro": 20.0, "reach": 3.2, "cooldown": 1.5, "radius": 0.95, "height": 2.9,
-		"scale": 2.2, "color": Color(0.7, 0.1, 0.05), "boss": true,
+		"scale": 2.2, "color": Color(0.7, 0.1, 0.05), "boss": true, "bld": 2.5,
 		"loot": [["goblin_crown", 1.0], ["goblin_cleaver", 1.0], ["health_potion", 1.0], ["seed_pumpkin", 1.0], ["seed_mint", 1.0],
 			["goblin_warbow", 0.5], ["knight_helm", 0.35], ["guardian_greatsword", 0.25], ["vampire_ring", 0.2],
 			["frost_scepter", 0.3], ["swift_boots", 0.3], ["sage_amulet", 0.25],
@@ -46,6 +51,11 @@ const TYPES := {
 var horde := false
 var hp_mult := 1.0
 var dmg_mult := 1.0
+## Defesa da Cidade: marcha até a prefeitura e ataca construções, soldados e o jogador no caminho.
+var siege := false
+var _siege_target = null     # Player, ColonySoldier ou ColonyBuilding
+var _retarget := 0.0
+var _lock_t := 0.0
 
 var data: Dictionary
 var display_name := ""
@@ -151,8 +161,11 @@ func _ready() -> void:
 	wander_target = home
 	state_timer = randf_range(1.0, 3.0)
 	model.rotation.y = randf() * TAU
-	if horde:
+	if horde or siege:
 		state = "chase"
+	if siege:
+		collision_mask |= 64   # soldados seguram a passagem
+		_retarget = randf() * 0.3
 	if Network.is_server():
 		Network.server_register_enemy(self)
 
@@ -208,6 +221,9 @@ func _physics_process(delta: float) -> void:
 	slow_timer = max(0.0, slow_timer - delta)
 	stagger = max(0.0, stagger - delta)
 	_update_flash(delta)
+	if siege:
+		_siege_process(delta)
+		return
 
 	var player := _nearest_player()
 	var to_player := Vector3.ZERO
@@ -351,7 +367,11 @@ func _hit_time() -> float:
 	return 0.5 if not is_boss else 0.6
 
 
-func _update_attack(delta: float, player: Player, to_player: Vector3, dist: float) -> void:
+## player: o alvo do ataque (Player no RPG; no cerco também soldado ou construção).
+func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> void:
+	var mult := 1.0
+	if player != null and player.is_in_group("buildings"):
+		mult = float(data.get("bld", 1.0))
 	attack_timer += delta
 	if not hit_done and attack_timer >= _hit_time():
 		hit_done = true
@@ -360,13 +380,13 @@ func _update_attack(delta: float, player: Player, to_player: Vector3, dist: floa
 			FX.ring(global_position, Color(0.8, 0.6, 0.3, 0.9), 5.0, 0.4)
 			FX.burst(global_position + Vector3.UP * 0.3, Color(0.5, 0.4, 0.3), 40, 7.0, 0.2, 0.8)
 			if player and dist <= 5.0:
-				player.take_damage(data.damage * dmg_mult * 1.4, global_position)
-			if player:
+				player.take_damage(data.damage * dmg_mult * 1.4 * mult, global_position)
+			if player is Player:
 				player.add_shake(0.4)
 		elif player and dist <= data.reach * 1.3 + 0.3:
 			var facing_ok := model_forward().dot(to_player.normalized()) > 0.2 or dist < 1.0
 			if facing_ok:
-				player.take_damage(data.damage * dmg_mult * randf_range(0.9, 1.1), global_position)
+				player.take_damage(data.damage * dmg_mult * randf_range(0.9, 1.1) * mult, global_position)
 		if attack_kind == "swing":
 			Sfx.play("swing", 0.15, -4.0)
 	if attack_timer >= _attack_duration():
@@ -441,6 +461,12 @@ func _die() -> void:
 	if Network.is_server():
 		# XP, missões e loot são de cada jogador: quem acertou recebe no próprio PC
 		Network.server_enemy_killed(self)
+	elif siege:
+		# cerco: o ouro vai direto para o cofre da cidade (os abates acontecem longe do jogador)
+		Game.on_enemy_killed(kind, int(data.xp * 0.6))
+		var g: Array = data.gold
+		Game.add_gold(randi_range(g[0], g[1]))
+		drop_loot(get_parent(), kind, global_position, false)
 	elif not horde:
 		Game.on_enemy_killed(kind, data.xp)
 		if is_boss:
@@ -473,10 +499,11 @@ func die_visual() -> void:
 	tw.tween_callback(queue_free)
 
 
-static func drop_loot(parent: Node, enemy_kind: String, pos: Vector3) -> void:
+static func drop_loot(parent: Node, enemy_kind: String, pos: Vector3, with_gold := true) -> void:
 	var t: Dictionary = TYPES[enemy_kind]
 	var g: Array = t.gold
-	_spawn_pickup(parent, "", randi_range(g[0], g[1]), pos)
+	if with_gold:
+		_spawn_pickup(parent, "", randi_range(g[0], g[1]), pos)
 	for entry in t.loot:
 		if randf() < entry[1]:
 			_spawn_pickup(parent, entry[0], 1, pos)
@@ -488,6 +515,112 @@ static func _spawn_pickup(parent: Node, id: String, qty: int, pos: Vector3) -> v
 	p.amount = qty
 	parent.add_child(p)
 	p.global_position = pos + Vector3.UP * 0.8
+
+
+# ------------------------------------------------------------ cerco (Defesa da Cidade)
+func _siege_process(delta: float) -> void:
+	_retarget -= delta
+	_lock_t = maxf(0.0, _lock_t - delta)
+	if not _target_alive(_siege_target):
+		_siege_target = null
+	if (_retarget <= 0.0 and state != "attack" and _lock_t <= 0.0) or (_siege_target == null and state != "attack"):
+		_retarget = 0.4
+		_siege_target = _pick_siege_target()
+	var t = _siege_target
+	var to := Vector3.ZERO
+	var dist := INF
+	if t != null:
+		var aim: Vector3 = t.closest_point(global_position) if t.has_method("closest_point") else t.global_position
+		to = aim - global_position
+		to.y = 0.0
+		dist = to.length()
+		if not t.has_method("closest_point"):
+			dist -= float(t.radius) if t.get("radius") != null else 0.35
+	var spd: float = data.speed * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0)
+	var move := Vector3.ZERO
+	var face := Vector3.ZERO
+	if state == "attack":
+		_update_attack(delta, t, to, dist)
+		if attack_kind == "lunge" and attack_timer > 0.35 and attack_timer < 0.6:
+			move = model_forward() * spd * 3.2
+		elif dist < INF and attack_timer < 0.35:
+			face = to
+	else:
+		state = "chase"
+		if t != null:
+			if dist <= data.reach and attack_cd <= 0:
+				_begin_attack()
+			elif dist > data.reach * 0.8:
+				move = to.normalized() * spd
+			face = to
+	if stagger > 0:
+		move = Vector3.ZERO
+	if face == Vector3.ZERO and move.length() > 0.1:
+		face = move
+	if face.length() > 0.01:
+		model.rotation.y = lerp_angle(model.rotation.y, atan2(face.x, face.z), 8.0 * delta)
+	velocity.x = move_toward(velocity.x, move.x, 30.0 * delta)
+	velocity.z = move_toward(velocity.z, move.z, 30.0 * delta)
+	move_and_slide()
+	# esbarrou num muro/construção (ou num soldado) no caminho: derruba antes de seguir
+	if state != "attack":
+		for i in get_slide_collision_count():
+			var c = get_slide_collision(i).get_collider()
+			if c == null or c == t:
+				continue
+			if c.is_in_group("buildings") and not c.dead:
+				_siege_target = c
+				_lock_t = 2.0
+				break
+			if c.is_in_group("soldiers") and not c.dead and not (t is Player):
+				_siege_target = c
+				_lock_t = 1.0
+				break
+	_animate(delta, Vector2(velocity.x, velocity.z).length())
+	if bar_root and bar_root.visible:
+		bar_fg.scale.x = max(0.001, hp / max_hp)
+
+
+func _target_alive(t) -> bool:
+	return t != null and is_instance_valid(t) and t.is_inside_tree() and not t.dead
+
+
+## Prioridade: jogador/soldado por perto > construção a poucos passos > prefeitura > qualquer construção.
+func _pick_siege_target():
+	var best = null
+	var best_d := INF
+	var aggro: float = data.aggro
+	for u in get_tree().get_nodes_in_group("colony_units"):
+		if u.dead:
+			continue
+		var d := global_position.distance_to(u.global_position)
+		if d < aggro and d < best_d:
+			best = u
+			best_d = d
+	if best != null:
+		return best
+	var goal = null
+	var any = null
+	var any_d := INF
+	for b in get_tree().get_nodes_in_group("buildings"):
+		if b.dead or not b.targetable:
+			continue
+		var d: float = b.distance_to_point(global_position)
+		if b.is_core:
+			goal = b
+		if d < 7.0 and d < best_d:
+			best = b
+			best_d = d
+		if d < any_d:
+			any = b
+			any_d = d
+	if best != null:
+		return best
+	if goal != null:
+		return goal
+	if any != null:
+		return any
+	return _nearest_player()
 
 
 # ------------------------------------------------------------ réplica (cliente)

@@ -22,7 +22,22 @@ func _ready() -> void:
 	v.add_theme_constant_override("separation", 10)
 	v.custom_minimum_size = Vector2(340, 0)
 	p.add_child(v)
-	if mode == "pause":
+	var w = get_tree().current_scene
+	var colony_mode: bool = w != null and w.has_method("save_colony")
+	if mode == "pause" and colony_mode:
+		v.add_child(_title("Pausado", UITheme.GOLD))
+		v.add_child(UITheme.button("Continuar", _close))
+		v.add_child(UITheme.button("Salvar cidade", func() -> void:
+			if w.save_colony():
+				_status.text = "Cidade salva!"
+				_status.add_theme_color_override("font_color", Color(0.7, 1, 0.7))))
+		var cl := UITheme.button("Carregar cidade", func() -> void: Game.start_colony(true))
+		cl.disabled = not Game.has_colony_save()
+		v.add_child(cl)
+		v.add_child(UITheme.button("Opções", _options))
+		v.add_child(UITheme.button("Menu principal", func() -> void: Game.go_to_menu()))
+		v.add_child(UITheme.button("Sair do jogo", _quit))
+	elif mode == "pause":
 		v.add_child(_title("Menu" if Network.is_online() else "Pausado", UITheme.GOLD))
 		v.add_child(UITheme.button("Continuar", _close))
 		if Game.run_mods.active:
@@ -46,7 +61,11 @@ func _ready() -> void:
 	_status = UITheme.label("", 15, Color(0.7, 1, 0.7))
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(_status)
-	if Game.has_save():
+	if colony_mode:
+		if Game.has_colony_save():
+			_status.text = "Save: " + Game.colony_save_info()
+			_status.add_theme_color_override("font_color", UITheme.DIM)
+	elif Game.has_save():
 		_status.text = "Save: " + Game.save_info()
 		_status.add_theme_color_override("font_color", UITheme.DIM)
 	var first := v.get_child(1) as Button

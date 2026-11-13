@@ -42,10 +42,10 @@ func _ready() -> void:
 	menu_box.anchor_top = 0.5
 	menu_box.anchor_bottom = 0.5
 	menu_box.offset_left = 90
-	menu_box.offset_top = -230
+	menu_box.offset_top = -300
 	menu_box.offset_right = 560
-	menu_box.offset_bottom = 230
-	menu_box.add_theme_constant_override("separation", 12)
+	menu_box.offset_bottom = 300
+	menu_box.add_theme_constant_override("separation", 10)
 	add_child(menu_box)
 	var title := UITheme.label("Ecos de Valdoria", 64, UITheme.GOLD)
 	title.add_theme_constant_override("outline_size", 10)
@@ -62,6 +62,15 @@ func _ready() -> void:
 	menu_box.add_child(cont)
 	if Game.has_save():
 		menu_box.add_child(UITheme.label("   " + Game.save_info(), 15, UITheme.DIM))
+	var colony := UITheme.button("Defesa da Cidade — nova", func() -> void:
+		Sfx.play("click", 0.0)
+		Game.start_colony(false), 320)
+	menu_box.add_child(colony)
+	if Game.has_colony_save():
+		menu_box.add_child(UITheme.button("Defesa da Cidade — continuar", func() -> void:
+			Sfx.play("click", 0.0)
+			Game.start_colony(true), 320))
+		menu_box.add_child(UITheme.label("   " + Game.colony_save_info(), 15, UITheme.DIM))
 	menu_box.add_child(UITheme.button("Multiplayer", _open_multiplayer, 320))
 	menu_box.add_child(UITheme.button("Opções", _options, 320))
 	menu_box.add_child(UITheme.button("Sair", func() -> void: get_tree().quit(), 320))
