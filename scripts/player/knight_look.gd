@@ -190,11 +190,28 @@ static func _build_model(h: Node3D, tip: Node3D, model: String) -> bool:
 	if not ResourceLoader.exists(path):
 		return false
 	var w := (load(path) as PackedScene).instantiate() as Node3D
+	setup_model_materials(w)
 	w.transform = Transform3D(Basis(Vector3(0, 1, 0), Vector3(0, 0, 1), Vector3(1, 0, 0)), Vector3.ZERO)
 	h.add_child(w)
 	var t := w.find_child("Tip", true, false) as Node3D
 	tip.position = w.transform * t.position if t else Vector3(0, 0, 1.0)
 	return true
+
+
+## As cores das armas modeladas vêm da cor por vértice (degradês, fios, contorno); o importador de glTF
+## não liga isso sozinho. Os materiais são os do GLB importado (compartilhados), então basta uma vez.
+static func setup_model_materials(n: Node) -> void:
+	if n is MeshInstance3D and n.mesh:
+		for i in n.mesh.get_surface_count():
+			var m := n.mesh.surface_get_material(i) as StandardMaterial3D
+			if m and not m.vertex_color_use_as_albedo:
+				m.vertex_color_use_as_albedo = true
+				m.vertex_color_is_srgb = true   # o importador guarda COLOR_0 em sRGB
+				if m.resource_name == "w_outline":   # casca invertida: só a borda escura, sem luz
+					m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+					m.cull_mode = BaseMaterial3D.CULL_BACK
+	for c in n.get_children():
+		setup_model_materials(c)
 
 
 static func _build_staff(h: Node3D, tip: Node3D, id: String) -> void:

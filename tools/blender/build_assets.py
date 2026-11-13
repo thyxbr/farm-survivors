@@ -108,7 +108,8 @@ def export(fname):
             o.select_set(True, view_layer=vl)
         bpy.ops.export_scene.gltf(filepath=OUT + fname + ".glb", export_format='GLB', use_selection=True,
                                   export_apply=True, export_yup=True, export_animations=False,
-                                  export_cameras=False, export_lights=False)
+                                  export_cameras=False, export_lights=False,
+                                  export_vertex_color='ACTIVE')   # armas: "Col" em todas as superfícies
     exported.append(fname)
     clear()
 
