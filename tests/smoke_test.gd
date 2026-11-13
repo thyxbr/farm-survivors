@@ -26,6 +26,8 @@ func _ready() -> void:
 	world = get_tree().current_scene
 	player = get_tree().get_first_node_in_group("player")
 	check(world != null and player != null, "mundo e jogador carregados")
+	# confere o kit antes de qualquer combate: slimes podem soltar cajado/arco e o saque é aleatório
+	check(Game.count_item("apprentice_staff") == 1 and Game.count_item("short_bow") == 1, "kit inicial tem cajado e arco")
 
 	# --- som posicional: combate longe do jogador não deve ser ouvido
 	check(Sfx.distance_gain(0.0) == 1.0 and Sfx.distance_gain(15.0) < 0.5 and Sfx.distance_gain(Sfx.FAR_DIST + 1.0) == 0.0,
@@ -445,7 +447,6 @@ func _test_gear() -> void:
 	check(bad.is_empty(), "itens novos consistentes (%d itens) %s" % [ItemDB.ITEMS.size(), bad])
 
 	# cajado: ataque básico dispara projétil arcano
-	check(Game.count_item("apprentice_staff") == 1 and Game.count_item("short_bow") == 1, "kit inicial tem cajado e arco")
 	var dmg_sword := Game.melee_damage()
 	check(Game.equip("apprentice_staff"), "equipou cajado")
 	await wait(0.05)
