@@ -60,6 +60,9 @@ var _stats_t := 0.0
 var _snapshots_sent := 0
 var _snap_t := 0.0
 var _connect_t := 0.0
+## Segundos entre os saves automáticos do cliente (--autosave=N nos testes).
+var autosave_interval := 120.0
+var _autosave_t := 120.0
 var _pending := {}        # servidor: peer_id -> segundos até expulsar quem não se registrou
 var _chat_log := {}       # servidor: peer_id -> [instantes das últimas mensagens]
 
@@ -96,6 +99,8 @@ func _ready() -> void:
 			horde_pick_time = maxf(2.0, float(a.substr(13)))
 		elif a.begins_with("--horde-event="):
 			horde_force_event = a.substr(14)
+		elif a.begins_with("--autosave="):
+			autosave_interval = maxf(1.0, float(a.substr(11)))
 	if "--server" in args:
 		start_server.call_deferred()
 
@@ -336,6 +341,13 @@ func _physics_process(delta: float) -> void:
 	elif mode == Mode.CLIENT:
 		if not horde_lobby.is_empty():
 			horde_lobby_t = maxf(0.0, horde_lobby_t - delta)
+		# o progresso fica no PC de cada jogador: salva de tempos em tempos para não perder tudo num crash
+		if world != null and _connect_t <= 0:
+			_autosave_t -= delta
+			if _autosave_t <= 0.0:
+				_autosave_t = autosave_interval
+				if not Game.run_mods.get("active", false):
+					autosave()
 		if _connect_t > 0:
 			_connect_t -= delta
 			if _connect_t <= 0:
@@ -510,6 +522,7 @@ func join(address: String, player_name: String) -> void:
 	my_name = player_name
 	last_error = ""
 	_connect_t = CONNECT_TIMEOUT
+	_autosave_t = autosave_interval
 
 
 func leave() -> void:
