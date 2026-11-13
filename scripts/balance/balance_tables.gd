@@ -11,6 +11,13 @@ extends RefCounted
 const NAMES := ["items", "crops", "recipes", "spells", "quests", "shop", "rarity", "enemies",
 	"horde", "horde_events", "colony", "rules"]
 
+## Tag -> quantidade de componentes numéricos esperada ([min, max]).
+const _TAGS := {"$c": [3, 4], "$v2": [2, 2], "$v3": [3, 3]}
+
+## As tabelas guardadas aqui, e as que to_dict()/from_dict()/set_table() trocam, estão sempre
+## DECODIFICADAS (Color, Vector, int de verdade). Para mandar pela rede ou gravar em JSON o
+## chamador faz BalanceTables.encode(to_dict()) -> JSON.stringify; ao receber, JSON.parse_string
+## -> BalanceTables.decode(...) -> from_dict(). from_dict NÃO decodifica.
 var _tables := {}
 
 
@@ -32,7 +39,7 @@ static func load_dir(path: String) -> BalanceTables:
 	return bt
 
 
-## Recebe tabelas já decodificadas ({nome: Dictionary}); copia fundo para não compartilhar estado.
+## Recebe tabelas já decodificadas (ver nota acima) ({nome: Dictionary}); copia fundo para não compartilhar estado.
 static func from_dict(d: Dictionary) -> BalanceTables:
 	var bt := BalanceTables.new()
 	for n in d:
@@ -58,13 +65,9 @@ static func decode(v: Variant) -> Variant:
 	match typeof(v):
 		TYPE_DICTIONARY:
 			if v.size() == 1:
-				if v.has("$c"):
-					var c: Array = v["$c"]
-					return Color(c[0], c[1], c[2], c[3] if c.size() > 3 else 1.0)
-				if v.has("$v2"):
-					return Vector2(v["$v2"][0], v["$v2"][1])
-				if v.has("$v3"):
-					return Vector3(v["$v3"][0], v["$v3"][1], v["$v3"][2])
+				for tag in _TAGS:
+					if v.has(tag):
+						return _decode_tag(tag, v[tag], v)
 			var out := {}
 			for k in v:
 				out[k] = decode(v[k])
@@ -106,3 +109,21 @@ static func encode(v: Variant) -> Variant:
 
 static func _r(x: float) -> float:
 	return snappedf(x, 0.0001)
+
+
+## Tag malformada (tamanho ou tipo errado) não derruba o jogo: avisa e devolve o valor cru.
+static func _decode_tag(tag: String, raw: Variant, whole: Dictionary) -> Variant:
+	var n: Array = _TAGS[tag]
+	if not (raw is Array) or raw.size() < n[0] or raw.size() > n[1]:
+		push_error("Balance: tag %s malformada: %s" % [tag, var_to_str(raw)])
+		return whole
+	for x in raw:
+		if not (x is float or x is int):
+			push_error("Balance: tag %s com valor não numérico: %s" % [tag, var_to_str(raw)])
+			return whole
+	match tag:
+		"$c":
+			return Color(raw[0], raw[1], raw[2], raw[3] if raw.size() > 3 else 1.0)
+		"$v2":
+			return Vector2(raw[0], raw[1])
+	return Vector3(raw[0], raw[1], raw[2])

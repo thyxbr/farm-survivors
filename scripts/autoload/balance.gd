@@ -5,7 +5,7 @@ extends Node
 ## BalanceTables é uma classe pura (sem autoload) para as regras poderem ser testadas sozinhas;
 ## este nó só guarda a instância do jogo e avisa quando as tabelas trocam (`changed`).
 
-# preload dos scripts (e não dos nomes de autoload): o ItemDB ainda nem existe quando este _ready roda
+# preload dos scripts (e não dos nomes de autoload): o ItemDB ainda nem existe quando este _init roda
 const _ITEM_DB := preload("res://scripts/autoload/item_db.gd")
 const _COLONY := preload("res://scripts/colony/colony_data.gd")
 const _UPG := preload("res://scripts/survival/upgrades.gd")

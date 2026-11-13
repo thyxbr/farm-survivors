@@ -1,11 +1,11 @@
 extends SceneTree
 ## Uso único: lê as `const` de balanceamento do código (antes de virarem `static var`) e grava
-## data/balance/*.json + o snapshot do teste (tests/unit/fixtures/balance_snapshot.res).
+## data/balance/*.json + o snapshot do teste (tests/unit/fixtures/balance_snapshot.bin).
 ##   godot --headless --path . -s tools/export_balance.gd
 ## Depois da migração as tabelas moram nos JSON; este script serve de registro de onde vieram.
 
 const OUT := "res://data/balance"
-const SNAPSHOT := "res://tests/unit/fixtures/balance_snapshot.res"
+const SNAPSHOT := "res://tests/unit/fixtures/balance_snapshot.bin"
 
 const IDB := preload("res://scripts/autoload/item_db.gd")
 const COL := preload("res://scripts/colony/colony_data.gd")

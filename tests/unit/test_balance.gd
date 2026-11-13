@@ -2,7 +2,7 @@ extends RefCounted
 ## BalanceTables: os JSON em data/balance têm que devolver exatamente o que as antigas `const` tinham.
 
 const DIR := "res://data/balance"
-const SNAPSHOT := "res://tests/unit/fixtures/balance_snapshot.res"
+const SNAPSHOT := "res://tests/unit/fixtures/balance_snapshot.bin"
 
 
 func _snapshot() -> Dictionary:
@@ -45,3 +45,25 @@ func test_from_dict_and_set_table() -> void:
 	T.eq(t.get_table("nada"), {}, "tabela inexistente é vazia")
 	t.set_table("items", {"y": 1})
 	T.eq(t.to_dict()["items"], {"y": 1}, "set_table/to_dict")
+
+
+func test_to_dict_from_dict_roundtrip() -> void:
+	var t := BalanceTables.load_dir(DIR)
+	var again := BalanceTables.from_dict(t.to_dict())
+	T.ok(again.to_dict() == t.to_dict(), "to_dict -> from_dict -> to_dict idêntico")
+	T.ok(again.get_table("items") == t.get_table("items"), "itens idênticos")
+
+
+func test_json_wire_roundtrip() -> void:
+	# o que o servidor fará: encode -> texto JSON -> parse -> decode
+	var t := BalanceTables.load_dir(DIR)
+	var wire := JSON.stringify(BalanceTables.encode(t.to_dict()))
+	var back = BalanceTables.decode(JSON.parse_string(wire))
+	T.ok(back is Dictionary, "JSON da rede volta Dictionary")
+	T.ok(back == t.to_dict(), "encode -> JSON -> decode preserva todas as tabelas")
+
+
+func test_malformed_tags_do_not_crash() -> void:
+	for bad in [{"$c": [1, 2]}, {"$v3": "x"}, {"$v2": [1, 2, 3]}, {"$c": ["a", "b", "c"]}, {"$v3": null}]:
+		T.eq(BalanceTables.decode(bad), bad, "tag malformada devolve o valor cru")
+	T.eq(BalanceTables.decode({"a": {"$v2": [1]}}), {"a": {"$v2": [1]}}, "tag ruim aninhada")
