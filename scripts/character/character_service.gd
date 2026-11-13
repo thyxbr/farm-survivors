@@ -59,16 +59,19 @@ func load_or_create(account_id: int) -> CharState:
 	var s := _read(account_id)
 	if s == null:
 		s = CharState.new_character(_bt)
-		_cache[account_id] = s
 		if not _save(account_id, s):
 			push_error("CharacterService: não gravou personagem novo de %d: %s" % [account_id, _db.last_error])
-	else:
-		_cache[account_id] = s
+			return s   # sem cache: a próxima chamada tenta de novo
+	_cache[account_id] = s
 	return s
 
 
-## Grava e tira do cache (jogador saiu).
-func unload(account_id: int) -> void:
+## Grava e tira do cache (jogador saiu). Com `session_id` >= 0, só descarrega se for a sessão atual da
+## conta: a desconexão tardia de uma conexão velha não derruba a sessão nova (só grava).
+func unload(account_id: int, session_id: int = -1) -> void:
+	if session_id >= 0 and _sessions.get(account_id, -1) != session_id:
+		save(account_id)
+		return
 	if _cache.has(account_id):
 		if not _save(account_id, _cache[account_id]):
 			push_error("CharacterService: não gravou %d ao descarregar: %s" % [account_id, _db.last_error])
@@ -128,10 +131,14 @@ func report(account_id: int, session_id: int, hp: float, mp: float, pos: Vector3
 	s.world_yaw = yaw
 
 
-## Resumo de uma partida (Horda / Defesa da Cidade): uma linha só.
-func run_summary(account_id: int, mode: String, gold: int, xp: int, items: Dictionary) -> void:
-	_db.exec("INSERT INTO economy_log(at, account_id, kind, amount, item_id, source) VALUES(?,?,?,?,?,?)",
-		[int(_now()), account_id, "run", gold, null, mode])
+## Resumo de uma partida (Horda / Defesa da Cidade): uma linha só, ouro em `amount` e xp + itens em `detail`.
+## false (e push_error) se não gravou.
+func run_summary(account_id: int, mode: String, gold: int, xp: int, items: Dictionary) -> bool:
+	var ok := _db.exec("INSERT INTO economy_log(at, account_id, kind, amount, item_id, source, detail) VALUES(?,?,?,?,?,?,?)",
+		[int(_now()), account_id, "run", gold, null, mode, JSON.stringify({"xp": xp, "items": items})])
+	if not ok:
+		push_error("CharacterService: run_summary de %d não gravou: %s" % [account_id, _db.last_error])
+	return ok
 
 
 ## Grava o personagem em cache sem descarregar.
@@ -191,7 +198,7 @@ func _persist(account_id: int, s: CharState, before: Dictionary, kind: String, s
 			return false
 		var at := int(_now())
 		if xp > 0:
-			if not _log(at, account_id, kind, xp, "xp", source):
+			if not _log(at, account_id, "xp", xp, null, source):
 				return false
 		if before.is_empty():
 			return true
@@ -242,7 +249,7 @@ func _write(account_id: int, s: CharState) -> bool:
 		world_pos=excluded.world_pos, world_yaw=excluded.world_yaw, kills=excluded.kills, updated_at=excluded.updated_at",
 		[account_id, s.level, s.xp, s.gold, s.stat_points, JSON.stringify(d["attributes"]), s.hp, s.mp,
 		JSON.stringify(d["equipment"]), JSON.stringify(d["quests"]), JSON.stringify(d["flags"]),
-		JSON.stringify(d["farm"]), JSON.stringify(pos) if pos != null else "{}", s.world_yaw, s.kills, int(_now())])
+		JSON.stringify(d["farm"]), JSON.stringify(pos), s.world_yaw, s.kills, int(_now())])
 	if not ok or not _db.exec("DELETE FROM inventory WHERE account_id = ?", [account_id]):
 		return false
 	for i in s.inventory.size():
@@ -260,7 +267,7 @@ func _read(account_id: int) -> CharState:
 	var d := {"level": r["level"], "xp": r["xp"], "gold": r["gold"], "stat_points": r["stat_points"],
 		"hp": r["hp"], "mp": r["mp"], "world_yaw": r["world_yaw"], "kills": r["kills"]}
 	for k in ["attributes", "equipment", "quests", "flags", "farm", "world_pos"]:
-		d[k] = JSON.parse_string(str(r[k]))
+		d[k] = JSON.parse_string(str(r[k]))   # world_pos nulo volta como null
 	var inv := []
 	for row in _db.query("SELECT item_id, qty FROM inventory WHERE account_id = ? ORDER BY slot_index", [account_id]):
 		inv.append({"id": row["item_id"], "qty": row["qty"]})

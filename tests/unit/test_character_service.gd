@@ -135,7 +135,9 @@ func test_grant_logs_source() -> void:
 	T.eq(ouro[0]["source"], "loot", "source")
 	var it := db.query("SELECT * FROM economy_log WHERE item_id = 'health_potion'")
 	T.eq(it[0]["source"], "loot", "source do item")
+	T.eq(db.query("SELECT amount FROM economy_log WHERE kind = 'xp'")[0]["amount"], 5, "linha de xp")
 	T.ok(not svc.grant(2, -1, 0, {}, "loot").ok, "negativo recusado")
+	db.close()
 
 
 func test_kill_and_run_summary() -> void:
@@ -150,6 +152,23 @@ func test_kill_and_run_summary() -> void:
 	T.eq(rows.size(), 1, "uma linha por partida")
 	T.eq(rows[0]["source"], "horde_run", "modo")
 	T.eq(rows[0]["amount"], 30, "ouro")
+	var det = JSON.parse_string(rows[0]["detail"])
+	T.eq(int(det["xp"]), 12, "xp no detalhe")
+	T.eq(int(det["items"]["health_potion"]), 2, "itens no detalhe")
 	svc.grant(2, 5, 0, {}, "horde_run")
 	T.eq(db.query("SELECT COUNT(*) AS n FROM economy_log WHERE kind = 'grant'")[0]["n"], 0, "grant da partida não registra por moeda")
+	db.close()
+
+
+func test_unload_is_session_scoped() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(db, _tables())
+	svc.load_or_create(2)
+	svc.set_session(2, 10)
+	svc.set_session(2, 11)
+	svc.unload(2, 10)   # desconexão tardia da conexão velha
+	svc.report(2, 11, 33.0, 4.0, Vector3(1, 1, 1), 0.0)
+	T.eq(svc.load_or_create(2).hp, 33.0, "sessão nova continua valendo")
+	svc.unload(2, 11)
+	T.eq(svc.load_or_create(2).hp, 33.0, "unload da sessão atual gravou")
 	db.close()

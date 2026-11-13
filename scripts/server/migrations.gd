@@ -116,6 +116,10 @@ const MIGRATIONS := [
 		"ALTER TABLE characters ADD COLUMN world_yaw REAL NOT NULL DEFAULT 0",
 		"ALTER TABLE characters ADD COLUMN kills INTEGER NOT NULL DEFAULT 0",
 	],
+	# v3: detalhe (JSON) do registro da economia, p.ex. xp e itens de uma partida
+	[
+		"ALTER TABLE economy_log ADD COLUMN detail TEXT",
+	],
 ]
 
 
