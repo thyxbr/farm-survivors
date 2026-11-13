@@ -26,6 +26,8 @@ func _ready() -> void:
 	world = get_tree().current_scene
 	player = get_tree().get_first_node_in_group("player")
 	check(world != null and player != null, "mundo e jogador carregados")
+	# confere o kit antes de qualquer combate: slimes podem soltar cajado/arco e o saque é aleatório
+	check(Game.count_item("apprentice_staff") == 1 and Game.count_item("short_bow") == 1, "kit inicial tem cajado e arco")
 	check(get_tree().get_nodes_in_group("enemies").size() >= 15, "inimigos spawnados (%d)" % get_tree().get_nodes_in_group("enemies").size())
 	check(get_tree().get_nodes_in_group("interactable").size() == 3 + Game.FARM_PLOTS + 1,
 		"2 NPCs + portal + %d canteiros + caldeirão interagíveis" % Game.FARM_PLOTS)
@@ -433,7 +435,6 @@ func _test_gear() -> void:
 	check(bad.is_empty(), "itens novos consistentes (%d itens) %s" % [ItemDB.ITEMS.size(), bad])
 
 	# cajado: ataque básico dispara projétil arcano
-	check(Game.count_item("apprentice_staff") == 1 and Game.count_item("short_bow") == 1, "kit inicial tem cajado e arco")
 	var dmg_sword := Game.melee_damage()
 	check(Game.equip("apprentice_staff"), "equipou cajado")
 	await wait(0.05)
