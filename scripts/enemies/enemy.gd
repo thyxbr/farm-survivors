@@ -1,0 +1,475 @@
+class_name Enemy
+extends CharacterBody3D
+## Inimigo genérico (slime, goblin, rei goblin) com IA simples de estados.
+
+signal died(enemy: Enemy)
+signal health_changed(enemy: Enemy)
+
+const PICKUP := preload("res://scripts/world/pickup.gd")
+const MODELS := {
+	"slime": preload("res://assets/models/slime.glb"),
+	"goblin": preload("res://assets/models/goblin.glb"),
+}
+const TYPES := {
+	"slime": {"name": "Slime", "model": "slime", "hp": 40, "damage": 9, "speed": 2.8, "xp": 18,
+		"gold": [1, 5], "aggro": 11.0, "reach": 1.5, "cooldown": 1.5, "radius": 0.5, "height": 0.8,
+		"scale": 1.0, "color": Color(0.3, 0.9, 0.35),
+		"loot": [["slime_gel", 0.6], ["health_potion", 0.08], ["mana_potion", 0.06]]},
+	# variantes usadas no Desafio da Horda
+	"slime_grande": {"name": "Slime Grande", "model": "slime", "hp": 150, "damage": 16, "speed": 2.3, "xp": 40,
+		"gold": [3, 8], "aggro": 14.0, "reach": 2.2, "cooldown": 1.8, "radius": 0.85, "height": 1.3,
+		"scale": 1.7, "color": Color(0.6, 0.3, 0.9), "goo": Color(0.55, 0.25, 0.85, 0.8),
+		"loot": [["slime_gel", 0.8]]},
+	"slime_veloz": {"name": "Slime Veloz", "model": "slime", "hp": 24, "damage": 7, "speed": 5.2, "xp": 12,
+		"gold": [1, 3], "aggro": 14.0, "reach": 1.3, "cooldown": 1.2, "radius": 0.36, "height": 0.6,
+		"scale": 0.7, "color": Color(0.95, 0.3, 0.2), "goo": Color(0.95, 0.3, 0.2, 0.8),
+		"loot": [["slime_gel", 0.4]]},
+	"goblin": {"name": "Goblin Batedor", "model": "goblin", "hp": 80, "damage": 14, "speed": 4.2, "xp": 42,
+		"gold": [4, 11], "aggro": 15.0, "reach": 1.8, "cooldown": 1.3, "radius": 0.4, "height": 1.35,
+		"scale": 1.0, "color": Color(0.7, 0.1, 0.05),
+		"loot": [["goblin_ear", 0.7], ["health_potion", 0.18], ["mana_potion", 0.15], ["iron_sword", 0.05], ["leather_armor", 0.05]]},
+	"goblin_king": {"name": "Rei Goblin", "model": "goblin", "hp": 900, "damage": 26, "speed": 3.6, "xp": 450,
+		"gold": [90, 130], "aggro": 20.0, "reach": 3.2, "cooldown": 1.5, "radius": 0.95, "height": 2.9,
+		"scale": 2.2, "color": Color(0.7, 0.1, 0.05), "boss": true,
+		"loot": [["goblin_crown", 1.0], ["goblin_cleaver", 1.0], ["health_potion", 1.0]]},
+}
+
+@export var kind := "slime"
+## Desafio da Horda: persegue sempre o jogador, não volta para casa e não dá XP/loot do RPG.
+var horde := false
+var hp_mult := 1.0
+var dmg_mult := 1.0
+
+var data: Dictionary
+var display_name := ""
+var max_hp := 1.0
+var hp := 1.0
+var radius := 0.5
+var dead := false
+var is_boss := false
+var state := "idle"
+var state_timer := 0.0
+var attack_cd := 0.0
+var attack_timer := 0.0
+var attack_kind := "swing"
+var attack_count := 0
+var hit_done := false
+var slow_timer := 0.0
+var stagger := 0.0
+var home := Vector3.ZERO
+var wander_target := Vector3.ZERO
+var enraged := false
+var summoned := false
+var model: Node3D
+var parts := {}
+var meshes: Array[MeshInstance3D] = []
+var anim_t := 0.0
+var bar_root: Node3D
+var bar_fg: MeshInstance3D
+var _overlay_hit: StandardMaterial3D
+var _overlay_slow: StandardMaterial3D
+var _flash_t := 0.0
+
+
+func _ready() -> void:
+	data = TYPES[kind]
+	display_name = data.name
+	max_hp = data.hp * hp_mult
+	hp = max_hp
+	radius = data.radius
+	is_boss = data.get("boss", false)
+	add_to_group("enemies")
+	collision_layer = 4
+	collision_mask = 1 | 2 | 4
+	var col := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = radius
+	cap.height = max(data.height, radius * 2.0)
+	col.shape = cap
+	col.position.y = cap.height / 2.0
+	add_child(col)
+
+	model = MODELS[data.model].instantiate()
+	model.scale = Vector3.ONE * data.scale
+	add_child(model)
+	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head"]:
+		parts[n] = model.find_child(n, true, false)
+	var crown := model.find_child("Crown", true, false)
+	if crown:
+		crown.visible = is_boss
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		meshes.append(mi)
+	if data.model == "slime":
+		var body_mesh := model.find_child("BodyMesh", true, false) as MeshInstance3D
+		var base := model.find_child("Base", true, false) as MeshInstance3D
+		var goo := StandardMaterial3D.new()
+		goo.albedo_color = data.get("goo", Color(0.25, 0.85, 0.3, 0.78))
+		goo.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		goo.roughness = 0.1
+		goo.rim_enabled = true
+		goo.rim = 0.6
+		for m in [body_mesh, base]:
+			if m:
+				m.material_override = goo
+	if is_boss:
+		var aura := OmniLight3D.new()
+		aura.light_color = Color(1, 0.3, 0.1)
+		aura.light_energy = 1.5
+		aura.omni_range = 6.0
+		aura.position.y = 2.0
+		add_child(aura)
+
+	_overlay_hit = StandardMaterial3D.new()
+	_overlay_hit.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_overlay_hit.albedo_color = Color(1, 1, 1, 0.7)
+	_overlay_hit.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_overlay_slow = StandardMaterial3D.new()
+	_overlay_slow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_overlay_slow.albedo_color = Color(0.4, 0.75, 1.0, 0.35)
+	_overlay_slow.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+
+	if not is_boss:
+		_make_health_bar()
+	home = global_position
+	wander_target = home
+	state_timer = randf_range(1.0, 3.0)
+	model.rotation.y = randf() * TAU
+	if horde:
+		state = "chase"
+
+
+func _make_health_bar() -> void:
+	bar_root = Node3D.new()
+	bar_root.position.y = data.height * data.scale + 0.45
+	add_child(bar_root)
+	var bg := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(1.0, 0.12)
+	bg.mesh = q
+	bg.material_override = _bar_mat(Color(0, 0, 0, 0.7), 0)
+	bar_root.add_child(bg)
+	bar_fg = MeshInstance3D.new()
+	var q2 := QuadMesh.new()
+	q2.size = Vector2(0.96, 0.08)
+	bar_fg.mesh = q2
+	bar_fg.material_override = _bar_mat(Color(0.85, 0.15, 0.1), 1)
+	bar_root.add_child(bar_fg)
+	bar_root.visible = false
+
+
+func _bar_mat(c: Color, priority: int) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = c
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	m.billboard_keep_scale = true
+	m.no_depth_test = true
+	m.render_priority = priority
+	return m
+
+
+func _physics_process(delta: float) -> void:
+	if not is_on_floor():
+		velocity.y -= 20.0 * delta
+	if dead:
+		velocity.x = 0
+		velocity.z = 0
+		move_and_slide()
+		return
+	attack_cd = max(0.0, attack_cd - delta)
+	slow_timer = max(0.0, slow_timer - delta)
+	stagger = max(0.0, stagger - delta)
+	_update_flash(delta)
+
+	var player := get_tree().get_first_node_in_group("player") as Player
+	var to_player := Vector3.ZERO
+	var dist := INF
+	if player and not player.dead:
+		to_player = player.global_position - global_position
+		to_player.y = 0
+		dist = to_player.length()
+
+	var spd: float = data.speed * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0)
+	var move := Vector3.ZERO
+	var face := Vector3.ZERO
+
+	match state:
+		"idle":
+			state_timer -= delta
+			if dist < data.aggro or (horde and dist < INF):
+				_set_state("chase")
+			elif state_timer <= 0:
+				wander_target = home + Vector3(randf_range(-6, 6), 0, randf_range(-6, 6))
+				_set_state("wander")
+		"wander":
+			var to := wander_target - global_position
+			to.y = 0
+			if dist < data.aggro:
+				_set_state("chase")
+			elif to.length() < 0.6 or state_timer > 6.0:
+				state_timer = randf_range(2.0, 4.5)
+				state = "idle"
+			else:
+				move = to.normalized() * spd * 0.4
+				state_timer += delta
+		"chase":
+			if horde:
+				if dist == INF:
+					_set_state("idle")
+				elif dist <= data.reach and attack_cd <= 0:
+					_begin_attack()
+				elif dist > data.reach * 0.8:
+					move = to_player.normalized() * spd
+			elif dist > data.aggro * 1.9 or global_position.distance_to(home) > 45.0:
+				_set_state("return")
+			elif dist <= data.reach and attack_cd <= 0:
+				_begin_attack()
+			elif dist > data.reach * 0.8:
+				move = to_player.normalized() * spd
+			face = to_player
+		"return":
+			var to := home - global_position
+			to.y = 0
+			if dist < data.aggro * 0.7:
+				_set_state("chase")
+			elif to.length() < 1.0:
+				hp = max_hp
+				health_changed.emit(self)
+				_set_state("idle")
+			else:
+				move = to.normalized() * spd
+		"attack":
+			_update_attack(delta, player, to_player, dist)
+			if attack_kind == "lunge" and attack_timer > 0.35 and attack_timer < 0.6:
+				move = model_forward() * spd * 3.2
+			elif dist < INF and attack_timer < 0.35:
+				face = to_player
+
+	if stagger > 0:
+		move = Vector3.ZERO
+	if face == Vector3.ZERO and move.length() > 0.1:
+		face = move
+	if face.length() > 0.01:
+		model.rotation.y = lerp_angle(model.rotation.y, atan2(face.x, face.z), 8.0 * delta)
+
+	var accel := 30.0
+	velocity.x = move_toward(velocity.x, move.x, accel * delta)
+	velocity.z = move_toward(velocity.z, move.z, accel * delta)
+	move_and_slide()
+	_animate(delta, Vector2(velocity.x, velocity.z).length())
+	if bar_root and bar_root.visible:
+		bar_fg.scale.x = max(0.001, hp / max_hp)
+		bar_fg.position.x = 0.0
+
+
+func model_forward() -> Vector3:
+	return Vector3(sin(model.rotation.y), 0, cos(model.rotation.y))
+
+
+func _set_state(s: String) -> void:
+	state = s
+	state_timer = 0.0
+	if s == "chase" and bar_root and not horde:
+		bar_root.visible = true
+
+
+# ------------------------------------------------------------ ataques
+func _begin_attack() -> void:
+	state = "attack"
+	attack_timer = 0.0
+	hit_done = false
+	attack_count += 1
+	if data.model == "slime":
+		attack_kind = "lunge"
+		velocity.y = 4.5
+	elif is_boss and attack_count % 3 == 0:
+		attack_kind = "slam"
+		FX.telegraph(global_position, 5.0, 0.9)
+	else:
+		attack_kind = "swing"
+
+
+func _attack_duration() -> float:
+	match attack_kind:
+		"slam":
+			return 1.6
+		"lunge":
+			return 1.0
+	return 0.95 if not is_boss else 1.1
+
+
+func _hit_time() -> float:
+	match attack_kind:
+		"slam":
+			return 0.9
+		"lunge":
+			return 0.45
+	return 0.5 if not is_boss else 0.6
+
+
+func _update_attack(delta: float, player: Player, to_player: Vector3, dist: float) -> void:
+	attack_timer += delta
+	if not hit_done and attack_timer >= _hit_time():
+		hit_done = true
+		if attack_kind == "slam":
+			Sfx.play("slam", 0.0)
+			FX.ring(global_position, Color(0.8, 0.6, 0.3, 0.9), 5.0, 0.4)
+			FX.burst(global_position + Vector3.UP * 0.3, Color(0.5, 0.4, 0.3), 40, 7.0, 0.2, 0.8)
+			if player and dist <= 5.0:
+				player.take_damage(data.damage * dmg_mult * 1.4, global_position)
+			if player:
+				player.add_shake(0.4)
+		elif player and dist <= data.reach * 1.3 + 0.3:
+			var facing_ok := model_forward().dot(to_player.normalized()) > 0.2 or dist < 1.0
+			if facing_ok:
+				player.take_damage(data.damage * dmg_mult * randf_range(0.9, 1.1), global_position)
+		if attack_kind == "swing":
+			Sfx.play("swing", 0.15, -4.0)
+	if attack_timer >= _attack_duration():
+		attack_cd = data.cooldown * (0.7 if enraged else 1.0) * randf_range(0.8, 1.2)
+		_set_state("chase")
+
+
+# ------------------------------------------------------------ dano
+func take_damage(amount: float, from_pos: Vector3, crit: bool) -> void:
+	if dead:
+		return
+	hp -= amount
+	health_changed.emit(self)
+	var top: Vector3 = global_position + Vector3.UP * (data.height * data.scale + 0.2)
+	FX.damage_number(top, ("%d!" if crit else "%d") % int(round(amount)),
+		Color(1, 0.85, 0.2) if crit else Color.WHITE, 64 if crit else 48)
+	FX.burst(global_position + Vector3.UP * data.height * data.scale * 0.5, data.color, 5 if horde else 10, 3.5, 0.1, 0.5)
+	_flash_t = 0.1
+	if state in ["idle", "wander", "return"]:
+		_set_state("chase")
+	if bar_root:
+		bar_root.visible = true
+	if not is_boss:
+		var kb := global_position - from_pos
+		kb.y = 0
+		if kb.length() > 0.01:
+			kb = kb.normalized() * (6.0 if data.model == "slime" else 4.0)
+			velocity.x = kb.x
+			velocity.z = kb.z
+		if state != "attack" or crit:
+			stagger = 0.3
+			if state == "attack":
+				_set_state("chase")
+	if is_boss and not enraged and hp < max_hp * 0.5:
+		enraged = true
+		Game.notify.emit("O Rei Goblin está enfurecido!", Color(1, 0.4, 0.3))
+		if not summoned:
+			summoned = true
+			get_parent().call_deferred("summon_minions", global_position, 2)
+	if hp <= 0:
+		_die()
+
+
+func apply_slow(t: float) -> void:
+	slow_timer = max(slow_timer, t)
+
+
+func _update_flash(delta: float) -> void:
+	_flash_t = max(0.0, _flash_t - delta)
+	var over: Material = null
+	if _flash_t > 0:
+		over = _overlay_hit
+	elif slow_timer > 0:
+		over = _overlay_slow
+	for m in meshes:
+		if m.material_overlay != over:
+			m.material_overlay = over
+
+
+func _die() -> void:
+	dead = true
+	state = "dead"
+	remove_from_group("enemies")
+	collision_layer = 0
+	collision_mask = 1
+	for m in meshes:
+		m.material_overlay = null
+	if bar_root:
+		bar_root.visible = false
+	Sfx.play("bloop" if data.model == "slime" else "hit", 0.1, -4.0 if horde else 0.0)
+	FX.burst(global_position + Vector3.UP * 0.6 * data.scale, data.color, 30 if not is_boss else 120, 5.0, 0.14, 0.9)
+	if not horde:
+		Game.on_enemy_killed(kind, data.xp)
+		if is_boss:
+			Game.flags["king_dead"] = true
+		_drop_loot()
+	died.emit(self)
+	var tw := create_tween()
+	if data.model == "slime":
+		tw.tween_property(model, "scale", Vector3(1.6, 0.05, 1.6) * data.scale, 0.35).set_ease(Tween.EASE_IN)
+	else:
+		tw.tween_property(model, "rotation:x", -PI / 2, 0.5).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+		tw.tween_interval(0.8)
+		tw.tween_property(model, "position:y", -1.5 * data.scale, 1.0)
+	tw.tween_callback(queue_free)
+
+
+func _drop_loot() -> void:
+	var parent := get_parent()
+	var g: Array = data.gold
+	_spawn_pickup(parent, "", randi_range(g[0], g[1]))
+	for entry in data.loot:
+		if randf() < entry[1]:
+			_spawn_pickup(parent, entry[0], 1)
+
+
+func _spawn_pickup(parent: Node, id: String, qty: int) -> void:
+	var p := PICKUP.new()
+	p.item_id = id
+	p.amount = qty
+	parent.add_child(p)
+	p.global_position = global_position + Vector3.UP * 0.8
+
+
+# ------------------------------------------------------------ animação procedural
+func _animate(delta: float, hspeed: float) -> void:
+	anim_t += delta * (3.0 + hspeed * 2.0)
+	var s := sin(anim_t)
+	var k := 1.0 - exp(-12.0 * delta)
+	if data.model == "slime":
+		var body: Node3D = parts.Body
+		var sq := 1.0 + s * 0.12
+		var target := Vector3(1.0 / sqrt(sq), sq, 1.0 / sqrt(sq))
+		if state == "attack":
+			var t := attack_timer
+			if t < 0.3:
+				target = Vector3(1.3, 0.6, 1.3)
+			elif t < 0.6:
+				target = Vector3(0.8, 1.4, 0.8)
+		body.scale = body.scale.lerp(target, k)
+		return
+	var amp: float = clamp(hspeed / 4.0, 0.0, 1.0) * 0.8
+	parts.LegL.rotation.x = lerp(parts.LegL.rotation.x, s * amp, k)
+	parts.LegR.rotation.x = lerp(parts.LegR.rotation.x, -s * amp, k)
+	parts.ArmL.rotation.x = lerp(parts.ArmL.rotation.x, -s * amp * 0.6, k)
+	var arm := Vector3(s * amp * 0.5, 0, 0)
+	var body_x := 0.0
+	if state == "attack":
+		var ht := _hit_time()
+		var t := attack_timer
+		if attack_kind == "slam":
+			if t < ht:
+				arm = Vector3(-3.0, 0, 0)
+				body_x = -0.3
+				parts.ArmL.rotation.x = -3.0
+			else:
+				arm = Vector3(0.3, 0, 0)
+				body_x = 0.4
+				parts.ArmL.rotation.x = 0.3
+		else:
+			if t < ht:
+				arm = Vector3(-2.7, 0, -0.3)
+				body_x = -0.2
+			elif t < ht + 0.25:
+				arm = Vector3(0.6, 0, 0.2)
+				body_x = 0.3
+	var kk := k if not (state == "attack" and attack_timer >= _hit_time() and attack_timer < _hit_time() + 0.12) else 1.0 - exp(-40.0 * delta)
+	parts.ArmR.rotation = parts.ArmR.rotation.lerp(arm, kk)
+	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x, k)
