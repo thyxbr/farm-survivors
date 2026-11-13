@@ -1,11 +1,11 @@
 ---
 name: modelar
-description: "Workflow completo para criar ou refazer um modelo 3D do Ecos de Valdoria no Blender com as melhores práticas do projeto: worktree própria, brief curto, build filtrado, renders small, comparação com o guia de estilo, smoke test e PR. Inclui o modo arma (arma/prop traçado de uma folha de conceito, com a pintura da folha como textura, conferido no Godot). Só roda quando o usuário chama /modelar."
+description: "Workflow completo para criar ou refazer um modelo 3D do Ecos de Valdoria no Blender com as melhores práticas do projeto: worktree própria, brief curto, build filtrado, comparação com a referência a cada rodada, conferência no Godot, smoke test e PR. Inclui o modo arma (arma/prop traçado de uma folha de conceito, com a pintura da folha como textura, conferido no Godot). Só roda quando o usuário chama /modelar."
 argument-hint: "<asset> [fase 1|2|3|4 | ajuste | arma] [o que mudar]"
 disable-model-invocation: true
 license: MIT
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # /modelar
@@ -31,6 +31,12 @@ pedido for ambíguo (asset desconhecido, fase impossível) ou exigir quebrar alg
   - Sem modo: asset `w_<id>` (arma) → `arma`; personagem que ainda é pilha de primitivas → `fase 1`;
     o resto → `ajuste`.
 - **o que mudar**: o texto restante. Junte com os problemas que você mesmo vê no baseline.
+- **Um asset por execução.** Pedido com vários (ex.: "as 15 espadas") → faça um de cada vez até o fim
+  do loop, cada um com a sua referência aberta; uma leva inteira de uma vez dilui a atenção e foi o
+  que deixou as espadas longe da folha.
+
+**Qualidade antes de economia.** O que decide o resultado é olhar: a referência e o último render, lado a
+lado, em toda rodada. Economize só no que não é imagem (logs, arquivos inteiros; ver "Regras de contexto").
 
 **Modelo**: fases 1–3, `arma` e assets novos dependem de julgamento visual. Se estiver rodando em
 Sonnet ou Haiku, diga em uma linha que Opus é o recomendado para isso e continue. `ajuste` vai bem em Sonnet.
@@ -48,8 +54,10 @@ relativo à própria pasta. Rode `--import` do Godot na worktree antes do smoke 
 ## 2. Contexto mínimo
 
 1. `.claude/skills/references/godot-3d-pipeline.md` (comandos, convenções, orçamentos).
-2. Personagens: `tools/blender/STYLE.md`, só as seções da fase. **Não abra as imagens de
-   `refs/` agora.**
+2. Personagens: `tools/blender/STYLE.md`, só as seções da fase. Abra já a referência relevante em
+   `C:/Games/godot-3d/tools/blender/refs/` (é local, fora do git: a worktree nova não tem) e, se a
+   imagem tem vários personagens, recorte a parte em foco com PIL para o scratchpad — é esse recorte que
+   você compara em toda rodada.
 3. Ache a função do asset com `grep -n "^def build_<asset>\|^def " tools/blender/*.py` e leia só
    esse trecho e os helpers que ela usa. Nunca leia `characters.py` inteiro.
 4. `grep -rn` dos nomes de peças e pivôs do asset em `scripts/` (são API).
@@ -68,12 +76,12 @@ relativo à própria pasta. Rode `--import` do Godot na worktree antes do smoke 
 
 Siga em frente sem esperar resposta.
 
-## 4. Baseline (uma vez)
+## 4. Baseline
 
-Se o GLB já existe: render `small` normal → `<scratchpad>/<asset>_antes.png`, leia uma vez e
-anote os problemas. Guarde o arquivo para o antes/depois; não leia de novo.
+Se o GLB já existe: render normal em tamanho cheio → `<scratchpad>/<asset>_antes.png`; leia ao lado da
+referência e anote os problemas contra ela. Guarde o arquivo para o antes/depois.
 
-## 5. Loop de iteração (máx. 3 rodadas; 4 nas fases 1–3)
+## 5. Loop de iteração (até o checklist passar)
 
 Cada rodada:
 1. Edite a função do asset (e helpers novos, ex.: gerador de corpo-base reutilizável na fase 1).
@@ -83,20 +91,33 @@ Cada rodada:
    ASSETS=<asset> "$B" --background --factory-startup --python tools/blender/build_assets.py > <scratchpad>/build.log 2>&1
    grep -E "^EXPORT|Error|Traceback" <scratchpad>/build.log   # sem EXPORT? tail -n 40 no log
    ```
-3. Render `small` (+ `silhouette small` quando a fase é de forma) e leia **uma** imagem por vez.
-4. Lista de falhas contra o checklist do STYLE.md / da fase; corrija **todas** na próxima rodada.
+3. Render do que a rodada mexeu: `small` + `silhouette small` só para forma e proporção (fase 1);
+   cor, sombreado e detalhe em tamanho cheio ou `preview_closeup.py` (o `small` esconde exatamente isso).
+4. Leia o render **e o recorte da referência** na mesma rodada e compare peça por peça (silhueta,
+   proporção, cores, sombras pintadas, detalhes). Releia a referência sempre que precisar.
+5. Lista de falhas contra a referência e o checklist do STYLE.md / da fase; corrija **todas** na próxima
+   rodada.
 
-Pare antes do limite quando o checklist da fase passar. Se no limite ainda não convergiu, pare,
-mostre a última imagem ao usuário e pergunte o que priorizar.
+Não há limite fixo de rodadas: pare quando o checklist passar e o render bater com a referência. Se duas
+rodadas seguidas não melhorarem nada, pare, mostre o render e a referência ao usuário e pergunte o que
+priorizar.
 
 ## 6. Conferência final
 
 1. Render em tamanho cheio (sem `small`), normal e `silhouette`; `preview_closeup.py` nas fases 2–3.
-2. Agora, e só agora, abra **uma** imagem de referência relevante em
-   `C:/Games/godot-3d/tools/blender/refs/` e compare com o checklist do STYLE.md (seção 8).
-   Corrija o que for grave (no máximo uma rodada extra).
+   Compare com a referência e com o checklist do STYLE.md (seção 8); o que for grave volta para o loop.
+2. **Foto no Godot** — o importador e a luz do jogo mudam cor e brilho, e só aqui aparecem problemas
+   como material branco ou gume cinza:
+   ```bash
+   G="C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe"
+   "$G" --headless --path . --import > <scratchpad>/import.log 2>&1
+   "$G" --path . --resolution 900x900 --script res://tools/weapon_shot.gd -- <asset> <scratchpad>/<asset>_godot.png > <scratchpad>/shot.log 2>&1
+   ```
+   (`weapon_shot.gd` serve para qualquer `assets/models/<asset>.glb`: céu, sol e tonemap do `world.gd`,
+   câmera de frente; `3q` gira 35°; precisa de janela, sem `--headless`.) Peças tingidas por código
+   (equipamento do cavaleiro) saem com a cor do GLB: confira só forma e material aí.
 3. `TRIS` e nº de materiais dentro do orçamento; nomes de `scripts/` ainda batem.
-4. Mostre ao usuário o antes e o depois (envie as imagens se houver ferramenta para isso).
+4. Mostre ao usuário o antes e o depois, com a referência ao lado (envie as imagens se houver ferramenta).
 5. Rode a skill `smoke-check` no modo `rapido` dentro da worktree.
 
 ## 7. Entregar
@@ -115,8 +136,8 @@ A meta é **a folha**, não uma reinterpretação: o contorno sai traçado da fo
 placas infladas, cabo e pomo viram sólidos de revolução, e a pintura da folha entra como textura projetada
 de frente (degradês, sombras e frisos chegam ao jogo como desenhados). Modelar à mão com cor chapada,
 losango low-poly e conferir em Workbench deixou as 15 espadas longe da folha; não volte a isso.
-Substitui os passos 2–6. Aqui as regras de referência dos personagens **não** valem: a referência
-(o recorte da arma) é aberta em toda rodada, uma arma por vez.
+Substitui os passos 2–6. A referência é o recorte da arma (não a folha inteira), aberto em toda rodada,
+uma arma por vez.
 
 Arquivos: `tools/blender/trace_swords.py` (traçado, config `SWORDS`), `tools/blender/weapons.py`
 (`build_traced`, `slab`, `lathe`, `tex_mat`; Chama Rosada à mão em `build_w_rose_flame`),
@@ -212,10 +233,12 @@ grep -E "^SHOT|^SURF|ERROR" <scratchpad>/shot.log
 Foto do Godot de frente e `3q` ao lado do recorte; mostre ao usuário o antes/depois (envie as imagens se
 houver ferramenta). `TRIS`/materiais no orçamento. `smoke-check` no modo `rapido` na worktree. Depois, passo 7.
 
-## Regras de economia
+## Regras de contexto
+
+Servem para sobrar contexto para as imagens, nunca para ver menos delas.
 
 - Saída do Blender e do Godot sempre em log + `grep`; nunca a saída inteira no contexto.
-- Nunca leia a mesma imagem duas vezes nem releia arquivo já lido; localize com `grep -n`.
-- Junte todas as correções de uma rodada; nada de rodada para um detalhe só.
-- Imagens de referência dos personagens: no máximo uma leitura por sessão, na conferência final.
-  No modo `arma` a referência (o recorte da arma, não a folha inteira) é lida a cada rodada, uma arma por vez.
+- Código: localize com `grep -n` e leia só o trecho; não releia um arquivo inteiro já lido.
+- Junte todas as correções de uma rodada num build só; nada de rodada para um detalhe só.
+- Imagens: a referência e o render atual são lidos em toda rodada, quantas vezes for preciso. Não
+  acumule renders antigos: compare o atual com a referência (e com o baseline só no antes/depois).

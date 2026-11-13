@@ -27,7 +27,7 @@ Quando algo aqui contradiz uma skill genérica, **este arquivo vence**.
 | `tools/blender/trace_swords.py` | traça a folha `refs/espadas.webp`: config `SWORDS` (caixa, cabo e cortes `slab`/`lathe` em pixels da folha); sem argumento grava `traced/`; `comps` lista as manchas da folha; `grid <id> <png>` recorta a arma 3× com grade de 10 px para decidir os cortes |
 | `tools/blender/traced/` | **versionado**: `espadas_trace.json` (contornos e perfis) e `tex/<id>.png` (recorte com o fundo preenchido). O build só lê daqui; `refs/` é local (`.gitignore`) |
 | `tools/blender/preview_weapon_eevee.py` | uma arma em Eevee, de frente ou `3q`; imprime `TRIS <id> <tris> <materiais>` |
-| `tools/weapon_shot.gd` | foto de uma arma no Godot com a luz do jogo; precisa de `--import` antes e de janela (sem `--headless`) |
+| `tools/weapon_shot.gd` | foto de qualquer modelo (`assets/models/<id>.glb`) no Godot com a luz do jogo (`WorldLighting`, a mesma do `world.gd`); precisa de `--import` antes e de janela (sem `--headless`) |
 | `scripts/player/weapon_model.gd` | `WeaponModel.use_vertex_color()`: liga a cor por vértice como albedo ao instanciar um GLB de arma |
 
 Alvo visual dos personagens: `tools/blender/STYLE.md`; das armas, a folha de conceito. Workflow completo de
@@ -49,7 +49,7 @@ grep -E "^EXPORT|Error|Traceback" <scratchpad>/build.log
 # faltou um EXPORT ou apareceu erro? aí sim: tail -n 40 <scratchpad>/build.log
 # (num crash nativo não há Traceback; a última linha PART diz em que peça travou)
 
-# conferir visualmente (Read no PNG depois). Durante as iterações use "small":
+# conferir visualmente (Read no PNG depois, ao lado da referência). "small" só para forma/proporção:
 "$B" -b --factory-startup --python tools/blender/preview_single.py -- knight <scratchpad>/knight.png small 2>&1 | grep -E "^TRIS|Error"
 "$B" -b --factory-startup --python tools/blender/preview_single.py -- knight <scratchpad>/knight_sil.png silhouette small 2>&1 | grep -E "^TRIS|Error"
 ```
@@ -58,11 +58,13 @@ grep -E "^EXPORT|Error|Traceback" <scratchpad>/build.log
 
 | Render | Para quê |
 |---|---|
-| `preview_single.py ... small` (900×573) | iterações de silhueta, proporção, pose e cores — padrão enquanto ajusta |
-| `preview_single.py ...` sem `small` (1650×1050) | conferência final do asset, uma vez |
+| `preview_single.py ... small` (900×573) | iterações de silhueta, proporção e pose |
+| `preview_single.py ...` sem `small` (1650×1050) | cor, sombreado e detalhe — em toda rodada que mexe nisso, e na conferência final |
 | `preview_closeup.py` | detalhes pequenos (rosto, visor, mãos, fivelas) — mais nítido que o render cheio. Zoom: `-- knight out.png 1.78 1.1` (elmo); `-- knight out.png 0.86 0.45 -0.3 "90,135,180"` (mão direita: centra em x, esconde o que está longe e gira as três cópias) |
 
-Leia uma imagem por vez e só depois de mudar algo relevante; junte vários ajustes numa rodada.
+Em toda rodada leia o render novo **e** a referência (recorte da parte em foco), e compare lado a lado;
+reler a referência é parte do trabalho. Junte vários ajustes numa rodada. A conferência final inclui a
+foto no Godot (`tools/weapon_shot.gd`, qualquer `assets/models/<id>.glb`, com a luz do jogo).
 
 **Não** rode `build_assets.py` pelo Blender MCP: exportar glTF de uma cena não ativa derrubou o Blender
 (EXCEPTION_ACCESS_VIOLATION). O MCP (`mcp__Blender__*`, servidor oficial do Blender — não o
