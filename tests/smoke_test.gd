@@ -99,7 +99,7 @@ func _ready() -> void:
 	# --- magia
 	var mp0 := Game.mp
 	player.cast("fireball")
-	await wait(0.05)
+	await wait(0.3)   # a bola de fogo sai depois do movimento de apontar
 	check(Game.mp < mp0, "bola de fogo gasta mana")
 	var found_fb := false
 	for c in world.get_children():
