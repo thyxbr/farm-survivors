@@ -344,34 +344,6 @@ def build_house():
 
 
 
-def build_ruin_pillar():
-    part("PBase", "cube", (0, 0, 0.2), (1.1, 1.1, 0.4), stone_dark)
-    part("Column", "cyl", (0, 0, 1.8), (0.75, 0.75, 2.8), stone, seg=8)
-    part("Broken", "cube", (0.05, 0, 3.3), (0.8, 0.8, 0.35), stone, rot=(0.25, 0.15, 0.4))
-    part("PMoss", "ico", (0.3, -0.3, 0.45), (0.5, 0.4, 0.2), moss, jitter=0.03)
-    export("ruin_pillar")
-
-
-def build_ruin_wall():
-    rnd = random.Random(21)
-    i = 0
-    for row in range(3):
-        n = 4 - row
-        for k in range(n):
-            x = -1.6 + k * 1.05 + row * 0.4 + rnd.uniform(-0.05, 0.05)
-            part("Block%d" % i, "cube", (x, 0, 0.35 + row * 0.68), (1.0, 0.8, 0.66), stone if (i % 3) else stone_dark,
-                 rot=(0, 0, rnd.uniform(-0.05, 0.05)))
-            i += 1
-    part("WMoss", "ico", (-1.2, -0.35, 0.3), (0.9, 0.3, 0.35), moss, jitter=0.04)
-    export("ruin_wall")
-
-
-
-
-
-
-
-
 exec(open(OUT.replace("assets/models/", "tools/blender/characters.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/props.py"), encoding="utf-8").read(), globals())
 
@@ -381,7 +353,7 @@ _only = [a for a in os.environ.get("ASSETS", "").split(",") if a]
 BUILDERS = {
     "knight": build_knight, "goblin": build_goblin, "slime": build_slime, "elder": build_elder,
     "merchant": build_merchant, "tree_pine": build_tree_pine, "tree_oak": build_tree_oak,
-    "house": build_house, "ruin_pillar": build_ruin_pillar, "ruin_wall": build_ruin_wall,
+    "house": build_house,
 }
 BUILDERS.update(PROP_BUILDERS)
 clear()

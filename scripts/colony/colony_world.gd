@@ -496,7 +496,7 @@ func _build_ground() -> void:
 	add_child(ground)
 	ground.setup(MAP_HALF)
 	# clareira central (onde vai a prefeitura)
-	ground.add_disc(Vector3.ZERO, ColonyData.HALL_ZONE, Color(0.4, 0.46, 0.22), 1.6)
+	ground.add_disc(Vector3.ZERO, ColonyData.HALL_ZONE, Color(0.5, 0.5, 0.28), 1.6, 0.85)
 
 
 func _prop(model: String, pos: Vector3, yaw: float, s: float, radius: float) -> void:

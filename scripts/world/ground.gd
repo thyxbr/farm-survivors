@@ -13,6 +13,7 @@ const FLOWER_COLORS := [Color(0.95, 0.95, 0.9), Color(1.0, 0.85, 0.25), Color(0.
 var half := 125.0
 var _shapes := PackedVector4Array()
 var _cols := PackedVector4Array()
+var _mix := PackedFloat32Array()
 var _mat: ShaderMaterial
 var _noise_tex: NoiseTexture2D
 
@@ -51,21 +52,24 @@ func setup(map_half: float) -> void:
 
 
 ## Trilha/área retangular (alinhada aos eixos). soft = largura da borda irregular em metros.
-func add_rect(center: Vector3, size: Vector2, c: Color, soft := 0.7) -> void:
-	_add(Vector4(center.x, center.z, size.x / 2.0, size.y / 2.0), c, soft)
+## grass = 0 pinta terra/pedra lisa; > 0 deixa a grama aparecer por baixo (grama baixa, pisada),
+## manchada com a cor da forma, e nasce capim baixo e ralo dentro (densidade ~ grass).
+func add_rect(center: Vector3, size: Vector2, c: Color, soft := 0.7, grass := 0.0) -> void:
+	_add(Vector4(center.x, center.z, size.x / 2.0, size.y / 2.0), c, soft, grass)
 
 
-func add_disc(center: Vector3, r: float, c: Color, soft := 0.7) -> void:
-	_add(Vector4(center.x, center.z, r, -1.0), c, soft)
+func add_disc(center: Vector3, r: float, c: Color, soft := 0.7, grass := 0.0) -> void:
+	_add(Vector4(center.x, center.z, r, -1.0), c, soft, grass)
 
 
-func _add(s: Vector4, c: Color, soft: float) -> void:
+func _add(s: Vector4, c: Color, soft: float, grass: float) -> void:
 	if _shapes.size() >= MAX_SHAPES:
 		push_warning("ground: limite de %d formas" % MAX_SHAPES)
 		return
 	var lc := c.srgb_to_linear()
 	_shapes.append(s)
 	_cols.append(Vector4(lc.r, lc.g, lc.b, soft))
+	_mix.append(clampf(grass, 0.0, 1.0))
 	_push()
 
 
@@ -74,10 +78,13 @@ func _push() -> void:
 		return
 	var s := _shapes.duplicate()
 	var c := _cols.duplicate()
+	var m := _mix.duplicate()
 	s.resize(MAX_SHAPES)
 	c.resize(MAX_SHAPES)
+	m.resize(MAX_SHAPES)
 	_mat.set_shader_parameter("shapes", s)
 	_mat.set_shader_parameter("shape_cols", c)
+	_mat.set_shader_parameter("shape_grass", m)
 	_mat.set_shader_parameter("shape_count", _shapes.size())
 
 
@@ -116,11 +123,16 @@ func scatter_grass(seed_value: int, density := 0.55, keep_out: Array = [], spars
 			var z0 := -half + cz * CHUNK
 			var box := Rect2(x0, z0, CHUNK, CHUNK)
 			# só o que encosta neste bloco entra nos testes (o mapa tem centenas de props)
-			var shapes := []
-			for s in _shapes:
+			var shapes := []   # formas lisas: sem capim
+			var grassy := []   # formas com grama baixa: capim ralo e curto
+			for k in _shapes.size():
+				var s := _shapes[k]
 				var r := Rect2(s.x - s.z, s.y - (s.z if s.w < 0.0 else s.w), s.z * 2.0, (s.z if s.w < 0.0 else s.w) * 2.0)
 				if box.grow(1.0).intersects(r):
-					shapes.append(s)
+					if _mix[k] > 0.0:
+						grassy.append([s, _mix[k]])
+					else:
+						shapes.append(s)
 			var outs := _near(keep_out, box)
 			var few := _near(sparse, box)
 			var tufts: Array[Transform3D] = []
@@ -137,6 +149,11 @@ func scatter_grass(seed_value: int, density := 0.55, keep_out: Array = [], spars
 				if r < 0.75 and _inside(p, few):
 					continue
 				var s := rng.randf_range(0.7, 1.35)
+				var g := _grassy_at(p, grassy)
+				if g >= 0.0:
+					if rng.randf() > g * 0.8:
+						continue
+					s *= 0.5   # pisado: tufos baixos
 				var bas := Basis().rotated(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.8, 1.3), s))
 				if rng.randf() < 0.035:
 					flowers.append(Transform3D(bas, Vector3(p.x, 0.0, p.y)))
@@ -148,6 +165,15 @@ func scatter_grass(seed_value: int, density := 0.55, keep_out: Array = [], spars
 			var center := Vector3(x0 + CHUNK / 2.0, 0, z0 + CHUNK / 2.0)
 			_chunk(tuft, tufts, tints, center, 60.0, true)
 			_chunk(flower, flowers, fcols, center, 45.0, false)
+
+
+## Densidade de capim da forma com grama em p (a maior entre as que cobrem p); -1 = fora de todas.
+static func _grassy_at(p: Vector2, grassy: Array) -> float:
+	var best := -1.0
+	for e in grassy:
+		if _sd(e[0], p) < 0.0:
+			best = maxf(best, e[1])
+	return best
 
 
 static func _near(areas: Array, box: Rect2) -> Array:
