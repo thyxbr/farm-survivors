@@ -119,12 +119,17 @@ func interact(_player: Node) -> void:
 	var rec := "Ainda sem recorde."
 	if not best.is_empty():
 		rec = "Recorde: %d rodadas, %d abates (nível %d)." % [int(best.round), int(best.kills), int(best.get("level", 1))]
+	var text := "Uma fenda pulsa entre os pilares. Do outro lado, hordas sem fim aguardam na Arena.\n" \
+		+ "Mate, colete gemas, suba de nível e escolha bênçãos a cada rodada. Saia quando quiser — ou caia tentando.\n"
+	var enter := "Entrar no desafio"
+	if Network.is_online():
+		text += "Em grupo: os jogadores online recebem um convite e quem aceitar entra na mesma arena. " \
+			+ "Quem cair volta no fim da rodada se alguém do grupo sobreviver.\n"
+		enter = "Entrar no grupo do desafio" if not Network.horde_lobby.is_empty() else "Abrir o desafio (convidar o grupo)"
 	world.open_dialogue("Portal do Desafio", [
-		{"text": "Uma fenda pulsa entre os pilares. Do outro lado, hordas sem fim aguardam na Arena.\n"
-			+ "Mate, colete gemas, suba de nível e escolha bênçãos a cada rodada. Saia quando quiser — ou caia tentando.\n"
-			+ rec,
+		{"text": text + rec,
 		"choices": [
-			{"text": "Entrar no desafio", "action": world.start_survival},
+			{"text": enter, "action": world.start_survival},
 			{"text": "Agora não", "action": Callable()},
 		]},
 	])
