@@ -179,6 +179,7 @@ func _ready() -> void:
 
 	await _test_farm()
 	await _test_survival()
+	await _test_update()
 
 	print("\n==== %s (%d falhas) ====" % ["OK" if fails == 0 else "FALHOU", fails])
 	if FileAccess.file_exists(Game.save_path):
@@ -409,6 +410,33 @@ func _test_survival() -> void:
 	await wait(0.2)
 	check(not player.dead and Game.gold == gold1 and Game.hp == Game.max_hp(), "volta à vila sem perder ouro")
 	check(gold1 >= gold0, "ouro não diminuiu durante o desafio")
+
+
+# ---------------------------------------------------------------- Aviso de atualização durante a partida
+func _test_update() -> void:
+	check(Updater.state == Updater.State.DISABLED, "auto update desligado fora do build exportado")
+	# simula a checagem periódica achando uma versão nova com a partida em andamento
+	Updater.latest_version = "99.0.0"
+	Updater._set_state(Updater.State.AVAILABLE)
+	check(Updater._toast != null and Updater._toast.visible, "aviso de versão nova aparece durante a partida")
+	world._open_modal(_pause_menu())
+	await wait(0.1)
+	var panel: Control = null
+	for n in world.modal.find_children("*", "VBoxContainer", true, false):
+		if n.get_script() == preload("res://scripts/ui/update_panel.gd"):
+			panel = n
+	check(panel != null and panel.is_visible_in_tree(), "menu de pausa oferece Atualizar agora")
+	world.modal._close()
+	await wait(0.1)
+	Updater.latest_version = ""
+	Updater._set_state(Updater.State.DISABLED)
+	check(not Updater._toast.visible, "aviso some quando não há versão nova")
+	# recusa por versão: servidor antigo (deploy em andamento) x jogo desatualizado
+	var r := "Versão diferente do servidor (sua: %s, servidor: %s). Atualize o jogo."
+	check(Network.explain_rejection(r % ["0.5.3", "0.5.2"], "0.5.3").begins_with("O servidor ainda está na v0.5.2"),
+		"jogo mais novo que o servidor: avisa que o servidor está sendo atualizado")
+	check(Network.explain_rejection(r % ["0.5.2", "0.5.3"], "0.5.2") == r % ["0.5.2", "0.5.3"],
+		"jogo mais velho que o servidor: mantém o pedido para atualizar")
 
 
 func _pause_menu() -> Control:
