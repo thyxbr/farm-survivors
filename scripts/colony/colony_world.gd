@@ -20,6 +20,9 @@ const GROUND := preload("res://scripts/world/ground.gd")
 const M := {
 	"tree_pine": preload("res://assets/models/tree_pine.glb"),
 	"tree_oak": preload("res://assets/models/tree_oak.glb"),
+	"tree_fir": preload("res://assets/models/tree_fir.glb"),
+	"tree_birch": preload("res://assets/models/tree_birch.glb"),
+	"tree_maple": preload("res://assets/models/tree_maple.glb"),
 	"rock": preload("res://assets/models/rock.glb"),
 }
 
@@ -495,6 +498,8 @@ func _build_ground() -> void:
 	ground = GROUND.new()
 	add_child(ground)
 	ground.setup(MAP_HALF)
+	ground.border_mountains(55.0)   # serra em volta (fora da borda, só visual)
+	ground.build_terrain()
 	# clareira central (onde vai a prefeitura)
 	ground.add_disc(Vector3.ZERO, ColonyData.HALL_ZONE, Color(0.5, 0.5, 0.28), 1.6, 0.85)
 
@@ -535,8 +540,15 @@ func _scatter_nature() -> void:
 			var p := c + Vector3(rng.randf_range(-9, 9), 0, rng.randf_range(-9, 9))
 			if Vector2(p.x, p.z).length() < CLEARING:
 				continue
-			if rng.randf() < 0.6:
+			var r := rng.randf()
+			if r < 0.4:
 				_prop("tree_pine", p, rng.randf() * TAU, rng.randf_range(0.9, 1.5), 0.35)
+			elif r < 0.55:
+				_prop("tree_fir", p, rng.randf() * TAU, rng.randf_range(0.9, 1.4), 0.32)
+			elif r < 0.68:
+				_prop("tree_birch", p, rng.randf() * TAU, rng.randf_range(0.9, 1.3), 0.25)
+			elif r < 0.78:
+				_prop("tree_maple", p, rng.randf() * TAU, rng.randf_range(0.9, 1.2), 0.4)
 			else:
 				_prop("tree_oak", p, rng.randf() * TAU, rng.randf_range(0.9, 1.3), 0.4)
 	# árvores e pedras soltas
