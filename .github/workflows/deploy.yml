@@ -113,7 +113,7 @@ jobs:
           echo "version=$ver" >> "$GITHUB_OUTPUT"
           if gh release view "v$ver" --json assets -q '.assets[].name' 2>/dev/null | grep -qx latest.json; then
             if git rev-parse -q --verify "refs/tags/v$ver" > /dev/null; then
-              changed=$(git diff --name-only "v$ver" HEAD -- . ':!*.md' ':!docs' ':!.github' ':!tests' ':!tools' ':!.gitignore' ':!.gitattributes' ':!.dockerignore')
+              changed=$(git diff --name-only "v$ver" HEAD -- . ':!*.md' ':!docs' ':!.github' ':!tests' ':!tools' ':!.claude' ':!.gitignore' ':!.gitattributes' ':!.dockerignore')
               if [ -n "$changed" ]; then
                 echo "::error::A release v$ver já foi publicada, mas o código do jogo mudou desde ela. Aumente config/version no project.godot; sem isso o servidor recebe o código novo e os jogadores continuam com o antigo na mesma versão."
                 echo "$changed"
