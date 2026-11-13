@@ -1,0 +1,339 @@
+{
+	"slime": {
+		"name": "Slime",
+		"model": "slime",
+		"hp": 40,
+		"damage": 9,
+		"speed": 2.8,
+		"xp": 18,
+		"gold": [1, 5],
+		"aggro": 11.0,
+		"reach": 1.5,
+		"cooldown": 1.5,
+		"radius": 0.5,
+		"height": 0.8,
+		"scale": 1.0,
+		"color": {
+			"$c": [0.3, 0.9, 0.35, 1.0]
+		},
+		"loot": [
+			["slime_gel", 0.6],
+			["health_potion", 0.08],
+			["mana_potion", 0.06],
+			["seed_tomato", 0.12],
+			["leather_gloves", 0.02],
+			["leather_boots", 0.02],
+			["apprentice_staff", 0.015],
+			["short_bow", 0.015],
+			["life_amulet", 0.01]
+		]
+	},
+	"slime_grande": {
+		"name": "Slime Grande",
+		"model": "slime",
+		"hp": 150,
+		"damage": 16,
+		"speed": 2.3,
+		"xp": 40,
+		"gold": [3, 8],
+		"aggro": 14.0,
+		"reach": 2.2,
+		"cooldown": 1.8,
+		"radius": 0.85,
+		"height": 1.3,
+		"scale": 1.7,
+		"color": {
+			"$c": [0.6, 0.3, 0.9, 1.0]
+		},
+		"goo": {
+			"$c": [0.55, 0.25, 0.85, 0.8]
+		},
+		"bld": 1.5,
+		"loot": [
+			["slime_gel", 0.8]
+		]
+	},
+	"slime_veloz": {
+		"name": "Slime Veloz",
+		"model": "slime",
+		"hp": 24,
+		"damage": 7,
+		"speed": 5.2,
+		"xp": 12,
+		"gold": [1, 3],
+		"aggro": 14.0,
+		"reach": 1.3,
+		"cooldown": 1.2,
+		"radius": 0.36,
+		"height": 0.6,
+		"scale": 0.7,
+		"color": {
+			"$c": [0.95, 0.3, 0.2, 1.0]
+		},
+		"goo": {
+			"$c": [0.95, 0.3, 0.2, 0.8]
+		},
+		"loot": [
+			["slime_gel", 0.4]
+		]
+	},
+	"goblin": {
+		"name": "Goblin Batedor",
+		"model": "goblin",
+		"hp": 80,
+		"damage": 14,
+		"speed": 4.2,
+		"xp": 42,
+		"gold": [4, 11],
+		"aggro": 15.0,
+		"reach": 1.8,
+		"cooldown": 1.3,
+		"radius": 0.4,
+		"height": 1.35,
+		"scale": 1.0,
+		"color": {
+			"$c": [0.7, 0.1, 0.05, 1.0]
+		},
+		"bld": 1.5,
+		"loot": [
+			["goblin_ear", 0.7],
+			["health_potion", 0.18],
+			["mana_potion", 0.15],
+			["iron_sword", 0.05],
+			["leather_armor", 0.05],
+			["seed_pepper", 0.15],
+			["seed_mint", 0.1],
+			["leather_cap", 0.04],
+			["leather_gloves", 0.04],
+			["leather_boots", 0.04],
+			["hunter_bow", 0.03],
+			["oak_staff", 0.03],
+			["wooden_shield", 0.04],
+			["strength_ring", 0.02],
+			["wind_ring", 0.02],
+			["ranger_hood", 0.015],
+			["frost_brand", 0.01],
+			["ember_staff", 0.01],
+			["elven_bow", 0.01]
+		]
+	},
+	"slime_explosivo": {
+		"name": "Slime Explosivo",
+		"model": "slime",
+		"hp": 30,
+		"damage": 24,
+		"speed": 3.7,
+		"xp": 12,
+		"gold": [1, 3],
+		"aggro": 14.0,
+		"reach": 1.9,
+		"cooldown": 1.0,
+		"radius": 0.45,
+		"height": 0.75,
+		"scale": 0.95,
+		"color": {
+			"$c": [1.0, 0.6, 0.1, 1.0]
+		},
+		"goo": {
+			"$c": [1.0, 0.55, 0.08, 0.85]
+		},
+		"ai": "bomber",
+		"blast": 3.2,
+		"loot": []
+	},
+	"slime_mae": {
+		"name": "Slime Mãe",
+		"model": "slime",
+		"hp": 120,
+		"damage": 13,
+		"speed": 2.4,
+		"xp": 30,
+		"gold": [2, 6],
+		"aggro": 14.0,
+		"reach": 2.0,
+		"cooldown": 1.7,
+		"radius": 0.75,
+		"height": 1.15,
+		"scale": 1.45,
+		"color": {
+			"$c": [0.2, 0.85, 0.8, 1.0]
+		},
+		"goo": {
+			"$c": [0.15, 0.8, 0.75, 0.8]
+		},
+		"split": ["slime_veloz", 3],
+		"loot": []
+	},
+	"goblin_arqueiro": {
+		"name": "Goblin Arqueiro",
+		"model": "goblin",
+		"hp": 55,
+		"damage": 11,
+		"speed": 3.6,
+		"xp": 30,
+		"gold": [3, 8],
+		"aggro": 18.0,
+		"reach": 12.0,
+		"keep": 7.5,
+		"cooldown": 2.2,
+		"radius": 0.4,
+		"height": 1.35,
+		"scale": 0.95,
+		"color": {
+			"$c": [0.55, 0.45, 0.2, 1.0]
+		},
+		"tint": [
+			{
+				"$c": [0.55, 0.42, 0.22, 1.0]
+			},
+			0.45
+		],
+		"ai": "ranged",
+		"loot": []
+	},
+	"goblin_xama": {
+		"name": "Goblin Xamã",
+		"model": "goblin",
+		"hp": 70,
+		"damage": 8,
+		"speed": 3.2,
+		"xp": 36,
+		"gold": [4, 9],
+		"aggro": 18.0,
+		"reach": 10.0,
+		"keep": 8.0,
+		"cooldown": 4.5,
+		"radius": 0.4,
+		"height": 1.35,
+		"scale": 1.05,
+		"color": {
+			"$c": [0.6, 0.3, 0.95, 1.0]
+		},
+		"tint": [
+			{
+				"$c": [0.5, 0.25, 0.85, 1.0]
+			},
+			0.55
+		],
+		"ai": "caster",
+		"heal_radius": 8.0,
+		"loot": []
+	},
+	"goblin_dourado": {
+		"name": "Goblin Dourado",
+		"model": "goblin",
+		"hp": 160,
+		"damage": 0,
+		"speed": 4.9,
+		"xp": 60,
+		"gold": [20, 40],
+		"aggro": 30.0,
+		"reach": 0.0,
+		"cooldown": 9.0,
+		"radius": 0.4,
+		"height": 1.35,
+		"scale": 0.9,
+		"color": {
+			"$c": [1.0, 0.8, 0.2, 1.0]
+		},
+		"tint": [
+			{
+				"$c": [1.0, 0.78, 0.15, 1.0]
+			},
+			0.7
+		],
+		"ai": "flee",
+		"elite": true,
+		"loot": []
+	},
+	"goblin_campeao": {
+		"name": "Campeão Goblin",
+		"model": "goblin",
+		"hp": 420,
+		"damage": 22,
+		"speed": 4.0,
+		"xp": 160,
+		"gold": [12, 25],
+		"aggro": 20.0,
+		"reach": 2.6,
+		"cooldown": 1.4,
+		"radius": 0.7,
+		"height": 2.0,
+		"scale": 1.5,
+		"color": {
+			"$c": [0.85, 0.2, 0.15, 1.0]
+		},
+		"tint": [
+			{
+				"$c": [0.55, 0.12, 0.1, 1.0]
+			},
+			0.5
+		],
+		"elite": true,
+		"slam_every": 2,
+		"loot": []
+	},
+	"goblin_bruto": {
+		"name": "Goblin Bruto",
+		"model": "goblin",
+		"hp": 280,
+		"damage": 24,
+		"speed": 2.9,
+		"xp": 70,
+		"gold": [8, 14],
+		"aggro": 8.0,
+		"reach": 2.2,
+		"cooldown": 1.8,
+		"radius": 0.62,
+		"height": 1.35,
+		"scale": 1.5,
+		"color": {
+			"$c": [0.7, 0.1, 0.05, 1.0]
+		},
+		"bld": 3.0,
+		"loot": [
+			["goblin_ear", 0.8],
+			["health_potion", 0.12],
+			["iron_helm", 0.02],
+			["chain_mail", 0.02]
+		]
+	},
+	"goblin_king": {
+		"name": "Rei Goblin",
+		"model": "goblin",
+		"hp": 900,
+		"damage": 26,
+		"speed": 3.6,
+		"xp": 450,
+		"gold": [90, 130],
+		"aggro": 20.0,
+		"reach": 3.2,
+		"cooldown": 1.5,
+		"radius": 0.95,
+		"height": 2.9,
+		"scale": 2.2,
+		"color": {
+			"$c": [0.7, 0.1, 0.05, 1.0]
+		},
+		"boss": true,
+		"bld": 2.5,
+		"loot": [
+			["goblin_crown", 1.0],
+			["goblin_cleaver", 1.0],
+			["health_potion", 1.0],
+			["seed_pumpkin", 1.0],
+			["seed_mint", 1.0],
+			["goblin_warbow", 0.5],
+			["knight_helm", 0.35],
+			["guardian_greatsword", 0.25],
+			["vampire_ring", 0.2],
+			["frost_scepter", 0.3],
+			["swift_boots", 0.3],
+			["sage_amulet", 0.25],
+			["dragonfang", 0.06],
+			["archmage_staff", 0.06],
+			["storm_bow", 0.06],
+			["dragon_plate", 0.06]
+		]
+	}
+}

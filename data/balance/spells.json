@@ -1,0 +1,26 @@
+{
+	"fireball": {
+		"name": "Bola de Fogo",
+		"key": "1",
+		"cost": 12,
+		"level": 1,
+		"cooldown": 0.9,
+		"desc": "Projétil flamejante. Dano = 18 + INT x 2.5"
+	},
+	"heal": {
+		"name": "Cura",
+		"key": "2",
+		"cost": 20,
+		"level": 2,
+		"cooldown": 4.0,
+		"desc": "Restaura 30 + INT x 4 de vida."
+	},
+	"frost_nova": {
+		"name": "Nova Gélida",
+		"key": "3",
+		"cost": 28,
+		"level": 4,
+		"cooldown": 7.0,
+		"desc": "Explosão de gelo ao redor: dano e lentidão."
+	}
+}

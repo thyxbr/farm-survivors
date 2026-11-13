@@ -1,0 +1,1024 @@
+{
+	"wooden_sword": {
+		"name": "Espada de Madeira",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "common",
+		"damage": 6,
+		"price": 10,
+		"color": {
+			"$c": [0.55, 0.38, 0.2, 1.0]
+		},
+		"shape": "wood",
+		"desc": "Uma espada de treino. Melhor que nada."
+	},
+	"iron_sword": {
+		"name": "Espada de Ferro",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "common",
+		"damage": 12,
+		"price": 60,
+		"color": {
+			"$c": [0.8, 0.82, 0.86, 1.0]
+		},
+		"desc": "Lâmina confiável forjada na vila."
+	},
+	"steel_saber": {
+		"name": "Sabre de Aço",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "uncommon",
+		"damage": 16,
+		"price": 110,
+		"color": {
+			"$c": [0.85, 0.9, 0.95, 1.0]
+		},
+		"shape": "saber",
+		"stats": {
+			"agi": 2,
+			"speed": 0.04
+		},
+		"desc": "Leve e curvo. Feito para quem não para quieto."
+	},
+	"knight_blade": {
+		"name": "Lâmina do Cavaleiro",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "rare",
+		"damage": 20,
+		"price": 150,
+		"color": {
+			"$c": [0.6, 0.8, 1.0, 1.0]
+		},
+		"glow": 0.6,
+		"stats": {
+			"str": 2,
+			"vit": 1
+		},
+		"desc": "Aço temperado com runas azuladas."
+	},
+	"frost_brand": {
+		"name": "Marca Gélida",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "rare",
+		"damage": 23,
+		"price": 240,
+		"color": {
+			"$c": [0.55, 0.9, 1.0, 1.0]
+		},
+		"glow": 1.2,
+		"fx": "slow",
+		"stats": {
+			"str": 2,
+			"int": 2
+		},
+		"desc": "O gelo da lâmina nunca derrete. Golpes deixam o alvo lento."
+	},
+	"goblin_cleaver": {
+		"name": "Cutelo do Rei Goblin",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "epic",
+		"damage": 30,
+		"price": 220,
+		"color": {
+			"$c": [0.9, 0.35, 0.15, 1.0]
+		},
+		"glow": 0.6,
+		"shape": "cleaver",
+		"stats": {
+			"str": 3,
+			"crit": 0.05
+		},
+		"desc": "Pesado, brutal e ainda quente de batalha."
+	},
+	"guardian_greatsword": {
+		"name": "Montante do Guardião",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "epic",
+		"damage": 34,
+		"price": 420,
+		"color": {
+			"$c": [0.95, 0.85, 0.55, 1.0]
+		},
+		"glow": 0.5,
+		"shape": "great",
+		"stats": {
+			"str": 4,
+			"vit": 3,
+			"hp": 25
+		},
+		"desc": "Forjado para os guardiões das ruínas antigas."
+	},
+	"dragonfang": {
+		"name": "Presa do Dragão",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "legendary",
+		"damage": 42,
+		"price": 900,
+		"color": {
+			"$c": [1.0, 0.4, 0.12, 1.0]
+		},
+		"glow": 2.0,
+		"shape": "great",
+		"stats": {
+			"str": 5,
+			"crit": 0.08,
+			"leech": 0.04
+		},
+		"desc": "Esculpida do dente de um dragão ancião. Cada golpe bebe vida."
+	},
+	"apprentice_staff": {
+		"name": "Cajado de Aprendiz",
+		"type": "weapon",
+		"class": "staff",
+		"rarity": "common",
+		"damage": 8,
+		"price": 30,
+		"color": {
+			"$c": [0.55, 0.75, 1.0, 1.0]
+		},
+		"wood": {
+			"$c": [0.5, 0.34, 0.18, 1.0]
+		},
+		"stats": {
+			"spell": 3,
+			"mp": 10
+		},
+		"desc": "Dispara faíscas arcanas. Ninguém nasce arquimago."
+	},
+	"oak_staff": {
+		"name": "Cajado de Carvalho Antigo",
+		"type": "weapon",
+		"class": "staff",
+		"rarity": "uncommon",
+		"damage": 13,
+		"price": 100,
+		"color": {
+			"$c": [0.5, 1.0, 0.55, 1.0]
+		},
+		"wood": {
+			"$c": [0.38, 0.26, 0.14, 1.0]
+		},
+		"stats": {
+			"int": 2,
+			"spell": 6
+		},
+		"desc": "Talhado de um carvalho que viu mil invernos."
+	},
+	"ember_staff": {
+		"name": "Cajado das Brasas",
+		"type": "weapon",
+		"class": "staff",
+		"rarity": "rare",
+		"damage": 18,
+		"price": 220,
+		"color": {
+			"$c": [1.0, 0.45, 0.1, 1.0]
+		},
+		"wood": {
+			"$c": [0.22, 0.12, 0.08, 1.0]
+		},
+		"fx": "splash",
+		"stats": {
+			"int": 3,
+			"spell": 10
+		},
+		"desc": "Os projéteis explodem e queimam em área."
+	},
+	"frost_scepter": {
+		"name": "Cetro da Geada",
+		"type": "weapon",
+		"class": "staff",
+		"rarity": "rare",
+		"damage": 17,
+		"price": 220,
+		"color": {
+			"$c": [0.6, 0.92, 1.0, 1.0]
+		},
+		"wood": {
+			"$c": [0.75, 0.82, 0.9, 1.0]
+		},
+		"fx": "slow",
+		"stats": {
+			"int": 3,
+			"spell": 10,
+			"mp": 15
+		},
+		"desc": "Cristal de gelo eterno. Os projéteis deixam inimigos lentos."
+	},
+	"archmage_staff": {
+		"name": "Cajado do Arquimago",
+		"type": "weapon",
+		"class": "staff",
+		"rarity": "legendary",
+		"damage": 30,
+		"price": 950,
+		"color": {
+			"$c": [0.85, 0.5, 1.0, 1.0]
+		},
+		"wood": {
+			"$c": [0.15, 0.1, 0.2, 1.0]
+		},
+		"fx": "splash",
+		"stats": {
+			"int": 6,
+			"spell": 20,
+			"mp": 40,
+			"cdr": 0.15
+		},
+		"desc": "Pertenceu ao último arquimago de Valdoria."
+	},
+	"short_bow": {
+		"name": "Arco Curto",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "common",
+		"damage": 9,
+		"price": 30,
+		"color": {
+			"$c": [0.6, 0.42, 0.22, 1.0]
+		},
+		"desc": "Simples, mas atira longe. Segure o ataque para tensionar."
+	},
+	"hunter_bow": {
+		"name": "Arco do Caçador",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "uncommon",
+		"damage": 15,
+		"price": 100,
+		"color": {
+			"$c": [0.45, 0.3, 0.16, 1.0]
+		},
+		"stats": {
+			"agi": 2
+		},
+		"desc": "Teixo curado na fumaça. O favorito dos caçadores da vila."
+	},
+	"elven_bow": {
+		"name": "Arco Élfico",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "rare",
+		"damage": 21,
+		"price": 240,
+		"color": {
+			"$c": [0.85, 0.9, 0.7, 1.0]
+		},
+		"glow": 0.4,
+		"stats": {
+			"agi": 4,
+			"crit": 0.06
+		},
+		"desc": "Leve como uma folha. Flechas tensionadas atravessam inimigos."
+	},
+	"goblin_warbow": {
+		"name": "Arco de Guerra Goblin",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "epic",
+		"damage": 27,
+		"price": 380,
+		"color": {
+			"$c": [0.5, 0.55, 0.2, 1.0]
+		},
+		"fx": "pierce",
+		"stats": {
+			"str": 2,
+			"agi": 3,
+			"crit": 0.04
+		},
+		"desc": "Feio, torto e mortal. Toda flecha perfura."
+	},
+	"storm_bow": {
+		"name": "Arco da Tempestade",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "legendary",
+		"damage": 34,
+		"price": 950,
+		"color": {
+			"$c": [0.55, 0.75, 1.0, 1.0]
+		},
+		"glow": 1.6,
+		"fx": "multishot",
+		"stats": {
+			"agi": 6,
+			"crit": 0.1,
+			"speed": 0.05
+		},
+		"desc": "Disparos tensionados liberam três flechas de relâmpago."
+	},
+	"leather_armor": {
+		"name": "Armadura de Couro",
+		"type": "armor",
+		"rarity": "common",
+		"defense": 3,
+		"price": 40,
+		"color": {
+			"$c": [0.45, 0.28, 0.13, 1.0]
+		},
+		"desc": "Couro curtido. Leve e flexível."
+	},
+	"chain_mail": {
+		"name": "Cota de Malha",
+		"type": "armor",
+		"rarity": "uncommon",
+		"defense": 7,
+		"price": 120,
+		"color": {
+			"$c": [0.55, 0.58, 0.65, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"vit": 1
+		},
+		"desc": "Anéis de aço entrelaçados."
+	},
+	"mage_robe": {
+		"name": "Manto Arcano",
+		"type": "armor",
+		"rarity": "rare",
+		"defense": 3,
+		"price": 200,
+		"color": {
+			"$c": [0.3, 0.25, 0.65, 1.0]
+		},
+		"stats": {
+			"int": 4,
+			"mp": 30
+		},
+		"desc": "Bordado com fios que brilham na escuridão."
+	},
+	"ranger_vest": {
+		"name": "Gibão do Patrulheiro",
+		"type": "armor",
+		"rarity": "rare",
+		"defense": 6,
+		"price": 200,
+		"color": {
+			"$c": [0.25, 0.4, 0.22, 1.0]
+		},
+		"stats": {
+			"agi": 4,
+			"crit": 0.03
+		},
+		"desc": "Couro reforçado em tons de floresta."
+	},
+	"royal_plate": {
+		"name": "Placas Reais",
+		"type": "armor",
+		"rarity": "epic",
+		"defense": 12,
+		"price": 300,
+		"color": {
+			"$c": [0.85, 0.7, 0.35, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"vit": 3,
+			"hp": 20
+		},
+		"desc": "Armadura de placas digna de um herói."
+	},
+	"dragon_plate": {
+		"name": "Couraça de Escamas de Dragão",
+		"type": "armor",
+		"rarity": "legendary",
+		"defense": 17,
+		"price": 1000,
+		"color": {
+			"$c": [0.6, 0.12, 0.1, 1.0]
+		},
+		"metal": true,
+		"glow": 0.4,
+		"stats": {
+			"vit": 5,
+			"str": 2,
+			"hp": 40
+		},
+		"desc": "Escamas que nem o fogo atravessa."
+	},
+	"leather_cap": {
+		"name": "Capuz de Couro",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "common",
+		"defense": 1,
+		"price": 25,
+		"color": {
+			"$c": [0.45, 0.3, 0.15, 1.0]
+		},
+		"desc": "Protege do sol e de pedradas leves."
+	},
+	"iron_helm": {
+		"name": "Elmo de Ferro",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "uncommon",
+		"defense": 3,
+		"price": 90,
+		"color": {
+			"$c": [0.7, 0.72, 0.78, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"hp": 10
+		},
+		"desc": "Amassado em alguns lugares. Ainda funciona."
+	},
+	"wizard_hat": {
+		"name": "Chapéu do Mago",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "rare",
+		"defense": 1,
+		"price": 180,
+		"color": {
+			"$c": [0.3, 0.22, 0.6, 1.0]
+		},
+		"stats": {
+			"int": 3,
+			"mp": 20
+		},
+		"desc": "Pontudo como deve ser."
+	},
+	"ranger_hood": {
+		"name": "Capuz do Patrulheiro",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "rare",
+		"defense": 2,
+		"price": 180,
+		"color": {
+			"$c": [0.22, 0.38, 0.2, 1.0]
+		},
+		"stats": {
+			"agi": 3,
+			"crit": 0.03
+		},
+		"desc": "Some na folhagem."
+	},
+	"knight_helm": {
+		"name": "Elmo do Cavaleiro",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "epic",
+		"defense": 5,
+		"price": 320,
+		"color": {
+			"$c": [0.85, 0.7, 0.35, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"vit": 2,
+			"str": 2
+		},
+		"desc": "Penacho vermelho, viseira dourada."
+	},
+	"leather_gloves": {
+		"name": "Luvas de Couro",
+		"type": "gear",
+		"slot": "hands",
+		"rarity": "common",
+		"defense": 1,
+		"price": 20,
+		"color": {
+			"$c": [0.42, 0.28, 0.14, 1.0]
+		},
+		"desc": "Evita bolhas no cabo da espada."
+	},
+	"iron_gauntlets": {
+		"name": "Manoplas de Ferro",
+		"type": "gear",
+		"slot": "hands",
+		"rarity": "uncommon",
+		"defense": 2,
+		"price": 80,
+		"color": {
+			"$c": [0.65, 0.67, 0.72, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"str": 2
+		},
+		"desc": "Socos que doem dos dois lados."
+	},
+	"archer_bracers": {
+		"name": "Braçadeiras do Arqueiro",
+		"type": "gear",
+		"slot": "hands",
+		"rarity": "uncommon",
+		"defense": 1,
+		"price": 80,
+		"color": {
+			"$c": [0.35, 0.45, 0.25, 1.0]
+		},
+		"stats": {
+			"agi": 2,
+			"crit": 0.03
+		},
+		"desc": "A corda do arco nunca mais vai arder."
+	},
+	"spellweaver_gloves": {
+		"name": "Luvas do Tecelão",
+		"type": "gear",
+		"slot": "hands",
+		"rarity": "rare",
+		"defense": 1,
+		"price": 170,
+		"color": {
+			"$c": [0.5, 0.3, 0.7, 1.0]
+		},
+		"stats": {
+			"int": 2,
+			"cdr": 0.06
+		},
+		"desc": "Os dedos tecem runas mais rápido."
+	},
+	"leather_boots": {
+		"name": "Botas de Couro",
+		"type": "gear",
+		"slot": "feet",
+		"rarity": "common",
+		"defense": 1,
+		"price": 25,
+		"color": {
+			"$c": [0.4, 0.26, 0.13, 1.0]
+		},
+		"stats": {
+			"speed": 0.03
+		},
+		"desc": "Confortáveis para longas caminhadas."
+	},
+	"iron_greaves": {
+		"name": "Grevas de Ferro",
+		"type": "gear",
+		"slot": "feet",
+		"rarity": "uncommon",
+		"defense": 3,
+		"price": 90,
+		"color": {
+			"$c": [0.65, 0.67, 0.72, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"vit": 1
+		},
+		"desc": "Barulhentas, mas resistentes."
+	},
+	"swift_boots": {
+		"name": "Botas Velozes",
+		"type": "gear",
+		"slot": "feet",
+		"rarity": "rare",
+		"defense": 1,
+		"price": 200,
+		"color": {
+			"$c": [0.3, 0.75, 0.85, 1.0]
+		},
+		"glow": 0.4,
+		"stats": {
+			"agi": 2,
+			"speed": 0.08
+		},
+		"desc": "Asas bordadas no calcanhar."
+	},
+	"wooden_shield": {
+		"name": "Escudo de Madeira",
+		"type": "gear",
+		"slot": "offhand",
+		"needs": "sword",
+		"rarity": "common",
+		"defense": 2,
+		"price": 30,
+		"color": {
+			"$c": [0.5, 0.34, 0.18, 1.0]
+		},
+		"desc": "Tábuas e pregos. Segura uma pancada ou duas."
+	},
+	"knight_shield": {
+		"name": "Escudo do Cavaleiro",
+		"type": "gear",
+		"slot": "offhand",
+		"needs": "sword",
+		"rarity": "rare",
+		"defense": 5,
+		"price": 190,
+		"color": {
+			"$c": [0.64, 0.13, 0.16, 1.0]
+		},
+		"stats": {
+			"vit": 2
+		},
+		"desc": "O brasão da guarda de Valdoria."
+	},
+	"arcane_orb": {
+		"name": "Orbe Arcano",
+		"type": "gear",
+		"slot": "offhand",
+		"needs": "staff",
+		"rarity": "uncommon",
+		"price": 110,
+		"color": {
+			"$c": [0.6, 0.45, 1.0, 1.0]
+		},
+		"glow": 2.0,
+		"stats": {
+			"spell": 6,
+			"mp": 20
+		},
+		"desc": "Flutua sobre a mão. Exige um cajado."
+	},
+	"hunter_quiver": {
+		"name": "Aljava do Caçador",
+		"type": "gear",
+		"slot": "offhand",
+		"needs": "bow",
+		"rarity": "uncommon",
+		"price": 110,
+		"color": {
+			"$c": [0.45, 0.28, 0.12, 1.0]
+		},
+		"stats": {
+			"agi": 2,
+			"crit": 0.04
+		},
+		"desc": "Penas bem aparadas voam mais retas. Exige um arco."
+	},
+	"life_amulet": {
+		"name": "Amuleto da Vida",
+		"type": "gear",
+		"slot": "amulet",
+		"rarity": "uncommon",
+		"price": 120,
+		"color": {
+			"$c": [1.0, 0.35, 0.35, 1.0]
+		},
+		"stats": {
+			"vit": 1,
+			"hp": 30
+		},
+		"desc": "Pulsa no ritmo do coração."
+	},
+	"sage_amulet": {
+		"name": "Amuleto do Sábio",
+		"type": "gear",
+		"slot": "amulet",
+		"rarity": "rare",
+		"price": 220,
+		"color": {
+			"$c": [0.4, 0.6, 1.0, 1.0]
+		},
+		"stats": {
+			"int": 3,
+			"mp": 25,
+			"cdr": 0.05
+		},
+		"desc": "Sussurra fórmulas esquecidas."
+	},
+	"strength_ring": {
+		"name": "Anel da Força",
+		"type": "gear",
+		"slot": "ring",
+		"rarity": "uncommon",
+		"price": 110,
+		"color": {
+			"$c": [1.0, 0.55, 0.3, 1.0]
+		},
+		"stats": {
+			"str": 3
+		},
+		"desc": "Um rubi bruto num aro de ferro."
+	},
+	"wind_ring": {
+		"name": "Anel do Vento",
+		"type": "gear",
+		"slot": "ring",
+		"rarity": "uncommon",
+		"price": 110,
+		"color": {
+			"$c": [0.6, 1.0, 0.8, 1.0]
+		},
+		"stats": {
+			"agi": 2,
+			"speed": 0.05
+		},
+		"desc": "Sempre parece haver uma brisa."
+	},
+	"vampire_ring": {
+		"name": "Anel do Vampiro",
+		"type": "gear",
+		"slot": "ring",
+		"rarity": "epic",
+		"price": 400,
+		"color": {
+			"$c": [0.75, 0.05, 0.15, 1.0]
+		},
+		"stats": {
+			"leech": 0.05,
+			"crit": 0.03
+		},
+		"desc": "Frio ao toque. Cada golpe devolve um pouco de vida."
+	},
+	"health_potion": {
+		"name": "Poção de Vida",
+		"type": "consumable",
+		"heal_hp": 60,
+		"price": 15,
+		"stack": true,
+		"desc": "Restaura 60 de vida."
+	},
+	"mana_potion": {
+		"name": "Poção de Mana",
+		"type": "consumable",
+		"heal_mp": 40,
+		"price": 15,
+		"stack": true,
+		"desc": "Restaura 40 de mana."
+	},
+	"slime_gel": {
+		"name": "Gel de Slime",
+		"type": "material",
+		"price": 4,
+		"stack": true,
+		"desc": "Gosmento. Os mercadores pagam por isso."
+	},
+	"goblin_ear": {
+		"name": "Orelha de Goblin",
+		"type": "material",
+		"price": 8,
+		"stack": true,
+		"desc": "Prova de caça. Eca."
+	},
+	"goblin_crown": {
+		"name": "Coroa do Rei Goblin",
+		"type": "material",
+		"price": 150,
+		"stack": true,
+		"desc": "Ouro sujo, mas ainda é ouro."
+	},
+	"seed_carrot": {
+		"name": "Semente de Cenoura",
+		"type": "seed",
+		"crop": "carrot",
+		"price": 4,
+		"stack": true,
+		"desc": "Cresce rápido. Base de ensopados e saladas."
+	},
+	"seed_wheat": {
+		"name": "Semente de Trigo",
+		"type": "seed",
+		"crop": "wheat",
+		"price": 4,
+		"stack": true,
+		"desc": "Rende bastante. Vira pão e massa de torta."
+	},
+	"seed_tomato": {
+		"name": "Semente de Tomate",
+		"type": "seed",
+		"crop": "tomato",
+		"price": 6,
+		"stack": true,
+		"desc": "Suculento. Vai bem em sopas."
+	},
+	"seed_pepper": {
+		"name": "Semente de Pimenta-de-Fogo",
+		"type": "seed",
+		"crop": "pepper",
+		"price": 10,
+		"stack": true,
+		"desc": "Dizem que um goblin chorou só de cheirar."
+	},
+	"seed_mint": {
+		"name": "Semente de Menta Gélida",
+		"type": "seed",
+		"crop": "mint",
+		"price": 10,
+		"stack": true,
+		"desc": "Folhas que brilham frias ao luar."
+	},
+	"seed_pumpkin": {
+		"name": "Semente de Abóbora",
+		"type": "seed",
+		"crop": "pumpkin",
+		"price": 14,
+		"stack": true,
+		"desc": "Demora, mas cresce enorme."
+	},
+	"carrot": {
+		"name": "Cenoura",
+		"type": "crop",
+		"price": 6,
+		"stack": true,
+		"raw_hp": 12,
+		"desc": "Crocante. Crua cura 12 de vida."
+	},
+	"wheat": {
+		"name": "Trigo",
+		"type": "crop",
+		"price": 5,
+		"stack": true,
+		"desc": "Não dá para comer assim. Leve ao caldeirão."
+	},
+	"tomato": {
+		"name": "Tomate",
+		"type": "crop",
+		"price": 8,
+		"stack": true,
+		"raw_hp": 15,
+		"desc": "Cru cura 15 de vida."
+	},
+	"pepper": {
+		"name": "Pimenta-de-Fogo",
+		"type": "crop",
+		"price": 12,
+		"stack": true,
+		"raw_hp": 5,
+		"desc": "Crua cura 5 de vida... e queima a língua."
+	},
+	"mint": {
+		"name": "Menta Gélida",
+		"type": "crop",
+		"price": 12,
+		"stack": true,
+		"raw_mp": 15,
+		"desc": "Mastigar restaura 15 de mana."
+	},
+	"pumpkin": {
+		"name": "Abóbora",
+		"type": "crop",
+		"price": 24,
+		"stack": true,
+		"raw_hp": 30,
+		"desc": "Enorme. Crua cura 30 de vida."
+	},
+	"bread": {
+		"name": "Pão Rústico",
+		"type": "food",
+		"price": 18,
+		"stack": true,
+		"heal_hp": 35,
+		"buff": {
+			"name": "Barriga Cheia",
+			"time": 60.0,
+			"add": {
+				"regen": 1.5
+			},
+			"desc": "+1,5 de vida por segundo"
+		},
+		"color": {
+			"$c": [0.9, 0.7, 0.4, 1.0]
+		},
+		"desc": "Simples e honesto."
+	},
+	"carrot_stew": {
+		"name": "Ensopado de Cenoura",
+		"type": "food",
+		"price": 30,
+		"stack": true,
+		"heal_hp": 60,
+		"buff": {
+			"name": "Vigor da Horta",
+			"time": 90.0,
+			"add": {
+				"max_hp_flat": 30.0,
+				"defense": 2.0
+			},
+			"desc": "+30 de vida máxima e +2 de defesa"
+		},
+		"color": {
+			"$c": [1.0, 0.55, 0.2, 1.0]
+		},
+		"desc": "Receita da avó do Bram."
+	},
+	"spicy_soup": {
+		"name": "Sopa Picante",
+		"type": "food",
+		"price": 40,
+		"stack": true,
+		"heal_hp": 30,
+		"buff": {
+			"name": "Fúria Picante",
+			"time": 45.0,
+			"add": {
+				"damage": 0.3
+			},
+			"desc": "+30% de dano"
+		},
+		"color": {
+			"$c": [1.0, 0.3, 0.15, 1.0]
+		},
+		"desc": "Esquenta o sangue."
+	},
+	"dragon_chili": {
+		"name": "Chili do Dragão",
+		"type": "food",
+		"price": 45,
+		"stack": true,
+		"heal_hp": 20,
+		"special": "fire_nova",
+		"buff": {
+			"name": "Bafo de Dragão",
+			"time": 30.0,
+			"add": {
+				"damage": 0.2,
+				"crit": 0.1
+			},
+			"desc": "+20% de dano e +10% de crítico"
+		},
+		"color": {
+			"$c": [1.0, 0.4, 0.05, 1.0]
+		},
+		"desc": "Ao comer: explosão de fogo ao seu redor!"
+	},
+	"mint_tea": {
+		"name": "Chá de Menta Gélida",
+		"type": "food",
+		"price": 30,
+		"stack": true,
+		"heal_mp": 40,
+		"special": "frost_nova",
+		"buff": {
+			"name": "Mente Fresca",
+			"time": 60.0,
+			"add": {
+				"cooldown": -0.2,
+				"speed": 0.1
+			},
+			"desc": "−20% de recarga e +10% de velocidade"
+		},
+		"color": {
+			"$c": [0.5, 0.95, 1.0, 1.0]
+		},
+		"desc": "Ao comer: congela os inimigos próximos."
+	},
+	"garden_salad": {
+		"name": "Salada da Horta",
+		"type": "food",
+		"price": 36,
+		"stack": true,
+		"heal_hp": 40,
+		"buff": {
+			"name": "Olhos de Águia",
+			"time": 90.0,
+			"add": {
+				"xp": 0.3,
+				"magnet": 0.6
+			},
+			"desc": "+30% de XP das gemas e +60% de raio de coleta"
+		},
+		"color": {
+			"$c": [0.5, 1.0, 0.45, 1.0]
+		},
+		"desc": "Fresquinha. Ótima para subir de nível na Horda."
+	},
+	"pumpkin_pie": {
+		"name": "Torta de Abóbora",
+		"type": "food",
+		"price": 55,
+		"stack": true,
+		"heal_hp": 120,
+		"buff": {
+			"name": "Casca Dura",
+			"time": 90.0,
+			"add": {
+				"defense": 5.0,
+				"lifesteal": 2.0
+			},
+			"desc": "+5 de defesa e cada abate cura 2"
+		},
+		"color": {
+			"$c": [1.0, 0.6, 0.15, 1.0]
+		},
+		"desc": "Pesada, quentinha e reconfortante."
+	},
+	"valdoria_feast": {
+		"name": "Banquete de Valdoria",
+		"type": "food",
+		"price": 120,
+		"stack": true,
+		"heal_full": true,
+		"buff": {
+			"name": "Banquete do Herói",
+			"time": 120.0,
+			"add": {
+				"damage": 0.25,
+				"max_hp_flat": 40.0,
+				"speed": 0.12,
+				"gold": 0.4,
+				"cooldown": -0.15
+			},
+			"desc": "+25% de dano, +40 de vida máx., +12% de velocidade, −15% de recarga, +40% de ouro"
+		},
+		"color": {
+			"$c": [1.0, 0.85, 0.3, 1.0]
+		},
+		"desc": "Cura total. Um prato digno de lenda."
+	}
+}

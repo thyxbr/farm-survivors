@@ -1,7 +1,9 @@
 class_name ColonyData
 extends RefCounted
 ## Tabelas do modo Defesa da Cidade: construções, unidades do exército, animais de caça,
-## ritmo do dia/noite e regras da economia. Para balancear o modo, mexa aqui.
+## ritmo do dia/noite e regras da economia. Os números de BUILDINGS, UNITS, ANIMALS, WAVE_COSTS,
+## COST_GROWTH, UPKEEP, AFFIXES e NIGHT_MODS vivem em data/balance/colony.json (Balance preenche as
+## static var); os escalares abaixo continuam aqui.
 
 # ---------------------------------------------------------------- ritmo
 const DAY_LENGTH := 150.0        # segundos de dia (caça, construção, economia)
@@ -34,68 +36,17 @@ const ORDER := ["house", "farm", "market", "barracks", "wall", "gate", "spikes",
 
 ## size = pegada no chão (x = largura, y = profundidade), em metros.
 ## pop: moradias · food/gold: produção por dia · workers: moradores empregados · army: vagas no quartel.
-const BUILDINGS := {
-	"town_hall": {"name": "Prefeitura", "cost": 0, "hp": 1600, "size": Vector2(7.4, 6.4), "pop": 6, "gold": 15,
-		"desc": "O coração da cidade: abriga 6 moradores e rende 15 ouro por dia. Se cair, a cidade cai."},
-	"house": {"name": "Casa", "cost": 60, "hp": 320, "size": Vector2(5.6, 4.6), "pop": 5,
-		"desc": "Abriga 5 moradores. Moradores pagam impostos e podem ser recrutados."},
-	"farm": {"name": "Fazenda", "cost": 70, "hp": 240, "size": Vector2(7.0, 6.0), "food": 12, "workers": 2,
-		"desc": "Produz 12 de comida por dia. Emprega 2 moradores."},
-	"market": {"name": "Mercado", "cost": 140, "hp": 380, "size": Vector2(5.2, 5.2), "gold": 25, "workers": 2,
-		"desc": "Rende 25 ouro por dia com o comércio. Emprega 2 moradores."},
-	"barracks": {"name": "Quartel", "cost": 160, "hp": 650, "size": Vector2(6.6, 5.6), "army": 6,
-		"desc": "Recrute o exército aqui (E). Cada quartel aloja 6 soldados."},
-	"wall": {"name": "Muro", "cost": 12, "hp": 420, "size": Vector2(4.0, 0.9), "wall": true,
-		"desc": "Segura os monstros. Encoste um no outro para fechar a cidade."},
-	"gate": {"name": "Portão", "cost": 40, "hp": 520, "size": Vector2(4.0, 1.1), "wall": true,
-		"desc": "Você e seus soldados passam; os monstros precisam derrubar."},
-	"spikes": {"name": "Estacas", "cost": 30, "hp": 200, "size": Vector2(4.0, 1.6), "dps": 16, "wall": true,
-		"desc": "Ferem e atrasam os monstros que passam por cima. Desgastam com o uso."},
-	"archer_tower": {"name": "Torre de Arqueiros", "cost": 110, "hp": 460, "size": Vector2(3.2, 3.2),
-		"range": 20.0, "damage": 14.0, "rate": 0.95, "shot": "arrow",
-		"desc": "Dispara flechas rápidas no monstro mais próximo."},
-	"cannon_tower": {"name": "Torre de Canhão", "cost": 200, "hp": 620, "size": Vector2(3.8, 3.8),
-		"range": 23.0, "damage": 40.0, "rate": 2.8, "splash": 3.2, "shot": "ball",
-		"desc": "Balas lentas que explodem e ferem todos em volta."},
-	"mage_tower": {"name": "Torre Arcana", "cost": 170, "hp": 420, "size": Vector2(3.2, 3.2),
-		"range": 17.0, "damage": 16.0, "rate": 1.3, "slow": 2.0, "chain": 2, "shot": "bolt",
-		"desc": "Raio gélido que deixa lento e salta para mais 2 monstros."},
-}
+static var BUILDINGS: Dictionary = {}
 
 ## Unidades recrutáveis no quartel. look = equipamentos usados para vestir o modelo do cavaleiro.
-const UNITS := {
-	"militia": {"name": "Miliciano", "cost": 30, "salary": 2, "hp": 70, "damage": 8.0, "reach": 1.9,
-		"cooldown": 1.1, "speed": 4.6, "armor": 0, "aggro": 13.0,
-		"look": {"weapon": "wooden_sword", "head": "leather_cap"},
-		"desc": "Barato, mas frágil."},
-	"soldier": {"name": "Soldado", "cost": 70, "salary": 5, "hp": 150, "damage": 15.0, "reach": 2.0,
-		"cooldown": 1.0, "speed": 4.4, "armor": 5, "aggro": 13.0,
-		"look": {"weapon": "iron_sword", "offhand": "wooden_shield", "head": "iron_helm", "armor": "chain_mail"},
-		"desc": "Espada e escudo: segura a linha."},
-	"archer": {"name": "Arqueiro", "cost": 80, "salary": 6, "hp": 80, "damage": 12.0, "reach": 15.0,
-		"cooldown": 1.3, "speed": 4.6, "armor": 1, "aggro": 17.0, "ranged": true,
-		"look": {"weapon": "hunter_bow", "offhand": "hunter_quiver", "head": "ranger_hood", "armor": "leather_armor"},
-		"desc": "Atira por cima dos muros."},
-	"knight": {"name": "Cavaleiro", "cost": 180, "salary": 12, "hp": 300, "damage": 28.0, "reach": 2.3,
-		"cooldown": 1.15, "speed": 4.9, "armor": 12, "aggro": 15.0, "needs_level": 2,
-		"look": {"weapon": "guardian_greatsword", "head": "knight_helm", "armor": "royal_plate",
-			"hands": "iron_gauntlets", "feet": "iron_greaves"},
-		"desc": "Elite. Exige um quartel nível 2."},
-}
+static var UNITS: Dictionary = {}
 const UNIT_ORDER := ["militia", "soldier", "archer", "knight"]
 
 ## Animais de caça (aparecem de dia, longe da cidade).
-const ANIMALS := {
-	"rabbit": {"name": "Coelho", "hp": 14, "speed": 6.8, "food": 3, "gold": 2, "radius": 0.3, "flee": true},
-	"deer": {"name": "Cervo", "hp": 50, "speed": 7.2, "food": 10, "gold": 9, "radius": 0.55, "flee": true},
-	"boar": {"name": "Javali", "hp": 95, "speed": 5.8, "food": 14, "gold": 12, "radius": 0.6,
-		"damage": 11.0, "aggressive": true},
-}
+static var ANIMALS: Dictionary = {}
 
 ## Custo de cada monstro no orçamento da onda e a noite em que começa a aparecer.
-const WAVE_COSTS := {
-	"slime": [1.0, 1], "slime_veloz": [1.0, 2], "goblin": [2.0, 2], "slime_grande": [3.0, 4], "goblin_bruto": [4.0, 3],
-}
+static var WAVE_COSTS: Dictionary = {}
 
 
 # ================================================================ cooperativo (multiplayer)
@@ -118,10 +69,9 @@ const TEAM_BUDGET := 0.45
 const TEAM_HP := 0.1
 const TEAM_HALL_GOLD := 15
 ## Multiplicador de custo por cópia já construída (casa: +10% por casa existente...).
-const COST_GROWTH := {"house": 0.10, "farm": 0.12, "market": 0.30, "barracks": 0.35, "wall": 0.015,
-	"gate": 0.08, "spikes": 0.06, "archer_tower": 0.14, "cannon_tower": 0.18, "mage_tower": 0.18}
+static var COST_GROWTH: Dictionary = {}
 ## Manutenção paga ao amanhecer, por nível da construção.
-const UPKEEP := {"archer_tower": 2, "cannon_tower": 4, "mage_tower": 3, "barracks": 3}
+static var UPKEEP: Dictionary = {}
 ## Mercados além do MARKET_FREE-ésimo rendem MARKET_DECAY a menos cada (mínimo MARKET_MIN).
 const MARKET_FREE := 2
 const MARKET_DECAY := 0.2
@@ -137,24 +87,10 @@ const ELITE_NIGHT := 6
 const ELITE_STEP := 0.04
 const ELITE_MAX := 0.45
 ## resist: fração do dano ignorada por tipo de disparo ("arrow" flechas e golpes, "ball" canhão, "bolt" arcano).
-const AFFIXES := {
-	"blindado": {"name": "Blindado", "hp": 1.3, "speed": 0.9, "color": Color(0.7, 0.75, 0.82),
-		"resist": {"arrow": 0.5, "melee": 0.35}, "desc": "resiste a flechas e aos soldados"},
-	"arcano": {"name": "Arcano", "hp": 1.15, "speed": 1.0, "color": Color(0.75, 0.4, 1.0),
-		"resist": {"bolt": 0.6}, "no_slow": true, "desc": "resiste à Torre Arcana e não fica lento"},
-	"agil": {"name": "Ágil", "hp": 0.9, "speed": 1.35, "color": Color(1.0, 0.85, 0.25),
-		"resist": {"ball": 0.5}, "desc": "rápido e desvia de explosões"},
-	"colosso": {"name": "Colosso", "hp": 2.2, "speed": 0.85, "color": Color(1.0, 0.3, 0.2), "bld": 1.3,
-		"scale": 1.3, "resist": {}, "night": 12, "desc": "enorme, derruba muros"},
-}
+static var AFFIXES: Dictionary = {}
 ## Noites especiais (a partir de MOD_NIGHT), anunciadas no amanhecer anterior.
 const MOD_NIGHT := 7
-const NIGHT_MODS := {
-	"lua_sangue": {"name": "Lua de Sangue", "desc": "monstros 25% mais rápidos e fortes", "color": Color(1, 0.3, 0.25)},
-	"nevoa": {"name": "Névoa Densa", "desc": "torres com 30% menos alcance", "color": Color(0.75, 0.8, 0.9)},
-	"enxame": {"name": "Enxame", "desc": "60% mais monstros, porém mais frágeis", "color": Color(0.6, 1.0, 0.4)},
-	"cerco": {"name": "Cerco Pesado", "desc": "muito mais Goblins Brutos atrás dos muros", "color": Color(1, 0.6, 0.3)},
-}
+static var NIGHT_MODS: Dictionary = {}
 ## Recompensa de cada noite sobrevivida (vai para o personagem do RPG de cada jogador).
 static func night_reward(n: int) -> Dictionary:
 	return {"gold": 15 + 6 * n, "xp": 30 + 12 * n + n * n}
