@@ -98,6 +98,96 @@ const WAVE_COSTS := {
 }
 
 
+# ================================================================ cooperativo (multiplayer)
+# A cidade é compartilhada: um cofre só, ondas maiores para grupos maiores e uma curva de
+# dificuldade pensada para o começo ser tranquilo e o fim de jogo não virar passeio:
+#  · custo progressivo: cada cópia extra da mesma construção custa mais;
+#  · manutenção diária das torres e quartéis (cresce com o nível);
+#  · mercados saturam: a partir do 3º, cada um rende menos;
+#  · os monstros ganham vida mais rápido depois da noite 10 e surgem elites com resistências
+#    (é preciso misturar torres); noites especiais são anunciadas um dia antes;
+#  · para não ficar impossível: começo generoso, prefeitura se recupera ao amanhecer,
+#    ajuda do reino quando a cidade está quebrada e bons eventos de vez em quando.
+const COOP_START_GOLD := 450
+const COOP_GOLD_PER_PLAYER := 150
+const COOP_START_FOOD := 40
+const COOP_START_CITIZENS := 6
+const COOP_MAX_PLAYERS := 6
+## Cada jogador além do primeiro: ondas +TEAM_BUDGET e monstros +TEAM_HP de vida; a prefeitura rende +TEAM_HALL_GOLD/dia.
+const TEAM_BUDGET := 0.45
+const TEAM_HP := 0.1
+const TEAM_HALL_GOLD := 15
+## Multiplicador de custo por cópia já construída (casa: +10% por casa existente...).
+const COST_GROWTH := {"house": 0.10, "farm": 0.12, "market": 0.30, "barracks": 0.35, "wall": 0.015,
+	"gate": 0.08, "spikes": 0.06, "archer_tower": 0.14, "cannon_tower": 0.18, "mage_tower": 0.18}
+## Manutenção paga ao amanhecer, por nível da construção.
+const UPKEEP := {"archer_tower": 2, "cannon_tower": 4, "mage_tower": 3, "barracks": 3}
+## Mercados além do MARKET_FREE-ésimo rendem MARKET_DECAY a menos cada (mínimo MARKET_MIN).
+const MARKET_FREE := 2
+const MARKET_DECAY := 0.2
+const MARKET_MIN := 0.4
+## A partir desta noite a vida dos monstros cresce mais rápido (VETERAN_RATE por noite, composto).
+const VETERAN_NIGHT := 10
+const VETERAN_RATE := 1.06
+## Teto do orçamento da onda (por jogador extra +35%); o que passar vira vida extra (menos monstros, mais duros),
+## para o servidor não ter centenas de monstros no fim de jogo.
+const WAVE_CAP := 120.0
+## Elites: aparecem a partir da noite ELITE_NIGHT, chance cresce ELITE_STEP por noite (até ELITE_MAX).
+const ELITE_NIGHT := 6
+const ELITE_STEP := 0.04
+const ELITE_MAX := 0.45
+## resist: fração do dano ignorada por tipo de disparo ("arrow" flechas e golpes, "ball" canhão, "bolt" arcano).
+const AFFIXES := {
+	"blindado": {"name": "Blindado", "hp": 1.3, "speed": 0.9, "color": Color(0.7, 0.75, 0.82),
+		"resist": {"arrow": 0.5, "melee": 0.35}, "desc": "resiste a flechas e aos soldados"},
+	"arcano": {"name": "Arcano", "hp": 1.15, "speed": 1.0, "color": Color(0.75, 0.4, 1.0),
+		"resist": {"bolt": 0.6}, "no_slow": true, "desc": "resiste à Torre Arcana e não fica lento"},
+	"agil": {"name": "Ágil", "hp": 0.9, "speed": 1.35, "color": Color(1.0, 0.85, 0.25),
+		"resist": {"ball": 0.5}, "desc": "rápido e desvia de explosões"},
+	"colosso": {"name": "Colosso", "hp": 2.2, "speed": 0.85, "color": Color(1.0, 0.3, 0.2), "bld": 1.3,
+		"scale": 1.3, "resist": {}, "night": 12, "desc": "enorme, derruba muros"},
+}
+## Noites especiais (a partir de MOD_NIGHT), anunciadas no amanhecer anterior.
+const MOD_NIGHT := 7
+const NIGHT_MODS := {
+	"lua_sangue": {"name": "Lua de Sangue", "desc": "monstros 25% mais rápidos e fortes", "color": Color(1, 0.3, 0.25)},
+	"nevoa": {"name": "Névoa Densa", "desc": "torres com 30% menos alcance", "color": Color(0.75, 0.8, 0.9)},
+	"enxame": {"name": "Enxame", "desc": "60% mais monstros, porém mais frágeis", "color": Color(0.6, 1.0, 0.4)},
+	"cerco": {"name": "Cerco Pesado", "desc": "muito mais Goblins Brutos atrás dos muros", "color": Color(1, 0.6, 0.3)},
+}
+## Recompensa de cada noite sobrevivida (vai para o personagem do RPG de cada jogador).
+static func night_reward(n: int) -> Dictionary:
+	return {"gold": 15 + 6 * n, "xp": 30 + 12 * n + n * n}
+
+
+## Raridade do baú das noites de chefe (a cada BOSS_EVERY): [raridade, chance] em ordem.
+static func chest_rarities(n: int) -> Array:
+	var tier := n / BOSS_EVERY
+	match tier:
+		0:
+			return [["uncommon", 1.0]]
+		1:
+			return [["rare", 0.6], ["uncommon", 1.0]]
+		2:
+			return [["epic", 0.35], ["rare", 1.0]]
+		3:
+			return [["legendary", 0.15], ["epic", 1.0]]
+		4:
+			return [["legendary", 0.5], ["epic", 1.0]]
+	return [["legendary", 1.0]]
+
+
+## Custo para construir mais uma do tipo, já havendo `owned` (cooperativo).
+static func coop_cost(kind: String, owned: int) -> int:
+	var base := int(BUILDINGS[kind].cost)
+	return int(round(base * (1.0 + float(COST_GROWTH.get(kind, 0.0)) * owned)))
+
+
+## Vida dos monstros na noite n (cooperativo, sem contar grupo nem elites).
+static func coop_hp_mult(n: int) -> float:
+	return (1.0 + 0.12 * (n - 1)) * pow(VETERAN_RATE, maxi(0, n - VETERAN_NIGHT))
+
+
 static func building(kind: String) -> Dictionary:
 	return BUILDINGS.get(kind, {})
 

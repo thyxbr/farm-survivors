@@ -137,12 +137,14 @@ func _on_peer_disconnected(id: int) -> void:
 	_pending.erase(id)
 	if is_server() and players.has(id):
 		print("[server] %s saiu (%d online)" % [players[id].name, players.size() - 1])
+		var was_city: bool = players[id].get("zone", "") == "city"
 		players.erase(id)
 		_remove_remote_player(id)
-		for pid in _ready_peers():
+		for pid in _all_peers():
 			_player_left.rpc_id(pid, id)
 		players_changed.emit()
 		_horde_peer_gone(id)
+		Lobby.server_peer_gone(id, was_city)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -162,31 +164,97 @@ func _register(player_name: String, client_version: String, look = {}, _extra = 
 		_kick_later(id)
 		return
 	var name_clean := _clean_name(player_name)
-	players[id] = {"name": name_clean, "look": _clean_look(look if look is Dictionary else {}), "ready": false}
+	# todo jogador começa no salão (lobby); "ready" = já carregou a cena da zona em que está
+	players[id] = {"name": name_clean, "look": _clean_look(look if look is Dictionary else {}), "ready": false,
+		"zone": "lobby"}
 	print("[server] %s entrou (peer %d, %d online)" % [name_clean, id, players.size()])
 	_accepted.rpc_id(id, players)
-	for pid in _ready_peers():
+	for pid in _all_peers():
 		if pid != id:
 			_player_joined.rpc_id(pid, id, players[id])
 	players_changed.emit()
 
 
+## O cliente terminou de carregar Valdoria (o mundo do RPG).
 @rpc("any_peer", "call_remote", "reliable")
 func _client_ready() -> void:
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id):
 		return
-	players[id].ready = true
+	server_set_zone(id, "world")
 	# quem entrou enquanto este jogador carregava o mapa não foi anunciado para ele: manda todos agora
 	for pid in players:
 		if pid != id:
 			_player_joined.rpc_id(id, pid, players[pid])
-	for net_id in enemies:
-		var e: Enemy = enemies[net_id]
-		if is_instance_valid(e) and not e.dead:
-			_enemy_spawned.rpc_id(id, net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, e.horde)
+	send_zone_enemies(id, "world")
 	if not _lobby.is_empty():
 		_horde_lobby.rpc_id(id, _lobby_state())
+
+
+# ---------------------------------------------------------------- zonas (salão, Valdoria, cidade)
+## Servidor: o jogador mudou de zona ("lobby", "world" ou "city"). Sai da anterior e avisa todos.
+func server_set_zone(id: int, zone: String) -> void:
+	if not players.has(id):
+		return
+	var old: String = players[id].get("zone", "lobby")
+	_remove_remote_player(id)
+	players[id].zone = zone
+	players[id].ready = true
+	if old != zone:
+		print("[server] %s: %s -> %s" % [players[id].name, old, zone])
+		if old == "world":
+			_horde_peer_gone(id)
+		if old == "city":
+			Lobby.server_city_left(id)
+	for pid in _all_peers():
+		_player_zone.rpc_id(pid, id, zone)
+	players_changed.emit()
+
+
+func zone_of(id: int) -> String:
+	return str(players[id].get("zone", "lobby")) if players.has(id) else ""
+
+
+## Servidor: jogadores conectados que já carregaram a zona.
+func zone_peers(zone: String) -> Array:
+	var out := []
+	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	for pid in players:
+		if not players[pid].ready or players[pid].get("zone", "lobby") != zone:
+			continue
+		var pp := enet.get_peer(pid) if enet else null
+		if pp == null or pp.get_state() == ENetPacketPeer.STATE_CONNECTED:
+			out.append(pid)
+	return out
+
+
+## Servidor: todos os jogadores registrados (qualquer zona).
+func _all_peers() -> Array:
+	var out := []
+	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	for pid in players:
+		var pp := enet.get_peer(pid) if enet else null
+		if pp == null or pp.get_state() == ENetPacketPeer.STATE_CONNECTED:
+			out.append(pid)
+	return out
+
+
+## Servidor: manda ao jogador os inimigos vivos de uma zona.
+func send_zone_enemies(id: int, zone: String) -> void:
+	for net_id in enemies:
+		var e: Enemy = enemies[net_id]
+		if is_instance_valid(e) and not e.dead and e.net_zone == zone:
+			_enemy_spawned.rpc_id(id, net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, e.horde)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _player_zone(id: int, zone: String) -> void:
+	if players.has(id):
+		players[id].zone = zone
+	var me := multiplayer.get_unique_id()
+	if id != me and zone != zone_of(me):
+		_remove_remote_player(id)
+	players_changed.emit()
 
 
 func _clean_name(n: String) -> String:
@@ -214,11 +282,12 @@ func _kick_later(id: int) -> void:
 		multiplayer.multiplayer_peer.disconnect_peer(id)
 
 
+## Servidor: jogadores em Valdoria (o mundo do RPG) que já carregaram o mapa.
 func _ready_peers() -> Array:
 	var out := []
 	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
 	for pid in players:
-		if not players[pid].ready:
+		if not players[pid].ready or players[pid].get("zone", "lobby") != "world":
 			continue
 		# quem está desconectando ainda aparece na lista por alguns quadros
 		var pp := enet.get_peer(pid) if enet else null
@@ -261,9 +330,15 @@ func _physics_process(delta: float) -> void:
 func server_register_enemy(e: Enemy) -> void:
 	e.net_id = _next_enemy_id
 	_next_enemy_id += 1
+	e.net_zone = "city" if Lobby.is_city_node(e) else "world"
 	enemies[e.net_id] = e
-	for pid in _ready_peers():
+	for pid in _enemy_peers(e):
 		_enemy_spawned.rpc_id(pid, e.net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, e.horde)
+
+
+## Quem vê este inimigo: Valdoria ou a cidade em grupo.
+func _enemy_peers(e: Enemy) -> Array:
+	return zone_peers("city") if e.net_zone == "city" else _ready_peers()
 
 
 func unregister_enemy(e: Enemy) -> void:
@@ -273,31 +348,46 @@ func unregister_enemy(e: Enemy) -> void:
 
 func server_enemy_killed(e: Enemy) -> void:
 	var pos := e.global_position
-	# a horda não dá XP/loot do RPG: as gemas vêm pelo _horde_kill do modo sobrevivência
-	if not e.horde:
+	if e.net_zone == "city":
+		# cidade em grupo: o ouro vai para o cofre e quem acertou ganha XP (sem loot no chão)
+		Lobby.server_city_kill(e)
+	elif not e.horde:
+		# a horda não dá XP/loot do RPG: as gemas vêm pelo _horde_kill do modo sobrevivência
 		for pid in e.contributors:
 			if players.has(pid):
 				_kill_reward.rpc_id(pid, e.kind, int(e.data.xp), pos)
-	for pid in _ready_peers():
+	for pid in _enemy_peers(e):
 		_enemy_died.rpc_id(pid, e.net_id)
 
 
 func _send_enemy_snapshot() -> void:
-	var peers := _ready_peers()
-	if peers.is_empty() or enemies.is_empty():
+	if enemies.is_empty():
 		return
-	var snap := PackedFloat32Array()
+	# PackedFloat32Array é copiado por valor: um array local por zona
+	var snap_world := PackedFloat32Array()
+	var snap_city := PackedFloat32Array()
 	for net_id in enemies:
 		var e: Enemy = enemies[net_id]
 		if not is_instance_valid(e) or e.dead:
 			continue
 		var p := e.global_position
 		var flags := (1 if e.slow_timer > 0 else 0) | (2 if e.enraged else 0)
-		snap.append_array([net_id, p.x, p.y, p.z, e.model.rotation.y, e.hp,
-			max(0, STATES.find(e.state)), e.attack_timer, max(0, ATTACK_KINDS.find(e.attack_kind)), flags])
-	_snapshots_sent += 1
-	for pid in peers:
-		_enemy_snapshot.rpc_id(pid, snap)
+		var row := [net_id, p.x, p.y, p.z, e.model.rotation.y, e.hp,
+			max(0, STATES.find(e.state)), e.attack_timer, max(0, ATTACK_KINDS.find(e.attack_kind)), flags]
+		if e.net_zone == "city":
+			snap_city.append_array(row)
+		else:
+			snap_world.append_array(row)
+	for zone in ["world", "city"]:
+		var snap: PackedFloat32Array = snap_world if zone == "world" else snap_city
+		if snap.is_empty():
+			continue
+		var peers := _ready_peers() if zone == "world" else zone_peers(zone)
+		if peers.is_empty():
+			continue
+		_snapshots_sent += 1
+		for pid in peers:
+			_enemy_snapshot.rpc_id(pid, snap)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -306,11 +396,11 @@ func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow:
 	if not is_server() or not players.has(id):
 		return
 	var e: Enemy = enemies.get(net_id)
-	if e == null or not is_instance_valid(e) or e.dead:
+	if e == null or not is_instance_valid(e) or e.dead or e.net_zone != zone_of(id):
 		return
 	amount = clampf(amount, 0.0, 5000.0)
 	if amount > 0.0:
-		for pid in _ready_peers():
+		for pid in _enemy_peers(e):
 			_enemy_hit_fx.rpc_id(pid, net_id, amount, crit)
 		e.last_hitter = id
 		e.take_damage(amount, from_pos, crit)
@@ -342,8 +432,11 @@ func _player_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, combo: in
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id) or not players[id].ready:
 		return
+	var zone := zone_of(id)
+	if zone == "lobby":
+		return
 	_apply_remote_state(id, pos, yaw, vel, flags, combo, attack_t)
-	for pid in _ready_peers():
+	for pid in zone_peers(zone):
 		if pid != id:
 			_player_state_relay.rpc_id(pid, id, pos, yaw, vel, flags, combo, attack_t)
 
@@ -355,7 +448,7 @@ func _player_look(look: Dictionary) -> void:
 		return
 	players[id].look = _clean_look(look)
 	_apply_remote_look(id)
-	for pid in _ready_peers():
+	for pid in _all_peers():
 		if pid != id:
 			_player_look_relay.rpc_id(pid, id, players[id].look)
 
@@ -374,7 +467,7 @@ func _player_event(kind: String, a: Vector3, b: Vector3) -> void:
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id):
 		return
-	for pid in _ready_peers():
+	for pid in zone_peers(zone_of(id)):
 		if pid != id:
 			_player_event_relay.rpc_id(pid, id, kind, a, b)
 
@@ -413,6 +506,7 @@ func leave() -> void:
 	remote_players.clear()
 	horde_lobby = {}
 	_connect_t = 0.0
+	Lobby.client_reset()
 
 
 func _on_connected_to_server() -> void:
@@ -430,7 +524,7 @@ func _fail(reason: String) -> void:
 
 
 func _on_server_disconnected() -> void:
-	var in_world := world != null
+	var in_world := world != null or Lobby.in_session()
 	if in_world:
 		autosave()
 	leave()
@@ -463,7 +557,8 @@ func _accepted(all_players: Dictionary) -> void:
 	if players.has(me):
 		my_name = players[me].name
 	get_tree().paused = false
-	get_tree().change_scene_to_file(WORLD_SCENE)
+	# todo mundo chega pelo salão (lobby): de lá vai para Valdoria ou para a Defesa da Cidade em grupo
+	Lobby.on_accepted()
 
 
 ## Chamado pelo mundo quando terminou de montar a cena.
@@ -482,7 +577,12 @@ func world_closed(w: Node) -> void:
 
 ## Salva o personagem local (o progresso no multiplayer fica no PC de cada jogador).
 func autosave() -> void:
-	if world == null or world.get("player") == null:
+	# no salão e na cidade em grupo o personagem é salvo onde estava em Valdoria
+	if world == null or world.get("role") != null:
+		if is_online():
+			Lobby.save_character()
+		return
+	if world.get("player") == null:
 		return
 	var p: Player = world.player
 	if is_instance_valid(p):
@@ -566,7 +666,7 @@ func _player_joined(id: int, info: Dictionary) -> void:
 	var known := players.has(id)
 	players[id] = info
 	if not known:
-		Game.notify.emit("%s entrou no mundo." % info.name, Color(0.6, 0.9, 1.0))
+		Game.notify.emit("%s chegou ao servidor." % info.name, Color(0.6, 0.9, 1.0))
 	# a réplica pode ter sido criada antes (pelo estado) sem nome nem visual
 	var rp: Player = remote_players.get(id)
 	if rp and is_instance_valid(rp):
@@ -626,7 +726,9 @@ func _enemy_spawned(net_id: int, kind: String, pos: Vector3, yaw: float, max_hp:
 	e.horde = horde
 	e.net_id = net_id
 	e.position = pos
-	world.add_child(e)
+	# na cidade os monstros ficam dentro da Colony (as torres e o HUD contam por lá)
+	var parent: Node = world.enemy_parent() if world.has_method("enemy_parent") else world
+	parent.add_child(e)
 	e.max_hp = max_hp
 	e.hp = hp
 	e.model.rotation.y = yaw
@@ -684,7 +786,13 @@ func _kill_reward(kind: String, xp: int, pos: Vector3) -> void:
 
 # ---------------------------------------------------------------- réplicas de jogadores
 func _apply_remote_state(id: int, pos: Vector3, yaw: float, vel: Vector3, flags: int, combo: int, attack_t: float) -> void:
-	if world == null:
+	# servidor: a réplica fica na zona do jogador (Valdoria ou a cidade); cliente: só quem está na mesma zona
+	var parent: Node = world
+	if is_server():
+		parent = Lobby.server_city_root() if zone_of(id) == "city" else world
+	elif zone_of(id) != zone_of(multiplayer.get_unique_id()):
+		return
+	if parent == null:
 		return
 	var rp: Player = remote_players.get(id)
 	if rp == null or not is_instance_valid(rp):
@@ -693,8 +801,10 @@ func _apply_remote_state(id: int, pos: Vector3, yaw: float, vel: Vector3, flags:
 		rp.peer_id = id
 		rp.display_name = players[id].name if players.has(id) else "?"
 		rp.position = pos
-		world.add_child(rp)
+		parent.add_child(rp)
 		remote_players[id] = rp
+		if is_server() and zone_of(id) == "city":
+			rp.add_to_group("colony_units")   # os monstros do cerco atacam quem está na cidade
 		_apply_remote_look(id)
 	rp.apply_net_state(pos, yaw, vel, flags, combo, attack_t)
 

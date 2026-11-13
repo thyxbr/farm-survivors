@@ -72,6 +72,21 @@ jobs:
         if: failure()
         run: tail -n 60 server.log ana.log beto.log || true
 
+      - name: Teste da Defesa da Cidade em grupo (salão + servidor + 2 clientes)
+        run: |
+          godot --headless --path . -- --server --port=7791 --city-day=12 > city_server.log 2>&1 &
+          for i in $(seq 1 30); do grep -q "ouvindo em UDP" city_server.log && break; sleep 1; done
+          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7791 --peers=2 --name=Caio --city=lead > caio.log 2>&1 & A=$!
+          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7791 --peers=2 --name=Duda --city=join > duda.log 2>&1 & B=$!
+          wait $A; RA=$?
+          wait $B; RB=$?
+          grep -hE "PASS|FAIL|NETTEST" caio.log duda.log
+          exit $(( RA | RB ))
+
+      - name: Logs da cidade em grupo
+        if: failure()
+        run: tail -n 60 city_server.log caio.log duda.log || true
+
   # Exporta o cliente Windows e publica a release v<versão> com o zip e o latest.json que o
   # auto update (scripts/autoload/updater.gd) lê. Se a versão já tem release, não faz nada.
   release:

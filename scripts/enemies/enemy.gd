@@ -51,6 +51,11 @@ const TYPES := {
 var horde := false
 var hp_mult := 1.0
 var dmg_mult := 1.0
+var speed_mult := 1.0
+## Defesa da Cidade em grupo: elite (chave de ColonyData.AFFIXES) com resistências por tipo de dano.
+var affix := ""
+## Multiplayer (servidor): "world" (Valdoria) ou "city" (Defesa da Cidade em grupo).
+var net_zone := "world"
 ## Defesa da Cidade: marcha até a prefeitura e ataca construções, soldados e o jogador no caminho.
 var siege := false
 var _siege_target = null     # Player, ColonySoldier ou ColonyBuilding
@@ -85,6 +90,7 @@ var bar_root: Node3D
 var bar_fg: MeshInstance3D
 var _overlay_hit: StandardMaterial3D
 var _overlay_slow: StandardMaterial3D
+var _overlay_base: Material = null
 var _flash_t := 0.0
 
 ## Multiplayer: id comum entre servidor e clientes.
@@ -166,6 +172,8 @@ func _ready() -> void:
 	if siege:
 		collision_mask |= 64   # soldados seguram a passagem
 		_retarget = randf() * 0.3
+	if affix != "":
+		set_affix(affix)
 	if Network.is_server():
 		Network.server_register_enemy(self)
 
@@ -233,7 +241,7 @@ func _physics_process(delta: float) -> void:
 		to_player.y = 0
 		dist = to_player.length()
 
-	var spd: float = data.speed * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0)
+	var spd: float = data.speed * speed_mult * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0)
 	var move := Vector3.ZERO
 	var face := Vector3.ZERO
 
@@ -312,8 +320,9 @@ func _nearest_player() -> Player:
 	var best: Player = null
 	var best_d := INF
 	var pool: Array = get_parent().targets() if horde and get_parent().has_method("targets") 		else get_tree().get_nodes_in_group("players")
+	var w := get_world_3d()
 	for p in pool:
-		if p.dead:
+		if p.dead or p.get_world_3d() != w:   # o servidor roda Valdoria e a cidade em mundos separados
 			continue
 		var d := global_position.distance_squared_to(p.global_position)
 		if d < best_d:
@@ -372,6 +381,8 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 	var mult := 1.0
 	if player != null and player.is_in_group("buildings"):
 		mult = float(data.get("bld", 1.0))
+		if affix != "":
+			mult *= float(ColonyData.AFFIXES[affix].get("bld", 1.0))
 	attack_timer += delta
 	if not hit_done and attack_timer >= _hit_time():
 		hit_done = true
@@ -442,12 +453,56 @@ func apply_slow(t: float) -> void:
 	if puppet:
 		Network.client_hit_enemy(net_id, 0.0, global_position, false, t)
 		return
+	if affix != "" and ColonyData.AFFIXES[affix].get("no_slow", false):
+		return
 	slow_timer = max(slow_timer, t)
+
+
+## Fração do dano que passa para este tipo ("arrow", "ball", "bolt", "melee"). Elites resistem a alguns.
+func resist_mult(dmg_kind: String) -> float:
+	if affix == "":
+		return 1.0
+	return 1.0 - float(ColonyData.AFFIXES[affix].resist.get(dmg_kind, 0.0))
+
+
+## Visual do elite (cor, tamanho e nome). Chamado no _ready e nas réplicas quando o servidor avisa.
+func set_affix(a: String) -> void:
+	if not ColonyData.AFFIXES.has(a) or model == null:
+		return
+	affix = a
+	var d: Dictionary = ColonyData.AFFIXES[a]
+	display_name = "%s %s" % [data.name, d.name]
+	model.scale = Vector3.ONE * data.scale * float(d.get("scale", 1.12))
+	if bar_root:
+		bar_root.position.y = data.height * data.scale * float(d.get("scale", 1.12)) + 0.45
+	var glow := OmniLight3D.new()
+	glow.light_color = d.color
+	glow.light_energy = 1.2
+	glow.omni_range = 3.0
+	glow.position.y = data.height * 0.6
+	add_child(glow)
+	var tag := Label3D.new()
+	tag.text = d.name
+	tag.font_size = 34
+	tag.outline_size = 8
+	tag.pixel_size = 0.006
+	tag.modulate = d.color
+	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	tag.no_depth_test = true
+	tag.position.y = data.height * data.scale * float(d.get("scale", 1.12)) + 0.75
+	add_child(tag)
+	var tint := StandardMaterial3D.new()
+	tint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	tint.albedo_color = Color(d.color.r, d.color.g, d.color.b, 0.28)
+	tint.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_overlay_base = tint
+	for m in meshes:
+		m.material_overlay = tint
 
 
 func _update_flash(delta: float) -> void:
 	_flash_t = max(0.0, _flash_t - delta)
-	var over: Material = null
+	var over: Material = _overlay_base
 	if _flash_t > 0:
 		over = _overlay_hit
 	elif slow_timer > 0:
@@ -536,7 +591,7 @@ func _siege_process(delta: float) -> void:
 		dist = to.length()
 		if not t.has_method("closest_point"):
 			dist -= float(t.radius) if t.get("radius") != null else 0.35
-	var spd: float = data.speed * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0)
+	var spd: float = data.speed * speed_mult * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0)
 	var move := Vector3.ZERO
 	var face := Vector3.ZERO
 	if state == "attack":
@@ -590,8 +645,9 @@ func _pick_siege_target():
 	var best = null
 	var best_d := INF
 	var aggro: float = data.aggro
+	var w := get_world_3d()
 	for u in get_tree().get_nodes_in_group("colony_units"):
-		if u.dead:
+		if u.dead or u.get_world_3d() != w:
 			continue
 		var d := global_position.distance_to(u.global_position)
 		if d < aggro and d < best_d:
@@ -633,6 +689,8 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 	_net_pos = pos
 	_net_yaw = yaw
 	if new_hp != hp:
+		if new_hp < hp - 0.5 and _flash_t <= 0.0:
+			_flash_t = 0.06
 		hp = new_hp
 		health_changed.emit(self)
 	slow_timer = 0.25 if flags & 1 else 0.0
