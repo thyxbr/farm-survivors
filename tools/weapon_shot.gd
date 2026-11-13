@@ -1,8 +1,9 @@
 extends SceneTree
-## Foto de uma arma (assets/models/<id>.glb) com o mesmo céu, sol e tonemap do world.gd — o que o
-## jogador vê, sem passar pelo menu. Também imprime se a superfície usa a cor por vértice como albedo.
-## Precisa de janela (não use --headless) e do --import feito antes:
+## Foto de um modelo (assets/models/<id>.glb: arma, personagem, prop) com a luz do jogo (WorldLighting,
+## a mesma do world.gd) — o que o jogador vê, sem passar pelo menu. Também imprime se cada superfície usa
+## a cor por vértice como albedo. Precisa de janela (não use --headless) e do --import feito antes:
 ##   godot --path . --resolution 420x900 --script res://tools/weapon_shot.gd -- w_rose_flame <saida.png> [3q]
+##   godot --path . --resolution 900x900 --script res://tools/weapon_shot.gd -- knight <saida.png>
 
 var _frames := 0
 var _out := ""
@@ -12,33 +13,7 @@ func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
 	var id: String = args[0]
 	_out = args[1]
-	var env := Environment.new()
-	env.background_mode = Environment.BG_SKY
-	var sky := Sky.new()
-	var sm := ProceduralSkyMaterial.new()
-	sm.sky_top_color = Color(0.28, 0.48, 0.82)
-	sm.sky_horizon_color = Color(0.72, 0.8, 0.9)
-	sm.ground_horizon_color = Color(0.72, 0.8, 0.9)
-	sm.ground_bottom_color = Color(0.25, 0.3, 0.25)
-	sky.sky_material = sm
-	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.9
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_exposure = 0.95
-	env.glow_enabled = true
-	env.glow_intensity = 0.5
-	env.glow_bloom = 0.05
-	env.adjustment_enabled = true
-	env.adjustment_saturation = 1.12
-	var we := WorldEnvironment.new()
-	we.environment = env
-	root.add_child(we)
-	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-48, -35, 0)
-	sun.light_energy = 1.25
-	sun.light_color = Color(1.0, 0.95, 0.86)
-	root.add_child(sun)
+	WorldLighting.build(root)               # a mesma luz do world.gd (céu, ambiente, ACES, sol, contraluz)
 
 	var w := (load("res://assets/models/%s.glb" % id) as PackedScene).instantiate() as Node3D
 	WeaponModel.use_vertex_color(w)          # o mesmo ajuste que o jogo faz ao equipar
