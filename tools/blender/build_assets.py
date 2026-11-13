@@ -438,6 +438,7 @@ def build_chest():
 
 exec(open(OUT.replace("assets/models/", "tools/blender/characters.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/weapons.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/gear.py"), encoding="utf-8").read(), globals())
 
 # ASSETS="knight,elder" no ambiente gera só esses (útil para iterar).
 import os
@@ -452,6 +453,9 @@ BUILDERS = {
 BUILDERS.update(dict(WEAPONS))   # w_<id>: espadas (weapons.py); ASSETS=weapons gera todas
 if "weapons" in _only:
     _only += [n for n, _ in WEAPONS]
+BUILDERS.update(dict(GEAR))      # roupas e armaduras modulares (gear.py); ASSETS=gear gera todas
+if "gear" in _only:
+    _only += [n for n, _ in GEAR]
 clear()
 for _name, _fn in BUILDERS.items():
     if not _only or _name in _only:
