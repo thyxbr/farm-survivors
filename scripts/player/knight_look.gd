@@ -9,7 +9,7 @@ const PARTS := {
 	"head": ["Helmet", "HelmetDome"],
 	"armor": ["Torso", "Fauld", "ArmL_Pauldron", "ArmR_Pauldron"],
 	"hands": ["ArmL_Gauntlet", "ArmR_Gauntlet", "ArmL_Hand", "ArmR_Hand"],
-	"feet": ["LegL_Sabaton", "LegR_Sabaton"],
+	"feet": ["LegL_Sabaton", "LegR_Sabaton", "LegL_Foot", "LegR_Foot"],
 }
 const SWORD_PARTS := ["Grip", "Blade"]
 const SHIELD_PARTS := ["ShieldRim", "Shield"]
