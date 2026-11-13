@@ -2,10 +2,14 @@ extends Node
 ## Efeitos sonoros sintetizados em tempo de carregamento (sem arquivos de áudio).
 
 const RATE := 22050
+const NEAR_DIST := 6.0    # até aqui o som do mundo toca no volume cheio
+const FAR_DIST := 32.0    # além disso não se ouve nada
 
 var streams := {}
 var _players: Array[AudioStreamPlayer] = []
 var _next := 0
+var _players_3d: Array[AudioStreamPlayer3D] = []
+var _next_3d := 0
 var _lp := 0.0
 var _rng := RandomNumberGenerator.new()
 
@@ -17,6 +21,14 @@ func _ready() -> void:
 		var p := AudioStreamPlayer.new()
 		add_child(p)
 		_players.append(p)
+	for i in 20:
+		var p3 := AudioStreamPlayer3D.new()
+		# a queda com a distância é calculada à mão (distance_gain) a partir do
+		# jogador, não da câmera; o player 3D só cuida da direção
+		p3.attenuation_model = AudioStreamPlayer3D.ATTENUATION_DISABLED
+		p3.panning_strength = 0.8
+		add_child(p3)
+		_players_3d.append(p3)
 	streams["swing"] = _gen(0.2, _swing)
 	streams["hit"] = _gen(0.22, _hit)
 	streams["hurt"] = _gen(0.25, _hurt)
@@ -50,6 +62,45 @@ func play(sound: String, pitch_var := 0.08, volume_db := 0.0) -> void:
 	p.pitch_scale = 1.0 + randf_range(-pitch_var, pitch_var)
 	p.volume_db = volume_db
 	p.play()
+
+
+## Som que acontece num ponto do mundo (inimigos, outros jogadores, explosões).
+## O volume cai com a distância até o jogador local e some de vez além de FAR_DIST;
+## o AudioStreamPlayer3D dá a direção (esquerda/direita) em relação à câmera.
+func play_at(sound: String, pos: Vector3, pitch_var := 0.08, volume_db := 0.0) -> void:
+	if not streams.has(sound):
+		return
+	var listener: Variant = _listener_pos()
+	if listener == null:
+		play(sound, pitch_var, volume_db)
+		return
+	var gain := distance_gain(pos.distance_to(listener))
+	if gain <= 0.0:
+		return
+	var p := _players_3d[_next_3d]
+	_next_3d = (_next_3d + 1) % _players_3d.size()
+	p.stream = streams[sound]
+	p.pitch_scale = 1.0 + randf_range(-pitch_var, pitch_var)
+	p.volume_db = volume_db + linear_to_db(gain)
+	p.global_position = pos
+	p.play()
+
+
+## 1.0 até NEAR_DIST, cai em curva até 0.0 em FAR_DIST.
+static func distance_gain(d: float) -> float:
+	if d <= NEAR_DIST:
+		return 1.0
+	if d >= FAR_DIST:
+		return 0.0
+	var t := (d - NEAR_DIST) / (FAR_DIST - NEAR_DIST)
+	return (1.0 - t) * (1.0 - t)
+
+
+func _listener_pos() -> Variant:
+	var player := get_tree().get_first_node_in_group("player") as Node3D
+	if player == null or not player.is_inside_tree():
+		return null
+	return player.global_position
 
 
 func _gen(dur: float, f: Callable) -> AudioStreamWAV:
