@@ -234,116 +234,171 @@ def pouch(name, loc, mat_bag, mat_flap, parent, size=(0.08, 0.06, 0.09), rotz=0.
 
 
 exec(open(OUT.replace("assets/models/", "tools/blender/head.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/body.py"), encoding="utf-8").read(), globals())
 
 
 # ================================================================== CAVALEIRO
+# Corpo-base em loft (body.py) com armadura em camadas derivada das mesmas seções.
+# Peças tingidas por scripts/player/knight_look.gd (cada uma com um material só):
+#   Helmet, HelmetDome | Torso, Fauld, ArmX_Pauldron | ArmX_Gauntlet, ArmX_Hand | LegX_Sabaton | Shield.
+# O resto é juntado por pivô para reduzir objetos. KneeX/ElbowX ficam retos (o jogo ainda não os anima).
 def build_knight():
     steel = mat("k_steel", hexc("#A9B1BE"), 0.35, 0.85)
     steel_d = mat("k_steel_dark", hexc("#5D6573"), 0.45, 0.85)
     chain = mat("k_chain", hexc("#4A4F59"), 0.6, 0.7)
     red_c = mat("k_red", hexc("#A3202A"), 0.85)
     red_dark = mat("k_red_dark", hexc("#5E1016"), 0.9)
-    red_l = mat("k_red_light", hexc("#C9454D"), 0.85)
     trim = mat("k_trim", hexc("#E6B544"), 0.35, 0.8)
     lea = mat("k_leather", hexc("#6B4423"), 0.8)
     lea_d = mat("k_leather_d", hexc("#3A2412"), 0.85)
     slit = mat("k_slit", (0.02, 0.02, 0.02), 0.9)
     bl = mat("k_blade", (0.86, 0.88, 0.92), 0.18, 1.0)
 
-    root = empty("Knight", (0, 0, 0))
+    P = body_proportions(height=1.84, heads=7.5, shoulders=1.08, waist=0.92, limbs=1.06, hands=1.15, feet=1.1)
+    R = humanoid_rig("Knight", P)
+    body, head = R["Body"], R["Head"]
+
     # ---------------- pernas
-    for side, x in (("LegL", 0.1), ("LegR", -0.1)):
-        leg = empty(side, (x, 0, 0.95), root)
-        limb(side + "_Thigh", (x, 0, 0.96), (x, 0, 0.54), 0.085, 0.066, chain, sides=7, parent=leg)
-        tbox(side + "_Cuisse", (x, -0.03, 0.75), (0.165, 0.11, 0.3), steel, top=(1.08, 1), bottom=(0.85, 0.9),
-             bevel=0.018, parent=leg)
-        tbox(side + "_Knee", (x, -0.055, 0.53), (0.12, 0.07, 0.11), steel, top=(0.8, 0.7), bottom=(0.8, 0.7), bevel=0.02, parent=leg)
-        tbox(side + "_KneeWing", (x + (0.055 if x > 0 else -0.055), -0.035, 0.53), (0.02, 0.07, 0.09), steel_d, bevel=0.008, parent=leg)
-        limb(side + "_Greave", (x, 0, 0.52), (x, -0.005, 0.13), 0.066, 0.052, steel, sides=8, flat=1.05, parent=leg)
-        tbox(side + "_Sabaton", (x, -0.05, 0.065), (0.11, 0.22, 0.11), steel, top=(0.85, 0.65), shift_top=(0, 0.035),
-             bevel=0.024, parent=leg)
-        tbox(side + "_Sole", (x, -0.05, 0.013), (0.118, 0.232, 0.026), lea_d, bevel=0.006, parent=leg)
-        for k in range(2):
-            tbox(side + "_SabPlate%d" % k, (x, -0.1 - k * 0.045, 0.085 - k * 0.012), (0.112, 0.03, 0.06 - k * 0.01),
-                 steel_d, bevel=0.008, rot=(0.5, 0, 0), parent=leg)
+    for n, s in (("L", 1), ("R", -1)):
+        S = limb_sections(P, s)
+        leg, knee = R["Leg" + n], R["Knee" + n]
+        K = mirror(P["knee"], s)
+        th = loft("Leg%s_Thigh" % n, S["thigh"], chain, leg)
+        cu = loft("Leg%s_Cuisse" % n, grow(span(S["thigh"], 0.12, 0.9), 1.12, 0.014), steel, leg, sides=6, arc=3.6,
+                  thick=0.014)
+        join_objs("Leg%s_Thigh" % n, [th, cu])
+        pol = loft("Leg%s_Knee" % n, [sec((K.x, K.y - 0.03, K.z + 0.005), 0.07, 0.074),
+                                      sec((K.x, K.y - 0.075, K.z), 0.064, 0.068),
+                                      sec((K.x, K.y - 0.1, K.z - 0.006), 0.042, 0.046)],
+                   steel, knee, fwd=(0, 0, 1), chamfer=(0.0, 0.008))
+        sab_s = [dict(x, c=x["c"] + Vector((0, 0, 0.008))) for x in grow(S["foot"], 1.1, 0.006)]
+        heel_y, toe_y = sab_s[0]["c"].y, sab_s[-1]["c"].y
+        sole = tbox("Leg%s_Sole" % n, (K.x, (heel_y + toe_y) / 2 - 0.004, 0.011),
+                    (0.15 * P["ft"], heel_y - toe_y + 0.05, 0.022), lea_d, bevel=0.006, parent=knee)
+        join_objs("Leg%s_Knee" % n, [pol, sole])
+        gr = loft("Leg%s_Sabaton" % n, grow(span(S["shin"], 0.04, 0.97), 1.13, 0.008, keel=0.12), steel, knee,
+                  phase=0, chamfer=(0.006, 0.0))
+        sb = loft("Leg%s_Foot" % n, stepped(sab_s, (0.42, 0.58, 0.74), drop=0.92, keep_bottom=True), steel, knee,
+                  fwd=(0, 0, 1), chamfer=(0.008, 0.01))
+        join_objs("Leg%s_Sabaton" % n, [gr, sb])
 
-    # ---------------- tronco
-    body = empty("Body", (0, 0, 0.95), root)
-    tbox("Torso", (0, 0, 1.2), (0.36, 0.23, 0.4), steel, top=(1.2, 1.08), bottom=(0.9, 0.95), bevel=0.04, parent=body)
-    tbox("ChestRidge", (0, -0.118, 1.22), (0.035, 0.03, 0.3), steel, top=(0.6, 1), bevel=0.01, parent=body)
-    tbox("Plackart", (0, -0.1, 1.07), (0.3, 0.06, 0.14), steel_d, top=(1.05, 1), bevel=0.02, parent=body)
-    tbox("EmblemV", (0, -0.137, 1.27), (0.022, 0.012, 0.13), trim, parent=body)
-    tbox("EmblemH", (0, -0.137, 1.3), (0.09, 0.012, 0.022), trim, parent=body)
-    ring("Gorget", 1.45, 0.1, 0.08, steel_d, parent=body, sides=10, flat=0.9)
-    tbox("NeckTrim", (0, 0, 1.415), (0.3, 0.2, 0.025), trim, top=(0.75, 0.8), bevel=0.006, parent=body)
-    tbox("Belt", (0, 0, 0.98), (0.35, 0.245, 0.055), lea, bevel=0.01, parent=body)
-    tbox("Buckle", (0, -0.126, 0.98), (0.06, 0.016, 0.05), trim, bevel=0.004, parent=body)
-    pouch("Pouch", (0.15, -0.07, 0.93), lea, lea_d, body, size=(0.07, 0.05, 0.08), rotz=0.5)
-    tbox("Fauld1", (0, 0, 0.92), (0.37, 0.25, 0.08), steel, bottom=(1.06, 1.06), bevel=0.012, parent=body)
-    tbox("Fauld2", (0, 0, 0.855), (0.39, 0.265, 0.07), steel, bottom=(1.07, 1.07), bevel=0.012, parent=body)
-    # tabardo (frente e costas) com barra dourada
-    for nm, y in (("Front", -1), ("Back", 1)):
-        tbox("Tabard" + nm, (0, y * 0.142, 0.71), (0.19, 0.014, 0.3), red_c, bottom=(1.25, 1), bevel=0.004, parent=body)
-        tbox("TabardTrim" + nm, (0, y * 0.145, 0.566), (0.245, 0.016, 0.022), trim, parent=body)
-        tbox("TabardBand" + nm, (0, y * 0.146, 0.6), (0.232, 0.016, 0.03), red_dark, parent=body)
-        for sg, n in ((1, "L"), (-1, "R")):
-            tbox("TabardEdge" + nm + n, (sg * 0.106, y * 0.146, 0.715), (0.018, 0.016, 0.29), trim,
-                 rot=(0, sg * 0.08, 0), parent=body)
-        tbox("TabardEmblem" + nm, (0, y * 0.151, 0.76), (0.06, 0.012, 0.06), trim, rot=(0, PI / 4, 0), parent=body)
-        tbox("TabardEmblemIn" + nm, (0, y * 0.156, 0.76), (0.032, 0.012, 0.032), red_l, rot=(0, PI / 4, 0), parent=body)
-    # capa
-    cloth("Cape", 1.45, 0.3, 0.16, 0.27, 2.3, 2.9, [red_c, red_dark, trim],
-          [(0.25, 0), (0.5, 0), (0.75, 0), (0.9, 0), (0.95, 1), (1.0, 2)], center=(0, 0.035), back=1.0, cols=8,
+    # ---------------- tronco: cota por baixo, couraça, plackart, faldas em lâminas, tassets, cinto
+    loft("Hips", [sec((0, 0, 1.0), 0.15, 0.112), sec((0, 0, 0.86), 0.17, 0.125)], chain, body, sides=12, phase=0)
+    torso = loft("Torso", [sec((0, 0, 0.98), 0.15, 0.118),
+                           sec((0, 0, 1.08), 0.145, 0.112),
+                           sec((0, 0, 1.2), 0.175, 0.132, fr=1.12, keel=0.03),
+                           sec((0, 0, 1.31), 0.205, 0.145, fr=1.24, keel=0.07),
+                           sec((0, 0, 1.4), 0.205, 0.13, fr=1.1, keel=0.03),
+                           sec((0, 0, 1.455), 0.155, 0.1),
+                           sec((0, 0, 1.48), 0.09, 0.075)], steel, body, sides=12, phase=0, axis=(0, 0, 1),
+                 chamfer=(0.0, 0.01))
+    plack = loft("Plackart", [sec((0, 0, 0.995), 0.158, 0.128, fr=1.04),
+                              sec((0, 0, 1.1), 0.155, 0.125, fr=1.06),
+                              sec((0, 0, 1.19), 0.182, 0.143, fr=1.13, keel=0.05)],
+                 steel, body, sides=8, axis=(0, 0, 1), arc=2.5, thick=0.016)
+    join_objs("Torso", [torso, plack])
+    lames = []
+    for i, (z0, z1, rx0, rx1, ry0, ry1) in enumerate(((1.0, 0.93, 0.158, 0.18, 0.122, 0.142),
+                                                      (0.95, 0.87, 0.174, 0.2, 0.138, 0.158),
+                                                      (0.89, 0.81, 0.19, 0.218, 0.152, 0.175))):
+        lames.append(loft("Fauld%d" % i, [sec((0, 0, z0), rx0, ry0, fr=1.06), sec((0, 0, z1), rx1, ry1, fr=1.06)],
+                          steel, body, sides=12, phase=0, axis=(0, 0, 1), chamfer=(0.0, 0.006)))
+    for n, s in (("L", 1), ("R", -1)):
+        for i, (z0, z1, r0, r1) in enumerate(((0.87, 0.78, 0.0, 0.008), (0.79, 0.7, 0.01, 0.02))):
+            lames.append(loft("Tasset%s%d" % (n, i), [sec((s * (0.105 + r0), -r0, z0), 0.118 + r0, 0.156 + r0),
+                                                      sec((s * (0.11 + r1), -r1, z1), 0.118 + r1, 0.156 + r1)],
+                              steel, body, sides=4, axis=(0, 0, 1), arc=2.0, thick=0.012))
+    join_objs("Fauld", lames)
+    belt = loft("Belt", [sec((0, 0, 1.03), 0.168, 0.13, fr=1.06), sec((0, 0, 0.982), 0.172, 0.134, fr=1.06)],
+                lea, body, sides=12, phase=0, axis=(0, 0, 1))
+    buckle = tbox("Buckle", (0, -0.147, 1.006), (0.05, 0.014, 0.046), trim, bevel=0.004, parent=body)
+    join_objs("Belt", [belt, buckle])
+    tbox("Tabard", (0, -0.17, 0.7), (0.15, 0.012, 0.3), red_c, bottom=(1.25, 1), bevel=0.004, parent=body)
+    loft("Gorget", [sec((0, 0, 1.43), 0.15, 0.115), sec((0, 0, 1.47), 0.11, 0.09), sec((0, 0.004, 1.52), 0.08, 0.075),
+                    sec((0, 0.006, 1.55), 0.075, 0.072)], steel_d, body, sides=10, axis=(0, 0, 1),
+         chamfer=(0.0, 0.006))
+    cloth("Cape", 1.46, 0.3, 0.17, 0.28, 2.3, 2.9, [red_c, red_dark],
+          [(0.25, 0), (0.5, 0), (0.75, 0), (0.92, 0), (1.0, 1)], center=(0, 0.035), back=1.0, cols=8,
           folds=0.025, thick=0.016, border=0.07, border_mat=1, parent=body)
-    tbox("CapeClaspL", (0.15, -0.06, 1.42), (0.04, 0.03, 0.04), trim, bevel=0.008, parent=body)
-    tbox("CapeClaspR", (-0.15, -0.06, 1.42), (0.04, 0.03, 0.04), trim, bevel=0.008, parent=body)
 
-    # ---------------- cabeça (elmo fechado)
-    head = empty("Head", (0, 0, 1.49), body)
-    limb("Helmet", (0, 0.005, 1.5), (0, 0.005, 1.71), 0.118, 0.128, steel, sides=10, flat=1.1, parent=head)
-    shell("HelmetDome", (0, 0.005, 1.705), (0.258, 0.282, 0.22), steel, cut=0.0, seg=10, rings=8, parent=head)
-    tbox("Visor", (0, -0.125, 1.63), (0.2, 0.06, 0.15), steel, top=(1.0, 1.0), bottom=(0.75, 1.0),
-         shift_bottom=(0, -0.02), bevel=0.02, parent=head)
-    tbox("VisorSlit", (0, -0.158, 1.665), (0.17, 0.014, 0.016), slit, parent=head)
-    tbox("VisorSlit2", (0, -0.16, 1.64), (0.15, 0.014, 0.012), slit, parent=head)
-    for i in range(3):
-        tbox("Breath%d" % i, (-0.04 + i * 0.04, -0.163, 1.585), (0.012, 0.012, 0.03), slit, parent=head)
-    ring("HelmetBand", 1.71, 0.132, 0.025, trim, parent=head, sides=10, flat=1.1, y=0.005)
-    tbox("Crest", (0, 0.01, 1.83), (0.018, 0.24, 0.05), trim, bevel=0.006, parent=head)
-    tbox("Plume", (0, 0.07, 1.87), (0.05, 0.22, 0.08), red_c, top=(0.6, 1.1), bevel=0.012, jitter=0.008, parent=head)
-    limb("PlumeTail", (0, 0.17, 1.86), (0, 0.27, 1.72), 0.04, 0.012, red_c, sides=5, flat=0.7, parent=head)
+    # ---------------- cabeça: elmo fechado em duas camadas (calota com aba sobre a parte de baixo) e visor
+    helm = loft("Helmet", [sec((0, 0.005, 1.5), 0.085, 0.088),
+                           sec((0, 0.005, 1.56), 0.108, 0.118, fr=1.06),
+                           sec((0, 0.005, 1.64), 0.118, 0.13, fr=1.05, keel=0.05),
+                           sec((0, 0.005, 1.72), 0.122, 0.132),
+                           sec((0, 0.005, 1.75), 0.122, 0.132)], steel, head, sides=10, axis=(0, 0, 1))
+    visor = loft("Visor", [sec((0, 0.005, 1.595), 0.119, 0.131, fr=1.12, keel=0.06),
+                           sec((0, 0.005, 1.66), 0.127, 0.14, fr=1.16, keel=0.14),
+                           sec((0, 0.005, 1.725), 0.13, 0.14, fr=1.1, keel=0.06)],
+                 steel, head, sides=8, axis=(0, 0, 1), arc=2.3, thick=0.014)
+    join_objs("Helmet", [helm, visor])
+    loft("HelmetDome", [sec((0, 0.005, 1.735), 0.13, 0.14),
+                        sec((0, 0.005, 1.765), 0.13, 0.14),
+                        sec((0, 0.005, 1.81), 0.115, 0.125, keel=0.06),
+                        sec((0, 0.005, 1.85), 0.075, 0.085),
+                        sec((0, 0.005, 1.87), 0.03, 0.035)], steel, head, sides=10, axis=(0, 0, 1),
+         chamfer=(0.006, 0.0))
+    loft("VisorSlit", [sec((0, 0.005, 1.678), 0.13, 0.143, fr=1.162, keel=0.145),
+                       sec((0, 0.005, 1.692), 0.13, 0.143, fr=1.162, keel=0.145)],
+         slit, head, sides=6, axis=(0, 0, 1), arc=1.7, thick=0.01)
+    loft("Plume", [sec((0, 0.0, 1.84), 0.035, 0.016), sec((0, 0.035, 1.92), 0.052, 0.022),
+                   sec((0, 0.11, 1.965), 0.05, 0.022), sec((0, 0.2, 1.96), 0.042, 0.018),
+                   sec((0, 0.27, 1.91), 0.028, 0.012), sec((0, 0.3, 1.84), 0.008, 0.004)],
+         red_c, head, sides=6, phase=0, fwd=(1, 0, 0))
 
     # ---------------- braços
-    for side, sx in (("ArmR", -0.22), ("ArmL", 0.22)):
-        s = 1 if sx > 0 else -1
-        arm = empty(side, (sx, 0, 1.42), body)
-        elbow = (sx + s * 0.03, 0.01, 1.15)
-        wrist = (sx + s * 0.04, 0.0, 0.92)
-        limb(side + "_Upper", (sx, 0, 1.43), elbow, 0.062, 0.052, chain, sides=7, parent=arm)
-        shell(side + "_Pauldron", (sx + s * 0.035, 0, 1.43), (0.2, 0.23, 0.17), steel, cut=-0.25, rot=(0, s * 0.35, 0), parent=arm)
-        shell(side + "_Pauldron2", (sx + s * 0.06, 0, 1.36), (0.2, 0.22, 0.14), steel_d, cut=-0.1, rot=(0, s * 0.6, 0), parent=arm)
-        tbox(side + "_PauldronTrim", (sx + s * 0.07, 0, 1.47), (0.06, 0.2, 0.02), trim, rot=(0, s * 0.45, 0), bevel=0.005, parent=arm)
-        shell(side + "_Couter", (elbow[0], 0.03, elbow[2]), (0.1, 0.1, 0.1), steel, cut=-0.4, rot=(1.6, 0, 0), parent=arm)
-        limb(side + "_Vambrace", elbow, wrist, 0.056, 0.047, steel, sides=8, parent=arm)
-        limb(side + "_Gauntlet", (wrist[0], 0, wrist[2] + 0.04), (wrist[0], 0, wrist[2] - 0.03), 0.055, 0.068, steel_d, sides=8, parent=arm)
-        hand(side, wrist[0], wrist[2] - 0.075, steel_d, arm)
-    # espada (mão direita, apontando para frente)
-    arm_r = bpy.data.objects["ArmR"]
-    hx, hz = -0.26, 0.85
+    for n, s in (("R", -1), ("L", 1)):
+        S = limb_sections(P, s)
+        arm, elbow = R["Arm" + n], R["Elbow" + n]
+        U = S["upper"]
+        loft("Arm%s_Upper" % n, U, chain, arm)
+        sh = mirror(P["shoulder"], s)
+        tilt = Vector((s * math.sin(0.75), 0, math.cos(0.75)))
+        pl = [dome("Arm%s_Pauldron" % n, sh + Vector((s * 0.01, 0, -0.005)), tilt, 0.15, 0.14, 0.085, steel, arm,
+                   sides=10, lip=0.025)]
+        for i, (t0, t1, a0, a1) in enumerate(((0.1, 0.3, 0.092, 0.1), (0.25, 0.44, 0.084, 0.092))):
+            c0, c1 = sample(U, t0), sample(U, t1)
+            pl.append(loft("Arm%s_Lame%d" % (n, i), [sec(c0["c"], a0, a0 + 0.008), sec(c1["c"], a1, a1 + 0.008)],
+                           steel, arm, sides=8, chamfer=(0.0, 0.006)))
+        pl.append(loft("Arm%s_Rerebrace" % n, grow(span(U, 0.42, 0.93), 1.14, 0.008), steel, arm,
+                       chamfer=(0.0, 0.006)))
+        join_objs("Arm%s_Pauldron" % n, pl)
+        E = mirror(P["elbow"], s)
+        cop = dome("Arm%s_Couter" % n, E + Vector((0, 0.012, 0)), (s * 0.35, 1, 0), 0.056, 0.06, 0.05, steel, elbow,
+                   fwd=(0, 0, 1))
+        vb = loft("Arm%s_Vambrace" % n, grow(span(S["fore"], 0.1, 0.92), 1.16, 0.006), steel, elbow,
+                  chamfer=(0.006, 0.006))
+        join_objs("Arm%s_Vambrace" % n, [vb, cop])
+        W = mirror(P["wrist"], s)
+        cuff0 = sample(S["fore"], 0.68)
+        loft("Arm%s_Gauntlet" % n, [sec(cuff0["c"], 0.05, 0.056), sec(W + Vector((0, 0, -0.018)), 0.058, 0.066)],
+             steel_d, elbow, sides=8, chamfer=(0.0, 0.006))
+        fist("Arm" + n, P, s, steel_d, elbow)
+
+    # ---------------- espada (mão direita, apontando para frente) — o jogo usa Grip como ponto da mão
+    arm_r = R["ArmR"]
+    W = mirror(P["wrist"], -1)
+    hx, hz = W.x + 0.004, W.z - 0.064 * P["hd"]
     limb("Grip", (hx, 0.07, hz), (hx, -0.07, hz), 0.017, 0.017, lea, sides=6, parent=arm_r)
-    shell("Pommel", (hx, 0.09, hz), (0.05, 0.05, 0.05), trim, cut=-1.0, thick=0, parent=arm_r)
-    tbox("Guard", (hx, -0.085, hz), (0.03, 0.03, 0.24), trim, top=(0.7, 0.7), bottom=(0.7, 0.7), bevel=0.006, parent=arm_r)
-    tbox("Blade", (hx, -0.53, hz), (0.012, 0.86, 0.052), bl, bevel=0.003, parent=arm_r)
-    limb("BladeTip", (hx, -0.96, hz), (hx, -1.06, hz), 0.026, 0.0, bl, sides=4, flat=0.25, twist=PI / 4, parent=arm_r)
-    # escudo (braço esquerdo), face externa em +X
-    arm_l = bpy.data.objects["ArmL"]
-    sxp = 0.32
-    tbox("ShieldRim", (sxp - 0.004, 0, 1.06), (0.03, 0.42, 0.52), steel_d, bottom=(1, 0.22), shift_bottom=(0, 0),
-         bevel=0.01, parent=arm_l)
-    tbox("Shield", (sxp + 0.008, 0, 1.065), (0.026, 0.38, 0.48), red_c, bottom=(1, 0.2), bevel=0.008, parent=arm_l)
-    tbox("ShieldCrossV", (sxp + 0.024, 0, 1.08), (0.01, 0.045, 0.36), trim, parent=arm_l)
-    tbox("ShieldCrossH", (sxp + 0.024, 0, 1.16), (0.01, 0.26, 0.045), trim, parent=arm_l)
-    shell("ShieldBoss", (sxp + 0.03, 0, 1.16), (0.07, 0.07, 0.07), trim, cut=-0.2, rot=(0, PI / 2, 0), parent=arm_l)
+    sw = [shell("Pommel", (hx, 0.09, hz), (0.05, 0.05, 0.05), trim, cut=-1.0, thick=0, parent=arm_r),
+          tbox("Guard", (hx, -0.085, hz), (0.03, 0.03, 0.24), trim, top=(0.7, 0.7), bottom=(0.7, 0.7), bevel=0.006,
+               parent=arm_r),
+          tbox("Blade", (hx, -0.53, hz), (0.012, 0.86, 0.052), bl, bevel=0.003, parent=arm_r),
+          limb("BladeTip", (hx, -0.96, hz), (hx, -1.06, hz), 0.026, 0.0, bl, sides=4, flat=0.25, twist=PI / 4,
+               parent=arm_r)]
+    join_objs("Blade", [sw[2], sw[0], sw[1], sw[3]])
+    # escudo (antebraço esquerdo), face externa em +X
+    el_l = R["ElbowL"]
+    sxp, sz = 0.35, 1.03
+    rim = [tbox("ShieldRim", (sxp - 0.004, 0, sz), (0.03, 0.42, 0.52), steel_d, bottom=(1, 0.22), bevel=0.01,
+                parent=el_l),
+           tbox("ShieldCrossV", (sxp + 0.024, 0, sz + 0.02), (0.01, 0.045, 0.36), trim, parent=el_l),
+           tbox("ShieldCrossH", (sxp + 0.024, 0, sz + 0.1), (0.01, 0.26, 0.045), trim, parent=el_l),
+           shell("ShieldBoss", (sxp + 0.03, 0, sz + 0.1), (0.07, 0.07, 0.07), trim, cut=-0.2, rot=(0, PI / 2, 0),
+                 parent=el_l)]
+    join_objs("ShieldRim", rim)
+    tbox("Shield", (sxp + 0.008, 0, sz + 0.005), (0.026, 0.38, 0.48), red_c, bottom=(1, 0.2), bevel=0.008,
+         parent=el_l)
     export("knight")
 
 

@@ -16,6 +16,7 @@ Quando algo aqui contradiz uma skill genérica, **este arquivo vence**.
 |---|---|
 | `tools/blender/build_assets.py` | helpers `mat()`, `empty()`, `part()`, `export()` + builders dos props; registro `BUILDERS` |
 | `tools/blender/characters.py` | personagens (`build_knight`, `build_elder`, `build_merchant`, `build_goblin`); helpers `limb`, `tbox`, `_finish`, `_place` |
+| `tools/blender/body.py` | corpo-base humanoide em loft de anéis: `loft`/`sec`/`dome`, `body_proportions` (altura, cabeças, ombros, cintura, mãos, pés), `humanoid_rig` (pivôs com joelho/cotovelo), `limb_sections`/`torso_sections`, `fist`, `humanoid_base`; armadura sai das mesmas seções com `grow`/`span`/`stepped`; `join_objs` junta peças de um pivô |
 | `tools/blender/preview_single.py` | folha frente / 3/4 / costas de um GLB; imprime `TRIS <nome> <n>`; modo `silhouette` |
 | `tools/blender/preview_assets.py` | todos os GLBs lado a lado |
 | `tools/blender/preview_closeup.py`, `preview_face.py` | close-ups de busto/rosto |
@@ -67,11 +68,13 @@ ou, preferível, os scripts `preview_*.py`; `get_scene_info` → `mcp__Blender__
 - Unidade: metro. Personagem humano ~1,8–1,9 m; pés em Z=0; frente = **-Y no Blender** (+Z no Godot).
 - Export: `export_format='GLB', export_yup=True, export_apply=True`, sem câmeras/luzes/animações.
 - Hierarquia dos personagens: empty raiz (`Knight`, `Goblin`…) com filhos-pivô **`LegL`, `LegR`
-  (quadril), `Body` (quadril), `Head` (pescoço), `ArmL`, `ArmR` (ombro)**. A posição do empty é a
+  (quadril), `Body` (quadril), `Head` (pescoço), `ArmL`, `ArmR` (ombro)**; no knight também
+  `KneeL/KneeR` (dentro de `LegL/LegR`) e `ElbowL/ElbowR` (dentro de `ArmL/ArmR`), ainda sem animação. A posição do empty é a
   articulação; malhas penduradas nele. Usado por `scripts/enemies/enemy.gd`, `scripts/colony/soldier.gd`,
   `scripts/player/*`.
 - **Nomes de peças são API**: `scripts/player/knight_look.gd` tinge/oculta peças pelo nome
-  (`Helmet`, `Visor`, `Torso`, `ArmL_Gauntlet`, `LegL_Sabaton`, `Blade`, `Shield`…). Antes de
+  (`Helmet`, `Torso`, `Fauld`, `ArmL_Gauntlet`, `LegL_Sabaton`, `Blade`, `Shield`…); peça tingida precisa ter um material só
+  (o `material_override` pinta a malha inteira). Antes de
   renomear, mesclar ou remover uma peça, `grep` o nome em `scripts/`. As convenções `SM_`/`MAT_`/`COL_`
   das skills genéricas **não** se aplicam aos assets existentes.
 - Materiais: nome curto com prefixo do asset (`k_steel`, `k_red`…); cor via `hexc("#RRGGBB")`.
