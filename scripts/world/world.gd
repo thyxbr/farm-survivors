@@ -33,6 +33,8 @@ const PLOT := preload("res://scripts/farm/farm_plot.gd")
 const KITCHEN := preload("res://scripts/farm/kitchen.gd")
 const PLANT_UI := preload("res://scripts/ui/plant_ui.gd")
 const COOKING_UI := preload("res://scripts/ui/cooking_ui.gd")
+const GROUND := preload("res://scripts/world/ground.gd")
+const FIELD_CROP := preload("res://assets/models/field_crop.glb")
 
 const MAP_HALF := 125.0
 const VILLAGE_SPAWN := Vector3(0, 0.3, 6)
@@ -53,6 +55,8 @@ var spawns: Array = []
 var flicker_lights: Array = []
 var rng := RandomNumberGenerator.new()
 var _avoid: Array = []   # [Vector2 centro, raio] áreas sem vegetação aleatória
+var _no_grass: Array = []   # [Vector2 centro, raio] pegadas de props (o capim não atravessa)
+var ground: Node3D
 var _t := 0.0
 
 
@@ -185,36 +189,9 @@ func _build_environment() -> void:
 
 
 func _build_ground() -> void:
-	var ground := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(MAP_HALF * 2.6, MAP_HALF * 2.6)
-	ground.mesh = plane
-	var mat := StandardMaterial3D.new()
-	var noise := FastNoiseLite.new()
-	noise.frequency = 0.02
-	var tex := NoiseTexture2D.new()
-	tex.width = 512
-	tex.height = 512
-	tex.seamless = true
-	tex.noise = noise
-	var grad := Gradient.new()
-	grad.set_color(0, Color(0.2, 0.38, 0.13))
-	grad.set_color(1, Color(0.36, 0.55, 0.2))
-	tex.color_ramp = grad
-	mat.albedo_texture = tex
-	mat.uv1_scale = Vector3(30, 30, 30)
-	mat.roughness = 1.0
-	ground.material_override = mat
+	ground = GROUND.new()
 	add_child(ground)
-	var body := StaticBody3D.new()
-	var cs := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(MAP_HALF * 2.6, 1, MAP_HALF * 2.6)
-	cs.shape = box
-	cs.position.y = -0.5
-	body.add_child(cs)
-	add_child(body)
-
+	ground.setup(MAP_HALF)
 	var dirt := Color(0.45, 0.35, 0.22)
 	_flat(Vector3(0, 0.02, -50), Vector2(4.5, 80), dirt)          # trilha norte
 	_flat(Vector3(38, 0.02, 0), Vector2(52, 4.5), dirt)           # trilha leste
@@ -223,33 +200,13 @@ func _build_ground() -> void:
 	_disc(CAMP + Vector3(0, 0.02, 0), 13.0, Color(0.4, 0.32, 0.2))
 
 
-func _flat(pos: Vector3, size: Vector2, c: Color) -> void:
-	var mi := MeshInstance3D.new()
-	var p := PlaneMesh.new()
-	p.size = size
-	mi.mesh = p
-	var m := StandardMaterial3D.new()
-	m.albedo_color = c
-	m.roughness = 1.0
-	mi.material_override = m
-	mi.position = pos
-	add_child(mi)
+## Área retangular pintada no chão (o shader do chão desenha a borda irregular).
+func _flat(pos: Vector3, size: Vector2, c: Color, soft := 0.8) -> void:
+	ground.add_rect(pos, size, c, soft)
 
 
-func _disc(pos: Vector3, r: float, c: Color) -> void:
-	var mi := MeshInstance3D.new()
-	var cy := CylinderMesh.new()
-	cy.top_radius = r
-	cy.bottom_radius = r
-	cy.height = 0.02
-	cy.radial_segments = 32
-	mi.mesh = cy
-	var m := StandardMaterial3D.new()
-	m.albedo_color = c
-	m.roughness = 1.0
-	mi.material_override = m
-	mi.position = pos
-	add_child(mi)
+func _disc(pos: Vector3, r: float, c: Color, soft := 0.9) -> void:
+	ground.add_disc(pos, r, c, soft)
 
 
 ## Instancia um modelo e (opcionalmente) uma colisão simples ("box" ou "cyl").
@@ -259,6 +216,9 @@ func prop(model: String, pos: Vector3, yaw := 0.0, s := 1.0, shape := "", size :
 	inst.rotation.y = yaw
 	inst.scale = Vector3.ONE * s
 	add_child(inst)
+	if shape != "" and model != "fence":
+		var foot: float = (maxf(size.x, size.z) * 0.5 if shape == "box" else size.x) * s
+		_no_grass.append([Vector2(pos.x, pos.z), foot + 0.15])
 	if shape != "":
 		var body := StaticBody3D.new()
 		body.position = pos
@@ -352,7 +312,7 @@ func _build_farm() -> void:
 	_avoid.append([Vector2(FARM.x, FARM.z), 15.0])
 	_avoid.append([Vector2(1, 24), 4.0])
 	_flat(Vector3(1, 0.021, 19.5), Vector2(3.2, 17), Color(0.45, 0.35, 0.22))       # trilha praça -> horta
-	_flat(FARM + Vector3(0, 0.019, 0.5), Vector2(20, 13.5), Color(0.4, 0.42, 0.22))  # chão da horta
+	_flat(FARM + Vector3(0, 0.019, 0.5), Vector2(20, 13.5), Color(0.4, 0.42, 0.22), 0.5)  # chão da horta
 	_flat(FARM + Vector3(1, 0.021, -2), Vector2(2.6, 9), Color(0.45, 0.35, 0.22))
 	# cerca da horta, com portão alinhado ao portão sul da vila
 	var x := -10.0
@@ -440,21 +400,19 @@ func _build_fields() -> void:
 	var soil := Color(0.36, 0.25, 0.15)
 	var crop_mm := MultiMesh.new()
 	crop_mm.transform_format = MultiMesh.TRANSFORM_3D
-	var crop := PrismMesh.new()
-	crop.size = Vector3(0.35, 0.55, 0.35)
-	var cm := StandardMaterial3D.new()
-	cm.albedo_color = Color(0.45, 0.65, 0.15)
-	crop.material = cm
-	crop_mm.mesh = crop
+	var crop_scene: Node3D = FIELD_CROP.instantiate()
+	crop_mm.mesh = (crop_scene.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D).mesh
+	crop_scene.free()
 	var xforms: Array[Transform3D] = []
 	for plot in [Vector3(-14, 0, -24), Vector3(12, 0, -26), Vector3(-16, 0, -40), Vector3(15, 0, -42)]:
-		_flat(plot + Vector3(0, 0.025, 0), Vector2(10, 7), soil)
+		_flat(plot + Vector3(0, 0.025, 0), Vector2(10, 7), soil, 0.25)
 		for row in 5:
 			for col in 12:
 				if rng.randf() < 0.25:
 					continue
-				var p: Vector3 = plot + Vector3(-4.4 + col * 0.8, 0.27, -2.6 + row * 1.3)
-				xforms.append(Transform3D(Basis().rotated(Vector3.UP, rng.randf() * TAU), p))
+				var p: Vector3 = plot + Vector3(-4.4 + col * 0.8, 0.0, -2.6 + row * 1.3)
+				var cs := rng.randf_range(0.85, 1.25)
+				xforms.append(Transform3D(Basis().rotated(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * cs), p))
 		_avoid.append([Vector2(plot.x, plot.z), 6.5])
 		# cercas dos lotes
 		for i in 5:
@@ -511,9 +469,9 @@ func _build_ruins() -> void:
 # ================================================================ arena do Desafio da Horda
 func _build_arena() -> void:
 	_avoid.append([Vector2(ARENA.x, ARENA.z), 37.0])
-	_disc(ARENA + Vector3(0, 0.015, 0), 32.0, Color(0.36, 0.33, 0.28))
-	_disc(ARENA + Vector3(0, 0.02, 0), 30.5, Color(0.3, 0.42, 0.18))
-	_disc(ARENA + Vector3(0, 0.025, 0), 4.5, Color(0.42, 0.4, 0.36))
+	_disc(ARENA + Vector3(0, 0.015, 0), 32.0, Color(0.36, 0.33, 0.28), 0.4)
+	_disc(ARENA + Vector3(0, 0.02, 0), 30.5, Color(0.3, 0.42, 0.18), 0.4)
+	_disc(ARENA + Vector3(0, 0.025, 0), 4.5, Color(0.42, 0.4, 0.36), 0.4)
 	var n := 22
 	for i in n:
 		var a := TAU * i / n
@@ -645,38 +603,11 @@ func _scatter_nature() -> void:
 		placed += 1
 	if Network.is_server():
 		return   # grama é só visual
-	# tufos de grama (MultiMesh)
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
-	var blade := PrismMesh.new()
-	blade.size = Vector3(0.1, 0.32, 0.04)
-	var gm := StandardMaterial3D.new()
-	gm.vertex_color_use_as_albedo = true
-	gm.roughness = 1.0
-	blade.material = gm
-	mm.mesh = blade
-	var pts: Array[Vector3] = []
-	while pts.size() < 16000:
-		var c := Vector3(rng.randf_range(-MAP_HALF, MAP_HALF), 0.14, rng.randf_range(-MAP_HALF, MAP_HALF))
-		if Vector2(c.x, c.z).distance_to(Vector2(ARENA.x, ARENA.z)) < 32.5:
-			continue
-		if Vector2(c.x, c.z).distance_to(Vector2(0, 1)) < 11.0 or (abs(c.x) < 3.0 and c.z < -8) or (abs(c.z) < 3.0 and c.x > 10 and c.x < 64):
-			continue
-		if (abs(c.x - FARM.x) < 11.0 and abs(c.z - FARM.z) < 7.5) or (abs(c.x - 1.0) < 1.8 and c.z > 11.0 and c.z < 27.0):
-			continue   # horta e trilha
-		for k in 4:  # tufos com várias folhas
-			pts.append(c + Vector3(rng.randf_range(-0.2, 0.2), 0, rng.randf_range(-0.2, 0.2)))
-	mm.instance_count = pts.size()
-	for i in pts.size():
-		var p := pts[i]
-		var bas := Basis().rotated(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.7, 1.4))
-		mm.set_instance_transform(i, Transform3D(bas, p))
-		mm.set_instance_color(i, Color(0.2, 0.4, 0.12).lerp(Color(0.38, 0.56, 0.18), rng.randf()))
-	var mmi := MultiMeshInstance3D.new()
-	mmi.multimesh = mm
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mmi)
+	# capim e flores (fora das trilhas pintadas, das pegadas de props e da arena)
+	var keep_out := _no_grass.duplicate()
+	keep_out.append([Vector2(ARENA.x, ARENA.z), 33.0])
+	var sparse := [[Vector2(0, 4), 22.0], [Vector2(FARM.x, FARM.z), 12.0]]
+	ground.scatter_grass(rng.seed + 7, 0.6, keep_out, sparse)
 
 
 # ================================================================ inimigos

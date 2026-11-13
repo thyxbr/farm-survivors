@@ -24,7 +24,7 @@ static var _last_ready_notice := -100.0
 func _ready() -> void:
 	add_to_group("interactable")
 	_t = randf() * 10.0
-	# terra fofa com bordas de madeira
+	# canteiro elevado: terra fofa, duas tábuas por lado, estacas nos cantos e sulcos rasos
 	var soil := MeshInstance3D.new()
 	var box := BoxMesh.new()
 	box.size = Vector3(1.8, 0.14, 1.8)
@@ -35,24 +35,42 @@ func _ready() -> void:
 	_soil_mat.roughness = 1.0
 	soil.material_override = _soil_mat
 	add_child(soil)
+	var tones := [Color(0.45, 0.3, 0.17), Color(0.38, 0.25, 0.14)]
 	for i in 4:
-		var plank := MeshInstance3D.new()
-		var pb := BoxMesh.new()
-		pb.size = Vector3(2.0, 0.2, 0.1)
-		plank.mesh = pb
-		plank.material_override = _mat("wood", Color(0.45, 0.3, 0.17))
 		var a := i * PI / 2.0
-		plank.rotation.y = a
-		plank.position = Vector3(sin(a), 0, cos(a)) * 0.95 + Vector3.UP * 0.1
-		add_child(plank)
-	# sulcos
+		for k in 2:
+			var plank := MeshInstance3D.new()
+			var pb := BoxMesh.new()
+			pb.size = Vector3(1.92 - k * 0.04, 0.1, 0.08)
+			plank.mesh = pb
+			plank.material_override = _mat("wood%d" % ((i + k) % 2), tones[(i + k) % 2])
+			plank.rotation.y = a
+			plank.position = Vector3(sin(a), 0, cos(a)) * (0.95 - k * 0.005) + Vector3.UP * (0.05 + k * 0.105)
+			add_child(plank)
+	for i in 4:
+		var a := i * PI / 2.0 + PI / 4.0
+		var stake := MeshInstance3D.new()
+		var sb := BoxMesh.new()
+		sb.size = Vector3(0.12, 0.34, 0.12)
+		stake.mesh = sb
+		stake.material_override = _mat("stake", Color(0.3, 0.2, 0.11))
+		stake.position = Vector3(sin(a), 0, cos(a)) * 0.95 * sqrt(2.0) + Vector3.UP * 0.17
+		add_child(stake)
+		var nail := MeshInstance3D.new()
+		var nb := BoxMesh.new()
+		nb.size = Vector3(0.14, 0.03, 0.14)
+		nail.mesh = nb
+		nail.material_override = _mat("iron", Color(0.2, 0.2, 0.22))
+		nail.position = stake.position + Vector3.UP * 0.12
+		add_child(nail)
 	for r in 3:
 		var furrow := MeshInstance3D.new()
-		var fb := BoxMesh.new()
-		fb.size = Vector3(1.6, 0.04, 0.16)
+		var fb := PrismMesh.new()
+		fb.size = Vector3(0.3, 0.05, 1.6)
 		furrow.mesh = fb
-		furrow.material_override = _mat("furrow", Color(0.25, 0.16, 0.09))
-		furrow.position = Vector3(0, 0.15, -0.55 + r * 0.55)
+		furrow.material_override = _soil_mat
+		furrow.rotation.y = PI / 2.0
+		furrow.position = Vector3(0, 0.165, -0.55 + r * 0.55)
 		add_child(furrow)
 
 	_weeds = Node3D.new()
@@ -169,6 +187,7 @@ func _refresh() -> void:
 		if _plants:
 			_plants.queue_free()
 			_plants = null
+			_mounds_holder()
 		_fruits.clear()
 		if crop != "":
 			_plants = _build_crop(crop)
@@ -195,116 +214,31 @@ func _animate(st: String) -> void:
 
 
 func _build_crop(crop: String) -> Node3D:
+	# Modelos em assets/models/crop_<cultura>.glb (tools/blender/props.py): "Plant" cresce com o
+	# canteiro, cada "Fruit_N" cresce no lugar e "Mounds" (montinhos de terra) fica fora da escala.
 	var root := Node3D.new()
-	var c: Color = ItemDB.CROPS[crop].color
-	var leaf := _mat("leaf", Color(0.25, 0.6, 0.18))
-	match crop:
-		"carrot":
-			for pos in _grid(2, 0.42):
-				var plant := _node(root, pos)
-				for k in 3:
-					var l := _mesh(plant, _prism(0.12, 0.42, 0.04), leaf, Vector3(0, 0.36, 0))
-					l.rotation = Vector3(0.0, k * TAU / 3.0, 0.35)
-				var top := _cyl(0.09, 0.03, 0.28)
-				var f := _mesh(plant, top, _mat("carrot", c), Vector3(0, 0.2, 0))
-				_fruits.append(f)
-		"wheat":
-			for pos in _grid(3, 0.5):
-				var plant := _node(root, pos)
-				var stalk_c := Color(0.55, 0.7, 0.25)
-				_mesh(plant, _cyl(0.025, 0.03, 0.8), _mat("stalk", stalk_c), Vector3(0, 0.55, 0))
-				var head := _mesh(plant, _cyl(0.06, 0.05, 0.26), _mat("wheat", c), Vector3(0, 1.02, 0))
-				_fruits.append(head)
-		"tomato":
-			for pos in _grid(2, 0.42):
-				var plant := _node(root, pos)
-				_mesh(plant, _cyl(0.02, 0.02, 1.0), _mat("wood", Color(0.45, 0.3, 0.17)), Vector3(0, 0.6, 0))
-				_mesh(plant, _sphere(0.26, 0.45), leaf, Vector3(0, 0.6, 0))
-				for k in 3:
-					var a := k * TAU / 3.0 + 0.4
-					var f := _mesh(plant, _sphere(0.08, 0.15), _mat("tomato", c), Vector3(cos(a) * 0.2, 0.45 + k * 0.12, sin(a) * 0.2))
-					_fruits.append(f)
-		"pepper":
-			for pos in _grid(2, 0.42):
-				var plant := _node(root, pos)
-				_mesh(plant, _sphere(0.24, 0.38), _mat("leaf_dark", Color(0.18, 0.48, 0.14)), Vector3(0, 0.38, 0))
-				for k in 3:
-					var a := k * TAU / 3.0
-					var f := _mesh(plant, _cyl(0.045, 0.012, 0.22), _mat("pepper", c, 0.5), Vector3(cos(a) * 0.2, 0.32, sin(a) * 0.2))
-					f.rotation.z = 0.3
-					_fruits.append(f)
-		"mint":
-			for pos in _grid(2, 0.42):
-				var plant := _node(root, pos)
-				_mesh(plant, _cyl(0.02, 0.025, 0.55), _mat("leaf_dark", Color(0.18, 0.48, 0.14)), Vector3(0, 0.38, 0))
-				for k in 6:
-					var a := k * 2.4
-					var l := _mesh(plant, _sphere(0.11, 0.05), _mat("mint", c, 1.2), Vector3(cos(a) * 0.1, 0.2 + k * 0.08, sin(a) * 0.1))
-					l.rotation = Vector3(1.0, -a, 0)
-					l.scale = Vector3(1.0, 1.0, 1.6)
-					if k >= 3:
-						_fruits.append(l)
-		"pumpkin":
-			for k in 5:
-				var a := k * TAU / 5.0
-				var l := _mesh(root, _sphere(0.26, 0.08), leaf, Vector3(cos(a) * 0.55, 0.2, sin(a) * 0.55))
-				l.rotation.y = a
-			var holder := _node(root, Vector3.ZERO)
-			var body := _mesh(holder, _sphere(0.42, 0.62), _mat("pumpkin", c), Vector3(0, 0.42, 0))
-			body.scale = Vector3(1.15, 1.0, 1.15)
-			_mesh(holder, _cyl(0.04, 0.05, 0.16), _mat("stem", Color(0.35, 0.45, 0.15)), Vector3(0, 0.78, 0))
-			_fruits.append(holder)
+	var model: Node3D = (load("res://assets/models/crop_%s.glb" % crop) as PackedScene).instantiate()
+	root.add_child(model)
+	var mounds := model.find_child("Mounds", true, false) as MeshInstance3D
+	if mounds:
+		mounds.material_override = _soil_mat
+		mounds.owner = null
+		mounds.get_parent().remove_child(mounds)
+		_mounds_holder().add_child(mounds)
+	for n in model.find_children("Fruit_*", "Node3D", true, false):
+		_fruits.append(n)
 	return root
 
 
-func _grid(n: int, step: float) -> Array:
-	var out := []
-	var off := (n - 1) * step / 2.0
-	for x in n:
-		for z in n:
-			out.append(Vector3(x * step - off, 0.12, z * step - off))
-	return out
-
-
-func _node(parent: Node3D, pos: Vector3) -> Node3D:
-	var n := Node3D.new()
-	n.position = pos
-	parent.add_child(n)
-	return n
-
-
-func _mesh(parent: Node3D, mesh: Mesh, mat: Material, pos: Vector3) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	mi.material_override = mat
-	mi.position = pos
-	parent.add_child(mi)
-	return mi
-
-
-func _prism(w: float, h: float, d: float) -> PrismMesh:
-	var p := PrismMesh.new()
-	p.size = Vector3(w, h, d)
-	return p
-
-
-func _cyl(top: float, bottom: float, h: float) -> CylinderMesh:
-	var c := CylinderMesh.new()
-	c.top_radius = top
-	c.bottom_radius = bottom
-	c.height = h
-	c.radial_segments = 8
-	c.rings = 1
-	return c
-
-
-func _sphere(r: float, h: float) -> SphereMesh:
-	var s := SphereMesh.new()
-	s.radius = r
-	s.height = h
-	s.radial_segments = 10
-	s.rings = 5
-	return s
+func _mounds_holder() -> Node3D:
+	var h := get_node_or_null("CropMounds") as Node3D
+	if h == null:
+		h = Node3D.new()
+		h.name = "CropMounds"
+		add_child(h)
+	for c in h.get_children():
+		c.queue_free()
+	return h
 
 
 func _update_label(st: String) -> void:
