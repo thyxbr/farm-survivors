@@ -6,6 +6,8 @@ extends Node3D
 const FIREBALL := preload("res://scripts/player/fireball.gd")
 
 var player: Player
+## Modo sobrevivência do jogador local (as armas param enquanto a horda está congelada).
+var survival: Node
 var levels := {}          # id -> nível (1..5)
 var _timers := {"fogo": 0.5, "raio": 1.0, "aura": 0.0}
 var _blade_pivot: Node3D
@@ -63,6 +65,8 @@ func apply_gear(a: Vector3, b: Vector3) -> void:
 
 func _physics_process(delta: float) -> void:
 	if player == null or player.dead:
+		return
+	if survival and survival.get("frozen") == true:
 		return
 	_t += delta
 	if visual_only:

@@ -75,7 +75,7 @@ static func _mesh_for(key: String) -> Mesh:
 func _process(delta: float) -> void:
 	_t += delta
 	var player: Player = survival.player if survival else null
-	if player == null:
+	if player == null or survival.get("frozen") == true:
 		return
 	if not _grounded:
 		_vel.y -= 14.0 * delta

@@ -58,6 +58,9 @@ var farm := {}
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# Interpolação de física só onde se pede (jogadores e inimigos): o resto do jogo mexe em
+	# posições por quadro (tweens, efeitos) e tremeria se fosse interpolado.
+	get_tree().root.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_setup_input()
 	load_settings()
 	reset_run_mods()

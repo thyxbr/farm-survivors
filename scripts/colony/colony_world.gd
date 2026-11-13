@@ -15,6 +15,7 @@ const DIALOGUE := preload("res://scripts/ui/dialogue_ui.gd")
 const PAUSE := preload("res://scripts/ui/pause_menu.gd")
 const COLONY := preload("res://scripts/colony/colony.gd")
 const BUILD := preload("res://scripts/colony/build_mode.gd")
+const CHAT := preload("res://scripts/ui/chat_ui.gd")
 const M := {
 	"tree_pine": preload("res://assets/models/tree_pine.glb"),
 	"tree_oak": preload("res://assets/models/tree_oak.glb"),
@@ -119,6 +120,9 @@ func _ready() -> void:
 	add_child(colony_hud)
 
 	if role == "client":
+		var chat := CHAT.new()
+		chat.world = self
+		add_child(chat)
 		Game.notify.emit("Defesa da Cidade em grupo: o cofre é de todos. Aperte B para construir.", Color(1, 0.9, 0.6))
 		Lobby.city_ready(self)
 		return

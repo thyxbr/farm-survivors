@@ -6,6 +6,7 @@ extends Control
 
 const OPTIONS := preload("res://scripts/ui/options_panel.gd")
 const KNIGHT := preload("res://assets/models/knight.glb")
+const CHAT := preload("res://scripts/ui/chat_ui.gd")
 
 ## Lobby.in_session() reconhece a cena por isto.
 var is_lobby := true
@@ -33,6 +34,8 @@ func _ready() -> void:
 	Lobby.changed.connect(_mark)
 	Network.players_changed.connect(_mark)
 	Game.notify.connect(_on_notify)
+	if Network.is_client():
+		add_child(CHAT.new())   # chat do servidor inteiro (canto inferior esquerdo)
 	Lobby.lobby_ready()
 
 
@@ -139,13 +142,15 @@ func _build_ui() -> void:
 	_room_box.add_theme_constant_override("separation", 6)
 	cv.add_child(_room_box)
 
-	# --- avisos (canto inferior esquerdo)
+	# --- avisos (canto inferior direito; o esquerdo é do chat)
 	_feed = VBoxContainer.new()
+	_feed.anchor_left = 1.0
+	_feed.anchor_right = 1.0
 	_feed.anchor_top = 1.0
 	_feed.anchor_bottom = 1.0
-	_feed.offset_left = 60
+	_feed.offset_left = -690
 	_feed.offset_top = -190
-	_feed.offset_right = 700
+	_feed.offset_right = -50
 	_feed.offset_bottom = -30
 	_feed.alignment = BoxContainer.ALIGNMENT_END
 	_feed.mouse_filter = Control.MOUSE_FILTER_IGNORE
