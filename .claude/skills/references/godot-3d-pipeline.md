@@ -21,6 +21,8 @@ Quando algo aqui contradiz uma skill genérica, **este arquivo vence**.
 | `tools/blender/preview_closeup.py`, `preview_face.py` | close-ups de busto/rosto |
 | `assets/models/*.glb` | saída (nome minúsculo, ex.: `knight.glb`) |
 
+Alvo visual dos personagens: `tools/blender/STYLE.md`. Workflow completo de ponta a ponta: comando `/modelar`.
+
 Novo asset = nova função `build_<nome>()` que usa os helpers e termina em `export("<nome>")`,
 registrada em `BUILDERS`. Não crie arquivos `.blend` para assets do jogo.
 

@@ -1,12 +1,14 @@
 # Close-up do busto de um personagem: blender -b --python preview_closeup.py -- <nome> <saida.png>
 import bpy, sys, math
+import os
+D = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "assets", "models")).replace("\\", "/") + "/"  # funciona em worktrees
 name, out = sys.argv[-2], sys.argv[-1]
 scn = bpy.context.scene
 for o in list(scn.objects):
     bpy.data.objects.remove(o)
 for i, ang in enumerate((0.0, 0.7, math.pi)):
     before = set(scn.objects)
-    bpy.ops.import_scene.gltf(filepath="C:/Games/godot-3d/assets/models/" + name + ".glb")
+    bpy.ops.import_scene.gltf(filepath=D + name + ".glb")
     for o in set(scn.objects) - before:
         if o.parent is None:
             o.location.x += (i - 1) * 0.75

@@ -2,6 +2,8 @@
 # 1) blender -b --factory-startup --python tools/blender/face_compare.py -- <nome> <queixo_z> <altura_cabeca> <saida.png> [sem_chapeu]
 # 2) python tools/face_sheet.py <saida.png> <queixo_z> <altura_cabeca> <referencia.png> <folha.png>
 import bpy, sys, math
+import os
+D = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "assets", "models")).replace("\\", "/") + "/"  # funciona em worktrees
 args = sys.argv[sys.argv.index("--") + 1:]
 name, chin, H, out = args[0], float(args[1]), float(args[2]), args[3]
 hide_hat = len(args) > 4 and args[4] == "sem_chapeu"
@@ -10,7 +12,7 @@ for o in list(scn.objects):
     bpy.data.objects.remove(o)
 for i, ang in enumerate((0.0, 0.6, math.pi / 2)):
     before = set(scn.objects)
-    bpy.ops.import_scene.gltf(filepath="C:/Games/godot-3d/assets/models/" + name + ".glb")
+    bpy.ops.import_scene.gltf(filepath=D + name + ".glb")
     for o in set(scn.objects) - before:
         if hide_hat and any(k in o.name for k in ("Turban", "Hat", "Hood", "Helmet")):
             o.hide_render = True
