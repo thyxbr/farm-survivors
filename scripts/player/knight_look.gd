@@ -194,6 +194,7 @@ static func _build_model(h: Node3D, tip: Node3D, model: String) -> bool:
 	if not ResourceLoader.exists(path):
 		return false
 	var w := (load(path) as PackedScene).instantiate() as Node3D
+	WeaponModel.use_vertex_color(w)
 	w.transform = Transform3D(Basis(Vector3(0, 1, 0), Vector3(0, 0, 1), Vector3(1, 0, 0)), Vector3.ZERO)
 	h.add_child(w)
 	var t := w.find_child("Tip", true, false) as Node3D

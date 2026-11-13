@@ -1,448 +1,451 @@
-# Espadas do jogo (GLB w_<id>.glb). Carregado por build_assets.py via exec (usa mat, part, hull, empty,
+# Espadas do jogo (GLB w_<id>.glb). Carregado por build_assets.py via exec (usa mat, part, empty,
 # join_all, export, hexc). Convenção: centro do cabo na origem, lâmina subindo em +Z, largura em X,
 # espessura em Y. O empty "Tip" marca a ponta (o jogo usa para rastro/alcance).
 # knight_look.gd instancia o GLB no WeaponHolder quando o item tem "model".
 import math
 from mathutils import Vector
+from mathutils import geometry as mgeo
 
 WEAPONS = []   # nomes dos builders, registrados em BUILDERS
 
 
-def _m(name, hx, rough=0.4, metal=0.0, glow=0.0):
-    c = hexc(hx)
-    return mat(name, c, rough, metal, emit=c if glow > 0 else None, strength=glow)
+# ------------------------------------------------------------------ pintura por vértice
+# Cor por vértice (atributo "Col", sRGB) faz o papel da textura pintada: degradês, gume escuro,
+# sombra nos sulcos. O material vc_mat liga "Col" direto na cor base, então o glTF exporta COLOR_0
+# e o Godot usa a cor do vértice como albedo. Uma arma pintada assim tem um material só.
+def srgb(hx):
+    hx = hx.lstrip("#")
+    return tuple(int(hx[i:i + 2], 16) / 255 for i in (0, 2, 4))
 
 
-def _cr(p0, p1, p2, p3, t):
-    """Catmull-Rom escalar."""
-    t2, t3 = t * t, t * t * t
-    return 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (-p0 + 3 * p1 - 3 * p2 + p3) * t3)
+def mix(a, b, t):
+    t = min(max(t, 0.0), 1.0)
+    return tuple(x + (y - x) * t for x, y in zip(a, b))
 
 
-def _resample(keys, n):
-    """keys: [(x, z, wl, wr, th)] -> n estações suavizadas (Catmull-Rom em todas as colunas)."""
-    k = [keys[0]] + list(keys) + [keys[-1]]
-    out = []
-    segs = len(keys) - 1
-    for i in range(n):
-        u = i / (n - 1) * segs
-        s = min(int(u), segs - 1)
-        t = u - s
-        row = [_cr(k[s][c], k[s + 1][c], k[s + 2][c], k[s + 3][c], t) for c in range(5)]
-        row[2], row[3], row[4] = max(row[2], 0.0), max(row[3], 0.0), max(row[4], 0.0006)
-        out.append(row)
-    return out
+def smooth01(t):
+    t = min(max(t, 0.0), 1.0)
+    return t * t * (3 - 2 * t)
 
 
-def blade(name, keys, material, n=12, ridge=0.0):
-    """Lâmina com seção em losango seguindo uma espinha curva no plano XZ.
-    keys: (x, z, largura_esq, largura_dir, meia_espessura). 'esq' = lado -X quando a espinha sobe.
-    ridge desloca a quina central na direção da esquerda (fração da largura esquerda)."""
-    print("PART", name, "blade", flush=True)
-    st = _resample(keys, n) if n > len(keys) else [list(k) for k in keys]
-    bm = bmesh.new()
-    rows = []
-    for i, (x, z, wl, wr, th) in enumerate(st):
-        a = st[max(i - 1, 0)]
-        b = st[min(i + 1, len(st) - 1)]
-        t = Vector((b[0] - a[0], b[1] - a[1]))
-        t = t.normalized() if t.length > 1e-6 else Vector((0, 1))
-        nl = Vector((-t.y, t.x))           # normal à esquerda
-        p = Vector((x, z))
-        L = p + nl * wl
-        R = p - nl * wr
-        C = p + nl * (wl * ridge)
-        rows.append([bm.verts.new((L.x, 0, L.y)), bm.verts.new((C.x, -th, C.y)),
-                     bm.verts.new((R.x, 0, R.y)), bm.verts.new((C.x, th, C.y))])
-    for i in range(len(rows) - 1):
-        a, b = rows[i], rows[i + 1]
-        for j in range(4):
-            j2 = (j + 1) % 4
-            try:
-                bm.faces.new((a[j], a[j2], b[j2], b[j]))
-            except ValueError:
-                pass
-    for r in (rows[0], rows[-1]):
-        try:
-            bm.faces.new(r)
-        except ValueError:
-            pass
-    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0004)
-    bmesh.ops.dissolve_degenerate(bm, dist=0.0004, edges=bm.edges)
+def ramp(stops, t):
+    """stops: [(t, cor)] crescente -> cor interpolada."""
+    if t <= stops[0][0]:
+        return stops[0][1]
+    for (t0, c0), (t1, c1) in zip(stops, stops[1:]):
+        if t <= t1:
+            return mix(c0, c1, (t - t0) / (t1 - t0))
+    return stops[-1][1]
+
+
+LIGHT = Vector((-0.45, -0.65, 0.6)).normalized()   # luz pintada: frente, esquerda, de cima
+
+
+def vc_mat(name, rough=0.55, metal=0.0, spec=0.2):
+    """spec baixo: o reflexo rasante (Fresnel) clareia o gume e apaga o contorno escuro pintado."""
+    m = mat(name, (1, 1, 1), rough, metal)
+    nt = m.node_tree
+    b = next(n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED')
+    if "Specular IOR Level" in b.inputs:
+        b.inputs["Specular IOR Level"].default_value = spec
+    ca = next((n for n in nt.nodes if n.type == 'VERTEX_COLOR'), None) or nt.nodes.new("ShaderNodeVertexColor")
+    ca.layer_name = "Col"
+    nt.links.new(ca.outputs["Color"], b.inputs["Base Color"])
+    return m
+
+
+def paint(ob, fn):
+    """fn(co, normal, índice_do_vértice) -> (r, g, b) sRGB, gravado por canto em 'Col'."""
+    me = ob.data
+    a = me.color_attributes.get("Col") or me.color_attributes.new("Col", 'BYTE_COLOR', 'CORNER')
+    cache = {}
+    for li, lp in enumerate(me.loops):
+        vi = lp.vertex_index
+        if vi not in cache:
+            v = me.vertices[vi]
+            cache[vi] = fn(v.co, v.normal, vi)
+        a.data[li].color_srgb = (*cache[vi], 1.0)
+    return ob
+
+
+def _mk(name, bm, material, smooth=True):
+    print("PART", name, "mesh", flush=True)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.00005)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
     bm.free()
+    me.validate()
+    for p in me.polygons:
+        p.use_smooth = smooth
     me.materials.append(material)
     ob = bpy.data.objects.new(name, me)
     coll.objects.link(ob)
     return ob
 
 
-def spike(name, x, z, ang, length, w, th, material):
-    """Espinho triangular saindo de (x, z); ang em radianos a partir de +Z (positivo = para +X)."""
-    d = Vector((math.sin(ang), math.cos(ang)))
-    pr = Vector((d.y, -d.x)) * (w / 2)
-    b = Vector((x, z))
-    tip = b + d * length
-    pts = [(b.x + pr.x, 0, b.y + pr.y), (b.x - pr.x, 0, b.y - pr.y),
-           (b.x, -th, b.y), (b.x, th, b.y), (tip.x, 0, tip.y)]
-    return hull(name, pts, material)
+def _inside(p, poly):
+    c, j = False, len(poly) - 1
+    for i in range(len(poly)):
+        a, b = poly[i], poly[j]
+        if (a.y > p.y) != (b.y > p.y) and p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x:
+            c = not c
+        j = i
+    return c
 
 
-def tube(name, pts, r, material, seg=6):
-    """Cilindros ligando pontos 3D (cipós, alças)."""
-    for i in range(len(pts) - 1):
-        a, b = Vector(pts[i]), Vector(pts[i + 1])
-        d = b - a
-        rot = Vector((0, 0, 1)).rotation_difference(d.normalized()).to_euler()
-        part(f"{name}{i}", "cyl", tuple((a + b) / 2), (r * 2, r * 2, d.length + r), material, rot=tuple(rot), seg=seg)
+def _seg_d(p, a, b):
+    ab = b - a
+    t = max(0.0, min(1.0, (p - a).dot(ab) / max(ab.length_squared, 1e-12)))
+    return (a + ab * t - p).length
 
 
-def grip(L, r, m, rings=0, ring_m=None, z0=0.0, seg=8):
-    part("Grip", "cyl", (0, 0, z0), (r * 2, r * 2, L), m, seg=seg)
-    for i in range(rings):
-        z = z0 - L / 2 + L * (i + 0.5) / rings
-        part(f"GripRing{i}", "cyl", (0, 0, z), (r * 2.35, r * 2.35, L / rings * 0.35), ring_m or m, seg=seg)
+def _densify(pts, sp):
+    out = []
+    for i, a in enumerate(pts):
+        b = pts[(i + 1) % len(pts)]
+        k = max(1, int((b - a).length / sp))
+        out += [a.lerp(b, j / k) for j in range(k)]
+    return out
 
 
-def gem(name, x, z, r, m, y=0.0):
-    part(name, "ico", (x, y, z), (r * 2, r * 1.3, r * 2), m, sub=1)
+def _signed(pts):
+    return sum(a.x * b.y - b.x * a.y for a, b in zip(pts, pts[1:] + pts[:1]))
+
+
+def slab(name, outline, material, th, bevel, color=None, step=0.02, ridge=0.25, holes=()):
+    """Lâmina 'inflada' a partir de um contorno 2D [(x, z)] no plano XZ (qualquer sentido), com furos opcionais.
+    Espessura (meia) vai de 0 no gume a th, numa faixa arredondada de largura `bevel`, mais um leve
+    abaulado no miolo (ridge). color(x, z, d) -> sRGB por vértice (d = distância ao contorno); sem color,
+    a peça fica sem pintura (para textura projetada)."""
+    pts = [Vector(p) for p in outline]
+    if _signed(pts) < 0:
+        pts.reverse()                                   # externo anti-horário: normal à esquerda aponta para dentro
+    dense = _densify(pts, step * 0.7)
+    hl = []
+    for h in holes:
+        hp = [Vector(p) for p in h]
+        if len(hp) < 3 or not _inside(hp[0], dense):
+            continue
+        if _signed(hp) > 0:
+            hp.reverse()                                # furo horário: a normal à esquerda também aponta para o material
+        hl.append(_densify(hp, step * 0.5))
+    loops = [dense] + hl
+    segs = [s for L in loops for s in zip(L, L[1:] + L[:1])]
+
+    def dist(p):
+        return min(_seg_d(p, a, b) for a, b in segs)
+
+    def solid(p):
+        return _inside(p, dense) and not any(_inside(p, h) for h in hl)
+
+    inner = []
+    for L in loops:
+        n = len(L)
+        for i in range(n):
+            t = (L[(i + 1) % n] - L[i - 1]).normalized()
+            q = L[i] + Vector((-t.y, t.x)) * bevel
+            if solid(q) and dist(q) > bevel * 0.8:
+                inner.append(q)
+    lo = Vector((min(p.x for p in dense), min(p.y for p in dense)))
+    hi = Vector((max(p.x for p in dense), max(p.y for p in dense)))
+    z, row = lo.y, 0
+    while z < hi.y:
+        x = lo.x + (step / 2 if row % 2 else 0)
+        while x < hi.x:
+            q = Vector((x, z))
+            if solid(q) and dist(q) > bevel * 1.4:
+                inner.append(q)
+            x += step
+        z += step * 0.866
+        row += 1
+    keep = []
+    for q in inner:
+        if all((q - k).length > step * 0.4 for k in keep):
+            keep.append(q)
+    verts = [tuple(p) for L in loops for p in L] + [tuple(p) for p in keep]
+    edges, base = [], 0
+    for L in loops:
+        edges += [(base + i, base + (i + 1) % len(L)) for i in range(len(L))]
+        base += len(L)
+    co, _e, faces, *_ = mgeo.delaunay_2d_cdt(verts, edges, [list(range(len(dense)))], 1, 1e-6)
+    faces = [f for f in faces if not any(_inside(Vector(((co[f[0]][0] + co[f[1]][0] + co[f[2]][0]) / 3,
+                                                         (co[f[0]][1] + co[f[1]][1] + co[f[2]][1]) / 3)), h)
+                                         for h in hl)]
+    ds = [dist(Vector(c)) for c in co]
+    dmax = max(ds) or 1.0
+    bm = bmesh.new()
+    front, back, vcol = [], [], {}
+    for c, d in zip(co, ds):
+        u = min(d / bevel, 1.0)
+        t = th * (1 - ridge) * math.sin(u * math.pi / 2) + th * ridge * (d / dmax)
+        if color:
+            vcol[(round(c[0], 5), round(c[1], 5))] = color(c[0], c[1], d)
+        if d < 1e-6:
+            v = bm.verts.new((c[0], 0.0, c[1]))
+            front.append(v)
+            back.append(v)
+        else:
+            front.append(bm.verts.new((c[0], -t, c[1])))
+            back.append(bm.verts.new((c[0], t, c[1])))
+    for f in faces:
+        for side in (front, back):
+            try:
+                bm.faces.new([side[i] for i in f])
+            except ValueError:
+                pass
+    ob = _mk(name, bm, material)
+    if not color:
+        return ob
+    return paint(ob, lambda c, nrm, vi: vcol.get((round(c.x, 5), round(c.z, 5))) or color(c.x, c.z, 0.0))
+
+
+def torus(name, c, R, r, material, seg=16, sides=8, color=None):
+    """Anel no plano XZ (de frente para a câmera), centro c=(x, z)."""
+    bm = bmesh.new()
+    rings = []
+    for i in range(seg):
+        a = 2 * math.pi * i / seg
+        rings.append([bm.verts.new((c[0] + (R + r * math.cos(b)) * math.cos(a), r * math.sin(b),
+                                    c[1] + (R + r * math.cos(b)) * math.sin(a)))
+                      for b in (2 * math.pi * j / sides for j in range(sides))])
+    for i in range(seg):
+        A, B = rings[i], rings[(i + 1) % seg]
+        for j in range(sides):
+            j2 = (j + 1) % sides
+            bm.faces.new((A[j], B[j], B[j2], A[j2]))
+    ob = _mk(name, bm, material)
+    return paint(ob, color) if color else ob
+
+
+def lathe(name, prof, material, seg=10, x=0.0, phase=0.0, color=None, smooth=True):
+    """Sólido de revolução em torno do eixo Z (em x, y=0). prof [(z, r)] ou [(z, r, x)] (centro por linha);
+    r=0 fecha num polo."""
+    bm = bmesh.new()
+    rows = []
+    for row in prof:
+        z, r = row[0], row[1]
+        xc = row[2] if len(row) > 2 else x
+        if r <= 1e-6:
+            rows.append([bm.verts.new((xc, 0, z))])
+        else:
+            rows.append([bm.verts.new((xc + r * math.cos(phase + 2 * math.pi * k / seg),
+                                       r * math.sin(phase + 2 * math.pi * k / seg), z)) for k in range(seg)])
+    for A, B in zip(rows, rows[1:]):
+        for k in range(seg):
+            k2 = (k + 1) % seg
+            q = [A[k % len(A)], A[k2 % len(A)], B[k2 % len(B)], B[k % len(B)]]
+            q = [v for i, v in enumerate(q) if v not in q[:i]]
+            if len(q) >= 3:
+                try:
+                    bm.faces.new(q)
+                except ValueError:
+                    pass
+    ob = _mk(name, bm, material, smooth)
+    return paint(ob, color) if color else ob
 
 
 def finish(asset, tip_x, tip_z):
+    meshes = [o for o in coll.all_objects if o.type == 'MESH']
+    if any("Col" in o.data.color_attributes for o in meshes):   # sem isso o join preenche de preto
+        for o in meshes:
+            if "Col" not in o.data.color_attributes:
+                paint(o, lambda c, n, i: (1.0, 1.0, 1.0))
     join_all("Weapon")
     empty("Tip", (tip_x, 0, tip_z))
     export(asset)
 
 
-def _sym(fn, *a):
-    """Chama fn para os dois lados (x e ângulo espelhados)."""
-    fn(1, *a)
-    fn(-1, *a)
+# ------------------------------------------------------------------ espadas traçadas da folha de conceito
+# trace_swords.py lê refs/espadas.webp (local) e grava traced/espadas_trace.json (contornos e perfis em pixels
+# da folha) e traced/tex/<id>.png (recorte com o fundo preenchido). Aqui cada peça plana vira slab() e cada cabo/pomo
+# vira lathe(); a pintura da folha entra como textura projetada de frente (UV = posição na folha), então
+# degradês, sombras e frisos pintados chegam ao jogo como na referência. Um material por espada.
+import json
+REFS = OUT.replace("assets/models/", "tools/blender/traced/")
+TRACE_S = 1.2 / 426            # mesma escala da Chama Rosada: 426 px da folha = 1,2 m
+_TRACE = {}
 
 
-# ------------------------------------------------------------------ 1. Gume Celeste (arma inicial)
-def build_w_azure_edge():
-    steel = _m("w_steel", "#B9C3CE", 0.25, 0.9)
-    edge = _m("w_cyan", "#55DDF5", 0.2, 0.3, glow=1.2)
-    dark = _m("w_black", "#1E2026", 0.6)
-    grey = _m("w_grey", "#8C939C", 0.35, 0.8)
-    sp = [(0.0, 0.14), (0.004, 0.45), (0.012, 0.75), (0.026, 1.0)]
-    blade("BladeBack", [(x, z, w, 0.0, 0.011) for (x, z), w in zip(sp, (0.026, 0.026, 0.024, 0.02))]
-          + [(0.04, 1.08, 0.0, 0.0, 0.002)], steel, n=10)
-    blade("BladeEdge", [(x, z, 0.0, w, 0.007) for (x, z), w in zip(sp, (0.018, 0.018, 0.017, 0.016))]
-          + [(0.04, 1.08, 0.0, 0.0, 0.002)], edge, n=10)
-    for i in range(3):
-        part(f"Notch{i}", "cube", (-0.012, 0, 0.2 + i * 0.035), (0.024, 0.026, 0.008), dark, rot=(0, -0.5, 0))
-    part("Collar", "cube", (0, 0, 0.125), (0.052, 0.03, 0.04), grey)
-    part("Guard", "cube", (0.0, 0, 0.095), (0.075, 0.042, 0.025), dark, rot=(0, 0.15, 0))
-    grip(0.17, 0.016, dark, rings=5, ring_m=grey)
-    part("Pommel", "cyl", (0, 0, -0.1), (0.038, 0.038, 0.035), grey, seg=8)
-    finish("w_azure_edge", 0.04, 1.08)
+def tex_mat(name, png, rough=0.6, spec=0.12):
+    m = mat(name, (1, 1, 1), rough, 0.0)
+    nt = m.node_tree
+    b = next(n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED')
+    if "Specular IOR Level" in b.inputs:
+        b.inputs["Specular IOR Level"].default_value = spec
+    tx = next((n for n in nt.nodes if n.type == 'TEX_IMAGE'), None) or nt.nodes.new("ShaderNodeTexImage")
+    tx.image = bpy.data.images.load(png, check_existing=True)
+    nt.links.new(tx.outputs["Color"], b.inputs["Base Color"])
+    return m
 
 
-# ------------------------------------------------------------------ 2. Espinho da Raiz
-def build_w_thorn_root():
-    bone = _m("w_bone", "#ECE6DA", 0.55)
-    vine = _m("w_vine", "#86664C", 0.85)
-    vine_d = _m("w_vine_dark", "#55402F", 0.85)
-    blade("Spine", [(0, 0.1, 0.016, 0.016, 0.014), (0, 0.6, 0.015, 0.015, 0.013), (0, 1.12, 0.004, 0.004, 0.005),
-                    (0, 1.16, 0, 0, 0.002)], bone, n=6)
-    for i in range(9):
-        z = 0.46 + i * 0.075
-        ln = 0.075 - i * 0.005
-        _sym(lambda s, z=z, ln=ln, i=i: spike(f"Thorn{i}{s}", s * 0.012, z, s * 1.05, ln, 0.03, 0.009, bone))
-    # cipós trançados subindo pelo cabo e pela base da lâmina
-    for k, (m, ph) in enumerate(((vine, 0.0), (vine_d, math.pi))):
-        pts = []
-        for i in range(15):
-            z = -0.2 + i * 0.045
-            a = ph + i * 0.9
-            rr = 0.03 if z < 0.1 else 0.024
-            pts.append((math.cos(a) * rr, math.sin(a) * rr, z))
-        tube(f"Vine{k}_", pts, 0.013, m)
-    tube("Curl", [(0.02, 0, 0.42), (0.07, 0, 0.47), (0.1, 0, 0.43), (0.085, 0, 0.39)], 0.011, vine)
-    tube("CurlB", [(-0.02, 0, 0.36), (-0.065, 0, 0.32), (-0.06, 0, 0.27)], 0.01, vine_d)
-    part("Core", "cyl", (0, 0, 0.0), (0.03, 0.03, 0.42), vine_d, seg=6)
-    for i, a in enumerate((0.5, 2.6, 4.4)):
-        tube(f"Root{i}_", [(0, 0, -0.18), (math.cos(a) * 0.04, math.sin(a) * 0.03, -0.24),
-                           (math.cos(a) * 0.06, math.sin(a) * 0.04, -0.28)], 0.008, vine)
-    finish("w_thorn_root", 0, 1.16)
+def project_uv(ob, fn):
+    me = ob.data
+    uv = me.uv_layers.get("UVMap") or me.uv_layers.new(name="UVMap")
+    for li, lp in enumerate(me.loops):
+        uv.data[li].uv = fn(me.vertices[lp.vertex_index].co)
 
 
-# ------------------------------------------------------------------ 3. Lâmina de Cristal
-def build_w_crystal_frost():
-    ice = _m("w_ice", "#A8EDE8", 0.15, 0.1, glow=0.35)
-    ice_d = _m("w_ice_dark", "#5FBFC0", 0.25, 0.2)
-    keys = [(0, 0.13, 0.028, 0.028, 0.014), (0, 0.24, 0.046, 0.046, 0.017), (0, 0.31, 0.03, 0.03, 0.014),
-            (0, 0.5, 0.05, 0.05, 0.018), (0, 0.58, 0.032, 0.032, 0.014), (0, 0.8, 0.046, 0.046, 0.017),
-            (0, 0.88, 0.03, 0.03, 0.013), (0, 1.06, 0.03, 0.03, 0.012), (0, 1.18, 0.0, 0.0, 0.002)]
-    blade("Blade", keys, ice, n=len(keys))
-    part("Guard", "cube", (0, 0, 0.105), (0.34, 0.03, 0.03), ice_d)
-    _sym(lambda s: spike(f"GuardEnd{s}", s * 0.165, 0.105, s * 1.5708, 0.09, 0.06, 0.016, ice_d))
-    _sym(lambda s: spike(f"GuardTop{s}", s * 0.07, 0.115, s * 0.15, 0.08, 0.022, 0.01, ice))
-    _sym(lambda s: spike(f"GuardTip{s}", s * 0.135, 0.115, s * 0.2, 0.06, 0.02, 0.009, ice))
-    _sym(lambda s: spike(f"GuardLow{s}", s * 0.11, 0.095, s * 2.8, 0.045, 0.02, 0.008, ice))
-    grip(0.18, 0.016, ice_d)
-    gem("Pommel", 0, -0.11, 0.028, ice)
-    finish("w_crystal_frost", 0, 1.18)
+def build_traced(sid):
+    if not _TRACE:
+        with open(REFS + "espadas_trace.json", encoding="utf-8") as f:
+            _TRACE.update(json.load(f))
+    d = _TRACE[sid]
+    x0, y0, x1, y1 = d["box"]
+    gx, gy = d["grip"]
+    S = TRACE_S
 
+    def P(x, y):
+        return ((x - gx) * S, (gy - y) * S)
 
-# ------------------------------------------------------------------ 4. Crescente Lunar
-def build_w_moon_crescent():
-    silver = _m("w_silver", "#C8CDD6", 0.25, 0.9)
-    pink = _m("w_pink", "#F06A8E", 0.3, 0.2, glow=0.4)
-    rose = _m("w_rose", "#9E3552", 0.6)
-    sp = [(0.0, 0.15), (-0.035, 0.42), (-0.03, 0.72), (0.03, 0.95), (0.13, 1.06)]
-    w = (0.05, 0.06, 0.06, 0.045, 0.0)
-    blade("Blade", [(x, z, ww, ww * 0.8, 0.012 if ww else 0.002) for (x, z), ww in zip(sp, w)], silver, n=14)
-    blade("Core", [(x + 0.004, z, ww * 0.62, ww * 0.42, 0.016 if ww else 0.002) for (x, z), ww in zip(sp[:-1], w[:-1])]
-          + [(0.06, 0.99, 0, 0, 0.002)], pink, n=12)
-    spike("Barb", -0.06, 0.62, -0.9, 0.09, 0.05, 0.01, silver)
-    part("GemRing", "cyl", (0, 0, 0.12), (0.07, 0.07, 0.03), silver, rot=(1.5708, 0, 0), seg=8)
-    gem("Gem", 0, 0.12, 0.024, pink, y=0.0)
-    for i, a in enumerate((2.1, 2.4, 2.7)):
-        spike(f"Feather{i}", 0.03, 0.1, a, 0.11 - i * 0.015, 0.03, 0.008, silver)
-    spike("FeatherL", -0.03, 0.1, -2.5, 0.07, 0.03, 0.008, silver)
-    grip(0.22, 0.015, rose, rings=3, ring_m=silver)
-    gem("Pommel", 0, -0.135, 0.022, pink)
-    part("PommelCap", "cone", (0, 0, -0.16), (0.03, 0.03, 0.03), silver, rot=(3.1416, 0, 0), seg=6)
-    finish("w_moon_crescent", 0.13, 1.06)
+    def uvf(c):
+        return ((c.x / S + gx - x0) / (x1 - x0), 1 - ((gy - c.z / S) - y0) / (y1 - y0))
 
-
-# ------------------------------------------------------------------ 5. Asa Real
-def build_w_royal_wings():
-    steel = _m("w_navy_steel", "#3E5683", 0.3, 0.8)
-    core = _m("w_magenta", "#E4386F", 0.3, 0.2, glow=0.8)
-    gold = _m("w_gold", "#EDB735", 0.3, 1.0)
-    ivory = _m("w_ivory", "#F3EFE6", 0.5)
-    keys = [(0, 0.16, 0.06, 0.06, 0.014), (0, 0.5, 0.075, 0.075, 0.016), (0, 0.95, 0.07, 0.07, 0.015),
-            (0, 1.15, 0.05, 0.05, 0.013), (0, 1.3, 0.0, 0.0, 0.002)]
-    blade("Blade", keys, steel, n=8)
-    blade("Core", [(0, 0.16, 0.045, 0.045, 0.018), (0, 0.45, 0.04, 0.04, 0.02), (0, 0.85, 0.026, 0.026, 0.019),
-                   (0, 1.12, 0.0, 0.0, 0.004)], core, n=8)
-    part("GuardCenter", "cube", (0, 0, 0.13), (0.1, 0.05, 0.07), gold)
-    gem("Gem", 0, 0.13, 0.03, core, y=0.0)
-    for s in (1, -1):
-        blade(f"Wing{s}", [(s * 0.04, 0.12, 0.035, 0.035, 0.014), (s * 0.13, 0.17, 0.03, 0.03, 0.012),
-                           (s * 0.2, 0.28, 0.015, 0.015, 0.01), (s * 0.21, 0.36, 0, 0, 0.002)], gold, n=8)
-        spike(f"WingSpur{s}", s * 0.1, 0.18, s * 0.5, 0.12, 0.035, 0.01, gold)
-        spike(f"Low{s}", s * 0.04, 0.1, s * 2.2, 0.13, 0.05, 0.012, ivory)
-        spike(f"LowGold{s}", s * 0.03, 0.09, s * 2.75, 0.08, 0.03, 0.01, gold)
-    grip(0.22, 0.018, steel, rings=2, ring_m=gold)
-    part("Pommel", "ico", (0, 0, -0.13), (0.045, 0.04, 0.04), gold, sub=1)
-    spike("PommelSpike", 0, -0.14, 3.1416, 0.07, 0.025, 0.01, gold)
-    finish("w_royal_wings", 0, 1.3)
-
-
-# ------------------------------------------------------------------ 6. Folha Peçonhenta
-def build_w_venom_leaf():
-    leafm = _m("w_venom", "#CBD43A", 0.4, 0.1, glow=0.2)
-    leaf_d = _m("w_venom_dark", "#8C9A22", 0.5)
-    black = _m("w_black", "#1E2026", 0.6)
-    keys = [(0, 0.12, 0.025, 0.025, 0.012), (0.01, 0.4, 0.045, 0.04, 0.014), (0.025, 0.7, 0.05, 0.04, 0.014),
-            (0.02, 0.92, 0.03, 0.025, 0.011), (0.0, 1.06, 0.0, 0.0, 0.002)]
-    blade("Blade", keys, leafm, n=12)
-    blade("Vein", [(0.002, 0.12, 0.006, 0.006, 0.016), (0.012, 0.7, 0.006, 0.006, 0.016), (0.012, 0.95, 0, 0, 0.004)],
-          leaf_d, n=6)
-    for i, (z, s) in enumerate(((0.3, -1), (0.42, 1), (0.55, -1), (0.66, 1), (0.78, -1), (0.86, 1), (0.48, -1))):
-        x = 0.01 + 0.012 + s * 0.042
-        spike(f"Leaf{i}", x, z, s * 0.75, 0.09, 0.05, 0.009, leafm)
-    grip(0.18, 0.014, black)
-    part("Guard", "cube", (0, 0, 0.1), (0.04, 0.03, 0.025), leaf_d)
-    gem("Pommel", 0, -0.115, 0.026, leaf_d)
-    spike("PommelTip", 0, -0.13, 3.1416, 0.03, 0.02, 0.008, leaf_d)
-    finish("w_venom_leaf", 0, 1.06)
-
-
-# ------------------------------------------------------------------ 7. Lâmina Neon
-def build_w_neon_edge():
-    body = _m("w_violet", "#2E2244", 0.4, 0.5)
-    neon = _m("w_neon", "#30DCEB", 0.2, 0.0, glow=2.0)
-    white = _m("w_white", "#ECEDF0", 0.45)
-    keys_b = [(0, 0.16, 0.038, 0.0, 0.013), (0, 0.9, 0.038, 0.0, 0.013), (0, 1.02, 0.03, 0.0, 0.011),
-              (0, 1.16, 0.0, 0.0, 0.003)]
-    blade("Blade", keys_b, body, n=len(keys_b))
-    blade("Edge", [(0, 0.16, 0.0, 0.022, 0.008), (0, 1.0, 0.0, 0.022, 0.008), (0, 1.16, 0.0, 0.0, 0.002)], neon, n=3)
-    for i, z in enumerate((0.3, 0.55, 0.8)):
-        part(f"Line{i}", "cube", (-0.016, 0, z), (0.006, 0.03, 0.12), neon)
-    part("Guard", "cube", (-0.004, 0, 0.115), (0.09, 0.05, 0.06), white)
-    part("GuardFin", "cube", (0.04, 0, 0.09), (0.04, 0.04, 0.08), white, rot=(0, 0.5, 0))
-    part("GuardLight", "cube", (-0.004, 0, 0.115), (0.04, 0.054, 0.012), neon)
-    grip(0.2, 0.017, body, rings=3, ring_m=neon, seg=6)
-    part("PommelBlock", "cube", (0.0, 0, -0.12), (0.05, 0.045, 0.045), white)
-    for i, (x, z) in enumerate(((0.035, -0.14), (0.055, -0.1), (0.055, -0.04))):
-        part(f"Hook{i}", "cube", (x, 0, z), (0.035 if i == 0 else 0.018, 0.035, 0.018 if i == 0 else 0.06), white)
-    finish("w_neon_edge", 0, 1.16)
-
-
-# ------------------------------------------------------------------ 8. Cutelo do Titã
-def build_w_titan_cleaver():
-    silver = _m("w_silver", "#C8CDD6", 0.3, 0.9)
-    violet = _m("w_lilac", "#A57FD0", 0.45, 0.2)
-    green = _m("w_jade", "#3E6E59", 0.5, 0.4)
-    navy = _m("w_navy", "#283450", 0.6)
-    pearl = _m("w_pearl", "#F4DDF6", 0.2, 0.0, glow=0.6)
-    blade("Blade", [(0.01, 0.15, 0.08, 0.08, 0.02), (0.01, 0.92, 0.08, 0.08, 0.02), (0.01, 0.98, 0.08, 0.06, 0.019),
-                    (0.01, 1.06, 0.08, 0.0, 0.016)], silver, n=4, ridge=0.0)
-    part("Panel", "cube", (-0.04, 0, 0.32), (0.07, 0.044, 0.3), violet)
-    part("PanelCut", "cube", (-0.05, 0, 0.5), (0.05, 0.044, 0.08), violet, rot=(0, 0.6, 0))
-    gem("Pearl", 0.005, 0.28, 0.026, pearl, y=0.0)
-    for i in range(3):
-        part(f"Rivet{i}", "cube", (0.055, 0, 0.3 + i * 0.07), (0.012, 0.046, 0.012), navy)
-    part("Crack", "cube", (0.02, 0, 0.7), (0.006, 0.044, 0.25), navy, rot=(0, 0.2, 0))
-    part("Guard", "cube", (0.0, 0, 0.12), (0.2, 0.06, 0.06), green)
-    part("GuardSide", "cube", (-0.08, 0, 0.085), (0.06, 0.055, 0.06), green, rot=(0, 0.6, 0))
-    grip(0.24, 0.017, navy, rings=4, ring_m=green, z0=-0.02)
-    part("Pommel", "cube", (0, 0, -0.16), (0.04, 0.04, 0.04), green, rot=(0, 0.785, 0))
-    finish("w_titan_cleaver", 0.05, 1.04)
-
-
-# ------------------------------------------------------------------ 9. Presa de Âmbar
-def build_w_amber_fang():
-    amber = _m("w_amber", "#F2A443", 0.3, 0.2, glow=0.5)
-    silver = _m("w_silver", "#C8CDD6", 0.3, 0.9)
-    keys = [(0, 0.14, 0.022, 0.022, 0.009), (-0.012, 0.5, 0.026, 0.024, 0.01), (-0.01, 0.85, 0.022, 0.02, 0.009),
-            (0.02, 1.08, 0.012, 0.01, 0.006), (0.05, 1.18, 0.0, 0.0, 0.002)]
-    blade("Blade", keys, amber, n=12)
-    part("Guard", "cube", (0, 0, 0.11), (0.06, 0.035, 0.05), silver)
-    for i, (z, ln) in enumerate(((0.1, 0.1), (0.14, 0.08), (0.18, 0.06))):
-        _sym(lambda s, z=z, ln=ln, i=i: spike(f"Wing{i}{s}", s * 0.025, z, s * (0.9 - i * 0.2), ln, 0.03, 0.009, silver))
-    grip(0.22, 0.013, silver, rings=3, ring_m=silver)
-    for i, z in enumerate((-0.02, -0.09)):
-        _sym(lambda s, z=z, i=i: spike(f"GripSpike{i}{s}", s * 0.012, z, s * 2.3, 0.05, 0.025, 0.007, silver))
-    spike("PommelHook", 0, -0.11, 2.8, 0.08, 0.03, 0.009, silver)
-    spike("PommelHook2", 0, -0.11, -2.9, 0.05, 0.025, 0.008, silver)
-    finish("w_amber_fang", 0.05, 1.18)
-
-
-# ------------------------------------------------------------------ 10. Espinha Coral
-def build_w_coral_spine():
-    magenta = _m("w_coral", "#DA3C9C", 0.35, 0.2, glow=0.4)
-    gold = _m("w_gold", "#EDB735", 0.3, 1.0)
-    teal = _m("w_teal", "#2FA9A6", 0.35, 0.5)
-    blade("Shaft", [(0, 0.15, 0.022, 0.022, 0.012), (0, 0.72, 0.026, 0.026, 0.013), (0, 0.8, 0.026, 0.026, 0.013)],
-          gold, n=3)
-    blade("Crest", [(0, 0.72, 0.03, 0.03, 0.014), (-0.01, 0.92, 0.05, 0.03, 0.015), (-0.03, 1.08, 0.04, 0.02, 0.012),
-                    (-0.06, 1.16, 0.0, 0.0, 0.002)], magenta, n=8)
-    for i, z in enumerate((0.78, 0.86, 0.94, 1.02)):
-        spike(f"Fin{i}", -0.05, z, -1.2 - i * 0.05, 0.11 - i * 0.012, 0.05, 0.011, magenta)
-    spike("FinR", 0.025, 0.85, 1.0, 0.05, 0.04, 0.01, magenta)
-    for i, z in enumerate((0.3, 0.5)):
-        _sym(lambda s, z=z, i=i: spike(f"Barb{i}{s}", s * 0.022, z, s * 1.0, 0.04, 0.03, 0.008, teal))
-    part("Guard", "cube", (0, 0, 0.12), (0.06, 0.04, 0.05), teal)
-    for i, a in enumerate((1.0, 1.6, 2.2)):
-        _sym(lambda s, a=a, i=i: spike(f"GuardSpike{i}{s}", s * 0.025, 0.12, s * a, 0.1 - i * 0.015, 0.03, 0.009, teal))
-    grip(0.2, 0.014, teal, rings=4, ring_m=gold)
-    tube("Loop", [(0, 0, -0.1), (0.03, 0, -0.13), (0.015, 0, -0.17), (-0.02, 0, -0.16), (-0.02, 0, -0.12)], 0.008, teal)
-    finish("w_coral_spine", -0.06, 1.16)
-
-
-# ------------------------------------------------------------------ 11. Asa de Marfim
-def build_w_ivory_wing():
-    rim = _m("w_graphite", "#45474E", 0.4, 0.7)
-    white = _m("w_ivory", "#F3F2EE", 0.45)
-    silver = _m("w_silver", "#C8CDD6", 0.3, 0.9)
-    keys = [(0, 0.17, 0.065, 0.065, 0.013), (0, 0.65, 0.085, 0.085, 0.015), (0, 1.02, 0.08, 0.08, 0.014),
-            (0, 1.3, 0.0, 0.0, 0.002)]
-    blade("Rim", keys, rim, n=8)
-    blade("Face", [(0, 0.17, 0.054, 0.054, 0.017), (0, 0.65, 0.073, 0.073, 0.019), (0, 1.02, 0.068, 0.068, 0.018),
-                   (0, 1.26, 0.0, 0.0, 0.006)], white, n=8)
-    blade("Fuller", [(0, 0.22, 0.008, 0.008, 0.021), (0, 0.85, 0.008, 0.008, 0.021), (0, 0.95, 0, 0, 0.012)], silver, n=3)
-    part("Guard", "cube", (0, 0, 0.14), (0.16, 0.05, 0.05), silver)
-    for i, (a, ln) in enumerate(((1.9, 0.16), (2.25, 0.14), (2.6, 0.11), (2.9, 0.08))):
-        _sym(lambda s, a=a, ln=ln, i=i: spike(f"Feather{i}{s}", s * (0.03 + i * 0.008), 0.13, s * a, ln, 0.04, 0.011,
-                                              white if i % 2 == 0 else silver))
-    grip(0.22, 0.017, white, rings=4, ring_m=silver)
-    gem("Pommel", 0, -0.13, 0.03, silver)
-    spike("PommelSpike", 0, -0.15, 3.1416, 0.06, 0.025, 0.01, silver)
-    finish("w_ivory_wing", 0, 1.3)
-
-
-# ------------------------------------------------------------------ 12. Garra Escarlate
-def build_w_scarlet_talon():
-    red = _m("w_scarlet", "#EA5A2E", 0.35, 0.3, glow=0.5)
-    teal = _m("w_teal", "#2FA9A6", 0.35, 0.5)
-    dark = _m("w_maroon", "#5A1E22", 0.6)
-    sp = [(0.0, 0.15), (0.04, 0.42), (0.1, 0.7), (0.08, 0.95), (-0.04, 1.14)]
-    ww = (0.05, 0.075, 0.08, 0.05, 0.0)
-    blade("Blade", [(x, z, w * 0.55, w, 0.014 if w else 0.002) for (x, z), w in zip(sp, ww)], red, n=14)
-    blade("Back", [(x - 0.03 - (0.01 if i in (2, 3) else 0), z, w * 0.35, 0.0, 0.012 if w else 0.002)
-                   for i, ((x, z), w) in enumerate(zip(sp, ww))], teal, n=14)
-    for i, (x, z, a) in enumerate(((0.01, 0.5, -0.8), (0.04, 0.72, -0.6), (0.02, 0.9, -0.3))):
-        spike(f"Spine{i}", x, z, a, 0.08, 0.05, 0.01, teal)
-    tube("Rib", [(0.05, 0, 0.3), (0.09, 0, 0.5), (0.11, 0, 0.66)], 0.011, dark)
-    part("Guard", "cube", (0.01, 0, 0.12), (0.09, 0.045, 0.05), teal)
-    spike("Claw", 0.04, 0.11, 2.4, 0.12, 0.04, 0.012, teal)
-    spike("ClawL", -0.03, 0.12, -1.2, 0.08, 0.035, 0.01, red)
-    grip(0.2, 0.016, dark, rings=3, ring_m=red)
-    spike("Pommel", 0, -0.1, 3.0, 0.07, 0.035, 0.012, red)
-    finish("w_scarlet_talon", -0.04, 1.14)
-
-
-# ------------------------------------------------------------------ 13. Junco Carmesim
-def build_w_crimson_reed():
-    red = _m("w_crimson", "#DC4C5C", 0.3, 0.4, glow=0.3)
-    teal = _m("w_sea", "#63B8B1", 0.3, 0.6)
-    grey = _m("w_slate", "#5D6A72", 0.6)
-    sp = [(0.0, 0.13), (0.004, 0.5), (0.018, 0.9), (0.04, 1.18)]
-    blade("Edge", [(x, z, 0.0, w, 0.007) for (x, z), w in zip(sp, (0.014, 0.013, 0.012, 0.0))], red, n=12)
-    blade("Back", [(x, z, w, 0.0, 0.009) for (x, z), w in zip(sp, (0.012, 0.011, 0.009, 0.0))], teal, n=12)
-    part("Tsuba", "cyl", (0, 0, 0.11), (0.07, 0.05, 0.016), teal, seg=8)
-    part("Habaki", "cube", (0, 0, 0.135), (0.032, 0.024, 0.03), teal)
-    grip(0.24, 0.014, grey, rings=6, ring_m=teal, z0=-0.02)
-    part("Kashira", "cyl", (0, 0, -0.145), (0.032, 0.032, 0.02), teal, seg=8)
-    gem("Bead", 0, 0.06, 0.012, red, y=0.0)
-    finish("w_crimson_reed", 0.04, 1.18)
-
-
-# ------------------------------------------------------------------ 14. Foice Pálida
-def build_w_pale_crescent():
-    pale = _m("w_pale", "#DEE3EC", 0.3, 0.5)
-    frost = _m("w_frostblue", "#AFC0D8", 0.35, 0.4)
-    grey = _m("w_grey", "#8C939C", 0.35, 0.8)
-    sp = [(0.0, 0.14), (0.02, 0.36), (-0.03, 0.55), (-0.16, 0.66), (-0.33, 0.62)]
-    ww = (0.05, 0.1, 0.11, 0.07, 0.0)
-    blade("Blade", [(x, z, w * 0.25, w, 0.015 if w else 0.002) for (x, z), w in zip(sp, ww)], pale, n=14)
-    blade("Back", [(x, z, w * 0.25 + 0.012, 0.0, 0.01 if w else 0.002) for (x, z), w in zip(sp, ww)], frost, n=14)
-    for i, (x, z, a, ln) in enumerate(((0.07, 0.62, 0.6, 0.07), (0.0, 0.73, 0.2, 0.06), (-0.12, 0.76, -0.4, 0.05))):
-        spike(f"Notch{i}", x, z, a, ln, 0.05, 0.01, pale)
-    part("Collar", "cube", (0, 0, 0.12), (0.07, 0.04, 0.04), grey)
-    grip(0.19, 0.016, grey)
-    # guarda em D: alça retangular ligando a base da lâmina ao pomo
-    part("LoopTop", "cube", (0.055, 0, 0.11), (0.07, 0.028, 0.022), grey)
-    part("LoopSide", "cube", (0.085, 0, 0.0), (0.022, 0.028, 0.22), grey)
-    part("LoopBot", "cube", (0.045, 0, -0.105), (0.1, 0.028, 0.022), grey)
-    part("Pommel", "cube", (0, 0, -0.105), (0.04, 0.036, 0.03), grey)
-    finish("w_pale_crescent", -0.33, 0.62)
+    m = tex_mat(sid + "_tex", REFS + "tex/" + sid + ".png")
+    tip = (0.0, 0.0)
+    for p in d["parts"]:
+        if p["kind"] == "slab":
+            ol = [P(*q) for q in p["outline"]]
+            ob = slab(p["name"], ol, m, p["th"], p["bevel"], step=0.022,
+                      holes=[[P(*q) for q in h] for h in p["holes"]])
+            tip = max([tip] + ol, key=lambda q: q[0] * q[0] + q[1] * q[1])
+        else:
+            prof = [((gy - y) * S, r * S, (cx - gx) * S) for y, cx, r in p["prof"]]
+            prof = [(prof[0][0], 0.0, prof[0][2])] + prof + [(prof[-1][0], 0.0, prof[-1][2])]
+            ob = lathe(p["name"], prof, m, seg=p.get("seg", 8))
+        project_uv(ob, uvf)
+    finish(sid, *tip)
 
 
 # ------------------------------------------------------------------ 15. Chama Rosada
+# Traçada da folha de conceito (coordenadas em pixels da folha 1080x1080; px() converte para metros,
+# com o centro do cabo em (61.5, 403)). Pintura por vértice com a paleta amostrada da folha.
+ROSE_S = 1.2 / 426
+
+
+def _px(x, y):
+    return ((x - 61.5) * ROSE_S, (403.0 - y) * ROSE_S)
+
+
+def _unpx(x, z):
+    return (x / ROSE_S + 61.5, 403.0 - z / ROSE_S)
+
+
+ROSE_BLADE = [(58, 341), (60, 326), (61, 312), (62, 298), (63, 284), (63, 270), (62, 258), (60, 248), (57, 238),
+              (53, 228), (49, 218), (44, 210), (41, 206), (37, 221), (33, 211), (29, 203), (25, 192), (21, 181),
+              (18, 172), (15, 162), (12, 148), (10, 130), (10, 114), (11, 102), (13, 90), (16, 78), (19, 66),
+              (22, 55), (25, 45), (27, 37),
+              (29, 50), (30, 66), (31, 80), (34, 92), (37, 104), (41, 114), (45, 123), (51, 130), (57, 134),
+              (66, 124), (69, 116), (72, 128), (74, 141), (76, 155), (77, 167), (79, 181), (82, 190), (88, 185),
+              (94, 178), (95, 188), (93, 200), (91, 212), (89, 224), (88, 236), (90, 244), (95, 249), (100, 252),
+              (97, 258), (94, 265), (92, 274), (90, 286), (90, 298), (93, 306), (97, 312), (91, 318), (86, 324),
+              (81, 331), (77, 341)]
+# faixa ciano que desce pelo pé da lâmina
+ROSE_SWIRL = [(60, 236), (62, 245), (68, 260), (74, 275), (77, 288), (75, 302), (68, 311), (62, 320), (57, 330)]
+# (y, esquerda, centro, direita, gume) — esquerda sombreada, centro claro, direita magenta intenso
+ROSE_RAMP = [(40, "#9a2262", "#e0509a", "#962a64", "#4a1434"),
+             (110, "#b02a78", "#f477b8", "#b8307e", "#5e1a40"),
+             (160, "#a02868", "#ec6aae", "#c4106e", "#5c1638"),
+             (200, "#b83c6c", "#fb7c9c", "#d01c58", "#7a2238"),
+             (235, "#d87e88", "#ffa0a4", "#d44c64", "#88383f"),
+             (270, "#e8cdd2", "#fdb4b0", "#e88a88", "#8c4446"),
+             (335, "#dcdae2", "#f6baae", "#d87478", "#965258")]
+
+
+def _span(poly, y):
+    xs = sorted(a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1])
+                for a, b in zip(poly, poly[1:] + poly[:1]) if (a[1] > y) != (b[1] > y))
+    return (xs[0], xs[-1]) if len(xs) >= 2 else None
+
+
+def _poly_x(line, y):
+    for a, b in zip(line, line[1:]):
+        if min(a[1], b[1]) <= y <= max(a[1], b[1]):
+            return a[0] + (y - a[1]) * (b[0] - a[0]) / max(b[1] - a[1], 1e-6)
+    return None
+
+
+def _rose_blade_col(x, z, d):
+    px, py = _unpx(x, z)
+    dp = d / ROSE_S
+    cols = [(s[0], [srgb(h) for h in s[1:]]) for s in ROSE_RAMP]
+    L, C, R, E = (ramp([(y, c[k]) for y, c in cols], py) for k in range(4))
+    sp = _span(ROSE_BLADE, py)
+    u = (px - sp[0]) / max(sp[1] - sp[0], 1e-6) if sp else 0.5
+    base = mix(L, C, smooth01((u - 0.05) / 0.4)) if u < 0.45 else mix(C, R, smooth01((u - 0.6) / 0.35))
+    sx = _poly_x(ROSE_SWIRL, py)
+    if sx is not None and py > 240 and px < sx:           # prata à esquerda da faixa ciano
+        base = mix(base, srgb("#d4dce4"), smooth01((py - 240) / 25))
+    return mix(E, base, smooth01((dp - 1.0) / 4.5))       # gume escuro largo, como o contorno pintado
+
+
+def _ribbon(line, w0, w1):
+    """Contorno de uma fita ao longo de uma polilinha 2D, largura w0 -> w1 (afina nas pontas)."""
+    P = [Vector(p) for p in line]
+    for _ in range(2):                                    # Chaikin: tira os cantos da polilinha
+        P = [P[0]] + [q for a, b in zip(P, P[1:]) for q in (a.lerp(b, 0.25), a.lerp(b, 0.75))] + [P[-1]]
+    L, R = [], []
+    for i, p in enumerate(P):
+        t = (P[min(i + 1, len(P) - 1)] - P[max(i - 1, 0)]).normalized()
+        f = i / (len(P) - 1)
+        w = (w0 + (w1 - w0) * f) * min(1.0, 1.8 * math.sin(math.pi * f)) if 0 < i < len(P) - 1 else 0.0
+        nrm = Vector((-t.y, t.x)) * w
+        L.append(p + nrm)
+        R.append(p - nrm)
+    return [tuple(v) for v in L] + [tuple(v) for v in reversed(R[1:-1])]
+
+
+def _rose_silver(x, z, d):
+    return mix(srgb("#7f9ca2"), mix(srgb("#e9eef0"), srgb("#b7c4cc"), (_unpx(x, z)[1] - 320) / 30),
+               smooth01(d / ROSE_S / 3))
+
+
+def _lit(dark, light, base):
+    """Sombra pintada: dark -> base -> light conforme a normal encara a luz LIGHT."""
+    def fn(c, n, i):
+        return ramp([(-0.7, dark), (0.1, base), (0.9, light)], n.dot(LIGHT))
+    return fn
+
+
 def build_w_rose_flame():
-    pink = _m("w_rosefire", "#EC4C9E", 0.3, 0.2, glow=0.6)
-    peach = _m("w_peach", "#FF9C8A", 0.35, 0.1, glow=0.4)
-    plum = _m("w_plum", "#6E2C72", 0.6)
-    cyan = _m("w_cyan", "#55DDF5", 0.2, 0.3, glow=1.2)
-    sp = [(0.0, 0.15), (-0.01, 0.4), (0.01, 0.65), (0.05, 0.88), (0.12, 1.06)]
-    ww = (0.035, 0.05, 0.06, 0.045, 0.0)
-    blade("Blade", [(x, z, w, w * 0.6, 0.013 if w else 0.002) for (x, z), w in zip(sp, ww)], pink, n=14)
-    blade("Edge", [(x + 0.004, z, 0.0, w * 0.6 + 0.008, 0.007 if w else 0.002) for (x, z), w in zip(sp, ww)],
-          peach, n=14)
-    for i, (x, z, a, ln) in enumerate(((-0.04, 0.42, -0.5, 0.11), (-0.04, 0.6, -0.35, 0.12),
-                                         (-0.01, 0.8, -0.2, 0.12), (0.03, 0.95, 0.0, 0.1))):
-        spike(f"Flame{i}", x, z, a, ln, 0.06, 0.011, pink)
-    part("Guard", "cube", (0, 0, 0.12), (0.09, 0.04, 0.035), peach)
-    part("GemRing", "cyl", (0, 0, 0.09), (0.065, 0.065, 0.028), cyan, rot=(1.5708, 0, 0), seg=8)
-    gem("Gem", 0, 0.09, 0.02, peach)
-    _sym(lambda s: spike(f"GuardHorn{s}", s * 0.04, 0.12, s * 1.2, 0.05, 0.03, 0.009, cyan))
-    grip(0.17, 0.016, plum, rings=4, ring_m=peach, z0=-0.02)
-    spike("Pommel", 0, -0.11, 3.1416, 0.05, 0.035, 0.012, cyan)
-    finish("w_rose_flame", 0.12, 1.06)
+    vm = vc_mat("w_rose_vc", 0.5, 0.0, 0.25)
+    slab("Blade", [_px(*p) for p in ROSE_BLADE], vm, th=0.012, bevel=0.016, color=_rose_blade_col, step=0.022)
+    # faixa ciano: fita própria, um pouco mais grossa que a lâmina (aflora dos dois lados, borda limpa)
+    slab("Swirl", _ribbon([_px(*p) for p in ROSE_SWIRL], 4.4 * ROSE_S, 3.0 * ROSE_S), vm, th=0.0118,
+         bevel=0.0012, step=0.012, ridge=0.0,
+         color=lambda x, z, d: mix(srgb("#1c6f9c"), srgb("#86d4f4"), smooth01(d / ROSE_S / 1.6)))
+    slab("WingL", [_px(*p) for p in ((62, 319), (50, 325), (31, 331), (47, 337), (39, 348), (56, 342), (62, 338))],
+         vm, th=0.006, bevel=0.008, color=_rose_silver, step=0.015)
+    slab("WingR", [_px(*p) for p in ((77, 334), (85, 339), (94, 350), (84, 350), (77, 346))],
+         vm, th=0.006, bevel=0.008, color=_rose_silver, step=0.015)
+    torus("GuardRing", _px(63, 352), 11.5 * ROSE_S, 5.5 * ROSE_S, vm, seg=16, sides=8,
+          color=_lit(srgb("#0c4a74"), srgb("#8adcff"), srgb("#1f8fc4")))
+    disc = part("GuardDisc", "cyl", (_px(63, 352)[0], 0, _px(63, 352)[1]), (18 * ROSE_S, 18 * ROSE_S, 0.018), vm,
+                rot=(1.5708, 0, 0), seg=12, smooth=True)
+    cz = _px(63, 352)
+    paint(disc, lambda c, n, i: mix(srgb("#fde0d2"), srgb("#e9a08e"),
+                                    math.hypot(c.x - cz[0], c.z - cz[1]) / (9 * ROSE_S)))
+    gz = [_px(0, y)[1] for y in (441, 362)]          # entra no anel e no pomo: sem fresta
+    h = (gz[1] - gz[0]) / 6
+    rmin, rmax = 9.0 * ROSE_S, 10.5 * ROSE_S
+    prof = [(gz[0], 0.0), (gz[0], rmin)]
+    for k in range(6):
+        z0 = gz[0] + k * h
+        prof += [(z0 + h * 0.3, rmax), (z0 + h * 0.7, rmax), (z0 + h, rmin)]
+    prof.append((gz[1], 0.0))
+    groove = lambda c: (math.hypot(c.x, c.y) - rmin) / (rmax - rmin)
+    lathe("Grip", prof, vm, seg=10, color=lambda c, n, i: mix(srgb("#3e1644"), _lit(
+        srgb("#4e1c50"), srgb("#b0559a"), srgb("#843a78"))(c, n, i), 0.5 + 0.5 * groove(c)))
+    pz = [_px(0, y)[1] for y in (464, 448, 438)]
+    lathe("Pommel", [(pz[0], 0.0), (pz[1], 14 * ROSE_S), (pz[2], 9 * ROSE_S), (pz[2], 0.0)], vm, seg=4,
+          smooth=False,
+          color=lambda c, n, i: mix(_lit(srgb("#4f5c78"), srgb("#eef2f8"), srgb("#a2adc4"))(c, n, i),
+                                    srgb("#3d9ccc"), max(0.0, (c.z - pz[1]) / (pz[2] - pz[1])) * 0.55))
+    finish("w_rose_flame", *_px(27, 37))
 
 
-for _f in (build_w_azure_edge, build_w_thorn_root, build_w_crystal_frost, build_w_moon_crescent,
-           build_w_royal_wings, build_w_venom_leaf, build_w_neon_edge, build_w_titan_cleaver, build_w_amber_fang,
-           build_w_coral_spine, build_w_ivory_wing, build_w_scarlet_talon, build_w_crimson_reed,
-           build_w_pale_crescent, build_w_rose_flame):
-    WEAPONS.append((_f.__name__[len("build_"):], _f))
+for _sid in ("w_azure_edge", "w_thorn_root", "w_crystal_frost", "w_moon_crescent", "w_royal_wings", "w_venom_leaf",
+             "w_neon_edge", "w_titan_cleaver", "w_amber_fang", "w_coral_spine", "w_ivory_wing", "w_scarlet_talon",
+             "w_crimson_reed", "w_pale_crescent"):
+    WEAPONS.append((_sid, lambda _sid=_sid: build_traced(_sid)))
+WEAPONS.append(("w_rose_flame", build_w_rose_flame))
