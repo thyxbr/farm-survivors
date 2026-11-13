@@ -123,7 +123,7 @@ func _debug_screenshot() -> void:
 		stat_points = 3
 		for id in ["frost_brand", "ember_staff", "elven_bow", "storm_bow", "dragonfang", "knight_shield", "arcane_orb",
 				"hunter_quiver", "iron_helm", "mage_robe", "royal_plate", "iron_gauntlets", "swift_boots", "vampire_ring",
-				"sage_amulet", "goblin_cleaver", "guardian_greatsword"]:
+				"sage_amulet", "goblin_cleaver", "guardian_greatsword", "royal_wings", "titan_cleaver", "rose_flame"]:
 			add_item(id, 1, true)
 		for id in ["knight_helm", "chain_mail", "archer_bracers", "iron_greaves", "life_amulet", "strength_ring"]:
 			add_item(id, 1, true)
@@ -222,7 +222,7 @@ func new_game() -> void:
 	attributes = {"str": 5, "int": 5, "vit": 5, "agi": 5}
 	inventory = []
 	equipment = empty_equipment()
-	equipment.weapon = "wooden_sword"
+	equipment.weapon = "azure_edge"
 	quests = {}
 	flags = {}
 	kills = 0
