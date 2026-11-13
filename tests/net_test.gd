@@ -303,14 +303,25 @@ func _test_horde(w: Node) -> void:
 			return sv.active_combos.has("choque") and sv.active_combos.choque.near, 14.0),
 			"combo Choque Térmico ativo com o colega perto")
 		if horde_role == "join" and sv.active_combos.has("choque"):
-			# força o gatilho: um acerto da aura num inimigo dispara o combo
-			sv.weapons._combo_cd.clear()
-			var c0: int = sv.combos_done
-			for e in Network.enemies.values():
-				if is_instance_valid(e) and e.horde and not e.dead:
-					sv.weapons._combo("aura", e.global_position)
-					break
-			check(sv.combos_done == c0 + 1, "acerto da arma dispara o combo")
+			# força o gatilho: um acerto da aura num inimigo dispara o combo. Na rodada 1 os inimigos
+			# nascem aos poucos e as armas dos dois clientes matam rápido: espera haver um alvo vivo
+			# (com o combo ainda ativo e o colega perto) antes de disparar.
+			var target: Array = [null]
+			var has_target: bool = await _wait_until(func() -> bool:
+				target[0] = null
+				if not (sv.active_combos.has("choque") and sv.active_combos.choque.near):
+					return false
+				for e in Network.enemies.values():
+					if is_instance_valid(e) and e.horde and not e.dead:
+						target[0] = e
+						return true
+				return false, 12.0)
+			check(has_target, "inimigo vivo da horda para o acerto do combo")
+			if has_target:
+				sv.weapons._combo_cd.clear()
+				var c0: int = sv.combos_done
+				sv.weapons._combo("aura", target[0].global_position)
+				check(sv.combos_done == c0 + 1, "acerto da arma dispara o combo")
 	if peers > 1:
 		await _test_shared_level(w, sv)
 
