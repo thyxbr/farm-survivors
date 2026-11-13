@@ -11,8 +11,8 @@ var _drag := false
 var _user_turned := false
 var _base := -0.6
 var _idle := 0.0
-var _body: Node3D
-var _body_y := 0.0
+var _rig := {}
+var _look := {}
 
 
 func _init(sz := Vector2(260, 340)) -> void:
@@ -71,16 +71,14 @@ func _ready() -> void:
 	model = KNIGHT.instantiate()
 	pivot.add_child(model)
 	pivot.rotation.y = _base
-	_body = model.find_child("Body", true, false) as Node3D
-	if _body:
-		_body_y = _body.position.y
+	_rig = KnightAnim.rig(model)
 	refresh()
 	Game.inventory_changed.connect(refresh)
 
 
 func refresh() -> void:
 	if model:
-		KnightLook.apply(model, Game.equipment)
+		_look = KnightLook.apply(model, Game.equipment)
 
 
 func _process(delta: float) -> void:
@@ -88,8 +86,10 @@ func _process(delta: float) -> void:
 	# balança em volta de uma vista 3/4 de frente (melhor para ver arma e armadura)
 	if not _drag and not _user_turned and pivot:
 		pivot.rotation.y = _base + sin(_idle * 0.7) * 0.45
-	if _body:
-		_body.position.y = _body_y + sin(_idle * 2.0) * 0.008
+	# mesma pose de parado do jogador (respiração e troca de peso entre as pernas)
+	if not _rig.is_empty():
+		KnightAnim.apply(_rig, KnightAnim.idle_pose(_idle), 1.0 - exp(-14.0 * delta))
+		KnightAnim.hold_weapon_upright(_look, _rig)
 
 
 func _gui_input(event: InputEvent) -> void:

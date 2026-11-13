@@ -17,7 +17,9 @@ const SHIELD_PARTS := ["ShieldRim", "Shield"]
 const COUNTER := {"sword": 0.0, "staff": 0.75, "bow": 1.0}
 
 
-## Aplica o visual e devolve referências: {"class", "holder", "tip", "arrow", "arm", "counter"}.
+## Aplica o visual e devolve referências: {"class", "holder", "tip", "arrow", "arm", "elbow", "counter"}.
+## As armas ficam presas no antebraço (ElbowX) para acompanhar a mão quando o cotovelo dobra;
+## "arm" e "elbow" são os pivôs que o suporte precisa desfazer (veja COUNTER).
 static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 	for n in model.get_meta("look_nodes", []):
 		if is_instance_valid(n):
@@ -73,14 +75,21 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 	var arm_l := model.find_child("ArmL", true, false) as Node3D
 	var arm_r := model.find_child("ArmR", true, false) as Node3D
 	var body := model.find_child("Body", true, false) as Node3D
-	var hand_l := _hand_point(model, arm_l, "ArmL_Hand")
-	if off != "" and not shield_on and arm_l:
+	# antebraços (modelos antigos sem cotovelo: o próprio braço)
+	var fore_l := model.find_child("ElbowL", true, false) as Node3D
+	var fore_r := model.find_child("ElbowR", true, false) as Node3D
+	if fore_l == null:
+		fore_l = arm_l
+	if fore_r == null:
+		fore_r = arm_r
+	var hand_l := _point_in(model, fore_l, "ArmL_Hand")
+	if off != "" and not shield_on and fore_l:
 		var it := ItemDB.get_item(off)
 		if it.get("needs", "") == "staff":   # orbe flutuando sobre a mão esquerda
 			var orb := Node3D.new()
 			orb.name = "Orb"
 			orb.position = hand_l + Vector3(0.06, 0.02, 0.12)
-			arm_l.add_child(orb)
+			fore_l.add_child(orb)
 			made.append(orb)
 			orb.add_child(_sphere(0.075, _glow_mat(it.color, 2.5), Vector3.ZERO))
 			var lt := OmniLight3D.new()
@@ -105,18 +114,21 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 		var mi := model.find_child(pn, true, false) as MeshInstance3D
 		if mi:
 			mi.visible = false
-	var res := {"class": cls, "holder": null, "tip": null, "arrow": null, "arm": null, "counter": COUNTER[cls]}
+	var res := {"class": cls, "holder": null, "tip": null, "arrow": null, "arm": null, "elbow": null,
+		"counter": COUNTER[cls]}
 	if wid != "" and arm_r and arm_l:
 		var holder := Node3D.new()
 		holder.name = "WeaponHolder"
 		if cls == "bow":
 			holder.position = hand_l
-			arm_l.add_child(holder)
+			fore_l.add_child(holder)
 			res.arm = arm_l
+			res.elbow = fore_l
 		else:
-			holder.position = _hand_point(model, arm_r, "Grip")
-			arm_r.add_child(holder)
+			holder.position = _point_in(model, fore_r, "Grip")
+			fore_r.add_child(holder)
 			res.arm = arm_r
+			res.elbow = fore_r
 		made.append(holder)
 		var tip := Marker3D.new()
 		holder.add_child(tip)
@@ -136,6 +148,8 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 # ------------------------------------------------------------------ armas
 static func _build_sword(h: Node3D, tip: Node3D, id: String) -> void:
 	var it := ItemDB.get_item(id)
+	if it.has("model") and _build_model(h, tip, it.model):
+		return
 	var shape: String = it.get("shape", "")
 	var length := 0.86
 	var width := 0.052
@@ -183,6 +197,21 @@ static func _build_sword(h: Node3D, tip: Node3D, id: String) -> void:
 			h.add_child(_box(Vector3(0.018, width * 0.22, length * 0.8), _glow_mat(it.color.lightened(0.3), 0.6 + it.get("glow", 0.0)),
 				Vector3(0, y_off, z0 + length * 0.45)))
 		tip.position = Vector3(0, 0, z0 + length)
+
+
+## Arma modelada no Blender (assets/models/<model>.glb): cabo na origem, lâmina em +Y do GLB, largura em X.
+## O suporte usa +Z como direção da lâmina e Y como largura; o empty "Tip" do GLB vira a ponta.
+static func _build_model(h: Node3D, tip: Node3D, model: String) -> bool:
+	var path := "res://assets/models/%s.glb" % model
+	if not ResourceLoader.exists(path):
+		return false
+	var w := (load(path) as PackedScene).instantiate() as Node3D
+	WeaponModel.use_vertex_color(w)
+	w.transform = Transform3D(Basis(Vector3(0, 1, 0), Vector3(0, 0, 1), Vector3(1, 0, 0)), Vector3.ZERO)
+	h.add_child(w)
+	var t := w.find_child("Tip", true, false) as Node3D
+	tip.position = w.transform * t.position if t else Vector3(0, 0, 1.0)
+	return true
 
 
 static func _build_staff(h: Node3D, tip: Node3D, id: String) -> void:
@@ -248,23 +277,28 @@ static func _build_bow(h: Node3D, tip: Node3D, id: String) -> Node3D:
 
 
 # ------------------------------------------------------------------ helpers
-## Ponto (no espaço do braço) do centro da malha indicada.
-static func _hand_point(model: Node3D, arm: Node3D, mesh_name: String) -> Vector3:
-	if arm == null:
+## Ponto (no espaço do pivô `space`) do centro da malha indicada, mesmo que a malha não seja filha dele.
+static func _point_in(model: Node3D, space: Node3D, mesh_name: String) -> Vector3:
+	if space == null:
 		return Vector3.ZERO
 	var mi := model.find_child(mesh_name, true, false) as MeshInstance3D
 	if mi == null:
 		return Vector3(0, -0.6, 0)
-	return _chain(mi, arm) * mi.get_aabb().get_center()
+	return _chain(space, model, true).affine_inverse() * _chain(mi, model, true) * mi.get_aabb().get_center()
 
 
 ## Transformação acumulada de `n` até o ancestral `top` (funciona fora da árvore).
-static func _chain(n: Node3D, top: Node3D) -> Transform3D:
+## `rest`: pivôs (nós que não são malha) contam só a posição, como se o cavaleiro estivesse na
+## pose de repouso; assim trocar de equipamento no meio de um passo não prende a arma torta.
+static func _chain(n: Node3D, top: Node3D, rest := false) -> Transform3D:
 	var t := Transform3D.IDENTITY
 	var cur: Node = n
 	while cur != null and cur != top:
 		if cur is Node3D:
-			t = (cur as Node3D).transform * t
+			var x := (cur as Node3D).transform
+			if rest and not (cur is MeshInstance3D):
+				x = Transform3D(Basis.IDENTITY, x.origin)
+			t = x * t
 		cur = cur.get_parent()
 	return t
 
