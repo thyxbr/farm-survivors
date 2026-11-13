@@ -97,7 +97,15 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
 - **Jogadores:** menu principal → *Multiplayer* → nome + endereço (`ip` ou `ip:porta`) → *Entrar*.
   Antes de exportar, coloque o IP/domínio do servidor em `DEFAULT_ADDRESS` (`scripts/autoload/network.gd`).
 - **Versão:** o servidor recusa clientes com `application/config/version` diferente (*Projeto → Configurações → Application → Config*).
-  Ao mandar um build novo para os amigos, aumente a versão e atualize o servidor junto.
+  Para lançar uma versão nova basta aumentar a versão e dar push no `main`: o CI publica o cliente e atualiza o servidor.
+- **Auto update (cliente Windows):** quando a versão do `project.godot` ainda não tem release, o job
+  *Publicar cliente* do CI exporta o jogo e cria a release `v<versão>` no GitHub com o zip e um `latest.json`
+  (versão, link, SHA-256). O deploy do servidor só roda depois disso. No jogo, o autoload `Updater`
+  (`scripts/autoload/updater.gd`) lê `releases/latest/download/latest.json` ao abrir o menu; se houver versão maior,
+  mostra *Atualizar agora*, baixa o zip, confere o hash, troca o exe (o atual vira `.old`, apagado na próxima abertura)
+  e reabre o jogo. Também procura de novo quando o servidor recusa a versão. Só roda no build exportado para Windows.
+  Se a pasta do jogo não aceitar gravação (ex.: *Arquivos de Programas*), oferece abrir a página de download.
+  Para testar com outro manifesto: `EcosDeValdoria.exe -- --update-manifest=http://127.0.0.1:8765/latest.json --update-now`.
 - Ainda só para um jogador: o Desafio da Horda e o "carregar save" durante a partida. No multiplayer os menus não pausam o mundo.
 
 ## Estrutura
@@ -106,7 +114,7 @@ assets/models/        GLBs low-poly gerados pelo Blender
 tools/blender/        build_assets.py (cenário + chama characters.py), characters.py (personagens detalhados),
                       preview_assets.py / preview_characters.py / preview_closeup.py (renders de conferência)
 scripts/autoload/     game.gd (estado, save/load), item_db.gd (itens/magias/missões), sfx.gd (sons sintetizados),
-                      network.gd (multiplayer: servidor dedicado, réplicas, RPCs)
+                      network.gd (multiplayer: servidor dedicado, réplicas, RPCs), updater.gd (auto update)
 scripts/player/       player.gd (controle, combate, magias), fireball.gd
 scripts/enemies/      enemy.gd (slime, goblin, rei goblin — IA e animação procedural)
 scripts/world/        world.gd (monta o mapa e gerencia UI modal), npc.gd, pickup.gd, challenge_portal.gd
