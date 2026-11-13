@@ -29,6 +29,7 @@ const WORLD_SCENE := "res://scenes/world.tscn"
 const PLAYER := preload("res://scripts/player/player.gd")
 const ENEMY := preload("res://scripts/enemies/enemy.gd")
 const FIREBALL := preload("res://scripts/player/fireball.gd")
+const UPG := preload("res://scripts/survival/upgrades.gd")
 
 const STATES := ["idle", "wander", "chase", "return", "attack", "dead"]
 const ATTACK_KINDS := ["swing", "lunge", "slam", "shoot", "fuse", "cast"]
@@ -260,7 +261,7 @@ func send_zone_enemies(id: int, zone: String) -> void:
 	for net_id in enemies:
 		var e: Enemy = enemies[net_id]
 		if is_instance_valid(e) and not e.dead and e.net_zone == zone:
-			_enemy_spawned.rpc_id(id, net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, e.horde)
+			_enemy_spawned.rpc_id(id, net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e))
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -349,7 +350,12 @@ func server_register_enemy(e: Enemy) -> void:
 	e.net_zone = "city" if Lobby.is_city_node(e) else "world"
 	enemies[e.net_id] = e
 	for pid in _enemy_peers(e):
-		_enemy_spawned.rpc_id(pid, e.net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, e.horde)
+		_enemy_spawned.rpc_id(pid, e.net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e))
+
+
+## Bits do spawn: 1 = horda, 2 = elite da horda.
+static func _enemy_flags(e: Enemy) -> int:
+	return (1 if e.horde else 0) | (2 if e.elite else 0)
 
 
 ## Quem vê este inimigo: Valdoria ou a cidade em grupo.
@@ -636,6 +642,12 @@ func request_boss() -> void:
 		_request_boss.rpc_id(1)
 
 
+## Desafio da Horda: build e vida deste jogador (o survival_mode manda a cada segundo).
+func horde_send_build(build: Dictionary) -> void:
+	if is_client() and multiplayer.multiplayer_peer != null:
+		_horde_build.rpc_id(1, build)
+
+
 ## Desafio da Horda: "request" (abrir/entrar na fila), "accept", "decline", "dead", "ready" (bênção
 ## escolhida) ou "leave" (retirada/abandono).
 func horde_send(kind: String) -> void:
@@ -748,13 +760,15 @@ func _shake(amount: float) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _enemy_spawned(net_id: int, kind: String, pos: Vector3, yaw: float, max_hp: float, hp: float, horde: bool) -> void:
+func _enemy_spawned(net_id: int, kind: String, pos: Vector3, yaw: float, max_hp: float, hp: float, flags: int) -> void:
 	if world == null or enemies.has(net_id):
 		return
+	var horde := flags & 1 != 0
 	var e := ENEMY.new()
 	e.kind = kind
 	e.puppet = true
 	e.horde = horde
+	e.elite = flags & 2 != 0
 	e.net_id = net_id
 	e.position = pos
 	# na cidade os monstros ficam dentro da Colony (as torres e o HUD contam por lá)
@@ -887,6 +901,30 @@ func _horde_xp(amount: float) -> void:
 		return
 	if horde_run != null and is_instance_valid(horde_run):
 		horde_run.server_add_xp(id, amount)
+
+
+## Cliente → servidor: build e vida do jogador na horda (placar do Tab e combos do grupo).
+@rpc("any_peer", "call_remote", "reliable")
+func _horde_build(build: Dictionary) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not is_server() or not players.has(id):
+		return
+	if horde_run != null and is_instance_valid(horde_run):
+		horde_run.server_player_build(id, _clean_build(build))
+
+
+## Só armas, passivas e bênçãos conhecidas, com números nos limites (o dicionário vem do cliente).
+static func _clean_build(b: Dictionary) -> Dictionary:
+	var out := {"lv": clampi(int(b.get("lv", 1)), 1, 999), "hp": clampf(float(b.get("hp", 0.0)), 0.0, 1.0),
+		"c": clampi(int(b.get("c", 0)), 0, 1000000), "w": {}, "p": {}, "b": {}}
+	for key in [["w", UPG.WEAPONS, UPG.MAX_LEVEL], ["p", UPG.PASSIVES, UPG.MAX_LEVEL], ["b", UPG.BLESSINGS, 99]]:
+		var src = b.get(key[0], {})
+		if not (src is Dictionary):
+			continue
+		for id in src:
+			if key[1].has(str(id)):
+				out[key[0]][str(id)] = clampi(int(src[id]), 0, key[2])
+	return out
 
 
 func _server_horde_request(id: int) -> void:
@@ -1076,10 +1114,10 @@ func _horde_bonus(kind: String) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _horde_kill(kind: String, pos: Vector3, was_boss: bool) -> void:
+func _horde_kill(kind: String, pos: Vector3, tier: int) -> void:
 	var sv := _horde_survival()
 	if sv and ENEMY.TYPES.has(kind):
-		sv.net_kill(kind, pos, was_boss)
+		sv.net_kill(kind, pos, clampi(tier, 0, 2))
 
 
 @rpc("authority", "call_remote", "reliable")

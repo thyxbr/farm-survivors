@@ -3,6 +3,8 @@ extends Node
 ##   godot --headless --path . res://scenes/world.tscn -- --smoketest
 ## Imprime PASS/FAIL para cada verificação e encerra com código 0 (ok) ou 1 (falhas).
 
+const UPG := preload("res://scripts/survival/upgrades.gd")
+
 var fails := 0
 var world: Node
 var player: Player
@@ -326,6 +328,13 @@ func _test_survival() -> void:
 			e.take_damage(99999, player.global_position, false)
 	await wait(0.1)
 	check(sv.kills >= horde.size(), "abates contados (%d)" % sv.kills)
+	check(sv.my_dmg > 0.0, "placar soma o dano causado (%d)" % int(sv.my_dmg))
+	var rows: Array = sv.scoreboard_rows()
+	check(rows.size() == 1 and rows[0].me and rows[0].build.w.has("fogo"), "placar do Tab tem a build do jogador")
+	sv.hud.scoreboard.force_open = true
+	await wait(0.1)
+	check(sv.hud.scoreboard.visible and sv.hud.weapon_row.get_child_count() == 1, "Tab abre o placar e a build aparece em ícones")
+	sv.hud.scoreboard.force_open = false
 	check(Game.xp == xp0 and Game.level == lvl0, "horda não dá XP do RPG")
 	check(get_tree().get_nodes_in_group("xp_gems").size() > 0, "gemas de XP caem")
 	var gem = get_tree().get_nodes_in_group("xp_gems")[0]
@@ -370,11 +379,49 @@ func _test_survival() -> void:
 	check(near_e.dead or near_e.hp < ehp, "explosão do chili fere inimigos próximos")
 	check(Game.mod("damage") > Game.run_mods.damage, "bônus da comida soma aos da Horda")
 
+	# elite: maior, mais vida e solta mais gemas
+	var plain: Enemy = sv._spawn_enemy("slime", player.global_position + Vector3(-5, 0.2, 0))
+	var elite: Enemy = sv._spawn_enemy("slime", player.global_position + Vector3(-5, 0.2, 2), -1.0, -1.0, true)
+	await wait(0.1)
+	check(elite.elite and elite.max_hp > plain.max_hp * 3.0, "elite tem 3x+ a vida de um comum")
+	var gems0 := get_tree().get_nodes_in_group("xp_gems").size()
+	elite.take_damage(99999, player.global_position, false)
+	plain.take_damage(99999, player.global_position, false)
+	await wait(0.1)
+	check(get_tree().get_nodes_in_group("xp_gems").size() >= gems0 + 4, "elite solta várias gemas")
+	for g in get_tree().get_nodes_in_group("xp_gems"):
+		g.queue_free()   # não deixa XP extra no chão para os testes seguintes
+
+	# combo (efeito direto): dano em área em volta do ponto
+	var ce: Enemy = sv._spawn_enemy("slime_grande", player.global_position + Vector3(0, 0.2, -4))
+	await wait(0.1)
+	var chp := ce.hp
+	sv.weapons.combo_strike("choque", ce.global_position, 2)
+	check(ce.hp < chp or ce.dead, "efeito de combo fere inimigos em volta")
+	if not ce.dead:
+		ce._die()
+	await wait(0.05)
+	for g in get_tree().get_nodes_in_group("xp_gems"):
+		g.queue_free()
+	check(UPG.combo_for("aura", "fogo") == "choque" and UPG.combo_for("fogo", "fogo") == "", "pares de combo")
+
+	# escala de dificuldade: sobe a cada rodada e alivia na do chefe
+	var r0: int = sv.round_num
+	sv.round_num = 4
+	var hp4: float = sv.hp_scale()
+	sv.round_num = 9
+	check(sv.hp_scale() > hp4 * 1.8 and sv.elite_chance() > 0.0, "inimigos escalam com a rodada")
+	var evt = load("res://scripts/survival/horde_events.gd")
+	check(evt.spawn_rate(4, 1) > evt.spawn_rate(5, 1) and evt.spawn_rate(6, 1) > evt.spawn_rate(1, 1),
+		"ritmo em dente de serra: alivia na rodada do chefe e o ciclo seguinte começa mais forte")
+	sv.round_num = r0
+
 	# chefe na rodada 5
 	sv.round_num = 4
 	sv._start_round()
 	await wait(0.1)
 	check(sv.boss_alive() and sv.boss.horde, "Rei Goblin aparece na rodada 5")
+	check(sv.event == "", "rodada do chefe sem evento")
 	var king_flag = Game.flags.get("king_dead", false)
 	sv.boss.take_damage(99999, player.global_position, false)
 	await wait(0.1)
@@ -545,9 +592,10 @@ func _test_horde_extras(sv) -> void:
 
 	# HUD da horda mostra nível e habilidades
 	var hud = sv.hud
-	check(hud.lvl_badge.text == str(sv.run_level), "HUD mostra o nível (%s)" % hud.lvl_badge.text)
-	check(hud.weapons_row.get_child_count() == sv.weapon_levels.size(), "HUD mostra os ícones das armas (%d)" % hud.weapons_row.get_child_count())
-	check(hud.passives_row.get_child_count() == sv.passive_levels.size(), "HUD mostra os ícones das passivas")
+	await wait(0.05)
+	check(hud.lvl_label.text.ends_with(" %d" % sv.run_level), "HUD mostra o nível (%s)" % hud.lvl_label.text)
+	check(hud.weapon_row.get_child_count() == sv.weapon_levels.size(), "HUD mostra os ícones das armas (%d)" % hud.weapon_row.get_child_count())
+	check(hud.extra_row.get_child_count() == sv.passive_levels.size() + sv.blessing_counts.size(), "HUD mostra os ícones das passivas e bênçãos")
 
 	sv.weapons.process_mode = Node.PROCESS_MODE_INHERIT
 	sv._spawn_acc = 0.0

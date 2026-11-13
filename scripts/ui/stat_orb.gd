@@ -60,13 +60,13 @@ func _draw() -> void:
 		rim = UITheme.GOLD.lerp(Color(1, 0.15, 0.1), 0.5 + 0.5 * sin(_t * 8.0))
 	draw_arc(c, R + 2.0, 0, TAU, 48, Color(0, 0, 0, 0.9), 5.0, true)
 	draw_arc(c, R + 2.0, 0, TAU, 48, rim.darkened(0.15), 2.5, true)
-	draw_arc(c, R + 4.5, PI * 1.15, PI * 1.85, 16, rim.lightened(0.2), 1.5, true)
 	# texto
 	var font := ThemeDB.fallback_font
-	var txt := "%d / %d" % [int(ceil(value)), int(max_value)]
-	var p := Vector2(0, c.y + 6)
-	draw_string_outline(font, p, txt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, 5, Color(0, 0, 0, 0.95))
-	draw_string(font, p, txt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, Color(1, 1, 1))
+	var txt := "%d / %d" % [roundi(minf(value, max_value)), roundi(max_value)]
+	var fs := int(clampf(size.x * 0.14, 11.0, 16.0))
+	var p := Vector2(0, c.y + fs * 0.38)
+	draw_string_outline(font, p, txt, HORIZONTAL_ALIGNMENT_CENTER, size.x, fs, 4, Color(0, 0, 0, 0.95))
+	draw_string(font, p, txt, HORIZONTAL_ALIGNMENT_CENTER, size.x, fs, Color(1, 1, 1))
 
 
 ## Segmento do círculo abaixo do nível do líquido, com ondinha na superfície.
