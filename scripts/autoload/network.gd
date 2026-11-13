@@ -30,7 +30,7 @@ enum Mode { OFFLINE, SERVER, CLIENT }
 
 var mode := Mode.OFFLINE
 var port := DEFAULT_PORT
-## peer_id -> {"name": String, "weapon": String, "armor": String, "ready": bool}
+## peer_id -> {"name": String, "look": Dictionary (espaço -> item), "ready": bool}
 var players := {}
 var my_name := ""
 ## Mensagem mostrada no menu principal depois de uma desconexão.
@@ -123,7 +123,7 @@ func _on_peer_disconnected(id: int) -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _register(player_name: String, client_version: String, weapon: String, armor: String) -> void:
+func _register(player_name: String, client_version: String, look: Dictionary) -> void:
 	if not is_server():
 		return
 	var id := multiplayer.get_remote_sender_id()
@@ -136,7 +136,7 @@ func _register(player_name: String, client_version: String, weapon: String, armo
 		_kick_later(id)
 		return
 	var name_clean := _clean_name(player_name)
-	players[id] = {"name": name_clean, "weapon": weapon, "armor": armor, "ready": false}
+	players[id] = {"name": name_clean, "look": _clean_look(look), "ready": false}
 	print("[server] %s entrou (peer %d, %d online)" % [name_clean, id, players.size()])
 	_accepted.rpc_id(id, players)
 	for pid in _ready_peers():
@@ -307,16 +307,24 @@ func _player_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, combo: in
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _player_look(weapon: String, armor: String) -> void:
+func _player_look(look: Dictionary) -> void:
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id):
 		return
-	players[id].weapon = weapon
-	players[id].armor = armor
+	players[id].look = _clean_look(look)
 	_apply_remote_look(id)
 	for pid in _ready_peers():
 		if pid != id:
-			_player_look_relay.rpc_id(pid, id, weapon, armor)
+			_player_look_relay.rpc_id(pid, id, players[id].look)
+
+
+## Só espaços e itens conhecidos (o dicionário vem do cliente).
+func _clean_look(look: Dictionary) -> Dictionary:
+	var out := {}
+	for s in ItemDB.SLOTS:
+		var v := str(look.get(s, ""))
+		out[s] = v if ItemDB.ITEMS.has(v) else ""
+	return out
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -366,7 +374,7 @@ func leave() -> void:
 
 func _on_connected_to_server() -> void:
 	_no_throttle(1)
-	_register.rpc_id(1, my_name, version(), Game.equipment.weapon, Game.equipment.armor)
+	_register.rpc_id(1, my_name, version(), Game.equipment.duplicate())
 
 
 func _on_connection_failed() -> void:
@@ -438,9 +446,9 @@ func send_player_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, combo
 		_player_state.rpc_id(1, pos, yaw, vel, flags, combo, attack_t)
 
 
-func send_look(weapon: String, armor: String) -> void:
+func send_look(look: Dictionary) -> void:
 	if is_client():
-		_player_look.rpc_id(1, weapon, armor)
+		_player_look.rpc_id(1, look)
 
 
 func send_event(kind: String, a := Vector3.ZERO, b := Vector3.ZERO) -> void:
@@ -481,10 +489,9 @@ func _player_state_relay(id: int, pos: Vector3, yaw: float, vel: Vector3, flags:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _player_look_relay(id: int, weapon: String, armor: String) -> void:
+func _player_look_relay(id: int, look: Dictionary) -> void:
 	if players.has(id):
-		players[id].weapon = weapon
-		players[id].armor = armor
+		players[id].look = look
 	_apply_remote_look(id)
 
 
@@ -585,7 +592,7 @@ func _apply_remote_state(id: int, pos: Vector3, yaw: float, vel: Vector3, flags:
 func _apply_remote_look(id: int) -> void:
 	var rp: Player = remote_players.get(id)
 	if rp and is_instance_valid(rp) and players.has(id):
-		rp.apply_look(players[id].get("weapon", ""), players[id].get("armor", ""))
+		rp.apply_look(players[id].get("look", {}))
 
 
 func _remove_remote_player(id: int) -> void:

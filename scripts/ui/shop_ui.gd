@@ -1,100 +1,181 @@
 extends Control
-## Loja da Mira: comprar do estoque e vender itens da mochila (metade do valor).
+## Loja da Mira: grade de mercadorias com preço e grade da mochila para vender (metade do valor).
+## Clique direito/duplo clique compra ou vende; a dica mostra a comparação com o equipado.
 
 signal closed
 
-var buy_list: ItemList
-var sell_list: ItemList
-var info: Label
+const COLS := 7
+const SLOT := 62.0
+
+var tooltip: ItemTooltip
 var gold_label: Label
-var _sell_ids: Array[String] = []
+var buy_grid: GridContainer
+var sell_grid: GridContainer
+var info: Label
+var filter := "all"
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var p := UITheme.centered_panel(self, 0.5)
+	theme = UITheme.get_theme()
+	var p := UITheme.centered_panel(self, 0.55)
+	p.custom_minimum_size = Vector2(1180, 700)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 12)
+	v.add_theme_constant_override("separation", 10)
 	p.add_child(v)
 	var top := HBoxContainer.new()
-	top.add_child(UITheme.label("Barraca da Mira", 28, UITheme.GOLD))
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(sp)
-	gold_label = UITheme.label("", 22, Color(1, 0.85, 0.35))
+	var title := VBoxContainer.new()
+	title.add_child(UITheme.heading("Barraca da Mira", 30))
+	title.add_child(UITheme.label("\"Armas, armaduras e tudo que um herói precisa. Pago metade pelo que você trouxer!\"", 15, UITheme.DIM))
+	top.add_child(title)
+	top.add_child(UITheme.spacer())
+	gold_label = UITheme.heading("", 24, Color(1, 0.84, 0.35))
+	gold_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	top.add_child(gold_label)
 	v.add_child(top)
+	v.add_child(HSeparator.new())
+
 	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 20)
+	h.add_theme_constant_override("separation", 14)
+	h.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	v.add_child(h)
-	buy_list = _column(h, "Comprar")
-	sell_list = _column(h, "Vender")
-	buy_list.item_activated.connect(func(_i: int) -> void: _buy())
-	sell_list.item_activated.connect(func(_i: int) -> void: _sell())
-	buy_list.item_selected.connect(func(i: int) -> void: info.text = ItemDB.item_summary(ItemDB.SHOP_STOCK[i]))
-	sell_list.item_selected.connect(func(i: int) -> void: info.text = ItemDB.item_summary(_sell_ids[i]))
-	info = UITheme.label("Duplo clique para comprar ou vender.", 16)
-	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	info.custom_minimum_size = Vector2(820, 110)
-	v.add_child(info)
-	var btns := HBoxContainer.new()
-	btns.add_theme_constant_override("separation", 12)
-	btns.add_child(UITheme.button("Comprar", _buy, 160))
-	btns.add_child(UITheme.button("Vender", _sell, 160))
-	btns.add_child(UITheme.button("Sair", _close, 160))
-	v.add_child(btns)
+	# ---- mercadorias
+	var left := _inset()
+	h.add_child(left)
+	var lv := VBoxContainer.new()
+	lv.add_theme_constant_override("separation", 8)
+	left.add_child(lv)
+	lv.add_child(UITheme.section("À venda"))
+	var fr := HBoxContainer.new()
+	fr.add_theme_constant_override("separation", 6)
+	var fg := ButtonGroup.new()
+	for f in [["all", "Tudo"], ["weapon", "Armas"], ["armor", "Armaduras"], ["acc", "Acessórios"], ["use", "Consumíveis"]]:
+		var b := Button.new()
+		b.text = f[1]
+		b.toggle_mode = true
+		b.button_group = fg
+		b.button_pressed = f[0] == filter
+		b.custom_minimum_size.y = 34
+		b.add_theme_font_size_override("font_size", 15)
+		b.pressed.connect(_set_filter.bind(f[0]))
+		fr.add_child(b)
+	lv.add_child(fr)
+	buy_grid = _grid(lv)
+	# ---- mochila
+	var right := _inset()
+	h.add_child(right)
+	var rv := VBoxContainer.new()
+	rv.add_theme_constant_override("separation", 8)
+	right.add_child(rv)
+	rv.add_child(UITheme.section("Sua mochila (vender)"))
+	var spacer := Control.new()
+	spacer.custom_minimum_size.y = 34
+	rv.add_child(spacer)
+	sell_grid = _grid(rv)
+
+	var foot := HBoxContainer.new()
+	foot.add_theme_constant_override("separation", 10)
+	info = UITheme.label("Passe o mouse para ver detalhes · clique direito ou duplo clique para comprar/vender", 15, UITheme.DIM)
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	foot.add_child(info)
+	foot.add_child(UITheme.keycap("E", 13))
+	foot.add_child(UITheme.button("Sair", _close, 140))
+	v.add_child(foot)
+
+	tooltip = ItemTooltip.new()
+	add_child(tooltip)
 	Game.inventory_changed.connect(_refresh)
 	Game.stats_changed.connect(_refresh)
 	_refresh()
 
 
-func _column(parent: Control, title: String) -> ItemList:
-	var c := VBoxContainer.new()
-	parent.add_child(c)
-	c.add_child(UITheme.label(title, 20, UITheme.GOLD))
-	var l := ItemList.new()
-	l.custom_minimum_size = Vector2(400, 320)
-	c.add_child(l)
-	return l
+func _inset() -> PanelContainer:
+	var p := PanelContainer.new()
+	p.add_theme_stylebox_override("panel", UITheme.inset_box(14))
+	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return p
+
+
+func _grid(parent: Control) -> GridContainer:
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.custom_minimum_size = Vector2(COLS * (SLOT + 6), 470)
+	parent.add_child(scroll)
+	var g := GridContainer.new()
+	g.columns = COLS
+	g.add_theme_constant_override("h_separation", 6)
+	g.add_theme_constant_override("v_separation", 6)
+	scroll.add_child(g)
+	return g
+
+
+func _set_filter(f: String) -> void:
+	filter = f
+	_refresh()
+
+
+func _matches(id: String) -> bool:
+	match filter:
+		"weapon":
+			return ItemDB.slot_of(id) in ["weapon", "offhand"]
+		"armor":
+			return ItemDB.slot_of(id) in ["armor", "head", "hands", "feet"]
+		"acc":
+			return ItemDB.slot_of(id) in ["amulet", "ring"]
+		"use":
+			return ItemDB.category(id) == "use"
+	return true
 
 
 func _refresh() -> void:
-	gold_label.text = "◆ %d ouro" % Game.gold
-	var bsel := buy_list.get_selected_items()
-	buy_list.clear()
-	for id in ItemDB.SHOP_STOCK:
-		var it := ItemDB.get_item(id)
-		buy_list.add_item("%s — %d ouro" % [it.name, it.price])
-		if it.price > Game.gold:
-			buy_list.set_item_custom_fg_color(buy_list.item_count - 1, Color(0.6, 0.45, 0.45))
-	if bsel.size() > 0:
-		buy_list.select(bsel[0])
-	var ssel := sell_list.get_selected_items()
-	sell_list.clear()
-	_sell_ids.clear()
-	for slot in Game.inventory:
-		var it := ItemDB.get_item(slot.id)
-		var txt := "%s%s — %d ouro" % [it.name, ("  x%d" % slot.qty) if slot.qty > 1 else "", int(ceil(it.price * 0.5))]
-		sell_list.add_item(txt)
-		_sell_ids.append(slot.id)
-	if ssel.size() > 0 and ssel[0] < sell_list.item_count:
-		sell_list.select(ssel[0])
-
-
-func _buy() -> void:
-	var sel := buy_list.get_selected_items()
-	if sel.is_empty():
+	if not is_inside_tree():
 		return
-	if Game.buy(ItemDB.SHOP_STOCK[sel[0]]):
+	gold_label.text = "◆ %d ouro" % Game.gold
+	tooltip.visible = false
+	for c in buy_grid.get_children():
+		c.queue_free()
+	for c in sell_grid.get_children():
+		c.queue_free()
+	for id in ItemDB.SHOP_STOCK:
+		if not _matches(id):
+			continue
+		var s := _slot("buy", id, 0)
+		var price: int = ItemDB.get_item(id).price
+		s.info_text = "%d◆" % price
+		s.dim = price > Game.gold
+		buy_grid.add_child(s)
+	var n := 0
+	for slot in Game.inventory:
+		var s := _slot("sell", slot.id, slot.qty)
+		sell_grid.add_child(s)
+		n += 1
+	while n < COLS * 7:   # espaços vazios completam a grade
+		var e := ItemSlot.new(SLOT)
+		e.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sell_grid.add_child(e)
+		n += 1
+
+
+func _slot(ctx: String, id: String, q: int) -> ItemSlot:
+	var s := ItemSlot.new(SLOT)
+	s.set_state(id, q)
+	s.context = ctx
+	s.tooltip = tooltip
+	var act := _buy if ctx == "buy" else _sell
+	s.right_clicked.connect(act)
+	s.double_clicked.connect(act)
+	return s
+
+
+func _buy(s: ItemSlot) -> void:
+	if Game.buy(s.item_id):
 		Sfx.play("coin")
 
 
-func _sell() -> void:
-	var sel := sell_list.get_selected_items()
-	if sel.is_empty() or sel[0] >= _sell_ids.size():
-		return
-	if Game.sell(_sell_ids[sel[0]]):
+func _sell(s: ItemSlot) -> void:
+	if Game.sell(s.item_id):
 		Sfx.play("coin")
 
 

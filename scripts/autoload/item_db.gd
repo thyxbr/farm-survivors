@@ -2,20 +2,133 @@ extends Node
 ## Banco de dados de itens, magias e missões (dados puros).
 
 const ITEMS := {
-	"wooden_sword": {"name": "Espada de Madeira", "type": "weapon", "damage": 6, "price": 10,
-		"color": Color(0.55, 0.38, 0.2), "desc": "Uma espada de treino. Melhor que nada."},
-	"iron_sword": {"name": "Espada de Ferro", "type": "weapon", "damage": 12, "price": 60,
-		"color": Color(0.8, 0.82, 0.86), "desc": "Lâmina confiável forjada na vila."},
-	"knight_blade": {"name": "Lâmina do Cavaleiro", "type": "weapon", "damage": 20, "price": 150,
-		"color": Color(0.6, 0.8, 1.0), "desc": "Aço temperado com runas azuladas."},
-	"goblin_cleaver": {"name": "Cutelo do Rei Goblin", "type": "weapon", "damage": 30, "price": 220,
-		"color": Color(0.9, 0.35, 0.15), "desc": "Pesado, brutal e ainda quente de batalha."},
-	"leather_armor": {"name": "Armadura de Couro", "type": "armor", "defense": 3, "price": 40,
-		"desc": "Couro curtido. Leve e flexível."},
-	"chain_mail": {"name": "Cota de Malha", "type": "armor", "defense": 7, "price": 120,
-		"desc": "Anéis de aço entrelaçados."},
-	"royal_plate": {"name": "Placas Reais", "type": "armor", "defense": 12, "price": 300,
-		"desc": "Armadura de placas digna de um herói."},
+	# ================================================================ ARMAS
+	# "class": sword (combo corpo a corpo, escala com FOR) · staff (projéteis mágicos, escala com INT)
+	#          bow (segure para tensionar e solte, escala com AGI). "shape" muda o modelo 3D.
+	# "stats": bônus do item (ver STAT_NAMES). "fx": efeito ao acertar (slow, splash, pierce, multishot).
+	# ---- espadas
+	"wooden_sword": {"name": "Espada de Madeira", "type": "weapon", "class": "sword", "rarity": "common",
+		"damage": 6, "price": 10, "color": Color(0.55, 0.38, 0.2), "shape": "wood",
+		"desc": "Uma espada de treino. Melhor que nada."},
+	"iron_sword": {"name": "Espada de Ferro", "type": "weapon", "class": "sword", "rarity": "common",
+		"damage": 12, "price": 60, "color": Color(0.8, 0.82, 0.86),
+		"desc": "Lâmina confiável forjada na vila."},
+	"steel_saber": {"name": "Sabre de Aço", "type": "weapon", "class": "sword", "rarity": "uncommon",
+		"damage": 16, "price": 110, "color": Color(0.85, 0.9, 0.95), "shape": "saber",
+		"stats": {"agi": 2, "speed": 0.04}, "desc": "Leve e curvo. Feito para quem não para quieto."},
+	"knight_blade": {"name": "Lâmina do Cavaleiro", "type": "weapon", "class": "sword", "rarity": "rare",
+		"damage": 20, "price": 150, "color": Color(0.6, 0.8, 1.0), "glow": 0.6,
+		"stats": {"str": 2, "vit": 1}, "desc": "Aço temperado com runas azuladas."},
+	"frost_brand": {"name": "Marca Gélida", "type": "weapon", "class": "sword", "rarity": "rare",
+		"damage": 23, "price": 240, "color": Color(0.55, 0.9, 1.0), "glow": 1.2, "fx": "slow",
+		"stats": {"str": 2, "int": 2}, "desc": "O gelo da lâmina nunca derrete. Golpes deixam o alvo lento."},
+	"goblin_cleaver": {"name": "Cutelo do Rei Goblin", "type": "weapon", "class": "sword", "rarity": "epic",
+		"damage": 30, "price": 220, "color": Color(0.9, 0.35, 0.15), "glow": 0.6, "shape": "cleaver",
+		"stats": {"str": 3, "crit": 0.05}, "desc": "Pesado, brutal e ainda quente de batalha."},
+	"guardian_greatsword": {"name": "Montante do Guardião", "type": "weapon", "class": "sword", "rarity": "epic",
+		"damage": 34, "price": 420, "color": Color(0.95, 0.85, 0.55), "glow": 0.5, "shape": "great",
+		"stats": {"str": 4, "vit": 3, "hp": 25}, "desc": "Forjado para os guardiões das ruínas antigas."},
+	"dragonfang": {"name": "Presa do Dragão", "type": "weapon", "class": "sword", "rarity": "legendary",
+		"damage": 42, "price": 900, "color": Color(1.0, 0.4, 0.12), "glow": 2.0, "shape": "great",
+		"stats": {"str": 5, "crit": 0.08, "leech": 0.04}, "desc": "Esculpida do dente de um dragão ancião. Cada golpe bebe vida."},
+	# ---- cajados
+	"apprentice_staff": {"name": "Cajado de Aprendiz", "type": "weapon", "class": "staff", "rarity": "common",
+		"damage": 8, "price": 30, "color": Color(0.55, 0.75, 1.0), "wood": Color(0.5, 0.34, 0.18),
+		"stats": {"spell": 3, "mp": 10}, "desc": "Dispara faíscas arcanas. Ninguém nasce arquimago."},
+	"oak_staff": {"name": "Cajado de Carvalho Antigo", "type": "weapon", "class": "staff", "rarity": "uncommon",
+		"damage": 13, "price": 100, "color": Color(0.5, 1.0, 0.55), "wood": Color(0.38, 0.26, 0.14),
+		"stats": {"int": 2, "spell": 6}, "desc": "Talhado de um carvalho que viu mil invernos."},
+	"ember_staff": {"name": "Cajado das Brasas", "type": "weapon", "class": "staff", "rarity": "rare",
+		"damage": 18, "price": 220, "color": Color(1.0, 0.45, 0.1), "wood": Color(0.22, 0.12, 0.08), "fx": "splash",
+		"stats": {"int": 3, "spell": 10}, "desc": "Os projéteis explodem e queimam em área."},
+	"frost_scepter": {"name": "Cetro da Geada", "type": "weapon", "class": "staff", "rarity": "rare",
+		"damage": 17, "price": 220, "color": Color(0.6, 0.92, 1.0), "wood": Color(0.75, 0.82, 0.9), "fx": "slow",
+		"stats": {"int": 3, "spell": 10, "mp": 15}, "desc": "Cristal de gelo eterno. Os projéteis deixam inimigos lentos."},
+	"archmage_staff": {"name": "Cajado do Arquimago", "type": "weapon", "class": "staff", "rarity": "legendary",
+		"damage": 30, "price": 950, "color": Color(0.85, 0.5, 1.0), "wood": Color(0.15, 0.1, 0.2), "fx": "splash",
+		"stats": {"int": 6, "spell": 20, "mp": 40, "cdr": 0.15}, "desc": "Pertenceu ao último arquimago de Valdoria."},
+	# ---- arcos
+	"short_bow": {"name": "Arco Curto", "type": "weapon", "class": "bow", "rarity": "common",
+		"damage": 9, "price": 30, "color": Color(0.6, 0.42, 0.22),
+		"desc": "Simples, mas atira longe. Segure o ataque para tensionar."},
+	"hunter_bow": {"name": "Arco do Caçador", "type": "weapon", "class": "bow", "rarity": "uncommon",
+		"damage": 15, "price": 100, "color": Color(0.45, 0.3, 0.16),
+		"stats": {"agi": 2}, "desc": "Teixo curado na fumaça. O favorito dos caçadores da vila."},
+	"elven_bow": {"name": "Arco Élfico", "type": "weapon", "class": "bow", "rarity": "rare",
+		"damage": 21, "price": 240, "color": Color(0.85, 0.9, 0.7), "glow": 0.4,
+		"stats": {"agi": 4, "crit": 0.06}, "desc": "Leve como uma folha. Flechas tensionadas atravessam inimigos."},
+	"goblin_warbow": {"name": "Arco de Guerra Goblin", "type": "weapon", "class": "bow", "rarity": "epic",
+		"damage": 27, "price": 380, "color": Color(0.5, 0.55, 0.2), "fx": "pierce",
+		"stats": {"str": 2, "agi": 3, "crit": 0.04}, "desc": "Feio, torto e mortal. Toda flecha perfura."},
+	"storm_bow": {"name": "Arco da Tempestade", "type": "weapon", "class": "bow", "rarity": "legendary",
+		"damage": 34, "price": 950, "color": Color(0.55, 0.75, 1.0), "glow": 1.6, "fx": "multishot",
+		"stats": {"agi": 6, "crit": 0.1, "speed": 0.05}, "desc": "Disparos tensionados liberam três flechas de relâmpago."},
+
+	# ================================================================ ARMADURAS (peito)
+	"leather_armor": {"name": "Armadura de Couro", "type": "armor", "rarity": "common", "defense": 3, "price": 40,
+		"color": Color(0.45, 0.28, 0.13), "desc": "Couro curtido. Leve e flexível."},
+	"chain_mail": {"name": "Cota de Malha", "type": "armor", "rarity": "uncommon", "defense": 7, "price": 120,
+		"color": Color(0.55, 0.58, 0.65), "metal": true, "stats": {"vit": 1}, "desc": "Anéis de aço entrelaçados."},
+	"mage_robe": {"name": "Manto Arcano", "type": "armor", "rarity": "rare", "defense": 3, "price": 200,
+		"color": Color(0.3, 0.25, 0.65), "stats": {"int": 4, "mp": 30}, "desc": "Bordado com fios que brilham na escuridão."},
+	"ranger_vest": {"name": "Gibão do Patrulheiro", "type": "armor", "rarity": "rare", "defense": 6, "price": 200,
+		"color": Color(0.25, 0.4, 0.22), "stats": {"agi": 4, "crit": 0.03}, "desc": "Couro reforçado em tons de floresta."},
+	"royal_plate": {"name": "Placas Reais", "type": "armor", "rarity": "epic", "defense": 12, "price": 300,
+		"color": Color(0.85, 0.7, 0.35), "metal": true, "stats": {"vit": 3, "hp": 20}, "desc": "Armadura de placas digna de um herói."},
+	"dragon_plate": {"name": "Couraça de Escamas de Dragão", "type": "armor", "rarity": "legendary", "defense": 17,
+		"price": 1000, "color": Color(0.6, 0.12, 0.1), "metal": true, "glow": 0.4,
+		"stats": {"vit": 5, "str": 2, "hp": 40}, "desc": "Escamas que nem o fogo atravessa."},
+
+	# ================================================================ EQUIPAMENTOS (outros espaços)
+	# ---- cabeça
+	"leather_cap": {"name": "Capuz de Couro", "type": "gear", "slot": "head", "rarity": "common", "defense": 1, "price": 25,
+		"color": Color(0.45, 0.3, 0.15), "desc": "Protege do sol e de pedradas leves."},
+	"iron_helm": {"name": "Elmo de Ferro", "type": "gear", "slot": "head", "rarity": "uncommon", "defense": 3, "price": 90,
+		"color": Color(0.7, 0.72, 0.78), "metal": true, "stats": {"hp": 10}, "desc": "Amassado em alguns lugares. Ainda funciona."},
+	"wizard_hat": {"name": "Chapéu do Mago", "type": "gear", "slot": "head", "rarity": "rare", "defense": 1, "price": 180,
+		"color": Color(0.3, 0.22, 0.6), "stats": {"int": 3, "mp": 20}, "desc": "Pontudo como deve ser."},
+	"ranger_hood": {"name": "Capuz do Patrulheiro", "type": "gear", "slot": "head", "rarity": "rare", "defense": 2, "price": 180,
+		"color": Color(0.22, 0.38, 0.2), "stats": {"agi": 3, "crit": 0.03}, "desc": "Some na folhagem."},
+	"knight_helm": {"name": "Elmo do Cavaleiro", "type": "gear", "slot": "head", "rarity": "epic", "defense": 5, "price": 320,
+		"color": Color(0.85, 0.7, 0.35), "metal": true, "stats": {"vit": 2, "str": 2}, "desc": "Penacho vermelho, viseira dourada."},
+	# ---- mãos
+	"leather_gloves": {"name": "Luvas de Couro", "type": "gear", "slot": "hands", "rarity": "common", "defense": 1, "price": 20,
+		"color": Color(0.42, 0.28, 0.14), "desc": "Evita bolhas no cabo da espada."},
+	"iron_gauntlets": {"name": "Manoplas de Ferro", "type": "gear", "slot": "hands", "rarity": "uncommon", "defense": 2, "price": 80,
+		"color": Color(0.65, 0.67, 0.72), "metal": true, "stats": {"str": 2}, "desc": "Socos que doem dos dois lados."},
+	"archer_bracers": {"name": "Braçadeiras do Arqueiro", "type": "gear", "slot": "hands", "rarity": "uncommon", "defense": 1, "price": 80,
+		"color": Color(0.35, 0.45, 0.25), "stats": {"agi": 2, "crit": 0.03}, "desc": "A corda do arco nunca mais vai arder."},
+	"spellweaver_gloves": {"name": "Luvas do Tecelão", "type": "gear", "slot": "hands", "rarity": "rare", "defense": 1, "price": 170,
+		"color": Color(0.5, 0.3, 0.7), "stats": {"int": 2, "cdr": 0.06}, "desc": "Os dedos tecem runas mais rápido."},
+	# ---- pés
+	"leather_boots": {"name": "Botas de Couro", "type": "gear", "slot": "feet", "rarity": "common", "defense": 1, "price": 25,
+		"color": Color(0.4, 0.26, 0.13), "stats": {"speed": 0.03}, "desc": "Confortáveis para longas caminhadas."},
+	"iron_greaves": {"name": "Grevas de Ferro", "type": "gear", "slot": "feet", "rarity": "uncommon", "defense": 3, "price": 90,
+		"color": Color(0.65, 0.67, 0.72), "metal": true, "stats": {"vit": 1}, "desc": "Barulhentas, mas resistentes."},
+	"swift_boots": {"name": "Botas Velozes", "type": "gear", "slot": "feet", "rarity": "rare", "defense": 1, "price": 200,
+		"color": Color(0.3, 0.75, 0.85), "glow": 0.4, "stats": {"agi": 2, "speed": 0.08}, "desc": "Asas bordadas no calcanhar."},
+	# ---- mão secundária (escudo exige espada, orbe exige cajado, aljava exige arco)
+	"wooden_shield": {"name": "Escudo de Madeira", "type": "gear", "slot": "offhand", "needs": "sword", "rarity": "common",
+		"defense": 2, "price": 30, "color": Color(0.5, 0.34, 0.18), "desc": "Tábuas e pregos. Segura uma pancada ou duas."},
+	"knight_shield": {"name": "Escudo do Cavaleiro", "type": "gear", "slot": "offhand", "needs": "sword", "rarity": "rare",
+		"defense": 5, "price": 190, "color": Color(0.64, 0.13, 0.16), "stats": {"vit": 2}, "desc": "O brasão da guarda de Valdoria."},
+	"arcane_orb": {"name": "Orbe Arcano", "type": "gear", "slot": "offhand", "needs": "staff", "rarity": "uncommon",
+		"price": 110, "color": Color(0.6, 0.45, 1.0), "glow": 2.0, "stats": {"spell": 6, "mp": 20},
+		"desc": "Flutua sobre a mão. Exige um cajado."},
+	"hunter_quiver": {"name": "Aljava do Caçador", "type": "gear", "slot": "offhand", "needs": "bow", "rarity": "uncommon",
+		"price": 110, "color": Color(0.45, 0.28, 0.12), "stats": {"agi": 2, "crit": 0.04},
+		"desc": "Penas bem aparadas voam mais retas. Exige um arco."},
+	# ---- acessórios
+	"life_amulet": {"name": "Amuleto da Vida", "type": "gear", "slot": "amulet", "rarity": "uncommon", "price": 120,
+		"color": Color(1.0, 0.35, 0.35), "stats": {"vit": 1, "hp": 30}, "desc": "Pulsa no ritmo do coração."},
+	"sage_amulet": {"name": "Amuleto do Sábio", "type": "gear", "slot": "amulet", "rarity": "rare", "price": 220,
+		"color": Color(0.4, 0.6, 1.0), "stats": {"int": 3, "mp": 25, "cdr": 0.05}, "desc": "Sussurra fórmulas esquecidas."},
+	"strength_ring": {"name": "Anel da Força", "type": "gear", "slot": "ring", "rarity": "uncommon", "price": 110,
+		"color": Color(1.0, 0.55, 0.3), "stats": {"str": 3}, "desc": "Um rubi bruto num aro de ferro."},
+	"wind_ring": {"name": "Anel do Vento", "type": "gear", "slot": "ring", "rarity": "uncommon", "price": 110,
+		"color": Color(0.6, 1.0, 0.8), "stats": {"agi": 2, "speed": 0.05}, "desc": "Sempre parece haver uma brisa."},
+	"vampire_ring": {"name": "Anel do Vampiro", "type": "gear", "slot": "ring", "rarity": "epic", "price": 400,
+		"color": Color(0.75, 0.05, 0.15), "stats": {"leech": 0.05, "crit": 0.03}, "desc": "Frio ao toque. Cada golpe devolve um pouco de vida."},
 	"health_potion": {"name": "Poção de Vida", "type": "consumable", "heal_hp": 60, "price": 15,
 		"stack": true, "desc": "Restaura 60 de vida."},
 	"mana_potion": {"name": "Poção de Mana", "type": "consumable", "heal_mp": 40, "price": 15,
@@ -143,7 +256,39 @@ const QUESTS := {
 	},
 }
 
-const SHOP_STOCK := ["health_potion", "mana_potion", "iron_sword", "knight_blade", "leather_armor", "chain_mail"]
+const SHOP_STOCK := ["health_potion", "mana_potion",
+	"iron_sword", "steel_saber", "knight_blade", "apprentice_staff", "oak_staff", "short_bow", "hunter_bow",
+	"leather_armor", "chain_mail", "leather_cap", "iron_helm", "leather_gloves", "iron_gauntlets", "archer_bracers",
+	"leather_boots", "iron_greaves", "wooden_shield", "arcane_orb", "hunter_quiver", "life_amulet", "strength_ring", "wind_ring"]
+
+# ---------------------------------------------------------------- equipamento
+## Espaços de equipamento na ordem do "boneco" (esquerda de cima para baixo, depois direita).
+const SLOTS := ["head", "amulet", "armor", "hands", "weapon", "offhand", "ring", "feet"]
+const SLOT_NAMES := {"weapon": "Arma", "offhand": "Mão secundária", "head": "Cabeça", "armor": "Peito",
+	"hands": "Mãos", "feet": "Pés", "amulet": "Amuleto", "ring": "Anel"}
+const CLASS_NAMES := {"sword": "Espada", "staff": "Cajado", "bow": "Arco"}
+const CLASS_HINT := {"sword": "Combo de 3 golpes · escala com Força",
+	"staff": "Projéteis arcanos · escala com Inteligência",
+	"bow": "Segure para tensionar, solte para atirar · escala com Agilidade"}
+const FX_NAMES := {"slow": "Golpes deixam o alvo lento", "splash": "Projéteis explodem em área",
+	"pierce": "Flechas perfuram inimigos", "multishot": "Disparo tensionado: 3 flechas"}
+
+const RARITY := {
+	"common": {"name": "Comum", "color": Color(0.85, 0.85, 0.82), "rank": 0},
+	"uncommon": {"name": "Incomum", "color": Color(0.38, 0.9, 0.38), "rank": 1},
+	"rare": {"name": "Raro", "color": Color(0.35, 0.62, 1.0), "rank": 2},
+	"epic": {"name": "Épico", "color": Color(0.74, 0.42, 1.0), "rank": 3},
+	"legendary": {"name": "Lendário", "color": Color(1.0, 0.6, 0.15), "rank": 4},
+}
+
+## Bônus que os itens podem dar. [nome, formato] (formato "%" multiplica por 100).
+const STAT_NAMES := {
+	"str": ["Força", ""], "int": ["Inteligência", ""], "vit": ["Vitalidade", ""], "agi": ["Agilidade", ""],
+	"hp": ["Vida máxima", ""], "mp": ["Mana máxima", ""], "spell": ["Poder mágico", ""],
+	"crit": ["Chance de crítico", "%"], "speed": ["Velocidade", "%"], "cdr": ["Recarga de magias", "-%"],
+	"leech": ["Roubo de vida", "%"],
+}
+const STAT_ORDER := ["str", "int", "vit", "agi", "hp", "mp", "spell", "crit", "speed", "cdr", "leech"]
 
 
 func get_item(id: String) -> Dictionary:
@@ -154,6 +299,73 @@ func is_stackable(id: String) -> bool:
 	return get_item(id).get("stack", false)
 
 
+## Espaço de equipamento do item ("" se não for equipável).
+func slot_of(id: String) -> String:
+	var it := get_item(id)
+	match it.get("type", ""):
+		"weapon":
+			return "weapon"
+		"armor":
+			return "armor"
+		"gear":
+			return it.get("slot", "")
+	return ""
+
+
+func is_equippable(id: String) -> bool:
+	return slot_of(id) != ""
+
+
+func weapon_class(id: String) -> String:
+	return get_item(id).get("class", "sword") if id != "" else "sword"
+
+
+func rarity_of(id: String) -> String:
+	var it := get_item(id)
+	if it.has("rarity"):
+		return it.rarity
+	return "common"
+
+
+func rarity_color(id: String) -> Color:
+	return RARITY[rarity_of(id)].color
+
+
+func item_stats(id: String) -> Dictionary:
+	return get_item(id).get("stats", {})
+
+
+func format_stat(k: String, v: float, signed := true) -> String:
+	var fmt: String = STAT_NAMES[k][1]
+	var nm: String = STAT_NAMES[k][0]
+	if fmt == "%":
+		return "%s%d%% %s" % ["+" if signed and v >= 0 else "", int(round(v * 100)), nm]
+	if fmt == "-%":
+		return "%s%d%% %s" % ["−" if v >= 0 else "+", int(round(abs(v) * 100)), nm]
+	return "%s%d %s" % ["+" if signed and v >= 0 else "", int(round(v)), nm]
+
+
+## Categoria usada pelos filtros do inventário e da loja.
+func category(id: String) -> String:
+	var t: String = get_item(id).get("type", "")
+	if t in ["weapon", "armor", "gear"]:
+		return "equip"
+	if t in ["consumable", "food", "crop"]:
+		return "use"
+	return "misc"
+
+
+## Pontuação simples para ordenar e comparar itens.
+func power_score(id: String) -> float:
+	var it := get_item(id)
+	var s := float(it.get("damage", 0)) * 1.5 + float(it.get("defense", 0)) * 2.0
+	var st := item_stats(id)
+	for k in st:
+		var v := float(st[k])
+		s += v * (100.0 if STAT_NAMES[k][1] != "" else (0.25 if k in ["hp", "mp"] else 1.0))
+	return s
+
+
 func item_summary(id: String) -> String:
 	var it := get_item(id)
 	if it.is_empty():
@@ -161,9 +373,9 @@ func item_summary(id: String) -> String:
 	var lines: Array[String] = [it.name]
 	match it.type:
 		"weapon":
-			lines.append("Arma — Dano %d" % it.damage)
-		"armor":
-			lines.append("Armadura — Defesa %d" % it.defense)
+			lines.append("%s — Dano %d" % [CLASS_NAMES[weapon_class(id)], it.damage])
+		"armor", "gear":
+			lines.append("%s — Defesa %d" % [SLOT_NAMES[slot_of(id)], it.get("defense", 0)])
 		"consumable":
 			lines.append("Consumível")
 		"material":
@@ -182,6 +394,12 @@ func item_summary(id: String) -> String:
 				lines.append("Receitas: " + ", ".join(uses))
 		"food":
 			lines.append("Comida [Q] — " + food_effect_text(id))
+	var st := item_stats(id)
+	for k in STAT_ORDER:
+		if st.has(k):
+			lines.append(format_stat(k, float(st[k])))
+	if it.has("fx"):
+		lines.append(FX_NAMES[it.fx])
 	lines.append(it.desc)
 	lines.append("Valor: %d ouro" % it.price)
 	return "\n".join(lines)

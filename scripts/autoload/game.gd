@@ -8,6 +8,7 @@ signal notify(text: String, color: Color)
 signal leveled_up(new_level: int)
 signal food_eaten(id: String)
 signal farm_changed
+signal item_looted(id: String, qty: int)
 
 var save_path := "user://savegame.json"
 const SETTINGS_PATH := "user://settings.cfg"
@@ -26,7 +27,7 @@ var hp := 100.0
 var mp := 50.0
 var stamina := 100.0
 var inventory: Array = []   # [{"id": String, "qty": int}]
-var equipment := {"weapon": "", "armor": ""}
+var equipment := empty_equipment()
 var quests := {}            # id -> {"state": "active"|"ready"|"done", "progress": int}
 var flags := {}
 var kills := 0
@@ -97,6 +98,43 @@ func _debug_screenshot() -> void:
 					w.open_cooking()
 				else:
 					w.open_plant_menu(10)
+	# `--geardemo` dá um punhado dos equipamentos novos (para screenshots do inventário e da loja)
+	# `--weapon=<id>` equipa uma arma; `--ui=inv|char|quests|shop` abre a tela (sem --farmdemo)
+	var args := OS.get_cmdline_user_args()
+	if "--geardemo" in args:
+		level = 6
+		gold = 1450
+		stat_points = 3
+		for id in ["frost_brand", "ember_staff", "elven_bow", "storm_bow", "dragonfang", "knight_shield", "arcane_orb",
+				"hunter_quiver", "iron_helm", "mage_robe", "royal_plate", "iron_gauntlets", "swift_boots", "vampire_ring",
+				"sage_amulet", "goblin_cleaver", "guardian_greatsword"]:
+			add_item(id, 1, true)
+		for id in ["knight_helm", "chain_mail", "archer_bracers", "iron_greaves", "life_amulet", "strength_ring"]:
+			add_item(id, 1, true)
+			equip(id)
+		add_item("slime_gel", 7, true)
+		add_item("goblin_ear", 3, true)
+		add_item("spicy_soup", 2, true)
+		quests = {"slimes": {"state": "done", "progress": 5}, "goblins": {"state": "active", "progress": 2}}
+		hp = max_hp() * 0.62
+	for a in args:
+		if a.begins_with("--weapon="):
+			add_item(a.substr(9), 1, true)
+			equip(a.substr(9))
+	if "--farmdemo" not in args:
+		for a in args:
+			if a.begins_with("--ui="):
+				await get_tree().create_timer(1.0).timeout
+				var w = get_tree().current_scene
+				match a.substr(5):
+					"inv":
+						w._open_menu(0)
+					"char":
+						w._open_menu(1)
+					"quests":
+						w._open_menu(2)
+					"shop":
+						w.open_shop()
 	# `--survival` começa direto no Desafio da Horda (com ou sem screenshot)
 	if "--survival" in OS.get_cmdline_user_args():
 		await get_tree().create_timer(0.3).timeout
@@ -154,7 +192,8 @@ func new_game() -> void:
 	stat_points = 0
 	attributes = {"str": 5, "int": 5, "vit": 5, "agi": 5}
 	inventory = []
-	equipment = {"weapon": "wooden_sword", "armor": ""}
+	equipment = empty_equipment()
+	equipment.weapon = "wooden_sword"
 	quests = {}
 	flags = {}
 	kills = 0
@@ -167,6 +206,10 @@ func new_game() -> void:
 	add_item("seed_carrot", 4, true)
 	add_item("seed_wheat", 4, true)
 	add_item("bread", 1, true)
+	# kit inicial para experimentar as três classes de arma
+	add_item("apprentice_staff", 1, true)
+	add_item("short_bow", 1, true)
+	add_item("leather_cap", 1, true)
 	hp = max_hp()
 	mp = max_mp()
 	stamina = max_stamina()
@@ -207,40 +250,117 @@ func mod(k: String) -> float:
 
 
 # ---------------------------------------------------------------- atributos derivados
+static func empty_equipment() -> Dictionary:
+	var e := {}
+	for s in ItemDB.SLOTS:
+		e[s] = ""
+	return e
+
+
 func weapon_damage() -> int:
 	return ItemDB.get_item(equipment.weapon).get("damage", 2) if equipment.weapon != "" else 2
 
 
+func weapon_class() -> String:
+	return ItemDB.weapon_class(equipment.weapon)
+
+
+## Soma da defesa de todas as peças equipadas.
 func armor_defense() -> int:
-	return ItemDB.get_item(equipment.armor).get("defense", 0) if equipment.armor != "" else 0
+	var d := 0
+	for s in equipment:
+		if equipment[s] != "":
+			d += int(ItemDB.get_item(equipment[s]).get("defense", 0))
+	return d
+
+
+## Soma de um bônus ("str", "crit", "hp"...) de todos os itens equipados.
+func gear(k: String) -> float:
+	var v := 0.0
+	for s in equipment:
+		if equipment[s] != "":
+			v += float(ItemDB.item_stats(equipment[s]).get(k, 0.0))
+	return v
+
+
+## Atributo efetivo: pontos distribuídos + bônus dos itens.
+func attr(a: String) -> int:
+	return int(attributes[a]) + int(gear(a))
 
 
 func max_hp() -> float:
-	return (60.0 + attributes.vit * 10.0 + (level - 1) * 8.0) * mod("max_hp") + mod("max_hp_flat")
+	return (60.0 + attr("vit") * 10.0 + (level - 1) * 8.0 + gear("hp")) * mod("max_hp") + mod("max_hp_flat")
 
 
 func max_mp() -> float:
-	return 25.0 + attributes.int * 6.0 + (level - 1) * 3.0
+	return 25.0 + attr("int") * 6.0 + (level - 1) * 3.0 + gear("mp")
 
 
 func max_stamina() -> float:
-	return 70.0 + attributes.agi * 5.0
+	return 70.0 + attr("agi") * 5.0
 
 
+## Dano do ataque básico conforme a classe da arma (espada FOR, cajado INT, arco AGI).
 func melee_damage() -> float:
-	return (weapon_damage() + attributes.str * 1.6) * mod("damage")
+	match weapon_class():
+		"staff":
+			return (weapon_damage() + attr("int") * 1.4 + gear("spell") * 0.5) * mod("damage")
+		"bow":
+			return (weapon_damage() + attr("agi") * 1.5 + attr("str") * 0.3) * mod("damage")
+	return (weapon_damage() + attr("str") * 1.6) * mod("damage")
 
 
 func spell_power() -> float:
-	return attributes.int * 1.0
+	return attr("int") * 1.0 + gear("spell")
+
+
+func crit_chance() -> float:
+	return 0.08 + attr("agi") * 0.004 + gear("crit") + mod("crit")
+
+
+func cooldown_mult() -> float:
+	return clampf(1.0 - gear("cdr"), 0.4, 1.0)
 
 
 func defense() -> float:
-	return armor_defense() + attributes.vit * 0.4 + mod("defense")
+	return armor_defense() + attr("vit") * 0.4 + mod("defense")
 
 
 func speed_multiplier() -> float:
-	return (1.0 + (attributes.agi - 5) * 0.015) * mod("speed")
+	return (1.0 + (attr("agi") - 5) * 0.015 + gear("speed")) * mod("speed")
+
+
+## Números principais do personagem (para a tela de personagem e comparações).
+func stat_snapshot() -> Dictionary:
+	return {"dmg": melee_damage(), "def": defense(), "hp": max_hp(), "mp": max_mp(), "spell": spell_power(),
+		"crit": crit_chance(), "speed": speed_multiplier(), "cdr": 1.0 - cooldown_mult(), "leech": gear("leech")}
+
+
+## Quanto cada número muda se equipar `id` (simula a troca sem emitir sinais).
+func preview_equip(id: String) -> Dictionary:
+	var slot_name := ItemDB.slot_of(id)
+	if slot_name == "":
+		return {}
+	var before := stat_snapshot()
+	var saved := equipment.duplicate()
+	equipment[slot_name] = id
+	if slot_name == "weapon" and equipment.offhand != "":
+		var off := ItemDB.get_item(equipment.offhand)
+		if off.has("needs") and off.needs != weapon_class():
+			equipment.offhand = ""
+	var after := stat_snapshot()
+	equipment = saved
+	var out := {}
+	for k in before:
+		out[k] = after[k] - before[k]
+	return out
+
+
+## Roubo de vida dos itens: cura uma fração do dano causado.
+func on_damage_dealt(amount: float) -> void:
+	var l := gear("leech")
+	if l > 0.0 and hp > 0.0:
+		hp = min(max_hp(), hp + amount * l)
 
 
 func xp_to_next() -> int:
@@ -302,11 +422,31 @@ func add_item(id: String, qty := 1, silent := false) -> void:
 
 func _after_item_added(id: String, qty: int, silent: bool) -> void:
 	if not silent:
-		var txt := "+ %s" % ItemDB.get_item(id).name
-		if qty > 1:
-			txt += " x%d" % qty
-		notify.emit(txt, Color(0.85, 1.0, 0.7))
+		item_looted.emit(id, qty)   # o HUD mostra um aviso com ícone e cor da raridade
 	inventory_changed.emit()
+
+
+## Ordena a mochila: equipamentos primeiro (mais raros antes), depois consumíveis e o resto.
+func sort_inventory() -> void:
+	inventory.sort_custom(_inv_less)
+	inventory_changed.emit()
+
+
+func _inv_less(a: Dictionary, b: Dictionary) -> bool:
+	var cat_rank := {"equip": 0, "use": 1, "misc": 2}
+	var ca: int = cat_rank[ItemDB.category(a.id)]
+	var cb: int = cat_rank[ItemDB.category(b.id)]
+	if ca != cb:
+		return ca < cb
+	var ra: int = ItemDB.RARITY[ItemDB.rarity_of(a.id)].rank
+	var rb: int = ItemDB.RARITY[ItemDB.rarity_of(b.id)].rank
+	if ra != rb:
+		return ra > rb
+	var sa := ItemDB.slot_of(a.id)
+	var sb := ItemDB.slot_of(b.id)
+	if sa != sb:
+		return sa < sb
+	return str(ItemDB.get_item(a.id).name) < str(ItemDB.get_item(b.id).name)
 
 
 func count_item(id: String) -> int:
@@ -353,9 +493,8 @@ func use_item(id: String) -> bool:
 			remove_item(id, 1)
 			stats_changed.emit()
 			return true
-		"weapon", "armor":
-			equip(id)
-			return true
+		"weapon", "armor", "gear":
+			return equip(id)
 		"food", "crop":
 			return eat(id)
 		"seed":
@@ -363,25 +502,55 @@ func use_item(id: String) -> bool:
 	return false
 
 
-func equip(id: String) -> void:
-	var slot_name: String = ItemDB.get_item(id).type
-	if not remove_item(id, 1):
-		return
+func equip(id: String) -> bool:
+	var slot_name := ItemDB.slot_of(id)
+	if slot_name == "" or count_item(id) <= 0:
+		return false
+	var it := ItemDB.get_item(id)
+	# mão secundária precisa combinar com a classe da arma (escudo-espada, orbe-cajado, aljava-arco)
+	if slot_name == "offhand" and it.has("needs") and it.needs != weapon_class():
+		notify.emit("%s exige %s." % [it.name, ItemDB.CLASS_NAMES[it.needs].to_lower()], Color(1, 0.6, 0.5))
+		return false
+	var old_hp := max_hp()
+	var old_mp := max_mp()
+	remove_item(id, 1)
 	if equipment[slot_name] != "":
 		add_item(equipment[slot_name], 1, true)
 	equipment[slot_name] = id
-	notify.emit("Equipado: %s" % ItemDB.get_item(id).name, Color(0.9, 0.9, 0.6))
+	# trocou de classe de arma: a mão secundária incompatível volta para a mochila
+	if slot_name == "weapon" and equipment.offhand != "":
+		var off := ItemDB.get_item(equipment.offhand)
+		if off.has("needs") and off.needs != weapon_class():
+			add_item(equipment.offhand, 1, true)
+			notify.emit("%s guardado (exige %s)." % [off.name, ItemDB.CLASS_NAMES[off.needs].to_lower()], Color(0.85, 0.8, 0.65))
+			equipment.offhand = ""
+	_clamp_vitals(old_hp, old_mp)
+	notify.emit("Equipado: %s" % it.name, ItemDB.rarity_color(id))
 	inventory_changed.emit()
 	stats_changed.emit()
+	return true
 
 
 func unequip(slot_name: String) -> void:
-	if equipment[slot_name] == "":
+	if equipment.get(slot_name, "") == "":
 		return
+	var old_hp := max_hp()
+	var old_mp := max_mp()
 	add_item(equipment[slot_name], 1, true)
 	equipment[slot_name] = ""
+	_clamp_vitals(old_hp, old_mp)
 	inventory_changed.emit()
 	stats_changed.emit()
+
+
+## Vida/mana acompanham o ganho de máximo e nunca passam do novo máximo.
+func _clamp_vitals(old_hp: float, old_mp: float) -> void:
+	if max_hp() > old_hp:
+		hp += max_hp() - old_hp
+	if max_mp() > old_mp:
+		mp += max_mp() - old_mp
+	hp = min(hp, max_hp())
+	mp = min(mp, max_mp())
 
 
 func buy(id: String) -> bool:
@@ -511,7 +680,10 @@ func load_character() -> bool:
 	inventory = []
 	for slot in data.inventory:
 		inventory.append({"id": str(slot.id), "qty": int(slot.qty)})
-	equipment = {"weapon": str(data.equipment.weapon), "armor": str(data.equipment.armor)}
+	equipment = empty_equipment()
+	for s in equipment:
+		var v := str(data.equipment.get(s, ""))
+		equipment[s] = v if ItemDB.ITEMS.has(v) else ""
 	quests = {}
 	for id in data.quests:
 		quests[id] = {"state": str(data.quests[id].state), "progress": int(data.quests[id].progress)}
