@@ -1,9 +1,13 @@
 # Folha de conferência de um asset: frente, 3/4 e costas, corpo inteiro.
-# blender -b --factory-startup --python tools/blender/preview_single.py -- <nome> <saida.png> [silhouette]
+# blender -b --factory-startup --python tools/blender/preview_single.py -- <nome> <saida.png> [silhouette] [small]
+# "small" renderiza em 900x573 (iterações de forma/proporção, imagem ~4x mais barata de ler);
+# sem ele sai em 1650x1050 (conferência final de detalhes).
 import bpy, sys, math
 args = sys.argv[sys.argv.index("--") + 1:]
 name, out = args[0], args[1]
-silhouette = len(args) > 2 and args[2] == "silhouette"
+flags = set(args[2:])
+silhouette = "silhouette" in flags
+small = "small" in flags
 scn = bpy.context.scene
 for o in list(scn.objects):
     bpy.data.objects.remove(o)
@@ -44,7 +48,7 @@ else:
     sh.background_type = 'VIEWPORT'
     sh.background_color = (0.08, 0.08, 0.09)
 scn.view_settings.view_transform = 'Standard'
-scn.render.resolution_x = 1650
-scn.render.resolution_y = 1050
+scn.render.resolution_x = 900 if small else 1650
+scn.render.resolution_y = 573 if small else 1050
 scn.render.filepath = out
 bpy.ops.render.render(write_still=True)
