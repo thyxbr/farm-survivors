@@ -22,7 +22,7 @@ func _ready() -> void:
 	match mode:
 		"levelup":
 			v.add_child(_title("Subiu de nível! — Nv %d" % survival.run_level, Color(0.5, 0.85, 1.0)))
-			v.add_child(_sub("Escolha uma melhoria  (1 · 2 · 3)"))
+			v.add_child(_sub("Escolha uma melhoria  (1 · 2 · 3)  ·  segure Tab para ver o grupo"))
 			_build_cards(v)
 		"round":
 			v.add_child(_title("Rodada %d concluída!" % survival.round_num, UITheme.GOLD))
@@ -66,7 +66,7 @@ func _build_cards(parent: Control) -> void:
 		var info: Dictionary = survival.describe(choices[i])
 		var c: Color = info.color
 		var b := Button.new()
-		b.custom_minimum_size = Vector2(270, 220)
+		b.custom_minimum_size = Vector2(270, 240)
 		b.focus_mode = Control.FOCUS_ALL
 		var normal := StyleBoxFlat.new()
 		normal.bg_color = Color(0.09, 0.08, 0.1, 0.97)
@@ -106,7 +106,14 @@ func _build_cards(parent: Control) -> void:
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		desc.custom_minimum_size.x = 230
 		col.add_child(desc)
-		for l in [key, name_l, lvl, desc]:
+		# grupo: a arma nova formaria um combo com a de um colega
+		var hint: String = survival.combo_hint(choices[i])
+		var combo_l := UITheme.label("◆ " + hint, 15, Color(0.85, 0.7, 1.0))
+		combo_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		combo_l.custom_minimum_size.x = 230
+		combo_l.visible = hint != ""
+		col.add_child(combo_l)
+		for l in [key, name_l, lvl, desc, combo_l]:
 			l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if not _cards.is_empty():
 		_cards[0].grab_focus.call_deferred()

@@ -7,6 +7,8 @@ var speed := 24.0
 var life := 3.0
 ## Multiplayer: bola de fogo de outro jogador — só o visual, sem dano.
 var visual_only := false
+## Desafio da Horda: chamado com a posição da explosão (gatilho dos combos em grupo).
+var on_explode := Callable()
 var _done := false
 
 
@@ -95,4 +97,6 @@ func _explode() -> void:
 			e.take_damage(damage * randf_range(0.9, 1.1), global_position - direction, false)
 		elif d <= 2.5 + e.radius:
 			e.take_damage(damage * 0.5, global_position - direction, false)
+	if on_explode.is_valid():
+		on_explode.call(global_position)
 	queue_free()

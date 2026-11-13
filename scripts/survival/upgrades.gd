@@ -57,14 +57,69 @@ const BLESSINGS := {
 }
 
 
+## Combos em grupo: quando um jogador tem a arma "a" e um colega PERTO tem a "b" (ou o contrário),
+## os ataques dessas armas disparam o efeito do combo (recarga própria). Tudo é calculado por quem
+## dispara; os outros veem o efeito pelo evento "combo".
+##   shape "area": dano em volta do ponto · "chain": salta entre inimigos · "strikes": raios em volta.
+const COMBO_RANGE := 14.0
+const COMBO_COOLDOWN := 3.0
+const COMBOS := {
+	"choque": {"name": "Choque Térmico", "a": "fogo", "b": "aura", "color": Color(1.0, 0.75, 0.6),
+		"shape": "area", "radius": 3.2, "dmg": 30.0, "slow": 1.0,
+		"desc": "Fogo em inimigo congelado: explosão de vapor em área."},
+	"plasma": {"name": "Plasma", "a": "fogo", "b": "raio", "color": Color(1.0, 0.55, 0.9),
+		"shape": "chain", "n": 4, "radius": 6.0, "dmg": 26.0, "slow": 0.0,
+		"desc": "Descarga de plasma salta entre 4 inimigos."},
+	"brasas": {"name": "Ciclone de Brasas", "a": "fogo", "b": "laminas", "color": Color(1.0, 0.6, 0.2),
+		"shape": "area", "radius": 4.0, "dmg": 24.0, "slow": 0.0,
+		"desc": "Lâminas em chamas: anel de fogo em volta do alvo."},
+	"tempestade": {"name": "Tempestade Gélida", "a": "raio", "b": "aura", "color": Color(0.6, 0.85, 1.0),
+		"shape": "strikes", "n": 3, "radius": 7.0, "dmg": 24.0, "slow": 1.5,
+		"desc": "3 raios de gelo caem perto do alvo e deixam lento."},
+	"eletro": {"name": "Lâminas Elétricas", "a": "raio", "b": "laminas", "color": Color(0.85, 0.95, 0.4),
+		"shape": "chain", "n": 3, "radius": 6.0, "dmg": 22.0, "slow": 0.0,
+		"desc": "Cada corte eletrifica e salta para mais 3 inimigos."},
+	"nevasca": {"name": "Nevasca Cortante", "a": "laminas", "b": "aura", "color": Color(0.75, 0.95, 1.0),
+		"shape": "area", "radius": 3.5, "dmg": 20.0, "slow": 1.5,
+		"desc": "Estilhaços de gelo em área que deixam lento."},
+}
+
+## Maldições de rodada (a partir da rodada 6, nas rodadas sem chefe): deixam cada rodada diferente.
+const AFFIX_FROM := 6
+const AFFIXES := {
+	"frenesi": {"name": "Frenesi", "desc": "inimigos 20% mais rápidos", "speed": 1.2},
+	"couraca": {"name": "Couraça", "desc": "inimigos com +35% de vida", "hp": 1.35},
+	"enxame": {"name": "Enxame", "desc": "+50% de inimigos, com menos vida", "rate": 1.5, "hp": 0.75},
+	"furia": {"name": "Fúria", "desc": "inimigos causam +25% de dano", "dmg": 1.25},
+	"elite": {"name": "Caçada", "desc": "elites aparecem 3x mais", "elite": 3.0},
+}
+
+
+## Combo formado pelas armas x e y (ordem livre); "" se não houver.
+static func combo_for(x: String, y: String) -> String:
+	if x == y:
+		return ""
+	for id in COMBOS:
+		var c: Dictionary = COMBOS[id]
+		if (c.a == x and c.b == y) or (c.a == y and c.b == x):
+			return id
+	return ""
+
+
 ## Cartas de subida de nível: armas novas/melhorias e passivas que ainda não chegaram ao máximo.
-static func roll_level_choices(weapon_levels: Dictionary, passive_levels: Dictionary, n := 3) -> Array:
+## team_weapons: armas dos colegas (as que formariam um combo novo aparecem mais).
+static func roll_level_choices(weapon_levels: Dictionary, passive_levels: Dictionary, n := 3, team_weapons := {}) -> Array:
 	var pool: Array = []
 	for id in WEAPONS:
 		var lv: int = weapon_levels.get(id, 0)
 		if lv < MAX_LEVEL:
 			# armas que o jogador já tem aparecem com mais frequência
-			pool.append({"type": "weapon", "id": id, "w": 1.6 if lv > 0 else 1.0})
+			var w := 1.6 if lv > 0 else 1.0
+			if lv == 0:
+				for other in team_weapons:
+					if combo_for(id, other) != "":
+						w = 1.9
+			pool.append({"type": "weapon", "id": id, "w": w})
 	for id in PASSIVES:
 		if passive_levels.get(id, 0) < MAX_LEVEL:
 			pool.append({"type": "passive", "id": id, "w": 1.0})

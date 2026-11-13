@@ -3,6 +3,8 @@ extends Node
 ##   godot --headless --path . res://scenes/world.tscn -- --smoketest
 ## Imprime PASS/FAIL para cada verificação e encerra com código 0 (ok) ou 1 (falhas).
 
+const UPG := preload("res://scripts/survival/upgrades.gd")
+
 var fails := 0
 var world: Node
 var player: Player
@@ -326,6 +328,13 @@ func _test_survival() -> void:
 			e.take_damage(99999, player.global_position, false)
 	await wait(0.1)
 	check(sv.kills >= horde.size(), "abates contados (%d)" % sv.kills)
+	check(sv.my_dmg > 0.0, "placar soma o dano causado (%d)" % int(sv.my_dmg))
+	var rows: Array = sv.scoreboard_rows()
+	check(rows.size() == 1 and rows[0].me and rows[0].build.w.has("fogo"), "placar do Tab tem a build do jogador")
+	sv.hud.scoreboard.force_open = true
+	await wait(0.1)
+	check(sv.hud.scoreboard.visible and sv.hud.weapon_row.get_child_count() == 1, "Tab abre o placar e a build aparece em ícones")
+	sv.hud.scoreboard.force_open = false
 	check(Game.xp == xp0 and Game.level == lvl0, "horda não dá XP do RPG")
 	check(get_tree().get_nodes_in_group("xp_gems").size() > 0, "gemas de XP caem")
 	var gem = get_tree().get_nodes_in_group("xp_gems")[0]
@@ -370,15 +379,46 @@ func _test_survival() -> void:
 	check(near_e.dead or near_e.hp < ehp, "explosão do chili fere inimigos próximos")
 	check(Game.mod("damage") > Game.run_mods.damage, "bônus da comida soma aos da Horda")
 
+	# elite: maior, mais vida e solta mais gemas
+	var plain: Enemy = sv._spawn_enemy("slime", player.global_position + Vector3(-5, 0.2, 0))
+	var elite: Enemy = sv._spawn_enemy("slime", player.global_position + Vector3(-5, 0.2, 2), -1.0, -1.0, true)
+	await wait(0.1)
+	check(elite.elite and elite.max_hp > plain.max_hp * 3.0, "elite tem 3x+ a vida de um comum")
+	var gems0 := get_tree().get_nodes_in_group("xp_gems").size()
+	elite.take_damage(99999, player.global_position, false)
+	plain.take_damage(99999, player.global_position, false)
+	await wait(0.1)
+	check(get_tree().get_nodes_in_group("xp_gems").size() >= gems0 + 4, "elite solta várias gemas")
+
+	# combo (efeito direto): dano em área em volta do ponto
+	var ce: Enemy = sv._spawn_enemy("slime_grande", player.global_position + Vector3(0, 0.2, -4))
+	await wait(0.1)
+	var chp := ce.hp
+	sv.weapons.combo_strike("choque", ce.global_position, 2)
+	check(ce.hp < chp or ce.dead, "efeito de combo fere inimigos em volta")
+	check(UPG.combo_for("aura", "fogo") == "choque" and UPG.combo_for("fogo", "fogo") == "", "pares de combo")
+
+	# escala de dificuldade: sobe a cada rodada e alivia na do chefe
+	var r0: int = sv.round_num
+	sv.round_num = 4
+	var hp4: float = sv.hp_scale()
+	sv.round_num = 9
+	check(sv.hp_scale() > hp4 * 1.8 and sv.elite_chance() > 0.0, "inimigos escalam com a rodada")
+	sv.round_num = r0
+
 	# chefe na rodada 5
 	sv.round_num = 4
 	sv._start_round()
 	await wait(0.1)
 	check(sv.boss_alive() and sv.boss.horde, "Rei Goblin aparece na rodada 5")
+	check(sv.affix == "", "rodada do chefe sem maldição")
 	var king_flag = Game.flags.get("king_dead", false)
 	sv.boss.take_damage(99999, player.global_position, false)
 	await wait(0.1)
 	check(Game.flags.get("king_dead", false) == king_flag and not sv.boss_alive(), "chefe da horda derrotado sem afetar missões")
+	sv._start_round()
+	await wait(0.1)
+	check(sv.round_num == 6 and UPG.AFFIXES.has(sv.affix), "rodada 6 traz uma maldição (%s)" % sv.affix)
 
 	# retirada pelo menu de pausa
 	world._open_modal(_pause_menu())

@@ -733,6 +733,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif player.dead:
 		return
 	elif event.is_action_pressed("inventory"):
+		# no Desafio da Horda o Tab mostra o placar do grupo (segurar); o inventário fica no I
+		if survival != null and event is InputEventKey and event.physical_keycode == KEY_TAB:
+			return
 		_open_menu(0)
 	elif event.is_action_pressed("character"):
 		_open_menu(1)

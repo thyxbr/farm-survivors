@@ -1,6 +1,6 @@
 extends CanvasLayer
-## HUD em estilo ARPG:
-## - globos de vida e mana nas pontas da barra de ações (Diablo), com camada "fantasma" do dano recebido;
+## HUD em estilo ARPG, enxuto (ocupa só as bordas da tela):
+## - globos de vida e mana compactos nas pontas da barra de ações, com camada "fantasma" do dano recebido;
 ## - barra de ações com ícones, tecla de atalho e recarga radial (World of Warcraft);
 ## - vigor contextual (some quando cheio), XP segmentada, mira que mostra a tensão do arco;
 ## - placa do personagem, rastreador de missões, avisos de saque com cor de raridade;
@@ -33,6 +33,7 @@ var boss_panel: VBoxContainer
 var boss_bar: GhostBar
 var boss_name: Label
 var help_panel: PanelContainer
+var help_hint: Label
 var buff_box: HBoxContainer
 var crosshair: Crosshair
 var vignette: TextureRect
@@ -94,6 +95,7 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_H:
 		help_panel.visible = not help_panel.visible
+		help_hint.visible = not help_panel.visible
 
 
 func _anchor(c: Control, ax: float, ay: float, ox: float, oy: float, w: float, h: float) -> void:
@@ -118,32 +120,34 @@ func _ignore_all(n: Node) -> void:
 ## Placa do personagem (canto superior esquerdo): nível, nome, arma, ouro, pontos livres.
 func _build_plate() -> void:
 	var plate := HBoxContainer.new()
-	plate.add_theme_constant_override("separation", 10)
-	plate.position = Vector2(22, 20)
+	plate.add_theme_constant_override("separation", 8)
+	plate.position = Vector2(16, 14)
 	root.add_child(plate)
 	var badge := PanelContainer.new()
-	var bs := UITheme._box(Color(0.08, 0.06, 0.04, 0.92), UITheme.GOLD, 2, 30, 0, 0)
-	bs.shadow_color = Color(0, 0, 0, 0.5)
-	bs.shadow_size = 6
+	var bs := UITheme._box(Color(0.08, 0.06, 0.04, 0.85), UITheme.GOLD_DIM, 2, 21, 0, 0)
 	badge.add_theme_stylebox_override("panel", bs)
-	badge.custom_minimum_size = Vector2(60, 60)
-	level_label = UITheme.heading("1", 26, Color(1, 0.88, 0.5))
+	badge.custom_minimum_size = Vector2(42, 42)
+	level_label = UITheme.heading("1", 19, Color(1, 0.88, 0.5))
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	badge.add_child(level_label)
 	plate.add_child(badge)
 	var info := VBoxContainer.new()
-	info.add_theme_constant_override("separation", 0)
-	name_label = UITheme.heading("Cavaleiro", 20, UITheme.TEXT)
+	info.add_theme_constant_override("separation", -2)
+	info.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	name_label = UITheme.outlined("Cavaleiro", 16, UITheme.TEXT, 4)
 	info.add_child(name_label)
-	class_label = UITheme.outlined("", 15, UITheme.GOLD, 4)
-	info.add_child(class_label)
-	gold_label = UITheme.outlined("", 16, Color(1, 0.85, 0.35), 4)
-	info.add_child(gold_label)
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 8)
+	class_label = UITheme.outlined("", 13, UITheme.GOLD, 4)
+	line.add_child(class_label)
+	gold_label = UITheme.outlined("", 13, Color(1, 0.85, 0.35), 4)
+	line.add_child(gold_label)
+	info.add_child(line)
 	plate.add_child(info)
 	points_chip = PanelContainer.new()
-	points_chip.add_theme_stylebox_override("panel", UITheme._box(Color(1, 0.78, 0.25, 0.95), Color(1, 0.92, 0.6), 1, 10, 10, 2))
-	points_chip.add_child(UITheme.label("", 14, Color(0.12, 0.08, 0.02)))
+	points_chip.add_theme_stylebox_override("panel", UITheme._box(Color(1, 0.78, 0.25, 0.9), Color(1, 0.92, 0.6), 1, 8, 6, 1))
+	points_chip.add_child(UITheme.label("", 12, Color(0.12, 0.08, 0.02)))
 	points_chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	plate.add_child(points_chip)
 	_ignore_all(plate)
@@ -153,7 +157,7 @@ func _build_plate() -> void:
 func _build_quests() -> void:
 	quest_box = VBoxContainer.new()
 	quest_box.add_theme_constant_override("separation", 2)
-	_anchor(quest_box, 1, 0, -360, 24, 336, 0)
+	_anchor(quest_box, 1, 0, -300, 16, 284, 0)
 	quest_box.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	quest_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(quest_box)
@@ -162,13 +166,13 @@ func _build_quests() -> void:
 func _build_feeds() -> void:
 	notif_box = VBoxContainer.new()
 	notif_box.add_theme_constant_override("separation", 4)
-	_anchor(notif_box, 0, 0.5, 22, -90, 520, 0)
+	_anchor(notif_box, 0, 0.5, 16, -60, 440, 0)
 	notif_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(notif_box)
 	loot_box = VBoxContainer.new()
 	loot_box.add_theme_constant_override("separation", 4)
 	loot_box.alignment = BoxContainer.ALIGNMENT_END
-	_anchor(loot_box, 1, 0.5, -340, -40, 320, 0)
+	_anchor(loot_box, 1, 0.5, -300, -20, 284, 0)
 	loot_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(loot_box)
 
@@ -176,28 +180,31 @@ func _build_feeds() -> void:
 ## Doca inferior: globo de vida · vigor / barra de ações / XP · globo de mana.
 func _build_dock() -> void:
 	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 10)
+	h.add_theme_constant_override("separation", 6)
 	h.alignment = BoxContainer.ALIGNMENT_CENTER
-	hp_orb = StatOrb.new(122)
+	hp_orb = StatOrb.new(78)
 	hp_orb.color = UITheme.HP
 	hp_orb.low_warning = true
 	h.add_child(hp_orb)
 	var mid := VBoxContainer.new()
-	mid.add_theme_constant_override("separation", 5)
+	mid.add_theme_constant_override("separation", 3)
 	mid.alignment = BoxContainer.ALIGNMENT_END
 	h.add_child(mid)
-	mp_orb = StatOrb.new(122)
+	mp_orb = StatOrb.new(78)
 	mp_orb.color = UITheme.MP
 	h.add_child(mp_orb)
 
-	st_bar = UITheme.bar(UITheme.STAMINA, 100, 7)
+	st_bar = UITheme.bar(UITheme.STAMINA, 100, 3)
 	st_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mid.add_child(st_bar)
 	var plate := PanelContainer.new()
-	plate.add_theme_stylebox_override("panel", UITheme.frame_box(Color(0.05, 0.045, 0.04, 0.88), UITheme.GOLD_DIM, 8))
+	# folga em cima e embaixo para os selos de tecla e de texto, que ficam para fora dos espaços
+	var plate_sb := UITheme._box(Color(0.04, 0.035, 0.03, 0.55), Color(0, 0, 0, 0), 0, 6, 8, 10)
+	plate_sb.content_margin_bottom = 12
+	plate.add_theme_stylebox_override("panel", plate_sb)
 	mid.add_child(plate)
 	var bar := HBoxContainer.new()
-	bar.add_theme_constant_override("separation", 6)
+	bar.add_theme_constant_override("separation", 7)
 	plate.add_child(bar)
 	slots["attack"] = _action(bar, "M1")
 	_gap(bar)
@@ -209,7 +216,7 @@ func _build_dock() -> void:
 	slots["health_potion"] = _action(bar, "R")
 	slots["mana_potion"] = _action(bar, "F")
 	slots["food"] = _action(bar, "Q")
-	xp_bar = UITheme.bar(UITheme.XP, 100, 8)
+	xp_bar = UITheme.bar(UITheme.XP, 100, 4)
 	xp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var ticks := XPTicks.new()
 	ticks.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -217,30 +224,32 @@ func _build_dock() -> void:
 	mid.add_child(xp_bar)
 	_ignore_all(h)
 	var w := h.get_combined_minimum_size().x
-	_anchor(h, 0.5, 1, -w / 2.0, -134, w, 126)
+	var hh := h.get_combined_minimum_size().y
+	_anchor(h, 0.5, 1, -w / 2.0, -hh - 8, w, hh)
 	root.add_child(h)
 	dock = h
 
 	# bônus de comida ativos e prompt de interação (acima da doca)
 	buff_box = HBoxContainer.new()
-	buff_box.add_theme_constant_override("separation", 8)
+	buff_box.add_theme_constant_override("separation", 5)
 	buff_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	buff_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_anchor(buff_box, 0.5, 1, -450, -172, 900, 30)
+	_anchor(buff_box, 0.5, 1, -450, -hh - 34, 900, 22)
 	root.add_child(buff_box)
 	prompt_box = HBoxContainer.new()
 	prompt_box.add_theme_constant_override("separation", 8)
 	prompt_box.alignment = BoxContainer.ALIGNMENT_CENTER
-	prompt_box.add_child(UITheme.keycap("E", 16))
-	prompt = UITheme.outlined("", 21, Color(1, 0.95, 0.78), 6)
+	prompt_box.add_child(UITheme.keycap("E", 13))
+	prompt = UITheme.outlined("", 17, Color(1, 0.95, 0.78), 5)
 	prompt_box.add_child(prompt)
 	_ignore_all(prompt_box)
-	_anchor(prompt_box, 0.5, 1, -350, -218, 700, 34)
+	_anchor(prompt_box, 0.5, 1, -350, -hh - 70, 700, 30)
 	root.add_child(prompt_box)
 
 
 func _action(parent: Control, key: String) -> ItemSlot:
-	var s := ItemSlot.new(58)
+	var s := ItemSlot.new(44)
+	s.badges = true
 	s.key_text = key
 	s.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(s)
@@ -249,19 +258,19 @@ func _action(parent: Control, key: String) -> ItemSlot:
 
 func _gap(parent: Control) -> void:
 	var c := Control.new()
-	c.custom_minimum_size.x = 8
+	c.custom_minimum_size.x = 2
 	parent.add_child(c)
 
 
 func _build_boss() -> void:
 	boss_panel = VBoxContainer.new()
 	boss_panel.add_theme_constant_override("separation", 2)
-	_anchor(boss_panel, 0.5, 0, -330, 24, 660, 56)
-	boss_name = UITheme.heading("Rei Goblin", 24, Color(1, 0.62, 0.45))
+	_anchor(boss_panel, 0.5, 0, -260, 24, 520, 40)
+	boss_name = UITheme.outlined("Rei Goblin", 17, Color(1, 0.62, 0.45), 5)
 	boss_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	boss_panel.add_child(boss_name)
 	boss_bar = GhostBar.new()
-	boss_bar.custom_minimum_size = Vector2(660, 16)
+	boss_bar.custom_minimum_size = Vector2(520, 9)
 	boss_panel.add_child(boss_bar)
 	boss_panel.visible = false
 	_ignore_all(boss_panel)
@@ -276,13 +285,19 @@ func _build_help() -> void:
 		"Clique esq.: atacar — espada: combo · cajado: projéteis · arco: segure e solte\n" +
 		"1 Bola de Fogo · 2 Cura · 3 Nova Gélida · R/F poções · Q comer · T trocar\n" +
 		"E interagir · I inventário · C personagem · J missões\n" +
-		"F5 salvar · F9 carregar · Esc pausa · H esconder ajuda", 14, UITheme.DIM)
+		"F5 salvar · F9 carregar · Esc pausa · H esconder ajuda", 13, UITheme.DIM)
 	help_panel.add_child(help)
 	help_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(help_panel)
 	var hs := help_panel.get_combined_minimum_size()
-	# acima da doca, no canto direito (não cobre o globo de mana)
-	_anchor(help_panel, 1, 1, -hs.x - 18, -hs.y - 150, hs.x, hs.y)
+	# canto inferior direito; começa escondida (H mostra) para não poluir a tela
+	_anchor(help_panel, 1, 1, -hs.x - 14, -hs.y - 30, hs.x, hs.y)
+	help_panel.visible = false
+	help_hint = UITheme.outlined("[H] ajuda", 12, Color(0.8, 0.76, 0.66, 0.55), 3)
+	help_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	help_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_anchor(help_hint, 1, 1, -314, -24, 300, 18)
+	root.add_child(help_hint)
 
 
 # ================================================================ atualização
@@ -293,7 +308,7 @@ func _process(delta: float) -> void:
 	st_bar.max_value = Game.max_stamina()
 	st_bar.value = Game.stamina
 	var st_full := Game.stamina >= Game.max_stamina() - 0.5
-	st_bar.modulate.a = move_toward(st_bar.modulate.a, 0.25 if st_full else 1.0, delta * 3.0)
+	st_bar.modulate.a = move_toward(st_bar.modulate.a, 0.0 if st_full else 1.0, delta * 3.0)
 	xp_bar.max_value = Game.xp_to_next()
 	xp_bar.value = Game.xp
 
@@ -319,8 +334,8 @@ func _process(delta: float) -> void:
 	# Desafio da Horda: esconde as missões e desce a barra do chefe para não cobrir o HUD da horda
 	var horde: bool = Game.run_mods.active
 	quest_box.visible = not horde and not hide_quests
-	boss_panel.offset_top = 100.0 if horde else boss_top
-	boss_panel.offset_bottom = boss_panel.offset_top + 56.0
+	boss_panel.offset_top = 76.0 if horde else boss_top
+	boss_panel.offset_bottom = boss_panel.offset_top + 40.0
 	if boss and is_instance_valid(boss) and not boss.dead and boss.state != "idle" and boss.state != "wander" and player \
 			and player.global_position.distance_to(boss.global_position) < 40.0:
 		boss_panel.visible = true
@@ -363,10 +378,10 @@ func _refresh_static() -> void:
 	var n: String = str(Game.settings.get("player_name", ""))
 	name_label.text = n if n != "" else "Cavaleiro"
 	var cls := Game.weapon_class()
-	class_label.text = "%s  ·  XP %d%%" % [ItemDB.CLASS_NAMES[cls], int(100.0 * Game.xp / maxf(Game.xp_to_next(), 1))]
-	gold_label.text = "◆ %d ouro" % Game.gold
+	class_label.text = ItemDB.CLASS_NAMES[cls]
+	gold_label.text = "◆ %d" % Game.gold
 	points_chip.visible = Game.stat_points > 0
-	(points_chip.get_child(0) as Label).text = "+%d pontos  [C]" % Game.stat_points
+	(points_chip.get_child(0) as Label).text = "+%d [C]" % Game.stat_points
 	for id in ["health_potion", "mana_potion"]:
 		var c := Game.count_item(id)
 		var s: ItemSlot = slots[id]
@@ -404,13 +419,13 @@ func _update_food() -> void:
 		var c: Color = it.get("color", UITheme.GOLD)
 		if not _buff_chips.has(id):
 			var p := PanelContainer.new()
-			p.add_theme_stylebox_override("panel", UITheme._box(Color(0.05, 0.04, 0.03, 0.85), c.darkened(0.2), 1, 12, 10, 2))
+			p.add_theme_stylebox_override("panel", UITheme._box(Color(0.05, 0.04, 0.03, 0.7), c.darkened(0.3), 1, 9, 6, 1))
 			var hb := HBoxContainer.new()
-			hb.add_theme_constant_override("separation", 6)
-			var icon := ItemSlot.new(22)
+			hb.add_theme_constant_override("separation", 4)
+			var icon := ItemSlot.new(18)
 			icon.item_id = id
 			hb.add_child(icon)
-			var l := UITheme.label("", 15, c.lightened(0.2))
+			var l := UITheme.label("", 12, c.lightened(0.2))
 			hb.add_child(l)
 			p.add_child(hb)
 			_ignore_all(p)
@@ -418,7 +433,7 @@ func _update_food() -> void:
 			_buff_chips[id] = {"panel": p, "label": l}
 		var t: float = Game.food_buffs[id]
 		var chip: Dictionary = _buff_chips[id]
-		chip.label.text = "%s  %ds" % [it.buff.name, int(ceil(t))]
+		chip.label.text = "%ds" % int(ceil(t))
 		chip.panel.modulate.a = 0.45 + 0.55 * abs(sin(t * 6.0)) if t < 5.0 else 1.0
 
 
@@ -431,27 +446,27 @@ func _refresh_quests() -> void:
 		if q.state == "done":
 			continue
 		if not any:
-			var hdr := UITheme.outlined("MISSÕES", 13, UITheme.GOLD_DIM, 4)
+			var hdr := UITheme.outlined("MISSÕES", 11, UITheme.GOLD_DIM, 3)
 			hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 			quest_box.add_child(hdr)
 			any = true
 		var d: Dictionary = ItemDB.QUESTS[id]
-		var title := UITheme.heading(("★ " if q.state == "ready" else "◆ ") + d.name, 19,
-			UITheme.GOOD if q.state == "ready" else UITheme.GOLD)
+		var title := UITheme.outlined(("★ " if q.state == "ready" else "◆ ") + d.name, 15,
+			UITheme.GOOD if q.state == "ready" else UITheme.GOLD, 4)
 		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		quest_box.add_child(title)
 		var txt := "Volte para %s" % d.giver if q.state == "ready" else "%s: %d/%d" % [_target_name(d.target), q.progress, d.count]
-		var l := UITheme.outlined(txt, 16, UITheme.TEXT, 4)
+		var l := UITheme.outlined(txt, 13, UITheme.TEXT, 3)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		quest_box.add_child(l)
 		if q.state == "active":
-			var pb := UITheme.bar(UITheme.XP, 200, 4)
+			var pb := UITheme.bar(UITheme.XP, 140, 3)
 			pb.max_value = d.count
 			pb.value = q.progress
 			pb.size_flags_horizontal = Control.SIZE_SHRINK_END
 			quest_box.add_child(pb)
 		var gap := Control.new()
-		gap.custom_minimum_size.y = 6
+		gap.custom_minimum_size.y = 4
 		quest_box.add_child(gap)
 	_ignore_all(quest_box)
 
@@ -462,13 +477,13 @@ func _target_name(t: String) -> String:
 
 func _on_notify(text: String, color: Color) -> void:
 	var p := PanelContainer.new()
-	p.add_theme_stylebox_override("panel", UITheme._box(Color(0.03, 0.025, 0.02, 0.62), Color(0, 0, 0, 0), 0, 4, 10, 3))
-	var l := UITheme.outlined(text, 18, color, 5)
+	p.add_theme_stylebox_override("panel", UITheme._box(Color(0.03, 0.025, 0.02, 0.45), Color(0, 0, 0, 0), 0, 4, 8, 2))
+	var l := UITheme.outlined(text, 14, color, 4)
 	p.add_child(l)
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	p.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	notif_box.add_child(p)
-	while notif_box.get_child_count() > 7:
+	while notif_box.get_child_count() > 5:
 		notif_box.get_child(0).free()
 	_fade_out(p, 3.5)
 
@@ -478,23 +493,23 @@ func _on_loot(id: String, qty: int) -> void:
 	var it := ItemDB.get_item(id)
 	var p := PanelContainer.new()
 	var rc := ItemDB.rarity_color(id) if ItemDB.is_equippable(id) else Color(0.85, 1.0, 0.7)
-	var sb := UITheme._box(Color(0.03, 0.025, 0.02, 0.75), Color(0, 0, 0, 0), 0, 4, 8, 3)
+	var sb := UITheme._box(Color(0.03, 0.025, 0.02, 0.55), Color(0, 0, 0, 0), 0, 4, 6, 2)
 	sb.border_width_right = 3
 	sb.border_color = rc
 	p.add_theme_stylebox_override("panel", sb)
 	p.size_flags_horizontal = Control.SIZE_SHRINK_END
 	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 8)
-	var l := UITheme.outlined(it.name + ("  x%d" % qty if qty > 1 else ""), 17, rc, 4)
+	hb.add_theme_constant_override("separation", 6)
+	var l := UITheme.outlined(it.name + ("  x%d" % qty if qty > 1 else ""), 14, rc, 4)
 	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	hb.add_child(l)
-	var icon := ItemSlot.new(36)
+	var icon := ItemSlot.new(26)
 	icon.item_id = id
 	hb.add_child(icon)
 	p.add_child(hb)
 	_ignore_all(p)
 	loot_box.add_child(p)
-	while loot_box.get_child_count() > 6:
+	while loot_box.get_child_count() > 5:
 		loot_box.get_child(0).free()
 	p.modulate.a = 0.0
 	var tw := p.create_tween()
@@ -544,7 +559,7 @@ class GhostBar extends Control:
 		# ornamentos nas pontas
 		for x in [-8.0, r.size.x + 8.0]:
 			var c := Vector2(x, r.size.y * 0.5)
-			draw_colored_polygon(PackedVector2Array([c + Vector2(0, -7), c + Vector2(6, 0), c + Vector2(0, 7), c + Vector2(-6, 0)]), UITheme.GOLD)
+			draw_colored_polygon(PackedVector2Array([c + Vector2(0, -5), c + Vector2(4, 0), c + Vector2(0, 5), c + Vector2(-4, 0)]), UITheme.GOLD)
 
 
 ## Marcas a cada 10% sobre a barra de XP.

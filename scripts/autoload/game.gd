@@ -152,6 +152,18 @@ func _debug_screenshot() -> void:
 		var w = get_tree().current_scene
 		if w and w.has_method("start_survival"):
 			w.start_survival()
+			# `--hordedemo` monta uma build de exemplo; `--tab` abre o placar (para screenshots)
+			if "--hordedemo" in OS.get_cmdline_user_args() and w.survival:
+				var sv = w.survival
+				for c in [["weapon", "laminas"], ["weapon", "laminas"], ["weapon", "raio"], ["weapon", "fogo"],
+						["passive", "poder"], ["passive", "poder"], ["passive", "vigor"], ["passive", "ima"],
+						["blessing", "furia"], ["blessing", "furia"], ["blessing", "sangue"]]:
+					sv._apply({"type": c[0], "id": c[1]})
+				sv.run_level = 7
+				sv.round_num = 6
+				sv.affix = "frenesi"
+				if "--tab" in OS.get_cmdline_user_args():
+					sv.hud.scoreboard.force_open = true
 	if path == "":
 		return
 	if "--talk" in OS.get_cmdline_user_args():

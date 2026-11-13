@@ -51,6 +51,9 @@ const TYPES := {
 var horde := false
 var hp_mult := 1.0
 var dmg_mult := 1.0
+var spd_mult := 1.0
+## Desafio da Horda: versão de elite (maior, dourada, mais vida e dano; o servidor manda junto no spawn).
+var elite := false
 ## Defesa da Cidade: marcha até a prefeitura e ataca construções, soldados e o jogador no caminho.
 var siege := false
 var _siege_target = null     # Player, ColonySoldier ou ColonyBuilding
@@ -101,9 +104,11 @@ var _net_yaw := 0.0
 func _ready() -> void:
 	data = TYPES[kind]
 	display_name = data.name
+	if elite:
+		display_name += " de Elite"
 	max_hp = data.hp * hp_mult
 	hp = max_hp
-	radius = data.radius
+	radius = data.radius * (1.2 if elite else 1.0)
 	is_boss = data.get("boss", false)
 	add_to_group("enemies")
 	collision_layer = 4
@@ -117,8 +122,10 @@ func _ready() -> void:
 	add_child(col)
 
 	model = MODELS[data.model].instantiate()
-	model.scale = Vector3.ONE * data.scale
+	model.scale = Vector3.ONE * data.scale * (1.3 if elite else 1.0)
 	add_child(model)
+	if elite:
+		_make_elite_glow()
 	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head"]:
 		parts[n] = model.find_child(n, true, false)
 	var crown := model.find_child("Crown", true, false)
@@ -168,6 +175,35 @@ func _ready() -> void:
 		_retarget = randf() * 0.3
 	if Network.is_server():
 		Network.server_register_enemy(self)
+
+
+## Elite: anel dourado no chão e brilho, para ser lido de longe no meio da horda.
+func _make_elite_glow() -> void:
+	var ring := MeshInstance3D.new()
+	var tor := TorusMesh.new()
+	tor.inner_radius = radius + 0.25
+	tor.outer_radius = radius + 0.45
+	tor.rings = 24
+	tor.ring_segments = 6
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = Color(1.0, 0.8, 0.25, 0.85)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.emission_enabled = true
+	m.emission = Color(1.0, 0.7, 0.2)
+	m.emission_energy_multiplier = 2.5
+	tor.material = m
+	ring.mesh = tor
+	ring.scale = Vector3(1, 0.15, 1)
+	ring.position.y = 0.08
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(ring)
+	var light := OmniLight3D.new()
+	light.light_color = Color(1.0, 0.75, 0.3)
+	light.light_energy = 1.2
+	light.omni_range = 3.5
+	light.position.y = 1.0
+	add_child(light)
 
 
 func _exit_tree() -> void:
@@ -233,7 +269,7 @@ func _physics_process(delta: float) -> void:
 		to_player.y = 0
 		dist = to_player.length()
 
-	var spd: float = data.speed * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0)
+	var spd: float = data.speed * spd_mult * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0)
 	var move := Vector3.ZERO
 	var face := Vector3.ZERO
 
@@ -406,6 +442,9 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0) -> v
 		contributors[last_hitter] = true
 	if slow > 0.0:
 		apply_slow(slow)
+	if horde and get_parent().has_method("on_enemy_damaged"):
+		# placar do Desafio da Horda (last_hitter = quem acertou no multiplayer; 0 no solo)
+		get_parent().on_enemy_damaged(last_hitter, minf(amount, maxf(hp, 0.0)))
 	hp -= amount
 	health_changed.emit(self)
 	var top: Vector3 = global_position + Vector3.UP * (data.height * data.scale + 0.2)
@@ -536,7 +575,7 @@ func _siege_process(delta: float) -> void:
 		dist = to.length()
 		if not t.has_method("closest_point"):
 			dist -= float(t.radius) if t.get("radius") != null else 0.35
-	var spd: float = data.speed * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0)
+	var spd: float = data.speed * spd_mult * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0)
 	var move := Vector3.ZERO
 	var face := Vector3.ZERO
 	if state == "attack":

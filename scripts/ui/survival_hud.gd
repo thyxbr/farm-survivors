@@ -1,76 +1,117 @@
 extends CanvasLayer
-## HUD do Desafio da Horda: barra de XP da partida, rodada/tempo/abates e armas equipadas.
+## HUD do Desafio da Horda, enxuto:
+## - topo: rodada e tempo, nível da partida com barra de XP fina, abates/inimigos e a maldição da rodada;
+## - canto superior direito: build em ícones (armas com nível, passivas, bênçãos) e combos do grupo;
+## - esquerda: quadro do grupo (vida, nível, caído/pronto) no multiplayer;
+## - Tab (segurar): placar com build, dano, abates, quedas e combos de cada jogador.
 
 const UPG := preload("res://scripts/survival/upgrades.gd")
+const SCOREBOARD := preload("res://scripts/ui/horde_scoreboard.gd")
 
 var survival: Node
+var root: Control
 var xp_bar: ProgressBar
 var lvl_label: Label
 var round_label: Label
 var info_label: Label
-var gear_label: Label
-var team_label: Label
+var affix_label: Label
+var weapon_row: HBoxContainer
+var extra_row: HBoxContainer
+var combo_row: HBoxContainer
+var party_box: VBoxContainer
+var scoreboard: CanvasLayer
+var _build_sig := ""
+var _combo_sig := ""
+var _party_sig := ""
+var _combo_icons := {}   # combo -> HordeIcon
+var _party_rows := {}    # pid -> {"bar", "lv", "state", "name"}
 
 
 func _ready() -> void:
 	layer = 6
 	process_mode = Node.PROCESS_MODE_ALWAYS   # atualiza o nível atrás das cartas (jogo pausado)
-	var root := Control.new()
+	root = Control.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.theme = UITheme.get_theme()
 	add_child(root)
 
-	xp_bar = UITheme.bar(Color(0.25, 0.6, 1.0), 10, 12)
-	xp_bar.anchor_right = 1.0
-	xp_bar.offset_bottom = 12
-	xp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(xp_bar)
-
-	lvl_label = _outlined("", 20, Color(0.6, 0.85, 1.0))
-	lvl_label.anchor_left = 1.0
-	lvl_label.anchor_right = 1.0
-	lvl_label.offset_left = -140
-	lvl_label.offset_right = -20
-	lvl_label.offset_top = 14
-	lvl_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	root.add_child(lvl_label)
-
+	# ---- topo central: rodada · tempo / nível + XP / maldição
 	var top := VBoxContainer.new()
 	top.anchor_left = 0.5
 	top.anchor_right = 0.5
-	top.offset_left = -300
-	top.offset_right = 300
-	top.offset_top = 16
-	top.add_theme_constant_override("separation", 0)
+	top.offset_left = -220
+	top.offset_right = 220
+	top.offset_top = 10
+	top.add_theme_constant_override("separation", 2)
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(top)
-	round_label = _outlined("", 30, UITheme.GOLD)
+	round_label = UITheme.outlined("", 20, UITheme.GOLD, 5)
 	round_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	top.add_child(round_label)
-	info_label = _outlined("", 17, Color(0.9, 0.88, 0.8))
-	info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	top.add_child(info_label)
-	team_label = _outlined("", 16, Color(0.75, 0.9, 1.0))
-	team_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	top.add_child(team_label)
+	var line := HBoxContainer.new()
+	line.alignment = BoxContainer.ALIGNMENT_CENTER
+	line.add_theme_constant_override("separation", 8)
+	top.add_child(line)
+	lvl_label = UITheme.outlined("", 13, Color(0.6, 0.85, 1.0), 4)
+	line.add_child(lvl_label)
+	xp_bar = UITheme.bar(Color(0.3, 0.65, 1.0), 170, 5)
+	xp_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	line.add_child(xp_bar)
+	info_label = UITheme.outlined("", 13, Color(0.85, 0.83, 0.76), 4)
+	line.add_child(info_label)
+	affix_label = UITheme.outlined("", 12, Color(1, 0.55, 0.45), 4)
+	affix_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	top.add_child(affix_label)
+	for c in [round_label, lvl_label, xp_bar, info_label, affix_label, line]:
+		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	gear_label = _outlined("", 16, Color(0.9, 0.88, 0.8))
-	gear_label.anchor_left = 1.0
-	gear_label.anchor_right = 1.0
-	gear_label.offset_left = -300
-	gear_label.offset_right = -20
-	gear_label.offset_top = 48
-	gear_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	root.add_child(gear_label)
+	# ---- canto superior direito: build e combos
+	var build := VBoxContainer.new()
+	build.anchor_left = 1.0
+	build.anchor_right = 1.0
+	build.offset_left = -340
+	build.offset_right = -18
+	build.offset_top = 18
+	build.add_theme_constant_override("separation", 9)
+	build.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(build)
+	weapon_row = _row(build, 8)
+	extra_row = _row(build, 7)
+	combo_row = _row(build, 8)
+
+	# ---- esquerda: quadro do grupo (abaixo da placa do personagem)
+	party_box = VBoxContainer.new()
+	party_box.position = Vector2(16, 66)
+	party_box.add_theme_constant_override("separation", 5)
+	party_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(party_box)
+
+	var hint := UITheme.outlined("[Tab] placar do grupo", 12, Color(0.8, 0.76, 0.66, 0.55), 3)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	hint.anchor_left = 1.0
+	hint.anchor_right = 1.0
+	hint.anchor_top = 1.0
+	hint.anchor_bottom = 1.0
+	hint.offset_left = -314
+	hint.offset_right = -14
+	hint.offset_top = -42
+	hint.offset_bottom = -24
+	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(hint)
+
+	scoreboard = SCOREBOARD.new()
+	scoreboard.survival = survival
+	add_child(scoreboard)
 
 
-func _outlined(t: String, size: int, c: Color) -> Label:
-	var l := UITheme.label(t, size, c)
-	l.add_theme_constant_override("outline_size", 6)
-	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return l
+func _row(parent: Control, sep: int) -> HBoxContainer:
+	var r := HBoxContainer.new()
+	r.alignment = BoxContainer.ALIGNMENT_END
+	r.add_theme_constant_override("separation", sep)
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(r)
+	return r
 
 
 func _process(_delta: float) -> void:
@@ -85,33 +126,108 @@ func _process(_delta: float) -> void:
 		if survival.waiting:
 			round_label.text += "  ·  aguardando o grupo"
 	elif survival.boss_alive() and survival.round_left <= 0.0:
-		round_label.text = "Rodada %d — derrote o chefe!" % survival.round_num
+		round_label.text = "Rodada %d  ·  derrote o chefe!" % survival.round_num
 	else:
 		round_label.text = "Rodada %d  ·  %d:%02d" % [survival.round_num, t / 60, t % 60]
-	info_label.text = "%d abates  ·  %d inimigos" % [survival.kills, survival.alive_count()]
-	team_label.text = _team_text()
-	var lines: Array[String] = []
-	for id in survival.weapon_levels:
-		lines.append("%s  Nv %d" % [UPG.WEAPONS[id].name, survival.weapon_levels[id]])
-	for id in survival.passive_levels:
-		lines.append("%s  Nv %d" % [UPG.PASSIVES[id].name, survival.passive_levels[id]])
-	for id in survival.blessing_counts:
-		var n: int = survival.blessing_counts[id]
-		lines.append(UPG.BLESSINGS[id].name + (" ×%d" % n if n > 1 else ""))
-	gear_label.text = "\n".join(lines)
+	info_label.text = "☠ %d  ·  %d vivos" % [survival.kills, survival.alive_count()]
+	var aff: Dictionary = UPG.AFFIXES.get(survival.affix, {})
+	affix_label.visible = not aff.is_empty() and survival.phase == "fight"
+	if affix_label.visible:
+		affix_label.text = "⚠ %s — %s" % [aff.name, aff.desc]
+	_update_build()
+	_update_combos()
+	_update_party()
 
 
-## Multiplayer: "Grupo: Ana · Beto (caído) · Caio ✓" (✓ = já escolheu a bênção).
-func _team_text() -> String:
+# ---------------------------------------------------------------- build
+func _update_build() -> void:
+	var sig := "%s|%s|%s" % [survival.weapon_levels, survival.passive_levels, survival.blessing_counts]
+	if sig == _build_sig:
+		return
+	_build_sig = sig
+	HordeIcon.fill_build(weapon_row, extra_row, survival.weapon_levels, survival.passive_levels, survival.blessing_counts, 34, 24)
+
+
+# ---------------------------------------------------------------- combos
+func _update_combos() -> void:
+	var active: Dictionary = survival.active_combos
+	var sig := ",".join(active.keys())
+	if sig != _combo_sig:
+		_combo_sig = sig
+		for c in combo_row.get_children():
+			c.queue_free()
+		_combo_icons.clear()
+		for cid in active:
+			var ic := HordeIcon.new(26, "combo", cid)
+			combo_row.add_child(ic)
+			_combo_icons[cid] = ic
+	for cid in _combo_icons:
+		var near: bool = active.get(cid, {}).get("near", false)
+		var ic: HordeIcon = _combo_icons[cid]
+		if ic.glow != near:
+			ic.dim = not near
+			ic.glow = near
+			ic.queue_redraw()
+
+
+# ---------------------------------------------------------------- grupo
+func _update_party() -> void:
 	if survival.role != "client" or survival.team.size() <= 1:
-		return ""
-	var parts: Array[String] = []
-	for pid in survival.team:
+		party_box.visible = false
+		return
+	party_box.visible = true
+	var me: int = multiplayer.get_unique_id()
+	var ids: Array = survival.team.keys().filter(func(x) -> bool: return x != me)
+	var sig := str(ids)
+	if sig != _party_sig:
+		_party_sig = sig
+		for c in party_box.get_children():
+			c.queue_free()
+		_party_rows.clear()
+		for pid in ids:
+			var h := HBoxContainer.new()
+			h.add_theme_constant_override("separation", 6)
+			h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var state := UITheme.outlined("", 12, UITheme.TEXT, 3)
+			state.custom_minimum_size.x = 12
+			h.add_child(state)
+			var nm := UITheme.outlined(str(survival.team[pid].get("name", "?")), 13, Color(0.75, 0.9, 1.0), 3)
+			nm.custom_minimum_size.x = 86
+			nm.clip_text = true
+			h.add_child(nm)
+			var bar := UITheme.bar(UITheme.HP, 70, 4)
+			bar.max_value = 1.0
+			bar.step = 0.0
+			bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			h.add_child(bar)
+			var lv := UITheme.outlined("", 11, Color(0.6, 0.85, 1.0), 3)
+			h.add_child(lv)
+			for c in h.get_children():
+				c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			party_box.add_child(h)
+			_party_rows[pid] = {"bar": bar, "lv": lv, "state": state, "name": nm}
+	var partners := {}
+	for c in survival.active_combos.values():
+		if c.near:
+			partners[c.partner] = true
+	for pid in _party_rows:
+		if not survival.team.has(pid):
+			continue
 		var m: Dictionary = survival.team[pid]
-		var s := str(m.get("name", "?"))
-		if m.get("dead", false):
-			s += " (caído)"
+		var row: Dictionary = _party_rows[pid]
+		var b: Dictionary = m.get("build", {})
+		var dead: bool = m.get("dead", false)
+		row.bar.value = 0.0 if dead else float(b.get("hp", 1.0))
+		row.lv.text = "Nv %d" % int(b.get("lv", 1))
+		var st: Label = row.state
+		if dead:
+			st.text = "☠"
+			st.add_theme_color_override("font_color", UITheme.BAD)
 		elif survival.phase == "break" and m.get("ready", false):
-			s += " ✓"
-		parts.append(s)
-	return "Grupo: " + "  ·  ".join(parts)
+			st.text = "✓"
+			st.add_theme_color_override("font_color", UITheme.GOOD)
+		else:
+			# ◆ = combo ativo com este colega (está perto)
+			st.text = "◆" if partners.has(str(m.get("name", ""))) else ""
+			st.add_theme_color_override("font_color", Color(1, 0.85, 0.4))
+		row.name.modulate.a = 0.5 if dead else 1.0

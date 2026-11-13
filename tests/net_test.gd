@@ -216,6 +216,42 @@ func _test_horde(w: Node) -> void:
 	check(get_tree().get_nodes_in_group("xp_gems").size() > 0 or sv.run_xp > 0 or sv.run_level > 1, "gema de XP pessoal caiu")
 	check(Game.xp + Game.level * 100000 == xp0, "horda não dá XP do RPG")
 
+	# placar: o servidor conta dano e abates de cada um e repassa a build dos colegas
+	var me := multiplayer.get_unique_id()
+	# (os dois clientes podem mirar o mesmo inimigo: de tempos em tempos acerta outro até o abate ser meu)
+	var tries := [0]
+	check(await _wait_until(func() -> bool:
+		tries[0] += 1
+		if tries[0] % 8 == 0 and int(sv.team.get(me, {}).get("kills", 0)) < 1:
+			for e in Network.enemies.values():
+				if is_instance_valid(e) and e.horde and not e.dead:
+					e.take_damage(99999.0, p.global_position, false)
+					break
+		return sv.team.has(me) and float(sv.team[me].get("dmg", 0.0)) > 0.0 and int(sv.team[me].get("kills", 0)) >= 1, 8.0),
+		"servidor conta meu dano e abate no placar")
+	check(sv.scoreboard_rows().size() == peers, "placar do Tab com %d linha(s)" % peers)
+	if peers > 1:
+		# combo: Beto pega a Aura Gélida; com o Orbe de Fogo do outro forma o Choque Térmico
+		if horde_role == "join":
+			sv._apply({"type": "weapon", "id": "aura"})
+		check(await _wait_until(func() -> bool:
+			for pid in sv.team:
+				if pid != me and not sv.team[pid].get("build", {}).get("w", {}).has("fogo"):
+					return false
+			return true, 4.0), "build do colega chega pelo servidor")
+		check(await _wait_until(func() -> bool:
+			return sv.active_combos.has("choque") and sv.active_combos.choque.near, 14.0),
+			"combo Choque Térmico ativo com o colega perto")
+		if horde_role == "join" and sv.active_combos.has("choque"):
+			# força o gatilho: um acerto da aura num inimigo dispara o combo
+			sv.weapons._combo_cd.clear()
+			var c0: int = sv.combos_done
+			for e in Network.enemies.values():
+				if is_instance_valid(e) and e.horde and not e.dead:
+					sv.weapons._combo("aura", e.global_position)
+					break
+			check(sv.combos_done == c0 + 1, "acerto da arma dispara o combo")
+
 	# quem cai no grupo não sai: volta no fim da rodada
 	if horde_role == "join" and peers > 1:
 		p.invuln = 0

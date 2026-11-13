@@ -4,6 +4,7 @@ extends Node3D
 ## giram em volta dela; orbes e raios chegam como eventos ("fireball" / "zap").
 
 const FIREBALL := preload("res://scripts/player/fireball.gd")
+const UPG := preload("res://scripts/survival/upgrades.gd")
 
 var player: Player
 var levels := {}          # id -> nível (1..5)
@@ -18,6 +19,9 @@ var _t := 0.0
 var visual_only := false
 ## Raio extra (passiva "área") do dono, recebido junto com os níveis.
 var area_override := 1.0
+## Modo sobrevivência (lê os combos ativos do grupo). Nulo nas réplicas.
+var survival: Node = null
+var _combo_cd := {}       # combo -> recarga restante
 
 
 func _ready() -> void:
@@ -74,6 +78,8 @@ func _physics_process(delta: float) -> void:
 	var cd_mult: float = max(0.35, Game.mod("cooldown"))
 	for id in _timers:
 		_timers[id] -= delta
+	for id in _combo_cd:
+		_combo_cd[id] -= delta
 	if levels.has("fogo") and _timers.fogo <= 0.0:
 		_timers.fogo = [1.8, 1.5, 1.5, 1.25, 1.1][levels.fogo - 1] * cd_mult
 		_fire_orbs()
@@ -124,6 +130,7 @@ func _fire_orbs() -> void:
 		fb.direction = dir
 		fb.damage = _damage(dmg)[0]
 		fb.speed = 20.0
+		fb.on_explode = Callable(self, "_on_orb_explode")
 		get_tree().current_scene.add_child(fb)
 		fb.global_position = origin + Vector3(dir.x, 0, dir.z).normalized() * 0.5
 		Network.send_event("fireball", fb.global_position, dir)
@@ -139,6 +146,7 @@ func _lightning() -> void:
 	if near.is_empty():
 		return
 	near.shuffle()
+	var first: Vector3 = near[0][1].global_position
 	for i in min(n, near.size()):
 		var e: Enemy = near[i][1]
 		var d := _damage(dmg)
@@ -146,6 +154,7 @@ func _lightning() -> void:
 		Network.send_event("zap", e.global_position)
 		e.take_damage(d[0], e.global_position, d[1])
 	Sfx.play("zap", 0.15, -4.0)
+	_combo("raio", first)
 
 
 static func bolt_fx(root: Node, pos: Vector3) -> void:
@@ -243,8 +252,10 @@ func _update_blades(delta: float) -> void:
 			var bp := b.global_position
 			if Vector2(bp.x - e.global_position.x, bp.z - e.global_position.z).length() < 0.75 + e.radius:
 				var d := _damage(st.dmg)
+				var hit_pos: Vector3 = e.global_position
 				e.take_damage(d[0], ppos, d[1])
 				_blade_hits[id] = 0.4
+				_combo("laminas", hit_pos)
 				break
 
 
@@ -284,9 +295,135 @@ func _update_aura(delta: float) -> void:
 	var lv: int = levels.aura
 	var dmg: float = [5.0, 6.5, 8.5, 9.5, 13.0][lv - 1]
 	var slow: float = 0.7 if lv < 4 else 1.2
+	var hit_any := false
 	for item in _enemies_by_distance(r + 1.0):
 		var e: Enemy = item[1]
 		if item[0] > r + e.radius:
 			continue
 		var d := _damage(dmg)
+		if not hit_any:
+			hit_any = true
+			_combo("aura", e.global_position)
 		e.take_damage(d[0], e.global_position, d[1], slow)   # dano e lentidão numa mensagem só
+
+
+# ------------------------------------------------------------ combos em grupo
+func _on_orb_explode(pos: Vector3) -> void:
+	_combo("fogo", pos)
+
+
+## Ataque da arma weapon_id acertou em pos: dispara os combos ativos (colega perto com a arma par).
+func _combo(weapon_id: String, pos: Vector3) -> void:
+	if visual_only or survival == null or player == null or player.dead:
+		return
+	var active: Dictionary = survival.active_combos
+	for cid in active:
+		var c: Dictionary = active[cid]
+		if not c.near or not (weapon_id in c.mine) or _combo_cd.get(cid, 0.0) > 0.0:
+			continue
+		_combo_cd[cid] = UPG.COMBO_COOLDOWN * maxf(0.5, Game.mod("cooldown"))
+		combo_strike(cid, pos, int(levels.get(weapon_id, 1)) + int(c.plv))
+		survival.combos_done += 1
+
+
+## Efeito do combo: dano escala com a soma dos níveis das duas armas (a sua e a do colega).
+func combo_strike(cid: String, pos: Vector3, total_lv: int) -> void:
+	var c: Dictionary = UPG.COMBOS[cid]
+	var power := 1.0 + 0.15 * maxf(0.0, total_lv - 2)
+	var root := get_tree().current_scene
+	combo_fx(root, cid, pos)
+	Network.send_event("combo", pos, Vector3(UPG.COMBOS.keys().find(cid), 0, 0))
+	var slow: float = c.slow
+	match c.shape:
+		"area":
+			for item in _enemies_near(pos, c.radius):
+				var e: Enemy = item[1]
+				var d := _damage(c.dmg * power)
+				e.take_damage(d[0], pos, d[1], slow)
+		"chain":
+			var from := pos
+			var hit := {}
+			for i in int(c.n):
+				var best: Enemy = null
+				var best_d := INF
+				for item in _enemies_near(from, c.radius):
+					var e: Enemy = item[1]
+					if not hit.has(e.get_instance_id()) and item[0] < best_d:
+						best_d = item[0]
+						best = e
+				if best == null:
+					break
+				hit[best.get_instance_id()] = true
+				var to := best.global_position
+				_arc_fx(root, from + Vector3.UP * 0.8, to + Vector3.UP * 0.8, c.color)
+				var d := _damage(c.dmg * power)
+				best.take_damage(d[0], from, d[1], slow)
+				from = to
+		"strikes":
+			var near := _enemies_near(pos, c.radius)
+			near.shuffle()
+			for i in min(int(c.n), near.size()):
+				var e: Enemy = near[i][1]
+				bolt_fx(root, e.global_position)
+				var d := _damage(c.dmg * power)
+				e.take_damage(d[0], e.global_position, d[1], slow)
+
+
+func _enemies_near(pos: Vector3, max_dist: float) -> Array:
+	var out: Array = []
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.dead:
+			continue
+		var d: float = e.global_position.distance_to(pos)
+		if d <= max_dist + e.radius:
+			out.append([d, e])
+	return out
+
+
+## Visual do combo (também nas réplicas): anel e faíscas nas cores das duas armas e o nome do combo.
+static func combo_fx(root: Node, cid: String, pos: Vector3) -> void:
+	if root == null or not UPG.COMBOS.has(cid):
+		return
+	var c: Dictionary = UPG.COMBOS[cid]
+	var ca: Color = UPG.WEAPONS[c.a].color
+	var cb: Color = UPG.WEAPONS[c.b].color
+	var r: float = c.radius if c.shape == "area" else 2.5
+	FX.ring(pos + Vector3.UP * 0.1, Color(ca.r, ca.g, ca.b, 0.9), r, 0.45)
+	FX.ring(pos + Vector3.UP * 0.15, Color(cb.r, cb.g, cb.b, 0.8), r * 0.7, 0.55)
+	FX.burst(pos + Vector3.UP * 0.5, ca, 18, 6.0, 0.12, 0.5)
+	FX.burst(pos + Vector3.UP * 0.5, cb, 18, 5.0, 0.12, 0.6)
+	FX.damage_number(pos + Vector3.UP * 2.6, c.name + "!", c.color, 40)
+	Sfx.play_at("explode" if c.shape == "area" else "zap", pos, 0.1, -6.0)
+
+
+## Réplica: evento "combo" de outro jogador (índice do combo em UPG.COMBOS).
+static func combo_fx_index(root: Node, idx: int, pos: Vector3) -> void:
+	var keys := UPG.COMBOS.keys()
+	if idx >= 0 and idx < keys.size():
+		combo_fx(root, keys[idx], pos)
+
+
+static func _arc_fx(root: Node, a: Vector3, b: Vector3, col: Color) -> void:
+	var mi := MeshInstance3D.new()
+	var len := a.distance_to(b)
+	if len < 0.05:
+		return
+	var box := BoxMesh.new()
+	box.size = Vector3(0.09, 0.09, len)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = Color(col.r, col.g, col.b, 1.0)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.emission_enabled = true
+	m.emission = col
+	m.emission_energy_multiplier = 5.0
+	box.material = m
+	mi.mesh = box
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(mi)
+	mi.global_position = (a + b) * 0.5
+	mi.look_at(b, Vector3.UP if absf((b - a).normalized().y) < 0.95 else Vector3.RIGHT)
+	var tw := mi.create_tween()
+	tw.tween_property(m, "albedo_color:a", 0.0, 0.3)
+	tw.tween_callback(mi.queue_free)
+	FX.burst(b, col, 8, 4.0, 0.08, 0.3)

@@ -32,6 +32,9 @@ var slot_name := ""
 var tooltip: ItemTooltip
 var drag_source := ""
 var drop_handler: Callable
+## Barra de ações do HUD (variante B): mais margem em volta do ícone, tecla num selo no canto superior
+## esquerdo e o texto (custo, quantidade) num selo embaixo, os dois fora do desenho.
+var badges := false
 var _hover := false
 
 
@@ -146,7 +149,7 @@ func _draw() -> void:
 	if selected:
 		draw_rect(r.grow(-2), Color(1, 0.85, 0.4, 0.08))
 	# ícone
-	var inset := size.x * 0.14
+	var inset := size.x * (0.17 if badges else 0.14)
 	var ir := r.grow(-inset)
 	if has_item:
 		IconPainter.draw(self, IconPainter.kind_for(item_id), IconPainter.color_for(item_id), ir)
@@ -174,22 +177,33 @@ func _draw() -> void:
 		for i in range(1, pts.size() - 1):
 			draw_primitive(PackedVector2Array([pts[0], pts[i], pts[i + 1]]), cols, PackedVector2Array())
 	var font := ThemeDB.fallback_font
+	# textos encolhem junto com espaços pequenos (barra de ações compacta)
+	var k := clampf(size.x / 58.0, 0.72, 1.0)
 	if cooldown_text != "":
-		_text(font, cooldown_text, Vector2(0, size.y * 0.5 + 7), 20, Color(1, 1, 1), HORIZONTAL_ALIGNMENT_CENTER)
+		_text(font, cooldown_text, Vector2(0, size.y * 0.5 + 7 * k), int(20 * k), Color(1, 1, 1), HORIZONTAL_ALIGNMENT_CENTER)
+	if badges:
+		if key_text != "":
+			var kw := maxf(15.0, font.get_string_size(key_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x + 8.0)
+			HordeIcon.badge(self, key_text, Vector2(-6 + kw, 8), Color(0.63, 0.52, 0.38), Color(1, 0.95, 0.84))
+		var t := info_text if info_text != "" else (str(qty) if qty > 1 else "")
+		if t != "":
+			HordeIcon.badge(self, t, Vector2(size.x * 0.5, size.y + 8), Color(0.36, 0.29, 0.2), Color(0.93, 0.93, 0.93), 9, 13.0, true)
+		return
 	if key_text != "":
-		var kw := font.get_string_size(key_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 8
-		var kr := Rect2(Vector2(3, 3), Vector2(maxf(kw, 18), 17))
+		var kfs := int(13 * k)
+		var kw := font.get_string_size(key_text, HORIZONTAL_ALIGNMENT_LEFT, -1, kfs).x + 6
+		var kr := Rect2(Vector2(2, 2), Vector2(maxf(kw, 14), kfs + 3))
 		var ks := StyleBoxFlat.new()
 		ks.bg_color = Color(0.12, 0.1, 0.08, 0.9)
 		ks.border_color = Color(0.5, 0.43, 0.32)
 		ks.set_border_width_all(1)
 		ks.set_corner_radius_all(3)
 		draw_style_box(ks, kr)
-		draw_string(font, Vector2(kr.position.x, 16), key_text, HORIZONTAL_ALIGNMENT_CENTER, kr.size.x, 13, Color(1, 0.95, 0.8))
+		draw_string(font, Vector2(kr.position.x, kr.position.y + kfs), key_text, HORIZONTAL_ALIGNMENT_CENTER, kr.size.x, kfs, Color(1, 0.95, 0.8))
 	if qty > 1:
-		_text(font, str(qty), Vector2(-4, size.y - 4), 15, Color(1, 1, 1), HORIZONTAL_ALIGNMENT_RIGHT)
+		_text(font, str(qty), Vector2(-4, size.y - 4), int(15 * k), Color(1, 1, 1), HORIZONTAL_ALIGNMENT_RIGHT)
 	if info_text != "":
-		_text(font, info_text, Vector2(0, size.y - 4), 12, Color(0.85, 0.85, 0.85), HORIZONTAL_ALIGNMENT_CENTER)
+		_text(font, info_text, Vector2(0, size.y - 3), int(12 * k), Color(0.85, 0.85, 0.85), HORIZONTAL_ALIGNMENT_CENTER)
 	if label_text != "" and not has_item:
 		_text(font, label_text, Vector2(0, size.y - 5), 11, Color(0.6, 0.56, 0.48, 0.8), HORIZONTAL_ALIGNMENT_CENTER)
 

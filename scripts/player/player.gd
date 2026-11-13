@@ -868,6 +868,8 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 		"zap":
 			AUTO_WEAPONS.bolt_fx(get_tree().current_scene, a)
 			Sfx.play_at("zap", a, 0.15, -8.0)
+		"combo":
+			AUTO_WEAPONS.combo_fx_index(get_tree().current_scene, int(b.x), a)
 		"horde_gear":
 			# armas automáticas do Desafio da Horda girando em volta do outro jogador
 			var aw: Node = get_node_or_null("HordeGear")
