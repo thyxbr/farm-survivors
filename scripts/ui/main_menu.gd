@@ -13,6 +13,8 @@ var mp_address: LineEdit
 var mp_status: Label
 var mp_join: Button
 var mp_create: Button
+## Sobe a cada tentativa e ao Voltar: um login que termina depois disso é descartado (não conecta).
+var _attempt := 0
 var upd_box: PanelContainer
 
 
@@ -161,6 +163,7 @@ func _open_multiplayer() -> void:
 
 
 func _close_multiplayer() -> void:
+	_attempt += 1   # cancela um cadastro/login em andamento
 	Network.leave()
 	mp_box.visible = false
 	menu_box.visible = true
@@ -192,7 +195,8 @@ func _join() -> void:
 		return
 	Sfx.play("click", 0.0)
 	_set_busy(true)
-	await _login_and_connect()
+	_attempt += 1
+	await _login_and_connect(_attempt)
 
 
 func _create_account() -> void:
@@ -200,19 +204,25 @@ func _create_account() -> void:
 		return
 	Sfx.play("click", 0.0)
 	_set_busy(true)
+	_attempt += 1
+	var my_attempt := _attempt
 	_set_status("Criando a conta...", UITheme.TEXT)
 	var r: Dictionary = await Auth.register(mp_address.text, mp_name.text.strip_edges(), mp_pass.text)
+	if my_attempt != _attempt:
+		return   # o jogador voltou do painel enquanto esperava
 	if not r.ok:
 		_on_join_failed(r.msg)
 		return
 	_set_status("Conta criada! Entrando...", UITheme.TEXT)
-	await _login_and_connect()
+	await _login_and_connect(my_attempt)
 
 
-func _login_and_connect() -> void:
+func _login_and_connect(my_attempt: int) -> void:
 	var address := mp_address.text.strip_edges()
 	_set_status("Entrando...", UITheme.TEXT)
 	var r: Dictionary = await Auth.login(address, mp_name.text.strip_edges(), mp_pass.text)
+	if my_attempt != _attempt or not is_instance_valid(mp_box) or not mp_box.visible:
+		return   # cancelado (Voltar) enquanto o login estava no ar
 	if not r.ok:
 		_on_join_failed(r.msg)
 		return

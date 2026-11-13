@@ -315,7 +315,7 @@ uma segunda conexão com o mesmo token derruba a primeira (abre outro processo d
 `--horde=lead|join` testa o Desafio da Horda em grupo (Ana abre o portal, Beto aceita o convite; nível do grupo com
 a horda congelada até os dois escolherem, Beto "AFK" recebe carta sorteada; Beto cai e volta, os dois escolhem bênçãos
 e se retiram); sem ele o teste pula essa parte. Com `--peers=2` também testa o chat (entrega e anti-spam).
-`--probe` só confere a versão do servidor por `GET /health` (sem conta nem ENet); serve para testar o servidor público.
+`--probe` confere, sem conta, a versão por `GET /health` (HTTP) e se uma conexão ENet chega a conectar na porta do jogo (UDP); serve para testar o servidor público.
 Cobre conexão, inimigos replicados (snapshots a 20/s), ver o outro jogador, dano pelo servidor, morte, XP, loot
 e a horda em grupo.
 `--netstats` no servidor imprime jogadores, fps e snapshots/s a cada 5 s.

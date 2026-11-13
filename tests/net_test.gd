@@ -4,7 +4,7 @@ extends Node
 ##   godot --headless --path . -- --nettest=127.0.0.1:7777 --auth-url=http://127.0.0.1:8790 [--peers=2] [--name=Ana]
 ## --name é o usuário da conta de teste (senha fixa TEST_PASS): o teste cadastra (409 é ok), loga e entra com o token.
 ## --peers=N espera ver N-1 outros jogadores. Sai com código 0 (ok) ou 1 (falhas).
-## --probe: só confere a versão do servidor por GET /health, sem conta (usado pelo CI contra o servidor público).
+## --probe: sem conta, confere GET /health (versão) e se uma conexão ENet na porta UDP conecta (CI contra o servidor público).
 ## --relogin: no fim, abre uma segunda conexão (outro processo, mesmo token) e espera esta ser derrubada.
 ## --token=T: entra direto com o token (é o processo da segunda conexão do --relogin).
 ## --horde=lead|join: testa o Desafio da Horda em grupo (lead abre o portal, join aceita o convite).
@@ -244,14 +244,61 @@ func _ready() -> void:
 
 
 # ---------------------------------------------------------------- conta e sessão
-## --probe: o servidor público responde /health com a versão deste build (sem conta, sem entrar no mundo).
+## --probe: confere o servidor público sem conta: (1) HTTP — /health responde a versão deste build;
+## (2) UDP — uma conexão ENet na porta do jogo chega a conectar (sem _register; desconecta logo).
 func _probe() -> void:
 	var h: Dictionary = await Auth.health(address)
-	check(h.ok, "API respondeu /health (%s)" % h.get("err", "ok"))
 	var v := str(h.get("version", ""))
-	check(v == Network.version(), "servidor na versão %s (está na %s)" % [Network.version(), v])
-	if h.ok and v == Network.version():
-		print("[%s] servidor aceitou a versão %s" % [my_name, v])
+	var http_ok: bool = h.ok and v == Network.version()
+	check(h.ok, "HTTP: API respondeu /health em %s (%s)" % [Auth.base_url(address), h.get("err", "ok")])
+	check(v == Network.version(), "HTTP: servidor na versão %s (está na %s)" % [Network.version(), v])
+	var udp := await _probe_udp()
+	check(udp == "", "UDP: conexão ENet em %s %s" % [address, "ok" if udp == "" else "falhou (%s)" % udp])
+	if http_ok and udp == "":
+		print("[%s] servidor aceitou a versão %s (HTTP e UDP ok)" % [my_name, v])
+	else:
+		printerr("[%s] PROBE FALHOU: %s" % [my_name, " e ".join(
+			(["HTTP"] if not http_ok else []) + (["UDP"] if udp != "" else []))])
+
+
+## Conexão ENet crua (sem o SceneMultiplayer, para não mandar _register). "" = conectou.
+func _probe_udp() -> String:
+	var host := address.strip_edges()
+	var p := Network.DEFAULT_PORT
+	if host.count(":") == 1:
+		p = int(host.get_slice(":", 1))
+		host = host.get_slice(":", 0)
+	var ip := host if host.is_valid_ip_address() else IP.resolve_hostname(host, IP.TYPE_IPV4)
+	if ip == "":
+		return "não resolveu %s" % host
+	var conn := ENetConnection.new()
+	if conn.create_host(1) != OK:
+		return "não criou o host ENet"
+	var peer := conn.connect_to_host(ip, p, 0)
+	if peer == null:
+		conn.destroy()
+		return "não abriu a conexão"
+	var t := 0.0
+	var res := "sem resposta em %d s" % int(Network.CONNECT_TIMEOUT)
+	while t < Network.CONNECT_TIMEOUT:
+		var ev: Array = conn.service(0)
+		if ev[0] == ENetConnection.EVENT_CONNECT:
+			res = ""
+			break
+		if ev[0] == ENetConnection.EVENT_DISCONNECT:
+			res = "recusada"
+			break
+		if ev[0] == ENetConnection.EVENT_ERROR:
+			res = "erro de rede"
+			break
+		if ev[0] == ENetConnection.EVENT_NONE:
+			await wait(0.05)
+			t += 0.05
+	if res == "":
+		peer.peer_disconnect()
+		conn.flush()
+	conn.destroy()
+	return res
 
 
 ## Token que o servidor não conhece: recusado com a mensagem de sessão expirada.
