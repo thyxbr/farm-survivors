@@ -969,6 +969,84 @@ def rnd_pitch(j):
     return 0.15 + 0.12 * ((j * 37) % 5) / 5.0
 
 
+# ======================================================== VEGETAÇÃO (MultiMesh em ground.gd)
+# Uma malha só por planta, origem no chão; sem colisão (decoração espalhada aos milhares).
+v_bush = mat("v_bush", _lin(0.24, 0.50, 0.15), 0.9)
+v_bush_dk = mat("v_bush_dark", _lin(0.14, 0.36, 0.10), 0.9)
+v_bush_lt = mat("v_bush_light", _lin(0.40, 0.64, 0.20), 0.9)
+v_fern = mat("v_fern", _lin(0.22, 0.52, 0.16), 0.85)
+v_fern_dk = mat("v_fern_dark", _lin(0.14, 0.40, 0.12), 0.85)
+v_berry = mat("v_berry", _lin(0.80, 0.12, 0.16), 0.4)
+
+
+def _bush(name, berries):
+    rnd = random.Random(7 if berries else 5)
+    objs = []
+    # tufos de folhagem facetados: um central alto e outros em volta, mais baixos
+    blobs = [((0, 0, 0), (1.0, 0.9, 0.78), v_bush)]
+    for k in range(5):
+        a = k / 5 * 2 * PI + rnd.uniform(-0.3, 0.3)
+        d = rnd.uniform(0.32, 0.45)
+        s = rnd.uniform(0.55, 0.72)
+        blobs.append(((math.cos(a) * d, math.sin(a) * d, 0), (s, s * 0.9, s * 0.8), (v_bush_dk, v_bush, v_bush_lt)[k % 3]))
+    for i, (p, s, m) in enumerate(blobs):
+        objs.append(boulder("%s_B%d" % (name, i), p, s, m, n=12, seed=100 + i * 7 + (50 if berries else 0)))
+    # topo mais claro (luz de cima)
+    objs.append(boulder(name + "_Top", (0.05, -0.05, 0.42), (0.6, 0.55, 0.3), v_bush_lt, n=9, seed=31, flat_bottom=False))
+    # folhas soltas na borda quebram a silhueta redonda
+    for k in range(9):
+        a = k / 9 * 2 * PI + rnd.uniform(-0.2, 0.2)
+        r = rnd.uniform(0.45, 0.6)
+        objs.append(leaf("%s_L%d" % (name, k), (math.cos(a) * r * 0.8, math.sin(a) * r * 0.8, rnd.uniform(0.15, 0.45)),
+                         a - PI / 2, rnd.uniform(0.1, 0.5), 0.28, 0.16, (v_bush, v_bush_dk)[k % 2], droop=0.2))
+    if berries:
+        for k in range(16):   # na casca de um dos tufos (boulder: centro em z = 0,55*meia-altura)
+            p, s, _m = blobs[k % len(blobs)]
+            a = rnd.uniform(0, 2 * PI)
+            el = rnd.uniform(0.1, 0.9)
+            hx, hy, hz = s[0] / 2 * 0.86, s[1] / 2 * 0.86, s[2] / 2 * 0.86
+            c = (p[0] + math.cos(a) * math.cos(el) * hx, p[1] + math.sin(a) * math.cos(el) * hy,
+                 0.55 * s[2] / 2 + math.sin(el) * hz)
+            objs.append(boulder("%s_Berry%d" % (name, k), c, (0.08, 0.08, 0.08), v_berry, n=6, seed=200 + k, flat_bottom=False))
+    join(objs, name)
+
+
+def build_bush():
+    _bush("Bush", False)
+    export("bush")
+
+
+def build_bush_berry():
+    _bush("BushBerry", True)
+    export("bush_berry")
+
+
+def build_fern():
+    rnd = random.Random(9)
+    objs = []
+    n = 9
+    for j in range(n):
+        yaw = j / n * 2 * PI + rnd.uniform(-0.2, 0.2)
+        pitch = rnd.uniform(0.55, 0.95)
+        L = rnd.uniform(0.55, 0.75)
+        droop = 0.55
+        m = v_fern if j % 2 else v_fern_dk
+        objs.append(leaf("Frond%d" % j, (0, 0, 0.02), yaw, pitch, L, 0.1, m, droop=droop, fold=0.1))
+        # folíolos em pares ao longo da fronde (segue o arco aproximado da folha)
+        fwd = Vector((math.cos(yaw + PI / 2), math.sin(yaw + PI / 2), 0))
+        for k in range(1, 5):
+            t = k / 5
+            hz = t * L * math.cos(pitch)
+            z = 0.02 + t * L * math.sin(pitch) - droop * L * t * t * 0.9
+            base = fwd * hz + Vector((0, 0, z))
+            size = 0.2 * (1.1 - t * 0.6)
+            for side in (-1, 1):
+                objs.append(leaf("Leaflet%d_%d_%d" % (j, k, side + 1), base, yaw + side * 1.0, 0.1 - t * 0.5, size, size * 0.45,
+                                 m, droop=0.15, fold=0.2))
+    join(objs, "Fern")
+    export("fern")
+
+
 PROP_BUILDERS = {
     "chest": build_chest, "fence": build_fence, "crate": build_crate, "barrel": build_barrel,
     "lamp": build_lamp, "campfire": build_campfire, "tent": build_tent, "well": build_well, "rock": build_rock,
@@ -976,4 +1054,5 @@ PROP_BUILDERS = {
     "crop_carrot": build_crop_carrot, "crop_wheat": build_crop_wheat, "crop_tomato": build_crop_tomato,
     "crop_pepper": build_crop_pepper, "crop_mint": build_crop_mint, "crop_pumpkin": build_crop_pumpkin,
     "field_crop": build_field_crop,
+    "bush": build_bush, "bush_berry": build_bush_berry, "fern": build_fern,
 }
