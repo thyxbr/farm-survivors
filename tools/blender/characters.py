@@ -373,32 +373,81 @@ def build_knight():
           [(0.25, 0), (0.5, 0), (0.75, 0), (0.92, 0), (1.0, 1)], center=(0, 0.035), back=1.0, cols=8,
           folds=0.025, thick=0.016, border=0.07, border_mat=1, parent=body)
 
-    # ---------------- cabeça: elmo fechado em duas camadas (calota com aba sobre a parte de baixo) e visor
-    helm = loft("Helmet", [sec((0, 0.005, 1.5), 0.085, 0.088),
-                           sec((0, 0.005, 1.56), 0.108, 0.118, fr=1.06),
-                           sec((0, 0.005, 1.64), 0.118, 0.13, fr=1.05, keel=0.05),
-                           sec((0, 0.005, 1.72), 0.122, 0.132),
-                           sec((0, 0.005, 1.75), 0.122, 0.132)], steel, head, sides=10, axis=(0, 0, 1))
-    visor = loft("Visor", [sec((0, 0.005, 1.595), 0.119, 0.131, fr=1.12, keel=0.06),
-                           sec((0, 0.005, 1.66), 0.127, 0.14, fr=1.16, keel=0.14),
-                           sec((0, 0.005, 1.725), 0.13, 0.14, fr=1.1, keel=0.06)],
-                 steel, head, sides=8, axis=(0, 0, 1), arc=2.3, thick=0.014)
-    join_objs("Helmet", [helm, visor])
-    loft("HelmetDome", [sec((0, 0.005, 1.735), 0.13, 0.14),
-                        sec((0, 0.005, 1.765), 0.13, 0.14),
-                        sec((0, 0.005, 1.81), 0.115, 0.125, keel=0.06),
-                        sec((0, 0.005, 1.85), 0.075, 0.085),
-                        sec((0, 0.005, 1.87), 0.03, 0.035)], steel, head, sides=10, axis=(0, 0, 1),
-         chamfer=(0.006, 0.0))
-    loft("VisorSlit", [sec((0, 0.005, 1.678), 0.13, 0.143, fr=1.162, keel=0.145),
-                       sec((0, 0.005, 1.692), 0.13, 0.143, fr=1.162, keel=0.145)],
-         slit, head, sides=6, axis=(0, 0, 1), arc=1.7, thick=0.01)
-    brim = band("HelmetTrim", sec((0, 0.005, 1.731), 0.13, 0.14), (0, 0, 1), 0.016, trim, head)
-    plume = loft("Plume", [sec((0, 0.0, 1.84), 0.035, 0.016), sec((0, 0.035, 1.92), 0.052, 0.022),
-                   sec((0, 0.11, 1.965), 0.05, 0.022), sec((0, 0.2, 1.96), 0.042, 0.018),
-                   sec((0, 0.27, 1.91), 0.028, 0.012), sec((0, 0.3, 1.84), 0.008, 0.004)],
-         red_c, head, sides=6, phase=0, fwd=(1, 0, 0))
-    join_objs("Plume", [plume, brim])
+    # ---------------- cabeça: elmo fechado facetado (vértice na frente para a quilha) com
+    # bevor em prova (duas placas em degrau), fenda dos olhos sob a testa saliente, crista central na calota
+    # e penacho em leque. Helmet e HelmetDome levam um material só (tingidos pelo equipamento);
+    # frisos, fenda e penacho ficam em objetos à parte.
+    hy = 0.005
+    helm = loft("Helmet", [sec((0, hy, 1.5), 0.085, 0.088),
+                           sec((0, hy, 1.56), 0.108, 0.118, fr=1.06),
+                           sec((0, hy, 1.64), 0.118, 0.13, fr=1.05, keel=0.05),
+                           sec((0, hy, 1.72), 0.122, 0.132),
+                           sec((0, hy, 1.75), 0.122, 0.132)], steel, head, sides=12, phase=0, axis=(0, 0, 1))
+    BEV = [sec((0, hy, 1.522), 0.1, 0.112, fr=1.1, keel=0.2),
+           sec((0, hy, 1.575), 0.118, 0.13, fr=1.14, keel=0.24),
+           sec((0, hy, 1.622), 0.123, 0.136, fr=1.14, keel=0.2)]
+    BEV2 = [sec((0, hy, 1.612), 0.12, 0.134, fr=1.15, keel=0.24),
+            sec((0, hy, 1.646), 0.126, 0.14, fr=1.16, keel=0.2),
+            sec((0, hy, 1.668), 0.127, 0.14, fr=1.15, keel=0.15)]
+    BROW = [sec((0, hy, 1.69), 0.127, 0.139, fr=1.13, keel=0.12),
+            sec((0, hy, 1.705), 0.131, 0.143, fr=1.15, keel=0.12),
+            sec((0, hy, 1.742), 0.131, 0.142, fr=1.08, keel=0.05)]
+    bev = loft("Bevor", BEV, steel, head, sides=12, phase=0, axis=(0, 0, 1), arc=3.0, thick=0.014,
+               chamfer=(0.004, 0.0))
+    bev2 = loft("Visor", BEV2, steel, head, sides=12, phase=0, axis=(0, 0, 1), arc=2.6, thick=0.014)
+    brow = loft("VisorBrow", BROW, steel, head, sides=12, phase=0, axis=(0, 0, 1), arc=2.5, thick=0.016)
+    join_objs("Helmet", [helm, bev, bev2, brow])
+    DOME = [sec((0, hy, 1.735), 0.13, 0.14),
+            sec((0, hy, 1.765), 0.13, 0.14),
+            sec((0, hy, 1.81), 0.115, 0.126, keel=0.05),
+            sec((0, hy, 1.85), 0.076, 0.086),
+            sec((0, hy, 1.872), 0.03, 0.035)]
+    dome_m = loft("HelmetDome", DOME, steel, head, sides=12, phase=0, axis=(0, 0, 1), chamfer=(0.006, 0.0))
+    # crista: aleta de seção em losango sobre o meio da calota, da testa à nuca
+    prof = [(-0.15, 1.738), (-0.143, 1.79), (-0.112, 1.838), (-0.06, 1.87), (0.0, 1.882), (0.06, 1.87),
+            (0.098, 1.84), (0.13, 1.79), (0.142, 1.745)]
+    crest = loft("Crest", [sec((0, y + hy, z), 0.02 if abs(y) < 0.13 else 0.012, 0.011) for y, z in prof],
+                 steel, head, sides=4, phase=0, fwd=(1, 0, 0))
+    join_objs("HelmetDome", [dome_m, crest])
+
+    # fenda dos olhos (fundo escuro entre o visor e a testa) e respiros no lado direito do bevor
+    slit_o = [loft("VisorSlit", [sec((0, hy, 1.664), 0.121, 0.133, fr=1.13, keel=0.15),
+                                 sec((0, hy, 1.696), 0.121, 0.133, fr=1.12, keel=0.12)],
+                   slit, head, sides=12, phase=0, axis=(0, 0, 1), arc=2.2, thick=0.01)]
+    for k in range(4):
+        a = -0.62 - k * 0.15
+        rr = 0.141 * 1.14
+        x, y = 0.125 * math.sin(a) * 1.0, hy - rr * math.cos(a) * 0.98
+        slit_o.append(tbox("Breath%d" % k, (x, y, 1.6 - k * 0.004), (0.008, 0.012, 0.036 - k * 0.004), slit,
+                           rot=(0, 0, a), parent=head))
+    join_objs("VisorSlit", slit_o)
+
+    # frisos dourados: aba da calota, borda de baixo da testa e risca vertical do bevor (forma um T)
+    def front_y(sc):
+        return sc["c"].y - sc["ry"] * sc["fr"] * (1 + sc["keel"])
+    vt_secs = [sec((0, front_y(sc) - 0.003, sc["c"].z), 0.006, 0.006) for sc in (BEV2[-1], BEV2[0], BEV[2], BEV[1])]
+    vt_secs.append(sec((0, front_y(BEV[0]) + 0.004, BEV[0]["c"].z + 0.006), 0.005, 0.005))
+    trims = [band("HelmetTrim", DOME[0], (0, 0, 1), 0.016, trim, head, sides=12, phase=0),
+             band("BrowTrim", dict(BROW[0], c=BROW[0]["c"] + Vector((0, 0, 0.001))), (0, 0, 1), 0.012, trim, head,
+                  sides=12, phase=0, arc=2.5, out=0.003),
+             loft("VisorTrim", vt_secs, trim, head, sides=4, phase=0, fwd=(1, 0, 0))]
+    join_objs("HelmetTrim", trims)
+
+    # penacho: cinco lâminas facetadas em leque saindo de um tubo dourado no alto da nuca
+    sock = Vector((0, hy + 0.05, 1.862))
+    blades = [limb("PlumeSocket", sock + Vector((0, -0.012, -0.03)), sock + Vector((0, 0.012, 0.022)), 0.02, 0.016,
+                   trim, sides=6, parent=head)]
+    # cada lâmina sobe e curva para trás (b = para trás, u = para cima, no plano girado por yaw)
+    path = ((0.0, 0.015), (0.0, 0.08), (0.03, 0.15), (0.09, 0.2), (0.16, 0.218), (0.23, 0.205), (0.29, 0.165))
+    widths = (0.02, 0.042, 0.054, 0.052, 0.044, 0.03, 0.004)
+    for k, (yaw, sc, m) in enumerate(((0.0, 1.0, red_c), (0.17, 0.88, red_dark), (-0.17, 0.88, red_dark),
+                                      (0.34, 0.74, red_c), (-0.34, 0.74, red_c))):
+        back = Vector((math.sin(yaw), math.cos(yaw), 0))
+        nrm = Vector((math.cos(yaw), -math.sin(yaw), 0))     # normal do plano da lâmina
+        pts = [sock + back * (bb * sc) + Vector((0, 0, uu * (0.55 + 0.45 * sc))) for bb, uu in path]
+        blades.append(loft("PlumeBlade%d" % k, [sec(p, w * (0.6 + 0.4 * sc), 0.01) for p, w in zip(pts, widths)],
+                           m, head, sides=4, phase=0, fwd=nrm))
+    join_objs("Plume", blades)
 
     # ---------------- braços
     for n, s in (("R", -1), ("L", 1)):

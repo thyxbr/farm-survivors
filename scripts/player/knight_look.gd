@@ -39,8 +39,12 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 			if mi:
 				mi.material_override = mat
 
-	# chapéu do mago: cone sobre o elmo
-	if look.get("head", "") == "wizard_hat":
+	# chapéu do mago: cone sobre o elmo (o penacho some para não atravessar o chapéu)
+	var wizard: bool = look.get("head", "") == "wizard_hat"
+	var plume := model.find_child("Plume", true, false) as Node3D
+	if plume:
+		plume.visible = not wizard
+	if wizard:
 		var head := model.find_child("Head", true, false) as Node3D
 		var dome := model.find_child("HelmetDome", true, false) as MeshInstance3D
 		if head and dome:

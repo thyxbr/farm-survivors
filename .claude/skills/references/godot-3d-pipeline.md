@@ -51,7 +51,7 @@ grep -E "^EXPORT|Error|Traceback" <scratchpad>/build.log
 |---|---|
 | `preview_single.py ... small` (900×573) | iterações de silhueta, proporção, pose e cores — padrão enquanto ajusta |
 | `preview_single.py ...` sem `small` (1650×1050) | conferência final do asset, uma vez |
-| `preview_closeup.py` | detalhes pequenos (rosto, visor, mãos, fivelas) — mais nítido que o render cheio |
+| `preview_closeup.py` | detalhes pequenos (rosto, visor, mãos, fivelas) — mais nítido que o render cheio. Zoom: `-- knight out.png 1.78 1.1` (elmo); `-- knight out.png 0.86 0.45 -0.3 "90,135,180"` (mão direita: centra em x, esconde o que está longe e gira as três cópias) |
 
 Leia uma imagem por vez e só depois de mudar algo relevante; junte vários ajustes numa rodada.
 
