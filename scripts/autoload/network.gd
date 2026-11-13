@@ -55,6 +55,14 @@ var world: Node = null
 var enemies := {}         # net_id -> Enemy (servidor: reais; cliente: réplicas)
 var remote_players := {}  # peer_id -> Player (réplica)
 
+## Servidor: banco SQLite, contas e API HTTP de login (abertos em start_server).
+var db: Db = null
+var accounts: AccountStore = null
+var auth_http: AuthHttp = null
+var http_port := 0
+var db_path := ""
+var admin_users := PackedStringArray()
+
 var _next_enemy_id := 1
 var snapshots_received := 0
 var _stats_t := 0.0
@@ -91,6 +99,9 @@ func _ready() -> void:
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 	var args := OS.get_cmdline_user_args()
+	http_port = int(OS.get_environment("HTTP_PORT")) if OS.get_environment("HTTP_PORT") != "" else 8080
+	db_path = OS.get_environment("DB_PATH") if OS.get_environment("DB_PATH") != "" else "user://server.db"
+	admin_users = _split_names(OS.get_environment("ADMIN_USERS"))
 	for a in args:
 		if a.begins_with("--port="):
 			port = int(a.substr(7))
@@ -100,6 +111,12 @@ func _ready() -> void:
 			horde_pick_time = maxf(2.0, float(a.substr(13)))
 		elif a.begins_with("--horde-event="):
 			horde_force_event = a.substr(14)
+		elif a.begins_with("--http-port="):
+			http_port = int(a.substr(12))
+		elif a.begins_with("--db="):
+			db_path = a.substr(5)
+		elif a.begins_with("--admins="):
+			admin_users = _split_names(a.substr(9))
 		elif a.begins_with("--autosave="):
 			autosave_interval = maxf(1.0, float(a.substr(11)))
 	if "--server" in args:
@@ -123,7 +140,33 @@ func version() -> String:
 
 
 # ================================================================ servidor
+## "ana, bob" -> ["ana", "bob"] (sem vazios).
+func _split_names(csv: String) -> PackedStringArray:
+	var out := PackedStringArray()
+	for n in csv.split(","):
+		if n.strip_edges() != "":
+			out.append(n.strip_edges())
+	return out
+
+
 func start_server() -> void:
+	db = Db.open(db_path)
+	if db == null:
+		printerr("[server] não foi possível abrir o banco em %s" % db_path)
+		get_tree().quit(1)
+		return
+	Migrations.apply(db)
+	accounts = AccountStore.new(db, admin_users)
+	for n in accounts.missing_admins():
+		print("[server] aviso: admin '%s' ainda não tem conta — crie a conta antes que outro jogador registre esse nome" % n)
+	auth_http = AuthHttp.new()
+	auth_http.name = "AuthHttp"
+	add_child(auth_http)
+	if auth_http.start(http_port, accounts) == OK:
+		print("[server] API de login em TCP %d (banco: %s)" % [http_port, db_path])
+	else:
+		get_tree().quit(1)
+		return
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_server(port, MAX_PLAYERS)
 	if err != OK:

@@ -26,7 +26,9 @@ USER valdoria
 RUN godot --headless --path /game --import \
  && test -d /game/.godot/imported
 
-ENV GAME_PORT=7777
+# /data guarda o banco de contas: monte um volume do Easypanel nele para não perder as contas ao atualizar
+ENV GAME_PORT=7777 HTTP_PORT=8080 DB_PATH=/data/valdoria.db
 EXPOSE 7777/udp
+EXPOSE 8080
 # "exec" deixa o Godot receber o SIGTERM direto (o container para na hora)
-CMD ["sh", "-c", "exec godot --headless --path /game -- --server --port=${GAME_PORT}"]
+CMD ["sh", "-c", "exec godot --headless --path /game -- --server --port=${GAME_PORT} --http-port=${HTTP_PORT} --db=${DB_PATH}"]
