@@ -199,6 +199,7 @@ def join_objs(name, objs):
     objs[0].name = name
     objs[0].data.name = name
     return objs[0]
+    return objs[0]
 
 
 # ------------------------------------------------------------------ proporções e rig
@@ -297,25 +298,44 @@ def torso_sections(P):
 
 # ------------------------------------------------------------------ mãos
 def fist(prefix, P, s, material, parent):
-    """Mão fechada: dorso facetado, quatro dedos dobrados sugeridos por blocos e o polegar por cima.
-    Devolve o objeto <prefix>_Hand (tudo junto, um material)."""
+    """Mão fechada em punho (luva de placas): dorso e palma num bloco, quatro dedos curvados em volta de um
+    eixo ao longo de Y (o cabo da espada passa por ali), em gomos com degrau nas juntas, fileira de nós dos
+    dedos e o polegar fechando por cima do indicador. Devolve <prefix>_Hand (tudo junto, um material)."""
     hd = P["hd"]
     W = mirror(P["wrist"], s)
+    o = Vector((s, 0, 0))                       # lado de fora (dorso da mão)
+    up = Vector((0, 0, 1))
+    G = W + Vector((-s * 0.004, 0, -0.064 * hd))  # eixo do punho fechado (= cabo da espada)
     parts = [loft(prefix + "_Hand", [
         sec(W + Vector((0, 0, 0.005 * hd)), 0.03 * hd, 0.036 * hd),
-        sec(W + Vector((s * 0.002, 0, -0.03 * hd)), 0.037 * hd, 0.05 * hd, sq=2.6),
-        sec(W + Vector((s * 0.004, -0.002, -0.064 * hd)), 0.04 * hd, 0.055 * hd, sq=3.0),
-        sec(W + Vector((s * 0.002, -0.002, -0.08 * hd)), 0.036 * hd, 0.05 * hd, sq=3.0),
-    ], material, parent, sides=8, axis=(0, 0, 1), chamfer=(0.0, 0.01))]
-    # dedos dobrados: quatro rolos sob a palma, do indicador (frente) ao mindinho, levemente em leque
-    for i in range(4):
-        y = (-0.036 + i * 0.024) * hd
-        parts.append(tbox(prefix + "_Finger%d" % i, (W.x - s * 0.008 * hd, W.y + y, W.z - (0.086 - 0.002 * i) * hd),
-                          (0.066 * hd, 0.021 * hd, 0.03 * hd), material, bottom=(0.85, 0.9), bevel=0.006,
-                          rot=(0, s * 0.18, 0), parent=parent))
-    parts.append(tbox(prefix + "_Thumb", (W.x - s * 0.02 * hd, W.y - 0.05 * hd, W.z - 0.055 * hd),
-                      (0.026 * hd, 0.028 * hd, 0.052 * hd), material, bottom=(0.8, 0.8), bevel=0.008,
-                      rot=(0.35, 0, -s * 0.3), parent=parent))
+        sec(W + Vector((s * 0.002, -0.002 * hd, -0.026 * hd)), 0.036 * hd, 0.048 * hd, sq=2.6),
+        sec(G + Vector((-s * 0.002 * hd, -0.003 * hd, 0.016 * hd)), 0.038 * hd, 0.052 * hd, sq=3.0),
+    ], material, parent, sides=8, axis=(0, 0, 1), chamfer=(0.0, 0.006))]
+    # miolo do punho fechado (preenche o vão quando a mão está vazia; o cabo da espada passa por dentro)
+    parts.append(loft(prefix + "_Core", [sec(G + Vector((0, -0.044 * hd, 0)), 0.02 * hd, 0.02 * hd),
+                                         sec(G + Vector((0, 0.042 * hd, 0.002 * hd)), 0.018 * hd, 0.018 * hd)],
+                      material, parent, sides=6, fwd=(0, 0, 1)))
+    # dedos: do indicador (frente, -Y) ao mindinho, cada um um arco em volta de G no plano XZ
+    for i, (dy, r, w, dz) in enumerate(((-0.037, 0.028, 0.0125, -0.003), (-0.012, 0.029, 0.0125, 0.0),
+                                        (0.013, 0.028, 0.012, 0.0), (0.036, 0.025, 0.0105, 0.004))):
+        c = G + Vector((0, dy * hd, dz * hd))
+        pts = [c + (o * math.cos(t) + up * math.sin(t)) * r * hd
+               for t in (math.radians(a) for a in (55, 10, -40, -95, -145, -185))]
+        secs = [sec(p, w * hd * 0.95, w * hd, sq=2.6) for p in pts]
+        secs[-1] = dict(secs[-1], rx=secs[-1]["rx"] * 0.8, ry=secs[-1]["ry"] * 0.85)
+        parts.append(loft(prefix + "_Finger%d" % i, stepped(secs, (0.34, 0.66), drop=0.86, eps=0.004),
+                          material, parent, sides=6, phase=0.5, chamfer=(0.0, 0.003)))
+    # nós dos dedos: placa articulada em cima da fileira de dedos, do lado de fora
+    k = G + o * 0.026 * hd + up * 0.03 * hd
+    parts.append(tbox(prefix + "_Knuckles", (k.x, k.y - 0.0005, k.z), (0.018 * hd, 0.088 * hd, 0.02 * hd), material,
+                      top=(0.8, 0.94), bevel=0.004, rot=(0, -s * 0.5, 0), parent=parent))
+    # polegar: sai da palma (lado de dentro, frente) e fecha por cima do indicador
+    t0 = W + Vector((-s * 0.024 * hd, -0.036 * hd, -0.026 * hd))
+    t1 = G + Vector((-s * 0.03 * hd, -0.058 * hd, 0.0))
+    t2 = G + Vector((s * 0.004 * hd, -0.06 * hd, -0.016 * hd))
+    parts.append(loft(prefix + "_Thumb", stepped([sec(t0, 0.016 * hd, 0.016 * hd), sec(t1, 0.014 * hd, 0.0135 * hd),
+                                                  sec(t2, 0.011 * hd, 0.011 * hd)], (0.55,), drop=0.86, eps=0.004),
+                      material, parent, sides=6, fwd=(0, 0, 1), chamfer=(0.0, 0.003)))
     return join_objs(prefix + "_Hand", parts)
 
 
