@@ -1,5 +1,6 @@
 # A cada push no main: roda os testes (gameplay + multiplayer) e, se passarem,
-# dispara o deploy do servidor no Easypanel.
+# publica o cliente Windows no GitHub Releases (só quando a versão do project.godot é nova;
+# é de lá que o auto update do jogo baixa) e dispara o deploy do servidor no Easypanel.
 # O link de deploy fica no secret EASYPANEL_DEPLOY_URL (Settings → Secrets and variables → Actions).
 name: Testes e deploy
 
@@ -68,9 +69,98 @@ jobs:
         if: failure()
         run: tail -n 60 server.log ana.log beto.log || true
 
+  # Exporta o cliente Windows e publica a release v<versão> com o zip e o latest.json que o
+  # auto update (scripts/autoload/updater.gd) lê. Se a versão já tem release, não faz nada.
+  release:
+    name: Publicar cliente (GitHub Releases)
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versão
+        id: ver
+        run: |
+          ver=$(grep -oP 'config/version="\K[^"]+' project.godot)
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          if gh release view "v$ver" --json assets -q '.assets[].name' 2>/dev/null | grep -qx latest.json; then
+            echo "A release v$ver já existe: nada a publicar (aumente config/version para lançar outra)."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Cache do Godot
+        if: steps.ver.outputs.skip == 'false'
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/godot
+          key: godot-${{ env.GODOT_VERSION }}-linux
+
+      - name: Baixar Godot
+        if: steps.ver.outputs.skip == 'false' && steps.cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" -O /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp
+          mv "/tmp/Godot_v${GODOT_VERSION}-stable_linux.x86_64" ~/godot/godot
+          chmod +x ~/godot/godot
+
+      # o pacote completo de templates tem ~1 GB; guardamos só o do Windows
+      - name: Cache do template de export (Windows)
+        if: steps.ver.outputs.skip == 'false'
+        id: tcache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates
+          key: godot-templates-${{ env.GODOT_VERSION }}-windows
+
+      - name: Baixar template de export
+        if: steps.ver.outputs.skip == 'false' && steps.tcache.outputs.cache-hit != 'true'
+        run: |
+          dir="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$dir"
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz" -O /tmp/templates.tpz
+          unzip -q -j /tmp/templates.tpz templates/version.txt templates/windows_release_x86_64.exe templates/windows_debug_x86_64.exe -d "$dir"
+          rm /tmp/templates.tpz
+          ls -la "$dir"
+
+      - name: Exportar
+        if: steps.ver.outputs.skip == 'false'
+        run: |
+          ~/godot/godot --headless --path . --import > /dev/null 2>&1
+          mkdir -p build
+          ~/godot/godot --headless --path . --export-release "Windows Desktop" build/EcosDeValdoria.exe 2>&1 | tee export.log
+          test -s build/EcosDeValdoria.exe || { echo "::error::O export não gerou o exe"; exit 1; }
+
+      - name: Publicar release
+        if: steps.ver.outputs.skip == 'false'
+        run: |
+          ver="${{ steps.ver.outputs.version }}"
+          zip="EcosDeValdoria-v$ver-windows.zip"
+          (cd build && zip -9 -q "../$zip" EcosDeValdoria.exe)
+          sha=$(sha256sum "$zip" | cut -d' ' -f1)
+          size=$(stat -c %s "$zip")
+          url="https://github.com/${{ github.repository }}/releases/download/v$ver/$zip"
+          printf '{"version": "%s", "url": "%s", "sha256": "%s", "size": %s, "exe": "EcosDeValdoria.exe"}\n' \
+            "$ver" "$url" "$sha" "$size" > latest.json
+          cat latest.json
+          # se uma execução anterior foi cancelada no meio, a release pode existir sem os arquivos
+          gh release delete "v$ver" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "v$ver" "$zip" latest.json --target "$GITHUB_SHA" --title "v$ver" \
+            --notes "Ecos de Valdoria v$ver — commit $GITHUB_SHA. Quem já tem o jogo recebe esta versão pelo auto update ao abrir o menu."
+
+  # o servidor só troca de versão depois do cliente novo estar publicado: assim quem for recusado
+  # por versão diferente já encontra a atualização
   deploy:
     name: Deploy no Easypanel
-    needs: test
+    needs: [test, release]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

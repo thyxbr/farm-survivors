@@ -10,6 +10,10 @@ var mp_name: LineEdit
 var mp_address: LineEdit
 var mp_status: Label
 var mp_join: Button
+var upd_box: PanelContainer
+var upd_label: Label
+var upd_bar: ProgressBar
+var upd_btn: Button
 
 
 func _ready() -> void:
@@ -68,6 +72,8 @@ func _ready() -> void:
 		_open_multiplayer()
 		_set_status(Network.last_error, Color(1, 0.6, 0.5))
 		Network.last_error = ""
+
+	_build_update_banner()
 
 	var credit := UITheme.label("Feito com Godot 4 · modelos low-poly criados no Blender", 14, UITheme.DIM)
 	credit.anchor_top = 1.0
@@ -156,6 +162,70 @@ func _on_join_failed(reason: String) -> void:
 	if mp_join:
 		mp_join.disabled = false
 	_set_status(reason, Color(1, 0.6, 0.5))
+	# servidor com outra versão: procura de novo (a release nova pode ter acabado de sair)
+	if reason.begins_with("Versão diferente") and not Updater.can_install():
+		Updater.check()
+
+
+# ---------------------------------------------------------------- atualização
+## Aviso no canto superior direito; só aparece quando há versão nova (ou durante a instalação).
+func _build_update_banner() -> void:
+	upd_box = PanelContainer.new()
+	upd_box.anchor_left = 1.0
+	upd_box.anchor_right = 1.0
+	upd_box.offset_left = -440
+	upd_box.offset_top = 24
+	upd_box.offset_right = -24
+	upd_box.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	upd_box.visible = false
+	add_child(upd_box)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
+	upd_box.add_child(v)
+	upd_label = UITheme.label("", 17)
+	upd_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(upd_label)
+	upd_bar = ProgressBar.new()
+	upd_bar.max_value = 1.0
+	upd_bar.custom_minimum_size.y = 14
+	upd_bar.show_percentage = false
+	upd_bar.visible = false
+	v.add_child(upd_bar)
+	upd_btn = UITheme.button("Atualizar agora", _on_update_pressed)
+	v.add_child(upd_btn)
+	Updater.state_changed.connect(_on_update_state)
+	Updater.progress.connect(func(f: float) -> void: upd_bar.value = f)
+	_on_update_state(Updater.state)
+	if Updater.state == Updater.State.IDLE:
+		Updater.check()
+
+
+func _on_update_pressed() -> void:
+	Sfx.play("click", 0.0)
+	if Updater.can_install():
+		Updater.install()
+	else:
+		Updater.open_releases_page()
+
+
+func _on_update_state(s: int) -> void:
+	var S := Updater.State
+	upd_box.visible = s in [S.AVAILABLE, S.DOWNLOADING, S.INSTALLING] or (s == S.FAILED and Updater.latest_version != "")
+	upd_bar.visible = s in [S.DOWNLOADING, S.INSTALLING]
+	upd_btn.visible = s in [S.AVAILABLE, S.FAILED]
+	upd_label.add_theme_color_override("font_color", UITheme.TEXT)
+	match s:
+		S.AVAILABLE:
+			upd_label.text = "Nova versão disponível: v%s (você tem v%s)." % [Updater.latest_version, Updater.current_version()]
+			upd_btn.text = "Atualizar agora"
+		S.DOWNLOADING:
+			upd_label.text = "Baixando v%s..." % Updater.latest_version
+		S.INSTALLING:
+			upd_label.text = "Instalando... o jogo vai reabrir sozinho."
+		S.FAILED:
+			upd_label.text = Updater.error
+			upd_label.add_theme_color_override("font_color", Color(1, 0.6, 0.5))
+			upd_btn.text = "Tentar de novo" if Updater.can_install() else "Abrir página de download"
 
 
 func _set_status(t: String, c: Color) -> void:
