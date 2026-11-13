@@ -65,47 +65,18 @@ const LAND_BODY_X := 0.3
 const LAND_BODY_Y := 0.06
 
 # ------------------------------------------------------------------ ataque
-## Fases do golpe, em fração do tempo total: antecipação até ATK_WINDUP, golpe até ATK_STRIKE,
-## segura o impacto até ATK_HOLD, depois recupera até o fim.
-const ATK_WINDUP := 0.3
-const ATK_STRIKE := 0.42
-const ATK_HOLD := 0.55
-const ATK_FOLLOW := 0.08          ## o golpe passa um pouco do ponto de impacto (fração, durante o hold)
+## As poses-chave e os tempos de cada golpe ficam em knight_moves.gd (KnightMoves).
 const ATK_LEGS_WHILE_MOVING := 0.3   ## quanto do passo de ataque as pernas fazem se o jogador anda
-
-## Poses-chave dos golpes de espada: [antecipação, impacto]. Chaves ausentes ficam na pose de locomoção.
-const SWORD_KEYS := [
-	[  # 1: de cima para baixo
-		{"arm_r": Vector3(-2.8, 0, -0.2), "elbow_r": -1.25, "body_x": -0.14, "twist": 0.22, "elbow_l": -0.6,
-			"leg_l": -0.12, "knee_l": 0.12, "leg_r": 0.12, "knee_r": 0.25},
-		{"arm_r": Vector3(0.5, 0, 0.1), "elbow_r": -0.05, "body_x": 0.3, "twist": -0.12, "elbow_l": -0.35,
-			"leg_l": -0.5, "knee_l": 0.55, "leg_r": 0.32, "knee_r": 0.35},
-	],
-	[  # 2: horizontal, da direita para a esquerda
-		{"arm_r": Vector3(-1.6, 0, -1.3), "elbow_r": -1.0, "body_x": 0.0, "twist": 0.5, "elbow_l": -0.7,
-			"leg_l": -0.1, "knee_l": 0.18, "leg_r": 0.15, "knee_r": 0.3},
-		{"arm_r": Vector3(-1.4, 0, 1.0), "elbow_r": -0.1, "body_x": 0.18, "twist": -0.6, "elbow_l": -0.3,
-			"leg_l": -0.42, "knee_l": 0.45, "leg_r": 0.3, "knee_r": 0.3},
-	],
-	[  # 3: giro (o tronco dá uma volta inteira, ver sword_pose)
-		{"arm_r": Vector3(-1.5, 0, -0.7), "elbow_r": -0.7, "body_x": 0.12, "elbow_l": -0.8,
-			"leg_l": -0.25, "knee_l": 0.5, "leg_r": 0.25, "knee_r": 0.5},
-		{"arm_r": Vector3(-1.5, 0, -0.5), "elbow_r": -0.15, "body_x": 0.2, "elbow_l": -0.5,
-			"leg_l": -0.3, "knee_l": 0.6, "leg_r": 0.3, "knee_r": 0.6},
-	],
-]
-## Cajado: golpes 1-2 (estocada) e 3 (pancada de cima).
-const STAFF_KEYS := [
-	[{"arm_r": Vector3(-0.9, 0, -0.3), "elbow_r": -1.0, "body_x": -0.06, "twist": 0.18, "knee_r": 0.2},
-		{"arm_r": Vector3(-1.55, 0, 0.15), "elbow_r": -0.08, "body_x": 0.14, "twist": -0.1,
-			"leg_l": -0.3, "knee_l": 0.3, "leg_r": 0.2, "knee_r": 0.2}],
-	[{"arm_r": Vector3(-2.5, 0, 0.0), "elbow_r": -0.7, "body_x": -0.12, "knee_l": 0.2, "knee_r": 0.2},
-		{"arm_r": Vector3(-1.4, 0, 0.0), "elbow_r": -0.05, "body_x": 0.28,
-			"leg_l": -0.35, "knee_l": 0.55, "leg_r": 0.3, "knee_r": 0.45}],
-]
+## Atraso de cada articulação na trilha do golpe (fração do golpe): quadril e tronco puxam o
+## movimento, o ombro segue, cotovelo e pulso chicoteiam por último (sobreposição de ação).
+const JOINT_LAG := {
+	"leg_l": -0.02, "leg_r": -0.02, "knee_l": -0.02, "knee_r": -0.02,
+	"twist": -0.015, "body_x": -0.012, "body_z": -0.012,
+	"elbow_r": 0.008, "elbow_l": 0.008, "wrist_r": 0.014, "wrist_l": 0.014, "head_x": 0.03, "head_y": 0.03,
+}
 const LEG_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r"]
 const POSE_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r", "body_x", "body_y", "body_z", "body_shift",
-	"twist", "head_x", "arm_l", "arm_r", "elbow_l", "elbow_r", "ground"]
+	"twist", "head_x", "head_y", "arm_l", "arm_r", "elbow_l", "elbow_r", "wrist_l", "wrist_r", "ground"]
 
 
 ## Pivôs do modelo + medidas das pernas. Funciona com modelos antigos sem KneeX/ElbowX (ficam null).
@@ -134,7 +105,7 @@ static func leg_length(r: Dictionary) -> float:
 ## Pose neutra (em pé, braços soltos).
 static func rest_pose() -> Dictionary:
 	return {"leg_l": 0.0, "leg_r": 0.0, "knee_l": 0.0, "knee_r": 0.0, "body_x": 0.0, "body_y": 0.0,
-		"body_z": 0.0, "body_shift": 0.0, "twist": 0.0, "head_x": 0.0,
+		"body_z": 0.0, "body_shift": 0.0, "twist": 0.0, "head_x": 0.0, "head_y": 0.0, "wrist_l": 0.0, "wrist_r": 0.0,
 		"arm_l": Vector3(0, 0, IDLE_ARM_OUT), "arm_r": Vector3(IDLE_ARM_R_X, 0, -IDLE_ARM_OUT),
 		"elbow_l": IDLE_ELBOW, "elbow_r": IDLE_ELBOW, "ground": 1.0, "snap": [], "speed": {}}
 
@@ -264,55 +235,96 @@ static func blend(a: Dictionary, b: Dictionary, w: float) -> Dictionary:
 	return p
 
 
-## Valor de uma articulação no golpe: locomoção -> antecipação -> impacto (passa um pouco) -> locomoção.
-static func attack_value(base, wind, hit, t: float):
-	if t < ATK_WINDUP:
-		var x := t / ATK_WINDUP
-		return lerp(base, wind, x * x * (3.0 - 2.0 * x))
-	if t < ATK_STRIKE:
-		var x := (t - ATK_WINDUP) / (ATK_STRIKE - ATK_WINDUP)
-		return lerp(wind, hit, x * x)   # acelera até o impacto: o peso está no fim do golpe
-	var over = hit + (hit - wind) * ATK_FOLLOW
-	if t < ATK_HOLD:
-		var x := (t - ATK_STRIKE) / (ATK_HOLD - ATK_STRIKE)
-		return lerp(hit, over, sin(x * PI * 0.5))
-	var x := clampf((t - ATK_HOLD) / (1.0 - ATK_HOLD), 0.0, 1.0)
-	return lerp(over, base, x * x * (3.0 - 2.0 * x))   # recuperação
-
-
-## Aplica um golpe sobre a pose de locomoção `p`. `keys` = [antecipação, impacto]; `t` 0..1; `move` 0..1.
-## As articulações do golpe vão direto ao alvo (a curva já é suave); as pernas só fazem parte do
-## passo de ataque se o jogador estiver andando.
-static func add_attack(p: Dictionary, keys: Array, t: float, move: float) -> void:
-	t = clampf(t, 0.0, 1.0)
-	var wind: Dictionary = keys[0]
-	var hit: Dictionary = keys[1]
+## Toca uma trilha de golpe sobre a pose de locomoção `p`.
+## Trilha = [[t, {pose parcial}, curva], ...] com t crescente em 0..1. O começo (t=0) e o fim (t=1)
+## são a própria pose de locomoção; uma chave sem certa articulação é atravessada por ela.
+## Curva de chegada em cada chave: "in" acelera (golpe), "out" desacelera (follow-through),
+## "io" suave (padrão), "lin" constante.
+## Braço e tronco vão direto ao alvo (a trilha já é suave); as pernas só fazem o passo de ataque
+## inteiro com o jogador parado.
+static func play_track(p: Dictionary, track: Array, t: float, move: float) -> void:
 	var legs_w := lerpf(1.0, ATK_LEGS_WHILE_MOVING, move)
 	var snap: Array = p.snap
-	var all := wind.keys()
-	for key in hit:
-		if not (key in all):
-			all.append(key)
-	for key in all:
-		var base = p[key]
-		var v = attack_value(base, wind.get(key, base), hit.get(key, base), t)
-		if key in LEG_KEYS:
-			p[key] = lerp(base, v, legs_w)
+	var joints: Array = []
+	for key in track:
+		for j in key[1]:
+			if not (j in joints):
+				joints.append(j)
+	for j in joints:
+		var base = p[j]
+		var v = sample_track(track, j, base, clampf(t - float(JOINT_LAG.get(j, 0.0)), 0.0, 1.0))
+		if j in LEG_KEYS:
+			p[j] = lerp(base, v, legs_w)
 		else:
-			p[key] = v
-			snap.append(key)
+			p[j] = v
+			snap.append(j)
+
+
+## Valor da articulação `j` na trilha no instante `t` (a pose base nas pontas).
+static func sample_track(track: Array, j: String, base, t: float):
+	var t0 := 0.0
+	var v0 = base
+	for key in track:
+		if not key[1].has(j):
+			continue
+		var t1: float = key[0]
+		if t <= t1:
+			return lerp(v0, key[1][j], ease_curve((t - t0) / maxf(t1 - t0, 0.0001), key[2] if key.size() > 2 else "io"))
+		t0 = t1
+		v0 = key[1][j]
+	return lerp(v0, base, ease_curve((t - t0) / maxf(1.0 - t0, 0.0001), "io"))
+
+
+static func ease_curve(x: float, kind: String) -> float:
+	x = clampf(x, 0.0, 1.0)
+	match kind:
+		"in":
+			return x * x * x
+		"out":
+			return 1.0 - pow(1.0 - x, 3.0)
+		"lin":
+			return x
+	return x * x * (3.0 - 2.0 * x)
 
 
 static func sword_pose(p: Dictionary, combo: int, t: float, move: float) -> void:
-	add_attack(p, SWORD_KEYS[clampi(combo, 1, 3) - 1], t, move)
+	play_track(p, KnightMoves.SWORD[clampi(combo, 1, 3) - 1], t, move)
 	if combo == 3:
-		# uma volta inteira; enrolado em -PI..PI para a recuperação não "desgirar" o tronco
-		p.twist = wrapf(-TAU * smoothstep(0.2, 0.75, t), -PI, PI)
-		p.snap.append("twist")
+		# giro: uma volta inteira desenrolando o tronco; enrolado em -PI..PI para a recuperação
+		# não "desgirar"
+		p.twist = wrapf(p.twist + TAU * smoothstep(KnightMoves.SPIN_START, KnightMoves.SPIN_END, t), -PI, PI)
+		if not ("twist" in p.snap):
+			p.snap.append("twist")
 
 
 static func staff_pose(p: Dictionary, combo: int, t: float, move: float) -> void:
-	add_attack(p, STAFF_KEYS[0 if combo < 3 else 1], t, move)
+	play_track(p, KnightMoves.STAFF[clampi(combo, 1, 3) - 1], t, move)
+
+
+## Magia (`kind` = "fireball", "heal", "frost_nova"); `t` 0..1 dentro de KnightMoves.CAST_TIME.
+static func cast_pose(p: Dictionary, kind: String, t: float, move: float) -> void:
+	play_track(p, KnightMoves.CAST.get(kind, KnightMoves.CAST.fireball), t, move)
+
+
+## Arco tensionando: `c` 0..1 (0 = flecha encaixada, 1 = corda no queixo).
+static func bow_draw_pose(p: Dictionary, c: float) -> void:
+	var a: Dictionary = KnightMoves.BOW_NOCK
+	var b: Dictionary = KnightMoves.BOW_FULL
+	var e := 1.0 - pow(1.0 - c, 2.0)   # puxa rápido no começo e assenta perto do fim
+	for j in b:
+		p[j] = lerp(a.get(j, p[j]), b[j], e)
+	for j in a:
+		if not b.has(j):
+			p[j] = a[j]
+	# com a corda toda puxada o braço do arco treme de leve
+	p.arm_l += Vector3(sin(Time.get_ticks_msec() * 0.031) * KnightMoves.BOW_TREMBLE, 0, 0) * smoothstep(0.9, 1.0, c)
+	for j in ["arm_l", "arm_r", "elbow_l", "elbow_r", "twist", "head_y", "wrist_l"]:
+		p.speed[j] = KnightMoves.BOW_RAISE_SPEED
+
+
+## Logo depois de soltar a flecha: `t` 0..1 dentro do tempo de recuperação do arco.
+static func bow_release_pose(p: Dictionary, t: float, move: float) -> void:
+	play_track(p, KnightMoves.BOW_RELEASE, t, move)
 
 
 ## Leva o modelo até a pose. `k` = fator de suavização deste quadro (0..1).
@@ -334,6 +346,10 @@ static func apply(r: Dictionary, p: Dictionary, k: float) -> void:
 	body.position.y = lerpf(body.position.y, r.body_y + p.body_y, f.call("body_y"))
 	body.position.x = lerpf(body.position.x, r.body_x0 + p.body_shift, f.call("body_shift"))
 	r.Head.rotation.x = lerpf(r.Head.rotation.x, p.head_x, f.call("head_x"))
+	r.Head.rotation.y = lerpf(r.Head.rotation.y, p.head_y, f.call("head_y"))
+	# pulsos: o modelo não tem pivô; o suporte da arma gira com este valor (hold_weapon_upright)
+	r["wrist_l"] = lerpf(float(r.get("wrist_l", 0.0)), p.wrist_l, f.call("wrist_l"))
+	r["wrist_r"] = lerpf(float(r.get("wrist_r", 0.0)), p.wrist_r, f.call("wrist_r"))
 	r.ArmL.rotation = r.ArmL.rotation.lerp(p.arm_l, f.call("arm_l"))
 	r.ArmR.rotation = r.ArmR.rotation.lerp(p.arm_r, f.call("arm_r"))
 	if r.ElbowL:
@@ -345,9 +361,10 @@ static func apply(r: Dictionary, p: Dictionary, k: float) -> void:
 	model.position.y = lerpf(model.position.y, target, minf(1.0, k * 1.5))
 
 
-## Cajado e arco ficam de pé mesmo com o braço erguido: o suporte desfaz ombro + cotovelo.
-## `look` = o que KnightLook.apply devolveu.
-static func hold_weapon_upright(look: Dictionary) -> void:
+## Suporte da arma: cajado e arco ficam de pé mesmo com o braço erguido (desfaz ombro + cotovelo
+## na medida de KnightLook.COUNTER) e o pulso da pose gira a arma (a lâmina estala no golpe).
+## `look` = o que KnightLook.apply devolveu; `r` = rig() já animado por apply().
+static func hold_weapon_upright(look: Dictionary, r: Dictionary) -> void:
 	var holder: Node3D = look.get("holder")
 	var arm: Node3D = look.get("arm")
 	if holder == null or not is_instance_valid(holder) or arm == null:
@@ -356,7 +373,8 @@ static func hold_weapon_upright(look: Dictionary) -> void:
 	var elbow: Node3D = look.get("elbow")
 	if elbow and elbow != arm:
 		bend += elbow.rotation.x
-	holder.rotation.x = -bend * float(look.get("counter", 0.0))
+	var wrist: float = r.get("wrist_l" if arm == r.ArmL else "wrist_r", 0.0)
+	holder.rotation.x = -bend * float(look.get("counter", 0.0)) + wrist
 
 
 ## Quanto o quadril está abaixo da altura de pé, pela pose atual das pernas.

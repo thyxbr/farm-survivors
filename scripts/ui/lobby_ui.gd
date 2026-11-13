@@ -57,7 +57,7 @@ func _process(delta: float) -> void:
 	for id in _knights:
 		var r: Dictionary = _knights[id].get_meta("rig")
 		KnightAnim.apply(r, KnightAnim.idle_pose(_t + float(id % 97) * 1.7), kk)
-		KnightAnim.hold_weapon_upright(_knights[id].get_meta("look"))
+		KnightAnim.hold_weapon_upright(_knights[id].get_meta("look"), r)
 	if _dirty:
 		_dirty = false
 		_refresh()

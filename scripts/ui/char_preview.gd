@@ -89,7 +89,7 @@ func _process(delta: float) -> void:
 	# mesma pose de parado do jogador (respiração e troca de peso entre as pernas)
 	if not _rig.is_empty():
 		KnightAnim.apply(_rig, KnightAnim.idle_pose(_idle), 1.0 - exp(-14.0 * delta))
-		KnightAnim.hold_weapon_upright(_look)
+		KnightAnim.hold_weapon_upright(_look, _rig)
 
 
 func _gui_input(event: InputEvent) -> void:

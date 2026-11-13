@@ -45,6 +45,8 @@ var idle_t := 0.0
 var _amp := 0.0      # 0..1: quanto está andando (suavizado)
 var _run := 0.0      # 0..1: quanto está correndo
 var _air := 0.0      # 0..1: quanto está no ar
+var _cast_t := 99.0  # segundos desde a última magia (a pose toca até KnightMoves.CAST_TIME)
+var _cast_kind := "fireball"
 var _lean := 0.0
 var _bank := 0.0
 var _land := 0.0
@@ -622,6 +624,7 @@ func cast(id: String) -> void:
 	Game.mp -= sp.cost
 	cooldowns[id] = sp.cooldown * Game.cooldown_mult()
 	cast_timer = 0.4
+	_start_cast_pose(id)
 	match id:
 		"fireball":
 			_cast_fireball()
@@ -930,10 +933,17 @@ func _remote_process(delta: float) -> void:
 	_animate(delta)
 
 
+## Começa a pose de conjuração (jogador local e réplicas, pelo evento da magia).
+func _start_cast_pose(kind: String) -> void:
+	_cast_kind = kind
+	_cast_t = 0.0
+
+
 ## Efeitos das ações de outro jogador (só visuais: o dano já foi enviado pelo dono).
 func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 	match kind:
 		"fireball":
+			_start_cast_pose(kind)
 			var fb := FIREBALL.new()
 			fb.direction = b
 			fb.visual_only = true
@@ -941,8 +951,10 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 			fb.global_position = a
 			Sfx.play_at("fire", a, 0.08, -4.0)
 		"frost_nova":
+			_start_cast_pose(kind)
 			_frost_fx(6.5)
 		"heal":
+			_start_cast_pose(kind)
 			_heal_fx()
 		"bolt", "arrow":
 			var p := PROJECTILE.new()
@@ -1041,35 +1053,25 @@ func _animate(delta: float) -> void:
 		p.head_x = 0.0
 		p.ground = 0.0
 
-	# braço do escudo / conjuração
-	if cast_timer > 0:
-		p.arm_l = Vector3(-1.5, 0, 0.5)
-		p.elbow_l = -0.25
+	# golpes, arco e magias: trilhas de KnightMoves por cima da locomoção
 	var cls: String = look["class"]
-	if cls == "bow" and (drawing or attacking):
-		p.arm_l = Vector3(-1.52, 0, -0.12)
-		p.elbow_l = -0.05
-		p.speed["arm_l"] = 1.6
-		p.speed["elbow_l"] = 1.6
+	_cast_t += delta
 	var arrow: Node3D = look.get("arrow")
 	if arrow and is_instance_valid(arrow):
 		arrow.visible = drawing
-
-	# braço da arma
-	if cls == "bow" and (drawing or attacking):
-		var c := bow_charge()
-		p.arm_r = Vector3(-1.45, 0, 0.35).lerp(Vector3(-1.35, 0.2, 1.05), c) if drawing else Vector3(-1.1, 0, 0.2)
-		p.elbow_r = lerpf(-0.15, -0.35, c) if drawing else -0.15
-		p.twist = 0.35 if drawing else 0.0
-		p.speed["arm_r"] = 1.5
-		p.speed["elbow_r"] = 1.5
+	if cls == "bow" and drawing:
+		KnightAnim.bow_draw_pose(p, bow_charge())
+	elif cls == "bow" and attacking:
+		KnightAnim.bow_release_pose(p, attack_timer / BOW_RECOVER, _amp)
 	elif attacking and cls == "staff":
 		KnightAnim.staff_pose(p, combo, attack_timer / _swing_time(combo), _amp)
 	elif attacking and cls == "sword":
 		KnightAnim.sword_pose(p, combo, attack_timer / SWING_TIMES[clampi(combo, 1, 3) - 1], _amp)
+	elif _cast_t < KnightMoves.CAST_TIME:
+		KnightAnim.cast_pose(p, _cast_kind, _cast_t / KnightMoves.CAST_TIME, _amp)
 	KnightAnim.apply(parts, p, k)
 
-	KnightAnim.hold_weapon_upright(look)
+	KnightAnim.hold_weapon_upright(look, parts)
 
 	if on_floor and hspeed > 1.0:
 		_footstep -= delta * hspeed
