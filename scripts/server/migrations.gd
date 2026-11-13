@@ -111,6 +111,11 @@ const MIGRATIONS := [
 		)",
 		"CREATE INDEX idx_economy_account ON economy_log(account_id, at)",
 	],
+	# v2: o CharState guarda direção e abates, que a v1 não tinha
+	[
+		"ALTER TABLE characters ADD COLUMN world_yaw REAL NOT NULL DEFAULT 0",
+		"ALTER TABLE characters ADD COLUMN kills INTEGER NOT NULL DEFAULT 0",
+	],
 ]
 
 

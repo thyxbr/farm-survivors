@@ -14,7 +14,7 @@ func _fresh() -> Db:
 func test_migrate_fresh() -> void:
 	var db := _fresh()
 	T.ok(db != null, "abriu o banco")
-	T.eq(Migrations.apply(db), 1, "banco novo vai para a versão 1")
+	T.eq(Migrations.apply(db), 2, "banco novo vai para a versão 2")
 	var nomes := []
 	for r in db.query("SELECT name FROM sqlite_master WHERE type='table'"):
 		nomes.append(r["name"])
@@ -25,9 +25,9 @@ func test_migrate_fresh() -> void:
 
 func test_migrate_idempotent() -> void:
 	var db := _fresh()
-	T.eq(Migrations.apply(db), 1, "primeira vez")
-	T.eq(Migrations.apply(db), 1, "segunda vez, mesma versão")
-	T.eq(db.query("SELECT COUNT(*) AS n FROM schema_version")[0]["n"], 1, "uma linha de versão só")
+	T.eq(Migrations.apply(db), 2, "primeira vez")
+	T.eq(Migrations.apply(db), 2, "segunda vez, mesma versão")
+	T.eq(db.query("SELECT COUNT(*) AS n FROM schema_version")[0]["n"], 2, "uma linha por versão")
 	db.close()
 
 
@@ -68,7 +68,7 @@ func test_open_path_without_extension() -> void:
 	var db := Db.open(p)
 	T.ok(db != null, "abriu sem extensão")
 	if db != null:
-		T.ok(Migrations.apply(db) == 1, "migrou")
+		T.ok(Migrations.apply(db) == Migrations.MIGRATIONS.size(), "migrou")
 		db.close()
 	T.ok(FileAccess.file_exists(p), "arquivo é exatamente o caminho pedido")
 	T.ok(not FileAccess.file_exists(p + ".db"), "não criou <caminho>.db")
