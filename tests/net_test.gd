@@ -44,8 +44,12 @@ func _ready() -> void:
 	if Network.world == null:
 		_finish()
 		return
+	# equipa arco e capuz logo ao entrar: os outros jogadores devem ver esse visual
+	Game.equip("short_bow")
+	Game.equip("leather_cap")
 	await wait(1.5)
 	var w: Node = Network.world
+	check(w.player.look["class"] == "bow", "arco equipado no personagem local")
 	check(Network.enemies.size() >= 15, "inimigos replicados do servidor (%d)" % Network.enemies.size())
 	var e0: Enemy = Network.enemies.values()[0]
 	check(e0.puppet, "inimigos no cliente são réplicas")
@@ -62,6 +66,12 @@ func _ready() -> void:
 			await wait(0.2)
 			t += 0.2
 		check(Network.remote_players.size() == peers - 1, "vê os outros jogadores (%d)" % Network.remote_players.size())
+		await wait(1.0)
+		for rp in Network.remote_players.values():
+			check(rp.look["class"] == "bow" and rp._last_look.get("head", "") == "leather_cap",
+				"vê o arco e o capuz de %s" % rp.display_name)
+			var holder: Node3D = rp.look.get("holder")
+			check(holder != null and is_instance_valid(holder), "modelo do arco montado na réplica de %s" % rp.display_name)
 
 	# acerta um slime até morrer: o servidor aplica o dano e devolve XP/loot
 	var target: Enemy = null
@@ -90,6 +100,31 @@ func _ready() -> void:
 				drops += 1
 		# o jogador está ao lado: o ímã das moedas costuma coletar na hora
 		check(drops >= 1 or Game.gold > gold0, "loot pessoal (%d no chão, ouro %d → %d)" % [drops, gold0, Game.gold])
+
+	# flecha (projétil) acerta um inimigo réplica: o dano passa pelo servidor
+	var tgt: Enemy = null
+	for e in Network.enemies.values():
+		if e.kind == "slime" and not e.dead and e.hp > 20.0:
+			tgt = e
+			break
+	check(tgt != null, "achou outro slime para a flecha")
+	if tgt:
+		var aim := tgt.global_position + Vector3.UP * 0.4
+		var origin := aim + Vector3(0, 0, 4)
+		w.player.global_position = origin + Vector3(0, -0.4, 1.0)
+		var hp1 := tgt.hp
+		w.player._spawn_projectile("arrow", origin, (aim - origin).normalized(), 12.0, false, 0, 40.0)
+		await wait(0.8)
+		check(not is_instance_valid(tgt) or tgt.hp < hp1, "flecha causa dano pelo servidor (%.0f → %.0f)" % [hp1, tgt.hp if is_instance_valid(tgt) else 0.0])
+	# cajado: projétil arcano com lentidão também passa pelo servidor
+	Game.add_item("frost_scepter", 1, true)
+	Game.equip("frost_scepter")
+	check(Game.equipment.weapon == "frost_scepter" and w.player.look["class"] == "staff", "trocou para o cajado")
+	await wait(0.6)
+	if peers > 1:
+		await wait(0.6)
+		for rp in Network.remote_players.values():
+			check(rp.look["class"] == "staff", "vê %s trocar para cajado" % rp.display_name)
 
 	# fica um pouco para os outros testes verem este jogador
 	await wait(3.0 if peers > 1 else 0.5)

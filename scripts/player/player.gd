@@ -58,6 +58,7 @@ var peer_id := 0
 var display_name := ""
 ## Bloqueia o controle sem pausar a árvore (menus abertos no multiplayer).
 var input_locked := false
+var name_tag: Label3D
 var _net_pos := Vector3.ZERO
 var _net_yaw := 0.0
 var _net_floor := true
@@ -137,6 +138,7 @@ func _ready_remote() -> void:
 	_build_model()
 	_net_pos = position
 	var tag := Label3D.new()
+	name_tag = tag
 	tag.text = display_name
 	tag.font_size = 40
 	tag.outline_size = 8
@@ -802,6 +804,12 @@ func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int,
 		dead = false
 		parts.Body.rotation = Vector3.ZERO
 		parts.Body.position.y = parts.body_y
+
+
+func set_display_name(n: String) -> void:
+	display_name = n
+	if name_tag:
+		name_tag.text = n
 
 
 func _remote_process(delta: float) -> void:
