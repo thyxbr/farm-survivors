@@ -82,6 +82,8 @@ func _ready() -> void:
 
 ## Depuração: `godot -- --shot=shot.png [--delay=4]` salva um screenshot e fecha.
 ## `--survival` (com ou sem --shot) começa direto no Desafio da Horda.
+## `--cam=graus,dist` gira a câmera em volta do jogador e muda a distância (ex.: `--cam=180,2.2`
+## olha o personagem de frente, de perto) — útil para conferir luz e modelo.
 func _debug_screenshot() -> void:
 	var path := ""
 	var delay := 4.0
@@ -162,6 +164,19 @@ func _debug_screenshot() -> void:
 		for n in get_tree().get_nodes_in_group("interactable"):
 			if n.npc_id == "elder":
 				n.interact(null)
+	var cam := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--cam="):
+			cam = a.substr(6)
+	if cam != "":
+		await get_tree().create_timer(maxf(delay - 1.0, 0.1), true).timeout
+		var pl = get_tree().get_first_node_in_group("player")
+		if pl and pl.get("cam_yaw"):
+			var c := cam.split(",")
+			pl.cam_yaw.rotation.y += deg_to_rad(float(c[0]))
+			if c.size() > 1:
+				pl.spring.spring_length = float(c[1])
+		delay = 1.0
 	await get_tree().create_timer(delay, true).timeout
 	await RenderingServer.frame_post_draw
 	var err := get_viewport().get_texture().get_image().save_png(path)
