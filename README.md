@@ -155,13 +155,37 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
 - Há uma partida por vez no servidor: se alguém tentar entrar com uma em andamento, recebe o aviso para aguardar.
 - O **servidor** é dono das rodadas, do spawn e dos abates; a horda só persegue quem está no desafio e fica
   mais numerosa e resistente conforme o tamanho do grupo.
-- Cada **jogador** tem as próprias gemas de XP, nível da partida, cartas, bênçãos, ouro e sementes
-  (todo abate do grupo solta gemas para cada um). Orbes de fogo, relâmpagos, lâminas e aura dos colegas aparecem na tela.
+- **O nível é do grupo**: cada um coleta as próprias gemas (todo abate solta gemas para cada um) e o XP vai para o
+  servidor, que soma num nível só (dividido pelo tamanho do grupo). Ao subir de nível **a horda congela** — inimigos,
+  flechas, meteoros e o relógio da rodada param — e cada um escolhe a própria carta. A luta volta quando todos
+  escolhem ou após **20 s**; quem não escolheu (caiu da conexão, AFK) recebe uma carta sorteada. Quem já escolheu vê
+  a faixa "horda congelada" com quem falta. Quem está caído também escolhe.
+- Cartas, bênçãos, ouro e sementes continuam sendo de cada jogador (cada um monta a própria build).
+  Orbes de fogo, relâmpagos, lâminas e aura dos colegas aparecem na tela.
 - **Cair não encerra**: o jogador volta (com metade da vida) no fim da rodada se alguém do grupo sobreviver.
   Se todos caírem, a partida acaba para o grupo.
 - No fim da rodada cada um escolhe a bênção; a próxima rodada começa quando todos escolherem (ou após 30 s).
   Retirar-se ou abandonar tira só você; os outros continuam.
-- Para testes, o servidor aceita `--horde-round=SEG` (duração da rodada).
+- Para testes, o servidor aceita `--horde-round=SEG` (duração da rodada), `--horde-pick=SEG` (tempo para escolher
+  as cartas de nível) e `--horde-event=ID` (força um evento em toda rodada; também vale offline).
+
+### Eventos e monstros da Horda
+- A partir da rodada 2, cada rodada (menos a do chefe) pode trazer um **evento** (`scripts/survival/horde_events.gd`):
+  *Chuva de Meteoros* (círculos vermelhos no chão, o impacto fere jogadores e monstros), *Lua de Sangue* (monstros mais
+  rápidos e fortes, gemas em dobro), *Febre do Ouro* (Goblins Dourados fogem pela arena e somem em 22 s; abatidos,
+  soltam muito ouro), *Enxame* (o dobro de monstros, mais frágeis), *Campeões* (Campeões Goblin de elite) e
+  *Emboscada* (a horda nasce em círculo em volta do grupo).
+- **Caçada**: algumas rodadas têm a meta de abater N inimigos; quem bate a meta ganha um baú (gemas, ouro, coração).
+- Monstros novos: **Slime Explosivo** (explode ao chegar perto — saia do círculo), **Slime Mãe** (se divide em 3),
+  **Goblin Arqueiro** (mantém distância e atira flechas), **Goblin Xamã** (cura os monstros em volta),
+  **Goblin Dourado** e **Campeão Goblin** (elite com golpe em área).
+- HUD da horda: nível com barra de XP grande e as habilidades como ícones com o nível em pontinhos (armas, passivas e
+  bênçãos), rodada/tempo/evento/Caçada no topo e o grupo à direita (vivo, caído, escolhendo, pronto).
+
+### Chat
+- No multiplayer, **[Enter]** abre a caixa de mensagem, **[Enter]** envia e **[Esc]** cancela. Funciona também com
+  as cartas da Horda abertas. As mensagens vão para todos os jogadores online (o servidor registra no log como
+  `[chat] nome: texto`) e somem da tela depois de alguns segundos. Limite de 120 caracteres e de 5 mensagens a cada 6 s.
 
 ## Estrutura
 ```
@@ -171,14 +195,15 @@ tools/blender/        build_assets.py (cenário + chama characters.py), characte
 scripts/autoload/     game.gd (estado, save/load), item_db.gd (itens/magias/missões), sfx.gd (sons sintetizados),
                       network.gd (multiplayer: servidor dedicado, réplicas, RPCs), updater.gd (auto update)
 scripts/player/       player.gd (controle, combate, magias), fireball.gd, cape_rig.gd (física da capa)
-scripts/enemies/      enemy.gd (slime, goblin, rei goblin — IA e animação procedural)
+scripts/enemies/      enemy.gd (slimes, goblins, rei goblin e os monstros da horda — IA e animação procedural), enemy_arrow.gd
 scripts/world/        world.gd (monta o mapa e gerencia UI modal), npc.gd, pickup.gd, challenge_portal.gd
 scripts/farm/         farm_plot.gd (canteiro: plantar/regar/adubar/colher), kitchen.gd (caldeirão)
-scripts/survival/     survival_mode.gd (rodadas, spawn, XP), auto_weapons.gd, xp_gem.gd, upgrades.gd
+scripts/survival/     survival_mode.gd (rodadas, spawn, XP, nível do grupo), horde_events.gd (eventos e Caçada),
+                      auto_weapons.gd, xp_gem.gd, upgrades.gd
 scripts/colony/       Defesa da Cidade: colony_world.gd (cena, luz dia/noite, entrada, save), colony.gd (economia,
                       ciclo, ondas, regras de construção), colony_data.gd (tabelas de balanceamento), building.gd,
                       building_visuals.gd, tower_shot.gd, soldier.gd, animal.gd, build_mode.gd
-scripts/ui/           horde_invite_ui.gd (convite/fila da horda em grupo), plant_ui.gd (plantio), cooking_ui.gd (receitas), hud, diálogo, inventário/personagem/missões, loja, pausa/morte, opções, menu principal
+scripts/ui/           chat_ui.gd (chat), survival_hud.gd / skill_icon.gd (HUD da horda), horde_invite_ui.gd (convite/fila da horda em grupo), plant_ui.gd (plantio), cooking_ui.gd (receitas), hud, diálogo, inventário/personagem/missões, loja, pausa/morte, opções, menu principal
 tests/smoke_test.gd   teste automatizado do gameplay
 tests/colony_test.gd  teste automatizado da Defesa da Cidade
 tests/net_test.gd     teste do multiplayer (cliente headless contra um servidor)
@@ -202,6 +227,7 @@ Cobre diálogo/missões, combate, loot, magias, loja, equipamento, save/load, ch
 (plantar, regar, adubar, colher, liberar canteiro, cozinhar, comer, save) e o Desafio da Horda (inclusive comer na rodada).
 Para ver a horta cheia: `... -- --farmdemo --at=1,24.5,0` (acrescente `--ui=cook` ou `--ui=plant` para abrir os menus).
 Para começar direto na arena: `... res://scenes/world.tscn -- --survival`.
+Para ver a HUD da horda com uma build pronta: `... -- --survival --hordedemo[=cards|grupo|espera] --shot=horda.png --delay=7`.
 Para ver as telas novas: `... -- --geardemo --weapon=storm_bow --ui=inv --shot=inv.png --delay=3`
 (`--ui=inv|char|quests|shop`; `--geardemo` dá vários equipamentos, `--weapon=<id>` equipa uma arma).
 Para tirar um screenshot da arena: `... -- --survival --shot=shot.png --delay=15` (o PNG vai para a pasta atual;
@@ -218,12 +244,13 @@ Cidade de exemplo para screenshots: `... res://scenes/colony.tscn -- --colonydem
 Multiplayer (servidor + 2 clientes headless; cada cliente sai com código 0 se tudo passar):
 ```
 G=C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe
-$G --headless --path . -- --server --port=7790 --horde-round=8 &
-$G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Ana --horde=lead &
-$G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Beto --horde=join
+$G --headless --path . -- --server --port=7790 --horde-round=8 --horde-pick=5 &
+$G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Ana --horde=lead --horde-pick=5 &
+$G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Beto --horde=join --horde-pick=5
 ```
-`--horde=lead|join` testa o Desafio da Horda em grupo (Ana abre o portal, Beto aceita o convite, cai e volta,
-os dois escolhem bênçãos e se retiram); sem ele o teste pula essa parte.
+`--horde=lead|join` testa o Desafio da Horda em grupo (Ana abre o portal, Beto aceita o convite; nível do grupo com
+a horda congelada até os dois escolherem, Beto "AFK" recebe carta sorteada; Beto cai e volta, os dois escolhem bênçãos
+e se retiram); sem ele o teste pula essa parte. Com `--peers=2` também testa o chat (entrega e anti-spam).
 `--probe` só entra, confere a versão e os snapshots e sai (não mexe no mundo); serve para testar o servidor público.
 Cobre conexão, inimigos replicados (snapshots a 20/s), ver o outro jogador, dano pelo servidor, morte, XP, loot
 e a horda em grupo.
