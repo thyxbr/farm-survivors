@@ -103,10 +103,21 @@ var _state_t := 0.0
 var _lv_picks_left := 0
 var _xp_out := 0.0
 var _xp_t := 0.0
+## Placar local (solo): dano causado. No grupo, dano/abates/quedas vêm do servidor em team[pid].
+var my_dmg := 0.0
+var combos_done := 0
+## Cliente: combos formados com o grupo. combo -> {"partner", "near", "mine": [armas], "plv"}
+var active_combos := {}
+var _known_combos := {}
+var _combo_t := 0.0
+var _build_t := 0.0
+var _team_t := 0.0
 
 
 func _ready() -> void:
 	if role == "server":
+		for pid in team:
+			team[pid].merge({"dmg": 0.0, "kills": 0, "falls": 0, "build": {}})
 		print("[server] Desafio da Horda começou: %s" % ", ".join(_names()))
 		_start_round()
 		return
@@ -141,7 +152,8 @@ func _ready() -> void:
 			_demo.call_deferred(a.get_slice("=", 1) if "=" in a else "")
 
 
-## Depuração (screenshots): `--survival --hordedemo[=cards|grupo|espera]` monta uma build de exemplo.
+## Depuração (screenshots): `--survival --hordedemo[=cards|grupo|espera] [--tab]` monta uma build de exemplo
+## (`--tab` deixa o placar do grupo aberto).
 func _demo(what: String) -> void:
 	await get_tree().create_timer(0.4).timeout
 	run_level = 9
@@ -170,6 +182,8 @@ func _demo(what: String) -> void:
 		frozen = true
 		lv_left = 12.0
 		lv_total = 20.0
+	if "--tab" in OS.get_cmdline_user_args():
+		hud.scoreboard.force_open = true
 	if what == "cards":
 		_queue.append("levelup")
 		_try_open_next()
@@ -312,6 +326,14 @@ func _client_process(delta: float) -> void:
 		_xp_t = 0.15
 		Network.horde_xp(_xp_out)
 		_xp_out = 0.0
+	# combos com o grupo e a build/vida para o placar (Tab)
+	_combo_t -= delta
+	if _combo_t <= 0.0:
+		_combo_t = 0.25
+		_update_combos()
+	_build_t -= delta
+	if _build_t <= 0.0:
+		send_build()
 	# só o relógio da HUD e os meteoros: o fim da rodada é decidido pelo servidor
 	if phase == "fight" and not frozen:
 		elapsed += delta
@@ -321,6 +343,11 @@ func _client_process(delta: float) -> void:
 
 
 func _server_process(delta: float) -> void:
+	# placar (dano, abates, builds) para o Tab de todos
+	_team_t -= delta
+	if _team_t <= 0.0:
+		_team_t = 1.0
+		_send_team()
 	_state_t -= delta
 	if _state_dirty and _state_t <= 0.0:
 		_state_t = 0.25
@@ -351,22 +378,44 @@ func _server_process(delta: float) -> void:
 		_spawn_tick(delta)
 
 
-## Mais jogadores, mais inimigos (e um pouco mais resistentes).
+## Mais jogadores, mais inimigos (e mais resistentes). O ritmo segue o dente de serra (EVT.SAW).
 func _spawn_tick(delta: float) -> void:
 	var n := _team_size()
-	var rate := (0.9 + 0.35 * (round_num - 1)) * (1.0 + 0.6 * (n - 1))
+	var rate := EVT.spawn_rate(round_num, n)
 	if boss_alive():
 		rate *= 0.5
 	if event == "enxame":
 		rate *= 2.0
 	_spawn_acc += rate * delta
-	var cap: int = min(80 + 25 * (n - 1), int((18 + round_num * 8) * (1.0 + 0.5 * (n - 1))))
+	var cap: int = min(90 + 30 * (n - 1), int((20 + round_num * 9) * (1.0 + 0.5 * (n - 1))))
 	if event == "enxame":
 		cap = int(cap * 1.5)
 	while _spawn_acc >= 1.0:
 		_spawn_acc -= 1.0
 		if alive_count() < cap:
-			_spawn_enemy(_pick_kind(), _spawn_point())
+			_spawn_enemy(_pick_kind(), _spawn_point(), -1.0, -1.0, randf() < elite_chance())
+
+
+# ---------------------------------------------------------------- escala de dificuldade
+## Vida: cresce um pouco mais rápido que linear, para a partida ter um fim natural lá pela rodada 15-20.
+func hp_scale() -> float:
+	var r := float(round_num - 1)
+	return 1.0 + 0.3 * r + 0.012 * r * r
+
+
+func dmg_scale() -> float:
+	return 1.0 + 0.14 * (round_num - 1)
+
+
+func speed_scale() -> float:
+	return 1.0 + minf(0.25, 0.015 * (round_num - 1))
+
+
+## Elites (douradas) a partir da rodada 3; a chance sobe devagar até 12%.
+func elite_chance() -> float:
+	if round_num < 3:
+		return 0.0
+	return minf(0.12, 0.015 + 0.008 * (round_num - 3))
 
 
 func alive_count() -> int:
@@ -398,6 +447,8 @@ func _pick_kind() -> String:
 	if r >= 6:
 		table.append(["slime_mae", 0.15])
 		table.append(["goblin_xama", 0.06 + 0.01 * r])
+	if r >= 7:
+		table.append(["goblin_bruto", 0.08 + 0.015 * r])
 	var total := 0.0
 	for t in table:
 		total += t[1]
@@ -443,16 +494,22 @@ func _clamp_arena(q: Vector3, margin := 2.0) -> Vector3:
 
 ## hp_mult < 0: escala normal da rodada. Tudo é definido antes de entrar na árvore: no servidor o
 ## inimigo é anunciado aos clientes (com a vida máxima) assim que entra.
-func _spawn_enemy(kind: String, pos: Vector3, hp_mult := -1.0, dmg_mult := -1.0) -> Enemy:
+func _spawn_enemy(kind: String, pos: Vector3, hp_mult := -1.0, dmg_mult := -1.0, elite := false) -> Enemy:
 	var e: Enemy = ENEMY.new()
 	e.kind = kind
 	e.horde = true
-	var team_hp := 1.0 + 0.3 * (_team_size() - 1)
-	e.hp_mult = (hp_mult if hp_mult > 0.0 else 1.0 + 0.25 * (round_num - 1)) * team_hp
-	e.dmg_mult = dmg_mult if dmg_mult > 0.0 else 1.0 + 0.12 * (round_num - 1)
+	var team_hp := 1.0 + 0.35 * (_team_size() - 1)
+	e.hp_mult = (hp_mult if hp_mult > 0.0 else hp_scale()) * team_hp
+	e.dmg_mult = dmg_mult if dmg_mult > 0.0 else dmg_scale()
+	e.speed_mult = speed_scale()
+	if elite:
+		e.elite = true
+		e.hp_mult *= 3.2
+		e.dmg_mult *= 1.3
+		e.speed_mult *= 1.08
 	match event:
 		"lua_sangue":
-			e.speed_mult = 1.3
+			e.speed_mult *= 1.3
 			e.dmg_mult *= 1.25
 		"enxame":
 			if hp_mult <= 0.0:
@@ -475,8 +532,13 @@ func _spawn_boss() -> void:
 	if q.length() > ARENA_RADIUS - 3.0:
 		pos = center + q.normalized() * (ARENA_RADIUS - 3.0)
 	var tier: int = round_num / BOSS_EVERY
-	# vida base do rei (900) x (0.8 + 0.6 por chefe já enfrentado)
-	boss = _spawn_enemy("goblin_king", Vector3(pos.x, 0.3, pos.z), 0.8 + 0.6 * tier, 0.9 + 0.15 * tier)
+	# vida base do rei (900) x (0.75 + 0.75 por chefe já enfrentado)
+	boss = _spawn_enemy("goblin_king", Vector3(pos.x, 0.3, pos.z), 0.75 + 0.75 * tier, 0.9 + 0.18 * tier)
+	# a partir do 2º rei, ele chega com guardas de elite
+	if tier >= 2:
+		for i in mini(tier, 4):
+			var a := TAU * i / mini(tier, 4)
+			_spawn_enemy("goblin", Vector3(pos.x + cos(a) * 2.5, 0.3, pos.z + sin(a) * 2.5), -1.0, -1.0, true)
 	FX.ring(boss.global_position, Color(1, 0.3, 0.1, 0.9), 6.0, 0.8)
 	if role != "server" and world and world.hud:
 		world.hud.boss = boss
@@ -727,13 +789,13 @@ func net_round_end(n: int, break_t: float) -> void:
 	_round_cleared()
 
 
-func net_kill(kind: String, pos: Vector3, was_boss: bool) -> void:
+func net_kill(kind: String, pos: Vector3, tier: int) -> void:
 	if phase == "over":
 		return
 	kills += 1
 	if phase == "fight" and hunt_target > 0 and not hunt_done:
 		hunt_kills += 1
-	_kill_drops(kind, pos, was_boss)
+	_kill_drops(kind, pos, tier)
 
 
 func net_team(t: Dictionary) -> void:
@@ -824,11 +886,23 @@ func _on_enemy_died(e: Enemy) -> void:
 	# Slime Mãe se divide ao morrer
 	if e.data.has("split") and phase == "fight":
 		_split.call_deferred(e.data.split[0], int(e.data.split[1]), e.global_position)
+	var tier := 2 if e.is_boss else (1 if e.elite else 0)
 	if role == "server":
+		if team.has(e.last_hitter):
+			team[e.last_hitter].kills += 1
 		# cada jogador solta e coleta as próprias gemas (como o loot pessoal do RPG)
-		_send_all("_horde_kill", [e.kind, pos, e.is_boss])
+		_send_all("_horde_kill", [e.kind, pos, tier])
 		return
-	_kill_drops(e.kind, pos, e.is_boss)
+	_kill_drops(e.kind, pos, tier)
+
+
+## Dano causado à horda (placar). pid = 0 no solo.
+func on_enemy_damaged(pid: int, amount: float) -> void:
+	if role == "server":
+		if team.has(pid):
+			team[pid].dmg += amount
+	elif role == "solo":
+		my_dmg += amount
 
 
 func _split(kind: String, n: int, pos: Vector3) -> void:
@@ -839,11 +913,19 @@ func _split(kind: String, n: int, pos: Vector3) -> void:
 		_spawn_enemy(kind, _clamp_arena(pos + Vector3(cos(a), 0, sin(a)) * 1.2, 1.0))
 
 
-func _kill_drops(kind: String, pos: Vector3, was_boss: bool) -> void:
+## tier: 0 comum · 1 elite · 2 chefe.
+func _kill_drops(kind: String, pos: Vector3, tier: int) -> void:
 	if Game.mod("lifesteal") > 0.0 and not player.dead:
 		Game.hp = min(Game.max_hp(), Game.hp + Game.mod("lifesteal"))
 	var xp_mult := 2 if event == "lua_sangue" else 1
-	if was_boss:
+	if tier == 1:
+		for i in 3:
+			_drop_gem("xp", 10 * xp_mult, pos)
+		if randf() < 0.35:
+			_drop_gem("heal", 0, pos)
+		_drop_coin(pos, randi_range(3, 8))
+		return
+	if tier == 2:
 		Game.notify.emit("Rei Goblin derrotado!", Color(1, 0.85, 0.3))
 		for i in 8:
 			_drop_gem("xp", 20, pos)
@@ -872,6 +954,8 @@ func _kill_drops(kind: String, pos: Vector3, was_boss: bool) -> void:
 	match kind:
 		"goblin", "slime_grande", "goblin_arqueiro", "goblin_xama", "slime_mae":
 			value = 20 if randf() < 0.08 else 5
+		"goblin_bruto":
+			value = 12
 		_:
 			value = 5 if randf() < 0.04 else 1
 	_drop_gem("xp", value * xp_mult, pos)
@@ -983,7 +1067,7 @@ func _try_open_next() -> void:
 	ui.mode = mode
 	ui.survival = self
 	if mode == "levelup":
-		ui.choices = UPG.roll_level_choices(weapon_levels, passive_levels)
+		ui.choices = UPG.roll_level_choices(weapon_levels, passive_levels, 3, team_weapons())
 	else:
 		ui.choices = UPG.roll_blessings()
 	world._open_modal(ui)
@@ -1044,6 +1128,7 @@ func _apply(choice: Dictionary) -> void:
 	Game.stats_changed.emit()
 	if weapons:
 		weapons.send_gear()
+	send_build()
 
 
 func _add_mods(add: Dictionary) -> void:
@@ -1197,8 +1282,15 @@ func server_player_dead(pid: int) -> void:
 	if not team.has(pid) or phase != "fight":
 		return
 	team[pid].dead = true
+	team[pid].falls = int(team[pid].get("falls", 0)) + 1
 	_send_team()
 	_check_wipe()
+
+
+## Build e vida do jogador (já conferidas pelo Network), mostradas no Tab e usadas nos combos.
+func server_player_build(pid: int, build: Dictionary) -> void:
+	if team.has(pid):
+		team[pid].build = build
 
 
 func server_player_ready(pid: int) -> void:
@@ -1246,3 +1338,111 @@ func _server_end(reason: String) -> void:
 		world.survival = null
 	Network.horde_run_ended(self)
 	queue_free()
+
+
+# ================================================================ grupo: build, combos e placar
+## Build e vida deste jogador (enviada ao servidor no grupo; mostrada no Tab).
+func my_build() -> Dictionary:
+	var hp_ratio := 0.0 if (player == null or player.dead) else clampf(Game.hp / maxf(Game.max_hp(), 1.0), 0.0, 1.0)
+	return {"lv": run_level, "hp": hp_ratio, "w": weapon_levels.duplicate(), "p": passive_levels.duplicate(),
+		"b": blessing_counts.duplicate(), "c": combos_done}
+
+
+func send_build() -> void:
+	_build_t = 1.0
+	if role == "client" and phase != "over":
+		Network.horde_send_build(my_build())
+
+
+func _my_id() -> int:
+	return multiplayer.get_unique_id() if role == "client" else 0
+
+
+## Armas dos colegas (id -> maior nível), para sortear cartas que formam combo.
+func team_weapons() -> Dictionary:
+	var out := {}
+	if role != "client":
+		return out
+	var me := _my_id()
+	for pid in team:
+		if pid == me:
+			continue
+		var w: Dictionary = team[pid].get("build", {}).get("w", {})
+		for id in w:
+			out[id] = maxi(int(out.get(id, 0)), int(w[id]))
+	return out
+
+
+## Texto para a carta: a arma nova formaria combo com algum colega?
+func combo_hint(choice: Dictionary) -> String:
+	if role != "client" or choice.get("type", "") != "weapon" or weapon_levels.has(choice.id):
+		return ""
+	var me := _my_id()
+	for pid in team:
+		if pid == me:
+			continue
+		var w: Dictionary = team[pid].get("build", {}).get("w", {})
+		for theirs in w:
+			var cid := UPG.combo_for(choice.id, theirs)
+			if cid != "" and not active_combos.has(cid):
+				return "Combo com %s: %s" % [team[pid].name, UPG.COMBOS[cid].name]
+	return ""
+
+
+## Combos possíveis com o grupo: minha arma + arma par de um colega vivo; "near" = colega a até COMBO_RANGE.
+func _update_combos() -> void:
+	var me := _my_id()
+	var now := {}
+	for pid in team:
+		if pid == me:
+			continue
+		var m: Dictionary = team[pid]
+		var w: Dictionary = m.get("build", {}).get("w", {})
+		if w.is_empty():
+			continue
+		var rp: Player = Network.remote_players.get(pid)
+		var near: bool = rp != null and is_instance_valid(rp) and not rp.dead and not m.get("dead", false) \
+			and player != null and not player.dead \
+			and rp.global_position.distance_to(player.global_position) <= UPG.COMBO_RANGE
+		for mine in weapon_levels:
+			for theirs in w:
+				var cid := UPG.combo_for(mine, theirs)
+				if cid == "":
+					continue
+				var plv := int(w[theirs])
+				if not now.has(cid):
+					now[cid] = {"partner": str(m.name), "near": near, "mine": [mine], "plv": plv}
+					continue
+				var cur: Dictionary = now[cid]
+				if not (mine in cur.mine):
+					cur.mine.append(mine)
+				if (near and not cur.near) or (near == cur.near and plv > cur.plv):
+					cur.partner = str(m.name)
+					cur.near = near
+					cur.plv = plv
+	for cid in now:
+		if not _known_combos.has(cid):
+			_known_combos[cid] = true
+			var c: Dictionary = UPG.COMBOS[cid]
+			Game.notify.emit("Combo com %s: %s (%s + %s) — fiquem perto!" % [now[cid].partner, c.name,
+				UPG.WEAPONS[c.a].name, UPG.WEAPONS[c.b].name], c.color)
+			Sfx.play("levelup", 0.0, -6.0)
+	active_combos = now
+
+
+## Linhas do placar (Tab): uma por jogador, ordenadas por dano.
+func scoreboard_rows() -> Array:
+	var rows: Array = []
+	if role != "client":
+		var n: String = str(Game.settings.get("player_name", ""))
+		rows.append({"name": n if n != "" else "Você", "me": true, "dead": player != null and player.dead,
+			"dmg": my_dmg, "kills": kills, "falls": 0, "build": my_build()})
+		return rows
+	var me := _my_id()
+	for pid in team:
+		var m: Dictionary = team[pid]
+		rows.append({"name": str(m.get("name", "?")), "me": pid == me, "dead": bool(m.get("dead", false)),
+			"dmg": float(m.get("dmg", 0.0)), "kills": int(m.get("kills", 0)), "falls": int(m.get("falls", 0)),
+			"build": my_build() if pid == me else m.get("build", {})})
+	rows.sort_custom(func(a, b) -> bool: return a.dmg > b.dmg)
+	return rows

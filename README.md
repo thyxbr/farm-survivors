@@ -17,10 +17,11 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
 | Poções | R vida · F mana |
 | Comer / trocar comida | Q · T |
 | Interagir / falar | E |
-| Inventário · Personagem · Missões | I (ou Tab) · C · J |
+| Inventário · Personagem · Missões | I (ou Tab fora da Horda) · C · J |
+| Placar do grupo (no Desafio da Horda, segurar) | Tab |
 | Salvar / carregar rápido | F5 / F9 |
 | Pausa | Esc |
-| Esconder ajuda | H |
+| Mostrar/esconder ajuda (começa escondida) | H |
 
 ## Conteúdo
 - **Vila** com o Ancião Bram (missões) e a Mira (loja: compra e venda).
@@ -39,8 +40,9 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
   crítico, velocidade, recarga, roubo de vida). Elmo, peitoral, manoplas, botas, escudo, orbe, aljava e chapéu
   do mago aparecem no cavaleiro. Equipamentos raros ou melhores caem com um feixe de luz na cor da raridade.
 - **Interface** (referências: Diablo/Path of Exile para boneco, grade e raridade; World of Warcraft para
-  recarga radial; Dark Souls para a barra do chefe): globos de vida/mana com rastro de dano, barra de ações
-  com ícones, mira que mostra a tensão do arco, avisos de saque, inventário com prévia 3D, arrastar e soltar,
+  recarga radial; Dark Souls para a barra do chefe): HUD enxuto nas bordas da tela — globos de vida/mana compactos
+  com rastro de dano, barra de ações com ícones, vigor que só aparece quando gasto, ajuda escondida no H,
+  mira que mostra a tensão do arco, avisos de saque, inventário com prévia 3D, arrastar e soltar,
   filtros, "Organizar" e dica que calcula o que muda se equipar o item. Ícones desenhados por código
   (`icon_painter.gd`); tema em `ui_theme.gd`.
 - **Save/Load** em JSON (`user://savegame.json`), opções persistentes (volume, sensibilidade, inverter Y, tela cheia).
@@ -66,7 +68,15 @@ Saia pelo **portão sul** da vila para a Horta:
 
 ## Desafio da Horda (modo sobrevivência)
 Entre no **Portal do Desafio** (perto do portão norte da vila, tecla E) para ir à **Arena** a oeste do mapa:
-- Hordas de slimes e goblins surgem sem parar, cada rodada (45 s) mais fortes e numerosas; a cada 5 rodadas vem o **Rei Goblin**.
+- Hordas de slimes e goblins surgem sem parar, cada rodada (45 s) mais fortes e numerosas; a cada 5 rodadas vem o **Rei Goblin**
+  (a partir do 2º, com guardas de elite).
+- **Curva de dificuldade** (`survival_mode.gd` e `horde_events.gd`): ritmo em dente de serra dentro de cada ciclo de
+  5 rodadas (a pressão sobe até a 4ª e alivia na rodada do chefe); a vida dos inimigos cresce um pouco mais que linear,
+  então a partida tende a terminar entre as rodadas 15 e 20. Da rodada 3 em diante surgem **elites** (douradas, anel no
+  chão, 3x a vida, soltam mais gemas e às vezes cura). Da rodada 7 vem o **Goblin Bruto**. A meta da Caçada acompanha o ritmo.
+- HUD da horda enxuta: rodada, tempo, nível (do grupo) com XP, evento e Caçada num bloco só no topo; a build fica em
+  ícones no canto direito (selo com o nível); grupo à esquerda. **Segure Tab** para o placar: build, dano, abates,
+  quedas e combos de cada jogador (funciona por cima das cartas).
 - Armas automáticas atacam sozinhas (**Orbe de Fogo**, **Lâminas Orbitais**, **Relâmpago**, **Aura Gélida**); espada, esquiva, magias e poções continuam valendo.
 - Inimigos soltam **gemas de XP**: ao subir o nível da partida você escolhe 1 de 3 cartas (arma nova, melhoria ou passiva) — teclas 1/2/3 ou clique.
 - Ao fim de cada rodada a arena é limpa, você recupera 30% da vida e escolhe uma **bênção**, ou se retira com as recompensas.
@@ -218,8 +228,16 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
   Se todos caírem, a partida acaba para o grupo.
 - No fim da rodada cada um escolhe a bênção; a próxima rodada começa quando todos escolherem (ou após 30 s).
   Retirar-se ou abandonar tira só você; os outros continuam.
+- **Combos em grupo**: quando você tem uma arma automática e um colega tem a arma par, os acertos disparam o combo
+  enquanto vocês estão a até 14 m (recarga de 3 s, dano cresce com o nível das duas armas). Pares: Fogo + Aura
+  (Choque Térmico), Fogo + Relâmpago (Plasma), Fogo + Lâminas (Ciclone de Brasas), Relâmpago + Aura (Tempestade Gélida),
+  Relâmpago + Lâminas (Lâminas Elétricas), Lâminas + Aura (Nevasca Cortante). As cartas avisam quando uma arma nova
+  formaria combo com alguém do grupo (e essas armas aparecem mais). O quadro do grupo, à esquerda, mostra a vida de
+  cada colega, quem está escolhendo/pronto e ◆ em quem está combando com você. Tabela em `upgrades.gd` (`COMBOS`).
+- O servidor conta dano, abates e quedas de cada jogador; cada cliente manda a própria build a cada segundo.
 - Para testes, o servidor aceita `--horde-round=SEG` (duração da rodada), `--horde-pick=SEG` (tempo para escolher
-  as cartas de nível) e `--horde-event=ID` (força um evento em toda rodada; também vale offline).
+  as cartas de nível) e `--horde-event=ID` (força um evento em toda rodada; também vale offline). Screenshot do HUD
+  com uma build de exemplo: `godot --path . res://scenes/world.tscn -- --survival --hordedemo[=cards|grupo|espera] [--tab] --shot=shot.png`.
 
 ### Eventos e monstros da Horda
 - A partir da rodada 2, cada rodada (menos a do chefe) pode trazer um **evento** (`scripts/survival/horde_events.gd`):
@@ -231,8 +249,6 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
 - Monstros novos: **Slime Explosivo** (explode ao chegar perto — saia do círculo), **Slime Mãe** (se divide em 3),
   **Goblin Arqueiro** (mantém distância e atira flechas), **Goblin Xamã** (cura os monstros em volta),
   **Goblin Dourado** e **Campeão Goblin** (elite com golpe em área).
-- HUD da horda: nível com barra de XP grande e as habilidades como ícones com o nível em pontinhos (armas, passivas e
-  bênçãos), rodada/tempo/evento/Caçada no topo e o grupo à direita (vivo, caído, escolhendo, pronto).
 
 ### Chat
 - No multiplayer, **[Enter]** abre a caixa de mensagem, **[Enter]** envia e **[Esc]** cancela. Funciona também com
