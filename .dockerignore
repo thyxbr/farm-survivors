@@ -1,0 +1,13 @@
+.git
+.godot
+.claude
+build
+export
+tools
+docs
+*.blend
+*.blend1
+*.tmp
+*.png.import.tmp
+Dockerfile
+.dockerignore

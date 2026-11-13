@@ -15,6 +15,7 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
 | Esquivar (invulnerável) | Clique direito ou Ctrl |
 | Magias | 1 Bola de Fogo · 2 Cura (nível 2) · 3 Nova Gélida (nível 4) |
 | Poções | R vida · F mana |
+| Comer / trocar comida | Q · T |
 | Interagir / falar | E |
 | Inventário · Personagem · Missões | I (ou Tab) · C · J |
 | Salvar / carregar rápido | F5 / F9 |
@@ -29,6 +30,24 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
 - **Save/Load** em JSON (`user://savegame.json`), opções persistentes (volume, sensibilidade, inverter Y, tela cheia).
 - Morte com opção de renascer na vila (perde 10% do ouro) ou carregar o save.
 
+## Horta da Vila (fazenda)
+Saia pelo **portão sul** da vila para a Horta:
+- **12 canteiros** (6 liberados; os outros se preparam por ouro). Tecla **E** no canteiro:
+  vazio → menu de plantio (compra a semente na hora se faltar; "plantar em todos os vazios"),
+  crescendo → **regar** (cresce 2x mais rápido e rende +1) e depois **adubar com Gel de Slime** (+40%),
+  pronto → **colher** (12% de chance de colheita farta em dobro, 35% de devolver uma semente).
+- **6 culturas**: Cenoura, Trigo, Tomate, Pimenta-de-Fogo, Menta Gélida e Abóbora. As plantas crescem em tempo real,
+  inclusive enquanto você está na Arena. Sementes também caem de slimes/goblins/Rei Goblin e são
+  recompensa de cada rodada do Desafio da Horda (rodadas altas dão sementes raras).
+- **Caldeirão da Horta**: 8 receitas (Pão Rústico, Ensopado de Cenoura, Sopa Picante, Chili do Dragão,
+  Chá de Menta Gélida, Salada da Horta, Torta de Abóbora, Banquete de Valdoria). Cada prato cura e dá um
+  **bônus temporário** (dano, vida máx., defesa, recarga, XP de gemas, ouro, roubo de vida...). O Chili explode em
+  fogo ao redor e o Chá congela os inimigos próximos.
+- **Comer**: **Q** come a comida selecionada, **T** troca. Funciona na vila e **no meio das rodadas da Horda**;
+  os bônus somam com cartas e bênçãos (coma antes de entrar no portal para começar forte). Há 3 s de mastigação
+  entre pratos; morrer apaga os efeitos. Colheitas cruas também podem ser comidas pelo inventário.
+- A horta é salva no save. Dados de culturas/receitas em `item_db.gd` (`CROPS`, `RECIPES`).
+
 ## Desafio da Horda (modo sobrevivência)
 Entre no **Portal do Desafio** (perto do portão norte da vila, tecla E) para ir à **Arena** a oeste do mapa:
 - Hordas de slimes e goblins surgem sem parar, cada rodada (45 s) mais fortes e numerosas; a cada 5 rodadas vem o **Rei Goblin**.
@@ -40,18 +59,36 @@ Entre no **Portal do Desafio** (perto do portão norte da vila, tecla E) para ir
 
 Para editar as melhorias veja `scripts/survival/upgrades.gd`; o ritmo das rodadas fica em `scripts/survival/survival_mode.gd`.
 
+## Multiplayer (servidor dedicado)
+O servidor roda o Godot sem tela e é dono dos inimigos (IA, vida, morte). Cada jogador é dono
+do próprio personagem: atributos, inventário, missões e a Horta ficam no save do PC dele
+(salvo automaticamente ao sair). Quem acerta um inimigo ganha XP, missão e loot próprios quando ele morre.
+
+- **Servidor local:** `godot --headless --path . -- --server --port=7777`
+- **Docker / Easypanel:** App com build pelo `Dockerfile`; em *Advanced → Ports* publique `7777 → 7777` em **UDP**
+  (o jogo não passa pelo domínio/proxy HTTP). Libere UDP 7777 no firewall da VPS. A porta pode ser trocada pela env `GAME_PORT`.
+- **Jogadores:** menu principal → *Multiplayer* → nome + endereço (`ip` ou `ip:porta`) → *Entrar*.
+  Antes de exportar, coloque o IP/domínio do servidor em `DEFAULT_ADDRESS` (`scripts/autoload/network.gd`).
+- **Versão:** o servidor recusa clientes com `application/config/version` diferente (*Projeto → Configurações → Application → Config*).
+  Ao mandar um build novo para os amigos, aumente a versão e atualize o servidor junto.
+- Ainda só para um jogador: o Desafio da Horda e o "carregar save" durante a partida. No multiplayer os menus não pausam o mundo.
+
 ## Estrutura
 ```
 assets/models/        GLBs low-poly gerados pelo Blender
 tools/blender/        build_assets.py (cenário + chama characters.py), characters.py (personagens detalhados),
                       preview_assets.py / preview_characters.py / preview_closeup.py (renders de conferência)
-scripts/autoload/     game.gd (estado, save/load), item_db.gd (itens/magias/missões), sfx.gd (sons sintetizados)
+scripts/autoload/     game.gd (estado, save/load), item_db.gd (itens/magias/missões), sfx.gd (sons sintetizados),
+                      network.gd (multiplayer: servidor dedicado, réplicas, RPCs)
 scripts/player/       player.gd (controle, combate, magias), fireball.gd
 scripts/enemies/      enemy.gd (slime, goblin, rei goblin — IA e animação procedural)
 scripts/world/        world.gd (monta o mapa e gerencia UI modal), npc.gd, pickup.gd, challenge_portal.gd
+scripts/farm/         farm_plot.gd (canteiro: plantar/regar/adubar/colher), kitchen.gd (caldeirão)
 scripts/survival/     survival_mode.gd (rodadas, spawn, XP), auto_weapons.gd, xp_gem.gd, upgrades.gd
-scripts/ui/           hud, diálogo, inventário/personagem/missões, loja, pausa/morte, opções, menu principal
+scripts/ui/           plant_ui.gd (plantio), cooking_ui.gd (receitas), hud, diálogo, inventário/personagem/missões, loja, pausa/morte, opções, menu principal
 tests/smoke_test.gd   teste automatizado do gameplay
+tests/net_test.gd     teste do multiplayer (cliente headless contra um servidor)
+Dockerfile            imagem do servidor dedicado
 ```
 O mapa, a UI e as animações são montados por código; para mudar dados de itens, missões e
 inimigos edite `item_db.gd` e a tabela `TYPES` em `enemy.gd`.
@@ -67,8 +104,20 @@ Para gerar só alguns modelos: defina `ASSETS=knight,elder` no ambiente antes do
 ```
 C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . res://scenes/world.tscn -- --smoketest
 ```
-Cobre diálogo/missões, combate, loot, magias, loja, equipamento, save/load, chefe, IA, morte e o Desafio da Horda.
+Cobre diálogo/missões, combate, loot, magias, loja, equipamento, save/load, chefe, IA, morte, a Horta
+(plantar, regar, adubar, colher, liberar canteiro, cozinhar, comer, save) e o Desafio da Horda (inclusive comer na rodada).
+Para ver a horta cheia: `... -- --farmdemo --at=1,24.5,0` (acrescente `--ui=cook` ou `--ui=plant` para abrir os menus).
 Para começar direto na arena: `... res://scenes/world.tscn -- --survival`.
 Para tirar um screenshot da arena: `... -- --survival --shot=shot.png --delay=15` (o PNG vai para a pasta atual;
 evite a raiz `C:/`, que o Windows não deixa gravar sem administrador).
 Usa um arquivo de save separado, então não mexe no seu save.
+
+Multiplayer (servidor + 2 clientes headless; cada cliente sai com código 0 se tudo passar):
+```
+G=C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe
+$G --headless --path . -- --server --port=7790 &
+$G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Ana &
+$G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Beto
+```
+Cobre conexão, inimigos replicados (snapshots a 20/s), ver o outro jogador, dano pelo servidor, morte, XP e loot.
+`--netstats` no servidor imprime jogadores, fps e snapshots/s a cada 5 s.

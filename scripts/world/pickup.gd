@@ -56,6 +56,8 @@ func _ready() -> void:
 				s.height = 0.2
 				mi.mesh = s
 				col_c = Color(0.4, 0.9, 0.4) if item_id == "slime_gel" else Color(0.9, 0.8, 0.5)
+				if it.type == "seed":
+					col_c = ItemDB.CROPS[it.crop].color
 	m.albedo_color = col_c
 	m.emission_enabled = true
 	m.emission = col_c

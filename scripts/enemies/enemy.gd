@@ -14,7 +14,7 @@ const TYPES := {
 	"slime": {"name": "Slime", "model": "slime", "hp": 40, "damage": 9, "speed": 2.8, "xp": 18,
 		"gold": [1, 5], "aggro": 11.0, "reach": 1.5, "cooldown": 1.5, "radius": 0.5, "height": 0.8,
 		"scale": 1.0, "color": Color(0.3, 0.9, 0.35),
-		"loot": [["slime_gel", 0.6], ["health_potion", 0.08], ["mana_potion", 0.06]]},
+		"loot": [["slime_gel", 0.6], ["health_potion", 0.08], ["mana_potion", 0.06], ["seed_tomato", 0.12]]},
 	# variantes usadas no Desafio da Horda
 	"slime_grande": {"name": "Slime Grande", "model": "slime", "hp": 150, "damage": 16, "speed": 2.3, "xp": 40,
 		"gold": [3, 8], "aggro": 14.0, "reach": 2.2, "cooldown": 1.8, "radius": 0.85, "height": 1.3,
@@ -27,11 +27,11 @@ const TYPES := {
 	"goblin": {"name": "Goblin Batedor", "model": "goblin", "hp": 80, "damage": 14, "speed": 4.2, "xp": 42,
 		"gold": [4, 11], "aggro": 15.0, "reach": 1.8, "cooldown": 1.3, "radius": 0.4, "height": 1.35,
 		"scale": 1.0, "color": Color(0.7, 0.1, 0.05),
-		"loot": [["goblin_ear", 0.7], ["health_potion", 0.18], ["mana_potion", 0.15], ["iron_sword", 0.05], ["leather_armor", 0.05]]},
+		"loot": [["goblin_ear", 0.7], ["health_potion", 0.18], ["mana_potion", 0.15], ["iron_sword", 0.05], ["leather_armor", 0.05], ["seed_pepper", 0.15], ["seed_mint", 0.1]]},
 	"goblin_king": {"name": "Rei Goblin", "model": "goblin", "hp": 900, "damage": 26, "speed": 3.6, "xp": 450,
 		"gold": [90, 130], "aggro": 20.0, "reach": 3.2, "cooldown": 1.5, "radius": 0.95, "height": 2.9,
 		"scale": 2.2, "color": Color(0.7, 0.1, 0.05), "boss": true,
-		"loot": [["goblin_crown", 1.0], ["goblin_cleaver", 1.0], ["health_potion", 1.0]]},
+		"loot": [["goblin_crown", 1.0], ["goblin_cleaver", 1.0], ["health_potion", 1.0], ["seed_pumpkin", 1.0], ["seed_mint", 1.0]]},
 }
 
 @export var kind := "slime"
@@ -69,6 +69,16 @@ var bar_fg: MeshInstance3D
 var _overlay_hit: StandardMaterial3D
 var _overlay_slow: StandardMaterial3D
 var _flash_t := 0.0
+
+## Multiplayer: id comum entre servidor e clientes.
+var net_id := 0
+## Cliente: réplica de um inimigo do servidor (sem IA; segue os snapshots).
+var puppet := false
+## Servidor: peers que acertaram este inimigo (todos ganham XP e loot ao matar).
+var contributors := {}
+var last_hitter := 0
+var _net_pos := Vector3.ZERO
+var _net_yaw := 0.0
 
 
 func _ready() -> void:
@@ -136,6 +146,13 @@ func _ready() -> void:
 	model.rotation.y = randf() * TAU
 	if horde:
 		state = "chase"
+	if Network.is_server():
+		Network.server_register_enemy(self)
+
+
+func _exit_tree() -> void:
+	if net_id != 0:
+		Network.unregister_enemy(self)
 
 
 func _make_health_bar() -> void:
@@ -170,6 +187,9 @@ func _bar_mat(c: Color, priority: int) -> StandardMaterial3D:
 
 
 func _physics_process(delta: float) -> void:
+	if puppet:
+		_puppet_process(delta)
+		return
 	if not is_on_floor():
 		velocity.y -= 20.0 * delta
 	if dead:
@@ -182,7 +202,7 @@ func _physics_process(delta: float) -> void:
 	stagger = max(0.0, stagger - delta)
 	_update_flash(delta)
 
-	var player := get_tree().get_first_node_in_group("player") as Player
+	var player := _nearest_player()
 	var to_player := Vector3.ZERO
 	var dist := INF
 	if player and not player.dead:
@@ -263,6 +283,20 @@ func _physics_process(delta: float) -> void:
 		bar_fg.position.x = 0.0
 
 
+## Jogador vivo mais próximo (no multiplayer, o servidor tem réplicas de todos).
+func _nearest_player() -> Player:
+	var best: Player = null
+	var best_d := INF
+	for p in get_tree().get_nodes_in_group("players"):
+		if p.dead:
+			continue
+		var d := global_position.distance_squared_to(p.global_position)
+		if d < best_d:
+			best_d = d
+			best = p
+	return best
+
+
 func model_forward() -> Vector3:
 	return Vector3(sin(model.rotation.y), 0, cos(model.rotation.y))
 
@@ -332,9 +366,17 @@ func _update_attack(delta: float, player: Player, to_player: Vector3, dist: floa
 
 
 # ------------------------------------------------------------ dano
-func take_damage(amount: float, from_pos: Vector3, crit: bool) -> void:
+func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0) -> void:
 	if dead:
 		return
+	if puppet:
+		# o servidor decide; os números de dano chegam de volta em show_hit()
+		Network.client_hit_enemy(net_id, amount, from_pos, crit, slow)
+		return
+	if last_hitter != 0:
+		contributors[last_hitter] = true
+	if slow > 0.0:
+		apply_slow(slow)
 	hp -= amount
 	health_changed.emit(self)
 	var top: Vector3 = global_position + Vector3.UP * (data.height * data.scale + 0.2)
@@ -368,6 +410,9 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool) -> void:
 
 
 func apply_slow(t: float) -> void:
+	if puppet:
+		Network.client_hit_enemy(net_id, 0.0, global_position, false, t)
+		return
 	slow_timer = max(slow_timer, t)
 
 
@@ -384,6 +429,19 @@ func _update_flash(delta: float) -> void:
 
 
 func _die() -> void:
+	if Network.is_server():
+		# XP, missões e loot são de cada jogador: quem acertou recebe no próprio PC
+		Network.server_enemy_killed(self)
+	elif not horde:
+		Game.on_enemy_killed(kind, data.xp)
+		if is_boss:
+			Game.flags["king_dead"] = true
+		drop_loot(get_parent(), kind, global_position)
+	die_visual()
+
+
+## Morte sem regras de jogo (também usada pelas réplicas no cliente).
+func die_visual() -> void:
 	dead = true
 	state = "dead"
 	remove_from_group("enemies")
@@ -395,11 +453,6 @@ func _die() -> void:
 		bar_root.visible = false
 	Sfx.play("bloop" if data.model == "slime" else "hit", 0.1, -4.0 if horde else 0.0)
 	FX.burst(global_position + Vector3.UP * 0.6 * data.scale, data.color, 30 if not is_boss else 120, 5.0, 0.14, 0.9)
-	if not horde:
-		Game.on_enemy_killed(kind, data.xp)
-		if is_boss:
-			Game.flags["king_dead"] = true
-		_drop_loot()
 	died.emit(self)
 	var tw := create_tween()
 	if data.model == "slime":
@@ -411,21 +464,93 @@ func _die() -> void:
 	tw.tween_callback(queue_free)
 
 
-func _drop_loot() -> void:
-	var parent := get_parent()
-	var g: Array = data.gold
-	_spawn_pickup(parent, "", randi_range(g[0], g[1]))
-	for entry in data.loot:
+static func drop_loot(parent: Node, enemy_kind: String, pos: Vector3) -> void:
+	var t: Dictionary = TYPES[enemy_kind]
+	var g: Array = t.gold
+	_spawn_pickup(parent, "", randi_range(g[0], g[1]), pos)
+	for entry in t.loot:
 		if randf() < entry[1]:
-			_spawn_pickup(parent, entry[0], 1)
+			_spawn_pickup(parent, entry[0], 1, pos)
 
 
-func _spawn_pickup(parent: Node, id: String, qty: int) -> void:
+static func _spawn_pickup(parent: Node, id: String, qty: int, pos: Vector3) -> void:
 	var p := PICKUP.new()
 	p.item_id = id
 	p.amount = qty
 	parent.add_child(p)
-	p.global_position = global_position + Vector3.UP * 0.8
+	p.global_position = pos + Vector3.UP * 0.8
+
+
+# ------------------------------------------------------------ réplica (cliente)
+func set_net_target(pos: Vector3, yaw: float) -> void:
+	_net_pos = pos
+	_net_yaw = yaw
+
+
+func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, atk_t: float, atk_kind: String, flags: int) -> void:
+	_net_pos = pos
+	_net_yaw = yaw
+	if new_hp != hp:
+		hp = new_hp
+		health_changed.emit(self)
+	slow_timer = 0.25 if flags & 1 else 0.0
+	var now_enraged := flags & 2 != 0
+	if now_enraged and not enraged:
+		Game.notify.emit("O Rei Goblin está enfurecido!", Color(1, 0.4, 0.3))
+	enraged = now_enraged
+	if new_state == "attack":
+		if state != "attack":
+			attack_kind = atk_kind
+			attack_timer = atk_t
+			hit_done = atk_t >= _hit_time()
+			if attack_kind == "slam":
+				FX.telegraph(global_position, 5.0, 0.9)
+		elif atk_t < attack_timer - 0.3:
+			# um novo ataque começou entre dois snapshots
+			attack_kind = atk_kind
+			attack_timer = atk_t
+			hit_done = atk_t >= _hit_time()
+	if new_state != state:
+		_set_state(new_state)
+
+
+func show_hit(amount: float, crit: bool) -> void:
+	if dead:
+		return
+	var top: Vector3 = global_position + Vector3.UP * (data.height * data.scale + 0.2)
+	FX.damage_number(top, ("%d!" if crit else "%d") % int(round(amount)),
+		Color(1, 0.85, 0.2) if crit else Color.WHITE, 64 if crit else 48)
+	FX.burst(global_position + Vector3.UP * data.height * data.scale * 0.5, data.color, 10, 3.5, 0.1, 0.5)
+	_flash_t = 0.1
+	if bar_root:
+		bar_root.visible = true
+
+
+func _puppet_process(delta: float) -> void:
+	if dead:
+		return
+	_update_flash(delta)
+	var prev := global_position
+	if global_position.distance_to(_net_pos) > 6.0:
+		global_position = _net_pos
+	else:
+		global_position = global_position.lerp(_net_pos, 1.0 - exp(-12.0 * delta))
+	model.rotation.y = lerp_angle(model.rotation.y, _net_yaw, 1.0 - exp(-12.0 * delta))
+	if state == "attack":
+		var before := attack_timer
+		attack_timer += delta
+		if not hit_done and before < _hit_time() and attack_timer >= _hit_time():
+			hit_done = true
+			if attack_kind == "slam":
+				Sfx.play("slam", 0.0)
+				FX.ring(global_position, Color(0.8, 0.6, 0.3, 0.9), 5.0, 0.4)
+				FX.burst(global_position + Vector3.UP * 0.3, Color(0.5, 0.4, 0.3), 40, 7.0, 0.2, 0.8)
+			elif attack_kind == "swing":
+				Sfx.play("swing", 0.15, -4.0)
+	var hspeed := Vector2(global_position.x - prev.x, global_position.z - prev.z).length() / maxf(delta, 0.0001)
+	_animate(delta, hspeed)
+	if bar_root and bar_root.visible:
+		bar_fg.scale.x = max(0.001, hp / max_hp)
 
 
 # ------------------------------------------------------------ animação procedural

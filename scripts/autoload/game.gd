@@ -6,13 +6,16 @@ signal inventory_changed
 signal quests_changed
 signal notify(text: String, color: Color)
 signal leveled_up(new_level: int)
+signal food_eaten(id: String)
+signal farm_changed
 
 var save_path := "user://savegame.json"
 const SETTINGS_PATH := "user://settings.cfg"
 const WORLD_SCENE := "res://scenes/world.tscn"
 const MENU_SCENE := "res://scenes/main_menu.tscn"
 
-var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "fullscreen": false, "invert_y": false}
+var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "fullscreen": false, "invert_y": false,
+	"player_name": "", "server_address": ""}
 
 var level := 1
 var xp := 0
@@ -32,6 +35,18 @@ var spawn_yaw := 0.0
 ## Bônus temporários do Desafio da Horda (zerados ao fim da partida).
 var run_mods := {}
 
+# ---- horta e comida
+const FARM_PLOTS := 12
+const FARM_START_PLOTS := 6
+const EAT_COOLDOWN := 3.0
+## Bônus de comida ativos (somados aos run_mods em mod()). Valem na vila e na Horda.
+var food_mods := {}
+var food_buffs := {}        # id da comida -> segundos restantes
+var eat_cooldown := 0.0
+var selected_food := ""
+## {"unlocked": int, "plots": [{"crop": String, "growth": float 0..1, "watered": bool, "fert": bool}]}
+var farm := {}
+
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -42,6 +57,9 @@ func _ready() -> void:
 	_debug_screenshot()
 	if "--dbg" in OS.get_cmdline_user_args():
 		get_tree().root.add_child.call_deferred(load("res://tests/debug_dialogue.gd").new())
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--nettest="):
+			get_tree().root.add_child.call_deferred(load("res://tests/net_test.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
 		save_path = "user://smoketest_save.json"
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())
@@ -61,6 +79,24 @@ func _debug_screenshot() -> void:
 			var v := a.substr(5).split(",")
 			spawn_position = Vector3(float(v[0]), 0.5, float(v[1]))
 			spawn_yaw = float(v[2]) if v.size() > 2 else 0.0
+	# `--farmdemo` enche a horta com culturas em vários estágios (para screenshots)
+	if "--farmdemo" in OS.get_cmdline_user_args():
+		farm.unlocked = FARM_PLOTS - 2
+		for i in farm.unlocked:
+			farm.plots[i] = {"crop": ItemDB.CROP_ORDER[i % 6], "growth": [1.0, 0.7, 0.35][i / 4 % 3] if i < 8 else 1.0,
+				"watered": i % 2 == 0, "fert": false}
+		for r in ItemDB.RECIPE_ORDER:
+			add_item(r, 2, true)
+		food_buffs = {"spicy_soup": 30.0, "garden_salad": 4.0}
+		_recalc_food_mods()
+		for a in OS.get_cmdline_user_args():   # --farmdemo --ui=cook|plant abre o menu
+			if a.begins_with("--ui="):
+				await get_tree().create_timer(1.0).timeout
+				var w = get_tree().current_scene
+				if a == "--ui=cook":
+					w.open_cooking()
+				else:
+					w.open_plant_menu(10)
 	# `--survival` começa direto no Desafio da Horda (com ou sem screenshot)
 	if "--survival" in OS.get_cmdline_user_args():
 		await get_tree().create_timer(0.3).timeout
@@ -91,6 +127,7 @@ func _setup_input() -> void:
 		"interact": [KEY_E], "spell_1": [KEY_1], "spell_2": [KEY_2], "spell_3": [KEY_3],
 		"potion": [KEY_R], "mana_potion": [KEY_F], "inventory": [KEY_I, KEY_TAB], "character": [KEY_C],
 		"quest_log": [KEY_J], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
+		"eat": [KEY_Q], "food_next": [KEY_T],
 	}
 	for action in keys:
 		if not InputMap.has_action(action):
@@ -123,8 +160,13 @@ func new_game() -> void:
 	kills = 0
 	spawn_position = null
 	spawn_yaw = 0.0
+	farm = default_farm()
+	clear_food(true)
 	add_item("health_potion", 3, true)
 	add_item("mana_potion", 1, true)
+	add_item("seed_carrot", 4, true)
+	add_item("seed_wheat", 4, true)
+	add_item("bread", 1, true)
 	hp = max_hp()
 	mp = max_mp()
 	stamina = max_stamina()
@@ -137,6 +179,9 @@ func start_new_game() -> void:
 
 
 func go_to_menu() -> void:
+	if Network.is_online():
+		Network.autosave()
+		Network.leave()
 	reset_run_mods()
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -153,7 +198,12 @@ func reset_run_mods() -> void:
 
 
 func damage_mult() -> float:
-	return run_mods.damage
+	return mod("damage")
+
+
+## Valor efetivo de um bônus: Desafio da Horda + comida.
+func mod(k: String) -> float:
+	return float(run_mods.get(k, 0.0)) + float(food_mods.get(k, 0.0))
 
 
 # ---------------------------------------------------------------- atributos derivados
@@ -166,7 +216,7 @@ func armor_defense() -> int:
 
 
 func max_hp() -> float:
-	return (60.0 + attributes.vit * 10.0 + (level - 1) * 8.0) * run_mods.max_hp + run_mods.max_hp_flat
+	return (60.0 + attributes.vit * 10.0 + (level - 1) * 8.0) * mod("max_hp") + mod("max_hp_flat")
 
 
 func max_mp() -> float:
@@ -178,7 +228,7 @@ func max_stamina() -> float:
 
 
 func melee_damage() -> float:
-	return (weapon_damage() + attributes.str * 1.6) * run_mods.damage
+	return (weapon_damage() + attributes.str * 1.6) * mod("damage")
 
 
 func spell_power() -> float:
@@ -186,11 +236,11 @@ func spell_power() -> float:
 
 
 func defense() -> float:
-	return armor_defense() + attributes.vit * 0.4 + run_mods.defense
+	return armor_defense() + attributes.vit * 0.4 + mod("defense")
 
 
 func speed_multiplier() -> float:
-	return (1.0 + (attributes.agi - 5) * 0.015) * run_mods.speed
+	return (1.0 + (attributes.agi - 5) * 0.015) * mod("speed")
 
 
 func xp_to_next() -> int:
@@ -306,6 +356,10 @@ func use_item(id: String) -> bool:
 		"weapon", "armor":
 			equip(id)
 			return true
+		"food", "crop":
+			return eat(id)
+		"seed":
+			notify.emit("Plante na Horta, ao sul da vila.", Color(0.8, 1.0, 0.6))
 	return false
 
 
@@ -375,6 +429,8 @@ func complete_quest(id: String) -> void:
 
 func on_enemy_killed(kind: String, xp_reward: int) -> void:
 	kills += 1
+	if float(food_mods.get("lifesteal", 0.0)) > 0.0 and hp > 0.0:
+		hp = min(max_hp(), hp + float(food_mods.lifesteal))
 	add_xp(xp_reward)
 	for id in quests:
 		var q: Dictionary = ItemDB.QUESTS[id]
@@ -400,7 +456,7 @@ func save_game(pos: Vector3, yaw: float) -> bool:
 	var data := {
 		"version": 1, "level": level, "xp": xp, "gold": gold, "stat_points": stat_points,
 		"attributes": attributes, "hp": hp, "mp": mp, "inventory": inventory, "equipment": equipment,
-		"quests": quests, "flags": flags, "kills": kills,
+		"quests": quests, "flags": flags, "kills": kills, "farm": farm,
 		"pos": [pos.x, pos.y, pos.z], "yaw": yaw,
 		"time": Time.get_datetime_string_from_system(false, true),
 	}
@@ -431,6 +487,15 @@ func _read_save():
 
 
 func load_game() -> bool:
+	if not load_character():
+		return false
+	get_tree().paused = false
+	get_tree().change_scene_to_file(WORLD_SCENE)
+	return true
+
+
+## Lê o save para a memória sem trocar de cena (usado também ao entrar no multiplayer).
+func load_character() -> bool:
 	var data = _read_save()
 	if data == null:
 		notify.emit("Nenhum jogo salvo.", Color(1, 0.5, 0.5))
@@ -452,13 +517,13 @@ func load_game() -> bool:
 		quests[id] = {"state": str(data.quests[id].state), "progress": int(data.quests[id].progress)}
 	flags = data.flags
 	kills = int(data.get("kills", 0))
+	farm = _parse_farm(data.get("farm", null))
+	clear_food(true)
 	hp = float(data.hp)
 	mp = float(data.mp)
 	stamina = max_stamina()
 	spawn_position = Vector3(data.pos[0], data.pos[1], data.pos[2])
 	spawn_yaw = float(data.get("yaw", 0.0))
-	get_tree().paused = false
-	get_tree().change_scene_to_file(WORLD_SCENE)
 	return true
 
 
@@ -485,3 +550,264 @@ func apply_settings() -> void:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	elif DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+
+
+# ================================================================ comida
+func is_edible(id: String) -> bool:
+	var it := ItemDB.get_item(id)
+	return it.get("type", "") == "food" or it.has("raw_hp") or it.has("raw_mp")
+
+
+## Come uma comida (buff + cura) ou uma colheita crua (cura pequena).
+func eat(id: String) -> bool:
+	var it := ItemDB.get_item(id)
+	if it.is_empty() or count_item(id) <= 0 or not is_edible(id):
+		return false
+	if eat_cooldown > 0.0:
+		notify.emit("Ainda mastigando... (%.1fs)" % eat_cooldown, Color(1, 0.8, 0.55))
+		return false
+	var old_max := max_hp()
+	remove_item(id, 1)
+	if it.has("buff"):
+		food_buffs[id] = float(it.buff.time)
+		_recalc_food_mods()
+		if max_hp() > old_max:
+			hp += max_hp() - old_max
+	if it.get("heal_full", false):
+		hp = max_hp()
+	hp = min(max_hp(), hp + float(it.get("heal_hp", 0)) + float(it.get("raw_hp", 0)))
+	mp = min(max_mp(), mp + float(it.get("heal_mp", 0)) + float(it.get("raw_mp", 0)))
+	eat_cooldown = EAT_COOLDOWN if it.type == "food" else 1.0
+	if it.has("buff"):
+		notify.emit("%s: %s (%ds)" % [it.name, it.buff.name, int(it.buff.time)], it.get("color", Color(1, 0.85, 0.4)))
+	else:
+		notify.emit("Comeu %s" % it.name, Color(0.85, 1.0, 0.7))
+	food_eaten.emit(id)
+	stats_changed.emit()
+	return true
+
+
+func eat_selected() -> bool:
+	ensure_selected_food()
+	if selected_food == "":
+		notify.emit("Sem comida! Cozinhe no Caldeirão da Horta.", Color(1, 0.7, 0.55))
+		return false
+	return eat(selected_food)
+
+
+## Comidas da mochila na ordem das receitas (só pratos do caldeirão).
+func food_in_bag() -> Array[String]:
+	var out: Array[String] = []
+	for id in ItemDB.RECIPE_ORDER:
+		if count_item(id) > 0:
+			out.append(id)
+	return out
+
+
+func ensure_selected_food() -> void:
+	var foods := food_in_bag()
+	if selected_food == "" or not foods.has(selected_food):
+		selected_food = foods[0] if not foods.is_empty() else ""
+
+
+func cycle_food() -> void:
+	var foods := food_in_bag()
+	if foods.is_empty():
+		selected_food = ""
+		notify.emit("Sem comida na mochila.", Color(1, 0.7, 0.55))
+		return
+	var i := foods.find(selected_food)
+	selected_food = foods[(i + 1) % foods.size()]
+	notify.emit("Comida: %s x%d" % [ItemDB.get_item(selected_food).name, count_item(selected_food)], Color(1, 0.85, 0.5))
+	inventory_changed.emit()
+
+
+func tick_food(delta: float) -> void:
+	eat_cooldown = max(0.0, eat_cooldown - delta)
+	if food_buffs.is_empty():
+		return
+	var expired: Array = []
+	for id in food_buffs:
+		food_buffs[id] -= delta
+		if food_buffs[id] <= 0.0:
+			expired.append(id)
+	if expired.is_empty():
+		return
+	for id in expired:
+		food_buffs.erase(id)
+		notify.emit("%s acabou." % ItemDB.get_item(id).buff.name, Color(0.75, 0.7, 0.6))
+	_recalc_food_mods()
+	hp = min(hp, max_hp())
+	stats_changed.emit()
+
+
+func clear_food(silent := false) -> void:
+	var had := not food_buffs.is_empty()
+	food_buffs = {}
+	eat_cooldown = 0.0
+	_recalc_food_mods()
+	if had and not silent:
+		notify.emit("Os efeitos da comida se perderam.", Color(0.8, 0.7, 0.6))
+
+
+func _recalc_food_mods() -> void:
+	food_mods = {}
+	for id in food_buffs:
+		var add: Dictionary = ItemDB.get_item(id).buff.add
+		for k in add:
+			food_mods[k] = float(food_mods.get(k, 0.0)) + float(add[k])
+
+
+# ================================================================ caldeirão
+func can_cook(recipe: String) -> int:
+	var n := 999
+	var ing: Dictionary = ItemDB.RECIPES[recipe]
+	for id in ing:
+		n = min(n, count_item(id) / int(ing[id]))
+	return n
+
+
+func cook(recipe: String, times := 1) -> int:
+	var n: int = min(times, can_cook(recipe))
+	if n <= 0:
+		notify.emit("Faltam ingredientes.", Color(1, 0.6, 0.5))
+		return 0
+	var ing: Dictionary = ItemDB.RECIPES[recipe]
+	for id in ing:
+		remove_item(id, int(ing[id]) * n)
+	add_item(recipe, n)
+	if selected_food == "":
+		selected_food = recipe
+	return n
+
+
+# ================================================================ horta
+func default_farm() -> Dictionary:
+	var plots: Array = []
+	for i in FARM_PLOTS:
+		plots.append(_empty_plot())
+	return {"unlocked": FARM_START_PLOTS, "plots": plots}
+
+
+func _empty_plot() -> Dictionary:
+	return {"crop": "", "growth": 0.0, "watered": false, "fert": false}
+
+
+func _parse_farm(data) -> Dictionary:
+	var f := default_farm()
+	if not (data is Dictionary):
+		return f
+	f.unlocked = clampi(int(data.get("unlocked", FARM_START_PLOTS)), FARM_START_PLOTS, FARM_PLOTS)
+	var plots = data.get("plots", [])
+	for i in min(FARM_PLOTS, plots.size()):
+		var p = plots[i]
+		var crop := str(p.get("crop", ""))
+		if crop != "" and not ItemDB.CROPS.has(crop):
+			crop = ""
+		f.plots[i] = {"crop": crop, "growth": clampf(float(p.get("growth", 0.0)), 0.0, 1.0),
+			"watered": bool(p.get("watered", false)), "fert": bool(p.get("fert", false))}
+	return f
+
+
+func plot_state(i: int) -> String:
+	if i >= farm.unlocked:
+		return "locked"
+	var p: Dictionary = farm.plots[i]
+	if p.crop == "":
+		return "empty"
+	return "ready" if p.growth >= 1.0 else "growing"
+
+
+func unlock_cost() -> int:
+	return 30 + 15 * (farm.unlocked - FARM_START_PLOTS)
+
+
+func unlock_next_plot() -> bool:
+	if farm.unlocked >= FARM_PLOTS:
+		return false
+	var cost := unlock_cost()
+	if gold < cost:
+		notify.emit("Ouro insuficiente (%d)." % cost, Color(1, 0.5, 0.5))
+		return false
+	gold -= cost
+	farm.unlocked += 1
+	notify.emit("Novo canteiro preparado!", Color(0.8, 1.0, 0.6))
+	stats_changed.emit()
+	farm_changed.emit()
+	return true
+
+
+## Planta no canteiro i. Se faltar semente e buy_missing, compra uma.
+func plant(i: int, crop: String, buy_missing := false) -> bool:
+	if plot_state(i) != "empty":
+		return false
+	var seed: String = ItemDB.CROPS[crop].seed
+	if count_item(seed) <= 0:
+		if not buy_missing:
+			return false
+		var price: int = ItemDB.get_item(seed).price
+		if gold < price:
+			notify.emit("Ouro insuficiente para a semente.", Color(1, 0.5, 0.5))
+			return false
+		gold -= price
+		stats_changed.emit()
+	else:
+		remove_item(seed, 1)
+	farm.plots[i] = {"crop": crop, "growth": 0.0, "watered": false, "fert": false}
+	farm_changed.emit()
+	return true
+
+
+func water(i: int) -> bool:
+	if plot_state(i) != "growing" or farm.plots[i].watered:
+		return false
+	farm.plots[i].watered = true
+	farm_changed.emit()
+	return true
+
+
+## Adubo de gel de slime: +40% de crescimento na hora (uma vez por plantio).
+func fertilize(i: int) -> bool:
+	if plot_state(i) != "growing" or farm.plots[i].fert or count_item("slime_gel") <= 0:
+		return false
+	remove_item("slime_gel", 1)
+	farm.plots[i].fert = true
+	farm.plots[i].growth = min(1.0, farm.plots[i].growth + 0.4)
+	farm_changed.emit()
+	return true
+
+
+## Avança o crescimento. Retorna true no quadro em que a planta fica pronta.
+func grow_plot(i: int, delta: float) -> bool:
+	if plot_state(i) != "growing":
+		return false
+	var p: Dictionary = farm.plots[i]
+	var t: float = ItemDB.CROPS[p.crop].time
+	p.growth = min(1.0, p.growth + delta / t * (2.0 if p.watered else 1.0))
+	return p.growth >= 1.0
+
+
+## Colhe o canteiro i: {"crop", "qty", "bonus", "seed"} ou {} se não estiver pronto.
+func harvest(i: int) -> Dictionary:
+	if plot_state(i) != "ready":
+		return {}
+	var p: Dictionary = farm.plots[i]
+	var c: Dictionary = ItemDB.CROPS[p.crop]
+	var qty := randi_range(c.yield[0], c.yield[1]) + (1 if p.watered else 0)
+	var bonus := randf() < 0.12
+	if bonus:
+		qty *= 2
+	var got_seed := randf() < 0.35
+	add_item(p.crop, qty, true)
+	if got_seed:
+		add_item(c.seed, 1, true)
+	var res := {"crop": p.crop, "qty": qty, "bonus": bonus, "seed": got_seed}
+	farm.plots[i] = _empty_plot()
+	var txt := "+%d %s" % [qty, c.name]
+	if bonus:
+		txt = "Colheita farta! " + txt
+	if got_seed:
+		txt += " (+1 semente)"
+	notify.emit(txt, Color(0.85, 1.0, 0.55))
+	farm_changed.emit()
+	return res

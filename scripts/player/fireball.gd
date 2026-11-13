@@ -5,6 +5,8 @@ var direction := Vector3.FORWARD
 var damage := 20.0
 var speed := 24.0
 var life := 3.0
+## Multiplayer: bola de fogo de outro jogador — só o visual, sem dano.
+var visual_only := false
 var _done := false
 
 
@@ -82,6 +84,9 @@ func _explode() -> void:
 	FX.burst(global_position, Color(1, 0.5, 0.1), 30, 6.0, 0.14, 0.5, -4.0)
 	FX.ring(global_position - Vector3.UP * 0.5, Color(1, 0.5, 0.1, 0.8), 2.2, 0.3)
 	Sfx.play("explode")
+	if visual_only:
+		queue_free()
+		return
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e.dead:
 			continue

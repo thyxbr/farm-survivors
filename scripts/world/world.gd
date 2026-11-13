@@ -27,6 +27,10 @@ const SHOP := preload("res://scripts/ui/shop_ui.gd")
 const PAUSE := preload("res://scripts/ui/pause_menu.gd")
 const PORTAL := preload("res://scripts/world/challenge_portal.gd")
 const SURVIVAL := preload("res://scripts/survival/survival_mode.gd")
+const PLOT := preload("res://scripts/farm/farm_plot.gd")
+const KITCHEN := preload("res://scripts/farm/kitchen.gd")
+const PLANT_UI := preload("res://scripts/ui/plant_ui.gd")
+const COOKING_UI := preload("res://scripts/ui/cooking_ui.gd")
 
 const MAP_HALF := 125.0
 const VILLAGE_SPAWN := Vector3(0, 0.3, 6)
@@ -34,6 +38,7 @@ const RUINS := Vector3(0, 0, -100)
 const CAMP := Vector3(62, 0, 0)
 const ARENA := Vector3(-72, 0, -10)     # Desafio da Horda
 const PORTAL_POS := Vector3(-8, 0, -9.5)
+const FARM := Vector3(0, 0, 33)          # Horta da Vila (saída sul)
 
 var player: Player
 var hud
@@ -53,13 +58,19 @@ func _ready() -> void:
 	_build_environment()
 	_build_ground()
 	_build_village()
+	_build_farm()
 	_build_fields()
 	_build_goblin_camp()
 	_build_ruins()
 	_build_arena()
 	_build_borders()
 	_scatter_nature()
-	_setup_enemies()
+	if not Network.is_client():
+		_setup_enemies()   # no cliente, os inimigos chegam do servidor
+	if Network.is_server():
+		# servidor dedicado: só o mundo, os inimigos e as réplicas dos jogadores
+		Network.world_ready(self)
+		return
 
 	player = PLAYER.new()
 	add_child(player)
@@ -77,6 +88,14 @@ func _ready() -> void:
 	_check_boss()
 	if Game.quests.is_empty() and Game.kills == 0:
 		Game.notify.emit("Bem-vindo a Valdoria! Fale com o Ancião Bram (!) na praça.", Color(1, 0.9, 0.6))
+		Game.notify.emit("Plante e cozinhe na Horta, saindo pelo portão sul da vila.", Color(0.8, 1.0, 0.6))
+	if Network.is_client():
+		Game.notify.emit("Conectado como %s — %d jogador(es) online." % [Network.my_name, Network.players.size()], Color(0.6, 0.9, 1.0))
+		Network.world_ready(self)
+
+
+func _exit_tree() -> void:
+	Network.world_closed(self)
 
 
 # ================================================================ ambiente
@@ -257,7 +276,8 @@ func _build_village() -> void:
 	while x <= 18.0:
 		if abs(x) > 3.0:
 			prop("fence", Vector3(x, 0, -13), 0.0, 1.0, "box", Vector3(2.1, 1.0, 0.25))
-		prop("fence", Vector3(x, 0, 23), 0.0, 1.0, "box", Vector3(2.1, 1.0, 0.25))
+		if x != 0.0 and x != 2.0:   # portão sul, para a horta
+			prop("fence", Vector3(x, 0, 23), 0.0, 1.0, "box", Vector3(2.1, 1.0, 0.25))
 		x += 2.0
 	var z := -12.0
 	while z <= 22.0:
@@ -279,6 +299,94 @@ func _build_village() -> void:
 	var portal := PORTAL.new()
 	portal.position = PORTAL_POS
 	add_child(portal)
+
+
+# ================================================================ horta da vila
+func _build_farm() -> void:
+	_avoid.append([Vector2(FARM.x, FARM.z), 15.0])
+	_avoid.append([Vector2(1, 24), 4.0])
+	_flat(Vector3(1, 0.021, 19.5), Vector2(3.2, 17), Color(0.45, 0.35, 0.22))       # trilha praça -> horta
+	_flat(FARM + Vector3(0, 0.019, 0.5), Vector2(20, 13.5), Color(0.4, 0.42, 0.22))  # chão da horta
+	_flat(FARM + Vector3(1, 0.021, -2), Vector2(2.6, 9), Color(0.45, 0.35, 0.22))
+	# cerca da horta, com portão alinhado ao portão sul da vila
+	var x := -10.0
+	while x <= 10.0:
+		if x != 0.0 and x != 2.0:
+			prop("fence", FARM + Vector3(x, 0, -7), 0.0, 1.0, "box", Vector3(2.1, 1.0, 0.25))
+		prop("fence", FARM + Vector3(x, 0, 7.5), 0.0, 1.0, "box", Vector3(2.1, 1.0, 0.25))
+		x += 2.0
+	var z := -6.0
+	while z <= 6.5:
+		prop("fence", FARM + Vector3(-11, 0, z), PI / 2, 1.0, "box", Vector3(2.1, 1.0, 0.25))
+		prop("fence", FARM + Vector3(11, 0, z), PI / 2, 1.0, "box", Vector3(2.1, 1.0, 0.25))
+		z += 2.0
+	# canteiros 4 x 3 (os mais próximos do portão são liberados primeiro)
+	for i in Game.FARM_PLOTS:
+		var plot := PLOT.new()
+		plot.index = i
+		plot.position = FARM + Vector3(-4.2 + (i % 4) * 2.8, 0, -3.3 + (i / 4) * 2.8)
+		add_child(plot)
+	var kitchen := KITCHEN.new()
+	kitchen.position = FARM + Vector3(7.5, 0, -3.5)
+	add_child(kitchen)
+	prop("crate", FARM + Vector3(8.6, 0, -1.4), 0.3, 1.0, "box", Vector3(0.8, 0.8, 0.8))
+	prop("crate", FARM + Vector3(8.7, 0.8, -1.4), -0.2, 0.75)
+	prop("barrel", FARM + Vector3(9.2, 0, -5.6), 0.0, 1.0, "cyl", Vector3(0.38, 1.0, 0))
+	prop("barrel", FARM + Vector3(-9.0, 0, -5.4), 0.0, 1.0, "cyl", Vector3(0.38, 1.0, 0))
+	prop("tree_oak", FARM + Vector3(-8.2, 0, 5.0), 0.8, 1.1, "cyl", Vector3(0.4, 3, 0))
+	var lamp := prop("lamp", FARM + Vector3(3.6, 0, -7.6), PI, 1.0, "cyl", Vector3(0.12, 2.8, 0))
+	_light(lamp, Vector3(0, 2.4, 0.5), Color(1, 0.75, 0.4), 1.4, 8.0)
+	_scarecrow(FARM + Vector3(-7.6, 0, 1.2))
+	var sign := Label3D.new()
+	sign.text = "Horta da Vila"
+	sign.font_size = 56
+	sign.outline_size = 10
+	sign.pixel_size = 0.006
+	sign.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	sign.modulate = Color(0.85, 1.0, 0.6)
+	sign.position = FARM + Vector3(1, 2.6, -7)
+	add_child(sign)
+
+
+func _scarecrow(pos: Vector3) -> void:
+	var root := Node3D.new()
+	root.position = pos
+	root.rotation.y = 0.5
+	add_child(root)
+	var wood := StandardMaterial3D.new()
+	wood.albedo_color = Color(0.45, 0.3, 0.17)
+	var cloth := StandardMaterial3D.new()
+	cloth.albedo_color = Color(0.55, 0.2, 0.15)
+	var sack := StandardMaterial3D.new()
+	sack.albedo_color = Color(0.8, 0.7, 0.45)
+	var straw := StandardMaterial3D.new()
+	straw.albedo_color = Color(0.95, 0.8, 0.35)
+	var parts := [
+		[BoxMesh.new(), Vector3(0.1, 2.0, 0.1), Vector3(0, 1.0, 0), wood],
+		[BoxMesh.new(), Vector3(1.5, 0.08, 0.08), Vector3(0, 1.5, 0), wood],
+		[BoxMesh.new(), Vector3(0.6, 0.7, 0.3), Vector3(0, 1.35, 0), cloth],
+		[SphereMesh.new(), Vector3(0.36, 0.36, 0.36), Vector3(0, 2.0, 0), sack],
+		[CylinderMesh.new(), Vector3(0.5, 0.06, 0.5), Vector3(0, 2.2, 0), straw],
+		[CylinderMesh.new(), Vector3(0.22, 0.3, 0.22), Vector3(0, 2.35, 0), straw],
+		[BoxMesh.new(), Vector3(0.12, 0.25, 0.1), Vector3(0.78, 1.42, 0), straw],
+		[BoxMesh.new(), Vector3(0.12, 0.25, 0.1), Vector3(-0.78, 1.42, 0), straw],
+	]
+	for p in parts:
+		var mi := MeshInstance3D.new()
+		var m: Mesh = p[0]
+		if m is BoxMesh:
+			m.size = p[1]
+		elif m is SphereMesh:
+			m.radius = p[1].x / 2.0
+			m.height = p[1].y
+		else:
+			m.top_radius = p[1].x / 2.0
+			m.bottom_radius = p[1].x / 2.0
+			m.height = p[1].y
+		mi.mesh = m
+		mi.material_override = p[3]
+		mi.position = p[2]
+		root.add_child(mi)
 
 
 # ================================================================ campos (slimes)
@@ -381,6 +489,9 @@ func _build_arena() -> void:
 func start_survival() -> void:
 	if survival != null or player == null or player.dead:
 		return
+	if Network.is_online():
+		Game.notify.emit("O Desafio da Horda ainda é só para um jogador.", Color(1, 0.7, 0.5))
+		return
 	survival = SURVIVAL.new()
 	survival.world = self
 	survival.player = player
@@ -453,6 +564,8 @@ func _scatter_nature() -> void:
 			var s := rng.randf_range(0.6, 1.6)
 			prop("rock", p, rng.randf() * TAU, s, "cyl", Vector3(0.65, 0.9, 0))
 		placed += 1
+	if Network.is_server():
+		return   # grama é só visual
 	# tufos de grama (MultiMesh)
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
@@ -471,6 +584,8 @@ func _scatter_nature() -> void:
 			continue
 		if Vector2(c.x, c.z).distance_to(Vector2(0, 1)) < 11.0 or (abs(c.x) < 3.0 and c.z < -8) or (abs(c.z) < 3.0 and c.x > 10 and c.x < 64):
 			continue
+		if (abs(c.x - FARM.x) < 11.0 and abs(c.z - FARM.z) < 7.5) or (abs(c.x - 1.0) < 1.8 and c.z > 11.0 and c.z < 27.0):
+			continue   # horta e trilha
 		for k in 4:  # tufos com várias folhas
 			pts.append(c + Vector3(rng.randf_range(-0.2, 0.2), 0, rng.randf_range(-0.2, 0.2)))
 	mm.instance_count = pts.size()
@@ -525,12 +640,26 @@ func summon_minions(pos: Vector3, n: int) -> void:
 
 func _check_boss() -> void:
 	if Game.quest_state("goblin_king") == "active" and not Game.flags.get("king_dead", false):
+		if Network.is_client():
+			if boss == null or not is_instance_valid(boss) or boss.dead:
+				Network.request_boss()   # o servidor cria (se ainda não existir) e todos veem
+			return
 		if boss == null or not is_instance_valid(boss):
 			boss = ENEMY.new()
 			boss.kind = "goblin_king"
 			boss.position = RUINS + Vector3.UP * 0.3
 			add_child(boss)
 			hud.boss = boss
+
+
+## Servidor: o rei aparece quando algum jogador está com a missão ativa.
+func server_spawn_boss() -> void:
+	if boss != null and is_instance_valid(boss) and not boss.dead:
+		return
+	boss = ENEMY.new()
+	boss.kind = "goblin_king"
+	boss.position = RUINS + Vector3.UP * 0.3
+	add_child(boss)
 
 
 func _process(delta: float) -> void:
@@ -541,10 +670,17 @@ func _process(delta: float) -> void:
 		if s.node == null and s.timer > 0:
 			s.timer -= delta
 			if s.timer <= 0:
-				if player and player.global_position.distance_to(s.pos) < 25.0:
+				if _any_player_near(s.pos, 25.0):
 					s.timer = 5.0
 				else:
 					_spawn(s)
+
+
+func _any_player_near(pos: Vector3, dist: float) -> bool:
+	for p in get_tree().get_nodes_in_group("players"):
+		if p.global_position.distance_to(pos) < dist:
+			return true
+	return false
 
 
 # ================================================================ UI modal
@@ -667,20 +803,41 @@ func open_shop() -> void:
 	_open_modal(SHOP.new())
 
 
+func open_plant_menu(plot_index: int) -> void:
+	var ui := PLANT_UI.new()
+	ui.plot_index = plot_index
+	_open_modal(ui)
+
+
+func open_cooking(kitchen: Node = null) -> void:
+	var ui := COOKING_UI.new()
+	ui.kitchen = kitchen
+	_open_modal(ui)
+
+
 func _open_modal(c: Control) -> void:
 	if modal != null:
 		return
 	modal = c
 	ui_layer.add_child(c)
 	c.closed.connect(_on_modal_closed)
-	get_tree().paused = true
+	_set_paused(true)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	hud.visible = false
 
 
+## No multiplayer o mundo não para: só o controle do jogador fica travado.
+func _set_paused(on: bool) -> void:
+	if Network.is_online():
+		if player:
+			player.input_locked = on
+	else:
+		get_tree().paused = on
+
+
 func _on_modal_closed() -> void:
 	modal = null
-	get_tree().paused = false
+	_set_paused(false)
 	hud.visible = true
 	_end_closeup()
 	if player and not player.dead:
@@ -702,18 +859,20 @@ func _on_player_died() -> void:
 	modal = p
 	ui_layer.add_child(p)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	get_tree().paused = true
+	_set_paused(true)
 
 
 func _respawn() -> void:
 	var lost := int(Game.gold * 0.1)
 	Game.gold -= lost
 	modal = null
-	get_tree().paused = false
+	_set_paused(false)
 	player.revive(VILLAGE_SPAWN)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if lost > 0:
 		Game.notify.emit("Você perdeu %d ouro." % lost, Color(1, 0.6, 0.5))
+	if Network.is_online():
+		return   # no multiplayer o servidor cuida dos inimigos
 	# inimigos voltam para casa
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e.state != "idle":

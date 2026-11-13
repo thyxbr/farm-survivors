@@ -36,6 +36,7 @@ var boss: Enemy = null
 var end_reason := ""
 var rewards := {}
 var new_record := false
+var seeds_won := 0
 
 var _queue: Array = []        # "levelup" | "round"
 var _spawn_acc := 0.0
@@ -211,6 +212,7 @@ func _end_round() -> void:
 			c._die()
 	Game.hp = min(Game.max_hp(), Game.hp + Game.max_hp() * 0.3)
 	Game.stats_changed.emit()
+	_reward_seeds(1 + round_num / 3)
 	await get_tree().create_timer(0.9, false).timeout
 	if phase != "break":
 		return
@@ -227,8 +229,8 @@ func _on_enemy_died(e: Enemy) -> void:
 	if phase == "over":
 		return
 	kills += 1
-	if Game.run_mods.lifesteal > 0.0 and not player.dead:
-		Game.hp = min(Game.max_hp(), Game.hp + Game.run_mods.lifesteal)
+	if Game.mod("lifesteal") > 0.0 and not player.dead:
+		Game.hp = min(Game.max_hp(), Game.hp + Game.mod("lifesteal"))
 	var pos := e.global_position + Vector3.UP * 0.6
 	if e.is_boss:
 		Game.notify.emit("Rei Goblin derrotado!", Color(1, 0.85, 0.3))
@@ -237,6 +239,7 @@ func _on_enemy_died(e: Enemy) -> void:
 		_drop_gem("heal", 0, pos)
 		_drop_gem("magnet", 0, pos)
 		_drop_coin(pos, randi_range(20, 35))
+		_reward_seeds(2, "seed_pumpkin")
 		return
 	var value := 1
 	match e.kind:
@@ -254,6 +257,25 @@ func _on_enemy_died(e: Enemy) -> void:
 		_drop_coin(pos, randi_range(1, 3))
 
 
+## Sementes de recompensa (levadas para a Horta). Rodadas mais altas liberam sementes raras.
+func _reward_seeds(n: int, first := "") -> void:
+	var pool := ["seed_carrot", "seed_wheat", "seed_tomato"]
+	if round_num >= 3:
+		pool += ["seed_pepper", "seed_mint"]
+	if round_num >= 5:
+		pool.append("seed_pumpkin")
+	var got := {}
+	for i in n:
+		var id: String = first if (i == 0 and first != "") else pool.pick_random()
+		got[id] = got.get(id, 0) + 1
+	var parts: Array[String] = []
+	for id in got:
+		Game.add_item(id, got[id], true)
+		seeds_won += got[id]
+		parts.append("%s x%d" % [ItemDB.get_item(id).name, got[id]])
+	Game.notify.emit("Recompensa: " + ", ".join(parts), Color(0.75, 1.0, 0.5))
+
+
 func _drop_gem(kind: String, value: int, pos: Vector3) -> void:
 	var g := GEM.new()
 	g.kind = kind
@@ -266,7 +288,7 @@ func _drop_gem(kind: String, value: int, pos: Vector3) -> void:
 func _drop_coin(pos: Vector3, amount: int) -> void:
 	var p := PICKUP.new()
 	p.item_id = ""
-	p.amount = max(1, int(round(amount * Game.run_mods.gold)))
+	p.amount = max(1, int(round(amount * Game.mod("gold"))))
 	add_child(p)
 	p.global_position = pos
 
@@ -301,7 +323,7 @@ func xp_needed() -> int:
 
 
 func add_xp(amount: float) -> void:
-	run_xp += amount * Game.run_mods.xp
+	run_xp += amount * Game.mod("xp")
 	var leveled := false
 	while run_xp >= xp_needed():
 		run_xp -= xp_needed()

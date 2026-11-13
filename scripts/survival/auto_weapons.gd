@@ -31,7 +31,7 @@ func _physics_process(delta: float) -> void:
 	if player == null or player.dead:
 		return
 	_t += delta
-	var cd_mult: float = max(0.35, Game.run_mods.cooldown)
+	var cd_mult: float = max(0.35, Game.mod("cooldown"))
 	for id in _timers:
 		_timers[id] -= delta
 	if levels.has("fogo") and _timers.fogo <= 0.0:
@@ -48,7 +48,7 @@ func _physics_process(delta: float) -> void:
 
 # ------------------------------------------------------------ utilidades
 func _damage(base: float) -> Array:
-	var crit: bool = randf() < 0.05 + Game.run_mods.crit
+	var crit: bool = randf() < 0.05 + Game.mod("crit")
 	return [base * Game.damage_mult() * randf_range(0.9, 1.1) * (1.8 if crit else 1.0), crit]
 
 
@@ -94,7 +94,7 @@ func _lightning() -> void:
 	var lv: int = levels.raio
 	var n: int = [1, 2, 2, 3, 5][lv - 1]
 	var dmg: float = [22.0, 26.0, 34.0, 38.0, 50.0][lv - 1]
-	var near := _enemies_by_distance(16.0 * Game.run_mods.area)
+	var near := _enemies_by_distance(16.0 * Game.mod("area"))
 	if near.is_empty():
 		return
 	near.shuffle()
@@ -138,7 +138,7 @@ func _blade_stats() -> Dictionary:
 	return {
 		"count": [2, 3, 3, 4, 5][lv - 1],
 		"dmg": [8.0, 9.0, 11.0, 12.0, 15.0][lv - 1],
-		"radius": [2.1, 2.1, 2.5, 2.6, 2.8][lv - 1] * Game.run_mods.area,
+		"radius": [2.1, 2.1, 2.5, 2.6, 2.8][lv - 1] * Game.mod("area"),
 		"speed": [3.0, 3.0, 3.2, 3.8, 4.0][lv - 1],
 	}
 
@@ -205,7 +205,7 @@ func _update_blades(delta: float) -> void:
 
 # ------------------------------------------------------------ Aura Gélida
 func _aura_radius() -> float:
-	return [2.4, 2.8, 3.2, 3.6, 4.0][levels.aura - 1] * Game.run_mods.area
+	return [2.4, 2.8, 3.2, 3.6, 4.0][levels.aura - 1] * Game.mod("area")
 
 
 func _build_aura() -> void:

@@ -29,6 +29,7 @@ func _ready() -> void:
 			v.add_child(_sub("Escolha uma bênção para a próxima rodada  (1 · 2 · 3)"))
 			_build_cards(v)
 			v.add_child(_sub("%d abates · Nv %d · %s" % [survival.kills, survival.run_level, _time(survival.elapsed)]))
+			v.add_child(_sub("Dica: coma com [Q] durante a rodada — comidas do Caldeirão dão bônus."))
 			var center := CenterContainer.new()
 			var leave := UITheme.button("Retirar-se com as recompensas", _retreat, 340)
 			center.add_child(leave)
@@ -149,6 +150,7 @@ func _build_results(v: VBoxContainer) -> void:
 		["Abates", str(survival.kills)],
 		["Nível alcançado", str(survival.run_level)],
 		["Ouro coletado", "◆ %d" % survival.rewards.gold],
+		["Sementes para a Horta", str(survival.seeds_won)],
 		["XP de recompensa", "+%d XP" % survival.rewards.xp],
 	]
 	for r in rows:

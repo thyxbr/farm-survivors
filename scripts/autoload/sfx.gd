@@ -34,6 +34,11 @@ func _ready() -> void:
 	streams["quest"] = _gen(0.6, _quest)
 	streams["zap"] = _gen(0.3, _zap)
 	streams["gem"] = _gen(0.09, _gem)
+	streams["plant"] = _gen(0.22, _plant)
+	streams["water"] = _gen(0.5, _water)
+	streams["harvest"] = _gen(0.3, _harvest)
+	streams["cook"] = _gen(0.8, _cook)
+	streams["eat"] = _gen(0.36, _eat)
 
 
 func play(sound: String, pitch_var := 0.08, volume_db := 0.0) -> void:
@@ -152,3 +157,28 @@ func _quest(t: float, d: float) -> float:
 	var notes := [659.0, 784.0, 988.0]
 	var idx: int = min(2, int(t / 0.15))
 	return _tone(t, notes[idx]) * 0.3 * (1.0 - t / d)
+
+
+func _plant(t: float, d: float) -> float:
+	return (_noise(0.12) * 0.9 + _tone(t, 120.0 - 120.0 * t) * 0.5) * _env(t, d, 0.004)
+
+
+func _water(t: float, d: float) -> float:
+	var trickle := 0.6 + 0.4 * sin(TAU * 23.0 * t) * sin(TAU * 7.0 * t)
+	return _noise(0.5) * 0.7 * trickle * sin(PI * t / d)
+
+
+func _harvest(t: float, d: float) -> float:
+	var pop := _noise(0.4) * (1.0 if t < 0.03 else 0.0)
+	return pop + _tone(t, 520.0 + 900.0 * t) * 0.3 * _env(t, d, 0.01)
+
+
+func _cook(t: float, d: float) -> float:
+	var sizzle := _noise(0.85) * 0.35 * (0.7 + 0.3 * sin(TAU * 13.0 * t))
+	var blub := _tone(t, 180.0 + 60.0 * sin(TAU * 6.0 * t)) * 0.25 * (1.0 if fmod(t, 0.2) < 0.06 else 0.0)
+	return (sizzle + blub) * _env(t, d, 0.05)
+
+
+func _eat(t: float, d: float) -> float:
+	var bite: float = fmod(t, 0.12)
+	return _noise(0.6) * 0.8 * (pow(1.0 - bite / 0.12, 3.0) if bite < 0.12 else 0.0) * (1.0 - t / d)

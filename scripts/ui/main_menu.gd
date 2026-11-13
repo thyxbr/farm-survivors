@@ -5,9 +5,16 @@ const OPTIONS := preload("res://scripts/ui/options_panel.gd")
 
 var pivot: Node3D
 var menu_box: VBoxContainer
+var mp_box: VBoxContainer
+var mp_name: LineEdit
+var mp_address: LineEdit
+var mp_status: Label
+var mp_join: Button
 
 
 func _ready() -> void:
+	if "--server" in OS.get_cmdline_user_args():
+		return   # servidor dedicado: vai direto para o mundo
 	theme = UITheme.get_theme()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	get_tree().paused = false
@@ -51,9 +58,16 @@ func _ready() -> void:
 	menu_box.add_child(cont)
 	if Game.has_save():
 		menu_box.add_child(UITheme.label("   " + Game.save_info(), 15, UITheme.DIM))
+	menu_box.add_child(UITheme.button("Multiplayer", _open_multiplayer, 320))
 	menu_box.add_child(UITheme.button("Opções", _options, 320))
 	menu_box.add_child(UITheme.button("Sair", func() -> void: get_tree().quit(), 320))
 	(cont if not cont.disabled else new_btn).grab_focus.call_deferred()
+	_build_multiplayer()
+	Network.join_failed.connect(_on_join_failed)
+	if Network.last_error != "":
+		_open_multiplayer()
+		_set_status(Network.last_error, Color(1, 0.6, 0.5))
+		Network.last_error = ""
 
 	var credit := UITheme.label("Feito com Godot 4 · modelos low-poly criados no Blender", 14, UITheme.DIM)
 	credit.anchor_top = 1.0
@@ -66,6 +80,87 @@ func _ready() -> void:
 func _new_game() -> void:
 	Sfx.play("click", 0.0)
 	Game.start_new_game()
+
+
+# ---------------------------------------------------------------- multiplayer
+func _build_multiplayer() -> void:
+	mp_box = VBoxContainer.new()
+	mp_box.anchor_top = 0.5
+	mp_box.anchor_bottom = 0.5
+	mp_box.offset_left = 90
+	mp_box.offset_top = -230
+	mp_box.offset_right = 560
+	mp_box.offset_bottom = 230
+	mp_box.add_theme_constant_override("separation", 10)
+	mp_box.visible = false
+	add_child(mp_box)
+	mp_box.add_child(UITheme.label("Multiplayer", 48, UITheme.GOLD))
+	mp_box.add_child(UITheme.label("Entre no servidor e jogue com seus amigos.", 18, UITheme.DIM))
+	mp_box.add_child(UITheme.label("Seu nome", 16))
+	mp_name = LineEdit.new()
+	mp_name.max_length = 16
+	mp_name.placeholder_text = "Aventureiro"
+	mp_name.text = str(Game.settings.player_name)
+	mp_name.custom_minimum_size = Vector2(320, 40)
+	mp_box.add_child(mp_name)
+	mp_box.add_child(UITheme.label("Servidor (endereço ou endereço:porta)", 16))
+	mp_address = LineEdit.new()
+	mp_address.placeholder_text = Network.DEFAULT_ADDRESS
+	var saved := str(Game.settings.server_address)
+	mp_address.text = saved if saved != "" else Network.DEFAULT_ADDRESS
+	mp_address.custom_minimum_size = Vector2(320, 40)
+	mp_address.text_submitted.connect(func(_t: String) -> void: _join())
+	mp_box.add_child(mp_address)
+	var who := "Personagem: " + (Game.save_info() if Game.has_save() else "novo (nenhum save neste PC)")
+	mp_box.add_child(UITheme.label(who, 15, UITheme.DIM))
+	mp_join = UITheme.button("Entrar", _join, 320)
+	mp_box.add_child(mp_join)
+	mp_box.add_child(UITheme.button("Voltar", _close_multiplayer, 320))
+	mp_status = UITheme.label("", 16, UITheme.DIM)
+	mp_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	mp_status.custom_minimum_size.x = 420
+	mp_box.add_child(mp_status)
+
+
+func _open_multiplayer() -> void:
+	Sfx.play("click", 0.0)
+	menu_box.visible = false
+	mp_box.visible = true
+	_set_status("v" + Network.version(), UITheme.DIM)
+	(mp_name if mp_name.text == "" else mp_join).grab_focus.call_deferred()
+
+
+func _close_multiplayer() -> void:
+	Network.leave()
+	mp_box.visible = false
+	menu_box.visible = true
+	mp_join.disabled = false
+
+
+func _join() -> void:
+	if mp_join.disabled:
+		return
+	Sfx.play("click", 0.0)
+	Game.settings.player_name = mp_name.text.strip_edges()
+	Game.settings.server_address = mp_address.text.strip_edges()
+	Game.save_settings()
+	# o personagem é o save deste PC (ou um novo, se não houver)
+	if not (Game.has_save() and Game.load_character()):
+		Game.new_game()
+	mp_join.disabled = true
+	_set_status("Conectando a %s..." % mp_address.text.strip_edges(), UITheme.TEXT)
+	Network.join(mp_address.text, mp_name.text)
+
+
+func _on_join_failed(reason: String) -> void:
+	if mp_join:
+		mp_join.disabled = false
+	_set_status(reason, Color(1, 0.6, 0.5))
+
+
+func _set_status(t: String, c: Color) -> void:
+	mp_status.text = t
+	mp_status.add_theme_color_override("font_color", c)
 
 
 func _options() -> void:

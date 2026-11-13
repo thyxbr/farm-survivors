@@ -87,7 +87,7 @@ func _process(delta: float) -> void:
 	var to := target - global_position
 	var dist := to.length()
 	if not player.dead and _t > 0.35:
-		if not pulled and dist < BASE_PICKUP_RADIUS * Game.run_mods.magnet:
+		if not pulled and dist < BASE_PICKUP_RADIUS * Game.mod("magnet"):
 			pulled = true
 		if pulled:
 			_grounded = true

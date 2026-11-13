@@ -194,6 +194,12 @@ func _type_color(t: String) -> Color:
 			return Color(0.7, 0.8, 1)
 		"consumable":
 			return Color(0.6, 1, 0.6)
+		"food":
+			return Color(1, 0.8, 0.4)
+		"crop":
+			return Color(1, 0.65, 0.35)
+		"seed":
+			return Color(0.75, 0.85, 0.5)
 	return UITheme.TEXT
 
 
@@ -213,8 +219,8 @@ func _on_select(i: int) -> void:
 		return
 	details.text = ItemDB.item_summary(id)
 	var t: String = ItemDB.get_item(id).type
-	use_btn.disabled = t == "material"
-	use_btn.text = "Equipar" if t in ["weapon", "armor"] else "Usar"
+	use_btn.disabled = t == "material" or t == "seed" or (t == "crop" and not Game.is_edible(id))
+	use_btn.text = "Equipar" if t in ["weapon", "armor"] else ("Comer" if t in ["food", "crop"] else "Usar")
 	drop_btn.disabled = false
 
 

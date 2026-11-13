@@ -45,8 +45,23 @@ var interact_target: Node3D = null
 var spawn_point := Vector3(0, 0.5, 6)
 var _footstep := 0.0
 
+## Multiplayer: réplica de outro jogador (sem câmera, sem input, sem atributos locais).
+var remote := false
+var peer_id := 0
+var display_name := ""
+## Bloqueia o controle sem pausar a árvore (menus abertos no multiplayer).
+var input_locked := false
+var _net_pos := Vector3.ZERO
+var _net_yaw := 0.0
+var _net_floor := true
+var _net_send_t := 0.0
+
 
 func _ready() -> void:
+	add_to_group("players")
+	if remote:
+		_ready_remote()
+		return
 	add_to_group("player")
 	collision_layer = 2
 	collision_mask = 1 | 4 | 8
@@ -59,16 +74,7 @@ func _ready() -> void:
 	col.position.y = 0.9
 	add_child(col)
 
-	model = KNIGHT.instantiate()
-	add_child(model)
-	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head"]:
-		parts[n] = model.find_child(n, true, false)
-	parts["body_y"] = parts.Body.position.y
-	for n in ["Blade", "BladeTip"]:
-		var m := model.find_child(n, true, false) as MeshInstance3D
-		if m:
-			blade_meshes.append(m)
-	torso_mesh = model.find_child("Torso", true, false) as MeshInstance3D
+	_build_model()
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 
@@ -104,11 +110,44 @@ func _ready() -> void:
 		model.rotation.y = PI
 	Game.inventory_changed.connect(_update_equipment_visual)
 	Game.leveled_up.connect(_on_level_up)
+	Game.food_eaten.connect(_on_food_eaten)
 	_update_equipment_visual()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
+func _build_model() -> void:
+	model = KNIGHT.instantiate()
+	add_child(model)
+	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head"]:
+		parts[n] = model.find_child(n, true, false)
+	parts["body_y"] = parts.Body.position.y
+	for n in ["Blade", "BladeTip"]:
+		var m := model.find_child(n, true, false) as MeshInstance3D
+		if m:
+			blade_meshes.append(m)
+	torso_mesh = model.find_child("Torso", true, false) as MeshInstance3D
+
+
+func _ready_remote() -> void:
+	# sem colisão: a réplica só mostra onde o outro jogador está
+	collision_layer = 0
+	collision_mask = 0
+	_build_model()
+	_net_pos = position
+	var tag := Label3D.new()
+	tag.text = display_name
+	tag.font_size = 40
+	tag.outline_size = 8
+	tag.pixel_size = 0.006
+	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	tag.modulate = Color(0.75, 0.9, 1.0)
+	tag.position.y = 2.25
+	add_child(tag)
+
+
 func _unhandled_input(event: InputEvent) -> void:
+	if remote or input_locked:
+		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var s: float = Game.settings.mouse_sensitivity * 0.01
 		var inv := -1.0 if Game.settings.invert_y else 1.0
@@ -119,6 +158,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if remote:
+		_remote_process(delta)
+		return
+	if Network.is_client():
+		_net_send(delta)
 	if not is_on_floor():
 		velocity.y -= GRAVITY * delta
 	if dead:
@@ -129,6 +173,15 @@ func _physics_process(delta: float) -> void:
 
 	_tick_timers(delta)
 	_regen(delta)
+
+	if input_locked:
+		velocity.x = move_toward(velocity.x, 0, 45 * delta)
+		velocity.z = move_toward(velocity.z, 0, 45 * delta)
+		move_and_slide()
+		_update_attack(delta)
+		_animate(delta)
+		_update_camera(delta)
+		return
 
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var fwd := -cam_yaw.global_basis.z
@@ -173,11 +226,18 @@ func _physics_process(delta: float) -> void:
 		_quick_potion("health_potion")
 	if Input.is_action_just_pressed("mana_potion"):
 		_quick_potion("mana_potion")
+	if Input.is_action_just_pressed("eat"):
+		Game.eat_selected()
+	if Input.is_action_just_pressed("food_next"):
+		Game.cycle_food()
 	if Input.is_action_just_pressed("quicksave"):
 		Game.save_game(global_position, model.rotation.y)
 	if Input.is_action_just_pressed("quickload"):
-		Game.load_game()
-		return
+		if Network.is_online():
+			Game.notify.emit("Carregar save não funciona no multiplayer.", Color(1, 0.6, 0.5))
+		else:
+			Game.load_game()
+			return
 
 	_find_interact_target()
 	if Input.is_action_just_pressed("interact") and interact_target:
@@ -210,11 +270,12 @@ func _tick_timers(delta: float) -> void:
 	stamina_delay = max(0.0, stamina_delay - delta)
 	for k in cooldowns:
 		cooldowns[k] = max(0.0, cooldowns[k] - delta)
+	Game.tick_food(delta)
 
 
 func _regen(delta: float) -> void:
 	Game.mp = min(Game.max_mp(), Game.mp + (0.8 + Game.attributes.int * 0.15) * delta)
-	Game.hp = min(Game.max_hp(), Game.hp + (0.3 + Game.attributes.vit * 0.05 + Game.run_mods.regen) * delta)
+	Game.hp = min(Game.max_hp(), Game.hp + (0.3 + Game.attributes.vit * 0.05 + Game.mod("regen")) * delta)
 	if stamina_delay <= 0:
 		Game.stamina = min(Game.max_stamina(), Game.stamina + 32.0 * delta)
 
@@ -299,7 +360,7 @@ func _do_hit() -> void:
 			continue
 		if combo < 3 and dist > 0.6 and f.dot(to.normalized()) < 0.3:
 			continue
-		var crit: bool = randf() < 0.08 + Game.attributes.agi * 0.004 + Game.run_mods.crit
+		var crit: bool = randf() < 0.08 + Game.attributes.agi * 0.004 + Game.mod("crit")
 		var dmg: float = Game.melee_damage() * mult * randf_range(0.9, 1.1) * (1.8 if crit else 1.0)
 		e.take_damage(dmg, global_position, crit)
 		hit_any = true
@@ -328,9 +389,9 @@ func cast(id: String) -> void:
 		"heal":
 			var amount := 30.0 + Game.spell_power() * 4.0
 			Game.hp = min(Game.max_hp(), Game.hp + amount)
-			FX.burst(global_position + Vector3.UP, Color(0.4, 1.0, 0.5), 30, 3.0, 0.1, 1.0, 2.0)
+			_heal_fx()
 			FX.damage_number(global_position + Vector3.UP * 2.2, "+%d" % amount, Color(0.4, 1.0, 0.5))
-			Sfx.play("heal", 0.0)
+			Network.send_event("heal", global_position)
 		"frost_nova":
 			_cast_frost_nova()
 	Game.stats_changed.emit()
@@ -350,20 +411,30 @@ func _cast_fireball() -> void:
 	get_tree().current_scene.add_child(fb)
 	fb.global_position = origin
 	Sfx.play("fire")
+	Network.send_event("fireball", origin, fb.direction)
 
 
 func _cast_frost_nova() -> void:
 	var radius := 6.5
-	FX.ring(global_position, Color(0.55, 0.85, 1.0, 0.9), radius, 0.5)
-	FX.burst(global_position + Vector3.UP * 0.5, Color(0.7, 0.9, 1.0), 50, 9.0, 0.14, 0.7, -2.0)
-	Sfx.play("frost", 0.0)
+	_frost_fx(radius)
+	Network.send_event("frost_nova", global_position)
 	add_shake(0.15)
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e.dead:
 			continue
 		if e.global_position.distance_to(global_position) <= radius + e.radius:
-			e.take_damage((15.0 + Game.spell_power() * 2.0) * Game.damage_mult(), global_position, false)
-			e.apply_slow(4.0)
+			e.take_damage((15.0 + Game.spell_power() * 2.0) * Game.damage_mult(), global_position, false, 4.0)
+
+
+func _frost_fx(radius: float) -> void:
+	FX.ring(global_position, Color(0.55, 0.85, 1.0, 0.9), radius, 0.5)
+	FX.burst(global_position + Vector3.UP * 0.5, Color(0.7, 0.9, 1.0), 50, 9.0, 0.14, 0.7, -2.0)
+	Sfx.play("frost", 0.0)
+
+
+func _heal_fx() -> void:
+	FX.burst(global_position + Vector3.UP, Color(0.4, 1.0, 0.5), 30, 3.0, 0.1, 1.0, 2.0)
+	Sfx.play("heal", 0.0)
 
 
 func _quick_potion(id: String) -> void:
@@ -375,8 +446,62 @@ func _quick_potion(id: String) -> void:
 		FX.burst(global_position + Vector3.UP, Color(1, 0.35, 0.35) if id == "health_potion" else Color(0.4, 0.5, 1), 20, 2.5, 0.08, 0.8, 2.0)
 
 
+# ------------------------------------------------------------ comida
+func _on_food_eaten(id: String) -> void:
+	if dead or not is_inside_tree():
+		return
+	var it := ItemDB.get_item(id)
+	var c: Color = it.get("color", ItemDB.CROPS[id].color if ItemDB.CROPS.has(id) else Color(0.6, 1, 0.5))
+	Sfx.play("eat", 0.1)
+	FX.burst(global_position + Vector3.UP * 1.5, c, 18, 2.2, 0.08, 0.6, -4.0)
+	if it.has("buff"):
+		FX.ring(global_position, Color(c.r, c.g, c.b, 0.85), 2.2, 0.5)
+		FX.burst(global_position + Vector3.UP * 0.3, c, 30, 3.5, 0.1, 1.0, 3.0)
+		Sfx.play("heal", 0.0, -5.0)
+	match it.get("special", ""):
+		"fire_nova":
+			_food_fire_nova()
+		"frost_nova":
+			_food_frost_nova()
+
+
+## Chili do Dragão: explosão de fogo que empurra e queima tudo em volta.
+func _food_fire_nova() -> void:
+	var radius := 7.5
+	FX.ring(global_position, Color(1, 0.45, 0.1, 0.95), radius, 0.55)
+	FX.burst(global_position + Vector3.UP * 0.6, Color(1, 0.5, 0.1), 70, 10.0, 0.16, 0.8, -1.0)
+	FX.burst(global_position + Vector3.UP * 1.0, Color(1, 0.85, 0.3), 40, 6.0, 0.12, 0.6, 2.0)
+	Sfx.play("explode", 0.05)
+	add_shake(0.35)
+	var dmg := (40.0 + Game.level * 6.0 + Game.spell_power() * 2.0) * Game.damage_mult()
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.dead:
+			continue
+		if e.global_position.distance_to(global_position) <= radius + e.radius:
+			e.take_damage(dmg, global_position, false)
+
+
+## Chá de Menta Gélida: congela (lentidão forte) e fere os inimigos próximos.
+func _food_frost_nova() -> void:
+	var radius := 8.0
+	FX.ring(global_position, Color(0.55, 0.9, 1.0, 0.95), radius, 0.6)
+	FX.burst(global_position + Vector3.UP * 0.5, Color(0.75, 0.95, 1.0), 60, 9.0, 0.14, 0.8, -2.0)
+	Sfx.play("frost", 0.0)
+	add_shake(0.2)
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.dead:
+			continue
+		if e.global_position.distance_to(global_position) <= radius + e.radius:
+			e.take_damage((12.0 + Game.level * 3.0) * Game.damage_mult(), global_position, false, 6.0)
+
+
 # ------------------------------------------------------------ dano e morte
 func take_damage(amount: float, from_pos: Vector3) -> void:
+	if remote:
+		# no servidor, o golpe de um inimigo na réplica vira dano no PC do dono
+		if Network.is_server() and not dead:
+			Network.server_damage_player(peer_id, amount, from_pos)
+		return
 	if dead or invuln > 0:
 		return
 	var final_dmg: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
@@ -418,6 +543,7 @@ func _clear_flash() -> void:
 func _die() -> void:
 	dead = true
 	Game.hp = 0
+	Game.clear_food()
 	attacking = false
 	Sfx.play("death", 0.0)
 	var tw := create_tween()
@@ -453,7 +579,11 @@ func _find_interact_target() -> void:
 
 # ------------------------------------------------------------ visual
 func _update_equipment_visual() -> void:
-	var wid: String = Game.equipment.weapon
+	apply_look(Game.equipment.weapon, Game.equipment.armor)
+	Network.send_look(Game.equipment.weapon, Game.equipment.armor)
+
+
+func apply_look(wid: String, armor: String) -> void:
 	var col: Color = ItemDB.get_item(wid).get("color", Color(0.5, 0.5, 0.5)) if wid != "" else Color(0, 0, 0, 0)
 	for b in blade_meshes:
 		b.visible = wid != ""
@@ -470,9 +600,9 @@ func _update_equipment_visual() -> void:
 		var armor_colors := {"": Color(0.35, 0.25, 0.18), "leather_armor": Color(0.45, 0.28, 0.13),
 			"chain_mail": Color(0.55, 0.58, 0.65), "royal_plate": Color(0.85, 0.7, 0.35)}
 		var tm := StandardMaterial3D.new()
-		tm.albedo_color = armor_colors.get(Game.equipment.armor, Color.GRAY)
-		tm.metallic = 0.0 if Game.equipment.armor in ["", "leather_armor"] else 0.85
-		tm.roughness = 0.8 if Game.equipment.armor in ["", "leather_armor"] else 0.35
+		tm.albedo_color = armor_colors.get(armor, Color.GRAY)
+		tm.metallic = 0.0 if armor in ["", "leather_armor"] else 0.85
+		tm.roughness = 0.8 if armor in ["", "leather_armor"] else 0.35
 		torso_mesh.material_override = tm
 
 
@@ -483,7 +613,89 @@ func _on_level_up(_lvl: int) -> void:
 
 
 func add_shake(amount: float) -> void:
+	if remote:
+		if Network.is_server():
+			Network.server_shake_player(peer_id, amount)
+		return
 	shake = max(shake, amount)
+
+
+# ------------------------------------------------------------ multiplayer
+const NF_FLOOR := 1
+const NF_ATTACK := 2
+const NF_DODGE := 4
+const NF_CAST := 8
+const NF_DEAD := 16
+
+
+func _net_send(delta: float) -> void:
+	_net_send_t -= delta
+	if _net_send_t > 0.001:
+		return
+	_net_send_t = maxf(_net_send_t + 1.0 / Network.SEND_RATE, 0.0)
+	var flags := (NF_FLOOR if is_on_floor() else 0) | (NF_ATTACK if attacking else 0) \
+		| (NF_DODGE if dodge_timer > 0 else 0) | (NF_CAST if cast_timer > 0 else 0) | (NF_DEAD if dead else 0)
+	Network.send_player_state(global_position, model.rotation.y, velocity, flags, combo, attack_timer)
+
+
+func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int, attack_t: float) -> void:
+	_net_pos = pos
+	_net_yaw = yaw
+	velocity = vel
+	_net_floor = flags & NF_FLOOR != 0
+	dodge_timer = 0.12 if flags & NF_DODGE else 0.0
+	cast_timer = 0.15 if flags & NF_CAST else 0.0
+	if flags & NF_ATTACK:
+		if not attacking or c != combo:
+			Sfx.play("swing", 0.12, -6.0)
+		attacking = true
+		combo = clampi(c, 1, 3)
+		attack_timer = attack_t
+	elif attacking:
+		attacking = false
+		parts.Body.rotation.y = 0.0
+	var now_dead := flags & NF_DEAD != 0
+	if now_dead and not dead:
+		dead = true
+		attacking = false
+		var tw := create_tween()
+		tw.tween_property(parts.Body, "rotation:x", -1.4, 0.6).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(parts.Body, "position:y", 0.35, 0.6)
+	elif dead and not now_dead:
+		dead = false
+		parts.Body.rotation = Vector3.ZERO
+		parts.Body.position.y = parts.body_y
+
+
+func _remote_process(delta: float) -> void:
+	if global_position.distance_to(_net_pos) > 8.0:
+		global_position = _net_pos
+	else:
+		global_position = global_position.lerp(_net_pos, 1.0 - exp(-15.0 * delta))
+	model.rotation.y = lerp_angle(model.rotation.y, _net_yaw, 1.0 - exp(-15.0 * delta))
+	if dead:
+		return
+	dodge_timer = max(0.0, dodge_timer - delta)
+	cast_timer = max(0.0, cast_timer - delta)
+	if attacking:
+		attack_timer = minf(attack_timer + delta, SWING_TIMES[combo - 1])
+	_animate(delta)
+
+
+## Efeitos das ações de outro jogador (só visuais: o dano já foi enviado pelo dono).
+func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
+	match kind:
+		"fireball":
+			var fb := FIREBALL.new()
+			fb.direction = b
+			fb.visual_only = true
+			get_tree().current_scene.add_child(fb)
+			fb.global_position = a
+			Sfx.play("fire", 0.08, -4.0)
+		"frost_nova":
+			_frost_fx(6.5)
+		"heal":
+			_heal_fx()
 
 
 func _update_camera(delta: float) -> void:
@@ -494,7 +706,7 @@ func _update_camera(delta: float) -> void:
 
 func _animate(delta: float) -> void:
 	var hspeed := Vector2(velocity.x, velocity.z).length()
-	var on_floor := is_on_floor()
+	var on_floor := _net_floor if remote else is_on_floor()
 	anim_t += delta * (2.0 + hspeed * 1.6)
 	idle_t += delta
 	var amp: float = clamp(hspeed / 6.0, 0.0, 1.0) * 0.75

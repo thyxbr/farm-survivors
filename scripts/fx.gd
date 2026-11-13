@@ -4,6 +4,8 @@ extends RefCounted
 
 
 static func _scene() -> Node:
+	if Network.is_server():
+		return null   # servidor dedicado: ninguém vê os efeitos
 	return (Engine.get_main_loop() as SceneTree).current_scene
 
 

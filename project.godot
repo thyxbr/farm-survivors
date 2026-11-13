@@ -12,6 +12,7 @@ config_version=5
 
 config/name="Ecos de Valdoria"
 config/description="Protótipo de RPG de ação em 3ª pessoa."
+config/version="0.1.0"
 run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
@@ -20,6 +21,7 @@ config/features=PackedStringArray("4.7", "Forward Plus")
 ItemDB="*res://scripts/autoload/item_db.gd"
 Game="*res://scripts/autoload/game.gd"
 Sfx="*res://scripts/autoload/sfx.gd"
+Network="*res://scripts/autoload/network.gd"
 
 [display]
 

@@ -23,24 +23,24 @@ func _ready() -> void:
 	v.custom_minimum_size = Vector2(340, 0)
 	p.add_child(v)
 	if mode == "pause":
-		v.add_child(_title("Pausado", UITheme.GOLD))
+		v.add_child(_title("Menu" if Network.is_online() else "Pausado", UITheme.GOLD))
 		v.add_child(UITheme.button("Continuar", _close))
 		if Game.run_mods.active:
 			v.add_child(UITheme.button("Abandonar desafio", _abandon))
 		else:
 			v.add_child(UITheme.button("Salvar jogo", _save))
 		var lb := UITheme.button("Carregar jogo", func() -> void: Game.load_game())
-		lb.disabled = not Game.has_save()
+		lb.disabled = not Game.has_save() or Network.is_online()
 		v.add_child(lb)
 		v.add_child(UITheme.button("Opções", _options))
 		v.add_child(UITheme.button("Menu principal", func() -> void: Game.go_to_menu()))
-		v.add_child(UITheme.button("Sair do jogo", func() -> void: get_tree().quit()))
+		v.add_child(UITheme.button("Sair do jogo", _quit))
 	else:
 		v.add_child(_title("Você caiu...", Color(0.9, 0.25, 0.2)))
 		v.add_child(UITheme.label("Renascer na vila custa 10% do seu ouro.", 16, UITheme.DIM))
 		v.add_child(UITheme.button("Renascer na vila", _respawn))
 		var lb := UITheme.button("Carregar último save", func() -> void: Game.load_game())
-		lb.disabled = not Game.has_save()
+		lb.disabled = not Game.has_save() or Network.is_online()
 		v.add_child(lb)
 		v.add_child(UITheme.button("Menu principal", func() -> void: Game.go_to_menu()))
 	_status = UITheme.label("", 15, Color(0.7, 1, 0.7))
@@ -65,6 +65,12 @@ func _save() -> void:
 		_status.text = "Jogo salvo!"
 		_status.add_theme_color_override("font_color", Color(0.7, 1, 0.7))
 		Sfx.play("pickup", 0.0)
+
+
+func _quit() -> void:
+	if Network.is_online():
+		Network.autosave()
+	get_tree().quit()
 
 
 func _options() -> void:

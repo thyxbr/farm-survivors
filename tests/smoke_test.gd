@@ -27,7 +27,8 @@ func _ready() -> void:
 	player = get_tree().get_first_node_in_group("player")
 	check(world != null and player != null, "mundo e jogador carregados")
 	check(get_tree().get_nodes_in_group("enemies").size() >= 15, "inimigos spawnados (%d)" % get_tree().get_nodes_in_group("enemies").size())
-	check(get_tree().get_nodes_in_group("interactable").size() == 3, "2 NPCs + portal interagíveis")
+	check(get_tree().get_nodes_in_group("interactable").size() == 3 + Game.FARM_PLOTS + 1,
+		"2 NPCs + portal + %d canteiros + caldeirão interagíveis" % Game.FARM_PLOTS)
 
 	# --- diálogo e missão
 	var elder: Node = null
@@ -158,12 +159,112 @@ func _ready() -> void:
 	await wait(0.2)
 	check(not player.dead and not get_tree().paused and Game.hp == Game.max_hp(), "renasce na vila")
 
+	await _test_farm()
 	await _test_survival()
 
 	print("\n==== %s (%d falhas) ====" % ["OK" if fails == 0 else "FALHOU", fails])
 	if FileAccess.file_exists(Game.save_path):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(Game.save_path))
 	get_tree().quit(1 if fails > 0 else 0)
+
+
+# ---------------------------------------------------------------- Horta, caldeirão e comida
+func _interactable(id: String, index := -1) -> Node:
+	for n in get_tree().get_nodes_in_group("interactable"):
+		if n.npc_id == id and (index < 0 or n.get("index") == index):
+			return n
+	return null
+
+
+func _test_farm() -> void:
+	var plot := _interactable("plot", 0)
+	check(plot != null and Game.plot_state(0) == "empty", "canteiro 0 vazio e liberado")
+	check(Game.plot_state(Game.FARM_START_PLOTS) == "locked", "canteiros extras começam bloqueados")
+	player.global_position = plot.global_position + Vector3(0, 0.3, -1.2)
+	await wait(0.3)
+	check(player.interact_target == plot, "jogador detecta o canteiro")
+	plot.interact(player)
+	await wait(0.1)
+	check(world.modal != null and world.modal.get("plot_index") == 0, "menu de plantio abre")
+	var seeds0 := Game.count_item("seed_carrot")
+	world.modal.seed_list.select(ItemDB.CROP_ORDER.find("carrot"))
+	world.modal._plant_here()
+	await wait(0.1)
+	check(world.modal == null and Game.plot_state(0) == "growing" and Game.farm.plots[0].crop == "carrot", "cenoura plantada")
+	check(Game.count_item("seed_carrot") == seeds0 - 1, "semente consumida")
+	plot.interact(player)
+	check(Game.farm.plots[0].watered, "canteiro regado")
+	var g0: float = Game.farm.plots[0].growth
+	await wait(1.0)
+	var g1: float = Game.farm.plots[0].growth
+	check(g1 > g0 and abs((g1 - g0) - 2.0 / ItemDB.CROPS.carrot.time) < 0.02, "regado cresce 2x (%.3f/s)" % (g1 - g0))
+	Game.farm.plots[0].growth = 0.995
+	await wait(0.3)
+	check(Game.plot_state(0) == "ready", "planta fica pronta")
+	var carrots := Game.count_item("carrot")
+	plot.interact(player)
+	check(Game.plot_state(0) == "empty" and Game.count_item("carrot") >= carrots + 3, "colheita regada rende +1 (%d)" % (Game.count_item("carrot") - carrots))
+
+	# adubo de gel de slime
+	Game.add_item("slime_gel", 1, true)
+	Game.plant(1, "wheat", true)
+	Game.water(1)
+	check(Game.fertilize(1) and Game.farm.plots[1].growth >= 0.4, "adubo de gel de slime acelera")
+
+	# plantar em todos os vazios
+	Game.gold += 200
+	plot.interact(player)
+	await wait(0.1)
+	world.modal.seed_list.select(ItemDB.CROP_ORDER.find("tomato"))
+	world.modal._plant_all()
+	await wait(0.1)
+	var growing := 0
+	for i in Game.FARM_PLOTS:
+		if Game.plot_state(i) == "growing":
+			growing += 1
+	check(growing == Game.FARM_START_PLOTS, "plantar em todos os vazios (%d canteiros)" % growing)
+
+	# liberar canteiro
+	var gold0 := Game.gold
+	var cost := Game.unlock_cost()
+	check(Game.unlock_next_plot() and Game.farm.unlocked == Game.FARM_START_PLOTS + 1 and Game.gold == gold0 - cost, "canteiro novo liberado por %d ouro" % cost)
+
+	# caldeirão
+	var kitchen := _interactable("kitchen")
+	check(kitchen != null, "caldeirão na horta")
+	Game.add_item("tomato", 6, true)
+	Game.add_item("pepper", 6, true)
+	Game.add_item("carrot", 2, true)
+	kitchen.interact(player)
+	await wait(0.1)
+	check(world.modal != null and world.modal.has_method("_cook"), "menu do caldeirão abre")
+	world.modal.list.select(ItemDB.RECIPE_ORDER.find("spicy_soup"))
+	world.modal._cook(99)
+	check(Game.count_item("spicy_soup") == 3, "cozinhou 3 sopas picantes (%d)" % Game.count_item("spicy_soup"))
+	world.modal._close()
+	await wait(0.05)
+	check(Game.cook("dragon_chili") == 1 and Game.count_item("dragon_chili") == 1, "cozinhou chili do dragão")
+
+	# comer: bônus temporário
+	var dmg0 := Game.melee_damage()
+	Game.selected_food = "spicy_soup"
+	Game.eat_cooldown = 0.0
+	check(Game.eat_selected() and Game.food_buffs.has("spicy_soup"), "comeu sopa picante")
+	check(Game.melee_damage() > dmg0 * 1.25, "sopa aumenta o dano (%.1f -> %.1f)" % [dmg0, Game.melee_damage()])
+	check(not Game.eat("spicy_soup"), "não come de novo durante a mastigação")
+	Game.tick_food(999.0)
+	check(Game.food_buffs.is_empty() and abs(Game.melee_damage() - dmg0) < 0.01, "bônus expira e o dano volta")
+
+	# save/load da horta
+	Game.save_game(player.global_position, 0.0)
+	var farm_saved: Dictionary = Game.farm.duplicate(true)
+	Game.farm = Game.default_farm()
+	Game.load_game()
+	await wait(0.6)
+	world = get_tree().current_scene
+	player = get_tree().get_first_node_in_group("player")
+	check(Game.farm.unlocked == farm_saved.unlocked and Game.farm.plots[1].crop == "wheat" \
+		and abs(Game.farm.plots[1].growth - farm_saved.plots[1].growth) < 0.05, "save/load restaura a horta")
 
 
 # ---------------------------------------------------------------- Desafio da Horda
@@ -238,6 +339,17 @@ func _test_survival() -> void:
 	world.modal._pick(0)
 	await wait(0.2)
 	check(sv.blessing_counts.size() == 1 and sv.round_num == 2 and sv.phase == "fight", "bênção aplicada e rodada 2 começa")
+	check(sv.seeds_won >= 1, "rodada concluída dá sementes (%d)" % sv.seeds_won)
+
+	# comer no meio da rodada: chili explode e fere a horda em volta
+	var near_e: Enemy = sv._spawn_enemy("slime", player.global_position + Vector3(3, 0.2, 0))
+	await wait(0.1)
+	var ehp := near_e.hp
+	Game.eat_cooldown = 0.0
+	Game.selected_food = "dragon_chili"
+	check(Game.eat_selected() and Game.food_buffs.has("dragon_chili"), "comeu chili do dragão na rodada")
+	check(near_e.dead or near_e.hp < ehp, "explosão do chili fere inimigos próximos")
+	check(Game.mod("damage") > Game.run_mods.damage, "bônus da comida soma aos da Horda")
 
 	# chefe na rodada 5
 	sv.round_num = 4

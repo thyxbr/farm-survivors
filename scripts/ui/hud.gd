@@ -21,6 +21,8 @@ var boss_panel: Control
 var boss_bar: ProgressBar
 var boss_name: Label
 var help_panel: PanelContainer
+var buff_box: HBoxContainer
+var _buff_labels := {}   # id da comida -> Label
 
 
 func _ready() -> void:
@@ -84,14 +86,26 @@ func _ready() -> void:
 		slots[id] = _slot(bottom, sp.key, sp.name, Color(0.55, 0.35, 0.9))
 	slots["health_potion"] = _slot(bottom, "R", "Poção Vida", Color(0.8, 0.2, 0.2))
 	slots["mana_potion"] = _slot(bottom, "F", "Poção Mana", Color(0.25, 0.4, 0.95))
+	slots["food"] = _slot(bottom, "Q", "Comida", Color(0.95, 0.6, 0.2))
+	slots.food.panel.custom_minimum_size = Vector2(132, 72)
+	slots.food.title.clip_text = true
+	slots.food.title.custom_minimum_size.x = 118
 	var bw := bottom.get_combined_minimum_size().x
 	_anchor(bottom, 0.5, 1, -bw / 2.0, -96, bw, 76)
+
+	# bônus de comida ativos (acima da barra de ações)
+	buff_box = HBoxContainer.new()
+	buff_box.add_theme_constant_override("separation", 18)
+	buff_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	buff_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_anchor(buff_box, 0.5, 1, -450, -126, 900, 26)
+	root.add_child(buff_box)
 
 	prompt = UITheme.label("", 22, Color(1, 0.95, 0.75))
 	prompt.add_theme_constant_override("outline_size", 6)
 	prompt.add_theme_color_override("font_outline_color", Color.BLACK)
 	prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_anchor(prompt, 0.5, 1, -300, -150, 600, 30)
+	_anchor(prompt, 0.5, 1, -300, -162, 600, 30)
 	root.add_child(prompt)
 
 	# --- chefe
@@ -111,6 +125,7 @@ func _ready() -> void:
 		"WASD mover · Mouse câmera · Shift correr · Espaço pular\n" +
 		"Clique esq. atacar (combo x3) · Clique dir./Ctrl esquivar\n" +
 		"1 Bola de Fogo · 2 Cura · 3 Nova Gélida · R/F poções\n" +
+		"Q comer · T trocar comida · Horta ao sul da vila\n" +
 		"E interagir · I inventário · C personagem · J missões\n" +
 		"F5 salvar · F9 carregar · Esc pausa · H esconder ajuda", 15, UITheme.DIM)
 	help_panel.add_child(help)
@@ -212,6 +227,8 @@ func _process(_delta: float) -> void:
 		var t := player.interact_target
 		prompt.text = "[E] " + t.interact_prompt() if t else ""
 
+	_update_food()
+
 	# Desafio da Horda: esconde as missões e desce a barra do chefe para não cobrir o HUD da horda
 	var horde: bool = Game.run_mods.active
 	quest_box.visible = not horde
@@ -235,6 +252,41 @@ func _refresh_static() -> void:
 		var n := Game.count_item(id)
 		slots[id].info.text = "x%d" % n
 		slots[id].panel.modulate = Color.WHITE if n > 0 else Color(1, 1, 1, 0.4)
+	Game.ensure_selected_food()
+	var f := Game.selected_food
+	slots.food.title.text = ItemDB.get_item(f).name if f != "" else "Sem comida"
+
+
+func _update_food() -> void:
+	var f := Game.selected_food
+	var s: Dictionary = slots.food
+	if f == "":
+		s.info.text = "T troca"
+		s.panel.modulate = Color(1, 1, 1, 0.4)
+	elif Game.eat_cooldown > 0.0:
+		s.info.text = "%.1fs" % Game.eat_cooldown
+		s.panel.modulate = Color(0.6, 0.6, 0.6)
+	else:
+		s.info.text = "x%d" % Game.count_item(f)
+		s.panel.modulate = Color.WHITE
+	# chips de bônus: cria/remove só quando a lista muda, o texto atualiza todo quadro
+	for id in _buff_labels.keys():
+		if not Game.food_buffs.has(id):
+			_buff_labels[id].queue_free()
+			_buff_labels.erase(id)
+	for id in Game.food_buffs:
+		var it := ItemDB.get_item(id)
+		if not _buff_labels.has(id):
+			var l := UITheme.label("", 17, it.get("color", UITheme.GOLD))
+			l.add_theme_constant_override("outline_size", 6)
+			l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+			l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			buff_box.add_child(l)
+			_buff_labels[id] = l
+		var t: float = Game.food_buffs[id]
+		var lab: Label = _buff_labels[id]
+		lab.text = "%s %ds" % [it.buff.name, int(ceil(t))]
+		lab.modulate.a = 0.45 + 0.55 * abs(sin(t * 6.0)) if t < 5.0 else 1.0
 
 
 func _refresh_quests() -> void:
