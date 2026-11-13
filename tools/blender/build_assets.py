@@ -95,7 +95,7 @@ def part(name, kind, loc, size, material, rot=(0, 0, 0), parent=None, seg=8, r2=
     return ob
 
 
-def export(fname):
+def export(fname, **extra):
     print("EXPORT", fname, flush=True)
     vl = scn.view_layers[0]
     vl.update()
@@ -108,7 +108,7 @@ def export(fname):
             o.select_set(True, view_layer=vl)
         bpy.ops.export_scene.gltf(filepath=OUT + fname + ".glb", export_format='GLB', use_selection=True,
                                   export_apply=True, export_yup=True, export_animations=False,
-                                  export_cameras=False, export_lights=False)
+                                  export_cameras=False, export_lights=False, **extra)
     exported.append(fname)
     clear()
 
@@ -347,6 +347,7 @@ def build_house():
 exec(open(OUT.replace("assets/models/", "tools/blender/characters.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/props.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/weapons.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/gear.py"), encoding="utf-8").read(), globals())
 
 # ASSETS="knight,elder" no ambiente gera só esses (útil para iterar).
 import os
@@ -360,6 +361,9 @@ BUILDERS.update(PROP_BUILDERS)
 BUILDERS.update(dict(WEAPONS))   # w_<id>: espadas (weapons.py); ASSETS=weapons gera todas
 if "weapons" in _only:
     _only += [n for n, _ in WEAPONS]
+BUILDERS.update(dict(GEAR))      # roupas e armaduras modulares (gear.py); ASSETS=gear gera todas
+if "gear" in _only:
+    _only += [n for n, _ in GEAR]
 clear()
 for _name, _fn in BUILDERS.items():
     if not _only or _name in _only:

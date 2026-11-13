@@ -9,7 +9,9 @@ extends RefCounted
 ## então vertex_color_is_srgb fica falso. Altera o material importado (compartilhado), uma vez só.
 static func use_vertex_color(root: Node) -> void:
 	for mi: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
-		var m := mi.mesh
+		var m := mi.mesh as ArrayMesh      # malhas primitivas montadas por código não têm cor por vértice
+		if m == null:
+			continue
 		for s in m.get_surface_count():
 			var mat := m.surface_get_material(s) as BaseMaterial3D
 			if mat and (m.surface_get_format(s) & Mesh.ARRAY_FORMAT_COLOR) != 0:
