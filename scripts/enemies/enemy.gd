@@ -77,6 +77,8 @@ var horde := false
 var hp_mult := 1.0
 var dmg_mult := 1.0
 var speed_mult := 1.0
+## Desafio da Horda: versão de elite (maior, dourada, mais vida e dano; o servidor manda junto no spawn).
+var elite := false
 ## Defesa da Cidade em grupo: elite (chave de ColonyData.AFFIXES) com resistências por tipo de dano.
 var affix := ""
 ## Multiplayer (servidor): "world" (Valdoria) ou "city" (Defesa da Cidade em grupo).
@@ -135,9 +137,11 @@ var _net_yaw := 0.0
 func _ready() -> void:
 	data = TYPES[kind]
 	display_name = data.name
+	if elite:
+		display_name += " de Elite"
 	max_hp = data.hp * hp_mult
 	hp = max_hp
-	radius = data.radius
+	radius = data.radius * (1.2 if elite else 1.0)
 	is_boss = data.get("boss", false)
 	add_to_group("enemies")
 	collision_layer = 4
@@ -151,8 +155,10 @@ func _ready() -> void:
 	add_child(col)
 
 	model = MODELS[data.model].instantiate()
-	model.scale = Vector3.ONE * data.scale
+	model.scale = Vector3.ONE * data.scale * (1.3 if elite else 1.0)
 	add_child(model)
+	if elite:
+		_make_elite_glow()
 	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head"]:
 		parts[n] = model.find_child(n, true, false)
 	var crown := model.find_child("Crown", true, false)
@@ -215,6 +221,35 @@ func _ready() -> void:
 		set_affix(affix)
 	if Network.is_server():
 		Network.server_register_enemy(self)
+
+
+## Elite: anel dourado no chão e brilho, para ser lido de longe no meio da horda.
+func _make_elite_glow() -> void:
+	var ring := MeshInstance3D.new()
+	var tor := TorusMesh.new()
+	tor.inner_radius = radius + 0.25
+	tor.outer_radius = radius + 0.45
+	tor.rings = 24
+	tor.ring_segments = 6
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = Color(1.0, 0.8, 0.25, 0.85)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.emission_enabled = true
+	m.emission = Color(1.0, 0.7, 0.2)
+	m.emission_energy_multiplier = 2.5
+	tor.material = m
+	ring.mesh = tor
+	ring.scale = Vector3(1, 0.15, 1)
+	ring.position.y = 0.08
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(ring)
+	var light := OmniLight3D.new()
+	light.light_color = Color(1.0, 0.75, 0.3)
+	light.light_energy = 1.2
+	light.omni_range = 3.5
+	light.position.y = 1.0
+	add_child(light)
 
 
 func _exit_tree() -> void:
@@ -611,6 +646,9 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0) -> v
 		contributors[last_hitter] = true
 	if slow > 0.0:
 		apply_slow(slow)
+	if horde and get_parent().has_method("on_enemy_damaged"):
+		# placar do Desafio da Horda (last_hitter = quem acertou no multiplayer; 0 no solo)
+		get_parent().on_enemy_damaged(last_hitter, minf(amount, maxf(hp, 0.0)))
 	hp -= amount
 	health_changed.emit(self)
 	var top: Vector3 = global_position + Vector3.UP * (data.height * data.scale + 0.2)
@@ -623,14 +661,14 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0) -> v
 	if bar_root:
 		bar_root.visible = true
 	if not is_boss:
-		var elite: bool = data.get("elite", false)
+		var heavy: bool = data.get("elite", false) or elite   # campeões e elites da horda quase não recuam
 		var kb := global_position - from_pos
 		kb.y = 0
 		if kb.length() > 0.01:
-			kb = kb.normalized() * (6.0 if data.model == "slime" else 4.0) * (0.3 if elite else 1.0)
+			kb = kb.normalized() * (6.0 if data.model == "slime" else 4.0) * (0.3 if heavy else 1.0)
 			velocity.x = kb.x
 			velocity.z = kb.z
-		if (state != "attack" and not elite) or (crit and attack_kind != "fuse"):
+		if (state != "attack" and not heavy) or (crit and attack_kind != "fuse"):
 			stagger = 0.3
 			if state == "attack":
 				_set_state("chase")
