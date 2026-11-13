@@ -166,10 +166,19 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
   réplicas. Construir, melhorar, reparar, demolir, recrutar, impostos e ponto de reunião viram pedidos que o servidor
   valida (`Colony.net_request`). O **cofre é compartilhado**; **N** é um voto para chamar a noite (basta metade do grupo);
   **G** faz o exército seguir quem apertou.
+- **Construção ao vivo:** enquanto alguém está no modo construção (**B**), os outros veem o fantasma translúcido do que
+  ele está posicionando, na cor do jogador (vermelho quando não cabe), com o nome e a construção em cima; no modo
+  demolir, a construção mirada fica marcada. Nada é construído até ele clicar (o servidor valida como antes).
 - **Recompensas** (no personagem do RPG de cada um, ao amanhecer, para quem estava na cidade durante a noite):
-  `15 + 6n` ouro e `30 + 12n + n²` XP pela noite *n*; nas noites de chefe (a cada 5) um **baú** com um equipamento:
-  noite 5 incomum, 10 raro (60%), 15 épico (35%), 20 lendário (15%), 25 lendário (50%), 30+ lendário. Abates dão XP
-  a quem acertou e ouro ao cofre (elites valem o dobro). O recorde do servidor aparece no salão.
+  `15 + 6n` ouro e `30 + 12n + n²` XP pela noite *n*. Abates dão XP a quem acertou e ouro ao cofre (elites valem o
+  dobro). O recorde do servidor aparece no salão.
+- **Baús** (noites de chefe, a cada 5): um baú cai na frente da prefeitura, com um facho de luz na cor da melhor
+  raridade. **E** abre a janela do saque: cada jogador que segurou a noite tem o próprio saque (um equipamento e duas
+  poções), sorteado e guardado pelo servidor; clique pega um item, *Pegar tudo* pega o resto, e a dica compara com o
+  equipado. Os outros veem a tampa abrir e um aviso quando alguém pega algo raro ou melhor. O baú some quando ninguém
+  tem mais nada nele; quem sai da cidade (ou se a partida acaba) recebe na mochila o que deixou lá. Raridade:
+  noite 5 incomum, 10 raro (60%), 15 épico (35%), 20 lendário (15%), 25 lendário (50%), 30+ lendário.
+  O servidor com `--city-chests` dá baú em toda noite (para testes).
 - **Curva de dificuldade** (tabelas em `colony_data.gd`, bloco *cooperativo*):
   - *Começo fácil:* cofre de 450 (+150 por jogador extra), 40 de comida, 6 moradores, primeiro dia de 4 min, as três
     primeiras noites pequenas e de uma direção só.

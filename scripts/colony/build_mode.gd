@@ -24,6 +24,12 @@ var _foot_ok: StandardMaterial3D
 var _foot_bad: StandardMaterial3D
 var _demolish_mat: StandardMaterial3D
 var _help_was := true
+## Cidade em grupo: o fantasma vai para os outros jogadores (só quando muda, e um "estou aqui" a cada 0,8 s).
+const NET_GAP := 0.12
+const NET_HEARTBEAT := 0.8
+var _net_t := 0.0
+var _net_beat := 0.0
+var _net_last: Array = []
 
 
 func _ready() -> void:
@@ -104,6 +110,7 @@ func set_active(on: bool) -> void:
 			select(selected)
 	else:
 		_clear_hover()
+		_send_ghost_off()
 	_set_visible(on)
 
 
@@ -164,9 +171,38 @@ func try_place() -> void:
 
 
 # ---------------------------------------------------------------- atualização
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not active or world.player == null:
 		return
+	_update_preview()
+	_send_ghost(delta)
+
+
+## Cidade em grupo: manda o que está sendo posicionado (tipo, lugar, giro, se cabe e o alvo da demolição).
+func _send_ghost(delta: float) -> void:
+	if colony.role != "client":
+		return
+	_net_t -= delta
+	_net_beat -= delta
+	var target: int = hover.net_id if hover != null and is_instance_valid(hover) else 0
+	var p := [selected, snappedf(place_pos.x, 0.01), snappedf(place_pos.z, 0.01), snappedf(rot, 0.01), reason == "", target]
+	if selected == "demolish":
+		p[1] = snappedf(aim.x, 0.25)
+		p[2] = snappedf(aim.z, 0.25)
+	if (p != _net_last and _net_t <= 0.0) or _net_beat <= 0.0:
+		_net_t = NET_GAP
+		_net_beat = NET_HEARTBEAT
+		_net_last = p
+		Lobby.city_ghost(p[0], p[1], p[2], p[3], p[4], p[5])
+
+
+func _send_ghost_off() -> void:
+	if is_instance_valid(colony) and colony.role == "client" and not _net_last.is_empty():
+		_net_last = []
+		Lobby.city_ghost("", 0.0, 0.0, 0.0, false, 0)
+
+
+func _update_preview() -> void:
 	aim = _aim_point()
 	var center: Vector3
 	var radius: float
@@ -274,6 +310,10 @@ func _update_hover() -> void:
 		hover = found
 		if hover:
 			hover._set_overlay(_demolish_mat)
+
+
+func _exit_tree() -> void:
+	_send_ghost_off()
 
 
 func _clear_hover() -> void:

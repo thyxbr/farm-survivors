@@ -120,11 +120,10 @@ func _ready() -> void:
 
 
 ## Cidade em grupo: recompensa da noite vencida no centro da tela por alguns segundos.
-func show_reward(n: int, gold: int, xp: int, items: Array) -> void:
+func show_reward(n: int, gold: int, xp: int, chest: bool) -> void:
 	var t := "Noite %d vencida!\n+%d ouro  ·  +%d XP" % [n, gold, xp]
-	for id in items:
-		if ItemDB.ITEMS.has(str(id)) and str(id) != "health_potion":
-			t += "\nBaú: %s" % ItemDB.ITEMS[str(id)].name
+	if chest:
+		t += "\nUm baú apareceu na frente da prefeitura (E para abrir)"
 	_reward_label.text = t
 	_reward_label.visible = true
 	_reward_label.modulate.a = 1.0
