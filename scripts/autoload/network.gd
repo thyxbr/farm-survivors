@@ -7,9 +7,15 @@ extends Node
 ## Modelo: o servidor é dono dos inimigos (IA, vida, morte). Cada cliente é dono do próprio
 ## personagem (movimento, atributos, inventário, save local) e envia a posição ~20x/s.
 ## Todas as RPCs passam por este autoload (/root/Network existe igual em todos os peers).
+##
+## Desafio da Horda em grupo: quem entra no portal abre uma fila (HORDE_LOBBY_TIME s) e todos os
+## outros jogadores recebem o convite. Quem aceita entra junto na mesma arena: o servidor cria um
+## survival_mode com role "server" (rodadas, spawn, abates) e cada cliente um com role "client".
 
 signal join_failed(reason: String)
 signal players_changed
+## Cliente: a fila do Desafio da Horda mudou (convite novo, alguém aceitou, fila fechou).
+signal horde_changed
 
 const DEFAULT_PORT := 7777
 ## Endereço sugerido no menu "Entrar". Troque pelo IP/domínio do seu servidor antes de exportar.
@@ -25,6 +31,9 @@ const FIREBALL := preload("res://scripts/player/fireball.gd")
 const STATES := ["idle", "wander", "chase", "return", "attack", "dead"]
 const ATTACK_KINDS := ["swing", "lunge", "slam"]
 const SNAP_STRIDE := 10   # id, x, y, z, yaw, hp, state, attack_timer, attack_kind, flags
+## Tempo da fila do Desafio da Horda (cai para HORDE_LOBBY_ALL quando todos já responderam).
+const HORDE_LOBBY_TIME := 15.0
+const HORDE_LOBBY_ALL := 3.0
 
 enum Mode { OFFLINE, SERVER, CLIENT }
 
@@ -47,6 +56,17 @@ var _snap_t := 0.0
 var _connect_t := 0.0
 var _pending := {}        # servidor: peer_id -> segundos até expulsar quem não se registrou
 
+## Servidor: fila aberta {"leader": id, "members": {id: true}, "declined": {id: true}, "t": s} ou {}.
+var _lobby := {}
+## Servidor: partida em andamento (survival_mode com role "server").
+var horde_run: Node = null
+## Servidor: duração da rodada (--horde-round=SEG encurta para os testes).
+var horde_round_time := 45.0
+## Cliente: fila vista pelo servidor {"leader": nome, "members": [ids], "names": [nomes], "declined": [ids]}.
+var horde_lobby := {}
+## Cliente: segundos até a fila fechar (contado localmente).
+var horde_lobby_t := 0.0
+
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -59,6 +79,8 @@ func _ready() -> void:
 	for a in args:
 		if a.begins_with("--port="):
 			port = int(a.substr(7))
+		elif a.begins_with("--horde-round="):
+			horde_round_time = maxf(3.0, float(a.substr(14)))
 	if "--server" in args:
 		start_server.call_deferred()
 
@@ -120,6 +142,7 @@ func _on_peer_disconnected(id: int) -> void:
 		for pid in _ready_peers():
 			_player_left.rpc_id(pid, id)
 		players_changed.emit()
+		_horde_peer_gone(id)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -161,7 +184,9 @@ func _client_ready() -> void:
 	for net_id in enemies:
 		var e: Enemy = enemies[net_id]
 		if is_instance_valid(e) and not e.dead:
-			_enemy_spawned.rpc_id(id, net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp)
+			_enemy_spawned.rpc_id(id, net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, e.horde)
+	if not _lobby.is_empty():
+		_horde_lobby.rpc_id(id, _lobby_state())
 
 
 func _clean_name(n: String) -> String:
@@ -219,10 +244,17 @@ func _physics_process(delta: float) -> void:
 		if _snap_t <= 0.001:
 			_snap_t = maxf(_snap_t + 1.0 / SEND_RATE, 0.0)
 			_send_enemy_snapshot()
-	elif mode == Mode.CLIENT and _connect_t > 0:
-		_connect_t -= delta
-		if _connect_t <= 0:
-			_fail("O servidor não respondeu. Confira o endereço e se a porta UDP está liberada.")
+		if not _lobby.is_empty():
+			_lobby.t -= delta
+			if _lobby.t <= 0.0:
+				_horde_launch()
+	elif mode == Mode.CLIENT:
+		if not horde_lobby.is_empty():
+			horde_lobby_t = maxf(0.0, horde_lobby_t - delta)
+		if _connect_t > 0:
+			_connect_t -= delta
+			if _connect_t <= 0:
+				_fail("O servidor não respondeu. Confira o endereço e se a porta UDP está liberada.")
 
 
 # ---------------------------------------------------------------- inimigos (servidor)
@@ -231,7 +263,7 @@ func server_register_enemy(e: Enemy) -> void:
 	_next_enemy_id += 1
 	enemies[e.net_id] = e
 	for pid in _ready_peers():
-		_enemy_spawned.rpc_id(pid, e.net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp)
+		_enemy_spawned.rpc_id(pid, e.net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, e.horde)
 
 
 func unregister_enemy(e: Enemy) -> void:
@@ -241,9 +273,11 @@ func unregister_enemy(e: Enemy) -> void:
 
 func server_enemy_killed(e: Enemy) -> void:
 	var pos := e.global_position
-	for pid in e.contributors:
-		if players.has(pid):
-			_kill_reward.rpc_id(pid, e.kind, int(e.data.xp), pos)
+	# a horda não dá XP/loot do RPG: as gemas vêm pelo _horde_kill do modo sobrevivência
+	if not e.horde:
+		for pid in e.contributors:
+			if players.has(pid):
+				_kill_reward.rpc_id(pid, e.kind, int(e.data.xp), pos)
 	for pid in _ready_peers():
 		_enemy_died.rpc_id(pid, e.net_id)
 
@@ -377,6 +411,7 @@ func leave() -> void:
 	players.clear()
 	enemies.clear()
 	remote_players.clear()
+	horde_lobby = {}
 	_connect_t = 0.0
 
 
@@ -474,6 +509,46 @@ func request_boss() -> void:
 		_request_boss.rpc_id(1)
 
 
+## Desafio da Horda: "request" (abrir/entrar na fila), "accept", "decline", "dead", "ready" (bênção
+## escolhida) ou "leave" (retirada/abandono).
+func horde_send(kind: String) -> void:
+	if is_client():
+		_horde_msg.rpc_id(1, kind)
+
+
+func request_horde() -> void:
+	horde_send("request")
+
+
+func horde_answer(accept: bool) -> void:
+	horde_send("accept" if accept else "decline")
+	# resposta otimista: o painel atualiza na hora; o servidor confirma em seguida
+	if not horde_lobby.is_empty():
+		var me := multiplayer.get_unique_id()
+		var members: Array = horde_lobby.get("members", []).filter(func(x) -> bool: return x != me)
+		var declined: Array = horde_lobby.get("declined", []).filter(func(x) -> bool: return x != me)
+		if accept:
+			members.append(me)
+		else:
+			declined.append(me)
+		horde_lobby.members = members
+		horde_lobby.declined = declined
+		horde_changed.emit()
+
+
+## Cliente: estou na fila?
+func in_horde_lobby() -> bool:
+	return multiplayer.get_unique_id() in horde_lobby.get("members", [])
+
+
+## Cliente: recebi um convite que ainda não respondi?
+func horde_invite_pending() -> bool:
+	if horde_lobby.is_empty():
+		return false
+	var me := multiplayer.get_unique_id()
+	return not (me in horde_lobby.get("members", [])) and not (me in horde_lobby.get("declined", []))
+
+
 # ---------------------------------------------------------------- recebimento (cliente)
 @rpc("authority", "call_remote", "reliable")
 func _player_joined(id: int, info: Dictionary) -> void:
@@ -531,12 +606,13 @@ func _shake(amount: float) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _enemy_spawned(net_id: int, kind: String, pos: Vector3, yaw: float, max_hp: float, hp: float) -> void:
+func _enemy_spawned(net_id: int, kind: String, pos: Vector3, yaw: float, max_hp: float, hp: float, horde: bool) -> void:
 	if world == null or enemies.has(net_id):
 		return
 	var e := ENEMY.new()
 	e.kind = kind
 	e.puppet = true
+	e.horde = horde
 	e.net_id = net_id
 	e.position = pos
 	world.add_child(e)
@@ -546,6 +622,14 @@ func _enemy_spawned(net_id: int, kind: String, pos: Vector3, yaw: float, max_hp:
 	e.set_net_target(pos, yaw)
 	enemies[net_id] = e
 	if e.is_boss:
+		if horde:
+			# chefe da horda: só importa para quem está no desafio
+			var sv := _horde_survival()
+			if sv != null:
+				sv.boss = e
+				if world.get("hud"):
+					world.hud.boss = e
+			return
 		world.boss = e
 		if world.get("hud"):
 			world.hud.boss = e
@@ -615,3 +699,204 @@ func _remove_remote_player(id: int) -> void:
 	remote_players.erase(id)
 	if rp and is_instance_valid(rp):
 		rp.queue_free()
+
+
+# ================================================================ Desafio da Horda em grupo
+# ---------------------------------------------------------------- servidor
+@rpc("any_peer", "call_remote", "reliable")
+func _horde_msg(kind: String) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not is_server() or not players.has(id) or not players[id].ready:
+		return
+	var run: Node = horde_run if horde_run != null and is_instance_valid(horde_run) else null
+	match kind:
+		"request":
+			_server_horde_request(id)
+		"accept", "decline":
+			_server_horde_answer(id, kind == "accept")
+		"dead":
+			if run:
+				run.server_player_dead(id)
+		"ready":
+			if run:
+				run.server_player_ready(id)
+		"leave":
+			if run:
+				run.server_player_left(id)
+
+
+func _server_horde_request(id: int) -> void:
+	if horde_run != null and is_instance_valid(horde_run):
+		var names: Array[String] = []
+		for pid in horde_run.team:
+			names.append(str(horde_run.team[pid].name))
+		_horde_notice.rpc_id(id, "Já há um Desafio da Horda em andamento (%s). Aguarde terminar." % ", ".join(names))
+		return
+	if not _lobby.is_empty():
+		_server_horde_answer(id, true)   # já existe fila: entra nela
+		return
+	_lobby = {"leader": id, "members": {id: true}, "declined": {}, "t": HORDE_LOBBY_TIME}
+	print("[server] %s abriu o Desafio da Horda" % players[id].name)
+	_lobby_check_answered()
+	_broadcast_lobby()
+
+
+func _server_horde_answer(id: int, accept: bool) -> void:
+	if _lobby.is_empty():
+		if accept and players.has(id):
+			_horde_notice.rpc_id(id, "O convite já expirou.")
+		return
+	if accept:
+		_lobby.members[id] = true
+		_lobby.declined.erase(id)
+	else:
+		_lobby.members.erase(id)
+		_lobby.declined[id] = true
+	if _lobby.members.is_empty():
+		_lobby = {}
+		print("[server] fila do Desafio da Horda cancelada")
+	else:
+		if not _lobby.members.has(_lobby.leader):
+			_lobby.leader = _lobby.members.keys()[0]
+		_lobby_check_answered()
+	_broadcast_lobby()
+
+
+## Todos os jogadores online já responderam: começa logo (alguns segundos para se preparar).
+func _lobby_check_answered() -> void:
+	for pid in _ready_peers():
+		if not _lobby.members.has(pid) and not _lobby.declined.has(pid):
+			return
+	_lobby.t = minf(_lobby.t, HORDE_LOBBY_ALL)
+
+
+func _lobby_state() -> Dictionary:
+	if _lobby.is_empty():
+		return {}
+	var names: Array[String] = []
+	for pid in _lobby.members:
+		if players.has(pid):
+			names.append(str(players[pid].name))
+	return {"leader": str(players[_lobby.leader].name) if players.has(_lobby.leader) else "?",
+		"members": _lobby.members.keys(), "names": names, "declined": _lobby.declined.keys(), "t": _lobby.t}
+
+
+func _broadcast_lobby() -> void:
+	var st := _lobby_state()
+	for pid in _ready_peers():
+		_horde_lobby.rpc_id(pid, st)
+
+
+func _horde_launch() -> void:
+	var team := {}
+	for pid in _lobby.members:
+		if not players.has(pid) or not players[pid].ready:
+			continue
+		var rp: Player = remote_players.get(pid)
+		if rp and is_instance_valid(rp) and rp.dead:
+			_horde_notice.rpc_id(pid, "Você estava caído e ficou fora do Desafio da Horda.")
+			continue
+		team[pid] = {"name": players[pid].name, "dead": false, "ready": false}
+	_lobby = {}
+	_broadcast_lobby()
+	if team.is_empty() or world == null or not world.has_method("server_start_horde"):
+		return
+	# os clientes montam a partida antes da rodada 1 chegar (RPCs confiáveis chegam em ordem)
+	var slot := 0
+	for pid in team:
+		_horde_start.rpc_id(pid, team, slot, horde_round_time)
+		slot += 1
+	horde_run = world.server_start_horde(team, horde_round_time)
+
+
+func horde_run_ended(run: Node) -> void:
+	if horde_run == run:
+		horde_run = null
+
+
+## Servidor: manda uma RPC da horda para um jogador (usado pelo survival_mode do servidor).
+func horde_rpc(pid: int, method: String, args: Array) -> void:
+	if players.has(pid):
+		callv("rpc_id", [pid, method] + args)
+
+
+func _horde_peer_gone(id: int) -> void:
+	if not _lobby.is_empty():
+		var was_member: bool = _lobby.members.has(id)
+		_lobby.declined.erase(id)
+		if was_member:
+			_server_horde_answer(id, false)
+			if not _lobby.is_empty():
+				_lobby.declined.erase(id)
+		else:
+			_lobby_check_answered()
+			_broadcast_lobby()
+	if horde_run != null and is_instance_valid(horde_run):
+		horde_run.server_player_left(id)
+
+
+# ---------------------------------------------------------------- cliente
+func _horde_survival() -> Node:
+	if world == null:
+		return null
+	var sv = world.get("survival")
+	return sv if sv != null and sv.get("role") == "client" else null
+
+
+@rpc("authority", "call_remote", "reliable")
+func _horde_lobby(state: Dictionary) -> void:
+	var was_open := not horde_lobby.is_empty()
+	horde_lobby = state
+	horde_lobby_t = float(state.get("t", 0.0))
+	if not was_open and not state.is_empty() and horde_invite_pending() and _horde_survival() == null:
+		Game.notify.emit("%s abriu o Portal do Desafio! [Y] entrar · [N] recusar" % state.leader, Color(0.85, 0.6, 1.0))
+		Sfx.play("quest", 0.0)
+	horde_changed.emit()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _horde_start(team: Dictionary, slot: int, round_time: float) -> void:
+	horde_lobby = {}
+	horde_changed.emit()
+	if world and world.has_method("start_survival_net"):
+		world.start_survival_net(team, slot, round_time)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _horde_round_start(n: int, t: float) -> void:
+	var sv := _horde_survival()
+	if sv:
+		sv.net_round_start(n, t)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _horde_round_end(n: int) -> void:
+	var sv := _horde_survival()
+	if sv:
+		sv.net_round_end(n)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _horde_kill(kind: String, pos: Vector3, was_boss: bool) -> void:
+	var sv := _horde_survival()
+	if sv and ENEMY.TYPES.has(kind):
+		sv.net_kill(kind, pos, was_boss)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _horde_team(team: Dictionary) -> void:
+	var sv := _horde_survival()
+	if sv:
+		sv.net_team(team)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _horde_over(reason: String) -> void:
+	var sv := _horde_survival()
+	if sv:
+		sv.end_run(reason, true)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _horde_notice(text: String) -> void:
+	Game.notify.emit(text, Color(1, 0.7, 0.5))

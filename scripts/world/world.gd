@@ -27,6 +27,7 @@ const SHOP := preload("res://scripts/ui/shop_ui.gd")
 const PAUSE := preload("res://scripts/ui/pause_menu.gd")
 const PORTAL := preload("res://scripts/world/challenge_portal.gd")
 const SURVIVAL := preload("res://scripts/survival/survival_mode.gd")
+const HORDE_INVITE := preload("res://scripts/ui/horde_invite_ui.gd")
 const PLOT := preload("res://scripts/farm/farm_plot.gd")
 const KITCHEN := preload("res://scripts/farm/kitchen.gd")
 const PLANT_UI := preload("res://scripts/ui/plant_ui.gd")
@@ -90,6 +91,9 @@ func _ready() -> void:
 		Game.notify.emit("Bem-vindo a Valdoria! Fale com o Ancião Bram (!) na praça.", Color(1, 0.9, 0.6))
 		Game.notify.emit("Plante e cozinhe na Horta, saindo pelo portão sul da vila.", Color(0.8, 1.0, 0.6))
 	if Network.is_client():
+		var invite := HORDE_INVITE.new()
+		invite.world = self
+		add_child(invite)
 		Game.notify.emit("Conectado como %s — %d jogador(es) online." % [Network.my_name, Network.players.size()], Color(0.6, 0.9, 1.0))
 		Network.world_ready(self)
 
@@ -490,13 +494,46 @@ func start_survival() -> void:
 	if survival != null or player == null or player.dead:
 		return
 	if Network.is_online():
-		Game.notify.emit("O Desafio da Horda ainda é só para um jogador.", Color(1, 0.7, 0.5))
+		# abre a fila no servidor: os outros jogadores recebem o convite e entram juntos
+		Network.request_horde()
 		return
 	survival = SURVIVAL.new()
 	survival.world = self
 	survival.player = player
 	survival.center = ARENA
 	add_child(survival)
+
+
+## Multiplayer (cliente): o servidor fechou a fila; entra na arena com o grupo.
+func start_survival_net(team: Dictionary, slot: int, round_time: float) -> void:
+	if survival != null or player == null:
+		return
+	if modal != null:
+		modal.queue_free()
+		_on_modal_closed()
+	if player.dead:
+		player.revive(ARENA)
+	survival = SURVIVAL.new()
+	survival.role = "client"
+	survival.world = self
+	survival.player = player
+	survival.center = ARENA
+	survival.team = team
+	survival.my_slot = slot
+	survival.round_time = round_time
+	add_child(survival)
+
+
+## Multiplayer (servidor): cria a partida do grupo (rodadas, spawn e abates ficam aqui).
+func server_start_horde(team: Dictionary, round_time: float) -> Node:
+	survival = SURVIVAL.new()
+	survival.role = "server"
+	survival.world = self
+	survival.center = ARENA
+	survival.team = team
+	survival.round_time = round_time
+	add_child(survival)
+	return survival
 
 
 # ================================================================ bordas e vegetação

@@ -1,5 +1,7 @@
 extends Node3D
 ## Armas automáticas do Desafio da Horda. Fica como filho do jogador durante a partida.
+## No multiplayer, a réplica de outro jogador ganha uma cópia só visual (visual_only): lâminas e aura
+## giram em volta dela; orbes e raios chegam como eventos ("fireball" / "zap").
 
 const FIREBALL := preload("res://scripts/player/fireball.gd")
 
@@ -12,6 +14,10 @@ var _blade_hits := {}     # instance_id -> tempo até poder acertar de novo
 var _aura: MeshInstance3D
 var _aura_mat: StandardMaterial3D
 var _t := 0.0
+## Réplica de outro jogador: só desenha, não causa dano.
+var visual_only := false
+## Raio extra (passiva "área") do dono, recebido junto com os níveis.
+var area_override := 1.0
 
 
 func _ready() -> void:
@@ -27,10 +33,44 @@ func set_level(id: String, lv: int) -> void:
 			_build_aura()
 
 
+func _area() -> float:
+	return area_override if visual_only else Game.mod("area")
+
+
+## Multiplayer: avisa os outros jogadores quais armas giram em volta deste personagem.
+func send_gear() -> void:
+	if visual_only or not Network.is_client():
+		return
+	Network.send_event("horde_gear",
+		Vector3(levels.get("fogo", 0), levels.get("laminas", 0), levels.get("raio", 0)),
+		Vector3(levels.get("aura", 0), Game.mod("area"), 0))
+
+
+func clear_gear() -> void:
+	if not visual_only and Network.is_client():
+		Network.send_event("horde_gear", Vector3.ZERO, Vector3.ZERO)
+
+
+## Réplica: aplica os níveis recebidos em send_gear().
+func apply_gear(a: Vector3, b: Vector3) -> void:
+	area_override = b.y if b.y > 0.0 else 1.0
+	var want := {"fogo": int(a.x), "laminas": int(a.y), "raio": int(a.z), "aura": int(b.x)}
+	for id in want:
+		var lv: int = clampi(want[id], 0, 5)
+		if lv > 0 and levels.get(id, 0) != lv:
+			set_level(id, lv)
+
+
 func _physics_process(delta: float) -> void:
 	if player == null or player.dead:
 		return
 	_t += delta
+	if visual_only:
+		if levels.has("aura"):
+			_update_aura(delta)
+		if levels.has("laminas"):
+			_update_blades(delta)
+		return
 	var cd_mult: float = max(0.35, Game.mod("cooldown"))
 	for id in _timers:
 		_timers[id] -= delta
@@ -86,6 +126,7 @@ func _fire_orbs() -> void:
 		fb.speed = 20.0
 		get_tree().current_scene.add_child(fb)
 		fb.global_position = origin + Vector3(dir.x, 0, dir.z).normalized() * 0.5
+		Network.send_event("fireball", fb.global_position, dir)
 	Sfx.play("fire", 0.15, -9.0)
 
 
@@ -94,20 +135,22 @@ func _lightning() -> void:
 	var lv: int = levels.raio
 	var n: int = [1, 2, 2, 3, 5][lv - 1]
 	var dmg: float = [22.0, 26.0, 34.0, 38.0, 50.0][lv - 1]
-	var near := _enemies_by_distance(16.0 * Game.mod("area"))
+	var near := _enemies_by_distance(16.0 * _area())
 	if near.is_empty():
 		return
 	near.shuffle()
 	for i in min(n, near.size()):
 		var e: Enemy = near[i][1]
 		var d := _damage(dmg)
-		_bolt_fx(e.global_position)
+		bolt_fx(get_tree().current_scene, e.global_position)
+		Network.send_event("zap", e.global_position)
 		e.take_damage(d[0], e.global_position, d[1])
 	Sfx.play("zap", 0.15, -4.0)
 
 
-func _bolt_fx(pos: Vector3) -> void:
-	var root := get_tree().current_scene
+static func bolt_fx(root: Node, pos: Vector3) -> void:
+	if root == null:
+		return
 	var mi := MeshInstance3D.new()
 	var cyl := CylinderMesh.new()
 	cyl.top_radius = 0.06
@@ -138,7 +181,7 @@ func _blade_stats() -> Dictionary:
 	return {
 		"count": [2, 3, 3, 4, 5][lv - 1],
 		"dmg": [8.0, 9.0, 11.0, 12.0, 15.0][lv - 1],
-		"radius": [2.1, 2.1, 2.5, 2.6, 2.8][lv - 1] * Game.mod("area"),
+		"radius": [2.1, 2.1, 2.5, 2.6, 2.8][lv - 1] * _area(),
 		"speed": [3.0, 3.0, 3.2, 3.8, 4.0][lv - 1],
 	}
 
@@ -179,6 +222,8 @@ func _update_blades(delta: float) -> void:
 		var b := _blades[i]
 		b.position = Vector3(cos(a), 0, sin(a)) * st.radius
 		b.rotation.y = -a  # alinhada com a direção do giro
+	if visual_only:
+		return
 	for k in _blade_hits.keys():
 		_blade_hits[k] -= delta
 		if _blade_hits[k] <= 0.0:
@@ -205,7 +250,7 @@ func _update_blades(delta: float) -> void:
 
 # ------------------------------------------------------------ Aura Gélida
 func _aura_radius() -> float:
-	return [2.4, 2.8, 3.2, 3.6, 4.0][levels.aura - 1] * Game.mod("area")
+	return [2.4, 2.8, 3.2, 3.6, 4.0][levels.aura - 1] * _area()
 
 
 func _build_aura() -> void:
@@ -233,7 +278,7 @@ func _update_aura(delta: float) -> void:
 	var r := _aura_radius()
 	_aura.scale = Vector3(r, 1, r)
 	_aura_mat.albedo_color.a = 0.14 + 0.06 * sin(_t * 4.0)
-	if _timers.aura > 0.0:
+	if visual_only or _timers.aura > 0.0:
 		return
 	_timers.aura = 0.5
 	var lv: int = levels.aura
@@ -244,5 +289,4 @@ func _update_aura(delta: float) -> void:
 		if item[0] > r + e.radius:
 			continue
 		var d := _damage(dmg)
-		e.take_damage(d[0], e.global_position, d[1])
-		e.apply_slow(slow)
+		e.take_damage(d[0], e.global_position, d[1], slow)   # dano e lentidão numa mensagem só

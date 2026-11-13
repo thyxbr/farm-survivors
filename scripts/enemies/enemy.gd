@@ -291,10 +291,12 @@ func _physics_process(delta: float) -> void:
 
 
 ## Jogador vivo mais próximo (no multiplayer, o servidor tem réplicas de todos).
+## A horda só persegue quem está no desafio (get_parent() é o modo sobrevivência).
 func _nearest_player() -> Player:
 	var best: Player = null
 	var best_d := INF
-	for p in get_tree().get_nodes_in_group("players"):
+	var pool: Array = get_parent().targets() if horde and get_parent().has_method("targets") 		else get_tree().get_nodes_in_group("players")
+	for p in pool:
 		if p.dead:
 			continue
 		var d := global_position.distance_squared_to(p.global_position)
@@ -502,7 +504,7 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 		health_changed.emit(self)
 	slow_timer = 0.25 if flags & 1 else 0.0
 	var now_enraged := flags & 2 != 0
-	if now_enraged and not enraged:
+	if now_enraged and not enraged and (not horde or get_tree().current_scene.get("survival") != null):
 		Game.notify.emit("O Rei Goblin está enfurecido!", Color(1, 0.4, 0.3))
 	enraged = now_enraged
 	if new_state == "attack":

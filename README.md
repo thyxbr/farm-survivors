@@ -106,7 +106,22 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
   e reabre o jogo. Também procura de novo quando o servidor recusa a versão. Só roda no build exportado para Windows.
   Se a pasta do jogo não aceitar gravação (ex.: *Arquivos de Programas*), oferece abrir a página de download.
   Para testar com outro manifesto: `EcosDeValdoria.exe -- --update-manifest=http://127.0.0.1:8765/latest.json --update-now`.
-- Ainda só para um jogador: o Desafio da Horda e o "carregar save" durante a partida. No multiplayer os menus não pausam o mundo.
+- Ainda só para um jogador: o "carregar save" durante a partida. No multiplayer os menus não pausam o mundo.
+
+### Desafio da Horda em grupo
+- Quem entra no **Portal do Desafio** abre uma fila de 15 s e **todos os jogadores online recebem o convite**
+  (painel no canto: **[Y]** entrar · **[N]** recusar, ou clique). Quando todos respondem a contagem cai para 3 s.
+  Quem aceitou vai junto para a **mesma arena**; quem estava caído na hora fica de fora.
+- Há uma partida por vez no servidor: se alguém tentar entrar com uma em andamento, recebe o aviso para aguardar.
+- O **servidor** é dono das rodadas, do spawn e dos abates; a horda só persegue quem está no desafio e fica
+  mais numerosa e resistente conforme o tamanho do grupo.
+- Cada **jogador** tem as próprias gemas de XP, nível da partida, cartas, bênçãos, ouro e sementes
+  (todo abate do grupo solta gemas para cada um). Orbes de fogo, relâmpagos, lâminas e aura dos colegas aparecem na tela.
+- **Cair não encerra**: o jogador volta (com metade da vida) no fim da rodada se alguém do grupo sobreviver.
+  Se todos caírem, a partida acaba para o grupo.
+- No fim da rodada cada um escolhe a bênção; a próxima rodada começa quando todos escolherem (ou após 30 s).
+  Retirar-se ou abandonar tira só você; os outros continuam.
+- Para testes, o servidor aceita `--horde-round=SEG` (duração da rodada).
 
 ## Estrutura
 ```
@@ -120,7 +135,7 @@ scripts/enemies/      enemy.gd (slime, goblin, rei goblin — IA e animação pr
 scripts/world/        world.gd (monta o mapa e gerencia UI modal), npc.gd, pickup.gd, challenge_portal.gd
 scripts/farm/         farm_plot.gd (canteiro: plantar/regar/adubar/colher), kitchen.gd (caldeirão)
 scripts/survival/     survival_mode.gd (rodadas, spawn, XP), auto_weapons.gd, xp_gem.gd, upgrades.gd
-scripts/ui/           plant_ui.gd (plantio), cooking_ui.gd (receitas), hud, diálogo, inventário/personagem/missões, loja, pausa/morte, opções, menu principal
+scripts/ui/           horde_invite_ui.gd (convite/fila da horda em grupo), plant_ui.gd (plantio), cooking_ui.gd (receitas), hud, diálogo, inventário/personagem/missões, loja, pausa/morte, opções, menu principal
 tests/smoke_test.gd   teste automatizado do gameplay
 tests/net_test.gd     teste do multiplayer (cliente headless contra um servidor)
 Dockerfile            imagem do servidor dedicado
@@ -152,10 +167,13 @@ Usa um arquivo de save separado, então não mexe no seu save.
 Multiplayer (servidor + 2 clientes headless; cada cliente sai com código 0 se tudo passar):
 ```
 G=C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe
-$G --headless --path . -- --server --port=7790 &
-$G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Ana &
-$G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Beto
+$G --headless --path . -- --server --port=7790 --horde-round=8 &
+$G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Ana --horde=lead &
+$G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Beto --horde=join
 ```
+`--horde=lead|join` testa o Desafio da Horda em grupo (Ana abre o portal, Beto aceita o convite, cai e volta,
+os dois escolhem bênçãos e se retiram); sem ele o teste pula essa parte.
 `--probe` só entra, confere a versão e os snapshots e sai (não mexe no mundo); serve para testar o servidor público.
-Cobre conexão, inimigos replicados (snapshots a 20/s), ver o outro jogador, dano pelo servidor, morte, XP e loot.
+Cobre conexão, inimigos replicados (snapshots a 20/s), ver o outro jogador, dano pelo servidor, morte, XP, loot
+e a horda em grupo.
 `--netstats` no servidor imprime jogadores, fps e snapshots/s a cada 5 s.

@@ -9,6 +9,7 @@ var lvl_label: Label
 var round_label: Label
 var info_label: Label
 var gear_label: Label
+var team_label: Label
 
 
 func _ready() -> void:
@@ -50,6 +51,9 @@ func _ready() -> void:
 	info_label = _outlined("", 17, Color(0.9, 0.88, 0.8))
 	info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	top.add_child(info_label)
+	team_label = _outlined("", 16, Color(0.75, 0.9, 1.0))
+	team_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	top.add_child(team_label)
 
 	gear_label = _outlined("", 16, Color(0.9, 0.88, 0.8))
 	gear_label.anchor_left = 1.0
@@ -78,11 +82,14 @@ func _process(_delta: float) -> void:
 	var t := int(ceil(survival.round_left))
 	if survival.phase == "break":
 		round_label.text = "Rodada %d concluída" % survival.round_num
+		if survival.waiting:
+			round_label.text += "  ·  aguardando o grupo"
 	elif survival.boss_alive() and survival.round_left <= 0.0:
 		round_label.text = "Rodada %d — derrote o chefe!" % survival.round_num
 	else:
 		round_label.text = "Rodada %d  ·  %d:%02d" % [survival.round_num, t / 60, t % 60]
 	info_label.text = "%d abates  ·  %d inimigos" % [survival.kills, survival.alive_count()]
+	team_label.text = _team_text()
 	var lines: Array[String] = []
 	for id in survival.weapon_levels:
 		lines.append("%s  Nv %d" % [UPG.WEAPONS[id].name, survival.weapon_levels[id]])
@@ -92,3 +99,19 @@ func _process(_delta: float) -> void:
 		var n: int = survival.blessing_counts[id]
 		lines.append(UPG.BLESSINGS[id].name + (" ×%d" % n if n > 1 else ""))
 	gear_label.text = "\n".join(lines)
+
+
+## Multiplayer: "Grupo: Ana · Beto (caído) · Caio ✓" (✓ = já escolheu a bênção).
+func _team_text() -> String:
+	if survival.role != "client" or survival.team.size() <= 1:
+		return ""
+	var parts: Array[String] = []
+	for pid in survival.team:
+		var m: Dictionary = survival.team[pid]
+		var s := str(m.get("name", "?"))
+		if m.get("dead", false):
+			s += " (caído)"
+		elif survival.phase == "break" and m.get("ready", false):
+			s += " ✓"
+		parts.append(s)
+	return "Grupo: " + "  ·  ".join(parts)

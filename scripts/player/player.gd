@@ -7,6 +7,7 @@ signal died
 const KNIGHT := preload("res://assets/models/knight.glb")
 const FIREBALL := preload("res://scripts/player/fireball.gd")
 const PROJECTILE := preload("res://scripts/player/projectile.gd")
+const AUTO_WEAPONS := preload("res://scripts/survival/auto_weapons.gd")
 
 const WALK_SPEED := 5.2
 const SPRINT_SPEED := 8.6
@@ -853,6 +854,22 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 			p.life = 1.6 if kind == "arrow" else 1.2
 			get_tree().current_scene.add_child(p)
 			p.global_position = a
+		"zap":
+			AUTO_WEAPONS.bolt_fx(get_tree().current_scene, a)
+			Sfx.play("zap", 0.15, -8.0)
+		"horde_gear":
+			# armas automáticas do Desafio da Horda girando em volta do outro jogador
+			var aw: Node = get_node_or_null("HordeGear")
+			if a == Vector3.ZERO and b == Vector3.ZERO:
+				if aw:
+					aw.queue_free()
+				return
+			if aw == null:
+				aw = AUTO_WEAPONS.new()
+				aw.name = "HordeGear"
+				aw.visual_only = true
+				add_child(aw)
+			aw.apply_gear(a, b)
 
 
 func _update_camera(delta: float) -> void:
