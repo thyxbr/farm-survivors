@@ -7,6 +7,7 @@ signal health_changed(enemy: Enemy)
 
 const PICKUP := preload("res://scripts/world/pickup.gd")
 const ENEMY_ARROW := preload("res://scripts/enemies/enemy_arrow.gd")
+const PROVOKE_TIME := 4.0   # ver `provoked`
 const MODELS := {
 	"slime": preload("res://assets/models/slime.glb"),
 	"goblin": preload("res://assets/models/goblin.glb"),
@@ -32,7 +33,8 @@ const TYPES := {
 		"loot": [["goblin_ear", 0.7], ["health_potion", 0.18], ["mana_potion", 0.15], ["iron_sword", 0.05], ["leather_armor", 0.05],
 			["seed_pepper", 0.15], ["seed_mint", 0.1], ["leather_cap", 0.04], ["leather_gloves", 0.04], ["leather_boots", 0.04],
 			["hunter_bow", 0.03], ["oak_staff", 0.03], ["wooden_shield", 0.04], ["strength_ring", 0.02], ["wind_ring", 0.02],
-			["ranger_hood", 0.015], ["frost_brand", 0.01], ["ember_staff", 0.01], ["elven_bow", 0.01]]},
+			["ranger_hood", 0.015], ["frost_brand", 0.01], ["ember_staff", 0.01], ["elven_bow", 0.01],
+			["rose_flame", 0.01], ["moon_crescent", 0.01], ["crystal_frost", 0.008], ["neon_edge", 0.008]]},
 	# ---- monstros novos da Horda ("ai" muda o comportamento; "tint" recolore o modelo do goblin)
 	"slime_explosivo": {"name": "Slime Explosivo", "model": "slime", "hp": 30, "damage": 24, "speed": 3.7, "xp": 12,
 		"gold": [1, 3], "aggro": 14.0, "reach": 1.9, "cooldown": 1.0, "radius": 0.45, "height": 0.75,
@@ -68,7 +70,9 @@ const TYPES := {
 		"loot": [["goblin_crown", 1.0], ["goblin_cleaver", 1.0], ["health_potion", 1.0], ["seed_pumpkin", 1.0], ["seed_mint", 1.0],
 			["goblin_warbow", 0.5], ["knight_helm", 0.35], ["guardian_greatsword", 0.25], ["vampire_ring", 0.2],
 			["frost_scepter", 0.3], ["swift_boots", 0.3], ["sage_amulet", 0.25],
-			["dragonfang", 0.06], ["archmage_staff", 0.06], ["storm_bow", 0.06], ["dragon_plate", 0.06]]},
+			["dragonfang", 0.06], ["archmage_staff", 0.06], ["storm_bow", 0.06], ["dragon_plate", 0.06],
+			["titan_cleaver", 0.2], ["coral_spine", 0.2], ["scarlet_talon", 0.2], ["pale_crescent", 0.2],
+			["ivory_wing", 0.05], ["royal_wings", 0.05]]},
 }
 
 @export var kind := "slime"
@@ -108,6 +112,10 @@ var attack_count := 0
 var hit_done := false
 var slow_timer := 0.0
 var stagger := 0.0
+## Segundos em que o inimigo segue perseguindo depois de levar dano, mesmo com o jogador longe.
+## Sem isso, um acerto de longe (ou, no servidor, antes de chegar a posição nova do jogador)
+## fazia o inimigo desistir na hora, voltar para casa e curar a vida toda, apagando o dano.
+var provoked := 0.0
 var home := Vector3.ZERO
 var wander_target := Vector3.ZERO
 var enraged := false
@@ -338,6 +346,7 @@ func _physics_process(delta: float) -> void:
 	attack_cd = max(0.0, attack_cd - delta)
 	slow_timer = max(0.0, slow_timer - delta)
 	stagger = max(0.0, stagger - delta)
+	provoked = maxf(0.0, provoked - delta)
 	_update_flash(delta)
 	if siege:
 		_siege_process(delta)
@@ -389,7 +398,7 @@ func _physics_process(delta: float) -> void:
 					_begin_attack()
 				elif dist > data.reach * 0.8:
 					move = to_player.normalized() * spd
-			elif dist > data.aggro * 1.9 or global_position.distance_to(home) > 45.0:
+			elif global_position.distance_to(home) > 45.0 or (dist > data.aggro * 1.9 and provoked <= 0.0):
 				_set_state("return")
 			elif dist <= data.reach and attack_cd <= 0:
 				_begin_attack()
@@ -656,6 +665,7 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0) -> v
 		Color(1, 0.85, 0.2) if crit else Color.WHITE, 64 if crit else 48)
 	FX.burst(global_position + Vector3.UP * data.height * data.scale * 0.5, data.color, 5 if horde else 10, 3.5, 0.1, 0.5)
 	_flash_t = 0.1
+	provoked = PROVOKE_TIME
 	if state in ["idle", "wander", "return"]:
 		_set_state("chase")
 	if bar_root:

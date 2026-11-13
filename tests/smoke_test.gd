@@ -84,10 +84,22 @@ func _ready() -> void:
 	await wait(2.5)
 	check(Game.gold > gold0, "ouro coletado do chão (%d -> %d)" % [gold0, Game.gold])
 
+	# --- acerto de longe num slime parado em casa: ele persegue, não volta para casa curando o dano
+	var far_s := _nearest("slime")
+	far_s.global_position = far_s.home
+	far_s._set_state("idle")
+	player.global_position = far_s.home + Vector3(0, 0.3, far_s.data.aggro * 2.5)
+	await wait(0.1)
+	var far_hp: float = far_s.hp
+	far_s.take_damage(10.0, player.global_position, false)
+	await wait(0.4)
+	check(far_s.hp < far_hp and far_s.state == "chase",
+		"acerto de longe não é curado na hora (%.0f -> %.0f, %s)" % [far_hp, far_s.hp, far_s.state])
+
 	# --- magia
 	var mp0 := Game.mp
 	player.cast("fireball")
-	await wait(0.05)
+	await wait(0.3)   # a bola de fogo sai depois do movimento de apontar
 	check(Game.mp < mp0, "bola de fogo gasta mana")
 	var found_fb := false
 	for c in world.get_children():
@@ -122,9 +134,9 @@ func _ready() -> void:
 	Game.buy("iron_sword")
 	check(Game.count_item("iron_sword") == 1 and Game.gold == g - 60, "comprou espada de ferro")
 	Game.use_item("iron_sword")
-	check(Game.equipment.weapon == "iron_sword" and Game.count_item("wooden_sword") == 1, "equipou espada de ferro")
-	Game.sell("wooden_sword")
-	check(Game.count_item("wooden_sword") == 0, "vendeu espada de madeira")
+	check(Game.equipment.weapon == "iron_sword" and Game.count_item("azure_edge") == 1, "equipou espada de ferro")
+	Game.sell("azure_edge")
+	check(Game.count_item("azure_edge") == 0, "vendeu o gume celeste")
 	world.modal._close()
 	await wait(0.05)
 

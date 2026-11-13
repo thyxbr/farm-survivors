@@ -346,6 +346,7 @@ def build_house():
 
 exec(open(OUT.replace("assets/models/", "tools/blender/characters.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/props.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/weapons.py"), encoding="utf-8").read(), globals())
 
 # ASSETS="knight,elder" no ambiente gera só esses (útil para iterar).
 import os
@@ -356,6 +357,9 @@ BUILDERS = {
     "house": build_house,
 }
 BUILDERS.update(PROP_BUILDERS)
+BUILDERS.update(dict(WEAPONS))   # w_<id>: espadas (weapons.py); ASSETS=weapons gera todas
+if "weapons" in _only:
+    _only += [n for n, _ in WEAPONS]
 clear()
 for _name, _fn in BUILDERS.items():
     if not _only or _name in _only:
