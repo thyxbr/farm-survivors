@@ -16,6 +16,7 @@ const PAUSE := preload("res://scripts/ui/pause_menu.gd")
 const COLONY := preload("res://scripts/colony/colony.gd")
 const BUILD := preload("res://scripts/colony/build_mode.gd")
 const CHAT := preload("res://scripts/ui/chat_ui.gd")
+const GROUND := preload("res://scripts/world/ground.gd")
 const M := {
 	"tree_pine": preload("res://assets/models/tree_pine.glb"),
 	"tree_oak": preload("res://assets/models/tree_oak.glb"),
@@ -42,6 +43,7 @@ var modal: Control = null
 var colony: Colony
 var build: Node3D
 var rng := RandomNumberGenerator.new()
+var ground: Node3D
 
 var _sun: DirectionalLight3D
 var _env: Environment
@@ -490,49 +492,11 @@ func _build_environment() -> void:
 
 
 func _build_ground() -> void:
-	var ground := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(MAP_HALF * 2.6, MAP_HALF * 2.6)
-	ground.mesh = plane
-	var mat := StandardMaterial3D.new()
-	var noise := FastNoiseLite.new()
-	noise.frequency = 0.02
-	var tex := NoiseTexture2D.new()
-	tex.width = 512
-	tex.height = 512
-	tex.seamless = true
-	tex.noise = noise
-	var grad := Gradient.new()
-	grad.set_color(0, Color(0.2, 0.38, 0.13))
-	grad.set_color(1, Color(0.36, 0.55, 0.2))
-	tex.color_ramp = grad
-	mat.albedo_texture = tex
-	mat.uv1_scale = Vector3(30, 30, 30)
-	mat.roughness = 1.0
-	ground.material_override = mat
+	ground = GROUND.new()
 	add_child(ground)
-	var body := StaticBody3D.new()
-	var cs := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(MAP_HALF * 2.6, 1, MAP_HALF * 2.6)
-	cs.shape = box
-	cs.position.y = -0.5
-	body.add_child(cs)
-	add_child(body)
+	ground.setup(MAP_HALF)
 	# clareira central (onde vai a prefeitura)
-	var disc := MeshInstance3D.new()
-	var cy := CylinderMesh.new()
-	cy.top_radius = ColonyData.HALL_ZONE
-	cy.bottom_radius = ColonyData.HALL_ZONE
-	cy.height = 0.02
-	cy.radial_segments = 48
-	disc.mesh = cy
-	var dm := StandardMaterial3D.new()
-	dm.albedo_color = Color(0.4, 0.46, 0.22)
-	dm.roughness = 1.0
-	disc.material_override = dm
-	disc.position.y = 0.012
-	add_child(disc)
+	ground.add_disc(Vector3.ZERO, ColonyData.HALL_ZONE, Color(0.4, 0.46, 0.22), 1.6)
 
 
 func _prop(model: String, pos: Vector3, yaw: float, s: float, radius: float) -> void:
@@ -595,31 +559,7 @@ func _scatter_nature() -> void:
 		_prop("rock", p, rng.randf() * TAU, rng.randf_range(0.4, 0.7), 0.6)
 	if DisplayServer.get_name() == "headless":
 		return
-	# grama
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
-	var blade := PrismMesh.new()
-	blade.size = Vector3(0.1, 0.32, 0.04)
-	var gm := StandardMaterial3D.new()
-	gm.vertex_color_use_as_albedo = true
-	gm.roughness = 1.0
-	blade.material = gm
-	mm.mesh = blade
-	var pts: Array[Vector3] = []
-	while pts.size() < 14000:
-		var c := Vector3(rng.randf_range(-MAP_HALF, MAP_HALF), 0.14, rng.randf_range(-MAP_HALF, MAP_HALF))
-		for k in 4:
-			pts.append(c + Vector3(rng.randf_range(-0.2, 0.2), 0, rng.randf_range(-0.2, 0.2)))
-	mm.instance_count = pts.size()
-	for i in pts.size():
-		var bas := Basis().rotated(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.7, 1.4))
-		mm.set_instance_transform(i, Transform3D(bas, pts[i]))
-		mm.set_instance_color(i, Color(0.2, 0.4, 0.12).lerp(Color(0.38, 0.56, 0.18), rng.randf()))
-	var mmi := MultiMeshInstance3D.new()
-	mmi.multimesh = mm
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mmi)
+	ground.scatter_grass(map_seed + 7, 0.55, [], [[Vector2.ZERO, ColonyData.HALL_ZONE]])
 
 
 func _build_borders() -> void:
