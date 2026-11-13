@@ -84,6 +84,18 @@ func _ready() -> void:
 	await wait(2.5)
 	check(Game.gold > gold0, "ouro coletado do chão (%d -> %d)" % [gold0, Game.gold])
 
+	# --- acerto de longe num slime parado em casa: ele persegue, não volta para casa curando o dano
+	var far_s := _nearest("slime")
+	far_s.global_position = far_s.home
+	far_s._set_state("idle")
+	player.global_position = far_s.home + Vector3(0, 0.3, far_s.data.aggro * 2.5)
+	await wait(0.1)
+	var far_hp: float = far_s.hp
+	far_s.take_damage(10.0, player.global_position, false)
+	await wait(0.4)
+	check(far_s.hp < far_hp and far_s.state == "chase",
+		"acerto de longe não é curado na hora (%.0f -> %.0f, %s)" % [far_hp, far_s.hp, far_s.state])
+
 	# --- magia
 	var mp0 := Game.mp
 	player.cast("fireball")
