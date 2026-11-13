@@ -123,7 +123,10 @@ func _on_peer_disconnected(id: int) -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _register(player_name: String, client_version: String, look: Dictionary) -> void:
+## Assinatura estável entre versões: (nome, versão, visual, extra). Os dois últimos ficam sem tipo para que
+## um cliente de versão antiga (que mandava arma e armadura como texto) ainda chegue à checagem de versão
+## e receba a mensagem "atualize o jogo" em vez de um erro de RPC. Não mude a quantidade de argumentos.
+func _register(player_name: String, client_version: String, look = {}, _extra = "") -> void:
 	if not is_server():
 		return
 	var id := multiplayer.get_remote_sender_id()
@@ -136,7 +139,7 @@ func _register(player_name: String, client_version: String, look: Dictionary) ->
 		_kick_later(id)
 		return
 	var name_clean := _clean_name(player_name)
-	players[id] = {"name": name_clean, "look": _clean_look(look), "ready": false}
+	players[id] = {"name": name_clean, "look": _clean_look(look if look is Dictionary else {}), "ready": false}
 	print("[server] %s entrou (peer %d, %d online)" % [name_clean, id, players.size()])
 	_accepted.rpc_id(id, players)
 	for pid in _ready_peers():
@@ -151,6 +154,10 @@ func _client_ready() -> void:
 	if not is_server() or not players.has(id):
 		return
 	players[id].ready = true
+	# quem entrou enquanto este jogador carregava o mapa não foi anunciado para ele: manda todos agora
+	for pid in players:
+		if pid != id:
+			_player_joined.rpc_id(id, pid, players[pid])
 	for net_id in enemies:
 		var e: Enemy = enemies[net_id]
 		if is_instance_valid(e) and not e.dead:
@@ -177,7 +184,8 @@ func _clean_name(n: String) -> String:
 
 func _kick_later(id: int) -> void:
 	await get_tree().create_timer(0.5).timeout
-	if multiplayer.multiplayer_peer and is_server():
+	# o cliente recusado costuma sair sozinho antes disso
+	if multiplayer.multiplayer_peer and is_server() and id in multiplayer.get_peers():
 		multiplayer.multiplayer_peer.disconnect_peer(id)
 
 
@@ -374,7 +382,7 @@ func leave() -> void:
 
 func _on_connected_to_server() -> void:
 	_no_throttle(1)
-	_register.rpc_id(1, my_name, version(), Game.equipment.duplicate())
+	_register.rpc_id(1, my_name, version(), Game.equipment.duplicate(), "")
 
 
 func _on_connection_failed() -> void:
@@ -469,8 +477,15 @@ func request_boss() -> void:
 # ---------------------------------------------------------------- recebimento (cliente)
 @rpc("authority", "call_remote", "reliable")
 func _player_joined(id: int, info: Dictionary) -> void:
+	var known := players.has(id)
 	players[id] = info
-	Game.notify.emit("%s entrou no mundo." % info.name, Color(0.6, 0.9, 1.0))
+	if not known:
+		Game.notify.emit("%s entrou no mundo." % info.name, Color(0.6, 0.9, 1.0))
+	# a réplica pode ter sido criada antes (pelo estado) sem nome nem visual
+	var rp: Player = remote_players.get(id)
+	if rp and is_instance_valid(rp):
+		rp.set_display_name(info.name)
+	_apply_remote_look(id)
 	players_changed.emit()
 
 
