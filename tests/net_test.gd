@@ -96,6 +96,15 @@ func _ready() -> void:
 		_finish()
 		return
 
+	# save automático periódico: o personagem é gravado sem o jogador sair do servidor
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(Game.save_path))
+	Network.autosave_interval = 1.0
+	Network._autosave_t = 1.0
+	await wait(1.6)
+	check(Game.has_save(), "save automático periódico gravou o personagem")
+	Network.autosave_interval = 120.0
+	Network._autosave_t = 120.0
+
 	# outros jogadores aparecem e se mexem
 	if peers > 1:
 		t = 0.0
