@@ -26,7 +26,11 @@ func _process(delta: float) -> void:
 	if not _server.is_listening():
 		return
 	while _server.is_connection_available():
-		_conns.append({"peer": _server.take_connection(), "buf": PackedByteArray(), "age": 0.0})
+		var p := _server.take_connection()
+		if HttpRequestParser.can_accept(_conns.size()):
+			_conns.append({"peer": p, "buf": PackedByteArray(), "age": 0.0, "parsed": -1})
+		else:
+			p.disconnect_from_host()  # lotado: recusa na hora
 	for c in _conns.duplicate():
 		if _step(c, delta):
 			_conns.erase(c)
@@ -48,6 +52,12 @@ func _step(c: Dictionary, delta: float) -> bool:
 		var got := peer.get_data(n)
 		if got[0] == OK:
 			c["buf"].append_array(got[1])
+	if not HttpRequestParser.should_parse(c["parsed"], c["buf"].size()):
+		if c["age"] > TIMEOUT:
+			peer.disconnect_from_host()
+			return true
+		return false
+	c["parsed"] = c["buf"].size()
 	var req := HttpRequestParser.parse(c["buf"])
 	if req.has("error"):
 		_reply(peer, int(req["error"]), {"err": "pedido_invalido"})

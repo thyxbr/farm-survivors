@@ -55,10 +55,18 @@ func test_malformed() -> void:
 
 
 func test_client_ip() -> void:
-	var xff := {"x-forwarded-for": "9.9.9.9, 10.0.0.2"}
-	T.eq(HttpRequestParser.client_ip("10.0.0.2", xff), "9.9.9.9", "par privado: confia no X-Forwarded-For")
+	var xff := {"x-forwarded-for": "6.6.6.6, 9.9.9.9"}  # 6.6.6.6 forjado pelo cliente
+	T.eq(HttpRequestParser.client_ip("10.0.0.2", xff), "9.9.9.9", "par privado: usa o último item do X-Forwarded-For")
 	T.eq(HttpRequestParser.client_ip("172.18.0.3", xff), "9.9.9.9", "172.16/12")
 	T.eq(HttpRequestParser.client_ip("127.0.0.1", xff), "9.9.9.9", "loopback")
 	T.eq(HttpRequestParser.client_ip("8.8.8.8", xff), "8.8.8.8", "par público: ignora o cabeçalho")
 	T.eq(HttpRequestParser.client_ip("172.32.0.1", xff), "172.32.0.1", "172.32 é público")
 	T.eq(HttpRequestParser.client_ip("10.0.0.2", {}), "10.0.0.2", "sem cabeçalho")
+
+
+func test_connection_limits() -> void:
+	T.ok(HttpRequestParser.can_accept(63), "63 abertas: cabe mais uma")
+	T.ok(not HttpRequestParser.can_accept(64), "64 abertas: recusa")
+	T.ok(HttpRequestParser.should_parse(-1, 0), "primeira vez parseia")
+	T.ok(not HttpRequestParser.should_parse(10, 10), "sem bytes novos não parseia")
+	T.ok(HttpRequestParser.should_parse(10, 12), "bytes novos parseiam")

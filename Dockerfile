@@ -15,8 +15,8 @@ RUN apt-get update \
  && rm /tmp/godot.zip
 
 RUN useradd --create-home valdoria \
- && mkdir /game \
- && chown valdoria:valdoria /game
+ && mkdir /game /data \
+ && chown valdoria:valdoria /game /data
 WORKDIR /game
 COPY --chown=valdoria:valdoria . .
 # o Godot grava o cache de import em /game/.godot: a pasta precisa ser do usuário
@@ -30,5 +30,7 @@ RUN godot --headless --path /game --import \
 ENV GAME_PORT=7777 HTTP_PORT=8080 DB_PATH=/data/valdoria.db
 EXPOSE 7777/udp
 EXPOSE 8080
+# volume nomeado herda o dono valdoria de /data (criado acima, antes do USER)
+VOLUME /data
 # "exec" deixa o Godot receber o SIGTERM direto (o container para na hora)
 CMD ["sh", "-c", "exec godot --headless --path /game -- --server --port=${GAME_PORT} --http-port=${HTTP_PORT} --db=${DB_PATH}"]

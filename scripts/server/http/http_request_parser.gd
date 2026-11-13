@@ -6,6 +6,8 @@ extends RefCounted
 
 const MAX_BODY := 4096
 const MAX_HEAD := 8192
+## Conexões simultâneas aceitas pelo servidor HTTP (as demais são recusadas).
+const MAX_CONNS := 64
 
 
 static func parse(buf: PackedByteArray) -> Dictionary:
@@ -57,12 +59,23 @@ static func _find_head_end(buf: PackedByteArray) -> int:
 	return -1
 
 
-## IP do jogador: o primeiro item de X-Forwarded-For só vale se o par TCP for privado/loopback (o proxy).
+## Cabe mais uma conexão?
+static func can_accept(open_count: int) -> bool:
+	return open_count < MAX_CONNS
+
+
+## Só vale reinterpretar o pedido quando chegaram bytes novos desde a última tentativa.
+static func should_parse(last_size: int, size: int) -> bool:
+	return size != last_size
+
+
+## IP do jogador: o ÚLTIMO item de X-Forwarded-For (o que o proxy confiável acrescentou) só vale se o par TCP
+## for privado/loopback; os itens anteriores podem ser forjados pelo cliente.
 static func client_ip(peer_ip: String, headers: Dictionary) -> String:
 	if headers.has("x-forwarded-for") and is_private_ip(peer_ip):
-		var first := String(headers["x-forwarded-for"]).split(",")[0].strip_edges()
-		if not first.is_empty():
-			return first
+		var last := String(headers["x-forwarded-for"]).split(",")[-1].strip_edges()
+		if not last.is_empty():
+			return last
 	return peer_ip
 
 

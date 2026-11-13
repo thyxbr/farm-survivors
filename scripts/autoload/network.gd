@@ -155,10 +155,16 @@ func start_server() -> void:
 		printerr("[server] não foi possível abrir o banco em %s" % db_path)
 		get_tree().quit(1)
 		return
+	if http_port < 1 or http_port > 65535:
+		printerr("[server] porta HTTP inválida: %d (use 1-65535)" % http_port)
+		get_tree().quit(1)
+		return
 	Migrations.apply(db)
 	accounts = AccountStore.new(db, admin_users)
 	for n in accounts.missing_admins():
-		print("[server] aviso: admin '%s' ainda não tem conta — crie a conta antes que outro jogador registre esse nome" % n)
+		var msg := "[server] aviso: admin '%s' ainda não tem conta — crie a conta antes que outro jogador registre esse nome" % n
+		print(msg)
+		push_warning(msg)
 	auth_http = AuthHttp.new()
 	auth_http.name = "AuthHttp"
 	add_child(auth_http)
