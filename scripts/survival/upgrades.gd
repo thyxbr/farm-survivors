@@ -84,17 +84,6 @@ const COMBOS := {
 		"desc": "Estilhaços de gelo em área que deixam lento."},
 }
 
-## Maldições de rodada (a partir da rodada 6, nas rodadas sem chefe): deixam cada rodada diferente.
-const AFFIX_FROM := 6
-const AFFIXES := {
-	"frenesi": {"name": "Frenesi", "desc": "inimigos 20% mais rápidos", "speed": 1.2},
-	"couraca": {"name": "Couraça", "desc": "inimigos com +35% de vida", "hp": 1.35},
-	"enxame": {"name": "Enxame", "desc": "+50% de inimigos, com menos vida", "rate": 1.5, "hp": 0.75},
-	"furia": {"name": "Fúria", "desc": "inimigos causam +25% de dano", "dmg": 1.25},
-	"elite": {"name": "Caçada", "desc": "elites aparecem 3x mais", "elite": 3.0},
-}
-
-
 ## Combo formado pelas armas x e y (ordem livre); "" se não houver.
 static func combo_for(x: String, y: String) -> String:
 	if x == y:

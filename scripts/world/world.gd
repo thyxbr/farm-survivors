@@ -28,6 +28,7 @@ const PAUSE := preload("res://scripts/ui/pause_menu.gd")
 const PORTAL := preload("res://scripts/world/challenge_portal.gd")
 const SURVIVAL := preload("res://scripts/survival/survival_mode.gd")
 const HORDE_INVITE := preload("res://scripts/ui/horde_invite_ui.gd")
+const CHAT := preload("res://scripts/ui/chat_ui.gd")
 const PLOT := preload("res://scripts/farm/farm_plot.gd")
 const KITCHEN := preload("res://scripts/farm/kitchen.gd")
 const PLANT_UI := preload("res://scripts/ui/plant_ui.gd")
@@ -47,6 +48,7 @@ var ui_layer: CanvasLayer
 var modal: Control = null
 var boss: Enemy = null
 var survival: Node3D = null
+var chat: CanvasLayer = null
 var spawns: Array = []
 var flicker_lights: Array = []
 var rng := RandomNumberGenerator.new()
@@ -94,6 +96,9 @@ func _ready() -> void:
 		var invite := HORDE_INVITE.new()
 		invite.world = self
 		add_child(invite)
+		chat = CHAT.new()
+		chat.world = self
+		add_child(chat)
 		Game.notify.emit("Conectado como %s — %d jogador(es) online." % [Network.my_name, Network.players.size()], Color(0.6, 0.9, 1.0))
 		Network.world_ready(self)
 

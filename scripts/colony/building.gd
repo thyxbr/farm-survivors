@@ -19,6 +19,10 @@ var targetable := true
 var invested := 0
 var colony: Node
 var data: Dictionary
+## Cooperativo: id comum entre servidor e clientes; puppet = réplica no cliente (sem disparar nem levar dano).
+var net_id := 0
+var puppet := false
+var net_sent_hp := -1.0
 var size := Vector2.ONE
 
 var visual: Node3D
@@ -124,7 +128,10 @@ func set_level(lv: int) -> void:
 
 # ---------------------------------------------------------------- dados das torres
 func tower_range() -> float:
-	return float(data.get("range", 0.0)) + 2.0 * (level - 1)
+	var r := float(data.get("range", 0.0)) + 2.0 * (level - 1)
+	if colony and colony.has_method("range_mult"):
+		r *= colony.range_mult()
+	return r
 
 
 func tower_damage() -> float:
@@ -186,7 +193,7 @@ func interact(_player: Node) -> void:
 
 # ---------------------------------------------------------------- dano
 func take_damage(amount: float, _from_pos: Vector3) -> void:
-	if dead:
+	if dead or puppet:
 		return
 	hp -= amount
 	_flash = 0.12
@@ -224,6 +231,32 @@ func _destroy() -> void:
 	tw.tween_property(visual, "position:y", -ColonyVisuals.height(kind), 1.2).set_ease(Tween.EASE_IN)
 	tw.parallel().tween_property(visual, "rotation:z", 0.25, 1.2)
 	tw.tween_callback(queue_free)
+
+
+## Cliente: vida vinda do servidor (pisca quando cai).
+func net_set_hp(v: float) -> void:
+	if dead:
+		return
+	if v < hp - 0.5:
+		_flash = 0.12
+		_bar_root.visible = true
+		if _hit_sfx <= 0.0:
+			_hit_sfx = 0.35
+			Sfx.play_at("hit", global_position, 0.2, -10.0)
+			FX.burst(global_position + Vector3.UP * minf(2.0, ColonyVisuals.height(kind) * 0.5),
+				Color(0.55, 0.45, 0.35), 6, 3.0, 0.1, 0.5)
+	elif v > hp + 0.5 and v >= max_hp - 0.5:
+		FX.burst(global_position + Vector3.UP * 1.5, Color(0.5, 1.0, 0.5), 25, 4.0, 0.1, 0.8)
+	hp = clampf(v, 0.0, max_hp)
+	if hp < max_hp - 0.5:
+		_bar_root.visible = true
+	_update_interactable()
+
+
+## Cliente: o servidor avisou que caiu.
+func net_destroy() -> void:
+	if not dead:
+		_destroy()
 
 
 func _make_bar() -> void:
@@ -278,7 +311,7 @@ func _physics_process(delta: float) -> void:
 		turret.rotation.y += delta * 1.5
 	if ColonyData.is_tower(kind):
 		_tower_process(delta)
-	elif kind == "spikes":
+	elif kind == "spikes" and not puppet:
 		_spikes_process(delta)
 
 
@@ -292,9 +325,7 @@ func _tower_process(delta: float) -> void:
 	var rng := tower_range()
 	var best: Enemy = null
 	var best_d := rng
-	for e in get_tree().get_nodes_in_group("enemies"):
-		if not (e is Enemy) or e.dead:
-			continue
+	for e in colony.live_enemies():
 		var d := Vector2(e.global_position.x - global_position.x, e.global_position.z - global_position.z).length()
 		if d < best_d:
 			best_d = d
@@ -304,7 +335,7 @@ func _tower_process(delta: float) -> void:
 	if turret and kind != "mage_tower":
 		var to := best.global_position - global_position
 		turret.rotation.y = lerp_angle(turret.rotation.y, atan2(to.x, to.z), 1.0 - exp(-10.0 * delta))
-	if _cd > 0.0:
+	if _cd > 0.0 or puppet:
 		return
 	_cd = tower_rate()
 	var s := SHOT.new()
@@ -316,6 +347,8 @@ func _tower_process(delta: float) -> void:
 	s.chain = int(data.get("chain", 0)) + (level - 1 if kind == "mage_tower" else 0)
 	get_parent().add_child(s)
 	s.global_position = muzzle.global_position if muzzle else global_position + Vector3.UP * 5.0
+	if colony.role == "server":
+		Lobby.city_shot(s.kind, s.global_position, best, s.splash)
 	match kind:
 		"cannon_tower":
 			Sfx.play_at("explode", global_position, 0.15, -10.0)
@@ -332,9 +365,7 @@ func _spikes_process(delta: float) -> void:
 		return
 	_tick = 0.5
 	var dps: float = data.dps * ColonyData.level_mult(level, 0.5)
-	for e in get_tree().get_nodes_in_group("enemies"):
-		if not (e is Enemy) or e.dead:
-			continue
+	for e in colony.live_enemies():
 		if contains_point(e.global_position, e.radius * 0.5):
 			e.take_damage(dps * 0.5, e.global_position, false, 0.7)
 			hp -= 3.0

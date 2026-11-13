@@ -1,11 +1,14 @@
 extends CanvasLayer
 ## HUD do Desafio da Horda, enxuto:
-## - topo: rodada e tempo, nível da partida com barra de XP fina, abates/inimigos e a maldição da rodada;
+## - topo: rodada e tempo, nível (do grupo, no multiplayer) com barra de XP fina, abates/inimigos, o evento
+##   da rodada, a Caçada e, com a horda congelada, quem ainda está escolhendo a carta;
 ## - canto superior direito: build em ícones (armas com nível, passivas, bênçãos) e combos do grupo;
-## - esquerda: quadro do grupo (vida, nível, caído/pronto) no multiplayer;
+## - esquerda: quadro do grupo (vida, caído, escolhendo/pronto) no multiplayer;
 ## - Tab (segurar): placar com build, dano, abates, quedas e combos de cada jogador.
 
 const UPG := preload("res://scripts/survival/upgrades.gd")
+const EVT := preload("res://scripts/survival/horde_events.gd")
+const LEVEL_BLUE := Color(0.45, 0.78, 1.0)
 const SCOREBOARD := preload("res://scripts/ui/horde_scoreboard.gd")
 
 var survival: Node
@@ -14,7 +17,13 @@ var xp_bar: ProgressBar
 var lvl_label: Label
 var round_label: Label
 var info_label: Label
-var affix_label: Label
+var event_label: Label
+var hunt_line: HBoxContainer
+var hunt_label: Label
+var hunt_bar: ProgressBar
+var wait_line: VBoxContainer
+var wait_label: Label
+var wait_bar: ProgressBar
 var weapon_row: HBoxContainer
 var extra_row: HBoxContainer
 var combo_row: HBoxContainer
@@ -60,10 +69,31 @@ func _ready() -> void:
 	line.add_child(xp_bar)
 	info_label = UITheme.outlined("", 13, Color(0.85, 0.83, 0.76), 4)
 	line.add_child(info_label)
-	affix_label = UITheme.outlined("", 12, Color(1, 0.55, 0.45), 4)
-	affix_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	top.add_child(affix_label)
-	for c in [round_label, lvl_label, xp_bar, info_label, affix_label, line]:
+	event_label = UITheme.outlined("", 12, Color(1, 0.55, 0.45), 4)
+	event_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	top.add_child(event_label)
+	hunt_line = HBoxContainer.new()
+	hunt_line.alignment = BoxContainer.ALIGNMENT_CENTER
+	hunt_line.add_theme_constant_override("separation", 6)
+	top.add_child(hunt_line)
+	hunt_label = UITheme.outlined("", 12, EVT.HUNT.color, 4)
+	hunt_line.add_child(hunt_label)
+	hunt_bar = UITheme.bar(EVT.HUNT.color, 110, 4)
+	hunt_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	hunt_line.add_child(hunt_bar)
+	# horda congelada: quem ainda escolhe a carta e quanto tempo falta
+	wait_line = VBoxContainer.new()
+	wait_line.add_theme_constant_override("separation", 3)
+	wait_line.alignment = BoxContainer.ALIGNMENT_CENTER
+	top.add_child(wait_line)
+	wait_label = UITheme.outlined("", 14, LEVEL_BLUE, 4)
+	wait_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	wait_line.add_child(wait_label)
+	wait_bar = UITheme.bar(LEVEL_BLUE, 260, 4)
+	wait_bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	wait_line.add_child(wait_bar)
+	for c in [round_label, lvl_label, xp_bar, info_label, event_label, line, hunt_line, hunt_label, hunt_bar,
+			wait_line, wait_label, wait_bar]:
 		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	# ---- canto superior direito: build e combos
@@ -119,24 +149,52 @@ func _process(_delta: float) -> void:
 		return
 	xp_bar.max_value = survival.xp_needed()
 	xp_bar.value = survival.run_xp
-	lvl_label.text = "Nv %d" % survival.run_level
+	lvl_label.text = ("Nv do grupo %d" if survival.is_group() else "Nv %d") % survival.run_level
 	var t := int(ceil(survival.round_left))
 	if survival.phase == "break":
 		round_label.text = "Rodada %d concluída" % survival.round_num
 		if survival.waiting:
-			round_label.text += "  ·  aguardando o grupo"
+			round_label.text += "  ·  aguardando o grupo  ·  %ds" % int(ceil(survival.break_left))
 	elif survival.boss_alive() and survival.round_left <= 0.0:
 		round_label.text = "Rodada %d  ·  derrote o chefe!" % survival.round_num
 	else:
 		round_label.text = "Rodada %d  ·  %d:%02d" % [survival.round_num, t / 60, t % 60]
 	info_label.text = "☠ %d  ·  %d vivos" % [survival.kills, survival.alive_count()]
-	var aff: Dictionary = UPG.AFFIXES.get(survival.affix, {})
-	affix_label.visible = not aff.is_empty() and survival.phase == "fight"
-	if affix_label.visible:
-		affix_label.text = "⚠ %s — %s" % [aff.name, aff.desc]
+	event_label.visible = survival.event != "" and survival.phase == "fight"
+	if event_label.visible:
+		event_label.text = "⚠ %s — %s" % [EVT.event_name(survival.event), EVT.event_desc(survival.event)]
+		event_label.add_theme_color_override("font_color", EVT.event_color(survival.event))
+	hunt_line.visible = survival.hunt_target > 0 and (survival.phase == "fight" or survival.hunt_done)
+	if hunt_line.visible:
+		hunt_bar.visible = not survival.hunt_done
+		if survival.hunt_done:
+			hunt_label.text = "Caçada concluída!"
+		else:
+			hunt_label.text = "Caçada %d/%d" % [mini(survival.hunt_kills, survival.hunt_target), survival.hunt_target]
+			hunt_bar.max_value = survival.hunt_target
+			hunt_bar.value = survival.hunt_kills
+	_update_wait()
 	_update_build()
 	_update_combos()
 	_update_party()
+
+
+## Horda congelada (grupo subiu de nível) e você já escolheu: mostra quem falta e o tempo.
+func _update_wait() -> void:
+	wait_line.visible = survival.frozen and survival.world != null and survival.world.modal == null
+	if not wait_line.visible:
+		return
+	var missing: Array[String] = []
+	for pid in survival.team:
+		if not survival.team[pid].get("lv_ready", true):
+			missing.append(str(survival.team[pid].name))
+	if missing.is_empty():
+		wait_label.text = "Nível %d — todos escolheram!" % survival.run_level
+	else:
+		wait_label.text = "Nível %d — horda congelada · esperando %s · %ds" % [survival.run_level,
+			", ".join(missing), int(ceil(survival.lv_left))]
+	wait_bar.max_value = survival.lv_total
+	wait_bar.value = survival.lv_left
 
 
 # ---------------------------------------------------------------- build
@@ -172,7 +230,7 @@ func _update_combos() -> void:
 
 # ---------------------------------------------------------------- grupo
 func _update_party() -> void:
-	if survival.role != "client" or survival.team.size() <= 1:
+	if not survival.is_group():
 		party_box.visible = false
 		return
 	party_box.visible = true
@@ -200,7 +258,7 @@ func _update_party() -> void:
 			bar.step = 0.0
 			bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			h.add_child(bar)
-			var lv := UITheme.outlined("", 11, Color(0.6, 0.85, 1.0), 3)
+			var lv := UITheme.outlined("", 11, Color(0.8, 0.78, 0.7), 3)
 			h.add_child(lv)
 			for c in h.get_children():
 				c.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -218,16 +276,20 @@ func _update_party() -> void:
 		var b: Dictionary = m.get("build", {})
 		var dead: bool = m.get("dead", false)
 		row.bar.value = 0.0 if dead else float(b.get("hp", 1.0))
-		row.lv.text = "Nv %d" % int(b.get("lv", 1))
 		var st: Label = row.state
-		if dead:
+		var note := ""
+		if survival.frozen or survival.phase == "break":
+			var ok: bool = m.get("lv_ready", true) if survival.frozen else m.get("ready", false)
+			st.text = "✓" if ok else "…"
+			st.add_theme_color_override("font_color", UITheme.GOOD if ok else Color(1, 0.85, 0.4))
+			note = "pronto" if ok else "escolhendo"
+		elif dead:
 			st.text = "☠"
 			st.add_theme_color_override("font_color", UITheme.BAD)
-		elif survival.phase == "break" and m.get("ready", false):
-			st.text = "✓"
-			st.add_theme_color_override("font_color", UITheme.GOOD)
+			note = "caído"
 		else:
 			# ◆ = combo ativo com este colega (está perto)
 			st.text = "◆" if partners.has(str(m.get("name", ""))) else ""
 			st.add_theme_color_override("font_color", Color(1, 0.85, 0.4))
+		row.lv.text = note
 		row.name.modulate.a = 0.5 if dead else 1.0

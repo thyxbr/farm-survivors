@@ -13,6 +13,11 @@ var max_hp := 1.0
 var radius := 0.5
 var dead := false
 var home := Vector3.ZERO
+## Cooperativo: id comum entre servidor e clientes; puppet = réplica no cliente.
+var net_id := 0
+var puppet := false
+var _net_pos := Vector3.ZERO
+var _net_yaw := 0.0
 
 var model: Node3D
 var legs: Array[Node3D] = []
@@ -60,10 +65,16 @@ func _ready() -> void:
 	_overlay.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_overlay.albedo_color = Color(1, 1, 1, 0.6)
 	_overlay.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_net_pos = position
+	if puppet:
+		collision_mask = 0
 
 
 # ---------------------------------------------------------------- comportamento
 func _physics_process(delta: float) -> void:
+	if puppet:
+		_puppet_process(delta)
+		return
 	if not is_on_floor():
 		velocity.y -= 20.0 * delta
 	if dead:
@@ -76,7 +87,7 @@ func _physics_process(delta: float) -> void:
 		_flash -= delta
 		if _flash <= 0.0:
 			_set_overlay(null)
-	var p := get_tree().get_first_node_in_group("player") as Player
+	var p: Player = colony.nearest_player(global_position) if colony else null
 	var to_p := Vector3.ZERO
 	var dist := INF
 	if p and not p.dead:
@@ -143,6 +154,15 @@ func _go(s: String, t: float) -> void:
 func take_damage(amount: float, from_pos: Vector3, crit := false, slow := 0.0) -> void:
 	if dead:
 		return
+	if puppet:
+		# o servidor decide; aqui só o retorno visual imediato
+		Lobby.city_hit_animal(net_id, amount, from_pos, slow)
+		_flash = 0.1
+		_set_overlay(_overlay)
+		FX.damage_number(global_position + Vector3.UP * (radius * 2.0 + 0.6), ("%d!" if crit else "%d") % int(round(amount)),
+			Color(1, 0.85, 0.2) if crit else Color.WHITE, 44)
+		FX.burst(global_position + Vector3.UP * radius, Color(0.6, 0.08, 0.06), 8, 3.0, 0.08, 0.4)
+		return
 	hp -= amount
 	if slow > 0.0:
 		_slow = maxf(_slow, slow)
@@ -165,7 +185,38 @@ func take_damage(amount: float, from_pos: Vector3, crit := false, slow := 0.0) -
 
 
 func apply_slow(t: float) -> void:
+	if puppet:
+		Lobby.city_hit_animal(net_id, 0.0, global_position, t)
+		return
 	_slow = maxf(_slow, t)
+
+
+# ---------------------------------------------------------------- réplica (cliente)
+func apply_net(pos: Vector3, yaw: float) -> void:
+	_net_pos = pos
+	_net_yaw = yaw
+
+
+func net_die() -> void:
+	if not dead:
+		_die()
+
+
+func _puppet_process(delta: float) -> void:
+	if dead:
+		return
+	if _flash > 0.0:
+		_flash -= delta
+		if _flash <= 0.0:
+			_set_overlay(null)
+	var prev := global_position
+	if global_position.distance_to(_net_pos) > 6.0:
+		global_position = _net_pos
+	else:
+		global_position = global_position.lerp(_net_pos, 1.0 - exp(-12.0 * delta))
+	model.rotation.y = lerp_angle(model.rotation.y, _net_yaw, 1.0 - exp(-12.0 * delta))
+	velocity = (global_position - prev) / maxf(delta, 0.0001)
+	_animate(delta)
 
 
 func _die() -> void:
@@ -175,7 +226,7 @@ func _die() -> void:
 	collision_layer = 0
 	_set_overlay(null)
 	Sfx.play_at("bloop", global_position, 0.2, -4.0)
-	if colony:
+	if colony and not puppet:
 		colony.on_animal_killed(self)
 	var tw := create_tween()
 	tw.tween_property(model, "rotation:z", PI / 2, 0.4).set_ease(Tween.EASE_OUT)

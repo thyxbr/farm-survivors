@@ -16,6 +16,12 @@ var dead := false
 var radius := 0.4
 var post := Vector3.ZERO
 var follow_offset := Vector3.ZERO
+## Cooperativo: id comum entre servidor e clientes; puppet = réplica no cliente (segue os snapshots).
+var net_id := 0
+var puppet := false
+var _net_pos := Vector3.ZERO
+var _net_yaw := 0.0
+var _net_attack := false
 
 var model: Node3D
 var parts := {}
@@ -62,6 +68,10 @@ func _ready() -> void:
 		arrow.visible = false
 	_make_bar()
 	_cd = randf() * 0.6
+	_net_pos = position
+	if puppet:
+		collision_layer = 0
+		collision_mask = 0
 
 
 func is_ranged() -> bool:
@@ -69,7 +79,14 @@ func is_ranged() -> bool:
 
 
 # ---------------------------------------------------------------- IA
+func attacking() -> bool:
+	return _attack_t >= 0.0
+
+
 func _physics_process(delta: float) -> void:
+	if puppet:
+		_puppet_process(delta)
+		return
 	if not is_on_floor():
 		velocity.y -= 20.0 * delta
 	if dead:
@@ -157,7 +174,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _player() -> Player:
-	return get_tree().get_first_node_in_group("player") as Player
+	return colony.follow_target() if colony else null
 
 
 func _goal() -> Vector3:
@@ -174,8 +191,8 @@ func _find_target() -> Enemy:
 	var leash := aggro + (10.0 if colony and colony.army_mode == "follow" else 16.0)
 	var best: Enemy = null
 	var best_d := INF
-	for e in get_tree().get_nodes_in_group("enemies"):
-		if not (e is Enemy) or e.dead or _ignore.has(e.get_instance_id()):
+	for e in colony.live_enemies():
+		if _ignore.has(e.get_instance_id()):
 			continue
 		var d := global_position.distance_to(e.global_position)
 		if d > aggro or anchor.distance_to(e.global_position) > leash:
@@ -207,11 +224,13 @@ func _update_attack(delta: float) -> void:
 				get_parent().add_child(s)
 				s.global_position = global_position + Vector3.UP * 1.45 + model.global_basis.z * 0.4
 				Sfx.play_at("swing", global_position, 0.25, -16.0)
+				if colony and colony.role == "server":
+					Lobby.city_shot("arrow", s.global_position, target, 0.0)
 			else:
 				var to := target.global_position - global_position
 				to.y = 0.0
 				if to.length() - target.radius <= float(data.reach) + 0.6:
-					target.take_damage(float(data.damage) * randf_range(0.9, 1.1), global_position, false)
+					target.take_damage(float(data.damage) * randf_range(0.9, 1.1) * target.resist_mult("melee"), global_position, false)
 	if _attack_t >= (0.75 if is_ranged() else 0.6):
 		_attack_t = -1.0
 		_cd = float(data.cooldown) * randf_range(0.9, 1.1)
@@ -219,7 +238,7 @@ func _update_attack(delta: float) -> void:
 
 # ---------------------------------------------------------------- dano
 func take_damage(amount: float, from_pos: Vector3) -> void:
-	if dead:
+	if dead or puppet:
 		return
 	var dmg := maxf(1.0, amount * 50.0 / (50.0 + float(data.armor) * 4.0))
 	hp -= dmg
@@ -245,8 +264,9 @@ func _die() -> void:
 	collision_layer = 0
 	_bar_root.visible = false
 	Sfx.play_at("hurt", global_position, 0.1, -4.0)
-	if colony:
+	if colony and not puppet:
 		colony.on_soldier_died(self)
+		colony.on_soldier_gone(self, true)
 	var tw := create_tween()
 	tw.tween_property(parts.Body, "rotation:x", -1.4, 0.6).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
 	tw.tween_interval(1.5)
@@ -256,11 +276,62 @@ func _die() -> void:
 
 ## Deserção (salário atrasado) ou dispensa: some sem cair em combate.
 func leave() -> void:
+	if dead:
+		return
 	dead = true
 	remove_from_group("soldiers")
 	remove_from_group("colony_units")
+	if colony and not puppet:
+		colony.on_soldier_gone(self, false)
 	FX.burst(global_position + Vector3.UP, Color(0.7, 0.7, 0.7), 20, 3.0, 0.15, 0.8)
 	queue_free()
+
+
+# ---------------------------------------------------------------- réplica (cliente)
+func apply_net(pos: Vector3, yaw: float, new_hp: float, atk: bool) -> void:
+	_net_pos = pos
+	_net_yaw = yaw
+	if new_hp < hp - 0.5:
+		_flash = 0.1
+		_set_overlay(_hit_mat())
+		_bar_root.visible = true
+	hp = new_hp
+	if atk and not _net_attack:
+		_attack_t = 0.0
+		_hit_done = false
+		if not is_ranged():
+			Sfx.play_at("swing", global_position, 0.15, -12.0)
+	_net_attack = atk
+
+
+func net_die() -> void:
+	if not dead:
+		_die()
+
+
+func _puppet_process(delta: float) -> void:
+	if dead:
+		return
+	if _flash > 0.0:
+		_flash -= delta
+		if _flash <= 0.0:
+			_set_overlay(null)
+	var prev := global_position
+	if global_position.distance_to(_net_pos) > 6.0:
+		global_position = _net_pos
+	else:
+		global_position = global_position.lerp(_net_pos, 1.0 - exp(-12.0 * delta))
+	model.rotation.y = lerp_angle(model.rotation.y, _net_yaw, 1.0 - exp(-12.0 * delta))
+	velocity = (global_position - prev) / maxf(delta, 0.0001)
+	if _attack_t >= 0.0:
+		_attack_t += delta
+		if _attack_t >= (0.75 if is_ranged() else 0.6):
+			_attack_t = -1.0
+	_animate(delta)
+	if _bar_root.visible:
+		_bar_fg.scale.x = maxf(0.001, hp / max_hp)
+		if hp >= max_hp - 0.5:
+			_bar_root.visible = false
 
 
 var _hit_overlay: StandardMaterial3D

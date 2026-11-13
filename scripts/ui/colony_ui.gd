@@ -3,6 +3,7 @@ extends Control
 ## mode = "building": menu da construção (melhorar, reparar, demolir; prefeitura: economia e impostos;
 ##                    quartel: recrutar e dispensar soldados).
 ## mode = "defeat":   a prefeitura caiu.
+## mode = "results":  fim da partida em grupo (noites, abates e recompensas do personagem).
 
 signal closed
 
@@ -11,8 +12,11 @@ var building: ColonyBuilding
 var colony: Colony
 var world: Node
 
+var results := {}
+
 var _box: VBoxContainer
 var _msg: Label
+var _refresh := false
 
 
 func _ready() -> void:
@@ -24,6 +28,22 @@ func _ready() -> void:
 	_box.custom_minimum_size = Vector2(560, 0)
 	p.add_child(_box)
 	_rebuild()
+	# em grupo o estado chega do servidor: a janela se atualiza sozinha
+	if colony and colony.role == "client" and mode == "building":
+		colony.net_changed.connect(_on_net_changed)
+
+
+func _on_net_changed() -> void:
+	_refresh = true
+
+
+func _process(_delta: float) -> void:
+	if _refresh:
+		_refresh = false
+		if building != null and (not is_instance_valid(building) or building.dead):
+			_close()
+			return
+		_rebuild()
 
 
 func _rebuild() -> void:
@@ -32,13 +52,15 @@ func _rebuild() -> void:
 	var keep_msg := _msg.text if _msg else ""
 	if mode == "defeat":
 		_build_defeat()
+	elif mode == "results":
+		_build_results()
 	else:
 		_build_building()
 	_msg = UITheme.label(keep_msg, 15, UITheme.BAD)
 	_msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_box.add_child(_msg)
-	if mode != "defeat":
+	if mode == "building":
 		var close := UITheme.button("Fechar  [Esc]", _close)
 		_box.add_child(close)
 		close.grab_focus.call_deferred()
@@ -94,14 +116,14 @@ func _build_building() -> void:
 	if b.level < ColonyData.MAX_LEVEL:
 		var cost := colony.upgrade_cost(b)
 		var up := UITheme.button("Melhorar p/ nível %d — %d ouro" % [b.level + 1, cost], func() -> void: _act(colony.upgrade(b)))
-		up.disabled = Game.gold < cost
+		up.disabled = colony.get_gold() < cost
 		h.add_child(up)
 	else:
 		h.add_child(UITheme.label("Nível máximo", 15, UITheme.DIM))
 	var rc := colony.repair_cost(b)
 	if rc > 0:
 		var rep := UITheme.button("Reparar — %d ouro" % rc, func() -> void: _act(colony.repair(b)))
-		rep.disabled = Game.gold < rc
+		rep.disabled = colony.get_gold() < rc
 		h.add_child(rep)
 	if not b.is_core:
 		h.add_child(UITheme.button("Demolir (+%d)" % int(b.invested * ColonyData.REFUND), func() -> void:
@@ -141,19 +163,25 @@ func _build_hall() -> void:
 	_box.add_child(_line("Impostos: %d moradores × %d = +%d ouro" % [colony.citizens, ColonyData.TAX[colony.tax_level], f.tax]))
 	_box.add_child(_line("Comércio (mercados): +%d ouro   ·   Prefeitura: +%d ouro" % [f.trade, f.hall]))
 	_box.add_child(_line("Salários do exército: −%d ouro" % f.salaries, UITheme.BAD if f.salaries > 0 else UITheme.TEXT))
-	_box.add_child(_line("Saldo do dia: %+d ouro   (cofre: %d)" % [f.gold_net, Game.gold], UITheme.GOOD if f.gold_net >= 0 else UITheme.BAD))
+	if colony.is_coop():
+		_box.add_child(_line("Manutenção das torres e quartéis: −%d ouro" % f.upkeep, UITheme.BAD if f.upkeep > 0 else UITheme.TEXT))
+	_box.add_child(_line("Saldo do dia: %+d ouro   (cofre%s: %d)" % [f.gold_net, " de todos" if colony.is_coop() else "", colony.get_gold()],
+		UITheme.GOOD if f.gold_net >= 0 else UITheme.BAD))
 	_box.add_child(_line("Comida: +%d colhida, −%d consumida = %+d   (estoque: %d)" % [f.food_in, f.food_out, f.food_net, colony.food],
 		UITheme.GOOD if f.food_net >= 0 else UITheme.BAD))
 	if f.workers > colony.citizens:
 		_box.add_child(_line("Faltam trabalhadores: %d vagas e %d moradores — fazendas e mercados rendem %d%%." %
 			[f.workers, colony.citizens, int(f.eff * 100)], Color(1, 0.75, 0.45), 14))
 	_box.add_child(_line("Moradores: %d / %d. Imposto alto rende mais, mas a cidade cresce devagar." % [colony.citizens, colony.pop_cap()], UITheme.DIM, 14))
+	if colony.is_coop():
+		_box.add_child(_line("Em grupo cada cópia de uma construção custa mais, mercados além do %dº rendem menos e torres pedem manutenção." % ColonyData.MARKET_FREE,
+			UITheme.DIM, 14))
 	var h := _row()
 	h.add_child(UITheme.label("Imposto:", 16))
 	for i in 3:
 		var btn := UITheme.button("%s (%d/morador, +%d/dia)" % [ColonyData.TAX_NAMES[i], ColonyData.TAX[i], ColonyData.GROWTH[i]],
 			func() -> void:
-				colony.tax_level = i
+				colony.set_tax(i)
 				Sfx.play("click", 0.0)
 				_act(""))
 		btn.disabled = colony.tax_level == i
@@ -161,9 +189,13 @@ func _build_hall() -> void:
 	var h2 := _row()
 	var rac := colony.repair_all_cost()
 	var rep := UITheme.button("Reparar tudo — %d ouro" % rac, func() -> void: _act(colony.repair_all()))
-	rep.disabled = rac <= 0 or Game.gold < rac
+	rep.disabled = rac <= 0 or colony.get_gold() < rac
 	h2.add_child(rep)
-	if colony.phase == "day":
+	if colony.phase == "day" and colony.is_coop():
+		h2.add_child(UITheme.button("Votar pela noite (%d/%d)" % [colony.night_votes(), colony.votes_needed()], func() -> void:
+			colony.start_night()
+			_close()))
+	elif colony.phase == "day":
 		h2.add_child(UITheme.button("Chamar a noite agora", func() -> void:
 			colony.start_night()
 			_close()))
@@ -188,7 +220,7 @@ func _build_barracks() -> void:
 			"à distância" if u.get("ranged", false) else "corpo a corpo", u.salary], 13, UITheme.DIM))
 		var btn := UITheme.button("Recrutar — %d" % u.cost, func() -> void: _act(colony.recruit(id)))
 		btn.custom_minimum_size.x = 170
-		btn.disabled = Game.gold < int(u.cost) or colony.barracks_level() < int(u.get("needs_level", 1))
+		btn.disabled = colony.get_gold() < int(u.cost) or colony.barracks_level() < int(u.get("needs_level", 1))
 		h.add_child(btn)
 	var counts := {}
 	for s in colony.soldiers():
@@ -219,12 +251,38 @@ func _build_defeat() -> void:
 	_box.add_child(UITheme.button("Menu principal", func() -> void: Game.go_to_menu()))
 
 
+# ================================================================ fim da partida em grupo
+func _build_results() -> void:
+	var fell: bool = results.get("reason", "") == "defeat"
+	_box.add_child(_title("A cidade caiu" if fell else "Partida encerrada", UITheme.BAD if fell else UITheme.GOLD))
+	var nights := int(results.get("nights", 0))
+	_box.add_child(_line("O grupo resistiu a %d noite(s) · %d monstros abatidos." % [nights, int(results.get("kills", 0))], UITheme.TEXT, 18))
+	var names: Array = results.get("names", [])
+	if not names.is_empty():
+		_box.add_child(_line("Defensores: " + ", ".join(names), UITheme.DIM, 15))
+	_box.add_child(UITheme.section("Suas recompensas (já estão no seu personagem)", 18))
+	_box.add_child(_line("+%d ouro   ·   +%d XP" % [int(results.get("gold", 0)), int(results.get("xp", 0))], UITheme.GOLD, 17))
+	var items: Array = results.get("items", [])
+	var names_i: Array[String] = []
+	for id in items:
+		if ItemDB.ITEMS.has(str(id)) and str(id) != "health_potion":
+			names_i.append(ItemDB.ITEMS[str(id)].name)
+	if not names_i.is_empty():
+		_box.add_child(_line("Baús: " + ", ".join(names_i), UITheme.GOOD, 16))
+	elif nights < ColonyData.BOSS_EVERY:
+		_box.add_child(_line("Sobreviva a %d noites para abrir o primeiro baú de equipamento." % ColonyData.BOSS_EVERY, UITheme.DIM, 14))
+	var rec := int(results.get("record", 0))
+	if rec > 0:
+		_box.add_child(_line("Recorde do servidor: %d noite(s)%s" % [rec, " — novo recorde!" if rec == nights and nights > 0 else ""], UITheme.DIM, 15))
+	_box.add_child(UITheme.button("Voltar ao salão", func() -> void: Lobby.go_lobby()))
+
+
 func _close() -> void:
 	closed.emit()
 	queue_free()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if mode != "defeat" and (event.is_action_pressed("pause") or event.is_action_pressed("interact")):
+	if mode == "building" and (event.is_action_pressed("pause") or event.is_action_pressed("interact")):
 		get_viewport().set_input_as_handled()
 		_close()

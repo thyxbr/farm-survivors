@@ -70,13 +70,13 @@ Saia pelo **portão sul** da vila para a Horta:
 Entre no **Portal do Desafio** (perto do portão norte da vila, tecla E) para ir à **Arena** a oeste do mapa:
 - Hordas de slimes e goblins surgem sem parar, cada rodada (45 s) mais fortes e numerosas; a cada 5 rodadas vem o **Rei Goblin**
   (a partir do 2º, com guardas de elite).
-- **Curva de dificuldade** (`survival_mode.gd`): ritmo em dente de serra dentro de cada ciclo de 5 rodadas (a pressão sobe
-  até a 4ª e alivia na rodada do chefe); a vida dos inimigos cresce um pouco mais que linear, então a partida tende a
-  terminar entre as rodadas 15 e 20. Da rodada 3 em diante surgem **elites** (douradas, 3x a vida, soltam mais gemas e
-  às vezes cura) e um **cerco** por rodada (anel de slimes fechando em volta de alguém). Da rodada 7 vem o **Goblin Bruto**.
-  Da rodada 6, cada rodada sem chefe traz uma **maldição** (Frenesi, Couraça, Enxame, Fúria ou Caçada) mostrada no topo.
-- HUD da horda: rodada, tempo, nível e XP num bloco só no topo; a build fica em ícones no canto (número = nível).
-  **Segure Tab** para o placar: build, dano, abates, quedas e combos de cada jogador (funciona por cima das cartas).
+- **Curva de dificuldade** (`survival_mode.gd` e `horde_events.gd`): ritmo em dente de serra dentro de cada ciclo de
+  5 rodadas (a pressão sobe até a 4ª e alivia na rodada do chefe); a vida dos inimigos cresce um pouco mais que linear,
+  então a partida tende a terminar entre as rodadas 15 e 20. Da rodada 3 em diante surgem **elites** (douradas, anel no
+  chão, 3x a vida, soltam mais gemas e às vezes cura). Da rodada 7 vem o **Goblin Bruto**. A meta da Caçada acompanha o ritmo.
+- HUD da horda enxuta: rodada, tempo, nível (do grupo) com XP, evento e Caçada num bloco só no topo; a build fica em
+  ícones no canto direito (selo com o nível); grupo à esquerda. **Segure Tab** para o placar: build, dano, abates,
+  quedas e combos de cada jogador (funciona por cima das cartas).
 - Armas automáticas atacam sozinhas (**Orbe de Fogo**, **Lâminas Orbitais**, **Relâmpago**, **Aura Gélida**); espada, esquiva, magias e poções continuam valendo.
 - Inimigos soltam **gemas de XP**: ao subir o nível da partida você escolhe 1 de 3 cartas (arma nova, melhoria ou passiva) — teclas 1/2/3 ou clique.
 - Ao fim de cada rodada a arena é limpa, você recupera 30% da vida e escolhe uma **bênção**, ou se retira com as recompensas.
@@ -116,7 +116,7 @@ atacam a cidade, cada noite mais fortes (a cada 5 noites vem o Rei Goblin). Se a
   Novo: **Goblin Bruto** (dano triplo em construções). O HUD mostra de que direção vem a onda.
 - Se você cair, renasce na Prefeitura em 6 s (as torres continuam lutando). Salva automaticamente a cada amanhecer
   (F5 também salva, só de dia); o personagem deste modo tem save próprio, separado do RPG.
-- Só para um jogador.
+- Pelo menu principal é só para um jogador; em grupo, entre pelo **salão do multiplayer** (abaixo).
 
 ## Multiplayer (servidor dedicado)
 O servidor roda o Godot sem tela e é dono dos inimigos (IA, vida, morte). Cada jogador é dono
@@ -137,7 +137,7 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
   Para destravar na VPS: `docker service scale <serviço>=0` e depois `=1`.
 - **Firewall da VPS (Hostinger):** o firewall do painel recusa tudo por padrão; adicione *Aceitar · UDP · 7777*
   (e TCP 22/80/443/3000 para SSH e o painel) antes do *Drop*.
-- **Jogadores:** menu principal → *Multiplayer* → nome + endereço (`ip` ou `ip:porta`) → *Entrar*.
+- **Jogadores:** menu principal → *Multiplayer* → nome + endereço (`ip` ou `ip:porta`) → *Entrar* → **Salão de Valdoria**.
   Antes de exportar, coloque o IP/domínio do servidor em `DEFAULT_ADDRESS` (`scripts/autoload/network.gd`).
 - **Versão:** o servidor recusa clientes com `application/config/version` diferente (*Projeto → Configurações → Application → Config*).
   Para lançar uma versão nova basta aumentar a versão e dar push no `main`: o CI publica o cliente e atualiza o servidor.
@@ -158,6 +158,49 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
   Para testar com outro manifesto: `EcosDeValdoria.exe -- --update-manifest=http://127.0.0.1:8765/latest.json --update-now`.
 - Ainda só para um jogador: o "carregar save" durante a partida. No multiplayer os menus não pausam o mundo.
 
+### Salão de Valdoria (lobby central)
+- Todo jogador chega ao servidor pelo **salão**: uma fogueira com o cavaleiro de cada um que está ali, a lista de quem
+  está online e **onde** (no salão, em Valdoria ou na Defesa da Cidade) e os dois modos:
+  **Explorar Valdoria** (o mundo do RPG, missões, horta e o Desafio da Horda) e a **Defesa da Cidade em grupo**.
+- O personagem é o mesmo em tudo (o save do PC de cada jogador). Esc → *Voltar ao salão* sai de Valdoria
+  (no Desafio da Horda, abandone primeiro) e da cidade; ao voltar para Valdoria você reaparece onde estava.
+- O chat (**Enter**) é do servidor inteiro: funciona no salão, em Valdoria e na cidade em grupo.
+- O servidor guarda a zona de cada jogador (`players[id].zone`): inimigos, posições e efeitos só vão para quem está
+  na mesma zona.
+
+### Defesa da Cidade em grupo
+- No salão: **Criar sala** → os outros clicam *Entrar na sala* e *Estou pronto* → o líder clica **Começar**
+  (até 6 jogadores). Com a partida rolando, quem estiver no salão pode **Entrar na partida** no meio.
+- Uma cidade por vez no servidor. Ela roda no servidor num `SubViewport` com mundo 3D próprio (física separada de
+  Valdoria, que continua rodando); o servidor simula economia, ondas, torres, soldados e animais, e cada cliente vê
+  réplicas. Construir, melhorar, reparar, demolir, recrutar, impostos e ponto de reunião viram pedidos que o servidor
+  valida (`Colony.net_request`). O **cofre é compartilhado**; **N** é um voto para chamar a noite (basta metade do grupo);
+  **G** faz o exército seguir quem apertou.
+- **Recompensas** (no personagem do RPG de cada um, ao amanhecer, para quem estava na cidade durante a noite):
+  `15 + 6n` ouro e `30 + 12n + n²` XP pela noite *n*; nas noites de chefe (a cada 5) um **baú** com um equipamento:
+  noite 5 incomum, 10 raro (60%), 15 épico (35%), 20 lendário (15%), 25 lendário (50%), 30+ lendário. Abates dão XP
+  a quem acertou e ouro ao cofre (elites valem o dobro). O recorde do servidor aparece no salão.
+- **Curva de dificuldade** (tabelas em `colony_data.gd`, bloco *cooperativo*):
+  - *Começo fácil:* cofre de 450 (+150 por jogador extra), 40 de comida, 6 moradores, primeiro dia de 4 min, as três
+    primeiras noites pequenas e de uma direção só.
+  - *Recursos sobem aos poucos:* a economia é a mesma do solo, mas **cada cópia** de uma construção custa mais
+    (casa +10% por casa existente, torres +14–18%, mercado +30%, muro +1,5%); mercados além do 2º rendem 20% a menos
+    cada (mínimo 40%); torres e quartéis cobram **manutenção** por nível ao amanhecer (sem ouro, elas se desgastam).
+    Cada jogador extra rende +15/dia na prefeitura.
+  - *Fim de jogo duro:* a vida dos monstros sobe 12% por noite e, depois da noite 10, mais 6% compostos por noite;
+    da noite 6 surgem **elites** (até 45% da onda): *Blindado* (resiste a flechas e soldados), *Arcano* (resiste à Torre
+    Arcana e não fica lento), *Ágil* (rápido, resiste a explosões) e, da noite 12, *Colosso* (vida ×2,2, derruba muros) —
+    é preciso misturar torres. A partir da noite 7, **noites especiais** são avisadas um amanhecer antes: Lua de Sangue,
+    Névoa Densa (torres −30% de alcance), Enxame e Cerco Pesado. Da noite 12 os ataques vêm de 4 direções; a noite 15
+    traz 2 Reis Goblin e a 25, 3. Acima de um teto o orçamento da onda vira vida extra (menos monstros, mais duros).
+  - *Grupo:* cada jogador extra dá +45% de monstros e +10% de vida.
+  - *Para não ficar impossível:* a prefeitura recupera 25% da vida a cada amanhecer; a partir do dia 3, se o cofre está
+    vazio ou a prefeitura muito ferida, chega a **ajuda do reino** (no máximo a cada 4 dias); 25% das manhãs trazem um
+    evento bom (caravana, refugiados, colheita farta); quem cai renasce em 6 s.
+- A partida acaba quando a prefeitura cai (tela de resultado com as recompensas) ou quando todos voltam ao salão.
+  Não há save da cidade em grupo: o que fica é o que foi para o personagem.
+- Para testes, o servidor aceita `--city-day=SEG` (duração do dia na cidade).
+
 ### Desafio da Horda em grupo
 - Quem entra no **Portal do Desafio** abre uma fila de 15 s e **todos os jogadores online recebem o convite**
   (painel no canto: **[Y]** entrar · **[N]** recusar, ou clique). Quando todos respondem a contagem cai para 3 s.
@@ -165,8 +208,13 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
 - Há uma partida por vez no servidor: se alguém tentar entrar com uma em andamento, recebe o aviso para aguardar.
 - O **servidor** é dono das rodadas, do spawn e dos abates; a horda só persegue quem está no desafio e fica
   mais numerosa e resistente conforme o tamanho do grupo.
-- Cada **jogador** tem as próprias gemas de XP, nível da partida, cartas, bênçãos, ouro e sementes
-  (todo abate do grupo solta gemas para cada um). Orbes de fogo, relâmpagos, lâminas e aura dos colegas aparecem na tela.
+- **O nível é do grupo**: cada um coleta as próprias gemas (todo abate solta gemas para cada um) e o XP vai para o
+  servidor, que soma num nível só (dividido pelo tamanho do grupo). Ao subir de nível **a horda congela** — inimigos,
+  flechas, meteoros e o relógio da rodada param — e cada um escolhe a própria carta. A luta volta quando todos
+  escolhem ou após **20 s**; quem não escolheu (caiu da conexão, AFK) recebe uma carta sorteada. Quem já escolheu vê
+  a faixa "horda congelada" com quem falta. Quem está caído também escolhe.
+- Cartas, bênçãos, ouro e sementes continuam sendo de cada jogador (cada um monta a própria build).
+  Orbes de fogo, relâmpagos, lâminas e aura dos colegas aparecem na tela.
 - **Cair não encerra**: o jogador volta (com metade da vida) no fim da rodada se alguém do grupo sobreviver.
   Se todos caírem, a partida acaba para o grupo.
 - No fim da rodada cada um escolhe a bênção; a próxima rodada começa quando todos escolherem (ou após 30 s).
@@ -175,11 +223,28 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
   enquanto vocês estão a até 14 m (recarga de 3 s, dano cresce com o nível das duas armas). Pares: Fogo + Aura
   (Choque Térmico), Fogo + Relâmpago (Plasma), Fogo + Lâminas (Ciclone de Brasas), Relâmpago + Aura (Tempestade Gélida),
   Relâmpago + Lâminas (Lâminas Elétricas), Lâminas + Aura (Nevasca Cortante). As cartas avisam quando uma arma nova
-  formaria combo com alguém do grupo (e essas armas aparecem mais). O quadro do grupo, à esquerda, mostra a vida e o
-  nível de cada colega e ◆ em quem está combando com você. Tabela em `upgrades.gd` (`COMBOS`, `AFFIXES`).
+  formaria combo com alguém do grupo (e essas armas aparecem mais). O quadro do grupo, à esquerda, mostra a vida de
+  cada colega, quem está escolhendo/pronto e ◆ em quem está combando com você. Tabela em `upgrades.gd` (`COMBOS`).
 - O servidor conta dano, abates e quedas de cada jogador; cada cliente manda a própria build a cada segundo.
-- Para testes, o servidor aceita `--horde-round=SEG` (duração da rodada). Screenshot do HUD com uma build de exemplo:
-  `godot --path . res://scenes/world.tscn -- --survival --hordedemo [--tab] --shot=shot.png`.
+- Para testes, o servidor aceita `--horde-round=SEG` (duração da rodada), `--horde-pick=SEG` (tempo para escolher
+  as cartas de nível) e `--horde-event=ID` (força um evento em toda rodada; também vale offline). Screenshot do HUD
+  com uma build de exemplo: `godot --path . res://scenes/world.tscn -- --survival --hordedemo[=cards|grupo|espera] [--tab] --shot=shot.png`.
+
+### Eventos e monstros da Horda
+- A partir da rodada 2, cada rodada (menos a do chefe) pode trazer um **evento** (`scripts/survival/horde_events.gd`):
+  *Chuva de Meteoros* (círculos vermelhos no chão, o impacto fere jogadores e monstros), *Lua de Sangue* (monstros mais
+  rápidos e fortes, gemas em dobro), *Febre do Ouro* (Goblins Dourados fogem pela arena e somem em 22 s; abatidos,
+  soltam muito ouro), *Enxame* (o dobro de monstros, mais frágeis), *Campeões* (Campeões Goblin de elite) e
+  *Emboscada* (a horda nasce em círculo em volta do grupo).
+- **Caçada**: algumas rodadas têm a meta de abater N inimigos; quem bate a meta ganha um baú (gemas, ouro, coração).
+- Monstros novos: **Slime Explosivo** (explode ao chegar perto — saia do círculo), **Slime Mãe** (se divide em 3),
+  **Goblin Arqueiro** (mantém distância e atira flechas), **Goblin Xamã** (cura os monstros em volta),
+  **Goblin Dourado** e **Campeão Goblin** (elite com golpe em área).
+
+### Chat
+- No multiplayer, **[Enter]** abre a caixa de mensagem, **[Enter]** envia e **[Esc]** cancela. Funciona também com
+  as cartas da Horda abertas. As mensagens vão para todos os jogadores online (o servidor registra no log como
+  `[chat] nome: texto`) e somem da tela depois de alguns segundos. Limite de 120 caracteres e de 5 mensagens a cada 6 s.
 
 ## Estrutura
 ```
@@ -187,19 +252,21 @@ assets/models/        GLBs low-poly gerados pelo Blender
 tools/blender/        build_assets.py (cenário + chama characters.py), characters.py (personagens detalhados),
                       preview_assets.py / preview_characters.py / preview_closeup.py (renders de conferência)
 scripts/autoload/     game.gd (estado, save/load), item_db.gd (itens/magias/missões), sfx.gd (sons sintetizados),
-                      network.gd (multiplayer: servidor dedicado, réplicas, RPCs), updater.gd (auto update)
-scripts/player/       player.gd (controle, combate, magias), fireball.gd
-scripts/enemies/      enemy.gd (slime, goblin, rei goblin — IA e animação procedural)
+                      network.gd (multiplayer: servidor dedicado, zonas, réplicas, RPCs), updater.gd (auto update),
+                      lobby.gd (salão central, sala e replicação da Defesa da Cidade em grupo)
+scripts/player/       player.gd (controle, combate, magias), fireball.gd, cape_rig.gd (física da capa)
+scripts/enemies/      enemy.gd (slimes, goblins, rei goblin e os monstros da horda — IA e animação procedural), enemy_arrow.gd
 scripts/world/        world.gd (monta o mapa e gerencia UI modal), npc.gd, pickup.gd, challenge_portal.gd
 scripts/farm/         farm_plot.gd (canteiro: plantar/regar/adubar/colher), kitchen.gd (caldeirão)
-scripts/survival/     survival_mode.gd (rodadas, spawn, XP), auto_weapons.gd, xp_gem.gd, upgrades.gd
+scripts/survival/     survival_mode.gd (rodadas, spawn, XP, nível do grupo), horde_events.gd (eventos e Caçada),
+                      auto_weapons.gd, xp_gem.gd, upgrades.gd
 scripts/colony/       Defesa da Cidade: colony_world.gd (cena, luz dia/noite, entrada, save), colony.gd (economia,
                       ciclo, ondas, regras de construção), colony_data.gd (tabelas de balanceamento), building.gd,
                       building_visuals.gd, tower_shot.gd, soldier.gd, animal.gd, build_mode.gd
-scripts/ui/           horde_invite_ui.gd (convite/fila da horda em grupo), plant_ui.gd (plantio), cooking_ui.gd (receitas), hud, diálogo, inventário/personagem/missões, loja, pausa/morte, opções, menu principal
+scripts/ui/           lobby_ui.gd (salão do multiplayer), chat_ui.gd (chat), survival_hud.gd / skill_icon.gd (HUD da horda), horde_invite_ui.gd (convite/fila da horda em grupo), plant_ui.gd (plantio), cooking_ui.gd (receitas), hud, diálogo, inventário/personagem/missões, loja, pausa/morte, opções, menu principal
 tests/smoke_test.gd   teste automatizado do gameplay
 tests/colony_test.gd  teste automatizado da Defesa da Cidade
-tests/net_test.gd     teste do multiplayer (cliente headless contra um servidor)
+tests/net_test.gd     teste do multiplayer (cliente headless contra um servidor; --city=lead|join testa a cidade em grupo)
 Dockerfile            imagem do servidor dedicado
 ```
 O mapa, a UI e as animações são montados por código; para mudar dados de itens, missões e
@@ -220,6 +287,7 @@ Cobre diálogo/missões, combate, loot, magias, loja, equipamento, save/load, ch
 (plantar, regar, adubar, colher, liberar canteiro, cozinhar, comer, save) e o Desafio da Horda (inclusive comer na rodada).
 Para ver a horta cheia: `... -- --farmdemo --at=1,24.5,0` (acrescente `--ui=cook` ou `--ui=plant` para abrir os menus).
 Para começar direto na arena: `... res://scenes/world.tscn -- --survival`.
+Para ver a HUD da horda com uma build pronta: `... -- --survival --hordedemo[=cards|grupo|espera] --shot=horda.png --delay=7`.
 Para ver as telas novas: `... -- --geardemo --weapon=storm_bow --ui=inv --shot=inv.png --delay=3`
 (`--ui=inv|char|quests|shop`; `--geardemo` dá vários equipamentos, `--weapon=<id>` equipa uma arma).
 Para tirar um screenshot da arena: `... -- --survival --shot=shot.png --delay=15` (o PNG vai para a pasta atual;
@@ -236,12 +304,13 @@ Cidade de exemplo para screenshots: `... res://scenes/colony.tscn -- --colonydem
 Multiplayer (servidor + 2 clientes headless; cada cliente sai com código 0 se tudo passar):
 ```
 G=C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe
-$G --headless --path . -- --server --port=7790 --horde-round=8 &
-$G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Ana --horde=lead &
-$G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Beto --horde=join
+$G --headless --path . -- --server --port=7790 --horde-round=8 --horde-pick=5 &
+$G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Ana --horde=lead --horde-pick=5 &
+$G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Beto --horde=join --horde-pick=5
 ```
-`--horde=lead|join` testa o Desafio da Horda em grupo (Ana abre o portal, Beto aceita o convite, cai e volta,
-os dois escolhem bênçãos e se retiram); sem ele o teste pula essa parte.
+`--horde=lead|join` testa o Desafio da Horda em grupo (Ana abre o portal, Beto aceita o convite; nível do grupo com
+a horda congelada até os dois escolherem, Beto "AFK" recebe carta sorteada; Beto cai e volta, os dois escolhem bênçãos
+e se retiram); sem ele o teste pula essa parte. Com `--peers=2` também testa o chat (entrega e anti-spam).
 `--probe` só entra, confere a versão e os snapshots e sai (não mexe no mundo); serve para testar o servidor público.
 Cobre conexão, inimigos replicados (snapshots a 20/s), ver o outro jogador, dano pelo servidor, morte, XP, loot
 e a horda em grupo.

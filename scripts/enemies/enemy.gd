@@ -6,6 +6,7 @@ signal died(enemy: Enemy)
 signal health_changed(enemy: Enemy)
 
 const PICKUP := preload("res://scripts/world/pickup.gd")
+const ENEMY_ARROW := preload("res://scripts/enemies/enemy_arrow.gd")
 const MODELS := {
 	"slime": preload("res://assets/models/slime.glb"),
 	"goblin": preload("res://assets/models/goblin.glb"),
@@ -32,6 +33,30 @@ const TYPES := {
 			["seed_pepper", 0.15], ["seed_mint", 0.1], ["leather_cap", 0.04], ["leather_gloves", 0.04], ["leather_boots", 0.04],
 			["hunter_bow", 0.03], ["oak_staff", 0.03], ["wooden_shield", 0.04], ["strength_ring", 0.02], ["wind_ring", 0.02],
 			["ranger_hood", 0.015], ["frost_brand", 0.01], ["ember_staff", 0.01], ["elven_bow", 0.01]]},
+	# ---- monstros novos da Horda ("ai" muda o comportamento; "tint" recolore o modelo do goblin)
+	"slime_explosivo": {"name": "Slime Explosivo", "model": "slime", "hp": 30, "damage": 24, "speed": 3.7, "xp": 12,
+		"gold": [1, 3], "aggro": 14.0, "reach": 1.9, "cooldown": 1.0, "radius": 0.45, "height": 0.75,
+		"scale": 0.95, "color": Color(1.0, 0.6, 0.1), "goo": Color(1.0, 0.55, 0.08, 0.85), "ai": "bomber",
+		"blast": 3.2, "loot": []},
+	"slime_mae": {"name": "Slime Mãe", "model": "slime", "hp": 120, "damage": 13, "speed": 2.4, "xp": 30,
+		"gold": [2, 6], "aggro": 14.0, "reach": 2.0, "cooldown": 1.7, "radius": 0.75, "height": 1.15,
+		"scale": 1.45, "color": Color(0.2, 0.85, 0.8), "goo": Color(0.15, 0.8, 0.75, 0.8),
+		"split": ["slime_veloz", 3], "loot": []},
+	"goblin_arqueiro": {"name": "Goblin Arqueiro", "model": "goblin", "hp": 55, "damage": 11, "speed": 3.6, "xp": 30,
+		"gold": [3, 8], "aggro": 18.0, "reach": 12.0, "keep": 7.5, "cooldown": 2.2, "radius": 0.4, "height": 1.35,
+		"scale": 0.95, "color": Color(0.55, 0.45, 0.2), "tint": [Color(0.55, 0.42, 0.22), 0.45], "ai": "ranged", "loot": []},
+	"goblin_xama": {"name": "Goblin Xamã", "model": "goblin", "hp": 70, "damage": 8, "speed": 3.2, "xp": 36,
+		"gold": [4, 9], "aggro": 18.0, "reach": 10.0, "keep": 8.0, "cooldown": 4.5, "radius": 0.4, "height": 1.35,
+		"scale": 1.05, "color": Color(0.6, 0.3, 0.95), "tint": [Color(0.5, 0.25, 0.85), 0.55], "ai": "caster",
+		"heal_radius": 8.0, "loot": []},
+	"goblin_dourado": {"name": "Goblin Dourado", "model": "goblin", "hp": 160, "damage": 0, "speed": 4.9, "xp": 60,
+		"gold": [20, 40], "aggro": 30.0, "reach": 0.0, "cooldown": 9.0, "radius": 0.4, "height": 1.35,
+		"scale": 0.9, "color": Color(1.0, 0.8, 0.2), "tint": [Color(1.0, 0.78, 0.15), 0.7], "ai": "flee",
+		"elite": true, "loot": []},
+	"goblin_campeao": {"name": "Campeão Goblin", "model": "goblin", "hp": 420, "damage": 22, "speed": 4.0, "xp": 160,
+		"gold": [12, 25], "aggro": 20.0, "reach": 2.6, "cooldown": 1.4, "radius": 0.7, "height": 2.0,
+		"scale": 1.5, "color": Color(0.85, 0.2, 0.15), "tint": [Color(0.55, 0.12, 0.1), 0.5], "elite": true,
+		"slam_every": 2, "loot": []},
 	# Defesa da Cidade: brutamontes que derruba muros (dano em construções x3)
 	"goblin_bruto": {"name": "Goblin Bruto", "model": "goblin", "hp": 280, "damage": 24, "speed": 2.9, "xp": 70,
 		"gold": [8, 14], "aggro": 8.0, "reach": 2.2, "cooldown": 1.8, "radius": 0.62, "height": 1.35,
@@ -51,9 +76,16 @@ const TYPES := {
 var horde := false
 var hp_mult := 1.0
 var dmg_mult := 1.0
-var spd_mult := 1.0
+var speed_mult := 1.0
 ## Desafio da Horda: versão de elite (maior, dourada, mais vida e dano; o servidor manda junto no spawn).
 var elite := false
+## Defesa da Cidade em grupo: elite (chave de ColonyData.AFFIXES) com resistências por tipo de dano.
+var affix := ""
+## Multiplayer (servidor): "world" (Valdoria) ou "city" (Defesa da Cidade em grupo).
+var net_zone := "world"
+## Goblin Dourado que fugiu: some sem contar como abate.
+var escaped := false
+var born_t := 0.0
 ## Defesa da Cidade: marcha até a prefeitura e ataca construções, soldados e o jogador no caminho.
 var siege := false
 var _siege_target = null     # Player, ColonySoldier ou ColonyBuilding
@@ -88,6 +120,7 @@ var bar_root: Node3D
 var bar_fg: MeshInstance3D
 var _overlay_hit: StandardMaterial3D
 var _overlay_slow: StandardMaterial3D
+var _overlay_base: Material = null
 var _flash_t := 0.0
 
 ## Multiplayer: id comum entre servidor e clientes.
@@ -145,13 +178,22 @@ func _ready() -> void:
 		for m in [body_mesh, base]:
 			if m:
 				m.material_override = goo
-	if is_boss:
+	if data.has("tint"):
+		_apply_tint(data.tint[0], data.tint[1])
+	if is_boss or data.get("elite", false):
 		var aura := OmniLight3D.new()
-		aura.light_color = Color(1, 0.3, 0.1)
-		aura.light_energy = 1.5
-		aura.omni_range = 6.0
-		aura.position.y = 2.0
+		aura.light_color = Color(1, 0.3, 0.1) if is_boss else data.color
+		aura.light_energy = 1.5 if is_boss else 1.1
+		aura.omni_range = 6.0 if is_boss else 4.0
+		aura.position.y = 2.0 if is_boss else 1.4
 		add_child(aura)
+	if data.get("ai", "") == "bomber":
+		var glow := OmniLight3D.new()
+		glow.light_color = data.color
+		glow.light_energy = 0.8
+		glow.omni_range = 2.5
+		glow.position.y = 0.6
+		add_child(glow)
 
 	_overlay_hit = StandardMaterial3D.new()
 	_overlay_hit.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -164,6 +206,8 @@ func _ready() -> void:
 
 	if not is_boss:
 		_make_health_bar()
+		if data.get("elite", false):
+			bar_root.visible = true
 	home = global_position
 	wander_target = home
 	state_timer = randf_range(1.0, 3.0)
@@ -173,6 +217,8 @@ func _ready() -> void:
 	if siege:
 		collision_mask |= 64   # soldados seguram a passagem
 		_retarget = randf() * 0.3
+	if affix != "":
+		set_affix(affix)
 	if Network.is_server():
 		Network.server_register_enemy(self)
 
@@ -209,6 +255,38 @@ func _make_elite_glow() -> void:
 func _exit_tree() -> void:
 	if net_id != 0:
 		Network.unregister_enemy(self)
+
+
+## Recolore o modelo (variantes do goblin): cada material é copiado e puxado para a cor.
+func _apply_tint(c: Color, amount: float) -> void:
+	for mi in meshes:
+		if mi.mesh == null:
+			continue
+		for i in mi.mesh.get_surface_count():
+			var mat := mi.get_active_material(i) as StandardMaterial3D
+			if mat == null:
+				continue
+			var m2 := mat.duplicate() as StandardMaterial3D
+			m2.albedo_color = mat.albedo_color.lerp(c, amount)
+			if kind == "goblin_dourado":
+				m2.metallic = 0.7
+				m2.roughness = 0.3
+			mi.set_surface_override_material(i, m2)
+
+
+func ai() -> String:
+	return data.get("ai", "melee")
+
+
+## A horda fica parada enquanto o grupo escolhe as cartas de nível (survival_mode.frozen).
+## No servidor/solo o pai é o modo sobrevivência; na réplica do cliente, o mundo.
+func _horde_frozen() -> bool:
+	if not horde or get_parent() == null:
+		return false
+	if get_parent().get("frozen") == true:
+		return true
+	var sv = get_parent().get("survival")
+	return sv != null and is_instance_valid(sv) and sv.get("frozen") == true
 
 
 func _make_health_bar() -> void:
@@ -253,6 +331,10 @@ func _physics_process(delta: float) -> void:
 		velocity.z = 0
 		move_and_slide()
 		return
+	if _horde_frozen():
+		velocity = Vector3.ZERO
+		return
+	born_t += delta
 	attack_cd = max(0.0, attack_cd - delta)
 	slow_timer = max(0.0, slow_timer - delta)
 	stagger = max(0.0, stagger - delta)
@@ -269,7 +351,7 @@ func _physics_process(delta: float) -> void:
 		to_player.y = 0
 		dist = to_player.length()
 
-	var spd: float = data.speed * spd_mult * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0)
+	var spd: float = data.speed * speed_mult * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0)
 	var move := Vector3.ZERO
 	var face := Vector3.ZERO
 
@@ -293,7 +375,14 @@ func _physics_process(delta: float) -> void:
 				move = to.normalized() * spd * 0.4
 				state_timer += delta
 		"chase":
-			if horde:
+			if horde and ai() != "melee" and ai() != "bomber":
+				if dist == INF:
+					_set_state("idle")
+				else:
+					var r := _ranged_move(to_player, dist, spd)
+					move = r[0]
+					face = r[1]
+			elif horde:
 				if dist == INF:
 					_set_state("idle")
 				elif dist <= data.reach and attack_cd <= 0:
@@ -306,7 +395,8 @@ func _physics_process(delta: float) -> void:
 				_begin_attack()
 			elif dist > data.reach * 0.8:
 				move = to_player.normalized() * spd
-			face = to_player
+			if face == Vector3.ZERO:
+				face = to_player
 		"return":
 			var to := home - global_position
 			to.y = 0
@@ -322,7 +412,7 @@ func _physics_process(delta: float) -> void:
 			_update_attack(delta, player, to_player, dist)
 			if attack_kind == "lunge" and attack_timer > 0.35 and attack_timer < 0.6:
 				move = model_forward() * spd * 3.2
-			elif dist < INF and attack_timer < 0.35:
+			elif dist < INF and (attack_timer < 0.35 or (attack_kind == "shoot" and attack_timer < _hit_time())):
 				face = to_player
 
 	if stagger > 0:
@@ -348,8 +438,9 @@ func _nearest_player() -> Player:
 	var best: Player = null
 	var best_d := INF
 	var pool: Array = get_parent().targets() if horde and get_parent().has_method("targets") 		else get_tree().get_nodes_in_group("players")
+	var w := get_world_3d()
 	for p in pool:
-		if p.dead:
+		if p.dead or p.get_world_3d() != w:   # o servidor roda Valdoria e a cidade em mundos separados
 			continue
 		var d := global_position.distance_squared_to(p.global_position)
 		if d < best_d:
@@ -369,20 +460,67 @@ func _set_state(s: String) -> void:
 		bar_root.visible = true
 
 
+## Arqueiro, xamã e goblin dourado: mantêm distância (ou fogem) em vez de correr para cima.
+## Devolve [movimento, direção para olhar].
+func _ranged_move(to_player: Vector3, dist: float, spd: float) -> Array:
+	var dir := to_player.normalized() if dist > 0.01 else Vector3.FORWARD
+	var side := dir.cross(Vector3.UP) * (1.0 if net_id % 2 == 0 else -1.0)
+	var move := Vector3.ZERO
+	if ai() == "flee":
+		if dist < 16.0:
+			move = (-dir + side * 0.5).normalized() * spd
+		else:
+			move = side * spd * 0.4
+		# não sai da arena: puxa para o centro perto da borda
+		var sv := get_parent()
+		if sv and sv.get("center") != null:
+			var to_c: Vector3 = sv.center - global_position
+			to_c.y = 0
+			if to_c.length() > sv.ARENA_RADIUS - 4.0:
+				move = (move.normalized() + to_c.normalized() * 1.6).normalized() * spd
+		return [move, move if move.length() > 0.1 else dir]
+	var keep: float = data.get("keep", 7.0)
+	if dist < keep * 0.7:
+		move = (-dir + side * 0.4).normalized() * spd * 0.9
+	elif dist > data.reach * 0.85:
+		move = dir * spd
+	else:
+		move = side * spd * 0.35
+	if dist <= data.reach and attack_cd <= 0:
+		_begin_attack()
+		move = Vector3.ZERO
+	return [move, dir]
+
+
 # ------------------------------------------------------------ ataques
 func _begin_attack() -> void:
 	state = "attack"
 	attack_timer = 0.0
 	hit_done = false
 	attack_count += 1
+	match ai():
+		"ranged":
+			attack_kind = "shoot"
+			return
+		"caster":
+			attack_kind = "cast"
+			return
+		"bomber":
+			attack_kind = "fuse"
+			FX.telegraph(global_position, data.blast, _hit_time())
+			return
 	if data.model == "slime":
 		attack_kind = "lunge"
 		velocity.y = 4.5
-	elif is_boss and attack_count % 3 == 0:
+	elif (is_boss and attack_count % 3 == 0) or (data.has("slam_every") and attack_count % int(data.slam_every) == 0):
 		attack_kind = "slam"
-		FX.telegraph(global_position, 5.0, 0.9)
+		FX.telegraph(global_position, _slam_radius(), 0.9)
 	else:
 		attack_kind = "swing"
+
+
+func _slam_radius() -> float:
+	return 5.0 if is_boss else 3.6
 
 
 func _attack_duration() -> float:
@@ -391,6 +529,12 @@ func _attack_duration() -> float:
 			return 1.6
 		"lunge":
 			return 1.0
+		"shoot":
+			return 1.0
+		"cast":
+			return 1.3
+		"fuse":
+			return 1.2
 	return 0.95 if not is_boss else 1.1
 
 
@@ -400,6 +544,12 @@ func _hit_time() -> float:
 			return 0.9
 		"lunge":
 			return 0.45
+		"shoot":
+			return 0.6
+		"cast":
+			return 0.75
+		"fuse":
+			return 0.95
 	return 0.5 if not is_boss else 0.6
 
 
@@ -408,14 +558,24 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 	var mult := 1.0
 	if player != null and player.is_in_group("buildings"):
 		mult = float(data.get("bld", 1.0))
+		if affix != "":
+			mult *= float(ColonyData.AFFIXES[affix].get("bld", 1.0))
 	attack_timer += delta
 	if not hit_done and attack_timer >= _hit_time():
 		hit_done = true
-		if attack_kind == "slam":
+		if attack_kind == "shoot":
+			_shoot(false)
+		elif attack_kind == "cast":
+			_cast_heal(false)
+		elif attack_kind == "fuse":
+			_explode(false)
+			return
+		elif attack_kind == "slam":
+			var sr := _slam_radius()
 			Sfx.play_at("slam", global_position, 0.0)
-			FX.ring(global_position, Color(0.8, 0.6, 0.3, 0.9), 5.0, 0.4)
+			FX.ring(global_position, Color(0.8, 0.6, 0.3, 0.9), sr, 0.4)
 			FX.burst(global_position + Vector3.UP * 0.3, Color(0.5, 0.4, 0.3), 40, 7.0, 0.2, 0.8)
-			if player and dist <= 5.0:
+			if player and dist <= sr:
 				player.take_damage(data.damage * dmg_mult * 1.4 * mult, global_position)
 			if player is Player:
 				player.add_shake(0.4)
@@ -428,6 +588,50 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 	if attack_timer >= _attack_duration():
 		attack_cd = data.cooldown * (0.7 if enraged else 1.0) * randf_range(0.8, 1.2)
 		_set_state("chase")
+
+
+## Ataques especiais dos monstros novos. visual: réplica no cliente (só efeitos; o servidor aplica o dano).
+func _shoot(visual: bool) -> void:
+	Sfx.play_at("swing", global_position, 0.2, -5.0)
+	var origin: Vector3 = global_position + Vector3.UP * 1.1 * float(data.scale) + model_forward() * 0.6
+	var arrow := ENEMY_ARROW.new()
+	arrow.direction = model_forward()
+	arrow.damage = 0.0 if visual else data.damage * dmg_mult
+	arrow.source = get_parent()
+	get_parent().add_child(arrow)
+	arrow.global_position = origin
+
+
+func _cast_heal(visual: bool) -> void:
+	var r: float = data.heal_radius
+	FX.ring(global_position, Color(0.5, 1.0, 0.4, 0.9), r, 0.6)
+	FX.burst(global_position + Vector3.UP * 1.6, Color(0.6, 1.0, 0.4), 24, 3.0, 0.1, 0.8, 2.0)
+	Sfx.play_at("heal", global_position, 0.1, -6.0)
+	if visual:
+		return
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e == self or e.dead or not e.horde or e.is_boss:
+			continue
+		if e.global_position.distance_to(global_position) <= r and e.hp < e.max_hp:
+			e.hp = minf(e.max_hp, e.hp + e.max_hp * 0.25)
+			e.health_changed.emit(e)
+			FX.burst(e.global_position + Vector3.UP * 1.0, Color(0.5, 1.0, 0.4), 6, 2.0, 0.08, 0.5, 2.0)
+
+
+func _explode(visual: bool) -> void:
+	var r: float = data.blast
+	Sfx.play_at("explode", global_position, 0.1, -2.0)
+	FX.ring(global_position, Color(1.0, 0.6, 0.15, 0.95), r, 0.35)
+	FX.burst(global_position + Vector3.UP * 0.5, Color(1.0, 0.5, 0.1), 50, 7.0, 0.16, 0.7)
+	FX.burst(global_position + Vector3.UP * 0.5, Color(0.25, 0.2, 0.18), 20, 3.0, 0.25, 1.0, 1.0)
+	if visual:
+		return
+	var pool: Array = get_parent().targets() if get_parent().has_method("targets") else get_tree().get_nodes_in_group("players")
+	for p in pool:
+		if not p.dead and p.global_position.distance_to(global_position) <= r:
+			p.take_damage(data.damage * dmg_mult, global_position)
+			p.add_shake(0.35)
+	_die()
 
 
 # ------------------------------------------------------------ dano
@@ -457,13 +661,14 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0) -> v
 	if bar_root:
 		bar_root.visible = true
 	if not is_boss:
+		var heavy: bool = data.get("elite", false) or elite   # campeões e elites da horda quase não recuam
 		var kb := global_position - from_pos
 		kb.y = 0
 		if kb.length() > 0.01:
-			kb = kb.normalized() * (6.0 if data.model == "slime" else 4.0)
+			kb = kb.normalized() * (6.0 if data.model == "slime" else 4.0) * (0.3 if heavy else 1.0)
 			velocity.x = kb.x
 			velocity.z = kb.z
-		if state != "attack" or crit:
+		if (state != "attack" and not heavy) or (crit and attack_kind != "fuse"):
 			stagger = 0.3
 			if state == "attack":
 				_set_state("chase")
@@ -481,12 +686,56 @@ func apply_slow(t: float) -> void:
 	if puppet:
 		Network.client_hit_enemy(net_id, 0.0, global_position, false, t)
 		return
+	if affix != "" and ColonyData.AFFIXES[affix].get("no_slow", false):
+		return
 	slow_timer = max(slow_timer, t)
+
+
+## Fração do dano que passa para este tipo ("arrow", "ball", "bolt", "melee"). Elites resistem a alguns.
+func resist_mult(dmg_kind: String) -> float:
+	if affix == "":
+		return 1.0
+	return 1.0 - float(ColonyData.AFFIXES[affix].resist.get(dmg_kind, 0.0))
+
+
+## Visual do elite (cor, tamanho e nome). Chamado no _ready e nas réplicas quando o servidor avisa.
+func set_affix(a: String) -> void:
+	if not ColonyData.AFFIXES.has(a) or model == null:
+		return
+	affix = a
+	var d: Dictionary = ColonyData.AFFIXES[a]
+	display_name = "%s %s" % [data.name, d.name]
+	model.scale = Vector3.ONE * data.scale * float(d.get("scale", 1.12))
+	if bar_root:
+		bar_root.position.y = data.height * data.scale * float(d.get("scale", 1.12)) + 0.45
+	var glow := OmniLight3D.new()
+	glow.light_color = d.color
+	glow.light_energy = 1.2
+	glow.omni_range = 3.0
+	glow.position.y = data.height * 0.6
+	add_child(glow)
+	var tag := Label3D.new()
+	tag.text = d.name
+	tag.font_size = 34
+	tag.outline_size = 8
+	tag.pixel_size = 0.006
+	tag.modulate = d.color
+	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	tag.no_depth_test = true
+	tag.position.y = data.height * data.scale * float(d.get("scale", 1.12)) + 0.75
+	add_child(tag)
+	var tint := StandardMaterial3D.new()
+	tint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	tint.albedo_color = Color(d.color.r, d.color.g, d.color.b, 0.28)
+	tint.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_overlay_base = tint
+	for m in meshes:
+		m.material_overlay = tint
 
 
 func _update_flash(delta: float) -> void:
 	_flash_t = max(0.0, _flash_t - delta)
-	var over: Material = null
+	var over: Material = _overlay_base
 	if _flash_t > 0:
 		over = _overlay_hit
 	elif slow_timer > 0:
@@ -575,7 +824,7 @@ func _siege_process(delta: float) -> void:
 		dist = to.length()
 		if not t.has_method("closest_point"):
 			dist -= float(t.radius) if t.get("radius") != null else 0.35
-	var spd: float = data.speed * spd_mult * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0)
+	var spd: float = data.speed * speed_mult * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0)
 	var move := Vector3.ZERO
 	var face := Vector3.ZERO
 	if state == "attack":
@@ -629,8 +878,9 @@ func _pick_siege_target():
 	var best = null
 	var best_d := INF
 	var aggro: float = data.aggro
+	var w := get_world_3d()
 	for u in get_tree().get_nodes_in_group("colony_units"):
-		if u.dead:
+		if u.dead or u.get_world_3d() != w:
 			continue
 		var d := global_position.distance_to(u.global_position)
 		if d < aggro and d < best_d:
@@ -672,6 +922,8 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 	_net_pos = pos
 	_net_yaw = yaw
 	if new_hp != hp:
+		if new_hp < hp - 0.5 and _flash_t <= 0.0:
+			_flash_t = 0.06
 		hp = new_hp
 		health_changed.emit(self)
 	slow_timer = 0.25 if flags & 1 else 0.0
@@ -685,7 +937,9 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 			attack_timer = atk_t
 			hit_done = atk_t >= _hit_time()
 			if attack_kind == "slam":
-				FX.telegraph(global_position, 5.0, 0.9)
+				FX.telegraph(global_position, _slam_radius(), 0.9)
+			elif attack_kind == "fuse":
+				FX.telegraph(global_position, data.blast, maxf(0.2, _hit_time() - atk_t))
 		elif atk_t < attack_timer - 0.3:
 			# um novo ataque começou entre dois snapshots
 			attack_kind = atk_kind
@@ -711,6 +965,8 @@ func _puppet_process(delta: float) -> void:
 	if dead:
 		return
 	_update_flash(delta)
+	if _horde_frozen():
+		return
 	var prev := global_position
 	if global_position.distance_to(_net_pos) > 6.0:
 		global_position = _net_pos
@@ -724,8 +980,14 @@ func _puppet_process(delta: float) -> void:
 			hit_done = true
 			if attack_kind == "slam":
 				Sfx.play_at("slam", global_position, 0.0)
-				FX.ring(global_position, Color(0.8, 0.6, 0.3, 0.9), 5.0, 0.4)
+				FX.ring(global_position, Color(0.8, 0.6, 0.3, 0.9), _slam_radius(), 0.4)
 				FX.burst(global_position + Vector3.UP * 0.3, Color(0.5, 0.4, 0.3), 40, 7.0, 0.2, 0.8)
+			elif attack_kind == "shoot":
+				_shoot(true)
+			elif attack_kind == "cast":
+				_cast_heal(true)
+			elif attack_kind == "fuse":
+				_explode(true)
 			elif attack_kind == "swing":
 				Sfx.play_at("swing", global_position, 0.15, -4.0)
 	var hspeed := Vector2(global_position.x - prev.x, global_position.z - prev.z).length() / maxf(delta, 0.0001)

@@ -7,6 +7,8 @@ const FIREBALL := preload("res://scripts/player/fireball.gd")
 const UPG := preload("res://scripts/survival/upgrades.gd")
 
 var player: Player
+## Modo sobrevivência do jogador local (as armas param enquanto a horda está congelada; combos do grupo).
+var survival: Node
 var levels := {}          # id -> nível (1..5)
 var _timers := {"fogo": 0.5, "raio": 1.0, "aura": 0.0}
 var _blade_pivot: Node3D
@@ -19,8 +21,6 @@ var _t := 0.0
 var visual_only := false
 ## Raio extra (passiva "área") do dono, recebido junto com os níveis.
 var area_override := 1.0
-## Modo sobrevivência (lê os combos ativos do grupo). Nulo nas réplicas.
-var survival: Node = null
 var _combo_cd := {}       # combo -> recarga restante
 
 
@@ -67,6 +67,8 @@ func apply_gear(a: Vector3, b: Vector3) -> void:
 
 func _physics_process(delta: float) -> void:
 	if player == null or player.dead:
+		return
+	if survival and survival.get("frozen") == true:
 		return
 	_t += delta
 	if visual_only:

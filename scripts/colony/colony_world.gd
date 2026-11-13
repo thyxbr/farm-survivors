@@ -2,6 +2,9 @@ extends Node3D
 ## Cena do modo Defesa da Cidade: começa num mapa vazio (clareira cercada de floresta) onde o jogador
 ## posiciona todas as construções. Monta o terreno, o ciclo de luz dia/noite, o jogador e os HUDs,
 ## e repassa a entrada para o modo construção e para o exército. O estado fica em Colony (colony.gd).
+##
+## role = "solo" (um jogador, com save próprio), "server" (cidade em grupo simulada no servidor dedicado,
+## sem jogador nem tela; criada pelo Lobby) ou "client" (réplica da cidade em grupo no PC do jogador).
 
 const PLAYER := preload("res://scripts/player/player.gd")
 const HUD := preload("res://scripts/ui/hud.gd")
@@ -12,6 +15,7 @@ const DIALOGUE := preload("res://scripts/ui/dialogue_ui.gd")
 const PAUSE := preload("res://scripts/ui/pause_menu.gd")
 const COLONY := preload("res://scripts/colony/colony.gd")
 const BUILD := preload("res://scripts/colony/build_mode.gd")
+const CHAT := preload("res://scripts/ui/chat_ui.gd")
 const M := {
 	"tree_pine": preload("res://assets/models/tree_pine.glb"),
 	"tree_oak": preload("res://assets/models/tree_oak.glb"),
@@ -23,6 +27,13 @@ const CLEARING := 52.0
 const SPAWN := Vector3(0, 0.5, 10)
 const CHAR_SAVE := "user://colony_character.json"
 
+var role := "solo"
+## Semente do mapa (a mesma no servidor e nos clientes da cidade em grupo).
+var map_seed := 7731
+## Servidor: jogadores na sala quando a partida começou.
+var coop_players := 1
+## Chefe atual (o Network preenche quando o Rei Goblin chega pela rede).
+var boss: Enemy = null
 var player: Player
 var hud
 var colony_hud
@@ -40,24 +51,41 @@ var _respawn_t := -1.0
 
 
 func _ready() -> void:
-	rng.seed = 7731
-	_setup_input()
-	_build_environment()
+	if role == "solo" and Network.is_client() and Lobby.joining_city:
+		role = "client"
+		map_seed = Lobby.city_seed
+	rng.seed = map_seed
+	if role != "server":
+		_setup_input()
+		_build_environment()
 	_build_ground()
 	colony = COLONY.new()
 	colony.world = self
+	colony.role = role
+	if role == "server":
+		colony.day_length = Lobby.city_day_time
+		colony.first_day_bonus = Lobby.city_first_bonus
 	add_child(colony)
 	_scatter_nature()
 	_build_borders()
+	if role == "server":
+		# servidor: só o mapa e a simulação; os jogadores chegam como réplicas
+		colony.new_coop(coop_players)
+		return
 
-	# personagem: o do save da cidade ou um novo (antes de criar o jogador, que lê o equipamento)
-	var saved = _read_colony_save() if Game.colony_continue else null
-	if saved != null and not _load_character():
-		saved = null
-	if saved == null:
-		Game.colony_continue = false
-		Game.new_game()
-		colony.new_colony()
+	var saved = null
+	if role == "solo":
+		# personagem: o do save da cidade ou um novo (antes de criar o jogador, que lê o equipamento)
+		saved = _read_colony_save() if Game.colony_continue else null
+		if saved != null and not _load_character():
+			saved = null
+		if saved == null:
+			Game.colony_continue = false
+			Game.new_game()
+			colony.new_colony()
+	else:
+		# cidade em grupo: o personagem é o do RPG (já carregado); a cidade vem do servidor
+		Game.spawn_position = null
 
 	player = PLAYER.new()
 	player.spawn_point = SPAWN
@@ -74,6 +102,8 @@ func _ready() -> void:
 		"G exército segue/defende · V ponto de reunião aqui · N chamar a noite\n" +
 		"1/2/3 magias · R/F poções · I inventário · C personagem\n" +
 		"F5 salvar · F9 carregar · Esc pausa · H esconder ajuda")
+	if role == "client":
+		hud.help_text = hud.help_text.replace("N chamar a noite", "N votar pela noite").replace("F5 salvar · F9 carregar · ", "")
 	add_child(hud)
 	ui_layer = CanvasLayer.new()
 	ui_layer.layer = 10
@@ -89,6 +119,13 @@ func _ready() -> void:
 	colony_hud.build = build
 	add_child(colony_hud)
 
+	if role == "client":
+		var chat := CHAT.new()
+		chat.world = self
+		add_child(chat)
+		Game.notify.emit("Defesa da Cidade em grupo: o cofre é de todos. Aperte B para construir.", Color(1, 0.9, 0.6))
+		Lobby.city_ready(self)
+		return
 	if saved != null:
 		colony.from_dict(saved)
 		Game.notify.emit("Cidade carregada: dia %d." % colony.day, Color(0.7, 1.0, 0.7))
@@ -96,6 +133,46 @@ func _ready() -> void:
 		Game.notify.emit("Bem-vindo! Aperte B e posicione a Prefeitura na clareira.", Color(1, 0.9, 0.6))
 	if "--colonydemo" in OS.get_cmdline_user_args():
 		_demo_city.call_deferred()
+
+
+func _exit_tree() -> void:
+	if role == "client":
+		Lobby.city_closed(self)
+
+
+## Network: onde os monstros replicados ficam (dentro da Colony, como no servidor).
+func enemy_parent() -> Node:
+	return colony
+
+
+## Cliente: a cidade chegou do servidor (entra perto da prefeitura, se já existir).
+func on_city_synced() -> void:
+	if colony.hall and is_instance_valid(colony.hall) and player:
+		var h := colony.hall
+		player.global_position = h.global_position + h.global_basis.z * (h.size.y / 2.0 + 3.0) + Vector3.UP * 0.5
+	if colony.phase == "setup":
+		Game.notify.emit("Ninguém fundou a cidade ainda: aperte B e posicione a Prefeitura na clareira.", Color(1, 0.9, 0.6))
+
+
+## Cliente: recompensa de uma noite vencida (aviso grande no centro).
+func on_reward(n: int, gold: int, xp: int, items: Array) -> void:
+	if colony_hud and colony_hud.has_method("show_reward"):
+		colony_hud.show_reward(n, gold, xp, items)
+
+
+## Cliente: a partida acabou (a cidade caiu ou todos saíram).
+func show_results(info: Dictionary) -> void:
+	if build and build.active:
+		build.set_active(false)
+	if modal != null:
+		modal.queue_free()
+		modal = null
+	var ui := COLONY_UI.new()
+	ui.mode = "results"
+	ui.colony = colony
+	ui.world = self
+	ui.results = info
+	_open_modal(ui)
 
 
 # ================================================================ entrada
@@ -181,7 +258,7 @@ func _set_rally_here() -> void:
 		Game.notify.emit("O ponto de reunião precisa ficar perto da cidade.", Color(1, 0.8, 0.5))
 		return
 	colony.set_rally(p)
-	if colony.army_mode == "follow":
+	if colony.army_mode == "follow" and role == "solo":   # no grupo o servidor já devolve o exército ao posto
 		colony.toggle_army_mode()
 
 
@@ -216,15 +293,24 @@ func _open_modal(c: Control) -> void:
 	modal = c
 	ui_layer.add_child(c)
 	c.closed.connect(_on_modal_closed)
-	get_tree().paused = true
+	_set_paused(true)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	hud.visible = false
 	colony_hud.visible = false
 
 
+## Em grupo a cidade não para: só o controle do jogador fica travado.
+func _set_paused(on: bool) -> void:
+	if role == "client":
+		if player:
+			player.input_locked = on
+	else:
+		get_tree().paused = on
+
+
 func _on_modal_closed() -> void:
 	modal = null
-	get_tree().paused = false
+	_set_paused(false)
 	hud.visible = true
 	colony_hud.visible = true
 	if player and not player.dead:
@@ -240,7 +326,7 @@ func _on_player_died() -> void:
 
 
 func _respawn() -> void:
-	var lost := int(Game.gold * 0.05)
+	var lost := int(Game.gold * 0.05) if role == "solo" else 0
 	Game.gold -= lost
 	var at := SPAWN
 	if colony.hall and is_instance_valid(colony.hall):
@@ -251,6 +337,11 @@ func _respawn() -> void:
 
 
 func on_defeat() -> void:
+	if role == "server":
+		Lobby.city_defeat()
+		return
+	if role == "client":
+		return   # o resultado chega do servidor (show_results)
 	if build.active:
 		build.set_active(false)
 	await get_tree().create_timer(2.5).timeout
@@ -267,6 +358,10 @@ func on_defeat() -> void:
 # ================================================================ salvar / carregar
 ## O personagem (nível, itens) vai num save próprio do modo, separado do save do RPG.
 func save_colony() -> bool:
+	if role != "solo":
+		if role == "client":
+			Game.notify.emit("Na cidade em grupo não há save: as recompensas vão para o seu personagem a cada amanhecer.", Color(1, 0.8, 0.5))
+		return false
 	if colony.phase != "day" and colony.phase != "setup":
 		Game.notify.emit("Só dá para salvar de dia.", Color(1, 0.6, 0.5))
 		return false
@@ -292,7 +387,8 @@ func save_colony() -> bool:
 
 
 func autosave() -> void:
-	save_colony()
+	if role == "solo":
+		save_colony()
 
 
 func quick_save() -> void:
@@ -300,7 +396,7 @@ func quick_save() -> void:
 
 
 func quick_load() -> void:
-	if Game.has_colony_save():
+	if role == "solo" and Game.has_colony_save():
 		Game.start_colony(true)
 
 
@@ -323,6 +419,8 @@ func _load_character() -> bool:
 
 # ================================================================ luz do dia
 func _process(_delta: float) -> void:
+	if role == "server":
+		return
 	if _respawn_t > 0.0:
 		_respawn_t -= _delta
 		if _respawn_t <= 0.0 and player.dead and colony.phase != "over":
