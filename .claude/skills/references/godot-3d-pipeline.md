@@ -26,13 +26,31 @@ registrada em `BUILDERS`. Não crie arquivos `.blend` para assets do jogo.
 
 ### Executar (sempre via CLI em background)
 
+A saída do Blender é longa (uma linha `PART` por peça, centenas por personagem): **nunca** jogue ela
+inteira no contexto. Grave num log no scratchpad e leia só o que importa.
+
 ```bash
+B="C:/Program Files/Blender Foundation/Blender 5.2/blender.exe"
 # gera só os assets listados (sem ASSETS gera todos)
-ASSETS=knight,chest "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup --python tools/blender/build_assets.py
-# conferir visualmente (Read no PNG depois)
-"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup --python tools/blender/preview_single.py -- knight <scratchpad>/knight.png
-"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup --python tools/blender/preview_single.py -- knight <scratchpad>/knight_sil.png silhouette
+ASSETS=knight,chest "$B" --background --factory-startup --python tools/blender/build_assets.py > <scratchpad>/build.log 2>&1
+grep -E "^EXPORT|Error|Traceback" <scratchpad>/build.log
+# faltou um EXPORT ou apareceu erro? aí sim: tail -n 40 <scratchpad>/build.log
+# (num crash nativo não há Traceback; a última linha PART diz em que peça travou)
+
+# conferir visualmente (Read no PNG depois). Durante as iterações use "small":
+"$B" -b --factory-startup --python tools/blender/preview_single.py -- knight <scratchpad>/knight.png small 2>&1 | grep -E "^TRIS|Error"
+"$B" -b --factory-startup --python tools/blender/preview_single.py -- knight <scratchpad>/knight_sil.png silhouette small 2>&1 | grep -E "^TRIS|Error"
 ```
+
+### Renders: quando usar cada tamanho
+
+| Render | Para quê |
+|---|---|
+| `preview_single.py ... small` (900×573) | iterações de silhueta, proporção, pose e cores — padrão enquanto ajusta |
+| `preview_single.py ...` sem `small` (1650×1050) | conferência final do asset, uma vez |
+| `preview_closeup.py` | detalhes pequenos (rosto, visor, mãos, fivelas) — mais nítido que o render cheio |
+
+Leia uma imagem por vez e só depois de mudar algo relevante; junte vários ajustes numa rodada.
 
 **Não** rode `build_assets.py` pelo Blender MCP: exportar glTF de uma cena não ativa derrubou o Blender
 (EXCEPTION_ACCESS_VIOLATION). O MCP (`mcp__Blender__*`, servidor oficial do Blender — não o
@@ -72,10 +90,12 @@ tingidas/ocultadas separadamente (mesmo pivô e material) para reduzir draw call
 
 ## Validação mínima antes de dizer "pronto"
 
-1. Build via CLI sem erro; conferir linha `EXPORT <nome>`.
-2. `preview_single.py` normal + `silhouette`, e olhar os PNGs (Read). Silhueta tem que dizer o que é.
+1. Build via CLI sem erro; conferir linha `EXPORT <nome>` (com o grep acima).
+2. `preview_single.py` em tamanho cheio (sem `small`) normal + `silhouette`, e olhar os PNGs (Read).
+   Silhueta tem que dizer o que é. Se o asset tem detalhe pequeno, também `preview_closeup.py`.
 3. `TRIS` dentro do orçamento acima.
 4. Se mexeu em personagem: `grep` dos nomes de peças/pivôs em `scripts/` continua batendo.
 5. Godot reimport + smoke test headless:
    `C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . --import` e depois
    `C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . res://scenes/world.tscn -- --smoketest`.
+   Mesmo esquema: saída para um log no scratchpad, `grep -iE "error|smoke"` nele, `tail` só se algo falhar.
