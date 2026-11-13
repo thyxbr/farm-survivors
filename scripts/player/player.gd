@@ -59,6 +59,10 @@ var peer_id := 0
 var display_name := ""
 ## Bloqueia o controle sem pausar a árvore (menus abertos no multiplayer).
 var input_locked := false
+## Desafio da Horda em grupo: parado enquanto o grupo escolhe as cartas de nível.
+var horde_frozen := false
+## Digitando no chat: as teclas vão para a caixa de texto, não para o personagem.
+var chat_typing := false
 ## Defesa da Cidade: no modo construção o clique posiciona prédios (sem atacar, esquivar ou conjurar).
 var build_lock := false
 var name_tag: Label3D
@@ -181,7 +185,7 @@ func _physics_process(delta: float) -> void:
 	_tick_timers(delta)
 	_regen(delta)
 
-	if input_locked:
+	if input_locked or horde_frozen or chat_typing:
 		velocity.x = move_toward(velocity.x, 0, 45 * delta)
 		velocity.z = move_toward(velocity.z, 0, 45 * delta)
 		move_and_slide()

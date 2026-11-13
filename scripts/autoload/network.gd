@@ -16,6 +16,8 @@ signal join_failed(reason: String)
 signal players_changed
 ## Cliente: a fila do Desafio da Horda mudou (convite novo, alguém aceitou, fila fechou).
 signal horde_changed
+## Cliente: mensagem de chat (nome vazio = aviso do servidor).
+signal chat_received(from: String, text: String)
 
 const DEFAULT_PORT := 7777
 ## Endereço sugerido no menu "Entrar". Troque pelo IP/domínio do seu servidor antes de exportar.
@@ -29,11 +31,15 @@ const ENEMY := preload("res://scripts/enemies/enemy.gd")
 const FIREBALL := preload("res://scripts/player/fireball.gd")
 
 const STATES := ["idle", "wander", "chase", "return", "attack", "dead"]
-const ATTACK_KINDS := ["swing", "lunge", "slam"]
+const ATTACK_KINDS := ["swing", "lunge", "slam", "shoot", "fuse", "cast"]
 const SNAP_STRIDE := 10   # id, x, y, z, yaw, hp, state, attack_timer, attack_kind, flags
 ## Tempo da fila do Desafio da Horda (cai para HORDE_LOBBY_ALL quando todos já responderam).
 const HORDE_LOBBY_TIME := 15.0
 const HORDE_LOBBY_ALL := 3.0
+## Chat: tamanho máximo da mensagem e limite de mensagens por janela de tempo (anti-spam).
+const CHAT_MAX := 120
+const CHAT_BURST := 5
+const CHAT_WINDOW := 6.0
 
 enum Mode { OFFLINE, SERVER, CLIENT }
 
@@ -55,6 +61,7 @@ var _snapshots_sent := 0
 var _snap_t := 0.0
 var _connect_t := 0.0
 var _pending := {}        # servidor: peer_id -> segundos até expulsar quem não se registrou
+var _chat_log := {}       # servidor: peer_id -> [instantes das últimas mensagens]
 
 ## Servidor: fila aberta {"leader": id, "members": {id: true}, "declined": {id: true}, "t": s} ou {}.
 var _lobby := {}
@@ -62,6 +69,10 @@ var _lobby := {}
 var horde_run: Node = null
 ## Servidor: duração da rodada (--horde-round=SEG encurta para os testes).
 var horde_round_time := 45.0
+## Servidor: tempo máximo para o grupo escolher as cartas de nível (--horde-pick=SEG encurta nos testes).
+var horde_pick_time := 20.0
+## Força um evento em toda rodada (--horde-event=ID, para testes e screenshots; vale também offline).
+var horde_force_event := ""
 ## Cliente: fila vista pelo servidor {"leader": nome, "members": [ids], "names": [nomes], "declined": [ids]}.
 var horde_lobby := {}
 ## Cliente: segundos até a fila fechar (contado localmente).
@@ -81,6 +92,10 @@ func _ready() -> void:
 			port = int(a.substr(7))
 		elif a.begins_with("--horde-round="):
 			horde_round_time = maxf(3.0, float(a.substr(14)))
+		elif a.begins_with("--horde-pick="):
+			horde_pick_time = maxf(2.0, float(a.substr(13)))
+		elif a.begins_with("--horde-event="):
+			horde_force_event = a.substr(14)
 	if "--server" in args:
 		start_server.call_deferred()
 
@@ -135,6 +150,7 @@ func _no_throttle(id: int) -> void:
 
 func _on_peer_disconnected(id: int) -> void:
 	_pending.erase(id)
+	_chat_log.erase(id)
 	if is_server() and players.has(id):
 		print("[server] %s saiu (%d online)" % [players[id].name, players.size() - 1])
 		players.erase(id)
@@ -531,6 +547,19 @@ func request_horde() -> void:
 	horde_send("request")
 
 
+## XP das gemas coletadas (o nível da horda é do grupo).
+func horde_xp(amount: float) -> void:
+	if is_client() and amount > 0.0:
+		_horde_xp.rpc_id(1, amount)
+
+
+## Chat: manda uma mensagem para todos os jogadores online.
+func send_chat(text: String) -> void:
+	var t := _clean_chat(text)
+	if is_client() and t != "":
+		_chat_send.rpc_id(1, t)
+
+
 func horde_answer(accept: bool) -> void:
 	horde_send("accept" if accept else "decline")
 	# resposta otimista: o painel atualiza na hora; o servidor confirma em seguida
@@ -567,6 +596,7 @@ func _player_joined(id: int, info: Dictionary) -> void:
 	players[id] = info
 	if not known:
 		Game.notify.emit("%s entrou no mundo." % info.name, Color(0.6, 0.9, 1.0))
+		chat_received.emit("", "%s entrou no mundo." % info.name)
 	# a réplica pode ter sido criada antes (pelo estado) sem nome nem visual
 	var rp: Player = remote_players.get(id)
 	if rp and is_instance_valid(rp):
@@ -579,6 +609,7 @@ func _player_joined(id: int, info: Dictionary) -> void:
 func _player_left(id: int) -> void:
 	if players.has(id):
 		Game.notify.emit("%s saiu." % players[id].name, Color(0.7, 0.75, 0.85))
+		chat_received.emit("", "%s saiu." % players[id].name)
 	players.erase(id)
 	_remove_remote_player(id)
 	players_changed.emit()
@@ -731,9 +762,21 @@ func _horde_msg(kind: String) -> void:
 		"ready":
 			if run:
 				run.server_player_ready(id)
+		"lv_ready":
+			if run:
+				run.server_player_lv_ready(id)
 		"leave":
 			if run:
 				run.server_player_left(id)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _horde_xp(amount: float) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not is_server() or not players.has(id):
+		return
+	if horde_run != null and is_instance_valid(horde_run):
+		horde_run.server_add_xp(id, amount)
 
 
 func _server_horde_request(id: int) -> void:
@@ -807,7 +850,7 @@ func _horde_launch() -> void:
 		if rp and is_instance_valid(rp) and rp.dead:
 			_horde_notice.rpc_id(pid, "Você estava caído e ficou fora do Desafio da Horda.")
 			continue
-		team[pid] = {"name": players[pid].name, "dead": false, "ready": false}
+		team[pid] = {"name": players[pid].name, "dead": false, "ready": false, "lv_ready": true}
 	_lobby = {}
 	_broadcast_lobby()
 	if team.is_empty() or world == null or not world.has_method("server_start_horde"):
@@ -874,17 +917,52 @@ func _horde_start(team: Dictionary, slot: int, round_time: float) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _horde_round_start(n: int, t: float) -> void:
+func _horde_round_start(n: int, t: float, event: String, hunt: int) -> void:
 	var sv := _horde_survival()
 	if sv:
-		sv.net_round_start(n, t)
+		sv.net_round_start(n, t, event, hunt)
 
 
 @rpc("authority", "call_remote", "reliable")
-func _horde_round_end(n: int) -> void:
+func _horde_round_end(n: int, break_t: float) -> void:
 	var sv := _horde_survival()
 	if sv:
-		sv.net_round_end(n)
+		sv.net_round_end(n, break_t)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _horde_levelup(level: int, xp: float, picks: int, timeout: float) -> void:
+	var sv := _horde_survival()
+	if sv:
+		sv.net_levelup(level, xp, clampi(picks, 1, 20), timeout)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _horde_resume(level: int, xp: float) -> void:
+	var sv := _horde_survival()
+	if sv:
+		sv.net_resume(level, xp)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _horde_state(level: int, xp: float) -> void:
+	var sv := _horde_survival()
+	if sv:
+		sv.net_state(level, xp)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _horde_fx(kind: String, pos: Vector3) -> void:
+	var sv := _horde_survival()
+	if sv:
+		sv.net_fx(kind, pos)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _horde_bonus(kind: String) -> void:
+	var sv := _horde_survival()
+	if sv:
+		sv.net_bonus(kind)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -911,3 +989,38 @@ func _horde_over(reason: String) -> void:
 @rpc("authority", "call_remote", "reliable")
 func _horde_notice(text: String) -> void:
 	Game.notify.emit(text, Color(1, 0.7, 0.5))
+
+
+# ================================================================ chat
+func _clean_chat(text: String) -> String:
+	var t := ""
+	for ch in text.strip_edges():
+		# sem quebras de linha nem caracteres de controle
+		t += " " if ch.unicode_at(0) < 32 else ch
+	return t.strip_edges().substr(0, CHAT_MAX)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _chat_send(text: String) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not is_server() or not players.has(id) or not players[id].ready:
+		return
+	var t := _clean_chat(text)
+	if t == "":
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	var recent: Array = _chat_log.get(id, []).filter(func(x: float) -> bool: return now - x < CHAT_WINDOW)
+	if recent.size() >= CHAT_BURST:
+		_chat_msg.rpc_id(id, "", "Calma! Espere alguns segundos para mandar outra mensagem.")
+		return
+	recent.append(now)
+	_chat_log[id] = recent
+	var from: String = players[id].name
+	print("[chat] %s: %s" % [from, t])
+	for pid in _ready_peers():
+		_chat_msg.rpc_id(pid, from, t)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _chat_msg(from: String, text: String) -> void:
+	chat_received.emit(from, text)
