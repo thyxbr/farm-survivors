@@ -376,7 +376,7 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 	if not hit_done and attack_timer >= _hit_time():
 		hit_done = true
 		if attack_kind == "slam":
-			Sfx.play("slam", 0.0)
+			Sfx.play_at("slam", global_position, 0.0)
 			FX.ring(global_position, Color(0.8, 0.6, 0.3, 0.9), 5.0, 0.4)
 			FX.burst(global_position + Vector3.UP * 0.3, Color(0.5, 0.4, 0.3), 40, 7.0, 0.2, 0.8)
 			if player and dist <= 5.0:
@@ -388,7 +388,7 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 			if facing_ok:
 				player.take_damage(data.damage * dmg_mult * randf_range(0.9, 1.1) * mult, global_position)
 		if attack_kind == "swing":
-			Sfx.play("swing", 0.15, -4.0)
+			Sfx.play_at("swing", global_position, 0.15, -4.0)
 	if attack_timer >= _attack_duration():
 		attack_cd = data.cooldown * (0.7 if enraged else 1.0) * randf_range(0.8, 1.2)
 		_set_state("chase")
@@ -486,7 +486,7 @@ func die_visual() -> void:
 		m.material_overlay = null
 	if bar_root:
 		bar_root.visible = false
-	Sfx.play("bloop" if data.model == "slime" else "hit", 0.1, -4.0 if horde else 0.0)
+	Sfx.play_at("bloop" if data.model == "slime" else "hit", global_position, 0.1, -4.0 if horde else 0.0)
 	FX.burst(global_position + Vector3.UP * 0.6 * data.scale, data.color, 30 if not is_boss else 120, 5.0, 0.14, 0.9)
 	died.emit(self)
 	var tw := create_tween()
@@ -684,11 +684,11 @@ func _puppet_process(delta: float) -> void:
 		if not hit_done and before < _hit_time() and attack_timer >= _hit_time():
 			hit_done = true
 			if attack_kind == "slam":
-				Sfx.play("slam", 0.0)
+				Sfx.play_at("slam", global_position, 0.0)
 				FX.ring(global_position, Color(0.8, 0.6, 0.3, 0.9), 5.0, 0.4)
 				FX.burst(global_position + Vector3.UP * 0.3, Color(0.5, 0.4, 0.3), 40, 7.0, 0.2, 0.8)
 			elif attack_kind == "swing":
-				Sfx.play("swing", 0.15, -4.0)
+				Sfx.play_at("swing", global_position, 0.15, -4.0)
 	var hspeed := Vector2(global_position.x - prev.x, global_position.z - prev.z).length() / maxf(delta, 0.0001)
 	_animate(delta, hspeed)
 	if bar_root and bar_root.visible:

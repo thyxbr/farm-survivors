@@ -167,7 +167,7 @@ func _finish(impact: bool) -> void:
 	if fx == "splash" and impact:
 		FX.burst(global_position, color, 30, 6.0, 0.12, 0.45, -3.0)
 		FX.ring(global_position - Vector3.UP * 0.4, Color(color.r, color.g, color.b, 0.8), 2.4, 0.3)
-		Sfx.play("explode", 0.1, -6.0)
+		Sfx.play_at("explode", global_position, 0.1, -6.0)
 		if not visual_only:
 			for e in get_tree().get_nodes_in_group("enemies"):
 				if e.dead or _hit.has(e.get_instance_id()):

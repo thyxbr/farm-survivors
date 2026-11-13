@@ -193,7 +193,7 @@ func take_damage(amount: float, _from_pos: Vector3) -> void:
 	_bar_root.visible = true
 	if _hit_sfx <= 0.0:
 		_hit_sfx = 0.35
-		Sfx.play("hit", 0.2, -10.0)
+		Sfx.play_at("hit", global_position, 0.2, -10.0)
 		FX.burst(global_position + Vector3.UP * minf(2.0, ColonyVisuals.height(kind) * 0.5),
 			Color(0.55, 0.45, 0.35), 6, 3.0, 0.1, 0.5)
 	if is_core and colony:
@@ -215,7 +215,7 @@ func _destroy() -> void:
 	remove_from_group("buildings")
 	remove_from_group("interactable")
 	collision_layer = 0
-	Sfx.play("slam", 0.1, -2.0)
+	Sfx.play_at("slam", global_position, 0.1, -2.0)
 	var c := global_position + Vector3.UP * 1.0
 	FX.burst(c, Color(0.5, 0.42, 0.35), 50, 7.0, 0.18, 1.0)
 	FX.burst(c, Color(0.3, 0.3, 0.3), 30, 3.0, 0.3, 1.4, -2.0)
@@ -318,12 +318,12 @@ func _tower_process(delta: float) -> void:
 	s.global_position = muzzle.global_position if muzzle else global_position + Vector3.UP * 5.0
 	match kind:
 		"cannon_tower":
-			Sfx.play("explode", 0.15, -10.0)
+			Sfx.play_at("explode", global_position, 0.15, -10.0)
 			FX.burst(s.global_position, Color(0.6, 0.6, 0.6), 12, 3.0, 0.15, 0.5, 1.0)
 		"mage_tower":
-			Sfx.play("zap", 0.15, -10.0)
+			Sfx.play_at("zap", global_position, 0.15, -10.0)
 		_:
-			Sfx.play("swing", 0.25, -14.0)
+			Sfx.play_at("swing", global_position, 0.25, -14.0)
 
 
 func _spikes_process(delta: float) -> void:

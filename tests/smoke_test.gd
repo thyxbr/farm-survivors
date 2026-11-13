@@ -26,6 +26,20 @@ func _ready() -> void:
 	world = get_tree().current_scene
 	player = get_tree().get_first_node_in_group("player")
 	check(world != null and player != null, "mundo e jogador carregados")
+	# confere o kit antes de qualquer combate: slimes podem soltar cajado/arco e o saque é aleatório
+	check(Game.count_item("apprentice_staff") == 1 and Game.count_item("short_bow") == 1, "kit inicial tem cajado e arco")
+
+	# --- som posicional: combate longe do jogador não deve ser ouvido
+	check(Sfx.distance_gain(0.0) == 1.0 and Sfx.distance_gain(15.0) < 0.5 and Sfx.distance_gain(Sfx.FAR_DIST + 1.0) == 0.0,
+		"volume do som do mundo cai com a distância")
+	var slot0: int = Sfx._next_3d
+	Sfx.play_at("hit", player.global_position + Vector3(Sfx.FAR_DIST + 5.0, 0, 0))
+	check(Sfx._next_3d == slot0, "som de combate longe do jogador é descartado")
+	var near_pos := player.global_position + Vector3(10, 0, 0)
+	Sfx.play_at("hit", near_pos)
+	var used: AudioStreamPlayer3D = Sfx._players_3d[slot0]
+	check(Sfx._next_3d != slot0 and used.global_position.is_equal_approx(near_pos) and used.volume_db < -1.0,
+		"som de combate perto toca no lugar certo, mais baixo (%.1f dB)" % used.volume_db)
 	check(get_tree().get_nodes_in_group("enemies").size() >= 15, "inimigos spawnados (%d)" % get_tree().get_nodes_in_group("enemies").size())
 	check(get_tree().get_nodes_in_group("interactable").size() == 3 + Game.FARM_PLOTS + 1,
 		"2 NPCs + portal + %d canteiros + caldeirão interagíveis" % Game.FARM_PLOTS)
@@ -455,7 +469,6 @@ func _test_gear() -> void:
 	check(bad.is_empty(), "itens novos consistentes (%d itens) %s" % [ItemDB.ITEMS.size(), bad])
 
 	# cajado: ataque básico dispara projétil arcano
-	check(Game.count_item("apprentice_staff") == 1 and Game.count_item("short_bow") == 1, "kit inicial tem cajado e arco")
 	var dmg_sword := Game.melee_damage()
 	check(Game.equip("apprentice_staff"), "equipou cajado")
 	await wait(0.05)
