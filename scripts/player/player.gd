@@ -20,6 +20,13 @@ const SWING_MULT := [1.0, 1.1, 1.6]
 const STAFF_TIMES := [0.4, 0.4, 0.6]
 const BOW_FULL := 0.85        # segundos para tensionar o arco por completo
 const BOW_RECOVER := 0.28
+## Comprimento da perna (quadril ao chão): casa a passada com a velocidade para o pé não deslizar.
+const LEG_LEN := 0.95
+## Ganho da aproximação exponencial da velocidade (chão: andando, parando, invertendo; ar).
+const ACCEL_RUN := 14.0
+const ACCEL_STOP := 18.0
+const ACCEL_TURN := 22.0
+const ACCEL_AIR := 4.0
 
 var dead := false
 var cam_yaw: Node3D
@@ -36,6 +43,19 @@ var draw_t := 0.0
 
 var anim_t := 0.0
 var idle_t := 0.0
+## Animação procedural: amplitude da passada, inclinação, curva e impacto da aterrissagem (suavizados).
+var _amp := 0.0
+var _lean := 0.0
+var _bank := 0.0
+var _land := 0.0
+var _air_vy := 0.0
+var _was_floor := true
+var _prev_yaw := 0.0
+var _prev_hvel := Vector3.ZERO
+## Capa com física (CapeRig) e câmera: posição da última física, para detectar teleportes.
+var cape: CapeRig
+var _last_pos := Vector3.ZERO
+var _cam_y := 0.0
 var attacking := false
 var attack_timer := 0.0
 var combo := 0
@@ -65,6 +85,8 @@ var name_tag: Label3D
 var _net_pos := Vector3.ZERO
 var _net_yaw := 0.0
 var _net_floor := true
+var _net_vel := Vector3.ZERO
+var _net_age := 0.0
 var _net_send_t := 0.0
 
 
@@ -89,8 +111,11 @@ func _ready() -> void:
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 
+	# o suporte da câmera fica fora da hierarquia interpolada: o mouse gira na hora, e
+	# _process o coloca sobre a posição interpolada do jogador a cada quadro.
 	cam_yaw = Node3D.new()
-	cam_yaw.position.y = 1.55
+	cam_yaw.top_level = true
+	cam_yaw.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	add_child(cam_yaw)
 	cam_pitch = Node3D.new()
 	cam_pitch.rotation.x = -0.25
@@ -119,6 +144,7 @@ func _ready() -> void:
 	else:
 		global_position = spawn_point
 		model.rotation.y = PI
+	_snap_visuals()
 	Game.inventory_changed.connect(_update_equipment_visual)
 	Game.leveled_up.connect(_on_level_up)
 	Game.food_eaten.connect(_on_food_eaten)
@@ -127,11 +153,47 @@ func _ready() -> void:
 
 
 func _build_model() -> void:
+	# jogador e réplicas são interpolados entre os passos de física (movimento liso em telas >60 Hz)
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
 	model = KNIGHT.instantiate()
 	add_child(model)
 	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head"]:
 		parts[n] = model.find_child(n, true, false)
 	parts["body_y"] = parts.Body.position.y
+	var cape_mesh := model.find_child("Cape", true, false) as MeshInstance3D
+	if cape_mesh:
+		cape = CapeRig.attach(cape_mesh)
+	if cape:
+		cape.add_capsule(parts.LegL, 0.11, 0.95, Vector3(0, -0.45, 0))
+		cape.add_capsule(parts.LegR, 0.11, 0.95, Vector3(0, -0.45, 0))
+		cape.add_capsule(parts.Body, 0.14, 0.75, Vector3(0, 0.25, 0.02))
+
+
+## Depois de um teleporte: sem interpolação do ponto antigo ao novo e capa de volta ao repouso.
+func _snap_visuals() -> void:
+	_last_pos = global_position
+	_cam_y = global_position.y
+	reset_physics_interpolation()
+	if cape:
+		cape.reset()
+	if cam_yaw:
+		cam_yaw.global_position = global_position + Vector3.UP * 1.55
+
+
+func _check_teleport() -> void:
+	if global_position.distance_to(_last_pos) > 3.0:
+		_snap_visuals()
+	_last_pos = global_position
+
+
+func _process(delta: float) -> void:
+	if remote or cam_yaw == null:
+		return
+	# câmera sobre a posição interpolada; na vertical segue com leve atraso (degraus, pulos)
+	var o := get_global_transform_interpolated().origin
+	_cam_y = lerpf(_cam_y, o.y, 1.0 - exp(-12.0 * delta))
+	_cam_y = clampf(_cam_y, o.y - 0.6, o.y + 0.6)
+	cam_yaw.global_position = Vector3(o.x, _cam_y + 1.55, o.z)
 
 
 func _ready_remote() -> void:
@@ -140,6 +202,7 @@ func _ready_remote() -> void:
 	collision_mask = 0
 	_build_model()
 	_net_pos = position
+	_snap_visuals()
 	var tag := Label3D.new()
 	name_tag = tag
 	tag.text = display_name
@@ -167,7 +230,12 @@ func _unhandled_input(event: InputEvent) -> void:
 func _physics_process(delta: float) -> void:
 	if remote:
 		_remote_process(delta)
-		return
+	else:
+		_local_process(delta)
+	_check_teleport()
+
+
+func _local_process(delta: float) -> void:
 	if Network.is_client():
 		_net_send(delta)
 	if not is_on_floor():
@@ -218,9 +286,22 @@ func _physics_process(delta: float) -> void:
 		velocity.x = dodge_dir.x * DODGE_SPEED
 		velocity.z = dodge_dir.z * DODGE_SPEED
 	else:
-		var accel := 45.0 if is_on_floor() else 12.0
-		velocity.x = move_toward(velocity.x, dir.x * speed, accel * delta)
-		velocity.z = move_toward(velocity.z, dir.z * speed, accel * delta)
+		# aproximação exponencial: arranca rápido e assenta suave; inverter a direção freia mais forte
+		var hv := Vector3(velocity.x, 0, velocity.z)
+		var target := dir * speed
+		var rate := ACCEL_AIR
+		if is_on_floor():
+			if target.length() < 0.1:
+				rate = ACCEL_STOP
+			elif hv.dot(target) < 0.0:
+				rate = ACCEL_TURN
+			else:
+				rate = ACCEL_RUN
+		hv = hv.lerp(target, 1.0 - exp(-rate * delta))
+		if target == Vector3.ZERO and hv.length() < 0.05:
+			hv = Vector3.ZERO
+		velocity.x = hv.x
+		velocity.z = hv.z
 
 	if Input.is_action_just_pressed("jump") and is_on_floor() and not attacking and dodge_timer <= 0:
 		velocity.y = JUMP_VELOCITY
@@ -272,7 +353,8 @@ func _physics_process(delta: float) -> void:
 	elif dir.length() > 0.1:
 		face = dir
 	if face != Vector3.ZERO:
-		model.rotation.y = lerp_angle(model.rotation.y, atan2(face.x, face.z), 14.0 * delta)
+		var turn := 22.0 if (attacking or cast_timer > 0 or drawing or dodge_timer > 0) else 13.0
+		model.rotation.y = lerp_angle(model.rotation.y, atan2(face.x, face.z), 1.0 - exp(-turn * delta))
 
 	move_and_slide()
 	if global_position.y < -25:
@@ -696,7 +778,7 @@ func _die() -> void:
 	attacking = false
 	_cancel_draw()
 	Sfx.play("death", 0.0)
-	var tw := create_tween()
+	var tw := create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
 	tw.tween_property(parts.Body, "rotation:x", -1.4, 0.6).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
 	tw.parallel().tween_property(parts.Body, "position:y", 0.35, 0.6)
 	died.emit()
@@ -787,6 +869,8 @@ func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int,
 	_net_pos = pos
 	_net_yaw = yaw
 	velocity = vel
+	_net_vel = vel
+	_net_age = 0.0
 	_net_floor = flags & NF_FLOOR != 0
 	dodge_timer = 0.12 if flags & NF_DODGE else 0.0
 	cast_timer = 0.15 if flags & NF_CAST else 0.0
@@ -809,7 +893,7 @@ func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int,
 	if now_dead and not dead:
 		dead = true
 		attacking = false
-		var tw := create_tween()
+		var tw := create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
 		tw.tween_property(parts.Body, "rotation:x", -1.4, 0.6).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
 		tw.parallel().tween_property(parts.Body, "position:y", 0.35, 0.6)
 	elif dead and not now_dead:
@@ -825,10 +909,13 @@ func set_display_name(n: String) -> void:
 
 
 func _remote_process(delta: float) -> void:
-	if global_position.distance_to(_net_pos) > 8.0:
-		global_position = _net_pos
+	# entre pacotes (20/s) segue andando na última velocidade conhecida, em vez de parar e dar tranco
+	_net_age += delta
+	var target := _net_pos + Vector3(_net_vel.x, 0, _net_vel.z) * minf(_net_age, 0.2)
+	if global_position.distance_to(target) > 8.0:
+		global_position = target
 	else:
-		global_position = global_position.lerp(_net_pos, 1.0 - exp(-15.0 * delta))
+		global_position = global_position.lerp(target, 1.0 - exp(-12.0 * delta))
 	model.rotation.y = lerp_angle(model.rotation.y, _net_yaw, 1.0 - exp(-15.0 * delta))
 	if dead:
 		return
@@ -890,32 +977,72 @@ func _update_camera(delta: float) -> void:
 
 
 func _animate(delta: float) -> void:
-	var hspeed := Vector2(velocity.x, velocity.z).length()
+	var hvel := Vector3(velocity.x, 0, velocity.z)
+	var hspeed := hvel.length()
 	var on_floor := _net_floor if remote else is_on_floor()
-	anim_t += delta * (2.0 + hspeed * 1.6)
 	idle_t += delta
-	var amp: float = clamp(hspeed / 6.0, 0.0, 1.0) * 0.75
-	var s := sin(anim_t)
 	var k := 1.0 - exp(-14.0 * delta)
+
+	# passada: amplitude cresce com a velocidade (corrida abre mais) e a fase avança pela distância
+	# percorrida, então o pé acompanha o chão em qualquer velocidade
+	var walk_amp := clampf(hspeed / WALK_SPEED, 0.0, 1.0) * 0.6 \
+		+ clampf((hspeed - WALK_SPEED) / (SPRINT_SPEED - WALK_SPEED), 0.0, 1.0) * 0.25
+	_amp = lerpf(_amp, walk_amp if on_floor else 0.0, 1.0 - exp(-10.0 * delta))
+	anim_t += delta * minf(hspeed * PI / (2.0 * LEG_LEN * maxf(_amp, 0.3)) * 0.85, 18.0)
+	var s := sin(anim_t)
+	var amp := _amp
+
+	# inclinação para a frente com a velocidade e a aceleração; para o lado nas curvas
+	var fwd := Vector3(sin(model.rotation.y), 0, cos(model.rotation.y))
+	var accel := (hvel - _prev_hvel) / maxf(delta, 0.001)
+	_prev_hvel = hvel
+	if remote:
+		accel = Vector3.ZERO   # a velocidade da réplica muda aos saltos (pacotes): só a local dá aceleração confiável
+	var lean_t := clampf(0.06 * hspeed / WALK_SPEED + accel.dot(fwd) * 0.01, -0.12, 0.28) if on_floor else 0.0
+	_lean = lerpf(_lean, lean_t, 1.0 - exp(-8.0 * delta))
+	var yaw_rate := wrapf(model.rotation.y - _prev_yaw, -PI, PI) / maxf(delta, 0.001)
+	_prev_yaw = model.rotation.y
+	var bank_t := clampf(-yaw_rate * hspeed * 0.012, -0.18, 0.18) if on_floor and dodge_timer <= 0 else 0.0
+	_bank = lerpf(_bank, bank_t, 1.0 - exp(-8.0 * delta))
+	model.rotation.z = _bank
+
+	# aterrissagem: o tronco afunda e inclina conforme a velocidade da queda, depois volta
+	if not on_floor:
+		_air_vy = velocity.y
+	elif not _was_floor and _air_vy < -3.0:
+		_land = clampf(-_air_vy / 14.0, 0.3, 1.0)
+	_was_floor = on_floor
+	_land = move_toward(_land, 0.0, delta * 3.5)
+	var land := _land * _land * (3.0 - 2.0 * _land)
+
 	var leg_l := s * amp
 	var leg_r := -s * amp
-	var body_x := 0.0
-	var body_y: float = parts.body_y + abs(s) * 0.05 * amp + sin(idle_t * 2.0) * 0.01
+	var body_x := _lean + land * 0.3
+	# o quadril desce quando as pernas abrem (pés no chão) e respira parado
+	var body_y: float = parts.body_y + sin(idle_t * 2.0) * 0.01 * (1.0 - amp) - land * 0.14
+	var drop := LEG_LEN * (1.0 - cos(absf(s) * amp)) * 0.35 if on_floor else 0.0
 	if not on_floor:
-		leg_l = -0.5
-		leg_r = 0.3
+		# subindo: pernas recolhidas e tronco para trás; caindo: pernas descem para o chão
+		var rise := clampf(velocity.y / JUMP_VELOCITY, -1.0, 1.0)
+		leg_l = lerpf(-0.2, -0.65, maxf(rise, 0.0))
+		leg_r = lerpf(0.15, 0.35, maxf(rise, 0.0))
+		body_x = -0.12 * maxf(rise, 0.0) + 0.1 * maxf(-rise, 0.0)
 	if dodge_timer > 0:
 		body_x = 0.7
 		body_y = parts.body_y - 0.25
 		leg_l = -0.9
 		leg_r = 0.6
+		drop = 0.0
 	parts.LegL.rotation.x = lerp(parts.LegL.rotation.x, leg_l, k)
 	parts.LegR.rotation.x = lerp(parts.LegR.rotation.x, leg_r, k)
 	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x, k)
 	parts.Body.position.y = lerp(parts.Body.position.y, body_y, k)
+	model.position.y = lerpf(model.position.y, -drop, k)
+	# a cabeça compensa parte da inclinação e continua olhando para a frente
+	parts.Head.rotation.x = lerpf(parts.Head.rotation.x, -(_lean + land * 0.3) * 0.5 if dodge_timer <= 0 else 0.0, k)
 
 	# braço do escudo / conjuração
-	var arm_l := Vector3(-s * amp * 0.5, 0, 0)
+	var arm_l := Vector3(-s * amp * 0.65, 0, 0)
 	if cast_timer > 0:
 		arm_l = Vector3(-1.5, 0, 0.5)
 	var cls: String = look["class"]
@@ -927,7 +1054,7 @@ func _animate(delta: float) -> void:
 		arrow.visible = drawing
 
 	# braço da arma
-	var arm_r := Vector3(s * amp * 0.4 - 0.15, 0, 0)
+	var arm_r := Vector3(s * amp * 0.5 - 0.15, 0, 0)
 	if cls == "bow" and (drawing or attacking):
 		var c := bow_charge()
 		arm_r = Vector3(-1.45, 0, 0.35).lerp(Vector3(-1.35, 0.2, 1.05), c) if drawing else Vector3(-1.1, 0, 0.2)
