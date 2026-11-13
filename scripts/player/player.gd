@@ -63,6 +63,8 @@ var input_locked := false
 var horde_frozen := false
 ## Digitando no chat: as teclas vão para a caixa de texto, não para o personagem.
 var chat_typing := false
+## Defesa da Cidade: no modo construção o clique posiciona prédios (sem atacar, esquivar ou conjurar).
+var build_lock := false
 var name_tag: Label3D
 var _net_pos := Vector3.ZERO
 var _net_yaw := 0.0
@@ -226,16 +228,18 @@ func _physics_process(delta: float) -> void:
 
 	if Input.is_action_just_pressed("jump") and is_on_floor() and not attacking and dodge_timer <= 0:
 		velocity.y = JUMP_VELOCITY
-	if Input.is_action_just_pressed("dodge"):
+	if Input.is_action_just_pressed("dodge") and not build_lock:
 		_try_dodge(dir)
-	if look["class"] == "bow":
+	if build_lock:
+		_cancel_draw()
+	elif look["class"] == "bow":
 		_update_bow(delta)
 	elif Input.is_action_just_pressed("attack"):
 		_try_attack()
 	for i in 3:
-		if Input.is_action_just_pressed("spell_%d" % (i + 1)):
+		if Input.is_action_just_pressed("spell_%d" % (i + 1)) and not build_lock:
 			cast(["fireball", "heal", "frost_nova"][i])
-	if Input.is_action_just_pressed("potion"):
+	if Input.is_action_just_pressed("potion") and not build_lock:   # R gira a construção no modo construção
 		_quick_potion("health_potion")
 	if Input.is_action_just_pressed("mana_potion"):
 		_quick_potion("mana_potion")
@@ -243,10 +247,17 @@ func _physics_process(delta: float) -> void:
 		Game.eat_selected()
 	if Input.is_action_just_pressed("food_next"):
 		Game.cycle_food()
+	var scene := get_tree().current_scene
 	if Input.is_action_just_pressed("quicksave"):
-		Game.save_game(global_position, model.rotation.y)
+		if scene.has_method("quick_save"):
+			scene.quick_save()
+		else:
+			Game.save_game(global_position, model.rotation.y)
 	if Input.is_action_just_pressed("quickload"):
-		if Network.is_online():
+		if scene.has_method("quick_load"):
+			scene.quick_load()
+			return
+		elif Network.is_online():
 			Game.notify.emit("Carregar save não funciona no multiplayer.", Color(1, 0.6, 0.5))
 		else:
 			Game.load_game()
@@ -571,12 +582,12 @@ func _cast_frost_nova() -> void:
 func _frost_fx(radius: float) -> void:
 	FX.ring(global_position, Color(0.55, 0.85, 1.0, 0.9), radius, 0.5)
 	FX.burst(global_position + Vector3.UP * 0.5, Color(0.7, 0.9, 1.0), 50, 9.0, 0.14, 0.7, -2.0)
-	Sfx.play("frost", 0.0)
+	Sfx.play_at("frost", global_position, 0.0)
 
 
 func _heal_fx() -> void:
 	FX.burst(global_position + Vector3.UP, Color(0.4, 1.0, 0.5), 30, 3.0, 0.1, 1.0, 2.0)
-	Sfx.play("heal", 0.0)
+	Sfx.play_at("heal", global_position, 0.0)
 
 
 func _quick_potion(id: String) -> void:
@@ -791,7 +802,7 @@ func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int,
 		drawing = false
 	if flags & NF_ATTACK:
 		if not attacking or c != combo:
-			Sfx.play("swing", 0.12, -6.0)
+			Sfx.play_at("swing", global_position, 0.12, -6.0)
 		attacking = true
 		combo = clampi(c, 1, 3)
 		attack_timer = attack_t
@@ -843,7 +854,7 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 			fb.visual_only = true
 			get_tree().current_scene.add_child(fb)
 			fb.global_position = a
-			Sfx.play("fire", 0.08, -4.0)
+			Sfx.play_at("fire", a, 0.08, -4.0)
 		"frost_nova":
 			_frost_fx(6.5)
 		"heal":
@@ -860,7 +871,7 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 			p.global_position = a
 		"zap":
 			AUTO_WEAPONS.bolt_fx(get_tree().current_scene, a)
-			Sfx.play("zap", 0.15, -8.0)
+			Sfx.play_at("zap", a, 0.15, -8.0)
 		"horde_gear":
 			# armas automáticas do Desafio da Horda girando em volta do outro jogador
 			var aw: Node = get_node_or_null("HordeGear")

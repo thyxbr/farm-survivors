@@ -14,6 +14,13 @@ var save_path := "user://savegame.json"
 const SETTINGS_PATH := "user://settings.cfg"
 const WORLD_SCENE := "res://scenes/world.tscn"
 const MENU_SCENE := "res://scenes/main_menu.tscn"
+const COLONY_SCENE := "res://scenes/colony.tscn"
+
+## Defesa da Cidade: saves próprios (cidade + personagem do modo), separados do save do RPG.
+var colony_save_path := "user://colony_save.json"
+var colony_char_path := "user://colony_character.json"
+## true = a cena da cidade carrega o save em vez de começar do zero.
+var colony_continue := false
 
 var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "fullscreen": false, "invert_y": false,
 	"player_name": "", "server_address": ""}
@@ -61,6 +68,10 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--nettest="):
 			get_tree().root.add_child.call_deferred(load("res://tests/net_test.gd").new())
+	if "--colonytest" in OS.get_cmdline_user_args():
+		colony_save_path = "user://colonytest_save.json"
+		colony_char_path = "user://colonytest_character.json"
+		get_tree().root.add_child.call_deferred(load("res://tests/colony_test.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
 		save_path = "user://smoketest_save.json"
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())
@@ -219,6 +230,28 @@ func start_new_game() -> void:
 	new_game()
 	get_tree().paused = false
 	get_tree().change_scene_to_file(WORLD_SCENE)
+
+
+## Defesa da Cidade: cont = continuar a cidade salva (senão começa uma nova, com personagem novo).
+func start_colony(cont: bool) -> void:
+	colony_continue = cont and has_colony_save()
+	reset_run_mods()
+	get_tree().paused = false
+	get_tree().change_scene_to_file(COLONY_SCENE)
+
+
+func has_colony_save() -> bool:
+	return FileAccess.file_exists(colony_save_path)
+
+
+func colony_save_info() -> String:
+	var f := FileAccess.open(colony_save_path, FileAccess.READ)
+	if f == null:
+		return ""
+	var data = JSON.parse_string(f.get_as_text())
+	if not data is Dictionary:
+		return ""
+	return "Dia %d — %s" % [int(data.get("day", 1)), data.get("time", "")]
 
 
 func go_to_menu() -> void:

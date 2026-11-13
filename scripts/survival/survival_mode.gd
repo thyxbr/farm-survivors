@@ -645,7 +645,7 @@ func _update_meteors(delta: float) -> void:
 
 func _meteor_impact(pos: Vector3) -> void:
 	if role != "server":
-		Sfx.play("explode", 0.15, -3.0)
+		Sfx.play_at("explode", pos, 0.15, -3.0)
 		FX.ring(pos, Color(1.0, 0.5, 0.15, 0.95), METEOR_RADIUS, 0.4)
 		FX.burst(pos + Vector3.UP * 0.3, Color(1.0, 0.45, 0.1), 40, 7.0, 0.16, 0.7)
 		FX.burst(pos + Vector3.UP * 0.3, Color(0.3, 0.25, 0.2), 16, 3.0, 0.25, 1.0, 1.0)

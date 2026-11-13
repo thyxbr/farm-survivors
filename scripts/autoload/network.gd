@@ -457,7 +457,18 @@ func _on_server_disconnected() -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func _rejected(reason: String) -> void:
-	_fail(reason)
+	_fail(explain_rejection(reason, version()))
+
+
+## O texto de recusa vem do servidor, que pode ser o antigo: quando o jogador já atualizou e o servidor
+## ainda não (o deploy leva alguns minutos depois da release), "Atualize o jogo" estaria errado.
+func explain_rejection(reason: String, mine: String) -> String:
+	var m := RegEx.create_from_string("servidor: v?([0-9][0-9.]*)").search(reason)
+	if reason.begins_with("Versão diferente") and m \
+			and Updater.compare_versions(mine, m.get_string(1)) > 0:
+		return "O servidor ainda está na v%s e está sendo atualizado para a v%s. Tente de novo em alguns minutos." \
+			% [m.get_string(1), mine]
+	return reason
 
 
 @rpc("authority", "call_remote", "reliable")

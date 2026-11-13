@@ -54,6 +54,9 @@ jobs:
       - name: Teste de gameplay (smoke test)
         run: timeout 600 godot --headless --path . res://scenes/world.tscn -- --smoketest
 
+      - name: Teste da Defesa da Cidade
+        run: timeout 600 godot --headless --path . res://scenes/colony.tscn -- --colonytest
+
       - name: Teste de multiplayer (servidor + 2 clientes)
         run: |
           godot --headless --path . -- --server --port=7790 --horde-round=8 --horde-pick=5 > server.log 2>&1 &
@@ -82,14 +85,29 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # histórico e tags, para comparar com a release já publicada
 
+      # Se a versão já tem release, o jogo publicado precisa ser o mesmo código que vai para o servidor:
+      # o servidor só confere o texto da versão, e cliente e servidor com código diferente na mesma versão
+      # dessincronizam (as RPCs do Godot são identificadas pela posição). Então código do jogo mudou → versão nova.
       - name: Versão
         id: ver
         run: |
           ver=$(grep -oP 'config/version="\K[^"]+' project.godot)
           echo "version=$ver" >> "$GITHUB_OUTPUT"
           if gh release view "v$ver" --json assets -q '.assets[].name' 2>/dev/null | grep -qx latest.json; then
-            echo "A release v$ver já existe: nada a publicar (aumente config/version para lançar outra)."
+            if git rev-parse -q --verify "refs/tags/v$ver" > /dev/null; then
+              changed=$(git diff --name-only "v$ver" HEAD -- . ':!*.md' ':!docs' ':!.github' ':!tests' ':!tools' ':!.gitignore' ':!.gitattributes' ':!.dockerignore')
+              if [ -n "$changed" ]; then
+                echo "::error::A release v$ver já foi publicada, mas o código do jogo mudou desde ela. Aumente config/version no project.godot; sem isso o servidor recebe o código novo e os jogadores continuam com o antigo na mesma versão."
+                echo "$changed"
+                exit 1
+              fi
+            else
+              echo "::warning::A release v$ver existe, mas a tag não foi encontrada: não deu para conferir se o código mudou."
+            fi
+            echo "A release v$ver já existe e o jogo não mudou: nada a publicar."
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"

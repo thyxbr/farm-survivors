@@ -291,6 +291,7 @@ func _test_horde(w: Node) -> void:
 func _test_shared_level(w: Node, sv) -> void:
 	await _pick_levelups(w)
 	await _wait_until(func() -> bool: return not sv.frozen, 10.0)
+	await _barrier(w, sv, "nivel")
 	var lv0: int = sv.run_level
 	if horde_role == "lead":
 		await wait(0.5)
@@ -328,6 +329,7 @@ func _test_shared_level(w: Node, sv) -> void:
 	# tempo esgotado: quem não escolhe recebe uma carta sorteada
 	await _pick_levelups(w)
 	await _wait_until(func() -> bool: return not sv.frozen, 10.0)
+	await _barrier(w, sv, "afk")
 	if horde_role == "lead":
 		await wait(1.0)
 		sv.add_xp(sv.xp_needed() * sv.team.size() + 2)
@@ -345,6 +347,20 @@ func _test_shared_level(w: Node, sv) -> void:
 		await wait(0.3)
 		check(w.modal == null or w.modal.get("mode") != "levelup", "cartas do jogador AFK fecham sozinhas")
 		check(_build_size(sv) >= picks1 + 1, "carta sorteada para quem não escolheu (%d → %d)" % [picks1, _build_size(sv)])
+
+
+## Sincroniza os clientes de teste pelo chat: cada um avisa que chegou e espera os outros
+## (escolhendo cartas de nível que aparecerem enquanto isso).
+func _barrier(w: Node, sv, tag: String) -> void:
+	Network.send_chat("sync:" + tag)
+	await _wait_until(func() -> bool:
+		if w.modal != null and w.modal.get("mode") == "levelup" and w.modal._lock <= 0.0:
+			w.modal._pick(0)
+		var n := 0
+		for m in chat_got:
+			if m[1] == "sync:" + tag and m[0] != Network.my_name:
+				n += 1
+		return n >= peers - 1 and not sv.frozen and w.modal == null, 30.0)
 
 
 func _build_size(sv) -> int:
