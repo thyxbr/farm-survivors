@@ -67,6 +67,10 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
 - **Servidor local:** `godot --headless --path . -- --server --port=7777`
 - **Docker / Easypanel:** App com build pelo `Dockerfile`; em *Advanced → Ports* publique `7777 → 7777` em **UDP**
   (o jogo não passa pelo domínio/proxy HTTP). Libere UDP 7777 no firewall da VPS. A porta pode ser trocada pela env `GAME_PORT`.
+- **Deploy automático:** cada push no `main` roda o GitHub Actions (`.github/workflows/deploy.yml`):
+  importa o projeto, roda o smoke test e o teste de multiplayer e, se tudo passar, chama o webhook de deploy
+  do Easypanel (secret `EASYPANEL_DEPLOY_URL`). Deixe o *Auto Deploy* do próprio Easypanel desligado,
+  senão ele publica mesmo quando os testes falham.
 - **Jogadores:** menu principal → *Multiplayer* → nome + endereço (`ip` ou `ip:porta`) → *Entrar*.
   Antes de exportar, coloque o IP/domínio do servidor em `DEFAULT_ADDRESS` (`scripts/autoload/network.gd`).
 - **Versão:** o servidor recusa clientes com `application/config/version` diferente (*Projeto → Configurações → Application → Config*).

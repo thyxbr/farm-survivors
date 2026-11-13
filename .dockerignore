@@ -11,3 +11,4 @@ docs
 *.png.import.tmp
 Dockerfile
 .dockerignore
+.github

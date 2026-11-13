@@ -1,0 +1,90 @@
+# A cada push no main: roda os testes (gameplay + multiplayer) e, se passarem,
+# dispara o deploy do servidor no Easypanel.
+# O link de deploy fica no secret EASYPANEL_DEPLOY_URL (Settings → Secrets and variables → Actions).
+name: Testes e deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# um deploy por vez; um push novo cancela o anterior que ainda estiver rodando
+concurrency:
+  group: deploy-main
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.7.2"
+
+jobs:
+  test:
+    name: Testes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache do Godot
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/godot
+          key: godot-${{ env.GODOT_VERSION }}-linux
+
+      - name: Baixar Godot
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" -O /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp
+          mv "/tmp/Godot_v${GODOT_VERSION}-stable_linux.x86_64" ~/godot/godot
+          chmod +x ~/godot/godot
+
+      - name: Importar assets
+        run: |
+          echo "$HOME/godot" >> "$GITHUB_PATH"
+          ~/godot/godot --headless --path . --import 2>&1 | tee import.log
+          if grep -q "SCRIPT ERROR" import.log; then
+            echo "::error::Erro de script ao importar o projeto"
+            grep -A1 "SCRIPT ERROR" import.log
+            exit 1
+          fi
+
+      - name: Teste de gameplay (smoke test)
+        run: timeout 600 godot --headless --path . res://scenes/world.tscn -- --smoketest
+
+      - name: Teste de multiplayer (servidor + 2 clientes)
+        run: |
+          godot --headless --path . -- --server --port=7790 > server.log 2>&1 &
+          for i in $(seq 1 30); do grep -q "ouvindo em UDP" server.log && break; sleep 1; done
+          timeout 120 godot --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Ana > ana.log 2>&1 & A=$!
+          timeout 120 godot --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Beto > beto.log 2>&1 & B=$!
+          wait $A; RA=$?
+          wait $B; RB=$?
+          grep -hE "PASS|FAIL|NETTEST" ana.log beto.log
+          exit $(( RA | RB ))
+
+      - name: Logs do multiplayer
+        if: failure()
+        run: tail -n 60 server.log ana.log beto.log || true
+
+  deploy:
+    name: Deploy no Easypanel
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Disparar deploy
+        env:
+          DEPLOY_URL: ${{ secrets.EASYPANEL_DEPLOY_URL }}
+        run: |
+          if [ -z "$DEPLOY_URL" ]; then
+            echo "::error::Falta o secret EASYPANEL_DEPLOY_URL no repositório"
+            exit 1
+          fi
+          code=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" -X POST --max-time 30 "$DEPLOY_URL")
+          echo "Easypanel respondeu HTTP $code"
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+            cat /tmp/resp.txt
+            exit 1
+          fi
