@@ -3,11 +3,13 @@ extends Node
 ##   godot --headless --path . -- --server --port=7777                      (terminal 1)
 ##   godot --headless --path . -- --nettest=127.0.0.1:7777 [--peers=2] [--name=A]   (terminal 2, 3...)
 ## --peers=N espera ver N-1 outros jogadores. Sai com código 0 (ok) ou 1 (falhas).
+## --probe: só entra, confere versão e snapshots e sai (usado pelo CI contra o servidor público).
 
 var fails := 0
 var address := "127.0.0.1"
 var peers := 1
 var my_name := "Teste"
+var probe := false
 
 
 func check(cond: bool, what: String) -> void:
@@ -29,6 +31,8 @@ func _ready() -> void:
 			peers = int(a.substr(8))
 		elif a.begins_with("--name="):
 			my_name = a.substr(7)
+		elif a == "--probe":
+			probe = true
 	Game.save_path = "user://nettest_%s.json" % my_name
 	Game.new_game()
 	var failed := [""]
@@ -58,6 +62,11 @@ func _ready() -> void:
 	await wait(2.0)
 	var rate := (Network.snapshots_received - n0) / 2.0
 	check(rate >= Network.SEND_RATE * 0.75, "recebendo snapshots dos inimigos (%.1f/s)" % rate)
+	# --probe: só confere que o servidor aceitou esta versão e está mandando o mundo; não mexe em nada lá
+	if probe:
+		print("[%s] servidor aceitou a versão %s" % [my_name, Network.version()])
+		_finish()
+		return
 
 	# outros jogadores aparecem e se mexem
 	if peers > 1:

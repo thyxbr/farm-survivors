@@ -88,3 +88,51 @@ jobs:
             cat /tmp/resp.txt
             exit 1
           fi
+
+  # O webhook responder 200 não garante que o servidor trocou: no Easypanel, com a porta UDP em modo host,
+  # um deploy "zero downtime" deixa o container novo em Pending e o antigo continua no ar.
+  # Aqui um cliente headless entra no servidor público até ele aceitar a versão deste commit.
+  verify:
+    name: Conferir servidor publicado
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache do Godot
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/godot
+          key: godot-${{ env.GODOT_VERSION }}-linux
+
+      - name: Baixar Godot
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" -O /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp
+          mv "/tmp/Godot_v${GODOT_VERSION}-stable_linux.x86_64" ~/godot/godot
+          chmod +x ~/godot/godot
+
+      - name: Importar assets
+        run: ~/godot/godot --headless --path . --import > /dev/null 2>&1
+
+      - name: Esperar o servidor aceitar esta versão
+        run: |
+          addr=$(grep -oP 'const DEFAULT_ADDRESS := "\K[^"]+' scripts/autoload/network.gd)
+          ver=$(grep -oP 'config/version="\K[^"]+' project.godot)
+          echo "Servidor: $addr:7777 — versão esperada: $ver"
+          # o build no Easypanel (baixar Godot + importar) leva alguns minutos
+          for i in $(seq 1 20); do
+            if timeout 60 ~/godot/godot --headless --path . -- --nettest="$addr:7777" --probe --name=CI-deploy > probe.log 2>&1; then
+              grep -hE "PASS|NETTEST|aceitou" probe.log
+              exit 0
+            fi
+            echo "tentativa $i: $(grep -m1 -E 'FAIL' probe.log || echo 'sem resposta')"
+            sleep 30
+          done
+          echo "::error::O servidor público não aceitou a versão $ver depois de 20 tentativas (~15 min). No Easypanel o deploy pode estar travado em Pending (porta UDP em uso pelo container antigo): rode 'docker service ps <serviço>' na VPS e desligue o Zero Downtime do app."
+          cat probe.log
+          exit 1

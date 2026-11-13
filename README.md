@@ -86,7 +86,14 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
 - **Deploy automático:** cada push no `main` roda o GitHub Actions (`.github/workflows/deploy.yml`):
   importa o projeto, roda o smoke test e o teste de multiplayer e, se tudo passar, chama o webhook de deploy
   do Easypanel (secret `EASYPANEL_DEPLOY_URL`). Deixe o *Auto Deploy* do próprio Easypanel desligado,
-  senão ele publica mesmo quando os testes falham.
+  senão ele publica mesmo quando os testes falham. Depois do deploy, o job *Conferir servidor publicado*
+  entra no servidor público com `--nettest=... --probe` até ele aceitar a versão do commit (falha após ~15 min).
+  Ele só distingue servidor velho de novo se a versão mudou: aumente a versão quando mexer no código.
+- **Desligue o *Zero Downtime* do app no Easypanel.** A porta UDP é publicada em modo host: com ele ligado o
+  container novo fica em *Pending* ("host-mode port already in use") e o antigo continua no ar sem atualizar.
+  Para destravar na VPS: `docker service scale <serviço>=0` e depois `=1`.
+- **Firewall da VPS (Hostinger):** o firewall do painel recusa tudo por padrão; adicione *Aceitar · UDP · 7777*
+  (e TCP 22/80/443/3000 para SSH e o painel) antes do *Drop*.
 - **Jogadores:** menu principal → *Multiplayer* → nome + endereço (`ip` ou `ip:porta`) → *Entrar*.
   Antes de exportar, coloque o IP/domínio do servidor em `DEFAULT_ADDRESS` (`scripts/autoload/network.gd`).
 - **Versão:** o servidor recusa clientes com `application/config/version` diferente (*Projeto → Configurações → Application → Config*).
@@ -141,5 +148,6 @@ $G --headless --path . -- --server --port=7790 &
 $G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Ana &
 $G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Beto
 ```
+`--probe` só entra, confere a versão e os snapshots e sai (não mexe no mundo); serve para testar o servidor público.
 Cobre conexão, inimigos replicados (snapshots a 20/s), ver o outro jogador, dano pelo servidor, morte, XP e loot.
 `--netstats` no servidor imprime jogadores, fps e snapshots/s a cada 5 s.
