@@ -2,7 +2,8 @@
 # blender --background --factory-startup --python tools/blender/preview_characters.py -- <saida.png>
 import bpy, sys, math
 out = sys.argv[-1]
-D = "C:/Games/godot-3d/assets/models/"
+import os
+D = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "assets", "models")).replace("\\", "/") + "/"  # funciona em worktrees
 scn = bpy.context.scene
 for o in list(scn.objects):
     bpy.data.objects.remove(o)
