@@ -13,7 +13,7 @@ signal players_changed
 
 const DEFAULT_PORT := 7777
 ## Endereço sugerido no menu "Entrar". Troque pelo IP/domínio do seu servidor antes de exportar.
-const DEFAULT_ADDRESS := "127.0.0.1"
+const DEFAULT_ADDRESS := "infra-farm-survivors.yy2dhi.easypanel.host"
 const MAX_PLAYERS := 8
 const SEND_RATE := 20.0
 const CONNECT_TIMEOUT := 8.0
