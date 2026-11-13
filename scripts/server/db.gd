@@ -12,6 +12,8 @@ var _in_tx := false
 ## o servidor nunca deve cair num banco efêmero sem avisar.
 static func open(path: String) -> Db:
 	var dir := path.get_base_dir()
+	if dir.is_empty():
+		dir = "."  # caminho relativo simples ("x.db"): pasta atual
 	if not DirAccess.dir_exists_absolute(dir):
 		push_error("Db: pasta não existe: %s" % dir)
 		return null
@@ -24,6 +26,7 @@ static func open(path: String) -> Db:
 	probe.close()
 	var sql := SQLite.new()
 	sql.path = path
+	sql.default_extension = ""  # senão o addon acrescenta ".db" e abriria outro arquivo que não o sondado acima
 	sql.foreign_keys = true
 	sql.verbosity_level = SQLite.QUIET
 	if not sql.open_db():

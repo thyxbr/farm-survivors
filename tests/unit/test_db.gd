@@ -58,3 +58,34 @@ func test_transaction_rollback() -> void:
 
 func test_open_missing_dir() -> void:
 	T.ok(Db.open("user://nao_existe/x.db") == null, "pasta inexistente devolve null")
+
+
+func test_open_path_without_extension() -> void:
+	# o addon acrescentaria ".db" por conta própria: o arquivo criado tem que ser exatamente o caminho pedido
+	var p := "user://test_db_noext"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(p + ".db"))
+	var db := Db.open(p)
+	T.ok(db != null, "abriu sem extensão")
+	if db != null:
+		T.ok(Migrations.apply(db) == 1, "migrou")
+		db.close()
+	T.ok(FileAccess.file_exists(p), "arquivo é exatamente o caminho pedido")
+	T.ok(not FileAccess.file_exists(p + ".db"), "não criou <caminho>.db")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
+
+
+func test_open_unwritable_path() -> void:
+	# no Windows não dá para tirar permissão de pasta; um diretório no lugar do arquivo também falha a abertura
+	var d := "user://test_db_dir_as_file"
+	DirAccess.make_dir_absolute(d)
+	T.ok(Db.open(d) == null, "caminho que é diretório devolve null")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(d))
+
+
+func test_open_bare_relative_path() -> void:
+	var db := Db.open("test_db_rel.db")  # relativo ao diretório atual
+	T.ok(db != null, "caminho relativo simples abre")
+	if db != null:
+		db.close()
+	DirAccess.remove_absolute("test_db_rel.db")
