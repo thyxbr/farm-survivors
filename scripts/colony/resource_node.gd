@@ -115,7 +115,7 @@ func set_alive(on: bool, fx := true) -> void:
 func _shake(from: Vector3) -> void:
 	if _visual == null:
 		return
-	Sfx.play_at("harvest" if kind == "berry" else "hit", global_position, 0.2, -4.0)
+	Sfx.play_at({"berry": "harvest", "tree": "chop_wood"}.get(kind, "chop_stone"), global_position, 0.15, -4.0)
 	FX.burst(global_position + Vector3.UP * 1.0, _burst_color(), 8, 3.0, 0.08, 0.4)
 	if _tween and _tween.is_valid():
 		return
