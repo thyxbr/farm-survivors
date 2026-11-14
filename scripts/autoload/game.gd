@@ -9,6 +9,7 @@ signal leveled_up(new_level: int)
 signal food_eaten(id: String)
 signal farm_changed
 signal item_looted(id: String, qty: int)
+signal kit_changed   # a classe da arma equipada mudou
 
 var save_path := "user://savegame.json"
 const SETTINGS_PATH := "user://settings.cfg"
@@ -191,7 +192,7 @@ func _setup_input() -> void:
 		"move_forward": [KEY_W, KEY_UP], "move_back": [KEY_S, KEY_DOWN],
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
 		"jump": [KEY_SPACE], "sprint": [KEY_SHIFT], "dodge": [KEY_CTRL, KEY_ALT],
-		"interact": [KEY_E], "spell_1": [KEY_1], "spell_2": [KEY_2], "spell_3": [KEY_3],
+		"interact": [KEY_E], "spell_1": [KEY_1], "spell_2": [KEY_2], "spell_3": [KEY_3], "spell_4": [KEY_4],
 		"potion": [KEY_R], "mana_potion": [KEY_F], "inventory": [KEY_I, KEY_TAB], "character": [KEY_C],
 		"quest_log": [KEY_J], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
 		"eat": [KEY_Q], "food_next": [KEY_T],
@@ -428,9 +429,9 @@ func add_xp(amount: int) -> void:
 		hp = max_hp()
 		mp = max_mp()
 		notify.emit("Nível %d! +3 pontos de atributo (C)" % level, Color(1.0, 0.85, 0.3))
-		for id in ItemDB.SPELLS:
-			if ItemDB.SPELLS[id].level == level:
-				notify.emit("Nova magia: %s [%s]" % [ItemDB.SPELLS[id].name, ItemDB.SPELLS[id].key], Color(0.75, 0.55, 1.0))
+		for id in ability_kit():
+			if ItemDB.ABILITIES[id].level == level:
+				notify.emit("Nova habilidade: %s [%d]" % [ItemDB.ABILITIES[id].name, ItemDB.ABILITIES[id].slot], Color(0.75, 0.55, 1.0))
 		leveled_up.emit(level)
 	stats_changed.emit()
 
@@ -452,8 +453,13 @@ func spend_point(attr: String) -> void:
 	stats_changed.emit()
 
 
-func knows_spell(id: String) -> bool:
-	return level >= ItemDB.SPELLS[id].level
+func knows_ability(id: String) -> bool:
+	return level >= ItemDB.ABILITIES[id].level
+
+
+## Habilidades da arma equipada (slots 1..4, em ordem).
+func ability_kit() -> Array[String]:
+	return ItemDB.kit(weapon_class())
 
 
 # ---------------------------------------------------------------- inventário
@@ -564,6 +570,7 @@ func equip(id: String) -> bool:
 		return false
 	var old_hp := max_hp()
 	var old_mp := max_mp()
+	var old_class := weapon_class()
 	remove_item(id, 1)
 	if equipment[slot_name] != "":
 		add_item(equipment[slot_name], 1, true)
@@ -579,6 +586,8 @@ func equip(id: String) -> bool:
 	notify.emit("Equipado: %s" % it.name, ItemDB.rarity_color(id))
 	inventory_changed.emit()
 	stats_changed.emit()
+	if weapon_class() != old_class:
+		kit_changed.emit()
 	return true
 
 
@@ -587,11 +596,14 @@ func unequip(slot_name: String) -> void:
 		return
 	var old_hp := max_hp()
 	var old_mp := max_mp()
+	var old_class := weapon_class()
 	add_item(equipment[slot_name], 1, true)
 	equipment[slot_name] = ""
 	_clamp_vitals(old_hp, old_mp)
 	inventory_changed.emit()
 	stats_changed.emit()
+	if weapon_class() != old_class:
+		kit_changed.emit()
 
 
 ## Vida/mana acompanham o ganho de máximo e nunca passam do novo máximo.

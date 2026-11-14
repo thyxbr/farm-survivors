@@ -29,6 +29,8 @@ var loot_box: VBoxContainer
 var prompt_box: HBoxContainer
 var prompt: Label
 var slots := {}
+var _slot_ids: Array[String] = ["", "", "", ""]   # id da habilidade em cada slot 1..4
+var _kit_class := ""
 var boss_panel: VBoxContainer
 var boss_bar: GhostBar
 var boss_name: Label
@@ -43,7 +45,6 @@ var _last_hp := -1.0
 var _hurt := 0.0
 var _t := 0.0
 
-const SPELL_ICONS := {"fireball": "fireball", "heal": "heal", "frost_nova": "frost"}
 
 
 func _ready() -> void:
@@ -87,6 +88,7 @@ func _ready() -> void:
 	Game.item_looted.connect(_on_loot)
 	Game.stats_changed.connect(_refresh_static)
 	Game.inventory_changed.connect(_refresh_static)
+	Game.kit_changed.connect(_refresh_kit)
 	Game.quests_changed.connect(_refresh_quests)
 	_refresh_static()
 	_refresh_quests()
@@ -208,10 +210,9 @@ func _build_dock() -> void:
 	plate.add_child(bar)
 	slots["attack"] = _action(bar, "M1")
 	_gap(bar)
-	for id in ["fireball", "heal", "frost_nova"]:
-		var s := _action(bar, ItemDB.SPELLS[id].key)
-		s.icon_kind = SPELL_ICONS[id]
-		slots[id] = s
+	for n in range(1, 5):
+		slots["slot_%d" % n] = _action(bar, str(n))
+	_refresh_kit()
 	_gap(bar)
 	slots["health_potion"] = _action(bar, "R")
 	slots["mana_potion"] = _action(bar, "F")
@@ -355,21 +356,43 @@ func _update_actions() -> void:
 	if player.drawing:
 		a.cooldown = 1.0 - player.bow_charge()
 	a.queue_redraw()
-	for id in ["fireball", "heal", "frost_nova"]:
-		var sp: Dictionary = ItemDB.SPELLS[id]
-		var s: ItemSlot = slots[id]
+	if _kit_class != Game.weapon_class():   # carregar jogo troca a arma sem passar pelo equipar
+		_refresh_kit()
+	for n in range(1, 5):
+		var s: ItemSlot = slots["slot_%d" % n]
+		var id: String = _slot_ids[n - 1]
+		if id == "":
+			continue
+		var sp: Dictionary = ItemDB.ABILITIES[id]
 		var cd: float = player.cooldowns[id]
-		s.border_override = Color(0.6, 0.45, 1.0)
-		if not Game.knows_spell(id):
+		s.border_override = Color(1.0, 0.7, 0.25) if sp.ultimate else Color(0.6, 0.45, 1.0)
+		if not Game.knows_ability(id):
 			s.dim = true
 			s.cooldown = 0.0
 			s.cooldown_text = ""
 			s.info_text = "Nv %d" % sp.level
 		else:
-			s.dim = Game.mp < sp.cost
+			s.dim = sp.cost > 0 and Game.mp < sp.cost
 			s.cooldown = clampf(cd / maxf(sp.cooldown * Game.cooldown_mult(), 0.01), 0.0, 1.0)
 			s.cooldown_text = ("%.1f" % cd) if cd > 0.0 else ""
-			s.info_text = "" if cd > 0.0 else "%d" % sp.cost
+			s.info_text = "" if cd > 0.0 or sp.cost <= 0 else "%d" % sp.cost
+		s.queue_redraw()
+
+
+## Monta os ícones dos slots 1-4 a partir do kit da arma equipada.
+func _refresh_kit() -> void:
+	_kit_class = Game.weapon_class()
+	_slot_ids = ["", "", "", ""]
+	for id in Game.ability_kit():
+		_slot_ids[ItemDB.ABILITIES[id].slot - 1] = id
+	for n in range(1, 5):
+		var s: ItemSlot = slots["slot_%d" % n]
+		var id: String = _slot_ids[n - 1]
+		s.icon_kind = ItemDB.ABILITIES[id].icon if id != "" else ""
+		s.dim = id == ""
+		s.cooldown = 0.0
+		s.cooldown_text = ""
+		s.info_text = ""
 		s.queue_redraw()
 
 

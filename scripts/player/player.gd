@@ -73,7 +73,7 @@ var invuln := 0.0
 var cast_timer := 0.0
 var stamina_delay := 0.0
 var shake := 0.0
-var cooldowns := {"fireball": 0.0, "heal": 0.0, "frost_nova": 0.0}
+var cooldowns := _make_cooldowns()   # todas as habilidades: a recarga continua ao trocar de arma
 var interact_target: Node3D = null
 var spawn_point := Vector3(0, 0.5, 6)
 var _footstep := 0.0
@@ -320,9 +320,9 @@ func _local_process(delta: float) -> void:
 		_update_bow(delta)
 	elif Input.is_action_just_pressed("attack"):
 		_try_attack()
-	for i in 3:
+	for i in 4:
 		if Input.is_action_just_pressed("spell_%d" % (i + 1)) and not build_lock:
-			cast(["fireball", "heal", "frost_nova"][i])
+			use_slot(i + 1)
 	if Input.is_action_just_pressed("potion") and not build_lock:   # R gira a construção no modo construção
 		_quick_potion("health_potion")
 	if Input.is_action_just_pressed("mana_potion"):
@@ -629,18 +629,42 @@ func _spawn_projectile(kind: String, origin: Vector3, d: Vector3, dmg: float, cr
 
 
 # ------------------------------------------------------------ magias
+static func _make_cooldowns() -> Dictionary:
+	var d := {}
+	for id in ItemDB.ABILITIES:
+		d[id] = 0.0
+	return d
+
+
+## Usa a habilidade do slot (1..4) do kit da arma equipada; slot sem habilidade não faz nada.
+func use_slot(slot: int) -> void:
+	for id in Game.ability_kit():
+		if ItemDB.ABILITIES[id].slot == slot:
+			cast(id)
+			return
+
+
 func cast(id: String) -> void:
-	var sp: Dictionary = ItemDB.SPELLS[id]
-	if not Game.knows_spell(id):
+	var sp: Dictionary = ItemDB.ABILITIES[id]
+	if not Game.knows_ability(id):
 		Game.notify.emit("%s exige nível %d" % [sp.name, sp.level], Color(1, 0.6, 0.6))
 		return
 	if cooldowns[id] > 0 or attacking or dodge_timer > 0:
 		return
-	if Game.mp < sp.cost:
+	if sp.cost > 0 and Game.mp < sp.cost:
 		Game.notify.emit("Mana insuficiente!", Color(0.6, 0.7, 1.0))
 		return
+	# habilidade de espada ainda sem implementação: "Em breve", sem custo nem recarga
+	if id.begins_with("sword_"):
+		if not SwordAbilities.use(self, id):
+			Game.notify.emit("Em breve!", Color(0.85, 0.8, 0.65))
+		return
+	if not id in ["fireball", "heal", "frost_nova"]:
+		Game.notify.emit("Em breve!", Color(0.85, 0.8, 0.65))
+		return
 	_cancel_draw()
-	Game.mp -= sp.cost
+	if sp.cost > 0:
+		Game.mp -= sp.cost
 	cooldowns[id] = sp.cooldown * Game.cooldown_mult()
 	cast_timer = 0.4
 	_start_cast_pose(id)

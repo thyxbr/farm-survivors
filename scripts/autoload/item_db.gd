@@ -287,14 +287,41 @@ const RECIPES := {
 }
 const RECIPE_ORDER := ["bread", "carrot_stew", "spicy_soup", "dragon_chili", "mint_tea", "garden_salad", "pumpkin_pie", "valdoria_feast"]
 
-const SPELLS := {
-	"fireball": {"name": "Bola de Fogo", "key": "1", "cost": 12, "level": 1, "cooldown": 0.9,
-		"desc": "Projétil flamejante. Dano = 18 + INT x 2.5"},
-	"heal": {"name": "Cura", "key": "2", "cost": 20, "level": 2, "cooldown": 4.0,
-		"desc": "Restaura 30 + INT x 4 de vida."},
-	"frost_nova": {"name": "Nova Gélida", "key": "3", "cost": 28, "level": 4, "cooldown": 7.0,
-		"desc": "Explosão de gelo ao redor: dano e lentidão."},
+## Habilidades de todas as armas. `slot` 1..4 (tecla 1..4); o slot 4 é a ultimate.
+## `cost` é mana (0 = só recarga). `icon` é o desenho do IconPainter.
+const ABILITIES := {
+	"fireball": {"name": "Bola de Fogo", "class": "staff", "slot": 1, "level": 1, "cooldown": 0.9, "cost": 12,
+		"ultimate": false, "icon": "fireball", "desc": "Projétil flamejante. Dano = 18 + INT x 2.5"},
+	"frost_nova": {"name": "Nova Gélida", "class": "staff", "slot": 2, "level": 3, "cooldown": 7.0, "cost": 28,
+		"ultimate": false, "icon": "frost", "desc": "Explosão de gelo ao redor: dano e lentidão."},
+	"heal": {"name": "Cura", "class": "staff", "slot": 3, "level": 5, "cooldown": 4.0, "cost": 20,
+		"ultimate": false, "icon": "heal", "desc": "Restaura 30 + INT x 4 de vida."},
+	"meteor_rain": {"name": "Chuva de Meteoros", "class": "staff", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
+		"ultimate": true, "icon": "fireball", "desc": "Ultimate: meteoros caem sobre a área."},
+	"sword_charge": {"name": "Investida", "class": "sword", "slot": 1, "level": 1, "cooldown": 6.0, "cost": 0,
+		"ultimate": false, "icon": "saber", "desc": "Avança sobre os inimigos à frente, causando dano."},
+	"sword_quake": {"name": "Abalo Sísmico", "class": "sword", "slot": 2, "level": 3, "cooldown": 9.0, "cost": 0,
+		"ultimate": false, "icon": "greatsword", "desc": "Golpe no chão: dano em área e atordoamento."},
+	"sword_whirl": {"name": "Tempestade de Lâminas", "class": "sword", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
+		"ultimate": true, "icon": "cleaver", "desc": "Ultimate: redemoinho de lâminas ao redor."},
+	"bow_triple": {"name": "Tiro Triplo", "class": "bow", "slot": 1, "level": 1, "cooldown": 5.0, "cost": 0,
+		"ultimate": false, "icon": "bow", "desc": "Três flechas em leque."},
+	"bow_frost": {"name": "Flecha Gélida", "class": "bow", "slot": 2, "level": 3, "cooldown": 8.0, "cost": 0,
+		"ultimate": false, "icon": "frost", "desc": "Flecha que congela o alvo."},
+	"bow_gale": {"name": "Rajada de Flechas", "class": "bow", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
+		"ultimate": true, "icon": "bow", "desc": "Ultimate: chuva de flechas."},
 }
+
+
+## Ids das habilidades de uma classe de arma, ordenados por slot.
+static func kit(cls: String) -> Array[String]:
+	var ids: Array[String] = []
+	for id in ABILITIES:
+		if ABILITIES[id]["class"] == cls:
+			ids.append(id)
+	ids.sort_custom(func(a: String, b: String) -> bool: return ABILITIES[a].slot < ABILITIES[b].slot)
+	return ids
+
 
 const QUESTS := {
 	"slimes": {

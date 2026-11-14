@@ -18,6 +18,21 @@ func check(cond: bool, what: String) -> void:
 		print("FAIL  ", what)
 
 
+## Ids das habilidades mostradas nos slots 1-4 da barra de ações (pelo ícone).
+func hud_slot_ids() -> Array[String]:
+	var out: Array[String] = []
+	var hud = world.hud
+	for n in range(1, 5):
+		var icon: String = hud.slots["slot_%d" % n].icon_kind
+		var found := ""
+		for id in ItemDB.ABILITIES:
+			if ItemDB.ABILITIES[id].icon == icon and ItemDB.ABILITIES[id].slot == n and ItemDB.ABILITIES[id]["class"] == Game.weapon_class():
+				found = id
+		if found != "":
+			out.append(found)
+	return out
+
+
 func wait(sec: float) -> void:
 	await get_tree().create_timer(sec, true, true).timeout
 
@@ -96,10 +111,27 @@ func _ready() -> void:
 	check(far_s.hp < far_hp and far_s.state == "chase",
 		"acerto de longe não é curado na hora (%.0f -> %.0f, %s)" % [far_hp, far_s.hp, far_s.state])
 
+	# --- kits de habilidade por arma (começa de espada: weapon_class() == "sword")
+	var kit_weapon: String = Game.equipment.weapon
+	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_whirl"], "kit da espada (%s)" % [Game.ability_kit()])
+	check(not Game.knows_ability("sword_quake") and Game.knows_ability("sword_charge"), "liberação por nível")
+	check(Game.level == 1 and not Game.knows_ability("heal") and ItemDB.ABILITIES.heal.level == 5, "cura só no nível 5")
+	player.cooldowns.sword_charge = 3.0
+	player.cast("sword_charge")
+	check(player.cooldowns.sword_charge == 3.0 and player.cooldowns.size() == ItemDB.ABILITIES.size(), "habilidade sem implementação não gasta recarga")
+	Game.equip("apprentice_staff")
+	await wait(0.1)
+	check(Game.ability_kit() == ["fireball", "frost_nova", "heal", "meteor_rain"], "trocar de arma troca o kit")
+	check(player.cooldowns.sword_charge > 2.5, "recarga continua depois de trocar de arma")
+	check(hud_slot_ids() == Game.ability_kit(), "barra de ações mostra o kit novo (%s)" % [hud_slot_ids()])
+	var mp_m := Game.mp
+	player.cast("meteor_rain")
+	check(Game.mp == mp_m and player.cooldowns.meteor_rain == 0.0, "ultimate ainda não construída: sem custo")
+
 	# --- magia
 	var mp0 := Game.mp
 	player.cast("fireball")
-	await wait(0.3)   # a bola de fogo sai depois do movimento de apontar
+	await wait(0.2)   # a bola de fogo sai depois do movimento de apontar
 	check(Game.mp < mp0, "bola de fogo gasta mana")
 	var found_fb := false
 	for c in world.get_children():
@@ -108,6 +140,9 @@ func _ready() -> void:
 	check(found_fb, "projétil de bola de fogo criado")
 	player.cast("heal")
 	check(player.cooldowns.heal == 0.0, "cura bloqueada no nível 1")
+	player.use_slot(2)   # Nova Gélida (nível 3) bloqueada no nível 1
+	check(player.cooldowns.frost_nova == 0.0, "slot 2 respeita o nível")
+	Game.equip(kit_weapon)   # restaura a arma inicial
 
 	# --- completar missão e subir de nível
 	for i in 4:

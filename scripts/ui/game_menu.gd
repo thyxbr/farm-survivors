@@ -473,22 +473,22 @@ func _refresh_character() -> void:
 		var vl := UITheme.label(r[1], 16)
 		vl.custom_minimum_size.x = 80
 		g.add_child(vl)
-	rv.add_child(UITheme.section("Magias"))
-	var icons := {"fireball": "fireball", "heal": "heal", "frost_nova": "frost"}
-	for id in ItemDB.SPELLS:
-		var sp: Dictionary = ItemDB.SPELLS[id]
-		var known := Game.knows_spell(id)
+	rv.add_child(UITheme.section("Habilidades"))
+	for id in Game.ability_kit():
+		var sp: Dictionary = ItemDB.ABILITIES[id]
+		var known := Game.knows_ability(id)
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 12)
 		var s := ItemSlot.new(52)
-		s.icon_kind = icons[id]
-		s.key_text = sp.key
+		s.icon_kind = sp.icon
+		s.key_text = str(sp.slot)
 		s.dim = not known
 		s.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_child(s)
 		var tv := VBoxContainer.new()
 		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		tv.add_child(UITheme.label("%s   ·   %d MP   ·   recarga %.1fs" % [sp.name, sp.cost, sp.cooldown * Game.cooldown_mult()], 17,
+		tv.add_child(UITheme.label("%s   ·   %s   ·   %s" % [sp.name, ("%d MP" % sp.cost) if sp.cost > 0 else "sem custo",
+			("ultimate (fúria)" if sp.ultimate else "recarga %.1fs" % (sp.cooldown * Game.cooldown_mult()))], 17,
 			UITheme.TEXT if known else UITheme.DIM))
 		var d := UITheme.label(sp.desc + ("" if known else "   (aprende no nível %d)" % sp.level), 14, UITheme.DIM)
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
