@@ -446,6 +446,16 @@ func _ready() -> void:
 	Game.level = 8
 	player.use_slot(4)
 	check(Game.fury == 100.0 and player.cooldowns.meteor_rain == 0.0, "ultimate ainda não construída mantém a fúria")
+	# --- fúria persistida no personagem (CharState)
+	var fs := CharState.new()
+	fs.fury = 70.0
+	check(is_equal_approx(CharState.from_dict(fs.to_dict(), Balance.tables).fury, 70.0), "fúria: to_dict/from_dict preserva 70")
+	var fd := fs.to_dict()
+	fd.erase("fury")
+	check(CharState.from_dict(fd, Balance.tables).fury == 0.0, "fúria: save antigo sem o campo = 0")
+	fd["fury"] = 999.0
+	check(CharState.from_dict(fd, Balance.tables).fury == CharState.FURY_MAX, "fúria: limitada a FURY_MAX ao carregar")
+
 	# --- despacho por módulo da classe da arma, com fonte única de "pronta"
 	for id in ItemDB.ABILITIES:
 		check(Game.ability_implemented(id) == ItemDB.ABILITIES[id].ready, "fonte única de 'pronta' (%s)" % id)

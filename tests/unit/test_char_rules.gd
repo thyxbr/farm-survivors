@@ -192,7 +192,19 @@ func test_kill_levels_up() -> void:
 	T.ok(_has_event(r, "level_up"), "evento level_up")
 	T.eq(r.events[0].text, "+60 XP", "aviso de XP")
 	T.eq(r.events[1].text, "Nível 2! +3 pontos de atributo (C)", "aviso de nível")
-	T.eq(r.events[2].text, "Nova magia: Cura [2]", "magia nova")
+	T.eq(r.events[2].t, "level_up", "sem habilidade nova da espada no nível 2")
+	# nível 3: o Golpe Sísmico da espada; o aviso vem do kit (ABILITIES), não da tabela de magias
+	var s3 := _blank()
+	s3.level = 2
+	var r3 := CharRules.kill(s3, bt, "slime", CharRules.xp_to_next(2, bt))
+	T.eq(s3.level, 3, "nível 3")
+	T.eq(r3.events[2].text, "Nova habilidade: Golpe Sísmico [2]", "habilidade nova do kit")
+	# cajado equipado: Nova Gélida (nível 3), não a Cura da tabela de magias
+	var sc := _blank()
+	sc.level = 2
+	sc.equipment["weapon"] = "apprentice_staff"
+	var rc := CharRules.kill(sc, bt, "slime", CharRules.xp_to_next(2, bt))
+	T.eq(rc.events[2].text, "Nova habilidade: Nova Gélida [2]", "kit do cajado")
 
 
 func test_spend_point() -> void:

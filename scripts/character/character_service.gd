@@ -163,14 +163,15 @@ func set_record(account_id: int, key: String, value) -> Dictionary:
 
 ## Estado de combate reportado pelo cliente. Só vale para a sessão atual da conta (uma conexão
 ## velha, já substituída, não sobrescreve a posição da nova). Gravado no próximo apply/unload.
-func report(account_id: int, session_id: int, hp: float, mp: float, pos: Vector3, yaw: float) -> void:
+func report(account_id: int, session_id: int, hp: float, mp: float, pos: Vector3, yaw: float, fury := 0.0) -> void:
 	if not _cache.has(account_id) or _sessions.get(account_id, -1) != session_id:
 		return
-	if not (is_finite(hp) and is_finite(mp) and pos.is_finite() and is_finite(yaw)):
+	if not (is_finite(hp) and is_finite(mp) and pos.is_finite() and is_finite(yaw) and is_finite(fury)):
 		return
 	var s: CharState = _cache[account_id]
 	s.hp = clampf(hp, 0.0, MAX_VITAL)
 	s.mp = clampf(mp, 0.0, MAX_VITAL)
+	s.fury = clampf(fury, 0.0, CharState.FURY_MAX)
 	s.world_pos = pos.clamp(-Vector3.ONE * MAX_COORD, Vector3.ONE * MAX_COORD)
 	s.world_yaw = yaw
 	_dirty[account_id] = true

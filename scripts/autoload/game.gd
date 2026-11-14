@@ -33,7 +33,7 @@ var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "fullscreen": 
 
 # ---- espelho do personagem (escrito só por apply_state)
 var level := 1
-const FURY_MAX := 100.0
+const FURY_MAX := CharState.FURY_MAX
 var fury := 0.0   # fúria 0..100: enche lutando, zera ao usar a ultimate, não esvazia com o tempo
 var xp := 0
 var gold := 0
@@ -842,6 +842,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 		clear_food(true)
 		hp = s.hp if s.hp > 0.0 else max_hp()
 		mp = s.mp
+		fury = s.fury
 		hp = minf(hp, max_hp())
 		mp = minf(mp, max_mp())
 		stamina = max_stamina()
