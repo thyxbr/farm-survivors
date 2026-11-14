@@ -1238,7 +1238,7 @@ func _test_meteor_rain() -> void:
 	await wait(0.8)
 	check(hps.call() == h4b, "Meteoros: nenhum dano depois de morrer")
 	# a tela de morte abre 1,8 s depois de morrer, mesmo revivido: fecha sem a multa de ouro
-	await wait(1.2)
+	await wait_until(func(): return world.modal != null, 3.0)
 	if world.modal != null:
 		world.modal.queue_free()
 		world.modal = null
@@ -1269,6 +1269,58 @@ func _test_meteor_rain() -> void:
 	await wait(0.6)
 	check(airborne.call(rp) == 0 and hps.call() == h5, "réplica: nenhum meteoro novo depois do fim e nenhum dano")
 	rp.queue_free()
+
+	# --- 6) encosta de montanha: de pé na encosta do Pico do sudoeste, mirando no céu para fora (para a
+	# planície lá embaixo). O centro e cada ponto de impacto ficam no chão de verdade (um raio de cima a
+	# baixo no mesmo x, z), não enterrados nem flutuando na altura do jogador.
+	var top_ground := func(x: float, z: float) -> float:
+		var q := PhysicsRayQueryParameters3D.create(Vector3(x, 300.0, z), Vector3(x, -100.0, z), StaffAbilities.METEOR_GROUND_MASK)
+		var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(q)
+		return hit.position.y if not hit.is_empty() else -999.0
+	var pk: Vector3 = world.MOUNTAINS[0][0]
+	var out := Vector3(-pk.x, 0.0, -pk.z).normalized()   # do pico para o meio do mapa
+	var best_r := 0.0
+	var best_drop := -1.0
+	for r in range(4, 36):
+		var a: Vector3 = pk + out * float(r)
+		var b2: Vector3 = a + out * StaffAbilities.METEOR_RANGE
+		var drop: float = top_ground.call(a.x, a.z) - top_ground.call(b2.x, b2.z)
+		if drop > best_drop:
+			best_drop = drop
+			best_r = float(r)
+	var flank: Vector3 = pk + out * best_r
+	player.global_position = Vector3(flank.x, top_ground.call(flank.x, flank.z) + 0.5, flank.z)
+	player.velocity = Vector3.ZERO
+	player._snap_visuals()
+	await wait_until(grounded)
+	await wait(0.2)
+	player.cam_yaw.rotation.y = atan2(-out.x, -out.z)   # frente da câmera (-Z) para fora do pico
+	var pf: Vector3 = player.global_position
+	check(pf.y > 10.0, "Meteoros: jogador no alto da encosta (y %.1f)" % pf.y)
+	# no céu (o ponto vai a 14 m) e para baixo, na planície distante (o raio acerta o chão bem além dos
+	# 14 m e o ponto a 14 m ainda está no meio da encosta, muito acima do acerto)
+	for pitch in [0.6, -0.5]:
+		player.cam_pitch.rotation.x = pitch
+		await wait(0.15)
+		var aim: Vector3 = player.aim_point()
+		var cm: Vector3 = StaffAbilities._meteor_center(player)
+		var cm_ref: float = top_ground.call(cm.x, cm.z)
+		var pn: Vector3 = player.global_position   # (no topo o jogador pode escorregar um pouco)
+		check(absf(cm.y - cm_ref) < 0.05 and Vector2(cm.x - pn.x, cm.z - pn.z).length() <= StaffAbilities.METEOR_RANGE + 0.01,
+			"Meteoros: na encosta (pitch %.1f) o centro fica no chão (y %.2f, chão %.2f, jogador %.1f, mira em y %.1f a %.0f m)"
+			% [pitch, cm.y, cm_ref, pf.y, aim.y, Vector2(aim.x - pf.x, aim.z - pf.z).length()])
+	Game.fury = 100.0
+	Game.level = 8
+	player.use_slot(4)
+	await wait_until(func(): return player.ability_data.get("targets", []).size() >= 6 or player.ability == "", 3.0)
+	var on_ground := 0
+	var tg: Array = player.ability_data.get("targets", [])
+	for t in tg:
+		if absf(t.y - top_ground.call(t.x, t.z)) < 0.05:
+			on_ground += 1
+	check(tg.size() >= 6 and on_ground == tg.size(), "Meteoros: na encosta os meteoros caem no chão (%d de %d)" % [on_ground, tg.size()])
+	player.end_ability()
+	player.cooldowns.meteor_rain = 0.0
 
 	# restaura
 	for s in saved:

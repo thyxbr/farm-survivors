@@ -560,15 +560,19 @@ func _weapon_color() -> Color:
 
 
 # ------------------------------------------------------------ ataque à distância (cajado e arco)
-## Direção da mira: do ponto de origem até onde a câmera aponta.
-func aim_dir(origin: Vector3) -> Vector3:
+## Para onde a câmera aponta: o que o raio da câmera acerta (cenário e inimigos) em até 80 m, ou o fim do raio.
+func aim_point() -> Vector3:
 	var from := camera.global_position
 	var to := from - camera.global_basis.z * 80.0
 	var q := PhysicsRayQueryParameters3D.create(from, to, 1 | 4)
 	q.exclude = [get_rid()]
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
-	var target: Vector3 = hit.position if not hit.is_empty() else to
-	return (target - origin).normalized()
+	return hit.position if not hit.is_empty() else to
+
+
+## Direção da mira: do ponto de origem até onde a câmera aponta.
+func aim_dir(origin: Vector3) -> Vector3:
+	return (aim_point() - origin).normalized()
 
 
 ## De onde saem as magias: a gema do cajado, ou a mão esquerda sem cajado.

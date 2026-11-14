@@ -29,6 +29,8 @@ const METEOR_SKY := 12.0          ## altura do céu escuro sobre a área (m)
 const METEOR_LINGER := 0.1       ## o nó do meteoro fica um instante depois do impacto (s) e se libera
 const METEOR_CAM_BACK := 1.2      ## a câmera recua (m) na canalização para mostrar a área
 const METEOR_GROUND_MASK := 1     ## só o cenário (inimigos ficam de fora do raio do chão)
+const METEOR_GROUND_UP := 40.0    ## o raio do chão começa esta altura acima do ponto mais alto envolvido (m)
+const METEOR_GROUND_DOWN := 60.0  ## e vai até esta profundidade abaixo do mais baixo (m)
 const METEOR_FIRE := Color(1.0, 0.45, 0.1)
 const METEOR_HOT := Color(1.0, 0.8, 0.35)
 const METEOR_EMBER := Color(1.0, 0.35, 0.05)
@@ -53,12 +55,12 @@ static func use(player: Node, id: String) -> bool:
 	match id:
 		"meteor_rain":
 			var center := _meteor_center(player)
-			var seed := randi() % 16777216   # cabe exato no float do Vector3 do evento
-			player.begin_ability(id, {"center": center, "seed": seed})
+			var rng_seed := randi() % 16777216   # cabe exato no float do Vector3 do evento
+			player.begin_ability(id, {"center": center, "seed": rng_seed})
 			var to: Vector3 = center - player.global_position
 			if Vector2(to.x, to.z).length() > 0.3:
 				player.model.rotation.y = atan2(to.x, to.z)
-			Network.send_event(id, center, Vector3(seed, 0, 0))
+			Network.send_event(id, center, Vector3(rng_seed, 0, 0))
 			_meteor_start(player)
 			return true
 	return false
@@ -155,31 +157,29 @@ static func prewarm_instances(at: Node3D) -> void:
 
 
 # ------------------------------------------------------------------ Chuva de Meteoros
-## Centro da área: o ponto para onde a câmera mira (raio da câmera contra cenário e inimigos, como
-## Player.aim_dir), limitado a METEOR_RANGE m do jogador no plano e baixado até o chão. Mirando no céu,
-## fica a METEOR_RANGE m na direção da mira.
+## Centro da área: o ponto para onde a câmera mira (Player.aim_point: cenário e inimigos), limitado a
+## METEOR_RANGE m do jogador no plano e baixado até o chão. Mirando no céu, fica a METEOR_RANGE m na
+## direção da mira.
 static func _meteor_center(player: Node) -> Vector3:
-	var cam: Camera3D = player.camera
-	var from := cam.global_position
-	var to := from - cam.global_basis.z * 80.0
-	var q := PhysicsRayQueryParameters3D.create(from, to, 1 | 4)
-	q.exclude = [player.get_rid()]
-	var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(q)
-	var target: Vector3 = hit.position if not hit.is_empty() else to
+	var target: Vector3 = player.aim_point()
 	var origin: Vector3 = player.global_position
 	var flat := Vector3(target.x - origin.x, 0.0, target.z - origin.z)
 	if flat.length() > METEOR_RANGE:
 		flat = flat.normalized() * METEOR_RANGE
-	var y := origin.y if hit.is_empty() else minf(target.y, origin.y + 8.0)
-	return _ground(player, origin + flat, y)
+	# a janela do raio do chão cobre o jogador e o ponto mirado com folga: de pé numa encosta mirando a
+	# planície (ou o céu), o chão no ponto limitado a 14 m pode estar bem acima do acerto ou bem abaixo do jogador
+	return _ground(player, origin + flat, maxf(origin.y, target.y) + METEOR_GROUND_UP,
+		minf(origin.y, target.y) - METEOR_GROUND_DOWN, origin.y)
 
 
-## Ponto do chão (cenário) sob `p`, procurando perto da altura `y`; sem chão, fica em `y`.
-static func _ground(node: Node, p: Vector3, y: float) -> Vector3:
-	var q := PhysicsRayQueryParameters3D.create(Vector3(p.x, y + 10.0, p.z), Vector3(p.x, y - 20.0, p.z), METEOR_GROUND_MASK)
+## Chão (cenário) sob `p`: um raio de `top` a `bottom` que pega a primeira superfície de cima para baixo
+## (onde um meteoro bateria: encosta, telhado). Começando bem acima, nunca nasce dentro do terreno.
+## Sem chão na janela, fica em `fallback_y`.
+static func _ground(node: Node, p: Vector3, top: float, bottom: float, fallback_y: float) -> Vector3:
+	var q := PhysicsRayQueryParameters3D.create(Vector3(p.x, top, p.z), Vector3(p.x, bottom, p.z), METEOR_GROUND_MASK)
 	var hit: Dictionary = node.get_world_3d().direct_space_state.intersect_ray(q)
 	if hit.is_empty():
-		return Vector3(p.x, y, p.z)
+		return Vector3(p.x, fallback_y, p.z)
 	return hit.position
 
 
@@ -400,7 +400,8 @@ static func _spawn_meteor(player: Node, d: Dictionary) -> void:
 	var jitter := deg_to_rad(rng.randf_range(-14.0, 14.0))
 	var size := rng.randf_range(0.8, 1.35)
 	var c: Vector3 = d.center
-	var target := _ground(player, c + Vector3(cos(ang), 0.0, sin(ang)) * r, c.y)
+	# a mesma janela folgada em volta do centro: a área (5 m) pode estar numa encosta íngreme
+	var target := _ground(player, c + Vector3(cos(ang), 0.0, sin(ang)) * r, c.y + METEOR_GROUND_UP, c.y - METEOR_GROUND_DOWN, c.y)
 	var from: Vector3 = (d.from_dir as Vector3).rotated(Vector3.UP, jitter)
 	var m := MeteorStrike.new()
 	m.caster = player
