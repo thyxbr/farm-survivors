@@ -7,6 +7,8 @@ extends Area3D
 ## a coleta a até PickupRegistry.MAX_DIST (4 m) da última posição recebida do jogador.
 const NET_LEASH := 2.5
 const LIFETIME := 120.0
+## Sem resposta do servidor à coleta em tanto tempo: volta ao chão (pode tentar de novo).
+const CLAIM_TIMEOUT := 5.0
 
 var item_id := ""   # vazio = ouro
 var amount := 1
@@ -16,6 +18,8 @@ var net_id := 0
 var source := "loot"
 var _origin := Vector3.ZERO
 var _claiming := false
+var _claim_t := 0.0
+var _cooldown := 0.0   # segundos sem ímã depois de voltar ao chão
 var _t := 0.0
 var _vis: Node3D
 var _vel := Vector3.ZERO
@@ -124,10 +128,17 @@ static func spawn(parent: Node, id: String, qty: int, pos: Vector3, p_net_id := 
 
 func _physics_process(delta: float) -> void:
 	_t += delta
-	if _claiming:
+	if _t > LIFETIME:
+		queue_free()
 		return
+	if _claiming:
+		_claim_t += delta
+		if _claim_t >= CLAIM_TIMEOUT:
+			_reopen()
+		return
+	_cooldown = maxf(0.0, _cooldown - delta)
 	var player := get_tree().get_first_node_in_group("player") as Player
-	if _t > 0.6 and player and not player.dead:
+	if _t > 0.6 and _cooldown <= 0.0 and player and not player.dead:
 		var to := player.global_position + Vector3.UP * 0.8 - global_position
 		if to.length() < 1.0:
 			_collect()
@@ -145,8 +156,6 @@ func _physics_process(delta: float) -> void:
 			_grounded = true
 	_vis.rotation.y += delta * 2.5
 	_vis.position.y = sin(_t * 3.0) * 0.1
-	if _t > LIFETIME:
-		queue_free()
 
 
 ## Pickup do servidor não se afasta mais que NET_LEASH (no plano) de onde caiu.
@@ -169,6 +178,7 @@ func _collect() -> void:
 	if net_id > 0:
 		# o servidor decide: some da tela enquanto espera; "longe" devolve ao chão
 		_claiming = true
+		_claim_t = 0.0
 		visible = false
 		Econ.done.connect(_on_claim_done)
 		Econ.request("claim_pickup", [net_id])
@@ -192,14 +202,22 @@ func _collected_fx() -> void:
 func _on_claim_done(op: String, args: Array, ok: bool, err: String, _events: Array) -> void:
 	if op != "claim_pickup" or args.is_empty() or int(args[0]) != net_id:
 		return
-	Econ.done.disconnect(_on_claim_done)
 	if ok:
+		Econ.done.disconnect(_on_claim_done)
 		_collected_fx()
 		queue_free()
-	elif err == "longe":
-		# o servidor ainda não viu o jogador perto: volta ao chão e tenta de novo depois
-		_claiming = false
-		visible = true
-		_t = minf(_t, 0.0)
+	elif err in ["longe", "erro_banco"]:
+		# o servidor ainda não viu o jogador perto, ou não gravou (o pickup voltou ao registro):
+		# volta ao chão e tenta de novo depois
+		_reopen()
 	else:
 		queue_free()   # de outro, já pego, expirado, sem conexão
+
+
+## Volta ao chão depois de uma coleta recusada ou sem resposta (a validade continua contando).
+func _reopen() -> void:
+	if Econ.done.is_connected(_on_claim_done):
+		Econ.done.disconnect(_on_claim_done)
+	_claiming = false
+	visible = true
+	_cooldown = 0.6
