@@ -123,7 +123,7 @@ func _process(delta: float) -> void:
 			p.y = _flat_y() + absf(sin(_bob)) * 0.05
 			global_position = p
 			if dist > 0.05:
-				rotation.y = atan2(_to.x - _from.x, _to.z - _from.z)
+				global_rotation.y = atan2(_to.x - _from.x, _to.z - _from.z)
 			_tool.rotation.x = 0.0
 			if _t >= 1.0:
 				if _state == "go":
@@ -139,7 +139,7 @@ func _process(delta: float) -> void:
 				var n = home.colony.nature.node(_target_id)
 				if n and n.alive:
 					var d: Vector3 = n.global_position - global_position
-					rotation.y = atan2(d.x, d.z)
+					global_rotation.y = atan2(d.x, d.z)
 			if _t >= WORK_TIME:
 				_tool.rotation.x = 0.0
 				_go(_door(), "back")

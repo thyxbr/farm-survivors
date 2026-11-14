@@ -246,6 +246,9 @@ func _destroy() -> void:
 	var c := global_position + Vector3.UP * 1.0
 	FX.burst(c, Color(0.5, 0.42, 0.35), 50, 7.0, 0.18, 1.0)
 	FX.burst(c, Color(0.3, 0.3, 0.3), 30, 3.0, 0.3, 1.4, -2.0)
+	for v in _villagers:
+		v.queue_free()
+	_villagers.clear()
 	destroyed.emit(self)
 	var tw := create_tween()
 	tw.tween_property(visual, "position:y", -ColonyVisuals.height(kind), 1.2).set_ease(Tween.EASE_IN)
