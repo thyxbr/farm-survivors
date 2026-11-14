@@ -9,7 +9,7 @@ const PARTS := {
 	"head": ["Helmet", "HelmetDome"],
 	"armor": ["Torso", "Fauld", "ArmL_Pauldron", "ArmR_Pauldron"],
 	"hands": ["ArmL_Gauntlet", "ArmR_Gauntlet", "ArmL_Hand", "ArmR_Hand"],
-	"feet": ["LegL_Sabaton", "LegR_Sabaton"],
+	"feet": ["LegL_Sabaton", "LegR_Sabaton", "LegL_Foot", "LegR_Foot"],
 }
 ## Todas as peças do knight.glb de cada espaço: somem quando o estilo do item vem de um GLB de equipamento.
 const REGION := {
@@ -17,7 +17,8 @@ const REGION := {
 	"armor": ["Hips", "Torso", "Fauld", "Belt", "Tabard", "Gorget", "ArmL_Pauldron", "ArmR_Pauldron",
 		"ArmL_Upper", "ArmR_Upper", "ArmL_Vambrace", "ArmR_Vambrace", "LegL_Thigh", "LegR_Thigh"],
 	"hands": ["ArmL_Gauntlet", "ArmR_Gauntlet", "ArmL_Hand", "ArmR_Hand"],
-	"feet": ["LegL_Sabaton", "LegR_Sabaton", "LegL_Knee", "LegR_Knee"],
+	"feet": ["LegL_Sabaton", "LegR_Sabaton", "LegL_Knee", "LegR_Knee", "LegL_Foot", "LegR_Foot", "LegL_Sole",
+		"LegR_Sole"],
 }
 ## Estilo de cada espaço vazio: o personagem sem equipamento usa camisa, calça e sapatos.
 const DEFAULT_STYLE := {"head": "h_bare", "armor": "a_shirt", "hands": "g_bare", "feet": "f_shoes"}

@@ -45,6 +45,7 @@ var idle_t := 0.0
 var _amp := 0.0      # 0..1: quanto está andando (suavizado)
 var _run := 0.0      # 0..1: quanto está correndo
 var _air := 0.0      # 0..1: quanto está no ar
+var _cycle_w := 0.0  # 0..1: quanto o ciclo da passada ignora a suavização (KnightAnim.follow_cycle)
 var _cast_t := 99.0  # segundos desde a última magia (a pose toca até KnightMoves.CAST_TIME)
 var _cast_kind := "fireball"
 var _pending_spell := ""   # magia esperando o fim do movimento de apontar
@@ -1073,6 +1074,12 @@ func _animate(delta: float) -> void:
 		p.knee_r = 0.9
 		p.head_x = 0.0
 		p.ground = 0.0
+		p.lift = 0.0
+		p.foot_l = p.leg_l + p.knee_l + 0.3
+		p.foot_r = p.leg_r + p.knee_r + 0.3
+	# andando, o ciclo segue a pose sem o atraso da suavização (some na esquiva e volta aos poucos)
+	_cycle_w = lerpf(_cycle_w, 0.0 if dodge_timer > 0 else _amp * (1.0 - _air), 1.0 - exp(-6.0 * delta))
+	KnightAnim.follow_cycle(p, _cycle_w)
 
 	# golpes, arco e magias: trilhas de KnightMoves por cima da locomoção
 	var cls: String = look["class"]

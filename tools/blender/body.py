@@ -233,12 +233,13 @@ def mirror(v, s):
 
 
 def humanoid_rig(root_name, P):
-    """Empty raiz + pivôs: LegL/LegR (quadril) > KneeL/KneeR, Body (quadril) > Head (pescoço),
+    """Empty raiz + pivôs: LegL/LegR (quadril) > KneeL/KneeR > AnkleL/AnkleR, Body (quadril) > Head (pescoço),
     ArmL/ArmR (ombro) > ElbowL/ElbowR. A posição de cada empty é a articulação."""
     R = {"root": empty(root_name, (0, 0, 0))}
     for n, s in (("L", 1), ("R", -1)):
         R["Leg" + n] = empty("Leg" + n, mirror(P["hip"], s), R["root"])
         R["Knee" + n] = empty("Knee" + n, mirror(P["knee"], s), R["Leg" + n])
+        R["Ankle" + n] = empty("Ankle" + n, mirror(P["ankle"], s), R["Knee" + n])
     R["Body"] = empty("Body", P["pelvis"], R["root"])
     R["Head"] = empty("Head", P["neck"], R["Body"])
     for n, s in (("R", -1), ("L", 1)):
@@ -364,7 +365,7 @@ def humanoid_base(P, R, mats, parts=BASE_PARTS):
         if "shin" in parts:
             out["Leg%s_Shin" % n] = loft("Leg%s_Shin" % n, S["shin"], m("shin"), knee)
         if "foot" in parts:
-            out["Leg%s_Foot" % n] = loft("Leg%s_Foot" % n, S["foot"], m("foot"), knee, fwd=(0, 0, 1),
+            out["Leg%s_Foot" % n] = loft("Leg%s_Foot" % n, S["foot"], m("foot"), R["Ankle" + n], fwd=(0, 0, 1),
                                          chamfer=(0.01, 0.012))
         if "upper" in parts:
             out["Arm%s_Upper" % n] = loft("Arm%s_Upper" % n, S["upper"], m("upper"), arm)
