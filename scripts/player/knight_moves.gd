@@ -185,3 +185,19 @@ const CHARGE := [
 	[0.8, {"arm_r": Vector3(-1.1, 0.4, 0.1), "elbow_r": -0.3, "wrist_r": 1.4, "twist": 0.3,
 		"body_x": 0.25, "leg_l": -0.55, "knee_l": 0.7, "leg_r": 0.3, "knee_r": 0.3}, "out"],
 ]
+
+## Golpe Sísmico (SwordAbilities.QUAKE_TIME = 0,65 s): ergue a espada com as duas mãos até 0,5
+## (o pulinho), crava no chão em 0,54 (impacto aos 0,35 s) e segura a pose até o fim.
+const QUAKE := [
+	[0.5, {"arm_r": Vector3(-2.75, -0.1, -0.25), "elbow_r": -0.9, "wrist_r": -0.4, "twist": -0.3,
+		"body_x": -0.28, "head_x": -0.25, "head_y": 0.0,
+		"arm_l": Vector3(-2.6, 0.15, 0.3), "elbow_l": -0.8,
+		"leg_l": -0.25, "knee_l": 0.55, "leg_r": 0.2, "knee_r": 0.55}, "out"],
+	[0.56, {"arm_r": Vector3(-0.95, 0.05, -0.1), "elbow_r": -0.1, "wrist_r": 1.7, "twist": 0.3,
+		"body_x": 0.55, "head_x": 0.15,
+		"arm_l": Vector3(-0.85, -0.1, 0.25), "elbow_l": -0.2,
+		"leg_l": -0.6, "knee_l": 0.8, "leg_r": 0.4, "knee_r": 0.6}, "in"],
+	[0.8, {"arm_r": Vector3(-0.9, 0.05, -0.1), "elbow_r": -0.1, "wrist_r": 1.75, "twist": 0.3,
+		"body_x": 0.5, "arm_l": Vector3(-0.8, -0.1, 0.25), "elbow_l": -0.2,
+		"leg_l": -0.55, "knee_l": 0.75, "leg_r": 0.35, "knee_r": 0.55}, "lin"],
+]

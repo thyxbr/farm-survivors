@@ -18,6 +18,19 @@ const CHARGE_ENEMY_LAYER := 4   ## atravessa inimigos (para só em parede)
 const CHARGE_TRAIL_W := 0.32    ## altura da fita do rastro (m)
 const CHARGE_DUST := Color(0.5, 0.44, 0.36, 0.55)
 
+# ------------------------------------------------------------------ Golpe Sísmico (slot 2)
+const QUAKE_WINDUP := 0.35      ## ergue a espada com as duas mãos (pulinho) e crava no chão aos 0,35 s
+const QUAKE_RECOVER := 0.3
+const QUAKE_TIME := QUAKE_WINDUP + QUAKE_RECOVER
+const QUAKE_MULT := 2.0         ## dano = Game.melee_damage() * QUAKE_MULT
+const QUAKE_RANGE := 6.0        ## alcance do cone (m)
+const QUAKE_HALF_ANGLE := 35.0  ## meio ângulo do cone (graus): 70° no total
+const QUAKE_STUN := 1.0         ## atordoamento (s)
+const QUAKE_HOP := 3.3          ## impulso do pulinho: com a gravidade de 20 aterrissa em ~0,33 s
+const QUAKE_WAVE_STEP := 0.08   ## a onda avança 1 m a cada 0,08 s
+const QUAKE_DUST := Color(0.56, 0.48, 0.36, 0.65)
+const QUAKE_ROCK := Color(0.24, 0.18, 0.13)
+
 
 ## Executa a habilidade `id` para `player`. Devolve true só se ela começou.
 static func use(player: Node, id: String) -> bool:
@@ -26,6 +39,11 @@ static func use(player: Node, id: String) -> bool:
 			player.begin_ability(id, {"dir": player.facing()})
 			Network.send_event(id, player.global_position, player.facing())
 			Sfx.play("swing", 0.1, -8.0)
+			return true
+		"sword_quake":
+			player.begin_ability(id, {"dir": player.facing(), "origin": player.global_position})
+			Network.send_event(id, player.global_position, player.facing())
+			Sfx.play("swing", 0.1, -6.0)
 			return true
 	return false
 
@@ -39,12 +57,15 @@ static func tick(player: Node, delta: float, move_dir := Vector3.ZERO, move_spee
 	match player.ability:
 		"sword_charge":
 			_charge_tick(player, t0, player.ability_t, delta)
+		"sword_quake":
+			_quake_tick(player, t0, player.ability_t, delta)
 		_:
 			player.end_ability()
 
 
 ## A esquiva pode interromper a habilidade agora?
 static func can_dodge_cancel(player: Node) -> bool:
+	# o Golpe Sísmico é curto demais: a esquiva não o cancela
 	return player.ability == "sword_charge" and player.ability_t <= CHARGE_WINDUP
 
 
@@ -53,6 +74,8 @@ static func pose(player: Node, p: Dictionary) -> void:
 	match player.ability:
 		"sword_charge":
 			KnightAnim.play_track(p, KnightMoves.CHARGE, clampf(player.ability_t / CHARGE_TIME, 0.0, 1.0), 0.0)
+		"sword_quake":
+			KnightAnim.play_track(p, KnightMoves.QUAKE, clampf(player.ability_t / QUAKE_TIME, 0.0, 1.0), 0.0)
 
 
 ## Réplica: começa a habilidade de outro jogador pelo evento de rede (só visual; dano já foi do dono).
@@ -61,6 +84,9 @@ static func play_remote(player: Node, kind: String, a: Vector3, b: Vector3) -> v
 		"sword_charge":
 			player.begin_ability(kind, {"dir": b, "origin": a})
 			Sfx.play_at("swing", a, 0.1, -8.0)
+		"sword_quake":
+			player.begin_ability(kind, {"dir": b, "origin": a})
+			Sfx.play_at("swing", a, 0.1, -6.0)
 
 
 # ------------------------------------------------------------------ Investida
@@ -176,3 +202,81 @@ static func _follow_trail(d: Dictionary) -> void:
 		return
 	var holder: Node3D = m.get_parent()
 	m.global_transform = Transform3D(Basis.IDENTITY, holder.to_global(d.trail_at) - Vector3.UP * CHARGE_TRAIL_W * 0.5)
+
+
+# ------------------------------------------------------------------ Golpe Sísmico
+static func _quake_tick(player: Node, t0: float, t: float, delta: float) -> void:
+	var d: Dictionary = player.ability_data
+	var local: bool = not player.remote
+	if local:
+		# o pulinho do preparo (a física já aplica a gravidade); parado no chão
+		if t0 <= 0.0 and player.is_on_floor():
+			player.velocity.y = QUAKE_HOP
+		player.velocity.x = move_toward(player.velocity.x, 0.0, 40.0 * delta)
+		player.velocity.z = move_toward(player.velocity.z, 0.0, 40.0 * delta)
+	if t0 < QUAKE_WINDUP and t >= QUAKE_WINDUP:
+		_quake_impact(player, d)
+	if d.get("impact", false):
+		_quake_wave(player, d, t - QUAKE_WINDUP)
+	if t >= QUAKE_TIME - 0.0001:
+		player.end_ability()
+
+
+## A espada crava no chão: marca, choque e o dano do cone (só no dono).
+static func _quake_impact(player: Node, d: Dictionary) -> void:
+	var dir: Vector3 = d.dir
+	var base: Vector3 = player.global_position
+	d.impact = true
+	d.base = base
+	d.wave_m = 0
+	var tip := base + dir * 1.0
+	FXEpic.ground_mark(base + dir * 3.0, Color(0.1, 0.07, 0.05, 0.9), 3.2, 3.0, "crack")
+	FXEpic.glow_burst(tip + Vector3.UP * 0.2, Color(1.0, 0.7, 0.35), 14, 5.0, 0.12, 0.35, -2.0)
+	FXEpic.smoke(tip + Vector3.UP * 0.15, QUAKE_DUST, 8, 0.8, 0.8)
+	Sfx.play_at("slam", base, 0.05, -2.0)
+	if player.remote:
+		return
+	player.add_shake(0.3)
+	var half := deg_to_rad(QUAKE_HALF_ANGLE)
+	var any := false
+	for e in player.get_tree().get_nodes_in_group("enemies"):
+		if e.dead:
+			continue
+		var to: Vector3 = e.global_position - base
+		to.y = 0.0
+		var dist := to.length()
+		if dist - e.radius > QUAKE_RANGE:
+			continue
+		# dentro do cone; quem está colado nos pés também conta
+		if dist > e.radius and dir.angle_to(to) > half + asin(clampf(e.radius / dist, 0.0, 1.0)):
+			continue
+		var dmg: float = Game.melee_damage() * QUAKE_MULT
+		# o atordoamento passa pelo parâmetro de lentidão (vai ao servidor no multiplayer)
+		e.take_damage(dmg, base, false, QUAKE_STUN)
+		Game.on_damage_dealt(dmg, e.max_hp)
+		if not e.dead and not e.puppet and not e.is_boss:
+			e.stagger = maxf(e.stagger, QUAKE_STUN)   # parado de verdade (a lentidão só reduz a velocidade)
+		any = true
+		FXEpic.sparks(e.global_position + Vector3.UP * 0.4, Vector3.UP, QUAKE_ROCK.lightened(0.3), 10, 6.0, 0.35)
+	if any:
+		Sfx.play("hit")
+		FXEpic.flash(tip + Vector3.UP * 0.6, Color(1.0, 0.8, 0.5), 1.6, 4.0, 0.15)
+		FXEpic.hit_stop(0.05)
+
+
+## Onda no chão: avança QUAKE_WAVE_STEP s por metro, levantando pedras (e 5 nuvens de poeira) dentro do cone.
+static func _quake_wave(player: Node, d: Dictionary, since: float) -> void:
+	var dir: Vector3 = d.dir
+	var base: Vector3 = d.base
+	var side := dir.cross(Vector3.UP)
+	var reach: int = mini(int(since / QUAKE_WAVE_STEP), int(QUAKE_RANGE))
+	while d.wave_m < reach:
+		d.wave_m += 1
+		var m: float = d.wave_m
+		var spread := tan(deg_to_rad(QUAKE_HALF_ANGLE)) * m
+		var c := base + dir * m
+		for k in 2:
+			var off := side * randf_range(-0.8, 0.8) * spread
+			FX.burst(c + off + Vector3.UP * 0.1, QUAKE_ROCK.lightened(randf() * 0.2), 6, 7.0, 0.26, 0.8, -30.0)
+		if d.wave_m >= 2:   # 5 nuvens: de 2 a 6 m
+			FXEpic.smoke(c + Vector3.UP * 0.2, QUAKE_DUST, 6, 0.7 + spread * 0.3, 1.0)

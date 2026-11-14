@@ -189,19 +189,66 @@ func _ready() -> void:
 	player.velocity = Vector3.ZERO
 	await wait(0.1)
 
+	# --- Golpe Sísmico (espada, slot 2, nível 3): cone à frente fere e atordoa, quem está atrás não
+	var lvl_q := Game.level
+	Game.level = 3
+	var qk_a := _nearest("slime")
+	var qk_b: Enemy = null
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e != qk_a and e.kind == "slime" and not e.dead:
+			qk_b = e
+			break
+	var qk_base := qk_a.home + Vector3(0, 0.3, 40.0)   # longe de tudo
+	player.global_position = qk_base
+	player.model.rotation.y = PI   # olhando para -Z
+	player.velocity = Vector3.ZERO
+	qk_a.global_position = qk_base + Vector3(0, 0, -3.0)
+	qk_b.global_position = qk_base + Vector3(0, 0, 3.0)
+	await wait(0.2)
+	player.global_position = qk_base
+	player.model.rotation.y = PI
+	qk_a.global_position = qk_base + Vector3(0, 0, -3.0)
+	qk_b.global_position = qk_base + Vector3(0, 0, 3.0)
+	player.cooldowns.sword_quake = 0.0
+	var qk_ahp: float = qk_a.hp
+	var qk_bhp: float = qk_b.hp
+	player.use_slot(2)
+	check(player.ability == "sword_quake", "Golpe Sísmico começa (%s)" % player.ability)
+	await wait(0.8)   # 0,35 s de preparo + 0,3 s de recuperação, com folga
+	check(qk_a.hp < qk_ahp, "Golpe Sísmico fere o slime da frente (%.0f -> %.0f)" % [qk_ahp, qk_a.hp])
+	check(is_equal_approx(qk_ahp - qk_a.hp, Game.melee_damage() * SwordAbilities.QUAKE_MULT),
+		"Golpe Sísmico causa melee_damage x2 (perdeu %.1f)" % (qk_ahp - qk_a.hp))
+	check(qk_b.hp == qk_bhp, "Golpe Sísmico não fere quem está atrás")
+	check(player.ability == "" and player.cooldowns.sword_quake > 0.0, "Golpe Sísmico termina e entra em recarga (%s, %.2f)" % [player.ability, player.cooldowns.sword_quake])
+	check(qk_a.stagger > 0.0 or qk_a.slow_timer > 0.0 or qk_a.dead, "Golpe Sísmico atordoa (stagger %.2f, lentidão %.2f)" % [qk_a.stagger, qk_a.slow_timer])
+	# a esquiva não cancela
+	Game.stamina = Game.max_stamina()
+	player.cooldowns.sword_quake = 0.0
+	player.use_slot(2)
+	await wait(0.1)
+	player._dodge_pressed(Vector3.ZERO)
+	check(player.ability == "sword_quake" and player.dodge_timer <= 0.0, "esquiva não cancela o Golpe Sísmico")
+	await wait(0.7)
+	Game.level = lvl_q
+	Game.fury = 0.0
+	player.cooldowns.sword_quake = 0.0
+	player.global_position = pos_c
+	player.velocity = Vector3.ZERO
+	await wait(0.1)
+
 	# --- kits de habilidade por arma (começa de espada: weapon_class() == "sword")
 	var kit_weapon: String = Game.equipment.weapon
 	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_whirl"], "kit da espada (%s)" % [Game.ability_kit()])
 	check(not Game.knows_ability("sword_quake") and Game.knows_ability("sword_charge"), "liberação por nível")
 	check(Game.level == 1 and not Game.knows_ability("heal") and ItemDB.ABILITIES.heal.level == 5, "cura só no nível 5")
-	# Golpe Sísmico (nível 3) ainda não existe: liberado e sem recarga, não começa nem gasta recarga
-	var lvl_u := Game.level
-	Game.level = 3
-	player.cooldowns.sword_quake = 0.0
-	player.cast("sword_quake")
-	check(player.ability == "" and player.cooldowns.sword_quake == 0.0 and player.cooldowns.size() == ItemDB.ABILITIES.size(),
-		"habilidade sem implementação não gasta recarga")
-	Game.level = lvl_u
+	# Tiro Triplo (arco, nível 1) ainda não existe: liberado e sem recarga, não começa nem gasta recarga
+	Game.add_item("short_bow")
+	Game.equip("short_bow")
+	player.cooldowns.bow_triple = 0.0
+	player.cast("bow_triple")
+	check(Game.weapon_class() == "bow" and player.ability == "" and player.cooldowns.bow_triple == 0.0
+		and player.cooldowns.size() == ItemDB.ABILITIES.size(), "habilidade sem implementação não gasta recarga")
+	Game.equip(kit_weapon)
 	player.cooldowns.sword_charge = 3.0   # para conferir que a recarga atravessa a troca de arma
 	Game.equip("apprentice_staff")
 	await wait(0.1)
