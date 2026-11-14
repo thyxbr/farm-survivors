@@ -78,3 +78,29 @@ static func build(parent: Node) -> void:
 	rim.shadow_enabled = false
 	rim.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY   # não desenha um 2º sol no céu
 	parent.add_child(rim)
+	if ToonLook.enabled():
+		_toon_tune(env, sun, rim)
+
+
+## Estilo desenhado (docs/ESTILO_TOON.md, "Luz e pós-processo"): o ambiente acima foi calibrado para o
+## sombreado antigo. Com cor chapada, o que era acabamento vira sujeira, então o toon troca estes valores.
+## Com `--notoon` nada daqui roda. O WeatherFX lê o resultado como base, e o clima parte dele.
+static func _toon_tune(env: Environment, sun: DirectionalLight3D, rim: DirectionalLight3D) -> void:
+	# SSAO desenhava um halo cinza em volta dos pés, do capim e das juntas de pedra: mancha em cima de
+	# cor chapada. O contato com o chão já vem da sombra projetada, que no toon tem tom próprio.
+	env.ssao_enabled = false
+	# Névoa: menos da metade, sem puxar a cor do céu e mais azul. A distância vira um véu azulado leve
+	# em vez de cinza lavado (a 300 m cobre ~20% em vez de ~45%), e a serra mantém as cores cheias.
+	env.fog_density = 0.0008
+	env.fog_aerial_perspective = 0.0
+	env.fog_light_color = Color(0.62, 0.74, 0.92)
+	# Contraste: a face acesa do toon recebe o sol inteiro, e o ambiente somado por igual em tudo
+	# aproximava a sombra da luz. Menos ambiente e contraluz, um pouco mais de sol: a sombra de forma
+	# cai de ~58% para ~53% do tom aceso e a projetada de ~41% para ~34%.
+	env.ambient_light_energy = 0.5
+	sun.light_energy = 1.6
+	rim.light_energy = 0.3
+	env.adjustment_saturation = 1.15
+	# Borda da sombra: o degrau do toon em cima de um borrão largo saía pontilhado; borrão curto dá
+	# um recorte limpo, de desenho.
+	sun.shadow_blur = 0.6
