@@ -9,6 +9,7 @@ extends RefCounted
 const TOON := preload("res://assets/shaders/toon_character.gdshader")
 const OUTLINE := preload("res://assets/shaders/toon_outline.gdshader")
 const MIN_OUTLINE_SIZE := 0.07
+const LIVE := &"toon_live"     # meta no material original: o toon exclusivo dele (ver sync)
 
 static var _mats := {}          # chave das propriedades do material -> ShaderMaterial toon
 static var _hulls := {}         # malha original -> ArrayMesh da casca
@@ -48,21 +49,35 @@ static func apply(root: Node, outline := true) -> int:
 	return n
 
 
-## Troca os materiais iluminados de uma malha por toon. `scenery` pula materiais com emissão (lamparinas,
-## efeitos e brilhos que o código anima depois) e deixa esses como estão.
-static func convert_mesh(mi: MeshInstance3D, scenery: bool) -> int:
+## Material que o código continua alterando depois de criado (terra do canteiro que escurece ao regar,
+## caldo do caldeirão que pulsa): ganha um material toon só dele, em vez do compartilhado do cache, e
+## esta função copia cor e emissão de `src` para ele. Chame ao criar o material e depois de cada mudança.
+static func sync(src: BaseMaterial3D) -> void:
+	if not enabled() or not _convertible(src):
+		return
+	var m: ShaderMaterial = src.get_meta(LIVE) if src.has_meta(LIVE) else null
+	if m == null:
+		m = ShaderMaterial.new()
+		m.shader = TOON
+		src.set_meta(LIVE, m)
+	_fill(m, src)
+
+
+## Troca os materiais iluminados de uma malha por toon, mantendo a emissão. O parâmetro `scenery` ficou
+## só por compatibilidade: cenário e personagem convertem os mesmos materiais.
+static func convert_mesh(mi: MeshInstance3D, _scenery := false) -> int:
 	if mi.mesh == null or mi.name.begins_with("ToonOutline"):
 		return 0
 	var n := 0
 	# material_override (tintura das placas do cavaleiro, peças montadas por código) vence os por superfície
 	var over := mi.material_override as BaseMaterial3D
-	if over != null and _convertible(over, scenery):
+	if over != null and _convertible(over):
 		mi.material_override = _toon_of(over)
 		n += 1
 	for s in mi.mesh.get_surface_count():
 		var cur := mi.get_surface_override_material(s)
 		var src := (cur if cur != null else mi.mesh.surface_get_material(s)) as BaseMaterial3D
-		if src == null or not _convertible(src, scenery):
+		if src == null or not _convertible(src):
 			continue
 		mi.set_surface_override_material(s, _toon_of(src))
 		n += 1
@@ -76,7 +91,7 @@ static func convert_mesh(mi: MeshInstance3D, scenery: bool) -> int:
 static func convert_multimesh(mmi: MultiMeshInstance3D) -> int:
 	var n := 0
 	var over := mmi.material_override as BaseMaterial3D
-	if over != null and _convertible(over, true):
+	if over != null and _convertible(over):
 		mmi.material_override = _toon_of(over)
 		n += 1
 	var mesh := mmi.multimesh.mesh if mmi.multimesh else null
@@ -84,20 +99,46 @@ static func convert_multimesh(mmi: MultiMeshInstance3D) -> int:
 		return n
 	for s in mesh.get_surface_count():
 		var src := mesh.surface_get_material(s) as BaseMaterial3D
-		if src == null or not _convertible(src, true):
+		if src == null or not _convertible(src):
 			continue
 		mesh.surface_set_material(s, _toon_of(src))
 		n += 1
 	return n
 
 
-static func _convertible(src: BaseMaterial3D, scenery := false) -> bool:
-	if scenery and src.emission_enabled:
-		return false
+## Conferência: lista as peças visíveis abaixo de `root` que ainda usam material iluminado comum, ou
+## seja, que o estilo deveria ter convertido e não converteu (material trocado depois do gancho).
+static func audit(root: Node) -> PackedStringArray:
+	var out := PackedStringArray()
+	for n in root.find_children("*", "GeometryInstance3D", true, false):
+		if not (n is MeshInstance3D or n is MultiMeshInstance3D) or not (n as Node3D).is_visible_in_tree():
+			continue
+		var mesh: Mesh = n.mesh if n is MeshInstance3D else (n.multimesh.mesh if n.multimesh else null)
+		if mesh == null or n.name.begins_with("ToonOutline"):
+			continue
+		var over := (n as GeometryInstance3D).material_override
+		var left := PackedStringArray()
+		if over != null:
+			if over is BaseMaterial3D and _convertible(over):
+				left.append("override " + (over as BaseMaterial3D).albedo_color.to_html(false))
+		else:
+			for s in mesh.get_surface_count():
+				var cur: Material = n.get_surface_override_material(s) if n is MeshInstance3D else null
+				var m := (cur if cur != null else mesh.surface_get_material(s)) as BaseMaterial3D
+				if m != null and _convertible(m):
+					left.append("sup. %d %s" % [s, m.albedo_color.to_html(false)])
+		if not left.is_empty():
+			out.append("%s  [%s]" % [root.get_path_to(n), ", ".join(left)])
+	return out
+
+
+static func _convertible(src: BaseMaterial3D) -> bool:
 	return src.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED 		and src.shading_mode != BaseMaterial3D.SHADING_MODE_UNSHADED
 
 
 static func _toon_of(src: BaseMaterial3D) -> ShaderMaterial:
+	if src.has_meta(LIVE):       # material que o código anima: toon exclusivo, mantido por sync()
+		return src.get_meta(LIVE)
 	var tex := src.albedo_texture
 	var key := "%s|%.2f|%s|%.2f|%d|%d|%d" % [src.albedo_color.to_html(), src.metallic,
 		src.emission.to_html() if src.emission_enabled else "-", src.emission_energy_multiplier,
@@ -106,19 +147,21 @@ static func _toon_of(src: BaseMaterial3D) -> ShaderMaterial:
 		return _mats[key]
 	var m := ShaderMaterial.new()
 	m.shader = TOON
+	_fill(m, src)
+	_mats[key] = m
+	return m
+
+
+static func _fill(m: ShaderMaterial, src: BaseMaterial3D) -> void:
 	# metal no PBR reflete o céu e sai mais escuro que o albedo; aceso por inteiro ficaria quase branco
 	# (vale também para o metal fosco das malhas e cotas, com metallic em torno de 0.5)
 	m.set_shader_parameter("albedo", src.albedo_color.darkened(0.35 * clampf(src.metallic, 0.0, 1.0)))
 	m.set_shader_parameter("gloss", 0.9 if src.metallic > 0.55 else 0.0)
 	m.set_shader_parameter("use_vertex_color", src.vertex_color_use_as_albedo)
 	m.set_shader_parameter("vertex_color_srgb", src.vertex_color_is_srgb)
-	if tex:
-		m.set_shader_parameter("albedo_tex", tex)
-	if src.emission_enabled:
-		m.set_shader_parameter("emission", src.emission)
-		m.set_shader_parameter("emission_energy", src.emission_energy_multiplier)
-	_mats[key] = m
-	return m
+	m.set_shader_parameter("albedo_tex", src.albedo_texture)
+	m.set_shader_parameter("emission", src.emission if src.emission_enabled else Color.BLACK)
+	m.set_shader_parameter("emission_energy", src.emission_energy_multiplier if src.emission_enabled else 0.0)
 
 
 static func _add_outline(mi: MeshInstance3D) -> void:

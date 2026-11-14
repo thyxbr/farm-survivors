@@ -34,6 +34,7 @@ func _ready() -> void:
 	_soil_mat = StandardMaterial3D.new()
 	_soil_mat.albedo_color = Color(0.33, 0.22, 0.13)
 	_soil_mat.roughness = 1.0
+	ToonLook.sync(_soil_mat)      # a terra escurece ao regar: o toon acompanha (ver _refresh)
 	soil.material_override = _soil_mat
 	add_child(soil)
 	var tones := [Color(0.45, 0.3, 0.17), Color(0.38, 0.25, 0.14)]
@@ -185,6 +186,7 @@ func _refresh() -> void:
 	_weeds.visible = st == "locked"
 	_soil_mat.albedo_color = Color(0.2, 0.13, 0.08) if p.watered and st != "locked" else Color(0.33, 0.22, 0.13)
 	_soil_mat.roughness = 0.45 if p.watered else 1.0
+	ToonLook.sync(_soil_mat)
 	var crop: String = p.crop if st in ["growing", "ready"] else ""
 	if crop != _shown_crop:
 		_shown_crop = crop
