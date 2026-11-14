@@ -35,6 +35,11 @@ func _hub() -> Node:
 	return s if s != null and s.get("role") == "hub" else null
 
 
+## Texto do saldo nos painéis (passive_master_ui/base_building_ui).
+func _ecos_text() -> String:
+	return "✦ %d Ecos" % Game.ecos
+
+
 func _point(hub: Node, kind: String, building := "") -> Node:
 	for p in hub.points:
 		if p.kind == kind and p.building_id == building:
@@ -75,7 +80,7 @@ func _ready() -> void:
 	check(orin != null and orin.get("ecos_label") != null, "painel do Mestre Orin abre")
 	var extra := RewardRules.ecos(Balance.tables, "horde", 40)
 	Econ.run_finish(Econ.run_start("horde"), "horde", 40, 0, 0, {})
-	check(Game.ecos == 50 + extra and orin.ecos_label.text.contains(str(Game.ecos)),
+	check(Game.ecos == 50 + extra and orin.ecos_label.text == _ecos_text(),
 		"painel aberto mostra os Ecos novos (%s)" % orin.ecos_label.text)
 
 	# --- passiva pelo Econ.request
@@ -87,7 +92,7 @@ func _ready() -> void:
 		"passiva Poder comprada (Ecos %d → %d, nível %d)" % [e0, Game.ecos, int(Game.passives.get("poder", 0))])
 	check(is_equal_approx(Game.mod("damage"), dmg0 + 0.03), "Poder 1 soma 3%% de dano (%.2f → %.2f)" % [dmg0, Game.mod("damage")])
 	await wait(0.1)
-	check(orin.ecos_label.text.contains(str(Game.ecos)), "painel redesenha depois da compra (%s)" % orin.ecos_label.text)
+	check(orin.ecos_label.text == _ecos_text(), "painel redesenha depois da compra (%s)" % orin.ecos_label.text)
 	orin._close()
 	await wait(0.1)
 	check(hub.modal == null and not get_tree().paused, "painel do Mestre Orin fecha e a praça volta")
@@ -95,14 +100,14 @@ func _ready() -> void:
 	# --- doação pelo Econ.request: sobe a Forja, a placa mostra o nível novo
 	var forge_cost := int(Balance.tables.get_table("base_buildings").buildings.forja.levels[0].cost)
 	var forge := _point(hub, "building", "forja")
-	check(forge != null and forge._label.text.contains("nível 0"), "placa da Forja no nível 0 (%s)" % forge._label.text)
+	check(forge != null and forge._label.text == "Forja — nível 0", "placa da Forja no nível 0 (%s)" % forge._label.text)
 	e0 = Game.ecos
 	Econ.request("donate", ["forja", forge_cost])
 	check(Game.ecos == e0 - forge_cost, "doação desconta os Ecos (%d → %d)" % [e0, Game.ecos])
 	var entry: Dictionary = Hub.base.get("forja", {})
 	check(int(entry.get("level", 0)) == 1 and BaseRules.total_invested(Balance.tables, "forja", entry) == forge_cost,
 		"Hub.base: Forja no nível 1 (%s)" % str(entry))
-	check(forge._label.text.contains("nível 1"), "placa da Forja mostra o nível novo (%s)" % forge._label.text)
+	check(forge._label.text == "Forja — nível 1", "placa da Forja mostra o nível novo (%s)" % forge._label.text)
 	var donors: Array = entry.get("donors", [])
 	check(donors.size() == 1 and donors[0].name == Hub.SOLO_NAME and int(donors[0].amount) == forge_cost,
 		"doador do solo aparece como \"%s\" (%s)" % [Hub.SOLO_NAME, str(donors)])
@@ -132,7 +137,7 @@ func _ready() -> void:
 	hub.open_point_panel(_point(hub, "building", "muralha"))
 	var wall: Control = hub.modal
 	Econ.run_finish(Econ.run_start("horde"), "horde", 5, 0, 0, {})
-	check(wall != null and wall.ecos_label.text.contains(str(Game.ecos)), "painel da construção mostra os Ecos novos (%s)" % wall.ecos_label.text)
+	check(wall != null and wall.ecos_label.text == _ecos_text(), "painel da construção mostra os Ecos novos (%s)" % wall.ecos_label.text)
 	wall._close()
 	await wait(0.1)
 

@@ -27,6 +27,10 @@ var token := ""
 var join_error := ""
 ## --city=join: net_id de um pickup deixado no chão de Valdoria antes da cidade (Review Focus 5).
 var old_pickup := 0
+## Cidade: Ecos e recompensas de noite (Lobby.city_nights_rewarded) antes da partida, para conferir os Ecos
+## do fim pelas noites que este cliente viu de verdade (Review Focus 3).
+var city_ecos0 := 0
+var city_nights0 := 0
 
 const TEST_PASS := "teste-1234"
 const PICKUP := preload("res://scripts/world/pickup.gd")
@@ -338,14 +342,28 @@ func _test_hub() -> void:
 
 
 ## Sincroniza os clientes de teste pelo chat fora da Horda: cada um avisa que chegou e espera os outros.
+## O anti-spam do servidor descarta mensagens logo depois do teste de chat: reenvia até o próprio eco
+## voltar (aí todos receberam) e só então espera os outros.
 func _sync(tag: String) -> void:
-	Network.send_chat("sync:" + tag)
-	await _wait_until(func() -> bool:
-		var n := 0
-		for m in chat_got:
-			if m[1] == "sync:" + tag and m[0] != Network.my_name:
-				n += 1
-		return n >= peers - 1, 15.0)
+	var msg := "sync:" + tag
+	var echoed := false
+	for i in 6:
+		Network.send_chat(msg)
+		if await _wait_until(func() -> bool: return _chat_senders(msg).has(Network.my_name), 2.0):
+			echoed = true
+			break
+	check(echoed, "aviso da barreira \"%s\" chegou ao servidor" % tag)
+	check(await _wait_until(func() -> bool: return _chat_senders(msg).size() >= peers, 20.0),
+		"os outros chegaram à barreira \"%s\" (%s)" % [tag, str(_chat_senders(msg))])
+
+
+## Quem mandou a mensagem `text` pelo chat (nomes sem repetição).
+func _chat_senders(text: String) -> Array:
+	var out: Array = []
+	for m in chat_got:
+		if m[1] == text and m[0] != "" and not (m[0] in out):
+			out.append(m[0])
+	return out
 
 
 # ---------------------------------------------------------------- personagem no servidor (Econ)
@@ -757,6 +775,8 @@ func _city_colony() -> Colony:
 
 
 func _test_city() -> void:
+	city_ecos0 = Game.ecos
+	city_nights0 = Lobby.city_nights_rewarded
 	# --- sala na mesa de guerra da praça
 	if city_role == "lead":
 		Lobby.room_send("create")
@@ -784,7 +804,8 @@ func _test_city() -> void:
 	check(c.role == "client" and w.role == "client", "cidade como réplica do servidor")
 	# Review Focus 4: as doações da praça foram para a Forja; com o Celeiro no nível 0 o cofre não muda
 	var start_gold := ColonyData.COOP_START_GOLD + ColonyData.COOP_GOLD_PER_PLAYER * (peers - 1)
-	check(int(Hub.base.get("celeiro", {}).get("level", 0)) == 0, "Celeiro no nível 0")
+	check(Hub.base.has("celeiro"), "base do servidor chegou à praça (%s)" % str(Hub.base.keys()))
+	check(int(Hub.base.get("celeiro", {}).get("level", -1)) == 0, "Celeiro no nível 0")
 	check(await _wait_until(func() -> bool: return c.treasury > 0, 5.0) and c.treasury == start_gold, "cofre inicial do grupo %d (%d)" % [start_gold, c.treasury])
 	check(await _wait_until(func() -> bool: return Network.zone_of(multiplayer.get_unique_id()) == "city", 5.0), "servidor vê o jogador na cidade")
 	if peers > 1:
@@ -836,7 +857,15 @@ func _test_city() -> void:
 		await _drop_mid_night(w, c)
 		return
 	if city_role == "lead" and peers > 1:
-		await wait(3.0)   # o colega abate o dele antes (e cai no meio da noite)
+		# o colega abate o dele antes, cai no meio da noite e volta à partida com outro peer (Review Focus 3/5):
+		# espera ele voltar para a cidade antes de acabar com a noite, para ele ver o amanhecer
+		var before: Array = Lobby.room.get("in_city", []).duplicate()
+		await wait(3.0)
+		check(await _wait_until(func() -> bool:
+			for pid in Lobby.room.get("in_city", []):
+				if not (pid in before):
+					return true
+			return false, 40.0), "colega caiu e voltou para a cidade no meio da noite")
 	var killed := 0
 	var tt := 0.0
 	while c.phase == "night" and tt < 60.0:
@@ -864,6 +893,9 @@ func _test_city() -> void:
 	var ecos0 := Game.ecos
 	Lobby.last_result = {}
 	await wait(0.5 if city_role == "join" else 2.5)
+	if city_role == "lead":
+		check(await _wait_until(func() -> bool: return Lobby.room.get("in_city", []).size() <= 1, 20.0),
+			"colega saiu da cidade antes do líder")
 	Lobby.go_hub()
 	check(await _wait_until(func() -> bool: return _in_hub(), 10.0), "voltou à praça")
 	check(await _wait_until(func() -> bool: return Network.zone_of(multiplayer.get_unique_id()) == "hub", 5.0), "servidor vê o jogador de volta na praça")
@@ -929,9 +961,9 @@ func _claim(net_id: int) -> String:
 	return "sem_resposta" if r.is_empty() else ("" if r[0][0] else str(r[0][1]))
 
 
-## Review Focus 5 (Beto): abate um monstro da noite 1 (o servidor concede XP e o abate na hora), cai e
+## Review Focus 5 (Duda): abate um monstro da noite 1 (o servidor concede XP e o abate na hora), cai e
 ## volta: o que já foi concedido continua no estado; o pickup antigo (de Valdoria) não pode ser pego nem antes
-## (sumiu ao trocar de zona) nem depois da queda.
+## (sumiu ao trocar de zona) nem depois da queda. Depois volta à partida (Review Focus 3) e confere os Ecos.
 func _drop_mid_night(w: Node, c: Colony) -> void:
 	var kills0 := Game.kills
 	var tt := 0.0
@@ -967,6 +999,26 @@ func _drop_mid_night(w: Node, c: Colony) -> void:
 	if old_pickup > 0:
 		var err := await _claim(old_pickup)
 		check(err == "pego", "pickup antigo recusado depois da queda (%s)" % err)
+
+	# Review Focus 3: entra de novo na partida em andamento (outro peer da mesma conta), vê o amanhecer e sai
+	# antes do líder. No fim a conta fecha a partida uma vez, com as noites dos dois peers somadas.
+	check(await _wait_until(func() -> bool: return Lobby.room.get("state", "") == "running", 5.0), "a partida continua rodando")
+	Lobby.room_send("enter")
+	check(await _wait_until(func() -> bool: return _city_colony() != null, 20.0), "voltou para a cidade em andamento")
+	var c2 := _city_colony()
+	if c2 != null:
+		check(await _wait_until(func() -> bool: return c2.phase == "day" and c2.day >= 2, 90.0),
+			"viu o amanhecer depois de voltar (dia %d)" % c2.day)
+		await wait(1.5)   # a recompensa da noite chega junto do amanhecer
+		Lobby.go_hub()
+		check(await _wait_until(func() -> bool: return _in_hub(), 10.0), "voltou à praça antes do líder")
+	var nights := Lobby.city_nights_rewarded - city_nights0
+	check(nights >= 1, "recebeu a recompensa de %d noite(s) na cidade" % nights)
+	check(await _wait_until(func() -> bool: return Lobby.room.is_empty(), 40.0), "partida encerrada (o líder saiu por último)")
+	var ecos_won := RewardRules.ecos(Balance.tables, "city", nights)
+	check(await _wait_until(func() -> bool: return Game.ecos == city_ecos0 + ecos_won, 5.0),
+		"Ecos da cidade pelas %d noite(s) vistas, somando os dois peers da conta (%d → %d, esperado +%d)" % [
+			nights, city_ecos0, Game.ecos, ecos_won])
 	Lobby.go_world()
 	check(await _wait_until(func() -> bool: return Network.world != null and Network.world.get("player") != null, 15.0), "entrou em Valdoria depois da queda")
 	await wait(1.0)

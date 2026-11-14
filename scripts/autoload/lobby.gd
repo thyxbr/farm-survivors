@@ -27,6 +27,9 @@ const VILLAGE_SPAWN := Vector3(0, 0.5, 6)
 var room := {}
 ## Melhor partida do servidor: {"day": noites, "names": [nomes]}.
 var record := {}
+## Cliente: recompensas de noite vencida recebidas nesta execução (só cresce). O servidor conta a mesma
+## noite para o resumo do fim (Ecos), então o net_test confere os Ecos com a diferença deste contador.
+var city_nights_rewarded := 0
 ## Resultado da última partida (mostrado na praça ao voltar).
 var last_result := {}
 ## Cliente: a cena da cidade que está carregando deve entrar como réplica.
@@ -460,21 +463,7 @@ func _city_summaries(nights: int, to: Array) -> Dictionary:
 	var out := {}
 	if Network.characters == null:
 		return out
-	var by_account := {}   # conta -> {"gold", "xp", "items": {id: n}, "nights", "peers": []}
-	for pid in _rewards:
-		var r: Dictionary = _rewards[pid]
-		var account := int(r.get("account", 0))
-		if account <= 0:
-			continue
-		if not by_account.has(account):
-			by_account[account] = {"gold": 0, "xp": 0, "items": {}, "nights": 0, "peers": []}
-		var t: Dictionary = by_account[account]
-		t.gold += int(r.gold)
-		t.xp += int(r.xp)
-		t.nights += int(r.get("nights", 0))
-		t.peers.append(pid)
-		for id in r.items:
-			t.items[id] = int(t.items.get(id, 0)) + 1
+	var by_account := RewardRules.city_by_account(_rewards)
 	for account in by_account:
 		var t: Dictionary = by_account[account]
 		var res: Dictionary = Network.characters.finish_player(_run_id, account, "city", int(t.nights),
@@ -829,6 +818,7 @@ func _city_xp(_kind: String, _xp: int) -> void:
 @rpc("authority", "call_remote", "reliable")
 func _city_reward(n: int, gold: int, xp: int, items: Array) -> void:
 	# o servidor já concedeu (ouro, XP, baú e recorde chegam pelo Econ): aqui só o aviso
+	city_nights_rewarded += 1
 	var got: Array[String] = []
 	for id in items:
 		if ItemDB.ITEMS.has(str(id)) and str(id) != "health_potion":
