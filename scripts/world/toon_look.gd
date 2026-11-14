@@ -16,43 +16,79 @@ static var _outline_mat: ShaderMaterial
 static var _enabled := -1       # -1 = ainda não leu os argumentos
 
 
+## Desligado com `-- --notoon` e no servidor dedicado (sem janela e sem ser um dos testes), que não
+## desenha nada e só gastaria memória com materiais e cascas.
 static func enabled() -> bool:
 	if _enabled < 0:
-		_enabled = 0 if "--notoon" in OS.get_cmdline_user_args() else 1
+		var args := OS.get_cmdline_user_args()
+		var is_test := "--smoketest" in args or "--colonytest" in args or "--hubtest" in args
+		var off := "--notoon" in args or (DisplayServer.get_name() == "headless" and not is_test)
+		_enabled = 0 if off else 1
 	return _enabled == 1
 
 
-## Aplica em todas as malhas abaixo de `root`. Devolve quantas superfícies foram convertidas.
-## Pode ser chamada de novo no mesmo modelo (troca de equipamento): só converte o que ainda não é toon.
+## Personagens: aplica em todas as malhas abaixo de `root`, com contorno. Devolve quantas superfícies
+## foram convertidas. Pode ser chamada de novo no mesmo modelo (troca de equipamento).
 static func apply(root: Node, outline := true) -> int:
 	var n := 0
 	for mi: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
 		if mi.name.begins_with("ToonOutline") or mi.mesh == null:
 			continue
-		var any := false
-		# material_override (tintura das placas do cavaleiro) vence os materiais por superfície
-		var over := mi.material_override as BaseMaterial3D
-		if over != null and _convertible(over):
-			mi.material_override = _toon_of(over)
-			any = true
-			n += 1
-		for s in mi.mesh.get_surface_count():
-			var src := mi.get_surface_override_material(s) as BaseMaterial3D
-			if src == null and mi.get_surface_override_material(s) == null:
-				src = mi.mesh.surface_get_material(s) as BaseMaterial3D
-			if src == null or not _convertible(src):
-				continue
-			mi.set_surface_override_material(s, _toon_of(src))
-			any = true
-			n += 1
+		var c := convert_mesh(mi, false)
+		n += c
 		# peças miúdas (olhos, sobrancelhas, rebites) ficam sem contorno: a casca engoliria a peça
-		if any and outline and not mi.has_meta("toon_outline") 				and mi.get_aabb().get_longest_axis_size() >= MIN_OUTLINE_SIZE:
+		if (c > 0 or mi.has_meta("toon")) and outline and not mi.has_meta("toon_outline") 				and mi.get_aabb().get_longest_axis_size() >= MIN_OUTLINE_SIZE:
 			mi.set_meta("toon_outline", true)
 			_add_outline(mi)
 	return n
 
 
-static func _convertible(src: BaseMaterial3D) -> bool:
+## Troca os materiais iluminados de uma malha por toon. `scenery` pula materiais com emissão (lamparinas,
+## efeitos e brilhos que o código anima depois) e deixa esses como estão.
+static func convert_mesh(mi: MeshInstance3D, scenery: bool) -> int:
+	if mi.mesh == null or mi.name.begins_with("ToonOutline"):
+		return 0
+	var n := 0
+	# material_override (tintura das placas do cavaleiro, peças montadas por código) vence os por superfície
+	var over := mi.material_override as BaseMaterial3D
+	if over != null and _convertible(over, scenery):
+		mi.material_override = _toon_of(over)
+		n += 1
+	for s in mi.mesh.get_surface_count():
+		var cur := mi.get_surface_override_material(s)
+		var src := (cur if cur != null else mi.mesh.surface_get_material(s)) as BaseMaterial3D
+		if src == null or not _convertible(src, scenery):
+			continue
+		mi.set_surface_override_material(s, _toon_of(src))
+		n += 1
+	if n > 0:
+		mi.set_meta("toon", true)
+	return n
+
+
+## MultiMesh (vegetação, plantações): não há material por superfície na instância, então o material toon
+## entra na própria malha (compartilhada). A cor por instância continua valendo.
+static func convert_multimesh(mmi: MultiMeshInstance3D) -> int:
+	var n := 0
+	var over := mmi.material_override as BaseMaterial3D
+	if over != null and _convertible(over, true):
+		mmi.material_override = _toon_of(over)
+		n += 1
+	var mesh := mmi.multimesh.mesh if mmi.multimesh else null
+	if mesh == null:
+		return n
+	for s in mesh.get_surface_count():
+		var src := mesh.surface_get_material(s) as BaseMaterial3D
+		if src == null or not _convertible(src, true):
+			continue
+		mesh.surface_set_material(s, _toon_of(src))
+		n += 1
+	return n
+
+
+static func _convertible(src: BaseMaterial3D, scenery := false) -> bool:
+	if scenery and src.emission_enabled:
+		return false
 	return src.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED 		and src.shading_mode != BaseMaterial3D.SHADING_MODE_UNSHADED
 
 

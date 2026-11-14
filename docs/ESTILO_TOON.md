@@ -1,16 +1,16 @@
 # Estilo toon ("desenhado") — o que aprendemos e plano de migração
 
 Estado em 14/11/2026, branch `toon-npc-teste`. O estilo nasceu de um estudo de personagem em Blender
-(sombra em dois tons + contorno) e foi trazido para o Godot. Hoje cobre **personagens**; o cenário
-ainda usa o sombreado antigo.
+(sombra em dois tons + contorno) e foi trazido para o Godot. Hoje cobre **personagens** (com contorno)
+e **cenário** (props, construções, árvores, vegetação, chão e grama, sem contorno).
 
 ## O que é o estilo
 
 | Ingrediente | Como é feito | Onde |
 |---|---|---|
-| Sombra em dois tons | cada luz ou acende a face inteira ou a deixa no tom de sombra; corte seco, sem degradê | `assets/shaders/toon_character.gdshader`, função `light()` |
+| Sombra em dois tons | cada luz ou acende a face inteira ou a deixa no tom de sombra; corte seco, sem degradê | `assets/shaders/toon_light.gdshaderinc`, incluído por `toon_character`, `ground` e `grass` |
 | Sombra fria | a face em sombra recebe a luz multiplicada por `shade_tint` (0.40, 0.38, 0.55): mais escura e azulada | idem |
-| Sombra projetada | a atenuação do sol passa por um degrau (0.42–0.58) e cai no mesmo tom de sombra | idem |
+| Sombra projetada | a atenuação do sol passa por um degrau (0.3–0.7) e cai num tom mais fundo, `cast_tint` (0.16, 0.16, 0.27) | idem |
 | Brilho de metal | uma faixa dura de especular, só em material com `metallic` > 0.55 | idem, `gloss` |
 | Contorno | casca invertida: cópia da malha, faces de trás, empurrada pela normal, sem luz | `assets/shaders/toon_outline.gdshader` |
 
@@ -62,6 +62,24 @@ Os GLBs **não mudam**. `ToonLook.apply(modelo)` (`scripts/world/toon_look.gd`) 
    transparência ou sem luz (`unshaded`) são ignorados.
 10. **PowerShell:** para rodar o Godot com caminho entre aspas é preciso o `&` na frente.
 
+### Do cenário
+1. **Um gancho só, em vez de dezenas de chamadas.** O autoload `Toon` (`scripts/autoload/toon.gd`) ouve
+   `SceneTree.node_added` e converte toda `MeshInstance3D` e `MultiMeshInstance3D` que entra na cena.
+   A conversão roda no quadro seguinte, para pegar materiais atribuídos logo depois do `add_child`.
+2. **Material com emissão fica como está no cenário.** Lamparinas, portais e brilhos são efeitos, e parte
+   deles é animada por código; convertê-los congelaria a animação.
+3. **MultiMesh não tem material por instância.** O material toon entra na própria malha compartilhada;
+   a cor por instância continua valendo via `COLOR`.
+4. **Chão e grama têm shader próprio**, então recebem a mesma luz por `#include` em vez de conversão. O
+   uniforme `toon` desliga o estilo com `--notoon` (cai num Lambert simples, não no Burley de antes).
+5. **Sombra projetada precisa de tom próprio.** Com o mesmo tom da sombra de forma, a sombra no chão
+   ficava fraca e a cena perdia contraste; `cast_tint` é mais fundo.
+6. **Degrau largo na sombra projetada.** O borrão da sombra tem ruído; com degrau estreito (0.42–0.58) a
+   borda saía granulada.
+7. **Servidor dedicado não converte nada.** Sem janela e fora dos testes, `ToonLook.enabled()` é falso.
+8. **Capturas de conferência devem usar `--geardemo`** (save à parte). Abrir `hub.tscn` ou
+   `colony.tscn` direto usa o save solo de verdade e pode abrir uma partida nele.
+
 ### Custo medido
 80 goblins parados, 1280×720, `tools/toon_cost.gd` (medida simples, sem IA nem efeitos):
 
@@ -84,26 +102,22 @@ Cerca de 40% a mais, quase tudo do contorno (dobra os triângulos de cada person
 | NPCs da praça | `scripts/hub/hub_point.gd` |
 | Cavaleiro e goblin do menu | `scripts/ui/main_menu.gd` |
 
+| Props, construções, árvores, vegetação em MultiMesh | autoload `Toon` (`scripts/autoload/toon.gd`) |
+| Chão e grama | `ground.gdshader` e `grass.gdshader`, via `toon_light.gdshaderinc` |
+
 ## Plano de migração
 
 | Etapa | O que | Estado |
 |---|---|---|
-| 1 | Personagens (lista acima) | feito nesta branch |
-| 2 | Slimes: corpo translúcido precisa de tratamento próprio (opaco com brilho em faixa, ou contorno por borda) | a fazer |
-| 3 | Animais e peças montadas por código (`animal.gd`, `building_visuals.gd`, `resource_node.gd`) | a fazer |
-| 4 | Props e construções (GLBs de cenário): mesmo `ToonLook.apply`, decidir caso a caso se leva contorno | a fazer |
-| 5 | Árvores e vegetação: sombra em dois tons sem contorno (contorno em folhagem pesa e polui) | a fazer |
-| 6 | Chão e grama (`ground.gdshader`, `grass.gdshader`): faixa de sombra dura na sombra projetada | a fazer |
-| 7 | Ajuste global de luz e pós-processo (SSAO e névoa brigam com cor chapada) | a fazer |
-| 8 | Desempenho na Horda: contorno só perto da câmera ou desligado em inimigos comuns | a fazer |
-| 9 | Opção no menu de vídeo (contorno ligado/desligado) | a fazer |
-
-### Decisões em aberto
-- Cenário leva contorno ou só a sombra em dois tons? (recomendação: só a sombra, contorno fica com
-  personagens e objetos interativos, que assim se destacam)
-- Rosto dos NPCs sem sombra de forma, como no estudo? Exigiria marcar a peça `Head` como "sem sombra".
-- Servidor dedicado: hoje `ToonLook` roda igual em modo sem janela; não custa vídeo, mas gasta memória
-  montando materiais e cascas que ninguém vê.
+| 1 | Personagens, com contorno | feito |
+| 2 | Cenário: props, construções, árvores, vegetação, chão e grama, sem contorno | feito |
+| 3 | Slimes: corpo translúcido precisa de tratamento próprio (opaco com brilho em faixa, ou contorno por borda) | a fazer |
+| 4 | Peças com emissão e efeitos (lamparinas, portal, projéteis): decidir caso a caso | a fazer |
+| 5 | Materiais trocados por código depois do primeiro quadro (ex.: `resource_node.gd`) não são convertidos | a conferir |
+| 6 | Ajuste global de luz e pós-processo (SSAO e névoa brigam com cor chapada; serra ao fundo ainda é degradê) | a fazer |
+| 7 | Desempenho: custo do contorno na Horda e do gancho de cena em mapas grandes | a medir |
+| 8 | Opção no menu de vídeo (estilo e contorno ligados/desligados) | a fazer |
+| 9 | Rosto dos NPCs sem sombra de forma, como no estudo | em aberto |
 
 ## Ferramentas
 

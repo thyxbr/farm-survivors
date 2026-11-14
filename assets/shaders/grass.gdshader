@@ -4,6 +4,7 @@ shader_type spatial;
 render_mode cull_disabled, diffuse_burley;
 
 #include "res://assets/shaders/ground_common.gdshaderinc"
+#include "res://assets/shaders/toon_light.gdshaderinc"
 
 uniform float sway = 0.1;
 uniform vec3 tip_tint : source_color = vec3(0.75, 0.82, 0.42);
