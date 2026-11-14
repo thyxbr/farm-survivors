@@ -2,18 +2,21 @@
 	"buildings": {
 		"town_hall": {
 			"name": "Prefeitura",
-			"cost": 0,
+			"cost": {},
 			"hp": 1600,
 			"size": {
 				"$v2": [7.4, 6.4]
 			},
 			"pop": 6,
-			"gold": 15,
-			"desc": "O coração da cidade: abriga 6 moradores e rende 15 ouro por dia. Se cair, a cidade cai."
+			"gold": 30,
+			"desc": "O coração da cidade: abriga 6 moradores e rende 30 ouro por dia por era. Se cair, a cidade cai."
 		},
 		"house": {
 			"name": "Casa",
-			"cost": 60,
+			"cost": {
+				"gold": 30,
+				"wood": 25
+			},
 			"hp": 320,
 			"size": {
 				"$v2": [5.6, 4.6]
@@ -23,39 +26,88 @@
 		},
 		"farm": {
 			"name": "Fazenda",
-			"cost": 70,
+			"cost": {
+				"gold": 30,
+				"wood": 35
+			},
 			"hp": 240,
 			"size": {
 				"$v2": [7.0, 6.0]
 			},
-			"food": 12,
-			"workers": 2,
-			"desc": "Produz 12 de comida por dia. Emprega 2 moradores."
+			"food": 40,
+			"crew": 2,
+			"desc": "Produz 40 de comida por dia. Ocupa 2 aldeões."
+		},
+		"lumber_camp": {
+			"name": "Serraria",
+			"cost": {
+				"gold": 40,
+				"wood": 25
+			},
+			"hp": 300,
+			"size": {
+				"$v2": [5.0, 4.0]
+			},
+			"crew": 3,
+			"gather": "tree",
+			"reach": 14.0,
+			"max_dist": 80.0,
+			"min_nodes": 4,
+			"desc": "Corta as árvores em volta (14 m) e entrega madeira o dia todo. Ocupa 3 aldeões. Pode ficar fora da cidade, mas o bosque acaba."
+		},
+		"quarry": {
+			"name": "Pedreira",
+			"cost": {
+				"gold": 40,
+				"wood": 50
+			},
+			"hp": 300,
+			"size": {
+				"$v2": [5.0, 4.0]
+			},
+			"crew": 3,
+			"gather": "rock",
+			"reach": 14.0,
+			"max_dist": 80.0,
+			"min_nodes": 4,
+			"desc": "Quebra as pedras em volta (14 m) e entrega pedra o dia todo. Ocupa 3 aldeões. Pode ficar fora da cidade, mas as pedras acabam."
 		},
 		"market": {
 			"name": "Mercado",
-			"cost": 140,
+			"cost": {
+				"gold": 90,
+				"wood": 60,
+				"stone": 20
+			},
 			"hp": 380,
 			"size": {
 				"$v2": [5.2, 5.2]
 			},
 			"gold": 25,
-			"workers": 2,
-			"desc": "Rende 25 ouro por dia com o comércio. Emprega 2 moradores."
+			"crew": 2,
+			"desc": "Rende 25 ouro por dia com o comércio. Ocupa 2 aldeões."
 		},
 		"barracks": {
 			"name": "Quartel",
-			"cost": 160,
+			"cost": {
+				"gold": 100,
+				"wood": 80,
+				"stone": 40
+			},
 			"hp": 650,
 			"size": {
 				"$v2": [6.6, 5.6]
 			},
 			"army": 6,
+			"crew": 1,
 			"desc": "Recrute o exército aqui (E). Cada quartel aloja 6 soldados."
 		},
 		"wall": {
 			"name": "Muro",
-			"cost": 12,
+			"cost": {
+				"gold": 4,
+				"stone": 8
+			},
 			"hp": 420,
 			"size": {
 				"$v2": [4.0, 0.9]
@@ -65,7 +117,11 @@
 		},
 		"gate": {
 			"name": "Portão",
-			"cost": 40,
+			"cost": {
+				"gold": 20,
+				"wood": 20,
+				"stone": 15
+			},
 			"hp": 520,
 			"size": {
 				"$v2": [4.0, 1.1]
@@ -75,7 +131,10 @@
 		},
 		"spikes": {
 			"name": "Estacas",
-			"cost": 30,
+			"cost": {
+				"gold": 10,
+				"wood": 20
+			},
 			"hp": 200,
 			"size": {
 				"$v2": [4.0, 1.6]
@@ -86,11 +145,16 @@
 		},
 		"archer_tower": {
 			"name": "Torre de Arqueiros",
-			"cost": 110,
+			"cost": {
+				"gold": 50,
+				"wood": 40,
+				"stone": 50
+			},
 			"hp": 460,
 			"size": {
 				"$v2": [3.2, 3.2]
 			},
+			"crew": 1,
 			"range": 20.0,
 			"damage": 14.0,
 			"rate": 0.95,
@@ -99,11 +163,17 @@
 		},
 		"cannon_tower": {
 			"name": "Torre de Canhão",
-			"cost": 200,
+			"cost": {
+				"gold": 120,
+				"wood": 40,
+				"stone": 80,
+				"iron": 15
+			},
 			"hp": 620,
 			"size": {
 				"$v2": [3.8, 3.8]
 			},
+			"crew": 1,
 			"range": 23.0,
 			"damage": 40.0,
 			"rate": 2.8,
@@ -113,11 +183,17 @@
 		},
 		"mage_tower": {
 			"name": "Torre Arcana",
-			"cost": 170,
+			"cost": {
+				"gold": 100,
+				"wood": 40,
+				"stone": 50,
+				"crystal": 10
+			},
 			"hp": 420,
 			"size": {
 				"$v2": [3.2, 3.2]
 			},
+			"crew": 1,
 			"range": 17.0,
 			"damage": 16.0,
 			"rate": 1.3,
@@ -130,7 +206,10 @@
 	"units": {
 		"militia": {
 			"name": "Miliciano",
-			"cost": 30,
+			"cost": {
+				"gold": 30,
+				"food": 20
+			},
 			"salary": 2,
 			"hp": 70,
 			"damage": 8.0,
@@ -149,7 +228,11 @@
 		},
 		"soldier": {
 			"name": "Soldado",
-			"cost": 70,
+			"cost": {
+				"gold": 50,
+				"food": 30,
+				"wood": 10
+			},
 			"salary": 5,
 			"hp": 150,
 			"damage": 15.0,
@@ -170,7 +253,10 @@
 		},
 		"archer": {
 			"name": "Arqueiro",
-			"cost": 80,
+			"cost": {
+				"gold": 50,
+				"wood": 40
+			},
 			"salary": 6,
 			"hp": 80,
 			"damage": 12.0,
@@ -192,7 +278,11 @@
 		},
 		"knight": {
 			"name": "Cavaleiro",
-			"cost": 180,
+			"cost": {
+				"gold": 150,
+				"food": 40,
+				"iron": 10
+			},
 			"salary": 12,
 			"hp": 300,
 			"damage": 28.0,
@@ -201,7 +291,7 @@
 			"speed": 4.9,
 			"armor": 12,
 			"aggro": 15.0,
-			"needs_level": 2,
+			"needs_era": 2,
 			"look": {
 				"weapon": "guardian_greatsword",
 				"head": "knight_helm",
@@ -209,7 +299,64 @@
 				"hands": "iron_gauntlets",
 				"feet": "iron_greaves"
 			},
-			"desc": "Elite. Exige um quartel nível 2."
+			"desc": "Elite. Exige a era II (Vila)."
+		},
+		"mage": {
+			"name": "Mago",
+			"cost": {
+				"gold": 120,
+				"crystal": 6
+			},
+			"salary": 10,
+			"hp": 75,
+			"damage": 14.0,
+			"reach": 14.0,
+			"cooldown": 1.6,
+			"speed": 4.5,
+			"armor": 1,
+			"aggro": 16.0,
+			"needs_era": 2,
+			"ranged": true,
+			"chain": 1,
+			"slow": 1.5,
+			"shot": "bolt",
+			"look": {
+				"weapon": "frost_scepter",
+				"offhand": "arcane_orb",
+				"head": "wizard_hat",
+				"armor": "mage_robe",
+				"hands": "spellweaver_gloves",
+				"feet": "leather_boots"
+			},
+			"desc": "Raio gélido que deixa lento e salta para outro monstro. Gasta cristal."
+		},
+		"cannoneer": {
+			"name": "Canhoneiro",
+			"cost": {
+				"gold": 140,
+				"iron": 8,
+				"stone": 20
+			},
+			"salary": 11,
+			"hp": 110,
+			"damage": 34.0,
+			"reach": 17.0,
+			"cooldown": 3.0,
+			"speed": 4.2,
+			"armor": 6,
+			"aggro": 19.0,
+			"needs_era": 2,
+			"ranged": true,
+			"splash": 2.6,
+			"shot": "ball",
+			"look": {
+				"weapon": "iron_sword",
+				"head": "guard_greathelm",
+				"armor": "chain_mail",
+				"hands": "iron_gauntlets",
+				"feet": "reinforced_boots"
+			},
+			"desc": "Bala de canhão que explode em área. Gasta pedra."
 		}
 	},
 	"animals": {
@@ -220,7 +367,10 @@
 			"food": 3,
 			"gold": 2,
 			"radius": 0.3,
-			"flee": true
+			"flee": true,
+			"rings": [1],
+			"weight": 0.35,
+			"pack": [1, 3]
 		},
 		"deer": {
 			"name": "Cervo",
@@ -229,7 +379,10 @@
 			"food": 10,
 			"gold": 9,
 			"radius": 0.55,
-			"flee": true
+			"flee": true,
+			"rings": [1],
+			"weight": 0.43,
+			"pack": [1, 3]
 		},
 		"boar": {
 			"name": "Javali",
@@ -239,7 +392,36 @@
 			"gold": 12,
 			"radius": 0.6,
 			"damage": 11.0,
-			"aggressive": true
+			"aggressive": true,
+			"rings": [1, 2],
+			"weight": 0.22,
+			"pack": [1, 1]
+		},
+		"wolf": {
+			"name": "Lobo",
+			"hp": 45,
+			"speed": 7.6,
+			"food": 4,
+			"gold": 6,
+			"radius": 0.45,
+			"damage": 8.0,
+			"aggressive": true,
+			"rings": [2],
+			"weight": 0.5,
+			"pack": [3, 4]
+		},
+		"bear": {
+			"name": "Urso",
+			"hp": 260,
+			"speed": 5.2,
+			"food": 30,
+			"gold": 28,
+			"radius": 0.9,
+			"damage": 22.0,
+			"aggressive": true,
+			"rings": [3],
+			"weight": 1.0,
+			"pack": [1, 1]
 		}
 	},
 	"wave_costs": {

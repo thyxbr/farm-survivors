@@ -7,6 +7,7 @@ extends StaticBody3D
 signal destroyed(b: ColonyBuilding)
 
 const SHOT := preload("res://scripts/colony/tower_shot.gd")
+const VILLAGER := preload("res://scripts/colony/villager_visual.gd")
 
 var kind := "house"
 var level := 1
@@ -15,8 +16,8 @@ var max_hp := 1.0
 var dead := false
 var is_core := false
 var targetable := true
-## Ouro gasto (construção + melhorias), para o reembolso ao demolir.
-var invested := 0
+## Recursos gastos (construção + melhorias), para o reembolso ao demolir.
+var invested := {}
 var colony: Node
 var data: Dictionary
 ## Cooperativo: id comum entre servidor e clientes; puppet = réplica no cliente (sem disparar nem levar dano).
@@ -38,6 +39,9 @@ var _t := 0.0
 var _hit_sfx := 0.0
 var _overlay: StandardMaterial3D
 var _turret_y := 0.0
+var _villagers: Array[Node3D] = []
+var _crew_shown := -1
+var _crew_check := 0.0
 
 
 func _ready() -> void:
@@ -89,14 +93,7 @@ func _collision_offset_z() -> float:
 
 
 func _apply_level(full_hp: bool) -> void:
-	var old_max := max_hp
-	max_hp = data.hp * ColonyData.level_mult(level, 0.4)
-	if is_core and colony != null and colony.has_method("hall_hp_mult"):
-		max_hp *= colony.hall_hp_mult()   # Muralha da base (fixada no começo da partida)
-	if full_hp:
-		hp = max_hp
-	else:
-		hp = clampf(hp + (max_hp - old_max if old_max > 1.0 else 0.0), 1.0, max_hp)
+	_set_max_hp(full_hp)
 	if visual:
 		visual.free()
 	visual = ColonyVisuals.make(kind, level)
@@ -121,6 +118,26 @@ func _add_light(pos: Vector3, c: Color, energy: float, rng: float) -> void:
 	visual.add_child(l)
 
 
+## Vida máxima pelo nível e pelas pesquisas (Alvenaria, Muralha Reforçada); a vida atual sobe junto.
+func _set_max_hp(full_hp: bool) -> void:
+	var old_max := max_hp
+	max_hp = data.hp * ColonyData.level_mult(level, 0.4) * (colony.bld_hp_mult(kind) if colony and colony.has_method("bld_hp_mult") else 1.0)
+	if is_core and colony != null and colony.has_method("hall_hp_mult"):
+		max_hp *= colony.hall_hp_mult()   # Muralha da base (fixada no começo da partida)
+	if full_hp:
+		hp = max_hp
+	else:
+		hp = clampf(hp + (max_hp - old_max if old_max > 1.0 else 0.0), 1.0, max_hp)
+
+
+## Uma pesquisa mudou a vida máxima: recalcula sem trocar o visual.
+func refresh_max_hp() -> void:
+	if dead:
+		return
+	_set_max_hp(false)
+	_update_interactable()
+
+
 func set_level(lv: int) -> void:
 	level = clampi(lv, 1, ColonyData.MAX_LEVEL)
 	_apply_level(false)
@@ -137,11 +154,14 @@ func tower_range() -> float:
 
 
 func tower_damage() -> float:
-	return float(data.get("damage", 0.0)) * ColonyData.level_mult(level, 0.45)
+	var dmg := float(data.get("damage", 0.0)) * ColonyData.level_mult(level, 0.45)
+	if data.get("shot", "") == "arrow" and colony:
+		dmg *= colony.mult("arrow_dmg")   # Flechas de Ferro
+	return dmg
 
 
 func tower_rate() -> float:
-	return float(data.get("rate", 1.0)) * (1.0 - 0.08 * (level - 1))
+	return float(data.get("rate", 1.0)) * (1.0 - 0.08 * (level - 1)) * ColonyData.tower_rate_mult(colony.crew_eff(self))
 
 
 # ---------------------------------------------------------------- geometria da pegada
@@ -228,6 +248,9 @@ func _destroy() -> void:
 	var c := global_position + Vector3.UP * 1.0
 	FX.burst(c, Color(0.5, 0.42, 0.35), 50, 7.0, 0.18, 1.0)
 	FX.burst(c, Color(0.3, 0.3, 0.3), 30, 3.0, 0.3, 1.4, -2.0)
+	for v in _villagers:
+		v.queue_free()
+	_villagers.clear()
 	destroyed.emit(self)
 	var tw := create_tween()
 	tw.tween_property(visual, "position:y", -ColonyVisuals.height(kind), 1.2).set_ease(Tween.EASE_IN)
@@ -311,10 +334,41 @@ func _physics_process(delta: float) -> void:
 	if kind == "mage_tower" and turret:
 		turret.position.y = _turret_y + sin(_t * 2.0) * 0.15
 		turret.rotation.y += delta * 1.5
+	if not _no_villagers():
+		_villagers_process(delta)
 	if ColonyData.is_tower(kind):
 		_tower_process(delta)
 	elif kind == "spikes" and not puppet:
 		_spikes_process(delta)
+
+
+# ---------------------------------------------------------------- aldeões visuais
+func _no_villagers() -> bool:
+	return DisplayServer.get_name() == "headless" or colony == null or colony.crew_for(kind) <= 0
+
+
+## Cliente com tela: mantém mini(crew efetivo, crew) bonecos, recriados quando a faixa de ocupação muda;
+## à noite ficam escondidos dentro de casa.
+func _villagers_process(delta: float) -> void:
+	_crew_check -= delta
+	if _crew_check <= 0.0:
+		_crew_check = 1.0
+		var crew: int = colony.crew_for(kind)
+		var want := mini(roundi(colony.crew_eff(self) * crew), crew)
+		if want != _crew_shown:
+			_crew_shown = want
+			for v in _villagers:
+				v.queue_free()
+			_villagers.clear()
+			for i in want:
+				var v: Node3D = VILLAGER.new()
+				v.home = self
+				add_child(v)
+				_villagers.append(v)
+		var show: bool = colony.phase != "night"
+		for v in _villagers:
+			v.visible = show
+			v.set_process(show)
 
 
 func _set_overlay(m: Material) -> void:
@@ -339,14 +393,9 @@ func _tower_process(delta: float) -> void:
 		turret.rotation.y = lerp_angle(turret.rotation.y, atan2(to.x, to.z), 1.0 - exp(-10.0 * delta))
 	if _cd > 0.0 or puppet:
 		return
-	_cd = tower_rate()
-	var s := SHOT.new()
-	s.kind = data.shot
-	s.target = best
-	s.damage = tower_damage()
-	s.splash = float(data.get("splash", 0.0)) * (1.0 + 0.1 * (level - 1))
-	s.slow = float(data.get("slow", 0.0))
-	s.chain = int(data.get("chain", 0)) + (level - 1 if kind == "mage_tower" else 0)
+	_cd = tower_rate() * (1.0 if colony.use_ammo(kind) else ColonyData.NO_AMMO_RATE)
+	var s = SHOT.make(data.shot, best, tower_damage(), float(data.get("splash", 0.0)) * (1.0 + 0.1 * (level - 1)) * colony.mult("splash"),
+		float(data.get("slow", 0.0)), int(data.get("chain", 0)) + (level - 1 + colony.bonus("chain_add") if kind == "mage_tower" else 0))
 	get_parent().add_child(s)
 	s.global_position = muzzle.global_position if muzzle else global_position + Vector3.UP * 5.0
 	if colony.role == "server":

@@ -33,6 +33,9 @@ var escaped := false
 var born_t := 0.0
 ## Defesa da Cidade: marcha até a prefeitura e ataca construções, soldados e o jogador no caminho.
 var siege := false
+## Defesa da Cidade: guarda de covil (ColonyDen.id). Atraído para além de DEN_LEASH do centro, volta ao covil.
+var den_id := -1
+var den_center := Vector3.ZERO
 var _siege_target = null     # Player, ColonySoldier ou ColonyBuilding
 var _retarget := 0.0
 var _lock_t := 0.0
@@ -339,7 +342,8 @@ func _physics_process(delta: float) -> void:
 					_begin_attack()
 				elif dist > data.reach * 0.8:
 					move = to_player.normalized() * spd
-			elif global_position.distance_to(home) > 45.0 or (dist > data.aggro * 1.9 and provoked <= 0.0):
+			elif global_position.distance_to(home) > 45.0 or _off_leash(global_position) \
+					or (dist > data.aggro * 1.9 and provoked <= 0.0):
 				_set_state("return")
 			elif dist <= data.reach and attack_cd <= 0:
 				_begin_attack()
@@ -350,7 +354,7 @@ func _physics_process(delta: float) -> void:
 		"return":
 			var to := home - global_position
 			to.y = 0
-			if dist < data.aggro * 0.7:
+			if dist < data.aggro * 0.7 and not _off_leash(player.global_position):
 				_set_state("chase")
 			elif to.length() < 1.0:
 				hp = max_hp
@@ -380,6 +384,11 @@ func _physics_process(delta: float) -> void:
 	if bar_root and bar_root.visible:
 		bar_fg.scale.x = max(0.001, hp / max_hp)
 		bar_fg.position.x = 0.0
+
+
+## Guarda de covil: o ponto p está longe demais do centro do covil?
+func _off_leash(p: Vector3) -> bool:
+	return den_id >= 0 and Vector2(p.x - den_center.x, p.z - den_center.z).length() > ColonyData.DEN_LEASH
 
 
 ## Jogador vivo mais próximo (no multiplayer, o servidor tem réplicas de todos).
