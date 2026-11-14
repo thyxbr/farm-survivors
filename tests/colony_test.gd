@@ -298,14 +298,27 @@ func _ready() -> void:
 		if c is Enemy and not c.dead and c.kind == "slime" and c.global_position.distance_to(colony.events.pos) < 15.0:
 			ev_slimes += 1
 	check(ev_slimes >= 4, "meteoro traz slimes (%d)" % ev_slimes)
-	var ev_at := colony.events.pos
+	var ev_en: Array[Enemy] = colony.events.enemies()
 	colony.events.end()
 	await wait(0.1)
 	var ev_left: Array = []
-	for c in colony.get_children():
-		if c is Enemy and not c.dead and not c.is_queued_for_deletion() and c.global_position.distance_to(ev_at) < 15.0:
-			ev_left.append("%s den %d siege %s" % [c.kind, c.den_id, c.siege])
-	check(ev_left.is_empty(), "os monstros do evento somem ao anoitecer %s" % str(ev_left))
+	for e in ev_en:
+		if is_instance_valid(e) and not e.is_queued_for_deletion():
+			ev_left.append("%s den %d siege %s" % [e.kind, e.den_id, e.siege])
+	check(not ev_en.is_empty() and ev_left.is_empty() and colony.events.enemies().is_empty(),
+		"os monstros do evento somem ao anoitecer %s" % str(ev_left))
+	# meteoro resolvido: slimes mortos e cristais colhidos encerram o evento
+	colony.events.roll(3, "meteor")
+	check(colony.events.active == "meteor", "meteoro de novo")
+	for e in colony.events.enemies():
+		e.take_damage(99999.0, Vector3.ZERO, false)
+	check(colony.events.active == "meteor", "meteoro continua com cristais por colher")
+	for i in range(colony.nature.generated, colony.nature.nodes.size()):
+		var cn: ColonyResourceNode = colony.nature.nodes[i]
+		if cn.kind == "crystal" and cn.alive and cn.global_position.distance_to(colony.events.pos) < 8.0:
+			colony.nature.deplete(cn.id, colony.day)
+	colony.events.check_meteor()
+	check(colony.events.active == "", "meteoro some do marcador com slimes mortos e cristais colhidos")
 	# aldeões perdidos: só depois dos lobos
 	colony.citizens = 2
 	check(colony.events.roll(5, "lost_villagers") == "lost_villagers", "aldeões perdidos aparecem")
@@ -918,6 +931,32 @@ func _ready() -> void:
 	for dn in colony.dens:
 		fresh_dens = fresh_dens and not dn.cleared and dn.level == 1
 	check(fresh_dens and colony.nature.node(rich_id) == null, "save antigo: covis novos e sem nó rico")
+	# save v1 de verdade: só aldeões em fazenda e mercado, mas já com torres e quartel (agora ocupam gente)
+	var v1b := {"version": 1, "day": 3, "food": 50, "citizens": 4, "treasury": 100,
+		"buildings": [
+			{"kind": "town_hall", "x": 0.0, "z": 0.0, "rot": 0.0},
+			{"kind": "house", "x": 14.0, "z": 0.0, "rot": 0.0},
+			{"kind": "farm", "x": -14.0, "z": 0.0, "rot": 0.0},
+			{"kind": "market", "x": 0.0, "z": 14.0, "rot": 0.0},
+			{"kind": "barracks", "x": 0.0, "z": -14.0, "rot": 0.0},
+			{"kind": "archer_tower", "x": 20.0, "z": 20.0, "rot": 0.0},
+			{"kind": "archer_tower", "x": -20.0, "z": 20.0, "rot": 0.0},
+			{"kind": "cannon_tower", "x": 20.0, "z": -20.0, "rot": 0.0}]}
+	_write_save(v1b)
+	Game.start_colony(true)
+	await wait(1.0)
+	_bind()
+	check(colony.busy() == 8 and colony.citizens >= colony.busy() and colony.staffing() == 1.0,
+		"save v1 com torres e quartel carrega com equipe completa (%d/%d)" % [colony.citizens, colony.busy()])
+	var overlap := 0
+	for nn in colony.nature.nodes:
+		if nn.alive and colony.building_at(Vector2(nn.global_position.x, nn.global_position.z), nn.radius):
+			overlap += 1
+	check(overlap == 0, "save v1: nenhum nó novo nasce dentro de construção (%d)" % overlap)
+	_write_save(v1)   # volta ao save v1 anterior: os testes seguintes dependem dele
+	Game.start_colony(true)
+	await wait(1.0)
+	_bind()
 
 	# --- aldeões visuais: só com tela
 	check(get_tree().get_nodes_in_group("villager_visual").is_empty(), "aldeões visuais não existem no headless")

@@ -123,6 +123,21 @@ func complete(kind: String) -> void:
 		_finish()
 
 
+## Meteoro resolvido: os slimes caíram e os cristais dele foram todos colhidos (os nós ricos criados
+## pelo evento ficam acima de `nature.generated`). Chamado ao morrer um monstro e ao esgotar um nó.
+func check_meteor() -> void:
+	if active != "meteor" or colony == null or colony.role == "client" or colony.nature == null:
+		return
+	if not enemies().is_empty():
+		return
+	for i in range(colony.nature.generated, colony.nature.nodes.size()):
+		var n: ColonyResourceNode = colony.nature.nodes[i]
+		if n.kind == "crystal" and n.alive and Vector2(n.global_position.x - pos.x, n.global_position.z - pos.z).length() < 8.0:
+			return
+	colony.say("O meteoro foi esgotado: cristais colhidos e slimes abatidos.", Color(0.7, 0.85, 1.0))
+	complete("meteor")
+
+
 ## Servidor/solo: um jogador interagiu com os aldeões ou com o baú. "" ou o motivo da recusa.
 func interact(pid: int) -> String:
 	if active not in ["lost_villagers", "lost_chest"]:
@@ -329,6 +344,7 @@ func _spawn_enemy(kind: String, at: Vector3, siege: bool) -> Enemy:
 
 func _on_enemy_died(e: Enemy) -> void:
 	_enemies.erase(e)
+	check_meteor()
 	if active == "lost_chest" and enemies().is_empty():
 		colony.say("Os guardas do baú caíram! Ele já pode ser aberto.", Color(1, 0.85, 0.35))
 	if active != "camp_raid":

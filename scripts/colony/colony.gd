@@ -316,6 +316,8 @@ func harvest(id: int, at: Vector3) -> void:
 		gain({str(d.res): piece}, n.global_position.lerp(at, 0.3) + Vector3.UP * 2.2)
 	if n.hits_left <= 0:
 		nature.deplete(id, day)
+		if events != null:
+			events.check_meteor()
 
 
 ## Há construção cobrindo o círculo (centro p no plano XZ, raio r)?
@@ -673,12 +675,13 @@ func forecast() -> Dictionary:
 	var up := upkeep()
 	var food_in := int(round(farm_food * eff))
 	var food_out := citizens + soldier_count()
+	var gather := gather_per_min()
 	return {
 		"tax": tax, "trade": trade, "hall": hall_gold, "salaries": sal, "upkeep": up,
 		"gold_in": tax + trade + hall_gold, "gold_net": tax + trade + hall_gold - sal - up,
 		"food_in": food_in, "food_out": food_out, "food_net": food_in - food_out,
 		"workers": busy(), "employed": mini(citizens, busy()), "eff": eff,
-		"wood_min": gather_per_min().wood, "stone_min": gather_per_min().stone,
+		"wood_min": gather.wood, "stone_min": gather.stone,
 	}
 
 
@@ -2383,9 +2386,20 @@ func from_dict(d: Dictionary) -> void:
 	for sd in d.get("soldiers", []):
 		if ColonyData.UNITS.has(str(sd.unit)):
 			spawn_soldier(str(sd.unit), Vector3(float(sd.x), 0, float(sd.z)), float(sd.get("hp", -1.0)))
+	if int(d.get("version", 1)) < 2:
+		# save v1: só fazenda e mercado tinham equipe; torres e quartel agora também. Sem isso a cidade
+		# carregaria desfalcada (staffing < 1) e as produções e torres ficariam lentas.
+		citizens = maxi(citizens, mini(busy(), pop_cap()))
 	if nature:
 		nature.load_rich(d.get("rich", []))   # antes dos esgotados: um nó rico também pode estar esgotado
 		nature.from_dict(d.get("nodes", {}))
+		if int(d.get("version", 1)) < 2:
+			# save v1: os afloramentos novos do mapa podem cair onde já há construção; ficam esgotados
+			# (regrow() os mantém esperando até o terreno liberar)
+			for n in nature.nodes:
+				if n.alive and building_at(Vector2(n.global_position.x, n.global_position.z), n.radius + 0.3):
+					n.set_alive(false, false)
+					nature.depleted[n.id] = day
 	var dl: Array = d.get("dens", [])   # save antigo: sem covis salvos, ficam os novos da semente
 	for i in dens.size():
 		dens[i].from_dict(dl[i] if i < dl.size() and dl[i] is Dictionary else {})
