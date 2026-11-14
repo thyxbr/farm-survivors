@@ -10,6 +10,8 @@ var info: Label
 var gold_label: Label
 var plant_btn: Button
 var all_btn: Button
+## "Plantar em todos": pedidos ainda sem resposta ({} = nenhum em andamento).
+var _batch := {}
 
 
 func _ready() -> void:
@@ -55,6 +57,7 @@ func _ready() -> void:
 
 	Game.inventory_changed.connect(_refresh)
 	Game.stats_changed.connect(_refresh)
+	Econ.done.connect(_on_econ_done)
 	_refresh()
 	# começa na semente que o jogador tem (ou na primeira)
 	var pick := 0
@@ -125,28 +128,38 @@ func _empty_plots() -> Array[int]:
 
 func _plant_here() -> void:
 	var crop := _selected_crop()
-	if crop == "" or not Game.plant(plot_index, crop, true):
+	if crop == "":
 		return
-	Sfx.play("plant", 0.1)
-	_close()
+	Game.plant(plot_index, crop, true)   # fecha quando o Econ confirmar
 
 
 ## Planta a semente escolhida em todos os canteiros vazios, comprando o que faltar.
+## Cada canteiro é um pedido; o resumo sai quando todas as respostas chegam (no solo, na hora).
 func _plant_all() -> void:
 	var crop := _selected_crop()
-	if crop == "":
+	if crop == "" or not _batch.is_empty():
 		return
-	var planted := 0
 	var order := _empty_plots()
 	order.erase(plot_index)
 	order.push_front(plot_index)
+	_batch = {"crop": crop, "left": 0, "ok": 0, "fail": false, "sending": true}
 	for i in order:
-		if not Game.plant(i, crop, true):
-			break
-		planted += 1
-	if planted > 0:
+		if _batch.fail:
+			break   # solo: acabou o ouro, não insiste nos outros
+		_batch.left += 1
+		Game.plant(i, crop, true)
+	_batch.sending = false
+	_check_batch()
+
+
+func _check_batch() -> void:
+	if _batch.is_empty() or _batch.sending or _batch.left > 0:
+		return
+	var b := _batch
+	_batch = {}
+	if b.ok > 0:
 		Sfx.play("plant", 0.1)
-		Game.notify.emit("%d canteiros de %s plantados." % [planted, ItemDB.CROPS[crop].name], Color(0.8, 1.0, 0.6))
+		Game.notify.emit("%d canteiros de %s plantados." % [b.ok, ItemDB.CROPS[b.crop].name], Color(0.8, 1.0, 0.6))
 		_close()
 
 
@@ -154,15 +167,25 @@ func _buy5() -> void:
 	var crop := _selected_crop()
 	if crop == "":
 		return
-	var seed: String = ItemDB.CROPS[crop].seed
-	var price: int = ItemDB.get_item(seed).price * 5
-	if Game.gold < price:
-		Game.notify.emit("Ouro insuficiente (%d)." % price, Color(1, 0.5, 0.5))
-		return
-	Game.gold -= price
-	Game.add_item(seed, 5)
-	Game.stats_changed.emit()
-	Sfx.play("coin")
+	Game.buy(ItemDB.CROPS[crop].seed, 5)
+
+
+func _on_econ_done(op: String, args: Array, ok: bool, _err: String, _events: Array) -> void:
+	match op:
+		"plant":
+			if not _batch.is_empty():
+				_batch.left -= 1
+				if ok:
+					_batch.ok += 1
+				else:
+					_batch.fail = true
+				_check_batch()
+			elif ok and not args.is_empty() and args[0] == plot_index:
+				Sfx.play("plant", 0.1)
+				_close()
+		"buy":
+			if ok:
+				Sfx.play("coin")
 
 
 func _close() -> void:

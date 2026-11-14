@@ -1175,7 +1175,7 @@ func end_run(reason: String, from_server := false) -> void:
 	var best_round := int(best.get("round", -1))
 	if rounds_cleared > best_round or (rounds_cleared == best_round and kills > int(best.get("kills", 0))):
 		new_record = true
-		Game.flags["horde_best"] = {"round": rounds_cleared, "kills": kills, "time": int(elapsed), "level": run_level}
+		Econ.set_record("horde_best", {"round": rounds_cleared, "kills": kills, "time": int(elapsed), "level": run_level})
 	_open_results.call_deferred()
 
 

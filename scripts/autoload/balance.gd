@@ -17,6 +17,8 @@ const DIR := "res://data/balance"
 signal changed(names: Array)
 
 var tables: BalanceTables
+## true = as tabelas em uso vieram do servidor (o solo volta às da versão com reload_local()).
+var from_server := false
 
 
 func _init() -> void:
@@ -26,10 +28,19 @@ func _init() -> void:
 
 
 ## Troca as tabelas (ex.: servidor mandando balanceamento novo) e repovoa as static var.
-func apply(d: Dictionary) -> void:
+func apply(d: Dictionary, server := false) -> void:
 	tables = BalanceTables.from_dict(d)
+	from_server = server
 	_populate()
 	changed.emit(d.keys())
+
+
+## Volta às tabelas que vêm com a versão (res://data/balance).
+func reload_local() -> void:
+	tables = BalanceTables.load_dir(DIR)
+	from_server = false
+	_populate()
+	changed.emit(tables.to_dict().keys())
 
 
 func _populate() -> void:

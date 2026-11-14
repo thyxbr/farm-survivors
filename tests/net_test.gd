@@ -25,6 +25,13 @@ var token := ""
 var join_error := ""
 
 const TEST_PASS := "teste-1234"
+## Ganhos do personagem vindos do servidor (XP/loot de abate, prêmios da cidade): ainda não — o cliente online
+## não concede mais nada a si mesmo e a Task 9 passa esses ganhos para o servidor. Até lá as checagens
+## que dependem deles aparecem como SKIP (não somem do teste).
+const GAINS_ONLINE := false
+
+## [op, ok, err] de cada Econ.result recebido (os testes do Econ esperam a resposta do servidor por aqui).
+var econ_log: Array = []
 
 
 func check(cond: bool, what: String) -> void:
@@ -63,8 +70,9 @@ func _ready() -> void:
 	var second := token != ""   # processo da segunda conexão do --relogin
 	Network.chat_received.connect(func(from: String, text: String) -> void: chat_got.append([from, text]))
 	Network.join_failed.connect(func(r: String) -> void: join_error = r)
-	Game.save_path = "user://nettest_%s%s.json" % [my_name, "_2" if second else ""]
-	Game.new_game()
+	# o personagem vem do servidor; o solo.db deste processo de teste fica num arquivo à parte
+	Econ.solo_db_path = "user://nettest_solo_%s%s.db" % [my_name, "_2" if second else ""]
+	Econ.result.connect(func(op: String, ok: bool, err: String) -> void: econ_log.append([op, ok, err]))
 	if not second:
 		var reg: Dictionary = await Auth.register(address, my_name, TEST_PASS)
 		check(reg.ok or reg.err == "nome_em_uso", "cadastro da conta de teste (%s)" % reg.get("err", "201"))
@@ -129,12 +137,12 @@ func _ready() -> void:
 	await wait(2.0)
 	var rate := (Network.snapshots_received - n0) / 2.0
 	check(rate >= Network.SEND_RATE * 0.75, "recebendo snapshots dos inimigos (%.1f/s)" % rate)
-	# save automático periódico: o personagem é gravado sem o jogador sair do servidor
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(Game.save_path))
+	# relatório periódico de vida e posição: o personagem é gravado no servidor sem o jogador sair
+	var rep0 := Econ.reports_sent
 	Network.autosave_interval = 1.0
 	Network._autosave_t = 1.0
 	await wait(1.6)
-	check(Game.has_save(), "save automático periódico gravou o personagem")
+	check(Econ.reports_sent > rep0, "relatório periódico de vida e posição enviado ao servidor")
 	Network.autosave_interval = 120.0
 	Network._autosave_t = 120.0
 
@@ -199,14 +207,20 @@ func _ready() -> void:
 		target.take_damage(9999.0, w.player.global_position, false)
 		await wait(0.8)
 		check(not is_instance_valid(target) or target.dead, "slime morreu em todos")
-		check(Game.kills == kills0 + 1 and Game.xp + Game.level * 100000 > xp0, "recebeu XP e abate (%d abates)" % Game.kills)
+		if GAINS_ONLINE:
+			check(Game.kills == kills0 + 1 and Game.xp + Game.level * 100000 > xp0, "recebeu XP e abate (%d abates)" % Game.kills)
+		else:
+			_skip("recebeu XP e abate")
 		await wait(1.0)
 		var drops := 0
 		for n in w.get_children():
 			if n.get_script() == preload("res://scripts/world/pickup.gd"):
 				drops += 1
 		# o jogador está ao lado: o ímã das moedas costuma coletar na hora
-		check(drops >= 1 or Game.gold > gold0, "loot pessoal (%d no chão, ouro %d → %d)" % [drops, gold0, Game.gold])
+		if GAINS_ONLINE:
+			check(drops >= 1 or Game.gold > gold0, "loot pessoal (%d no chão, ouro %d → %d)" % [drops, gold0, Game.gold])
+		else:
+			_skip("loot pessoal (%d no chão)" % drops)
 
 	# flecha (projétil) acerta um inimigo réplica: o dano passa pelo servidor
 	var tgt: Enemy = null
@@ -223,24 +237,122 @@ func _ready() -> void:
 		w.player._spawn_projectile("arrow", origin, (aim - origin).normalized(), 12.0, false, 0, 40.0)
 		await wait(0.8)
 		check(not is_instance_valid(tgt) or tgt.hp < hp1, "flecha causa dano pelo servidor (%.0f → %.0f)" % [hp1, tgt.hp if is_instance_valid(tgt) else 0.0])
-	# cajado: projétil arcano com lentidão também passa pelo servidor
-	Game.add_item("frost_scepter", 1, true)
-	Game.equip("frost_scepter")
-	check(Game.equipment.weapon == "frost_scepter" and w.player.look["class"] == "staff", "trocou para o cajado")
+	# cajado (o do kit inicial: o cliente online não se dá itens): troca pedida ao servidor
+	Game.equip("apprentice_staff")
+	check(await _wait_until(func() -> bool: return Game.equipment.weapon == "apprentice_staff", 3.0)
+		and w.player.look["class"] == "staff", "trocou para o cajado")
 	await wait(0.6)
 	if peers > 1:
 		await wait(0.6)
 		for rp in Network.remote_players.values():
 			check(rp.look["class"] == "staff", "vê %s trocar para cajado" % rp.display_name)
 
+	if my_name == "Ana":
+		await _test_econ()
+
 	if horde_role != "":
 		await _test_horde(w)
 
 	# fica um pouco para os outros testes verem este jogador
 	await wait(3.0 if peers > 1 else 0.5)
+	if my_name == "Ana":
+		await _test_reconnect_keeps_state()
 	if relogin:
 		await _test_second_login_kicks_first()
 	_finish()
+
+
+# ---------------------------------------------------------------- personagem no servidor (Econ)
+func _skip(what: String) -> void:
+	print("SKIP  [%s] %s — ganho online fica para a Task 9" % [my_name, what])
+
+
+## Espera `n` respostas da operação `op` chegarem depois de econ_log[from]. Devolve [[ok, err], ...].
+func _results_after(from: int, op: String, n := 1, max_t := 5.0) -> Array:
+	var got: Array = []
+	await _wait_until(func() -> bool:
+		got.clear()
+		for i in range(from, econ_log.size()):
+			if econ_log[i][0] == op:
+				got.append([econ_log[i][1], econ_log[i][2]])
+		return got.size() >= n, max_t)
+	return got
+
+
+## Ouro de teste concedido pelo servidor (só existe com o servidor em --test).
+func _test_gold(amount: int) -> bool:
+	var from := econ_log.size()
+	Econ.request_test_gold(amount)
+	var r: Array = await _results_after(from, "test_gold")
+	return not r.is_empty() and r[0][0]
+
+
+func _test_econ() -> void:
+	# compra com ouro concedido pelo servidor: o cliente só pede, o estado volta do servidor
+	var price := int(ItemDB.get_item("health_potion").price)
+	var g0 := Game.gold
+	check(await _test_gold(100) and Game.gold == g0 + 100, "servidor concede ouro de teste com --test (%d → %d)" % [g0, Game.gold])
+	var pots := Game.count_item("health_potion")
+	var from := econ_log.size()
+	Game.buy("health_potion")
+	var rb: Array = await _results_after(from, "buy")
+	check(not rb.is_empty() and rb[0][0] and Game.count_item("health_potion") == pots + 1 and Game.gold == g0 + 100 - price,
+		"comprou 1 poção com o ouro do servidor (ouro %d)" % Game.gold)
+
+	# Review Focus 1: dois pedidos seguidos com ouro para um só — o servidor processa em ordem, o 2º falha
+	var stock: Array = ItemDB.SHOP_STOCK.duplicate()
+	stock.sort_custom(func(a, b) -> bool: return int(ItemDB.get_item(a).price) < int(ItemDB.get_item(b).price))
+	var id := ""
+	var p := 0
+	for sid in stock:
+		if int(ItemDB.get_item(sid).price) * 2 > Game.gold:
+			id = sid
+			p = int(ItemDB.get_item(sid).price)
+			break
+	check(id != "", "item da loja para a compra dupla (%s, %d ouro)" % [id, p])
+	if id == "":
+		return
+	if Game.gold < p:
+		await _test_gold(p - Game.gold)
+	var g1 := Game.gold
+	var c1 := Game.count_item(id)
+	from = econ_log.size()
+	Econ.request("buy", [id])
+	Econ.request("buy", [id])
+	var two: Array = await _results_after(from, "buy", 2)
+	check(two.size() == 2 and two[0][0] and not two[1][0] and two[1][1] == "ouro_insuficiente",
+		"compra dupla: a 1ª passa, a 2ª é recusada (%s)" % str(two))
+	check(Game.count_item(id) == c1 + 1 and Game.gold == g1 - p, "compra dupla termina com 1 item e o ouro certo (%d → %d)" % [g1, Game.gold])
+
+	# op forjada: concessão não é pedido de cliente
+	var g2 := Game.gold
+	from = econ_log.size()
+	Econ.request("grant", [9999, 0, {}, "trapaca"])
+	var f: Array = await _results_after(from, "grant")
+	check(not f.is_empty() and not f[0][0] and f[0][1] == "op_invalida" and Game.gold == g2,
+		"op forjada (grant) recusada com op_invalida (%s)" % str(f))
+
+
+## Sai do servidor e entra de novo (mesmo token): o personagem volta igual, vindo do banco do servidor.
+func _test_reconnect_keeps_state() -> void:
+	var inv: Array = Game.inventory.duplicate(true)
+	var gold := Game.gold
+	var eq: Dictionary = Game.equipment.duplicate()
+	var w := Network.world
+	var pos: Vector3 = w.player.global_position if w != null and w.get("player") != null else Vector3.ZERO
+	Game.go_to_menu()   # manda vida/posição e sai
+	await wait(1.0)
+	check(not Network.is_online(), "saiu do servidor")
+	# espelho zerado: o que aparecer depois de entrar veio do servidor
+	Game.apply_state(CharState.new_character(Balance.tables).to_dict(), true)
+	join_error = ""
+	Network.join(address, token)
+	check(await _wait_until(func() -> bool: return _in_lobby() and Network.is_online(), 15.0) and join_error == "",
+		"entrou de novo no servidor %s" % join_error)
+	check(Game.inventory == inv and Game.gold == gold and Game.equipment == eq,
+		"personagem igual depois de reconectar (ouro %d → %d, %d → %d espaços)" % [gold, Game.gold, inv.size(), Game.inventory.size()])
+	var sp = Game.spawn_position
+	check(w == null or (sp is Vector3 and sp.distance_to(pos) < 1.5), "posição em Valdoria volta do servidor (%s)" % str(sp))
 
 
 # ---------------------------------------------------------------- conta e sessão
@@ -581,10 +693,15 @@ func _test_city() -> void:
 	check(c.phase == "day" and c.day == 2, "amanheceu: dia %d" % c.day)
 	check(killed > 0 and c.total_kills > 0, "abates contados pelo servidor (%d)" % c.total_kills)
 	var rw := ColonyData.night_reward(1)
-	check(await _wait_until(func() -> bool: return Game.gold >= rgold + int(rw.gold), 5.0),
-		"recompensa da noite no personagem (+%d ouro: %d → %d)" % [rw.gold, rgold, Game.gold])
-	check(Game.xp + Game.level * 100000 > rxp, "recompensa de XP no personagem")
-	check(int(Game.flags.get("city_best", 0)) >= 1, "melhor noite salva no personagem")
+	if GAINS_ONLINE:
+		check(await _wait_until(func() -> bool: return Game.gold >= rgold + int(rw.gold), 5.0),
+			"recompensa da noite no personagem (+%d ouro: %d → %d)" % [rw.gold, rgold, Game.gold])
+		check(Game.xp + Game.level * 100000 > rxp, "recompensa de XP no personagem")
+		check(int(Game.flags.get("city_best", 0)) >= 1, "melhor noite salva no personagem")
+	else:
+		_skip("recompensa da noite no personagem (+%d ouro)" % rw.gold)
+		_skip("recompensa de XP no personagem")
+		_skip("melhor noite salva no personagem")
 
 	# --- volta ao salão: o join sai primeiro, o líder em seguida (a partida acaba quando todos saem)
 	await wait(0.5 if city_role == "join" else 2.5)

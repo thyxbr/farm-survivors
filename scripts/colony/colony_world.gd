@@ -81,7 +81,7 @@ func _ready() -> void:
 			saved = null
 		if saved == null:
 			Game.colony_continue = false
-			Game.new_game()
+			Econ.begin_sandbox()   # personagem novo, em memória (fora do solo.db)
 			colony.new_colony()
 	else:
 		# cidade em grupo: o personagem é o do RPG (já carregado); a cidade vem do servidor
@@ -377,10 +377,7 @@ func save_colony() -> bool:
 		return false
 	f.store_string(JSON.stringify(data, "\t"))
 	f.close()
-	var old := Game.save_path
-	Game.save_path = Game.colony_char_path
-	var ok := Game.save_game(player.global_position, player.model.rotation.y)
-	Game.save_path = old
+	var ok := _save_character()
 	if ok:
 		Game.notify.emit("Cidade salva (dia %d)." % colony.day, Color(0.7, 1.0, 0.7))
 	return ok
@@ -408,13 +405,31 @@ func _read_colony_save():
 	return data if data is Dictionary else null
 
 
+## Personagem do modo (o espelho do Game, com o ouro da cidade) num save próprio. Provisório: a Task 10
+## dá à cidade um caixa próprio e este save some.
+func _save_character() -> bool:
+	var d := Game.mirror_dict()
+	d["world_pos"] = [player.global_position.x, player.global_position.y, player.global_position.z]
+	d["world_yaw"] = player.model.rotation.y
+	var f := FileAccess.open(Game.colony_char_path, FileAccess.WRITE)
+	if f == null:
+		Game.notify.emit("Falha ao salvar!", UITheme.BAD)
+		return false
+	f.store_string(JSON.stringify(d, "\t"))
+	f.close()
+	return true
+
+
 ## Lê nível, itens, ouro e posição do personagem do save da cidade (Game.spawn_position posiciona o jogador).
 func _load_character() -> bool:
-	var old := Game.save_path
-	Game.save_path = Game.colony_char_path
-	var ok := Game.load_character()
-	Game.save_path = old
-	return ok
+	var f := FileAccess.open(Game.colony_char_path, FileAccess.READ)
+	if f == null:
+		return false
+	var d = JSON.parse_string(f.get_as_text())
+	if not (d is Dictionary):
+		return false
+	Econ.begin_sandbox(CharState.from_dict(d, Balance.tables).to_dict())
+	return true
 
 
 # ================================================================ luz do dia

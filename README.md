@@ -162,7 +162,9 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
 - Todo jogador chega ao servidor pelo **salão**: uma fogueira com o cavaleiro de cada um que está ali, a lista de quem
   está online e **onde** (no salão, em Valdoria ou na Defesa da Cidade) e os dois modos:
   **Explorar Valdoria** (o mundo do RPG, missões, horta e o Desafio da Horda) e a **Defesa da Cidade em grupo**.
-- O personagem é o mesmo em tudo (o save do PC de cada jogador). Esc → *Voltar ao salão* sai de Valdoria
+- O personagem online é o da conta e mora no servidor (banco): ouro, itens, XP, equipamento, missões e horta
+  mudam só por pedido ao servidor (autoload `Econ`); o cliente manda vida, mana e posição de tempos em tempos.
+  O solo tem personagem próprio em `user://solo.db` (F5/F9 só no solo). Esc → *Voltar ao salão* sai de Valdoria
   (no Desafio da Horda, abandone primeiro) e da cidade; ao voltar para Valdoria você reaparece onde estava.
 - O chat (**Enter**) é do servidor inteiro: funciona no salão, em Valdoria e na cidade em grupo.
 - O servidor guarda a zona de cada jogador (`players[id].zone`): inimigos, posições e efeitos só vão para quem está
@@ -292,7 +294,7 @@ Para ver as telas novas: `... -- --geardemo --weapon=storm_bow --ui=inv --shot=i
 (`--ui=inv|char|quests|shop`; `--geardemo` dá vários equipamentos, `--weapon=<id>` equipa uma arma).
 Para tirar um screenshot da arena: `... -- --survival --shot=shot.png --delay=15` (o PNG vai para a pasta atual;
 evite a raiz `C:/`, que o Windows não deixa gravar sem administrador).
-Usa um arquivo de save separado, então não mexe no seu save.
+Usa um banco solo separado (`user://smoketest_solo.db`, apagado no início; ou `--solo-db=CAMINHO`), então não mexe no seu personagem.
 
 Defesa da Cidade (construção, economia, recrutamento, torres, cerco, caça, noite, save/load e derrota):
 ```
@@ -305,7 +307,7 @@ Multiplayer (servidor + 2 clientes headless; cada cliente sai com código 0 se t
 ```
 G=C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe
 rm -f "$TEMP/nettest.db"
-$G --headless --path . -- --server --port=7790 --http-port=8790 --db="$TEMP/nettest.db" --horde-round=8 --horde-pick=5 &
+$G --headless --path . -- --server --port=7790 --http-port=8790 --db="$TEMP/nettest.db" --test --horde-round=8 --horde-pick=5 &
 $G --headless --path . -- --nettest=127.0.0.1:7790 --auth-url=http://127.0.0.1:8790 --peers=2 --name=Ana --horde=lead --horde-pick=5 &
 $G --headless --path . -- --nettest=127.0.0.1:7790 --auth-url=http://127.0.0.1:8790 --peers=2 --name=Beto --horde=join --horde-pick=5 --relogin
 ```
@@ -318,4 +320,7 @@ e se retiram); sem ele o teste pula essa parte. Com `--peers=2` também testa o 
 `--probe` confere, sem conta, a versão por `GET /health` (HTTP) e se uma conexão ENet chega a conectar na porta do jogo (UDP); serve para testar o servidor público.
 Cobre conexão, inimigos replicados (snapshots a 20/s), ver o outro jogador, dano pelo servidor, morte, XP, loot
 e a horda em grupo.
+`--test` no servidor aceita o pedido de ouro de teste do `net_test` (Ana: compra, compra dupla, op forjada e
+reconexão); sem ele o pedido é recusado. Até a Task 9 os ganhos online (XP/loot de abate, prêmios da cidade)
+aparecem como `SKIP` no teste.
 `--netstats` no servidor imprime jogadores, fps e snapshots/s a cada 5 s.

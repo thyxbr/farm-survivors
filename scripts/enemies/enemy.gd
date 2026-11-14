@@ -707,9 +707,8 @@ func _die() -> void:
 		Game.add_gold(randi_range(g[0], g[1]))
 		drop_loot(get_parent(), kind, global_position, false)
 	elif not horde:
+		# XP, missão e o chefe derrotado (king_dead) ficam com as regras (Econ.kill)
 		Game.on_enemy_killed(kind, data.xp)
-		if is_boss:
-			Game.flags["king_dead"] = true
 		drop_loot(get_parent(), kind, global_position)
 	die_visual()
 

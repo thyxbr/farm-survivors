@@ -4,9 +4,11 @@ extends Node
 ## Servidor:  godot --headless --path . -- --server [--port=7777] [--http-port=8080] [--db=user://server.db]
 ## Cliente:   menu principal → Multiplayer → Entrar (login pela API HTTP; o ENet recebe o token da sessão).
 ##
-## Modelo: o servidor é dono dos inimigos (IA, vida, morte). Cada cliente é dono do próprio
-## personagem (movimento, atributos, inventário, save local) e envia a posição ~20x/s.
-## Todas as RPCs passam por este autoload (/root/Network existe igual em todos os peers).
+## Modelo: o servidor é dono dos inimigos (IA, vida, morte) e do personagem de cada conta (ouro, itens,
+## XP, equipamento, missões, horta — no banco, pelo CharacterService; os pedidos passam pelo autoload Econ).
+## O cliente é dono do combate (movimento, vida/mana) e envia a posição ~20x/s.
+## As RPCs deste autoload ficam como estão (o id de cada uma segue a ordem alfabética e o _register
+## precisa do mesmo id para clientes antigos); as RPCs novas moram no Econ.
 ##
 ## Desafio da Horda em grupo: quem entra no portal abre uma fila (HORDE_LOBBY_TIME s) e todos os
 ## outros jogadores recebem o convite. Quem aceita entra junto na mesma arena: o servidor cria um
@@ -238,7 +240,7 @@ func _drop_player(id: int) -> void:
 ## (também texto); os dois últimos ficam sem tipo para que um cliente de versão antiga (que mandava arma e
 ## armadura como texto) ainda chegue à checagem de versão e receba a mensagem "atualize o jogo" em vez de
 ## um erro de RPC. Não mude a quantidade de argumentos.
-func _register(token: String, client_version: String, look = {}, _extra = "") -> void:
+func _register(token: String, client_version: String, _look = {}, _extra = "") -> void:
 	if not is_server():
 		return
 	var id := multiplayer.get_remote_sender_id()
@@ -265,10 +267,14 @@ func _register(token: String, client_version: String, look = {}, _extra = "") ->
 			_rejected.rpc_id(old, "Sua conta entrou no jogo em outro lugar. Esta conexão foi encerrada.")
 			_kick_later(old)
 	characters.set_session(account, id)
+	# o visual vem do personagem guardado no servidor (o `look` do cliente fica só pela assinatura estável)
+	var char_look: Dictionary = characters.load_or_create(account).equipment
 	# todo jogador começa no salão (lobby); "ready" = já carregou a cena da zona em que está
 	players[id] = {"name": str(acc.name), "account": account, "admin": bool(acc.get("is_admin", false)),
-		"look": _clean_look(look if look is Dictionary else {}), "ready": false, "zone": "lobby"}
+		"look": _clean_look(char_look), "ready": false, "zone": "lobby"}
 	print("[server] %s entrou (peer %d, conta %d, %d online)" % [acc.name, id, account, players.size()])
+	# tabelas e personagem antes do _accepted (mesmo canal confiável: chegam antes da troca de cena)
+	Econ.server_send_initial(id, account)
 	_accepted.rpc_id(id, players)
 	for pid in _all_peers():
 		if pid != id:
@@ -403,7 +409,7 @@ func _physics_process(delta: float) -> void:
 	elif mode == Mode.CLIENT:
 		if not horde_lobby.is_empty():
 			horde_lobby_t = maxf(0.0, horde_lobby_t - delta)
-		# o progresso fica no PC de cada jogador: salva de tempos em tempos para não perder tudo num crash
+		# vida, mana e posição vão ao servidor de tempos em tempos (o resto ele grava a cada pedido)
 		if world != null and _connect_t <= 0:
 			_autosave_t -= delta
 			if _autosave_t <= 0.0:
@@ -595,6 +601,9 @@ func join(address: String, token: String) -> void:
 
 func leave() -> void:
 	if multiplayer.multiplayer_peer and not (multiplayer.multiplayer_peer is OfflineMultiplayerPeer):
+		var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+		if enet != null and enet.host != null:
+			enet.host.flush()   # o último relatório de vida/posição sai antes de fechar
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	mode = Mode.OFFLINE
@@ -626,7 +635,7 @@ func _on_server_disconnected() -> void:
 		autosave()
 	leave()
 	if in_world:
-		last_error = "Conexão com o servidor perdida. Seu progresso foi salvo."
+		last_error = "Conexão com o servidor perdida. Seu progresso fica salvo no servidor."
 		Game.go_to_menu()
 
 
@@ -681,9 +690,9 @@ func world_closed(w: Node) -> void:
 		remote_players.clear()
 
 
-## Salva o personagem local (o progresso no multiplayer fica no PC de cada jogador).
+## Manda vida, mana e posição ao servidor (o personagem mora lá; os pedidos já foram gravados).
 func autosave() -> void:
-	# no salão e na cidade em grupo o personagem é salvo onde estava em Valdoria
+	# no salão e na cidade em grupo o personagem fica onde estava em Valdoria
 	if world == null or world.get("role") != null:
 		if is_online():
 			Lobby.save_character()
@@ -692,7 +701,7 @@ func autosave() -> void:
 		return
 	var p: Player = world.player
 	if is_instance_valid(p):
-		Game.save_game(p.global_position if not p.dead else Vector3(0, 0.5, 6), p.model.rotation.y)
+		Econ.report_vitals(p.global_position if not p.dead else Vector3(0, 0.5, 6), p.model.rotation.y)
 
 
 func _notification(what: int) -> void:
@@ -906,9 +915,8 @@ func _enemy_died(net_id: int) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func _kill_reward(kind: String, xp: int, pos: Vector3) -> void:
+	# Task 9: XP e loot passam a ser concedidos pelo servidor; até lá o Econ recusa no cliente (push_error)
 	Game.on_enemy_killed(kind, xp)
-	if ENEMY.TYPES[kind].get("boss", false):
-		Game.flags["king_dead"] = true
 	if world:
 		ENEMY.drop_loot(world, kind, pos)
 

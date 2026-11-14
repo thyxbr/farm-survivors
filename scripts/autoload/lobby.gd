@@ -108,12 +108,12 @@ func go_lobby() -> void:
 	get_tree().change_scene_to_file(LOBBY_SCENE)
 
 
-## Salva o personagem na última posição em Valdoria (a cidade não muda onde ele está no RPG).
+## Manda vida/mana e a última posição em Valdoria ao servidor (a cidade não muda onde ele está no RPG).
 func save_character() -> void:
 	if Game.run_mods.get("active", false):
 		return
-	var pos = _last_world_pos if _last_world_pos != null else VILLAGE_SPAWN
-	Game.save_game(pos, _last_world_yaw)
+	var pos: Vector3 = _last_world_pos if _last_world_pos != null else VILLAGE_SPAWN
+	Econ.report_vitals(pos, _last_world_yaw)
 
 
 func client_reset() -> void:
@@ -761,7 +761,7 @@ func _city_reward(n: int, gold: int, xp: int, items: Array) -> void:
 			Game.add_item(str(id), 1, true)
 			if str(id) != "health_potion":
 				got.append(ItemDB.ITEMS[str(id)].name)
-	Game.flags["city_best"] = maxi(int(Game.flags.get("city_best", 0)), n)
+	Econ.set_record("city_best", maxi(int(Game.flags.get("city_best", 0)), n))
 	Game.notify.emit("Noite %d vencida! Recompensa: +%d ouro e +%d XP para o seu personagem." % [n, gold, xp], Color(1, 0.85, 0.35))
 	if not got.is_empty():
 		Game.notify.emit("Baú da noite %d: %s!" % [n, ", ".join(got)], ItemDB.rarity_color(str(items[0])))
@@ -775,7 +775,7 @@ func _city_reward(n: int, gold: int, xp: int, items: Array) -> void:
 func _city_over(info: Dictionary) -> void:
 	last_result = info
 	changed.emit()
-	Game.flags["city_best"] = maxi(int(Game.flags.get("city_best", 0)), int(info.get("nights", 0)))
+	Econ.set_record("city_best", maxi(int(Game.flags.get("city_best", 0)), int(info.get("nights", 0))))
 	save_character()
 	if city and city.has_method("show_results"):
 		city.show_results(info)

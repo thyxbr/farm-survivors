@@ -1,5 +1,11 @@
 extends Node
-## Estado global do jogo: atributos, inventário, missões, configurações e save/load.
+## Estado global do jogo: o ESPELHO do personagem (atributos, inventário, missões, horta) mais o que é só
+## do cliente (vida/mana do combate, bônus de comida e da Horda, configurações).
+##
+## Quem muda o personagem é o CharacterService, sempre pelo autoload Econ: offline o serviço local
+## (user://solo.db) responde na hora; online o servidor responde com o estado completo. As funções
+## abaixo que "mudam" algo (buy, equip, plant...) só fazem o pedido; o estado e os sinais chegam por
+## apply_state/apply_events. As propriedades e os sinais continuam os mesmos para a UI e o combate.
 
 signal stats_changed
 signal inventory_changed
@@ -10,13 +16,13 @@ signal food_eaten(id: String)
 signal farm_changed
 signal item_looted(id: String, qty: int)
 
-var save_path := "user://savegame.json"
 const SETTINGS_PATH := "user://settings.cfg"
 const WORLD_SCENE := "res://scenes/world.tscn"
 const MENU_SCENE := "res://scenes/main_menu.tscn"
 const COLONY_SCENE := "res://scenes/colony.tscn"
 
-## Defesa da Cidade: saves próprios (cidade + personagem do modo), separados do save do RPG.
+## Defesa da Cidade: saves próprios (cidade + personagem do modo), separados do personagem do RPG.
+## (O personagem do modo some na Task 10, quando a cidade ganha caixa próprio.)
 var colony_save_path := "user://colony_save.json"
 var colony_char_path := "user://colony_character.json"
 ## true = a cena da cidade carrega o save em vez de começar do zero.
@@ -25,19 +31,25 @@ var colony_continue := false
 var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "fullscreen": false, "invert_y": false,
 	"player_name": "", "server_address": ""}
 
+# ---- espelho do personagem (escrito só por apply_state)
 var level := 1
 var xp := 0
 var gold := 0
 var stat_points := 0
 var attributes := {"str": 5, "int": 5, "vit": 5, "agi": 5}
-var hp := 100.0
-var mp := 50.0
-var stamina := 100.0
 var inventory: Array = []   # [{"id": String, "qty": int}]
 var equipment := empty_equipment()
 var quests := {}            # id -> {"state": "active"|"ready"|"done", "progress": int}
 var flags := {}
 var kills := 0
+## {"unlocked": int, "plots": [{"crop", "growth" 0..1 em "t", "t" unix s, "watered", "fert"}]}
+## O crescimento corre pelo relógio: leia plot_growth(i), não plots[i].growth.
+var farm := {}
+
+# ---- do cliente
+var hp := 100.0
+var mp := 50.0
+var stamina := 100.0
 var spawn_position = null   # Vector3 a aplicar ao carregar o mundo
 var spawn_yaw := 0.0
 ## Bônus temporários do Desafio da Horda (zerados ao fim da partida).
@@ -52,8 +64,6 @@ var food_mods := {}
 var food_buffs := {}        # id da comida -> segundos restantes
 var eat_cooldown := 0.0
 var selected_food := ""
-## {"unlocked": int, "plots": [{"crop": String, "growth": float 0..1, "watered": bool, "fert": bool}]}
-var farm := {}
 
 
 func _ready() -> void:
@@ -64,7 +74,8 @@ func _ready() -> void:
 	_setup_input()
 	load_settings()
 	reset_run_mods()
-	new_game()
+	# personagem novo só no espelho: o de verdade chega do solo.db (Econ.start_solo) ou do servidor
+	apply_state(CharState.new_character(Balance.tables).to_dict(), true)
 	_debug_screenshot()
 	if "--dbg" in OS.get_cmdline_user_args():
 		get_tree().root.add_child.call_deferred(load("res://tests/debug_dialogue.gd").new())
@@ -76,7 +87,7 @@ func _ready() -> void:
 		colony_char_path = "user://colonytest_character.json"
 		get_tree().root.add_child.call_deferred(load("res://tests/colony_test.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
-		save_path = "user://smoketest_save.json"
+		# o Econ usa user://smoketest_solo.db, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())
 
 
@@ -84,6 +95,7 @@ func _ready() -> void:
 ## `--survival` (com ou sem --shot) começa direto no Desafio da Horda.
 ## `--cam=graus,dist` gira a câmera em volta do jogador e muda a distância (ex.: `--cam=180,2.2`
 ## olha o personagem de frente, de perto) — útil para conferir luz e modelo.
+## `--farmdemo`/`--geardemo`/`--weapon=` usam um personagem em memória (sandbox): não mexem no solo.db.
 func _debug_screenshot() -> void:
 	var path := ""
 	var delay := 4.0
@@ -96,17 +108,29 @@ func _debug_screenshot() -> void:
 			var v := a.substr(5).split(",")
 			spawn_position = Vector3(float(v[0]), 0.5, float(v[1]))
 			spawn_yaw = float(v[2]) if v.size() > 2 else 0.0
+	var args := OS.get_cmdline_user_args()
+	var demo := "--farmdemo" in args or "--geardemo" in args
+	for a in args:
+		demo = demo or a.begins_with("--weapon=")
+	if demo:
+		var at = spawn_position
+		Econ.begin_sandbox()
+		if at != null:
+			spawn_position = at
 	# `--farmdemo` enche a horta com culturas em vários estágios (para screenshots)
-	if "--farmdemo" in OS.get_cmdline_user_args():
+	if "--farmdemo" in args:
+		var now := Econ.now()
 		farm.unlocked = FARM_PLOTS - 2
 		for i in farm.unlocked:
 			farm.plots[i] = {"crop": ItemDB.CROP_ORDER[i % 6], "growth": [1.0, 0.7, 0.35][i / 4 % 3] if i < 8 else 1.0,
-				"watered": i % 2 == 0, "fert": false}
+				"t": now, "watered": i % 2 == 0, "fert": false}
+		var dishes := {}
 		for r in ItemDB.RECIPE_ORDER:
-			add_item(r, 2, true)
+			dishes[r] = 2
+		Econ.grant(0, 0, dishes, "demo", true)
 		food_buffs = {"spicy_soup": 30.0, "garden_salad": 4.0}
 		_recalc_food_mods()
-		for a in OS.get_cmdline_user_args():   # --farmdemo --ui=cook|plant abre o menu
+		for a in args:   # --farmdemo --ui=cook|plant abre o menu
 			if a.begins_with("--ui="):
 				await get_tree().create_timer(1.0).timeout
 				var w = get_tree().current_scene
@@ -116,26 +140,28 @@ func _debug_screenshot() -> void:
 					w.open_plant_menu(10)
 	# `--geardemo` dá um punhado dos equipamentos novos (para screenshots do inventário e da loja)
 	# `--weapon=<id>` equipa uma arma; `--ui=inv|char|quests|shop` abre a tela (sem --farmdemo)
-	var args := OS.get_cmdline_user_args()
 	if "--geardemo" in args:
-		level = 6
-		gold = 1450
-		stat_points = 3
+		var gear_ids := {}
 		for id in ["frost_brand", "ember_staff", "elven_bow", "storm_bow", "dragonfang", "knight_shield", "arcane_orb",
 				"hunter_quiver", "iron_helm", "mage_robe", "royal_plate", "iron_gauntlets", "swift_boots", "vampire_ring",
-				"sage_amulet", "goblin_cleaver", "guardian_greatsword"]:
-			add_item(id, 1, true)
+				"sage_amulet", "goblin_cleaver", "guardian_greatsword", "knight_helm", "chain_mail", "archer_bracers",
+				"iron_greaves", "life_amulet", "strength_ring"]:
+			gear_ids[id] = 1
+		gear_ids["slime_gel"] = 7
+		gear_ids["goblin_ear"] = 3
+		gear_ids["spicy_soup"] = 2
+		# nível 6 com 3 pontos sobrando: XP dos níveis 1→6 menos 3 níveis de pontos já gastos não existe;
+		# a demo só mostra a tela, então ajusta o espelho direto depois da concessão
+		Econ.grant(1425, 0, gear_ids, "demo", true)
 		for id in ["knight_helm", "chain_mail", "archer_bracers", "iron_greaves", "life_amulet", "strength_ring"]:
-			add_item(id, 1, true)
 			equip(id)
-		add_item("slime_gel", 7, true)
-		add_item("goblin_ear", 3, true)
-		add_item("spicy_soup", 2, true)
+		level = 6
+		stat_points = 3
 		quests = {"slimes": {"state": "done", "progress": 5}, "goblins": {"state": "active", "progress": 2}}
 		hp = max_hp() * 0.62
 	for a in args:
 		if a.begins_with("--weapon="):
-			add_item(a.substr(9), 1, true)
+			Econ.grant(0, 0, {a.substr(9): 1}, "demo", true)
 			equip(a.substr(9))
 	if "--farmdemo" not in args:
 		for a in args:
@@ -212,42 +238,25 @@ func _setup_input() -> void:
 		InputMap.action_add_event(action, mb)
 
 
-# ---------------------------------------------------------------- novo jogo
-func new_game() -> void:
-	reset_run_mods()
-	level = 1
-	xp = 0
-	gold = 25
-	stat_points = 0
-	attributes = {"str": 5, "int": 5, "vit": 5, "agi": 5}
-	inventory = []
-	equipment = empty_equipment()
-	equipment.weapon = "wooden_sword"
-	quests = {}
-	flags = {}
-	kills = 0
-	spawn_position = null
-	spawn_yaw = 0.0
-	farm = default_farm()
-	clear_food(true)
-	add_item("health_potion", 3, true)
-	add_item("mana_potion", 1, true)
-	add_item("seed_carrot", 4, true)
-	add_item("seed_wheat", 4, true)
-	add_item("bread", 1, true)
-	# kit inicial para experimentar as três classes de arma
-	add_item("apprentice_staff", 1, true)
-	add_item("short_bow", 1, true)
-	add_item("leather_cap", 1, true)
-	hp = max_hp()
-	mp = max_mp()
-	stamina = max_stamina()
 
-
+# ---------------------------------------------------------------- jogo solo
+## "Novo jogo": apaga o personagem solo (o menu pergunta antes) e entra em Valdoria com um novo.
 func start_new_game() -> void:
-	new_game()
+	reset_run_mods()
+	Econ.reset_solo()
 	get_tree().paused = false
 	get_tree().change_scene_to_file(WORLD_SCENE)
+
+
+## "Continuar": o personagem do solo.db.
+func continue_game() -> bool:
+	if not Econ.has_solo() or not Econ.start_solo():
+		notify.emit("Nenhum jogo salvo.", Color(1, 0.5, 0.5))
+		return false
+	reset_run_mods()
+	get_tree().paused = false
+	get_tree().change_scene_to_file(WORLD_SCENE)
+	return true
 
 
 ## Defesa da Cidade: cont = continuar a cidade salva (senão começa uma nova, com personagem novo).
@@ -276,6 +285,12 @@ func go_to_menu() -> void:
 	if Network.is_online():
 		Network.autosave()
 		Network.leave()
+	elif not Econ.sandbox:
+		var w := get_tree().current_scene
+		var p = w.get("player") if w != null and w.get("role") == null else null
+		if p is Player and is_instance_valid(p) and not p.dead and not run_mods.get("active", false):
+			Econ.report_vitals(p.global_position, p.model.rotation.y)
+	Econ.end_sandbox()
 	reset_run_mods()
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -414,92 +429,81 @@ func on_damage_dealt(amount: float) -> void:
 		hp = min(max_hp(), hp + amount * l)
 
 
+
+
 func xp_to_next() -> int:
-	return int(60 * pow(level, 1.55))
-
-
-func add_xp(amount: int) -> void:
-	xp += amount
-	notify.emit("+%d XP" % amount, Color(0.6, 0.85, 1.0))
-	while xp >= xp_to_next():
-		xp -= xp_to_next()
-		level += 1
-		stat_points += 3
-		hp = max_hp()
-		mp = max_mp()
-		notify.emit("Nível %d! +3 pontos de atributo (C)" % level, Color(1.0, 0.85, 0.3))
-		for id in ItemDB.SPELLS:
-			if ItemDB.SPELLS[id].level == level:
-				notify.emit("Nova magia: %s [%s]" % [ItemDB.SPELLS[id].name, ItemDB.SPELLS[id].key], Color(0.75, 0.55, 1.0))
-		leveled_up.emit(level)
-	stats_changed.emit()
-
-
-func add_gold(amount: int) -> void:
-	gold += amount
-	stats_changed.emit()
-
-
-func spend_point(attr: String) -> void:
-	if stat_points <= 0:
-		return
-	var old_hp := max_hp()
-	var old_mp := max_mp()
-	stat_points -= 1
-	attributes[attr] += 1
-	hp += max_hp() - old_hp
-	mp += max_mp() - old_mp
-	stats_changed.emit()
+	return CharRules.xp_to_next(level, Balance.tables)
 
 
 func knows_spell(id: String) -> bool:
 	return level >= ItemDB.SPELLS[id].level
 
 
-# ---------------------------------------------------------------- inventário
+# ---------------------------------------------------------------- pedidos ao Econ
+## Ganhos: só offline (online quem concede é o servidor; ver Econ.grant).
+func add_xp(amount: int) -> void:
+	Econ.grant(0, amount, {}, "xp")
+
+
+func add_gold(amount: int) -> void:
+	Econ.grant(amount, 0, {}, "gold")
+
+
 func add_item(id: String, qty := 1, silent := false) -> void:
-	if ItemDB.is_stackable(id):
-		for slot in inventory:
-			if slot.id == id:
-				slot.qty += qty
-				_after_item_added(id, qty, silent)
-				return
-		inventory.append({"id": id, "qty": qty})
-	else:
-		for i in qty:
-			inventory.append({"id": id, "qty": 1})
-	_after_item_added(id, qty, silent)
+	Econ.grant(0, 0, {id: qty}, "item", silent)
 
 
-func _after_item_added(id: String, qty: int, silent: bool) -> void:
-	if not silent:
-		item_looted.emit(id, qty)   # o HUD mostra um aviso com ícone e cor da raridade
-	inventory_changed.emit()
+func spend_point(attr_id: String) -> void:
+	Econ.request("spend_point", [attr_id])
 
 
-## Ordena a mochila: equipamentos primeiro (mais raros antes), depois consumíveis e o resto.
 func sort_inventory() -> void:
-	inventory.sort_custom(_inv_less)
-	inventory_changed.emit()
+	Econ.request("sort_inventory")
 
 
-func _inv_less(a: Dictionary, b: Dictionary) -> bool:
-	var cat_rank := {"equip": 0, "use": 1, "misc": 2}
-	var ca: int = cat_rank[ItemDB.category(a.id)]
-	var cb: int = cat_rank[ItemDB.category(b.id)]
-	if ca != cb:
-		return ca < cb
-	var ra: int = ItemDB.RARITY[ItemDB.rarity_of(a.id)].rank
-	var rb: int = ItemDB.RARITY[ItemDB.rarity_of(b.id)].rank
-	if ra != rb:
-		return ra > rb
-	var sa := ItemDB.slot_of(a.id)
-	var sb := ItemDB.slot_of(b.id)
-	if sa != sb:
-		return sa < sb
-	return str(ItemDB.get_item(a.id).name) < str(ItemDB.get_item(b.id).name)
+## Descartar 1 unidade (botão da mochila).
+func discard(id: String) -> void:
+	Econ.request("discard", [id])
 
 
+func equip(id: String) -> void:
+	Econ.request("equip", [id])
+
+
+func unequip(slot_name: String) -> void:
+	if equipment.get(slot_name, "") != "":
+		Econ.request("unequip", [slot_name])
+
+
+func buy(id: String, qty := 1) -> void:
+	Econ.request("buy", [id, qty] if qty != 1 else [id])
+
+
+func sell(id: String) -> void:
+	Econ.request("sell", [id])
+
+
+func start_quest(id: String) -> void:
+	Econ.request("start_quest", [id])
+
+
+func complete_quest(id: String) -> void:
+	Econ.request("complete_quest", [id])
+
+
+## Abate: a cura da comida (roubo de vida) é do combate, do cliente; XP e missão são do Econ.
+func on_enemy_killed(kind: String, xp_reward: int) -> void:
+	if float(food_mods.get("lifesteal", 0.0)) > 0.0 and hp > 0.0:
+		hp = min(max_hp(), hp + float(food_mods.lifesteal))
+	Econ.kill(kind, xp_reward)
+
+
+## Renascer na vila: o ouro perdido é calculado pelas regras.
+func death_penalty() -> void:
+	Econ.request("death_penalty")
+
+
+# ---------------------------------------------------------------- inventário (leitura)
 func count_item(id: String) -> int:
 	var n := 0
 	for slot in inventory:
@@ -508,90 +512,30 @@ func count_item(id: String) -> int:
 	return n
 
 
-func remove_item(id: String, qty := 1) -> bool:
-	if count_item(id) < qty:
-		return false
-	var i := inventory.size() - 1
-	while i >= 0 and qty > 0:
-		var slot = inventory[i]
-		if slot.id == id:
-			var take: int = min(qty, slot.qty)
-			slot.qty -= take
-			qty -= take
-			if slot.qty <= 0:
-				inventory.remove_at(i)
-		i -= 1
-	inventory_changed.emit()
-	return true
-
-
+## Usa um item da mochila. true = pedido feito (a cura/comida vale quando o Econ confirmar).
+## A checagem "vida já está cheia" continua aqui, antes de pedir.
 func use_item(id: String) -> bool:
 	var it := ItemDB.get_item(id)
 	if it.is_empty() or count_item(id) <= 0:
 		return false
 	match it.type:
 		"consumable":
-			if it.has("heal_hp"):
-				if hp >= max_hp():
-					notify.emit("Vida já está cheia.", Color(1, 0.7, 0.6))
-					return false
-				hp = min(max_hp(), hp + it.heal_hp)
-			if it.has("heal_mp"):
-				if mp >= max_mp():
-					notify.emit("Mana já está cheia.", Color(1, 0.7, 0.6))
-					return false
-				mp = min(max_mp(), mp + it.heal_mp)
-			remove_item(id, 1)
-			stats_changed.emit()
+			if it.has("heal_hp") and hp >= max_hp():
+				notify.emit("Vida já está cheia.", Color(1, 0.7, 0.6))
+				return false
+			if it.has("heal_mp") and mp >= max_mp():
+				notify.emit("Mana já está cheia.", Color(1, 0.7, 0.6))
+				return false
+			Econ.request("consume", [id])
 			return true
 		"weapon", "armor", "gear":
-			return equip(id)
+			equip(id)
+			return true
 		"food", "crop":
 			return eat(id)
 		"seed":
 			notify.emit("Plante na Horta, ao sul da vila.", Color(0.8, 1.0, 0.6))
 	return false
-
-
-func equip(id: String) -> bool:
-	var slot_name := ItemDB.slot_of(id)
-	if slot_name == "" or count_item(id) <= 0:
-		return false
-	var it := ItemDB.get_item(id)
-	# mão secundária precisa combinar com a classe da arma (escudo-espada, orbe-cajado, aljava-arco)
-	if slot_name == "offhand" and it.has("needs") and it.needs != weapon_class():
-		notify.emit("%s exige %s." % [it.name, ItemDB.CLASS_NAMES[it.needs].to_lower()], Color(1, 0.6, 0.5))
-		return false
-	var old_hp := max_hp()
-	var old_mp := max_mp()
-	remove_item(id, 1)
-	if equipment[slot_name] != "":
-		add_item(equipment[slot_name], 1, true)
-	equipment[slot_name] = id
-	# trocou de classe de arma: a mão secundária incompatível volta para a mochila
-	if slot_name == "weapon" and equipment.offhand != "":
-		var off := ItemDB.get_item(equipment.offhand)
-		if off.has("needs") and off.needs != weapon_class():
-			add_item(equipment.offhand, 1, true)
-			notify.emit("%s guardado (exige %s)." % [off.name, ItemDB.CLASS_NAMES[off.needs].to_lower()], Color(0.85, 0.8, 0.65))
-			equipment.offhand = ""
-	_clamp_vitals(old_hp, old_mp)
-	notify.emit("Equipado: %s" % it.name, ItemDB.rarity_color(id))
-	inventory_changed.emit()
-	stats_changed.emit()
-	return true
-
-
-func unequip(slot_name: String) -> void:
-	if equipment.get(slot_name, "") == "":
-		return
-	var old_hp := max_hp()
-	var old_mp := max_mp()
-	add_item(equipment[slot_name], 1, true)
-	equipment[slot_name] = ""
-	_clamp_vitals(old_hp, old_mp)
-	inventory_changed.emit()
-	stats_changed.emit()
 
 
 ## Vida/mana acompanham o ganho de máximo e nunca passam do novo máximo.
@@ -604,150 +548,9 @@ func _clamp_vitals(old_hp: float, old_mp: float) -> void:
 	mp = min(mp, max_mp())
 
 
-func buy(id: String) -> bool:
-	var price: int = ItemDB.get_item(id).price
-	if gold < price:
-		notify.emit("Ouro insuficiente.", Color(1, 0.5, 0.5))
-		return false
-	gold -= price
-	add_item(id)
-	stats_changed.emit()
-	return true
-
-
-func sell(id: String) -> bool:
-	if not remove_item(id, 1):
-		return false
-	var value := int(ceil(ItemDB.get_item(id).price * 0.5))
-	add_gold(value)
-	notify.emit("Vendido por %d ouro" % value, Color(1, 0.85, 0.3))
-	return true
-
-
-# ---------------------------------------------------------------- missões
+# ---------------------------------------------------------------- missões (leitura)
 func quest_state(id: String) -> String:
 	return quests[id].state if quests.has(id) else "none"
-
-
-func start_quest(id: String) -> void:
-	quests[id] = {"state": "active", "progress": 0}
-	notify.emit("Nova missão: %s" % ItemDB.QUESTS[id].name, Color(1.0, 0.8, 0.35))
-	quests_changed.emit()
-
-
-func complete_quest(id: String) -> void:
-	var q: Dictionary = ItemDB.QUESTS[id]
-	quests[id].state = "done"
-	notify.emit("Missão concluída: %s" % q.name, Color(1.0, 0.8, 0.35))
-	add_gold(q.reward_gold)
-	notify.emit("+%d ouro" % q.reward_gold, Color(1, 0.85, 0.3))
-	for item in q.reward_items:
-		add_item(item, q.reward_items[item])
-	add_xp(q.reward_xp)
-	quests_changed.emit()
-
-
-func on_enemy_killed(kind: String, xp_reward: int) -> void:
-	kills += 1
-	if float(food_mods.get("lifesteal", 0.0)) > 0.0 and hp > 0.0:
-		hp = min(max_hp(), hp + float(food_mods.lifesteal))
-	add_xp(xp_reward)
-	for id in quests:
-		var q: Dictionary = ItemDB.QUESTS[id]
-		if quests[id].state == "active" and q.target == kind:
-			quests[id].progress += 1
-			if quests[id].progress >= q.count:
-				quests[id].state = "ready"
-				notify.emit("%s: volte para %s" % [q.name, q.giver], Color(1.0, 0.8, 0.35))
-			else:
-				notify.emit("%s %d/%d" % [q.name, quests[id].progress, q.count], Color(1.0, 0.9, 0.6))
-	quests_changed.emit()
-
-
-# ---------------------------------------------------------------- save / load
-func has_save() -> bool:
-	return FileAccess.file_exists(save_path)
-
-
-func save_game(pos: Vector3, yaw: float) -> bool:
-	if run_mods.active:
-		notify.emit("Não é possível salvar durante o desafio.", Color(1, 0.6, 0.5))
-		return false
-	var data := {
-		"version": 1, "level": level, "xp": xp, "gold": gold, "stat_points": stat_points,
-		"attributes": attributes, "hp": hp, "mp": mp, "inventory": inventory, "equipment": equipment,
-		"quests": quests, "flags": flags, "kills": kills, "farm": farm,
-		"pos": [pos.x, pos.y, pos.z], "yaw": yaw,
-		"time": Time.get_datetime_string_from_system(false, true),
-	}
-	var f := FileAccess.open(save_path, FileAccess.WRITE)
-	if f == null:
-		notify.emit("Falha ao salvar!", Color(1, 0.4, 0.4))
-		return false
-	f.store_string(JSON.stringify(data, "\t"))
-	notify.emit("Jogo salvo.", Color(0.7, 1.0, 0.7))
-	return true
-
-
-func save_info() -> String:
-	if not has_save():
-		return ""
-	var data = _read_save()
-	if data == null:
-		return ""
-	return "Nível %d — %s" % [int(data.level), data.get("time", "")]
-
-
-func _read_save():
-	var f := FileAccess.open(save_path, FileAccess.READ)
-	if f == null:
-		return null
-	var data = JSON.parse_string(f.get_as_text())
-	return data if data is Dictionary else null
-
-
-func load_game() -> bool:
-	if not load_character():
-		return false
-	get_tree().paused = false
-	get_tree().change_scene_to_file(WORLD_SCENE)
-	return true
-
-
-## Lê o save para a memória sem trocar de cena (usado também ao entrar no multiplayer).
-func load_character() -> bool:
-	var data = _read_save()
-	if data == null:
-		notify.emit("Nenhum jogo salvo.", Color(1, 0.5, 0.5))
-		return false
-	reset_run_mods()
-	level = int(data.level)
-	xp = int(data.xp)
-	gold = int(data.gold)
-	stat_points = int(data.stat_points)
-	attributes = {}
-	for k in data.attributes:
-		attributes[k] = int(data.attributes[k])
-	inventory = []
-	for slot in data.inventory:
-		inventory.append({"id": str(slot.id), "qty": int(slot.qty)})
-	equipment = empty_equipment()
-	for s in equipment:
-		var v := str(data.equipment.get(s, ""))
-		equipment[s] = v if ItemDB.ITEMS.has(v) else ""
-	quests = {}
-	for id in data.quests:
-		quests[id] = {"state": str(data.quests[id].state), "progress": int(data.quests[id].progress)}
-	flags = data.flags
-	kills = int(data.get("kills", 0))
-	farm = _parse_farm(data.get("farm", null))
-	clear_food(true)
-	hp = float(data.hp)
-	mp = float(data.mp)
-	stamina = max_stamina()
-	spawn_position = Vector3(data.pos[0], data.pos[1], data.pos[2])
-	spawn_yaw = float(data.get("yaw", 0.0))
-	return true
 
 
 # ---------------------------------------------------------------- configurações
@@ -781,7 +584,8 @@ func is_edible(id: String) -> bool:
 	return it.get("type", "") == "food" or it.has("raw_hp") or it.has("raw_mp")
 
 
-## Come uma comida (buff + cura) ou uma colheita crua (cura pequena).
+## Come uma comida (buff + cura) ou uma colheita crua (cura pequena). true = pedido feito; a cura e o
+## bônus valem quando o Econ confirmar que tirou o item (no solo, antes desta função voltar).
 func eat(id: String) -> bool:
 	var it := ItemDB.get_item(id)
 	if it.is_empty() or count_item(id) <= 0 or not is_edible(id):
@@ -789,8 +593,16 @@ func eat(id: String) -> bool:
 	if eat_cooldown > 0.0:
 		notify.emit("Ainda mastigando... (%.1fs)" % eat_cooldown, Color(1, 0.8, 0.55))
 		return false
+	# a recarga começa no pedido (evita comer duas vezes enquanto a resposta não chega)
+	eat_cooldown = EAT_COOLDOWN if it.type == "food" else 1.0
+	Econ.request("consume", [id])
+	return true
+
+
+## O Econ confirmou: bônus e cura da comida (o aviso com o nome veio nos eventos).
+func _apply_food(id: String) -> void:
+	var it := ItemDB.get_item(id)
 	var old_max := max_hp()
-	remove_item(id, 1)
 	if it.has("buff"):
 		food_buffs[id] = float(it.buff.time)
 		_recalc_food_mods()
@@ -800,14 +612,18 @@ func eat(id: String) -> bool:
 		hp = max_hp()
 	hp = min(max_hp(), hp + float(it.get("heal_hp", 0)) + float(it.get("raw_hp", 0)))
 	mp = min(max_mp(), mp + float(it.get("heal_mp", 0)) + float(it.get("raw_mp", 0)))
-	eat_cooldown = EAT_COOLDOWN if it.type == "food" else 1.0
-	if it.has("buff"):
-		notify.emit("%s: %s (%ds)" % [it.name, it.buff.name, int(it.buff.time)], it.get("color", Color(1, 0.85, 0.4)))
-	else:
-		notify.emit("Comeu %s" % it.name, Color(0.85, 1.0, 0.7))
 	food_eaten.emit(id)
 	stats_changed.emit()
-	return true
+
+
+## O Econ confirmou a poção.
+func _apply_potion(id: String) -> void:
+	var it := ItemDB.get_item(id)
+	if it.has("heal_hp"):
+		hp = min(max_hp(), hp + float(it.heal_hp))
+	if it.has("heal_mp"):
+		mp = min(max_mp(), mp + float(it.heal_mp))
+	stats_changed.emit()
 
 
 func eat_selected() -> bool:
@@ -890,147 +706,146 @@ func can_cook(recipe: String) -> int:
 	return n
 
 
-func cook(recipe: String, times := 1) -> int:
-	var n: int = min(times, can_cook(recipe))
-	if n <= 0:
-		notify.emit("Faltam ingredientes.", Color(1, 0.6, 0.5))
-		return 0
-	var ing: Dictionary = ItemDB.RECIPES[recipe]
-	for id in ing:
-		remove_item(id, int(ing[id]) * n)
-	add_item(recipe, n)
-	if selected_food == "":
-		selected_food = recipe
-	return n
+## Cozinha até `times` vezes. Quantas saíram: o evento "looted" da resposta (ver cooking_ui).
+func cook(recipe: String, times := 1) -> void:
+	Econ.request("cook", [recipe, clampi(times, 1, CharRules.MAX_COUNT)])
 
 
-# ================================================================ horta
-func default_farm() -> Dictionary:
-	var plots: Array = []
-	for i in FARM_PLOTS:
-		plots.append(_empty_plot())
-	return {"unlocked": FARM_START_PLOTS, "plots": plots}
-
-
-func _empty_plot() -> Dictionary:
-	return {"crop": "", "growth": 0.0, "watered": false, "fert": false}
-
-
-func _parse_farm(data) -> Dictionary:
-	var f := default_farm()
-	if not (data is Dictionary):
-		return f
-	f.unlocked = clampi(int(data.get("unlocked", FARM_START_PLOTS)), FARM_START_PLOTS, FARM_PLOTS)
-	var plots = data.get("plots", [])
-	for i in min(FARM_PLOTS, plots.size()):
-		var p = plots[i]
-		var crop := str(p.get("crop", ""))
-		if crop != "" and not ItemDB.CROPS.has(crop):
-			crop = ""
-		f.plots[i] = {"crop": crop, "growth": clampf(float(p.get("growth", 0.0)), 0.0, 1.0),
-			"watered": bool(p.get("watered", false)), "fert": bool(p.get("fert", false))}
-	return f
+# ================================================================ horta (o crescimento corre pelo relógio)
+## Crescimento do canteiro agora (0..1).
+func plot_growth(i: int) -> float:
+	if i < 0 or i >= farm.get("plots", []).size():
+		return 0.0
+	return CharRules.farm_growth(farm.plots[i], Balance.tables, Econ.now())
 
 
 func plot_state(i: int) -> String:
-	if i >= farm.unlocked:
+	if i < 0 or i >= farm.get("plots", []).size():
+		return "locked"
+	if i >= int(farm.unlocked):
 		return "locked"
 	var p: Dictionary = farm.plots[i]
 	if p.crop == "":
 		return "empty"
-	return "ready" if p.growth >= 1.0 else "growing"
+	return "ready" if plot_growth(i) >= 1.0 else "growing"
 
 
 func unlock_cost() -> int:
-	return 30 + 15 * (farm.unlocked - FARM_START_PLOTS)
+	var fr: Dictionary = Balance.tables.get_table("rules").get("farm", {})
+	return int(fr.get("unlock_base", 30)) + int(fr.get("unlock_step", 15)) * (int(farm.get("unlocked", 0)) - int(fr.get("start", 6)))
 
 
-func unlock_next_plot() -> bool:
-	if farm.unlocked >= FARM_PLOTS:
-		return false
-	var cost := unlock_cost()
-	if gold < cost:
-		notify.emit("Ouro insuficiente (%d)." % cost, Color(1, 0.5, 0.5))
-		return false
-	gold -= cost
-	farm.unlocked += 1
-	notify.emit("Novo canteiro preparado!", Color(0.8, 1.0, 0.6))
-	stats_changed.emit()
-	farm_changed.emit()
-	return true
+func unlock_next_plot() -> void:
+	Econ.request("unlock_plot")
 
 
 ## Planta no canteiro i. Se faltar semente e buy_missing, compra uma.
-func plant(i: int, crop: String, buy_missing := false) -> bool:
-	if plot_state(i) != "empty":
-		return false
-	var seed: String = ItemDB.CROPS[crop].seed
-	if count_item(seed) <= 0:
-		if not buy_missing:
-			return false
-		var price: int = ItemDB.get_item(seed).price
-		if gold < price:
-			notify.emit("Ouro insuficiente para a semente.", Color(1, 0.5, 0.5))
-			return false
-		gold -= price
-		stats_changed.emit()
-	else:
-		remove_item(seed, 1)
-	farm.plots[i] = {"crop": crop, "growth": 0.0, "watered": false, "fert": false}
-	farm_changed.emit()
-	return true
+func plant(i: int, crop: String, buy_missing := false) -> void:
+	Econ.request("plant", [i, crop, buy_missing])
 
 
-func water(i: int) -> bool:
-	if plot_state(i) != "growing" or farm.plots[i].watered:
-		return false
-	farm.plots[i].watered = true
-	farm_changed.emit()
-	return true
+func water(i: int) -> void:
+	Econ.request("water", [i])
 
 
 ## Adubo de gel de slime: +40% de crescimento na hora (uma vez por plantio).
-func fertilize(i: int) -> bool:
-	if plot_state(i) != "growing" or farm.plots[i].fert or count_item("slime_gel") <= 0:
-		return false
-	remove_item("slime_gel", 1)
-	farm.plots[i].fert = true
-	farm.plots[i].growth = min(1.0, farm.plots[i].growth + 0.4)
-	farm_changed.emit()
-	return true
+func fertilize(i: int) -> void:
+	Econ.request("fertilize", [i])
 
 
-## Avança o crescimento. Retorna true no quadro em que a planta fica pronta.
-func grow_plot(i: int, delta: float) -> bool:
-	if plot_state(i) != "growing":
-		return false
-	var p: Dictionary = farm.plots[i]
-	var t: float = ItemDB.CROPS[p.crop].time
-	p.growth = min(1.0, p.growth + delta / t * (2.0 if p.watered else 1.0))
-	return p.growth >= 1.0
+## Colhe o canteiro i. O que saiu chega no evento "harvest" (Econ.done).
+func harvest(i: int) -> void:
+	Econ.request("harvest", [i])
 
 
-## Colhe o canteiro i: {"crop", "qty", "bonus", "seed"} ou {} se não estiver pronto.
-func harvest(i: int) -> Dictionary:
-	if plot_state(i) != "ready":
-		return {}
-	var p: Dictionary = farm.plots[i]
-	var c: Dictionary = ItemDB.CROPS[p.crop]
-	var qty := randi_range(c.yield[0], c.yield[1]) + (1 if p.watered else 0)
-	var bonus := randf() < 0.12
-	if bonus:
-		qty *= 2
-	var got_seed := randf() < 0.35
-	add_item(p.crop, qty, true)
-	if got_seed:
-		add_item(c.seed, 1, true)
-	var res := {"crop": p.crop, "qty": qty, "bonus": bonus, "seed": got_seed}
-	farm.plots[i] = _empty_plot()
-	var txt := "+%d %s" % [qty, c.name]
-	if bonus:
-		txt = "Colheita farta! " + txt
-	if got_seed:
-		txt += " (+1 semente)"
-	notify.emit(txt, Color(0.85, 1.0, 0.55))
-	farm_changed.emit()
-	return res
+# ================================================================ espelho
+## Estado vindo do CharacterService (solo ou servidor). `full` = também vida, mana e posição
+## (carga do personagem); senão o combate continua dono de vida/mana e só o teto do máximo é ajustado.
+func apply_state(d: Dictionary, full := false) -> void:
+	var s := CharState.from_dict(d, Balance.tables)
+	var old_hp := max_hp()
+	var old_mp := max_mp()
+	var quests_before := quests
+	var farm_before := farm
+	level = s.level
+	xp = s.xp
+	gold = s.gold
+	stat_points = s.stat_points
+	attributes = s.attributes
+	inventory = s.inventory
+	equipment = s.equipment
+	quests = s.quests
+	flags = s.flags
+	kills = s.kills
+	farm = s.farm
+	if full:
+		reset_run_mods()
+		clear_food(true)
+		hp = s.hp if s.hp > 0.0 else max_hp()
+		mp = s.mp
+		hp = minf(hp, max_hp())
+		mp = minf(mp, max_mp())
+		stamina = max_stamina()
+		spawn_position = s.world_pos
+		spawn_yaw = s.world_yaw
+	else:
+		_clamp_vitals(old_hp, old_mp)
+	if selected_food != "" and count_item(selected_food) <= 0:
+		ensure_selected_food()
+	stats_changed.emit()
+	inventory_changed.emit()
+	if quests != quests_before:
+		quests_changed.emit()
+	if farm != farm_before:
+		farm_changed.emit()
+
+
+## Eventos das regras: avisos, nível, itens ganhos (os sinais que a UI já escuta).
+func apply_events(events: Array) -> void:
+	for e in events:
+		if not (e is Dictionary):
+			continue
+		match e.get("t", ""):
+			"notify":
+				notify.emit(str(e.get("text", "")), e.get("color", Color.WHITE))
+			"level_up":
+				hp = max_hp()
+				mp = max_mp()
+				leveled_up.emit(int(e.get("level", level)))
+				stats_changed.emit()
+			"looted":
+				item_looted.emit(str(e.get("id", "")), int(e.get("qty", 1)))
+			"quest":
+				quests_changed.emit()
+			"farm":
+				farm_changed.emit()
+
+
+## O que o cliente faz depois que uma op é confirmada (cura de poção/comida, comida selecionada).
+func after_op(op: String, args: Array, ok: bool, _events: Array) -> void:
+	match op:
+		"consume":
+			var id := str(args[0]) if not args.is_empty() else ""
+			if not ok:
+				if is_edible(id):
+					eat_cooldown = 0.0   # não comeu: libera a recarga
+				return
+			if is_edible(id):
+				_apply_food(id)
+			else:
+				_apply_potion(id)
+		"cook":
+			if ok and selected_food == "" and not args.is_empty():
+				selected_food = str(args[0])
+
+
+## O espelho como dicionário no formato de CharState.to_dict (save da cidade e sandbox).
+func mirror_dict() -> Dictionary:
+	return {
+		"level": level, "xp": xp, "gold": gold, "stat_points": stat_points,
+		"attributes": attributes.duplicate(true), "inventory": inventory.duplicate(true),
+		"equipment": equipment.duplicate(true), "quests": quests.duplicate(true), "flags": flags.duplicate(true),
+		"farm": farm.duplicate(true), "hp": hp, "mp": mp,
+		"world_pos": [spawn_position.x, spawn_position.y, spawn_position.z] if spawn_position is Vector3 else null,
+		"world_yaw": spawn_yaw, "kills": kills,
+	}

@@ -59,11 +59,12 @@ func _ready() -> void:
 	menu_box.add_child(sp)
 	var new_btn := UITheme.button("Novo jogo", _new_game, 320)
 	menu_box.add_child(new_btn)
-	var cont := UITheme.button("Continuar", func() -> void: Game.load_game(), 320)
-	cont.disabled = not Game.has_save()
+	var has_solo := Econ.has_solo()
+	var cont := UITheme.button("Continuar", func() -> void: Game.continue_game(), 320)
+	cont.disabled = not has_solo
 	menu_box.add_child(cont)
-	if Game.has_save():
-		menu_box.add_child(UITheme.label("   " + Game.save_info(), 15, UITheme.DIM))
+	if has_solo:
+		menu_box.add_child(UITheme.label("   " + Econ.solo_info(), 15, UITheme.DIM))
 	var colony := UITheme.button("Defesa da Cidade — nova", func() -> void:
 		Sfx.play("click", 0.0)
 		Game.start_colony(false), 320)
@@ -96,7 +97,19 @@ func _ready() -> void:
 
 func _new_game() -> void:
 	Sfx.play("click", 0.0)
-	Game.start_new_game()
+	if not Econ.has_solo():
+		Game.start_new_game()
+		return
+	# o personagem solo é um só: começar de novo apaga o atual (pergunta antes)
+	var dlg := ConfirmationDialog.new()
+	dlg.title = "Novo jogo"
+	dlg.dialog_text = "Começar um novo jogo apaga o personagem salvo neste PC\n(%s: nível, itens e horta).\n\nContinuar?" % Econ.solo_info()
+	dlg.ok_button_text = "Apagar e começar"
+	dlg.cancel_button_text = "Voltar"
+	dlg.confirmed.connect(func() -> void: Game.start_new_game())
+	dlg.canceled.connect(dlg.queue_free)
+	add_child(dlg)
+	dlg.popup_centered()
 
 
 # ---------------------------------------------------------------- jogar online (login + ENet)
@@ -138,8 +151,7 @@ func _build_multiplayer() -> void:
 	mp_address.custom_minimum_size = Vector2(320, 40)
 	mp_address.text_submitted.connect(func(_t: String) -> void: _join())
 	mp_box.add_child(mp_address)
-	var who := "Personagem: " + (Game.save_info() if Game.has_save() else "novo (nenhum save neste PC)")
-	mp_box.add_child(UITheme.label(who, 15, UITheme.DIM))
+	mp_box.add_child(UITheme.label("O personagem online é o da sua conta (fica no servidor, separado do solo).", 15, UITheme.DIM))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	mp_box.add_child(row)
@@ -227,9 +239,7 @@ func _login_and_connect(my_attempt: int) -> void:
 		_on_join_failed(r.msg)
 		return
 	mp_pass.text = ""
-	# o personagem é o save deste PC (ou um novo, se não houver)
-	if not (Game.has_save() and Game.load_character()):
-		Game.new_game()
+	# o personagem chega do servidor junto com a aceitação (Econ._econ_res)
 	_set_status("Conectando a %s como %s..." % [address, r.get("name", "")], UITheme.TEXT)
 	Network.join(address, str(r.token))
 

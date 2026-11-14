@@ -284,6 +284,26 @@ static func _sold_in_shop(bt: BalanceTables, id: String) -> bool:
 	return false
 
 
+## Jogar fora 1 unidade (botão "Descartar" da mochila). Só tira do próprio jogador.
+static func discard(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
+	if _item(bt, id).is_empty():
+		return _fail("item_invalido")
+	if count_item(s, id) <= 0:
+		return _fail("sem_item")
+	remove_item(s, id, 1)
+	return _ok()
+
+
+## Renascer na vila custa uma fração do ouro (rules.death_gold_loss, padrão 10%). Pedido pelo próprio
+## cliente ao renascer: só tira dele, então não há o que forjar.
+static func death_penalty(s: CharState, bt: BalanceTables) -> Dictionary:
+	var lost := int(s.gold * float(_rules(bt).get("death_gold_loss", 0.1)))
+	if lost <= 0:
+		return _ok()
+	s.gold -= lost
+	return _ok([_notify("Você perdeu %d ouro." % lost, Color(1, 0.6, 0.5))])
+
+
 static func sell(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	var it := _item(bt, id)
 	if it.is_empty():

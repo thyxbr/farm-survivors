@@ -6,7 +6,8 @@ extends RefCounted
 
 ## Operações que o cliente pode pedir. Conceder ouro/xp/itens e abates é só do servidor/solo.
 const CLIENT_OPS := ["buy", "sell", "equip", "unequip", "consume", "cook", "spend_point", "start_quest",
-	"complete_quest", "sort_inventory", "unlock_plot", "plant", "water", "fertilize", "harvest"]
+	"complete_quest", "sort_inventory", "unlock_plot", "plant", "water", "fertilize", "harvest", "discard",
+	"death_penalty"]
 
 ## Assinatura posicional de cada op: tipos aceitos (TYPE_*) e quantos são opcionais no fim.
 ## `now` e o gerador de sorteio nunca vêm do cliente.
@@ -26,6 +27,8 @@ const ARGS := {
 	"water": {"types": [TYPE_INT], "optional": 0},
 	"fertilize": {"types": [TYPE_INT], "optional": 0},
 	"harvest": {"types": [TYPE_INT], "optional": 0},
+	"discard": {"types": [TYPE_STRING], "optional": 0},
+	"death_penalty": {"types": [], "optional": 0},
 }
 
 ## Concessões dessas origens acontecem a cada coleta durante a partida: o registro é um só, no fim (run_summary).
@@ -96,6 +99,16 @@ func apply(account_id: int, op: String, args: Array) -> Dictionary:
 	if r.ok:
 		r = _persist(account_id, s, before, op, "player", r)
 	return _result(account_id, r)
+
+
+## Mesma validação e regras de apply(), sobre um estado em memória, sem banco nem registro.
+## Só para a Defesa da Cidade solo, cujo personagem ainda vive num save próprio (até a Task 10).
+func apply_to(s: CharState, op: String, args: Array) -> Dictionary:
+	if not (op in CLIENT_OPS):
+		return {"ok": false, "err": "op_invalida", "events": []}
+	if not _args_ok(op, args):
+		return {"ok": false, "err": "args", "events": []}
+	return _dispatch(s, op, args)
 
 
 ## Concessão do servidor/solo (loot, missão, prêmio de partida).
@@ -175,6 +188,8 @@ func _dispatch(s: CharState, op: String, a: Array) -> Dictionary:
 		"water": return CharRules.water(s, _bt, a[0], _now())
 		"fertilize": return CharRules.fertilize(s, _bt, a[0], _now())
 		"harvest": return CharRules.harvest(s, _bt, a[0], _now(), _rng)
+		"discard": return CharRules.discard(s, _bt, a[0])
+		"death_penalty": return CharRules.death_penalty(s, _bt)
 	return {"ok": false, "err": "op_invalida", "events": []}
 
 

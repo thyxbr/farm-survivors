@@ -172,3 +172,28 @@ func test_unload_is_session_scoped() -> void:
 	svc.unload(2, 11)
 	T.eq(svc.load_or_create(2).hp, 33.0, "unload da sessão atual gravou")
 	db.close()
+
+
+func test_discard_and_death_are_client_ops() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(db, _tables())
+	var s := svc.load_or_create(2)
+	var pocoes := _count(s, "health_potion")
+	T.ok(svc.apply(2, "discard", ["health_potion"]).ok, "jogar fora")
+	T.eq(_count(svc.load_or_create(2), "health_potion"), pocoes - 1, "uma poção a menos")
+	var r := svc.apply(2, "death_penalty", [])
+	T.ok(r.ok, "morte")
+	T.eq(r.state.gold, 23, "25 - 10%")
+	db.close()
+
+
+## Defesa da Cidade solo (até a Task 10): mesma validação de op/args, mas sobre um estado em memória.
+func test_apply_to_without_db() -> void:
+	var svc := CharacterService.new(null, _tables())
+	var s := CharState.new_character(_tables())
+	s.gold = 500
+	var r := svc.apply_to(s, "buy", ["health_potion", 2])
+	T.ok(r.ok, "comprou sem banco: %s" % r.err)
+	T.eq(s.gold, 500 - 2 * int(_tables().get_table("items")["health_potion"]["price"]), "estado em memória mudou")
+	T.eq(svc.apply_to(s, "grant", [1, 0, {}]).err, "op_invalida", "grant continua fora")
+	T.eq(svc.apply_to(s, "buy", [1]).err, "args", "args validados")

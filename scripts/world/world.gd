@@ -57,6 +57,9 @@ var _t := 0.0
 
 
 func _ready() -> void:
+	# solo: o personagem vem do solo.db (antes de montar o mapa: o chefe depende dos flags)
+	if not Network.is_online() and not Econ.sandbox:
+		Econ.ensure_solo()
 	rng.seed = 20261113
 	_build_environment()
 	_build_ground()
@@ -945,14 +948,11 @@ func _on_player_died() -> void:
 
 
 func _respawn() -> void:
-	var lost := int(Game.gold * 0.1)
-	Game.gold -= lost
+	Game.death_penalty()   # o ouro perdido e o aviso vêm das regras
 	modal = null
 	_set_paused(false)
 	player.revive(VILLAGE_SPAWN)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	if lost > 0:
-		Game.notify.emit("Você perdeu %d ouro." % lost, Color(1, 0.6, 0.5))
 	if Network.is_online():
 		return   # no multiplayer o servidor cuida dos inimigos
 	# inimigos voltam para casa

@@ -416,3 +416,26 @@ func test_kill_boss_sets_flag() -> void:
 	T.ok(not s.flags.has("king_dead"), "goblin comum")
 	CharRules.kill(s, bt, "goblin_king", 0)
 	T.eq(s.flags.get("king_dead"), true, "rei morto")
+
+
+func test_discard() -> void:
+	var bt := _tables()
+	var s := _blank()
+	s.inventory = [{"id": "slime_gel", "qty": 3}]
+	var r := CharRules.discard(s, bt, "slime_gel")
+	T.ok(r.ok, "jogou fora: %s" % r.err)
+	T.eq(_count(s, "slime_gel"), 2, "tirou um")
+	T.eq(CharRules.discard(s, bt, "iron_sword").err, "sem_item", "não tem")
+	T.eq(CharRules.discard(s, bt, "nao_existe").err, "item_invalido", "id desconhecido")
+
+
+func test_death_penalty() -> void:
+	var bt := _tables()
+	var s := _blank(95)
+	var r := CharRules.death_penalty(s, bt)
+	T.ok(r.ok, "penalidade")
+	T.eq(s.gold, 86, "perde 10% (arredonda para baixo)")
+	T.eq(r.events[0].text, "Você perdeu 9 ouro.", "aviso")
+	var pobre := _blank(5)
+	r = CharRules.death_penalty(pobre, bt)
+	T.ok(r.ok and r.events.is_empty() and pobre.gold == 5, "menos de 10 ouro: nada a perder, sem aviso")
