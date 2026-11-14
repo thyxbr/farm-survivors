@@ -8,7 +8,7 @@ extends RefCounted
 ## Operações que o cliente pode pedir. Conceder ouro/xp/itens e abates é só do servidor/solo.
 const CLIENT_OPS := ["buy", "sell", "equip", "unequip", "consume", "cook", "spend_point", "start_quest",
 	"complete_quest", "sort_inventory", "unlock_plot", "plant", "water", "fertilize", "harvest", "discard",
-	"death_penalty", "buy_passive", "donate"]
+	"death_penalty", "buy_passive", "donate", "enchant"]
 
 ## Assinatura posicional de cada op: tipos aceitos (TYPE_*) e quantos são opcionais no fim.
 ## `now` e o gerador de sorteio nunca vêm do cliente.
@@ -32,6 +32,7 @@ const ARGS := {
 	"death_penalty": {"types": [], "optional": 0},
 	"buy_passive": {"types": [TYPE_STRING], "optional": 0},
 	"donate": {"types": [TYPE_STRING, TYPE_INT], "optional": 0},
+	"enchant": {"types": [TYPE_STRING], "optional": 0},
 }
 
 ## Concessões dessas origens acontecem a cada coleta durante a partida: o registro é um só, no fim
@@ -110,7 +111,16 @@ func apply(account_id: int, op: String, args: Array) -> Dictionary:
 	var before := _holdings(s)
 	var r := _dispatch(s, op, args)
 	if r.ok:
-		r = _persist(account_id, s, before, op, "passive" if op == "buy_passive" else "player", r, 0, args[0] if op == "buy_passive" else "")
+		# passivas e encantos gastam Ecos: a linha de Ecos diz em quê (id da passiva ou "enchant")
+		var source := "player"
+		var ecos_item := ""
+		if op == "buy_passive":
+			source = "passive"
+			ecos_item = args[0]
+		elif op == "enchant":
+			source = "enchant"
+			ecos_item = "enchant"
+		r = _persist(account_id, s, before, op, source, r, 0, ecos_item)
 	return _result(account_id, r)
 
 
@@ -205,6 +215,22 @@ func grant_test_ecos(account_id: int, amount: int, enabled: bool) -> Dictionary:
 	var before := _holdings(s)
 	s.ecos += amount
 	return _result(account_id, _persist(account_id, s, before, "grant", "test", {"ok": true, "err": "", "events": []}))
+
+
+## Itens de teste: só com o servidor em --test (`enabled`); 1 a MAX_COUNT de cada item conhecido.
+func grant_test_items(account_id: int, items: Dictionary, enabled: bool) -> Dictionary:
+	if not enabled:
+		return _result(account_id, {"ok": false, "err": "sem_teste", "events": []})
+	var known: Dictionary = _bt.get_table("items")
+	var clean := {}
+	for id in items:
+		var n = items[id]
+		if not (id is String) or not known.has(id) or not CharRules._valid_count(n):
+			return _result(account_id, {"ok": false, "err": "valor_invalido", "events": []})
+		clean[id] = n
+	if clean.is_empty():
+		return _result(account_id, {"ok": false, "err": "valor_invalido", "events": []})
+	return grant(account_id, 0, 0, clean, "test")
 
 
 # ================================================================ base, partidas e recordes
@@ -347,6 +373,7 @@ func _dispatch(s: CharState, op: String, a: Array) -> Dictionary:
 		"discard": return CharRules.discard(s, _bt, a[0])
 		"death_penalty": return CharRules.death_penalty(s, _bt)
 		"buy_passive": return CharRules.buy_passive(s, _bt, a[0])
+		"enchant": return EnchantRules.enchant(s, _bt, a[0])
 	return {"ok": false, "err": "op_invalida", "events": []}
 
 

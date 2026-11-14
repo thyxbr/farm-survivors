@@ -247,6 +247,15 @@ func request_test_ecos(amount: int) -> void:
 	_grant_test_ecos.rpc_id(1, _seq, amount)
 
 
+## Cliente online, servidor em --test: pede itens de teste (resposta como op "test_items").
+func request_test_items(items: Dictionary) -> void:
+	if not Network.is_client():
+		return
+	_seq += 1
+	_pending[_seq] = {"op": "test_items", "args": [items]}
+	_grant_test_items.rpc_id(1, _seq, items)
+
+
 func pending_count() -> int:
 	return _pending.size()
 
@@ -604,6 +613,17 @@ func _grant_test_ecos(seq: int, amount: int) -> void:
 		_reply_no_session(seq)
 		return
 	var r := Network.characters.grant_test_ecos(account, amount, _test_server)
+	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
+
+
+## Só com o servidor em --test (net_test): materiais para o teste de encantamento.
+@rpc("any_peer", "call_remote", "reliable")
+func _grant_test_items(seq: int, items: Dictionary) -> void:
+	var account := _sender_account()
+	if account <= 0:
+		_reply_no_session(seq)
+		return
+	var r := Network.characters.grant_test_items(account, items, _test_server)
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
 
 
