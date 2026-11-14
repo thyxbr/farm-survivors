@@ -713,6 +713,13 @@ def build_elder():
 # ================================================================== MERCADORA (NPC)
 # Segue docs/PROMPT_LOWPOLY.md: camadas corpo -> túnica -> faixa/cinto -> mantelete -> capa,
 # barra em toda borda de tecido, 3 tons por material, 60% roxo / 30% ocre e couro / 10% laranja, azul e ouro.
+# Com esqueleto (Mixamo, pose T), como o Bram: as peças são as mesmas de antes, montadas nos pivôs de sempre
+# (LegL/LegR, Body, Head, ArmL/ArmR) e depois levadas para coordenadas de mundo e juntadas numa malha skinned.
+# Os braços são modelados caídos e girados até a pose T; o clipe arms_down os devolve exatamente à posição
+# modelada. Saia, faixa, bolsas, mantelete, capuz e capa usam um campo de pesos só (robe_field).
+MERCHANT_SPINE = (1.03, 1.13, 1.25, 1.41, 1.52)   # início de Spine, Spine1, Spine2, Neck e Head
+
+
 def build_merchant():
     pur = mat("m_purple", hexc("#7A3E9E"), 0.95)
     pur_d = mat("m_purple_d", hexc("#4A2269"), 0.95)
@@ -825,18 +832,132 @@ def build_merchant():
     # ---------------- braços: manga curta com barra dupla, manga azul por baixo, braçadeira de couro
     for side, sx in (("ArmR", -0.2), ("ArmL", 0.2)):
         s = 1 if sx > 0 else -1
-        arm = empty(side, (sx, 0, 1.4), body)
+        pv = empty(side, (sx, 0, 1.4), body)
         ex = sx + s * 0.028
         wx = sx + s * 0.04
-        limb(side + "_Upper", (sx, 0, 1.37), (ex, 0.01, 1.2), 0.042, 0.076, pur, sides=7, parent=arm)
-        ring(side + "_SleeveTrimB", 1.232, 0.08, 0.02, pur_d, parent=arm, sides=7, x=ex, y=0.01)
-        ring(side + "_SleeveTrimA", 1.203, 0.083, 0.03, pur_l, parent=arm, sides=7, x=ex, y=0.01)
-        limb(side + "_Fore", (ex, 0.01, 1.21), (wx, 0, 0.93), 0.05, 0.04, blue, sides=6, parent=arm)
-        limb(side + "_Bracer", (sx + s * 0.034, 0.005, 1.06), (wx, 0, 0.94), 0.055, 0.047, lea, sides=7, parent=arm)
-        ring(side + "_BracerTop", 1.058, 0.059, 0.022, lea_d, parent=arm, sides=7, x=sx + s * 0.034, y=0.005)
-        ring(side + "_BracerBot", 0.947, 0.051, 0.02, lea_d, parent=arm, sides=7, x=wx)
-        hand(side, wx, 0.875, skin, arm)
-    export("merchant")
+        limb(side + "_Upper", (sx, 0, 1.37), (ex, 0.01, 1.2), 0.042, 0.076, pur, sides=7, parent=pv)
+        ring(side + "_SleeveTrimB", 1.232, 0.08, 0.02, pur_d, parent=pv, sides=7, x=ex, y=0.01)
+        ring(side + "_SleeveTrimA", 1.203, 0.083, 0.03, pur_l, parent=pv, sides=7, x=ex, y=0.01)
+        limb(side + "_Fore", (ex, 0.01, 1.21), (wx, 0, 0.93), 0.05, 0.04, blue, sides=6, parent=pv)
+        limb(side + "_Bracer", (sx + s * 0.034, 0.005, 1.06), (wx, 0, 0.94), 0.055, 0.047, lea, sides=7, parent=pv)
+        ring(side + "_BracerTop", 1.058, 0.059, 0.022, lea_d, parent=pv, sides=7, x=sx + s * 0.034, y=0.005)
+        ring(side + "_BracerBot", 0.947, 0.051, 0.02, lea_d, parent=pv, sides=7, x=wx)
+        hand(side, wx, 0.875, skin, pv)
+
+    # ---------------- tudo em coordenadas de mundo, agrupado pelo pivô em que foi montado
+    scn.view_layers[0].update()
+    groups = {}
+    for o in [o for o in coll.objects if o.type == 'MESH']:
+        groups.setdefault(o.parent.name, []).append(o)
+        o.data.transform(o.matrix_world)
+        o.parent = None
+        o.matrix_world = Matrix.Identity(4)
+    for e in [o for o in coll.objects if o.type == 'EMPTY']:
+        bpy.data.objects.remove(e, do_unlink=True)
+
+    hip_z = 0.93
+    Z = (0, 0, 1)
+    # pernas: bota e pé no Foot, cano no Leg, coxa (calça) no UpLeg, com a dobra no joelho
+    for side, sd in (("LegL", "Left"), ("LegR", "Right")):
+        weigh(groups[side], Z, [(0.1, sd + "Foot"), (0.16, sd + "Leg"), (0.47, sd + "Leg"), (0.55, sd + "UpLeg")])
+    # túnica, faixa, bolsas, mantelete, capuz e capa: o mesmo campo (peças coladas se movem juntas)
+    torso = [(0.98, "Hips"), (1.06, "Spine"), (1.17, "Spine1"), (1.3, "Spine2")]
+    robe = robe_field(hip_z, 0.5, torso)
+    capelet = [o for o in groups["Body"] if o.name == "Capelet"]
+    cloak = [o for o in groups["Body"] if o.name == "Cloak"]
+    weigh_by([o for o in groups["Body"] if o not in capelet + cloak], robe)
+    # a capa é aberta na frente e cai atrás das pernas até o chão: segue menos as coxas, senão a barra varre
+    # para a frente da perna no passo
+    weigh_by(cloak, robe_field(hip_z, 0.5, torso, legs=0.35))
+
+    def cape_field(co):
+        """Mantelete: no meio, o campo da túnica; nos lados passa aos poucos para o osso do ombro, para subir
+        por cima do braço quando ele se ergue (o ombro não gira no arms_down, então a pose de sempre não muda)."""
+        u = min(1.0, max(0.0, (abs(co.x) - 0.1) / 0.18))
+        u = 0.85 * u * u * (3 - 2 * u)
+        sd = "Left" if co.x > 0 else "Right"
+        return [(b, w * (1.0 - u)) for b, w in robe(co)] + [(sd + "Shoulder", u)]
+    weigh_by(capelet, cape_field)
+    # cabeça: pescoço em gradiente, o resto (rosto, cabelo, brincos, turbante) no Head
+    neck = [o for o in groups["Head"] if o.name == "Neck"]
+    weigh(neck, Z, [(1.42, "Spine2"), (1.47, "Neck"), (1.52, "Neck"), (1.57, "Head")])
+    weigh([o for o in groups["Head"] if o not in neck], Z, [(0.0, "Head")])
+    top = max(v.co.z for o in groups["Head"] for v in o.data.vertices)
+
+    # braços: manga curta (com as barras) no Arm, manga azul e braçadeira no ForeArm, mão no Hand; girados
+    # em volta do ombro e do cotovelo da pose caída até a pose T
+    joints, turn = {}, {}
+    for side, sx, sd in (("ArmR", -0.2, "Right"), ("ArmL", 0.2, "Left")):
+        s = 1 if sx > 0 else -1
+        sh = Vector((sx, 0, 1.38))
+        el = Vector((sx + s * 0.028, 0.01, 1.205))
+        wr = Vector((sx + s * 0.04, 0, 0.93))
+        parts = {o.name[len(side):]: o for o in groups[side]}
+        upper = [parts[n] for n in ("_Upper", "_SleeveTrimB", "_SleeveTrimA")]
+        fore = [parts[n] for n in ("_Fore", "_Bracer", "_BracerTop", "_BracerBot")]
+        palm = [parts[n] for n in ("_Hand", "_Thumb")]
+        assert len(upper) + len(fore) + len(palm) == len(groups[side])
+        tx = Vector((s, 0, 0))
+        r_up = (el - sh).normalized().rotation_difference(tx)
+        r_fo = (wr - el).normalized().rotation_difference(tx)
+        el_t = sh + r_up @ (el - sh)
+        wr_t = el_t + r_fo @ (wr - el)
+        for o in upper:
+            for v in o.data.vertices:
+                v.co = sh + r_up @ (v.co - sh)
+        for o in fore + palm:
+            for v in o.data.vertices:
+                v.co = el_t + r_fo @ (v.co - el)
+        weigh(upper, Z, [(0.0, sd + "Arm")])
+        weigh(fore, Z, [(0.0, sd + "ForeArm")])
+        weigh(palm, Z, [(0.0, sd + "Hand")])
+        joints[sd] = (sh, el_t, wr_t)
+        turn[sd] = (r_up, r_fo)
+
+    body = join_objs("Merchant", [o for o in coll.objects if o.type == 'MESH'])
+
+    # ---------------- esqueleto em pose T, nomes do Mixamo
+    P = {"hip": Vector((0.09, 0, hip_z)), "knee": Vector((0.09, 0, 0.5)), "ankle": Vector((0.09, 0, 0.1))}
+    arm = mixamo_rig([body], P, joints, hip_z, top, spine=MERCHANT_SPINE)
+
+    # ---------------- clipes (direções de mundo: frente = -Y, esquerda = +X)
+    # arms_down: braços de volta à posição modelada (caídos ao lado do corpo), a pose de sempre da Mira
+    down = {}
+    for sd in ("Left", "Right"):
+        r_up, r_fo = turn[sd]
+        down[sd + "Arm"] = r_up.inverted().to_matrix()
+        down[sd + "ForeArm"] = down[sd + "Hand"] = r_fo.inverted().to_matrix()
+
+    # call: a mão direita sobe ao lado da cabeça com a palma para a frente e acena para o cliente, o antebraço
+    # balançando para fora e para dentro duas vezes. O braço é uma dobradiça (braço, antebraço e mão com o mesmo
+    # eixo de dobra n_up): só o cotovelo e o punho dobram, nada torce. O tronco se inclina um pouco para a frente
+    # (para o cliente) e a cabeça tomba de leve. O braço esquerdo fica caído (arms_down).
+    side_up, fore_up = Vector((-0.88, -0.3, -0.2)).normalized(), Vector((-0.1, -0.15, 1.0)).normalized()
+    n_up = side_up.cross(fore_up).normalized()
+    stand = math.degrees(side_up.angle(fore_up))     # dobra do cotovelo com o antebraço de pé
+
+    def wave(flex, wrist, lean, tilt, shrug=14):
+        """Antebraço direito a flex graus do braço e mão a mais wrist graus, no plano de normal n_up; tronco
+        inclinado lean graus para a frente, cabeça tombada tilt graus e ombro direito erguido shrug graus (leva
+        o lado do mantelete por cima do braço)."""
+        fo = Quaternion(n_up, math.radians(flex)) @ side_up
+        hd = Quaternion(n_up, math.radians(flex + wrist)) @ side_up
+        t = dict(down)
+        t.update(Spine1=_qx(lean * 0.6), Spine2=_qx(lean * 0.4),
+                 RightShoulder=Quaternion((0, 1, 0), math.radians(shrug)),
+                 Head=Quaternion((0, 1, 0), math.radians(tilt)) @ _qx(lean * 0.3),
+                 RightArm=hinge_frame(side_up, n_up, -1), RightForeArm=hinge_frame(fo, n_up, -1),
+                 RightHand=hinge_frame(hd, n_up, -1))
+        return t
+
+    fps = scn.render.fps
+    scn.render.fps = 30
+    bake_clip(arm, "arms_down", [(0, down)])
+    out_, in_ = (stand - 22, -12), (stand + 14, 14)          # (cotovelo, punho) para fora / para dentro
+    bake_clip(arm, "call", [(0, down), (9, wave(stand, 0, 4, 5)), (15, wave(*out_, 5, 6)), (21, wave(*in_, 5, 6)),
+                            (27, wave(*out_, 5, 6)), (33, wave(*in_, 5, 6)), (37, wave(stand, 0, 4, 5)), (45, down)])
+    export("merchant", export_animations=True, export_skins=True, export_animation_mode='NLA_TRACKS')
+    scn.render.fps = fps
 
 
 # ================================================================== GOBLIN
