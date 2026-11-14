@@ -24,7 +24,9 @@ var day := 1
 var phase := "setup"          # setup (sem prefeitura) | day | night | over
 var phase_t := 0.0            # dia: segundos restantes · noite: segundos passados
 var food := 0
-var citizens := 0
+var citizens := 0   # aldeões (livres + ocupados)
+var train_queue := 0   # aldeões na fila de treino da prefeitura
+var train_t := 0.0     # progresso do aldeão que está sendo treinado (s)
 var tax_level := 1
 var army_mode := "guard"      # guard (defende o ponto de reunião) | follow (acompanha o jogador)
 var rally := Vector3.ZERO
@@ -299,6 +301,67 @@ func follow_target() -> Player:
 	return get_tree().get_first_node_in_group("player") as Player
 
 
+## Aldeões ocupados pelas construções vivas (`crew`).
+func busy() -> int:
+	var n := 0
+	for b in buildings():
+		n += int(b.data.get("crew", 0))
+	return n
+
+
+func free_villagers() -> int:
+	return maxi(0, citizens - busy())
+
+
+## Fração das vagas ocupadas por aldeões (1 = todas cheias). Com fome ou deserção cai e a produção cai junto.
+func staffing() -> float:
+	var n := busy()
+	return 1.0 if n == 0 else clampf(float(citizens) / n, 0.0, 1.0)
+
+
+## Eficiência de uma construção: hoje todas dividem a falta de aldeões por igual.
+func crew_eff(_b: ColonyBuilding) -> float:
+	return staffing()
+
+
+## Põe um aldeão na fila de treino (comida na hora, vaga numa moradia). "" = entrou na fila.
+func train_villager() -> String:
+	if phase == "over":
+		return "A cidade caiu."
+	if hall == null or not is_instance_valid(hall) or hall.dead:
+		return "Construa a prefeitura primeiro."
+	if citizens + train_queue >= pop_cap():
+		return "Sem moradia livre. Construa casas."
+	var lack := missing(ColonyData.VILLAGER_COST)
+	if lack != "":
+		return lack
+	if role == "client":
+		Lobby.city_request("train", [])
+		return ""
+	pay(ColonyData.VILLAGER_COST)
+	train_queue += 1
+	_dirty()
+	return ""
+
+
+func _train_tick(delta: float) -> void:
+	if train_queue <= 0:
+		return
+	train_t += delta
+	if train_t < ColonyData.VILLAGER_TIME:
+		return
+	train_t = 0.0
+	train_queue -= 1
+	if citizens < pop_cap():
+		citizens += 1
+		say("Um aldeão terminou o treino.", Color(0.8, 1.0, 0.6))
+	else:   # a moradia caiu enquanto treinava: devolve a comida
+		gain(ColonyData.VILLAGER_COST)
+		say("Sem moradia: o treino foi cancelado e a comida devolvida.", Color(1, 0.75, 0.5))
+	Game.stats_changed.emit()
+	_dirty()
+
+
 func pop_cap() -> int:
 	var n := 0
 	for b in buildings():
@@ -380,13 +443,11 @@ func votes_needed() -> int:
 
 ## Previsão do próximo amanhecer (também usada no relatório).
 func forecast() -> Dictionary:
-	var workers := 0
 	var farm_food := 0.0
 	var market_gold := 0.0
 	var hall_gold := 0
 	var markets: Array[float] = []
 	for b in buildings():
-		workers += int(b.data.get("workers", 0))
 		match b.kind:
 			"farm":
 				farm_food += float(b.data.food) * ColonyData.level_mult(b.level, 0.5)
@@ -404,7 +465,7 @@ func forecast() -> Dictionary:
 		if is_coop() and i >= ColonyData.MARKET_FREE:
 			k = maxf(ColonyData.MARKET_MIN, 1.0 - ColonyData.MARKET_DECAY * (i - ColonyData.MARKET_FREE + 1))
 		market_gold += markets[i] * k
-	var eff := 1.0 if workers == 0 else clampf(float(citizens) / workers, 0.0, 1.0)
+	var eff := staffing()
 	var tax: int = citizens * ColonyData.TAX[tax_level]
 	var trade := int(round(market_gold * eff))
 	var sal := salaries()
@@ -415,7 +476,7 @@ func forecast() -> Dictionary:
 		"tax": tax, "trade": trade, "hall": hall_gold, "salaries": sal, "upkeep": up,
 		"gold_in": tax + trade + hall_gold, "gold_net": tax + trade + hall_gold - sal - up,
 		"food_in": food_in, "food_out": food_out, "food_net": food_in - food_out,
-		"workers": workers, "employed": mini(citizens, workers), "eff": eff,
+		"workers": busy(), "employed": mini(citizens, busy()), "eff": eff,
 	}
 
 
@@ -441,6 +502,9 @@ func can_place(kind: String, pos: Vector3, rot: float, ignore_cost := false) -> 
 			var lack := missing(cost_of(kind))
 			if lack != "":
 				return lack
+			var need := int(d.get("crew", 0)) - free_villagers()
+			if need > 0:
+				return "Faltam %d aldeão livre." % need if need == 1 else "Faltam %d aldeões livres." % need
 	var lim := ColonyData.MAP_HALF - 10.0
 	if absf(pos.x) > lim or absf(pos.z) > lim:
 		return "Muito perto da borda do mapa."
@@ -655,8 +719,8 @@ func recruit(unit: String) -> String:
 		return "Exige um quartel nível %d." % int(u.needs_level)
 	if soldier_count() >= army_cap():
 		return "Os quartéis estão lotados (%d vagas)." % army_cap()
-	if citizens < 1:
-		return "Não há moradores para recrutar. Construa casas."
+	if citizens < 1 or free_villagers() < 1:
+		return "Não há aldeões livres para recrutar. Treine mais na prefeitura."
 	var ucost := {"gold": int(u.cost)}   # as unidades ainda custam só ouro
 	var lack := missing(ucost)
 	if lack != "":
@@ -817,6 +881,7 @@ func _physics_process(delta: float) -> void:
 			if _animal_t <= 0.0:
 				_animal_t = 4.0
 				_spawn_wildlife(false)
+			_train_tick(delta)
 			if phase_t <= 25.0 and not _warned:
 				_warned = true
 				say("O sol está se pondo... os monstros atacam ao anoitecer!", Color(1, 0.6, 0.4))
@@ -1145,17 +1210,12 @@ func dawn() -> void:
 		starved = mini(citizens, int(ceil(-food / 2.0)))
 		citizens -= starved
 		food = 0
-	var houses := count_of("house")
-	var growth := 0
-	if starved == 0 and food > 0:
-		growth = clampi(ColonyData.GROWTH[tax_level] + houses / 3, 0, maxi(0, pop_cap() - citizens))
-	citizens += growth
 	if citizens > pop_cap():
 		citizens = pop_cap()
 	var survived := day
 	last_report = {"day": day, "gold_in": f.gold_in, "tax": f.tax, "trade": f.trade, "hall": f.hall,
 		"salaries": due, "upkeep": up - unpaid, "deserters": deserters, "food_in": f.food_in, "food_out": f.food_out,
-		"starved": starved, "growth": growth, "kills": night_kills}
+		"starved": starved, "kills": night_kills}
 	day += 1
 	phase = "day"
 	phase_t = day_length
@@ -1172,8 +1232,8 @@ func dawn() -> void:
 		say("Manutenção das torres e quartéis: −%d ouro." % (up - unpaid) if unpaid == 0
 			else "Faltou ouro para a manutenção (%d): as torres e quartéis se desgastaram!" % unpaid,
 			Color(1, 0.85, 0.5) if unpaid == 0 else UITheme.BAD)
-	say("Comida: +%d colhida, −%d consumida (estoque %d) · moradores %+d." %
-		[f.food_in, eaten, food, growth - starved], Color(0.8, 1.0, 0.6))
+	say("Comida: +%d colhida, −%d consumida (estoque %d) · aldeões %+d." %
+		[f.food_in, eaten, food, -starved], Color(0.8, 1.0, 0.6))
 	if deserters > 0:
 		say("%d soldado(s) desertaram por falta de pagamento!" % deserters, UITheme.BAD)
 		assign_posts.call_deferred()
@@ -1372,6 +1432,8 @@ func net_request(pid: int, action: String, args: Array) -> String:
 		"tax":
 			if args.size() == 1:
 				set_tax(int(args[0]))
+		"train":
+			err = train_villager()
 		"recruit":
 			if args.size() == 1 and ColonyData.UNITS.has(str(args[0])):
 				err = recruit(str(args[0]))
@@ -1399,7 +1461,7 @@ func net_request(pid: int, action: String, args: Array) -> String:
 ## Servidor: o estado resumido mandado aos clientes (2x/s e a cada mudança).
 func net_state() -> Dictionary:
 	_state_dirty = false
-	return {"gold": gold, "food": food, "res": res, "cit": citizens, "day": day, "phase": phase, "pt": phase_t,
+	return {"gold": gold, "food": food, "res": res, "cit": citizens, "tq": train_queue, "tt": train_t, "day": day, "phase": phase, "pt": phase_t,
 		"tax": tax_level, "army": army_mode, "rally": [rally.x, rally.z], "wl": wave_left(), "wt": wave_total,
 		"wd": wave_dirs, "nk": night_kills, "tk": total_kills, "nm": night_mod, "xm": next_mod,
 		"hall": hall.net_id if hall and is_instance_valid(hall) else 0, "votes": votes.size(), "team": team_size,
@@ -1418,6 +1480,8 @@ func apply_state(d: Dictionary) -> void:
 	for r in rs:
 		res[r] = int(rs[r])
 	citizens = int(d.get("cit", citizens))
+	train_queue = int(d.get("tq", train_queue))
+	train_t = float(d.get("tt", train_t))
 	day = int(d.get("day", day))
 	var new_phase := str(d.get("phase", phase))
 	phase_t = float(d.get("pt", phase_t))
@@ -1626,7 +1690,7 @@ func to_dict() -> Dictionary:
 	for s in soldiers():
 		sl.append({"unit": s.unit, "hp": s.hp, "x": s.global_position.x, "z": s.global_position.z})
 	return {"version": 2, "res": res, "day": day, "phase": phase, "phase_t": phase_t, "food": food, "citizens": citizens,
-		"tax": tax_level, "army_mode": army_mode, "rally": [rally.x, rally.z], "kills": total_kills,
+		"tax": tax_level, "army_mode": army_mode, "rally": [rally.x, rally.z], "kills": total_kills, "train": train_queue,
 		"buildings": bl, "soldiers": sl}
 
 
@@ -1640,6 +1704,8 @@ func from_dict(d: Dictionary) -> void:
 	else:
 		_reset_res(0)   # save da versão 1: estoque inicial de madeira e pedra
 	citizens = int(d.get("citizens", 0))
+	train_queue = int(d.get("train", 0))
+	train_t = 0.0
 	tax_level = clampi(int(d.get("tax", 1)), 0, 2)
 	army_mode = str(d.get("army_mode", "guard"))
 	total_kills = int(d.get("kills", 0))

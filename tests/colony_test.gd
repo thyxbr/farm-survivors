@@ -108,6 +108,47 @@ func _ready() -> void:
 	var sc := ColonyData.scale_cost({"gold": 30, "wood": 40}, 1.5)
 	check(sc.gold == 45 and sc.wood == 60, "scale_cost multiplica cada recurso")
 
+	# --- aldeões livres e ocupados, treino na prefeitura
+	colony.citizens = 6
+	colony.food = 200
+	var free0 := colony.free_villagers()
+	var farm2 := colony.place("farm", Vector3(-24, 0, 6), 0.0)
+	check(farm2 != null and colony.free_villagers() == free0 - int(ColonyData.BUILDINGS.farm.crew), "fazenda ocupa %d aldeões" % int(ColonyData.BUILDINGS.farm.crew))
+	colony.citizens = colony.busy() + 1
+	check(colony.can_place("market", Vector3(12, 0, 8), 0.0) == "Faltam 1 aldeão livre.", "sem aldeões livres, não constrói")
+	colony.citizens = colony.busy()
+	check(colony.can_place("market", Vector3(12, 0, 8), 0.0) == "Faltam 2 aldeões livres.", "mensagem no plural")
+	colony.citizens = colony.pop_cap() - 1
+	var c0 := colony.citizens
+	var food_t := colony.food
+	check(colony.train_villager() == "" and colony.food == food_t - int(ColonyData.VILLAGER_COST.food), "treinar aldeão custa comida")
+	check(colony.train_queue == 1, "aldeão entra na fila")
+	await wait(ColonyData.VILLAGER_TIME + 0.5)
+	check(colony.citizens == c0 + 1 and colony.train_queue == 0, "aldeão treinado em %d s" % int(ColonyData.VILLAGER_TIME))
+	check(colony.train_villager() != "" and colony.food == food_t - int(ColonyData.VILLAGER_COST.food), "sem moradia, não treina nem cobra")
+	colony.citizens = 0
+	colony.food = int(ColonyData.VILLAGER_COST.food) - 1
+	check(colony.train_villager().begins_with("Faltam "), "sem comida, não treina")
+	colony.food = 200
+	colony.citizens = colony.pop_cap() - 1
+	check(colony.net_request(1, "train", []) == "" and colony.train_queue == 1 and colony.net_state().tq == 1, "pedido \"train\" entra na fila e vai no estado")
+	colony.train_queue = 0
+	colony.food = 200
+	# fome deixa ocupados > aldeões: produção proporcional, nunca negativa
+	colony.citizens = 1
+	check(colony.free_villagers() == 0 and colony.staffing() > 0.0 and colony.staffing() < 1.0, "falta de aldeões reduz produção sem ficar negativo")
+	check(colony.forecast().food_in >= 0 and colony.crew_eff(farm2) == colony.staffing(), "previsão nunca negativa")
+	colony.citizens = 0
+	check(colony.staffing() == 0.0 and colony.free_villagers() == 0, "sem aldeões: eficiência 0 e livres 0")
+	check(ColonyData.tower_rate_mult(1.0) == 1.0 and ColonyData.tower_rate_mult(0.4) == 1.5, "torre sem operador atira mais devagar")
+	# dawn: sem crescimento automático
+	colony.citizens = 4
+	var cz := colony.citizens
+	colony.dawn()
+	check(colony.citizens == cz, "aldeões não nascem sozinhos no amanhecer")
+	colony.demolish(farm2)
+	colony.citizens = 5
+
 	# --- muros encaixam
 	colony.place("wall", Vector3(0, 0, 22), 0.0)
 	world.build.select("wall")
@@ -120,7 +161,7 @@ func _ready() -> void:
 	# --- economia
 	var f := colony.forecast()
 	check(f.tax == colony.citizens * 2, "imposto normal = 2 por morador (%d)" % f.tax)
-	check(f.food_in == 12 and f.workers == 2, "fazenda produz 12 com 2 trabalhadores")
+	check(f.food_in == 12 and f.workers == colony.busy(), "fazenda produz 12 com todos os aldeões")
 	check(f.hall == 15, "prefeitura rende 15")
 
 	# --- recrutamento
@@ -131,6 +172,7 @@ func _ready() -> void:
 	check(colony.recruit("knight") != "", "cavaleiro exige quartel nível 2")
 	await wait(0.2)
 	check(colony.soldier_count() == 2 and colony.citizens == cit - 2, "soldados saem dos moradores")
+	colony.citizens += 2   # a torre abaixo precisa de um aldeão livre
 	check(Game.gold == g0 - 150, "recrutar cobra o preço")
 	check(colony.salaries() == 11, "salários somam 11/dia")
 

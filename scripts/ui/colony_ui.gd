@@ -17,6 +17,8 @@ var results := {}
 var _box: VBoxContainer
 var _msg: Label
 var _refresh := false
+var _train_bar: ProgressBar
+var _train_shown := 0   # tamanho da fila quando a janela foi montada
 
 
 func _ready() -> void:
@@ -44,11 +46,17 @@ func _process(_delta: float) -> void:
 			_close()
 			return
 		_rebuild()
+	elif _train_bar != null and is_instance_valid(_train_bar):
+		if colony.train_queue != _train_shown:
+			_rebuild()   # a fila andou
+		else:
+			_train_bar.value = colony.train_t
 
 
 func _rebuild() -> void:
 	for c in _box.get_children():
 		c.queue_free()
+	_train_bar = null
 	var keep_msg := _msg.text if _msg else ""
 	if mode == "defeat":
 		_build_defeat()
@@ -145,15 +153,15 @@ func _stats(b: ColonyBuilding) -> String:
 		"house":
 			return "Abriga %d moradores." % (int(b.data.pop) + 3 * (lv - 1))
 		"farm":
-			return "Produz %d comida por dia (com %d trabalhadores)." % [int(round(b.data.food * ColonyData.level_mult(lv, 0.5))), b.data.workers]
+			return "Produz %d comida por dia (com %d aldeões)." % [int(round(b.data.food * ColonyData.level_mult(lv, 0.5))), b.data.crew]
 		"market":
-			return "Rende %d ouro por dia (com %d trabalhadores)." % [int(round(b.data.gold * ColonyData.level_mult(lv, 0.5))), b.data.workers]
+			return "Rende %d ouro por dia (com %d aldeões)." % [int(round(b.data.gold * ColonyData.level_mult(lv, 0.5))), b.data.crew]
 		"barracks":
 			return "Aloja %d soldados." % (int(b.data.army) + 3 * (lv - 1))
 		"spikes":
 			return "%d de dano por segundo em quem pisa." % int(b.data.dps * ColonyData.level_mult(lv, 0.5))
 	if ColonyData.is_tower(b.kind):
-		return "Alcance %d m · dano %d · um disparo a cada %.1f s." % [int(b.tower_range()), int(b.tower_damage()), b.tower_rate()]
+		return "Ocupa %d aldeão · alcance %d m · dano %d · um disparo a cada %.1f s." % [int(b.data.crew), int(b.tower_range()), int(b.tower_damage()), b.tower_rate()]
 	return ""
 
 
@@ -170,16 +178,30 @@ func _build_hall() -> void:
 	_box.add_child(_line("Comida: +%d colhida, −%d consumida = %+d   (estoque: %d)" % [f.food_in, f.food_out, f.food_net, colony.food],
 		UITheme.GOOD if f.food_net >= 0 else UITheme.BAD))
 	if f.workers > colony.citizens:
-		_box.add_child(_line("Faltam trabalhadores: %d vagas e %d moradores — fazendas e mercados rendem %d%%." %
+		_box.add_child(_line("Faltam aldeões: %d vagas e %d aldeões — fazendas e mercados rendem %d%% e as torres atiram mais devagar." %
 			[f.workers, colony.citizens, int(f.eff * 100)], Color(1, 0.75, 0.45), 14))
-	_box.add_child(_line("Moradores: %d / %d. Imposto alto rende mais, mas a cidade cresce devagar." % [colony.citizens, colony.pop_cap()], UITheme.DIM, 14))
+	_box.add_child(_line("Aldeões: %d / %d (%d livres, %d ocupados). Eles não nascem sozinhos: treine mais aqui." %
+		[colony.citizens, colony.pop_cap(), colony.free_villagers(), colony.busy()], UITheme.DIM, 14))
+	var tr := _row()
+	var train := UITheme.button("Treinar aldeão — %s" % ColonyData.cost_text(ColonyData.VILLAGER_COST), func() -> void: _act(colony.train_villager()))
+	train.disabled = colony.citizens + colony.train_queue >= colony.pop_cap() or colony.missing(ColonyData.VILLAGER_COST) != ""
+	tr.add_child(train)
+	if colony.train_queue > 0:
+		tr.add_child(UITheme.label("Na fila: %d" % colony.train_queue, 15, UITheme.GOLD))
+		_train_bar = UITheme.bar(UITheme.GOLD, 200, 14)
+		_train_bar.max_value = ColonyData.VILLAGER_TIME
+		_train_bar.value = colony.train_t
+		tr.add_child(_train_bar)
+		_train_shown = colony.train_queue
+		if colony.phase != "day":
+			tr.add_child(UITheme.label("(só treina de dia)", 13, UITheme.DIM))
 	if colony.is_coop():
 		_box.add_child(_line("Em grupo cada cópia de uma construção custa mais, mercados além do %dº rendem menos e torres pedem manutenção." % ColonyData.MARKET_FREE,
 			UITheme.DIM, 14))
 	var h := _row()
 	h.add_child(UITheme.label("Imposto:", 16))
 	for i in 3:
-		var btn := UITheme.button("%s (%d/morador, +%d/dia)" % [ColonyData.TAX_NAMES[i], ColonyData.TAX[i], ColonyData.GROWTH[i]],
+		var btn := UITheme.button("%s (%d/aldeão)" % [ColonyData.TAX_NAMES[i], ColonyData.TAX[i]],
 			func() -> void:
 				colony.set_tax(i)
 				Sfx.play("click", 0.0)
@@ -206,8 +228,8 @@ func _build_hall() -> void:
 
 
 func _build_barracks() -> void:
-	_box.add_child(UITheme.section("Recrutar — exército %d / %d · moradores livres %d" %
-		[colony.soldier_count(), colony.army_cap(), colony.citizens], 18))
+	_box.add_child(UITheme.section("Recrutar — exército %d / %d · aldeões livres %d" %
+		[colony.soldier_count(), colony.army_cap(), colony.free_villagers()], 18))
 	for id in ColonyData.UNIT_ORDER:
 		var u: Dictionary = ColonyData.UNITS[id]
 		var h := _row()

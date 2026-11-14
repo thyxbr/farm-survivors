@@ -139,7 +139,7 @@ func tower_damage() -> float:
 
 
 func tower_rate() -> float:
-	return float(data.get("rate", 1.0)) * (1.0 - 0.08 * (level - 1))
+	return float(data.get("rate", 1.0)) * (1.0 - 0.08 * (level - 1)) * ColonyData.tower_rate_mult(colony.crew_eff(self))
 
 
 # ---------------------------------------------------------------- geometria da pegada

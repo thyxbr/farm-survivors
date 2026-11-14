@@ -31,7 +31,9 @@ const START_FOOD := 30
 const START_CITIZENS := 5
 const TAX := [1, 2, 3]                       # ouro por morador por dia (baixo/normal/alto)
 const TAX_NAMES := ["Baixo", "Normal", "Alto"]
-const GROWTH := [3, 2, 1]                    # novos moradores por dia, conforme o imposto
+const VILLAGER_COST := {"food": 40}         # treinar um aldeão na prefeitura
+const VILLAGER_TIME := 8.0                   # segundos de fila por aldeão
+const UNMANNED_TOWER_SLOW := 1.5             # torre sem operador atira com o intervalo multiplicado por isto
 const REFUND := 0.5                          # demolir devolve 50% do que foi gasto
 const REPAIR_RATIO := 0.4                    # reparar a construção inteira custa 40% do preço
 const MAX_LEVEL := 3
@@ -41,17 +43,17 @@ const ORDER := ["house", "farm", "market", "barracks", "wall", "gate", "spikes",
 	"archer_tower", "cannon_tower", "mage_tower"]
 
 ## size = pegada no chão (x = largura, y = profundidade), em metros.
-## pop: moradias · food/gold: produção por dia · workers: moradores empregados · army: vagas no quartel.
+## pop: moradias · food/gold: produção por dia · crew: aldeões ocupados · army: vagas no quartel.
 const BUILDINGS := {
 	"town_hall": {"name": "Prefeitura", "cost": {}, "hp": 1600, "size": Vector2(7.4, 6.4), "pop": 6, "gold": 15,
 		"desc": "O coração da cidade: abriga 6 moradores e rende 15 ouro por dia. Se cair, a cidade cai."},
 	"house": {"name": "Casa", "cost": {"gold": 30, "wood": 40}, "hp": 320, "size": Vector2(5.6, 4.6), "pop": 5,
 		"desc": "Abriga 5 moradores. Moradores pagam impostos e podem ser recrutados."},
-	"farm": {"name": "Fazenda", "cost": {"gold": 30, "wood": 50}, "hp": 240, "size": Vector2(7.0, 6.0), "food": 12, "workers": 2,
-		"desc": "Produz 12 de comida por dia. Emprega 2 moradores."},
-	"market": {"name": "Mercado", "cost": {"gold": 90, "wood": 60, "stone": 20}, "hp": 380, "size": Vector2(5.2, 5.2), "gold": 25, "workers": 2,
-		"desc": "Rende 25 ouro por dia com o comércio. Emprega 2 moradores."},
-	"barracks": {"name": "Quartel", "cost": {"gold": 100, "wood": 80, "stone": 40}, "hp": 650, "size": Vector2(6.6, 5.6), "army": 6,
+	"farm": {"name": "Fazenda", "cost": {"gold": 30, "wood": 50}, "hp": 240, "size": Vector2(7.0, 6.0), "food": 12, "crew": 2,
+		"desc": "Produz 12 de comida por dia. Ocupa 2 aldeões."},
+	"market": {"name": "Mercado", "cost": {"gold": 90, "wood": 60, "stone": 20}, "hp": 380, "size": Vector2(5.2, 5.2), "gold": 25, "crew": 2,
+		"desc": "Rende 25 ouro por dia com o comércio. Ocupa 2 aldeões."},
+	"barracks": {"name": "Quartel", "cost": {"gold": 100, "wood": 80, "stone": 40}, "hp": 650, "size": Vector2(6.6, 5.6), "army": 6, "crew": 1,
 		"desc": "Recrute o exército aqui (E). Cada quartel aloja 6 soldados."},
 	"wall": {"name": "Muro", "cost": {"gold": 4, "stone": 8}, "hp": 420, "size": Vector2(4.0, 0.9), "wall": true,
 		"desc": "Segura os monstros. Encoste um no outro para fechar a cidade."},
@@ -60,13 +62,13 @@ const BUILDINGS := {
 	"spikes": {"name": "Estacas", "cost": {"gold": 10, "wood": 20}, "hp": 200, "size": Vector2(4.0, 1.6), "dps": 16, "wall": true,
 		"desc": "Ferem e atrasam os monstros que passam por cima. Desgastam com o uso."},
 	"archer_tower": {"name": "Torre de Arqueiros", "cost": {"gold": 70, "wood": 60, "stone": 30}, "hp": 460, "size": Vector2(3.2, 3.2),
-		"range": 20.0, "damage": 14.0, "rate": 0.95, "shot": "arrow",
+		"crew": 1, "range": 20.0, "damage": 14.0, "rate": 0.95, "shot": "arrow",
 		"desc": "Dispara flechas rápidas no monstro mais próximo."},
 	"cannon_tower": {"name": "Torre de Canhão", "cost": {"gold": 120, "wood": 40, "stone": 80, "iron": 15}, "hp": 620, "size": Vector2(3.8, 3.8),
-		"range": 23.0, "damage": 40.0, "rate": 2.8, "splash": 3.2, "shot": "ball",
+		"crew": 1, "range": 23.0, "damage": 40.0, "rate": 2.8, "splash": 3.2, "shot": "ball",
 		"desc": "Balas lentas que explodem e ferem todos em volta."},
 	"mage_tower": {"name": "Torre Arcana", "cost": {"gold": 100, "wood": 40, "stone": 50, "crystal": 10}, "hp": 420, "size": Vector2(3.2, 3.2),
-		"range": 17.0, "damage": 16.0, "rate": 1.3, "slow": 2.0, "chain": 2, "shot": "bolt",
+		"crew": 1, "range": 17.0, "damage": 16.0, "rate": 1.3, "slow": 2.0, "chain": 2, "shot": "bolt",
 		"desc": "Raio gélido que deixa lento e salta para mais 2 monstros."},
 }
 
@@ -240,6 +242,11 @@ static func building(kind: String) -> Dictionary:
 
 static func is_tower(kind: String) -> bool:
 	return BUILDINGS.get(kind, {}).has("shot")
+
+
+## Intervalo entre disparos de uma torre: x1,5 (mais lento) se faltar aldeão para operá-la (eff < 1).
+static func tower_rate_mult(eff: float) -> float:
+	return 1.0 if eff >= 1.0 else UNMANNED_TOWER_SLOW
 
 
 ## Fator de melhoria por nível (vida, dano, produção).
