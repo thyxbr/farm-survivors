@@ -25,12 +25,17 @@ signal result(op: String, ok: bool, err: String)
 signal done(op: String, args: Array, ok: bool, err: String, events: Array)
 
 const SOLO_ACCOUNT := CharacterService.SOLO_ACCOUNT
+const PICKUP := preload("res://scripts/world/pickup.gd")
 ## Sessão fixa do solo (o servidor usa o peer id; aqui só existe uma).
 const SOLO_SESSION := 0
 ## Servidor: intervalo mínimo entre relatórios de vida/posição do mesmo peer (o resto é ignorado).
 const REPORT_MIN_MS := 1000
 ## Servidor: de quanto em quanto tempo grava as contas que só mudaram por relatório.
 const FLUSH_EVERY := 60.0
+## Servidor: de quanto em quanto tempo limpa os pickups expirados.
+const PURGE_EVERY := 10.0
+## seq das respostas que o servidor manda sem pedido (concessões: abate, loot, prêmios de partida).
+const PUSH_SEQ := -1
 
 var solo_db_path := "user://solo.db"
 ## Testes adiantam o relógio (horta). Vale para o serviço local e para o desenho dos canteiros.
@@ -39,6 +44,8 @@ var time_offset := 0.0
 var sandbox := false
 ## Relatórios de vida/posição enviados (o net_test confere o envio periódico).
 var reports_sent := 0
+## Cliente online: concessões tentadas no próprio cliente (bug: quem concede é o servidor). O net_test exige 0.
+var client_grant_errors := 0
 
 var _db: Db = null
 var _svc: CharacterService = null
@@ -50,6 +57,10 @@ var _report_t := 0.0
 var _test_server := false
 var _last_report := {}   # servidor: peer -> Time.get_ticks_msec() do último relatório aceito
 var _flush_t := FLUSH_EVERY
+## Servidor: loot no chão de cada jogador (pickups com net_id).
+var pickups := PickupRegistry.new()
+var _loot_rng := RandomNumberGenerator.new()
+var _purge_t := PURGE_EVERY
 
 
 func _ready() -> void:
@@ -67,6 +78,7 @@ func _ready() -> void:
 		_wipe_on_open = true
 	_test_server = "--test" in args
 	_report_t = Network.autosave_interval
+	_loot_rng.randomize()
 
 
 func now() -> float:
@@ -80,7 +92,15 @@ func request(op: String, args: Array = []) -> void:
 	if Network.is_client():
 		_seq += 1
 		_pending[_seq] = {"op": op, "args": args.duplicate(true)}
-		_econ_req.rpc_id(1, _seq, op, args)
+		if op == "claim_pickup":
+			# fora de CLIENT_OPS: o servidor confere dono, validade e distância (PickupRegistry)
+			_claim_pickup.rpc_id(1, _seq, int(args[0]) if not args.is_empty() else 0)
+		else:
+			_econ_req.rpc_id(1, _seq, op, args)
+		return
+	if op == "claim_pickup":
+		# pickup do servidor só existe online
+		_deliver(op, args, {"ok": false, "err": "op_invalida", "events": [], "state": {}})
 		return
 	if Network.is_server():
 		push_error("Econ.request no servidor: use Network.characters (%s)" % op)
@@ -95,10 +115,11 @@ func request(op: String, args: Array = []) -> void:
 
 
 ## Concessão (loot, missão, prêmio de partida). Só offline: online quem concede é o servidor
-## (Task 9) e a chamada no cliente vira erro, para achar as que ficaram para trás.
+## (server_grant/server_kill/pickups) e a chamada no cliente vira erro, para achar as que ficaram para trás.
 ## `silent` não mostra o aviso de item ganho (o antigo add_item(..., true)).
 func grant(gold: int, xp: int, items: Dictionary, source: String, silent := false) -> void:
 	if Network.is_online():
+		client_grant_errors += 1
 		push_error("concessão no cliente online: %s (ouro %d, xp %d, itens %s)" % [source, gold, xp, items])
 		return
 	var r: Dictionary
@@ -116,6 +137,7 @@ func grant(gold: int, xp: int, items: Dictionary, source: String, silent := fals
 ## Abate (XP, contagem, progresso de missão, chefe). Só offline, como grant().
 func kill(kind: String, xp: int) -> void:
 	if Network.is_online():
+		client_grant_errors += 1
 		push_error("concessão no cliente online: abate de %s (xp %d)" % [kind, xp])
 		return
 	var r: Dictionary
@@ -128,7 +150,16 @@ func kill(kind: String, xp: int) -> void:
 	_deliver("kill", [kind, xp], r)
 
 
-## Recorde de partida (horde_best/city_best) no personagem solo. Online fica com o servidor (Task 9/10).
+## Solo: uma linha de resumo da partida (Horda) no registro da economia — as coletas da partida usam a
+## origem "horde_run", que não é registrada uma a uma. Online quem grava é o servidor.
+func solo_run_summary(mode: String, gold: int, xp: int, items: Dictionary) -> void:
+	if Network.is_online() or sandbox or not ensure_solo():
+		return
+	_svc.run_summary(SOLO_ACCOUNT, mode, gold, xp, items)
+
+
+## Recorde de partida (horde_best/city_best) no personagem solo. Online só no espelho: o servidor grava
+## (CharacterService.set_record) e manda o estado.
 func set_record(key: String, value) -> void:
 	if not (key in ["horde_best", "city_best"]):
 		return
@@ -216,6 +247,10 @@ func _physics_process(delta: float) -> void:
 			_flush_t = FLUSH_EVERY
 			if Network.characters != null:
 				Network.characters.flush_dirty()
+		_purge_t -= delta
+		if _purge_t <= 0.0:
+			_purge_t = PURGE_EVERY
+			pickups.purge_expired()
 		return
 	# solo: relatório periódico (online o Network cuida, com o mesmo intervalo)
 	if Network.is_online() or sandbox or not _solo_loaded:
@@ -380,6 +415,75 @@ func server_send_initial(peer: int, account: int) -> void:
 ## Servidor: o peer saiu (esquece o relógio do relatório).
 func server_peer_gone(peer: int) -> void:
 	_last_report.erase(peer)
+	pickups.drop_peer(peer)
+
+
+## Conta do peer (0 se não está no jogo).
+func account_of(peer: int) -> int:
+	return int(Network.players[peer].get("account", 0)) if Network.players.has(peer) else 0
+
+
+## Servidor: manda ao peer o estado e os eventos de uma concessão (resposta sem pedido, seq PUSH_SEQ).
+func server_push(peer: int, r: Dictionary, extra_events: Array = []) -> void:
+	if not Network.is_server() or not Network.players.has(peer):
+		return
+	_econ_res.rpc_id(peer, PUSH_SEQ, bool(r.get("ok", false)), str(r.get("err", "")),
+		events_of(r) + extra_events, r.get("state", {}))
+
+
+## Servidor: concede ao personagem do peer e avisa o cliente. `account` > 0 serve para quem já saiu da
+## lista de jogadores (desconexão no meio da partida): aí só grava. `silent` tira os avisos de item.
+func server_grant(peer: int, gold: int, xp: int, items: Dictionary, source: String, account := 0,
+		silent := false, extra_events: Array = []) -> Dictionary:
+	if account <= 0:
+		account = account_of(peer)
+	if account <= 0 or Network.characters == null:
+		return {"ok": false, "err": "sem_sessao", "events": [], "state": {}}
+	var r := Network.characters.grant(account, gold, xp, items, source)
+	if silent:
+		r.events = r.events.filter(func(e: Dictionary) -> bool: return e.get("t") != "looted")
+	server_push(peer, r, extra_events)
+	return r
+
+
+## Servidor: abate (XP, contagem, missões, chefe) no personagem do peer.
+func server_kill(peer: int, kind: String, xp: int) -> Dictionary:
+	var account := account_of(peer)
+	if account <= 0 or Network.characters == null:
+		return {"ok": false, "err": "sem_sessao", "events": [], "state": {}}
+	var r := Network.characters.kill(account, kind, xp)
+	server_push(peer, r)
+	return r
+
+
+## Servidor: recorde de partida no personagem (só sobe) e avisa o cliente.
+func server_record(peer: int, key: String, value, account := 0) -> void:
+	if account <= 0:
+		account = account_of(peer)
+	if account <= 0 or Network.characters == null:
+		return
+	var r := Network.characters.set_record(account, key, value)
+	if r.ok:
+		server_push(peer, r)
+
+
+## Servidor: um pickup no chão só para o peer (o cliente cria o nó e pede a coleta pelo net_id).
+## Um pickup por coisa: ouro sozinho ou um item com a quantidade (como os nós do solo).
+func server_spawn_pickup(peer: int, zone: String, pos: Vector3, gold: int, items: Dictionary) -> int:
+	if not Network.players.has(peer) or (gold <= 0 and items.is_empty()):
+		return 0
+	var id := pickups.spawn(peer, zone, pos, gold, items)
+	_pickup_spawned.rpc_id(peer, id, gold, items, pos)
+	return id
+
+
+## Servidor: sorteio do loot de um inimigo (LootRules) para um jogador, em pickups (um sorteio por jogador).
+func server_drop_loot(peer: int, kind: String, pos: Vector3, zone := "world") -> void:
+	var loot := LootRules.roll(Balance.tables, kind, _loot_rng)
+	if int(loot.gold) > 0:
+		server_spawn_pickup(peer, zone, pos, int(loot.gold), {})
+	for id in loot.items:
+		server_spawn_pickup(peer, zone, pos, 0, {id: int(loot.items[id])})
 
 
 func _sender_account() -> int:
@@ -431,6 +535,31 @@ func _grant_test_gold(seq: int, amount: int) -> void:
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
 
 
+## Coleta de um pickup do servidor: confere dono, se já foi pego, validade e distância (última posição
+## recebida do jogador, na mesma zona) e concede. Loot da Horda conta para o resumo da partida.
+@rpc("any_peer", "call_remote", "reliable")
+func _claim_pickup(seq: int, net_id: int) -> void:
+	var account := _sender_account()
+	if account <= 0:
+		_reply_no_session(seq)
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	var zone := pickups.zone_of(net_id)
+	var pos: Vector3 = Network.last_pos.get(peer, Vector3.INF)
+	# a Horda acontece dentro de Valdoria (mesmas coordenadas)
+	if Network.zone_of(peer) != ("world" if zone == "horde" else zone):
+		pos = Vector3.INF
+	var c := pickups.claim(net_id, peer, pos)
+	if not c.ok:
+		_econ_res.rpc_id(peer, seq, false, str(c.err), [], {})
+		return
+	var horde := zone == "horde"
+	var r := Network.characters.grant(account, int(c.gold), 0, c.items, "horde_run" if horde else "loot")
+	if r.ok and horde and Network.horde_run != null and is_instance_valid(Network.horde_run):
+		Network.horde_run.server_note_gain(peer, int(c.gold), c.items)
+	_econ_res.rpc_id(peer, seq, r.ok, r.err, events_of(r), r.state)
+
+
 # ================================================================ cliente
 @rpc("authority", "call_remote", "reliable")
 func _balance(tables: Dictionary) -> void:
@@ -444,6 +573,30 @@ func _econ_res(seq: int, ok: bool, err: String, events: Array, state: Dictionary
 		sandbox = false
 		Game.apply_state(state, true)
 		return
+	if seq == PUSH_SEQ:
+		# concessão do servidor (abate, loot, prêmio): estado novo + eventos, sem pedido pendente
+		_finish("push", [], ok, err, events, state)
+		return
 	var req: Dictionary = _pending.get(seq, {"op": "", "args": []})
 	_pending.erase(seq)
 	_finish(str(req.op), req.args, ok, err, events, state)
+
+
+## Servidor → dono: pickup novo no chão (ouro ou um item). O nó pede a coleta com request("claim_pickup").
+@rpc("authority", "call_remote", "reliable")
+func _pickup_spawned(net_id: int, gold: int, items: Dictionary, pos: Vector3) -> void:
+	var w := Network.world
+	if w == null or not is_instance_valid(w):
+		return
+	# na Horda o loot fica dentro da partida (some com ela)
+	var parent: Node = w
+	var sv = w.get("survival")
+	if sv != null and is_instance_valid(sv) and sv.get("role") == "client":
+		parent = sv
+	if gold > 0:
+		PICKUP.spawn(parent, "", gold, pos, net_id)
+		return
+	for id in items:
+		if ItemDB.ITEMS.has(str(id)):
+			PICKUP.spawn(parent, str(id), int(items[id]), pos, net_id)
+		return

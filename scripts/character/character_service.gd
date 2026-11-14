@@ -33,6 +33,8 @@ const ARGS := {
 
 ## Concessões dessas origens acontecem a cada coleta durante a partida: o registro é um só, no fim (run_summary).
 const UNLOGGED_SOURCES := ["horde_run", "city_night"]
+## Recordes de partida que o servidor/solo grava no personagem (set_record).
+const RECORD_KEYS := ["horde_best", "city_best"]
 const SOLO_ACCOUNT := 1
 const MAX_VITAL := 10000.0
 ## Limite de cada coordenada reportada pelo cliente (o mapa é bem menor).
@@ -133,6 +135,34 @@ func kill(account_id: int, kind: String, xp: int) -> Dictionary:
 	if r.ok:
 		r = _persist(account_id, s, {}, "kill", "kill", r)
 	return _result(account_id, r)
+
+
+## Recorde de partida no personagem (servidor/solo): "city_best" (noites, int) ou "horde_best"
+## ({"round", "kills", "time", "level"}, comparado por rodada e depois abates). Só grava se for melhor.
+func set_record(account_id: int, key: String, value) -> Dictionary:
+	if not (key in RECORD_KEYS):
+		return _result(account_id, {"ok": false, "err": "chave_invalida", "events": []})
+	var s := load_or_create(account_id)
+	var old = s.flags.get(key)
+	var better := false
+	if key == "city_best":
+		value = maxi(0, int(value))
+		better = old == null or int(value) > int(old)
+	else:
+		if not (value is Dictionary):
+			return _result(account_id, {"ok": false, "err": "valor_invalido", "events": []})
+		var o: Dictionary = old if old is Dictionary else {}
+		var rnd := int(value.get("round", 0))
+		var best_round := int(o.get("round", -1))
+		better = rnd > best_round or (rnd == best_round and int(value.get("kills", 0)) > int(o.get("kills", 0)))
+	if not better:
+		return _result(account_id, {"ok": true, "err": "", "events": []})
+	s.flags[key] = value
+	if not _save(account_id, s):
+		push_error("CharacterService: recorde de %d não gravou: %s" % [account_id, _db.last_error])
+		_cache.erase(account_id)
+		return _result(account_id, {"ok": false, "err": "erro_banco", "events": []})
+	return _result(account_id, {"ok": true, "err": "", "events": []})
 
 
 ## Estado de combate reportado pelo cliente. Só vale para a sessão atual da conta (uma conexão

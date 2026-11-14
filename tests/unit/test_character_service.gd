@@ -235,3 +235,21 @@ func test_grant_test_gold_gate() -> void:
 	var r := svc.grant_test_gold(2, 100, true)
 	T.ok(r.ok and r.state.gold == 125, "com --test concede")
 	db.close()
+
+
+## Recorde de partida (horde_best/city_best) gravado pelo servidor no personagem; só sobe.
+func test_set_record() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(db, _tables())
+	T.ok(svc.set_record(2, "city_best", 3).ok, "grava city_best")
+	T.eq(svc.set_record(2, "city_best", 2).state.flags.get("city_best"), 3, "não desce")
+	T.eq(svc.set_record(2, "outra", 9).err, "chave_invalida", "só as chaves de recorde")
+	var hb := {"round": 4, "kills": 50, "time": 200, "level": 7}
+	T.ok(svc.set_record(2, "horde_best", hb).ok, "grava horde_best")
+	T.eq(svc.set_record(2, "horde_best", {"round": 2, "kills": 99}).state.flags.horde_best.round, 4, "horde_best não desce")
+	db.close()
+	var db2 := Db.open(PATH)
+	var s := CharacterService.new(db2, _tables()).load_or_create(2)
+	T.eq(int(s.flags.get("city_best", 0)), 3, "city_best persistiu")
+	T.eq(int(s.flags.get("horde_best", {}).get("round", 0)), 4, "horde_best persistiu")
+	db2.close()

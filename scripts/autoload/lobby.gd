@@ -407,6 +407,7 @@ func _end_city(reason: String, extra_peers: Array = []) -> void:
 	for pid in extra_peers:
 		if Network.players.has(pid) and not (pid in to):
 			to.append(pid)
+	_city_summaries(nights, to)
 	for pid in to:
 		var r: Dictionary = _rewards.get(pid, {"gold": 0, "xp": 0, "items": []})
 		_city_over.rpc_id(pid, {"reason": reason, "nights": nights, "kills": kills, "gold": r.gold, "xp": r.xp,
@@ -426,6 +427,24 @@ func _end_city(reason: String, extra_peers: Array = []) -> void:
 		# deixa os clientes verem a queda antes de sumir com tudo
 		await get_tree().create_timer(1.0).timeout
 		vp.queue_free()
+
+
+## Uma linha de resumo da partida por jogador que ganhou algo (as concessões da noite não são registradas
+## uma a uma) e o recorde de noites no personagem de quem viu o fim.
+func _city_summaries(nights: int, to: Array) -> void:
+	if Network.characters == null:
+		return
+	for pid in _rewards:
+		var r: Dictionary = _rewards[pid]
+		var account := int(r.get("account", 0))
+		if account <= 0 or (int(r.gold) <= 0 and int(r.xp) <= 0 and r.items.is_empty()):
+			continue
+		var items := {}
+		for id in r.items:
+			items[id] = int(items.get(id, 0)) + 1
+		Network.characters.run_summary(account, "city", int(r.gold), int(r.xp), items)
+	for pid in to:
+		Econ.server_record(pid, "city_best", nights)
 
 
 func _update_record(nights: int) -> void:
@@ -497,6 +516,7 @@ func server_city_kill(e: Enemy) -> void:
 	var xp := int(e.data.xp * 0.5 * (2.0 if e.affix != "" else 1.0))
 	for pid in e.contributors:
 		if Network.zone_of(pid) == "city":
+			Econ.server_kill(pid, e.kind, xp)
 			_city_xp.rpc_id(pid, e.kind, xp)
 
 
@@ -520,11 +540,18 @@ func city_night_survived(n: int) -> void:
 				items.append(it)
 			items.append("health_potion")
 			items.append("health_potion")
-		var acc: Dictionary = _rewards.get(pid, {"gold": 0, "xp": 0, "items": []})
-		acc.gold += int(rw.gold)
-		acc.xp += int(rw.xp)
-		acc.items.append_array(items)
+		var acc: Dictionary = _rewards.get(pid, {"gold": 0, "xp": 0, "items": [], "account": Econ.account_of(pid)})
+		var got := {}
+		for id in items:
+			got[id] = int(got.get(id, 0)) + 1
+		# o servidor concede no personagem (resumo da partida no fim, em _end_city) e só depois avisa
+		var r := Econ.server_grant(pid, int(rw.gold), int(rw.xp), got, "city_night", 0, true)
+		if r.ok:
+			acc.gold += int(rw.gold)
+			acc.xp += int(rw.xp)
+			acc.items.append_array(items)
 		_rewards[pid] = acc
+		Econ.server_record(pid, "city_best", n)
 		_city_reward.rpc_id(pid, n, int(rw.gold), int(rw.xp), items)
 	_update_record(n)
 	_broadcast_room()
@@ -746,22 +773,18 @@ func _city_shot(kind: String, from: Vector3, target_id: int, target_pos: Vector3
 
 
 @rpc("authority", "call_remote", "reliable")
-func _city_xp(kind: String, xp: int) -> void:
-	if Enemy.TYPES.has(kind):
-		Game.on_enemy_killed(kind, maxi(0, xp))
+func _city_xp(_kind: String, _xp: int) -> void:
+	# o XP e o abate chegam pelo Econ (estado do servidor); aqui só o efeito do cliente
+	Game.kill_lifesteal()
 
 
 @rpc("authority", "call_remote", "reliable")
 func _city_reward(n: int, gold: int, xp: int, items: Array) -> void:
-	Game.add_gold(gold)
-	Game.add_xp(xp)
+	# o servidor já concedeu (ouro, XP, baú e recorde chegam pelo Econ): aqui só o aviso
 	var got: Array[String] = []
 	for id in items:
-		if ItemDB.ITEMS.has(str(id)):
-			Game.add_item(str(id), 1, true)
-			if str(id) != "health_potion":
-				got.append(ItemDB.ITEMS[str(id)].name)
-	Econ.set_record("city_best", maxi(int(Game.flags.get("city_best", 0)), n))
+		if ItemDB.ITEMS.has(str(id)) and str(id) != "health_potion":
+			got.append(ItemDB.ITEMS[str(id)].name)
 	Game.notify.emit("Noite %d vencida! Recompensa: +%d ouro e +%d XP para o seu personagem." % [n, gold, xp], Color(1, 0.85, 0.35))
 	if not got.is_empty():
 		Game.notify.emit("Baú da noite %d: %s!" % [n, ", ".join(got)], ItemDB.rarity_color(str(items[0])))
@@ -775,7 +798,6 @@ func _city_reward(n: int, gold: int, xp: int, items: Array) -> void:
 func _city_over(info: Dictionary) -> void:
 	last_result = info
 	changed.emit()
-	Econ.set_record("city_best", maxi(int(Game.flags.get("city_best", 0)), int(info.get("nights", 0))))
-	save_character()
+	save_character()   # o recorde de noites vem do servidor (estado do personagem)
 	if city and city.has_method("show_results"):
 		city.show_results(info)

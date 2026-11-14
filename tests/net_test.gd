@@ -25,13 +25,12 @@ var token := ""
 var join_error := ""
 
 const TEST_PASS := "teste-1234"
-## Ganhos do personagem vindos do servidor (XP/loot de abate, prêmios da cidade): ainda não — o cliente online
-## não concede mais nada a si mesmo e a Task 9 passa esses ganhos para o servidor. Até lá as checagens
-## que dependem deles aparecem como SKIP (não somem do teste).
-const GAINS_ONLINE := false
+const PICKUP := preload("res://scripts/world/pickup.gd")
 
 ## [op, ok, err] de cada Econ.result recebido (os testes do Econ esperam a resposta do servidor por aqui).
 var econ_log: Array = []
+## Estados mandados pelo servidor sem pedido (concessões: abate, loot, prêmios).
+var pushes := 0
 
 
 func check(cond: bool, what: String) -> void:
@@ -72,7 +71,10 @@ func _ready() -> void:
 	Network.join_failed.connect(func(r: String) -> void: join_error = r)
 	# o personagem vem do servidor; o solo.db deste processo de teste fica num arquivo à parte
 	Econ.solo_db_path = "user://nettest_solo_%s%s.db" % [my_name, "_2" if second else ""]
-	Econ.result.connect(func(op: String, ok: bool, err: String) -> void: econ_log.append([op, ok, err]))
+	Econ.result.connect(func(op: String, ok: bool, err: String) -> void:
+		econ_log.append([op, ok, err])
+		if op == "push":
+			pushes += 1)
 	if not second:
 		var reg: Dictionary = await Auth.register(address, my_name, TEST_PASS)
 		check(reg.ok or reg.err == "nome_em_uso", "cadastro da conta de teste (%s)" % reg.get("err", "201"))
@@ -207,20 +209,32 @@ func _ready() -> void:
 		target.take_damage(9999.0, w.player.global_position, false)
 		await wait(0.8)
 		check(not is_instance_valid(target) or target.dead, "slime morreu em todos")
-		if GAINS_ONLINE:
-			check(Game.kills == kills0 + 1 and Game.xp + Game.level * 100000 > xp0, "recebeu XP e abate (%d abates)" % Game.kills)
-		else:
-			_skip("recebeu XP e abate")
-		await wait(1.0)
-		var drops := 0
+		# XP, abate e loot vêm do servidor: o espelho só muda pelo estado que ele manda (push do Econ)
+		check(await _wait_until(func() -> bool: return Game.kills == kills0 + 1, 3.0)
+			and Game.xp + Game.level * 100000 > xp0, "servidor deu XP e abate (%d abates, push %d)" % [Game.kills, pushes])
+		check(pushes > 0, "estado novo chegou do servidor sem pedido (push)")
+		# o pickup é do servidor: aparece com net_id e, ao pegar (o ímã coleta, o jogador está ao lado),
+		# o servidor confere e concede
+		var inv0 := _inv_total()
+		var from := econ_log.size()
+		var seen := [0]
+		await _wait_until(func() -> bool:
+			for n in w.get_children():
+				if n.get_script() == PICKUP and int(n.net_id) > 0:
+					seen[0] = maxi(seen[0], int(n.net_id))
+			return seen[0] > 0 or _claims_ok(from) > 0, 3.0)
+		check(seen[0] > 0 or _claims_ok(from) > 0, "pickup do servidor apareceu (net_id %d)" % seen[0])
 		for n in w.get_children():
-			if n.get_script() == preload("res://scripts/world/pickup.gd"):
-				drops += 1
-		# o jogador está ao lado: o ímã das moedas costuma coletar na hora
-		if GAINS_ONLINE:
-			check(drops >= 1 or Game.gold > gold0, "loot pessoal (%d no chão, ouro %d → %d)" % [drops, gold0, Game.gold])
-		else:
-			_skip("loot pessoal (%d no chão)" % drops)
+			if n.get_script() == PICKUP and int(n.net_id) > 0:
+				n.global_position = w.player.global_position + Vector3.UP * 0.8   # garante a coleta
+		check(await _wait_until(func() -> bool: return _claims_ok(from) > 0 and Game.gold > gold0, 5.0),
+			"pegou o loot pessoal: servidor concede ouro (%d → %d, itens %d → %d)" % [gold0, Game.gold, inv0, _inv_total()])
+		await wait(0.5)
+		var pending := 0
+		for n in w.get_children():
+			if n.get_script() == PICKUP and int(n.net_id) > 0:
+				pending += 1
+		check(pending == 0 or _claims_ok(from) >= 1, "pickups coletados (%d no chão)" % pending)
 
 	# flecha (projétil) acerta um inimigo réplica: o dano passa pelo servidor
 	var tgt: Enemy = null
@@ -263,8 +277,28 @@ func _ready() -> void:
 
 
 # ---------------------------------------------------------------- personagem no servidor (Econ)
-func _skip(what: String) -> void:
-	print("SKIP  [%s] %s — ganho online fica para a Task 9" % [my_name, what])
+## Quantas coletas de pickup o servidor aceitou depois de econ_log[from].
+func _claims_ok(from: int) -> int:
+	var n := 0
+	for i in range(from, econ_log.size()):
+		if econ_log[i][0] == "claim_pickup" and econ_log[i][1]:
+			n += 1
+	return n
+
+
+func _seed_total() -> int:
+	var n := 0
+	for slot in Game.inventory:
+		if str(slot.id).begins_with("seed_"):
+			n += int(slot.qty)
+	return n
+
+
+func _inv_total() -> int:
+	var n := 0
+	for slot in Game.inventory:
+		n += int(slot.qty)
+	return n
 
 
 ## Espera `n` respostas da operação `op` chegarem depois de econ_log[from]. Devolve [[ok, err], ...].
@@ -572,13 +606,16 @@ func _test_horde(w: Node) -> void:
 		await wait(1.0)
 		check(w.survival == sv and sv.phase != "over", "continua no desafio enquanto o grupo luta")
 
-	# fim da rodada: cada um escolhe a bênção
+	# fim da rodada: cada um escolhe a bênção (as sementes chegam do servidor)
+	var seeds0 := _seed_total()
 	var got_round: bool = await _wait_until(func() -> bool:
 		if w.modal != null and w.modal.get("mode") == "levelup" and w.modal._lock <= 0.0:
 			w.modal._pick(0)
 		return w.modal != null and w.modal.get("mode") == "round", 30.0)
 	check(got_round and sv.rounds_cleared == 1, "fim da rodada abre a bênção")
 	check(not p.dead, "jogador de pé no fim da rodada")
+	check(await _wait_until(func() -> bool: return sv.seeds_won >= 1 and _seed_total() > seeds0, 3.0),
+		"sementes da rodada concedidas pelo servidor (%d, mochila %d → %d)" % [sv.seeds_won, seeds0, _seed_total()])
 	await wait(0.45)
 	if w.modal != null and w.modal.get("mode") == "round":
 		w.modal._pick(0)
@@ -591,9 +628,14 @@ func _test_horde(w: Node) -> void:
 		await wait(2.5)
 		check(w.survival == sv and sv.phase == "fight" and sv.team.size() == 1, "segue na partida depois que o colega saiu")
 		await _pick_levelups(w)
+	var end_xp0 := Game.xp + Game.level * 100000
 	sv.end_run("retreat")
 	await wait(0.3)
 	check(w.modal != null and w.modal.get("mode") == "results", "resultados ao se retirar")
+	check(await _wait_until(func() -> bool: return Game.xp + Game.level * 100000 > end_xp0, 3.0),
+		"XP do fim da partida concedido pelo servidor (+%d)" % sv.rewards.get("xp", 0))
+	check(await _wait_until(func() -> bool: return Game.flags.has("horde_best"), 3.0),
+		"recorde da horda salvo no personagem (%s)" % str(Game.flags.get("horde_best")))
 	await wait(0.45)
 	if w.modal != null:
 		w.modal._finish()
@@ -693,15 +735,10 @@ func _test_city() -> void:
 	check(c.phase == "day" and c.day == 2, "amanheceu: dia %d" % c.day)
 	check(killed > 0 and c.total_kills > 0, "abates contados pelo servidor (%d)" % c.total_kills)
 	var rw := ColonyData.night_reward(1)
-	if GAINS_ONLINE:
-		check(await _wait_until(func() -> bool: return Game.gold >= rgold + int(rw.gold), 5.0),
-			"recompensa da noite no personagem (+%d ouro: %d → %d)" % [rw.gold, rgold, Game.gold])
-		check(Game.xp + Game.level * 100000 > rxp, "recompensa de XP no personagem")
-		check(int(Game.flags.get("city_best", 0)) >= 1, "melhor noite salva no personagem")
-	else:
-		_skip("recompensa da noite no personagem (+%d ouro)" % rw.gold)
-		_skip("recompensa de XP no personagem")
-		_skip("melhor noite salva no personagem")
+	check(await _wait_until(func() -> bool: return Game.gold >= rgold + int(rw.gold), 5.0),
+		"recompensa da noite no personagem (+%d ouro: %d → %d)" % [rw.gold, rgold, Game.gold])
+	check(Game.xp + Game.level * 100000 > rxp, "recompensa de XP no personagem")
+	check(int(Game.flags.get("city_best", 0)) >= 1, "melhor noite salva no personagem")
 
 	# --- volta ao salão: o join sai primeiro, o líder em seguida (a partida acaba quando todos saem)
 	await wait(0.5 if city_role == "join" else 2.5)
@@ -804,6 +841,9 @@ func _build_size(sv) -> int:
 
 
 func _finish() -> void:
+	if not probe:
+		# o cliente online nunca concede a si mesmo (Econ.grant/kill online = push_error)
+		check(Econ.client_grant_errors == 0, "nenhuma concessão no cliente online (%d)" % Econ.client_grant_errors)
 	print("[%s] %s (%d falhas)" % [my_name, "NETTEST OK" if fails == 0 else "NETTEST FALHOU", fails])
 	if token != "" and not relogin and OS.get_cmdline_user_args().has("--token=" + token):
 		# processo da segunda conexão: o primeiro lê o resultado deste arquivo

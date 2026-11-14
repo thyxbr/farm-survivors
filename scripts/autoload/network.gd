@@ -59,6 +59,8 @@ var last_error := ""
 var world: Node = null
 var enemies := {}         # net_id -> Enemy (servidor: reais; cliente: réplicas)
 var remote_players := {}  # peer_id -> Player (réplica)
+## Servidor: última posição recebida de cada jogador na zona atual (coleta de pickups confere a distância).
+var last_pos := {}        # peer_id -> Vector3
 
 ## Servidor: banco SQLite, contas e API HTTP de login (abertos em start_server).
 var db: Db = null
@@ -225,6 +227,7 @@ func _drop_player(id: int) -> void:
 	var was_city: bool = players[id].get("zone", "") == "city"
 	var account := int(players[id].get("account", 0))
 	players.erase(id)
+	last_pos.erase(id)
 	_remove_remote_player(id)
 	for pid in _all_peers():
 		_player_left.rpc_id(pid, id)
@@ -306,6 +309,7 @@ func server_set_zone(id: int, zone: String) -> void:
 		return
 	var old: String = players[id].get("zone", "lobby")
 	_remove_remote_player(id)
+	last_pos.erase(id)   # outra zona, outras coordenadas
 	players[id].zone = zone
 	players[id].ready = true
 	if old != zone:
@@ -454,9 +458,12 @@ func server_enemy_killed(e: Enemy) -> void:
 		# cidade em grupo: o ouro vai para o cofre e quem acertou ganha XP (sem loot no chão)
 		Lobby.server_city_kill(e)
 	elif not e.horde:
-		# a horda não dá XP/loot do RPG: as gemas vêm pelo _horde_kill do modo sobrevivência
+		# a horda não dá XP/loot do RPG: as gemas vêm pelo _horde_kill do modo sobrevivência.
+		# Cada jogador que acertou ganha o abate no personagem (servidor) e o próprio sorteio de loot.
 		for pid in e.contributors:
-			if players.has(pid):
+			if players.has(pid) and zone_of(pid) == "world":
+				Econ.server_kill(pid, e.kind, int(e.data.xp))
+				Econ.server_drop_loot(pid, e.kind, pos, "world")
 				_kill_reward.rpc_id(pid, e.kind, int(e.data.xp), pos)
 	for pid in _enemy_peers(e):
 		_enemy_died.rpc_id(pid, e.net_id)
@@ -916,11 +923,9 @@ func _enemy_died(net_id: int) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _kill_reward(kind: String, xp: int, pos: Vector3) -> void:
-	# Task 9: XP e loot passam a ser concedidos pelo servidor; até lá o Econ recusa no cliente (push_error)
-	Game.on_enemy_killed(kind, xp)
-	if world:
-		ENEMY.drop_loot(world, kind, pos)
+func _kill_reward(_kind: String, _xp: int, _pos: Vector3) -> void:
+	# só o efeito no cliente: XP e abate chegam pelo Econ (estado do servidor) e o loot por _pickup_spawned
+	Game.kill_lifesteal()
 
 
 # ---------------------------------------------------------------- réplicas de jogadores
@@ -928,6 +933,7 @@ func _apply_remote_state(id: int, pos: Vector3, yaw: float, vel: Vector3, flags:
 	# servidor: a réplica fica na zona do jogador (Valdoria ou a cidade); cliente: só quem está na mesma zona
 	var parent: Node = world
 	if is_server():
+		last_pos[id] = pos
 		parent = Lobby.server_city_root() if zone_of(id) == "city" else world
 	elif zone_of(id) != zone_of(multiplayer.get_unique_id()):
 		return

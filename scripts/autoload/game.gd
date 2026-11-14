@@ -493,9 +493,14 @@ func complete_quest(id: String) -> void:
 
 ## Abate: a cura da comida (roubo de vida) é do combate, do cliente; XP e missão são do Econ.
 func on_enemy_killed(kind: String, xp_reward: int) -> void:
+	kill_lifesteal()
+	Econ.kill(kind, xp_reward)
+
+
+## Roubo de vida da comida ao abater (combate é do cliente; online o abate em si é do servidor).
+func kill_lifesteal() -> void:
 	if float(food_mods.get("lifesteal", 0.0)) > 0.0 and hp > 0.0:
 		hp = min(max_hp(), hp + float(food_mods.lifesteal))
-	Econ.kill(kind, xp_reward)
 
 
 ## Renascer na vila: o ouro perdido é calculado pelas regras.

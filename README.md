@@ -321,6 +321,6 @@ e se retiram); sem ele o teste pula essa parte. Com `--peers=2` também testa o 
 Cobre conexão, inimigos replicados (snapshots a 20/s), ver o outro jogador, dano pelo servidor, morte, XP, loot
 e a horda em grupo.
 `--test` no servidor aceita o pedido de ouro de teste do `net_test` (Ana: compra, compra dupla, op forjada e
-reconexão); sem ele o pedido é recusado. Até a Task 9 os ganhos online (XP/loot de abate, prêmios da cidade)
-aparecem como `SKIP` no teste.
+reconexão); sem ele o pedido é recusado. XP, abate, loot (pickups com `net_id`, coleta conferida pelo servidor),
+sementes/XP da horda e prêmios da cidade vêm do servidor; o teste falha se o cliente tentar conceder a si mesmo.
 `--netstats` no servidor imprime jogadores, fps e snapshots/s a cada 5 s.

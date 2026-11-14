@@ -698,16 +698,16 @@ func _update_flash(delta: float) -> void:
 
 func _die() -> void:
 	if Network.is_server():
-		# XP, missões e loot são de cada jogador: quem acertou recebe no próprio PC
+		# XP, missões e loot de cada jogador que acertou: o servidor concede (CharacterService + pickups)
 		Network.server_enemy_killed(self)
 	elif siege:
-		# cerco: o ouro vai direto para o cofre da cidade (os abates acontecem longe do jogador)
+		# cerco (cidade solo): o ouro vai direto para o cofre (os abates acontecem longe do jogador)
 		Game.on_enemy_killed(kind, int(data.xp * 0.6))
-		var g: Array = data.gold
-		Game.add_gold(randi_range(g[0], g[1]))
-		drop_loot(get_parent(), kind, global_position, false)
+		var loot := LootRules.roll(Balance.tables, kind, _loot_rng())
+		Game.add_gold(int(loot.gold))
+		_spawn_loot(get_parent(), global_position, 0, loot.items)
 	elif not horde:
-		# XP, missão e o chefe derrotado (king_dead) ficam com as regras (Econ.kill)
+		# solo: XP, missão e o chefe derrotado (king_dead) ficam com as regras (Econ.kill)
 		Game.on_enemy_killed(kind, data.xp)
 		drop_loot(get_parent(), kind, global_position)
 	die_visual()
@@ -737,22 +737,28 @@ func die_visual() -> void:
 	tw.tween_callback(queue_free)
 
 
+## Solo: sorteio do loot (LootRules, o mesmo do servidor) em pickups no chão.
 static func drop_loot(parent: Node, enemy_kind: String, pos: Vector3, with_gold := true) -> void:
-	var t: Dictionary = TYPES[enemy_kind]
-	var g: Array = t.gold
-	if with_gold:
-		_spawn_pickup(parent, "", randi_range(g[0], g[1]), pos)
-	for entry in t.loot:
-		if randf() < entry[1]:
-			_spawn_pickup(parent, entry[0], 1, pos)
+	var loot := LootRules.roll(Balance.tables, enemy_kind, _loot_rng())
+	_spawn_loot(parent, pos, int(loot.gold) if with_gold else 0, loot.items)
 
 
-static func _spawn_pickup(parent: Node, id: String, qty: int, pos: Vector3) -> void:
-	var p := PICKUP.new()
-	p.item_id = id
-	p.amount = qty
-	parent.add_child(p)
-	p.global_position = pos + Vector3.UP * 0.8
+static func _spawn_loot(parent: Node, pos: Vector3, gold: int, items: Dictionary) -> void:
+	if gold > 0:
+		PICKUP.spawn(parent, "", gold, pos + Vector3.UP * 0.8)
+	for id in items:
+		for i in int(items[id]):
+			PICKUP.spawn(parent, id, 1, pos + Vector3.UP * 0.8)
+
+
+static var _rng: RandomNumberGenerator = null
+
+
+static func _loot_rng() -> RandomNumberGenerator:
+	if _rng == null:
+		_rng = RandomNumberGenerator.new()
+		_rng.randomize()
+	return _rng
 
 
 # ------------------------------------------------------------ cerco (Defesa da Cidade)
