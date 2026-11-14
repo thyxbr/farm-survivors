@@ -212,10 +212,10 @@ func records() -> Dictionary:
 
 
 ## Solo: maiores doadores de uma construção ([{"name", "amount"}]). Online [] (vem em Hub.base).
-func top_donors(id: String) -> Array:
+func top_donors(id: String, limit := 5) -> Array:
 	if Network.is_online() or not ensure_solo():
 		return []
-	return _svc.top_donors(id)
+	return _svc.top_donors(id, limit)
 
 
 ## Recorde de partida (horde_best/city_best) no personagem solo. Online só no espelho: o servidor grava

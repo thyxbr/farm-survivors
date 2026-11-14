@@ -35,7 +35,7 @@ func refresh_solo() -> void:
 		return
 	var st := Econ.base_state()
 	for id in st:
-		st[id]["donors"] = Econ.top_donors(id)
+		st[id]["donors"] = Econ.top_donors(id, TOP_DONORS)
 	base = st
 	records = Econ.records()
 	changed.emit()
@@ -103,7 +103,7 @@ func server_base_changed(account: int, events: Array) -> void:
 		if not (e is Dictionary) or e.get("t") != "donated" or int(e.get("leveled", 0)) <= 0:
 			continue
 		var id := str(e.get("building", ""))
-		var text := "A %s subiu para o nível %d! (doação de %s)" % [
+		var text := "%s subiu para o nível %d! (doação de %s)" % [
 			str(defs.get(id, {}).get("name", id)), int(e.get("level", 0)), who]
 		print("[server] %s" % text)
 		for pid in Network._all_peers():
@@ -121,6 +121,9 @@ func _enter_hub() -> void:
 	var id := multiplayer.get_remote_sender_id()
 	if not Network.is_server() or not Network.players.has(id):
 		return
+	if Network.zone_of(id) == "hub" and Network.players[id].ready:
+		server_send_state(id)   # já está na praça: pedido repetido só reenvia o estado (barato contra spam)
+		return
 	Network.server_set_zone(id, "hub")
 	# quem já está na praça é apresentado ao recém-chegado (nome e visual das réplicas)
 	for pid in Network.zone_peers("hub"):
@@ -128,6 +131,9 @@ func _enter_hub() -> void:
 			Network._player_joined.rpc_id(id, pid, Network.players[pid])
 	server_send_state(id)
 	Lobby._room_state.rpc_id(id, Lobby._room_view(), Lobby._record)
+	# fila da Horda aberta: quem chega à praça também vê o convite (como no _client_ready)
+	if not Network._lobby.is_empty():
+		Network._horde_lobby.rpc_id(id, Network._lobby_state())
 
 
 # ================================================================ cliente
