@@ -72,6 +72,8 @@ var _loot_rng := RandomNumberGenerator.new()
 var _purge_t := PURGE_EVERY
 var _req_limit := TokenBuckets.new(REQ_BURST, REQ_RATE)
 var _claim_limit := TokenBuckets.new(CLAIM_BURST, CLAIM_RATE)
+## Coleta de ferro e cristal em Valdoria: quando cada conta pode coletar cada veio de novo.
+var _gather := WorldHarvest.new()
 
 
 func _ready() -> void:
@@ -133,6 +135,45 @@ func request(op: String, args: Array = []) -> void:
 	_deliver(op, args, r)
 	if op == "donate" and r.ok:
 		Hub.refresh_solo()   # a base mudou: a praça redesenha (online quem avisa é o servidor)
+
+
+## Ecos para o personagem de demonstração (só solo; usado pelas opções de depuração do Game).
+func demo_ecos(amount: int) -> void:
+	if Network.is_online() or not ensure_solo():
+		return
+	_deliver("test_ecos", [amount], _svc.grant_test_ecos(SOLO_ACCOUNT, amount, true))
+
+
+## Coleta de um veio de ferro ou cristal de Valdoria (nó `id` de world_nodes; ver WorldHarvest).
+## Solo: confere e concede na hora, com `from` = posição do jogador. Online: o servidor decide com a
+## última posição que recebeu do jogador (precisa estar em Valdoria). Resposta como op "gather".
+func gather_node(id: int, from: Vector3) -> void:
+	if Network.is_client():
+		_seq += 1
+		_pending[_seq] = {"op": "gather", "args": [id]}
+		_gather_node.rpc_id(1, _seq, id)
+		return
+	if Network.is_server():
+		push_error("Econ.gather_node no servidor")
+		return
+	if not ensure_solo():
+		_deliver("gather", [id], {"ok": false, "err": "sem_banco", "events": [], "state": {}})
+		return
+	var g := _gather.gather(Balance.tables, SOLO_ACCOUNT, id, from, now())
+	if not g.ok:
+		_deliver("gather", [id], {"ok": false, "err": g.err, "events": _gather_refusal(g.err), "state": {}})
+		return
+	var r := _svc.grant(SOLO_ACCOUNT, 0, 0, g.items, "gather")
+	if not r.ok:
+		_gather.undo(SOLO_ACCOUNT, id)
+	_deliver("gather", [id], r)
+
+
+## Aviso de coleta recusada (só o caso que o jogador honesto encontra: o veio dele ainda não voltou).
+func _gather_refusal(err: String) -> Array:
+	if err == "esgotado":
+		return [CharRules._notify("Este veio ainda não se recuperou.", CharRules.C_BAD)]
+	return []
 
 
 ## Concessão (loot, missão, prêmio de partida). Só offline: online quem concede é o servidor
@@ -247,6 +288,15 @@ func request_test_ecos(amount: int) -> void:
 	_grant_test_ecos.rpc_id(1, _seq, amount)
 
 
+## Cliente online, servidor em --test: pede itens de teste (resposta como op "test_items").
+func request_test_items(items: Dictionary) -> void:
+	if not Network.is_client():
+		return
+	_seq += 1
+	_pending[_seq] = {"op": "test_items", "args": [items]}
+	_grant_test_items.rpc_id(1, _seq, items)
+
+
 func pending_count() -> int:
 	return _pending.size()
 
@@ -269,10 +319,10 @@ func report_vitals(pos: Vector3, yaw: float) -> void:
 		if multiplayer.multiplayer_peer == null or \
 				multiplayer.multiplayer_peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
 			return
-		_econ_report.rpc_id(1, Game.hp, Game.mp, pos, yaw)
+		_econ_report.rpc_id(1, Game.hp, Game.mp, pos, yaw, Game.fury)
 		reports_sent += 1
 	elif not Network.is_online() and _solo_loaded and _svc != null:
-		_svc.report(SOLO_ACCOUNT, SOLO_SESSION, Game.hp, Game.mp, pos, yaw)
+		_svc.report(SOLO_ACCOUNT, SOLO_SESSION, Game.hp, Game.mp, pos, yaw, Game.fury)
 		_svc.save(SOLO_ACCOUNT)
 		reports_sent += 1
 
@@ -565,6 +615,8 @@ func _econ_req(seq: int, op: String, args: Array) -> void:
 		return
 	var r := Network.characters.apply(account, op, args)
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
+	if r.ok and op in ["enchant", "equip", "unequip"]:
+		Network.server_refresh_look(peer)   # o brilho que os outros veem acompanha o que foi gravado
 	if op == "donate" and r.ok:
 		# a base é de todos: o servidor manda o estado novo a quem está conectado
 		Hub.server_base_changed(account, r.events)
@@ -573,7 +625,7 @@ func _econ_req(seq: int, op: String, args: Array) -> void:
 ## Só atualiza o cache (CharacterService.report); grava no próximo pedido, na saída ou no flush periódico.
 ## Um relatório por segundo por peer, no máximo (os legítimos vêm a cada autosave ou troca de zona).
 @rpc("any_peer", "call_remote", "reliable")
-func _econ_report(hp: float, mp: float, pos: Vector3, yaw: float) -> void:
+func _econ_report(hp: float, mp: float, pos: Vector3, yaw: float, fury: float) -> void:
 	var account := _sender_account()
 	if account <= 0:
 		return
@@ -582,7 +634,7 @@ func _econ_report(hp: float, mp: float, pos: Vector3, yaw: float) -> void:
 	if _last_report.has(peer) and now_ms - int(_last_report[peer]) < REPORT_MIN_MS:
 		return
 	_last_report[peer] = now_ms
-	Network.characters.report(account, peer, hp, mp, pos, yaw)
+	Network.characters.report(account, peer, hp, mp, pos, yaw, fury)
 
 
 ## Só com o servidor em --test (net_test): ouro para os testes de compra.
@@ -604,6 +656,17 @@ func _grant_test_ecos(seq: int, amount: int) -> void:
 		_reply_no_session(seq)
 		return
 	var r := Network.characters.grant_test_ecos(account, amount, _test_server)
+	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
+
+
+## Só com o servidor em --test (net_test): materiais para o teste de encantamento.
+@rpc("any_peer", "call_remote", "reliable")
+func _grant_test_items(seq: int, items: Dictionary) -> void:
+	var account := _sender_account()
+	if account <= 0:
+		_reply_no_session(seq)
+		return
+	var r := Network.characters.grant_test_items(account, items, _test_server)
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
 
 
@@ -637,6 +700,31 @@ func _claim_pickup(seq: int, net_id: int) -> void:
 		return
 	if horde and Network.horde_run != null and is_instance_valid(Network.horde_run):
 		Network.horde_run.server_note_gain(peer, int(c.gold), c.items)
+	_econ_res.rpc_id(peer, seq, r.ok, r.err, events_of(r), r.state)
+
+
+## Coleta de um veio de Valdoria: confere zona, distância (última posição recebida do jogador) e o tempo
+## de volta do veio para aquela conta, e concede o material.
+@rpc("any_peer", "call_remote", "reliable")
+func _gather_node(seq: int, id: int) -> void:
+	var account := _sender_account()
+	if account <= 0:
+		_reply_no_session(seq)
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	if not _claim_limit.allow(peer, Time.get_ticks_msec() / 1000.0):
+		_econ_res.rpc_id(peer, seq, false, "devagar", [], {})
+		return
+	var pos: Vector3 = Network.last_pos.get(peer, Vector3.INF)
+	if Network.zone_of(peer) != "world":
+		pos = Vector3.INF   # na praça ou na cidade não há veios
+	var g := _gather.gather(Balance.tables, account, id, pos, now())
+	if not g.ok:
+		_econ_res.rpc_id(peer, seq, false, str(g.err), _gather_refusal(g.err), {})
+		return
+	var r := Network.characters.grant(account, 0, 0, g.items, "gather")
+	if not r.ok:
+		_gather.undo(account, id)
 	_econ_res.rpc_id(peer, seq, r.ok, r.err, events_of(r), r.state)
 
 

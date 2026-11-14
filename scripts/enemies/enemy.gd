@@ -55,6 +55,10 @@ var attack_kind := "swing"
 var attack_count := 0
 var hit_done := false
 var slow_timer := 0.0
+## Marca tóxica (arma encantada com Veneno): enquanto venom_timer > 0, todo dano recebido vale
+## (1 + venom_amp). Estado do dono do inimigo (servidor ou solo); as réplicas pedem por apply_venom.
+var venom_amp := 0.0
+var venom_timer := 0.0
 var stagger := 0.0
 ## Segundos em que o inimigo segue perseguindo depois de levar dano, mesmo com o jogador longe.
 ## Sem isso, um acerto de longe (ou, no servidor, antes de chegar a posição nova do jogador)
@@ -291,6 +295,7 @@ func _physics_process(delta: float) -> void:
 	born_t += delta
 	attack_cd = max(0.0, attack_cd - delta)
 	slow_timer = max(0.0, slow_timer - delta)
+	venom_timer = maxf(0.0, venom_timer - delta)
 	stagger = max(0.0, stagger - delta)
 	provoked = maxf(0.0, provoked - delta)
 	_update_flash(delta)
@@ -596,13 +601,14 @@ func _explode(visual: bool) -> void:
 
 
 # ------------------------------------------------------------ dano
-func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0) -> void:
+func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun := 0.0, pull := 0.0) -> void:
 	if dead:
 		return
 	if puppet:
 		# o servidor decide; os números de dano chegam de volta em show_hit()
-		Network.client_hit_enemy(net_id, amount, from_pos, crit, slow)
+		Network.client_hit_enemy(net_id, amount, from_pos, crit, slow, stun, pull)
 		return
+	amount = incoming(amount)
 	if last_hitter != 0:
 		contributors[last_hitter] = true
 	if slow > 0.0:
@@ -627,7 +633,8 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0) -> v
 		var kb := global_position - from_pos
 		kb.y = 0
 		if kb.length() > 0.01:
-			kb = kb.normalized() * (6.0 if data.model == "slime" else 4.0) * (0.3 if heavy else 1.0)
+			# `pull` > 0: em vez de empurrar, puxa (m/s) em direção a quem bateu (Turbilhão)
+			kb = kb.normalized() * ((-pull) if pull > 0.0 else (6.0 if data.model == "slime" else 4.0)) * (0.3 if heavy else 1.0)
 			velocity.x = kb.x
 			velocity.z = kb.z
 		if (state != "attack" and not heavy) or (crit and attack_kind != "fuse"):
@@ -642,6 +649,38 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0) -> v
 			get_parent().call_deferred("summon_minions", global_position, 2)
 	if hp <= 0:
 		_die()
+	elif stun > 0.0:
+		apply_stun(stun)
+
+
+## Atordoamento: para de andar por t segundos e perde o golpe em andamento (chefes são imunes).
+func apply_stun(t: float) -> void:
+	if puppet:
+		Network.client_hit_enemy(net_id, 0.0, global_position, false, 0.0, t)
+		return
+	if dead or is_boss:
+		return
+	stagger = max(stagger, t)
+	attack_cd = max(attack_cd, t)   # sem golpe novo durante o atordoamento (o stagger de um golpe comum fica como está)
+	if state == "attack":
+		_set_state("chase")
+
+
+## Dano que este inimigo leva de um acerto de `amount` (maior se estiver com a marca tóxica).
+func incoming(amount: float) -> float:
+	return amount * (1.0 + venom_amp) if venom_timer > 0.0 else amount
+
+
+## Marca tóxica: por `secs` segundos, todo dano recebido vale (1 + amp). Não empilha: fica a mais forte.
+func apply_venom(amp: float, secs: float) -> void:
+	if puppet:
+		Network.client_mark_enemy(net_id, amp, secs)
+		return
+	if amp <= 0.0 or secs <= 0.0:
+		return
+	if venom_timer <= 0.0 or amp >= venom_amp:
+		venom_amp = amp
+	venom_timer = maxf(venom_timer, secs)
 
 
 func apply_slow(t: float) -> void:

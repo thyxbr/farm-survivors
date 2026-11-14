@@ -186,15 +186,17 @@ static func _add_xp(s: CharState, bt: BalanceTables, amount: int, ev: Array) -> 
 	s.xp += amount
 	ev.append(_notify("+%d XP" % amount, Color(0.6, 0.85, 1.0)))
 	var pts := int(_rules(bt).get("points_per_level", 3))
-	var spells := bt.get_table("spells")
+	var weapon_cls := weapon_class(bt, str(s.equipment.get("weapon", "")))
 	while s.xp >= xp_to_next(s.level, bt):
 		s.xp -= xp_to_next(s.level, bt)
 		s.level += 1
 		s.stat_points += pts
 		ev.append(_notify("Nível %d! +%d pontos de atributo (C)" % [s.level, pts], Color(1.0, 0.85, 0.3)))
-		for id in spells:
-			if int(spells[id].get("level", 0)) == s.level:
-				ev.append(_notify("Nova magia: %s [%s]" % [spells[id].name, spells[id].key], Color(0.75, 0.55, 1.0)))
+		# o kit em ItemDB.ABILITIES é a fonte do que libera em cada nível (só da classe da arma equipada e já pronta)
+		for id in ItemDB.ABILITIES:
+			var ab: Dictionary = ItemDB.ABILITIES[id]
+			if ab["class"] == weapon_cls and int(ab.level) == s.level and ab.ready:
+				ev.append(_notify("Nova habilidade: %s [%d]" % [ab.name, ab.slot], Color(0.75, 0.55, 1.0)))
 		ev.append({"t": "level_up", "level": s.level})
 
 

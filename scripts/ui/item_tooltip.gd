@@ -89,6 +89,10 @@ static func build_text(id: String, context := "bag") -> String:
 		if it.has("damage"):
 			t += "[font_size=26]%d[/font_size] [color=#%s]Dano[/color]\n" % [it.damage, dim]
 			t += "[color=#%s]%s[/color]\n" % [dim, ItemDB.CLASS_HINT[ItemDB.weapon_class(id)]]
+			var ench := Game.enchant_of(id)
+			if ench.lv > 0:   # encanto do ferreiro, na cor do elemento
+				var ec: Color = EnchantFX.ELEMENTS.get(ench.el, {}).get("color", Color.WHITE)
+				t += "[color=#%s]✦ %s[/color]\n" % [_hex(ec), Game.enchant_text(id)]
 		if it.get("defense", 0) > 0:
 			t += "[font_size=26]%d[/font_size] [color=#%s]Defesa[/color]\n" % [it.defense, dim]
 		var st := ItemDB.item_stats(id)
