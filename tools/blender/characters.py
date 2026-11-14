@@ -235,6 +235,7 @@ def pouch(name, loc, mat_bag, mat_flap, parent, size=(0.08, 0.06, 0.09), rotz=0.
 
 exec(open(OUT.replace("assets/models/", "tools/blender/head.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/body.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/rig.py"), encoding="utf-8").read(), globals())
 
 
 # ================================================================== CAVALEIRO
@@ -524,6 +525,14 @@ def build_knight():
 
 
 # ================================================================== ANCIÃO (NPC)
+# Bram com esqueleto (rig.py): as mesmas peças, cores e proporções do Bram de peças rígidas, juntadas numa malha
+# só. Os braços (modelados caídos ao lado do corpo) são girados em volta do ombro e do cotovelo até a pose T;
+# o clipe staff_hold os devolve exatamente à posição modelada. Túnica, manto e acessórios do tronco usam um
+# campo de pesos só (robe_field): gradiente no tronco e, abaixo do quadril, quadril cedendo às coxas.
+# O cajado ("Staff") é um objeto à parte, sem pesos, com o pivô na mão esquerda (pose T).
+ELDER_SPINE = (1.03, 1.13, 1.25, 1.40, 1.50)   # início de Spine, Spine1, Spine2, Neck e Head
+
+
 def build_elder():
     robe = mat("e_robe", (0.08, 0.2, 0.32), 0.95)
     robe_l = mat("e_robe_light", (0.12, 0.3, 0.42), 0.95)
@@ -532,51 +541,60 @@ def build_elder():
     trim = mat("e_trim", (0.85, 0.72, 0.4), 0.5, 0.6)
     skin = mat("e_skin", (0.78, 0.55, 0.42), 0.8)
     hair = mat("e_hair", (0.9, 0.9, 0.88), 0.9)
-    eye = mat("e_eye", (0.05, 0.04, 0.04), 0.5)
     rope = mat("e_rope", (0.7, 0.6, 0.4), 0.95)
     lea = mat("e_leather", (0.3, 0.18, 0.1), 0.85)
     wood = mat("e_wood", (0.36, 0.22, 0.12), 0.9)
     gem = mat("e_gem", (0.3, 0.75, 1.0), 0.2, 0, emit=(0.3, 0.7, 1.0), strength=6)
 
-    root = empty("Villager", (0, 0, 0))
-    for s, x in ((1, 0.08), (-1, -0.08)):
+    hip_z = 0.95
+    seen = set()
+
+    def take():
+        """Malhas criadas desde a última chamada (para ponderar por região)."""
+        new = [o for o in coll.objects if o.type == 'MESH' and o.name not in seen]
+        seen.update(o.name for o in new)
+        return new
+
+    Z = (0, 0, 1)
+    for s, x, sd in ((1, 0.08, "Left"), (-1, -0.08, "Right")):
         tbox("Shoe" + ("L" if s > 0 else "R"), (x, -0.07, 0.04), (0.1, 0.2, 0.08), lea, top=(0.85, 0.75),
-             shift_top=(0, 0.02), bevel=0.02, parent=root)
-    body = empty("Body", (0, 0, 0.95), root)
-    drape("RobeSkirt", 1.02, 0.05, 0.17, 0.29, 2 * PI, 2 * PI, robe, rows=5, cols=14, folds=0.018, thick=0.02, parent=body)
+             shift_top=(0, 0.02), bevel=0.02)
+        weigh(take(), Z, [(0.0, sd + "Foot")])
+    drape("RobeSkirt", 1.02, 0.05, 0.17, 0.29, 2 * PI, 2 * PI, robe, rows=5, cols=14, folds=0.018, thick=0.02)
     tbox("RobePanel", (0, -0.2, 0.55), (0.12, 0.02, 0.92), robe_l, top=(0.6, 1), shift_top=(0, 0.07), bevel=0.004,
-         rot=(0.07, 0, 0), parent=body)
-    ring("RobeHem", 0.07, 0.3, 0.035, trim, parent=body, sides=14)
-    tbox("Chest", (0, 0, 1.22), (0.32, 0.2, 0.42), robe, top=(1.12, 1.05), bottom=(0.95, 0.95), bevel=0.04, parent=body)
-    tbox("Collar", (0, -0.085, 1.36), (0.14, 0.05, 0.14), robe_l, bottom=(0.3, 1), bevel=0.01, parent=body)
+         rot=(0.07, 0, 0))
+    ring("RobeHem", 0.07, 0.3, 0.035, trim, sides=14)
+    tbox("Chest", (0, 0, 1.22), (0.32, 0.2, 0.42), robe, top=(1.12, 1.05), bottom=(0.95, 0.95), bevel=0.04)
+    tbox("Collar", (0, -0.085, 1.36), (0.14, 0.05, 0.14), robe_l, bottom=(0.3, 1), bevel=0.01)
     # manto sobre os ombros e capuz caído
-    shell("Mantle", (0, 0, 1.3), (0.5, 0.34, 0.36), mantle, cut=-0.15, seg=12, rings=8, thick=0.02, parent=body)
-    ring("MantleTrim", 1.27, 0.25, 0.03, trim, parent=body, sides=12, flat=0.68)
-    shell("Hood", (0, 0.11, 1.47), (0.3, 0.2, 0.22), mantle_d, cut=-0.5, rot=(0.9, 0, 0), jitter=0.006, parent=body)
+    shell("Mantle", (0, 0, 1.3), (0.5, 0.34, 0.36), mantle, cut=-0.15, seg=12, rings=8, thick=0.02)
+    ring("MantleTrim", 1.27, 0.25, 0.03, trim, sides=12, flat=0.68)
+    shell("Hood", (0, 0.11, 1.47), (0.3, 0.2, 0.22), mantle_d, cut=-0.5, rot=(0.9, 0, 0), jitter=0.006)
     # cinto de corda, bolsa, estojo de pergaminho, pingente
-    ring("RopeBelt", 1.01, 0.178, 0.03, rope, parent=body, sides=12)
-    limb("RopeEnd1", (0.06, -0.17, 1.0), (0.08, -0.19, 0.72), 0.012, 0.01, rope, sides=4, parent=body)
-    limb("RopeEnd2", (0.09, -0.16, 1.0), (0.12, -0.18, 0.78), 0.012, 0.01, rope, sides=4, parent=body)
-    tbox("Tassel1", (0.08, -0.19, 0.7), (0.03, 0.03, 0.05), trim, bottom=(1.5, 1.5), parent=body)
-    pouch("Pouch", (-0.16, -0.09, 0.93), lea, lea, body, size=(0.08, 0.06, 0.1), rotz=-0.5)
-    limb("ScrollCase", (0.19, 0.06, 1.06), (0.21, 0.08, 0.78), 0.035, 0.035, lea, sides=7, parent=body)
-    limb("ScrollCap", (0.21, 0.08, 0.79), (0.212, 0.082, 0.76), 0.04, 0.04, trim, sides=7, parent=body)
-    limb("Necklace", (0, -0.1, 1.38), (0, -0.125, 1.26), 0.006, 0.006, rope, sides=4, parent=body)
-    shell("Pendant", (0, -0.13, 1.24), (0.045, 0.02, 0.06), gem, cut=-1.0, thick=0, parent=body)
+    ring("RopeBelt", 1.01, 0.178, 0.03, rope, sides=12)
+    limb("RopeEnd1", (0.06, -0.17, 1.0), (0.08, -0.19, 0.72), 0.012, 0.01, rope, sides=4)
+    limb("RopeEnd2", (0.09, -0.16, 1.0), (0.12, -0.18, 0.78), 0.012, 0.01, rope, sides=4)
+    tbox("Tassel1", (0.08, -0.19, 0.7), (0.03, 0.03, 0.05), trim, bottom=(1.5, 1.5))
+    pouch("Pouch", (-0.16, -0.09, 0.93), lea, lea, None, size=(0.08, 0.06, 0.1), rotz=-0.5)
+    limb("ScrollCase", (0.19, 0.06, 1.06), (0.21, 0.08, 0.78), 0.035, 0.035, lea, sides=7)
+    limb("ScrollCap", (0.21, 0.08, 0.79), (0.212, 0.082, 0.76), 0.04, 0.04, trim, sides=7)
+    limb("Necklace", (0, -0.1, 1.38), (0, -0.125, 1.26), 0.006, 0.006, rope, sides=4)
+    shell("Pendant", (0, -0.13, 1.24), (0.045, 0.02, 0.06), gem, cut=-1.0, thick=0)
+    weigh_by(take(), robe_field(hip_z, 0.5, [(0.98, "Hips"), (1.06, "Spine"), (1.17, "Spine1"), (1.3, "Spine2")]))
     # cabeça
-    head = empty("Head", (0, 0, 1.45), body)
-    limb("Neck", (0, 0.005, 1.4), (0, 0.012, 1.6), 0.056, 0.052, skin, sides=7, parent=head)
+    limb("Neck", (0, 0.005, 1.4), (0, 0.012, 1.6), 0.056, 0.052, skin, sides=7)
+    weigh(take(), Z, [(1.42, "Spine2"), (1.47, "Neck"), (1.52, "Neck"), (1.57, "Head")])
     face_mats = {"skin": skin, "lip": mat("e_lip", (0.62, 0.38, 0.34), 0.7), "sclera": mat("e_sclera", (0.88, 0.86, 0.8), 0.4),
                  "iris": mat("e_iris", (0.32, 0.42, 0.52), 0.3), "pupil": mat("e_pupil", (0.03, 0.03, 0.03), 0.2),
                  "brow": hair, "lash": mat("e_lash", (0.2, 0.16, 0.14), 0.9)}
-    H = human_head("", 1.505, 0.235, head, face_mats,
+    H = human_head("", 1.505, 0.235, None, face_mats,
                    {"age": 1.0, "nose": 1.15, "eye_depth": 1.25, "cheek": 1.1, "lips": 0.9})
     # cabelo: base escura colada ao crânio + mechas facetadas penteadas para trás, caindo até a nuca
     hair_d = mat("e_hair_d", (0.42, 0.42, 0.45), 0.9)
     shell("HairBase", (0, 0.004, 1.628), (0.152, 0.2, 0.226), hair_d, cut=0.22, seg=10, rings=6, rot=(-0.35, 0, 0),
-          thick=0.008, parent=head)
+          thick=0.008)
     shell("HairBaseBack", (0, 0.006, 1.6), (0.158, 0.28, 0.204), hair_d, cut=0.05, seg=10, rings=6, rot=(-PI / 2, 0, 0),
-          thick=0.008, parent=head)
+          thick=0.008)
     locks = []
     for phi, drop in ((-58, 0.07), (-35, 0.09), (-12, 0.08), (12, 0.095), (35, 0.075), (58, 0.088)):  # topo, para trás
         locks.append(dict(a=(phi, 31), b=(180 - phi * 0.5, 4), drop=drop, w=0.06, t=0.012, bulge=0.006))
@@ -585,31 +603,111 @@ def build_elder():
         locks.append(dict(a=(sg * 92, 22), b=(sg * 118, -6), drop=0.088, w=0.05, t=0.011, flare=0.01))   # sobre a orelha
     for phi in (148, 180, -148):                                                              # nuca
         locks.append(dict(a=(phi, 55), b=(phi, -6), drop=0.1, w=0.062, t=0.012, bulge=0.006))
-    hair_locks("Hair", H, locks, hair, head)
+    hair_locks("Hair", H, locks, hair, None)
     # barba: cunha facetada cobrindo a mandíbula até o peito, bigode caído
     for sg, n in ((1, "L"), (-1, "R")):
         limb("Mustache" + n, (sg * 0.004, H["mouth_y"] - 0.004, H["nose_base_z"] - 0.006),
-             (sg * 0.031, H["mouth_y"] + 0.008, H["mouth_z"] - 0.016), 0.0075, 0.0035, hair, sides=5, flat=0.7, parent=head)
+             (sg * 0.031, H["mouth_y"] + 0.008, H["mouth_z"] - 0.016), 0.0075, 0.0035, hair, sides=5, flat=0.7)
     limb("Beard", (0, -0.036, H["mouth_z"] - 0.004), (0, -0.105, 1.34), 0.075, 0.012, hair, sides=7, flat=0.78,
-         twist=PI / 7, jitter=0.003, seed=9, parent=head)
-    limb("BeardTip", (0.012, -0.1, 1.38), (0.026, -0.112, 1.31), 0.018, 0.004, hair, sides=4, flat=0.7, parent=head)
-    # braços com mangas largas
-    for side, sx in (("ArmR", -0.2), ("ArmL", 0.2)):
+         twist=PI / 7, jitter=0.003, seed=9)
+    limb("BeardTip", (0.012, -0.1, 1.38), (0.026, -0.112, 1.31), 0.018, 0.004, hair, sides=4, flat=0.7)
+    weigh(take(), Z, [(0.0, "Head")])
+
+    # braços com mangas largas, modelados caídos (como antes) e girados até a pose T em volta do ombro e do
+    # cotovelo; a ombreira fica no osso do ombro (não gira com o braço)
+    joints, turn = {}, {}
+    for side, sx, sd in (("ArmR", -0.2, "Right"), ("ArmL", 0.2, "Left")):
         s = 1 if sx > 0 else -1
-        arm = empty(side, (sx, 0, 1.4), body)
-        shell(side + "_Shoulder", (sx, 0, 1.4), (0.16, 0.17, 0.14), robe, cut=-0.2, thick=0, parent=arm)
-        limb(side + "_Upper", (sx, 0, 1.42), (sx + s * 0.03, 0.01, 1.15), 0.065, 0.075, robe, sides=7, parent=arm)
-        limb(side + "_Sleeve", (sx + s * 0.03, 0.01, 1.16), (sx + s * 0.045, -0.01, 0.94), 0.08, 0.12, robe, sides=8, parent=arm)
-        ring(side + "_Cuff", 0.95, 0.122, 0.035, trim, parent=arm, sides=8, x=sx + s * 0.045, y=-0.01)
-        limb(side + "_Wrist", (sx + s * 0.045, -0.01, 0.98), (sx + s * 0.045, -0.01, 0.9), 0.035, 0.032, skin, sides=6, parent=arm)
-        hand(side, sx + s * 0.045, 0.86, skin, arm)
-    arm_l = bpy.data.objects["ArmL"]
-    limb("Staff", (0.25, -0.07, 0.02), (0.25, -0.07, 1.82), 0.022, 0.026, wood, sides=6, twist=0.6, parent=arm_l)
-    limb("StaffWrap", (0.25, -0.07, 1.0), (0.25, -0.07, 1.12), 0.03, 0.03, lea, sides=6, parent=arm_l)
-    limb("StaffCrook1", (0.25, -0.07, 1.82), (0.29, -0.07, 1.94), 0.026, 0.02, wood, sides=6, parent=arm_l)
-    limb("StaffCrook2", (0.29, -0.07, 1.94), (0.22, -0.07, 2.0), 0.02, 0.016, wood, sides=6, parent=arm_l)
-    shell("StaffGem", (0.255, -0.07, 1.93), (0.075, 0.075, 0.1), gem, cut=-1.0, thick=0, seg=6, rings=4, parent=arm_l)
-    export("elder")
+        sh = Vector((sx, 0, 1.4))
+        el = Vector((sx + s * 0.03, 0.01, 1.15))
+        wr = Vector((sx + s * 0.045, -0.01, 0.9))
+        shell(side + "_Shoulder", (sx, 0, 1.4), (0.16, 0.17, 0.14), robe, cut=-0.2, thick=0)
+        weigh(take(), Z, [(0.0, sd + "Shoulder")])
+        limb(side + "_Upper", (sx, 0, 1.42), (sx + s * 0.03, 0.01, 1.15), 0.065, 0.075, robe, sides=7)
+        upper = take()
+        limb(side + "_Sleeve", (sx + s * 0.03, 0.01, 1.16), (sx + s * 0.045, -0.01, 0.94), 0.08, 0.12, robe, sides=8)
+        ring(side + "_Cuff", 0.95, 0.122, 0.035, trim, sides=8, x=sx + s * 0.045, y=-0.01)
+        limb(side + "_Wrist", (sx + s * 0.045, -0.01, 0.98), (sx + s * 0.045, -0.01, 0.9), 0.035, 0.032, skin, sides=6)
+        fore = take()
+        hand(side, sx + s * 0.045, 0.86, skin, None)
+        palm = take()
+        tx = Vector((s, 0, 0))
+        r_up = (el - sh).normalized().rotation_difference(tx)
+        r_fo = (wr - el).normalized().rotation_difference(tx)
+        el_t = sh + r_up @ (el - sh)
+        wr_t = el_t + r_fo @ (wr - el)
+        for o in upper:
+            for v in o.data.vertices:
+                v.co = sh + r_up @ (v.co - sh)
+        for o in fore + palm:
+            for v in o.data.vertices:
+                v.co = el_t + r_fo @ (v.co - el)
+        weigh(upper, Z, [(0.0, sd + "Arm")])
+        weigh(fore, Z, [(0.0, sd + "ForeArm")])
+        weigh(palm, Z, [(0.0, sd + "Hand")])
+        joints[sd] = (sh, el_t, wr_t)
+        turn[sd] = (r_up, r_fo, el, el_t)
+
+    body = join_objs("Elder", [o for o in coll.objects if o.type == 'MESH'])
+
+    # ---------------- cajado (objeto à parte): modelado de pé ao lado do corpo, onde a mão esquerda o segura
+    # no staff_hold, e levado para a pose T junto com a mão (o pivô fica no punho fechado em volta dele)
+    st = [limb("Staff", (0.25, -0.07, 0.02), (0.25, -0.07, 1.82), 0.022, 0.026, wood, sides=6, twist=0.6),
+          limb("StaffWrap", (0.25, -0.07, 1.0), (0.25, -0.07, 1.12), 0.03, 0.03, lea, sides=6),
+          limb("StaffCrook1", (0.25, -0.07, 1.82), (0.29, -0.07, 1.94), 0.026, 0.02, wood, sides=6),
+          limb("StaffCrook2", (0.29, -0.07, 1.94), (0.22, -0.07, 2.0), 0.02, 0.016, wood, sides=6),
+          shell("StaffGem", (0.255, -0.07, 1.93), (0.075, 0.075, 0.1), gem, cut=-1.0, thick=0, seg=6, rings=4)]
+    staff = join_objs("Staff", st)
+    r_up, r_fo, el, el_t = turn["Left"]
+    grip = el_t + r_fo @ (Vector((0.25, -0.07, 0.83)) - el)
+    mw = staff.matrix_world.copy()
+    for v in staff.data.vertices:
+        v.co = el_t + r_fo @ (mw @ v.co - el) - grip
+    staff.matrix_world = Matrix.Identity(4)
+    staff.location = grip
+
+    # ---------------- esqueleto em pose T, nomes do Mixamo (sem pernas modeladas: ossos dentro da túnica)
+    P = {"hip": Vector((0.08, 0, hip_z)), "knee": Vector((0.08, 0, 0.5)), "ankle": Vector((0.08, 0, 0.08))}
+    arm = mixamo_rig([body], P, joints, hip_z, H["top"], spine=ELDER_SPINE)
+
+    # ---------------- clipes (direções de mundo: frente = -Y, esquerda = +X)
+    # staff_hold: braços de volta à posição modelada (a esquerda segurando o cajado de pé ao lado do corpo)
+    hold = {}
+    for sd in ("Left", "Right"):
+        r_up, r_fo, _, _ = turn[sd]
+        hold[sd + "Arm"] = r_up.inverted().to_matrix()
+        hold[sd + "ForeArm"] = hold[sd + "Hand"] = r_fo.inverted().to_matrix()
+
+    # excited: o braço direito sobe com o punho fechado e "bombeia" duas vezes, como dobradiça (braço, antebraço
+    # e mão com o mesmo eixo de dobra); o tronco recua um pouco e a cabeça sobe. O braço esquerdo fica no
+    # staff_hold (orientação absoluta), então o cajado continua de pé na mão.
+    # n_up: eixo de dobra do braço erguido (perpendicular ao braço e ao antebraço de pé), o mesmo em todas as
+    # chaves: o úmero gira para fora uma vez ao subir e depois só o cotovelo e o ombro dobram
+    side_up, fore_up = Vector((-0.85, -0.3, 0.35)).normalized(), Vector((-0.15, -0.2, 1.0)).normalized()
+    n_up = side_up.cross(fore_up).normalized()
+
+    def cheer(up, flex, lean, head, wrist=0.0):
+        """Braço direito apontando para up com o cotovelo dobrado flex graus (e o punho wrist graus) no plano
+        de normal n_up; tronco recuado lean graus e cabeça erguida head graus."""
+        d = Vector(up).normalized()
+        n = (n_up - d * d.dot(n_up)).normalized()
+        fo = Quaternion(n, math.radians(flex)) @ d
+        hd = Quaternion(n, math.radians(flex + wrist)) @ d
+        t = dict(hold)
+        t.update(Spine1=_qx(-lean * 0.6), Spine2=_qx(-lean * 0.4), Head=_qx(-head),
+                 RightArm=hinge_frame(d, n, -1), RightForeArm=hinge_frame(fo, n, -1),
+                 RightHand=hinge_frame(hd, n, -1))
+        return t
+
+    fps = scn.render.fps
+    scn.render.fps = 30
+    bake_clip(arm, "staff_hold", [(0, hold)])
+    pump = (side_up, math.degrees(side_up.angle(fore_up)), 2, 6, 10)   # braço para o lado, antebraço de pé
+    up = ((-0.45, -0.2, 0.87), 15, 4, 10)                            # punho no alto, cotovelo quase esticado
+    bake_clip(arm, "excited", [(0, hold), (7, cheer(*pump)), (13, cheer(*up)), (19, cheer(*pump)), (25, cheer(*up)),
+                               (32, cheer(*pump)), (45, hold)])
+    export("elder", export_animations=True, export_skins=True, export_animation_mode='NLA_TRACKS')
+    scn.render.fps = fps
 
 
 # ================================================================== MERCADORA (NPC)
@@ -880,108 +978,10 @@ def build_goblin():
 # Primeiro personagem com Armature: peças no estilo do Bram/Mira (limb/tbox/loft, shading flat), montadas
 # em pose T (braços em ±X, palmas para baixo), juntadas numa malha só e ponderadas por script: cada peça
 # 100% no seu osso; manga, calça, tronco e pescoço (que cruzam juntas) com gradiente entre os dois ossos.
-# Ossos com nomes do Mixamo (mixamorig:*) para o retarget pelo perfil humanoide do Godot.
+# Ossos com nomes do Mixamo (mixamorig:*) para o retarget pelo perfil humanoide do Godot (rig.py).
 # O martelo ("Hammer") e a tenaz ("Tongs") são objetos à parte, sem pesos, com o pivô no punho de cada mão.
 # Clipes provisórios (work_hammer, work_pause, idle, talk) em keyframes de rotação (o work_hammer também move
 # o quadril), uma faixa NLA cada.
-from mathutils import Quaternion
-
-MIXAMO = "mixamorig:"
-# (osso, pai) na ordem da hierarquia (pai antes do filho)
-BS_BONES = [("Hips", None), ("Spine", "Hips"), ("Spine1", "Spine"), ("Spine2", "Spine1"), ("Neck", "Spine2"),
-            ("Head", "Neck"), ("HeadTop_End", "Head")]
-for _sd in ("Left", "Right"):
-    BS_BONES += [(_sd + "Shoulder", "Spine2"), (_sd + "Arm", _sd + "Shoulder"), (_sd + "ForeArm", _sd + "Arm"),
-                 (_sd + "Hand", _sd + "ForeArm")]
-for _sd in ("Left", "Right"):
-    BS_BONES += [(_sd + "UpLeg", "Hips"), (_sd + "Leg", _sd + "UpLeg"), (_sd + "Foot", _sd + "Leg"),
-                 (_sd + "ToeBase", _sd + "Foot"), (_sd + "Toe_End", _sd + "ToeBase")]
-
-
-def weigh(objs, axis, stops):
-    """Pesos ao longo de axis (coords de mundo): stops = [(t, osso), ...] em t crescente. Antes do primeiro
-    e depois do último stop o peso é 100% daquele osso; entre dois stops passa linearmente de um ao outro."""
-    ax = Vector(axis).normalized()
-    for o in objs:
-        for v in o.data.vertices:
-            t = v.co.dot(ax)
-            ws = [(stops[-1][1], 1.0)]
-            if t <= stops[0][0]:
-                ws = [(stops[0][1], 1.0)]
-            else:
-                for (t0, b0), (t1, b1) in zip(stops, stops[1:]):
-                    if t <= t1:
-                        u = (t - t0) / max(t1 - t0, 1e-6)
-                        ws = [(b0, 1.0)] if b0 == b1 else [(b0, 1.0 - u), (b1, u)]
-                        break
-            for b, w in ws:
-                if w > 1e-4:
-                    g = o.vertex_groups.get(MIXAMO + b) or o.vertex_groups.new(name=MIXAMO + b)
-                    g.add([v.index], w, 'REPLACE')
-
-
-def _qx(deg):
-    return Quaternion((1, 0, 0), math.radians(deg))
-
-
-def _qz(deg):
-    return Quaternion((0, 0, 1), math.radians(deg))
-
-
-def pose_fk(arm, targets):
-    """Põe o esqueleto numa pose dada em direções de mundo. targets[osso] = Vector (para onde o osso aponta),
-    Quaternion (rotação extra em eixos de mundo sobre a do pai) ou Matrix (orientação absoluta em mundo,
-    relativa à pose T). Ossos fora de targets seguem o pai. targets["HipsLoc"] desloca o quadril (mundo)."""
-    hb = arm.data.bones[MIXAMO + "Hips"]
-    arm.pose.bones[MIXAMO + "Hips"].location = hb.matrix_local.to_3x3().inverted() @ Vector(targets.get("HipsLoc", (0, 0, 0)))
-    acc = {}
-    for n, parent in BS_BONES:
-        b, pb = arm.data.bones[MIXAMO + n], arm.pose.bones[MIXAMO + n]
-        wp = acc.get(parent, Quaternion())
-        t = targets.get(n)
-        if t is None:
-            w = wp
-        elif isinstance(t, Matrix):   # orientação absoluta em mundo, relativa à pose T
-            w = t.to_quaternion()
-        elif isinstance(t, Quaternion):
-            w = t @ wp
-        else:
-            cur = wp @ (b.matrix_local.to_3x3() @ Vector((0, 1, 0)))
-            w = cur.rotation_difference(Vector(t).normalized()) @ wp
-        acc[n] = w
-        rq = b.matrix_local.to_quaternion()
-        pb.rotation_mode = 'QUATERNION'
-        pb.rotation_quaternion = rq.inverted() @ (wp.inverted() @ w) @ rq
-
-
-def bake_clip(arm, name, keys):
-    """keys = [(frame, targets)]: cada chave grava a rotação de todos os ossos. Vira uma faixa NLA com o nome do clipe."""
-    ad = arm.animation_data or arm.animation_data_create()
-    act = bpy.data.actions.new(name)
-    ad.action = act
-    moves_hips = any("HipsLoc" in t for _, t in keys)
-    prev = {}
-    for f, targets in keys:
-        pose_fk(arm, targets)
-        for n, _ in BS_BONES:
-            pb = arm.pose.bones[MIXAMO + n]
-            # q e -q são a mesma rotação, mas a curva interpola os componentes: sem manter o hemisfério da
-            # chave anterior, o osso dá uma volta errada entre as chaves
-            if n in prev and pb.rotation_quaternion.dot(prev[n]) < 0:
-                pb.rotation_quaternion = -pb.rotation_quaternion
-            prev[n] = pb.rotation_quaternion.copy()
-            pb.keyframe_insert("rotation_quaternion", frame=f, group=MIXAMO + n)
-        if moves_hips:
-            arm.pose.bones[MIXAMO + "Hips"].keyframe_insert("location", frame=f, group=MIXAMO + "Hips")
-    track = ad.nla_tracks.new()
-    track.name = name
-    track.strips.new(name, int(keys[0][0]), act)
-    ad.action = None
-    for pb in arm.pose.bones:
-        pb.rotation_quaternion = Quaternion()
-        pb.location = Vector()
-
-
 # Barra em brasa deitada na bigorna, nas coordenadas do ferreiro no Blender (frente = -Y, esquerda = +X):
 # a mesma WorkBar de props.build_anvil com a bigorna em Blacksmith.ANVIL_OFFSET/ANVIL_YAW (blacksmith.gd).
 # A face do martelo bate no topo da barra em BS_STRIKE (o StrikePoint); a tenaz segura a ponta fria.
@@ -991,20 +991,6 @@ BS_TONGS_GRIP = Vector((0.2, -0.27, 0.92))   # punho esquerdo, parado no ciclo i
 # martelo na mão direita (pose T): girado em volta do eixo de dobra do punho (Z), cabo saindo para a frente e
 # inclinado na direção dos dedos (-X)
 BS_HAMMER_IN_HAND = Matrix.Rotation(math.radians(-30), 3, 'Z')
-
-
-def _ik(root, end, l1, l2, pole, warn=True):
-    """Dois ossos de root até end (l1, l2) com a junta do meio para o lado de pole: direções dos dois ossos."""
-    d = end - root
-    if warn and d.length > (l1 + l2) * 0.995:
-        print("IK: alvo fora de alcance (%.3f > %.3f)" % (d.length, l1 + l2))
-    L = min(max(d.length, abs(l1 - l2) + 0.01), (l1 + l2) * 0.995)
-    dn = d.normalized()
-    a = math.acos(max(-1.0, min(1.0, (l1 * l1 + L * L - l2 * l2) / (2 * l1 * L))))
-    p = Vector(pole)
-    p = (p - dn * dn.dot(p)).normalized()
-    mid = root + dn * (l1 * math.cos(a)) + p * (l1 * math.sin(a))
-    return mid - root, root + dn * L - mid
 
 
 def smith_cycle(arm, P, joints, grips):
@@ -1298,39 +1284,7 @@ def build_blacksmith():
     hammer.location = g
 
     # ---------------- esqueleto em pose T, nomes do Mixamo
-    ad = bpy.data.armatures.new("Armature")
-    arm = bpy.data.objects.new("Armature", ad)
-    coll.objects.link(arm)
-    hip, knee, ankle = P["hip"], P["knee"], P["ankle"]
-    top = H["top"]
-    J = {"Hips": ((0, 0, hip_z), (0, 0, 1.06)), "Spine": ((0, 0, 1.06), (0, 0, 1.18)),
-         "Spine1": ((0, 0, 1.18), (0, 0, 1.3)), "Spine2": ((0, 0, 1.3), (0, 0, 1.45)),
-         "Neck": ((0, 0, 1.45), (0, 0.01, 1.57)), "Head": ((0, 0.01, 1.57), (0, 0.01, top)),
-         "HeadTop_End": ((0, 0.01, top), (0, 0.01, top + 0.08))}
-    for sd, s in (("Left", 1), ("Right", -1)):
-        sh, el_t, wr_t = joints[sd]
-        x = hip.x * s
-        J[sd + "Shoulder"] = ((s * 0.06, 0, sh.z), sh)
-        J[sd + "Arm"] = (sh, el_t)
-        J[sd + "ForeArm"] = (el_t, wr_t)
-        J[sd + "Hand"] = (wr_t, wr_t + Vector((s * 0.1, 0, 0)))
-        J[sd + "UpLeg"] = ((x, 0, hip_z - 0.02), (x, knee.y, knee.z))
-        J[sd + "Leg"] = ((x, knee.y, knee.z), (x, 0, ankle.z))
-        J[sd + "Foot"] = ((x, 0, ankle.z), (x, -0.1, 0.025))
-        J[sd + "ToeBase"] = ((x, -0.1, 0.025), (x, -0.17, 0.025))
-        J[sd + "Toe_End"] = ((x, -0.17, 0.025), (x, -0.23, 0.025))
-    scn.view_layers[0].objects.active = arm
-    with bpy.context.temp_override(active_object=arm, object=arm, selected_objects=[arm]):
-        bpy.ops.object.mode_set(mode='EDIT')
-        for n, parent in BS_BONES:
-            eb = ad.edit_bones.new(MIXAMO + n)
-            eb.head, eb.tail = Vector(J[n][0]), Vector(J[n][1])
-            if parent:
-                eb.parent = ad.edit_bones[MIXAMO + parent]
-                eb.use_connect = (eb.head - eb.parent.tail).length < 1e-4
-        bpy.ops.object.mode_set(mode='OBJECT')
-    body.parent = arm
-    body.modifiers.new("Armature", 'ARMATURE').object = arm
+    arm = mixamo_rig([body], P, joints, hip_z, H["top"])
 
     # ---------------- clipes provisórios (direções de mundo: frente = -Y, esquerda = +X)
     def pose(base, **over):
