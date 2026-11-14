@@ -132,6 +132,273 @@
 		},
 		"desc": "Esculpida do dente de um dragão ancião. Cada golpe bebe vida."
 	},
+	"azure_edge": {
+		"name": "Gume Celeste",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "common",
+		"damage": 8,
+		"price": 20,
+		"color": {
+			"$c": [0.33, 0.86, 0.96, 1.0]
+		},
+		"model": "w_azure_edge",
+		"desc": "Lâmina leve de aço com fio azul-celeste. A primeira espada de todo aventureiro de Valdoria."
+	},
+	"thorn_root": {
+		"name": "Espinho da Raiz",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "common",
+		"damage": 11,
+		"price": 55,
+		"color": {
+			"$c": [0.92, 0.9, 0.85, 1.0]
+		},
+		"model": "w_thorn_root",
+		"stats": {
+			"vit": 1
+		},
+		"desc": "Osso afiado envolto em cipós que ainda crescem."
+	},
+	"venom_leaf": {
+		"name": "Folha Peçonhenta",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "uncommon",
+		"damage": 15,
+		"price": 100,
+		"color": {
+			"$c": [0.8, 0.83, 0.23, 1.0]
+		},
+		"model": "w_venom_leaf",
+		"stats": {
+			"agi": 2
+		},
+		"desc": "Folha de metal serrilhada que arde ao corte."
+	},
+	"crimson_reed": {
+		"name": "Junco Carmesim",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "uncommon",
+		"damage": 15,
+		"price": 120,
+		"color": {
+			"$c": [0.86, 0.3, 0.36, 1.0]
+		},
+		"shape": "saber",
+		"model": "w_crimson_reed",
+		"stats": {
+			"agi": 2,
+			"speed": 0.05
+		},
+		"desc": "Fina como um junco e rápida como o vento do rio."
+	},
+	"amber_fang": {
+		"name": "Presa de Âmbar",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "uncommon",
+		"damage": 17,
+		"price": 130,
+		"color": {
+			"$c": [0.95, 0.64, 0.26, 1.0]
+		},
+		"shape": "saber",
+		"model": "w_amber_fang",
+		"stats": {
+			"str": 1,
+			"crit": 0.03
+		},
+		"desc": "Lâmina cor de âmbar presa num cabo cheio de espinhos."
+	},
+	"rose_flame": {
+		"name": "Chama Rosada",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "rare",
+		"damage": 21,
+		"price": 190,
+		"color": {
+			"$c": [0.93, 0.3, 0.62, 1.0]
+		},
+		"glow": 0.4,
+		"model": "w_rose_flame",
+		"stats": {
+			"str": 2,
+			"crit": 0.04
+		},
+		"desc": "Labaredas rosadas congeladas no aço."
+	},
+	"crystal_frost": {
+		"name": "Lâmina de Cristal",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "rare",
+		"damage": 22,
+		"price": 230,
+		"color": {
+			"$c": [0.66, 0.93, 0.91, 1.0]
+		},
+		"glow": 0.6,
+		"fx": "slow",
+		"model": "w_crystal_frost",
+		"stats": {
+			"int": 2,
+			"str": 1
+		},
+		"desc": "Cristal de gelo lapidado. Golpes deixam o alvo lento."
+	},
+	"moon_crescent": {
+		"name": "Crescente Lunar",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "rare",
+		"damage": 22,
+		"price": 220,
+		"color": {
+			"$c": [0.78, 0.8, 0.84, 1.0]
+		},
+		"shape": "saber",
+		"model": "w_moon_crescent",
+		"stats": {
+			"agi": 3,
+			"crit": 0.04
+		},
+		"desc": "Curva como a lua nova, com um coração de quartzo rosa."
+	},
+	"neon_edge": {
+		"name": "Lâmina Neon",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "rare",
+		"damage": 24,
+		"price": 260,
+		"color": {
+			"$c": [0.19, 0.86, 0.92, 1.0]
+		},
+		"glow": 0.8,
+		"model": "w_neon_edge",
+		"stats": {
+			"str": 2,
+			"speed": 0.05
+		},
+		"desc": "Relíquia de uma era esquecida. O fio ainda zumbe."
+	},
+	"pale_crescent": {
+		"name": "Foice Pálida",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "epic",
+		"damage": 30,
+		"price": 360,
+		"color": {
+			"$c": [0.87, 0.89, 0.93, 1.0]
+		},
+		"shape": "saber",
+		"model": "w_pale_crescent",
+		"stats": {
+			"agi": 3,
+			"crit": 0.07
+		},
+		"desc": "Lâmina em gancho com guarda de anel. Colhe o que ousa chegar perto."
+	},
+	"coral_spine": {
+		"name": "Espinha Coral",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "epic",
+		"damage": 31,
+		"price": 380,
+		"color": {
+			"$c": [0.85, 0.24, 0.61, 1.0]
+		},
+		"glow": 0.4,
+		"model": "w_coral_spine",
+		"stats": {
+			"str": 3,
+			"crit": 0.06
+		},
+		"desc": "Crista serrilhada de coral do fundo do mar."
+	},
+	"scarlet_talon": {
+		"name": "Garra Escarlate",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "epic",
+		"damage": 32,
+		"price": 410,
+		"color": {
+			"$c": [0.92, 0.35, 0.18, 1.0]
+		},
+		"glow": 0.5,
+		"shape": "cleaver",
+		"model": "w_scarlet_talon",
+		"stats": {
+			"str": 3,
+			"leech": 0.03
+		},
+		"desc": "Garra curva de uma fera escarlate. Bebe um pouco de cada ferida."
+	},
+	"titan_cleaver": {
+		"name": "Cutelo do Titã",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "epic",
+		"damage": 33,
+		"price": 400,
+		"color": {
+			"$c": [0.78, 0.8, 0.83, 1.0]
+		},
+		"shape": "cleaver",
+		"model": "w_titan_cleaver",
+		"stats": {
+			"str": 4,
+			"hp": 30
+		},
+		"desc": "Uma placa de aço que só um titã chamaria de espada."
+	},
+	"ivory_wing": {
+		"name": "Asa de Marfim",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "legendary",
+		"damage": 44,
+		"price": 950,
+		"color": {
+			"$c": [0.95, 0.95, 0.93, 1.0]
+		},
+		"glow": 0.3,
+		"shape": "great",
+		"model": "w_ivory_wing",
+		"stats": {
+			"str": 4,
+			"vit": 3,
+			"hp": 30
+		},
+		"desc": "Montante branco com guarda de penas. Leve como uma asa."
+	},
+	"royal_wings": {
+		"name": "Asa Real",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "legendary",
+		"damage": 46,
+		"price": 1000,
+		"color": {
+			"$c": [0.89, 0.22, 0.44, 1.0]
+		},
+		"glow": 1.0,
+		"shape": "great",
+		"model": "w_royal_wings",
+		"stats": {
+			"str": 5,
+			"crit": 0.06,
+			"leech": 0.03
+		},
+		"desc": "Espada dos antigos reis, com asas de ouro e um núcleo que pulsa."
+	},
 	"apprentice_staff": {
 		"name": "Cajado de Aprendiz",
 		"type": "weapon",
@@ -323,6 +590,13 @@
 		"color": {
 			"$c": [0.45, 0.28, 0.13, 1.0]
 		},
+		"style": "a_leather",
+		"color2": {
+			"$c": [0.2, 0.12, 0.06, 1.0]
+		},
+		"pants": {
+			"$c": [0.3, 0.24, 0.18, 1.0]
+		},
 		"desc": "Couro curtido. Leve e flexível."
 	},
 	"chain_mail": {
@@ -337,6 +611,10 @@
 		"metal": true,
 		"stats": {
 			"vit": 1
+		},
+		"style": "a_mail",
+		"pants": {
+			"$c": [0.26, 0.24, 0.23, 1.0]
 		},
 		"desc": "Anéis de aço entrelaçados."
 	},
@@ -353,6 +631,13 @@
 			"int": 4,
 			"mp": 30
 		},
+		"style": "a_robe",
+		"color2": {
+			"$c": [0.17, 0.13, 0.38, 1.0]
+		},
+		"pants": {
+			"$c": [0.2, 0.18, 0.25, 1.0]
+		},
 		"desc": "Bordado com fios que brilham na escuridão."
 	},
 	"ranger_vest": {
@@ -367,6 +652,13 @@
 		"stats": {
 			"agi": 4,
 			"crit": 0.03
+		},
+		"style": "a_leather",
+		"color2": {
+			"$c": [0.24, 0.16, 0.08, 1.0]
+		},
+		"pants": {
+			"$c": [0.3, 0.25, 0.17, 1.0]
 		},
 		"desc": "Couro reforçado em tons de floresta."
 	},
@@ -385,6 +677,50 @@
 			"hp": 20
 		},
 		"desc": "Armadura de placas digna de um herói."
+	},
+	"traveler_tunic": {
+		"name": "Túnica de Viajante",
+		"type": "armor",
+		"rarity": "common",
+		"defense": 2,
+		"price": 30,
+		"color": {
+			"$c": [0.55, 0.16, 0.13, 1.0]
+		},
+		"color2": {
+			"$c": [0.18, 0.3, 0.22, 1.0]
+		},
+		"pants": {
+			"$c": [0.36, 0.28, 0.2, 1.0]
+		},
+		"style": "a_tunic",
+		"stats": {
+			"agi": 1
+		},
+		"desc": "Lã grossa em duas cores, com bandoleira e bolsa."
+	},
+	"guard_surcoat": {
+		"name": "Sobreveste da Guarda",
+		"type": "armor",
+		"rarity": "rare",
+		"defense": 9,
+		"price": 260,
+		"color": {
+			"$c": [0.9, 0.87, 0.78, 1.0]
+		},
+		"color2": {
+			"$c": [0.64, 0.13, 0.16, 1.0]
+		},
+		"pants": {
+			"$c": [0.22, 0.2, 0.2, 1.0]
+		},
+		"style": "a_surcoat",
+		"cape": true,
+		"stats": {
+			"vit": 2,
+			"str": 2
+		},
+		"desc": "Cota de malha sob o tabardo com a cruz da guarda de Valdoria."
 	},
 	"dragon_plate": {
 		"name": "Couraça de Escamas de Dragão",
@@ -414,6 +750,7 @@
 		"color": {
 			"$c": [0.45, 0.3, 0.15, 1.0]
 		},
+		"style": "h_cap",
 		"desc": "Protege do sol e de pedradas leves."
 	},
 	"iron_helm": {
@@ -430,6 +767,7 @@
 		"stats": {
 			"hp": 10
 		},
+		"style": "h_nasal",
 		"desc": "Amassado em alguns lugares. Ainda funciona."
 	},
 	"wizard_hat": {
@@ -445,6 +783,10 @@
 		"stats": {
 			"int": 3,
 			"mp": 20
+		},
+		"style": "h_wizard",
+		"color2": {
+			"$c": [0.92, 0.74, 0.3, 1.0]
 		},
 		"desc": "Pontudo como deve ser."
 	},
@@ -462,6 +804,7 @@
 			"agi": 3,
 			"crit": 0.03
 		},
+		"style": "h_hood",
 		"desc": "Some na folhagem."
 	},
 	"knight_helm": {
@@ -481,6 +824,57 @@
 		},
 		"desc": "Penacho vermelho, viseira dourada."
 	},
+	"wool_hood": {
+		"name": "Capuz de Lã",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "common",
+		"defense": 1,
+		"price": 20,
+		"color": {
+			"$c": [0.46, 0.34, 0.22, 1.0]
+		},
+		"style": "h_hood",
+		"desc": "Quente e simples. Cheira a ovelha."
+	},
+	"kettle_hat": {
+		"name": "Chapéu de Ferro",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "uncommon",
+		"defense": 3,
+		"price": 85,
+		"color": {
+			"$c": [0.6, 0.63, 0.68, 1.0]
+		},
+		"metal": true,
+		"style": "h_kettle",
+		"stats": {
+			"vit": 1
+		},
+		"desc": "Aba larga sobre cota de malha. Flechas escorregam."
+	},
+	"guard_greathelm": {
+		"name": "Elmo Fechado da Guarda",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "epic",
+		"defense": 6,
+		"price": 340,
+		"color": {
+			"$c": [0.62, 0.65, 0.7, 1.0]
+		},
+		"color2": {
+			"$c": [0.95, 0.75, 0.3, 1.0]
+		},
+		"metal": true,
+		"style": "h_great",
+		"stats": {
+			"vit": 3,
+			"hp": 15
+		},
+		"desc": "Fenda estreita, cruz dourada. Ninguém vê seu medo."
+	},
 	"leather_gloves": {
 		"name": "Luvas de Couro",
 		"type": "gear",
@@ -491,6 +885,7 @@
 		"color": {
 			"$c": [0.42, 0.28, 0.14, 1.0]
 		},
+		"style": "g_gloves",
 		"desc": "Evita bolhas no cabo da espada."
 	},
 	"iron_gauntlets": {
@@ -523,6 +918,10 @@
 			"agi": 2,
 			"crit": 0.03
 		},
+		"style": "g_bracers",
+		"color2": {
+			"$c": [0.24, 0.15, 0.08, 1.0]
+		},
 		"desc": "A corda do arco nunca mais vai arder."
 	},
 	"spellweaver_gloves": {
@@ -539,6 +938,10 @@
 			"int": 2,
 			"cdr": 0.06
 		},
+		"style": "g_gloves",
+		"color2": {
+			"$c": [0.85, 0.68, 0.3, 1.0]
+		},
 		"desc": "Os dedos tecem runas mais rápido."
 	},
 	"leather_boots": {
@@ -554,6 +957,7 @@
 		"stats": {
 			"speed": 0.03
 		},
+		"style": "f_boots",
 		"desc": "Confortáveis para longas caminhadas."
 	},
 	"iron_greaves": {
@@ -587,7 +991,30 @@
 			"agi": 2,
 			"speed": 0.08
 		},
+		"style": "f_boots",
+		"color2": {
+			"$c": [0.9, 0.85, 0.7, 1.0]
+		},
 		"desc": "Asas bordadas no calcanhar."
+	},
+	"reinforced_boots": {
+		"name": "Botas Reforçadas",
+		"type": "gear",
+		"slot": "feet",
+		"rarity": "uncommon",
+		"defense": 2,
+		"price": 70,
+		"color": {
+			"$c": [0.38, 0.25, 0.13, 1.0]
+		},
+		"color2": {
+			"$c": [0.66, 0.69, 0.75, 1.0]
+		},
+		"style": "f_plated",
+		"stats": {
+			"vit": 1
+		},
+		"desc": "Couro com greva e biqueira de aço."
 	},
 	"wooden_shield": {
 		"name": "Escudo de Madeira",

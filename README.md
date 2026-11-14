@@ -37,8 +37,11 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
     Arco de Guerra Goblin (sempre perfura), Arco da Tempestade (lendário, 3 flechas).
 - **8 espaços de equipamento**: arma, mão secundária (escudo exige espada, orbe exige cajado, aljava exige arco),
   cabeça, peito, mãos, pés, amuleto e anel. Itens dão defesa e bônus (atributos, vida, mana, poder mágico,
-  crítico, velocidade, recarga, roubo de vida). Elmo, peitoral, manoplas, botas, escudo, orbe, aljava e chapéu
-  do mago aparecem no cavaleiro. Equipamentos raros ou melhores caem com um feixe de luz na cor da raridade.
+  crítico, velocidade, recarga, roubo de vida). Cabeça, peito, mãos e pés trocam o modelo do personagem
+  (jogador, réplicas e soldados da colônia): de camisa e calça sem nada equipado, passando por túnica, capuz,
+  gibão de couro, manto arcano, cota de malha, sobreveste com cruz, até a armadura de placas; elmos de nasal,
+  chapéu de ferro, elmo fechado e o do cavaleiro. Modelos em `tools/blender/gear.py` (`ASSETS=gear`),
+  conferidos com `tools/look_shot.tscn`. Escudo, orbe e aljava também aparecem. Equipamentos raros ou melhores caem com um feixe de luz na cor da raridade.
 - **Interface** (referências: Diablo/Path of Exile para boneco, grade e raridade; World of Warcraft para
   recarga radial; Dark Souls para a barra do chefe): HUD enxuto nas bordas da tela — globos de vida/mana compactos
   com rastro de dano, barra de ações com ícones, vigor que só aparece quando gasto, ajuda escondida no H,

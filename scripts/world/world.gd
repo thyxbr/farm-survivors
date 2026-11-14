@@ -5,6 +5,13 @@ const M := {
 	"house": preload("res://assets/models/house.glb"),
 	"tree_pine": preload("res://assets/models/tree_pine.glb"),
 	"tree_oak": preload("res://assets/models/tree_oak.glb"),
+	"tree_fir": preload("res://assets/models/tree_fir.glb"),
+	"tree_birch": preload("res://assets/models/tree_birch.glb"),
+	"tree_maple": preload("res://assets/models/tree_maple.glb"),
+	"tree_cherry": preload("res://assets/models/tree_cherry.glb"),
+	"flower_sunflower": preload("res://assets/models/flower_sunflower.glb"),
+	"flower_lavender": preload("res://assets/models/flower_lavender.glb"),
+	"flower_tulips": preload("res://assets/models/flower_tulips.glb"),
 	"rock": preload("res://assets/models/rock.glb"),
 	"well": preload("res://assets/models/well.glb"),
 	"fence": preload("res://assets/models/fence.glb"),
@@ -33,6 +40,8 @@ const PLOT := preload("res://scripts/farm/farm_plot.gd")
 const KITCHEN := preload("res://scripts/farm/kitchen.gd")
 const PLANT_UI := preload("res://scripts/ui/plant_ui.gd")
 const COOKING_UI := preload("res://scripts/ui/cooking_ui.gd")
+const GROUND := preload("res://scripts/world/ground.gd")
+const FIELD_CROP := preload("res://assets/models/field_crop.glb")
 
 const MAP_HALF := 125.0
 const VILLAGE_SPAWN := Vector3(0, 0.3, 6)
@@ -41,6 +50,17 @@ const CAMP := Vector3(62, 0, 0)
 const ARENA := Vector3(-72, 0, -10)     # Desafio da Horda
 const PORTAL_POS := Vector3(-8, 0, -9.5)
 const FARM := Vector3(0, 0, 33)          # Horta da Vila (saída sul)
+## Maciços dentro do mapa: [centro, raio da base, altura]. Ficam nos cantos vazios, longe das
+## áreas de missão; a serra em volta do mapa é só visual (fora da borda).
+const MOUNTAINS := [
+	[Vector3(-82, 0, 86), 38.0, 34.0],    # Pico do sudoeste
+	[Vector3(86, 0, -96), 30.0, 26.0],    # nordeste, atrás da floresta
+	[Vector3(-88, 0, -84), 22.0, 15.0],   # morro do noroeste
+	[Vector3(84, 0, 96), 26.0, 17.0],     # colinas do sudeste
+]
+## Raio de colisão do tronco por árvore (prop "cyl").
+const TREE_R := {"tree_oak": 0.4, "tree_pine": 0.35, "tree_fir": 0.32, "tree_birch": 0.25,
+		"tree_maple": 0.4, "tree_cherry": 0.38}
 
 var player: Player
 var hud
@@ -53,6 +73,8 @@ var spawns: Array = []
 var flicker_lights: Array = []
 var rng := RandomNumberGenerator.new()
 var _avoid: Array = []   # [Vector2 centro, raio] áreas sem vegetação aleatória
+var _no_grass: Array = []   # [Vector2 centro, raio] pegadas de props (o capim não atravessa)
+var ground: Node3D
 var _t := 0.0
 
 
@@ -112,112 +134,17 @@ func _exit_tree() -> void:
 
 # ================================================================ ambiente
 func _build_environment() -> void:
-	# Guia de estilo (docs/PROMPT_LOWPOLY.md §6): sol quente a ~45°, ambiente frio a 30–40%,
-	# contraluz fraca. Tudo barato: uma sombra só (a do sol, 2 cascatas), contraluz sem sombra.
-	var env := Environment.new()
-	env.background_mode = Environment.BG_SKY
-	var sky := Sky.new()
-	var sm := ProceduralSkyMaterial.new()
-	sm.sky_top_color = Color(0.26, 0.45, 0.8)
-	sm.sky_horizon_color = Color(0.7, 0.78, 0.88)
-	sm.ground_horizon_color = Color(0.7, 0.78, 0.88)
-	sm.ground_bottom_color = Color(0.25, 0.3, 0.25)
-	sm.sun_angle_max = 20.0
-	sky.sky_material = sm
-	sky.radiance_size = Sky.RADIANCE_SIZE_64   # céu procedural liso: 64 px bastam e o cubemap sai barato
-	env.sky = sky
-	# Ambiente: metade vem do céu, metade de um azul-lavanda fixo, e bem mais fraco que o sol,
-	# para as faces na sombra ficarem frias e com valor separado das iluminadas.
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_color = Color(0.56, 0.6, 0.74)
-	env.ambient_light_sky_contribution = 0.5
-	env.ambient_light_energy = 0.7
-	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
-	# ACES dá o contraste e a cor cheia do render "Standard" do Blender; o Filmic lavava
-	# as faces claras e o AgX deixava tudo cinza. Exposição abaixo de 1 compensa o ganho do ACES.
-	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 0.85
-	env.tonemap_white = 6.0
-	env.glow_enabled = true
-	env.glow_intensity = 0.4
-	env.glow_bloom = 0.02
-	env.glow_hdr_threshold = 1.1
-	# SSAO curto: escurece só o contato (pé no chão, dobras da armadura), sem manchar a cena.
-	env.ssao_enabled = true
-	env.ssao_radius = 0.8
-	env.ssao_intensity = 1.6
-	env.ssao_power = 1.4
-	env.ssao_detail = 0.6
-	env.ssao_light_affect = 0.15
-	env.fog_enabled = true
-	env.fog_light_color = Color(0.74, 0.79, 0.86)
-	env.fog_density = 0.002
-	env.fog_aerial_perspective = 0.35
-	env.fog_sky_affect = 0.2
-	env.adjustment_enabled = true
-	env.adjustment_saturation = 1.05
-	var we := WorldEnvironment.new()
-	we.environment = env
-	add_child(we)
-	# Sol: quente, 45° de altura. Sombra macia por blur (PCF) e não por tamanho angular,
-	# que liga o PCSS e custa bem mais. Duas cascatas cobrem a câmera em 3ª pessoa.
-	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-45, -35, 0)
-	sun.light_energy = 1.45
-	sun.light_color = Color(1.0, 0.92, 0.8)
-	sun.shadow_enabled = true
-	sun.shadow_blur = 1.6
-	sun.shadow_bias = 0.03
-	sun.shadow_normal_bias = 1.2
-	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
-	sun.directional_shadow_split_1 = 0.25
-	sun.directional_shadow_blend_splits = true
-	sun.directional_shadow_max_distance = 70.0
-	sun.directional_shadow_fade_start = 0.85
-	add_child(sun)
-	# Contraluz: luz fria rasante vinda do lado oposto ao sol, sem sombra (custo quase nulo).
-	# Acende a borda das ombreiras, do elmo e da capa e descola o personagem do chão.
-	var rim := DirectionalLight3D.new()
-	rim.rotation_degrees = Vector3(-22, 145, 0)
-	rim.light_energy = 0.4
-	rim.light_color = Color(0.84, 0.88, 1.0)
-	rim.light_specular = 0.25
-	rim.shadow_enabled = false
-	rim.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY   # não desenha um 2º sol no céu
-	add_child(rim)
+	WorldLighting.build(self)
 
 
 func _build_ground() -> void:
-	var ground := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(MAP_HALF * 2.6, MAP_HALF * 2.6)
-	ground.mesh = plane
-	var mat := StandardMaterial3D.new()
-	var noise := FastNoiseLite.new()
-	noise.frequency = 0.02
-	var tex := NoiseTexture2D.new()
-	tex.width = 512
-	tex.height = 512
-	tex.seamless = true
-	tex.noise = noise
-	var grad := Gradient.new()
-	grad.set_color(0, Color(0.2, 0.38, 0.13))
-	grad.set_color(1, Color(0.36, 0.55, 0.2))
-	tex.color_ramp = grad
-	mat.albedo_texture = tex
-	mat.uv1_scale = Vector3(30, 30, 30)
-	mat.roughness = 1.0
-	ground.material_override = mat
+	ground = GROUND.new()
 	add_child(ground)
-	var body := StaticBody3D.new()
-	var cs := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(MAP_HALF * 2.6, 1, MAP_HALF * 2.6)
-	cs.shape = box
-	cs.position.y = -0.5
-	body.add_child(cs)
-	add_child(body)
-
+	ground.setup(MAP_HALF)
+	for m in MOUNTAINS:
+		ground.add_mountain(m[0], m[1], m[2])
+	ground.border_mountains(58.0)
+	ground.build_terrain()
 	var dirt := Color(0.45, 0.35, 0.22)
 	_flat(Vector3(0, 0.02, -50), Vector2(4.5, 80), dirt)          # trilha norte
 	_flat(Vector3(38, 0.02, 0), Vector2(52, 4.5), dirt)           # trilha leste
@@ -226,33 +153,32 @@ func _build_ground() -> void:
 	_disc(CAMP + Vector3(0, 0.02, 0), 13.0, Color(0.4, 0.32, 0.2))
 
 
-func _flat(pos: Vector3, size: Vector2, c: Color) -> void:
-	var mi := MeshInstance3D.new()
-	var p := PlaneMesh.new()
-	p.size = size
-	mi.mesh = p
-	var m := StandardMaterial3D.new()
-	m.albedo_color = c
-	m.roughness = 1.0
-	mi.material_override = m
-	mi.position = pos
-	add_child(mi)
+## Área retangular pintada no chão (o shader do chão desenha a borda irregular).
+func _flat(pos: Vector3, size: Vector2, c: Color, soft := 0.8) -> void:
+	ground.add_rect(pos, size, c, soft)
 
 
-func _disc(pos: Vector3, r: float, c: Color) -> void:
-	var mi := MeshInstance3D.new()
-	var cy := CylinderMesh.new()
-	cy.top_radius = r
-	cy.bottom_radius = r
-	cy.height = 0.02
-	cy.radial_segments = 32
-	mi.mesh = cy
-	var m := StandardMaterial3D.new()
-	m.albedo_color = c
-	m.roughness = 1.0
-	mi.material_override = m
-	mi.position = pos
-	add_child(mi)
+func _disc(pos: Vector3, r: float, c: Color, soft := 0.9) -> void:
+	ground.add_disc(pos, r, c, soft)
+
+
+## Árvore com colisão no tronco, apoiada no chão (sobe nas encostas).
+func tree(model: String, p: Vector3, s: float) -> void:
+	p.y = maxf(0.0, ground.height_at(p.x, p.z) - 0.35)
+	prop(model, p, rng.randf() * TAU, s, "cyl", Vector3(TREE_R[model], 3, 0))
+
+
+## Sorteia uma espécie por peso: {"tree_oak": 3, ...}.
+func _pick(weights: Dictionary) -> String:
+	var total := 0.0
+	for k in weights:
+		total += weights[k]
+	var r := rng.randf() * total
+	for k in weights:
+		r -= weights[k]
+		if r <= 0.0:
+			return k
+	return weights.keys()[0]
 
 
 ## Instancia um modelo e (opcionalmente) uma colisão simples ("box" ou "cyl").
@@ -262,6 +188,9 @@ func prop(model: String, pos: Vector3, yaw := 0.0, s := 1.0, shape := "", size :
 	inst.rotation.y = yaw
 	inst.scale = Vector3.ONE * s
 	add_child(inst)
+	if shape != "" and model != "fence":
+		var foot: float = (maxf(size.x, size.z) * 0.5 if shape == "box" else size.x) * s
+		_no_grass.append([Vector2(pos.x, pos.z), foot + 0.15])
 	if shape != "":
 		var body := StaticBody3D.new()
 		body.position = pos
@@ -319,7 +248,16 @@ func _build_village() -> void:
 	prop("chest", Vector3(7.6, 0, -0.6), -PI / 2, 1.0, "box", Vector3(0.9, 0.7, 0.6))
 	prop("barrel", Vector3(-11, 0, 0.5), 0.0, 1.0, "cyl", Vector3(0.38, 1.0, 0))
 	prop("crate", Vector3(-10.5, 0, -1.2), 0.4, 1.0, "box", Vector3(0.8, 0.8, 0.8))
-	prop("tree_oak", Vector3(-7, 0, 2), 0.3, 0.9, "cyl", Vector3(0.4, 3, 0))
+	prop("tree_cherry", Vector3(-7, 0, 2), 0.3, 0.85, "cyl", Vector3(0.38, 3, 0))
+	prop("tree_cherry", Vector3(9, 0, 11.5), 2.0, 0.75, "cyl", Vector3(0.38, 3, 0))
+	# canteiros de flores na frente das casas e em volta da praça (sem colisão)
+	for h in houses:
+		var fwd := Vector3(sin(h[1]), 0, cos(h[1]))
+		var side := Vector3(fwd.z, 0, -fwd.x)
+		for off in [-2.2, -1.5, 1.5, 2.2]:   # dos dois lados da porta
+			var kind := "flower_lavender" if rng.randf() < 0.5 else "flower_tulips"
+			var fp: Vector3 = h[0] + fwd * 2.75 + side * (off + rng.randf_range(-0.15, 0.15))
+			prop(kind, fp, rng.randf() * TAU, rng.randf_range(0.9, 1.2))
 	# cercas: perímetro x[-19,19], z[-13,23], com aberturas ao norte e a leste
 	var x := -18.0
 	while x <= 18.0:
@@ -355,7 +293,7 @@ func _build_farm() -> void:
 	_avoid.append([Vector2(FARM.x, FARM.z), 15.0])
 	_avoid.append([Vector2(1, 24), 4.0])
 	_flat(Vector3(1, 0.021, 19.5), Vector2(3.2, 17), Color(0.45, 0.35, 0.22))       # trilha praça -> horta
-	_flat(FARM + Vector3(0, 0.019, 0.5), Vector2(20, 13.5), Color(0.4, 0.42, 0.22))  # chão da horta
+	_flat(FARM + Vector3(0, 0.019, 0.5), Vector2(20, 13.5), Color(0.4, 0.42, 0.22), 0.5)  # chão da horta
 	_flat(FARM + Vector3(1, 0.021, -2), Vector2(2.6, 9), Color(0.45, 0.35, 0.22))
 	# cerca da horta, com portão alinhado ao portão sul da vila
 	var x := -10.0
@@ -383,6 +321,12 @@ func _build_farm() -> void:
 	prop("barrel", FARM + Vector3(9.2, 0, -5.6), 0.0, 1.0, "cyl", Vector3(0.38, 1.0, 0))
 	prop("barrel", FARM + Vector3(-9.0, 0, -5.4), 0.0, 1.0, "cyl", Vector3(0.38, 1.0, 0))
 	prop("tree_oak", FARM + Vector3(-8.2, 0, 5.0), 0.8, 1.1, "cyl", Vector3(0.4, 3, 0))
+	# girassóis encostados na cerca norte da horta
+	for i in 7:
+		var sx := -9.5 + i * 1.3 + rng.randf_range(-0.25, 0.25)
+		if absf(sx - 1.0) < 2.2:
+			continue   # portão
+		prop("flower_sunflower", FARM + Vector3(sx, 0, -7.6), PI + rng.randf_range(-0.3, 0.3), rng.randf_range(0.85, 1.15))
 	var lamp := prop("lamp", FARM + Vector3(3.6, 0, -7.6), PI, 1.0, "cyl", Vector3(0.12, 2.8, 0))
 	_light(lamp, Vector3(0, 2.4, 0.5), Color(1, 0.75, 0.4), 1.4, 8.0)
 	_scarecrow(FARM + Vector3(-7.6, 0, 1.2))
@@ -443,21 +387,19 @@ func _build_fields() -> void:
 	var soil := Color(0.36, 0.25, 0.15)
 	var crop_mm := MultiMesh.new()
 	crop_mm.transform_format = MultiMesh.TRANSFORM_3D
-	var crop := PrismMesh.new()
-	crop.size = Vector3(0.35, 0.55, 0.35)
-	var cm := StandardMaterial3D.new()
-	cm.albedo_color = Color(0.45, 0.65, 0.15)
-	crop.material = cm
-	crop_mm.mesh = crop
+	var crop_scene: Node3D = FIELD_CROP.instantiate()
+	crop_mm.mesh = (crop_scene.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D).mesh
+	crop_scene.free()
 	var xforms: Array[Transform3D] = []
 	for plot in [Vector3(-14, 0, -24), Vector3(12, 0, -26), Vector3(-16, 0, -40), Vector3(15, 0, -42)]:
-		_flat(plot + Vector3(0, 0.025, 0), Vector2(10, 7), soil)
+		_flat(plot + Vector3(0, 0.025, 0), Vector2(10, 7), soil, 0.25)
 		for row in 5:
 			for col in 12:
 				if rng.randf() < 0.25:
 					continue
-				var p: Vector3 = plot + Vector3(-4.4 + col * 0.8, 0.27, -2.6 + row * 1.3)
-				xforms.append(Transform3D(Basis().rotated(Vector3.UP, rng.randf() * TAU), p))
+				var p: Vector3 = plot + Vector3(-4.4 + col * 0.8, 0.0, -2.6 + row * 1.3)
+				var cs := rng.randf_range(0.85, 1.25)
+				xforms.append(Transform3D(Basis().rotated(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * cs), p))
 		_avoid.append([Vector2(plot.x, plot.z), 6.5])
 		# cercas dos lotes
 		for i in 5:
@@ -514,9 +456,9 @@ func _build_ruins() -> void:
 # ================================================================ arena do Desafio da Horda
 func _build_arena() -> void:
 	_avoid.append([Vector2(ARENA.x, ARENA.z), 37.0])
-	_disc(ARENA + Vector3(0, 0.015, 0), 32.0, Color(0.36, 0.33, 0.28))
-	_disc(ARENA + Vector3(0, 0.02, 0), 30.5, Color(0.3, 0.42, 0.18))
-	_disc(ARENA + Vector3(0, 0.025, 0), 4.5, Color(0.42, 0.4, 0.36))
+	_disc(ARENA + Vector3(0, 0.015, 0), 32.0, Color(0.36, 0.33, 0.28), 0.4)
+	_disc(ARENA + Vector3(0, 0.02, 0), 30.5, Color(0.3, 0.42, 0.18), 0.4)
+	_disc(ARENA + Vector3(0, 0.025, 0), 4.5, Color(0.42, 0.4, 0.36), 0.4)
 	var n := 22
 	for i in n:
 		var a := TAU * i / n
@@ -607,7 +549,36 @@ func _build_borders() -> void:
 		t += rng.randf_range(4.0, 6.5)
 
 
+## Abetos e pinheiros nas encostas dos maciços (mais densos embaixo) e pedras nas faces de rocha.
+func _mountain_nature() -> void:
+	for m in MOUNTAINS:
+		var c: Vector3 = m[0]
+		var r: float = m[1]
+		var peak: float = m[2]
+		var n := int(r * r * 0.04)
+		for i in n:
+			var a := rng.randf() * TAU
+			var d := sqrt(rng.randf()) * r
+			var p := c + Vector3(cos(a) * d, 0, sin(a) * d)
+			if absf(p.x) > MAP_HALF - 4 or absf(p.z) > MAP_HALF - 4:
+				continue
+			var h: float = ground.height_at(p.x, p.z)
+			var sl: float = ground.slope_at(p.x, p.z)
+			if h > peak * 0.7:
+				continue
+			if sl > 0.45:
+				if sl < 0.6 and rng.randf() < 0.25:   # mais íngreme que isso a pedra fica no ar
+					var s := rng.randf_range(0.8, 2.0)
+					p.y = h - 0.65 * s   # afunda: na encosta um lado fica no ar
+					prop("rock", p, rng.randf() * TAU, s)
+				continue
+			if rng.randf() < 0.2 + 0.5 * (1.0 - h / peak):
+				tree(_pick({"tree_fir": 5, "tree_pine": 3, "tree_birch": 0.6}), p, rng.randf_range(0.8, 1.4))
+
+
 func _blocked(p: Vector3) -> bool:
+	if ground.on_mountain(Vector2(p.x, p.z)) and (ground.slope_at(p.x, p.z) > 0.45 or ground.height_at(p.x, p.z) > 18.0):
+		return true   # penhasco ou alto demais
 	for a in _avoid:
 		if Vector2(p.x, p.z).distance_to(a[0]) < a[1]:
 			return true
@@ -627,7 +598,7 @@ func _scatter_nature() -> void:
 		var p := Vector3(rng.randf_range(28, MAP_HALF - 8), 0, rng.randf_range(-70, 70))
 		if _blocked(p):
 			continue
-		prop("tree_pine", p, rng.randf() * TAU, rng.randf_range(0.8, 1.5), "cyl", Vector3(0.35, 3, 0))
+		tree(_pick({"tree_pine": 5, "tree_fir": 4, "tree_birch": 1.2}), p, rng.randf_range(0.8, 1.5))
 		placed += 1
 	# árvores esparsas e pedras no resto do mapa
 	placed = 0
@@ -638,48 +609,23 @@ func _scatter_nature() -> void:
 		if _blocked(p):
 			continue
 		var r := rng.randf()
-		if r < 0.45:
-			prop("tree_oak", p, rng.randf() * TAU, rng.randf_range(0.8, 1.3), "cyl", Vector3(0.4, 3, 0))
-		elif r < 0.75:
-			prop("tree_pine", p, rng.randf() * TAU, rng.randf_range(0.8, 1.4), "cyl", Vector3(0.35, 3, 0))
+		if r < 0.75:
+			var kind := _pick({"tree_oak": 3.5, "tree_pine": 2.2, "tree_birch": 1.6, "tree_maple": 1.2,
+					"tree_cherry": 0.5, "tree_fir": 0.8})
+			tree(kind, p, rng.randf_range(0.8, 1.3))
 		else:
 			var s := rng.randf_range(0.6, 1.6)
+			p.y = maxf(0.0, ground.height_at(p.x, p.z) - 0.3 * s)
 			prop("rock", p, rng.randf() * TAU, s, "cyl", Vector3(0.65, 0.9, 0))
 		placed += 1
+	_mountain_nature()
 	if Network.is_server():
 		return   # grama é só visual
-	# tufos de grama (MultiMesh)
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
-	var blade := PrismMesh.new()
-	blade.size = Vector3(0.1, 0.32, 0.04)
-	var gm := StandardMaterial3D.new()
-	gm.vertex_color_use_as_albedo = true
-	gm.roughness = 1.0
-	blade.material = gm
-	mm.mesh = blade
-	var pts: Array[Vector3] = []
-	while pts.size() < 16000:
-		var c := Vector3(rng.randf_range(-MAP_HALF, MAP_HALF), 0.14, rng.randf_range(-MAP_HALF, MAP_HALF))
-		if Vector2(c.x, c.z).distance_to(Vector2(ARENA.x, ARENA.z)) < 32.5:
-			continue
-		if Vector2(c.x, c.z).distance_to(Vector2(0, 1)) < 11.0 or (abs(c.x) < 3.0 and c.z < -8) or (abs(c.z) < 3.0 and c.x > 10 and c.x < 64):
-			continue
-		if (abs(c.x - FARM.x) < 11.0 and abs(c.z - FARM.z) < 7.5) or (abs(c.x - 1.0) < 1.8 and c.z > 11.0 and c.z < 27.0):
-			continue   # horta e trilha
-		for k in 4:  # tufos com várias folhas
-			pts.append(c + Vector3(rng.randf_range(-0.2, 0.2), 0, rng.randf_range(-0.2, 0.2)))
-	mm.instance_count = pts.size()
-	for i in pts.size():
-		var p := pts[i]
-		var bas := Basis().rotated(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.7, 1.4))
-		mm.set_instance_transform(i, Transform3D(bas, p))
-		mm.set_instance_color(i, Color(0.2, 0.4, 0.12).lerp(Color(0.38, 0.56, 0.18), rng.randf()))
-	var mmi := MultiMeshInstance3D.new()
-	mmi.multimesh = mm
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mmi)
+	# capim e flores (fora das trilhas pintadas, das pegadas de props e da arena)
+	var keep_out := _no_grass.duplicate()
+	keep_out.append([Vector2(ARENA.x, ARENA.z), 33.0])
+	var sparse := [[Vector2(0, 4), 22.0], [Vector2(FARM.x, FARM.z), 12.0]]
+	ground.scatter_grass(rng.seed + 7, 0.6, keep_out, sparse)
 
 
 # ================================================================ inimigos

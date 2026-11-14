@@ -95,7 +95,7 @@ def part(name, kind, loc, size, material, rot=(0, 0, 0), parent=None, seg=8, r2=
     return ob
 
 
-def export(fname):
+def export(fname, **extra):
     print("EXPORT", fname, flush=True)
     vl = scn.view_layers[0]
     vl.update()
@@ -108,7 +108,7 @@ def export(fname):
             o.select_set(True, view_layer=vl)
         bpy.ops.export_scene.gltf(filepath=OUT + fname + ".glb", export_format='GLB', use_selection=True,
                                   export_apply=True, export_yup=True, export_animations=False,
-                                  export_cameras=False, export_lights=False)
+                                  export_cameras=False, export_lights=False, **extra)
     exported.append(fname)
     clear()
 
@@ -154,29 +154,7 @@ def build_slime():
 
 # ================= ALDEÕES =================
 # ================= CENÁRIO =================
-def build_tree_pine():
-    bark = mat("m_bark", (0.28, 0.17, 0.08), 0.95)
-    part("Trunk", "cyl", (0, 0, 0.75), (0.38, 0.38, 1.5), bark, seg=6)
-    part("Leaves1", "cone", (0, 0, 2.0), (2.6, 2.6, 2.0), pine, seg=7)
-    part("Leaves2", "cone", (0, 0, 3.05), (2.0, 2.0, 1.8), pine, seg=7)
-    part("Leaves3", "cone", (0, 0, 4.0), (1.3, 1.3, 1.6), pine, seg=7)
-    export("tree_pine")
-
-
-def build_tree_oak():
-    bark = mat("m_bark", (0.28, 0.17, 0.08), 0.95)
-    part("Trunk", "cyl", (0, 0, 1.0), (0.5, 0.5, 2.0), bark, r2=0.35, seg=6)
-    part("Branch", "cyl", (0.35, 0, 1.9), (0.18, 0.18, 0.9), bark, rot=(0, 0.7, 0), seg=5)
-    part("Crown1", "ico", (0, 0, 3.0), (3.0, 3.0, 2.5), leaf, jitter=0.12, seed=3)
-    part("Crown2", "ico", (0.9, 0.4, 2.6), (1.9, 1.9, 1.6), leaf, jitter=0.1, seed=5)
-    part("Crown3", "ico", (-0.8, -0.5, 2.7), (2.0, 2.0, 1.7), leaf, jitter=0.1, seed=7)
-    export("tree_oak")
-
-
-def build_rock():
-    part("Rock", "ico", (0, 0, 0.3), (1.5, 1.2, 1.0), stone, jitter=0.12, seed=11)
-    part("Moss", "ico", (0.15, 0.1, 0.72), (0.8, 0.6, 0.18), moss, jitter=0.05, seed=12)
-    export("rock")
+# Árvores e flores: tools/blender/trees.py
 
 
 def hull(name, verts, material):
@@ -347,107 +325,33 @@ def build_house():
     export("house")
 
 
-def build_fence():
-    for x in (-1.0, 1.0):
-        part("Post_%d" % x, "cube", (x, 0, 0.5), (0.15, 0.15, 1.0), wood)
-    part("RailTop", "cube", (0, 0, 0.75), (2.15, 0.07, 0.12), wood)
-    part("RailLow", "cube", (0, 0, 0.38), (2.15, 0.07, 0.12), wood)
-    export("fence")
-
-
-def build_well():
-    part("Ring", "cyl", (0, 0, 0.45), (1.8, 1.8, 0.9), stone, seg=10)
-    part("Water", "cyl", (0, 0, 0.88), (1.5, 1.5, 0.04), water, seg=10)
-    for x in (-0.8, 0.8):
-        part("WellPost_%d" % (x * 10), "cube", (x, 0, 1.5), (0.14, 0.14, 1.4), wood)
-    part("Axle", "cyl", (0, 0, 1.9), (0.1, 0.1, 1.7), wood_dark, rot=(0, PI / 2, 0), seg=6)
-    part("Bucket", "cyl", (0, 0, 1.35), (0.3, 0.3, 0.3), wood_dark, r2=0.6, seg=8)
-    part("WellRoof", "cyl", (0, 0, 2.45), (1.2, 2.3, 2.1), roof_m, rot=(0, -PI / 2, 0), seg=3)
-    export("well")
-
-
-def build_ruin_pillar():
-    part("PBase", "cube", (0, 0, 0.2), (1.1, 1.1, 0.4), stone_dark)
-    part("Column", "cyl", (0, 0, 1.8), (0.75, 0.75, 2.8), stone, seg=8)
-    part("Broken", "cube", (0.05, 0, 3.3), (0.8, 0.8, 0.35), stone, rot=(0.25, 0.15, 0.4))
-    part("PMoss", "ico", (0.3, -0.3, 0.45), (0.5, 0.4, 0.2), moss, jitter=0.03)
-    export("ruin_pillar")
-
-
-def build_ruin_wall():
-    rnd = random.Random(21)
-    i = 0
-    for row in range(3):
-        n = 4 - row
-        for k in range(n):
-            x = -1.6 + k * 1.05 + row * 0.4 + rnd.uniform(-0.05, 0.05)
-            part("Block%d" % i, "cube", (x, 0, 0.35 + row * 0.68), (1.0, 0.8, 0.66), stone if (i % 3) else stone_dark,
-                 rot=(0, 0, rnd.uniform(-0.05, 0.05)))
-            i += 1
-    part("WMoss", "ico", (-1.2, -0.35, 0.3), (0.9, 0.3, 0.35), moss, jitter=0.04)
-    export("ruin_wall")
-
-
-def build_crate():
-    part("Crate", "cube", (0, 0, 0.4), (0.8, 0.8, 0.8), wood)
-    for z in (0.05, 0.75):
-        part("Band%d" % (z * 100), "cube", (0, 0, z), (0.84, 0.84, 0.1), wood_dark)
-    export("crate")
-
-
-def build_barrel():
-    part("Barrel", "cyl", (0, 0, 0.5), (0.75, 0.75, 1.0), wood, seg=10)
-    for z in (0.15, 0.85):
-        part("Hoop%d" % (z * 100), "cyl", (0, 0, z), (0.78, 0.78, 0.07), dark, seg=10)
-    export("barrel")
-
-
-def build_lamp():
-    part("LampPost", "cyl", (0, 0, 1.4), (0.14, 0.14, 2.8), wood_dark, seg=6)
-    part("LampArm", "cube", (0, -0.25, 2.7), (0.08, 0.55, 0.08), wood_dark)
-    part("Lantern", "cube", (0, -0.5, 2.45), (0.24, 0.24, 0.32), lantern)
-    part("LanternCap", "cone", (0, -0.5, 2.67), (0.32, 0.32, 0.14), dark, seg=4)
-    export("lamp")
-
-
-def build_campfire():
-    for i in range(5):
-        a = i / 5 * 2 * PI
-        part("Stone%d" % i, "ico", (math.cos(a) * 0.55, math.sin(a) * 0.55, 0.08), (0.3, 0.25, 0.2), stone)
-    part("Log1", "cyl", (0, 0, 0.12), (0.16, 0.16, 0.9), wood_dark, rot=(0, PI / 2, 0.5), seg=6)
-    part("Log2", "cyl", (0, 0, 0.18), (0.16, 0.16, 0.9), wood_dark, rot=(0, PI / 2, -0.7), seg=6)
-    part("Flame1", "cone", (0, 0, 0.45), (0.45, 0.45, 0.7), fire, seg=5)
-    part("Flame2", "cone", (0.1, 0.05, 0.4), (0.3, 0.3, 0.9), fire, seg=4, rot=(0, 0, 0.6))
-    export("campfire")
-
-
-def build_tent():
-    part("Tent", "cone", (0, 0, 1.1), (2.6, 2.6, 2.2), canvas, seg=4, rot=(0, 0, PI / 4))
-    part("TentPole", "cyl", (0, 0, 2.3), (0.08, 0.08, 0.5), wood_dark, seg=5)
-    part("Flap", "cube", (0, -0.9, 0.5), (0.6, 0.05, 0.9), dark, rot=(-0.4, 0, 0))
-    export("tent")
-
-
-def build_chest():
-    part("ChestBase", "cube", (0, 0, 0.25), (0.9, 0.6, 0.5), wood)
-    part("ChestLid", "cyl", (0, 0, 0.5), (0.6, 0.6, 0.9), wood, rot=(0, PI / 2, 0), seg=8)
-    part("ChestBand", "cube", (0, 0, 0.35), (0.95, 0.65, 0.08), gold)
-    part("ChestLock", "cube", (0, -0.32, 0.45), (0.12, 0.05, 0.14), gold)
-    export("chest")
 
 
 exec(open(OUT.replace("assets/models/", "tools/blender/characters.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/props.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/buildings.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/trees.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/weapons.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/gear.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/body_mesh.py"), encoding="utf-8").read(), globals())
 
 # ASSETS="knight,elder" no ambiente gera só esses (útil para iterar).
 import os
 _only = [a for a in os.environ.get("ASSETS", "").split(",") if a]
 BUILDERS = {
     "knight": build_knight, "goblin": build_goblin, "slime": build_slime, "elder": build_elder,
-    "merchant": build_merchant, "tree_pine": build_tree_pine, "tree_oak": build_tree_oak, "rock": build_rock,
-    "house": build_house, "fence": build_fence, "well": build_well, "ruin_pillar": build_ruin_pillar,
-    "ruin_wall": build_ruin_wall, "crate": build_crate, "barrel": build_barrel, "lamp": build_lamp,
-    "campfire": build_campfire, "tent": build_tent, "chest": build_chest,
+    "merchant": build_merchant, "house": build_house, "body_base": build_body_base,
 }
+BUILDERS.update(PROP_BUILDERS)
+if "buildings" in _only:   # ASSETS=buildings gera todas as construções da Defesa da Cidade (b_<tipo>_<nível>)
+    _only += [n for n in PROP_BUILDERS if n.startswith("b_")]
+BUILDERS.update(TREE_BUILDERS)   # árvores e flores (trees.py)
+BUILDERS.update(dict(WEAPONS))   # w_<id>: espadas (weapons.py); ASSETS=weapons gera todas
+if "weapons" in _only:
+    _only += [n for n, _ in WEAPONS]
+BUILDERS.update(dict(GEAR))      # roupas e armaduras modulares (gear.py); ASSETS=gear gera todas
+if "gear" in _only:
+    _only += [n for n, _ in GEAR]
 clear()
 for _name, _fn in BUILDERS.items():
     if not _only or _name in _only:

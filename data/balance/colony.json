@@ -141,7 +141,9 @@
 			"aggro": 13.0,
 			"look": {
 				"weapon": "wooden_sword",
-				"head": "leather_cap"
+				"head": "wool_hood",
+				"armor": "traveler_tunic",
+				"feet": "leather_boots"
 			},
 			"desc": "Barato, mas frágil."
 		},
@@ -159,8 +161,10 @@
 			"look": {
 				"weapon": "iron_sword",
 				"offhand": "wooden_shield",
-				"head": "iron_helm",
-				"armor": "chain_mail"
+				"head": "kettle_hat",
+				"armor": "chain_mail",
+				"hands": "leather_gloves",
+				"feet": "reinforced_boots"
 			},
 			"desc": "Espada e escudo: segura a linha."
 		},
@@ -180,7 +184,9 @@
 				"weapon": "hunter_bow",
 				"offhand": "hunter_quiver",
 				"head": "ranger_hood",
-				"armor": "leather_armor"
+				"armor": "leather_armor",
+				"hands": "archer_bracers",
+				"feet": "leather_boots"
 			},
 			"desc": "Atira por cima dos muros."
 		},

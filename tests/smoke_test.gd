@@ -99,7 +99,7 @@ func _ready() -> void:
 	# --- magia
 	var mp0 := Game.mp
 	player.cast("fireball")
-	await wait(0.05)
+	await wait(0.3)   # a bola de fogo sai depois do movimento de apontar
 	check(Game.mp < mp0, "bola de fogo gasta mana")
 	var found_fb := false
 	for c in world.get_children():
@@ -134,9 +134,9 @@ func _ready() -> void:
 	Game.buy("iron_sword")
 	check(Game.count_item("iron_sword") == 1 and Game.gold == g - 60, "comprou espada de ferro")
 	Game.use_item("iron_sword")
-	check(Game.equipment.weapon == "iron_sword" and Game.count_item("wooden_sword") == 1, "equipou espada de ferro")
-	Game.sell("wooden_sword")
-	check(Game.count_item("wooden_sword") == 0, "vendeu espada de madeira")
+	check(Game.equipment.weapon == "iron_sword" and Game.count_item("azure_edge") == 1, "equipou espada de ferro")
+	Game.sell("azure_edge")
+	check(Game.count_item("azure_edge") == 0, "vendeu o gume celeste")
 	world.modal._close()
 	await wait(0.05)
 

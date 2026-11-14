@@ -28,7 +28,7 @@ static func new_character(bt: BalanceTables) -> CharState:
 	var s := CharState.new()
 	s.gold = 25
 	s.equipment = CharRules.empty_equipment()
-	s.equipment["weapon"] = "wooden_sword"
+	s.equipment["weapon"] = "azure_edge"
 	s.farm = CharRules.default_farm(bt)
 	for e in [["health_potion", 3], ["mana_potion", 1], ["seed_carrot", 4], ["seed_wheat", 4], ["bread", 1],
 			# kit inicial para experimentar as três classes de arma
