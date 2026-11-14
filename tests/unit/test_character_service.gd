@@ -259,3 +259,66 @@ func test_set_record() -> void:
 	T.eq(int(s.flags.get("city_best", 0)), 3, "city_best persistiu")
 	T.eq(int(s.flags.get("horde_best", {}).get("round", 0)), 4, "horde_best persistiu")
 	db2.close()
+
+
+## Encantar pelo serviço: grava no SQLite (coluna enchants), registra ouro e materiais e sobrevive a reabrir.
+func test_enchant_persists_and_logs() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	svc.load_or_create(2)
+	svc.grant(2, 50, 0, {"iron_ore": 4, "ember_core": 2}, "test")
+	var r := svc.apply(2, "enchant", ["fogo"])
+	T.ok(r.ok, "encantou pelo serviço: %s" % r.err)
+	T.eq(r.state.enchants, {"azure_edge": {"el": "fogo", "lv": 1}}, "estado devolvido traz o encanto")
+	var rows := db.query("SELECT * FROM economy_log WHERE source = 'enchant' ORDER BY item_id")
+	T.eq(rows.size(), 3, "ouro, ferro e essência registrados")
+	for row in rows:
+		T.eq(row["kind"], "enchant", "kind = enchant")
+		T.ok(row["amount"] < 0, "gasto é negativo")
+	db.close()
+	var db2 := Db.open(PATH)
+	var s := CharacterService.new(SqliteCharStore.new(db2), _tables()).load_or_create(2)
+	T.eq(s.enchants, {"azure_edge": {"el": "fogo", "lv": 1}}, "gravado: sobrevive a reabrir o banco")
+	db2.close()
+
+
+func test_enchant_bad_args_and_refusal() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	svc.load_or_create(2)
+	T.eq(svc.apply(2, "enchant", []).err, "args", "sem argumento")
+	T.eq(svc.apply(2, "enchant", [3]).err, "args", "tipo errado")
+	T.eq(svc.apply(2, "enchant", ["luz"]).err, "elemento_invalido", "elemento desconhecido")
+	T.eq(svc.apply(2, "enchant", ["fogo"]).err, "sem_ouro", "sem recursos")
+	T.eq(db.query("SELECT COUNT(*) AS n FROM economy_log WHERE source = 'enchant'")[0]["n"], 0, "recusa não registra")
+	db.close()
+
+
+## Os Ecos do +5 entram no registro como kind "ecos" e item "enchant".
+func test_enchant_ecos_logged() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	var s := svc.load_or_create(2)
+	s.enchants["azure_edge"] = {"el": "sombra", "lv": 4}
+	s.ecos = 40
+	svc.grant(2, 1000, 0, {"iron_ore": 20, "arcane_crystal": 12, "shadow_fang": 10}, "test")
+	T.ok(svc.apply(2, "enchant", ["sombra"]).ok, "+5")
+	var ecos := db.query("SELECT * FROM economy_log WHERE kind = 'ecos' AND source = 'enchant'")
+	T.eq(ecos.size(), 1, "uma linha de Ecos")
+	T.eq(ecos[0]["amount"], -40, "40 Ecos gastos")
+	T.eq(ecos[0]["item_id"], "enchant", "item = enchant")
+	db.close()
+
+
+## Itens de teste: só com o servidor em --test, até 99 de cada item conhecido.
+func test_grant_test_items_gate() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	T.eq(svc.grant_test_items(2, {"iron_ore": 4}, false).err, "sem_teste", "sem --test é recusado")
+	T.eq(svc.grant_test_items(2, {"item_fantasma": 1}, true).err, "valor_invalido", "item desconhecido")
+	T.eq(svc.grant_test_items(2, {"iron_ore": 100}, true).err, "valor_invalido", "acima de 99")
+	T.eq(svc.grant_test_items(2, {}, true).err, "valor_invalido", "vazio")
+	var r := svc.grant_test_items(2, {"iron_ore": 4, "frost_drop": 2}, true)
+	T.ok(r.ok, "com --test concede")
+	T.eq(_count(svc.load_or_create(2), "iron_ore"), 4, "ferro na mochila")
+	db.close()

@@ -317,7 +317,7 @@ func _register(token: String, client_version: String, _look = {}, _extra = "") -
 	var char_look: Dictionary = characters.load_or_create(account).equipment
 	# todo jogador começa na praça (zona "hub"); "ready" = já carregou a cena da zona em que está
 	players[id] = {"name": str(acc.name), "account": account, "admin": bool(acc.get("is_admin", false)),
-		"look": _clean_look(char_look), "ready": false, "zone": "hub"}
+		"look": _clean_look(char_look, account), "ready": false, "zone": "hub"}
 	print("[server] %s entrou (peer %d, conta %d, %d online)" % [acc.name, id, account, players.size()])
 	# tabelas e personagem antes do _accepted (mesmo canal confiável: chegam antes da troca de cena)
 	Econ.server_send_initial(id, account)
@@ -551,6 +551,25 @@ func _send_enemy_snapshot() -> void:
 			_enemy_snapshot.rpc_id(pid, snap)
 
 
+## Marca tóxica pedida por um cliente: mesmas conferências de um acerto (zona e alcance) e os valores
+## limitados ao que a tabela permite (o cliente não escolhe quanto dano a mais o alvo leva).
+@rpc("any_peer", "call_remote", "reliable")
+func _mark_enemy(net_id: int, amp: float, secs: float) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not is_server() or not players.has(id):
+		return
+	var e: Enemy = enemies.get(net_id)
+	if e == null or not is_instance_valid(e) or e.dead or e.net_zone != zone_of(id):
+		return
+	if not HitGuard.accepts(0.0, last_pos.get(id, Vector3.INF), e.global_position):
+		return
+	var max_amp := EnchantRules.max_effect(Balance.tables, "veneno")
+	var max_secs := float(Balance.tables.get_table("enchant").get("effects", {}).get("veneno", {}).get("secs", 0.0))
+	if not is_finite(amp) or not is_finite(secs) or max_amp <= 0.0 or max_secs <= 0.0:
+		return
+	e.apply_venom(clampf(amp, 0.0, max_amp), clampf(secs, 0.0, max_secs))
+
+
 @rpc("any_peer", "call_remote", "reliable")
 func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow: float, stun := 0.0, pull := 0.0) -> void:
 	var id := multiplayer.get_remote_sender_id()
@@ -566,7 +585,7 @@ func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow:
 		return
 	if amount > 0.0:
 		for pid in _enemy_peers(e):
-			_enemy_hit_fx.rpc_id(pid, net_id, amount, crit)
+			_enemy_hit_fx.rpc_id(pid, net_id, e.incoming(amount), crit)   # o número já com a marca tóxica
 		e.last_hitter = id
 		e.take_damage(amount, from_pos, crit, 0.0, 0.0, clampf(pull, 0.0, 6.0))
 		e.last_hitter = 0
@@ -612,19 +631,73 @@ func _player_look(look: Dictionary) -> void:
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id):
 		return
-	players[id].look = _clean_look(look)
+	players[id].look = _clean_look(look, int(players[id].get("account", 0)))
+	_relay_look(id)
+
+
+func _relay_look(id: int) -> void:
 	_apply_remote_look(id)
 	for pid in _all_peers():
 		if pid != id:
 			_player_look_relay.rpc_id(pid, id, players[id].look)
 
 
-## Só espaços e itens conhecidos (o dicionário vem do cliente).
-func _clean_look(look: Dictionary) -> Dictionary:
+## Servidor: o equipamento ou o encanto do peer mudou (encantou, equipou ou desequipou): refaz o
+## visual dele com o que está gravado no personagem (peças e brilho juntos, para a réplica nunca
+## receber o brilho novo com a arma antiga) e avisa os outros jogadores. As auras ficam como estavam.
+func server_refresh_look(peer: int) -> void:
+	if not is_server() or not players.has(peer) or characters == null:
+		return
+	var account := int(players[peer].get("account", 0))
+	if account <= 0:
+		return
+	var fresh: Dictionary = characters.load_or_create(account).equipment.duplicate()
+	fresh["fx"] = players[peer].look.get("fx", {})
+	fresh = _clean_look(fresh, account)
+	if fresh == players[peer].look:
+		return
+	players[peer].look = fresh
+	_relay_look(peer)
+
+
+## Servidor: encanto ({"el", "lv"}) da arma que a conta tem equipada, lido do personagem gravado.
+func server_weapon_enchant(account: int) -> Dictionary:
+	if account <= 0 or characters == null:
+		return {"el": "", "lv": 0}
+	var s := characters.load_or_create(account)
+	return EnchantRules.of(s, s.equipment.get("weapon", ""))
+
+
+## Só espaços e itens conhecidos (o dicionário vem do cliente). O encanto mostrado nunca vem do
+## cliente: é o da arma equipada do personagem `account` no servidor (conta 0 = sem encanto).
+func _clean_look(look: Dictionary, account := 0) -> Dictionary:
 	var out := {}
 	for s in ItemDB.SLOTS:
 		var v := str(look.get(s, ""))
 		out[s] = v if ItemDB.ITEMS.has(v) else ""
+	var fx := _clean_fx(look.get("fx"))
+	var e := server_weapon_enchant(account)
+	fx.en = e.el
+	fx.lv = e.lv
+	out["fx"] = fx
+	return out
+
+
+## Efeitos visuais do jogador (auras e encanto): só estilos e elementos conhecidos, sem repetir.
+func _clean_fx(fx) -> Dictionary:
+	var out := {"auras": [], "en": "", "lv": 0}
+	if not (fx is Dictionary):
+		return out
+	var auras = fx.get("auras")
+	if auras is Array:
+		for st in BuffAura.STYLES:
+			if st in auras:
+				out.auras.append(st)
+	var en := str(fx.get("en", ""))
+	var lv = fx.get("lv", 0)
+	if EnchantFX.ELEMENTS.has(en) and (lv is int or lv is float):
+		out.lv = clampi(int(lv), 0, EnchantFX.MAX_LEVEL)
+		out.en = en if out.lv > 0 else ""
 	return out
 
 
@@ -803,6 +876,12 @@ func send_event(kind: String, a := Vector3.ZERO, b := Vector3.ZERO) -> void:
 func client_hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun := 0.0, pull := 0.0) -> void:
 	if is_client():
 		_hit_enemy.rpc_id(1, net_id, amount, from_pos, crit, slow, stun, pull)
+
+
+## Marca tóxica da arma encantada com Veneno (ver Enemy.apply_venom): quem aplica é o servidor.
+func client_mark_enemy(net_id: int, amp: float, secs: float) -> void:
+	if is_client():
+		_mark_enemy.rpc_id(1, net_id, amp, secs)
 
 
 func request_boss() -> void:

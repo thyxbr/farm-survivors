@@ -15,6 +15,8 @@ signal leveled_up(new_level: int)
 signal food_eaten(id: String)
 signal farm_changed
 signal item_looted(id: String, qty: int)
+## O encanto da arma equipada mudou (encantou no ferreiro ou trocou de arma).
+signal enchant_changed
 signal kit_changed   # a classe da arma equipada mudou
 
 const SETTINGS_PATH := "user://settings.cfg"
@@ -71,6 +73,8 @@ var eat_cooldown := 0.0
 var selected_food := ""
 ## Bônus das passivas permanentes (CharRules.meta_mods), recalculados em apply_state e somados em mod().
 var meta_mods := {}
+## Encantamentos por tipo de arma (espelho de CharState.enchants): id -> {"el", "lv"}.
+var enchants := {}
 
 
 func _ready() -> void:
@@ -123,7 +127,7 @@ func _debug_screenshot() -> void:
 			spawn_position = Vector3(float(v[0]), 0.5, float(v[1]))
 			spawn_yaw = float(v[2]) if v.size() > 2 else 0.0
 	var args := OS.get_cmdline_user_args()
-	var demo := "--farmdemo" in args or "--geardemo" in args
+	var demo := "--farmdemo" in args or "--geardemo" in args or "--enchantdemo" in args
 	for a in args:
 		demo = demo or a.begins_with("--weapon=")
 	if demo:
@@ -131,6 +135,17 @@ func _debug_screenshot() -> void:
 		Econ.start_scratch_solo("user://demo_solo.json")
 		if at != null:
 			spawn_position = at
+	# `--enchantdemo` dá ouro e materiais e deixa a arma em Fogo +2 (para capturas do painel do ferreiro);
+	# com `--ui=enchant` abre o painel; com `--enchantstrike` o Doran dá o golpe de encanto na hora da captura
+	if "--enchantdemo" in args:
+		Econ.grant(600, 0, {"iron_ore": 30, "arcane_crystal": 3, "ember_core": 14, "frost_drop": 5}, "demo", true)
+		Econ.request("enchant", ["fogo"])
+		Econ.request("enchant", ["fogo"])
+	if "--enchantstrike" in args:
+		get_tree().create_timer(maxf(delay - 0.15, 0.1)).timeout.connect(func() -> void:
+			for n in get_tree().get_nodes_in_group("interactable"):
+				if n.get("npc_id") == "blacksmith":
+					n.enchant_strike(Color(1.0, 0.42, 0.08)))
 	# `--farmdemo` enche a horta com culturas em vários estágios (para screenshots)
 	if "--farmdemo" in args:
 		var now := Econ.now()
@@ -191,6 +206,10 @@ func _debug_screenshot() -> void:
 						w._open_menu(2)
 					"shop":
 						w.open_shop()
+					"enchant":
+						for n in get_tree().get_nodes_in_group("interactable"):
+							if n.get("npc_id") == "blacksmith":
+								w.open_enchant(n)
 	# `--survival` começa direto no Desafio da Horda (com ou sem screenshot)
 	if "--survival" in OS.get_cmdline_user_args():
 		await get_tree().create_timer(0.3).timeout
@@ -327,7 +346,46 @@ func damage_mult() -> float:
 
 ## Valor efetivo de um bônus: Desafio da Horda + comida + passivas permanentes.
 func mod(k: String) -> float:
-	return float(run_mods.get(k, 0.0)) + float(food_mods.get(k, 0.0)) + float(meta_mods.get(k, 0.0))
+	return float(run_mods.get(k, 0.0)) + float(food_mods.get(k, 0.0)) + float(meta_mods.get(k, 0.0)) 		+ (enchant_damage(equipment.weapon) if k == "damage" else 0.0)
+
+
+# ---------------------------------------------------------------- encantamento
+## Encanto de uma arma do personagem: {"el", "lv"}; sem encanto = {"el": "", "lv": 0}.
+func enchant_of(weapon_id: String) -> Dictionary:
+	var e = enchants.get(weapon_id)
+	if e is Dictionary and int(e.get("lv", 0)) > 0:
+		return {"el": str(e.get("el", "")), "lv": int(e.lv)}
+	return {"el": "", "lv": 0}
+
+
+## Encanto da arma equipada.
+func weapon_enchant() -> Dictionary:
+	return enchant_of(equipment.weapon)
+
+
+## Bônus de dano (fração) do encanto de uma arma. Calculado na hora (e não guardado) para a
+## prévia de "se equipar" do inventário já contar o encanto da outra arma.
+func enchant_damage(weapon_id: String) -> float:
+	var lv: int = enchant_of(weapon_id).lv
+	var dmg: Array = Balance.tables.get_table("enchant").get("damage", [])
+	if lv <= 0 or dmg.is_empty():
+		return 0.0
+	return float(dmg[mini(lv, dmg.size()) - 1])
+
+
+## Efeito do elemento da arma equipada (EnchantRules.effect); {} sem encanto.
+func weapon_effect() -> Dictionary:
+	var e := weapon_enchant()
+	return EnchantRules.effect(Balance.tables, e.el, e.lv)
+
+
+## "Fogo +2 · +10% de dano" ("" se a arma não tem encanto).
+func enchant_text(weapon_id: String) -> String:
+	var e := enchant_of(weapon_id)
+	if e.lv <= 0:
+		return ""
+	var name: String = Balance.tables.get_table("enchant").get("elements", {}).get(e.el, {}).get("name", e.el)
+	return "%s +%d · +%d%% de dano" % [name, e.lv, int(round(enchant_damage(weapon_id) * 100.0))]
 
 
 # ---------------------------------------------------------------- atributos derivados
@@ -823,6 +881,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 	var old_class := weapon_class()
 	var quests_before := quests
 	var farm_before := farm
+	var enchant_before := weapon_enchant()
 	level = s.level
 	xp = s.xp
 	gold = s.gold
@@ -837,6 +896,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 	ecos = s.ecos
 	passives = s.passives
 	meta_mods = CharRules.meta_mods(Balance.tables, passives)
+	enchants = s.enchants
 	if full:
 		reset_run_mods()
 		clear_food(true)
@@ -854,6 +914,8 @@ func apply_state(d: Dictionary, full := false) -> void:
 		ensure_selected_food()
 	stats_changed.emit()
 	inventory_changed.emit()
+	if weapon_enchant() != enchant_before:
+		enchant_changed.emit()
 	if weapon_class() != old_class:
 		kit_changed.emit()
 	if quests != quests_before:

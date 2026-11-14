@@ -34,6 +34,7 @@ const HUD := preload("res://scripts/ui/hud.gd")
 const DIALOGUE := preload("res://scripts/ui/dialogue_ui.gd")
 const GAME_MENU := preload("res://scripts/ui/game_menu.gd")
 const SHOP := preload("res://scripts/ui/shop_ui.gd")
+const ENCHANT_UI := preload("res://scripts/ui/enchant_ui.gd")
 const PAUSE := preload("res://scripts/ui/pause_menu.gd")
 const PORTAL := preload("res://scripts/world/challenge_portal.gd")
 const SURVIVAL := preload("res://scripts/survival/survival_mode.gd")
@@ -53,6 +54,7 @@ const CAMP := Vector3(62, 0, 0)
 const ARENA := Vector3(-72, 0, -10)     # Desafio da Horda
 const PORTAL_POS := Vector3(-8, 0, -9.5)
 const FARM := Vector3(0, 0, 33)          # Horta da Vila (saída sul)
+const NEST := Vector3(-36, 0, 36)        # Ninho de Slimes (sudoeste da vila)
 ## Maciços dentro do mapa: [centro, raio da base, altura]. Ficam nos cantos vazios, longe das
 ## áreas de missão; a serra em volta do mapa é só visual (fora da borda).
 const MOUNTAINS := [
@@ -73,6 +75,8 @@ var boss: Enemy = null
 var survival: Node3D = null
 var chat: CanvasLayer = null
 var spawns: Array = []
+## Veios de ferro e cristais arcanos (WorldResourceNode); vazio no servidor dedicado.
+var resource_nodes: Array = []
 var flicker_lights: Array = []
 var rng := RandomNumberGenerator.new()
 var _avoid: Array = []   # [Vector2 centro, raio] áreas sem vegetação aleatória
@@ -103,6 +107,7 @@ func _ready() -> void:
 		Network.world_ready(self)
 		return
 
+	_setup_resource_nodes()
 	player = PLAYER.new()
 	add_child(player)
 	player.died.connect(_on_player_died)
@@ -648,6 +653,19 @@ func _scatter_nature() -> void:
 	ground.scatter_grass(rng.seed + 7, 0.6, keep_out, sparse)
 
 
+# ================================================================ veios e cristais
+## Materiais do encantamento: veios de ferro em volta do Acampamento Goblin e cristais nas Ruínas
+## (data/balance/world_nodes.json). São de cada jogador: nada aqui é replicado.
+func _setup_resource_nodes() -> void:
+	for i in WorldHarvest.count(Balance.tables):
+		var def := WorldHarvest.node_def(Balance.tables, i)
+		if def.is_empty():
+			continue
+		var n := WorldResourceNode.from_def(def)
+		add_child(n)
+		resource_nodes.append(n)
+
+
 # ================================================================ inimigos
 func _setup_enemies() -> void:
 	for p in [Vector3(-12, 0, -30), Vector3(10, 0, -32), Vector3(-5, 0, -42), Vector3(14, 0, -47),
@@ -659,6 +677,28 @@ func _setup_enemies() -> void:
 		spawns.append({"kind": "goblin", "pos": CAMP + off, "node": null, "timer": 0.0, "respawn": 60.0})
 	for off in [Vector3(-7, 0, 14), Vector3(7, 0, 14)]:
 		spawns.append({"kind": "goblin", "pos": RUINS + off, "node": null, "timer": 0.0, "respawn": 90.0})
+	# monstros da Defesa da Cidade reaproveitados aqui: soltam as essências do encantamento
+	# (enemies.json). Reforços do Acampamento Goblin: arqueiros nas pontas e um xamã no fundo.
+	for off in [Vector3(-11, 0, -8), Vector3(10, 0, 7)]:
+		spawns.append({"kind": "goblin_arqueiro", "pos": CAMP + off, "node": null, "timer": 0.0, "respawn": 75.0})
+	spawns.append({"kind": "goblin_xama", "pos": CAMP + Vector3(9, 0, -9), "node": null, "timer": 0.0, "respawn": 120.0})
+	# fontes de +4 e +5: o Campeão (insígnia) guarda o Acampamento, os Brutos (Sombra) guardam as Ruínas
+	# e os Goblins Dourados (Sagrado) ficam soltos pelo mapa e fogem de quem chega perto
+	spawns.append({"kind": "goblin_campeao", "pos": CAMP + Vector3(2, 0, -5), "node": null, "timer": 0.0, "respawn": 300.0})
+	for off in [Vector3(-11, 0, 4), Vector3(11, 0, 4)]:
+		spawns.append({"kind": "goblin_bruto", "pos": RUINS + off, "node": null, "timer": 0.0, "respawn": 150.0})
+	for p in [Vector3(30, 0, 44), Vector3(-30, 0, -72)]:
+		spawns.append({"kind": "goblin_dourado", "pos": p, "node": null, "timer": 0.0, "respawn": 240.0})
+	# Ninho de Slimes: a mãe no meio, explosivos em volta dela e os velozes por fora
+	spawns.append({"kind": "slime_mae", "pos": NEST, "node": null, "timer": 0.0, "respawn": 120.0})
+	for i in 3:
+		var a := i * TAU / 3.0 + 0.5
+		spawns.append({"kind": "slime_explosivo", "pos": NEST + Vector3(cos(a), 0, sin(a)) * 4.5, "node": null,
+			"timer": 0.0, "respawn": 60.0})
+	for i in 4:
+		var a := i * TAU / 4.0
+		spawns.append({"kind": "slime_veloz", "pos": NEST + Vector3(cos(a), 0, sin(a)) * 8.5, "node": null,
+			"timer": 0.0, "respawn": 45.0})
 	for s in spawns:
 		_spawn(s)
 
@@ -852,6 +892,13 @@ func _finish_closeup() -> void:
 
 func open_shop() -> void:
 	_open_modal(SHOP.new())
+
+
+## Painel de encantamento do ferreiro. `smith` = quem abriu (bate na bigorna quando o encanto sai).
+func open_enchant(smith: Node = null) -> void:
+	var ui := ENCHANT_UI.new()
+	ui.smith = smith
+	_open_modal(ui)
 
 
 func open_plant_menu(plot_index: int) -> void:

@@ -1,0 +1,39 @@
+{
+	"max_level": 5,
+	"damage": [0.05, 0.10, 0.16, 0.23, 0.30],
+	"elements": {
+		"fogo":    {"name": "Fogo",    "essence": "ember_core",    "effect": "Queimadura"},
+		"gelo":    {"name": "Gelo",    "essence": "frost_drop",    "effect": "Lentidão"},
+		"raio":    {"name": "Raio",    "essence": "thunder_totem", "effect": "Corrente"},
+		"veneno":  {"name": "Veneno",  "essence": "toxic_gland",   "effect": "Marca tóxica"},
+		"sagrado": {"name": "Sagrado", "essence": "golden_dust",   "effect": "Ruína de chefes"},
+		"sombra":  {"name": "Sombra",  "essence": "shadow_fang",   "effect": "Roubo de vida"}
+	},
+	"levels": [
+		{"gold": 50,   "ecos": 0,  "essence": 2,  "items": {"iron_ore": 4}},
+		{"gold": 120,  "ecos": 0,  "essence": 4,  "items": {"iron_ore": 8}},
+		{"gold": 250,  "ecos": 0,  "essence": 6,  "items": {"iron_ore": 12, "arcane_crystal": 4}},
+		{"gold": 500,  "ecos": 0,  "essence": 8,  "items": {"iron_ore": 16, "arcane_crystal": 8, "champion_badge": 1}},
+		{"gold": 1000, "ecos": 40, "essence": 10, "items": {"iron_ore": 20, "arcane_crystal": 12}}
+	],
+	"swap": {"gold": 100, "essence": 3},
+	"effects": {
+		"fogo":    {"values": [0.15, 0.22, 0.30, 0.38, 0.45], "secs": 3},
+		"gelo":    {"values": [0.6, 0.9, 1.2, 1.6, 2.0]},
+		"raio":    {"values": [0.10, 0.15, 0.20, 0.25, 0.30], "mult": 0.5, "radius": 6},
+		"veneno":  {"values": [0.04, 0.06, 0.08, 0.10, 0.12], "secs": 4},
+		"sagrado": {"values": [0.08, 0.12, 0.16, 0.20, 0.25]},
+		"sombra":  {"values": [0.01, 0.015, 0.02, 0.025, 0.03]}
+	},
+	"sources": {
+		"iron_ore": "veios de ferro em volta do Acampamento Goblin (leste da vila)",
+		"arcane_crystal": "cristais arcanos nas Ruínas (norte da vila)",
+		"ember_core": "Slimes Explosivos, no Ninho de Slimes (sudoeste da vila)",
+		"frost_drop": "Slimes Velozes, no Ninho de Slimes (sudoeste da vila)",
+		"thunder_totem": "o Goblin Xamã, no Acampamento Goblin (leste da vila)",
+		"toxic_gland": "a Slime Mãe, no Ninho de Slimes (sudoeste da vila)",
+		"golden_dust": "Goblins Dourados, que fogem: um ao sul do Acampamento, outro a oeste das Ruínas",
+		"shadow_fang": "Goblins Brutos, nas Ruínas (norte da vila)",
+		"champion_badge": "o Campeão Goblin, no Acampamento Goblin (leste da vila)"
+	}
+}
