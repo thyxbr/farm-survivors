@@ -43,8 +43,14 @@ func remove_files() -> void:
 func load_char(account_id: int) -> Variant:
 	var p := char_path(account_id)
 	if not FileAccess.file_exists(p):
-		last_error = ""
-		return null
+		# no Windows o rename apaga o destino antes de mover: se o jogo caiu entre os dois passos,
+		# o save inteiro está no .tmp. Recupera em vez de oferecer um personagem novo por cima dele.
+		var tmp := p + ".tmp"
+		if FileAccess.file_exists(tmp) and JSON.parse_string(FileAccess.get_file_as_string(tmp)) is Dictionary:
+			DirAccess.rename_absolute(ProjectSettings.globalize_path(tmp), ProjectSettings.globalize_path(p))
+		if not FileAccess.file_exists(p):
+			last_error = ""
+			return null
 	var text := FileAccess.get_file_as_string(p)
 	var d = JSON.parse_string(text)
 	if not (d is Dictionary):

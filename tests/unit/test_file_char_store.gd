@@ -122,3 +122,22 @@ func test_character_service_on_files() -> void:
 	T.eq(s2.gold, ouro - int(_tables().get_table("items")["health_potion"]["price"]) + 5, "ouro persistiu")
 	T.eq(s2.to_dict()["inventory"], svc.load_or_create(1).to_dict()["inventory"], "mochila persistiu")
 	st.remove_files()
+
+
+## Queda entre o "apaga o destino" e o "move o .tmp" do rename no Windows: o save inteiro ficou no .tmp.
+func test_recovers_save_left_in_tmp() -> void:
+	var st := _fresh()
+	var s := CharState.new_character(_tables())
+	s.gold = 777
+	T.ok(st.save_char(1, s.to_dict(), [], 2000), "gravou")
+	var p := st.char_path(1)
+	DirAccess.rename_absolute(ProjectSettings.globalize_path(p), ProjectSettings.globalize_path(p + ".tmp"))
+	T.ok(not FileAccess.file_exists(p), "simulou a queda: só o .tmp existe")
+	var d = FileCharStore.new(PATH).load_char(1)
+	T.ok(d is Dictionary, "recuperou o save do .tmp")
+	T.eq(int(CharState.from_dict(d, _tables()).gold), 777, "mesmo ouro")
+	T.ok(FileAccess.file_exists(p) and not FileAccess.file_exists(p + ".tmp"), ".tmp voltou para o lugar")
+	FileAccess.open(p + ".tmp", FileAccess.WRITE).store_string("{quebrado")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
+	T.ok(FileCharStore.new(PATH).load_char(1) == null, ".tmp estragado não é recuperado")
+	st.remove_files()
