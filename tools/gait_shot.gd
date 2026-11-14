@@ -52,6 +52,20 @@ func _wear(m: Node3D, style: String, hide: Array) -> void:
 		if n:
 			n.visible = false
 	var g := (load("res://assets/models/gear/%s.glb" % style) as PackedScene).instantiate() as Node3D
+	var skels := g.find_children("*", "Skeleton3D", true, false)
+	if not skels.is_empty():     # roupa com pele contínua: o esqueleto entra no modelo e segue os pivôs
+		for sk: Skeleton3D in skels:
+			var top: Node = sk
+			while top.get_parent() != g:
+				top = top.get_parent()
+			top.owner = null
+			for d in top.find_children("*", "", true, false):
+				d.owner = null
+			g.remove_child(top)
+			m.add_child(top)
+		g.free()
+		PivotSkin.ensure(m)
+		return
 	for mi: MeshInstance3D in g.find_children("*", "MeshInstance3D", true, false):
 		var target := m.find_child(mi.get_parent().name, true, false) as Node3D
 		if target:

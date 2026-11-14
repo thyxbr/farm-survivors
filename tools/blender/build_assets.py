@@ -329,18 +329,22 @@ def build_house():
 
 exec(open(OUT.replace("assets/models/", "tools/blender/characters.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/props.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/buildings.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/trees.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/weapons.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/gear.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/body_mesh.py"), encoding="utf-8").read(), globals())
 
 # ASSETS="knight,elder" no ambiente gera só esses (útil para iterar).
 import os
 _only = [a for a in os.environ.get("ASSETS", "").split(",") if a]
 BUILDERS = {
     "knight": build_knight, "goblin": build_goblin, "slime": build_slime, "elder": build_elder,
-    "merchant": build_merchant, "house": build_house,
+    "merchant": build_merchant, "house": build_house, "body_base": build_body_base,
 }
 BUILDERS.update(PROP_BUILDERS)
+if "buildings" in _only:   # ASSETS=buildings gera todas as construções da Defesa da Cidade (b_<tipo>_<nível>)
+    _only += [n for n in PROP_BUILDERS if n.startswith("b_")]
 BUILDERS.update(TREE_BUILDERS)   # árvores e flores (trees.py)
 BUILDERS.update(dict(WEAPONS))   # w_<id>: espadas (weapons.py); ASSETS=weapons gera todas
 if "weapons" in _only:

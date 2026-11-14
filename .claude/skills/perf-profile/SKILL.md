@@ -25,7 +25,8 @@ metadata:
 | Escopo | Onde olhar primeiro |
 |---|---|
 | `cliente` | `scripts/player/`, `scripts/ui/` (26 scripts, vários com `_process`), `scripts/fx.gd`, `scripts/world/` |
-| `servidor` | `scripts/autoload/network.gd`, `scripts/autoload/lobby.gd`, IA em `scripts/enemies/enemy.gd` |
+| `servidor` | `scripts/autoload/network.gd`, `scripts/autoload/lobby.gd`, `scripts/autoload/hub.gd`, IA em `scripts/enemies/enemy.gd` |
+| `praca` | `scripts/hub/hub_world.gd` (cenário montado por código: grama, lampiões com luz, casas e árvores), `hub_point.gd` (NPCs virando para o jogador), réplicas dos jogadores na zona `hub` |
 | `horda` | `scripts/survival/survival_mode.gd`, `auto_weapons.gd`, `xp_gem.gd`, `horde_events.gd`: muitos inimigos, gemas e projéteis ao mesmo tempo |
 | `cidade` | `scripts/colony/`: torres (`tower_shot.gd`), soldados, construções e animais |
 | `rede` | `network.gd` e `lobby.gd`: `SEND_RATE` (20/s), `SNAP_RATE`, `STATE_RATE`, `SNAP_STRIDE` (10 valores por inimigo) |

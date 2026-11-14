@@ -1,0 +1,415 @@
+class_name CharacterService
+extends RefCounted
+## Único lugar que muda um personagem: o servidor dedicado (uma instância, várias contas) e o solo
+## offline (conta 1) passam por aqui. Aplica CharRules, grava numa escrita só (personagem + economia)
+## e registra a economia. Sem autoload: recebe o armazenamento (CharStore), BalanceTables e relógio.
+## Servidor: SqliteCharStore (SQLite); solo: FileCharStore (JSON em user://). Mesmas regras, uma economia.
+
+## Operações que o cliente pode pedir. Conceder ouro/xp/itens e abates é só do servidor/solo.
+const CLIENT_OPS := ["buy", "sell", "equip", "unequip", "consume", "cook", "spend_point", "start_quest",
+	"complete_quest", "sort_inventory", "unlock_plot", "plant", "water", "fertilize", "harvest", "discard",
+	"death_penalty", "buy_passive", "donate"]
+
+## Assinatura posicional de cada op: tipos aceitos (TYPE_*) e quantos são opcionais no fim.
+## `now` e o gerador de sorteio nunca vêm do cliente.
+const ARGS := {
+	"buy": {"types": [TYPE_STRING, TYPE_INT], "optional": 1},
+	"sell": {"types": [TYPE_STRING], "optional": 0},
+	"equip": {"types": [TYPE_STRING], "optional": 0},
+	"unequip": {"types": [TYPE_STRING], "optional": 0},
+	"consume": {"types": [TYPE_STRING], "optional": 0},
+	"cook": {"types": [TYPE_STRING, TYPE_INT], "optional": 1},
+	"spend_point": {"types": [TYPE_STRING], "optional": 0},
+	"start_quest": {"types": [TYPE_STRING], "optional": 0},
+	"complete_quest": {"types": [TYPE_STRING], "optional": 0},
+	"sort_inventory": {"types": [], "optional": 0},
+	"unlock_plot": {"types": [], "optional": 0},
+	"plant": {"types": [TYPE_INT, TYPE_STRING, TYPE_BOOL], "optional": 0},
+	"water": {"types": [TYPE_INT], "optional": 0},
+	"fertilize": {"types": [TYPE_INT], "optional": 0},
+	"harvest": {"types": [TYPE_INT], "optional": 0},
+	"discard": {"types": [TYPE_STRING], "optional": 0},
+	"death_penalty": {"types": [], "optional": 0},
+	"buy_passive": {"types": [TYPE_STRING], "optional": 0},
+	"donate": {"types": [TYPE_STRING, TYPE_INT], "optional": 0},
+}
+
+## Concessões dessas origens acontecem a cada coleta durante a partida: o registro é um só, no fim
+## (finish_player, que também concede os Ecos da partida).
+const UNLOGGED_SOURCES := ["horde_run", "city_night"]
+## Recordes de partida que o servidor/solo grava no personagem (set_record).
+const RECORD_KEYS := ["horde_best", "city_best"]
+const SOLO_ACCOUNT := 1
+const MAX_VITAL := 10000.0
+## Limite de cada coordenada reportada pelo cliente (o mapa é bem menor).
+const MAX_COORD := 10000.0
+## Teto do ouro de teste por pedido (servidor em --test, usado pelo net_test).
+const TEST_GOLD_MAX := 100000
+
+var _store: CharStore
+var _bt: BalanceTables
+var _clock: Callable
+var _rng := RandomNumberGenerator.new()
+var _cache := {}      # account_id -> CharState
+var _sessions := {}   # account_id -> session_id atual
+var _dirty := {}      # account_id -> true: report mudou o cache e ainda não foi gravado
+
+
+func _init(store: CharStore, bt: BalanceTables, clock: Callable = Callable()) -> void:
+	_store = store
+	_bt = bt
+	_clock = clock
+	_rng.randomize()
+
+
+func _now() -> float:
+	return float(_clock.call()) if _clock.is_valid() else Time.get_unix_time_from_system()
+
+
+# ================================================================ carga
+func load_or_create(account_id: int) -> CharState:
+	if _cache.has(account_id):
+		return _cache[account_id]
+	var s := _read(account_id)
+	if s == null:
+		s = CharState.new_character(_bt)
+		if not _save(account_id, s):
+			push_error("CharacterService: não gravou personagem novo de %d: %s" % [account_id, _store.last_error])
+			return s   # sem cache: a próxima chamada tenta de novo
+	_cache[account_id] = s
+	return s
+
+
+## Grava e tira do cache (jogador saiu). Com `session_id` >= 0, só descarrega se for a sessão atual da
+## conta: a desconexão tardia de uma conexão velha não derruba a sessão nova (só grava).
+func unload(account_id: int, session_id: int = -1) -> void:
+	if session_id >= 0 and _sessions.get(account_id, -1) != session_id:
+		save(account_id)
+		return
+	if _cache.has(account_id):
+		if not _save(account_id, _cache[account_id]):
+			push_error("CharacterService: não gravou %d ao descarregar: %s" % [account_id, _store.last_error])
+		_cache.erase(account_id)
+	_sessions.erase(account_id)
+
+
+func set_session(account_id: int, session_id: int) -> void:
+	_sessions[account_id] = session_id
+
+
+# ================================================================ operações
+## Pedido do cliente. Devolve {"ok","err","events","state"}.
+func apply(account_id: int, op: String, args: Array) -> Dictionary:
+	if not (op in CLIENT_OPS):
+		return _result(account_id, {"ok": false, "err": "op_invalida", "events": []})
+	if not _args_ok(op, args):
+		return _result(account_id, {"ok": false, "err": "args", "events": []})
+	var s := load_or_create(account_id)
+	if op == "donate":
+		return _donate(account_id, s, args[0], args[1])
+	var before := _holdings(s)
+	var r := _dispatch(s, op, args)
+	if r.ok:
+		r = _persist(account_id, s, before, op, "passive" if op == "buy_passive" else "player", r, 0, args[0] if op == "buy_passive" else "")
+	return _result(account_id, r)
+
+
+## Concessão do servidor/solo (loot, missão, prêmio de partida).
+func grant(account_id: int, gold: int, xp: int, items: Dictionary, source: String) -> Dictionary:
+	var s := load_or_create(account_id)
+	var before := _holdings(s)
+	var r := CharRules.grant(s, _bt, gold, xp, items)
+	if r.ok:
+		var log_it := not (source in UNLOGGED_SOURCES)
+		r = _persist(account_id, s, before if log_it else {}, "grant", source, r, xp if log_it else 0)
+	return _result(account_id, r)
+
+
+func kill(account_id: int, kind: String, xp: int) -> Dictionary:
+	var s := load_or_create(account_id)
+	var r := CharRules.kill(s, _bt, kind, xp)
+	if r.ok:
+		r = _persist(account_id, s, {}, "kill", "kill", r)
+	return _result(account_id, r)
+
+
+## Recorde de partida no personagem (servidor/solo): "city_best" (noites, int) ou "horde_best"
+## ({"round", "kills", "time", "level"}, comparado por rodada e depois abates). Só grava se for melhor.
+func set_record(account_id: int, key: String, value) -> Dictionary:
+	if not (key in RECORD_KEYS):
+		return _result(account_id, {"ok": false, "err": "chave_invalida", "events": []})
+	var s := load_or_create(account_id)
+	var old = s.flags.get(key)
+	var better := false
+	if key == "city_best":
+		value = maxi(0, int(value))
+		better = old == null or int(value) > int(old)
+	else:
+		if not (value is Dictionary):
+			return _result(account_id, {"ok": false, "err": "valor_invalido", "events": []})
+		var o: Dictionary = old if old is Dictionary else {}
+		var rnd := int(value.get("round", 0))
+		var best_round := int(o.get("round", -1))
+		better = rnd > best_round or (rnd == best_round and int(value.get("kills", 0)) > int(o.get("kills", 0)))
+	if not better:
+		return _result(account_id, {"ok": true, "err": "", "events": []})
+	s.flags[key] = value
+	if not _save(account_id, s):
+		push_error("CharacterService: recorde de %d não gravou: %s" % [account_id, _store.last_error])
+		_cache.erase(account_id)
+		return _result(account_id, {"ok": false, "err": "erro_banco", "events": []})
+	return _result(account_id, {"ok": true, "err": "", "events": []})
+
+
+## Estado de combate reportado pelo cliente. Só vale para a sessão atual da conta (uma conexão
+## velha, já substituída, não sobrescreve a posição da nova). Gravado no próximo apply/unload.
+func report(account_id: int, session_id: int, hp: float, mp: float, pos: Vector3, yaw: float) -> void:
+	if not _cache.has(account_id) or _sessions.get(account_id, -1) != session_id:
+		return
+	if not (is_finite(hp) and is_finite(mp) and pos.is_finite() and is_finite(yaw)):
+		return
+	var s: CharState = _cache[account_id]
+	s.hp = clampf(hp, 0.0, MAX_VITAL)
+	s.mp = clampf(mp, 0.0, MAX_VITAL)
+	s.world_pos = pos.clamp(-Vector3.ONE * MAX_COORD, Vector3.ONE * MAX_COORD)
+	s.world_yaw = yaw
+	_dirty[account_id] = true
+
+
+## Grava as contas que só mudaram por report (o servidor chama de tempos em tempos). Devolve quantas.
+func flush_dirty() -> int:
+	var n := 0
+	for account_id in _dirty.keys():
+		if _cache.has(account_id) and _save(account_id, _cache[account_id]):
+			n += 1
+	_dirty.clear()
+	return n
+
+
+## Ouro de teste: só com o servidor em --test (`enabled`), 1..TEST_GOLD_MAX.
+func grant_test_gold(account_id: int, amount: int, enabled: bool) -> Dictionary:
+	if not enabled:
+		return _result(account_id, {"ok": false, "err": "sem_teste", "events": []})
+	if amount <= 0 or amount > TEST_GOLD_MAX:
+		return _result(account_id, {"ok": false, "err": "valor_invalido", "events": []})
+	return grant(account_id, amount, 0, {}, "test")
+
+
+## Ecos de teste: só com o servidor em --test (`enabled`), 1..TEST_GOLD_MAX. Registrado como "ecos"/"test".
+func grant_test_ecos(account_id: int, amount: int, enabled: bool) -> Dictionary:
+	if not enabled:
+		return _result(account_id, {"ok": false, "err": "sem_teste", "events": []})
+	if amount <= 0 or amount > TEST_GOLD_MAX:
+		return _result(account_id, {"ok": false, "err": "valor_invalido", "events": []})
+	var s := load_or_create(account_id)
+	var before := _holdings(s)
+	s.ecos += amount
+	return _result(account_id, _persist(account_id, s, before, "grant", "test", {"ok": true, "err": "", "events": []}))
+
+
+# ================================================================ base, partidas e recordes
+## Estado da base compartilhada: todas as construções (nível 0 as que ninguém tocou).
+## Servidor: a base de todos (SQLite); solo: a base local (arquivo ao lado do personagem).
+func base_state() -> Dictionary:
+	var out := BaseRules.empty_state(_bt)
+	var saved := _store.load_base()
+	for id in saved:
+		out[id] = saved[id]
+	return out
+
+
+func base_bonus() -> Dictionary:
+	return BaseRules.bonus(_bt, base_state())
+
+
+## Maiores doadores de uma construção: [{"name", "amount"}], soma por conta, do maior para o menor.
+func top_donors(building_id: String, limit := 5) -> Array:
+	return _store.top_donors(building_id, limit)
+
+
+## Abre o registro de uma partida. 0 se não gravou.
+func start_run(mode: String, accounts: Array) -> int:
+	var id := _store.start_run(mode, accounts, int(_now()))
+	if id <= 0:
+		push_error("CharacterService: start_run não gravou: %s" % _store.last_error)
+		return 0
+	return id
+
+
+## Fim da partida de um jogador: concede os Ecos e registra. Idempotente por (run_id, conta): repetir
+## devolve ok sem conceder de novo. Com run_id <= 0 só concede e registra a economia.
+## Ouro, xp e itens já foram concedidos durante a partida (grant); aqui só entram no registro.
+func finish_player(run_id: int, account_id: int, mode: String, reached: int, gold: int, xp: int, items: Dictionary, build: Dictionary) -> Dictionary:
+	var s := load_or_create(account_id)
+	if run_id > 0 and _store.run_player_done(run_id, account_id):
+		return _result(account_id, {"ok": true, "err": "", "events": [{"t": "ecos", "n": 0, "mode": mode, "reached": reached}]})
+	var ecos := RewardRules.ecos(_bt, mode, reached)
+	s.ecos += ecos
+	var at := int(_now())
+	var rows := [CharStore.row(at, account_id, "run", gold, null, mode,
+		JSON.stringify({"xp": xp, "items": items, "ecos": ecos, "run_id": run_id, "reached": reached}))]
+	if ecos > 0:
+		# linha própria dos Ecos ganhos (fonte = modo), para somar "Ecos por fonte" sem abrir o detail
+		rows.append(CharStore.row(at, account_id, "ecos", ecos, null, mode))
+	var entry := {"reached": reached, "ecos": ecos, "gold": gold, "xp": xp, "build": build}
+	if not _store.save_run_player(account_id, s.to_dict(), run_id, entry, rows, at):
+		push_error("CharacterService: finish_player de %d não gravou: %s" % [account_id, _store.last_error])
+		_cache.erase(account_id)
+		return _result(account_id, {"ok": false, "err": "erro_banco", "events": []})
+	_dirty.erase(account_id)
+	return _result(account_id, {"ok": true, "err": "", "events": [{"t": "ecos", "n": ecos, "mode": mode, "reached": reached}]})
+
+
+func close_run(run_id: int, reached: int, result: Dictionary) -> bool:
+	var ok := _store.close_run(run_id, reached, result, int(_now()))
+	if not ok:
+		push_error("CharacterService: close_run %d não gravou: %s" % [run_id, _store.last_error])
+	return ok
+
+
+## Recorde de cada modo: a partida encerrada que foi mais longe (empate: a mais antiga) e quem jogou.
+func records() -> Dictionary:
+	var out := {}
+	for mode in ["horde", "city"]:
+		out[mode] = _store.best_run(mode)
+	return out
+
+
+## Grava todos os personagens em cache (o servidor desligando). Devolve quantos gravou.
+func save_all() -> int:
+	var n := 0
+	for account_id in _cache.keys():
+		if _save(account_id, _cache[account_id]):
+			n += 1
+		else:
+			push_error("CharacterService: personagem %d não gravou ao desligar: %s" % [account_id, _store.last_error])
+	return n
+
+
+## Grava o personagem em cache sem descarregar.
+func save(account_id: int) -> bool:
+	return not _cache.has(account_id) or _save(account_id, _cache[account_id])
+
+
+# ================================================================ interno
+## Doação à base numa escrita só (CharStore.save_donation): debita os Ecos, sobe a construção e registra
+## a doação; se não gravar, nada muda. BaseRules valida construção/valor/nível máximo; só então confere os
+## Ecos contra o `used` (o que a construção aceita, nunca passa do que falta até o nível máximo): pedir 500
+## quando faltam 100 com 120 Ecos na mão doa 100.
+func _donate(account_id: int, s: CharState, building: String, amount: int) -> Dictionary:
+	var d := BaseRules.donate(base_state().get(building, {}), _bt, building, amount)
+	if not d.ok:
+		return _result(account_id, {"ok": false, "err": d.err, "events": []})
+	if s.ecos < int(d.used):
+		return _result(account_id, {"ok": false, "err": "sem_ecos", "events": []})
+	s.ecos -= int(d.used)
+	var at := int(_now())
+	var rows := [CharStore.row(at, account_id, "ecos", -int(d.used), building, "donation")]
+	if not _store.save_donation(account_id, s.to_dict(), building, int(d.level), int(d.fund), int(d.used), rows, at):
+		push_error("CharacterService: doação de %d não gravou: %s" % [account_id, _store.last_error])
+		_cache.erase(account_id)
+		return _result(account_id, {"ok": false, "err": "erro_banco", "events": []})
+	_dirty.erase(account_id)
+	var r := _result(account_id, {"ok": true, "err": "", "events": [{"t": "donated", "building": building,
+		"used": d.used, "level": d.level, "leveled": d.leveled}]})
+	r["base"] = base_state()
+	return r
+
+
+func _args_ok(op: String, args: Array) -> bool:
+	var spec: Dictionary = ARGS[op]
+	var types: Array = spec["types"]
+	if args.size() > types.size() or args.size() < types.size() - int(spec["optional"]):
+		return false
+	for i in args.size():
+		if typeof(args[i]) != types[i]:
+			return false
+	return true
+
+
+func _dispatch(s: CharState, op: String, a: Array) -> Dictionary:
+	match op:
+		"buy": return CharRules.buy(s, _bt, a[0], a[1] if a.size() > 1 else 1)
+		"sell": return CharRules.sell(s, _bt, a[0])
+		"equip": return CharRules.equip(s, _bt, a[0])
+		"unequip": return CharRules.unequip(s, _bt, a[0])
+		"consume": return CharRules.consume(s, _bt, a[0])
+		"cook": return CharRules.cook(s, _bt, a[0], a[1] if a.size() > 1 else 1)
+		"spend_point": return CharRules.spend_point(s, _bt, a[0])
+		"start_quest": return CharRules.start_quest(s, _bt, a[0])
+		"complete_quest": return CharRules.complete_quest(s, _bt, a[0])
+		"sort_inventory": return CharRules.sort_inventory(s, _bt)
+		"unlock_plot": return CharRules.unlock_plot(s, _bt)
+		"plant": return CharRules.plant(s, _bt, a[0], a[1], a[2], _now())
+		"water": return CharRules.water(s, _bt, a[0], _now())
+		"fertilize": return CharRules.fertilize(s, _bt, a[0], _now())
+		"harvest": return CharRules.harvest(s, _bt, a[0], _now(), _rng)
+		"discard": return CharRules.discard(s, _bt, a[0])
+		"death_penalty": return CharRules.death_penalty(s, _bt)
+		"buy_passive": return CharRules.buy_passive(s, _bt, a[0])
+	return {"ok": false, "err": "op_invalida", "events": []}
+
+
+## Posse por id (inventário + equipado) e ouro: equipar/desequipar não muda a posse, então não gera linha.
+func _holdings(s: CharState) -> Dictionary:
+	var h := {"": s.gold, "$ecos": s.ecos}   # chave "" = ouro; "$ecos" = Ecos (não colide com id de item)
+	for slot in s.inventory:
+		h[slot.id] = int(h.get(slot.id, 0)) + int(slot.qty)
+	for k in s.equipment:
+		var id: String = s.equipment[k]
+		if id != "":
+			h[id] = int(h.get(id, 0)) + 1
+	return h
+
+
+## Grava estado + linhas da economia numa escrita só. Falha: descarta o cache e relê do armazenamento.
+func _persist(account_id: int, s: CharState, before: Dictionary, kind: String, source: String, r: Dictionary, xp := 0, ecos_item := "") -> Dictionary:
+	var after := _holdings(s)
+	var at := int(_now())
+	var rows := []
+	if xp > 0:
+		rows.append(CharStore.row(at, account_id, "xp", xp, null, source))
+	if not before.is_empty():
+		var ids := {}
+		for k in before:
+			ids[k] = true
+		for k in after:
+			ids[k] = true
+		for k in ids:
+			var d := int(after.get(k, 0)) - int(before.get(k, 0))
+			if d == 0:
+				continue
+			var log_kind := kind
+			var item = k
+			if k == "":
+				item = null
+			elif k == "$ecos":
+				log_kind = "ecos"
+				item = ecos_item if ecos_item != "" else null
+			rows.append(CharStore.row(at, account_id, log_kind, d, item, source))
+	if _store.save_char(account_id, s.to_dict(), rows, at):
+		_dirty.erase(account_id)
+		return r
+	push_error("CharacterService: falha ao gravar %d: %s" % [account_id, _store.last_error])
+	_cache.erase(account_id)
+	return {"ok": false, "err": "erro_banco", "events": []}
+
+
+func _result(account_id: int, r: Dictionary) -> Dictionary:
+	var out := r.duplicate()
+	out["state"] = load_or_create(account_id).to_dict()
+	return out
+
+
+func _save(account_id: int, s: CharState) -> bool:
+	var ok := _store.save_char(account_id, s.to_dict(), [], int(_now()))
+	if ok:
+		_dirty.erase(account_id)
+	return ok
+
+
+func _read(account_id: int) -> CharState:
+	var d = _store.load_char(account_id)
+	if not (d is Dictionary):
+		return null
+	return CharState.from_dict(d, _bt)

@@ -79,6 +79,9 @@ var _t := 0.0
 
 
 func _ready() -> void:
+	# solo: o personagem vem do save solo (antes de montar o mapa: o chefe depende dos flags)
+	if not Network.is_online():
+		Econ.ensure_solo()
 	rng.seed = 20261113
 	_build_environment()
 	_build_ground()
@@ -123,6 +126,8 @@ func _ready() -> void:
 		add_child(chat)
 		Game.notify.emit("Conectado como %s — %d jogador(es) online." % [Network.my_name, Network.players.size()], Color(0.6, 0.9, 1.0))
 		Network.world_ready(self)
+	elif Hub.take_pending_horde():
+		start_survival.call_deferred()   # solo: o portal da praça pediu a Horda
 
 
 func _exit_tree() -> void:
@@ -485,6 +490,7 @@ func start_survival() -> void:
 	survival.world = self
 	survival.player = player
 	survival.center = ARENA
+	survival.return_to_hub = Hub.take_horde_return()
 	add_child(survival)
 
 
@@ -505,6 +511,7 @@ func start_survival_net(team: Dictionary, slot: int, round_time: float) -> void:
 	survival.team = team
 	survival.my_slot = slot
 	survival.round_time = round_time
+	survival.return_to_hub = Hub.take_horde_return()
 	add_child(survival)
 
 
@@ -891,14 +898,11 @@ func _on_player_died() -> void:
 
 
 func _respawn() -> void:
-	var lost := int(Game.gold * 0.1)
-	Game.gold -= lost
+	Game.death_penalty()   # o ouro perdido e o aviso vêm das regras
 	modal = null
 	_set_paused(false)
 	player.revive(VILLAGE_SPAWN)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	if lost > 0:
-		Game.notify.emit("Você perdeu %d ouro." % lost, Color(1, 0.6, 0.5))
 	if Network.is_online():
 		return   # no multiplayer o servidor cuida dos inimigos
 	# inimigos voltam para casa

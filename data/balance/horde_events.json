@@ -1,0 +1,52 @@
+{
+	"events": {
+		"meteoros": {
+			"name": "Chuva de Meteoros",
+			"color": {
+				"$c": [1.0, 0.5, 0.2, 1.0]
+			},
+			"desc": "Meteoros caem na arena: saia dos círculos vermelhos!"
+		},
+		"lua_sangue": {
+			"name": "Lua de Sangue",
+			"color": {
+				"$c": [1.0, 0.25, 0.3, 1.0]
+			},
+			"desc": "Monstros mais rápidos e fortes, mas as gemas valem o dobro."
+		},
+		"febre_ouro": {
+			"name": "Febre do Ouro",
+			"color": {
+				"$c": [1.0, 0.82, 0.25, 1.0]
+			},
+			"desc": "Goblins Dourados fogem pela arena. Pegue-os antes que escapem!"
+		},
+		"enxame": {
+			"name": "Enxame",
+			"color": {
+				"$c": [0.95, 0.45, 0.3, 1.0]
+			},
+			"desc": "O dobro de monstros, porém mais frágeis."
+		},
+		"campeoes": {
+			"name": "Campeões",
+			"color": {
+				"$c": [0.9, 0.35, 0.25, 1.0]
+			},
+			"desc": "Campeões Goblin entram na arena. Derrote-os por um bom saque."
+		},
+		"emboscada": {
+			"name": "Emboscada",
+			"color": {
+				"$c": [0.75, 0.55, 1.0, 1.0]
+			},
+			"desc": "A horda surge cercando o grupo!"
+		}
+	},
+	"hunt": {
+		"name": "Caçada",
+		"color": {
+			"$c": [0.5, 0.9, 1.0, 1.0]
+		}
+	}
+}

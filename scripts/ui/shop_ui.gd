@@ -13,6 +13,9 @@ var buy_grid: GridContainer
 var sell_grid: GridContainer
 var info: Label
 var filter := "all"
+## O mercador da praça usa o mesmo painel com outro nome e outra fala.
+var title := "Barraca da Mira"
+var quote := "\"Armas, armaduras e tudo que um herói precisa. Pago metade pelo que você trouxer!\""
 
 
 func _ready() -> void:
@@ -25,10 +28,10 @@ func _ready() -> void:
 	v.add_theme_constant_override("separation", 10)
 	p.add_child(v)
 	var top := HBoxContainer.new()
-	var title := VBoxContainer.new()
-	title.add_child(UITheme.heading("Barraca da Mira", 30))
-	title.add_child(UITheme.label("\"Armas, armaduras e tudo que um herói precisa. Pago metade pelo que você trouxer!\"", 15, UITheme.DIM))
-	top.add_child(title)
+	var title_box := VBoxContainer.new()
+	title_box.add_child(UITheme.heading(title, 30))
+	title_box.add_child(UITheme.label(quote, 15, UITheme.DIM))
+	top.add_child(title_box)
 	top.add_child(UITheme.spacer())
 	gold_label = UITheme.heading("", 24, Color(1, 0.84, 0.35))
 	gold_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -87,6 +90,7 @@ func _ready() -> void:
 	add_child(tooltip)
 	Game.inventory_changed.connect(_refresh)
 	Game.stats_changed.connect(_refresh)
+	Econ.result.connect(_on_econ_result)
 	_refresh()
 
 
@@ -170,12 +174,15 @@ func _slot(ctx: String, id: String, q: int) -> ItemSlot:
 
 
 func _buy(s: ItemSlot) -> void:
-	if Game.buy(s.item_id):
-		Sfx.play("coin")
+	Game.buy(s.item_id)
 
 
 func _sell(s: ItemSlot) -> void:
-	if Game.sell(s.item_id):
+	Game.sell(s.item_id)
+
+
+func _on_econ_result(op: String, ok: bool, _err: String) -> void:
+	if ok and op in ["buy", "sell"]:
 		Sfx.play("coin")
 
 

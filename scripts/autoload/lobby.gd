@@ -1,8 +1,9 @@
 extends Node
-## Salão central do multiplayer e a Defesa da Cidade em grupo.
+## Navegação entre a praça, Valdoria e a cidade, e a Defesa da Cidade em grupo.
 ##
-## Ao entrar no servidor o jogador cai no salão (lobby.tscn): vê quem está online e onde está,
-## vai para Valdoria (o mundo do RPG) ou abre/entra na sala da Defesa da Cidade cooperativa.
+## Ao entrar no servidor (e no solo, pelo menu) o jogador cai na praça da cidade (hub.tscn, autoload Hub):
+## de lá segue a estrada para Valdoria (o mundo do RPG), entra no portal da Horda ou abre/entra na sala da
+## Defesa da Cidade cooperativa.
 ##
 ## A cidade em grupo roda no servidor dentro de um SubViewport com mundo 3D próprio (física separada
 ## de Valdoria, que continua rodando). O servidor simula tudo (Colony role "server"): economia, ondas,
@@ -13,7 +14,7 @@ extends Node
 
 signal changed   # cliente: sala, recorde ou lista de jogadores mudou
 
-const LOBBY_SCENE := "res://scenes/lobby.tscn"
+const HUB_SCENE := "res://scenes/hub.tscn"
 const WORLD_SCENE := "res://scenes/world.tscn"
 const COLONY_SCENE := "res://scenes/colony.tscn"
 const SNAP_RATE := 8.0
@@ -26,13 +27,17 @@ const VILLAGE_SPAWN := Vector3(0, 0.5, 6)
 var room := {}
 ## Melhor partida do servidor: {"day": noites, "names": [nomes]}.
 var record := {}
-## Resultado da última partida (mostrado no salão ao voltar).
+## Cliente: recompensas de noite vencida recebidas nesta execução (só cresce). O servidor conta a mesma
+## noite para o resumo do fim (Ecos), então o net_test confere os Ecos com a diferença deste contador.
+var city_nights_rewarded := 0
+## Resultado da última partida (mostrado na praça ao voltar).
 var last_result := {}
 ## Cliente: a cena da cidade que está carregando deve entrar como réplica.
 var joining_city := false
 var city_seed := 0
 ## Cliente: colony_world (role "client") em uso.
 var city: Node = null
+## Onde o personagem estava em Valdoria (a praça guarda ao montar; go_world devolve ao Game.spawn_position).
 var _last_world_pos = null
 var _last_world_yaw := 0.0
 
@@ -45,9 +50,16 @@ var _snap_t := 0.0
 var _state_t := 0.0
 var _room_t := 0.0
 var _force_t := 0.0
+## Recorde da Defesa: vem do banco (CharacterService.records().city, persiste entre deploys) na subida do
+## servidor e depois de cada partida; durante a partida sobe com as noites vencidas (_update_record).
 var _record := {"day": 0, "names": []}
+var _record_loaded := false
 var _present := {}              # peers que estavam na cidade quando a noite começou
-var _rewards := {}              # peer -> {"gold", "xp", "items": []} somado na partida
+## peer -> {"gold", "xp", "items": [], "account", "nights"} somado na partida (nights: noites em que estava presente)
+var _rewards := {}
+## Registro da partida em runs (CharacterService.start_run) e o bônus da base fixado no começo dela.
+var _run_id := 0
+var _bonus := {}
 ## Duração do dia na cidade (--city-day=SEG encurta para os testes).
 var city_day_time := ColonyData.DAY_LENGTH
 var city_first_bonus := ColonyData.FIRST_DAY_BONUS
@@ -62,29 +74,27 @@ func _ready() -> void:
 
 
 # ================================================================ cliente: navegação
-## O servidor aceitou a conexão: todo mundo chega pelo salão.
+## O servidor aceitou a conexão: todo mundo chega pela praça.
 func on_accepted() -> void:
 	_last_world_pos = Game.spawn_position
 	_last_world_yaw = Game.spawn_yaw
 	last_result = {}
-	get_tree().change_scene_to_file(LOBBY_SCENE)
+	get_tree().change_scene_to_file(HUB_SCENE)
 
 
-## A cena do salão terminou de montar.
-func lobby_ready() -> void:
-	joining_city = false
-	if Network.is_client():
-		_enter_lobby.rpc_id(1)
-
-
-## Está no salão ou na cidade em grupo (para a desconexão voltar ao menu).
+## Está na praça ou na cidade em grupo (para a desconexão voltar ao menu).
 func in_session() -> bool:
 	var s := get_tree().current_scene
-	return s != null and (s.get("is_lobby") == true or s.get("role") == "client")
+	return s != null and (s.get("role") == "hub" or s.get("role") == "client")
 
 
+## Da praça para Valdoria (a estrada; o portal da Horda passa por Hub.go_horde).
 func go_world() -> void:
 	joining_city = false
+	# a praça deixa de ser o mundo do cliente já agora: quem espera Valdoria montar (Network.world) não a
+	# confunde com a praça que ainda está na tela até a troca de cena
+	if Network.world != null and Network.world.get("role") == "hub":
+		Network.world_closed(Network.world)
 	if Game.hp <= 0.0:
 		Game.hp = Game.max_hp()
 	Game.spawn_position = _last_world_pos
@@ -93,27 +103,32 @@ func go_world() -> void:
 	get_tree().change_scene_to_file(WORLD_SCENE)
 
 
-## De Valdoria ou da cidade de volta ao salão (salva o personagem antes).
-func go_lobby() -> void:
-	var w := Network.world
-	if w != null and w.get("role") == null and w.get("player") != null and is_instance_valid(w.player):
+## De Valdoria, da Horda ou da cidade de volta à praça (online e solo; salva o personagem antes).
+## save_pos = false: não grava onde o jogador está (a arena da Horda que veio da praça; vale o de antes).
+func go_hub(save_pos := true) -> void:
+	var w := get_tree().current_scene
+	if save_pos and w != null and w.get("role") == null and w.get("player") != null and is_instance_valid(w.player):
 		var p: Player = w.player
-		if not p.dead:
+		if not p.dead and not Game.run_mods.get("active", false):
 			_last_world_pos = p.global_position
 			_last_world_yaw = p.model.rotation.y
 	save_character()
 	Game.reset_run_mods()
+	Hub.pending_horde = false
+	Hub.horde_return = false
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	get_tree().change_scene_to_file(LOBBY_SCENE)
+	get_tree().change_scene_to_file(HUB_SCENE)
 
 
-## Salva o personagem na última posição em Valdoria (a cidade não muda onde ele está no RPG).
+## Manda vida/mana e a última posição em Valdoria ao servidor (a cidade não muda onde ele está no RPG).
 func save_character() -> void:
 	if Game.run_mods.get("active", false):
 		return
-	var pos = _last_world_pos if _last_world_pos != null else VILLAGE_SPAWN
-	Game.save_game(pos, _last_world_yaw)
+	if _last_world_pos == null and not Network.is_online():
+		return   # solo sem posição guardada (cidade aberta direto do menu): o save solo já tem a dele
+	var pos: Vector3 = _last_world_pos if _last_world_pos != null else VILLAGE_SPAWN
+	Econ.report_vitals(pos, _last_world_yaw)
 
 
 func client_reset() -> void:
@@ -194,6 +209,9 @@ func city_team_size() -> int:
 func _physics_process(delta: float) -> void:
 	if not Network.is_server():
 		return
+	if not _record_loaded and Network.characters != null:
+		_record_loaded = true
+		_load_record()
 	var c := _colony()
 	if c != null:
 		_state_t -= delta
@@ -232,30 +250,21 @@ func _name(id: int) -> String:
 	return str(_room.get("names", {}).get(id, "?"))
 
 
-@rpc("any_peer", "call_remote", "reliable")
-func _enter_lobby() -> void:
-	var id := _sender()
-	if id == 0:
-		return
-	Network.server_set_zone(id, "lobby")
-	_room_state.rpc_id(id, _room_view(), _record)
-
-
 # ---------------------------------------------------------------- sala (servidor)
 @rpc("any_peer", "call_remote", "reliable")
 func _room_msg(kind: String) -> void:
 	var id := _sender()
 	if id == 0:
 		return
-	var in_lobby := Network.zone_of(id) == "lobby"
+	var in_hub := Network.zone_of(id) == "hub"
 	match kind:
 		"create", "join":
-			if not in_lobby:
+			if not in_hub:
 				return
 			if _room.is_empty():
 				_room = {"state": "open", "leader": id, "members": {id: false}, "names": {id: _name(id)}, "seed": 0}
 				print("[server] %s abriu a sala da Defesa da Cidade" % _name(id))
-				_lobby_say("%s abriu uma sala da Defesa da Cidade em grupo." % _name(id), Color(1, 0.85, 0.5))
+				_hub_say("%s abriu uma sala da Defesa da Cidade em grupo." % _name(id), Color(1, 0.85, 0.5))
 			elif _room.state == "open":
 				if _room.members.size() >= ColonyData.COOP_MAX_PLAYERS:
 					_notice.rpc_id(id, "A sala está cheia.")
@@ -290,17 +299,18 @@ func _room_msg(kind: String) -> void:
 	_broadcast_room()
 
 
-## Entrar na partida em andamento (direto do salão).
+## Entrar na partida em andamento (direto da praça).
 func _room_msg_enter(id: int) -> void:
 	if _room.is_empty() or _room.state != "running" or _city == null:
 		return
-	if Network.zone_of(id) != "lobby":
+	if Network.zone_of(id) != "hub":
 		return
 	if Network.zone_peers("city").size() >= ColonyData.COOP_MAX_PLAYERS:
 		_notice.rpc_id(id, "A cidade está cheia (%d jogadores)." % ColonyData.COOP_MAX_PLAYERS)
 		return
 	_room.members[id] = true
 	_room.names[id] = _name(id)
+	_reward_acc(id)   # quem entra no meio também fecha a partida (Ecos pelas noites em que esteve)
 	_city_go.rpc_id(id, int(_room.seed))
 	_broadcast_room()
 
@@ -328,8 +338,8 @@ func _broadcast_room() -> void:
 		_room_state.rpc_id(pid, v, _record)
 
 
-func _lobby_say(text: String, color: Color) -> void:
-	for pid in Network.zone_peers("lobby"):
+func _hub_say(text: String, color: Color) -> void:
+	for pid in Network.zone_peers("hub"):
 		_city_say.rpc_id(pid, text, color)
 
 
@@ -341,6 +351,16 @@ func _start_city() -> void:
 		_room.members[pid] = true
 	_present.clear()
 	_rewards.clear()
+	var accounts: Array = []
+	for pid in _room.members:
+		_reward_acc(pid)
+		if int(_rewards[pid].account) > 0:
+			accounts.append(int(_rewards[pid].account))
+	_run_id = 0
+	_bonus = {}
+	if Network.characters != null:
+		_run_id = Network.characters.start_run("city", accounts)
+		_bonus = Network.characters.base_bonus()   # fixado agora: doações no meio da partida não mudam
 	_vp = SubViewport.new()
 	_vp.own_world_3d = true          # física e mundo separados de Valdoria
 	_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
@@ -349,14 +369,15 @@ func _start_city() -> void:
 	_city.role = "server"
 	_city.map_seed = seed
 	_city.coop_players = _room.members.size()
+	_city.base_bonus = _bonus
 	_vp.add_child(_city)
 	print("[server] Defesa da Cidade em grupo começou (%d jogadores, mapa %d)" % [_room.members.size(), seed])
 	for pid in _room.members:
 		_city_go.rpc_id(pid, seed)
-	_lobby_say("A Defesa da Cidade começou! Quem estiver no salão ainda pode entrar.", Color(1, 0.85, 0.5))
+	_hub_say("A Defesa da Cidade começou! Quem estiver na praça ainda pode entrar.", Color(1, 0.85, 0.5))
 
 
-## Um jogador saiu da cidade (voltou ao salão, caiu a conexão...).
+## Um jogador saiu da cidade (voltou à praça, caiu a conexão...).
 func server_city_left(id: int) -> void:
 	_present.erase(id)
 	if _room.is_empty():
@@ -365,9 +386,9 @@ func server_city_left(id: int) -> void:
 	if _room.state == "running" and _colony() != null:
 		_colony().say("%s saiu da cidade." % _name(id), Color(0.8, 0.8, 0.9))
 	if _room.members.is_empty() or (_room.state == "running" and Network.zone_peers("city").is_empty()
-			and _room.members.keys().all(func(pid) -> bool: return Network.zone_of(pid) != "lobby")):
+			and _room.members.keys().all(func(pid) -> bool: return Network.zone_of(pid) != "hub")):
 		if _room.state == "running":
-			_end_city("abandon", [id])   # quem saiu por último também vê o resumo no salão
+			_end_city("abandon", [id])   # quem saiu por último também vê o resumo na praça
 		else:
 			_room = {}
 	elif _room.leader == id:
@@ -398,7 +419,6 @@ func _end_city(reason: String, extra_peers: Array = []) -> void:
 	if c != null:
 		nights = maxi(0, c.day - 1)
 		kills = c.total_kills
-	_update_record(nights)
 	var names: Array = []
 	for pid in _room.get("names", {}):
 		names.append(_room.names[pid])
@@ -407,10 +427,17 @@ func _end_city(reason: String, extra_peers: Array = []) -> void:
 	for pid in extra_peers:
 		if Network.players.has(pid) and not (pid in to):
 			to.append(pid)
+	var ecos := _city_summaries(nights, to)
+	if _run_id > 0 and Network.characters != null:
+		Network.characters.close_run(_run_id, nights, {"reason": reason, "kills": kills})
+	_run_id = 0
+	_update_record(nights)
+	_load_record()
+	Hub.server_records_changed()
 	for pid in to:
 		var r: Dictionary = _rewards.get(pid, {"gold": 0, "xp": 0, "items": []})
 		_city_over.rpc_id(pid, {"reason": reason, "nights": nights, "kills": kills, "gold": r.gold, "xp": r.xp,
-			"items": r.items, "names": names, "record": _record.day})
+			"items": r.items, "names": names, "record": _record.day, "ecos": int(ecos.get(pid, 0))})
 	_room = {}
 	_present.clear()
 	var vp := _vp
@@ -426,6 +453,47 @@ func _end_city(reason: String, extra_peers: Array = []) -> void:
 		# deixa os clientes verem a queda antes de sumir com tudo
 		await get_tree().create_timer(1.0).timeout
 		vp.queue_free()
+
+
+## Fim da partida de cada conta que passou pela cidade (CharacterService.finish_player: Ecos pelas
+## noites em que esteve presente e uma linha no registro — as concessões da noite não são registradas
+## uma a uma) e o recorde de noites no personagem de quem viu o fim. Devolve peer -> Ecos ganhos.
+## Por conta, não por peer: quem caiu e voltou no meio da partida tem dois peers e fecha uma vez só, somado.
+func _city_summaries(nights: int, to: Array) -> Dictionary:
+	var out := {}
+	if Network.characters == null:
+		return out
+	var by_account := RewardRules.city_by_account(_rewards)
+	for account in by_account:
+		var t: Dictionary = by_account[account]
+		var res: Dictionary = Network.characters.finish_player(_run_id, account, "city", int(t.nights),
+			int(t.gold), int(t.xp), t.items, {})
+		var n := 0
+		for e in Econ.events_of(res):
+			if e is Dictionary and e.get("t") == "ecos":
+				n = int(e.get("n", 0))
+		for pid in t.peers:
+			out[pid] = n
+			Econ.server_push(pid, res)   # só chega a quem ainda está conectado
+	for pid in to:
+		Econ.server_record(pid, "city_best", nights)
+	return out
+
+
+## Acumulado da partida do peer (criado na primeira vez, com a conta: quem cair ainda fecha a partida).
+func _reward_acc(pid: int) -> Dictionary:
+	if not _rewards.has(pid):
+		_rewards[pid] = {"gold": 0, "xp": 0, "items": [], "account": Econ.account_of(pid), "nights": 0}
+	return _rewards[pid]
+
+
+## Servidor: recorde da Defesa a partir das partidas registradas (persiste entre deploys).
+func _load_record() -> void:
+	if Network.characters == null:
+		return
+	var rec: Dictionary = Network.characters.records().get("city", {})
+	if int(rec.get("reached", 0)) > 0:
+		_record = {"day": int(rec.reached), "names": (rec.get("names", []) as Array).duplicate()}
 
 
 func _update_record(nights: int) -> void:
@@ -450,9 +518,12 @@ func _city_ready() -> void:
 	if not _room.members.has(id):
 		_room.members[id] = true
 		_room.names[id] = _name(id)
+	_reward_acc(id)
 	Network.server_set_zone(id, "city")
 	c.team_size = city_team_size()
-	_city_full.rpc_id(id, c.net_full())
+	var full := c.net_full()
+	full["bonus"] = c.base_bonus   # o cliente aplica antes das construções (vida da prefeitura)
+	_city_full.rpc_id(id, full)
 	Network.send_zone_enemies(id, "city")
 	for e in c.live_enemies():
 		if e.affix != "" and e.net_id != 0:
@@ -497,6 +568,7 @@ func server_city_kill(e: Enemy) -> void:
 	var xp := int(e.data.xp * 0.5 * (2.0 if e.affix != "" else 1.0))
 	for pid in e.contributors:
 		if Network.zone_of(pid) == "city":
+			Econ.server_kill(pid, e.kind, xp)
 			_city_xp.rpc_id(pid, e.kind, xp)
 
 
@@ -513,33 +585,22 @@ func city_night_survived(n: int) -> void:
 	for pid in Network.zone_peers("city"):
 		if not _present.has(pid):
 			continue
-		var items: Array = []
-		if n % ColonyData.BOSS_EVERY == 0:
-			var it := _roll_item(n)
-			if it != "":
-				items.append(it)
-			items.append("health_potion")
-			items.append("health_potion")
-		var acc: Dictionary = _rewards.get(pid, {"gold": 0, "xp": 0, "items": []})
-		acc.gold += int(rw.gold)
-		acc.xp += int(rw.xp)
-		acc.items.append_array(items)
-		_rewards[pid] = acc
+		var items := ColonyData.night_chest(n)
+		var acc := _reward_acc(pid)
+		acc.nights = int(acc.get("nights", 0)) + 1
+		var got := {}
+		for id in items:
+			got[id] = int(got.get(id, 0)) + 1
+		# o servidor concede no personagem (resumo da partida no fim, em _end_city) e só depois avisa
+		var r := Econ.server_grant(pid, int(rw.gold), int(rw.xp), got, "city_night", 0, true)
+		if r.ok:
+			acc.gold += int(rw.gold)
+			acc.xp += int(rw.xp)
+			acc.items.append_array(items)
+		Econ.server_record(pid, "city_best", n)
 		_city_reward.rpc_id(pid, n, int(rw.gold), int(rw.xp), items)
 	_update_record(n)
 	_broadcast_room()
-
-
-func _roll_item(n: int) -> String:
-	for entry in ColonyData.chest_rarities(n):
-		if randf() < float(entry[1]):
-			var pool: Array = []
-			for id in ItemDB.ITEMS:
-				if ItemDB.is_equippable(id) and ItemDB.rarity_of(id) == entry[0]:
-					pool.append(id)
-			if not pool.is_empty():
-				return pool.pick_random()
-	return ""
 
 
 func city_defeat() -> void:
@@ -632,7 +693,7 @@ func _city_go(seed: int) -> void:
 func _city_closed(reason: String) -> void:
 	Game.notify.emit(reason, Color(1, 0.7, 0.5))
 	if city != null:
-		go_lobby()
+		go_hub()
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -640,6 +701,9 @@ func _city_full(d: Dictionary) -> void:
 	var c := _colony()
 	if c == null:
 		return
+	# bônus da base fixado pelo servidor no começo da partida (antes das construções: vida da prefeitura)
+	if d.get("bonus") is Dictionary:
+		c.base_bonus = (d.bonus as Dictionary).duplicate()
 	for b in d.get("buildings", []):
 		c.net_building_add(int(b[0]), str(b[1]), float(b[2]), float(b[3]), float(b[4]), int(b[5]), float(b[6]), int(b[7]), false)
 	for s in d.get("soldiers", []):
@@ -746,22 +810,19 @@ func _city_shot(kind: String, from: Vector3, target_id: int, target_pos: Vector3
 
 
 @rpc("authority", "call_remote", "reliable")
-func _city_xp(kind: String, xp: int) -> void:
-	if Enemy.TYPES.has(kind):
-		Game.on_enemy_killed(kind, maxi(0, xp))
+func _city_xp(_kind: String, _xp: int) -> void:
+	# o XP e o abate chegam pelo Econ (estado do servidor); aqui só o efeito do cliente
+	Game.kill_lifesteal()
 
 
 @rpc("authority", "call_remote", "reliable")
 func _city_reward(n: int, gold: int, xp: int, items: Array) -> void:
-	Game.add_gold(gold)
-	Game.add_xp(xp)
+	# o servidor já concedeu (ouro, XP, baú e recorde chegam pelo Econ): aqui só o aviso
+	city_nights_rewarded += 1
 	var got: Array[String] = []
 	for id in items:
-		if ItemDB.ITEMS.has(str(id)):
-			Game.add_item(str(id), 1, true)
-			if str(id) != "health_potion":
-				got.append(ItemDB.ITEMS[str(id)].name)
-	Game.flags["city_best"] = maxi(int(Game.flags.get("city_best", 0)), n)
+		if ItemDB.ITEMS.has(str(id)) and str(id) != "health_potion":
+			got.append(ItemDB.ITEMS[str(id)].name)
 	Game.notify.emit("Noite %d vencida! Recompensa: +%d ouro e +%d XP para o seu personagem." % [n, gold, xp], Color(1, 0.85, 0.35))
 	if not got.is_empty():
 		Game.notify.emit("Baú da noite %d: %s!" % [n, ", ".join(got)], ItemDB.rarity_color(str(items[0])))
@@ -775,7 +836,6 @@ func _city_reward(n: int, gold: int, xp: int, items: Array) -> void:
 func _city_over(info: Dictionary) -> void:
 	last_result = info
 	changed.emit()
-	Game.flags["city_best"] = maxi(int(Game.flags.get("city_best", 0)), int(info.get("nights", 0)))
-	save_character()
+	save_character()   # o recorde de noites vem do servidor (estado do personagem)
 	if city and city.has_method("show_results"):
 		city.show_results(info)

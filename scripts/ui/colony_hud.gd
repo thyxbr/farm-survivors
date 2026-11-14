@@ -119,7 +119,7 @@ func _ready() -> void:
 	root.add_child(_reward_label)
 
 
-## Cidade em grupo: recompensa da noite vencida no centro da tela por alguns segundos.
+## Recompensa da noite vencida (solo e grupo) no centro da tela por alguns segundos.
 func show_reward(n: int, gold: int, xp: int, items: Array) -> void:
 	var t := "Noite %d vencida!\n+%d ouro  ·  +%d XP" % [n, gold, xp]
 	for id in items:
@@ -181,7 +181,7 @@ func _update_status() -> void:
 		lines.append("Cofre  [b]%d[/b]   [color=%s](%+d/dia)[/color]" % [colony.get_gold(), _col(f.gold_net), f.gold_net])
 	else:
 		lines.append("[b][color=#dcae52]Cidade — dia %d[/color][/b]" % colony.day)
-		lines.append("Ouro  [b]%d[/b]   [color=%s](%+d/dia)[/color]" % [Game.gold, _col(f.gold_net), f.gold_net])
+		lines.append("Caixa da cidade  [b]%d[/b]   [color=%s](%+d/dia)[/color]" % [colony.get_gold(), _col(f.gold_net), f.gold_net])
 	lines.append("Comida  [b]%d[/b]   [color=%s](%+d/dia)[/color]" % [colony.food, _col(f.food_net), f.food_net])
 	lines.append("Moradores  [b]%d[/b] / %d   (%d trabalhando)" % [colony.citizens, colony.pop_cap(), f.employed])
 	lines.append("Exército  [b]%d[/b] / %d   salários %d/dia" % [colony.soldier_count(), colony.army_cap(), f.salaries])
@@ -194,10 +194,11 @@ func _update_status() -> void:
 		if mod != "":
 			var m: Dictionary = ColonyData.NIGHT_MODS[mod]
 			lines.append("[color=#%s]%s %s[/color]: %s" % [m.color.to_html(false), "Esta noite:" if colony.phase == "night" else "Próxima noite:", m.name, m.desc])
-		if colony.phase == "day" or colony.phase == "night":
-			var rw := ColonyData.night_reward(colony.day)
-			var chest := "  + baú" if colony.day % ColonyData.BOSS_EVERY == 0 else ""
-			lines.append("[color=#a39d8c]Vencer a noite %d: +%d ouro, +%d XP%s[/color]" % [colony.day, rw.gold, rw.xp, chest])
+	if colony.phase == "day" or colony.phase == "night":
+		# a recompensa vai para o personagem (o caixa da cidade some no fim da partida)
+		var rw := ColonyData.night_reward(colony.day)
+		var chest := "  + baú" if colony.day % ColonyData.BOSS_EVERY == 0 else ""
+		lines.append("[color=#a39d8c]Vencer a noite %d: +%d ouro, +%d XP%s (personagem)[/color]" % [colony.day, rw.gold, rw.xp, chest])
 	var s := "\n".join(lines)
 	if s != _last_status:
 		_last_status = s

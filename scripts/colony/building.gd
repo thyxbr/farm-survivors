@@ -91,6 +91,8 @@ func _collision_offset_z() -> float:
 func _apply_level(full_hp: bool) -> void:
 	var old_max := max_hp
 	max_hp = data.hp * ColonyData.level_mult(level, 0.4)
+	if is_core and colony != null and colony.has_method("hall_hp_mult"):
+		max_hp *= colony.hall_hp_mult()   # Muralha da base (fixada no começo da partida)
 	if full_hp:
 		hp = max_hp
 	else:

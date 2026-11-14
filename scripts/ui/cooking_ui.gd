@@ -61,6 +61,7 @@ func _ready() -> void:
 	v.add_child(btns)
 
 	Game.inventory_changed.connect(_refresh)
+	Econ.done.connect(_on_econ_done)
 	_refresh()
 	var pick := 0
 	for i in ItemDB.RECIPE_ORDER.size():
@@ -127,7 +128,18 @@ func _cook(times: int) -> void:
 	var r := _selected()
 	if r == "":
 		return
-	var n := Game.cook(r, times)
+	Game.cook(r, times)
+
+
+## O Econ confirmou: quantas saíram vem no evento "looted" da receita.
+func _on_econ_done(op: String, args: Array, ok: bool, _err: String, events: Array) -> void:
+	if op != "cook" or not ok or args.is_empty():
+		return
+	var r := str(args[0])
+	var n := 0
+	for e in events:
+		if e.get("t") == "looted" and e.get("id") == r:
+			n += int(e.get("qty", 0))
 	if n <= 0:
 		return
 	Sfx.play("cook", 0.1)
