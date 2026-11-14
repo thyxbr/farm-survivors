@@ -8,6 +8,9 @@ enum State { WORK, PAUSE, IDLE, TALK }
 
 const NEAR := 7.0     # mesmo raio em que o npc.gd vira para o jogador
 const BLEND := 0.25
+## Entrada e saída da pausa: o work_pause (Mixamo) começa e termina numa base aberta e com o corpo virado,
+## longe da pose do martelar provisório; em 0,25 s as pernas cruzavam e o pé escorregava.
+const PAUSE_BLEND := 0.5
 ## Clipes em que o martelo bate na bigorna (nome base, antes de clip()).
 const STRIKE_CLIPS := ["work_hammer"]
 ## Tempo (s) do impacto em cada clipe, pelo nome resolvido por clip(): work_hammer provisório = quadro 16
@@ -144,11 +147,11 @@ func _on_strike() -> void:
 
 
 # ---------------------------------------------------------------- estados
-func _work() -> void:
+func _work(blend := BLEND) -> void:
 	state = State.WORK
 	_cycles_left = randi_range(3, 5)
 	_last_pos = 0.0
-	_play("work_hammer")
+	_play("work_hammer", blend)
 
 
 func _idle() -> void:
@@ -162,8 +165,8 @@ func _set_always(on: bool) -> void:
 	anim.process_mode = mode
 
 
-func _play(clip_name: String) -> void:
-	anim.play(clip(clip_name), BLEND)
+func _play(clip_name: String, blend := BLEND) -> void:
+	anim.play(clip(clip_name), blend)
 
 
 ## Conta as voltas do martelar (a posição do clipe em loop volta para o início); depois de 3 a 5,
@@ -174,13 +177,13 @@ func _count_cycle() -> void:
 		_cycles_left -= 1
 		if _cycles_left <= 0:
 			state = State.PAUSE
-			_play("work_pause")
+			_play("work_pause", PAUSE_BLEND)
 	_last_pos = pos
 
 
 func _on_anim_finished(anim_name: StringName) -> void:
 	if state == State.PAUSE and String(anim_name) == clip("work_pause"):
-		_work()
+		_work(PAUSE_BLEND)
 
 
 # ---------------------------------------------------------------- montagem
