@@ -713,7 +713,9 @@ func _cast_frost_nova() -> void:
 		if e.dead:
 			continue
 		if e.global_position.distance_to(global_position) <= radius + e.radius:
-			e.take_damage((15.0 + Game.spell_power() * 2.0) * Game.damage_mult(), global_position, false, 4.0)
+			var nova_dmg := (15.0 + Game.spell_power() * 2.0) * Game.damage_mult()
+			e.take_damage(nova_dmg, global_position, false, 4.0)
+			Game.on_damage_dealt(nova_dmg, e.max_hp)
 
 
 func _frost_fx(radius: float) -> void:
@@ -769,6 +771,7 @@ func _food_fire_nova() -> void:
 			continue
 		if e.global_position.distance_to(global_position) <= radius + e.radius:
 			e.take_damage(dmg, global_position, false)
+			Game.on_damage_dealt(dmg, e.max_hp)
 
 
 ## Chá de Menta Gélida: congela (lentidão forte) e fere os inimigos próximos.
@@ -782,7 +785,9 @@ func _food_frost_nova() -> void:
 		if e.dead:
 			continue
 		if e.global_position.distance_to(global_position) <= radius + e.radius:
-			e.take_damage((12.0 + Game.level * 3.0) * Game.damage_mult(), global_position, false, 6.0)
+			var food_dmg := (12.0 + Game.level * 3.0) * Game.damage_mult()
+			e.take_damage(food_dmg, global_position, false, 6.0)
+			Game.on_damage_dealt(food_dmg, e.max_hp)
 
 
 # ------------------------------------------------------------ dano e morte

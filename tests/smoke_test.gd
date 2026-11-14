@@ -131,6 +131,27 @@ func _ready() -> void:
 	player.cast("meteor_rain")
 	check(Game.mp == mp_m and player.cooldowns.meteor_rain == 0.0, "ultimate ainda não construída: sem custo")
 
+	# --- magia do cajado enche a fúria (Nova Gélida causa dano ao slime perto)
+	var lvl_n := Game.level
+	var mp_n := Game.mp
+	Game.level = 5
+	Game.mp = Game.max_mp()
+	player.cooldowns.frost_nova = 0.0
+	player.cast_timer = 0.0
+	var pos_n := player.global_position
+	var nova_s := _nearest("slime")
+	player.global_position = nova_s.global_position + Vector3(0, 0.3, 1.5)
+	await wait(0.1)
+	Game.fury = 0.0
+	player.cast("frost_nova")
+	check(Game.fury > 0.0, "magia do cajado enche a fúria (%.2f)" % Game.fury)
+	Game.fury = 0.0
+	Game.level = lvl_n
+	Game.mp = mp_n
+	player.cooldowns.frost_nova = 0.0
+	player.global_position = pos_n
+	player.cast_timer = 0.0
+
 	# --- barra de fúria e ultimate (slot 4 do cajado = meteor_rain)
 	var lvl_f := Game.level
 	var hp_f := Game.hp
