@@ -103,12 +103,14 @@ def export(fname, **extra):
     kw = {"scene": scn, "view_layer": vl}
     if len(wins) > 0:
         kw["window"] = wins[0]
+    # extra sobrescreve os padrões (ex.: export_animations=True para o ferreiro com esqueleto)
+    opts = dict(filepath=OUT + fname + ".glb", export_format='GLB', use_selection=True, export_apply=True,
+                export_yup=True, export_animations=False, export_cameras=False, export_lights=False)
+    opts.update(extra)
     with bpy.context.temp_override(**kw):
         for o in scn.objects:
             o.select_set(True, view_layer=vl)
-        bpy.ops.export_scene.gltf(filepath=OUT + fname + ".glb", export_format='GLB', use_selection=True,
-                                  export_apply=True, export_yup=True, export_animations=False,
-                                  export_cameras=False, export_lights=False, **extra)
+        bpy.ops.export_scene.gltf(**opts)
     exported.append(fname)
     clear()
 
@@ -355,7 +357,7 @@ _only = [a for a in os.environ.get("ASSETS", "").split(",") if a]
 BUILDERS = {
     "knight": build_knight, "goblin": build_goblin, "slime": build_slime, "elder": build_elder,
     "merchant": build_merchant, "tree_pine": build_tree_pine, "tree_oak": build_tree_oak,
-    "house": build_house,
+    "house": build_house, "blacksmith": build_blacksmith,
 }
 BUILDERS.update(PROP_BUILDERS)
 BUILDERS.update(dict(WEAPONS))   # w_<id>: espadas (weapons.py); ASSETS=weapons gera todas

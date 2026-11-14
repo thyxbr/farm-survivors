@@ -54,6 +54,9 @@ jobs:
       - name: Teste de gameplay (smoke test)
         run: timeout 600 godot --headless --path . res://scenes/world.tscn -- --smoketest
 
+      - name: Teste do modelo do ferreiro (esqueleto e clipes)
+        run: timeout 120 godot --headless --path . --script res://tests/blacksmith_asset_test.gd
+
       - name: Teste da Defesa da Cidade
         run: timeout 600 godot --headless --path . res://scenes/colony.tscn -- --colonytest
 
