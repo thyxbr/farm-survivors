@@ -24,6 +24,8 @@ var kills := 0
 ## Ecos: moeda permanente, ganha ao fim das partidas. Passivas permanentes: id -> nível (>= 1).
 var ecos := 0
 var passives := {}
+## Encantamentos por tipo de arma: id da arma -> {"el": elemento, "lv": nível >= 1} (ver EnchantRules).
+var enchants := {}
 
 
 ## Personagem novo: mesmos valores do antigo Game.new_game.
@@ -52,6 +54,7 @@ func to_dict() -> Dictionary:
 		"world_pos": [world_pos.x, world_pos.y, world_pos.z] if world_pos is Vector3 else null,
 		"world_yaw": world_yaw, "kills": kills,
 		"ecos": ecos, "passives": passives.duplicate(true),
+		"enchants": enchants.duplicate(true),
 	}
 
 
@@ -130,7 +133,32 @@ static func from_dict(d, bt: BalanceTables = null) -> CharState:
 				if lv < 1:
 					continue
 			s.passives[id] = lv
+	s.enchants = _parse_enchants(d.get("enchants"), bt)
 	return s
+
+
+## Encantos vindos de save ou da rede: só arma conhecida, elemento conhecido e nível de 1 ao máximo
+## (acima do máximo é limitado). Sem `bt`, só formato e nível >= 1 são conferidos.
+static func _parse_enchants(data, bt: BalanceTables) -> Dictionary:
+	var out := {}
+	if not (data is Dictionary):
+		return out
+	var items: Dictionary = bt.get_table("items") if bt != null else {}
+	var table: Dictionary = bt.get_table("enchant") if bt != null else {}
+	var elements: Dictionary = table.get("elements", {})
+	for id in data:
+		var e = data[id]
+		if not (id is String) or not (e is Dictionary) or not (e.get("el") is String):
+			continue
+		var lv := _int(e.get("lv"), 0)
+		if lv < 1:
+			continue
+		if bt != null:
+			if items.get(id, {}).get("type", "") != "weapon" or not elements.has(e.el):
+				continue
+			lv = mini(lv, int(table.get("max_level", lv)))
+		out[id] = {"el": e.el, "lv": lv}
+	return out
 
 
 ## Número finito (int ou float)?
