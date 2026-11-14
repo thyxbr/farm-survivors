@@ -84,7 +84,7 @@ def courses(bag, rnd, x0, x1, y, depth, z0, z1, mats, axis="x", hmin=0.36, hmax=
         row += 1
 
 
-def ring(bag, rnd, r0, r1, z0, z1, n, depth, mats, hmin=0.38, hmax=0.5, bev=0.035, cx=0.0, cy=0.0, skip=None):
+def tower_ring(bag, rnd, r0, r1, z0, z1, n, depth, mats, hmin=0.38, hmax=0.5, bev=0.035, cx=0.0, cy=0.0, skip=None):
     """Torre redonda de blocos: n blocos por fiada, raio r0 embaixo e r1 em cima (talude).
     skip(ângulo, z) -> True deixa o bloco de fora (vão de porta/seteira)."""
     base, lt, dk = mats
@@ -426,7 +426,7 @@ def build_archer_tower(level):
     else:
         mats = (b_stone, b_stone_lt, b_stone_dk) if level == 2 else (b_stone_cold, b_stone, b_stone_dk)
         a(lathe("Plinth", [(1.5, 0.0), (1.5, 0.3), (1.38, 0.38)], b_stone_dk, seg=12))
-        ring(bag, rnd, 1.32, 1.12, 0.3, F - 0.2, 11, 0.35, mats,
+        tower_ring(bag, rnd, 1.32, 1.12, 0.3, F - 0.2, 11, 0.35, mats,
              skip=lambda ang, z: abs(math.atan2(math.sin(ang + PI / 2), math.cos(ang + PI / 2))) < 0.3 and z < 1.95)
         door(bag, 0, -1.2, 0.3, 0.68, 1.55, arch_mat=mats[2])
         for k, z in enumerate((2.4, 3.4)):
@@ -514,7 +514,7 @@ def build_cannon_tower(level):
     F = cannon_floor(level)
     mats = (b_stone, b_stone_lt, b_stone_dk) if level < 3 else (b_stone_cold, b_stone, b_stone_dk)
     a(lathe("Plinth", [(1.85, 0.0), (1.85, 0.25), (1.75, 0.32)], b_stone_dk, seg=14))
-    ring(bag, rnd, 1.72, 1.5, 0.25, F, 14, 0.4, mats, hmin=0.42, hmax=0.55,
+    tower_ring(bag, rnd, 1.72, 1.5, 0.25, F, 14, 0.4, mats, hmin=0.42, hmax=0.55,
          skip=lambda ang, z: abs(math.atan2(math.sin(ang + PI / 2), math.cos(ang + PI / 2))) < 0.26 and z < 1.75)
     door(bag, 0, -1.58, 0.25, 0.72, 1.4, arch_mat=mats[2], studs=True)
     a(lathe("String", [(1.52, F - 0.02), (1.68, F + 0.06), (1.68, F + 0.16), (1.5, F + 0.16)], mats[2], seg=14))
@@ -576,7 +576,7 @@ def build_mage_tower(level):
     T = mage_top(level)
     mats = (b_mage_st, b_violet_lt, b_mage_st_dk)
     a(lathe("Base", [(1.55, 0.0), (1.55, 0.35), (1.42, 0.42), (1.42, 0.62), (1.3, 0.7)], b_mage_st_dk, seg=8, rot=(0, 0, PI / 8)))
-    ring(bag, rnd, 1.22, 0.92, 0.7, T, 9, 0.3, (b_mage_st, b_mage_st, b_mage_st_dk), hmin=0.4, hmax=0.52,
+    tower_ring(bag, rnd, 1.22, 0.92, 0.7, T, 9, 0.3, (b_mage_st, b_mage_st, b_mage_st_dk), hmin=0.4, hmax=0.52,
          skip=lambda ang, z: abs(math.atan2(math.sin(ang + PI / 2), math.cos(ang + PI / 2))) < 0.36 and z < 2.0)
     # contrafortes nas 4 diagonais
     for i in range(4):

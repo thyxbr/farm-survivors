@@ -17,7 +17,7 @@ const SPARK_COLOR := Color(1.0, 0.72, 0.25)
 ## Ferraria em coordenadas do ferreiro (frente = +Z): bigorna à frente, de lado (chifre à esquerda dele) e
 ## puxada para a direita, com o StrikePoint embaixo da face do martelo na batida; forja às costas com a boca
 ## virada para ele. Usado pelo mundo e por tools/blacksmith_shot.gd (que confere o golpe).
-const ANVIL_OFFSET := Vector3(-0.24, 0, 0.6)
+const ANVIL_OFFSET := Vector3(-0.18, 0, 0.6)
 const ANVIL_YAW := PI / 2
 const FORGE_OFFSET := Vector3(0, 0, -1.6)
 const FORGE_YAW := 0.0
