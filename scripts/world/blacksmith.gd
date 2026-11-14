@@ -8,7 +8,10 @@ enum State { WORK, PAUSE, IDLE, TALK }
 
 const NEAR := 7.0     # mesmo raio em que o npc.gd vira para o jogador
 const BLEND := 0.25
-## Tempo (s) do impacto do martelo em cada clipe: work_hammer provisório = quadro 16 de 36 a 30 fps.
+## Clipes em que o martelo bate na bigorna (nome base, antes de clip()).
+const STRIKE_CLIPS := ["work_hammer"]
+## Tempo (s) do impacto em cada clipe, pelo nome resolvido por clip(): work_hammer provisório = quadro 16
+## de 36 a 30 fps. O clipe do Mixamo entra com a própria chave ("mixamo/work_hammer").
 const STRIKES := {"work_hammer": [0.533]}
 const SPARK_COLOR := Color(1.0, 0.72, 0.25)
 ## Ferraria em coordenadas do ferreiro (frente = +Z): bigorna à frente, de lado (chifre à esquerda dele) e
@@ -38,11 +41,8 @@ func _init() -> void:
 
 func _ready() -> void:
 	super._ready()
-	# o diálogo pausa a árvore no solo: o ferreiro continua checando o estado e animando
-	process_mode = Node.PROCESS_MODE_ALWAYS
 	skeleton = model.find_children("*", "Skeleton3D")[0]
 	anim = model.find_children("*", "AnimationPlayer")[0]
-	anim.process_mode = Node.PROCESS_MODE_ALWAYS
 	anim.animation_finished.connect(_on_anim_finished)
 	_attach_hammer()
 	if anvil:
@@ -59,7 +59,6 @@ func _ready() -> void:
 	if not headless:
 		_sparks = FX.burst_particles(SPARK_COLOR, 20, 3.5, 0.035, 0.35, -9.0)
 		_sparks.spread = 70.0
-		_sparks.process_mode = Node.PROCESS_MODE_ALWAYS
 		add_child(_sparks)
 		_sparks.global_position = strike_pos()
 	_work()
@@ -87,6 +86,9 @@ func interact(player: Node) -> void:
 	_dialogue = world.get("modal")
 	if _dialogue != null:
 		state = State.TALK
+		# o diálogo pausa a árvore no solo: só durante a conversa o ferreiro segue checando o estado e
+		# animando; em qualquer outro modal (menu, inventário, loja...) ele pausa junto com o jogo
+		_set_always(true)
 		_play("talk")
 
 
@@ -109,6 +111,7 @@ func _process(delta: float) -> void:
 			# queue_free a referência liberada compara igual a null, daí o is_instance_valid
 			if not is_instance_valid(_dialogue) or get_tree().current_scene.get("modal") != _dialogue:
 				_dialogue = null
+				_set_always(false)
 				if near:
 					_idle()
 				else:
@@ -125,7 +128,8 @@ func _process(delta: float) -> void:
 
 func _on_strike() -> void:
 	# a method track do work_hammer ainda dispara durante o blend de saída (BLEND): fora do WORK não bate
-	if not _animate or state != State.WORK:
+	# get_tree().paused: segurança extra, a bigorna nunca toca com o jogo pausado
+	if not _animate or state != State.WORK or get_tree().paused:
 		return
 	strikes += 1
 	Sfx.play_at("anvil", strike_pos())
@@ -144,6 +148,12 @@ func _work() -> void:
 func _idle() -> void:
 	state = State.IDLE
 	_play("idle")
+
+
+func _set_always(on: bool) -> void:
+	var mode := Node.PROCESS_MODE_ALWAYS if on else Node.PROCESS_MODE_INHERIT
+	process_mode = mode
+	anim.process_mode = mode
 
 
 func _play(clip_name: String) -> void:
@@ -168,12 +178,17 @@ func _on_anim_finished(anim_name: StringName) -> void:
 
 
 # ---------------------------------------------------------------- montagem
-## Injeta nos clipes uma method track que chama _on_strike no instante do impacto. Os clipes são
-## recursos compartilhados do .glb: se outro ferreiro já injetou, a track está lá e é reaproveitada.
+## Injeta no clipe que vai tocar (clip(): o provisório ou o do Mixamo) uma method track que chama
+## _on_strike no instante do impacto. Os clipes são recursos compartilhados do .glb: se outro ferreiro
+## já injetou, a track está lá e é reaproveitada.
 func _add_strike_tracks() -> void:
 	var path := anim.get_node(anim.root_node).get_path_to(self)
-	for clip_name: String in STRIKES:
+	for base: String in STRIKE_CLIPS:
+		var clip_name := clip(base)
 		if not anim.has_animation(clip_name):
+			continue
+		if not STRIKES.has(clip_name):
+			push_warning("Ferreiro: sem tempo de golpe em STRIKES para o clipe %s" % clip_name)
 			continue
 		var a := anim.get_animation(clip_name)
 		if a.find_track(path, Animation.TYPE_METHOD) >= 0:

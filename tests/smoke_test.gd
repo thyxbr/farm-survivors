@@ -234,6 +234,15 @@ func _test_blacksmith() -> void:
 	check(smith.strikes > s0, "ferreiro bate na bigorna (%d golpes)" % (smith.strikes - s0))
 	var clangs := Sfx._players_3d.filter(func(p3: AudioStreamPlayer3D) -> bool: return p3.stream == clang).size()
 	check(clangs == 0, "som do golpe não toca com o jogador longe (%d slots com a bigorna)" % clangs)
+	# outro modal pausa o jogo (menu, inventário, loja, outro diálogo): a bigorna fica quieta
+	smith._work()
+	get_tree().paused = true
+	var sp := smith.strikes
+	await wait(1.5)   # mais que uma volta do work_hammer (1,2 s)
+	check(smith.strikes == sp and smith.state == Blacksmith.State.WORK, "ferreiro para de martelar com o jogo pausado por outro modal (%d golpes)" % (smith.strikes - sp))
+	get_tree().paused = false
+	var wh: Animation = smith.anim.get_animation(smith.clip("work_hammer"))
+	check(wh.find_track(smith.anim.get_node(smith.anim.root_node).get_path_to(smith), Animation.TYPE_METHOD) >= 0, "golpe injetado no clipe que o ferreiro toca (%s)" % smith.clip("work_hammer"))
 	# chega perto: para e vira
 	var ahead := smith.anvil.global_position - smith.global_position
 	ahead.y = 0.0
