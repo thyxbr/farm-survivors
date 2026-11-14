@@ -251,11 +251,9 @@ static func _quake_impact(player: Node, d: Dictionary) -> void:
 		if dist > e.radius and dir.angle_to(to) > half + asin(clampf(e.radius / dist, 0.0, 1.0)):
 			continue
 		var dmg: float = Game.melee_damage() * QUAKE_MULT
-		# o atordoamento passa pelo parâmetro de lentidão (vai ao servidor no multiplayer)
-		e.take_damage(dmg, base, false, QUAKE_STUN)
+		# atordoa (stagger + interrompe o golpe); em puppet o servidor aplica (Network._hit_enemy)
+		e.take_damage(dmg, base, false, 0.0, QUAKE_STUN)
 		Game.on_damage_dealt(dmg, e.max_hp)
-		if not e.dead and not e.puppet and not e.is_boss:
-			e.stagger = maxf(e.stagger, QUAKE_STUN)   # parado de verdade (a lentidão só reduz a velocidade)
 		any = true
 		FXEpic.sparks(e.global_position + Vector3.UP * 0.4, Vector3.UP, QUAKE_ROCK.lightened(0.3), 10, 6.0, 0.35)
 	if any:

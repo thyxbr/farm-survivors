@@ -212,6 +212,8 @@ func _ready() -> void:
 	player.cooldowns.sword_quake = 0.0
 	var qk_ahp: float = qk_a.hp
 	var qk_bhp: float = qk_b.hp
+	qk_a._set_state("attack")   # no meio de um golpe: o atordoamento o interrompe
+	var qk_pos: Vector3 = qk_a.global_position
 	player.use_slot(2)
 	check(player.ability == "sword_quake", "Golpe Sísmico começa (%s)" % player.ability)
 	await wait(0.8)   # 0,35 s de preparo + 0,3 s de recuperação, com folga
@@ -220,7 +222,9 @@ func _ready() -> void:
 		"Golpe Sísmico causa melee_damage x2 (perdeu %.1f)" % (qk_ahp - qk_a.hp))
 	check(qk_b.hp == qk_bhp, "Golpe Sísmico não fere quem está atrás")
 	check(player.ability == "" and player.cooldowns.sword_quake > 0.0, "Golpe Sísmico termina e entra em recarga (%s, %.2f)" % [player.ability, player.cooldowns.sword_quake])
-	check(qk_a.stagger > 0.0 or qk_a.slow_timer > 0.0 or qk_a.dead, "Golpe Sísmico atordoa (stagger %.2f, lentidão %.2f)" % [qk_a.stagger, qk_a.slow_timer])
+	# 0,8 s depois do início (0,45 s após o impacto) ainda restam ~0,55 s dos 1,0 s de atordoamento
+	check(qk_a.stagger > 0.3 and qk_a.state != "attack", "Golpe Sísmico atordoa e interrompe o golpe (stagger %.2f, %s)" % [qk_a.stagger, qk_a.state])
+	check(qk_pos.distance_to(qk_a.global_position) < 2.5, "inimigo atordoado não avançou (%.2f m)" % qk_pos.distance_to(qk_a.global_position))
 	# a esquiva não cancela
 	Game.stamina = Game.max_stamina()
 	player.cooldowns.sword_quake = 0.0
