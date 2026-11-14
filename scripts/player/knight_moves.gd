@@ -159,10 +159,91 @@ const BOW_FULL := {   # corda toda puxada
 }
 const BOW_TREMBLE := 0.008      ## tremor do braço do arco com a corda toda puxada (rad)
 const BOW_RAISE_SPEED := 1.6    ## multiplica a suavização ao erguer o arco (mais rápido que andar)
+## Flecha do Vendaval (KnightAnim.bow_gale_pose): agacha com a perna do arco à frente, tronco para trás.
+const GALE_KNEE := 0.9          ## dobra dos joelhos com a carga cheia (rad)
+const GALE_THIGH_L := -0.6      ## coxa da frente (perna do arco)
+const GALE_THIGH_R := -0.15     ## coxa de trás (com o joelho a 0,9 as duas pernas ficam com a mesma altura)
+const GALE_LEAN := -0.35        ## tronco inclinado para trás (rad; body_x > 0 é para a frente)
+const GALE_CROUCH_Y := -0.12    ## o quadril desce (m), além do que as pernas dobradas já baixam
+const GALE_TREMBLE := 0.06      ## tremor do pulso do arco com a carga cheia (rad)
+const GALE_RECOIL := -0.3       ## tranco extra do tronco para trás no disparo (rad)
+## Chuva de Meteoros (KnightAnim.meteor_pose): o cajado erguido acima da cabeça com as duas mãos, o tronco
+## arqueado para trás, o olhar no céu e as pernas abertas firmando o corpo.
+const METEOR_RAISE := {
+	"arm_r": Vector3(-2.75, -0.1, -0.2), "elbow_r": -0.55, "wrist_r": -0.15,
+	"arm_l": Vector3(-2.6, 0.15, 0.32), "elbow_l": -0.75, "wrist_l": 0.0,
+	"twist": -0.12, "body_x": -0.22, "body_y": -0.04, "head_x": -0.5, "head_y": 0.0,
+	"leg_l": -0.32, "knee_l": 0.38, "leg_r": 0.26, "knee_r": 0.3,
+}
+const METEOR_TREMBLE := 0.045   ## tremor dos braços e do tronco canalizando (rad)
+const METEOR_RAISE_SPEED := 1.4 ## multiplica a suavização ao erguer o cajado
 ## Soltar: a mão da corda escapa para trás da orelha, o braço do arco segura e depois desce.
 const BOW_RELEASE := [
 	[0.15, {"arm_r": Vector3(-1.4, -0.95, -0.35), "elbow_r": -1.5, "twist": -0.7, "head_y": 0.65,
 		"arm_l": Vector3(-1.55, 0.7, 0.0), "elbow_l": -0.05}, "out"],
 	[0.5, {"arm_l": Vector3(-1.4, 0.6, 0.05), "elbow_l": -0.15, "arm_r": Vector3(-1.1, -0.7, -0.4),
 		"elbow_r": -1.3, "twist": -0.55, "head_y": 0.5}],
+]
+
+# ------------------------------------------------------------------ habilidades da espada
+## Investida (SwordAbilities.CHARGE_TIME = 0,6 s): preparo até 0,25 (agacha, espada para trás),
+## avanço até 0,67 (estocada com a lâmina à frente, em investida) e recuperação.
+const CHARGE := [
+	[0.2, {"arm_r": Vector3(0.75, 0.25, -0.35), "elbow_r": -1.1, "wrist_r": 1.2, "twist": -0.6,
+		"body_x": 0.42, "body_y": -0.08, "head_x": -0.3, "head_y": 0.3,
+		"arm_l": Vector3(-0.9, -0.3, 0.35), "elbow_l": -0.9,
+		"leg_l": -0.75, "knee_l": 1.15, "leg_r": 0.35, "knee_r": 0.95}, "out"],
+	[0.3, {"arm_r": Vector3(-1.35, 0.1, -0.05), "elbow_r": -0.08, "wrist_r": 1.55, "twist": 0.45,
+		"body_x": 0.5, "body_y": -0.05, "head_x": -0.35, "head_y": -0.15,
+		"arm_l": Vector3(0.7, 0.0, 0.45), "elbow_l": -0.4,
+		"leg_l": -0.95, "knee_l": 0.55, "leg_r": 0.65, "knee_r": 0.35}, "in"],
+	[0.66, {"arm_r": Vector3(-1.4, 0.05, -0.05), "elbow_r": -0.05, "wrist_r": 1.6, "twist": 0.5,
+		"body_x": 0.48, "arm_l": Vector3(0.75, 0.0, 0.5), "elbow_l": -0.35,
+		"leg_l": -0.9, "knee_l": 0.6, "leg_r": 0.6, "knee_r": 0.4}, "lin"],
+	[0.8, {"arm_r": Vector3(-1.1, 0.4, 0.1), "elbow_r": -0.3, "wrist_r": 1.4, "twist": 0.3,
+		"body_x": 0.25, "leg_l": -0.55, "knee_l": 0.7, "leg_r": 0.3, "knee_r": 0.3}, "out"],
+]
+
+## Golpe Sísmico (SwordAbilities.QUAKE_TIME = 0,65 s): ergue a espada com as duas mãos até 0,5
+## (o pulinho), crava no chão em 0,54 (impacto aos 0,35 s) e segura a pose até o fim.
+const QUAKE := [
+	[0.5, {"arm_r": Vector3(-2.75, -0.1, -0.25), "elbow_r": -0.9, "wrist_r": -0.4, "twist": -0.3,
+		"body_x": -0.28, "head_x": -0.25, "head_y": 0.0,
+		"arm_l": Vector3(-2.6, 0.15, 0.3), "elbow_l": -0.8,
+		"leg_l": -0.25, "knee_l": 0.55, "leg_r": 0.2, "knee_r": 0.55}, "out"],
+	[0.56, {"arm_r": Vector3(-0.95, 0.05, -0.1), "elbow_r": -0.1, "wrist_r": 1.7, "twist": 0.3,
+		"body_x": 0.55, "head_x": 0.15,
+		"arm_l": Vector3(-0.85, -0.1, 0.25), "elbow_l": -0.2,
+		"leg_l": -0.6, "knee_l": 0.8, "leg_r": 0.4, "knee_r": 0.6}, "in"],
+	[0.8, {"arm_r": Vector3(-0.9, 0.05, -0.1), "elbow_r": -0.1, "wrist_r": 1.75, "twist": 0.3,
+		"body_x": 0.5, "arm_l": Vector3(-0.8, -0.1, 0.25), "elbow_l": -0.2,
+		"leg_l": -0.55, "knee_l": 0.75, "leg_r": 0.35, "knee_r": 0.55}, "lin"],
+]
+
+## Turbilhão (SwordAbilities.WHIRL_TIME = 2,1 s): preparo até 0,19 (agacha, espada para trás com as
+## duas mãos, tronco torcido), giro de 0,19 a 0,905 (braços estendidos, lâmina na horizontal, tronco
+## inclinado; o modelo inteiro gira em SwordAbilities) e golpe final para baixo, no chão em 0,943.
+const WHIRL := [
+	[0.17, {"arm_r": Vector3(0.5, 0.3, -0.55), "elbow_r": -0.6, "wrist_r": -2.8, "twist": -0.95,
+		"body_x": 0.4, "body_y": -0.14, "body_z": 0.08, "head_x": -0.3, "head_y": 0.65,
+		"arm_l": Vector3(0.15, -0.6, -0.35), "elbow_l": -1.1,
+		"leg_l": -0.7, "knee_l": 1.2, "leg_r": 0.5, "knee_r": 1.0}, "out"],
+	[0.24, {"arm_r": Vector3(-1.75, -0.2, -0.75), "elbow_r": -0.1, "wrist_r": 1.45, "twist": 0.1,
+		"body_x": 0.32, "body_y": -0.12, "body_z": 0.16, "head_x": -0.1, "head_y": 0.0,
+		"arm_l": Vector3(-0.2, 0.0, 1.1), "elbow_l": -0.3,
+		"leg_l": -0.45, "knee_l": 0.95, "leg_r": 0.4, "knee_r": 0.9}, "in"],
+	[0.9, {"arm_r": Vector3(-1.75, -0.2, -0.75), "elbow_r": -0.1, "wrist_r": 1.45, "twist": 0.1,
+		"body_x": 0.32, "body_y": -0.12, "body_z": 0.16,
+		"arm_l": Vector3(-0.2, 0.0, 1.1), "elbow_l": -0.3,
+		"leg_l": -0.45, "knee_l": 0.95, "leg_r": 0.4, "knee_r": 0.9}, "lin"],
+	[0.925, {"arm_r": Vector3(-2.7, -0.1, -0.25), "elbow_r": -0.8, "wrist_r": -0.3, "twist": -0.25,
+		"body_x": -0.2, "body_z": 0.0, "head_x": -0.2,
+		"arm_l": Vector3(-2.55, 0.15, 0.3), "elbow_l": -0.8}, "out"],
+	[0.943, {"arm_r": Vector3(-0.95, 0.05, -0.1), "elbow_r": -0.1, "wrist_r": 1.7, "twist": 0.3,
+		"body_x": 0.55, "body_y": -0.12, "head_x": 0.15,
+		"arm_l": Vector3(-0.85, -0.1, 0.25), "elbow_l": -0.2,
+		"leg_l": -0.65, "knee_l": 0.9, "leg_r": 0.45, "knee_r": 0.7}, "in"],
+	[0.985, {"arm_r": Vector3(-0.9, 0.05, -0.1), "elbow_r": -0.1, "wrist_r": 1.75, "twist": 0.3,
+		"body_x": 0.5, "arm_l": Vector3(-0.8, -0.1, 0.25), "elbow_l": -0.2,
+		"leg_l": -0.6, "knee_l": 0.85, "leg_r": 0.4, "knee_r": 0.65}, "lin"],
 ]

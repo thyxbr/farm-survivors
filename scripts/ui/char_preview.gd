@@ -13,6 +13,9 @@ var _base := -0.6
 var _idle := 0.0
 var _rig := {}
 var _look := {}
+## Encanto mostrado na arma da prévia (painel do ferreiro): elemento e nível; nível 0 = o do personagem.
+var _ench_el := ""
+var _ench_lv := -1
 
 
 func _init(sz := Vector2(260, 340)) -> void:
@@ -79,6 +82,18 @@ func _ready() -> void:
 func refresh() -> void:
 	if model:
 		_look = KnightLook.apply(model, Game.equipment)
+		var e := Game.weapon_enchant()
+		if _ench_lv >= 0:
+			EnchantFX.apply(_look, _ench_el, _ench_lv)
+		else:
+			EnchantFX.apply(_look, e.el, e.lv)
+
+
+## Mostra a arma com um encanto escolhido (a prévia do nível que o ferreiro vai dar).
+func show_enchant(element: String, level: int) -> void:
+	_ench_el = element
+	_ench_lv = level
+	refresh()
 
 
 func _process(delta: float) -> void:
