@@ -74,7 +74,8 @@
 			"$c": [0.95, 0.3, 0.2, 0.8]
 		},
 		"loot": [
-			["slime_gel", 0.4]
+			["slime_gel", 0.4],
+			["frost_drop", 0.5]
 		]
 	},
 	"goblin": {
@@ -147,7 +148,9 @@
 		},
 		"ai": "bomber",
 		"blast": 3.2,
-		"loot": []
+		"loot": [
+			["ember_core", 0.6]
+		]
 	},
 	"slime_mae": {
 		"name": "Slime Mãe",
@@ -170,7 +173,9 @@
 			"$c": [0.15, 0.8, 0.75, 0.8]
 		},
 		"split": ["slime_veloz", 3],
-		"loot": []
+		"loot": [
+			["toxic_gland", 0.9]
+		]
 	},
 	"goblin_arqueiro": {
 		"name": "Goblin Arqueiro",
@@ -225,7 +230,9 @@
 		],
 		"ai": "caster",
 		"heal_radius": 8.0,
-		"loot": []
+		"loot": [
+			["thunder_totem", 0.7]
+		]
 	},
 	"goblin_dourado": {
 		"name": "Goblin Dourado",

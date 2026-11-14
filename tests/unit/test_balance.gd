@@ -86,3 +86,17 @@ func test_enchant_table() -> void:
 	for lv in e.get("levels", []):
 		for id in lv.get("items", {}):
 			T.ok(items.has(id), "item de custo %s existe" % id)
+
+
+## Fogo, Gelo, Raio e Veneno têm um monstro que solta a essência (os outros dois chegam na parte 3).
+func test_essence_sources() -> void:
+	var bt := BalanceTables.load_dir(DIR)
+	var elements: Dictionary = bt.get_table("enchant").get("elements", {})
+	var enemies: Dictionary = bt.get_table("enemies")
+	for el in ["fogo", "gelo", "raio", "veneno"]:
+		var essence: String = elements[el].essence
+		var found := false
+		for kind in enemies:
+			for entry in enemies[kind].get("loot", []):
+				found = found or (entry[0] == essence and float(entry[1]) > 0.0)
+		T.ok(found, "algum monstro solta %s (%s)" % [essence, el])

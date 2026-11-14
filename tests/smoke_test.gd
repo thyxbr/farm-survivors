@@ -46,6 +46,16 @@ func _ready() -> void:
 	Sfx.play_at("anvil", player.global_position + Vector3(2, 0, 0))
 	check(Sfx._next_3d != slot_anvil, "som da bigorna toca perto do jogador")
 	check(get_tree().get_nodes_in_group("enemies").size() >= 15, "inimigos spawnados (%d)" % get_tree().get_nodes_in_group("enemies").size())
+	# monstros da Defesa reaproveitados em Valdoria: Ninho de Slimes e reforços do Acampamento Goblin
+	var by_kind := {}
+	var nest_ok := true
+	for en in get_tree().get_nodes_in_group("enemies"):
+		by_kind[en.kind] = int(by_kind.get(en.kind, 0)) + 1
+		if en.kind in ["slime_veloz", "slime_explosivo", "slime_mae"]:
+			nest_ok = nest_ok and en.global_position.distance_to(world.NEST) < 12.0
+	check(by_kind.get("slime_veloz", 0) == 4 and by_kind.get("slime_explosivo", 0) == 3 and by_kind.get("slime_mae", 0) == 1 and nest_ok,
+		"Ninho de Slimes: 4 velozes, 3 explosivos e 1 mãe")
+	check(by_kind.get("goblin_arqueiro", 0) == 2 and by_kind.get("goblin_xama", 0) == 1, "Acampamento: 2 arqueiros e 1 xamã")
 	check(get_tree().get_nodes_in_group("interactable").size() == 4 + Game.FARM_PLOTS + 1,
 		"3 NPCs + portal + %d canteiros + caldeirão interagíveis" % Game.FARM_PLOTS)
 

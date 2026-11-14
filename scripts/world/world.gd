@@ -54,6 +54,7 @@ const CAMP := Vector3(62, 0, 0)
 const ARENA := Vector3(-72, 0, -10)     # Desafio da Horda
 const PORTAL_POS := Vector3(-8, 0, -9.5)
 const FARM := Vector3(0, 0, 33)          # Horta da Vila (saída sul)
+const NEST := Vector3(-36, 0, 36)        # Ninho de Slimes (sudoeste da vila)
 ## Maciços dentro do mapa: [centro, raio da base, altura]. Ficam nos cantos vazios, longe das
 ## áreas de missão; a serra em volta do mapa é só visual (fora da borda).
 const MOUNTAINS := [
@@ -658,6 +659,21 @@ func _setup_enemies() -> void:
 		spawns.append({"kind": "goblin", "pos": CAMP + off, "node": null, "timer": 0.0, "respawn": 60.0})
 	for off in [Vector3(-7, 0, 14), Vector3(7, 0, 14)]:
 		spawns.append({"kind": "goblin", "pos": RUINS + off, "node": null, "timer": 0.0, "respawn": 90.0})
+	# monstros da Defesa da Cidade reaproveitados aqui: soltam as essências do encantamento
+	# (enemies.json). Reforços do Acampamento Goblin: arqueiros nas pontas e um xamã no fundo.
+	for off in [Vector3(-11, 0, -8), Vector3(10, 0, 7)]:
+		spawns.append({"kind": "goblin_arqueiro", "pos": CAMP + off, "node": null, "timer": 0.0, "respawn": 75.0})
+	spawns.append({"kind": "goblin_xama", "pos": CAMP + Vector3(9, 0, -9), "node": null, "timer": 0.0, "respawn": 120.0})
+	# Ninho de Slimes: a mãe no meio, explosivos em volta dela e os velozes por fora
+	spawns.append({"kind": "slime_mae", "pos": NEST, "node": null, "timer": 0.0, "respawn": 120.0})
+	for i in 3:
+		var a := i * TAU / 3.0 + 0.5
+		spawns.append({"kind": "slime_explosivo", "pos": NEST + Vector3(cos(a), 0, sin(a)) * 4.5, "node": null,
+			"timer": 0.0, "respawn": 60.0})
+	for i in 4:
+		var a := i * TAU / 4.0
+		spawns.append({"kind": "slime_veloz", "pos": NEST + Vector3(cos(a), 0, sin(a)) * 8.5, "node": null,
+			"timer": 0.0, "respawn": 45.0})
 	for s in spawns:
 		_spawn(s)
 
