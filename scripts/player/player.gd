@@ -160,6 +160,7 @@ func _ready() -> void:
 		model.rotation.y = PI
 	_snap_visuals()
 	Game.inventory_changed.connect(_update_equipment_visual)
+	Game.enchant_changed.connect(_update_equipment_visual)
 	Game.leveled_up.connect(_on_level_up)
 	Game.food_eaten.connect(_on_food_eaten)
 	_vfx_setup()
@@ -1164,26 +1165,21 @@ func _animate(delta: float) -> void:
 			_footstep = 2.2
 
 
-# ------------------------------------------------------------ VFX (protótipo)
-## PROTÓTIPO (spike): auras (buffs de comida e, no futuro, habilidades) e brilho de encantamento.
+# ------------------------------------------------------------ efeitos visuais
+## Auras (buffs de comida e habilidades) e brilho de encantamento da arma.
 ## O estado viaja dentro do visual do jogador (`look["fx"]`), então as réplicas dos outros
 ## jogadores mostram os mesmos efeitos. Formato: {"auras": [estilos], "en": elemento, "lv": nível}.
-## Ainda não existe sistema de encantamento: F7 troca o elemento e F8 sobe o nível, só para ver.
-## Linha de comando: `--enchant=fogo,5`, `--buffs=spicy_soup,mint_tea`, `--auras=escudo,vento`.
+## As auras são declaradas pelo cliente (só cosméticas). O encanto (en/lv) vem do personagem:
+## aqui, do espelho no Game; para os outros, o servidor preenche com o que ele gravou.
+## Linha de comando (para capturas): `--buffs=spicy_soup,mint_tea`, `--auras=escudo,vento`, `--vfxwalk`.
 var vfx_aura: BuffAura
-var vfx_enchant_el := "fogo"
-var vfx_enchant_lv := 0
 var vfx_ability_auras := {}    # estilo -> true (auras ligadas por habilidades)
 var _vfx_sent := {}
 
 
 func _vfx_setup() -> void:
 	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--enchant="):
-			var v := a.substr(10).split(",")
-			vfx_enchant_el = v[0]
-			vfx_enchant_lv = int(v[1]) if v.size() > 1 else EnchantFX.MAX_LEVEL
-		elif a.begins_with("--buffs="):
+		if a.begins_with("--buffs="):
 			for id in a.substr(8).split(","):
 				Game.food_buffs[id] = 600.0
 		elif a.begins_with("--auras="):
@@ -1235,7 +1231,8 @@ func _vfx_state() -> Dictionary:
 	for st in BuffAura.STYLES:     # ordem fixa: o mesmo conjunto dá sempre o mesmo dicionário
 		if want.has(st):
 			auras.append(st)
-	return {"auras": auras, "en": vfx_enchant_el if vfx_enchant_lv > 0 else "", "lv": vfx_enchant_lv}
+	var e := Game.weapon_enchant()
+	return {"auras": auras, "en": e.el, "lv": e.lv}
 
 
 ## Buff entrou ou saiu: reenvia o visual (local e pela rede).
@@ -1267,20 +1264,3 @@ func _vfx_apply(fx: Dictionary, rebuilt: bool) -> void:
 		if rebuilt:
 			vfx_aura.refresh()
 	EnchantFX.apply(look, str(fx.get("en", "")), int(fx.get("lv", 0)))
-
-
-func _unhandled_key_input(ev: InputEvent) -> void:
-	if remote or not (ev is InputEventKey) or not ev.pressed or ev.echo:
-		return
-	var els: Array = EnchantFX.ELEMENTS.keys()
-	if ev.keycode == KEY_F7:
-		vfx_enchant_el = els[(els.find(vfx_enchant_el) + 1) % els.size()]
-		if vfx_enchant_lv == 0:
-			vfx_enchant_lv = 1
-	elif ev.keycode == KEY_F8:
-		vfx_enchant_lv = (vfx_enchant_lv + 1) % (EnchantFX.MAX_LEVEL + 1)
-	else:
-		return
-	_update_equipment_visual()
-	Game.notify.emit("Encanto de teste: %s +%d" % [EnchantFX.ELEMENTS[vfx_enchant_el].name, vfx_enchant_lv],
-		EnchantFX.ELEMENTS[vfx_enchant_el].color)

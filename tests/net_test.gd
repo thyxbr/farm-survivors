@@ -273,24 +273,43 @@ func _ready() -> void:
 		for rp in Network.remote_players.values():
 			check(await _wait_until(func() -> bool: return rp.look["class"] == "staff", 10.0),
 				"vê %s trocar para cajado" % rp.display_name)
-	# efeitos visuais (aura de buff/habilidade e encanto da arma) viajam com o visual
-	# ficam ligados até o fim: o colega chega a este ponto no ritmo dele e precisa encontrá-los
+	# efeitos visuais: auras de habilidade (declaradas pelo cliente) e encanto (decidido pelo servidor).
+	# Ficam ligados até o fim: o colega chega a este ponto no ritmo dele e precisa encontrá-los.
 	w.player.set_ability_aura("escudo", true)
 	w.player.set_ability_aura("vento", true)
-	w.player.vfx_enchant_el = "gelo"
-	w.player.vfx_enchant_lv = 4
-	w.player._update_equipment_visual()
-	var my_fx: Dictionary = w.player._last_look.get("fx", {})
-	check(my_fx.get("auras", []) == ["escudo", "vento"] and my_fx.get("en", "") == "gelo" and my_fx.get("lv", 0) == 4,
+	Econ.request_test_gold(50)
+	Econ.request_test_items({"iron_ore": 4, "frost_drop": 2})
+	await wait(0.5)
+	var wid: String = Game.equipment.weapon
+	Econ.request("enchant", ["gelo"])
+	check(await _wait_until(func() -> bool: return Game.weapon_enchant() == {"el": "gelo", "lv": 1}, 5.0),
+		"servidor encantou a arma equipada")
+	check(await _wait_until(func() -> bool:
+		var fx: Dictionary = w.player._last_look.get("fx", {})
+		return fx.get("auras", []) == ["escudo", "vento"] and fx.get("en", "") == "gelo" and fx.get("lv", 0) == 1, 3.0),
 		"auras de habilidade + encanto no visual local")
 	check(w.player.look["class"] == "staff" and w.player.look["holder"] != null, "trocar só os efeitos não desmonta a arma")
+	# o cliente não consegue declarar um encanto que o servidor não gravou
+	var fake: Dictionary = w.player._last_look.duplicate(true)
+	fake["fx"]["en"] = "sombra"
+	fake["fx"]["lv"] = 5
+	Network.send_look(fake)
+	# desequipar apaga o brilho; equipar de novo traz o encanto de volta (ele é do tipo de arma)
+	Econ.request("unequip", ["weapon"])
+	check(await _wait_until(func() -> bool:
+		return Game.equipment.weapon == "" and w.player._last_look.get("fx", {}).get("lv", -1) == 0, 5.0),
+		"sem arma: sem brilho no jogador")
+	Econ.request("equip", [wid])
+	check(await _wait_until(func() -> bool: return w.player._last_look.get("fx", {}).get("lv", 0) == 1, 5.0),
+		"arma de volta: o encanto volta com ela")
 	if peers > 1:
+		# espera o colega passar pelos mesmos passos; o estado final de cada um é gelo +1
 		check(await _wait_until(func() -> bool:
 			for rp in Network.remote_players.values():
 				var fx: Dictionary = rp._last_look.get("fx", {})
-				if fx.get("auras", []) != ["escudo", "vento"] or fx.get("en", "") != "gelo" or fx.get("lv", 0) != 4:
+				if fx.get("auras", []) != ["escudo", "vento"] or fx.get("en", "") != "gelo" or fx.get("lv", 0) != 1:
 					return false
-			return true, 6.0), "vê as auras e o encanto dos outros jogadores")
+			return true, 20.0), "vê as auras e o encanto dos outros jogadores (o encanto falso foi ignorado)")
 		for rp in Network.remote_players.values():
 			check(rp.vfx_aura != null and rp.vfx_aura.styles() == ["escudo", "vento"], "aura montada na réplica de %s" % rp.display_name)
 			var hold: Node3D = rp.look.get("holder")

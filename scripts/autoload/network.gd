@@ -317,7 +317,7 @@ func _register(token: String, client_version: String, _look = {}, _extra = "") -
 	var char_look: Dictionary = characters.load_or_create(account).equipment
 	# todo jogador começa na praça (zona "hub"); "ready" = já carregou a cena da zona em que está
 	players[id] = {"name": str(acc.name), "account": account, "admin": bool(acc.get("is_admin", false)),
-		"look": _clean_look(char_look), "ready": false, "zone": "hub"}
+		"look": _clean_look(char_look, account), "ready": false, "zone": "hub"}
 	print("[server] %s entrou (peer %d, conta %d, %d online)" % [acc.name, id, account, players.size()])
 	# tabelas e personagem antes do _accepted (mesmo canal confiável: chegam antes da troca de cena)
 	Econ.server_send_initial(id, account)
@@ -610,20 +610,55 @@ func _player_look(look: Dictionary) -> void:
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id):
 		return
-	players[id].look = _clean_look(look)
+	players[id].look = _clean_look(look, int(players[id].get("account", 0)))
+	_relay_look(id)
+
+
+func _relay_look(id: int) -> void:
 	_apply_remote_look(id)
 	for pid in _all_peers():
 		if pid != id:
 			_player_look_relay.rpc_id(pid, id, players[id].look)
 
 
-## Só espaços e itens conhecidos (o dicionário vem do cliente).
-func _clean_look(look: Dictionary) -> Dictionary:
+## Servidor: o equipamento ou o encanto do peer mudou (encantou, equipou ou desequipou): refaz o
+## visual dele com o que está gravado no personagem (peças e brilho juntos, para a réplica nunca
+## receber o brilho novo com a arma antiga) e avisa os outros jogadores. As auras ficam como estavam.
+func server_refresh_look(peer: int) -> void:
+	if not is_server() or not players.has(peer) or characters == null:
+		return
+	var account := int(players[peer].get("account", 0))
+	if account <= 0:
+		return
+	var fresh: Dictionary = characters.load_or_create(account).equipment.duplicate()
+	fresh["fx"] = players[peer].look.get("fx", {})
+	fresh = _clean_look(fresh, account)
+	if fresh == players[peer].look:
+		return
+	players[peer].look = fresh
+	_relay_look(peer)
+
+
+## Servidor: encanto ({"el", "lv"}) da arma que a conta tem equipada, lido do personagem gravado.
+func server_weapon_enchant(account: int) -> Dictionary:
+	if account <= 0 or characters == null:
+		return {"el": "", "lv": 0}
+	var s := characters.load_or_create(account)
+	return EnchantRules.of(s, s.equipment.get("weapon", ""))
+
+
+## Só espaços e itens conhecidos (o dicionário vem do cliente). O encanto mostrado nunca vem do
+## cliente: é o da arma equipada do personagem `account` no servidor (conta 0 = sem encanto).
+func _clean_look(look: Dictionary, account := 0) -> Dictionary:
 	var out := {}
 	for s in ItemDB.SLOTS:
 		var v := str(look.get(s, ""))
 		out[s] = v if ItemDB.ITEMS.has(v) else ""
-	out["fx"] = _clean_fx(look.get("fx"))
+	var fx := _clean_fx(look.get("fx"))
+	var e := server_weapon_enchant(account)
+	fx.en = e.el
+	fx.lv = e.lv
+	out["fx"] = fx
 	return out
 
 

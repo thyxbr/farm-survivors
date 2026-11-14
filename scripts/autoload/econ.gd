@@ -574,6 +574,8 @@ func _econ_req(seq: int, op: String, args: Array) -> void:
 		return
 	var r := Network.characters.apply(account, op, args)
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
+	if r.ok and op in ["enchant", "equip", "unequip"]:
+		Network.server_refresh_look(peer)   # o brilho que os outros veem acompanha o que foi gravado
 	if op == "donate" and r.ok:
 		# a base é de todos: o servidor manda o estado novo a quem está conectado
 		Hub.server_base_changed(account, r.events)
