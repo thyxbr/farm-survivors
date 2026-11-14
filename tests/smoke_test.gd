@@ -373,6 +373,8 @@ func _ready() -> void:
 	# --- Tiro Triplo (arco, slot 1): 3 flechas em leque, ignora multishot, esquiva só cancela antes do disparo
 	var tt_pos := player.global_position
 	var tt_s := _nearest("slime")
+	var tt_max: float = tt_s.max_hp
+	tt_s.max_hp = 100000.0   # aguenta as 9 flechas sem morrer (o nó some ao morrer)
 	tt_s.global_position = tt_s.home
 	var tt_fire := func() -> Array:
 		var out := []
@@ -381,17 +383,19 @@ func _ready() -> void:
 				out.append(c)
 		return out
 	Game.add_item("storm_bow")
-	var tt_weapons := ["short_bow", "storm_bow"]
+	Game.add_item("goblin_warbow")
+	var tt_weapons := ["short_bow", "storm_bow", "goblin_warbow"]
+	var tt_grounded := func() -> bool: return player.is_on_floor()
 	for tt_w in tt_weapons:
 		Game.equip(tt_w)
-		await wait(0.1)
+		await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking)
 		for c in tt_fire.call():
 			c.queue_free()
 		tt_s.global_position = tt_s.home
 		player.global_position = tt_s.global_position + Vector3(0, 0.3, 6.0)
 		player.model.rotation.y = PI
 		player.velocity = Vector3.ZERO
-		await wait(0.2)
+		await wait_until(tt_grounded)
 		player.global_position = tt_s.global_position + Vector3(0, 0.3, 6.0)
 		player.cooldowns.bow_triple = 0.0
 		tt_s.hp = tt_s.max_hp
@@ -399,37 +403,87 @@ func _ready() -> void:
 		player.use_slot(1)
 		check(player.ability == "bow_triple" and BowAbilities.can_dodge_cancel(player), "Tiro Triplo começa (%s, %s)" % [player.ability, tt_w])
 		await wait_until(func(): return tt_fire.call().size() > 0 or player.ability == "")
-		var tt_n: int = tt_fire.call().size()
+		var tt_arrows: Array = tt_fire.call()
+		var tt_n: int = tt_arrows.size()
 		var tt_ab: bool = player.ability == "bow_triple"
 		check(tt_n == 3 and tt_ab and not BowAbilities.can_dodge_cancel(player),
 			"Tiro Triplo dispara 3 flechas de uma vez (%s: %d)" % [tt_w, tt_n])
+		if tt_n == 3:
+			# dano de cada flecha (x0,8, x1,8 se crítica), velocidade 42 e perfuração só com fx "pierce"
+			var tt_dmg_ok := true
+			var tt_pierce_ok := true
+			var tt_flat := []
+			for ar in tt_arrows:
+				var want: float = Game.melee_damage() * BowAbilities.TRIPLE_MULT * (1.8 if ar.crit else 1.0)
+				tt_dmg_ok = tt_dmg_ok and absf(ar.damage - want) < 0.01 and is_equal_approx(ar.speed, BowAbilities.TRIPLE_SPEED)
+				tt_pierce_ok = tt_pierce_ok and ar.pierce == (2 if tt_w == "goblin_warbow" else 0)
+				var f: Vector3 = ar.direction
+				f.y = 0.0
+				tt_flat.append(f.normalized())
+			tt_flat.sort_custom(func(x, y): return x.signed_angle_to(y, Vector3.UP) < 0.0)   # esquerda, centro, direita
+			var ang_a := rad_to_deg(absf(tt_flat[0].signed_angle_to(tt_flat[1], Vector3.UP)))
+			var ang_b := rad_to_deg(absf(tt_flat[1].signed_angle_to(tt_flat[2], Vector3.UP)))
+			var ang_c := rad_to_deg(tt_flat[0].angle_to(tt_flat[2]))
+			check(tt_dmg_ok, "Tiro Triplo: dano x0,8 e velocidade 42 em cada flecha (%s)" % tt_w)
+			check(tt_pierce_ok, "Tiro Triplo: perfuração %s (%s)" % ["+2 com fx pierce" if tt_w == "goblin_warbow" else "0", tt_w])
+			check(absf(ang_a - 12.0) < 0.5 and absf(ang_b - 12.0) < 0.5 and absf(ang_c - 24.0) < 0.5,
+				"Tiro Triplo: leque de 12 graus (%.1f, %.1f, total %.1f)" % [ang_a, ang_b, ang_c])
 		await wait_until(func(): return player.ability == "")
 		check(player.cooldowns.bow_triple > 0.0 and tt_s.hp < tt_hp, "Tiro Triplo fere o slime e entra em recarga (%.0f -> %.0f)" % [tt_hp, tt_s.hp])
-		await wait(0.5)
-	# esquiva antes do disparo cancela sem gastar flechas; depois do disparo é ignorada
+	# esquiva antes do disparo cancela sem gastar flechas (logo no início, ability_t = 0); depois é ignorada
 	Game.equip("short_bow")
+	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking)
 	Game.stamina = Game.max_stamina()
 	player.global_position = tt_pos
 	for c in tt_fire.call():
 		c.queue_free()
 	player.cooldowns.bow_triple = 0.0
 	player.use_slot(1)
-	await wait(0.03)
+	check(player.ability == "bow_triple" and player.ability_t < BowAbilities.TRIPLE_DRAW, "Tiro Triplo antes do disparo (t %.2f)" % player.ability_t)
 	player._dodge_pressed(Vector3.ZERO)
 	check(player.ability == "" and tt_fire.call().size() == 0 and player.dodge_timer > 0.0, "esquiva antes do disparo cancela o Tiro Triplo")
-	await wait(0.5)
+	await wait_until(func(): return player.dodge_timer <= 0.0)
 	Game.stamina = Game.max_stamina()
 	player.cooldowns.bow_triple = 0.0
 	player.use_slot(1)
-	await wait(0.2)
+	await wait_until(func(): return player.ability_t >= BowAbilities.TRIPLE_DRAW or player.ability == "")
 	player._dodge_pressed(Vector3.ZERO)
 	check(player.ability == "bow_triple" and player.dodge_timer <= 0.0, "esquiva depois do disparo é ignorada")
 	await wait_until(func(): return player.ability == "")
-	await wait(0.3)
 	for c in tt_fire.call():
 		c.queue_free()
+	# réplica: o evento "bow_triple" cria 3 flechas só visuais, sem dano, e a pose acaba em 0,25 s
+	var tt_rp := Player.new()
+	tt_rp.remote = true
+	world.add_child(tt_rp)
+	tt_s.hp = tt_s.max_hp
+	var tt_rhp: float = tt_s.hp
+	var tt_o := tt_s.global_position + Vector3(0, 1.2, 6.0)
+	var tt_vis_before := 0
+	for c in world.get_children():
+		if c.get("kind") == "arrow" and c.visual_only:
+			tt_vis_before += 1
+	BowAbilities.play_remote(tt_rp, "bow_triple", tt_o, Vector3(0, 0, -1))
+	var tt_vis := []
+	for c in world.get_children():
+		if c.get("kind") == "arrow" and c.visual_only:
+			tt_vis.append(c)
+	check(tt_vis.size() - tt_vis_before == 3 and tt_fire.call().size() == 0, "réplica do Tiro Triplo cria 3 flechas visual_only (%d)" % [tt_vis.size() - tt_vis_before])
+	check(tt_rp.ability == "bow_triple" and is_equal_approx(tt_rp.ability_t, BowAbilities.TRIPLE_DRAW), "réplica começa no disparo")
+	var tt_t0 := Time.get_ticks_msec()
+	await wait_until(func(): return tt_rp.ability == "")
+	var tt_el := (Time.get_ticks_msec() - tt_t0) / 1000.0
+	check(tt_rp.ability == "" and tt_el >= BowAbilities.TRIPLE_RECOVER - 0.1, "réplica termina após a recuperação de 0,25 s (%.2f s)" % tt_el)
+	await wait(0.6)   # as flechas visuais atravessam o slime: sem dano
+	check(tt_s.hp == tt_rhp, "flechas da réplica não ferem (%.0f)" % tt_s.hp)
+	tt_rp.queue_free()
+	for c in world.get_children():
+		if c.get("kind") == "arrow":
+			c.queue_free()
 	Game.stamina = Game.max_stamina()
 	player.cooldowns.bow_triple = 0.0
+	tt_s.hp = tt_max
+	tt_s.max_hp = tt_max
 	tt_s.global_position = tt_s.home
 	player.global_position = tt_pos
 	player.velocity = Vector3.ZERO
