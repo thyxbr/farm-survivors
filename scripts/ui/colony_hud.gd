@@ -185,7 +185,7 @@ func _process(_delta: float) -> void:
 ## "Nome  N" do estoque; o recurso cuja munição acabou na noite pisca em vermelho.
 func _stock_text(label: String, r: String, per_min: String) -> String:
 	var t := "%s  [b]%d[/b]%s" % [label, colony.amount(r), per_min]
-	if colony.ammo_out(r) and int(Time.get_ticks_msec() / 400) % 2 == 0:
+	if colony.ammo_out(r) and int(Time.get_ticks_msec() / 400.0) % 2 == 0:
 		return "[color=#%s]%s[/color]" % [UITheme.BAD.to_html(false), t]
 	return t
 

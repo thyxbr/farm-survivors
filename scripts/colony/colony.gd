@@ -495,22 +495,22 @@ func use_ammo(who: String) -> bool:
 	var left: float = _ammo_acc.get(r, 0.0)
 	if left < 1.0 - 0.000001:
 		if amount(r) < 1:
-			if not _ammo_warned.has(r):
+			if phase == "night" and not _ammo_warned.has(r):
 				_ammo_warned[r] = true
 				say(ColonyData.AMMO_OUT_MSG[r], UITheme.BAD)
-				_dirty()
 			return false
 		res[r] = amount(r) - 1
-		night_ammo[r] = int(night_ammo.get(r, 0)) + 1
+		if phase == "night":   # de dia o estoque também gasta, mas não entra no relatório da noite
+			night_ammo[r] = int(night_ammo.get(r, 0)) + 1
 		left += shots
 		_dirty()
 	_ammo_acc[r] = left - 1.0
 	return true
 
 
-## O recurso de munição acabou nesta noite (o HUD pisca).
+## O estoque de munição está zerado durante a noite (o HUD pisca; vale para o cliente também).
 func ammo_out(r: String) -> bool:
-	return phase == "night" and _ammo_warned.has(r)
+	return phase == "night" and amount(r) < 1
 
 
 ## Multiplicador de tecnologia da produção de "wood"/"stone". Ponto único para plugar `colony.mult(res)` (Task 6).

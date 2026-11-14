@@ -28,6 +28,7 @@ var parts := {}
 var look := {}
 var target: Enemy = null
 var _retarget := 0.0
+var _has_ammo := true   # o último disparo à distância teve munição (senão o intervalo dobra)
 var _cd := 0.0
 var _attack_t := -1.0
 var _hit_done := false
@@ -72,9 +73,6 @@ func _ready() -> void:
 	if puppet:
 		collision_layer = 0
 		collision_mask = 0
-
-
-var _has_ammo := true   # o último disparo à distância teve munição (senão o intervalo dobra)
 
 
 func is_ranged() -> bool:

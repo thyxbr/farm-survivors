@@ -281,6 +281,8 @@ func _ready() -> void:
 	var said: Array[String] = []
 	var on_say := func(text: String, _c: Color) -> void: said.append(text)
 	Game.notify.connect(on_say)
+	var phase0 := colony.phase
+	colony.phase = "night"   # aviso e relatório de munição só valem à noite
 	colony.night_ammo = {}
 	colony._ammo_acc = {}   # descarta disparos que sobraram de unidades de testes anteriores
 	colony.res["wood"] = 10
@@ -293,15 +295,48 @@ func _ready() -> void:
 	colony.res["wood"] = 0
 	check(not colony.use_ammo("archer_tower") and colony.amount("wood") == 0, "sem madeira não fica negativo")
 	check(not colony.use_ammo("archer") and colony.use_ammo("soldier"), "arqueiro sem madeira falha; soldado não usa munição")
+	if is_instance_valid(tower):
+		colony.demolish(tower)   # só a torre nova pode acertar o alvo abaixo
+	colony.res["wood"] = 0   # demolir devolve madeira
+	colony._ammo_acc = {}
 	var t2 := colony.place("archer_tower", Vector3(-8, 0, 14), 0.0, true)
 	var e2 := colony.spawn_enemy("slime", Vector3(-8, 0, 30))
 	var hp2 := e2.hp
-	await wait(3.0)
+	var cd_max := 0.0
+	for i in 180:
+		await get_tree().process_frame
+		cd_max = maxf(cd_max, t2._cd)
 	check(not is_instance_valid(e2) or e2.hp < hp2, "torre sem munição continua atirando (mais devagar)")
 	check(said.count("Acabaram as flechas!") == 1, "aviso de munição aparece uma vez (%d)" % said.count("Acabaram as flechas!"))
-	check(t2.tower_rate() * ColonyData.NO_AMMO_RATE == t2.tower_rate() * 2.0 and ColonyData.NO_AMMO_RATE == 2.0, "sem munição o intervalo dobra")
+	check(cd_max > t2.tower_rate() * 1.5 and cd_max <= t2.tower_rate() * ColonyData.NO_AMMO_RATE + 0.001,
+		"sem munição o intervalo da torre dobra (_cd máx %.2f, normal %.2f)" % [cd_max, t2.tower_rate()])
+	check(colony.amount("wood") == 0, "a torre sem munição não deixa o estoque negativo (%d)" % colony.amount("wood"))
+	check(not colony.ammo_out("wood") or colony.phase == "night", "o pisca só vale à noite")
+	# arqueiro (tropa à distância): sem madeira ainda atira, mais devagar; com madeira, gasta
+	if is_instance_valid(t2):
+		colony.demolish(t2)
+	colony.res["wood"] = 0   # a demolição devolveu madeira
+	colony._ammo_acc = {}
+	var archer: Node = null
+	for sd in colony.soldiers():
+		if sd.is_ranged():
+			archer = sd
+	check(archer != null, "há um arqueiro")
+	if archer != null:
+		var e3 := colony.spawn_enemy("slime", archer.global_position + Vector3(0, 0, 8))
+		var hp3 := e3.hp
+		await wait(3.0)
+		check(not is_instance_valid(e3) or e3.dead or e3.hp < hp3, "arqueiro sem madeira ainda atira")
+		check(colony.amount("wood") == 0 and not archer._has_ammo, "arqueiro sem madeira: estoque 0 e intervalo dobrado (%d, %s)" % [colony.amount("wood"), archer._has_ammo])
+		colony.res["wood"] = 50
+		colony._ammo_acc = {}
+		var e4 := colony.spawn_enemy("slime", archer.global_position + Vector3(0, 0, 8))
+		await wait(3.0)
+		check(colony.amount("wood") < 50 and archer._has_ammo, "arqueiro com madeira gasta do estoque (%d)" % colony.amount("wood"))
+		if is_instance_valid(e4):
+			e4.take_damage(999999, e4.global_position, false)
+	colony.phase = phase0
 	Game.notify.disconnect(on_say)
-	colony.demolish(t2)
 
 	# --- monstro ataca construção no caminho
 	var wall := colony.place("wall", Vector3(-20, 0, 30), 0.0, true)
