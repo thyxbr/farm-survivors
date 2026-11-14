@@ -151,6 +151,7 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 			_:
 				_build_sword(holder, tip, wid)
 	model.set_meta("look_nodes", made)
+	PivotSkin.ensure(model)    # ossos das roupas com pele contínua seguem os pivôs
 	return res
 
 
@@ -184,6 +185,28 @@ static func _attach_gear(model: Node3D, style: String, id: String, pants: Color,
 	var glow: float = it.get("glow", 0.0)
 	var g := (load(path) as PackedScene).instantiate() as Node3D
 	WeaponModel.use_vertex_color(g)    # sombra assada (AO) na cor por vértice multiplica o albedo
+	# roupa com pele contínua (esqueleto próprio): o esqueleto inteiro entra no modelo e o PivotSkin faz os
+	# ossos seguirem os pivôs do cavaleiro
+	var skels := g.find_children("*", "Skeleton3D", true, false)
+	if not skels.is_empty():
+		for sk: Skeleton3D in skels:
+			var top: Node = sk
+			while top.get_parent() != g:
+				top = top.get_parent()
+			var xf := (top as Node3D).transform
+			top.owner = null
+			for d in top.find_children("*", "", true, false):
+				d.owner = null
+			g.remove_child(top)
+			top.name = "Gear_%s_%s" % [style, top.name]
+			model.add_child(top)
+			(top as Node3D).transform = xf
+			made.append(top)
+			for mi: MeshInstance3D in top.find_children("*", "MeshInstance3D", true, false):
+				mi.name = "Gear_" + mi.name
+				_tint_mesh(mi, tints, glow)
+		g.free()
+		return
 	for mi: MeshInstance3D in g.find_children("*", "MeshInstance3D", true, false):
 		var pivot := mi.get_parent()
 		var target := model.find_child(pivot.name, true, false) as Node3D
@@ -196,14 +219,18 @@ static func _attach_gear(model: Node3D, style: String, id: String, pants: Color,
 		target.add_child(mi)
 		mi.transform = xf
 		made.append(mi)
-		for s in mi.mesh.get_surface_count():
-			var src := mi.mesh.surface_get_material(s) as BaseMaterial3D
-			if src == null:
-				continue
-			var pre := src.resource_name.left(3)
-			if tints.has(pre):
-				mi.set_surface_override_material(s, _tinted(src, tints[pre], glow if pre == "t1_" else 0.0))
+		_tint_mesh(mi, tints, glow)
 	g.free()
+
+
+static func _tint_mesh(mi: MeshInstance3D, tints: Dictionary, glow: float) -> void:
+	for s in mi.mesh.get_surface_count():
+		var src := mi.mesh.surface_get_material(s) as BaseMaterial3D
+		if src == null:
+			continue
+		var pre := src.resource_name.left(3)
+		if tints.has(pre):
+			mi.set_surface_override_material(s, _tinted(src, tints[pre], glow if pre == "t1_" else 0.0))
 
 
 static func _tinted(src: BaseMaterial3D, c: Color, glow: float) -> BaseMaterial3D:

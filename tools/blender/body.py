@@ -216,11 +216,12 @@ def body_proportions(height=1.84, heads=7.5, shoulders=1.0, chest=1.0, waist=1.0
     hip_z = z(3.63)
     P = dict(H=H, k=k, z=z, height=height, sh=shoulders, ch=chest, wa=waist, hp=hips, lb=limbs, hd=hands * k,
              ft=feet * k)
-    sx = 0.22 * k * shoulders
+    sx = 0.1685 * k * shoulders
     P["neck"] = Vector((0, 0, z(1.43)))
-    P["shoulder"] = Vector((sx, 0, z(1.70)))
-    P["elbow"] = Vector((sx + 0.028 * k, 0.01 * k, z(2.95)))
-    P["wrist"] = Vector((sx + 0.045 * k, -0.005 * k, z(3.78)))
+    P["shoulder"] = Vector((sx, 0.004 * k, z(1.70)))
+    # braços levemente abertos: o antebraço passa longe da cintura e a mão longe do quadril
+    P["elbow"] = Vector((sx + 0.03 * k, 0.016 * k, z(2.87)))
+    P["wrist"] = Vector((sx + 0.056 * k, -0.004 * k, z(3.78)))
     P["pelvis"] = Vector((0, 0, hip_z))
     P["hip"] = Vector((0.1 * k * hips, 0, hip_z))
     P["knee"] = Vector((0.095 * k * hips, -0.005 * k, hip_z * 0.544))
@@ -263,35 +264,45 @@ def limb_sections(P, s):
     hip, knee, ankle = (mirror(P[n], s) for n in ("hip", "knee", "ankle"))
     sh, el, wr = (mirror(P[n], s) for n in ("shoulder", "elbow", "wrist"))
     S = {}
-    S["thigh"] = _along(hip, knee, [(-0.1, 0.088, 0.09), (0.12, 0.09, 0.092, {"fr": 1.05}), (0.45, 0.077, 0.08),
-                                    (0.8, 0.062, 0.064), (1.0, 0.055, 0.058)], k * lb)
-    S["shin"] = _along(knee, ankle, [(-0.04, 0.055, 0.058), (0.2, 0.056, 0.06, {"bk": 1.25}),
-                                     (0.47, 0.049, 0.05, {"bk": 1.15}), (0.83, 0.036, 0.038), (1.0, 0.034, 0.036)],
+    # coxa cheia em cima (quadríceps na frente), afina até o joelho
+    S["thigh"] = _along(hip, knee, [(-0.1, 0.09, 0.094), (0.12, 0.092, 0.096, {"fr": 1.08}), (0.45, 0.079, 0.083, {"fr": 1.06}),
+                                    (0.8, 0.063, 0.066), (1.0, 0.055, 0.058)], k * lb)
+    # canela: panturrilha saltada atrás no terço de cima, tornozelo fino
+    S["shin"] = _along(knee, ankle, [(-0.04, 0.055, 0.058), (0.22, 0.056, 0.062, {"bk": 1.3}),
+                                     (0.5, 0.047, 0.05, {"bk": 1.15}), (0.83, 0.035, 0.037), (1.0, 0.033, 0.035)],
                        k * lb)
     ft = P["ft"]
     S["foot"] = [sec((ankle.x, dy * ft, dz * ft), rx * ft, ry * ft, sq=3.0)
                  for dy, dz, rx, ry in ((0.05, 0.05, 0.042, 0.045), (0.0, 0.065, 0.048, 0.06),
                                         (-0.07, 0.05, 0.052, 0.045), (-0.14, 0.035, 0.054, 0.032),
                                         (-0.2, 0.03, 0.042, 0.025))]
-    S["upper"] = _along(sh, el, [(-0.13, 0.06, 0.065), (0.3, 0.058, 0.06), (0.75, 0.048, 0.05), (1.0, 0.042, 0.044)],
-                        k * lb)
-    S["fore"] = _along(el, wr, [(-0.03, 0.042, 0.044), (0.25, 0.046, 0.05), (0.7, 0.036, 0.04), (1.0, 0.03, 0.036)],
-                       k * lb)
+    # braço: entra no deltoide (que fecha o ombro), bíceps saltado na frente, estreita no cotovelo
+    # o topo fecha arredondado (deltoide), mais largo que o resto do braço e cobrindo a junção com o tronco
+    S["upper"] = _along(sh, el, [(-0.09, 0.022, 0.026), (-0.06, 0.047, 0.051), (0.0, 0.058, 0.061),
+                                 (0.16, 0.055, 0.058), (0.3, 0.049, 0.054, {"fr": 1.1}), (0.5, 0.047, 0.053, {"fr": 1.12}),
+                                 (0.78, 0.042, 0.046), (1.0, 0.039, 0.042)], k * lb)
+    # antebraço: massa logo abaixo do cotovelo, afina até o pulso (achatado)
+    S["fore"] = _along(el, wr, [(-0.03, 0.04, 0.043), (0.2, 0.046, 0.046, {"bk": 1.1}), (0.6, 0.037, 0.034),
+                                (1.0, 0.03, 0.024)], k * lb)
     return S
 
 
 def torso_sections(P):
-    """Tronco do gancho à base do pescoço (anéis horizontais)."""
+    """Tronco do gancho à base do pescoço (anéis horizontais). Forma em V: peito e dorsais largos, cintura
+    fina, quadril um pouco mais estreito que o peito; em cima o trapézio desce em rampa do pescoço ao ombro
+    (o topo do tronco não é reto) e termina num anel do tamanho do pescoço."""
     z, k = P["z"], P["k"]
     rows = (  # (cabeças do topo, rx, ry, extras, fator de largura)
         (3.78, 0.1, 0.08, {}, P["hp"]),
-        (3.62, 0.16, 0.11, {}, P["hp"]),
-        (3.3, 0.16, 0.105, {}, P["hp"]),
-        (2.85, 0.14, 0.1, {}, P["wa"]),
-        (2.4, 0.165, 0.115, {"fr": 1.1}, P["ch"]),
-        (2.05, 0.18, 0.12, {"fr": 1.15}, P["ch"]),
-        (1.72, 0.17, 0.1, {}, P["sh"]),
-        (1.52, 0.08, 0.07, {}, 1.0),
+        (3.62, 0.16, 0.11, {"bk": 1.12}, P["hp"]),
+        (3.3, 0.155, 0.103, {}, P["hp"]),
+        (2.85, 0.138, 0.098, {}, P["wa"]),
+        (2.45, 0.155, 0.108, {"fr": 1.06}, P["ch"]),
+        (2.12, 0.172, 0.115, {"fr": 1.14}, P["ch"]),
+        (1.88, 0.178, 0.108, {"fr": 1.08}, P["sh"]),
+        (1.66, 0.158, 0.088, {}, P["sh"]),
+        (1.5, 0.108, 0.07, {}, 1.0),
+        (1.38, 0.068, 0.062, {}, 1.0),
     )
     return [sec((0, 0, z(n)), rx * k * f, ry * k, **ex) for n, rx, ry, ex, f in rows]
 
@@ -339,6 +350,16 @@ def fist(prefix, P, s, material, parent):
     return join_objs(prefix + "_Hand", parts)
 
 
+# ------------------------------------------------------------------ pescoço
+def neck_mesh(P, material, parent, k=1.0):
+    """Pescoço curto e grosso (~70% da largura da cabeça), levemente inclinado para a frente: nasce dentro do
+    trapézio e entra por baixo do queixo."""
+    z, kk = P["z"], P["k"] * k
+    return loft("Neck", [sec((0, 0.014 * kk, z(1.58)), 0.07 * kk, 0.066 * kk),
+                         sec((0, 0.006 * kk, z(1.3)), 0.06 * kk, 0.058 * kk),
+                         sec((0, -0.002 * kk, z(0.95)), 0.054 * kk, 0.052 * kk)], material, parent, sides=8)
+
+
 # ------------------------------------------------------------------ corpo-base completo
 BASE_PARTS = ("torso", "neck", "thigh", "shin", "foot", "upper", "fore", "hand")
 
@@ -354,8 +375,7 @@ def humanoid_base(P, R, mats, parts=BASE_PARTS):
         out["Chest"] = loft("Chest", torso_sections(P), m("torso"), R["Body"], sides=12, phase=0, axis=(0, 0, 1))
     if "neck" in parts:
         z, k = P["z"], P["k"]
-        out["Neck"] = loft("Neck", [sec((0, 0.005, z(1.55)), 0.06 * k, 0.058 * k),
-                                    sec((0, 0.012, z(1.05)), 0.052 * k, 0.05 * k)], m("neck"), R["Head"], sides=8)
+        out["Neck"] = neck_mesh(P, m("neck"), R["Head"])
     for n, s in (("L", 1), ("R", -1)):
         S = limb_sections(P, s)
         leg, knee, arm, elbow = R["Leg" + n], R["Knee" + n], R["Arm" + n], R["Elbow" + n]

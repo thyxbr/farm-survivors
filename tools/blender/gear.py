@@ -17,7 +17,7 @@ import math
 from mathutils import Vector
 
 GEAR_P = dict(height=1.84, heads=7.5, shoulders=1.08, waist=0.92, limbs=1.06, hands=1.15, feet=1.1)
-HEAD_CHIN, HEAD_H = 1.555, 0.245        # cabeça humana sob os elmos (olhos ~1,68, na fenda do elmo do cavaleiro)
+HEAD_CHIN, HEAD_H = 1.555, 0.262        # cabeça humana sob os elmos (olhos ~1,68, na fenda do elmo do cavaleiro)
 ZUP = (0, 0, 1)
 
 
@@ -315,15 +315,14 @@ def split_x(ob, mats, fn):
 
 # ------------------------------------------------------------------ corpo vestido (peças reutilizadas)
 def cloth_sections(P):
-    """Seções do tronco para roupa: peito menos saltado, cintura solta e rampa do trapézio até o pescoço."""
+    """Seções do tronco para roupa: peito menos saltado e cintura solta (o tecido não entra na cintura).
+    A rampa do trapézio até o pescoço já vem do corpo."""
     b = [dict(x) for x in torso_sections(P)]
     for x in b:
         x["fr"] = min(x["fr"], 1.06)
     b[3]["rx"] = (b[2]["rx"] + b[4]["rx"]) / 2 * 0.98
     b[3]["ry"] = (b[2]["ry"] + b[4]["ry"]) / 2
-    top, nk = b[-2], b[-1]
-    trap = sec((0, 0, top["c"].z + (nk["c"].z - top["c"].z) * 0.55), top["rx"] * 0.68, top["ry"] * 0.86)
-    return b[:-1] + [trap, nk]
+    return b
 
 
 def clothed_torso(P, R, material, k=1.07, add=0.01, z_top=None, keel=0.0, steps=()):
@@ -337,12 +336,11 @@ def clothed_torso(P, R, material, k=1.07, add=0.01, z_top=None, keel=0.0, steps=
     return secs
 
 
-def neck(R, skin, collar=None, collar_z=1.455):
-    parts = [loft("Neck", [sec((0, 0.006, 1.43), 0.058, 0.056), sec((0, 0.01, 1.6), 0.05, 0.048)], skin, R["Head"],
-                  sides=8)]
-    if collar is not None:
-        parts.append(loft("Collar", [sec((0, 0.004, collar_z - 0.02), 0.098, 0.085),
-                                     sec((0, 0.006, collar_z + 0.025), 0.074, 0.07)], collar, R["Head"], sides=10))
+def neck(R, skin, collar=None, collar_z=1.497):
+    parts = [neck_mesh(body_proportions(**GEAR_P), skin, R["Head"])]
+    if collar is not None:     # gola: aro em volta da boca da roupa, na base do pescoço
+        parts.append(loft("Collar", [sec((0, 0.008, collar_z - 0.022), 0.104, 0.084),
+                                     sec((0, 0.01, collar_z + 0.016), 0.08, 0.074)], collar, R["Head"], sides=10))
     return join_objs("Neck", parts)
 
 
@@ -364,11 +362,11 @@ def sleeves(P, R, material, skin, upto=1.0, k=1.04, add=0.006, cap=True, cuff=No
     for n, s in (("L", 1), ("R", -1)):
         S = limb_sections(P, s)
         arm, elbow = R["Arm" + n], R["Elbow" + n]
-        U = grow(span(S["upper"], 0.1, 1.0), k, add)
+        U = grow(S["upper"], k, add)          # inteira: a manga fecha redonda sobre o deltoide
         if steps:
             U = stepped(U, [(i + 1) / (steps + 1) for i in range(steps)], drop=0.95, eps=0.008)
         up = [loft("Arm%s_Upper" % n, U, material, arm)]
-        if cap:
+        if cap and cap_mat is not None:     # costura do ombro em outra cor (opcional)
             sh = mirror(P["shoulder"], s)
             tilt = Vector((s * math.sin(1.0), 0, math.cos(1.0)))
             up.append(dome("Arm%s_Cap" % n, sh + Vector((-s * 0.014, 0, -0.026)), tilt, 0.062, 0.066, 0.05,
@@ -394,10 +392,11 @@ def plain_head(R, M, beard=False, hair=True):
     face_mats = {"skin": M["skin"], "pupil": M["eye"], "sclera": M["sclera"], "brow": M["hair"], "lip": M["lip"]}
     H = human_head("", HEAD_CHIN, HEAD_H, head, face_mats, {"jaw": 1.08, "chin": 1.1, "brow": 1.2, "nose": 1.05})
     if hair:
-        shell("HairBase", (0, 0.006, HEAD_CHIN + 0.165), (0.156, 0.208, 0.2), M["hair"], cut=0.25, seg=10, rings=6,
-              rot=(-0.2, 0, 0), thick=0.008, parent=head)
-        shell("HairBaseBack", (0, 0.006, HEAD_CHIN + 0.14), (0.162, 0.27, 0.2), M["hair"], cut=0.1, seg=10, rings=6,
-              rot=(-math.pi / 2, 0, 0), thick=0.008, parent=head)
+        f = HEAD_H / 0.245                                   # calotas medidas para a cabeça de 0,245 m
+        shell("HairBase", (0, 0.006 * f, HEAD_CHIN + 0.165 * f), (0.156 * f, 0.208 * f, 0.2 * f), M["hair"], cut=0.25,
+              seg=10, rings=6, rot=(-0.2, 0, 0), thick=0.008, parent=head)
+        shell("HairBaseBack", (0, 0.006 * f, HEAD_CHIN + 0.14 * f), (0.162 * f, 0.27 * f, 0.2 * f), M["hair"], cut=0.1,
+              seg=10, rings=6, rot=(-math.pi / 2, 0, 0), thick=0.008, parent=head)
         locks = []
         for phi in (-48, -24, 0, 24, 48):                      # franja curta penteada para o lado
             locks.append(dict(a=(phi * 0.6 + 150, 75), b=(phi - 15, 22), w=0.055, t=0.011, bulge=0.004, n=5))
@@ -673,7 +672,7 @@ def build_a_shirt():
 def parts_a_shirt(P, R, M):
     body = R["Body"]
     secs = clothed_torso(P, R, M["linen"], k=1.05, add=0.008)
-    neck(R, M["skin"], collar=M["linen_d"], collar_z=1.45)
+    neck(R, M["skin"], collar=M["linen_d"])
     fy = front_y(torso_at(secs, 1.42), 0.002)
     tbox("ShirtV", (0, fy + 0.004, 1.405), (0.06, 0.006, 0.075), M["skin"], bottom=(0.1, 1), parent=body)
     for k, z in enumerate((1.425, 1.395, 1.365)):
