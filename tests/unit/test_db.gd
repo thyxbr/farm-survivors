@@ -7,7 +7,7 @@ const TABELAS := ["accounts", "sessions", "characters", "inventory", "passives",
 
 
 func _fresh() -> Db:
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(PATH))
+	Db.remove_files(PATH)
 	return Db.open(PATH)
 
 
@@ -89,3 +89,38 @@ func test_open_bare_relative_path() -> void:
 	if db != null:
 		db.close()
 	DirAccess.remove_absolute("test_db_rel.db")
+	for suf in ["-wal", "-shm"]:
+		DirAccess.remove_absolute("test_db_rel.db" + suf)
+
+
+func test_failed_migration_is_detected() -> void:
+	# tabela "accounts" já existe sem schema_version: a v1 (CREATE TABLE accounts) falha
+	var db := _fresh()
+	db.exec("CREATE TABLE accounts (x INTEGER)")
+	T.eq(Migrations.apply(db), -1, "apply devolve -1")
+	T.ok(not Migrations.ensure_latest(db), "ensure_latest recusa")
+	db.close()
+
+
+func test_newer_db_is_refused() -> void:
+	var db := _fresh()
+	T.ok(Migrations.ensure_latest(db), "banco novo fica na mais nova")
+	T.ok(Migrations.ensure_latest(db), "idempotente")
+	db.exec("INSERT INTO schema_version(version, applied_at) VALUES(?, 0)", [Migrations.latest() + 1])
+	T.ok(not Migrations.ensure_latest(db), "banco de versão mais nova do jogo é recusado")
+	db.close()
+
+
+func test_wal_and_remove_files() -> void:
+	var p := "user://test_db_wal.db"
+	Db.remove_files(p)
+	var db := Db.open(p)
+	T.eq(str(db.query("PRAGMA journal_mode")[0].values()[0]).to_lower(), "wal", "journal em WAL")
+	T.eq(int(db.query("PRAGMA busy_timeout")[0].values()[0]), 2000, "busy_timeout 2000")
+	T.eq(int(db.query("PRAGMA synchronous")[0].values()[0]), 1, "synchronous NORMAL")
+	T.ok(db.exec("CREATE TABLE t (x INTEGER)"), "grava")
+	T.ok(FileAccess.file_exists(p + "-wal"), "arquivo -wal existe com o banco aberto")
+	db.close()
+	Db.remove_files(p)
+	for suf in ["", "-wal", "-shm", "-journal"]:
+		T.ok(not FileAccess.file_exists(p + suf), "apagou %s" % (p + suf))

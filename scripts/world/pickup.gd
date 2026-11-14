@@ -206,9 +206,9 @@ func _on_claim_done(op: String, args: Array, ok: bool, err: String, _events: Arr
 		Econ.done.disconnect(_on_claim_done)
 		_collected_fx()
 		queue_free()
-	elif err in ["longe", "erro_banco"]:
-		# o servidor ainda não viu o jogador perto, ou não gravou (o pickup voltou ao registro):
-		# volta ao chão e tenta de novo depois
+	elif err in ["longe", "erro_banco", "devagar"]:
+		# o servidor ainda não viu o jogador perto, não gravou (o pickup voltou ao registro) ou recusou por
+		# excesso de pedidos: volta ao chão e tenta de novo depois
 		_reopen()
 	else:
 		queue_free()   # de outro, já pego, expirado, sem conexão

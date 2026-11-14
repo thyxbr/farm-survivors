@@ -143,3 +143,18 @@ static func apply(db: Db) -> int:
 			return -1
 		current = v
 	return current
+
+
+## Versão mais nova que este código conhece.
+static func latest() -> int:
+	return MIGRATIONS.size()
+
+
+## Aplica e confere que o banco ficou na versão mais nova (false se uma migração falhou ou se o banco é de
+## uma versão mais nova do jogo). Quem chama não deve usar o banco com false.
+static func ensure_latest(db: Db) -> bool:
+	var v := apply(db)
+	if v != latest():
+		push_error("Migrations: banco na versão %d, esperada %d" % [v, latest()])
+		return false
+	return true

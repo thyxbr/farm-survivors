@@ -83,6 +83,7 @@ var autosave_interval := 120.0
 var _autosave_t := 120.0
 var _pending := {}        # servidor: peer_id -> segundos até expulsar quem não se registrou
 var _chat_log := {}       # servidor: peer_id -> [instantes das últimas mensagens]
+var _shut_down := false   # servidor: personagens já gravados na saída
 
 ## Servidor: fila aberta {"leader": id, "members": {id: true}, "declined": {id: true}, "t": s} ou {}.
 var _lobby := {}
@@ -159,6 +160,9 @@ func _split_names(csv: String) -> PackedStringArray:
 
 
 func start_server() -> void:
+	if OS.get_environment("DB_REQUIRE_MOUNT") == "1" and not _db_dir_is_mounted():
+		get_tree().quit(1)
+		return
 	db = Db.open(db_path)
 	if db == null:
 		printerr("[server] não foi possível abrir o banco em %s" % db_path)
@@ -168,7 +172,10 @@ func start_server() -> void:
 		printerr("[server] porta HTTP inválida: %d (use 1-65535)" % http_port)
 		get_tree().quit(1)
 		return
-	Migrations.apply(db)
+	if not Migrations.ensure_latest(db):
+		printerr("[server] migração do banco %s falhou (ou o banco é de uma versão mais nova): não subo" % db_path)
+		get_tree().quit(1)
+		return
 	accounts = AccountStore.new(db, admin_users)
 	characters = CharacterService.new(db, Balance.tables)
 	for n in accounts.missing_admins():
@@ -194,6 +201,37 @@ func start_server() -> void:
 	Engine.max_fps = 60
 	print("[server] Ecos de Valdoria v%s ouvindo em UDP %d (máx. %d jogadores)" % [version(), port, MAX_PLAYERS])
 	get_tree().change_scene_to_file(WORLD_SCENE)
+
+
+## DB_REQUIRE_MOUNT=1 (imagem Docker): a pasta do banco tem que ser um volume montado (/proc/mounts),
+## senão o banco ficaria na camada do container e o próximo deploy apagaria todas as contas.
+func _db_dir_is_mounted() -> bool:
+	var dir := ProjectSettings.globalize_path(db_path).get_base_dir()
+	var mounts := Mounts.read_proc_mounts()
+	if mounts.is_empty():
+		var out := []
+		OS.execute("cat", ["/proc/mounts"], out)
+		mounts = "".join(out)
+	if Mounts.is_mount_point(dir, mounts):
+		return true
+	printerr("[server] DB_REQUIRE_MOUNT=1 e a pasta do banco (%s) não é um volume montado: monte um volume em %s " % [dir, dir]
+		+ "(no Easypanel: Mounts → Volume em /data) ou rode com DB_REQUIRE_MOUNT=0 para testar sem guardar as contas")
+	return false
+
+
+## Servidor desligando (pedido de fechar ou saída da árvore no quit): grava todos os personagens em memória.
+## Idempotente (pode vir do pedido de fechar e da saída da árvore).
+func _server_shutdown() -> void:
+	if characters == null or _shut_down:
+		return
+	_shut_down = true
+	var n := characters.save_all()
+	print("[server] desligando: %d personagem(ns) gravado(s)" % n)
+
+
+func _exit_tree() -> void:
+	if is_server():
+		_server_shutdown()
 
 
 func _on_peer_connected(id: int) -> void:
@@ -318,6 +356,7 @@ func server_set_zone(id: int, zone: String) -> void:
 			_horde_peer_gone(id)
 		if old == "city":
 			Lobby.server_city_left(id)
+		Econ.server_peer_zone_left(id, old)
 	for pid in _all_peers():
 		_player_zone.rpc_id(pid, id, zone)
 	players_changed.emit()
@@ -720,6 +759,8 @@ func autosave() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST and is_client():
 		autosave()
+	elif what == NOTIFICATION_WM_CLOSE_REQUEST and is_server():
+		_server_shutdown()
 
 
 # ---------------------------------------------------------------- envio (cliente)

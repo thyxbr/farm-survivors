@@ -13,7 +13,7 @@ func _tables() -> BalanceTables:
 
 
 func _fresh() -> Db:
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(PATH))
+	Db.remove_files(PATH)
 	var db := Db.open(PATH)
 	Migrations.apply(db)
 	db.exec("INSERT INTO accounts(id, username, pass_hash, pass_salt, created_at) VALUES(2, 'ana', 'h', 's', 1)")
@@ -200,6 +200,24 @@ func test_report_is_cache_only_and_flush_dirty() -> void:
 	T.ok(is_equal_approx(float(db.query("SELECT hp FROM characters WHERE account_id = 2")[0]["hp"]), 40.0), "flush gravou")
 	T.eq(svc.flush_dirty(), 0, "nada sujo depois do flush")
 	db.close()
+
+
+## Servidor desligando: save_all grava todos os personagens em cache (o relatório ainda não gravado inclusive).
+func test_save_all_on_shutdown() -> void:
+	var db := _fresh()
+	db.exec("INSERT INTO accounts(id, username, pass_hash, pass_salt, created_at) VALUES(3, 'bia', 'h', 's', 1)")
+	var svc := CharacterService.new(db, _tables())
+	svc.load_or_create(2)
+	svc.load_or_create(3)
+	svc.set_session(2, 7)
+	svc.report(2, 7, 33.0, 4.0, Vector3(5, 1, 5), 0.0)
+	T.eq(svc.save_all(), 2, "gravou os 2 personagens em cache")
+	db.close()
+	var db2 := Db.open(PATH)
+	T.ok(is_equal_approx(float(db2.query("SELECT hp FROM characters WHERE account_id = 2")[0]["hp"]), 33.0),
+		"vida do relatório sobreviveu ao desligamento")
+	T.eq(db2.query("SELECT account_id FROM characters").size(), 2, "as duas linhas existem")
+	db2.close()
 
 
 func test_report_clamps_position() -> void:

@@ -19,7 +19,7 @@
 - Online: o cliente **nunca** concede a si ouro, itens, XP ou progresso de missão. Toda concessão vem do servidor.
 - Offline: a partida roda no PC; ganhos chamam o `CharacterService` local em `user://solo.db` (conta local id 1).
 - Saves antigos (`savegame.json`, `colony_character.json`) deixam de ser lidos; sem migração.
-- Tabelas de balanceamento em `res://data/balance/*.json`; o servidor semeia o banco com elas na primeira subida e depois usa o banco.
+- Tabelas de balanceamento em `res://data/balance/*.json`; servidor e solo leem desses arquivos. (Semear o banco com elas na primeira subida e depois usar o banco ficou para a fase 3 — decisão R17; nesta fase as tabelas `balance_tables`/`balance_history` só existem no schema.)
 - Subir `application/config/version` para **0.8.0** (o CI exige versão nova).
 - Dados de rede vindos do cliente são sempre validados (tipos, ids conhecidos, faixas), como `_clean_look` já faz.
 - Os testes existentes continuam passando: smoke (`--smoketest`), colônia (`--colonytest`), `net_test` (com as mudanças da Task 9).

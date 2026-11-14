@@ -36,6 +36,13 @@ const FLUSH_EVERY := 60.0
 const PURGE_EVERY := 10.0
 ## seq das respostas que o servidor manda sem pedido (concessões: abate, loot, prêmios de partida).
 const PUSH_SEQ := -1
+## Servidor: limite de pedidos por peer (balde de fichas: rajada, fichas por segundo). Acima dele o pedido é
+## recusado com "devagar" sem tocar no banco. A coleta de loot tem balde próprio, mais folgado (a Horda
+## derruba muitos pickups de uma vez); o cliente devolve ao chão o pickup recusado com "devagar".
+const REQ_BURST := 10.0
+const REQ_RATE := 5.0
+const CLAIM_BURST := 30.0
+const CLAIM_RATE := 10.0
 
 var solo_db_path := "user://solo.db"
 ## Testes adiantam o relógio (horta). Vale para o serviço local e para o desenho dos canteiros.
@@ -59,6 +66,8 @@ var _flush_t := FLUSH_EVERY
 var pickups := PickupRegistry.new()
 var _loot_rng := RandomNumberGenerator.new()
 var _purge_t := PURGE_EVERY
+var _req_limit := TokenBuckets.new(REQ_BURST, REQ_RATE)
+var _claim_limit := TokenBuckets.new(CLAIM_BURST, CLAIM_RATE)
 
 
 func _ready() -> void:
@@ -335,14 +344,19 @@ func _open_db() -> bool:
 		return true
 	if _wipe_on_open:
 		_wipe_on_open = false
-		for f in [solo_db_path, solo_db_path + "-journal"]:
-			if FileAccess.file_exists(f):
-				DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+		Db.remove_files(solo_db_path)   # com -wal/-shm: um WAL velho seria aplicado ao banco novo
 	_db = Db.open(solo_db_path)
 	if _db == null:
 		push_error("Econ: não abriu o banco solo em %s" % solo_db_path)
+		Game.notify.emit("Não foi possível abrir o jogo salvo.", Color(1, 0.4, 0.4))
 		return false
-	Migrations.apply(_db)
+	if not Migrations.ensure_latest(_db):
+		# migração falhou (ou o arquivo é de uma versão mais nova): não joga sobre um banco pela metade
+		push_error("Econ: o banco solo em %s não pôde ser atualizado" % solo_db_path)
+		Game.notify.emit("O jogo salvo não pôde ser atualizado para esta versão.", Color(1, 0.4, 0.4))
+		_db.close()
+		_db = null
+		return false
 	return true
 
 
@@ -394,7 +408,17 @@ func server_send_initial(peer: int, account: int) -> void:
 ## Servidor: o peer saiu (esquece o relógio do relatório).
 func server_peer_gone(peer: int) -> void:
 	_last_report.erase(peer)
+	_req_limit.forget(peer)
+	_claim_limit.forget(peer)
 	pickups.drop_peer(peer)
+
+
+## Servidor: o peer trocou de zona; o loot que ficou no chão da zona antiga some (o cliente já trocou de cena).
+## Sair de Valdoria leva junto o loot da Horda (a partida acontece dentro dela).
+func server_peer_zone_left(peer: int, old_zone: String) -> void:
+	pickups.drop_peer(peer, old_zone)
+	if old_zone == "world":
+		pickups.drop_peer(peer, "horde")
 
 
 ## Conta do peer (0 se não está no jogo).
@@ -484,6 +508,10 @@ func _econ_req(seq: int, op: String, args: Array) -> void:
 	if account <= 0:
 		_reply_no_session(seq)
 		return
+	var peer := multiplayer.get_remote_sender_id()
+	if not _req_limit.allow(peer, Time.get_ticks_msec() / 1000.0):
+		_econ_res.rpc_id(peer, seq, false, "devagar", [], {})
+		return
 	var r := Network.characters.apply(account, op, args)
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
 
@@ -523,6 +551,9 @@ func _claim_pickup(seq: int, net_id: int) -> void:
 		_reply_no_session(seq)
 		return
 	var peer := multiplayer.get_remote_sender_id()
+	if not _claim_limit.allow(peer, Time.get_ticks_msec() / 1000.0):
+		_econ_res.rpc_id(peer, seq, false, "devagar", [], {})
+		return
 	var zone := pickups.zone_of(net_id)
 	var pos: Vector3 = Network.last_pos.get(peer, Vector3.INF)
 	# a Horda acontece dentro de Valdoria (mesmas coordenadas)

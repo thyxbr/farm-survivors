@@ -199,6 +199,17 @@ func run_summary(account_id: int, mode: String, gold: int, xp: int, items: Dicti
 	return ok
 
 
+## Grava todos os personagens em cache (o servidor desligando). Devolve quantos gravou.
+func save_all() -> int:
+	var n := 0
+	for account_id in _cache.keys():
+		if _save(account_id, _cache[account_id]):
+			n += 1
+		else:
+			push_error("CharacterService: personagem %d não gravou ao desligar: %s" % [account_id, _db.last_error])
+	return n
+
+
 ## Grava o personagem em cache sem descarregar.
 func save(account_id: int) -> bool:
 	return not _cache.has(account_id) or _save(account_id, _cache[account_id])

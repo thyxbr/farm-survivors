@@ -34,7 +34,19 @@ static func open(path: String) -> Db:
 		return null
 	var db := Db.new()
 	db._sql = sql
+	# WAL: leituras não esperam a escrita e o commit grava menos; synchronous=NORMAL é seguro com WAL (perde no
+	# máximo a última transação numa queda de energia, nunca corrompe); busy_timeout espera um lock em vez de falhar
+	for pragma in ["PRAGMA journal_mode=WAL", "PRAGMA synchronous=NORMAL", "PRAGMA busy_timeout=2000"]:
+		if not db._run(pragma, []):
+			push_warning("Db: %s falhou: %s" % [pragma, db.last_error])
 	return db
+
+
+## Apaga o arquivo do banco e os auxiliares do SQLite (-wal, -shm, -journal). O banco precisa estar fechado.
+static func remove_files(path: String) -> void:
+	for f in [path, path + "-wal", path + "-shm", path + "-journal"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 
 
 func close() -> void:

@@ -8,7 +8,7 @@ var _now := 1000.0
 
 
 func _store(admins := PackedStringArray()) -> AccountStore:
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(PATH))
+	Db.remove_files(PATH)
 	var db := Db.open(PATH)
 	Migrations.apply(db)
 	var s := AccountStore.new(db, admins)
@@ -159,3 +159,73 @@ func test_pbkdf2_known_answer() -> void:
 	var salt := "salt".to_utf8_buffer()
 	T.eq(Password.derive("password", salt, 1).hex_encode(), "120fb6cffcf8b32c43e7225256c4f837a86548c92ccc35480805987cb70be17b", "c=1")
 	T.eq(Password.derive("password", salt, 4096).hex_encode(), "c5e478d59288c841aa530db6845c4c8d962893a001ce4e11a4963873aa98134a", "c=4096")
+
+
+func test_register_limit_per_ip() -> void:
+	var s := _store()
+	for i in 3:
+		T.ok(s.register("Conta%d" % i, "senha1234", "5.5.5.5")["ok"], "cadastro %d do IP" % (i + 1))
+	T.eq(s.register("Conta9", "senha1234", "5.5.5.5")["err"], "muitas_tentativas", "4º cadastro na hora é recusado")
+	T.ok(s.db.query("SELECT id FROM accounts WHERE username=?", ["Conta9"]).is_empty(), "e não cria a conta")
+	T.ok(s.register("Outra", "senha1234", "6.6.6.6")["ok"], "outro IP passa")
+	T.eq(s.register("Conta0", "senha1234", "7.7.7.7")["err"], "nome_em_uso", "nome em uso responde sem derivar")
+	T.eq(s.register("x", "senha1234", "5.5.5.5")["err"], "nome_invalido", "validação antes do limite")
+	_now += 3599.0
+	T.eq(s.register("Conta9", "senha1234", "5.5.5.5")["err"], "muitas_tentativas", "ainda dentro da hora")
+	_now += 2.0
+	T.ok(s.register("Conta9", "senha1234", "5.5.5.5")["ok"], "libera depois de 1 h")
+	var sem_ip := 0
+	for i in 5:
+		if s.register("SemIp%d" % i, "senha1234")["ok"]:
+			sem_ip += 1
+	T.eq(sem_ip, 5, "sem IP não limita")
+
+
+func test_login_limit_per_ip_counts_successes() -> void:
+	var s := _store()
+	s.register("Ana", "senha1234")
+	for i in 10:
+		T.ok(s.login("Ana", "senha1234", "4.4.4.4")["ok"], "login certo %d" % (i + 1))
+	T.eq(s.login("Ana", "senha1234", "4.4.4.4")["err"], "muitas_tentativas", "11º no minuto é recusado mesmo certo")
+	T.ok(s.login("Ana", "senha1234", "3.3.3.3")["ok"], "outro IP passa")
+	_now += 59.0
+	T.eq(s.login("Ana", "senha1234", "4.4.4.4")["err"], "muitas_tentativas", "ainda dentro do minuto")
+	_now += 2.0
+	T.ok(s.login("Ana", "senha1234", "4.4.4.4")["ok"], "libera depois de 60 s")
+
+
+func test_limit_maps_are_pruned() -> void:
+	var s := _store()
+	s.register("Ana", "senha1234")
+	for i in 50:
+		s.login("Ana%d" % i, "errada123", "10.0.%d.1" % i)   # falha por nome e por IP + tentativa por IP
+		s.register("Novo%d" % i, "senha1234", "10.1.%d.1" % i)
+	var keys := s.prune()
+	T.eq(keys, 200, "chaves recentes ficam (50 nomes + 50 IPs de falha, 50 de login, 50 de cadastro)")
+	_now += 301.0
+	T.eq(s.prune(), 50, "falhas e tentativas saem depois das janelas; cadastros ficam 1 h")
+	_now += 3300.0
+	T.eq(s.prune(), 0, "depois de 1 h o mapa esvazia")
+
+
+func test_phases_match_sync() -> void:
+	var s := _store()
+	var p := s.prepare_register("Bia", "senha1234", "2.2.2.2")
+	T.ok(p.has("job"), "cadastro válido vira job")
+	T.ok(s.finish(p["job"], AccountStore.derive_job(p["job"]))["ok"], "finish grava a conta")
+	var lp := s.prepare_login("Bia", "senha1234", "2.2.2.2")
+	T.ok(lp.has("job"), "login vira job")
+	T.ok(s.finish(lp["job"], AccountStore.derive_job(lp["job"]))["ok"], "login em fases funciona")
+	var bad := s.prepare_login("Bia", "errada123", "2.2.2.2")
+	T.eq(s.finish(bad["job"], AccountStore.derive_job(bad["job"]))["err"], "credenciais", "senha errada em fases")
+	var ghost := s.prepare_login("Ninguem", "senha1234", "2.2.2.2")
+	T.ok(ghost.has("job"), "nome inexistente também deriva (tempo igual)")
+	T.eq(s.finish(ghost["job"], AccountStore.derive_job(ghost["job"]))["err"], "credenciais", "e falha")
+	T.ok(s.prepare_login("Bia", "", "2.2.2.2").has("done"), "senha vazia não deriva")
+	# a derivação roda fora da thread principal (como no AuthHttp)
+	var tp := s.prepare_login("Bia", "senha1234", "2.2.2.2")
+	var out := {}
+	var job: Dictionary = tp["job"]
+	var task := WorkerThreadPool.add_task(func(): out["key"] = AccountStore.derive_job(job))
+	WorkerThreadPool.wait_for_task_completion(task)
+	T.ok(s.finish(job, out["key"])["ok"], "chave derivada no WorkerThreadPool vale")

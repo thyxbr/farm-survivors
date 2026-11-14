@@ -2,8 +2,9 @@
 # contas e personagens num banco SQLite em /data (addons/godot-sqlite, .so do Linux).
 #   docker build -t valdoria-server .
 #   docker run -v valdoria-data:/data -p 7777:7777/udp -p 8080:8080 valdoria-server
+# (sem volume em /data o servidor não sobe — DB_REQUIRE_MOUNT=1; para um teste descartável use -e DB_REQUIRE_MOUNT=0)
 #   curl http://127.0.0.1:8080/health
-# No Easypanel: App com build por Dockerfile; Mounts → volume em /data; Domains → HTTPS com proxy para a
+# No Easypanel: App com build por Dockerfile; Mounts → volume em /data (obrigatório); Domains → HTTPS com proxy para a
 # porta 8080; Advanced → Ports: 7777 → 7777 (UDP). Envs opcionais: GAME_PORT, HTTP_PORT, DB_PATH, ADMIN_USERS
 # (crie a conta antes de pôr o nome em ADMIN_USERS).
 FROM debian:bookworm-slim
@@ -30,11 +31,12 @@ USER valdoria
 RUN godot --headless --path /game --import \
  && test -d /game/.godot/imported
 
-# /data guarda o banco de contas: monte um volume do Easypanel nele para não perder as contas ao atualizar
-ENV GAME_PORT=7777 HTTP_PORT=8080 DB_PATH=/data/valdoria.db
+# /data guarda o banco de contas: monte um volume do Easypanel nele para não perder as contas ao atualizar.
+# Sem VOLUME na imagem (um volume anônimo esconderia a falta do volume de verdade e sumiria no próximo deploy):
+# com DB_REQUIRE_MOUNT=1 o servidor confere em /proc/mounts que a pasta do DB_PATH é um ponto de montagem e,
+# se não for, sai com erro. Um volume nomeado novo herda o dono valdoria de /data (criado acima, antes do USER).
+ENV GAME_PORT=7777 HTTP_PORT=8080 DB_PATH=/data/valdoria.db DB_REQUIRE_MOUNT=1
 EXPOSE 7777/udp
 EXPOSE 8080
-# volume nomeado herda o dono valdoria de /data (criado acima, antes do USER)
-VOLUME /data
 # "exec" deixa o Godot receber o SIGTERM direto (o container para na hora)
 CMD ["sh", "-c", "exec godot --headless --path /game -- --server --port=${GAME_PORT} --http-port=${HTTP_PORT} --db=${DB_PATH}"]

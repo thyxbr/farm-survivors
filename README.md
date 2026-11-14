@@ -128,7 +128,8 @@ ouro, itens, XP, equipamento, missões e a Horta ficam num banco SQLite no servi
 O jogador entra com **usuário e senha** (cadastro e login pela API HTTP do servidor, por HTTPS no servidor
 público); o ENet (UDP) recebe só o token da sessão. Quem acerta um inimigo ganha XP, missão e loot quando ele
 morre, concedidos pelo servidor. Os números de balanceamento (itens, inimigos, cidade, horda...) ficam em
-`data/balance/*.json`.
+`data/balance/*.json` e são lidos desses arquivos (servidor e solo); as tabelas `balance_tables`/`balance_history`
+já existem no banco, mas semear e ler o balanceamento do banco (e editar pelo painel de admin) fica para a fase 3.
 
 - **Servidor local:** `godot --headless --path . -- --server --port=7777 --http-port=8080 --db=user://server.db`
   - `--port` (UDP do jogo, padrão 7777), `--http-port` (API de login, padrão 8080; env `HTTP_PORT`),
@@ -136,10 +137,19 @@ morre, concedidos pelo servidor. Os números de balanceamento (itens, inimigos, 
     `--test` (só para testes: aceita o pedido de ouro de teste do `net_test`; **nunca** em produção).
   - Cliente apontando para outra API: `-- --auth-url=http://127.0.0.1:8080`. Sem ele, IP literal ou `localhost`
     usa `http://host:8080` e domínio usa `https://domínio`.
-- **Docker / Easypanel:** App com build pelo `Dockerfile`. A imagem já define `GAME_PORT=7777`, `HTTP_PORT=8080` e
-  `DB_PATH=/data/valdoria.db`. No Easypanel:
-  - **Mounts → Volume** montado em **`/data`** (é onde fica o banco das contas; sem o volume, cada deploy apaga
-    todas as contas e personagens).
+  - **Limites da API de login:** cadastro até 3 por hora por IP e login até 10 tentativas por minuto por IP (certas
+    ou erradas); acima disso `429 muitas_tentativas`. Cinco senhas erradas em 5 min bloqueiam o nome e o IP. A senha
+    é derivada (PBKDF2) fora da thread do jogo, no máximo 2 ao mesmo tempo; com a fila cheia a API responde `503`.
+  - **Limite de pedidos no jogo:** cada jogador tem um balde de 10 pedidos de economia (recarga de 5/s) e outro de
+    30 coletas de loot (10/s); acima disso o servidor responde `devagar` sem tocar no banco.
+  - O banco roda em WAL: além do `.db` existem `.db-wal` e `.db-shm` ao lado (faça backup dos três com o servidor
+    parado, ou só do `.db` depois de pará-lo).
+- **Docker / Easypanel:** App com build pelo `Dockerfile`. A imagem já define `GAME_PORT=7777`, `HTTP_PORT=8080`,
+  `DB_PATH=/data/valdoria.db` e `DB_REQUIRE_MOUNT=1`. No Easypanel:
+  - **Mounts → Volume** montado em **`/data`** — **obrigatório**. É onde fica o banco das contas; a imagem não
+    declara `VOLUME` e, com `DB_REQUIRE_MOUNT=1`, o servidor confere em `/proc/mounts` que a pasta do `DB_PATH` é um
+    volume montado e **se recusa a subir** (erro no log e saída com código 1) se não for — sem isso cada deploy
+    apagaria todas as contas e personagens sem ninguém perceber.
   - **Domains:** o domínio do app com HTTPS fazendo proxy para a porta **8080** (`HTTP_PORT`). É por ele que o
     jogo faz login (`https://<domínio>/auth/...`) e o CI confere a versão (`https://<domínio>/health`).
   - **Advanced → Ports:** continue publicando `7777 → 7777` em **UDP** (o jogo em si não passa pelo proxy HTTP).
@@ -151,6 +161,10 @@ morre, concedidos pelo servidor. Os números de balanceamento (itens, inimigos, 
   - Testando a imagem localmente: `docker build -t valdoria-server .` e
     `docker run -v valdoria-data:/data -p 7777:7777/udp -p 8080:8080 valdoria-server`; `curl http://127.0.0.1:8080/health`
     responde a versão. O volume nomeado herda o dono `valdoria` de `/data`, então as contas sobrevivem a recriar o container.
+    Sem `-v nome:/data` o servidor não sobe; para um teste descartável (contas somem com o container) use
+    `-e DB_REQUIRE_MOUNT=0`.
+  - Ao sair pelo caminho normal do Godot (pedido de fechar ou `quit`), o servidor grava todos os personagens em
+    memória antes de sair. Os pedidos de economia já são gravados na hora; vida e posição vão ao banco a cada 60 s.
 - **Deploy automático:** cada push no `main` roda o GitHub Actions (`.github/workflows/deploy.yml`):
   importa o projeto (e confere se a extensão SQLite carregou no Linux), roda os testes unitários, o smoke test,
   a Defesa da Cidade e os testes de multiplayer (servidor com banco temporário, `--http-port` e `--test`; clientes

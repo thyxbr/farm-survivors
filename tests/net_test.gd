@@ -819,7 +819,8 @@ func _claim(net_id: int) -> String:
 
 
 ## Review Focus 5 (Beto): abate um monstro da noite 1 (o servidor concede XP e o abate na hora), cai e
-## volta: o que já foi concedido continua no estado; o pickup antigo dele não pode mais ser pego.
+## volta: o que já foi concedido continua no estado; o pickup antigo (de Valdoria) não pode ser pego nem antes
+## (sumiu ao trocar de zona) nem depois da queda.
 func _drop_mid_night(w: Node, c: Colony) -> void:
 	var kills0 := Game.kills
 	var tt := 0.0
@@ -839,7 +840,9 @@ func _drop_mid_night(w: Node, c: Colony) -> void:
 	var kills := Game.kills
 	var gold := Game.gold
 	if old_pickup > 0:
-		check(await _claim(old_pickup) == "longe", "pickup antigo ainda é dele antes da queda (longe)")
+		# trocar de zona tira do servidor o loot que ficou no chão da zona antiga (Valdoria → salão → cidade)
+		var gone := await _claim(old_pickup)
+		check(gone == "pego", "pickup de Valdoria sumiu ao trocar de zona (%s)" % gone)
 	Game.go_to_menu()   # cai: a conexão fecha no meio da noite
 	await wait(1.0)
 	check(not Network.is_online(), "caiu do servidor no meio da noite")
