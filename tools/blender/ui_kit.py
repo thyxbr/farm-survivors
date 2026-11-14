@@ -1,5 +1,5 @@
-"""Peças de interface (moldura, brasão, botão, espaço de item) modeladas como metal e renderizadas
-de frente em PNG com fundo transparente. TESTE descartável.
+"""Peças da interface "grimório" (livro aberto e abas de marcador) modeladas no Blender e renderizadas
+de frente em PNG com fundo transparente. Ver docs/INTERFACE_GRIMORIO.md.
 
   blender --background --factory-startup --python tools/blender/ui_kit.py -- <pasta de saída>
 """
@@ -144,39 +144,6 @@ def flat(name, color, alpha=1.0):
     return m
 
 
-def enamel(name, color):
-    m = bpy.data.materials.get(name)
-    if m:
-        return m
-    m = bpy.data.materials.new(name)
-    m.use_nodes = True
-    b = m.node_tree.nodes["Principled BSDF"]
-    b.inputs["Base Color"].default_value = (*color, 1)
-    b.inputs["Metallic"].default_value = 0.25
-    b.inputs["Roughness"].default_value = 0.3
-    return m
-
-
-def gem(name, color):
-    m = bpy.data.materials.get(name)
-    if m:
-        return m
-    m = bpy.data.materials.new(name)
-    m.use_nodes = True
-    b = m.node_tree.nodes["Principled BSDF"]
-    b.inputs["Base Color"].default_value = (*color, 1)
-    b.inputs["Metallic"].default_value = 0.6
-    b.inputs["Roughness"].default_value = 0.12
-    b.inputs["Emission Color"].default_value = (*color, 1)
-    b.inputs["Emission Strength"].default_value = 0.6
-    return m
-
-
-STEEL = lambda: metal("steel", (0.2, 0.235, 0.32), (0.08, 0.09, 0.13))
-STEEL_HI = lambda: metal("steel_hi", (0.42, 0.47, 0.6), (0.2, 0.23, 0.31), 0.95, 0.32)
-STEEL_LO = lambda: metal("steel_lo", (0.075, 0.085, 0.12), (0.035, 0.04, 0.06), 0.8, 0.55)
-
-
 # ------------------------------------------------------------------ formas
 def qb(p0, p1, p2, n=10):
     """Curva quadrática amostrada (sem o último ponto, para encadear)."""
@@ -239,125 +206,6 @@ def pyramid(name, x, y, r, h, mat, z=0.0, rot=0.0, sides=4):
 def render(name):
     bpy.context.scene.render.filepath = f"{OUT}/{name}.png"
     bpy.ops.render.render(write_still=True)
-
-
-# ------------------------------------------------------------------ canto ornamentado
-def bracket():
-    """Cantoneira (canto na origem, braços para +x e +y)."""
-    o = (-0.07, -0.07)
-    t1 = (0.86, 0.07)
-    t2 = (0.07, 0.86)
-    pts = qb(o, (0.42, -0.11), t1)
-    pts += qb(t1, (0.5, 0.2), (0.3, 0.25))
-    pts += qb((0.3, 0.25), (0.25, 0.25), (0.25, 0.3), 5)
-    pts += qb((0.25, 0.3), (0.2, 0.5), t2)
-    pts += qb(t2, (-0.11, 0.42), o)
-    return pts
-
-
-def hook():
-    """Espinho que sai do canto para fora, na diagonal."""
-    tip = (-0.33, -0.33)
-    pts = qb((0.16, -0.08), (-0.1, -0.1), tip)
-    pts += qb(tip, (-0.1, -0.1), (-0.08, 0.16))
-    pts += [(0.05, 0.05)]
-    return pts
-
-
-def corner(cx, cy, sx, sy, size=1.0, z=0.0):
-    k = dict(sx=sx, sy=sy, ox=cx, oy=cy, scale=size)
-    shape("hook", [xf(hook(), **k)], STEEL_LO(), z + 0.0, 0.05, 0.02)
-    shape("bracket", [xf(bracket(), **k)], STEEL(), z + 0.03, 0.07, 0.025)
-    inner = xf(bracket(), pivot=(0.16, 0.16), scale=0.62)
-    shape("bracket2", [xf(inner, **k)], STEEL_HI(), z + 0.09, 0.04, 0.016)
-    bx, by = cx + 0.15 * size * sx, cy + 0.15 * size * sy
-    pyramid("boss", bx, by, 0.1 * size, 0.07, STEEL_HI(), z + 0.12)
-    pyramid("gem", bx, by, 0.045 * size, 0.05, gem("gem", (0.1, 0.35, 1.0)), z + 0.17)
-
-
-# ------------------------------------------------------------------ peças
-def window():
-    """Moldura de janela 9 fatias: 512 px, cantos de 176 px."""
-    reset()
-    setup(4, 4)
-    h = 1.5
-    shape("back", [rect(h - 0.06, h - 0.06)], flat("back", (0.004, 0.0045, 0.008), 0.97), -0.02, 0.01, 0.0)
-    shape("base", [rect(h, h), rect(h - 0.2, h - 0.2)], STEEL_LO(), 0.0, 0.03, 0.012)
-    shape("rail", [rect(h - 0.02, h - 0.02), rect(h - 0.1, h - 0.1)], STEEL(), 0.02, 0.06, 0.028)
-    shape("bead", [rect(h - 0.145, h - 0.145), rect(h - 0.18, h - 0.18)], STEEL_HI(), 0.02, 0.035, 0.014)
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            corner(-sx * (h - 0.01), -sy * (h - 0.01), sx, sy)
-    render("window")
-
-
-def inset():
-    """Painel interno 9 fatias: 128 px, cantos de 20 px."""
-    reset()
-    setup(1, 1)
-    h = 0.47
-    shape("back", [rect(h - 0.01, h - 0.01)], flat("back2", (0.009, 0.0105, 0.017), 0.9), -0.02, 0.01, 0.0)
-    shape("rail", [rect(h, h), rect(h - 0.035, h - 0.035)], STEEL_LO(), 0.0, 0.03, 0.012)
-    shape("bead", [rect(h - 0.012, h - 0.012), rect(h - 0.024, h - 0.024)], STEEL(), 0.02, 0.016, 0.006)
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            pyramid("stud", sx * (h - 0.018), sy * (h - 0.018), 0.035, 0.03, STEEL_HI(), 0.02)
-    render("inset")
-
-
-def slot():
-    """Espaço de item: 96 px."""
-    reset()
-    setup(0.75, 0.75)
-    h = 0.355
-    shape("back", [rect(h - 0.01, h - 0.01)], flat("back3", (0.002, 0.0024, 0.004), 0.95), -0.02, 0.01, 0.0)
-    shape("rail", [rect(h, h), rect(h - 0.05, h - 0.05)], STEEL_LO(), 0.0, 0.03, 0.012)
-    shape("bead", [rect(h - 0.012, h - 0.012), rect(h - 0.032, h - 0.032)], STEEL(), 0.02, 0.022, 0.009)
-    render("slot")
-
-
-def hexa(hw, hh, point):
-    return [(-hw, 0), (-hw + point, hh), (hw - point, hh), (hw, 0), (hw - point, -hh), (-hw + point, -hh)]
-
-
-def button(name, color):
-    """Botão 3 fatias: 256 x 48 px, pontas de 40 px."""
-    reset()
-    setup(2, 0.375)
-    shape("base", [hexa(0.97, 0.168, 0.13)], STEEL(), 0.0, 0.05, 0.02)
-    shape("face", [hexa(0.925, 0.13, 0.1)], enamel("en_" + name, color), 0.04, 0.035, 0.016)
-    for sx in (-1, 1):
-        pyramid("tip", sx * 0.9, 0, 0.035, 0.03, STEEL_HI(), 0.075)
-    render("button_" + name)
-
-
-def blade(length, width, ang, curl=0.25):
-    """Lâmina de asa: sai da origem para +x, curva para cima, termina em ponta."""
-    tip = (length, length * curl)
-    pts = qb((0, -width * 0.5), (length * 0.55, -width * 0.9), tip)
-    pts += qb(tip, (length * 0.5, width * 0.6), (0, width * 0.5))
-    return xf(pts, rot=ang)
-
-
-def crest():
-    """Brasão do topo da janela: escudo com gema e asas de lâminas. 448 x 192 px."""
-    reset()
-    setup(3.5, 1.5)
-    for sx in (-1, 1):
-        for i, (ln, wd, ang) in enumerate([(1.45, 0.2, 0.02), (1.15, 0.18, -0.2), (0.85, 0.16, -0.44)]):
-            pts = xf(blade(ln, wd, ang), sx=sx, ox=sx * 0.18, oy=0.05)
-            shape("wing", [pts], STEEL() if i else STEEL_HI(), 0.0 + 0.02 * (2 - i), 0.05, 0.022)
-    # coroa de três pontas
-    for x, hgt in [(-0.17, 0.2), (0.0, 0.3), (0.17, 0.2)]:
-        shape("spike", [[(x - 0.07, 0.36), (x + 0.07, 0.36), (x, 0.36 + hgt)]], STEEL_HI(), 0.02, 0.05, 0.02)
-    kite = [(-0.31, 0.4), (0.0, 0.46), (0.31, 0.4)]
-    kite += qb((0.31, 0.4), (0.33, -0.2), (0.0, -0.62))
-    kite += qb((0.0, -0.62), (-0.33, -0.2), (-0.31, 0.4))
-    shape("shield", [kite], STEEL(), 0.06, 0.08, 0.03)
-    shape("field", [xf(kite, pivot=(0, 0.0), scale=0.74)], enamel("field", (0.012, 0.03, 0.1)), 0.13, 0.04, 0.018)
-    pyramid("boss", 0, 0.02, 0.13, 0.06, STEEL_HI(), 0.16)
-    pyramid("gem", 0, 0.02, 0.07, 0.06, gem("gem", (0.1, 0.35, 1.0)), 0.21)
-    render("crest")
 
 
 # ------------------------------------------------------------------ grimório
@@ -472,19 +320,7 @@ def tab(name, mat):
     render("tab_" + name)
 
 
-if "--book" in sys.argv:
-    book()
-    tab("on", paper("paper_tab", False))
-    tab("off", cloth("ribbon", (0.3, 0.04, 0.03), (0.14, 0.02, 0.015), 0.6))
-    print("UI_KIT_OK")
-    sys.exit(0)
-
-window()
-inset()
-slot()
-button("normal", (0.018, 0.05, 0.16))
-button("hover", (0.04, 0.1, 0.32))
-button("pressed", (0.01, 0.026, 0.085))
-button("disabled", (0.02, 0.022, 0.028))
-crest()
+book()
+tab("on", paper("paper_tab", False))
+tab("off", cloth("ribbon", (0.3, 0.04, 0.03), (0.14, 0.02, 0.015), 0.6))
 print("UI_KIT_OK")

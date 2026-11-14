@@ -43,7 +43,7 @@ var quest_sel := ""
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	theme = UITheme.forged_theme()
+	theme = UITheme.get_theme()
 	var bg := ColorRect.new()
 	bg.color = Color(0, 0, 0, 0.62)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -650,7 +650,7 @@ func _select_quest(id: String) -> void:
 # ================================================================ geral
 func _inset() -> PanelContainer:
 	var p := PanelContainer.new()
-	p.add_theme_stylebox_override("panel", UITheme.forged_inset(14))
+	p.add_theme_stylebox_override("panel", UITheme.inset_box(14))
 	return p
 
 

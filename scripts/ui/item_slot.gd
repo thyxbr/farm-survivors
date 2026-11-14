@@ -35,11 +35,8 @@ var drop_handler: Callable
 ## Barra de ações do HUD (variante B): mais margem em volta do ícone, tecla num selo no canto superior
 ## esquerdo e o texto (custo, quantidade) num selo embaixo, os dois fora do desenho.
 var badges := false
-## TESTE: moldura renderizada (assets/ui/slot.png) no lugar da caixa chapada.
-var forged := false
-## TESTE: espaço desenhado a tinta sobre pergaminho.
+## Espaço desenhado a tinta sobre pergaminho (telas do livro).
 var paper := false
-static var _forged_box: StyleBoxTexture
 var _hover := false
 
 
@@ -125,8 +122,6 @@ func _draw() -> void:
 	var rc := ItemDB.rarity_color(item_id) if has_item else UITheme.GOLD_DIM
 	if border_override.a > 0.0:
 		rc = border_override
-	if forged:
-		_draw_forged(r, has_item, rc)
 	if paper:
 		_draw_paper(r, has_item, rc)
 	# fundo
@@ -143,9 +138,9 @@ func _draw() -> void:
 		bg.set_border_width_all(2)
 	elif _hover:
 		bg.border_color = bg.border_color.lightened(0.35)
-	if not (forged or paper):
+	if not paper:
 		draw_style_box(bg, r)
-	if has_item and not (forged or paper):
+	if has_item and not paper:
 		# brilho interno e cantos na cor da raridade (leitura rápida, como nas lojas de ARPG)
 		var rank: int = ItemDB.RARITY[ItemDB.rarity_of(item_id)].rank
 		if rank > 0:
@@ -232,23 +227,6 @@ func _text(font: Font, t: String, pos: Vector2, fs: int, col: Color, align: Hori
 		p.x = pos.x
 	draw_string_outline(font, p, t, align, w, fs, 4, Color(0, 0, 0, 0.95))
 	draw_string(font, p, t, align, w, fs, col)
-
-
-func _draw_forged(r: Rect2, has_item: bool, rc: Color) -> void:
-	if _forged_box == null:
-		_forged_box = UITheme._tex_box("slot", 12, 12, 0, 0)
-	draw_style_box(_forged_box, r)
-	var inner := r.grow(-size.x * 0.085)
-	if has_item:
-		var rank: int = ItemDB.RARITY[ItemDB.rarity_of(item_id)].rank
-		draw_rect(inner, Color(rc.r, rc.g, rc.b, 0.08 + rank * 0.035))
-		draw_rect(inner, Color(rc.r, rc.g, rc.b, 0.85), false, 1.5)
-	if selected:
-		draw_rect(r.grow(-1), Color(1, 0.88, 0.5), false, 2.0)
-	elif drop_hint:
-		draw_rect(r.grow(-1), UITheme.GOOD, false, 2.0)
-	elif _hover:
-		draw_rect(r.grow(-1), Color(0.75, 0.82, 1.0, 0.7), false, 1.5)
 
 
 func _draw_paper(r: Rect2, has_item: bool, rc: Color) -> void:

@@ -1,6 +1,6 @@
 class_name ItemIcons
 extends Node
-## TESTE: ícone do item tirado do modelo 3D de verdade (a mesma arma/armadura que o cavaleiro veste),
+## Ícone do item tirado do modelo 3D de verdade (a mesma arma/armadura que o cavaleiro veste),
 ## renderizado uma vez num SubViewport e guardado. Itens sem modelo (poções, anéis, materiais) devolvem
 ## null e o espaço cai no ícone pintado por código.
 
