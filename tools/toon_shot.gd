@@ -1,7 +1,7 @@
 extends SceneTree
 ## Foto de um personagem (assets/models/<id>.glb) com a luz do jogo, lado a lado: como está hoje à
 ## esquerda e com o ToonLook à direita. Precisa de janela (sem --headless) e do --import feito antes:
-##   godot --path . --resolution 1400x1000 --script res://tools/toon_shot.gd -- merchant <saida.png> [3q] [close]
+##   godot --path . --resolution 1400x1000 --script res://tools/toon_shot.gd -- merchant <saida.png> [3q] [close] [merge]
 
 var _frames := 0
 var _out := ""
@@ -23,7 +23,12 @@ func _initialize() -> void:
 		if "3q" in args:
 			m.rotation_degrees.y = -35.0
 		_models.append(m)
-	print("TOON_SURFACES ", ToonLook.apply(_models[1]))
+	if "merge" in args:
+		# conferência das cascas juntadas: toon peça a peça à esquerda, juntado por grupo à direita
+		ToonLook.apply(_models[0])
+		print("TOON_SURFACES ", ToonLook.apply(_models[1], true, true))
+	else:
+		print("TOON_SURFACES ", ToonLook.apply(_models[1]))
 	# chão claro para a sombra projetada e o contato aparecerem
 	var floor_mi := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
