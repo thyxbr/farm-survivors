@@ -11,8 +11,11 @@ const BLEND := 0.25
 ## Clipes em que o martelo bate na bigorna (nome base, antes de clip()).
 const STRIKE_CLIPS := ["work_hammer"]
 ## Tempo (s) do impacto em cada clipe, pelo nome resolvido por clip(): work_hammer provisório = quadro 16
-## de 36 a 30 fps. O clipe do Mixamo entra com a própria chave ("mixamo/work_hammer").
+## de 36 a 30 fps. O Mixamo não tinha martelar; se um dia entrar, vem com a própria chave ("mixamo/work_hammer").
 const STRIKES := {"work_hammer": [0.533]}
+## Clipes do Mixamo (parado, conversa e pausa), montados por tools/build_blacksmith_mixamo.gd. Entram como
+## a biblioteca "mixamo" do AnimationPlayer e têm prioridade sobre os provisórios do .glb (ver clip()).
+const MIXAMO_LIB := "res://assets/animations/blacksmith_mixamo.res"
 const SPARK_COLOR := Color(1.0, 0.72, 0.25)
 ## Ferraria em coordenadas do ferreiro (frente = +Z): bigorna à frente, de lado (chifre à esquerda dele) e
 ## puxada para a direita, com o StrikePoint embaixo da face do martelo na batida; forja às costas com a boca
@@ -44,6 +47,8 @@ func _ready() -> void:
 	skeleton = model.find_children("*", "Skeleton3D")[0]
 	anim = model.find_children("*", "AnimationPlayer")[0]
 	anim.animation_finished.connect(_on_anim_finished)
+	if ResourceLoader.exists(MIXAMO_LIB) and not anim.has_animation_library("mixamo"):
+		anim.add_animation_library("mixamo", load(MIXAMO_LIB))
 	_attach_hammer()
 	if anvil:
 		_strike_point = anvil.find_child("StrikePoint", true, false)
@@ -55,6 +60,7 @@ func _ready() -> void:
 		anim.active = false
 		set_process(false)
 		return
+	_add_rest_tracks()
 	_add_strike_tracks()
 	if not headless:
 		_sparks = FX.burst_particles(SPARK_COLOR, 20, 3.5, 0.035, 0.35, -9.0)
@@ -197,6 +203,46 @@ func _add_strike_tracks() -> void:
 		a.track_set_path(t, path)
 		for time: float in STRIKES[clip_name]:
 			a.track_insert_key(t, time, {"method": &"_on_strike", "args": []})
+
+
+## Os clipes provisórios (o work_hammer segue sendo um deles) só animam tronco, braços e cabeça; os do
+## Mixamo animam também quadril e pernas. Como o AnimationPlayer não é determinístico, um osso sem track no
+## clipe atual fica na última pose: o passo da pausa ficaria preso nas pernas enquanto ele martela. Aqui cada
+## clipe provisório ganha uma track constante na pose de repouso para os ossos que só o Mixamo anima.
+## Recursos compartilhados do .glb: o find_track evita duplicar quando há mais de um ferreiro.
+func _add_rest_tracks() -> void:
+	if not anim.has_animation_library("mixamo"):
+		return
+	var tracks := {}   # NodePath -> [tipo, ...] das tracks dos clipes do Mixamo
+	var lib := anim.get_animation_library("mixamo")
+	for n in lib.get_animation_list():
+		var m := lib.get_animation(n)
+		for i in m.get_track_count():
+			var key := m.track_get_path(i)
+			if not tracks.has(key):
+				tracks[key] = []
+			if not m.track_get_type(i) in tracks[key]:
+				tracks[key].append(m.track_get_type(i))
+	var base := anim.get_animation_library("")
+	for n in base.get_animation_list():
+		var a := base.get_animation(n)
+		for path: NodePath in tracks:
+			var bone := skeleton.find_bone(path.get_concatenated_subnames())
+			if bone < 0:
+				continue
+			var rest := skeleton.get_bone_rest(bone)
+			for type: int in tracks[path]:
+				if a.find_track(path, type) >= 0:
+					continue
+				var t := a.add_track(type)
+				a.track_set_path(t, path)
+				match type:
+					Animation.TYPE_POSITION_3D:   # posições do quadril vêm normalizadas pelo motion_scale
+						a.position_track_insert_key(t, 0.0, rest.origin / skeleton.motion_scale)
+					Animation.TYPE_ROTATION_3D:
+						a.rotation_track_insert_key(t, 0.0, rest.basis.get_rotation_quaternion())
+					Animation.TYPE_SCALE_3D:
+						a.scale_track_insert_key(t, 0.0, rest.basis.get_scale())
 
 
 ## O martelo vem como malha solta com o pivô no punho (pose T); passa a seguir o osso RightHand.
