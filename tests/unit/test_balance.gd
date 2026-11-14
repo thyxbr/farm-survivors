@@ -15,7 +15,9 @@ func _snapshot() -> Dictionary:
 func test_roundtrip_matches_consts() -> void:
 	var t := BalanceTables.load_dir(DIR)
 	var snap := _snapshot()
-	T.eq(snap.size(), BalanceTables.NAMES.size(), "snapshot tem todas as tabelas")
+	# o snapshot da fase 1 não tem as tabelas novas (Ecos, passivas, base): basta cada nome dele existir
+	for n in snap:
+		T.ok(n in BalanceTables.NAMES, "tabela %s do snapshot está em NAMES" % n)
 	for n in snap:
 		T.ok(not t.get_table(n).is_empty(), "tabela %s carregou" % n)
 		# o snapshot tem 40.0 onde o JSON devolve 40 (decode troca float inteiro por int), então

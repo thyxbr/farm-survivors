@@ -1,6 +1,6 @@
 ---
 name: reverse-document
-description: "Escreve o documento de design ou de arquitetura que falta para um sistema do Ecos de Valdoria, lendo o código que já existe (missões, combate, progressão, itens e loot, horta e cozinha, Desafio da Horda, Defesa da Cidade, multiplayer e salão, auto update). Separa o que o código faz do que foi a intenção, e pergunta ao usuário a intenção em vez de inventar. Use quando pedirem para documentar um sistema, explicar como algo funciona por escrito, ou antes de mexer fundo num sistema sem documentação."
+description: "Escreve o documento de design ou de arquitetura que falta para um sistema do Ecos de Valdoria, lendo o código que já existe (missões, combate, progressão, itens e loot, horta e cozinha, Desafio da Horda, Defesa da Cidade, praça e progressão permanente, multiplayer, auto update). Separa o que o código faz do que foi a intenção, e pergunta ao usuário a intenção em vez de inventar. Use quando pedirem para documentar um sistema, explicar como algo funciona por escrito, ou antes de mexer fundo num sistema sem documentação."
 argument-hint: "<design|arquitetura> <sistema ou caminho> (ex.: 'design horda', 'arquitetura scripts/autoload/network.gd')"
 license: MIT
 metadata:
@@ -30,7 +30,8 @@ o que cada sistema **faz**, e registra a **intenção** só quando o usuário co
 | `comida` (horta, caldeirão, buffs) | `scripts/farm/`, `CROPS`/`RECIPES` em `item_db.gd`, `cooking_ui.gd`, `plant_ui.gd` |
 | `horda` (Desafio da Horda, solo e em grupo) | `scripts/survival/`, `scripts/world/challenge_portal.gd`, `survival_hud.gd`, `horde_scoreboard.gd` |
 | `cidade` (Defesa da Cidade) | `scripts/colony/`, `colony_hud.gd`, `colony_ui.gd` |
-| `multiplayer` (servidor, salão, chat, sincronia) | `scripts/autoload/network.gd`, `lobby.gd`, `chat_ui.gd`, `lobby_ui.gd` |
+| `praca` (praça da cidade, pontos, emotes, Ecos, passivas, base compartilhada, recordes) | `scripts/autoload/hub.gd`, `scripts/hub/hub_world.gd`, `hub_point.gd`, `scripts/player/knight_emotes.gd`, `scripts/ui/hub_hud.gd`, `passive_master_ui.gd`, `base_building_ui.gd`, `records_ui.gd`, `war_table_ui.gd`, `horde_portal_ui.gd`, `scripts/character/reward_rules.gd`, `base_rules.gd`, `data/balance/rewards.json`, `meta_passives.json`, `base_buildings.json` |
+| `multiplayer` (servidor, zonas praça/Valdoria/cidade, chat, sincronia) | `scripts/autoload/network.gd`, `lobby.gd`, `hub.gd`, `chat_ui.gd` |
 | `saves` | `scripts/autoload/game.gd` (save/load, autosave) |
 | `auto-update` | `scripts/autoload/updater.gd`, `update_panel.gd`, `.github/workflows/deploy.yml` |
 
@@ -39,7 +40,7 @@ Sem alvo, mostre esse mapa e pergunte qual.
 ## Fase 2: Ler o código
 
 Leia os arquivos do sistema inteiros (não só os nomes de funções) e os testes que o
-exercitam (`tests/smoke_test.gd`, `colony_test.gd`, `net_test.gd`): os testes mostram
+exercitam (`tests/smoke_test.gd`, `colony_test.gd`, `hub_test.gd`, `net_test.gd`): os testes mostram
 o comportamento esperado de forma explícita.
 
 **Design:** mecânicas com regras observáveis; fórmulas (ex.: `xp_to_next()` =

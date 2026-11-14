@@ -38,6 +38,8 @@ var role := "solo"
 var map_seed := 7731
 ## Servidor: jogadores na sala quando a partida começou.
 var coop_players := 1
+## Servidor: bônus da base fixados no começo da partida (o Lobby preenche antes do add_child).
+var base_bonus := {}
 ## Chefe atual (o Network preenche quando o Rei Goblin chega pela rede).
 var boss: Enemy = null
 var player: Player
@@ -79,7 +81,7 @@ func _ready() -> void:
 	_build_borders()
 	if role == "server":
 		# servidor: só o mapa e a simulação; os jogadores chegam como réplicas
-		colony.new_coop(coop_players)
+		colony.new_coop(coop_players, base_bonus)
 		return
 
 	var saved = null
@@ -90,7 +92,9 @@ func _ready() -> void:
 		if saved == null:
 			Game.colony_continue = false
 			_summarize_abandoned()
-			colony.new_colony()
+			# bônus da base fixados agora (a cidade salva guarda os seus) e a partida aberta no registro
+			colony.new_colony(Hub.base_bonus())
+			colony.run_rewards["run_id"] = Econ.run_start("city")
 	# o jogador nasce na cidade (a posição de Valdoria do personagem fica onde está)
 	Game.spawn_position = null
 
@@ -416,16 +420,16 @@ func _read_colony_save():
 	return data if data is Dictionary else null
 
 
-## Solo, fim da partida (a cidade caiu): uma linha de resumo na economia com o que o personagem ganhou
-## (recompensas por noite) e o caixa some com a cidade. O save continua ("Carregar o último save"), mas
-## sem essas recompensas, para não entrarem duas vezes num resumo.
+## Solo, fim da partida (a cidade caiu): fecha a partida no registro (Econ.run_finish: Ecos pelas noites
+## seguradas, uma linha com o que o personagem ganhou) e o caixa some com a cidade. O save continua
+## ("Carregar o último save"), mas marcado como encerrado ("done"), para a partida não fechar duas vezes.
 func _summarize_run() -> void:
 	if role != "solo":
 		return
 	colony.flush_siege_xp()   # abates da noite em que a cidade caiu
 	last_run = colony.run_rewards.duplicate(true)
-	_write_summary(colony.run_rewards)
-	colony.run_rewards = {"gold": 0, "xp": 0, "items": []}
+	last_run["ecos"] = _write_summary(colony.run_rewards, maxi(0, colony.day - 1))
+	colony.run_rewards = {"gold": 0, "xp": 0, "items": [], "run_id": int(last_run.get("run_id", 0)), "done": true}
 	_clear_saved_run()
 
 
@@ -434,26 +438,27 @@ func _summarize_abandoned() -> void:
 	var old = _read_colony_save()
 	if old == null or not (old.get("run") is Dictionary):
 		return
-	_write_summary(old.run)
+	_write_summary(old.run, maxi(0, int(old.get("day", 1)) - 1))
 	_clear_saved_run()
 
 
-func _write_summary(run: Dictionary) -> void:
-	var gold := int(run.get("gold", 0))
-	var xp := int(run.get("xp", 0))
+## Fecha a partida `run` (run_rewards) com `nights` noites seguradas. Devolve os Ecos ganhos.
+## Partida já encerrada ("done") ou save antigo sem partida ({}) não fecham de novo.
+func _write_summary(run: Dictionary, nights: int) -> int:
+	if run.is_empty() or run.get("done", false):
+		return 0
 	var list: Array = run.get("items") if run.get("items") is Array else []
 	var items := {}
 	for id in list:
 		items[str(id)] = int(items.get(str(id), 0)) + 1
-	if gold > 0 or xp > 0 or not items.is_empty():
-		Econ.run_summary("city", gold, xp, items)
+	return Econ.run_finish(int(run.get("run_id", 0)), "city", nights, int(run.get("gold", 0)), int(run.get("xp", 0)), items)
 
 
 func _clear_saved_run() -> void:
 	var data = _read_colony_save()
-	if data == null or not (data.get("run") is Dictionary) or data.run.is_empty():
+	if data == null or not (data.get("run") is Dictionary) or data.run.is_empty() or data.run.get("done", false):
 		return
-	data["run"] = {}
+	data["run"] = {"run_id": int(data.run.get("run_id", 0)), "done": true}
 	var f := FileAccess.open(Game.colony_save_path, FileAccess.WRITE)
 	if f != null:
 		f.store_string(JSON.stringify(data, "\t"))

@@ -14,7 +14,7 @@ func _fresh() -> Db:
 func test_migrate_fresh() -> void:
 	var db := _fresh()
 	T.ok(db != null, "abriu o banco")
-	T.eq(Migrations.apply(db), 3, "banco novo vai para a versão 3")
+	T.eq(Migrations.apply(db), Migrations.latest(), "banco novo vai para a versão mais nova")
 	var nomes := []
 	for r in db.query("SELECT name FROM sqlite_master WHERE type='table'"):
 		nomes.append(r["name"])
@@ -25,9 +25,9 @@ func test_migrate_fresh() -> void:
 
 func test_migrate_idempotent() -> void:
 	var db := _fresh()
-	T.eq(Migrations.apply(db), 3, "primeira vez")
-	T.eq(Migrations.apply(db), 3, "segunda vez, mesma versão")
-	T.eq(db.query("SELECT COUNT(*) AS n FROM schema_version")[0]["n"], 3, "uma linha por versão")
+	T.eq(Migrations.apply(db), Migrations.latest(), "primeira vez")
+	T.eq(Migrations.apply(db), Migrations.latest(), "segunda vez, mesma versão")
+	T.eq(db.query("SELECT COUNT(*) AS n FROM schema_version")[0]["n"], Migrations.latest(), "uma linha por versão")
 	db.close()
 
 

@@ -248,6 +248,9 @@ func _build_defeat() -> void:
 	if int(rw.get("gold", 0)) > 0 or int(rw.get("xp", 0)) > 0:
 		_box.add_child(_line("Seu personagem ficou com: +%d ouro · +%d XP (recompensas das noites). O caixa da cidade se perdeu." %
 			[int(rw.gold), int(rw.xp)], UITheme.GOLD, 16))
+	if int(rw.get("ecos", 0)) > 0:
+		_box.add_child(_line("+%d Ecos pelas noites que a cidade resistiu." % int(rw.ecos), UITheme.GOOD, 16))
+	_box.add_child(UITheme.button("Voltar à praça", func() -> void: Lobby.go_hub()))
 	_box.add_child(UITheme.button("Nova cidade", func() -> void: Game.start_colony(false)))
 	var load_btn := UITheme.button("Carregar o último save", func() -> void: Game.start_colony(true))
 	load_btn.disabled = not Game.has_colony_save()
@@ -265,7 +268,8 @@ func _build_results() -> void:
 	if not names.is_empty():
 		_box.add_child(_line("Defensores: " + ", ".join(names), UITheme.DIM, 15))
 	_box.add_child(UITheme.section("Suas recompensas (já estão no seu personagem)", 18))
-	_box.add_child(_line("+%d ouro   ·   +%d XP" % [int(results.get("gold", 0)), int(results.get("xp", 0))], UITheme.GOLD, 17))
+	_box.add_child(_line("+%d ouro   ·   +%d XP   ·   +%d Ecos" % [int(results.get("gold", 0)), int(results.get("xp", 0)),
+		int(results.get("ecos", 0))], UITheme.GOLD, 17))
 	var items: Array = results.get("items", [])
 	var names_i: Array[String] = []
 	for id in items:
@@ -278,7 +282,7 @@ func _build_results() -> void:
 	var rec := int(results.get("record", 0))
 	if rec > 0:
 		_box.add_child(_line("Recorde do servidor: %d noite(s)%s" % [rec, " — novo recorde!" if rec == nights and nights > 0 else ""], UITheme.DIM, 15))
-	_box.add_child(UITheme.button("Voltar ao salão", func() -> void: Lobby.go_lobby()))
+	_box.add_child(UITheme.button("Voltar à praça", func() -> void: Lobby.go_hub()))
 
 
 func _close() -> void:

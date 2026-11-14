@@ -264,6 +264,28 @@ func _ready() -> void:
 		return int(r.account_id) == CharacterService.SOLO_ACCOUNT and r.source == "city_night")
 	check(nights_rows.is_empty(), "recompensa da noite sem linha própria")
 	check(Game.gold == char_gold0 + int(rw.gold), "fim da partida: o caixa da cidade some, o personagem fica com a recompensa (%d)" % Game.gold)
+	# Ecos da partida: pelas noites seguradas (a cidade caiu no dia day_s → day_s - 1 noites)
+	var det = JSON.parse_string(str(rows[0].detail)) if rows.size() == 1 else {}
+	var ecos_exp := RewardRules.ecos(Balance.tables, "city", day_s - 1)
+	check(det is Dictionary and int(det.get("ecos", -1)) == ecos_exp and int(det.get("run_id", 0)) > 0,
+		"Ecos da partida no registro (%d esperados, %s)" % [ecos_exp, str(det)])
+	var runs: Array = Econ._store.run_rows().filter(func(r: Dictionary) -> bool:
+		return r.mode == "city" and r.ended_at != null)
+	check(runs.size() == 1 and int(runs[0].reached) == day_s - 1, "partida da cidade fechada em runs (%s)" % str(runs))
+
+	# --- bônus da base no início da cidade (Muralha e Celeiro), fixados na partida
+	colony.new_colony({"city_gold": 40, "city_food": 6, "hall_hp": 0.1})
+	check(colony.treasury == ColonyData.START_GOLD + 40 and colony.food == ColonyData.START_FOOD + 6,
+		"bônus da base: caixa %d e comida %d" % [colony.treasury, colony.food])
+	var hall_hp := float(ColonyData.building("town_hall").hp) * ColonyData.level_mult(1, 0.4)
+	var h2 := colony.place("town_hall", Vector3(0, 0, -30), 0.0, true)
+	await wait(0.1)
+	check(h2 != null and absf(h2.max_hp - hall_hp * 1.1) < 0.01,
+		"bônus da base: prefeitura com %.1f de vida (%.1f)" % [hall_hp * 1.1, h2.max_hp if h2 else -1.0])
+	colony.new_colony()
+	h2._apply_level(true)
+	check(colony.treasury == ColonyData.START_GOLD and colony.food == ColonyData.START_FOOD and absf(h2.max_hp - hall_hp) < 0.01,
+		"sem bônus: caixa %d, comida %d, prefeitura %.1f" % [colony.treasury, colony.food, h2.max_hp])
 
 	print("\n%s — %d falha(s)" % ["OK" if fails == 0 else "FALHOU", fails])
 	get_tree().quit(1 if fails > 0 else 0)

@@ -120,6 +120,12 @@ const MIGRATIONS := [
 	[
 		"ALTER TABLE economy_log ADD COLUMN detail TEXT",
 	],
+	# v4: índices das consultas da fase 2 (recordes por modo, partidas de uma conta, doadores de uma construção)
+	[
+		"CREATE INDEX idx_runs_mode ON runs(mode, reached)",
+		"CREATE INDEX idx_run_players_account ON run_players(account_id)",
+		"CREATE INDEX idx_donations_building ON base_donations(building_id)",
+	],
 ]
 
 

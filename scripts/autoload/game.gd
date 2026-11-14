@@ -41,6 +41,9 @@ var equipment := empty_equipment()
 var quests := {}            # id -> {"state": "active"|"ready"|"done", "progress": int}
 var flags := {}
 var kills := 0
+## Ecos (moeda permanente das partidas) e passivas permanentes {id: nível}.
+var ecos := 0
+var passives := {}
 ## {"unlocked": int, "plots": [{"crop", "growth" 0..1 em "t", "t" unix s, "watered", "fert"}]}
 ## O crescimento corre pelo relógio: leia plot_growth(i), não plots[i].growth.
 var farm := {}
@@ -63,6 +66,8 @@ var food_mods := {}
 var food_buffs := {}        # id da comida -> segundos restantes
 var eat_cooldown := 0.0
 var selected_food := ""
+## Bônus das passivas permanentes (CharRules.meta_mods), recalculados em apply_state e somados em mod().
+var meta_mods := {}
 
 
 func _ready() -> void:
@@ -83,10 +88,17 @@ func _ready() -> void:
 			get_tree().root.add_child.call_deferred(load("res://tests/net_test.gd").new())
 	if "--colonytest" in OS.get_cmdline_user_args():
 		colony_save_path = "user://colonytest_save.json"   # o Econ usa user://colonytest_solo.json, apagado no início
+		# o save da cidade de uma execução anterior também sai já, antes do _ready da cena: senão a cena
+		# fecharia aquela partida como abandonada (uma linha "run" a mais no registro deste teste)
+		if FileAccess.file_exists(colony_save_path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(colony_save_path))
 		get_tree().root.add_child.call_deferred(load("res://tests/colony_test.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
 		# o Econ usa user://smoketest_solo.json, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())
+	if "--hubtest" in OS.get_cmdline_user_args():
+		# o Econ usa user://hubtest_solo.json, apagado no início
+		get_tree().root.add_child.call_deferred(load("res://tests/hub_test.gd").new())
 
 
 ## Depuração: `godot -- --shot=shot.png [--delay=4]` salva um screenshot e fecha.
@@ -239,22 +251,23 @@ func _setup_input() -> void:
 
 
 # ---------------------------------------------------------------- jogo solo
-## "Novo jogo": apaga o personagem solo (o menu pergunta antes) e entra em Valdoria com um novo.
+## "Novo jogo": apaga o personagem solo (o menu pergunta antes) e chega à praça com um novo.
 func start_new_game() -> void:
 	reset_run_mods()
 	Econ.reset_solo()
+	Lobby._last_world_pos = null   # personagem novo: Valdoria começa na vila
 	get_tree().paused = false
-	get_tree().change_scene_to_file(WORLD_SCENE)
+	get_tree().change_scene_to_file(Lobby.HUB_SCENE)
 
 
-## "Continuar": o personagem do save solo.
+## "Continuar": o personagem do save solo, chegando pela praça (a posição em Valdoria fica guardada).
 func continue_game() -> bool:
 	if not Econ.has_solo() or not Econ.start_solo():
 		notify.emit("Nenhum jogo salvo.", Color(1, 0.5, 0.5))
 		return false
 	reset_run_mods()
 	get_tree().paused = false
-	get_tree().change_scene_to_file(WORLD_SCENE)
+	get_tree().change_scene_to_file(Lobby.HUB_SCENE)
 	return true
 
 
@@ -309,9 +322,9 @@ func damage_mult() -> float:
 	return mod("damage")
 
 
-## Valor efetivo de um bônus: Desafio da Horda + comida.
+## Valor efetivo de um bônus: Desafio da Horda + comida + passivas permanentes.
 func mod(k: String) -> float:
-	return float(run_mods.get(k, 0.0)) + float(food_mods.get(k, 0.0))
+	return float(run_mods.get(k, 0.0)) + float(food_mods.get(k, 0.0)) + float(meta_mods.get(k, 0.0))
 
 
 # ---------------------------------------------------------------- atributos derivados
@@ -782,6 +795,9 @@ func apply_state(d: Dictionary, full := false) -> void:
 	flags = s.flags
 	kills = s.kills
 	farm = s.farm
+	ecos = s.ecos
+	passives = s.passives
+	meta_mods = CharRules.meta_mods(Balance.tables, passives)
 	if full:
 		reset_run_mods()
 		clear_food(true)

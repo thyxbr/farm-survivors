@@ -25,11 +25,18 @@ func _ready() -> void:
 	p.add_child(v)
 	var w = get_tree().current_scene
 	var colony_mode: bool = w != null and w.has_method("save_colony") and w.get("role") == "solo"
-	if mode == "pause" and w != null and w.get("role") == "client":
+	if mode == "pause" and w != null and w.get("role") == "hub":
+		# praça: nada a salvar aqui (o personagem é gravado a cada pedido e ao sair de Valdoria)
+		v.add_child(_title("Praça da cidade", UITheme.GOLD))
+		v.add_child(UITheme.button("Continuar", _close))
+		v.add_child(UITheme.button("Opções", _options))
+		v.add_child(UITheme.button("Desconectar" if Network.is_online() else "Menu principal", func() -> void: Game.go_to_menu()))
+		v.add_child(UITheme.button("Sair do jogo", _quit))
+	elif mode == "pause" and w != null and w.get("role") == "client":
 		# Defesa da Cidade em grupo: não há save; as recompensas já foram para o personagem
 		v.add_child(_title("Cidade em grupo", UITheme.GOLD))
 		v.add_child(UITheme.button("Continuar", _close))
-		v.add_child(UITheme.button("Voltar ao salão (sair da partida)", func() -> void: Lobby.go_lobby()))
+		v.add_child(UITheme.button("Voltar à praça (sair da partida)", func() -> void: Lobby.go_hub()))
 		v.add_child(UITheme.button("Opções", _options))
 		v.add_child(UITheme.button("Menu principal", func() -> void: Game.go_to_menu()))
 		v.add_child(UITheme.button("Sair do jogo", _quit))
@@ -53,11 +60,10 @@ func _ready() -> void:
 			v.add_child(UITheme.button("Abandonar desafio", _abandon))
 		else:
 			v.add_child(UITheme.button("Salvar jogo", _save))
-		if Network.is_online():
-			var back := UITheme.button("Voltar ao salão", func() -> void: Lobby.go_lobby())
-			back.disabled = Game.run_mods.active   # no Desafio da Horda, abandone primeiro
-			v.add_child(back)
-		else:
+		var back := UITheme.button("Voltar à praça", func() -> void: Lobby.go_hub())
+		back.disabled = Game.run_mods.active   # no Desafio da Horda, abandone primeiro
+		v.add_child(back)
+		if not Network.is_online():
 			var lb := UITheme.button("Carregar jogo", func() -> void: Econ.quick_load())
 			lb.disabled = not Econ.has_solo()
 			v.add_child(lb)
@@ -109,6 +115,8 @@ func _save_before_update(colony_mode: bool) -> void:
 	var w = get_tree().current_scene
 	if Network.is_online():
 		Network.autosave()
+	elif w != null and w.get("role") == "hub":
+		Lobby.save_character()   # na praça vale a posição guardada de Valdoria
 	elif colony_mode:
 		w.save_colony()
 	elif not Game.run_mods.active:
