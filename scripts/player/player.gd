@@ -493,9 +493,10 @@ func _do_hit() -> void:
 		if combo < 3 and dist > 0.6 and f.dot(to.normalized()) < 0.3:
 			continue
 		var crit: bool = randf() < Game.crit_chance()
-		var dmg: float = Game.melee_damage() * mult * randf_range(0.9, 1.1) * (1.8 if crit else 1.0)
+		var dmg: float = EnchantHit.scale(e, Game.melee_damage() * mult * randf_range(0.9, 1.1) * (1.8 if crit else 1.0))
 		e.take_damage(dmg, global_position, crit, 2.5 if _weapon_fx() == "slow" else 0.0)
 		Game.on_damage_dealt(dmg)
+		EnchantHit.on_hit(e, dmg)   # efeito do elemento da arma encantada
 		hit_any = true
 	# nós de recurso da Defesa da Cidade (árvores, pedras, veios...): mesmo alcance e mesmo cone
 	for n in get_tree().get_nodes_in_group("harvest"):

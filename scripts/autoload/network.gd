@@ -551,6 +551,25 @@ func _send_enemy_snapshot() -> void:
 			_enemy_snapshot.rpc_id(pid, snap)
 
 
+## Marca tóxica pedida por um cliente: mesmas conferências de um acerto (zona e alcance) e os valores
+## limitados ao que a tabela permite (o cliente não escolhe quanto dano a mais o alvo leva).
+@rpc("any_peer", "call_remote", "reliable")
+func _mark_enemy(net_id: int, amp: float, secs: float) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not is_server() or not players.has(id):
+		return
+	var e: Enemy = enemies.get(net_id)
+	if e == null or not is_instance_valid(e) or e.dead or e.net_zone != zone_of(id):
+		return
+	if not HitGuard.accepts(0.0, last_pos.get(id, Vector3.INF), e.global_position):
+		return
+	var max_amp := EnchantRules.max_effect(Balance.tables, "veneno")
+	var max_secs := float(Balance.tables.get_table("enchant").get("effects", {}).get("veneno", {}).get("secs", 0.0))
+	if not is_finite(amp) or not is_finite(secs) or max_amp <= 0.0 or max_secs <= 0.0:
+		return
+	e.apply_venom(clampf(amp, 0.0, max_amp), clampf(secs, 0.0, max_secs))
+
+
 @rpc("any_peer", "call_remote", "reliable")
 func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow: float) -> void:
 	var id := multiplayer.get_remote_sender_id()
@@ -566,7 +585,7 @@ func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow:
 		return
 	if amount > 0.0:
 		for pid in _enemy_peers(e):
-			_enemy_hit_fx.rpc_id(pid, net_id, amount, crit)
+			_enemy_hit_fx.rpc_id(pid, net_id, e.incoming(amount), crit)   # o número já com a marca tóxica
 		e.last_hitter = id
 		e.take_damage(amount, from_pos, crit)
 		e.last_hitter = 0
@@ -855,6 +874,12 @@ func send_event(kind: String, a := Vector3.ZERO, b := Vector3.ZERO) -> void:
 func client_hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow := 0.0) -> void:
 	if is_client():
 		_hit_enemy.rpc_id(1, net_id, amount, from_pos, crit, slow)
+
+
+## Marca tóxica da arma encantada com Veneno (ver Enemy.apply_venom): quem aplica é o servidor.
+func client_mark_enemy(net_id: int, amp: float, secs: float) -> void:
+	if is_client():
+		_mark_enemy.rpc_id(1, net_id, amp, secs)
 
 
 func request_boss() -> void:

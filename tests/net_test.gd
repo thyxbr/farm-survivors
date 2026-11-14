@@ -333,6 +333,29 @@ func _ready() -> void:
 	w.player.global_position = here
 	await wait(0.3)
 
+	# marca de veneno adulterada: o servidor limita ao maior valor da tabela (12%).
+	# Cada cliente usa um alvo só seu, para o colega não mexer na mesma vida.
+	var mark_kind := "goblin_dourado" if my_name == "Ana" else "goblin_campeao"
+	var vt: Enemy = null
+	for en in Network.enemies.values():
+		if is_instance_valid(en) and not en.dead and en.kind == mark_kind:
+			vt = en
+			break
+	check(vt != null, "achou um %s para a marca de veneno" % mark_kind)
+	if vt != null:
+		var before_mark: Vector3 = w.player.global_position
+		w.player.global_position = vt.global_position + Vector3(4, 0.4, 0)
+		await wait(0.8)   # a posição nova chega ao servidor
+		Network.client_mark_enemy(vt.net_id, 5.0, 99.0)
+		await wait(0.6)
+		var vh: float = vt.hp
+		vt.take_damage(10.0, w.player.global_position, false)
+		await _wait_until(func() -> bool: return not is_instance_valid(vt) or vt.hp < vh, 4.0)
+		var drop: float = vh - vt.hp if is_instance_valid(vt) else 0.0
+		check(drop > 10.5 and drop < 12.5, "marca de veneno adulterada é limitada a 12%% (10 de dano tirou %.1f)" % drop)
+		w.player.global_position = before_mark
+		await wait(0.3)
+
 	if my_name == "Ana":
 		await _test_econ()
 

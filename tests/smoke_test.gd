@@ -219,6 +219,7 @@ func _ready() -> void:
 	await _test_farm()
 	await _test_gather()
 	await _test_enchant()
+	await _test_enchant_effects()
 	await _test_survival()
 	await _test_update()
 
@@ -415,6 +416,111 @@ func _test_enchant() -> void:
 	eui._close()
 	await wait(0.1)
 	check(world.modal == null, "painel fecha")
+
+
+# ---------------------------------------------------------------- Efeitos dos elementos
+## Um slime grande de teste num canto vazio do mapa (longe dos outros inimigos).
+func _fx_dummy(at: Vector3) -> Enemy:
+	var e := Enemy.new()
+	e.kind = "slime_grande"
+	world.add_child(e)
+	e.global_position = at
+	return e
+
+
+## Troca o elemento da arma equipada pelo serviço (mantém o nível) e confere que trocou.
+func _swap_element(el: String, lv: int) -> void:
+	Econ.request("enchant", [el])
+	await wait(0.1)
+	check(Game.weapon_enchant() == {"el": el, "lv": lv}, "arma trocada para %s +%d" % [el, lv])
+
+
+func _test_enchant_effects() -> void:
+	var back := player.global_position
+	var spot := Vector3(-100, 0.3, 100)
+	player.global_position = spot
+	await wait(0.2)
+	var lv: int = Game.weapon_enchant().lv
+	check(Game.weapon_enchant().el == "fogo" and lv == 2, "efeitos: a arma chega em fogo +2")
+	Econ.grant(600, 0, {"frost_drop": 3, "thunder_totem": 3, "toxic_gland": 3, "golden_dust": 3, "shadow_fang": 3}, "teste", true)
+	var a := _fx_dummy(spot + Vector3(3, 0, 0))
+	await wait(0.1)
+
+	# fogo +2: 22% do dano do golpe, em 3 pulsos ao longo de 3 s
+	var hp0: float = a.hp
+	EnchantHit.on_hit(a, 100.0)
+	check(a.hp == hp0, "queimadura não tira vida na hora")
+	await wait(3.4)
+	check(absf((hp0 - a.hp) - 22.0) < 1.0, "queimadura +2 tira 22 de vida em 3 s (%.1f)" % (hp0 - a.hp))
+	var gone := _fx_dummy(spot + Vector3(-6, 0, -6))
+	await wait(0.1)
+	EnchantHit.on_hit(gone, 100.0)
+	gone.queue_free()   # o alvo some antes dos pulsos da queimadura
+	await wait(1.3)
+	check(true, "queimadura em alvo que sumiu não quebra")
+	check(EnchantHit.scale(a, 100.0) == 100.0, "fogo não muda o dano do golpe")
+
+	# gelo +2: lentidão por 0,9 s
+	await _swap_element("gelo", lv)
+	a.slow_timer = 0.0
+	EnchantHit.on_hit(a, 10.0)
+	check(absf(a.slow_timer - 0.9) < 0.05, "gelo +2 deixa lento por 0,9 s (%.2f)" % a.slow_timer)
+
+	# raio +2: a corrente dá metade do dano no inimigo mais próximo a até 6 m
+	await _swap_element("raio", lv)
+	var fx := Game.weapon_effect()
+	check(absf(float(fx.get("value", 0.0)) - 0.15) < 0.001, "raio +2: 15% de chance")
+	check(EnchantHit.chain(a, 100.0, fx) == null, "corrente sem outro inimigo por perto não faz nada")
+	var b := _fx_dummy(a.global_position + Vector3(2.5, 0, 0))
+	await wait(0.1)
+	var hpb: float = b.hp
+	var a_before: float = a.hp
+	check(EnchantHit.chain(a, 100.0, fx) == b, "corrente salta para o vizinho")
+	check(absf((hpb - b.hp) - 50.0) < 0.01, "corrente dá metade do dano (%.1f)" % (hpb - b.hp))
+	check(a.hp == a_before, "corrente não acerta o próprio alvo")
+	b.queue_free()
+	await wait(0.1)
+
+	# veneno +2: alvo marcado recebe +6% de dano por 4 s
+	await _swap_element("veneno", lv)
+	EnchantHit.on_hit(a, 1.0)
+	check(a.venom_timer > 3.5 and absf(a.venom_amp - 0.06) < 0.001, "veneno +2 marca o alvo por 4 s com +6%")
+	var hp1: float = a.hp
+	a.take_damage(50.0, player.global_position, false)
+	check(absf((hp1 - a.hp) - 53.0) < 0.01, "alvo marcado: 50 de dano vira 53 (%.1f)" % (hp1 - a.hp))
+
+	# sagrado +2: +12% de dano em chefes e elites
+	await _swap_element("sagrado", lv)
+	check(EnchantHit.scale(a, 100.0) == 100.0, "sagrado não muda o dano em inimigo comum")
+	a.elite = true
+	check(absf(EnchantHit.scale(a, 100.0) - 112.0) < 0.01, "sagrado +2: 100 vira 112 em elite")
+	a.elite = false
+	var node = world.resource_nodes[5]
+	check(EnchantHit.scale(node, 100.0) == 100.0, "alvo que não é inimigo: dano igual")
+	EnchantHit.on_hit(node, 100.0)
+	check(true, "efeito em alvo que não é inimigo é ignorado")
+
+	# sombra +2: cura 1,5% do dano causado
+	await _swap_element("sombra", lv)
+	Game.hp = 50.0
+	EnchantHit.on_hit(a, 100.0)
+	check(absf(Game.hp - 51.5) < 0.01, "sombra +2 cura 1,5 por 100 de dano (%.2f)" % Game.hp)
+
+	# arma sem encanto: nenhum efeito
+	var other := "short_bow" if Game.equipment.weapon != "short_bow" else "apprentice_staff"
+	var wid: String = Game.equipment.weapon
+	Econ.request("equip", [other])
+	await wait(0.1)
+	a.slow_timer = 0.0
+	Game.hp = 50.0
+	EnchantHit.on_hit(a, 100.0)
+	check(Game.weapon_effect().is_empty() and Game.hp <= 50.0 and a.slow_timer == 0.0, "arma sem encanto não tem efeito")
+	Econ.request("equip", [wid])
+	await wait(0.1)
+	a.queue_free()
+	Game.hp = Game.max_hp()
+	player.global_position = back
+	await wait(0.2)
 
 
 # ---------------------------------------------------------------- Horta, caldeirão e comida
