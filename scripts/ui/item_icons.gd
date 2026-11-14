@@ -1,11 +1,13 @@
 class_name ItemIcons
 extends Node
 ## Ícone do item tirado do modelo 3D de verdade (a mesma arma/armadura que o cavaleiro veste),
-## renderizado uma vez num SubViewport e guardado. Itens sem modelo (poções, anéis, materiais) devolvem
+## renderizado uma vez num SubViewport e guardado em disco (IconCache, por versão do jogo). Sem janela
+## (servidor dedicado, testes) fica desligado. Itens sem modelo (poções, anéis, materiais) devolvem
 ## null e o espaço cai no ícone pintado por código.
 
 const KNIGHT := preload("res://assets/models/knight.glb")
 const SIZE := 192
+const ROOT := "user://icons"
 
 static var _inst: ItemIcons
 static var _cache := {}        # id -> Texture2D (null = item sem modelo)
@@ -16,17 +18,43 @@ var _busy := false
 
 ## Textura do item, ou null se ainda não ficou pronta (chama `on_ready` quando ficar) ou se não há modelo.
 static func icon(id: String, on_ready: Callable) -> Texture2D:
+	if not enabled():
+		return null
 	if _cache.has(id):
 		return _cache[id]
 	if not _has_model(id):
 		_cache[id] = null
 		return null
+	var saved := IconCache.load_icon(ROOT, _version(), id)
+	if saved:
+		_cache[id] = saved
+		return saved
 	if _inst == null or not is_instance_valid(_inst):
 		_inst = ItemIcons.new()
 		_inst.process_mode = Node.PROCESS_MODE_ALWAYS
 		(Engine.get_main_loop() as SceneTree).root.add_child.call_deferred(_inst)
 	_inst._request.call_deferred(id, on_ready)
 	return null
+
+
+## Sem janela não há o que fotografar: o espaço mostra o ícone pintado.
+static func enabled() -> bool:
+	return DisplayServer.get_name() != "headless"
+
+
+## Enfileira de uma vez os ícones que ainda faltam (chamado ao abrir uma tela com muitos itens).
+static func prewarm(ids: Array) -> void:
+	for id in ids:
+		if id is String and id != "":
+			icon(id, Callable())
+
+
+static func _version() -> String:
+	return str(ProjectSettings.get_setting("application/config/version", "dev"))
+
+
+func _ready() -> void:
+	IconCache.prune(ROOT, _version())    # ícones de versões antigas do jogo
 
 
 static func _has_model(id: String) -> bool:
@@ -139,9 +167,10 @@ func _render(id: String) -> Texture2D:
 	for i in 3:
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw
-	var tex := ImageTexture.create_from_image(vp.get_texture().get_image())
+	var img := vp.get_texture().get_image()
 	vp.queue_free()
-	return tex
+	IconCache.save_icon(ROOT, _version(), id, img)
+	return ImageTexture.create_from_image(img)
 
 
 func _bounds(holder: Node3D) -> AABB:
