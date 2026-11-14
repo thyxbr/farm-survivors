@@ -3,7 +3,7 @@ extends Node
 ## do cliente (vida/mana do combate, bônus de comida e da Horda, configurações).
 ##
 ## Quem muda o personagem é o CharacterService, sempre pelo autoload Econ: offline o serviço local
-## (user://solo.db) responde na hora; online o servidor responde com o estado completo. As funções
+## (user://solo_character.json) responde na hora; online o servidor responde com o estado completo. As funções
 ## abaixo que "mudam" algo (buy, equip, plant...) só fazem o pedido; o estado e os sinais chegam por
 ## apply_state/apply_events. As propriedades e os sinais continuam os mesmos para a UI e o combate.
 
@@ -22,7 +22,7 @@ const MENU_SCENE := "res://scenes/main_menu.tscn"
 const COLONY_SCENE := "res://scenes/colony.tscn"
 
 ## Defesa da Cidade solo: save da cidade (a partida em andamento, com o caixa dela). O personagem é o do
-## solo.db: a cidade não tem personagem próprio.
+## save solo: a cidade não tem personagem próprio.
 var colony_save_path := "user://colony_save.json"
 ## true = a cena da cidade carrega o save em vez de começar do zero.
 var colony_continue := false
@@ -73,7 +73,7 @@ func _ready() -> void:
 	_setup_input()
 	load_settings()
 	reset_run_mods()
-	# personagem novo só no espelho: o de verdade chega do solo.db (Econ.start_solo) ou do servidor
+	# personagem novo só no espelho: o de verdade chega do save solo (Econ.start_solo) ou do servidor
 	apply_state(CharState.new_character(Balance.tables).to_dict(), true)
 	_debug_screenshot()
 	if "--dbg" in OS.get_cmdline_user_args():
@@ -82,10 +82,10 @@ func _ready() -> void:
 		if a.begins_with("--nettest="):
 			get_tree().root.add_child.call_deferred(load("res://tests/net_test.gd").new())
 	if "--colonytest" in OS.get_cmdline_user_args():
-		colony_save_path = "user://colonytest_save.json"   # o Econ usa user://colonytest_solo.db, apagado no início
+		colony_save_path = "user://colonytest_save.json"   # o Econ usa user://colonytest_solo.json, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/colony_test.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
-		# o Econ usa user://smoketest_solo.db, apagado no início
+		# o Econ usa user://smoketest_solo.json, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())
 
 
@@ -93,8 +93,8 @@ func _ready() -> void:
 ## `--survival` (com ou sem --shot) começa direto no Desafio da Horda.
 ## `--cam=graus,dist` gira a câmera em volta do jogador e muda a distância (ex.: `--cam=180,2.2`
 ## olha o personagem de frente, de perto) — útil para conferir luz e modelo.
-## `--farmdemo`/`--geardemo`/`--weapon=` usam um personagem novo num banco à parte (user://demo_solo.db,
-## apagado a cada vez): não mexem no solo.db.
+## `--farmdemo`/`--geardemo`/`--weapon=` usam um personagem novo num arquivo à parte (user://demo_solo.json,
+## apagado a cada vez): não mexem no save solo.
 func _debug_screenshot() -> void:
 	var path := ""
 	var delay := 4.0
@@ -113,7 +113,7 @@ func _debug_screenshot() -> void:
 		demo = demo or a.begins_with("--weapon=")
 	if demo:
 		var at = spawn_position
-		Econ.start_scratch_solo("user://demo_solo.db")
+		Econ.start_scratch_solo("user://demo_solo.json")
 		if at != null:
 			spawn_position = at
 	# `--farmdemo` enche a horta com culturas em vários estágios (para screenshots)
@@ -247,7 +247,7 @@ func start_new_game() -> void:
 	get_tree().change_scene_to_file(WORLD_SCENE)
 
 
-## "Continuar": o personagem do solo.db.
+## "Continuar": o personagem do save solo.
 func continue_game() -> bool:
 	if not Econ.has_solo() or not Econ.start_solo():
 		notify.emit("Nenhum jogo salvo.", Color(1, 0.5, 0.5))
@@ -259,7 +259,7 @@ func continue_game() -> bool:
 
 
 ## Defesa da Cidade solo: cont = continuar a cidade salva (senão começa uma nova). O personagem é sempre o
-## do solo.db (a cena o carrega); a cidade tem caixa próprio (Colony.treasury).
+## do save solo (a cena o carrega); a cidade tem caixa próprio (Colony.treasury).
 func start_colony(cont: bool) -> void:
 	colony_continue = cont and has_colony_save()
 	reset_run_mods()

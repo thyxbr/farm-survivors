@@ -2,8 +2,9 @@ extends Node
 ## Econ: a única porta para mudar o personagem (ouro, itens, XP, equipamento, missões, horta).
 ##
 ## O `Game` virou espelho: guarda o estado para a UI e o combate lerem, mas quem decide é o CharacterService.
-## - Solo offline: o serviço roda aqui mesmo, sobre `user://solo.db` (conta local 1). Cada pedido é
-##   aplicado na hora (síncrono): o resultado chega antes de `request()` voltar.
+## - Solo offline: o serviço roda aqui mesmo, sobre um arquivo local (`user://solo_character.json`, conta
+##   local 1, FileCharStore — o cliente não leva o SQLite, que é só do servidor). Cada pedido é aplicado
+##   na hora (síncrono): o resultado chega antes de `request()` voltar.
 ## - Online (cliente): `request()` manda `_econ_req` ao servidor, que aplica no `Network.characters` e
 ##   responde só ao remetente com `_econ_res` (estado completo + eventos). Pedidos do mesmo peer chegam
 ##   em ordem (RPC confiável), então clique duplo vira dois pedidos processados em sequência.
@@ -44,7 +45,9 @@ const REQ_RATE := 5.0
 const CLAIM_BURST := 30.0
 const CLAIM_RATE := 10.0
 
-var solo_db_path := "user://solo.db"
+## Arquivo do personagem solo (`--solo-save=CAMINHO` troca; a economia vai ao lado, em *_economy.jsonl).
+## O user://solo.db da 0.8.0 (SQLite) é ignorado.
+var solo_save_path := "user://solo_character.json"
 ## Testes adiantam o relógio (horta). Vale para o serviço local e para o desenho dos canteiros.
 var time_offset := 0.0
 ## Relatórios de vida/posição enviados (o net_test confere o envio periódico).
@@ -52,7 +55,7 @@ var reports_sent := 0
 ## Cliente online: concessões tentadas no próprio cliente (bug: quem concede é o servidor). O net_test exige 0.
 var client_grant_errors := 0
 
-var _db: Db = null
+var _store: FileCharStore = null
 var _svc: CharacterService = null
 var _solo_loaded := false
 var _wipe_on_open := false
@@ -75,18 +78,18 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	var explicit := false
 	for a in args:
-		if a.begins_with("--solo-db="):
-			solo_db_path = a.substr(10)
+		if a.begins_with("--solo-save="):
+			solo_save_path = a.substr(12)
 			explicit = true
 	if "--smoketest" in args:
-		# o smoke test começa sempre de um personagem novo, num banco só dele
+		# o smoke test começa sempre de um personagem novo, num arquivo só dele
 		if not explicit:
-			solo_db_path = "user://smoketest_solo.db"
+			solo_save_path = "user://smoketest_solo.json"
 		_wipe_on_open = true
 	elif "--colonytest" in args:
 		# idem para o teste da Defesa da Cidade
 		if not explicit:
-			solo_db_path = "user://colonytest_solo.db"
+			solo_save_path = "user://colonytest_solo.json"
 		_wipe_on_open = true
 	_test_server = "--test" in args
 	_report_t = Network.autosave_interval
@@ -188,7 +191,7 @@ func pending_count() -> int:
 
 
 ## Cliente saiu do servidor (Network.leave): pedidos sem resposta falham com "sem_conexao" (as UIs
-## que esperam não ficam travadas) e o solo é recarregado do solo.db na próxima vez (nunca roda
+## que esperam não ficam travadas) e o solo é recarregado do save solo na próxima vez (nunca roda
 ## sobre o estado que veio do servidor).
 func client_reset() -> void:
 	var waiting := _pending
@@ -228,7 +231,7 @@ func quick_save(pos: Vector3, yaw: float) -> bool:
 	return true
 
 
-## F9 offline: relê o personagem do solo.db e recomeça Valdoria nele. Online não faz nada.
+## F9 offline: relê o personagem do save solo e recomeça Valdoria nele. Online não faz nada.
 func quick_load() -> bool:
 	if Network.is_online() or not has_solo():
 		return false
@@ -268,23 +271,23 @@ func _physics_process(delta: float) -> void:
 		report_vitals(p.global_position, p.model.rotation.y)
 
 
-# ================================================================ solo (user://solo.db)
-## Abre o banco local e carrega o personagem solo no Game (se ainda não estiver carregado).
+# ================================================================ solo (user://solo_character.json)
+## Abre o armazenamento local e carrega o personagem solo no Game (se ainda não estiver carregado).
 func ensure_solo() -> bool:
 	if _solo_loaded and _svc != null:
 		return true
 	return start_solo()
 
 
-## Abre o solo.db e aplica o personagem salvo (vida, mana e posição inclusive).
+## Abre o save solo e aplica o personagem salvo (vida, mana e posição inclusive).
 func start_solo() -> bool:
-	if not _open_db():
+	if not _open_store():
 		return false
 	if Balance.from_server:
 		Balance.reload_local()   # o solo usa as tabelas da versão, não as do último servidor
 	if _svc != null:
 		_svc.save(SOLO_ACCOUNT)
-	_svc = CharacterService.new(_db, Balance.tables, now)
+	_svc = CharacterService.new(_store, Balance.tables, now)
 	_svc.set_session(SOLO_ACCOUNT, SOLO_SESSION)
 	var s := _svc.load_or_create(SOLO_ACCOUNT)
 	_solo_loaded = true
@@ -292,83 +295,70 @@ func start_solo() -> bool:
 	return true
 
 
-## Fecha o banco e o serviço e abre tudo de novo a partir do arquivo (F9 e testes de persistência).
+## Fecha o armazenamento e o serviço e abre tudo de novo a partir do arquivo (F9 e testes de persistência).
 func reload_solo() -> bool:
 	if _svc != null:
 		_svc.save(SOLO_ACCOUNT)
 	_svc = null
 	_solo_loaded = false
-	if _db != null:
-		_db.close()
-		_db = null
+	if _store != null:
+		_store.close()
+		_store = null
 	return start_solo()
 
 
 ## Existe personagem solo salvo neste PC?
 func has_solo() -> bool:
-	if not _open_db():
+	if not _open_store():
 		return false
-	return not _db.query("SELECT 1 FROM characters WHERE account_id = ?", [SOLO_ACCOUNT]).is_empty()
+	return _store.load_char(SOLO_ACCOUNT) is Dictionary
 
 
 ## "Nível 3 — 2026-11-13 18:20:05" do personagem solo ("" se não houver).
 func solo_info() -> String:
-	if not _open_db():
+	if not _open_store():
 		return ""
-	var rows := _db.query("SELECT level, updated_at FROM characters WHERE account_id = ?", [SOLO_ACCOUNT])
-	if rows.is_empty():
+	var d = _store.load_char(SOLO_ACCOUNT)
+	if not (d is Dictionary):
 		return ""
 	var bias := int(Time.get_time_zone_from_system().get("bias", 0)) * 60
-	return "Nível %d — %s" % [int(rows[0]["level"]),
-		Time.get_datetime_string_from_unix_time(int(rows[0]["updated_at"]) + bias, true)]
+	return "Nível %d — %s" % [int(d.get("level", 1)),
+		Time.get_datetime_string_from_unix_time(int(d.get("updated_at", 0)) + bias, true)]
 
 
 ## "Novo jogo": apaga o personagem solo (o menu pergunta antes) e começa um novo.
 func reset_solo() -> bool:
-	if not _open_db():
+	if not _open_store():
 		return false
 	if _svc != null:
 		_svc.unload(SOLO_ACCOUNT)
 	_svc = null
 	_solo_loaded = false
-	var ok := _db.transaction(func() -> bool:
-		return _db.exec("DELETE FROM inventory WHERE account_id = ?", [SOLO_ACCOUNT]) \
-			and _db.exec("DELETE FROM characters WHERE account_id = ?", [SOLO_ACCOUNT]))
+	var ok := _store.delete_char(SOLO_ACCOUNT)
 	if not ok:
-		push_error("Econ: não apagou o personagem solo: %s" % _db.last_error)
+		push_error("Econ: não apagou o personagem solo: %s" % _store.last_error)
 	return start_solo() and ok
 
 
-func _open_db() -> bool:
-	if _db != null:
+func _open_store() -> bool:
+	if _store != null:
 		return true
+	_store = FileCharStore.new(solo_save_path)
 	if _wipe_on_open:
 		_wipe_on_open = false
-		Db.remove_files(solo_db_path)   # com -wal/-shm: um WAL velho seria aplicado ao banco novo
-	_db = Db.open(solo_db_path)
-	if _db == null:
-		push_error("Econ: não abriu o banco solo em %s" % solo_db_path)
-		Game.notify.emit("Não foi possível abrir o jogo salvo.", Color(1, 0.4, 0.4))
-		return false
-	if not Migrations.ensure_latest(_db):
-		# migração falhou (ou o arquivo é de uma versão mais nova): não joga sobre um banco pela metade
-		push_error("Econ: o banco solo em %s não pôde ser atualizado" % solo_db_path)
-		Game.notify.emit("O jogo salvo não pôde ser atualizado para esta versão.", Color(1, 0.4, 0.4))
-		_db.close()
-		_db = null
-		return false
+		_store.remove_files()   # personagem, temporário e registro da economia
 	return true
 
 
-## Demos de screenshot (`--farmdemo`/`--geardemo`/`--weapon=`): personagem novo num banco à parte,
-## apagado a cada vez (não mexe no solo.db). Chamado pelo Game antes do _ready deste autoload.
+## Demos de screenshot (`--farmdemo`/`--geardemo`/`--weapon=`): personagem novo num arquivo à parte,
+## apagado a cada vez (não mexe no save solo). Chamado pelo Game antes do _ready deste autoload.
 func start_scratch_solo(path: String) -> bool:
-	if _db != null:
-		_db.close()
-		_db = null
+	if _store != null:
+		_store.close()
+		_store = null
 	_svc = null
 	_solo_loaded = false
-	solo_db_path = path
+	solo_save_path = path
 	_wipe_on_open = true
 	return start_solo()
 
