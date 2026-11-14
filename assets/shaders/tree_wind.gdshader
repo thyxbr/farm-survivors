@@ -15,6 +15,8 @@ uniform float roughness = 0.9;
 uniform float tree_height = 5.0;   // altura da malha (espaço do modelo): o topo balança mais
 uniform sampler2D noise_tex : repeat_enable, filter_linear_mipmap;
 
+#include "res://assets/shaders/toon_light.gdshaderinc"
+
 varying vec3 wpos;
 varying vec3 wnrm;
 

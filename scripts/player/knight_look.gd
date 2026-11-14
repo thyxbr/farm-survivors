@@ -153,6 +153,8 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 				_build_sword(holder, tip, wid)
 	model.set_meta("look_nodes", made)
 	PivotSkin.ensure(model)    # ossos das roupas com pele contínua seguem os pivôs
+	if ToonLook.enabled():
+		ToonLook.apply(model)
 	return res
 
 

@@ -4,6 +4,7 @@ shader_type spatial;
 render_mode diffuse_burley;
 
 #include "res://assets/shaders/ground_common.gdshaderinc"
+#include "res://assets/shaders/toon_light.gdshaderinc"
 
 const int MAX_SHAPES = 40;
 uniform vec4 shapes[MAX_SHAPES];      // retângulo: (cx, cz, meia_x, meia_z); disco: (cx, cz, raio, -1)
