@@ -63,5 +63,26 @@ func _initialize() -> void:
 	check(not first and top > 1.6 and top < 1.95, "altura do ferreiro %.2f m" % top)
 	check(not first and absf(box.position.y) < 0.05, "pés no chão (%.3f m)" % box.position.y)
 	m.free()
+	_check_props()
 	print("FALHAS: ", fails)
 	quit(1 if fails > 0 else 0)
+
+
+# bigorna (alvo do golpe) e forja (brasas) do ferreiro
+func _check_props() -> void:
+	var a_scene: PackedScene = load("res://assets/models/anvil.glb")
+	check(a_scene != null, "anvil.glb carrega")
+	if a_scene != null:
+		var a: Node3D = a_scene.instantiate()
+		var sp := a.find_child("StrikePoint", true, false) as Node3D
+		check(sp != null, "bigorna tem StrikePoint")
+		if sp != null:
+			var y := _xform_to(sp, a).origin.y
+			check(y > 0.7 and y < 0.9, "StrikePoint a %.2f m do chão" % y)
+		a.free()
+	var f_scene: PackedScene = load("res://assets/models/forge.glb")
+	check(f_scene != null, "forge.glb carrega")
+	if f_scene != null:
+		var f: Node3D = f_scene.instantiate()
+		check(f.find_child("Embers", true, false) != null, "forja tem Embers")
+		f.free()
