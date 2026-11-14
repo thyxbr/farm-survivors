@@ -1,5 +1,5 @@
 extends Control
-## Menu do jogo: Inventário (boneco de equipamento com prévia 3D + mochila em grade),
+## Menu do herói, num livro aberto (BookWindow): Inventário (herói com o equipamento + mochila em grade),
 ## Personagem (atributos, estatísticas, magias) e Missões (lista + detalhes).
 ## Referências: boneco e grade de Diablo/Path of Exile, dicas com comparação calculada,
 ## filtros por categoria, atalhos visíveis nas abas.
@@ -10,14 +10,13 @@ const TAB_KEYS := ["I", "C", "J"]
 const TAB_NAMES := ["Inventário", "Personagem", "Missões"]
 const TAB_ACTIONS := ["inventory", "character", "quest_log"]
 const BAG_COLS := 8
-const BAG_MIN := 48
+const BAG_MIN := 56
 const SLOT := 62.0
-const BOOK := Vector2(1408, 800)
 
 var start_tab := 0
 var tooltip: ItemTooltip
 var pages: Array[Control] = []
-var tab_buttons: Array[Button] = []
+var book: BookWindow
 var gold_label: Label
 
 # inventário
@@ -44,116 +43,39 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = UITheme.get_theme()
-	var bg := ColorRect.new()
-	bg.color = Color(0, 0, 0, 0.62)
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
-	# o livro tem tamanho fixo; o conteúdo vive dentro das margens das páginas
-	var holder := Control.new()
-	holder.custom_minimum_size = BOOK
-	center.add_child(holder)
-	var book := TextureRect.new()
-	book.texture = UITheme.tex("book")
-	book.size = BOOK
-	book.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	holder.add_child(book)
-	var tabs := _build_header()
-	tabs.position = Vector2(BOOK.x * 0.5 + 60, -16)
-	holder.add_child(tabs)
-	var margin := MarginContainer.new()
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 88)
-	margin.add_theme_constant_override("margin_right", 88)
-	margin.add_theme_constant_override("margin_top", 62)
-	margin.add_theme_constant_override("margin_bottom", 62)
-	holder.add_child(margin)
-	var stack := PanelContainer.new()
-	stack.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-	margin.add_child(stack)
-	for builder in [_build_inventory, _build_character, _build_quests]:
-		var page: Control = builder.call()
-		stack.add_child(page)
+	book = BookWindow.new()
+	add_child(book)
+	var builders := [_build_inventory, _build_character, _build_quests]
+	for i in builders.size():
+		var page: Control = builders[i].call()
 		pages.append(page)
-	pages[0].theme = UITheme.paper_theme()
-	var x := Button.new()
-	x.text = "✕"
-	x.tooltip_text = "Fechar (Esc)"
-	for st in ["normal", "hover", "pressed", "focus"]:
-		x.add_theme_stylebox_override(st, StyleBoxEmpty.new())
-	x.add_theme_font_size_override("font_size", 22)
-	x.add_theme_color_override("font_color", UITheme.INK_DIM)
-	x.add_theme_color_override("font_hover_color", UITheme.INK_RED)
-	x.pressed.connect(_close)
-	x.position = Vector2(BOOK.x - 84, 44)
-	holder.add_child(x)
+		# Personagem e Missões ainda usam painéis escuros (viram tinta na etapa 2 do plano)
+		book.add_page(TAB_NAMES[i], TAB_KEYS[i], TAB_ACTIONS[i], page, i == 0)
+	book.closed.connect(_close)
+	book.page_shown.connect(_on_page_shown)
 	tooltip = ItemTooltip.new()
 	add_child(tooltip)
 	for s in equip_slots.values():
 		s.tooltip = tooltip
 	for s in bag_slots:
 		s.tooltip = tooltip
+	var ids: Array = Game.equipment.values()
+	for entry in Game.inventory:
+		ids.append(entry.id)
+	ItemIcons.prewarm(ids)
 	_show_tab(start_tab)
 	Game.inventory_changed.connect(_refresh)
 	Game.stats_changed.connect(_refresh)
 	Game.quests_changed.connect(_refresh)
 	_refresh()
-	# garantia: avisa se alguma página pedir mais espaço do que cabe dentro das margens do livro
-	await get_tree().process_frame
-	await get_tree().process_frame
-	var room := BOOK - Vector2(176, 124)
-	for p in pages:
-		if not p.visible:   # página escondida ainda não foi diagramada
-			continue
-		var need := p.get_combined_minimum_size()
-		if need.x > room.x or need.y > room.y:
-			push_warning("Página do menu não cabe no livro: precisa de %s, cabe %s" % [need, room])
-
-
-# ================================================================ abas (marcadores no topo da página direita)
-func _build_header() -> Control:
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 4)
-	var group := ButtonGroup.new()
-	var on := StyleBoxTexture.new()
-	on.texture = UITheme.tex("tab_on")
-	var off := StyleBoxTexture.new()
-	off.texture = UITheme.tex("tab_off")
-	off.modulate_color = Color(0.9, 0.9, 0.9)
-	var off_hover := StyleBoxTexture.new()
-	off_hover.texture = UITheme.tex("tab_off")
-	off_hover.modulate_color = Color(1.25, 1.2, 1.2)
-	for i in 3:
-		var b := Button.new()
-		b.text = TAB_NAMES[i]
-		b.tooltip_text = "Atalho: %s" % TAB_KEYS[i]
-		b.toggle_mode = true
-		b.button_group = group
-		b.custom_minimum_size = Vector2(178, 52)
-		b.add_theme_font_override("font", UITheme.serif())
-		b.add_theme_font_size_override("font_size", 19)
-		b.add_theme_stylebox_override("normal", off)
-		b.add_theme_stylebox_override("hover", off_hover)
-		b.add_theme_stylebox_override("pressed", on)
-		b.add_theme_stylebox_override("hover_pressed", on)
-		b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-		b.add_theme_color_override("font_color", Color(0.93, 0.84, 0.66))
-		b.add_theme_color_override("font_hover_color", Color(1, 0.94, 0.78))
-		b.add_theme_color_override("font_pressed_color", UITheme.INK)
-		b.add_theme_color_override("font_hover_pressed_color", UITheme.INK)
-		b.pressed.connect(_show_tab.bind(i))
-		h.add_child(b)
-		tab_buttons.append(b)
-	return h
 
 
 func _show_tab(i: int) -> void:
+	book.show_page(i)
+
+
+func _on_page_shown(i: int) -> void:
 	start_tab = i
-	for j in pages.size():
-		pages[j].visible = j == i
-	tab_buttons[i].button_pressed = true
 	if tooltip:
 		tooltip.visible = false
 
@@ -665,18 +587,3 @@ func _refresh() -> void:
 func _close() -> void:
 	closed.emit()
 	queue_free()
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("pause"):
-		get_viewport().set_input_as_handled()
-		_close()
-		return
-	for i in 3:
-		if event.is_action_pressed(TAB_ACTIONS[i]):
-			get_viewport().set_input_as_handled()
-			if i == start_tab:
-				_close()
-			else:
-				_show_tab(i)
-			return
