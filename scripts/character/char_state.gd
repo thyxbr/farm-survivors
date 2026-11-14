@@ -21,6 +21,9 @@ var mp := 0.0
 var world_pos: Variant = null
 var world_yaw := 0.0
 var kills := 0
+## Ecos: moeda permanente, ganha ao fim das partidas. Passivas permanentes: id -> nível (>= 1).
+var ecos := 0
+var passives := {}
 
 
 ## Personagem novo: mesmos valores do antigo Game.new_game.
@@ -48,6 +51,7 @@ func to_dict() -> Dictionary:
 		"farm": farm.duplicate(true), "hp": hp, "mp": mp,
 		"world_pos": [world_pos.x, world_pos.y, world_pos.z] if world_pos is Vector3 else null,
 		"world_yaw": world_yaw, "kills": kills,
+		"ecos": ecos, "passives": passives.duplicate(true),
 	}
 
 
@@ -113,6 +117,19 @@ static func from_dict(d, bt: BalanceTables = null) -> CharState:
 	elif p is Vector3 and p.is_finite():
 		s.world_pos = p
 	s.world_yaw = _float(d.get("world_yaw"), 0.0)
+	s.ecos = maxi(0, _int(d.get("ecos"), 0))
+	var ps = d.get("passives")
+	if ps is Dictionary:
+		var pt: Dictionary = bt.get_table("meta_passives").get("passives", {}) if bt != null else {}
+		for id in ps:
+			var lv := _int(ps[id], 0)
+			if not (id is String) or lv < 1 or (bt != null and not pt.has(id)):
+				continue
+			if bt != null:
+				lv = mini(lv, pt[id].get("cost", []).size())
+				if lv < 1:
+					continue
+			s.passives[id] = lv
 	return s
 
 

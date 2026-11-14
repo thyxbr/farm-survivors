@@ -664,3 +664,34 @@ static func _harvest(s: CharState, bt: BalanceTables, i: int, now: float, rng: R
 	var out := _ok([_notify(txt, Color(0.85, 1.0, 0.55)), {"t": "farm"}])
 	out["harvest"] = res
 	return out
+
+
+# ================================================================ passivas permanentes (Ecos)
+## Compra o próximo nível de uma passiva permanente com Ecos. O custo do nível N é cost[N-1].
+static func buy_passive(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
+	var def: Dictionary = bt.get_table("meta_passives").get("passives", {}).get(id, {})
+	if def.is_empty():
+		return _fail("passiva_invalida")
+	var costs: Array = def.get("cost", [])
+	var level := int(s.passives.get(id, 0))
+	if level >= costs.size():
+		return _fail("nivel_maximo")
+	var cost := int(costs[level])
+	if s.ecos < cost:
+		return _fail("sem_ecos")
+	s.ecos -= cost
+	s.passives[id] = level + 1
+	return _ok([{"t": "passive", "id": id, "level": level + 1}])
+
+
+## Bônus das passivas permanentes: modificador -> soma de (add * nível). Id desconhecido é ignorado.
+static func meta_mods(bt: BalanceTables, passives: Dictionary) -> Dictionary:
+	var out := {}
+	var table: Dictionary = bt.get_table("meta_passives").get("passives", {})
+	for id in passives:
+		if not table.has(id):
+			continue
+		var add: Dictionary = table[id].get("add", {})
+		for k in add:
+			out[k] = out.get(k, 0.0) + float(add[k]) * int(passives[id])
+	return out
