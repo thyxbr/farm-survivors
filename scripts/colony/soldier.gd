@@ -43,7 +43,7 @@ var _bar_fg: MeshInstance3D
 
 func _ready() -> void:
 	data = ColonyData.UNITS[unit]
-	max_hp = float(data.hp)
+	max_hp = float(data.hp) * _tech("unit_hp")
 	if hp < 0.0:
 		hp = max_hp
 	add_to_group("soldiers")
@@ -73,6 +73,25 @@ func _ready() -> void:
 	if puppet:
 		collision_layer = 0
 		collision_mask = 0
+
+
+## Multiplicador de pesquisa da cidade (1.0 fora dela).
+func _tech(key: String) -> float:
+	return colony.mult(key) if colony and colony.has_method("mult") else 1.0
+
+
+## Treino de Elite concluído: a vida máxima sobe e a atual sobe junto.
+func refresh_max_hp() -> void:
+	if dead:
+		return
+	var old := max_hp
+	max_hp = float(data.hp) * _tech("unit_hp")
+	hp = clampf(hp + max_hp - old, 1.0, max_hp)
+
+
+## Dano de um golpe/flecha: Treino de Elite e, para os arqueiros, Flechas de Ferro.
+func unit_damage() -> float:
+	return float(data.damage) * _tech("unit_dmg") * (_tech("arrow_dmg") if is_ranged() else 1.0)
 
 
 func is_ranged() -> bool:
@@ -222,7 +241,7 @@ func _update_attack(delta: float) -> void:
 				var s := SHOT.new()
 				s.kind = "arrow"
 				s.target = target
-				s.damage = float(data.damage)
+				s.damage = unit_damage()
 				get_parent().add_child(s)
 				s.global_position = global_position + Vector3.UP * 1.45 + model.global_basis.z * 0.4
 				Sfx.play_at("swing", global_position, 0.25, -16.0)
@@ -232,7 +251,7 @@ func _update_attack(delta: float) -> void:
 				var to := target.global_position - global_position
 				to.y = 0.0
 				if to.length() - target.radius <= float(data.reach) + 0.6:
-					target.take_damage(float(data.damage) * randf_range(0.9, 1.1) * target.resist_mult("melee"), global_position, false)
+					target.take_damage(unit_damage() * randf_range(0.9, 1.1) * target.resist_mult("melee"), global_position, false)
 	if _attack_t >= (0.75 if is_ranged() else 0.6):
 		_attack_t = -1.0
 		_cd = float(data.cooldown) * randf_range(0.9, 1.1) * (1.0 if _has_ammo else ColonyData.NO_AMMO_RATE)

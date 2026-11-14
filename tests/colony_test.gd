@@ -48,6 +48,14 @@ func _ready() -> void:
 	check(colony.hall == hall and colony.phase == "day", "prefeitura fundada e o dia começa")
 	check(colony.pop_cap() == 6, "prefeitura abriga 6 (%d)" % colony.pop_cap())
 	check(get_tree().get_nodes_in_group("animals").size() > 0, "animais de caça surgem no mapa")
+	# --- eras: a era é o nível da prefeitura
+	check(colony.era() == 1 and colony.advance_era().begins_with("Exige"), "era II exige serraria e pedreira")
+	check(colony.can_place("cannon_tower", Vector3(14, 0, 14), 0.0).contains("era"), "torre de canhão exige era II")
+	check(colony.can_place("mage_tower", Vector3(14, 0, 14), 0.0).contains("era"), "torre arcana exige era II")
+	check(ColonyData.era_cost(2, 1) == {"food": 250, "wood": 250, "stone": 150, "gold": 200}, "custo da era II")
+	check(ColonyData.era_cost(2, 3).gold == int(round(200 * 1.7)) and ColonyData.era_cost(3, 1).crystal == 20,
+		"em grupo a era custa +35%% por jogador extra")
+	check(ColonyData.TECHS.size() == 11, "11 pesquisas na tabela")
 
 	# --- regras de posicionamento
 	check(colony.can_place("house", Vector3(0, 0, -6), 0.0) != "", "espaço ocupado é recusado")
@@ -78,8 +86,7 @@ func _ready() -> void:
 	check(colony.place("market", Vector3(12, 0, 8), 0.0) == null and colony.count_of("market") == 0, "place sem recurso não constrói nem cobra")
 	colony.res["stone"] = 2000
 	colony.res["wood"] = 2000
-	var ec := colony.upgrade_cost(colony.hall)
-	check(ec.has("gold") and not ec.has("wood"), "melhoria da prefeitura segue em ouro")
+	check(colony.upgrade_cost(colony.hall) == ColonyData.era_cost(2, 1), "melhorar a prefeitura = custo da era II")
 	check(ColonyData.upgrade_cost("house", 2).has("iron") and not ColonyData.upgrade_cost("house", 1).has("iron"), "melhoria para o nível 3 pede ferro")
 	# o servidor recusa pedidos sem recurso (net_request roda o mesmo caminho do servidor; aqui chamado no solo,
 	# porque place/upgrade/repair não dependem do papel). Nada pode ficar negativo nem mudar.
@@ -93,8 +100,8 @@ func _ready() -> void:
 	check(err_p == "Faltam %d de Pedra." % need_stone and colony.buildings().size() == nb0 and colony.amount("stone") == 0
 		and Game.gold == 2000 and colony.amount("wood") == wood_r, "servidor recusa construção sem pedra e não cobra nada")
 	var err_u: String = colony.net_request(1, "upgrade", [999])
-	check(err_u.begins_with("Faltam ") and err_u.contains("Pedra") and bk.level == 1 and colony.amount("stone") == 0
-		and Game.gold == 2000 and colony.amount("wood") == wood_r, "servidor recusa melhoria sem recurso (%s)" % err_u)
+	check(err_u.contains("era") and bk.level == 1 and colony.amount("stone") == 0
+		and Game.gold == 2000 and colony.amount("wood") == wood_r, "servidor recusa melhoria acima da era (%s)" % err_u)
 	var hp_bk := bk.hp
 	bk.hp = bk.max_hp * 0.5
 	var err_r: String = colony.net_request(1, "repair", [999])
@@ -262,12 +269,74 @@ func _ready() -> void:
 	g0 = Game.gold
 	check(colony.recruit("soldier") == "", "recruta um soldado")
 	check(colony.recruit("archer") == "", "recruta um arqueiro")
-	check(colony.recruit("knight") != "", "cavaleiro exige quartel nível 2")
+	check(colony.recruit("knight").contains("era"), "cavaleiro exige a era II")
 	await wait(0.2)
 	check(colony.soldier_count() == 2 and colony.citizens == cit - 2, "soldados saem dos moradores")
 	colony.citizens += 2   # a torre abaixo precisa de um aldeão livre
 	check(Game.gold == g0 - 150, "recrutar cobra o preço")
 	check(colony.salaries() == 11, "salários somam 11/dia")
+
+	# --- eras e pesquisas
+	var keep_era := [colony.citizens, Game.gold, colony.food, colony.res.duplicate()]
+	var camp2 := colony.place("lumber_camp", spot, 0.0, true)
+	var quarry2 := colony.place("quarry", qspot, 0.0, true)
+	Game.gold = 0
+	colony.food = 1000
+	for r in ["wood", "stone", "iron", "crystal"]:
+		colony.res[r] = 1000
+	var err_e: String = colony.net_request(1, "era", [])
+	check(err_e == "Faltam 200 de Ouro." and colony.food == 1000 and colony.amount("wood") == 1000 and colony.busy_t.is_empty()
+		and colony.era() == 1, "servidor recusa avançar de era sem ouro e não cobra nada (%s)" % err_e)
+	Game.gold = 5000
+	colony.citizens = colony.pop_cap() - 1
+	check(colony.train_villager() == "", "aldeão na fila antes de avançar de era")
+	check(colony.advance_era() == "", "avança para a era II")
+	check(colony.advance_era() != "" and colony.net_state().busy.has(colony.hall.net_id), "avanço em andamento vai no estado e não repete")
+	await wait(ColonyData.VILLAGER_TIME + 1.0)
+	check(colony.train_queue == 1 and colony.era() == 1, "a prefeitura não treina enquanto avança de era")
+	await wait(ColonyData.ERA_TIME - ColonyData.VILLAGER_TIME - 0.5)
+	check(colony.era() == 2 and colony.hall.level == 2, "era II = prefeitura nível 2")
+	check(colony.busy_t.is_empty(), "prefeitura livre depois da era")
+	var r0 := ColonyData.gather_rate(1.0, 8, colony.mult("wood"))
+	check(colony.research("sharp_axe") == "", "pesquisa Machado Afiado")
+	check(colony.research("sharp_axe") != "", "a mesma pesquisa não começa duas vezes")
+	await wait(ColonyData.TECH_TIME + 0.5)
+	check(is_equal_approx(ColonyData.gather_rate(1.0, 8, colony.mult("wood")), r0 * 1.2), "Machado Afiado dá +20% madeira")
+	check(colony.research("sharp_axe") != "", "pesquisa não se compra duas vezes")
+	check(colony.research("arcane_focus").contains("era"), "pesquisa da era III bloqueada na era II")
+	check(colony.research("plow") == "" or colony.count_of("farm") == 0, "pesquisa do Arado começa na fazenda")
+	check(colony.train_queue == 0, "o treino volta depois da era")
+	var live_tree := colony.nature.nearest("tree", player.global_position)
+	var wh0 := colony.amount("wood")
+	for i in 4:
+		colony.harvest(live_tree.id, player.global_position)
+	check(colony.amount("wood") > wh0 + 24, "Machado Afiado vale para o jogador (%d)" % (colony.amount("wood") - wh0))
+	# pesquisas que mexem na vida: as construções que já existem crescem junto
+	var hmax := colony.hall.max_hp
+	var hhp := colony.hall.hp
+	var wl := colony.place("wall", Vector3(-20, 0, 26), 0.0, true)
+	var wmax := wl.max_hp
+	colony._finish_tech("masonry")
+	check(is_equal_approx(colony.hall.max_hp, hmax * 1.2) and is_equal_approx(colony.hall.hp, hhp + hmax * 0.2), "Alvenaria: +20% de vida nas construções existentes")
+	colony._finish_tech("reinforced_wall")
+	check(is_equal_approx(wl.max_hp, wmax * 1.2 * 1.4) and is_equal_approx(colony.hall.max_hp, hmax * 1.2), "Muralha Reforçada: só muros e portões +40%")
+	colony.demolish(wl)
+	var sol: ColonySoldier = colony.soldiers()[0]
+	var smax := sol.max_hp
+	colony._finish_tech("elite_training")
+	check(is_equal_approx(sol.max_hp, smax * 1.15) and is_equal_approx(sol.unit_damage(), float(sol.data.damage) * 1.15),
+		"Treino de Elite: tropas +15% de vida e dano")
+	check(colony.bonus("chain_add") == 0 and is_equal_approx(colony.mult("unit_dmg"), 1.15), "bonus/mult lidos da tabela")
+	colony.hall.level = 3   # só para conferir o bônus de aldeões da era III
+	check(colony.crew_for("lumber_camp") == 4 and colony.crew_for("quarry") == 4 and colony.crew_for("farm") == 2, "era III: +1 aldeão nas serrarias e pedreiras")
+	colony.hall.level = 2
+	colony.busy_t.clear()   # descarta o Arado (o resto do teste não depende dele)
+	colony.demolish(camp2)
+	colony.demolish(quarry2)
+	colony.citizens = keep_era[0]
+	Game.gold = keep_era[1]
+	colony.food = keep_era[2]
+	colony.res = keep_era[3]
 
 	# --- torre defende
 	var tower := colony.place("archer_tower", Vector3(8, 0, 14), 0.0)
@@ -440,6 +509,10 @@ func _ready() -> void:
 	var stone_s := colony.amount("stone")
 	var inv_s: Dictionary = colony.buildings()[0].invested.duplicate()
 	var save_v: int = int(colony.to_dict().get("version", 0))
+	Game.gold += 200
+	colony.res["wood"] = int(colony.res.get("wood", 0)) + 200
+	check(colony.research("plow") == "", "Arado em andamento na hora de salvar")
+	gold_s = Game.gold
 	check(world.save_colony(), "salva a cidade")
 	check(Game.has_colony_save(), "arquivo de save existe")
 	Game.start_colony(true)
@@ -450,6 +523,8 @@ func _ready() -> void:
 	check(colony.day == day_s and Game.gold == gold_s, "carrega dia e ouro")
 	check(save_v == 2 and colony.amount("stone") == stone_s, "carrega o estoque de recursos (save versão 2)")
 	check(colony.buildings()[0].invested == inv_s, "carrega o investido por recurso")
+	check(colony.has_tech("sharp_axe") and colony.has_tech("masonry") and colony.era() == 2, "carrega as pesquisas e a era")
+	check(colony.busy_t.size() == 1 and str(colony.busy_t.values()[0][0]) == "plow", "pesquisa em andamento volta do save")
 	var old := colony.to_dict()
 	old.erase("res")
 	old["version"] = 1

@@ -19,6 +19,7 @@ var _msg: Label
 var _refresh := false
 var _train_bar: ProgressBar
 var _train_shown := 0   # tamanho da fila quando a janela foi montada
+var _busy_bar: ProgressBar   # progresso da era/pesquisa desta construção
 
 
 func _ready() -> void:
@@ -46,6 +47,11 @@ func _process(_delta: float) -> void:
 			_close()
 			return
 		_rebuild()
+	elif _busy_bar != null and is_instance_valid(_busy_bar):
+		if building == null or not colony.busy_t.has(building.net_id):
+			_rebuild()   # a era/pesquisa terminou
+		else:
+			_busy_bar.value = float(colony.busy_t[building.net_id][1])
 	elif _train_bar != null and is_instance_valid(_train_bar):
 		if colony.train_queue != _train_shown:
 			_rebuild()   # a fila andou
@@ -57,6 +63,7 @@ func _rebuild() -> void:
 	for c in _box.get_children():
 		c.queue_free()
 	_train_bar = null
+	_busy_bar = null
 	var keep_msg := _msg.text if _msg else ""
 	if mode == "defeat":
 		_build_defeat()
@@ -121,11 +128,15 @@ func _build_building() -> void:
 	_box.add_child(_line(_stats(b), UITheme.TEXT, 15))
 
 	var h := _row()
-	if b.level < ColonyData.MAX_LEVEL:
+	if b.is_core:
+		pass   # a prefeitura sobe de nível avançando de era (seção abaixo)
+	elif b.level < ColonyData.MAX_LEVEL:
 		var cost := colony.upgrade_cost(b)
 		var up := UITheme.button("Melhorar p/ nível %d — %s" % [b.level + 1, ColonyData.cost_text(cost)], func() -> void: _act(colony.upgrade(b)))
-		up.disabled = colony.missing(cost) != ""
+		up.disabled = colony.missing(cost) != "" or b.level >= colony.era()
 		h.add_child(up)
+		if b.level >= colony.era():
+			h.add_child(UITheme.label("(exige a era %s)" % ColonyData.ERA_ROMAN[b.level + 1], 14, UITheme.BAD))
 	else:
 		h.add_child(UITheme.label("Nível máximo", 15, UITheme.DIM))
 	var rc := colony.repair_cost(b)
@@ -138,11 +149,68 @@ func _build_building() -> void:
 			colony.demolish(b)
 			_close()))
 
+	if colony.busy_t.has(b.net_id):
+		var act: String = colony.busy_t[b.net_id][0]
+		var bh := _row()
+		bh.add_child(UITheme.label("Avançando para a era %s" % ColonyData.ERAS[b.level + 1].name if act == "era"
+			else "Pesquisando: %s" % ColonyData.TECHS[act].name, 15, UITheme.GOLD))
+		_busy_bar = UITheme.bar(UITheme.GOLD, 200, 14)
+		_busy_bar.max_value = ColonyData.ERA_TIME if act == "era" else ColonyData.TECH_TIME
+		_busy_bar.value = float(colony.busy_t[b.net_id][1])
+		bh.add_child(_busy_bar)
+		if colony.phase != "day":
+			bh.add_child(UITheme.label("(só avança de dia)", 13, UITheme.DIM))
 	match b.kind:
 		"town_hall":
+			_build_era()
 			_build_hall()
 		"barracks":
 			_build_barracks()
+	_build_techs(b)
+
+
+## Prefeitura: avançar de era, com os requisitos que faltam em vermelho.
+func _build_era() -> void:
+	var e := colony.era()
+	_box.add_child(UITheme.section("Era %s" % ColonyData.ERAS[e].name, 18))
+	if e >= ColonyData.MAX_LEVEL:
+		_box.add_child(_line("A cidade está na última era.", UITheme.DIM, 14))
+		return
+	var cost := ColonyData.era_cost(e + 1, colony.team_size)
+	var req := colony.era_requirements(e + 1)
+	var h := _row()
+	var btn := UITheme.button("Avançar para a era %s — %s" % [ColonyData.ERA_ROMAN[e + 1], ColonyData.cost_text(cost)],
+		func() -> void: _act(colony.advance_era()))
+	btn.disabled = req != "" or colony.missing(cost) != "" or colony.busy_t.has(building.net_id) or colony.phase != "day"
+	h.add_child(btn)
+	if req != "":
+		_box.add_child(_line(req, UITheme.BAD, 14))
+	_box.add_child(_line("Leva %d s de dia; enquanto isso a prefeitura não treina aldeões." % int(ColonyData.ERA_TIME), UITheme.DIM, 13))
+
+
+## Pesquisas feitas nesta construção: comprada, bloqueada pela era ou com preço.
+func _build_techs(b: ColonyBuilding) -> void:
+	var list: Array = []
+	for t in ColonyData.TECH_ORDER:
+		if ColonyData.TECHS[t].at == b.kind:
+			list.append(t)
+	if list.is_empty():
+		return
+	_box.add_child(UITheme.section("Pesquisas", 18))
+	for t in list:
+		var d: Dictionary = ColonyData.TECHS[t]
+		var h := _row()
+		var info := UITheme.label("%s — %s" % [d.name, d.desc], 15)
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		h.add_child(info)
+		if colony.has_tech(t):
+			h.add_child(UITheme.label("Pesquisada", 14, UITheme.GOOD))
+		elif colony.era() < int(d.era):
+			h.add_child(UITheme.label("Exige a era %s" % ColonyData.ERA_ROMAN[int(d.era)], 14, UITheme.BAD))
+		else:
+			var btn := UITheme.button("Pesquisar — %s" % ColonyData.cost_text(d.cost), func() -> void: _act(colony.research(t)))
+			btn.disabled = colony.tech_block(t) != "" or colony.missing(d.cost) != ""
+			h.add_child(btn)
 
 
 func _stats(b: ColonyBuilding) -> String:
@@ -153,9 +221,9 @@ func _stats(b: ColonyBuilding) -> String:
 		"house":
 			return "Abriga %d moradores." % (int(b.data.pop) + 3 * (lv - 1))
 		"farm":
-			return "Produz %d comida por dia (com %d aldeões)." % [int(round(b.data.food * ColonyData.level_mult(lv, 0.5))), b.data.crew]
+			return "Produz %d comida por dia (com %d aldeões)." % [int(round(b.data.food * ColonyData.level_mult(lv, 0.5) * colony.mult("food"))), colony.crew_for(b.kind)]
 		"market":
-			return "Rende %d ouro por dia (com %d aldeões)." % [int(round(b.data.gold * ColonyData.level_mult(lv, 0.5))), b.data.crew]
+			return "Rende %d ouro por dia (com %d aldeões)." % [int(round(b.data.gold * ColonyData.level_mult(lv, 0.5))), colony.crew_for(b.kind)]
 		"barracks":
 			return "Aloja %d soldados." % (int(b.data.army) + 3 * (lv - 1))
 		"spikes":
@@ -242,7 +310,7 @@ func _build_barracks() -> void:
 			"à distância" if u.get("ranged", false) else "corpo a corpo", u.salary], 13, UITheme.DIM))
 		var btn := UITheme.button("Recrutar — %d" % u.cost, func() -> void: _act(colony.recruit(id)))
 		btn.custom_minimum_size.x = 170
-		btn.disabled = colony.get_gold() < int(u.cost) or colony.barracks_level() < int(u.get("needs_level", 1))
+		btn.disabled = colony.get_gold() < int(u.cost) or colony.era() < int(u.get("needs_era", 1))
 		h.add_child(btn)
 	var counts := {}
 	for s in colony.soldiers():

@@ -89,12 +89,7 @@ func _collision_offset_z() -> float:
 
 
 func _apply_level(full_hp: bool) -> void:
-	var old_max := max_hp
-	max_hp = data.hp * ColonyData.level_mult(level, 0.4)
-	if full_hp:
-		hp = max_hp
-	else:
-		hp = clampf(hp + (max_hp - old_max if old_max > 1.0 else 0.0), 1.0, max_hp)
+	_set_max_hp(full_hp)
 	if visual:
 		visual.free()
 	visual = ColonyVisuals.make(kind, level)
@@ -119,6 +114,24 @@ func _add_light(pos: Vector3, c: Color, energy: float, rng: float) -> void:
 	visual.add_child(l)
 
 
+## Vida máxima pelo nível e pelas pesquisas (Alvenaria, Muralha Reforçada); a vida atual sobe junto.
+func _set_max_hp(full_hp: bool) -> void:
+	var old_max := max_hp
+	max_hp = data.hp * ColonyData.level_mult(level, 0.4) * (colony.bld_hp_mult(kind) if colony and colony.has_method("bld_hp_mult") else 1.0)
+	if full_hp:
+		hp = max_hp
+	else:
+		hp = clampf(hp + (max_hp - old_max if old_max > 1.0 else 0.0), 1.0, max_hp)
+
+
+## Uma pesquisa mudou a vida máxima: recalcula sem trocar o visual.
+func refresh_max_hp() -> void:
+	if dead:
+		return
+	_set_max_hp(false)
+	_update_interactable()
+
+
 func set_level(lv: int) -> void:
 	level = clampi(lv, 1, ColonyData.MAX_LEVEL)
 	_apply_level(false)
@@ -135,7 +148,10 @@ func tower_range() -> float:
 
 
 func tower_damage() -> float:
-	return float(data.get("damage", 0.0)) * ColonyData.level_mult(level, 0.45)
+	var dmg := float(data.get("damage", 0.0)) * ColonyData.level_mult(level, 0.45)
+	if data.get("shot", "") == "arrow" and colony:
+		dmg *= colony.mult("arrow_dmg")   # Flechas de Ferro
+	return dmg
 
 
 func tower_rate() -> float:
@@ -342,9 +358,9 @@ func _tower_process(delta: float) -> void:
 	s.kind = data.shot
 	s.target = best
 	s.damage = tower_damage()
-	s.splash = float(data.get("splash", 0.0)) * (1.0 + 0.1 * (level - 1))
+	s.splash = float(data.get("splash", 0.0)) * (1.0 + 0.1 * (level - 1)) * colony.mult("splash")
 	s.slow = float(data.get("slow", 0.0))
-	s.chain = int(data.get("chain", 0)) + (level - 1 if kind == "mage_tower" else 0)
+	s.chain = int(data.get("chain", 0)) + (level - 1 + colony.bonus("chain_add") if kind == "mage_tower" else 0)
 	get_parent().add_child(s)
 	s.global_position = muzzle.global_position if muzzle else global_position + Vector3.UP * 5.0
 	if colony.role == "server":

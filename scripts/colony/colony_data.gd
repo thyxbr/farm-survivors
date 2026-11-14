@@ -100,11 +100,66 @@ const UNITS := {
 			"hands": "archer_bracers", "feet": "leather_boots"},
 		"desc": "Atira por cima dos muros."},
 	"knight": {"name": "Cavaleiro", "cost": 180, "salary": 12, "hp": 300, "damage": 28.0, "reach": 2.3,
-		"cooldown": 1.15, "speed": 4.9, "armor": 12, "aggro": 15.0, "needs_level": 2,
+		"cooldown": 1.15, "speed": 4.9, "armor": 12, "aggro": 15.0, "needs_era": 2,
 		"look": {"weapon": "guardian_greatsword", "head": "knight_helm", "armor": "royal_plate",
 			"hands": "iron_gauntlets", "feet": "iron_greaves"},
-		"desc": "Elite. Exige um quartel nível 2."},
+		"desc": "Elite. Exige a era II (Vila)."},
 }
+
+# ---------------------------------------------------------------- eras e pesquisas
+## A era é o nível da prefeitura. cost = preço para chegar nela (solo; em grupo use era_cost);
+## requires: tipo de construção -> quantidade, ou "barracks_level" -> nível mínimo do melhor quartel.
+const ERAS := {
+	1: {"name": "I · Aldeia", "cost": {}, "requires": {}},
+	2: {"name": "II · Vila", "cost": {"food": 250, "wood": 250, "stone": 150, "gold": 200},
+		"requires": {"lumber_camp": 1, "quarry": 1}},
+	3: {"name": "III · Cidade", "cost": {"food": 500, "wood": 450, "stone": 400, "gold": 400, "iron": 40, "crystal": 20},
+		"requires": {"barracks_level": 2}},
+}
+const ERA_ROMAN := ["", "I", "II", "III"]
+const ERA_TIME := 30.0      # segundos de dia para avançar de era
+const TECH_TIME := 20.0     # segundos de dia por pesquisa
+## Construções que só existem a partir de uma era.
+const BUILD_ERA := {"cannon_tower": 2, "mage_tower": 2}
+## Era III: aldeões extras de `crew` nestas construções.
+const ERA3_CREW := {"lumber_camp": 1, "quarry": 1}
+## Pesquisas: era mínima, construção onde se faz (at), custo e efeitos.
+## fx: chave -> multiplicador (lido por Colony.mult); "chain_add" é aditivo (Colony.bonus).
+## Chaves: wood/stone/food (produção), arrow_dmg, bld_hp, wall_hp, ammo_wood/ammo_stone/ammo_crystal
+## (consumo de munição), splash, chain_add, unit_hp, unit_dmg.
+const TECHS := {
+	"sharp_axe": {"name": "Machado Afiado", "era": 1, "at": "lumber_camp", "cost": {"gold": 60, "wood": 60},
+		"fx": {"wood": 1.2}, "desc": "+20% madeira (serraria e jogador)"},
+	"pickaxe": {"name": "Picareta", "era": 1, "at": "quarry", "cost": {"gold": 60, "wood": 80},
+		"fx": {"stone": 1.2}, "desc": "+20% pedra"},
+	"plow": {"name": "Arado", "era": 1, "at": "farm", "cost": {"gold": 80, "wood": 80},
+		"fx": {"food": 1.2}, "desc": "+20% comida"},
+	"arrow_bundles": {"name": "Feixes de Flechas", "era": 2, "at": "archer_tower", "cost": {"gold": 100, "wood": 120},
+		"fx": {"ammo_wood": 0.7}, "desc": "−30% munição de madeira"},
+	"iron_arrows": {"name": "Flechas de Ferro", "era": 2, "at": "archer_tower", "cost": {"gold": 120, "wood": 100, "iron": 10},
+		"fx": {"arrow_dmg": 1.15}, "desc": "+15% dano de flechas (torres e arqueiros)"},
+	"masonry": {"name": "Alvenaria", "era": 2, "at": "town_hall", "cost": {"gold": 150, "stone": 200},
+		"fx": {"bld_hp": 1.2}, "desc": "+20% vida de todas as construções"},
+	"double_saw": {"name": "Serra Dupla", "era": 2, "at": "lumber_camp", "cost": {"gold": 120, "wood": 150, "iron": 10},
+		"fx": {"wood": 1.2}, "desc": "+20% madeira (soma com o Machado)"},
+	"fine_powder": {"name": "Pólvora Fina", "era": 3, "at": "cannon_tower", "cost": {"gold": 200, "stone": 200, "iron": 25},
+		"fx": {"splash": 1.25, "ammo_stone": 0.7}, "desc": "+25% raio da explosão, −30% munição"},
+	"arcane_focus": {"name": "Foco Arcano", "era": 3, "at": "mage_tower", "cost": {"gold": 200, "crystal": 25},
+		"fx": {"chain_add": 1, "ammo_crystal": 0.7}, "desc": "+1 salto na cadeia, −30% munição"},
+	"reinforced_wall": {"name": "Muralha Reforçada", "era": 3, "at": "town_hall", "cost": {"gold": 150, "stone": 400},
+		"fx": {"wall_hp": 1.4}, "desc": "muros e portões +40% vida"},
+	"elite_training": {"name": "Treino de Elite", "era": 3, "at": "barracks", "cost": {"gold": 250, "food": 150, "iron": 30},
+		"fx": {"unit_hp": 1.15, "unit_dmg": 1.15}, "desc": "tropas +15% vida e dano"},
+}
+const TECH_ORDER := ["sharp_axe", "pickaxe", "plow", "arrow_bundles", "iron_arrows", "masonry", "double_saw",
+	"fine_powder", "arcane_focus", "reinforced_wall", "elite_training"]
+
+
+## Custo para chegar à era `era` com `players` jogadores: +35% por jogador além do primeiro.
+static func era_cost(era: int, players: int) -> Dictionary:
+	if not ERAS.has(era):
+		return {}
+	return scale_cost(ERAS[era].cost, 1.0 + 0.35 * (maxi(1, players) - 1))
 const UNIT_ORDER := ["militia", "soldier", "archer", "knight"]
 
 ## Nós de recurso que o jogador coleta com o ataque normal: recurso, golpes para esgotar e total entregue.
@@ -298,10 +353,11 @@ static func level_mult(level: int, per := 0.45) -> float:
 
 
 ## Melhorar da faixa `level` para a seguinte: 80% × nível × custo-base; o nível 3 pede ainda 5 de ferro.
-## A prefeitura continua em ouro (as eras a substituem).
+## A prefeitura não passa por aqui: melhorá-la é avançar de era (era_cost).
 static func upgrade_cost(kind: String, level: int) -> Dictionary:
-	var base: Dictionary = {"gold": 250} if kind == "town_hall" else BUILDINGS[kind].cost
-	var c := scale_cost(base, 0.8 * level)
-	if level >= 2 and kind != "town_hall":
+	if kind == "town_hall":
+		return era_cost(level + 1, 1)
+	var c := scale_cost(BUILDINGS[kind].cost, 0.8 * level)
+	if level >= 2:
 		c = add_cost(c, {"iron": 5})
 	return c
