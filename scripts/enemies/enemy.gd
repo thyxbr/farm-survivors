@@ -703,6 +703,7 @@ func apply_stun(t: float) -> void:
 	if dead or is_boss:
 		return
 	stagger = max(stagger, t)
+	attack_cd = max(attack_cd, t)   # sem golpe novo durante o atordoamento (o stagger de um golpe comum fica como está)
 	if state == "attack":
 		_set_state("chase")
 

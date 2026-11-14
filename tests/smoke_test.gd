@@ -198,7 +198,9 @@ func _ready() -> void:
 		if e != qk_a and e.kind == "slime" and not e.dead:
 			qk_b = e
 			break
-	var qk_base := qk_a.home + Vector3(0, 0.3, 40.0)   # longe de tudo
+	var qk_base := pos_c + Vector3(0, 0.3, 0)   # chão firme da vila
+	qk_a.hp = qk_a.max_hp   # o mais próximo pode ser o ferido pela Investida
+	qk_b.hp = qk_b.max_hp
 	player.global_position = qk_base
 	player.model.rotation.y = PI   # olhando para -Z
 	player.velocity = Vector3.ZERO
@@ -227,12 +229,29 @@ func _ready() -> void:
 	check(qk_pos.distance_to(qk_a.global_position) < 2.5, "inimigo atordoado não avançou (%.2f m)" % qk_pos.distance_to(qk_a.global_position))
 	# a esquiva não cancela
 	Game.stamina = Game.max_stamina()
+	qk_a.hp = qk_a.max_hp   # sobrevive ao segundo golpe
 	player.cooldowns.sword_quake = 0.0
 	player.use_slot(2)
 	await wait(0.1)
 	player._dodge_pressed(Vector3.ZERO)
 	check(player.ability == "sword_quake" and player.dodge_timer <= 0.0, "esquiva não cancela o Golpe Sísmico")
 	await wait(0.7)
+	# colado no jogador, o atordoado não volta a atacar durante o atordoamento
+	player.global_position = qk_base
+	player.model.rotation.y = PI
+	qk_a.global_position = qk_base + Vector3(0, 0, -1.2)
+	qk_a.attack_cd = 0.0
+	qk_a.hp = qk_a.max_hp
+	player.cooldowns.sword_quake = 0.0
+	player.use_slot(2)
+	await wait(0.45)   # impacto aos 0,35 s
+	var qk_attacked := false
+	for i in 8:
+		await wait(0.08)
+		if qk_a.state == "attack":
+			qk_attacked = true
+	check(qk_a.stagger > 0.0 and not qk_attacked, "atordoado ao alcance não ataca durante o atordoamento (stagger %.2f)" % qk_a.stagger)
+	await wait(0.3)
 	Game.level = lvl_q
 	Game.fury = 0.0
 	player.cooldowns.sword_quake = 0.0
