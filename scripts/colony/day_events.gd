@@ -139,6 +139,8 @@ func interact(pid: int) -> String:
 		colony._res_changed()
 		complete("lost_villagers")
 	else:
+		if not enemies().is_empty():
+			return "Os monstros ainda guardam o baú!"
 		var loot := {"gold": 40 + 10 * colony.day, "wood": 60, "stone": 40}
 		colony.gain(loot, pos + Vector3.UP * 1.5)
 		colony.say("Baú esquecido aberto: %s para a cidade." % ColonyData.cost_text(loot), Color(1, 0.85, 0.35))
@@ -174,6 +176,15 @@ func on_animal_killed(a: ColonyAnimal) -> void:
 		complete("alpha")
 	elif active == "lost_villagers" and animals().is_empty():
 		colony.say("Os lobos caíram! Fale com os aldeões para trazê-los à cidade.", Color(0.8, 1.0, 0.7))
+
+
+## Monstros do evento ainda vivos (guardas do baú, slimes do meteoro, o ataque à serraria).
+func enemies() -> Array[Enemy]:
+	var out: Array[Enemy] = []
+	for e in _enemies:
+		if is_instance_valid(e) and not e.dead and not e.is_queued_for_deletion():
+			out.append(e)
+	return out
 
 
 ## "Nordeste" etc.: direção de `p` vista da prefeitura (0 = norte, -Z, sentido horário).
@@ -311,6 +322,8 @@ func _spawn_enemy(kind: String, at: Vector3, siege: bool) -> Enemy:
 
 func _on_enemy_died(e: Enemy) -> void:
 	_enemies.erase(e)
+	if active == "lost_chest" and enemies().is_empty():
+		colony.say("Os guardas do baú caíram! Ele já pode ser aberto.", Color(1, 0.85, 0.35))
 	if active != "camp_raid":
 		return
 	for o in _enemies:

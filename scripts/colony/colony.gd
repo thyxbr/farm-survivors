@@ -1566,7 +1566,7 @@ func summon_minions(pos: Vector3, n: int) -> void:
 
 
 func _on_enemy_died(e: Enemy) -> void:
-	if e.siege:
+	if e.siege and phase == "night":   # o ataque à serraria (de dia) não conta como abate da noite
 		night_kills += 1
 		total_kills += 1
 		_dirty()
@@ -2004,7 +2004,7 @@ func net_request(pid: int, action: String, args: Array) -> String:
 func net_state() -> Dictionary:
 	_state_dirty = false
 	return {"gold": gold, "food": food, "res": res, "cit": citizens, "tq": train_queue, "tt": train_t, "day": day, "phase": phase, "pt": phase_t,
-		"tax": tax_level, "army": army_mode, "rally": [rally.x, rally.z], "wl": wave_left(), "wt": wave_total,
+		"tax": tax_level, "army": army_mode, "rally": [rally.x, rally.z], "wl": wave_left() if phase == "night" else 0, "wt": wave_total,
 		"wd": wave_dirs, "nk": night_kills, "tk": total_kills, "nm": night_mod, "xm": next_mod,
 		"hall": hall.net_id if hall and is_instance_valid(hall) else 0, "votes": votes.size(), "team": team_size,
 		"rep": last_report, "dl": day_length, "fb": first_day_bonus, "techs": techs.keys(), "busy": busy_t}

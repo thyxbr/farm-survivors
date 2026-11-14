@@ -301,6 +301,14 @@ func _ready() -> void:
 	colony.events.end()
 	# baú esquecido
 	check(colony.events.roll(4, "lost_chest") == "lost_chest", "baú esquecido aparece")
+	var guards: Array = colony.events.enemies()
+	g0 = colony.get_gold()
+	check(guards.size() == ColonyData.EVENT_CHEST_GUARDS and colony.event_interact() != "" and colony.get_gold() == g0,
+		"com os guardas vivos o baú não abre")
+	var tk0 := colony.total_kills
+	for e in guards:
+		e.take_damage(999999, e.global_position, false)
+	check(colony.total_kills == tk0, "abates de dia não contam como abates da noite")
 	g0 = colony.get_gold()
 	var wd0 := colony.amount("wood")
 	check(colony.event_interact() == "" and colony.get_gold() == g0 + 40 + 10 * colony.day and colony.amount("wood") == wd0 + 60,
@@ -328,6 +336,7 @@ func _ready() -> void:
 			raiders += 1
 			aimed = aimed and c._siege_target == raid_camp
 	check(raiders == 3 + 6 / 3 and aimed, "monstros vão até a serraria (%d)" % raiders)
+	check(int(colony.net_state().wl) == 0, "de dia o ataque não aparece como onda")
 	colony.events.end()
 	await wait(0.1)
 	check(colony.siege_alive() == 0, "o ataque some ao anoitecer")
