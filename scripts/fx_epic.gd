@@ -21,6 +21,13 @@ static var _hs_guard: Node
 ## próximo efeito (engasgo em todo golpe depois de uns segundos parado). As cores vêm por vértice.
 static var _mats := {}
 static var _spark_mesh_c: ArrayMesh
+## Malhas, curvas e rampas de cor compartilhadas entre emissores (antes: QuadMesh, Curve e Gradient novos a
+## cada efeito; com 4 ultimates ao mesmo tempo eram ~100 recursos novos por segundo). Ninguém altera a
+## malha, a curva ou a rampa de um emissor depois de criado, então dá para dividir.
+static var _quads := {}
+static var _curves := {}
+static var _ramps := {}
+const _CACHE_MAX := 512   ## tamanhos e cores vêm de poucas constantes; acima disto limpa (proteção)
 
 
 # ---------------------------------------------------------------- texturas (geradas uma vez)
@@ -209,6 +216,46 @@ static func _fade_ramp(c0: Color, c1: Color, c2: Color) -> Gradient:
 	return g
 
 
+## QuadMesh compartilhada de lado `side` (arredondado a 0,05 m) com o material `mat`.
+static func _quad(side: float, mat: Material) -> QuadMesh:
+	side = maxf(0.05, snappedf(side, 0.05))
+	var key := "%d/%.2f" % [mat.get_instance_id(), side]
+	var q: QuadMesh = _quads.get(key)
+	if q == null:
+		if _quads.size() > _CACHE_MAX:
+			_quads.clear()
+		q = QuadMesh.new()
+		q.size = Vector2.ONE * side
+		q.material = mat
+		_quads[key] = q
+	return q
+
+
+## Curva compartilhada pelos pontos (x, y) dados.
+static func _curve(points: Array) -> Curve:
+	var key := str(points)
+	var c: Curve = _curves.get(key)
+	if c == null:
+		c = Curve.new()
+		for pt in points:
+			c.add_point(pt)
+		_curves[key] = c
+	return c
+
+
+## Rampa compartilhada (_fade_ramp com offsets).
+static func _ramp(c0: Color, c1: Color, c2: Color, mid := 0.35) -> Gradient:
+	var key := "%s|%s|%s|%.3f" % [c0, c1, c2, mid]
+	var g: Gradient = _ramps.get(key)
+	if g == null:
+		if _ramps.size() > _CACHE_MAX:
+			_ramps.clear()
+		g = _fade_ramp(c0, c1, c2)
+		g.offsets = PackedFloat32Array([0.0, mid, 1.0])
+		_ramps[key] = g
+	return g
+
+
 # ---------------------------------------------------------------- API
 ## Cria texturas e materiais (gera os shaders) antes do primeiro efeito: tira a maior parte do
 ## engasgo da primeira habilidade da sessão. Chamado ao carregar o jogador local.
@@ -257,10 +304,7 @@ static func glow_burst(pos: Vector3, color: Color, amount := 40, speed := 6.0, s
 		return
 	amount = _reserve(amount)
 	var p := CPUParticles3D.new()
-	var mesh := QuadMesh.new()
-	mesh.size = Vector2.ONE * size * 2.4   # a textura suave perde borda: compensa
-	mesh.material = _particle_mat(_glow_tex(), true)
-	p.mesh = mesh
+	p.mesh = _quad(size * 2.4, _particle_mat(_glow_tex(), true))   # a textura suave perde borda: compensa
 	p.amount = amount
 	p.lifetime = lifetime
 	p.explosiveness = 0.95
@@ -273,12 +317,9 @@ static func glow_burst(pos: Vector3, color: Color, amount := 40, speed := 6.0, s
 	p.damping_max = speed * 0.9
 	p.scale_amount_min = 0.5
 	p.scale_amount_max = 1.6
-	var sc := Curve.new()
-	sc.add_point(Vector2(0, 1.0))
-	sc.add_point(Vector2(1, 0.1))
-	p.scale_amount_curve = sc
+	p.scale_amount_curve = _curve([Vector2(0, 1.0), Vector2(1, 0.1)])
 	var hot := color.lerp(Color.WHITE, 0.25)
-	p.color_ramp = _fade_ramp(_hdr(hot, 1.5), _hdr(color, 1.25), _hdr(color, 1.0, 0.0))
+	p.color_ramp = _ramp(_hdr(hot, 1.5), _hdr(color, 1.25), _hdr(color, 1.0, 0.0))
 	_launch(root, p, pos, amount)
 
 
@@ -290,10 +331,7 @@ static func nova(pos: Vector3, color: Color, amount := 60, speed := 9.0, size :=
 		return
 	amount = _reserve(amount)
 	var p := CPUParticles3D.new()
-	var mesh := QuadMesh.new()
-	mesh.size = Vector2.ONE * size * 2.4
-	mesh.material = _particle_mat(_glow_tex(), true)
-	p.mesh = mesh
+	p.mesh = _quad(size * 2.4, _particle_mat(_glow_tex(), true))
 	p.amount = amount
 	p.lifetime = lifetime
 	p.explosiveness = 1.0
@@ -307,12 +345,8 @@ static func nova(pos: Vector3, color: Color, amount := 60, speed := 9.0, size :=
 	p.gravity = Vector3(0, 1.5, 0)
 	p.scale_amount_min = 0.7
 	p.scale_amount_max = 1.4
-	var sc := Curve.new()
-	sc.add_point(Vector2(0, 0.6))
-	sc.add_point(Vector2(0.3, 1.0))
-	sc.add_point(Vector2(1, 0.2))
-	p.scale_amount_curve = sc
-	p.color_ramp = _fade_ramp(_hdr(color.lerp(Color.WHITE, 0.15), 1.6), _hdr(color, 1.3), _hdr(color, 1.0, 0.0))
+	p.scale_amount_curve = _curve([Vector2(0, 0.6), Vector2(0.3, 1.0), Vector2(1, 0.2)])
+	p.color_ramp = _ramp(_hdr(color.lerp(Color.WHITE, 0.15), 1.6), _hdr(color, 1.3), _hdr(color, 1.0, 0.0))
 	_launch(root, p, pos, amount)
 
 
@@ -335,12 +369,9 @@ static func sparks(pos: Vector3, dir: Vector3, color: Color, amount := 30, speed
 	p.particle_flag_align_y = true
 	p.scale_amount_min = 0.6
 	p.scale_amount_max = 1.3
-	var sc := Curve.new()
-	sc.add_point(Vector2(0, 1.0))
-	sc.add_point(Vector2(1, 0.2))
-	p.scale_amount_curve = sc
+	p.scale_amount_curve = _curve([Vector2(0, 1.0), Vector2(1, 0.2)])
 	var hot := color.lerp(Color.WHITE, 0.6)
-	p.color_ramp = _fade_ramp(_hdr(hot, 2.2), _hdr(color, 1.8), _hdr(color, 1.0, 0.0))
+	p.color_ramp = _ramp(_hdr(hot, 2.2), _hdr(color, 1.8), _hdr(color, 1.0, 0.0))
 	_launch(root, p, pos, amount)
 
 
@@ -351,10 +382,7 @@ static func smoke(pos: Vector3, color := Color(0.35, 0.32, 0.3, 0.6), amount := 
 		return
 	amount = _reserve(amount)
 	var p := CPUParticles3D.new()
-	var mesh := QuadMesh.new()
-	mesh.size = Vector2.ONE * 1.1
-	mesh.material = _particle_mat(_smoke_tex(), false)
-	p.mesh = mesh
+	p.mesh = _quad(1.1, _particle_mat(_smoke_tex(), false))
 	p.amount = amount
 	p.lifetime = lifetime
 	p.explosiveness = 0.8
@@ -371,13 +399,9 @@ static func smoke(pos: Vector3, color := Color(0.35, 0.32, 0.3, 0.6), amount := 
 	p.angle_max = 180.0
 	p.scale_amount_min = 0.7 * radius
 	p.scale_amount_max = 1.3 * radius
-	var sc := Curve.new()
-	sc.add_point(Vector2(0, 0.4))
-	sc.add_point(Vector2(1, 1.6))
-	p.scale_amount_curve = sc
-	p.color_ramp = _fade_ramp(Color(color.r, color.g, color.b, 0.0), color, Color(color.r, color.g, color.b, 0.0))
-	# o início da rampa (alfa 0) cresce rápido: reposiciona o pico logo no começo
-	p.color_ramp.offsets = PackedFloat32Array([0.0, 0.15, 1.0])
+	p.scale_amount_curve = _curve([Vector2(0, 0.4), Vector2(1, 1.6)])
+	# o início da rampa (alfa 0) cresce rápido: o pico fica logo no começo (0,15)
+	p.color_ramp = _ramp(Color(color.r, color.g, color.b, 0.0), color, Color(color.r, color.g, color.b, 0.0), 0.15)
 	_launch(root, p, pos, amount)
 
 
@@ -457,29 +481,18 @@ static func stream(parent: Node3D, kind: String, color: Color, amount: int, life
 		return null
 	amount = _reserve(amount)
 	var p := CPUParticles3D.new()
-	var mesh := QuadMesh.new()
-	var sc := Curve.new()
-	var mat: StandardMaterial3D
 	if kind == "smoke":
-		mesh.size = Vector2.ONE * size
-		mat = _particle_mat(_smoke_tex(), false, true)
-		sc.add_point(Vector2(0, 0.5))
-		sc.add_point(Vector2(1, 1.5))
-		p.color_ramp = _fade_ramp(Color(color.r, color.g, color.b, 0.0), color, Color(color.r, color.g, color.b, 0.0))
-		p.color_ramp.offsets = PackedFloat32Array([0.0, 0.2, 1.0])
+		p.mesh = _quad(size, _particle_mat(_smoke_tex(), false, true))
+		p.scale_amount_curve = _curve([Vector2(0, 0.5), Vector2(1, 1.5)])
+		p.color_ramp = _ramp(Color(color.r, color.g, color.b, 0.0), color, Color(color.r, color.g, color.b, 0.0), 0.2)
 		p.angle_min = -180.0
 		p.angle_max = 180.0
 	else:
-		mesh.size = Vector2.ONE * size * 2.4
-		mat = _particle_mat(_glow_tex(), true, true)
-		sc.add_point(Vector2(0, 1.0))
-		sc.add_point(Vector2(1, 0.15))
+		p.mesh = _quad(size * 2.4, _particle_mat(_glow_tex(), true, true))
+		p.scale_amount_curve = _curve([Vector2(0, 1.0), Vector2(1, 0.15)])
 		# gamas baixas: a cor é sRGB (linearizada no material), um ganho alto estoura para branco
 		var hot := color.lerp(Color(1.0, 0.92, 0.6), 0.3)
-		p.color_ramp = _fade_ramp(_hdr(hot, 1.15, 0.9), _hdr(color, 1.0, 0.8), _hdr(color, 0.8, 0.0))
-	mesh.material = mat
-	p.mesh = mesh
-	p.scale_amount_curve = sc
+		p.color_ramp = _ramp(_hdr(hot, 1.15, 0.9), _hdr(color, 1.0, 0.8), _hdr(color, 0.8, 0.0))
 	p.amount = amount
 	p.lifetime = lifetime
 	p.local_coords = false

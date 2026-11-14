@@ -1128,11 +1128,11 @@ func _test_meteor_rain() -> void:
 	await wait_until(func(): return player.ability_t >= 2.0 or player.ability == "", 3.0)
 	check(player.ability == "meteor_rain", "Meteoros: ainda canalizando aos 2,0 s")
 	var targets1: Array = d1.get("targets", []).slice(0, 4)
+	var n_rel: int = d1.get("targets", []).size()
 	StaffAbilities.release(player)
-	await wait_until(func(): return player.ability == "", 1.0)
-	check(player.ability == "", "Meteoros: soltar a tecla encerra a canalização")
+	check(player.ability == "", "Meteoros: soltar a tecla encerra a canalização na hora")
 	await wait(0.6)
-	check(airborne.call(player) == 0, "Meteoros: nenhum meteoro novo depois de soltar")
+	check(airborne.call(player) == 0 and d1.get("targets", []).size() == n_rel, "Meteoros: nenhum meteoro novo depois de soltar")
 	var h1: Array = hps.call()
 	check(h1[0] < h0[0] and h1[1] < h0[1] and h1[2] < h0[2], "Meteoros: os 3 slimes da área perdem vida (%.0f, %.0f, %.0f)"
 		% [h0[0] - h1[0], h0[1] - h1[1], h0[2] - h1[2]])
@@ -1147,6 +1147,21 @@ func _test_meteor_rain() -> void:
 	check(Game.fury == 0.0, "Meteoros: acertos da ultimate não recarregam a fúria (%.2f)" % Game.fury)
 	check(Game.mp == mp1, "Meteoros: não gasta mana (%.1f -> %.1f)" % [mp1, Game.mp])
 	check(is_equal_approx(Engine.time_scale, 1.0) and player.cam_back == 0.0, "Meteoros: fim restaura tempo e câmera")
+
+	# --- soltar no preparo: acaba na hora, sem meteoro nenhum (a fúria já foi gasta)
+	place_at.call(c)
+	await wait(0.1)
+	var hw: Array = hps.call()
+	Game.fury = 100.0
+	Game.level = 8
+	player.use_slot(4)
+	await wait_until(func(): return player.ability_t >= 0.2 or player.ability == "")
+	check(player.ability == "meteor_rain" and player.ability_t < StaffAbilities.METEOR_WINDUP, "Meteoros: no preparo antes de soltar")
+	StaffAbilities.release(player)
+	check(player.ability == "" and Game.fury == 0.0, "Meteoros: soltar no preparo encerra na hora e a fúria fica gasta")
+	await wait(0.8)
+	check(mets.call(player).is_empty() and hps.call() == hw, "Meteoros: soltar no preparo não faz cair meteoro nenhum")
+	player.cooldowns.meteor_rain = 0.0
 
 	# --- 2) sem soltar: termina sozinha em <= 4,6 s
 	place_at.call(c)

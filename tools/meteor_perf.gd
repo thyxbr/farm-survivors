@@ -17,7 +17,9 @@ var _solo := false
 var _frames: Array = []      ## duração de cada quadro (ms) da fase em medição
 var _gpu: Array = []         ## tempo de GPU de cada quadro (ms)
 var _cpu: Array = []         ## tempo de CPU do desenho de cada quadro (ms)
-var _proc: Array = []        ## tempo de process + physics de cada quadro (ms)
+var _proc: Array = []        ## tempo de process (_process + partículas da CPU) de cada quadro (ms)
+var _phys: Array = []        ## tempo de physics de cada quadro (ms)
+var _nodes: Array = []       ## nós na árvore
 var _measuring := false
 var player: Player
 var _reps: Array = []
@@ -67,7 +69,9 @@ func _process(_delta: float) -> void:
 		var vp := get_viewport().get_viewport_rid()
 		_gpu.append(RenderingServer.viewport_get_measured_render_time_gpu(vp))
 		_cpu.append(RenderingServer.viewport_get_measured_render_time_cpu(vp))
-		_proc.append((Performance.get_monitor(Performance.TIME_PROCESS) + Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)) * 1000.0)
+		_proc.append(Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0)
+		_phys.append(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0)
+		_nodes.append(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
 		if ms > 30.0:
 			print("METEOR_PERF quadro lento %.1f ms aos %.2f s da rodada (%s %.2f)" % [ms, (now - _round_us) / 1.0e6, player.ability, player.ability_t])
 	_last_us = now
@@ -177,6 +181,8 @@ func _measure(action: Callable, seconds: float, every: float) -> Array:
 	_gpu = []
 	_cpu = []
 	_proc = []
+	_phys = []
+	_nodes = []
 	_measuring = true
 	var t := 0.0
 	while t < seconds - 0.001:
@@ -199,8 +205,8 @@ func _report(what: String, frames: Array) -> void:
 	var sorted := frames.duplicate()
 	sorted.sort()
 	var p99: float = sorted[int(sorted.size() * 0.99)]
-	print("METEOR_PERF %s: %.1f fps médio, pior quadro %.1f ms, p99 %.1f ms (%d quadros); médias: GPU %.1f ms, CPU do desenho %.1f ms, process+physics %.1f ms; %d chamadas de desenho"
-		% [what, frames.size() * 1000.0 / total, worst, p99, frames.size(), _avg(_gpu), _avg(_cpu), _avg(_proc),
+	print("METEOR_PERF %s: %.1f fps médio, pior quadro %.1f ms, p99 %.1f ms (%d quadros); médias: GPU %.1f ms, CPU do desenho %.1f ms, process %.1f ms, physics %.1f ms, %d nós; %d chamadas de desenho"
+		% [what, frames.size() * 1000.0 / total, worst, p99, frames.size(), _avg(_gpu), _avg(_cpu), _avg(_proc), _avg(_phys), int(_avg(_nodes)),
 		Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)])
 
 
@@ -264,7 +270,7 @@ func _snap(name: String, when: Callable) -> void:
 			eye = mid + side * 19.0 - dir * 4.0 + Vector3.UP * 6.0
 			look = mid + dir * 2.0 + Vector3.UP * 4.5
 		"meteor_3_chuva_perto":   # dentro da chuva, olhando para cima
-			eye = _center - side * 6.5 - dir * 2.0 + Vector3.UP * 1.6
+			eye = _center - dir * 7.5 - side * 1.5 + Vector3.UP * 1.6   # do lado do mago: fora das áreas das réplicas
 			look = _center + Vector3.UP * 4.0
 		_:   # o impacto de perto
 			var f := focus if focus != Vector3.ZERO else _center
