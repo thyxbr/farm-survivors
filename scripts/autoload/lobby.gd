@@ -533,13 +533,7 @@ func city_night_survived(n: int) -> void:
 	for pid in Network.zone_peers("city"):
 		if not _present.has(pid):
 			continue
-		var items: Array = []
-		if n % ColonyData.BOSS_EVERY == 0:
-			var it := _roll_item(n)
-			if it != "":
-				items.append(it)
-			items.append("health_potion")
-			items.append("health_potion")
+		var items := ColonyData.night_chest(n)
 		var acc: Dictionary = _rewards.get(pid, {"gold": 0, "xp": 0, "items": [], "account": Econ.account_of(pid)})
 		var got := {}
 		for id in items:
@@ -555,18 +549,6 @@ func city_night_survived(n: int) -> void:
 		_city_reward.rpc_id(pid, n, int(rw.gold), int(rw.xp), items)
 	_update_record(n)
 	_broadcast_room()
-
-
-func _roll_item(n: int) -> String:
-	for entry in ColonyData.chest_rarities(n):
-		if randf() < float(entry[1]):
-			var pool: Array = []
-			for id in ItemDB.ITEMS:
-				if ItemDB.is_equippable(id) and ItemDB.rarity_of(id) == entry[0]:
-					pool.append(id)
-			if not pool.is_empty():
-				return pool.pick_random()
-	return ""
 
 
 func city_defeat() -> void:

@@ -1339,7 +1339,7 @@ func _return_to_village() -> void:
 		# no grupo o servidor concede o XP do fim (e grava o resumo) quando o jogador sai da partida
 		if rewards.xp > 0:
 			Econ.grant(0, rewards.xp, {}, "horde_run")
-		Econ.solo_run_summary("horde", rewards.gold, rewards.xp, _solo_seeds)
+		Econ.run_summary("horde", rewards.gold, rewards.xp, _solo_seeds)
 
 
 # ================================================================ servidor: grupo

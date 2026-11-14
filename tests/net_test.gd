@@ -23,6 +23,8 @@ var chat_got: Array = []   # [nome, texto]
 var relogin := false
 var token := ""
 var join_error := ""
+## --city=join: net_id de um pickup deixado no chão de Valdoria antes da cidade (Review Focus 5).
+var old_pickup := 0
 
 const TEST_PASS := "teste-1234"
 const PICKUP := preload("res://scripts/world/pickup.gd")
@@ -665,6 +667,9 @@ func _test_city() -> void:
 			"todos entraram na sala e ficaram prontos (%d)" % Lobby.room.get("members", []).size())
 		Lobby.room_send("start")
 	else:
+		# Review Focus 5: antes da cidade, deixa um pickup seu no chão de Valdoria (para depois da queda)
+		old_pickup = await _leave_pickup_behind()
+		check(old_pickup > 0, "deixou um pickup no chão de Valdoria (net_id %d)" % old_pickup)
 		check(await _wait_until(func() -> bool: return not Lobby.room.is_empty(), 30.0), "vê a sala aberta no salão")
 		Lobby.room_send("join")
 		check(await _wait_until(func() -> bool: return Lobby.in_room(), 5.0), "entrou na sala")
@@ -679,7 +684,7 @@ func _test_city() -> void:
 	var w: Node = Lobby.city
 	check(c.role == "client" and w.role == "client", "cidade como réplica do servidor")
 	var start_gold := ColonyData.COOP_START_GOLD + ColonyData.COOP_GOLD_PER_PLAYER * (peers - 1)
-	check(await _wait_until(func() -> bool: return c.gold > 0, 5.0) and c.gold == start_gold, "cofre inicial do grupo %d (%d)" % [start_gold, c.gold])
+	check(await _wait_until(func() -> bool: return c.treasury > 0, 5.0) and c.treasury == start_gold, "cofre inicial do grupo %d (%d)" % [start_gold, c.treasury])
 	check(await _wait_until(func() -> bool: return Network.zone_of(multiplayer.get_unique_id()) == "city", 5.0), "servidor vê o jogador na cidade")
 	if peers > 1:
 		check(await _wait_until(func() -> bool: return Network.remote_players.size() == peers - 1, 10.0),
@@ -691,10 +696,10 @@ func _test_city() -> void:
 	check(await _wait_until(func() -> bool: return c.hall != null and c.phase == "day", 10.0), "prefeitura fundada chega a todos")
 	check(await _wait_until(func() -> bool: return c.amap.size() > 0, 5.0), "animais de caça replicados (%d)" % c.amap.size())
 	if city_role == "lead":
-		var g0 := c.gold
+		var g0 := c.treasury
 		c.place("house", Vector3(-12, 0, -6), PI / 2)
 		check(await _wait_until(func() -> bool: return c.count_of("house") == 1, 5.0), "casa construída pelo servidor")
-		check(await _wait_until(func() -> bool: return c.gold == g0 - 60, 3.0), "casa cobra 60 do cofre (%d → %d)" % [g0, c.gold])
+		check(await _wait_until(func() -> bool: return c.treasury == g0 - 60, 3.0), "casa cobra 60 do cofre (%d → %d)" % [g0, c.treasury])
 	else:
 		check(await _wait_until(func() -> bool: return c.count_of("house") == 1, 10.0), "vê a casa do colega")
 		await wait(2.0)   # o líder confere o cofre antes deste gasto
@@ -725,6 +730,12 @@ func _test_city() -> void:
 	var n0 := Network.snapshots_received
 	await wait(1.0)
 	check(Network.snapshots_received - n0 >= int(Network.SEND_RATE * 0.5), "snapshots dos monstros da cidade (%d/s)" % (Network.snapshots_received - n0))
+	if city_role == "join" and peers > 1:
+		# Review Focus 5: cai no meio da noite 1 e volta
+		await _drop_mid_night(w, c)
+		return
+	if city_role == "lead" and peers > 1:
+		await wait(3.0)   # o colega abate o dele antes (e cai no meio da noite)
 	var killed := 0
 	var tt := 0.0
 	while c.phase == "night" and tt < 60.0:
@@ -758,6 +769,90 @@ func _test_city() -> void:
 	# o personagem continua o mesmo em Valdoria
 	Lobby.go_world()
 	check(await _wait_until(func() -> bool: return Network.world != null and Network.world.get("player") != null, 15.0), "entrou em Valdoria depois da cidade")
+	await wait(1.0)
+
+
+## Beto (--city=join), antes da cidade: mata um slime em Valdoria e guarda o net_id de um pickup dele sem
+## pegar (o nó some do cliente; no servidor o pickup continua dele). Volta ao salão. 0 se não conseguiu.
+func _leave_pickup_behind() -> int:
+	Lobby.go_world()
+	if not await _wait_until(func() -> bool: return Network.world != null and Network.world.get("player") != null, 15.0):
+		return 0
+	var w: Node = Network.world
+	await wait(1.0)
+	var found := [0]
+	for attempt in 3:
+		var target: Enemy = null
+		for e in Network.enemies.values():
+			if e.kind == "slime" and not e.dead:
+				target = e
+				break
+		if target == null:
+			break
+		w.player.global_position = target.global_position + Vector3(0, 0.5, 3)
+		await wait(0.3)   # a posição chega ao servidor (HitGuard)
+		var at := target.global_position
+		target.take_damage(9999.0, w.player.global_position, false)
+		await wait(0.2)
+		w.player.global_position = at + Vector3(0, 0.5, 40)   # longe: o ímã não coleta
+		await _wait_until(func() -> bool:
+			for n in w.get_children():
+				if n.get_script() == PICKUP and int(n.net_id) > 0:
+					found[0] = int(n.net_id)
+					n.queue_free()
+			return found[0] > 0, 3.0)
+		if found[0] > 0:
+			break
+	Lobby.go_lobby()
+	await _wait_until(func() -> bool: return _in_lobby(), 10.0)
+	return found[0]
+
+
+## Coleta de um pickup pelo net_id; devolve o erro do servidor ("" se concedeu).
+func _claim(net_id: int) -> String:
+	var from := econ_log.size()
+	Econ.request("claim_pickup", [net_id])
+	var r: Array = await _results_after(from, "claim_pickup")
+	return "sem_resposta" if r.is_empty() else ("" if r[0][0] else str(r[0][1]))
+
+
+## Review Focus 5 (Beto): abate um monstro da noite 1 (o servidor concede XP e o abate na hora), cai e
+## volta: o que já foi concedido continua no estado; o pickup antigo dele não pode mais ser pego.
+func _drop_mid_night(w: Node, c: Colony) -> void:
+	var kills0 := Game.kills
+	var tt := 0.0
+	while Game.kills == kills0 and c.phase == "night" and tt < 20.0:
+		for e in c.live_enemies():
+			w.player.global_position = e.global_position + Vector3(0, 0.5, 2.5)
+			await wait(0.15)
+			if is_instance_valid(e) and not e.dead:
+				w.player.global_position = e.global_position + Vector3(0, 0.5, 2.5)
+				e.take_damage(99999.0, w.player.global_position, false)
+			break
+		await _wait_until(func() -> bool: return Game.kills > kills0, 1.0)
+		tt += 1.2
+	check(Game.kills > kills0 and c.phase == "night", "abateu um monstro no meio da noite 1 (abates %d → %d)" % [kills0, Game.kills])
+	await wait(1.0)   # as concessões em trânsito chegam
+	var xp := Game.xp + Game.level * 100000
+	var kills := Game.kills
+	var gold := Game.gold
+	if old_pickup > 0:
+		check(await _claim(old_pickup) == "longe", "pickup antigo ainda é dele antes da queda (longe)")
+	Game.go_to_menu()   # cai: a conexão fecha no meio da noite
+	await wait(1.0)
+	check(not Network.is_online(), "caiu do servidor no meio da noite")
+	Game.apply_state(CharState.new_character(Balance.tables).to_dict(), true)
+	join_error = ""
+	Network.join(address, token)
+	check(await _wait_until(func() -> bool: return _in_lobby() and Network.is_online(), 15.0) and join_error == "",
+		"voltou ao servidor %s" % join_error)
+	check(Game.xp + Game.level * 100000 == xp and Game.kills == kills and Game.gold == gold,
+		"concessões da noite continuam no estado depois da queda (XP %d, abates %d, ouro %d)" % [Game.xp, Game.kills, Game.gold])
+	if old_pickup > 0:
+		var err := await _claim(old_pickup)
+		check(err == "pego", "pickup antigo recusado depois da queda (%s)" % err)
+	Lobby.go_world()
+	check(await _wait_until(func() -> bool: return Network.world != null and Network.world.get("player") != null, 15.0), "entrou em Valdoria depois da queda")
 	await wait(1.0)
 
 

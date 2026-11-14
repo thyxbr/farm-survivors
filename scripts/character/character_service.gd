@@ -108,16 +108,6 @@ func apply(account_id: int, op: String, args: Array) -> Dictionary:
 	return _result(account_id, r)
 
 
-## Mesma validação e regras de apply(), sobre um estado em memória, sem banco nem registro.
-## Só para a Defesa da Cidade solo, cujo personagem ainda vive num save próprio (até a Task 10).
-func apply_to(s: CharState, op: String, args: Array) -> Dictionary:
-	if not (op in CLIENT_OPS):
-		return {"ok": false, "err": "op_invalida", "events": []}
-	if not _args_ok(op, args):
-		return {"ok": false, "err": "args", "events": []}
-	return _dispatch(s, op, args)
-
-
 ## Concessão do servidor/solo (loot, missão, prêmio de partida).
 func grant(account_id: int, gold: int, xp: int, items: Dictionary, source: String) -> Dictionary:
 	var s := load_or_create(account_id)

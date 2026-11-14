@@ -58,7 +58,7 @@ var _t := 0.0
 
 func _ready() -> void:
 	# solo: o personagem vem do solo.db (antes de montar o mapa: o chefe depende dos flags)
-	if not Network.is_online() and not Econ.sandbox:
+	if not Network.is_online():
 		Econ.ensure_solo()
 	rng.seed = 20261113
 	_build_environment()

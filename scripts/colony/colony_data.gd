@@ -113,6 +113,26 @@ static func chest_rarities(n: int) -> Array:
 	return [["legendary", 1.0]]
 
 
+## Baú da noite n (só nas noites de chefe, a cada BOSS_EVERY): um equipamento sorteado por chest_rarities
+## e duas poções de vida. [] nas outras noites. Vale para o solo e para o grupo (servidor).
+static func night_chest(n: int) -> Array:
+	if n <= 0 or n % BOSS_EVERY != 0:
+		return []
+	var items: Array = []
+	for entry in chest_rarities(n):
+		if randf() < float(entry[1]):
+			var pool: Array = []
+			for id in ItemDB.ITEMS:
+				if ItemDB.is_equippable(id) and ItemDB.rarity_of(id) == entry[0]:
+					pool.append(id)
+			if not pool.is_empty():
+				items.append(pool.pick_random())
+				break
+	items.append("health_potion")
+	items.append("health_potion")
+	return items
+
+
 ## Custo para construir mais uma do tipo, já havendo `owned` (cooperativo).
 static func coop_cost(kind: String, owned: int) -> int:
 	var base := int(BUILDINGS[kind].cost)

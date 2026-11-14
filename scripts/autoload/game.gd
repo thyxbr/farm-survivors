@@ -21,10 +21,12 @@ const WORLD_SCENE := "res://scenes/world.tscn"
 const MENU_SCENE := "res://scenes/main_menu.tscn"
 const COLONY_SCENE := "res://scenes/colony.tscn"
 
-## Defesa da Cidade: saves próprios (cidade + personagem do modo), separados do personagem do RPG.
-## (O personagem do modo some na Task 10, quando a cidade ganha caixa próprio.)
+## Defesa da Cidade solo: save da cidade (a partida em andamento, com o caixa dela). O personagem é o do
+## solo.db: a cidade não tem personagem próprio.
 var colony_save_path := "user://colony_save.json"
-var colony_char_path := "user://colony_character.json"
+## Personagem do modo das versões antigas: só lido (o caixa de uma cidade salva antes do caixa próprio)
+## e apagado no próximo save da cidade.
+var colony_legacy_char_path := "user://colony_character.json"
 ## true = a cena da cidade carrega o save em vez de começar do zero.
 var colony_continue := false
 
@@ -83,8 +85,8 @@ func _ready() -> void:
 		if a.begins_with("--nettest="):
 			get_tree().root.add_child.call_deferred(load("res://tests/net_test.gd").new())
 	if "--colonytest" in OS.get_cmdline_user_args():
-		colony_save_path = "user://colonytest_save.json"
-		colony_char_path = "user://colonytest_character.json"
+		colony_save_path = "user://colonytest_save.json"   # o Econ usa user://colonytest_solo.db, apagado no início
+		colony_legacy_char_path = "user://colonytest_character.json"
 		get_tree().root.add_child.call_deferred(load("res://tests/colony_test.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
 		# o Econ usa user://smoketest_solo.db, apagado no início
@@ -95,7 +97,8 @@ func _ready() -> void:
 ## `--survival` (com ou sem --shot) começa direto no Desafio da Horda.
 ## `--cam=graus,dist` gira a câmera em volta do jogador e muda a distância (ex.: `--cam=180,2.2`
 ## olha o personagem de frente, de perto) — útil para conferir luz e modelo.
-## `--farmdemo`/`--geardemo`/`--weapon=` usam um personagem em memória (sandbox): não mexem no solo.db.
+## `--farmdemo`/`--geardemo`/`--weapon=` usam um personagem novo num banco à parte (user://demo_solo.db,
+## apagado a cada vez): não mexem no solo.db.
 func _debug_screenshot() -> void:
 	var path := ""
 	var delay := 4.0
@@ -114,7 +117,7 @@ func _debug_screenshot() -> void:
 		demo = demo or a.begins_with("--weapon=")
 	if demo:
 		var at = spawn_position
-		Econ.begin_sandbox()
+		Econ.start_scratch_solo("user://demo_solo.db")
 		if at != null:
 			spawn_position = at
 	# `--farmdemo` enche a horta com culturas em vários estágios (para screenshots)
@@ -259,7 +262,8 @@ func continue_game() -> bool:
 	return true
 
 
-## Defesa da Cidade: cont = continuar a cidade salva (senão começa uma nova, com personagem novo).
+## Defesa da Cidade solo: cont = continuar a cidade salva (senão começa uma nova). O personagem é sempre o
+## do solo.db (a cena o carrega); a cidade tem caixa próprio (Colony.treasury).
 func start_colony(cont: bool) -> void:
 	colony_continue = cont and has_colony_save()
 	reset_run_mods()
@@ -285,12 +289,11 @@ func go_to_menu() -> void:
 	if Network.is_online():
 		Network.autosave()
 		Network.leave()
-	elif not Econ.sandbox:
+	else:
 		var w := get_tree().current_scene
 		var p = w.get("player") if w != null and w.get("role") == null else null
 		if p is Player and is_instance_valid(p) and not p.dead and not run_mods.get("active", false):
 			Econ.report_vitals(p.global_position, p.model.rotation.y)
-	Econ.end_sandbox()
 	reset_run_mods()
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -842,15 +845,3 @@ func after_op(op: String, args: Array, ok: bool, _events: Array) -> void:
 		"cook":
 			if ok and selected_food == "" and not args.is_empty():
 				selected_food = str(args[0])
-
-
-## O espelho como dicionário no formato de CharState.to_dict (save da cidade e sandbox).
-func mirror_dict() -> Dictionary:
-	return {
-		"level": level, "xp": xp, "gold": gold, "stat_points": stat_points,
-		"attributes": attributes.duplicate(true), "inventory": inventory.duplicate(true),
-		"equipment": equipment.duplicate(true), "quests": quests.duplicate(true), "flags": flags.duplicate(true),
-		"farm": farm.duplicate(true), "hp": hp, "mp": mp,
-		"world_pos": [spawn_position.x, spawn_position.y, spawn_position.z] if spawn_position is Vector3 else null,
-		"world_yaw": spawn_yaw, "kills": kills,
-	}

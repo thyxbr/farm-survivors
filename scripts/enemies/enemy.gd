@@ -701,11 +701,14 @@ func _die() -> void:
 		# XP, missões e loot de cada jogador que acertou: o servidor concede (CharacterService + pickups)
 		Network.server_enemy_killed(self)
 	elif siege:
-		# cerco (cidade solo): o ouro vai direto para o cofre (os abates acontecem longe do jogador)
+		# cerco (cidade solo): o XP do abate vai para o personagem e o ouro do saque para o caixa da cidade
+		# (os abates acontecem longe do jogador). Como na cidade em grupo, sem itens no chão: o que o
+		# personagem leva da partida são as recompensas por noite.
 		Game.on_enemy_killed(kind, int(data.xp * 0.6))
 		var loot := LootRules.roll(Balance.tables, kind, _loot_rng())
-		Game.add_gold(int(loot.gold))
-		_spawn_loot(get_parent(), global_position, 0, loot.items)
+		var c := get_parent()
+		if c != null and c.has_method("earn") and int(loot.gold) > 0:
+			c.earn(int(loot.gold))
 	elif not horde:
 		# solo: XP, missão e o chefe derrotado (king_dead) ficam com as regras (Econ.kill)
 		Game.on_enemy_killed(kind, data.xp)

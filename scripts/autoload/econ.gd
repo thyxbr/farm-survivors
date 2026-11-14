@@ -7,8 +7,8 @@ extends Node
 ## - Online (cliente): `request()` manda `_econ_req` ao servidor, que aplica no `Network.characters` e
 ##   responde só ao remetente com `_econ_res` (estado completo + eventos). Pedidos do mesmo peer chegam
 ##   em ordem (RPC confiável), então clique duplo vira dois pedidos processados em sequência.
-## - Defesa da Cidade solo (até a Task 10): personagem em memória ("sandbox"), salvo no save da cidade;
-##   as mesmas regras (CharRules), sem banco.
+## - Defesa da Cidade: o ouro da cidade é o caixa da partida (Colony.treasury), fora do personagem; o
+##   personagem só recebe as recompensas por noite (solo: grant aqui; em grupo: o servidor).
 ##
 ## Todas as RPCs novas moram aqui (e não no Network): o Godot numera as RPCs de cada nó em ordem
 ## alfabética, e uma RPC nova no Network mudaria o id do `_register` que clientes antigos usam para
@@ -40,8 +40,6 @@ const PUSH_SEQ := -1
 var solo_db_path := "user://solo.db"
 ## Testes adiantam o relógio (horta). Vale para o serviço local e para o desenho dos canteiros.
 var time_offset := 0.0
-## Defesa da Cidade solo: personagem em memória, fora do solo.db.
-var sandbox := false
 ## Relatórios de vida/posição enviados (o net_test confere o envio periódico).
 var reports_sent := 0
 ## Cliente online: concessões tentadas no próprio cliente (bug: quem concede é o servidor). O net_test exige 0.
@@ -76,6 +74,11 @@ func _ready() -> void:
 		if not explicit:
 			solo_db_path = "user://smoketest_solo.db"
 		_wipe_on_open = true
+	elif "--colonytest" in args:
+		# idem para o teste da Defesa da Cidade
+		if not explicit:
+			solo_db_path = "user://colonytest_solo.db"
+		_wipe_on_open = true
 	_test_server = "--test" in args
 	_report_t = Network.autosave_interval
 	_loot_rng.randomize()
@@ -105,9 +108,6 @@ func request(op: String, args: Array = []) -> void:
 	if Network.is_server():
 		push_error("Econ.request no servidor: use Network.characters (%s)" % op)
 		return
-	if sandbox:
-		_deliver(op, args, _sandbox(func(s: CharState) -> Dictionary: return _local_svc().apply_to(s, op, args)))
-		return
 	if not ensure_solo():
 		_deliver(op, args, {"ok": false, "err": "sem_banco", "events": [], "state": {}})
 		return
@@ -116,22 +116,19 @@ func request(op: String, args: Array = []) -> void:
 
 ## Concessão (loot, missão, prêmio de partida). Só offline: online quem concede é o servidor
 ## (server_grant/server_kill/pickups) e a chamada no cliente vira erro, para achar as que ficaram para trás.
-## `silent` não mostra o aviso de item ganho (o antigo add_item(..., true)).
-func grant(gold: int, xp: int, items: Dictionary, source: String, silent := false) -> void:
+## `silent` não mostra o aviso de item ganho (o antigo add_item(..., true)). true se concedeu.
+func grant(gold: int, xp: int, items: Dictionary, source: String, silent := false) -> bool:
 	if Network.is_online():
 		client_grant_errors += 1
 		push_error("concessão no cliente online: %s (ouro %d, xp %d, itens %s)" % [source, gold, xp, items])
-		return
-	var r: Dictionary
-	if sandbox:
-		r = _sandbox(func(s: CharState) -> Dictionary: return CharRules.grant(s, Balance.tables, gold, xp, items))
-	elif ensure_solo():
-		r = _svc.grant(SOLO_ACCOUNT, gold, xp, items, source)
-	else:
-		return
+		return false
+	if not ensure_solo():
+		return false
+	var r := _svc.grant(SOLO_ACCOUNT, gold, xp, items, source)
 	if silent:
 		r.events = r.events.filter(func(e: Dictionary) -> bool: return e.get("t") != "looted")
 	_deliver("grant", [gold, xp, items, source], r)
+	return bool(r.get("ok", false))
 
 
 ## Abate (XP, contagem, progresso de missão, chefe). Só offline, como grant().
@@ -140,22 +137,19 @@ func kill(kind: String, xp: int) -> void:
 		client_grant_errors += 1
 		push_error("concessão no cliente online: abate de %s (xp %d)" % [kind, xp])
 		return
-	var r: Dictionary
-	if sandbox:
-		r = _sandbox(func(s: CharState) -> Dictionary: return CharRules.kill(s, Balance.tables, kind, xp))
-	elif ensure_solo():
-		r = _svc.kill(SOLO_ACCOUNT, kind, xp)
-	else:
+	if not ensure_solo():
 		return
-	_deliver("kill", [kind, xp], r)
+	_deliver("kill", [kind, xp], _svc.kill(SOLO_ACCOUNT, kind, xp))
 
 
-## Solo: uma linha de resumo da partida (Horda) no registro da economia — as coletas da partida usam a
-## origem "horde_run", que não é registrada uma a uma. Online quem grava é o servidor.
-func solo_run_summary(mode: String, gold: int, xp: int, items: Dictionary) -> void:
-	if Network.is_online() or sandbox or not ensure_solo():
-		return
-	_svc.run_summary(SOLO_ACCOUNT, mode, gold, xp, items)
+## Fim de uma partida (Horda "horde", Defesa da Cidade "city"): uma linha de resumo no registro da economia
+## do personagem solo — as concessões da partida usam origens que não são registradas uma a uma
+## (CharacterService.UNLOGGED_SOURCES). Online não faz nada: quem grava é o servidor
+## (Network.characters.run_summary). true se gravou.
+func run_summary(mode: String, gold: int, xp: int, items: Dictionary) -> bool:
+	if Network.is_online() or not ensure_solo():
+		return false
+	return _svc.run_summary(SOLO_ACCOUNT, mode, gold, xp, items)
 
 
 ## Recorde de partida (horde_best/city_best) no personagem solo. Online só no espelho: o servidor grava
@@ -164,7 +158,7 @@ func set_record(key: String, value) -> void:
 	if not (key in ["horde_best", "city_best"]):
 		return
 	Game.flags[key] = value
-	if Network.is_online() or sandbox or not ensure_solo():
+	if Network.is_online() or not ensure_solo():
 		return
 	var s := _svc.load_or_create(SOLO_ACCOUNT)
 	s.flags[key] = value
@@ -198,8 +192,6 @@ func client_reset() -> void:
 # ================================================================ vida, mana e posição
 ## Combate é do cliente: vida/mana/posição vão ao serviço de tempos em tempos e ao trocar de zona.
 func report_vitals(pos: Vector3, yaw: float) -> void:
-	if sandbox:
-		return
 	if Network.is_client():
 		if multiplayer.multiplayer_peer == null or \
 				multiplayer.multiplayer_peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
@@ -214,7 +206,7 @@ func report_vitals(pos: Vector3, yaw: float) -> void:
 
 ## F5 offline: grava vida e posição (o resto já foi gravado a cada pedido). Online não faz nada.
 func quick_save(pos: Vector3, yaw: float) -> bool:
-	if Network.is_online() or sandbox:
+	if Network.is_online():
 		return false
 	if Game.run_mods.get("active", false):
 		Game.notify.emit("Não é possível salvar durante o desafio.", Color(1, 0.6, 0.5))
@@ -253,7 +245,7 @@ func _physics_process(delta: float) -> void:
 			pickups.purge_expired()
 		return
 	# solo: relatório periódico (online o Network cuida, com o mesmo intervalo)
-	if Network.is_online() or sandbox or not _solo_loaded:
+	if Network.is_online() or not _solo_loaded:
 		return
 	_report_t -= delta
 	if _report_t > 0.0:
@@ -270,14 +262,13 @@ func _physics_process(delta: float) -> void:
 # ================================================================ solo (user://solo.db)
 ## Abre o banco local e carrega o personagem solo no Game (se ainda não estiver carregado).
 func ensure_solo() -> bool:
-	if _solo_loaded and _svc != null and not sandbox:
+	if _solo_loaded and _svc != null:
 		return true
 	return start_solo()
 
 
-## Sai do sandbox, abre o solo.db e aplica o personagem salvo (vida, mana e posição inclusive).
+## Abre o solo.db e aplica o personagem salvo (vida, mana e posição inclusive).
 func start_solo() -> bool:
-	sandbox = false
 	if not _open_db():
 		return false
 	if Balance.from_server:
@@ -355,29 +346,17 @@ func _open_db() -> bool:
 	return true
 
 
-# ================================================================ sandbox (Defesa da Cidade solo)
-## Personagem em memória (novo, ou o do save da cidade). Sai dele com start_solo() ou end_sandbox().
-func begin_sandbox(state: Dictionary = {}) -> void:
-	sandbox = true
-	Game.apply_state(state if not state.is_empty() else CharState.new_character(Balance.tables).to_dict(), true)
-
-
-func end_sandbox() -> void:
-	sandbox = false
-
-
-## Serviço sem banco, só para apply_to (validação de op/args + regras).
-func _local_svc() -> CharacterService:
-	return CharacterService.new(null, Balance.tables, now)
-
-
-## Aplica `fn(s)` sobre o personagem do espelho e devolve o resultado com o estado novo.
-func _sandbox(fn: Callable) -> Dictionary:
-	var s := CharState.from_dict(Game.mirror_dict(), Balance.tables)
-	var r: Dictionary = fn.call(s)
-	r = r.duplicate()
-	r["state"] = s.to_dict()
-	return r
+## Demos de screenshot (`--farmdemo`/`--geardemo`/`--weapon=`): personagem novo num banco à parte,
+## apagado a cada vez (não mexe no solo.db). Chamado pelo Game antes do _ready deste autoload.
+func start_scratch_solo(path: String) -> bool:
+	if _db != null:
+		_db.close()
+		_db = null
+	_svc = null
+	_solo_loaded = false
+	solo_db_path = path
+	_wipe_on_open = true
+	return start_solo()
 
 
 # ================================================================ entrega do resultado
@@ -575,7 +554,6 @@ func _balance(tables: Dictionary) -> void:
 @rpc("authority", "call_remote", "reliable")
 func _econ_res(seq: int, ok: bool, err: String, events: Array, state: Dictionary) -> void:
 	if seq == 0:
-		sandbox = false
 		Game.apply_state(state, true)
 		return
 	if seq == PUSH_SEQ:
