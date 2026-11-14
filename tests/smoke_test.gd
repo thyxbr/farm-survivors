@@ -230,7 +230,7 @@ func _test_blacksmith() -> void:
 			p3.stop()
 			p3.stream = null
 	# 4,0 s: cobre o pior caso de começar logo no início de uma pausa (work_pause do Mixamo 2,63 s + blend de
-	# saída Blacksmith.PAUSE_BLEND 0,5 s + golpe a 0,53 s = 3,66 s)
+	# saída Blacksmith.PAUSE_BLEND 0,5 s + golpe a 0,43 s = 3,56 s)
 	await wait(4.0)
 	check(smith.strikes > s0, "ferreiro bate na bigorna (%d golpes)" % (smith.strikes - s0))
 	var clangs := Sfx._players_3d.filter(func(p3: AudioStreamPlayer3D) -> bool: return p3.stream == clang).size()

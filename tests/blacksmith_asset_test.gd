@@ -45,16 +45,24 @@ func _initialize() -> void:
 		for c in ["work_hammer", "work_pause", "idle", "talk"]:
 			check(ap.has_animation(c), "clipe provisório: " + c)
 		if ap.has_animation("work_hammer"):
-			check(ap.get_animation("work_hammer").loop_mode == Animation.LOOP_LINEAR, "martelar está em loop")
+			var wh := ap.get_animation("work_hammer")
+			check(wh.loop_mode == Animation.LOOP_LINEAR, "martelar está em loop")
+			# martelar com o corpo inclinado e o pé escalonado: o clipe anima quadril e pernas
+			var legs := wh.find_track("%GeneralSkeleton:Hips", Animation.TYPE_POSITION_3D) >= 0
+			for b in ["Hips", "LeftUpperLeg", "LeftLowerLeg", "RightUpperLeg", "RightLowerLeg"]:
+				legs = legs and wh.find_track("%GeneralSkeleton:" + b, Animation.TYPE_ROTATION_3D) >= 0
+			check(legs, "martelar anima quadril e pernas")
 	var hammer := m.find_child("Hammer", true, false) as MeshInstance3D
 	check(hammer != null and hammer.skin == null, "martelo é malha separada e sem pesos")
+	var tongs := m.find_child("Tongs", true, false) as MeshInstance3D
+	check(tongs != null and tongs.skin == null, "tenaz é malha separada e sem pesos")
 	var mi := m.find_children("*", "MeshInstance3D")
 	check(mi.any(func(x): return x.skin != null), "malha do corpo é skinned")
 	# altura: topo da cabeça entre 1.6 e 1.95 m, como Bram/Mira (pés no chão)
 	var box := AABB()
 	var first := true
 	for x in mi:
-		if x == hammer:
+		if x == hammer or x == tongs:
 			continue
 		var b: AABB = _xform_to(x, m) * x.get_aabb()
 		box = b if first else box.merge(b)
@@ -105,6 +113,7 @@ func _check_props() -> void:
 		if sp != null:
 			var y := _xform_to(sp, a).origin.y
 			check(y > 0.7 and y < 0.9, "StrikePoint a %.2f m do chão" % y)
+		check(a.find_child("WorkBar", true, false) is MeshInstance3D, "bigorna tem a barra em brasa (WorkBar)")
 		a.free()
 	var f_scene: PackedScene = load("res://assets/models/forge.glb")
 	check(f_scene != null, "forge.glb carrega")

@@ -13,16 +13,17 @@ const BLEND := 0.25
 const PAUSE_BLEND := 0.5
 ## Clipes em que o martelo bate na bigorna (nome base, antes de clip()).
 const STRIKE_CLIPS := ["work_hammer"]
-## Tempo (s) do impacto em cada clipe, pelo nome resolvido por clip(): work_hammer provisório = quadro 16
+## Tempo (s) do impacto em cada clipe, pelo nome resolvido por clip(): work_hammer provisório = quadro 13
 ## de 36 a 30 fps. O Mixamo não tinha martelar; se um dia entrar, vem com a própria chave ("mixamo/work_hammer").
-const STRIKES := {"work_hammer": [0.533]}
+const STRIKES := {"work_hammer": [0.433]}
 ## Clipes do Mixamo (parado, conversa e pausa), montados por tools/build_blacksmith_mixamo.gd. Entram como
 ## a biblioteca "mixamo" do AnimationPlayer e têm prioridade sobre os provisórios do .glb (ver clip()).
 const MIXAMO_LIB := "res://assets/animations/blacksmith_mixamo.res"
 const SPARK_COLOR := Color(1.0, 0.72, 0.25)
 ## Ferraria em coordenadas do ferreiro (frente = +Z): bigorna à frente, de lado (chifre à esquerda dele) e
 ## puxada para a direita, com o StrikePoint embaixo da face do martelo na batida; forja às costas com a boca
-## virada para ele. Usado pelo mundo e por tools/blacksmith_shot.gd (que confere o golpe).
+## virada para ele. Usado pelo mundo, por tools/blacksmith_shot.gd (que confere o golpe) e, nas coordenadas do
+## Blender, por BS_BAR_*/BS_STRIKE em tools/blender/characters.py (barra, tenaz e alvo do martelo).
 const ANVIL_OFFSET := Vector3(-0.18, 0, 0.6)
 const ANVIL_YAW := PI / 2
 const FORGE_OFFSET := Vector3(0, 0, -1.6)
@@ -52,7 +53,7 @@ func _ready() -> void:
 	anim.animation_finished.connect(_on_anim_finished)
 	if ResourceLoader.exists(MIXAMO_LIB) and not anim.has_animation_library("mixamo"):
 		anim.add_animation_library("mixamo", load(MIXAMO_LIB))
-	_attach_hammer()
+	_attach_tools()
 	if anvil:
 		_strike_point = anvil.find_child("StrikePoint", true, false)
 	var headless := DisplayServer.get_name() == "headless"
@@ -208,8 +209,8 @@ func _add_strike_tracks() -> void:
 			a.track_insert_key(t, time, {"method": &"_on_strike", "args": []})
 
 
-## Os clipes provisórios (o work_hammer segue sendo um deles) só animam tronco, braços e cabeça; os do
-## Mixamo animam também quadril e pernas. Como o AnimationPlayer não é determinístico, um osso sem track no
+## Os clipes provisórios idle/talk/work_pause do .glb só animam tronco, braços e cabeça (o work_hammer anima
+## também quadril e pernas, e aí as tracks dele já existem e ficam como estão); os do Mixamo animam tudo. Como o AnimationPlayer não é determinístico, um osso sem track no
 ## clipe atual fica na última pose: o passo da pausa ficaria preso nas pernas enquanto ele martela. Aqui cada
 ## clipe provisório ganha uma track constante na pose de repouso para os ossos que só o Mixamo anima.
 ## Recursos compartilhados do .glb: o find_track evita duplicar quando há mais de um ferreiro.
@@ -248,16 +249,17 @@ func _add_rest_tracks() -> void:
 						a.scale_track_insert_key(t, 0.0, rest.basis.get_scale())
 
 
-## O martelo vem como malha solta com o pivô no punho (pose T); passa a seguir o osso RightHand.
-func _attach_hammer() -> void:
-	var hammer := model.find_child("Hammer", true, false) as Node3D
-	var i := skeleton.find_bone("RightHand")
-	if hammer == null or i < 0:
-		return
-	var att := BoneAttachment3D.new()
-	att.bone_name = "RightHand"
-	skeleton.add_child(att)
-	var rest := skeleton.global_transform * skeleton.get_bone_global_rest(i)
-	var xf := rest.affine_inverse() * hammer.global_transform
-	hammer.reparent(att, false)
-	hammer.transform = xf
+## O martelo e a tenaz vêm como malhas soltas com o pivô no punho (pose T); passam a seguir os ossos das mãos.
+func _attach_tools() -> void:
+	for pair: Array in [["Hammer", "RightHand"], ["Tongs", "LeftHand"]]:
+		var tool := model.find_child(pair[0], true, false) as Node3D
+		var i := skeleton.find_bone(pair[1])
+		if tool == null or i < 0:
+			continue
+		var att := BoneAttachment3D.new()
+		att.bone_name = pair[1]
+		skeleton.add_child(att)
+		var rest := skeleton.global_transform * skeleton.get_bone_global_rest(i)
+		var xf := rest.affine_inverse() * tool.global_transform
+		tool.reparent(att, false)
+		tool.transform = xf
