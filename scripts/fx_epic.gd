@@ -429,7 +429,10 @@ static func ground_mark(pos: Vector3, color: Color, radius: float, time := 2.5, 
 ## Rastro de fita atrás de target durante time segundos (depois some). A fita vai de target ao
 ## longo do seu eixo Y por `width`. `life` = quanto cada ponto dura (comprimento do rastro);
 ## `end_color` (alfa > 0) = cor para onde o rastro esfria ao envelhecer (fogo: amarelo -> vermelho).
-static func trail(target: Node3D, color: Color, width := 0.5, time := 1.0, life := 0.45, end_color := Color(0, 0, 0, 0)) -> void:
+## `hot` = tom da borda de fora (padrão quente, do fogo; vento usa ciano); `gain` > 1 = mais brilho
+## (cor HDR no mesmo material compartilhado: sem shader novo).
+static func trail(target: Node3D, color: Color, width := 0.5, time := 1.0, life := 0.45, end_color := Color(0, 0, 0, 0),
+		hot := Color(1.0, 0.9, 0.55), gain := 1.0) -> void:
 	var root := FX._scene()
 	if root == null or target == null or not is_instance_valid(target):
 		return
@@ -440,6 +443,8 @@ static func trail(target: Node3D, color: Color, width := 0.5, time := 1.0, life 
 	t.width = width
 	t.duration = time
 	t.life = maxf(life, 0.05)
+	t.hot_color = hot
+	t.gain = gain
 	root.add_child(t)
 
 
@@ -490,9 +495,14 @@ static func stop_stream(p: CPUParticles3D) -> void:
 	if p == null or not is_instance_valid(p) or not p.is_inside_tree():
 		return
 	p.emitting = false
-	p.get_tree().create_timer(p.lifetime + 0.1).timeout.connect(func() -> void:
-		if is_instance_valid(p):
-			p.queue_free())
+	# Timer filho do emissor (não SceneTreeTimer com lambda): se o dono sumir antes (réplica que sai,
+	# troca de cena), o timer morre junto e não chama nada em nó liberado
+	var t := Timer.new()
+	t.one_shot = true
+	t.autostart = true
+	t.wait_time = p.lifetime + 0.1
+	t.timeout.connect(p.queue_free)
+	p.add_child(t)
 
 
 ## Congela a tela por instantes (impacto forte). Só afeta o cliente local.
@@ -537,6 +547,8 @@ class TrailNode extends MeshInstance3D:
 	var width := 0.5
 	var duration := 1.0
 	var life := 0.45
+	var hot_color := Color(1.0, 0.9, 0.55)
+	var gain := 1.0
 	var _im := ImmediateMesh.new()
 	var _pts: Array = []   # [base, ponta, instante]
 	var _age := 0.0
@@ -590,11 +602,11 @@ class TrailNode extends MeshInstance3D:
 				var old := clampf((_age - float(_pts[i][2])) / life, 0.0, 1.0)
 				var a := pow(1.0 - old, 0.6) * fade
 				var c := color.lerp(end_color, old)
-				# borda de fora (ponta da fita) mais quente, sem ir ao branco
-				var hot := c.lerp(Color(1.0, 0.9, 0.55), 0.35)
-				_im.surface_set_color(Color(c.r, c.g, c.b, a * 0.85))
+				# borda de fora (ponta da fita) puxada para hot_color (quente no fogo), sem ir ao branco
+				var hot := c.lerp(hot_color, 0.35)
+				_im.surface_set_color(Color(c.r * gain, c.g * gain, c.b * gain, a * 0.85))
 				_im.surface_add_vertex(_pts[i][0])
-				_im.surface_set_color(Color(hot.r, hot.g, hot.b, a))
+				_im.surface_set_color(Color(hot.r * gain, hot.g * gain, hot.b * gain, a))
 				_im.surface_add_vertex(_pts[i][1])
 			_im.surface_end()
 		if not following and (_pts.size() < 2 or _fade > 0.3):

@@ -278,6 +278,7 @@ func _ready() -> void:
 	player.global_position = s1.global_position + Vector3(2.5, 0.3, 0)
 	player.velocity = Vector3.ZERO
 	var h1: float = s1.hp
+	player.invuln = 3.0   # apanhar de um inimigo próximo também enche a fúria: só os acertos do giro contam aqui
 	player.use_slot(4)
 	check(Game.fury == 0.0 and player.ability == "sword_whirl", "Turbilhão começa e gasta a fúria")
 	check(player.ability_slot == 4, "ability_slot = tecla que começou a habilidade (%d)" % player.ability_slot)

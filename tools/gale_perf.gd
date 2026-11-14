@@ -175,5 +175,9 @@ func _snap(name: String, when: Callable) -> void:
 	get_viewport().get_texture().get_image().save_png(_out.path_join("gale_%s_lado.png" % name))
 	player.camera.make_current()
 	cam.queue_free()
+	# um quadro ainda pausado: o tempo gasto salvando o PNG não vira um delta gigante no 1º quadro
+	# depois da pausa (a linha andaria 20 m num quadro só e o print seguinte sairia sem a fita)
+	await get_tree().process_frame
+	await get_tree().process_frame
 	get_tree().paused = false
 	print("GALE_PERF print ", name)

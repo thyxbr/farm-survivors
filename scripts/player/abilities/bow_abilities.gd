@@ -39,6 +39,9 @@ const GALE_RECOIL := 6.0        ## recuo do corpo no disparo (m/s, para trás, c
 const GALE_SPIRAL := TAU / 9.0  ## giro do vento em espiral ao longo da linha (rad por m)
 const GALE_WIND := Color(0.78, 0.9, 1.0)
 const GALE_CORE := Color(0.93, 0.97, 1.0)
+const GALE_BEAM := Color(0.42, 0.8, 1.0)       ## núcleo da linha: ciano frio (a borda vai a GALE_BEAM_HOT)
+const GALE_BEAM_HOT := Color(0.85, 1.0, 1.0)
+const GALE_BEAM_GAIN := 1.5                      ## brilho HDR do núcleo (se destaca sobre areia ao sol)
 const GALE_DUST := Color(0.72, 0.68, 0.6, 0.45)
 const GALE_MARK := Color(0.4, 0.38, 0.34, 0.55)
 
@@ -540,9 +543,10 @@ class GaleLine extends Node3D:
 		# a fita segue a cabeça e fica parada no fim: a linha inteira continua no ar até os pontos
 		# envelhecerem (life), em vez de sumir toda junto quando o alvo para
 		for m in _spirals:
-			FXEpic.trail(m, BowAbilities.GALE_WIND, 0.22, travel + 0.4, 0.7)
-		FXEpic.trail(_flat, BowAbilities.GALE_CORE, _core_w, travel + 0.4, 0.8)
-		FXEpic.trail(_upright, BowAbilities.GALE_CORE, _core_w, travel + 0.4, 0.8)
+			FXEpic.trail(m, BowAbilities.GALE_WIND, 0.22, travel + 0.4, 0.7, Color(0, 0, 0, 0), BowAbilities.GALE_BEAM_HOT, 1.4)
+		for m in [_flat, _upright]:
+			FXEpic.trail(m, BowAbilities.GALE_BEAM, _core_w, travel + 0.4, 0.8, Color(0, 0, 0, 0),
+				BowAbilities.GALE_BEAM_HOT, BowAbilities.GALE_BEAM_GAIN)
 		for f in [0.12, 0.37, 0.62, 0.87]:
 			if length * f >= 1.5:
 				_marks.append(length * f)
