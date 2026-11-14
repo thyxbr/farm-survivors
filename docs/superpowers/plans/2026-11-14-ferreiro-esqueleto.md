@@ -35,7 +35,7 @@
 
 ---
 
-### Tarefa 1: Modelo e esqueleto do ferreiro (Blender → GLB → Godot com perfil humanoide)
+### Task 1: Modelo e esqueleto do ferreiro (Blender → GLB → Godot com perfil humanoide)
 
 **Files:**
 - Modify: `tools/blender/build_assets.py` (função `export`: `extra` passa a sobrescrever os padrões, ex. `export_animations=True`; registrar `"blacksmith": build_blacksmith` em `BUILDERS`)
@@ -116,7 +116,7 @@ git commit -m "Ferreiro: modelo com esqueleto Mixamo e clipes provisórios"
 
 ---
 
-### Tarefa 2: Bigorna e forja
+### Task 2: Bigorna e forja
 
 **Files:**
 - Modify: `tools/blender/props.py` (novas `build_anvil()` e `build_forge()`, registradas em `PROP_BUILDERS`)
@@ -134,7 +134,7 @@ git commit -m "Ferreiro: modelo com esqueleto Mixamo e clipes provisórios"
 
 ---
 
-### Tarefa 3: Som da bigorna
+### Task 3: Som da bigorna
 
 **Files:**
 - Modify: `scripts/autoload/sfx.gd` (novo gerador `_anvil(t: float, d: float) -> float` e registro do som `"anvil"` no `_ready`, como os outros)
@@ -151,7 +151,7 @@ git commit -m "Ferreiro: modelo com esqueleto Mixamo e clipes provisórios"
 
 ---
 
-### Tarefa 4: NPC ferreiro (estados, virar, golpe, diálogo)
+### Task 4: NPC ferreiro (estados, virar, golpe, diálogo)
 
 **Files:**
 - Create: `scripts/world/blacksmith.gd`
@@ -225,7 +225,7 @@ Obs.: no smoke test o jogo roda headless, então o `_ready` desliga a animação
 
 ---
 
-### Tarefa 5: Ferreiro na vila + foto de conferência + versão
+### Task 5: Ferreiro na vila + foto de conferência + versão
 
 **Files:**
 - Modify: `scripts/world/world.gd` (criar o ferreiro, a bigorna e a forja junto dos NPCs, ~linha 223; registrar a área em `_avoid` e `_no_grass` pelo `prop()`)
@@ -243,7 +243,7 @@ Obs.: no smoke test o jogo roda headless, então o `_ready` desliga a animação
 
 ---
 
-### Tarefa 6: Trocar pelos clipes do Mixamo (depende do download do usuário)
+### Task 6: Trocar pelos clipes do Mixamo (depende do download do usuário)
 
 **Files:**
 - Create: `assets/animations/mixamo/*.fbx` (+ `.import` com o mesmo `BoneMap`/perfil da Tarefa 1)
