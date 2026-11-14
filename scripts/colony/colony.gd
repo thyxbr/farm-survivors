@@ -169,6 +169,7 @@ func pay(c: Dictionary) -> bool:
 
 ## Soma ao estoque. Com `at`, mostra o número flutuante naquele ponto.
 func gain(c: Dictionary, at := Vector3.INF) -> void:
+	var shown := 0
 	for r in ColonyData.RESOURCES:
 		var n := int(c.get(r, 0))
 		if n <= 0:
@@ -181,7 +182,8 @@ func gain(c: Dictionary, at := Vector3.INF) -> void:
 			_:
 				res[r] = int(res.get(r, 0)) + n
 		if at != Vector3.INF and DisplayServer.get_name() != "headless":
-			FX.damage_number(at, "+%d %s" % [n, ColonyData.RES_NAMES[r]], UITheme.GOLD, 40)
+			FX.damage_number(at + Vector3.UP * 0.7 * shown, "+%d %s" % [n, ColonyData.RES_NAMES[r]], UITheme.GOLD, 40)
+			shown += 1
 	_res_changed()
 
 
@@ -560,7 +562,8 @@ func upgrade(b: ColonyBuilding) -> String:
 	if role == "client":
 		Lobby.city_request("upgrade", [b.net_id])
 		return ""
-	pay(cost)
+	if not pay(cost):
+		return missing(cost)
 	b.invested = ColonyData.add_cost(b.invested, cost)
 	b.set_level(b.level + 1)
 	Game.stats_changed.emit()
@@ -594,7 +597,8 @@ func repair(b: ColonyBuilding) -> String:
 	if role == "client":
 		Lobby.city_request("repair", [b.net_id])
 		return ""
-	pay(cost)
+	if not pay(cost):
+		return missing(cost)
 	b.repair_full()
 	Sfx.play("plant", 0.1, -2.0)
 	if role == "server":
@@ -619,7 +623,8 @@ func repair_all() -> String:
 	if role == "client":
 		Lobby.city_request("repair_all", [])
 		return ""
-	pay(cost)
+	if not pay(cost):
+		return missing(cost)
 	for b in buildings():
 		if not repair_cost(b).is_empty():
 			b.repair_full()

@@ -81,6 +81,30 @@ func _ready() -> void:
 	var ec := colony.upgrade_cost(colony.hall)
 	check(ec.has("gold") and not ec.has("wood"), "melhoria da prefeitura segue em ouro")
 	check(ColonyData.upgrade_cost("house", 2).has("iron") and not ColonyData.upgrade_cost("house", 1).has("iron"), "melhoria para o nível 3 pede ferro")
+	# o servidor recusa pedidos sem recurso (net_request roda o mesmo caminho do servidor; aqui chamado no solo,
+	# porque place/upgrade/repair não dependem do papel). Nada pode ficar negativo nem mudar.
+	var bk: ColonyBuilding = colony.buildings().filter(func(x): return x.kind == "barracks")[0]
+	colony.bmap[999] = bk
+	colony.res["stone"] = 0
+	Game.gold = 2000
+	var wood_r := colony.amount("wood")
+	var nb0 := colony.buildings().size()
+	var err_p: String = colony.net_request(1, "place", ["market", 12.0, 8.0, 0.0])
+	check(err_p == "Faltam %d de Pedra." % need_stone and colony.buildings().size() == nb0 and colony.amount("stone") == 0
+		and Game.gold == 2000 and colony.amount("wood") == wood_r, "servidor recusa construção sem pedra e não cobra nada")
+	var err_u: String = colony.net_request(1, "upgrade", [999])
+	check(err_u.begins_with("Faltam ") and err_u.contains("Pedra") and bk.level == 1 and colony.amount("stone") == 0
+		and Game.gold == 2000 and colony.amount("wood") == wood_r, "servidor recusa melhoria sem recurso (%s)" % err_u)
+	var hp_bk := bk.hp
+	bk.hp = bk.max_hp * 0.5
+	var err_r: String = colony.net_request(1, "repair", [999])
+	check(err_r.begins_with("Faltam ") and bk.hp == bk.max_hp * 0.5 and colony.amount("stone") == 0 and Game.gold == 2000,
+		"servidor recusa reparo sem recurso (%s)" % err_r)
+	var err_ra: String = colony.net_request(1, "repair_all", [])
+	check(err_ra.begins_with("Faltam ") and colony.amount("stone") == 0 and Game.gold == 2000, "servidor recusa reparar tudo sem recurso")
+	bk.hp = hp_bk
+	colony.bmap.erase(999)
+	colony.res["stone"] = 2000
 	var sc := ColonyData.scale_cost({"gold": 30, "wood": 40}, 1.5)
 	check(sc.gold == 45 and sc.wood == 60, "scale_cost multiplica cada recurso")
 
