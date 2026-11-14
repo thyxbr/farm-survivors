@@ -125,6 +125,9 @@ Com isso a sombra de forma cai de ~58% para ~53% do tom aceso e a projetada de ~
 | Ganho de ambiente (nuvem, neve) | ×1 | ×0.5 |
 | Saturação perde | 0.25 | 0.15 |
 
+Capturas antes/depois (mesma posição e câmera): `docs/screenshots/toon_luz_sol.jpg`, `_chuva`, `_neve`,
+`_vento` e `_serra`.
+
 3. **Ficou de fora:** a Defesa da Cidade monta a própria luz (`colony_world.gd`, com ciclo de dia e
    noite) e ainda usa SSAO e névoa antigos; a sombra do próprio corpo na armadura sai em blocos (é
    resolução do mapa de sombra, não do estilo).
