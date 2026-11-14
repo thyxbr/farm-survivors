@@ -92,6 +92,9 @@ func _ready() -> void:
 	if "--smoketest" in OS.get_cmdline_user_args():
 		# o Econ usa user://smoketest_solo.db, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())
+	if "--hubtest" in OS.get_cmdline_user_args():
+		# o Econ usa user://hubtest_solo.db, apagado no início
+		get_tree().root.add_child.call_deferred(load("res://tests/hub_test.gd").new())
 
 
 ## Depuração: `godot -- --shot=shot.png [--delay=4]` salva um screenshot e fecha.

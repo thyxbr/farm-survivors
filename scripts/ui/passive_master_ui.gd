@@ -55,6 +55,7 @@ func _ready() -> void:
 	foot.add_child(UITheme.button("Sair", _close, 140))
 	v.add_child(foot)
 	Econ.result.connect(_on_result)
+	Econ.done.connect(_on_done)
 	_refresh()
 
 
@@ -127,6 +128,13 @@ func _on_result(op: String, ok: bool, err: String) -> void:
 		notice.text = ERRORS.get(err, "Não deu certo (%s)." % err)
 		notice.add_theme_color_override("font_color", UITheme.BAD)
 	_refresh()
+
+
+## Qualquer outro estado novo (Ecos chegando por push do servidor no fim de uma partida, Ecos de teste):
+## o saldo e os botões acompanham com o painel aberto. A compra já redesenha em _on_result.
+func _on_done(op: String, _args: Array, _ok: bool, _err: String, _events: Array) -> void:
+	if op != "buy_passive":
+		_refresh()
 
 
 func _close() -> void:

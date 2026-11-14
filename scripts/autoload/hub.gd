@@ -15,6 +15,8 @@ signal changed
 
 ## Doadores mostrados por construção.
 const TOP_DONORS := 5
+## Nome que a praça mostra para a conta do solo (no banco ela se chama "local").
+const SOLO_NAME := "Você"
 
 ## {id: {"level": int, "fund": int, "donors": [{"name", "amount"}]}} — o que a praça mostra.
 var base := {}
@@ -83,9 +85,16 @@ func refresh_solo() -> void:
 		return
 	var st := Econ.base_state()
 	for id in st:
-		st[id]["donors"] = Econ.top_donors(id, TOP_DONORS)
+		var donors: Array = Econ.top_donors(id, TOP_DONORS)
+		for d in donors:
+			d["name"] = SOLO_NAME   # no solo.db só existe a conta do jogador
+		st[id]["donors"] = donors
 	base = st
-	records = Econ.records()
+	var rec := Econ.records()
+	for mode in rec:
+		if rec[mode] is Dictionary and rec[mode].has("names"):
+			rec[mode]["names"] = [SOLO_NAME] if not rec[mode].names.is_empty() else []
+	records = rec
 	changed.emit()
 
 

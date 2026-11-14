@@ -1010,8 +1010,7 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 		"combo":
 			AUTO_WEAPONS.combo_fx_index(get_tree().current_scene, int(b.x), a)
 		"emote":
-			# índice em KnightEmotes.KINDS (fora da lista: ignora)
-			# -1 = o dono cancelou (andou, abriu o chat...); outros fora da lista: ignora
+			# índice em KnightEmotes.KINDS; -1 = o dono cancelou (andou, abriu o chat...); outros fora da lista: ignora
 			var i := int(a.x)
 			if i == -1:
 				emote = ""
