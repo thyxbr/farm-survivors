@@ -447,6 +447,9 @@ func _test_city() -> void:
 		check(await _wait_until(func() -> bool: return c.amount("wood") == tw0 + 24, 5.0),
 			"madeira da coleta chega ao cofre (%d → %d)" % [tw0, c.amount("wood")])
 
+	# --- covis: gerados da semente em todos (com o servidor em --city-day curto é sempre entardecer: não acordam)
+	check(c.dens.size() >= 4 and c.dens[0].get_child_count() > 0, "covis gerados da semente do grupo (%d)" % c.dens.size())
+
 	# --- a noite: votação, monstros replicados, abates pagam o cofre
 	var rgold := Game.gold
 	var rxp := Game.xp + Game.level * 100000

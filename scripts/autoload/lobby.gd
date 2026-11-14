@@ -538,14 +538,25 @@ func city_night_survived(n: int) -> void:
 				items.append(it)
 			items.append("health_potion")
 			items.append("health_potion")
-		var acc: Dictionary = _rewards.get(pid, {"gold": 0, "xp": 0, "items": []})
-		acc.gold += int(rw.gold)
-		acc.xp += int(rw.xp)
-		acc.items.append_array(items)
-		_rewards[pid] = acc
+		_add_reward(pid, int(rw.gold), int(rw.xp), items)
 		_city_reward.rpc_id(pid, n, int(rw.gold), int(rw.xp), items)
 	_update_record(n)
 	_broadcast_room()
+
+
+## Covil limpo: cada jogador na cidade ganha ouro e XP no próprio personagem (somado ao resultado da partida).
+func city_den_reward(den_name: String, gold: int, xp: int) -> void:
+	for pid in Network.zone_peers("city"):
+		_add_reward(pid, gold, xp, [])
+		_city_den_reward.rpc_id(pid, den_name, gold, xp)
+
+
+func _add_reward(pid: int, gold: int, xp: int, items: Array) -> void:
+	var acc: Dictionary = _rewards.get(pid, {"gold": 0, "xp": 0, "items": []})
+	acc.gold += gold
+	acc.xp += xp
+	acc.items.append_array(items)
+	_rewards[pid] = acc
 
 
 func _roll_item(n: int) -> String:
@@ -609,6 +620,16 @@ func city_node_state(id: int, alive: bool) -> void:
 	_to_city("_city_node", [id, alive])
 
 
+## Covil mudou de nível ou foi limpo.
+func city_den_state(id: int, level: int, cleared: bool) -> void:
+	_to_city("_city_den", [id, level, cleared])
+
+
+## Nó rico novo (covil limpo): os clientes criam o mesmo nó, com o mesmo id.
+func city_rich_node(id: int, kind: String, x: float, z: float, total: int) -> void:
+	_to_city("_city_rich", [id, kind, x, z, total])
+
+
 func city_enemy_meta(e: Enemy) -> void:
 	if e.net_id != 0:
 		_to_city("_city_enemy_meta", [e.net_id, e.affix])
@@ -670,8 +691,13 @@ func _city_full(d: Dictionary) -> void:
 	for a in d.get("animals", []):
 		c.net_animal_add(int(a[0]), str(a[1]), float(a[2]), float(a[3]))
 	if c.nature:
+		for r in d.get("rich", []):   # antes dos esgotados: um nó rico também pode estar esgotado
+			c.nature.net_add_rich(int(r[0]), str(r[1]), float(r[2]), float(r[3]), int(r[4]))
 		for id in d.get("nodes", []):
 			c.nature.net_set(int(id), false, false)
+	var dl: Array = d.get("dens", [])
+	for i in mini(dl.size(), c.dens.size()):
+		c.dens[i].net_set(int(dl[i][0]), bool(dl[i][1]))
 	c.apply_state(d.get("state", {}))
 	if city and city.has_method("on_city_synced"):
 		city.on_city_synced()
@@ -745,6 +771,29 @@ func _city_node(id: int, alive: bool) -> void:
 	var c := _colony()
 	if c and c.nature:
 		c.nature.net_set(id, alive)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _city_den(id: int, level: int, cleared: bool) -> void:
+	var c := _colony()
+	if c and id >= 0 and id < c.dens.size():
+		c.dens[id].net_set(level, cleared)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _city_rich(id: int, kind: String, x: float, z: float, total: int) -> void:
+	var c := _colony()
+	if c and c.nature:
+		c.nature.net_add_rich(id, kind, x, z, total)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _city_den_reward(den_name: String, gold: int, xp: int) -> void:
+	Game.add_gold(gold)
+	Game.add_xp(xp)
+	Game.notify.emit("%s limpo! Recompensa: +%d ouro e +%d XP para o seu personagem." % [den_name, gold, xp], Color(1, 0.85, 0.35))
+	Sfx.play("quest", 0.0, -2.0)
+	save_character()
 
 
 @rpc("authority", "call_remote", "reliable")

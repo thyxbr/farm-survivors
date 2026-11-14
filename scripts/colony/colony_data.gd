@@ -199,6 +199,40 @@ const ANIMALS := {
 ## Chance de o próximo grupo de fauna nascer no anel 1, 2 ou 3.
 const WILD_RING_WEIGHTS := [0.55, 0.30, 0.15]
 
+## Covis (pontos de interesse), gerados da semente: cada um numa direção de Colony.DIR_NAMES.
+## ring: anel (ver RINGS) · props: [modelo, deslocamento a partir do centro, giro] (o centro fica livre
+## para o depósito rico) · guards: [[tipo, quantos no nível 1]] · elite: chance de cada guarda vir com afixo ·
+## boss/boss_affix/boss_hp: o chefe (boss_hp multiplica a vida-base dele) · reward: recursos da cidade ao limpar
+## (× level_mult(nível, 0.5)) · deposit: [tipo de nó, total] do nó rico que aparece no centro.
+## Uma entrada de dungeon futura vira mais um tipo aqui.
+const POIS := {
+	"goblin_camp": {"name": "Acampamento Goblin", "ring": 2,
+		"props": [["tent", Vector3(-5, 0, -3), 0.5], ["tent", Vector3(5, 0, -3.5), -0.6], ["campfire", Vector3(0, 0, -5), 0.0],
+			["crate", Vector3(-6, 0, 3), 0.3], ["barrel", Vector3(6, 0, 2.5), 0.0], ["chest", Vector3(0, 0, 6), PI]],
+		"guards": [["goblin", 3], ["goblin_arqueiro", 2], ["goblin_xama", 1]], "elite": 0.0,
+		"boss": "goblin_campeao", "boss_affix": "", "boss_hp": 1.0,
+		"reward": {"wood": 60, "stone": 60, "iron": 15, "crystal": 0, "gold": 80}, "deposit": ["iron", 60]},
+	"slime_nest": {"name": "Ninho de Slimes", "ring": 2,
+		"props": [["rock", Vector3(-5, 0, -2), 0.0], ["rock", Vector3(4, 0, -4), 1.2], ["ruin_pillar", Vector3(5, 0, 3), 0.4],
+			["barrel", Vector3(-4, 0, 5), 0.0], ["crate", Vector3(-6.5, 0, 1.5), 0.8]],
+		"guards": [["slime", 4], ["slime_mae", 1], ["slime_explosivo", 2]], "elite": 0.0,
+		"boss": "slime_grande", "boss_affix": "", "boss_hp": 3.0,
+		"reward": {"wood": 40, "stone": 80, "iron": 0, "crystal": 5, "gold": 60}, "deposit": ["gold", 200]},
+	"haunted_ruins": {"name": "Ruínas Assombradas", "ring": 3,
+		"props": [["ruin_wall", Vector3(-5, 0, -4), 0.3], ["ruin_wall", Vector3(4, 0, -5), -0.4], ["ruin_pillar", Vector3(-6, 0, 3), 0.0],
+			["ruin_pillar", Vector3(6, 0, 3), 0.0], ["chest", Vector3(0, 0, -6.5), 0.0]],
+		"guards": [["goblin", 3], ["goblin_bruto", 1], ["slime_grande", 1], ["goblin_xama", 1]], "elite": 0.4,
+		"boss": "goblin_bruto", "boss_affix": "blindado", "boss_hp": 1.8,
+		"reward": {"wood": 80, "stone": 120, "iron": 25, "crystal": 15, "gold": 150}, "deposit": ["crystal", 30]},
+}
+const DEN_WAKE := 45.0          # um jogador a até tantos metros acorda o covil (os guardas nascem)
+const DEN_SLEEP := 60.0         # sem ninguém a até tantos metros, o covil volta a dormir (os guardas somem)
+const DEN_LEASH := 25.0         # guarda atraído para além disto do centro volta ao covil
+const DEN_GROW_DAYS := 3        # covil não limpo sobe de nível a cada tantos dias
+const DEN_WAVE_BONUS := 0.15    # +15% de orçamento da onda por nível, na direção do covil
+const DEN_LEVEL_GUARDS := 1     # guardas a mais de cada tipo por nível acima do 1
+const DEN_LEVEL_HP := 0.3       # vida dos guardas e do chefe: +30% por nível acima do 1
+
 ## Custo de cada monstro no orçamento da onda e a noite em que começa a aparecer.
 const WAVE_COSTS := {
 	"slime": [1.0, 1], "slime_veloz": [1.0, 2], "goblin": [2.0, 2], "slime_grande": [3.0, 4], "goblin_bruto": [4.0, 3],

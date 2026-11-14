@@ -18,6 +18,8 @@ var colony: Colony
 var nodes: Array[ColonyResourceNode] = []
 ## id -> dia em que o nó volta (servidor/solo). No cliente o dia é -1 (quem decide é o servidor).
 var depleted := {}
+## Quantos nós vieram da semente; os ids daqui para cima são nós ricos (covis limpos), que vão no save.
+var generated := 0
 var _last_hit := {}
 
 
@@ -82,6 +84,8 @@ func generate(rng: RandomNumberGenerator, c: Colony) -> void:
 			var p := cen + Vector3(rng.randf_range(-6.0, 6.0), 0, rng.randf_range(-6.0, 6.0))
 			if _clear(p, 1.5):
 				_add("rock", "rock", p, rng.randf() * TAU, rng.randf_range(0.7, 1.4), 0.65)
+	generated = nodes.size()
+	_place_dens(rng)
 
 
 func node(id: int) -> ColonyResourceNode:
@@ -143,6 +147,28 @@ func add_rich(kind: String, pos: Vector3, total: int) -> int:
 	var n := _add(kind, model, pos, 0.0, 1.4, 0.65)
 	n.total = total
 	return n.id
+
+
+## Cliente: o servidor criou um nó rico. Os ids chegam em ordem; um que já existe é ignorado.
+func net_add_rich(id: int, kind: String, x: float, z: float, total: int) -> void:
+	if id == nodes.size() and ColonyData.NODES.has(kind):
+		add_rich(kind, Vector3(x, 0, z), total)
+
+
+## Nós ricos (covis limpos): [id, tipo, x, z, total], em ordem de id.
+func rich_list() -> Array:
+	var out: Array = []
+	for i in range(generated, nodes.size()):
+		var n := nodes[i]
+		out.append([n.id, n.kind, n.global_position.x, n.global_position.z, n.total])
+	return out
+
+
+## Save: recria os nós ricos na mesma ordem (antes dos esgotados, que podem incluí-los).
+func load_rich(list: Array) -> void:
+	for r in list:
+		if r is Array and r.size() == 5 and ColonyData.NODES.has(str(r[1])) and int(r[0]) == nodes.size():
+			add_rich(str(r[1]), Vector3(float(r[2]), 0, float(r[3])), int(r[4]))
 
 
 ## Golpe aceito? (no máximo um pedaço por nó a cada HIT_COOLDOWN)
@@ -230,6 +256,41 @@ func _add(kind: String, model: String, pos: Vector3, yaw: float, s: float, radiu
 	add_child(n)
 	colony.obstacles.append(n.obstacle)
 	return n
+
+
+## Covis: de 4 a 6, cada um numa direção diferente (a mesma conta de Colony.spawn_point), no anel do tipo.
+## Os três tipos aparecem antes de repetir. Vêm depois de todos os nós, para não mudar os ids deles.
+func _place_dens(rng: RandomNumberGenerator) -> void:
+	var dirs := range(8)
+	for i in range(dirs.size() - 1, 0, -1):   # embaralha com o rng da semente (shuffle() usa o global)
+		var j := rng.randi_range(0, i)
+		var t = dirs[i]
+		dirs[i] = dirs[j]
+		dirs[j] = t
+	var kinds: Array = ColonyData.POIS.keys()
+	var n := rng.randi_range(4, 6)
+	var rings: Array = ColonyData.RINGS
+	var lim := ColonyData.MAP_HALF - 12.0
+	for i in n:
+		var kind: String = kinds[i] if i < kinds.size() else kinds[rng.randi_range(0, kinds.size() - 1)]
+		var ring := int(ColonyData.POIS[kind].ring)
+		var lo := float(rings[ring - 1]) + 6.0
+		var hi := float(rings[ring]) - 8.0 if ring < rings.size() else lim
+		var base := -PI / 2 + int(dirs[i]) * TAU / 8.0
+		var p := Vector3.ZERO
+		for t in 40:
+			var a := base + rng.randf_range(-0.22, 0.22)
+			p = Vector3(cos(a), 0, sin(a)) * rng.randf_range(lo, maxf(lo, hi))
+			if _clear(p, 7.0):
+				break
+		var den := ColonyDen.new()
+		den.id = colony.dens.size()
+		den.kind = kind
+		den.dir_index = int(dirs[i])
+		den.colony = colony
+		den.position = p
+		colony.dens.append(den)
+		add_child(den)
 
 
 ## Espalha `count` nós entre os raios lo e hi, longe dos obstáculos que já existem.

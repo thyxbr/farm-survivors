@@ -534,6 +534,75 @@ func _ready() -> void:
 	await wait(3.0)
 	check(colony.phase == "day" and colony.day == d0 + 1, "onda derrotada: amanhece (dia %d)" % colony.day)
 
+	# --- covis: acordam com jogador perto, dormem sem ninguém e à noite, reforçam a onda, crescem e são limpos
+	check(colony.dens.size() >= 4 and colony.dens.size() <= 6, "o mapa tem covis (%d)" % colony.dens.size())
+	var den_dirs_ok := true
+	var seen_dirs := {}
+	for dn in colony.dens:
+		var dd := Vector2(dn.global_position.x, dn.global_position.z).length()
+		var lo: float = ColonyData.RINGS[int(ColonyData.POIS[dn.kind].ring) - 1]
+		if seen_dirs.has(dn.dir_index) or dd < lo:
+			den_dirs_ok = false
+		seen_dirs[dn.dir_index] = true
+	check(den_dirs_ok, "cada covil numa direção diferente, no anel dele")
+	var den: ColonyDen = colony.dens[0]
+	player.global_position = den.global_position.move_toward(Vector3.ZERO, 30.0) + Vector3(0, 0.5, 0)
+	await wait(1.0)
+	check(den.awake and den.guards_alive() > 0, "covil acorda com jogador perto (%d guardas)" % den.guards_alive())
+	var leashed := true
+	for g in den.guards():
+		if g.siege or g.den_id != den.id:
+			leashed = false
+	check(leashed, "guardas não são do cerco e são presos ao covil")
+	player.global_position = Vector3(0, 0.5, 14)
+	await wait(1.0)
+	check(not den.awake and den.guards_alive() == 0, "covil dorme sem ninguém perto")
+	check(colony.den_dirs().has(den.dir_index), "covil de pé entra na onda")
+	colony.start_night()
+	check(den.dir_index in colony.wave_dirs, "direção do covil é forçada na onda")
+	var den_extra := 0
+	for it in colony.wave_queue:
+		if it is Array and int(it[1]) == den.dir_index:
+			den_extra += 1
+	check(den_extra > 0, "covil soma monstros extras na direção dele (%d)" % den_extra)
+	d0 = colony.day
+	for i in 30:
+		colony.wave_queue.clear()
+		for c in colony.get_children():
+			if c is Enemy and not c.dead:
+				c.take_damage(999999, c.global_position, false)
+		await wait(0.3)
+		if colony.phase == "day":
+			break
+	await wait(3.0)
+	check(colony.phase == "day" and colony.day == d0 + 1, "noite com covis termina (dia %d)" % colony.day)
+	if cr.alive:   # a noite a mais deixou o cristal voltar; o save abaixo confere um nó esgotado
+		for i in 6:
+			colony.harvest(cr.id, player.global_position)
+	den.level = 1   # o teste mexe nos dias à mão; conta o crescimento a partir de hoje
+	den.grown_day = colony.day
+	den.dawn(colony.day + 3)
+	check(den.level == 2, "covil cresce a cada 3 dias (nível %d)" % den.level)
+	var s0 := colony.amount("stone")
+	var n_nodes := colony.nature.nodes.size()
+	den.on_boss_killed()
+	check(den.cleared and colony.amount("stone") > s0 and not colony.den_dirs().has(den.dir_index),
+		"limpar o covil dá recursos e fecha a direção")
+	var rich := colony.nature.node(n_nodes)
+	var dep: Array = ColonyData.POIS[den.kind].deposit
+	check(rich != null and rich.kind == str(dep[0]) and rich.total == int(dep[1]), "limpar o covil deixa um nó rico")
+	colony.phase = "night"
+	player.global_position = colony.dens[1].global_position.move_toward(Vector3.ZERO, 20.0) + Vector3(0, 0.5, 0)
+	await wait(1.0)
+	check(not colony.dens[1].awake and colony.dens[1].guards_alive() == 0, "covis dormem à noite")
+	colony.phase = "day"
+	player.global_position = Vector3(0, 0.5, 14)
+	var rich_id := rich.id if rich else -1
+	var rich_kind := rich.kind if rich else ""
+	var rich_total := rich.total if rich else -1
+	var den1_level := 3
+	colony.dens[1].level = den1_level
+
 	# --- salvar e carregar
 	var nb := colony.buildings().size()
 	var ns := colony.soldier_count()
@@ -558,6 +627,10 @@ func _ready() -> void:
 	check(colony.buildings()[0].invested == inv_s, "carrega o investido por recurso")
 	check(colony.has_tech("sharp_axe") and colony.has_tech("masonry") and colony.era() == 2, "carrega as pesquisas e a era")
 	check(colony.busy_t.size() == 1 and str(colony.busy_t.values()[0][0]) == "plow", "pesquisa em andamento volta do save")
+	check(colony.dens[0].cleared and colony.dens[1].level == den1_level and not colony.dens[1].cleared,
+		"save guarda o estado dos covis")
+	var rich_l := colony.nature.node(rich_id)
+	check(rich_l != null and rich_l.kind == rich_kind and rich_l.total == rich_total, "save guarda o nó rico do covil")
 	var old := colony.to_dict()
 	old.erase("res")
 	old["version"] = 1
@@ -574,6 +647,8 @@ func _ready() -> void:
 	v1.erase("seed")
 	v1.erase("res")
 	v1.erase("nodes")
+	v1.erase("dens")
+	v1.erase("rich")
 	v1["version"] = 1
 	_write_save(v1)
 	Game.start_colony(true)
@@ -581,6 +656,10 @@ func _ready() -> void:
 	_bind()
 	check(world.map_seed == 7731 and colony.amount("wood") == 150, "save antigo carrega com semente 7731 e madeira inicial")
 	check(colony.nature.node(cr_id).alive, "save antigo: todos os nós vivos")
+	var fresh: bool = colony.dens.size() >= 4
+	for dn in colony.dens:
+		fresh = fresh and not dn.cleared and dn.level == 1
+	check(fresh and colony.nature.node(rich_id) == null, "save antigo: covis novos e sem nó rico")
 
 	# --- derrota
 	colony.hall.take_damage(999999, Vector3.ZERO)

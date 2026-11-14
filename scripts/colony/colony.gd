@@ -49,6 +49,7 @@ var _ammo_warned := {}         # recurso -> já avisou que acabou nesta noite
 var obstacles: Array = []
 ## Nós de recurso do mapa (árvores, pedras, veios, cristais, arbustos); a cena da cidade cria e liga.
 var nature: ColonyNature
+var dens: Array[ColonyDen] = []   # covis do mapa (ColonyNature gera da semente); o índice é o id
 var day_length := ColonyData.DAY_LENGTH
 var first_day_bonus := ColonyData.FIRST_DAY_BONUS
 
@@ -86,6 +87,7 @@ var _gather_t := 0.0               # segundos até a próxima entrega da serrari
 var _gather_acc := {}              # construção -> unidades produzidas e ainda não entregues (fração)
 var _gather_made := {}             # construção -> unidades já entregues desde o último nó esgotado
 var _core_warn := 0.0
+var _den_t := 0.0                  # segundos até a próxima conferida dos covis (jogador perto?)
 var _dawn_pending := false
 var _flag: Node3D
 
@@ -1227,6 +1229,10 @@ func _physics_process(delta: float) -> void:
 			if _gather_t <= 0.0:
 				_gather_t += ColonyData.GATHER_TICK
 				_gather_tick(ColonyData.GATHER_TICK)
+			_den_t -= delta
+			if _den_t <= 0.0:
+				_den_t = 0.5
+				_den_tick()
 			if phase_t <= 25.0 and not _warned:
 				_warned = true
 				say("O sol está se pondo... os monstros atacam ao anoitecer!", Color(1, 0.6, 0.4))
@@ -1297,18 +1303,27 @@ func start_night(forced := false) -> void:
 	if role == "server":
 		team_size = maxi(1, Lobby.city_team_size())
 		Lobby.city_night_started()
+	for den in dens:
+		den.sleep()   # à noite os covis dormem: nada novo compete com a onda
 	wave_queue = _build_wave_coop(day) if is_coop() else _build_wave(day)
 	wave_total = wave_queue.size()
 	_spawn_i = 0
 	var ndirs := 1 if day < 3 else (2 if day < 6 else 3)
 	if is_coop() and day >= 12:
 		ndirs = 4
-	var first := randi() % 8
-	wave_dirs = [first]
-	while wave_dirs.size() < ndirs:
-		var d: int = (first + [3, 5, 2, 6, 4][wave_dirs.size() - 1] + randi() % 2) % 8
+	# a direção de cada covil de pé entra sempre (e conta no total de direções da noite)
+	wave_dirs = den_dirs().keys()
+	var first: int = wave_dirs[0] if not wave_dirs.is_empty() else randi() % 8
+	if wave_dirs.is_empty():
+		wave_dirs = [first]
+	var tries := 0
+	while wave_dirs.size() < ndirs and tries < 50:
+		tries += 1
+		var d: int = (first + [3, 5, 2, 6, 4][mini(wave_dirs.size() - 1, 4)] + randi() % 2) % 8
 		if d not in wave_dirs:
 			wave_dirs.append(d)
+		else:
+			first = randi() % 8
 	var names: Array[String] = []
 	for d in wave_dirs:
 		names.append(DIR_NAMES[d])
@@ -1340,7 +1355,9 @@ func _build_wave(n: int) -> Array:
 	if n % ColonyData.BOSS_EVERY == 0:
 		budget *= 0.7
 	var weights := {"slime": 3.0, "slime_veloz": 1.4, "goblin": 2.0, "slime_grande": 1.0, "goblin_bruto": 0.5 + 0.1 * n}
+	var extra := _den_budgets(budget)
 	_fill_wave(out, budget, n, weights)
+	_fill_den_waves(out, extra, n, weights)
 	out.shuffle()
 	if n % ColonyData.BOSS_EVERY == 0:
 		out.append("goblin_king")
@@ -1357,16 +1374,24 @@ func _build_wave_coop(n: int) -> Array:
 	if boss_night:
 		budget *= 0.7
 	var cap := ColonyData.WAVE_CAP * (1.0 + 0.35 * (team_size - 1))
+	var extra := _den_budgets(budget)
+	var total := budget
+	for d in extra:
+		total += float(extra[d])
 	_overflow_hp = 1.0
-	if budget > cap:
-		_overflow_hp = budget / cap
-		budget = cap
+	if total > cap:
+		# o extra dos covis passa pelo teto junto com o resto: tudo encolhe na mesma proporção
+		_overflow_hp = total / cap
+		budget /= _overflow_hp
+		for d in extra:
+			extra[d] = float(extra[d]) / _overflow_hp
 	var weights := {"slime": maxf(0.6, 3.0 - 0.15 * n), "slime_veloz": 1.4, "goblin": 2.0 + 0.05 * n,
 		"slime_grande": 1.0 + 0.08 * n, "goblin_bruto": 0.5 + 0.12 * n}
 	if night_mod == "cerco":
 		weights.goblin_bruto *= 3.0
 	var out: Array = []
 	_fill_wave(out, budget, n, weights)
+	_fill_den_waves(out, extra, n, weights)
 	out.shuffle()
 	if boss_night:
 		var kings := 1 + (1 if n >= 15 else 0) + (1 if n >= 25 else 0)
@@ -1399,6 +1424,24 @@ func _fill_wave(out: Array, budget: float, n: int, weights: Dictionary) -> void:
 		budget -= float(ColonyData.WAVE_COSTS[pick][0])
 
 
+## Orçamento extra de cada covil de pé ({direção: orçamento}): DEN_WAVE_BONUS × nível × orçamento da onda.
+func _den_budgets(budget: float) -> Dictionary:
+	var out := {}
+	var dd := den_dirs()
+	for d in dd:
+		out[d] = budget * ColonyData.DEN_WAVE_BONUS * int(dd[d])
+	return out
+
+
+## Monstros extras dos covis: vão na fila como [tipo, direção] (nascem só na direção do covil).
+func _fill_den_waves(out: Array, extra: Dictionary, n: int, weights: Dictionary) -> void:
+	for d in extra:
+		var part: Array = []
+		_fill_wave(part, float(extra[d]), n, weights)
+		for k in part:
+			out.append([k, d])
+
+
 func spawn_point(dir_index: int) -> Vector3:
 	var center := hall.global_position if hall and is_instance_valid(hall) else Vector3.ZERO
 	var a := -PI / 2 + dir_index * TAU / 8.0          # 0 = norte (-Z), sentido horário
@@ -1411,9 +1454,16 @@ func spawn_point(dir_index: int) -> Vector3:
 
 
 func _spawn_next() -> void:
-	var kind: String = wave_queue.pop_front()
-	var d: int = wave_dirs[_spawn_i % wave_dirs.size()]
-	_spawn_i += 1
+	var item = wave_queue.pop_front()
+	var kind: String
+	var d: int
+	if item is Array:   # extra de covil: [tipo, direção]
+		kind = str(item[0])
+		d = int(item[1])
+	else:
+		kind = str(item)
+		d = wave_dirs[_spawn_i % wave_dirs.size()]
+		_spawn_i += 1
 	var base := spawn_point(d)
 	var center := hall.global_position if hall and is_instance_valid(hall) else Vector3.ZERO
 	var out := base - center
@@ -1450,10 +1500,11 @@ func _roll_affix() -> String:
 
 
 ## boss_mult >= 0: vida fixa do chefe (hp_mult = boss_mult). affix = elite (cooperativo).
-func spawn_enemy(kind: String, pos: Vector3, boss_mult := -1.0, affix := "") -> Enemy:
+## siege = false: monstro comum (guarda de covil), que não marcha para a cidade nem conta na onda.
+func spawn_enemy(kind: String, pos: Vector3, boss_mult := -1.0, affix := "", siege := true) -> Enemy:
 	var e: Enemy = ENEMY.new()
 	e.kind = kind
-	e.siege = true
+	e.siege = siege
 	if boss_mult >= 0.0:
 		e.hp_mult = boss_mult
 	elif is_coop():
@@ -1568,6 +1619,8 @@ func dawn() -> void:
 	phase_t = day_length
 	if nature:
 		nature.regrow(day)
+	for den in dens:
+		den.dawn(day)
 	night_mod = ""
 	_warned = false
 	Game.stats_changed.emit()
@@ -1643,6 +1696,31 @@ func _coop_dawn(survived: int) -> void:
 		Lobby.city_night_survived(survived)
 
 
+# ================================================================ covis
+## {direção: nível} dos covis de pé (não limpos). Cada um força a direção na onda e soma orçamento.
+func den_dirs() -> Dictionary:
+	var out := {}
+	for den in dens:
+		if not den.cleared:
+			out[den.dir_index] = den.level
+	return out
+
+
+## Servidor/solo, a cada 0,5 s de dia: os covis acordam com jogador perto e dormem sem ninguém.
+## No entardecer todos dormem (e não acordam até o amanhecer).
+func _den_tick() -> void:
+	if dens.is_empty():
+		return
+	if phase_t <= ColonyData.DUSK:
+		for den in dens:
+			if den.awake:
+				den.sleep()
+		return
+	var players := unit_players()
+	for den in dens:
+		den.tick(players)
+
+
 # ================================================================ caça e vida selvagem
 ## `want_override` (>= 0) troca o teto de animais vivos (12) e pula os monstros errantes: gancho dos testes.
 func _spawn_wildlife(refresh: bool, want_override := -1) -> void:
@@ -1681,7 +1759,7 @@ func _spawn_wildlife(refresh: bool, want_override := -1) -> void:
 		# monstros errantes longe da cidade: tornam a caçada perigosa
 		var wild := 0
 		for c in get_children():
-			if c is Enemy and not c.siege and not c.dead:
+			if c is Enemy and not c.siege and c.den_id < 0 and not c.dead:   # guardas de covil não contam
 				wild += 1
 		for i in clampi(2 + day / 2, 2, 6) - wild:
 			var p := _wild_point(ColonyData.CITY_RADIUS + 30.0)
@@ -1929,8 +2007,11 @@ func net_full() -> Dictionary:
 	for a in get_tree().get_nodes_in_group("animals"):
 		if a.colony == self and not a.dead:
 			al.append([a.net_id, a.kind, a.global_position.x, a.global_position.z])
+	var dl: Array = []
+	for den in dens:
+		dl.append([den.level, den.cleared])
 	return {"state": net_state(), "buildings": bl, "soldiers": sl, "animals": al,
-		"nodes": nature.depleted.keys() if nature else []}
+		"nodes": nature.depleted.keys() if nature else [], "rich": nature.rich_list() if nature else [], "dens": dl}
 
 
 ## Servidor: posições dos soldados e animais e a vida das construções que mudou.
@@ -2096,7 +2177,11 @@ func to_dict() -> Dictionary:
 	var sl: Array = []
 	for s in soldiers():
 		sl.append({"unit": s.unit, "hp": s.hp, "x": s.global_position.x, "z": s.global_position.z})
+	var dl: Array = []
+	for den in dens:
+		dl.append(den.to_dict())
 	return {"version": 2, "seed": world.map_seed if world else 7731, "nodes": nature.to_dict() if nature else {},
+		"rich": nature.rich_list() if nature else [], "dens": dl,
 		"res": res, "day": day, "phase": phase, "phase_t": phase_t, "food": food, "citizens": citizens,
 		"tax": tax_level, "army_mode": army_mode, "rally": [rally.x, rally.z], "kills": total_kills, "train": train_queue,
 		"techs": techs.keys(), "buildings": bl, "soldiers": sl}
@@ -2140,7 +2225,11 @@ func from_dict(d: Dictionary) -> void:
 		if ColonyData.UNITS.has(str(sd.unit)):
 			spawn_soldier(str(sd.unit), Vector3(float(sd.x), 0, float(sd.z)), float(sd.get("hp", -1.0)))
 	if nature:
+		nature.load_rich(d.get("rich", []))   # antes dos esgotados: um nó rico também pode estar esgotado
 		nature.from_dict(d.get("nodes", {}))
+	var dl: Array = d.get("dens", [])   # save antigo: sem covis salvos, ficam os novos da semente
+	for i in dens.size():
+		dens[i].from_dict(dl[i] if i < dl.size() and dl[i] is Dictionary else {})
 	if hall != null:
 		phase = "day"
 		phase_t = clampf(float(d.get("phase_t", day_length)), 20.0, day_length + first_day_bonus)
