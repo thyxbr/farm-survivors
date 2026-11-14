@@ -40,6 +40,8 @@ func _xform_to(n: Node3D, top: Node) -> Transform3D:
 func _initialize() -> void:
 	_check_elder()
 	_check_merchant()
+	_check_libraries()
+	_check_substitutes()
 	print("FALHAS: ", fails)
 	quit(1 if fails > 0 else 0)
 
@@ -150,3 +152,98 @@ func _check_merchant() -> void:
 			var at := s * sk.get_bone_global_pose(sk.find_bone(sd + "Hand")).origin
 			check(at.distance_to(w) <= 0.03, "Mira: arms_down, punho %s em %s (antes %s)" % [sd, at, w])
 	m.free()
+
+
+# ---------------------------------------------------------------- bibliotecas "mixamo" (tools/build_npc_mixamo.gd)
+const LIBS := {
+	"elder": ["res://assets/animations/elder_mixamo.res", {"idle": true, "excited": false, "talk": true}],
+	"merchant": ["res://assets/animations/merchant_mixamo.res", {"idle": true, "call": false, "talk": true}],
+}
+## Ossos do braço esquerdo do Bram presos na pose staff_hold (o cajado não balança).
+const ELDER_LOCKED := ["LeftShoulder", "LeftUpperArm", "LeftLowerArm", "LeftHand"]
+const SK := "%GeneralSkeleton:"
+
+
+func _check_libraries() -> void:
+	for npc: String in LIBS:
+		var lib := load(LIBS[npc][0]) as AnimationLibrary
+		check(lib != null, "%s carrega como AnimationLibrary" % LIBS[npc][0])
+		if lib != null:
+			_check_library(npc, lib)
+
+
+## Com nenhum FBX novo presente (pasta inexistente), a ferramenta monta tudo de substitutos e diz a origem.
+func _check_substitutes() -> void:
+	var tool: Script = load("res://tools/build_npc_mixamo.gd")
+	check(tool != null, "tools/build_npc_mixamo.gd carrega")
+	if tool == null:
+		return
+	var subs := {"elder": {"idle": "blacksmith_mixamo.res", "excited": "elder.glb", "talk": "blacksmith_mixamo.res"},
+			"merchant": {"idle": "blacksmith_mixamo.res", "call": "merchant.glb", "talk": "blacksmith_mixamo.res"}}
+	for npc: String in subs:
+		var origins := {}
+		var lib: AnimationLibrary = tool.build(npc, "res://tests/sem_fbx/", origins)
+		check(lib != null, "%s sem FBX: a ferramenta monta a biblioteca" % npc)
+		if lib == null:
+			continue
+		for c: String in subs[npc]:
+			var o: String = origins.get(c, "")
+			check(o.begins_with("SUBSTITUTO") and o.contains(subs[npc][c]),
+					"%s sem FBX: %s vem de substituto (%s)" % [npc, c, o])
+		_check_library(npc + " sem FBX", lib)
+
+
+func _check_library(npc: String, lib: AnimationLibrary) -> void:
+	var key := npc.get_slice(" ", 0)
+	var loops: Dictionary = LIBS[key][1]
+	var names: Array = lib.get_animation_list().map(func(n): return str(n))
+	names.sort()
+	var want: Array = loops.keys()
+	want.sort()
+	check(names == want, "%s: clipes %s (esperado %s)" % [npc, names, want])
+	var bones := {}   # NodePath:tipo animados por algum clipe
+	for c: String in loops:
+		if not lib.has_animation(c):
+			continue
+		var a := lib.get_animation(c)
+		print("      %s/%s: %s, %.2f s, %d tracks" % [npc, c, a.get_meta("origem", "?"), a.length, a.get_track_count()])
+		check((a.loop_mode == Animation.LOOP_LINEAR) == loops[c],
+				"%s: %s %s" % [npc, c, "em loop" if loops[c] else "toca uma vez"])
+		var stray := 0
+		for t in a.get_track_count():
+			var p := str(a.track_get_path(t))
+			bones["%s:%d" % [p, a.track_get_type(t)]] = true
+			if not p.begins_with(SK) or p.contains("mixamorig"):
+				stray += 1
+		check(a.get_track_count() > 0 and stray == 0, "%s: %s anima só ossos do perfil (%d fora)" % [npc, c, stray])
+	# um osso sem track no clipe atual ficaria preso na pose do clipe anterior
+	for c: String in loops:
+		if lib.has_animation(c):
+			var a := lib.get_animation(c)
+			var missing := bones.keys().filter(func(k: String):
+				return a.find_track(NodePath(k.get_slice(":", 0) + ":" + k.get_slice(":", 1)), int(k.get_slice(":", 2))) < 0)
+			check(missing.is_empty(), "%s: %s anima todos os ossos da biblioteca (faltam %s)" % [npc, c, missing])
+	if key == "elder":
+		_check_staff_lock(npc, lib)
+
+
+## Bram: em todos os clipes o braço esquerdo fica parado na pose staff_hold do elder.glb.
+func _check_staff_lock(npc: String, lib: AnimationLibrary) -> void:
+	var m: Node3D = (load("res://assets/models/elder.glb") as PackedScene).instantiate()
+	var ap := m.find_children("*", "AnimationPlayer")[0] as AnimationPlayer
+	var hold := ap.get_animation("staff_hold")
+	var t_hold := hold.find_track(SK + "LeftLowerArm", Animation.TYPE_ROTATION_3D)
+	var want: Quaternion = hold.rotation_track_interpolate(t_hold, 0.0)
+	m.free()
+	for c in lib.get_animation_list():
+		var a := lib.get_animation(c)
+		for b: String in ELDER_LOCKED:
+			var t := a.find_track(SK + b, Animation.TYPE_ROTATION_3D)
+			var other := a.find_track(SK + b, Animation.TYPE_POSITION_3D) >= 0 or a.find_track(SK + b, Animation.TYPE_SCALE_3D) >= 0
+			var r0: Quaternion = a.rotation_track_interpolate(t, 0.0) if t >= 0 else Quaternion()
+			var r1: Quaternion = a.rotation_track_interpolate(t, a.length * 0.5) if t >= 0 else Quaternion()
+			check(t >= 0 and not other and r0.is_equal_approx(r1),
+					"%s: %s, %s constante (t=0 e meio iguais)" % [npc, c, b])
+		var tl := a.find_track(SK + "LeftLowerArm", Animation.TYPE_ROTATION_3D)
+		check(tl >= 0 and (a.rotation_track_interpolate(tl, a.length * 0.5) as Quaternion).is_equal_approx(want),
+				"%s: %s, LeftLowerArm na pose staff_hold" % [npc, c])

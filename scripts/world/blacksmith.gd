@@ -15,7 +15,7 @@ const STRIKE_CLIPS := ["work_hammer"]
 ## Tempo (s) do impacto em cada clipe, pelo nome resolvido por clip(): work_hammer provisório = quadro 13
 ## de 36 a 30 fps. O Mixamo não tinha martelar; se um dia entrar, vem com a própria chave ("mixamo/work_hammer").
 const STRIKES := {"work_hammer": [0.433]}
-## Clipes do Mixamo (parado, conversa e pausa), montados por tools/build_blacksmith_mixamo.gd. Entram como
+## Clipes do Mixamo (parado, conversa e pausa), montados por tools/build_npc_mixamo.gd. Entram como
 ## a biblioteca "mixamo" do AnimationPlayer e têm prioridade sobre os provisórios do .glb (ver clip()).
 const MIXAMO_LIB := "res://assets/animations/blacksmith_mixamo.res"
 const SPARK_COLOR := Color(1.0, 0.72, 0.25)
