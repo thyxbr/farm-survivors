@@ -174,6 +174,7 @@ func _ready() -> void:
 	Game.kit_changed.connect(end_ability)   # só o jogador local: réplicas saem antes, em _ready_remote
 	_update_equipment_visual()
 	FXEpic.prewarm()   # shaders dos efeitos prontos: a primeira habilidade não engasga
+	FXEpic.prewarm_instances.call_deferred(self)   # e os pipelines de desenho de cada tipo de efeito
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -787,6 +788,8 @@ func end_ability() -> void:
 		collision_mask = ability_data.mask
 	if ability_data.has("yaw0"):
 		model.rotation.y = float(ability_data.yaw0)
+	if ability_data.has("fov0") and camera:
+		camera.fov = float(ability_data.fov0)   # a habilidade mexeu no FOV (Flecha do Vendaval)
 	if not remote:
 		velocity.x = 0.0
 		velocity.z = 0.0
@@ -1277,7 +1280,8 @@ func _animate(delta: float) -> void:
 	_cast_t += delta
 	var arrow: Node3D = look.get("arrow")
 	if arrow and is_instance_valid(arrow):
-		arrow.visible = drawing or ((ability == "bow_triple" and ability_t < BowAbilities.TRIPLE_DRAW) or (ability == "bow_frost" and ability_t < BowAbilities.FROST_DRAW))
+		arrow.visible = drawing or ((ability == "bow_triple" and ability_t < BowAbilities.TRIPLE_DRAW) or (ability == "bow_frost" and ability_t < BowAbilities.FROST_DRAW)
+			or (ability == "bow_gale" and not ability_data.get("fired", false)))
 	if ability != "":
 		_ab_module(ability).pose(self, p)
 	elif cls == "bow" and drawing:

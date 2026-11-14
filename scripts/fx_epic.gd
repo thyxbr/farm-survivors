@@ -226,6 +226,30 @@ static func prewarm() -> void:
 	FX.prewarm()
 
 
+## Cria uma vez cada tipo de efeito, longe da vista: o primeiro nó de cada malha/material ainda custava
+## ~10 ms (o Godot prepara o pipeline de desenho ao criar a instância), e a primeira habilidade juntava
+## vários disso num quadro só (60-90 ms). Chamado (deferred) pelo jogador local, com a cena já montada.
+static func prewarm_instances(at: Node3D) -> void:
+	if FX._scene() == null or at == null or not is_instance_valid(at) or not at.is_inside_tree():
+		return
+	var p := at.global_position + Vector3(0, -200, 0)   # bem abaixo do mapa
+	glow_burst(p, Color.WHITE, 1, 0.1, 0.05, 0.1, 0.0)
+	nova(p, Color.WHITE, 1, 0.1, 0.05, 0.1)
+	sparks(p, Vector3.UP, Color.WHITE, 1, 0.1, 0.1)
+	smoke(p, Color(1, 1, 1, 0.01), 1, 0.1, 0.1)
+	FX.ring(p, Color(1, 1, 1, 0.0), 0.1, 0.1)
+	FX.burst(p, Color.WHITE, 1, 0.1, 0.05, 0.1)
+	for kind in ["crack", "scorch", "ring"]:
+		ground_mark(p, Color(1, 1, 1, 0.0), 0.1, 0.1, kind)
+	var holder := Node3D.new()
+	FX._scene().add_child(holder)
+	holder.global_position = p
+	for kind in ["glow", "smoke"]:
+		stream(holder, kind, Color.WHITE, 1, 0.1)
+	trail(holder, Color.WHITE, 0.1, 0.05, 0.05)
+	holder.get_tree().create_timer(0.3).timeout.connect(holder.queue_free)
+
+
 ## Explosão de brilho: bolas de luz aditivas que desbotam e encolhem.
 static func glow_burst(pos: Vector3, color: Color, amount := 40, speed := 6.0, size := 0.18, lifetime := 0.7, gravity := -4.0) -> void:
 	var root := FX._scene()

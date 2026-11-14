@@ -38,7 +38,7 @@ const ABILITIES := {
 	"bow_frost": {"name": "Flecha Glacial", "class": "bow", "slot": 2, "level": 3, "cooldown": 8.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "frost", "desc": "Flecha de gelo: prende e atrasa o alvo atingido."},
 	"bow_gale": {"name": "Flecha do Vendaval", "class": "bow", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
-		"ready": false, "ultimate": true, "icon": "bow", "desc": "Ultimate: o arqueiro agacha, tensiona e solta uma flecha que atravessa tudo em linha reta, rasgando o ar."},
+		"ready": true, "ultimate": true, "icon": "bow", "desc": "Ultimate: o arqueiro agacha, tensiona e solta uma flecha que atravessa tudo em linha reta, rasgando o ar."},
 }
 
 

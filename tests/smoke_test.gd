@@ -327,8 +327,11 @@ func _ready() -> void:
 	pl_s.global_position = player.global_position + Vector3(3.0, 0.0, 0.0)
 	pl_s.velocity = Vector3.ZERO
 	var d_pull0: float = pl_s.global_position.distance_to(player.global_position)
+	var lvl_w2: int = Game.level
+	Game.level = 8   # morrer e reviver passa pelo Econ, cuja resposta devolve Game.level ao nível real
 	player.use_slot(4)
-	check(player.ability == "sword_whirl", "Turbilhão de novo com a fúria cheia")
+	check(player.ability == "sword_whirl", "Turbilhão de novo com a fúria cheia (nível antes %d, %s, esquiva %.2f, atacando %s)"
+		% [lvl_w2, player.ability, player.dodge_timer, player.attacking])
 	await wait(SwordAbilities.WHIRL_TIME + 0.35)
 	var d_pull1: float = pl_s.global_position.distance_to(player.global_position)
 	check(d_pull0 - d_pull1 >= 1.0, "Turbilhão puxa o inimigo para perto (%.2f m -> %.2f m)" % [d_pull0, d_pull1])
@@ -360,15 +363,18 @@ func _ready() -> void:
 	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_whirl"], "kit da espada (%s)" % [Game.ability_kit()])
 	check(not Game.knows_ability("sword_quake") and Game.knows_ability("sword_charge"), "liberação por nível")
 	check(Game.level == 1 and not Game.knows_ability("heal") and ItemDB.ABILITIES.heal.level == 5, "cura só no nível 5")
-	# Flecha do Vendaval (arco, nível 8) ainda não existe: liberada à força e sem recarga, não começa nem gasta recarga
+	# Chuva de Meteoros (ultimate do cajado, nível 8) ainda não existe: liberada à força, com fúria cheia e sem
+	# recarga, não começa nem gasta recarga ou fúria
 	Game.add_item("short_bow")
 	Game.equip("short_bow")
 	var lvl_bf: int = Game.level
 	Game.level = 8
-	player.cooldowns.bow_gale = 0.0
-	player.cast("bow_gale")
-	check(Game.weapon_class() == "bow" and player.ability == "" and player.cooldowns.bow_gale == 0.0
+	Game.fury = 100.0
+	player.cooldowns.meteor_rain = 0.0
+	player.cast("meteor_rain")
+	check(Game.weapon_class() == "bow" and player.ability == "" and player.cooldowns.meteor_rain == 0.0 and Game.fury == 100.0
 		and player.cooldowns.size() == ItemDB.ABILITIES.size(), "habilidade sem implementação não gasta recarga")
+	Game.fury = 0.0
 	Game.level = lvl_bf
 	# --- Tiro Triplo (arco, slot 1): 3 flechas em leque, ignora multishot, esquiva só cancela antes do disparo
 	var tt_pos := player.global_position
@@ -562,6 +568,7 @@ func _ready() -> void:
 	tt_s.stagger = 0.0
 	tt_s.slow_timer = 0.0
 	player.cooldowns.bow_frost = 0.0
+	await _test_bow_gale()
 	Game.level = lvl_bf
 	tt_s.hp = tt_max
 	tt_s.max_hp = tt_max
@@ -792,6 +799,239 @@ func _ready() -> void:
 
 
 # ---------------------------------------------------------------- Efeitos épicos
+## Flecha do Vendaval (ultimate do arco, slot 4): segurar 4 tensiona (carga 0..1 em 1,2 s), soltar dispara
+## um raio de 40 m na mira que atravessa todos os inimigos da linha (cada um uma vez) e para em parede.
+func _test_bow_gale() -> void:
+	var lvl0: int = Game.level
+	var fury0: float = Game.fury
+	var weapon0: String = Game.equipment.weapon
+	var pos0 := player.global_position
+	var yaw0: float = player.cam_yaw.rotation.y
+	var spring0: float = player.spring.spring_length
+	var fov0: float = player.camera.fov
+	Game.equip("short_bow")
+	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking and player.ability == "")
+	# 4 slimes (os mais perto): 3 na linha da mira a 5/10/15 m e 1 a 6 m do lado da linha
+	var gs: Array = []
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.kind == "slime" and not e.dead and not e.is_boss:
+			gs.append(e)
+	gs.sort_custom(func(a, b): return a.global_position.distance_to(player.global_position) < b.global_position.distance_to(player.global_position))
+	gs = gs.slice(0, 4)
+	check(gs.size() == 4, "Vendaval: 4 slimes para o teste (%d)" % gs.size())
+	if gs.size() < 4:
+		return
+	var saved: Array = []
+	for e in gs:
+		saved.append([e, e.max_hp, e.global_position])
+		e.max_hp = 100000.0
+	# lugar aberto: casa do slime mais perto; gira a câmera até a mira ter 18 m livres
+	var base: Vector3 = gs[0].home
+	var grounded := func() -> bool: return player.is_on_floor()
+	player.global_position = base + Vector3(0, 0.3, 0)
+	player.velocity = Vector3.ZERO
+	await wait_until(grounded)
+	var dir := Vector3.ZERO
+	for k in 12:
+		player.cam_yaw.rotation.y = yaw0 + k * TAU / 12.0
+		await wait(0.05)
+		var d: Vector3 = BowAbilities._gale_dir(player)
+		var o: Vector3 = player.global_position + Vector3.UP * BowAbilities.GALE_HEIGHT
+		if BowAbilities._gale_length(player, o, d) >= 18.0:
+			dir = d
+			break
+	check(dir != Vector3.ZERO and absf(dir.y) < 0.001, "Vendaval: mira horizontal com 18 m livres (%s)" % dir)
+	var side := dir.cross(Vector3.UP).normalized()
+	var place := func() -> void:
+		var p0: Vector3 = player.global_position
+		for i in 3:
+			gs[i].global_position = p0 + dir * (5.0 * (i + 1)) + Vector3.UP * 0.3
+		gs[3].global_position = p0 + dir * 10.0 + side * 6.0 + Vector3.UP * 0.3
+		for e in gs:
+			e.velocity = Vector3.ZERO
+			e.stagger = 5.0   # parados até o tiro
+			e.hp = e.max_hp
+	var hps := func() -> Array:
+		var out := []
+		for e in gs:
+			out.append(e.hp)
+		return out
+	var lines := func() -> int:
+		var n := 0
+		for c in world.get_children():
+			if c is BowAbilities.GaleLine:
+				n += 1
+		return n
+	place.call()
+	await wait(0.3)
+	place.call()
+	var h0: Array = hps.call()
+
+	# --- 1) segura, solta aos 0,6 s: os 3 da linha perdem vida, o de fora não; a fúria fica em 0
+	Game.fury = 100.0
+	Game.level = 8
+	player.use_slot(4)
+	check(player.ability == "bow_gale" and Game.fury == 0.0 and player.ability_slot == 4,
+		"Vendaval começa, gasta a fúria e grava a tecla 4 (%s, %.0f, %d)" % [player.ability, Game.fury, player.ability_slot])
+	check(not BowAbilities.can_dodge_cancel(player), "Vendaval: esquiva não cancela a tensão")
+	await wait(0.3)
+	var c03: float = player.ability_data.get("charge", -1.0)
+	check(c03 > 0.15 and c03 < 0.4 and not player.ability_data.get("fired", false), "Vendaval: carga cresce com o tempo (%.2f aos 0,3 s)" % c03)
+	check(Vector2(player.velocity.x, player.velocity.z).length() < 0.1, "Vendaval: parado na tensão (vel %s)" % player.velocity)
+	check(player.camera.fov < fov0 - 0.5 and player.cam_back > 0.0, "Vendaval: câmera recua e fecha o FOV (%.1f, back %.2f)" % [player.camera.fov, player.cam_back])
+	Game.stamina = Game.max_stamina()
+	player._dodge_pressed(Vector3.ZERO)
+	check(player.ability == "bow_gale" and player.dodge_timer <= 0.0, "Vendaval: esquiva ignorada na tensão")
+	await wait_until(func(): return player.ability_t >= 0.6 or player.ability == "")
+	BowAbilities.release(player)
+	var fired1: bool = player.ability_data.get("fired", false)
+	var ch1: float = player.ability_data.get("charge", -1.0)
+	check(fired1 and absf(ch1 - 0.5) < 0.06, "Vendaval: soltar com carga >= 0,25 dispara na hora (carga %.2f)" % ch1)
+	check(lines.call() >= 1, "Vendaval: o disparo cria a linha visual")
+	await wait_until(func(): return player.ability == "", 2.0)
+	var h1: Array = hps.call()
+	var want1: float = Game.melee_damage() * lerpf(BowAbilities.GALE_MULT_MIN, BowAbilities.GALE_MULT_MAX, ch1)
+	var line_ok := true
+	for i in 3:
+		line_ok = line_ok and absf((h0[i] - h1[i]) - want1) < 0.05
+	check(line_ok, "Vendaval: os 3 slimes da linha (5/10/15 m) perdem melee x lerp(3,6,carga) uma vez (%.1f, %.1f, %.1f; esperado %.1f)"
+		% [h0[0] - h1[0], h0[1] - h1[1], h0[2] - h1[2], want1])
+	check(h1[3] == h0[3], "Vendaval: o slime fora da linha não perde vida")
+	check(Game.fury == 0.0, "Vendaval: acertos da ultimate não recarregam a fúria (%.2f)" % Game.fury)
+	check(is_equal_approx(Engine.time_scale, 1.0) and player.cam_back == 0.0 and absf(player.camera.fov - fov0) < 0.01,
+		"Vendaval: fim restaura tempo, câmera e FOV (%.2f, %.2f, %.1f)" % [Engine.time_scale, player.cam_back, player.camera.fov])
+
+	# --- 2) sem soltar: dispara sozinha com carga cheia em <= 1,4 s
+	player.global_position = base + Vector3(0, 0.3, 0)
+	player.velocity = Vector3.ZERO
+	await wait_until(grounded)
+	place.call()
+	await wait(0.1)
+	h0 = hps.call()
+	Game.fury = 100.0
+	Game.level = 8
+	var t2 := Time.get_ticks_msec()
+	player.use_slot(4)
+	await wait_until(func(): return player.ability_data.get("fired", false) or player.ability == "", 2.0)
+	var el2 := (Time.get_ticks_msec() - t2) / 1000.0
+	var ch2: float = player.ability_data.get("charge", -1.0)
+	check(player.ability_data.get("fired", false) and el2 <= 1.4 and is_equal_approx(ch2, 1.0),
+		"Vendaval: sem soltar dispara sozinha com carga cheia (%.2f s, carga %.2f)" % [el2, ch2])
+	await wait_until(func(): return player.ability == "", 2.0)
+	var h2: Array = hps.call()
+	var want2: float = Game.melee_damage() * BowAbilities.GALE_MULT_MAX
+	check(absf((h0[0] - h2[0]) - want2) < 0.05 and h2[2] < h0[2] and h2[3] == h0[3],
+		"Vendaval: carga cheia = melee x6 (%.1f, esperado %.1f)" % [h0[0] - h2[0], want2])
+
+	# --- 3) soltar cedo (carga < 0,25): continua tensionando até 0,25 e dispara
+	player.global_position = base + Vector3(0, 0.3, 0)
+	player.velocity = Vector3.ZERO
+	await wait_until(grounded)
+	place.call()
+	await wait(0.1)
+	Game.fury = 100.0
+	Game.level = 8
+	player.use_slot(4)
+	await wait(0.05)
+	BowAbilities.release(player)
+	check(player.ability == "bow_gale" and not player.ability_data.get("fired", false), "Vendaval: soltar com carga < 0,25 não dispara na hora")
+	await wait_until(func(): return player.ability_data.get("fired", false) or player.ability == "", 1.0)
+	var ch3: float = player.ability_data.get("charge", -1.0)
+	check(player.ability_data.get("fired", false) and absf(ch3 - BowAbilities.GALE_MIN) < 0.03,
+		"Vendaval: dispara ao chegar a 0,25 (carga %.2f)" % ch3)
+	await wait_until(func(): return player.ability == "", 2.0)
+
+	# --- 4) morrer na tensão: não dispara, limpa o estado
+	player.global_position = base + Vector3(0, 0.3, 0)
+	player.velocity = Vector3.ZERO
+	await wait_until(grounded)
+	place.call()
+	await wait(0.1)
+	h0 = hps.call()
+	var lines0: int = lines.call()
+	Game.fury = 100.0
+	Game.level = 8
+	player.use_slot(4)
+	await wait(0.4)
+	check(player.ability == "bow_gale" and player.cam_back > 0.0, "Vendaval: tensionando antes de morrer")
+	player._die()
+	await wait(0.1)
+	check(player.ability == "" and is_equal_approx(Engine.time_scale, 1.0) and player.cam_back == 0.0 and absf(player.camera.fov - fov0) < 0.01,
+		"Vendaval: morrer na tensão limpa o estado (%s, %.2f, %.2f, %.1f)" % [player.ability, Engine.time_scale, player.cam_back, player.camera.fov])
+	player.revive(player.global_position)
+	await wait(1.5)
+	check(hps.call() == h0 and lines.call() <= lines0, "Vendaval: morrer na tensão não dispara (nenhum slime ferido)")
+	# a tela de morte abre 1,8 s depois de morrer, mesmo revivido: fecha sem a multa de ouro
+	await wait(0.5)
+	if world.modal != null:
+		world.modal.queue_free()
+		world.modal = null
+	world._set_paused(false)
+	check(not player.dead and absf(player.spring.spring_length - spring0) < 0.05, "Vendaval: câmera volta depois de morrer (%.2f)" % player.spring.spring_length)
+
+	# --- 5) trocar de arma na tensão: encerra sem disparar
+	place.call()
+	await wait(0.1)
+	h0 = hps.call()
+	Game.fury = 100.0
+	Game.level = 8
+	player.use_slot(4)
+	await wait(0.3)
+	check(player.ability == "bow_gale", "Vendaval: tensionando antes de trocar de arma")
+	Game.equip("apprentice_staff")   # outra classe: Game.kit_changed -> end_ability
+	await wait(0.1)
+	check(player.ability == "" and player.cam_back == 0.0 and absf(player.camera.fov - fov0) < 0.01, "Vendaval: trocar de arma na tensão encerra")
+	await wait(1.3)
+	check(hps.call() == h0, "Vendaval: trocar de arma na tensão não dispara")
+	Game.equip("short_bow")
+	await wait(0.1)
+
+	# --- 6) réplica: "bow_gale" toca a tensão sem dano; "bow_gale_fire" toca o disparo e a linha, sem dano nem hit stop
+	place.call()
+	await wait(0.1)
+	h0 = hps.call()
+	var rp := Player.new()
+	rp.remote = true
+	world.add_child(rp)
+	rp.global_position = player.global_position
+	var lines6: int = lines.call()
+	BowAbilities.play_remote(rp, "bow_gale", rp.global_position, Vector3.ZERO)
+	check(rp.ability == "bow_gale" and not rp.ability_data.get("fired", false), "réplica do Vendaval começa a tensão")
+	await wait(0.3)
+	check(rp.ability == "bow_gale" and hps.call() == h0, "réplica tensionando não fere")
+	var ro: Vector3 = player.global_position + Vector3.UP * BowAbilities.GALE_HEIGHT
+	BowAbilities.play_remote(rp, "bow_gale_fire", ro, dir * 0.8)
+	check(rp.ability == "bow_gale" and rp.ability_data.get("fired", false) and is_equal_approx(rp.ability_data.get("charge", 0.0), 0.8)
+		and lines.call() > lines6, "réplica do Vendaval dispara a linha visual")
+	var ts_ok := true
+	for i in 6:
+		await wait(0.03)
+		ts_ok = ts_ok and is_equal_approx(Engine.time_scale, 1.0)
+	check(ts_ok, "réplica do Vendaval não dá hit stop")
+	await wait_until(func(): return rp.ability == "", 2.0)
+	await wait(0.2)
+	check(rp.ability == "" and hps.call() == h0, "réplica do Vendaval não fere (%s)" % [hps.call()])
+	rp.queue_free()
+
+	# restaura
+	for s in saved:
+		var e = s[0]
+		if is_instance_valid(e):
+			e.max_hp = s[1]
+			e.hp = s[1]
+			e.global_position = s[2]
+			e.stagger = 0.0
+			e.velocity = Vector3.ZERO
+	player.cam_yaw.rotation.y = yaw0
+	player.global_position = pos0
+	player.velocity = Vector3.ZERO
+	player.cooldowns.bow_gale = 0.0
+	Game.equip(weapon0)
+	Game.fury = fury0
+	Game.level = lvl0
+	await wait(0.1)
+
+
 func _test_fx_epic() -> void:
 	var p := player.global_position
 	var n0 := get_tree().current_scene.get_child_count()

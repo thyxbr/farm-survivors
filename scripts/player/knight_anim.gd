@@ -526,6 +526,46 @@ static func bow_release_pose(p: Dictionary, t: float, move: float) -> void:
 	play_track(p, KnightMoves.BOW_RELEASE, t, move)
 
 
+## Flecha do Vendaval. `c` 0..1 = carga: agacha (joelhos até KnightMoves.GALE_KNEE), o tronco inclina para
+## trás, a mão da corda puxa além da tensão normal e o arco treme (pulso) cada vez mais. `recoil` 0..1 =
+## tempo na recuperação depois do disparo (< 0 = ainda tensionando): tranco para trás e levanta.
+static func bow_gale_pose(p: Dictionary, c: float, recoil := -1.0) -> void:
+	var crouch := smoothstep(0.0, 1.0, minf(c * 1.6, 1.0))   # agacha logo no começo da tensão
+	var lean := crouch
+	if recoil < 0.0:
+		bow_draw_pose(p, minf(c * 2.5, 1.0))
+		# puxa além do normal: a mão da corda vai para trás da orelha
+		p.arm_r += Vector3(0.0, -0.3, -0.1) * c
+		p.elbow_r -= 0.35 * c
+		p.twist -= 0.12 * c
+		# o arco treme mais com a carga (dois senos fora de fase: parece ruído)
+		var ms := float(Time.get_ticks_msec())
+		var n := sin(ms * 0.047) * 0.6 + sin(ms * 0.113 + 1.7) * 0.4
+		p.wrist_l += n * KnightMoves.GALE_TREMBLE * c
+		p.arm_l += Vector3(sin(ms * 0.061) * 0.3 * KnightMoves.GALE_TREMBLE * c, 0.0, 0.0)
+	else:
+		bow_release_pose(p, recoil, 0.0)
+		var up := smoothstep(0.35, 1.0, recoil)
+		crouch *= 1.0 - up
+		# tranco do tiro: o tronco joga para trás e volta; o braço do arco pula para cima
+		var kick := pow(1.0 - recoil, 2.0)
+		lean = lean * (1.0 - up) + kick * KnightMoves.GALE_RECOIL / KnightMoves.GALE_LEAN
+		p.arm_l += Vector3(-0.35 * kick, 0.0, 0.0)
+	p.body_x += KnightMoves.GALE_LEAN * lean
+	p.head_x -= KnightMoves.GALE_LEAN * lean * 0.6   # a cabeça compensa: continua olhando a mira
+	# os braços compensam parte da inclinação: a flecha fica quase na horizontal
+	p.arm_l += Vector3(-KnightMoves.GALE_LEAN * lean * 0.5, 0.0, 0.0)
+	p.arm_r += Vector3(-KnightMoves.GALE_LEAN * lean * 0.5, 0.0, 0.0)
+	p.body_y += KnightMoves.GALE_CROUCH_Y * crouch
+	p.leg_l = lerpf(p.leg_l, KnightMoves.GALE_THIGH_L, crouch)
+	p.leg_r = lerpf(p.leg_r, KnightMoves.GALE_THIGH_R, crouch)
+	p.knee_l = lerpf(p.knee_l, KnightMoves.GALE_KNEE, crouch)
+	p.knee_r = lerpf(p.knee_r, KnightMoves.GALE_KNEE, crouch)
+	p.foot_l = lerpf(p.foot_l, 0.0, crouch)
+	p.foot_r = lerpf(p.foot_r, 0.0, crouch)
+	p.ground = 1.0
+
+
 ## Leva o modelo até a pose. `k` = fator de suavização deste quadro (0..1).
 ## Chaves em p.snap vão direto ao alvo; p.speed[chave] multiplica k só para essa chave.
 static func apply(r: Dictionary, p: Dictionary, k: float) -> void:

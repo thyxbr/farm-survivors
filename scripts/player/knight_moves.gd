@@ -159,6 +159,14 @@ const BOW_FULL := {   # corda toda puxada
 }
 const BOW_TREMBLE := 0.008      ## tremor do braço do arco com a corda toda puxada (rad)
 const BOW_RAISE_SPEED := 1.6    ## multiplica a suavização ao erguer o arco (mais rápido que andar)
+## Flecha do Vendaval (KnightAnim.bow_gale_pose): agacha com a perna do arco à frente, tronco para trás.
+const GALE_KNEE := 0.9          ## dobra dos joelhos com a carga cheia (rad)
+const GALE_THIGH_L := -0.6      ## coxa da frente (perna do arco)
+const GALE_THIGH_R := -0.15     ## coxa de trás (com o joelho a 0,9 as duas pernas ficam com a mesma altura)
+const GALE_LEAN := -0.35        ## tronco inclinado para trás (rad; body_x > 0 é para a frente)
+const GALE_CROUCH_Y := -0.12    ## o quadril desce (m), além do que as pernas dobradas já baixam
+const GALE_TREMBLE := 0.06      ## tremor do pulso do arco com a carga cheia (rad)
+const GALE_RECOIL := -0.3       ## tranco extra do tronco para trás no disparo (rad)
 ## Soltar: a mão da corda escapa para trás da orelha, o braço do arco segura e depois desce.
 const BOW_RELEASE := [
 	[0.15, {"arm_r": Vector3(-1.4, -0.95, -0.35), "elbow_r": -1.5, "twist": -0.7, "head_y": 0.65,
