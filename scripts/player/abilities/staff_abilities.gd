@@ -483,7 +483,7 @@ static func _meteor_damage(caster: Node, pos: Vector3) -> void:
 		Game.on_damage_dealt(dmg, e.max_hp, false)   # a ultimate não recarrega a própria fúria
 		any = true
 	if any:
-		Sfx.play_at("hit", pos, 0.15, -4.0)
+		Sfx.play_at("fire_hit", pos, 0.15, -4.0)
 
 
 ## Efeitos do impacto (dono e réplicas): poucas partículas por explosão (são ~5 por segundo por chuva).

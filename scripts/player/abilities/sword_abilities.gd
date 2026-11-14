@@ -61,18 +61,18 @@ static func use(player: Node, id: String) -> bool:
 		"sword_charge":
 			player.begin_ability(id, {"dir": player.facing()})
 			Network.send_event(id, player.global_position, player.facing())
-			Sfx.play("swing", 0.1, -8.0)
+			Sfx.play("sword_swing", 0.1, -6.0)
 			return true
 		"sword_quake":
 			player.begin_ability(id, {"dir": player.facing(), "origin": player.global_position})
 			Network.send_event(id, player.global_position, player.facing())
-			Sfx.play("swing", 0.1, -6.0)
+			Sfx.play("sword_swing_heavy", 0.1, -4.0)
 			return true
 		"sword_whirl":
 			player.begin_ability(id, {"yaw0": player.model.rotation.y})
 			Network.send_event(id, player.global_position, Vector3.ZERO)
 			_whirl_start(player)
-			Sfx.play("swing", 0.1, -4.0)
+			Sfx.play("sword_swing", 0.1, -2.0)
 			return true
 	return false
 
@@ -135,14 +135,14 @@ static func play_remote(player: Node, kind: String, a: Vector3, b: Vector3) -> v
 	match kind:
 		"sword_charge":
 			player.begin_ability(kind, {"dir": b, "origin": a})
-			Sfx.play_at("swing", a, 0.1, -8.0)
+			Sfx.play_at("sword_swing", a, 0.1, -8.0)
 		"sword_quake":
 			player.begin_ability(kind, {"dir": b, "origin": a})
-			Sfx.play_at("swing", a, 0.1, -6.0)
+			Sfx.play_at("sword_swing_heavy", a, 0.1, -6.0)
 		"sword_whirl":
 			player.begin_ability(kind, {"yaw0": player.model.rotation.y})
 			_whirl_start(player)
-			Sfx.play_at("swing", a, 0.1, -4.0)
+			Sfx.play_at("sword_swing", a, 0.1, -4.0)
 
 
 # ------------------------------------------------------------------ Investida
@@ -158,7 +158,7 @@ static func _charge_tick(player: Node, t0: float, t: float, delta: float) -> voi
 		d.dashing = true
 		FXEpic.smoke(player.global_position + Vector3.UP * 0.2, CHARGE_DUST, 10, 0.7, 0.9)
 		_attach_trail(player)
-		Sfx.play_at("swing", player.global_position, 0.05, -2.0)
+		Sfx.play_at("sword_swing", player.global_position, 0.05, -2.0)
 		if local:
 			d.mask = player.collision_mask
 			player.collision_mask &= ~CHARGE_ENEMY_LAYER
@@ -225,7 +225,7 @@ static func _charge_hits(player: Node, d: Dictionary) -> void:
 		any = true
 		FXEpic.sparks(e.global_position + Vector3.UP * 0.6, d.dir, Color(1.0, 0.85, 0.5), 14, 9.0, 0.3)
 	if any:
-		Sfx.play("hit")
+		Sfx.play("sword_hit_flesh", 0.1)
 		player.add_shake(0.18)
 		if first:
 			FXEpic.flash(player.global_position + Vector3.UP * 1.0 + d.dir * 0.8, Color(1.0, 0.8, 0.5), 1.6, 4.0, 0.15)
@@ -313,7 +313,7 @@ static func _quake_impact(player: Node, d: Dictionary) -> void:
 		any = true
 		FXEpic.sparks(e.global_position + Vector3.UP * 0.4, Vector3.UP, QUAKE_ROCK.lightened(0.3), 10, 6.0, 0.35)
 	if any:
-		Sfx.play("hit")
+		Sfx.play("sword_hit_flesh", 0.1)
 		FXEpic.flash(tip + Vector3.UP * 0.6, Color(1.0, 0.8, 0.5), 1.6, 4.0, 0.15)
 		FXEpic.hit_stop(0.05)
 
@@ -468,7 +468,7 @@ static func _stop_stream(d: Dictionary, key: String) -> void:
 ## Começo do giro: a fita de fogo presa à lâmina (gira junto e desenha o redemoinho) e o redemoinho
 ## de poeira subindo em volta.
 static func _whirl_spin_start(player: Node, d: Dictionary) -> void:
-	Sfx.play_at("swing", player.global_position, 0.1, -2.0)
+	Sfx.play_at("sword_swing_heavy", player.global_position, 0.1, -2.0)
 	_whirl_ground(player, d)
 	var holder = player.look.get("holder")
 	var tip = player.look.get("tip")
@@ -546,7 +546,7 @@ static func _whirl_ground(player: Node, d: Dictionary) -> void:
 ## Uma volta completa: fere e puxa quem está no raio (só o dono); faíscas nos acertos (todos veem).
 static func _whirl_turn(player: Node, d: Dictionary) -> void:
 	var base: Vector3 = player.global_position
-	Sfx.play_at("swing", base, 0.15, -5.0)
+	Sfx.play_at("sword_swing", base, 0.15, -5.0)
 	var local: bool = not player.remote
 	var any := false
 	var n := 0
@@ -567,7 +567,7 @@ static func _whirl_turn(player: Node, d: Dictionary) -> void:
 			FXEpic.sparks(e.global_position + Vector3.UP * 0.6, along + Vector3.UP * 0.35, _lin(WHIRL_EMBER), 10, 8.0, 0.3)
 		n += 1
 	if any:
-		Sfx.play_at("hit", base)
+		Sfx.play_at("sword_hit_flesh", base, 0.1)
 		if local:
 			player.add_shake(0.15)
 			FXEpic.hit_stop(0.03)
@@ -604,4 +604,4 @@ static func _whirl_finale(player: Node, d: Dictionary) -> void:
 		Game.on_damage_dealt(dmg, e.max_hp, false)
 		any = true
 	if any:
-		Sfx.play("hit")
+		Sfx.play("sword_hit_flesh", 0.1)
