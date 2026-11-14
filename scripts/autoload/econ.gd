@@ -72,6 +72,8 @@ var _loot_rng := RandomNumberGenerator.new()
 var _purge_t := PURGE_EVERY
 var _req_limit := TokenBuckets.new(REQ_BURST, REQ_RATE)
 var _claim_limit := TokenBuckets.new(CLAIM_BURST, CLAIM_RATE)
+## Coleta de ferro e cristal em Valdoria: quando cada conta pode coletar cada veio de novo.
+var _gather := WorldHarvest.new()
 
 
 func _ready() -> void:
@@ -133,6 +135,38 @@ func request(op: String, args: Array = []) -> void:
 	_deliver(op, args, r)
 	if op == "donate" and r.ok:
 		Hub.refresh_solo()   # a base mudou: a praça redesenha (online quem avisa é o servidor)
+
+
+## Coleta de um veio de ferro ou cristal de Valdoria (nó `id` de world_nodes; ver WorldHarvest).
+## Solo: confere e concede na hora, com `from` = posição do jogador. Online: o servidor decide com a
+## última posição que recebeu do jogador (precisa estar em Valdoria). Resposta como op "gather".
+func gather_node(id: int, from: Vector3) -> void:
+	if Network.is_client():
+		_seq += 1
+		_pending[_seq] = {"op": "gather", "args": [id]}
+		_gather_node.rpc_id(1, _seq, id)
+		return
+	if Network.is_server():
+		push_error("Econ.gather_node no servidor")
+		return
+	if not ensure_solo():
+		_deliver("gather", [id], {"ok": false, "err": "sem_banco", "events": [], "state": {}})
+		return
+	var g := _gather.gather(Balance.tables, SOLO_ACCOUNT, id, from, now())
+	if not g.ok:
+		_deliver("gather", [id], {"ok": false, "err": g.err, "events": _gather_refusal(g.err), "state": {}})
+		return
+	var r := _svc.grant(SOLO_ACCOUNT, 0, 0, g.items, "gather")
+	if not r.ok:
+		_gather.undo(SOLO_ACCOUNT, id)
+	_deliver("gather", [id], r)
+
+
+## Aviso de coleta recusada (só o caso que o jogador honesto encontra: o veio dele ainda não voltou).
+func _gather_refusal(err: String) -> Array:
+	if err == "esgotado":
+		return [CharRules._notify("Este veio ainda não se recuperou.", CharRules.C_BAD)]
+	return []
 
 
 ## Concessão (loot, missão, prêmio de partida). Só offline: online quem concede é o servidor
@@ -659,6 +693,31 @@ func _claim_pickup(seq: int, net_id: int) -> void:
 		return
 	if horde and Network.horde_run != null and is_instance_valid(Network.horde_run):
 		Network.horde_run.server_note_gain(peer, int(c.gold), c.items)
+	_econ_res.rpc_id(peer, seq, r.ok, r.err, events_of(r), r.state)
+
+
+## Coleta de um veio de Valdoria: confere zona, distância (última posição recebida do jogador) e o tempo
+## de volta do veio para aquela conta, e concede o material.
+@rpc("any_peer", "call_remote", "reliable")
+func _gather_node(seq: int, id: int) -> void:
+	var account := _sender_account()
+	if account <= 0:
+		_reply_no_session(seq)
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	if not _claim_limit.allow(peer, Time.get_ticks_msec() / 1000.0):
+		_econ_res.rpc_id(peer, seq, false, "devagar", [], {})
+		return
+	var pos: Vector3 = Network.last_pos.get(peer, Vector3.INF)
+	if Network.zone_of(peer) != "world":
+		pos = Vector3.INF   # na praça ou na cidade não há veios
+	var g := _gather.gather(Balance.tables, account, id, pos, now())
+	if not g.ok:
+		_econ_res.rpc_id(peer, seq, false, str(g.err), _gather_refusal(g.err), {})
+		return
+	var r := Network.characters.grant(account, 0, 0, g.items, "gather")
+	if not r.ok:
+		_gather.undo(account, id)
 	_econ_res.rpc_id(peer, seq, r.ok, r.err, events_of(r), r.state)
 
 

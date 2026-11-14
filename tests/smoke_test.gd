@@ -215,6 +215,7 @@ func _ready() -> void:
 	check(Game.gold == gold_dead - int(gold_dead * 0.1), "renascer custa 10%% do ouro (%d -> %d)" % [gold_dead, Game.gold])
 
 	await _test_farm()
+	await _test_gather()
 	await _test_enchant()
 	await _test_survival()
 	await _test_update()
@@ -283,12 +284,53 @@ func _test_blacksmith() -> void:
 	player.global_position = back
 
 
+# ---------------------------------------------------------------- Coleta de ferro e cristal
+func _test_gather() -> void:
+	check(world.resource_nodes.size() == 10, "10 veios e cristais no mapa (%d)" % world.resource_nodes.size())
+	if world.resource_nodes.size() < 10:
+		return
+	var back := player.global_position
+	var node = world.resource_nodes[0]
+	check(node.node_id == 0 and node.alive, "veio 0 de pé")
+	player.global_position = node.global_position + Vector3(1.5, 0.3, 0)
+	await wait(0.2)
+	var iron0 := Game.count_item("iron_ore")
+	for i in 4:
+		node.hit(player.global_position)
+	check(node.alive and Game.count_item("iron_ore") == iron0, "4 golpes: veio de pé e nada ganho ainda")
+	node.hit(player.global_position)
+	await wait(0.2)
+	check(not node.alive, "5º golpe quebra o veio")
+	check(Game.count_item("iron_ore") == iron0 + 3, "veio de ferro dá 3 minérios (%d → %d)" % [iron0, Game.count_item("iron_ore")])
+	Econ.gather_node(0, player.global_position)
+	await wait(0.1)
+	check(Game.count_item("iron_ore") == iron0 + 3, "veio esgotado não concede de novo")
+	Econ.gather_node(1, Vector3.ZERO)
+	await wait(0.1)
+	check(Game.count_item("iron_ore") == iron0 + 3, "coleta de longe não concede")
+	Econ.gather_node(999, player.global_position)
+	await wait(0.1)
+	check(Game.count_item("iron_ore") == iron0 + 3, "veio inexistente não concede")
+	var crystal = world.resource_nodes[6]
+	player.global_position = crystal.global_position + Vector3(1.5, 0.3, 0)
+	await wait(0.2)
+	var cr0 := Game.count_item("arcane_crystal")
+	for i in 6:
+		crystal.hit(player.global_position)
+	await wait(0.2)
+	check(Game.count_item("arcane_crystal") == cr0 + 1, "cristal das Ruínas dá 1 cristal arcano em 6 golpes")
+	player.global_position = back
+	await wait(0.2)
+
+
 # ---------------------------------------------------------------- Encantamento de armas
 func _test_enchant() -> void:
 	# solo: o serviço local decide; o Game só espelha
 	check(Game.equipment.weapon != "", "tem arma equipada para encantar (%s)" % Game.equipment.weapon)
 	check(Game.weapon_enchant() == {"el": "", "lv": 0}, "arma começa sem encanto")
 	var dmg_plain := Game.melee_damage()
+	var ore0 := Game.count_item("iron_ore")      # pode haver minério da coleta de antes
+	var ember0 := Game.count_item("ember_core")
 	Econ.grant(50, 0, {"iron_ore": 4, "ember_core": 2}, "teste", true)
 	var gold0 := Game.gold
 	var changed := [0]
@@ -300,7 +342,12 @@ func _test_enchant() -> void:
 	check(changed[0] == 1, "enchant_changed avisou uma vez")
 	check(absf(Game.melee_damage() - dmg_plain * 1.05) < 0.01, "encanto +1 dá +5%% de dano (%.2f → %.2f)" % [dmg_plain, Game.melee_damage()])
 	check(Game.gold == gold0 - 50, "ouro gasto")
-	check(Game.count_item("iron_ore") == 0 and Game.count_item("ember_core") == 0, "materiais gastos")
+	check(Game.count_item("iron_ore") == ore0 and Game.count_item("ember_core") == ember0, "materiais gastos")
+	# gasta o que sobrou da coleta para os testes abaixo partirem de "sem materiais"
+	if Game.count_item("iron_ore") > 0:
+		for i in Game.count_item("iron_ore"):
+			Econ.request("sell", ["iron_ore"])
+	await wait(0.1)
 	Econ.request("enchant", ["fogo"])
 	await wait(0.2)
 	check(Game.weapon_enchant().lv == 1, "sem recursos não sobe")

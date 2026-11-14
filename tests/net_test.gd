@@ -316,6 +316,23 @@ func _ready() -> void:
 			var mis: Array = hold.find_children("*", "MeshInstance3D", true, false) if hold else []
 			check(not mis.is_empty() and mis[0].material_overlay != null, "encanto aplicado na arma da réplica de %s" % rp.display_name)
 
+	# coleta de ferro: o servidor confere a distância e o tempo de volta do veio (veios são de cada jogador)
+	var ore0 := Game.count_item("iron_ore")
+	var here: Vector3 = w.player.global_position
+	Econ.gather_node(0, here)
+	await wait(0.8)
+	check(Game.count_item("iron_ore") == ore0, "coleta de longe é recusada pelo servidor")
+	w.player.global_position = WorldHarvest.node_def(Balance.tables, 0).pos + Vector3(1.5, 0.4, 0)
+	await wait(0.8)   # a posição nova chega ao servidor
+	Econ.gather_node(0, w.player.global_position)
+	check(await _wait_until(func() -> bool: return Game.count_item("iron_ore") == ore0 + 3, 5.0),
+		"coleta perto do veio concede 3 minérios")
+	Econ.gather_node(0, w.player.global_position)
+	await wait(0.8)
+	check(Game.count_item("iron_ore") == ore0 + 3, "veio esgotado não concede de novo")
+	w.player.global_position = here
+	await wait(0.3)
+
 	if my_name == "Ana":
 		await _test_econ()
 

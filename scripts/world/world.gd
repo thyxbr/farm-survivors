@@ -75,6 +75,8 @@ var boss: Enemy = null
 var survival: Node3D = null
 var chat: CanvasLayer = null
 var spawns: Array = []
+## Veios de ferro e cristais arcanos (WorldResourceNode); vazio no servidor dedicado.
+var resource_nodes: Array = []
 var flicker_lights: Array = []
 var rng := RandomNumberGenerator.new()
 var _avoid: Array = []   # [Vector2 centro, raio] áreas sem vegetação aleatória
@@ -105,6 +107,7 @@ func _ready() -> void:
 		Network.world_ready(self)
 		return
 
+	_setup_resource_nodes()
 	player = PLAYER.new()
 	add_child(player)
 	player.died.connect(_on_player_died)
@@ -646,6 +649,19 @@ func _scatter_nature() -> void:
 	keep_out.append([Vector2(ARENA.x, ARENA.z), 33.0])
 	var sparse := [[Vector2(0, 4), 22.0], [Vector2(FARM.x, FARM.z), 12.0]]
 	ground.scatter_grass(rng.seed + 7, 0.6, keep_out, sparse)
+
+
+# ================================================================ veios e cristais
+## Materiais do encantamento: veios de ferro em volta do Acampamento Goblin e cristais nas Ruínas
+## (data/balance/world_nodes.json). São de cada jogador: nada aqui é replicado.
+func _setup_resource_nodes() -> void:
+	for i in WorldHarvest.count(Balance.tables):
+		var def := WorldHarvest.node_def(Balance.tables, i)
+		if def.is_empty():
+			continue
+		var n := WorldResourceNode.from_def(def)
+		add_child(n)
+		resource_nodes.append(n)
 
 
 # ================================================================ inimigos

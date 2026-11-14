@@ -18,12 +18,12 @@
 	],
 	"swap": {"gold": 100, "essence": 3},
 	"sources": {
-		"iron_ore": "veios de ferro perto do Acampamento Goblin",
-		"arcane_crystal": "cristais arcanos nas Ruínas",
-		"ember_core": "Slimes Explosivos, no Ninho de Slimes",
-		"frost_drop": "Slimes Velozes, no Ninho de Slimes",
-		"thunder_totem": "Goblins Xamãs, no Acampamento Goblin",
-		"toxic_gland": "Slimes Mães, no Ninho de Slimes",
+		"iron_ore": "veios de ferro em volta do Acampamento Goblin (leste da vila)",
+		"arcane_crystal": "cristais arcanos nas Ruínas (norte da vila)",
+		"ember_core": "Slimes Explosivos, no Ninho de Slimes (sudoeste da vila)",
+		"frost_drop": "Slimes Velozes, no Ninho de Slimes (sudoeste da vila)",
+		"thunder_totem": "o Goblin Xamã, no Acampamento Goblin (leste da vila)",
+		"toxic_gland": "a Slime Mãe, no Ninho de Slimes (sudoeste da vila)",
 		"golden_dust": "Goblins Dourados, que aparecem pelo mapa",
 		"shadow_fang": "lobos, na floresta entre a vila e as Ruínas",
 		"champion_badge": "o Campeão Goblin, no Acampamento Goblin"
