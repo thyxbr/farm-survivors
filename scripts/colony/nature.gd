@@ -197,7 +197,7 @@ func regrow(day: int) -> void:
 	if colony == null or colony.role == "client":
 		return
 	for id in depleted.keys():
-		if day < int(depleted[id]):
+		if day < int(depleted[id]) or id >= generated:   # nó rico (covil limpo) é depósito único: não volta
 			continue
 		var n := node(id)
 		if n == null:

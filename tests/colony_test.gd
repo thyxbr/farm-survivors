@@ -554,9 +554,49 @@ func _ready() -> void:
 		if g.siege or g.den_id != den.id:
 			leashed = false
 	check(leashed, "guardas não são do cerco e são presos ao covil")
+	var boss0 := den.boss()
+	check(boss0 != null and boss0.kind == str(ColonyData.POIS[den.kind].boss), "o chefe do covil está lá")
+	var boss_hp := -1.0
+	if boss0:
+		boss0.take_damage(boss0.max_hp * 0.4, boss0.global_position, false)
+		boss_hp = boss0.hp
 	player.global_position = Vector3(0, 0.5, 14)
 	await wait(1.0)
 	check(not den.awake and den.guards_alive() == 0, "covil dorme sem ninguém perto")
+	player.global_position = den.global_position.move_toward(Vector3.ZERO, 30.0) + Vector3(0, 0.5, 0)
+	await wait(1.0)
+	var boss1 := den.boss()
+	check(boss1 != null and boss1 != boss0 and absf(boss1.hp - boss_hp) < 0.5 and boss_hp < boss1.max_hp,
+		"chefe volta com o dano que levou (%.0f/%.0f)" % [boss1.hp if boss1 else -1.0, boss_hp])
+	player.global_position = Vector3(0, 0.5, 14)
+	await wait(1.0)
+	check(not den.awake and den.guards_alive() == 0, "covil volta a dormir")
+	# onda: antes de DEN_FORCE_NIGHT os covis não mexem nela (começo igual ao de antes)
+	var early_ok := true
+	for i in 10:
+		if colony._pick_wave_dirs(1).size() != 1:
+			early_ok = false
+		for it in colony._build_wave(1):
+			if it is Array:
+				early_ok = false
+	check(early_ok, "noite 1: uma direção só e nenhum extra de covil")
+	var forced := colony._pick_wave_dirs(ColonyData.DEN_FORCE_NIGHT)
+	var all_in := true
+	for d in colony.den_dirs():
+		all_in = all_in and d in forced
+	check(all_in, "a partir da noite %d as direções dos covis entram na onda" % ColonyData.DEN_FORCE_NIGHT)
+	# teto: covis no nível máximo somam no máximo DEN_EXTRA_MAX do orçamento
+	var lv_keep: Array = []
+	for dn in colony.dens:
+		lv_keep.append(dn.level)
+		dn.level = ColonyData.DEN_MAX_LEVEL
+	var ex := colony._den_budgets(100.0, 10)
+	var ex_sum := 0.0
+	for d in ex:
+		ex_sum += float(ex[d])
+	check(ex_sum <= 100.0 * ColonyData.DEN_EXTRA_MAX + 0.01, "extra dos covis tem teto (%.0f de 100)" % ex_sum)
+	for i in colony.dens.size():
+		colony.dens[i].level = lv_keep[i]
 	check(colony.den_dirs().has(den.dir_index), "covil de pé entra na onda")
 	colony.start_night()
 	check(den.dir_index in colony.wave_dirs, "direção do covil é forçada na onda")
@@ -583,6 +623,13 @@ func _ready() -> void:
 	den.grown_day = colony.day
 	den.dawn(colony.day + 3)
 	check(den.level == 2, "covil cresce a cada 3 dias (nível %d)" % den.level)
+	var lv2 := den.level
+	var gd2 := den.grown_day
+	for i in 10:
+		den.dawn(den.grown_day + ColonyData.DEN_GROW_DAYS)
+	check(den.level == ColonyData.DEN_MAX_LEVEL, "covil para no nível máximo (%d)" % den.level)
+	den.level = lv2
+	den.grown_day = gd2
 	var s0 := colony.amount("stone")
 	var n_nodes := colony.nature.nodes.size()
 	den.on_boss_killed()
@@ -591,6 +638,14 @@ func _ready() -> void:
 	var rich := colony.nature.node(n_nodes)
 	var dep: Array = ColonyData.POIS[den.kind].deposit
 	check(rich != null and rich.kind == str(dep[0]) and rich.total == int(dep[1]), "limpar o covil deixa um nó rico")
+	if rich:
+		for i in int(ColonyData.NODES[rich.kind].hits):
+			colony.harvest(rich.id, player.global_position)
+		colony.nature.regrow(colony.day + 30)
+		check(not rich.alive, "nó rico é depósito único: esgotado, não volta")
+	if cr.alive:   # o regrow acima devolveu o cristal; o save abaixo confere um nó esgotado
+		for i in 6:
+			colony.harvest(cr.id, player.global_position)
 	colony.phase = "night"
 	player.global_position = colony.dens[1].global_position.move_toward(Vector3.ZERO, 20.0) + Vector3(0, 0.5, 0)
 	await wait(1.0)
@@ -631,6 +686,7 @@ func _ready() -> void:
 		"save guarda o estado dos covis")
 	var rich_l := colony.nature.node(rich_id)
 	check(rich_l != null and rich_l.kind == rich_kind and rich_l.total == rich_total, "save guarda o nó rico do covil")
+	check(rich_l != null and not rich_l.alive, "nó rico esgotado continua esgotado no save")
 	var old := colony.to_dict()
 	old.erase("res")
 	old["version"] = 1

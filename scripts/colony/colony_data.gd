@@ -232,6 +232,9 @@ const DEN_GROW_DAYS := 3        # covil não limpo sobe de nível a cada tantos 
 const DEN_WAVE_BONUS := 0.15    # +15% de orçamento da onda por nível, na direção do covil
 const DEN_LEVEL_GUARDS := 1     # guardas a mais de cada tipo por nível acima do 1
 const DEN_LEVEL_HP := 0.3       # vida dos guardas e do chefe: +30% por nível acima do 1
+const DEN_MAX_LEVEL := 5        # o covil não cresce além disto
+const DEN_FORCE_NIGHT := 3      # antes desta noite os covis não mexem na onda (começo igual ao de antes)
+const DEN_EXTRA_MAX := 1.0      # o extra de todos os covis juntos é no máximo +100% do orçamento da onda
 
 ## Custo de cada monstro no orçamento da onda e a noite em que começa a aparecer.
 const WAVE_COSTS := {

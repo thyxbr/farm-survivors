@@ -1308,22 +1308,7 @@ func start_night(forced := false) -> void:
 	wave_queue = _build_wave_coop(day) if is_coop() else _build_wave(day)
 	wave_total = wave_queue.size()
 	_spawn_i = 0
-	var ndirs := 1 if day < 3 else (2 if day < 6 else 3)
-	if is_coop() and day >= 12:
-		ndirs = 4
-	# a direção de cada covil de pé entra sempre (e conta no total de direções da noite)
-	wave_dirs = den_dirs().keys()
-	var first: int = wave_dirs[0] if not wave_dirs.is_empty() else randi() % 8
-	if wave_dirs.is_empty():
-		wave_dirs = [first]
-	var tries := 0
-	while wave_dirs.size() < ndirs and tries < 50:
-		tries += 1
-		var d: int = (first + [3, 5, 2, 6, 4][mini(wave_dirs.size() - 1, 4)] + randi() % 2) % 8
-		if d not in wave_dirs:
-			wave_dirs.append(d)
-		else:
-			first = randi() % 8
+	wave_dirs = _pick_wave_dirs(day)
 	var names: Array[String] = []
 	for d in wave_dirs:
 		names.append(DIR_NAMES[d])
@@ -1355,7 +1340,7 @@ func _build_wave(n: int) -> Array:
 	if n % ColonyData.BOSS_EVERY == 0:
 		budget *= 0.7
 	var weights := {"slime": 3.0, "slime_veloz": 1.4, "goblin": 2.0, "slime_grande": 1.0, "goblin_bruto": 0.5 + 0.1 * n}
-	var extra := _den_budgets(budget)
+	var extra := _den_budgets(budget, n)
 	_fill_wave(out, budget, n, weights)
 	_fill_den_waves(out, extra, n, weights)
 	out.shuffle()
@@ -1374,7 +1359,7 @@ func _build_wave_coop(n: int) -> Array:
 	if boss_night:
 		budget *= 0.7
 	var cap := ColonyData.WAVE_CAP * (1.0 + 0.35 * (team_size - 1))
-	var extra := _den_budgets(budget)
+	var extra := _den_budgets(budget, n)
 	var total := budget
 	for d in extra:
 		total += float(extra[d])
@@ -1424,12 +1409,44 @@ func _fill_wave(out: Array, budget: float, n: int, weights: Dictionary) -> void:
 		budget -= float(ColonyData.WAVE_COSTS[pick][0])
 
 
-## Orçamento extra de cada covil de pé ({direção: orçamento}): DEN_WAVE_BONUS × nível × orçamento da onda.
-func _den_budgets(budget: float) -> Dictionary:
+## Direções da noite n. A partir de DEN_FORCE_NIGHT, a de cada covil de pé entra sempre (e conta no total).
+func _pick_wave_dirs(n: int) -> Array:
+	var ndirs := 1 if n < 3 else (2 if n < 6 else 3)
+	if is_coop() and n >= 12:
+		ndirs = 4
+	var dirs: Array = _wave_dens(n).keys()
+	var first: int = dirs[0] if not dirs.is_empty() else randi() % 8
+	if dirs.is_empty():
+		dirs = [first]
+	var tries := 0
+	while dirs.size() < ndirs and tries < 50:
+		tries += 1
+		var d: int = (first + [3, 5, 2, 6, 4][mini(dirs.size() - 1, 4)] + randi() % 2) % 8
+		if d not in dirs:
+			dirs.append(d)
+		else:
+			first = randi() % 8
+	return dirs
+
+
+## Covis que pesam na onda da noite n ({direção: nível}): nenhum antes de DEN_FORCE_NIGHT.
+func _wave_dens(n: int) -> Dictionary:
+	return den_dirs() if n >= ColonyData.DEN_FORCE_NIGHT else {}
+
+
+## Orçamento extra de cada covil de pé ({direção: orçamento}): DEN_WAVE_BONUS × nível × orçamento da onda,
+## com o total dos covis limitado a DEN_EXTRA_MAX × orçamento.
+func _den_budgets(budget: float, n: int) -> Dictionary:
 	var out := {}
-	var dd := den_dirs()
+	var dd := _wave_dens(n)
+	var total := 0.0
 	for d in dd:
 		out[d] = budget * ColonyData.DEN_WAVE_BONUS * int(dd[d])
+		total += float(out[d])
+	var cap := budget * ColonyData.DEN_EXTRA_MAX
+	if total > cap:
+		for d in out:
+			out[d] = float(out[d]) * cap / total
 	return out
 
 

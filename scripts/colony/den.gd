@@ -34,10 +34,11 @@ var awake := false
 var grown_day := 1
 var colony: Colony
 
-## Guardas (sem o chefe) que ainda estão de pé: [tipo, afixo]. Os mortos saem daqui até o amanhecer.
+## Quem ainda está de pé: [tipo, afixo, vida (-1 = cheia), chefe?]. Os mortos saem daqui até o amanhecer;
+## quem some ao dormir guarda a vida aqui (o dano fica até o amanhecer).
 var _roster: Array = []
 var _guards: Array[Enemy] = []
-var _boss: Enemy = null
+var _entry := {}   # guarda no mapa -> entrada do _roster
 
 
 func data() -> Dictionary:
@@ -83,13 +84,22 @@ func guards_alive() -> int:
 	return guards().size()
 
 
+## O chefe no mapa (null se o covil dorme ou já foi limpo).
+func boss() -> Enemy:
+	for e in guards():
+		if bool(_entry[e][3]):
+			return e
+	return null
+
+
 ## Servidor/solo, ~2x por segundo de dia: acorda com jogador perto, dorme sem ninguém.
 func tick(players: Array) -> void:
 	if cleared:
 		return
 	var near := INF
 	for p in players:
-		near = minf(near, _flat(p.global_position))
+		if not p.dead:
+			near = minf(near, _flat(p.global_position))
 	if not awake and near <= ColonyData.DEN_WAKE:
 		wake()
 	elif awake and near > ColonyData.DEN_SLEEP:
@@ -105,9 +115,12 @@ func wake() -> void:
 	if colony.is_coop():
 		hp *= 1.0 + ColonyData.TEAM_HP * (colony.team_size - 1)
 	for g in _roster:
-		_guards.append(_spawn(str(g[0]), hp, str(g[1])))
-	_boss = _spawn(str(data().boss), hp * float(data().boss_hp), str(data().boss_affix))
-	_guards.append(_boss)
+		var e := _spawn(str(g[0]), hp * (float(data().boss_hp) if bool(g[3]) else 1.0), str(g[1]))
+		if float(g[2]) > 0.0:
+			e.hp = minf(float(g[2]), e.max_hp)
+			e.health_changed.emit(e)
+		_entry[e] = g
+		_guards.append(e)
 
 
 ## Os guardas somem (sem morrer: voltam do mesmo jeito quando o covil acordar de novo).
@@ -121,10 +134,11 @@ func dawn(day: int) -> void:
 	if cleared:
 		return
 	if day - grown_day >= ColonyData.DEN_GROW_DAYS:
-		level += 1
 		grown_day = day
-		if colony and colony.role == "server":
-			Lobby.city_den_state(id, level, cleared)
+		if level < ColonyData.DEN_MAX_LEVEL:
+			level += 1
+			if colony and colony.role == "server":
+				Lobby.city_den_state(id, level, cleared)
 	_refill()
 
 
@@ -156,12 +170,13 @@ func on_boss_killed() -> void:
 	colony._dirty()
 
 
-## Cliente: o servidor mandou o estado do covil.
-func net_set(new_level: int, is_cleared: bool) -> void:
+## Cliente: o servidor mandou o estado do covil. fx = false no estado inicial (quem entra depois não vê a festa).
+func net_set(new_level: int, is_cleared: bool, fx := true) -> void:
 	level = new_level
 	if is_cleared and not cleared:
 		cleared = true
-		_show_cleared()
+		if fx:
+			_show_cleared()
 
 
 func to_dict() -> Dictionary:
@@ -171,12 +186,10 @@ func to_dict() -> Dictionary:
 func from_dict(d: Dictionary) -> void:
 	_despawn()
 	awake = false
-	level = maxi(1, int(d.get("level", 1)))
+	level = clampi(int(d.get("level", 1)), 1, ColonyData.DEN_MAX_LEVEL)
 	cleared = bool(d.get("cleared", false))
 	grown_day = int(d.get("grown", grown_day))
 	_refill()
-	if cleared:
-		_show_cleared()
 
 
 # ================================================================ interno
@@ -190,7 +203,8 @@ func _refill() -> void:
 			var affix := ""
 			if float(d.get("elite", 0.0)) > 0.0 and randf() < float(d.elite):
 				affix = ["blindado", "arcano", "agil"].pick_random()
-			_roster.append([str(g[0]), affix])
+			_roster.append([str(g[0]), affix, -1.0, false])
+	_roster.append([str(d.boss), str(d.boss_affix), -1.0, true])
 
 
 func _spawn(ekind: String, hp: float, affix: String) -> Enemy:
@@ -205,26 +219,27 @@ func _spawn(ekind: String, hp: float, affix: String) -> Enemy:
 
 func _on_guard_died(e: Enemy) -> void:
 	_guards.erase(e)
-	if e == _boss:
-		_boss = null
+	var g: Array = _entry.get(e, [])
+	_entry.erase(e)
+	var i := _roster.find(g)
+	if i >= 0:
+		_roster.remove_at(i)
+	if not g.is_empty() and bool(g[3]):
 		on_boss_killed()
-		return
-	for i in _roster.size():
-		if str(_roster[i][0]) == e.kind and str(_roster[i][1]) == e.affix:
-			_roster.remove_at(i)
-			return
 
 
 func _despawn() -> void:
 	for e in _guards:
 		if is_instance_valid(e) and not e.dead:
+			if _entry.has(e):
+				_entry[e][2] = e.hp   # volta com o mesmo dano quando o covil acordar de novo
 			if e.died.is_connected(_on_guard_died):
 				e.died.disconnect(_on_guard_died)
 			if colony and colony.role == "server":
 				Network.server_enemy_despawn(e)
 			e.queue_free()
 	_guards.clear()
-	_boss = null
+	_entry.clear()
 
 
 func _show_cleared() -> void:

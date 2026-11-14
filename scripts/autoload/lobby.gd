@@ -697,7 +697,7 @@ func _city_full(d: Dictionary) -> void:
 			c.nature.net_set(int(id), false, false)
 	var dl: Array = d.get("dens", [])
 	for i in mini(dl.size(), c.dens.size()):
-		c.dens[i].net_set(int(dl[i][0]), bool(dl[i][1]))
+		c.dens[i].net_set(int(dl[i][0]), bool(dl[i][1]), false)
 	c.apply_state(d.get("state", {}))
 	if city and city.has_method("on_city_synced"):
 		city.on_city_synced()
