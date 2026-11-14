@@ -15,6 +15,7 @@ signal leveled_up(new_level: int)
 signal food_eaten(id: String)
 signal farm_changed
 signal item_looted(id: String, qty: int)
+signal kit_changed   # a classe da arma equipada mudou
 
 const SETTINGS_PATH := "user://settings.cfg"
 const WORLD_SCENE := "res://scenes/world.tscn"
@@ -32,6 +33,8 @@ var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "fullscreen": 
 
 # ---- espelho do personagem (escrito só por apply_state)
 var level := 1
+const FURY_MAX := CharState.FURY_MAX
+var fury := 0.0   # fúria 0..100: enche lutando, zera ao usar a ultimate, não esvazia com o tempo
 var xp := 0
 var gold := 0
 var stat_points := 0
@@ -228,7 +231,7 @@ func _setup_input() -> void:
 		"move_forward": [KEY_W, KEY_UP], "move_back": [KEY_S, KEY_DOWN],
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
 		"jump": [KEY_SPACE], "sprint": [KEY_SHIFT], "dodge": [KEY_CTRL, KEY_ALT],
-		"interact": [KEY_E], "spell_1": [KEY_1], "spell_2": [KEY_2], "spell_3": [KEY_3],
+		"interact": [KEY_E], "spell_1": [KEY_1], "spell_2": [KEY_2], "spell_3": [KEY_3], "spell_4": [KEY_4],
 		"potion": [KEY_R], "mana_potion": [KEY_F], "inventory": [KEY_I, KEY_TAB], "character": [KEY_C],
 		"quest_log": [KEY_J], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
 		"eat": [KEY_Q], "food_next": [KEY_T],
@@ -435,7 +438,9 @@ func preview_equip(id: String) -> Dictionary:
 
 
 ## Roubo de vida dos itens: cura uma fração do dano causado.
-func on_damage_dealt(amount: float) -> void:
+func on_damage_dealt(amount: float, target_max_hp := 100.0, with_fury := true) -> void:
+	if with_fury:
+		add_fury_from_damage(amount, target_max_hp)
 	var l := gear("leech")
 	if l > 0.0 and hp > 0.0:
 		hp = min(max_hp(), hp + amount * l)
@@ -449,6 +454,39 @@ func xp_to_next() -> int:
 
 func knows_spell(id: String) -> bool:
 	return level >= ItemDB.SPELLS[id].level
+
+
+## Fúria ganha por um golpe: proporcional ao dano em relação à vida do alvo.
+static func fury_gain(amount: float, target_max_hp: float) -> float:
+	return clampf(amount / maxf(1.0, target_max_hp) * 50.0, 0.5, 6.0)
+
+
+## Só enche a fúria, sem roubo de vida: usado pelas magias (o roubo de vida é do corpo a corpo).
+func add_fury_from_damage(amount: float, target_max_hp := 100.0) -> void:
+	add_fury(fury_gain(amount, target_max_hp))
+
+
+func add_fury(amount: float) -> void:
+	fury = clampf(fury + amount, 0.0, FURY_MAX)
+	stats_changed.emit()
+
+
+func fury_full() -> bool:
+	return fury >= FURY_MAX
+
+
+## Habilidades ainda "Em breve" (fases seguintes) não são anunciadas.
+func ability_implemented(id: String) -> bool:
+	return bool(ItemDB.ABILITIES[id].ready)
+
+
+func knows_ability(id: String) -> bool:
+	return level >= ItemDB.ABILITIES[id].level
+
+
+## Habilidades da arma equipada (slots 1..4, em ordem).
+func ability_kit() -> Array[String]:
+	return ItemDB.kit(weapon_class())
 
 
 # ---------------------------------------------------------------- pedidos ao Econ
@@ -782,6 +820,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 	var s := CharState.from_dict(d, Balance.tables)
 	var old_hp := max_hp()
 	var old_mp := max_mp()
+	var old_class := weapon_class()
 	var quests_before := quests
 	var farm_before := farm
 	level = s.level
@@ -803,6 +842,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 		clear_food(true)
 		hp = s.hp if s.hp > 0.0 else max_hp()
 		mp = s.mp
+		fury = s.fury
 		hp = minf(hp, max_hp())
 		mp = minf(mp, max_mp())
 		stamina = max_stamina()
@@ -814,6 +854,8 @@ func apply_state(d: Dictionary, full := false) -> void:
 		ensure_selected_food()
 	stats_changed.emit()
 	inventory_changed.emit()
+	if weapon_class() != old_class:
+		kit_changed.emit()
 	if quests != quests_before:
 		quests_changed.emit()
 	if farm != farm_before:

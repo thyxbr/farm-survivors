@@ -155,8 +155,23 @@ func _on_body(body: Node) -> void:
 
 func _damage(e: Node, amount: float) -> void:
 	var dmg := amount * randf_range(0.9, 1.1)
-	e.take_damage(dmg, global_position - _vel.normalized(), crit, 2.5 if fx == "slow" else 0.0)
-	Game.on_damage_dealt(dmg)
+	if fx == "glacial":
+		# Flecha Glacial: prende 1,5 s e atrasa 3 s (chefes ignoram a prisão em apply_stun); gelo no alvo
+		e.take_damage(dmg, global_position - _vel.normalized(), crit, 3.0, 1.5)
+		_ice_fx(e)
+	else:
+		e.take_damage(dmg, global_position - _vel.normalized(), crit, 2.5 if fx == "slow" else 0.0)
+	Game.on_damage_dealt(dmg, e.max_hp)
+
+
+## Cristais de gelo no alvo: estilhaços opacos, brilho frio e anel azul no chão.
+func _ice_fx(e: Node) -> void:
+	var at: Vector3 = e.global_position + Vector3.UP * 0.6
+	var ice := Color(0.7, 0.92, 1.0)
+	FX.burst(at, ice, 18, 3.5, 0.09, 0.6, -4.0)
+	FXEpic.glow_burst(at, Color(0.45, 0.8, 1.0), 16, 2.5, 0.2, 0.5, 0.0)
+	FXEpic.ground_mark(e.global_position, Color(0.5, 0.85, 1.0), 1.1, 1.5, "ring")
+	Sfx.play_at("hit", at, 0.1, -4.0)
 
 
 func _finish(impact: bool) -> void:
