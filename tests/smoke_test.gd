@@ -46,8 +46,8 @@ func _ready() -> void:
 	Sfx.play_at("anvil", player.global_position + Vector3(2, 0, 0))
 	check(Sfx._next_3d != slot_anvil, "som da bigorna toca perto do jogador")
 	check(get_tree().get_nodes_in_group("enemies").size() >= 15, "inimigos spawnados (%d)" % get_tree().get_nodes_in_group("enemies").size())
-	check(get_tree().get_nodes_in_group("interactable").size() == 3 + Game.FARM_PLOTS + 1,
-		"2 NPCs + portal + %d canteiros + caldeirão interagíveis" % Game.FARM_PLOTS)
+	check(get_tree().get_nodes_in_group("interactable").size() == 4 + Game.FARM_PLOTS + 1,
+		"3 NPCs + portal + %d canteiros + caldeirão interagíveis" % Game.FARM_PLOTS)
 
 	# --- diálogo e missão
 	var elder: Node = null
@@ -68,6 +68,7 @@ func _ready() -> void:
 	await wait(0.1)
 	check(Game.quest_state("slimes") == "active", "missão dos slimes aceita")
 	check(world.modal == null and not get_tree().paused, "diálogo fecha e despausa")
+	await _test_blacksmith()
 
 	# --- combate corpo a corpo
 	var slime := _nearest("slime")
@@ -202,6 +203,47 @@ func _ready() -> void:
 	if FileAccess.file_exists(Game.save_path):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(Game.save_path))
 	get_tree().quit(1 if fails > 0 else 0)
+
+
+# ---------------------------------------------------------------- Ferreiro
+func _test_blacksmith() -> void:
+	var back := player.global_position
+	var smith := _interactable("blacksmith") as Blacksmith
+	check(smith != null and smith.state == Blacksmith.State.WORK, "ferreiro começa trabalhando")
+	if smith == null:
+		return
+	# jogador longe: golpes acontecem mas o som não toca (fora de FAR_DIST)
+	player.global_position = smith.global_position + Vector3(Sfx.FAR_DIST + 5.0, 0.3, 0)
+	var s0 := smith.strikes
+	var slot: int = Sfx._next_3d
+	# 3,2 s: cobre o pior caso de começar logo no início de uma pausa (work_pause 2,5 s + golpe a 0,53 s)
+	await wait(3.2)
+	check(smith.strikes > s0, "ferreiro bate na bigorna (%d golpes)" % (smith.strikes - s0))
+	check(Sfx._next_3d == slot, "som do golpe não toca com o jogador longe")
+	# chega perto: para e vira
+	var ahead := smith.anvil.global_position - smith.global_position
+	ahead.y = 0.0
+	player.global_position = smith.anvil.global_position + ahead.normalized() * 2.0 + Vector3(0, 0.3, 0)
+	await wait(0.6)
+	check(smith.state == Blacksmith.State.IDLE, "ferreiro para quando o jogador chega")
+	# conversa: anima com o jogo pausado
+	smith.interact(player)
+	await wait(0.1)
+	check(smith.state == Blacksmith.State.TALK and get_tree().paused, "ferreiro conversa com o jogo pausado")
+	var ap: AnimationPlayer = smith.anim
+	var p0 := ap.current_animation_position
+	await wait(0.3)
+	check(ap.current_animation_position != p0, "ferreiro continua animando durante o diálogo")
+	world.modal._choose(Callable())
+	await wait(0.1)
+	check(smith.state == Blacksmith.State.IDLE and not get_tree().paused, "ferreiro volta a ouvir após o diálogo (estado %s, pausado %s)" % [Blacksmith.State.keys()[smith.state], get_tree().paused])
+	# sai de perto: volta a martelar e vira para a bigorna
+	player.global_position = smith.global_position + Vector3(Blacksmith.NEAR + 3.0, 0.3, 0)
+	await wait(1.0)
+	check(smith.state == Blacksmith.State.WORK, "ferreiro volta a trabalhar quando o jogador sai (estado %s)" % Blacksmith.State.keys()[smith.state])
+	check(absf(angle_difference(smith.model.rotation.y, smith._base_yaw)) < 0.2, "ferreiro vira de volta para a bigorna")
+	check(smith.clip("work_hammer") == "work_hammer", "sem biblioteca Mixamo, usa clipe provisório")
+	player.global_position = back
 
 
 # ---------------------------------------------------------------- Horta, caldeirão e comida

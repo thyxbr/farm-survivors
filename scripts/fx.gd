@@ -36,6 +36,16 @@ static func burst(pos: Vector3, color: Color, amount := 16, speed := 4.0, size :
 	var root := _scene()
 	if root == null:
 		return
+	var p := burst_particles(color, amount, speed, size, lifetime, gravity)
+	root.add_child(p)
+	p.global_position = pos
+	p.emitting = true
+	root.get_tree().create_timer(lifetime + 0.5).timeout.connect(p.queue_free)
+
+
+## Emissor de uma rajada, sem pai e parado: quem dispara sempre no mesmo lugar guarda um e chama
+## restart() a cada vez (ex.: as faíscas da bigorna do ferreiro).
+static func burst_particles(color: Color, amount := 16, speed := 4.0, size := 0.12, lifetime := 0.6, gravity := -9.0) -> CPUParticles3D:
 	var p := CPUParticles3D.new()
 	var mesh := BoxMesh.new()
 	mesh.size = Vector3.ONE * size
@@ -60,10 +70,8 @@ static func burst(pos: Vector3, color: Color, amount := 16, speed := 4.0, size :
 	grad.set_color(0, color)
 	grad.set_color(1, Color(color.r, color.g, color.b, 0.0))
 	p.color_ramp = grad
-	root.add_child(p)
-	p.global_position = pos
-	p.emitting = true
-	root.get_tree().create_timer(lifetime + 0.5).timeout.connect(p.queue_free)
+	p.emitting = false
+	return p
 
 
 static func ring(pos: Vector3, color: Color, radius: float, duration := 0.5) -> void:

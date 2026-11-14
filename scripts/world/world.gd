@@ -16,9 +16,12 @@ const M := {
 	"campfire": preload("res://assets/models/campfire.glb"),
 	"tent": preload("res://assets/models/tent.glb"),
 	"chest": preload("res://assets/models/chest.glb"),
+	"anvil": preload("res://assets/models/anvil.glb"),
+	"forge": preload("res://assets/models/forge.glb"),
 }
 const ENEMY := preload("res://scripts/enemies/enemy.gd")
 const NPC := preload("res://scripts/world/npc.gd")
+const BLACKSMITH := preload("res://scripts/world/blacksmith.gd")
 const PLAYER := preload("res://scripts/player/player.gd")
 const HUD := preload("res://scripts/ui/hud.gd")
 const DIALOGUE := preload("res://scripts/ui/dialogue_ui.gd")
@@ -230,6 +233,14 @@ func _build_village() -> void:
 	merchant.position = Vector3(6.8, 0, 1.6)
 	merchant.rotation.y = -PI / 2
 	add_child(merchant)
+	# ferraria (posição provisória, a Tarefa 5 ajusta): ferreiro virado para o leste, bigorna à
+	# frente e forja às costas
+	var smith := BLACKSMITH.new()
+	smith.position = Vector3(-8.5, 0, 11)
+	smith.rotation.y = PI / 2
+	smith.anvil = prop("anvil", Vector3(-7.8, 0, 11), 0.0, 1.0, "cyl", Vector3(0.3, 0.8, 0))
+	prop("forge", Vector3(-10.1, 0, 11), PI / 2, 1.0, "box", Vector3(0.9, 1.0, 0.8))
+	add_child(smith)
 	var portal := PORTAL.new()
 	portal.position = PORTAL_POS
 	add_child(portal)
