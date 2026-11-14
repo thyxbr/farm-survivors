@@ -58,9 +58,29 @@ Os GLBs **não mudam**. `ToonLook.apply(modelo)` (`scripts/world/toon_look.gd`) 
    - `KnightLook.apply` reaplica o toon a cada troca de equipamento (a chamada é idempotente).
 8. **Malha com esqueleto:** a casca fica ao lado da malha, presa ao mesmo esqueleto. Sem esqueleto ela
    é filha da peça e herda transformação e visibilidade.
-9. **Translúcido não entra.** O contorno apareceria por dentro do corpo do slime; materiais com
-   transparência ou sem luz (`unshaded`) são ignorados.
+9. **Translúcido não entra pela conversão comum.** Materiais com transparência ou sem luz (`unshaded`)
+   são ignorados por `ToonLook.apply`; o slime tem caminho próprio (abaixo).
 10. **PowerShell:** para rodar o Godot com caminho entre aspas é preciso o `&` na frente.
+
+### Do slime (gelatina)
+1. **Continua translúcido, com shader próprio.** `toon_slime.gdshader` inclui `toon_light.gdshaderinc`
+   (mesma luz em dois tons) e mantém o alfa da variante (`data.goo`). Opaco perdia a cara de gelatina.
+2. **A casca invertida funciona em corpo translúcido se o corpo gravar profundidade.** O corpo usa
+   `depth_draw_always`; a casca (`toon_slime_outline.gdshader`) vai no passe transparente e é desenhada
+   depois (`render_priority = 1`). O teste de profundidade barra a casca atrás do corpo e sobra só a
+   silhueta. Sem isso, o fundo da casca escurecia o corpo todo e a transparência sumia.
+3. **Borda grossa em degrau.** Perto da silhueta o corpo fica mais opaco e mais escuro, como a espessura
+   de uma gota. A malha é facetada, então a borda usa a normal de um elipsoide calculada no vértice;
+   com a normal da face, a faixa saía em triângulos soltos.
+4. **Olhos e brilho saem da gelatina.** No GLB eles nascem meio afundados no corpo; com contorno, a
+   parte de dentro ficava riscada e esverdeada. `ToonLook.apply_slime` desloca essas peças uns 5 cm para
+   fora (só no toon).
+5. **Ordem das chamadas:** `ToonLook.apply_slime(modelo, cor)` e depois `ToonLook.apply(modelo)`, que
+   cuida dos olhos e pula o corpo (já marcado). Os overlays de dano e lentidão são `material_overlay` e
+   valem sobre qualquer material.
+6. **Limite conhecido:** como o corpo grava profundidade, o contorno de um slime não aparece através de
+   outro slime que esteja na frente, e um efeito transparente desenhado depois some atrás do corpo em
+   vez de aparecer por dentro dele.
 
 ### Do cenário
 1. **Um gancho só, em vez de dezenas de chamadas.** O autoload `Toon` (`scripts/autoload/toon.gd`) ouve
@@ -105,9 +125,10 @@ Cerca de 40% a mais, quase tudo do contorno (dobra os triângulos de cada person
 | NPCs da vila (ancião, mercadora, ferreiro) | `scripts/world/npc.gd` |
 | Jogador, soldados, prévia do personagem, armas | `scripts/player/knight_look.gd` (fim de `apply`) |
 | Inimigos | `scripts/enemies/enemy.gd` |
+| Slimes (jogo e menu), gelatina translúcida | `ToonLook.apply_slime`, chamada por `enemy.gd` e `main_menu.gd` |
 | Caravana e aldeão perdido | `scripts/colony/caravan.gd` |
 | NPCs da praça | `scripts/hub/hub_point.gd` |
-| Cavaleiro e goblin do menu | `scripts/ui/main_menu.gd` |
+| Cavaleiro, goblin e slime do menu | `scripts/ui/main_menu.gd` |
 
 | Props, construções, árvores, vegetação em MultiMesh | autoload `Toon` (`scripts/autoload/toon.gd`) |
 | Chão, grama e árvores com vento | `ground.gdshader`, `grass.gdshader` e `tree_wind.gdshader`, via `toon_light.gdshaderinc` |
@@ -118,7 +139,7 @@ Cerca de 40% a mais, quase tudo do contorno (dobra os triângulos de cada person
 |---|---|---|
 | 1 | Personagens, com contorno | feito |
 | 2 | Cenário: props, construções, árvores, vegetação, chão e grama, sem contorno | feito |
-| 3 | Slimes: corpo translúcido precisa de tratamento próprio (opaco com brilho em faixa, ou contorno por borda) | a fazer |
+| 3 | Slimes: gelatina translúcida em dois tons, borda grossa e contorno só na silhueta | feito |
 | 4 | Peças com emissão e efeitos (lamparinas, portal, projéteis): decidir caso a caso | a fazer |
 | 5 | Materiais trocados por código depois do primeiro quadro (ex.: `resource_node.gd`) não são convertidos | a conferir |
 | 6 | Ajuste global de luz e pós-processo (SSAO e névoa brigam com cor chapada; serra ao fundo ainda é degradê) | a fazer |
@@ -132,6 +153,8 @@ Cerca de 40% a mais, quase tudo do contorno (dobra os triângulos de cada person
 $G = "C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe"
 # foto lado a lado (antigo à esquerda, toon à direita) de qualquer modelo, com a luz do jogo
 & $G --path . --resolution 1400x1000 --script res://tools/toon_shot.gd -- goblin saida.png 3q
+# slime: gelatina antiga à esquerda, toon à direita; goo=RRGGBBAA troca a cor da variante
+& $G --path . --resolution 1400x1000 --script res://tools/toon_shot.gd -- slime saida.png 3q goo=8c40d9cc
 # custo numa multidão
 & $G --path . --resolution 1280x720 --script res://tools/toon_cost.gd -- 80 toon
 # jogo com o sombreado antigo, para comparar

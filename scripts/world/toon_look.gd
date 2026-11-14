@@ -8,11 +8,19 @@ extends RefCounted
 
 const TOON := preload("res://assets/shaders/toon_character.gdshader")
 const OUTLINE := preload("res://assets/shaders/toon_outline.gdshader")
+const SLIME := preload("res://assets/shaders/toon_slime.gdshader")
+const SLIME_OUTLINE := preload("res://assets/shaders/toon_slime_outline.gdshader")
 const MIN_OUTLINE_SIZE := 0.07
+const SLIME_GOO := Color(0.25, 0.85, 0.3, 0.78)      # slime comum; as variantes trazem `goo` nos dados
+
+const SLIME_FACE := {"EyeL": Vector3(0.012, 0, 0.05), "EyeR": Vector3(-0.012, 0, 0.05),
+	"PupilL": Vector3(0.012, 0, 0.05), "PupilR": Vector3(-0.012, 0, 0.05), "Shine": Vector3(0, 0.02, 0)}
 
 static var _mats := {}          # chave das propriedades do material -> ShaderMaterial toon
 static var _hulls := {}         # malha original -> ArrayMesh da casca
 static var _outline_mat: ShaderMaterial
+static var _slime_mats := {}    # cor da gelatina -> ShaderMaterial
+static var _slime_outline_mat: ShaderMaterial
 static var _enabled := -1       # -1 = ainda não leu os argumentos
 
 
@@ -46,6 +54,38 @@ static func apply(root: Node, outline := true) -> int:
 			mi.set_meta("toon_outline", true)
 			_add_outline(mi)
 	return n
+
+
+## Slime: corpo e base (`BodyMesh`, `Base`) viram gelatina em dois tons, translúcida e com contorno só
+## na silhueta. Olhos e brilho são opacos e seguem por `apply`, chamada em seguida por quem monta o modelo.
+static func apply_slime(root: Node, goo := SLIME_GOO) -> void:
+	var key := goo.to_html()
+	var m: ShaderMaterial = _slime_mats.get(key)
+	if m == null:
+		m = ShaderMaterial.new()
+		m.shader = SLIME
+		m.set_shader_parameter("albedo", goo)
+		_slime_mats[key] = m
+	if _slime_outline_mat == null:
+		_slime_outline_mat = ShaderMaterial.new()
+		_slime_outline_mat.shader = SLIME_OUTLINE
+		_slime_outline_mat.render_priority = 1      # depois do corpo, que grava profundidade
+	for n in ["BodyMesh", "Base"]:
+		var mi := root.find_child(n, true, false) as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		mi.material_override = m
+		mi.set_meta("toon", true)
+		if not mi.has_meta("toon_outline"):
+			mi.set_meta("toon_outline", true)
+			_add_outline(mi, _slime_outline_mat)
+	# olhos e brilho nascem meio afundados na gelatina; com contorno, a parte de dentro saía riscada e
+	# esverdeada. Aqui eles vêm para fora da superfície (só no toon: sem ele o modelo fica como no GLB).
+	for n in SLIME_FACE:
+		var part := root.find_child(n, true, false) as Node3D
+		if part != null and not part.has_meta("toon_slime_face"):
+			part.set_meta("toon_slime_face", true)
+			part.position += SLIME_FACE[n]
 
 
 ## Troca os materiais iluminados de uma malha por toon. `scenery` pula materiais com emissão (lamparinas,
@@ -121,7 +161,7 @@ static func _toon_of(src: BaseMaterial3D) -> ShaderMaterial:
 	return m
 
 
-static func _add_outline(mi: MeshInstance3D) -> void:
+static func _add_outline(mi: MeshInstance3D, mat: ShaderMaterial = null) -> void:
 	var hull := _hull_of(mi.mesh)
 	if hull == null:
 		return
@@ -131,7 +171,7 @@ static func _add_outline(mi: MeshInstance3D) -> void:
 	var o := MeshInstance3D.new()
 	o.name = "ToonOutline"
 	o.mesh = hull
-	o.material_override = _outline_mat
+	o.material_override = mat if mat != null else _outline_mat
 	o.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	o.layers = mi.layers
 	if mi.skin != null:

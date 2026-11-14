@@ -359,6 +359,9 @@ func _build_backdrop() -> void:
 	slime.position = Vector3(-1.2, 0, -2.2)
 	slime.rotation.y = 2.5
 	pivot.add_child(slime)
+	if ToonLook.enabled():
+		ToonLook.apply_slime(slime)
+		ToonLook.apply(slime)
 	var fire: Node3D = load("res://assets/models/campfire.glb").instantiate()
 	fire.position = Vector3(0.8, 0, -1.5)
 	pivot.add_child(fire)
