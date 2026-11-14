@@ -20,6 +20,20 @@ func _ready() -> void:
 		set_process(false)      # servidor dedicado: nunca liga
 		return
 	get_tree().node_added.connect(_on_node_added)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--toonaudit"):      # `--toonaudit` ou `--toonaudit=segundos`
+			_audit(float(a.get_slice("=", 1)) if "=" in a else 3.0)
+
+
+## Conferência (`-- --toonaudit`): depois de alguns segundos, lista no console as peças visíveis que
+## ficaram com material iluminado comum. Serve para achar material trocado depois do gancho.
+func _audit(after: float) -> void:
+	await get_tree().create_timer(after, true).timeout
+	var left := ToonLook.audit(get_tree().root)
+	var total := get_tree().root.find_children("*", "MeshInstance3D", true, false).size()
+	print("TOONAUDIT %d peça(s) fora do estilo, de %d malhas na cena" % [left.size(), total])
+	for l in left:
+		print("TOONAUDIT   ", l)
 
 
 func _on_node_added(n: Node) -> void:
@@ -39,7 +53,7 @@ func _process(_delta: float) -> void:
 			continue
 		var c := 0
 		if n is MeshInstance3D:
-			c = ToonLook.convert_mesh(n, true)
+			c = ToonLook.convert_mesh(n)
 		else:
 			c = ToonLook.convert_multimesh(n)
 		if c > 0:
