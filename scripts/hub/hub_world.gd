@@ -68,7 +68,7 @@ var _no_grass: Array = []   # [Vector2 centro, raio]
 func _ready() -> void:
 	get_tree().paused = false
 	Lobby.joining_city = false
-	# solo: o personagem vem do solo.db (Game.spawn_position sai dele: é a posição em Valdoria)
+	# solo: o personagem vem do save solo (Game.spawn_position sai dele: é a posição em Valdoria)
 	if not Network.is_online():
 		Econ.ensure_solo()
 	rng.seed = 20261114

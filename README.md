@@ -52,7 +52,9 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
   mira que mostra a tensão do arco, avisos de saque, inventário com prévia 3D, arrastar e soltar,
   filtros, "Organizar" e dica que calcula o que muda se equipar o item. Ícones desenhados por código
   (`icon_painter.gd`); tema em `ui_theme.gd`.
-- **Personagem solo** num banco SQLite local (`user://solo.db`; F5/F9 salvam e recarregam), opções persistentes (volume, sensibilidade, inverter Y, tela cheia).
+- **Personagem solo** num arquivo local (`user://solo_character.json`, gravado de forma atômica; F5/F9 salvam e recarregam; a base local e os recordes do solo ficam ao lado, em `solo_character_base.json` e `solo_character_runs.json`), opções persistentes (volume, sensibilidade, inverter Y, tela cheia).
+  O SQLite é só do servidor dedicado: o cliente Windows é um exe único, sem DLL (o Smart App Control do Windows
+  bloqueia DLL sem assinatura). O `user://solo.db` da 0.8.0 é ignorado.
 - Morte com opção de renascer na vila (perde 10% do ouro) ou carregar o save.
 
 ## Horta da Vila (fazenda)
@@ -131,6 +133,8 @@ atacam a cidade, cada noite mais fortes (a cada 5 noites vem o Rei Goblin). Se a
 ## Multiplayer (servidor dedicado)
 O servidor roda o Godot sem tela e é dono dos inimigos (IA, vida, morte) **e do personagem de cada conta**:
 ouro, itens, XP, equipamento, missões e a Horta ficam num banco SQLite no servidor (`addons/godot-sqlite`).
+O SQLite existe **só no servidor**: o export do Windows exclui `addons/godot-sqlite/*` e o `Db` acha a classe
+`SQLite` pelo `ClassDB` (sem a extensão, `Db.open` devolve null em vez de quebrar a compilação dos scripts).
 O jogador entra com **usuário e senha** (cadastro e login pela API HTTP do servidor, por HTTPS no servidor
 público); o ENet (UDP) recebe só o token da sessão. Quem acerta um inimigo ganha XP, missão e loot quando ele
 morre, concedidos pelo servidor. Os números de balanceamento (itens, inimigos, cidade, horda...) ficam em
@@ -193,8 +197,10 @@ já existem no banco, mas semear e ler o balanceamento do banco (e editar pelo p
   o CI falha antes do deploy. Sem isso o servidor receberia o código novo e os jogadores ficariam com o antigo
   na mesma versão (o servidor aceitaria a conexão e as RPCs sairiam dessincronizadas).
 - **Auto update (cliente Windows):** quando a versão do `project.godot` ainda não tem release, o job
-  *Publicar cliente* do CI exporta o jogo e cria a release `v<versão>` no GitHub com o zip e um `latest.json`
-  (versão, link, SHA-256). O deploy do servidor só roda depois disso. No jogo, o autoload `Updater`
+  *Exportar cliente Windows* do CI exporta o jogo (um exe só, sem DLL), o job *Ligar o exe exportado* roda esse
+  exe sem tela num Windows (`--headless --quit-after 300`; falha com `SCRIPT ERROR`, `Parse Error`, `GDExtension`
+  ou saída diferente de 0) e só então *Publicar cliente* cria a release `v<versão>` no GitHub com o zip e um
+  `latest.json` (versão, link, SHA-256). O deploy do servidor só roda depois disso. No jogo, o autoload `Updater`
   (`scripts/autoload/updater.gd`) lê `releases/latest/download/latest.json` ao abrir o menu; se houver versão maior,
   mostra *Atualizar agora*, baixa o zip, confere o hash, troca o exe (o atual vira `.old`, apagado na próxima abertura)
   e reabre o jogo. Com o jogo aberto procura de novo a cada 5 minutos; se a versão nova sair durante a partida,
@@ -225,7 +231,7 @@ já existem no banco, mas semear e ler o balanceamento do banco (e editar pelo p
   quando uma sobe de nível o chat avisa todo mundo. Os bônus são fixados no começo de cada partida.
 - O personagem online é o da conta e mora no servidor (banco): ouro, itens, XP, Ecos, passivas, equipamento, missões
   e horta mudam só por pedido ao servidor (autoload `Econ`); o cliente manda vida, mana e posição de tempos em tempos.
-  O solo tem personagem próprio em `user://solo.db` (F5/F9 só em Valdoria, no solo). Esc → *Voltar à praça* sai de
+  O solo tem personagem próprio em `user://solo_character.json` (o cliente não leva o SQLite) (F5/F9 só em Valdoria, no solo). Esc → *Voltar à praça* sai de
   Valdoria (no Desafio da Horda, abandone primeiro) e da cidade.
 - O chat (**Enter**) é do servidor inteiro: funciona na praça, em Valdoria e na cidade em grupo.
 - O servidor guarda a zona de cada jogador (`players[id].zone`: `hub`, `world` ou `city`): inimigos, posições e
@@ -318,13 +324,14 @@ tools/blender/        build_assets.py (cenário + chama characters.py), characte
 data/balance/         tabelas de balanceamento em JSON (itens, culturas, receitas, magias, missões, loja, raridade,
                       inimigos, horda, eventos, cidade, regras), carregadas pelo autoload Balance
 scripts/autoload/     game.gd (espelho do personagem para a UI e o jogo), econ.gd (pedidos ao dono do personagem:
-                      servidor online, banco solo offline), balance.gd, auth.gd (cadastro/login HTTP), item_db.gd
+                      servidor online, arquivo solo offline), balance.gd, auth.gd (cadastro/login HTTP), item_db.gd
                       (itens/magias/missões), sfx.gd (sons sintetizados), network.gd (multiplayer: servidor dedicado,
                       zonas, réplicas, RPCs), updater.gd (auto update), lobby.gd (navegação praça/Valdoria/cidade
                       e Defesa em grupo), hub.gd (praça: base compartilhada, recordes, portal da Horda)
 scripts/character/    char_state.gd / char_rules.gd (regras puras do personagem), character_service.gd (carrega,
-                      grava e aplica os pedidos no banco), loot_rules.gd
-scripts/server/       db.gd + migrations.gd (SQLite), auth/ (contas, senha), http/ (API HTTP: /health, /auth/*),
+                      grava e aplica os pedidos), char_store.gd / file_char_store.gd (onde o personagem
+                      fica: CharStore; FileCharStore = JSON do solo), loot_rules.gd
+scripts/server/       db.gd + migrations.gd + sqlite_char_store.gd (SQLite, só no servidor), auth/ (contas, senha), http/ (API HTTP: /health, /auth/*),
                       pickups.gd (loot no chão conferido pelo servidor), hit_guard.gd
 scripts/balance/      balance_tables.gd (lê/grava as tabelas JSON)
 scripts/player/       player.gd (controle, combate, magias), fireball.gd, cape_rig.gd (física da capa)
@@ -378,7 +385,7 @@ Para ver as telas novas: `... -- --geardemo --weapon=storm_bow --ui=inv --shot=i
 (`--ui=inv|char|quests|shop`; `--geardemo` dá vários equipamentos, `--weapon=<id>` equipa uma arma).
 Para tirar um screenshot da arena: `... -- --survival --shot=shot.png --delay=15` (o PNG vai para a pasta atual;
 evite a raiz `C:/`, que o Windows não deixa gravar sem administrador).
-Usa um banco solo separado (`user://smoketest_solo.db`, apagado no início; ou `--solo-db=CAMINHO`), então não mexe no seu personagem.
+Usa um personagem solo separado (`user://smoketest_solo.json`, apagado no início; ou `--solo-save=CAMINHO`), então não mexe no seu personagem.
 
 Defesa da Cidade (construção, economia, recrutamento, torres, cerco, caça, noite, save/load e derrota):
 ```
@@ -392,7 +399,7 @@ emotes, réplica ignorando emote desconhecido e o caminho portal → Horda → d
 ```
 C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . res://scenes/hub.tscn -- --hubtest
 ```
-Usa um banco solo próprio (`user://hubtest_solo.db`, apagado no início).
+Usa um save solo próprio (`user://hubtest_solo.json` e os arquivos da base e das partidas ao lado, apagados no início).
 
 Multiplayer (servidor + 2 clientes headless; cada cliente sai com código 0 se tudo passar):
 ```

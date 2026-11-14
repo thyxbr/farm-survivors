@@ -2,7 +2,7 @@ extends Node
 ## Teste automatizado da Defesa da Cidade. Rode com:
 ##   godot --headless --path . res://scenes/colony.tscn -- --colonytest
 ## Imprime PASS/FAIL para cada verificação e encerra com código 0 (ok) ou 1 (falhas).
-## Usa saves próprios (user://colonytest_*.json) e um personagem solo novo (user://colonytest_solo.db, apagado no início).
+## Usa saves próprios (user://colonytest_*.json) e um personagem solo novo (user://colonytest_solo.json, apagado no início).
 ## O ouro da cidade é o caixa da partida (colony.treasury): o personagem só ganha as recompensas por noite.
 
 var fails := 0
@@ -32,11 +32,11 @@ func _ready() -> void:
 	_bind()
 	check(world != null and colony != null and player != null, "cena da cidade carregada")
 	check(colony.phase == "setup" and colony.hall == null, "começa vazia, esperando a prefeitura")
-	# o personagem é o do solo.db (novo neste teste); o ouro da cidade é um caixa à parte
+	# o personagem é o do save solo (novo neste teste); o ouro da cidade é um caixa à parte
 	var char_gold0 := Game.gold
 	var char_xp0 := _total_xp()
 	var fresh := CharState.new_character(Balance.tables)
-	check(char_gold0 == fresh.gold and Econ.ensure_solo(), "personagem da cidade é o do solo.db (ouro %d)" % char_gold0)
+	check(char_gold0 == fresh.gold and Econ.ensure_solo(), "personagem da cidade é o do save solo (ouro %d)" % char_gold0)
 	# missão de abate ativa: os abates da cidade não contam para ela (nem para o abate/chefe do personagem)
 	Game.start_quest("slimes")
 	var quests0: Dictionary = Game.quests.duplicate(true)
@@ -256,11 +256,12 @@ func _ready() -> void:
 	await wait(3.0)
 	check(world.modal != null and world.modal.get("mode") == "defeat", "tela de derrota aparece")
 	# uma linha de resumo da partida no registro da economia (as recompensas da noite não têm linha própria)
-	var rows: Array = Econ._db.query("SELECT amount, detail FROM economy_log WHERE account_id = ? AND kind = 'run' AND source = 'city'",
-		[CharacterService.SOLO_ACCOUNT])
+	# (solo: o registro é o *_economy.jsonl do FileCharStore)
+	var rows: Array = Econ._store.economy_rows().filter(func(r: Dictionary) -> bool:
+		return int(r.account_id) == CharacterService.SOLO_ACCOUNT and r.kind == "run" and r.source == "city")
 	check(rows.size() == 1 and int(rows[0].amount) == int(rw.gold), "resumo da partida na economia (%s)" % str(rows))
-	var nights_rows: Array = Econ._db.query("SELECT 1 FROM economy_log WHERE account_id = ? AND source = 'city_night'",
-		[CharacterService.SOLO_ACCOUNT])
+	var nights_rows: Array = Econ._store.economy_rows().filter(func(r: Dictionary) -> bool:
+		return int(r.account_id) == CharacterService.SOLO_ACCOUNT and r.source == "city_night")
 	check(nights_rows.is_empty(), "recompensa da noite sem linha própria")
 	check(Game.gold == char_gold0 + int(rw.gold), "fim da partida: o caixa da cidade some, o personagem fica com a recompensa (%d)" % Game.gold)
 	# Ecos da partida: pelas noites seguradas (a cidade caiu no dia day_s → day_s - 1 noites)
@@ -268,7 +269,8 @@ func _ready() -> void:
 	var ecos_exp := RewardRules.ecos(Balance.tables, "city", day_s - 1)
 	check(det is Dictionary and int(det.get("ecos", -1)) == ecos_exp and int(det.get("run_id", 0)) > 0,
 		"Ecos da partida no registro (%d esperados, %s)" % [ecos_exp, str(det)])
-	var runs: Array = Econ._db.query("SELECT reached FROM runs WHERE mode = 'city' AND ended_at IS NOT NULL")
+	var runs: Array = Econ._store.run_rows().filter(func(r: Dictionary) -> bool:
+		return r.mode == "city" and r.ended_at != null)
 	check(runs.size() == 1 and int(runs[0].reached) == day_s - 1, "partida da cidade fechada em runs (%s)" % str(runs))
 
 	# --- bônus da base no início da cidade (Muralha e Celeiro), fixados na partida

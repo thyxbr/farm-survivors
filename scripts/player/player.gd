@@ -337,7 +337,7 @@ func _local_process(delta: float) -> void:
 	if Input.is_action_just_pressed("food_next"):
 		Game.cycle_food()
 	var scene := get_tree().current_scene
-	# F5/F9: no solo grava/relê o solo.db; no online não fazem nada (o personagem mora no servidor)
+	# F5/F9: no solo grava/relê o save solo; no online não fazem nada (o personagem mora no servidor)
 	if Input.is_action_just_pressed("quicksave"):
 		if scene.has_method("quick_save"):
 			scene.quick_save()

@@ -26,7 +26,7 @@ func _count(s: CharState, id: String) -> int:
 
 func test_persists_across_instances() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	var antes := svc.load_or_create(2)
 	var ouro := antes.gold
 	var pocoes := _count(antes, "health_potion")
@@ -35,7 +35,7 @@ func test_persists_across_instances() -> void:
 	T.eq(r.state.gold, ouro - int(_tables().get_table("items")["health_potion"]["price"]), "estado devolvido")
 	db.close()
 	var db2 := Db.open(PATH)
-	var svc2 := CharacterService.new(db2, _tables())
+	var svc2 := CharacterService.new(SqliteCharStore.new(db2), _tables())
 	var s := svc2.load_or_create(2)
 	T.eq(_count(s, "health_potion"), pocoes + 1, "poções persistiram")
 	T.eq(s.gold, r.state.gold, "ouro persistiu")
@@ -45,7 +45,7 @@ func test_persists_across_instances() -> void:
 
 func test_solo_account_created() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	var s := svc.load_or_create(1)
 	T.ok(s.gold > 0, "personagem novo na conta 1")
 	T.eq(db.query("SELECT provider FROM accounts WHERE id = 1")[0]["provider"], "local", "conta local criada")
@@ -54,7 +54,7 @@ func test_solo_account_created() -> void:
 
 func test_rejects_unknown_op() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	svc.load_or_create(2)
 	var r := svc.apply(2, "grant", [9999, 0, {}])
 	T.ok(not r.ok, "grant não vem do cliente")
@@ -65,7 +65,7 @@ func test_rejects_unknown_op() -> void:
 
 func test_rejects_bad_args() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	svc.load_or_create(2)
 	T.eq(svc.apply(2, "buy", [123]).err, "args", "id não é String")
 	T.eq(svc.apply(2, "buy", []).err, "args", "faltou argumento")
@@ -78,7 +78,7 @@ func test_rejects_bad_args() -> void:
 
 func test_economy_log_rows() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	svc.load_or_create(2)
 	var r := svc.apply(2, "buy", ["health_potion", 1])
 	T.ok(r.ok, "comprou")
@@ -102,7 +102,7 @@ func test_economy_log_rows() -> void:
 
 func test_stale_session_report_ignored() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	svc.load_or_create(2)
 	svc.set_session(2, 7)
 	svc.report(2, 7, 50.0, 20000.0, Vector3(1, 2, 3), 1.5)
@@ -124,7 +124,7 @@ func test_stale_session_report_ignored() -> void:
 
 func test_grant_logs_source() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	svc.load_or_create(2)
 	var r := svc.grant(2, 40, 5, {"health_potion": 1}, "loot")
 	T.ok(r.ok, "concedeu")
@@ -142,7 +142,7 @@ func test_grant_logs_source() -> void:
 
 func test_kill_and_run_finish() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	svc.load_or_create(2)
 	var r := svc.kill(2, "goblin", 10)
 	T.ok(r.ok, "abate")
@@ -162,7 +162,7 @@ func test_kill_and_run_finish() -> void:
 
 func test_unload_is_session_scoped() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	svc.load_or_create(2)
 	svc.set_session(2, 10)
 	svc.set_session(2, 11)
@@ -176,7 +176,7 @@ func test_unload_is_session_scoped() -> void:
 
 func test_discard_and_death_are_client_ops() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	var s := svc.load_or_create(2)
 	var pocoes := _count(s, "health_potion")
 	T.ok(svc.apply(2, "discard", ["health_potion"]).ok, "jogar fora")
@@ -190,7 +190,7 @@ func test_discard_and_death_are_client_ops() -> void:
 ## Relatório de vida/posição só mexe no cache; o servidor grava em lote (flush_dirty), não o cliente.
 func test_report_is_cache_only_and_flush_dirty() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	svc.load_or_create(2)
 	svc.set_session(2, 7)
 	svc.report(2, 7, 40.0, 3.0, Vector3(1, 2, 3), 0.5)
@@ -206,7 +206,7 @@ func test_report_is_cache_only_and_flush_dirty() -> void:
 func test_save_all_on_shutdown() -> void:
 	var db := _fresh()
 	db.exec("INSERT INTO accounts(id, username, pass_hash, pass_salt, created_at) VALUES(3, 'bia', 'h', 's', 1)")
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	svc.load_or_create(2)
 	svc.load_or_create(3)
 	svc.set_session(2, 7)
@@ -222,7 +222,7 @@ func test_save_all_on_shutdown() -> void:
 
 func test_report_clamps_position() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	svc.load_or_create(2)
 	svc.set_session(2, 7)
 	svc.report(2, 7, 10.0, 1.0, Vector3(1e9, -1e9, 5), 0.0)
@@ -233,7 +233,7 @@ func test_report_clamps_position() -> void:
 ## Ouro de teste (net_test): só com o servidor em --test, valor entre 1 e TEST_GOLD_MAX.
 func test_grant_test_gold_gate() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	T.eq(svc.grant_test_gold(2, 100, false).err, "sem_teste", "sem --test é recusado")
 	T.eq(svc.load_or_create(2).gold, 25, "ouro intacto")
 	T.eq(svc.grant_test_gold(2, 0, true).err, "valor_invalido", "zero")
@@ -246,7 +246,7 @@ func test_grant_test_gold_gate() -> void:
 ## Recorde de partida (horde_best/city_best) gravado pelo servidor no personagem; só sobe.
 func test_set_record() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	T.ok(svc.set_record(2, "city_best", 3).ok, "grava city_best")
 	T.eq(svc.set_record(2, "city_best", 2).state.flags.get("city_best"), 3, "não desce")
 	T.eq(svc.set_record(2, "outra", 9).err, "chave_invalida", "só as chaves de recorde")
@@ -255,7 +255,7 @@ func test_set_record() -> void:
 	T.eq(svc.set_record(2, "horde_best", {"round": 2, "kills": 99}).state.flags.horde_best.round, 4, "horde_best não desce")
 	db.close()
 	var db2 := Db.open(PATH)
-	var s := CharacterService.new(db2, _tables()).load_or_create(2)
+	var s := CharacterService.new(SqliteCharStore.new(db2), _tables()).load_or_create(2)
 	T.eq(int(s.flags.get("city_best", 0)), 3, "city_best persistiu")
 	T.eq(int(s.flags.get("horde_best", {}).get("round", 0)), 4, "horde_best persistiu")
 	db2.close()

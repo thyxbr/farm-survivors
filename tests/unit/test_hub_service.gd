@@ -2,6 +2,7 @@ extends RefCounted
 ## CharacterService da fase 2: Ecos, passivas, base compartilhada e registro das partidas.
 
 const PATH := "user://test_hubsvc.db"
+const SOLO_PATH := "user://test_hubsvc_solo.json"
 
 var _bt: BalanceTables
 
@@ -28,7 +29,7 @@ func _with_ecos(svc: CharacterService, account: int, n: int) -> void:
 
 func test_ecos_and_passives_persist() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	var f := svc.finish_player(0, 2, "city", 5, 0, 0, {}, {})
 	T.ok(f.ok, "finish ok")
 	T.eq(f.state.ecos, 45, "ecos da partida")
@@ -36,7 +37,7 @@ func test_ecos_and_passives_persist() -> void:
 	T.ok(r.ok, "comprou passiva: %s" % r.err)
 	db.close()
 	var db2 := Db.open(PATH)
-	var svc2 := CharacterService.new(db2, _tables())
+	var svc2 := CharacterService.new(SqliteCharStore.new(db2), _tables())
 	var s := svc2.load_or_create(2)
 	T.eq(s.ecos, 20, "ecos persistiram")
 	T.eq(int(s.passives.get("poder", 0)), 1, "passiva persistiu")
@@ -50,7 +51,7 @@ func test_ecos_and_passives_persist() -> void:
 
 func test_donate_debits_and_levels_shared_base() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	_with_ecos(svc, 2, 200)
 	_with_ecos(svc, 3, 100)
 	var r := svc.apply(2, "donate", ["forja", 150])
@@ -74,7 +75,7 @@ func test_donate_debits_and_levels_shared_base() -> void:
 
 func test_donate_rejects_without_touching_db() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	_with_ecos(svc, 2, 10)
 	T.eq(svc.apply(2, "donate", ["forja", 50]).err, "sem_ecos", "sem ecos")
 	T.eq(svc.apply(2, "donate", ["forja", 0]).err, "valor_invalido", "valor inválido")
@@ -87,7 +88,7 @@ func test_donate_rejects_without_touching_db() -> void:
 
 func test_donate_at_max_charges_only_needed() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	_with_ecos(svc, 2, 1000)
 	db.exec("INSERT INTO base_buildings(building_id, level, fund) VALUES('forja', 4, 900)")
 	var r := svc.apply(2, "donate", ["forja", 500])
@@ -102,7 +103,7 @@ func test_donate_at_max_charges_only_needed() -> void:
 
 func test_finish_player_idempotent() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	var id := svc.start_run("horde", [2])
 	T.ok(id > 0, "run criada")
 	var a := svc.finish_player(id, 2, "horde", 10, 40, 12, {"health_potion": 1}, {"w": "x"})
@@ -127,7 +128,7 @@ func test_finish_player_idempotent() -> void:
 
 func test_finish_player_without_run_row() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	var r := svc.finish_player(0, 2, "city", 2, 7, 3, {}, {})
 	T.ok(r.ok, "ok")
 	T.eq(db.query("SELECT COUNT(*) AS n FROM run_players")[0]["n"], 0, "sem run_players")
@@ -137,7 +138,7 @@ func test_finish_player_without_run_row() -> void:
 
 func test_records_best_per_mode() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	T.eq(svc.records(), {"horde": {"reached": 0, "names": []}, "city": {"reached": 0, "names": []}}, "vazio")
 	var c1 := svc.start_run("city", [2])
 	svc.finish_player(c1, 2, "city", 3, 0, 0, {}, {})
@@ -159,22 +160,76 @@ func test_records_best_per_mode() -> void:
 	db.close()
 
 
+func _fresh_files() -> FileCharStore:
+	var st := FileCharStore.new(SOLO_PATH)
+	st.remove_files()
+	return st
+
+
+## Solo = FileCharStore com as mesmas regras do servidor, e sem SQLite nenhum: a classe é trocada por
+## uma inexistente (como no cliente exportado) e todo o fluxo da praça tem que funcionar igual.
 func test_solo_account_same_rules() -> void:
-	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
-	var f := svc.finish_player(0, CharacterService.SOLO_ACCOUNT, "city", 5, 0, 0, {}, {})
+	var real := Db.sqlite_class
+	Db.sqlite_class = "SQLiteQueNaoExiste"
+	var st := _fresh_files()
+	var svc := CharacterService.new(st, _tables())
+	var solo := CharacterService.SOLO_ACCOUNT
+	var run := svc.start_run("city", [solo])
+	T.ok(run > 0, "partida aberta no arquivo")
+	var f := svc.finish_player(run, solo, "city", 5, 7, 3, {"health_potion": 1}, {})
 	T.eq(f.state.ecos, 45, "ecos no solo")
-	T.ok(svc.apply(CharacterService.SOLO_ACCOUNT, "buy_passive", ["poder"]).ok, "passiva no solo")
-	var d := svc.apply(CharacterService.SOLO_ACCOUNT, "donate", ["forja", 20])
+	T.eq(svc.finish_player(run, solo, "city", 5, 7, 3, {}, {}).state.ecos, 45, "fim de partida idempotente")
+	T.ok(svc.close_run(run, 5, {}), "fechou a partida")
+	var p := svc.apply(solo, "buy_passive", ["poder"])
+	T.ok(p.ok, "passiva no solo: %s" % p.err)
+	var d := svc.apply(solo, "donate", ["forja", 20])
 	T.ok(d.ok, "doação no solo: %s" % d.err)
 	T.eq(d.state.ecos, 0, "debitou tudo")
+	T.eq(d.base.forja.fund, 20, "fundo da base local")
 	T.eq(svc.top_donors("forja"), [{"name": "local", "amount": 20}], "doador local")
-	db.close()
+	T.eq(svc.records().city, {"reached": 5, "names": ["local"]}, "recorde local")
+	# economia: run, passiva e doação no *_economy.jsonl
+	var kinds := st.economy_rows().map(func(r: Dictionary) -> String: return "%s/%s" % [r.kind, r.source])
+	T.eq(kinds, ["run/city", "ecos/passive", "ecos/donation"], "linhas da economia (%s)" % str(kinds))
+	# tudo relido do disco por um serviço novo
+	var svc2 := CharacterService.new(FileCharStore.new(SOLO_PATH), _tables())
+	var s := svc2.load_or_create(solo)
+	T.eq(s.ecos, 0, "ecos persistiram")
+	T.eq(int(s.passives.get("poder", 0)), 1, "passiva persistiu")
+	T.eq(svc2.base_state().forja, {"level": 0, "fund": 20}, "base persistiu")
+	T.eq(svc2.records().city.reached, 5, "recorde persistiu")
+	T.ok(svc2.finish_player(run, solo, "city", 5, 0, 0, {}, {}).events[0].n == 0, "idempotente depois de reabrir")
+	Db.sqlite_class = real
+	st.remove_files()
+
+
+## Arquivo: se o personagem não grava, a base não fica creditada nem a partida marcada como concedida.
+func test_solo_files_all_or_nothing() -> void:
+	var st := _fresh_files()
+	var svc := CharacterService.new(st, _tables())
+	var solo := CharacterService.SOLO_ACCOUNT
+	_with_ecos(svc, solo, 100)
+	T.ok(svc.apply(solo, "donate", ["forja", 10]).ok, "primeira doação")
+	st.fail_next_write = true
+	st.fail_after_writes = 1   # a base grava, o personagem falha
+	var r := svc.apply(solo, "donate", ["forja", 30])
+	T.eq(r.err, "erro_banco", "falha ao gravar")
+	T.eq(r.state.ecos, 90, "ecos não debitados")
+	T.eq(svc.base_state().forja.fund, 10, "base voltou ao que era")
+	T.eq(svc.top_donors("forja")[0].amount, 10, "doação não entrou no histórico")
+	var run := svc.start_run("horde", [solo])
+	st.fail_next_write = true
+	st.fail_after_writes = 1   # o arquivo das partidas grava, o personagem falha
+	T.eq(svc.finish_player(run, solo, "horde", 10, 0, 0, {}, {}).err, "erro_banco", "fim de partida falhou")
+	T.ok(not st.run_player_done(run, solo), "partida não marcada como concedida")
+	var ok := svc.finish_player(run, solo, "horde", 10, 0, 0, {}, {})
+	T.ok(ok.ok and ok.state.ecos == 140, "tentar de novo concede uma vez (%d)" % ok.state.ecos)
+	st.remove_files()
 
 
 func test_donate_checks_ecos_against_used() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	_with_ecos(svc, 2, 120)
 	db.exec("INSERT INTO base_buildings(building_id, level, fund) VALUES('forja', 4, 900)")
 	var r := svc.apply(2, "donate", ["forja", 500])
@@ -187,7 +242,7 @@ func test_donate_checks_ecos_against_used() -> void:
 
 func test_grant_test_ecos_only_in_test() -> void:
 	var db := _fresh()
-	var svc := CharacterService.new(db, _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	T.eq(svc.grant_test_ecos(2, 50, false).err, "sem_teste", "sem --test")
 	T.eq(svc.grant_test_ecos(2, 0, true).err, "valor_invalido", "zero")
 	T.eq(svc.grant_test_ecos(2, CharacterService.TEST_GOLD_MAX + 1, true).err, "valor_invalido", "acima do teto")

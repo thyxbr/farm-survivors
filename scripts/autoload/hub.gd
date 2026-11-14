@@ -79,7 +79,7 @@ func base_bonus() -> Dictionary:
 	return Econ.base_bonus()
 
 
-## Solo: relê a base e os recordes do solo.db e avisa a praça.
+## Solo: relê a base e os recordes do save solo e avisa a praça.
 func refresh_solo() -> void:
 	if Network.is_online():
 		return
@@ -87,7 +87,7 @@ func refresh_solo() -> void:
 	for id in st:
 		var donors: Array = Econ.top_donors(id, TOP_DONORS)
 		for d in donors:
-			d["name"] = SOLO_NAME   # no solo.db só existe a conta do jogador
+			d["name"] = SOLO_NAME   # no save solo só existe a conta do jogador
 		st[id]["donors"] = donors
 	base = st
 	var rec := Econ.records()

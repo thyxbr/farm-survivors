@@ -181,7 +181,7 @@ func start_server() -> void:
 		get_tree().quit(1)
 		return
 	accounts = AccountStore.new(db, admin_users)
-	characters = CharacterService.new(db, Balance.tables)
+	characters = CharacterService.new(SqliteCharStore.new(db), Balance.tables)
 	for n in accounts.missing_admins():
 		var msg := "[server] aviso: admin '%s' ainda não tem conta — crie a conta antes que outro jogador registre esse nome" % n
 		print(msg)

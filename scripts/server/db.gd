@@ -2,15 +2,27 @@ class_name Db
 extends RefCounted
 ## Camada fina sobre o godot-sqlite: nenhuma cena fala SQL direto, tudo passa por aqui.
 ## Não depende de autoloads (roda em teste unitário com -s). Valores vão sempre por `args` (bindings).
+##
+## Só o servidor dedicado usa o SQLite: o cliente Windows é exportado SEM o addons/godot-sqlite (uma DLL
+## sem assinatura é barrada pelo Smart App Control). Por isso nada aqui cita o tipo `SQLite` estaticamente
+## (o script não compilaria sem a extensão e derrubaria todo script que cita `Db`): a classe é achada
+## pelo ClassDB e as variáveis são sem tipo. Sem a extensão, `open` devolve null com push_error.
+
+## Nome da classe da extensão. Os testes trocam por um nome inexistente para simular o cliente exportado.
+static var sqlite_class := "SQLite"
 
 var last_error := ""  # mensagem do último comando que falhou ("" se deu certo)
-var _sql: SQLite = null
+var _sql = null   # instância do SQLite (sem tipo: ver o topo)
 var _in_tx := false
 
 
 ## Abre (ou cria) o arquivo. Devolve null + push_error se a pasta não existe ou não aceita escrita:
-## o servidor nunca deve cair num banco efêmero sem avisar.
+## o servidor nunca deve cair num banco efêmero sem avisar. Também null se a extensão SQLite não está
+## carregada (cliente exportado, que não leva o addon).
 static func open(path: String) -> Db:
+	if not available():
+		push_error("Db: a extensão SQLite (classe %s) não está carregada; o banco só existe no servidor dedicado" % sqlite_class)
+		return null
 	var dir := path.get_base_dir()
 	if dir.is_empty():
 		dir = "."  # caminho relativo simples ("x.db"): pasta atual
@@ -24,11 +36,15 @@ static func open(path: String) -> Db:
 		push_error("Db: sem permissão de escrita em %s (erro %d)" % [path, FileAccess.get_open_error()])
 		return null
 	probe.close()
-	var sql := SQLite.new()
+	var sql = ClassDB.instantiate(sqlite_class)
+	if sql == null:
+		push_error("Db: não instanciou %s" % sqlite_class)
+		return null
 	sql.path = path
 	sql.default_extension = ""  # senão o addon acrescenta ".db" e abriria outro arquivo que não o sondado acima
 	sql.foreign_keys = true
-	sql.verbosity_level = SQLite.QUIET
+	# SQLite.QUIET lido pelo ClassDB (escrever `SQLite.QUIET` exigiria a classe em tempo de compilação)
+	sql.verbosity_level = ClassDB.class_get_integer_constant(sqlite_class, "QUIET")
 	if not sql.open_db():
 		push_error("Db: não abriu %s: %s" % [path, sql.error_message])
 		return null
@@ -40,6 +56,11 @@ static func open(path: String) -> Db:
 		if not db._run(pragma, []):
 			push_warning("Db: %s falhou: %s" % [pragma, db.last_error])
 	return db
+
+
+## A extensão SQLite está carregada neste processo?
+static func available() -> bool:
+	return ClassDB.class_exists(sqlite_class)
 
 
 ## Apaga o arquivo do banco e os auxiliares do SQLite (-wal, -shm, -journal). O banco precisa estar fechado.

@@ -3,7 +3,7 @@ extends Node3D
 ## posiciona todas as construções. Monta o terreno, o ciclo de luz dia/noite, o jogador e os HUDs,
 ## e repassa a entrada para o modo construção e para o exército. O estado fica em Colony (colony.gd).
 ##
-## O ouro da cidade é o caixa da partida (Colony.treasury); o personagem é o do jogo (solo.db no solo,
+## O ouro da cidade é o caixa da partida (Colony.treasury); o personagem é o do jogo (save solo no solo,
 ## o do servidor em grupo) e só ganha as recompensas por noite e o XP dos abates.
 ##
 ## role = "solo" (um jogador, com save da cidade), "server" (cidade em grupo simulada no servidor dedicado,
@@ -86,7 +86,7 @@ func _ready() -> void:
 
 	var saved = null
 	if role == "solo":
-		# o personagem é o do solo.db (antes de criar o jogador, que lê o equipamento); a cidade, a do save
+		# o personagem é o do save solo (antes de criar o jogador, que lê o equipamento); a cidade, a do save
 		Econ.ensure_solo()
 		saved = _read_colony_save() if Game.colony_continue else null
 		if saved == null:
@@ -373,7 +373,7 @@ func on_defeat() -> void:
 
 # ================================================================ salvar / carregar
 ## Save da cidade (a partida: construções, exército, caixa, recompensas já ganhas). O personagem não vai
-## aqui: ele está no solo.db, gravado a cada concessão.
+## aqui: ele está no save solo, gravado a cada concessão.
 func save_colony() -> bool:
 	if role != "solo":
 		if role == "client":

@@ -77,8 +77,8 @@ func _ready() -> void:
 	var second := token != ""   # processo da segunda conexão do --relogin
 	Network.chat_received.connect(func(from: String, text: String) -> void: chat_got.append([from, text]))
 	Network.join_failed.connect(func(r: String) -> void: join_error = r)
-	# o personagem vem do servidor; o solo.db deste processo de teste fica num arquivo à parte
-	Econ.solo_db_path = "user://nettest_solo_%s%s.db" % [my_name, "_2" if second else ""]
+	# o personagem vem do servidor; o save solo deste processo de teste fica num arquivo à parte
+	Econ.solo_save_path = "user://nettest_solo_%s%s.json" % [my_name, "_2" if second else ""]
 	Econ.result.connect(func(op: String, ok: bool, err: String) -> void:
 		econ_log.append([op, ok, err])
 		if op == "push":

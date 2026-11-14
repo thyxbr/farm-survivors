@@ -105,17 +105,19 @@ jobs:
         if: failure()
         run: tail -n 60 city_server.log caio.log duda.log || true
 
-  # Exporta o cliente Windows e publica a release v<versão> com o zip e o latest.json que o
-  # auto update (scripts/autoload/updater.gd) lê. Se a versão já tem release, não faz nada.
-  release:
-    name: Publicar cliente (GitHub Releases)
+  # Exporta o cliente Windows (artefato `cliente-windows`), que o job seguinte liga no Windows antes de
+  # publicar. Se a versão já tem release (e o jogo não mudou), não exporta nada (skip=true) e os jobs
+  # seguintes passam sem fazer nada.
+  export:
+    name: Exportar cliente Windows
     needs: test
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    permissions:
-      contents: write
     env:
       GH_TOKEN: ${{ github.token }}
+    outputs:
+      skip: ${{ steps.ver.outputs.skip }}
+      version: ${{ steps.ver.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -189,11 +191,81 @@ jobs:
           mkdir -p build
           ~/godot/godot --headless --path . --export-release "Windows Desktop" build/EcosDeValdoria.exe 2>&1 | tee export.log
           test -s build/EcosDeValdoria.exe || { echo "::error::O export não gerou o exe"; exit 1; }
+          # o cliente é um exe único: nenhuma DLL (GDExtension) pode ir junto, o Smart App Control a bloquearia
+          if ls build | grep -qiE '\.(dll|so)$'; then
+            echo "::error::O export gerou bibliotecas nativas ao lado do exe (o zip só leva o exe):"
+            ls -la build
+            exit 1
+          fi
+
+      - name: Guardar o exe exportado
+        if: steps.ver.outputs.skip == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cliente-windows
+          path: build/EcosDeValdoria.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  # Liga o exe exportado no Windows (sem tela) antes de publicar: a 0.8.0 saiu quebrada porque o exe
+  # dependia de uma DLL que o zip não levava (parse error em todo script que usa o banco). Falha com
+  # SCRIPT ERROR, Parse Error, qualquer linha de GDExtension ou saída diferente de 0.
+  boot-check:
+    name: Ligar o exe exportado (Windows)
+    needs: export
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Baixar o exe exportado
+        if: needs.export.outputs.skip == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          name: cliente-windows
+          path: build
+
+      - name: Ligar sem tela
+        if: needs.export.outputs.skip == 'false'
+        shell: bash
+        run: |
+          set +e
+          ./build/EcosDeValdoria.exe --headless --quit-after 300 > boot.log 2>&1
+          code=$?
+          set -e
+          cat boot.log
+          if grep -qiE "SCRIPT ERROR|Parse Error|GDExtension" boot.log; then
+            echo "::error::O exe exportado mostrou erro de script ou de GDExtension ao ligar"
+            exit 1
+          fi
+          if [ "$code" -ne 0 ]; then
+            echo "::error::O exe exportado saiu com código $code"
+            exit 1
+          fi
+          grep -q "Godot Engine" boot.log || { echo "::error::O exe não escreveu nada (não ligou?)"; exit 1; }
+
+  # Publica a release v<versão> com o zip e o latest.json que o auto update (scripts/autoload/updater.gd)
+  # lê, usando exatamente o exe que o boot-check ligou.
+  release:
+    name: Publicar cliente (GitHub Releases)
+    needs: [export, boot-check]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}   # sem checkout: o gh precisa saber o repositório
+    steps:
+      - name: Baixar o exe exportado
+        if: needs.export.outputs.skip == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          name: cliente-windows
+          path: build
 
       - name: Publicar release
-        if: steps.ver.outputs.skip == 'false'
+        if: needs.export.outputs.skip == 'false'
         run: |
-          ver="${{ steps.ver.outputs.version }}"
+          ver="${{ needs.export.outputs.version }}"
           zip="EcosDeValdoria-v$ver-windows.zip"
           (cd build && zip -9 -q "../$zip" EcosDeValdoria.exe)
           sha=$(sha256sum "$zip" | cut -d' ' -f1)
@@ -211,7 +283,7 @@ jobs:
   # por versão diferente já encontra a atualização
   deploy:
     name: Deploy no Easypanel
-    needs: [test, release]
+    needs: [test, boot-check, release]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

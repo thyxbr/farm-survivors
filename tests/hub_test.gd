@@ -2,7 +2,7 @@ extends Node
 ## Teste automatizado da praça (solo). Rode com:
 ##   godot --headless --path . res://scenes/hub.tscn -- --hubtest
 ## Imprime PASS/FAIL para cada verificação e encerra com código 0 (ok) ou 1 (falhas).
-## Usa um personagem solo novo num banco só dele (user://hubtest_solo.db, apagado no início), como o --colonytest.
+## Usa um personagem solo novo num arquivo só dele (user://hubtest_solo.json, apagado no início), como o --colonytest.
 ## Confere: os 9 pontos da praça, Ecos do fim de partida, passiva e doação pelo Econ.request, o rótulo da
 ## Forja, os painéis abrindo e fechando, os emotes (e a réplica ignorando índice fora da lista) e o caminho
 ## portal → Horda → de volta à praça.

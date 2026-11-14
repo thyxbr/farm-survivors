@@ -126,7 +126,7 @@ func save_character() -> void:
 	if Game.run_mods.get("active", false):
 		return
 	if _last_world_pos == null and not Network.is_online():
-		return   # solo sem posição guardada (cidade aberta direto do menu): o solo.db já tem a dele
+		return   # solo sem posição guardada (cidade aberta direto do menu): o save solo já tem a dele
 	var pos: Vector3 = _last_world_pos if _last_world_pos != null else VILLAGE_SPAWN
 	Econ.report_vitals(pos, _last_world_yaw)
 

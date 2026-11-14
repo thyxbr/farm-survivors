@@ -1,8 +1,9 @@
 class_name CharacterService
 extends RefCounted
 ## Único lugar que muda um personagem: o servidor dedicado (uma instância, várias contas) e o solo
-## offline (conta 1 em user://solo.db) passam por aqui. Aplica CharRules, grava no banco numa transação
-## e registra a economia. Sem autoload: recebe Db, BalanceTables e relógio.
+## offline (conta 1) passam por aqui. Aplica CharRules, grava numa escrita só (personagem + economia)
+## e registra a economia. Sem autoload: recebe o armazenamento (CharStore), BalanceTables e relógio.
+## Servidor: SqliteCharStore (SQLite); solo: FileCharStore (JSON em user://). Mesmas regras, uma economia.
 
 ## Operações que o cliente pode pedir. Conceder ouro/xp/itens e abates é só do servidor/solo.
 const CLIENT_OPS := ["buy", "sell", "equip", "unequip", "consume", "cook", "spend_point", "start_quest",
@@ -45,7 +46,7 @@ const MAX_COORD := 10000.0
 ## Teto do ouro de teste por pedido (servidor em --test, usado pelo net_test).
 const TEST_GOLD_MAX := 100000
 
-var _db: Db
+var _store: CharStore
 var _bt: BalanceTables
 var _clock: Callable
 var _rng := RandomNumberGenerator.new()
@@ -54,8 +55,8 @@ var _sessions := {}   # account_id -> session_id atual
 var _dirty := {}      # account_id -> true: report mudou o cache e ainda não foi gravado
 
 
-func _init(db: Db, bt: BalanceTables, clock: Callable = Callable()) -> void:
-	_db = db
+func _init(store: CharStore, bt: BalanceTables, clock: Callable = Callable()) -> void:
+	_store = store
 	_bt = bt
 	_clock = clock
 	_rng.randomize()
@@ -73,7 +74,7 @@ func load_or_create(account_id: int) -> CharState:
 	if s == null:
 		s = CharState.new_character(_bt)
 		if not _save(account_id, s):
-			push_error("CharacterService: não gravou personagem novo de %d: %s" % [account_id, _db.last_error])
+			push_error("CharacterService: não gravou personagem novo de %d: %s" % [account_id, _store.last_error])
 			return s   # sem cache: a próxima chamada tenta de novo
 	_cache[account_id] = s
 	return s
@@ -87,7 +88,7 @@ func unload(account_id: int, session_id: int = -1) -> void:
 		return
 	if _cache.has(account_id):
 		if not _save(account_id, _cache[account_id]):
-			push_error("CharacterService: não gravou %d ao descarregar: %s" % [account_id, _db.last_error])
+			push_error("CharacterService: não gravou %d ao descarregar: %s" % [account_id, _store.last_error])
 		_cache.erase(account_id)
 	_sessions.erase(account_id)
 
@@ -154,7 +155,7 @@ func set_record(account_id: int, key: String, value) -> Dictionary:
 		return _result(account_id, {"ok": true, "err": "", "events": []})
 	s.flags[key] = value
 	if not _save(account_id, s):
-		push_error("CharacterService: recorde de %d não gravou: %s" % [account_id, _db.last_error])
+		push_error("CharacterService: recorde de %d não gravou: %s" % [account_id, _store.last_error])
 		_cache.erase(account_id)
 		return _result(account_id, {"ok": false, "err": "erro_banco", "events": []})
 	return _result(account_id, {"ok": true, "err": "", "events": []})
@@ -208,10 +209,12 @@ func grant_test_ecos(account_id: int, amount: int, enabled: bool) -> Dictionary:
 
 # ================================================================ base, partidas e recordes
 ## Estado da base compartilhada: todas as construções (nível 0 as que ninguém tocou).
+## Servidor: a base de todos (SQLite); solo: a base local (arquivo ao lado do personagem).
 func base_state() -> Dictionary:
 	var out := BaseRules.empty_state(_bt)
-	for row in _db.query("SELECT building_id, level, fund FROM base_buildings"):
-		out[row["building_id"]] = {"level": int(row["level"]), "fund": int(row["fund"])}
+	var saved := _store.load_base()
+	for id in saved:
+		out[id] = saved[id]
 	return out
 
 
@@ -221,20 +224,16 @@ func base_bonus() -> Dictionary:
 
 ## Maiores doadores de uma construção: [{"name", "amount"}], soma por conta, do maior para o menor.
 func top_donors(building_id: String, limit := 5) -> Array:
-	var out := []
-	for row in _db.query("SELECT a.username AS name, SUM(d.amount) AS total FROM base_donations d
-			JOIN accounts a ON a.id = d.account_id WHERE d.building_id = ?
-			GROUP BY d.account_id ORDER BY total DESC, MIN(d.id) LIMIT ?", [building_id, limit]):
-		out.append({"name": str(row["name"]), "amount": int(row["total"])})
-	return out
+	return _store.top_donors(building_id, limit)
 
 
 ## Abre o registro de uma partida. 0 se não gravou.
 func start_run(mode: String, accounts: Array) -> int:
-	if not _db.exec("INSERT INTO runs(mode, started_at, players) VALUES(?,?,?)", [mode, int(_now()), JSON.stringify(accounts)]):
-		push_error("CharacterService: start_run não gravou: %s" % _db.last_error)
+	var id := _store.start_run(mode, accounts, int(_now()))
+	if id <= 0:
+		push_error("CharacterService: start_run não gravou: %s" % _store.last_error)
 		return 0
-	return _db.last_id()
+	return id
 
 
 ## Fim da partida de um jogador: concede os Ecos e registra. Idempotente por (run_id, conta): repetir
@@ -242,21 +241,16 @@ func start_run(mode: String, accounts: Array) -> int:
 ## Ouro, xp e itens já foram concedidos durante a partida (grant); aqui só entram no registro.
 func finish_player(run_id: int, account_id: int, mode: String, reached: int, gold: int, xp: int, items: Dictionary, build: Dictionary) -> Dictionary:
 	var s := load_or_create(account_id)
-	if run_id > 0 and not _db.query("SELECT 1 FROM run_players WHERE run_id = ? AND account_id = ?", [run_id, account_id]).is_empty():
+	if run_id > 0 and _store.run_player_done(run_id, account_id):
 		return _result(account_id, {"ok": true, "err": "", "events": [{"t": "ecos", "n": 0, "mode": mode, "reached": reached}]})
 	var ecos := RewardRules.ecos(_bt, mode, reached)
 	s.ecos += ecos
-	var ok := _db.transaction(func():
-		if not _write(account_id, s):
-			return false
-		if run_id > 0 and not _db.exec("INSERT INTO run_players(run_id, account_id, reached, ecos, gold, xp, build) VALUES(?,?,?,?,?,?,?)",
-				[run_id, account_id, reached, ecos, gold, xp, JSON.stringify(build)]):
-			return false
-		return _db.exec("INSERT INTO economy_log(at, account_id, kind, amount, item_id, source, detail) VALUES(?,?,?,?,?,?,?)",
-			[int(_now()), account_id, "run", gold, null, mode,
-			JSON.stringify({"xp": xp, "items": items, "ecos": ecos, "run_id": run_id, "reached": reached})]))
-	if not ok:
-		push_error("CharacterService: finish_player de %d não gravou: %s" % [account_id, _db.last_error])
+	var at := int(_now())
+	var rows := [CharStore.row(at, account_id, "run", gold, null, mode,
+		JSON.stringify({"xp": xp, "items": items, "ecos": ecos, "run_id": run_id, "reached": reached}))]
+	var entry := {"reached": reached, "ecos": ecos, "gold": gold, "xp": xp, "build": build}
+	if not _store.save_run_player(account_id, s.to_dict(), run_id, entry, rows, at):
+		push_error("CharacterService: finish_player de %d não gravou: %s" % [account_id, _store.last_error])
 		_cache.erase(account_id)
 		return _result(account_id, {"ok": false, "err": "erro_banco", "events": []})
 	_dirty.erase(account_id)
@@ -264,23 +258,17 @@ func finish_player(run_id: int, account_id: int, mode: String, reached: int, gol
 
 
 func close_run(run_id: int, reached: int, result: Dictionary) -> bool:
-	return _db.exec("UPDATE runs SET ended_at = ?, reached = ?, result = ? WHERE id = ?",
-		[int(_now()), reached, JSON.stringify(result), run_id])
+	var ok := _store.close_run(run_id, reached, result, int(_now()))
+	if not ok:
+		push_error("CharacterService: close_run %d não gravou: %s" % [run_id, _store.last_error])
+	return ok
 
 
 ## Recorde de cada modo: a partida encerrada que foi mais longe (empate: a mais antiga) e quem jogou.
 func records() -> Dictionary:
 	var out := {}
 	for mode in ["horde", "city"]:
-		var best := {"reached": 0, "names": []}
-		var rows := _db.query("SELECT id, reached FROM runs WHERE mode = ? AND ended_at IS NOT NULL AND reached > 0
-			ORDER BY reached DESC, id ASC LIMIT 1", [mode])
-		if not rows.is_empty():
-			best.reached = int(rows[0]["reached"])
-			for row in _db.query("SELECT a.username AS name FROM run_players p JOIN accounts a ON a.id = p.account_id
-					WHERE p.run_id = ? ORDER BY a.username", [rows[0]["id"]]):
-				best.names.append(str(row["name"]))
-		out[mode] = best
+		out[mode] = _store.best_run(mode)
 	return out
 
 
@@ -291,7 +279,7 @@ func save_all() -> int:
 		if _save(account_id, _cache[account_id]):
 			n += 1
 		else:
-			push_error("CharacterService: personagem %d não gravou ao desligar: %s" % [account_id, _db.last_error])
+			push_error("CharacterService: personagem %d não gravou ao desligar: %s" % [account_id, _store.last_error])
 	return n
 
 
@@ -301,10 +289,10 @@ func save(account_id: int) -> bool:
 
 
 # ================================================================ interno
-## Doação à base numa transação só: debita os Ecos, sobe a construção e registra a doação.
-## BaseRules valida construção/valor/nível máximo; só então confere os Ecos contra o `used` (o que a
-## construção aceita, nunca passa do que falta até o nível máximo): pedir 500 quando faltam 100 com
-## 120 Ecos na mão doa 100.
+## Doação à base numa escrita só (CharStore.save_donation): debita os Ecos, sobe a construção e registra
+## a doação; se não gravar, nada muda. BaseRules valida construção/valor/nível máximo; só então confere os
+## Ecos contra o `used` (o que a construção aceita, nunca passa do que falta até o nível máximo): pedir 500
+## quando faltam 100 com 120 Ecos na mão doa 100.
 func _donate(account_id: int, s: CharState, building: String, amount: int) -> Dictionary:
 	var d := BaseRules.donate(base_state().get(building, {}), _bt, building, amount)
 	if not d.ok:
@@ -312,17 +300,10 @@ func _donate(account_id: int, s: CharState, building: String, amount: int) -> Di
 	if s.ecos < int(d.used):
 		return _result(account_id, {"ok": false, "err": "sem_ecos", "events": []})
 	s.ecos -= int(d.used)
-	var ok := _db.transaction(func():
-		if not _write(account_id, s):
-			return false
-		var at := int(_now())
-		return _db.exec("INSERT OR REPLACE INTO base_buildings(building_id, level, fund) VALUES(?,?,?)",
-				[building, d.level, d.fund]) \
-			and _db.exec("INSERT INTO base_donations(account_id, building_id, amount, at) VALUES(?,?,?,?)",
-				[account_id, building, d.used, at]) \
-			and _log(at, account_id, "ecos", -int(d.used), building, "donation"))
-	if not ok:
-		push_error("CharacterService: doação de %d não gravou: %s" % [account_id, _db.last_error])
+	var at := int(_now())
+	var rows := [CharStore.row(at, account_id, "ecos", -int(d.used), building, "donation")]
+	if not _store.save_donation(account_id, s.to_dict(), building, int(d.level), int(d.fund), int(d.used), rows, at):
+		push_error("CharacterService: doação de %d não gravou: %s" % [account_id, _store.last_error])
 		_cache.erase(account_id)
 		return _result(account_id, {"ok": false, "err": "erro_banco", "events": []})
 	_dirty.erase(account_id)
@@ -378,18 +359,14 @@ func _holdings(s: CharState) -> Dictionary:
 	return h
 
 
-## Grava estado + linhas da economia numa transação. Falha no banco: descarta o cache e relê do disco.
+## Grava estado + linhas da economia numa escrita só. Falha: descarta o cache e relê do armazenamento.
 func _persist(account_id: int, s: CharState, before: Dictionary, kind: String, source: String, r: Dictionary, xp := 0, ecos_item := "") -> Dictionary:
 	var after := _holdings(s)
-	var ok := _db.transaction(func():
-		if not _write(account_id, s):
-			return false
-		var at := int(_now())
-		if xp > 0:
-			if not _log(at, account_id, "xp", xp, null, source):
-				return false
-		if before.is_empty():
-			return true
+	var at := int(_now())
+	var rows := []
+	if xp > 0:
+		rows.append(CharStore.row(at, account_id, "xp", xp, null, source))
+	if not before.is_empty():
 		var ids := {}
 		for k in before:
 			ids[k] = true
@@ -406,20 +383,13 @@ func _persist(account_id: int, s: CharState, before: Dictionary, kind: String, s
 			elif k == "$ecos":
 				log_kind = "ecos"
 				item = ecos_item if ecos_item != "" else null
-			if not _log(at, account_id, log_kind, d, item, source):
-				return false
-		return true)
-	if ok:
+			rows.append(CharStore.row(at, account_id, log_kind, d, item, source))
+	if _store.save_char(account_id, s.to_dict(), rows, at):
 		_dirty.erase(account_id)
 		return r
-	push_error("CharacterService: falha ao gravar %d: %s" % [account_id, _db.last_error])
+	push_error("CharacterService: falha ao gravar %d: %s" % [account_id, _store.last_error])
 	_cache.erase(account_id)
 	return {"ok": false, "err": "erro_banco", "events": []}
-
-
-func _log(at: int, account_id: int, kind: String, amount: int, item_id, source: String) -> bool:
-	return _db.exec("INSERT INTO economy_log(at, account_id, kind, amount, item_id, source) VALUES(?,?,?,?,?,?)",
-		[at, account_id, kind, amount, item_id, source])
 
 
 func _result(account_id: int, r: Dictionary) -> Dictionary:
@@ -429,57 +399,14 @@ func _result(account_id: int, r: Dictionary) -> Dictionary:
 
 
 func _save(account_id: int, s: CharState) -> bool:
-	var ok := _db.transaction(func(): return _write(account_id, s))
+	var ok := _store.save_char(account_id, s.to_dict(), [], int(_now()))
 	if ok:
 		_dirty.erase(account_id)
 	return ok
 
 
-## Dentro de uma transação aberta.
-func _write(account_id: int, s: CharState) -> bool:
-	if account_id == SOLO_ACCOUNT:
-		_db.exec("INSERT OR IGNORE INTO accounts(id, username, pass_hash, pass_salt, provider, created_at) VALUES(?,?,?,?,?,?)",
-			[SOLO_ACCOUNT, "local", "", "", "local", int(_now())])
-	var d := s.to_dict()
-	var pos = d["world_pos"]
-	var ok := _db.exec("INSERT INTO characters(account_id, level, xp, gold, ecos, stat_points, attributes, hp, mp, equipment, quests, flags, farm, world_pos, world_yaw, kills, updated_at)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-		ON CONFLICT(account_id) DO UPDATE SET level=excluded.level, xp=excluded.xp, gold=excluded.gold, ecos=excluded.ecos,
-		stat_points=excluded.stat_points, attributes=excluded.attributes, hp=excluded.hp, mp=excluded.mp,
-		equipment=excluded.equipment, quests=excluded.quests, flags=excluded.flags, farm=excluded.farm,
-		world_pos=excluded.world_pos, world_yaw=excluded.world_yaw, kills=excluded.kills, updated_at=excluded.updated_at",
-		[account_id, s.level, s.xp, s.gold, s.ecos, s.stat_points, JSON.stringify(d["attributes"]), s.hp, s.mp,
-		JSON.stringify(d["equipment"]), JSON.stringify(d["quests"]), JSON.stringify(d["flags"]),
-		JSON.stringify(d["farm"]), JSON.stringify(pos), s.world_yaw, s.kills, int(_now())])
-	if not ok or not _db.exec("DELETE FROM inventory WHERE account_id = ?", [account_id]):
-		return false
-	for i in s.inventory.size():
-		if not _db.exec("INSERT INTO inventory(account_id, slot_index, item_id, qty) VALUES(?,?,?,?)",
-				[account_id, i, s.inventory[i].id, s.inventory[i].qty]):
-			return false
-	if not _db.exec("DELETE FROM passives WHERE account_id = ?", [account_id]):
-		return false
-	for id in s.passives:
-		if not _db.exec("INSERT INTO passives(account_id, passive_id, level) VALUES(?,?,?)", [account_id, id, int(s.passives[id])]):
-			return false
-	return true
-
-
 func _read(account_id: int) -> CharState:
-	var rows := _db.query("SELECT * FROM characters WHERE account_id = ?", [account_id])
-	if rows.is_empty():
+	var d = _store.load_char(account_id)
+	if not (d is Dictionary):
 		return null
-	var r := rows[0]
-	var d := {"level": r["level"], "xp": r["xp"], "gold": r["gold"], "stat_points": r["stat_points"],
-		"ecos": r["ecos"], "hp": r["hp"], "mp": r["mp"], "world_yaw": r["world_yaw"], "kills": r["kills"]}
-	for k in ["attributes", "equipment", "quests", "flags", "farm", "world_pos"]:
-		d[k] = JSON.parse_string(str(r[k]))   # world_pos nulo volta como null
-	var inv := []
-	for row in _db.query("SELECT item_id, qty FROM inventory WHERE account_id = ? ORDER BY slot_index", [account_id]):
-		inv.append({"id": row["item_id"], "qty": row["qty"]})
-	d["inventory"] = inv
-	var pas := {}
-	for row in _db.query("SELECT passive_id, level FROM passives WHERE account_id = ?", [account_id]):
-		pas[row["passive_id"]] = row["level"]
-	d["passives"] = pas
 	return CharState.from_dict(d, _bt)

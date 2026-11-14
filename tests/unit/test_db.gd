@@ -60,6 +60,22 @@ func test_open_missing_dir() -> void:
 	T.ok(Db.open("user://nao_existe/x.db") == null, "pasta inexistente devolve null")
 
 
+## Cliente exportado (sem addons/godot-sqlite): a classe SQLite não existe. Db compila mesmo assim e
+## open devolve null (com push_error), em vez de quebrar a compilação de todo script que cita Db.
+func test_open_without_sqlite_class() -> void:
+	var real := Db.sqlite_class
+	T.ok(Db.available(), "a extensão está carregada no editor/servidor")
+	Db.sqlite_class = "SQLiteQueNaoExiste"
+	T.ok(not Db.available(), "classe ausente é detectada")
+	T.ok(Db.open("user://test_db_sem_classe.db") == null, "sem a classe SQLite, open devolve null")
+	Db.sqlite_class = real
+	var db := Db.open("user://test_db_sem_classe.db")
+	T.ok(db != null, "com a classe de volta, abre")
+	if db != null:
+		db.close()
+	Db.remove_files("user://test_db_sem_classe.db")
+
+
 func test_open_path_without_extension() -> void:
 	# o addon acrescentaria ".db" por conta própria: o arquivo criado tem que ser exatamente o caminho pedido
 	var p := "user://test_db_noext"
