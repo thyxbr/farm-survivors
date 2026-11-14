@@ -936,6 +936,8 @@ def pose_fk(arm, targets):
         t = targets.get(n)
         if t is None:
             w = wp
+        elif isinstance(t, Matrix):   # orientação absoluta em mundo, relativa à pose T
+            w = t.to_quaternion()
         elif isinstance(t, Quaternion):
             w = t @ wp
         else:
@@ -1103,12 +1105,16 @@ def build_blacksmith():
     body = join_objs("Blacksmith", [o for o in coll.objects if o.type == 'MESH'])
 
     # ---------------- martelo (objeto à parte, pivô no punho da mão direita, cabo para a frente)
+    # A face da cabeça aponta para fora, na direção do braço (-X): é para onde a mão empurra o martelo ao
+    # bater (desvio ulnar do punho), então na batida a face desce junto com a mão.
     g = grip
+    side = (0, math.pi / 2, 0)   # caixas modeladas em pé (eixo Z) deitadas no eixo X
     hm = [limb("HammerHandle", g + Vector((0, 0.09, 0)), g + Vector((0, -0.33, 0)), 0.016, 0.014, wood, sides=6),
           limb("HammerGrip", g + Vector((0, 0.07, 0)), g + Vector((0, -0.06, 0)), 0.02, 0.02, lea_d, sides=6),
-          tbox("HammerHead", g + Vector((0, -0.33, 0)), (0.06, 0.065, 0.17), steel, top=(0.85, 0.85), bevel=0.008),
-          tbox("HammerFace", g + Vector((0, -0.33, -0.09)), (0.07, 0.075, 0.02), iron, bevel=0.004),
-          limb("HammerWedge", g + Vector((0, -0.33, 0.085)), g + Vector((0, -0.33, 0.1)), 0.02, 0.012, iron, sides=4)]
+          tbox("HammerHead", g + Vector((0, -0.33, 0)), (0.06, 0.065, 0.17), steel, top=(0.85, 0.85), bevel=0.008,
+               rot=side),
+          tbox("HammerFace", g + Vector((-0.09, -0.33, 0)), (0.07, 0.075, 0.02), iron, bevel=0.004, rot=side),
+          limb("HammerWedge", g + Vector((0.085, -0.33, 0)), g + Vector((0.1, -0.33, 0)), 0.02, 0.012, iron, sides=4)]
     hammer = join_objs("Hammer", hm)
     hammer.data.transform(Matrix.Translation(-g))
     hammer.location = g
@@ -1154,17 +1160,30 @@ def build_blacksmith():
         d.update(over)
         return d
 
+    def hold(f):
+        """Orientação absoluta da mão direita com a face do martelo virada para f (no plano de frente/cima,
+        x = 0): a mão segue f e o cabo fica a 90° dela, para a frente quando f aponta para baixo."""
+        f = Vector(f).normalized()
+        h = Vector((0, f.z, -f.y))
+        return Matrix((-f, -h, f.cross(h))).transposed()
+
     down = {"LeftArm": (0.28, 0.02, -0.96), "LeftForeArm": (0.2, -0.22, -0.95),
             "RightArm": (-0.28, 0.02, -0.96), "RightForeArm": (-0.15, -0.45, -0.88)}
     tongs = {"LeftArm": (0.18, -0.42, -0.89), "LeftForeArm": (-0.12, -0.95, -0.28)}   # segura a peça na bigorna
-    raised = pose(tongs, RightArm=(-0.35, -0.2, 0.92), RightForeArm=(-0.05, 0.55, 0.83), Spine1=_qx(2))
-    peak = pose(tongs, RightArm=(-0.3, -0.05, 0.95), RightForeArm=(-0.02, 0.75, 0.66), RightHand=(0, 0.9, -0.2),
+    # martelar: a mão (e a face do martelo) acompanha o antebraço; no alto o martelo fica armado atrás da
+    # cabeça, na batida a face desce plana sobre a bigorna com o cabo na horizontal
+    raised = pose(tongs, RightArm=(-0.35, -0.2, 0.92), RightForeArm=(-0.05, 0.55, 0.83), RightHand=hold((0, 0.2, 0.98)),
+                  Spine1=_qx(2))
+    peak = pose(tongs, RightArm=(-0.3, -0.05, 0.95), RightForeArm=(-0.02, 0.75, 0.66), RightHand=hold((0, 0.5, 0.87)),
                 Spine1=_qx(-2))
-    strike = pose(tongs, RightArm=(-0.12, -0.5, -0.86), RightForeArm=(-0.02, -0.82, -0.57),
-                  RightHand=(0, -0.55, -0.83), Spine1=_qx(9), Spine2=_qx(5), Neck=_qx(6))
-    rebound = pose(tongs, RightArm=(-0.16, -0.6, -0.6), RightForeArm=(-0.05, -0.9, -0.25), Spine1=_qx(7),
-                   Spine2=_qx(3))
-    rising = pose(tongs, RightArm=(-0.3, -0.45, 0.45), RightForeArm=(-0.1, -0.1, 0.99), Spine1=_qx(4))
+    swing = pose(tongs, RightArm=(-0.25, -0.95, 0.1), RightForeArm=(-0.15, -0.75, 0.64), RightHand=hold((0, -0.5, 0.87)),
+                 Spine1=_qx(4))   # meio da descida: sem ela o braço abria para o lado entre peak e strike
+    strike = pose(tongs, RightArm=(-0.12, -0.45, -0.885), RightForeArm=(-0.05, -0.53, -0.85), RightHand=hold((0, 0, -1)),
+                  Spine1=_qx(9), Spine2=_qx(5), Neck=_qx(6))
+    rebound = pose(tongs, RightArm=(-0.16, -0.6, -0.6), RightForeArm=(-0.05, -0.9, -0.25),
+                   RightHand=hold((0, -0.31, -0.95)), Spine1=_qx(7), Spine2=_qx(3))
+    rising = pose(tongs, RightArm=(-0.3, -0.45, 0.45), RightForeArm=(-0.1, -0.1, 0.99), RightHand=hold((0, -0.2, 0.98)),
+                  Spine1=_qx(4))
     brow = pose(down, RightArm=(-0.5, -0.7, 0.3), RightForeArm=(0.85, 0.17, 0.5), RightHand=(0.9, 0.3, 0.2),
                 Spine1=_qx(-5), Spine2=_qx(-3), Head=_qx(-8))
     wipe = pose(brow, RightForeArm=(0.95, 0.05, 0.3), RightHand=(1.0, 0.2, 0.0), Head=_qx(-10))
@@ -1177,7 +1196,7 @@ def build_blacksmith():
     gest_c = pose(down, LeftArm=(0.4, -0.3, -0.86), LeftForeArm=(0.3, -0.9, 0.2), Head=_qx(5))
     fps = scn.render.fps
     scn.render.fps = 30
-    bake_clip(arm, "work_hammer", [(0, raised), (8, peak), (16, strike), (20, rebound), (28, rising), (36, raised)])
+    bake_clip(arm, "work_hammer", [(0, raised), (8, peak), (12, swing), (16, strike), (20, rebound), (28, rising), (36, raised)])
     bake_clip(arm, "work_pause", [(0, down), (18, brow), (38, wipe), (55, brow), (75, down)])
     bake_clip(arm, "idle", [(0, down), (45, breathe), (90, down)])
     bake_clip(arm, "talk", [(0, down), (20, gest_a), (45, gest_b), (70, gest_c), (90, down)])

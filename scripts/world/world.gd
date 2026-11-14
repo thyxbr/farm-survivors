@@ -233,13 +233,16 @@ func _build_village() -> void:
 	merchant.position = Vector3(6.8, 0, 1.6)
 	merchant.rotation.y = -PI / 2
 	add_child(merchant)
-	# ferraria (posição provisória, a Tarefa 5 ajusta): ferreiro virado para o leste, bigorna à
-	# frente e forja às costas
+	# ferraria entre as casas do noroeste, de frente para o poço: da praça se vê o ferreiro atrás da bigorna
+	# (e o lampião de (-6, 8) fica de lado na visada); forja às costas, encostada na lateral da casa
 	var smith := BLACKSMITH.new()
-	smith.position = Vector3(-8.5, 0, 11)
-	smith.rotation.y = PI / 2
-	smith.anvil = prop("anvil", Vector3(-7.8, 0, 11), 0.0, 1.0, "cyl", Vector3(0.3, 0.8, 0))
-	prop("forge", Vector3(-10.1, 0, 11), PI / 2, 1.0, "box", Vector3(0.9, 1.0, 0.8))
+	smith.position = Vector3(-8, 0, 13)
+	smith.rotation.y = atan2(8.0, -12.0)
+	var smithy := Transform3D(Basis(Vector3.UP, smith.rotation.y), smith.position)
+	smith.anvil = prop("anvil", smithy * BLACKSMITH.ANVIL_OFFSET, smith.rotation.y + BLACKSMITH.ANVIL_YAW, 1.0,
+		"cyl", Vector3(0.3, 0.8, 0))
+	prop("forge", smithy * BLACKSMITH.FORGE_OFFSET, smith.rotation.y + BLACKSMITH.FORGE_YAW, 1.0,
+		"box", Vector3(0.9, 1.0, 0.8))
 	add_child(smith)
 	var portal := PORTAL.new()
 	portal.position = PORTAL_POS

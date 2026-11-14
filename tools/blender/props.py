@@ -1056,7 +1056,7 @@ def build_anvil():
     top = 0.8
     a(beam("Stump", (0, 0, 0), (0, 0, 0.46), 0.3, p_wood, seg=9, r2=0.27, end_mat=p_wood_end))
     a(bx("Foot", (0, 0.02, 0.5), (0.34, 0.46, 0.08), p_iron, bev=0.012))
-    a(bx("Waist", (0, 0.02, 0.58), (0.2, 0.3, 0.12), p_iron, bev=0.012))
+    a(bx("Waist", (0, 0.02, 0.59), (0.2, 0.3, 0.15), p_iron, bev=0.012))   # 0,515..0,665: encosta no pé e no corpo
     a(bx("Body", (0, 0.04, top - 0.09), (0.28, 0.62, 0.1), p_iron, bev=0.012))
     a(bx("Face", (0, 0.04, top - 0.02), (0.3, 0.62, 0.04), p_iron_lt, bev=0.008))
     # chifre cônico para a frente e cauda curta atrás

@@ -215,17 +215,27 @@ func _test_blacksmith() -> void:
 	# jogador longe: golpes acontecem mas o som não toca (fora de FAR_DIST)
 	player.global_position = smith.global_position + Vector3(Sfx.FAR_DIST + 5.0, 0.3, 0)
 	var s0 := smith.strikes
-	var slot: int = Sfx._next_3d
+	# esvazia os slots 3D que já tocaram a bigorna: outros sons (inimigos perto do jogador) podem ocupar
+	# slots à vontade, mas nenhum pode voltar a receber o som da bigorna enquanto o jogador está longe
+	var clang: AudioStream = Sfx.streams["anvil"]
+	for p3 in Sfx._players_3d:
+		if p3.stream == clang:
+			p3.stop()
+			p3.stream = null
 	# 3,2 s: cobre o pior caso de começar logo no início de uma pausa (work_pause 2,5 s + golpe a 0,53 s)
 	await wait(3.2)
 	check(smith.strikes > s0, "ferreiro bate na bigorna (%d golpes)" % (smith.strikes - s0))
-	check(Sfx._next_3d == slot, "som do golpe não toca com o jogador longe")
+	var clangs := Sfx._players_3d.filter(func(p3: AudioStreamPlayer3D) -> bool: return p3.stream == clang).size()
+	check(clangs == 0, "som do golpe não toca com o jogador longe (%d slots com a bigorna)" % clangs)
 	# chega perto: para e vira
 	var ahead := smith.anvil.global_position - smith.global_position
 	ahead.y = 0.0
 	player.global_position = smith.anvil.global_position + ahead.normalized() * 2.0 + Vector3(0, 0.3, 0)
 	await wait(0.6)
 	check(smith.state == Blacksmith.State.IDLE, "ferreiro para quando o jogador chega")
+	var s1 := smith.strikes
+	smith._on_strike()   # o que a method track do work_hammer faria no blend de saída
+	check(smith.strikes == s1, "golpe fora do trabalho é ignorado")
 	# conversa: anima com o jogo pausado
 	smith.interact(player)
 	await wait(0.1)

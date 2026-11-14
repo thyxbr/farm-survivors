@@ -11,6 +11,13 @@ const BLEND := 0.25
 ## Tempo (s) do impacto do martelo em cada clipe: work_hammer provisório = quadro 16 de 36 a 30 fps.
 const STRIKES := {"work_hammer": [0.533]}
 const SPARK_COLOR := Color(1.0, 0.72, 0.25)
+## Ferraria em coordenadas do ferreiro (frente = +Z): bigorna à frente, de lado (chifre à esquerda dele) e
+## puxada para a direita, com o StrikePoint embaixo da face do martelo na batida; forja às costas com a boca
+## virada para ele. Usado pelo mundo e por tools/blacksmith_shot.gd (que confere o golpe).
+const ANVIL_OFFSET := Vector3(-0.24, 0, 0.6)
+const ANVIL_YAW := PI / 2
+const FORGE_OFFSET := Vector3(0, 0, -1.6)
+const FORGE_YAW := 0.0
 
 var state: State = State.WORK
 var strikes := 0
@@ -117,7 +124,8 @@ func _process(delta: float) -> void:
 
 
 func _on_strike() -> void:
-	if not _animate:
+	# a method track do work_hammer ainda dispara durante o blend de saída (BLEND): fora do WORK não bate
+	if not _animate or state != State.WORK:
 		return
 	strikes += 1
 	Sfx.play_at("anvil", strike_pos())
