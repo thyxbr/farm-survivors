@@ -31,6 +31,7 @@ Hub="*res://scripts/autoload/hub.gd"
 Updater="*res://scripts/autoload/updater.gd"
 Toon="*res://scripts/autoload/toon.gd"
 Weather="*res://scripts/autoload/weather.gd"
+Loading="*res://scripts/autoload/loading.gd"
 
 [display]
 

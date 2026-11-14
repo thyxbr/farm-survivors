@@ -350,7 +350,7 @@ func quick_load() -> bool:
 		return false
 	Game.reset_run_mods()
 	get_tree().paused = false
-	get_tree().change_scene_to_file(Game.WORLD_SCENE)
+	Loading.go(Game.WORLD_SCENE)
 	return true
 
 
