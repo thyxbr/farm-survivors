@@ -280,6 +280,9 @@ func _ready() -> void:
 	var h1: float = s1.hp
 	player.use_slot(4)
 	check(Game.fury == 0.0 and player.ability == "sword_whirl", "Turbilhão começa e gasta a fúria")
+	check(player.ability_slot == 4, "ability_slot = tecla que começou a habilidade (%d)" % player.ability_slot)
+	player.use_slot(1)   # com habilidade em execução o cast é ignorado: a soltura continua da tecla 4
+	check(player.ability == "sword_whirl" and player.ability_slot == 4, "tecla de outro slot não sobrescreve ability_slot (%d)" % player.ability_slot)
 	await wait_until(func(): return s1.hp < h1, 3.0)
 	check(Game.fury == 0.0, "Turbilhão que acertou não recarrega a própria fúria (%.2f)" % Game.fury)
 	check(s1.hp < h1, "Turbilhão causa dano durante o giro (%.0f -> %.0f)" % [h1, s1.hp])

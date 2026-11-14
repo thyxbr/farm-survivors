@@ -680,8 +680,9 @@ static func _make_cooldowns() -> Dictionary:
 func use_slot(slot: int) -> void:
 	for id in Game.ability_kit():
 		if ItemDB.ABILITIES[id].slot == slot:
+			var before := ability
 			cast(id)
-			if ability != "":
+			if before == "" and ability != "":   # só quando este cast começou a habilidade
 				ability_slot = slot
 			return
 
