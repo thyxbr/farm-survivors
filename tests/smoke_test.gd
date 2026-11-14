@@ -191,6 +191,7 @@ func _ready() -> void:
 	await wait(0.2)
 	check(not player.dead and not get_tree().paused and Game.hp == Game.max_hp(), "renasce na vila")
 
+	await _test_fx_epic()
 	await _test_farm()
 	await _test_survival()
 	await _test_update()
@@ -199,6 +200,26 @@ func _ready() -> void:
 	if FileAccess.file_exists(Game.save_path):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(Game.save_path))
 	get_tree().quit(1 if fails > 0 else 0)
+
+
+# ---------------------------------------------------------------- Efeitos épicos
+func _test_fx_epic() -> void:
+	var p := player.global_position
+	var n0 := get_tree().current_scene.get_child_count()
+	FXEpic.glow_burst(p, Color.ORANGE)
+	FXEpic.sparks(p, Vector3.UP, Color.YELLOW)
+	FXEpic.smoke(p)
+	FXEpic.flash(p, Color.ORANGE)
+	FXEpic.ground_mark(p, Color.BLACK, 2.0, 1.0)
+	FXEpic.trail(player.model, Color.ORANGE)
+	check(get_tree().current_scene.get_child_count() >= n0 + 6, "efeitos épicos criados")
+	FXEpic.hit_stop(0.05)
+	FXEpic.hit_stop(0.05)
+	check(Engine.time_scale >= 0.05 and Engine.time_scale < 1.0, "hit stop ativo (%.2f)" % Engine.time_scale)
+	await get_tree().create_timer(0.3, true, false, true).timeout
+	check(is_equal_approx(Engine.time_scale, 1.0), "hit stop volta para 1.0")
+	await wait(2.0)
+	check(get_tree().current_scene.get_child_count() <= n0 + 1, "efeitos épicos se liberam")
 
 
 # ---------------------------------------------------------------- Horta, caldeirão e comida
