@@ -1049,8 +1049,10 @@ def build_fern():
 
 # ======================================================== BIGORNA
 def build_anvil():
-    # Bigorna de aço sobre tora; chifre para a frente (-Y). Topo da face em Z=0,8: o golpe do
-    # ferreiro (work_hammer) mira o empty StrikePoint ali.
+    # Bigorna de aço sobre tora; chifre para a frente (-Y). Topo da face em Z=0,8, com uma barra em brasa
+    # (WorkBar, à parte) deitada nela: o golpe do ferreiro (work_hammer) mira o empty StrikePoint no topo da
+    # barra, perto da ponta quente. A barra cruza a face na diagonal e passa da borda, onde a tenaz do
+    # ferreiro a segura (tools/blender/characters.py, BS_BAR: mesma barra nas coordenadas do ferreiro).
     bag = Bag()
     a = bag.add
     top = 0.8
@@ -1065,7 +1067,14 @@ def build_anvil():
     a(bx("Tail", (0, 0.4, top - 0.06), (0.22, 0.14, 0.08), p_iron, bev=0.01))
     a(bx("Hardy", (0, 0.3, top + 0.005), (0.04, 0.04, 0.01), p_iron, bev=0.003))
     join(bag.items, "Anvil")
-    empty("StrikePoint", (0, 0.04, top))
+    hot, cold = Vector((-0.035, 0.077, top + 0.01)), Vector((0.19, -0.16, top + 0.01))
+    d = cold - hot
+    yaw = math.atan2(d.y, d.x)
+    mid = hot + d * 0.55
+    join([bx("WorkBarHot", (hot + mid) / 2, ((mid - hot).length, 0.03, 0.02), p_ember, rot=(0, 0, yaw), bev=0.004),
+          bx("WorkBarCold", (mid + cold) / 2, ((cold - mid).length, 0.028, 0.019), p_iron, rot=(0, 0, yaw), bev=0.004)],
+         "WorkBar")
+    empty("StrikePoint", (0, 0.04, top + 0.02))
     export("anvil")
 
 
