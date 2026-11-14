@@ -121,8 +121,9 @@ func _report_hammer() -> void:
 			n += 1
 	low /= n
 	var sp := _smith.strike_pos()
-	# na pose T: cabo = -Y do Blender (+Z aqui), face da cabeça = -X (igual aqui)
-	var b := hammer.global_basis.orthonormalized()
+	# na pose T: cabo = -Y do Blender (+Z aqui), face da cabeça = -X (igual aqui), os dois girados no punho
+	# por BS_HAMMER_IN_HAND (-30° em volta do Z do Blender = Y aqui; tools/blender/characters.py)
+	var b := hammer.global_basis.orthonormalized() * Basis(Vector3.UP, deg_to_rad(-30.0))
 	print("HAMMER low=%s strike=%s gap=%.3f dy=%.3f cabo=%s face=%s" % [low, sp, low.distance_to(sp), low.y - sp.y,
 		b * Vector3.BACK, b * Vector3.LEFT])
 

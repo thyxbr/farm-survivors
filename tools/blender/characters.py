@@ -960,10 +960,17 @@ def bake_clip(arm, name, keys):
     act = bpy.data.actions.new(name)
     ad.action = act
     moves_hips = any("HipsLoc" in t for _, t in keys)
+    prev = {}
     for f, targets in keys:
         pose_fk(arm, targets)
         for n, _ in BS_BONES:
-            arm.pose.bones[MIXAMO + n].keyframe_insert("rotation_quaternion", frame=f, group=MIXAMO + n)
+            pb = arm.pose.bones[MIXAMO + n]
+            # q e -q são a mesma rotação, mas a curva interpola os componentes: sem manter o hemisfério da
+            # chave anterior, o osso dá uma volta errada entre as chaves
+            if n in prev and pb.rotation_quaternion.dot(prev[n]) < 0:
+                pb.rotation_quaternion = -pb.rotation_quaternion
+            prev[n] = pb.rotation_quaternion.copy()
+            pb.keyframe_insert("rotation_quaternion", frame=f, group=MIXAMO + n)
         if moves_hips:
             arm.pose.bones[MIXAMO + "Hips"].keyframe_insert("location", frame=f, group=MIXAMO + "Hips")
     track = ad.nla_tracks.new()
@@ -981,6 +988,9 @@ def bake_clip(arm, name, keys):
 BS_BAR_HOT, BS_BAR_COLD = Vector((-0.257, -0.635, 0.81)), Vector((-0.02, -0.41, 0.81))
 BS_STRIKE = Vector((-0.22, -0.6, 0.82))
 BS_TONGS_GRIP = Vector((0.2, -0.27, 0.92))   # punho esquerdo, parado no ciclo inteiro
+# martelo na mão direita (pose T): girado em volta do eixo de dobra do punho (Z), cabo saindo para a frente e
+# inclinado na direção dos dedos (-X)
+BS_HAMMER_IN_HAND = Matrix.Rotation(math.radians(-30), 3, 'Z')
 
 
 def _ik(root, end, l1, l2, pole, warn=True):
@@ -997,7 +1007,7 @@ def _ik(root, end, l1, l2, pole, warn=True):
     return mid - root, root + dn * L - mid
 
 
-def smith_cycle(arm, P, joints, grips, hold):
+def smith_cycle(arm, P, joints, grips):
     """Chaves do work_hammer: tronco inclinado sobre a bigorna, pé esquerdo à frente, joelhos soltos, a mão
     esquerda parada segurando a tenaz na ponta fria da barra e a direita levando o martelo num arco no plano
     vertical sobre a bigorna até a face bater plana em BS_STRIKE. Braços e pernas por IK de dois ossos sobre
@@ -1006,7 +1016,7 @@ def smith_cycle(arm, P, joints, grips, hold):
     ln = {n: bones[MIXAMO + n].length for n in ("LeftArm", "LeftForeArm", "RightArm", "RightForeArm",
                                                  "LeftUpLeg", "LeftLeg", "RightUpLeg", "RightLeg")}
     wr = {sd: joints[sd][2] for sd in ("Left", "Right")}
-    face_t = grips["Right"] + Vector((-0.10, -0.33, 0))   # centro da face do martelo na pose T
+    face_t = grips["Right"] + BS_HAMMER_IN_HAND @ Vector((-0.10, -0.33, 0))   # centro da face do martelo na pose T
     ankle_z = P["ankle"].z
     ankles = {"Left": Vector((0.12, -0.08, ankle_z)), "Right": Vector((-0.14, 0.1, ankle_z))}
     feet = {"Left": Matrix.Rotation(math.radians(8), 3, 'Z'), "Right": Matrix.Rotation(math.radians(-14), 3, 'Z')}
@@ -1021,8 +1031,8 @@ def smith_cycle(arm, P, joints, grips, hold):
                 "Spine1": _qz(twist) @ _qx(lean * 0.32), "Spine2": _qx(lean * 0.23), "Neck": _qx(6),
                 "Head": _qx(head).to_matrix(), "LeftFoot": feet["Left"], "RightFoot": feet["Right"]}
 
-    def limbs(t, rh, wrist_r, pole_r, lh):
-        """Completa t com pernas, braço esquerdo na tenaz e braço direito com o punho em wrist_r."""
+    def limbs(t, lh):
+        """Completa t com pernas e braço esquerdo na tenaz (o direito fica com key())."""
         h = heads(t)
         for sd, s in (("Left", 1), ("Right", -1)):
             t[sd + "UpLeg"], t[sd + "Leg"] = _ik(h[sd + "UpLeg"], ankles[sd], ln[sd + "UpLeg"], ln[sd + "Leg"],
@@ -1030,9 +1040,7 @@ def smith_cycle(arm, P, joints, grips, hold):
         wl = BS_TONGS_GRIP - lh @ (grips["Left"] - wr["Left"])
         t["LeftArm"], t["LeftForeArm"] = _ik(h["LeftArm"], wl, ln["LeftArm"], ln["LeftForeArm"], (0.6, 0.5, -0.6))
         t["LeftHand"] = lh
-        t["RightArm"], t["RightForeArm"] = _ik(h["RightArm"], wrist_r, ln["RightArm"], ln["RightForeArm"], pole_r)
-        t["RightHand"] = rh
-        return t
+        return t, h
 
     # mão esquerda: punho fechado em volta da tenaz, com a mão seguindo o antebraço (o cabo cruza o punho)
     dt = (BS_BAR_COLD - BS_TONGS_GRIP).normalized()
@@ -1045,25 +1053,66 @@ def smith_cycle(arm, P, joints, grips, hold):
         u = (u - dt * dt.dot(u)).normalized()
         lh = Matrix((u, -dt, u.cross(-dt))).transposed()
 
-    def key(lean, twist, drop, head, alpha, pole, grip=None, face=None):
-        """alpha: ângulo do martelo armado para trás (0 = face para baixo e cabo na horizontal, para a frente)."""
-        a = math.radians(alpha)
-        rh = hold((0, -math.sin(a), -math.cos(a)))
-        if face is not None:
-            wrist = face - rh @ (face_t - wr["Right"])
-        else:
-            wrist = Vector(grip) - rh @ (grips["Right"] - wr["Right"])
-        return limbs(torso(lean, twist, drop, head), rh, wrist, pole, lh)
+    def frame(d, n):
+        """Orientação absoluta (relativa à pose T) de um osso do braço direito apontando para d com o eixo da
+        dobra em n. Na pose T o braço aponta para -X e o cotovelo dobra para a frente (-Y): eixo +Z."""
+        d = d.normalized()
+        return Matrix((-d, d.cross(n), n)).transposed()
 
-    top = (-1, -0.1, -0.3)   # no alto o cotovelo fica à frente, na altura do ombro, um pouco para fora
-    keys = [(0, key(16, -6, 0.02, 30, 105, top, grip=(-0.35, 0.04, 1.52))),
-            (4, key(15, -7, 0.015, 30, 115, top, grip=(-0.35, 0.06, 1.54))),
-            (8, key(19, -2, 0.025, 34, 65, (-0.3, -0.8, -0.5), grip=(-0.28, -0.3, 1.3))),
-            (11, key(22, 2, 0.035, 38, 28, (-0.25, -0.1, -1), grip=(-0.22, -0.29, 1.1))),
-            (13, key(24, 3, 0.04, 40, 0, (-0.3, 0.5, -0.6), face=BS_STRIKE)),
-            (16, key(23, 2, 0.04, 40, 14, (-0.3, 0.5, -0.6), face=BS_STRIKE + Vector((0, 0.01, 0.06)))),
-            (22, key(20, 0, 0.035, 38, 45, (-0.25, -0.3, -0.9), grip=(-0.22, -0.25, 1.17))),
-            (29, key(17, -4, 0.025, 33, 85, (-0.35, -0.8, -0.4), grip=(-0.3, -0.12, 1.4)))]
+    def arm_ik(sh, w, n):
+        """Braço direito do ombro sh ao punho w dobrando no plano de normal n (perpendicular a sh->w): o
+        cotovelo vai para d x n (para trás com o punho embaixo, para a frente com ele no alto)."""
+        d = (w - sh).normalized()
+        return _ik(sh, w, ln["RightArm"], ln["RightForeArm"], d.cross(n))
+
+    def key(lean, twist, drop, head, tilt=0.0, wrist=0.0, grip=None, face=None):
+        """Braço direito como uma cadeia de dobradiças num plano só (ombro, cotovelo, punho e martelo): braço,
+        antebraço e mão têm o mesmo eixo de dobra, a normal n do plano. O cotovelo acompanha o antebraço, a
+        mão não torce em volta dele e o punho só dobra dentro do plano.
+        grip: punho em grip com o punho dobrado wrist graus (+ = martelo armado para trás, - = batendo); o plano
+        é o vertical do golpe girado tilt graus em volta do eixo vertical (cotovelo para fora).
+        face: a batida, face do martelo em face virada para baixo e cabo na horizontal; o rumo do cabo é o
+        que deixa a mão no mesmo plano vertical que o ombro e o punho."""
+        t, h = limbs(torso(lean, twist, drop, head), lh)
+        sh = h["RightArm"]
+        down = Vector((0, 0, -1))
+        if face is not None:
+            best = None
+            for i in range(-80, 81):
+                nh = Quaternion((0, 0, 1), math.radians(i * 0.5)) @ Vector((-1, 0, 0))
+                rh = frame(down, nh) @ BS_HAMMER_IN_HAND.inverted()   # a face (não a mão) para baixo
+                w = face - rh @ (face_t - wr["Right"])
+                d = w - sh
+                na = Vector((d.y, -d.x, 0)).normalized()   # normal do plano vertical por ombro e punho
+                if na.x > 0:
+                    na = -na
+                err = nh.angle(na)
+                if best is None or err < best[0]:
+                    best = (err, nh, rh, w)
+            _, n, rh, w = best
+        else:
+            nd = Quaternion((0, 0, 1), math.radians(tilt)) @ Vector((-1, 0, 0))
+            fo = Vector((0, -0.5, -0.85))
+            n = nd
+            for _ in range(10):
+                rh = frame(Quaternion(n, math.radians(wrist)) @ fo.normalized(), n)
+                w = Vector(grip) - rh @ (grips["Right"] - wr["Right"])
+                d = (w - sh).normalized()
+                n = (nd - d * d.dot(nd)).normalized()
+                up, fo = arm_ik(sh, w, n)
+            rh = frame(Quaternion(n, math.radians(wrist)) @ fo.normalized(), n)
+        up, fo = arm_ik(sh, w, n)
+        t["RightArm"], t["RightForeArm"], t["RightHand"] = frame(up, n), frame(fo, n), rh
+        return t
+
+    keys = [(0, key(16, -6, 0.02, 30, -20, -40, grip=(-0.33, -0.02, 1.66))),
+            (4, key(15, -7, 0.015, 30, -20, -32, grip=(-0.33, 0.0, 1.68))),
+            (8, key(19, -2, 0.025, 34, -10, 10, grip=(-0.27, -0.28, 1.36))),
+            (11, key(22, 2, 0.035, 38, 0, -20, grip=(-0.23, -0.3, 1.1))),
+            (13, key(24, 3, 0.04, 40, face=BS_STRIKE)),
+            (16, key(23, 2, 0.04, 40, 0, -25, grip=(-0.22, -0.26, 1.01))),
+            (22, key(20, 0, 0.035, 38, 0, 0, grip=(-0.22, -0.25, 1.17))),
+            (29, key(17, -4, 0.025, 33, -15, 0, grip=(-0.32, -0.18, 1.46)))]
     keys.append((36, keys[0][1]))
 
     # tenaz: modelada na pose da batida (cabos saindo do punho esquerdo, mordentes na ponta fria da barra)
@@ -1232,8 +1281,9 @@ def build_blacksmith():
     body = join_objs("Blacksmith", [o for o in coll.objects if o.type == 'MESH'])
 
     # ---------------- martelo (objeto à parte, pivô no punho da mão direita, cabo para a frente)
-    # A face da cabeça aponta para fora, na direção do braço (-X): é para onde a mão empurra o martelo ao
-    # bater (desvio ulnar do punho), então na batida a face desce junto com a mão.
+    # A face da cabeça aponta para fora, quase na direção da mão (-X): é para onde a mão empurra o martelo ao
+    # bater (desvio ulnar do punho). O cabo sai do punho inclinado para a frente da mão (BS_HAMMER_IN_HAND),
+    # como numa pegada de verdade: na batida a mão não precisa dobrar tanto para a face descer plana.
     g = grips["Right"]
     side = (0, math.pi / 2, 0)   # caixas modeladas em pé (eixo Z) deitadas no eixo X
     hm = [limb("HammerHandle", g + Vector((0, 0.09, 0)), g + Vector((0, -0.33, 0)), 0.016, 0.014, wood, sides=6),
@@ -1244,6 +1294,7 @@ def build_blacksmith():
           limb("HammerWedge", g + Vector((0.085, -0.33, 0)), g + Vector((0.1, -0.33, 0)), 0.02, 0.012, iron, sides=4)]
     hammer = join_objs("Hammer", hm)
     hammer.data.transform(Matrix.Translation(-g))
+    hammer.data.transform(BS_HAMMER_IN_HAND.to_4x4())
     hammer.location = g
 
     # ---------------- esqueleto em pose T, nomes do Mixamo
@@ -1287,16 +1338,9 @@ def build_blacksmith():
         d.update(over)
         return d
 
-    def hold(f):
-        """Orientação absoluta da mão direita com a face do martelo virada para f (no plano de frente/cima,
-        x = 0): a mão segue f e o cabo fica a 90° dela, para a frente quando f aponta para baixo."""
-        f = Vector(f).normalized()
-        h = Vector((0, f.z, -f.y))
-        return Matrix((-f, -h, f.cross(h))).transposed()
-
     down = {"LeftArm": (0.28, 0.02, -0.96), "LeftForeArm": (0.2, -0.22, -0.95),
             "RightArm": (-0.28, 0.02, -0.96), "RightForeArm": (-0.15, -0.45, -0.88)}
-    work_hammer = smith_cycle(arm, P, joints, grips, hold)
+    work_hammer = smith_cycle(arm, P, joints, grips)
     brow = pose(down, RightArm=(-0.5, -0.7, 0.3), RightForeArm=(0.85, 0.17, 0.5), RightHand=(0.9, 0.3, 0.2),
                 Spine1=_qx(-5), Spine2=_qx(-3), Head=_qx(-8))
     wipe = pose(brow, RightForeArm=(0.95, 0.05, 0.3), RightHand=(1.0, 0.2, 0.0), Head=_qx(-10))
