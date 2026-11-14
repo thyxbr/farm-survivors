@@ -12,6 +12,12 @@ const HUD := preload("res://scripts/ui/hub_hud.gd")
 const PAUSE := preload("res://scripts/ui/pause_menu.gd")
 const CHAT := preload("res://scripts/ui/chat_ui.gd")
 const POINT := preload("res://scripts/hub/hub_point.gd")
+const SHOP := preload("res://scripts/ui/shop_ui.gd")
+const PASSIVE_MASTER := preload("res://scripts/ui/passive_master_ui.gd")
+const BASE_BUILDING := preload("res://scripts/ui/base_building_ui.gd")
+const RECORDS := preload("res://scripts/ui/records_ui.gd")
+const WAR_TABLE := preload("res://scripts/ui/war_table_ui.gd")
+const HORDE_PORTAL := preload("res://scripts/ui/horde_portal_ui.gd")
 const GROUND := preload("res://scripts/world/ground.gd")
 const M := {
 	"well": preload("res://assets/models/well.glb"),
@@ -260,12 +266,31 @@ func _scatter_grass() -> void:
 	ground.scatter_grass(rng.seed + 7, 0.55, keep, [])
 
 
-# ================================================================ pontos (placeholder até os painéis)
-## Painel de um ponto da praça (passivas, mercador, recordes, mesa de guerra, doações).
-## Por enquanto só avisa; os painéis de verdade vêm em seguida.
+# ================================================================ painéis dos pontos
+## Abre o painel do ponto da praça (portal, mesa de guerra, mestre das passivas, mercador, recordes ou
+## doações da construção). A estrada não tem painel: ela viaja direto (hub_point.interact).
 func open_point_panel(point: Node) -> void:
-	var what: String = point.interact_prompt() if point.has_method("interact_prompt") else "Este ponto"
-	Game.notify.emit("%s: em breve." % what, Color(0.85, 0.82, 0.72))
+	var ui: Control = null
+	match str(point.get("kind")):
+		"horde_portal":
+			ui = HORDE_PORTAL.new()
+		"war_table":
+			ui = WAR_TABLE.new()
+		"passive_master":
+			ui = PASSIVE_MASTER.new()
+		"merchant":
+			var shop := SHOP.new()
+			shop.title = "Banca do Tobias"
+			shop.quote = "\"Compro o que você achar por aí e vendo o que um aventureiro precisa. Dê uma olhada!\""
+			ui = shop
+		"records":
+			ui = RECORDS.new()
+		"building":
+			var b := BASE_BUILDING.new()
+			b.building_id = str(point.get("building_id"))
+			ui = b
+	if ui != null:
+		open_modal(ui)
 
 
 # ================================================================ UI modal

@@ -2,7 +2,7 @@ extends StaticBody3D
 ## Um ponto da praça com que o jogador interage ([E]): portal da Horda, mesa de guerra (Defesa da Cidade),
 ## estrada para Valdoria, mestre das passivas, mercador, quadro de recordes ou uma construção da base.
 ## Monta o próprio visual pelo `kind`. A estrada viaja na hora; os outros abrem o painel da praça
-## (hub_world.open_point_panel) e o portal leva à Horda (Hub.go_horde).
+## (hub_world.open_point_panel); o botão do painel do portal leva à Horda (Hub.go_horde).
 ##
 ## A construção da base fica atrás do ponto (o nó é a placa/caixa de doações na frente dela, virada para
 ## o centro da praça): a distância de interação do Player é medida até este nó, e um prédio de 6 m com o
@@ -82,8 +82,6 @@ func interact(_player: Node) -> void:
 	match kind:
 		"road":
 			Lobby.go_world()
-		"horde_portal":
-			Hub.go_horde()
 		_:
 			var w := get_tree().current_scene
 			if w != null and w.has_method("open_point_panel"):
