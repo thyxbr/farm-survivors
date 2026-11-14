@@ -1,4 +1,4 @@
-# A cada push no main: roda os testes (gameplay + multiplayer) e, se passarem,
+# A cada push no main: roda os testes (unitários + gameplay + multiplayer) e, se passarem,
 # publica o cliente Windows no GitHub Releases (só quando a versão do project.godot é nova;
 # é de lá que o auto update do jogo baixa) e dispara o deploy do servidor no Easypanel.
 # O link de deploy fica no secret EASYPANEL_DEPLOY_URL (Settings → Secrets and variables → Actions).
@@ -50,19 +50,44 @@ jobs:
             grep -A1 "SCRIPT ERROR" import.log
             exit 1
           fi
+          # o servidor usa o SQLite do addons/godot-sqlite (GDExtension): no Linux o .so tem que carregar
+          if grep -qiE "Can't open dynamic library|Error loading extension|GDExtension.*(failed|error)" import.log; then
+            echo "::error::A extensão godot-sqlite não carregou no Linux"
+            grep -iE "dynamic library|extension" import.log
+            exit 1
+          fi
+
+      # regras puras (contas, banco, economia, balanceamento...); erro de script num teste conta como falha
+      - name: Testes unitários
+        run: timeout 300 godot --headless --path . -s tests/unit/run.gd
+
+      # metas de equilíbrio da Defesa da Cidade (seção 18 do spec: eras, munição, madeira parada, pesquisas)
+      # simuladas por 15 dias em solo, com 2 e com 4 jogadores; sai com 1 se alguma meta falhar
+      - name: Simulação da economia da cidade
+        run: timeout 120 godot --headless --path . --script res://tests/economy_sim.gd
 
       - name: Teste de gameplay (smoke test)
         run: timeout 600 godot --headless --path . res://scenes/world.tscn -- --smoketest
 
+      - name: Teste do modelo do ferreiro (esqueleto e clipes)
+        run: timeout 120 godot --headless --path . --script res://tests/blacksmith_asset_test.gd
+
       - name: Teste da Defesa da Cidade
         run: timeout 600 godot --headless --path . res://scenes/colony.tscn -- --colonytest
 
+      # a praça no solo: pontos, Ecos, passiva, doação, painéis, emotes e portal → Horda → praça
+      - name: Teste da praça (solo)
+        run: timeout 300 godot --headless --path . res://scenes/hub.tscn -- --hubtest
+
+      # servidor com banco novo (arquivo temporário), API HTTP de login numa porta própria e --test
+      # (ouro e Ecos de teste do net_test); os clientes criam conta via --auth-url
       - name: Teste de multiplayer (servidor + 2 clientes)
         run: |
-          godot --headless --path . -- --server --port=7790 --horde-round=8 --horde-pick=5 > server.log 2>&1 &
+          db=$(mktemp --suffix=.db); rm -f "$db"
+          godot --headless --path . -- --server --port=7790 --http-port=8790 --db="$db" --test --horde-round=8 --horde-pick=5 > server.log 2>&1 &
           for i in $(seq 1 30); do grep -q "ouvindo em UDP" server.log && break; sleep 1; done
-          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Ana --horde=lead --horde-pick=5 > ana.log 2>&1 & A=$!
-          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Beto --horde=join --horde-pick=5 > beto.log 2>&1 & B=$!
+          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7790 --auth-url=http://127.0.0.1:8790 --peers=2 --name=Ana --horde=lead --horde-pick=5 > ana.log 2>&1 & A=$!
+          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7790 --auth-url=http://127.0.0.1:8790 --peers=2 --name=Beto --horde=join --horde-pick=5 > beto.log 2>&1 & B=$!
           wait $A; RA=$?
           wait $B; RB=$?
           grep -hE "PASS|FAIL|NETTEST" ana.log beto.log
@@ -72,12 +97,13 @@ jobs:
         if: failure()
         run: tail -n 60 server.log ana.log beto.log || true
 
-      - name: Teste da Defesa da Cidade em grupo (salão + servidor + 2 clientes)
+      - name: Teste da Defesa da Cidade em grupo (praça + servidor + 2 clientes)
         run: |
-          godot --headless --path . -- --server --port=7791 --city-day=12 > city_server.log 2>&1 &
+          db=$(mktemp --suffix=.db); rm -f "$db"
+          godot --headless --path . -- --server --port=7791 --http-port=8791 --db="$db" --test --city-day=12 --city-event=caravan > city_server.log 2>&1 &
           for i in $(seq 1 30); do grep -q "ouvindo em UDP" city_server.log && break; sleep 1; done
-          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7791 --peers=2 --name=Caio --city=lead > caio.log 2>&1 & A=$!
-          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7791 --peers=2 --name=Duda --city=join > duda.log 2>&1 & B=$!
+          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7791 --auth-url=http://127.0.0.1:8791 --peers=2 --name=Caio --city=lead > caio.log 2>&1 & A=$!
+          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7791 --auth-url=http://127.0.0.1:8791 --peers=2 --name=Duda --city=join > duda.log 2>&1 & B=$!
           wait $A; RA=$?
           wait $B; RB=$?
           grep -hE "PASS|FAIL|NETTEST" caio.log duda.log
@@ -87,17 +113,19 @@ jobs:
         if: failure()
         run: tail -n 60 city_server.log caio.log duda.log || true
 
-  # Exporta o cliente Windows e publica a release v<versão> com o zip e o latest.json que o
-  # auto update (scripts/autoload/updater.gd) lê. Se a versão já tem release, não faz nada.
-  release:
-    name: Publicar cliente (GitHub Releases)
+  # Exporta o cliente Windows (artefato `cliente-windows`), que o job seguinte liga no Windows antes de
+  # publicar. Se a versão já tem release (e o jogo não mudou), não exporta nada (skip=true) e os jobs
+  # seguintes passam sem fazer nada.
+  export:
+    name: Exportar cliente Windows
     needs: test
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    permissions:
-      contents: write
     env:
       GH_TOKEN: ${{ github.token }}
+    outputs:
+      skip: ${{ steps.ver.outputs.skip }}
+      version: ${{ steps.ver.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -171,11 +199,81 @@ jobs:
           mkdir -p build
           ~/godot/godot --headless --path . --export-release "Windows Desktop" build/EcosDeValdoria.exe 2>&1 | tee export.log
           test -s build/EcosDeValdoria.exe || { echo "::error::O export não gerou o exe"; exit 1; }
+          # o cliente é um exe único: nenhuma DLL (GDExtension) pode ir junto, o Smart App Control a bloquearia
+          if ls build | grep -qiE '\.(dll|so)$'; then
+            echo "::error::O export gerou bibliotecas nativas ao lado do exe (o zip só leva o exe):"
+            ls -la build
+            exit 1
+          fi
+
+      - name: Guardar o exe exportado
+        if: steps.ver.outputs.skip == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cliente-windows
+          path: build/EcosDeValdoria.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  # Liga o exe exportado no Windows (sem tela) antes de publicar: a 0.8.0 saiu quebrada porque o exe
+  # dependia de uma DLL que o zip não levava (parse error em todo script que usa o banco). Falha com
+  # SCRIPT ERROR, Parse Error, qualquer linha de GDExtension ou saída diferente de 0.
+  boot-check:
+    name: Ligar o exe exportado (Windows)
+    needs: export
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Baixar o exe exportado
+        if: needs.export.outputs.skip == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          name: cliente-windows
+          path: build
+
+      - name: Ligar sem tela
+        if: needs.export.outputs.skip == 'false'
+        shell: bash
+        run: |
+          set +e
+          ./build/EcosDeValdoria.exe --headless --quit-after 300 > boot.log 2>&1
+          code=$?
+          set -e
+          cat boot.log
+          if grep -qiE "SCRIPT ERROR|Parse Error|GDExtension" boot.log; then
+            echo "::error::O exe exportado mostrou erro de script ou de GDExtension ao ligar"
+            exit 1
+          fi
+          if [ "$code" -ne 0 ]; then
+            echo "::error::O exe exportado saiu com código $code"
+            exit 1
+          fi
+          grep -q "Godot Engine" boot.log || { echo "::error::O exe não escreveu nada (não ligou?)"; exit 1; }
+
+  # Publica a release v<versão> com o zip e o latest.json que o auto update (scripts/autoload/updater.gd)
+  # lê, usando exatamente o exe que o boot-check ligou.
+  release:
+    name: Publicar cliente (GitHub Releases)
+    needs: [export, boot-check]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}   # sem checkout: o gh precisa saber o repositório
+    steps:
+      - name: Baixar o exe exportado
+        if: needs.export.outputs.skip == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          name: cliente-windows
+          path: build
 
       - name: Publicar release
-        if: steps.ver.outputs.skip == 'false'
+        if: needs.export.outputs.skip == 'false'
         run: |
-          ver="${{ steps.ver.outputs.version }}"
+          ver="${{ needs.export.outputs.version }}"
           zip="EcosDeValdoria-v$ver-windows.zip"
           (cd build && zip -9 -q "../$zip" EcosDeValdoria.exe)
           sha=$(sha256sum "$zip" | cut -d' ' -f1)
@@ -193,7 +291,7 @@ jobs:
   # por versão diferente já encontra a atualização
   deploy:
     name: Deploy no Easypanel
-    needs: [test, release]
+    needs: [test, boot-check, release]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -214,7 +312,9 @@ jobs:
 
   # O webhook responder 200 não garante que o servidor trocou: no Easypanel, com a porta UDP em modo host,
   # um deploy "zero downtime" deixa o container novo em Pending e o antigo continua no ar.
-  # Aqui um cliente headless entra no servidor público até ele aceitar a versão deste commit.
+  # Aqui um cliente headless (--probe, sem conta) confere o servidor público até ele aceitar a versão deste
+  # commit: GET https://<domínio>/health tem que responder esta versão (API HTTP atrás do proxy HTTPS do
+  # Easypanel) e uma conexão ENet na porta UDP 7777 tem que conectar.
   verify:
     name: Conferir servidor publicado
     needs: deploy
@@ -246,16 +346,17 @@ jobs:
         run: |
           addr=$(grep -oP 'const DEFAULT_ADDRESS := "\K[^"]+' scripts/autoload/network.gd)
           ver=$(grep -oP 'config/version="\K[^"]+' project.godot)
-          echo "Servidor: $addr:7777 — versão esperada: $ver"
+          echo "Servidor: https://$addr/health e $addr:7777/udp — versão esperada: $ver"
           # o build no Easypanel (baixar Godot + importar) leva alguns minutos
           for i in $(seq 1 20); do
             if timeout 60 ~/godot/godot --headless --path . -- --nettest="$addr:7777" --probe --name=CI-deploy > probe.log 2>&1; then
               grep -hE "PASS|NETTEST|aceitou" probe.log
               exit 0
             fi
-            echo "tentativa $i: $(grep -m1 -E 'FAIL' probe.log || echo 'sem resposta')"
+            msg=$(grep -E 'FAIL' probe.log | tr '\n' ' ')
+            echo "tentativa $i: ${msg:-sem resposta}"
             sleep 30
           done
-          echo "::error::O servidor público não aceitou a versão $ver depois de 20 tentativas (~15 min). No Easypanel o deploy pode estar travado em Pending (porta UDP em uso pelo container antigo): rode 'docker service ps <serviço>' na VPS e desligue o Zero Downtime do app."
+          echo "::error::O servidor público não aceitou a versão $ver depois de 20 tentativas (~15 min). Se só o HTTP falha, confira o domínio do app no Easypanel (proxy HTTPS para a porta 8080). No Easypanel o deploy pode estar travado em Pending (porta UDP em uso pelo container antigo): rode 'docker service ps <serviço>' na VPS e desligue o Zero Downtime do app."
           cat probe.log
           exit 1

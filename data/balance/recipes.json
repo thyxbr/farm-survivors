@@ -1,0 +1,36 @@
+{
+	"bread": {
+		"wheat": 2
+	},
+	"carrot_stew": {
+		"carrot": 2,
+		"tomato": 1
+	},
+	"spicy_soup": {
+		"tomato": 2,
+		"pepper": 1
+	},
+	"dragon_chili": {
+		"pepper": 2,
+		"carrot": 1
+	},
+	"mint_tea": {
+		"mint": 2
+	},
+	"garden_salad": {
+		"carrot": 1,
+		"tomato": 1,
+		"mint": 1
+	},
+	"pumpkin_pie": {
+		"pumpkin": 1,
+		"wheat": 2
+	},
+	"valdoria_feast": {
+		"pumpkin": 1,
+		"pepper": 1,
+		"mint": 1,
+		"wheat": 1,
+		"tomato": 1
+	}
+}

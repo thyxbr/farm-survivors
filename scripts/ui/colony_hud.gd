@@ -1,6 +1,7 @@
 extends CanvasLayer
 ## HUD da Defesa da Cidade: painel de recursos (canto superior direito), faixa do dia/noite
-## (topo) e a barra de construção (embaixo, só no modo construção).
+## (topo), a barra de construção (embaixo, só no modo construção) e o indicador do evento do dia
+## (seta na borda da tela com o nome e a distância; some quando o jogador chega).
 
 var colony: Colony
 var build: Node   # build_mode.gd
@@ -18,6 +19,12 @@ var _style_off: StyleBoxFlat
 var _last_status := ""
 var _reward_label: Label
 var _reward_t := 0.0
+var _ev_mark: Control
+var _ev_arrow: Polygon2D
+var _ev_label: Label
+
+const EVENT_MARK_HIDE := 12.0   # a até tantos metros do evento o indicador some (chegou)
+const EVENT_MARK_EDGE := 56.0   # margem da borda da tela
 
 
 func _ready() -> void:
@@ -118,8 +125,22 @@ func _ready() -> void:
 	_reward_label.visible = false
 	root.add_child(_reward_label)
 
+	# --- indicador do evento do dia (não há bússola nem mini-mapa: só este, e só para o evento ativo)
+	_ev_mark = Control.new()
+	_ev_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ev_mark.visible = false
+	root.add_child(_ev_mark)
+	_ev_arrow = Polygon2D.new()
+	_ev_arrow.polygon = PackedVector2Array([Vector2(16, 0), Vector2(-9, -11), Vector2(-4, 0), Vector2(-9, 11)])
+	_ev_arrow.color = UITheme.GOLD
+	_ev_mark.add_child(_ev_arrow)
+	_ev_label = _outlined("", 15, UITheme.GOLD)
+	_ev_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_ev_label.size = Vector2(220, 22)
+	_ev_mark.add_child(_ev_label)
 
-## Cidade em grupo: recompensa da noite vencida no centro da tela por alguns segundos.
+
+## Recompensa da noite vencida (solo e grupo) no centro da tela por alguns segundos.
 func show_reward(n: int, gold: int, xp: int, items: Array) -> void:
 	var t := "Noite %d vencida!\n+%d ouro  ·  +%d XP" % [n, gold, xp]
 	for id in items:
@@ -154,11 +175,25 @@ func _card(parent: Control, kind: String, key: String) -> Dictionary:
 	name_l.custom_minimum_size.x = 84
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(name_l)
-	var cost := 0 if kind == "demolish" else int(ColonyData.BUILDINGS[kind].cost)
-	var cost_l := UITheme.label("+50%" if kind == "demolish" else ("grátis" if cost == 0 else "%d ouro" % cost), 13, UITheme.GOLD)
-	cost_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var cost_l := RichTextLabel.new()
+	cost_l.bbcode_enabled = true
+	cost_l.fit_content = true
+	cost_l.scroll_active = false
+	cost_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	cost_l.custom_minimum_size.x = 84
+	cost_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cost_l.add_theme_font_size_override("normal_font_size", 13)
 	v.add_child(cost_l)
-	return {"kind": kind, "panel": p, "name": name_l, "cost": cost_l, "price": cost}
+	var card := {"kind": kind, "panel": p, "name": name_l, "cost": cost_l, "price": {}, "shown": ""}
+	if kind == "demolish":
+		cost_l.text = "[center][color=#%s]+50%%[/color][/center]" % UITheme.GOLD.to_html(false)
+		card.shown = "demolish"
+	return card
+
+
+const SLOW_TICK := 0.25
+var _slow_t := 0.0
+var _build_on := false
 
 
 func _process(_delta: float) -> void:
@@ -168,9 +203,69 @@ func _process(_delta: float) -> void:
 		_reward_label.visible = _reward_t > 0.0
 	if colony == null:
 		return
-	_update_status()
+	# status e cartas de construção custam (previsão, falta de recursos): 4 vezes por segundo bastam.
+	# A munição que pisca troca a cada 400 ms, então 250 ms mantém o pisca.
+	var build_on: bool = build != null and build.active
+	if build_on != _build_on:   # abrir/fechar a barra aparece na hora
+		_build_on = build_on
+		_slow_t = 0.0
+		build_panel.visible = build_on
+	_slow_t -= _delta
+	if _slow_t <= 0.0:
+		_slow_t = SLOW_TICK
+		_update_status()
+		_update_build()
 	_update_phase()
-	_update_build()
+	_update_event_mark()
+
+
+## Seta na borda da tela apontando o evento do dia; em cima do ponto quando ele já está na tela.
+func _update_event_mark() -> void:
+	var ev := colony.events
+	var p := get_tree().get_first_node_in_group("player") as Node3D
+	var cam := get_viewport().get_camera_3d()
+	if ev == null or ev.active == "" or p == null or cam == null:
+		_ev_mark.visible = false
+		return
+	var dist := Vector2(ev.pos.x - p.global_position.x, ev.pos.z - p.global_position.z).length()
+	if dist < EVENT_MARK_HIDE:
+		_ev_mark.visible = false
+		return
+	var vp := get_viewport().get_visible_rect().size
+	var center := vp / 2.0
+	var target := ev.pos + Vector3.UP * 2.0
+	var sp := cam.unproject_position(target)
+	var behind := cam.is_position_behind(target)
+	var m := EVENT_MARK_EDGE
+	var on_screen := not behind and Rect2(Vector2(m, m), vp - Vector2(m, m) * 2.0).has_point(sp)
+	var at := sp
+	var dir := (center - sp) if behind else (sp - center)
+	if not on_screen:
+		if dir.length() < 1.0:
+			dir = Vector2.DOWN
+		var half := center - Vector2(m, m)
+		var k := minf(half.x / absf(dir.x) if absf(dir.x) > 0.01 else INF, half.y / absf(dir.y) if absf(dir.y) > 0.01 else INF)
+		at = center + dir * k
+	_ev_mark.visible = true
+	_ev_mark.position = at
+	_ev_arrow.rotation = dir.angle() if not on_screen else PI / 2.0
+	_ev_arrow.position = Vector2.ZERO if not on_screen else Vector2(0, -18)
+	_ev_label.text = "%s · %d m" % [ColonyData.DAY_EVENTS[ev.active].name, int(dist)]
+	# o texto fica do lado de dentro da tela
+	_ev_label.position = Vector2(-110, -40 if at.y > vp.y - m * 1.5 else 16)
+
+
+## "Nome  N" do estoque; o recurso cuja munição acabou na noite pisca em vermelho.
+func _stock_text(label: String, r: String, per_min: String) -> String:
+	var t := "%s  [b]%d[/b]%s" % [label, colony.amount(r), per_min]
+	if colony.ammo_out(r) and int(Time.get_ticks_msec() / 400.0) % 2 == 0:
+		return "[color=#%s]%s[/color]" % [UITheme.BAD.to_html(false), t]
+	return t
+
+
+## "  (+12/min)" quando a serraria/pedreira está rendendo; vazio sem produção.
+func _per_min(v: float) -> String:
+	return "" if v < 0.05 else " [color=%s](%+.0f/min)[/color]" % [_col(1), v]
 
 
 func _update_status() -> void:
@@ -181,8 +276,14 @@ func _update_status() -> void:
 		lines.append("Cofre  [b]%d[/b]   [color=%s](%+d/dia)[/color]" % [colony.get_gold(), _col(f.gold_net), f.gold_net])
 	else:
 		lines.append("[b][color=#dcae52]Cidade — dia %d[/color][/b]" % colony.day)
-		lines.append("Ouro  [b]%d[/b]   [color=%s](%+d/dia)[/color]" % [Game.gold, _col(f.gold_net), f.gold_net])
+		lines.append("Caixa da cidade  [b]%d[/b]   [color=%s](%+d/dia)[/color]" % [colony.get_gold(), _col(f.gold_net), f.gold_net])
 	lines.append("Comida  [b]%d[/b]   [color=%s](%+d/dia)[/color]" % [colony.food, _col(f.food_net), f.food_net])
+	var stock := "%s  ·  %s" % [_stock_text("Madeira", "wood", _per_min(f.wood_min)), _stock_text("Pedra", "stone", _per_min(f.stone_min))]
+	if colony.amount("iron") > 0:
+		stock += "  ·  Ferro  [b]%d[/b]" % colony.amount("iron")
+	if colony.amount("crystal") > 0 or colony.ammo_out("crystal"):
+		stock += "  ·  " + _stock_text("Cristal", "crystal", "")
+	lines.append(stock)
 	lines.append("Moradores  [b]%d[/b] / %d   (%d trabalhando)" % [colony.citizens, colony.pop_cap(), f.employed])
 	lines.append("Exército  [b]%d[/b] / %d   salários %d/dia" % [colony.soldier_count(), colony.army_cap(), f.salaries])
 	lines.append("Imposto: %s   ·   [color=#9fc4ff]%s[/color] [G]" % [ColonyData.TAX_NAMES[colony.tax_level],
@@ -194,10 +295,11 @@ func _update_status() -> void:
 		if mod != "":
 			var m: Dictionary = ColonyData.NIGHT_MODS[mod]
 			lines.append("[color=#%s]%s %s[/color]: %s" % [m.color.to_html(false), "Esta noite:" if colony.phase == "night" else "Próxima noite:", m.name, m.desc])
-		if colony.phase == "day" or colony.phase == "night":
-			var rw := ColonyData.night_reward(colony.day)
-			var chest := "  + baú" if colony.day % ColonyData.BOSS_EVERY == 0 else ""
-			lines.append("[color=#a39d8c]Vencer a noite %d: +%d ouro, +%d XP%s[/color]" % [colony.day, rw.gold, rw.xp, chest])
+	if colony.phase == "day" or colony.phase == "night":
+		# a recompensa vai para o personagem (o caixa da cidade some no fim da partida)
+		var rw := ColonyData.night_reward(colony.day)
+		var chest := "  + baú" if colony.day % ColonyData.BOSS_EVERY == 0 else ""
+		lines.append("[color=#a39d8c]Vencer a noite %d: +%d ouro, +%d XP%s (personagem)[/color]" % [colony.day, rw.gold, rw.xp, chest])
 	var s := "\n".join(lines)
 	if s != _last_status:
 		_last_status = s
@@ -248,12 +350,13 @@ func _update_build() -> void:
 		c.panel.visible = no_hall if kind == "town_hall" else not no_hall
 		var sel: bool = build.selected == kind
 		c.panel.add_theme_stylebox_override("panel", _style_on if sel else _style_off)
-		var price := colony.cost_of(kind) if kind != "demolish" else 0
-		var afford: bool = colony.get_gold() >= price
-		if kind != "demolish" and kind != "town_hall" and int(c.price) != price:
-			c.price = price
-			c.cost.text = "%d ouro" % price
-		c.cost.add_theme_color_override("font_color", UITheme.GOLD if afford else UITheme.BAD)
+		var price: Dictionary = colony.cost_of(kind) if kind != "demolish" else {}
+		var afford: bool = colony.missing(price) == ""
+		if kind != "demolish":
+			var shown := _cost_bbcode(price)
+			if shown != c.shown:
+				c.shown = shown
+				c.cost.text = shown
 		c.name.add_theme_color_override("font_color", UITheme.TEXT if afford or sel else UITheme.DIM)
 	var sz := build_panel.get_combined_minimum_size()
 	build_panel.offset_left = -sz.x / 2.0
@@ -261,10 +364,24 @@ func _update_build() -> void:
 	build_panel.offset_top = -sz.y - 170.0
 	build_panel.offset_bottom = -170.0
 	if build.selected == "demolish":
-		info_label.text = "Demolir: devolve 50% do ouro gasto. A prefeitura não pode ser demolida."
+		info_label.text = "Demolir: devolve 50% de cada recurso gasto. A prefeitura não pode ser demolida."
 	else:
 		info_label.text = _describe(build.selected)
 	reason_label.text = build.reason
+
+
+## Custo em BBCode, centralizado: cada recurso na sua cor, em vermelho o que falta no estoque.
+func _cost_bbcode(price: Dictionary) -> String:
+	if price.is_empty():
+		return "[center][color=#%s]grátis[/color][/center]" % UITheme.GOLD.to_html(false)
+	var parts: Array[String] = []
+	for r in ColonyData.RESOURCES:
+		var n := int(price.get(r, 0))
+		if n <= 0:
+			continue
+		var c := UITheme.GOLD if colony.amount(r) >= n else UITheme.BAD
+		parts.append("[color=#%s]%d\u00a0%s[/color]" % [c.to_html(false), n, ColonyData.RES_SHORT[r]])
+	return "[center]%s[/center]" % " ".join(parts)
 
 
 func _describe(kind: String) -> String:

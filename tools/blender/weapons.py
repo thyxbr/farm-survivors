@@ -218,7 +218,7 @@ def torus(name, c, R, r, material, seg=16, sides=8, color=None):
     return paint(ob, color) if color else ob
 
 
-def lathe(name, prof, material, seg=10, x=0.0, phase=0.0, color=None, smooth=True):
+def w_lathe(name, prof, material, seg=10, x=0.0, phase=0.0, color=None, smooth=True):
     """Sólido de revolução em torno do eixo Z (em x, y=0). prof [(z, r)] ou [(z, r, x)] (centro por linha);
     r=0 fecha num polo."""
     bm = bmesh.new()
@@ -312,7 +312,7 @@ def build_traced(sid):
         else:
             prof = [((gy - y) * S, r * S, (cx - gx) * S) for y, cx, r in p["prof"]]
             prof = [(prof[0][0], 0.0, prof[0][2])] + prof + [(prof[-1][0], 0.0, prof[-1][2])]
-            ob = lathe(p["name"], prof, m, seg=p.get("seg", 8))
+            ob = w_lathe(p["name"], prof, m, seg=p.get("seg", 8))
         project_uv(ob, uvf)
     finish(sid, *tip)
 
@@ -434,10 +434,10 @@ def build_w_rose_flame():
         prof += [(z0 + h * 0.3, rmax), (z0 + h * 0.7, rmax), (z0 + h, rmin)]
     prof.append((gz[1], 0.0))
     groove = lambda c: (math.hypot(c.x, c.y) - rmin) / (rmax - rmin)
-    lathe("Grip", prof, vm, seg=10, color=lambda c, n, i: mix(srgb("#3e1644"), _lit(
+    w_lathe("Grip", prof, vm, seg=10, color=lambda c, n, i: mix(srgb("#3e1644"), _lit(
         srgb("#4e1c50"), srgb("#b0559a"), srgb("#843a78"))(c, n, i), 0.5 + 0.5 * groove(c)))
     pz = [_px(0, y)[1] for y in (464, 448, 438)]
-    lathe("Pommel", [(pz[0], 0.0), (pz[1], 14 * ROSE_S), (pz[2], 9 * ROSE_S), (pz[2], 0.0)], vm, seg=4,
+    w_lathe("Pommel", [(pz[0], 0.0), (pz[1], 14 * ROSE_S), (pz[2], 9 * ROSE_S), (pz[2], 0.0)], vm, seg=4,
           smooth=False,
           color=lambda c, n, i: mix(_lit(srgb("#4f5c78"), srgb("#eef2f8"), srgb("#a2adc4"))(c, n, i),
                                     srgb("#3d9ccc"), max(0.0, (c.z - pz[1]) / (pz[2] - pz[1])) * 0.55))

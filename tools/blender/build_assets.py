@@ -103,12 +103,14 @@ def export(fname, **extra):
     kw = {"scene": scn, "view_layer": vl}
     if len(wins) > 0:
         kw["window"] = wins[0]
+    # extra sobrescreve os padrões (ex.: export_animations=True para o ferreiro com esqueleto)
+    opts = dict(filepath=OUT + fname + ".glb", export_format='GLB', use_selection=True, export_apply=True,
+                export_yup=True, export_animations=False, export_cameras=False, export_lights=False)
+    opts.update(extra)
     with bpy.context.temp_override(**kw):
         for o in scn.objects:
             o.select_set(True, view_layer=vl)
-        bpy.ops.export_scene.gltf(filepath=OUT + fname + ".glb", export_format='GLB', use_selection=True,
-                                  export_apply=True, export_yup=True, export_animations=False,
-                                  export_cameras=False, export_lights=False, **extra)
+        bpy.ops.export_scene.gltf(**opts)
     exported.append(fname)
     clear()
 
@@ -154,24 +156,7 @@ def build_slime():
 
 # ================= ALDEÕES =================
 # ================= CENÁRIO =================
-def build_tree_pine():
-    bark = mat("m_bark", (0.28, 0.17, 0.08), 0.95)
-    part("Trunk", "cyl", (0, 0, 0.75), (0.38, 0.38, 1.5), bark, seg=6)
-    part("Leaves1", "cone", (0, 0, 2.0), (2.6, 2.6, 2.0), pine, seg=7)
-    part("Leaves2", "cone", (0, 0, 3.05), (2.0, 2.0, 1.8), pine, seg=7)
-    part("Leaves3", "cone", (0, 0, 4.0), (1.3, 1.3, 1.6), pine, seg=7)
-    export("tree_pine")
-
-
-def build_tree_oak():
-    bark = mat("m_bark", (0.28, 0.17, 0.08), 0.95)
-    part("Trunk", "cyl", (0, 0, 1.0), (0.5, 0.5, 2.0), bark, r2=0.35, seg=6)
-    part("Branch", "cyl", (0.35, 0, 1.9), (0.18, 0.18, 0.9), bark, rot=(0, 0.7, 0), seg=5)
-    part("Crown1", "ico", (0, 0, 3.0), (3.0, 3.0, 2.5), leaf, jitter=0.12, seed=3)
-    part("Crown2", "ico", (0.9, 0.4, 2.6), (1.9, 1.9, 1.6), leaf, jitter=0.1, seed=5)
-    part("Crown3", "ico", (-0.8, -0.5, 2.7), (2.0, 2.0, 1.7), leaf, jitter=0.1, seed=7)
-    export("tree_oak")
-
+# Árvores e flores: tools/blender/trees.py
 
 
 def hull(name, verts, material):
@@ -346,18 +331,24 @@ def build_house():
 
 exec(open(OUT.replace("assets/models/", "tools/blender/characters.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/props.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/buildings.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/trees.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/weapons.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/gear.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/body_mesh.py"), encoding="utf-8").read(), globals())
 
 # ASSETS="knight,elder" no ambiente gera só esses (útil para iterar).
 import os
 _only = [a for a in os.environ.get("ASSETS", "").split(",") if a]
 BUILDERS = {
     "knight": build_knight, "goblin": build_goblin, "slime": build_slime, "elder": build_elder,
-    "merchant": build_merchant, "tree_pine": build_tree_pine, "tree_oak": build_tree_oak,
-    "house": build_house,
+    "merchant": build_merchant, "house": build_house, "body_base": build_body_base,
+    "blacksmith": build_blacksmith,
 }
 BUILDERS.update(PROP_BUILDERS)
+if "buildings" in _only:   # ASSETS=buildings gera todas as construções da Defesa da Cidade (b_<tipo>_<nível>)
+    _only += [n for n in PROP_BUILDERS if n.startswith("b_")]
+BUILDERS.update(TREE_BUILDERS)   # árvores e flores (trees.py)
 BUILDERS.update(dict(WEAPONS))   # w_<id>: espadas (weapons.py); ASSETS=weapons gera todas
 if "weapons" in _only:
     _only += [n for n, _ in WEAPONS]

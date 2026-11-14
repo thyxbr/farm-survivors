@@ -1047,6 +1047,62 @@ def build_fern():
     export("fern")
 
 
+# ======================================================== BIGORNA
+def build_anvil():
+    # Bigorna de aço sobre tora; chifre para a frente (-Y). Topo da face em Z=0,8: o golpe do
+    # ferreiro (work_hammer) mira o empty StrikePoint ali.
+    bag = Bag()
+    a = bag.add
+    top = 0.8
+    a(beam("Stump", (0, 0, 0), (0, 0, 0.46), 0.3, p_wood, seg=9, r2=0.27, end_mat=p_wood_end))
+    a(bx("Foot", (0, 0.02, 0.5), (0.34, 0.46, 0.08), p_iron, bev=0.012))
+    a(bx("Waist", (0, 0.02, 0.59), (0.2, 0.3, 0.15), p_iron, bev=0.012))   # 0,515..0,665: encosta no pé e no corpo
+    a(bx("Body", (0, 0.04, top - 0.09), (0.28, 0.62, 0.1), p_iron, bev=0.012))
+    a(bx("Face", (0, 0.04, top - 0.02), (0.3, 0.62, 0.04), p_iron_lt, bev=0.008))
+    # chifre cônico para a frente e cauda curta atrás
+    a(hull("Horn", [(sx * 0.12, -0.27, top - 0.04) for sx in (-1, 1)] + [(sx * 0.12, -0.27, top - 0.14) for sx in (-1, 1)]
+           + [(0, -0.62, top - 0.08)], p_iron_lt))
+    a(bx("Tail", (0, 0.4, top - 0.06), (0.22, 0.14, 0.08), p_iron, bev=0.01))
+    a(bx("Hardy", (0, 0.3, top + 0.005), (0.04, 0.04, 0.01), p_iron, bev=0.003))
+    join(bag.items, "Anvil")
+    empty("StrikePoint", (0, 0.04, top))
+    export("anvil")
+
+
+# ======================================================== FORJA
+def build_forge():
+    # Forja baixa de pedra (0,9 x 0,8 x 0,7 m), brasas ao centro e fole de couro ao lado (+X).
+    # Frente = -Y. O empty Embers marca o meio das brasas (luz/partículas).
+    bag = Bag()
+    a = bag.add
+    rnd = random.Random(12)
+    a(bx("Plinth", (0, 0, 0.06), (0.95, 0.85, 0.12), p_stone_dk, bev=0.03))
+    a(bx("Back", (0, 0.32, 0.45), (0.9, 0.2, 0.7), p_stone, bev=0.03))
+    a(bx("SideL", (-0.4, -0.05, 0.36), (0.18, 0.7, 0.48), p_stone_lt, bev=0.03))
+    a(bx("SideR", (0.4, -0.05, 0.36), (0.18, 0.7, 0.48), p_stone, bev=0.03))
+    a(bx("Front", (0, -0.36, 0.32), (0.62, 0.14, 0.4), p_stone_lt, bev=0.03))
+    a(bx("Hearth", (0, -0.05, 0.5), (0.62, 0.55, 0.06), p_ash, bev=0.01))
+    for i in range(5):   # pedras irregulares na borda
+        a(boulder(bag.nm("Rock"), (-0.4 + i * 0.2, -0.38, 0.58), (0.16, 0.12, 0.1), (p_stone, p_stone_lt)[i % 2],
+                  n=9, seed=90 + i))
+    a(bx("Hood", (0, 0.3, 1.05), (0.46, 0.22, 0.7), p_stone, bev=0.03, taper=(0.7, 0.7)))   # chaminé afunilada
+    for i in range(8):   # brasas e carvão
+        a(boulder(bag.nm("Ember"), (rnd.uniform(-0.2, 0.2), rnd.uniform(-0.18, 0.1), 0.56),
+                  (0.11, 0.1, 0.07), p_ember if i % 3 else p_fire, n=8, seed=100 + i))
+    a(boulder("Coal", (0.0, -0.05, 0.55), (0.3, 0.26, 0.08), p_ash, n=10, seed=120))
+    # fole: duas tábuas, couro dobrado em losango, bico de ferro virado para a forja
+    a(bx("BellowsBase", (0.78, -0.02, 0.22), (0.34, 0.5, 0.05), p_wood_dk, bev=0.008))
+    a(bx("BellowsTop", (0.78, -0.02, 0.5), (0.3, 0.46, 0.05), p_wood, bev=0.008, rot=(0.08, 0, 0)))
+    a(hull("BellowsLeather", [(0.78 + sx * 0.15, -0.02 + sy * 0.23, 0.245) for sx in (-1, 1) for sy in (-1, 1)]
+           + [(0.78 + sx * 0.12, -0.02 + sy * 0.2, 0.475) for sx in (-1, 1) for sy in (-1, 1)]
+           + [(0.78 + sx * 0.2, -0.02, 0.36) for sx in (-1, 1)], leather))
+    a(beam("Nozzle", (0.7, -0.02, 0.34), (0.5, -0.02, 0.5), 0.03, p_iron, seg=5, r2=0.02))
+    a(beam("Handle", (0.78, 0.22, 0.52), (0.78, 0.42, 0.7), 0.02, p_iron, seg=5))
+    join(bag.items, "Forge")
+    empty("Embers", (0, -0.05, 0.62))
+    export("forge")
+
+
 PROP_BUILDERS = {
     "chest": build_chest, "fence": build_fence, "crate": build_crate, "barrel": build_barrel,
     "lamp": build_lamp, "campfire": build_campfire, "tent": build_tent, "well": build_well, "rock": build_rock,
@@ -1054,5 +1110,6 @@ PROP_BUILDERS = {
     "crop_carrot": build_crop_carrot, "crop_wheat": build_crop_wheat, "crop_tomato": build_crop_tomato,
     "crop_pepper": build_crop_pepper, "crop_mint": build_crop_mint, "crop_pumpkin": build_crop_pumpkin,
     "field_crop": build_field_crop,
+    "anvil": build_anvil, "forge": build_forge,
     "bush": build_bush, "bush_berry": build_bush_berry, "fern": build_fern,
 }

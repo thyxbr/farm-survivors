@@ -1,0 +1,56 @@
+{
+	"carrot": {
+		"name": "Cenoura",
+		"seed": "seed_carrot",
+		"time": 40.0,
+		"yield": [2, 3],
+		"color": {
+			"$c": [1.0, 0.5, 0.1, 1.0]
+		}
+	},
+	"wheat": {
+		"name": "Trigo",
+		"seed": "seed_wheat",
+		"time": 50.0,
+		"yield": [3, 4],
+		"color": {
+			"$c": [0.95, 0.8, 0.3, 1.0]
+		}
+	},
+	"tomato": {
+		"name": "Tomate",
+		"seed": "seed_tomato",
+		"time": 65.0,
+		"yield": [2, 4],
+		"color": {
+			"$c": [0.9, 0.12, 0.08, 1.0]
+		}
+	},
+	"pepper": {
+		"name": "Pimenta-de-Fogo",
+		"seed": "seed_pepper",
+		"time": 80.0,
+		"yield": [2, 3],
+		"color": {
+			"$c": [1.0, 0.22, 0.04, 1.0]
+		}
+	},
+	"mint": {
+		"name": "Menta Gélida",
+		"seed": "seed_mint",
+		"time": 80.0,
+		"yield": [2, 3],
+		"color": {
+			"$c": [0.45, 0.95, 1.0, 1.0]
+		}
+	},
+	"pumpkin": {
+		"name": "Abóbora",
+		"seed": "seed_pumpkin",
+		"time": 110.0,
+		"yield": [1, 2],
+		"color": {
+			"$c": [1.0, 0.52, 0.08, 1.0]
+		}
+	}
+}

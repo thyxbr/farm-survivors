@@ -4,8 +4,11 @@ extends Node3D
 ## ciclo dia/noite, ondas de monstros, caça e as regras de onde se pode construir.
 ## É o pai das construções, dos soldados, dos animais e dos monstros.
 ##
-## role = "solo"   — um jogador (o cofre é o ouro do personagem do modo, Game.gold);
-##        "server" — cidade cooperativa no servidor dedicado: simula tudo, o cofre é `gold` (compartilhado)
+## O ouro da cidade é o caixa da partida (`treasury`), separado do ouro do personagem, e some no fim.
+## O personagem só ganha as recompensas por noite (e o XP dos abates): no solo pelo Econ, em grupo pelo servidor.
+##
+## role = "solo"   — um jogador (o caixa vai no save da cidade);
+##        "server" — cidade cooperativa no servidor dedicado: simula tudo, o caixa é de todos
 ##                   e avisa o Lobby de cada mudança para os clientes;
 ##        "client" — réplica no PC de cada jogador: mostra o que o servidor manda e pede as ações a ele.
 
@@ -15,6 +18,7 @@ const BUILDING := preload("res://scripts/colony/building.gd")
 const SOLDIER := preload("res://scripts/colony/soldier.gd")
 const ANIMAL := preload("res://scripts/colony/animal.gd")
 const ENEMY := preload("res://scripts/enemies/enemy.gd")
+const EVENTS := preload("res://scripts/colony/day_events.gd")
 
 const DIR_NAMES := ["Norte", "Nordeste", "Leste", "Sudeste", "Sul", "Sudoeste", "Oeste", "Noroeste"]
 
@@ -24,7 +28,13 @@ var day := 1
 var phase := "setup"          # setup (sem prefeitura) | day | night | over
 var phase_t := 0.0            # dia: segundos restantes · noite: segundos passados
 var food := 0
-var citizens := 0
+var citizens := 0   # aldeões (livres + ocupados)
+var train_queue := 0   # aldeões na fila de treino da prefeitura
+var train_t := 0.0     # progresso do aldeão que está sendo treinado (s)
+## Pesquisas compradas (id de ColonyData.TECHS -> true).
+var techs := {}
+## Ação em andamento por construção: net_id -> [ação, segundos já feitos]; ação = "era" ou o id da pesquisa.
+var busy_t := {}
 var tax_level := 1
 var army_mode := "guard"      # guard (defende o ponto de reunião) | follow (acompanha o jogador)
 var rally := Vector3.ZERO
@@ -36,14 +46,33 @@ var wave_total := 0
 var wave_queue: Array = []
 var wave_dirs: Array = []     # índices de DIR_NAMES
 var last_report := {}
+var night_ammo := {}           # recurso -> unidades de munição gastas na noite (vai para o last_report)
+var _ammo_acc := {}            # recurso -> disparos que ainda restam na unidade já tirada do estoque (fração)
+var _ammo_warned := {}         # recurso -> já avisou que acabou nesta noite
 ## Obstáculos do mapa (árvores e pedras): [Vector2 centro, raio]. Preenchido pelo mundo.
 var obstacles: Array = []
+## Nós de recurso do mapa (árvores, pedras, veios, cristais, arbustos); a cena da cidade cria e liga.
+var nature: ColonyNature
+var dens: Array[ColonyDen] = []   # covis do mapa (ColonyNature gera da semente); o índice é o id
+var events: ColonyEvents          # evento aleatório do dia (caravana, meteoro...)
 var day_length := ColonyData.DAY_LENGTH
 var first_day_bonus := ColonyData.FIRST_DAY_BONUS
 
 # ---- cooperativo
-## Cofre compartilhado (no solo o cofre é Game.gold).
-var gold := 0
+## Caixa da partida (ouro da cidade): solo começa com START_GOLD; em grupo, compartilhado.
+var treasury := 0
+## Estoque de madeira, pedra, ferro e cristal (ouro fica em `treasury`/get_gold() e comida em `food`).
+var res := {"wood": 0, "stone": 0, "iron": 0, "crystal": 0}
+## Solo: o que o personagem já ganhou nesta partida (recompensas por noite e covis) e o `run_id` do registro
+## da partida (Econ.run_start) — viram o fim da partida no registro (Econ.run_finish, que concede os Ecos).
+## Vai no save da cidade.
+var run_rewards := {"gold": 0, "xp": 0, "items": []}
+## Bônus da base compartilhada fixados no começo da partida (BaseRules.bonus: city_gold, city_food,
+## hall_hp...). Vai no save: a cidade carregada mantém o bônus com que começou.
+var base_bonus := {}
+## Solo: XP dos abates ainda não concedido (cerco à noite e, de dia, guardas de covil e monstros de evento):
+## vai ao personagem no próximo amanhecer depois de uma noite (na derrota, no resumo). Vai no save da cidade.
+var siege_xp := 0
 ## Jogadores na cidade (escala as ondas).
 var team_size := 1
 ## Noite especial em curso e a anunciada para a próxima noite (chaves de ColonyData.NIGHT_MODS).
@@ -69,33 +98,62 @@ var _spawn_acc := 0.0
 var _spawn_i := 0
 var _warned := false
 var _animal_t := 0.0
+var _gather_t := 0.0               # segundos até a próxima entrega da serraria/pedreira
+var _gather_acc := {}              # construção -> unidades produzidas e ainda não entregues (fração)
+var _gather_made := {}             # construção -> unidades já entregues desde o último nó esgotado
 var _core_warn := 0.0
+var _den_t := 0.0                  # segundos até a próxima conferida dos covis (jogador perto?)
 var _dawn_pending := false
 var _flag: Node3D
 
 
-func new_colony() -> void:
+func _ready() -> void:
+	events = EVENTS.new()
+	events.name = "Events"
+	events.colony = self
+	add_child(events)
+
+
+## Cidade solo nova. `bonus`: bônus da base (Hub.base_bonus()) — Muralha soma ouro ao caixa, Celeiro
+## soma comida, e a prefeitura ganha vida (ColonyBuilding._apply_level).
+func new_colony(bonus := {}) -> void:
 	day = 1
 	phase = "setup"
 	phase_t = 0.0
-	food = ColonyData.START_FOOD
+	base_bonus = bonus.duplicate()
+	food = ColonyData.START_FOOD + _bonus_int("city_food")
 	citizens = ColonyData.START_CITIZENS
 	tax_level = 1
-	Game.gold = ColonyData.START_GOLD
+	_reset_res(0)
+	treasury = ColonyData.START_GOLD + _bonus_int("city_gold")
+	run_rewards = {"gold": 0, "xp": 0, "items": []}
+	siege_xp = 0
 	Game.stats_changed.emit()
 
 
 ## Servidor: cidade cooperativa nova para `players` jogadores.
-func new_coop(players: int) -> void:
+## `bonus`: bônus da base do servidor no começo da partida (como em new_colony).
+func new_coop(players: int, bonus := {}) -> void:
 	day = 1
 	phase = "setup"
 	phase_t = 0.0
+	base_bonus = bonus.duplicate()
 	team_size = maxi(1, players)
-	food = ColonyData.COOP_START_FOOD
+	food = ColonyData.COOP_START_FOOD + _bonus_int("city_food")
 	citizens = ColonyData.COOP_START_CITIZENS
 	tax_level = 1
-	gold = ColonyData.COOP_START_GOLD + ColonyData.COOP_GOLD_PER_PLAYER * (team_size - 1)
+	_reset_res(ColonyData.COOP_WOOD_PER_PLAYER * (team_size - 1))
+	treasury = ColonyData.COOP_START_GOLD + ColonyData.COOP_GOLD_PER_PLAYER * (team_size - 1) + _bonus_int("city_gold")
 	_dirty()
+
+
+func _bonus_int(key: String) -> int:
+	return maxi(0, int(round(float(base_bonus.get(key, 0)))))
+
+
+## Multiplicador da vida da prefeitura pelo bônus da base (Muralha).
+func hall_hp_mult() -> float:
+	return 1.0 + maxf(0.0, float(base_bonus.get("hall_hp", 0.0)))
 
 
 func is_coop() -> bool:
@@ -104,23 +162,131 @@ func is_coop() -> bool:
 
 # ================================================================ cofre e mensagens
 func get_gold() -> int:
-	return Game.gold if role == "solo" else gold
+	return treasury
 
 
 func _pay(n: int) -> void:
+	treasury -= n
+	_gold_changed()
+
+
+## Estoque inicial (ou o de um save antigo): START_RES e `extra_wood` de madeira.
+func _reset_res(extra_wood: int) -> void:
+	res = {"wood": 0, "stone": 0, "iron": 0, "crystal": 0}
+	for r in ColonyData.START_RES:
+		res[r] = int(ColonyData.START_RES[r])
+	res["wood"] = int(res.wood) + extra_wood
+
+
+## Quanto há de um recurso no estoque da cidade.
+func amount(r: String) -> int:
+	match r:
+		"gold":
+			return get_gold()
+		"food":
+			return food
+	return int(res.get(r, 0))
+
+
+## "" se o estoque cobre o custo; senão o que falta, ex.: "Faltam 20 de Pedra."
+func missing(c: Dictionary) -> String:
+	var parts: Array[String] = []
+	for r in ColonyData.RESOURCES:
+		var need := int(c.get(r, 0))
+		if need > amount(r):
+			parts.append("%d de %s" % [need - amount(r), ColonyData.RES_NAMES[r]])
+	return "" if parts.is_empty() else "Faltam %s." % ", ".join(parts)
+
+
+## Confere e paga o custo de uma vez (tudo ou nada). Falso, sem tirar nada, se faltar algo.
+func pay(c: Dictionary) -> bool:
+	if missing(c) != "":
+		return false
+	for r in ColonyData.RESOURCES:
+		var n := int(c.get(r, 0))
+		if n <= 0:
+			continue
+		match r:
+			"gold":
+				_pay(n)
+			"food":
+				food -= n
+			_:
+				res[r] = int(res.get(r, 0)) - n
+	_res_changed()
+	return true
+
+
+## Soma ao estoque. Com `at`, mostra o número flutuante naquele ponto.
+func gain(c: Dictionary, at := Vector3.INF) -> void:
+	var shown := 0
+	for r in ColonyData.RESOURCES:
+		var n := int(c.get(r, 0))
+		if n <= 0:
+			continue
+		match r:
+			"gold":
+				earn(n)
+			"food":
+				food += n
+			_:
+				res[r] = int(res.get(r, 0)) + n
+		if at != Vector3.INF and DisplayServer.get_name() != "headless":
+			FX.damage_number(at + Vector3.UP * 0.7 * shown, "+%d %s" % [n, ColonyData.RES_NAMES[r]], UITheme.GOLD, 40)
+			shown += 1
+	_res_changed()
+
+
+func _res_changed() -> void:
 	if role == "solo":
-		Game.gold -= n
 		Game.stats_changed.emit()
 	else:
-		gold -= n
 		_dirty()
 
 
 func earn(n: int) -> void:
+	treasury += n
+	_gold_changed()
+
+
+## Solo: XP de um abate na cidade (Enemy._die), guardado até o amanhecer depois de uma noite.
+func add_siege_xp(n: int) -> void:
+	siege_xp += maxi(0, n)
+
+
+## Solo: concede ao personagem o XP dos abates guardado (fim da partida no meio da noite).
+func flush_siege_xp() -> void:
+	if role != "solo" or siege_xp <= 0:
+		return
+	if Econ.grant(0, siege_xp, {}, "city_night", true):
+		run_rewards.xp = int(run_rewards.xp) + siege_xp
+	siege_xp = 0
+
+
+## Solo: prêmio de um covil limpo para o personagem (serviço local, Econ.grant com a origem da partida,
+## que entra no resumo do fim). true se concedeu.
+func solo_den_reward(gold_n: int, xp: int) -> bool:
+	if role != "solo":
+		return false
+	if not Econ.grant(gold_n, xp, {}, "city_night", true):
+		return false
+	run_rewards.gold = int(run_rewards.gold) + gold_n
+	run_rewards.xp = int(run_rewards.xp) + xp
+	return true
+
+
+## Os curandeiros cobram do caixa da cidade quando o jogador renasce (solo). Devolve o valor cobrado.
+func healer_fee(ratio: float) -> int:
+	var fee := maxi(0, int(treasury * ratio))
+	if fee > 0:
+		_pay(fee)
+	return fee
+
+
+func _gold_changed() -> void:
 	if role == "solo":
-		Game.add_gold(n)
+		Game.stats_changed.emit()   # a HUD da cidade relê o caixa
 	else:
-		gold += n
 		_dirty()
 
 
@@ -146,6 +312,38 @@ func _actor_name() -> String:
 	if actor != 0 and Network.players.has(actor):
 		return str(Network.players[actor].name)
 	return "Alguém"
+
+
+# ================================================================ coleta
+## Servidor/solo: um golpe num nó de recurso. Cada golpe entrega um pedaço do total (o último leva o
+## resto, para a soma fechar) e o último golpe esgota o nó.
+func harvest(id: int, at: Vector3) -> void:
+	if role == "client" or nature == null:
+		return
+	var n := nature.node(id)
+	if n == null or not n.alive:
+		return
+	var d: Dictionary = ColonyData.NODES[n.kind]
+	var hits := int(d.hits)
+	var done := hits - n.hits_left   # golpes já dados
+	var piece := n.total * (done + 1) / hits - n.total * done / hits
+	if d.res in ["wood", "stone"]:   # Machado Afiado, Serra Dupla e Picareta valem também para o jogador
+		piece = int(round(piece * _gather_mult(d.res)))
+	n.hits_left -= 1
+	if piece > 0:
+		gain({str(d.res): piece}, n.global_position.lerp(at, 0.3) + Vector3.UP * 2.2)
+	if n.hits_left <= 0:
+		nature.deplete(id, day)
+		if events != null:
+			events.check_meteor()
+
+
+## Há construção cobrindo o círculo (centro p no plano XZ, raio r)?
+func building_at(p: Vector2, r: float) -> bool:
+	for b in buildings():
+		if _circle_hits(_rect(Vector2(b.global_position.x, b.global_position.z), b.rotation.y, b.size), p, r):
+			return true
+	return false
 
 
 # ================================================================ consultas
@@ -221,6 +419,85 @@ func follow_target() -> Player:
 	return get_tree().get_first_node_in_group("player") as Player
 
 
+## Aldeões ocupados pelas construções vivas (`crew`).
+func busy() -> int:
+	var n := 0
+	for b in buildings():
+		n += crew_for(b.kind)
+	return n
+
+
+## Aldeões que uma construção do tipo ocupa (a era III põe +1 nas serrarias e pedreiras).
+func crew_for(kind: String) -> int:
+	var n := int(ColonyData.BUILDINGS.get(kind, {}).get("crew", 0))
+	if era() >= 3:
+		n += int(ColonyData.ERA3_CREW.get(kind, 0))
+	return n
+
+
+func free_villagers() -> int:
+	return maxi(0, citizens - busy())
+
+
+## Fração das vagas ocupadas por aldeões (1 = todas cheias). Com fome ou deserção cai e a produção cai junto.
+func staffing() -> float:
+	var n := busy()
+	return 1.0 if n == 0 else clampf(float(citizens) / n, 0.0, 1.0)
+
+
+## Eficiência de uma construção: hoje todas dividem a falta de aldeões por igual.
+func crew_eff(_b: ColonyBuilding) -> float:
+	return staffing()
+
+
+## Põe um aldeão na fila de treino (comida na hora, vaga numa moradia). "" = entrou na fila.
+func train_villager() -> String:
+	if phase == "over":
+		return "A cidade caiu."
+	if hall == null or not is_instance_valid(hall) or hall.dead:
+		return "Construa a prefeitura primeiro."
+	if citizens + train_queue >= pop_cap():
+		return "Sem moradia livre. Construa casas."
+	var lack := missing(villager_cost())
+	if lack != "":
+		return lack
+	if role == "client":
+		Lobby.city_request("train", [])
+		return ""
+	pay(villager_cost())
+	train_queue += 1
+	_dirty()
+	return ""
+
+
+func _train_tick(delta: float) -> void:
+	if train_queue <= 0 or _hall_advancing():   # avançando de era, a prefeitura não treina (pesquisa não pausa)
+		return
+	train_t += delta
+	if train_t < ColonyData.VILLAGER_TIME:
+		return
+	train_t = 0.0
+	train_queue -= 1
+	if citizens < pop_cap():
+		citizens += 1
+		say("Um aldeão terminou o treino.", Color(0.8, 1.0, 0.6))
+	else:   # a moradia caiu enquanto treinava: devolve a comida (o menor preço, para trocar o imposto não dar lucro)
+		gain(ColonyData.villager_cost(0))
+		say("Sem moradia: o treino foi cancelado e a comida devolvida.", Color(1, 0.75, 0.5))
+	Game.stats_changed.emit()
+	_dirty()
+
+
+## Comida para treinar um aldeão agora (depende do imposto).
+func villager_cost() -> Dictionary:
+	return ColonyData.villager_cost(tax_level)
+
+
+## A prefeitura está avançando de era (não basta estar ocupada: Alvenaria e Muralha também são feitas nela).
+func _hall_advancing() -> bool:
+	return hall != null and busy_t.has(hall.net_id) and busy_t[hall.net_id][0] == "era"
+
+
 func pop_cap() -> int:
 	var n := 0
 	for b in buildings():
@@ -265,12 +542,12 @@ func upkeep() -> int:
 
 
 ## Preço da próxima construção deste tipo (no cooperativo cresce a cada cópia).
-func cost_of(kind: String) -> int:
+func cost_of(kind: String) -> Dictionary:
 	if kind == "town_hall" or not ColonyData.BUILDINGS.has(kind):
-		return 0
+		return {}
 	if is_coop():
 		return ColonyData.coop_cost(kind, count_of(kind))
-	return int(ColonyData.BUILDINGS[kind].cost)
+	return ColonyData.BUILDINGS[kind].cost.duplicate()
 
 
 ## Alcance das torres nesta noite (Névoa Densa reduz).
@@ -300,18 +577,101 @@ func votes_needed() -> int:
 	return maxi(1, int(ceil(team_size / 2.0)))
 
 
+## Multiplicador de tecnologia dos disparos por unidade de munição ("wood"/"stone"/"crystal"): o inverso do consumo.
+func _ammo_mult(r: String) -> float:
+	return 1.0 / maxf(0.01, mult("ammo_" + r))
+
+
+## Servidor/solo: gasta a munição de um disparo de `who` (torre ou tropa à distância). Falso, sem tirar nada,
+## quando falta o recurso: quem atira segue atirando, só que na metade da cadência (NO_AMMO_RATE).
+## O cliente não simula disparos, então sempre devolve verdadeiro.
+func use_ammo(who: String) -> bool:
+	if role == "client" or not ColonyData.AMMO.has(who):
+		return true
+	var r: String = ColonyData.AMMO[who][0]
+	var shots := float(ColonyData.AMMO[who][1]) * _ammo_mult(r)
+	var left: float = _ammo_acc.get(r, 0.0)
+	if left < 1.0 - 0.000001:
+		if amount(r) < 1:
+			if phase == "night" and not _ammo_warned.has(r):
+				_ammo_warned[r] = true
+				say(ColonyData.AMMO_OUT_MSG[r], UITheme.BAD)
+			return false
+		res[r] = amount(r) - 1
+		if phase == "night":   # de dia o estoque também gasta, mas não entra no relatório da noite
+			night_ammo[r] = int(night_ammo.get(r, 0)) + 1
+		left += shots
+		_dirty()
+	_ammo_acc[r] = left - 1.0
+	return true
+
+
+## O estoque de munição está zerado durante a noite (o HUD pisca; vale para o cliente também).
+func ammo_out(r: String) -> bool:
+	return phase == "night" and amount(r) < 1
+
+
+## Multiplicador de tecnologia da produção de "wood"/"stone" (serraria, pedreira e coleta do jogador).
+func _gather_mult(r: String) -> float:
+	return mult(r)
+
+
+## Nós vivos que a serraria/pedreira `b` alcança.
+func _gather_live(b: ColonyBuilding) -> int:
+	return nature.alive_near(b.data.gather, b.global_position, float(b.data.reach)).size() if nature != null else 0
+
+
+## Servidor/solo, de dia: serraria e pedreira entregam o que produziram em `dt` segundos. Cada
+## NODE_YIELD_CAMP unidades esgotam o nó vivo mais próximo (mesmo caminho de esgotamento do jogador).
+func _gather_tick(dt: float) -> void:
+	if role == "client" or phase != "day" or nature == null:
+		return
+	for b in buildings():
+		if not b.data.has("gather") or b.dead:
+			continue
+		var res: String = ColonyData.NODES[b.data.gather].res
+		var live := _gather_live(b)
+		var acc := float(_gather_acc.get(b, 0.0)) + ColonyData.gather_rate(crew_eff(b), live, _gather_mult(res)) * crew_for(b.kind) * dt
+		var whole := int(acc)
+		_gather_acc[b] = acc - whole
+		if whole <= 0:
+			continue
+		gain({res: whole})
+		var made := int(_gather_made.get(b, 0)) + whole
+		while made >= ColonyData.NODE_YIELD_CAMP:
+			made -= ColonyData.NODE_YIELD_CAMP
+			var n := nature.nearest_to(b.data.gather, b.global_position, float(b.data.reach))
+			if n == null:
+				made = 0
+				break
+			nature.deplete(n.id, day)
+		_gather_made[b] = made
+	for d in [_gather_acc, _gather_made]:   # esquece as construções que caíram
+		for k in d.keys():
+			if not is_instance_valid(k) or k.dead:
+				d.erase(k)
+
+
+## Madeira e pedra por minuto que serrarias e pedreiras rendem agora (HUD e previsão).
+func gather_per_min() -> Dictionary:
+	var out := {"wood": 0.0, "stone": 0.0}
+	for b in buildings():
+		if b.data.has("gather") and not b.dead:
+			var res: String = ColonyData.NODES[b.data.gather].res
+			out[res] += ColonyData.gather_rate(crew_eff(b), _gather_live(b), _gather_mult(res)) * crew_for(b.kind) * 60.0
+	return out
+
+
 ## Previsão do próximo amanhecer (também usada no relatório).
 func forecast() -> Dictionary:
-	var workers := 0
 	var farm_food := 0.0
 	var market_gold := 0.0
 	var hall_gold := 0
 	var markets: Array[float] = []
 	for b in buildings():
-		workers += int(b.data.get("workers", 0))
 		match b.kind:
 			"farm":
-				farm_food += float(b.data.food) * ColonyData.level_mult(b.level, 0.5)
+				farm_food += float(b.data.food) * ColonyData.level_mult(b.level, 0.5) * mult("food")
 			"market":
 				markets.append(float(b.data.gold) * ColonyData.level_mult(b.level, 0.5))
 			"town_hall":
@@ -326,19 +686,205 @@ func forecast() -> Dictionary:
 		if is_coop() and i >= ColonyData.MARKET_FREE:
 			k = maxf(ColonyData.MARKET_MIN, 1.0 - ColonyData.MARKET_DECAY * (i - ColonyData.MARKET_FREE + 1))
 		market_gold += markets[i] * k
-	var eff := 1.0 if workers == 0 else clampf(float(citizens) / workers, 0.0, 1.0)
+	var eff := staffing()
 	var tax: int = citizens * ColonyData.TAX[tax_level]
 	var trade := int(round(market_gold * eff))
 	var sal := salaries()
 	var up := upkeep()
 	var food_in := int(round(farm_food * eff))
 	var food_out := citizens + soldier_count()
+	var gather := gather_per_min()
 	return {
 		"tax": tax, "trade": trade, "hall": hall_gold, "salaries": sal, "upkeep": up,
 		"gold_in": tax + trade + hall_gold, "gold_net": tax + trade + hall_gold - sal - up,
 		"food_in": food_in, "food_out": food_out, "food_net": food_in - food_out,
-		"workers": workers, "employed": mini(citizens, workers), "eff": eff,
+		"workers": busy(), "employed": mini(citizens, busy()), "eff": eff,
+		"wood_min": gather.wood, "stone_min": gather.stone,
 	}
+
+
+# ================================================================ eras e pesquisas
+## A era da cidade é o nível da prefeitura (1 = Aldeia, 2 = Vila, 3 = Cidade).
+func era() -> int:
+	return hall.level if hall != null and is_instance_valid(hall) and not hall.dead else 1
+
+
+func has_tech(t: String) -> bool:
+	return techs.has(t)
+
+
+## Produto dos efeitos `key` das pesquisas compradas (1.0 sem nenhuma).
+func mult(key: String) -> float:
+	var m := 1.0
+	for t in techs:
+		m *= float(ColonyData.TECHS[t].fx.get(key, 1.0))
+	return m
+
+
+## Soma dos efeitos aditivos `key` (ex.: "chain_add").
+func bonus(key: String) -> int:
+	var n := 0
+	for t in techs:
+		n += int(ColonyData.TECHS[t].fx.get(key, 0))
+	return n
+
+
+## Vida máxima extra das construções do tipo (Alvenaria; muros e portões também com a Muralha Reforçada).
+func bld_hp_mult(kind: String) -> float:
+	return mult("bld_hp") * (mult("wall_hp") if kind in ["wall", "gate"] else 1.0)
+
+
+## O que falta da lista de requisitos da era `e` ("" = nada), ex.: "Exige 1 Serraria, 1 Pedreira."
+func era_requirements(e: int) -> String:
+	var parts: Array[String] = []
+	var req: Dictionary = ColonyData.ERAS.get(e, {}).get("requires", {})
+	for k in req:
+		var need := int(req[k])
+		if k == "barracks_level":
+			if barracks_level() < need:
+				parts.append("1 Quartel nível %d" % need)
+		elif count_of(k) < need:
+			parts.append("%d %s" % [need, ColonyData.BUILDINGS[k].name])
+	return "" if parts.is_empty() else "Exige %s." % ", ".join(parts)
+
+
+## Avança para a próxima era: confere requisitos e custo, paga e começa ERA_TIME segundos de dia
+## na prefeitura (a prefeitura sobe de nível quando termina). "" = começou.
+func advance_era() -> String:
+	if phase == "over":
+		return "A cidade caiu."
+	if hall == null or not is_instance_valid(hall) or hall.dead:
+		return "Construa a prefeitura primeiro."
+	if era() >= ColonyData.MAX_LEVEL:
+		return "A cidade já está na última era."
+	if busy_t.has(hall.net_id):
+		return "A prefeitura já está avançando de era." if _hall_advancing() else "A prefeitura está ocupada com outra ação."
+	var req := era_requirements(era() + 1)
+	if req != "":
+		return req
+	if phase != "day":
+		return "Só dá para avançar de era de dia."
+	var cost := ColonyData.era_cost(era() + 1, team_size)
+	var lack := missing(cost)
+	if lack != "":
+		return lack
+	if role == "client":
+		Lobby.city_request("era", [])
+		return ""
+	if not pay(cost):
+		return missing(cost)
+	hall.invested = ColonyData.add_cost(hall.invested, cost)
+	busy_t[hall.net_id] = ["era", 0.0]
+	say("%s começou o avanço para a era %s." % [_actor_name() if role == "server" else "A cidade", ColonyData.ERAS[era() + 1].name], Color(1, 0.9, 0.5))
+	_dirty()
+	return ""
+
+
+## Construção do tipo `kind` livre para pesquisar (sem outra ação em andamento), ou null.
+func _free_building(kind: String) -> ColonyBuilding:
+	for b in buildings():
+		if b.kind == kind and not busy_t.has(b.net_id):
+			return b
+	return null
+
+
+## Por que a pesquisa `t` não pode começar agora ("" = pode). Também usado pela janela da construção.
+func tech_block(t: String) -> String:
+	var d: Dictionary = ColonyData.TECHS.get(t, {})
+	if d.is_empty():
+		return "Pesquisa desconhecida."
+	if techs.has(t):
+		return "Já pesquisada."
+	for k in busy_t:
+		if busy_t[k][0] == t:
+			return "Já está sendo pesquisada."
+	if era() < int(d.era):
+		return "Exige a era %s." % ColonyData.ERAS[int(d.era)].name
+	if count_of(d.at) == 0:
+		return "Construa um(a) %s." % ColonyData.BUILDINGS[d.at].name
+	if _free_building(d.at) == null:
+		return "%s já está ocupada com outra ação." % ColonyData.BUILDINGS[d.at].name
+	if phase != "day":
+		return "Só dá para pesquisar de dia."
+	return ""
+
+
+## Começa a pesquisa `t` numa construção do tipo dela (TECH_TIME segundos de dia). "" = começou.
+func research(t: String) -> String:
+	if phase == "over":
+		return "A cidade caiu."
+	var block := tech_block(t)
+	if block != "":
+		return block
+	var cost: Dictionary = ColonyData.TECHS[t].cost
+	var lack := missing(cost)
+	if lack != "":
+		return lack
+	if role == "client":
+		Lobby.city_request("tech", [t])
+		return ""
+	if not pay(cost):
+		return missing(cost)
+	busy_t[_free_building(ColonyData.TECHS[t].at).net_id] = [t, 0.0]
+	say("Pesquisa iniciada: %s." % ColonyData.TECHS[t].name, Color(0.7, 0.9, 1.0))
+	_dirty()
+	return ""
+
+
+## Servidor/solo, de dia: avança as ações em andamento e conclui as que terminaram.
+## Se a construção caiu ou foi demolida, a ação se perde (sem devolução).
+func _busy_tick(delta: float) -> void:
+	if busy_t.is_empty():
+		return
+	var live := {}
+	for b in buildings():
+		live[b.net_id] = b
+	for k in busy_t.keys():
+		var b: ColonyBuilding = live.get(k)
+		var act: String = busy_t[k][0]
+		if b == null:
+			busy_t.erase(k)
+			if act != "era":
+				say("Pesquisa perdida: %s (a construção caiu)." % ColonyData.TECHS[act].name, UITheme.BAD)
+			_dirty()
+			continue
+		var t := float(busy_t[k][1]) + delta
+		var total := ColonyData.ERA_TIME if act == "era" else ColonyData.TECH_TIME
+		if t < total:
+			busy_t[k][1] = t
+			continue
+		busy_t.erase(k)
+		_dirty()
+		if act == "era":
+			b.set_level(b.level + 1)
+			assign_posts.call_deferred()
+			say("A cidade avançou para a era %s!" % ColonyData.ERAS[b.level].name, Color(1, 0.85, 0.3))
+			Sfx.play("levelup", 0.05, -2.0)
+			if role == "server":
+				Lobby.city_building_changed(b)
+			Game.stats_changed.emit()
+		else:
+			_finish_tech(act)
+
+
+## Marca a pesquisa como comprada e aplica na hora o que depende dela (vida das construções e tropas).
+func _finish_tech(t: String) -> void:
+	techs[t] = true
+	_refresh_stats(role == "server")
+	say("Pesquisa concluída: %s (%s)." % [ColonyData.TECHS[t].name, ColonyData.TECHS[t].desc], Color(0.6, 1.0, 0.7))
+	Sfx.play("quest", 0.05, -4.0)
+	_dirty()
+
+
+## Recalcula a vida máxima das construções e tropas que já existem (a vida atual sobe junto).
+func _refresh_stats(send := false) -> void:
+	for b in buildings():
+		var old: float = b.max_hp
+		b.refresh_max_hp()
+		if send and not is_equal_approx(old, b.max_hp):
+			Lobby.city_building_changed(b)
+	for s in soldiers():
+		s.refresh_max_hp()
 
 
 # ================================================================ construção
@@ -357,11 +903,24 @@ func can_place(kind: String, pos: Vector3, rot: float, ignore_cost := false) -> 
 	else:
 		if hall == null or not is_instance_valid(hall) or hall.dead:
 			return "Construa a prefeitura primeiro."
-		if Vector2(pos.x - hall.global_position.x, pos.z - hall.global_position.z).length() > ColonyData.CITY_RADIUS:
+		var need_era := int(ColonyData.BUILD_ERA.get(kind, 1))
+		if era() < need_era:
+			return "Exige a era %s." % ColonyData.ERAS[need_era].name
+		if d.has("gather"):   # serraria e pedreira vão para perto do recurso, até max_dist do centro do mapa
+			if Vector2(pos.x, pos.z).length() > float(d.max_dist):
+				return "Longe demais da cidade (máximo %d m do centro)." % int(d.max_dist)
+			if nature == null or nature.alive_near(d.gather, pos, float(d.reach)).size() < int(d.min_nodes):
+				var what := "árvores" if d.gather == "tree" else "pedras"
+				return "Precisa de %d %s vivas num raio de %d m." % [int(d.min_nodes), what, int(d.reach)]
+		elif Vector2(pos.x - hall.global_position.x, pos.z - hall.global_position.z).length() > ColonyData.CITY_RADIUS:
 			return "Fora dos limites da cidade."
-		var cost := cost_of(kind)
-		if not ignore_cost and get_gold() < cost:
-			return "Ouro insuficiente (%d)." % cost
+		if not ignore_cost:
+			var lack := missing(cost_of(kind))
+			if lack != "":
+				return lack
+			var need := crew_for(kind) - free_villagers()
+			if need > 0:
+				return "Faltam %d aldeão livre." % need if need == 1 else "Faltam %d aldeões livres." % need
 	var lim := ColonyData.MAP_HALF - 10.0
 	if absf(pos.x) > lim or absf(pos.z) > lim:
 		return "Muito perto da borda do mapa."
@@ -392,6 +951,8 @@ func place(kind: String, pos: Vector3, rot: float, free := false, level := 1, hp
 		return null
 	var d := ColonyData.building(kind)
 	var cost := cost_of(kind)
+	if not free and not pay(cost):   # o servidor reconfere: dois jogadores podem gastar o mesmo cofre
+		return null
 	var b: ColonyBuilding = BUILDING.new()
 	b.kind = kind
 	b.level = level
@@ -399,11 +960,9 @@ func place(kind: String, pos: Vector3, rot: float, free := false, level := 1, hp
 	b.colony = self
 	b.position = Vector3(pos.x, 0.0, pos.z)
 	b.rotation.y = rot
-	if not free:
-		_pay(cost)
-	b.invested = cost if is_coop() else int(d.cost)
+	b.invested = cost if is_coop() else d.cost.duplicate()
+	b.net_id = _new_id()   # no solo também: busy_t usa o id
 	if role == "server":
-		b.net_id = _new_id()
 		bmap[b.net_id] = b
 	add_child(b)
 	b.destroyed.connect(_on_building_destroyed)
@@ -431,6 +990,14 @@ func place(kind: String, pos: Vector3, rot: float, free := false, level := 1, hp
 	return b
 
 
+## O que demolir devolve: REFUND de cada recurso investido, arredondado para baixo.
+func refund_of(b: ColonyBuilding) -> Dictionary:
+	var refund := {}
+	for r in b.invested:
+		refund[r] = int(int(b.invested[r]) * ColonyData.REFUND)
+	return refund
+
+
 func demolish(b: ColonyBuilding) -> void:
 	if role == "client":
 		if b and not b.dead:
@@ -443,9 +1010,9 @@ func demolish(b: ColonyBuilding) -> void:
 		if b and b.is_core:
 			say("A prefeitura não pode ser demolida.", UITheme.BAD)
 		return
-	var refund := int(b.invested * ColonyData.REFUND)
-	earn(refund)
-	say("%s demolida: +%d ouro." % [b.data.name, refund], Color(1, 0.85, 0.4))
+	var refund := refund_of(b)
+	gain(refund, b.global_position + Vector3.UP * 2.0)
+	say("%s demolida: +%s." % [b.data.name, ColonyData.cost_text(refund)], Color(1, 0.85, 0.4))
 	b.dead = true
 	b.remove_from_group("buildings")
 	b.remove_from_group("interactable")
@@ -459,23 +1026,29 @@ func demolish(b: ColonyBuilding) -> void:
 	_check_housing()
 
 
-func upgrade_cost(b: ColonyBuilding) -> int:
+func upgrade_cost(b: ColonyBuilding) -> Dictionary:
+	if b.kind == "town_hall":
+		return ColonyData.era_cost(b.level + 1, team_size)
 	return ColonyData.upgrade_cost(b.kind, b.level)
 
 
 func upgrade(b: ColonyBuilding) -> String:
+	if b.kind == "town_hall":
+		return advance_era()   # melhorar a prefeitura é avançar de era
 	if b.level >= ColonyData.MAX_LEVEL:
 		return "Já está no nível máximo."
-	if b.kind != "town_hall" and hall and b.level >= hall.level + 1:
-		return "Melhore a prefeitura primeiro (nível %d)." % (hall.level + 1)
+	if b.level >= era():
+		return "Exige a era %s." % ColonyData.ERAS[b.level + 1].name
 	var cost := upgrade_cost(b)
-	if get_gold() < cost:
-		return "Ouro insuficiente (%d)." % cost
+	var lack := missing(cost)
+	if lack != "":
+		return lack
 	if role == "client":
 		Lobby.city_request("upgrade", [b.net_id])
 		return ""
-	_pay(cost)
-	b.invested += cost
+	if not pay(cost):
+		return missing(cost)
+	b.invested = ColonyData.add_cost(b.invested, cost)
 	b.set_level(b.level + 1)
 	Game.stats_changed.emit()
 	Sfx.play("levelup", 0.05, -4.0)
@@ -486,23 +1059,30 @@ func upgrade(b: ColonyBuilding) -> String:
 	return ""
 
 
-func repair_cost(b: ColonyBuilding) -> int:
+## Reparar custa uma fração (REPAIR_RATIO x nível x dano sofrido) de cada recurso da construção.
+## A prefeitura, que não tem custo, é remendada com ouro. Vazio = não precisa de reparo.
+func repair_cost(b: ColonyBuilding) -> Dictionary:
 	if b.hp >= b.max_hp - 0.5:
-		return 0
-	var base := maxi(int(b.data.cost), 120) * b.level
-	return maxi(1, int(ceil((1.0 - b.hp / b.max_hp) * base * ColonyData.REPAIR_RATIO)))
+		return {}
+	var base: Dictionary = b.data.cost if not b.data.cost.is_empty() else {"gold": 120}
+	var out := {}
+	for r in base:
+		out[r] = maxi(1, int(ceil((1.0 - b.hp / b.max_hp) * float(base[r]) * b.level * ColonyData.REPAIR_RATIO)))
+	return out
 
 
 func repair(b: ColonyBuilding) -> String:
 	var cost := repair_cost(b)
-	if cost <= 0:
+	if cost.is_empty():
 		return "Não precisa de reparo."
-	if get_gold() < cost:
-		return "Ouro insuficiente (%d)." % cost
+	var lack := missing(cost)
+	if lack != "":
+		return lack
 	if role == "client":
 		Lobby.city_request("repair", [b.net_id])
 		return ""
-	_pay(cost)
+	if not pay(cost):
+		return missing(cost)
 	b.repair_full()
 	Sfx.play("plant", 0.1, -2.0)
 	if role == "server":
@@ -510,25 +1090,27 @@ func repair(b: ColonyBuilding) -> String:
 	return ""
 
 
-func repair_all_cost() -> int:
-	var n := 0
+func repair_all_cost() -> Dictionary:
+	var n := {}
 	for b in buildings():
-		n += repair_cost(b)
+		n = ColonyData.add_cost(n, repair_cost(b))
 	return n
 
 
 func repair_all() -> String:
 	var cost := repair_all_cost()
-	if cost <= 0:
+	if cost.is_empty():
 		return "Nada para reparar."
-	if get_gold() < cost:
-		return "Ouro insuficiente (%d)." % cost
+	var lack := missing(cost)
+	if lack != "":
+		return lack
 	if role == "client":
 		Lobby.city_request("repair_all", [])
 		return ""
+	if not pay(cost):
+		return missing(cost)
 	for b in buildings():
-		if repair_cost(b) > 0:
-			_pay(repair_cost(b))
+		if not repair_cost(b).is_empty():
 			b.repair_full()
 			if role == "server":
 				Lobby.city_building_changed(b)
@@ -553,18 +1135,20 @@ func recruit(unit: String) -> String:
 	var u: Dictionary = ColonyData.UNITS[unit]
 	if count_of("barracks") == 0:
 		return "Construa um quartel."
-	if barracks_level() < int(u.get("needs_level", 1)):
-		return "Exige um quartel nível %d." % int(u.needs_level)
+	if era() < int(u.get("needs_era", 1)):
+		return "Exige a era %s." % ColonyData.ERAS[int(u.needs_era)].name
 	if soldier_count() >= army_cap():
 		return "Os quartéis estão lotados (%d vagas)." % army_cap()
-	if citizens < 1:
-		return "Não há moradores para recrutar. Construa casas."
-	if get_gold() < int(u.cost):
-		return "Ouro insuficiente (%d)." % int(u.cost)
+	if citizens < 1 or free_villagers() < 1:
+		return "Não há aldeões livres para recrutar. Treine mais na prefeitura."
+	var ucost := ColonyData.cost_from(u.cost)
+	var lack := missing(ucost)
+	if lack != "":
+		return lack
 	if role == "client":
 		Lobby.city_request("recruit", [unit])
 		return ""
-	_pay(int(u.cost))
+	pay(ucost)
 	citizens -= 1
 	Game.stats_changed.emit()
 	var at := _barracks_door()
@@ -706,6 +1290,8 @@ func _physics_process(delta: float) -> void:
 		# o servidor manda o relógio; aqui só corre entre um estado e outro
 		if phase == "day":
 			phase_t = maxf(0.0, phase_t - delta)
+			for k in busy_t:
+				busy_t[k][1] = float(busy_t[k][1]) + delta
 		elif phase == "night":
 			phase_t += delta
 		return
@@ -717,6 +1303,16 @@ func _physics_process(delta: float) -> void:
 			if _animal_t <= 0.0:
 				_animal_t = 4.0
 				_spawn_wildlife(false)
+			_train_tick(delta)
+			_busy_tick(delta)
+			_gather_t -= delta
+			if _gather_t <= 0.0:
+				_gather_t += ColonyData.GATHER_TICK
+				_gather_tick(ColonyData.GATHER_TICK)
+			_den_t -= delta
+			if _den_t <= 0.0:
+				_den_t = 0.5
+				_den_tick()
 			if phase_t <= 25.0 and not _warned:
 				_warned = true
 				say("O sol está se pondo... os monstros atacam ao anoitecer!", Color(1, 0.6, 0.4))
@@ -779,24 +1375,21 @@ func start_night(forced := false) -> void:
 	phase_t = 0.0
 	_dawn_pending = false
 	night_kills = 0
+	night_ammo = {}
+	_ammo_warned = {}
 	votes.clear()
 	night_mod = next_mod if is_coop() else ""
 	next_mod = ""
 	if role == "server":
 		team_size = maxi(1, Lobby.city_team_size())
 		Lobby.city_night_started()
+	for den in dens:
+		den.sleep()   # à noite os covis dormem: nada novo compete com a onda
+	events.end()   # o evento do dia acaba ao anoitecer
 	wave_queue = _build_wave_coop(day) if is_coop() else _build_wave(day)
 	wave_total = wave_queue.size()
 	_spawn_i = 0
-	var ndirs := 1 if day < 3 else (2 if day < 6 else 3)
-	if is_coop() and day >= 12:
-		ndirs = 4
-	var first := randi() % 8
-	wave_dirs = [first]
-	while wave_dirs.size() < ndirs:
-		var d: int = (first + [3, 5, 2, 6, 4][wave_dirs.size() - 1] + randi() % 2) % 8
-		if d not in wave_dirs:
-			wave_dirs.append(d)
+	wave_dirs = _pick_wave_dirs(day)
 	var names: Array[String] = []
 	for d in wave_dirs:
 		names.append(DIR_NAMES[d])
@@ -828,7 +1421,9 @@ func _build_wave(n: int) -> Array:
 	if n % ColonyData.BOSS_EVERY == 0:
 		budget *= 0.7
 	var weights := {"slime": 3.0, "slime_veloz": 1.4, "goblin": 2.0, "slime_grande": 1.0, "goblin_bruto": 0.5 + 0.1 * n}
+	var extra := _den_budgets(budget, n)
 	_fill_wave(out, budget, n, weights)
+	_fill_den_waves(out, extra, n, weights)
 	out.shuffle()
 	if n % ColonyData.BOSS_EVERY == 0:
 		out.append("goblin_king")
@@ -845,16 +1440,24 @@ func _build_wave_coop(n: int) -> Array:
 	if boss_night:
 		budget *= 0.7
 	var cap := ColonyData.WAVE_CAP * (1.0 + 0.35 * (team_size - 1))
+	var extra := _den_budgets(budget, n)
+	var total := budget
+	for d in extra:
+		total += float(extra[d])
 	_overflow_hp = 1.0
-	if budget > cap:
-		_overflow_hp = budget / cap
-		budget = cap
+	if total > cap:
+		# o extra dos covis passa pelo teto junto com o resto: tudo encolhe na mesma proporção
+		_overflow_hp = total / cap
+		budget /= _overflow_hp
+		for d in extra:
+			extra[d] = float(extra[d]) / _overflow_hp
 	var weights := {"slime": maxf(0.6, 3.0 - 0.15 * n), "slime_veloz": 1.4, "goblin": 2.0 + 0.05 * n,
 		"slime_grande": 1.0 + 0.08 * n, "goblin_bruto": 0.5 + 0.12 * n}
 	if night_mod == "cerco":
 		weights.goblin_bruto *= 3.0
 	var out: Array = []
 	_fill_wave(out, budget, n, weights)
+	_fill_den_waves(out, extra, n, weights)
 	out.shuffle()
 	if boss_night:
 		var kings := 1 + (1 if n >= 15 else 0) + (1 if n >= 25 else 0)
@@ -887,6 +1490,56 @@ func _fill_wave(out: Array, budget: float, n: int, weights: Dictionary) -> void:
 		budget -= float(ColonyData.WAVE_COSTS[pick][0])
 
 
+## Direções da noite n. A partir de DEN_FORCE_NIGHT, a de cada covil de pé entra sempre (e conta no total).
+func _pick_wave_dirs(n: int) -> Array:
+	var ndirs := 1 if n < 3 else (2 if n < 6 else 3)
+	if is_coop() and n >= 12:
+		ndirs = 4
+	var dirs: Array = _wave_dens(n).keys()
+	var first: int = dirs[0] if not dirs.is_empty() else randi() % 8
+	if dirs.is_empty():
+		dirs = [first]
+	var tries := 0
+	while dirs.size() < ndirs and tries < 50:
+		tries += 1
+		var d: int = (first + [3, 5, 2, 6, 4][mini(dirs.size() - 1, 4)] + randi() % 2) % 8
+		if d not in dirs:
+			dirs.append(d)
+		else:
+			first = randi() % 8
+	return dirs
+
+
+## Covis que pesam na onda da noite n ({direção: nível}): nenhum antes de DEN_FORCE_NIGHT.
+func _wave_dens(n: int) -> Dictionary:
+	return den_dirs() if n >= ColonyData.DEN_FORCE_NIGHT else {}
+
+
+## Orçamento extra de cada covil de pé ({direção: orçamento}): DEN_WAVE_BONUS × nível × orçamento da onda,
+## com o total dos covis limitado a DEN_EXTRA_MAX × orçamento.
+func _den_budgets(budget: float, n: int) -> Dictionary:
+	var out := {}
+	var dd := _wave_dens(n)
+	var total := 0.0
+	for d in dd:
+		out[d] = budget * ColonyData.DEN_WAVE_BONUS * int(dd[d])
+		total += float(out[d])
+	var cap := budget * ColonyData.DEN_EXTRA_MAX
+	if total > cap:
+		for d in out:
+			out[d] = float(out[d]) * cap / total
+	return out
+
+
+## Monstros extras dos covis: vão na fila como [tipo, direção] (nascem só na direção do covil).
+func _fill_den_waves(out: Array, extra: Dictionary, n: int, weights: Dictionary) -> void:
+	for d in extra:
+		var part: Array = []
+		_fill_wave(part, float(extra[d]), n, weights)
+		for k in part:
+			out.append([k, d])
+
+
 func spawn_point(dir_index: int) -> Vector3:
 	var center := hall.global_position if hall and is_instance_valid(hall) else Vector3.ZERO
 	var a := -PI / 2 + dir_index * TAU / 8.0          # 0 = norte (-Z), sentido horário
@@ -899,9 +1552,16 @@ func spawn_point(dir_index: int) -> Vector3:
 
 
 func _spawn_next() -> void:
-	var kind: String = wave_queue.pop_front()
-	var d: int = wave_dirs[_spawn_i % wave_dirs.size()]
-	_spawn_i += 1
+	var item = wave_queue.pop_front()
+	var kind: String
+	var d: int
+	if item is Array:   # extra de covil: [tipo, direção]
+		kind = str(item[0])
+		d = int(item[1])
+	else:
+		kind = str(item)
+		d = wave_dirs[_spawn_i % wave_dirs.size()]
+		_spawn_i += 1
 	var base := spawn_point(d)
 	var center := hall.global_position if hall and is_instance_valid(hall) else Vector3.ZERO
 	var out := base - center
@@ -938,10 +1598,11 @@ func _roll_affix() -> String:
 
 
 ## boss_mult >= 0: vida fixa do chefe (hp_mult = boss_mult). affix = elite (cooperativo).
-func spawn_enemy(kind: String, pos: Vector3, boss_mult := -1.0, affix := "") -> Enemy:
+## siege = false: monstro comum (guarda de covil), que não marcha para a cidade nem conta na onda.
+func spawn_enemy(kind: String, pos: Vector3, boss_mult := -1.0, affix := "", siege := true) -> Enemy:
 	var e: Enemy = ENEMY.new()
 	e.kind = kind
-	e.siege = true
+	e.siege = siege
 	if boss_mult >= 0.0:
 		e.hp_mult = boss_mult
 	elif is_coop():
@@ -976,7 +1637,7 @@ func summon_minions(pos: Vector3, n: int) -> void:
 
 
 func _on_enemy_died(e: Enemy) -> void:
-	if e.siege:
+	if e.siege and phase == "night":   # o ataque à serraria (de dia) não conta como abate da noite
 		night_kills += 1
 		total_kills += 1
 		_dirty()
@@ -1005,7 +1666,9 @@ func _end_night() -> void:
 
 
 ## Amanhecer: impostos, comércio, colheita, salários, comida e crescimento da população.
+## Depois de uma noite de verdade (não do teste chamando direto de dia), a recompensa da noite.
 func dawn() -> void:
+	var after_night := phase == "night"
 	var f := forecast()
 	earn(int(f.gold_in))
 	# salários: quem não recebe deserta
@@ -1045,20 +1708,19 @@ func dawn() -> void:
 		starved = mini(citizens, int(ceil(-food / 2.0)))
 		citizens -= starved
 		food = 0
-	var houses := count_of("house")
-	var growth := 0
-	if starved == 0 and food > 0:
-		growth = clampi(ColonyData.GROWTH[tax_level] + houses / 3, 0, maxi(0, pop_cap() - citizens))
-	citizens += growth
 	if citizens > pop_cap():
 		citizens = pop_cap()
 	var survived := day
 	last_report = {"day": day, "gold_in": f.gold_in, "tax": f.tax, "trade": f.trade, "hall": f.hall,
 		"salaries": due, "upkeep": up - unpaid, "deserters": deserters, "food_in": f.food_in, "food_out": f.food_out,
-		"starved": starved, "growth": growth, "kills": night_kills}
+		"starved": starved, "kills": night_kills, "ammo": night_ammo.duplicate()}
 	day += 1
 	phase = "day"
 	phase_t = day_length
+	if nature:
+		nature.regrow(day)
+	for den in dens:
+		den.dawn(day)
 	night_mod = ""
 	_warned = false
 	Game.stats_changed.emit()
@@ -1072,8 +1734,14 @@ func dawn() -> void:
 		say("Manutenção das torres e quartéis: −%d ouro." % (up - unpaid) if unpaid == 0
 			else "Faltou ouro para a manutenção (%d): as torres e quartéis se desgastaram!" % unpaid,
 			Color(1, 0.85, 0.5) if unpaid == 0 else UITheme.BAD)
-	say("Comida: +%d colhida, −%d consumida (estoque %d) · moradores %+d." %
-		[f.food_in, eaten, food, growth - starved], Color(0.8, 1.0, 0.6))
+	say("Comida: +%d colhida, −%d consumida (estoque %d) · aldeões %+d." %
+		[f.food_in, eaten, food, -starved], Color(0.8, 1.0, 0.6))
+	if not night_ammo.is_empty():
+		var parts: Array[String] = []
+		for r in ColonyData.RESOURCES:
+			if night_ammo.has(r):
+				parts.append("%d de %s" % [night_ammo[r], ColonyData.RES_NAMES[r]])
+		say("Munição gasta na noite: %s." % ", ".join(parts), Color(0.85, 0.85, 1.0))
 	if deserters > 0:
 		say("%d soldado(s) desertaram por falta de pagamento!" % deserters, UITheme.BAD)
 		assign_posts.call_deferred()
@@ -1081,10 +1749,39 @@ func dawn() -> void:
 		say("Fome! %d morador(es) abandonaram a cidade." % starved, UITheme.BAD)
 	if is_coop():
 		_coop_dawn(survived)
+	elif after_night:
+		_solo_night_reward(survived)
+	events.roll(day)
 	_spawn_wildlife(true)
 	_dirty()
 	if world and world.has_method("autosave"):
 		world.autosave()
+
+
+## Solo: a recompensa da noite n e o XP dos abates do cerco vão para o personagem numa concessão só
+## (serviço local, Econ.grant; a origem "city_night" não é registrada a cada noite: entra no resumo da
+## partida, no fim) e o recorde de noites.
+func _solo_night_reward(n: int) -> void:
+	var rw := ColonyData.night_reward(n)
+	var xp := int(rw.xp) + siege_xp
+	var items := ColonyData.night_chest(n)
+	var got := {}
+	for id in items:
+		got[id] = int(got.get(id, 0)) + 1
+	var kills_xp := siege_xp
+	siege_xp = 0
+	if not Econ.grant(int(rw.gold), xp, got, "city_night", true):
+		return
+	run_rewards.gold = int(run_rewards.gold) + int(rw.gold)
+	run_rewards.xp = int(run_rewards.xp) + xp
+	run_rewards.items.append_array(items)
+	if n > int(Game.flags.get("city_best", 0)):
+		Econ.set_record("city_best", n)
+	Game.notify.emit("Noite %d vencida! Recompensa: +%d ouro e +%d XP (%d dos abates) para o seu personagem." %
+		[n, rw.gold, xp, kills_xp], Color(1, 0.85, 0.35))
+	Sfx.play("quest", 0.0, -2.0)
+	if world and world.has_method("on_reward"):
+		world.on_reward(n, int(rw.gold), xp, items)
 
 
 ## Amanhecer do cooperativo: recuperação da prefeitura, ajuda do reino, eventos, aviso da próxima noite
@@ -1128,28 +1825,57 @@ func _coop_dawn(survived: int) -> void:
 		Lobby.city_night_survived(survived)
 
 
+# ================================================================ covis
+## {direção: nível} dos covis de pé (não limpos). Cada um força a direção na onda e soma orçamento.
+func den_dirs() -> Dictionary:
+	var out := {}
+	for den in dens:
+		if not den.cleared:
+			out[den.dir_index] = den.level
+	return out
+
+
+## Servidor/solo, a cada 0,5 s de dia: os covis acordam com jogador perto e dormem sem ninguém.
+## No entardecer todos dormem (e não acordam até o amanhecer).
+func _den_tick() -> void:
+	if dens.is_empty():
+		return
+	if phase_t <= ColonyData.DUSK:
+		for den in dens:
+			if den.awake:
+				den.sleep()
+		return
+	var players := unit_players()
+	for den in dens:
+		den.tick(players)
+
+
 # ================================================================ caça e vida selvagem
-func _spawn_wildlife(refresh: bool) -> void:
+## `want_override` (>= 0) troca o teto de animais vivos (12) e pula os monstros errantes: gancho dos testes.
+func _spawn_wildlife(refresh: bool, want_override := -1) -> void:
 	if role == "client" or hall == null or not is_instance_valid(hall):
 		return
 	var animals := 0
 	for a in get_tree().get_nodes_in_group("animals"):
 		if a.colony == self:
 			animals += 1
-	var want := 12
+	var want := 12 if want_override < 0 else want_override
 	var n := 0
 	while animals < want and n < (6 if refresh else 1):
-		var p := _wild_point(ColonyData.CITY_RADIUS + 14.0)
+		var ring := _pick_wild_ring()
+		var lo := maxf(float(ColonyData.RINGS[ring - 1]), ColonyData.CITY_RADIUS + 14.0)
+		var hi := float(ColonyData.RINGS[ring]) if ring < ColonyData.RINGS.size() else INF
+		var p := _wild_point(lo, hi)
 		if p == Vector3.INF:
 			break
-		var r := randf()
-		var kind := "rabbit" if r < 0.35 else ("deer" if r < 0.78 else "boar")
-		var group := 1 if kind == "boar" else randi_range(1, 3)
+		var kind := _pick_wild_kind(ring)
+		var pack: Array = ColonyData.ANIMALS[kind].pack
+		var group := randi_range(int(pack[0]), int(pack[1]))
 		for i in group:
 			var a: ColonyAnimal = ANIMAL.new()
 			a.kind = kind
 			a.colony = self
-			a.position = p + Vector3(randf_range(-2, 2), 0.3, randf_range(-2, 2))
+			a.position = p + (Vector3(randf_range(-2, 2), 0.3, randf_range(-2, 2)) if group > 1 else Vector3(0, 0.3, 0))
 			if role == "server":
 				a.net_id = _new_id()
 				amap[a.net_id] = a
@@ -1158,11 +1884,11 @@ func _spawn_wildlife(refresh: bool) -> void:
 				Lobby.city_animal_added(a)
 			animals += 1
 		n += 1
-	if refresh:
+	if refresh and want_override < 0:
 		# monstros errantes longe da cidade: tornam a caçada perigosa
 		var wild := 0
 		for c in get_children():
-			if c is Enemy and not c.siege and not c.dead:
+			if c is Enemy and not c.siege and c.den_id < 0 and not c.dead:   # guardas de covil não contam
 				wild += 1
 		for i in clampi(2 + day / 2, 2, 6) - wild:
 			var p := _wild_point(ColonyData.CITY_RADIUS + 30.0)
@@ -1174,12 +1900,41 @@ func _spawn_wildlife(refresh: bool) -> void:
 			add_child(e)
 
 
-func _wild_point(min_dist: float) -> Vector3:
-	var center := hall.global_position
+## Sorteia o anel (1, 2 ou 3) do próximo grupo de fauna.
+func _pick_wild_ring() -> int:
+	var r := randf()
+	for i in ColonyData.WILD_RING_WEIGHTS.size():
+		r -= float(ColonyData.WILD_RING_WEIGHTS[i])
+		if r < 0.0:
+			return i + 1
+	return ColonyData.WILD_RING_WEIGHTS.size()
+
+
+## Sorteia a espécie entre as que vivem no anel, pelo peso de cada uma.
+func _pick_wild_kind(ring: int) -> String:
+	var pool: Array[String] = []
+	var total := 0.0
+	for k in ColonyData.ANIMALS:
+		if ring in ColonyData.ANIMALS[k].rings:
+			pool.append(k)
+			total += float(ColonyData.ANIMALS[k].weight)
+	var r := randf() * total
+	for k in pool:
+		r -= float(ColonyData.ANIMALS[k].weight)
+		if r < 0.0:
+			return k
+	return pool.back()
+
+
+## Ponto livre entre `min_dist` e `max_dist` do centro do mapa (os anéis medem daí).
+func _wild_point(min_dist: float, max_dist := INF) -> Vector3:
 	var lim := ColonyData.MAP_HALF - 12.0
+	var hi := minf(max_dist, lim * 1.4142)
 	for i in 30:
-		var p := Vector3(randf_range(-lim, lim), 0, randf_range(-lim, lim))
-		if Vector2(p.x - center.x, p.z - center.z).length() < min_dist:
+		var ang := randf() * TAU
+		var d := randf_range(min_dist, hi)
+		var p := Vector3(cos(ang) * d, 0, sin(ang) * d)
+		if absf(p.x) > lim or absf(p.z) > lim:
 			continue
 		var ok := true
 		for o in obstacles:
@@ -1192,8 +1947,9 @@ func _wild_point(min_dist: float) -> Vector3:
 
 
 func on_animal_killed(a: ColonyAnimal) -> void:
-	var f := int(a.data.food)
-	var g := int(a.data.gold)
+	var k := ColonyData.EVENT_ALPHA_MULT if a.alpha else 1.0   # a fera alfa rende o triplo
+	var f := int(a.data.food * k)
+	var g := int(a.data.gold * k)
 	food += f
 	earn(g)
 	FX.damage_number(a.global_position + Vector3.UP * 1.6, "+%d comida  +%d ouro" % [f, g], Color(0.75, 1.0, 0.5), 44)
@@ -1202,7 +1958,44 @@ func on_animal_killed(a: ColonyAnimal) -> void:
 	if role == "server":
 		amap.erase(a.net_id)
 		Lobby.city_animal_removed(a, true)
+	events.on_animal_killed(a)
 	_dirty()
+
+
+# ================================================================ eventos do dia
+## Troca `i` de ColonyData.TRADES com a caravana do dia. "" ou o motivo da recusa (nada muda).
+func trade(i: int) -> String:
+	if events.active != "caravan":
+		return "A caravana não está por perto."
+	if i < 0 or i >= ColonyData.TRADES.size():
+		return "Troca inválida."
+	var give: Dictionary = ColonyData.TRADES[i][0]
+	var take: Dictionary = ColonyData.TRADES[i][1]
+	var lack := missing(give)
+	if lack != "":
+		return lack
+	if role == "client":
+		Lobby.city_request("trade", [i])
+		return ""
+	var far := events.reach_error(actor)
+	if far != "":
+		return far
+	if not pay(give):
+		return missing(give)
+	gain(take, events.pos + Vector3.UP * 2.0)
+	Sfx.play("coin", 0.1, -2.0)
+	say("Troca com a caravana: %s por %s." % [ColonyData.cost_text(give), ColonyData.cost_text(take)], Color(1, 0.9, 0.5))
+	return ""
+
+
+## Resgatar os aldeões perdidos ou abrir o baú esquecido. "" ou o motivo da recusa.
+func event_interact() -> String:
+	if role == "client":
+		if events.active not in ["lost_villagers", "lost_chest"]:
+			return "Não há nada para fazer aqui."
+		Lobby.city_request("event_interact", [])
+		return ""
+	return events.interact(actor)
 
 
 # ================================================================ eventos
@@ -1272,6 +2065,13 @@ func net_request(pid: int, action: String, args: Array) -> String:
 		"tax":
 			if args.size() == 1:
 				set_tax(int(args[0]))
+		"train":
+			err = train_villager()
+		"era":
+			err = advance_era()
+		"tech":
+			if args.size() == 1 and ColonyData.TECHS.has(str(args[0])):
+				err = research(str(args[0]))
 		"recruit":
 			if args.size() == 1 and ColonyData.UNITS.has(str(args[0])):
 				err = recruit(str(args[0]))
@@ -1292,6 +2092,11 @@ func net_request(pid: int, action: String, args: Array) -> String:
 			toggle_army_mode()
 		"night":
 			request_night(pid)
+		"trade":
+			if args.size() == 1:
+				err = trade(int(args[0]))
+		"event_interact":
+			err = event_interact()
 	actor = 0
 	return err
 
@@ -1299,11 +2104,11 @@ func net_request(pid: int, action: String, args: Array) -> String:
 ## Servidor: o estado resumido mandado aos clientes (2x/s e a cada mudança).
 func net_state() -> Dictionary:
 	_state_dirty = false
-	return {"gold": gold, "food": food, "cit": citizens, "day": day, "phase": phase, "pt": phase_t,
-		"tax": tax_level, "army": army_mode, "rally": [rally.x, rally.z], "wl": wave_left(), "wt": wave_total,
+	return {"gold": treasury, "food": food, "res": res, "cit": citizens, "tq": train_queue, "tt": train_t, "day": day, "phase": phase, "pt": phase_t,
+		"tax": tax_level, "army": army_mode, "rally": [rally.x, rally.z], "wl": wave_left() if phase == "night" else 0, "wt": wave_total,
 		"wd": wave_dirs, "nk": night_kills, "tk": total_kills, "nm": night_mod, "xm": next_mod,
 		"hall": hall.net_id if hall and is_instance_valid(hall) else 0, "votes": votes.size(), "team": team_size,
-		"rep": last_report, "dl": day_length, "fb": first_day_bonus}
+		"rep": last_report, "dl": day_length, "fb": first_day_bonus, "techs": techs.keys(), "busy": busy_t}
 
 
 func state_dirty() -> bool:
@@ -1312,9 +2117,14 @@ func state_dirty() -> bool:
 
 ## Cliente: aplica o estado do servidor.
 func apply_state(d: Dictionary) -> void:
-	gold = int(d.get("gold", gold))
+	treasury = int(d.get("gold", treasury))
 	food = int(d.get("food", food))
+	var rs: Dictionary = d.get("res", res)
+	for r in rs:
+		res[r] = int(rs[r])
 	citizens = int(d.get("cit", citizens))
+	train_queue = int(d.get("tq", train_queue))
+	train_t = float(d.get("tt", train_t))
 	day = int(d.get("day", day))
 	var new_phase := str(d.get("phase", phase))
 	phase_t = float(d.get("pt", phase_t))
@@ -1337,6 +2147,16 @@ func apply_state(d: Dictionary) -> void:
 	last_report = d.get("rep", last_report)
 	day_length = float(d.get("dl", day_length))
 	first_day_bonus = float(d.get("fb", first_day_bonus))
+	var tl: Array = d.get("techs", techs.keys())
+	if tl.size() != techs.size():
+		techs = {}
+		for t in tl:
+			techs[str(t)] = true
+		_refresh_stats()
+	var bz: Dictionary = d.get("busy", busy_t)
+	busy_t = {}
+	for k in bz:
+		busy_t[int(k)] = [str(bz[k][0]), float(bz[k][1])]
 	var hid := int(d.get("hall", 0))
 	if hid != 0 and bmap.has(hid):
 		hall = bmap[hid]
@@ -1358,8 +2178,13 @@ func net_full() -> Dictionary:
 	var al: Array = []
 	for a in get_tree().get_nodes_in_group("animals"):
 		if a.colony == self and not a.dead:
-			al.append([a.net_id, a.kind, a.global_position.x, a.global_position.z])
-	return {"state": net_state(), "buildings": bl, "soldiers": sl, "animals": al}
+			al.append([a.net_id, a.kind, a.global_position.x, a.global_position.z, a.alpha])
+	var dl: Array = []
+	for den in dens:
+		dl.append([den.level, den.cleared])
+	return {"state": net_state(), "buildings": bl, "soldiers": sl, "animals": al,
+		"nodes": nature.depleted.keys() if nature else [], "rich": nature.rich_list() if nature else [], "dens": dl,
+		"event": events.net_list()}
 
 
 ## Servidor: posições dos soldados e animais e a vida das construções que mudou.
@@ -1405,7 +2230,7 @@ func apply_snapshot(ss: PackedFloat32Array, aa: PackedFloat32Array, bh: PackedFl
 
 
 ## Cliente: réplica de uma construção.
-func net_building_add(id: int, kind: String, x: float, z: float, rot: float, level: int, hp: float, invested: int, fx := true) -> void:
+func net_building_add(id: int, kind: String, x: float, z: float, rot: float, level: int, hp: float, invested: Dictionary, fx := true) -> void:
 	if bmap.has(id) or not ColonyData.BUILDINGS.has(kind):
 		return
 	var b: ColonyBuilding = BUILDING.new()
@@ -1431,7 +2256,7 @@ func net_building_add(id: int, kind: String, x: float, z: float, rot: float, lev
 	net_changed.emit()
 
 
-func net_building_set(id: int, level: int, hp: float, invested: int) -> void:
+func net_building_set(id: int, level: int, hp: float, invested: Dictionary) -> void:
 	var b = bmap.get(id)
 	if b == null or not is_instance_valid(b) or b.dead:
 		return
@@ -1489,11 +2314,12 @@ func net_soldier_remove(id: int, died: bool) -> void:
 	net_changed.emit()
 
 
-func net_animal_add(id: int, kind: String, x: float, z: float) -> void:
+func net_animal_add(id: int, kind: String, x: float, z: float, alpha := false) -> void:
 	if amap.has(id) or not ColonyData.ANIMALS.has(kind):
 		return
 	var a: ColonyAnimal = ANIMAL.new()
 	a.kind = kind
+	a.alpha = alpha
 	a.colony = self
 	a.puppet = true
 	a.net_id = id
@@ -1517,23 +2343,56 @@ func net_animal_remove(id: int, killed: bool) -> void:
 func to_dict() -> Dictionary:
 	var bl: Array = []
 	for b in buildings():
-		bl.append({"kind": b.kind, "x": b.global_position.x, "z": b.global_position.z, "rot": b.rotation.y,
-			"level": b.level, "hp": b.hp, "invested": b.invested})
+		var bd := {"kind": b.kind, "x": b.global_position.x, "z": b.global_position.z, "rot": b.rotation.y,
+			"level": b.level, "hp": b.hp, "invested": b.invested}
+		if busy_t.has(b.net_id):
+			bd["busy"] = busy_t[b.net_id]   # ação em andamento: [ação, segundos já feitos]
+		bl.append(bd)
 	var sl: Array = []
 	for s in soldiers():
 		sl.append({"unit": s.unit, "hp": s.hp, "x": s.global_position.x, "z": s.global_position.z})
-	return {"version": 1, "day": day, "phase": phase, "phase_t": phase_t, "food": food, "citizens": citizens,
-		"tax": tax_level, "army_mode": army_mode, "rally": [rally.x, rally.z], "kills": total_kills,
+	var dl: Array = []
+	for den in dens:
+		dl.append(den.to_dict())
+	return {"version": 2, "seed": world.map_seed if world else 7731, "nodes": nature.to_dict() if nature else {},
+		"rich": nature.rich_list() if nature else [], "dens": dl,
+		"res": res, "day": day, "phase": phase, "phase_t": phase_t, "food": food, "citizens": citizens,
+		"tax": tax_level, "army_mode": army_mode, "rally": [rally.x, rally.z], "kills": total_kills, "train": train_queue,
+		"techs": techs.keys(), "treasury": treasury, "run": run_rewards.duplicate(true), "siege_xp": siege_xp,
+		"base_bonus": base_bonus.duplicate(),
 		"buildings": bl, "soldiers": sl}
 
 
 func from_dict(d: Dictionary) -> void:
 	day = int(d.get("day", 1))
 	food = int(d.get("food", 0))
+	if d.has("res"):
+		res = {"wood": 0, "stone": 0, "iron": 0, "crystal": 0}
+		for r in d.res:
+			res[r] = int(d.res[r])
+	else:
+		_reset_res(0)   # save da versão 1: estoque inicial de madeira e pedra
 	citizens = int(d.get("citizens", 0))
+	train_queue = int(d.get("train", 0))
+	train_t = 0.0
 	tax_level = clampi(int(d.get("tax", 1)), 0, 2)
 	army_mode = str(d.get("army_mode", "guard"))
 	total_kills = int(d.get("kills", 0))
+	techs = {}   # antes das construções: a vida máxima delas depende das pesquisas
+	for t in d.get("techs", []):
+		if ColonyData.TECHS.has(str(t)):
+			techs[str(t)] = true
+	busy_t = {}
+	treasury = int(d.get("treasury", ColonyData.START_GOLD))
+	var run: Dictionary = d.get("run", {}) if d.get("run", {}) is Dictionary else {}
+	run_rewards = {"gold": int(run.get("gold", 0)), "xp": int(run.get("xp", 0)),
+		"items": (run.get("items", []) as Array).duplicate() if run.get("items", []) is Array else [],
+		"run_id": int(run.get("run_id", 0))}
+	if run.get("done", false):
+		run_rewards["done"] = true   # save de uma partida que já caiu: não fecha de novo
+	siege_xp = maxi(0, int(d.get("siege_xp", 0)))
+	# antes das construções: a prefeitura carregada usa o bônus com que a partida começou
+	base_bonus = (d.get("base_bonus") as Dictionary).duplicate() if d.get("base_bonus") is Dictionary else {}
 	phase = "loading"
 	for bd in d.get("buildings", []):
 		var kind := str(bd.kind)
@@ -1541,13 +2400,33 @@ func from_dict(d: Dictionary) -> void:
 			continue
 		var b := place(kind, Vector3(float(bd.x), 0, float(bd.z)), float(bd.rot), true,
 			clampi(int(bd.get("level", 1)), 1, ColonyData.MAX_LEVEL), maxf(1.0, float(bd.get("hp", 99999.0))))
-		b.invested = int(bd.get("invested", b.invested))
+		b.invested = ColonyData.cost_from(bd.get("invested", b.invested))
+		var bz: Array = bd.get("busy", [])
+		if bz.size() == 2 and (str(bz[0]) == "era" or (ColonyData.TECHS.has(str(bz[0])) and not techs.has(str(bz[0])))):
+			busy_t[b.net_id] = [str(bz[0]), float(bz[1])]
 	var r: Array = d.get("rally", [])
 	if r.size() == 2:
 		set_rally(Vector3(float(r[0]), 0, float(r[1])), true)
 	for sd in d.get("soldiers", []):
 		if ColonyData.UNITS.has(str(sd.unit)):
 			spawn_soldier(str(sd.unit), Vector3(float(sd.x), 0, float(sd.z)), float(sd.get("hp", -1.0)))
+	if int(d.get("version", 1)) < 2:
+		# save v1: só fazenda e mercado tinham equipe; torres e quartel agora também. Sem isso a cidade
+		# carregaria desfalcada (staffing < 1) e as produções e torres ficariam lentas.
+		citizens = maxi(citizens, mini(busy(), pop_cap()))
+	if nature:
+		nature.load_rich(d.get("rich", []))   # antes dos esgotados: um nó rico também pode estar esgotado
+		nature.from_dict(d.get("nodes", {}))
+		if int(d.get("version", 1)) < 2:
+			# save v1: os afloramentos novos do mapa podem cair onde já há construção; ficam esgotados
+			# (regrow() os mantém esperando até o terreno liberar)
+			for n in nature.nodes:
+				if n.alive and building_at(Vector2(n.global_position.x, n.global_position.z), n.radius + 0.3):
+					n.set_alive(false, false)
+					nature.depleted[n.id] = day
+	var dl: Array = d.get("dens", [])   # save antigo: sem covis salvos, ficam os novos da semente
+	for i in dens.size():
+		dens[i].from_dict(dl[i] if i < dl.size() and dl[i] is Dictionary else {})
 	if hall != null:
 		phase = "day"
 		phase_t = clampf(float(d.get("phase_t", day_length)), 20.0, day_length + first_day_bonus)
