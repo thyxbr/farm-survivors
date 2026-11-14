@@ -7,6 +7,7 @@ extends StaticBody3D
 signal destroyed(b: ColonyBuilding)
 
 const SHOT := preload("res://scripts/colony/tower_shot.gd")
+const VILLAGER := preload("res://scripts/colony/villager_visual.gd")
 
 var kind := "house"
 var level := 1
@@ -38,6 +39,9 @@ var _t := 0.0
 var _hit_sfx := 0.0
 var _overlay: StandardMaterial3D
 var _turret_y := 0.0
+var _villagers: Array[Node3D] = []
+var _crew_shown := -1
+var _crew_check := 0.0
 
 
 func _ready() -> void:
@@ -325,10 +329,41 @@ func _physics_process(delta: float) -> void:
 	if kind == "mage_tower" and turret:
 		turret.position.y = _turret_y + sin(_t * 2.0) * 0.15
 		turret.rotation.y += delta * 1.5
+	if not _no_villagers():
+		_villagers_process(delta)
 	if ColonyData.is_tower(kind):
 		_tower_process(delta)
 	elif kind == "spikes" and not puppet:
 		_spikes_process(delta)
+
+
+# ---------------------------------------------------------------- aldeões visuais
+func _no_villagers() -> bool:
+	return DisplayServer.get_name() == "headless" or colony == null or colony.crew_for(kind) <= 0
+
+
+## Cliente com tela: mantém mini(crew efetivo, crew) bonecos, recriados quando a faixa de ocupação muda;
+## à noite ficam escondidos dentro de casa.
+func _villagers_process(delta: float) -> void:
+	_crew_check -= delta
+	if _crew_check <= 0.0:
+		_crew_check = 1.0
+		var crew: int = colony.crew_for(kind)
+		var want := mini(roundi(colony.crew_eff(self) * crew), crew)
+		if want != _crew_shown:
+			_crew_shown = want
+			for v in _villagers:
+				v.queue_free()
+			_villagers.clear()
+			for i in want:
+				var v: Node3D = VILLAGER.new()
+				v.home = self
+				add_child(v)
+				_villagers.append(v)
+		var show: bool = colony.phase != "night"
+		for v in _villagers:
+			v.visible = show
+			v.set_process(show)
 
 
 func _set_overlay(m: Material) -> void:

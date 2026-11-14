@@ -844,6 +844,9 @@ func _ready() -> void:
 		fresh = fresh and not dn.cleared and dn.level == 1
 	check(fresh and colony.nature.node(rich_id) == null, "save antigo: covis novos e sem nó rico")
 
+	# --- aldeões visuais: só com tela
+	check(get_tree().get_nodes_in_group("villager_visual").is_empty(), "aldeões visuais não existem no headless")
+
 	# --- derrota
 	colony.hall.take_damage(999999, Vector3.ZERO)
 	check(colony.phase == "over", "prefeitura destruída = derrota")

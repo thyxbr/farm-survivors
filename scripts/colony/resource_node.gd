@@ -180,7 +180,7 @@ func _bit(r: RandomNumberGenerator, mesh: PrimitiveMesh, color: Color, glow: flo
 
 
 func _build_crystal(r: RandomNumberGenerator) -> void:
-	var color := Color(0.5, 0.42, 1.0)
+	var color := Color(0.55, 0.3, 0.95)
 	for i in r.randi_range(3, 5):
 		var m := CylinderMesh.new()
 		m.radial_segments = 6
@@ -190,7 +190,7 @@ func _build_crystal(r: RandomNumberGenerator) -> void:
 		m.height = r.randf_range(0.9, 1.8)
 		var mi := MeshInstance3D.new()
 		mi.mesh = m
-		mi.material_override = _mat(color.lerp(Color(0.35, 0.6, 1.0), r.randf()), 2.2)
+		mi.material_override = _mat(color.lerp(Color(0.4, 0.35, 1.0), r.randf()), 1.0)
 		var a := r.randf() * TAU
 		var d := 0.0 if i == 0 else r.randf_range(0.2, 0.45)
 		mi.position = Vector3(cos(a) * d, m.height * 0.42, sin(a) * d)
