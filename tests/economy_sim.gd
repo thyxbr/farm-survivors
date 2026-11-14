@@ -17,7 +17,7 @@ extends SceneTree
 ##    cada NODE_YIELD_CAMP um nó do raio se esgota e volta em REGROW_DAYS (CAMP_NODES: quantos nós há no raio);
 ##    a coleta à mão de cada jogador rende 1,5 × uma serraria cheia (meta "Exploração"), metade numa repartição
 ##    fixa por era (MANUAL_SPLIT) e metade no que falta para a próxima era; ouro, ferro e cristal à mão ficam
-##    limitados ao que os veios do mapa rendem por dia (MAP_VEINS), para o grupo todo;
+##    limitados ao que os veios do mapa rendem por dia (ColonyNature.VEINS), para o grupo todo;
 ##  · noite: cada torre de arqueiros dá 60 / rate tiros (~60 s de combate ativo) e gasta ammo_per_night;
 ##  · amanhecer: imposto normal, mercado, prefeitura, comida, salários, manutenção (em grupo) e a volta dos nós.
 ##
@@ -47,13 +47,13 @@ const NIGHT_COMBAT := 60.0      # segundos de combate ativo por noite (ordem de 
 ## Abertura em ordem (repetir = mais uma cópia). As cinco primeiras são o kit do dia 1 (meta "Começo").
 const OPENING := ["house", "house", "farm", "lumber_camp", "archer_tower", "quarry", "barracks", "market"]
 const DAY1_KIT := {"house": 2, "farm": 1, "lumber_camp": 1, "archer_tower": 1}
-## Nós vivos no raio (14 m) da 1ª, 2ª, 3ª... serraria/pedreira: o mínimo, em 30 sementes, do melhor lugar livre a
-## até 80 m do centro numa réplica em Python do gerador (ColonyNature.generate: bosques de 5-11 árvores, pedras
-## soltas e afloramentos de 5-7 pedras). A partir da última, repete. Cada NODE_YIELD_CAMP produzidos esgotam um
-## nó, que volta em REGROW_DAYS: a produção cai quando o bosque se esgota (gather_rate com os nós vivos).
-const CAMP_NODES := {"lumber_camp": [15, 14, 13, 12], "quarry": [9, 7, 6]}
-## Veios do mapa (ColonyNature.generate: _scatter de 4 de ouro, 7 de ferro e 6 cristais): [tipo de nó, quantos].
-const MAP_VEINS := {"gold": ["gold", 4], "iron": ["iron", 7], "crystal": ["crystal", 6]}
+## Nós vivos no raio da 1ª, 2ª, 3ª... serraria/pedreira (a partir da última, repete): o melhor lugar livre a
+## 52-80 m do centro, o 2º melhor sem os nós do 1º etc., no pior de 12 sementes do gerador de verdade
+## (ColonyNature.generate). O colony_test confere que o melhor lugar de cada semente tem pelo menos CAMP_NODES[0].
+## Cada NODE_YIELD_CAMP produzidos esgotam um nó, que volta em REGROW_DAYS (gather_rate com os nós vivos).
+const CAMP_NODES := {"lumber_camp": [10, 8, 8], "quarry": [7, 7, 5]}
+## Recurso coletado à mão -> tipo de nó dos veios do mapa; quantos há vem de ColonyNature.VEINS.
+const VEIN_NODES := {"gold": "gold", "iron": "iron", "crystal": "crystal"}
 const MAX_CAMPS := 3            # serrarias/pedreiras a mais quando o bosque/as pedras se esgotam
 const PROD_STEPS := 10          # passos por dia na produção das serrarias (os nós se esgotam no meio do dia)
 const CAMP_PER_TOWERS := 6      # regra de bolso: uma serraria cheia sustenta ~6 torres de arqueiros
@@ -68,6 +68,7 @@ const MANUAL_YIELD := {"wood": 1.0, "stone": 25.0 / 5.0 / 6.0, "iron": 12.0 / 6.
 	"gold": 60.0 / 6.0 / 6.0, "food": 1.0}
 
 var CD: GDScript
+var NATURE: GDScript
 var fails := 0
 var _started := false
 
@@ -104,6 +105,7 @@ func _process(_dt: float) -> bool:
 		return false
 	_started = true
 	CD = load("res://scripts/colony/colony_data.gd")
+	NATURE = load("res://scripts/colony/nature.gd")
 	var tables: Array[String] = []
 	for p in PLAYERS:
 		_run(p)
@@ -389,16 +391,16 @@ func _produce(day_len: float) -> void:
 				cp.back.append(day + int(CD.REGROW_DAYS[node]))
 		res[r] = int(res[r]) + int(got)
 	# veios de ouro, de ferro e cristais são poucos no mapa: o grupo todo não colhe mais do que eles rendem por dia
-	# (MAP_VEINS × total ÷ dias para voltar); o tempo que sobraria fica para covis e eventos, que a simulação não
+	# (ColonyNature.VEINS × total ÷ dias para voltar); o tempo que sobraria fica para covis e eventos, que a simulação não
 	# conta (as recompensas e depósitos deles não entram: pessimista)
 	var split := _manual_split()
 	var budget := _manual_per_day() * players
 	var amounts := {}
 	for r in split:
 		var want := budget * float(split[r]) * float(MANUAL_YIELD[r])
-		if MAP_VEINS.has(r):
-			var node: String = MAP_VEINS[r][0]
-			var cap := float(MAP_VEINS[r][1]) * float(CD.NODES[node].total) / float(CD.REGROW_DAYS[node])
+		if VEIN_NODES.has(r):
+			var node: String = VEIN_NODES[r]
+			var cap := float(NATURE.VEINS[node]) * float(CD.NODES[node].total) / float(CD.REGROW_DAYS[node])
 			want = minf(want, cap)
 		amounts[r] = want
 	for r in amounts:

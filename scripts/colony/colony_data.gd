@@ -66,7 +66,7 @@ const ERAS := {
 	1: {"name": "I · Aldeia", "cost": {}, "requires": {}},
 	2: {"name": "II · Vila", "cost": {"food": 150, "wood": 120, "stone": 120, "gold": 120},
 		"requires": {"lumber_camp": 1, "quarry": 1}},
-	3: {"name": "III · Cidade", "cost": {"food": 350, "wood": 300, "stone": 400, "gold": 300, "iron": 30, "crystal": 15},
+	3: {"name": "III · Cidade", "cost": {"food": 300, "wood": 250, "stone": 300, "gold": 250, "iron": 25, "crystal": 15},
 		"requires": {"barracks_level": 2}},
 }
 const ERA_ROMAN := ["", "I", "II", "III"]
@@ -115,8 +115,9 @@ static func villager_cost(tax: int) -> Dictionary:
 
 ## Custo das eras em grupo: +ERA_TEAM_COST por jogador além do primeiro. O spec pedia +35% (como o teto das
 ## ondas, WAVE_CAP); a simulação (tests/economy_sim.gd) mostrou o grupo de 4 na era II já no dia 3 com 35% e
-## com 45%, porque a coleta à mão cresce com cada jogador; com 50% a era II fica no dia 4.
-const ERA_TEAM_COST := 0.5
+## com 45%, porque a coleta à mão cresce com cada jogador; com 50% a era II fica no dia 4 e com 55% a era III
+## do grupo de 4 sai do limite da janela (dia 10, não 9).
+const ERA_TEAM_COST := 0.55
 
 
 ## Custo para chegar à era `era` com `players` jogadores: +ERA_TEAM_COST por jogador além do primeiro.

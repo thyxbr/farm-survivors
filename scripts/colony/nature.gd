@@ -12,6 +12,8 @@ const NODE := preload("res://scripts/colony/resource_node.gd")
 const HIT_COOLDOWN := 0.25
 const CLEARING := 52.0   # raio da clareira central (onde começa o anel 1)
 const OUTCROPS := 8      # aglomerados de pedras (para as pedreiras)
+## Quantos veios/arbustos/cristais o mapa espalha nos anéis de fora (a simulação da economia lê daqui).
+const VEINS := {"iron": 7, "gold": 4, "berry": 10, "crystal": 6}
 const DECOR_ROCK := preload("res://assets/models/rock.glb")
 
 var colony: Colony
@@ -71,10 +73,10 @@ func generate(rng: RandomNumberGenerator, c: Colony) -> void:
 		_decor_rock(p, rng.randf() * TAU, rng.randf_range(0.4, 0.7), 0.6)
 	# anéis de fora: ferro, ouro e frutas no anel 2; cristais no anel 3
 	var rings: Array = ColonyData.RINGS
-	_scatter(rng, "iron", "rock", 7, rings[1] + 2.0, rings[2] - 2.0, 0.9, 1.3, 0.65)
-	_scatter(rng, "gold", "rock", 4, rings[1] + 2.0, rings[2] - 2.0, 0.9, 1.3, 0.65)
-	_scatter(rng, "berry", "bush_berry", 10, rings[1] + 2.0, rings[2] - 2.0, 0.9, 1.2, 0.5)
-	_scatter(rng, "crystal", "", 6, rings[2] + 2.0, half - 10.0, 1.0, 1.25, 0.6)
+	_scatter(rng, "iron", "rock", VEINS.iron, rings[1] + 2.0, rings[2] - 2.0, 0.9, 1.3, 0.65)
+	_scatter(rng, "gold", "rock", VEINS.gold, rings[1] + 2.0, rings[2] - 2.0, 0.9, 1.3, 0.65)
+	_scatter(rng, "berry", "bush_berry", VEINS.berry, rings[1] + 2.0, rings[2] - 2.0, 0.9, 1.2, 0.5)
+	_scatter(rng, "crystal", "", VEINS.crystal, rings[2] + 2.0, half - 10.0, 1.0, 1.25, 0.6)
 	# afloramentos no anel 1: aglomerados de pedras onde cabe uma pedreira (precisa de 4 pedras num raio de 14 m).
 	# Vêm por último para não mudar o id dos nós já existentes.
 	for g in OUTCROPS:

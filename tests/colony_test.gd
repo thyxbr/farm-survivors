@@ -11,6 +11,12 @@ var colony: Colony
 var player: Player
 
 
+## Gerador do mapa sem os covis (que vêm depois de todos os nós e criariam guardas): os nós saem iguais.
+class MapOnly extends ColonyNature:
+	func _place_dens(_rng: RandomNumberGenerator) -> void:
+		pass
+
+
 func check(cond: bool, what: String) -> void:
 	if cond:
 		print("PASS  ", what)
@@ -34,6 +40,7 @@ func _ready() -> void:
 		colony.events.chance = 0.0   # sem evento sorteado no amanhecer (meteoro mudaria a contagem de nós); os testes de evento usam force
 	check(world != null and colony != null and player != null, "cena da cidade carregada")
 	check(colony.phase == "setup" and colony.hall == null, "começa vazia, esperando a prefeitura")
+	_check_sim_map_numbers()
 	# o personagem é o do save solo (novo neste teste); o ouro da cidade é um caixa à parte
 	var char_gold0 := Game.gold
 	var char_xp0 := _total_xp()
@@ -647,6 +654,8 @@ func _ready() -> void:
 	while colony.salaries() <= int(colony.forecast().gold_in) and extra < 20:
 		colony.spawn_soldier("knight", Vector3(12, 0, 2))
 		extra += 1
+	check(colony.salaries() > int(colony.forecast().gold_in),
+		"salários (%d) passam da renda (%d) para o teste de deserção" % [colony.salaries(), int(colony.forecast().gold_in)])
 	await wait(0.1)
 	var before := colony.soldier_count()
 	colony.treasury = 0
@@ -991,3 +1000,81 @@ func _total_xp() -> int:
 	for lv in range(1, Game.level):
 		t += CharRules.xp_to_next(lv, Balance.tables)
 	return t
+
+
+## Guarda dos números do mapa que a simulação da economia (tests/economy_sim.gd) usa: roda o gerador de verdade
+## em SIM_SEEDS sementes e confere que os veios são os de ColonyNature.VEINS e que o melhor lugar de serraria e
+## de pedreira (anel de 52 m a max_dist, sem obstáculo na pegada) tem pelo menos CAMP_NODES[0] nós no raio.
+const SIM_SEEDS := 12
+
+
+func _check_sim_map_numbers() -> void:
+	var t0 := Time.get_ticks_msec()
+	var camp_nodes: Dictionary = load("res://tests/economy_sim.gd").CAMP_NODES
+	var mins := {"lumber_camp": [9999, 9999, 9999], "quarry": [9999, 9999, 9999]}
+	var veins_ok := true
+	var holder := Node3D.new()
+	add_child(holder)
+	for s in SIM_SEEDS:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 1000 + s * 7919
+		var stub := Colony.new()
+		var nat := MapOnly.new()
+		holder.add_child(nat)
+		nat.generate(rng, stub)
+		for k in ColonyNature.VEINS:
+			veins_ok = veins_ok and nat.count(k) == int(ColonyNature.VEINS[k])
+		for kind in mins:
+			var best := _best_camp_spots(nat, stub, kind, 3)
+			for i in 3:
+				mins[kind][i] = mini(int(mins[kind][i]), best[i])
+		nat.free()
+		stub.free()
+	holder.queue_free()
+	print("  (guarda do mapa: %d ms)" % (Time.get_ticks_msec() - t0))
+	check(veins_ok, "simulação: veios do mapa = ColonyNature.VEINS em %d sementes" % SIM_SEEDS)
+	for kind in mins:
+		var ok := true
+		for i in mini(3, camp_nodes[kind].size()):
+			ok = ok and int(mins[kind][i]) >= int(camp_nodes[kind][i])
+		check(ok, "simulação: 1º/2º/3º lugar de %s têm >= %s nós em %d sementes (pior: %s)" %
+			[kind, str(camp_nodes[kind]), SIM_SEEDS, str(mins[kind])])
+
+
+## Nós no raio dos `n` melhores lugares livres para `kind` (o 2º sem os nós do 1º...), numa grade de 2 m.
+func _best_camp_spots(nat: ColonyNature, stub: Colony, kind: String, n: int) -> Array[int]:
+	var d: Dictionary = ColonyData.BUILDINGS[kind]
+	var reach := float(d.reach)
+	var pts: Array[Vector2] = []
+	for nd in nat.nodes:
+		if nd.kind == d.gather:
+			pts.append(Vector2(nd.position.x, nd.position.z))
+	var used := {}
+	var out: Array[int] = []
+	for rank in n:
+		var best := 0
+		var best_set: Array[int] = []
+		for x in range(-80, 81, 2):
+			for z in range(-80, 81, 2):
+				var c := Vector2(x, z)
+				if c.length() < 52.0 or c.length() > float(d.max_dist):
+					continue
+				var hit: Array[int] = []
+				for i in pts.size():
+					if not used.has(i) and pts[i].distance_to(c) <= reach:
+						hit.append(i)
+				if hit.size() <= best:
+					continue
+				var rect: Array = stub._rect(c, 0.0, d.size)
+				var free := true
+				for o in stub.obstacles:
+					if stub._circle_hits(rect, o[0], float(o[1])):
+						free = false
+						break
+				if free:
+					best = hit.size()
+					best_set = hit
+		out.append(best)
+		for i in best_set:
+			used[i] = true
+	return out
