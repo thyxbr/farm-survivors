@@ -17,7 +17,9 @@ const AUDIO := [
 		"Fantasy SFX Pack Vol 1 — JC Sounds (CC-BY 4.0)",
 		"8 Magic Attacks — leohpaz (CC-BY 4.0)",
 		"Magic SFX Sample — ViRiX (CC-BY 3.0)",
+		"Fleshy Fight Sounds — will_leamon (OGA-BY 3.0)",
 		"RPG Sound Pack — artisticdude (CC0) · 80 CC0 RPG SFX — rubberduck (CC0)",
+		"50 RPG sound effects — Kenney (CC0) · Impact — qubodup (CC0) · Thwack Sounds — AntumDeluge (CC0)",
 	]],
 	["Ambiente", [
 		"Birds and Wind — Spring Spring (CC0)",

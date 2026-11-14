@@ -8,8 +8,13 @@ const FILES := {
 	# espada: whoosh no golpe, metal no acerto; montantes e cutelos usam a versão pesada
 	"sword_swing": ["sword_swing_1", "sword_swing_2", "sword_swing_3"],
 	"sword_swing_heavy": ["sword_swing_heavy_1", "sword_swing_heavy_2", "sword_swing_heavy_3"],
-	"sword_hit": ["sword_hit_1", "sword_hit_2", "sword_hit_3"],
-	"sword_hit_heavy": ["sword_hit_heavy_1", "sword_hit_heavy_2", "sword_hit_heavy_3"],
+	# acerto: só a lâmina (genérico, slime), lâmina em carne (criaturas), carne + pancada (espada pesada)
+	"sword_hit": ["sword_hit_1", "sword_hit_2"],
+	"sword_hit_flesh": ["sword_hit_flesh_1", "sword_hit_flesh_2"],
+	"sword_hit_heavy": ["sword_hit_heavy_1", "sword_hit_heavy_2"],
+	# coleta: golpe em árvore e em pedra/veio
+	"chop_wood": ["chop_wood_1", "chop_wood_2"],
+	"chop_stone": ["chop_stone_1"],
 	# cajado: sopro de vento no gesto + o elemento da arma (staff_element) no disparo e no impacto
 	"staff_wind": ["staff_wind_1", "staff_wind_2"],
 	"arcane_cast": ["arcane_cast_1", "arcane_cast_2", "arcane_cast_3"],
@@ -98,6 +103,13 @@ func staff_element(weapon_id: String) -> String:
 		"splash":
 			return "fire"
 	return "arcane"
+
+
+## Som do acerto da espada: em carne (pesado ou não) se acertou alguma criatura; só a lâmina se foi só slime.
+func sword_hit(flesh: bool, heavy: bool) -> String:
+	if not flesh:
+		return "sword_hit"
+	return "sword_hit_heavy" if heavy else "sword_hit_flesh"
 
 
 ## Montantes e cutelos golpeiam com o som pesado.

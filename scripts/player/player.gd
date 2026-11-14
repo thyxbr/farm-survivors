@@ -533,6 +533,8 @@ func _do_hit() -> void:
 	var mult: float = SWING_MULT[combo - 1]
 	var reach := 2.4 if combo < 3 else 2.9
 	var hit_any := false
+	var flesh := false   # acertou algo que não é slime: lâmina em carne; só slime: só a lâmina
+	var hit_enemy := false
 	var f := facing()
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e.dead:
@@ -550,6 +552,8 @@ func _do_hit() -> void:
 		Game.on_damage_dealt(dmg, e.max_hp)
 		EnchantHit.on_hit(e, dmg)   # efeito do elemento da arma encantada
 		hit_any = true
+		hit_enemy = true
+		flesh = flesh or str(e.data.get("model", "")) != "slime"
 	# nós de recurso da Defesa da Cidade (árvores, pedras, veios...): mesmo alcance e mesmo cone
 	for n in get_tree().get_nodes_in_group("harvest"):
 		if not n.alive:
@@ -563,8 +567,9 @@ func _do_hit() -> void:
 			continue
 		n.hit(global_position)
 		hit_any = true
+	if hit_enemy:   # o nó de recurso toca o próprio som (madeira, pedra) em hit()
+		Sfx.play(Sfx.sword_hit(flesh, Sfx.heavy_sword(_weapon_id())), 0.1)
 	if hit_any:
-		Sfx.play("sword_hit_heavy" if Sfx.heavy_sword(_weapon_id()) else "sword_hit", 0.1)
 		add_shake(0.12 if combo < 3 else 0.22)
 
 

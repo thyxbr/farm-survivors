@@ -24,8 +24,12 @@ efeitos e renomeação para o uso no jogo.
 
 | Arquivos | Obra | Autor | Licença |
 |---|---|---|---|
-| `sword_*`, `arcane_*`, `fire_*`, `frost_cast/hit`, `bow_draw/shot`, `arrow_hit`, `hit`, `heal`, `portal`, `explode_2..4` | [Fantasy SFX Pack Vol 1](https://opengameart.org/content/jc-sounds-fantasy-sfx-pack-vol-1) | JC Sounds | CC-BY 4.0 |
+| `sword_swing*`, `arcane_*`, `fire_*`, `frost_cast/hit`, `bow_draw/shot`, `arrow_hit`, `heal`, `portal`, `explode_2..4` | [Fantasy SFX Pack Vol 1](https://opengameart.org/content/jc-sounds-fantasy-sfx-pack-vol-1) | JC Sounds | CC-BY 4.0 |
 | `staff_wind`, `explode_1`, `zap`, `slam`, `death`, `levelup` | [8 Magic Attacks](https://opengameart.org/content/8-magic-attacks) | leohpaz | CC-BY 4.0 |
+| `sword_hit_flesh`, `sword_hit_heavy` | [Fleshy Fight Sounds](https://opengameart.org/content/fleshy-fight-sounds) | will_leamon | OGA-BY 3.0 |
+| `sword_hit`, `chop_wood_1` | [50 RPG sound effects](https://opengameart.org/content/50-rpg-sound-effects) | Kenney (www.kenney.nl) | CC0 |
+| `chop_wood_2`, `chop_stone` | [Impact](https://opengameart.org/content/impact) | qubodup | CC0 |
+| `hit`, `sword_hit_heavy` (camada) | [Thwack Sounds](https://opengameart.org/content/thwack-sounds) | AntumDeluge | CC0 |
 | `frost_nova`, `quest` | [Magic SFX Sample](https://opengameart.org/content/magic-sfx-sample) | ViRiX | CC-BY 3.0 |
 | `swing`, `dodge`, `hurt`, `pickup` (também usado para o ouro), `click`, `error`, `slime`, `bow_full`, `anvil`, `death` (camada), `staff_wind_2` (camada) | [RPG Sound Pack](https://opengameart.org/content/rpg-sound-pack) | artisticdude | CC0 |
 | `gem`, `enemy_die` | [80 CC0 RPG SFX](https://opengameart.org/content/80-cc0-rpg-sfx) | rubberduck | CC0 |

@@ -51,13 +51,13 @@ static func use(player: Node, id: String) -> bool:
 	match id:
 		"bow_triple", "bow_frost":
 			player.begin_ability(id, {})
-			Sfx.play("swing", 0.3, -12.0)
+			Sfx.play("bow_draw", 0.05, -4.0)
 			return true
 		"bow_gale":
 			player.begin_ability(id, {"charge": 0.0, "fov0": player.camera.fov})
 			Network.send_event(id, player.global_position, Vector3.ZERO)
 			_gale_start(player)
-			Sfx.play("swing", 0.25, -10.0)
+			Sfx.play("bow_draw", 0.05, -2.0)
 			return true
 	return false
 
@@ -137,18 +137,18 @@ static func play_remote(player: Node, kind: String, a: Vector3, b: Vector3) -> v
 			for d in _triple_dirs(b):
 				_spawn_visual(player, a, d)
 			_triple_fx(player, a, b)
-			Sfx.play_at("swing", a, 0.1, -2.0)
+			Sfx.play_at("bow_shot", a, 0.08, -2.0)
 		"bow_frost":
 			player.begin_ability(kind, {})
 			player.ability_t = FROST_DRAW
 			_spawn_visual(player, a, b.normalized(), true)
 			_frost_fx(a, b)
-			Sfx.play_at("swing", a, 0.1, -2.0)
+			Sfx.play_at("bow_shot", a, 0.08, -2.0)
 		"bow_gale":
 			# o dono começou a tensionar: pose e vento (o disparo chega em "bow_gale_fire")
 			player.begin_ability(kind, {"charge": 0.0})
 			_gale_start(player)
-			Sfx.play_at("swing", a, 0.25, -10.0)
+			Sfx.play_at("bow_draw", a, 0.05, -8.0)
 		"bow_gale_fire":
 			# b = direção * carga; sem dano nem hit stop (o dano é do dono)
 			if player.ability != "bow_gale" or player.ability_data.get("fired", false):
@@ -190,7 +190,7 @@ static func _triple_fire(player: Node) -> void:
 		player._spawn_projectile("arrow", origin, d, dmg, crit, pierce, TRIPLE_SPEED)
 	Network.send_event("bow_triple", origin, dir)
 	_triple_fx(player, origin, dir)
-	Sfx.play("swing", 0.1, -2.0)
+	Sfx.play("bow_shot", 0.08, 0.0)
 	player.add_shake(0.06)
 
 
@@ -236,7 +236,7 @@ static func _frost_fire(player: Node) -> void:
 	FXEpic.trail(p, FROST_COLOR, 0.22, 0.5)
 	Network.send_event("bow_frost", origin, dir)
 	_frost_fx(origin, dir)
-	Sfx.play("swing", 0.1, -2.0)
+	Sfx.play("bow_shot", 0.08, 0.0)
 	player.add_shake(0.06)
 
 
@@ -433,7 +433,8 @@ static func _gale_shoot(player: Node, origin: Vector3, dir: Vector3, c: float) -
 	d.hit = {}
 	for key in ["wind", "dust", "tip_glow"]:
 		_stop_stream(d, key)
-	Sfx.play_at("swing", origin, 0.05, 2.0)
+	Sfx.play_at("bow_shot", origin, 0.05, 2.0)
+	Sfx.play_at("staff_wind", origin, 0.05, 0.0)
 	Sfx.play_at("slam", origin, 0.1, -6.0)
 	var root := FX._scene()
 	if root == null:
@@ -500,7 +501,7 @@ static func _gale_hits(player: Node, d: Dictionary, front: float) -> void:
 				FXEpic.glow_burst(at, GALE_CORE, 10, 4.0, 0.12, 0.3, 0.0)
 		n += 1
 	if any:
-		Sfx.play("hit")
+		Sfx.play("arrow_hit", 0.1)
 		if first:
 			FXEpic.hit_stop(0.06)
 

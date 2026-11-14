@@ -183,7 +183,7 @@ func _ice_fx(e: Node) -> void:
 	FX.burst(at, ice, 18, 3.5, 0.09, 0.6, -4.0)
 	FXEpic.glow_burst(at, Color(0.45, 0.8, 1.0), 16, 2.5, 0.2, 0.5, 0.0)
 	FXEpic.ground_mark(e.global_position, Color(0.5, 0.85, 1.0), 1.1, 1.5, "ring")
-	Sfx.play_at("hit", at, 0.1, -4.0)
+	Sfx.play_at("frost_hit", at, 0.1, -4.0)
 
 
 func _finish(impact: bool) -> void:
