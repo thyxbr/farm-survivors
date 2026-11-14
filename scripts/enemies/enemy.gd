@@ -645,12 +645,12 @@ func _explode(visual: bool) -> void:
 
 
 # ------------------------------------------------------------ dano
-func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun := 0.0) -> void:
+func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun := 0.0, pull := 0.0) -> void:
 	if dead:
 		return
 	if puppet:
 		# o servidor decide; os números de dano chegam de volta em show_hit()
-		Network.client_hit_enemy(net_id, amount, from_pos, crit, slow, stun)
+		Network.client_hit_enemy(net_id, amount, from_pos, crit, slow, stun, pull)
 		return
 	if last_hitter != 0:
 		contributors[last_hitter] = true
@@ -676,7 +676,8 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun
 		var kb := global_position - from_pos
 		kb.y = 0
 		if kb.length() > 0.01:
-			kb = kb.normalized() * (6.0 if data.model == "slime" else 4.0) * (0.3 if heavy else 1.0)
+			# `pull` > 0: em vez de empurrar, puxa (m/s) em direção a quem bateu (Turbilhão)
+			kb = kb.normalized() * ((-pull) if pull > 0.0 else (6.0 if data.model == "slime" else 4.0)) * (0.3 if heavy else 1.0)
 			velocity.x = kb.x
 			velocity.z = kb.z
 		if (state != "attack" and not heavy) or (crit and attack_kind != "fuse"):

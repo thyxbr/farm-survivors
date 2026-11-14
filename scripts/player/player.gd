@@ -73,6 +73,9 @@ var invuln := 0.0
 var cast_timer := 0.0
 var stamina_delay := 0.0
 var shake := 0.0
+## Quanto a câmera recua (m) além da distância normal: a habilidade pede, _process aproxima suave.
+var cam_back := 0.0
+var _cam_back_now := 0.0
 ## Habilidade de arma em execução (SwordAbilities): id ("" = nenhuma), tempo desde o início e
 ## rascunho dela ("nodes" são liberados e "mask" restaurada por end_ability()).
 var ability := ""
@@ -164,6 +167,7 @@ func _ready() -> void:
 	Game.food_eaten.connect(_on_food_eaten)
 	Game.kit_changed.connect(end_ability)   # só o jogador local: réplicas saem antes, em _ready_remote
 	_update_equipment_visual()
+	FXEpic.prewarm()   # shaders dos efeitos prontos: a primeira habilidade não engasga
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -207,6 +211,10 @@ func _process(delta: float) -> void:
 	_cam_y = lerpf(_cam_y, o.y, 1.0 - exp(-12.0 * delta))
 	_cam_y = clampf(_cam_y, o.y - 0.6, o.y + 0.6)
 	cam_yaw.global_position = Vector3(o.x, _cam_y + 1.55, o.z)
+	# recuo pedido por habilidade: soma só a diferença, a distância base fica intacta
+	var back := lerpf(_cam_back_now, cam_back, 1.0 - exp(-6.0 * delta))
+	spring.spring_length += back - _cam_back_now
+	_cam_back_now = back
 
 
 func _ready_remote() -> void:
@@ -743,6 +751,7 @@ func end_ability() -> void:
 		velocity.x = 0.0
 		velocity.z = 0.0
 		Engine.time_scale = 1.0
+		cam_back = 0.0
 	ability = ""
 	ability_t = 0.0
 	ability_data = {}
@@ -858,13 +867,14 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 	Game.hp -= final_dmg
 	Game.add_fury(final_dmg / Game.max_hp() * 25.0)
 	invuln = 0.45
-	var kb := global_position - from_pos
-	kb.y = 0
-	if kb.length() > 0.01:
-		kb = kb.normalized() * 6.0
-		velocity.x = kb.x
-		velocity.z = kb.z
-	velocity.y = 3.0
+	if ability != "sword_whirl":   # o Turbilhão é imune a empurrão
+		var kb := global_position - from_pos
+		kb.y = 0
+		if kb.length() > 0.01:
+			kb = kb.normalized() * 6.0
+			velocity.x = kb.x
+			velocity.z = kb.z
+		velocity.y = 3.0
 	FX.damage_number(global_position + Vector3.UP * 2.0, str(int(round(final_dmg))), Color(1, 0.3, 0.25), 56)
 	FX.burst(global_position + Vector3.UP, Color(0.8, 0.05, 0.05), 12, 3.0)
 	Sfx.play("hurt")
@@ -1151,7 +1161,8 @@ func _animate(delta: float) -> void:
 	_lean = lerpf(_lean, lean_t, 1.0 - exp(-8.0 * delta))
 	var yaw_rate := wrapf(model.rotation.y - _prev_yaw, -PI, PI) / maxf(delta, 0.001)
 	_prev_yaw = model.rotation.y
-	var bank_t := clampf(-yaw_rate * hspeed * 0.012, -0.18, 0.18) if on_floor and dodge_timer <= 0 else 0.0
+	# sem inclinação de curva na esquiva nem nas habilidades (o Turbilhão gira o modelo de propósito)
+	var bank_t := clampf(-yaw_rate * hspeed * 0.012, -0.18, 0.18) if on_floor and dodge_timer <= 0 and ability == "" else 0.0
 	_bank = lerpf(_bank, bank_t, 1.0 - exp(-8.0 * delta))
 	model.rotation.z = _bank
 

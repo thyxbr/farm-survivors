@@ -16,6 +16,11 @@ static var _tex_scorch: ImageTexture
 static var _hs_until_ms := 0
 static var _hs_active := false
 static var _hs_guard: Node
+## Materiais compartilhados (por textura/aditivo/sRGB). Material novo a cada efeito custava 10-20 ms:
+## quando o último material de um tipo é liberado o Godot descarta o shader e o recompila no
+## próximo efeito (engasgo em todo golpe depois de uns segundos parado). As cores vêm por vértice.
+static var _mats := {}
+static var _spark_mesh_c: ArrayMesh
 
 
 # ---------------------------------------------------------------- texturas (geradas uma vez)
@@ -105,8 +110,13 @@ static func _crack_tex() -> ImageTexture:
 
 
 # ---------------------------------------------------------------- materiais / emissores
-static func _particle_mat(tex: Texture2D, additive: bool) -> StandardMaterial3D:
+static func _particle_mat(tex: Texture2D, additive: bool, srgb := false) -> StandardMaterial3D:
+	var key := "%d/%s/%s" % [tex.get_instance_id(), additive, srgb]
+	if _mats.has(key):
+		return _mats[key]
 	var m := StandardMaterial3D.new()
+	# cores em sRGB (como no resto do código) são convertidas; sem isso laranja e vermelho desbotam
+	m.vertex_color_is_srgb = srgb
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.vertex_color_use_as_albedo = true
 	m.albedo_texture = tex
@@ -118,12 +128,15 @@ static func _particle_mat(tex: Texture2D, additive: bool) -> StandardMaterial3D:
 	m.particles_anim_h_frames = 1
 	m.particles_anim_v_frames = 1
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_mats[key] = m
 	return m
 
 
 ## Faísca: dois quads em cruz ao longo de Y (visíveis de qualquer ângulo). Sem billboard,
 ## para o align_y das partículas alongar de verdade na direção da velocidade.
 static func _spark_mesh() -> ArrayMesh:
+	if _spark_mesh_c != null:
+		return _spark_mesh_c
 	var hw := 0.07
 	var hl := 0.5
 	var verts := PackedVector3Array([
@@ -139,12 +152,17 @@ static func _spark_mesh() -> ArrayMesh:
 	arr[Mesh.ARRAY_INDEX] = idx
 	var m := ArrayMesh.new()
 	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	m.surface_set_material(0, _spark_mat())
+	_spark_mesh_c = m
 	return m
 
 
 static func _spark_mat() -> StandardMaterial3D:
-	var m := _particle_mat(_glow_tex(), true)
+	if _mats.has("spark"):
+		return _mats.spark
+	var m := _particle_mat(_glow_tex(), true).duplicate() as StandardMaterial3D
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
+	_mats.spark = m
 	return m
 
 
@@ -192,6 +210,22 @@ static func _fade_ramp(c0: Color, c1: Color, c2: Color) -> Gradient:
 
 
 # ---------------------------------------------------------------- API
+## Cria texturas e materiais (gera os shaders) antes do primeiro efeito: tira a maior parte do
+## engasgo da primeira habilidade da sessão. Chamado ao carregar o jogador local.
+static func prewarm() -> void:
+	if Network.is_server():
+		return   # servidor dedicado: sem efeitos
+	for srgb in [false, true]:
+		_particle_mat(_glow_tex(), true, srgb)
+		_particle_mat(_smoke_tex(), false, srgb)
+	_spark_mesh()
+	_scorch_tex()
+	_crack_tex()
+	_ring_tex()
+	TrailNode.shared_mat()
+	FX.prewarm()
+
+
 ## Explosão de brilho: bolas de luz aditivas que desbotam e encolhem.
 static func glow_burst(pos: Vector3, color: Color, amount := 40, speed := 6.0, size := 0.18, lifetime := 0.7, gravity := -4.0) -> void:
 	var root := FX._scene()
@@ -224,6 +258,40 @@ static func glow_burst(pos: Vector3, color: Color, amount := 40, speed := 6.0, s
 	_launch(root, p, pos, amount)
 
 
+## Onda de chamas: bolas de luz aditivas saindo na horizontal em todas as direções, freando até
+## ~speed²/20 m (anel de fogo que se expande rente ao chão).
+static func nova(pos: Vector3, color: Color, amount := 60, speed := 9.0, size := 0.2, lifetime := 0.6) -> void:
+	var root := FX._scene()
+	if root == null:
+		return
+	amount = _reserve(amount)
+	var p := CPUParticles3D.new()
+	var mesh := QuadMesh.new()
+	mesh.size = Vector2.ONE * size * 2.4
+	mesh.material = _particle_mat(_glow_tex(), true)
+	p.mesh = mesh
+	p.amount = amount
+	p.lifetime = lifetime
+	p.explosiveness = 1.0
+	p.direction = Vector3.RIGHT
+	p.spread = 180.0
+	p.flatness = 1.0   # só no plano horizontal
+	p.initial_velocity_min = speed * 0.85
+	p.initial_velocity_max = speed
+	p.damping_min = 10.0
+	p.damping_max = 10.0
+	p.gravity = Vector3(0, 1.5, 0)
+	p.scale_amount_min = 0.7
+	p.scale_amount_max = 1.4
+	var sc := Curve.new()
+	sc.add_point(Vector2(0, 0.6))
+	sc.add_point(Vector2(0.3, 1.0))
+	sc.add_point(Vector2(1, 0.2))
+	p.scale_amount_curve = sc
+	p.color_ramp = _fade_ramp(_hdr(color.lerp(Color.WHITE, 0.15), 1.6), _hdr(color, 1.3), _hdr(color, 1.0, 0.0))
+	_launch(root, p, pos, amount)
+
+
 ## Faíscas alongadas pela velocidade, num cone de 35 graus em dir.
 static func sparks(pos: Vector3, dir: Vector3, color: Color, amount := 30, speed := 12.0, lifetime := 0.45) -> void:
 	var root := FX._scene()
@@ -231,9 +299,7 @@ static func sparks(pos: Vector3, dir: Vector3, color: Color, amount := 30, speed
 		return
 	amount = _reserve(amount)
 	var p := CPUParticles3D.new()
-	var mesh: Mesh = _spark_mesh()
-	mesh.surface_set_material(0, _spark_mat())
-	p.mesh = mesh
+	p.mesh = _spark_mesh()
 	p.amount = amount
 	p.lifetime = lifetime
 	p.explosiveness = 0.9
@@ -336,17 +402,73 @@ static func ground_mark(pos: Vector3, color: Color, radius: float, time := 2.5, 
 	tw.tween_callback(d.queue_free)
 
 
-## Rastro de fita atrás de target durante time segundos (depois some).
-static func trail(target: Node3D, color: Color, width := 0.5, time := 1.0) -> void:
+## Rastro de fita atrás de target durante time segundos (depois some). A fita vai de target ao
+## longo do seu eixo Y por `width`. `life` = quanto cada ponto dura (comprimento do rastro);
+## `end_color` (alfa > 0) = cor para onde o rastro esfria ao envelhecer (fogo: amarelo -> vermelho).
+static func trail(target: Node3D, color: Color, width := 0.5, time := 1.0, life := 0.45, end_color := Color(0, 0, 0, 0)) -> void:
 	var root := FX._scene()
 	if root == null or target == null or not is_instance_valid(target):
 		return
 	var t := TrailNode.new()
 	t.target = target
 	t.color = color
+	t.end_color = end_color if end_color.a > 0.0 else color
 	t.width = width
 	t.duration = time
+	t.life = maxf(life, 0.05)
 	root.add_child(t)
+
+
+## Emissor contínuo preso a `parent`: segue o nó, mas as partículas ficam no mundo (preso a algo que
+## gira, desenha espirais). kind "glow" = brasas aditivas; "smoke" = nuvens alfa. Devolve o emissor
+## já emitindo, para ajustar forma e velocidade (null no servidor). Conta no ACTIVE_LIMIT enquanto
+## existir. Pare com stop_stream: as partículas vivas terminam a vida antes de o nó sumir.
+static func stream(parent: Node3D, kind: String, color: Color, amount: int, lifetime: float, size := 0.15) -> CPUParticles3D:
+	if FX._scene() == null or parent == null or not is_instance_valid(parent):
+		return null
+	amount = _reserve(amount)
+	var p := CPUParticles3D.new()
+	var mesh := QuadMesh.new()
+	var sc := Curve.new()
+	var mat: StandardMaterial3D
+	if kind == "smoke":
+		mesh.size = Vector2.ONE * size
+		mat = _particle_mat(_smoke_tex(), false, true)
+		sc.add_point(Vector2(0, 0.5))
+		sc.add_point(Vector2(1, 1.5))
+		p.color_ramp = _fade_ramp(Color(color.r, color.g, color.b, 0.0), color, Color(color.r, color.g, color.b, 0.0))
+		p.color_ramp.offsets = PackedFloat32Array([0.0, 0.2, 1.0])
+		p.angle_min = -180.0
+		p.angle_max = 180.0
+	else:
+		mesh.size = Vector2.ONE * size * 2.4
+		mat = _particle_mat(_glow_tex(), true, true)
+		sc.add_point(Vector2(0, 1.0))
+		sc.add_point(Vector2(1, 0.15))
+		# gamas baixas: a cor é sRGB (linearizada no material), um ganho alto estoura para branco
+		var hot := color.lerp(Color(1.0, 0.92, 0.6), 0.3)
+		p.color_ramp = _fade_ramp(_hdr(hot, 1.15, 0.9), _hdr(color, 1.0, 0.8), _hdr(color, 0.8, 0.0))
+	mesh.material = mat
+	p.mesh = mesh
+	p.scale_amount_curve = sc
+	p.amount = amount
+	p.lifetime = lifetime
+	p.local_coords = false
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	p.tree_exiting.connect(func() -> void: _release(amount), CONNECT_ONE_SHOT)
+	parent.add_child(p)
+	p.emitting = true
+	return p
+
+
+## Para um emissor de stream(): não cria mais partículas e libera o nó quando as vivas acabarem.
+static func stop_stream(p: CPUParticles3D) -> void:
+	if p == null or not is_instance_valid(p) or not p.is_inside_tree():
+		return
+	p.emitting = false
+	p.get_tree().create_timer(p.lifetime + 0.1).timeout.connect(func() -> void:
+		if is_instance_valid(p):
+			p.queue_free())
 
 
 ## Congela a tela por instantes (impacto forte). Só afeta o cliente local.
@@ -383,11 +505,14 @@ class HitStopGuard extends Node:
 
 # ---------------------------------------------------------------- nó auxiliar do rastro
 class TrailNode extends MeshInstance3D:
-	const MAX_POINTS := 20
+	const MAX_POINTS := 64
+	static var _mat: StandardMaterial3D   # compartilhado (ver FXEpic._mats)
 	var target: Node3D
 	var color := Color.WHITE
+	var end_color := Color.WHITE
 	var width := 0.5
 	var duration := 1.0
+	var life := 0.45
 	var _im := ImmediateMesh.new()
 	var _pts: Array = []   # [base, ponta, instante]
 	var _age := 0.0
@@ -397,15 +522,27 @@ class TrailNode extends MeshInstance3D:
 		top_level = true
 		mesh = _im
 		cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		var m := StandardMaterial3D.new()
-		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		m.vertex_color_use_as_albedo = true
-		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-		m.cull_mode = BaseMaterial3D.CULL_DISABLED
-		material_override = m
+		material_override = shared_mat()
 		global_transform = Transform3D.IDENTITY
 		extra_cull_margin = 4096.0   # os vértices estão em coordenadas do mundo
+
+	static func shared_mat() -> StandardMaterial3D:
+		if _mat == null:
+			# núcleo com mistura alfa (a cor fica saturada mesmo sobre a grama ao sol) e, por cima,
+			# um passe aditivo mais fraco que dá o brilho sem lavar a cor para creme
+			var m := StandardMaterial3D.new()
+			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			m.vertex_color_use_as_albedo = true
+			# cor de vértice em sRGB, como as cores do código: lida como linear o laranja vira creme
+			m.vertex_color_is_srgb = true
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			m.cull_mode = BaseMaterial3D.CULL_DISABLED
+			var glow := m.duplicate() as StandardMaterial3D
+			glow.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+			glow.albedo_color = Color(1, 1, 1, 0.5)
+			m.next_pass = glow
+			_mat = m
+		return _mat
 
 	func _process(delta: float) -> void:
 		_age += delta
@@ -419,16 +556,19 @@ class TrailNode extends MeshInstance3D:
 		else:
 			_fade += delta
 		# descarta pontos velhos (o rastro encurta sozinho ao parar)
-		while _pts.size() > 0 and _age - float(_pts[0][2]) > 0.45:
+		while _pts.size() > 0 and _age - float(_pts[0][2]) > life:
 			_pts.pop_front()
 		_im.clear_surfaces()
 		if _pts.size() >= 2:
 			_im.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
-			var hot := color.lerp(Color.WHITE, 0.5)
+			var fade := clampf(1.0 - _fade / 0.25, 0.0, 1.0)
 			for i in _pts.size():
-				var life := 1.0 - clampf((_age - float(_pts[i][2])) / 0.45, 0.0, 1.0)
-				var a := life * clampf(1.0 - _fade / 0.25, 0.0, 1.0)
-				_im.surface_set_color(Color(color.r, color.g, color.b, a * 0.8))
+				var old := clampf((_age - float(_pts[i][2])) / life, 0.0, 1.0)
+				var a := pow(1.0 - old, 0.6) * fade
+				var c := color.lerp(end_color, old)
+				# borda de fora (ponta da fita) mais quente, sem ir ao branco
+				var hot := c.lerp(Color(1.0, 0.9, 0.55), 0.35)
+				_im.surface_set_color(Color(c.r, c.g, c.b, a * 0.85))
 				_im.surface_add_vertex(_pts[i][0])
 				_im.surface_set_color(Color(hot.r, hot.g, hot.b, a))
 				_im.surface_add_vertex(_pts[i][1])

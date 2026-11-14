@@ -201,3 +201,31 @@ const QUAKE := [
 		"body_x": 0.5, "arm_l": Vector3(-0.8, -0.1, 0.25), "elbow_l": -0.2,
 		"leg_l": -0.55, "knee_l": 0.75, "leg_r": 0.35, "knee_r": 0.55}, "lin"],
 ]
+
+## Turbilhão (SwordAbilities.WHIRL_TIME = 2,1 s): preparo até 0,19 (agacha, espada para trás com as
+## duas mãos, tronco torcido), giro de 0,19 a 0,905 (braços estendidos, lâmina na horizontal, tronco
+## inclinado; o modelo inteiro gira em SwordAbilities) e golpe final para baixo, no chão em 0,943.
+const WHIRL := [
+	[0.17, {"arm_r": Vector3(0.5, 0.3, -0.55), "elbow_r": -0.6, "wrist_r": -2.8, "twist": -0.95,
+		"body_x": 0.4, "body_y": -0.14, "body_z": 0.08, "head_x": -0.3, "head_y": 0.65,
+		"arm_l": Vector3(0.15, -0.6, -0.35), "elbow_l": -1.1,
+		"leg_l": -0.7, "knee_l": 1.2, "leg_r": 0.5, "knee_r": 1.0}, "out"],
+	[0.24, {"arm_r": Vector3(-1.75, -0.2, -0.75), "elbow_r": -0.1, "wrist_r": 1.45, "twist": 0.1,
+		"body_x": 0.32, "body_y": -0.12, "body_z": 0.16, "head_x": -0.1, "head_y": 0.0,
+		"arm_l": Vector3(-0.2, 0.0, 1.1), "elbow_l": -0.3,
+		"leg_l": -0.45, "knee_l": 0.95, "leg_r": 0.4, "knee_r": 0.9}, "in"],
+	[0.9, {"arm_r": Vector3(-1.75, -0.2, -0.75), "elbow_r": -0.1, "wrist_r": 1.45, "twist": 0.1,
+		"body_x": 0.32, "body_y": -0.12, "body_z": 0.16,
+		"arm_l": Vector3(-0.2, 0.0, 1.1), "elbow_l": -0.3,
+		"leg_l": -0.45, "knee_l": 0.95, "leg_r": 0.4, "knee_r": 0.9}, "lin"],
+	[0.925, {"arm_r": Vector3(-2.7, -0.1, -0.25), "elbow_r": -0.8, "wrist_r": -0.3, "twist": -0.25,
+		"body_x": -0.2, "body_z": 0.0, "head_x": -0.2,
+		"arm_l": Vector3(-2.55, 0.15, 0.3), "elbow_l": -0.8}, "out"],
+	[0.943, {"arm_r": Vector3(-0.95, 0.05, -0.1), "elbow_r": -0.1, "wrist_r": 1.7, "twist": 0.3,
+		"body_x": 0.55, "body_y": -0.12, "head_x": 0.15,
+		"arm_l": Vector3(-0.85, -0.1, 0.25), "elbow_l": -0.2,
+		"leg_l": -0.65, "knee_l": 0.9, "leg_r": 0.45, "knee_r": 0.7}, "in"],
+	[0.985, {"arm_r": Vector3(-0.9, 0.05, -0.1), "elbow_r": -0.1, "wrist_r": 1.75, "twist": 0.3,
+		"body_x": 0.5, "arm_l": Vector3(-0.8, -0.1, 0.25), "elbow_l": -0.2,
+		"leg_l": -0.6, "knee_l": 0.85, "leg_r": 0.4, "knee_r": 0.65}, "lin"],
+]

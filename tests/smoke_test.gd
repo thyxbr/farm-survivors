@@ -259,6 +259,68 @@ func _ready() -> void:
 	player.velocity = Vector3.ZERO
 	await wait(0.1)
 
+	# --- Turbilhão (ultimate da espada, slot 4, nível 8, fúria cheia): gira ferindo e puxando em volta
+	var lvl_w := Game.level
+	var hp_w := Game.hp
+	var spring_w: float = player.spring.spring_length
+	Game.level = 8
+	Game.fury = 100.0
+	var s1 := _nearest("slime")
+	s1.hp = s1.max_hp
+	player.global_position = s1.global_position + Vector3(2.5, 0.3, 0)
+	player.velocity = Vector3.ZERO
+	var h1: float = s1.hp
+	player.use_slot(4)
+	check(Game.fury == 0.0 and player.ability == "sword_whirl", "Turbilhão começa e gasta a fúria")
+	await wait(1.0)
+	check(s1.hp < h1, "Turbilhão causa dano durante o giro (%.0f -> %.0f)" % [h1, s1.hp])
+	# imune a empurrão: o golpe tira vida mas não empurra nem levanta
+	player.invuln = 0.0
+	player.take_damage(1.0, player.global_position + Vector3(0, 0, 3.0))
+	check(player.velocity.y < 1.0 and Vector2(player.velocity.x, player.velocity.z).length() < 3.0,
+		"Turbilhão: imune a empurrão (vel %s)" % player.velocity)
+	check(player.spring.spring_length > spring_w + 0.2, "Turbilhão: câmera recua (%.2f -> %.2f)" % [spring_w, player.spring.spring_length])
+	Game.stamina = Game.max_stamina()
+	player._dodge_pressed(Vector3.ZERO)
+	check(player.ability == "sword_whirl" and player.dodge_timer <= 0.0, "esquiva não cancela o Turbilhão")
+	player._die()
+	await wait(0.1)
+	check(player.ability == "" and is_equal_approx(Engine.time_scale, 1.0), "morrer no meio limpa o estado")
+	player.revive(player.global_position)
+	# a tela de morte abre 1,8 s depois de morrer, mesmo revivido: fecha sem a multa de ouro
+	await wait(2.0)
+	if world.modal != null:
+		world.modal.queue_free()
+		world.modal = null
+	world._set_paused(false)
+	check(not player.dead and not get_tree().paused, "reviveu depois de morrer no Turbilhão")
+	check(absf(player.spring.spring_length - spring_w) < 0.05, "câmera volta ao normal (%.2f)" % player.spring.spring_length)
+	# puxão: o golpe com pull leva o inimigo em direção a quem bateu (em vez de empurrar)
+	var pl_s := _nearest("slime")
+	pl_s.hp = pl_s.max_hp
+	pl_s.global_position = player.global_position + Vector3(3.0, 0.0, 0.0)
+	pl_s.velocity = Vector3.ZERO
+	pl_s.take_damage(0.5, player.global_position, false, 0.0, 0.0, SwordAbilities.WHIRL_PULL)
+	var to_pl := player.global_position - pl_s.global_position
+	check(Vector2(pl_s.velocity.x, pl_s.velocity.z).dot(Vector2(to_pl.x, to_pl.z)) > 0.0,
+		"golpe com puxão leva o inimigo para o jogador (vel %s)" % pl_s.velocity)
+	# giro inteiro: termina sozinho, tempo normal e o modelo volta a olhar para onde olhava
+	Game.fury = 100.0
+	player.invuln = 0.0
+	player.model.rotation.y = 0.5
+	player.use_slot(4)
+	check(player.ability == "sword_whirl", "Turbilhão de novo com a fúria cheia")
+	await wait(SwordAbilities.WHIRL_TIME + 0.35)
+	check(player.ability == "" and is_equal_approx(Engine.time_scale, 1.0), "Turbilhão termina sozinho (%s)" % player.ability)
+	check(absf(wrapf(player.model.rotation.y - 0.5, -PI, PI)) < 0.05, "giro volta à direção inicial (%.2f)" % player.model.rotation.y)
+	Game.level = lvl_w
+	Game.fury = 0.0
+	Game.hp = hp_w
+	player.cooldowns.sword_whirl = 0.0
+	player.global_position = pos_c
+	player.velocity = Vector3.ZERO
+	await wait(0.1)
+
 	# --- kits de habilidade por arma (começa de espada: weapon_class() == "sword")
 	var kit_weapon: String = Game.equipment.weapon
 	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_whirl"], "kit da espada (%s)" % [Game.ability_kit()])
