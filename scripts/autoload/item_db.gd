@@ -300,16 +300,16 @@ const ABILITIES := {
 		"ultimate": true, "icon": "fireball", "desc": "Ultimate: meteoros caem sobre a área."},
 	"sword_charge": {"name": "Investida", "class": "sword", "slot": 1, "level": 1, "cooldown": 6.0, "cost": 0,
 		"ultimate": false, "icon": "saber", "desc": "Avança sobre os inimigos à frente, causando dano."},
-	"sword_quake": {"name": "Abalo Sísmico", "class": "sword", "slot": 2, "level": 3, "cooldown": 9.0, "cost": 0,
+	"sword_quake": {"name": "Golpe Sísmico", "class": "sword", "slot": 2, "level": 3, "cooldown": 9.0, "cost": 0,
 		"ultimate": false, "icon": "greatsword", "desc": "Golpe no chão: dano em área e atordoamento."},
 	"sword_whirl": {"name": "Turbilhão", "class": "sword", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
 		"ultimate": true, "icon": "cleaver", "desc": "Ultimate: redemoinho de lâminas ao redor."},
 	"bow_triple": {"name": "Tiro Triplo", "class": "bow", "slot": 1, "level": 1, "cooldown": 5.0, "cost": 0,
 		"ultimate": false, "icon": "bow", "desc": "Três flechas em leque."},
-	"bow_frost": {"name": "Flecha Gélida", "class": "bow", "slot": 2, "level": 3, "cooldown": 8.0, "cost": 0,
-		"ultimate": false, "icon": "frost", "desc": "Flecha que congela o alvo."},
-	"bow_gale": {"name": "Rajada de Flechas", "class": "bow", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
-		"ultimate": true, "icon": "bow", "desc": "Ultimate: chuva de flechas."},
+	"bow_frost": {"name": "Flecha Glacial", "class": "bow", "slot": 2, "level": 3, "cooldown": 8.0, "cost": 0,
+		"ultimate": false, "icon": "frost", "desc": "Flecha de gelo: prende e atrasa o alvo atingido."},
+	"bow_gale": {"name": "Flecha do Vendaval", "class": "bow", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
+		"ultimate": true, "icon": "bow", "desc": "Ultimate: o arqueiro agacha, tensiona e solta uma flecha que atravessa tudo em linha reta, rasgando o ar."},
 }
 
 

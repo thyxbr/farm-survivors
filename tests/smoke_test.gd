@@ -37,6 +37,14 @@ func wait(sec: float) -> void:
 	await get_tree().create_timer(sec, true, true).timeout
 
 
+## Espera até `cond` ficar verdadeira ou estourar `timeout` (evita folgas fixas frágeis).
+func wait_until(cond: Callable, timeout := 3.0) -> void:
+	var t := 0.0
+	while t < timeout and not cond.call():
+		await wait(0.05)
+		t += 0.05
+
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	await wait(0.5)
@@ -272,7 +280,8 @@ func _ready() -> void:
 	var h1: float = s1.hp
 	player.use_slot(4)
 	check(Game.fury == 0.0 and player.ability == "sword_whirl", "Turbilhão começa e gasta a fúria")
-	await wait(1.0)
+	await wait_until(func(): return s1.hp < h1, 3.0)
+	check(Game.fury == 0.0, "Turbilhão que acertou não recarrega a própria fúria (%.2f)" % Game.fury)
 	check(s1.hp < h1, "Turbilhão causa dano durante o giro (%.0f -> %.0f)" % [h1, s1.hp])
 	# imune a empurrão: o golpe tira vida mas não empurra nem levanta
 	player.invuln = 0.0
@@ -380,6 +389,18 @@ func _ready() -> void:
 	Game.fury = 0.0
 	player.cast("frost_nova")
 	check(Game.fury > 0.0, "magia do cajado enche a fúria (%.2f)" % Game.fury)
+	# magias não roubam vida (o roubo é só do corpo a corpo)
+	var weapon_n: String = Game.equipment.weapon
+	var hp_n := Game.hp
+	Game.equipment.weapon = "scarlet_talon"
+	Game.hp = 10.0
+	player.cooldowns.frost_nova = 0.0
+	player.cast_timer = 0.0
+	Game.mp = Game.max_mp()
+	player.cast("frost_nova")
+	check(Game.gear("leech") > 0.0 and Game.hp <= 10.0, "Nova Gélida não rouba vida mesmo com roubo de vida equipado (%.1f)" % Game.hp)
+	Game.equipment.weapon = weapon_n
+	Game.hp = hp_n
 	Game.fury = 0.0
 	Game.level = lvl_n
 	Game.mp = mp_n
@@ -423,12 +444,15 @@ func _ready() -> void:
 	# --- magia
 	var mp0 := Game.mp
 	player.cast("fireball")
-	await wait(0.2)   # a bola de fogo sai depois do movimento de apontar
-	check(Game.mp < mp0, "bola de fogo gasta mana")
 	var found_fb := false
-	for c in world.get_children():
-		if c is Area3D and c.get_script() == preload("res://scripts/player/fireball.gd"):
-			found_fb = true
+	var fb_t := 0.0
+	while not found_fb and fb_t < 3.0:   # a bola de fogo sai depois do movimento de apontar
+		await wait(0.05)
+		fb_t += 0.05
+		for c in world.get_children():
+			if c is Area3D and c.get_script() == preload("res://scripts/player/fireball.gd"):
+				found_fb = true
+	check(Game.mp < mp0, "bola de fogo gasta mana")
 	check(found_fb, "projétil de bola de fogo criado")
 	player.cast("heal")
 	check(player.cooldowns.heal == 0.0, "cura bloqueada no nível 1")

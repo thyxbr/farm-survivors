@@ -550,7 +550,7 @@ static func _whirl_turn(player: Node, d: Dictionary) -> void:
 		if local:
 			var dmg: float = Game.melee_damage() * WHIRL_MULT
 			e.take_damage(dmg, base, false, 0.0, 0.0, WHIRL_PULL)
-			Game.on_damage_dealt(dmg, e.max_hp)
+			Game.on_damage_dealt(dmg, e.max_hp, false)   # a ultimate não recarrega a própria fúria
 		any = true
 		if n < 8:   # faíscas para onde a lâmina corre (tangente ao giro)
 			var along := Vector3.UP.cross(to).normalized() if to.length() > 0.01 else Vector3.UP
@@ -591,7 +591,7 @@ static func _whirl_finale(player: Node, d: Dictionary) -> void:
 			continue
 		var dmg: float = Game.melee_damage() * WHIRL_FINAL_MULT
 		e.take_damage(dmg, base, false)
-		Game.on_damage_dealt(dmg, e.max_hp)
+		Game.on_damage_dealt(dmg, e.max_hp, false)
 		any = true
 	if any:
 		Sfx.play("hit")

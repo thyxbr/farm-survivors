@@ -412,16 +412,32 @@ func preview_equip(id: String) -> Dictionary:
 
 
 ## Roubo de vida dos itens: cura uma fração do dano causado.
-func on_damage_dealt(amount: float, target_max_hp := 100.0) -> void:
-	add_fury(clampf(amount / maxf(1.0, target_max_hp) * 50.0, 0.5, 6.0))
+func on_damage_dealt(amount: float, target_max_hp := 100.0, with_fury := true) -> void:
+	if with_fury:
+		add_fury_from_damage(amount, target_max_hp)
 	var l := gear("leech")
 	if l > 0.0 and hp > 0.0:
 		hp = min(max_hp(), hp + amount * l)
 
 
+## Fúria ganha por um golpe: proporcional ao dano em relação à vida do alvo.
+static func fury_gain(amount: float, target_max_hp: float) -> float:
+	return clampf(amount / maxf(1.0, target_max_hp) * 50.0, 0.5, 6.0)
+
+
+## Só enche a fúria, sem roubo de vida: usado pelas magias (o roubo de vida é do corpo a corpo).
+func add_fury_from_damage(amount: float, target_max_hp := 100.0) -> void:
+	add_fury(fury_gain(amount, target_max_hp))
+
+
 func add_fury(amount: float) -> void:
 	fury = clampf(fury + amount, 0.0, FURY_MAX)
 	stats_changed.emit()
+
+
+## Habilidades ainda "Em breve" (fases seguintes) não são anunciadas.
+func ability_implemented(id: String) -> bool:
+	return id in ["fireball", "heal", "frost_nova", "sword_charge", "sword_quake", "sword_whirl"]
 
 
 func fury_full() -> bool:
@@ -443,7 +459,7 @@ func add_xp(amount: int) -> void:
 		mp = max_mp()
 		notify.emit("Nível %d! +3 pontos de atributo (C)" % level, Color(1.0, 0.85, 0.3))
 		for id in ability_kit():
-			if ItemDB.ABILITIES[id].level == level:
+			if ItemDB.ABILITIES[id].level == level and ability_implemented(id):
 				notify.emit("Nova habilidade: %s [%d]" % [ItemDB.ABILITIES[id].name, ItemDB.ABILITIES[id].slot], Color(0.75, 0.55, 1.0))
 		leveled_up.emit(level)
 	stats_changed.emit()

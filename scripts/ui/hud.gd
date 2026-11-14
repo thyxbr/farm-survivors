@@ -291,7 +291,7 @@ func _build_help() -> void:
 	var help := UITheme.label(help_text if help_text != "" else
 		"WASD mover · Shift correr · Espaço pular · Ctrl/Clique dir. esquivar\n" +
 		"Clique esq.: atacar — espada: combo · cajado: projéteis · arco: segure e solte\n" +
-		"1 Bola de Fogo · 2 Cura · 3 Nova Gélida · R/F poções · Q comer · T trocar\n" +
+		"1–3 habilidades da arma · 4 ultimate (fúria cheia) · R/F poções · Q comer · T trocar\n" +
 		"E interagir · I inventário · C personagem · J missões\n" +
 		"F5 salvar · F9 carregar · Esc pausa · H esconder ajuda", 13, UITheme.DIM)
 	help_panel.add_child(help)

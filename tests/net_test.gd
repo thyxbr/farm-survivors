@@ -196,7 +196,16 @@ func _ready() -> void:
 	check(Game.equipment.weapon == "frost_scepter" and w.player.look["class"] == "staff", "trocou para o cajado")
 	await wait(0.6)
 	if peers > 1:
-		await wait(0.6)
+		var staff_t := 0.0
+		while staff_t < 4.0:   # espera o snapshot chegar (sem folga fixa frágil)
+			var all_staff := true
+			for rp in Network.remote_players.values():
+				if rp.look["class"] != "staff":
+					all_staff = false
+			if all_staff:
+				break
+			await wait(0.1)
+			staff_t += 0.1
 		for rp in Network.remote_players.values():
 			check(rp.look["class"] == "staff", "vê %s trocar para cajado" % rp.display_name)
 
@@ -252,7 +261,7 @@ func _test_sword(w: Node) -> void:
 			"habilidade da réplica não afeta o meu jogador (nível %d)" % Game.level)
 	await _sync("sword_out")
 	if actor:
-		Game.level = 1
+		Game.level = lvl0
 		Game.fury = 0.0
 
 
