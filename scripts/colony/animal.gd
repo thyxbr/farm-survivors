@@ -1,8 +1,8 @@
 class_name ColonyAnimal
 extends CharacterBody3D
-## Animal de caça (coelho, cervo, javali). Fica no grupo "enemies" para as armas do jogador
+## Animal de caça (coelho, cervo, javali, lobo, urso). Fica no grupo "enemies" para as armas do jogador
 ## o acertarem, mas torres e soldados ignoram (só miram em Enemy). Coelhos e cervos fogem;
-## o javali revida. Ao morrer, rende comida e ouro (couro) para a cidade.
+## javali, lobo e urso revidam. Ao morrer, rende comida e ouro (couro) para a cidade.
 
 var kind := "deer"
 var colony: Node
@@ -55,6 +55,10 @@ func _ready() -> void:
 			_build_rabbit()
 		"boar":
 			_build_boar()
+		"wolf":
+			_build_wolf()
+		"bear":
+			_build_bear()
 		_:
 			_build_deer()
 	model.rotation.y = randf() * TAU
@@ -332,6 +336,46 @@ func _build_boar() -> void:
 	for z in [0.36, -0.36]:
 		for x in [-0.2, 0.2]:
 			_leg(Vector3(x, 0.38, z), 0.38, 0.13, fur.darkened(0.1), Color(0.1, 0.08, 0.07))
+
+
+func _build_wolf() -> void:
+	var fur := Color(0.5, 0.5, 0.54)
+	var belly := Color(0.74, 0.74, 0.76)
+	_part(model, _bx(Vector3(0.36, 0.38, 1.0)), Vector3(0, 0.56, 0), fur)
+	_part(model, _bx(Vector3(0.3, 0.1, 0.8)), Vector3(0, 0.38, 0), belly)
+	_part(model, _bx(Vector3(0.28, 0.16, 0.5)), Vector3(0, 0.78, 0.2), fur.darkened(0.25))   # cernelha
+	var head := Node3D.new()
+	head.position = Vector3(0, 0.7, 0.58)
+	model.add_child(head)
+	_part(head, _bx(Vector3(0.28, 0.26, 0.3)), Vector3(0, 0, 0.1), fur)
+	_part(head, _bx(Vector3(0.16, 0.14, 0.26)), Vector3(0, -0.05, 0.34), fur.lightened(0.15))   # focinho
+	_part(head, _bx(Vector3(0.06, 0.05, 0.06)), Vector3(0, -0.01, 0.48), Color(0.08, 0.07, 0.07))
+	for sx in [-1.0, 1.0]:
+		_part(head, _bx(Vector3(0.07, 0.14, 0.05)), Vector3(sx * 0.1, 0.19, 0.02), fur.darkened(0.15), Vector3(0, 0, sx * -0.2))
+		_part(head, _sp(0.03), Vector3(sx * 0.1, 0.05, 0.22), Color(0.95, 0.75, 0.15))
+	_part(model, _bx(Vector3(0.1, 0.1, 0.5)), Vector3(0, 0.62, -0.68), fur.darkened(0.1), Vector3(-0.7, 0, 0))   # rabo
+	for z in [0.34, -0.34]:
+		for x in [-0.12, 0.12]:
+			_leg(Vector3(x, 0.4, z), 0.4, 0.08, fur.darkened(0.15), Color(0.12, 0.1, 0.09))
+
+
+func _build_bear() -> void:
+	var fur := Color(0.34, 0.22, 0.13)
+	_part(model, _bx(Vector3(1.0, 0.95, 1.5)), Vector3(0, 1.0, 0), fur)
+	_part(model, _bx(Vector3(0.9, 0.5, 0.7)), Vector3(0, 1.62, 0.3), fur.darkened(0.1))   # ombros altos
+	var head := Node3D.new()
+	head.position = Vector3(0, 1.4, 0.95)
+	model.add_child(head)
+	_part(head, _bx(Vector3(0.6, 0.52, 0.5)), Vector3(0, 0, 0.1), fur)
+	_part(head, _bx(Vector3(0.3, 0.24, 0.3)), Vector3(0, -0.1, 0.44), Color(0.5, 0.36, 0.25))   # focinho
+	_part(head, _bx(Vector3(0.1, 0.08, 0.08)), Vector3(0, -0.02, 0.6), Color(0.06, 0.05, 0.05))
+	for sx in [-1.0, 1.0]:
+		_part(head, _sp(0.1), Vector3(sx * 0.26, 0.3, 0.0), fur.darkened(0.1))
+		_part(head, _sp(0.04), Vector3(sx * 0.2, 0.08, 0.34), Color(0.05, 0.04, 0.04))
+	_part(model, _bx(Vector3(0.2, 0.2, 0.14)), Vector3(0, 1.1, -0.8), fur.darkened(0.2))
+	for z in [0.5, -0.5]:
+		for x in [-0.32, 0.32]:
+			_leg(Vector3(x, 0.62, z), 0.62, 0.3, fur.darkened(0.12), Color(0.1, 0.08, 0.07))
 
 
 func _build_rabbit() -> void:

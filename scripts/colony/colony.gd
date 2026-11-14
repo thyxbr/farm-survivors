@@ -1644,27 +1644,31 @@ func _coop_dawn(survived: int) -> void:
 
 
 # ================================================================ caça e vida selvagem
-func _spawn_wildlife(refresh: bool) -> void:
+## `want_override` (>= 0) troca o teto de animais vivos (12) e pula os monstros errantes: gancho dos testes.
+func _spawn_wildlife(refresh: bool, want_override := -1) -> void:
 	if role == "client" or hall == null or not is_instance_valid(hall):
 		return
 	var animals := 0
 	for a in get_tree().get_nodes_in_group("animals"):
 		if a.colony == self:
 			animals += 1
-	var want := 12
+	var want := 12 if want_override < 0 else want_override
 	var n := 0
 	while animals < want and n < (6 if refresh else 1):
-		var p := _wild_point(ColonyData.CITY_RADIUS + 14.0)
+		var ring := _pick_wild_ring()
+		var lo := maxf(float(ColonyData.RINGS[ring - 1]), ColonyData.CITY_RADIUS + 14.0)
+		var hi := float(ColonyData.RINGS[ring]) if ring < ColonyData.RINGS.size() else INF
+		var p := _wild_point(lo, hi)
 		if p == Vector3.INF:
 			break
-		var r := randf()
-		var kind := "rabbit" if r < 0.35 else ("deer" if r < 0.78 else "boar")
-		var group := 1 if kind == "boar" else randi_range(1, 3)
+		var kind := _pick_wild_kind(ring)
+		var pack: Array = ColonyData.ANIMALS[kind].pack
+		var group := randi_range(int(pack[0]), int(pack[1]))
 		for i in group:
 			var a: ColonyAnimal = ANIMAL.new()
 			a.kind = kind
 			a.colony = self
-			a.position = p + Vector3(randf_range(-2, 2), 0.3, randf_range(-2, 2))
+			a.position = p + (Vector3(randf_range(-2, 2), 0.3, randf_range(-2, 2)) if group > 1 else Vector3(0, 0.3, 0))
 			if role == "server":
 				a.net_id = _new_id()
 				amap[a.net_id] = a
@@ -1673,7 +1677,7 @@ func _spawn_wildlife(refresh: bool) -> void:
 				Lobby.city_animal_added(a)
 			animals += 1
 		n += 1
-	if refresh:
+	if refresh and want_override < 0:
 		# monstros errantes longe da cidade: tornam a caçada perigosa
 		var wild := 0
 		for c in get_children():
@@ -1689,12 +1693,41 @@ func _spawn_wildlife(refresh: bool) -> void:
 			add_child(e)
 
 
-func _wild_point(min_dist: float) -> Vector3:
-	var center := hall.global_position
+## Sorteia o anel (1, 2 ou 3) do próximo grupo de fauna.
+func _pick_wild_ring() -> int:
+	var r := randf()
+	for i in ColonyData.WILD_RING_WEIGHTS.size():
+		r -= float(ColonyData.WILD_RING_WEIGHTS[i])
+		if r < 0.0:
+			return i + 1
+	return ColonyData.WILD_RING_WEIGHTS.size()
+
+
+## Sorteia a espécie entre as que vivem no anel, pelo peso de cada uma.
+func _pick_wild_kind(ring: int) -> String:
+	var pool: Array[String] = []
+	var total := 0.0
+	for k in ColonyData.ANIMALS:
+		if ring in ColonyData.ANIMALS[k].rings:
+			pool.append(k)
+			total += float(ColonyData.ANIMALS[k].weight)
+	var r := randf() * total
+	for k in pool:
+		r -= float(ColonyData.ANIMALS[k].weight)
+		if r < 0.0:
+			return k
+	return pool.back()
+
+
+## Ponto livre entre `min_dist` e `max_dist` do centro do mapa (os anéis medem daí).
+func _wild_point(min_dist: float, max_dist := INF) -> Vector3:
 	var lim := ColonyData.MAP_HALF - 12.0
+	var hi := minf(max_dist, lim * 1.4142)
 	for i in 30:
-		var p := Vector3(randf_range(-lim, lim), 0, randf_range(-lim, lim))
-		if Vector2(p.x - center.x, p.z - center.z).length() < min_dist:
+		var ang := randf() * TAU
+		var d := randf_range(min_dist, hi)
+		var p := Vector3(cos(ang) * d, 0, sin(ang) * d)
+		if absf(p.x) > lim or absf(p.z) > lim:
 			continue
 		var ok := true
 		for o in obstacles:

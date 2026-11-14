@@ -182,13 +182,22 @@ const RINGS := [52.0, 80.0, 105.0]
 ## Dias até um nó esgotado voltar no mesmo lugar.
 const REGROW_DAYS := {"tree": 2, "berry": 2, "rock": 4, "iron": 4, "gold": 4, "crystal": 4}
 
-## Animais de caça (aparecem de dia, longe da cidade).
+## Animais de caça (aparecem de dia, longe da cidade). `rings`: anéis (ver RINGS) onde nascem;
+## `weight`: peso do sorteio dentro do anel; `pack`: tamanho [mín, máx] do grupo que nasce junto.
 const ANIMALS := {
-	"rabbit": {"name": "Coelho", "hp": 14, "speed": 6.8, "food": 3, "gold": 2, "radius": 0.3, "flee": true},
-	"deer": {"name": "Cervo", "hp": 50, "speed": 7.2, "food": 10, "gold": 9, "radius": 0.55, "flee": true},
+	"rabbit": {"name": "Coelho", "hp": 14, "speed": 6.8, "food": 3, "gold": 2, "radius": 0.3, "flee": true,
+		"rings": [1], "weight": 0.35, "pack": [1, 3]},
+	"deer": {"name": "Cervo", "hp": 50, "speed": 7.2, "food": 10, "gold": 9, "radius": 0.55, "flee": true,
+		"rings": [1], "weight": 0.43, "pack": [1, 3]},
 	"boar": {"name": "Javali", "hp": 95, "speed": 5.8, "food": 14, "gold": 12, "radius": 0.6,
-		"damage": 11.0, "aggressive": true},
+		"damage": 11.0, "aggressive": true, "rings": [1, 2], "weight": 0.22, "pack": [1, 1]},
+	"wolf": {"name": "Lobo", "hp": 45, "speed": 7.6, "food": 4, "gold": 6, "radius": 0.45,
+		"damage": 8.0, "aggressive": true, "rings": [2], "weight": 0.5, "pack": [3, 4]},
+	"bear": {"name": "Urso", "hp": 260, "speed": 5.2, "food": 30, "gold": 28, "radius": 0.9,
+		"damage": 22.0, "aggressive": true, "rings": [3], "weight": 1.0, "pack": [1, 1]},
 }
+## Chance de o próximo grupo de fauna nascer no anel 1, 2 ou 3.
+const WILD_RING_WEIGHTS := [0.55, 0.30, 0.15]
 
 ## Custo de cada monstro no orçamento da onda e a noite em que começa a aparecer.
 const WAVE_COSTS := {

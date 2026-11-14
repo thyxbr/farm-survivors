@@ -445,8 +445,6 @@ func _ready() -> void:
 			"demolir devolve metade de cada recurso")
 
 	# --- caça
-	var food0 := colony.food
-	g0 = Game.gold
 	var deer: ColonyAnimal = load("res://scripts/colony/animal.gd").new()
 	deer.kind = "deer"
 	deer.colony = colony
@@ -455,8 +453,39 @@ func _ready() -> void:
 	await wait(0.1)
 	player.model.rotation.y = PI / 2
 	player.look["class"] = "sword"
+	# Baseline só agora, sem await até o golpe: durante a espera acima soldados/torres matam monstros
+	# errantes, e cada morte soma ouro ao cofre (Enemy._die no solo), o que desalinhava o `g0` antigo.
+	var food0 := colony.food
+	g0 = Game.gold
 	deer.take_damage(9999, player.global_position, false)
 	check(colony.food == food0 + 10 and Game.gold == g0 + 9, "caçar um cervo rende comida e ouro")
+
+	# --- fauna por anel: lobo no anel 2 (em matilha), urso no anel 3, nada de agressivo no anel 1
+	for a in get_tree().get_nodes_in_group("animals"):
+		a.queue_free()
+	await wait(0.1)
+	for i in 10:
+		colony._spawn_wildlife(true, 200)   # 60 grupos: urso (15%) e lobo aparecem sempre
+	var kinds := {}
+	var ring_ok := true
+	for a in get_tree().get_nodes_in_group("animals"):
+		var d := Vector2(a.global_position.x, a.global_position.z).length()
+		kinds[a.kind] = int(kinds.get(a.kind, 0)) + 1
+		if a.kind == "bear" and d < 105.0:
+			check(false, "urso só no anel 3 (%.1f m)" % d)
+		var in_ring := false   # a matilha se espalha uns 2 m em volta do ponto sorteado
+		for r in ColonyData.ANIMALS[a.kind].rings:
+			var lo: float = ColonyData.RINGS[r - 1]
+			var hi: float = ColonyData.RINGS[r] if r < ColonyData.RINGS.size() else INF
+			in_ring = in_ring or (d >= lo - 3.0 and d <= hi + 3.0)
+		if not in_ring:
+			ring_ok = false
+	check(kinds.has("wolf") and kinds.has("bear"), "fauna nova aparece (%s)" % str(kinds))
+	check(ring_ok, "cada espécie nasce só nos anéis dela")
+	check(int(kinds.get("wolf", 0)) >= 3, "lobos vêm em matilha (%d)" % int(kinds.get("wolf", 0)))
+	for a in get_tree().get_nodes_in_group("animals"):
+		a.queue_free()
+	await wait(0.1)
 
 	# --- amanhecer: economia
 	f = colony.forecast()
