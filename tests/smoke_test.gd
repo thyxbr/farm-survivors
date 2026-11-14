@@ -682,17 +682,13 @@ func _ready() -> void:
 
 	# --- magia
 	var mp0 := Game.mp
+	var fb_watch := _watch_spawns()
 	player.cast("fireball")
-	var found_fb := false
-	var fb_t := 0.0
-	while not found_fb and fb_t < 3.0:   # a bola de fogo sai depois do movimento de apontar
-		await wait(0.05)
-		fb_t += 0.05
-		for c in world.get_children():
-			if c is Area3D and c.get_script() == preload("res://scripts/player/fireball.gd"):
-				found_fb = true
+	# a bola de fogo sai depois do movimento de apontar
+	await wait_until(func(): return "fireball" in fb_watch[0])
+	_stop_spawn_watch(fb_watch)
 	check(Game.mp < mp0, "bola de fogo gasta mana")
-	check(found_fb, "projétil de bola de fogo criado")
+	check("fireball" in fb_watch[0], "projétil de bola de fogo criado")
 	player.cast("heal")
 	check(player.cooldowns.heal == 0.0, "cura bloqueada no nível 1")
 	player.use_slot(2)   # Nova Gélida (nível 3) bloqueada no nível 1
@@ -1978,12 +1974,23 @@ func _pause_menu() -> Control:
 	return p
 
 
-func _count_projectiles(kind: String) -> int:
-	var n := 0
-	for c in world.get_children():
-		if c is Area3D and c.get_script() == preload("res://scripts/player/projectile.gd") and c.kind == kind:
-			n += 1
-	return n
+## Registra os projéteis CRIADOS na cena (não só os vivos): a faísca do cajado e a bola de fogo seguem a mira
+## da câmera, batem no chão a poucos metros e somem; contar só os vivos depois de uma espera falhava no CI.
+## Devolve [lista de kinds, callable]; chame _stop_spawn_watch com o resultado ao terminar.
+func _watch_spawns() -> Array:
+	var seen: Array[String] = []
+	var cb := func(n: Node) -> void:
+		if n is Area3D and n.get_script() == preload("res://scripts/player/projectile.gd"):
+			seen.append(n.kind)
+		elif n is Area3D and n.get_script() == preload("res://scripts/player/fireball.gd"):
+			seen.append("fireball")
+	world.child_entered_tree.connect(cb)
+	return [seen, cb]
+
+
+func _stop_spawn_watch(w: Array) -> void:
+	if world.child_entered_tree.is_connected(w[1]):
+		world.child_entered_tree.disconnect(w[1])
 
 
 func _test_gear() -> void:
@@ -2016,9 +2023,12 @@ func _test_gear() -> void:
 	check(player.look.holder != null and is_instance_valid(player.look.holder), "modelo do cajado montado na mão")
 	player.attacking = false
 	player.combo_window = 0.0
+	Game.stamina = Game.max_stamina()
+	var bolt_watch := _watch_spawns()
 	player._start_swing()
-	await wait(0.3)
-	check(_count_projectiles("bolt") >= 1, "cajado dispara faísca arcana")
+	await wait_until(func(): return "bolt" in bolt_watch[0], 2.0)
+	_stop_spawn_watch(bolt_watch)
+	check("bolt" in bolt_watch[0], "cajado dispara faísca arcana")
 	await wait(0.5)
 
 	# arco: tensionar e soltar
@@ -2030,9 +2040,11 @@ func _test_gear() -> void:
 	player.drawing = true
 	player.draw_t = player.BOW_FULL
 	check(player.bow_charge() >= 0.99, "arco totalmente tensionado")
+	var arrow_watch := _watch_spawns()
 	player.release_arrow()
-	await wait(0.05)
-	check(_count_projectiles("arrow") >= 1, "arco dispara flecha")
+	await wait_until(func(): return "arrow" in arrow_watch[0], 2.0)
+	_stop_spawn_watch(arrow_watch)
+	check("arrow" in arrow_watch[0], "arco dispara flecha")
 	check(not player.drawing, "soltar encerra a tensão")
 
 	# mão secundária combina com a arma
