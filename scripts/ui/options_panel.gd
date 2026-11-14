@@ -14,14 +14,10 @@ func _ready() -> void:
 	p.add_child(v)
 	v.add_child(UITheme.label("Opções", 30, UITheme.GOLD))
 
-	v.add_child(UITheme.label("Volume geral"))
-	var vol := HSlider.new()
-	vol.min_value = 0.0
-	vol.max_value = 1.0
-	vol.step = 0.05
-	vol.value = Game.settings.master_volume
-	vol.value_changed.connect(_on_volume)
-	v.add_child(vol)
+	_volume_slider(v, "Volume geral", "master_volume")
+	_volume_slider(v, "Música", "music_volume")
+	_volume_slider(v, "Efeitos", "sfx_volume")
+	_volume_slider(v, "Ambiente", "ambience_volume")
 
 	var sens_label := UITheme.label("")
 	v.add_child(sens_label)
@@ -52,9 +48,22 @@ func _ready() -> void:
 	v.add_child(UITheme.button("Voltar", _close))
 
 
-func _on_volume(x: float) -> void:
-	Game.settings.master_volume = x
-	Game.apply_settings()
+## Rótulo com a porcentagem + slider de 0 a 1 ligado a Game.settings[key] (aplica na hora).
+func _volume_slider(v: VBoxContainer, title: String, key: String) -> void:
+	var label := UITheme.label("")
+	v.add_child(label)
+	var s := HSlider.new()
+	s.min_value = 0.0
+	s.max_value = 1.0
+	s.step = 0.05
+	s.value = Game.settings[key]
+	var upd := func(x: float) -> void:
+		Game.settings[key] = x
+		label.text = "%s: %d%%" % [title, roundi(x * 100.0)]
+		Game.apply_settings()
+	upd.call(s.value)
+	s.value_changed.connect(upd)
+	v.add_child(s)
 
 
 func _on_fullscreen(on: bool) -> void:

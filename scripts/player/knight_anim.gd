@@ -107,9 +107,37 @@ const JOINT_LAG := {
 	"twist": -0.015, "body_x": -0.012, "body_z": -0.012,
 	"elbow_r": 0.008, "elbow_l": 0.008, "wrist_r": 0.014, "wrist_l": 0.014, "head_x": 0.03, "head_y": 0.03,
 }
+## Quanto do giro dos ombros nos golpes o quadril faz junto (o resto é o tronco torcendo).
+const HIP_TWIST_SHARE := 0.45
+## Esquiva = rolamento para a frente: o quadril dá uma volta inteira (pivô Pelvis) com o corpo encolhido.
+## Fases em fração da esquiva: mergulho até ROLL_TUCK_IN (encolhe e inclina), volta até ROLL_SPIN_END, e
+## levanta agachado até o fim.
+const ROLL_TUCK_IN := 0.2
+const ROLL_SPIN_END := 0.8
+const ROLL_TUCK := {
+	"body_x": 0.75, "head_x": 0.7, "leg_l": -1.75, "leg_r": -1.55, "knee_l": 2.3, "knee_r": 2.2,
+	"arm_l": Vector3(-0.9, 0.0, 0.25), "arm_r": Vector3(-0.7, 0.0, -0.25), "elbow_l": -1.7, "elbow_r": -1.4,
+	"twist": 0.0, "hip_twist": 0.0, "body_y": 0.0, "body_z": 0.0, "body_shift": 0.0,
+}
+## Rolando, a arma aponta para trás e um pouco para cima (ângulo em torno do eixo X do modelo; 0 = para a
+## frente, > 0 inclina para baixo): assim a lâmina, o cajado ou o arco não varrem o chão.
+const ROLL_WEAPON_PITCH := PI + 0.45
+## Pontos que encostam no chão ao rolar: [pivô, deslocamento no espaço do pivô, raio do corpo ali (m)].
+## A altura do modelo é a que deixa o mais baixo deles tocando o chão.
+const ROLL_CONTACTS := [
+	["Pelvis", Vector3(0, 0, -0.04), 0.15], ["Pelvis", Vector3(0, -0.24, -0.12), 0.04],
+	["Pelvis", Vector3(0, -0.24, 0.12), 0.04], ["Body", Vector3(0, 0.28, -0.03), 0.17],
+	["Body", Vector3(0, 0.46, 0.0), 0.14], ["Head", Vector3(0, 0.2, 0.0), 0.2],
+	["KneeL", Vector3.ZERO, 0.08], ["KneeR", Vector3.ZERO, 0.08], ["ElbowL", Vector3.ZERO, 0.06],
+	["ElbowR", Vector3.ZERO, 0.06], ["ElbowL", Vector3(0, -0.26, 0.02), 0.07], ["ElbowR", Vector3(0, -0.26, 0.02), 0.07],
+]  # os pés (calcanhar e ponta, pelas medidas de rig()) entram em roll_floor()
+## Morto, deitado de costas: altura do quadril acima do chão (m).
+const DEATH_LIE_Y := 0.16
+## e a inclinação do suporte da arma (a lâmina deita ao lado do corpo).
+const DEATH_WEAPON_X := 1.5
 const LEG_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r", "foot_l", "foot_r"]
 const POSE_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r", "foot_l", "foot_r", "lift", "body_x", "body_y", "body_z", "body_shift",
-	"twist", "head_x", "head_y", "arm_l", "arm_r", "elbow_l", "elbow_r", "wrist_l", "wrist_r", "ground"]
+	"twist", "hip_twist", "roll", "head_x", "head_y", "arm_l", "arm_r", "elbow_l", "elbow_r", "wrist_l", "wrist_r", "ground"]
 
 
 ## Pivôs do modelo + medidas das pernas. Funciona com modelos antigos sem KneeX/ElbowX (ficam null).
@@ -117,9 +145,15 @@ static func rig(model: Node3D) -> Dictionary:
 	var r := {"model": model}
 	for n in ["LegL", "LegR", "KneeL", "KneeR", "AnkleL", "AnkleR", "ArmL", "ArmR", "ElbowL", "ElbowR", "Body", "Head"]:
 		r[n] = model.find_child(n, true, false)
+	r["Pelvis"] = _ensure_pelvis(r)
 	r["body_y"] = r.Body.position.y
 	r["body_x0"] = r.Body.position.x
+	r["twist"] = 0.0
+	r["hip_twist"] = 0.0
+	r["pelvis_pos0"] = r.Pelvis.position if r.Pelvis else Vector3.ZERO
 	var leg: Node3D = r.LegL
+	# altura do quadril no modelo (a perna fica dentro do Pelvis, na mesma altura dele)
+	var hip_y: float = leg.position.y + (r.Pelvis.position.y if r.Pelvis and leg.get_parent() == r.Pelvis else 0.0)
 	var knee: Node3D = r.KneeL
 	var ankle: Node3D = r.AnkleL
 	# pé: altura do tornozelo e o quanto calcanhar e ponta saem dele (pela caixa das malhas do pé)
@@ -137,18 +171,48 @@ static func rig(model: Node3D) -> Dictionary:
 				box = b if first else box.merge(b)
 				first = false
 		if first:
-			r.ankle_h = maxf(0.0, leg.position.y + knee.position.y + ankle.position.y)
+			r.ankle_h = maxf(0.0, hip_y + knee.position.y + ankle.position.y)
 		else:
 			r.ankle_h = maxf(0.0, -box.position.y)
 			r.heel = maxf(0.0, -box.position.z)
 			r.toe = maxf(0.0, box.end.z)
 	elif knee:
 		r["thigh"] = maxf(0.05, -knee.position.y)
-		r["shin"] = maxf(0.05, leg.position.y + knee.position.y)
+		r["shin"] = maxf(0.05, hip_y + knee.position.y)
 	else:
-		r["thigh"] = leg.position.y * 0.5
-		r["shin"] = leg.position.y * 0.5
+		r["thigh"] = hip_y * 0.5
+		r["shin"] = hip_y * 0.5
 	return r
+
+
+## O knight.glb tem pernas e tronco (Body) como irmãos: girar ou deitar o Body mexia só a parte de cima
+## e as pernas ficavam paradas. Cria um pivô de quadril (Pelvis) na altura da pelve, pai de Body, LegL e
+## LegR, para o corpo inteiro girar e cair junto. Feito aqui (e não no GLB) para valer em todo modelo com
+## esses pivôs; as roupas com esqueleto seguem os pivôs pela posição global (PivotSkin), então não mudam.
+static func _ensure_pelvis(r: Dictionary) -> Node3D:
+	var body: Node3D = r.Body
+	if body == null or r.LegL == null or r.LegR == null:
+		return null
+	var par := body.get_parent() as Node3D
+	if par.name == "Pelvis":
+		return par
+	if r.LegL.get_parent() != par or r.LegR.get_parent() != par:
+		return null
+	var pelvis := Node3D.new()
+	pelvis.name = "Pelvis"
+	par.add_child(pelvis)
+	par.move_child(pelvis, body.get_index())
+	pelvis.owner = body.owner    # os pivôs continuam com o mesmo dono (a raiz do GLB)
+	pelvis.position = body.position
+	for n: Node3D in [body, r.LegL, r.LegR]:
+		var xf := n.transform
+		var own := n.owner
+		n.owner = null
+		par.remove_child(n)
+		pelvis.add_child(n)
+		n.owner = own
+		n.transform = Transform3D(xf.basis, xf.origin - pelvis.position)
+	return pelvis
 
 
 ## Comprimento da perna esticada (quadril ao tornozelo).
@@ -160,7 +224,7 @@ static func leg_length(r: Dictionary) -> float:
 static func rest_pose() -> Dictionary:
 	return {"leg_l": 0.0, "leg_r": 0.0, "knee_l": 0.0, "knee_r": 0.0, "foot_l": 0.0, "foot_r": 0.0, "lift": 0.0,
 		"body_x": 0.0, "body_y": 0.0,
-		"body_z": 0.0, "body_shift": 0.0, "twist": 0.0, "head_x": 0.0, "head_y": 0.0, "wrist_l": 0.0, "wrist_r": 0.0,
+		"body_z": 0.0, "body_shift": 0.0, "twist": 0.0, "hip_twist": 0.0, "roll": 0.0, "head_x": 0.0, "head_y": 0.0, "wrist_l": 0.0, "wrist_r": 0.0,
 		"arm_l": Vector3(0, 0, IDLE_ARM_OUT), "arm_r": Vector3(IDLE_ARM_R_X, 0, -IDLE_ARM_OUT),
 		"elbow_l": IDLE_ELBOW, "elbow_r": IDLE_ELBOW, "ground": 1.0, "snap": [], "speed": {}}
 
@@ -488,7 +552,9 @@ static func sword_pose(p: Dictionary, combo: int, t: float, move: float) -> void
 	if combo == 3:
 		# giro: uma volta inteira desenrolando o tronco; enrolado em -PI..PI para a recuperação
 		# não "desgirar"
-		p.twist = wrapf(p.twist + TAU * smoothstep(KnightMoves.SPIN_START, KnightMoves.SPIN_END, t), -PI, PI)
+		# o corpo inteiro gira (quadril junto: veja hips_follow), não só o tronco sobre pernas paradas
+		p["spin"] = TAU * smoothstep(KnightMoves.SPIN_START, KnightMoves.SPIN_END, t)
+		p.twist = wrapf(p.twist + p.spin, -PI, PI)
 		if not ("twist" in p.snap):
 			p.snap.append("twist")
 
@@ -589,6 +655,143 @@ static func meteor_pose(p: Dictionary, u: float, shake: float) -> void:
 		p.speed[j] = KnightMoves.METEOR_RAISE_SPEED
 
 
+## Golpes, arco e magias: o quadril acompanha parte do giro dos ombros (HIP_TWIST_SHARE) e as pernas
+## giram com ele, em vez de o tronco torcer sozinho sobre pernas paradas. O giro inteiro do golpe 3
+## (p.spin) é todo do quadril. Chamar depois da pose de ataque, antes de apply().
+static func hips_follow(p: Dictionary) -> void:
+	var spin: float = p.get("spin", 0.0)
+	var own := wrapf(p.twist - spin, -PI, PI)
+	p.hip_twist = wrapf(spin + own * HIP_TWIST_SHARE, -PI, PI)
+	if "twist" in p.snap and not ("hip_twist" in p.snap):
+		p.snap.append("hip_twist")
+
+
+## Zera o giro de tronco e quadril na hora (fim do golpe: o giro do golpe 3 não "desgira").
+static func reset_twist(r: Dictionary) -> void:
+	r["twist"] = 0.0
+	r["hip_twist"] = 0.0
+	r.Body.rotation.y = 0.0
+	if r.get("Pelvis"):
+		r.Pelvis.rotation.y = 0.0
+
+
+## Esquiva (rolamento para a frente) no instante `u` (0..1 da esquiva): mergulha encolhendo o corpo, o
+## quadril dá uma volta inteira e levanta agachado. Parte da pose de locomoção `p` (começo e fim contínuos
+## com ela) e vai direto ao alvo (snap), porque a esquiva é curta demais para a suavização. A altura vem
+## dos pontos de contato (ROLL_CONTACTS) em apply().
+static func dodge_pose(p: Dictionary, u: float) -> void:
+	u = clampf(u, 0.0, 1.0)
+	var tuck := smoothstep(0.0, ROLL_TUCK_IN, u) * (1.0 - smoothstep(ROLL_SPIN_END, 1.0, u))
+	for key in ROLL_TUCK:
+		p[key] = lerp(p[key], ROLL_TUCK[key], tuck)
+	# saindo do rolamento: agachado, pés chatos, tronco ainda inclinado
+	var rise := smoothstep(ROLL_SPIN_END - 0.1, 1.0, u) * (1.0 - smoothstep(0.92, 1.0, u))
+	p.knee_l = maxf(p.knee_l, 1.2 * rise)
+	p.knee_r = maxf(p.knee_r, 1.0 * rise)
+	# pé solto em relação à canela enquanto rola (o pé não fica "chato no chão" de cabeça para baixo)
+	p.foot_l = lerpf(p.foot_l, p.leg_l + p.knee_l + 0.35, tuck)
+	p.foot_r = lerpf(p.foot_r, p.leg_r + p.knee_r + 0.35, tuck)
+	# volta: começa devagar no mergulho, gira rápido e desacelera ao levantar
+	var spin := clampf(u / ROLL_SPIN_END, 0.0, 1.0)
+	p.roll = wrapf(TAU * spin * spin * (3.0 - 2.0 * spin), -PI, PI)
+	p["roll_contact"] = u < 1.0
+	p["tuck"] = tuck
+	p.lift = 0.0
+	for key in POSE_KEYS:
+		if not (key in p.snap):
+			p.snap.append(key)
+
+
+## Morte em duas fases: os joelhos cedem (o quadril desce com os pés no chão) e o corpo inteiro cai de
+## costas, com uma perna dobrada e os braços abertos. Mexe nos pivôs direto (morto não chama apply()).
+## `tw` = Tween novo do dono (o jogador); `holder` = suporte da arma (KnightLook), que deita a lâmina no
+## chão em vez de ela ficar apontando para cima. revive() desfaz.
+static func die(r: Dictionary, tw: Tween, holder: Node3D = null) -> void:
+	reset_twist(r)
+	r["death_tw"] = tw
+	tw.set_parallel(true)
+	var buckle := _death_buckle(r)
+	for e in buckle[1]:
+		tw.tween_property(e[0], e[1], e[2], buckle[0]).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	var down := _death_down(r, holder)
+	for e in down[1]:
+		var tr := tw.tween_property(e[0], e[1], e[2], down[0]).set_delay(buckle[0])
+		if e[0] == r.get("Pelvis") or e[1] == "position:y":
+			tr.set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)    # bate no chão e quica
+		else:
+			tr.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
+## Pose final da morte na hora (prévias e testes).
+static func set_dead(r: Dictionary, holder: Node3D = null) -> void:
+	reset_twist(r)
+	for e in _death_down(r, holder)[1]:
+		(e[0] as Node).set_indexed(e[1], e[2])
+
+
+## Volta da morte: quadril e tronco voltam ao lugar; braços e pernas o apply() traz de volta.
+static func revive(r: Dictionary) -> void:
+	var tw: Tween = r.get("death_tw")
+	if tw and tw.is_valid():
+		tw.kill()
+	r.erase("death_tw")
+	reset_twist(r)
+	r["roll"] = 0.0    # morreu rolando: não termina a volta ao renascer
+	r["tuck"] = 0.0
+	r.Body.rotation = Vector3.ZERO
+	r.Body.position.y = r.body_y
+	var pelvis: Node3D = r.get("Pelvis")
+	if pelvis:
+		pelvis.rotation = Vector3.ZERO
+		pelvis.position = r.pelvis_pos0
+
+
+## [duração, [[nó, propriedade, valor], ...]]: joelhos cedem, o quadril desce o que as pernas encolheram.
+static func _death_buckle(r: Dictionary) -> Array:
+	var l := Vector2(-0.45, 0.95)     # (coxa, joelho) de cada perna
+	var rr := Vector2(-0.25, 0.65)
+	var h := maxf(r.thigh * cos(l.x) + r.shin * cos(l.x + l.y), r.thigh * cos(rr.x) + r.shin * cos(rr.x + rr.y))
+	var drop := leg_length(r) - h
+	var e: Array = [[r.model, "position:y", 0.0]]
+	var pelvis: Node3D = r.get("Pelvis")
+	if pelvis:
+		e.append([pelvis, "position:y", float(r.pelvis_pos0.y) - drop])
+	e.append_array(_death_limbs(r, l, rr, 0.3, Vector3(-0.35, 0, 0.3), Vector3(-0.35, 0, -0.3), -0.6))
+	return [0.22, e]
+
+
+## [duração, [[nó, propriedade, valor], ...]]: deitado de costas.
+static func _death_down(r: Dictionary, holder: Node3D = null) -> Array:
+	var e: Array = [[r.model, "position:y", 0.0]]
+	if holder and is_instance_valid(holder):
+		e.append([holder, "rotation:x", DEATH_WEAPON_X])
+	var pelvis: Node3D = r.get("Pelvis")
+	if pelvis:
+		e.append([pelvis, "rotation:x", -PI / 2.0])
+		e.append([pelvis, "position:y", DEATH_LIE_Y])
+		e.append_array(_death_limbs(r, Vector2(-0.6, 1.5), Vector2(0.04, 0.1), 0.08,
+			Vector3(0.0, 0, 1.15), Vector3(0.0, 0, -0.95), -0.2))
+	else:   # modelo sem o quadril (pernas fora de Body e LegX): só o tronco deita, como antes
+		e.append([r.Body, "rotation:x", -1.4])
+		e.append([r.Body, "position:y", 0.35])
+	return [0.55, e]
+
+
+## Pernas (Vector2 = coxa, joelho), tronco, braços e cotovelos; o tornozelo deixa o pé alinhado à canela.
+static func _death_limbs(r: Dictionary, l: Vector2, rr: Vector2, body_x: float, arm_l: Vector3, arm_r: Vector3,
+		elbow: float) -> Array:
+	var e: Array = [
+		[r.LegL, "rotation:x", l.x], [r.LegR, "rotation:x", rr.x], [r.Body, "rotation:x", body_x],
+		[r.ArmL, "rotation", arm_l], [r.ArmR, "rotation", arm_r], [r.Head, "rotation:x", 0.0]]
+	if r.KneeL:
+		e.append_array([[r.KneeL, "rotation:x", l.y], [r.KneeR, "rotation:x", rr.y]])
+	if r.AnkleL:
+		e.append_array([[r.AnkleL, "rotation:x", -(l.x + l.y)], [r.AnkleR, "rotation:x", -(rr.x + rr.y)]])
+	if r.ElbowL:
+		e.append_array([[r.ElbowL, "rotation:x", elbow], [r.ElbowR, "rotation:x", elbow]])
+	return e
+
+
 ## Leva o modelo até a pose. `k` = fator de suavização deste quadro (0..1).
 ## Chaves em p.snap vão direto ao alvo; p.speed[chave] multiplica k só para essa chave.
 static func apply(r: Dictionary, p: Dictionary, k: float) -> void:
@@ -610,7 +813,18 @@ static func apply(r: Dictionary, p: Dictionary, k: float) -> void:
 	var body: Node3D = r.Body
 	body.rotation.x = lerpf(body.rotation.x, p.body_x, f.call("body_x"))
 	body.rotation.z = lerpf(body.rotation.z, p.body_z, f.call("body_z"))
-	body.rotation.y = lerpf(body.rotation.y, p.twist, f.call("twist"))
+	# twist = giro dos ombros em relação ao modelo; hip_twist = a parte dele que o quadril (e as pernas) faz
+	r["twist"] = lerpf(float(r.twist), p.twist, f.call("twist"))
+	r["hip_twist"] = lerpf(float(r.hip_twist), float(p.get("hip_twist", 0.0)), f.call("hip_twist"))
+	var pelvis: Node3D = r.get("Pelvis")
+	r["roll"] = lerpf(float(r.get("roll", 0.0)), float(p.get("roll", 0.0)), f.call("roll"))
+	r["tuck"] = float(p.get("tuck", 0.0))
+	if pelvis:
+		pelvis.rotation.y = r.hip_twist
+		pelvis.rotation.x = r.roll
+		body.rotation.y = wrapf(r.twist - r.hip_twist, -PI, PI)
+	else:
+		body.rotation.y = r.twist
 	body.position.y = lerpf(body.position.y, r.body_y + p.body_y, f.call("body_y"))
 	body.position.x = lerpf(body.position.x, r.body_x0 + p.body_shift, f.call("body_shift"))
 	r.Head.rotation.x = lerpf(r.Head.rotation.x, p.head_x, f.call("head_x"))
@@ -626,8 +840,32 @@ static func apply(r: Dictionary, p: Dictionary, k: float) -> void:
 	# pé de apoio no chão: o modelo desce o quanto a perna mais comprida (a de apoio) encolheu
 	var model: Node3D = r.model
 	r["lift"] = lerpf(float(r.get("lift", 0.0)), p.lift, f.call("lift"))
+	if p.get("roll_contact", false) and pelvis:
+		model.position.y = -roll_floor(r)   # rolando: o ponto do corpo mais baixo encosta no chão
+		return
 	var target := -ground_drop(r) * float(p.ground) + float(r.lift)
 	model.position.y = lerpf(model.position.y, target, minf(1.0, k * 1.5 * float(spd.get("lift", 1.0))))
+
+
+## Altura (no espaço do modelo, sem a posição dele) do ponto mais baixo da superfície do corpo, pelos
+## pontos de contato de ROLL_CONTACTS.
+static func roll_floor(r: Dictionary) -> float:
+	var model: Node3D = r.model
+	var inv := model.global_transform.affine_inverse()
+	var low := INF
+	for c in ROLL_CONTACTS:
+		var n: Node3D = r.get(c[0])
+		if n == null:
+			continue
+		var pt: Vector3 = inv * (n.global_transform * (c[1] as Vector3))
+		low = minf(low, pt.y - float(c[2]))
+	for a in ["AnkleL", "AnkleR"]:
+		var n: Node3D = r.get(a)
+		if n == null:
+			continue
+		for off in [Vector3(0, -r.ankle_h, -r.heel), Vector3(0, -r.ankle_h, r.toe)]:
+			low = minf(low, (inv * (n.global_transform * off)).y)
+	return low if low < INF else 0.0
 
 
 ## Suporte da arma: cajado e arco ficam de pé mesmo com o braço erguido (desfaz ombro + cotovelo
@@ -644,6 +882,12 @@ static func hold_weapon_upright(look: Dictionary, r: Dictionary) -> void:
 		bend += elbow.rotation.x
 	var wrist: float = r.get("wrist_l" if arm == r.ArmL else "wrist_r", 0.0)
 	holder.rotation.x = -bend * float(look.get("counter", 0.0)) + wrist
+	# rolando: desfaz quadril, tronco, ombro e cotovelo para a arma ficar em ROLL_WEAPON_PITCH
+	var tuck: float = r.get("tuck", 0.0)
+	if tuck > 0.0:
+		var chain: float = float(r.get("roll", 0.0)) + r.Body.rotation.x + bend
+		var to := wrapf(ROLL_WEAPON_PITCH - chain - holder.rotation.x, -PI, PI)
+		holder.rotation.x += to * tuck
 
 
 ## Quanto o quadril está abaixo da altura de pé, pela pose atual das pernas.
