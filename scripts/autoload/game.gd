@@ -15,6 +15,8 @@ signal leveled_up(new_level: int)
 signal food_eaten(id: String)
 signal farm_changed
 signal item_looted(id: String, qty: int)
+## O encanto da arma equipada mudou (encantou no ferreiro ou trocou de arma).
+signal enchant_changed
 
 const SETTINGS_PATH := "user://settings.cfg"
 const WORLD_SCENE := "res://scenes/world.tscn"
@@ -68,6 +70,8 @@ var eat_cooldown := 0.0
 var selected_food := ""
 ## Bônus das passivas permanentes (CharRules.meta_mods), recalculados em apply_state e somados em mod().
 var meta_mods := {}
+## Encantamentos por tipo de arma (espelho de CharState.enchants): id -> {"el", "lv"}.
+var enchants := {}
 
 
 func _ready() -> void:
@@ -324,7 +328,40 @@ func damage_mult() -> float:
 
 ## Valor efetivo de um bônus: Desafio da Horda + comida + passivas permanentes.
 func mod(k: String) -> float:
-	return float(run_mods.get(k, 0.0)) + float(food_mods.get(k, 0.0)) + float(meta_mods.get(k, 0.0))
+	return float(run_mods.get(k, 0.0)) + float(food_mods.get(k, 0.0)) + float(meta_mods.get(k, 0.0)) 		+ (enchant_damage(equipment.weapon) if k == "damage" else 0.0)
+
+
+# ---------------------------------------------------------------- encantamento
+## Encanto de uma arma do personagem: {"el", "lv"}; sem encanto = {"el": "", "lv": 0}.
+func enchant_of(weapon_id: String) -> Dictionary:
+	var e = enchants.get(weapon_id)
+	if e is Dictionary and int(e.get("lv", 0)) > 0:
+		return {"el": str(e.get("el", "")), "lv": int(e.lv)}
+	return {"el": "", "lv": 0}
+
+
+## Encanto da arma equipada.
+func weapon_enchant() -> Dictionary:
+	return enchant_of(equipment.weapon)
+
+
+## Bônus de dano (fração) do encanto de uma arma. Calculado na hora (e não guardado) para a
+## prévia de "se equipar" do inventário já contar o encanto da outra arma.
+func enchant_damage(weapon_id: String) -> float:
+	var lv: int = enchant_of(weapon_id).lv
+	var dmg: Array = Balance.tables.get_table("enchant").get("damage", [])
+	if lv <= 0 or dmg.is_empty():
+		return 0.0
+	return float(dmg[mini(lv, dmg.size()) - 1])
+
+
+## "Fogo +2 · +10% de dano" ("" se a arma não tem encanto).
+func enchant_text(weapon_id: String) -> String:
+	var e := enchant_of(weapon_id)
+	if e.lv <= 0:
+		return ""
+	var name: String = Balance.tables.get_table("enchant").get("elements", {}).get(e.el, {}).get("name", e.el)
+	return "%s +%d · +%d%% de dano" % [name, e.lv, int(round(enchant_damage(weapon_id) * 100.0))]
 
 
 # ---------------------------------------------------------------- atributos derivados
@@ -784,6 +821,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 	var old_mp := max_mp()
 	var quests_before := quests
 	var farm_before := farm
+	var enchant_before := weapon_enchant()
 	level = s.level
 	xp = s.xp
 	gold = s.gold
@@ -798,6 +836,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 	ecos = s.ecos
 	passives = s.passives
 	meta_mods = CharRules.meta_mods(Balance.tables, passives)
+	enchants = s.enchants
 	if full:
 		reset_run_mods()
 		clear_food(true)
@@ -814,6 +853,8 @@ func apply_state(d: Dictionary, full := false) -> void:
 		ensure_selected_food()
 	stats_changed.emit()
 	inventory_changed.emit()
+	if weapon_enchant() != enchant_before:
+		enchant_changed.emit()
 	if quests != quests_before:
 		quests_changed.emit()
 	if farm != farm_before:

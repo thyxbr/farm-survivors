@@ -129,6 +129,9 @@ func item_summary(id: String) -> String:
 	match it.type:
 		"weapon":
 			lines.append("%s — Dano %d" % [CLASS_NAMES[weapon_class(id)], it.damage])
+			var ench: String = Game.enchant_text(id)
+			if ench != "":
+				lines.append(ench)
 		"armor", "gear":
 			lines.append("%s — Defesa %d" % [SLOT_NAMES[slot_of(id)], it.get("defense", 0)])
 		"consumable":

@@ -205,6 +205,7 @@ func _ready() -> void:
 	check(Game.gold == gold_dead - int(gold_dead * 0.1), "renascer custa 10%% do ouro (%d -> %d)" % [gold_dead, Game.gold])
 
 	await _test_farm()
+	await _test_enchant()
 	await _test_survival()
 	await _test_update()
 
@@ -270,6 +271,31 @@ func _test_blacksmith() -> void:
 	check(absf(angle_difference(smith.model.rotation.y, smith._base_yaw)) < 0.2, "ferreiro vira de volta para a bigorna")
 	check(smith.clip("work_hammer") == "work_hammer", "sem biblioteca Mixamo, usa clipe provisório")
 	player.global_position = back
+
+
+# ---------------------------------------------------------------- Encantamento de armas
+func _test_enchant() -> void:
+	# solo: o serviço local decide; o Game só espelha
+	check(Game.equipment.weapon != "", "tem arma equipada para encantar (%s)" % Game.equipment.weapon)
+	check(Game.weapon_enchant() == {"el": "", "lv": 0}, "arma começa sem encanto")
+	var dmg_plain := Game.melee_damage()
+	Econ.grant(50, 0, {"iron_ore": 4, "ember_core": 2}, "teste", true)
+	var gold0 := Game.gold
+	var changed := [0]
+	var on_changed := func() -> void: changed[0] += 1
+	Game.enchant_changed.connect(on_changed)
+	Econ.request("enchant", ["fogo"])
+	await wait(0.2)
+	check(Game.weapon_enchant() == {"el": "fogo", "lv": 1}, "arma equipada encantada: fogo +1")
+	check(changed[0] == 1, "enchant_changed avisou uma vez")
+	check(absf(Game.melee_damage() - dmg_plain * 1.05) < 0.01, "encanto +1 dá +5%% de dano (%.2f → %.2f)" % [dmg_plain, Game.melee_damage()])
+	check(Game.gold == gold0 - 50, "ouro gasto")
+	check(Game.count_item("iron_ore") == 0 and Game.count_item("ember_core") == 0, "materiais gastos")
+	Econ.request("enchant", ["fogo"])
+	await wait(0.2)
+	check(Game.weapon_enchant().lv == 1, "sem recursos não sobe")
+	check("Fogo +1" in ItemDB.item_summary(Game.equipment.weapon), "dica da arma mostra o encanto")
+	Game.enchant_changed.disconnect(on_changed)
 
 
 # ---------------------------------------------------------------- Horta, caldeirão e comida
