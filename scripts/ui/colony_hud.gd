@@ -154,11 +154,20 @@ func _card(parent: Control, kind: String, key: String) -> Dictionary:
 	name_l.custom_minimum_size.x = 84
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(name_l)
-	var cost := 0 if kind == "demolish" else int(ColonyData.BUILDINGS[kind].cost)
-	var cost_l := UITheme.label("+50%" if kind == "demolish" else ("grátis" if cost == 0 else "%d ouro" % cost), 13, UITheme.GOLD)
-	cost_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var cost_l := RichTextLabel.new()
+	cost_l.bbcode_enabled = true
+	cost_l.fit_content = true
+	cost_l.scroll_active = false
+	cost_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	cost_l.custom_minimum_size.x = 84
+	cost_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cost_l.add_theme_font_size_override("normal_font_size", 13)
 	v.add_child(cost_l)
-	return {"kind": kind, "panel": p, "name": name_l, "cost": cost_l, "price": cost}
+	var card := {"kind": kind, "panel": p, "name": name_l, "cost": cost_l, "price": {}, "shown": ""}
+	if kind == "demolish":
+		cost_l.text = "[center][color=#%s]+50%%[/color][/center]" % UITheme.GOLD.to_html(false)
+		card.shown = "demolish"
+	return card
 
 
 func _process(_delta: float) -> void:
@@ -183,6 +192,12 @@ func _update_status() -> void:
 		lines.append("[b][color=#dcae52]Cidade — dia %d[/color][/b]" % colony.day)
 		lines.append("Ouro  [b]%d[/b]   [color=%s](%+d/dia)[/color]" % [Game.gold, _col(f.gold_net), f.gold_net])
 	lines.append("Comida  [b]%d[/b]   [color=%s](%+d/dia)[/color]" % [colony.food, _col(f.food_net), f.food_net])
+	var stock := "Madeira  [b]%d[/b]  ·  Pedra  [b]%d[/b]" % [colony.amount("wood"), colony.amount("stone")]
+	if colony.amount("iron") > 0:
+		stock += "  ·  Ferro  [b]%d[/b]" % colony.amount("iron")
+	if colony.amount("crystal") > 0:
+		stock += "  ·  Cristal  [b]%d[/b]" % colony.amount("crystal")
+	lines.append(stock)
 	lines.append("Moradores  [b]%d[/b] / %d   (%d trabalhando)" % [colony.citizens, colony.pop_cap(), f.employed])
 	lines.append("Exército  [b]%d[/b] / %d   salários %d/dia" % [colony.soldier_count(), colony.army_cap(), f.salaries])
 	lines.append("Imposto: %s   ·   [color=#9fc4ff]%s[/color] [G]" % [ColonyData.TAX_NAMES[colony.tax_level],
@@ -248,12 +263,13 @@ func _update_build() -> void:
 		c.panel.visible = no_hall if kind == "town_hall" else not no_hall
 		var sel: bool = build.selected == kind
 		c.panel.add_theme_stylebox_override("panel", _style_on if sel else _style_off)
-		var price := colony.cost_of(kind) if kind != "demolish" else 0
-		var afford: bool = colony.get_gold() >= price
-		if kind != "demolish" and kind != "town_hall" and int(c.price) != price:
-			c.price = price
-			c.cost.text = "%d ouro" % price
-		c.cost.add_theme_color_override("font_color", UITheme.GOLD if afford else UITheme.BAD)
+		var price: Dictionary = colony.cost_of(kind) if kind != "demolish" else {}
+		var afford: bool = colony.missing(price) == ""
+		if kind != "demolish":
+			var shown := _cost_bbcode(price)
+			if shown != c.shown:
+				c.shown = shown
+				c.cost.text = shown
 		c.name.add_theme_color_override("font_color", UITheme.TEXT if afford or sel else UITheme.DIM)
 	var sz := build_panel.get_combined_minimum_size()
 	build_panel.offset_left = -sz.x / 2.0
@@ -261,10 +277,24 @@ func _update_build() -> void:
 	build_panel.offset_top = -sz.y - 170.0
 	build_panel.offset_bottom = -170.0
 	if build.selected == "demolish":
-		info_label.text = "Demolir: devolve 50% do ouro gasto. A prefeitura não pode ser demolida."
+		info_label.text = "Demolir: devolve 50% de cada recurso gasto. A prefeitura não pode ser demolida."
 	else:
 		info_label.text = _describe(build.selected)
 	reason_label.text = build.reason
+
+
+## Custo em BBCode, centralizado: cada recurso na sua cor, em vermelho o que falta no estoque.
+func _cost_bbcode(price: Dictionary) -> String:
+	if price.is_empty():
+		return "[center][color=#%s]grátis[/color][/center]" % UITheme.GOLD.to_html(false)
+	var parts: Array[String] = []
+	for r in ColonyData.RESOURCES:
+		var n := int(price.get(r, 0))
+		if n <= 0:
+			continue
+		var c := UITheme.GOLD if colony.amount(r) >= n else UITheme.BAD
+		parts.append("[color=#%s]%d\u00a0%s[/color]" % [c.to_html(false), n, ColonyData.RES_SHORT[r]])
+	return "[center]%s[/center]" % " ".join(parts)
 
 
 func _describe(kind: String) -> String:

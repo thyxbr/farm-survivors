@@ -15,8 +15,8 @@ var max_hp := 1.0
 var dead := false
 var is_core := false
 var targetable := true
-## Ouro gasto (construção + melhorias), para o reembolso ao demolir.
-var invested := 0
+## Recursos gastos (construção + melhorias), para o reembolso ao demolir.
+var invested := {}
 var colony: Node
 var data: Dictionary
 ## Cooperativo: id comum entre servidor e clientes; puppet = réplica no cliente (sem disparar nem levar dano).

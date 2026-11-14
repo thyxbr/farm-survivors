@@ -115,18 +115,18 @@ func _build_building() -> void:
 	var h := _row()
 	if b.level < ColonyData.MAX_LEVEL:
 		var cost := colony.upgrade_cost(b)
-		var up := UITheme.button("Melhorar p/ nível %d — %d ouro" % [b.level + 1, cost], func() -> void: _act(colony.upgrade(b)))
-		up.disabled = colony.get_gold() < cost
+		var up := UITheme.button("Melhorar p/ nível %d — %s" % [b.level + 1, ColonyData.cost_text(cost)], func() -> void: _act(colony.upgrade(b)))
+		up.disabled = colony.missing(cost) != ""
 		h.add_child(up)
 	else:
 		h.add_child(UITheme.label("Nível máximo", 15, UITheme.DIM))
 	var rc := colony.repair_cost(b)
-	if rc > 0:
-		var rep := UITheme.button("Reparar — %d ouro" % rc, func() -> void: _act(colony.repair(b)))
-		rep.disabled = colony.get_gold() < rc
+	if not rc.is_empty():
+		var rep := UITheme.button("Reparar — %s" % ColonyData.cost_text(rc), func() -> void: _act(colony.repair(b)))
+		rep.disabled = colony.missing(rc) != ""
 		h.add_child(rep)
 	if not b.is_core:
-		h.add_child(UITheme.button("Demolir (+%d)" % int(b.invested * ColonyData.REFUND), func() -> void:
+		h.add_child(UITheme.button("Demolir (+%s)" % ColonyData.cost_text(colony.refund_of(b)), func() -> void:
 			colony.demolish(b)
 			_close()))
 
@@ -188,8 +188,8 @@ func _build_hall() -> void:
 		h.add_child(btn)
 	var h2 := _row()
 	var rac := colony.repair_all_cost()
-	var rep := UITheme.button("Reparar tudo — %d ouro" % rac, func() -> void: _act(colony.repair_all()))
-	rep.disabled = rac <= 0 or colony.get_gold() < rac
+	var rep := UITheme.button("Reparar tudo — %s" % (ColonyData.cost_text(rac) if not rac.is_empty() else "nada a reparar"), func() -> void: _act(colony.repair_all()))
+	rep.disabled = rac.is_empty() or colony.missing(rac) != ""
 	h2.add_child(rep)
 	if colony.phase == "day" and colony.is_coop():
 		h2.add_child(UITheme.button("Votar pela noite (%d/%d)" % [colony.night_votes(), colony.votes_needed()], func() -> void:

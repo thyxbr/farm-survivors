@@ -17,8 +17,16 @@ const CITY_RADIUS := 42.0        # raio em volta da prefeitura onde se pode cons
 const HALL_ZONE := 30.0          # a prefeitura vai na clareira central
 const SPAWN_DIST := 78.0         # distância da prefeitura onde as ondas surgem
 
+# ---------------------------------------------------------------- recursos
+## Os seis recursos do estoque da cidade, na ordem em que aparecem no HUD e nas mensagens.
+const RESOURCES := ["gold", "food", "wood", "stone", "iron", "crystal"]
+const RES_NAMES := {"gold": "Ouro", "food": "Comida", "wood": "Madeira", "stone": "Pedra", "iron": "Ferro", "crystal": "Cristal"}
+## Forma curta para caber nos cartões da barra de construção.
+const RES_SHORT := {"gold": "ouro", "food": "com", "wood": "mad", "stone": "ped", "iron": "fer", "crystal": "cri"}
+
 # ---------------------------------------------------------------- economia
 const START_GOLD := 350
+const START_RES := {"wood": 150, "stone": 60}   # estoque inicial dos demais recursos (ouro e comida têm constantes próprias)
 const START_FOOD := 30
 const START_CITIZENS := 5
 const TAX := [1, 2, 3]                       # ouro por morador por dia (baixo/normal/alto)
@@ -35,29 +43,29 @@ const ORDER := ["house", "farm", "market", "barracks", "wall", "gate", "spikes",
 ## size = pegada no chão (x = largura, y = profundidade), em metros.
 ## pop: moradias · food/gold: produção por dia · workers: moradores empregados · army: vagas no quartel.
 const BUILDINGS := {
-	"town_hall": {"name": "Prefeitura", "cost": 0, "hp": 1600, "size": Vector2(7.4, 6.4), "pop": 6, "gold": 15,
+	"town_hall": {"name": "Prefeitura", "cost": {}, "hp": 1600, "size": Vector2(7.4, 6.4), "pop": 6, "gold": 15,
 		"desc": "O coração da cidade: abriga 6 moradores e rende 15 ouro por dia. Se cair, a cidade cai."},
-	"house": {"name": "Casa", "cost": 60, "hp": 320, "size": Vector2(5.6, 4.6), "pop": 5,
+	"house": {"name": "Casa", "cost": {"gold": 30, "wood": 40}, "hp": 320, "size": Vector2(5.6, 4.6), "pop": 5,
 		"desc": "Abriga 5 moradores. Moradores pagam impostos e podem ser recrutados."},
-	"farm": {"name": "Fazenda", "cost": 70, "hp": 240, "size": Vector2(7.0, 6.0), "food": 12, "workers": 2,
+	"farm": {"name": "Fazenda", "cost": {"gold": 30, "wood": 50}, "hp": 240, "size": Vector2(7.0, 6.0), "food": 12, "workers": 2,
 		"desc": "Produz 12 de comida por dia. Emprega 2 moradores."},
-	"market": {"name": "Mercado", "cost": 140, "hp": 380, "size": Vector2(5.2, 5.2), "gold": 25, "workers": 2,
+	"market": {"name": "Mercado", "cost": {"gold": 90, "wood": 60, "stone": 20}, "hp": 380, "size": Vector2(5.2, 5.2), "gold": 25, "workers": 2,
 		"desc": "Rende 25 ouro por dia com o comércio. Emprega 2 moradores."},
-	"barracks": {"name": "Quartel", "cost": 160, "hp": 650, "size": Vector2(6.6, 5.6), "army": 6,
+	"barracks": {"name": "Quartel", "cost": {"gold": 100, "wood": 80, "stone": 40}, "hp": 650, "size": Vector2(6.6, 5.6), "army": 6,
 		"desc": "Recrute o exército aqui (E). Cada quartel aloja 6 soldados."},
-	"wall": {"name": "Muro", "cost": 12, "hp": 420, "size": Vector2(4.0, 0.9), "wall": true,
+	"wall": {"name": "Muro", "cost": {"gold": 4, "stone": 8}, "hp": 420, "size": Vector2(4.0, 0.9), "wall": true,
 		"desc": "Segura os monstros. Encoste um no outro para fechar a cidade."},
-	"gate": {"name": "Portão", "cost": 40, "hp": 520, "size": Vector2(4.0, 1.1), "wall": true,
+	"gate": {"name": "Portão", "cost": {"gold": 20, "wood": 20, "stone": 15}, "hp": 520, "size": Vector2(4.0, 1.1), "wall": true,
 		"desc": "Você e seus soldados passam; os monstros precisam derrubar."},
-	"spikes": {"name": "Estacas", "cost": 30, "hp": 200, "size": Vector2(4.0, 1.6), "dps": 16, "wall": true,
+	"spikes": {"name": "Estacas", "cost": {"gold": 10, "wood": 20}, "hp": 200, "size": Vector2(4.0, 1.6), "dps": 16, "wall": true,
 		"desc": "Ferem e atrasam os monstros que passam por cima. Desgastam com o uso."},
-	"archer_tower": {"name": "Torre de Arqueiros", "cost": 110, "hp": 460, "size": Vector2(3.2, 3.2),
+	"archer_tower": {"name": "Torre de Arqueiros", "cost": {"gold": 70, "wood": 60, "stone": 30}, "hp": 460, "size": Vector2(3.2, 3.2),
 		"range": 20.0, "damage": 14.0, "rate": 0.95, "shot": "arrow",
 		"desc": "Dispara flechas rápidas no monstro mais próximo."},
-	"cannon_tower": {"name": "Torre de Canhão", "cost": 200, "hp": 620, "size": Vector2(3.8, 3.8),
+	"cannon_tower": {"name": "Torre de Canhão", "cost": {"gold": 120, "wood": 40, "stone": 80, "iron": 15}, "hp": 620, "size": Vector2(3.8, 3.8),
 		"range": 23.0, "damage": 40.0, "rate": 2.8, "splash": 3.2, "shot": "ball",
 		"desc": "Balas lentas que explodem e ferem todos em volta."},
-	"mage_tower": {"name": "Torre Arcana", "cost": 170, "hp": 420, "size": Vector2(3.2, 3.2),
+	"mage_tower": {"name": "Torre Arcana", "cost": {"gold": 100, "wood": 40, "stone": 50, "crystal": 10}, "hp": 420, "size": Vector2(3.2, 3.2),
 		"range": 17.0, "damage": 16.0, "rate": 1.3, "slow": 2.0, "chain": 2, "shot": "bolt",
 		"desc": "Raio gélido que deixa lento e salta para mais 2 monstros."},
 }
@@ -114,6 +122,7 @@ const COOP_START_GOLD := 450
 const COOP_GOLD_PER_PLAYER := 150
 const COOP_START_FOOD := 40
 const COOP_START_CITIZENS := 6
+const COOP_WOOD_PER_PLAYER := 50   # madeira extra no cofre por jogador além do primeiro
 const COOP_MAX_PLAYERS := 6
 ## Cada jogador além do primeiro: ondas +TEAM_BUDGET e monstros +TEAM_HP de vida; a prefeitura rende +TEAM_HALL_GOLD/dia.
 const TEAM_BUDGET := 0.45
@@ -179,10 +188,45 @@ static func chest_rarities(n: int) -> Array:
 	return [["legendary", 1.0]]
 
 
-## Custo para construir mais uma do tipo, já havendo `owned` (cooperativo).
-static func coop_cost(kind: String, owned: int) -> int:
-	var base := int(BUILDINGS[kind].cost)
-	return int(round(base * (1.0 + float(COST_GROWTH.get(kind, 0.0)) * owned)))
+## Multiplica cada recurso do custo por k, arredondando (o que custa algo nunca vira grátis).
+static func scale_cost(c: Dictionary, k: float) -> Dictionary:
+	var out := {}
+	for r in c:
+		var v := float(c[r])
+		out[r] = maxi(1, int(round(v * k))) if v > 0.0 and k > 0.0 else int(round(v * k))
+	return out
+
+
+## Soma dois custos, recurso a recurso.
+static func add_cost(a: Dictionary, b: Dictionary) -> Dictionary:
+	var out := a.duplicate()
+	for r in b:
+		out[r] = int(out.get(r, 0)) + int(b[r])
+	return out
+
+
+## Custo lido de um save ou da rede: o JSON devolve números reais, e um save antigo guardava só o ouro (inteiro).
+static func cost_from(v) -> Dictionary:
+	if v is Dictionary:
+		var out := {}
+		for r in v:
+			out[str(r)] = int(v[r])
+		return out
+	return {"gold": int(v)}
+
+
+## Texto do custo na ordem dos recursos: "30 Ouro, 40 Madeira" (vazio = grátis).
+static func cost_text(c: Dictionary) -> String:
+	var parts: Array[String] = []
+	for r in RESOURCES:
+		if int(c.get(r, 0)) > 0:
+			parts.append("%d %s" % [int(c[r]), RES_NAMES[r]])
+	return ", ".join(parts)
+
+
+## Custo para construir mais uma do tipo, já havendo `owned` (cooperativo): multiplica todos os recursos.
+static func coop_cost(kind: String, owned: int) -> Dictionary:
+	return scale_cost(BUILDINGS[kind].cost, 1.0 + float(COST_GROWTH.get(kind, 0.0)) * owned)
 
 
 ## Vida dos monstros na noite n (cooperativo, sem contar grupo nem elites).
@@ -203,8 +247,11 @@ static func level_mult(level: int, per := 0.45) -> float:
 	return 1.0 + per * (level - 1)
 
 
-static func upgrade_cost(kind: String, level: int) -> int:
-	var base: int = BUILDINGS[kind].cost
-	if kind == "town_hall":
-		base = 250
-	return int(round(base * 0.8 * level))
+## Melhorar da faixa `level` para a seguinte: 80% × nível × custo-base; o nível 3 pede ainda 5 de ferro.
+## A prefeitura continua em ouro (as eras a substituem).
+static func upgrade_cost(kind: String, level: int) -> Dictionary:
+	var base: Dictionary = {"gold": 250} if kind == "town_hall" else BUILDINGS[kind].cost
+	var c := scale_cost(base, 0.8 * level)
+	if level >= 2 and kind != "town_hall":
+		c = add_cost(c, {"iron": 5})
+	return c

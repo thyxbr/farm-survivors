@@ -44,6 +44,8 @@ var first_day_bonus := ColonyData.FIRST_DAY_BONUS
 # ---- cooperativo
 ## Cofre compartilhado (no solo o cofre é Game.gold).
 var gold := 0
+## Estoque de madeira, pedra, ferro e cristal (ouro fica em get_gold() e comida em `food`).
+var res := {"wood": 0, "stone": 0, "iron": 0, "crystal": 0}
 ## Jogadores na cidade (escala as ondas).
 var team_size := 1
 ## Noite especial em curso e a anunciada para a próxima noite (chaves de ColonyData.NIGHT_MODS).
@@ -81,6 +83,7 @@ func new_colony() -> void:
 	food = ColonyData.START_FOOD
 	citizens = ColonyData.START_CITIZENS
 	tax_level = 1
+	_reset_res(0)
 	Game.gold = ColonyData.START_GOLD
 	Game.stats_changed.emit()
 
@@ -94,6 +97,7 @@ func new_coop(players: int) -> void:
 	food = ColonyData.COOP_START_FOOD
 	citizens = ColonyData.COOP_START_CITIZENS
 	tax_level = 1
+	_reset_res(ColonyData.COOP_WOOD_PER_PLAYER * (team_size - 1))
 	gold = ColonyData.COOP_START_GOLD + ColonyData.COOP_GOLD_PER_PLAYER * (team_size - 1)
 	_dirty()
 
@@ -113,6 +117,78 @@ func _pay(n: int) -> void:
 		Game.stats_changed.emit()
 	else:
 		gold -= n
+		_dirty()
+
+
+## Estoque inicial (ou o de um save antigo): START_RES e `extra_wood` de madeira.
+func _reset_res(extra_wood: int) -> void:
+	res = {"wood": 0, "stone": 0, "iron": 0, "crystal": 0}
+	for r in ColonyData.START_RES:
+		res[r] = int(ColonyData.START_RES[r])
+	res["wood"] = int(res.wood) + extra_wood
+
+
+## Quanto há de um recurso no estoque da cidade.
+func amount(r: String) -> int:
+	match r:
+		"gold":
+			return get_gold()
+		"food":
+			return food
+	return int(res.get(r, 0))
+
+
+## "" se o estoque cobre o custo; senão o que falta, ex.: "Faltam 20 de Pedra."
+func missing(c: Dictionary) -> String:
+	var parts: Array[String] = []
+	for r in ColonyData.RESOURCES:
+		var need := int(c.get(r, 0))
+		if need > amount(r):
+			parts.append("%d de %s" % [need - amount(r), ColonyData.RES_NAMES[r]])
+	return "" if parts.is_empty() else "Faltam %s." % ", ".join(parts)
+
+
+## Confere e paga o custo de uma vez (tudo ou nada). Falso, sem tirar nada, se faltar algo.
+func pay(c: Dictionary) -> bool:
+	if missing(c) != "":
+		return false
+	for r in ColonyData.RESOURCES:
+		var n := int(c.get(r, 0))
+		if n <= 0:
+			continue
+		match r:
+			"gold":
+				_pay(n)
+			"food":
+				food -= n
+			_:
+				res[r] = int(res.get(r, 0)) - n
+	_res_changed()
+	return true
+
+
+## Soma ao estoque. Com `at`, mostra o número flutuante naquele ponto.
+func gain(c: Dictionary, at := Vector3.INF) -> void:
+	for r in ColonyData.RESOURCES:
+		var n := int(c.get(r, 0))
+		if n <= 0:
+			continue
+		match r:
+			"gold":
+				earn(n)
+			"food":
+				food += n
+			_:
+				res[r] = int(res.get(r, 0)) + n
+		if at != Vector3.INF and DisplayServer.get_name() != "headless":
+			FX.damage_number(at, "+%d %s" % [n, ColonyData.RES_NAMES[r]], UITheme.GOLD, 40)
+	_res_changed()
+
+
+func _res_changed() -> void:
+	if role == "solo":
+		Game.stats_changed.emit()
+	else:
 		_dirty()
 
 
@@ -265,12 +341,12 @@ func upkeep() -> int:
 
 
 ## Preço da próxima construção deste tipo (no cooperativo cresce a cada cópia).
-func cost_of(kind: String) -> int:
+func cost_of(kind: String) -> Dictionary:
 	if kind == "town_hall" or not ColonyData.BUILDINGS.has(kind):
-		return 0
+		return {}
 	if is_coop():
 		return ColonyData.coop_cost(kind, count_of(kind))
-	return int(ColonyData.BUILDINGS[kind].cost)
+	return ColonyData.BUILDINGS[kind].cost.duplicate()
 
 
 ## Alcance das torres nesta noite (Névoa Densa reduz).
@@ -359,9 +435,10 @@ func can_place(kind: String, pos: Vector3, rot: float, ignore_cost := false) -> 
 			return "Construa a prefeitura primeiro."
 		if Vector2(pos.x - hall.global_position.x, pos.z - hall.global_position.z).length() > ColonyData.CITY_RADIUS:
 			return "Fora dos limites da cidade."
-		var cost := cost_of(kind)
-		if not ignore_cost and get_gold() < cost:
-			return "Ouro insuficiente (%d)." % cost
+		if not ignore_cost:
+			var lack := missing(cost_of(kind))
+			if lack != "":
+				return lack
 	var lim := ColonyData.MAP_HALF - 10.0
 	if absf(pos.x) > lim or absf(pos.z) > lim:
 		return "Muito perto da borda do mapa."
@@ -392,6 +469,8 @@ func place(kind: String, pos: Vector3, rot: float, free := false, level := 1, hp
 		return null
 	var d := ColonyData.building(kind)
 	var cost := cost_of(kind)
+	if not free and not pay(cost):   # o servidor reconfere: dois jogadores podem gastar o mesmo cofre
+		return null
 	var b: ColonyBuilding = BUILDING.new()
 	b.kind = kind
 	b.level = level
@@ -399,9 +478,7 @@ func place(kind: String, pos: Vector3, rot: float, free := false, level := 1, hp
 	b.colony = self
 	b.position = Vector3(pos.x, 0.0, pos.z)
 	b.rotation.y = rot
-	if not free:
-		_pay(cost)
-	b.invested = cost if is_coop() else int(d.cost)
+	b.invested = cost if is_coop() else d.cost.duplicate()
 	if role == "server":
 		b.net_id = _new_id()
 		bmap[b.net_id] = b
@@ -431,6 +508,14 @@ func place(kind: String, pos: Vector3, rot: float, free := false, level := 1, hp
 	return b
 
 
+## O que demolir devolve: REFUND de cada recurso investido, arredondado para baixo.
+func refund_of(b: ColonyBuilding) -> Dictionary:
+	var refund := {}
+	for r in b.invested:
+		refund[r] = int(int(b.invested[r]) * ColonyData.REFUND)
+	return refund
+
+
 func demolish(b: ColonyBuilding) -> void:
 	if role == "client":
 		if b and not b.dead:
@@ -443,9 +528,9 @@ func demolish(b: ColonyBuilding) -> void:
 		if b and b.is_core:
 			say("A prefeitura não pode ser demolida.", UITheme.BAD)
 		return
-	var refund := int(b.invested * ColonyData.REFUND)
-	earn(refund)
-	say("%s demolida: +%d ouro." % [b.data.name, refund], Color(1, 0.85, 0.4))
+	var refund := refund_of(b)
+	gain(refund, b.global_position + Vector3.UP * 2.0)
+	say("%s demolida: +%s." % [b.data.name, ColonyData.cost_text(refund)], Color(1, 0.85, 0.4))
 	b.dead = true
 	b.remove_from_group("buildings")
 	b.remove_from_group("interactable")
@@ -459,7 +544,7 @@ func demolish(b: ColonyBuilding) -> void:
 	_check_housing()
 
 
-func upgrade_cost(b: ColonyBuilding) -> int:
+func upgrade_cost(b: ColonyBuilding) -> Dictionary:
 	return ColonyData.upgrade_cost(b.kind, b.level)
 
 
@@ -469,13 +554,14 @@ func upgrade(b: ColonyBuilding) -> String:
 	if b.kind != "town_hall" and hall and b.level >= hall.level + 1:
 		return "Melhore a prefeitura primeiro (nível %d)." % (hall.level + 1)
 	var cost := upgrade_cost(b)
-	if get_gold() < cost:
-		return "Ouro insuficiente (%d)." % cost
+	var lack := missing(cost)
+	if lack != "":
+		return lack
 	if role == "client":
 		Lobby.city_request("upgrade", [b.net_id])
 		return ""
-	_pay(cost)
-	b.invested += cost
+	pay(cost)
+	b.invested = ColonyData.add_cost(b.invested, cost)
 	b.set_level(b.level + 1)
 	Game.stats_changed.emit()
 	Sfx.play("levelup", 0.05, -4.0)
@@ -486,23 +572,29 @@ func upgrade(b: ColonyBuilding) -> String:
 	return ""
 
 
-func repair_cost(b: ColonyBuilding) -> int:
+## Reparar custa uma fração (REPAIR_RATIO x nível x dano sofrido) de cada recurso da construção.
+## A prefeitura, que não tem custo, é remendada com ouro. Vazio = não precisa de reparo.
+func repair_cost(b: ColonyBuilding) -> Dictionary:
 	if b.hp >= b.max_hp - 0.5:
-		return 0
-	var base := maxi(int(b.data.cost), 120) * b.level
-	return maxi(1, int(ceil((1.0 - b.hp / b.max_hp) * base * ColonyData.REPAIR_RATIO)))
+		return {}
+	var base: Dictionary = b.data.cost if not b.data.cost.is_empty() else {"gold": 120}
+	var out := {}
+	for r in base:
+		out[r] = maxi(1, int(ceil((1.0 - b.hp / b.max_hp) * float(base[r]) * b.level * ColonyData.REPAIR_RATIO)))
+	return out
 
 
 func repair(b: ColonyBuilding) -> String:
 	var cost := repair_cost(b)
-	if cost <= 0:
+	if cost.is_empty():
 		return "Não precisa de reparo."
-	if get_gold() < cost:
-		return "Ouro insuficiente (%d)." % cost
+	var lack := missing(cost)
+	if lack != "":
+		return lack
 	if role == "client":
 		Lobby.city_request("repair", [b.net_id])
 		return ""
-	_pay(cost)
+	pay(cost)
 	b.repair_full()
 	Sfx.play("plant", 0.1, -2.0)
 	if role == "server":
@@ -510,25 +602,26 @@ func repair(b: ColonyBuilding) -> String:
 	return ""
 
 
-func repair_all_cost() -> int:
-	var n := 0
+func repair_all_cost() -> Dictionary:
+	var n := {}
 	for b in buildings():
-		n += repair_cost(b)
+		n = ColonyData.add_cost(n, repair_cost(b))
 	return n
 
 
 func repair_all() -> String:
 	var cost := repair_all_cost()
-	if cost <= 0:
+	if cost.is_empty():
 		return "Nada para reparar."
-	if get_gold() < cost:
-		return "Ouro insuficiente (%d)." % cost
+	var lack := missing(cost)
+	if lack != "":
+		return lack
 	if role == "client":
 		Lobby.city_request("repair_all", [])
 		return ""
+	pay(cost)
 	for b in buildings():
-		if repair_cost(b) > 0:
-			_pay(repair_cost(b))
+		if not repair_cost(b).is_empty():
 			b.repair_full()
 			if role == "server":
 				Lobby.city_building_changed(b)
@@ -559,12 +652,14 @@ func recruit(unit: String) -> String:
 		return "Os quartéis estão lotados (%d vagas)." % army_cap()
 	if citizens < 1:
 		return "Não há moradores para recrutar. Construa casas."
-	if get_gold() < int(u.cost):
-		return "Ouro insuficiente (%d)." % int(u.cost)
+	var ucost := {"gold": int(u.cost)}   # as unidades ainda custam só ouro
+	var lack := missing(ucost)
+	if lack != "":
+		return lack
 	if role == "client":
 		Lobby.city_request("recruit", [unit])
 		return ""
-	_pay(int(u.cost))
+	pay(ucost)
 	citizens -= 1
 	Game.stats_changed.emit()
 	var at := _barracks_door()
@@ -1299,7 +1394,7 @@ func net_request(pid: int, action: String, args: Array) -> String:
 ## Servidor: o estado resumido mandado aos clientes (2x/s e a cada mudança).
 func net_state() -> Dictionary:
 	_state_dirty = false
-	return {"gold": gold, "food": food, "cit": citizens, "day": day, "phase": phase, "pt": phase_t,
+	return {"gold": gold, "food": food, "res": res, "cit": citizens, "day": day, "phase": phase, "pt": phase_t,
 		"tax": tax_level, "army": army_mode, "rally": [rally.x, rally.z], "wl": wave_left(), "wt": wave_total,
 		"wd": wave_dirs, "nk": night_kills, "tk": total_kills, "nm": night_mod, "xm": next_mod,
 		"hall": hall.net_id if hall and is_instance_valid(hall) else 0, "votes": votes.size(), "team": team_size,
@@ -1314,6 +1409,9 @@ func state_dirty() -> bool:
 func apply_state(d: Dictionary) -> void:
 	gold = int(d.get("gold", gold))
 	food = int(d.get("food", food))
+	var rs: Dictionary = d.get("res", res)
+	for r in rs:
+		res[r] = int(rs[r])
 	citizens = int(d.get("cit", citizens))
 	day = int(d.get("day", day))
 	var new_phase := str(d.get("phase", phase))
@@ -1405,7 +1503,7 @@ func apply_snapshot(ss: PackedFloat32Array, aa: PackedFloat32Array, bh: PackedFl
 
 
 ## Cliente: réplica de uma construção.
-func net_building_add(id: int, kind: String, x: float, z: float, rot: float, level: int, hp: float, invested: int, fx := true) -> void:
+func net_building_add(id: int, kind: String, x: float, z: float, rot: float, level: int, hp: float, invested: Dictionary, fx := true) -> void:
 	if bmap.has(id) or not ColonyData.BUILDINGS.has(kind):
 		return
 	var b: ColonyBuilding = BUILDING.new()
@@ -1431,7 +1529,7 @@ func net_building_add(id: int, kind: String, x: float, z: float, rot: float, lev
 	net_changed.emit()
 
 
-func net_building_set(id: int, level: int, hp: float, invested: int) -> void:
+func net_building_set(id: int, level: int, hp: float, invested: Dictionary) -> void:
 	var b = bmap.get(id)
 	if b == null or not is_instance_valid(b) or b.dead:
 		return
@@ -1522,7 +1620,7 @@ func to_dict() -> Dictionary:
 	var sl: Array = []
 	for s in soldiers():
 		sl.append({"unit": s.unit, "hp": s.hp, "x": s.global_position.x, "z": s.global_position.z})
-	return {"version": 1, "day": day, "phase": phase, "phase_t": phase_t, "food": food, "citizens": citizens,
+	return {"version": 2, "res": res, "day": day, "phase": phase, "phase_t": phase_t, "food": food, "citizens": citizens,
 		"tax": tax_level, "army_mode": army_mode, "rally": [rally.x, rally.z], "kills": total_kills,
 		"buildings": bl, "soldiers": sl}
 
@@ -1530,6 +1628,12 @@ func to_dict() -> Dictionary:
 func from_dict(d: Dictionary) -> void:
 	day = int(d.get("day", 1))
 	food = int(d.get("food", 0))
+	if d.has("res"):
+		res = {"wood": 0, "stone": 0, "iron": 0, "crystal": 0}
+		for r in d.res:
+			res[r] = int(d.res[r])
+	else:
+		_reset_res(0)   # save da versão 1: estoque inicial de madeira e pedra
 	citizens = int(d.get("citizens", 0))
 	tax_level = clampi(int(d.get("tax", 1)), 0, 2)
 	army_mode = str(d.get("army_mode", "guard"))
@@ -1541,7 +1645,7 @@ func from_dict(d: Dictionary) -> void:
 			continue
 		var b := place(kind, Vector3(float(bd.x), 0, float(bd.z)), float(bd.rot), true,
 			clampi(int(bd.get("level", 1)), 1, ColonyData.MAX_LEVEL), maxf(1.0, float(bd.get("hp", 99999.0))))
-		b.invested = int(bd.get("invested", b.invested))
+		b.invested = ColonyData.cost_from(bd.get("invested", b.invested))
 	var r: Array = d.get("rally", [])
 	if r.size() == 2:
 		set_rally(Vector3(float(r[0]), 0, float(r[1])), true)

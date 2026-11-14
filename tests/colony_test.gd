@@ -55,14 +55,34 @@ func _ready() -> void:
 	check(colony.can_place("house", Vector3(0, 0, 14), 0.0) != "", "não constrói em cima do jogador")
 	check(colony.can_place("house", Vector3(-12, 0, -6), PI / 2) == "", "casa num lugar livre é aceita")
 	var g0 := Game.gold
+	var w0 := colony.amount("wood")
+	var house_cost: Dictionary = ColonyData.BUILDINGS.house.cost
+	check(colony.amount("wood") == int(ColonyData.START_RES.wood) and colony.amount("stone") == int(ColonyData.START_RES.stone),
+		"estoque inicial de madeira e pedra")
 	colony.place("house", Vector3(-12, 0, -6), PI / 2)
-	check(Game.gold == g0 - 60 and colony.pop_cap() == 11, "casa custa 60 e abriga 5")
+	check(Game.gold == g0 - int(house_cost.gold) and colony.amount("wood") == w0 - int(house_cost.wood) and colony.pop_cap() == 11,
+		"casa custa ouro e madeira e abriga 5")
+	colony.res["wood"] = 2000   # o estoque inicial não cobre a cidade toda
+	colony.res["stone"] = 2000
 	colony.place("farm", Vector3(-14, 0, 8), 0.0)
 	colony.place("barracks", Vector3(12, 0, -6), -PI / 2)
 	check(colony.count_of("farm") == 1 and colony.army_cap() == 6, "fazenda e quartel construídos")
-	Game.gold = 50
-	check(colony.can_place("market", Vector3(12, 0, 8), 0.0).begins_with("Ouro"), "sem ouro, não constrói")
 	Game.gold = 2000
+	colony.res["stone"] = 0
+	var need_stone := int(ColonyData.BUILDINGS.market.cost.stone)
+	check(colony.can_place("market", Vector3(12, 0, 8), 0.0) == "Faltam %d de Pedra." % need_stone, "sem pedra, não constrói")
+	check(not colony.pay({"stone": 5}) and colony.amount("stone") == 0, "pagar sem ter não deixa negativo")
+	var w1 := colony.amount("wood")
+	check(not colony.pay({"wood": 5, "stone": 5}) and colony.amount("wood") == w1, "pagamento é atômico: sem pedra, a madeira fica")
+	check(colony.missing({"gold": Game.gold + 10, "stone": 3}) == "Faltam 10 de Ouro, 3 de Pedra.", "lista tudo o que falta")
+	check(colony.place("market", Vector3(12, 0, 8), 0.0) == null and colony.count_of("market") == 0, "place sem recurso não constrói nem cobra")
+	colony.res["stone"] = 2000
+	colony.res["wood"] = 2000
+	var ec := colony.upgrade_cost(colony.hall)
+	check(ec.has("gold") and not ec.has("wood"), "melhoria da prefeitura segue em ouro")
+	check(ColonyData.upgrade_cost("house", 2).has("iron") and not ColonyData.upgrade_cost("house", 1).has("iron"), "melhoria para o nível 3 pede ferro")
+	var sc := ColonyData.scale_cost({"gold": 30, "wood": 40}, 1.5)
+	check(sc.gold == 45 and sc.wood == 60, "scale_cost multiplica cada recurso")
 
 	# --- muros encaixam
 	colony.place("wall", Vector3(0, 0, 22), 0.0)
@@ -114,17 +134,22 @@ func _ready() -> void:
 		"elite Blindado resiste a flechas e não a canhão")
 	check(elite.max_hp > 80.0 * (1.0 + 0.12 * (colony.day - 1)) * 1.2, "elite tem mais vida (%d)" % elite.max_hp)
 	elite.take_damage(999999, elite.global_position, false)
-	check(ColonyData.coop_cost("house", 0) == 60 and ColonyData.coop_cost("house", 5) == 90, "em grupo a 6ª casa custa 90")
+	var hc: Dictionary = ColonyData.BUILDINGS.house.cost
+	var c5 := ColonyData.coop_cost("house", 5)
+	check(ColonyData.coop_cost("house", 0) == hc and c5.gold == int(round(hc.gold * 1.5)) and c5.wood == int(round(hc.wood * 1.5)),
+		"em grupo a 6ª casa custa 50% a mais de cada recurso")
 	check(ColonyData.coop_hp_mult(20) > ColonyData.coop_hp_mult(10) * 2.0, "vida dos monstros acelera no fim de jogo")
 	check(ColonyData.chest_rarities(20)[0][0] == "legendary", "baú da noite 20 pode ser lendário")
 
 	# --- reparo e demolição
 	if is_instance_valid(wall) and not wall.dead:
 		var rc := colony.repair_cost(wall)
-		check(rc > 0 and colony.repair(wall) == "" and wall.hp == wall.max_hp, "reparo restaura a vida (%d ouro)" % rc)
+		check(not rc.is_empty() and colony.repair(wall) == "" and wall.hp == wall.max_hp, "reparo restaura a vida (%s)" % ColonyData.cost_text(rc))
 		g0 = Game.gold
+		var s0 := colony.amount("stone")
 		colony.demolish(wall)
-		check(Game.gold == g0 + int(wall.invested * 0.5), "demolir devolve metade")
+		check(Game.gold == g0 + int(wall.invested.gold * 0.5) and colony.amount("stone") == s0 + int(wall.invested.stone * 0.5),
+			"demolir devolve metade de cada recurso")
 
 	# --- caça
 	var food0 := colony.food
@@ -192,6 +217,9 @@ func _ready() -> void:
 	var ns := colony.soldier_count()
 	var day_s := colony.day
 	var gold_s := Game.gold
+	var stone_s := colony.amount("stone")
+	var inv_s: Dictionary = colony.buildings()[0].invested.duplicate()
+	var save_v: int = int(colony.to_dict().get("version", 0))
 	check(world.save_colony(), "salva a cidade")
 	check(Game.has_colony_save(), "arquivo de save existe")
 	Game.start_colony(true)
@@ -200,6 +228,17 @@ func _ready() -> void:
 	check(colony.buildings().size() == nb, "carrega as construções (%d)" % colony.buildings().size())
 	check(colony.soldier_count() == ns, "carrega o exército (%d)" % colony.soldier_count())
 	check(colony.day == day_s and Game.gold == gold_s, "carrega dia e ouro")
+	check(save_v == 2 and colony.amount("stone") == stone_s, "carrega o estoque de recursos (save versão 2)")
+	check(colony.buildings()[0].invested == inv_s, "carrega o investido por recurso")
+	var old := colony.to_dict()
+	old.erase("res")
+	old["version"] = 1
+	old["buildings"] = []   # só o estoque interessa aqui; não duplica a cidade carregada
+	old["soldiers"] = []
+	colony.from_dict(old)
+	check(colony.amount("wood") == int(ColonyData.START_RES.wood) and colony.amount("stone") == int(ColonyData.START_RES.stone),
+		"save versão 1 volta com o estoque inicial")
+	check(ColonyData.cost_from(40) == {"gold": 40}, "investido inteiro de save antigo vira ouro")
 	check(colony.phase == "day" and colony.hall != null, "cidade carregada de dia")
 
 	# --- derrota

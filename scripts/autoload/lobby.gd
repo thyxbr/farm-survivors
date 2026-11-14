@@ -641,7 +641,7 @@ func _city_full(d: Dictionary) -> void:
 	if c == null:
 		return
 	for b in d.get("buildings", []):
-		c.net_building_add(int(b[0]), str(b[1]), float(b[2]), float(b[3]), float(b[4]), int(b[5]), float(b[6]), int(b[7]), false)
+		c.net_building_add(int(b[0]), str(b[1]), float(b[2]), float(b[3]), float(b[4]), int(b[5]), float(b[6]), b[7], false)
 	for s in d.get("soldiers", []):
 		c.net_soldier_add(int(s[0]), str(s[1]), float(s[2]), float(s[3]), float(s[4]), false)
 	for a in d.get("animals", []):
@@ -666,14 +666,14 @@ func _city_snap(ss: PackedFloat32Array, aa: PackedFloat32Array, bh: PackedFloat3
 
 
 @rpc("authority", "call_remote", "reliable")
-func _city_bld_add(id: int, kind: String, x: float, z: float, rot: float, level: int, hp: float, invested: int) -> void:
+func _city_bld_add(id: int, kind: String, x: float, z: float, rot: float, level: int, hp: float, invested: Dictionary) -> void:
 	var c := _colony()
 	if c:
 		c.net_building_add(id, kind, x, z, rot, level, hp, invested)
 
 
 @rpc("authority", "call_remote", "reliable")
-func _city_bld_set(id: int, level: int, hp: float, invested: int) -> void:
+func _city_bld_set(id: int, level: int, hp: float, invested: Dictionary) -> void:
 	var c := _colony()
 	if c:
 		c.net_building_set(id, level, hp, invested)

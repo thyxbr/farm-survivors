@@ -397,6 +397,8 @@ func _test_city() -> void:
 	check(c.role == "client" and w.role == "client", "cidade como réplica do servidor")
 	var start_gold := ColonyData.COOP_START_GOLD + ColonyData.COOP_GOLD_PER_PLAYER * (peers - 1)
 	check(await _wait_until(func() -> bool: return c.gold > 0, 5.0) and c.gold == start_gold, "cofre inicial do grupo %d (%d)" % [start_gold, c.gold])
+	var start_wood := int(ColonyData.START_RES.wood) + ColonyData.COOP_WOOD_PER_PLAYER * (peers - 1)
+	check(c.amount("wood") == start_wood and c.amount("stone") == int(ColonyData.START_RES.stone), "madeira e pedra iniciais do grupo (%d)" % c.amount("wood"))
 	check(await _wait_until(func() -> bool: return Network.zone_of(multiplayer.get_unique_id()) == "city", 5.0), "servidor vê o jogador na cidade")
 	if peers > 1:
 		check(await _wait_until(func() -> bool: return Network.remote_players.size() == peers - 1, 10.0),
@@ -409,9 +411,12 @@ func _test_city() -> void:
 	check(await _wait_until(func() -> bool: return c.amap.size() > 0, 5.0), "animais de caça replicados (%d)" % c.amap.size())
 	if city_role == "lead":
 		var g0 := c.gold
+		var w0 := c.amount("wood")
 		c.place("house", Vector3(-12, 0, -6), PI / 2)
 		check(await _wait_until(func() -> bool: return c.count_of("house") == 1, 5.0), "casa construída pelo servidor")
-		check(await _wait_until(func() -> bool: return c.gold == g0 - 60, 3.0), "casa cobra 60 do cofre (%d → %d)" % [g0, c.gold])
+		var hcost: Dictionary = ColonyData.BUILDINGS.house.cost
+		check(await _wait_until(func() -> bool: return c.gold == g0 - int(hcost.gold) and c.amount("wood") == w0 - int(hcost.wood), 3.0),
+			"casa cobra ouro e madeira do cofre (%d → %d)" % [g0, c.gold])
 	else:
 		check(await _wait_until(func() -> bool: return c.count_of("house") == 1, 10.0), "vê a casa do colega")
 		await wait(2.0)   # o líder confere o cofre antes deste gasto
@@ -423,7 +428,7 @@ func _test_city() -> void:
 		await _wait_until(func() -> bool: return c.count_of("barracks") == 1, 5.0)
 		c.recruit("soldier")
 	check(await _wait_until(func() -> bool: return c.soldier_count() == 1 and c.count_of("barracks") == 1, 10.0), "soldado replicado para todos")
-	check(c.cost_of("house") == ColonyData.coop_cost("house", 1), "segunda casa custa mais (%d)" % c.cost_of("house"))
+	check(c.cost_of("house") == ColonyData.coop_cost("house", 1), "segunda casa custa mais (%s)" % ColonyData.cost_text(c.cost_of("house")))
 	check(c.upkeep() == int(ColonyData.UPKEEP.barracks), "quartel tem manutenção (%d)" % c.upkeep())
 	await wait(1.0)
 
