@@ -218,6 +218,14 @@ func _test_fx_epic() -> void:
 	check(Engine.time_scale >= 0.05 and Engine.time_scale < 1.0, "hit stop ativo (%.2f)" % Engine.time_scale)
 	await get_tree().create_timer(0.3, true, false, true).timeout
 	check(is_equal_approx(Engine.time_scale, 1.0), "hit stop volta para 1.0")
+	# perder o guarda no meio do hit stop também restaura o tempo
+	FXEpic.hit_stop(5.0)
+	check(Engine.time_scale < 1.0, "hit stop longo ativo")
+	FXEpic._hs_guard.free()
+	check(is_equal_approx(Engine.time_scale, 1.0), "guarda liberado cedo restaura o tempo")
+	FXEpic.hit_stop(0.05)
+	await get_tree().create_timer(0.3, true, false, true).timeout
+	check(is_equal_approx(Engine.time_scale, 1.0), "hit stop volta para 1.0 de novo")
 	await wait(2.0)
 	check(get_tree().current_scene.get_child_count() <= n0 + 1, "efeitos épicos se liberam")
 	check(FXEpic._active_amount == 0, "orçamento de partículas devolvido (%d)" % FXEpic._active_amount)

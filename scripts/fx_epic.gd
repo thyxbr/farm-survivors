@@ -15,6 +15,7 @@ static var _tex_crack: ImageTexture
 static var _tex_scorch: ImageTexture
 static var _hs_until_ms := 0
 static var _hs_active := false
+static var _hs_guard: Node
 
 
 # ---------------------------------------------------------------- texturas (geradas uma vez)
@@ -354,27 +355,30 @@ static func hit_stop(duration := 0.06, scale := 0.05) -> void:
 		return
 	var tree := Engine.get_main_loop() as SceneTree
 	var until := Time.get_ticks_msec() + int(duration * 1000.0)
-	if _hs_active and Time.get_ticks_msec() > _hs_until_ms + 500:
-		_hs_active = false   # rede de segurança: o timer se perdeu, restaura
-		Engine.time_scale = 1.0
-	if _hs_active:
+	if _hs_active and is_instance_valid(_hs_guard) and _hs_guard.is_inside_tree():
 		_hs_until_ms = maxi(_hs_until_ms, until)   # já ativo: só estende, não empilha
 		return
 	_hs_active = true
 	_hs_until_ms = until
 	Engine.time_scale = scale
-	_hs_wait(tree, duration)
+	# o guarda fica na raiz (sobrevive a troca de cena) e restaura pelo relógio real
+	_hs_guard = HitStopGuard.new()
+	_hs_guard.process_mode = Node.PROCESS_MODE_ALWAYS
+	tree.root.add_child(_hs_guard)
 
 
-static func _hs_wait(tree: SceneTree, sec: float) -> void:
-	# create_timer(tempo, process_always, process_in_physics, ignore_time_scale)
-	tree.create_timer(maxf(sec, 0.001), true, false, true).timeout.connect(func() -> void:
-		var left := (_hs_until_ms - Time.get_ticks_msec()) / 1000.0
-		if left > 0.002:
-			_hs_wait(tree, left)
-		else:
-			Engine.time_scale = 1.0
-			_hs_active = false)
+static func _hs_restore() -> void:
+	Engine.time_scale = 1.0
+	_hs_active = false
+
+
+class HitStopGuard extends Node:
+	func _process(_delta: float) -> void:
+		if Time.get_ticks_msec() >= FXEpic._hs_until_ms:
+			queue_free()
+
+	func _exit_tree() -> void:
+		FXEpic._hs_restore()
 
 
 # ---------------------------------------------------------------- nó auxiliar do rastro
