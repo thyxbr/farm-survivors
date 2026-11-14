@@ -18,21 +18,22 @@ const FARM_RADIUS := 16.0
 const RUINS_CENTER := Vector2(0, -100)
 const RUINS_RADIUS := 38.0
 
-## Faixas: id -> arquivos. Mais de um arquivo vira playlist (toca um depois do outro, sem loop de faixa).
+## Faixas: id -> arquivos (assets/audio/music). Mais de um arquivo vira playlist (um depois do outro);
+## um só fica em loop; lista vazia = silêncio (derrota).
 const TRACKS := {
-	"menu": ["menu_title_screen"],
-	"hub": ["hub_royal_court"],
-	"village": ["village_town"],
-	"wild": ["wild_fountain_of_the_fairies"],
-	"ruins": ["ruins_dungeon"],
-	"boss": ["boss_fight", "boss_big_scary_monster"],
-	"horde": ["horde_level_1", "horde_level_2", "horde_level_3"],
-	"city_day": ["city_bards_tale", "city_old_tower_inn"],
-	"city_night": ["night_battle_1", "night_battle_2"],
-	"game_over": ["game_over"],
+	"menu": ["menu_asamis_journey"],
+	"hub": ["hub_town_theme"],
+	"village": ["village_squirrel_village"],
+	"wild": ["wild_greenland_theme"],
+	"ruins": ["ruins_dark_cavern"],
+	"boss": ["boss_blackmoor_colossus"],
+	"horde": ["combat_battle_theme_3"],
+	"city_day": ["village_squirrel_village"],
+	"city_night": ["combat_battle_theme_3"],
+	"game_over": [],
 }
 ## Faixas que tocam uma vez só e param (sem loop nem playlist).
-const ONE_SHOT := ["game_over"]
+const ONE_SHOT: Array[String] = []
 
 const AMBIENCES := {
 	"day": "birds_wind",

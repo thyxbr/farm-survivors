@@ -27,7 +27,7 @@ var colony_save_path := "user://colony_save.json"
 ## true = a cena da cidade carrega o save em vez de começar do zero.
 var colony_continue := false
 
-var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "music_volume": 0.6, "sfx_volume": 0.9,
+var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "music_volume": 0.45, "sfx_volume": 0.9,
 	"ambience_volume": 0.7, "fullscreen": false, "invert_y": false,
 	"player_name": "", "server_address": ""}
 

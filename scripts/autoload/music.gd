@@ -9,6 +9,8 @@ const AMBIENCE_DIR := "res://assets/audio/ambience/%s.ogg"
 const POLL := 0.5
 const FADE := 1.6
 const SILENT_DB := -40.0
+## Ambiente fica um pouco abaixo da música e dos efeitos.
+const AMBIENCE_DB := -4.0
 ## Chefe entra na conta a BOSS_ENTER m do jogador e só sai a BOSS_LEAVE m (sem ficar trocando na borda).
 const BOSS_ENTER := 40.0
 const BOSS_LEAVE := 60.0
@@ -131,7 +133,7 @@ func play_ambience(id: String) -> void:
 	a.stream = _load(AMBIENCE_DIR % MusicRules.AMBIENCES[id], true)
 	a.volume_db = SILENT_DB
 	a.play()
-	_fade(a, 0.0, false)
+	_fade(a, AMBIENCE_DB, false)
 
 
 ## Fim de faixa numa playlist: segue para a próxima (as de loop nunca terminam).

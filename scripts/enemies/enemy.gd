@@ -551,7 +551,7 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 
 ## Ataques especiais dos monstros novos. visual: réplica no cliente (só efeitos; o servidor aplica o dano).
 func _shoot(visual: bool) -> void:
-	Sfx.play_at("swing", global_position, 0.2, -5.0)
+	Sfx.play_at("bow_shot", global_position, 0.1, -5.0)
 	var origin: Vector3 = global_position + Vector3.UP * 1.1 * float(data.scale) + model_forward() * 0.6
 	var arrow := ENEMY_ARROW.new()
 	arrow.direction = model_forward()
@@ -739,7 +739,7 @@ func die_visual() -> void:
 		m.material_overlay = null
 	if bar_root:
 		bar_root.visible = false
-	Sfx.play_at("bloop" if data.model == "slime" else "hit", global_position, 0.1, -4.0 if horde else 0.0)
+	Sfx.play_at("slime" if data.model == "slime" else "enemy_die", global_position, 0.1, -4.0 if horde else 0.0)
 	FX.burst(global_position + Vector3.UP * 0.6 * data.scale, data.color, 30 if not is_boss else 120, 5.0, 0.14, 0.9)
 	died.emit(self)
 	var tw := create_tween()

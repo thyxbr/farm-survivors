@@ -1,26 +1,52 @@
 extends Node
 ## Efeitos sonoros. A maioria vem de arquivos em assets/audio/sfx (FILES; vários arquivos por som
-## sorteiam sem repetir o último). Os que não têm arquivo bom são sintetizados no carregamento.
+## sorteiam sem repetir o último). Os da horta e da cozinha seguem sintetizados no carregamento.
 ## Para trocar um som, troque o arquivo ou a lista em FILES; licenças em assets/audio/CREDITS.md.
 
 const SFX_DIR := "res://assets/audio/sfx/%s.wav"
 const FILES := {
+	# espada: whoosh no golpe, metal no acerto; montantes e cutelos usam a versão pesada
+	"sword_swing": ["sword_swing_1", "sword_swing_2", "sword_swing_3"],
+	"sword_swing_heavy": ["sword_swing_heavy_1", "sword_swing_heavy_2", "sword_swing_heavy_3"],
+	"sword_hit": ["sword_hit_1", "sword_hit_2", "sword_hit_3"],
+	"sword_hit_heavy": ["sword_hit_heavy_1", "sword_hit_heavy_2", "sword_hit_heavy_3"],
+	# cajado: sopro de vento no gesto + o elemento da arma (staff_element) no disparo e no impacto
+	"staff_wind": ["staff_wind_1", "staff_wind_2"],
+	"arcane_cast": ["arcane_cast_1", "arcane_cast_2", "arcane_cast_3"],
+	"arcane_hit": ["arcane_hit_1", "arcane_hit_2", "arcane_hit_3"],
+	"fire_cast": ["fire_cast_1", "fire_cast_2", "fire_cast_3"],
+	"fire_hit": ["fire_hit_1", "fire_hit_2", "fire_hit_3"],
+	"frost_cast": ["frost_cast_1", "frost_cast_2", "frost_cast_3"],
+	"frost_hit": ["frost_hit_1", "frost_hit_2", "frost_hit_3"],
+	# arco: puxar a corda, tique na tensão total, soltar, flecha acertando
+	"bow_draw": ["bow_draw_1", "bow_draw_2"],
+	"bow_full": ["bow_full_1"],
+	"bow_shot": ["bow_shot_1", "bow_shot_2"],
+	"arrow_hit": ["arrow_hit_1", "arrow_hit_2"],
+	# genéricos (inimigos, réplicas, mundo)
 	"swing": ["swing_1", "swing_2", "swing_3"],
-	"hit": ["hit_1", "hit_2", "hit_3", "hit_4"],
+	"dodge": ["dodge_1", "dodge_2"],
+	"hit": ["hit_1", "hit_2", "hit_3"],
 	"hurt": ["hurt_1", "hurt_2", "hurt_3"],
-	"fire": ["fire_1", "fire_2", "fire_3"],
-	"explode": ["explode_1", "explode_2", "explode_3"],
-	"heal": ["heal_1"],
-	"pickup": ["pickup_1", "pickup_2"],
-	"coin": ["coin_1", "coin_2", "coin_3"],
-	"levelup": ["levelup_1"],
-	"click": ["click_1", "click_2"],
-	"slam": ["slam_1", "slam_2"],
+	"enemy_die": ["enemy_die_1", "enemy_die_2", "enemy_die_3"],
+	"slime": ["slime_1", "slime_2", "slime_3"],
+	"fire": ["fire_cast_1", "fire_cast_2", "fire_cast_3"],
+	"explode": ["explode_1", "explode_2", "explode_3", "explode_4"],
+	"frost": ["frost_nova_1"],
+	"heal": ["heal_1", "heal_2"],
+	"zap": ["zap_1"],
+	"slam": ["slam_1"],
 	"death": ["death_1"],
-	"quest": ["quest_1", "quest_2"],
-	"zap": ["zap_1", "zap_2"],
-	"gem": ["gem_1", "gem_2"],
 	"portal": ["portal_1"],
+	"anvil": ["anvil_1"],
+	# interface e itens
+	"pickup": ["pickup_1", "pickup_2"],
+	# ouro usa o mesmo som de pegar um item do chão
+	"coin": ["pickup_1", "pickup_2"],
+	"gem": ["gem_1", "gem_2", "gem_3", "gem_4"],
+	"levelup": ["levelup_1"],
+	"quest": ["quest_1"],
+	"click": ["click_1", "click_2", "click_3"],
 	"error": ["error_1"],
 }
 const RATE := 22050
@@ -56,14 +82,27 @@ func _ready() -> void:
 	for sound in FILES:
 		streams[sound] = _from_files(FILES[sound])
 	# sem arquivo: sintetizados
-	streams["frost"] = _gen(0.6, _frost)
 	streams["bloop"] = _gen(0.25, _bloop)
 	streams["plant"] = _gen(0.22, _plant)
 	streams["water"] = _gen(0.5, _water)
 	streams["harvest"] = _gen(0.3, _harvest)
 	streams["cook"] = _gen(0.8, _cook)
 	streams["eat"] = _gen(0.36, _eat)
-	streams["anvil"] = _gen(0.35, _anvil)
+
+
+## Elemento do cajado pelo efeito da arma: lentidão = gelo, explosão = fogo, o resto = arcano (faísca).
+func staff_element(weapon_id: String) -> String:
+	match str(ItemDB.get_item(weapon_id).get("fx", "")):
+		"slow":
+			return "frost"
+		"splash":
+			return "fire"
+	return "arcane"
+
+
+## Montantes e cutelos golpeiam com o som pesado.
+func heavy_sword(weapon_id: String) -> bool:
+	return str(ItemDB.get_item(weapon_id).get("shape", "")) in ["great", "cleaver"]
 
 
 func play(sound: String, pitch_var := 0.08, volume_db := 0.0) -> void:
@@ -160,19 +199,6 @@ func _env(t: float, dur: float, attack := 0.01) -> float:
 
 func _tone(t: float, freq: float) -> float:
 	return sin(TAU * freq * t)
-
-
-func _anvil(t: float, d: float) -> float:
-	# tinido metálico: parciais inarmônicas agudas, cada uma morre mais rápido que a anterior, + clique de ruído no ataque
-	var ring := (_tone(t, 1100.0) * exp(-t * 9.0) * 0.5
-			+ _tone(t, 2700.0) * exp(-t * 16.0) * 0.35
-			+ _tone(t, 4300.0) * exp(-t * 26.0) * 0.25)
-	var click := _noise(0.7) * exp(-t * 180.0) * 0.8
-	return (ring + click) * _env(t, d, 0.001)
-
-
-func _frost(t: float, d: float) -> float:
-	return (_noise(0.7) * 0.4 + _tone(t, 1400.0 - 1000.0 * t) * 0.25) * _env(t, d, 0.01)
 
 
 func _bloop(t: float, d: float) -> float:

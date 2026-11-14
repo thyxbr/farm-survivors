@@ -1,18 +1,23 @@
 extends Control
-## Créditos (menu principal). A lista de áudio espelha assets/audio/CREDITS.md: a faixa CC-BY exige
+## Créditos (menu principal). A lista de áudio espelha assets/audio/CREDITS.md: as obras CC-BY exigem
 ## o crédito visível no jogo.
 
 signal closed
 
 const AUDIO := [
 	["Música", [
-		"15 Melodic RPG Chiptunes — Aureolus_Omicron (CC0)",
-		"Chiptune Adventures e Retro Game Music Pack — Juhani Junkala (CC0)",
-		"The Bard's Tale e The Old Tower Inn — RandomMind (CC0)",
-		"\"Big Scary Monster\", de Chiptune RPG Soundtrack — Trex0n (CC-BY 4.0; volume nivelado e convertido para OGG)",
+		"\"Asami's Journey\" (Contemplative Fantasy Vol. 2) — YannZ (CC-BY 4.0)",
+		"Town Theme RPG — cynicmusic (CC0)",
+		"Squirrel Village — SoManyWhales (CC-BY 4.0)",
+		"\"Greenland Theme\" e \"Battle Theme 3\" — Alexandr Zhelanov (CC-BY 4.0)",
+		"Dark Cavern Ambient — Paul Wortmann (CC0)",
+		"\"Blackmoor Colossus\" (Colossal Boss Battle Theme) — Matthew Pablo, www.matthewpablo.com (CC-BY 3.0)",
 	]],
 	["Efeitos sonoros", [
-		"512 Sound Effects (8-bit style) — Juhani Junkala (CC0)",
+		"Fantasy SFX Pack Vol 1 — JC Sounds (CC-BY 4.0)",
+		"8 Magic Attacks — leohpaz (CC-BY 4.0)",
+		"Magic SFX Sample — ViRiX (CC-BY 3.0)",
+		"RPG Sound Pack — artisticdude (CC0) · 80 CC0 RPG SFX — rubberduck (CC0)",
 	]],
 	["Ambiente", [
 		"Birds and Wind — Spring Spring (CC0)",
@@ -44,7 +49,9 @@ func _ready() -> void:
 	var sp2 := Control.new()
 	sp2.custom_minimum_size.y = 6
 	v.add_child(sp2)
-	v.add_child(UITheme.label("Todo o áudio vem do OpenGameArt.org.", 14, UITheme.DIM))
+	var note := UITheme.label("Todo o áudio vem do OpenGameArt.org (formatos convertidos, volume nivelado e cortes de duração).", 14, UITheme.DIM)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(note)
 	var back := UITheme.button("Voltar", _close)
 	v.add_child(back)
 	back.grab_focus.call_deferred()

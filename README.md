@@ -55,9 +55,11 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
 - **Personagem solo** num arquivo local (`user://solo_character.json`, gravado de forma atômica; F5/F9 salvam e recarregam; a base local e os recordes do solo ficam ao lado, em `solo_character_base.json` e `solo_character_runs.json`), opções persistentes (volume, sensibilidade, inverter Y, tela cheia).
   O SQLite é só do servidor dedicado: o cliente Windows é um exe único, sem DLL (o Smart App Control do Windows
   bloqueia DLL sem assinatura). O `user://solo.db` da 0.8.0 é ignorado.
-- **Áudio**: trilha chiptune que muda com o lugar e a situação (menu, praça, vila, mata, ruínas, Horda, chefe,
-  dia e noite da Defesa da Cidade, derrota), com crossfade; ambiente de pássaros e vento de dia, grilos à noite e
-  fogo na forja do ferreiro; efeitos 8-bit. Volumes separados (geral, música, efeitos, ambiente) nas Opções.
+- **Áudio**: trilha leve (orquestral, violão e piano) que muda com o lugar e a situação (menu, praça, vila, campos,
+  ruínas, Horda, chefe, dia e noite da Defesa da Cidade; silêncio na derrota), com crossfade e agudos suavizados;
+  ambiente de pássaros e vento de dia, grilos à noite e fogo na forja. Golpes soam pela arma: espada (vento +
+  metal, versão pesada para montantes e cutelos), cajado (sopro de vento + o elemento: arcano, fogo ou gelo, no
+  disparo e no impacto) e arco (corda, disparo e flecha acertando). Volumes separados nas Opções.
 - Morte com opção de renascer na vila (perde 10% do ouro) ou carregar o save.
 
 ## Horta da Vila (fazenda)
@@ -322,7 +324,7 @@ já existem no banco, mas semear e ler o balanceamento do banco (e editar pelo p
 ## Estrutura
 ```
 assets/models/        GLBs low-poly gerados pelo Blender
-assets/audio/         música (chiptune), ambiente e efeitos, todos do OpenGameArt (CC0 e um CC-BY); fontes e
+assets/audio/         música, ambiente e efeitos, todos do OpenGameArt (CC0 e CC-BY); fontes e
                       licenças em assets/audio/CREDITS.md, repetidas na tela Créditos do menu
 tools/blender/        build_assets.py (cenário + chama characters.py), characters.py (personagens detalhados),
                       preview_assets.py / preview_characters.py / preview_closeup.py (renders de conferência)

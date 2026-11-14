@@ -8,6 +8,8 @@ var damage := 10.0
 var speed := 30.0
 var color := Color(0.6, 0.8, 1.0)
 var fx := ""
+## Cajado: elemento do som do impacto (Sfx.staff_element): arcane, fire ou frost.
+var element := "arcane"
 var crit := false
 var pierce := 0
 var life := 1.6
@@ -139,6 +141,8 @@ func _on_body(body: Node) -> void:
 		if body.dead or _hit.has(body.get_instance_id()):
 			return
 		_hit[body.get_instance_id()] = true
+		if fx != "splash":
+			Sfx.play_at(_hit_sound(), global_position, 0.1, -2.0)
 		if not visual_only:
 			_damage(body, damage)
 		if fx == "splash":
@@ -150,7 +154,14 @@ func _on_body(body: Node) -> void:
 		else:
 			_finish(true)
 		return
+	if fx != "splash":
+		Sfx.play_at(_hit_sound(), global_position, 0.1, -9.0)
 	_finish(fx == "splash")
+
+
+## Flecha: ponta acertando; faísca do cajado: impacto do elemento.
+func _hit_sound() -> String:
+	return "arrow_hit" if kind == "arrow" else element + "_hit"
 
 
 func _damage(e: Node, amount: float) -> void:
