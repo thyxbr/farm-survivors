@@ -20,6 +20,35 @@ const TOP_DONORS := 5
 var base := {}
 ## {"horde": {"reached": int, "names": [..]}, "city": {...}}
 var records := {}
+## Solo: o portal da praça pediu a Horda; Valdoria começa a partida assim que monta (world.gd).
+var pending_horde := false
+## A próxima partida da Horda veio do portal da praça: no fim ela volta para a praça, não para a vila.
+var horde_return := false
+
+
+## Portal da praça: a arena fica em Valdoria. Online abre/entra na fila no servidor (ele espera quem
+## ainda está viajando, HORDE_TRAVEL_WAIT) e viaja; solo viaja e a partida começa ao chegar.
+func go_horde() -> void:
+	horde_return = true
+	if Network.is_online():
+		Network.request_horde()
+	else:
+		pending_horde = true
+	Lobby.go_world()
+
+
+## Solo (world.gd no fim do _ready): devolve e limpa o pedido de Horda vindo da praça.
+func take_pending_horde() -> bool:
+	var p := pending_horde
+	pending_horde = false
+	return p
+
+
+## Quem cria a partida (world.gd) pergunta uma vez se ela deve voltar à praça.
+func take_horde_return() -> bool:
+	var r := horde_return
+	horde_return = false
+	return r
 
 
 ## Bônus da base: online sobre a base que veio do servidor; solo direto do serviço local.
@@ -54,6 +83,8 @@ func enter(scene: Node) -> void:
 func client_reset() -> void:
 	base = {}
 	records = {}
+	pending_horde = false
+	horde_return = false
 	changed.emit()
 
 

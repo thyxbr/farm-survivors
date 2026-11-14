@@ -126,6 +126,9 @@ func _ready() -> void:
 		add_child(chat)
 		Game.notify.emit("Conectado como %s — %d jogador(es) online." % [Network.my_name, Network.players.size()], Color(0.6, 0.9, 1.0))
 		Network.world_ready(self)
+		Network.horde_changed.connect(_on_horde_changed)
+	elif Hub.take_pending_horde():
+		start_survival.call_deferred()   # solo: o portal da praça pediu a Horda
 
 
 func _exit_tree() -> void:
@@ -488,7 +491,19 @@ func start_survival() -> void:
 	survival.world = self
 	survival.player = player
 	survival.center = ARENA
+	survival.return_to_hub = Hub.take_horde_return()
 	add_child(survival)
+
+
+## Cliente: a fila da Horda fechou sem esta partida começar (não chegou a tempo, recusou...): o pedido
+## de voltar à praça vindo do portal dela perde a validade. Espera um pouco: o servidor fecha a fila e
+## manda o começo da partida em seguida, e as duas mensagens podem chegar em quadros diferentes.
+func _on_horde_changed() -> void:
+	if not Network.horde_lobby.is_empty() or survival != null or not Hub.horde_return:
+		return
+	await get_tree().create_timer(5.0).timeout
+	if survival == null and Network.horde_lobby.is_empty():
+		Hub.horde_return = false
 
 
 ## Multiplayer (cliente): o servidor fechou a fila; entra na arena com o grupo.
@@ -508,6 +523,7 @@ func start_survival_net(team: Dictionary, slot: int, round_time: float) -> void:
 	survival.team = team
 	survival.my_slot = slot
 	survival.round_time = round_time
+	survival.return_to_hub = Hub.take_horde_return()
 	add_child(survival)
 
 

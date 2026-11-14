@@ -240,7 +240,7 @@ func _build_results(v: VBoxContainer) -> void:
 	if survival.end_reason == "death":
 		v.add_child(_sub("Você não perde ouro no desafio."))
 	var center := CenterContainer.new()
-	var b := UITheme.button("Voltar à vila", _finish, 280)
+	var b := UITheme.button("Voltar à praça" if survival.return_to_hub else "Voltar à vila", _finish, 280)
 	center.add_child(b)
 	v.add_child(center)
 	b.grab_focus.call_deferred()

@@ -244,22 +244,23 @@ func _setup_input() -> void:
 
 
 # ---------------------------------------------------------------- jogo solo
-## "Novo jogo": apaga o personagem solo (o menu pergunta antes) e entra em Valdoria com um novo.
+## "Novo jogo": apaga o personagem solo (o menu pergunta antes) e chega à praça com um novo.
 func start_new_game() -> void:
 	reset_run_mods()
 	Econ.reset_solo()
+	Lobby._last_world_pos = null   # personagem novo: Valdoria começa na vila
 	get_tree().paused = false
-	get_tree().change_scene_to_file(WORLD_SCENE)
+	get_tree().change_scene_to_file(Lobby.HUB_SCENE)
 
 
-## "Continuar": o personagem do solo.db.
+## "Continuar": o personagem do solo.db, chegando pela praça (a posição em Valdoria fica guardada).
 func continue_game() -> bool:
 	if not Econ.has_solo() or not Econ.start_solo():
 		notify.emit("Nenhum jogo salvo.", Color(1, 0.5, 0.5))
 		return false
 	reset_run_mods()
 	get_tree().paused = false
-	get_tree().change_scene_to_file(WORLD_SCENE)
+	get_tree().change_scene_to_file(Lobby.HUB_SCENE)
 	return true
 
 

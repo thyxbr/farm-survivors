@@ -652,7 +652,7 @@ func _test_horde(w: Node) -> void:
 # ---------------------------------------------------------------- salão e Defesa da Cidade em grupo
 func _in_lobby() -> bool:
 	var s := get_tree().current_scene
-	return s != null and s.get("is_lobby") == true
+	return s != null and s.get("role") == "hub"
 
 
 func _city_colony() -> Colony:
@@ -762,7 +762,7 @@ func _test_city() -> void:
 
 	# --- volta ao salão: o join sai primeiro, o líder em seguida (a partida acaba quando todos saem)
 	await wait(0.5 if city_role == "join" else 2.5)
-	Lobby.go_lobby()
+	Lobby.go_hub()
 	check(await _wait_until(func() -> bool: return _in_lobby(), 10.0), "voltou ao salão")
 	check(await _wait_until(func() -> bool: return Network.zone_of(multiplayer.get_unique_id()) == "hub", 5.0), "servidor vê o jogador de volta no salão")
 	if city_role == "lead":
@@ -805,7 +805,7 @@ func _leave_pickup_behind() -> int:
 			return found[0] > 0, 3.0)
 		if found[0] > 0:
 			break
-	Lobby.go_lobby()
+	Lobby.go_hub()
 	await _wait_until(func() -> bool: return _in_lobby(), 10.0)
 	return found[0]
 

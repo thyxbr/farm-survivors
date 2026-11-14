@@ -39,6 +39,8 @@ const METEOR_FALL := 1.4
 const GOLD_ESCAPE := 22.0
 
 var role := "solo"
+## A partida veio do portal da praça (Hub.go_horde): no fim volta para a praça, não para a vila.
+var return_to_hub := false
 var world: Node
 var player: Player
 var center := Vector3.ZERO
@@ -1364,6 +1366,8 @@ func _return_to_village() -> void:
 		if rewards.xp > 0:
 			Econ.grant(0, rewards.xp, {}, "horde_run")
 		Econ.run_finish(run_id, "horde", rounds_cleared, rewards.gold, rewards.xp, _solo_seeds, my_build())
+	if return_to_hub:
+		Lobby.go_hub(false)   # a posição de Valdoria que vale é a de antes da praça, não a da arena
 
 
 # ================================================================ servidor: grupo
