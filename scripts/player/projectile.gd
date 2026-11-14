@@ -154,7 +154,7 @@ func _on_body(body: Node) -> void:
 
 
 func _damage(e: Node, amount: float) -> void:
-	var dmg := amount * randf_range(0.9, 1.1)
+	var dmg := EnchantHit.scale(e, amount * randf_range(0.9, 1.1))
 	if fx == "glacial":
 		# Flecha Glacial: prende 1,5 s e atrasa 3 s (chefes ignoram a prisão em apply_stun); gelo no alvo
 		e.take_damage(dmg, global_position - _vel.normalized(), crit, 3.0, 1.5)
@@ -162,6 +162,7 @@ func _damage(e: Node, amount: float) -> void:
 	else:
 		e.take_damage(dmg, global_position - _vel.normalized(), crit, 2.5 if fx == "slow" else 0.0)
 	Game.on_damage_dealt(dmg, e.max_hp)
+	EnchantHit.on_hit(e, dmg)   # efeito do elemento da arma encantada
 
 
 ## Cristais de gelo no alvo: estilhaços opacos, brilho frio e anel azul no chão.

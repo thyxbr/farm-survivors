@@ -126,6 +126,10 @@ const MIGRATIONS := [
 		"CREATE INDEX idx_run_players_account ON run_players(account_id)",
 		"CREATE INDEX idx_donations_building ON base_donations(building_id)",
 	],
+	# v5: encantamentos por tipo de arma (JSON {id da arma: {"el", "lv"}}), ver EnchantRules
+	[
+		"ALTER TABLE characters ADD COLUMN enchants TEXT NOT NULL DEFAULT '{}'",
+	],
 ]
 
 

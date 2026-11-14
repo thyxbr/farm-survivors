@@ -69,6 +69,18 @@ func _ready() -> void:
 	Sfx.play_at("anvil", player.global_position + Vector3(2, 0, 0))
 	check(Sfx._next_3d != slot_anvil, "som da bigorna toca perto do jogador")
 	check(get_tree().get_nodes_in_group("enemies").size() >= 15, "inimigos spawnados (%d)" % get_tree().get_nodes_in_group("enemies").size())
+	# monstros da Defesa reaproveitados em Valdoria: Ninho de Slimes e reforços do Acampamento Goblin
+	var by_kind := {}
+	var nest_ok := true
+	for en in get_tree().get_nodes_in_group("enemies"):
+		by_kind[en.kind] = int(by_kind.get(en.kind, 0)) + 1
+		if en.kind in ["slime_veloz", "slime_explosivo", "slime_mae"]:
+			nest_ok = nest_ok and en.global_position.distance_to(world.NEST) < 12.0
+	check(by_kind.get("slime_veloz", 0) == 4 and by_kind.get("slime_explosivo", 0) == 3 and by_kind.get("slime_mae", 0) == 1 and nest_ok,
+		"Ninho de Slimes: 4 velozes, 3 explosivos e 1 mãe")
+	check(by_kind.get("goblin_arqueiro", 0) == 2 and by_kind.get("goblin_xama", 0) == 1, "Acampamento: 2 arqueiros e 1 xamã")
+	check(by_kind.get("goblin_campeao", 0) == 1 and by_kind.get("goblin_bruto", 0) == 2 and by_kind.get("goblin_dourado", 0) == 2,
+		"fontes de +4 e +5: 1 Campeão no Acampamento, 2 Brutos nas Ruínas, 2 Goblins Dourados pelo mapa")
 	check(get_tree().get_nodes_in_group("interactable").size() == 4 + Game.FARM_PLOTS + 1,
 		"3 NPCs + portal + %d canteiros + caldeirão interagíveis" % Game.FARM_PLOTS)
 
@@ -790,6 +802,9 @@ func _ready() -> void:
 
 	await _test_fx_epic()
 	await _test_farm()
+	await _test_gather()
+	await _test_enchant()
+	await _test_enchant_effects()
 	await _test_survival()
 	await _test_update()
 
@@ -1503,6 +1518,242 @@ func _test_blacksmith() -> void:
 				missing += 1
 	check(missing == 0, "martelar provisório cobre os ossos dos clipes do Mixamo (%d tracks faltando)" % missing)
 	player.global_position = back
+
+
+# ---------------------------------------------------------------- Coleta de ferro e cristal
+func _test_gather() -> void:
+	check(world.resource_nodes.size() == 10, "10 veios e cristais no mapa (%d)" % world.resource_nodes.size())
+	if world.resource_nodes.size() < 10:
+		return
+	var back := player.global_position
+	var node = world.resource_nodes[0]
+	check(node.node_id == 0 and node.alive, "veio 0 de pé")
+	player.global_position = node.global_position + Vector3(1.5, 0.3, 0)
+	await wait(0.2)
+	var iron0 := Game.count_item("iron_ore")
+	for i in 4:
+		node.hit(player.global_position)
+	check(node.alive and Game.count_item("iron_ore") == iron0, "4 golpes: veio de pé e nada ganho ainda")
+	node.hit(player.global_position)
+	await wait(0.2)
+	check(not node.alive, "5º golpe quebra o veio")
+	check(Game.count_item("iron_ore") == iron0 + 3, "veio de ferro dá 3 minérios (%d → %d)" % [iron0, Game.count_item("iron_ore")])
+	Econ.gather_node(0, player.global_position)
+	await wait(0.1)
+	check(Game.count_item("iron_ore") == iron0 + 3, "veio esgotado não concede de novo")
+	Econ.gather_node(1, Vector3.ZERO)
+	await wait(0.1)
+	check(Game.count_item("iron_ore") == iron0 + 3, "coleta de longe não concede")
+	Econ.gather_node(999, player.global_position)
+	await wait(0.1)
+	check(Game.count_item("iron_ore") == iron0 + 3, "veio inexistente não concede")
+	var crystal = world.resource_nodes[6]
+	player.global_position = crystal.global_position + Vector3(1.5, 0.3, 0)
+	await wait(0.2)
+	var cr0 := Game.count_item("arcane_crystal")
+	for i in 6:
+		crystal.hit(player.global_position)
+	await wait(0.2)
+	check(Game.count_item("arcane_crystal") == cr0 + 1, "cristal das Ruínas dá 1 cristal arcano em 6 golpes")
+	player.global_position = back
+	await wait(0.2)
+
+
+# ---------------------------------------------------------------- Encantamento de armas
+func _test_enchant() -> void:
+	# solo: o serviço local decide; o Game só espelha
+	check(Game.equipment.weapon != "", "tem arma equipada para encantar (%s)" % Game.equipment.weapon)
+	check(Game.weapon_enchant() == {"el": "", "lv": 0}, "arma começa sem encanto")
+	var dmg_plain := Game.melee_damage()
+	var ore0 := Game.count_item("iron_ore")      # pode haver minério da coleta de antes
+	var ember0 := Game.count_item("ember_core")
+	Econ.grant(50, 0, {"iron_ore": 4, "ember_core": 2}, "teste", true)
+	var gold0 := Game.gold
+	var changed := [0]
+	var on_changed := func() -> void: changed[0] += 1
+	Game.enchant_changed.connect(on_changed)
+	Econ.request("enchant", ["fogo"])
+	await wait(0.2)
+	check(Game.weapon_enchant() == {"el": "fogo", "lv": 1}, "arma equipada encantada: fogo +1")
+	check(changed[0] == 1, "enchant_changed avisou uma vez")
+	check(absf(Game.melee_damage() - dmg_plain * 1.05) < 0.01, "encanto +1 dá +5%% de dano (%.2f → %.2f)" % [dmg_plain, Game.melee_damage()])
+	check(Game.gold == gold0 - 50, "ouro gasto")
+	check(Game.count_item("iron_ore") == ore0 and Game.count_item("ember_core") == ember0, "materiais gastos")
+	# gasta o que sobrou da coleta para os testes abaixo partirem de "sem materiais"
+	if Game.count_item("iron_ore") > 0:
+		for i in Game.count_item("iron_ore"):
+			Econ.request("sell", ["iron_ore"])
+	await wait(0.1)
+	Econ.request("enchant", ["fogo"])
+	await wait(0.2)
+	check(Game.weapon_enchant().lv == 1, "sem recursos não sobe")
+	check(Game.enchant_text(Game.equipment.weapon) == "Fogo +1 · +5% de dano", "texto do encanto para a dica da arma")
+	Game.enchant_changed.disconnect(on_changed)
+
+	# ---- painel do Doran (a arma está em fogo +1, sem materiais)
+	var smith := _interactable("blacksmith") as Blacksmith
+	var pages: Array = smith._build_dialogue()
+	var choices: Array = pages[pages.size() - 1].get("choices", [])
+	check(choices.size() == 2 and choices[0].text == "Encantar arma", "Doran oferece encantar a arma")
+	var wid: String = Game.equipment.weapon
+	var wname: String = ItemDB.get_item(wid).name
+	choices[0].action.call()
+	var eui = world.modal
+	check(eui != null and eui.get("selected") == "fogo", "painel abre no elemento atual da arma")
+	if eui == null or eui.get("selected") == null:
+		return
+	check(wname in eui.status_text() and "+1" in eui.status_text(), "título mostra a arma e o nível")
+	check(eui.enchant_button.disabled, "sem materiais: botão desligado")
+	check("veios de ferro" in eui.status_text(), "painel diz onde achar o que falta")
+	Econ.grant(120, 0, {"iron_ore": 8, "ember_core": 4}, "teste", true)
+	await wait(0.2)
+	check(not eui.enchant_button.disabled, "com materiais: botão ligado")
+	var strikes0: int = smith.enchant_strikes
+	eui.enchant_button.pressed.emit()
+	check(eui.enchant_button.disabled, "pedido pendente: botão desligado (sem clique duplo)")
+	eui.enchant_button.pressed.emit()
+	await wait(0.3)
+	check(Game.weapon_enchant() == {"el": "fogo", "lv": 2}, "um clique duplo sobe um nível só")
+	check(smith.enchant_strikes == strikes0 + 1, "Doran bate na bigorna ao encantar")
+	eui.select("gelo")
+	var gold_row: Dictionary = eui.cost_rows()[0]
+	check(gold_row.id == "" and gold_row.need == 100, "trocar de elemento mostra a taxa de troca")
+	check("mantém +2" in eui.status_text(), "troca avisa que mantém o nível")
+	# arma trocada com o painel aberto
+	var other := "short_bow" if wid != "short_bow" else "apprentice_staff"
+	if Game.count_item(other) == 0:
+		Econ.grant(0, 0, {other: 1}, "teste", true)
+	Econ.request("equip", [other])
+	await wait(0.3)
+	check(ItemDB.get_item(other).name in eui.status_text(), "painel acompanha a troca de arma")
+	check(eui.cost_rows()[0].need == 50, "arma nova: custo do +1")
+	Econ.request("equip", [wid])
+	await wait(0.3)
+	check(Game.weapon_enchant() == {"el": "fogo", "lv": 2}, "voltar à arma traz o encanto de volta")
+	# sem arma equipada
+	Econ.request("unequip", ["weapon"])
+	await wait(0.3)
+	check("Equipe uma arma" in eui.status_text() and eui.enchant_button.disabled, "sem arma: painel pede para equipar")
+	Econ.request("equip", [wid])
+	await wait(0.3)
+	# servidor antigo, sem a tabela
+	var keep: Dictionary = Balance.tables.to_dict()
+	var no_table := keep.duplicate(true)
+	no_table.erase("enchant")
+	Balance.apply(no_table)
+	await wait(0.1)
+	check("indisponível" in eui.status_text() and eui.enchant_button.disabled, "sem tabela enchant: painel avisa e não quebra")
+	Balance.apply(keep)
+	await wait(0.1)
+	check(not ("indisponível" in eui.status_text()), "tabela de volta: painel volta ao normal")
+	eui._close()
+	await wait(0.1)
+	check(world.modal == null, "painel fecha")
+
+
+# ---------------------------------------------------------------- Efeitos dos elementos
+## Um slime grande de teste num canto vazio do mapa (longe dos outros inimigos).
+func _fx_dummy(at: Vector3) -> Enemy:
+	var e := Enemy.new()
+	e.kind = "slime_grande"
+	world.add_child(e)
+	e.global_position = at
+	return e
+
+
+## Troca o elemento da arma equipada pelo serviço (mantém o nível) e confere que trocou.
+func _swap_element(el: String, lv: int) -> void:
+	Econ.request("enchant", [el])
+	await wait(0.1)
+	check(Game.weapon_enchant() == {"el": el, "lv": lv}, "arma trocada para %s +%d" % [el, lv])
+
+
+func _test_enchant_effects() -> void:
+	var back := player.global_position
+	var spot := Vector3(-100, 0.3, 100)
+	player.global_position = spot
+	await wait(0.2)
+	var lv: int = Game.weapon_enchant().lv
+	check(Game.weapon_enchant().el == "fogo" and lv == 2, "efeitos: a arma chega em fogo +2")
+	Econ.grant(600, 0, {"frost_drop": 3, "thunder_totem": 3, "toxic_gland": 3, "golden_dust": 3, "shadow_fang": 3}, "teste", true)
+	var a := _fx_dummy(spot + Vector3(3, 0, 0))
+	await wait(0.1)
+
+	# fogo +2: 22% do dano do golpe, em 3 pulsos ao longo de 3 s
+	var hp0: float = a.hp
+	EnchantHit.on_hit(a, 100.0)
+	check(a.hp == hp0, "queimadura não tira vida na hora")
+	await wait(3.4)
+	check(absf((hp0 - a.hp) - 22.0) < 1.0, "queimadura +2 tira 22 de vida em 3 s (%.1f)" % (hp0 - a.hp))
+	var gone := _fx_dummy(spot + Vector3(-6, 0, -6))
+	await wait(0.1)
+	EnchantHit.on_hit(gone, 100.0)
+	gone.queue_free()   # o alvo some antes dos pulsos da queimadura
+	await wait(1.3)
+	check(true, "queimadura em alvo que sumiu não quebra")
+	check(EnchantHit.scale(a, 100.0) == 100.0, "fogo não muda o dano do golpe")
+
+	# gelo +2: lentidão por 0,9 s
+	await _swap_element("gelo", lv)
+	a.slow_timer = 0.0
+	EnchantHit.on_hit(a, 10.0)
+	check(absf(a.slow_timer - 0.9) < 0.05, "gelo +2 deixa lento por 0,9 s (%.2f)" % a.slow_timer)
+
+	# raio +2: a corrente dá metade do dano no inimigo mais próximo a até 6 m
+	await _swap_element("raio", lv)
+	var fx := Game.weapon_effect()
+	check(absf(float(fx.get("value", 0.0)) - 0.15) < 0.001, "raio +2: 15% de chance")
+	check(EnchantHit.chain(a, 100.0, fx) == null, "corrente sem outro inimigo por perto não faz nada")
+	var b := _fx_dummy(a.global_position + Vector3(2.5, 0, 0))
+	await wait(0.1)
+	var hpb: float = b.hp
+	var a_before: float = a.hp
+	check(EnchantHit.chain(a, 100.0, fx) == b, "corrente salta para o vizinho")
+	check(absf((hpb - b.hp) - 50.0) < 0.01, "corrente dá metade do dano (%.1f)" % (hpb - b.hp))
+	check(a.hp == a_before, "corrente não acerta o próprio alvo")
+	b.queue_free()
+	await wait(0.1)
+
+	# veneno +2: alvo marcado recebe +6% de dano por 4 s
+	await _swap_element("veneno", lv)
+	EnchantHit.on_hit(a, 1.0)
+	check(a.venom_timer > 3.5 and absf(a.venom_amp - 0.06) < 0.001, "veneno +2 marca o alvo por 4 s com +6%")
+	var hp1: float = a.hp
+	a.take_damage(50.0, player.global_position, false)
+	check(absf((hp1 - a.hp) - 53.0) < 0.01, "alvo marcado: 50 de dano vira 53 (%.1f)" % (hp1 - a.hp))
+
+	# sagrado +2: +12% de dano em chefes e elites
+	await _swap_element("sagrado", lv)
+	check(EnchantHit.scale(a, 100.0) == 100.0, "sagrado não muda o dano em inimigo comum")
+	a.elite = true
+	check(absf(EnchantHit.scale(a, 100.0) - 112.0) < 0.01, "sagrado +2: 100 vira 112 em elite")
+	a.elite = false
+	var node = world.resource_nodes[5]
+	check(EnchantHit.scale(node, 100.0) == 100.0, "alvo que não é inimigo: dano igual")
+	EnchantHit.on_hit(node, 100.0)
+	check(true, "efeito em alvo que não é inimigo é ignorado")
+
+	# sombra +2: cura 1,5% do dano causado
+	await _swap_element("sombra", lv)
+	Game.hp = 50.0
+	EnchantHit.on_hit(a, 100.0)
+	check(absf(Game.hp - 51.5) < 0.01, "sombra +2 cura 1,5 por 100 de dano (%.2f)" % Game.hp)
+
+	# arma sem encanto: nenhum efeito
+	var other := "short_bow" if Game.equipment.weapon != "short_bow" else "apprentice_staff"
+	var wid: String = Game.equipment.weapon
+	Econ.request("equip", [other])
+	await wait(0.1)
+	a.slow_timer = 0.0
+	Game.hp = 50.0
+	EnchantHit.on_hit(a, 100.0)
+	check(Game.weapon_effect().is_empty() and Game.hp <= 50.0 and a.slow_timer == 0.0, "arma sem encanto não tem efeito")
+	Econ.request("equip", [wid])
+	await wait(0.1)
+	a.queue_free()
+	Game.hp = Game.max_hp()
+	player.global_position = back
+	await wait(0.2)
 
 
 # ---------------------------------------------------------------- Horta, caldeirão e comida

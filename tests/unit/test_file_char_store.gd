@@ -124,6 +124,18 @@ func test_character_service_on_files() -> void:
 	st.remove_files()
 
 
+## O encanto vai e volta pelo arquivo do solo.
+func test_enchants_round_trip() -> void:
+	var st := _fresh()
+	var svc := CharacterService.new(st, _tables())
+	svc.load_or_create(1)
+	svc.grant(1, 50, 0, {"iron_ore": 4, "frost_drop": 2}, "test")
+	T.ok(svc.apply(1, "enchant", ["gelo"]).ok, "encantou no solo")
+	var s2 := CharacterService.new(FileCharStore.new(PATH), _tables()).load_or_create(1)
+	T.eq(s2.enchants, {"azure_edge": {"el": "gelo", "lv": 1}}, "encanto persistiu no arquivo")
+	st.remove_files()
+
+
 ## Queda entre o "apaga o destino" e o "move o .tmp" do rename no Windows: o save inteiro ficou no .tmp.
 func test_recovers_save_left_in_tmp() -> void:
 	var st := _fresh()

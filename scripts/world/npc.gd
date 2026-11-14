@@ -131,8 +131,11 @@ func _build_dialogue() -> Array:
 		return [
 			{"text": "Mais um golpe e essa lâmina fica pronta. Ferro bom vem das minas do norte, mas o carvão... esse está cada vez mais caro."},
 			{"text": "Se a Mira te vendeu alguma espada, pode apostar que passou por esta bigorna."},
-			{"text": "Agora, se me der licença, o ferro não espera esfriar.",
-				"choices": [{"text": "Até logo", "action": Callable()}]},
+			{"text": "Mas se trouxer minério e o que a mata dá, eu ponho um encanto na sua arma. Ferro frio não morde; ferro encantado, sim.",
+				"choices": [
+					{"text": "Encantar arma", "action": _open_enchant},
+					{"text": "Até logo", "action": Callable()},
+				]},
 		]
 	if npc_id == "merchant":
 		return [{
@@ -183,6 +186,10 @@ func _complete(q: String) -> void:
 
 func _open_shop() -> void:
 	get_tree().current_scene.open_shop()
+
+
+func _open_enchant() -> void:
+	get_tree().current_scene.open_enchant(self)
 
 
 func _next_quest_after(q: String) -> String:

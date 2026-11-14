@@ -273,6 +273,88 @@ func _ready() -> void:
 		for rp in Network.remote_players.values():
 			check(await _wait_until(func() -> bool: return rp.look["class"] == "staff", 10.0),
 				"vê %s trocar para cajado" % rp.display_name)
+	# efeitos visuais: auras de habilidade (declaradas pelo cliente) e encanto (decidido pelo servidor).
+	# Ficam ligados até o fim: o colega chega a este ponto no ritmo dele e precisa encontrá-los.
+	w.player.set_ability_aura("escudo", true)
+	w.player.set_ability_aura("vento", true)
+	Econ.request_test_gold(50)
+	Econ.request_test_items({"iron_ore": 4, "frost_drop": 2})
+	await wait(0.5)
+	var wid: String = Game.equipment.weapon
+	Econ.request("enchant", ["gelo"])
+	check(await _wait_until(func() -> bool: return Game.weapon_enchant() == {"el": "gelo", "lv": 1}, 5.0),
+		"servidor encantou a arma equipada")
+	check(await _wait_until(func() -> bool:
+		var fx: Dictionary = w.player._last_look.get("fx", {})
+		return fx.get("auras", []) == ["escudo", "vento"] and fx.get("en", "") == "gelo" and fx.get("lv", 0) == 1, 3.0),
+		"auras de habilidade + encanto no visual local")
+	check(w.player.look["class"] == "staff" and w.player.look["holder"] != null, "trocar só os efeitos não desmonta a arma")
+	# o cliente não consegue declarar um encanto que o servidor não gravou
+	var fake: Dictionary = w.player._last_look.duplicate(true)
+	fake["fx"]["en"] = "sombra"
+	fake["fx"]["lv"] = 5
+	Network.send_look(fake)
+	# desequipar apaga o brilho; equipar de novo traz o encanto de volta (ele é do tipo de arma)
+	Econ.request("unequip", ["weapon"])
+	check(await _wait_until(func() -> bool:
+		return Game.equipment.weapon == "" and w.player._last_look.get("fx", {}).get("lv", -1) == 0, 5.0),
+		"sem arma: sem brilho no jogador")
+	Econ.request("equip", [wid])
+	check(await _wait_until(func() -> bool: return w.player._last_look.get("fx", {}).get("lv", 0) == 1, 5.0),
+		"arma de volta: o encanto volta com ela")
+	if peers > 1:
+		# espera o colega passar pelos mesmos passos; o estado final de cada um é gelo +1
+		check(await _wait_until(func() -> bool:
+			for rp in Network.remote_players.values():
+				var fx: Dictionary = rp._last_look.get("fx", {})
+				if fx.get("auras", []) != ["escudo", "vento"] or fx.get("en", "") != "gelo" or fx.get("lv", 0) != 1:
+					return false
+			return true, 20.0), "vê as auras e o encanto dos outros jogadores (o encanto falso foi ignorado)")
+		for rp in Network.remote_players.values():
+			check(rp.vfx_aura != null and rp.vfx_aura.styles() == ["escudo", "vento"], "aura montada na réplica de %s" % rp.display_name)
+			var hold: Node3D = rp.look.get("holder")
+			var mis: Array = hold.find_children("*", "MeshInstance3D", true, false) if hold else []
+			check(not mis.is_empty() and mis[0].material_overlay != null, "encanto aplicado na arma da réplica de %s" % rp.display_name)
+
+	# coleta de ferro: o servidor confere a distância e o tempo de volta do veio (veios são de cada jogador)
+	var ore0 := Game.count_item("iron_ore")
+	var here: Vector3 = w.player.global_position
+	Econ.gather_node(0, here)
+	await wait(0.8)
+	check(Game.count_item("iron_ore") == ore0, "coleta de longe é recusada pelo servidor")
+	w.player.global_position = WorldHarvest.node_def(Balance.tables, 0).pos + Vector3(1.5, 0.4, 0)
+	await wait(0.8)   # a posição nova chega ao servidor
+	Econ.gather_node(0, w.player.global_position)
+	check(await _wait_until(func() -> bool: return Game.count_item("iron_ore") == ore0 + 3, 5.0),
+		"coleta perto do veio concede 3 minérios")
+	Econ.gather_node(0, w.player.global_position)
+	await wait(0.8)
+	check(Game.count_item("iron_ore") == ore0 + 3, "veio esgotado não concede de novo")
+	w.player.global_position = here
+	await wait(0.3)
+
+	# marca de veneno adulterada: o servidor limita ao maior valor da tabela (12%).
+	# Cada cliente usa um alvo só seu, para o colega não mexer na mesma vida.
+	var mark_kind := "goblin_dourado" if my_name == "Ana" else "goblin_campeao"
+	var vt: Enemy = null
+	for en in Network.enemies.values():
+		if is_instance_valid(en) and not en.dead and en.kind == mark_kind:
+			vt = en
+			break
+	check(vt != null, "achou um %s para a marca de veneno" % mark_kind)
+	if vt != null:
+		var before_mark: Vector3 = w.player.global_position
+		w.player.global_position = vt.global_position + Vector3(4, 0.4, 0)
+		await wait(0.8)   # a posição nova chega ao servidor
+		Network.client_mark_enemy(vt.net_id, 5.0, 99.0)
+		await wait(0.6)
+		var vh: float = vt.hp
+		vt.take_damage(10.0, w.player.global_position, false)
+		await _wait_until(func() -> bool: return not is_instance_valid(vt) or vt.hp < vh, 4.0)
+		var drop: float = vh - vt.hp if is_instance_valid(vt) else 0.0
+		check(drop > 10.5 and drop < 12.5, "marca de veneno adulterada é limitada a 12%% (10 de dano tirou %.1f)" % drop)
+		w.player.global_position = before_mark
+		await wait(0.3)
 
 	if my_name == "Ana":
 		await _test_econ()
