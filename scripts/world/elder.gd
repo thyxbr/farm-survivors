@@ -15,7 +15,8 @@ const EXCITED_MAX := 3.0
 const TALK_BLEND := 0.5
 
 var state: State = State.IDLE
-var _excited_t := 0.0
+## Tempo da reação atual (s, tempo do jogo; conta só no estado EXCITED e fica parado ao virar conversa).
+var excited_time := 0.0
 
 
 func _init() -> void:
@@ -38,7 +39,7 @@ func _on_dialogue_opened() -> void:
 	if not _animate:
 		return
 	state = State.EXCITED
-	_excited_t = 0.0
+	excited_time = 0.0
 	_play("excited")
 
 
@@ -47,11 +48,11 @@ func _process(delta: float) -> void:
 		super._process(delta)   # marcador e virar aos poucos
 	match state:
 		State.EXCITED:
-			_excited_t += delta
+			excited_time += delta
 			if not dialogue_open():
 				_end_dialogue()
 				_idle()
-			elif _excited_t >= minf(EXCITED_MAX, anim.get_animation(clip("excited")).length):
+			elif excited_time >= minf(EXCITED_MAX, anim.get_animation(clip("excited")).length):
 				state = State.TALK
 				_play("talk", TALK_BLEND)
 		State.TALK:

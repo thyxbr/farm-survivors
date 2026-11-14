@@ -71,6 +71,17 @@ func _process(delta: float) -> void:
 					_call()
 
 
+## Volta ao parado com o chamado liberado: chama de novo assim que o jogador estiver entre CALL_MIN e
+## CALL_MAX metros, sem esperar o intervalo (testes e quem reposiciona a Mira).
+func reset_call() -> void:
+	_cooldown = 0.0
+	_waves_left = 0
+	if _animate:
+		_idle()
+	else:
+		state = State.IDLE
+
+
 func _call() -> void:
 	state = State.CALL
 	calls += 1

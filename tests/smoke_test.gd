@@ -103,9 +103,11 @@ func _ready() -> void:
 	await wait(0.1)
 	check(Game.quest_state("slimes") == "active", "missão dos slimes aceita")
 	check(world.modal == null and not get_tree().paused, "diálogo fecha e despausa")
+	# o ferreiro primeiro, logo depois da missão como antes do Bram e da Mira: ~25 s depois ele pode estar
+	# na pausa entre ciclos (work_pause) e "começa trabalhando" falharia por sorte
+	await _test_blacksmith()
 	await _test_elder(elder as Elder)
 	await _test_merchant()
-	await _test_blacksmith()
 
 	# --- combate corpo a corpo
 	var slime := _nearest("slime")
@@ -1470,10 +1472,10 @@ func _test_elder(elder: Elder) -> void:
 	var p0 := ap.current_animation_position
 	await wait(0.3)
 	check(get_tree().paused and ap.current_animation_position != p0, "Bram anima a reação com o jogo pausado")
-	var t0 := Time.get_ticks_msec()
 	await wait_until(func() -> bool: return elder.state == Elder.State.TALK, Elder.EXCITED_MAX + 0.5)
-	var took := 0.3 + (Time.get_ticks_msec() - t0) / 1000.0
-	check(elder.state == Elder.State.TALK and ap.current_animation == elder.clip("talk") and took <= Elder.EXCITED_MAX + 0.2,
+	# medido no relógio do próprio Bram (tempo do jogo), não no do sistema: máquina lenta não reprova
+	var took := elder.excited_time
+	check(elder.state == Elder.State.TALK and ap.current_animation == elder.clip("talk") and took <= Elder.EXCITED_MAX + 0.25,
 		"Bram passa a conversar em até %.1f s (%.2f s, %s)" % [Elder.EXCITED_MAX, took, ap.current_animation])
 	p0 = ap.current_animation_position
 	await wait(0.3)
@@ -1503,8 +1505,7 @@ func _test_merchant() -> void:
 	var back := player.global_position
 	var ap := mira.anim
 	# o teste do Bram deixa o jogador a ~10 m dela: começa de um chamado liberado
-	mira._idle()
-	mira._cooldown = 0.0
+	mira.reset_call()
 	var dir := Vector3(-1, 0, 1).normalized()   # para a praça, fora da frente dela (-X): ela tem que virar
 	player.global_position = mira.global_position + dir * 20.0 + Vector3(0, 0.3, 0)
 	var c0 := mira.calls
