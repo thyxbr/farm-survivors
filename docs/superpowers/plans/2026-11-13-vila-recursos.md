@@ -140,7 +140,7 @@ check(colony.free_villagers() == free0 - 2, "fazenda ocupa 2 aldeões")
 colony.citizens = colony.busy() + 1
 check(colony.can_place("market", Vector3(12, 0, 8), 0.0) == "Faltam 1 aldeão livre.", "sem aldeões livres, não constrói")
 var c0 := colony.citizens; var food0 := colony.food
-check(colony.train_villager() == "" and colony.food == food0 - 40, "treinar aldeão custa 40 comida")
+check(colony.train_villager() == "" and colony.food == food0 - ColonyData.VILLAGER_COST.food, "treinar aldeão custa comida")
 await wait(ColonyData.VILLAGER_TIME + 0.5)
 check(colony.citizens == c0 + 1, "aldeão treinado em 8 s")
 colony.citizens = colony.pop_cap()

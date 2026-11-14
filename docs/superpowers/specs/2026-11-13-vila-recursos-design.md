@@ -79,7 +79,7 @@ O HUD mostra os seis. Ferro e cristal só aparecem quando o jogador tiver pelo m
   demolir devolve. `crew` sugerido: fazenda 2, mercado 2, serraria 3, pedreira 3, quartel 1, torres 1, casas/muros 0.
   As torres ocupam 1 porque precisam de alguém operando.
 - **Crescimento custa recurso.** Some o crescimento automático do amanhecer. Na prefeitura (E) há "Treinar aldeão":
-  40 comida, 8 s de fila no servidor, limitado pelas moradias (`pop_cap`). Os refugiados do evento continuam dando aldeões de graça.
+  custo em comida (`ColonyData.VILLAGER_COST`), 8 s de fila no servidor, limitado pelas moradias (`pop_cap`). Os refugiados do evento continuam dando aldeões de graça.
 - O imposto continua: aldeão (livre ou ocupado) paga imposto. Recrutar soldado continua consumindo 1 aldeão.
 - Se faltar aldeão (fome, deserção), as construções com `crew` desfalcado produzem proporcionalmente menos
   (substitui o `eff` atual) e as torres sem operador atiram 50% mais devagar.
@@ -95,22 +95,7 @@ O HUD mostra os seis. Ferro e cristal só aparecem quando o jogador tiver pelo m
 - Todas as construções ganham custo em vários recursos: `cost` vira dicionário `{"gold":, "wood":, "stone":, "iron":, "crystal":}`.
   O custo progressivo do co-op (`COST_GROWTH`) multiplica todos os recursos. Melhoria e reparo também pedem
   madeira/pedra (melhoria para o nível 3 pede ferro). Demolir devolve 50% de cada recurso.
-- Tabela inicial (o builder pode ajustar na passada de balanceamento):
-
-| Construção | Ouro | Madeira | Pedra | Outros |
-|---|---|---|---|---|
-| Casa | 30 | 40 | 0 | |
-| Fazenda | 30 | 50 | 0 | |
-| Serraria | 40 | 30 | 0 | |
-| Pedreira | 40 | 50 | 0 | |
-| Mercado | 90 | 60 | 20 | |
-| Quartel | 100 | 80 | 40 | |
-| Muro | 4 | 0 | 8 | |
-| Portão | 20 | 20 | 15 | |
-| Estacas | 10 | 20 | 0 | |
-| Torre de Arqueiros | 70 | 60 | 30 | |
-| Torre de Canhão | 120 | 40 | 80 | 15 ferro |
-| Torre Arcana | 100 | 40 | 50 | 10 cristal |
+- Custos por construção: Os valores numéricos (custos, tempos, rendimentos) **não ficam neste documento**: os autoritativos estão em `data/balance/colony.json` (construções, tropas, bichos) e em `scripts/colony/colony_data.gd` (eras, pesquisas, aldeões, ...), afinados pela simulação de economia (`tests/economy_sim.gd`, seção 18). Os números que aparecerem em versões antigas deste texto são só o ponto de partida do plano.
 
 - Estoque inicial: madeira 150, pedra 60 (co-op: +50 madeira por jogador). Ouro inicial cai um pouco
   (o builder ajusta), porque parte do custo saiu do ouro.
@@ -274,11 +259,13 @@ Como no AoE, a cidade precisa gastar sempre, senão a coleta perde o sentido. S�
 Evoluir a era é a ação "Avançar de era", feita na prefeitura (E). Leva 30 s no servidor, só pode ser feita de dia
 e, enquanto dura, a prefeitura não treina aldeões.
 
-| Era | Custo | Exige | Libera |
-|---|---|---|---|
-| I · Aldeia | (início) | | o básico; construções até nível 1 |
-| II · Vila | 250 comida, 250 madeira, 150 pedra, 200 ouro | 1 serraria, 1 pedreira | nível 2; Torre de Canhão e Torre Arcana; cavaleiro, mago e canhoneiro; pesquisas da era II |
-| III · Cidade | 500 comida, 450 madeira, 400 pedra, 400 ouro, 40 ferro, 20 cristal | 1 quartel nível 2 | nível 3; pesquisas da era III; +1 aldeão de `crew` nas serrarias e pedreiras |
+| Era | Exige | Libera |
+|---|---|---|
+| I · Aldeia (início) | | o básico; construções até nível 1 |
+| II · Vila | 1 serraria, 1 pedreira | nível 2; Torre de Canhão e Torre Arcana; cavaleiro, mago e canhoneiro; pesquisas da era II |
+| III · Cidade | 1 quartel nível 2 | nível 3; pesquisas da era III; +1 aldeão de `crew` nas serrarias e pedreiras |
+
+O custo de cada era (comida, madeira, pedra, ouro e, na III, ferro e cristal) fica em `ColonyData.ERAS`. Os valores numéricos (custos, tempos, rendimentos) **não ficam neste documento**: os autoritativos estão em `data/balance/colony.json` (construções, tropas, bichos) e em `scripts/colony/colony_data.gd` (eras, pesquisas, aldeões, ...), afinados pela simulação de economia (`tests/economy_sim.gd`, seção 18). Os números que aparecerem em versões antigas deste texto são só o ponto de partida do plano.
 
 - O `needs_level: 2` do cavaleiro passa a ser `needs_era: 2`. O nível da construção continua dando vida e produção.
 - A era é da cidade inteira. No co-op, os custos multiplicam por `1 + 0.55 × (jogadores − 1)` (`ERA_TEAM_COST`).
@@ -290,19 +277,21 @@ e, enquanto dura, a prefeitura não treina aldeões.
 
 Feitas na construção correspondente (E). Cada uma é comprada uma vez, leva 20 s e só pode ser feita de dia.
 
-| Era | Pesquisa | Onde | Efeito | Custo |
-|---|---|---|---|---|
-| I | Machado Afiado | Serraria | +20% madeira (serraria e jogador) | 60 ouro, 60 madeira |
-| I | Picareta | Pedreira | +20% pedra | 60 ouro, 80 madeira |
-| I | Arado | Fazenda | +20% comida | 80 ouro, 80 madeira |
-| II | Feixes de Flechas | Torre de Arqueiros | −30% munição de madeira | 100 ouro, 120 madeira |
-| II | Flechas de Ferro | Torre de Arqueiros | +15% dano de flechas (torres e arqueiros) | 120 ouro, 100 madeira, 10 ferro |
-| II | Alvenaria | Prefeitura | +20% vida de todas as construções | 150 ouro, 200 pedra |
-| II | Serra Dupla | Serraria | +20% madeira (soma com Machado) | 120 ouro, 150 madeira, 10 ferro |
-| III | Pólvora Fina | Torre de Canhão | +25% raio da explosão, −30% munição | 200 ouro, 200 pedra, 25 ferro |
-| III | Foco Arcano | Torre Arcana | +1 salto na cadeia, −30% munição | 200 ouro, 25 cristal |
-| III | Muralha Reforçada | Prefeitura | muros e portões +40% vida | 150 ouro, 400 pedra |
-| III | Treino de Elite | Quartel | tropas +15% vida e dano | 250 ouro, 150 comida, 30 ferro |
+| Era | Pesquisa | Onde | Efeito |
+|---|---|---|---|
+| I | Machado Afiado | Serraria | +20% madeira (serraria e jogador) |
+| I | Picareta | Pedreira | +20% pedra |
+| I | Arado | Fazenda | +20% comida |
+| II | Feixes de Flechas | Torre de Arqueiros | −30% munição de madeira |
+| II | Flechas de Ferro | Torre de Arqueiros | +15% dano de flechas (torres e arqueiros) |
+| II | Alvenaria | Prefeitura | +20% vida de todas as construções |
+| II | Serra Dupla | Serraria | +20% madeira (soma com Machado) |
+| III | Pólvora Fina | Torre de Canhão | +25% raio da explosão, −30% munição |
+| III | Foco Arcano | Torre Arcana | +1 salto na cadeia, −30% munição |
+| III | Muralha Reforçada | Prefeitura | muros e portões +40% vida |
+| III | Treino de Elite | Quartel | tropas +15% vida e dano |
+
+Custo de cada pesquisa: `ColonyData.TECHS[...].cost`. Os valores numéricos (custos, tempos, rendimentos) **não ficam neste documento**: os autoritativos estão em `data/balance/colony.json` (construções, tropas, bichos) e em `scripts/colony/colony_data.gd` (eras, pesquisas, aldeões, ...), afinados pela simulação de economia (`tests/economy_sim.gd`, seção 18). Os números que aparecerem em versões antigas deste texto são só o ponto de partida do plano.
 
 As pesquisas ficam em `ColonyData.TECHS`, com `era`, `at`, `cost` e `fx`. São só modificadores lidos onde o número
 já é calculado (produção, dano, vida, munição), sem sistema de buff novo. Vão no save e no `net_state`.
@@ -327,6 +316,9 @@ já é calculado (produção, dano, vida, munição), sem sistema de buff novo. 
   ordem fixa, mantém 1 serraria para cada 6 torres, avança de era quando pode e usa um consumo de munição tirado de
   ondas reais. A cada dia imprime o estoque e, no fim, compara com as metas.
 - Roda em solo, com 2 e com 4 jogadores, e entra no `smoke-check`.
+- **Limites da simulação.** "Exploração ~1,5× serraria" é uma **suposição de entrada** da simulação (o jogador
+  coleta à mão nessa proporção), não algo medido. A simulação também **não modela combate, covis nem eventos**:
+  não prova que as torres seguram a noite, só que a economia fecha as metas acima.
 - No fim, rodar também a skill `balance-check` para achar outliers (pesquisa ou construção que ninguém usaria, ou
   estratégia dominante).
 
