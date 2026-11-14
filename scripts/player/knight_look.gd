@@ -304,13 +304,16 @@ static func _build_sword(h: Node3D, tip: Node3D, id: String) -> void:
 
 ## Arma modelada no Blender (assets/models/<model>.glb): cabo na origem, lâmina em +Y do GLB, largura em X.
 ## O suporte usa +Z como direção da lâmina e Y como largura; o empty "Tip" do GLB vira a ponta.
+## O lado esquerdo da folha de conceito (-X do GLB, para onde as lâminas curvas dobram: as costas) vai para
+## +Y do suporte, como a "saber" procedural: ponta curvando para cima e gume para baixo na guarda, liderando
+## o golpe. Com -X -> +Y, o eixo Z do GLB vira -X do suporte (giro de 180° no eixo da lâmina, sem espelhar).
 static func _build_model(h: Node3D, tip: Node3D, model: String) -> bool:
 	var path := "res://assets/models/%s.glb" % model
 	if not ResourceLoader.exists(path):
 		return false
 	var w := (load(path) as PackedScene).instantiate() as Node3D
 	WeaponModel.use_vertex_color(w)
-	w.transform = Transform3D(Basis(Vector3(0, 1, 0), Vector3(0, 0, 1), Vector3(1, 0, 0)), Vector3.ZERO)
+	w.transform = Transform3D(Basis(Vector3(0, -1, 0), Vector3(0, 0, 1), Vector3(-1, 0, 0)), Vector3.ZERO)
 	h.add_child(w)
 	var t := w.find_child("Tip", true, false) as Node3D
 	tip.position = w.transform * t.position if t else Vector3(0, 0, 1.0)
