@@ -238,6 +238,95 @@ Hoje o solo usa sempre `map_seed = 7731`. Uma partida solo nova sorteia a sement
 (`to_dict`). Um save antigo, sem semente, carrega com 7731, para as construções não caírem em cima de árvores
 novas. O cooperativo continua usando `Lobby.city_seed`.
 
+### 14. Para onde vão os recursos (o ciclo da economia)
+
+Como no AoE, a cidade precisa gastar sempre, senão a coleta perde o sentido. São três gastos:
+
+- **Munição** (gasto diário): a noite consome o que o dia coletou.
+- **Eras** (grandes metas do meio do jogo).
+- **Pesquisas** (compras únicas, que sobram para o fim do jogo).
+
+### 15. Munição das torres e tropas à distância
+
+- As torres e as tropas à distância tiram munição do estoque da cidade a cada disparo:
+
+| Quem atira | Recurso | Consumo |
+|---|---|---|
+| Torre de Arqueiros | madeira | 1 a cada 5 flechas |
+| Torre de Canhão | pedra | 1 a cada 2 balas |
+| Torre Arcana | cristal | 1 a cada 15 raios |
+| Arqueiro | madeira | 1 a cada 8 flechas |
+| Mago | cristal | 1 a cada 20 raios |
+| Canhoneiro | pedra | 1 a cada 3 tiros |
+
+  O servidor guarda as frações num acumulador, para não arredondar a cada tiro.
+- **Sem estoque, ninguém fica sem atirar:** atiram com metade da cadência. A tela avisa uma vez ("Acabaram as flechas!")
+  e o HUD pisca o recurso em falta.
+- **Ordem de grandeza** (noite com ~60 s de combate ativo):
+  - uma torre de arqueiros gasta ~12 de madeira por noite;
+  - uma de canhão gasta ~10 de pedra;
+  - uma arcana gasta ~3 de cristal.
+  - **Regra de bolso: uma serraria cheia sustenta ~6 torres de arqueiros com folga.** O resto da madeira fica para construir.
+- O relatório do amanhecer mostra a munição gasta.
+
+### 16. Eras da prefeitura
+
+Evoluir a era é a ação "Avançar de era", feita na prefeitura (E). Leva 30 s no servidor, só pode ser feita de dia
+e, enquanto dura, a prefeitura não treina aldeões.
+
+| Era | Custo | Exige | Libera |
+|---|---|---|---|
+| I · Aldeia | (início) | | o básico; construções até nível 1 |
+| II · Vila | 250 comida, 250 madeira, 150 pedra, 200 ouro | 1 serraria, 1 pedreira | nível 2; Torre de Canhão e Torre Arcana; cavaleiro, mago e canhoneiro; pesquisas da era II |
+| III · Cidade | 500 comida, 450 madeira, 400 pedra, 400 ouro, 40 ferro, 20 cristal | 1 quartel nível 2 | nível 3; pesquisas da era III; +1 aldeão de `crew` nas serrarias e pedreiras |
+
+- O `needs_level: 2` do cavaleiro passa a ser `needs_era: 2`. O nível da construção continua dando vida e produção.
+- A era é da cidade inteira. No co-op, os custos multiplicam por `1 + 0.35 × (jogadores − 1)`, como as ondas.
+
+### 17. Pesquisas
+
+Feitas na construção correspondente (E). Cada uma é comprada uma vez, leva 20 s e só pode ser feita de dia.
+
+| Era | Pesquisa | Onde | Efeito | Custo |
+|---|---|---|---|---|
+| I | Machado Afiado | Serraria | +20% madeira (serraria e jogador) | 60 ouro, 60 madeira |
+| I | Picareta | Pedreira | +20% pedra | 60 ouro, 80 madeira |
+| I | Arado | Fazenda | +20% comida | 80 ouro, 80 madeira |
+| II | Feixes de Flechas | Torre de Arqueiros | −30% munição de madeira | 100 ouro, 120 madeira |
+| II | Flechas de Ferro | Torre de Arqueiros | +15% dano de flechas (torres e arqueiros) | 120 ouro, 100 madeira, 10 ferro |
+| II | Alvenaria | Prefeitura | +20% vida de todas as construções | 150 ouro, 200 pedra |
+| II | Serra Dupla | Serraria | +20% madeira (soma com Machado) | 120 ouro, 150 madeira, 10 ferro |
+| III | Pólvora Fina | Torre de Canhão | +25% raio da explosão, −30% munição | 200 ouro, 200 pedra, 25 ferro |
+| III | Foco Arcano | Torre Arcana | +1 salto na cadeia, −30% munição | 200 ouro, 25 cristal |
+| III | Muralha Reforçada | Prefeitura | muros e portões +40% vida | 150 ouro, 400 pedra |
+| III | Treino de Elite | Quartel | tropas +15% vida e dano | 250 ouro, 150 comida, 30 ferro |
+
+As pesquisas ficam em `ColonyData.TECHS`, com `era`, `at`, `cost` e `fx`. São só modificadores lidos onde o número
+já é calculado (produção, dano, vida, munição), sem sistema de buff novo. Vão no save e no `net_state`.
+
+### 18. Garantia de equilíbrio
+
+"Equilibrado" vira metas medidas. O builder ajusta os números até todas passarem:
+
+| Meta | Alvo |
+|---|---|
+| Era II | possível entre os dias 4 e 6 jogando razoavelmente; nunca antes do dia 3 |
+| Era III | entre os dias 9 e 12 |
+| Munição | com a regra "1 serraria para 6 torres", a madeira nunca zera durante a noite até o dia 15 |
+| Madeira parada | o estoque não passa de ~1500 antes do dia 12 (senão a madeira está sobrando) |
+| Pesquisas | todas as da era I compráveis até a Era II; as da era III não acabam antes do dia 15 |
+| Começo | no dia 1, com o estoque inicial, dá para fazer prefeitura + 2 casas + fazenda + serraria + 1 torre (o começo não pode ficar mais lento que hoje) |
+| Exploração | coletar à mão durante um dia inteiro rende ~1,5× uma serraria cheia: vale sair, mas a cidade não depende só do jogador |
+| Co-op | as mesmas metas com 2 e com 4 jogadores |
+
+**Como medir:**
+- **`tests/economy_sim.gd`** (novo, headless): simula 15 dias com um "jogador razoável" scriptado. Ele constrói numa
+  ordem fixa, mantém 1 serraria para cada 6 torres, avança de era quando pode e usa um consumo de munição tirado de
+  ondas reais. A cada dia imprime o estoque e, no fim, compara com as metas.
+- Roda em solo, com 2 e com 4 jogadores, e entra no `smoke-check`.
+- No fim, rodar também a skill `balance-check` para achar outliers (pesquisa ou construção que ninguém usaria, ou
+  estratégia dominante).
+
 ## Decisões do usuário
 
 - Coleta pelos dois: jogador e aldeões (opção C da coleta).
@@ -245,6 +334,7 @@ novas. O cooperativo continua usando `Lobby.city_seed`.
 - Ordem: economia → mapa vivo → tropas novas.
 - Covis estruturados para virar dungeons no futuro.
 - Mapa do solo aleatório a cada partida nova.
+- A cidade gasta recursos sempre: munição, eras e pesquisas. O equilíbrio é garantido por metas medidas.
 
 ## Decisões minhas (para o usuário conferir)
 
