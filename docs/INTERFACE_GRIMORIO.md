@@ -64,6 +64,7 @@ descartados: o primeiro fica "vetorial" demais, o segundo é caro para ornamento
 | Gerador das imagens | `tools/blender/ui_kit.py` |
 | Medidas do livro, regra "cabe na página", escala para janela pequena | `scripts/ui/book_layout.gd` |
 | Janela-livro: abas, fechar, rolagem, aviso de página grande demais | `scripts/ui/book_window.gd` |
+| Fontes embutidas: Cinzel (títulos, peso 600) e EB Garamond (texto), licença OFL | `assets/fonts`, `UITheme.serif()` e `UITheme.body()` |
 | Tema de papel, cores de tinta, `ink()`, `ink_section()`, `ink_bar()`, `ink_inset()` | `scripts/ui/ui_theme.gd` |
 | Espaço de item sobre papel (`paper = true`) | `scripts/ui/item_slot.gd` |
 | Ícones 3D, guardados em `user://icons/<versão>` | `scripts/ui/item_icons.gd`, `scripts/ui/icon_cache.gd` |
@@ -89,7 +90,7 @@ Cada etapa é um PR, sai com as capturas das telas tocadas e com `/smoke-check` 
 | Etapa | O que | Telas | Estado |
 |---|---|---|---|
 | 0 | Teste no inventário | `game_menu.gd` (aba Inventário) | feito |
-| 1 | **Base.** Refazer o teste como código de verdade: componente `BookWindow` (livro, margens, abas, fechar, aviso de tamanho), tema de papel completo (lista, abas, barra, deslizador, campo de texto), fonte embutida, remover as peças de aço | `ui_theme.gd`, `item_slot.gd`, `item_icons.gd`, novo `book_window.gd` | feito (falta a fonte embutida) |
+| 1 | **Base.** Refazer o teste como código de verdade: componente `BookWindow` (livro, margens, abas, fechar, aviso de tamanho), tema de papel completo (lista, abas, barra, deslizador, campo de texto), fonte embutida, remover as peças de aço | `ui_theme.gd`, `item_slot.gd`, `item_icons.gd`, novo `book_window.gd` | feito |
 | 2 | **Menu do herói inteiro no livro:** Inventário, Personagem e Missões a tinta; atalhos I/C/J de volta nas abas; dica de item em pergaminho | `game_menu.gd`, `item_tooltip.gd`, `skill_icon.gd` | a fazer |
 | 3 | **Ícones dos itens sem modelo:** poções, comida, anéis, amuletos, orbe, aljava, materiais, sementes | `icon_painter.gd`, `item_icons.gd` | a fazer |
 | 4 | **Comércio e ofícios:** loja, encantamento do ferreiro, cozinha, horta | `shop_ui.gd`, `enchant_ui.gd`, `cooking_ui.gd`, `plant_ui.gd` | a fazer |
@@ -117,7 +118,6 @@ Ficam como estão: `hud.gd`, `hub_hud.gd`, `survival_hud.gd`, `colony_hud.gd`, `
 
 | Decisão | Recomendação |
 |---|---|
-| Qual fonte embutir | Cinzel (títulos) e EB Garamond (texto), licença livre OFL. Precisa baixar os arquivos |
 | Ícones dos itens sem modelo (etapa 3) | Modelar peças simples no Blender e passar pelo mesmo `ItemIcons`, para tudo ter o mesmo traço |
 | Retrato no diálogo (etapa 5) | Câmera 3D no rosto do NPC, como o close que o diálogo já faz, dentro de uma moldura |
 

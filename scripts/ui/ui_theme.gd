@@ -20,18 +20,42 @@ const XP := Color(0.85, 0.66, 0.2)
 
 static var _theme: Theme
 static var _serif: Font
+static var _body: Font
 
 
-## Fonte serifada para títulos (cai na fonte padrão se o sistema não tiver nenhuma).
+## Fonte dos títulos: Cinzel embutida (assets/fonts, licença OFL); sem o arquivo, a serifada do sistema.
 static func serif() -> Font:
-	if _serif:
-		return _serif
-	var f := SystemFont.new()
-	f.font_names = PackedStringArray(["Cinzel", "Trajan Pro", "Palatino Linotype", "Book Antiqua", "Georgia",
-		"Times New Roman", "serif"])
-	f.font_weight = 600
-	_serif = f
-	return f
+	if _serif == null:
+		var f := _load_font("res://assets/fonts/Cinzel.ttf", ["Cinzel", "Trajan Pro", "Palatino Linotype",
+			"Book Antiqua", "Georgia", "Times New Roman", "serif"])
+		if f is FontFile:
+			# a Cinzel é variável e o peso normal fica fino demais em título pequeno: usa 600
+			var heavy := FontVariation.new()
+			heavy.base_font = f
+			heavy.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 600}
+			f = heavy
+		_serif = f
+	return _serif
+
+
+## Fonte do texto corrido das telas do livro: EB Garamond embutida; sem o arquivo, a serifada do sistema.
+static func body() -> Font:
+	if _body == null:
+		_body = _load_font("res://assets/fonts/EBGaramond.ttf", ["EB Garamond", "Garamond", "Palatino Linotype",
+			"Georgia", "Times New Roman", "serif"])
+	return _body
+
+
+## Fonte do arquivo `path`; se não existir ou não carregar, uma fonte do sistema com os nomes de `fallback`.
+static func _load_font(path: String, fallback: Array) -> Font:
+	if ResourceLoader.exists(path):
+		var f := load(path) as FontFile
+		if f:
+			return f
+	var sys := SystemFont.new()
+	sys.font_names = PackedStringArray(fallback)
+	sys.font_weight = 600
+	return sys
 
 
 static func get_theme() -> Theme:
@@ -244,9 +268,8 @@ static var _paper: Theme
 
 ## Texto a tinta (sem contorno); `title` usa a fonte serifada.
 static func ink(text: String, size := 16, color := INK, title := false) -> Label:
-	var l := label(text, size, color)
-	if title:
-		l.add_theme_font_override("font", serif())
+	var l := label(text, size if title else size + 2, color)
+	l.add_theme_font_override("font", serif() if title else body())
 	return l
 
 
@@ -259,6 +282,8 @@ static func paper_theme() -> Theme:
 	if _paper:
 		return _paper
 	var t: Theme = get_theme().duplicate()
+	t.default_font = body()
+	t.default_font_size = 20      # a Garamond é menor que a fonte padrão no mesmo tamanho
 	t.set_stylebox("normal", "Button", _ink_box(0.06, 0.55))
 	t.set_stylebox("hover", "Button", _ink_box(0.16, 0.8))
 	t.set_stylebox("pressed", "Button", _ink_box(0.78, 0.9))

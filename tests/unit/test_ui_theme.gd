@@ -20,3 +20,14 @@ func test_paper_text_is_ink() -> void:
 
 func test_paper_theme_leaves_dark_theme_alone() -> void:
 	T.eq(UITheme.get_theme().get_color("font_color", "Label"), UITheme.TEXT, "tema escuro continua claro")
+
+
+func test_fonts_are_bundled() -> void:
+	var title := UITheme.serif()
+	T.ok(title is FontVariation and (title as FontVariation).base_font is FontFile, "título usa a fonte embutida (em peso 600), não a do sistema")
+	T.ok(UITheme.body() is FontFile, "texto usa a fonte embutida")
+
+
+func test_font_fallback() -> void:
+	var f := UITheme._load_font("res://assets/fonts/nao_existe.ttf", ["Georgia", "serif"])
+	T.ok(f is SystemFont, "fonte ausente cai na do sistema sem erro")

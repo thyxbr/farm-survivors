@@ -158,13 +158,13 @@ func _build_inventory() -> Control:
 		b.button_group = fg
 		b.button_pressed = f[0] == bag_filter
 		b.custom_minimum_size = Vector2(0, 30)
-		b.add_theme_font_size_override("font_size", 14)
+		b.add_theme_font_size_override("font_size", 17)
 		b.pressed.connect(_set_filter.bind(f[0]))
 		filters.add_child(b)
 	filters.add_child(UITheme.spacer())
 	var sort := UITheme.button("Organizar", _sort_bag)
 	sort.custom_minimum_size.y = 30
-	sort.add_theme_font_size_override("font_size", 14)
+	sort.add_theme_font_size_override("font_size", 17)
 	sort.tooltip_text = "Ordena por tipo e raridade"
 	filters.add_child(sort)
 	rv.add_child(filters)
@@ -189,7 +189,7 @@ func _build_inventory() -> Control:
 	drop_btn = UITheme.button("Descartar", _drop_selected, 110)
 	for b in [use_btn, drop_btn]:
 		b.custom_minimum_size.y = 34
-		b.add_theme_font_size_override("font_size", 15)
+		b.add_theme_font_size_override("font_size", 18)
 		foot.add_child(b)
 	rv.add_child(foot)
 	var hint := UITheme.ink("Clique direito ou duplo: usar/equipar · Arraste entre a mochila e o herói", 12, UITheme.INK_DIM)
