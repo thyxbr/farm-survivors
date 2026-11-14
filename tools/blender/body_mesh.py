@@ -12,7 +12,7 @@
 #   - cada braço nasce de um furo de 8 vértices no lado do tronco (3 anéis x 3 colunas) e desce em anéis de 8.
 # Pés em Z=0, frente = -Y, altura ~1,84 m (mesmas medidas de GEAR_P).
 #
-# Esqueleto: ossos com os nomes dos pivôs do jogo (Body, Head, ArmL/R, ElbowL/R, LegL/R, KneeL/R).
+# Esqueleto: ossos com os nomes dos pivôs do jogo (Body, Head, ArmL/R, ElbowL/R, LegL/R, KneeL/R, AnkleL/R).
 # Rotação +X no osso leva o membro para trás; o joelho dobra com +X (canela para trás) e o cotovelo com -X
 # (antebraço para a frente).
 import math
@@ -241,6 +241,8 @@ def cb_rig(name="Rig"):
         bone("Elbow" + n, cb_mirror(J["elbow"], s), cb_mirror(J["wrist"], s), "Arm" + n)
         bone("Leg" + n, cb_mirror(J["hip"], s), cb_mirror(J["knee"], s))
         bone("Knee" + n, cb_mirror(J["knee"], s), cb_mirror(J["ankle"], s), "Leg" + n)
+        # pé: do tornozelo até a ponta (o jogo gira AnkleX para o pé assentar no chão na passada)
+        bone("Ankle" + n, cb_mirror(J["ankle"], s), cb_mirror(J["ankle"], s) + Vector((0, -0.15, -0.055)), "Knee" + n)
     with bpy.context.temp_override(active_object=rig, object=rig):
         bpy.ops.object.mode_set(mode='OBJECT')
     return rig
@@ -449,9 +451,10 @@ def build_f_shoes():
     knee_z = CB_J["knee"].z
     shin = lambda c, b, n: b.startswith("Knee") and 0.13 < c.z < knee_z + 0.03 or (b.startswith("Leg") and c.z < knee_z + 0.03)
     cb_piece(body, "PantsShin", shin, 0.009, M["pants"])
-    shoe = lambda c, b, n: (b.startswith("Knee") or b.startswith("Leg")) and c.z <= 0.15
+    shoe = lambda c, b, n: (b.startswith("Knee") or b.startswith("Leg") or b.startswith("Ankle")) and c.z <= 0.15
     cb_piece(body, "Shoes", shoe, 0.012, M["lea"], mat_fn=lambda f: 1 if f.normal.z < -0.5 else 0, mats=(M["lea_d"],))
-    cb_piece(body, "ShoeTop", lambda c, b, n: b.startswith("Knee") and 0.11 < c.z <= 0.15, 0.02, M["lea_d"])
+    cb_piece(body, "ShoeTop", lambda c, b, n: (b.startswith("Knee") or b.startswith("Ankle")) and 0.11 < c.z <= 0.15,
+             0.02, M["lea_d"])
     _cb_finish("f_shoes", body)
 
 

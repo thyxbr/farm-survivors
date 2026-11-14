@@ -76,6 +76,8 @@ func _process(_delta: float) -> void:
 
 
 func update() -> void:
+	if not is_inside_tree():     # modelo ainda fora da cena: atualiza no primeiro quadro
+		return
 	for e in _skels:
 		var skel: Skeleton3D = e.skel
 		if not is_instance_valid(skel):

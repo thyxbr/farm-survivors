@@ -61,7 +61,7 @@ def pose(**rots):
 
 render("rest", (0.0, math.pi / 2, 0.75, math.pi))
 # corrida: perna esquerda à frente (joelho levemente dobrado), direita atrás com o calcanhar subindo
-pose(LegL=-0.75, KneeL=0.45, LegR=0.5, KneeR=1.2, ArmL=0.55, ElbowL=-0.6, ArmR=-0.6, ElbowR=-1.1)
+pose(LegL=-0.75, KneeL=0.45, AnkleL=0.3, LegR=0.5, KneeR=1.2, AnkleR=-0.5, ArmL=0.55, ElbowL=-0.6, ArmR=-0.6, ElbowR=-1.1)
 render("run", (0.0, math.pi / 2, 0.75))
 # coxa erguida e braço levantado para a frente: testa virilha e axila no limite
 pose(LegL=-1.4, KneeL=1.6, ArmL=-1.3, ElbowL=-1.4, ArmR=0.4)
