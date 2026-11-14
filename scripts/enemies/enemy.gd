@@ -122,7 +122,9 @@ func _ready() -> void:
 		crown.visible = is_boss
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
 		meshes.append(mi)
-	if data.model == "slime":
+	if data.model == "slime" and ToonLook.enabled():
+		ToonLook.apply_slime(model, data.get("goo", ToonLook.SLIME_GOO))
+	elif data.model == "slime":
 		var body_mesh := model.find_child("BodyMesh", true, false) as MeshInstance3D
 		var base := model.find_child("Base", true, false) as MeshInstance3D
 		var goo := StandardMaterial3D.new()
