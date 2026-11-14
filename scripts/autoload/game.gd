@@ -820,6 +820,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 	var s := CharState.from_dict(d, Balance.tables)
 	var old_hp := max_hp()
 	var old_mp := max_mp()
+	var old_class := weapon_class()
 	var quests_before := quests
 	var farm_before := farm
 	level = s.level
@@ -852,6 +853,8 @@ func apply_state(d: Dictionary, full := false) -> void:
 		ensure_selected_food()
 	stats_changed.emit()
 	inventory_changed.emit()
+	if weapon_class() != old_class:
+		kit_changed.emit()
 	if quests != quests_before:
 		quests_changed.emit()
 	if farm != farm_before:
