@@ -367,10 +367,12 @@ func _ready() -> void:
 	check(colony.recruit("soldier") == "", "recruta um soldado")
 	check(colony.recruit("archer") == "", "recruta um arqueiro")
 	check(colony.recruit("knight").contains("era"), "cavaleiro exige a era II")
+	check(colony.recruit("mage").contains("era"), "mago exige era II")
+	check(colony.recruit("cannoneer").contains("era"), "canhoneiro exige era II")
 	await wait(0.2)
 	check(colony.soldier_count() == 2 and colony.citizens == cit - 2, "soldados saem dos moradores")
 	colony.citizens += 2   # a torre abaixo precisa de um aldeão livre
-	check(Game.gold == g0 - 150, "recrutar cobra o preço")
+	check(Game.gold == g0 - 100, "recrutar cobra o preço")
 	check(colony.salaries() == 11, "salários somam 11/dia")
 
 	# --- eras e pesquisas
@@ -438,6 +440,34 @@ func _ready() -> void:
 	Game.gold = keep_era[1]
 	colony.food = keep_era[2]
 	colony.res = keep_era[3]
+
+	# --- mago e canhoneiro (era II)
+	var cit_m := colony.citizens
+	var gold_m := Game.gold
+	var res_m: Dictionary = colony.res.duplicate()
+	colony.citizens = maxi(colony.citizens, 6)
+	Game.gold = 2000
+	colony.res["crystal"] = 0
+	check(colony.recruit("mage") == "Faltam 6 de Cristal.", "mago custa cristal")
+	colony.res["crystal"] = 20
+	colony.res["iron"] = 20
+	colony.res["stone"] = 100
+	check(colony.recruit("mage") == "" and colony.recruit("cannoneer") == "", "recruta mago e canhoneiro")
+	check(colony.amount("crystal") == 14 and colony.amount("iron") == 12 and colony.amount("stone") == 80, "custos em vários recursos são pagos")
+	await wait(0.2)
+	var ranged_new: Array = colony.soldiers().filter(func(s): return s.unit == "mage" or s.unit == "cannoneer")
+	check(ranged_new.size() == 2 and is_equal_approx(ranged_new[0].max_hp, float(ranged_new[0].data.hp) * colony.mult("unit_hp")), "mago e canhoneiro existem com a vida da tabela")
+	var em := colony.spawn_enemy("slime", colony.rally + Vector3(0, 0, 10))
+	var em_hp := em.hp
+	await wait(4.0)
+	check(not is_instance_valid(em) or em.dead or em.hp < em_hp, "tropas à distância novas acertam monstros")
+	for s in ranged_new:
+		s.leave()
+	if is_instance_valid(em):
+		em.take_damage(999999, em.global_position, false)
+	colony.citizens = cit_m
+	Game.gold = gold_m
+	colony.res = res_m
 
 	# --- torre defende
 	var tower := colony.place("archer_tower", Vector3(8, 0, 14), 0.0)

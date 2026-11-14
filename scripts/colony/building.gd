@@ -354,13 +354,8 @@ func _tower_process(delta: float) -> void:
 	if _cd > 0.0 or puppet:
 		return
 	_cd = tower_rate() * (1.0 if colony.use_ammo(kind) else ColonyData.NO_AMMO_RATE)
-	var s := SHOT.new()
-	s.kind = data.shot
-	s.target = best
-	s.damage = tower_damage()
-	s.splash = float(data.get("splash", 0.0)) * (1.0 + 0.1 * (level - 1)) * colony.mult("splash")
-	s.slow = float(data.get("slow", 0.0))
-	s.chain = int(data.get("chain", 0)) + (level - 1 + colony.bonus("chain_add") if kind == "mage_tower" else 0)
+	var s = SHOT.make(data.shot, best, tower_damage(), float(data.get("splash", 0.0)) * (1.0 + 0.1 * (level - 1)) * colony.mult("splash"),
+		float(data.get("slow", 0.0)), int(data.get("chain", 0)) + (level - 1 + colony.bonus("chain_add") if kind == "mage_tower" else 0))
 	get_parent().add_child(s)
 	s.global_position = muzzle.global_position if muzzle else global_position + Vector3.UP * 5.0
 	if colony.role == "server":

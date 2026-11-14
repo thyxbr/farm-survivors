@@ -85,25 +85,37 @@ const BUILDINGS := {
 
 ## Unidades recrutáveis no quartel. look = equipamentos usados para vestir o modelo do cavaleiro.
 const UNITS := {
-	"militia": {"name": "Miliciano", "cost": 30, "salary": 2, "hp": 70, "damage": 8.0, "reach": 1.9,
+	"militia": {"name": "Miliciano", "cost": {"gold": 30, "food": 20}, "salary": 2, "hp": 70, "damage": 8.0, "reach": 1.9,
 		"cooldown": 1.1, "speed": 4.6, "armor": 0, "aggro": 13.0,
 		"look": {"weapon": "wooden_sword", "head": "wool_hood", "armor": "traveler_tunic", "feet": "leather_boots"},
 		"desc": "Barato, mas frágil."},
-	"soldier": {"name": "Soldado", "cost": 70, "salary": 5, "hp": 150, "damage": 15.0, "reach": 2.0,
+	"soldier": {"name": "Soldado", "cost": {"gold": 50, "food": 30, "wood": 10}, "salary": 5, "hp": 150, "damage": 15.0, "reach": 2.0,
 		"cooldown": 1.0, "speed": 4.4, "armor": 5, "aggro": 13.0,
 		"look": {"weapon": "iron_sword", "offhand": "wooden_shield", "head": "kettle_hat", "armor": "chain_mail",
 			"hands": "leather_gloves", "feet": "reinforced_boots"},
 		"desc": "Espada e escudo: segura a linha."},
-	"archer": {"name": "Arqueiro", "cost": 80, "salary": 6, "hp": 80, "damage": 12.0, "reach": 15.0,
+	"archer": {"name": "Arqueiro", "cost": {"gold": 50, "wood": 40}, "salary": 6, "hp": 80, "damage": 12.0, "reach": 15.0,
 		"cooldown": 1.3, "speed": 4.6, "armor": 1, "aggro": 17.0, "ranged": true,
 		"look": {"weapon": "hunter_bow", "offhand": "hunter_quiver", "head": "ranger_hood", "armor": "leather_armor",
 			"hands": "archer_bracers", "feet": "leather_boots"},
 		"desc": "Atira por cima dos muros."},
-	"knight": {"name": "Cavaleiro", "cost": 180, "salary": 12, "hp": 300, "damage": 28.0, "reach": 2.3,
+	"knight": {"name": "Cavaleiro", "cost": {"gold": 150, "food": 40, "iron": 10}, "salary": 12, "hp": 300, "damage": 28.0, "reach": 2.3,
 		"cooldown": 1.15, "speed": 4.9, "armor": 12, "aggro": 15.0, "needs_era": 2,
 		"look": {"weapon": "guardian_greatsword", "head": "knight_helm", "armor": "royal_plate",
 			"hands": "iron_gauntlets", "feet": "iron_greaves"},
 		"desc": "Elite. Exige a era II (Vila)."},
+	"mage": {"name": "Mago", "cost": {"gold": 120, "crystal": 6}, "salary": 10, "hp": 75, "damage": 14.0, "reach": 14.0,
+		"cooldown": 1.6, "speed": 4.5, "armor": 1, "aggro": 16.0, "needs_era": 2, "ranged": true,
+		"chain": 1, "slow": 1.5, "shot": "bolt",
+		"look": {"weapon": "frost_scepter", "offhand": "arcane_orb", "head": "wizard_hat", "armor": "mage_robe",
+			"hands": "spellweaver_gloves", "feet": "leather_boots"},
+		"desc": "Raio gélido que deixa lento e salta para outro monstro. Gasta cristal."},
+	"cannoneer": {"name": "Canhoneiro", "cost": {"gold": 140, "iron": 8, "stone": 20}, "salary": 11, "hp": 110, "damage": 34.0, "reach": 17.0,
+		"cooldown": 3.0, "speed": 4.2, "armor": 6, "aggro": 19.0, "needs_era": 2, "ranged": true,
+		"splash": 2.6, "shot": "ball",
+		"look": {"weapon": "iron_sword", "head": "guard_greathelm", "armor": "chain_mail",
+			"hands": "iron_gauntlets", "feet": "reinforced_boots"},
+		"desc": "Bala de canhão que explode em área. Gasta pedra."},
 }
 
 # ---------------------------------------------------------------- eras e pesquisas
@@ -160,7 +172,7 @@ static func era_cost(era: int, players: int) -> Dictionary:
 	if not ERAS.has(era):
 		return {}
 	return scale_cost(ERAS[era].cost, 1.0 + 0.35 * (maxi(1, players) - 1))
-const UNIT_ORDER := ["militia", "soldier", "archer", "knight"]
+const UNIT_ORDER := ["militia", "soldier", "archer", "knight", "mage", "cannoneer"]
 
 ## Nós de recurso que o jogador coleta com o ataque normal: recurso, golpes para esgotar e total entregue.
 const NODES := {

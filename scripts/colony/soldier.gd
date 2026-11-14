@@ -91,7 +91,7 @@ func refresh_max_hp() -> void:
 
 ## Dano de um golpe/flecha: Treino de Elite e, para os arqueiros, Flechas de Ferro.
 func unit_damage() -> float:
-	return float(data.damage) * _tech("unit_dmg") * (_tech("arrow_dmg") if is_ranged() else 1.0)
+	return float(data.damage) * _tech("unit_dmg") * (_tech("arrow_dmg") if data.get("shot", "arrow") == "arrow" and is_ranged() else 1.0)
 
 
 func is_ranged() -> bool:
@@ -238,15 +238,15 @@ func _update_attack(delta: float) -> void:
 		if target and is_instance_valid(target) and not target.dead:
 			if is_ranged():
 				_has_ammo = colony == null or colony.use_ammo(unit)
-				var s := SHOT.new()
-				s.kind = "arrow"
-				s.target = target
-				s.damage = unit_damage()
+				var shot: String = data.get("shot", "arrow")
+				var chain := int(data.get("chain", 0)) + (int(colony.bonus("chain_add")) if colony and shot == "bolt" else 0)
+				var s = SHOT.make(shot, target, unit_damage(), float(data.get("splash", 0.0)) * _tech("splash"),
+					float(data.get("slow", 0.0)), chain)
 				get_parent().add_child(s)
 				s.global_position = global_position + Vector3.UP * 1.45 + model.global_basis.z * 0.4
-				Sfx.play_at("swing", global_position, 0.25, -16.0)
+				Sfx.play_at({"ball": "explode", "bolt": "zap"}.get(shot, "swing"), global_position, 0.25, -14.0)
 				if colony and colony.role == "server":
-					Lobby.city_shot("arrow", s.global_position, target, 0.0)
+					Lobby.city_shot(shot, s.global_position, target, s.splash)
 			else:
 				var to := target.global_position - global_position
 				to.y = 0.0

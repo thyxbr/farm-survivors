@@ -312,11 +312,14 @@ func _build_barracks() -> void:
 		info.add_theme_constant_override("separation", 0)
 		h.add_child(info)
 		info.add_child(UITheme.label("%s — %s" % [u.name, u.desc], 16))
-		info.add_child(UITheme.label("Vida %d · dano %d · %s · salário %d/dia" % [u.hp, int(u.damage),
-			"à distância" if u.get("ranged", false) else "corpo a corpo", u.salary], 13, UITheme.DIM))
-		var btn := UITheme.button("Recrutar — %d" % u.cost, func() -> void: _act(colony.recruit(id)))
+		var need_era := int(u.get("needs_era", 1))
+		var era_txt := " · exige era %s" % ColonyData.ERA_ROMAN[need_era] if need_era > 1 else ""
+		info.add_child(UITheme.label("Vida %d · dano %d · %s · salário %d/dia%s" % [u.hp, int(u.damage),
+			"à distância" if u.get("ranged", false) else "corpo a corpo", u.salary, era_txt], 13, UITheme.DIM))
+		info.add_child(UITheme.label("Custo: %s" % ColonyData.cost_text(ColonyData.cost_from(u.cost)), 13, UITheme.DIM))
+		var btn := UITheme.button("Recrutar", func() -> void: _act(colony.recruit(id)))
 		btn.custom_minimum_size.x = 170
-		btn.disabled = colony.get_gold() < int(u.cost) or colony.era() < int(u.get("needs_era", 1))
+		btn.disabled = colony.missing(ColonyData.cost_from(u.cost)) != "" or colony.era() < need_era
 		h.add_child(btn)
 	var counts := {}
 	for s in colony.soldiers():

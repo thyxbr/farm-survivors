@@ -23,6 +23,18 @@ var _mesh: Node3D
 var _hit := {}
 
 
+## Cria um disparo já configurado (torres e tropas à distância usam o mesmo caminho).
+static func make(shot_kind: String, tgt, dmg: float, splash_r := 0.0, slow_s := 0.0, chain_n := 0) -> Node3D:
+	var s: Node3D = load("res://scripts/colony/tower_shot.gd").new()
+	s.kind = shot_kind
+	s.target = tgt
+	s.damage = dmg
+	s.splash = splash_r
+	s.slow = slow_s
+	s.chain = chain_n
+	return s
+
+
 func _ready() -> void:
 	_start = global_position if is_inside_tree() else position
 	_mesh = Node3D.new()

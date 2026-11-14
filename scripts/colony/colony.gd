@@ -1070,7 +1070,7 @@ func recruit(unit: String) -> String:
 		return "Os quartéis estão lotados (%d vagas)." % army_cap()
 	if citizens < 1 or free_villagers() < 1:
 		return "Não há aldeões livres para recrutar. Treine mais na prefeitura."
-	var ucost := {"gold": int(u.cost)}   # as unidades ainda custam só ouro
+	var ucost := ColonyData.cost_from(u.cost)
 	var lack := missing(ucost)
 	if lack != "":
 		return lack
