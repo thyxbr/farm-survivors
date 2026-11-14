@@ -1272,7 +1272,7 @@ func _animate(delta: float) -> void:
 	_cast_t += delta
 	var arrow: Node3D = look.get("arrow")
 	if arrow and is_instance_valid(arrow):
-		arrow.visible = drawing
+		arrow.visible = drawing or (ability == "bow_triple" and ability_t < BowAbilities.TRIPLE_DRAW)
 	if ability != "":
 		_ab_module(ability).pose(self, p)
 	elif cls == "bow" and drawing:

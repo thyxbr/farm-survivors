@@ -360,13 +360,79 @@ func _ready() -> void:
 	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_whirl"], "kit da espada (%s)" % [Game.ability_kit()])
 	check(not Game.knows_ability("sword_quake") and Game.knows_ability("sword_charge"), "liberação por nível")
 	check(Game.level == 1 and not Game.knows_ability("heal") and ItemDB.ABILITIES.heal.level == 5, "cura só no nível 5")
-	# Tiro Triplo (arco, nível 1) ainda não existe: liberado e sem recarga, não começa nem gasta recarga
+	# Flecha Glacial (arco, nível 3) ainda não existe: liberada à força e sem recarga, não começa nem gasta recarga
 	Game.add_item("short_bow")
 	Game.equip("short_bow")
-	player.cooldowns.bow_triple = 0.0
-	player.cast("bow_triple")
-	check(Game.weapon_class() == "bow" and player.ability == "" and player.cooldowns.bow_triple == 0.0
+	var lvl_bf: int = Game.level
+	Game.level = 3
+	player.cooldowns.bow_frost = 0.0
+	player.cast("bow_frost")
+	check(Game.weapon_class() == "bow" and player.ability == "" and player.cooldowns.bow_frost == 0.0
 		and player.cooldowns.size() == ItemDB.ABILITIES.size(), "habilidade sem implementação não gasta recarga")
+	Game.level = lvl_bf
+	# --- Tiro Triplo (arco, slot 1): 3 flechas em leque, ignora multishot, esquiva só cancela antes do disparo
+	var tt_pos := player.global_position
+	var tt_s := _nearest("slime")
+	tt_s.global_position = tt_s.home
+	var tt_fire := func() -> Array:
+		var out := []
+		for c in world.get_children():
+			if c.get("kind") == "arrow" and not c.visual_only:
+				out.append(c)
+		return out
+	Game.add_item("storm_bow")
+	var tt_weapons := ["short_bow", "storm_bow"]
+	for tt_w in tt_weapons:
+		Game.equip(tt_w)
+		await wait(0.1)
+		for c in tt_fire.call():
+			c.queue_free()
+		tt_s.global_position = tt_s.home
+		player.global_position = tt_s.global_position + Vector3(0, 0.3, 6.0)
+		player.model.rotation.y = PI
+		player.velocity = Vector3.ZERO
+		await wait(0.2)
+		player.global_position = tt_s.global_position + Vector3(0, 0.3, 6.0)
+		player.cooldowns.bow_triple = 0.0
+		tt_s.hp = tt_s.max_hp
+		var tt_hp: float = tt_s.hp
+		player.use_slot(1)
+		check(player.ability == "bow_triple" and BowAbilities.can_dodge_cancel(player), "Tiro Triplo começa (%s, %s)" % [player.ability, tt_w])
+		await wait_until(func(): return tt_fire.call().size() > 0 or player.ability == "")
+		var tt_n: int = tt_fire.call().size()
+		var tt_ab: bool = player.ability == "bow_triple"
+		check(tt_n == 3 and tt_ab and not BowAbilities.can_dodge_cancel(player),
+			"Tiro Triplo dispara 3 flechas de uma vez (%s: %d)" % [tt_w, tt_n])
+		await wait_until(func(): return player.ability == "")
+		check(player.cooldowns.bow_triple > 0.0 and tt_s.hp < tt_hp, "Tiro Triplo fere o slime e entra em recarga (%.0f -> %.0f)" % [tt_hp, tt_s.hp])
+		await wait(0.5)
+	# esquiva antes do disparo cancela sem gastar flechas; depois do disparo é ignorada
+	Game.equip("short_bow")
+	Game.stamina = Game.max_stamina()
+	player.global_position = tt_pos
+	for c in tt_fire.call():
+		c.queue_free()
+	player.cooldowns.bow_triple = 0.0
+	player.use_slot(1)
+	await wait(0.03)
+	player._dodge_pressed(Vector3.ZERO)
+	check(player.ability == "" and tt_fire.call().size() == 0 and player.dodge_timer > 0.0, "esquiva antes do disparo cancela o Tiro Triplo")
+	await wait(0.5)
+	Game.stamina = Game.max_stamina()
+	player.cooldowns.bow_triple = 0.0
+	player.use_slot(1)
+	await wait(0.2)
+	player._dodge_pressed(Vector3.ZERO)
+	check(player.ability == "bow_triple" and player.dodge_timer <= 0.0, "esquiva depois do disparo é ignorada")
+	await wait_until(func(): return player.ability == "")
+	await wait(0.3)
+	for c in tt_fire.call():
+		c.queue_free()
+	Game.stamina = Game.max_stamina()
+	player.cooldowns.bow_triple = 0.0
+	tt_s.global_position = tt_s.home
+	player.global_position = tt_pos
+	player.velocity = Vector3.ZERO
 	Game.equip(kit_weapon)
 	player.cooldowns.sword_charge = 3.0   # para conferir que a recarga atravessa a troca de arma
 	Game.equip("apprentice_staff")
