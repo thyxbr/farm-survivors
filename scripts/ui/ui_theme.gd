@@ -277,5 +277,81 @@ static func paper_theme() -> Theme:
 	t.set_stylebox("grabber_highlight", "VScrollBar", _box(Color(INK.r, INK.g, INK.b, 0.7), Color(0, 0, 0, 0), 0, 3))
 	t.set_stylebox("grabber_pressed", "VScrollBar", _box(INK, Color(0, 0, 0, 0), 0, 3))
 	t.set_stylebox("scroll", "VScrollBar", _box(Color(INK.r, INK.g, INK.b, 0.1), Color(0, 0, 0, 0), 0, 3, 4, 0))
+	# listas e abas: selecionado é tinta cheia com texto cor de papel
+	t.set_stylebox("panel", "ItemList", _ink_box(0.05, 0.4))
+	t.set_stylebox("selected", "ItemList", _ink_box(0.78, 0.9))
+	t.set_stylebox("selected_focus", "ItemList", _ink_box(0.78, 0.9))
+	t.set_stylebox("hovered", "ItemList", _ink_box(0.14, 0.0, 0))
+	t.set_stylebox("focus", "ItemList", StyleBoxEmpty.new())
+	t.set_color("font_color", "ItemList", INK)
+	t.set_color("font_hovered_color", "ItemList", INK)
+	t.set_color("font_selected_color", "ItemList", PAGE)
+	t.set_stylebox("panel", "TabContainer", _ink_box(0.04, 0.45))
+	t.set_stylebox("tab_selected", "TabContainer", _ink_box(0.78, 0.9))
+	t.set_stylebox("tab_unselected", "TabContainer", _ink_box(0.06, 0.4))
+	t.set_stylebox("tab_hovered", "TabContainer", _ink_box(0.16, 0.7))
+	t.set_stylebox("tab_focus", "TabContainer", StyleBoxEmpty.new())
+	t.set_color("font_selected_color", "TabContainer", PAGE)
+	t.set_color("font_unselected_color", "TabContainer", INK)
+	t.set_color("font_hovered_color", "TabContainer", INK)
+	# barras e deslizadores
+	t.set_stylebox("background", "ProgressBar", _box(Color(INK.r, INK.g, INK.b, 0.16), Color(INK.r, INK.g, INK.b, 0.6), 1, 2))
+	t.set_stylebox("slider", "HSlider", _box(Color(INK.r, INK.g, INK.b, 0.2), Color(0, 0, 0, 0), 0, 3, 0, 3))
+	t.set_stylebox("grabber_area", "HSlider", _box(INK_RED, Color(0, 0, 0, 0), 0, 3, 0, 3))
+	t.set_stylebox("grabber_area_highlight", "HSlider", _box(INK_RED.lightened(0.15), Color(0, 0, 0, 0), 0, 3, 0, 3))
+	# campo de texto, caixa de marcar e seletor
+	var focus := _ink_box(0.04, 1.0, 2)
+	t.set_stylebox("normal", "LineEdit", _ink_box(0.05, 0.55))
+	t.set_stylebox("focus", "LineEdit", focus)
+	t.set_stylebox("read_only", "LineEdit", _ink_box(0.0, 0.25))
+	t.set_color("font_color", "LineEdit", INK)
+	t.set_color("font_placeholder_color", "LineEdit", Color(INK.r, INK.g, INK.b, 0.45))
+	t.set_color("caret_color", "LineEdit", INK)
+	t.set_color("selection_color", "LineEdit", Color(INK_RED.r, INK_RED.g, INK_RED.b, 0.3))
+	for type in ["CheckBox", "OptionButton"]:
+		t.set_stylebox("normal", type, _ink_box(0.06, 0.55))
+		t.set_stylebox("hover", type, _ink_box(0.16, 0.8))
+		t.set_stylebox("pressed", type, _ink_box(0.16, 0.8))
+		t.set_stylebox("focus", type, focus)
+		t.set_color("font_color", type, INK)
+		t.set_color("font_hover_color", type, INK)
+		t.set_color("font_pressed_color", type, INK)
+		t.set_color("font_focus_color", type, INK)
+	# menus suspensos e dicas: um pedaço de papel por cima da página
+	var sheet := _box(PAGE, INK, 1, 3, 10, 6)
+	sheet.shadow_color = Color(0, 0, 0, 0.35)
+	sheet.shadow_size = 6
+	t.set_stylebox("panel", "PopupMenu", sheet)
+	t.set_stylebox("hover", "PopupMenu", _ink_box(0.18, 0.0, 0))
+	t.set_color("font_color", "PopupMenu", INK)
+	t.set_color("font_hover_color", "PopupMenu", INK)
+	t.set_stylebox("panel", "TooltipPanel", sheet)
+	t.set_color("font_color", "TooltipLabel", INK)
+	t.set_color("default_color", "RichTextLabel", INK)
 	_paper = t
 	return t
+
+
+## Título de seção a tinta: vermelho, na serifada, com uma linha até o fim (o par de `section()`).
+static func ink_section(text: String, size := 18) -> HBoxContainer:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 10)
+	h.add_child(ink(text, size, INK_RED, true))
+	var line := HSeparator.new()
+	line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	line.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	line.add_theme_stylebox_override("separator", _line(Color(INK.r, INK.g, INK.b, 0.45)))
+	h.add_child(line)
+	return h
+
+
+## Barra de progresso sobre papel: fundo de tinta clara, preenchimento na cor pedida.
+static func ink_bar(color: Color, w: float, h: float) -> ProgressBar:
+	var b := bar(color.darkened(0.15), w, h)
+	b.add_theme_stylebox_override("background", _box(Color(INK.r, INK.g, INK.b, 0.16), Color(INK.r, INK.g, INK.b, 0.6), 1, 2))
+	return b
+
+
+## Quadro a tinta para subdividir uma página (o par de `inset_box()`).
+static func ink_inset(margin := 12) -> StyleBoxFlat:
+	return _box(Color(INK.r, INK.g, INK.b, 0.05), Color(INK.r, INK.g, INK.b, 0.4), 1, 4, margin, margin - 2)
