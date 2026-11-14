@@ -299,6 +299,17 @@ func open_building_menu(b: ColonyBuilding) -> void:
 	_open_modal(ui)
 
 
+## Janela de troca da caravana do dia (ColonyData.TRADES).
+func open_trade_menu() -> void:
+	if build.active:
+		build.set_active(false)
+	var ui := COLONY_UI.new()
+	ui.mode = "trade"
+	ui.colony = colony
+	ui.world = self
+	_open_modal(ui)
+
+
 func _open_modal(c: Control) -> void:
 	if modal != null:
 		return

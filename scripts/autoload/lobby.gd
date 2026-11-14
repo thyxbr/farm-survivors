@@ -608,7 +608,7 @@ func city_soldier_removed(s: ColonySoldier, died: bool) -> void:
 
 
 func city_animal_added(a: ColonyAnimal) -> void:
-	_to_city("_city_ani_add", [a.net_id, a.kind, a.position.x, a.position.z])
+	_to_city("_city_ani_add", [a.net_id, a.kind, a.position.x, a.position.z, a.alpha])
 
 
 func city_animal_removed(a: ColonyAnimal, killed: bool) -> void:
@@ -623,6 +623,11 @@ func city_node_state(id: int, alive: bool) -> void:
 ## Covil mudou de nível ou foi limpo.
 func city_den_state(id: int, level: int, cleared: bool) -> void:
 	_to_city("_city_den", [id, level, cleared])
+
+
+## Evento do dia começou (active) ou acabou: os clientes põem ou tiram a caravana, os aldeões, o baú.
+func city_event(kind: String, x: float, z: float, active: bool) -> void:
+	_to_city("_city_event", [kind, x, z, active])
 
 
 ## Nó rico novo (covil limpo): os clientes criam o mesmo nó, com o mesmo id.
@@ -689,7 +694,7 @@ func _city_full(d: Dictionary) -> void:
 	for s in d.get("soldiers", []):
 		c.net_soldier_add(int(s[0]), str(s[1]), float(s[2]), float(s[3]), float(s[4]), false)
 	for a in d.get("animals", []):
-		c.net_animal_add(int(a[0]), str(a[1]), float(a[2]), float(a[3]))
+		c.net_animal_add(int(a[0]), str(a[1]), float(a[2]), float(a[3]), a.size() > 4 and bool(a[4]))
 	if c.nature:
 		for r in d.get("rich", []):   # antes dos esgotados: um nó rico também pode estar esgotado
 			c.nature.net_add_rich(int(r[0]), str(r[1]), float(r[2]), float(r[3]), int(r[4]))
@@ -698,6 +703,9 @@ func _city_full(d: Dictionary) -> void:
 	var dl: Array = d.get("dens", [])
 	for i in mini(dl.size(), c.dens.size()):
 		c.dens[i].net_set(int(dl[i][0]), bool(dl[i][1]), false)
+	var ev: Array = d.get("event", [])
+	if ev.size() == 3:
+		c.events.net_event(str(ev[0]), float(ev[1]), float(ev[2]), true, false)
 	c.apply_state(d.get("state", {}))
 	if city and city.has_method("on_city_synced"):
 		city.on_city_synced()
@@ -753,10 +761,10 @@ func _city_sol_del(id: int, died: bool) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _city_ani_add(id: int, kind: String, x: float, z: float) -> void:
+func _city_ani_add(id: int, kind: String, x: float, z: float, alpha: bool) -> void:
 	var c := _colony()
 	if c:
-		c.net_animal_add(id, kind, x, z)
+		c.net_animal_add(id, kind, x, z, alpha)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -785,6 +793,13 @@ func _city_rich(id: int, kind: String, x: float, z: float, total: int) -> void:
 	var c := _colony()
 	if c and c.nature:
 		c.nature.net_add_rich(id, kind, x, z, total)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _city_event(kind: String, x: float, z: float, active: bool) -> void:
+	var c := _colony()
+	if c and c.events:
+		c.events.net_event(kind, x, z, active)
 
 
 @rpc("authority", "call_remote", "reliable")

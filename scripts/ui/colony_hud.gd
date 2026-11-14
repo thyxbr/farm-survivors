@@ -1,6 +1,7 @@
 extends CanvasLayer
 ## HUD da Defesa da Cidade: painel de recursos (canto superior direito), faixa do dia/noite
-## (topo) e a barra de construção (embaixo, só no modo construção).
+## (topo), a barra de construção (embaixo, só no modo construção) e o indicador do evento do dia
+## (seta na borda da tela com o nome e a distância; some quando o jogador chega).
 
 var colony: Colony
 var build: Node   # build_mode.gd
@@ -18,6 +19,12 @@ var _style_off: StyleBoxFlat
 var _last_status := ""
 var _reward_label: Label
 var _reward_t := 0.0
+var _ev_mark: Control
+var _ev_arrow: Polygon2D
+var _ev_label: Label
+
+const EVENT_MARK_HIDE := 12.0   # a até tantos metros do evento o indicador some (chegou)
+const EVENT_MARK_EDGE := 56.0   # margem da borda da tela
 
 
 func _ready() -> void:
@@ -118,6 +125,20 @@ func _ready() -> void:
 	_reward_label.visible = false
 	root.add_child(_reward_label)
 
+	# --- indicador do evento do dia (não há bússola nem mini-mapa: só este, e só para o evento ativo)
+	_ev_mark = Control.new()
+	_ev_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ev_mark.visible = false
+	root.add_child(_ev_mark)
+	_ev_arrow = Polygon2D.new()
+	_ev_arrow.polygon = PackedVector2Array([Vector2(16, 0), Vector2(-9, -11), Vector2(-4, 0), Vector2(-9, 11)])
+	_ev_arrow.color = UITheme.GOLD
+	_ev_mark.add_child(_ev_arrow)
+	_ev_label = _outlined("", 15, UITheme.GOLD)
+	_ev_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_ev_label.size = Vector2(220, 22)
+	_ev_mark.add_child(_ev_label)
+
 
 ## Cidade em grupo: recompensa da noite vencida no centro da tela por alguns segundos.
 func show_reward(n: int, gold: int, xp: int, items: Array) -> void:
@@ -180,6 +201,43 @@ func _process(_delta: float) -> void:
 	_update_status()
 	_update_phase()
 	_update_build()
+	_update_event_mark()
+
+
+## Seta na borda da tela apontando o evento do dia; em cima do ponto quando ele já está na tela.
+func _update_event_mark() -> void:
+	var ev := colony.events
+	var p := get_tree().get_first_node_in_group("player") as Node3D
+	var cam := get_viewport().get_camera_3d()
+	if ev == null or ev.active == "" or p == null or cam == null:
+		_ev_mark.visible = false
+		return
+	var dist := Vector2(ev.pos.x - p.global_position.x, ev.pos.z - p.global_position.z).length()
+	if dist < EVENT_MARK_HIDE:
+		_ev_mark.visible = false
+		return
+	var vp := get_viewport().get_visible_rect().size
+	var center := vp / 2.0
+	var target := ev.pos + Vector3.UP * 2.0
+	var sp := cam.unproject_position(target)
+	var behind := cam.is_position_behind(target)
+	var m := EVENT_MARK_EDGE
+	var on_screen := not behind and Rect2(Vector2(m, m), vp - Vector2(m, m) * 2.0).has_point(sp)
+	var at := sp
+	var dir := (center - sp) if behind else (sp - center)
+	if not on_screen:
+		if dir.length() < 1.0:
+			dir = Vector2.DOWN
+		var half := center - Vector2(m, m)
+		var k := minf(half.x / absf(dir.x) if absf(dir.x) > 0.01 else INF, half.y / absf(dir.y) if absf(dir.y) > 0.01 else INF)
+		at = center + dir * k
+	_ev_mark.visible = true
+	_ev_mark.position = at
+	_ev_arrow.rotation = dir.angle() if not on_screen else PI / 2.0
+	_ev_arrow.position = Vector2.ZERO if not on_screen else Vector2(0, -18)
+	_ev_label.text = "%s · %d m" % [ColonyData.DAY_EVENTS[ev.active].name, int(dist)]
+	# o texto fica do lado de dentro da tela
+	_ev_label.position = Vector2(-110, -40 if at.y > vp.y - m * 1.5 else 16)
 
 
 ## "Nome  N" do estoque; o recurso cuja munição acabou na noite pisca em vermelho.

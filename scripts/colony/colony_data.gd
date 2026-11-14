@@ -236,6 +236,39 @@ const DEN_MAX_LEVEL := 5        # o covil não cresce além disto
 const DEN_FORCE_NIGHT := 3      # antes desta noite os covis não mexem na onda (começo igual ao de antes)
 const DEN_EXTRA_MAX := 1.0      # o extra de todos os covis juntos é no máximo +100% do orçamento da onda
 
+## Eventos aleatórios do dia (ColonyEvents): sorteados no amanhecer, acabam ao anoitecer.
+## weight: peso no sorteio · min_day: primeiro dia em que pode sair · needs: condição extra
+## ("camp_out" = existe serraria ou pedreira além de CITY_RADIUS) · rings: [primeiro, último] anel do ponto
+## (ver RINGS) · msg: o anúncio ({dir} = "Nordeste"; {camp} = a construção atacada).
+const DAY_EVENTS := {
+	"caravan": {"name": "Caravana", "weight": 3.0, "min_day": 2, "needs": "", "rings": [1, 2],
+		"msg": "Uma caravana de mercadores parou ao {dir}. Vá negociar antes do anoitecer!"},
+	"lost_villagers": {"name": "Aldeões perdidos", "weight": 2.0, "min_day": 3, "needs": "", "rings": [1, 2],
+		"msg": "Aldeões perdidos pedem socorro ao {dir}, cercados por lobos!"},
+	"meteor": {"name": "Meteoro", "weight": 2.0, "min_day": 3, "needs": "", "rings": [2, 3],
+		"msg": "Um meteoro caiu ao {dir}! Ficaram cristais no lugar... e slimes."},
+	"alpha": {"name": "Fera alfa", "weight": 2.0, "min_day": 2, "needs": "", "rings": [1, 3],
+		"msg": "Uma fera alfa ronda ao {dir}. O couro dela vale muito!"},
+	"camp_raid": {"name": "Ataque", "weight": 1.5, "min_day": 4, "needs": "camp_out", "rings": [1, 1],
+		"msg": "Monstros marcham contra a {camp} ao {dir}!"},
+	"lost_chest": {"name": "Baú esquecido", "weight": 2.0, "min_day": 2, "needs": "", "rings": [1, 2],
+		"msg": "Batedores viram um baú esquecido ao {dir}, guardado por monstros."},
+}
+const EVENT_CHANCE := 0.6
+const EVENT_MIN_DAY := 2
+const EVENT_VILLAGERS := 3            # aldeões perdidos (modelo do ancião) no ponto do evento
+const EVENT_FOOD_PER_VILLAGER := 10   # resgatado sem moradia vira comida
+const EVENT_METEOR_NODES := 3         # nós ricos de cristal que o meteoro deixa
+const EVENT_METEOR_TOTAL := 16        # cristal de cada um (um cristal comum dá 8)
+const EVENT_METEOR_SLIMES := 4
+const EVENT_ALPHA_MULT := 3.0         # vida e recompensa da fera alfa
+const EVENT_ALPHA_SCALE := 1.5
+const EVENT_RAID_DIST := 20.0         # o grupo nasce a tantos metros da serraria/pedreira, do lado de fora
+const EVENT_CHEST_GUARDS := 3
+const EVENT_REACH := 8.0              # servidor: o jogador precisa estar a até tantos metros para interagir
+## Trocas da caravana: [o que a cidade paga, o que recebe].
+const TRADES := [[{"wood": 50}, {"gold": 30}], [{"gold": 40}, {"iron": 5}], [{"gold": 80}, {"crystal": 3}], [{"stone": 60}, {"gold": 35}]]
+
 ## Custo de cada monstro no orçamento da onda e a noite em que começa a aparecer.
 const WAVE_COSTS := {
 	"slime": [1.0, 1], "slime_veloz": [1.0, 2], "goblin": [2.0, 2], "slime_grande": [3.0, 4], "goblin_bruto": [4.0, 3],

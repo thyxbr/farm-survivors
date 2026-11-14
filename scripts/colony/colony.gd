@@ -15,6 +15,7 @@ const BUILDING := preload("res://scripts/colony/building.gd")
 const SOLDIER := preload("res://scripts/colony/soldier.gd")
 const ANIMAL := preload("res://scripts/colony/animal.gd")
 const ENEMY := preload("res://scripts/enemies/enemy.gd")
+const EVENTS := preload("res://scripts/colony/day_events.gd")
 
 const DIR_NAMES := ["Norte", "Nordeste", "Leste", "Sudeste", "Sul", "Sudoeste", "Oeste", "Noroeste"]
 
@@ -50,6 +51,7 @@ var obstacles: Array = []
 ## Nós de recurso do mapa (árvores, pedras, veios, cristais, arbustos); a cena da cidade cria e liga.
 var nature: ColonyNature
 var dens: Array[ColonyDen] = []   # covis do mapa (ColonyNature gera da semente); o índice é o id
+var events: ColonyEvents          # evento aleatório do dia (caravana, meteoro...)
 var day_length := ColonyData.DAY_LENGTH
 var first_day_bonus := ColonyData.FIRST_DAY_BONUS
 
@@ -90,6 +92,13 @@ var _core_warn := 0.0
 var _den_t := 0.0                  # segundos até a próxima conferida dos covis (jogador perto?)
 var _dawn_pending := false
 var _flag: Node3D
+
+
+func _ready() -> void:
+	events = EVENTS.new()
+	events.name = "Events"
+	events.colony = self
+	add_child(events)
 
 
 func new_colony() -> void:
@@ -1305,6 +1314,7 @@ func start_night(forced := false) -> void:
 		Lobby.city_night_started()
 	for den in dens:
 		den.sleep()   # à noite os covis dormem: nada novo compete com a onda
+	events.end()   # o evento do dia acaba ao anoitecer
 	wave_queue = _build_wave_coop(day) if is_coop() else _build_wave(day)
 	wave_total = wave_queue.size()
 	_spawn_i = 0
@@ -1666,6 +1676,7 @@ func dawn() -> void:
 		say("Fome! %d morador(es) abandonaram a cidade." % starved, UITheme.BAD)
 	if is_coop():
 		_coop_dawn(survived)
+	events.roll(day)
 	_spawn_wildlife(true)
 	_dirty()
 	if world and world.has_method("autosave"):
@@ -1835,8 +1846,9 @@ func _wild_point(min_dist: float, max_dist := INF) -> Vector3:
 
 
 func on_animal_killed(a: ColonyAnimal) -> void:
-	var f := int(a.data.food)
-	var g := int(a.data.gold)
+	var k := ColonyData.EVENT_ALPHA_MULT if a.alpha else 1.0   # a fera alfa rende o triplo
+	var f := int(a.data.food * k)
+	var g := int(a.data.gold * k)
 	food += f
 	earn(g)
 	FX.damage_number(a.global_position + Vector3.UP * 1.6, "+%d comida  +%d ouro" % [f, g], Color(0.75, 1.0, 0.5), 44)
@@ -1845,7 +1857,44 @@ func on_animal_killed(a: ColonyAnimal) -> void:
 	if role == "server":
 		amap.erase(a.net_id)
 		Lobby.city_animal_removed(a, true)
+	events.on_animal_killed(a)
 	_dirty()
+
+
+# ================================================================ eventos do dia
+## Troca `i` de ColonyData.TRADES com a caravana do dia. "" ou o motivo da recusa (nada muda).
+func trade(i: int) -> String:
+	if events.active != "caravan":
+		return "A caravana não está por perto."
+	if i < 0 or i >= ColonyData.TRADES.size():
+		return "Troca inválida."
+	var give: Dictionary = ColonyData.TRADES[i][0]
+	var take: Dictionary = ColonyData.TRADES[i][1]
+	var lack := missing(give)
+	if lack != "":
+		return lack
+	if role == "client":
+		Lobby.city_request("trade", [i])
+		return ""
+	var far := events.reach_error(actor)
+	if far != "":
+		return far
+	if not pay(give):
+		return missing(give)
+	gain(take, events.pos + Vector3.UP * 2.0)
+	Sfx.play("coin", 0.1, -2.0)
+	say("Troca com a caravana: %s por %s." % [ColonyData.cost_text(give), ColonyData.cost_text(take)], Color(1, 0.9, 0.5))
+	return ""
+
+
+## Resgatar os aldeões perdidos ou abrir o baú esquecido. "" ou o motivo da recusa.
+func event_interact() -> String:
+	if role == "client":
+		if events.active not in ["lost_villagers", "lost_chest"]:
+			return "Não há nada para fazer aqui."
+		Lobby.city_request("event_interact", [])
+		return ""
+	return events.interact(actor)
 
 
 # ================================================================ eventos
@@ -1942,6 +1991,11 @@ func net_request(pid: int, action: String, args: Array) -> String:
 			toggle_army_mode()
 		"night":
 			request_night(pid)
+		"trade":
+			if args.size() == 1:
+				err = trade(int(args[0]))
+		"event_interact":
+			err = event_interact()
 	actor = 0
 	return err
 
@@ -2023,12 +2077,13 @@ func net_full() -> Dictionary:
 	var al: Array = []
 	for a in get_tree().get_nodes_in_group("animals"):
 		if a.colony == self and not a.dead:
-			al.append([a.net_id, a.kind, a.global_position.x, a.global_position.z])
+			al.append([a.net_id, a.kind, a.global_position.x, a.global_position.z, a.alpha])
 	var dl: Array = []
 	for den in dens:
 		dl.append([den.level, den.cleared])
 	return {"state": net_state(), "buildings": bl, "soldiers": sl, "animals": al,
-		"nodes": nature.depleted.keys() if nature else [], "rich": nature.rich_list() if nature else [], "dens": dl}
+		"nodes": nature.depleted.keys() if nature else [], "rich": nature.rich_list() if nature else [], "dens": dl,
+		"event": events.net_list()}
 
 
 ## Servidor: posições dos soldados e animais e a vida das construções que mudou.
@@ -2158,11 +2213,12 @@ func net_soldier_remove(id: int, died: bool) -> void:
 	net_changed.emit()
 
 
-func net_animal_add(id: int, kind: String, x: float, z: float) -> void:
+func net_animal_add(id: int, kind: String, x: float, z: float, alpha := false) -> void:
 	if amap.has(id) or not ColonyData.ANIMALS.has(kind):
 		return
 	var a: ColonyAnimal = ANIMAL.new()
 	a.kind = kind
+	a.alpha = alpha
 	a.colony = self
 	a.puppet = true
 	a.net_id = id

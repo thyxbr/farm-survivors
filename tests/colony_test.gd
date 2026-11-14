@@ -249,6 +249,94 @@ func _ready() -> void:
 	Game.gold = keep_cp[1]
 	colony.res = keep_cp[2]
 
+	# --- eventos do dia: sorteio, caravana e troca, fim ao anoitecer
+	var keep_ev := [colony.citizens, colony.food, Game.gold, colony.res.duplicate()]
+	check(colony.events.roll(1) == "", "nenhum evento no dia 1")
+	check(colony.events.roll(3, "caravan") == "caravan" and colony.events.active == "caravan", "caravana chega")
+	var ev_d := Vector2(colony.events.pos.x, colony.events.pos.z).length()
+	check(get_tree().get_nodes_in_group("caravan").size() == 1 and ev_d >= ColonyData.RINGS[0] - 1.0 and ev_d <= ColonyData.RINGS[2] + 1.0,
+		"a caravana para nos anéis 1–2 (%.0f m)" % ev_d)
+	colony.res["wood"] = 100
+	g0 = colony.get_gold()
+	check(colony.trade(0) == "" and colony.amount("wood") == 50 and colony.get_gold() == g0 + 30, "troca 50 madeira por 30 ouro")
+	colony.res["wood"] = 10
+	check(colony.trade(0) != "", "troca sem recurso é recusada")
+	check(colony.amount("wood") == 10 and colony.trade(99) != "", "troca inválida é recusada, nada muda")
+	colony.events.end()
+	await wait(0.1)
+	check(colony.events.active == "" and get_tree().get_nodes_in_group("caravan").is_empty(), "evento acaba ao anoitecer")
+	check(colony.trade(0) != "", "sem caravana não há troca")
+	check(colony.events.roll(3, "camp_raid") == "", "ataque à serraria só com serraria fora da cidade")
+	var crys0 := colony.nature.count("crystal")
+	colony.events.roll(3, "meteor")
+	check(colony.nature.count("crystal") >= 9 and colony.nature.count("crystal") == crys0 + 3, "meteoro deixa cristais")
+	var ev_slimes := 0
+	for c in colony.get_children():
+		if c is Enemy and not c.dead and c.kind == "slime" and c.global_position.distance_to(colony.events.pos) < 15.0:
+			ev_slimes += 1
+	check(ev_slimes >= 4, "meteoro traz slimes (%d)" % ev_slimes)
+	var ev_at := colony.events.pos
+	colony.events.end()
+	await wait(0.1)
+	var ev_left: Array = []
+	for c in colony.get_children():
+		if c is Enemy and not c.dead and not c.is_queued_for_deletion() and c.global_position.distance_to(ev_at) < 15.0:
+			ev_left.append("%s den %d siege %s" % [c.kind, c.den_id, c.siege])
+	check(ev_left.is_empty(), "os monstros do evento somem ao anoitecer %s" % str(ev_left))
+	# aldeões perdidos: só depois dos lobos
+	colony.citizens = 2
+	check(colony.events.roll(5, "lost_villagers") == "lost_villagers", "aldeões perdidos aparecem")
+	var wolves: Array = colony.events.animals()
+	check(wolves.size() >= 3 and wolves[0].kind == "wolf", "lobos cercam os aldeões (%d)" % wolves.size())
+	check(colony.event_interact() != "" and colony.citizens == 2, "com lobos vivos não dá para resgatar")
+	for w in wolves:
+		w.take_damage(99999, w.global_position + Vector3.RIGHT, false)
+	var cit0 := colony.citizens
+	var food_v := colony.food
+	var rescue := 2 + colony.day / 4
+	var room := colony.pop_cap() - cit0
+	check(colony.event_interact() == "" and colony.citizens == cit0 + mini(room, rescue)
+		and colony.food == food_v + 10 * (rescue - mini(room, rescue)) and colony.events.active == "",
+		"resgate soma aldeões até o teto, o resto vira comida")
+	colony.events.end()
+	# baú esquecido
+	check(colony.events.roll(4, "lost_chest") == "lost_chest", "baú esquecido aparece")
+	g0 = colony.get_gold()
+	var wd0 := colony.amount("wood")
+	check(colony.event_interact() == "" and colony.get_gold() == g0 + 40 + 10 * colony.day and colony.amount("wood") == wd0 + 60,
+		"abrir o baú dá ouro e recursos")
+	check(colony.event_interact() != "", "o baú só abre uma vez")
+	colony.events.end()
+	# fera alfa
+	colony.events.roll(4, "alpha")
+	var alpha: Array = colony.events.animals()
+	check(alpha.size() == 1 and alpha[0].alpha and alpha[0].max_hp == float(ColonyData.ANIMALS[alpha[0].kind].hp) * 3.0,
+		"fera alfa tem vida ×3")
+	if alpha.size() == 1:
+		var fa := colony.food
+		alpha[0].take_damage(99999, alpha[0].global_position + Vector3.RIGHT, false)
+		check(colony.food == fa + 3 * int(ColonyData.ANIMALS[alpha[0].kind].food) and colony.events.active == "", "fera alfa rende ×3")
+	colony.events.end()
+	# ataque à serraria fora da cidade
+	colony.citizens = colony.busy() + 6
+	var raid_camp := colony.place("lumber_camp", spot, 0.0, true)
+	check(colony.events.roll(6, "camp_raid") == "camp_raid", "ataque à serraria fora da cidade")
+	var raiders := 0
+	var aimed := true
+	for c in colony.get_children():
+		if c is Enemy and not c.dead and c.siege:
+			raiders += 1
+			aimed = aimed and c._siege_target == raid_camp
+	check(raiders == 3 + 6 / 3 and aimed, "monstros vão até a serraria (%d)" % raiders)
+	colony.events.end()
+	await wait(0.1)
+	check(colony.siege_alive() == 0, "o ataque some ao anoitecer")
+	colony.demolish(raid_camp)
+	colony.citizens = keep_ev[0]
+	colony.food = keep_ev[1]
+	Game.gold = keep_ev[2]
+	colony.res = keep_ev[3]
+
 	# --- muros encaixam
 	colony.place("wall", Vector3(0, 0, 22), 0.0)
 	world.build.select("wall")

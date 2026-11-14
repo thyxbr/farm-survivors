@@ -13,6 +13,8 @@ var max_hp := 1.0
 var radius := 0.5
 var dead := false
 var home := Vector3.ZERO
+## Fera alfa (evento do dia): maior, com vida e recompensa × ColonyData.EVENT_ALPHA_MULT.
+var alpha := false
 ## Cooperativo: id comum entre servidor e clientes; puppet = réplica no cliente.
 var net_id := 0
 var puppet := false
@@ -37,6 +39,11 @@ func _ready() -> void:
 	max_hp = float(data.hp)
 	hp = max_hp
 	radius = float(data.radius)
+	if alpha:
+		display_name += " Alfa"
+		max_hp *= ColonyData.EVENT_ALPHA_MULT
+		hp = max_hp
+		radius *= ColonyData.EVENT_ALPHA_SCALE
 	add_to_group("enemies")
 	add_to_group("animals")
 	collision_layer = 4
@@ -61,6 +68,8 @@ func _ready() -> void:
 			_build_bear()
 		_:
 			_build_deer()
+	if alpha:
+		model.scale = Vector3.ONE * ColonyData.EVENT_ALPHA_SCALE
 	model.rotation.y = randf() * TAU
 	home = global_position
 	_wander = home

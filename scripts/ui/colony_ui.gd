@@ -2,6 +2,7 @@ extends Control
 ## Janelas da Defesa da Cidade.
 ## mode = "building": menu da construção (melhorar, reparar, demolir; prefeitura: economia e impostos;
 ##                    quartel: recrutar e dispensar soldados).
+## mode = "trade":    trocas com a caravana do evento do dia (ColonyData.TRADES).
 ## mode = "defeat":   a prefeitura caiu.
 ## mode = "results":  fim da partida em grupo (noites, abates e recompensas do personagem).
 
@@ -32,7 +33,7 @@ func _ready() -> void:
 	p.add_child(_box)
 	_rebuild()
 	# em grupo o estado chega do servidor: a janela se atualiza sozinha
-	if colony and colony.role == "client" and mode == "building":
+	if colony and colony.role == "client" and mode in ["building", "trade"]:
 		colony.net_changed.connect(_on_net_changed)
 
 
@@ -41,6 +42,9 @@ func _on_net_changed() -> void:
 
 
 func _process(_delta: float) -> void:
+	if mode == "trade" and colony.events.active != "caravan":
+		_close()   # a caravana partiu (anoiteceu)
+		return
 	if _refresh:
 		_refresh = false
 		if building != null and (not is_instance_valid(building) or building.dead):
@@ -69,13 +73,15 @@ func _rebuild() -> void:
 		_build_defeat()
 	elif mode == "results":
 		_build_results()
+	elif mode == "trade":
+		_build_trade()
 	else:
 		_build_building()
 	_msg = UITheme.label(keep_msg, 15, UITheme.BAD)
 	_msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_box.add_child(_msg)
-	if mode == "building":
+	if mode in ["building", "trade"]:
 		var close := UITheme.button("Fechar  [Esc]", _close)
 		_box.add_child(close)
 		close.grab_focus.call_deferred()
@@ -341,6 +347,24 @@ func _build_defeat() -> void:
 	_box.add_child(UITheme.button("Menu principal", func() -> void: Game.go_to_menu()))
 
 
+# ================================================================ caravana
+func _build_trade() -> void:
+	_box.add_child(_title("Caravana de mercadores"))
+	_box.add_child(_line("Trocas com o cofre da cidade. A caravana parte ao anoitecer.", UITheme.DIM, 15))
+	var stock: Array[String] = []
+	for r in ColonyData.RESOURCES:
+		if r != "food":
+			stock.append("%s %d" % [ColonyData.RES_NAMES[r], colony.amount(r)])
+	_box.add_child(_line("No cofre: " + "  ·  ".join(stock), UITheme.TEXT, 15))
+	for i in ColonyData.TRADES.size():
+		var give: Dictionary = ColonyData.TRADES[i][0]
+		var take: Dictionary = ColonyData.TRADES[i][1]
+		var btn := UITheme.button("Dar %s  →  receber %s" % [ColonyData.cost_text(give), ColonyData.cost_text(take)],
+			func() -> void: _act(colony.trade(i)))
+		btn.disabled = colony.missing(give) != ""
+		_box.add_child(btn)
+
+
 # ================================================================ fim da partida em grupo
 func _build_results() -> void:
 	var fell: bool = results.get("reason", "") == "defeat"
@@ -373,6 +397,6 @@ func _close() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if mode == "building" and (event.is_action_pressed("pause") or event.is_action_pressed("interact")):
+	if mode in ["building", "trade"] and (event.is_action_pressed("pause") or event.is_action_pressed("interact")):
 		get_viewport().set_input_as_handled()
 		_close()
