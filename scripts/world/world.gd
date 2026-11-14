@@ -140,6 +140,8 @@ func _exit_tree() -> void:
 # ================================================================ ambiente
 func _build_environment() -> void:
 	WorldLighting.build(self)
+	if DisplayServer.get_name() != "headless":
+		add_child(WeatherFX.new())   # clima (só visual)
 
 
 func _build_ground() -> void:
