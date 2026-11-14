@@ -1449,8 +1449,9 @@ func _test_blacksmith() -> void:
 		if p3.stream == clang:
 			p3.stop()
 			p3.stream = null
-	# 3,2 s: cobre o pior caso de começar logo no início de uma pausa (work_pause 2,5 s + golpe a 0,53 s)
-	await wait(3.2)
+	# 4,0 s: cobre o pior caso de começar logo no início de uma pausa (work_pause do Mixamo 2,63 s + blend de
+	# saída Blacksmith.PAUSE_BLEND 0,5 s + golpe a 0,43 s = 3,56 s)
+	await wait(4.0)
 	check(smith.strikes > s0, "ferreiro bate na bigorna (%d golpes)" % (smith.strikes - s0))
 	var clangs := Sfx._players_3d.filter(func(p3: AudioStreamPlayer3D) -> bool: return p3.stream == clang).size()
 	check(clangs == 0, "som do golpe não toca com o jogador longe (%d slots com a bigorna)" % clangs)
@@ -1488,7 +1489,19 @@ func _test_blacksmith() -> void:
 	await wait(1.0)
 	check(smith.state == Blacksmith.State.WORK, "ferreiro volta a trabalhar quando o jogador sai (estado %s)" % Blacksmith.State.keys()[smith.state])
 	check(absf(angle_difference(smith.model.rotation.y, smith._base_yaw)) < 0.2, "ferreiro vira de volta para a bigorna")
-	check(smith.clip("work_hammer") == "work_hammer", "sem biblioteca Mixamo, usa clipe provisório")
+	# clipes do Mixamo (biblioteca "mixamo"); o Mixamo não tinha martelar, então esse segue o provisório
+	for c in ["idle", "talk", "work_pause"]:
+		check(smith.clip(c) == "mixamo/" + c, "ferreiro usa o clipe do Mixamo: %s -> %s" % [c, smith.clip(c)])
+	check(smith.clip("work_hammer") == "work_hammer", "martelar segue o clipe provisório (%s)" % smith.clip("work_hammer"))
+	# o provisório não anima pernas/quadril: sem tracks de repouso, a pose do Mixamo (passo da pausa) ficaria
+	# presa nas pernas quando ele volta a martelar
+	var missing := 0
+	for c in ["idle", "talk", "work_pause"]:
+		var m: Animation = smith.anim.get_animation(smith.clip(c))
+		for t in m.get_track_count():
+			if wh.find_track(m.track_get_path(t), m.track_get_type(t)) < 0:
+				missing += 1
+	check(missing == 0, "martelar provisório cobre os ossos dos clipes do Mixamo (%d tracks faltando)" % missing)
 	player.global_position = back
 
 

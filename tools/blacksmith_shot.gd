@@ -34,8 +34,6 @@ func _ready() -> void:
 			_view = a
 		elif a.is_valid_float():
 			t = float(a)
-	if t < 0.0:
-		t = BLACKSMITH.STRIKES[CLIPS[mode]][0] if BLACKSMITH.STRIKES.has(CLIPS[mode]) else 0.5
 	WorldLighting.build(self)
 	var ground := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
@@ -58,7 +56,11 @@ func _ready() -> void:
 	_smith.anvil = anvil
 	add_child(_smith)
 	_smith.set_process(false)   # sem máquina de estados: o clipe fica parado no tempo pedido
-	_smith.anim.play(_smith.clip(CLIPS[mode]))
+	# STRIKES é indexado pelo nome resolvido (provisório ou "mixamo/...")
+	var clip := _smith.clip(CLIPS[mode])
+	if t < 0.0:
+		t = BLACKSMITH.STRIKES[clip][0] if BLACKSMITH.STRIKES.has(clip) else 0.5
+	_smith.anim.play(clip)
 	_smith.anim.seek(t, true)
 	_smith.anim.pause()
 	if "lineup" in args:
@@ -68,7 +70,7 @@ func _ready() -> void:
 			n.position = Vector3(pair[1], 0, 0)
 			add_child(n)
 			n.set_process(false)
-	print("SMITH %s t=%.3f view=%s" % [CLIPS[mode], t, _view])
+	print("SMITH %s t=%.3f view=%s" % [clip, t, _view])
 	_cam = Camera3D.new()
 	add_child(_cam)
 	_cam.current = true
@@ -119,8 +121,9 @@ func _report_hammer() -> void:
 			n += 1
 	low /= n
 	var sp := _smith.strike_pos()
-	# na pose T: cabo = -Y do Blender (+Z aqui), face da cabeça = -X (igual aqui)
-	var b := hammer.global_basis.orthonormalized()
+	# na pose T: cabo = -Y do Blender (+Z aqui), face da cabeça = -X (igual aqui), os dois girados no punho
+	# por BS_HAMMER_IN_HAND (-30° em volta do Z do Blender = Y aqui; tools/blender/characters.py)
+	var b := hammer.global_basis.orthonormalized() * Basis(Vector3.UP, deg_to_rad(-30.0))
 	print("HAMMER low=%s strike=%s gap=%.3f dy=%.3f cabo=%s face=%s" % [low, sp, low.distance_to(sp), low.y - sp.y,
 		b * Vector3.BACK, b * Vector3.LEFT])
 
