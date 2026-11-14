@@ -12,69 +12,9 @@ const MODELS := {
 	"slime": preload("res://assets/models/slime.glb"),
 	"goblin": preload("res://assets/models/goblin.glb"),
 }
-const TYPES := {
-	"slime": {"name": "Slime", "model": "slime", "hp": 40, "damage": 9, "speed": 2.8, "xp": 18,
-		"gold": [1, 5], "aggro": 11.0, "reach": 1.5, "cooldown": 1.5, "radius": 0.5, "height": 0.8,
-		"scale": 1.0, "color": Color(0.3, 0.9, 0.35),
-		"loot": [["slime_gel", 0.6], ["health_potion", 0.08], ["mana_potion", 0.06], ["seed_tomato", 0.12],
-			["leather_gloves", 0.02], ["leather_boots", 0.02], ["apprentice_staff", 0.015], ["short_bow", 0.015], ["life_amulet", 0.01]]},
-	# variantes usadas no Desafio da Horda
-	"slime_grande": {"name": "Slime Grande", "model": "slime", "hp": 150, "damage": 16, "speed": 2.3, "xp": 40,
-		"gold": [3, 8], "aggro": 14.0, "reach": 2.2, "cooldown": 1.8, "radius": 0.85, "height": 1.3,
-		"scale": 1.7, "color": Color(0.6, 0.3, 0.9), "goo": Color(0.55, 0.25, 0.85, 0.8), "bld": 1.5,
-		"loot": [["slime_gel", 0.8]]},
-	"slime_veloz": {"name": "Slime Veloz", "model": "slime", "hp": 24, "damage": 7, "speed": 5.2, "xp": 12,
-		"gold": [1, 3], "aggro": 14.0, "reach": 1.3, "cooldown": 1.2, "radius": 0.36, "height": 0.6,
-		"scale": 0.7, "color": Color(0.95, 0.3, 0.2), "goo": Color(0.95, 0.3, 0.2, 0.8),
-		"loot": [["slime_gel", 0.4]]},
-	"goblin": {"name": "Goblin Batedor", "model": "goblin", "hp": 80, "damage": 14, "speed": 4.2, "xp": 42,
-		"gold": [4, 11], "aggro": 15.0, "reach": 1.8, "cooldown": 1.3, "radius": 0.4, "height": 1.35,
-		"scale": 1.0, "color": Color(0.7, 0.1, 0.05), "bld": 1.5,
-		"loot": [["goblin_ear", 0.7], ["health_potion", 0.18], ["mana_potion", 0.15], ["iron_sword", 0.05], ["leather_armor", 0.05],
-			["seed_pepper", 0.15], ["seed_mint", 0.1], ["leather_cap", 0.04], ["leather_gloves", 0.04], ["leather_boots", 0.04], ["wool_hood", 0.04],
-			["traveler_tunic", 0.04], ["kettle_hat", 0.02], ["reinforced_boots", 0.02],
-			["hunter_bow", 0.03], ["oak_staff", 0.03], ["wooden_shield", 0.04], ["strength_ring", 0.02], ["wind_ring", 0.02],
-			["ranger_hood", 0.015], ["frost_brand", 0.01], ["ember_staff", 0.01], ["elven_bow", 0.01],
-			["rose_flame", 0.01], ["moon_crescent", 0.01], ["crystal_frost", 0.008], ["neon_edge", 0.008]]},
-	# ---- monstros novos da Horda ("ai" muda o comportamento; "tint" recolore o modelo do goblin)
-	"slime_explosivo": {"name": "Slime Explosivo", "model": "slime", "hp": 30, "damage": 24, "speed": 3.7, "xp": 12,
-		"gold": [1, 3], "aggro": 14.0, "reach": 1.9, "cooldown": 1.0, "radius": 0.45, "height": 0.75,
-		"scale": 0.95, "color": Color(1.0, 0.6, 0.1), "goo": Color(1.0, 0.55, 0.08, 0.85), "ai": "bomber",
-		"blast": 3.2, "loot": []},
-	"slime_mae": {"name": "Slime Mãe", "model": "slime", "hp": 120, "damage": 13, "speed": 2.4, "xp": 30,
-		"gold": [2, 6], "aggro": 14.0, "reach": 2.0, "cooldown": 1.7, "radius": 0.75, "height": 1.15,
-		"scale": 1.45, "color": Color(0.2, 0.85, 0.8), "goo": Color(0.15, 0.8, 0.75, 0.8),
-		"split": ["slime_veloz", 3], "loot": []},
-	"goblin_arqueiro": {"name": "Goblin Arqueiro", "model": "goblin", "hp": 55, "damage": 11, "speed": 3.6, "xp": 30,
-		"gold": [3, 8], "aggro": 18.0, "reach": 12.0, "keep": 7.5, "cooldown": 2.2, "radius": 0.4, "height": 1.35,
-		"scale": 0.95, "color": Color(0.55, 0.45, 0.2), "tint": [Color(0.55, 0.42, 0.22), 0.45], "ai": "ranged", "loot": []},
-	"goblin_xama": {"name": "Goblin Xamã", "model": "goblin", "hp": 70, "damage": 8, "speed": 3.2, "xp": 36,
-		"gold": [4, 9], "aggro": 18.0, "reach": 10.0, "keep": 8.0, "cooldown": 4.5, "radius": 0.4, "height": 1.35,
-		"scale": 1.05, "color": Color(0.6, 0.3, 0.95), "tint": [Color(0.5, 0.25, 0.85), 0.55], "ai": "caster",
-		"heal_radius": 8.0, "loot": []},
-	"goblin_dourado": {"name": "Goblin Dourado", "model": "goblin", "hp": 160, "damage": 0, "speed": 4.9, "xp": 60,
-		"gold": [20, 40], "aggro": 30.0, "reach": 0.0, "cooldown": 9.0, "radius": 0.4, "height": 1.35,
-		"scale": 0.9, "color": Color(1.0, 0.8, 0.2), "tint": [Color(1.0, 0.78, 0.15), 0.7], "ai": "flee",
-		"elite": true, "loot": []},
-	"goblin_campeao": {"name": "Campeão Goblin", "model": "goblin", "hp": 420, "damage": 22, "speed": 4.0, "xp": 160,
-		"gold": [12, 25], "aggro": 20.0, "reach": 2.6, "cooldown": 1.4, "radius": 0.7, "height": 2.0,
-		"scale": 1.5, "color": Color(0.85, 0.2, 0.15), "tint": [Color(0.55, 0.12, 0.1), 0.5], "elite": true,
-		"slam_every": 2, "loot": []},
-	# Defesa da Cidade: brutamontes que derruba muros (dano em construções x3)
-	"goblin_bruto": {"name": "Goblin Bruto", "model": "goblin", "hp": 280, "damage": 24, "speed": 2.9, "xp": 70,
-		"gold": [8, 14], "aggro": 8.0, "reach": 2.2, "cooldown": 1.8, "radius": 0.62, "height": 1.35,
-		"scale": 1.5, "color": Color(0.7, 0.1, 0.05), "bld": 3.0,
-		"loot": [["goblin_ear", 0.8], ["health_potion", 0.12], ["iron_helm", 0.02], ["chain_mail", 0.02], ["kettle_hat", 0.03]]},
-	"goblin_king": {"name": "Rei Goblin", "model": "goblin", "hp": 900, "damage": 26, "speed": 3.6, "xp": 450,
-		"gold": [90, 130], "aggro": 20.0, "reach": 3.2, "cooldown": 1.5, "radius": 0.95, "height": 2.9,
-		"scale": 2.2, "color": Color(0.7, 0.1, 0.05), "boss": true, "bld": 2.5,
-		"loot": [["goblin_crown", 1.0], ["goblin_cleaver", 1.0], ["health_potion", 1.0], ["seed_pumpkin", 1.0], ["seed_mint", 1.0],
-			["goblin_warbow", 0.5], ["knight_helm", 0.35], ["guard_surcoat", 0.3], ["guard_greathelm", 0.2], ["guardian_greatsword", 0.25], ["vampire_ring", 0.2],
-			["frost_scepter", 0.3], ["swift_boots", 0.3], ["sage_amulet", 0.25],
-			["dragonfang", 0.06], ["archmage_staff", 0.06], ["storm_bow", 0.06], ["dragon_plate", 0.06],
-			["titan_cleaver", 0.2], ["coral_spine", 0.2], ["scarlet_talon", 0.2], ["pale_crescent", 0.2],
-			["ivory_wing", 0.05], ["royal_wings", 0.05]]},
-}
+## Tipos de inimigo: vêm de data/balance/enemies.json (autoload Balance). "ai" muda o comportamento,
+## "tint" recolore o modelo do goblin, "bld" multiplica o dano em construções.
+static var TYPES: Dictionary = {}
 
 @export var kind := "slime"
 ## Desafio da Horda: persegue sempre o jogador, não volta para casa e não dá XP/loot do RPG.
@@ -767,18 +707,23 @@ func _update_flash(delta: float) -> void:
 
 func _die() -> void:
 	if Network.is_server():
-		# XP, missões e loot são de cada jogador: quem acertou recebe no próprio PC
+		# XP, missões e loot de cada jogador que acertou: o servidor concede (CharacterService + pickups)
 		Network.server_enemy_killed(self)
-	elif siege:
-		# cerco: o ouro vai direto para o cofre da cidade (os abates acontecem longe do jogador)
-		Game.on_enemy_killed(kind, int(data.xp * 0.6))
-		var g: Array = data.gold
-		Game.add_gold(randi_range(g[0], g[1]))
-		drop_loot(get_parent(), kind, global_position, false)
+	elif siege or (get_parent() != null and get_parent().has_method("add_siege_xp")):
+		# cidade solo (cerco e monstros errantes): o ouro do saque vai para o caixa da cidade e o XP do abate
+		# fica na partida, concedido ao personagem no amanhecer junto com a recompensa da noite (sem abate,
+		# missão nem chefe no personagem: o Rei Goblin da cidade não é o de Valdoria). Sem itens no chão,
+		# como em grupo.
+		Game.kill_lifesteal()
+		var loot := LootRules.roll(Balance.tables, kind, _loot_rng())
+		var c := get_parent()
+		if c != null and c.has_method("add_siege_xp"):
+			c.add_siege_xp(int(data.xp * 0.6))
+			if int(loot.gold) > 0:
+				c.earn(int(loot.gold))
 	elif not horde:
+		# solo: XP, missão e o chefe derrotado (king_dead) ficam com as regras (Econ.kill)
 		Game.on_enemy_killed(kind, data.xp)
-		if is_boss:
-			Game.flags["king_dead"] = true
 		drop_loot(get_parent(), kind, global_position)
 	die_visual()
 
@@ -807,22 +752,28 @@ func die_visual() -> void:
 	tw.tween_callback(queue_free)
 
 
+## Solo: sorteio do loot (LootRules, o mesmo do servidor) em pickups no chão.
 static func drop_loot(parent: Node, enemy_kind: String, pos: Vector3, with_gold := true) -> void:
-	var t: Dictionary = TYPES[enemy_kind]
-	var g: Array = t.gold
-	if with_gold:
-		_spawn_pickup(parent, "", randi_range(g[0], g[1]), pos)
-	for entry in t.loot:
-		if randf() < entry[1]:
-			_spawn_pickup(parent, entry[0], 1, pos)
+	var loot := LootRules.roll(Balance.tables, enemy_kind, _loot_rng())
+	_spawn_loot(parent, pos, int(loot.gold) if with_gold else 0, loot.items)
 
 
-static func _spawn_pickup(parent: Node, id: String, qty: int, pos: Vector3) -> void:
-	var p := PICKUP.new()
-	p.item_id = id
-	p.amount = qty
-	parent.add_child(p)
-	p.global_position = pos + Vector3.UP * 0.8
+static func _spawn_loot(parent: Node, pos: Vector3, gold: int, items: Dictionary) -> void:
+	if gold > 0:
+		PICKUP.spawn(parent, "", gold, pos + Vector3.UP * 0.8)
+	for id in items:
+		for i in int(items[id]):
+			PICKUP.spawn(parent, id, 1, pos + Vector3.UP * 0.8)
+
+
+static var _rng: RandomNumberGenerator = null
+
+
+static func _loot_rng() -> RandomNumberGenerator:
+	if _rng == null:
+		_rng = RandomNumberGenerator.new()
+		_rng.randomize()
+	return _rng
 
 
 # ------------------------------------------------------------ cerco (Defesa da Cidade)

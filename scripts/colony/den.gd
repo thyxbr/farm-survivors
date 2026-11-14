@@ -156,8 +156,7 @@ func on_boss_killed() -> void:
 	if colony.role == "server":
 		Lobby.city_den_reward(str(d.name), int(rw.gold), int(rw.xp))
 	else:
-		Game.add_gold(int(rw.gold))
-		Game.add_xp(int(rw.xp))
+		colony.solo_den_reward(int(rw.gold), int(rw.xp))
 	var dep: Array = d.deposit
 	var nid := colony.nature.add_rich(str(dep[0]), global_position, int(dep[1]))
 	if colony.role == "server":

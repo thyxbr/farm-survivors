@@ -87,6 +87,7 @@ func _ready() -> void:
 	add_child(tooltip)
 	Game.inventory_changed.connect(_refresh)
 	Game.stats_changed.connect(_refresh)
+	Econ.result.connect(_on_econ_result)
 	_refresh()
 
 
@@ -170,12 +171,15 @@ func _slot(ctx: String, id: String, q: int) -> ItemSlot:
 
 
 func _buy(s: ItemSlot) -> void:
-	if Game.buy(s.item_id):
-		Sfx.play("coin")
+	Game.buy(s.item_id)
 
 
 func _sell(s: ItemSlot) -> void:
-	if Game.sell(s.item_id):
+	Game.sell(s.item_id)
+
+
+func _on_econ_result(op: String, ok: bool, _err: String) -> void:
+	if ok and op in ["buy", "sell"]:
 		Sfx.play("coin")
 
 

@@ -12,16 +12,19 @@ config_version=5
 
 config/name="Ecos de Valdoria"
 config/description="Protótipo de RPG de ação em 3ª pessoa."
-config/version="0.7.9"
+config/version="0.8.1"
 run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
 [autoload]
 
+Balance="*res://scripts/autoload/balance.gd"
 ItemDB="*res://scripts/autoload/item_db.gd"
 Game="*res://scripts/autoload/game.gd"
 Sfx="*res://scripts/autoload/sfx.gd"
 Network="*res://scripts/autoload/network.gd"
+Econ="*res://scripts/autoload/econ.gd"
+Auth="*res://scripts/autoload/auth.gd"
 Lobby="*res://scripts/autoload/lobby.gd"
 Updater="*res://scripts/autoload/updater.gd"
 

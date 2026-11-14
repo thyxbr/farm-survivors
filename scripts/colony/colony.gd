@@ -4,8 +4,11 @@ extends Node3D
 ## ciclo dia/noite, ondas de monstros, caça e as regras de onde se pode construir.
 ## É o pai das construções, dos soldados, dos animais e dos monstros.
 ##
-## role = "solo"   — um jogador (o cofre é o ouro do personagem do modo, Game.gold);
-##        "server" — cidade cooperativa no servidor dedicado: simula tudo, o cofre é `gold` (compartilhado)
+## O ouro da cidade é o caixa da partida (`treasury`), separado do ouro do personagem, e some no fim.
+## O personagem só ganha as recompensas por noite (e o XP dos abates): no solo pelo Econ, em grupo pelo servidor.
+##
+## role = "solo"   — um jogador (o caixa vai no save da cidade);
+##        "server" — cidade cooperativa no servidor dedicado: simula tudo, o caixa é de todos
 ##                   e avisa o Lobby de cada mudança para os clientes;
 ##        "client" — réplica no PC de cada jogador: mostra o que o servidor manda e pede as ações a ele.
 
@@ -56,10 +59,16 @@ var day_length := ColonyData.DAY_LENGTH
 var first_day_bonus := ColonyData.FIRST_DAY_BONUS
 
 # ---- cooperativo
-## Cofre compartilhado (no solo o cofre é Game.gold).
-var gold := 0
-## Estoque de madeira, pedra, ferro e cristal (ouro fica em get_gold() e comida em `food`).
+## Caixa da partida (ouro da cidade): solo começa com START_GOLD; em grupo, compartilhado.
+var treasury := 0
+## Estoque de madeira, pedra, ferro e cristal (ouro fica em `treasury`/get_gold() e comida em `food`).
 var res := {"wood": 0, "stone": 0, "iron": 0, "crystal": 0}
+## Solo: o que o personagem já ganhou nesta partida (recompensas por noite e covis) — vira a linha de resumo
+## no registro da economia no fim (Econ.run_summary). Vai no save da cidade.
+var run_rewards := {"gold": 0, "xp": 0, "items": []}
+## Solo: XP dos abates do cerco ainda não concedido (vai ao personagem no amanhecer, com a recompensa da
+## noite; na derrota, no resumo). Não é salvo: só se salva de dia, depois do amanhecer.
+var siege_xp := 0
 ## Jogadores na cidade (escala as ondas).
 var team_size := 1
 ## Noite especial em curso e a anunciada para a próxima noite (chaves de ColonyData.NIGHT_MODS).
@@ -109,7 +118,8 @@ func new_colony() -> void:
 	citizens = ColonyData.START_CITIZENS
 	tax_level = 1
 	_reset_res(0)
-	Game.gold = ColonyData.START_GOLD
+	treasury = ColonyData.START_GOLD
+	run_rewards = {"gold": 0, "xp": 0, "items": []}
 	Game.stats_changed.emit()
 
 
@@ -123,7 +133,7 @@ func new_coop(players: int) -> void:
 	citizens = ColonyData.COOP_START_CITIZENS
 	tax_level = 1
 	_reset_res(ColonyData.COOP_WOOD_PER_PLAYER * (team_size - 1))
-	gold = ColonyData.COOP_START_GOLD + ColonyData.COOP_GOLD_PER_PLAYER * (team_size - 1)
+	treasury = ColonyData.COOP_START_GOLD + ColonyData.COOP_GOLD_PER_PLAYER * (team_size - 1)
 	_dirty()
 
 
@@ -133,16 +143,12 @@ func is_coop() -> bool:
 
 # ================================================================ cofre e mensagens
 func get_gold() -> int:
-	return Game.gold if role == "solo" else gold
+	return treasury
 
 
 func _pay(n: int) -> void:
-	if role == "solo":
-		Game.gold -= n
-		Game.stats_changed.emit()
-	else:
-		gold -= n
-		_dirty()
+	treasury -= n
+	_gold_changed()
 
 
 ## Estoque inicial (ou o de um save antigo): START_RES e `extra_wood` de madeira.
@@ -220,10 +226,48 @@ func _res_changed() -> void:
 
 
 func earn(n: int) -> void:
+	treasury += n
+	_gold_changed()
+
+
+## Solo: XP de um abate do cerco (Enemy._die), guardado até o amanhecer.
+func add_siege_xp(n: int) -> void:
+	siege_xp += maxi(0, n)
+
+
+## Solo: concede ao personagem o XP dos abates guardado (fim da partida no meio da noite).
+func flush_siege_xp() -> void:
+	if role != "solo" or siege_xp <= 0:
+		return
+	if Econ.grant(0, siege_xp, {}, "city_night", true):
+		run_rewards.xp = int(run_rewards.xp) + siege_xp
+	siege_xp = 0
+
+
+## Solo: prêmio de um covil limpo para o personagem (serviço local, Econ.grant com a origem da partida,
+## que entra no resumo do fim). true se concedeu.
+func solo_den_reward(gold_n: int, xp: int) -> bool:
+	if role != "solo":
+		return false
+	if not Econ.grant(gold_n, xp, {}, "city_night", true):
+		return false
+	run_rewards.gold = int(run_rewards.gold) + gold_n
+	run_rewards.xp = int(run_rewards.xp) + xp
+	return true
+
+
+## Os curandeiros cobram do caixa da cidade quando o jogador renasce (solo). Devolve o valor cobrado.
+func healer_fee(ratio: float) -> int:
+	var fee := maxi(0, int(treasury * ratio))
+	if fee > 0:
+		_pay(fee)
+	return fee
+
+
+func _gold_changed() -> void:
 	if role == "solo":
-		Game.add_gold(n)
+		Game.stats_changed.emit()   # a HUD da cidade relê o caixa
 	else:
-		gold += n
 		_dirty()
 
 
@@ -1595,7 +1639,9 @@ func _end_night() -> void:
 
 
 ## Amanhecer: impostos, comércio, colheita, salários, comida e crescimento da população.
+## Depois de uma noite de verdade (não do teste chamando direto de dia), a recompensa da noite.
 func dawn() -> void:
+	var after_night := phase == "night"
 	var f := forecast()
 	earn(int(f.gold_in))
 	# salários: quem não recebe deserta
@@ -1676,11 +1722,39 @@ func dawn() -> void:
 		say("Fome! %d morador(es) abandonaram a cidade." % starved, UITheme.BAD)
 	if is_coop():
 		_coop_dawn(survived)
+	elif after_night:
+		_solo_night_reward(survived)
 	events.roll(day)
 	_spawn_wildlife(true)
 	_dirty()
 	if world and world.has_method("autosave"):
 		world.autosave()
+
+
+## Solo: a recompensa da noite n e o XP dos abates do cerco vão para o personagem numa concessão só
+## (serviço local, Econ.grant; a origem "city_night" não é registrada a cada noite: entra no resumo da
+## partida, no fim) e o recorde de noites.
+func _solo_night_reward(n: int) -> void:
+	var rw := ColonyData.night_reward(n)
+	var xp := int(rw.xp) + siege_xp
+	var items := ColonyData.night_chest(n)
+	var got := {}
+	for id in items:
+		got[id] = int(got.get(id, 0)) + 1
+	var kills_xp := siege_xp
+	siege_xp = 0
+	if not Econ.grant(int(rw.gold), xp, got, "city_night", true):
+		return
+	run_rewards.gold = int(run_rewards.gold) + int(rw.gold)
+	run_rewards.xp = int(run_rewards.xp) + xp
+	run_rewards.items.append_array(items)
+	if n > int(Game.flags.get("city_best", 0)):
+		Econ.set_record("city_best", n)
+	Game.notify.emit("Noite %d vencida! Recompensa: +%d ouro e +%d XP (%d dos abates) para o seu personagem." %
+		[n, rw.gold, xp, kills_xp], Color(1, 0.85, 0.35))
+	Sfx.play("quest", 0.0, -2.0)
+	if world and world.has_method("on_reward"):
+		world.on_reward(n, int(rw.gold), xp, items)
 
 
 ## Amanhecer do cooperativo: recuperação da prefeitura, ajuda do reino, eventos, aviso da próxima noite
@@ -2003,7 +2077,7 @@ func net_request(pid: int, action: String, args: Array) -> String:
 ## Servidor: o estado resumido mandado aos clientes (2x/s e a cada mudança).
 func net_state() -> Dictionary:
 	_state_dirty = false
-	return {"gold": gold, "food": food, "res": res, "cit": citizens, "tq": train_queue, "tt": train_t, "day": day, "phase": phase, "pt": phase_t,
+	return {"gold": treasury, "food": food, "res": res, "cit": citizens, "tq": train_queue, "tt": train_t, "day": day, "phase": phase, "pt": phase_t,
 		"tax": tax_level, "army": army_mode, "rally": [rally.x, rally.z], "wl": wave_left() if phase == "night" else 0, "wt": wave_total,
 		"wd": wave_dirs, "nk": night_kills, "tk": total_kills, "nm": night_mod, "xm": next_mod,
 		"hall": hall.net_id if hall and is_instance_valid(hall) else 0, "votes": votes.size(), "team": team_size,
@@ -2016,7 +2090,7 @@ func state_dirty() -> bool:
 
 ## Cliente: aplica o estado do servidor.
 func apply_state(d: Dictionary) -> void:
-	gold = int(d.get("gold", gold))
+	treasury = int(d.get("gold", treasury))
 	food = int(d.get("food", food))
 	var rs: Dictionary = d.get("res", res)
 	for r in rs:
@@ -2257,7 +2331,7 @@ func to_dict() -> Dictionary:
 		"rich": nature.rich_list() if nature else [], "dens": dl,
 		"res": res, "day": day, "phase": phase, "phase_t": phase_t, "food": food, "citizens": citizens,
 		"tax": tax_level, "army_mode": army_mode, "rally": [rally.x, rally.z], "kills": total_kills, "train": train_queue,
-		"techs": techs.keys(), "buildings": bl, "soldiers": sl}
+		"techs": techs.keys(), "treasury": treasury, "run": run_rewards.duplicate(true), "buildings": bl, "soldiers": sl}
 
 
 func from_dict(d: Dictionary) -> void:
@@ -2280,6 +2354,10 @@ func from_dict(d: Dictionary) -> void:
 		if ColonyData.TECHS.has(str(t)):
 			techs[str(t)] = true
 	busy_t = {}
+	treasury = int(d.get("treasury", ColonyData.START_GOLD))
+	var run: Dictionary = d.get("run", {}) if d.get("run", {}) is Dictionary else {}
+	run_rewards = {"gold": int(run.get("gold", 0)), "xp": int(run.get("xp", 0)),
+		"items": (run.get("items", []) as Array).duplicate() if run.get("items", []) is Array else []}
 	phase = "loading"
 	for bd in d.get("buildings", []):
 		var kind := str(bd.kind)

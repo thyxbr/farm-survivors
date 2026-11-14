@@ -2,7 +2,8 @@ extends Node
 ## Teste automatizado da Defesa da Cidade. Rode com:
 ##   godot --headless --path . res://scenes/colony.tscn -- --colonytest
 ## Imprime PASS/FAIL para cada verificação e encerra com código 0 (ok) ou 1 (falhas).
-## Usa saves próprios (user://colonytest_*.json).
+## Usa saves próprios (user://colonytest_*.json) e um personagem solo novo (user://colonytest_solo.json, apagado no início).
+## O ouro da cidade é o caixa da partida (colony.treasury): o personagem só ganha as recompensas por noite.
 
 var fails := 0
 var world: Node
@@ -24,14 +25,24 @@ func wait(sec: float) -> void:
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	for p in [Game.colony_save_path, Game.colony_char_path]:
+	for p in [Game.colony_save_path, "user://colonytest_character.json"]:
 		if FileAccess.file_exists(p):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
 	await wait(0.6)
 	_bind()
 	check(world != null and colony != null and player != null, "cena da cidade carregada")
 	check(colony.phase == "setup" and colony.hall == null, "começa vazia, esperando a prefeitura")
-	check(Game.gold == ColonyData.START_GOLD, "ouro inicial %d" % Game.gold)
+	# o personagem é o do save solo (novo neste teste); o ouro da cidade é um caixa à parte
+	var char_gold0 := Game.gold
+	var char_xp0 := _total_xp()
+	var fresh := CharState.new_character(Balance.tables)
+	check(char_gold0 == fresh.gold and Econ.ensure_solo(), "personagem da cidade é o do save solo (ouro %d)" % char_gold0)
+	# missão de abate ativa: os abates da cidade não contam para ela (nem para o abate/chefe do personagem)
+	Game.start_quest("slimes")
+	var quests0: Dictionary = Game.quests.duplicate(true)
+	var kills0 := Game.kills
+	check(str(quests0.get("slimes", {}).get("state", "")) == "active", "missão de slimes ativa no personagem")
+	check(colony.treasury == ColonyData.START_GOLD, "caixa inicial da cidade %d (%d)" % [ColonyData.START_GOLD, colony.treasury])
 	check(colony.buildings().is_empty(), "nenhuma construção no início")
 
 	# --- modo construção e prefeitura
@@ -62,27 +73,27 @@ func _ready() -> void:
 	check(colony.can_place("house", Vector3(60, 0, -6), 0.0) != "", "fora do raio da cidade é recusado")
 	check(colony.can_place("house", Vector3(0, 0, 14), 0.0) != "", "não constrói em cima do jogador")
 	check(colony.can_place("house", Vector3(-12, 0, -6), PI / 2) == "", "casa num lugar livre é aceita")
-	var g0 := Game.gold
+	var g0 := colony.treasury
 	var w0 := colony.amount("wood")
 	var house_cost: Dictionary = ColonyData.BUILDINGS.house.cost
 	check(colony.amount("wood") == int(ColonyData.START_RES.wood) and colony.amount("stone") == int(ColonyData.START_RES.stone),
 		"estoque inicial de madeira e pedra")
 	colony.place("house", Vector3(-12, 0, -6), PI / 2)
-	check(Game.gold == g0 - int(house_cost.gold) and colony.amount("wood") == w0 - int(house_cost.wood) and colony.pop_cap() == 11,
+	check(colony.treasury == g0 - int(house_cost.gold) and colony.amount("wood") == w0 - int(house_cost.wood) and colony.pop_cap() == 11,
 		"casa custa ouro e madeira e abriga 5")
 	colony.res["wood"] = 2000   # o estoque inicial não cobre a cidade toda
 	colony.res["stone"] = 2000
 	colony.place("farm", Vector3(-14, 0, 8), 0.0)
 	colony.place("barracks", Vector3(12, 0, -6), -PI / 2)
 	check(colony.count_of("farm") == 1 and colony.army_cap() == 6, "fazenda e quartel construídos")
-	Game.gold = 2000
+	colony.treasury = 2000
 	colony.res["stone"] = 0
 	var need_stone := int(ColonyData.BUILDINGS.market.cost.stone)
 	check(colony.can_place("market", Vector3(12, 0, 8), 0.0) == "Faltam %d de Pedra." % need_stone, "sem pedra, não constrói")
 	check(not colony.pay({"stone": 5}) and colony.amount("stone") == 0, "pagar sem ter não deixa negativo")
 	var w1 := colony.amount("wood")
 	check(not colony.pay({"wood": 5, "stone": 5}) and colony.amount("wood") == w1, "pagamento é atômico: sem pedra, a madeira fica")
-	check(colony.missing({"gold": Game.gold + 10, "stone": 3}) == "Faltam 10 de Ouro, 3 de Pedra.", "lista tudo o que falta")
+	check(colony.missing({"gold": colony.treasury + 10, "stone": 3}) == "Faltam 10 de Ouro, 3 de Pedra.", "lista tudo o que falta")
 	check(colony.place("market", Vector3(12, 0, 8), 0.0) == null and colony.count_of("market") == 0, "place sem recurso não constrói nem cobra")
 	colony.res["stone"] = 2000
 	colony.res["wood"] = 2000
@@ -93,22 +104,22 @@ func _ready() -> void:
 	var bk: ColonyBuilding = colony.buildings().filter(func(x): return x.kind == "barracks")[0]
 	colony.bmap[999] = bk
 	colony.res["stone"] = 0
-	Game.gold = 2000
+	colony.treasury = 2000
 	var wood_r := colony.amount("wood")
 	var nb0 := colony.buildings().size()
 	var err_p: String = colony.net_request(1, "place", ["market", 12.0, 8.0, 0.0])
 	check(err_p == "Faltam %d de Pedra." % need_stone and colony.buildings().size() == nb0 and colony.amount("stone") == 0
-		and Game.gold == 2000 and colony.amount("wood") == wood_r, "servidor recusa construção sem pedra e não cobra nada")
+		and colony.treasury == 2000 and colony.amount("wood") == wood_r, "servidor recusa construção sem pedra e não cobra nada")
 	var err_u: String = colony.net_request(1, "upgrade", [999])
 	check(err_u.contains("era") and bk.level == 1 and colony.amount("stone") == 0
-		and Game.gold == 2000 and colony.amount("wood") == wood_r, "servidor recusa melhoria acima da era (%s)" % err_u)
+		and colony.treasury == 2000 and colony.amount("wood") == wood_r, "servidor recusa melhoria acima da era (%s)" % err_u)
 	var hp_bk := bk.hp
 	bk.hp = bk.max_hp * 0.5
 	var err_r: String = colony.net_request(1, "repair", [999])
-	check(err_r.begins_with("Faltam ") and bk.hp == bk.max_hp * 0.5 and colony.amount("stone") == 0 and Game.gold == 2000,
+	check(err_r.begins_with("Faltam ") and bk.hp == bk.max_hp * 0.5 and colony.amount("stone") == 0 and colony.treasury == 2000,
 		"servidor recusa reparo sem recurso (%s)" % err_r)
 	var err_ra: String = colony.net_request(1, "repair_all", [])
-	check(err_ra.begins_with("Faltam ") and colony.amount("stone") == 0 and Game.gold == 2000, "servidor recusa reparar tudo sem recurso")
+	check(err_ra.begins_with("Faltam ") and colony.amount("stone") == 0 and colony.treasury == 2000, "servidor recusa reparar tudo sem recurso")
 	bk.hp = hp_bk
 	colony.bmap.erase(999)
 	colony.res["stone"] = 2000
@@ -176,12 +187,12 @@ func _ready() -> void:
 	colony.nature.regrow(colony.day)
 	check(not tree.alive, "nó não volta dentro de uma construção")
 	colony.demolish(blocker)
-	var keep := [colony.citizens, colony.food, Game.gold, colony.res.duplicate()]
+	var keep := [colony.citizens, colony.food, colony.treasury, colony.res.duplicate()]
 	colony.dawn()
 	check(tree.alive, "o amanhecer tenta de novo e o nó volta")
 	colony.citizens = keep[0]
 	colony.food = keep[1]
-	Game.gold = keep[2]
+	colony.treasury = keep[2]
 	colony.res = keep[3]
 	colony.day -= 5   # o resto do teste conta os dias a partir daqui
 	check(colony.nature.count("crystal") == 6 and colony.nature.count("iron") == 7, "anéis externos têm cristal e ferro")
@@ -208,9 +219,9 @@ func _ready() -> void:
 	check(nd.has(str(cr.id)) and nd.has(str(berry.id)) and int(colony.to_dict().get("seed", -1)) == 7731, "save guarda semente e nós esgotados")
 
 	# --- serraria e pedreira: produção contínua do bosque em volta
-	var keep_cp := [colony.citizens, Game.gold, colony.res.duplicate()]
+	var keep_cp := [colony.citizens, colony.treasury, colony.res.duplicate()]
 	colony.citizens = colony.busy() + 6   # a serraria e a pedreira ocupam 3 aldeões cada
-	Game.gold += 200
+	colony.treasury += 200
 	colony.res["wood"] = int(colony.res.get("wood", 0)) + 200
 	var spot := _camp_spot("tree")
 	check(spot != Vector3.INF, "há um bosque a ~60 m do centro para a serraria")
@@ -246,11 +257,11 @@ func _ready() -> void:
 	colony.demolish(camp)
 	colony.demolish(quarry)
 	colony.citizens = keep_cp[0]
-	Game.gold = keep_cp[1]
+	colony.treasury = keep_cp[1]
 	colony.res = keep_cp[2]
 
 	# --- eventos do dia: sorteio, caravana e troca, fim ao anoitecer
-	var keep_ev := [colony.citizens, colony.food, Game.gold, colony.res.duplicate()]
+	var keep_ev := [colony.citizens, colony.food, colony.treasury, colony.res.duplicate()]
 	check(colony.events.roll(1) == "", "nenhum evento no dia 1")
 	check(colony.events.roll(3, "caravan") == "caravan" and colony.events.active == "caravan", "caravana chega")
 	var ev_d := Vector2(colony.events.pos.x, colony.events.pos.z).length()
@@ -343,7 +354,7 @@ func _ready() -> void:
 	colony.demolish(raid_camp)
 	colony.citizens = keep_ev[0]
 	colony.food = keep_ev[1]
-	Game.gold = keep_ev[2]
+	colony.treasury = keep_ev[2]
 	colony.res = keep_ev[3]
 
 	# --- muros encaixam
@@ -363,7 +374,7 @@ func _ready() -> void:
 
 	# --- recrutamento
 	var cit := colony.citizens
-	g0 = Game.gold
+	g0 = colony.treasury
 	check(colony.recruit("soldier") == "", "recruta um soldado")
 	check(colony.recruit("archer") == "", "recruta um arqueiro")
 	check(colony.recruit("knight").contains("era"), "cavaleiro exige a era II")
@@ -372,21 +383,21 @@ func _ready() -> void:
 	await wait(0.2)
 	check(colony.soldier_count() == 2 and colony.citizens == cit - 2, "soldados saem dos moradores")
 	colony.citizens += 2   # a torre abaixo precisa de um aldeão livre
-	check(Game.gold == g0 - 100, "recrutar cobra o preço")
+	check(colony.treasury == g0 - 100, "recrutar cobra o preço")
 	check(colony.salaries() == 11, "salários somam 11/dia")
 
 	# --- eras e pesquisas
-	var keep_era := [colony.citizens, Game.gold, colony.food, colony.res.duplicate()]
+	var keep_era := [colony.citizens, colony.treasury, colony.food, colony.res.duplicate()]
 	var camp2 := colony.place("lumber_camp", spot, 0.0, true)
 	var quarry2 := colony.place("quarry", qspot, 0.0, true)
-	Game.gold = 0
+	colony.treasury = 0
 	colony.food = 1000
 	for r in ["wood", "stone", "iron", "crystal"]:
 		colony.res[r] = 1000
 	var err_e: String = colony.net_request(1, "era", [])
 	check(err_e == "Faltam 200 de Ouro." and colony.food == 1000 and colony.amount("wood") == 1000 and colony.busy_t.is_empty()
 		and colony.era() == 1, "servidor recusa avançar de era sem ouro e não cobra nada (%s)" % err_e)
-	Game.gold = 5000
+	colony.treasury = 5000
 	colony.citizens = colony.pop_cap() - 1
 	check(colony.train_villager() == "", "aldeão na fila antes de avançar de era")
 	check(colony.advance_era() == "", "avança para a era II")
@@ -437,16 +448,16 @@ func _ready() -> void:
 	colony.demolish(camp2)
 	colony.demolish(quarry2)
 	colony.citizens = keep_era[0]
-	Game.gold = keep_era[1]
+	colony.treasury = keep_era[1]
 	colony.food = keep_era[2]
 	colony.res = keep_era[3]
 
 	# --- mago e canhoneiro (era II)
 	var cit_m := colony.citizens
-	var gold_m := Game.gold
+	var gold_m := colony.treasury
 	var res_m: Dictionary = colony.res.duplicate()
 	colony.citizens = maxi(colony.citizens, 6)
-	Game.gold = 2000
+	colony.treasury = 2000
 	colony.res["crystal"] = 0
 	check(colony.recruit("mage") == "Faltam 6 de Cristal.", "mago custa cristal")
 	colony.res["crystal"] = 20
@@ -466,7 +477,7 @@ func _ready() -> void:
 	if is_instance_valid(em):
 		em.take_damage(999999, em.global_position, false)
 	colony.citizens = cit_m
-	Game.gold = gold_m
+	colony.treasury = gold_m
 	colony.res = res_m
 
 	# --- torre defende
@@ -565,10 +576,10 @@ func _ready() -> void:
 	if is_instance_valid(wall) and not wall.dead:
 		var rc := colony.repair_cost(wall)
 		check(not rc.is_empty() and colony.repair(wall) == "" and wall.hp == wall.max_hp, "reparo restaura a vida (%s)" % ColonyData.cost_text(rc))
-		g0 = Game.gold
+		g0 = colony.treasury
 		var s0 := colony.amount("stone")
 		colony.demolish(wall)
-		check(Game.gold == g0 + int(wall.invested.gold * 0.5) and colony.amount("stone") == s0 + int(wall.invested.stone * 0.5),
+		check(colony.treasury == g0 + int(wall.invested.gold * 0.5) and colony.amount("stone") == s0 + int(wall.invested.stone * 0.5),
 			"demolir devolve metade de cada recurso")
 
 	# --- caça
@@ -583,9 +594,9 @@ func _ready() -> void:
 	# Baseline só agora, sem await até o golpe: durante a espera acima soldados/torres matam monstros
 	# errantes, e cada morte soma ouro ao cofre (Enemy._die no solo), o que desalinhava o `g0` antigo.
 	var food0 := colony.food
-	g0 = Game.gold
+	g0 = colony.treasury
 	deer.take_damage(9999, player.global_position, false)
-	check(colony.food == food0 + 10 and Game.gold == g0 + 9, "caçar um cervo rende comida e ouro")
+	check(colony.food == food0 + 10 and colony.treasury == g0 + 9, "caçar um cervo rende comida e ouro")
 
 	# --- fauna por anel: lobo no anel 2 (em matilha), urso no anel 3, nada de agressivo no anel 1
 	for a in get_tree().get_nodes_in_group("animals"):
@@ -616,11 +627,11 @@ func _ready() -> void:
 
 	# --- amanhecer: economia
 	f = colony.forecast()
-	g0 = Game.gold
+	g0 = colony.treasury
 	var day0 := colony.day
 	colony.dawn()
 	check(colony.day == day0 + 1, "amanhece um novo dia")
-	check(Game.gold == g0 + f.gold_net, "amanhecer aplica impostos e salários (%d -> %d)" % [g0, Game.gold])
+	check(colony.treasury == g0 + f.gold_net, "amanhecer aplica impostos e salários (%d -> %d)" % [g0, colony.treasury])
 	# salários (3 cavaleiros + 2 = 47/dia) maiores que a renda (só a prefeitura, 15): alguns desertam
 	for i in 3:
 		colony.spawn_soldier("knight", Vector3(12, 0, 2))
@@ -628,19 +639,21 @@ func _ready() -> void:
 	var before := colony.soldier_count()
 	var cit_s := colony.citizens
 	colony.citizens = 0
-	Game.gold = 0
+	colony.treasury = 0
 	colony.dawn()
 	await wait(0.1)
-	check(colony.soldier_count() < before and Game.gold >= 0, "sem ouro para salários, soldados desertam (%d -> %d)" % [before, colony.soldier_count()])
+	check(colony.soldier_count() < before and colony.treasury >= 0, "sem ouro para salários, soldados desertam (%d -> %d)" % [before, colony.soldier_count()])
 	for s in colony.soldiers():
 		s.leave()
 	colony.citizens = cit_s
-	Game.gold = 2000
+	colony.treasury = 2000
 	colony.recruit("militia")
 	colony.recruit("soldier")
 
-	# --- noite e onda
+	# --- noite e onda (noite de chefe: o Rei Goblin da cidade)
+	colony.day = ColonyData.BOSS_EVERY
 	colony.start_night()
+	check("goblin_king" in colony.wave_queue, "noite %d traz o Rei Goblin" % colony.day)
 	check(colony.phase == "night" and colony.wave_total > 0, "a noite traz uma onda (%d monstros)" % colony.wave_total)
 	await wait(4.0)
 	check(colony.siege_alive() > 0, "monstros da onda surgem (%d)" % colony.siege_alive())
@@ -650,16 +663,34 @@ func _ready() -> void:
 			marching = true
 	check(marching, "monstros da onda escolhem um alvo na cidade")
 	var d0 := colony.day
+	var xp_night := _total_xp()
+	var seen_night_xp := false
 	for i in 30:
 		colony.wave_queue.clear()
 		for c in colony.get_children():
 			if c is Enemy and not c.dead:
 				c.take_damage(999999, c.global_position, false)
 		await wait(0.3)
+		if colony.phase == "night" and colony.siege_xp > 0 and not seen_night_xp:
+			seen_night_xp = true
+			check(_total_xp() == xp_night, "XP dos abates fica na partida durante a noite (%d guardado)" % colony.siege_xp)
 		if colony.phase == "day":
 			break
+	check(seen_night_xp, "abates da noite guardaram XP")
 	await wait(3.0)
 	check(colony.phase == "day" and colony.day == d0 + 1, "onda derrotada: amanhece (dia %d)" % colony.day)
+	# o personagem: construções, recrutas, caça e saques não mexem no ouro dele; só a recompensa da noite
+	var rw := ColonyData.night_reward(d0)
+	check(int(colony.run_rewards.gold) == int(rw.gold) and int(colony.run_rewards.xp) > int(rw.xp) and colony.siege_xp == 0,
+		"recompensa da noite %d (com o XP dos abates) somada na partida (%s)" % [d0, str(colony.run_rewards)])
+	check(Game.gold == char_gold0 + int(rw.gold),
+		"ouro do personagem só muda pela recompensa da noite (%d → %d, +%d)" % [char_gold0, Game.gold, rw.gold])
+	check(_total_xp() == char_xp0 + int(colony.run_rewards.xp),
+		"XP no personagem só no amanhecer: noite + abates (%d → %d)" % [char_xp0, _total_xp()])
+	check(not Game.flags.has("king_dead"), "Rei Goblin da cidade não marca o chefe de Valdoria")
+	check(Game.quests == quests0 and Game.kills == kills0,
+		"abates da cidade não contam na missão nem nos abates do personagem (%s, %d)" % [str(Game.quests), Game.kills])
+	check(int(Game.flags.get("city_best", 0)) == d0, "melhor noite salva no personagem (%s)" % str(Game.flags.get("city_best")))
 
 	# --- covis: acordam com jogador perto, dormem sem ninguém e à noite, reforçam a onda, crescem e são limpos
 	check(colony.dens.size() >= 4 and colony.dens.size() <= 6, "o mapa tem covis (%d)" % colony.dens.size())
@@ -759,7 +790,14 @@ func _ready() -> void:
 	den.grown_day = gd2
 	var s0 := colony.amount("stone")
 	var n_nodes := colony.nature.nodes.size()
+	var char_gold_den := Game.gold
+	var run_gold0 := int(colony.run_rewards.gold)   # covis limpos antes (pelo chefe morto) já somaram
+	var den_rw := ColonyData.night_reward(colony.day)
 	den.on_boss_killed()
+	# prêmio do covil para o personagem (Econ.grant com a origem da partida) e somado nas recompensas da partida
+	var run_gold := run_gold0 + int(den_rw.gold)
+	check(Game.gold == char_gold_den + int(den_rw.gold) and int(colony.run_rewards.gold) == run_gold,
+		"covil limpo: +%d ouro no personagem e na partida (%d, %s)" % [den_rw.gold, Game.gold, str(colony.run_rewards)])
 	check(den.cleared and colony.amount("stone") > s0 and not colony.den_dirs().has(den.dir_index),
 		"limpar o covil dá recursos e fecha a direção")
 	var rich := colony.nature.node(n_nodes)
@@ -789,14 +827,14 @@ func _ready() -> void:
 	var nb := colony.buildings().size()
 	var ns := colony.soldier_count()
 	var day_s := colony.day
-	var gold_s := Game.gold
+	var gold_s := colony.treasury
 	var stone_s := colony.amount("stone")
 	var inv_s: Dictionary = colony.buildings()[0].invested.duplicate()
 	var save_v: int = int(colony.to_dict().get("version", 0))
-	Game.gold += 200
+	colony.treasury += 200
 	colony.res["wood"] = int(colony.res.get("wood", 0)) + 200
 	check(colony.research("plow") == "", "Arado em andamento na hora de salvar")
-	gold_s = Game.gold
+	gold_s = colony.treasury
 	check(world.save_colony(), "salva a cidade")
 	check(Game.has_colony_save(), "arquivo de save existe")
 	Game.start_colony(true)
@@ -804,7 +842,7 @@ func _ready() -> void:
 	_bind()
 	check(colony.buildings().size() == nb, "carrega as construções (%d)" % colony.buildings().size())
 	check(colony.soldier_count() == ns, "carrega o exército (%d)" % colony.soldier_count())
-	check(colony.day == day_s and Game.gold == gold_s, "carrega dia e ouro")
+	check(colony.day == day_s and colony.treasury == gold_s, "carrega dia e caixa da cidade (%d)" % colony.treasury)
 	check(save_v == 2 and colony.amount("stone") == stone_s, "carrega o estoque de recursos (save versão 2)")
 	check(colony.buildings()[0].invested == inv_s, "carrega o investido por recurso")
 	check(colony.has_tech("sharp_axe") and colony.has_tech("masonry") and colony.era() == 2, "carrega as pesquisas e a era")
@@ -823,6 +861,9 @@ func _ready() -> void:
 	check(colony.amount("wood") == int(ColonyData.START_RES.wood) and colony.amount("stone") == int(ColonyData.START_RES.stone),
 		"save versão 1 volta com o estoque inicial")
 	check(ColonyData.cost_from(40) == {"gold": 40}, "investido inteiro de save antigo vira ouro")
+	check(int(colony.run_rewards.gold) == run_gold, "recompensas da partida voltam com o save")
+	check(Game.gold == char_gold0 + run_gold, "carregar a cidade não mexe no personagem (%d)" % Game.gold)
+	check(not FileAccess.file_exists("user://colonytest_character.json"), "sem save de personagem da cidade")
 	check(colony.phase == "day" and colony.hall != null, "cidade carregada de dia")
 	check(not colony.nature.node(cr_id).alive, "nó esgotado volta esgotado do save")
 	# save versão 1 (sem semente, sem estoque, sem nós) lido do arquivo
@@ -839,19 +880,42 @@ func _ready() -> void:
 	_bind()
 	check(world.map_seed == 7731 and colony.amount("wood") == 150, "save antigo carrega com semente 7731 e madeira inicial")
 	check(colony.nature.node(cr_id).alive, "save antigo: todos os nós vivos")
-	var fresh: bool = colony.dens.size() >= 4
+	var fresh_dens: bool = colony.dens.size() >= 4
 	for dn in colony.dens:
-		fresh = fresh and not dn.cleared and dn.level == 1
-	check(fresh and colony.nature.node(rich_id) == null, "save antigo: covis novos e sem nó rico")
+		fresh_dens = fresh_dens and not dn.cleared and dn.level == 1
+	check(fresh_dens and colony.nature.node(rich_id) == null, "save antigo: covis novos e sem nó rico")
 
 	# --- aldeões visuais: só com tela
 	check(get_tree().get_nodes_in_group("villager_visual").is_empty(), "aldeões visuais não existem no headless")
+
+	# save de uma versão antiga (sem caixa): começa com o caixa inicial (sem migração)
+	var sf := FileAccess.open(Game.colony_save_path, FileAccess.READ)
+	var old_s: Dictionary = JSON.parse_string(sf.get_as_text())
+	sf.close()
+	old_s.erase("treasury")
+	sf = FileAccess.open(Game.colony_save_path, FileAccess.WRITE)
+	sf.store_string(JSON.stringify(old_s))
+	sf.close()
+	Game.start_colony(true)
+	await wait(1.0)
+	_bind()
+	check(colony.treasury == ColonyData.START_GOLD and Game.gold == char_gold0 + run_gold,
+		"save antigo sem caixa: começa com %d (%d), personagem intacto" % [ColonyData.START_GOLD, colony.treasury])
 
 	# --- derrota
 	colony.hall.take_damage(999999, Vector3.ZERO)
 	check(colony.phase == "over", "prefeitura destruída = derrota")
 	await wait(3.0)
 	check(world.modal != null and world.modal.get("mode") == "defeat", "tela de derrota aparece")
+	# uma linha de resumo da partida no registro da economia (as recompensas da noite não têm linha própria)
+	# (solo: o registro é o *_economy.jsonl do FileCharStore)
+	var rows: Array = Econ._store.economy_rows().filter(func(r: Dictionary) -> bool:
+		return int(r.account_id) == CharacterService.SOLO_ACCOUNT and r.kind == "run" and r.source == "city")
+	check(rows.size() == 1 and int(rows[0].amount) == run_gold, "resumo da partida na economia (%s)" % str(rows))
+	var nights_rows: Array = Econ._store.economy_rows().filter(func(r: Dictionary) -> bool:
+		return int(r.account_id) == CharacterService.SOLO_ACCOUNT and r.source == "city_night")
+	check(nights_rows.is_empty(), "recompensa da noite sem linha própria")
+	check(Game.gold == char_gold0 + run_gold, "fim da partida: o caixa da cidade some, o personagem fica com a recompensa (%d)" % Game.gold)
 
 	print("\n%s — %d falha(s)" % ["OK" if fails == 0 else "FALHOU", fails])
 	get_tree().quit(1 if fails > 0 else 0)
@@ -894,3 +958,11 @@ func _bind() -> void:
 	world = get_tree().current_scene
 	colony = world.get("colony") if world else null
 	player = get_tree().get_first_node_in_group("player")
+
+
+## XP total do personagem (níveis somados), para comparar ganhos que atravessam um nível.
+func _total_xp() -> int:
+	var t := Game.xp
+	for lv in range(1, Game.level):
+		t += CharRules.xp_to_next(lv, Balance.tables)
+	return t
