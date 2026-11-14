@@ -212,6 +212,13 @@ func _build_dock() -> void:
 	_gap(bar)
 	for n in range(1, 5):
 		slots["slot_%d" % n] = _action(bar, str(n))
+	var ring := FuryRing.new()   # anel de fúria em volta do slot da ultimate, um pouco para fora do slot
+	ring.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	ring.offset_left = -4
+	ring.offset_top = -4
+	ring.offset_right = 4
+	ring.offset_bottom = 4
+	slots["slot_4"].add_child(ring)
 	_refresh_kit()
 	_gap(bar)
 	slots["health_potion"] = _action(bar, "R")

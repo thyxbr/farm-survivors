@@ -89,8 +89,11 @@ func _ready() -> void:
 	player.model.rotation.y = PI
 	await wait(0.2)
 	var hp0: float = slime.hp
+	Game.fury = 0.0
 	player._start_swing()
 	await wait(0.5)
+	check(Game.fury > 0.0 and Game.fury < 10.0, "fúria sobe com o dano do golpe do jogador (%.2f)" % Game.fury)
+	Game.fury = 0.0
 	check(slime.hp < hp0, "golpe de espada causa dano (%.0f -> %.0f)" % [hp0, slime.hp])
 	slime.take_damage(9999, player.global_position, false)
 	check(Game.xp > xp0, "XP ganho ao matar slime")
@@ -127,6 +130,39 @@ func _ready() -> void:
 	var mp_m := Game.mp
 	player.cast("meteor_rain")
 	check(Game.mp == mp_m and player.cooldowns.meteor_rain == 0.0, "ultimate ainda não construída: sem custo")
+
+	# --- barra de fúria e ultimate (slot 4 do cajado = meteor_rain)
+	var lvl_f := Game.level
+	var hp_f := Game.hp
+	Game.fury = 0.0
+	Game.on_damage_dealt(5.0, 100.0)
+	check(is_equal_approx(Game.fury, 2.5), "fúria: 5 de dano em alvo de 100 de vida = 2.5 (%.2f)" % Game.fury)
+	Game.on_damage_dealt(9999.0, 10.0)
+	check(is_equal_approx(Game.fury, 8.5), "fúria: ganho por golpe limitado a 6 (%.2f)" % Game.fury)
+	Game.on_damage_dealt(0.01, 1000.0)
+	check(is_equal_approx(Game.fury, 9.0), "fúria: ganho mínimo 0.5 (%.2f)" % Game.fury)
+	Game.fury = 0.0
+	player.invuln = 0.0
+	player.take_damage(Game.max_hp() * 0.4, player.global_position + Vector3(0, 0, 5))
+	check(is_equal_approx(Game.fury, (Game.max_hp() * 0.4 * 50.0 / (50.0 + Game.defense() * 4.0)) / Game.max_hp() * 25.0), "fúria sobe ao receber dano (%.2f)" % Game.fury)
+	Game.hp = hp_f
+	player.invuln = 0.0
+	Game.add_fury(500.0)
+	check(Game.fury == 100.0 and Game.fury_full(), "fúria limitada a 100")
+	Game.level = 8
+	Game.fury = 50.0
+	player.use_slot(4)
+	check(Game.fury == 50.0, "ultimate não sai com fúria incompleta")
+	Game.level = 2
+	Game.fury = 100.0
+	player.use_slot(4)
+	check(Game.fury == 100.0, "ultimate não sai abaixo do nível 8")
+	Game.level = 8
+	player.use_slot(4)
+	check(Game.fury == 100.0 and player.cooldowns.meteor_rain == 0.0, "ultimate ainda não construída mantém a fúria")
+	Game.level = lvl_f
+	Game.fury = 0.0
+	Game.hp = hp_f
 
 	# --- magia
 	var mp0 := Game.mp

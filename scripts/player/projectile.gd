@@ -156,7 +156,7 @@ func _on_body(body: Node) -> void:
 func _damage(e: Node, amount: float) -> void:
 	var dmg := amount * randf_range(0.9, 1.1)
 	e.take_damage(dmg, global_position - _vel.normalized(), crit, 2.5 if fx == "slow" else 0.0)
-	Game.on_damage_dealt(dmg)
+	Game.on_damage_dealt(dmg, e.max_hp)
 
 
 func _finish(impact: bool) -> void:

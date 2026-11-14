@@ -489,7 +489,7 @@ func _do_hit() -> void:
 		var crit: bool = randf() < Game.crit_chance()
 		var dmg: float = Game.melee_damage() * mult * randf_range(0.9, 1.1) * (1.8 if crit else 1.0)
 		e.take_damage(dmg, global_position, crit, 2.5 if _weapon_fx() == "slow" else 0.0)
-		Game.on_damage_dealt(dmg)
+		Game.on_damage_dealt(dmg, e.max_hp)
 		hit_any = true
 	if hit_any:
 		Sfx.play("hit")
@@ -651,6 +651,9 @@ func cast(id: String) -> void:
 		return
 	if cooldowns[id] > 0 or attacking or dodge_timer > 0:
 		return
+	if sp.ultimate and not Game.fury_full():
+		Game.notify.emit("Fúria incompleta!", Color(1.0, 0.55, 0.3))
+		return
 	if sp.cost > 0 and Game.mp < sp.cost:
 		Game.notify.emit("Mana insuficiente!", Color(0.6, 0.7, 1.0))
 		return
@@ -658,6 +661,12 @@ func cast(id: String) -> void:
 	if id.begins_with("sword_"):
 		if not SwordAbilities.use(self, id):
 			Game.notify.emit("Em breve!", Color(0.85, 0.8, 0.65))
+			return
+		# a ultimate zera a fúria só quando realmente começa; recarga tem dono único: aqui
+		if sp.ultimate:
+			Game.fury = 0.0
+		cooldowns[id] = sp.cooldown * Game.cooldown_mult()
+		Game.stats_changed.emit()
 		return
 	if not id in ["fireball", "heal", "frost_nova"]:
 		Game.notify.emit("Em breve!", Color(0.85, 0.8, 0.65))
@@ -787,6 +796,7 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 		return
 	var final_dmg: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
 	Game.hp -= final_dmg
+	Game.add_fury(final_dmg / Game.max_hp() * 25.0)
 	invuln = 0.45
 	var kb := global_position - from_pos
 	kb.y = 0

@@ -27,6 +27,8 @@ var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "fullscreen": 
 	"player_name": "", "server_address": ""}
 
 var level := 1
+const FURY_MAX := 100.0
+var fury := 0.0   # fúria 0..100: enche lutando, zera ao usar a ultimate, não esvazia com o tempo
 var xp := 0
 var gold := 0
 var stat_points := 0
@@ -217,6 +219,7 @@ func _setup_input() -> void:
 func new_game() -> void:
 	reset_run_mods()
 	level = 1
+	fury = 0.0
 	xp = 0
 	gold = 25
 	stat_points = 0
@@ -409,10 +412,20 @@ func preview_equip(id: String) -> Dictionary:
 
 
 ## Roubo de vida dos itens: cura uma fração do dano causado.
-func on_damage_dealt(amount: float) -> void:
+func on_damage_dealt(amount: float, target_max_hp := 100.0) -> void:
+	add_fury(clampf(amount / maxf(1.0, target_max_hp) * 50.0, 0.5, 6.0))
 	var l := gear("leech")
 	if l > 0.0 and hp > 0.0:
 		hp = min(max_hp(), hp + amount * l)
+
+
+func add_fury(amount: float) -> void:
+	fury = clampf(fury + amount, 0.0, FURY_MAX)
+	stats_changed.emit()
+
+
+func fury_full() -> bool:
+	return fury >= FURY_MAX
 
 
 func xp_to_next() -> int:
@@ -686,7 +699,7 @@ func save_game(pos: Vector3, yaw: float) -> bool:
 		notify.emit("Não é possível salvar durante o desafio.", Color(1, 0.6, 0.5))
 		return false
 	var data := {
-		"version": 1, "level": level, "xp": xp, "gold": gold, "stat_points": stat_points,
+		"version": 1, "level": level, "fury": fury, "xp": xp, "gold": gold, "stat_points": stat_points,
 		"attributes": attributes, "hp": hp, "mp": mp, "inventory": inventory, "equipment": equipment,
 		"quests": quests, "flags": flags, "kills": kills, "farm": farm,
 		"pos": [pos.x, pos.y, pos.z], "yaw": yaw,
@@ -734,6 +747,7 @@ func load_character() -> bool:
 		return false
 	reset_run_mods()
 	level = int(data.level)
+	fury = clampf(float(data.get("fury", 0.0)), 0.0, FURY_MAX)
 	xp = int(data.xp)
 	gold = int(data.gold)
 	stat_points = int(data.stat_points)
