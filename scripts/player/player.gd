@@ -649,11 +649,13 @@ func cast(id: String) -> void:
 	var sp: Dictionary = ItemDB.SPELLS[id]
 	if not Game.knows_spell(id):
 		Game.notify.emit("%s exige nível %d" % [sp.name, sp.level], Color(1, 0.6, 0.6))
+		Sfx.play("error", 0.0, -6.0)
 		return
 	if cooldowns[id] > 0 or attacking or dodge_timer > 0:
 		return
 	if Game.mp < sp.cost:
 		Game.notify.emit("Mana insuficiente!", Color(0.6, 0.7, 1.0))
+		Sfx.play("error", 0.0, -6.0)
 		return
 	_cancel_draw()
 	Game.mp -= sp.cost

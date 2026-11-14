@@ -298,10 +298,29 @@ func _build_village() -> void:
 		"cyl", Vector3(0.3, 0.8, 0))
 	prop("forge", smithy * BLACKSMITH.FORGE_OFFSET, smith.rotation.y + BLACKSMITH.FORGE_YAW, 1.0,
 		"box", Vector3(0.9, 1.0, 0.8))
+	_forge_fire(smithy * BLACKSMITH.FORGE_OFFSET)
 	add_child(smith)
 	var portal := PORTAL.new()
 	portal.position = PORTAL_POS
 	add_child(portal)
+
+
+## Crepitar de fogo em loop na boca da forja, só ouvido de perto (bus Ambience). Nada no servidor.
+func _forge_fire(pos: Vector3) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var fire: AudioStreamOggVorbis = load("res://assets/audio/ambience/fire_crackle.ogg")
+	fire.loop = true
+	var p := AudioStreamPlayer3D.new()
+	p.name = "ForgeFire"
+	p.stream = fire
+	p.bus = &"Ambience"
+	p.position = pos + Vector3.UP * 0.6
+	p.unit_size = 2.5
+	p.max_distance = 14.0
+	p.volume_db = 2.0
+	p.autoplay = true
+	add_child(p)
 
 
 # ================================================================ horta da vila
@@ -506,6 +525,7 @@ func start_survival() -> void:
 	survival.center = ARENA
 	survival.return_to_hub = Hub.take_horde_return()
 	add_child(survival)
+	Sfx.play("portal", 0.0, -3.0)
 
 
 ## Multiplayer (cliente): o servidor fechou a fila; entra na arena com o grupo.
@@ -527,6 +547,7 @@ func start_survival_net(team: Dictionary, slot: int, round_time: float) -> void:
 	survival.round_time = round_time
 	survival.return_to_hub = Hub.take_horde_return()
 	add_child(survival)
+	Sfx.play("portal", 0.0, -3.0)
 
 
 ## Multiplayer (servidor): cria a partida do grupo (rodadas, spawn e abates ficam aqui).

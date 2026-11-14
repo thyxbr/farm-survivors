@@ -1,6 +1,28 @@
 extends Node
-## Efeitos sonoros sintetizados em tempo de carregamento (sem arquivos de áudio).
+## Efeitos sonoros. A maioria vem de arquivos em assets/audio/sfx (FILES; vários arquivos por som
+## sorteiam sem repetir o último). Os que não têm arquivo bom são sintetizados no carregamento.
+## Para trocar um som, troque o arquivo ou a lista em FILES; licenças em assets/audio/CREDITS.md.
 
+const SFX_DIR := "res://assets/audio/sfx/%s.wav"
+const FILES := {
+	"swing": ["swing_1", "swing_2", "swing_3"],
+	"hit": ["hit_1", "hit_2", "hit_3", "hit_4"],
+	"hurt": ["hurt_1", "hurt_2", "hurt_3"],
+	"fire": ["fire_1", "fire_2", "fire_3"],
+	"explode": ["explode_1", "explode_2", "explode_3"],
+	"heal": ["heal_1"],
+	"pickup": ["pickup_1", "pickup_2"],
+	"coin": ["coin_1", "coin_2", "coin_3"],
+	"levelup": ["levelup_1"],
+	"click": ["click_1", "click_2"],
+	"slam": ["slam_1", "slam_2"],
+	"death": ["death_1"],
+	"quest": ["quest_1", "quest_2"],
+	"zap": ["zap_1", "zap_2"],
+	"gem": ["gem_1", "gem_2"],
+	"portal": ["portal_1"],
+	"error": ["error_1"],
+}
 const RATE := 22050
 const NEAR_DIST := 6.0    # até aqui o som do mundo toca no volume cheio
 const FAR_DIST := 32.0    # além disso não se ouve nada
@@ -19,6 +41,7 @@ func _ready() -> void:
 	_rng.seed = 1234
 	for i in 14:
 		var p := AudioStreamPlayer.new()
+		p.bus = &"SFX"
 		add_child(p)
 		_players.append(p)
 	for i in 20:
@@ -27,25 +50,14 @@ func _ready() -> void:
 		# jogador, não da câmera; o player 3D só cuida da direção
 		p3.attenuation_model = AudioStreamPlayer3D.ATTENUATION_DISABLED
 		p3.panning_strength = 0.8
+		p3.bus = &"SFX"
 		add_child(p3)
 		_players_3d.append(p3)
-	streams["swing"] = _gen(0.2, _swing)
-	streams["hit"] = _gen(0.22, _hit)
-	streams["hurt"] = _gen(0.25, _hurt)
-	streams["fire"] = _gen(0.35, _fire)
-	streams["explode"] = _gen(0.5, _explode)
-	streams["heal"] = _gen(0.45, _heal)
+	for sound in FILES:
+		streams[sound] = _from_files(FILES[sound])
+	# sem arquivo: sintetizados
 	streams["frost"] = _gen(0.6, _frost)
-	streams["pickup"] = _gen(0.18, _pickup)
-	streams["coin"] = _gen(0.15, _coin)
-	streams["levelup"] = _gen(0.7, _levelup)
-	streams["click"] = _gen(0.05, _click)
 	streams["bloop"] = _gen(0.25, _bloop)
-	streams["slam"] = _gen(0.6, _slam)
-	streams["death"] = _gen(1.0, _death)
-	streams["quest"] = _gen(0.6, _quest)
-	streams["zap"] = _gen(0.3, _zap)
-	streams["gem"] = _gen(0.09, _gem)
 	streams["plant"] = _gen(0.22, _plant)
 	streams["water"] = _gen(0.5, _water)
 	streams["harvest"] = _gen(0.3, _harvest)
@@ -104,6 +116,20 @@ func _listener_pos() -> Variant:
 	return player.global_position
 
 
+## Um arquivo vira o próprio stream; vários viram um AudioStreamRandomizer que sorteia sem repetir
+## o último (o tom continua variando em play() por pitch_scale).
+func _from_files(files: Array) -> AudioStream:
+	if files.size() == 1:
+		return load(SFX_DIR % files[0])
+	var r := AudioStreamRandomizer.new()
+	r.playback_mode = AudioStreamRandomizer.PLAYBACK_RANDOM_NO_REPEATS
+	r.random_pitch = 1.0
+	r.random_volume_offset_db = 0.0
+	for f in files:
+		r.add_stream(-1, load(SFX_DIR % f))
+	return r
+
+
 func _gen(dur: float, f: Callable) -> AudioStreamWAV:
 	_lp = 0.0
 	var n := int(dur * RATE)
@@ -136,10 +162,6 @@ func _tone(t: float, freq: float) -> float:
 	return sin(TAU * freq * t)
 
 
-func _swing(t: float, d: float) -> float:
-	return _noise(0.05 + 0.4 * t / d) * sin(PI * t / d) * 1.6
-
-
 func _anvil(t: float, d: float) -> float:
 	# tinido metálico: parciais inarmônicas agudas, cada uma morre mais rápido que a anterior, + clique de ruído no ataque
 	var ring := (_tone(t, 1100.0) * exp(-t * 9.0) * 0.5
@@ -149,75 +171,12 @@ func _anvil(t: float, d: float) -> float:
 	return (ring + click) * _env(t, d, 0.001)
 
 
-func _hit(t: float, d: float) -> float:
-	return (_tone(t, 140.0 - 200.0 * t) * 0.8 + _noise(0.6) * 0.6) * _env(t, d, 0.002)
-
-
-func _hurt(t: float, d: float) -> float:
-	return sign(_tone(t, 260.0 - 300.0 * t)) * 0.35 * _env(t, d)
-
-
-func _fire(t: float, d: float) -> float:
-	return (_noise(0.15) * 1.2 + _tone(t, 320.0 - 500.0 * t) * 0.3) * _env(t, d, 0.03)
-
-
-func _explode(t: float, d: float) -> float:
-	return (_noise(0.08) * 2.0 + _tone(t, 70.0 - 40.0 * t) * 0.6) * _env(t, d, 0.005)
-
-
-func _heal(t: float, d: float) -> float:
-	var notes := [523.0, 659.0, 784.0]
-	var idx: int = min(2, int(t / 0.12))
-	return _tone(t, notes[idx]) * 0.35 * _env(fmod(t, 0.12) if idx < 2 else t - 0.24, 0.12 if idx < 2 else d - 0.24)
-
-
 func _frost(t: float, d: float) -> float:
 	return (_noise(0.7) * 0.4 + _tone(t, 1400.0 - 1000.0 * t) * 0.25) * _env(t, d, 0.01)
 
 
-func _pickup(t: float, d: float) -> float:
-	return _tone(t, 880.0 if t < 0.07 else 1320.0) * 0.3 * _env(t, d)
-
-
-func _coin(t: float, d: float) -> float:
-	return (_tone(t, 1600.0) + _tone(t, 2400.0) * 0.5) * 0.22 * _env(t, d, 0.002)
-
-
-func _levelup(t: float, d: float) -> float:
-	var notes := [523.0, 659.0, 784.0, 1046.0]
-	var idx: int = min(3, int(t / 0.12))
-	return (_tone(t, notes[idx]) + _tone(t, notes[idx] * 2.0) * 0.2) * 0.3 * (1.0 - t / d)
-
-
-func _click(t: float, d: float) -> float:
-	return _tone(t, 700.0) * 0.25 * _env(t, d, 0.001)
-
-
 func _bloop(t: float, d: float) -> float:
 	return _tone(t, 500.0 - 1400.0 * t) * 0.45 * _env(t, d)
-
-
-func _slam(t: float, d: float) -> float:
-	return (_noise(0.04) * 2.5 + _tone(t, 55.0) * 0.8) * _env(t, d, 0.003)
-
-
-func _death(t: float, d: float) -> float:
-	return (_tone(t, 220.0 - 150.0 * t) * 0.4 + _tone(t, 110.0 - 70.0 * t) * 0.3) * (1.0 - t / d)
-
-
-func _zap(t: float, d: float) -> float:
-	var crackle := _noise(0.9) * (0.6 if fmod(t, 0.03) < 0.015 else 0.2)
-	return (crackle + _tone(t, 1800.0 - 4000.0 * t) * 0.2) * _env(t, d, 0.002)
-
-
-func _gem(t: float, d: float) -> float:
-	return (_tone(t, 1900.0 + 3000.0 * t) * 0.25) * _env(t, d, 0.002)
-
-
-func _quest(t: float, d: float) -> float:
-	var notes := [659.0, 784.0, 988.0]
-	var idx: int = min(2, int(t / 0.15))
-	return _tone(t, notes[idx]) * 0.3 * (1.0 - t / d)
 
 
 func _plant(t: float, d: float) -> float:
