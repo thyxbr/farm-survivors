@@ -166,3 +166,22 @@ const BOW_RELEASE := [
 	[0.5, {"arm_l": Vector3(-1.4, 0.6, 0.05), "elbow_l": -0.15, "arm_r": Vector3(-1.1, -0.7, -0.4),
 		"elbow_r": -1.3, "twist": -0.55, "head_y": 0.5}],
 ]
+
+# ------------------------------------------------------------------ habilidades da espada
+## Investida (SwordAbilities.CHARGE_TIME = 0,6 s): preparo até 0,25 (agacha, espada para trás),
+## avanço até 0,67 (estocada com a lâmina à frente, em investida) e recuperação.
+const CHARGE := [
+	[0.2, {"arm_r": Vector3(0.75, 0.25, -0.35), "elbow_r": -1.1, "wrist_r": 1.2, "twist": -0.6,
+		"body_x": 0.42, "body_y": -0.08, "head_x": -0.3, "head_y": 0.3,
+		"arm_l": Vector3(-0.9, -0.3, 0.35), "elbow_l": -0.9,
+		"leg_l": -0.75, "knee_l": 1.15, "leg_r": 0.35, "knee_r": 0.95}, "out"],
+	[0.3, {"arm_r": Vector3(-1.35, 0.1, -0.05), "elbow_r": -0.08, "wrist_r": 1.55, "twist": 0.45,
+		"body_x": 0.5, "body_y": -0.05, "head_x": -0.35, "head_y": -0.15,
+		"arm_l": Vector3(0.7, 0.0, 0.45), "elbow_l": -0.4,
+		"leg_l": -0.95, "knee_l": 0.55, "leg_r": 0.65, "knee_r": 0.35}, "in"],
+	[0.66, {"arm_r": Vector3(-1.4, 0.05, -0.05), "elbow_r": -0.05, "wrist_r": 1.6, "twist": 0.5,
+		"body_x": 0.48, "arm_l": Vector3(0.75, 0.0, 0.5), "elbow_l": -0.35,
+		"leg_l": -0.9, "knee_l": 0.6, "leg_r": 0.6, "knee_r": 0.4}, "lin"],
+	[0.8, {"arm_r": Vector3(-1.1, 0.4, 0.1), "elbow_r": -0.3, "wrist_r": 1.4, "twist": 0.3,
+		"body_x": 0.25, "leg_l": -0.55, "knee_l": 0.7, "leg_r": 0.3, "knee_r": 0.3}, "out"],
+]

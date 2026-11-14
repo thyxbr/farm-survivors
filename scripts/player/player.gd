@@ -73,6 +73,11 @@ var invuln := 0.0
 var cast_timer := 0.0
 var stamina_delay := 0.0
 var shake := 0.0
+## Habilidade de arma em execução (SwordAbilities): id ("" = nenhuma), tempo desde o início e
+## rascunho dela ("nodes" são liberados e "mask" restaurada por end_ability()).
+var ability := ""
+var ability_t := 0.0
+var ability_data := {}
 var cooldowns := _make_cooldowns()   # todas as habilidades: a recarga continua ao trocar de arma
 var interact_target: Node3D = null
 var spawn_point := Vector3(0, 0.5, 6)
@@ -157,6 +162,7 @@ func _ready() -> void:
 	Game.inventory_changed.connect(_update_equipment_visual)
 	Game.leveled_up.connect(_on_level_up)
 	Game.food_eaten.connect(_on_food_eaten)
+	Game.kit_changed.connect(end_ability)
 	_update_equipment_visual()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -256,6 +262,8 @@ func _local_process(delta: float) -> void:
 	_tick_timers(delta)
 	_regen(delta)
 
+	if input_locked or horde_frozen or chat_typing or build_lock:
+		end_ability()
 	if input_locked or horde_frozen or chat_typing:
 		velocity.x = move_toward(velocity.x, 0, 45 * delta)
 		velocity.z = move_toward(velocity.z, 0, 45 * delta)
@@ -276,7 +284,9 @@ func _local_process(delta: float) -> void:
 	if dir.length() > 1.0:
 		dir = dir.normalized()
 
-	var sprinting := Input.is_action_pressed("sprint") and dir.length() > 0.1 and Game.stamina > 1.0 and not attacking and not drawing
+	var busy := ability != ""
+	var sprinting := Input.is_action_pressed("sprint") and dir.length() > 0.1 and Game.stamina > 1.0 and not attacking and not drawing \
+		and not busy
 	if sprinting:
 		Game.stamina = max(0.0, Game.stamina - 20.0 * delta)
 		stamina_delay = 0.6
@@ -288,7 +298,9 @@ func _local_process(delta: float) -> void:
 	elif cast_timer > 0:
 		speed *= 0.6
 
-	if dodge_timer > 0:
+	if busy:
+		SwordAbilities.tick(self, delta)   # controla a velocidade horizontal (e pode terminar)
+	elif dodge_timer > 0:
 		dodge_timer -= delta
 		velocity.x = dodge_dir.x * DODGE_SPEED
 		velocity.z = dodge_dir.z * DODGE_SPEED
@@ -310,12 +322,18 @@ func _local_process(delta: float) -> void:
 		velocity.x = hv.x
 		velocity.z = hv.z
 
-	if Input.is_action_just_pressed("jump") and is_on_floor() and not attacking and dodge_timer <= 0:
+	if Input.is_action_just_pressed("jump") and is_on_floor() and not attacking and dodge_timer <= 0 and not busy:
 		velocity.y = JUMP_VELOCITY
 	if Input.is_action_just_pressed("dodge") and not build_lock:
-		_try_dodge(dir)
+		if not busy:
+			_try_dodge(dir)
+		elif SwordAbilities.can_dodge_cancel(self):
+			end_ability()
+			_try_dodge(dir)
 	if build_lock:
 		_cancel_draw()
+	elif busy:
+		pass   # habilidade em execução: sem ataque nem arco
 	elif look["class"] == "bow":
 		_update_bow(delta)
 	elif Input.is_action_just_pressed("attack"):
@@ -359,7 +377,7 @@ func _local_process(delta: float) -> void:
 		face = dodge_dir
 	elif dir.length() > 0.1:
 		face = dir
-	if face != Vector3.ZERO:
+	if face != Vector3.ZERO and not busy:   # a habilidade mantém a direção em que começou
 		var turn := 22.0 if (attacking or cast_timer > 0 or drawing or dodge_timer > 0) else 13.0
 		model.rotation.y = lerp_angle(model.rotation.y, atan2(face.x, face.z), 1.0 - exp(-turn * delta))
 
@@ -649,7 +667,7 @@ func cast(id: String) -> void:
 	if not Game.knows_ability(id):
 		Game.notify.emit("%s exige nível %d" % [sp.name, sp.level], Color(1, 0.6, 0.6))
 		return
-	if cooldowns[id] > 0 or attacking or dodge_timer > 0:
+	if cooldowns[id] > 0 or attacking or dodge_timer > 0 or ability != "":
 		return
 	if sp.ultimate and not Game.fury_full():
 		Game.notify.emit("Fúria incompleta!", Color(1.0, 0.55, 0.3))
@@ -691,6 +709,36 @@ func cast(id: String) -> void:
 		"frost_nova":
 			_cast_frost_nova()
 	Game.stats_changed.emit()
+
+
+## Começa a habilidade de arma `id` (SwordAbilities.use e, nas réplicas, play_remote).
+func begin_ability(id: String, data := {}) -> void:
+	end_ability()
+	ability = id
+	ability_t = 0.0
+	ability_data = data
+	attacking = false
+	buffered_attack = false
+	_cancel_draw()
+
+
+## Encerra a habilidade em execução (fim normal, esquiva no preparo, morte, menu, troca de arma):
+## sem estado, sem velocidade especial, colisão e Engine.time_scale de volta ao normal.
+func end_ability() -> void:
+	if ability == "":
+		return
+	for n in ability_data.get("nodes", []):
+		if is_instance_valid(n):
+			n.queue_free()
+	if ability_data.has("mask"):
+		collision_mask = ability_data.mask
+	if not remote:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		Engine.time_scale = 1.0
+	ability = ""
+	ability_t = 0.0
+	ability_data = {}
 
 
 func _cast_fireball() -> void:
@@ -838,6 +886,7 @@ func _clear_flash() -> void:
 
 func _die() -> void:
 	dead = true
+	end_ability()
 	Game.hp = 0
 	Game.clear_food()
 	attacking = false
@@ -918,6 +967,7 @@ const NF_DODGE := 4
 const NF_CAST := 8
 const NF_DEAD := 16
 const NF_DRAW := 32
+const NF_ABILITY := 64   ## habilidade de arma em execução (qual: pelo evento SwordAbilities.play_remote)
 
 
 func _net_send(delta: float) -> void:
@@ -926,7 +976,8 @@ func _net_send(delta: float) -> void:
 		return
 	_net_send_t = maxf(_net_send_t + 1.0 / Network.SEND_RATE, 0.0)
 	var flags := (NF_FLOOR if is_on_floor() else 0) | (NF_ATTACK if attacking else 0) \
-		| (NF_DODGE if dodge_timer > 0 else 0) | (NF_CAST if cast_timer > 0 else 0) | (NF_DEAD if dead else 0) | (NF_DRAW if drawing else 0)
+		| (NF_DODGE if dodge_timer > 0 else 0) | (NF_CAST if cast_timer > 0 else 0) | (NF_DEAD if dead else 0) | (NF_DRAW if drawing else 0) \
+		| (NF_ABILITY if ability != "" else 0)
 	Network.send_player_state(global_position, model.rotation.y, velocity, flags, combo, attack_timer)
 
 
@@ -954,6 +1005,10 @@ func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int,
 	elif attacking:
 		attacking = false
 		parts.Body.rotation.y = 0.0
+	# a habilidade da réplica termina sozinha pelo tempo; o estado sem a flag a encerra antes (esquiva,
+	# morte). Uma folga ignora estado atrasado que chegue depois do evento de início.
+	if flags & NF_ABILITY == 0 and ability != "" and ability_t > 0.2:
+		end_ability()
 	var now_dead := flags & NF_DEAD != 0
 	if now_dead and not dead:
 		dead = true
@@ -983,7 +1038,10 @@ func _remote_process(delta: float) -> void:
 		global_position = global_position.lerp(target, 1.0 - exp(-12.0 * delta))
 	model.rotation.y = lerp_angle(model.rotation.y, _net_yaw, 1.0 - exp(-15.0 * delta))
 	if dead:
+		end_ability()
 		return
+	if ability != "":
+		SwordAbilities.tick(self, delta)
 	dodge_timer = max(0.0, dodge_timer - delta)
 	cast_timer = max(0.0, cast_timer - delta)
 	if attacking:
@@ -1001,6 +1059,9 @@ func _start_cast_pose(kind: String) -> void:
 
 ## Efeitos das ações de outro jogador (só visuais: o dano já foi enviado pelo dono).
 func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
+	if kind.begins_with("sword_"):
+		SwordAbilities.play_remote(self, kind, a, b)
+		return
 	match kind:
 		"fireball":
 			_start_cast_pose(kind)
@@ -1117,7 +1178,7 @@ func _animate(delta: float) -> void:
 		p.foot_l = p.leg_l + p.knee_l + 0.3
 		p.foot_r = p.leg_r + p.knee_r + 0.3
 	# andando, o ciclo segue a pose sem o atraso da suavização (some na esquiva e volta aos poucos)
-	_cycle_w = lerpf(_cycle_w, 0.0 if dodge_timer > 0 else _amp * (1.0 - _air), 1.0 - exp(-6.0 * delta))
+	_cycle_w = lerpf(_cycle_w, 0.0 if dodge_timer > 0 or ability != "" else _amp * (1.0 - _air), 1.0 - exp(-6.0 * delta))
 	KnightAnim.follow_cycle(p, _cycle_w)
 
 	# golpes, arco e magias: trilhas de KnightMoves por cima da locomoção
@@ -1126,7 +1187,9 @@ func _animate(delta: float) -> void:
 	var arrow: Node3D = look.get("arrow")
 	if arrow and is_instance_valid(arrow):
 		arrow.visible = drawing
-	if cls == "bow" and drawing:
+	if ability != "":
+		SwordAbilities.pose(self, p)
+	elif cls == "bow" and drawing:
 		KnightAnim.bow_draw_pose(p, bow_charge())
 	elif cls == "bow" and attacking:
 		KnightAnim.bow_release_pose(p, attack_timer / BOW_RECOVER, _amp)

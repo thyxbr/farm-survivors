@@ -114,6 +114,44 @@ func _ready() -> void:
 	check(far_s.hp < far_hp and far_s.state == "chase",
 		"acerto de longe não é curado na hora (%.0f -> %.0f, %s)" % [far_hp, far_s.hp, far_s.state])
 
+	# --- Investida (espada, slot 1): avança pela frente atravessando o slime
+	var pos_c := player.global_position
+	var ch_s := _nearest("slime")
+	ch_s.global_position = ch_s.home
+	player.global_position = ch_s.global_position + Vector3(0, 0.3, 3.0)
+	player.model.rotation.y = PI   # olhando para -Z, para o slime
+	player.velocity = Vector3.ZERO
+	await wait(0.2)
+	player.global_position = ch_s.global_position + Vector3(0, 0.3, 3.0)
+	player.model.rotation.y = PI
+	player.cooldowns.sword_charge = 0.0
+	var ch_hp: float = ch_s.hp
+	var ch_from := player.global_position
+	player.use_slot(1)
+	check(player.ability == "sword_charge", "Investida começa (%s)" % player.ability)
+	await wait(0.6)
+	var ch_d := Vector2(player.global_position.x - ch_from.x, player.global_position.z - ch_from.z).length()
+	check(ch_s.hp < ch_hp, "Investida fere o slime no caminho (%.0f -> %.0f)" % [ch_hp, ch_s.hp])
+	check(ch_d >= 3.0 and ch_d <= 5.5, "Investida avança entre 3 e 5,5 m (%.2f)" % ch_d)
+	check(player.ability == "" and player.cooldowns.sword_charge > 0.0, "Investida termina e entra em recarga (%s, %.2f)" % [player.ability, player.cooldowns.sword_charge])
+	check(player.collision_mask == 1 | 4 | 8 and Vector2(player.velocity.x, player.velocity.z).length() < 0.01, "Investida não deixa colisão nem velocidade especial")
+	# end_ability limpa tudo; abrir menu (build_lock) encerra
+	player.cooldowns.sword_charge = 0.0
+	player.use_slot(1)
+	player.end_ability()
+	check(player.ability == "" and player.ability_t == 0.0, "end_ability limpa o estado")
+	player.cooldowns.sword_charge = 0.0
+	player.use_slot(1)
+	player.build_lock = true
+	await wait(0.05)
+	player.build_lock = false
+	check(player.ability == "", "menu (build_lock) encerra a habilidade")
+	Game.fury = 0.0
+	player.cooldowns.sword_charge = 0.0
+	player.global_position = pos_c
+	player.velocity = Vector3.ZERO
+	await wait(0.1)
+
 	# --- kits de habilidade por arma (começa de espada: weapon_class() == "sword")
 	var kit_weapon: String = Game.equipment.weapon
 	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_whirl"], "kit da espada (%s)" % [Game.ability_kit()])
