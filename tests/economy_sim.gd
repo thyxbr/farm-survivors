@@ -9,26 +9,53 @@ extends SceneTree
 ## --script os autoloads só existem a partir do primeiro quadro, então o script de ColonyData é carregado
 ## (load) no _process, e não referenciado pelo nome (o que falharia ao compilar este arquivo).
 ##
-## Modelo de cada dia (simplificado, sem combate nem covis/eventos):
-##  · começo do dia: o jogador gasta o estoque seguindo a lista de prioridades (abaixo) e treina aldeões até o
-##    pop_cap, guardando a comida da próxima era (mas sempre treina até ter 3 aldeões livres);
-##  · durante o dia: serrarias e pedreiras com 8 nós vivos e crew cheio (gather_rate × crew × duração do dia) e a
-##    coleta à mão de cada jogador (1,5 × uma serraria cheia: meta "Exploração"), metade numa repartição fixa
-##    por era (MANUAL_SPLIT) e metade no que falta para a próxima era;
+## Modelo de cada dia (sem combate):
+##  · começo do dia: o jogador gasta seguindo a lista abaixo, treina aldeões (fila de VILLAGER_TIME cada, só de
+##    dia, parada nos ERA_TIME em que a prefeitura avança de era, até o pop_cap e com a comida que sobra depois de
+##    guardar a da próxima era) e gasta de novo com os aldeões que saíram da fila;
+##  · durante o dia: cada serraria/pedreira produz gather_rate(staffing, nós vivos) × crew em PROD_STEPS passos; a
+##    cada NODE_YIELD_CAMP um nó do raio se esgota e volta em REGROW_DAYS (CAMP_NODES: quantos nós há no raio);
+##    a coleta à mão de cada jogador rende 1,5 × uma serraria cheia (meta "Exploração"), metade numa repartição
+##    fixa por era (MANUAL_SPLIT) e metade no que falta para a próxima era; ouro, ferro e cristal à mão ficam
+##    limitados ao que os veios do mapa rendem por dia (MAP_VEINS), para o grupo todo;
 ##  · noite: cada torre de arqueiros dá 60 / rate tiros (~60 s de combate ativo) e gasta ammo_per_night;
-##  · amanhecer: imposto normal, mercado, prefeitura, comida, salários e (em grupo) manutenção, como Colony.dawn.
-## O que se gasta durante o dia só é gasto no começo do dia seguinte (a madeira da noite mede a regra de bolso).
+##  · amanhecer: imposto normal, mercado, prefeitura, comida, salários, manutenção (em grupo) e a volta dos nós.
 ##
-## Lista do jogador, a cada gasto: abertura fixa em ordem (casa, fazenda, serraria, torre de arqueiros, pedreira,
-## quartel, mercado; o primeiro que não dá para pagar segura o resto; se faltar aldeão, cuida antes de moradia e
-## fazenda); depois casa quando faltar moradia, fazenda até sobrar FOOD_SURPLUS × era de comida por dia, torres
-## até a meta de defesa do dia (1 serraria a cada 6 torres), pesquisas da era atual em ordem, a próxima era
-## (o quartel nível 2 da era III entra aqui; sem dinheiro, junta para ela) e, na era III, soldados.
+## Lista do jogador: abertura em ordem (OPENING: casa, casa, fazenda, serraria, torre, pedreira, quartel, mercado;
+## o primeiro que não dá para pagar segura o resto; faltando aldeão, cuida antes de moradia e comida); depois a
+## próxima era assim que dá (com as pesquisas da era atual feitas; o quartel nível 2 da era III junto), pesquisas
+## da era atual em ordem, casa quando falta moradia, fazenda até sobrar FOOD_SURPLUS × era de comida por dia,
+## outra serraria/pedreira quando o bosque se esgota e o recurso faz falta, torres até a meta de defesa do dia
+## (1 serraria a cada 6 torres) e, só na era III, soldados. Sem dinheiro para a pesquisa ou a era, junta.
+##
+## O que deixa a simulação MAIS RÁPIDA que um jogador de verdade (as datas das eras são um limite otimista):
+##  · cada jogador passa o dia inteiro coletando à mão, sem caminhar até os nós, sem disputar nós com os colegas
+##    (fora os veios) e sem perder tempo construindo, caçando por diversão ou morrendo;
+##  · metade da coleta vai direto ao recurso que falta para a próxima era (o jogador sabe exatamente o que falta);
+##  · todo o estoque é gasto na hora, na melhor ordem, e construir não leva tempo nem precisa de lugar livre;
+##  · os nós no raio das serrarias/pedreiras (CAMP_NODES) vêm do melhor lugar do mapa, e a coleta à mão não
+##    esgota esses mesmos nós;
+##  · nenhuma construção é perdida à noite, não há reparo, deserção nem fome forçada por noites ruins;
+##  · a comida de caça conta como madeira por golpe, com os bichos sempre por perto.
+## O que a deixa MAIS LENTA: o que se ganha durante o dia só é gasto no dia seguinte; covis, eventos (caravana,
+## baú, meteoro, aldeões perdidos) e a ajuda do reino não entram; o imposto é sempre o normal; o tempo que a
+## coleta à mão "sobraria" quando os veios se esgotam não é reaproveitado.
 
 const DAYS := 15
 const PLAYERS := [1, 2, 4]
 const NIGHT_COMBAT := 60.0      # segundos de combate ativo por noite (ordem de grandeza da seção 15)
-const OPENING := ["house", "farm", "lumber_camp", "archer_tower", "quarry", "barracks", "market"]
+## Abertura em ordem (repetir = mais uma cópia). As cinco primeiras são o kit do dia 1 (meta "Começo").
+const OPENING := ["house", "house", "farm", "lumber_camp", "archer_tower", "quarry", "barracks", "market"]
+const DAY1_KIT := {"house": 2, "farm": 1, "lumber_camp": 1, "archer_tower": 1}
+## Nós vivos no raio (14 m) da 1ª, 2ª, 3ª... serraria/pedreira: o mínimo, em 30 sementes, do melhor lugar livre a
+## até 80 m do centro numa réplica em Python do gerador (ColonyNature.generate: bosques de 5-11 árvores, pedras
+## soltas e afloramentos de 5-7 pedras). A partir da última, repete. Cada NODE_YIELD_CAMP produzidos esgotam um
+## nó, que volta em REGROW_DAYS: a produção cai quando o bosque se esgota (gather_rate com os nós vivos).
+const CAMP_NODES := {"lumber_camp": [15, 14, 13, 12], "quarry": [9, 7, 6]}
+## Veios do mapa (ColonyNature.generate: _scatter de 4 de ouro, 7 de ferro e 6 cristais): [tipo de nó, quantos].
+const MAP_VEINS := {"gold": ["gold", 4], "iron": ["iron", 7], "crystal": ["crystal", 6]}
+const MAX_CAMPS := 3            # serrarias/pedreiras a mais quando o bosque/as pedras se esgotam
+const PROD_STEPS := 10          # passos por dia na produção das serrarias (os nós se esgotam no meio do dia)
 const CAMP_PER_TOWERS := 6      # regra de bolso: uma serraria cheia sustenta ~6 torres de arqueiros
 const FOOD_SURPLUS := 40       # o jogador quer sobrar tanta comida por dia (para treinar aldeões e para a era)
 ## Repartição do dia de coleta de cada jogador (fração do tempo) e quanto cada recurso rende em relação à madeira
@@ -55,6 +82,11 @@ var res := {}
 var citizens := 0
 var soldiers := 0
 var count := {}
+## Serrarias e pedreiras: {"kind", "live", "made", "back": [dias em que um nó volta]}.
+var camps: Array = []
+var era_today := false          # a prefeitura avançou de era hoje (ERA_TIME sem treinar aldeões)
+var trained_today := 0
+var day1 := {}                  # o que o jogador construiu no dia 1
 var barracks_lv := 0
 var techs: Array = []
 var log_rows: Array = []
@@ -103,6 +135,8 @@ func _run(p: int) -> void:
 	soldiers = 0
 	barracks_lv = 0
 	count = {"town_hall": 1}
+	camps = []
+	day1 = {}
 	log_rows = []
 	era2_day = 99
 	era3_day = 99
@@ -123,12 +157,19 @@ func _run(p: int) -> void:
 		food = CD.START_FOOD
 		citizens = CD.START_CITIZENS
 	print("\n=== %d jogador(es) ===" % p)
-	print("dia era  ouro comida madeira pedra ferro crist ald sold torres pesq munição mad-noite  casa/faz/serr/ped/merc/quartel")
+	print("dia era  ouro comida madeira pedra ferro crist ald sold torres pesq munição mad-noite  casa/faz/serr/ped/merc/quartel  nós vivos serr/ped")
 	for d in range(1, DAYS + 1):
 		day = d
 		var day_len: float = CD.DAY_LENGTH + (CD.FIRST_DAY_BONUS if d == 1 else 0.0)
+		era_today = false
+		trained_today = 0
+		# gasta, treina aldeões (fila de VILLAGER_TIME cada) e gasta de novo com os aldeões que saíram da fila
 		_spend()
-		_train()
+		_train(day_len)
+		_spend()
+		_train(day_len)
+		if d == 1:
+			day1 = count.duplicate()
 		_produce(day_len)
 		if d < 12:
 			max_wood_before_12 = maxi(max_wood_before_12, int(res.wood))
@@ -136,11 +177,11 @@ func _run(p: int) -> void:
 		var after := float(res.wood) - ammo
 		min_wood_night = mini(min_wood_night, int(floor(after)))
 		res.wood = maxi(0, int(floor(after)))
-		var row := "%3d %3s %5d %6d %7d %5d %5d %5d %3d %4d %6d %4d %7.1f %9d  %d/%d/%d/%d/%d/%d" % [d, CD.ERA_ROMAN[era], gold, food,
+		var row := "%3d %3s %5d %6d %7d %5d %5d %5d %3d %4d %6d %4d %7.1f %9d  %d/%d/%d/%d/%d/%d  %.1f/%.1f" % [d, CD.ERA_ROMAN[era], gold, food,
 			int(res.wood + ammo), res.stone, res.iron, res.crystal, citizens, soldiers, _count("archer_tower"),
 			techs.size(), ammo, int(floor(after)), _count("house"), _count("farm"), _count("lumber_camp"),
-			_count("quarry"), _count("market"), _count("barracks")]
-		print(row)
+			_count("quarry"), _count("market"), _count("barracks"), _live_avg("lumber_camp"), _live_avg("quarry")]
+		print(row + "  " + _short_of())
 		log_rows.append([d, era, gold, food, int(res.wood + ammo), int(floor(after)), _count("archer_tower"), techs.size()])
 		_dawn()
 
@@ -158,37 +199,58 @@ func _spend() -> void:
 func _spend_one() -> bool:
 	# abertura: em ordem; o primeiro que não dá para pagar segura o resto (o jogador junta para ele).
 	# Se o que segura é falta de aldeão, o jogador cuida do básico (moradia e comida para treinar)
+	var want := {}
 	for k in OPENING:
-		if _count(k) == 0:
+		want[k] = int(want.get(k, 0)) + 1
+		if _count(k) < int(want[k]):
 			if _build(k):
 				return true
 			if _crew(k) <= _free():
 				return false
 			return _basics()
+	# a próxima era assim que dá (com as pesquisas da era atual feitas): vem antes de casas, fazendas e torres extras
+	if era < 3 and _techs_left() == 0 and _try_era():
+		return true
+	# pesquisas da era atual (e das anteriores), em ordem, quando dá para pagar
+	for t in CD.TECH_ORDER:
+		if _tech_open(t) and _pay(CD.TECHS[t].cost):
+			techs.append(t)
+			_note_era1_techs()
+			return true
 	if _basics():
 		return true
+	# bosque ou pedras esgotados (menos da metade dos nós da produção cheia) e o recurso faz falta para a próxima
+	# era: monta outra mais adiante
+	for kind in ["lumber_camp", "quarry"]:
+		var r: String = CD.NODES[CD.BUILDINGS[kind].gather].res
+		if _count(kind) < MAX_CAMPS and _live_avg(kind) < CD.GATHER_FULL / 2.0 and _lacks(r) and _build(kind):
+			return true
 	var towers := _count("archer_tower")
 	if towers + 1 > CAMP_PER_TOWERS * _count("lumber_camp") and towers < _tower_goal() and _build("lumber_camp"):
 		return true
 	if towers < _tower_goal() and towers + 1 <= CAMP_PER_TOWERS * _count("lumber_camp") and _build("archer_tower"):
 		return true
-	# pesquisas da era atual (e das anteriores), em ordem; a que não dá para pagar segura o resto (junta para ela)
-	for t in CD.TECH_ORDER:
-		if techs.has(t) or int(CD.TECHS[t].era) > era or _count(CD.TECHS[t].at) == 0:
-			continue
-		if not _pay(CD.TECHS[t].cost):
-			return false
-		techs.append(t)
-		_note_era1_techs()
-		return true
-	# a próxima era: requisitos cumpridos e sem dinheiro, o jogador junta para ela
-	if era < 3:
-		return _try_era()
+	# falta pesquisa da era atual ou a próxima era: o jogador junta para elas (não gasta com soldados)
+	if _techs_left() > 0 or era < 3:
+		return false
 	if soldiers < 2 * era and soldiers < _army_cap() and _free() >= 1 and _pay(CD.UNITS.soldier.cost):
 		soldiers += 1
 		citizens -= 1
 		return true
 	return false
+
+
+## A pesquisa `t` está liberada e ainda não foi feita (era alcançada e a construção dela existe).
+func _tech_open(t: String) -> bool:
+	return not techs.has(t) and int(CD.TECHS[t].era) <= era and _count(CD.TECHS[t].at) > 0
+
+
+func _techs_left() -> int:
+	var n := 0
+	for t in CD.TECH_ORDER:
+		if _tech_open(t):
+			n += 1
+	return n
 
 
 ## Moradia para os aldeões que as construções pedem e fazenda até sobrar FOOD_SURPLUS de comida por dia por era
@@ -205,8 +267,11 @@ func _tower_goal() -> int:
 
 
 func _opening_done() -> bool:
+	var want := {}
 	for k in OPENING:
-		if _count(k) == 0:
+		want[k] = int(want.get(k, 0)) + 1
+	for k in want:
+		if _count(k) < int(want[k]):
 			return false
 	return true
 
@@ -230,6 +295,7 @@ func _try_era() -> bool:
 	if not _pay(CD.era_cost(era + 1, players)):
 		return false
 	era += 1
+	era_today = true
 	if era == 2:
 		era2_day = day
 	else:
@@ -252,6 +318,9 @@ func _build(kind: String) -> bool:
 	if not _pay(_cost(kind)):
 		return false
 	count[kind] = _count(kind) + 1
+	if CAMP_NODES.has(kind):
+		var ks: Array = CAMP_NODES[kind]
+		camps.append({"kind": kind, "live": int(ks[mini(_count(kind) - 1, ks.size() - 1)]), "made": 0.0, "back": []})
 	if kind == "barracks" and barracks_lv == 0:
 		barracks_lv = 1
 	return true
@@ -287,29 +356,54 @@ func _amount(r: String) -> int:
 	return int(res.get(r, 0))
 
 
-## Treina aldeões até o pop_cap enquanto houver comida (sem tocar na comida guardada para a próxima era).
-func _train() -> void:
-	var c: int = int(CD.VILLAGER_COST.food)
+## Treina aldeões até o pop_cap enquanto houver comida (sem tocar na comida guardada para a próxima era) e
+## tempo de dia na fila: VILLAGER_TIME por aldeão, sem treinar nos ERA_TIME em que a prefeitura avança de era.
+func _train(day_len: float) -> void:
+	var c: int = int(CD.villager_cost(1).food)
 	var keep := 0
 	if era < 3 and _era_ready() and _opening_done():
 		keep = int(CD.era_cost(era + 1, players).get("food", 0))
+	var slots := int(floor((day_len - (CD.ERA_TIME if era_today else 0.0)) / CD.VILLAGER_TIME))
 	# sempre treina até ter 3 aldeões livres para as próximas construções; além disso, só com a comida que sobra
-	while citizens + soldiers < _pop_cap() and food >= c and (_free() < 3 or food - c >= keep):
+	while trained_today < slots and citizens + soldiers < _pop_cap() and food >= c and (_free() < 3 or food - c >= keep):
 		food -= c
 		citizens += 1
+		trained_today += 1
 
 
 # ---------------------------------------------------------------- produção e consumo
 func _produce(day_len: float) -> void:
 	var eff := _staffing()
-	for kind in ["lumber_camp", "quarry"]:
-		var r: String = CD.NODES[CD.BUILDINGS[kind].gather].res
-		var per_s: float = CD.gather_rate(eff, CD.GATHER_FULL, _mult(r)) * _crew(kind) * _count(kind)
-		res[r] = int(res[r]) + int(per_s * day_len)
+	var dt := day_len / PROD_STEPS
+	for cp in camps:
+		var node: String = CD.BUILDINGS[cp.kind].gather
+		var r: String = CD.NODES[node].res
+		var got := 0.0
+		for i in PROD_STEPS:
+			var made: float = CD.gather_rate(eff, int(cp.live), _mult(r)) * _crew(cp.kind) * dt
+			got += made
+			cp.made = float(cp.made) + made
+			while float(cp.made) >= CD.NODE_YIELD_CAMP and int(cp.live) > 0:
+				cp.made = float(cp.made) - CD.NODE_YIELD_CAMP
+				cp.live = int(cp.live) - 1
+				cp.back.append(day + int(CD.REGROW_DAYS[node]))
+		res[r] = int(res[r]) + int(got)
+	# veios de ouro, de ferro e cristais são poucos no mapa: o grupo todo não colhe mais do que eles rendem por dia
+	# (MAP_VEINS × total ÷ dias para voltar); o tempo que sobraria fica para covis e eventos, que a simulação não
+	# conta (as recompensas e depósitos deles não entram: pessimista)
 	var split := _manual_split()
+	var budget := _manual_per_day() * players
+	var amounts := {}
 	for r in split:
+		var want := budget * float(split[r]) * float(MANUAL_YIELD[r])
+		if MAP_VEINS.has(r):
+			var node: String = MAP_VEINS[r][0]
+			var cap := float(MAP_VEINS[r][1]) * float(CD.NODES[node].total) / float(CD.REGROW_DAYS[node])
+			want = minf(want, cap)
+		amounts[r] = want
+	for r in amounts:
 		var mult := _mult(r) if r in ["wood", "stone"] else 1.0
-		var got := int(_manual_per_day() * players * float(split[r]) * float(MANUAL_YIELD[r]) * mult)
+		var got := int(float(amounts[r]) * mult)
 		if r == "food":
 			food += got
 		elif r == "gold":
@@ -353,7 +447,7 @@ func _night_ammo() -> float:
 
 func _dawn() -> void:
 	var eff := _staffing()
-	var tax: int = citizens * int(CD.TAX[1])
+	var tax: int = citizens * int(CD.TAX[1])   # imposto normal, o mesmo do treino (villager_cost(1))
 	var hall: int = int(CD.BUILDINGS.town_hall.gold) * era + (CD.TEAM_HALL_GOLD * (players - 1) if coop else 0)
 	var market := 0.0
 	for i in _count("market"):
@@ -374,6 +468,50 @@ func _dawn() -> void:
 		citizens -= n
 		starved += n
 		food = 0
+	_regrow(day + 1)
+
+
+## Falta o recurso `r` para a próxima era (na era III, para a pesquisa mais cara que ainda falta: 400).
+func _lacks(r: String) -> bool:
+	var goal: Dictionary = CD.era_cost(era + 1, players) if era < 3 else {r: 400}
+	return _amount(r) < int(goal.get(r, 0))
+
+
+## O que falta no fim do dia para a próxima era (e o quartel nível 2 da era III), para ler a tabela.
+func _short_of() -> String:
+	if era >= 3:
+		return ""
+	var goal: Dictionary = CD.era_cost(era + 1, players)
+	if era == 2 and barracks_lv < 2:
+		goal = CD.add_cost(goal, CD.upgrade_cost("barracks", 1))
+	var parts: Array[String] = []
+	for r in goal:
+		if _amount(r) < int(goal[r]):
+			parts.append("%s %d" % [CD.RES_SHORT[r], int(goal[r]) - _amount(r)])
+	return "falta: " + ", ".join(parts) if not parts.is_empty() else "era pronta"
+
+
+## Média de nós vivos por construção do tipo (GATHER_FULL quando não há nenhuma).
+func _live_avg(kind: String) -> float:
+	var n := 0
+	var live := 0
+	for cp in camps:
+		if cp.kind == kind:
+			n += 1
+			live += int(cp.live)
+	return float(CD.GATHER_FULL) if n == 0 else float(live) / n
+
+
+## Amanhecer do dia `d`: os nós cujo dia chegou voltam (como ColonyNature.regrow).
+func _regrow(d: int) -> void:
+	for cp in camps:
+		var keep: Array = []
+		for back in cp.back:
+			if d >= int(back):
+				cp.live = int(cp.live) + 1
+			else:
+				keep.append(back)
+		cp.back = keep
 
 
 func _food_in() -> float:
@@ -424,29 +562,12 @@ func _mult(key: String) -> float:
 
 
 # ================================================================ metas
-## O kit do dia 1 cabe no estoque inicial (recursos e aldeões; a comida inicial pode treinar aldeões).
-func day1_affordable(kit: Array) -> bool:
-	var owned := {}
-	var need := {}
-	var crew := 0
+## O jogador construiu no dia 1 o kit inicial (além da prefeitura) com o estoque inicial e os aldeões que treinou.
+func day1_bought(kit: Dictionary) -> bool:
 	for k in kit:
-		if k == "town_hall":
-			continue
-		var c: Dictionary = CD.coop_cost(k, int(owned.get(k, 0))) if coop else CD.BUILDINGS[k].cost
-		need = CD.add_cost(need, c)
-		owned[k] = int(owned.get(k, 0)) + 1
-		crew += int(CD.BUILDINGS[k].get("crew", 0))
-	var start_gold: int = (CD.COOP_START_GOLD + CD.COOP_GOLD_PER_PLAYER * (players - 1)) if coop else CD.START_GOLD
-	var start_food: int = CD.COOP_START_FOOD if coop else CD.START_FOOD
-	var start_cit: int = CD.COOP_START_CITIZENS if coop else CD.START_CITIZENS
-	var start := {"gold": start_gold, "food": start_food,
-		"wood": int(CD.START_RES.wood) + (CD.COOP_WOOD_PER_PLAYER * (players - 1) if coop else 0),
-		"stone": int(CD.START_RES.get("stone", 0))}
-	for r in need:
-		if int(start.get(r, 0)) < int(need[r]):
+		if int(day1.get(k, 0)) < int(kit[k]):
 			return false
-	var trainable := int(start_food / int(CD.VILLAGER_COST.food))
-	return crew <= start_cit + trainable
+	return true
 
 
 func _check_goals() -> void:
@@ -455,7 +576,7 @@ func _check_goals() -> void:
 	for t in CD.TECHS:
 		if int(CD.TECHS[t].era) == 3 and not techs.has(t):
 			era3_techs_left += 1
-	check(day1_affordable(["town_hall", "house", "house", "farm", "lumber_camp", "archer_tower"]), tag + "começo: dia 1 compra o kit inicial")
+	check(day1_bought(DAY1_KIT), tag + "começo: dia 1 compra o kit inicial (prefeitura + %s)" % str(day1))
 	check(era2_day >= 4 and era2_day <= 6, tag + "era II entre os dias 4 e 6 (dia %d)" % era2_day)
 	check(era3_day >= 9 and era3_day <= 12, tag + "era III entre os dias 9 e 12 (dia %d)" % era3_day)
 	check(min_wood_night > 0, tag + "madeira nunca zera à noite até o dia 15 (mínimo %d)" % min_wood_night)

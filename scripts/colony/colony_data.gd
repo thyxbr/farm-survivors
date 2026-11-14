@@ -66,7 +66,7 @@ const ERAS := {
 	1: {"name": "I · Aldeia", "cost": {}, "requires": {}},
 	2: {"name": "II · Vila", "cost": {"food": 150, "wood": 120, "stone": 120, "gold": 120},
 		"requires": {"lumber_camp": 1, "quarry": 1}},
-	3: {"name": "III · Cidade", "cost": {"food": 350, "wood": 300, "stone": 400, "gold": 300, "iron": 40, "crystal": 20},
+	3: {"name": "III · Cidade", "cost": {"food": 350, "wood": 300, "stone": 400, "gold": 300, "iron": 30, "crystal": 15},
 		"requires": {"barracks_level": 2}},
 }
 const ERA_ROMAN := ["", "I", "II", "III"]
@@ -113,11 +113,17 @@ static func villager_cost(tax: int) -> Dictionary:
 	return scale_cost(VILLAGER_COST, VILLAGER_TAX_MULT[clampi(tax, 0, VILLAGER_TAX_MULT.size() - 1)])
 
 
-## Custo para chegar à era `era` com `players` jogadores: cresce como as ondas (+TEAM_BUDGET por jogador além do primeiro).
+## Custo das eras em grupo: +ERA_TEAM_COST por jogador além do primeiro. O spec pedia +35% (como o teto das
+## ondas, WAVE_CAP); a simulação (tests/economy_sim.gd) mostrou o grupo de 4 na era II já no dia 3 com 35% e
+## com 45%, porque a coleta à mão cresce com cada jogador; com 50% a era II fica no dia 4.
+const ERA_TEAM_COST := 0.5
+
+
+## Custo para chegar à era `era` com `players` jogadores: +ERA_TEAM_COST por jogador além do primeiro.
 static func era_cost(era: int, players: int) -> Dictionary:
 	if not ERAS.has(era):
 		return {}
-	return scale_cost(ERAS[era].cost, 1.0 + TEAM_BUDGET * (maxi(1, players) - 1))
+	return scale_cost(ERAS[era].cost, 1.0 + ERA_TEAM_COST * (maxi(1, players) - 1))
 const UNIT_ORDER := ["militia", "soldier", "archer", "knight", "mage", "cannoneer"]
 
 ## Nós de recurso que o jogador coleta com o ataque normal: recurso, golpes para esgotar e total entregue.
@@ -133,7 +139,7 @@ const NODES := {
 const GATHER_RATE := 1.0 / 4.5
 const GATHER_FULL := 8
 const GATHER_TICK := 3.0           # segundos entre entregas
-const NODE_YIELD_CAMP := 24        # a cada tantas unidades produzidas, o nó vivo mais próximo se esgota
+const NODE_YIELD_CAMP := 60        # a cada tantas unidades produzidas, o nó vivo mais próximo se esgota
 
 ## Raio (a partir do centro do mapa) onde começam os anéis 1, 2 e 3.
 const RINGS := [52.0, 80.0, 105.0]
@@ -239,7 +245,7 @@ const COOP_MAX_PLAYERS := 6
 ## Cada jogador além do primeiro: ondas +TEAM_BUDGET e monstros +TEAM_HP de vida; a prefeitura rende +TEAM_HALL_GOLD/dia.
 const TEAM_BUDGET := 0.45
 const TEAM_HP := 0.1
-const TEAM_HALL_GOLD := 15
+const TEAM_HALL_GOLD := 30
 ## Multiplicador de custo por cópia já construída (casa: +10% por casa existente...).
 static var COST_GROWTH: Dictionary = {}
 ## Manutenção paga ao amanhecer, por nível da construção.

@@ -66,9 +66,9 @@ func _ready() -> void:
 	check(colony.can_place("cannon_tower", Vector3(14, 0, 14), 0.0).contains("era"), "torre de canhão exige era II")
 	check(colony.can_place("mage_tower", Vector3(14, 0, 14), 0.0).contains("era"), "torre arcana exige era II")
 	check(ColonyData.era_cost(2, 1) == ColonyData.ERAS[2].cost, "custo da era II")
-	check(ColonyData.era_cost(2, 3).gold == int(round(ColonyData.ERAS[2].cost.gold * (1.0 + 2 * ColonyData.TEAM_BUDGET)))
+	check(ColonyData.era_cost(2, 3).gold == int(round(ColonyData.ERAS[2].cost.gold * (1.0 + 2 * ColonyData.ERA_TEAM_COST)))
 		and ColonyData.era_cost(3, 1).crystal == ColonyData.ERAS[3].cost.crystal,
-		"em grupo a era custa +%d%% por jogador extra, como as ondas" % int(ColonyData.TEAM_BUDGET * 100))
+		"em grupo a era custa +%d%% por jogador extra" % int(ColonyData.ERA_TEAM_COST * 100))
 	check(ColonyData.TECHS.size() == 11, "11 pesquisas na tabela")
 
 	# --- regras de posicionamento
@@ -376,7 +376,7 @@ func _ready() -> void:
 	check(f.tax == colony.citizens * 2, "imposto normal = 2 por morador (%d)" % f.tax)
 	var farm_food := int(ColonyData.BUILDINGS.farm.food)
 	check(f.food_in == farm_food and f.workers == colony.busy(), "fazenda produz %d com todos os aldeões" % farm_food)
-	check(f.hall == 15, "prefeitura rende 15")
+	check(f.hall == int(ColonyData.BUILDINGS.town_hall.gold), "prefeitura rende %d" % int(ColonyData.BUILDINGS.town_hall.gold))
 
 	# --- recrutamento
 	var cit := colony.citizens
@@ -638,13 +638,17 @@ func _ready() -> void:
 	colony.dawn()
 	check(colony.day == day0 + 1, "amanhece um novo dia")
 	check(colony.treasury == g0 + f.gold_net, "amanhecer aplica impostos e salários (%d -> %d)" % [g0, colony.treasury])
-	# salários (3 cavaleiros + 2 = 47/dia) maiores que a renda (só a prefeitura, 15): alguns desertam
-	for i in 3:
-		colony.spawn_soldier("knight", Vector3(12, 0, 2))
-	await wait(0.1)
-	var before := colony.soldier_count()
+	# salários maiores que a renda (sem moradores, só a prefeitura e o comércio): alguns desertam
 	var cit_s := colony.citizens
 	colony.citizens = 0
+	for i in 3:
+		colony.spawn_soldier("knight", Vector3(12, 0, 2))
+	var extra := 0
+	while colony.salaries() <= int(colony.forecast().gold_in) and extra < 20:
+		colony.spawn_soldier("knight", Vector3(12, 0, 2))
+		extra += 1
+	await wait(0.1)
+	var before := colony.soldier_count()
 	colony.treasury = 0
 	colony.dawn()
 	await wait(0.1)

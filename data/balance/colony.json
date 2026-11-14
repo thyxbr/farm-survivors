@@ -8,8 +8,8 @@
 				"$v2": [7.4, 6.4]
 			},
 			"pop": 6,
-			"gold": 15,
-			"desc": "O coração da cidade: abriga 6 moradores e rende 15 ouro por dia. Se cair, a cidade cai."
+			"gold": 30,
+			"desc": "O coração da cidade: abriga 6 moradores e rende 30 ouro por dia por era. Se cair, a cidade cai."
 		},
 		"house": {
 			"name": "Casa",

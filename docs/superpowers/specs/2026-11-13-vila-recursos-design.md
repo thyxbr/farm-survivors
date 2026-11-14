@@ -281,7 +281,9 @@ e, enquanto dura, a prefeitura não treina aldeões.
 | III · Cidade | 500 comida, 450 madeira, 400 pedra, 400 ouro, 40 ferro, 20 cristal | 1 quartel nível 2 | nível 3; pesquisas da era III; +1 aldeão de `crew` nas serrarias e pedreiras |
 
 - O `needs_level: 2` do cavaleiro passa a ser `needs_era: 2`. O nível da construção continua dando vida e produção.
-- A era é da cidade inteira. No co-op, os custos multiplicam por `1 + 0.35 × (jogadores − 1)`, como as ondas.
+- A era é da cidade inteira. No co-op, os custos multiplicam por `1 + 0.5 × (jogadores − 1)` (`ERA_TEAM_COST`).
+  O plano era `0.35`, como o teto das ondas; a simulação da seção 18 mostrou o grupo de 4 chegando à era II no
+  dia 3 com 0.35 e com 0.45 (a coleta à mão cresce com cada jogador), e com 0.5 a era II fica no dia 4.
 
 ### 17. Pesquisas
 
