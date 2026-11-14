@@ -493,6 +493,25 @@ func _clean_look(look: Dictionary) -> Dictionary:
 	for s in ItemDB.SLOTS:
 		var v := str(look.get(s, ""))
 		out[s] = v if ItemDB.ITEMS.has(v) else ""
+	out["fx"] = _clean_fx(look.get("fx"))
+	return out
+
+
+## Efeitos visuais do jogador (auras e encanto): só estilos e elementos conhecidos, sem repetir.
+func _clean_fx(fx) -> Dictionary:
+	var out := {"auras": [], "en": "", "lv": 0}
+	if not (fx is Dictionary):
+		return out
+	var auras = fx.get("auras")
+	if auras is Array:
+		for st in BuffAura.STYLES:
+			if st in auras:
+				out.auras.append(st)
+	var en := str(fx.get("en", ""))
+	var lv = fx.get("lv", 0)
+	if EnchantFX.ELEMENTS.has(en) and (lv is int or lv is float):
+		out.lv = clampi(int(lv), 0, EnchantFX.MAX_LEVEL)
+		out.en = en if out.lv > 0 else ""
 	return out
 
 

@@ -156,6 +156,7 @@ func _ready() -> void:
 	Game.inventory_changed.connect(_update_equipment_visual)
 	Game.leveled_up.connect(_on_level_up)
 	Game.food_eaten.connect(_on_food_eaten)
+	_vfx_setup()
 	_update_equipment_visual()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -200,6 +201,7 @@ func _process(delta: float) -> void:
 	_cam_y = lerpf(_cam_y, o.y, 1.0 - exp(-12.0 * delta))
 	_cam_y = clampf(_cam_y, o.y - 0.6, o.y + 0.6)
 	cam_yaw.global_position = Vector3(o.x, _cam_y + 1.55, o.z)
+	_vfx_sync()
 
 
 func _ready_remote() -> void:
@@ -840,6 +842,7 @@ var _last_look := {}
 
 func _update_equipment_visual() -> void:
 	var l: Dictionary = Game.equipment.duplicate()
+	l["fx"] = _vfx_state()   # auras e encanto vão junto com o visual (os outros jogadores veem)
 	if l == _last_look:
 		return
 	apply_look(l)
@@ -847,9 +850,15 @@ func _update_equipment_visual() -> void:
 
 
 func apply_look(l: Dictionary) -> void:
-	_last_look = l.duplicate()
+	# só os efeitos mudaram (buff entrou/saiu): não precisa remontar o equipamento
+	var gear_same: bool = _look_gear(l) == _look_gear(_last_look) and look["holder"] != null
+	_last_look = l.duplicate(true)
+	if gear_same:
+		_vfx_apply(l.get("fx", {}), false)
+		return
 	var old_class: String = look["class"]
 	look = KnightLook.apply(model, l)
+	_vfx_apply(l.get("fx", {}), true)
 	if old_class != look["class"]:
 		attacking = false
 		combo = 0
@@ -1098,3 +1107,125 @@ func _animate(delta: float) -> void:
 		_footstep -= delta * hspeed
 		if _footstep <= 0:
 			_footstep = 2.2
+
+
+# ------------------------------------------------------------ VFX (protótipo)
+## PROTÓTIPO (spike): auras (buffs de comida e, no futuro, habilidades) e brilho de encantamento.
+## O estado viaja dentro do visual do jogador (`look["fx"]`), então as réplicas dos outros
+## jogadores mostram os mesmos efeitos. Formato: {"auras": [estilos], "en": elemento, "lv": nível}.
+## Ainda não existe sistema de encantamento: F7 troca o elemento e F8 sobe o nível, só para ver.
+## Linha de comando: `--enchant=fogo,5`, `--buffs=spicy_soup,mint_tea`, `--auras=escudo,vento`.
+var vfx_aura: BuffAura
+var vfx_enchant_el := "fogo"
+var vfx_enchant_lv := 0
+var vfx_ability_auras := {}    # estilo -> true (auras ligadas por habilidades)
+var _vfx_sent := {}
+
+
+func _vfx_setup() -> void:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--enchant="):
+			var v := a.substr(10).split(",")
+			vfx_enchant_el = v[0]
+			vfx_enchant_lv = int(v[1]) if v.size() > 1 else EnchantFX.MAX_LEVEL
+		elif a.begins_with("--buffs="):
+			for id in a.substr(8).split(","):
+				Game.food_buffs[id] = 600.0
+		elif a.begins_with("--auras="):
+			for st in a.substr(8).split(","):
+				vfx_ability_auras[st] = true
+		elif a == "--vfxwalk":
+			_vfx_walk_demo()
+
+
+## `--vfxwalk`: anda em zigue-zague, pula e ataca sozinho (para gravar os efeitos em movimento).
+func _vfx_walk_demo() -> void:
+	await get_tree().create_timer(1.0).timeout
+	var t := 0
+	while is_inside_tree():
+		Input.action_press("move_forward")
+		if t % 6 < 3:
+			Input.action_press("move_left")
+			Input.action_release("move_right")
+		else:
+			Input.action_press("move_right")
+			Input.action_release("move_left")
+		if t % 2 == 1:
+			Input.action_press("attack")
+			await get_tree().create_timer(0.1).timeout
+			Input.action_release("attack")
+		if t % 5 == 4:
+			Input.action_press("jump")
+			await get_tree().create_timer(0.1).timeout
+			Input.action_release("jump")
+		t += 1
+		await get_tree().create_timer(0.5).timeout
+
+
+## Liga ou desliga uma aura por habilidade (estilos em BuffAura.STYLES). Soma com as de comida.
+func set_ability_aura(style: String, on: bool) -> void:
+	if on:
+		vfx_ability_auras[style] = true
+	else:
+		vfx_ability_auras.erase(style)
+	_update_equipment_visual()
+
+
+## Efeitos que este jogador deveria estar mostrando agora.
+func _vfx_state() -> Dictionary:
+	var want := vfx_ability_auras.duplicate()
+	for id in Game.food_buffs:
+		want[BuffAura.style_for(id)] = true
+	var auras: Array = []
+	for st in BuffAura.STYLES:     # ordem fixa: o mesmo conjunto dá sempre o mesmo dicionário
+		if want.has(st):
+			auras.append(st)
+	return {"auras": auras, "en": vfx_enchant_el if vfx_enchant_lv > 0 else "", "lv": vfx_enchant_lv}
+
+
+## Buff entrou ou saiu: reenvia o visual (local e pela rede).
+func _vfx_sync() -> void:
+	var st := _vfx_state()
+	if st != _vfx_sent:
+		_vfx_sent = st
+		_update_equipment_visual()
+
+
+## Equipamento sem os efeitos (para saber se as peças precisam ser remontadas).
+func _look_gear(l: Dictionary) -> Dictionary:
+	var g := l.duplicate()
+	g.erase("fx")
+	return g
+
+
+## Mostra os efeitos `fx` neste personagem (local ou réplica). `rebuilt` = as peças do modelo
+## acabaram de ser refeitas, então o contorno da aura precisa ser recolocado nelas.
+func _vfx_apply(fx: Dictionary, rebuilt: bool) -> void:
+	if Network.is_server():
+		return   # servidor dedicado: ninguém vê
+	var auras: Array = fx.get("auras", [])
+	if vfx_aura == null and not auras.is_empty():
+		vfx_aura = BuffAura.new()
+		model.add_child(vfx_aura)
+	if vfx_aura:
+		vfx_aura.set_styles(auras)
+		if rebuilt:
+			vfx_aura.refresh()
+	EnchantFX.apply(look, str(fx.get("en", "")), int(fx.get("lv", 0)))
+
+
+func _unhandled_key_input(ev: InputEvent) -> void:
+	if remote or not (ev is InputEventKey) or not ev.pressed or ev.echo:
+		return
+	var els: Array = EnchantFX.ELEMENTS.keys()
+	if ev.keycode == KEY_F7:
+		vfx_enchant_el = els[(els.find(vfx_enchant_el) + 1) % els.size()]
+		if vfx_enchant_lv == 0:
+			vfx_enchant_lv = 1
+	elif ev.keycode == KEY_F8:
+		vfx_enchant_lv = (vfx_enchant_lv + 1) % (EnchantFX.MAX_LEVEL + 1)
+	else:
+		return
+	_update_equipment_visual()
+	Game.notify.emit("Encanto de teste: %s +%d" % [EnchantFX.ELEMENTS[vfx_enchant_el].name, vfx_enchant_lv],
+		EnchantFX.ELEMENTS[vfx_enchant_el].color)

@@ -199,6 +199,30 @@ func _ready() -> void:
 		await wait(0.6)
 		for rp in Network.remote_players.values():
 			check(rp.look["class"] == "staff", "vê %s trocar para cajado" % rp.display_name)
+	# efeitos visuais (aura de buff/habilidade e encanto da arma) viajam com o visual
+	Game.food_buffs["spicy_soup"] = 60.0
+	w.player.set_ability_aura("escudo", true)
+	w.player.vfx_enchant_el = "gelo"
+	w.player.vfx_enchant_lv = 4
+	w.player._update_equipment_visual()
+	var my_fx: Dictionary = w.player._last_look.get("fx", {})
+	check(my_fx.get("auras", []) == ["escudo", "furia"] and my_fx.get("en", "") == "gelo" and my_fx.get("lv", 0) == 4,
+		"aura de comida + aura de habilidade + encanto no visual local")
+	check(w.player.look["class"] == "staff" and w.player.look["holder"] != null, "trocar só os efeitos não desmonta a arma")
+	if peers > 1:
+		check(await _wait_until(func() -> bool:
+			for rp in Network.remote_players.values():
+				var fx: Dictionary = rp._last_look.get("fx", {})
+				if fx.get("auras", []) != ["escudo", "furia"] or fx.get("en", "") != "gelo" or fx.get("lv", 0) != 4:
+					return false
+			return true, 6.0), "vê as auras e o encanto dos outros jogadores")
+		for rp in Network.remote_players.values():
+			check(rp.vfx_aura != null and rp.vfx_aura.styles() == ["escudo", "furia"], "aura montada na réplica de %s" % rp.display_name)
+			var hold: Node3D = rp.look.get("holder")
+			var mis: Array = hold.find_children("*", "MeshInstance3D", true, false) if hold else []
+			check(not mis.is_empty() and mis[0].material_overlay != null, "encanto aplicado na arma da réplica de %s" % rp.display_name)
+	Game.food_buffs.erase("spicy_soup")
+	w.player.set_ability_aura("escudo", false)
 
 	if horde_role != "":
 		await _test_horde(w)
