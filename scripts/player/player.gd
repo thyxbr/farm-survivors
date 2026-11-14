@@ -1011,8 +1011,11 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 			AUTO_WEAPONS.combo_fx_index(get_tree().current_scene, int(b.x), a)
 		"emote":
 			# índice em KnightEmotes.KINDS (fora da lista: ignora)
+			# -1 = o dono cancelou (andou, abriu o chat...); outros fora da lista: ignora
 			var i := int(a.x)
-			if i >= 0 and i < KnightEmotes.KINDS.size():
+			if i == -1:
+				emote = ""
+			elif i >= 0 and i < KnightEmotes.KINDS.size():
 				_start_emote(KnightEmotes.KINDS[i])
 		"horde_gear":
 			# armas automáticas do Desafio da Horda girando em volta do outro jogador
@@ -1109,6 +1112,8 @@ func _animate(delta: float) -> void:
 		var moved := hspeed > 1.0 or not on_floor or dead or attacking or dodge_timer > 0 or chat_typing
 		if moved or (d > 0.0 and _emote_t >= d):
 			emote = ""
+			if moved and not remote:
+				Network.send_event("emote", Vector3(-1, 0, 0))   # as réplicas param junto (o fim natural cada uma vê sozinha)
 		else:
 			p = KnightEmotes.pose(emote, _emote_t)
 

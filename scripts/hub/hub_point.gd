@@ -53,6 +53,7 @@ func _ready() -> void:
 			_build_records()
 		"building":
 			_build_base_building()
+	set_process(kind in ["passive_master", "merchant"])   # só os NPCs viram para o jogador
 	if kind == "records" or kind == "building":
 		Hub.changed.connect(_on_hub_changed)
 		_on_hub_changed()
@@ -90,11 +91,12 @@ func interact(_player: Node) -> void:
 
 
 func _process(delta: float) -> void:
-	if model == null or not (kind == "passive_master" or kind == "merchant"):
+	if model == null:
 		return
-	# o NPC vira para quem chega perto (como os da vila)
+	# o NPC vira para o jogador local quando ele chega perto (como os da vila; réplicas não contam)
 	_t += delta
-	var player := get_tree().get_first_node_in_group("player") as Node3D
+	var w := get_tree().current_scene
+	var player := w.get("player") as Node3D if w != null else null
 	var target := _base_yaw
 	if player and player.global_position.distance_to(global_position) < 7.0:
 		var to := player.global_position - global_position

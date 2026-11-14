@@ -24,17 +24,36 @@ var records := {}
 var pending_horde := false
 ## A próxima partida da Horda veio do portal da praça: no fim ela volta para a praça, não para a vila.
 var horde_return := false
+## Online: horde_return vence neste instante (ms) se a fila não abrir/continuar aberta. Cobre o servidor
+## recusar o pedido (partida em andamento) e a fila fechar sem o jogador (não chegou a tempo, recusou):
+## sem isso uma Horda aberta depois pelo portal da vila terminaria na praça.
+var _return_until := 0
+## Tempo para a fila aparecer depois do pedido (viagem até Valdoria + resposta do servidor) e para o
+## começo da partida chegar depois que a fila fecha (as duas mensagens podem vir em quadros diferentes).
+const RETURN_WAIT_MS := 10000
+const RETURN_GRACE_MS := 5000
 
 
 ## Portal da praça: a arena fica em Valdoria. Online abre/entra na fila no servidor (ele espera quem
 ## ainda está viajando, HORDE_TRAVEL_WAIT) e viaja; solo viaja e a partida começa ao chegar.
 func go_horde() -> void:
 	horde_return = true
+	_return_until = Time.get_ticks_msec() + RETURN_WAIT_MS
 	if Network.is_online():
 		Network.request_horde()
 	else:
 		pending_horde = true
 	Lobby.go_world()
+
+
+func _process(_delta: float) -> void:
+	if not horde_return or not Network.is_client():
+		return
+	var now := Time.get_ticks_msec()
+	if not Network.horde_lobby.is_empty():
+		_return_until = now + RETURN_GRACE_MS   # fila aberta: o pedido continua valendo
+	elif now > _return_until:
+		horde_return = false
 
 
 ## Solo (world.gd no fim do _ready): devolve e limpa o pedido de Horda vindo da praça.
