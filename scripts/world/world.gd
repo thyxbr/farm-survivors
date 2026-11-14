@@ -126,6 +126,8 @@ func _ready() -> void:
 		add_child(chat)
 		Game.notify.emit("Conectado como %s — %d jogador(es) online." % [Network.my_name, Network.players.size()], Color(0.6, 0.9, 1.0))
 		Network.world_ready(self)
+	elif Hub.take_pending_horde():
+		start_survival.call_deferred()   # solo: o portal da praça pediu a Horda
 
 
 func _exit_tree() -> void:
@@ -488,6 +490,7 @@ func start_survival() -> void:
 	survival.world = self
 	survival.player = player
 	survival.center = ARENA
+	survival.return_to_hub = Hub.take_horde_return()
 	add_child(survival)
 
 
@@ -508,6 +511,7 @@ func start_survival_net(team: Dictionary, slot: int, round_time: float) -> void:
 	survival.team = team
 	survival.my_slot = slot
 	survival.round_time = round_time
+	survival.return_to_hub = Hub.take_horde_return()
 	add_child(survival)
 
 

@@ -90,6 +90,11 @@ var horde_frozen := false
 var chat_typing := false
 ## Defesa da Cidade: no modo construção o clique posiciona prédios (sem atacar, esquivar ou conjurar).
 var build_lock := false
+## Praça: além do build_lock, sem poção de mana nem comida (lá não há combate).
+var peaceful := false
+## Emote em andamento (KnightEmotes.KINDS) ou "". Andar, pular ou abrir o chat cancela.
+var emote := ""
+var _emote_t := 0.0
 var name_tag: Label3D
 var _net_pos := Vector3.ZERO
 var _net_yaw := 0.0
@@ -325,9 +330,9 @@ func _local_process(delta: float) -> void:
 			cast(["fireball", "heal", "frost_nova"][i])
 	if Input.is_action_just_pressed("potion") and not build_lock:   # R gira a construção no modo construção
 		_quick_potion("health_potion")
-	if Input.is_action_just_pressed("mana_potion"):
+	if Input.is_action_just_pressed("mana_potion") and not peaceful:
 		_quick_potion("mana_potion")
-	if Input.is_action_just_pressed("eat"):
+	if Input.is_action_just_pressed("eat") and not peaceful:
 		Game.eat_selected()
 	if Input.is_action_just_pressed("food_next"):
 		Game.cycle_food()
@@ -965,6 +970,19 @@ func _remote_process(delta: float) -> void:
 	_animate(delta)
 
 
+## Emote do jogador local (teclas 1–3 na praça): toca aqui e avisa os outros pelo _player_event.
+func play_emote(kind: String) -> void:
+	if remote or dead or not (kind in KnightEmotes.KINDS) or not is_on_floor() or chat_typing:
+		return
+	_start_emote(kind)
+	Network.send_event("emote", Vector3(KnightEmotes.KINDS.find(kind), 0, 0))
+
+
+func _start_emote(kind: String) -> void:
+	emote = kind
+	_emote_t = 0.0
+
+
 ## Começa a pose de conjuração (jogador local e réplicas, pelo evento da magia).
 func _start_cast_pose(kind: String) -> void:
 	_cast_kind = kind
@@ -1004,6 +1022,13 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 			Sfx.play_at("zap", a, 0.15, -8.0)
 		"combo":
 			AUTO_WEAPONS.combo_fx_index(get_tree().current_scene, int(b.x), a)
+		"emote":
+			# índice em KnightEmotes.KINDS; -1 = o dono cancelou (andou, abriu o chat...); outros fora da lista: ignora
+			var i := int(a.x)
+			if i == -1:
+				emote = ""
+			elif i >= 0 and i < KnightEmotes.KINDS.size():
+				_start_emote(KnightEmotes.KINDS[i])
 		"horde_gear":
 			# armas automáticas do Desafio da Horda girando em volta do outro jogador
 			var aw: Node = get_node_or_null("HordeGear")
@@ -1091,6 +1116,18 @@ func _animate(delta: float) -> void:
 	# andando, o ciclo segue a pose sem o atraso da suavização (some na esquiva e volta aos poucos)
 	_cycle_w = lerpf(_cycle_w, 0.0 if dodge_timer > 0 else _amp * (1.0 - _air), 1.0 - exp(-6.0 * delta))
 	KnightAnim.follow_cycle(p, _cycle_w)
+
+	# emote: andar, pular, abrir o chat (ou cair, atacar, esquivar) cancela; senão a pose dele manda
+	if emote != "":
+		_emote_t += delta
+		var d := KnightEmotes.duration(emote)
+		var moved := hspeed > 1.0 or not on_floor or dead or attacking or dodge_timer > 0 or chat_typing
+		if moved or (d > 0.0 and _emote_t >= d):
+			emote = ""
+			if moved and not remote:
+				Network.send_event("emote", Vector3(-1, 0, 0))   # as réplicas param junto (o fim natural cada uma vê sozinha)
+		else:
+			p = KnightEmotes.pose(emote, _emote_t)
 
 	# golpes, arco e magias: trilhas de KnightMoves por cima da locomoção
 	var cls: String = look["class"]

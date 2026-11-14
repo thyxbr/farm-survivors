@@ -122,6 +122,8 @@ func _add_light(pos: Vector3, c: Color, energy: float, rng: float) -> void:
 func _set_max_hp(full_hp: bool) -> void:
 	var old_max := max_hp
 	max_hp = data.hp * ColonyData.level_mult(level, 0.4) * (colony.bld_hp_mult(kind) if colony and colony.has_method("bld_hp_mult") else 1.0)
+	if is_core and colony != null and colony.has_method("hall_hp_mult"):
+		max_hp *= colony.hall_hp_mult()   # Muralha da base (fixada no começo da partida)
 	if full_hp:
 		hp = max_hp
 	else:

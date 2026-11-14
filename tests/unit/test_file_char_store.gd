@@ -113,7 +113,7 @@ func test_character_service_on_files() -> void:
 	T.ok(r.ok, "comprou: %s" % r.err)
 	var rows := st.economy_rows()
 	T.eq(rows.size(), 2, "item + ouro registrados")
-	T.ok(svc.run_summary(1, "horde_run", 30, 12, {"health_potion": 2}), "resumo de partida")
+	T.ok(svc.finish_player(0, 1, "horde_run", 0, 30, 12, {"health_potion": 2}, {}).ok, "resumo de partida")
 	T.eq(st.economy_rows().size(), 3, "linha do resumo")
 	T.eq(st.economy_rows()[2]["source"], "horde_run", "modo")
 	svc.grant(1, 5, 0, {}, "horde_run")

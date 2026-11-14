@@ -1,0 +1,14 @@
+{
+	"ecos": {
+		"horde": {
+			"per": 3,
+			"bonus_every": 5,
+			"bonus": 10
+		},
+		"city": {
+			"per": 6,
+			"bonus_every": 5,
+			"bonus": 15
+		}
+	}
+}

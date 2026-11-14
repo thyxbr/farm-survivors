@@ -140,14 +140,14 @@ func test_grant_logs_source() -> void:
 	db.close()
 
 
-func test_kill_and_run_summary() -> void:
+func test_kill_and_run_finish() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	svc.load_or_create(2)
 	var r := svc.kill(2, "goblin", 10)
 	T.ok(r.ok, "abate")
 	T.eq(r.state.kills, 1, "contou abate")
-	svc.run_summary(2, "horde_run", 30, 12, {"health_potion": 2})
+	svc.finish_player(0, 2, "horde_run", 0, 30, 12, {"health_potion": 2}, {})
 	var rows := db.query("SELECT * FROM economy_log WHERE kind = 'run'")
 	T.eq(rows.size(), 1, "uma linha por partida")
 	T.eq(rows[0]["source"], "horde_run", "modo")
