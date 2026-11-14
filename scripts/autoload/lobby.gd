@@ -237,7 +237,7 @@ func _enter_lobby() -> void:
 	var id := _sender()
 	if id == 0:
 		return
-	Network.server_set_zone(id, "lobby")
+	Network.server_set_zone(id, "hub")   # o salão é a praça até a cena nova (zona "hub")
 	_room_state.rpc_id(id, _room_view(), _record)
 
 
@@ -247,7 +247,7 @@ func _room_msg(kind: String) -> void:
 	var id := _sender()
 	if id == 0:
 		return
-	var in_lobby := Network.zone_of(id) == "lobby"
+	var in_lobby := Network.zone_of(id) == "hub"
 	match kind:
 		"create", "join":
 			if not in_lobby:
@@ -294,7 +294,7 @@ func _room_msg(kind: String) -> void:
 func _room_msg_enter(id: int) -> void:
 	if _room.is_empty() or _room.state != "running" or _city == null:
 		return
-	if Network.zone_of(id) != "lobby":
+	if Network.zone_of(id) != "hub":
 		return
 	if Network.zone_peers("city").size() >= ColonyData.COOP_MAX_PLAYERS:
 		_notice.rpc_id(id, "A cidade está cheia (%d jogadores)." % ColonyData.COOP_MAX_PLAYERS)
@@ -329,7 +329,7 @@ func _broadcast_room() -> void:
 
 
 func _lobby_say(text: String, color: Color) -> void:
-	for pid in Network.zone_peers("lobby"):
+	for pid in Network.zone_peers("hub"):
 		_city_say.rpc_id(pid, text, color)
 
 
@@ -365,7 +365,7 @@ func server_city_left(id: int) -> void:
 	if _room.state == "running" and _colony() != null:
 		_colony().say("%s saiu da cidade." % _name(id), Color(0.8, 0.8, 0.9))
 	if _room.members.is_empty() or (_room.state == "running" and Network.zone_peers("city").is_empty()
-			and _room.members.keys().all(func(pid) -> bool: return Network.zone_of(pid) != "lobby")):
+			and _room.members.keys().all(func(pid) -> bool: return Network.zone_of(pid) != "hub")):
 		if _room.state == "running":
 			_end_city("abandon", [id])   # quem saiu por último também vê o resumo no salão
 		else:

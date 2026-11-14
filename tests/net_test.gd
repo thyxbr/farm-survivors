@@ -112,7 +112,7 @@ func _ready() -> void:
 		await wait(1.0)
 		_finish()
 		return
-	check(await _wait_until(func() -> bool: return Network.zone_of(multiplayer.get_unique_id()) == "lobby", 5.0),
+	check(await _wait_until(func() -> bool: return Network.zone_of(multiplayer.get_unique_id()) == "hub", 5.0),
 		"servidor vê o jogador no salão")
 	if city_role != "":
 		await _test_city()
@@ -764,7 +764,7 @@ func _test_city() -> void:
 	await wait(0.5 if city_role == "join" else 2.5)
 	Lobby.go_lobby()
 	check(await _wait_until(func() -> bool: return _in_lobby(), 10.0), "voltou ao salão")
-	check(await _wait_until(func() -> bool: return Network.zone_of(multiplayer.get_unique_id()) == "lobby", 5.0), "servidor vê o jogador de volta no salão")
+	check(await _wait_until(func() -> bool: return Network.zone_of(multiplayer.get_unique_id()) == "hub", 5.0), "servidor vê o jogador de volta no salão")
 	if city_role == "lead":
 		check(await _wait_until(func() -> bool: return Lobby.room.is_empty(), 8.0), "partida encerrada quando todos saíram")
 		check(int(Lobby.record.get("day", 0)) >= 1, "recorde do servidor registrado (%d)" % int(Lobby.record.get("day", 0)))

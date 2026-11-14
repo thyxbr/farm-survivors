@@ -120,7 +120,10 @@ func request(op: String, args: Array = []) -> void:
 	if not ensure_solo():
 		_deliver(op, args, {"ok": false, "err": "sem_banco", "events": [], "state": {}})
 		return
-	_deliver(op, args, _svc.apply(SOLO_ACCOUNT, op, args))
+	var r := _svc.apply(SOLO_ACCOUNT, op, args)
+	_deliver(op, args, r)
+	if op == "donate" and r.ok:
+		Hub.refresh_solo()   # a base mudou: a praça redesenha (online quem avisa é o servidor)
 
 
 ## Concessão (loot, missão, prêmio de partida). Só offline: online quem concede é o servidor
@@ -151,6 +154,7 @@ func kill(kind: String, xp: int) -> void:
 	_deliver("kill", [kind, xp], _svc.kill(SOLO_ACCOUNT, kind, xp))
 
 
+## Obsoleta: a Task 4 apaga junto com os chamadores; use run_start/run_finish.
 ## Fim de uma partida (Horda "horde", Defesa da Cidade "city"): uma linha de resumo no registro da economia
 ## do personagem solo — as concessões da partida usam origens que não são registradas uma a uma
 ## (CharacterService.UNLOGGED_SOURCES). Online não faz nada: quem grava é o servidor
@@ -159,6 +163,59 @@ func run_summary(mode: String, gold: int, xp: int, items: Dictionary) -> bool:
 	if Network.is_online() or not ensure_solo():
 		return false
 	return _svc.run_summary(SOLO_ACCOUNT, mode, gold, xp, items)
+
+
+## Começo de uma partida no solo: abre o registro (runs) e devolve o run_id. Online não faz nada (0): quem
+## registra é o servidor.
+func run_start(mode: String) -> int:
+	if Network.is_online() or not ensure_solo():
+		return 0
+	return _svc.start_run(mode, [SOLO_ACCOUNT])
+
+
+## Fim de uma partida no solo: concede os Ecos (CharacterService.finish_player), fecha o registro da partida
+## (vale para o recorde) e entrega o estado. Devolve os Ecos ganhos. Online não faz nada (0).
+func run_finish(run_id: int, mode: String, reached: int, gold: int, xp: int, items: Dictionary, build := {}) -> int:
+	if Network.is_online() or not ensure_solo():
+		return 0
+	var r := _svc.finish_player(run_id, SOLO_ACCOUNT, mode, reached, gold, xp, items, build)
+	if r.ok and run_id > 0:
+		_svc.close_run(run_id, reached, {})
+	_deliver("run_finish", [run_id, mode, reached], r)
+	if not r.ok:
+		return 0
+	for e in r.events:
+		if e.get("t") == "ecos":
+			return int(e.get("n", 0))
+	return 0
+
+
+## Solo: estado da base local ({id: {"level", "fund"}}). Online {}: a base é do servidor (Hub.base).
+func base_state() -> Dictionary:
+	if Network.is_online() or not ensure_solo():
+		return {}
+	return _svc.base_state()
+
+
+## Solo: bônus da base local. Online {} (Hub.base_bonus() usa a base que veio do servidor).
+func base_bonus() -> Dictionary:
+	if Network.is_online() or not ensure_solo():
+		return {}
+	return _svc.base_bonus()
+
+
+## Solo: recorde de cada modo ({"horde": {"reached", "names"}, "city": ...}). Online {} (Hub.records).
+func records() -> Dictionary:
+	if Network.is_online() or not ensure_solo():
+		return {}
+	return _svc.records()
+
+
+## Solo: maiores doadores de uma construção ([{"name", "amount"}]). Online [] (vem em Hub.base).
+func top_donors(id: String) -> Array:
+	if Network.is_online() or not ensure_solo():
+		return []
+	return _svc.top_donors(id)
 
 
 ## Recorde de partida (horde_best/city_best) no personagem solo. Online só no espelho: o servidor grava
@@ -181,6 +238,15 @@ func request_test_gold(amount: int) -> void:
 	_seq += 1
 	_pending[_seq] = {"op": "test_gold", "args": [amount]}
 	_grant_test_gold.rpc_id(1, _seq, amount)
+
+
+## Cliente online, servidor em --test: pede Ecos de teste (resposta como op "test_ecos").
+func request_test_ecos(amount: int) -> void:
+	if not Network.is_client():
+		return
+	_seq += 1
+	_pending[_seq] = {"op": "test_ecos", "args": [amount]}
+	_grant_test_ecos.rpc_id(1, _seq, amount)
 
 
 func pending_count() -> int:
@@ -514,6 +580,9 @@ func _econ_req(seq: int, op: String, args: Array) -> void:
 		return
 	var r := Network.characters.apply(account, op, args)
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
+	if op == "donate" and r.ok:
+		# a base é de todos: o servidor manda o estado novo a quem está conectado
+		Hub.server_base_changed(account, r.events)
 
 
 ## Só atualiza o cache (CharacterService.report); grava no próximo pedido, na saída ou no flush periódico.
@@ -539,6 +608,17 @@ func _grant_test_gold(seq: int, amount: int) -> void:
 		_reply_no_session(seq)
 		return
 	var r := Network.characters.grant_test_gold(account, amount, _test_server)
+	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
+
+
+## Só com o servidor em --test (net_test): Ecos para os testes de passiva e doação.
+@rpc("any_peer", "call_remote", "reliable")
+func _grant_test_ecos(seq: int, amount: int) -> void:
+	var account := _sender_account()
+	if account <= 0:
+		_reply_no_session(seq)
+		return
+	var r := Network.characters.grant_test_ecos(account, amount, _test_server)
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
 
 

@@ -195,9 +195,9 @@ func _refresh() -> void:
 	ids.sort()
 	for id in ids:
 		var info: Dictionary = Network.players[id]
-		var zone := str(info.get("zone", "lobby"))
+		var zone := str(info.get("zone", "hub"))
 		var l := UITheme.label("%s%s — %s" % [info.name, " (você)" if id == me else "", _zone_text(zone)], 16,
-			UITheme.GOLD if id == me else (UITheme.TEXT if zone == "lobby" else UITheme.DIM))
+			UITheme.GOLD if id == me else (UITheme.TEXT if zone == "hub" else UITheme.DIM))
 		_players_box.add_child(l)
 	var rec: Dictionary = Lobby.record
 	if int(rec.get("day", 0)) > 0:
@@ -414,7 +414,7 @@ func _refresh_knights() -> void:
 		return
 	var here: Array = []
 	for id in Network.players:
-		if str(Network.players[id].get("zone", "lobby")) == "lobby":
+		if str(Network.players[id].get("zone", "hub")) == "hub":
 			here.append(id)
 	here.sort()
 	for id in _knights.keys():

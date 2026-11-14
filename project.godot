@@ -26,6 +26,7 @@ Network="*res://scripts/autoload/network.gd"
 Econ="*res://scripts/autoload/econ.gd"
 Auth="*res://scripts/autoload/auth.gd"
 Lobby="*res://scripts/autoload/lobby.gd"
+Hub="*res://scripts/autoload/hub.gd"
 Updater="*res://scripts/autoload/updater.gd"
 
 [display]

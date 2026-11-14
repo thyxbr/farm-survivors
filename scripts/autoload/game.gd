@@ -41,6 +41,9 @@ var equipment := empty_equipment()
 var quests := {}            # id -> {"state": "active"|"ready"|"done", "progress": int}
 var flags := {}
 var kills := 0
+## Ecos (moeda permanente das partidas) e passivas permanentes {id: nível}.
+var ecos := 0
+var passives := {}
 ## {"unlocked": int, "plots": [{"crop", "growth" 0..1 em "t", "t" unix s, "watered", "fert"}]}
 ## O crescimento corre pelo relógio: leia plot_growth(i), não plots[i].growth.
 var farm := {}
@@ -63,6 +66,8 @@ var food_mods := {}
 var food_buffs := {}        # id da comida -> segundos restantes
 var eat_cooldown := 0.0
 var selected_food := ""
+## Bônus das passivas permanentes (CharRules.meta_mods), recalculados em apply_state e somados em mod().
+var meta_mods := {}
 
 
 func _ready() -> void:
@@ -309,9 +314,9 @@ func damage_mult() -> float:
 	return mod("damage")
 
 
-## Valor efetivo de um bônus: Desafio da Horda + comida.
+## Valor efetivo de um bônus: Desafio da Horda + comida + passivas permanentes.
 func mod(k: String) -> float:
-	return float(run_mods.get(k, 0.0)) + float(food_mods.get(k, 0.0))
+	return float(run_mods.get(k, 0.0)) + float(food_mods.get(k, 0.0)) + float(meta_mods.get(k, 0.0))
 
 
 # ---------------------------------------------------------------- atributos derivados
@@ -782,6 +787,9 @@ func apply_state(d: Dictionary, full := false) -> void:
 	flags = s.flags
 	kills = s.kills
 	farm = s.farm
+	ecos = s.ecos
+	passives = s.passives
+	meta_mods = CharRules.meta_mods(Balance.tables, passives)
 	if full:
 		reset_run_mods()
 		clear_food(true)

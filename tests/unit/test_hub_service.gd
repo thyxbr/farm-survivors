@@ -170,3 +170,31 @@ func test_solo_account_same_rules() -> void:
 	T.eq(d.state.ecos, 0, "debitou tudo")
 	T.eq(svc.top_donors("forja"), [{"name": "local", "amount": 20}], "doador local")
 	db.close()
+
+
+func test_donate_checks_ecos_against_used() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(db, _tables())
+	_with_ecos(svc, 2, 120)
+	db.exec("INSERT INTO base_buildings(building_id, level, fund) VALUES('forja', 4, 900)")
+	var r := svc.apply(2, "donate", ["forja", 500])
+	T.ok(r.ok, "doou o que faltava mesmo pedindo mais do que tem: %s" % r.err)
+	T.eq(r.state.ecos, 20, "debitou só 100")
+	T.eq(r.events[0].used, 100, "usado")
+	T.eq(r.base.forja.level, 5, "nível máximo")
+	db.close()
+
+
+func test_grant_test_ecos_only_in_test() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(db, _tables())
+	T.eq(svc.grant_test_ecos(2, 50, false).err, "sem_teste", "sem --test")
+	T.eq(svc.grant_test_ecos(2, 0, true).err, "valor_invalido", "zero")
+	T.eq(svc.grant_test_ecos(2, CharacterService.TEST_GOLD_MAX + 1, true).err, "valor_invalido", "acima do teto")
+	var r := svc.grant_test_ecos(2, 300, true)
+	T.ok(r.ok, "concedeu: %s" % r.err)
+	T.eq(r.state.ecos, 300, "ecos no estado")
+	var rows := db.query("SELECT * FROM economy_log WHERE kind = 'ecos' AND source = 'test'")
+	T.eq(rows.size(), 1, "registrado")
+	T.eq(rows[0]["amount"], 300, "valor registrado")
+	db.close()

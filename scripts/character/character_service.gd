@@ -33,7 +33,8 @@ const ARGS := {
 	"donate": {"types": [TYPE_STRING, TYPE_INT], "optional": 0},
 }
 
-## Concessões dessas origens acontecem a cada coleta durante a partida: o registro é um só, no fim (run_summary).
+## Concessões dessas origens acontecem a cada coleta durante a partida: o registro é um só, no fim
+## (finish_player, que também concede os Ecos da partida).
 const UNLOGGED_SOURCES := ["horde_run", "city_night"]
 ## Recordes de partida que o servidor/solo grava no personagem (set_record).
 const RECORD_KEYS := ["horde_best", "city_best"]
@@ -193,6 +194,18 @@ func grant_test_gold(account_id: int, amount: int, enabled: bool) -> Dictionary:
 	return grant(account_id, amount, 0, {}, "test")
 
 
+## Ecos de teste: só com o servidor em --test (`enabled`), 1..TEST_GOLD_MAX. Registrado como "ecos"/"test".
+func grant_test_ecos(account_id: int, amount: int, enabled: bool) -> Dictionary:
+	if not enabled:
+		return _result(account_id, {"ok": false, "err": "sem_teste", "events": []})
+	if amount <= 0 or amount > TEST_GOLD_MAX:
+		return _result(account_id, {"ok": false, "err": "valor_invalido", "events": []})
+	var s := load_or_create(account_id)
+	var before := _holdings(s)
+	s.ecos += amount
+	return _result(account_id, _persist(account_id, s, before, "grant", "test", {"ok": true, "err": "", "events": []}))
+
+
 ## Obsoleta: a Task 4 apaga junto com os chamadores; use finish_player. Uma linha só, ouro em `amount` e xp + itens em `detail`.
 ## false (e push_error) se não gravou.
 func run_summary(account_id: int, mode: String, gold: int, xp: int, items: Dictionary) -> bool:
@@ -299,13 +312,14 @@ func save(account_id: int) -> bool:
 
 # ================================================================ interno
 ## Doação à base numa transação só: debita os Ecos, sobe a construção e registra a doação.
-## BaseRules valida construção/valor/nível máximo; só então confere os Ecos contra o valor pedido.
-## Debita só o `used` (nunca passa do que falta até o nível máximo).
+## BaseRules valida construção/valor/nível máximo; só então confere os Ecos contra o `used` (o que a
+## construção aceita, nunca passa do que falta até o nível máximo): pedir 500 quando faltam 100 com
+## 120 Ecos na mão doa 100.
 func _donate(account_id: int, s: CharState, building: String, amount: int) -> Dictionary:
 	var d := BaseRules.donate(base_state().get(building, {}), _bt, building, amount)
 	if not d.ok:
 		return _result(account_id, {"ok": false, "err": d.err, "events": []})
-	if s.ecos < amount:
+	if s.ecos < int(d.used):
 		return _result(account_id, {"ok": false, "err": "sem_ecos", "events": []})
 	s.ecos -= int(d.used)
 	var ok := _db.transaction(func():
