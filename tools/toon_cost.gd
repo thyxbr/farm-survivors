@@ -19,6 +19,7 @@ func _initialize() -> void:
 	var side := int(ceil(sqrt(_n)))
 	for i in _n:
 		var g := scene.instantiate() as Node3D
+		EnemyGear.apply(g, ["Club"])
 		root.add_child(g)
 		g.position = Vector3((i % side - side / 2.0) * 1.4, 0, -(i / side) * 1.4)
 		if _toon:

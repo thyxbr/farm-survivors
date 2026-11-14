@@ -710,6 +710,19 @@ func _setup_enemies() -> void:
 		spawns.append({"kind": "goblin_bruto", "pos": RUINS + off, "node": null, "timer": 0.0, "respawn": 150.0})
 	for p in [Vector3(30, 0, 44), Vector3(-30, 0, -72)]:
 		spawns.append({"kind": "goblin_dourado", "pos": p, "node": null, "timer": 0.0, "respawn": 240.0})
+	# esqueletos guardam o caminho das Ruínas (guerreiros na trilha, arqueiros nas pontas) e os fundos
+	# (o mago e o Cavaleiro), todos fora do alcance de quem luta com o rei no centro
+	for off in [Vector3(-5, 0, 24), Vector3(5, 0, 24), Vector3(0, 0, 30)]:
+		spawns.append({"kind": "esqueleto", "pos": RUINS + off, "node": null, "timer": 0.0, "respawn": 90.0})
+	for off in [Vector3(-14, 0, 22), Vector3(14, 0, 22)]:
+		spawns.append({"kind": "esqueleto_arqueiro", "pos": RUINS + off, "node": null, "timer": 0.0, "respawn": 100.0})
+	spawns.append({"kind": "esqueleto_mago", "pos": RUINS + Vector3(-18, 0, -12), "node": null, "timer": 0.0, "respawn": 150.0})
+	spawns.append({"kind": "esqueleto_cavaleiro", "pos": RUINS + Vector3(18, 0, -12), "node": null, "timer": 0.0, "respawn": 300.0})
+	# bombardeiros rondam o Acampamento Goblin e as slimes de gelo ficam no meio das comuns, nos campos
+	for off in [Vector3(-13, 0, 6), Vector3(12, 0, -10)]:
+		spawns.append({"kind": "goblin_bombardeiro", "pos": CAMP + off, "node": null, "timer": 0.0, "respawn": 90.0})
+	for p in [Vector3(-18, 0, -44), Vector3(16, 0, -54)]:
+		spawns.append({"kind": "slime_gelo", "pos": p, "node": null, "timer": 0.0, "respawn": 60.0})
 	# Ninho de Slimes: a mãe no meio, explosivos em volta dela e os velozes por fora
 	spawns.append({"kind": "slime_mae", "pos": NEST, "node": null, "timer": 0.0, "respawn": 120.0})
 	for i in 3:

@@ -175,8 +175,8 @@ const POIS := {
 	"haunted_ruins": {"name": "Ruínas Assombradas", "ring": 3,
 		"props": [["ruin_wall", Vector3(-5, 0, -4), 0.3], ["ruin_wall", Vector3(4, 0, -5), -0.4], ["ruin_pillar", Vector3(-6, 0, 3), 0.0],
 			["ruin_pillar", Vector3(6, 0, 3), 0.0], ["chest", Vector3(0, 0, -6.5), 0.0]],
-		"guards": [["goblin", 3], ["goblin_bruto", 1], ["slime_grande", 1], ["goblin_xama", 1]], "elite": 0.4,
-		"boss": "goblin_bruto", "boss_affix": "blindado", "boss_hp": 1.8,
+		"guards": [["esqueleto", 3], ["esqueleto_arqueiro", 2], ["esqueleto_mago", 1], ["goblin_bruto", 1]], "elite": 0.4,
+		"boss": "esqueleto_cavaleiro", "boss_affix": "blindado", "boss_hp": 1.3,
 		"reward": {"wood": 80, "stone": 120, "iron": 25, "crystal": 15, "gold": 150}, "deposit": ["crystal", 30]},
 }
 const DEN_WAKE := 45.0          # um jogador a até tantos metros acorda o covil (os guardas nascem)

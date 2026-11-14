@@ -429,7 +429,8 @@
 		"slime_veloz": [1.0, 2],
 		"goblin": [2.0, 2],
 		"slime_grande": [3.0, 4],
-		"goblin_bruto": [4.0, 3]
+		"goblin_bruto": [4.0, 3],
+		"esqueleto": [2.5, 4]
 	},
 	"cost_growth": {
 		"house": 0.1,

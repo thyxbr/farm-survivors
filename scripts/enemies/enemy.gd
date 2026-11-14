@@ -11,9 +11,12 @@ const PROVOKE_TIME := 4.0   # ver `provoked`
 const MODELS := {
 	"slime": preload("res://assets/models/slime.glb"),
 	"goblin": preload("res://assets/models/goblin.glb"),
+	"skeleton": preload("res://assets/models/skeleton.glb"),
 }
 ## Tipos de inimigo: vêm de data/balance/enemies.json (autoload Balance). "ai" muda o comportamento,
-## "tint" recolore o modelo do goblin, "bld" multiplica o dano em construções.
+## "tint" recolore o modelo, "bld" multiplica o dano em construções, "gear" lista as peças opcionais do
+## modelo que a variante usa (EnemyGear), "shot": "bolt" troca a flecha por um projétil mágico e "chill"
+## são os segundos de lentidão que o golpe corpo a corpo deixa no jogador.
 static var TYPES: Dictionary = {}
 
 @export var kind := "slime"
@@ -111,15 +114,15 @@ func _ready() -> void:
 	add_child(col)
 
 	model = MODELS[data.model].instantiate()
+	var no_gear := EnemyGear.apply(model, data.get("gear", []))
+	if not no_gear.is_empty():
+		push_warning("%s: o modelo %s não tem as peças %s" % [kind, data.model, str(no_gear)])
 	model.scale = Vector3.ONE * data.scale * (1.3 if elite else 1.0)
 	add_child(model)
 	if elite:
 		_make_elite_glow()
 	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head"]:
 		parts[n] = model.find_child(n, true, false)
-	var crown := model.find_child("Crown", true, false)
-	if crown:
-		crown.visible = is_boss
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
 		meshes.append(mi)
 	if data.model == "slime" and ToonLook.enabled():
@@ -551,6 +554,8 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 			var facing_ok := model_forward().dot(to_player.normalized()) > 0.2 or dist < 1.0
 			if facing_ok:
 				player.take_damage(data.damage * dmg_mult * randf_range(0.9, 1.1) * mult, global_position)
+				if data.has("chill") and player.has_method("apply_chill"):
+					player.apply_chill(float(data.chill))
 		if attack_kind == "swing":
 			Sfx.play_at("swing", global_position, 0.15, -4.0)
 	if attack_timer >= _attack_duration():
@@ -560,12 +565,14 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 
 ## Ataques especiais dos monstros novos. visual: réplica no cliente (só efeitos; o servidor aplica o dano).
 func _shoot(visual: bool) -> void:
+	var bolt: bool = data.get("shot", "") == "bolt"
 	Sfx.play_at("bow_shot", global_position, 0.1, -5.0)
 	var origin: Vector3 = global_position + Vector3.UP * 1.1 * float(data.scale) + model_forward() * 0.6
 	var arrow := ENEMY_ARROW.new()
 	arrow.direction = model_forward()
 	arrow.damage = 0.0 if visual else data.damage * dmg_mult
 	arrow.source = get_parent()
+	arrow.magic = bolt
 	get_parent().add_child(arrow)
 	arrow.global_position = origin
 
