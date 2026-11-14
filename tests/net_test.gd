@@ -277,6 +277,10 @@ func _ready() -> void:
 	if my_name == "Ana":
 		await _test_econ()
 
+	if peers > 1:
+		await _test_sword(w)
+		await _test_bow_staff(w)
+
 	if horde_role != "":
 		await _test_horde(w)
 
@@ -287,6 +291,113 @@ func _ready() -> void:
 	if relogin:
 		await _test_second_login_kicks_first()
 	_finish()
+
+
+# ---------------------------------------------------------------- habilidades da espada replicadas
+## Quem não é "join" (Ana) usa as três habilidades; o outro (Beto) vê a réplica de Ana entrar em cada uma.
+## Que o servidor dedicado não cria nós de efeito não dá para ver daqui (o cliente só enxerga os próprios nós):
+## isso é conferido no smoke test (FX._scene() nulo com Network.mode == SERVER).
+func _test_sword(w: Node) -> void:
+	# a espada inicial voltou para a mochila quando o cajado foi equipado (o cliente online não se dá itens)
+	Game.equip("azure_edge")
+	await _wait_until(func() -> bool: return Game.equipment.weapon == "azure_edge", 3.0)
+	await wait(1.0)
+	await wait(Network.CHAT_WINDOW)   # o anti-spam do chat (teste anterior) precisa esvaziar para os avisos de sincronia passarem
+	await _sync("sword_in")
+	var actor := horde_role != "join"
+	var lvl0 := Game.level
+	if actor:
+		Game.level = 8
+		Game.fury = 100.0
+		await wait(0.5)
+		for id in ["sword_charge", "sword_quake", "sword_whirl"]:
+			check(SwordAbilities.use(w.player, id), "%s começa" % id)
+			await wait(0.3)
+			await _wait_until(func() -> bool: return w.player.ability == "", 4.0)
+			await wait(0.4)
+		check(w.player.ability == "", "habilidades da espada terminam")
+	else:
+		var seen := {}
+		var rp = Network.remote_players.values()[0]
+		var t := 0.0
+		while t < 9.0 and seen.size() < 3:
+			var a: String = rp.ability
+			if a != "":
+				seen[a] = true
+			await wait(0.05)
+			t += 0.05
+		for id in ["sword_charge", "sword_quake", "sword_whirl"]:
+			check(seen.has(id), "réplica de %s entrou em %s (%s)" % [rp.display_name, id, str(seen.keys())])
+		await wait(2.5)
+		check(rp.ability == "", "réplica sai do estado de habilidade ao terminar")
+		# (fúria e vida de Beto podem mudar por causa dos inimigos do mundo; o que não pode é a réplica o pôr em habilidade)
+		check(w.player.ability == "" and Game.level == lvl0,
+			"habilidade da réplica não afeta o meu jogador (nível %d)" % Game.level)
+	await _sync("sword_out")
+	if actor:
+		Game.level = lvl0
+		Game.fury = 0.0
+
+
+# ---------------------------------------------------------------- habilidades do arco e do cajado replicadas
+## Mesmo esquema do teste da espada: Ana usa Tiro Triplo, Flecha Glacial, Flecha do Vendaval (arco) e Chuva de
+## Meteoros (cajado, soltando a tecla por código); Beto vê a réplica de Ana entrar em cada uma e voltar ao normal.
+const BOW_STAFF_IDS := ["bow_triple", "bow_frost", "bow_gale", "meteor_rain"]
+
+func _test_bow_staff(w: Node) -> void:
+	await _sync("bow_in")
+	var actor := horde_role != "join"
+	var lvl0 := Game.level
+	if actor:
+		Game.equip("short_bow")
+		check(await _wait_until(func() -> bool: return Game.equipment.weapon == "short_bow", 3.0)
+			and w.player.look["class"] == "bow", "Ana trocou para o arco")
+		Game.level = 8
+		Game.fury = 100.0
+		await wait(1.0)
+		# slot 1 e 2 (ficam sozinhas); slot 4 (ultimate) com fúria cheia e carga solta por código
+		for slot in [1, 2, 4]:
+			Game.fury = 100.0
+			w.player.use_slot(slot)
+			check(w.player.ability != "", "habilidade do arco no slot %d começa (%s)" % [slot, w.player.ability])
+			if slot == 4:
+				await wait(0.8)
+				BowAbilities.release(w.player)
+			await wait(0.3)
+			check(await _wait_until(func() -> bool: return w.player.ability == "", 4.0), "habilidade do slot %d termina" % slot)
+			await wait(0.4)
+		Game.equip("apprentice_staff")
+		check(await _wait_until(func() -> bool: return Game.equipment.weapon == "apprentice_staff", 3.0)
+			and w.player.look["class"] == "staff", "Ana voltou para o cajado")
+		await wait(0.6)
+		Game.level = 8   # a troca de arma devolve o estado do servidor (nível 1): reaplica
+		Game.fury = 100.0
+		w.player.use_slot(4)
+		check(w.player.ability == "meteor_rain", "Chuva de Meteoros começa (%s)" % w.player.ability)
+		await wait(2.0)   # 0.5 s de preparo + ~1.5 s de chuva
+		StaffAbilities.release(w.player)
+		check(await _wait_until(func() -> bool: return w.player.ability == "", 4.0), "Chuva de Meteoros termina ao soltar")
+		await wait(0.5)
+	else:
+		var seen := {}
+		var rp = Network.remote_players.values()[0]
+		var t := 0.0
+		while t < 16.0 and seen.size() < BOW_STAFF_IDS.size():
+			var a: String = rp.ability
+			if a != "":
+				seen[a] = true
+			await wait(0.05)
+			t += 0.05
+		for id in BOW_STAFF_IDS:
+			check(seen.has(id), "réplica de %s entrou em %s (%s)" % [rp.display_name, id, str(seen.keys())])
+		check(await _wait_until(func() -> bool: return rp.ability == "", 4.0), "réplica sai do estado de habilidade ao terminar")
+		check(w.player.ability == "" and Game.level == lvl0,
+			"habilidade do arco/cajado da réplica não afeta o meu jogador (nível %d)" % Game.level)
+	await _sync("bow_out")
+	if actor:
+		Game.level = lvl0
+		Game.fury = 0.0
+		Game.equip("apprentice_staff")
 
 
 # ---------------------------------------------------------------- praça

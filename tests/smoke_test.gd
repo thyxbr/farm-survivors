@@ -18,8 +18,31 @@ func check(cond: bool, what: String) -> void:
 		print("FAIL  ", what)
 
 
+## Ids das habilidades mostradas nos slots 1-4 da barra de ações (pelo ícone).
+func hud_slot_ids() -> Array[String]:
+	var out: Array[String] = []
+	var hud = world.hud
+	for n in range(1, 5):
+		var icon: String = hud.slots["slot_%d" % n].icon_kind
+		var found := ""
+		for id in ItemDB.ABILITIES:
+			if ItemDB.ABILITIES[id].icon == icon and ItemDB.ABILITIES[id].slot == n and ItemDB.ABILITIES[id]["class"] == Game.weapon_class():
+				found = id
+		if found != "":
+			out.append(found)
+	return out
+
+
 func wait(sec: float) -> void:
 	await get_tree().create_timer(sec, true, true).timeout
+
+
+## Espera até `cond` ficar verdadeira ou estourar `timeout` (evita folgas fixas frágeis).
+func wait_until(cond: Callable, timeout := 3.0) -> void:
+	var t := 0.0
+	while t < timeout and not cond.call():
+		await wait(0.05)
+		t += 0.05
 
 
 func _ready() -> void:
@@ -78,8 +101,11 @@ func _ready() -> void:
 	player.model.rotation.y = PI
 	await wait(0.2)
 	var hp0: float = slime.hp
+	Game.fury = 0.0
 	player._start_swing()
 	await wait(0.5)
+	check(Game.fury > 0.0 and Game.fury < 10.0, "fúria sobe com o dano do golpe do jogador (%.2f)" % Game.fury)
+	Game.fury = 0.0
 	check(slime.hp < hp0, "golpe de espada causa dano (%.0f -> %.0f)" % [hp0, slime.hp])
 	slime.take_damage(9999, player.global_position, false)
 	check(Game.xp > xp0, "XP ganho ao matar slime")
@@ -100,18 +126,578 @@ func _ready() -> void:
 	check(far_s.hp < far_hp and far_s.state == "chase",
 		"acerto de longe não é curado na hora (%.0f -> %.0f, %s)" % [far_hp, far_s.hp, far_s.state])
 
+	# --- Investida (espada, slot 1): avança pela frente atravessando o slime
+	var pos_c := player.global_position
+	var ch_s := _nearest("slime")
+	ch_s.global_position = ch_s.home
+	player.global_position = ch_s.global_position + Vector3(0, 0.3, 3.0)
+	player.model.rotation.y = PI   # olhando para -Z, para o slime
+	player.velocity = Vector3.ZERO
+	await wait(0.2)
+	player.global_position = ch_s.global_position + Vector3(0, 0.3, 3.0)
+	player.model.rotation.y = PI
+	player.cooldowns.sword_charge = 0.0
+	var ch_hp: float = ch_s.hp
+	var ch_from := player.global_position
+	player.use_slot(1)
+	check(player.ability == "sword_charge", "Investida começa (%s)" % player.ability)
+	var mask_c: int = player.collision_mask
+	await wait(0.75)   # folga sobre SwordAbilities.CHARGE_TIME (0,6 s)
+	var ch_d := Vector2(player.global_position.x - ch_from.x, player.global_position.z - ch_from.z).length()
+	check(ch_s.hp < ch_hp, "Investida fere o slime no caminho (%.0f -> %.0f)" % [ch_hp, ch_s.hp])
+	# o dano é fixo (melee_damage x1,6, sem crítico): a perda de vida igual a um golpe prova acerto único
+	check(is_equal_approx(ch_hp - ch_s.hp, Game.melee_damage() * SwordAbilities.CHARGE_MULT),
+		"Investida acerta cada inimigo uma vez só (perdeu %.1f, golpe %.1f)" % [ch_hp - ch_s.hp, Game.melee_damage() * SwordAbilities.CHARGE_MULT])
+	check(ch_d >= 3.0 and ch_d <= 5.5, "Investida avança entre 3 e 5,5 m (%.2f)" % ch_d)
+	check(player.ability == "" and player.cooldowns.sword_charge > 0.0, "Investida termina e entra em recarga (%s, %.2f)" % [player.ability, player.cooldowns.sword_charge])
+	check(player.collision_mask == mask_c, "Investida devolve a colisão com inimigos ao terminar")
+	# as próximas investidas vão para longe do slime (+Z)
+	var away := ch_s.global_position + Vector3(0, 0.3, 3.0)
+	# end_ability no meio do avanço: colisão de volta e sem velocidade especial
+	player.global_position = away
+	player.model.rotation.y = 0.0
+	player.cooldowns.sword_charge = 0.0
+	player.use_slot(1)
+	await wait(0.25)
+	var mid_v := Vector2(player.velocity.x, player.velocity.z).length()
+	check(player.ability == "sword_charge" and player.collision_mask != mask_c and mid_v > 10.0,
+		"Investida no meio do avanço atravessa inimigos (vel %.1f)" % mid_v)
+	player.end_ability()
+	check(player.ability == "" and player.ability_t == 0.0 and player.collision_mask == mask_c
+		and Vector2(player.velocity.x, player.velocity.z).length() < 0.01, "end_ability no avanço limpa estado, colisão e velocidade")
+	# esquiva: cancela no preparo, é ignorada no avanço
+	Game.stamina = Game.max_stamina()
+	player.global_position = away
+	player.velocity = Vector3.ZERO
+	await wait(0.2)
+	player.cooldowns.sword_charge = 0.0
+	player.use_slot(1)
+	await wait(0.05)
+	player._dodge_pressed(Vector3.ZERO)
+	check(player.ability == "" and player.dodge_timer > 0.0, "esquiva no preparo cancela a Investida")
+	await wait(0.5)
+	Game.stamina = Game.max_stamina()
+	player.global_position = away
+	player.velocity = Vector3.ZERO
+	await wait(0.2)
+	player.cooldowns.sword_charge = 0.0
+	player.use_slot(1)
+	await wait(0.3)
+	player._dodge_pressed(Vector3.ZERO)
+	check(player.ability == "sword_charge" and player.dodge_timer <= 0.0, "esquiva no avanço é ignorada")
+	await wait(0.45)
+	# abrir menu (build_lock) encerra
+	player.global_position = away
+	player.cooldowns.sword_charge = 0.0
+	player.use_slot(1)
+	player.build_lock = true
+	await wait(0.05)
+	player.build_lock = false
+	check(player.ability == "", "menu (build_lock) encerra a habilidade")
+	Game.fury = 0.0
+	Game.stamina = Game.max_stamina()
+	player.cooldowns.sword_charge = 0.0
+	player.global_position = pos_c
+	player.velocity = Vector3.ZERO
+	await wait(0.1)
+
+	# --- Golpe Sísmico (espada, slot 2, nível 3): cone à frente fere e atordoa, quem está atrás não
+	var lvl_q := Game.level
+	Game.level = 3
+	var qk_a := _nearest("slime")
+	var qk_b: Enemy = null
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e != qk_a and e.kind == "slime" and not e.dead:
+			qk_b = e
+			break
+	var qk_base := pos_c + Vector3(0, 0.3, 0)   # chão firme da vila
+	qk_a.hp = qk_a.max_hp   # o mais próximo pode ser o ferido pela Investida
+	qk_b.hp = qk_b.max_hp
+	player.global_position = qk_base
+	player.model.rotation.y = PI   # olhando para -Z
+	player.velocity = Vector3.ZERO
+	qk_a.global_position = qk_base + Vector3(0, 0, -3.0)
+	qk_b.global_position = qk_base + Vector3(0, 0, 3.0)
+	await wait(0.2)
+	player.global_position = qk_base
+	player.model.rotation.y = PI
+	qk_a.global_position = qk_base + Vector3(0, 0, -3.0)
+	qk_b.global_position = qk_base + Vector3(0, 0, 3.0)
+	player.cooldowns.sword_quake = 0.0
+	var qk_ahp: float = qk_a.hp
+	var qk_bhp: float = qk_b.hp
+	qk_a._set_state("attack")   # no meio de um golpe: o atordoamento o interrompe
+	var qk_pos: Vector3 = qk_a.global_position
+	player.use_slot(2)
+	check(player.ability == "sword_quake", "Golpe Sísmico começa (%s)" % player.ability)
+	await wait(0.8)   # 0,35 s de preparo + 0,3 s de recuperação, com folga
+	check(qk_a.hp < qk_ahp, "Golpe Sísmico fere o slime da frente (%.0f -> %.0f)" % [qk_ahp, qk_a.hp])
+	check(is_equal_approx(qk_ahp - qk_a.hp, Game.melee_damage() * SwordAbilities.QUAKE_MULT),
+		"Golpe Sísmico causa melee_damage x2 (perdeu %.1f)" % (qk_ahp - qk_a.hp))
+	check(qk_b.hp == qk_bhp, "Golpe Sísmico não fere quem está atrás")
+	check(player.ability == "" and player.cooldowns.sword_quake > 0.0, "Golpe Sísmico termina e entra em recarga (%s, %.2f)" % [player.ability, player.cooldowns.sword_quake])
+	# 0,8 s depois do início (0,45 s após o impacto) ainda restam ~0,55 s dos 1,0 s de atordoamento
+	check(qk_a.stagger > 0.3 and qk_a.state != "attack", "Golpe Sísmico atordoa e interrompe o golpe (stagger %.2f, %s)" % [qk_a.stagger, qk_a.state])
+	check(qk_pos.distance_to(qk_a.global_position) < 2.5, "inimigo atordoado não avançou (%.2f m)" % qk_pos.distance_to(qk_a.global_position))
+	# a esquiva não cancela
+	Game.stamina = Game.max_stamina()
+	qk_a.hp = qk_a.max_hp   # sobrevive ao segundo golpe
+	player.cooldowns.sword_quake = 0.0
+	player.use_slot(2)
+	await wait(0.1)
+	player._dodge_pressed(Vector3.ZERO)
+	check(player.ability == "sword_quake" and player.dodge_timer <= 0.0, "esquiva não cancela o Golpe Sísmico")
+	await wait(0.7)
+	# colado no jogador, o atordoado não volta a atacar durante o atordoamento
+	player.global_position = qk_base
+	player.model.rotation.y = PI
+	qk_a.global_position = qk_base + Vector3(0, 0, -1.2)
+	qk_a.attack_cd = 0.0
+	qk_a.hp = qk_a.max_hp
+	player.cooldowns.sword_quake = 0.0
+	player.use_slot(2)
+	await wait(0.45)   # impacto aos 0,35 s
+	var qk_attacked := false
+	for i in 8:
+		await wait(0.08)
+		if qk_a.state == "attack":
+			qk_attacked = true
+	check(qk_a.stagger > 0.0 and not qk_attacked, "atordoado ao alcance não ataca durante o atordoamento (stagger %.2f)" % qk_a.stagger)
+	await wait(0.3)
+	Game.level = lvl_q
+	Game.fury = 0.0
+	player.cooldowns.sword_quake = 0.0
+	player.global_position = pos_c
+	player.velocity = Vector3.ZERO
+	await wait(0.1)
+
+	# --- Turbilhão (ultimate da espada, slot 4, nível 8, fúria cheia): gira ferindo e puxando em volta
+	var lvl_w := Game.level
+	var hp_w := Game.hp
+	var spring_w: float = player.spring.spring_length
+	Game.level = 8
+	Game.fury = 100.0
+	var s1 := _nearest("slime")
+	s1.hp = s1.max_hp
+	player.global_position = s1.global_position + Vector3(2.5, 0.3, 0)
+	player.velocity = Vector3.ZERO
+	var h1: float = s1.hp
+	player.invuln = 3.0   # apanhar de um inimigo próximo também enche a fúria: só os acertos do giro contam aqui
+	player.use_slot(4)
+	check(Game.fury == 0.0 and player.ability == "sword_whirl", "Turbilhão começa e gasta a fúria")
+	check(player.ability_slot == 4, "ability_slot = tecla que começou a habilidade (%d)" % player.ability_slot)
+	player.use_slot(1)   # com habilidade em execução o cast é ignorado: a soltura continua da tecla 4
+	check(player.ability == "sword_whirl" and player.ability_slot == 4, "tecla de outro slot não sobrescreve ability_slot (%d)" % player.ability_slot)
+	await wait_until(func(): return s1.hp < h1, 3.0)
+	check(Game.fury == 0.0, "Turbilhão que acertou não recarrega a própria fúria (%.2f)" % Game.fury)
+	check(s1.hp < h1, "Turbilhão causa dano durante o giro (%.0f -> %.0f)" % [h1, s1.hp])
+	# imune a empurrão: o golpe tira vida mas não empurra nem levanta
+	player.invuln = 0.0
+	player.take_damage(1.0, player.global_position + Vector3(0, 0, 3.0))
+	check(player.velocity.y < 1.0 and Vector2(player.velocity.x, player.velocity.z).length() < 3.0,
+		"Turbilhão: imune a empurrão (vel %s)" % player.velocity)
+	check(player.spring.spring_length > spring_w + 0.2, "Turbilhão: câmera recua (%.2f -> %.2f)" % [spring_w, player.spring.spring_length])
+	Game.stamina = Game.max_stamina()
+	player._dodge_pressed(Vector3.ZERO)
+	check(player.ability == "sword_whirl" and player.dodge_timer <= 0.0, "esquiva não cancela o Turbilhão")
+	player._die()
+	await wait(0.1)
+	check(player.ability == "" and is_equal_approx(Engine.time_scale, 1.0), "morrer no meio limpa o estado")
+	player.revive(player.global_position)
+	# a tela de morte abre 1,8 s depois de morrer, mesmo revivido: fecha sem a multa de ouro
+	await wait(2.0)
+	if world.modal != null:
+		world.modal.queue_free()
+		world.modal = null
+	world._set_paused(false)
+	check(not player.dead and not get_tree().paused, "reviveu depois de morrer no Turbilhão")
+	check(absf(player.spring.spring_length - spring_w) < 0.05, "câmera volta ao normal (%.2f)" % player.spring.spring_length)
+	# puxão: o golpe com pull leva o inimigo em direção a quem bateu (em vez de empurrar)
+	var pl_s := _nearest("slime")
+	pl_s.hp = pl_s.max_hp
+	pl_s.global_position = player.global_position + Vector3(3.0, 0.0, 0.0)
+	pl_s.velocity = Vector3.ZERO
+	pl_s.take_damage(0.5, player.global_position, false, 0.0, 0.0, SwordAbilities.WHIRL_PULL)
+	var to_pl := player.global_position - pl_s.global_position
+	check(Vector2(pl_s.velocity.x, pl_s.velocity.z).dot(Vector2(to_pl.x, to_pl.z)) > 0.0,
+		"golpe com puxão leva o inimigo para o jogador (vel %s)" % pl_s.velocity)
+	# giro inteiro: termina sozinho, tempo normal e o modelo volta a olhar para onde olhava
+	Game.fury = 100.0
+	player.invuln = 0.0
+	player.model.rotation.y = 0.5
+	# o puxão se vê: um inimigo a 3 m termina bem mais perto depois do giro (com vida de sobra para não morrer)
+	var pl_max: float = pl_s.max_hp
+	pl_s.hp = 100000.0
+	pl_s.max_hp = 100000.0
+	pl_s.global_position = player.global_position + Vector3(3.0, 0.0, 0.0)
+	pl_s.velocity = Vector3.ZERO
+	var d_pull0: float = pl_s.global_position.distance_to(player.global_position)
+	var lvl_w2: int = Game.level
+	Game.level = 8   # morrer e reviver passa pelo Econ, cuja resposta devolve Game.level ao nível real
+	player.use_slot(4)
+	check(player.ability == "sword_whirl", "Turbilhão de novo com a fúria cheia (nível antes %d, %s, esquiva %.2f, atacando %s)"
+		% [lvl_w2, player.ability, player.dodge_timer, player.attacking])
+	await wait(SwordAbilities.WHIRL_TIME + 0.35)
+	var d_pull1: float = pl_s.global_position.distance_to(player.global_position)
+	check(d_pull0 - d_pull1 >= 1.0, "Turbilhão puxa o inimigo para perto (%.2f m -> %.2f m)" % [d_pull0, d_pull1])
+	pl_s.max_hp = pl_max
+	pl_s.hp = pl_max
+	check(player.ability == "" and is_equal_approx(Engine.time_scale, 1.0), "Turbilhão termina sozinho (%s)" % player.ability)
+	check(absf(wrapf(player.model.rotation.y - 0.5, -PI, PI)) < 0.05, "giro volta à direção inicial (%.2f)" % player.model.rotation.y)
+	Game.level = lvl_w
+	Game.fury = 0.0
+	Game.hp = hp_w
+	player.cooldowns.sword_whirl = 0.0
+	player.global_position = pos_c
+	player.velocity = Vector3.ZERO
+	await wait(0.1)
+
+	# --- servidor dedicado: nenhum nó de efeito nasce (FX._scene() devolve null)
+	var mode_s: int = Network.mode
+	Network.mode = Network.Mode.SERVER
+	var kids_s := world.get_child_count()
+	check(FX._scene() == null, "servidor dedicado não cria efeitos (FX._scene nulo)")
+	FX.ring(player.global_position, Color.WHITE, 3.0, 0.3)
+	FXEpic.nova(player.global_position, Color.ORANGE, 20, 5.0, 0.2, 0.4)
+	check(world.get_child_count() == kids_s and FXEpic.stream(player, "flame", Color.ORANGE, 10, 0.5) == null,
+		"servidor: chamadas de efeito não adicionam nós")
+	Network.mode = mode_s
+
+	# --- kits de habilidade por arma (começa de espada: weapon_class() == "sword")
+	var kit_weapon: String = Game.equipment.weapon
+	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_whirl"], "kit da espada (%s)" % [Game.ability_kit()])
+	check(not Game.knows_ability("sword_quake") and Game.knows_ability("sword_charge"), "liberação por nível")
+	check(Game.level == 1 and not Game.knows_ability("heal") and ItemDB.ABILITIES.heal.level == 5, "cura só no nível 5")
+	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
+	# quem testar; resta conferir que há recarga para cada habilidade
+	Game.add_item("short_bow")
+	Game.equip("short_bow")
+	var lvl_bf: int = Game.level
+	check(Game.weapon_class() == "bow" and player.cooldowns.size() == ItemDB.ABILITIES.size(), "uma recarga por habilidade")
+	# --- Tiro Triplo (arco, slot 1): 3 flechas em leque, ignora multishot, esquiva só cancela antes do disparo
+	var tt_pos := player.global_position
+	var tt_s := _nearest("slime")
+	var tt_max: float = tt_s.max_hp
+	tt_s.max_hp = 100000.0   # aguenta as 9 flechas sem morrer (o nó some ao morrer)
+	tt_s.global_position = tt_s.home
+	var tt_fire := func() -> Array:
+		var out := []
+		for c in world.get_children():
+			if c.get("kind") == "arrow" and not c.visual_only:
+				out.append(c)
+		return out
+	Game.add_item("storm_bow")
+	Game.add_item("goblin_warbow")
+	var tt_weapons := ["short_bow", "storm_bow", "goblin_warbow"]
+	var tt_grounded := func() -> bool: return player.is_on_floor()
+	for tt_w in tt_weapons:
+		Game.equip(tt_w)
+		await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking)
+		for c in tt_fire.call():
+			c.queue_free()
+		tt_s.global_position = tt_s.home
+		player.global_position = tt_s.global_position + Vector3(0, 0.3, 6.0)
+		player.model.rotation.y = PI
+		player.velocity = Vector3.ZERO
+		await wait_until(tt_grounded)
+		player.global_position = tt_s.global_position + Vector3(0, 0.3, 6.0)
+		player.cooldowns.bow_triple = 0.0
+		tt_s.hp = tt_s.max_hp
+		var tt_hp: float = tt_s.hp
+		player.use_slot(1)
+		check(player.ability == "bow_triple" and BowAbilities.can_dodge_cancel(player), "Tiro Triplo começa (%s, %s)" % [player.ability, tt_w])
+		await wait_until(func(): return tt_fire.call().size() > 0 or player.ability == "")
+		var tt_arrows: Array = tt_fire.call()
+		var tt_n: int = tt_arrows.size()
+		var tt_ab: bool = player.ability == "bow_triple"
+		check(tt_n == 3 and tt_ab and not BowAbilities.can_dodge_cancel(player),
+			"Tiro Triplo dispara 3 flechas de uma vez (%s: %d)" % [tt_w, tt_n])
+		if tt_n == 3:
+			# dano de cada flecha (x0,8, x1,8 se crítica), velocidade 42 e perfuração só com fx "pierce"
+			var tt_dmg_ok := true
+			var tt_pierce_ok := true
+			var tt_flat := []
+			for ar in tt_arrows:
+				var want: float = Game.melee_damage() * BowAbilities.TRIPLE_MULT * (1.8 if ar.crit else 1.0)
+				tt_dmg_ok = tt_dmg_ok and absf(ar.damage - want) < 0.01 and is_equal_approx(ar.speed, BowAbilities.TRIPLE_SPEED)
+				tt_pierce_ok = tt_pierce_ok and ar.pierce == (2 if tt_w == "goblin_warbow" else 0)
+				var f: Vector3 = ar.direction
+				f.y = 0.0
+				tt_flat.append(f.normalized())
+			tt_flat.sort_custom(func(x, y): return x.signed_angle_to(y, Vector3.UP) < 0.0)   # esquerda, centro, direita
+			var ang_a := rad_to_deg(absf(tt_flat[0].signed_angle_to(tt_flat[1], Vector3.UP)))
+			var ang_b := rad_to_deg(absf(tt_flat[1].signed_angle_to(tt_flat[2], Vector3.UP)))
+			var ang_c := rad_to_deg(tt_flat[0].angle_to(tt_flat[2]))
+			check(tt_dmg_ok, "Tiro Triplo: dano x0,8 e velocidade 42 em cada flecha (%s)" % tt_w)
+			check(tt_pierce_ok, "Tiro Triplo: perfuração %s (%s)" % ["+2 com fx pierce" if tt_w == "goblin_warbow" else "0", tt_w])
+			check(absf(ang_a - 12.0) < 0.5 and absf(ang_b - 12.0) < 0.5 and absf(ang_c - 24.0) < 0.5,
+				"Tiro Triplo: leque de 12 graus (%.1f, %.1f, total %.1f)" % [ang_a, ang_b, ang_c])
+		await wait_until(func(): return player.ability == "")
+		check(player.cooldowns.bow_triple > 0.0 and tt_s.hp < tt_hp, "Tiro Triplo fere o slime e entra em recarga (%.0f -> %.0f)" % [tt_hp, tt_s.hp])
+	# esquiva antes do disparo cancela sem gastar flechas (logo no início, ability_t = 0); depois é ignorada
+	Game.equip("short_bow")
+	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking)
+	Game.stamina = Game.max_stamina()
+	player.global_position = tt_pos
+	for c in tt_fire.call():
+		c.queue_free()
+	player.cooldowns.bow_triple = 0.0
+	player.use_slot(1)
+	check(player.ability == "bow_triple" and player.ability_t < BowAbilities.TRIPLE_DRAW, "Tiro Triplo antes do disparo (t %.2f)" % player.ability_t)
+	player._dodge_pressed(Vector3.ZERO)
+	check(player.ability == "" and tt_fire.call().size() == 0 and player.dodge_timer > 0.0, "esquiva antes do disparo cancela o Tiro Triplo")
+	await wait_until(func(): return player.dodge_timer <= 0.0)
+	Game.stamina = Game.max_stamina()
+	player.cooldowns.bow_triple = 0.0
+	player.use_slot(1)
+	await wait_until(func(): return player.ability_t >= BowAbilities.TRIPLE_DRAW or player.ability == "")
+	player._dodge_pressed(Vector3.ZERO)
+	check(player.ability == "bow_triple" and player.dodge_timer <= 0.0, "esquiva depois do disparo é ignorada")
+	await wait_until(func(): return player.ability == "")
+	for c in tt_fire.call():
+		c.queue_free()
+	# réplica: o evento "bow_triple" cria 3 flechas só visuais, sem dano, e a pose acaba em 0,25 s
+	var tt_rp := Player.new()
+	tt_rp.remote = true
+	world.add_child(tt_rp)
+	tt_s.hp = tt_s.max_hp
+	var tt_rhp: float = tt_s.hp
+	var tt_o := tt_s.global_position + Vector3(0, 1.2, 6.0)
+	var tt_vis_before := 0
+	for c in world.get_children():
+		if c.get("kind") == "arrow" and c.visual_only:
+			tt_vis_before += 1
+	BowAbilities.play_remote(tt_rp, "bow_triple", tt_o, Vector3(0, 0, -1))
+	var tt_vis := []
+	for c in world.get_children():
+		if c.get("kind") == "arrow" and c.visual_only:
+			tt_vis.append(c)
+	check(tt_vis.size() - tt_vis_before == 3 and tt_fire.call().size() == 0, "réplica do Tiro Triplo cria 3 flechas visual_only (%d)" % [tt_vis.size() - tt_vis_before])
+	check(tt_rp.ability == "bow_triple" and is_equal_approx(tt_rp.ability_t, BowAbilities.TRIPLE_DRAW), "réplica começa no disparo")
+	var tt_t0 := Time.get_ticks_msec()
+	await wait_until(func(): return tt_rp.ability == "")
+	var tt_el := (Time.get_ticks_msec() - tt_t0) / 1000.0
+	check(tt_rp.ability == "" and tt_el >= BowAbilities.TRIPLE_RECOVER - 0.1, "réplica termina após a recuperação de 0,25 s (%.2f s)" % tt_el)
+	await wait(0.6)   # as flechas visuais atravessam o slime: sem dano
+	check(tt_s.hp == tt_rhp, "flechas da réplica não ferem (%.0f)" % tt_s.hp)
+	tt_rp.queue_free()
+	for c in world.get_children():
+		if c.get("kind") == "arrow":
+			c.queue_free()
+	Game.stamina = Game.max_stamina()
+	player.cooldowns.bow_triple = 0.0
+	# --- Flecha Glacial (arco, slot 2): tensão 0,35 s, 1 flecha (dano x1,4, vel 40), prende 1,5 s + lentidão 3 s; chefe só a lentidão
+	Game.level = 3
+	Game.equip("short_bow")
+	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking)
+	var fg_boss0: bool = tt_s.is_boss
+	tt_s.global_position = tt_s.home
+	player.global_position = tt_s.global_position + Vector3(0, 0.3, 6.0)
+	player.model.rotation.y = PI
+	player.velocity = Vector3.ZERO
+	await wait_until(tt_grounded)
+	player.global_position = tt_s.global_position + Vector3(0, 0.3, 6.0)
+	for c in tt_fire.call():
+		c.queue_free()
+	tt_s.stagger = 0.0
+	tt_s.slow_timer = 0.0
+	tt_s.hp = tt_s.max_hp
+	var fg_hp: float = tt_s.hp
+	player.cooldowns.bow_frost = 0.0
+	Game.level = 3
+	player.use_slot(2)
+	check(player.ability == "bow_frost" and BowAbilities.can_dodge_cancel(player), "Flecha Glacial começa (%s)" % player.ability)
+	await wait_until(func(): return tt_fire.call().size() > 0 or player.ability == "")
+	var fg_arrows: Array = tt_fire.call()
+	check(fg_arrows.size() == 1 and player.ability == "bow_frost" and player.ability_t >= BowAbilities.FROST_DRAW - 0.0001
+		and not BowAbilities.can_dodge_cancel(player), "Flecha Glacial dispara 1 flecha só depois da tensão (%d, t %.2f)" % [fg_arrows.size(), player.ability_t])
+	if fg_arrows.size() == 1:
+		var fa = fg_arrows[0]
+		var fwant: float = Game.melee_damage() * BowAbilities.FROST_MULT * (1.8 if fa.crit else 1.0)
+		check(absf(fa.damage - fwant) < 0.01 and is_equal_approx(fa.speed, 40.0) and fa.pierce == 0 and fa.fx == "glacial",
+			"Flecha Glacial: dano x1,4, velocidade 40, sem perfuração (%.1f vs %.1f, vel %.0f, fx %s)" % [fa.damage, fwant, fa.speed, fa.fx])
+	await wait_until(func(): return tt_s.hp < fg_hp)
+	check(tt_s.stagger > 0.8 and tt_s.slow_timer > 1.5, "Flecha Glacial prende e atrasa (stagger %.2f, slow %.2f)" % [tt_s.stagger, tt_s.slow_timer])
+	await wait_until(func(): return player.ability == "")
+	check(player.cooldowns.bow_frost > 0.0, "Flecha Glacial entra em recarga")
+	# chefe: só a lentidão (sem prender)
+	tt_s.is_boss = true
+	tt_s.stagger = 0.0
+	tt_s.slow_timer = 0.0
+	tt_s.global_position = tt_s.home
+	player.global_position = tt_s.global_position + Vector3(0, 0.3, 6.0)
+	player.velocity = Vector3.ZERO
+	await wait_until(tt_grounded)
+	player.global_position = tt_s.global_position + Vector3(0, 0.3, 6.0)
+	player.cooldowns.bow_frost = 0.0
+	fg_hp = tt_s.hp
+	Game.level = 3
+	player.use_slot(2)
+	await wait_until(func(): return tt_s.hp < fg_hp)
+	check(tt_s.stagger < 1.0 and tt_s.slow_timer > 0.0, "Flecha Glacial no chefe: só lentidão (stagger %.2f, slow %.2f)" % [tt_s.stagger, tt_s.slow_timer])
+	await wait_until(func(): return player.ability == "")
+	tt_s.is_boss = fg_boss0
+	# réplica: flecha visual_only, sem dano nem prisão
+	var fg_rp := Player.new()
+	fg_rp.remote = true
+	world.add_child(fg_rp)
+	tt_s.stagger = 0.0
+	tt_s.slow_timer = 0.0
+	tt_s.hp = tt_s.max_hp
+	var fg_rhp: float = tt_s.hp
+	var fg_vis0 := 0
+	for c in world.get_children():
+		if c.get("kind") == "arrow" and c.visual_only:
+			fg_vis0 += 1
+	BowAbilities.play_remote(fg_rp, "bow_frost", tt_s.global_position + Vector3(0, 1.2, 6.0), Vector3(0, 0, -1))
+	var fg_vis := []
+	for c in world.get_children():
+		if c.get("kind") == "arrow" and c.visual_only:
+			fg_vis.append(c)
+	check(fg_vis.size() - fg_vis0 == 1 and fg_rp.ability == "bow_frost" and tt_fire.call().size() == 0,
+		"réplica da Flecha Glacial cria 1 flecha visual_only (%d)" % [fg_vis.size() - fg_vis0])
+	await wait_until(func(): return fg_rp.ability == "")
+	await wait(0.6)
+	check(tt_s.hp == fg_rhp and tt_s.stagger <= 0.0 and tt_s.slow_timer <= 0.0, "flecha glacial da réplica não fere nem prende")
+	fg_rp.queue_free()
+	for c in world.get_children():
+		if c.get("kind") == "arrow":
+			c.queue_free()
+	tt_s.stagger = 0.0
+	tt_s.slow_timer = 0.0
+	player.cooldowns.bow_frost = 0.0
+	await _test_bow_gale()
+	await _test_meteor_rain()
+	Game.level = lvl_bf
+	tt_s.hp = tt_max
+	tt_s.max_hp = tt_max
+	tt_s.global_position = tt_s.home
+	player.global_position = tt_pos
+	player.velocity = Vector3.ZERO
+	Game.equip(kit_weapon)
+	player.cooldowns.sword_charge = 3.0   # para conferir que a recarga atravessa a troca de arma
+	Game.equip("apprentice_staff")
+	await wait(0.1)
+	check(Game.ability_kit() == ["fireball", "frost_nova", "heal", "meteor_rain"], "trocar de arma troca o kit")
+	check(player.cooldowns.sword_charge > 2.5, "recarga continua depois de trocar de arma")
+	check(hud_slot_ids() == Game.ability_kit(), "barra de ações mostra o kit novo (%s)" % [hud_slot_ids()])
+	var mp_m := Game.mp
+	player.cast("meteor_rain")
+	check(Game.mp == mp_m and player.cooldowns.meteor_rain == 0.0 and player.ability == "", "ultimate sem fúria não sai nem gasta nada")
+
+	# --- magia do cajado enche a fúria (Nova Gélida causa dano ao slime perto)
+	var lvl_n := Game.level
+	var mp_n := Game.mp
+	Game.level = 5
+	Game.mp = Game.max_mp()
+	player.cooldowns.frost_nova = 0.0
+	player.cast_timer = 0.0
+	var pos_n := player.global_position
+	var nova_s := _nearest("slime")
+	player.global_position = nova_s.global_position + Vector3(0, 0.3, 1.5)
+	await wait(0.1)
+	Game.fury = 0.0
+	player.cast("frost_nova")
+	check(Game.fury > 0.0, "magia do cajado enche a fúria (%.2f)" % Game.fury)
+	# magias não roubam vida (o roubo é só do corpo a corpo)
+	var weapon_n: String = Game.equipment.weapon
+	var hp_n := Game.hp
+	Game.equipment.weapon = "scarlet_talon"
+	Game.hp = 10.0
+	player.cooldowns.frost_nova = 0.0
+	player.cast_timer = 0.0
+	Game.mp = Game.max_mp()
+	var nova_saved := {}   # sem abate: o XP subiria o nível do Econ e curaria (apply_state)
+	for e in get_tree().get_nodes_in_group("enemies"):
+		nova_saved[e] = [e.max_hp, e.hp]
+		e.max_hp = 1.0e6
+		e.hp = 1.0e6
+	player.cast("frost_nova")
+	for e in nova_saved:
+		if is_instance_valid(e):
+			e.max_hp = nova_saved[e][0]
+			e.hp = nova_saved[e][1]
+	check(Game.gear("leech") > 0.0 and Game.hp <= 10.0, "Nova Gélida não rouba vida mesmo com roubo de vida equipado (%.1f)" % Game.hp)
+	Game.equipment.weapon = weapon_n
+	Game.hp = hp_n
+	Game.fury = 0.0
+	Game.level = lvl_n
+	Game.mp = mp_n
+	player.cooldowns.frost_nova = 0.0
+	player.global_position = pos_n
+	player.cast_timer = 0.0
+
+	# --- barra de fúria e ultimate (slot 4 do cajado = meteor_rain)
+	var lvl_f := Game.level
+	var hp_f := Game.hp
+	Game.fury = 0.0
+	Game.on_damage_dealt(5.0, 100.0)
+	check(is_equal_approx(Game.fury, 2.5), "fúria: 5 de dano em alvo de 100 de vida = 2.5 (%.2f)" % Game.fury)
+	Game.on_damage_dealt(9999.0, 10.0)
+	check(is_equal_approx(Game.fury, 8.5), "fúria: ganho por golpe limitado a 6 (%.2f)" % Game.fury)
+	Game.on_damage_dealt(0.01, 1000.0)
+	check(is_equal_approx(Game.fury, 9.0), "fúria: ganho mínimo 0.5 (%.2f)" % Game.fury)
+	Game.fury = 0.0
+	player.invuln = 0.0
+	player.take_damage(Game.max_hp() * 0.4, player.global_position + Vector3(0, 0, 5))
+	check(is_equal_approx(Game.fury, (Game.max_hp() * 0.4 * 50.0 / (50.0 + Game.defense() * 4.0)) / Game.max_hp() * 25.0), "fúria sobe ao receber dano (%.2f)" % Game.fury)
+	Game.hp = hp_f
+	player.invuln = 0.0
+	Game.add_fury(500.0)
+	check(Game.fury == 100.0 and Game.fury_full(), "fúria limitada a 100")
+	Game.level = 8
+	Game.fury = 50.0
+	player.use_slot(4)
+	check(Game.fury == 50.0, "ultimate não sai com fúria incompleta")
+	Game.level = 2
+	Game.fury = 100.0
+	player.use_slot(4)
+	check(Game.fury == 100.0, "ultimate não sai abaixo do nível 8")
+	Game.level = 8
+	player.use_slot(4)
+	check(Game.fury == 0.0 and player.ability == "meteor_rain", "ultimate sai com fúria cheia no nível 8 e zera a fúria")
+	player.end_ability()   # encerrada no preparo (o teste completo é _test_meteor_rain)
+	player.cooldowns.meteor_rain = 0.0
+	# --- fúria persistida no personagem (CharState)
+	var fs := CharState.new()
+	fs.fury = 70.0
+	check(is_equal_approx(CharState.from_dict(fs.to_dict(), Balance.tables).fury, 70.0), "fúria: to_dict/from_dict preserva 70")
+	var fd := fs.to_dict()
+	fd.erase("fury")
+	check(CharState.from_dict(fd, Balance.tables).fury == 0.0, "fúria: save antigo sem o campo = 0")
+	fd["fury"] = 999.0
+	check(CharState.from_dict(fd, Balance.tables).fury == CharState.FURY_MAX, "fúria: limitada a FURY_MAX ao carregar")
+
+	# --- despacho por módulo da classe da arma, com fonte única de "pronta"
+	for id in ItemDB.ABILITIES:
+		check(Game.ability_implemented(id) == ItemDB.ABILITIES[id].ready, "fonte única de 'pronta' (%s)" % id)
+	check(player._ab_module("sword_whirl") == SwordAbilities and player._ab_module("bow_gale") == BowAbilities
+		and player._ab_module("meteor_rain") == StaffAbilities, "despacho por módulo da classe")
+	check(player._ab_module("meteor_rain_end") == StaffAbilities and player._ab_module("bow_gale_fire") == BowAbilities
+		and player._ab_module("sword_charge") == SwordAbilities, "kind de evento remoto roteia por prefixo")
+
+	Game.level = lvl_f
+	Game.fury = 0.0
+	Game.hp = hp_f
+
 	# --- magia
 	var mp0 := Game.mp
 	player.cast("fireball")
-	await wait(0.3)   # a bola de fogo sai depois do movimento de apontar
-	check(Game.mp < mp0, "bola de fogo gasta mana")
 	var found_fb := false
-	for c in world.get_children():
-		if c is Area3D and c.get_script() == preload("res://scripts/player/fireball.gd"):
-			found_fb = true
+	var fb_t := 0.0
+	while not found_fb and fb_t < 3.0:   # a bola de fogo sai depois do movimento de apontar
+		await wait(0.05)
+		fb_t += 0.05
+		for c in world.get_children():
+			if c is Area3D and c.get_script() == preload("res://scripts/player/fireball.gd"):
+				found_fb = true
+	check(Game.mp < mp0, "bola de fogo gasta mana")
 	check(found_fb, "projétil de bola de fogo criado")
 	player.cast("heal")
 	check(player.cooldowns.heal == 0.0, "cura bloqueada no nível 1")
+	player.use_slot(2)   # Nova Gélida (nível 3) bloqueada no nível 1
+	check(player.cooldowns.frost_nova == 0.0, "slot 2 respeita o nível")
+	Game.equip(kit_weapon)   # restaura a arma inicial
 
 	# --- completar missão e subir de nível
 	for i in 4:
@@ -204,12 +790,648 @@ func _ready() -> void:
 	check(not player.dead and not get_tree().paused and Game.hp == Game.max_hp(), "renasce na vila")
 	check(Game.gold == gold_dead - int(gold_dead * 0.1), "renascer custa 10%% do ouro (%d -> %d)" % [gold_dead, Game.gold])
 
+	await _test_fx_epic()
 	await _test_farm()
 	await _test_survival()
 	await _test_update()
 
 	print("\n==== %s (%d falhas) ====" % ["OK" if fails == 0 else "FALHOU", fails])
 	get_tree().quit(1 if fails > 0 else 0)
+
+
+# ---------------------------------------------------------------- Efeitos épicos
+## Flecha do Vendaval (ultimate do arco, slot 4): segurar 4 tensiona (carga 0..1 em 1,2 s), soltar dispara
+## um raio de 40 m na mira que atravessa todos os inimigos da linha (cada um uma vez) e para em parede.
+func _test_bow_gale() -> void:
+	var lvl0: int = Game.level
+	var fury0: float = Game.fury
+	var weapon0: String = Game.equipment.weapon
+	var pos0 := player.global_position
+	var yaw0: float = player.cam_yaw.rotation.y
+	var spring0: float = player.spring.spring_length
+	var fov0: float = player.camera.fov
+	Game.equip("short_bow")
+	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking and player.ability == "")
+	# 4 slimes (os mais perto): 3 na linha da mira a 5/10/15 m e 1 a 6 m do lado da linha
+	var gs: Array = []
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.kind == "slime" and not e.dead and not e.is_boss:
+			gs.append(e)
+	gs.sort_custom(func(a, b): return a.global_position.distance_to(player.global_position) < b.global_position.distance_to(player.global_position))
+	gs = gs.slice(0, 4)
+	check(gs.size() == 4, "Vendaval: 4 slimes para o teste (%d)" % gs.size())
+	if gs.size() < 4:
+		return
+	var saved: Array = []
+	for e in gs:
+		saved.append([e, e.max_hp, e.global_position])
+		e.max_hp = 100000.0
+	# lugar aberto: casa do slime mais perto; gira a câmera até a mira ter 18 m livres
+	var base: Vector3 = gs[0].home
+	var grounded := func() -> bool: return player.is_on_floor()
+	player.global_position = base + Vector3(0, 0.3, 0)
+	player.velocity = Vector3.ZERO
+	await wait_until(grounded)
+	var dir := Vector3.ZERO
+	for k in 12:
+		player.cam_yaw.rotation.y = yaw0 + k * TAU / 12.0
+		await wait(0.05)
+		var d: Vector3 = BowAbilities._gale_dir(player)
+		var o: Vector3 = player.global_position + Vector3.UP * BowAbilities.GALE_HEIGHT
+		if BowAbilities._gale_length(player, o, d) >= 18.0:
+			dir = d
+			break
+	check(dir != Vector3.ZERO and absf(dir.y) < 0.001, "Vendaval: mira horizontal com 18 m livres (%s)" % dir)
+	var side := dir.cross(Vector3.UP).normalized()
+	var place := func() -> void:
+		var p0: Vector3 = player.global_position
+		for i in 3:
+			gs[i].global_position = p0 + dir * (5.0 * (i + 1)) + Vector3.UP * 0.3
+		gs[3].global_position = p0 + dir * 10.0 + side * 6.0 + Vector3.UP * 0.3
+		for e in gs:
+			e.velocity = Vector3.ZERO
+			e.stagger = 5.0   # parados até o tiro
+			e.hp = e.max_hp
+	var hps := func() -> Array:
+		var out := []
+		for e in gs:
+			out.append(e.hp)
+		return out
+	var lines := func() -> int:
+		var n := 0
+		for c in world.get_children():
+			if c is BowAbilities.GaleLine:
+				n += 1
+		return n
+	place.call()
+	await wait(0.3)
+	place.call()
+	var h0: Array = hps.call()
+
+	# --- 1) segura, solta aos 0,6 s: os 3 da linha perdem vida, o de fora não; a fúria fica em 0
+	Game.fury = 100.0
+	Game.level = 8
+	player.use_slot(4)
+	check(player.ability == "bow_gale" and Game.fury == 0.0 and player.ability_slot == 4,
+		"Vendaval começa, gasta a fúria e grava a tecla 4 (%s, %.0f, %d)" % [player.ability, Game.fury, player.ability_slot])
+	check(not BowAbilities.can_dodge_cancel(player), "Vendaval: esquiva não cancela a tensão")
+	await wait(0.3)
+	var c03: float = player.ability_data.get("charge", -1.0)
+	check(c03 > 0.15 and c03 < 0.4 and not player.ability_data.get("fired", false), "Vendaval: carga cresce com o tempo (%.2f aos 0,3 s)" % c03)
+	check(Vector2(player.velocity.x, player.velocity.z).length() < 0.1, "Vendaval: parado na tensão (vel %s)" % player.velocity)
+	check(player.camera.fov < fov0 - 0.5 and player.cam_back > 0.0, "Vendaval: câmera recua e fecha o FOV (%.1f, back %.2f)" % [player.camera.fov, player.cam_back])
+	Game.stamina = Game.max_stamina()
+	player._dodge_pressed(Vector3.ZERO)
+	check(player.ability == "bow_gale" and player.dodge_timer <= 0.0, "Vendaval: esquiva ignorada na tensão")
+	await wait_until(func(): return player.ability_t >= 0.6 or player.ability == "")
+	BowAbilities.release(player)
+	var fired1: bool = player.ability_data.get("fired", false)
+	var ch1: float = player.ability_data.get("charge", -1.0)
+	check(fired1 and absf(ch1 - 0.5) < 0.06, "Vendaval: soltar com carga >= 0,25 dispara na hora (carga %.2f)" % ch1)
+	check(lines.call() >= 1, "Vendaval: o disparo cria a linha visual")
+	await wait_until(func(): return player.ability == "", 2.0)
+	var h1: Array = hps.call()
+	var want1: float = Game.melee_damage() * lerpf(BowAbilities.GALE_MULT_MIN, BowAbilities.GALE_MULT_MAX, ch1)
+	var line_ok := true
+	for i in 3:
+		line_ok = line_ok and absf((h0[i] - h1[i]) - want1) < 0.05
+	check(line_ok, "Vendaval: os 3 slimes da linha (5/10/15 m) perdem melee x lerp(3,6,carga) uma vez (%.1f, %.1f, %.1f; esperado %.1f)"
+		% [h0[0] - h1[0], h0[1] - h1[1], h0[2] - h1[2], want1])
+	check(h1[3] == h0[3], "Vendaval: o slime fora da linha não perde vida")
+	check(Game.fury == 0.0, "Vendaval: acertos da ultimate não recarregam a fúria (%.2f)" % Game.fury)
+	check(is_equal_approx(Engine.time_scale, 1.0) and player.cam_back == 0.0 and absf(player.camera.fov - fov0) < 0.01,
+		"Vendaval: fim restaura tempo, câmera e FOV (%.2f, %.2f, %.1f)" % [Engine.time_scale, player.cam_back, player.camera.fov])
+
+	# --- 2) sem soltar: dispara sozinha com carga cheia em <= 1,4 s
+	player.global_position = base + Vector3(0, 0.3, 0)
+	player.velocity = Vector3.ZERO
+	await wait_until(grounded)
+	place.call()
+	await wait(0.1)
+	h0 = hps.call()
+	Game.fury = 100.0
+	Game.level = 8
+	var t2 := Time.get_ticks_msec()
+	player.use_slot(4)
+	await wait_until(func(): return player.ability_data.get("fired", false) or player.ability == "", 2.0)
+	var el2 := (Time.get_ticks_msec() - t2) / 1000.0
+	var ch2: float = player.ability_data.get("charge", -1.0)
+	check(player.ability_data.get("fired", false) and el2 <= 1.4 and is_equal_approx(ch2, 1.0),
+		"Vendaval: sem soltar dispara sozinha com carga cheia (%.2f s, carga %.2f)" % [el2, ch2])
+	await wait_until(func(): return player.ability == "", 2.0)
+	var h2: Array = hps.call()
+	var want2: float = Game.melee_damage() * BowAbilities.GALE_MULT_MAX
+	check(absf((h0[0] - h2[0]) - want2) < 0.05 and h2[2] < h0[2] and h2[3] == h0[3],
+		"Vendaval: carga cheia = melee x6 (%.1f, esperado %.1f)" % [h0[0] - h2[0], want2])
+
+	# --- 3) soltar cedo (carga < 0,25): continua tensionando até 0,25 e dispara
+	player.global_position = base + Vector3(0, 0.3, 0)
+	player.velocity = Vector3.ZERO
+	await wait_until(grounded)
+	place.call()
+	await wait(0.1)
+	Game.fury = 100.0
+	Game.level = 8
+	player.use_slot(4)
+	await wait(0.05)
+	BowAbilities.release(player)
+	check(player.ability == "bow_gale" and not player.ability_data.get("fired", false), "Vendaval: soltar com carga < 0,25 não dispara na hora")
+	await wait_until(func(): return player.ability_data.get("fired", false) or player.ability == "", 1.0)
+	var ch3: float = player.ability_data.get("charge", -1.0)
+	check(player.ability_data.get("fired", false) and absf(ch3 - BowAbilities.GALE_MIN) < 0.03,
+		"Vendaval: dispara ao chegar a 0,25 (carga %.2f)" % ch3)
+	await wait_until(func(): return player.ability == "", 2.0)
+
+	# --- 4) morrer na tensão: não dispara, limpa o estado
+	player.global_position = base + Vector3(0, 0.3, 0)
+	player.velocity = Vector3.ZERO
+	await wait_until(grounded)
+	place.call()
+	await wait(0.1)
+	h0 = hps.call()
+	var lines0: int = lines.call()
+	Game.fury = 100.0
+	Game.level = 8
+	player.use_slot(4)
+	await wait(0.4)
+	check(player.ability == "bow_gale" and player.cam_back > 0.0, "Vendaval: tensionando antes de morrer")
+	player._die()
+	await wait(0.1)
+	check(player.ability == "" and is_equal_approx(Engine.time_scale, 1.0) and player.cam_back == 0.0 and absf(player.camera.fov - fov0) < 0.01,
+		"Vendaval: morrer na tensão limpa o estado (%s, %.2f, %.2f, %.1f)" % [player.ability, Engine.time_scale, player.cam_back, player.camera.fov])
+	player.revive(player.global_position)
+	await wait(1.5)
+	check(hps.call() == h0 and lines.call() <= lines0, "Vendaval: morrer na tensão não dispara (nenhum slime ferido)")
+	# a tela de morte abre 1,8 s depois de morrer, mesmo revivido: fecha sem a multa de ouro
+	await wait(0.5)
+	if world.modal != null:
+		world.modal.queue_free()
+		world.modal = null
+	world._set_paused(false)
+	check(not player.dead and absf(player.spring.spring_length - spring0) < 0.05, "Vendaval: câmera volta depois de morrer (%.2f)" % player.spring.spring_length)
+
+	# --- 5) trocar de arma na tensão: encerra sem disparar
+	place.call()
+	await wait(0.1)
+	h0 = hps.call()
+	Game.fury = 100.0
+	Game.level = 8
+	player.use_slot(4)
+	await wait(0.3)
+	check(player.ability == "bow_gale", "Vendaval: tensionando antes de trocar de arma")
+	Game.equip("apprentice_staff")   # outra classe: Game.kit_changed -> end_ability
+	await wait(0.1)
+	check(player.ability == "" and player.cam_back == 0.0 and absf(player.camera.fov - fov0) < 0.01, "Vendaval: trocar de arma na tensão encerra")
+	await wait(1.3)
+	check(hps.call() == h0, "Vendaval: trocar de arma na tensão não dispara")
+	Game.equip("short_bow")
+	await wait(0.1)
+
+	# --- 6) réplica: "bow_gale" toca a tensão sem dano; "bow_gale_fire" toca o disparo e a linha, sem dano nem hit stop
+	place.call()
+	await wait(0.1)
+	h0 = hps.call()
+	var rp := Player.new()
+	rp.remote = true
+	world.add_child(rp)
+	rp.global_position = player.global_position
+	var lines6: int = lines.call()
+	BowAbilities.play_remote(rp, "bow_gale", rp.global_position, Vector3.ZERO)
+	check(rp.ability == "bow_gale" and not rp.ability_data.get("fired", false), "réplica do Vendaval começa a tensão")
+	await wait(0.3)
+	check(rp.ability == "bow_gale" and hps.call() == h0, "réplica tensionando não fere")
+	var ro: Vector3 = player.global_position + Vector3.UP * BowAbilities.GALE_HEIGHT
+	BowAbilities.play_remote(rp, "bow_gale_fire", ro, dir * 0.8)
+	check(rp.ability == "bow_gale" and rp.ability_data.get("fired", false) and is_equal_approx(rp.ability_data.get("charge", 0.0), 0.8)
+		and lines.call() > lines6, "réplica do Vendaval dispara a linha visual")
+	var ts_ok := true
+	for i in 6:
+		await wait(0.03)
+		ts_ok = ts_ok and is_equal_approx(Engine.time_scale, 1.0)
+	check(ts_ok, "réplica do Vendaval não dá hit stop")
+	await wait_until(func(): return rp.ability == "", 2.0)
+	await wait(0.2)
+	check(rp.ability == "" and hps.call() == h0, "réplica do Vendaval não fere (%s)" % [hps.call()])
+	rp.queue_free()
+
+	# restaura
+	for s in saved:
+		var e = s[0]
+		if is_instance_valid(e):
+			e.max_hp = s[1]
+			e.hp = s[1]
+			e.global_position = s[2]
+			e.stagger = 0.0
+			e.velocity = Vector3.ZERO
+	player.cam_yaw.rotation.y = yaw0
+	player.global_position = pos0
+	player.velocity = Vector3.ZERO
+	player.cooldowns.bow_gale = 0.0
+	Game.equip(weapon0)
+	Game.fury = fury0
+	Game.level = lvl0
+	await wait(0.1)
+
+
+## Chuva de Meteoros (ultimate do cajado, canalizada): soltar, tempo, esquiva, mirar no céu, morrer e réplica.
+func _test_meteor_rain() -> void:
+	var lvl0: int = Game.level
+	var fury0: float = Game.fury
+	var weapon0: String = Game.equipment.weapon
+	var pos0 := player.global_position
+	var yaw0: float = player.cam_yaw.rotation.y
+	var pitch0: float = player.cam_pitch.rotation.x
+	var spring0: float = player.spring.spring_length
+	Game.equip("apprentice_staff")
+	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking and player.ability == "")
+	var gs: Array = []
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.kind == "slime" and not e.dead and not e.is_boss:
+			gs.append(e)
+	gs.sort_custom(func(a, b): return a.global_position.distance_to(player.global_position) < b.global_position.distance_to(player.global_position))
+	gs = gs.slice(0, 4)
+	check(gs.size() == 4, "Meteoros: 4 slimes para o teste (%d)" % gs.size())
+	if gs.size() < 4:
+		return
+	var saved: Array = []
+	for e in gs:
+		saved.append([e, e.max_hp, e.global_position])
+		e.max_hp = 100000.0
+	var base: Vector3 = gs[0].home
+	var grounded := func() -> bool: return player.is_on_floor()
+	player.global_position = base + Vector3(0, 0.3, 0)
+	player.velocity = Vector3.ZERO
+	await wait_until(grounded)
+	await wait(0.1)
+	var c: Vector3 = StaffAbilities._meteor_center(player)
+	var flat_d := Vector2(c.x - player.global_position.x, c.z - player.global_position.z).length()
+	check(flat_d <= StaffAbilities.METEOR_RANGE + 0.01, "Meteoros: centro da mira no chão a até 14 m (%.1f m)" % flat_d)
+	# 3 slimes perto do centro (dentro da área) e 1 longe, do outro lado (fora do alcance de qualquer explosão)
+	var place_at := func(ctr: Vector3) -> void:
+		var away := Vector3(ctr.x - player.global_position.x, 0.0, ctr.z - player.global_position.z)
+		away = away.normalized() if away.length() > 0.1 else player.facing()
+		for i in 3:
+			var a := i * TAU / 3.0
+			gs[i].global_position = ctr + Vector3(cos(a), 0.0, sin(a)) * 0.8 + Vector3.UP * 0.4
+		gs[3].global_position = ctr + away * (StaffAbilities.METEOR_AREA + StaffAbilities.METEOR_HIT_RADIUS + 4.0) + Vector3.UP * 0.4
+		for e in gs:
+			e.velocity = Vector3.ZERO
+			e.stagger = 10.0   # parados até o primeiro acerto
+			e.hp = e.max_hp
+	var hps := func() -> Array:
+		var out := []
+		for e in gs:
+			out.append(e.hp)
+		return out
+	var mets := func(caster: Node) -> Array:
+		var out := []
+		for n in world.get_children():
+			if n is StaffAbilities.MeteorStrike and n.caster == caster and not n.is_queued_for_deletion():
+				out.append(n)
+		return out
+	var airborne := func(caster: Node) -> int:
+		var n := 0
+		for m in mets.call(caster):
+			if not m.landed:
+				n += 1
+		return n
+	var area_hit := func(hb: Array) -> bool:
+		for i in 3:
+			if gs[i].hp < hb[i]:
+				return true
+		return false
+	player.invuln = 60.0   # os slimes não interrompem nem enchem a fúria batendo no jogador
+	place_at.call(c)
+	await wait(0.3)
+	place_at.call(c)
+	var h0: Array = hps.call()
+
+	# --- 1) segura, solta aos 2,0 s: os 3 da área perdem vida, o de fora não; fúria 0, mana igual
+	Game.fury = 100.0
+	Game.level = 8
+	Game.mp = Game.max_mp()   # cheia (o máximo depende do nível): a regeneração não a muda
+	var mp1: float = Game.mp
+	var c1: Vector3 = StaffAbilities._meteor_center(player)   # com os slimes no lugar (a mira também acerta inimigos)
+	player.use_slot(4)
+	var d1: Dictionary = player.ability_data
+	check(player.ability == "meteor_rain" and Game.fury == 0.0 and player.ability_slot == 4,
+		"Meteoros começa, gasta a fúria e grava a tecla 4 (%s, %.0f, %d)" % [player.ability, Game.fury, player.ability_slot])
+	check(d1.get("center", Vector3.INF).distance_to(c1) < 0.05, "Meteoros: área fixada no ponto mirado (%s vs %s)" % [d1.get("center"), c1])
+	check(not StaffAbilities.can_dodge_cancel(player), "Meteoros: esquiva não cancela o preparo")
+	Game.stamina = Game.max_stamina()
+	player._dodge_pressed(Vector3.ZERO)
+	check(player.ability == "meteor_rain" and player.dodge_timer <= 0.0, "Meteoros: esquiva no preparo é ignorada")
+	await wait_until(func(): return player.ability_t >= 0.3 or player.ability == "")
+	check(airborne.call(player) == 0, "Meteoros: nenhum meteoro no preparo")
+	await wait_until(func(): return area_hit.call(h0) or player.ability == "", 3.0)
+	check(area_hit.call(h0), "Meteoros: um slime da área perde vida (t %.2f)" % player.ability_t)
+	check(player.ability == "meteor_rain" and StaffAbilities.can_dodge_cancel(player), "Meteoros: esquiva pode cancelar a canalização")
+	check(Vector2(player.velocity.x, player.velocity.z).length() < 0.1, "Meteoros: parado canalizando (vel %s)" % player.velocity)
+	var seed1: int = int(d1.get("seed", -1))
+	var center1: Vector3 = d1.get("center", c)
+	await wait_until(func(): return player.ability_t >= 2.0 or player.ability == "", 3.0)
+	check(player.ability == "meteor_rain", "Meteoros: ainda canalizando aos 2,0 s")
+	var targets1: Array = d1.get("targets", []).slice(0, 4)
+	var n_rel: int = d1.get("targets", []).size()
+	StaffAbilities.release(player)
+	check(player.ability == "", "Meteoros: soltar a tecla encerra a canalização na hora")
+	await wait(0.6)
+	check(airborne.call(player) == 0 and d1.get("targets", []).size() == n_rel, "Meteoros: nenhum meteoro novo depois de soltar")
+	var h1: Array = hps.call()
+	check(h1[0] < h0[0] and h1[1] < h0[1] and h1[2] < h0[2], "Meteoros: os 3 slimes da área perdem vida (%.0f, %.0f, %.0f)"
+		% [h0[0] - h1[0], h0[1] - h1[1], h0[2] - h1[2]])
+	var want: float = (14.0 + Game.spell_power() * 1.6) * Game.damage_mult()
+	var ok_dmg := true
+	for i in 3:
+		var hits: float = (h0[i] - h1[i]) / want
+		ok_dmg = ok_dmg and hits >= 0.99 and absf(hits - roundf(hits)) < 0.01
+	check(ok_dmg, "Meteoros: cada explosão tira (14 + INT x 1,6) x dano (%.1f; perdas %.1f, %.1f, %.1f)"
+		% [want, h0[0] - h1[0], h0[1] - h1[1], h0[2] - h1[2]])
+	check(h1[3] == h0[3], "Meteoros: o slime fora da área não perde vida")
+	check(Game.fury == 0.0, "Meteoros: acertos da ultimate não recarregam a fúria (%.2f)" % Game.fury)
+	check(Game.mp == mp1, "Meteoros: não gasta mana (%.1f -> %.1f)" % [mp1, Game.mp])
+	check(is_equal_approx(Engine.time_scale, 1.0) and player.cam_back == 0.0, "Meteoros: fim restaura tempo e câmera")
+
+	# --- soltar no preparo (um toque na tecla): fica guardado; a chuva abre no fim do preparo, canaliza
+	# METEOR_TAP_MIN s e termina sozinha (a ultimate não se desperdiça)
+	place_at.call(c)
+	await wait(0.1)
+	Game.fury = 100.0
+	Game.level = 8
+	player.use_slot(4)
+	await wait_until(func(): return player.ability_t >= 0.2 or player.ability == "")
+	check(player.ability == "meteor_rain" and player.ability_t < StaffAbilities.METEOR_WINDUP, "Meteoros: no preparo antes de soltar")
+	var dw: Dictionary = player.ability_data
+	StaffAbilities.release(player)
+	check(player.ability == "meteor_rain" and Game.fury == 0.0, "Meteoros: soltar no preparo não encerra (fica guardado)")
+	var tap_t := [0.0]
+	await wait_until(func():
+		if player.ability == "meteor_rain":
+			tap_t[0] = player.ability_t
+		return player.ability == "", 3.0)
+	var tap_end: float = StaffAbilities.METEOR_WINDUP + StaffAbilities.METEOR_TAP_MIN
+	check(player.ability == "" and tap_t[0] >= tap_end - 0.1 and tap_t[0] <= tap_end + 0.05 and dw.get("targets", []).size() >= 4,
+		"Meteoros: um toque abre a chuva e ela dura o mínimo (fim aos %.2f s, %d meteoros)" % [tap_t[0], dw.get("targets", []).size()])
+	await wait(0.6)
+	check(airborne.call(player) == 0, "Meteoros: depois do toque não nasce meteoro novo")
+	player.cooldowns.meteor_rain = 0.0
+
+	# --- 2) sem soltar: termina sozinha em <= 4,6 s
+	place_at.call(c)
+	await wait(0.1)
+	Game.fury = 100.0
+	Game.level = 8
+	player.use_slot(4)
+	var last_t := [0.0]
+	await wait_until(func():
+		if player.ability == "meteor_rain":
+			last_t[0] = player.ability_t
+		return player.ability == "", 6.0)
+	check(player.ability == "" and last_t[0] <= 4.6 and last_t[0] >= 4.0,
+		"Meteoros: sem soltar termina sozinha aos 4,5 s (último t %.2f)" % last_t[0])
+	await wait(0.6)
+	check(airborne.call(player) == 0, "Meteoros: os últimos meteoros caem depois do fim")
+
+	# --- esquiva na canalização: encerra; os meteoros no ar ainda caem e ferem
+	place_at.call(c)
+	await wait(0.1)
+	Game.fury = 100.0
+	Game.level = 8
+	player.use_slot(4)
+	var aimed := [null, null]   # [meteoro no ar, slime perto do alvo dele]
+	await wait_until(func():
+		if player.ability != "meteor_rain":
+			return true
+		for m in mets.call(player):
+			if m.landed or m.age() > StaffAbilities.METEOR_FALL * 0.5:
+				continue
+			for i in 3:
+				var dd := Vector2(m.target.x - gs[i].global_position.x, m.target.z - gs[i].global_position.z).length()
+				if dd < 1.0:
+					aimed[0] = m
+					aimed[1] = gs[i]
+					return true
+		return false, 4.0)
+	check(aimed[0] != null and player.ability == "meteor_rain", "Meteoros: meteoro no ar sobre um slime antes da esquiva")
+	if aimed[0] != null:
+		var hd: float = aimed[1].hp
+		Game.stamina = Game.max_stamina()
+		player._dodge_pressed(Vector3.ZERO)
+		check(player.ability == "" and player.dodge_timer > 0.0, "Meteoros: esquiva encerra a canalização")
+		check(is_instance_valid(aimed[0]) and not aimed[0].is_queued_for_deletion() and not aimed[0].landed,
+			"Meteoros: depois da esquiva o meteoro no ar continua caindo")
+		await wait(0.7)
+		check(aimed[1].hp < hd, "Meteoros: meteoro no ar fere depois da esquiva (%.0f -> %.0f)" % [hd, aimed[1].hp])
+		check(airborne.call(player) == 0, "Meteoros: nenhum meteoro novo depois da esquiva")
+	await wait_until(func(): return player.dodge_timer <= 0.0)
+
+	# --- 3) mirar no céu: centro a <= 14 m; 4) morrer no meio: meteoros no ar somem sem dano
+	player.cam_pitch.rotation.x = 0.6
+	await wait(0.1)
+	var cs: Vector3 = StaffAbilities._meteor_center(player)
+	var sd := Vector2(cs.x - player.global_position.x, cs.z - player.global_position.z).length()
+	check(sd <= StaffAbilities.METEOR_RANGE + 0.01 and sd >= StaffAbilities.METEOR_RANGE - 0.5 and absf(cs.y - player.global_position.y) < 6.0,
+		"Meteoros: mirar no céu põe a área no chão a 14 m (%.1f m, dy %.1f)" % [sd, cs.y - player.global_position.y])
+	place_at.call(cs)
+	await wait(0.1)
+	Game.fury = 100.0
+	Game.level = 8
+	player.use_slot(4)
+	var c4: Vector3 = player.ability_data.get("center", Vector3.INF)
+	check(Vector2(c4.x - player.global_position.x, c4.z - player.global_position.z).length() <= StaffAbilities.METEOR_RANGE + 0.01,
+		"Meteoros: mirando no céu a área começa a até 14 m")
+	await wait_until(func(): return player.ability == "" or (player.ability_t > StaffAbilities.METEOR_WINDUP + 0.3 and airborne.call(player) >= 1), 3.0)
+	check(player.ability == "meteor_rain" and airborne.call(player) >= 1, "Meteoros: meteoros no ar antes de morrer")
+	player._die()
+	await get_tree().process_frame
+	check(player.ability == "" and airborne.call(player) == 0 and mets.call(player).is_empty() and is_equal_approx(Engine.time_scale, 1.0),
+		"Meteoros: morrer remove os meteoros no ar (%d) e restaura o tempo (%.2f)" % [mets.call(player).size(), Engine.time_scale])
+	var h4b: Array = hps.call()
+	player.revive(player.global_position)
+	await wait(0.8)
+	check(hps.call() == h4b, "Meteoros: nenhum dano depois de morrer")
+	# a tela de morte abre 1,8 s depois de morrer, mesmo revivido: fecha sem a multa de ouro
+	await wait_until(func(): return world.modal != null, 3.0)
+	if world.modal != null:
+		world.modal.queue_free()
+		world.modal = null
+	world._set_paused(false)
+	check(not player.dead and player.cam_back == 0.0, "Meteoros: revive sem resto da habilidade")
+	player.cam_pitch.rotation.x = pitch0
+
+	# --- 5) réplica: mesma semente = mesmos pontos de impacto; visual sem dano; para em "meteor_rain_end"
+	place_at.call(c)
+	await wait(0.1)
+	var h5: Array = hps.call()
+	var rp := Player.new()
+	rp.remote = true
+	world.add_child(rp)
+	rp.global_position = player.global_position
+	StaffAbilities.play_remote(rp, "meteor_rain", center1, Vector3(seed1, 0, 0))
+	check(rp.ability == "meteor_rain", "réplica da Chuva de Meteoros começa")
+	await wait_until(func(): return rp.ability_data.get("targets", []).size() >= 4 or rp.ability == "", 3.0)
+	var rt: Array = rp.ability_data.get("targets", []).slice(0, 4)
+	var same := rt.size() == 4 and targets1.size() == 4
+	for i in mini(rt.size(), targets1.size()):
+		same = same and rt[i].distance_to(targets1[i]) < 0.01
+	check(same, "réplica: a semente reproduz os mesmos pontos de impacto (%s vs %s)" % [rt, targets1])
+	await wait_until(func(): return rp.ability == "" or rp.ability_data.get("targets", []).size() >= 8, 3.0)
+	check(rp.ability == "meteor_rain" and airborne.call(rp) >= 1 and hps.call() == h5, "réplica da Chuva de Meteoros cai e não fere (%s)" % [hps.call()])
+	StaffAbilities.play_remote(rp, "meteor_rain_end", c, Vector3.ZERO)
+	check(rp.ability == "", "réplica: 'meteor_rain_end' encerra a chuva")
+	await wait(0.6)
+	check(airborne.call(rp) == 0 and hps.call() == h5, "réplica: nenhum meteoro novo depois do fim e nenhum dano")
+	# o estado de rede sem a flag de habilidade (sem morte) encerra macio: os meteoros no ar ainda caem
+	StaffAbilities.play_remote(rp, "meteor_rain", center1, Vector3(seed1, 0, 0))
+	await wait_until(func(): return airborne.call(rp) >= 1 or rp.ability == "", 3.0)
+	var rp_air: Array = []
+	for m in mets.call(rp):
+		if not m.landed:
+			rp_air.append(m)
+	rp.apply_net_state(rp.global_position, 0.0, Vector3.ZERO, 0, 0, 0.0)
+	await get_tree().process_frame
+	var still := 0
+	for m in rp_air:
+		if is_instance_valid(m) and not m.is_queued_for_deletion():
+			still += 1
+	check(rp.ability == "" and rp_air.size() >= 1 and still == rp_air.size(),
+		"réplica: perder a flag encerra macio, os meteoros no ar continuam (%d de %d)" % [still, rp_air.size()])
+	await wait(0.8)
+	rp.queue_free()
+
+	# --- réplica removida no meio da chuva (o jogador saiu ou trocou de zona): nada fica órfão na cena
+	await wait(1.0)
+	var budget0: int = FXEpic._active_amount
+	var skies := func() -> int:
+		var n := 0
+		for x in world.get_children():
+			if x.has_node("Dark") and x.has_node("Glow") and not x.is_queued_for_deletion():
+				n += 1
+		return n
+	var sky0: int = skies.call()
+	var rq := Player.new()
+	rq.remote = true
+	world.add_child(rq)
+	rq.global_position = player.global_position
+	StaffAbilities.play_remote(rq, "meteor_rain", center1, Vector3(seed1, 0, 0))
+	await wait_until(func(): return rq.ability_t >= StaffAbilities.METEOR_WINDUP + 0.6 or rq.ability == "", 3.0)
+	check(rq.ability == "meteor_rain" and skies.call() == sky0 + 1, "réplica removida: céu escuro no ar antes de sair (%d)" % skies.call())
+	rq.queue_free()
+	for i in 3:
+		await get_tree().process_frame
+	var live_mets := 0
+	for x in world.get_children():
+		if x is StaffAbilities.MeteorStrike and not x.is_queued_for_deletion():
+			live_mets += 1
+	check(skies.call() == sky0 and live_mets == 0, "réplica removida: céu, redemoinho e meteoros somem com ela (%d céus, %d meteoros)" % [skies.call(), live_mets])
+	await wait(1.2)   # as explosões que já tinham começado terminam a vida
+	check(FXEpic._active_amount <= budget0, "réplica removida: o orçamento de partículas volta (%d -> %d)" % [budget0, FXEpic._active_amount])
+
+	# --- 6) encosta de montanha: de pé na encosta do Pico do sudoeste, mirando no céu para fora (para a
+	# planície lá embaixo). O centro e cada ponto de impacto ficam no chão de verdade (um raio de cima a
+	# baixo no mesmo x, z), não enterrados nem flutuando na altura do jogador.
+	var top_ground := func(x: float, z: float) -> float:
+		var q := PhysicsRayQueryParameters3D.create(Vector3(x, 300.0, z), Vector3(x, -100.0, z), StaffAbilities.METEOR_GROUND_MASK)
+		var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(q)
+		return hit.position.y if not hit.is_empty() else -999.0
+	var pk: Vector3 = world.MOUNTAINS[0][0]
+	var out := Vector3(-pk.x, 0.0, -pk.z).normalized()   # do pico para o meio do mapa
+	var best_r := 0.0
+	var best_drop := -1.0
+	for r in range(4, 36):
+		var a: Vector3 = pk + out * float(r)
+		var b2: Vector3 = a + out * StaffAbilities.METEOR_RANGE
+		var drop: float = top_ground.call(a.x, a.z) - top_ground.call(b2.x, b2.z)
+		if drop > best_drop:
+			best_drop = drop
+			best_r = float(r)
+	var flank: Vector3 = pk + out * best_r
+	player.global_position = Vector3(flank.x, top_ground.call(flank.x, flank.z) + 0.5, flank.z)
+	player.velocity = Vector3.ZERO
+	player._snap_visuals()
+	await wait_until(grounded)
+	await wait(0.2)
+	player.cam_yaw.rotation.y = atan2(-out.x, -out.z)   # frente da câmera (-Z) para fora do pico
+	var pf: Vector3 = player.global_position
+	check(pf.y > 10.0, "Meteoros: jogador no alto da encosta (y %.1f)" % pf.y)
+	# no céu (o ponto vai a 14 m) e para baixo, na planície distante (o raio acerta o chão bem além dos
+	# 14 m e o ponto a 14 m ainda está no meio da encosta, muito acima do acerto)
+	for pitch in [0.6, -0.5]:
+		player.cam_pitch.rotation.x = pitch
+		await wait(0.15)
+		var aim: Vector3 = player.aim_point()
+		var cm: Vector3 = StaffAbilities._meteor_center(player)
+		var cm_ref: float = top_ground.call(cm.x, cm.z)
+		var pn: Vector3 = player.global_position   # (no topo o jogador pode escorregar um pouco)
+		check(absf(cm.y - cm_ref) < 0.05 and Vector2(cm.x - pn.x, cm.z - pn.z).length() <= StaffAbilities.METEOR_RANGE + 0.01,
+			"Meteoros: na encosta (pitch %.1f) o centro fica no chão (y %.2f, chão %.2f, jogador %.1f, mira em y %.1f a %.0f m)"
+			% [pitch, cm.y, cm_ref, pf.y, aim.y, Vector2(aim.x - pf.x, aim.z - pf.z).length()])
+	Game.fury = 100.0
+	Game.level = 8
+	player.use_slot(4)
+	await wait_until(func(): return player.ability_data.get("targets", []).size() >= 6 or player.ability == "", 3.0)
+	var on_ground := 0
+	var tg: Array = player.ability_data.get("targets", [])
+	for t in tg:
+		if absf(t.y - top_ground.call(t.x, t.z)) < 0.05:
+			on_ground += 1
+	check(tg.size() >= 6 and on_ground == tg.size(), "Meteoros: na encosta os meteoros caem no chão (%d de %d)" % [on_ground, tg.size()])
+	player.end_ability()
+	player.cooldowns.meteor_rain = 0.0
+
+	# restaura
+	for s in saved:
+		var e = s[0]
+		if is_instance_valid(e):
+			e.max_hp = s[1]
+			e.hp = s[1]
+			e.global_position = s[2]
+			e.stagger = 0.0
+			e.velocity = Vector3.ZERO
+	player.cam_yaw.rotation.y = yaw0
+	player.cam_pitch.rotation.x = pitch0
+	player.global_position = pos0
+	player.velocity = Vector3.ZERO
+	player.invuln = 0.0
+	player.cooldowns.meteor_rain = 0.0
+	Game.equip(weapon0)
+	Game.fury = fury0
+	Game.level = lvl0
+	await wait(0.3)
+	check(absf(player.spring.spring_length - spring0) < 0.3, "Meteoros: câmera de volta (%.2f)" % player.spring.spring_length)
+
+
+func _test_fx_epic() -> void:
+	var p := player.global_position
+	var n0 := get_tree().current_scene.get_child_count()
+	FXEpic.glow_burst(p, Color.ORANGE)
+	FXEpic.sparks(p, Vector3.UP, Color.YELLOW)
+	FXEpic.smoke(p)
+	FXEpic.flash(p, Color.ORANGE)
+	FXEpic.ground_mark(p, Color.BLACK, 2.0, 1.0)
+	FXEpic.trail(player.model, Color.ORANGE)
+	check(get_tree().current_scene.get_child_count() >= n0 + 6, "efeitos épicos criados")
+	FXEpic.hit_stop(0.05)
+	FXEpic.hit_stop(0.05)
+	check(Engine.time_scale >= 0.05 and Engine.time_scale < 1.0, "hit stop ativo (%.2f)" % Engine.time_scale)
+	await get_tree().create_timer(0.3, true, false, true).timeout
+	check(is_equal_approx(Engine.time_scale, 1.0), "hit stop volta para 1.0")
+	# perder o guarda no meio do hit stop também restaura o tempo
+	FXEpic.hit_stop(5.0)
+	check(Engine.time_scale < 1.0, "hit stop longo ativo")
+	FXEpic._hs_guard.free()
+	check(is_equal_approx(Engine.time_scale, 1.0), "guarda liberado cedo restaura o tempo")
+	FXEpic.hit_stop(0.05)
+	await get_tree().create_timer(0.3, true, false, true).timeout
+	check(is_equal_approx(Engine.time_scale, 1.0), "hit stop volta para 1.0 de novo")
+	await wait(2.0)
+	check(get_tree().current_scene.get_child_count() <= n0 + 1, "efeitos épicos se liberam")
+	check(FXEpic._active_amount == 0, "orçamento de partículas devolvido (%d)" % FXEpic._active_amount)
+	# liberar um emissor antes da hora também devolve o orçamento
+	FXEpic.glow_burst(p, Color.ORANGE, 40)
+	check(FXEpic._active_amount == 40, "orçamento reservado (%d)" % FXEpic._active_amount)
+	get_tree().current_scene.get_child(get_tree().current_scene.get_child_count() - 1).free()
+	check(FXEpic._active_amount == 0, "emissor liberado cedo devolve o orçamento (%d)" % FXEpic._active_amount)
 
 
 # ---------------------------------------------------------------- Ferreiro

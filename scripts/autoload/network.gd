@@ -552,7 +552,7 @@ func _send_enemy_snapshot() -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow: float) -> void:
+func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow: float, stun := 0.0, pull := 0.0) -> void:
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id):
 		return
@@ -568,10 +568,12 @@ func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow:
 		for pid in _enemy_peers(e):
 			_enemy_hit_fx.rpc_id(pid, net_id, amount, crit)
 		e.last_hitter = id
-		e.take_damage(amount, from_pos, crit)
+		e.take_damage(amount, from_pos, crit, 0.0, 0.0, clampf(pull, 0.0, 6.0))
 		e.last_hitter = 0
 	if slow > 0.0 and not e.dead:
 		e.apply_slow(minf(slow, 10.0))
+	if stun > 0.0 and not e.dead:
+		e.apply_stun(minf(stun, 3.0))
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -798,9 +800,9 @@ func send_event(kind: String, a := Vector3.ZERO, b := Vector3.ZERO) -> void:
 		_player_event.rpc_id(1, kind, a, b)
 
 
-func client_hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow := 0.0) -> void:
+func client_hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun := 0.0, pull := 0.0) -> void:
 	if is_client():
-		_hit_enemy.rpc_id(1, net_id, amount, from_pos, crit, slow)
+		_hit_enemy.rpc_id(1, net_id, amount, from_pos, crit, slow, stun, pull)
 
 
 func request_boss() -> void:
