@@ -136,6 +136,8 @@ func _ready() -> void:
 				m.material_override = goo
 	if data.has("tint"):
 		_apply_tint(data.tint[0], data.tint[1])
+	if ToonLook.enabled():      # depois da tintura, que lê os materiais originais
+		ToonLook.apply(model)
 	if is_boss or data.get("elite", false):
 		var aura := OmniLight3D.new()
 		aura.light_color = Color(1, 0.3, 0.1) if is_boss else data.color

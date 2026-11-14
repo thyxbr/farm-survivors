@@ -362,6 +362,9 @@ func _build_backdrop() -> void:
 	gob.rotation.y = -2.4
 	gob.scale = Vector3.ONE * 1.6
 	pivot.add_child(gob)
+	if ToonLook.enabled():
+		ToonLook.apply(knight)
+		ToonLook.apply(gob)
 	var slime: Node3D = load("res://assets/models/slime.glb").instantiate()
 	slime.position = Vector3(-1.2, 0, -2.2)
 	slime.rotation.y = 2.5

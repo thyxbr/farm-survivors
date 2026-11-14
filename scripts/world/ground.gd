@@ -52,6 +52,7 @@ func setup(map_half: float) -> void:
 	_mat = ShaderMaterial.new()
 	_mat.shader = GROUND_SHADER
 	_mat.set_shader_parameter("noise_tex", _noise_tex)
+	_mat.set_shader_parameter("toon", ToonLook.enabled())
 	var ground := MeshInstance3D.new()
 	ground.name = "Ground"
 	var plane := PlaneMesh.new()
@@ -367,6 +368,7 @@ func scatter_grass(seed_value: int, density := 0.55, keep_out: Array = [], spars
 	var gmat := ShaderMaterial.new()
 	gmat.shader = GRASS_SHADER
 	gmat.set_shader_parameter("noise_tex", _noise_tex)
+	gmat.set_shader_parameter("toon", ToonLook.enabled())
 	tuft.surface_set_material(0, gmat)
 	var clump := FastNoiseLite.new()   # touceiras de capim e canteiros de flores/plantas
 	clump.seed = seed_value
