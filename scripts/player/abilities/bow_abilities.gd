@@ -13,11 +13,19 @@ const TRIPLE_SPEED := 42.0      ## velocidade da flecha de carga cheia
 const PROJECTILE := preload("res://scripts/player/projectile.gd")
 const TRIPLE_COLOR := Color(1.0, 0.85, 0.5)
 
+# ------------------------------------------------------------------ Flecha Glacial (slot 2)
+const FROST_DRAW := 0.35        ## tensão com a ponta brilhando (a esquiva cancela só até aqui)
+const FROST_RECOVER := 0.25
+const FROST_TIME := FROST_DRAW + FROST_RECOVER
+const FROST_MULT := 1.4         ## dano = Game.melee_damage() * FROST_MULT
+const FROST_SPEED := 40.0
+const FROST_COLOR := Color(0.6, 0.88, 1.0)
+
 
 ## Executa a habilidade `id` para `player`. Devolve true só se ela começou.
 static func use(player: Node, id: String) -> bool:
 	match id:
-		"bow_triple":
+		"bow_triple", "bow_frost":
 			player.begin_ability(id, {})
 			Sfx.play("swing", 0.3, -12.0)
 			return true
@@ -38,12 +46,24 @@ static func tick(player: Node, delta: float, _move_dir := Vector3.ZERO, _move_sp
 					_triple_fire(player)
 			if player.ability_t >= TRIPLE_TIME - 0.0001:
 				player.end_ability()
+		"bow_frost":
+			if not player.remote:
+				player.velocity.x = move_toward(player.velocity.x, 0.0, 40.0 * delta)
+				player.velocity.z = move_toward(player.velocity.z, 0.0, 40.0 * delta)
+				if t0 == 0.0:
+					_frost_glow(player.weapon_tip())
+				if t0 < FROST_DRAW and player.ability_t >= FROST_DRAW:
+					_frost_fire(player)
+			if player.ability_t >= FROST_TIME - 0.0001:
+				player.end_ability()
 		_:
 			player.end_ability()
 
 
 ## A esquiva pode interromper a habilidade agora?
 static func can_dodge_cancel(player: Node) -> bool:
+	if player.ability == "bow_frost":
+		return player.ability_t < FROST_DRAW
 	return player.ability == "bow_triple" and player.ability_t < TRIPLE_DRAW
 
 
@@ -55,6 +75,11 @@ static func pose(player: Node, p: Dictionary) -> void:
 				KnightAnim.bow_draw_pose(p, player.ability_t / TRIPLE_DRAW)
 			else:
 				KnightAnim.bow_release_pose(p, clampf((player.ability_t - TRIPLE_DRAW) / TRIPLE_RECOVER, 0.0, 1.0), 0.0)
+		"bow_frost":
+			if player.ability_t < FROST_DRAW:
+				KnightAnim.bow_draw_pose(p, player.ability_t / FROST_DRAW)
+			else:
+				KnightAnim.bow_release_pose(p, clampf((player.ability_t - FROST_DRAW) / FROST_RECOVER, 0.0, 1.0), 0.0)
 
 
 ## Réplica: começa a habilidade de outro jogador pelo evento de rede (só visual).
@@ -67,6 +92,12 @@ static func play_remote(player: Node, kind: String, a: Vector3, b: Vector3) -> v
 			for d in _triple_dirs(b):
 				_spawn_visual(player, a, d)
 			_triple_fx(player, a, b)
+			Sfx.play_at("swing", a, 0.1, -2.0)
+		"bow_frost":
+			player.begin_ability(kind, {})
+			player.ability_t = FROST_DRAW
+			_spawn_visual(player, a, b.normalized(), true)
+			_frost_fx(a, b)
 			Sfx.play_at("swing", a, 0.1, -2.0)
 
 
@@ -104,13 +135,45 @@ static func _triple_fx(_player: Node, origin: Vector3, dir: Vector3) -> void:
 
 
 ## Flecha só visual (réplica): como o evento "arrow".
-static func _spawn_visual(player: Node, origin: Vector3, d: Vector3) -> void:
+static func _spawn_visual(player: Node, origin: Vector3, d: Vector3, frost := false) -> void:
 	var p := PROJECTILE.new()
 	p.kind = "arrow"
 	p.direction = d
 	p.visual_only = true
-	p.color = ItemDB.get_item(player._last_look.get("weapon", "")).get("color", Color(0.6, 0.8, 1.0))
-	p.speed = TRIPLE_SPEED
+	if frost:
+		p.color = FROST_COLOR
+		p.fx = "glacial"
+		p.speed = FROST_SPEED
+	else:
+		p.color = ItemDB.get_item(player._last_look.get("weapon", "")).get("color", Color(0.6, 0.8, 1.0))
+		p.speed = TRIPLE_SPEED
 	p.life = 1.6
 	player.get_tree().current_scene.add_child(p)
 	p.global_position = origin
+	if frost:
+		FXEpic.trail(p, FROST_COLOR, 0.22, 0.5)
+
+
+# ------------------------------------------------------------------ Flecha Glacial
+## Tensão: brilho azul-gelo na ponta da flecha.
+static func _frost_glow(tip: Vector3) -> void:
+	FXEpic.glow_burst(tip, FROST_COLOR, 14, 1.2, 0.14, FROST_DRAW, 0.0)
+
+
+## Dispara a flecha única (só o dono): dano x1,4, velocidade 40, sem perfuração; o gelo é do projétil (fx "glacial").
+static func _frost_fire(player: Node) -> void:
+	var origin: Vector3 = player.weapon_tip()
+	var dir: Vector3 = player.aim_dir(origin)
+	var crit: bool = randf() < Game.crit_chance()
+	var dmg: float = Game.melee_damage() * FROST_MULT * (1.8 if crit else 1.0)
+	var p = player._spawn_projectile("arrow", origin, dir, dmg, crit, 0, FROST_SPEED, "glacial", FROST_COLOR)
+	FXEpic.trail(p, FROST_COLOR, 0.22, 0.5)
+	Network.send_event("bow_frost", origin, dir)
+	_frost_fx(origin, dir)
+	Sfx.play("swing", 0.1, -2.0)
+	player.add_shake(0.06)
+
+
+static func _frost_fx(origin: Vector3, dir: Vector3) -> void:
+	FXEpic.sparks(origin, dir + Vector3.UP * 0.3, FROST_COLOR, 8, 5.0, 0.2)
+	FXEpic.flash(origin, FROST_COLOR, 1.4, 3.0, 0.12)

@@ -36,7 +36,7 @@ const ABILITIES := {
 	"bow_triple": {"name": "Tiro Triplo", "class": "bow", "slot": 1, "level": 1, "cooldown": 5.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "bow", "desc": "Três flechas em leque."},
 	"bow_frost": {"name": "Flecha Glacial", "class": "bow", "slot": 2, "level": 3, "cooldown": 8.0, "cost": 0,
-		"ready": false, "ultimate": false, "icon": "frost", "desc": "Flecha de gelo: prende e atrasa o alvo atingido."},
+		"ready": true, "ultimate": false, "icon": "frost", "desc": "Flecha de gelo: prende e atrasa o alvo atingido."},
 	"bow_gale": {"name": "Flecha do Vendaval", "class": "bow", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
 		"ready": false, "ultimate": true, "icon": "bow", "desc": "Ultimate: o arqueiro agacha, tensiona e solta uma flecha que atravessa tudo em linha reta, rasgando o ar."},
 }

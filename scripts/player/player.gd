@@ -653,7 +653,7 @@ func _cancel_draw() -> void:
 	draw_t = 0.0
 
 
-func _spawn_projectile(kind: String, origin: Vector3, d: Vector3, dmg: float, crit: bool, pierce: int, spd := 30.0) -> void:
+func _spawn_projectile(kind: String, origin: Vector3, d: Vector3, dmg: float, crit: bool, pierce: int, spd := 30.0, fx_override := "", color_override := Color(0, 0, 0, 0)) -> Node:
 	var p := PROJECTILE.new()
 	p.kind = kind
 	p.direction = d
@@ -662,10 +662,15 @@ func _spawn_projectile(kind: String, origin: Vector3, d: Vector3, dmg: float, cr
 	p.pierce = pierce
 	p.fx = _weapon_fx() if _weapon_fx() != "multishot" else ""
 	p.color = _weapon_color()
+	if fx_override != "":
+		p.fx = fx_override
+	if color_override.a > 0.0:
+		p.color = color_override
 	p.speed = spd if kind == "arrow" else 26.0
 	p.life = 1.8 if kind == "arrow" else 1.2
 	get_tree().current_scene.add_child(p)
 	p.global_position = origin
+	return p
 
 
 # ------------------------------------------------------------ magias
@@ -1272,7 +1277,7 @@ func _animate(delta: float) -> void:
 	_cast_t += delta
 	var arrow: Node3D = look.get("arrow")
 	if arrow and is_instance_valid(arrow):
-		arrow.visible = drawing or (ability == "bow_triple" and ability_t < BowAbilities.TRIPLE_DRAW)
+		arrow.visible = drawing or ((ability == "bow_triple" and ability_t < BowAbilities.TRIPLE_DRAW) or (ability == "bow_frost" and ability_t < BowAbilities.FROST_DRAW))
 	if ability != "":
 		_ab_module(ability).pose(self, p)
 	elif cls == "bow" and drawing:

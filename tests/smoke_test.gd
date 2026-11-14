@@ -360,14 +360,14 @@ func _ready() -> void:
 	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_whirl"], "kit da espada (%s)" % [Game.ability_kit()])
 	check(not Game.knows_ability("sword_quake") and Game.knows_ability("sword_charge"), "liberação por nível")
 	check(Game.level == 1 and not Game.knows_ability("heal") and ItemDB.ABILITIES.heal.level == 5, "cura só no nível 5")
-	# Flecha Glacial (arco, nível 3) ainda não existe: liberada à força e sem recarga, não começa nem gasta recarga
+	# Flecha do Vendaval (arco, nível 8) ainda não existe: liberada à força e sem recarga, não começa nem gasta recarga
 	Game.add_item("short_bow")
 	Game.equip("short_bow")
 	var lvl_bf: int = Game.level
-	Game.level = 3
-	player.cooldowns.bow_frost = 0.0
-	player.cast("bow_frost")
-	check(Game.weapon_class() == "bow" and player.ability == "" and player.cooldowns.bow_frost == 0.0
+	Game.level = 8
+	player.cooldowns.bow_gale = 0.0
+	player.cast("bow_gale")
+	check(Game.weapon_class() == "bow" and player.ability == "" and player.cooldowns.bow_gale == 0.0
 		and player.cooldowns.size() == ItemDB.ABILITIES.size(), "habilidade sem implementação não gasta recarga")
 	Game.level = lvl_bf
 	# --- Tiro Triplo (arco, slot 1): 3 flechas em leque, ignora multishot, esquiva só cancela antes do disparo
@@ -482,6 +482,87 @@ func _ready() -> void:
 			c.queue_free()
 	Game.stamina = Game.max_stamina()
 	player.cooldowns.bow_triple = 0.0
+	# --- Flecha Glacial (arco, slot 2): tensão 0,35 s, 1 flecha (dano x1,4, vel 40), prende 1,5 s + lentidão 3 s; chefe só a lentidão
+	Game.level = 3
+	Game.equip("short_bow")
+	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking)
+	var fg_boss0: bool = tt_s.is_boss
+	tt_s.global_position = tt_s.home
+	player.global_position = tt_s.global_position + Vector3(0, 0.3, 6.0)
+	player.model.rotation.y = PI
+	player.velocity = Vector3.ZERO
+	await wait_until(tt_grounded)
+	player.global_position = tt_s.global_position + Vector3(0, 0.3, 6.0)
+	for c in tt_fire.call():
+		c.queue_free()
+	tt_s.stagger = 0.0
+	tt_s.slow_timer = 0.0
+	tt_s.hp = tt_s.max_hp
+	var fg_hp: float = tt_s.hp
+	player.cooldowns.bow_frost = 0.0
+	Game.level = 3
+	player.use_slot(2)
+	check(player.ability == "bow_frost" and BowAbilities.can_dodge_cancel(player), "Flecha Glacial começa (%s)" % player.ability)
+	await wait_until(func(): return tt_fire.call().size() > 0 or player.ability == "")
+	var fg_arrows: Array = tt_fire.call()
+	check(fg_arrows.size() == 1 and player.ability == "bow_frost" and player.ability_t >= BowAbilities.FROST_DRAW - 0.0001
+		and not BowAbilities.can_dodge_cancel(player), "Flecha Glacial dispara 1 flecha só depois da tensão (%d, t %.2f)" % [fg_arrows.size(), player.ability_t])
+	if fg_arrows.size() == 1:
+		var fa = fg_arrows[0]
+		var fwant: float = Game.melee_damage() * BowAbilities.FROST_MULT * (1.8 if fa.crit else 1.0)
+		check(absf(fa.damage - fwant) < 0.01 and is_equal_approx(fa.speed, 40.0) and fa.pierce == 0 and fa.fx == "glacial",
+			"Flecha Glacial: dano x1,4, velocidade 40, sem perfuração (%.1f vs %.1f, vel %.0f, fx %s)" % [fa.damage, fwant, fa.speed, fa.fx])
+	await wait_until(func(): return tt_s.hp < fg_hp)
+	check(tt_s.stagger > 0.8 and tt_s.slow_timer > 1.5, "Flecha Glacial prende e atrasa (stagger %.2f, slow %.2f)" % [tt_s.stagger, tt_s.slow_timer])
+	await wait_until(func(): return player.ability == "")
+	check(player.cooldowns.bow_frost > 0.0, "Flecha Glacial entra em recarga")
+	# chefe: só a lentidão (sem prender)
+	tt_s.is_boss = true
+	tt_s.stagger = 0.0
+	tt_s.slow_timer = 0.0
+	tt_s.global_position = tt_s.home
+	player.global_position = tt_s.global_position + Vector3(0, 0.3, 6.0)
+	player.velocity = Vector3.ZERO
+	await wait_until(tt_grounded)
+	player.global_position = tt_s.global_position + Vector3(0, 0.3, 6.0)
+	player.cooldowns.bow_frost = 0.0
+	fg_hp = tt_s.hp
+	Game.level = 3
+	player.use_slot(2)
+	await wait_until(func(): return tt_s.hp < fg_hp)
+	check(tt_s.stagger < 1.0 and tt_s.slow_timer > 0.0, "Flecha Glacial no chefe: só lentidão (stagger %.2f, slow %.2f)" % [tt_s.stagger, tt_s.slow_timer])
+	await wait_until(func(): return player.ability == "")
+	tt_s.is_boss = fg_boss0
+	# réplica: flecha visual_only, sem dano nem prisão
+	var fg_rp := Player.new()
+	fg_rp.remote = true
+	world.add_child(fg_rp)
+	tt_s.stagger = 0.0
+	tt_s.slow_timer = 0.0
+	tt_s.hp = tt_s.max_hp
+	var fg_rhp: float = tt_s.hp
+	var fg_vis0 := 0
+	for c in world.get_children():
+		if c.get("kind") == "arrow" and c.visual_only:
+			fg_vis0 += 1
+	BowAbilities.play_remote(fg_rp, "bow_frost", tt_s.global_position + Vector3(0, 1.2, 6.0), Vector3(0, 0, -1))
+	var fg_vis := []
+	for c in world.get_children():
+		if c.get("kind") == "arrow" and c.visual_only:
+			fg_vis.append(c)
+	check(fg_vis.size() - fg_vis0 == 1 and fg_rp.ability == "bow_frost" and tt_fire.call().size() == 0,
+		"réplica da Flecha Glacial cria 1 flecha visual_only (%d)" % [fg_vis.size() - fg_vis0])
+	await wait_until(func(): return fg_rp.ability == "")
+	await wait(0.6)
+	check(tt_s.hp == fg_rhp and tt_s.stagger <= 0.0 and tt_s.slow_timer <= 0.0, "flecha glacial da réplica não fere nem prende")
+	fg_rp.queue_free()
+	for c in world.get_children():
+		if c.get("kind") == "arrow":
+			c.queue_free()
+	tt_s.stagger = 0.0
+	tt_s.slow_timer = 0.0
+	player.cooldowns.bow_frost = 0.0
+	Game.level = lvl_bf
 	tt_s.hp = tt_max
 	tt_s.max_hp = tt_max
 	tt_s.global_position = tt_s.home
