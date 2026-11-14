@@ -32,6 +32,7 @@ const NPCS := {
 		# vem de IK de dois ossos, assado quadro a quadro (ver _plant_staff). O ponto fica à frente e para fora,
 		# onde a túnica não chega nem quando ele se curva (idle) ou dá passos (excited)
 		"lock": {"pose": "staff_hold", "bones": ["LeftShoulder"]},
+		# spot = onde o cajado fica no jogo; difere de ELDER_STAFF_SPOT (tools/blender/characters.py), que é só a pose de referência do staff_hold
 		"staff": {"node": "Staff", "pose": "staff_hold", "spot": Vector2(0.46, 0.15)},
 		"clips": {
 			"idle": {"fbx": "elder_idle", "loop": true, "sub": "smith"},

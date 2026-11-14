@@ -103,6 +103,8 @@ func _ready() -> void:
 	await wait(0.1)
 	check(Game.quest_state("slimes") == "active", "missão dos slimes aceita")
 	check(world.modal == null and not get_tree().paused, "diálogo fecha e despausa")
+	await _test_elder(elder as Elder)
+	await _test_merchant()
 	await _test_blacksmith()
 
 	# --- combate corpo a corpo
@@ -1445,6 +1447,103 @@ func _test_fx_epic() -> void:
 	check(FXEpic._active_amount == 40, "orçamento reservado (%d)" % FXEpic._active_amount)
 	get_tree().current_scene.get_child(get_tree().current_scene.get_child_count() - 1).free()
 	check(FXEpic._active_amount == 0, "emissor liberado cedo devolve o orçamento (%d)" % FXEpic._active_amount)
+
+
+# ---------------------------------------------------------------- Bram e Mira
+func _test_elder(elder: Elder) -> void:
+	check(elder != null, "Ancião Bram é um Elder")
+	if elder == null:
+		return
+	var back := player.global_position
+	player.global_position = elder.global_position + Vector3(0, 0.2, 1.5)
+	await wait(0.2)
+	var ap := elder.anim
+	check(elder.state == Elder.State.IDLE and ap.current_animation == elder.clip("idle"),
+		"Bram começa parado (%s, %s)" % [Elder.State.keys()[elder.state], ap.current_animation])
+	var staff := elder.model.find_child("Staff", true, false)
+	check(staff != null and staff.get_parent() is BoneAttachment3D and staff.get_parent().bone_name == "LeftHand",
+		"cajado do Bram preso à mão esquerda")
+	# fala com ele: o diálogo abre na hora e ele se anima; depois conversa, animando com o jogo pausado
+	elder.interact(player)
+	check(world.modal != null and elder.state == Elder.State.EXCITED and ap.current_animation == elder.clip("excited"),
+		"Bram se anima ao abrir o diálogo (%s, %s)" % [Elder.State.keys()[elder.state], ap.current_animation])
+	var p0 := ap.current_animation_position
+	await wait(0.3)
+	check(get_tree().paused and ap.current_animation_position != p0, "Bram anima a reação com o jogo pausado")
+	var t0 := Time.get_ticks_msec()
+	await wait_until(func() -> bool: return elder.state == Elder.State.TALK, Elder.EXCITED_MAX + 0.5)
+	var took := 0.3 + (Time.get_ticks_msec() - t0) / 1000.0
+	check(elder.state == Elder.State.TALK and ap.current_animation == elder.clip("talk") and took <= Elder.EXCITED_MAX + 0.2,
+		"Bram passa a conversar em até %.1f s (%.2f s, %s)" % [Elder.EXCITED_MAX, took, ap.current_animation])
+	p0 = ap.current_animation_position
+	await wait(0.3)
+	check(get_tree().paused and ap.current_animation_position != p0, "Bram conversa animando com o jogo pausado")
+	world.modal._choose(Callable())
+	await wait(0.1)
+	check(elder.state == Elder.State.IDLE and not get_tree().paused and elder.process_mode == Node.PROCESS_MODE_INHERIT,
+		"Bram volta a ficar parado após o diálogo (%s)" % Elder.State.keys()[elder.state])
+	# fecha durante a reação: volta ao parado e não fica preso em excited/talk
+	elder.interact(player)
+	await wait(0.3)
+	check(elder.state == Elder.State.EXCITED, "Bram se anima de novo a cada conversa")
+	world.modal._choose(Callable())
+	await wait(0.1)
+	check(elder.state == Elder.State.IDLE and ap.current_animation == elder.clip("idle") and elder.process_mode == Node.PROCESS_MODE_INHERIT,
+		"fechar o diálogo durante a reação volta o Bram ao parado (%s, %s)" % [Elder.State.keys()[elder.state], ap.current_animation])
+	await wait(Elder.EXCITED_MAX)
+	check(elder.state == Elder.State.IDLE and ap.current_animation == elder.clip("idle"), "Bram não volta sozinho a conversar")
+	player.global_position = back
+
+
+func _test_merchant() -> void:
+	var mira := _interactable("merchant") as Merchant
+	check(mira != null, "Mira é uma Merchant")
+	if mira == null:
+		return
+	var back := player.global_position
+	var ap := mira.anim
+	# o teste do Bram deixa o jogador a ~10 m dela: começa de um chamado liberado
+	mira._idle()
+	mira._cooldown = 0.0
+	var dir := Vector3(-1, 0, 1).normalized()   # para a praça, fora da frente dela (-X): ela tem que virar
+	player.global_position = mira.global_position + dir * 20.0 + Vector3(0, 0.3, 0)
+	var c0 := mira.calls
+	await wait(1.0)
+	check(mira.calls == c0 and mira.state == Merchant.State.IDLE, "Mira não chama com o jogador a 20 m")
+	player.global_position = mira.global_position + dir * 10.0 + Vector3(0, 0.3, 0)
+	await wait_until(func() -> bool: return mira.calls > c0, 1.0)
+	check(mira.state == Merchant.State.CALL and mira.calls == c0 + 1 and ap.current_animation == mira.clip("call"),
+		"Mira chama o jogador a 10 m (%s, %d chamados)" % [Merchant.State.keys()[mira.state], mira.calls - c0])
+	await wait(1.0)
+	var to := player.global_position - mira.global_position
+	to.y = 0.0
+	var off := rad_to_deg(mira.face_dir().angle_to(to.normalized()))
+	check(off < 20.0, "Mira se vira para quem ela chama (%.0f°)" % off)
+	await wait(4.0)
+	check(mira.calls == c0 + 1, "Mira não chama de novo antes do intervalo (%d chamados em 5 s)" % (mira.calls - c0))
+	check(mira.state == Merchant.State.IDLE and ap.current_animation == mira.clip("idle"), "Mira volta ao parado depois do chamado")
+	await wait(4.0)
+	check(mira.calls == c0 + 2, "Mira chama de novo depois do intervalo (%d chamados em 9 s)" % (mira.calls - c0))
+	# conversa e loja
+	player.global_position = mira.global_position + mira.face_dir() * 1.8 + Vector3(0, 0.3, 0)
+	await wait(1.8)
+	var c1 := mira.calls
+	mira.interact(player)
+	check(world.modal != null and mira.state == Merchant.State.TALK and ap.current_animation == mira.clip("talk"),
+		"Mira conversa ao abrir o diálogo (%s)" % Merchant.State.keys()[mira.state])
+	var p0 := ap.current_animation_position
+	await wait(0.3)
+	check(get_tree().paused and ap.current_animation_position != p0, "Mira anima a conversa com o jogo pausado")
+	var pages: Array = world.modal.pages
+	world.modal._choose(pages[0].choices[0].action)   # "Ver mercadorias"
+	await wait(0.1)
+	check(world.modal != null and world.modal.get("buy_grid") != null, "loja abre pelo diálogo da Mira")
+	check(mira.state == Merchant.State.IDLE and mira.process_mode == Node.PROCESS_MODE_INHERIT,
+		"Mira fica parada com a loja aberta (%s)" % Merchant.State.keys()[mira.state])
+	world.modal._close()
+	await wait(0.1)
+	check(world.modal == null and not get_tree().paused and mira.calls == c1, "loja fecha; Mira não chama quem está perto")
+	player.global_position = back
 
 
 # ---------------------------------------------------------------- Ferreiro

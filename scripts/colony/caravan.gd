@@ -39,6 +39,7 @@ func _ready() -> void:
 	model = MODELS[kind].instantiate()
 	model.rotation.y = randf() * TAU
 	add_child(model)
+	_pose()
 	if kind == "caravan":
 		# a "carroça": caixas e barril ao lado do mercador
 		for p in [["crate", Vector3(1.6, 0, 0.4), 0.3], ["crate", Vector3(1.9, 0, -0.8), -0.2], ["barrel", Vector3(-1.4, 0, 0.6), 0.0]]:
@@ -55,6 +56,15 @@ func _ready() -> void:
 	tag.position.y = 2.35
 	tag.modulate = Color(1, 0.95, 0.8)
 	add_child(tag)
+
+
+## Mercador e aldeão têm esqueleto: parados no idle da biblioteca de cada um (sem isso, pose T).
+func _pose() -> void:
+	match kind:
+		"caravan":
+			SkinnedNPC.pose_model(model, {}, Merchant.MIXAMO_LIB, "idle")
+		"villager":
+			SkinnedNPC.pose_model(model, {"Staff": "LeftHand"}, Elder.MIXAMO_LIB, "idle")
 
 
 func interact_prompt() -> String:

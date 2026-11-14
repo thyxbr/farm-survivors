@@ -49,7 +49,8 @@ func _play(clip_name: String, blend := BLEND) -> void:
 func _set_always(on: bool) -> void:
 	var mode := Node.PROCESS_MODE_ALWAYS if on else Node.PROCESS_MODE_INHERIT
 	process_mode = mode
-	anim.process_mode = mode
+	if anim:
+		anim.process_mode = mode
 
 
 func interact(player: Node) -> void:

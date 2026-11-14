@@ -532,6 +532,7 @@ def build_knight():
 # O cajado ("Staff") é um objeto à parte, sem pesos, com o pivô na mão esquerda (pose T).
 ELDER_SPINE = (1.03, 1.13, 1.25, 1.40, 1.50)   # início de Spine, Spine1, Spine2, Neck e Head
 ELDER_STAFF_SPOT = Vector((0.42, -0.27))       # eixo do cajado no staff_hold (x, y do Blender), fora da túnica
+# ^ só a pose de referência do staff_hold; no jogo o cajado fica no "spot" de tools/build_npc_mixamo.gd (IK nos clipes)
 
 
 def build_elder():
