@@ -562,7 +562,8 @@ func _scan(n: Node) -> void:
 
 
 func _wants_overlay(g: GeometryInstance3D) -> bool:
-	if g.material_overlay != null or g.material_override is ShaderMaterial:
+	# material toon (ToonLook) conta como material liso comum: é opaco e iluminado
+	if g.material_overlay != null or (g.material_override is ShaderMaterial and not ToonLook.is_toon(g.material_override)):
 		return false
 	if g.material_override is BaseMaterial3D and not _opaque(g.material_override):
 		return false
@@ -577,7 +578,7 @@ func _wants_overlay(g: GeometryInstance3D) -> bool:
 		var m: Material = mesh.surface_get_material(i)
 		if g is MeshInstance3D and g.get_surface_override_material(i) != null:
 			m = g.get_surface_override_material(i)
-		if m is ShaderMaterial or (m is BaseMaterial3D and not _opaque(m)):
+		if (m is ShaderMaterial and not ToonLook.is_toon(m)) or (m is BaseMaterial3D and not _opaque(m)):
 			return false
 	return true
 
@@ -627,7 +628,9 @@ func _setup_trees(n: Node, cache: Dictionary) -> void:
 			var top := maxf(1.0, mesh.get_aabb().end.y)
 			for i in mesh.get_surface_count():
 				var m := mesh.surface_get_material(i) as BaseMaterial3D
-				if m == null or c.get_surface_override_material(i) != null:
+				# o estilo toon pode ter passado antes: o shader da árvore (que também é toon) fica no lugar
+				var ov: Material = c.get_surface_override_material(i)
+				if m == null or (ov != null and not ToonLook.is_toon(ov)):
 					continue
 				var key := "%d:%.2f" % [m.get_instance_id(), top]
 				if not cache.has(key):
@@ -637,6 +640,7 @@ func _setup_trees(n: Node, cache: Dictionary) -> void:
 					sm.set_shader_parameter("roughness", m.roughness)
 					sm.set_shader_parameter("tree_height", top)
 					sm.set_shader_parameter("noise_tex", _noise_tex)
+					sm.set_shader_parameter("toon", ToonLook.enabled())
 					cache[key] = sm
 				c.set_surface_override_material(i, cache[key])
 		_setup_trees(c, cache)

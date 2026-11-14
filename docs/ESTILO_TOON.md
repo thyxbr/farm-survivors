@@ -80,6 +80,13 @@ Os GLBs **não mudam**. `ToonLook.apply(modelo)` (`scripts/world/toon_look.gd`) 
 8. **Capturas de conferência devem usar `--geardemo`** (save à parte). Abrir `hub.tscn` ou
    `colony.tscn` direto usa o save solo de verdade e pode abrir uma partida nele.
 
+### Do clima (WeatherFX)
+1. **A camada de neve e chuva recusava qualquer `ShaderMaterial`.** Com o toon, quase tudo vira
+   `ShaderMaterial`, e o cenário ficaria sem neve. `ToonLook.is_toon()` diz ao clima que aquele material
+   é liso comum.
+2. **As árvores usam `tree_wind.gdshader`** (balanço e neve), posto pelo clima no lugar do material do
+   GLB. Ele inclui `toon_light.gdshaderinc`, e o clima substitui o material toon se o estilo passou antes.
+
 ### Custo medido
 80 goblins parados, 1280×720, `tools/toon_cost.gd` (medida simples, sem IA nem efeitos):
 
@@ -103,7 +110,7 @@ Cerca de 40% a mais, quase tudo do contorno (dobra os triângulos de cada person
 | Cavaleiro e goblin do menu | `scripts/ui/main_menu.gd` |
 
 | Props, construções, árvores, vegetação em MultiMesh | autoload `Toon` (`scripts/autoload/toon.gd`) |
-| Chão e grama | `ground.gdshader` e `grass.gdshader`, via `toon_light.gdshaderinc` |
+| Chão, grama e árvores com vento | `ground.gdshader`, `grass.gdshader` e `tree_wind.gdshader`, via `toon_light.gdshaderinc` |
 
 ## Plano de migração
 

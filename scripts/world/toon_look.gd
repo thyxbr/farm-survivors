@@ -27,6 +27,11 @@ static func enabled() -> bool:
 	return _enabled == 1
 
 
+## Verdadeiro para um material montado por ToonLook (o clima trata esse material como liso comum).
+static func is_toon(m: Material) -> bool:
+	return m is ShaderMaterial and (m as ShaderMaterial).shader == TOON
+
+
 ## Personagens: aplica em todas as malhas abaixo de `root`, com contorno. Devolve quantas superfícies
 ## foram convertidas. Pode ser chamada de novo no mesmo modelo (troca de equipamento).
 static func apply(root: Node, outline := true) -> int:
