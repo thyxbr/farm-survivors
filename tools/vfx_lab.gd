@@ -6,7 +6,7 @@ extends Node3D
 const KNIGHT := preload("res://assets/models/knight.glb")
 var SPACING := 1.45
 
-var pages := ["niveis", "elementos", "armas", "auras1", "auras2", "juntas", "rampa"]
+var pages := ["niveis", "elementos", "armas", "auras1", "auras2", "juntas", "rampa", "perto1", "perto2"]
 var page := 0
 var element_i := 0
 var _knights: Array = []     # [{"model", "rig", "look", "pivot"}]
@@ -146,6 +146,17 @@ func _show_page() -> void:
 				var aura := BuffAura.new()
 				r.model.add_child(aura)
 				aura.set_buffs([foods[i]])
+		"perto1", "perto2":
+			# de perto: os três níveis mais altos de um elemento, depois três elementos no máximo
+			var near: Array = [["fogo", 3], ["fogo", 4], ["fogo", 5]]
+			if pages[page] == "perto2":
+				near = [["gelo", 5], ["raio", 5], ["sombra", 5]]
+			_title.text = "De perto — " + ", ".join(near.map(func(x): return "%s +%d" % [EnchantFX.ELEMENTS[x[0]].name, x[1]]))
+			for i in near.size():
+				var l := base.duplicate()
+				l.weapon = "knight_blade"
+				var r := _knight(i, near.size(), l, "%s +%d" % [EnchantFX.ELEMENTS[near[i][0]].name, near[i][1]])
+				EnchantFX.apply(r.look, near[i][0], near[i][1])
 		"juntas":
 			_title.text = "Auras juntas (habilidades + comida): cada uma ganha seu anel"
 			var sets := [["escudo", "furia"], ["cura", "vento"], ["escudo", "vento", "heroi"], ["cura", "escudo", "dragao", "sorte"]]
@@ -188,7 +199,10 @@ func _show_page() -> void:
 				aura.set_styles(sets2[i])
 	var n := _knights.size()
 	var w := n * SPACING
-	if pages[page] in ["auras1", "auras2", "juntas", "rampa"]:
+	if pages[page].begins_with("perto"):
+		_cam.position = Vector3(0, 1.25, 3.6)
+		_cam.look_at(Vector3(0, 0.95, 0))
+	elif pages[page] in ["auras1", "auras2", "juntas", "rampa"]:
 		_cam.position = Vector3(0, 1.9, 7.2)
 		_cam.look_at(Vector3(0, 1.05, 0))
 	else:

@@ -52,6 +52,7 @@ func setup(map_half: float) -> void:
 	_mat = ShaderMaterial.new()
 	_mat.shader = GROUND_SHADER
 	_mat.set_shader_parameter("noise_tex", _noise_tex)
+	_mat.set_shader_parameter("toon", ToonLook.enabled())
 	var ground := MeshInstance3D.new()
 	ground.name = "Ground"
 	var plane := PlaneMesh.new()
@@ -287,14 +288,23 @@ func _terrain_tri(verts: PackedVector3Array, norms: PackedVector3Array, cols: Pa
 	var slope := 1.0 - nr.y
 	var v := n.get_noise_2d(cen.x * 3.0, cen.z * 3.0) * 0.5 + 0.5
 	var jit := 0.93 + 0.14 * fposmod(sin(cen.x * 12.9898 + cen.z * 78.233) * 43758.5453, 1.0)
+	var toon := ToonLook.enabled()
+	if toon:
+		# estilo desenhado: poucas cores chapadas por faixa (grama, mata, rocha, neve) em vez de um tom
+		# por faceta; quem dá o relevo é a luz em dois tons, não o degradê de cor (docs/ESTILO_TOON.md)
+		v = roundf(v * 2.0) / 2.0
+		jit = 1.0
 	# grama (a mesma do chão na base), mata mais escura nas encostas baixas da serra, rocha nas
 	# faces íngremes e no alto, neve nos topos da serra
 	var grass := Color(0.27, 0.45, 0.16).lerp(Color(0.2, 0.37, 0.13), v)
 	if ring:
-		grass = grass.lerp(Color(0.16, 0.3, 0.14), smoothstep(4.0, 20.0, h) * 0.7)
+		var t_wood := smoothstep(4.0, 20.0, h)
+		grass = grass.lerp(Color(0.16, 0.3, 0.14), (roundf(t_wood) if toon else t_wood) * 0.7)
 	var rock := Color(0.47, 0.44, 0.4).lerp(Color(0.33, 0.31, 0.3), v)
-	var t_rock := smoothstep(0.24, 0.42, slope) + smoothstep(14.0, 32.0, h) * 0.5
-	var col := grass.lerp(rock, clampf(t_rock, 0.0, 1.0))
+	var t_rock := clampf(smoothstep(0.24, 0.42, slope) + smoothstep(14.0, 32.0, h) * 0.5, 0.0, 1.0)
+	if toon:
+		t_rock = roundf(t_rock)
+	var col := grass.lerp(rock, t_rock)
 	if ring:
 		var line := _ring_height * 0.62 + n.get_noise_2d(cen.x * 0.8, cen.z * 0.8) * 10.0
 		if h > line and slope < 0.62:
@@ -367,6 +377,7 @@ func scatter_grass(seed_value: int, density := 0.55, keep_out: Array = [], spars
 	var gmat := ShaderMaterial.new()
 	gmat.shader = GRASS_SHADER
 	gmat.set_shader_parameter("noise_tex", _noise_tex)
+	gmat.set_shader_parameter("toon", ToonLook.enabled())
 	tuft.surface_set_material(0, gmat)
 	var clump := FastNoiseLite.new()   # touceiras de capim e canteiros de flores/plantas
 	clump.seed = seed_value

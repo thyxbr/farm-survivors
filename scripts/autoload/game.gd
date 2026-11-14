@@ -30,7 +30,8 @@ var colony_save_path := "user://colony_save.json"
 ## true = a cena da cidade carrega o save em vez de começar do zero.
 var colony_continue := false
 
-var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "fullscreen": false, "invert_y": false,
+var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "music_volume": 0.45, "sfx_volume": 0.9,
+	"ambience_volume": 0.7, "fullscreen": false, "invert_y": false,
 	"player_name": "", "server_address": ""}
 
 # ---- espelho do personagem (escrito só por apply_state)
@@ -141,6 +142,11 @@ func _debug_screenshot() -> void:
 		Econ.grant(600, 0, {"iron_ore": 30, "arcane_crystal": 3, "ember_core": 14, "frost_drop": 5}, "demo", true)
 		Econ.request("enchant", ["fogo"])
 		Econ.request("enchant", ["fogo"])
+		# `--enchantrich`: material de sobra para subir até +5 e trocar de elemento à vontade no Doran
+		if "--enchantrich" in args:
+			Econ.grant(6000, 0, {"iron_ore": 90, "arcane_crystal": 40, "champion_badge": 3, "ember_core": 40,
+				"frost_drop": 40, "thunder_totem": 40, "toxic_gland": 40, "golden_dust": 40, "shadow_fang": 40}, "demo", true)
+			Econ.demo_ecos(120)
 	if "--enchantstrike" in args:
 		get_tree().create_timer(maxf(delay - 0.15, 0.1)).timeout.connect(func() -> void:
 			for n in get_tree().get_nodes_in_group("interactable"):
@@ -683,8 +689,18 @@ func save_settings() -> void:
 	apply_settings()
 
 
+## Bus de áudio (default_bus_layout.tres) -> chave do volume em settings.
+const VOLUME_BUSES := {"Master": "master_volume", "Music": "music_volume", "SFX": "sfx_volume",
+	"Ambience": "ambience_volume"}
+
+
 func apply_settings() -> void:
-	AudioServer.set_bus_volume_db(0, linear_to_db(max(0.0001, float(settings.master_volume))))
+	for bus in VOLUME_BUSES:
+		var idx := AudioServer.get_bus_index(bus)
+		if idx >= 0:
+			var v := float(settings[VOLUME_BUSES[bus]])
+			AudioServer.set_bus_volume_db(idx, linear_to_db(max(0.0001, v)))
+			AudioServer.set_bus_mute(idx, v <= 0.0)
 	if settings.fullscreen:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	elif DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN:

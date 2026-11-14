@@ -122,7 +122,9 @@ func _ready() -> void:
 		crown.visible = is_boss
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
 		meshes.append(mi)
-	if data.model == "slime":
+	if data.model == "slime" and ToonLook.enabled():
+		ToonLook.apply_slime(model, data.get("goo", ToonLook.SLIME_GOO))
+	elif data.model == "slime":
 		var body_mesh := model.find_child("BodyMesh", true, false) as MeshInstance3D
 		var base := model.find_child("Base", true, false) as MeshInstance3D
 		var goo := StandardMaterial3D.new()
@@ -136,6 +138,8 @@ func _ready() -> void:
 				m.material_override = goo
 	if data.has("tint"):
 		_apply_tint(data.tint[0], data.tint[1])
+	if ToonLook.enabled():      # depois da tintura, que lê os materiais originais
+		ToonLook.apply(model)
 	if is_boss or data.get("elite", false):
 		var aura := OmniLight3D.new()
 		aura.light_color = Color(1, 0.3, 0.1) if is_boss else data.color
@@ -556,7 +560,7 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 
 ## Ataques especiais dos monstros novos. visual: réplica no cliente (só efeitos; o servidor aplica o dano).
 func _shoot(visual: bool) -> void:
-	Sfx.play_at("swing", global_position, 0.2, -5.0)
+	Sfx.play_at("bow_shot", global_position, 0.1, -5.0)
 	var origin: Vector3 = global_position + Vector3.UP * 1.1 * float(data.scale) + model_forward() * 0.6
 	var arrow := ENEMY_ARROW.new()
 	arrow.direction = model_forward()
@@ -778,7 +782,7 @@ func die_visual() -> void:
 		m.material_overlay = null
 	if bar_root:
 		bar_root.visible = false
-	Sfx.play_at("bloop" if data.model == "slime" else "hit", global_position, 0.1, -4.0 if horde else 0.0)
+	Sfx.play_at("slime" if data.model == "slime" else "enemy_die", global_position, 0.1, -4.0 if horde else 0.0)
 	FX.burst(global_position + Vector3.UP * 0.6 * data.scale, data.color, 30 if not is_boss else 120, 5.0, 0.14, 0.9)
 	died.emit(self)
 	var tw := create_tween()

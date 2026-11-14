@@ -2,6 +2,7 @@ extends Control
 ## Menu principal com uma pequena cena 3D girando ao fundo.
 
 const OPTIONS := preload("res://scripts/ui/options_panel.gd")
+const CREDITS := preload("res://scripts/ui/credits_panel.gd")
 const UPDATE_PANEL := preload("res://scripts/ui/update_panel.gd")
 
 var pivot: Node3D
@@ -76,6 +77,7 @@ func _ready() -> void:
 		menu_box.add_child(UITheme.label("   " + Game.colony_save_info(), 15, UITheme.DIM))
 	menu_box.add_child(UITheme.button("Jogar online", _open_multiplayer, 320))
 	menu_box.add_child(UITheme.button("Opções", _options, 320))
+	menu_box.add_child(UITheme.button("Créditos", _credits, 320))
 	menu_box.add_child(UITheme.button("Sair", func() -> void: get_tree().quit(), 320))
 	(cont if not cont.disabled else new_btn).grab_focus.call_deferred()
 	_build_multiplayer()
@@ -283,6 +285,14 @@ func _options() -> void:
 	o.closed.connect(func() -> void: menu_box.visible = true)
 
 
+func _credits() -> void:
+	Sfx.play("click", 0.0)
+	menu_box.visible = false
+	var c := CREDITS.new()
+	add_child(c)
+	c.closed.connect(func() -> void: menu_box.visible = true)
+
+
 func _process(delta: float) -> void:
 	if pivot:
 		pivot.rotation.y += delta * 0.12
@@ -352,10 +362,16 @@ func _build_backdrop() -> void:
 	gob.rotation.y = -2.4
 	gob.scale = Vector3.ONE * 1.6
 	pivot.add_child(gob)
+	if ToonLook.enabled():
+		ToonLook.apply(knight)
+		ToonLook.apply(gob)
 	var slime: Node3D = load("res://assets/models/slime.glb").instantiate()
 	slime.position = Vector3(-1.2, 0, -2.2)
 	slime.rotation.y = 2.5
 	pivot.add_child(slime)
+	if ToonLook.enabled():
+		ToonLook.apply_slime(slime)
+		ToonLook.apply(slime)
 	var fire: Node3D = load("res://assets/models/campfire.glb").instantiate()
 	fire.position = Vector3(0.8, 0, -1.5)
 	pivot.add_child(fire)

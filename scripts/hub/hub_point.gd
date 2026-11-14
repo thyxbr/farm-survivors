@@ -155,6 +155,8 @@ func _box(size: Vector3, pos: Vector3, c: Color, parent: Node3D = self) -> MeshI
 
 func _build_npc() -> void:
 	model = _glb("elder" if kind == "passive_master" else "merchant", Vector3.ZERO)
+	if ToonLook.enabled():
+		ToonLook.apply(model)
 	# modelos com esqueleto: parados no idle (sem isso, pose T); o cajado do Orin preso à mão
 	if kind == "passive_master":
 		SkinnedNPC.pose_model(model, {"Staff": "LeftHand"}, Elder.MIXAMO_LIB, "idle")
