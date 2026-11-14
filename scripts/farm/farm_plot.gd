@@ -1,7 +1,7 @@
 extends Node3D
-## Canteiro da Horta. O estado vive em Game.farm.plots[index] (salvo no save); este nó só
-## desenha a planta, avança o crescimento e trata a interação (E): preparar, plantar, regar,
-## adubar com gel de slime e colher.
+## Canteiro da Horta. O estado vive em Game.farm.plots[index] (espelho do personagem; o crescimento
+## corre pelo relógio, ver Game.plot_growth); este nó só desenha a planta e trata a interação (E):
+## preparar, plantar, regar, adubar com gel de slime e colher — pedidos ao Econ.
 
 var npc_id := "plot"   # lido pelo teste e pela depuração junto com os NPCs
 var index := 0
@@ -16,6 +16,7 @@ var _sparkle: CPUParticles3D
 var _shown_crop := "-"
 var _t := 0.0
 var _pop := 0.0               # "pulinho" ao plantar/colher
+var _last_state := ""          # para avisar quando fica pronta
 
 static var _mats := {}
 static var _last_ready_notice := -100.0
@@ -134,6 +135,7 @@ func _ready() -> void:
 	add_child(_sparkle)
 
 	Game.farm_changed.connect(_refresh)
+	Econ.done.connect(_on_econ_done)
 	_refresh()
 
 
@@ -155,8 +157,10 @@ func _process(delta: float) -> void:
 	_t += delta
 	_pop = max(0.0, _pop - delta * 3.0)
 	var st := Game.plot_state(index)
-	if st == "growing" and Game.grow_plot(index, delta):
+	# a planta cresce pelo relógio (o servidor/serviço guarda o instante do plantio): aqui só desenha
+	if st == "ready" and _last_state == "growing":
 		_on_ready()
+	_last_state = st
 	_animate(st)
 	# rótulo só de perto
 	var player := get_tree().get_first_node_in_group("player") as Node3D
@@ -201,7 +205,7 @@ func _refresh() -> void:
 func _animate(st: String) -> void:
 	if _plants == null:
 		return
-	var g: float = Game.farm.plots[index].growth
+	var g: float = Game.plot_growth(index)
 	var s := lerpf(0.22, 1.0, smoothstep(0.0, 0.85, g)) * (1.0 + _pop * 0.25)
 	var sway := sin(_t * 1.6) * 0.04
 	_plants.scale = Vector3(s, s, s)
@@ -252,7 +256,7 @@ func _update_label(st: String) -> void:
 			_label.modulate = Color(0.8, 0.75, 0.65)
 		"growing":
 			var cname: String = ItemDB.CROPS[p.crop].name
-			_label.text = "%s %d%%%s" % [cname, int(p.growth * 100.0), "  ~ regado" if p.watered else "  (regar!)"]
+			_label.text = "%s %d%%%s" % [cname, int(Game.plot_growth(index) * 100.0), "  ~ regado" if p.watered else "  (regar!)"]
 			_label.modulate = Color(0.6, 0.85, 1.0) if p.watered else Color(0.95, 0.9, 0.75)
 		"ready":
 			_label.text = "%s pronta!" % ItemDB.CROPS[p.crop].name
@@ -276,7 +280,7 @@ func interact_prompt() -> String:
 		return "Regar %s (cresce 2x mais rápido)" % cname
 	if not p.fert and Game.count_item("slime_gel") > 0:
 		return "Adubar %s com Gel de Slime (+40%%)" % cname
-	return "%s crescendo — %d%%" % [cname, int(p.growth * 100.0)]
+	return "%s crescendo — %d%%" % [cname, int(Game.plot_growth(index) * 100.0)]
 
 
 func interact(_player: Node) -> void:
@@ -297,29 +301,50 @@ func interact(_player: Node) -> void:
 			if world.has_method("open_plant_menu"):
 				world.open_plant_menu(index)
 		"growing":
-			if Game.water(index):
-				_pop = 1.0
-				Sfx.play("water", 0.1)
-				FX.burst(global_position + Vector3.UP * 0.9, Color(0.4, 0.7, 1.0), 24, 2.5, 0.07, 0.7, -9.0)
-			elif Game.fertilize(index):
-				_pop = 1.0
-				Sfx.play("bloop", 0.1)
-				FX.burst(global_position + Vector3.UP * 0.4, Color(0.4, 1.0, 0.45), 22, 3.0, 0.09, 0.8, 1.0)
-				Game.notify.emit("Adubado! +40% de crescimento", Color(0.5, 1.0, 0.5))
+			# a mesma escolha de antes (regar, senão adubar), feita com o espelho; o efeito vem na resposta
+			var p: Dictionary = Game.farm.plots[index]
+			if not p.watered:
+				Game.water(index)
+			elif not p.fert and Game.count_item("slime_gel") > 0:
+				Game.fertilize(index)
 			else:
-				Game.notify.emit("Ainda crescendo... %d%%" % int(Game.farm.plots[index].growth * 100.0), Color(0.85, 0.85, 0.7))
+				Game.notify.emit("Ainda crescendo... %d%%" % int(Game.plot_growth(index) * 100.0), Color(0.85, 0.85, 0.7))
 		"ready":
-			var c: Color = ItemDB.CROPS[Game.farm.plots[index].crop].color
-			var res := Game.harvest(index)
-			if not res.is_empty():
-				Sfx.play("harvest", 0.12)
-				FX.burst(global_position + Vector3.UP * 0.6, c, 26 if not res.bonus else 60, 4.0, 0.11, 0.8)
-				FX.damage_number(global_position + Vector3.UP * 1.4, "+%d" % res.qty, c.lightened(0.3), 54)
-				if res.bonus:
-					FX.ring(global_position, Color(1, 0.9, 0.3, 0.9), 2.2, 0.6)
+			Game.harvest(index)
 
 
 func _unlock() -> void:
-	if Game.unlock_next_plot():
-		Sfx.play("coin")
-		FX.burst(global_position + Vector3.UP * 0.4, Color(0.55, 0.4, 0.25), 30, 3.5, 0.1, 0.8)
+	Game.unlock_next_plot()
+
+
+## Efeitos quando o Econ confirma uma ação neste canteiro (no solo, na hora; online, quando o servidor responde).
+func _on_econ_done(op: String, args: Array, ok: bool, _err: String, events: Array) -> void:
+	if not ok:
+		return
+	if op == "unlock_plot":
+		if index == Game.farm.unlocked - 1:
+			Sfx.play("coin")
+			FX.burst(global_position + Vector3.UP * 0.4, Color(0.55, 0.4, 0.25), 30, 3.5, 0.1, 0.8)
+		return
+	if args.is_empty() or not (args[0] is int) or args[0] != index:
+		return
+	match op:
+		"water":
+			_pop = 1.0
+			Sfx.play("water", 0.1)
+			FX.burst(global_position + Vector3.UP * 0.9, Color(0.4, 0.7, 1.0), 24, 2.5, 0.07, 0.7, -9.0)
+		"fertilize":
+			_pop = 1.0
+			Sfx.play("bloop", 0.1)
+			FX.burst(global_position + Vector3.UP * 0.4, Color(0.4, 1.0, 0.45), 22, 3.0, 0.09, 0.8, 1.0)
+			Game.notify.emit("Adubado! +40% de crescimento", Color(0.5, 1.0, 0.5))
+		"harvest":
+			for e in events:
+				if e.get("t") != "harvest" or not ItemDB.CROPS.has(str(e.get("crop", ""))):
+					continue
+				var c: Color = ItemDB.CROPS[e.crop].color
+				Sfx.play("harvest", 0.12)
+				FX.burst(global_position + Vector3.UP * 0.6, c, 26 if not e.bonus else 60, 4.0, 0.11, 0.8)
+				FX.damage_number(global_position + Vector3.UP * 1.4, "+%d" % int(e.qty), c.lightened(0.3), 54)
+				if e.bonus:
+					FX.ring(global_position, Color(1, 0.9, 0.3, 0.9), 2.2, 0.6)

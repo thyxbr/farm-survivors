@@ -58,8 +58,8 @@ func _ready() -> void:
 			back.disabled = Game.run_mods.active   # no Desafio da Horda, abandone primeiro
 			v.add_child(back)
 		else:
-			var lb := UITheme.button("Carregar jogo", func() -> void: Game.load_game())
-			lb.disabled = not Game.has_save()
+			var lb := UITheme.button("Carregar jogo", func() -> void: Econ.quick_load())
+			lb.disabled = not Econ.has_solo()
 			v.add_child(lb)
 		v.add_child(UITheme.button("Opções", _options))
 		v.add_child(UITheme.button("Menu principal", func() -> void: Game.go_to_menu()))
@@ -68,8 +68,8 @@ func _ready() -> void:
 		v.add_child(_title("Você caiu...", Color(0.9, 0.25, 0.2)))
 		v.add_child(UITheme.label("Renascer na vila custa 10% do seu ouro.", 16, UITheme.DIM))
 		v.add_child(UITheme.button("Renascer na vila", _respawn))
-		var lb := UITheme.button("Carregar último save", func() -> void: Game.load_game())
-		lb.disabled = not Game.has_save() or Network.is_online()
+		var lb := UITheme.button("Carregar último save", func() -> void: Econ.quick_load())
+		lb.disabled = Network.is_online() or not Econ.has_solo()
 		v.add_child(lb)
 		v.add_child(UITheme.button("Menu principal", func() -> void: Game.go_to_menu()))
 	_status = UITheme.label("", 15, Color(0.7, 1, 0.7))
@@ -83,8 +83,8 @@ func _ready() -> void:
 		if Game.has_colony_save():
 			_status.text = "Save: " + Game.colony_save_info()
 			_status.add_theme_color_override("font_color", UITheme.DIM)
-	elif Game.has_save():
-		_status.text = "Save: " + Game.save_info()
+	elif not Network.is_online() and Econ.has_solo():
+		_status.text = "Save: " + Econ.solo_info()
 		_status.add_theme_color_override("font_color", UITheme.DIM)
 	var first := v.get_child(1) as Button
 	if first:
@@ -98,7 +98,7 @@ func _title(t: String, c: Color) -> Label:
 
 
 func _save() -> void:
-	if Game.save_game(player_pos, player_yaw):
+	if Econ.quick_save(player_pos, player_yaw):
 		_status.text = "Jogo salvo!"
 		_status.add_theme_color_override("font_color", Color(0.7, 1, 0.7))
 		Sfx.play("pickup", 0.0)
@@ -112,7 +112,7 @@ func _save_before_update(colony_mode: bool) -> void:
 	elif colony_mode:
 		w.save_colony()
 	elif not Game.run_mods.active:
-		Game.save_game(player_pos, player_yaw)
+		Econ.report_vitals(player_pos, player_yaw)
 
 
 func _quit() -> void:

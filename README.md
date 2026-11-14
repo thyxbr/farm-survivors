@@ -48,7 +48,7 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
   mira que mostra a tensão do arco, avisos de saque, inventário com prévia 3D, arrastar e soltar,
   filtros, "Organizar" e dica que calcula o que muda se equipar o item. Ícones desenhados por código
   (`icon_painter.gd`); tema em `ui_theme.gd`.
-- **Save/Load** em JSON (`user://savegame.json`), opções persistentes (volume, sensibilidade, inverter Y, tela cheia).
+- **Personagem solo** num banco SQLite local (`user://solo.db`; F5/F9 salvam e recarregam), opções persistentes (volume, sensibilidade, inverter Y, tela cheia).
 - Morte com opção de renascer na vila (perde 10% do ouro) ou carregar o save.
 
 ## Horta da Vila (fazenda)
@@ -67,7 +67,7 @@ Saia pelo **portão sul** da vila para a Horta:
 - **Comer**: **Q** come a comida selecionada, **T** troca. Funciona na vila e **no meio das rodadas da Horda**;
   os bônus somam com cartas e bênçãos (coma antes de entrar no portal para começar forte). Há 3 s de mastigação
   entre pratos; morrer apaga os efeitos. Colheitas cruas também podem ser comidas pelo inventário.
-- A horta é salva no save. Dados de culturas/receitas em `item_db.gd` (`CROPS`, `RECIPES`).
+- A horta é salva com o personagem. Dados de culturas/receitas em `data/balance/crops.json` e `recipes.json`.
 
 ## Desafio da Horda (modo sobrevivência)
 Entre no **Portal do Desafio** (perto do portão norte da vila, tecla E) para ir à **Arena** a oeste do mapa:
@@ -102,7 +102,7 @@ atacam a cidade, cada noite mais fortes (a cada 5 noites vem o Rei Goblin). Se a
 | Exército segue você (para caçar) / volta a defender | G |
 | Ponto de reunião do exército onde você está · chamar a noite agora | V · N |
 
-- **Construções** (`scripts/colony/colony_data.gd`): Prefeitura (primeira, grátis, na clareira central), Casa (+5 moradores),
+- **Construções** (`data/balance/colony.json`): Prefeitura (primeira, grátis, na clareira central), Casa (+5 moradores),
   Fazenda (+12 comida/dia), Mercado (+25 ouro/dia), Quartel (recrutamento, 6 vagas), Muro (encaixa na ponta de
   outro muro), Portão (você e os soldados passam, os monstros não), Estacas (ferem e atrasam), Torre de Arqueiros,
   Torre de Canhão (dano em área) e Torre Arcana (deixa lento e salta entre monstros). Tudo tem 3 níveis
@@ -118,29 +118,68 @@ atacam a cidade, cada noite mais fortes (a cada 5 noites vem o Rei Goblin). Se a
 - **Monstros da noite** marcham até a Prefeitura, derrubam o que estiver no caminho e atacam soldados e o jogador por perto.
   Novo: **Goblin Bruto** (dano triplo em construções). O HUD mostra de que direção vem a onda.
 - Se você cair, renasce na Prefeitura em 6 s (as torres continuam lutando). Salva automaticamente a cada amanhecer
-  (F5 também salva, só de dia); o personagem deste modo tem save próprio, separado do RPG.
+  (F5 também salva, só de dia). O ouro da cidade é o caixa da partida; o personagem é o mesmo do RPG solo e
+  leva só as recompensas por noite e o XP dos abates (no amanhecer).
 - Pelo menu principal é só para um jogador; em grupo, entre pelo **salão do multiplayer** (abaixo).
 
 ## Multiplayer (servidor dedicado)
-O servidor roda o Godot sem tela e é dono dos inimigos (IA, vida, morte). Cada jogador é dono
-do próprio personagem: atributos, inventário, missões e a Horta ficam no save do PC dele
-(salvo automaticamente ao sair). Quem acerta um inimigo ganha XP, missão e loot próprios quando ele morre.
+O servidor roda o Godot sem tela e é dono dos inimigos (IA, vida, morte) **e do personagem de cada conta**:
+ouro, itens, XP, equipamento, missões e a Horta ficam num banco SQLite no servidor (`addons/godot-sqlite`).
+O jogador entra com **usuário e senha** (cadastro e login pela API HTTP do servidor, por HTTPS no servidor
+público); o ENet (UDP) recebe só o token da sessão. Quem acerta um inimigo ganha XP, missão e loot quando ele
+morre, concedidos pelo servidor. Os números de balanceamento (itens, inimigos, cidade, horda...) ficam em
+`data/balance/*.json` e são lidos desses arquivos (servidor e solo); as tabelas `balance_tables`/`balance_history`
+já existem no banco, mas semear e ler o balanceamento do banco (e editar pelo painel de admin) fica para a fase 3.
 
-- **Servidor local:** `godot --headless --path . -- --server --port=7777`
-- **Docker / Easypanel:** App com build pelo `Dockerfile`; em *Advanced → Ports* publique `7777 → 7777` em **UDP**
-  (o jogo não passa pelo domínio/proxy HTTP). Libere UDP 7777 no firewall da VPS. A porta pode ser trocada pela env `GAME_PORT`.
+- **Servidor local:** `godot --headless --path . -- --server --port=7777 --http-port=8080 --db=user://server.db`
+  - `--port` (UDP do jogo, padrão 7777), `--http-port` (API de login, padrão 8080; env `HTTP_PORT`),
+    `--db` (arquivo do banco, padrão `user://server.db`; env `DB_PATH`), `--admins=nome1,nome2` (env `ADMIN_USERS`),
+    `--test` (só para testes: aceita o pedido de ouro de teste do `net_test`; **nunca** em produção).
+  - Cliente apontando para outra API: `-- --auth-url=http://127.0.0.1:8080`. Sem ele, IP literal ou `localhost`
+    usa `http://host:8080` e domínio usa `https://domínio`.
+  - **Limites da API de login:** cadastro até 3 por hora por IP e login até 10 tentativas por minuto por IP (certas
+    ou erradas); acima disso `429 muitas_tentativas`. Cinco senhas erradas em 5 min bloqueiam o nome e o IP. A senha
+    é derivada (PBKDF2) fora da thread do jogo, no máximo 2 ao mesmo tempo; com a fila cheia a API responde `503`.
+  - **Limite de pedidos no jogo:** cada jogador tem um balde de 10 pedidos de economia (recarga de 5/s) e outro de
+    30 coletas de loot (10/s); acima disso o servidor responde `devagar` sem tocar no banco.
+  - O banco roda em WAL: além do `.db` existem `.db-wal` e `.db-shm` ao lado (faça backup dos três com o servidor
+    parado, ou só do `.db` depois de pará-lo).
+- **Docker / Easypanel:** App com build pelo `Dockerfile`. A imagem já define `GAME_PORT=7777`, `HTTP_PORT=8080`,
+  `DB_PATH=/data/valdoria.db` e `DB_REQUIRE_MOUNT=1`. No Easypanel:
+  - **Mounts → Volume** montado em **`/data`** — **obrigatório**. É onde fica o banco das contas; a imagem não
+    declara `VOLUME` e, com `DB_REQUIRE_MOUNT=1`, o servidor confere em `/proc/mounts` que a pasta do `DB_PATH` é um
+    volume montado e **se recusa a subir** (erro no log e saída com código 1) se não for — sem isso cada deploy
+    apagaria todas as contas e personagens sem ninguém perceber.
+  - **Domains:** o domínio do app com HTTPS fazendo proxy para a porta **8080** (`HTTP_PORT`). É por ele que o
+    jogo faz login (`https://<domínio>/auth/...`) e o CI confere a versão (`https://<domínio>/health`).
+  - **Advanced → Ports:** continue publicando `7777 → 7777` em **UDP** (o jogo em si não passa pelo proxy HTTP).
+    Libere UDP 7777 no firewall da VPS. A porta pode ser trocada pela env `GAME_PORT`.
+  - **Environment:** `DB_PATH`, `HTTP_PORT` e `ADMIN_USERS` (nomes separados por vírgula) se quiser mudar o padrão.
+    **Crie a sua conta no jogo antes de pôr o seu nome em `ADMIN_USERS`**: o privilégio vai para a conta com
+    aquele nome, então um nome de admin ainda sem conta poderia ser registrado por outro jogador. Enquanto isso
+    acontecer o servidor avisa no log (`aviso: admin '...' ainda não tem conta`).
+  - Testando a imagem localmente: `docker build -t valdoria-server .` e
+    `docker run -v valdoria-data:/data -p 7777:7777/udp -p 8080:8080 valdoria-server`; `curl http://127.0.0.1:8080/health`
+    responde a versão. O volume nomeado herda o dono `valdoria` de `/data`, então as contas sobrevivem a recriar o container.
+    Sem `-v nome:/data` o servidor não sobe; para um teste descartável (contas somem com o container) use
+    `-e DB_REQUIRE_MOUNT=0`.
+  - Ao sair pelo caminho normal do Godot (pedido de fechar ou `quit`), o servidor grava todos os personagens em
+    memória antes de sair. Os pedidos de economia já são gravados na hora; vida e posição vão ao banco a cada 60 s.
 - **Deploy automático:** cada push no `main` roda o GitHub Actions (`.github/workflows/deploy.yml`):
-  importa o projeto, roda o smoke test e o teste de multiplayer e, se tudo passar, chama o webhook de deploy
-  do Easypanel (secret `EASYPANEL_DEPLOY_URL`). Deixe o *Auto Deploy* do próprio Easypanel desligado,
-  senão ele publica mesmo quando os testes falham. Depois do deploy, o job *Conferir servidor publicado*
-  entra no servidor público com `--nettest=... --probe` até ele aceitar a versão do commit (falha após ~15 min).
-  Ele só distingue servidor velho de novo se a versão mudou: aumente a versão quando mexer no código.
+  importa o projeto (e confere se a extensão SQLite carregou no Linux), roda os testes unitários, o smoke test,
+  a Defesa da Cidade e os testes de multiplayer (servidor com banco temporário, `--http-port` e `--test`; clientes
+  com `--auth-url`) e, se tudo passar, chama o webhook de deploy do Easypanel (secret `EASYPANEL_DEPLOY_URL`).
+  Deixe o *Auto Deploy* do próprio Easypanel desligado, senão ele publica mesmo quando os testes falham. Depois do
+  deploy, o job *Conferir servidor publicado* roda `--nettest=<domínio>:7777 --probe` até o servidor aceitar a versão
+  do commit: `GET https://<domínio>/health` tem que responder a versão e uma conexão UDP na 7777 tem que conectar
+  (falha após ~15 min). Ele só distingue servidor velho de novo se a versão mudou: aumente a versão quando mexer no código.
 - **Desligue o *Zero Downtime* do app no Easypanel.** A porta UDP é publicada em modo host: com ele ligado o
   container novo fica em *Pending* ("host-mode port already in use") e o antigo continua no ar sem atualizar.
   Para destravar na VPS: `docker service scale <serviço>=0` e depois `=1`.
 - **Firewall da VPS (Hostinger):** o firewall do painel recusa tudo por padrão; adicione *Aceitar · UDP · 7777*
   (e TCP 22/80/443/3000 para SSH e o painel) antes do *Drop*.
-- **Jogadores:** menu principal → *Multiplayer* → nome + endereço (`ip` ou `ip:porta`) → *Entrar* → **Salão de Valdoria**.
+- **Jogadores:** menu principal → *Multiplayer* → endereço (`ip`, `ip:porta` ou domínio) + usuário e senha →
+  *Criar conta* na primeira vez, depois *Entrar* → **Salão de Valdoria**. A senha não fica salva no PC.
   Antes de exportar, coloque o IP/domínio do servidor em `DEFAULT_ADDRESS` (`scripts/autoload/network.gd`).
 - **Versão:** o servidor recusa clientes com `application/config/version` diferente (*Projeto → Configurações → Application → Config*).
   Para lançar uma versão nova basta aumentar a versão e dar push no `main`: o CI publica o cliente e atualiza o servidor.
@@ -165,7 +204,9 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
 - Todo jogador chega ao servidor pelo **salão**: uma fogueira com o cavaleiro de cada um que está ali, a lista de quem
   está online e **onde** (no salão, em Valdoria ou na Defesa da Cidade) e os dois modos:
   **Explorar Valdoria** (o mundo do RPG, missões, horta e o Desafio da Horda) e a **Defesa da Cidade em grupo**.
-- O personagem é o mesmo em tudo (o save do PC de cada jogador). Esc → *Voltar ao salão* sai de Valdoria
+- O personagem online é o da conta e mora no servidor (banco): ouro, itens, XP, equipamento, missões e horta
+  mudam só por pedido ao servidor (autoload `Econ`); o cliente manda vida, mana e posição de tempos em tempos.
+  O solo tem personagem próprio em `user://solo.db` (F5/F9 só no solo). Esc → *Voltar ao salão* sai de Valdoria
   (no Desafio da Horda, abandone primeiro) e da cidade; ao voltar para Valdoria você reaparece onde estava.
 - O chat (**Enter**) é do servidor inteiro: funciona no salão, em Valdoria e na cidade em grupo.
 - O servidor guarda a zona de cada jogador (`players[id].zone`): inimigos, posições e efeitos só vão para quem está
@@ -183,7 +224,7 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
   `15 + 6n` ouro e `30 + 12n + n²` XP pela noite *n*; nas noites de chefe (a cada 5) um **baú** com um equipamento:
   noite 5 incomum, 10 raro (60%), 15 épico (35%), 20 lendário (15%), 25 lendário (50%), 30+ lendário. Abates dão XP
   a quem acertou e ouro ao cofre (elites valem o dobro). O recorde do servidor aparece no salão.
-- **Curva de dificuldade** (tabelas em `colony_data.gd`, bloco *cooperativo*):
+- **Curva de dificuldade** (tabelas em `data/balance/colony.json`; constantes do bloco *cooperativo* em `colony_data.gd`):
   - *Começo fácil:* cofre de 450 (+150 por jogador extra), 40 de comida, 6 moradores, primeiro dia de 4 min, as três
     primeiras noites pequenas e de uma direção só.
   - *Recursos sobem aos poucos:* a economia é a mesma do solo, mas **cada cópia** de uma construção custa mais
@@ -227,7 +268,7 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
   (Choque Térmico), Fogo + Relâmpago (Plasma), Fogo + Lâminas (Ciclone de Brasas), Relâmpago + Aura (Tempestade Gélida),
   Relâmpago + Lâminas (Lâminas Elétricas), Lâminas + Aura (Nevasca Cortante). As cartas avisam quando uma arma nova
   formaria combo com alguém do grupo (e essas armas aparecem mais). O quadro do grupo, à esquerda, mostra a vida de
-  cada colega, quem está escolhendo/pronto e ◆ em quem está combando com você. Tabela em `upgrades.gd` (`COMBOS`).
+  cada colega, quem está escolhendo/pronto e ◆ em quem está combando com você. Tabela em `data/balance/horde.json` (`combos`).
 - O servidor conta dano, abates e quedas de cada jogador; cada cliente manda a própria build a cada segundo.
 - Para testes, o servidor aceita `--horde-round=SEG` (duração da rodada), `--horde-pick=SEG` (tempo para escolher
   as cartas de nível) e `--horde-event=ID` (força um evento em toda rodada; também vale offline). Screenshot do HUD
@@ -254,9 +295,17 @@ do próprio personagem: atributos, inventário, missões e a Horta ficam no save
 assets/models/        GLBs low-poly gerados pelo Blender
 tools/blender/        build_assets.py (cenário + chama characters.py), characters.py (personagens detalhados),
                       preview_assets.py / preview_characters.py / preview_closeup.py (renders de conferência)
-scripts/autoload/     game.gd (estado, save/load), item_db.gd (itens/magias/missões), sfx.gd (sons sintetizados),
-                      network.gd (multiplayer: servidor dedicado, zonas, réplicas, RPCs), updater.gd (auto update),
-                      lobby.gd (salão central, sala e replicação da Defesa da Cidade em grupo)
+data/balance/         tabelas de balanceamento em JSON (itens, culturas, receitas, magias, missões, loja, raridade,
+                      inimigos, horda, eventos, cidade, regras), carregadas pelo autoload Balance
+scripts/autoload/     game.gd (espelho do personagem para a UI e o jogo), econ.gd (pedidos ao dono do personagem:
+                      servidor online, banco solo offline), balance.gd, auth.gd (cadastro/login HTTP), item_db.gd
+                      (itens/magias/missões), sfx.gd (sons sintetizados), network.gd (multiplayer: servidor dedicado,
+                      zonas, réplicas, RPCs), updater.gd (auto update), lobby.gd (salão central e Defesa em grupo)
+scripts/character/    char_state.gd / char_rules.gd (regras puras do personagem), character_service.gd (carrega,
+                      grava e aplica os pedidos no banco), loot_rules.gd
+scripts/server/       db.gd + migrations.gd (SQLite), auth/ (contas, senha), http/ (API HTTP: /health, /auth/*),
+                      pickups.gd (loot no chão conferido pelo servidor), hit_guard.gd
+scripts/balance/      balance_tables.gd (lê/grava as tabelas JSON)
 scripts/player/       player.gd (controle, combate, magias), fireball.gd, cape_rig.gd (física da capa)
 scripts/enemies/      enemy.gd (slimes, goblins, rei goblin e os monstros da horda — IA e animação procedural), enemy_arrow.gd
 scripts/world/        world.gd (monta o mapa e gerencia UI modal), npc.gd, pickup.gd, challenge_portal.gd
@@ -270,10 +319,11 @@ scripts/ui/           lobby_ui.gd (salão do multiplayer), chat_ui.gd (chat), su
 tests/smoke_test.gd   teste automatizado do gameplay
 tests/colony_test.gd  teste automatizado da Defesa da Cidade
 tests/net_test.gd     teste do multiplayer (cliente headless contra um servidor; --city=lead|join testa a cidade em grupo)
+tests/unit/           testes unitários das regras puras (run.gd acha e roda os test_*.gd)
 Dockerfile            imagem do servidor dedicado
 ```
-O mapa, a UI e as animações são montados por código; para mudar dados de itens, missões e
-inimigos edite `item_db.gd` e a tabela `TYPES` em `enemy.gd`.
+O mapa, a UI e as animações são montados por código; para mudar dados de itens, missões,
+inimigos, cidade e horda edite `data/balance/*.json` (cores como `{"$c": [r, g, b, a]}`) e suba a versão.
 
 ## Regerar os modelos
 ```
@@ -283,6 +333,15 @@ Para gerar só alguns modelos: defina `ASSETS=knight,elder` no ambiente antes do
 (Rodar via CLI em segundo plano: exportar de uma cena que não é a ativa faz o Blender 5.2 travar.)
 
 ## Teste automatizado
+Testes unitários (regras puras: contas, senha, banco, HTTP, personagem, loot, balanceamento; poucos segundos):
+```
+C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . -s tests/unit/run.gd
+```
+Sai com 1 se alguma verificação falhar **ou** se um teste tiver erro de script (acesso a nulo etc.). Depois de
+criar um `class_name` novo rode `--import` uma vez. Erros esperados (`push_error` de entrada malformada, SQL
+recusado) aparecem no log mas não contam como falha.
+
+Gameplay:
 ```
 C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . res://scenes/world.tscn -- --smoketest
 ```
@@ -295,7 +354,7 @@ Para ver as telas novas: `... -- --geardemo --weapon=storm_bow --ui=inv --shot=i
 (`--ui=inv|char|quests|shop`; `--geardemo` dá vários equipamentos, `--weapon=<id>` equipa uma arma).
 Para tirar um screenshot da arena: `... -- --survival --shot=shot.png --delay=15` (o PNG vai para a pasta atual;
 evite a raiz `C:/`, que o Windows não deixa gravar sem administrador).
-Usa um arquivo de save separado, então não mexe no seu save.
+Usa um banco solo separado (`user://smoketest_solo.db`, apagado no início; ou `--solo-db=CAMINHO`), então não mexe no seu personagem.
 
 Defesa da Cidade (construção, economia, recrutamento, torres, cerco, caça, noite, save/load e derrota):
 ```
@@ -307,14 +366,21 @@ Cidade de exemplo para screenshots: `... res://scenes/colony.tscn -- --colonydem
 Multiplayer (servidor + 2 clientes headless; cada cliente sai com código 0 se tudo passar):
 ```
 G=C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe
-$G --headless --path . -- --server --port=7790 --horde-round=8 --horde-pick=5 &
-$G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Ana --horde=lead --horde-pick=5 &
-$G --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Beto --horde=join --horde-pick=5
+rm -f "$TEMP/nettest.db"
+$G --headless --path . -- --server --port=7790 --http-port=8790 --db="$TEMP/nettest.db" --test --horde-round=8 --horde-pick=5 &
+$G --headless --path . -- --nettest=127.0.0.1:7790 --auth-url=http://127.0.0.1:8790 --peers=2 --name=Ana --horde=lead --horde-pick=5 &
+$G --headless --path . -- --nettest=127.0.0.1:7790 --auth-url=http://127.0.0.1:8790 --peers=2 --name=Beto --horde=join --horde-pick=5 --relogin
 ```
+Os clientes entram com conta: `--name` é o usuário (senha fixa `teste-1234`); o teste cadastra a conta (se já existe,
+segue), faz login pela API HTTP do servidor (`--auth-url`) e entra no ENet com o token. `--relogin` confere, no fim, que
+uma segunda conexão com o mesmo token derruba a primeira (abre outro processo do Godot) e que um token inválido é recusado.
 `--horde=lead|join` testa o Desafio da Horda em grupo (Ana abre o portal, Beto aceita o convite; nível do grupo com
 a horda congelada até os dois escolherem, Beto "AFK" recebe carta sorteada; Beto cai e volta, os dois escolhem bênçãos
 e se retiram); sem ele o teste pula essa parte. Com `--peers=2` também testa o chat (entrega e anti-spam).
-`--probe` só entra, confere a versão e os snapshots e sai (não mexe no mundo); serve para testar o servidor público.
+`--probe` confere, sem conta, a versão por `GET /health` (HTTP) e se uma conexão ENet chega a conectar na porta do jogo (UDP); serve para testar o servidor público.
 Cobre conexão, inimigos replicados (snapshots a 20/s), ver o outro jogador, dano pelo servidor, morte, XP, loot
 e a horda em grupo.
+`--test` no servidor aceita o pedido de ouro de teste do `net_test` (Ana: compra, compra dupla, op forjada e
+reconexão); sem ele o pedido é recusado. XP, abate, loot (pickups com `net_id`, coleta conferida pelo servidor),
+sementes/XP da horda e prêmios da cidade vêm do servidor; o teste falha se o cliente tentar conceder a si mesmo.
 `--netstats` no servidor imprime jogadores, fps e snapshots/s a cada 5 s.

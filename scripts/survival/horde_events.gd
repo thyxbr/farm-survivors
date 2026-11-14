@@ -2,24 +2,12 @@ extends RefCounted
 ## Eventos aleatórios e desafios das rodadas do Desafio da Horda.
 ## O dono da partida (solo ou servidor) sorteia no começo de cada rodada; no multiplayer o id
 ## chega aos clientes junto com a rodada (_horde_round_start).
+## EVENTS e HUNT vêm de data/balance/horde_events.json (autoload Balance).
 
-const EVENTS := {
-	"meteoros": {"name": "Chuva de Meteoros", "color": Color(1.0, 0.5, 0.2),
-		"desc": "Meteoros caem na arena: saia dos círculos vermelhos!"},
-	"lua_sangue": {"name": "Lua de Sangue", "color": Color(1.0, 0.25, 0.3),
-		"desc": "Monstros mais rápidos e fortes, mas as gemas valem o dobro."},
-	"febre_ouro": {"name": "Febre do Ouro", "color": Color(1.0, 0.82, 0.25),
-		"desc": "Goblins Dourados fogem pela arena. Pegue-os antes que escapem!"},
-	"enxame": {"name": "Enxame", "color": Color(0.95, 0.45, 0.3),
-		"desc": "O dobro de monstros, porém mais frágeis."},
-	"campeoes": {"name": "Campeões", "color": Color(0.9, 0.35, 0.25),
-		"desc": "Campeões Goblin entram na arena. Derrote-os por um bom saque."},
-	"emboscada": {"name": "Emboscada", "color": Color(0.75, 0.55, 1.0),
-		"desc": "A horda surge cercando o grupo!"},
-}
+static var EVENTS: Dictionary = {}
 
 ## Desafio opcional da rodada: abater N inimigos antes do tempo acabar rende um baú para todos.
-const HUNT := {"name": "Caçada", "color": Color(0.5, 0.9, 1.0)}
+static var HUNT: Dictionary = {}
 
 ## Ritmo em "dente de serra" dentro de cada ciclo de 5 rodadas: a pressão sobe até a rodada 4 do ciclo e
 ## alivia na rodada do chefe (que já é o desafio). Cada ciclo começa mais forte que o anterior.
