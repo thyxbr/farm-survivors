@@ -118,7 +118,7 @@ func _ready() -> void:
 	hud.help_text = ("WASD mover · Shift correr · Espaço pular · Ctrl esquivar · Clique atacar\n" +
 		"B construir (1–0 escolhe · roda/R gira · X demolir) · E usar construção\n" +
 		"G exército segue/defende · V ponto de reunião aqui · N chamar a noite\n" +
-		"1/2/3 magias · R/F poções · I inventário · C personagem\n" +
+		"1–3 habilidades · 4 ultimate · R/F poções · I inventário · C personagem\n" +
 		"F5 salvar · F9 carregar · Esc pausa · H esconder ajuda")
 	if role == "client":
 		hud.help_text = hud.help_text.replace("N chamar a noite", "N votar pela noite").replace("F5 salvar · F9 carregar · ", "")

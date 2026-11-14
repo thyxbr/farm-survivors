@@ -594,12 +594,12 @@ func _explode(visual: bool) -> void:
 
 
 # ------------------------------------------------------------ dano
-func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0) -> void:
+func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun := 0.0, pull := 0.0) -> void:
 	if dead:
 		return
 	if puppet:
 		# o servidor decide; os números de dano chegam de volta em show_hit()
-		Network.client_hit_enemy(net_id, amount, from_pos, crit, slow)
+		Network.client_hit_enemy(net_id, amount, from_pos, crit, slow, stun, pull)
 		return
 	if last_hitter != 0:
 		contributors[last_hitter] = true
@@ -625,7 +625,8 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0) -> v
 		var kb := global_position - from_pos
 		kb.y = 0
 		if kb.length() > 0.01:
-			kb = kb.normalized() * (6.0 if data.model == "slime" else 4.0) * (0.3 if heavy else 1.0)
+			# `pull` > 0: em vez de empurrar, puxa (m/s) em direção a quem bateu (Turbilhão)
+			kb = kb.normalized() * ((-pull) if pull > 0.0 else (6.0 if data.model == "slime" else 4.0)) * (0.3 if heavy else 1.0)
 			velocity.x = kb.x
 			velocity.z = kb.z
 		if (state != "attack" and not heavy) or (crit and attack_kind != "fuse"):
@@ -640,6 +641,21 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0) -> v
 			get_parent().call_deferred("summon_minions", global_position, 2)
 	if hp <= 0:
 		_die()
+	elif stun > 0.0:
+		apply_stun(stun)
+
+
+## Atordoamento: para de andar por t segundos e perde o golpe em andamento (chefes são imunes).
+func apply_stun(t: float) -> void:
+	if puppet:
+		Network.client_hit_enemy(net_id, 0.0, global_position, false, 0.0, t)
+		return
+	if dead or is_boss:
+		return
+	stagger = max(stagger, t)
+	attack_cd = max(attack_cd, t)   # sem golpe novo durante o atordoamento (o stagger de um golpe comum fica como está)
+	if state == "attack":
+		_set_state("chase")
 
 
 func apply_slow(t: float) -> void:

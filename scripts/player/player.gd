@@ -73,7 +73,16 @@ var invuln := 0.0
 var cast_timer := 0.0
 var stamina_delay := 0.0
 var shake := 0.0
-var cooldowns := {"fireball": 0.0, "heal": 0.0, "frost_nova": 0.0}
+## Quanto a câmera recua (m) além da distância normal: a habilidade pede, _process aproxima suave.
+var cam_back := 0.0
+var _cam_back_now := 0.0
+## Habilidade de arma em execução (SwordAbilities): id ("" = nenhuma), tempo desde o início e
+## rascunho dela ("nodes" são liberados e "mask" restaurada por end_ability()).
+var ability := ""
+var ability_t := 0.0
+var ability_data := {}
+var ability_slot := 0   ## slot (1..4) da tecla que começou a habilidade em execução (0 = nenhum)
+var cooldowns := _make_cooldowns()   # todas as habilidades: a recarga continua ao trocar de arma
 var interact_target: Node3D = null
 var spawn_point := Vector3(0, 0.5, 6)
 var _footstep := 0.0
@@ -162,7 +171,12 @@ func _ready() -> void:
 	Game.inventory_changed.connect(_update_equipment_visual)
 	Game.leveled_up.connect(_on_level_up)
 	Game.food_eaten.connect(_on_food_eaten)
+	Game.kit_changed.connect(end_ability)   # só o jogador local: réplicas saem antes, em _ready_remote
 	_update_equipment_visual()
+	FXEpic.prewarm()   # shaders dos efeitos prontos: a primeira habilidade não engasga
+	FXEpic.prewarm_instances.call_deferred(self)   # e os pipelines de desenho de cada tipo de efeito
+	StaffAbilities.prewarm()   # rocha, halo e céu da Chuva de Meteoros (malhas e materiais compartilhados)
+	StaffAbilities.prewarm_instances.call_deferred(self)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -206,6 +220,10 @@ func _process(delta: float) -> void:
 	_cam_y = lerpf(_cam_y, o.y, 1.0 - exp(-12.0 * delta))
 	_cam_y = clampf(_cam_y, o.y - 0.6, o.y + 0.6)
 	cam_yaw.global_position = Vector3(o.x, _cam_y + 1.55, o.z)
+	# recuo pedido por habilidade: soma só a diferença, a distância base fica intacta
+	var back := lerpf(_cam_back_now, cam_back, 1.0 - exp(-6.0 * delta))
+	spring.spring_length += back - _cam_back_now
+	_cam_back_now = back
 
 
 func _ready_remote() -> void:
@@ -239,6 +257,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
+## Saiu da árvore (réplica removida porque o jogador saiu ou trocou de zona, troca de cena): fim duro da
+## habilidade, senão os nós dela fora do jogador (o céu da Chuva de Meteoros, na raiz da cena) ficariam
+## órfãos. end_ability só libera nós e restaura estado (nada de efeito novo), então é seguro mesmo com a
+## cena sendo desmontada.
+func _exit_tree() -> void:
+	if ability != "":
+		end_ability()
+
+
 func _physics_process(delta: float) -> void:
 	if remote:
 		_remote_process(delta)
@@ -261,6 +288,8 @@ func _local_process(delta: float) -> void:
 	_tick_timers(delta)
 	_regen(delta)
 
+	if input_locked or horde_frozen or chat_typing or build_lock:
+		end_ability()
 	if input_locked or horde_frozen or chat_typing:
 		velocity.x = move_toward(velocity.x, 0, 45 * delta)
 		velocity.z = move_toward(velocity.z, 0, 45 * delta)
@@ -281,7 +310,9 @@ func _local_process(delta: float) -> void:
 	if dir.length() > 1.0:
 		dir = dir.normalized()
 
-	var sprinting := Input.is_action_pressed("sprint") and dir.length() > 0.1 and Game.stamina > 1.0 and not attacking and not drawing
+	var busy := ability != ""
+	var sprinting := Input.is_action_pressed("sprint") and dir.length() > 0.1 and Game.stamina > 1.0 and not attacking and not drawing \
+		and not busy
 	if sprinting:
 		Game.stamina = max(0.0, Game.stamina - 20.0 * delta)
 		stamina_delay = 0.6
@@ -293,7 +324,11 @@ func _local_process(delta: float) -> void:
 	elif cast_timer > 0:
 		speed *= 0.6
 
-	if dodge_timer > 0:
+	if busy:
+		# controla a velocidade horizontal (e pode terminar); recebe a direção pedida pelo jogador
+		# (relativa à câmera) e a velocidade de andar, para habilidades que andam devagar
+		_ab_module(ability).tick(self, delta, dir, speed)
+	elif dodge_timer > 0:
 		dodge_timer -= delta
 		velocity.x = dodge_dir.x * DODGE_SPEED
 		velocity.z = dodge_dir.z * DODGE_SPEED
@@ -315,19 +350,24 @@ func _local_process(delta: float) -> void:
 		velocity.x = hv.x
 		velocity.z = hv.z
 
-	if Input.is_action_just_pressed("jump") and is_on_floor() and not attacking and dodge_timer <= 0:
+	if Input.is_action_just_pressed("jump") and is_on_floor() and not attacking and dodge_timer <= 0 and not busy:
 		velocity.y = JUMP_VELOCITY
 	if Input.is_action_just_pressed("dodge") and not build_lock:
-		_try_dodge(dir)
+		_dodge_pressed(dir)
 	if build_lock:
 		_cancel_draw()
+	elif busy:
+		pass   # habilidade em execução: sem ataque nem arco
 	elif look["class"] == "bow":
 		_update_bow(delta)
 	elif Input.is_action_just_pressed("attack"):
 		_try_attack()
-	for i in 3:
+	for i in 4:
 		if Input.is_action_just_pressed("spell_%d" % (i + 1)) and not build_lock:
-			cast(["fireball", "heal", "frost_nova"][i])
+			use_slot(i + 1)
+	# soltou a tecla da habilidade em execução (ex.: o arqueiro solta a flecha ao largar a tecla)
+	if ability != "" and ability_slot >= 1 and Input.is_action_just_released("spell_%d" % ability_slot):
+		_ab_module(ability).release(self)
 	if Input.is_action_just_pressed("potion") and not build_lock:   # R gira a construção no modo construção
 		_quick_potion("health_potion")
 	if Input.is_action_just_pressed("mana_potion") and not peaceful:
@@ -362,7 +402,7 @@ func _local_process(delta: float) -> void:
 		face = dodge_dir
 	elif dir.length() > 0.1:
 		face = dir
-	if face != Vector3.ZERO:
+	if face != Vector3.ZERO and not busy:   # a habilidade mantém a direção em que começou
 		var turn := 22.0 if (attacking or cast_timer > 0 or drawing or dodge_timer > 0) else 13.0
 		model.rotation.y = lerp_angle(model.rotation.y, atan2(face.x, face.z), 1.0 - exp(-turn * delta))
 
@@ -403,6 +443,18 @@ func facing() -> Vector3:
 
 
 # ------------------------------------------------------------ esquiva
+## Tecla de esquiva: com habilidade em execução, só esquiva se ela puder ser cancelada agora. O módulo
+## encerra a habilidade (dodge_cancel): a Chuva de Meteoros termina "macia", deixando cair o que está no ar.
+func _dodge_pressed(dir: Vector3) -> void:
+	if ability != "":
+		var m := _ab_module(ability)
+		if not m.can_dodge_cancel(self):
+			return
+		m.dodge_cancel(self)
+		end_ability()   # garante o fim mesmo se o módulo não encerrar
+	_try_dodge(dir)
+
+
 func _try_dodge(dir: Vector3) -> void:
 	if dodge_timer > 0 or not is_on_floor() or Game.stamina < 20.0:
 		return
@@ -492,7 +544,7 @@ func _do_hit() -> void:
 		var crit: bool = randf() < Game.crit_chance()
 		var dmg: float = Game.melee_damage() * mult * randf_range(0.9, 1.1) * (1.8 if crit else 1.0)
 		e.take_damage(dmg, global_position, crit, 2.5 if _weapon_fx() == "slow" else 0.0)
-		Game.on_damage_dealt(dmg)
+		Game.on_damage_dealt(dmg, e.max_hp)
 		hit_any = true
 	# nós de recurso da Defesa da Cidade (árvores, pedras, veios...): mesmo alcance e mesmo cone
 	for n in get_tree().get_nodes_in_group("harvest"):
@@ -530,15 +582,19 @@ func _weapon_color() -> Color:
 
 
 # ------------------------------------------------------------ ataque à distância (cajado e arco)
-## Direção da mira: do ponto de origem até onde a câmera aponta.
-func aim_dir(origin: Vector3) -> Vector3:
+## Para onde a câmera aponta: o que o raio da câmera acerta (cenário e inimigos) em até 80 m, ou o fim do raio.
+func aim_point() -> Vector3:
 	var from := camera.global_position
 	var to := from - camera.global_basis.z * 80.0
 	var q := PhysicsRayQueryParameters3D.create(from, to, 1 | 4)
 	q.exclude = [get_rid()]
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
-	var target: Vector3 = hit.position if not hit.is_empty() else to
-	return (target - origin).normalized()
+	return hit.position if not hit.is_empty() else to
+
+
+## Direção da mira: do ponto de origem até onde a câmera aponta.
+func aim_dir(origin: Vector3) -> Vector3:
+	return (aim_point() - origin).normalized()
 
 
 ## De onde saem as magias: a gema do cajado, ou a mão esquerda sem cajado.
@@ -629,7 +685,7 @@ func _cancel_draw() -> void:
 	draw_t = 0.0
 
 
-func _spawn_projectile(kind: String, origin: Vector3, d: Vector3, dmg: float, crit: bool, pierce: int, spd := 30.0) -> void:
+func _spawn_projectile(kind: String, origin: Vector3, d: Vector3, dmg: float, crit: bool, pierce: int, spd := 30.0, fx_override := "", color_override := Color(0, 0, 0, 0)) -> Node:
 	var p := PROJECTILE.new()
 	p.kind = kind
 	p.direction = d
@@ -638,25 +694,64 @@ func _spawn_projectile(kind: String, origin: Vector3, d: Vector3, dmg: float, cr
 	p.pierce = pierce
 	p.fx = _weapon_fx() if _weapon_fx() != "multishot" else ""
 	p.color = _weapon_color()
+	if fx_override != "":
+		p.fx = fx_override
+	if color_override.a > 0.0:
+		p.color = color_override
 	p.speed = spd if kind == "arrow" else 26.0
 	p.life = 1.8 if kind == "arrow" else 1.2
 	get_tree().current_scene.add_child(p)
 	p.global_position = origin
+	return p
 
 
 # ------------------------------------------------------------ magias
+static func _make_cooldowns() -> Dictionary:
+	var d := {}
+	for id in ItemDB.ABILITIES:
+		d[id] = 0.0
+	return d
+
+
+## Usa a habilidade do slot (1..4) do kit da arma equipada; slot sem habilidade não faz nada.
+func use_slot(slot: int) -> void:
+	for id in Game.ability_kit():
+		if ItemDB.ABILITIES[id].slot == slot:
+			var before := ability
+			cast(id)
+			if before == "" and ability != "":   # só quando este cast começou a habilidade
+				ability_slot = slot
+			return
+
+
 func cast(id: String) -> void:
-	var sp: Dictionary = ItemDB.SPELLS[id]
-	if not Game.knows_spell(id):
+	var sp: Dictionary = ItemDB.ABILITIES[id]
+	if not Game.knows_ability(id):
 		Game.notify.emit("%s exige nível %d" % [sp.name, sp.level], Color(1, 0.6, 0.6))
 		return
-	if cooldowns[id] > 0 or attacking or dodge_timer > 0:
+	if cooldowns[id] > 0 or attacking or dodge_timer > 0 or ability != "":
 		return
-	if Game.mp < sp.cost:
+	if sp.ultimate and not Game.fury_full():
+		Game.notify.emit("Fúria incompleta!", Color(1.0, 0.55, 0.3))
+		return
+	if sp.cost > 0 and Game.mp < sp.cost:
 		Game.notify.emit("Mana insuficiente!", Color(0.6, 0.7, 1.0))
 		return
+	# habilidade de arma (espada, cajado, arco): o módulo da classe executa. Ainda sem implementação
+	# (ready == false): "Em breve", sem custo nem recarga. As magias antigas seguem no match abaixo.
+	if not id in ["fireball", "heal", "frost_nova"]:
+		if not sp.ready or not _ab_module(id).use(self, id):
+			Game.notify.emit("Em breve!", Color(0.85, 0.8, 0.65))
+			return
+		# a ultimate zera a fúria só quando realmente começa; recarga tem dono único: aqui
+		if sp.ultimate:
+			Game.fury = 0.0
+		cooldowns[id] = sp.cooldown * Game.cooldown_mult()
+		Game.stats_changed.emit()
+		return
 	_cancel_draw()
-	Game.mp -= sp.cost
+	if sp.cost > 0:
+		Game.mp -= sp.cost
 	cooldowns[id] = sp.cooldown * Game.cooldown_mult()
 	cast_timer = 0.4
 	_start_cast_pose(id)
@@ -674,6 +769,69 @@ func cast(id: String) -> void:
 		"frost_nova":
 			_cast_frost_nova()
 	Game.stats_changed.emit()
+
+
+## Módulo da classe da arma dona da habilidade `id` (ou do `kind` de um evento remoto).
+## Um id de ABILITIES usa a `class`; um kind que não é id (ex.: "bow_gale_fire", "meteor_rain_end") cai no prefixo.
+func _ab_module(id: String) -> Object:
+	var cls := ""
+	if ItemDB.ABILITIES.has(id):
+		cls = ItemDB.ABILITIES[id]["class"]
+	elif id.begins_with("sword_"):
+		cls = "sword"
+	elif id.begins_with("bow_"):
+		cls = "bow"
+	elif id.begins_with("meteor"):
+		cls = "staff"
+	match cls:
+		"staff":
+			return StaffAbilities
+		"bow":
+			return BowAbilities
+	return SwordAbilities
+
+
+## O `kind` de um evento remoto é de uma habilidade de arma (e não de uma magia antiga ou emote)?
+func _is_ability_kind(kind: String) -> bool:
+	var weapon_ability: bool = ItemDB.ABILITIES.has(kind) and not (kind in ["fireball", "heal", "frost_nova"])
+	var by_prefix: bool = kind.begins_with("sword_") or kind.begins_with("bow_") or kind.begins_with("meteor")
+	return weapon_ability or by_prefix
+
+
+## Começa a habilidade de arma `id` (use do módulo e, nas réplicas, play_remote).
+func begin_ability(id: String, data := {}) -> void:
+	end_ability()
+	ability = id
+	ability_t = 0.0
+	ability_data = data
+	attacking = false
+	buffered_attack = false
+	_cancel_draw()
+
+
+## Encerra a habilidade em execução (fim normal, esquiva no preparo, morte, menu, troca de arma):
+## sem estado, sem velocidade especial, colisão e Engine.time_scale de volta ao normal.
+func end_ability() -> void:
+	if ability == "":
+		return
+	for n in ability_data.get("nodes", []):
+		if is_instance_valid(n):
+			n.queue_free()
+	if ability_data.has("mask"):
+		collision_mask = ability_data.mask
+	if ability_data.has("yaw0"):
+		model.rotation.y = float(ability_data.yaw0)
+	if ability_data.has("fov0") and camera:
+		camera.fov = float(ability_data.fov0)   # a habilidade mexeu no FOV (Flecha do Vendaval)
+	if not remote:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		Engine.time_scale = 1.0
+		cam_back = 0.0
+	ability = ""
+	ability_t = 0.0
+	ability_slot = 0
+	ability_data = {}
 
 
 func _cast_fireball() -> void:
@@ -696,7 +854,9 @@ func _cast_frost_nova() -> void:
 		if e.dead:
 			continue
 		if e.global_position.distance_to(global_position) <= radius + e.radius:
-			e.take_damage((15.0 + Game.spell_power() * 2.0) * Game.damage_mult(), global_position, false, 4.0)
+			var nova_dmg := (15.0 + Game.spell_power() * 2.0) * Game.damage_mult()
+			e.take_damage(nova_dmg, global_position, false, 4.0)
+			Game.add_fury_from_damage(nova_dmg, e.max_hp)
 
 
 func _frost_fx(radius: float) -> void:
@@ -752,6 +912,7 @@ func _food_fire_nova() -> void:
 			continue
 		if e.global_position.distance_to(global_position) <= radius + e.radius:
 			e.take_damage(dmg, global_position, false)
+			Game.add_fury_from_damage(dmg, e.max_hp)
 
 
 ## Chá de Menta Gélida: congela (lentidão forte) e fere os inimigos próximos.
@@ -765,7 +926,9 @@ func _food_frost_nova() -> void:
 		if e.dead:
 			continue
 		if e.global_position.distance_to(global_position) <= radius + e.radius:
-			e.take_damage((12.0 + Game.level * 3.0) * Game.damage_mult(), global_position, false, 6.0)
+			var food_dmg := (12.0 + Game.level * 3.0) * Game.damage_mult()
+			e.take_damage(food_dmg, global_position, false, 6.0)
+			Game.add_fury_from_damage(food_dmg, e.max_hp)
 
 
 # ------------------------------------------------------------ dano e morte
@@ -779,14 +942,16 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 		return
 	var final_dmg: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
 	Game.hp -= final_dmg
+	Game.add_fury(final_dmg / Game.max_hp() * 25.0)
 	invuln = 0.45
-	var kb := global_position - from_pos
-	kb.y = 0
-	if kb.length() > 0.01:
-		kb = kb.normalized() * 6.0
-		velocity.x = kb.x
-		velocity.z = kb.z
-	velocity.y = 3.0
+	if ability != "sword_whirl":   # o Turbilhão é imune a empurrão
+		var kb := global_position - from_pos
+		kb.y = 0
+		if kb.length() > 0.01:
+			kb = kb.normalized() * 6.0
+			velocity.x = kb.x
+			velocity.z = kb.z
+		velocity.y = 3.0
 	FX.damage_number(global_position + Vector3.UP * 2.0, str(int(round(final_dmg))), Color(1, 0.3, 0.25), 56)
 	FX.burst(global_position + Vector3.UP, Color(0.8, 0.05, 0.05), 12, 3.0)
 	Sfx.play("hurt")
@@ -815,6 +980,7 @@ func _clear_flash() -> void:
 
 func _die() -> void:
 	dead = true
+	end_ability()
 	Game.hp = 0
 	Game.clear_food()
 	attacking = false
@@ -895,6 +1061,7 @@ const NF_DODGE := 4
 const NF_CAST := 8
 const NF_DEAD := 16
 const NF_DRAW := 32
+const NF_ABILITY := 64   ## habilidade de arma em execução (qual: pelo evento SwordAbilities.play_remote)
 
 
 func _net_send(delta: float) -> void:
@@ -903,7 +1070,8 @@ func _net_send(delta: float) -> void:
 		return
 	_net_send_t = maxf(_net_send_t + 1.0 / Network.SEND_RATE, 0.0)
 	var flags := (NF_FLOOR if is_on_floor() else 0) | (NF_ATTACK if attacking else 0) \
-		| (NF_DODGE if dodge_timer > 0 else 0) | (NF_CAST if cast_timer > 0 else 0) | (NF_DEAD if dead else 0) | (NF_DRAW if drawing else 0)
+		| (NF_DODGE if dodge_timer > 0 else 0) | (NF_CAST if cast_timer > 0 else 0) | (NF_DEAD if dead else 0) | (NF_DRAW if drawing else 0) \
+		| (NF_ABILITY if ability != "" else 0)
 	Network.send_player_state(global_position, model.rotation.y, velocity, flags, combo, attack_timer)
 
 
@@ -931,6 +1099,14 @@ func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int,
 	elif attacking:
 		attacking = false
 		parts.Body.rotation.y = 0.0
+	# a habilidade da réplica termina sozinha pelo tempo; o estado sem a flag a encerra antes (esquiva,
+	# morte). Uma folga ignora estado atrasado que chegue depois do evento de início. Sem morte, o fim é o
+	# macio do módulo (o da esquiva): a Chuva de Meteoros deixa os meteoros no ar caírem, mesmo se o estado
+	# chegar antes do evento "meteor_rain_end"; morto, fim duro.
+	if flags & NF_ABILITY == 0 and ability != "" and ability_t > 0.2:
+		if flags & NF_DEAD == 0:
+			_ab_module(ability).dodge_cancel(self)
+		end_ability()
 	var now_dead := flags & NF_DEAD != 0
 	if now_dead and not dead:
 		dead = true
@@ -960,7 +1136,10 @@ func _remote_process(delta: float) -> void:
 		global_position = global_position.lerp(target, 1.0 - exp(-12.0 * delta))
 	model.rotation.y = lerp_angle(model.rotation.y, _net_yaw, 1.0 - exp(-15.0 * delta))
 	if dead:
+		end_ability()
 		return
+	if ability != "":
+		_ab_module(ability).tick(self, delta)
 	dodge_timer = max(0.0, dodge_timer - delta)
 	cast_timer = max(0.0, cast_timer - delta)
 	if attacking:
@@ -991,6 +1170,9 @@ func _start_cast_pose(kind: String) -> void:
 
 ## Efeitos das ações de outro jogador (só visuais: o dano já foi enviado pelo dono).
 func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
+	if _is_ability_kind(kind):
+		_ab_module(kind).play_remote(self, kind, a, b)
+		return
 	match kind:
 		"fireball":
 			_start_cast_pose(kind)
@@ -1080,7 +1262,8 @@ func _animate(delta: float) -> void:
 	_lean = lerpf(_lean, lean_t, 1.0 - exp(-8.0 * delta))
 	var yaw_rate := wrapf(model.rotation.y - _prev_yaw, -PI, PI) / maxf(delta, 0.001)
 	_prev_yaw = model.rotation.y
-	var bank_t := clampf(-yaw_rate * hspeed * 0.012, -0.18, 0.18) if on_floor and dodge_timer <= 0 else 0.0
+	# sem inclinação de curva na esquiva nem nas habilidades (o Turbilhão gira o modelo de propósito)
+	var bank_t := clampf(-yaw_rate * hspeed * 0.012, -0.18, 0.18) if on_floor and dodge_timer <= 0 and ability == "" else 0.0
 	_bank = lerpf(_bank, bank_t, 1.0 - exp(-8.0 * delta))
 	model.rotation.z = _bank
 
@@ -1114,7 +1297,7 @@ func _animate(delta: float) -> void:
 		p.foot_l = p.leg_l + p.knee_l + 0.3
 		p.foot_r = p.leg_r + p.knee_r + 0.3
 	# andando, o ciclo segue a pose sem o atraso da suavização (some na esquiva e volta aos poucos)
-	_cycle_w = lerpf(_cycle_w, 0.0 if dodge_timer > 0 else _amp * (1.0 - _air), 1.0 - exp(-6.0 * delta))
+	_cycle_w = lerpf(_cycle_w, 0.0 if dodge_timer > 0 or ability != "" else _amp * (1.0 - _air), 1.0 - exp(-6.0 * delta))
 	KnightAnim.follow_cycle(p, _cycle_w)
 
 	# emote: andar, pular, abrir o chat (ou cair, atacar, esquivar) cancela; senão a pose dele manda
@@ -1134,8 +1317,11 @@ func _animate(delta: float) -> void:
 	_cast_t += delta
 	var arrow: Node3D = look.get("arrow")
 	if arrow and is_instance_valid(arrow):
-		arrow.visible = drawing
-	if cls == "bow" and drawing:
+		arrow.visible = drawing or ((ability == "bow_triple" and ability_t < BowAbilities.TRIPLE_DRAW) or (ability == "bow_frost" and ability_t < BowAbilities.FROST_DRAW)
+			or (ability == "bow_gale" and not ability_data.get("fired", false)))
+	if ability != "":
+		_ab_module(ability).pose(self, p)
+	elif cls == "bow" and drawing:
 		KnightAnim.bow_draw_pose(p, bow_charge())
 	elif cls == "bow" and attacking:
 		KnightAnim.bow_release_pose(p, attack_timer / BOW_RECOVER, _amp)
