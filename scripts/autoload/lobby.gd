@@ -521,7 +521,12 @@ func _city_hit_node(id: int) -> void:
 	if pid == 0 or c == null or Network.zone_of(pid) != "city" or c.nature == null or c.phase == "over":
 		return
 	var n := c.nature.node(id)
-	if n == null or not n.alive or not c.nature.take_hit(id):
+	if n == null or not n.alive:
+		return
+	# o golpe vem do cliente: só vale perto do nó (última posição recebida do jogador)
+	if not HitGuard.accepts_harvest(Network.last_pos.get(pid, Vector3.INF), n.global_position):
+		return
+	if not c.nature.take_hit(id):
 		return
 	c.harvest(id, n.global_position)
 
@@ -570,7 +575,8 @@ func city_den_reward(den_name: String, gold: int, xp: int) -> void:
 	for pid in Network.zone_peers("city"):
 		var r := Econ.server_grant(pid, gold, xp, {}, "city_night", 0, true)
 		_add_reward(pid, gold, xp, [], bool(r.ok))
-		_city_den_reward.rpc_id(pid, den_name, gold, xp)
+		if r.ok:   # sem concessão (sem sessão) não há o que avisar
+			_city_den_reward.rpc_id(pid, den_name, gold, xp)
 
 
 ## Soma no acumulado da partida do peer (resultado e linha de resumo no fim, em _end_city).

@@ -167,6 +167,10 @@ func on_boss_killed() -> void:
 		Color(1, 0.85, 0.35))
 	_show_cleared()
 	colony._dirty()
+	# solo: o prêmio já foi gravado no personagem; salva a cidade com o covil limpo para que carregar o save
+	# (F9 ou continuar) não deixe limpar o mesmo covil de novo pelo mesmo prêmio
+	if colony.role == "solo" and colony.world and colony.world.has_method("autosave"):
+		colony.world.autosave()
 
 
 ## Cliente: o servidor mandou o estado do covil. fx = false no estado inicial (quem entra depois não vê a festa).

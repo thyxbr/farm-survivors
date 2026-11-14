@@ -729,7 +729,16 @@ func _test_city() -> void:
 		var tw0 := c.amount("wood")
 		if city_role == "lead":
 			await wait(0.5)   # o colega anota a madeira antes do corte
+			# golpe de longe: o servidor recusa (o jogador está longe do nó) e nada entra no cofre
+			var far: ColonyResourceNode = c.nature.nearest("tree", w.player.global_position + Vector3(60, 0, 60))
+			check(far != null and far != tree and far.global_position.distance_to(w.player.global_position) > HitGuard.HARVEST_RANGE + 5.0,
+				"há uma árvore longe do jogador para o golpe recusado")
+			if far != null:
+				Lobby.city_hit_node(far.id)
+				await wait(1.0)
+				check(c.amount("wood") == tw0, "servidor recusa golpe num nó longe do jogador (%d → %d)" % [tw0, c.amount("wood")])
 			w.player.global_position = tree.global_position + Vector3(0, 0.5, 1.5)
+			await wait(0.5)   # a posição nova chega ao servidor antes do golpe
 			for i in 4:
 				tree.hit(w.player.global_position)
 				await wait(0.35)

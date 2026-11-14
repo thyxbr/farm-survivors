@@ -66,8 +66,8 @@ var res := {"wood": 0, "stone": 0, "iron": 0, "crystal": 0}
 ## Solo: o que o personagem já ganhou nesta partida (recompensas por noite e covis) — vira a linha de resumo
 ## no registro da economia no fim (Econ.run_summary). Vai no save da cidade.
 var run_rewards := {"gold": 0, "xp": 0, "items": []}
-## Solo: XP dos abates do cerco ainda não concedido (vai ao personagem no amanhecer, com a recompensa da
-## noite; na derrota, no resumo). Não é salvo: só se salva de dia, depois do amanhecer.
+## Solo: XP dos abates ainda não concedido (cerco à noite e, de dia, guardas de covil e monstros de evento):
+## vai ao personagem no próximo amanhecer depois de uma noite (na derrota, no resumo). Vai no save da cidade.
 var siege_xp := 0
 ## Jogadores na cidade (escala as ondas).
 var team_size := 1
@@ -120,6 +120,7 @@ func new_colony() -> void:
 	_reset_res(0)
 	treasury = ColonyData.START_GOLD
 	run_rewards = {"gold": 0, "xp": 0, "items": []}
+	siege_xp = 0
 	Game.stats_changed.emit()
 
 
@@ -230,7 +231,7 @@ func earn(n: int) -> void:
 	_gold_changed()
 
 
-## Solo: XP de um abate do cerco (Enemy._die), guardado até o amanhecer.
+## Solo: XP de um abate na cidade (Enemy._die), guardado até o amanhecer depois de uma noite.
 func add_siege_xp(n: int) -> void:
 	siege_xp += maxi(0, n)
 
@@ -2331,7 +2332,8 @@ func to_dict() -> Dictionary:
 		"rich": nature.rich_list() if nature else [], "dens": dl,
 		"res": res, "day": day, "phase": phase, "phase_t": phase_t, "food": food, "citizens": citizens,
 		"tax": tax_level, "army_mode": army_mode, "rally": [rally.x, rally.z], "kills": total_kills, "train": train_queue,
-		"techs": techs.keys(), "treasury": treasury, "run": run_rewards.duplicate(true), "buildings": bl, "soldiers": sl}
+		"techs": techs.keys(), "treasury": treasury, "run": run_rewards.duplicate(true), "siege_xp": siege_xp,
+		"buildings": bl, "soldiers": sl}
 
 
 func from_dict(d: Dictionary) -> void:
@@ -2358,6 +2360,7 @@ func from_dict(d: Dictionary) -> void:
 	var run: Dictionary = d.get("run", {}) if d.get("run", {}) is Dictionary else {}
 	run_rewards = {"gold": int(run.get("gold", 0)), "xp": int(run.get("xp", 0)),
 		"items": (run.get("items", []) as Array).duplicate() if run.get("items", []) is Array else []}
+	siege_xp = maxi(0, int(d.get("siege_xp", 0)))
 	phase = "loading"
 	for bd in d.get("buildings", []):
 		var kind := str(bd.kind)

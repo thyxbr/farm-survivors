@@ -16,6 +16,8 @@ var colony: Colony
 ## Evento em andamento ("" = nenhum) e o ponto dele no mapa (o marcador do HUD aponta para lá).
 var active := ""
 var pos := Vector3.ZERO
+## Chance de sair um evento no amanhecer (o teste da cidade zera para o sorteio não mexer nos nós e no mapa).
+var chance := ColonyData.EVENT_CHANCE
 var _props: Array[Node3D] = []
 var _enemies: Array[Enemy] = []
 var _animals: Array[ColonyAnimal] = []
@@ -31,7 +33,7 @@ func roll(day: int, force := "") -> String:
 		return ""
 	var kind := force
 	if kind == "":
-		if randf() >= ColonyData.EVENT_CHANCE:
+		if randf() >= chance:
 			return ""
 		kind = _pick(day)
 	if not ColonyData.DAY_EVENTS.has(kind) or not _possible(kind):

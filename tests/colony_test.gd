@@ -30,6 +30,8 @@ func _ready() -> void:
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
 	await wait(0.6)
 	_bind()
+	if colony and colony.events:
+		colony.events.chance = 0.0   # sem evento sorteado no amanhecer (meteoro mudaria a contagem de nós); os testes de evento usam force
 	check(world != null and colony != null and player != null, "cena da cidade carregada")
 	check(colony.phase == "setup" and colony.hall == null, "começa vazia, esperando a prefeitura")
 	# o personagem é o do save solo (novo neste teste); o ouro da cidade é um caixa à parte
@@ -793,6 +795,8 @@ func _ready() -> void:
 	var char_gold_den := Game.gold
 	var run_gold0 := int(colony.run_rewards.gold)   # covis limpos antes (pelo chefe morto) já somaram
 	var den_rw := ColonyData.night_reward(colony.day)
+	if FileAccess.file_exists(Game.colony_save_path):   # o save abaixo tem que vir do on_boss_killed
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(Game.colony_save_path))
 	den.on_boss_killed()
 	# prêmio do covil para o personagem (Econ.grant com a origem da partida) e somado nas recompensas da partida
 	var run_gold := run_gold0 + int(den_rw.gold)
@@ -800,6 +804,16 @@ func _ready() -> void:
 		"covil limpo: +%d ouro no personagem e na partida (%d, %s)" % [den_rw.gold, Game.gold, str(colony.run_rewards)])
 	check(den.cleared and colony.amount("stone") > s0 and not colony.den_dirs().has(den.dir_index),
 		"limpar o covil dá recursos e fecha a direção")
+	# solo: o covil limpo já vai para o save em disco (carregar não deixa limpar de novo pelo mesmo prêmio)
+	var den_disk = null
+	var dsf := FileAccess.open(Game.colony_save_path, FileAccess.READ)
+	if dsf != null:
+		var dsave = JSON.parse_string(dsf.get_as_text())
+		dsf.close()
+		if dsave is Dictionary and dsave.get("dens") is Array and den.id < dsave.dens.size():
+			den_disk = dsave.dens[den.id]
+	check(den_disk is Dictionary and bool(den_disk.get("cleared", false)),
+		"save em disco já tem o covil limpo (%s)" % str(den_disk))
 	var rich := colony.nature.node(n_nodes)
 	var dep: Array = ColonyData.POIS[den.kind].deposit
 	check(rich != null and rich.kind == str(dep[0]) and rich.total == int(dep[1]), "limpar o covil deixa um nó rico")
@@ -835,6 +849,7 @@ func _ready() -> void:
 	colony.res["wood"] = int(colony.res.get("wood", 0)) + 200
 	check(colony.research("plow") == "", "Arado em andamento na hora de salvar")
 	gold_s = colony.treasury
+	colony.siege_xp = 37   # XP de abates de dia ainda não concedido também vai no save
 	check(world.save_colony(), "salva a cidade")
 	check(Game.has_colony_save(), "arquivo de save existe")
 	Game.start_colony(true)
@@ -847,6 +862,8 @@ func _ready() -> void:
 	check(colony.buildings()[0].invested == inv_s, "carrega o investido por recurso")
 	check(colony.has_tech("sharp_axe") and colony.has_tech("masonry") and colony.era() == 2, "carrega as pesquisas e a era")
 	check(colony.busy_t.size() == 1 and str(colony.busy_t.values()[0][0]) == "plow", "pesquisa em andamento volta do save")
+	check(colony.siege_xp == 37, "save guarda o XP de abates ainda não concedido (%d)" % colony.siege_xp)
+	colony.siege_xp = 0
 	check(colony.dens[0].cleared and colony.dens[1].level == den1_level and not colony.dens[1].cleared,
 		"save guarda o estado dos covis")
 	var rich_l := colony.nature.node(rich_id)
