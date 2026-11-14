@@ -11,6 +11,7 @@ e **cenário** (props, construções, árvores, vegetação, chão e grama, sem 
 | Sombra em dois tons | cada luz ou acende a face inteira ou a deixa no tom de sombra; corte seco, sem degradê | `assets/shaders/toon_light.gdshaderinc`, incluído por `toon_character`, `ground` e `grass` |
 | Sombra fria | a face em sombra recebe a luz multiplicada por `shade_tint` (0.40, 0.38, 0.55): mais escura e azulada | idem |
 | Sombra projetada | a atenuação do sol passa por um degrau (0.3–0.7) e cai num tom mais fundo, `cast_tint` (0.16, 0.16, 0.27) | idem |
+| Ambiente | sem SSAO, névoa leve e azulada, menos ambiente e mais sol, sombra do sol com borda seca | `WorldLighting._toon_tune` |
 | Brilho de metal | uma faixa dura de especular, só em material com `metallic` > 0.55 | idem, `gloss` |
 | Contorno | casca invertida: cópia da malha, faces de trás, empurrada pela normal, sem luz | `assets/shaders/toon_outline.gdshader` |
 
@@ -107,6 +108,50 @@ Os GLBs **não mudam**. `ToonLook.apply(modelo)` (`scripts/world/toon_look.gd`) 
 2. **As árvores usam `tree_wind.gdshader`** (balanço e neve), posto pelo clima no lugar do material do
    GLB. Ele inclui `toon_light.gdshaderinc`, e o clima substitui o material toon se o estilo passou antes.
 
+### Da luz e do pós-processo (etapa 6)
+O estilo entrou material a material, mas o ambiente (`WorldLighting`) era o do sombreado antigo. Com o
+estilo ligado, `WorldLighting._toon_tune` troca os valores abaixo; com `--notoon` nada muda. Tudo foi
+escolhido por captura comparada (mesma posição e câmera, com e sem cada ajuste, nos quatro climas e
+na Horda).
+
+| O quê | Antes | Toon | Por quê |
+|---|---|---|---|
+| SSAO | ligado (raio 0.8, força 1.6) | desligado | desenhava um halo cinza nos pés, no capim e nas juntas de pedra: mancha sobre cor chapada. O contato vem da sombra projetada |
+| Névoa: densidade | 0.002 | 0.0008 | a 300 m cobria ~45% e lavava a serra; agora ~20% |
+| Névoa: cor | (0.74, 0.79, 0.86) + 35% da cor do céu | (0.62, 0.74, 0.92), sem cor do céu | a distância vira um véu azul leve, não cinza |
+| Ambiente | 0.7 | 0.5 | somado por igual em tudo, aproximava sombra e luz |
+| Sol | 1.45 | 1.6 | repõe o brilho que o ambiente tirou, só nas faces acesas |
+| Contraluz | 0.4 | 0.3 | no toon ela acende faces inteiras do lado da sombra |
+| Saturação | 1.05 | 1.15 | cor cheia |
+| Borrão da sombra do sol | 1.6 | 0.6 | o degrau do toon sobre um borrão largo saía pontilhado; curto dá recorte limpo |
+
+Com isso a sombra de forma cai de ~58% para ~53% do tom aceso e a projetada de ~41% para ~34%
+(conta por cima: sol × `light_gain` + ambiente). ACES, exposição e brilho (glow) ficaram como estavam.
+
+1. **A serra era degradê por causa da cor, não da luz.** A malha já recebia a luz em dois tons, mas cada
+   faceta tinha um tom próprio (ruído contínuo + variação de 7% por face) e a névoa fazia o resto. No
+   toon, `ground.gd` (`_terrain_tri`) pinta por faixas: o ruído vira 3 degraus, a variação por face some
+   e as passagens grama → mata → rocha são corte seco. Geometria igual; vale também para os maciços
+   de dentro do mapa.
+2. **O clima parte da base do toon.** `WeatherFX` lê sol, ambiente, névoa e saturação já ajustados. E o
+   tempo fechado ficou mais brando no toon, porque a sombra em dois tons depende do sol: com ele a 38%
+   e a névoa cheia, chuva e neve viravam um cinza só.
+
+| Clima (tempo fechado) | Antes | Toon |
+|---|---|---|
+| Sol perde | 62% | 45% |
+| Sombra projetada perde | 60% da força | 35% |
+| Névoa extra (chuva, neve, poeira) | ×1 | ×0.55 |
+| Ganho de ambiente (nuvem, neve) | ×1 | ×0.5 |
+| Saturação perde | 0.25 | 0.15 |
+
+Capturas antes/depois (mesma posição e câmera): `docs/screenshots/toon_luz_sol.jpg`, `_chuva`, `_neve`,
+`_vento` e `_serra`.
+
+3. **Ficou de fora:** a Defesa da Cidade monta a própria luz (`colony_world.gd`, com ciclo de dia e
+   noite) e ainda usa SSAO e névoa antigos; a sombra do próprio corpo na armadura sai em blocos (é
+   resolução do mapa de sombra, não do estilo).
+
 ### Custo medido
 80 goblins parados, 1280×720, `tools/toon_cost.gd` (medida simples, sem IA nem efeitos):
 
@@ -142,7 +187,8 @@ Cerca de 40% a mais, quase tudo do contorno (dobra os triângulos de cada person
 | 3 | Slimes: gelatina translúcida em dois tons, borda grossa e contorno só na silhueta | feito |
 | 4 | Peças com emissão e efeitos (lamparinas, portal, projéteis): decidir caso a caso | a fazer |
 | 5 | Materiais trocados por código depois do primeiro quadro (ex.: `resource_node.gd`) não são convertidos | a conferir |
-| 6 | Ajuste global de luz e pós-processo (SSAO e névoa brigam com cor chapada; serra ao fundo ainda é degradê) | a fazer |
+| 6 | Ajuste global de luz e pós-processo: SSAO, névoa, sol/ambiente/contraluz, clima e serra em faixas chapadas (vila, praça e Horda) | feito |
+| 6b | O mesmo ajuste na luz própria da Defesa da Cidade (`colony_world.gd`) | a fazer |
 | 7 | Desempenho: custo do contorno na Horda e do gancho de cena em mapas grandes | a medir |
 | 8 | Opção no menu de vídeo (estilo e contorno ligados/desligados) | a fazer |
 | 9 | Rosto dos NPCs sem sombra de forma, como no estudo | em aberto |
