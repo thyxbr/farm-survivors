@@ -277,6 +277,32 @@ func _ready() -> void:
 	check(not is_instance_valid(e) or e.dead or e.hp < hp0, "torre de arqueiros acerta o monstro")
 	check(colony.upgrade(tower) == "" and tower.level == 2, "torre melhora para o nível 2")
 
+	# --- munição: torres e tropas à distância gastam do estoque
+	var said: Array[String] = []
+	var on_say := func(text: String, _c: Color) -> void: said.append(text)
+	Game.notify.connect(on_say)
+	colony.night_ammo = {}
+	colony._ammo_acc = {}   # descarta disparos que sobraram de unidades de testes anteriores
+	colony.res["wood"] = 10
+	for i in 10:
+		colony.use_ammo("archer_tower")
+	check(colony.amount("wood") == 8, "10 flechas gastam 2 madeira")
+	check(int(colony.night_ammo.get("wood", 0)) == 2, "gasto da noite registra a madeira")
+	check(is_equal_approx(ColonyData.ammo_per_night("archer_tower", 10.0, 1.0), 2.0)
+		and is_equal_approx(ColonyData.ammo_per_night("archer_tower", 10.0, 2.0), 1.0), "ammo_per_night usa o multiplicador de tecnologia")
+	colony.res["wood"] = 0
+	check(not colony.use_ammo("archer_tower") and colony.amount("wood") == 0, "sem madeira não fica negativo")
+	check(not colony.use_ammo("archer") and colony.use_ammo("soldier"), "arqueiro sem madeira falha; soldado não usa munição")
+	var t2 := colony.place("archer_tower", Vector3(-8, 0, 14), 0.0, true)
+	var e2 := colony.spawn_enemy("slime", Vector3(-8, 0, 30))
+	var hp2 := e2.hp
+	await wait(3.0)
+	check(not is_instance_valid(e2) or e2.hp < hp2, "torre sem munição continua atirando (mais devagar)")
+	check(said.count("Acabaram as flechas!") == 1, "aviso de munição aparece uma vez (%d)" % said.count("Acabaram as flechas!"))
+	check(t2.tower_rate() * ColonyData.NO_AMMO_RATE == t2.tower_rate() * 2.0 and ColonyData.NO_AMMO_RATE == 2.0, "sem munição o intervalo dobra")
+	Game.notify.disconnect(on_say)
+	colony.demolish(t2)
+
 	# --- monstro ataca construção no caminho
 	var wall := colony.place("wall", Vector3(-20, 0, 30), 0.0, true)
 	var brute := colony.spawn_enemy("goblin_bruto", Vector3(-20, 0, 32))

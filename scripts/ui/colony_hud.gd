@@ -182,6 +182,14 @@ func _process(_delta: float) -> void:
 	_update_build()
 
 
+## "Nome  N" do estoque; o recurso cuja munição acabou na noite pisca em vermelho.
+func _stock_text(label: String, r: String, per_min: String) -> String:
+	var t := "%s  [b]%d[/b]%s" % [label, colony.amount(r), per_min]
+	if colony.ammo_out(r) and int(Time.get_ticks_msec() / 400) % 2 == 0:
+		return "[color=#%s]%s[/color]" % [UITheme.BAD.to_html(false), t]
+	return t
+
+
 ## "  (+12/min)" quando a serraria/pedreira está rendendo; vazio sem produção.
 func _per_min(v: float) -> String:
 	return "" if v < 0.05 else " [color=%s](%+.0f/min)[/color]" % [_col(1), v]
@@ -197,11 +205,11 @@ func _update_status() -> void:
 		lines.append("[b][color=#dcae52]Cidade — dia %d[/color][/b]" % colony.day)
 		lines.append("Ouro  [b]%d[/b]   [color=%s](%+d/dia)[/color]" % [Game.gold, _col(f.gold_net), f.gold_net])
 	lines.append("Comida  [b]%d[/b]   [color=%s](%+d/dia)[/color]" % [colony.food, _col(f.food_net), f.food_net])
-	var stock := "Madeira  [b]%d[/b]%s  ·  Pedra  [b]%d[/b]%s" % [colony.amount("wood"), _per_min(f.wood_min), colony.amount("stone"), _per_min(f.stone_min)]
+	var stock := "%s  ·  %s" % [_stock_text("Madeira", "wood", _per_min(f.wood_min)), _stock_text("Pedra", "stone", _per_min(f.stone_min))]
 	if colony.amount("iron") > 0:
 		stock += "  ·  Ferro  [b]%d[/b]" % colony.amount("iron")
-	if colony.amount("crystal") > 0:
-		stock += "  ·  Cristal  [b]%d[/b]" % colony.amount("crystal")
+	if colony.amount("crystal") > 0 or colony.ammo_out("crystal"):
+		stock += "  ·  " + _stock_text("Cristal", "crystal", "")
 	lines.append(stock)
 	lines.append("Moradores  [b]%d[/b] / %d   (%d trabalhando)" % [colony.citizens, colony.pop_cap(), f.employed])
 	lines.append("Exército  [b]%d[/b] / %d   salários %d/dia" % [colony.soldier_count(), colony.army_cap(), f.salaries])

@@ -38,6 +38,9 @@ var wave_total := 0
 var wave_queue: Array = []
 var wave_dirs: Array = []     # índices de DIR_NAMES
 var last_report := {}
+var night_ammo := {}           # recurso -> unidades de munição gastas na noite (vai para o last_report)
+var _ammo_acc := {}            # recurso -> disparos que ainda restam na unidade já tirada do estoque (fração)
+var _ammo_warned := {}         # recurso -> já avisou que acabou nesta noite
 ## Obstáculos do mapa (árvores e pedras): [Vector2 centro, raio]. Preenchido pelo mundo.
 var obstacles: Array = []
 ## Nós de recurso do mapa (árvores, pedras, veios, cristais, arbustos); a cena da cidade cria e liga.
@@ -474,6 +477,40 @@ func night_votes() -> int:
 
 func votes_needed() -> int:
 	return maxi(1, int(ceil(team_size / 2.0)))
+
+
+## Multiplicador de tecnologia dos disparos por unidade de munição ("wood"/"stone"/"crystal"). Ponto único para plugar `colony.mult("ammo_" + res)` (Task 6).
+func _ammo_mult(_res: String) -> float:
+	return 1.0
+
+
+## Servidor/solo: gasta a munição de um disparo de `who` (torre ou tropa à distância). Falso, sem tirar nada,
+## quando falta o recurso: quem atira segue atirando, só que na metade da cadência (NO_AMMO_RATE).
+## O cliente não simula disparos, então sempre devolve verdadeiro.
+func use_ammo(who: String) -> bool:
+	if role == "client" or not ColonyData.AMMO.has(who):
+		return true
+	var r: String = ColonyData.AMMO[who][0]
+	var shots := float(ColonyData.AMMO[who][1]) * _ammo_mult(r)
+	var left: float = _ammo_acc.get(r, 0.0)
+	if left < 1.0 - 0.000001:
+		if amount(r) < 1:
+			if not _ammo_warned.has(r):
+				_ammo_warned[r] = true
+				say(ColonyData.AMMO_OUT_MSG[r], UITheme.BAD)
+				_dirty()
+			return false
+		res[r] = amount(r) - 1
+		night_ammo[r] = int(night_ammo.get(r, 0)) + 1
+		left += shots
+		_dirty()
+	_ammo_acc[r] = left - 1.0
+	return true
+
+
+## O recurso de munição acabou nesta noite (o HUD pisca).
+func ammo_out(r: String) -> bool:
+	return phase == "night" and _ammo_warned.has(r)
 
 
 ## Multiplicador de tecnologia da produção de "wood"/"stone". Ponto único para plugar `colony.mult(res)` (Task 6).
@@ -1041,6 +1078,8 @@ func start_night(forced := false) -> void:
 	phase_t = 0.0
 	_dawn_pending = false
 	night_kills = 0
+	night_ammo = {}
+	_ammo_warned = {}
 	votes.clear()
 	night_mod = next_mod if is_coop() else ""
 	next_mod = ""
@@ -1312,7 +1351,7 @@ func dawn() -> void:
 	var survived := day
 	last_report = {"day": day, "gold_in": f.gold_in, "tax": f.tax, "trade": f.trade, "hall": f.hall,
 		"salaries": due, "upkeep": up - unpaid, "deserters": deserters, "food_in": f.food_in, "food_out": f.food_out,
-		"starved": starved, "kills": night_kills}
+		"starved": starved, "kills": night_kills, "ammo": night_ammo.duplicate()}
 	day += 1
 	phase = "day"
 	phase_t = day_length
@@ -1333,6 +1372,12 @@ func dawn() -> void:
 			Color(1, 0.85, 0.5) if unpaid == 0 else UITheme.BAD)
 	say("Comida: +%d colhida, −%d consumida (estoque %d) · aldeões %+d." %
 		[f.food_in, eaten, food, -starved], Color(0.8, 1.0, 0.6))
+	if not night_ammo.is_empty():
+		var parts: Array[String] = []
+		for r in ColonyData.RESOURCES:
+			if night_ammo.has(r):
+				parts.append("%d de %s" % [night_ammo[r], ColonyData.RES_NAMES[r]])
+		say("Munição gasta na noite: %s." % ", ".join(parts), Color(0.85, 0.85, 1.0))
 	if deserters > 0:
 		say("%d soldado(s) desertaram por falta de pagamento!" % deserters, UITheme.BAD)
 		assign_posts.call_deferred()

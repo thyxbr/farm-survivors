@@ -74,6 +74,9 @@ func _ready() -> void:
 		collision_mask = 0
 
 
+var _has_ammo := true   # o último disparo à distância teve munição (senão o intervalo dobra)
+
+
 func is_ranged() -> bool:
 	return data.get("ranged", false)
 
@@ -217,6 +220,7 @@ func _update_attack(delta: float) -> void:
 		_hit_done = true
 		if target and is_instance_valid(target) and not target.dead:
 			if is_ranged():
+				_has_ammo = colony == null or colony.use_ammo(unit)
 				var s := SHOT.new()
 				s.kind = "arrow"
 				s.target = target
@@ -233,7 +237,7 @@ func _update_attack(delta: float) -> void:
 					target.take_damage(float(data.damage) * randf_range(0.9, 1.1) * target.resist_mult("melee"), global_position, false)
 	if _attack_t >= (0.75 if is_ranged() else 0.6):
 		_attack_t = -1.0
-		_cd = float(data.cooldown) * randf_range(0.9, 1.1)
+		_cd = float(data.cooldown) * randf_range(0.9, 1.1) * (1.0 if _has_ammo else ColonyData.NO_AMMO_RATE)
 
 
 # ---------------------------------------------------------------- dano

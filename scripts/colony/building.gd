@@ -337,7 +337,7 @@ func _tower_process(delta: float) -> void:
 		turret.rotation.y = lerp_angle(turret.rotation.y, atan2(to.x, to.z), 1.0 - exp(-10.0 * delta))
 	if _cd > 0.0 or puppet:
 		return
-	_cd = tower_rate()
+	_cd = tower_rate() * (1.0 if colony.use_ammo(kind) else ColonyData.NO_AMMO_RATE)
 	var s := SHOT.new()
 	s.kind = data.shot
 	s.target = best

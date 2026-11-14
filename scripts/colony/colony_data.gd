@@ -34,6 +34,11 @@ const TAX_NAMES := ["Baixo", "Normal", "Alto"]
 const VILLAGER_COST := {"food": 40}         # treinar um aldeão na prefeitura
 const VILLAGER_TIME := 8.0                   # segundos de fila por aldeão
 const UNMANNED_TOWER_SLOW := 1.5             # torre sem operador atira com o intervalo multiplicado por isto
+# Munição: [recurso, quantos disparos rende 1 unidade]. Sem estoque, a cadência cai (intervalo x NO_AMMO_RATE).
+const AMMO := {"archer_tower": ["wood", 5], "cannon_tower": ["stone", 2], "mage_tower": ["crystal", 15],
+	"archer": ["wood", 8], "mage": ["crystal", 20], "cannoneer": ["stone", 3]}
+const NO_AMMO_RATE := 2.0                    # sem munição: o intervalo dobra (metade da cadência)
+const AMMO_OUT_MSG := {"wood": "Acabaram as flechas!", "stone": "Acabaram as balas de canhão!", "crystal": "Acabaram os cristais arcanos!"}
 const REFUND := 0.5                          # demolir devolve 50% do que foi gasto
 const REPAIR_RATIO := 0.4                    # reparar a construção inteira custa 40% do preço
 const MAX_LEVEL := 3
@@ -278,6 +283,13 @@ static func is_tower(kind: String) -> bool:
 ## Intervalo entre disparos de uma torre: x1,5 (mais lento) se faltar aldeão para operá-la (eff < 1).
 static func tower_rate_mult(eff: float) -> float:
 	return 1.0 if eff >= 1.0 else UNMANNED_TOWER_SLOW
+
+
+## Unidades de recurso gastas por `shots` disparos de `kind` (torre ou tropa); tech_mult > 1 rende mais disparos por unidade.
+static func ammo_per_night(kind: String, shots: float, tech_mult: float) -> float:
+	if not AMMO.has(kind):
+		return 0.0
+	return shots / (float(AMMO[kind][1]) * maxf(0.01, tech_mult))
 
 
 ## Fator de melhoria por nível (vida, dano, produção).
