@@ -124,7 +124,7 @@ func _debug_screenshot() -> void:
 			spawn_position = Vector3(float(v[0]), 0.5, float(v[1]))
 			spawn_yaw = float(v[2]) if v.size() > 2 else 0.0
 	var args := OS.get_cmdline_user_args()
-	var demo := "--farmdemo" in args or "--geardemo" in args
+	var demo := "--farmdemo" in args or "--geardemo" in args or "--enchantdemo" in args
 	for a in args:
 		demo = demo or a.begins_with("--weapon=")
 	if demo:
@@ -132,6 +132,17 @@ func _debug_screenshot() -> void:
 		Econ.start_scratch_solo("user://demo_solo.json")
 		if at != null:
 			spawn_position = at
+	# `--enchantdemo` dá ouro e materiais e deixa a arma em Fogo +2 (para capturas do painel do ferreiro);
+	# com `--ui=enchant` abre o painel; com `--enchantstrike` o Doran dá o golpe de encanto na hora da captura
+	if "--enchantdemo" in args:
+		Econ.grant(600, 0, {"iron_ore": 30, "arcane_crystal": 3, "ember_core": 14, "frost_drop": 5}, "demo", true)
+		Econ.request("enchant", ["fogo"])
+		Econ.request("enchant", ["fogo"])
+	if "--enchantstrike" in args:
+		get_tree().create_timer(maxf(delay - 0.15, 0.1)).timeout.connect(func() -> void:
+			for n in get_tree().get_nodes_in_group("interactable"):
+				if n.get("npc_id") == "blacksmith":
+					n.enchant_strike(Color(1.0, 0.42, 0.08)))
 	# `--farmdemo` enche a horta com culturas em vários estágios (para screenshots)
 	if "--farmdemo" in args:
 		var now := Econ.now()
@@ -192,6 +203,10 @@ func _debug_screenshot() -> void:
 						w._open_menu(2)
 					"shop":
 						w.open_shop()
+					"enchant":
+						for n in get_tree().get_nodes_in_group("interactable"):
+							if n.get("npc_id") == "blacksmith":
+								w.open_enchant(n)
 	# `--survival` começa direto no Desafio da Horda (com ou sem screenshot)
 	if "--survival" in OS.get_cmdline_user_args():
 		await get_tree().create_timer(0.3).timeout

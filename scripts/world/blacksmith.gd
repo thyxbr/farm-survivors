@@ -24,6 +24,8 @@ const FORGE_YAW := 0.0
 
 var state: State = State.WORK
 var strikes := 0
+## Golpes de encantamento dados (um por arma encantada no painel).
+var enchant_strikes := 0
 var anvil: Node3D          # criado pelo mundo e atribuído antes do add_child
 var anim: AnimationPlayer
 var skeleton: Skeleton3D
@@ -124,6 +126,17 @@ func _process(delta: float) -> void:
 				_idle()
 			elif state == State.WORK:
 				_count_cycle()
+
+
+## Um golpe na bigorna para selar um encanto: som do martelo e faíscas na cor do elemento.
+## No servidor dedicado (sem animação) só conta.
+func enchant_strike(color: Color) -> void:
+	enchant_strikes += 1
+	if not _animate:
+		return
+	Sfx.play_at("anvil", strike_pos())
+	FX.burst(strike_pos(), color, 36, 4.5, 0.045, 0.6, -6.0)
+	FX.ring(strike_pos() - Vector3(0, 0.1, 0), Color(color.r, color.g, color.b, 0.9), 1.2, 0.5)
 
 
 func _on_strike() -> void:

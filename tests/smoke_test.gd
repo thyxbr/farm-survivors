@@ -297,6 +297,66 @@ func _test_enchant() -> void:
 	check("Fogo +1" in ItemDB.item_summary(Game.equipment.weapon), "dica da arma mostra o encanto")
 	Game.enchant_changed.disconnect(on_changed)
 
+	# ---- painel do Doran (a arma está em fogo +1, sem materiais)
+	var smith := _interactable("blacksmith") as Blacksmith
+	var pages: Array = smith._build_dialogue()
+	var choices: Array = pages[pages.size() - 1].get("choices", [])
+	check(choices.size() == 2 and choices[0].text == "Encantar arma", "Doran oferece encantar a arma")
+	var wid: String = Game.equipment.weapon
+	var wname: String = ItemDB.get_item(wid).name
+	choices[0].action.call()
+	var eui = world.modal
+	check(eui != null and eui.get("selected") == "fogo", "painel abre no elemento atual da arma")
+	if eui == null or eui.get("selected") == null:
+		return
+	check(wname in eui.status_text() and "+1" in eui.status_text(), "título mostra a arma e o nível")
+	check(eui.enchant_button.disabled, "sem materiais: botão desligado")
+	check("veios de ferro" in eui.status_text(), "painel diz onde achar o que falta")
+	Econ.grant(120, 0, {"iron_ore": 8, "ember_core": 4}, "teste", true)
+	await wait(0.2)
+	check(not eui.enchant_button.disabled, "com materiais: botão ligado")
+	var strikes0: int = smith.enchant_strikes
+	eui.enchant_button.pressed.emit()
+	check(eui.enchant_button.disabled, "pedido pendente: botão desligado (sem clique duplo)")
+	eui.enchant_button.pressed.emit()
+	await wait(0.3)
+	check(Game.weapon_enchant() == {"el": "fogo", "lv": 2}, "um clique duplo sobe um nível só")
+	check(smith.enchant_strikes == strikes0 + 1, "Doran bate na bigorna ao encantar")
+	eui.select("gelo")
+	var gold_row: Dictionary = eui.cost_rows()[0]
+	check(gold_row.id == "" and gold_row.need == 100, "trocar de elemento mostra a taxa de troca")
+	check("mantém +2" in eui.status_text(), "troca avisa que mantém o nível")
+	# arma trocada com o painel aberto
+	var other := "short_bow" if wid != "short_bow" else "apprentice_staff"
+	if Game.count_item(other) == 0:
+		Econ.grant(0, 0, {other: 1}, "teste", true)
+	Econ.request("equip", [other])
+	await wait(0.3)
+	check(ItemDB.get_item(other).name in eui.status_text(), "painel acompanha a troca de arma")
+	check(eui.cost_rows()[0].need == 50, "arma nova: custo do +1")
+	Econ.request("equip", [wid])
+	await wait(0.3)
+	check(Game.weapon_enchant() == {"el": "fogo", "lv": 2}, "voltar à arma traz o encanto de volta")
+	# sem arma equipada
+	Econ.request("unequip", ["weapon"])
+	await wait(0.3)
+	check("Equipe uma arma" in eui.status_text() and eui.enchant_button.disabled, "sem arma: painel pede para equipar")
+	Econ.request("equip", [wid])
+	await wait(0.3)
+	# servidor antigo, sem a tabela
+	var keep: Dictionary = Balance.tables.to_dict()
+	var no_table := keep.duplicate(true)
+	no_table.erase("enchant")
+	Balance.apply(no_table)
+	await wait(0.1)
+	check("indisponível" in eui.status_text() and eui.enchant_button.disabled, "sem tabela enchant: painel avisa e não quebra")
+	Balance.apply(keep)
+	await wait(0.1)
+	check(not ("indisponível" in eui.status_text()), "tabela de volta: painel volta ao normal")
+	eui._close()
+	await wait(0.1)
+	check(world.modal == null, "painel fecha")
+
 
 # ---------------------------------------------------------------- Horta, caldeirão e comida
 func _interactable(id: String, index := -1) -> Node:

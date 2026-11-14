@@ -34,6 +34,7 @@ const HUD := preload("res://scripts/ui/hud.gd")
 const DIALOGUE := preload("res://scripts/ui/dialogue_ui.gd")
 const GAME_MENU := preload("res://scripts/ui/game_menu.gd")
 const SHOP := preload("res://scripts/ui/shop_ui.gd")
+const ENCHANT_UI := preload("res://scripts/ui/enchant_ui.gd")
 const PAUSE := preload("res://scripts/ui/pause_menu.gd")
 const PORTAL := preload("res://scripts/world/challenge_portal.gd")
 const SURVIVAL := preload("res://scripts/survival/survival_mode.gd")
@@ -850,6 +851,13 @@ func _finish_closeup() -> void:
 
 func open_shop() -> void:
 	_open_modal(SHOP.new())
+
+
+## Painel de encantamento do ferreiro. `smith` = quem abriu (bate na bigorna quando o encanto sai).
+func open_enchant(smith: Node = null) -> void:
+	var ui := ENCHANT_UI.new()
+	ui.smith = smith
+	_open_modal(ui)
 
 
 func open_plant_menu(plot_index: int) -> void:
