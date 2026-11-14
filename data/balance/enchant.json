@@ -1,0 +1,31 @@
+{
+	"max_level": 5,
+	"damage": [0.05, 0.10, 0.16, 0.23, 0.30],
+	"elements": {
+		"fogo":    {"name": "Fogo",    "essence": "ember_core",    "effect": "Queimadura"},
+		"gelo":    {"name": "Gelo",    "essence": "frost_drop",    "effect": "Lentidão"},
+		"raio":    {"name": "Raio",    "essence": "thunder_totem", "effect": "Corrente"},
+		"veneno":  {"name": "Veneno",  "essence": "toxic_gland",   "effect": "Marca tóxica"},
+		"sagrado": {"name": "Sagrado", "essence": "golden_dust",   "effect": "Ruína de chefes"},
+		"sombra":  {"name": "Sombra",  "essence": "shadow_fang",   "effect": "Roubo de vida"}
+	},
+	"levels": [
+		{"gold": 50,   "ecos": 0,  "essence": 2,  "items": {"iron_ore": 4}},
+		{"gold": 120,  "ecos": 0,  "essence": 4,  "items": {"iron_ore": 8}},
+		{"gold": 250,  "ecos": 0,  "essence": 6,  "items": {"iron_ore": 12, "arcane_crystal": 4}},
+		{"gold": 500,  "ecos": 0,  "essence": 8,  "items": {"iron_ore": 16, "arcane_crystal": 8, "champion_badge": 1}},
+		{"gold": 1000, "ecos": 40, "essence": 10, "items": {"iron_ore": 20, "arcane_crystal": 12}}
+	],
+	"swap": {"gold": 100, "essence": 3},
+	"sources": {
+		"iron_ore": "veios de ferro perto do Acampamento Goblin",
+		"arcane_crystal": "cristais arcanos nas Ruínas",
+		"ember_core": "Slimes Explosivos, no Ninho de Slimes",
+		"frost_drop": "Slimes Velozes, no Ninho de Slimes",
+		"thunder_totem": "Goblins Xamãs, no Acampamento Goblin",
+		"toxic_gland": "Slimes Mães, no Ninho de Slimes",
+		"golden_dust": "Goblins Dourados, que aparecem pelo mapa",
+		"shadow_fang": "lobos, na floresta entre a vila e as Ruínas",
+		"champion_badge": "o Campeão Goblin, no Acampamento Goblin"
+	}
+}

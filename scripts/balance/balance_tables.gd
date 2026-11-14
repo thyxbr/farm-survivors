@@ -9,7 +9,7 @@ extends RefCounted
 
 ## Nome de cada tabela = nome do arquivo em data/balance/<nome>.json.
 const NAMES := ["items", "crops", "recipes", "spells", "quests", "shop", "rarity", "enemies",
-	"horde", "horde_events", "colony", "rules", "rewards", "meta_passives", "base_buildings"]
+	"horde", "horde_events", "colony", "rules", "rewards", "meta_passives", "base_buildings", "enchant"]
 
 ## Tag -> quantidade de componentes numéricos esperada ([min, max]).
 const _TAGS := {"$c": [3, 4], "$v2": [2, 2], "$v3": [3, 3]}

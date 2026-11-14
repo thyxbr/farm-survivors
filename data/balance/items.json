@@ -1447,5 +1447,77 @@
 			"$c": [1.0, 0.85, 0.3, 1.0]
 		},
 		"desc": "Cura total. Um prato digno de lenda."
+	},
+	"iron_ore": {
+		"name": "Minério de Ferro",
+		"type": "material",
+		"rarity": "common",
+		"price": 6,
+		"stack": true,
+		"desc": "Pesado e escuro. O Doran sabe o que fazer com ele."
+	},
+	"arcane_crystal": {
+		"name": "Cristal Arcano",
+		"type": "material",
+		"rarity": "uncommon",
+		"price": 14,
+		"stack": true,
+		"desc": "Vibra de leve na mão. Guarda magia antiga."
+	},
+	"ember_core": {
+		"name": "Núcleo em Brasa",
+		"type": "material",
+		"rarity": "uncommon",
+		"price": 10,
+		"stack": true,
+		"desc": "Ainda quente. Sobrou de um Slime Explosivo."
+	},
+	"frost_drop": {
+		"name": "Gota Gélida",
+		"type": "material",
+		"rarity": "uncommon",
+		"price": 10,
+		"stack": true,
+		"desc": "Uma gota que nunca derrete."
+	},
+	"thunder_totem": {
+		"name": "Totem Trovejante",
+		"type": "material",
+		"rarity": "uncommon",
+		"price": 12,
+		"stack": true,
+		"desc": "Estala quando chove. Era de um xamã goblin."
+	},
+	"toxic_gland": {
+		"name": "Glândula Tóxica",
+		"type": "material",
+		"rarity": "uncommon",
+		"price": 12,
+		"stack": true,
+		"desc": "Não encoste a língua."
+	},
+	"golden_dust": {
+		"name": "Pó Dourado",
+		"type": "material",
+		"rarity": "rare",
+		"price": 25,
+		"stack": true,
+		"desc": "Brilha mesmo no escuro."
+	},
+	"shadow_fang": {
+		"name": "Presa Sombria",
+		"type": "material",
+		"rarity": "uncommon",
+		"price": 12,
+		"stack": true,
+		"desc": "A presa de um lobo que caça à noite."
+	},
+	"champion_badge": {
+		"name": "Insígnia do Campeão",
+		"type": "material",
+		"rarity": "epic",
+		"price": 60,
+		"stack": true,
+		"desc": "Só um goblin a carregava. Não carrega mais."
 	}
 }

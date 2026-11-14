@@ -69,3 +69,20 @@ func test_malformed_tags_do_not_crash() -> void:
 	for bad in [{"$c": [1, 2]}, {"$v3": "x"}, {"$v2": [1, 2, 3]}, {"$c": ["a", "b", "c"]}, {"$v3": null}]:
 		T.eq(BalanceTables.decode(bad), bad, "tag malformada devolve o valor cru")
 	T.eq(BalanceTables.decode({"a": {"$v2": [1]}}), {"a": {"$v2": [1]}}, "tag ruim aninhada")
+
+
+func test_enchant_table() -> void:
+	var bt := BalanceTables.load_dir(DIR)
+	var e: Dictionary = bt.get_table("enchant")
+	var items: Dictionary = bt.get_table("items")
+	T.eq(e.get("max_level"), 5, "nível máximo")
+	T.eq(e.get("damage"), [0.05, 0.10, 0.16, 0.23, 0.30], "bônus de dano por nível")
+	T.eq(e.get("elements", {}).keys(), ["fogo", "gelo", "raio", "veneno", "sagrado", "sombra"], "seis elementos, em ordem")
+	T.eq(e.get("levels", []).size(), 5, "um custo por nível")
+	for el in e.get("elements", {}):
+		T.ok(items.has(e.elements[el].essence), "essência de %s existe em items" % el)
+	for id in ["iron_ore", "arcane_crystal", "champion_badge"]:
+		T.ok(items.get(id, {}).get("type") == "material" and items.get(id, {}).get("stack", false), "%s é material empilhável" % id)
+	for lv in e.get("levels", []):
+		for id in lv.get("items", {}):
+			T.ok(items.has(id), "item de custo %s existe" % id)
