@@ -395,7 +395,7 @@ func train_villager() -> String:
 
 
 func _train_tick(delta: float) -> void:
-	if train_queue <= 0 or (hall != null and busy_t.has(hall.net_id)):   # avançando de era, a prefeitura não treina
+	if train_queue <= 0 or _hall_advancing():   # avançando de era, a prefeitura não treina (pesquisa não pausa)
 		return
 	train_t += delta
 	if train_t < ColonyData.VILLAGER_TIME:
@@ -410,6 +410,11 @@ func _train_tick(delta: float) -> void:
 		say("Sem moradia: o treino foi cancelado e a comida devolvida.", Color(1, 0.75, 0.5))
 	Game.stats_changed.emit()
 	_dirty()
+
+
+## A prefeitura está avançando de era (não basta estar ocupada: Alvenaria e Muralha também são feitas nela).
+func _hall_advancing() -> bool:
+	return hall != null and busy_t.has(hall.net_id) and busy_t[hall.net_id][0] == "era"
 
 
 func pop_cap() -> int:
@@ -671,7 +676,7 @@ func advance_era() -> String:
 	if era() >= ColonyData.MAX_LEVEL:
 		return "A cidade já está na última era."
 	if busy_t.has(hall.net_id):
-		return "A prefeitura já está avançando de era."
+		return "A prefeitura já está avançando de era." if _hall_advancing() else "A prefeitura está ocupada com outra ação."
 	var req := era_requirements(era() + 1)
 	if req != "":
 		return req

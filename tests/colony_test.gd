@@ -300,24 +300,28 @@ func _ready() -> void:
 	var r0 := ColonyData.gather_rate(1.0, 8, colony.mult("wood"))
 	check(colony.research("sharp_axe") == "", "pesquisa Machado Afiado")
 	check(colony.research("sharp_axe") != "", "a mesma pesquisa não começa duas vezes")
+	# Alvenaria é pesquisada na prefeitura: o treino de aldeões não pode parar por isso
+	var hmax := colony.hall.max_hp
+	var hhp := colony.hall.hp
+	var wl := colony.place("wall", Vector3(-20, 0, 26), 0.0, true)
+	var wmax := wl.max_hp
+	check(colony.research("masonry") == "" and colony.train_queue == 1, "Alvenaria começa na prefeitura com um aldeão na fila")
+	check(colony.advance_era() == "A prefeitura está ocupada com outra ação.", "pesquisa na prefeitura não se confunde com avanço de era")
 	await wait(ColonyData.TECH_TIME + 0.5)
+	check(colony.train_queue == 0, "o treino anda enquanto a prefeitura pesquisa")
 	check(is_equal_approx(ColonyData.gather_rate(1.0, 8, colony.mult("wood")), r0 * 1.2), "Machado Afiado dá +20% madeira")
 	check(colony.research("sharp_axe") != "", "pesquisa não se compra duas vezes")
 	check(colony.research("arcane_focus").contains("era"), "pesquisa da era III bloqueada na era II")
-	check(colony.research("plow") == "" or colony.count_of("farm") == 0, "pesquisa do Arado começa na fazenda")
-	check(colony.train_queue == 0, "o treino volta depois da era")
+	check(colony.count_of("farm") > 0, "há uma fazenda para o Arado")
+	check(colony.research("plow") == "", "pesquisa do Arado começa na fazenda")
 	var live_tree := colony.nature.nearest("tree", player.global_position)
 	var wh0 := colony.amount("wood")
 	for i in 4:
 		colony.harvest(live_tree.id, player.global_position)
 	check(colony.amount("wood") > wh0 + 24, "Machado Afiado vale para o jogador (%d)" % (colony.amount("wood") - wh0))
 	# pesquisas que mexem na vida: as construções que já existem crescem junto
-	var hmax := colony.hall.max_hp
-	var hhp := colony.hall.hp
-	var wl := colony.place("wall", Vector3(-20, 0, 26), 0.0, true)
-	var wmax := wl.max_hp
-	colony._finish_tech("masonry")
-	check(is_equal_approx(colony.hall.max_hp, hmax * 1.2) and is_equal_approx(colony.hall.hp, hhp + hmax * 0.2), "Alvenaria: +20% de vida nas construções existentes")
+	check(colony.has_tech("masonry") and is_equal_approx(colony.hall.max_hp, hmax * 1.2) and is_equal_approx(colony.hall.hp, hhp + hmax * 0.2)
+		and is_equal_approx(wl.max_hp, wmax * 1.2), "Alvenaria: +20% de vida nas construções existentes")
 	colony._finish_tech("reinforced_wall")
 	check(is_equal_approx(wl.max_hp, wmax * 1.2 * 1.4) and is_equal_approx(colony.hall.max_hp, hmax * 1.2), "Muralha Reforçada: só muros e portões +40%")
 	colony.demolish(wl)
