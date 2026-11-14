@@ -69,6 +69,7 @@ var buffered_attack := false
 var hit_done := false
 var dodge_timer := 0.0
 var dodge_dir := Vector3.ZERO
+var _dodge_age := 0.0   ## há quanto tempo a esquiva atual começou (anima o rolamento; réplicas também)
 var invuln := 0.0
 var cast_timer := 0.0
 var stamina_delay := 0.0
@@ -466,6 +467,7 @@ func _try_dodge(dir: Vector3) -> void:
 	dodge_dir = dir.normalized() if dir.length() > 0.1 else facing()
 	dodge_timer = DODGE_TIME
 	invuln = DODGE_TIME + 0.08
+	model.rotation.y = atan2(dodge_dir.x, dodge_dir.z)   # rola já virado para onde vai
 	attacking = false
 	buffered_attack = false
 	_cancel_draw()
@@ -523,7 +525,7 @@ func _update_attack(delta: float) -> void:
 	if t >= 1.0:
 		attacking = false
 		combo_window = 0.45
-		parts.Body.rotation.y = 0.0
+		KnightAnim.reset_twist(parts)
 		if buffered_attack:
 			buffered_attack = false
 			_start_swing()
@@ -1013,9 +1015,7 @@ func _die() -> void:
 	attacking = false
 	_cancel_draw()
 	Sfx.play("death", 0.0)
-	var tw := create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
-	tw.tween_property(parts.Body, "rotation:x", -1.4, 0.6).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
-	tw.parallel().tween_property(parts.Body, "position:y", 0.35, 0.6)
+	KnightAnim.die(parts, create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS), look.get("holder"))
 	died.emit()
 
 
@@ -1026,8 +1026,7 @@ func revive(pos: Vector3) -> void:
 	Game.stamina = Game.max_stamina()
 	global_position = pos
 	velocity = Vector3.ZERO
-	parts.Body.rotation = Vector3.ZERO
-	parts.Body.position.y = parts.body_y
+	KnightAnim.revive(parts)
 	invuln = 2.0
 	Game.stats_changed.emit()
 
@@ -1071,7 +1070,7 @@ func apply_look(l: Dictionary) -> void:
 		attacking = false
 		combo = 0
 		_cancel_draw()
-		parts.Body.rotation.y = 0.0
+		KnightAnim.reset_twist(parts)
 
 
 func _on_level_up(_lvl: int) -> void:
@@ -1132,7 +1131,7 @@ func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int,
 		attack_timer = attack_t
 	elif attacking:
 		attacking = false
-		parts.Body.rotation.y = 0.0
+		KnightAnim.reset_twist(parts)
 	# a habilidade da réplica termina sozinha pelo tempo; o estado sem a flag a encerra antes (esquiva,
 	# morte). Uma folga ignora estado atrasado que chegue depois do evento de início. Sem morte, o fim é o
 	# macio do módulo (o da esquiva): a Chuva de Meteoros deixa os meteoros no ar caírem, mesmo se o estado
@@ -1145,13 +1144,10 @@ func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int,
 	if now_dead and not dead:
 		dead = true
 		attacking = false
-		var tw := create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
-		tw.tween_property(parts.Body, "rotation:x", -1.4, 0.6).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
-		tw.parallel().tween_property(parts.Body, "position:y", 0.35, 0.6)
+		KnightAnim.die(parts, create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS), look.get("holder"))
 	elif dead and not now_dead:
 		dead = false
-		parts.Body.rotation = Vector3.ZERO
-		parts.Body.position.y = parts.body_y
+		KnightAnim.revive(parts)
 
 
 func set_display_name(n: String) -> void:
@@ -1322,17 +1318,10 @@ func _animate(delta: float) -> void:
 	# a cabeça compensa parte da inclinação e continua olhando para a frente
 	p.head_x -= (_lean + land * KnightAnim.LAND_BODY_X) * 0.5
 	if dodge_timer > 0:
-		p.body_x = 0.7
-		p.body_y = -0.25
-		p.leg_l = -0.9
-		p.leg_r = 0.6
-		p.knee_l = 1.1
-		p.knee_r = 0.9
-		p.head_x = 0.0
-		p.ground = 0.0
-		p.lift = 0.0
-		p.foot_l = p.leg_l + p.knee_l + 0.3
-		p.foot_r = p.leg_r + p.knee_r + 0.3
+		_dodge_age += delta
+		KnightAnim.dodge_pose(p, _dodge_age / DODGE_TIME)
+	else:
+		_dodge_age = 0.0
 	# andando, o ciclo segue a pose sem o atraso da suavização (some na esquiva e volta aos poucos)
 	_cycle_w = lerpf(_cycle_w, 0.0 if dodge_timer > 0 or ability != "" else _amp * (1.0 - _air), 1.0 - exp(-6.0 * delta))
 	KnightAnim.follow_cycle(p, _cycle_w)
@@ -1368,6 +1357,8 @@ func _animate(delta: float) -> void:
 		KnightAnim.sword_pose(p, combo, attack_timer / SWING_TIMES[clampi(combo, 1, 3) - 1], _amp)
 	elif _cast_t < KnightMoves.CAST_TIME:
 		KnightAnim.cast_pose(p, _cast_kind, _cast_t / KnightMoves.CAST_TIME, _amp, cls == "staff")
+	if ability != "" or drawing or attacking or _cast_t < KnightMoves.CAST_TIME:
+		KnightAnim.hips_follow(p)
 	KnightAnim.apply(parts, p, k)
 
 	KnightAnim.hold_weapon_upright(look, parts)
