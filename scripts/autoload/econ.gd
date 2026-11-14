@@ -137,6 +137,13 @@ func request(op: String, args: Array = []) -> void:
 		Hub.refresh_solo()   # a base mudou: a praça redesenha (online quem avisa é o servidor)
 
 
+## Ecos para o personagem de demonstração (só solo; usado pelas opções de depuração do Game).
+func demo_ecos(amount: int) -> void:
+	if Network.is_online() or not ensure_solo():
+		return
+	_deliver("test_ecos", [amount], _svc.grant_test_ecos(SOLO_ACCOUNT, amount, true))
+
+
 ## Coleta de um veio de ferro ou cristal de Valdoria (nó `id` de world_nodes; ver WorldHarvest).
 ## Solo: confere e concede na hora, com `from` = posição do jogador. Online: o servidor decide com a
 ## última posição que recebeu do jogador (precisa estar em Valdoria). Resposta como op "gather".
