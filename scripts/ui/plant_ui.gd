@@ -10,7 +10,7 @@ var info: Label
 var gold_label: Label
 var plant_btn: Button
 var all_btn: Button
-## "Plantar em todos": pedidos ainda sem resposta ({} = nenhum em andamento).
+## "Plantar em todos" em andamento: {"crop", "queue" (canteiros a pedir), "ok"} ({} = nenhum).
 var _batch := {}
 
 
@@ -134,7 +134,8 @@ func _plant_here() -> void:
 
 
 ## Planta a semente escolhida em todos os canteiros vazios, comprando o que faltar.
-## Cada canteiro é um pedido; o resumo sai quando todas as respostas chegam (no solo, na hora).
+## Um pedido por vez: o próximo só sai quando o anterior é confirmado; a primeira recusa (ex.: acabou
+## o ouro) ou a queda da conexão (Econ responde "sem_conexao") encerra o lote — nunca fica travado.
 func _plant_all() -> void:
 	var crop := _selected_crop()
 	if crop == "" or not _batch.is_empty():
@@ -142,19 +143,19 @@ func _plant_all() -> void:
 	var order := _empty_plots()
 	order.erase(plot_index)
 	order.push_front(plot_index)
-	_batch = {"crop": crop, "left": 0, "ok": 0, "fail": false, "sending": true}
-	for i in order:
-		if _batch.fail:
-			break   # solo: acabou o ouro, não insiste nos outros
-		_batch.left += 1
-		Game.plant(i, crop, true)
-	_batch.sending = false
-	_check_batch()
+	_batch = {"crop": crop, "queue": order, "ok": 0}
+	_plant_next()
 
 
-func _check_batch() -> void:
-	if _batch.is_empty() or _batch.sending or _batch.left > 0:
+func _plant_next() -> void:
+	if _batch.queue.is_empty():
+		_finish_batch()
 		return
+	var i: int = _batch.queue.pop_front()
+	Game.plant(i, _batch.crop, true)
+
+
+func _finish_batch() -> void:
 	var b := _batch
 	_batch = {}
 	if b.ok > 0:
@@ -174,12 +175,11 @@ func _on_econ_done(op: String, args: Array, ok: bool, _err: String, _events: Arr
 	match op:
 		"plant":
 			if not _batch.is_empty():
-				_batch.left -= 1
 				if ok:
 					_batch.ok += 1
+					_plant_next()
 				else:
-					_batch.fail = true
-				_check_batch()
+					_finish_batch()
 			elif ok and not args.is_empty() and args[0] == plot_index:
 				Sfx.play("plant", 0.1)
 				_close()

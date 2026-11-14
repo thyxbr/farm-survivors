@@ -214,6 +214,7 @@ func _no_throttle(id: int) -> void:
 func _on_peer_disconnected(id: int) -> void:
 	_pending.erase(id)
 	_chat_log.erase(id)
+	Econ.server_peer_gone(id)
 	if is_server() and players.has(id):
 		print("[server] %s saiu (%d online)" % [players[id].name, players.size() - 1])
 		_drop_player(id)
@@ -613,6 +614,7 @@ func leave() -> void:
 	horde_lobby = {}
 	_connect_t = 0.0
 	Lobby.client_reset()
+	Econ.client_reset()
 
 
 func _on_connected_to_server() -> void:

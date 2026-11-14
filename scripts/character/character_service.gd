@@ -35,6 +35,10 @@ const ARGS := {
 const UNLOGGED_SOURCES := ["horde_run", "city_night"]
 const SOLO_ACCOUNT := 1
 const MAX_VITAL := 10000.0
+## Limite de cada coordenada reportada pelo cliente (o mapa é bem menor).
+const MAX_COORD := 10000.0
+## Teto do ouro de teste por pedido (servidor em --test, usado pelo net_test).
+const TEST_GOLD_MAX := 100000
 
 var _db: Db
 var _bt: BalanceTables
@@ -42,6 +46,7 @@ var _clock: Callable
 var _rng := RandomNumberGenerator.new()
 var _cache := {}      # account_id -> CharState
 var _sessions := {}   # account_id -> session_id atual
+var _dirty := {}      # account_id -> true: report mudou o cache e ainda não foi gravado
 
 
 func _init(db: Db, bt: BalanceTables, clock: Callable = Callable()) -> void:
@@ -140,8 +145,28 @@ func report(account_id: int, session_id: int, hp: float, mp: float, pos: Vector3
 	var s: CharState = _cache[account_id]
 	s.hp = clampf(hp, 0.0, MAX_VITAL)
 	s.mp = clampf(mp, 0.0, MAX_VITAL)
-	s.world_pos = pos
+	s.world_pos = pos.clamp(-Vector3.ONE * MAX_COORD, Vector3.ONE * MAX_COORD)
 	s.world_yaw = yaw
+	_dirty[account_id] = true
+
+
+## Grava as contas que só mudaram por report (o servidor chama de tempos em tempos). Devolve quantas.
+func flush_dirty() -> int:
+	var n := 0
+	for account_id in _dirty.keys():
+		if _cache.has(account_id) and _save(account_id, _cache[account_id]):
+			n += 1
+	_dirty.clear()
+	return n
+
+
+## Ouro de teste: só com o servidor em --test (`enabled`), 1..TEST_GOLD_MAX.
+func grant_test_gold(account_id: int, amount: int, enabled: bool) -> Dictionary:
+	if not enabled:
+		return _result(account_id, {"ok": false, "err": "sem_teste", "events": []})
+	if amount <= 0 or amount > TEST_GOLD_MAX:
+		return _result(account_id, {"ok": false, "err": "valor_invalido", "events": []})
+	return grant(account_id, amount, 0, {}, "test")
 
 
 ## Resumo de uma partida (Horda / Defesa da Cidade): uma linha só, ouro em `amount` e xp + itens em `detail`.
@@ -228,6 +253,7 @@ func _persist(account_id: int, s: CharState, before: Dictionary, kind: String, s
 				return false
 		return true)
 	if ok:
+		_dirty.erase(account_id)
 		return r
 	push_error("CharacterService: falha ao gravar %d: %s" % [account_id, _db.last_error])
 	_cache.erase(account_id)
@@ -246,7 +272,10 @@ func _result(account_id: int, r: Dictionary) -> Dictionary:
 
 
 func _save(account_id: int, s: CharState) -> bool:
-	return _db.transaction(func(): return _write(account_id, s))
+	var ok := _db.transaction(func(): return _write(account_id, s))
+	if ok:
+		_dirty.erase(account_id)
+	return ok
 
 
 ## Dentro de uma transação aberta.

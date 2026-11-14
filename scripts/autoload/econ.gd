@@ -27,8 +27,10 @@ signal done(op: String, args: Array, ok: bool, err: String, events: Array)
 const SOLO_ACCOUNT := CharacterService.SOLO_ACCOUNT
 ## Sessão fixa do solo (o servidor usa o peer id; aqui só existe uma).
 const SOLO_SESSION := 0
-## Teto do ouro de teste por pedido (servidor em --test).
-const TEST_GOLD_MAX := 100000
+## Servidor: intervalo mínimo entre relatórios de vida/posição do mesmo peer (o resto é ignorado).
+const REPORT_MIN_MS := 1000
+## Servidor: de quanto em quanto tempo grava as contas que só mudaram por relatório.
+const FLUSH_EVERY := 60.0
 
 var solo_db_path := "user://solo.db"
 ## Testes adiantam o relógio (horta). Vale para o serviço local e para o desenho dos canteiros.
@@ -46,6 +48,8 @@ var _seq := 0
 var _pending := {}   # cliente: seq -> {"op", "args"}
 var _report_t := 0.0
 var _test_server := false
+var _last_report := {}   # servidor: peer -> Time.get_ticks_msec() do último relatório aceito
+var _flush_t := FLUSH_EVERY
 
 
 func _ready() -> void:
@@ -149,6 +153,17 @@ func pending_count() -> int:
 	return _pending.size()
 
 
+## Cliente saiu do servidor (Network.leave): pedidos sem resposta falham com "sem_conexao" (as UIs
+## que esperam não ficam travadas) e o solo é recarregado do solo.db na próxima vez (nunca roda
+## sobre o estado que veio do servidor).
+func client_reset() -> void:
+	var waiting := _pending
+	_pending = {}
+	for seq in waiting:
+		_finish(str(waiting[seq].op), waiting[seq].args, false, "sem_conexao", [], {})
+	_solo_loaded = false
+
+
 # ================================================================ vida, mana e posição
 ## Combate é do cliente: vida/mana/posição vão ao serviço de tempos em tempos e ao trocar de zona.
 func report_vitals(pos: Vector3, yaw: float) -> void:
@@ -194,6 +209,14 @@ func quick_load() -> bool:
 
 
 func _physics_process(delta: float) -> void:
+	if Network.is_server():
+		# relatórios só mexem no cache: a gravação é do servidor, em lote, não a cada pedido do cliente
+		_flush_t -= delta
+		if _flush_t <= 0.0:
+			_flush_t = FLUSH_EVERY
+			if Network.characters != null:
+				Network.characters.flush_dirty()
+		return
 	# solo: relatório periódico (online o Network cuida, com o mesmo intervalo)
 	if Network.is_online() or sandbox or not _solo_loaded:
 		return
@@ -354,44 +377,58 @@ func server_send_initial(peer: int, account: int) -> void:
 	_econ_res.rpc_id(peer, 0, true, "", [], s.to_dict())
 
 
+## Servidor: o peer saiu (esquece o relógio do relatório).
+func server_peer_gone(peer: int) -> void:
+	_last_report.erase(peer)
+
+
 func _sender_account() -> int:
-	if not Network.is_server():
+	if not Network.is_server() or Network.characters == null:
 		return 0
 	var id := multiplayer.get_remote_sender_id()
 	return int(Network.players[id].get("account", 0)) if Network.players.has(id) else 0
 
 
+## Pedido sem sessão (ainda não aceito, já derrubado): responde a falha para o cliente não ficar esperando.
+func _reply_no_session(seq: int) -> void:
+	if Network.is_server():
+		_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, false, "sem_sessao", [], {})
+
+
 @rpc("any_peer", "call_remote", "reliable")
 func _econ_req(seq: int, op: String, args: Array) -> void:
 	var account := _sender_account()
-	if account <= 0 or Network.characters == null:
+	if account <= 0:
+		_reply_no_session(seq)
 		return
 	var r := Network.characters.apply(account, op, args)
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
 
 
+## Só atualiza o cache (CharacterService.report); grava no próximo pedido, na saída ou no flush periódico.
+## Um relatório por segundo por peer, no máximo (os legítimos vêm a cada autosave ou troca de zona).
 @rpc("any_peer", "call_remote", "reliable")
 func _econ_report(hp: float, mp: float, pos: Vector3, yaw: float) -> void:
 	var account := _sender_account()
-	if account <= 0 or Network.characters == null:
+	if account <= 0:
 		return
-	Network.characters.report(account, multiplayer.get_remote_sender_id(), hp, mp, pos, yaw)
-	Network.characters.save(account)
+	var peer := multiplayer.get_remote_sender_id()
+	var now_ms := Time.get_ticks_msec()
+	if _last_report.has(peer) and now_ms - int(_last_report[peer]) < REPORT_MIN_MS:
+		return
+	_last_report[peer] = now_ms
+	Network.characters.report(account, peer, hp, mp, pos, yaw)
 
 
 ## Só com o servidor em --test (net_test): ouro para os testes de compra.
 @rpc("any_peer", "call_remote", "reliable")
 func _grant_test_gold(seq: int, amount: int) -> void:
 	var account := _sender_account()
-	if account <= 0 or Network.characters == null:
+	if account <= 0:
+		_reply_no_session(seq)
 		return
-	var peer := multiplayer.get_remote_sender_id()
-	if not _test_server or amount <= 0 or amount > TEST_GOLD_MAX:
-		_econ_res.rpc_id(peer, seq, false, "sem_teste" if not _test_server else "valor_invalido", [],
-			Network.characters.load_or_create(account).to_dict())
-		return
-	var r := Network.characters.grant(account, amount, 0, {}, "test")
-	_econ_res.rpc_id(peer, seq, r.ok, r.err, events_of(r), r.state)
+	var r := Network.characters.grant_test_gold(account, amount, _test_server)
+	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
 
 
 # ================================================================ cliente

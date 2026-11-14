@@ -197,3 +197,41 @@ func test_apply_to_without_db() -> void:
 	T.eq(s.gold, 500 - 2 * int(_tables().get_table("items")["health_potion"]["price"]), "estado em memória mudou")
 	T.eq(svc.apply_to(s, "grant", [1, 0, {}]).err, "op_invalida", "grant continua fora")
 	T.eq(svc.apply_to(s, "buy", [1]).err, "args", "args validados")
+
+
+## Relatório de vida/posição só mexe no cache; o servidor grava em lote (flush_dirty), não o cliente.
+func test_report_is_cache_only_and_flush_dirty() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(db, _tables())
+	svc.load_or_create(2)
+	svc.set_session(2, 7)
+	svc.report(2, 7, 40.0, 3.0, Vector3(1, 2, 3), 0.5)
+	var hp_db = db.query("SELECT hp FROM characters WHERE account_id = 2")[0]["hp"]
+	T.ok(not is_equal_approx(float(hp_db), 40.0), "report não grava no banco na hora")
+	T.eq(svc.flush_dirty(), 1, "uma conta suja gravada")
+	T.ok(is_equal_approx(float(db.query("SELECT hp FROM characters WHERE account_id = 2")[0]["hp"]), 40.0), "flush gravou")
+	T.eq(svc.flush_dirty(), 0, "nada sujo depois do flush")
+	db.close()
+
+
+func test_report_clamps_position() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(db, _tables())
+	svc.load_or_create(2)
+	svc.set_session(2, 7)
+	svc.report(2, 7, 10.0, 1.0, Vector3(1e9, -1e9, 5), 0.0)
+	T.eq(svc.load_or_create(2).world_pos, Vector3(10000, -10000, 5), "posição limitada a ±10000")
+	db.close()
+
+
+## Ouro de teste (net_test): só com o servidor em --test, valor entre 1 e TEST_GOLD_MAX.
+func test_grant_test_gold_gate() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(db, _tables())
+	T.eq(svc.grant_test_gold(2, 100, false).err, "sem_teste", "sem --test é recusado")
+	T.eq(svc.load_or_create(2).gold, 25, "ouro intacto")
+	T.eq(svc.grant_test_gold(2, 0, true).err, "valor_invalido", "zero")
+	T.eq(svc.grant_test_gold(2, CharacterService.TEST_GOLD_MAX + 1, true).err, "valor_invalido", "acima do teto")
+	var r := svc.grant_test_gold(2, 100, true)
+	T.ok(r.ok and r.state.gold == 125, "com --test concede")
+	db.close()
