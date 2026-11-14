@@ -4,6 +4,7 @@ de frente em PNG com fundo transparente. Ver docs/INTERFACE_GRIMORIO.md.
   blender --background --factory-startup --python tools/blender/ui_kit.py -- <pasta de saída>
 """
 import math
+import random
 import sys
 
 import bpy
@@ -234,18 +235,34 @@ def paper(name="paper", shade=True):
     stain.inputs["Roughness"].default_value = 0.65
     nt.links.new(tc.outputs["Object"], stain.inputs["Vector"])
     ramp = nt.nodes.new("ShaderNodeValToRGB")
-    ramp.color_ramp.elements[0].position = 0.3
+    ramp.color_ramp.elements[0].position = 0.22
     ramp.color_ramp.elements[0].color = (0.5, 0.34, 0.15, 1)
-    ramp.color_ramp.elements[1].position = 0.68
+    ramp.color_ramp.elements[1].position = 0.6
     ramp.color_ramp.elements[1].color = (0.78, 0.6, 0.33, 1)
     nt.links.new(stain.outputs["Fac"], ramp.inputs[0])
     col = ramp.outputs[0]
+    # segunda camada: manchas miúdas, como papel que pegou umidade
+    spots = nt.nodes.new("ShaderNodeTexNoise")
+    spots.inputs["Scale"].default_value = 6.0
+    spots.inputs["Detail"].default_value = 5
+    nt.links.new(tc.outputs["Object"], spots.inputs["Vector"])
+    sr = nt.nodes.new("ShaderNodeMapRange")
+    sr.inputs["From Min"].default_value = 0.35
+    sr.inputs["From Max"].default_value = 0.65
+    sr.inputs["To Min"].default_value = 0.82
+    sr.inputs["To Max"].default_value = 1.0
+    nt.links.new(spots.outputs["Fac"], sr.inputs["Value"])
+    sm = nt.nodes.new("ShaderNodeVectorMath")
+    sm.operation = "SCALE"
+    nt.links.new(col, sm.inputs[0])
+    nt.links.new(sr.outputs[0], sm.inputs["Scale"])
+    col = sm.outputs[0]
     if shade:
         # escurece junto da lombada e nas bordas da página
         sep = nt.nodes.new("ShaderNodeSeparateXYZ")
         nt.links.new(tc.outputs["Object"], sep.inputs[0])
         fac = None
-        for axis, lo, hi, a, bb in [("X", 0.0, 0.75, 0.42, 1.0), ("X", 4.3, 5.1, 1.0, 0.78), ("Y", 2.2, 2.85, 1.0, 0.8)]:
+        for axis, lo, hi, a, bb in [("X", 0.0, 0.75, 0.42, 1.0), ("X", 4.0, 5.1, 1.0, 0.7), ("Y", 2.0, 2.85, 1.0, 0.74)]:
             ab = nt.nodes.new("ShaderNodeMath")
             ab.operation = "ABSOLUTE"
             nt.links.new(sep.outputs[axis], ab.inputs[0])
@@ -282,6 +299,41 @@ def paper(name="paper", shade=True):
     return m
 
 
+def ragged(x0, y0, x1, y1, n=40, amp=0.02, seed=1):
+    """Retângulo de página com as bordas de fora irregulares (papel gasto); o lado da lombada (x0) é reto."""
+    rnd = random.Random(seed)
+    j = lambda: rnd.uniform(-amp, amp)
+    pts = [(x0, y0)]
+    pts += [(x0 + (x1 - x0) * i / n, y0 + j()) for i in range(1, n)]
+    pts += [(x1 + j(), y0 + (y1 - y0) * i / n) for i in range(n + 1)]
+    pts += [(x1 - (x1 - x0) * i / n, y1 + j()) for i in range(1, n)]
+    pts += [(x0, y1)]
+    return pts
+
+
+def stroke(a, b, w):
+    """Traço reto de largura w entre dois pontos."""
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    ln = math.hypot(dx, dy)
+    nx, ny = -dy / ln * w * 0.5, dx / ln * w * 0.5
+    return [(a[0] + nx, a[1] + ny), (b[0] + nx, b[1] + ny), (b[0] - nx, b[1] - ny), (a[0] - nx, a[1] - ny)]
+
+
+def diamond(x, y, r):
+    return [(x - r, y), (x, y + r), (x + r, y), (x, y - r)]
+
+
+def vignette(cx, cy, dx, dy, ink):
+    """Cantoneira a tinta: dois traços saindo do canto (cx, cy) para dentro da página, com losangos."""
+    lx, ly = 0.8, 0.5
+    loops = [stroke((cx, cy), (cx + dx * lx, cy), 0.012), stroke((cx, cy), (cx, cy + dy * ly), 0.012),
+             stroke((cx + dx * 0.05, cy + dy * 0.05), (cx + dx * lx * 0.6, cy + dy * 0.05), 0.006),
+             stroke((cx + dx * 0.05, cy + dy * 0.05), (cx + dx * 0.05, cy + dy * ly * 0.6), 0.006),
+             diamond(cx, cy, 0.04), diamond(cx + dx * lx, cy, 0.022), diamond(cx, cy + dy * ly, 0.022)]
+    for i, lp in enumerate(loops):
+        shape("vig", [lp], ink, 0.158 + i * 0.0002, 0.003, 0.0)
+
+
 def cloth(name, base, dark, rough=0.7):
     m = metal(name, base, dark, 0.0, rough)
     return m
@@ -306,7 +358,12 @@ def book():
             hy = 2.9 - i * 0.02
             pts = rrect(0.0, -hy, x1, hy, 0.04, 3)
             shape("leaf", [xf(pts, sx=sx)], paper("paper_edge", False), 0.1 + i * 0.012, 0.012, 0.004)
-        shape("page", [xf(rrect(0.0, -2.83, 5.09, 2.83, 0.05, 3), sx=sx)], paper(), 0.14, 0.014, 0.005)
+        shape("page", [xf(ragged(0.0, -2.83, 5.09, 2.83, seed=3 if sx > 0 else 7), sx=sx)], paper(), 0.14, 0.014, 0.005)
+        # vinhetas nos quatro cantos da página, fora da área de conteúdo (margens de BookLayout)
+        ink = flat("ink", (0.05, 0.022, 0.008), 0.42)
+        for sy in (-1, 1):
+            vignette(sx * 4.97, sy * 2.72, -sx, -sy, ink)
+            vignette(sx * 0.2, sy * 2.72, sx, -sy, ink)
     shape("gutter", [rect(0.012, 2.83)], flat("gutter", (0.02, 0.012, 0.006), 0.55), 0.16, 0.004, 0.0)
     render("book")
 

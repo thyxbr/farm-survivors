@@ -59,7 +59,7 @@ func _init() -> void:
 	x.add_theme_color_override("font_color", UITheme.INK_DIM)
 	x.add_theme_color_override("font_hover_color", UITheme.INK_RED)
 	x.pressed.connect(close)
-	x.position = Vector2(BookLayout.SIZE.x - 84, 44)
+	x.position = Vector2(BookLayout.SIZE.x - 122, 42)   # dentro da página, longe da vinheta do canto
 	_holder.add_child(x)
 	resized.connect(_layout)
 
