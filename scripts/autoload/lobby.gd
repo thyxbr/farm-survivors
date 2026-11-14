@@ -172,6 +172,12 @@ func city_hit_animal(net_id: int, amount: float, from_pos: Vector3, slow: float)
 		_city_hit_animal.rpc_id(1, net_id, amount, from_pos, slow)
 
 
+## Golpe num nó de recurso (árvore, pedra, veio...): o servidor decide e coleta.
+func city_hit_node(id: int) -> void:
+	if Network.is_client():
+		_city_hit_node.rpc_id(1, id)
+
+
 func _colony() -> Colony:
 	if Network.is_server():
 		return _city.colony if _city != null and is_instance_valid(_city) else null
@@ -489,6 +495,18 @@ func _city_hit_animal(net_id: int, amount: float, from_pos: Vector3, slow: float
 		a.apply_slow(minf(slow, 10.0))
 
 
+@rpc("any_peer", "call_remote", "reliable")
+func _city_hit_node(id: int) -> void:
+	var pid := _sender()
+	var c := _colony()
+	if pid == 0 or c == null or Network.zone_of(pid) != "city" or c.nature == null or c.phase == "over":
+		return
+	var n := c.nature.node(id)
+	if n == null or not n.alive or not c.nature.take_hit(id):
+		return
+	c.harvest(id, n.global_position)
+
+
 ## Monstro da cidade morto: ouro no cofre e XP para quem acertou.
 func server_city_kill(e: Enemy) -> void:
 	var c := _colony()
@@ -586,6 +604,11 @@ func city_animal_removed(a: ColonyAnimal, killed: bool) -> void:
 	_to_city("_city_ani_del", [a.net_id, killed])
 
 
+## Nó de recurso esgotou (alive = false) ou voltou.
+func city_node_state(id: int, alive: bool) -> void:
+	_to_city("_city_node", [id, alive])
+
+
 func city_enemy_meta(e: Enemy) -> void:
 	if e.net_id != 0:
 		_to_city("_city_enemy_meta", [e.net_id, e.affix])
@@ -646,6 +669,9 @@ func _city_full(d: Dictionary) -> void:
 		c.net_soldier_add(int(s[0]), str(s[1]), float(s[2]), float(s[3]), float(s[4]), false)
 	for a in d.get("animals", []):
 		c.net_animal_add(int(a[0]), str(a[1]), float(a[2]), float(a[3]))
+	if c.nature:
+		for id in d.get("nodes", []):
+			c.nature.net_set(int(id), false, false)
 	c.apply_state(d.get("state", {}))
 	if city and city.has_method("on_city_synced"):
 		city.on_city_synced()
@@ -712,6 +738,13 @@ func _city_ani_del(id: int, killed: bool) -> void:
 	var c := _colony()
 	if c:
 		c.net_animal_remove(id, killed)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _city_node(id: int, alive: bool) -> void:
+	var c := _colony()
+	if c and c.nature:
+		c.nature.net_set(id, alive)
 
 
 @rpc("authority", "call_remote", "reliable")

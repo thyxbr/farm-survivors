@@ -96,6 +96,20 @@ const UNITS := {
 }
 const UNIT_ORDER := ["militia", "soldier", "archer", "knight"]
 
+## Nós de recurso que o jogador coleta com o ataque normal: recurso, golpes para esgotar e total entregue.
+const NODES := {
+	"tree": {"name": "Árvore", "res": "wood", "hits": 4, "total": 24},
+	"rock": {"name": "Pedra", "res": "stone", "hits": 5, "total": 25},
+	"iron": {"name": "Veio de ferro", "res": "iron", "hits": 6, "total": 12},
+	"gold": {"name": "Veio de ouro", "res": "gold", "hits": 6, "total": 60},
+	"crystal": {"name": "Cristal arcano", "res": "crystal", "hits": 6, "total": 8},
+	"berry": {"name": "Arbusto de frutas", "res": "food", "hits": 1, "total": 12},
+}
+## Raio (a partir do centro do mapa) onde começam os anéis 1, 2 e 3.
+const RINGS := [52.0, 80.0, 105.0]
+## Dias até um nó esgotado voltar no mesmo lugar.
+const REGROW_DAYS := {"tree": 2, "berry": 2, "rock": 4, "iron": 4, "gold": 4, "crystal": 4}
+
 ## Animais de caça (aparecem de dia, longe da cidade).
 const ANIMALS := {
 	"rabbit": {"name": "Coelho", "hp": 14, "speed": 6.8, "food": 3, "gold": 2, "radius": 0.3, "flee": true},

@@ -149,6 +149,57 @@ func _ready() -> void:
 	colony.demolish(farm2)
 	colony.citizens = 5
 
+	# --- nós de recurso: coleta, esgotamento e volta
+	check(world.map_seed == 7731, "teste usa semente fixa")
+	var tree := colony.nature.nearest("tree", player.global_position)
+	var wt0 := colony.amount("wood")
+	for i in 4:
+		colony.harvest(tree.id, player.global_position)
+	check(colony.amount("wood") == wt0 + 24 and not tree.alive, "árvore dá 24 madeira em 4 golpes e cai")
+	check(not _obstacle_at(tree.global_position), "árvore caída sai dos obstáculos")
+	check(not tree.is_in_group("enemies") and tree.is_in_group("harvest"), "nó fica no grupo harvest, fora de enemies")
+	colony.day += 2
+	colony.nature.regrow(colony.day)
+	check(tree.alive and _obstacle_at(tree.global_position), "árvore volta em 2 dias")
+	# construção em cima do lugar: o nó espera e tenta de novo no próximo amanhecer
+	for i in 4:
+		colony.harvest(tree.id, player.global_position)
+	var blocker := colony.place("wall", tree.global_position, 0.0, true)   # grátis; testa só a sobreposição
+	colony.day += 2
+	colony.nature.regrow(colony.day)
+	check(not tree.alive, "nó não volta dentro de uma construção")
+	colony.demolish(blocker)
+	var keep := [colony.citizens, colony.food, Game.gold, colony.res.duplicate()]
+	colony.dawn()
+	check(tree.alive, "o amanhecer tenta de novo e o nó volta")
+	colony.citizens = keep[0]
+	colony.food = keep[1]
+	Game.gold = keep[2]
+	colony.res = keep[3]
+	colony.day -= 5   # o resto do teste conta os dias a partir daqui
+	check(colony.nature.count("crystal") == 6 and colony.nature.count("iron") == 7, "anéis externos têm cristal e ferro")
+	check(colony.nature.count("gold") == 4 and colony.nature.count("berry") == 10, "veios de ouro e arbustos de frutas")
+	var cr := colony.nature.nearest("crystal", Vector3.ZERO)
+	check(Vector2(cr.global_position.x, cr.global_position.z).length() >= 105.0, "cristal só no anel 3")
+	var ir := colony.nature.nearest("iron", Vector3.ZERO)
+	check(Vector2(ir.global_position.x, ir.global_position.z).length() >= 80.0, "ferro no anel 2")
+	var cry0 := colony.amount("crystal")
+	for i in 6:
+		colony.harvest(cr.id, player.global_position)
+	check(colony.amount("crystal") == cry0 + 8 and not cr.alive, "cristal dá 8 em 6 golpes, sem perder o resto")
+	var berry := colony.nature.nearest("berry", Vector3.ZERO)
+	var fd0 := colony.food
+	colony.harvest(berry.id, player.global_position)
+	check(colony.food == fd0 + 12 and not berry.alive, "arbusto dá 12 comida de uma vez")
+	var rock := colony.nature.nearest("rock", player.global_position)
+	var st0 := colony.amount("stone")
+	rock.hit(player.global_position)
+	rock.hit(player.global_position)
+	check(colony.amount("stone") == st0 + 5, "golpe duplo no mesmo instante tira só um pedaço")
+	var cr_id := cr.id
+	var nd: Dictionary = colony.to_dict().get("nodes", {})
+	check(nd.has(str(cr.id)) and nd.has(str(berry.id)) and int(colony.to_dict().get("seed", -1)) == 7731, "save guarda semente e nós esgotados")
+
 	# --- muros encaixam
 	colony.place("wall", Vector3(0, 0, 22), 0.0)
 	world.build.select("wall")
@@ -306,6 +357,19 @@ func _ready() -> void:
 		"save versão 1 volta com o estoque inicial")
 	check(ColonyData.cost_from(40) == {"gold": 40}, "investido inteiro de save antigo vira ouro")
 	check(colony.phase == "day" and colony.hall != null, "cidade carregada de dia")
+	check(not colony.nature.node(cr_id).alive, "nó esgotado volta esgotado do save")
+	# save versão 1 (sem semente, sem estoque, sem nós) lido do arquivo
+	var v1 := colony.to_dict()
+	v1.erase("seed")
+	v1.erase("res")
+	v1.erase("nodes")
+	v1["version"] = 1
+	_write_save(v1)
+	Game.start_colony(true)
+	await wait(1.0)
+	_bind()
+	check(world.map_seed == 7731 and colony.amount("wood") == 150, "save antigo carrega com semente 7731 e madeira inicial")
+	check(colony.nature.node(cr_id).alive, "save antigo: todos os nós vivos")
 
 	# --- derrota
 	colony.hall.take_damage(999999, Vector3.ZERO)
@@ -315,6 +379,19 @@ func _ready() -> void:
 
 	print("\n%s — %d falha(s)" % ["OK" if fails == 0 else "FALHOU", fails])
 	get_tree().quit(1 if fails > 0 else 0)
+
+
+func _obstacle_at(p: Vector3) -> bool:
+	for o in colony.obstacles:
+		if Vector2(p.x, p.z).distance_to(o[0]) < 0.1:
+			return true
+	return false
+
+
+func _write_save(d: Dictionary) -> void:
+	var f := FileAccess.open(Game.colony_save_path, FileAccess.WRITE)
+	f.store_string(JSON.stringify(d, "\t"))
+	f.close()
 
 
 func _bind() -> void:

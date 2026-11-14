@@ -17,23 +17,20 @@ const COLONY := preload("res://scripts/colony/colony.gd")
 const BUILD := preload("res://scripts/colony/build_mode.gd")
 const CHAT := preload("res://scripts/ui/chat_ui.gd")
 const GROUND := preload("res://scripts/world/ground.gd")
+const NATURE := preload("res://scripts/colony/nature.gd")
 const M := {
 	"tree_pine": preload("res://assets/models/tree_pine.glb"),
-	"tree_oak": preload("res://assets/models/tree_oak.glb"),
-	"tree_fir": preload("res://assets/models/tree_fir.glb"),
-	"tree_birch": preload("res://assets/models/tree_birch.glb"),
-	"tree_maple": preload("res://assets/models/tree_maple.glb"),
-	"rock": preload("res://assets/models/rock.glb"),
 }
+## Semente fixa: saves antigos (sem semente), o teste e a demonstração.
+const FIXED_SEED := 7731
 
 const MAP_HALF := ColonyData.MAP_HALF
-const CLEARING := 52.0
 const SPAWN := Vector3(0, 0.5, 10)
 const CHAR_SAVE := "user://colony_character.json"
 
 var role := "solo"
-## Semente do mapa (a mesma no servidor e nos clientes da cidade em grupo).
-var map_seed := 7731
+## Semente do mapa (a mesma no servidor e nos clientes da cidade em grupo; no solo, sorteada e salva).
+var map_seed := FIXED_SEED
 ## Servidor: jogadores na sala quando a partida começou.
 var coop_players := 1
 ## Chefe atual (o Network preenche quando o Rei Goblin chega pela rede).
@@ -59,6 +56,23 @@ func _ready() -> void:
 	if role == "solo" and Network.is_client() and Lobby.joining_city:
 		role = "client"
 		map_seed = Lobby.city_seed
+	var saved = null
+	if role == "solo":
+		# personagem: o do save da cidade ou um novo (antes de criar o jogador, que lê o equipamento)
+		saved = _read_colony_save() if Game.colony_continue else null
+		if saved != null and not _load_character():
+			saved = null
+		if saved == null:
+			Game.colony_continue = false
+			Game.new_game()
+		# a semente vem antes do mapa: solo novo sorteia; save carrega a dele (o antigo, sem semente, usa a fixa)
+		var args := OS.get_cmdline_user_args()
+		if "--colonytest" in args or "--colonydemo" in args:
+			map_seed = FIXED_SEED
+		elif saved != null:
+			map_seed = int(saved.get("seed", FIXED_SEED))
+		else:
+			map_seed = randi()
 	rng.seed = map_seed
 	if role != "server":
 		_setup_input()
@@ -78,15 +92,8 @@ func _ready() -> void:
 		colony.new_coop(coop_players)
 		return
 
-	var saved = null
 	if role == "solo":
-		# personagem: o do save da cidade ou um novo (antes de criar o jogador, que lê o equipamento)
-		saved = _read_colony_save() if Game.colony_continue else null
-		if saved != null and not _load_character():
-			saved = null
 		if saved == null:
-			Game.colony_continue = false
-			Game.new_game()
 			colony.new_colony()
 	else:
 		# cidade em grupo: o personagem é o do RPG (já carregado); a cidade vem do servidor
@@ -526,49 +533,13 @@ func _prop(model: String, pos: Vector3, yaw: float, s: float, radius: float) -> 
 	colony.obstacles.append([Vector2(pos.x, pos.z), radius * s + 0.3])
 
 
+## Árvores, pedras, veios, cristais e arbustos viram nós de recurso coletáveis (ColonyNature).
 func _scatter_nature() -> void:
-	# bosques: aglomerados de árvores longe da clareira, com campos abertos entre eles (onde ficam os animais)
-	var groves := 26
-	for g in groves:
-		var a := rng.randf() * TAU
-		var d := rng.randf_range(CLEARING + 6.0, MAP_HALF - 14.0)
-		var c := Vector3(cos(a) * d, 0, sin(a) * d)
-		c.x = clampf(c.x, -MAP_HALF + 10, MAP_HALF - 10)
-		c.z = clampf(c.z, -MAP_HALF + 10, MAP_HALF - 10)
-		var n := rng.randi_range(5, 11)
-		for i in n:
-			var p := c + Vector3(rng.randf_range(-9, 9), 0, rng.randf_range(-9, 9))
-			if Vector2(p.x, p.z).length() < CLEARING:
-				continue
-			var r := rng.randf()
-			if r < 0.4:
-				_prop("tree_pine", p, rng.randf() * TAU, rng.randf_range(0.9, 1.5), 0.35)
-			elif r < 0.55:
-				_prop("tree_fir", p, rng.randf() * TAU, rng.randf_range(0.9, 1.4), 0.32)
-			elif r < 0.68:
-				_prop("tree_birch", p, rng.randf() * TAU, rng.randf_range(0.9, 1.3), 0.25)
-			elif r < 0.78:
-				_prop("tree_maple", p, rng.randf() * TAU, rng.randf_range(0.9, 1.2), 0.4)
-			else:
-				_prop("tree_oak", p, rng.randf() * TAU, rng.randf_range(0.9, 1.3), 0.4)
-	# árvores e pedras soltas
-	var placed := 0
-	var tries := 0
-	while placed < 70 and tries < 2000:
-		tries += 1
-		var p := Vector3(rng.randf_range(-MAP_HALF + 8, MAP_HALF - 8), 0, rng.randf_range(-MAP_HALF + 8, MAP_HALF - 8))
-		if Vector2(p.x, p.z).length() < CLEARING - 4.0:
-			continue
-		if rng.randf() < 0.55:
-			_prop("rock", p, rng.randf() * TAU, rng.randf_range(0.6, 1.5), 0.65)
-		else:
-			_prop("tree_oak", p, rng.randf() * TAU, rng.randf_range(0.8, 1.2), 0.4)
-		placed += 1
-	# algumas pedras decorativas (sem colisão) na clareira
-	for i in 8:
-		var a := rng.randf() * TAU
-		var p := Vector3(cos(a), 0, sin(a)) * rng.randf_range(34.0, 48.0)
-		_prop("rock", p, rng.randf() * TAU, rng.randf_range(0.4, 0.7), 0.6)
+	var nature := NATURE.new()
+	nature.name = "Nature"
+	add_child(nature)
+	colony.nature = nature
+	nature.generate(rng, colony)
 	if DisplayServer.get_name() == "headless":
 		return
 	ground.scatter_grass(map_seed + 7, 0.55, [], [[Vector2.ZERO, ColonyData.HALL_ZONE]])

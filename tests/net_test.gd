@@ -432,6 +432,21 @@ func _test_city() -> void:
 	check(c.upkeep() == int(ColonyData.UPKEEP.barracks), "quartel tem manutenção (%d)" % c.upkeep())
 	await wait(1.0)
 
+	# --- coleta: o líder corta uma árvore; madeira e árvore caída chegam a todos
+	var tree: ColonyResourceNode = c.nature.nearest("tree", Vector3.ZERO) if c.nature else null
+	check(tree != null, "nós de recurso gerados da semente do grupo")
+	if tree != null:
+		var tw0 := c.amount("wood")
+		if city_role == "lead":
+			await wait(0.5)   # o colega anota a madeira antes do corte
+			w.player.global_position = tree.global_position + Vector3(0, 0.5, 1.5)
+			for i in 4:
+				tree.hit(w.player.global_position)
+				await wait(0.35)
+		check(await _wait_until(func() -> bool: return not tree.alive, 8.0), "árvore esgotada aparece para todos")
+		check(await _wait_until(func() -> bool: return c.amount("wood") == tw0 + 24, 5.0),
+			"madeira da coleta chega ao cofre (%d → %d)" % [tw0, c.amount("wood")])
+
 	# --- a noite: votação, monstros replicados, abates pagam o cofre
 	var rgold := Game.gold
 	var rxp := Game.xp + Game.level * 100000

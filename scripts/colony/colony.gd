@@ -40,6 +40,8 @@ var wave_dirs: Array = []     # índices de DIR_NAMES
 var last_report := {}
 ## Obstáculos do mapa (árvores e pedras): [Vector2 centro, raio]. Preenchido pelo mundo.
 var obstacles: Array = []
+## Nós de recurso do mapa (árvores, pedras, veios, cristais, arbustos); a cena da cidade cria e liga.
+var nature: ColonyNature
 var day_length := ColonyData.DAY_LENGTH
 var first_day_bonus := ColonyData.FIRST_DAY_BONUS
 
@@ -226,6 +228,36 @@ func _actor_name() -> String:
 	if actor != 0 and Network.players.has(actor):
 		return str(Network.players[actor].name)
 	return "Alguém"
+
+
+# ================================================================ coleta
+## Servidor/solo: um golpe num nó de recurso. Cada golpe entrega um pedaço do total (o último leva o
+## resto, para a soma fechar) e o último golpe esgota o nó.
+func harvest(id: int, at: Vector3) -> void:
+	if role == "client" or nature == null:
+		return
+	var n := nature.node(id)
+	if n == null or not n.alive:
+		return
+	var d: Dictionary = ColonyData.NODES[n.kind]
+	var hits := int(d.hits)
+	var done := hits - n.hits_left   # golpes já dados
+	var piece := n.total * (done + 1) / hits - n.total * done / hits
+	var mult := 1.0   # bônus de pesquisa (Task 6)
+	piece = int(round(piece * mult))
+	n.hits_left -= 1
+	if piece > 0:
+		gain({str(d.res): piece}, n.global_position.lerp(at, 0.3) + Vector3.UP * 2.2)
+	if n.hits_left <= 0:
+		nature.deplete(id, day)
+
+
+## Há construção cobrindo o círculo (centro p no plano XZ, raio r)?
+func building_at(p: Vector2, r: float) -> bool:
+	for b in buildings():
+		if _circle_hits(_rect(Vector2(b.global_position.x, b.global_position.z), b.rotation.y, b.size), p, r):
+			return true
+	return false
 
 
 # ================================================================ consultas
@@ -1219,6 +1251,8 @@ func dawn() -> void:
 	day += 1
 	phase = "day"
 	phase_t = day_length
+	if nature:
+		nature.regrow(day)
 	night_mod = ""
 	_warned = false
 	Game.stats_changed.emit()
@@ -1526,7 +1560,8 @@ func net_full() -> Dictionary:
 	for a in get_tree().get_nodes_in_group("animals"):
 		if a.colony == self and not a.dead:
 			al.append([a.net_id, a.kind, a.global_position.x, a.global_position.z])
-	return {"state": net_state(), "buildings": bl, "soldiers": sl, "animals": al}
+	return {"state": net_state(), "buildings": bl, "soldiers": sl, "animals": al,
+		"nodes": nature.depleted.keys() if nature else []}
 
 
 ## Servidor: posições dos soldados e animais e a vida das construções que mudou.
@@ -1689,7 +1724,8 @@ func to_dict() -> Dictionary:
 	var sl: Array = []
 	for s in soldiers():
 		sl.append({"unit": s.unit, "hp": s.hp, "x": s.global_position.x, "z": s.global_position.z})
-	return {"version": 2, "res": res, "day": day, "phase": phase, "phase_t": phase_t, "food": food, "citizens": citizens,
+	return {"version": 2, "seed": world.map_seed if world else 7731, "nodes": nature.to_dict() if nature else {},
+		"res": res, "day": day, "phase": phase, "phase_t": phase_t, "food": food, "citizens": citizens,
 		"tax": tax_level, "army_mode": army_mode, "rally": [rally.x, rally.z], "kills": total_kills, "train": train_queue,
 		"buildings": bl, "soldiers": sl}
 
@@ -1723,6 +1759,8 @@ func from_dict(d: Dictionary) -> void:
 	for sd in d.get("soldiers", []):
 		if ColonyData.UNITS.has(str(sd.unit)):
 			spawn_soldier(str(sd.unit), Vector3(float(sd.x), 0, float(sd.z)), float(sd.get("hp", -1.0)))
+	if nature:
+		nature.from_dict(d.get("nodes", {}))
 	if hall != null:
 		phase = "day"
 		phase_t = clampf(float(d.get("phase_t", day_length)), 20.0, day_length + first_day_bonus)
