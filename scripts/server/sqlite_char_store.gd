@@ -105,7 +105,9 @@ func save_run_player(account_id: int, state: Dictionary, run_id: int, entry: Dic
 	var ok := db.transaction(func() -> bool:
 		if not _write(account_id, state, at):
 			return false
-		if run_id > 0 and not db.exec("INSERT INTO run_players(run_id, account_id, reached, ecos, gold, xp, build) VALUES(?,?,?,?,?,?,?)",
+		# partida inexistente (id inválido): concede mesmo assim, só sem a linha em run_players
+		var has_run := run_id > 0 and not db.query("SELECT 1 FROM runs WHERE id = ?", [run_id]).is_empty()
+		if has_run and not db.exec("INSERT INTO run_players(run_id, account_id, reached, ecos, gold, xp, build) VALUES(?,?,?,?,?,?,?)",
 				[run_id, account_id, int(entry.get("reached", 0)), int(entry.get("ecos", 0)), int(entry.get("gold", 0)),
 				int(entry.get("xp", 0)), JSON.stringify(entry.get("build", {}))]):
 			return false

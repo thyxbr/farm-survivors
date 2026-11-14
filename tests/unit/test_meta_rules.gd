@@ -84,6 +84,11 @@ func test_donate_invalid() -> void:
 	T.eq(BaseRules.donate(e, bt, "forja", -5).err, "valor_invalido", "negativo")
 	T.eq(BaseRules.donate(e, bt, "torre", 10).err, "construcao_invalida", "id inválido")
 	T.eq(e, {"level": 0, "fund": 0}, "entrada original intacta")
+	# a falha devolve o nível e o fundo atuais, não zeros
+	var f := BaseRules.donate({"level": 2, "fund": 70}, bt, "forja", 0)
+	T.ok(not f.ok and f.level == 2 and f.fund == 70 and f.used == 0, "falha ecoa nível/fundo (%s)" % str(f))
+	var m := BaseRules.donate({"level": 5, "fund": 0}, bt, "forja", 10)
+	T.eq([m.err, m.level, m.fund], ["nivel_maximo", 5, 0], "no máximo ecoa o nível")
 
 
 func test_bonus_and_total() -> void:

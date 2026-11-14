@@ -41,8 +41,12 @@ func test_ecos_and_passives_persist() -> void:
 	var s := svc2.load_or_create(2)
 	T.eq(s.ecos, 20, "ecos persistiram")
 	T.eq(int(s.passives.get("poder", 0)), 1, "passiva persistiu")
-	var rows := db2.query("SELECT * FROM economy_log WHERE kind = 'ecos'")
-	T.eq(rows.size(), 1, "uma linha de ecos")
+	var ganhos := db2.query("SELECT * FROM economy_log WHERE kind = 'ecos' AND source = 'city'")
+	T.eq(ganhos.size(), 1, "uma linha dos Ecos ganhos na partida")
+	T.eq(ganhos[0]["amount"], 45, "Ecos ganhos, fonte = modo")
+	T.eq(db2.query("SELECT COUNT(*) AS n FROM economy_log WHERE kind = 'ecos'")[0]["n"], 2, "ganho + passiva")
+	var rows := db2.query("SELECT * FROM economy_log WHERE kind = 'ecos' AND source = 'passive'")
+	T.eq(rows.size(), 1, "uma linha da passiva")
 	T.eq(rows[0]["amount"], -25, "custo")
 	T.eq(rows[0]["source"], "passive", "origem")
 	T.eq(rows[0]["item_id"], "poder", "passiva")
@@ -118,6 +122,9 @@ func test_finish_player_idempotent() -> void:
 	T.eq(db.query("SELECT COUNT(*) AS n FROM run_players")[0]["n"], 1, "uma linha em run_players")
 	var rows := db.query("SELECT * FROM economy_log WHERE kind = 'run'")
 	T.eq(rows.size(), 1, "uma linha de run")
+	var ecos_rows := db.query("SELECT * FROM economy_log WHERE kind = 'ecos'")
+	T.eq(ecos_rows.size(), 1, "uma linha de Ecos (o repetido não registra de novo)")
+	T.eq([ecos_rows[0]["amount"], ecos_rows[0]["source"]], [50, "horde"], "Ecos ganhos por fonte")
 	T.eq(rows[0]["amount"], 40, "ouro")
 	T.eq(rows[0]["source"], "horde", "modo")
 	var det = JSON.parse_string(rows[0]["detail"])
@@ -190,7 +197,7 @@ func test_solo_account_same_rules() -> void:
 	T.eq(svc.records().city, {"reached": 5, "names": ["local"]}, "recorde local")
 	# economia: run, passiva e doação no *_economy.jsonl
 	var kinds := st.economy_rows().map(func(r: Dictionary) -> String: return "%s/%s" % [r.kind, r.source])
-	T.eq(kinds, ["run/city", "ecos/passive", "ecos/donation"], "linhas da economia (%s)" % str(kinds))
+	T.eq(kinds, ["run/city", "ecos/city", "ecos/passive", "ecos/donation"], "linhas da economia (%s)" % str(kinds))
 	# tudo relido do disco por um serviço novo
 	var svc2 := CharacterService.new(FileCharStore.new(SOLO_PATH), _tables())
 	var s := svc2.load_or_create(solo)
@@ -252,4 +259,42 @@ func test_grant_test_ecos_only_in_test() -> void:
 	var rows := db.query("SELECT * FROM economy_log WHERE kind = 'ecos' AND source = 'test'")
 	T.eq(rows.size(), 1, "registrado")
 	T.eq(rows[0]["amount"], 300, "valor registrado")
+	db.close()
+
+
+## Arquivo do solo: uma cidade salva fica aberta enquanto o jogador faz mais de KEEP_RUNS Hordas; a poda
+## não pode levar a partida aberta (o fim dela concede os Ecos e vale para o recorde).
+func test_solo_open_run_survives_prune() -> void:
+	var st := _fresh_files()
+	var svc := CharacterService.new(st, _tables())
+	var solo := CharacterService.SOLO_ACCOUNT
+	var city := svc.start_run("city", [solo])
+	for i in FileCharStore.KEEP_RUNS + 2:
+		var h := svc.start_run("horde", [solo])
+		svc.finish_player(h, solo, "horde", 1, 0, 0, {}, {})
+		svc.close_run(h, 1, {})
+	# 20 encerradas mais recentes + o recorde da Horda (a mais antiga, no empate) + a cidade aberta
+	T.eq(st.run_rows().size(), FileCharStore.KEEP_RUNS + 2, "arquivo podado (%d partidas)" % st.run_rows().size())
+	T.ok(st.run_rows().any(func(r) -> bool: return int(r.id) == city), "a cidade aberta continua no arquivo")
+	var ecos0 := svc.load_or_create(solo).ecos
+	var r := svc.finish_player(city, solo, "city", 5, 0, 0, {}, {})
+	T.ok(r.ok, "fim da cidade gravou: %s" % r.err)
+	T.eq(r.state.ecos, ecos0 + 45, "Ecos da cidade concedidos")
+	T.ok(svc.close_run(city, 5, {}), "cidade fechada")
+	T.eq(svc.records().city, {"reached": 5, "names": ["local"]}, "recorde da cidade")
+	st.remove_files()
+
+
+## Partida que sumiu (save antigo, id inválido): o fim concede como sem run_id, nos dois armazenamentos.
+func test_finish_player_missing_run_still_grants() -> void:
+	var st := _fresh_files()
+	var svc := CharacterService.new(st, _tables())
+	var r := svc.finish_player(999, 1, "city", 5, 0, 0, {}, {})
+	T.ok(r.ok and r.state.ecos == 45, "arquivo: concedeu (%s, %d)" % [r.err, r.state.ecos])
+	st.remove_files()
+	var db := _fresh()
+	var svc2 := CharacterService.new(SqliteCharStore.new(db), _tables())
+	var r2 := svc2.finish_player(999, 2, "city", 5, 0, 0, {}, {})
+	T.ok(r2.ok and r2.state.ecos == 45, "SQLite: concedeu (%s)" % r2.err)
+	T.eq(db.query("SELECT COUNT(*) AS n FROM run_players")[0]["n"], 0, "sem linha em run_players")
 	db.close()

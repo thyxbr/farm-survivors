@@ -229,8 +229,10 @@ func save_run_player(account_id: int, state: Dictionary, run_id: int, entry: Dic
 	var runs := _runs()
 	var r = _find_run(runs, run_id)
 	if not (r is Dictionary):
-		last_error = "partida %d não existe" % run_id
-		return false
+		# partida sumiu do arquivo (save antigo/podado): concede mesmo assim, como sem run_id, em vez de
+		# perder os Ecos da partida
+		push_warning("FileCharStore: partida %d não existe; fim de partida gravado sem ela" % run_id)
+		return save_char(account_id, state, rows, at)
 	if not (r.get("done") is Dictionary):
 		r["done"] = {}
 	r.done[str(account_id)] = {"reached": int(entry.get("reached", 0)), "ecos": int(entry.get("ecos", 0)),
@@ -276,20 +278,25 @@ func _best_of(runs: Dictionary, mode: String) -> Variant:
 	return best
 
 
-## Mantém o arquivo pequeno: as KEEP_RUNS partidas mais recentes e o recorde de cada modo.
+## Mantém o arquivo pequeno: as KEEP_RUNS partidas encerradas mais recentes, o recorde de cada modo e
+## TODAS as partidas abertas (uma cidade salva pode ficar aberta por muitas sessões enquanto o jogador
+## faz Hordas; podá-la faria o fim dela perder o registro e o recorde).
 func _prune(runs: Dictionary) -> void:
 	var list: Array = runs.runs
-	if list.size() <= KEEP_RUNS:
+	var closed := list.filter(func(r) -> bool: return r.get("ended_at") != null)
+	if closed.size() <= KEEP_RUNS:
 		return
 	var keep := {}
-	for r in list.slice(list.size() - KEEP_RUNS):
+	for r in closed.slice(closed.size() - KEEP_RUNS):
 		keep[int(r.get("id", 0))] = true
-	for r in list:
-		var mode = r.get("mode")
-		var best = _best_of(runs, str(mode))
+	var modes := {}
+	for r in closed:
+		modes[str(r.get("mode"))] = true
+	for mode in modes:
+		var best = _best_of(runs, mode)
 		if best is Dictionary:
 			keep[int(best.id)] = true
-	runs.runs = list.filter(func(r) -> bool: return keep.has(int(r.get("id", 0))))
+	runs.runs = list.filter(func(r) -> bool: return r.get("ended_at") == null or keep.has(int(r.get("id", 0))))
 
 
 ## Nome de uma conta nos doadores e recordes. No solo só existe a conta local.

@@ -17,8 +17,10 @@ static func empty_state(bt: BalanceTables) -> Dictionary:
 	return out
 
 
-static func _fail(err: String) -> Dictionary:
-	return {"ok": false, "err": err, "used": 0, "level": 0, "fund": 0, "leveled": 0}
+## Falha devolve o nível e o fundo atuais da construção (nada mudou), não zeros.
+static func _fail(err: String, entry: Dictionary = {}) -> Dictionary:
+	return {"ok": false, "err": err, "used": 0, "level": maxi(0, int(entry.get("level", 0))),
+		"fund": maxi(0, int(entry.get("fund", 0))), "leveled": 0}
 
 
 ## Doa `amount` Ecos à construção. Não muda `entry`: devolve o novo nível/fundo. `used` é o que
@@ -27,14 +29,14 @@ static func _fail(err: String) -> Dictionary:
 static func donate(entry: Dictionary, bt: BalanceTables, building_id: String, amount: int) -> Dictionary:
 	var b: Dictionary = _buildings(bt).get(building_id, {})
 	if b.is_empty():
-		return _fail("construcao_invalida")
+		return _fail("construcao_invalida", entry)
 	if amount <= 0:
-		return _fail("valor_invalido")
+		return _fail("valor_invalido", entry)
 	var levels: Array = b.get("levels", [])
 	var level := clampi(int(entry.get("level", 0)), 0, levels.size())
 	var fund := maxi(0, int(entry.get("fund", 0)))
 	if level >= levels.size():
-		return _fail("nivel_maximo")
+		return _fail("nivel_maximo", entry)
 	var remaining := -fund
 	for i in range(level, levels.size()):
 		remaining += int(levels[i].cost)

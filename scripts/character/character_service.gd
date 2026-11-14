@@ -248,6 +248,9 @@ func finish_player(run_id: int, account_id: int, mode: String, reached: int, gol
 	var at := int(_now())
 	var rows := [CharStore.row(at, account_id, "run", gold, null, mode,
 		JSON.stringify({"xp": xp, "items": items, "ecos": ecos, "run_id": run_id, "reached": reached}))]
+	if ecos > 0:
+		# linha própria dos Ecos ganhos (fonte = modo), para somar "Ecos por fonte" sem abrir o detail
+		rows.append(CharStore.row(at, account_id, "ecos", ecos, null, mode))
 	var entry := {"reached": reached, "ecos": ecos, "gold": gold, "xp": xp, "build": build}
 	if not _store.save_run_player(account_id, s.to_dict(), run_id, entry, rows, at):
 		push_error("CharacterService: finish_player de %d não gravou: %s" % [account_id, _store.last_error])
