@@ -555,7 +555,12 @@ func _claim_pickup(seq: int, net_id: int) -> void:
 		return
 	var horde := zone == "horde"
 	var r := Network.characters.grant(account, int(c.gold), 0, c.items, "horde_run" if horde else "loot")
-	if r.ok and horde and Network.horde_run != null and is_instance_valid(Network.horde_run):
+	if not r.ok:
+		# não concedeu (erro no banco): o pickup volta ao chão, o cliente pode tentar de novo
+		pickups.restore(net_id, c.entry)
+		_econ_res.rpc_id(peer, seq, false, str(r.err), [], {})
+		return
+	if horde and Network.horde_run != null and is_instance_valid(Network.horde_run):
 		Network.horde_run.server_note_gain(peer, int(c.gold), c.items)
 	_econ_res.rpc_id(peer, seq, r.ok, r.err, events_of(r), r.state)
 

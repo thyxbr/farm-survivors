@@ -95,3 +95,20 @@ func test_zone_of() -> void:
 
 func test_claim_pickup_is_not_client_op() -> void:
 	T.ok(not ("claim_pickup" in CharacterService.CLIENT_OPS), "claim_pickup fora de CLIENT_OPS (RPC própria)")
+
+
+## Concessão falhou depois do claim (erro no banco): o pickup volta igual e pode ser pego de novo.
+func test_restore_after_failed_grant() -> void:
+	var r := _reg()
+	var id := r.spawn(7, "horde", Vector3(1, 0, 1), 9, {"slime_gel": 1}, 30.0)
+	var c := r.claim(id, 7, Vector3(1, 0, 1))
+	T.eq(c.ok, true, "claim")
+	T.eq(r.claim(id, 7, Vector3(1, 0, 1)).err, "pego", "fora do registro depois do claim")
+	r.restore(id, c.entry)
+	T.eq(r.zone_of(id), "horde", "voltou com a zona")
+	T.eq(r.claim(id, 8, Vector3(1, 0, 1)).err, "dono", "voltou com o dono")
+	var again := r.claim(id, 7, Vector3(1, 0, 1))
+	T.ok(again.ok and again.gold == 9 and again.items == {"slime_gel": 1}, "pego de novo com o mesmo conteúdo")
+	r.restore(id, c.entry)
+	_t[0] += 31.0
+	T.eq(r.claim(id, 7, Vector3(1, 0, 1)).err, "expirou", "mantém a validade original")

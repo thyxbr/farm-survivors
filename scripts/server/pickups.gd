@@ -31,7 +31,7 @@ func spawn(owner: int, zone: String, pos: Vector3, gold: int, items: Dictionary,
 	return id
 
 
-## {"ok": true, "gold", "items"} (e o pickup some) ou {"ok": false, "err": "dono"|"pego"|"expirou"|"longe"}.
+## {"ok": true, "gold", "items", "entry"} (e o pickup some; "entry" serve para restore()) ou {"ok": false, "err": "dono"|"pego"|"expirou"|"longe"}.
 ## "longe" deixa o pickup no chão (o jogador pode chegar mais perto e tentar de novo).
 ## Vector3.INF em `peer_pos` = posição desconhecida (sempre longe).
 func claim(net_id: int, peer: int, peer_pos: Vector3) -> Dictionary:
@@ -46,7 +46,14 @@ func claim(net_id: int, peer: int, peer_pos: Vector3) -> Dictionary:
 	if not peer_pos.is_finite() or peer_pos.distance_to(p.pos) > MAX_DIST:
 		return {"ok": false, "err": "longe"}
 	_items.erase(net_id)
-	return {"ok": true, "gold": int(p.gold), "items": p.items}
+	return {"ok": true, "gold": int(p.gold), "items": p.items, "entry": p}
+
+
+## Devolve ao chão um pickup tirado por claim() cuja concessão falhou (erro no banco): `entry` é o
+## campo "entry" do resultado do claim. Mesmo net_id, dono, zona e validade.
+func restore(net_id: int, entry: Dictionary) -> void:
+	if net_id > 0 and not entry.is_empty() and not _items.has(net_id):
+		_items[net_id] = entry
 
 
 ## Zona do pickup ("" se não existe).

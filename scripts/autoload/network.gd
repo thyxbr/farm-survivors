@@ -508,6 +508,10 @@ func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow:
 	if e == null or not is_instance_valid(e) or e.dead or e.net_zone != zone_of(id):
 		return
 	amount = clampf(amount, 0.0, 5000.0)
+	# acerto de dano quase zero ou de longe (última posição recebida) não conta: nem dano, nem lentidão,
+	# nem "quem acertou" (que dá XP e sorteio de loot no abate)
+	if not HitGuard.accepts(amount, last_pos.get(id, Vector3.INF), e.global_position):
+		return
 	if amount > 0.0:
 		for pid in _enemy_peers(e):
 			_enemy_hit_fx.rpc_id(pid, net_id, amount, crit)

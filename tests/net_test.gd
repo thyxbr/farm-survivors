@@ -203,6 +203,8 @@ func _ready() -> void:
 		var xp0 := Game.xp + Game.level * 100000
 		var kills0 := Game.kills
 		var gold0 := Game.gold
+		# o servidor só aceita acerto perto da última posição recebida do jogador (HitGuard): espera ela chegar
+		await wait(0.3)
 		target.take_damage(10.0, w.player.global_position, false)
 		await wait(0.6)
 		check(target.hp < hp0, "dano chega ao servidor e volta no snapshot (%.0f → %.0f)" % [hp0, target.hp])
@@ -726,11 +728,16 @@ func _test_city() -> void:
 	var killed := 0
 	var tt := 0.0
 	while c.phase == "night" and tt < 60.0:
+		# um monstro por vez: vai até ele, espera o servidor receber a posição (HitGuard) e acerta
 		for e in c.live_enemies():
 			w.player.global_position = e.global_position + Vector3(0, 0.5, 2.5)
-			e.take_damage(99999.0, w.player.global_position, false)
-			killed += 1
-		await wait(0.4)
+			await wait(0.15)
+			if is_instance_valid(e) and not e.dead:
+				w.player.global_position = e.global_position + Vector3(0, 0.5, 2.5)
+				e.take_damage(99999.0, w.player.global_position, false)
+				killed += 1
+			break
+		await wait(0.25)
 		tt += 0.4
 	check(c.phase == "day" and c.day == 2, "amanheceu: dia %d" % c.day)
 	check(killed > 0 and c.total_kills > 0, "abates contados pelo servidor (%d)" % c.total_kills)
