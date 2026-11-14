@@ -50,6 +50,9 @@ var treasury := 0
 ## Solo: o que o personagem já ganhou nesta partida (recompensas por noite) — vira a linha de resumo
 ## no registro da economia no fim (Econ.run_summary). Vai no save da cidade.
 var run_rewards := {"gold": 0, "xp": 0, "items": []}
+## Solo: XP dos abates do cerco ainda não concedido (vai ao personagem no amanhecer, com a recompensa da
+## noite; na derrota, no resumo). Não é salvo: só se salva de dia, depois do amanhecer.
+var siege_xp := 0
 ## Jogadores na cidade (escala as ondas).
 var team_size := 1
 ## Noite especial em curso e a anunciada para a próxima noite (chaves de ColonyData.NIGHT_MODS).
@@ -122,6 +125,20 @@ func _pay(n: int) -> void:
 func earn(n: int) -> void:
 	treasury += n
 	_gold_changed()
+
+
+## Solo: XP de um abate do cerco (Enemy._die), guardado até o amanhecer.
+func add_siege_xp(n: int) -> void:
+	siege_xp += maxi(0, n)
+
+
+## Solo: concede ao personagem o XP dos abates guardado (fim da partida no meio da noite).
+func flush_siege_xp() -> void:
+	if role != "solo" or siege_xp <= 0:
+		return
+	if Econ.grant(0, siege_xp, {}, "city_night", true):
+		run_rewards.xp = int(run_rewards.xp) + siege_xp
+	siege_xp = 0
 
 
 ## Os curandeiros cobram do caixa da cidade quando o jogador renasce (solo). Devolve o valor cobrado.
@@ -1106,25 +1123,30 @@ func dawn() -> void:
 		world.autosave()
 
 
-## Solo: a recompensa da noite n vai para o personagem (serviço local, Econ.grant; a origem "city_night"
-## não é registrada a cada noite: entra no resumo da partida, no fim) e o recorde de noites.
+## Solo: a recompensa da noite n e o XP dos abates do cerco vão para o personagem numa concessão só
+## (serviço local, Econ.grant; a origem "city_night" não é registrada a cada noite: entra no resumo da
+## partida, no fim) e o recorde de noites.
 func _solo_night_reward(n: int) -> void:
 	var rw := ColonyData.night_reward(n)
+	var xp := int(rw.xp) + siege_xp
 	var items := ColonyData.night_chest(n)
 	var got := {}
 	for id in items:
 		got[id] = int(got.get(id, 0)) + 1
-	if not Econ.grant(int(rw.gold), int(rw.xp), got, "city_night", true):
+	var kills_xp := siege_xp
+	siege_xp = 0
+	if not Econ.grant(int(rw.gold), xp, got, "city_night", true):
 		return
 	run_rewards.gold = int(run_rewards.gold) + int(rw.gold)
-	run_rewards.xp = int(run_rewards.xp) + int(rw.xp)
+	run_rewards.xp = int(run_rewards.xp) + xp
 	run_rewards.items.append_array(items)
 	if n > int(Game.flags.get("city_best", 0)):
 		Econ.set_record("city_best", n)
-	Game.notify.emit("Noite %d vencida! Recompensa: +%d ouro e +%d XP para o seu personagem." % [n, rw.gold, rw.xp], Color(1, 0.85, 0.35))
+	Game.notify.emit("Noite %d vencida! Recompensa: +%d ouro e +%d XP (%d dos abates) para o seu personagem." %
+		[n, rw.gold, xp, kills_xp], Color(1, 0.85, 0.35))
 	Sfx.play("quest", 0.0, -2.0)
 	if world and world.has_method("on_reward"):
-		world.on_reward(n, int(rw.gold), int(rw.xp), items)
+		world.on_reward(n, int(rw.gold), xp, items)
 
 
 ## Amanhecer do cooperativo: recuperação da prefeitura, ajuda do reino, eventos, aviso da próxima noite

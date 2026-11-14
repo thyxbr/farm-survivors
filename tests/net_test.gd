@@ -205,6 +205,9 @@ func _ready() -> void:
 		var xp0 := Game.xp + Game.level * 100000
 		var kills0 := Game.kills
 		var gold0 := Game.gold
+		# as coletas contam desde antes do abate: o ímã pode pedir a coleta antes de o teste olhar o chão
+		var inv0 := _inv_total()
+		var from := econ_log.size()
 		# o servidor só aceita acerto perto da última posição recebida do jogador (HitGuard): espera ela chegar
 		await wait(0.3)
 		target.take_damage(10.0, w.player.global_position, false)
@@ -219,8 +222,6 @@ func _ready() -> void:
 		check(pushes > 0, "estado novo chegou do servidor sem pedido (push)")
 		# o pickup é do servidor: aparece com net_id e, ao pegar (o ímã coleta, o jogador está ao lado),
 		# o servidor confere e concede
-		var inv0 := _inv_total()
-		var from := econ_log.size()
 		var seen := [0]
 		await _wait_until(func() -> bool:
 			for n in w.get_children():
@@ -261,9 +262,10 @@ func _ready() -> void:
 		and w.player.look["class"] == "staff", "trocou para o cajado")
 	await wait(0.6)
 	if peers > 1:
-		await wait(0.6)
+		# cada um troca no próprio ritmo (o colega pode ainda estar no loot): espera a troca chegar
 		for rp in Network.remote_players.values():
-			check(rp.look["class"] == "staff", "vê %s trocar para cajado" % rp.display_name)
+			check(await _wait_until(func() -> bool: return rp.look["class"] == "staff", 10.0),
+				"vê %s trocar para cajado" % rp.display_name)
 
 	if my_name == "Ana":
 		await _test_econ()

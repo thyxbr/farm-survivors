@@ -700,15 +700,18 @@ func _die() -> void:
 	if Network.is_server():
 		# XP, missões e loot de cada jogador que acertou: o servidor concede (CharacterService + pickups)
 		Network.server_enemy_killed(self)
-	elif siege:
-		# cerco (cidade solo): o XP do abate vai para o personagem e o ouro do saque para o caixa da cidade
-		# (os abates acontecem longe do jogador). Como na cidade em grupo, sem itens no chão: o que o
-		# personagem leva da partida são as recompensas por noite.
-		Game.on_enemy_killed(kind, int(data.xp * 0.6))
+	elif siege or (get_parent() != null and get_parent().has_method("add_siege_xp")):
+		# cidade solo (cerco e monstros errantes): o ouro do saque vai para o caixa da cidade e o XP do abate
+		# fica na partida, concedido ao personagem no amanhecer junto com a recompensa da noite (sem abate,
+		# missão nem chefe no personagem: o Rei Goblin da cidade não é o de Valdoria). Sem itens no chão,
+		# como em grupo.
+		Game.kill_lifesteal()
 		var loot := LootRules.roll(Balance.tables, kind, _loot_rng())
 		var c := get_parent()
-		if c != null and c.has_method("earn") and int(loot.gold) > 0:
-			c.earn(int(loot.gold))
+		if c != null and c.has_method("add_siege_xp"):
+			c.add_siege_xp(int(data.xp * 0.6))
+			if int(loot.gold) > 0:
+				c.earn(int(loot.gold))
 	elif not horde:
 		# solo: XP, missão e o chefe derrotado (king_dead) ficam com as regras (Econ.kill)
 		Game.on_enemy_killed(kind, data.xp)

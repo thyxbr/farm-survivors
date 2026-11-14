@@ -24,9 +24,6 @@ const COLONY_SCENE := "res://scenes/colony.tscn"
 ## Defesa da Cidade solo: save da cidade (a partida em andamento, com o caixa dela). O personagem é o do
 ## solo.db: a cidade não tem personagem próprio.
 var colony_save_path := "user://colony_save.json"
-## Personagem do modo das versões antigas: só lido (o caixa de uma cidade salva antes do caixa próprio)
-## e apagado no próximo save da cidade.
-var colony_legacy_char_path := "user://colony_character.json"
 ## true = a cena da cidade carrega o save em vez de começar do zero.
 var colony_continue := false
 
@@ -86,7 +83,6 @@ func _ready() -> void:
 			get_tree().root.add_child.call_deferred(load("res://tests/net_test.gd").new())
 	if "--colonytest" in OS.get_cmdline_user_args():
 		colony_save_path = "user://colonytest_save.json"   # o Econ usa user://colonytest_solo.db, apagado no início
-		colony_legacy_char_path = "user://colonytest_character.json"
 		get_tree().root.add_child.call_deferred(load("res://tests/colony_test.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
 		# o Econ usa user://smoketest_solo.db, apagado no início

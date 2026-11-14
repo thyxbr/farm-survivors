@@ -130,8 +130,6 @@ func _ready() -> void:
 		return
 	if saved != null:
 		colony.from_dict(saved)
-		if not saved.has("treasury"):
-			colony.treasury = _legacy_treasury()
 		var pp: Array = saved.get("player") if saved.get("player") is Array else []
 		if pp.size() >= 3:
 			player.global_position = Vector3(float(pp[0]), float(pp[1]), float(pp[2]))
@@ -387,8 +385,6 @@ func save_colony() -> bool:
 		return false
 	f.store_string(JSON.stringify(data, "\t"))
 	f.close()
-	if FileAccess.file_exists(Game.colony_legacy_char_path):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(Game.colony_legacy_char_path))
 	Game.notify.emit("Cidade salva (dia %d)." % colony.day, Color(0.7, 1.0, 0.7))
 	return true
 
@@ -421,6 +417,7 @@ func _read_colony_save():
 func _summarize_run() -> void:
 	if role != "solo":
 		return
+	colony.flush_siege_xp()   # abates da noite em que a cidade caiu
 	last_run = colony.run_rewards.duplicate(true)
 	_write_summary(colony.run_rewards)
 	colony.run_rewards = {"gold": 0, "xp": 0, "items": []}
@@ -456,15 +453,6 @@ func _clear_saved_run() -> void:
 	if f != null:
 		f.store_string(JSON.stringify(data, "\t"))
 		f.close()
-
-
-## Cidade salva antes do caixa próprio: o ouro dela estava no personagem do modo (save antigo).
-func _legacy_treasury() -> int:
-	var f := FileAccess.open(Game.colony_legacy_char_path, FileAccess.READ)
-	if f == null:
-		return ColonyData.START_GOLD
-	var d = JSON.parse_string(f.get_as_text())
-	return maxi(0, int(d.get("gold", ColonyData.START_GOLD))) if d is Dictionary else ColonyData.START_GOLD
 
 
 # ================================================================ luz do dia
