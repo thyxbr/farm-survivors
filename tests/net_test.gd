@@ -200,12 +200,76 @@ func _ready() -> void:
 		for rp in Network.remote_players.values():
 			check(rp.look["class"] == "staff", "vê %s trocar para cajado" % rp.display_name)
 
+	if peers > 1:
+		await _test_sword(w)
+
 	if horde_role != "":
 		await _test_horde(w)
 
 	# fica um pouco para os outros testes verem este jogador
 	await wait(3.0 if peers > 1 else 0.5)
 	_finish()
+
+
+# ---------------------------------------------------------------- habilidades da espada replicadas
+## Quem não é "join" (Ana) usa as três habilidades; o outro (Beto) vê a réplica de Ana entrar em cada uma.
+## Que o servidor dedicado não cria nós de efeito não dá para ver daqui (o cliente só enxerga os próprios nós):
+## isso é conferido no smoke test (FX._scene() nulo com Network.mode == SERVER).
+func _test_sword(w: Node) -> void:
+	Game.add_item("azure_edge", 1, true)
+	Game.equip("azure_edge")
+	await wait(1.0)
+	await wait(Network.CHAT_WINDOW)   # o anti-spam do chat (teste anterior) precisa esvaziar para os avisos de sincronia passarem
+	await _sync("sword_in")
+	var actor := horde_role != "join"
+	var lvl0 := Game.level
+	if actor:
+		Game.level = 8
+		Game.fury = 100.0
+		await wait(0.5)
+		for id in ["sword_charge", "sword_quake", "sword_whirl"]:
+			check(SwordAbilities.use(w.player, id), "%s começa" % id)
+			await wait(0.3)
+			await _wait_until(func() -> bool: return w.player.ability == "", 4.0)
+			await wait(0.4)
+		check(w.player.ability == "", "habilidades da espada terminam")
+	else:
+		var seen := {}
+		var rp = Network.remote_players.values()[0]
+		var t := 0.0
+		while t < 9.0 and seen.size() < 3:
+			var a: String = rp.ability
+			if a != "":
+				seen[a] = true
+			await wait(0.05)
+			t += 0.05
+		for id in ["sword_charge", "sword_quake", "sword_whirl"]:
+			check(seen.has(id), "réplica de %s entrou em %s (%s)" % [rp.display_name, id, str(seen.keys())])
+		await wait(2.5)
+		check(rp.ability == "", "réplica sai do estado de habilidade ao terminar")
+		# (fúria e vida de Beto podem mudar por causa dos inimigos do mundo; o que não pode é a réplica o pôr em habilidade)
+		check(w.player.ability == "" and Game.level == lvl0,
+			"habilidade da réplica não afeta o meu jogador (nível %d)" % Game.level)
+	await _sync("sword_out")
+	if actor:
+		Game.level = 1
+		Game.fury = 0.0
+
+
+## Espera todos os outros jogadores avisarem (pelo chat) que chegaram a este ponto; reenvia se o aviso se perder.
+func _sync(tag: String) -> void:
+	var n := 0
+	var i := 0
+	while i < 100 and n < peers - 1:
+		if i % 12 == 0:
+			Network.send_chat("sync:" + tag)
+		await wait(0.2)
+		i += 1
+		var who := {}
+		for m in chat_got:
+			if m[1] == "sync:" + tag and m[0] != Network.my_name:
+				who[m[0]] = true
+		n = who.size()
 
 
 # ---------------------------------------------------------------- Desafio da Horda em grupo

@@ -302,7 +302,7 @@ const ABILITIES := {
 		"ultimate": false, "icon": "saber", "desc": "Avança sobre os inimigos à frente, causando dano."},
 	"sword_quake": {"name": "Abalo Sísmico", "class": "sword", "slot": 2, "level": 3, "cooldown": 9.0, "cost": 0,
 		"ultimate": false, "icon": "greatsword", "desc": "Golpe no chão: dano em área e atordoamento."},
-	"sword_whirl": {"name": "Tempestade de Lâminas", "class": "sword", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
+	"sword_whirl": {"name": "Turbilhão", "class": "sword", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
 		"ultimate": true, "icon": "cleaver", "desc": "Ultimate: redemoinho de lâminas ao redor."},
 	"bow_triple": {"name": "Tiro Triplo", "class": "bow", "slot": 1, "level": 1, "cooldown": 5.0, "cost": 0,
 		"ultimate": false, "icon": "bow", "desc": "Três flechas em leque."},

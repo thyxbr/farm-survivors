@@ -308,9 +308,20 @@ func _ready() -> void:
 	Game.fury = 100.0
 	player.invuln = 0.0
 	player.model.rotation.y = 0.5
+	# o puxão se vê: um inimigo a 3 m termina bem mais perto depois do giro (com vida de sobra para não morrer)
+	var pl_max: float = pl_s.max_hp
+	pl_s.hp = 100000.0
+	pl_s.max_hp = 100000.0
+	pl_s.global_position = player.global_position + Vector3(3.0, 0.0, 0.0)
+	pl_s.velocity = Vector3.ZERO
+	var d_pull0: float = pl_s.global_position.distance_to(player.global_position)
 	player.use_slot(4)
 	check(player.ability == "sword_whirl", "Turbilhão de novo com a fúria cheia")
 	await wait(SwordAbilities.WHIRL_TIME + 0.35)
+	var d_pull1: float = pl_s.global_position.distance_to(player.global_position)
+	check(d_pull0 - d_pull1 >= 1.0, "Turbilhão puxa o inimigo para perto (%.2f m -> %.2f m)" % [d_pull0, d_pull1])
+	pl_s.max_hp = pl_max
+	pl_s.hp = pl_max
 	check(player.ability == "" and is_equal_approx(Engine.time_scale, 1.0), "Turbilhão termina sozinho (%s)" % player.ability)
 	check(absf(wrapf(player.model.rotation.y - 0.5, -PI, PI)) < 0.05, "giro volta à direção inicial (%.2f)" % player.model.rotation.y)
 	Game.level = lvl_w
@@ -320,6 +331,17 @@ func _ready() -> void:
 	player.global_position = pos_c
 	player.velocity = Vector3.ZERO
 	await wait(0.1)
+
+	# --- servidor dedicado: nenhum nó de efeito nasce (FX._scene() devolve null)
+	var mode_s: int = Network.mode
+	Network.mode = Network.Mode.SERVER
+	var kids_s := world.get_child_count()
+	check(FX._scene() == null, "servidor dedicado não cria efeitos (FX._scene nulo)")
+	FX.ring(player.global_position, Color.WHITE, 3.0, 0.3)
+	FXEpic.nova(player.global_position, Color.ORANGE, 20, 5.0, 0.2, 0.4)
+	check(world.get_child_count() == kids_s and FXEpic.stream(player, "flame", Color.ORANGE, 10, 0.5) == null,
+		"servidor: chamadas de efeito não adicionam nós")
+	Network.mode = mode_s
 
 	# --- kits de habilidade por arma (começa de espada: weapon_class() == "sword")
 	var kit_weapon: String = Game.equipment.weapon

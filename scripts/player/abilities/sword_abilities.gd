@@ -41,7 +41,7 @@ const WHIRL_TURNS := 4
 const WHIRL_RAMP := 0.3         ## o giro acelera nos primeiros 0,3 s e depois mantém a velocidade
 const WHIRL_MULT := 1.2         ## dano por volta = Game.melee_damage() * WHIRL_MULT
 const WHIRL_RADIUS := 3.5
-const WHIRL_PULL := 3.0         ## puxão (m/s) em direção ao jogador a cada volta
+const WHIRL_PULL := 6.0         ## puxão (m/s) em direção ao jogador a cada volta (6 = teto do servidor)
 const WHIRL_FINAL_MULT := 2.5   ## dano do golpe final
 const WHIRL_FINAL_RADIUS := 4.0
 const WHIRL_WALK := 0.4         ## anda a 40% da velocidade durante o giro
