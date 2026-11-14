@@ -56,6 +56,8 @@ func _ready() -> void:
 	check(by_kind.get("slime_veloz", 0) == 4 and by_kind.get("slime_explosivo", 0) == 3 and by_kind.get("slime_mae", 0) == 1 and nest_ok,
 		"Ninho de Slimes: 4 velozes, 3 explosivos e 1 mãe")
 	check(by_kind.get("goblin_arqueiro", 0) == 2 and by_kind.get("goblin_xama", 0) == 1, "Acampamento: 2 arqueiros e 1 xamã")
+	check(by_kind.get("goblin_campeao", 0) == 1 and by_kind.get("goblin_bruto", 0) == 2 and by_kind.get("goblin_dourado", 0) == 2,
+		"fontes de +4 e +5: 1 Campeão no Acampamento, 2 Brutos nas Ruínas, 2 Goblins Dourados pelo mapa")
 	check(get_tree().get_nodes_in_group("interactable").size() == 4 + Game.FARM_PLOTS + 1,
 		"3 NPCs + portal + %d canteiros + caldeirão interagíveis" % Game.FARM_PLOTS)
 

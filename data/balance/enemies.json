@@ -259,7 +259,9 @@
 		],
 		"ai": "flee",
 		"elite": true,
-		"loot": []
+		"loot": [
+			["golden_dust", 1.0]
+		]
 	},
 	"goblin_campeao": {
 		"name": "Campeão Goblin",
@@ -286,7 +288,9 @@
 		],
 		"elite": true,
 		"slam_every": 2,
-		"loot": []
+		"loot": [
+			["champion_badge", 1.0]
+		]
 	},
 	"goblin_bruto": {
 		"name": "Goblin Bruto",
@@ -311,7 +315,8 @@
 			["health_potion", 0.12],
 			["iron_helm", 0.02],
 			["chain_mail", 0.02],
-			["kettle_hat", 0.03]
+			["kettle_hat", 0.03],
+			["shadow_fang", 0.8]
 		]
 	},
 	"goblin_king": {
