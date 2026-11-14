@@ -39,6 +39,8 @@ func _ready() -> void:
 	model = MODELS[kind].instantiate()
 	model.rotation.y = randf() * TAU
 	add_child(model)
+	if ToonLook.enabled():
+		ToonLook.apply(model)
 	if kind == "caravan":
 		# a "carroça": caixas e barril ao lado do mercador
 		for p in [["crate", Vector3(1.6, 0, 0.4), 0.3], ["crate", Vector3(1.9, 0, -0.8), -0.2], ["barrel", Vector3(-1.4, 0, 0.6), 0.0]]:

@@ -36,6 +36,8 @@ func _ready() -> void:
 	add_child(col)
 	model = MODELS[npc_id].instantiate()
 	add_child(model)
+	if ToonLook.enabled():
+		ToonLook.apply(model)
 	_base_yaw = model.rotation.y
 	head = model.find_child("Head", true, false)
 	var tag := Label3D.new()

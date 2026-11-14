@@ -155,6 +155,8 @@ func _box(size: Vector3, pos: Vector3, c: Color, parent: Node3D = self) -> MeshI
 
 func _build_npc() -> void:
 	model = _glb("elder" if kind == "passive_master" else "merchant", Vector3.ZERO)
+	if ToonLook.enabled():
+		ToonLook.apply(model)
 	_base_yaw = model.rotation.y
 	_shape(Vector3(0.4, 1.8, 0), Vector3(0, 0.9, 0), true)
 	_tag(NPC_NAMES[kind], 2.35, Color(1, 0.95, 0.8))
