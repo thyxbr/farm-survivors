@@ -45,9 +45,9 @@
 
 **Files:** Modify `scripts/enemies/enemy.gd`, `scripts/ui/main_menu.gd`, `tools/toon_shot.gd`, `tools/toon_cost.gd`; Test `tests/unit/test_enemy_gear.gd`.
 
-**Produces:** `static func Enemy.apply_gear(model: Node3D, gear: Array) -> Array` (devolve os nomes pedidos que não existem); `MODELS["skeleton"]`.
+**Produces:** `static func EnemyGear.apply(model: Node, gear: Array) -> Array` (devolve os nomes pedidos que não existem); `MODELS["skeleton"]`.
 
-- [ ] Teste: monta um `Node3D` com filhos `Opt_A`, `Opt_B`, `Fixo`; `apply_gear(m, ["A"])` deixa `Opt_A` e `Fixo`, remove `Opt_B`, devolve `[]`; `apply_gear(m, ["X"])` devolve `["X"]`; `apply_gear(m, [])` remove todos os `Opt_`. Como `enemy.gd` cita autoloads, a função mora em `scripts/enemies/enemy_gear.gd` (`class_name EnemyGear`, pura) e `Enemy.apply_gear` só repassa.
+- [ ] Teste: monta um `Node3D` com filhos `Opt_A`, `Opt_B`, `Fixo`; `apply_gear(m, ["A"])` deixa `Opt_A` e `Fixo`, remove `Opt_B`, devolve `[]`; `apply_gear(m, ["X"])` devolve `["X"]`; `apply_gear(m, [])` remove todos os `Opt_`. A função mora em `scripts/enemies/enemy_gear.gd` (`class_name EnemyGear`, pura, sem autoloads).
 - [ ] Teste de dados: todo tipo de `enemies.json` com modelo `goblin`/`skeleton` tem `"gear"`, e cada nome existe como `Opt_<nome>` no GLB correspondente.
 - [ ] Implementar; `_ready` chama antes de coletar `meshes`; remover o caso especial da coroa.
 - [ ] `toon_shot.gd` aceita `gear=A,B`.

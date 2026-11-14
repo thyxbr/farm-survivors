@@ -30,6 +30,7 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
   **doações para a base** (detalhes em *A praça da cidade*, abaixo).
 - **Vila** com o Ancião Bram (missões) e a Mira (loja: compra e venda).
 - **3 missões em cadeia**: slimes nos campos → batedores goblins na floresta a leste → **Rei Goblin** nas ruínas ao norte (chefe com ataque em área, fúria e invocação).
+- **Monstros**: slimes (comum, grande, veloz, explosiva, mãe e de gelo, que deixa você lento), goblins com equipamento próprio (batedor, arqueiro, xamã, bombardeiro, bruto, campeão, dourado e o rei) e **esqueletos** nas ruínas (guerreiro, arqueiro, mago e o Cavaleiro Esqueleto, de elite).
 - **Progressão**: XP, níveis, 3 pontos de atributo por nível (Força, Inteligência, Vitalidade, Agilidade), magias liberadas por nível.
 - **Itens**: 70 itens com 5 raridades (Comum, Incomum, Raro, Épico, Lendário), poções, materiais para vender, loot aleatório.
 - **Armas por classe** (o ataque básico muda com a arma; o modelo 3D é montado por código em `knight_look.gd`):
