@@ -191,6 +191,11 @@ func _card(parent: Control, kind: String, key: String) -> Dictionary:
 	return card
 
 
+const SLOW_TICK := 0.25
+var _slow_t := 0.0
+var _build_on := false
+
+
 func _process(_delta: float) -> void:
 	if _reward_t > 0.0:
 		_reward_t -= _delta
@@ -198,9 +203,19 @@ func _process(_delta: float) -> void:
 		_reward_label.visible = _reward_t > 0.0
 	if colony == null:
 		return
-	_update_status()
+	# status e cartas de construção custam (previsão, falta de recursos): 4 vezes por segundo bastam.
+	# A munição que pisca troca a cada 400 ms, então 250 ms mantém o pisca.
+	var build_on: bool = build != null and build.active
+	if build_on != _build_on:   # abrir/fechar a barra aparece na hora
+		_build_on = build_on
+		_slow_t = 0.0
+		build_panel.visible = build_on
+	_slow_t -= _delta
+	if _slow_t <= 0.0:
+		_slow_t = SLOW_TICK
+		_update_status()
+		_update_build()
 	_update_phase()
-	_update_build()
 	_update_event_mark()
 
 

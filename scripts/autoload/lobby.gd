@@ -371,6 +371,7 @@ func _start_city() -> void:
 ## Um jogador saiu da cidade (voltou ao salão, caiu a conexão...).
 func server_city_left(id: int) -> void:
 	_present.erase(id)
+	_harvest_last.erase(id)
 	if _room.is_empty():
 		return
 	_room.members.erase(id)
@@ -520,12 +521,21 @@ func _city_hit_animal(net_id: int, amount: float, from_pos: Vector3, slow: float
 		a.apply_slow(minf(slow, 10.0))
 
 
+## Golpes de coleta aceitos de um mesmo jogador: no mínimo 0,2 s entre um e outro.
+const HARVEST_PEER_COOLDOWN_MS := 200
+var _harvest_last := {}
+
+
 @rpc("any_peer", "call_remote", "reliable")
 func _city_hit_node(id: int) -> void:
 	var pid := _sender()
 	var c := _colony()
 	if pid == 0 or c == null or Network.zone_of(pid) != "city" or c.nature == null or c.phase == "over":
 		return
+	var now := Time.get_ticks_msec()
+	if now - int(_harvest_last.get(pid, -100000)) < HARVEST_PEER_COOLDOWN_MS:
+		return   # limite por jogador, além do limite por nó (varrer nós diferentes não burla a cadência)
+	_harvest_last[pid] = now
 	var n := c.nature.node(id)
 	if n == null or not n.alive:
 		return

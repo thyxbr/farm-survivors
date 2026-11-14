@@ -3,6 +3,8 @@ extends Node3D
 ## kind: "arrow" (flecha reta), "ball" (bala de canhão em arco, explode em área),
 ## "bolt" (raio gélido: deixa lento e salta para outros monstros).
 
+const SELF := preload("res://scripts/colony/tower_shot.gd")
+
 var kind := "arrow"
 var target   # Enemy (sem tipo: o alvo pode sumir no meio do caminho)
 var damage := 10.0
@@ -25,7 +27,7 @@ var _hit := {}
 
 ## Cria um disparo já configurado (torres e tropas à distância usam o mesmo caminho).
 static func make(shot_kind: String, tgt, dmg: float, splash_r := 0.0, slow_s := 0.0, chain_n := 0) -> Node3D:
-	var s: Node3D = load("res://scripts/colony/tower_shot.gd").new()
+	var s: Node3D = SELF.new()
 	s.kind = shot_kind
 	s.target = tgt
 	s.damage = dmg
