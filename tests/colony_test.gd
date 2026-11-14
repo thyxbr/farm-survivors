@@ -11,6 +11,12 @@ var colony: Colony
 var player: Player
 
 
+## Gerador do mapa sem os covis (que vêm depois de todos os nós e criariam guardas): os nós saem iguais.
+class MapOnly extends ColonyNature:
+	func _place_dens(_rng: RandomNumberGenerator) -> void:
+		pass
+
+
 func check(cond: bool, what: String) -> void:
 	if cond:
 		print("PASS  ", what)
@@ -30,8 +36,11 @@ func _ready() -> void:
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
 	await wait(0.6)
 	_bind()
+	if colony and colony.events:
+		colony.events.chance = 0.0   # sem evento sorteado no amanhecer (meteoro mudaria a contagem de nós); os testes de evento usam force
 	check(world != null and colony != null and player != null, "cena da cidade carregada")
 	check(colony.phase == "setup" and colony.hall == null, "começa vazia, esperando a prefeitura")
+	_check_sim_map_numbers()
 	# o personagem é o do save solo (novo neste teste); o ouro da cidade é um caixa à parte
 	var char_gold0 := Game.gold
 	var char_xp0 := _total_xp()
@@ -59,6 +68,15 @@ func _ready() -> void:
 	check(colony.hall == hall and colony.phase == "day", "prefeitura fundada e o dia começa")
 	check(colony.pop_cap() == 6, "prefeitura abriga 6 (%d)" % colony.pop_cap())
 	check(get_tree().get_nodes_in_group("animals").size() > 0, "animais de caça surgem no mapa")
+	# --- eras: a era é o nível da prefeitura
+	check(colony.era() == 1 and colony.advance_era().begins_with("Exige"), "era II exige serraria e pedreira")
+	check(colony.can_place("cannon_tower", Vector3(14, 0, 14), 0.0).contains("era"), "torre de canhão exige era II")
+	check(colony.can_place("mage_tower", Vector3(14, 0, 14), 0.0).contains("era"), "torre arcana exige era II")
+	check(ColonyData.era_cost(2, 1) == ColonyData.ERAS[2].cost, "custo da era II")
+	check(ColonyData.era_cost(2, 3).gold == int(round(ColonyData.ERAS[2].cost.gold * (1.0 + 2 * ColonyData.ERA_TEAM_COST)))
+		and ColonyData.era_cost(3, 1).crystal == ColonyData.ERAS[3].cost.crystal,
+		"em grupo a era custa +%d%% por jogador extra" % int(ColonyData.ERA_TEAM_COST * 100))
+	check(ColonyData.TECHS.size() == 11, "11 pesquisas na tabela")
 
 	# --- regras de posicionamento
 	check(colony.can_place("house", Vector3(0, 0, -6), 0.0) != "", "espaço ocupado é recusado")
@@ -66,14 +84,303 @@ func _ready() -> void:
 	check(colony.can_place("house", Vector3(0, 0, 14), 0.0) != "", "não constrói em cima do jogador")
 	check(colony.can_place("house", Vector3(-12, 0, -6), PI / 2) == "", "casa num lugar livre é aceita")
 	var g0 := colony.treasury
+	var w0 := colony.amount("wood")
+	var house_cost: Dictionary = ColonyData.BUILDINGS.house.cost
+	check(colony.amount("wood") == int(ColonyData.START_RES.wood) and colony.amount("stone") == int(ColonyData.START_RES.stone),
+		"estoque inicial de madeira e pedra")
 	colony.place("house", Vector3(-12, 0, -6), PI / 2)
-	check(colony.treasury == g0 - 60 and colony.pop_cap() == 11, "casa custa 60 e abriga 5")
+	check(colony.treasury == g0 - int(house_cost.gold) and colony.amount("wood") == w0 - int(house_cost.wood) and colony.pop_cap() == 11,
+		"casa custa ouro e madeira e abriga 5")
+	colony.res["wood"] = 2000   # o estoque inicial não cobre a cidade toda
+	colony.res["stone"] = 2000
 	colony.place("farm", Vector3(-14, 0, 8), 0.0)
 	colony.place("barracks", Vector3(12, 0, -6), -PI / 2)
 	check(colony.count_of("farm") == 1 and colony.army_cap() == 6, "fazenda e quartel construídos")
-	colony.treasury = 50
-	check(colony.can_place("market", Vector3(12, 0, 8), 0.0).begins_with("Ouro"), "sem ouro, não constrói")
 	colony.treasury = 2000
+	colony.res["stone"] = 0
+	var need_stone := int(ColonyData.BUILDINGS.market.cost.stone)
+	check(colony.can_place("market", Vector3(12, 0, 8), 0.0) == "Faltam %d de Pedra." % need_stone, "sem pedra, não constrói")
+	check(not colony.pay({"stone": 5}) and colony.amount("stone") == 0, "pagar sem ter não deixa negativo")
+	var w1 := colony.amount("wood")
+	check(not colony.pay({"wood": 5, "stone": 5}) and colony.amount("wood") == w1, "pagamento é atômico: sem pedra, a madeira fica")
+	check(colony.missing({"gold": colony.treasury + 10, "stone": 3}) == "Faltam 10 de Ouro, 3 de Pedra.", "lista tudo o que falta")
+	check(colony.place("market", Vector3(12, 0, 8), 0.0) == null and colony.count_of("market") == 0, "place sem recurso não constrói nem cobra")
+	colony.res["stone"] = 2000
+	colony.res["wood"] = 2000
+	check(colony.upgrade_cost(colony.hall) == ColonyData.era_cost(2, 1), "melhorar a prefeitura = custo da era II")
+	check(ColonyData.upgrade_cost("house", 2).has("iron") and not ColonyData.upgrade_cost("house", 1).has("iron"), "melhoria para o nível 3 pede ferro")
+	# o servidor recusa pedidos sem recurso (net_request roda o mesmo caminho do servidor; aqui chamado no solo,
+	# porque place/upgrade/repair não dependem do papel). Nada pode ficar negativo nem mudar.
+	var bk: ColonyBuilding = colony.buildings().filter(func(x): return x.kind == "barracks")[0]
+	colony.bmap[999] = bk
+	colony.res["stone"] = 0
+	colony.treasury = 2000
+	var wood_r := colony.amount("wood")
+	var nb0 := colony.buildings().size()
+	var err_p: String = colony.net_request(1, "place", ["market", 12.0, 8.0, 0.0])
+	check(err_p == "Faltam %d de Pedra." % need_stone and colony.buildings().size() == nb0 and colony.amount("stone") == 0
+		and colony.treasury == 2000 and colony.amount("wood") == wood_r, "servidor recusa construção sem pedra e não cobra nada")
+	var err_u: String = colony.net_request(1, "upgrade", [999])
+	check(err_u.contains("era") and bk.level == 1 and colony.amount("stone") == 0
+		and colony.treasury == 2000 and colony.amount("wood") == wood_r, "servidor recusa melhoria acima da era (%s)" % err_u)
+	var hp_bk := bk.hp
+	bk.hp = bk.max_hp * 0.5
+	var err_r: String = colony.net_request(1, "repair", [999])
+	check(err_r.begins_with("Faltam ") and bk.hp == bk.max_hp * 0.5 and colony.amount("stone") == 0 and colony.treasury == 2000,
+		"servidor recusa reparo sem recurso (%s)" % err_r)
+	var err_ra: String = colony.net_request(1, "repair_all", [])
+	check(err_ra.begins_with("Faltam ") and colony.amount("stone") == 0 and colony.treasury == 2000, "servidor recusa reparar tudo sem recurso")
+	bk.hp = hp_bk
+	colony.bmap.erase(999)
+	colony.res["stone"] = 2000
+	var sc := ColonyData.scale_cost({"gold": 30, "wood": 40}, 1.5)
+	check(sc.gold == 45 and sc.wood == 60, "scale_cost multiplica cada recurso")
+
+	# --- aldeões livres e ocupados, treino na prefeitura
+	colony.citizens = 6
+	colony.food = 200
+	var free0 := colony.free_villagers()
+	var farm2 := colony.place("farm", Vector3(-24, 0, 6), 0.0)
+	check(farm2 != null and colony.free_villagers() == free0 - int(ColonyData.BUILDINGS.farm.crew), "fazenda ocupa %d aldeões" % int(ColonyData.BUILDINGS.farm.crew))
+	colony.citizens = colony.busy() + 1
+	check(colony.can_place("market", Vector3(12, 0, 8), 0.0) == "Faltam 1 aldeão livre.", "sem aldeões livres, não constrói")
+	colony.citizens = colony.busy()
+	check(colony.can_place("market", Vector3(12, 0, 8), 0.0) == "Faltam 2 aldeões livres.", "mensagem no plural")
+	colony.citizens = colony.pop_cap() - 1
+	var c0 := colony.citizens
+	var food_t := colony.food
+	check(colony.train_villager() == "" and colony.food == food_t - int(ColonyData.VILLAGER_COST.food), "treinar aldeão custa comida")
+	check(int(ColonyData.villager_cost(0).food) < int(ColonyData.VILLAGER_COST.food) and int(ColonyData.villager_cost(2).food) > int(ColonyData.VILLAGER_COST.food),
+		"imposto baixo barateia o treino e o alto encarece (%s)" % [[ColonyData.villager_cost(0).food, ColonyData.villager_cost(2).food]])
+	check(colony.train_queue == 1, "aldeão entra na fila")
+	await wait(ColonyData.VILLAGER_TIME + 0.5)
+	check(colony.citizens == c0 + 1 and colony.train_queue == 0, "aldeão treinado em %d s" % int(ColonyData.VILLAGER_TIME))
+	check(colony.train_villager() != "" and colony.food == food_t - int(ColonyData.VILLAGER_COST.food), "sem moradia, não treina nem cobra")
+	colony.citizens = 0
+	colony.food = int(ColonyData.VILLAGER_COST.food) - 1
+	check(colony.train_villager().begins_with("Faltam "), "sem comida, não treina")
+	colony.food = 200
+	colony.citizens = colony.pop_cap() - 1
+	check(colony.net_request(1, "train", []) == "" and colony.train_queue == 1 and colony.net_state().tq == 1, "pedido \"train\" entra na fila e vai no estado")
+	colony.train_queue = 0
+	colony.food = 200
+	# fome deixa ocupados > aldeões: produção proporcional, nunca negativa
+	colony.citizens = 1
+	check(colony.free_villagers() == 0 and colony.staffing() > 0.0 and colony.staffing() < 1.0, "falta de aldeões reduz produção sem ficar negativo")
+	check(colony.forecast().food_in >= 0 and colony.crew_eff(farm2) == colony.staffing(), "previsão nunca negativa")
+	colony.citizens = 0
+	check(colony.staffing() == 0.0 and colony.free_villagers() == 0, "sem aldeões: eficiência 0 e livres 0")
+	check(ColonyData.tower_rate_mult(1.0) == 1.0 and ColonyData.tower_rate_mult(0.4) == 1.5, "torre sem operador atira mais devagar")
+	# dawn: sem crescimento automático
+	colony.citizens = 4
+	var cz := colony.citizens
+	colony.dawn()
+	check(colony.citizens == cz, "aldeões não nascem sozinhos no amanhecer")
+	colony.demolish(farm2)
+	colony.citizens = 5
+
+	# --- nós de recurso: coleta, esgotamento e volta
+	check(world.map_seed == 7731, "teste usa semente fixa")
+	var tree := colony.nature.nearest("tree", player.global_position)
+	var wt0 := colony.amount("wood")
+	for i in 4:
+		colony.harvest(tree.id, player.global_position)
+	check(colony.amount("wood") == wt0 + 24 and not tree.alive, "árvore dá 24 madeira em 4 golpes e cai")
+	check(not _obstacle_at(tree.global_position), "árvore caída sai dos obstáculos")
+	check(not tree.is_in_group("enemies") and tree.is_in_group("harvest"), "nó fica no grupo harvest, fora de enemies")
+	colony.day += 2
+	colony.nature.regrow(colony.day)
+	check(tree.alive and _obstacle_at(tree.global_position), "árvore volta em 2 dias")
+	# construção em cima do lugar: o nó espera e tenta de novo no próximo amanhecer
+	for i in 4:
+		colony.harvest(tree.id, player.global_position)
+	var blocker := colony.place("wall", tree.global_position, 0.0, true)   # grátis; testa só a sobreposição
+	colony.day += 2
+	colony.nature.regrow(colony.day)
+	check(not tree.alive, "nó não volta dentro de uma construção")
+	colony.demolish(blocker)
+	var keep := [colony.citizens, colony.food, colony.treasury, colony.res.duplicate()]
+	colony.dawn()
+	check(tree.alive, "o amanhecer tenta de novo e o nó volta")
+	colony.citizens = keep[0]
+	colony.food = keep[1]
+	colony.treasury = keep[2]
+	colony.res = keep[3]
+	colony.day -= 5   # o resto do teste conta os dias a partir daqui
+	check(colony.nature.count("crystal") == 6 and colony.nature.count("iron") == 7, "anéis externos têm cristal e ferro")
+	check(colony.nature.count("gold") == 4 and colony.nature.count("berry") == 10, "veios de ouro e arbustos de frutas")
+	var cr := colony.nature.nearest("crystal", Vector3.ZERO)
+	check(Vector2(cr.global_position.x, cr.global_position.z).length() >= 105.0, "cristal só no anel 3")
+	var ir := colony.nature.nearest("iron", Vector3.ZERO)
+	check(Vector2(ir.global_position.x, ir.global_position.z).length() >= 80.0, "ferro no anel 2")
+	var cry0 := colony.amount("crystal")
+	for i in 6:
+		colony.harvest(cr.id, player.global_position)
+	check(colony.amount("crystal") == cry0 + 8 and not cr.alive, "cristal dá 8 em 6 golpes, sem perder o resto")
+	var berry := colony.nature.nearest("berry", Vector3.ZERO)
+	var fd0 := colony.food
+	colony.harvest(berry.id, player.global_position)
+	check(colony.food == fd0 + 12 and not berry.alive, "arbusto dá 12 comida de uma vez")
+	var rock := colony.nature.nearest("rock", player.global_position)
+	var st0 := colony.amount("stone")
+	rock.hit(player.global_position)
+	rock.hit(player.global_position)
+	check(colony.amount("stone") == st0 + 5, "golpe duplo no mesmo instante tira só um pedaço")
+	var cr_id := cr.id
+	var nd: Dictionary = colony.to_dict().get("nodes", {})
+	check(nd.has(str(cr.id)) and nd.has(str(berry.id)) and int(colony.to_dict().get("seed", -1)) == 7731, "save guarda semente e nós esgotados")
+
+	# --- serraria e pedreira: produção contínua do bosque em volta
+	var keep_cp := [colony.citizens, colony.treasury, colony.res.duplicate()]
+	colony.citizens = colony.busy() + 6   # a serraria e a pedreira ocupam 3 aldeões cada
+	colony.treasury += 200
+	colony.res["wood"] = int(colony.res.get("wood", 0)) + 200
+	var spot := _camp_spot("tree")
+	check(spot != Vector3.INF, "há um bosque a ~60 m do centro para a serraria")
+	check(colony.can_place("lumber_camp", spot, 0.0) == "", "serraria pode ficar fora da cidade perto do bosque (%s)" % colony.can_place("lumber_camp", spot, 0.0))
+	check(colony.can_place("lumber_camp", Vector3(0, 0, 20), 0.0) != "", "serraria longe de árvores é recusada")
+	check(colony.can_place("lumber_camp", spot * 1.6, 0.0) != "", "serraria além de 80 m é recusada")
+	check(colony.can_place("house", spot, 0.0) != "", "casa continua restrita ao raio da cidade")
+	var camp := colony.place("lumber_camp", spot, 0.0)
+	check(camp != null and colony.free_villagers() >= 0, "serraria construída")
+	var wc0 := colony.amount("wood")
+	var live0 := colony.nature.alive_near("tree", spot, 14.0).size()
+	colony._gather_tick(30.0)
+	check(colony.amount("wood") > wc0 + 10, "serraria produz madeira de dia (%d, eff %.2f, nós %d)" % [colony.amount("wood") - wc0, colony.staffing(), live0])
+	colony._gather_tick(60.0)
+	check(colony.nature.alive_near("tree", spot, 14.0).size() < live0, "serraria consome o bosque (%d -> %d)" % [live0, colony.nature.alive_near("tree", spot, 14.0).size()])
+	check(ColonyData.gather_rate(1.0, 2, 1.0) < ColonyData.gather_rate(1.0, 8, 1.0), "bosque ralo produz menos")
+	check(ColonyData.gather_rate(1.0, 0, 1.0) == 0.0 and ColonyData.gather_rate(0.0, 8, 1.0) == 0.0, "sem árvore ou sem aldeão não produz")
+	check(colony.gather_per_min().wood > 0.0 and colony.gather_per_min().stone == 0.0, "previsão por minuto: só madeira")
+	var qspot := _camp_spot("rock")
+	check(qspot != Vector3.INF and colony.can_place("quarry", qspot, 0.0) == "", "pedreira pode ficar perto das pedras")
+	if qspot == Vector3.INF:
+		fails += 1
+		qspot = Vector3(0, 0, 20)   # sem afloramento livre: o resto do bloco falha mas não quebra
+	var quarry := colony.place("quarry", qspot, 0.0)
+	var sq0 := colony.amount("stone")
+	colony._gather_tick(30.0)
+	check(quarry != null and colony.amount("stone") > sq0 + 5, "pedreira produz pedra (%d)" % (colony.amount("stone") - sq0))
+	var wn := colony.amount("wood")
+	colony.phase = "night"
+	colony._gather_tick(30.0)
+	colony.phase = "day"
+	check(colony.amount("wood") == wn, "de noite não produz")
+	colony.demolish(camp)
+	colony.demolish(quarry)
+	colony.citizens = keep_cp[0]
+	colony.treasury = keep_cp[1]
+	colony.res = keep_cp[2]
+
+	# --- eventos do dia: sorteio, caravana e troca, fim ao anoitecer
+	var keep_ev := [colony.citizens, colony.food, colony.treasury, colony.res.duplicate()]
+	check(colony.events.roll(1) == "", "nenhum evento no dia 1")
+	check(colony.events.roll(3, "caravan") == "caravan" and colony.events.active == "caravan", "caravana chega")
+	var ev_d := Vector2(colony.events.pos.x, colony.events.pos.z).length()
+	check(get_tree().get_nodes_in_group("caravan").size() == 1 and ev_d >= ColonyData.RINGS[0] - 1.0 and ev_d <= ColonyData.RINGS[2] + 1.0,
+		"a caravana para nos anéis 1–2 (%.0f m)" % ev_d)
+	colony.res["wood"] = 100
+	g0 = colony.get_gold()
+	check(colony.trade(0) == "" and colony.amount("wood") == 50 and colony.get_gold() == g0 + 30, "troca 50 madeira por 30 ouro")
+	colony.res["wood"] = 10
+	check(colony.trade(0) != "", "troca sem recurso é recusada")
+	check(colony.amount("wood") == 10 and colony.trade(99) != "", "troca inválida é recusada, nada muda")
+	colony.events.end()
+	await wait(0.1)
+	check(colony.events.active == "" and get_tree().get_nodes_in_group("caravan").is_empty(), "evento acaba ao anoitecer")
+	check(colony.trade(0) != "", "sem caravana não há troca")
+	check(colony.events.roll(3, "camp_raid") == "", "ataque à serraria só com serraria fora da cidade")
+	var crys0 := colony.nature.count("crystal")
+	colony.events.roll(3, "meteor")
+	check(colony.nature.count("crystal") >= 9 and colony.nature.count("crystal") == crys0 + 3, "meteoro deixa cristais")
+	var ev_slimes := 0
+	for c in colony.get_children():
+		if c is Enemy and not c.dead and c.kind == "slime" and c.global_position.distance_to(colony.events.pos) < 15.0:
+			ev_slimes += 1
+	check(ev_slimes >= 4, "meteoro traz slimes (%d)" % ev_slimes)
+	var ev_en: Array[Enemy] = colony.events.enemies()
+	colony.events.end()
+	await wait(0.1)
+	var ev_left: Array = []
+	for e in ev_en:
+		if is_instance_valid(e) and not e.is_queued_for_deletion():
+			ev_left.append("%s den %d siege %s" % [e.kind, e.den_id, e.siege])
+	check(not ev_en.is_empty() and ev_left.is_empty() and colony.events.enemies().is_empty(),
+		"os monstros do evento somem ao anoitecer %s" % str(ev_left))
+	# meteoro resolvido: slimes mortos e cristais colhidos encerram o evento
+	colony.events.roll(3, "meteor")
+	check(colony.events.active == "meteor", "meteoro de novo")
+	for e in colony.events.enemies():
+		e.take_damage(99999.0, Vector3.ZERO, false)
+	check(colony.events.active == "meteor", "meteoro continua com cristais por colher")
+	for i in range(colony.nature.generated, colony.nature.nodes.size()):
+		var cn: ColonyResourceNode = colony.nature.nodes[i]
+		if cn.kind == "crystal" and cn.alive and cn.global_position.distance_to(colony.events.pos) < 8.0:
+			colony.nature.deplete(cn.id, colony.day)
+	colony.events.check_meteor()
+	check(colony.events.active == "", "meteoro some do marcador com slimes mortos e cristais colhidos")
+	# aldeões perdidos: só depois dos lobos
+	colony.citizens = 2
+	check(colony.events.roll(5, "lost_villagers") == "lost_villagers", "aldeões perdidos aparecem")
+	var wolves: Array = colony.events.animals()
+	check(wolves.size() >= 3 and wolves[0].kind == "wolf", "lobos cercam os aldeões (%d)" % wolves.size())
+	check(colony.event_interact() != "" and colony.citizens == 2, "com lobos vivos não dá para resgatar")
+	for w in wolves:
+		w.take_damage(99999, w.global_position + Vector3.RIGHT, false)
+	var cit0 := colony.citizens
+	var food_v := colony.food
+	var rescue := 2 + colony.day / 4
+	var room := colony.pop_cap() - cit0
+	check(colony.event_interact() == "" and colony.citizens == cit0 + mini(room, rescue)
+		and colony.food == food_v + 10 * (rescue - mini(room, rescue)) and colony.events.active == "",
+		"resgate soma aldeões até o teto, o resto vira comida")
+	colony.events.end()
+	# baú esquecido
+	check(colony.events.roll(4, "lost_chest") == "lost_chest", "baú esquecido aparece")
+	var guards: Array = colony.events.enemies()
+	g0 = colony.get_gold()
+	check(guards.size() == ColonyData.EVENT_CHEST_GUARDS and colony.event_interact() != "" and colony.get_gold() == g0,
+		"com os guardas vivos o baú não abre")
+	var tk0 := colony.total_kills
+	for e in guards:
+		e.take_damage(999999, e.global_position, false)
+	check(colony.total_kills == tk0, "abates de dia não contam como abates da noite")
+	g0 = colony.get_gold()
+	var wd0 := colony.amount("wood")
+	check(colony.event_interact() == "" and colony.get_gold() == g0 + 40 + 10 * colony.day and colony.amount("wood") == wd0 + 60,
+		"abrir o baú dá ouro e recursos")
+	check(colony.event_interact() != "", "o baú só abre uma vez")
+	colony.events.end()
+	# fera alfa
+	colony.events.roll(4, "alpha")
+	var alpha: Array = colony.events.animals()
+	check(alpha.size() == 1 and alpha[0].alpha and alpha[0].max_hp == float(ColonyData.ANIMALS[alpha[0].kind].hp) * 3.0,
+		"fera alfa tem vida ×3")
+	if alpha.size() == 1:
+		var fa := colony.food
+		alpha[0].take_damage(99999, alpha[0].global_position + Vector3.RIGHT, false)
+		check(colony.food == fa + 3 * int(ColonyData.ANIMALS[alpha[0].kind].food) and colony.events.active == "", "fera alfa rende ×3")
+	colony.events.end()
+	# ataque à serraria fora da cidade
+	colony.citizens = colony.busy() + 6
+	var raid_camp := colony.place("lumber_camp", spot, 0.0, true)
+	check(colony.events.roll(6, "camp_raid") == "camp_raid", "ataque à serraria fora da cidade")
+	var raiders := 0
+	var aimed := true
+	for c in colony.get_children():
+		if c is Enemy and not c.dead and c.siege:
+			raiders += 1
+			aimed = aimed and c._siege_target == raid_camp
+	check(raiders == 3 + 6 / 3 and aimed, "monstros vão até a serraria (%d)" % raiders)
+	check(int(colony.net_state().wl) == 0, "de dia o ataque não aparece como onda")
+	colony.events.end()
+	await wait(0.1)
+	check(colony.siege_alive() == 0, "o ataque some ao anoitecer")
+	colony.demolish(raid_camp)
+	colony.citizens = keep_ev[0]
+	colony.food = keep_ev[1]
+	colony.treasury = keep_ev[2]
+	colony.res = keep_ev[3]
 
 	# --- muros encaixam
 	colony.place("wall", Vector3(0, 0, 22), 0.0)
@@ -87,19 +394,117 @@ func _ready() -> void:
 	# --- economia
 	var f := colony.forecast()
 	check(f.tax == colony.citizens * 2, "imposto normal = 2 por morador (%d)" % f.tax)
-	check(f.food_in == 12 and f.workers == 2, "fazenda produz 12 com 2 trabalhadores")
-	check(f.hall == 15, "prefeitura rende 15")
+	var farm_food := int(ColonyData.BUILDINGS.farm.food)
+	check(f.food_in == farm_food and f.workers == colony.busy(), "fazenda produz %d com todos os aldeões" % farm_food)
+	check(f.hall == int(ColonyData.BUILDINGS.town_hall.gold), "prefeitura rende %d" % int(ColonyData.BUILDINGS.town_hall.gold))
 
 	# --- recrutamento
 	var cit := colony.citizens
 	g0 = colony.treasury
 	check(colony.recruit("soldier") == "", "recruta um soldado")
 	check(colony.recruit("archer") == "", "recruta um arqueiro")
-	check(colony.recruit("knight") != "", "cavaleiro exige quartel nível 2")
+	check(colony.recruit("knight").contains("era"), "cavaleiro exige a era II")
+	check(colony.recruit("mage").contains("era"), "mago exige era II")
+	check(colony.recruit("cannoneer").contains("era"), "canhoneiro exige era II")
 	await wait(0.2)
 	check(colony.soldier_count() == 2 and colony.citizens == cit - 2, "soldados saem dos moradores")
-	check(colony.treasury == g0 - 150, "recrutar cobra o preço")
+	colony.citizens += 2   # a torre abaixo precisa de um aldeão livre
+	check(colony.treasury == g0 - 100, "recrutar cobra o preço")
 	check(colony.salaries() == 11, "salários somam 11/dia")
+
+	# --- eras e pesquisas
+	var keep_era := [colony.citizens, colony.treasury, colony.food, colony.res.duplicate()]
+	var camp2 := colony.place("lumber_camp", spot, 0.0, true)
+	var quarry2 := colony.place("quarry", qspot, 0.0, true)
+	colony.treasury = 0
+	colony.food = 1000
+	for r in ["wood", "stone", "iron", "crystal"]:
+		colony.res[r] = 1000
+	var err_e: String = colony.net_request(1, "era", [])
+	check(err_e == "Faltam %d de Ouro." % int(ColonyData.ERAS[2].cost.gold) and colony.food == 1000 and colony.amount("wood") == 1000 and colony.busy_t.is_empty()
+		and colony.era() == 1, "servidor recusa avançar de era sem ouro e não cobra nada (%s)" % err_e)
+	colony.treasury = 5000
+	colony.citizens = colony.pop_cap() - 1
+	check(colony.train_villager() == "", "aldeão na fila antes de avançar de era")
+	check(colony.advance_era() == "", "avança para a era II")
+	check(colony.advance_era() != "" and colony.net_state().busy.has(colony.hall.net_id), "avanço em andamento vai no estado e não repete")
+	await wait(ColonyData.VILLAGER_TIME + 1.0)
+	check(colony.train_queue == 1 and colony.era() == 1, "a prefeitura não treina enquanto avança de era")
+	await wait(ColonyData.ERA_TIME - ColonyData.VILLAGER_TIME - 0.5)
+	check(colony.era() == 2 and colony.hall.level == 2, "era II = prefeitura nível 2")
+	check(colony.busy_t.is_empty(), "prefeitura livre depois da era")
+	var r0 := ColonyData.gather_rate(1.0, 8, colony.mult("wood"))
+	check(colony.research("sharp_axe") == "", "pesquisa Machado Afiado")
+	check(colony.research("sharp_axe") != "", "a mesma pesquisa não começa duas vezes")
+	# Alvenaria é pesquisada na prefeitura: o treino de aldeões não pode parar por isso
+	var hmax := colony.hall.max_hp
+	var hhp := colony.hall.hp
+	var wl := colony.place("wall", Vector3(-20, 0, 26), 0.0, true)
+	var wmax := wl.max_hp
+	check(colony.research("masonry") == "" and colony.train_queue == 1, "Alvenaria começa na prefeitura com um aldeão na fila")
+	check(colony.advance_era() == "A prefeitura está ocupada com outra ação.", "pesquisa na prefeitura não se confunde com avanço de era")
+	await wait(ColonyData.TECH_TIME + 0.5)
+	check(colony.train_queue == 0, "o treino anda enquanto a prefeitura pesquisa")
+	check(is_equal_approx(ColonyData.gather_rate(1.0, 8, colony.mult("wood")), r0 * 1.2), "Machado Afiado dá +20% madeira")
+	check(colony.research("sharp_axe") != "", "pesquisa não se compra duas vezes")
+	check(colony.research("arcane_focus").contains("era"), "pesquisa da era III bloqueada na era II")
+	check(colony.count_of("farm") > 0, "há uma fazenda para o Arado")
+	check(colony.research("plow") == "", "pesquisa do Arado começa na fazenda")
+	var live_tree := colony.nature.nearest("tree", player.global_position)
+	var wh0 := colony.amount("wood")
+	for i in 4:
+		colony.harvest(live_tree.id, player.global_position)
+	check(colony.amount("wood") > wh0 + 24, "Machado Afiado vale para o jogador (%d)" % (colony.amount("wood") - wh0))
+	# pesquisas que mexem na vida: as construções que já existem crescem junto
+	check(colony.has_tech("masonry") and is_equal_approx(colony.hall.max_hp, hmax * 1.2) and is_equal_approx(colony.hall.hp, hhp + hmax * 0.2)
+		and is_equal_approx(wl.max_hp, wmax * 1.2), "Alvenaria: +20% de vida nas construções existentes")
+	colony._finish_tech("reinforced_wall")
+	check(is_equal_approx(wl.max_hp, wmax * 1.2 * 1.4) and is_equal_approx(colony.hall.max_hp, hmax * 1.2), "Muralha Reforçada: só muros e portões +40%")
+	colony.demolish(wl)
+	var sol: ColonySoldier = colony.soldiers()[0]
+	var smax := sol.max_hp
+	colony._finish_tech("elite_training")
+	check(is_equal_approx(sol.max_hp, smax * 1.15) and is_equal_approx(sol.unit_damage(), float(sol.data.damage) * 1.15),
+		"Treino de Elite: tropas +15% de vida e dano")
+	check(colony.bonus("chain_add") == 0 and is_equal_approx(colony.mult("unit_dmg"), 1.15), "bonus/mult lidos da tabela")
+	colony.hall.level = 3   # só para conferir o bônus de aldeões da era III
+	check(colony.crew_for("lumber_camp") == 4 and colony.crew_for("quarry") == 4 and colony.crew_for("farm") == 2, "era III: +1 aldeão nas serrarias e pedreiras")
+	colony.hall.level = 2
+	colony.busy_t.clear()   # descarta o Arado (o resto do teste não depende dele)
+	colony.demolish(camp2)
+	colony.demolish(quarry2)
+	colony.citizens = keep_era[0]
+	colony.treasury = keep_era[1]
+	colony.food = keep_era[2]
+	colony.res = keep_era[3]
+
+	# --- mago e canhoneiro (era II)
+	var cit_m := colony.citizens
+	var gold_m := colony.treasury
+	var res_m: Dictionary = colony.res.duplicate()
+	colony.citizens = maxi(colony.citizens, 6)
+	colony.treasury = 2000
+	colony.res["crystal"] = 0
+	check(colony.recruit("mage") == "Faltam 6 de Cristal.", "mago custa cristal")
+	colony.res["crystal"] = 20
+	colony.res["iron"] = 20
+	colony.res["stone"] = 100
+	check(colony.recruit("mage") == "" and colony.recruit("cannoneer") == "", "recruta mago e canhoneiro")
+	check(colony.amount("crystal") == 14 and colony.amount("iron") == 12 and colony.amount("stone") == 80, "custos em vários recursos são pagos")
+	await wait(0.2)
+	var ranged_new: Array = colony.soldiers().filter(func(s): return s.unit == "mage" or s.unit == "cannoneer")
+	check(ranged_new.size() == 2 and is_equal_approx(ranged_new[0].max_hp, float(ranged_new[0].data.hp) * colony.mult("unit_hp")), "mago e canhoneiro existem com a vida da tabela")
+	var em := colony.spawn_enemy("slime", colony.rally + Vector3(0, 0, 10))
+	var em_hp := em.hp
+	await wait(4.0)
+	check(not is_instance_valid(em) or em.dead or em.hp < em_hp, "tropas à distância novas acertam monstros")
+	for s in ranged_new:
+		s.leave()
+	if is_instance_valid(em):
+		em.take_damage(999999, em.global_position, false)
+	colony.citizens = cit_m
+	colony.treasury = gold_m
+	colony.res = res_m
 
 	# --- torre defende
 	var tower := colony.place("archer_tower", Vector3(8, 0, 14), 0.0)
@@ -108,6 +513,67 @@ func _ready() -> void:
 	await wait(2.5)
 	check(not is_instance_valid(e) or e.dead or e.hp < hp0, "torre de arqueiros acerta o monstro")
 	check(colony.upgrade(tower) == "" and tower.level == 2, "torre melhora para o nível 2")
+
+	# --- munição: torres e tropas à distância gastam do estoque
+	var said: Array[String] = []
+	var on_say := func(text: String, _c: Color) -> void: said.append(text)
+	Game.notify.connect(on_say)
+	var phase0 := colony.phase
+	colony.phase = "night"   # aviso e relatório de munição só valem à noite
+	colony.night_ammo = {}
+	colony._ammo_acc = {}   # descarta disparos que sobraram de unidades de testes anteriores
+	colony.res["wood"] = 10
+	for i in 10:
+		colony.use_ammo("archer_tower")
+	check(colony.amount("wood") == 8, "10 flechas gastam 2 madeira")
+	check(int(colony.night_ammo.get("wood", 0)) == 2, "gasto da noite registra a madeira")
+	check(is_equal_approx(ColonyData.ammo_per_night("archer_tower", 10.0, 1.0), 2.0)
+		and is_equal_approx(ColonyData.ammo_per_night("archer_tower", 10.0, 2.0), 1.0), "ammo_per_night usa o multiplicador de tecnologia")
+	colony.res["wood"] = 0
+	check(not colony.use_ammo("archer_tower") and colony.amount("wood") == 0, "sem madeira não fica negativo")
+	check(not colony.use_ammo("archer") and colony.use_ammo("soldier"), "arqueiro sem madeira falha; soldado não usa munição")
+	if is_instance_valid(tower):
+		colony.demolish(tower)   # só a torre nova pode acertar o alvo abaixo
+	colony.res["wood"] = 0   # demolir devolve madeira
+	colony._ammo_acc = {}
+	var t2 := colony.place("archer_tower", Vector3(-8, 0, 14), 0.0, true)
+	var e2 := colony.spawn_enemy("slime", Vector3(-8, 0, 30))
+	var hp2 := e2.hp
+	var cd_max := 0.0
+	for i in 180:
+		await get_tree().process_frame
+		cd_max = maxf(cd_max, t2._cd)
+	check(not is_instance_valid(e2) or e2.hp < hp2, "torre sem munição continua atirando (mais devagar)")
+	check(said.count("Acabaram as flechas!") == 1, "aviso de munição aparece uma vez (%d)" % said.count("Acabaram as flechas!"))
+	check(cd_max > t2.tower_rate() * 1.5 and cd_max <= t2.tower_rate() * ColonyData.NO_AMMO_RATE + 0.001,
+		"sem munição o intervalo da torre dobra (_cd máx %.2f, normal %.2f)" % [cd_max, t2.tower_rate()])
+	check(colony.amount("wood") == 0, "a torre sem munição não deixa o estoque negativo (%d)" % colony.amount("wood"))
+	check(not colony.ammo_out("wood") or colony.phase == "night", "o pisca só vale à noite")
+	# arqueiro (tropa à distância): sem madeira ainda atira, mais devagar; com madeira, gasta
+	if is_instance_valid(t2):
+		colony.demolish(t2)
+	colony.res["wood"] = 0   # a demolição devolveu madeira
+	colony._ammo_acc = {}
+	var archer: Node = null
+	for sd in colony.soldiers():
+		if sd.is_ranged():
+			archer = sd
+	check(archer != null, "há um arqueiro")
+	if archer != null:
+		var e3 := colony.spawn_enemy("slime", archer.global_position + Vector3(0, 0, 8))
+		var hp3 := e3.hp
+		await wait(3.0)
+		check(not is_instance_valid(e3) or e3.dead or e3.hp < hp3, "arqueiro sem madeira ainda atira")
+		check(colony.amount("wood") == 0 and not archer._has_ammo, "arqueiro sem madeira: estoque 0 e intervalo dobrado (%d, %s)" % [colony.amount("wood"), archer._has_ammo])
+		colony.res["wood"] = 50
+		colony._ammo_acc = {}
+		var e4 := colony.spawn_enemy("slime", archer.global_position + Vector3(0, 0, 8))
+		await wait(3.0)
+		check(colony.amount("wood") < 50 and archer._has_ammo, "arqueiro com madeira gasta do estoque (%d)" % colony.amount("wood"))
+		if is_instance_valid(e4):
+			e4.take_damage(999999, e4.global_position, false)
+	colony.phase = phase0
+	Game.notify.disconnect(on_say)
 
 	# --- monstro ataca construção no caminho
 	var wall := colony.place("wall", Vector3(-20, 0, 30), 0.0, true)
@@ -125,21 +591,24 @@ func _ready() -> void:
 		"elite Blindado resiste a flechas e não a canhão")
 	check(elite.max_hp > 80.0 * (1.0 + 0.12 * (colony.day - 1)) * 1.2, "elite tem mais vida (%d)" % elite.max_hp)
 	elite.take_damage(999999, elite.global_position, false)
-	check(ColonyData.coop_cost("house", 0) == 60 and ColonyData.coop_cost("house", 5) == 90, "em grupo a 6ª casa custa 90")
+	var hc: Dictionary = ColonyData.BUILDINGS.house.cost
+	var c5 := ColonyData.coop_cost("house", 5)
+	check(ColonyData.coop_cost("house", 0) == hc and c5.gold == int(round(hc.gold * 1.5)) and c5.wood == int(round(hc.wood * 1.5)),
+		"em grupo a 6ª casa custa 50% a mais de cada recurso")
 	check(ColonyData.coop_hp_mult(20) > ColonyData.coop_hp_mult(10) * 2.0, "vida dos monstros acelera no fim de jogo")
 	check(ColonyData.chest_rarities(20)[0][0] == "legendary", "baú da noite 20 pode ser lendário")
 
 	# --- reparo e demolição
 	if is_instance_valid(wall) and not wall.dead:
 		var rc := colony.repair_cost(wall)
-		check(rc > 0 and colony.repair(wall) == "" and wall.hp == wall.max_hp, "reparo restaura a vida (%d ouro)" % rc)
+		check(not rc.is_empty() and colony.repair(wall) == "" and wall.hp == wall.max_hp, "reparo restaura a vida (%s)" % ColonyData.cost_text(rc))
 		g0 = colony.treasury
+		var s0 := colony.amount("stone")
 		colony.demolish(wall)
-		check(colony.treasury == g0 + int(wall.invested * 0.5), "demolir devolve metade")
+		check(colony.treasury == g0 + int(wall.invested.gold * 0.5) and colony.amount("stone") == s0 + int(wall.invested.stone * 0.5),
+			"demolir devolve metade de cada recurso")
 
 	# --- caça
-	var food0 := colony.food
-	g0 = colony.treasury
 	var deer: ColonyAnimal = load("res://scripts/colony/animal.gd").new()
 	deer.kind = "deer"
 	deer.colony = colony
@@ -148,8 +617,39 @@ func _ready() -> void:
 	await wait(0.1)
 	player.model.rotation.y = PI / 2
 	player.look["class"] = "sword"
+	# Baseline só agora, sem await até o golpe: durante a espera acima soldados/torres matam monstros
+	# errantes, e cada morte soma ouro ao cofre (Enemy._die no solo), o que desalinhava o `g0` antigo.
+	var food0 := colony.food
+	g0 = colony.treasury
 	deer.take_damage(9999, player.global_position, false)
 	check(colony.food == food0 + 10 and colony.treasury == g0 + 9, "caçar um cervo rende comida e ouro")
+
+	# --- fauna por anel: lobo no anel 2 (em matilha), urso no anel 3, nada de agressivo no anel 1
+	for a in get_tree().get_nodes_in_group("animals"):
+		a.queue_free()
+	await wait(0.1)
+	for i in 10:
+		colony._spawn_wildlife(true, 200)   # 60 grupos: urso (15%) e lobo aparecem sempre
+	var kinds := {}
+	var ring_ok := true
+	for a in get_tree().get_nodes_in_group("animals"):
+		var d := Vector2(a.global_position.x, a.global_position.z).length()
+		kinds[a.kind] = int(kinds.get(a.kind, 0)) + 1
+		if a.kind == "bear" and d < 105.0:
+			check(false, "urso só no anel 3 (%.1f m)" % d)
+		var in_ring := false   # a matilha se espalha uns 2 m em volta do ponto sorteado
+		for r in ColonyData.ANIMALS[a.kind].rings:
+			var lo: float = ColonyData.RINGS[r - 1]
+			var hi: float = ColonyData.RINGS[r] if r < ColonyData.RINGS.size() else INF
+			in_ring = in_ring or (d >= lo - 3.0 and d <= hi + 3.0)
+		if not in_ring:
+			ring_ok = false
+	check(kinds.has("wolf") and kinds.has("bear"), "fauna nova aparece (%s)" % str(kinds))
+	check(ring_ok, "cada espécie nasce só nos anéis dela")
+	check(int(kinds.get("wolf", 0)) >= 3, "lobos vêm em matilha (%d)" % int(kinds.get("wolf", 0)))
+	for a in get_tree().get_nodes_in_group("animals"):
+		a.queue_free()
+	await wait(0.1)
 
 	# --- amanhecer: economia
 	f = colony.forecast()
@@ -158,13 +658,19 @@ func _ready() -> void:
 	colony.dawn()
 	check(colony.day == day0 + 1, "amanhece um novo dia")
 	check(colony.treasury == g0 + f.gold_net, "amanhecer aplica impostos e salários (%d -> %d)" % [g0, colony.treasury])
-	# salários (3 cavaleiros + 2 = 47/dia) maiores que a renda (só a prefeitura, 15): alguns desertam
-	for i in 3:
-		colony.spawn_soldier("knight", Vector3(12, 0, 2))
-	await wait(0.1)
-	var before := colony.soldier_count()
+	# salários maiores que a renda (sem moradores, só a prefeitura e o comércio): alguns desertam
 	var cit_s := colony.citizens
 	colony.citizens = 0
+	for i in 3:
+		colony.spawn_soldier("knight", Vector3(12, 0, 2))
+	var extra := 0
+	while colony.salaries() <= int(colony.forecast().gold_in) and extra < 20:
+		colony.spawn_soldier("knight", Vector3(12, 0, 2))
+		extra += 1
+	check(colony.salaries() > int(colony.forecast().gold_in),
+		"salários (%d) passam da renda (%d) para o teste de deserção" % [colony.salaries(), int(colony.forecast().gold_in)])
+	await wait(0.1)
+	var before := colony.soldier_count()
 	colony.treasury = 0
 	colony.dawn()
 	await wait(0.1)
@@ -218,11 +724,162 @@ func _ready() -> void:
 		"abates da cidade não contam na missão nem nos abates do personagem (%s, %d)" % [str(Game.quests), Game.kills])
 	check(int(Game.flags.get("city_best", 0)) == d0, "melhor noite salva no personagem (%s)" % str(Game.flags.get("city_best")))
 
+	# --- covis: acordam com jogador perto, dormem sem ninguém e à noite, reforçam a onda, crescem e são limpos
+	check(colony.dens.size() >= 4 and colony.dens.size() <= 6, "o mapa tem covis (%d)" % colony.dens.size())
+	var den_dirs_ok := true
+	var seen_dirs := {}
+	for dn in colony.dens:
+		var dd := Vector2(dn.global_position.x, dn.global_position.z).length()
+		var lo: float = ColonyData.RINGS[int(ColonyData.POIS[dn.kind].ring) - 1]
+		if seen_dirs.has(dn.dir_index) or dd < lo:
+			den_dirs_ok = false
+		seen_dirs[dn.dir_index] = true
+	check(den_dirs_ok, "cada covil numa direção diferente, no anel dele")
+	var den: ColonyDen = colony.dens[0]
+	player.global_position = den.global_position.move_toward(Vector3.ZERO, 30.0) + Vector3(0, 0.5, 0)
+	await wait(1.0)
+	check(den.awake and den.guards_alive() > 0, "covil acorda com jogador perto (%d guardas)" % den.guards_alive())
+	var leashed := true
+	for g in den.guards():
+		if g.siege or g.den_id != den.id:
+			leashed = false
+	check(leashed, "guardas não são do cerco e são presos ao covil")
+	var boss0 := den.boss()
+	check(boss0 != null and boss0.kind == str(ColonyData.POIS[den.kind].boss), "o chefe do covil está lá")
+	var boss_hp := -1.0
+	if boss0:
+		boss0.take_damage(boss0.max_hp * 0.4, boss0.global_position, false)
+		boss_hp = boss0.hp
+	player.global_position = Vector3(0, 0.5, 14)
+	await wait(1.0)
+	check(not den.awake and den.guards_alive() == 0, "covil dorme sem ninguém perto")
+	player.global_position = den.global_position.move_toward(Vector3.ZERO, 30.0) + Vector3(0, 0.5, 0)
+	await wait(1.0)
+	var boss1 := den.boss()
+	check(boss1 != null and boss1 != boss0 and absf(boss1.hp - boss_hp) < 0.5 and boss_hp < boss1.max_hp,
+		"chefe volta com o dano que levou (%.0f/%.0f)" % [boss1.hp if boss1 else -1.0, boss_hp])
+	player.global_position = Vector3(0, 0.5, 14)
+	await wait(1.0)
+	check(not den.awake and den.guards_alive() == 0, "covil volta a dormir")
+	# onda: antes de DEN_FORCE_NIGHT os covis não mexem nela (começo igual ao de antes)
+	var early_ok := true
+	for i in 10:
+		if colony._pick_wave_dirs(1).size() != 1:
+			early_ok = false
+		for it in colony._build_wave(1):
+			if it is Array:
+				early_ok = false
+	check(early_ok, "noite 1: uma direção só e nenhum extra de covil")
+	var forced := colony._pick_wave_dirs(ColonyData.DEN_FORCE_NIGHT)
+	var all_in := true
+	for d in colony.den_dirs():
+		all_in = all_in and d in forced
+	check(all_in, "a partir da noite %d as direções dos covis entram na onda" % ColonyData.DEN_FORCE_NIGHT)
+	# teto: covis no nível máximo somam no máximo DEN_EXTRA_MAX do orçamento
+	var lv_keep: Array = []
+	for dn in colony.dens:
+		lv_keep.append(dn.level)
+		dn.level = ColonyData.DEN_MAX_LEVEL
+	var ex := colony._den_budgets(100.0, 10)
+	var ex_sum := 0.0
+	for d in ex:
+		ex_sum += float(ex[d])
+	check(ex_sum <= 100.0 * ColonyData.DEN_EXTRA_MAX + 0.01, "extra dos covis tem teto (%.0f de 100)" % ex_sum)
+	for i in colony.dens.size():
+		colony.dens[i].level = lv_keep[i]
+	check(colony.den_dirs().has(den.dir_index), "covil de pé entra na onda")
+	colony.start_night()
+	check(den.dir_index in colony.wave_dirs, "direção do covil é forçada na onda")
+	var den_extra := 0
+	for it in colony.wave_queue:
+		if it is Array and int(it[1]) == den.dir_index:
+			den_extra += 1
+	check(den_extra > 0, "covil soma monstros extras na direção dele (%d)" % den_extra)
+	d0 = colony.day
+	for i in 30:
+		colony.wave_queue.clear()
+		for c in colony.get_children():
+			if c is Enemy and not c.dead:
+				c.take_damage(999999, c.global_position, false)
+		await wait(0.3)
+		if colony.phase == "day":
+			break
+	await wait(3.0)
+	check(colony.phase == "day" and colony.day == d0 + 1, "noite com covis termina (dia %d)" % colony.day)
+	if cr.alive:   # a noite a mais deixou o cristal voltar; o save abaixo confere um nó esgotado
+		for i in 6:
+			colony.harvest(cr.id, player.global_position)
+	den.level = 1   # o teste mexe nos dias à mão; conta o crescimento a partir de hoje
+	den.grown_day = colony.day
+	den.dawn(colony.day + 3)
+	check(den.level == 2, "covil cresce a cada 3 dias (nível %d)" % den.level)
+	var lv2 := den.level
+	var gd2 := den.grown_day
+	for i in 10:
+		den.dawn(den.grown_day + ColonyData.DEN_GROW_DAYS)
+	check(den.level == ColonyData.DEN_MAX_LEVEL, "covil para no nível máximo (%d)" % den.level)
+	den.level = lv2
+	den.grown_day = gd2
+	var s0 := colony.amount("stone")
+	var n_nodes := colony.nature.nodes.size()
+	var char_gold_den := Game.gold
+	var run_gold0 := int(colony.run_rewards.gold)   # covis limpos antes (pelo chefe morto) já somaram
+	var den_rw := ColonyData.night_reward(colony.day)
+	if FileAccess.file_exists(Game.colony_save_path):   # o save abaixo tem que vir do on_boss_killed
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(Game.colony_save_path))
+	den.on_boss_killed()
+	# prêmio do covil para o personagem (Econ.grant com a origem da partida) e somado nas recompensas da partida
+	var run_gold := run_gold0 + int(den_rw.gold)
+	check(Game.gold == char_gold_den + int(den_rw.gold) and int(colony.run_rewards.gold) == run_gold,
+		"covil limpo: +%d ouro no personagem e na partida (%d, %s)" % [den_rw.gold, Game.gold, str(colony.run_rewards)])
+	check(den.cleared and colony.amount("stone") > s0 and not colony.den_dirs().has(den.dir_index),
+		"limpar o covil dá recursos e fecha a direção")
+	# solo: o covil limpo já vai para o save em disco (carregar não deixa limpar de novo pelo mesmo prêmio)
+	var den_disk = null
+	var dsf := FileAccess.open(Game.colony_save_path, FileAccess.READ)
+	if dsf != null:
+		var dsave = JSON.parse_string(dsf.get_as_text())
+		dsf.close()
+		if dsave is Dictionary and dsave.get("dens") is Array and den.id < dsave.dens.size():
+			den_disk = dsave.dens[den.id]
+	check(den_disk is Dictionary and bool(den_disk.get("cleared", false)),
+		"save em disco já tem o covil limpo (%s)" % str(den_disk))
+	var rich := colony.nature.node(n_nodes)
+	var dep: Array = ColonyData.POIS[den.kind].deposit
+	check(rich != null and rich.kind == str(dep[0]) and rich.total == int(dep[1]), "limpar o covil deixa um nó rico")
+	if rich:
+		for i in int(ColonyData.NODES[rich.kind].hits):
+			colony.harvest(rich.id, player.global_position)
+		colony.nature.regrow(colony.day + 30)
+		check(not rich.alive, "nó rico é depósito único: esgotado, não volta")
+	if cr.alive:   # o regrow acima devolveu o cristal; o save abaixo confere um nó esgotado
+		for i in 6:
+			colony.harvest(cr.id, player.global_position)
+	colony.phase = "night"
+	player.global_position = colony.dens[1].global_position.move_toward(Vector3.ZERO, 20.0) + Vector3(0, 0.5, 0)
+	await wait(1.0)
+	check(not colony.dens[1].awake and colony.dens[1].guards_alive() == 0, "covis dormem à noite")
+	colony.phase = "day"
+	player.global_position = Vector3(0, 0.5, 14)
+	var rich_id := rich.id if rich else -1
+	var rich_kind := rich.kind if rich else ""
+	var rich_total := rich.total if rich else -1
+	var den1_level := 3
+	colony.dens[1].level = den1_level
+
 	# --- salvar e carregar
 	var nb := colony.buildings().size()
 	var ns := colony.soldier_count()
 	var day_s := colony.day
 	var gold_s := colony.treasury
+	var stone_s := colony.amount("stone")
+	var inv_s: Dictionary = colony.buildings()[0].invested.duplicate()
+	var save_v: int = int(colony.to_dict().get("version", 0))
+	colony.treasury += 200
+	colony.res["wood"] = int(colony.res.get("wood", 0)) + 200
+	check(colony.research("plow") == "", "Arado em andamento na hora de salvar")
+	gold_s = colony.treasury
+	colony.siege_xp = 37   # XP de abates de dia ainda não concedido também vai no save
 	check(world.save_colony(), "salva a cidade")
 	check(Game.has_colony_save(), "arquivo de save existe")
 	Game.start_colony(true)
@@ -231,23 +888,91 @@ func _ready() -> void:
 	check(colony.buildings().size() == nb, "carrega as construções (%d)" % colony.buildings().size())
 	check(colony.soldier_count() == ns, "carrega o exército (%d)" % colony.soldier_count())
 	check(colony.day == day_s and colony.treasury == gold_s, "carrega dia e caixa da cidade (%d)" % colony.treasury)
-	check(int(colony.run_rewards.gold) == int(rw.gold), "recompensas da partida voltam com o save")
-	check(Game.gold == char_gold0 + int(rw.gold), "carregar a cidade não mexe no personagem (%d)" % Game.gold)
+	check(save_v == 2 and colony.amount("stone") == stone_s, "carrega o estoque de recursos (save versão 2)")
+	check(colony.buildings()[0].invested == inv_s, "carrega o investido por recurso")
+	check(colony.has_tech("sharp_axe") and colony.has_tech("masonry") and colony.era() == 2, "carrega as pesquisas e a era")
+	check(colony.busy_t.size() == 1 and str(colony.busy_t.values()[0][0]) == "plow", "pesquisa em andamento volta do save")
+	check(colony.siege_xp == 37, "save guarda o XP de abates ainda não concedido (%d)" % colony.siege_xp)
+	colony.siege_xp = 0
+	check(colony.dens[0].cleared and colony.dens[1].level == den1_level and not colony.dens[1].cleared,
+		"save guarda o estado dos covis")
+	var rich_l := colony.nature.node(rich_id)
+	check(rich_l != null and rich_l.kind == rich_kind and rich_l.total == rich_total, "save guarda o nó rico do covil")
+	check(rich_l != null and not rich_l.alive, "nó rico esgotado continua esgotado no save")
+	var old := colony.to_dict()
+	old.erase("res")
+	old["version"] = 1
+	old["buildings"] = []   # só o estoque interessa aqui; não duplica a cidade carregada
+	old["soldiers"] = []
+	colony.from_dict(old)
+	check(colony.amount("wood") == int(ColonyData.START_RES.wood) and colony.amount("stone") == int(ColonyData.START_RES.stone),
+		"save versão 1 volta com o estoque inicial")
+	check(ColonyData.cost_from(40) == {"gold": 40}, "investido inteiro de save antigo vira ouro")
+	check(int(colony.run_rewards.gold) == run_gold, "recompensas da partida voltam com o save")
+	check(Game.gold == char_gold0 + run_gold, "carregar a cidade não mexe no personagem (%d)" % Game.gold)
 	check(not FileAccess.file_exists("user://colonytest_character.json"), "sem save de personagem da cidade")
 	check(colony.phase == "day" and colony.hall != null, "cidade carregada de dia")
+	check(not colony.nature.node(cr_id).alive, "nó esgotado volta esgotado do save")
+	# save versão 1 (sem semente, sem estoque, sem nós) lido do arquivo
+	var v1 := colony.to_dict()
+	v1.erase("seed")
+	v1.erase("res")
+	v1.erase("nodes")
+	v1.erase("dens")
+	v1.erase("rich")
+	v1["version"] = 1
+	_write_save(v1)
+	Game.start_colony(true)
+	await wait(1.0)
+	_bind()
+	check(world.map_seed == 7731 and colony.amount("wood") == 150, "save antigo carrega com semente 7731 e madeira inicial")
+	check(colony.nature.node(cr_id).alive, "save antigo: todos os nós vivos")
+	var fresh_dens: bool = colony.dens.size() >= 4
+	for dn in colony.dens:
+		fresh_dens = fresh_dens and not dn.cleared and dn.level == 1
+	check(fresh_dens and colony.nature.node(rich_id) == null, "save antigo: covis novos e sem nó rico")
+	# save v1 de verdade: só aldeões em fazenda e mercado, mas já com torres e quartel (agora ocupam gente)
+	var v1b := {"version": 1, "day": 3, "food": 50, "citizens": 4, "treasury": 100,
+		"buildings": [
+			{"kind": "town_hall", "x": 0.0, "z": 0.0, "rot": 0.0},
+			{"kind": "house", "x": 14.0, "z": 0.0, "rot": 0.0},
+			{"kind": "farm", "x": -14.0, "z": 0.0, "rot": 0.0},
+			{"kind": "market", "x": 0.0, "z": 14.0, "rot": 0.0},
+			{"kind": "barracks", "x": 0.0, "z": -14.0, "rot": 0.0},
+			{"kind": "archer_tower", "x": 20.0, "z": 20.0, "rot": 0.0},
+			{"kind": "archer_tower", "x": -20.0, "z": 20.0, "rot": 0.0},
+			{"kind": "cannon_tower", "x": 20.0, "z": -20.0, "rot": 0.0}]}
+	_write_save(v1b)
+	Game.start_colony(true)
+	await wait(1.0)
+	_bind()
+	check(colony.busy() == 8 and colony.citizens >= colony.busy() and colony.staffing() == 1.0,
+		"save v1 com torres e quartel carrega com equipe completa (%d/%d)" % [colony.citizens, colony.busy()])
+	var overlap := 0
+	for nn in colony.nature.nodes:
+		if nn.alive and colony.building_at(Vector2(nn.global_position.x, nn.global_position.z), nn.radius):
+			overlap += 1
+	check(overlap == 0, "save v1: nenhum nó novo nasce dentro de construção (%d)" % overlap)
+	_write_save(v1)   # volta ao save v1 anterior: os testes seguintes dependem dele
+	Game.start_colony(true)
+	await wait(1.0)
+	_bind()
+
+	# --- aldeões visuais: só com tela
+	check(get_tree().get_nodes_in_group("villager_visual").is_empty(), "aldeões visuais não existem no headless")
 
 	# save de uma versão antiga (sem caixa): começa com o caixa inicial (sem migração)
 	var sf := FileAccess.open(Game.colony_save_path, FileAccess.READ)
-	var old: Dictionary = JSON.parse_string(sf.get_as_text())
+	var old_s: Dictionary = JSON.parse_string(sf.get_as_text())
 	sf.close()
-	old.erase("treasury")
+	old_s.erase("treasury")
 	sf = FileAccess.open(Game.colony_save_path, FileAccess.WRITE)
-	sf.store_string(JSON.stringify(old))
+	sf.store_string(JSON.stringify(old_s))
 	sf.close()
 	Game.start_colony(true)
 	await wait(1.0)
 	_bind()
-	check(colony.treasury == ColonyData.START_GOLD and Game.gold == char_gold0 + int(rw.gold),
+	check(colony.treasury == ColonyData.START_GOLD and Game.gold == char_gold0 + run_gold,
 		"save antigo sem caixa: começa com %d (%d), personagem intacto" % [ColonyData.START_GOLD, colony.treasury])
 
 	# --- derrota
@@ -259,11 +984,11 @@ func _ready() -> void:
 	# (solo: o registro é o *_economy.jsonl do FileCharStore)
 	var rows: Array = Econ._store.economy_rows().filter(func(r: Dictionary) -> bool:
 		return int(r.account_id) == CharacterService.SOLO_ACCOUNT and r.kind == "run" and r.source == "city")
-	check(rows.size() == 1 and int(rows[0].amount) == int(rw.gold), "resumo da partida na economia (%s)" % str(rows))
+	check(rows.size() == 1 and int(rows[0].amount) == run_gold, "resumo da partida na economia (%s)" % str(rows))
 	var nights_rows: Array = Econ._store.economy_rows().filter(func(r: Dictionary) -> bool:
 		return int(r.account_id) == CharacterService.SOLO_ACCOUNT and r.source == "city_night")
 	check(nights_rows.is_empty(), "recompensa da noite sem linha própria")
-	check(Game.gold == char_gold0 + int(rw.gold), "fim da partida: o caixa da cidade some, o personagem fica com a recompensa (%d)" % Game.gold)
+	check(Game.gold == char_gold0 + run_gold, "fim da partida: o caixa da cidade some, o personagem fica com a recompensa (%d)" % Game.gold)
 	# Ecos da partida: pelas noites seguradas (a cidade caiu no dia day_s → day_s - 1 noites)
 	var det = JSON.parse_string(str(rows[0].detail)) if rows.size() == 1 else {}
 	var ecos_exp := RewardRules.ecos(Balance.tables, "city", day_s - 1)
@@ -277,7 +1002,8 @@ func _ready() -> void:
 	colony.new_colony({"city_gold": 40, "city_food": 6, "hall_hp": 0.1})
 	check(colony.treasury == ColonyData.START_GOLD + 40 and colony.food == ColonyData.START_FOOD + 6,
 		"bônus da base: caixa %d e comida %d" % [colony.treasury, colony.food])
-	var hall_hp := float(ColonyData.building("town_hall").hp) * ColonyData.level_mult(1, 0.4)
+	# as pesquisas da partida (Alvenaria...) também multiplicam a vida da prefeitura
+	var hall_hp := float(ColonyData.building("town_hall").hp) * ColonyData.level_mult(1, 0.4) * colony.bld_hp_mult("town_hall")
 	var h2 := colony.place("town_hall", Vector3(0, 0, -30), 0.0, true)
 	await wait(0.1)
 	check(h2 != null and absf(h2.max_hp - hall_hp * 1.1) < 0.01,
@@ -289,6 +1015,39 @@ func _ready() -> void:
 
 	print("\n%s — %d falha(s)" % ["OK" if fails == 0 else "FALHOU", fails])
 	get_tree().quit(1 if fails > 0 else 0)
+
+
+func _obstacle_at(p: Vector3) -> bool:
+	for o in colony.obstacles:
+		if Vector2(p.x, p.z).distance_to(o[0]) < 0.1:
+			return true
+	return false
+
+
+func _write_save(d: Dictionary) -> void:
+	var f := FileAccess.open(Game.colony_save_path, FileAccess.WRITE)
+	f.store_string(JSON.stringify(d, "\t"))
+	f.close()
+
+
+## Ponto livre a 50-75 m do centro com árvores/pedras suficientes em volta (para serraria/pedreira).
+func _camp_spot(kind: String) -> Vector3:
+	var fallback := Vector3.INF
+	for n in colony.nature.nodes:
+		var d := Vector2(n.global_position.x, n.global_position.z).length()
+		if n.kind != kind or not n.alive or d < 50.0 or d > 72.0:
+			continue
+		for dx in [-6.0, -3.0, 0.0, 3.0, 6.0]:
+			for dz in [-6.0, -3.0, 0.0, 3.0, 6.0]:
+				var p: Vector3 = n.global_position + Vector3(dx, 0.0, dz)
+				if Vector2(p.x, p.z).length() > 74.0 or colony.nature.alive_near(kind, p, 14.0).size() < 4:
+					continue
+				if fallback == Vector3.INF:
+					fallback = p
+				var k := "lumber_camp" if kind == "tree" else "quarry"
+				if colony.can_place(k, p, 0.0) == "":
+					return p
+	return fallback
 
 
 func _bind() -> void:
@@ -303,3 +1062,81 @@ func _total_xp() -> int:
 	for lv in range(1, Game.level):
 		t += CharRules.xp_to_next(lv, Balance.tables)
 	return t
+
+
+## Guarda dos números do mapa que a simulação da economia (tests/economy_sim.gd) usa: roda o gerador de verdade
+## em SIM_SEEDS sementes e confere que os veios são os de ColonyNature.VEINS e que o melhor lugar de serraria e
+## de pedreira (anel de 52 m a max_dist, sem obstáculo na pegada) tem pelo menos CAMP_NODES[0] nós no raio.
+const SIM_SEEDS := 12
+
+
+func _check_sim_map_numbers() -> void:
+	var t0 := Time.get_ticks_msec()
+	var camp_nodes: Dictionary = load("res://tests/economy_sim.gd").CAMP_NODES
+	var mins := {"lumber_camp": [9999, 9999, 9999], "quarry": [9999, 9999, 9999]}
+	var veins_ok := true
+	var holder := Node3D.new()
+	add_child(holder)
+	for s in SIM_SEEDS:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 1000 + s * 7919
+		var stub := Colony.new()
+		var nat := MapOnly.new()
+		holder.add_child(nat)
+		nat.generate(rng, stub)
+		for k in ColonyNature.VEINS:
+			veins_ok = veins_ok and nat.count(k) == int(ColonyNature.VEINS[k])
+		for kind in mins:
+			var best := _best_camp_spots(nat, stub, kind, 3)
+			for i in 3:
+				mins[kind][i] = mini(int(mins[kind][i]), best[i])
+		nat.free()
+		stub.free()
+	holder.queue_free()
+	print("  (guarda do mapa: %d ms)" % (Time.get_ticks_msec() - t0))
+	check(veins_ok, "simulação: veios do mapa = ColonyNature.VEINS em %d sementes" % SIM_SEEDS)
+	for kind in mins:
+		var ok := true
+		for i in mini(3, camp_nodes[kind].size()):
+			ok = ok and int(mins[kind][i]) >= int(camp_nodes[kind][i])
+		check(ok, "simulação: 1º/2º/3º lugar de %s têm >= %s nós em %d sementes (pior: %s)" %
+			[kind, str(camp_nodes[kind]), SIM_SEEDS, str(mins[kind])])
+
+
+## Nós no raio dos `n` melhores lugares livres para `kind` (o 2º sem os nós do 1º...), numa grade de 2 m.
+func _best_camp_spots(nat: ColonyNature, stub: Colony, kind: String, n: int) -> Array[int]:
+	var d: Dictionary = ColonyData.BUILDINGS[kind]
+	var reach := float(d.reach)
+	var pts: Array[Vector2] = []
+	for nd in nat.nodes:
+		if nd.kind == d.gather:
+			pts.append(Vector2(nd.position.x, nd.position.z))
+	var used := {}
+	var out: Array[int] = []
+	for rank in n:
+		var best := 0
+		var best_set: Array[int] = []
+		for x in range(-80, 81, 2):
+			for z in range(-80, 81, 2):
+				var c := Vector2(x, z)
+				if c.length() < 52.0 or c.length() > float(d.max_dist):
+					continue
+				var hit: Array[int] = []
+				for i in pts.size():
+					if not used.has(i) and pts[i].distance_to(c) <= reach:
+						hit.append(i)
+				if hit.size() <= best:
+					continue
+				var rect: Array = stub._rect(c, 0.0, d.size)
+				var free := true
+				for o in stub.obstacles:
+					if stub._circle_hits(rect, o[0], float(o[1])):
+						free = false
+						break
+				if free:
+					best = hit.size()
+					best_set = hit
+		out.append(best)
+		for i in best_set:
+			used[i] = true
+	return out

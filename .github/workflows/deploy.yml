@@ -61,8 +61,16 @@ jobs:
       - name: Testes unitários
         run: timeout 300 godot --headless --path . -s tests/unit/run.gd
 
+      # metas de equilíbrio da Defesa da Cidade (seção 18 do spec: eras, munição, madeira parada, pesquisas)
+      # simuladas por 15 dias em solo, com 2 e com 4 jogadores; sai com 1 se alguma meta falhar
+      - name: Simulação da economia da cidade
+        run: timeout 120 godot --headless --path . --script res://tests/economy_sim.gd
+
       - name: Teste de gameplay (smoke test)
         run: timeout 600 godot --headless --path . res://scenes/world.tscn -- --smoketest
+
+      - name: Teste do modelo do ferreiro (esqueleto e clipes)
+        run: timeout 120 godot --headless --path . --script res://tests/blacksmith_asset_test.gd
 
       - name: Teste da Defesa da Cidade
         run: timeout 600 godot --headless --path . res://scenes/colony.tscn -- --colonytest
@@ -92,7 +100,7 @@ jobs:
       - name: Teste da Defesa da Cidade em grupo (praça + servidor + 2 clientes)
         run: |
           db=$(mktemp --suffix=.db); rm -f "$db"
-          godot --headless --path . -- --server --port=7791 --http-port=8791 --db="$db" --test --city-day=12 > city_server.log 2>&1 &
+          godot --headless --path . -- --server --port=7791 --http-port=8791 --db="$db" --test --city-day=12 --city-event=caravan > city_server.log 2>&1 &
           for i in $(seq 1 30); do grep -q "ouvindo em UDP" city_server.log && break; sleep 1; done
           timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7791 --auth-url=http://127.0.0.1:8791 --peers=2 --name=Caio --city=lead > caio.log 2>&1 & A=$!
           timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7791 --auth-url=http://127.0.0.1:8791 --peers=2 --name=Duda --city=join > duda.log 2>&1 & B=$!

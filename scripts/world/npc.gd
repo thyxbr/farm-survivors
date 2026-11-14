@@ -4,6 +4,12 @@ extends StaticBody3D
 const MODELS := {
 	"elder": preload("res://assets/models/elder.glb"),
 	"merchant": preload("res://assets/models/merchant.glb"),
+	"blacksmith": preload("res://assets/models/blacksmith.glb"),
+}
+const NAMES := {
+	"elder": "Ancião Bram",
+	"merchant": "Mira, a Mercadora",
+	"blacksmith": "Doran, o Ferreiro",
 }
 
 @export var npc_id := "elder"
@@ -20,7 +26,7 @@ func _ready() -> void:
 	add_to_group("interactable")
 	collision_layer = 8
 	collision_mask = 0
-	npc_name = "Ancião Bram" if npc_id == "elder" else "Mira, a Mercadora"
+	npc_name = NAMES[npc_id]
 	var col := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = 0.4
@@ -121,6 +127,13 @@ func _next_quest() -> String:
 # ---------------------------------------------------------------- diálogos
 ## Cada página: {"text": String, "choices": [{"text": String, "action": Callable}]}
 func _build_dialogue() -> Array:
+	if npc_id == "blacksmith":
+		return [
+			{"text": "Mais um golpe e essa lâmina fica pronta. Ferro bom vem das minas do norte, mas o carvão... esse está cada vez mais caro."},
+			{"text": "Se a Mira te vendeu alguma espada, pode apostar que passou por esta bigorna."},
+			{"text": "Agora, se me der licença, o ferro não espera esfriar.",
+				"choices": [{"text": "Até logo", "action": Callable()}]},
+		]
 	if npc_id == "merchant":
 		return [{
 			"text": "Bem-vindo à barraca da Mira! Poções, lâminas e armaduras — tudo pelo preço justo. Também compro o que você trouxer da mata.",

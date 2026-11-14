@@ -1,6 +1,6 @@
 ---
 name: smoke-check
-description: "Roda localmente os mesmos testes que o CI do Ecos de Valdoria roda antes do deploy (import, unitários, smoke test de gameplay, Defesa da Cidade, praça, multiplayer da Horda e da cidade em grupo) e entrega um veredito PASSOU/FALHOU/NÃO RODOU por teste. Use antes de abrir PR, antes de merge no main, depois de mexer em gameplay ou rede, ou quando pedirem 'roda os testes'."
+description: "Roda localmente os mesmos testes que o CI do Ecos de Valdoria roda antes do deploy (import, unitários, simulação da economia da cidade, smoke test de gameplay, Defesa da Cidade, praça, multiplayer da Horda e da cidade em grupo) e entrega um veredito PASSOU/FALHOU/NÃO RODOU por teste. Use antes de abrir PR, antes de merge no main, depois de mexer em gameplay ou rede, ou quando pedirem 'roda os testes'."
 argument-hint: "[tudo | rapido | unit | gameplay | cidade | praca | rede]"
 license: MIT
 metadata:
@@ -45,8 +45,8 @@ grep -A1 "SCRIPT ERROR" "$TEMP/import.log"   # qualquer saída aqui = FALHOU
 
 ## Testes
 
-Escopo pelo argumento (padrão `tudo`): `rapido` = import + unitários + gameplay;
-`unit` = import + unitários; `gameplay` = import + gameplay; `cidade` = import + cidade + cidade em grupo;
+Escopo pelo argumento (padrão `tudo`): `rapido` = import + unitários + economia + gameplay;
+`unit` = import + unitários; `gameplay` = import + gameplay; `cidade` = import + economia + cidade + cidade em grupo;
 `praca` = import + praça; `rede` = import + os dois testes de multiplayer.
 
 Rode cada um com saída em arquivo no `$TEMP` e pegue o código de saída.
@@ -61,6 +61,17 @@ aparece no log e não é falha.
 ```bash
 timeout 300 "$G" --headless --path . -s tests/unit/run.gd > "$TEMP/unit.log" 2>&1; echo "exit=$?"
 grep -E "FALHOU|FALHA|testes," "$TEMP/unit.log"
+```
+
+**0b. Economia da cidade** (`tests/economy_sim.gd`, poucos segundos): simula 15 dias da Defesa da Cidade em
+solo, com 2 e com 4 jogadores (um "jogador razoável" scriptado, só com as contas de `ColonyData`) e confere as
+metas de equilíbrio da seção 18 do spec (era II entre os dias 4 e 6, era III entre 9 e 12, madeira nunca zera à
+noite, madeira não acumula, pesquisas). Imprime a tabela de cada dia, `PASS`/`FAIL` por meta e no fim
+`OK — 0 falha(s)`; sai com 1 se alguma meta falhar. Mexeu em custo, produção, munição, era ou pesquisa? Rode este.
+
+```bash
+timeout 120 "$G" --headless --path . --script res://tests/economy_sim.gd > "$TEMP/economy.log" 2>&1; echo "exit=$?"
+grep -E "FAIL|falha" "$TEMP/economy.log"
 ```
 
 **1. Gameplay** (`tests/smoke_test.gd`, ~1 a 3 min): diálogo e missões, combate,
@@ -104,7 +115,8 @@ grep -hE "PASS|FAIL|NETTEST" "$TEMP/ana.log" "$TEMP/beto.log"; echo "exit=$(( RA
 ```
 
 **4. Cidade em grupo** (praça + servidor + 2 clientes): igual ao 3, com outras portas (UDP e HTTP) e outro
-banco novo, servidor com `--city-day=12` (além de `--http-port`, `--db`, `--test`) e clientes com
+banco novo, servidor com `--city-day=12 --city-event=caravan` (além de `--http-port`, `--db`, `--test`; o evento
+forçado é o da troca com a caravana no dia 2) e clientes com
 `--auth-url=...` e `--city=lead` / `--city=join` (nomes Caio e Duda, logs `city_server.log`, `caio.log`, `duda.log`).
 
 Sem `--test` no servidor as compras do net_test falham; sem `--auth-url` (ou com a porta HTTP errada) os
@@ -135,6 +147,7 @@ de `server.log`), não FALHOU.
 |---|---|---|
 | Import | PASSOU | sem SCRIPT ERROR |
 | Unitários | PASSOU | 96 testes, 0 falharam |
+| Economia da cidade | PASSOU | OK — 0 falha(s) |
 | Gameplay (--smoketest) | PASSOU | 74 PASS, 0 FAIL |
 | Defesa da Cidade (--colonytest) | FALHOU | FAIL  torre de canhão acerta em área |
 | Praça (--hubtest) | PASSOU | 55 PASS, 0 FAIL |

@@ -512,6 +512,15 @@ func server_enemy_killed(e: Enemy) -> void:
 		_enemy_died.rpc_id(pid, e.net_id)
 
 
+## Inimigo que some sem morrer (guarda de covil que voltou a dormir): sem recompensa, só sai das réplicas.
+func server_enemy_despawn(e: Enemy) -> void:
+	if e.net_id == 0:
+		return
+	for pid in _enemy_peers(e):
+		_enemy_gone.rpc_id(pid, e.net_id)
+	unregister_enemy(e)
+
+
 func _send_enemy_snapshot() -> void:
 	if enemies.is_empty():
 		return
@@ -969,6 +978,14 @@ func _enemy_hit_fx(net_id: int, amount: float, crit: bool) -> void:
 	var e: Enemy = enemies.get(net_id)
 	if e and is_instance_valid(e):
 		e.show_hit(amount, crit)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _enemy_gone(net_id: int) -> void:
+	var e: Enemy = enemies.get(net_id)
+	enemies.erase(net_id)
+	if e and is_instance_valid(e):
+		e.queue_free()
 
 
 @rpc("authority", "call_remote", "reliable")

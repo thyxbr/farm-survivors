@@ -19,6 +19,11 @@ func _ready() -> void:
 			n.interact(null)
 	await _shot(dir + "/m_dialogue_merchant.png", 1.5)
 	world.modal._close()
+	for n in get_tree().get_nodes_in_group("interactable"):
+		if n.npc_id == "blacksmith":
+			n.interact(null)
+	await _shot(dir + "/m_dialogue_blacksmith.png", 1.5)
+	world.modal._close()
 	await get_tree().create_timer(0.8).timeout
 	world._open_menu(0)
 	await _shot(dir + "/m_inventory.png", 0.4)

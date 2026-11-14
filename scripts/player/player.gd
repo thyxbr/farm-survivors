@@ -546,6 +546,19 @@ func _do_hit() -> void:
 		e.take_damage(dmg, global_position, crit, 2.5 if _weapon_fx() == "slow" else 0.0)
 		Game.on_damage_dealt(dmg, e.max_hp)
 		hit_any = true
+	# nós de recurso da Defesa da Cidade (árvores, pedras, veios...): mesmo alcance e mesmo cone
+	for n in get_tree().get_nodes_in_group("harvest"):
+		if not n.alive:
+			continue
+		var to: Vector3 = n.global_position - global_position
+		to.y = 0
+		var dist := to.length()
+		if dist > reach + n.radius:
+			continue
+		if combo < 3 and dist > 0.6 and f.dot(to.normalized()) < 0.3:
+			continue
+		n.hit(global_position)
+		hit_any = true
 	if hit_any:
 		Sfx.play("hit")
 		add_shake(0.12 if combo < 3 else 0.22)

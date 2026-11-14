@@ -63,6 +63,8 @@ var _bonus := {}
 ## Duração do dia na cidade (--city-day=SEG encurta para os testes).
 var city_day_time := ColonyData.DAY_LENGTH
 var city_first_bonus := ColonyData.FIRST_DAY_BONUS
+## Servidor: evento do dia forçado no primeiro amanhecer possível de cada partida (--city-event=TIPO, net_test).
+var city_force_event := ""
 
 
 func _ready() -> void:
@@ -71,6 +73,8 @@ func _ready() -> void:
 		if a.begins_with("--city-day="):
 			city_day_time = maxf(5.0, float(a.substr(11)))
 			city_first_bonus = 0.0
+		elif a.begins_with("--city-event="):
+			city_force_event = a.substr(13)
 
 
 # ================================================================ cliente: navegação
@@ -185,6 +189,12 @@ func city_request(action: String, args: Array) -> void:
 func city_hit_animal(net_id: int, amount: float, from_pos: Vector3, slow: float) -> void:
 	if Network.is_client():
 		_city_hit_animal.rpc_id(1, net_id, amount, from_pos, slow)
+
+
+## Golpe num nó de recurso (árvore, pedra, veio...): o servidor decide e coleta.
+func city_hit_node(id: int) -> void:
+	if Network.is_client():
+		_city_hit_node.rpc_id(1, id)
 
 
 func _colony() -> Colony:
@@ -371,6 +381,8 @@ func _start_city() -> void:
 	_city.coop_players = _room.members.size()
 	_city.base_bonus = _bonus
 	_vp.add_child(_city)
+	if city_force_event != "" and _city.colony and _city.colony.events:
+		_city.colony.events.force_next = city_force_event
 	print("[server] Defesa da Cidade em grupo começou (%d jogadores, mapa %d)" % [_room.members.size(), seed])
 	for pid in _room.members:
 		_city_go.rpc_id(pid, seed)
@@ -380,6 +392,7 @@ func _start_city() -> void:
 ## Um jogador saiu da cidade (voltou à praça, caiu a conexão...).
 func server_city_left(id: int) -> void:
 	_present.erase(id)
+	_harvest_last.erase(id)
 	if _room.is_empty():
 		return
 	_room.members.erase(id)
@@ -560,6 +573,32 @@ func _city_hit_animal(net_id: int, amount: float, from_pos: Vector3, slow: float
 		a.apply_slow(minf(slow, 10.0))
 
 
+## Golpes de coleta aceitos de um mesmo jogador: no mínimo 0,2 s entre um e outro.
+const HARVEST_PEER_COOLDOWN_MS := 200
+var _harvest_last := {}
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _city_hit_node(id: int) -> void:
+	var pid := _sender()
+	var c := _colony()
+	if pid == 0 or c == null or Network.zone_of(pid) != "city" or c.nature == null or c.phase == "over":
+		return
+	var now := Time.get_ticks_msec()
+	if now - int(_harvest_last.get(pid, -100000)) < HARVEST_PEER_COOLDOWN_MS:
+		return   # limite por jogador, além do limite por nó (varrer nós diferentes não burla a cadência)
+	_harvest_last[pid] = now
+	var n := c.nature.node(id)
+	if n == null or not n.alive:
+		return
+	# o golpe vem do cliente: só vale perto do nó (última posição recebida do jogador)
+	if not HitGuard.accepts_harvest(Network.last_pos.get(pid, Vector3.INF), n.global_position):
+		return
+	if not c.nature.take_hit(id):
+		return
+	c.harvest(id, n.global_position)
+
+
 ## Monstro da cidade morto: ouro no cofre e XP para quem acertou.
 func server_city_kill(e: Enemy) -> void:
 	var c := _colony()
@@ -593,14 +632,31 @@ func city_night_survived(n: int) -> void:
 			got[id] = int(got.get(id, 0)) + 1
 		# o servidor concede no personagem (resumo da partida no fim, em _end_city) e só depois avisa
 		var r := Econ.server_grant(pid, int(rw.gold), int(rw.xp), got, "city_night", 0, true)
-		if r.ok:
-			acc.gold += int(rw.gold)
-			acc.xp += int(rw.xp)
-			acc.items.append_array(items)
+		_add_reward(pid, int(rw.gold), int(rw.xp), items, bool(r.ok))
 		Econ.server_record(pid, "city_best", n)
 		_city_reward.rpc_id(pid, n, int(rw.gold), int(rw.xp), items)
 	_update_record(n)
 	_broadcast_room()
+
+
+## Covil limpo: cada jogador na cidade ganha ouro e XP no próprio personagem. O servidor concede pelo Econ
+## (origem da partida "city_night", que entra no resumo do fim) e soma no resultado da partida.
+func city_den_reward(den_name: String, gold: int, xp: int) -> void:
+	for pid in Network.zone_peers("city"):
+		var r := Econ.server_grant(pid, gold, xp, {}, "city_night", 0, true)
+		_add_reward(pid, gold, xp, [], bool(r.ok))
+		if r.ok:   # sem concessão (sem sessão) não há o que avisar
+			_city_den_reward.rpc_id(pid, den_name, gold, xp)
+
+
+## Soma no acumulado da partida do peer (resultado e linha de resumo no fim, em _end_city).
+## granted = false: a concessão falhou (sem sessão); só garante a entrada com a conta.
+func _add_reward(pid: int, gold: int, xp: int, items: Array, granted := true) -> void:
+	var acc := _reward_acc(pid)
+	if granted:
+		acc.gold += gold
+		acc.xp += xp
+		acc.items.append_array(items)
 
 
 func city_defeat() -> void:
@@ -640,11 +696,31 @@ func city_soldier_removed(s: ColonySoldier, died: bool) -> void:
 
 
 func city_animal_added(a: ColonyAnimal) -> void:
-	_to_city("_city_ani_add", [a.net_id, a.kind, a.position.x, a.position.z])
+	_to_city("_city_ani_add", [a.net_id, a.kind, a.position.x, a.position.z, a.alpha])
 
 
 func city_animal_removed(a: ColonyAnimal, killed: bool) -> void:
 	_to_city("_city_ani_del", [a.net_id, killed])
+
+
+## Nó de recurso esgotou (alive = false) ou voltou.
+func city_node_state(id: int, alive: bool) -> void:
+	_to_city("_city_node", [id, alive])
+
+
+## Covil mudou de nível ou foi limpo.
+func city_den_state(id: int, level: int, cleared: bool) -> void:
+	_to_city("_city_den", [id, level, cleared])
+
+
+## Evento do dia começou (active) ou acabou: os clientes põem ou tiram a caravana, os aldeões, o baú.
+func city_event(kind: String, x: float, z: float, active: bool) -> void:
+	_to_city("_city_event", [kind, x, z, active])
+
+
+## Nó rico novo (covil limpo): os clientes criam o mesmo nó, com o mesmo id.
+func city_rich_node(id: int, kind: String, x: float, z: float, total: int) -> void:
+	_to_city("_city_rich", [id, kind, x, z, total])
 
 
 func city_enemy_meta(e: Enemy) -> void:
@@ -705,11 +781,22 @@ func _city_full(d: Dictionary) -> void:
 	if d.get("bonus") is Dictionary:
 		c.base_bonus = (d.bonus as Dictionary).duplicate()
 	for b in d.get("buildings", []):
-		c.net_building_add(int(b[0]), str(b[1]), float(b[2]), float(b[3]), float(b[4]), int(b[5]), float(b[6]), int(b[7]), false)
+		c.net_building_add(int(b[0]), str(b[1]), float(b[2]), float(b[3]), float(b[4]), int(b[5]), float(b[6]), b[7], false)
 	for s in d.get("soldiers", []):
 		c.net_soldier_add(int(s[0]), str(s[1]), float(s[2]), float(s[3]), float(s[4]), false)
 	for a in d.get("animals", []):
-		c.net_animal_add(int(a[0]), str(a[1]), float(a[2]), float(a[3]))
+		c.net_animal_add(int(a[0]), str(a[1]), float(a[2]), float(a[3]), a.size() > 4 and bool(a[4]))
+	if c.nature:
+		for r in d.get("rich", []):   # antes dos esgotados: um nó rico também pode estar esgotado
+			c.nature.net_add_rich(int(r[0]), str(r[1]), float(r[2]), float(r[3]), int(r[4]))
+		for id in d.get("nodes", []):
+			c.nature.net_set(int(id), false, false)
+	var dl: Array = d.get("dens", [])
+	for i in mini(dl.size(), c.dens.size()):
+		c.dens[i].net_set(int(dl[i][0]), bool(dl[i][1]), false)
+	var ev: Array = d.get("event", [])
+	if ev.size() == 3:
+		c.events.net_event(str(ev[0]), float(ev[1]), float(ev[2]), true, false)
 	c.apply_state(d.get("state", {}))
 	if city and city.has_method("on_city_synced"):
 		city.on_city_synced()
@@ -730,14 +817,14 @@ func _city_snap(ss: PackedFloat32Array, aa: PackedFloat32Array, bh: PackedFloat3
 
 
 @rpc("authority", "call_remote", "reliable")
-func _city_bld_add(id: int, kind: String, x: float, z: float, rot: float, level: int, hp: float, invested: int) -> void:
+func _city_bld_add(id: int, kind: String, x: float, z: float, rot: float, level: int, hp: float, invested: Dictionary) -> void:
 	var c := _colony()
 	if c:
 		c.net_building_add(id, kind, x, z, rot, level, hp, invested)
 
 
 @rpc("authority", "call_remote", "reliable")
-func _city_bld_set(id: int, level: int, hp: float, invested: int) -> void:
+func _city_bld_set(id: int, level: int, hp: float, invested: Dictionary) -> void:
 	var c := _colony()
 	if c:
 		c.net_building_set(id, level, hp, invested)
@@ -765,10 +852,10 @@ func _city_sol_del(id: int, died: bool) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _city_ani_add(id: int, kind: String, x: float, z: float) -> void:
+func _city_ani_add(id: int, kind: String, x: float, z: float, alpha: bool) -> void:
 	var c := _colony()
 	if c:
-		c.net_animal_add(id, kind, x, z)
+		c.net_animal_add(id, kind, x, z, alpha)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -776,6 +863,42 @@ func _city_ani_del(id: int, killed: bool) -> void:
 	var c := _colony()
 	if c:
 		c.net_animal_remove(id, killed)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _city_node(id: int, alive: bool) -> void:
+	var c := _colony()
+	if c and c.nature:
+		c.nature.net_set(id, alive)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _city_den(id: int, level: int, cleared: bool) -> void:
+	var c := _colony()
+	if c and id >= 0 and id < c.dens.size():
+		c.dens[id].net_set(level, cleared)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _city_rich(id: int, kind: String, x: float, z: float, total: int) -> void:
+	var c := _colony()
+	if c and c.nature:
+		c.nature.net_add_rich(id, kind, x, z, total)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _city_event(kind: String, x: float, z: float, active: bool) -> void:
+	var c := _colony()
+	if c and c.events:
+		c.events.net_event(kind, x, z, active)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _city_den_reward(den_name: String, gold: int, xp: int) -> void:
+	# o servidor já concedeu (ouro e XP chegam pelo Econ): aqui só o aviso
+	Game.notify.emit("%s limpo! Recompensa: +%d ouro e +%d XP para o seu personagem." % [den_name, gold, xp], Color(1, 0.85, 0.35))
+	Sfx.play("quest", 0.0, -2.0)
+	save_character()
 
 
 @rpc("authority", "call_remote", "reliable")

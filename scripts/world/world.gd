@@ -23,9 +23,12 @@ const M := {
 	"campfire": preload("res://assets/models/campfire.glb"),
 	"tent": preload("res://assets/models/tent.glb"),
 	"chest": preload("res://assets/models/chest.glb"),
+	"anvil": preload("res://assets/models/anvil.glb"),
+	"forge": preload("res://assets/models/forge.glb"),
 }
 const ENEMY := preload("res://scripts/enemies/enemy.gd")
 const NPC := preload("res://scripts/world/npc.gd")
+const BLACKSMITH := preload("res://scripts/world/blacksmith.gd")
 const PLAYER := preload("res://scripts/player/player.gd")
 const HUD := preload("res://scripts/ui/hud.gd")
 const DIALOGUE := preload("res://scripts/ui/dialogue_ui.gd")
@@ -285,6 +288,17 @@ func _build_village() -> void:
 	merchant.position = Vector3(6.8, 0, 1.6)
 	merchant.rotation.y = -PI / 2
 	add_child(merchant)
+	# ferraria no vão entre as casas de (-13, 7) e (-5, 16), de frente para o poço: da praça se vê o ferreiro
+	# atrás da bigorna (o lampião de (-6, 8) fica de lado na visada); longe dos canteiros das portas
+	var smith := BLACKSMITH.new()
+	smith.position = Vector3(-10.5, 0, 13)
+	smith.rotation.y = atan2(10.5, -9.0)
+	var smithy := Transform3D(Basis(Vector3.UP, smith.rotation.y), smith.position)
+	smith.anvil = prop("anvil", smithy * BLACKSMITH.ANVIL_OFFSET, smith.rotation.y + BLACKSMITH.ANVIL_YAW, 1.0,
+		"cyl", Vector3(0.3, 0.8, 0))
+	prop("forge", smithy * BLACKSMITH.FORGE_OFFSET, smith.rotation.y + BLACKSMITH.FORGE_YAW, 1.0,
+		"box", Vector3(0.9, 1.0, 0.8))
+	add_child(smith)
 	var portal := PORTAL.new()
 	portal.position = PORTAL_POS
 	add_child(portal)

@@ -20,3 +20,9 @@ func test_rejects_far_or_unknown() -> void:
 func test_slow_only_needs_range() -> void:
 	T.ok(HitGuard.accepts(0.0, Vector3(5, 0, 0), Vector3.ZERO), "só lentidão, perto")
 	T.ok(not HitGuard.accepts(0.0, Vector3(100, 0, 0), Vector3.ZERO), "só lentidão, longe")
+
+
+func test_harvest_needs_to_be_close() -> void:
+	T.ok(HitGuard.accepts_harvest(Vector3(2, 0.5, 1), Vector3.ZERO), "golpe na árvore ao lado vale")
+	T.ok(not HitGuard.accepts_harvest(Vector3(HitGuard.HARVEST_RANGE + 1.0, 0, 0), Vector3.ZERO), "golpe de longe no nó não conta")
+	T.ok(not HitGuard.accepts_harvest(Vector3.INF, Vector3.ZERO), "sem posição conhecida o golpe no nó não conta")
