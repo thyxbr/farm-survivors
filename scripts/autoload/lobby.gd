@@ -83,7 +83,7 @@ func on_accepted() -> void:
 	_last_world_pos = Game.spawn_position
 	_last_world_yaw = Game.spawn_yaw
 	last_result = {}
-	get_tree().change_scene_to_file(HUB_SCENE)
+	Loading.go(HUB_SCENE)
 
 
 ## Está na praça ou na cidade em grupo (para a desconexão voltar ao menu).
@@ -104,7 +104,7 @@ func go_world() -> void:
 	Game.spawn_position = _last_world_pos
 	Game.spawn_yaw = _last_world_yaw
 	get_tree().paused = false
-	get_tree().change_scene_to_file(WORLD_SCENE)
+	Loading.go(WORLD_SCENE)
 
 
 ## De Valdoria, da Horda ou da cidade de volta à praça (online e solo; salva o personagem antes).
@@ -122,7 +122,7 @@ func go_hub(save_pos := true) -> void:
 	Hub.horde_return = false
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	get_tree().change_scene_to_file(HUB_SCENE)
+	Loading.go(HUB_SCENE)
 
 
 ## Manda vida/mana e a última posição em Valdoria ao servidor (a cidade não muda onde ele está no RPG).
@@ -762,7 +762,7 @@ func _city_go(seed: int) -> void:
 	save_character()
 	Game.reset_run_mods()
 	get_tree().paused = false
-	get_tree().change_scene_to_file(COLONY_SCENE)
+	Loading.go(COLONY_SCENE)
 
 
 @rpc("authority", "call_remote", "reliable")
