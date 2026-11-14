@@ -129,17 +129,53 @@ func _ready() -> void:
 	var ch_from := player.global_position
 	player.use_slot(1)
 	check(player.ability == "sword_charge", "Investida começa (%s)" % player.ability)
-	await wait(0.6)
+	var mask_c: int = player.collision_mask
+	await wait(0.75)   # folga sobre SwordAbilities.CHARGE_TIME (0,6 s)
 	var ch_d := Vector2(player.global_position.x - ch_from.x, player.global_position.z - ch_from.z).length()
 	check(ch_s.hp < ch_hp, "Investida fere o slime no caminho (%.0f -> %.0f)" % [ch_hp, ch_s.hp])
+	# o dano é fixo (melee_damage x1,6, sem crítico): a perda de vida igual a um golpe prova acerto único
+	check(is_equal_approx(ch_hp - ch_s.hp, Game.melee_damage() * SwordAbilities.CHARGE_MULT),
+		"Investida acerta cada inimigo uma vez só (perdeu %.1f, golpe %.1f)" % [ch_hp - ch_s.hp, Game.melee_damage() * SwordAbilities.CHARGE_MULT])
 	check(ch_d >= 3.0 and ch_d <= 5.5, "Investida avança entre 3 e 5,5 m (%.2f)" % ch_d)
 	check(player.ability == "" and player.cooldowns.sword_charge > 0.0, "Investida termina e entra em recarga (%s, %.2f)" % [player.ability, player.cooldowns.sword_charge])
-	check(player.collision_mask == 1 | 4 | 8 and Vector2(player.velocity.x, player.velocity.z).length() < 0.01, "Investida não deixa colisão nem velocidade especial")
-	# end_ability limpa tudo; abrir menu (build_lock) encerra
+	check(player.collision_mask == mask_c, "Investida devolve a colisão com inimigos ao terminar")
+	# as próximas investidas vão para longe do slime (+Z)
+	var away := ch_s.global_position + Vector3(0, 0.3, 3.0)
+	# end_ability no meio do avanço: colisão de volta e sem velocidade especial
+	player.global_position = away
+	player.model.rotation.y = 0.0
 	player.cooldowns.sword_charge = 0.0
 	player.use_slot(1)
+	await wait(0.25)
+	var mid_v := Vector2(player.velocity.x, player.velocity.z).length()
+	check(player.ability == "sword_charge" and player.collision_mask != mask_c and mid_v > 10.0,
+		"Investida no meio do avanço atravessa inimigos (vel %.1f)" % mid_v)
 	player.end_ability()
-	check(player.ability == "" and player.ability_t == 0.0, "end_ability limpa o estado")
+	check(player.ability == "" and player.ability_t == 0.0 and player.collision_mask == mask_c
+		and Vector2(player.velocity.x, player.velocity.z).length() < 0.01, "end_ability no avanço limpa estado, colisão e velocidade")
+	# esquiva: cancela no preparo, é ignorada no avanço
+	Game.stamina = Game.max_stamina()
+	player.global_position = away
+	player.velocity = Vector3.ZERO
+	await wait(0.2)
+	player.cooldowns.sword_charge = 0.0
+	player.use_slot(1)
+	await wait(0.05)
+	player._dodge_pressed(Vector3.ZERO)
+	check(player.ability == "" and player.dodge_timer > 0.0, "esquiva no preparo cancela a Investida")
+	await wait(0.5)
+	Game.stamina = Game.max_stamina()
+	player.global_position = away
+	player.velocity = Vector3.ZERO
+	await wait(0.2)
+	player.cooldowns.sword_charge = 0.0
+	player.use_slot(1)
+	await wait(0.3)
+	player._dodge_pressed(Vector3.ZERO)
+	check(player.ability == "sword_charge" and player.dodge_timer <= 0.0, "esquiva no avanço é ignorada")
+	await wait(0.45)
+	# abrir menu (build_lock) encerra
+	player.global_position = away
 	player.cooldowns.sword_charge = 0.0
 	player.use_slot(1)
 	player.build_lock = true
@@ -147,6 +183,7 @@ func _ready() -> void:
 	player.build_lock = false
 	check(player.ability == "", "menu (build_lock) encerra a habilidade")
 	Game.fury = 0.0
+	Game.stamina = Game.max_stamina()
 	player.cooldowns.sword_charge = 0.0
 	player.global_position = pos_c
 	player.velocity = Vector3.ZERO
@@ -157,9 +194,15 @@ func _ready() -> void:
 	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_whirl"], "kit da espada (%s)" % [Game.ability_kit()])
 	check(not Game.knows_ability("sword_quake") and Game.knows_ability("sword_charge"), "liberação por nível")
 	check(Game.level == 1 and not Game.knows_ability("heal") and ItemDB.ABILITIES.heal.level == 5, "cura só no nível 5")
-	player.cooldowns.sword_charge = 3.0
-	player.cast("sword_charge")
-	check(player.cooldowns.sword_charge == 3.0 and player.cooldowns.size() == ItemDB.ABILITIES.size(), "habilidade sem implementação não gasta recarga")
+	# Golpe Sísmico (nível 3) ainda não existe: liberado e sem recarga, não começa nem gasta recarga
+	var lvl_u := Game.level
+	Game.level = 3
+	player.cooldowns.sword_quake = 0.0
+	player.cast("sword_quake")
+	check(player.ability == "" and player.cooldowns.sword_quake == 0.0 and player.cooldowns.size() == ItemDB.ABILITIES.size(),
+		"habilidade sem implementação não gasta recarga")
+	Game.level = lvl_u
+	player.cooldowns.sword_charge = 3.0   # para conferir que a recarga atravessa a troca de arma
 	Game.equip("apprentice_staff")
 	await wait(0.1)
 	check(Game.ability_kit() == ["fireball", "frost_nova", "heal", "meteor_rain"], "trocar de arma troca o kit")

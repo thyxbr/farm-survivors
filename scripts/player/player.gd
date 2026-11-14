@@ -162,7 +162,7 @@ func _ready() -> void:
 	Game.inventory_changed.connect(_update_equipment_visual)
 	Game.leveled_up.connect(_on_level_up)
 	Game.food_eaten.connect(_on_food_eaten)
-	Game.kit_changed.connect(end_ability)
+	Game.kit_changed.connect(end_ability)   # só o jogador local: réplicas saem antes, em _ready_remote
 	_update_equipment_visual()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -299,7 +299,9 @@ func _local_process(delta: float) -> void:
 		speed *= 0.6
 
 	if busy:
-		SwordAbilities.tick(self, delta)   # controla a velocidade horizontal (e pode terminar)
+		# controla a velocidade horizontal (e pode terminar); recebe a direção pedida pelo jogador
+		# (relativa à câmera) e a velocidade de andar, para habilidades que andam devagar
+		SwordAbilities.tick(self, delta, dir, speed)
 	elif dodge_timer > 0:
 		dodge_timer -= delta
 		velocity.x = dodge_dir.x * DODGE_SPEED
@@ -325,11 +327,7 @@ func _local_process(delta: float) -> void:
 	if Input.is_action_just_pressed("jump") and is_on_floor() and not attacking and dodge_timer <= 0 and not busy:
 		velocity.y = JUMP_VELOCITY
 	if Input.is_action_just_pressed("dodge") and not build_lock:
-		if not busy:
-			_try_dodge(dir)
-		elif SwordAbilities.can_dodge_cancel(self):
-			end_ability()
-			_try_dodge(dir)
+		_dodge_pressed(dir)
 	if build_lock:
 		_cancel_draw()
 	elif busy:
@@ -418,6 +416,15 @@ func facing() -> Vector3:
 
 
 # ------------------------------------------------------------ esquiva
+## Tecla de esquiva: com habilidade em execução, só esquiva se ela puder ser cancelada agora.
+func _dodge_pressed(dir: Vector3) -> void:
+	if ability != "":
+		if not SwordAbilities.can_dodge_cancel(self):
+			return
+		end_ability()
+	_try_dodge(dir)
+
+
 func _try_dodge(dir: Vector3) -> void:
 	if dodge_timer > 0 or not is_on_floor() or Game.stamina < 20.0:
 		return

@@ -31,7 +31,9 @@ static func use(player: Node, id: String) -> bool:
 
 
 ## Um passo de física da habilidade em execução (jogador local e réplicas).
-static func tick(player: Node, delta: float) -> void:
+## `move_dir` = direção pedida pelo jogador, relativa à câmera (comprimento 0..1) e `move_speed` =
+## velocidade de andar atual: para habilidades que deixam andar devagar. Nas réplicas vêm zerados.
+static func tick(player: Node, delta: float, move_dir := Vector3.ZERO, move_speed := 0.0) -> void:
 	var t0: float = player.ability_t
 	player.ability_t += delta
 	match player.ability:
