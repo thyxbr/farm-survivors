@@ -101,6 +101,27 @@ func reset() -> void:
 
 func _physics_process(_delta: float) -> void:
 	_follow()
+	_blow()
+
+
+## Vento do clima: a "gravidade" da capa tomba para o lado do vento, com tremulado nas pontas.
+var _wind_level := 0.0
+
+
+func _blow() -> void:
+	var weather := get_node_or_null("/root/Weather")
+	var w: float = weather.visual_wind() if weather != null else 0.0
+	if w < 0.02 and _wind_level < 0.02:
+		return
+	_wind_level = w
+	var wd: Vector2 = weather.wind_dir
+	var t := Time.get_ticks_msec() * 0.001
+	for c in CHAINS.size():
+		for j in BONES:
+			var f := float(j + 1) / BONES
+			var flutter := 0.75 + 0.35 * sin(t * (6.0 + 2.0 * c) + j * 0.9 + c * 1.7)
+			var push := w * 1.1 * flutter * (0.6 + 0.4 * f)
+			sim.set_joint_gravity_direction(c, j, (Vector3.DOWN + Vector3(wd.x, 0.15, wd.y) * push).normalized())
 
 
 func _follow() -> void:
