@@ -208,3 +208,100 @@ static func centered_panel(parent: Node, dim := 0.55) -> PanelContainer:
 	var p := PanelContainer.new()
 	center.add_child(p)
 	return p
+
+
+# ================================================================ TESTE: peças renderizadas (assets/ui)
+const STEEL_TEXT := Color(0.8, 0.84, 0.93)
+static var _forged: Theme
+
+
+static func tex(name: String) -> Texture2D:
+	return load("res://assets/ui/%s.png" % name)
+
+
+static func _tex_box(name: String, ml: int, mt: int, cx: int, cy: int, expand := 0) -> StyleBoxTexture:
+	var s := StyleBoxTexture.new()
+	s.texture = tex(name)
+	s.texture_margin_left = ml
+	s.texture_margin_right = ml
+	s.texture_margin_top = mt
+	s.texture_margin_bottom = mt
+	s.content_margin_left = cx
+	s.content_margin_right = cx
+	s.content_margin_top = cy
+	s.content_margin_bottom = cy
+	s.set_expand_margin_all(expand)
+	return s
+
+
+## Janela: moldura de aço com cantoneiras; os espinhos dos cantos passam 64 px para fora.
+static func window_box() -> StyleBoxTexture:
+	return _tex_box("window", 184, 184, 44, 40, 64)
+
+
+static func forged_inset(margin := 14) -> StyleBoxTexture:
+	return _tex_box("inset", 20, 20, margin + 4, margin + 2)
+
+
+static func forged_theme() -> Theme:
+	if _forged:
+		return _forged
+	var t: Theme = get_theme().duplicate()
+	t.set_stylebox("normal", "Button", _tex_box("button_normal", 44, 0, 24, 6))
+	t.set_stylebox("hover", "Button", _tex_box("button_hover", 44, 0, 24, 6))
+	t.set_stylebox("pressed", "Button", _tex_box("button_hover", 44, 0, 24, 6))
+	t.set_stylebox("hover_pressed", "Button", _tex_box("button_hover", 44, 0, 24, 6))
+	t.set_stylebox("disabled", "Button", _tex_box("button_disabled", 44, 0, 24, 6))
+	t.set_stylebox("focus", "Button", StyleBoxEmpty.new())
+	t.set_color("font_color", "Button", STEEL_TEXT)
+	t.set_color("font_pressed_color", "Button", Color(1, 0.9, 0.6))
+	t.set_stylebox("separator", "HSeparator", _line(Color(0.3, 0.34, 0.44)))
+	_forged = t
+	return t
+
+
+# ================================================================ TESTE: grimório (páginas de pergaminho)
+const INK := Color(0.2, 0.125, 0.065)
+const INK_DIM := Color(0.42, 0.31, 0.19)
+const INK_RED := Color(0.55, 0.11, 0.07)
+const PAGE := Color(0.86, 0.76, 0.56)
+static var _paper: Theme
+
+
+## Texto a tinta (sem contorno); `title` usa a fonte serifada.
+static func ink(text: String, size := 16, color := INK, title := false) -> Label:
+	var l := label(text, size, color)
+	if title:
+		l.add_theme_font_override("font", serif())
+	return l
+
+
+static func _ink_box(fill: float, border: float, bw := 1) -> StyleBoxFlat:
+	var s := _box(Color(INK.r, INK.g, INK.b, fill), Color(INK.r, INK.g, INK.b, border), bw, 3, 12, 4)
+	return s
+
+
+static func paper_theme() -> Theme:
+	if _paper:
+		return _paper
+	var t: Theme = get_theme().duplicate()
+	t.set_stylebox("normal", "Button", _ink_box(0.06, 0.55))
+	t.set_stylebox("hover", "Button", _ink_box(0.16, 0.8))
+	t.set_stylebox("pressed", "Button", _ink_box(0.78, 0.9))
+	t.set_stylebox("hover_pressed", "Button", _ink_box(0.85, 1.0))
+	t.set_stylebox("disabled", "Button", _ink_box(0.0, 0.2))
+	t.set_stylebox("focus", "Button", StyleBoxEmpty.new())
+	t.set_color("font_color", "Button", INK)
+	t.set_color("font_hover_color", "Button", INK)
+	t.set_color("font_pressed_color", "Button", PAGE)
+	t.set_color("font_hover_pressed_color", "Button", PAGE)
+	t.set_color("font_disabled_color", "Button", Color(INK.r, INK.g, INK.b, 0.35))
+	t.set_color("font_color", "Label", INK)
+	t.set_stylebox("separator", "HSeparator", _line(Color(INK.r, INK.g, INK.b, 0.45)))
+	t.set_stylebox("separator", "VSeparator", _line(Color(INK.r, INK.g, INK.b, 0.45)))
+	t.set_stylebox("grabber", "VScrollBar", _box(Color(INK.r, INK.g, INK.b, 0.5), Color(0, 0, 0, 0), 0, 3))
+	t.set_stylebox("grabber_highlight", "VScrollBar", _box(Color(INK.r, INK.g, INK.b, 0.7), Color(0, 0, 0, 0), 0, 3))
+	t.set_stylebox("grabber_pressed", "VScrollBar", _box(INK, Color(0, 0, 0, 0), 0, 3))
+	t.set_stylebox("scroll", "VScrollBar", _box(Color(INK.r, INK.g, INK.b, 0.1), Color(0, 0, 0, 0), 0, 3, 4, 0))
+	_paper = t
+	return t

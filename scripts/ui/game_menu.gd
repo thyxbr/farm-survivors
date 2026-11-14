@@ -9,9 +9,10 @@ signal closed
 const TAB_KEYS := ["I", "C", "J"]
 const TAB_NAMES := ["Inventário", "Personagem", "Missões"]
 const TAB_ACTIONS := ["inventory", "character", "quest_log"]
-const BAG_COLS := 9
-const BAG_MIN := 54
+const BAG_COLS := 8
+const BAG_MIN := 48
 const SLOT := 62.0
+const BOOK := Vector2(1408, 800)
 
 var start_tab := 0
 var tooltip: ItemTooltip
@@ -28,7 +29,8 @@ var sel_index := -1
 var sel_label: Label
 var use_btn: Button
 var drop_btn: Button
-var stats_box: GridContainer
+var stats_box: HBoxContainer
+var hero_label: Label
 var class_label: Label
 var bag_count: Label
 
@@ -41,31 +43,52 @@ var quest_sel := ""
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	theme = UITheme.get_theme()
+	theme = UITheme.forged_theme()
 	var bg := ColorRect.new()
-	bg.color = Color(0, 0, 0, 0.6)
+	bg.color = Color(0, 0, 0, 0.62)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 	var center := CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
-	var win := PanelContainer.new()
-	win.custom_minimum_size = Vector2(1260, 740)
-	center.add_child(win)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 8)
-	win.add_child(v)
-	v.add_child(_build_header())
-	v.add_child(HSeparator.new())
-	var stack := Control.new()
-	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	stack.custom_minimum_size = Vector2(0, 640)
-	v.add_child(stack)
+	# o livro tem tamanho fixo; o conteúdo vive dentro das margens das páginas
+	var holder := Control.new()
+	holder.custom_minimum_size = BOOK
+	center.add_child(holder)
+	var book := TextureRect.new()
+	book.texture = UITheme.tex("book")
+	book.size = BOOK
+	book.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.add_child(book)
+	var tabs := _build_header()
+	tabs.position = Vector2(BOOK.x * 0.5 + 60, -16)
+	holder.add_child(tabs)
+	var margin := MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 88)
+	margin.add_theme_constant_override("margin_right", 88)
+	margin.add_theme_constant_override("margin_top", 62)
+	margin.add_theme_constant_override("margin_bottom", 62)
+	holder.add_child(margin)
+	var stack := PanelContainer.new()
+	stack.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	margin.add_child(stack)
 	for builder in [_build_inventory, _build_character, _build_quests]:
 		var page: Control = builder.call()
-		page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		stack.add_child(page)
 		pages.append(page)
+	pages[0].theme = UITheme.paper_theme()
+	var x := Button.new()
+	x.text = "✕"
+	x.tooltip_text = "Fechar (Esc)"
+	for st in ["normal", "hover", "pressed", "focus"]:
+		x.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	x.add_theme_font_size_override("font_size", 22)
+	x.add_theme_color_override("font_color", UITheme.INK_DIM)
+	x.add_theme_color_override("font_hover_color", UITheme.INK_RED)
+	x.pressed.connect(_close)
+	x.position = Vector2(BOOK.x - 84, 44)
+	holder.add_child(x)
 	tooltip = ItemTooltip.new()
 	add_child(tooltip)
 	for s in equip_slots.values():
@@ -77,41 +100,52 @@ func _ready() -> void:
 	Game.stats_changed.connect(_refresh)
 	Game.quests_changed.connect(_refresh)
 	_refresh()
+	# garantia: avisa se alguma página pedir mais espaço do que cabe dentro das margens do livro
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var room := BOOK - Vector2(176, 124)
+	for p in pages:
+		if not p.visible:   # página escondida ainda não foi diagramada
+			continue
+		var need := p.get_combined_minimum_size()
+		if need.x > room.x or need.y > room.y:
+			push_warning("Página do menu não cabe no livro: precisa de %s, cabe %s" % [need, room])
 
 
-# ================================================================ cabeçalho
-func _build_header() -> HBoxContainer:
+# ================================================================ abas (marcadores no topo da página direita)
+func _build_header() -> Control:
 	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 6)
+	h.add_theme_constant_override("separation", 4)
 	var group := ButtonGroup.new()
+	var on := StyleBoxTexture.new()
+	on.texture = UITheme.tex("tab_on")
+	var off := StyleBoxTexture.new()
+	off.texture = UITheme.tex("tab_off")
+	off.modulate_color = Color(0.9, 0.9, 0.9)
+	var off_hover := StyleBoxTexture.new()
+	off_hover.texture = UITheme.tex("tab_off")
+	off_hover.modulate_color = Color(1.25, 1.2, 1.2)
 	for i in 3:
 		var b := Button.new()
-		b.text = "  %s  " % TAB_NAMES[i]
+		b.text = TAB_NAMES[i]
+		b.tooltip_text = "Atalho: %s" % TAB_KEYS[i]
 		b.toggle_mode = true
 		b.button_group = group
-		b.custom_minimum_size = Vector2(170, 44)
+		b.custom_minimum_size = Vector2(178, 52)
 		b.add_theme_font_override("font", UITheme.serif())
-		b.add_theme_font_size_override("font_size", 20)
+		b.add_theme_font_size_override("font_size", 19)
+		b.add_theme_stylebox_override("normal", off)
+		b.add_theme_stylebox_override("hover", off_hover)
+		b.add_theme_stylebox_override("pressed", on)
+		b.add_theme_stylebox_override("hover_pressed", on)
+		b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		b.add_theme_color_override("font_color", Color(0.93, 0.84, 0.66))
+		b.add_theme_color_override("font_hover_color", Color(1, 0.94, 0.78))
+		b.add_theme_color_override("font_pressed_color", UITheme.INK)
+		b.add_theme_color_override("font_hover_pressed_color", UITheme.INK)
 		b.pressed.connect(_show_tab.bind(i))
 		h.add_child(b)
 		tab_buttons.append(b)
-		var k := UITheme.keycap(TAB_KEYS[i], 13)
-		k.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		h.add_child(k)
-		if i < 2:
-			var gap := Control.new()
-			gap.custom_minimum_size.x = 14
-			h.add_child(gap)
-	h.add_child(UITheme.spacer())
-	gold_label = UITheme.heading("", 22, Color(1, 0.84, 0.35))
-	gold_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	h.add_child(gold_label)
-	var gap2 := Control.new()
-	gap2.custom_minimum_size.x = 16
-	h.add_child(gap2)
-	var x := UITheme.button("✕", _close, 44)
-	x.tooltip_text = "Fechar (Esc)"
-	h.add_child(x)
 	return h
 
 
@@ -125,33 +159,39 @@ func _show_tab(i: int) -> void:
 
 
 # ================================================================ inventário
+## Livro aberto: página esquerda com o herói e o que ele veste; página direita com a mochila.
 func _build_inventory() -> Control:
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 14)
-	# ---- equipamento
-	var left := _inset()
-	left.custom_minimum_size.x = 520
-	h.add_child(left)
+	var spread := HBoxContainer.new()
+	spread.add_theme_constant_override("separation", 84)   # a lombada
+
+	# ================= página esquerda
 	var lv := VBoxContainer.new()
-	lv.add_theme_constant_override("separation", 8)
-	left.add_child(lv)
-	lv.add_child(UITheme.section("Equipamento"))
+	lv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lv.add_theme_constant_override("separation", 6)
+	spread.add_child(lv)
+	hero_label = UITheme.ink("", 30, UITheme.INK, true)
+	hero_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lv.add_child(hero_label)
+	class_label = UITheme.ink("", 14, UITheme.INK_DIM)
+	class_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lv.add_child(class_label)
+	lv.add_child(HSeparator.new())
 	var doll := HBoxContainer.new()
-	doll.add_theme_constant_override("separation", 10)
+	doll.add_theme_constant_override("separation", 16)
 	doll.alignment = BoxContainer.ALIGNMENT_CENTER
 	lv.add_child(doll)
 	var col_l := VBoxContainer.new()
 	var col_r := VBoxContainer.new()
 	for c in [col_l, col_r]:
-		c.add_theme_constant_override("separation", 12)
+		c.add_theme_constant_override("separation", 10)
 		c.alignment = BoxContainer.ALIGNMENT_CENTER
 	doll.add_child(col_l)
-	var preview := CharPreview.new(Vector2(250, 330))
-	doll.add_child(preview)
+	doll.add_child(CharPreview.new(Vector2(250, 330)))
 	doll.add_child(col_r)
 	for i in ItemDB.SLOTS.size():
 		var sname: String = ItemDB.SLOTS[i]
-		var s := ItemSlot.new(72)
+		var s := ItemSlot.new(74)
+		s.paper = true
 		s.slot_name = sname
 		s.context = "equip"
 		s.ghost_kind = IconPainter.slot_kind(sname)
@@ -162,30 +202,29 @@ func _build_inventory() -> Control:
 		s.double_clicked.connect(func(sl: ItemSlot) -> void: _unequip(sl.slot_name))
 		(col_l if i < 4 else col_r).add_child(s)
 		equip_slots[sname] = s
-	class_label = UITheme.label("", 15, UITheme.GOLD)
-	class_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	class_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lv.add_child(class_label)
 	lv.add_child(HSeparator.new())
-	stats_box = GridContainer.new()
-	stats_box.columns = 4
-	stats_box.add_theme_constant_override("h_separation", 14)
-	stats_box.add_theme_constant_override("v_separation", 4)
+	stats_box = HBoxContainer.new()
+	stats_box.add_theme_constant_override("separation", 22)
+	stats_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	lv.add_child(stats_box)
+	gold_label = UITheme.ink("", 20, Color(0.45, 0.27, 0.02), true)
+	gold_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lv.add_child(gold_label)
 
-	# ---- mochila
-	var right := _inset()
-	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	h.add_child(right)
+	# ================= página direita
 	var rv := VBoxContainer.new()
+	rv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	rv.add_theme_constant_override("separation", 8)
-	right.add_child(rv)
+	spread.add_child(rv)
+	var top_gap := Control.new()
+	top_gap.custom_minimum_size.y = 4
+	rv.add_child(top_gap)
 	var head := HBoxContainer.new()
-	head.add_child(UITheme.heading("Mochila", 20))
-	bag_count = UITheme.label("", 15, UITheme.DIM)
-	bag_count.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	head.add_child(bag_count)
+	head.add_child(UITheme.ink("Mochila", 26, UITheme.INK, true))
 	head.add_child(UITheme.spacer())
+	bag_count = UITheme.ink("", 14, UITheme.INK_DIM)
+	bag_count.size_flags_vertical = Control.SIZE_SHRINK_END
+	head.add_child(bag_count)
 	rv.add_child(head)
 	var filters := HBoxContainer.new()
 	filters.add_theme_constant_override("separation", 6)
@@ -196,14 +235,14 @@ func _build_inventory() -> Control:
 		b.toggle_mode = true
 		b.button_group = fg
 		b.button_pressed = f[0] == bag_filter
-		b.custom_minimum_size = Vector2(0, 34)
-		b.add_theme_font_size_override("font_size", 15)
+		b.custom_minimum_size = Vector2(0, 30)
+		b.add_theme_font_size_override("font_size", 14)
 		b.pressed.connect(_set_filter.bind(f[0]))
 		filters.add_child(b)
 	filters.add_child(UITheme.spacer())
 	var sort := UITheme.button("Organizar", _sort_bag)
-	sort.custom_minimum_size.y = 34
-	sort.add_theme_font_size_override("font_size", 15)
+	sort.custom_minimum_size.y = 30
+	sort.add_theme_font_size_override("font_size", 14)
 	sort.tooltip_text = "Ordena por tipo e raridade"
 	filters.add_child(sort)
 	rv.add_child(filters)
@@ -213,24 +252,28 @@ func _build_inventory() -> Control:
 	rv.add_child(scroll)
 	bag_grid = GridContainer.new()
 	bag_grid.columns = BAG_COLS
-	bag_grid.add_theme_constant_override("h_separation", 6)
-	bag_grid.add_theme_constant_override("v_separation", 6)
+	bag_grid.add_theme_constant_override("h_separation", 5)
+	bag_grid.add_theme_constant_override("v_separation", 5)
 	scroll.add_child(bag_grid)
 	_ensure_bag_slots(BAG_MIN)
 	rv.add_child(HSeparator.new())
 	var foot := HBoxContainer.new()
-	foot.add_theme_constant_override("separation", 10)
-	sel_label = UITheme.label("", 17)
+	foot.add_theme_constant_override("separation", 8)
+	sel_label = UITheme.ink("", 17)
 	sel_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sel_label.clip_text = true
 	foot.add_child(sel_label)
-	use_btn = UITheme.button("Usar", _use_selected, 130)
-	drop_btn = UITheme.button("Descartar", _drop_selected, 130)
-	foot.add_child(use_btn)
-	foot.add_child(drop_btn)
+	use_btn = UITheme.button("Usar", _use_selected, 110)
+	drop_btn = UITheme.button("Descartar", _drop_selected, 110)
+	for b in [use_btn, drop_btn]:
+		b.custom_minimum_size.y = 34
+		b.add_theme_font_size_override("font_size", 15)
+		foot.add_child(b)
 	rv.add_child(foot)
-	rv.add_child(UITheme.label("Clique: selecionar · Clique direito/duplo: usar ou equipar · Arraste itens entre a mochila e o boneco", 13, UITheme.DIM))
-	return h
+	var hint := UITheme.ink("Clique direito ou duplo: usar/equipar · Arraste entre a mochila e o herói", 12, UITheme.INK_DIM)
+	hint.clip_text = true
+	rv.add_child(hint)
+	return spread
 
 
 func _set_filter(f: String) -> void:
@@ -248,6 +291,7 @@ func _sort_bag() -> void:
 func _ensure_bag_slots(n: int) -> void:
 	while bag_slots.size() < n:
 		var s := ItemSlot.new(SLOT)
+		s.paper = true
 		s.context = "bag"
 		s.drag_source = "bag"
 		s.drop_handler = _drop_on_bag
@@ -319,7 +363,7 @@ func _drop_on_equip(target: ItemSlot, data: Dictionary, apply: bool) -> bool:
 
 
 func _refresh_inventory() -> void:
-	gold_label.text = "◆ %d ouro" % Game.gold
+	gold_label.text = "%d moedas de ouro" % Game.gold
 	for sname in equip_slots:
 		var s: ItemSlot = equip_slots[sname]
 		s.set_state(Game.equipment.get(sname, ""))
@@ -341,7 +385,8 @@ func _refresh_inventory() -> void:
 		else:
 			s.index = -1
 			s.set_state("")
-	bag_count.text = "   %d itens" % Game.inventory.size()
+	bag_count.text = "%d itens" % Game.inventory.size()
+	hero_label.text = "%s · Nível %d" % [_hero_name(), Game.level]
 	if sel_index >= Game.inventory.size():
 		sel_index = -1
 	_refresh_selection()
@@ -351,14 +396,23 @@ func _refresh_inventory() -> void:
 	for c in stats_box.get_children():
 		c.queue_free()
 	var st := Game.stat_snapshot()
-	var rows := [["Dano", "%.0f" % st.dmg], ["Defesa", "%.1f" % st.def], ["Vida", "%d" % st.hp], ["Mana", "%d" % st.mp],
-		["Poder mág.", "%.0f" % st.spell], ["Crítico", "%d%%" % int(round(st.crit * 100))],
-		["Velocidade", "%d%%" % int(round(st.speed * 100))], ["Roubo de vida", "%d%%" % int(round(st.leech * 100))]]
-	for r in rows:
-		stats_box.add_child(UITheme.label(r[0], 15, UITheme.DIM))
-		var val := UITheme.label(r[1], 16, UITheme.TEXT)
-		val.custom_minimum_size.x = 70
-		stats_box.add_child(val)
+	var groups := [
+		["Ataque", [["Dano", "%.0f" % st.dmg], ["Crítico", "%d%%" % int(round(st.crit * 100))],
+			["Velocidade", "%d%%" % int(round(st.speed * 100))]]],
+		["Defesa", [["Defesa", "%.1f" % st.def], ["Vida", "%d" % st.hp], ["Roubo de vida", "%d%%" % int(round(st.leech * 100))]]],
+		["Magia", [["Poder mágico", "%.0f" % st.spell], ["Mana", "%d" % st.mp]]]]
+	for g in groups:
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.add_theme_constant_override("separation", 2)
+		col.add_child(UITheme.ink(g[0], 18, UITheme.INK_RED, true))
+		for r in g[1]:
+			var row := HBoxContainer.new()
+			row.add_child(UITheme.ink(r[0], 14, UITheme.INK_DIM))
+			row.add_child(UITheme.spacer())
+			row.add_child(UITheme.ink(r[1], 15, UITheme.INK))
+			col.add_child(row)
+		stats_box.add_child(col)
 
 
 func _refresh_selection() -> void:
@@ -367,7 +421,7 @@ func _refresh_selection() -> void:
 		s.queue_redraw()
 	if sel_index < 0 or sel_index >= Game.inventory.size():
 		sel_label.text = "Selecione um item."
-		sel_label.add_theme_color_override("font_color", UITheme.DIM)
+		sel_label.add_theme_color_override("font_color", UITheme.INK_DIM)
 		use_btn.disabled = true
 		drop_btn.disabled = true
 		use_btn.text = "Usar"
@@ -375,7 +429,7 @@ func _refresh_selection() -> void:
 	var id: String = Game.inventory[sel_index].id
 	var it := ItemDB.get_item(id)
 	sel_label.text = it.name + ("  x%d" % Game.inventory[sel_index].qty if Game.inventory[sel_index].qty > 1 else "")
-	sel_label.add_theme_color_override("font_color", ItemDB.rarity_color(id) if ItemDB.is_equippable(id) else UITheme.TEXT)
+	sel_label.add_theme_color_override("font_color", ItemDB.rarity_color(id).darkened(0.55) if ItemDB.is_equippable(id) else UITheme.INK)
 	var t: String = it.type
 	use_btn.disabled = t == "material" or t == "seed" or (t == "crop" and not Game.is_edible(id))
 	use_btn.text = "Equipar" if ItemDB.is_equippable(id) else ("Comer" if t in ["food", "crop"] else "Usar")
@@ -596,7 +650,7 @@ func _select_quest(id: String) -> void:
 # ================================================================ geral
 func _inset() -> PanelContainer:
 	var p := PanelContainer.new()
-	p.add_theme_stylebox_override("panel", UITheme.inset_box(14))
+	p.add_theme_stylebox_override("panel", UITheme.forged_inset(14))
 	return p
 
 
