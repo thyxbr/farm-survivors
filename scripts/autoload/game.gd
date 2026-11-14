@@ -141,6 +141,11 @@ func _debug_screenshot() -> void:
 		Econ.grant(600, 0, {"iron_ore": 30, "arcane_crystal": 3, "ember_core": 14, "frost_drop": 5}, "demo", true)
 		Econ.request("enchant", ["fogo"])
 		Econ.request("enchant", ["fogo"])
+		# `--enchantrich`: material de sobra para subir até +5 e trocar de elemento à vontade no Doran
+		if "--enchantrich" in args:
+			Econ.grant(6000, 0, {"iron_ore": 90, "arcane_crystal": 40, "champion_badge": 3, "ember_core": 40,
+				"frost_drop": 40, "thunder_totem": 40, "toxic_gland": 40, "golden_dust": 40, "shadow_fang": 40}, "demo", true)
+			Econ.demo_ecos(120)
 	if "--enchantstrike" in args:
 		get_tree().create_timer(maxf(delay - 0.15, 0.1)).timeout.connect(func() -> void:
 			for n in get_tree().get_nodes_in_group("interactable"):
