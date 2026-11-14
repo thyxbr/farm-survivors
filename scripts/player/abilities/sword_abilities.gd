@@ -105,6 +105,11 @@ static func can_dodge_cancel(player: Node) -> bool:
 	return player.ability == "sword_charge" and player.ability_t <= CHARGE_WINDUP
 
 
+## A esquiva interrompeu a habilidade (can_dodge_cancel deu true).
+static func dodge_cancel(player: Node) -> void:
+	player.end_ability()
+
+
 ## Pose da habilidade por cima da locomoção (de _animate). O passo inteiro das pernas: move = 0.
 static func pose(player: Node, p: Dictionary) -> void:
 	match player.ability:

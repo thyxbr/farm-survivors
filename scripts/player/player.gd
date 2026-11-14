@@ -175,6 +175,8 @@ func _ready() -> void:
 	_update_equipment_visual()
 	FXEpic.prewarm()   # shaders dos efeitos prontos: a primeira habilidade não engasga
 	FXEpic.prewarm_instances.call_deferred(self)   # e os pipelines de desenho de cada tipo de efeito
+	StaffAbilities.prewarm()   # rocha, halo e céu da Chuva de Meteoros (malhas e materiais compartilhados)
+	StaffAbilities.prewarm_instances.call_deferred(self)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -432,12 +434,15 @@ func facing() -> Vector3:
 
 
 # ------------------------------------------------------------ esquiva
-## Tecla de esquiva: com habilidade em execução, só esquiva se ela puder ser cancelada agora.
+## Tecla de esquiva: com habilidade em execução, só esquiva se ela puder ser cancelada agora. O módulo
+## encerra a habilidade (dodge_cancel): a Chuva de Meteoros termina "macia", deixando cair o que está no ar.
 func _dodge_pressed(dir: Vector3) -> void:
 	if ability != "":
-		if not _ab_module(ability).can_dodge_cancel(self):
+		var m := _ab_module(ability)
+		if not m.can_dodge_cancel(self):
 			return
-		end_ability()
+		m.dodge_cancel(self)
+		end_ability()   # garante o fim mesmo se o módulo não encerrar
 	_try_dodge(dir)
 
 

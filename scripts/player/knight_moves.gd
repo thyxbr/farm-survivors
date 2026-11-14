@@ -167,6 +167,16 @@ const GALE_LEAN := -0.35        ## tronco inclinado para trás (rad; body_x > 0 
 const GALE_CROUCH_Y := -0.12    ## o quadril desce (m), além do que as pernas dobradas já baixam
 const GALE_TREMBLE := 0.06      ## tremor do pulso do arco com a carga cheia (rad)
 const GALE_RECOIL := -0.3       ## tranco extra do tronco para trás no disparo (rad)
+## Chuva de Meteoros (KnightAnim.meteor_pose): o cajado erguido acima da cabeça com as duas mãos, o tronco
+## arqueado para trás, o olhar no céu e as pernas abertas firmando o corpo.
+const METEOR_RAISE := {
+	"arm_r": Vector3(-2.75, -0.1, -0.2), "elbow_r": -0.55, "wrist_r": -0.15,
+	"arm_l": Vector3(-2.6, 0.15, 0.32), "elbow_l": -0.75, "wrist_l": 0.0,
+	"twist": -0.12, "body_x": -0.22, "body_y": -0.04, "head_x": -0.5, "head_y": 0.0,
+	"leg_l": -0.32, "knee_l": 0.38, "leg_r": 0.26, "knee_r": 0.3,
+}
+const METEOR_TREMBLE := 0.045   ## tremor dos braços e do tronco canalizando (rad)
+const METEOR_RAISE_SPEED := 1.4 ## multiplica a suavização ao erguer o cajado
 ## Soltar: a mão da corda escapa para trás da orelha, o braço do arco segura e depois desce.
 const BOW_RELEASE := [
 	[0.15, {"arm_r": Vector3(-1.4, -0.95, -0.35), "elbow_r": -1.5, "twist": -0.7, "head_y": 0.65,

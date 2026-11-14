@@ -26,7 +26,7 @@ const ABILITIES := {
 	"heal": {"name": "Cura", "class": "staff", "slot": 3, "level": 5, "cooldown": 4.0, "cost": 20,
 		"ready": true, "ultimate": false, "icon": "heal", "desc": "Restaura 30 + INT x 4 de vida."},
 	"meteor_rain": {"name": "Chuva de Meteoros", "class": "staff", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
-		"ready": false, "ultimate": true, "icon": "fireball", "desc": "Ultimate: meteoros caem sobre a área."},
+		"ready": true, "ultimate": true, "icon": "fireball", "desc": "Ultimate: segure para canalizar uma chuva de meteoros sobre a área mirada."},
 	"sword_charge": {"name": "Investida", "class": "sword", "slot": 1, "level": 1, "cooldown": 6.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "saber", "desc": "Avança sobre os inimigos à frente, causando dano."},
 	"sword_quake": {"name": "Golpe Sísmico", "class": "sword", "slot": 2, "level": 3, "cooldown": 9.0, "cost": 0,

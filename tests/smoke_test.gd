@@ -364,19 +364,12 @@ func _ready() -> void:
 	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_whirl"], "kit da espada (%s)" % [Game.ability_kit()])
 	check(not Game.knows_ability("sword_quake") and Game.knows_ability("sword_charge"), "liberação por nível")
 	check(Game.level == 1 and not Game.knows_ability("heal") and ItemDB.ABILITIES.heal.level == 5, "cura só no nível 5")
-	# Chuva de Meteoros (ultimate do cajado, nível 8) ainda não existe: liberada à força, com fúria cheia e sem
-	# recarga, não começa nem gasta recarga ou fúria
+	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
+	# quem testar; resta conferir que há recarga para cada habilidade
 	Game.add_item("short_bow")
 	Game.equip("short_bow")
 	var lvl_bf: int = Game.level
-	Game.level = 8
-	Game.fury = 100.0
-	player.cooldowns.meteor_rain = 0.0
-	player.cast("meteor_rain")
-	check(Game.weapon_class() == "bow" and player.ability == "" and player.cooldowns.meteor_rain == 0.0 and Game.fury == 100.0
-		and player.cooldowns.size() == ItemDB.ABILITIES.size(), "habilidade sem implementação não gasta recarga")
-	Game.fury = 0.0
-	Game.level = lvl_bf
+	check(Game.weapon_class() == "bow" and player.cooldowns.size() == ItemDB.ABILITIES.size(), "uma recarga por habilidade")
 	# --- Tiro Triplo (arco, slot 1): 3 flechas em leque, ignora multishot, esquiva só cancela antes do disparo
 	var tt_pos := player.global_position
 	var tt_s := _nearest("slime")
@@ -570,6 +563,7 @@ func _ready() -> void:
 	tt_s.slow_timer = 0.0
 	player.cooldowns.bow_frost = 0.0
 	await _test_bow_gale()
+	await _test_meteor_rain()
 	Game.level = lvl_bf
 	tt_s.hp = tt_max
 	tt_s.max_hp = tt_max
@@ -585,7 +579,7 @@ func _ready() -> void:
 	check(hud_slot_ids() == Game.ability_kit(), "barra de ações mostra o kit novo (%s)" % [hud_slot_ids()])
 	var mp_m := Game.mp
 	player.cast("meteor_rain")
-	check(Game.mp == mp_m and player.cooldowns.meteor_rain == 0.0, "ultimate ainda não construída: sem custo")
+	check(Game.mp == mp_m and player.cooldowns.meteor_rain == 0.0 and player.ability == "", "ultimate sem fúria não sai nem gasta nada")
 
 	# --- magia do cajado enche a fúria (Nova Gélida causa dano ao slime perto)
 	var lvl_n := Game.level
@@ -657,7 +651,9 @@ func _ready() -> void:
 	check(Game.fury == 100.0, "ultimate não sai abaixo do nível 8")
 	Game.level = 8
 	player.use_slot(4)
-	check(Game.fury == 100.0 and player.cooldowns.meteor_rain == 0.0, "ultimate ainda não construída mantém a fúria")
+	check(Game.fury == 0.0 and player.ability == "meteor_rain", "ultimate sai com fúria cheia no nível 8 e zera a fúria")
+	player.end_ability()   # encerrada no preparo (o teste completo é _test_meteor_rain)
+	player.cooldowns.meteor_rain = 0.0
 	# --- fúria persistida no personagem (CharState)
 	var fs := CharState.new()
 	fs.fury = 70.0
@@ -1031,6 +1027,254 @@ func _test_bow_gale() -> void:
 	Game.fury = fury0
 	Game.level = lvl0
 	await wait(0.1)
+
+
+## Chuva de Meteoros (ultimate do cajado, canalizada): soltar, tempo, esquiva, mirar no céu, morrer e réplica.
+func _test_meteor_rain() -> void:
+	var lvl0: int = Game.level
+	var fury0: float = Game.fury
+	var weapon0: String = Game.equipment.weapon
+	var pos0 := player.global_position
+	var yaw0: float = player.cam_yaw.rotation.y
+	var pitch0: float = player.cam_pitch.rotation.x
+	var spring0: float = player.spring.spring_length
+	Game.equip("apprentice_staff")
+	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking and player.ability == "")
+	var gs: Array = []
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.kind == "slime" and not e.dead and not e.is_boss:
+			gs.append(e)
+	gs.sort_custom(func(a, b): return a.global_position.distance_to(player.global_position) < b.global_position.distance_to(player.global_position))
+	gs = gs.slice(0, 4)
+	check(gs.size() == 4, "Meteoros: 4 slimes para o teste (%d)" % gs.size())
+	if gs.size() < 4:
+		return
+	var saved: Array = []
+	for e in gs:
+		saved.append([e, e.max_hp, e.global_position])
+		e.max_hp = 100000.0
+	var base: Vector3 = gs[0].home
+	var grounded := func() -> bool: return player.is_on_floor()
+	player.global_position = base + Vector3(0, 0.3, 0)
+	player.velocity = Vector3.ZERO
+	await wait_until(grounded)
+	await wait(0.1)
+	var c: Vector3 = StaffAbilities._meteor_center(player)
+	var flat_d := Vector2(c.x - player.global_position.x, c.z - player.global_position.z).length()
+	check(flat_d <= StaffAbilities.METEOR_RANGE + 0.01, "Meteoros: centro da mira no chão a até 14 m (%.1f m)" % flat_d)
+	# 3 slimes perto do centro (dentro da área) e 1 longe, do outro lado (fora do alcance de qualquer explosão)
+	var place_at := func(ctr: Vector3) -> void:
+		var away := Vector3(ctr.x - player.global_position.x, 0.0, ctr.z - player.global_position.z)
+		away = away.normalized() if away.length() > 0.1 else player.facing()
+		for i in 3:
+			var a := i * TAU / 3.0
+			gs[i].global_position = ctr + Vector3(cos(a), 0.0, sin(a)) * 0.8 + Vector3.UP * 0.4
+		gs[3].global_position = ctr + away * (StaffAbilities.METEOR_AREA + StaffAbilities.METEOR_HIT_RADIUS + 4.0) + Vector3.UP * 0.4
+		for e in gs:
+			e.velocity = Vector3.ZERO
+			e.stagger = 10.0   # parados até o primeiro acerto
+			e.hp = e.max_hp
+	var hps := func() -> Array:
+		var out := []
+		for e in gs:
+			out.append(e.hp)
+		return out
+	var mets := func(caster: Node) -> Array:
+		var out := []
+		for n in world.get_children():
+			if n is StaffAbilities.MeteorStrike and n.caster == caster and not n.is_queued_for_deletion():
+				out.append(n)
+		return out
+	var airborne := func(caster: Node) -> int:
+		var n := 0
+		for m in mets.call(caster):
+			if not m.landed:
+				n += 1
+		return n
+	var area_hit := func(hb: Array) -> bool:
+		for i in 3:
+			if gs[i].hp < hb[i]:
+				return true
+		return false
+	player.invuln = 60.0   # os slimes não interrompem nem enchem a fúria batendo no jogador
+	place_at.call(c)
+	await wait(0.3)
+	place_at.call(c)
+	var h0: Array = hps.call()
+
+	# --- 1) segura, solta aos 2,0 s: os 3 da área perdem vida, o de fora não; fúria 0, mana igual
+	Game.fury = 100.0
+	Game.level = 8
+	Game.mp = Game.max_mp()   # cheia (o máximo depende do nível): a regeneração não a muda
+	var mp1: float = Game.mp
+	var c1: Vector3 = StaffAbilities._meteor_center(player)   # com os slimes no lugar (a mira também acerta inimigos)
+	player.use_slot(4)
+	var d1: Dictionary = player.ability_data
+	check(player.ability == "meteor_rain" and Game.fury == 0.0 and player.ability_slot == 4,
+		"Meteoros começa, gasta a fúria e grava a tecla 4 (%s, %.0f, %d)" % [player.ability, Game.fury, player.ability_slot])
+	check(d1.get("center", Vector3.INF).distance_to(c1) < 0.05, "Meteoros: área fixada no ponto mirado (%s vs %s)" % [d1.get("center"), c1])
+	check(not StaffAbilities.can_dodge_cancel(player), "Meteoros: esquiva não cancela o preparo")
+	Game.stamina = Game.max_stamina()
+	player._dodge_pressed(Vector3.ZERO)
+	check(player.ability == "meteor_rain" and player.dodge_timer <= 0.0, "Meteoros: esquiva no preparo é ignorada")
+	await wait_until(func(): return player.ability_t >= 0.3 or player.ability == "")
+	check(airborne.call(player) == 0, "Meteoros: nenhum meteoro no preparo")
+	await wait_until(func(): return area_hit.call(h0) or player.ability == "", 3.0)
+	check(area_hit.call(h0), "Meteoros: um slime da área perde vida (t %.2f)" % player.ability_t)
+	check(player.ability == "meteor_rain" and StaffAbilities.can_dodge_cancel(player), "Meteoros: esquiva pode cancelar a canalização")
+	check(Vector2(player.velocity.x, player.velocity.z).length() < 0.1, "Meteoros: parado canalizando (vel %s)" % player.velocity)
+	var seed1: int = int(d1.get("seed", -1))
+	var center1: Vector3 = d1.get("center", c)
+	await wait_until(func(): return player.ability_t >= 2.0 or player.ability == "", 3.0)
+	check(player.ability == "meteor_rain", "Meteoros: ainda canalizando aos 2,0 s")
+	var targets1: Array = d1.get("targets", []).slice(0, 4)
+	StaffAbilities.release(player)
+	await wait_until(func(): return player.ability == "", 1.0)
+	check(player.ability == "", "Meteoros: soltar a tecla encerra a canalização")
+	await wait(0.6)
+	check(airborne.call(player) == 0, "Meteoros: nenhum meteoro novo depois de soltar")
+	var h1: Array = hps.call()
+	check(h1[0] < h0[0] and h1[1] < h0[1] and h1[2] < h0[2], "Meteoros: os 3 slimes da área perdem vida (%.0f, %.0f, %.0f)"
+		% [h0[0] - h1[0], h0[1] - h1[1], h0[2] - h1[2]])
+	var want: float = (14.0 + Game.spell_power() * 1.6) * Game.damage_mult()
+	var ok_dmg := true
+	for i in 3:
+		var hits: float = (h0[i] - h1[i]) / want
+		ok_dmg = ok_dmg and hits >= 0.99 and absf(hits - roundf(hits)) < 0.01
+	check(ok_dmg, "Meteoros: cada explosão tira (14 + INT x 1,6) x dano (%.1f; perdas %.1f, %.1f, %.1f)"
+		% [want, h0[0] - h1[0], h0[1] - h1[1], h0[2] - h1[2]])
+	check(h1[3] == h0[3], "Meteoros: o slime fora da área não perde vida")
+	check(Game.fury == 0.0, "Meteoros: acertos da ultimate não recarregam a fúria (%.2f)" % Game.fury)
+	check(Game.mp == mp1, "Meteoros: não gasta mana (%.1f -> %.1f)" % [mp1, Game.mp])
+	check(is_equal_approx(Engine.time_scale, 1.0) and player.cam_back == 0.0, "Meteoros: fim restaura tempo e câmera")
+
+	# --- 2) sem soltar: termina sozinha em <= 4,6 s
+	place_at.call(c)
+	await wait(0.1)
+	Game.fury = 100.0
+	Game.level = 8
+	player.use_slot(4)
+	var last_t := [0.0]
+	await wait_until(func():
+		if player.ability == "meteor_rain":
+			last_t[0] = player.ability_t
+		return player.ability == "", 6.0)
+	check(player.ability == "" and last_t[0] <= 4.6 and last_t[0] >= 4.0,
+		"Meteoros: sem soltar termina sozinha aos 4,5 s (último t %.2f)" % last_t[0])
+	await wait(0.6)
+	check(airborne.call(player) == 0, "Meteoros: os últimos meteoros caem depois do fim")
+
+	# --- esquiva na canalização: encerra; os meteoros no ar ainda caem e ferem
+	place_at.call(c)
+	await wait(0.1)
+	Game.fury = 100.0
+	Game.level = 8
+	player.use_slot(4)
+	var aimed := [null, null]   # [meteoro no ar, slime perto do alvo dele]
+	await wait_until(func():
+		if player.ability != "meteor_rain":
+			return true
+		for m in mets.call(player):
+			if m.landed or m.age() > StaffAbilities.METEOR_FALL * 0.5:
+				continue
+			for i in 3:
+				var dd := Vector2(m.target.x - gs[i].global_position.x, m.target.z - gs[i].global_position.z).length()
+				if dd < 1.0:
+					aimed[0] = m
+					aimed[1] = gs[i]
+					return true
+		return false, 4.0)
+	check(aimed[0] != null and player.ability == "meteor_rain", "Meteoros: meteoro no ar sobre um slime antes da esquiva")
+	if aimed[0] != null:
+		var hd: float = aimed[1].hp
+		Game.stamina = Game.max_stamina()
+		player._dodge_pressed(Vector3.ZERO)
+		check(player.ability == "" and player.dodge_timer > 0.0, "Meteoros: esquiva encerra a canalização")
+		check(is_instance_valid(aimed[0]) and not aimed[0].is_queued_for_deletion() and not aimed[0].landed,
+			"Meteoros: depois da esquiva o meteoro no ar continua caindo")
+		await wait(0.7)
+		check(aimed[1].hp < hd, "Meteoros: meteoro no ar fere depois da esquiva (%.0f -> %.0f)" % [hd, aimed[1].hp])
+		check(airborne.call(player) == 0, "Meteoros: nenhum meteoro novo depois da esquiva")
+	await wait_until(func(): return player.dodge_timer <= 0.0)
+
+	# --- 3) mirar no céu: centro a <= 14 m; 4) morrer no meio: meteoros no ar somem sem dano
+	player.cam_pitch.rotation.x = 0.6
+	await wait(0.1)
+	var cs: Vector3 = StaffAbilities._meteor_center(player)
+	var sd := Vector2(cs.x - player.global_position.x, cs.z - player.global_position.z).length()
+	check(sd <= StaffAbilities.METEOR_RANGE + 0.01 and sd >= StaffAbilities.METEOR_RANGE - 0.5 and absf(cs.y - player.global_position.y) < 6.0,
+		"Meteoros: mirar no céu põe a área no chão a 14 m (%.1f m, dy %.1f)" % [sd, cs.y - player.global_position.y])
+	place_at.call(cs)
+	await wait(0.1)
+	Game.fury = 100.0
+	Game.level = 8
+	player.use_slot(4)
+	var c4: Vector3 = player.ability_data.get("center", Vector3.INF)
+	check(Vector2(c4.x - player.global_position.x, c4.z - player.global_position.z).length() <= StaffAbilities.METEOR_RANGE + 0.01,
+		"Meteoros: mirando no céu a área começa a até 14 m")
+	await wait_until(func(): return player.ability == "" or (player.ability_t > StaffAbilities.METEOR_WINDUP + 0.3 and airborne.call(player) >= 1), 3.0)
+	check(player.ability == "meteor_rain" and airborne.call(player) >= 1, "Meteoros: meteoros no ar antes de morrer")
+	player._die()
+	await get_tree().process_frame
+	check(player.ability == "" and airborne.call(player) == 0 and mets.call(player).is_empty() and is_equal_approx(Engine.time_scale, 1.0),
+		"Meteoros: morrer remove os meteoros no ar (%d) e restaura o tempo (%.2f)" % [mets.call(player).size(), Engine.time_scale])
+	var h4b: Array = hps.call()
+	player.revive(player.global_position)
+	await wait(0.8)
+	check(hps.call() == h4b, "Meteoros: nenhum dano depois de morrer")
+	# a tela de morte abre 1,8 s depois de morrer, mesmo revivido: fecha sem a multa de ouro
+	await wait(1.2)
+	if world.modal != null:
+		world.modal.queue_free()
+		world.modal = null
+	world._set_paused(false)
+	check(not player.dead and player.cam_back == 0.0, "Meteoros: revive sem resto da habilidade")
+	player.cam_pitch.rotation.x = pitch0
+
+	# --- 5) réplica: mesma semente = mesmos pontos de impacto; visual sem dano; para em "meteor_rain_end"
+	place_at.call(c)
+	await wait(0.1)
+	var h5: Array = hps.call()
+	var rp := Player.new()
+	rp.remote = true
+	world.add_child(rp)
+	rp.global_position = player.global_position
+	StaffAbilities.play_remote(rp, "meteor_rain", center1, Vector3(seed1, 0, 0))
+	check(rp.ability == "meteor_rain", "réplica da Chuva de Meteoros começa")
+	await wait_until(func(): return rp.ability_data.get("targets", []).size() >= 4 or rp.ability == "", 3.0)
+	var rt: Array = rp.ability_data.get("targets", []).slice(0, 4)
+	var same := rt.size() == 4 and targets1.size() == 4
+	for i in mini(rt.size(), targets1.size()):
+		same = same and rt[i].distance_to(targets1[i]) < 0.01
+	check(same, "réplica: a semente reproduz os mesmos pontos de impacto (%s vs %s)" % [rt, targets1])
+	await wait_until(func(): return rp.ability == "" or rp.ability_data.get("targets", []).size() >= 8, 3.0)
+	check(rp.ability == "meteor_rain" and airborne.call(rp) >= 1 and hps.call() == h5, "réplica da Chuva de Meteoros cai e não fere (%s)" % [hps.call()])
+	StaffAbilities.play_remote(rp, "meteor_rain_end", c, Vector3.ZERO)
+	check(rp.ability == "", "réplica: 'meteor_rain_end' encerra a chuva")
+	await wait(0.6)
+	check(airborne.call(rp) == 0 and hps.call() == h5, "réplica: nenhum meteoro novo depois do fim e nenhum dano")
+	rp.queue_free()
+
+	# restaura
+	for s in saved:
+		var e = s[0]
+		if is_instance_valid(e):
+			e.max_hp = s[1]
+			e.hp = s[1]
+			e.global_position = s[2]
+			e.stagger = 0.0
+			e.velocity = Vector3.ZERO
+	player.cam_yaw.rotation.y = yaw0
+	player.cam_pitch.rotation.x = pitch0
+	player.global_position = pos0
+	player.velocity = Vector3.ZERO
+	player.invuln = 0.0
+	player.cooldowns.meteor_rain = 0.0
+	Game.equip(weapon0)
+	Game.fury = fury0
+	Game.level = lvl0
+	await wait(0.3)
+	check(absf(player.spring.spring_length - spring0) < 0.3, "Meteoros: câmera de volta (%.2f)" % player.spring.spring_length)
 
 
 func _test_fx_epic() -> void:

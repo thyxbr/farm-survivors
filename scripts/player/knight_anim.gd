@@ -566,6 +566,29 @@ static func bow_gale_pose(p: Dictionary, c: float, recoil := -1.0) -> void:
 	p.ground = 1.0
 
 
+## Chuva de Meteoros: `u` 0..1 = preparo (ergue o cajado com as duas mãos acima da cabeça); `shake` 0..1 =
+## o tremor da canalização (braços, pulso e tronco tremem como quem segura um peso enorme no céu).
+static func meteor_pose(p: Dictionary, u: float, shake: float) -> void:
+	var a: Dictionary = KnightMoves.METEOR_RAISE
+	var e := smoothstep(0.0, 1.0, u)
+	for j in a:
+		p[j] = lerp(p[j], a[j], e)
+	if shake > 0.0:
+		# dois senos fora de fase por junta: parece ruído
+		var ms := float(Time.get_ticks_msec())
+		var n1 := sin(ms * 0.051) * 0.6 + sin(ms * 0.137 + 1.3) * 0.4
+		var n2 := sin(ms * 0.043 + 2.1) * 0.6 + sin(ms * 0.119 + 0.4) * 0.4
+		var tr: float = KnightMoves.METEOR_TREMBLE * shake
+		p.arm_r += Vector3(n1 * tr, 0.0, n2 * tr * 0.6)
+		p.arm_l += Vector3(n2 * tr, 0.0, -n1 * tr * 0.6)
+		p.wrist_r += n1 * tr * 0.8
+		p.body_z += n2 * tr * 0.35
+		p.body_x += n1 * tr * 0.25
+	p.ground = 1.0
+	for j in ["arm_l", "arm_r", "elbow_l", "elbow_r", "wrist_r", "twist", "head_x", "body_x"]:
+		p.speed[j] = KnightMoves.METEOR_RAISE_SPEED
+
+
 ## Leva o modelo até a pose. `k` = fator de suavização deste quadro (0..1).
 ## Chaves em p.snap vão direto ao alvo; p.speed[chave] multiplica k só para essa chave.
 static func apply(r: Dictionary, p: Dictionary, k: float) -> void:
