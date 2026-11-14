@@ -1,4 +1,4 @@
-# A cada push no main: roda os testes (gameplay + multiplayer) e, se passarem,
+# A cada push no main: roda os testes (unitários + gameplay + multiplayer) e, se passarem,
 # publica o cliente Windows no GitHub Releases (só quando a versão do project.godot é nova;
 # é de lá que o auto update do jogo baixa) e dispara o deploy do servidor no Easypanel.
 # O link de deploy fica no secret EASYPANEL_DEPLOY_URL (Settings → Secrets and variables → Actions).
@@ -50,6 +50,16 @@ jobs:
             grep -A1 "SCRIPT ERROR" import.log
             exit 1
           fi
+          # o servidor usa o SQLite do addons/godot-sqlite (GDExtension): no Linux o .so tem que carregar
+          if grep -qiE "Can't open dynamic library|Error loading extension|GDExtension.*(failed|error)" import.log; then
+            echo "::error::A extensão godot-sqlite não carregou no Linux"
+            grep -iE "dynamic library|extension" import.log
+            exit 1
+          fi
+
+      # regras puras (contas, banco, economia, balanceamento...); erro de script num teste conta como falha
+      - name: Testes unitários
+        run: timeout 300 godot --headless --path . -s tests/unit/run.gd
 
       - name: Teste de gameplay (smoke test)
         run: timeout 600 godot --headless --path . res://scenes/world.tscn -- --smoketest
@@ -57,12 +67,15 @@ jobs:
       - name: Teste da Defesa da Cidade
         run: timeout 600 godot --headless --path . res://scenes/colony.tscn -- --colonytest
 
+      # servidor com banco novo (arquivo temporário), API HTTP de login numa porta própria e --test
+      # (ouro de teste para as compras do net_test); os clientes criam conta via --auth-url
       - name: Teste de multiplayer (servidor + 2 clientes)
         run: |
-          godot --headless --path . -- --server --port=7790 --horde-round=8 --horde-pick=5 > server.log 2>&1 &
+          db=$(mktemp --suffix=.db); rm -f "$db"
+          godot --headless --path . -- --server --port=7790 --http-port=8790 --db="$db" --test --horde-round=8 --horde-pick=5 > server.log 2>&1 &
           for i in $(seq 1 30); do grep -q "ouvindo em UDP" server.log && break; sleep 1; done
-          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Ana --horde=lead --horde-pick=5 > ana.log 2>&1 & A=$!
-          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7790 --peers=2 --name=Beto --horde=join --horde-pick=5 > beto.log 2>&1 & B=$!
+          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7790 --auth-url=http://127.0.0.1:8790 --peers=2 --name=Ana --horde=lead --horde-pick=5 > ana.log 2>&1 & A=$!
+          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7790 --auth-url=http://127.0.0.1:8790 --peers=2 --name=Beto --horde=join --horde-pick=5 > beto.log 2>&1 & B=$!
           wait $A; RA=$?
           wait $B; RB=$?
           grep -hE "PASS|FAIL|NETTEST" ana.log beto.log
@@ -74,10 +87,11 @@ jobs:
 
       - name: Teste da Defesa da Cidade em grupo (salão + servidor + 2 clientes)
         run: |
-          godot --headless --path . -- --server --port=7791 --city-day=12 > city_server.log 2>&1 &
+          db=$(mktemp --suffix=.db); rm -f "$db"
+          godot --headless --path . -- --server --port=7791 --http-port=8791 --db="$db" --test --city-day=12 > city_server.log 2>&1 &
           for i in $(seq 1 30); do grep -q "ouvindo em UDP" city_server.log && break; sleep 1; done
-          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7791 --peers=2 --name=Caio --city=lead > caio.log 2>&1 & A=$!
-          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7791 --peers=2 --name=Duda --city=join > duda.log 2>&1 & B=$!
+          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7791 --auth-url=http://127.0.0.1:8791 --peers=2 --name=Caio --city=lead > caio.log 2>&1 & A=$!
+          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7791 --auth-url=http://127.0.0.1:8791 --peers=2 --name=Duda --city=join > duda.log 2>&1 & B=$!
           wait $A; RA=$?
           wait $B; RB=$?
           grep -hE "PASS|FAIL|NETTEST" caio.log duda.log
@@ -214,7 +228,9 @@ jobs:
 
   # O webhook responder 200 não garante que o servidor trocou: no Easypanel, com a porta UDP em modo host,
   # um deploy "zero downtime" deixa o container novo em Pending e o antigo continua no ar.
-  # Aqui um cliente headless entra no servidor público até ele aceitar a versão deste commit.
+  # Aqui um cliente headless (--probe, sem conta) confere o servidor público até ele aceitar a versão deste
+  # commit: GET https://<domínio>/health tem que responder esta versão (API HTTP atrás do proxy HTTPS do
+  # Easypanel) e uma conexão ENet na porta UDP 7777 tem que conectar.
   verify:
     name: Conferir servidor publicado
     needs: deploy
@@ -246,16 +262,17 @@ jobs:
         run: |
           addr=$(grep -oP 'const DEFAULT_ADDRESS := "\K[^"]+' scripts/autoload/network.gd)
           ver=$(grep -oP 'config/version="\K[^"]+' project.godot)
-          echo "Servidor: $addr:7777 — versão esperada: $ver"
+          echo "Servidor: https://$addr/health e $addr:7777/udp — versão esperada: $ver"
           # o build no Easypanel (baixar Godot + importar) leva alguns minutos
           for i in $(seq 1 20); do
             if timeout 60 ~/godot/godot --headless --path . -- --nettest="$addr:7777" --probe --name=CI-deploy > probe.log 2>&1; then
               grep -hE "PASS|NETTEST|aceitou" probe.log
               exit 0
             fi
-            echo "tentativa $i: $(grep -m1 -E 'FAIL' probe.log || echo 'sem resposta')"
+            msg=$(grep -E 'FAIL' probe.log | tr '\n' ' ')
+            echo "tentativa $i: ${msg:-sem resposta}"
             sleep 30
           done
-          echo "::error::O servidor público não aceitou a versão $ver depois de 20 tentativas (~15 min). No Easypanel o deploy pode estar travado em Pending (porta UDP em uso pelo container antigo): rode 'docker service ps <serviço>' na VPS e desligue o Zero Downtime do app."
+          echo "::error::O servidor público não aceitou a versão $ver depois de 20 tentativas (~15 min). Se só o HTTP falha, confira o domínio do app no Easypanel (proxy HTTPS para a porta 8080). No Easypanel o deploy pode estar travado em Pending (porta UDP em uso pelo container antigo): rode 'docker service ps <serviço>' na VPS e desligue o Zero Downtime do app."
           cat probe.log
           exit 1

@@ -1,7 +1,11 @@
-# Servidor dedicado do Ecos de Valdoria (Godot headless).
+# Servidor dedicado do Ecos de Valdoria (Godot headless): jogo em UDP 7777 + API HTTP de login/health em 8080,
+# contas e personagens num banco SQLite em /data (addons/godot-sqlite, .so do Linux).
 #   docker build -t valdoria-server .
-#   docker run -p 7777:7777/udp valdoria-server
-# No Easypanel: App com build por Dockerfile + Advanced → Ports: 7777 → 7777 (UDP).
+#   docker run -v valdoria-data:/data -p 7777:7777/udp -p 8080:8080 valdoria-server
+#   curl http://127.0.0.1:8080/health
+# No Easypanel: App com build por Dockerfile; Mounts → volume em /data; Domains → HTTPS com proxy para a
+# porta 8080; Advanced → Ports: 7777 → 7777 (UDP). Envs opcionais: GAME_PORT, HTTP_PORT, DB_PATH, ADMIN_USERS
+# (crie a conta antes de pôr o nome em ADMIN_USERS).
 FROM debian:bookworm-slim
 
 ARG GODOT_VERSION=4.7.2
