@@ -120,6 +120,33 @@ static func _particle_mat(tex: Texture2D, additive: bool) -> StandardMaterial3D:
 	return m
 
 
+## Faísca: dois quads em cruz ao longo de Y (visíveis de qualquer ângulo). Sem billboard,
+## para o align_y das partículas alongar de verdade na direção da velocidade.
+static func _spark_mesh() -> ArrayMesh:
+	var hw := 0.07
+	var hl := 0.5
+	var verts := PackedVector3Array([
+		Vector3(-hw, -hl, 0), Vector3(hw, -hl, 0), Vector3(hw, hl, 0), Vector3(-hw, hl, 0),
+		Vector3(0, -hl, -hw), Vector3(0, -hl, hw), Vector3(0, hl, hw), Vector3(0, hl, -hw)])
+	var uvs := PackedVector2Array([Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0),
+		Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)])
+	var idx := PackedInt32Array([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7])
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_TEX_UV] = uvs
+	arr[Mesh.ARRAY_INDEX] = idx
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return m
+
+
+static func _spark_mat() -> StandardMaterial3D:
+	var m := _particle_mat(_glow_tex(), true)
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
+	return m
+
+
 ## Aplica o limite global de partículas e devolve o amount efetivo.
 static func _reserve(amount: int) -> int:
 	if _active_amount + amount > ACTIVE_LIMIT:
@@ -138,9 +165,16 @@ static func _launch(root: Node, p: CPUParticles3D, pos: Vector3, amount: int) ->
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(p)
 	p.global_position = pos
+	# devolve o orçamento exatamente uma vez: ao terminar ou se o nó sair da árvore antes
+	var released := [false]
+	var give_back := func() -> void:
+		if not released[0]:
+			released[0] = true
+			_release(amount)
 	p.finished.connect(func() -> void:
-		_release(amount)
+		give_back.call()
 		p.queue_free())
+	p.tree_exiting.connect(give_back)
 	p.emitting = true
 
 
@@ -196,9 +230,8 @@ static func sparks(pos: Vector3, dir: Vector3, color: Color, amount := 30, speed
 		return
 	amount = _reserve(amount)
 	var p := CPUParticles3D.new()
-	var mesh := QuadMesh.new()
-	mesh.size = Vector2(0.16, 1.0)
-	mesh.material = _particle_mat(_glow_tex(), true)
+	var mesh: Mesh = _spark_mesh()
+	mesh.surface_set_material(0, _spark_mat())
 	p.mesh = mesh
 	p.amount = amount
 	p.lifetime = lifetime
@@ -321,6 +354,9 @@ static func hit_stop(duration := 0.06, scale := 0.05) -> void:
 		return
 	var tree := Engine.get_main_loop() as SceneTree
 	var until := Time.get_ticks_msec() + int(duration * 1000.0)
+	if _hs_active and Time.get_ticks_msec() > _hs_until_ms + 500:
+		_hs_active = false   # rede de segurança: o timer se perdeu, restaura
+		Engine.time_scale = 1.0
 	if _hs_active:
 		_hs_until_ms = maxi(_hs_until_ms, until)   # já ativo: só estende, não empilha
 		return

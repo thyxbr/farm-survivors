@@ -220,6 +220,12 @@ func _test_fx_epic() -> void:
 	check(is_equal_approx(Engine.time_scale, 1.0), "hit stop volta para 1.0")
 	await wait(2.0)
 	check(get_tree().current_scene.get_child_count() <= n0 + 1, "efeitos épicos se liberam")
+	check(FXEpic._active_amount == 0, "orçamento de partículas devolvido (%d)" % FXEpic._active_amount)
+	# liberar um emissor antes da hora também devolve o orçamento
+	FXEpic.glow_burst(p, Color.ORANGE, 40)
+	check(FXEpic._active_amount == 40, "orçamento reservado (%d)" % FXEpic._active_amount)
+	get_tree().current_scene.get_child(get_tree().current_scene.get_child_count() - 1).free()
+	check(FXEpic._active_amount == 0, "emissor liberado cedo devolve o orçamento (%d)" % FXEpic._active_amount)
 
 
 # ---------------------------------------------------------------- Horta, caldeirão e comida
