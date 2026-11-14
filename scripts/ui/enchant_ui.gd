@@ -162,7 +162,9 @@ func _refresh() -> void:
 	else:
 		show_lv = int(c.to)
 		var dmg: Array = t.get("damage", [])
-		var effect: String = elements[selected].get("effect", "")
+		var effect: String = EnchantRules.effect_text(Balance.tables, selected, int(c.to))
+		if effect == "":
+			effect = elements[selected].get("effect", "")
 		if c.kind == "swap":
 			_next.text = "Trocar para %s (mantém +%d)" % [sel_name, cur.lv]
 		else:

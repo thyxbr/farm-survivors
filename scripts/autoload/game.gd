@@ -370,6 +370,12 @@ func enchant_damage(weapon_id: String) -> float:
 	return float(dmg[mini(lv, dmg.size()) - 1])
 
 
+## Efeito do elemento da arma equipada (EnchantRules.effect); {} sem encanto.
+func weapon_effect() -> Dictionary:
+	var e := weapon_enchant()
+	return EnchantRules.effect(Balance.tables, e.el, e.lv)
+
+
 ## "Fogo +2 · +10% de dano" ("" se a arma não tem encanto).
 func enchant_text(weapon_id: String) -> String:
 	var e := enchant_of(weapon_id)

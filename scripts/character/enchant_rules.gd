@@ -100,3 +100,61 @@ static func mods(s: CharState, bt: BalanceTables) -> Dictionary:
 	if cur.lv <= 0 or dmg.is_empty():
 		return {}
 	return {"damage": float(dmg[mini(cur.lv, dmg.size()) - 1])}
+
+
+# ================================================================ efeitos dos elementos
+## Efeito do elemento no nível dado: {"el", "value"} mais os campos fixos da tabela ("secs", "mult",
+## "radius"). O significado de "value" depende do elemento: fogo = fração do dano do golpe que vira
+## queimadura; gelo = segundos de lentidão; raio = chance de corrente; veneno = dano extra que o alvo
+## marcado recebe; sagrado = dano extra em chefes e elites; sombra = fração do dano que vira cura.
+## Sem efeito (nível 0, elemento desconhecido, tabela sem "effects"): {}.
+static func effect(bt: BalanceTables, element: String, level: int) -> Dictionary:
+	if level <= 0:
+		return {}
+	var def: Dictionary = _table(bt).get("effects", {}).get(element, {})
+	var values: Array = def.get("values", [])
+	if values.is_empty():
+		return {}
+	var out := def.duplicate()
+	out.erase("values")
+	out["el"] = element
+	out["value"] = float(values[mini(level, values.size()) - 1])
+	return out
+
+
+## Maior valor do efeito de um elemento (o servidor usa para limitar o que o cliente manda). 0 se não há.
+static func max_effect(bt: BalanceTables, element: String) -> float:
+	var values: Array = _table(bt).get("effects", {}).get(element, {}).get("values", [])
+	var m := 0.0
+	for v in values:
+		m = maxf(m, float(v))
+	return m
+
+
+## Número para texto: inteiro sem casas, senão uma casa com vírgula ("30", "1,5").
+static func _num(v: float) -> String:
+	if absf(v - roundf(v)) < 0.005:
+		return str(int(roundf(v)))
+	return ("%.1f" % v).replace(".", ",")
+
+
+## O efeito em uma frase, para o painel do ferreiro e a dica do item. Sem efeito: "".
+static func effect_text(bt: BalanceTables, element: String, level: int) -> String:
+	var fx := effect(bt, element, level)
+	if fx.is_empty():
+		return ""
+	var v: float = fx.value
+	match element:
+		"fogo":
+			return "Queimadura: %s%% do dano em %s s" % [_num(v * 100.0), _num(float(fx.get("secs", 3)))]
+		"gelo":
+			return "Lentidão por %s s" % _num(v)
+		"raio":
+			return "Corrente: %s%% de chance de saltar a outro inimigo" % _num(v * 100.0)
+		"veneno":
+			return "Marca tóxica: alvo recebe +%s%% de dano por %s s" % [_num(v * 100.0), _num(float(fx.get("secs", 4)))]
+		"sagrado":
+			return "+%s%% de dano em chefes e elites" % _num(v * 100.0)
+		"sombra":
+			return "Cura %s%% do dano causado" % _num(v * 100.0)
+	return ""

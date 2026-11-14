@@ -109,3 +109,47 @@ func test_missing_table() -> void:
 	s.equipment.weapon = "azure_edge"
 	T.eq(EnchantRules.enchant(s, bt, "fogo").err, "sem_tabela", "sem tabela enchant não quebra")
 	T.eq(EnchantRules.mods(s, bt), {}, "sem tabela: sem bônus")
+
+
+## Efeito de cada elemento por nível (data/balance/enchant.json, chave "effects").
+func test_effect_values() -> void:
+	var bt := _tables()
+	var want := {
+		"fogo": [0.15, 0.30, 0.45], "gelo": [0.6, 1.2, 2.0], "raio": [0.10, 0.20, 0.30],
+		"veneno": [0.04, 0.08, 0.12], "sagrado": [0.08, 0.16, 0.25], "sombra": [0.01, 0.02, 0.03],
+	}
+	for el in want:
+		var lvs := [1, 3, 5]
+		for i in 3:
+			var fx := EnchantRules.effect(bt, el, lvs[i])
+			T.eq(fx.get("el"), el, "%s +%d: elemento" % [el, lvs[i]])
+			T.ok(absf(float(fx.get("value", -1.0)) - want[el][i]) < 0.0001, "%s +%d vale %s" % [el, lvs[i], str(want[el][i])])
+	T.eq(EnchantRules.effect(bt, "fogo", 3).secs, 3, "queimadura dura 3 s")
+	T.eq(EnchantRules.effect(bt, "veneno", 1).secs, 4, "marca dura 4 s")
+	var raio := EnchantRules.effect(bt, "raio", 5)
+	T.ok(absf(float(raio.mult) - 0.5) < 0.0001 and int(raio.radius) == 6, "corrente: metade do dano, 6 m")
+	T.ok(absf(EnchantRules.max_effect(bt, "veneno") - 0.12) < 0.0001, "maior marca de veneno é 12%")
+	T.eq(EnchantRules.max_effect(bt, "luz"), 0.0, "elemento desconhecido: 0")
+
+
+func test_effect_absent() -> void:
+	var bt := _tables()
+	T.eq(EnchantRules.effect(bt, "fogo", 0), {}, "nível 0: sem efeito")
+	T.eq(EnchantRules.effect(bt, "luz", 3), {}, "elemento desconhecido: sem efeito")
+	T.eq(EnchantRules.effect(bt, "", 3), {}, "sem elemento: sem efeito")
+	T.eq(EnchantRules.effect(bt, "fogo", 9).value, EnchantRules.effect(bt, "fogo", 5).value, "acima do máximo vale o máximo")
+	var none := BalanceTables.from_dict({"items": bt.get_table("items")})
+	T.eq(EnchantRules.effect(none, "fogo", 3), {}, "sem tabela: sem efeito")
+	T.eq(EnchantRules.effect_text(none, "fogo", 3), "", "sem tabela: sem texto")
+	T.eq(EnchantRules.effect_text(bt, "fogo", 0), "", "nível 0: sem texto")
+
+
+func test_effect_text() -> void:
+	var bt := _tables()
+	T.eq(EnchantRules.effect_text(bt, "fogo", 3), "Queimadura: 30% do dano em 3 s", "fogo")
+	T.eq(EnchantRules.effect_text(bt, "gelo", 3), "Lentidão por 1,2 s", "gelo")
+	T.eq(EnchantRules.effect_text(bt, "raio", 3), "Corrente: 20% de chance de saltar a outro inimigo", "raio")
+	T.eq(EnchantRules.effect_text(bt, "veneno", 3), "Marca tóxica: alvo recebe +8% de dano por 4 s", "veneno")
+	T.eq(EnchantRules.effect_text(bt, "sagrado", 3), "+16% de dano em chefes e elites", "sagrado")
+	T.eq(EnchantRules.effect_text(bt, "sombra", 3), "Cura 2% do dano causado", "sombra")
+	T.eq(EnchantRules.effect_text(bt, "sombra", 2), "Cura 1,5% do dano causado", "sombra com meia unidade")

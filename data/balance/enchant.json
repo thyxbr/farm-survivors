@@ -17,6 +17,14 @@
 		{"gold": 1000, "ecos": 40, "essence": 10, "items": {"iron_ore": 20, "arcane_crystal": 12}}
 	],
 	"swap": {"gold": 100, "essence": 3},
+	"effects": {
+		"fogo":    {"values": [0.15, 0.22, 0.30, 0.38, 0.45], "secs": 3},
+		"gelo":    {"values": [0.6, 0.9, 1.2, 1.6, 2.0]},
+		"raio":    {"values": [0.10, 0.15, 0.20, 0.25, 0.30], "mult": 0.5, "radius": 6},
+		"veneno":  {"values": [0.04, 0.06, 0.08, 0.10, 0.12], "secs": 4},
+		"sagrado": {"values": [0.08, 0.12, 0.16, 0.20, 0.25]},
+		"sombra":  {"values": [0.01, 0.015, 0.02, 0.025, 0.03]}
+	},
 	"sources": {
 		"iron_ore": "veios de ferro em volta do Acampamento Goblin (leste da vila)",
 		"arcane_crystal": "cristais arcanos nas Ruínas (norte da vila)",
