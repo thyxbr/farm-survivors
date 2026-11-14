@@ -11,6 +11,7 @@ const NODE := preload("res://scripts/colony/resource_node.gd")
 ## Um golpe só tira um pedaço do mesmo nó a cada HIT_COOLDOWN segundos.
 const HIT_COOLDOWN := 0.25
 const CLEARING := 52.0   # raio da clareira central (onde começa o anel 1)
+const OUTCROPS := 8      # aglomerados de pedras (para as pedreiras)
 const DECOR_ROCK := preload("res://assets/models/rock.glb")
 
 var colony: Colony
@@ -72,6 +73,15 @@ func generate(rng: RandomNumberGenerator, c: Colony) -> void:
 	_scatter(rng, "gold", "rock", 4, rings[1] + 2.0, rings[2] - 2.0, 0.9, 1.3, 0.65)
 	_scatter(rng, "berry", "bush_berry", 10, rings[1] + 2.0, rings[2] - 2.0, 0.9, 1.2, 0.5)
 	_scatter(rng, "crystal", "", 6, rings[2] + 2.0, half - 10.0, 1.0, 1.25, 0.6)
+	# afloramentos no anel 1: aglomerados de pedras onde cabe uma pedreira (precisa de 4 pedras num raio de 14 m).
+	# Vêm por último para não mudar o id dos nós já existentes.
+	for g in OUTCROPS:
+		var a := rng.randf() * TAU
+		var cen := Vector3(cos(a), 0, sin(a)) * rng.randf_range(CLEARING + 6.0, rings[1] - 4.0)
+		for i in rng.randi_range(5, 7):
+			var p := cen + Vector3(rng.randf_range(-6.0, 6.0), 0, rng.randf_range(-6.0, 6.0))
+			if _clear(p, 1.5):
+				_add("rock", "rock", p, rng.randf() * TAU, rng.randf_range(0.7, 1.4), 0.65)
 
 
 func node(id: int) -> ColonyResourceNode:
@@ -104,6 +114,19 @@ func nearest(kind: String, p: Vector3) -> ColonyResourceNode:
 		if n.alive and n.kind == kind:
 			var d := _flat(n.global_position, p)
 			if d < bd:
+				bd = d
+				best = n
+	return best
+
+
+## O nó vivo desse tipo mais próximo de p dentro de r metros (null se não houver).
+func nearest_to(kind: String, p: Vector3, r: float) -> ColonyResourceNode:
+	var best: ColonyResourceNode = null
+	var bd := r
+	for n in nodes:
+		if n.alive and n.kind == kind:
+			var d := _flat(n.global_position, p)
+			if d <= bd:
 				bd = d
 				best = n
 	return best

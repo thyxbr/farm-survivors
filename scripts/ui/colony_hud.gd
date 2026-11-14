@@ -182,6 +182,11 @@ func _process(_delta: float) -> void:
 	_update_build()
 
 
+## "  (+12/min)" quando a serraria/pedreira está rendendo; vazio sem produção.
+func _per_min(v: float) -> String:
+	return "" if v < 0.05 else " [color=%s](%+.0f/min)[/color]" % [_col(1), v]
+
+
 func _update_status() -> void:
 	var f := colony.forecast()
 	var lines: Array[String] = []
@@ -192,7 +197,7 @@ func _update_status() -> void:
 		lines.append("[b][color=#dcae52]Cidade — dia %d[/color][/b]" % colony.day)
 		lines.append("Ouro  [b]%d[/b]   [color=%s](%+d/dia)[/color]" % [Game.gold, _col(f.gold_net), f.gold_net])
 	lines.append("Comida  [b]%d[/b]   [color=%s](%+d/dia)[/color]" % [colony.food, _col(f.food_net), f.food_net])
-	var stock := "Madeira  [b]%d[/b]  ·  Pedra  [b]%d[/b]" % [colony.amount("wood"), colony.amount("stone")]
+	var stock := "Madeira  [b]%d[/b]%s  ·  Pedra  [b]%d[/b]%s" % [colony.amount("wood"), _per_min(f.wood_min), colony.amount("stone"), _per_min(f.stone_min)]
 	if colony.amount("iron") > 0:
 		stock += "  ·  Ferro  [b]%d[/b]" % colony.amount("iron")
 	if colony.amount("crystal") > 0:

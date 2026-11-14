@@ -75,6 +75,9 @@ var _spawn_acc := 0.0
 var _spawn_i := 0
 var _warned := false
 var _animal_t := 0.0
+var _gather_t := 0.0               # segundos até a próxima entrega da serraria/pedreira
+var _gather_acc := {}              # construção -> unidades produzidas e ainda não entregues (fração)
+var _gather_made := {}             # construção -> unidades já entregues desde o último nó esgotado
 var _core_warn := 0.0
 var _dawn_pending := false
 var _flag: Node3D
@@ -473,6 +476,57 @@ func votes_needed() -> int:
 	return maxi(1, int(ceil(team_size / 2.0)))
 
 
+## Multiplicador de tecnologia da produção de "wood"/"stone". Ponto único para plugar `colony.mult(res)` (Task 6).
+func _gather_mult(_res: String) -> float:
+	return 1.0
+
+
+## Nós vivos que a serraria/pedreira `b` alcança.
+func _gather_live(b: ColonyBuilding) -> int:
+	return nature.alive_near(b.data.gather, b.global_position, float(b.data.reach)).size() if nature != null else 0
+
+
+## Servidor/solo, de dia: serraria e pedreira entregam o que produziram em `dt` segundos. Cada
+## NODE_YIELD_CAMP unidades esgotam o nó vivo mais próximo (mesmo caminho de esgotamento do jogador).
+func _gather_tick(dt: float) -> void:
+	if role == "client" or phase != "day" or nature == null:
+		return
+	for b in buildings():
+		if not b.data.has("gather") or b.dead:
+			continue
+		var res: String = ColonyData.NODES[b.data.gather].res
+		var live := _gather_live(b)
+		var acc := float(_gather_acc.get(b, 0.0)) + ColonyData.gather_rate(crew_eff(b), live, _gather_mult(res)) * int(b.data.crew) * dt
+		var whole := int(acc)
+		_gather_acc[b] = acc - whole
+		if whole <= 0:
+			continue
+		gain({res: whole})
+		var made := int(_gather_made.get(b, 0)) + whole
+		while made >= ColonyData.NODE_YIELD_CAMP:
+			made -= ColonyData.NODE_YIELD_CAMP
+			var n := nature.nearest_to(b.data.gather, b.global_position, float(b.data.reach))
+			if n == null:
+				made = 0
+				break
+			nature.deplete(n.id, day)
+		_gather_made[b] = made
+	for d in [_gather_acc, _gather_made]:   # esquece as construções que caíram
+		for k in d.keys():
+			if not is_instance_valid(k) or k.dead:
+				d.erase(k)
+
+
+## Madeira e pedra por minuto que serrarias e pedreiras rendem agora (HUD e previsão).
+func gather_per_min() -> Dictionary:
+	var out := {"wood": 0.0, "stone": 0.0}
+	for b in buildings():
+		if b.data.has("gather") and not b.dead:
+			var res: String = ColonyData.NODES[b.data.gather].res
+			out[res] += ColonyData.gather_rate(crew_eff(b), _gather_live(b), _gather_mult(res)) * int(b.data.crew) * 60.0
+	return out
+
+
 ## Previsão do próximo amanhecer (também usada no relatório).
 func forecast() -> Dictionary:
 	var farm_food := 0.0
@@ -509,6 +563,7 @@ func forecast() -> Dictionary:
 		"gold_in": tax + trade + hall_gold, "gold_net": tax + trade + hall_gold - sal - up,
 		"food_in": food_in, "food_out": food_out, "food_net": food_in - food_out,
 		"workers": busy(), "employed": mini(citizens, busy()), "eff": eff,
+		"wood_min": gather_per_min().wood, "stone_min": gather_per_min().stone,
 	}
 
 
@@ -528,7 +583,13 @@ func can_place(kind: String, pos: Vector3, rot: float, ignore_cost := false) -> 
 	else:
 		if hall == null or not is_instance_valid(hall) or hall.dead:
 			return "Construa a prefeitura primeiro."
-		if Vector2(pos.x - hall.global_position.x, pos.z - hall.global_position.z).length() > ColonyData.CITY_RADIUS:
+		if d.has("gather"):   # serraria e pedreira vão para perto do recurso, até max_dist do centro do mapa
+			if Vector2(pos.x, pos.z).length() > float(d.max_dist):
+				return "Longe demais da cidade (máximo %d m do centro)." % int(d.max_dist)
+			if nature == null or nature.alive_near(d.gather, pos, float(d.reach)).size() < int(d.min_nodes):
+				var what := "árvores" if d.gather == "tree" else "pedras"
+				return "Precisa de %d %s vivas num raio de %d m." % [int(d.min_nodes), what, int(d.reach)]
+		elif Vector2(pos.x - hall.global_position.x, pos.z - hall.global_position.z).length() > ColonyData.CITY_RADIUS:
 			return "Fora dos limites da cidade."
 		if not ignore_cost:
 			var lack := missing(cost_of(kind))
@@ -914,6 +975,10 @@ func _physics_process(delta: float) -> void:
 				_animal_t = 4.0
 				_spawn_wildlife(false)
 			_train_tick(delta)
+			_gather_t -= delta
+			if _gather_t <= 0.0:
+				_gather_t += ColonyData.GATHER_TICK
+				_gather_tick(ColonyData.GATHER_TICK)
 			if phase_t <= 25.0 and not _warned:
 				_warned = true
 				say("O sol está se pondo... os monstros atacam ao anoitecer!", Color(1, 0.6, 0.4))

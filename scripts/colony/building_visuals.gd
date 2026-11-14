@@ -35,6 +35,12 @@ static func make(kind: String, level := 1) -> Node3D:
 	if kind == "house":
 		_house(root, level)
 		return root
+	if kind == "lumber_camp" or kind == "quarry":   # modelos procedurais, sem .glb
+		if kind == "lumber_camp":
+			_lumber_camp(root, level)
+		else:
+			_quarry(root, level)
+		return root
 	var scene := _scene("%s_%d" % [kind, level])
 	if scene:
 		root.add_child(scene.instantiate())
@@ -76,6 +82,10 @@ static func height(kind: String) -> float:
 			return 3.2
 		"farm":
 			return 2.2
+		"lumber_camp":
+			return 3.0
+		"quarry":
+			return 2.4
 		"spikes":
 			return 1.4
 		"wall":
@@ -98,6 +108,54 @@ static func _house(r: Node3D, level: int) -> void:
 		_box(r, Vector3(1.4, 0.5, 0.6), Vector3(-1.8, 0.25, 2.4), WOOD)
 	if level >= 3:
 		_box(r, Vector3(0.44, 0.5, 0.44), Vector3(1.5, 5.89, -1.0), STONE_DARK)   # chaminé mais alta
+
+
+## Serraria: galpão aberto de toras, pilha de lenha, tocos e caixotes. Cada nível aumenta o galpão e a pilha.
+static func _lumber_camp(r: Node3D, level: int) -> void:
+	var w := 3.4 + 0.4 * (level - 1)
+	_box(r, Vector3(w, 0.2, 2.6), Vector3(-0.6, 0.1, -0.5), WOOD_DARK)                  # piso
+	for sx in [-1.0, 1.0]:                                                             # postes e fundo
+		for sz in [-1.0, 1.0]:
+			_cyl(r, 0.14, 0.16, 2.4, Vector3(-0.6 + sx * (w * 0.5 - 0.15), 1.4, -0.5 + sz * 1.1), WOOD, 8)
+	_box(r, Vector3(w, 1.6, 0.14), Vector3(-0.6, 1.1, -1.55), WOOD_DARK)
+	_box(r, Vector3(w + 0.6, 0.18, 3.0), Vector3(-0.6, 2.7, -0.5), WOOD, Vector3(0.14, 0, 0))   # telhado inclinado
+	_box(r, Vector3(1.8, 0.25, 0.5), Vector3(-0.6, 0.8, -0.3), STONE_DARK)              # bancada da serra
+	_box(r, Vector3(0.1, 0.55, 0.9), Vector3(-0.6, 1.2, -0.3), IRON)                    # lâmina
+	# pilha de toras deitadas
+	var rows := 2 + level
+	for row in rows:
+		for i in (4 - row):
+			_cyl(r, 0.22, 0.22, 2.0, Vector3(2.0 + (i - (3 - row) * 0.5) * 0.46, 0.25 + row * 0.4, 1.0), WOOD,
+				8, Vector3(PI / 2, 0, 0))
+	_cyl(r, 0.35, 0.4, 0.5, Vector3(-2.6, 0.25, 1.4), WOOD_DARK, 10)                      # toco com machado
+	_box(r, Vector3(0.08, 0.7, 0.08), Vector3(-2.6, 0.85, 1.4), WOOD, Vector3(0, 0, 0.5))
+	_box(r, Vector3(0.5, 0.5, 0.5), Vector3(1.8, 0.25, -1.4), WOOD)                     # caixote
+	if level >= 2:
+		_box(r, Vector3(0.5, 0.5, 0.5), Vector3(1.8, 0.75, -1.4), WOOD_DARK)
+		_glb(r, BARREL, Vector3(-2.6, 0, -1.3), 0.0, 0.8)
+
+
+## Pedreira: blocos de pedra, bloco em corte, carrinho com carga e barril.
+static func _quarry(r: Node3D, level: int) -> void:
+	_box(r, Vector3(4.6, 0.12, 3.6), Vector3(0, 0.06, 0), STONE_DARK)                     # chão de pedra batida
+	_box(r, Vector3(1.6, 1.0, 1.3), Vector3(-1.4, 0.55, -0.6), STONE, Vector3(0, 0.3, 0))
+	_box(r, Vector3(1.1, 0.8, 1.0), Vector3(-1.2, 1.4, -0.5), STONE_DARK, Vector3(0, 0.6, 0))
+	_box(r, Vector3(1.3, 0.7, 1.0), Vector3(0.4, 0.4, -1.1), STONE, Vector3(0, -0.2, 0))
+	_box(r, Vector3(0.7, 0.5, 0.7), Vector3(1.9, 0.3, -0.9), STONE_DARK, Vector3(0, 0.4, 0))
+	_box(r, Vector3(0.12, 1.0, 0.12), Vector3(-2.2, 0.7, 0.4), WOOD, Vector3(0, 0, 0.35))  # picareta
+	_box(r, Vector3(0.6, 0.12, 0.12), Vector3(-2.3, 1.2, 0.4), IRON, Vector3(0, 0, 0.35))
+	# carrinho de mão com pedras
+	_box(r, Vector3(1.2, 0.5, 0.9), Vector3(1.0, 0.65, 1.1), WOOD)
+	_box(r, Vector3(0.8, 0.3, 0.6), Vector3(1.0, 1.0, 1.1), STONE)
+	_cyl(r, 0.3, 0.3, 0.12, Vector3(1.7, 0.3, 1.1), WOOD_DARK, 10, Vector3(0, 0, PI / 2))
+	_box(r, Vector3(0.9, 0.08, 0.08), Vector3(0.0, 0.7, 0.8), WOOD_DARK)
+	_box(r, Vector3(0.9, 0.08, 0.08), Vector3(0.0, 0.7, 1.4), WOOD_DARK)
+	_glb(r, BARREL, Vector3(-0.4, 0, 1.6), 0.0, 0.8)
+	if level >= 2:
+		_box(r, Vector3(1.0, 0.7, 1.0), Vector3(2.1, 0.45, 0.4), STONE)
+		_box(r, Vector3(0.9, 0.6, 0.9), Vector3(2.1, 1.05, 0.4), STONE_DARK, Vector3(0, 0.3, 0))
+	if level >= 3:
+		_box(r, Vector3(1.4, 0.9, 1.1), Vector3(-0.2, 0.5, -1.6), STONE_DARK)
 
 
 # ================================================================ primitivas

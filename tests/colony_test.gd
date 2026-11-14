@@ -200,6 +200,48 @@ func _ready() -> void:
 	var nd: Dictionary = colony.to_dict().get("nodes", {})
 	check(nd.has(str(cr.id)) and nd.has(str(berry.id)) and int(colony.to_dict().get("seed", -1)) == 7731, "save guarda semente e nós esgotados")
 
+	# --- serraria e pedreira: produção contínua do bosque em volta
+	var keep_cp := [colony.citizens, Game.gold, colony.res.duplicate()]
+	colony.citizens = colony.busy() + 6   # a serraria e a pedreira ocupam 3 aldeões cada
+	Game.gold += 200
+	colony.res["wood"] = int(colony.res.get("wood", 0)) + 200
+	var spot := _camp_spot("tree")
+	check(spot != Vector3.INF, "há um bosque a ~60 m do centro para a serraria")
+	check(colony.can_place("lumber_camp", spot, 0.0) == "", "serraria pode ficar fora da cidade perto do bosque (%s)" % colony.can_place("lumber_camp", spot, 0.0))
+	check(colony.can_place("lumber_camp", Vector3(0, 0, 20), 0.0) != "", "serraria longe de árvores é recusada")
+	check(colony.can_place("lumber_camp", spot * 1.6, 0.0) != "", "serraria além de 80 m é recusada")
+	check(colony.can_place("house", spot, 0.0) != "", "casa continua restrita ao raio da cidade")
+	var camp := colony.place("lumber_camp", spot, 0.0)
+	check(camp != null and colony.free_villagers() >= 0, "serraria construída")
+	var wc0 := colony.amount("wood")
+	var live0 := colony.nature.alive_near("tree", spot, 14.0).size()
+	colony._gather_tick(30.0)
+	check(colony.amount("wood") > wc0 + 10, "serraria produz madeira de dia (%d, eff %.2f, nós %d)" % [colony.amount("wood") - wc0, colony.staffing(), live0])
+	colony._gather_tick(60.0)
+	check(colony.nature.alive_near("tree", spot, 14.0).size() < live0, "serraria consome o bosque (%d -> %d)" % [live0, colony.nature.alive_near("tree", spot, 14.0).size()])
+	check(ColonyData.gather_rate(1.0, 2, 1.0) < ColonyData.gather_rate(1.0, 8, 1.0), "bosque ralo produz menos")
+	check(ColonyData.gather_rate(1.0, 0, 1.0) == 0.0 and ColonyData.gather_rate(0.0, 8, 1.0) == 0.0, "sem árvore ou sem aldeão não produz")
+	check(colony.gather_per_min().wood > 0.0 and colony.gather_per_min().stone == 0.0, "previsão por minuto: só madeira")
+	var qspot := _camp_spot("rock")
+	check(qspot != Vector3.INF and colony.can_place("quarry", qspot, 0.0) == "", "pedreira pode ficar perto das pedras")
+	if qspot == Vector3.INF:
+		fails += 1
+		qspot = Vector3(0, 0, 20)   # sem afloramento livre: o resto do bloco falha mas não quebra
+	var quarry := colony.place("quarry", qspot, 0.0)
+	var sq0 := colony.amount("stone")
+	colony._gather_tick(30.0)
+	check(quarry != null and colony.amount("stone") > sq0 + 5, "pedreira produz pedra (%d)" % (colony.amount("stone") - sq0))
+	var wn := colony.amount("wood")
+	colony.phase = "night"
+	colony._gather_tick(30.0)
+	colony.phase = "day"
+	check(colony.amount("wood") == wn, "de noite não produz")
+	colony.demolish(camp)
+	colony.demolish(quarry)
+	colony.citizens = keep_cp[0]
+	Game.gold = keep_cp[1]
+	colony.res = keep_cp[2]
+
 	# --- muros encaixam
 	colony.place("wall", Vector3(0, 0, 22), 0.0)
 	world.build.select("wall")
@@ -392,6 +434,26 @@ func _write_save(d: Dictionary) -> void:
 	var f := FileAccess.open(Game.colony_save_path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(d, "\t"))
 	f.close()
+
+
+## Ponto livre a 50-75 m do centro com árvores/pedras suficientes em volta (para serraria/pedreira).
+func _camp_spot(kind: String) -> Vector3:
+	var fallback := Vector3.INF
+	for n in colony.nature.nodes:
+		var d := Vector2(n.global_position.x, n.global_position.z).length()
+		if n.kind != kind or not n.alive or d < 50.0 or d > 72.0:
+			continue
+		for dx in [-6.0, -3.0, 0.0, 3.0, 6.0]:
+			for dz in [-6.0, -3.0, 0.0, 3.0, 6.0]:
+				var p: Vector3 = n.global_position + Vector3(dx, 0.0, dz)
+				if Vector2(p.x, p.z).length() > 74.0 or colony.nature.alive_near(kind, p, 14.0).size() < 4:
+					continue
+				if fallback == Vector3.INF:
+					fallback = p
+				var k := "lumber_camp" if kind == "tree" else "quarry"
+				if colony.can_place(k, p, 0.0) == "":
+					return p
+	return fallback
 
 
 func _bind() -> void:

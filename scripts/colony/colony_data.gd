@@ -39,7 +39,7 @@ const REPAIR_RATIO := 0.4                    # reparar a construção inteira cu
 const MAX_LEVEL := 3
 
 ## Ordem da barra de construção (teclas 1..9, 0). A prefeitura é a primeira construção da partida.
-const ORDER := ["house", "farm", "market", "barracks", "wall", "gate", "spikes",
+const ORDER := ["house", "farm", "lumber_camp", "quarry", "market", "barracks", "wall", "gate", "spikes",
 	"archer_tower", "cannon_tower", "mage_tower"]
 
 ## size = pegada no chão (x = largura, y = profundidade), em metros.
@@ -51,6 +51,12 @@ const BUILDINGS := {
 		"desc": "Abriga 5 moradores. Moradores pagam impostos e podem ser recrutados."},
 	"farm": {"name": "Fazenda", "cost": {"gold": 30, "wood": 50}, "hp": 240, "size": Vector2(7.0, 6.0), "food": 12, "crew": 2,
 		"desc": "Produz 12 de comida por dia. Ocupa 2 aldeões."},
+	"lumber_camp": {"name": "Serraria", "cost": {"gold": 40, "wood": 30}, "hp": 300, "size": Vector2(5.0, 4.0), "crew": 3,
+		"gather": "tree", "reach": 14.0, "max_dist": 80.0, "min_nodes": 4,
+		"desc": "Corta as árvores em volta (14 m) e entrega madeira o dia todo. Ocupa 3 aldeões. Pode ficar fora da cidade, mas o bosque acaba."},
+	"quarry": {"name": "Pedreira", "cost": {"gold": 40, "wood": 50}, "hp": 300, "size": Vector2(5.0, 4.0), "crew": 3,
+		"gather": "rock", "reach": 14.0, "max_dist": 80.0, "min_nodes": 4,
+		"desc": "Quebra as pedras em volta (14 m) e entrega pedra o dia todo. Ocupa 3 aldeões. Pode ficar fora da cidade, mas as pedras acabam."},
 	"market": {"name": "Mercado", "cost": {"gold": 90, "wood": 60, "stone": 20}, "hp": 380, "size": Vector2(5.2, 5.2), "gold": 25, "crew": 2,
 		"desc": "Rende 25 ouro por dia com o comércio. Ocupa 2 aldeões."},
 	"barracks": {"name": "Quartel", "cost": {"gold": 100, "wood": 80, "stone": 40}, "hp": 650, "size": Vector2(6.6, 5.6), "army": 6, "crew": 1,
@@ -105,6 +111,12 @@ const NODES := {
 	"crystal": {"name": "Cristal arcano", "res": "crystal", "hits": 6, "total": 8},
 	"berry": {"name": "Arbusto de frutas", "res": "food", "hits": 1, "total": 12},
 }
+## Serraria e pedreira: unidades por aldeão por segundo com o bosque cheio (GATHER_FULL nós vivos no raio ou mais).
+const GATHER_RATE := 1.0 / 6.0
+const GATHER_FULL := 8
+const GATHER_TICK := 3.0           # segundos entre entregas
+const NODE_YIELD_CAMP := 24        # a cada tantas unidades produzidas, o nó vivo mais próximo se esgota
+
 ## Raio (a partir do centro do mapa) onde começam os anéis 1, 2 e 3.
 const RINGS := [52.0, 80.0, 105.0]
 ## Dias até um nó esgotado voltar no mesmo lugar.
@@ -248,6 +260,11 @@ static func coop_cost(kind: String, owned: int) -> Dictionary:
 ## Vida dos monstros na noite n (cooperativo, sem contar grupo nem elites).
 static func coop_hp_mult(n: int) -> float:
 	return (1.0 + 0.12 * (n - 1)) * pow(VETERAN_RATE, maxi(0, n - VETERAN_NIGHT))
+
+
+## Unidades por segundo de UM aldeão da serraria/pedreira (multiplique por `crew`): taxa × eficiência, proporcional ao bosque (cheio com GATHER_FULL nós).
+static func gather_rate(crew_eff: float, live: int, tech_mult: float) -> float:
+	return GATHER_RATE * crew_eff * clampf(float(live) / GATHER_FULL, 0.0, 1.0) * tech_mult
 
 
 static func building(kind: String) -> Dictionary:
