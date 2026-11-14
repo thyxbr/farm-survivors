@@ -18,6 +18,8 @@ var active := ""
 var pos := Vector3.ZERO
 ## Chance de sair um evento no amanhecer (o teste da cidade zera para o sorteio não mexer nos nós e no mapa).
 var chance := ColonyData.EVENT_CHANCE
+## Evento que sai no próximo amanhecer possível, uma vez só (servidor com --city-event=TIPO: gancho do net_test).
+var force_next := ""
 var _props: Array[Node3D] = []
 var _enemies: Array[Enemy] = []
 var _animals: Array[ColonyAnimal] = []
@@ -32,6 +34,9 @@ func roll(day: int, force := "") -> String:
 	if day < ColonyData.EVENT_MIN_DAY:
 		return ""
 	var kind := force
+	if kind == "" and force_next != "":
+		kind = force_next
+		force_next = ""
 	if kind == "":
 		if randf() >= chance:
 			return ""

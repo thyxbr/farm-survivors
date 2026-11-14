@@ -33,7 +33,10 @@ const START_FOOD := 30
 const START_CITIZENS := 5
 const TAX := [1, 2, 3]                       # ouro por morador por dia (baixo/normal/alto)
 const TAX_NAMES := ["Baixo", "Normal", "Alto"]
-const VILLAGER_COST := {"food": 40}         # treinar um aldeão na prefeitura
+const VILLAGER_COST := {"food": 25}         # treinar um aldeão na prefeitura, com o imposto normal
+## O preço do treino acompanha o imposto (baixo/normal/alto): imposto baixo atrai gente mais barato. Faz o papel do
+## crescimento por imposto que havia antes de os aldeões custarem comida; sem isso o imposto alto valeria sempre.
+const VILLAGER_TAX_MULT := [0.6, 1.0, 1.6]
 const VILLAGER_TIME := 8.0                   # segundos de fila por aldeão
 const UNMANNED_TOWER_SLOW := 1.5             # torre sem operador atira com o intervalo multiplicado por isto
 # Munição: [recurso, quantos disparos rende 1 unidade]. Sem estoque, a cadência cai (intervalo x NO_AMMO_RATE).
@@ -61,9 +64,9 @@ static var UNITS: Dictionary = {}
 ## requires: tipo de construção -> quantidade, ou "barracks_level" -> nível mínimo do melhor quartel.
 const ERAS := {
 	1: {"name": "I · Aldeia", "cost": {}, "requires": {}},
-	2: {"name": "II · Vila", "cost": {"food": 250, "wood": 250, "stone": 150, "gold": 200},
+	2: {"name": "II · Vila", "cost": {"food": 150, "wood": 120, "stone": 120, "gold": 120},
 		"requires": {"lumber_camp": 1, "quarry": 1}},
-	3: {"name": "III · Cidade", "cost": {"food": 500, "wood": 450, "stone": 400, "gold": 400, "iron": 40, "crystal": 20},
+	3: {"name": "III · Cidade", "cost": {"food": 350, "wood": 300, "stone": 400, "gold": 300, "iron": 40, "crystal": 20},
 		"requires": {"barracks_level": 2}},
 }
 const ERA_ROMAN := ["", "I", "II", "III"]
@@ -78,19 +81,19 @@ const ERA3_CREW := {"lumber_camp": 1, "quarry": 1}
 ## Chaves: wood/stone/food (produção), arrow_dmg, bld_hp, wall_hp, ammo_wood/ammo_stone/ammo_crystal
 ## (consumo de munição), splash, chain_add, unit_hp, unit_dmg.
 const TECHS := {
-	"sharp_axe": {"name": "Machado Afiado", "era": 1, "at": "lumber_camp", "cost": {"gold": 60, "wood": 60},
+	"sharp_axe": {"name": "Machado Afiado", "era": 1, "at": "lumber_camp", "cost": {"gold": 40, "wood": 60},
 		"fx": {"wood": 1.2}, "desc": "+20% madeira (serraria e jogador)"},
-	"pickaxe": {"name": "Picareta", "era": 1, "at": "quarry", "cost": {"gold": 60, "wood": 80},
+	"pickaxe": {"name": "Picareta", "era": 1, "at": "quarry", "cost": {"gold": 40, "wood": 60},
 		"fx": {"stone": 1.2}, "desc": "+20% pedra"},
-	"plow": {"name": "Arado", "era": 1, "at": "farm", "cost": {"gold": 80, "wood": 80},
+	"plow": {"name": "Arado", "era": 1, "at": "farm", "cost": {"gold": 50, "wood": 60},
 		"fx": {"food": 1.2}, "desc": "+20% comida"},
-	"arrow_bundles": {"name": "Feixes de Flechas", "era": 2, "at": "archer_tower", "cost": {"gold": 100, "wood": 120},
+	"arrow_bundles": {"name": "Feixes de Flechas", "era": 2, "at": "archer_tower", "cost": {"gold": 80, "wood": 80},
 		"fx": {"ammo_wood": 0.7}, "desc": "−30% munição de madeira"},
-	"iron_arrows": {"name": "Flechas de Ferro", "era": 2, "at": "archer_tower", "cost": {"gold": 120, "wood": 100, "iron": 10},
+	"iron_arrows": {"name": "Flechas de Ferro", "era": 2, "at": "archer_tower", "cost": {"gold": 100, "wood": 60, "iron": 10},
 		"fx": {"arrow_dmg": 1.15}, "desc": "+15% dano de flechas (torres e arqueiros)"},
 	"masonry": {"name": "Alvenaria", "era": 2, "at": "town_hall", "cost": {"gold": 150, "stone": 200},
 		"fx": {"bld_hp": 1.2}, "desc": "+20% vida de todas as construções"},
-	"double_saw": {"name": "Serra Dupla", "era": 2, "at": "lumber_camp", "cost": {"gold": 120, "wood": 150, "iron": 10},
+	"double_saw": {"name": "Serra Dupla", "era": 2, "at": "lumber_camp", "cost": {"gold": 100, "wood": 100, "iron": 10},
 		"fx": {"wood": 1.2}, "desc": "+20% madeira (soma com o Machado)"},
 	"fine_powder": {"name": "Pólvora Fina", "era": 3, "at": "cannon_tower", "cost": {"gold": 200, "stone": 200, "iron": 25},
 		"fx": {"splash": 1.25, "ammo_stone": 0.7}, "desc": "+25% raio da explosão, −30% munição"},
@@ -105,11 +108,16 @@ const TECH_ORDER := ["sharp_axe", "pickaxe", "plow", "arrow_bundles", "iron_arro
 	"fine_powder", "arcane_focus", "reinforced_wall", "elite_training"]
 
 
-## Custo para chegar à era `era` com `players` jogadores: +35% por jogador além do primeiro.
+## Comida para treinar um aldeão com o imposto `tax` (0 baixo, 1 normal, 2 alto).
+static func villager_cost(tax: int) -> Dictionary:
+	return scale_cost(VILLAGER_COST, VILLAGER_TAX_MULT[clampi(tax, 0, VILLAGER_TAX_MULT.size() - 1)])
+
+
+## Custo para chegar à era `era` com `players` jogadores: cresce como as ondas (+TEAM_BUDGET por jogador além do primeiro).
 static func era_cost(era: int, players: int) -> Dictionary:
 	if not ERAS.has(era):
 		return {}
-	return scale_cost(ERAS[era].cost, 1.0 + 0.35 * (maxi(1, players) - 1))
+	return scale_cost(ERAS[era].cost, 1.0 + TEAM_BUDGET * (maxi(1, players) - 1))
 const UNIT_ORDER := ["militia", "soldier", "archer", "knight", "mage", "cannoneer"]
 
 ## Nós de recurso que o jogador coleta com o ataque normal: recurso, golpes para esgotar e total entregue.
@@ -122,7 +130,7 @@ const NODES := {
 	"berry": {"name": "Arbusto de frutas", "res": "food", "hits": 1, "total": 12},
 }
 ## Serraria e pedreira: unidades por aldeão por segundo com o bosque cheio (GATHER_FULL nós vivos no raio ou mais).
-const GATHER_RATE := 1.0 / 6.0
+const GATHER_RATE := 1.0 / 4.5
 const GATHER_FULL := 8
 const GATHER_TICK := 3.0           # segundos entre entregas
 const NODE_YIELD_CAMP := 24        # a cada tantas unidades produzidas, o nó vivo mais próximo se esgota

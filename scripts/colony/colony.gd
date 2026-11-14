@@ -438,13 +438,13 @@ func train_villager() -> String:
 		return "Construa a prefeitura primeiro."
 	if citizens + train_queue >= pop_cap():
 		return "Sem moradia livre. Construa casas."
-	var lack := missing(ColonyData.VILLAGER_COST)
+	var lack := missing(villager_cost())
 	if lack != "":
 		return lack
 	if role == "client":
 		Lobby.city_request("train", [])
 		return ""
-	pay(ColonyData.VILLAGER_COST)
+	pay(villager_cost())
 	train_queue += 1
 	_dirty()
 	return ""
@@ -461,11 +461,16 @@ func _train_tick(delta: float) -> void:
 	if citizens < pop_cap():
 		citizens += 1
 		say("Um aldeão terminou o treino.", Color(0.8, 1.0, 0.6))
-	else:   # a moradia caiu enquanto treinava: devolve a comida
-		gain(ColonyData.VILLAGER_COST)
+	else:   # a moradia caiu enquanto treinava: devolve a comida (o menor preço, para trocar o imposto não dar lucro)
+		gain(ColonyData.villager_cost(0))
 		say("Sem moradia: o treino foi cancelado e a comida devolvida.", Color(1, 0.75, 0.5))
 	Game.stats_changed.emit()
 	_dirty()
+
+
+## Comida para treinar um aldeão agora (depende do imposto).
+func villager_cost() -> Dictionary:
+	return ColonyData.villager_cost(tax_level)
 
 
 ## A prefeitura está avançando de era (não basta estar ocupada: Alvenaria e Muralha também são feitas nela).

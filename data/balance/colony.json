@@ -15,7 +15,7 @@
 			"name": "Casa",
 			"cost": {
 				"gold": 30,
-				"wood": 40
+				"wood": 25
 			},
 			"hp": 320,
 			"size": {
@@ -28,21 +28,21 @@
 			"name": "Fazenda",
 			"cost": {
 				"gold": 30,
-				"wood": 50
+				"wood": 35
 			},
 			"hp": 240,
 			"size": {
 				"$v2": [7.0, 6.0]
 			},
-			"food": 12,
+			"food": 40,
 			"crew": 2,
-			"desc": "Produz 12 de comida por dia. Ocupa 2 aldeões."
+			"desc": "Produz 40 de comida por dia. Ocupa 2 aldeões."
 		},
 		"lumber_camp": {
 			"name": "Serraria",
 			"cost": {
 				"gold": 40,
-				"wood": 30
+				"wood": 25
 			},
 			"hp": 300,
 			"size": {
@@ -146,9 +146,9 @@
 		"archer_tower": {
 			"name": "Torre de Arqueiros",
 			"cost": {
-				"gold": 70,
-				"wood": 60,
-				"stone": 30
+				"gold": 50,
+				"wood": 40,
+				"stone": 50
 			},
 			"hp": 460,
 			"size": {

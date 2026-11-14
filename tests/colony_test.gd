@@ -65,9 +65,10 @@ func _ready() -> void:
 	check(colony.era() == 1 and colony.advance_era().begins_with("Exige"), "era II exige serraria e pedreira")
 	check(colony.can_place("cannon_tower", Vector3(14, 0, 14), 0.0).contains("era"), "torre de canhão exige era II")
 	check(colony.can_place("mage_tower", Vector3(14, 0, 14), 0.0).contains("era"), "torre arcana exige era II")
-	check(ColonyData.era_cost(2, 1) == {"food": 250, "wood": 250, "stone": 150, "gold": 200}, "custo da era II")
-	check(ColonyData.era_cost(2, 3).gold == int(round(200 * 1.7)) and ColonyData.era_cost(3, 1).crystal == 20,
-		"em grupo a era custa +35%% por jogador extra")
+	check(ColonyData.era_cost(2, 1) == ColonyData.ERAS[2].cost, "custo da era II")
+	check(ColonyData.era_cost(2, 3).gold == int(round(ColonyData.ERAS[2].cost.gold * (1.0 + 2 * ColonyData.TEAM_BUDGET)))
+		and ColonyData.era_cost(3, 1).crystal == ColonyData.ERAS[3].cost.crystal,
+		"em grupo a era custa +%d%% por jogador extra, como as ondas" % int(ColonyData.TEAM_BUDGET * 100))
 	check(ColonyData.TECHS.size() == 11, "11 pesquisas na tabela")
 
 	# --- regras de posicionamento
@@ -142,6 +143,8 @@ func _ready() -> void:
 	var c0 := colony.citizens
 	var food_t := colony.food
 	check(colony.train_villager() == "" and colony.food == food_t - int(ColonyData.VILLAGER_COST.food), "treinar aldeão custa comida")
+	check(int(ColonyData.villager_cost(0).food) < int(ColonyData.VILLAGER_COST.food) and int(ColonyData.villager_cost(2).food) > int(ColonyData.VILLAGER_COST.food),
+		"imposto baixo barateia o treino e o alto encarece (%s)" % [[ColonyData.villager_cost(0).food, ColonyData.villager_cost(2).food]])
 	check(colony.train_queue == 1, "aldeão entra na fila")
 	await wait(ColonyData.VILLAGER_TIME + 0.5)
 	check(colony.citizens == c0 + 1 and colony.train_queue == 0, "aldeão treinado em %d s" % int(ColonyData.VILLAGER_TIME))
@@ -371,7 +374,8 @@ func _ready() -> void:
 	# --- economia
 	var f := colony.forecast()
 	check(f.tax == colony.citizens * 2, "imposto normal = 2 por morador (%d)" % f.tax)
-	check(f.food_in == 12 and f.workers == colony.busy(), "fazenda produz 12 com todos os aldeões")
+	var farm_food := int(ColonyData.BUILDINGS.farm.food)
+	check(f.food_in == farm_food and f.workers == colony.busy(), "fazenda produz %d com todos os aldeões" % farm_food)
 	check(f.hall == 15, "prefeitura rende 15")
 
 	# --- recrutamento
@@ -397,7 +401,7 @@ func _ready() -> void:
 	for r in ["wood", "stone", "iron", "crystal"]:
 		colony.res[r] = 1000
 	var err_e: String = colony.net_request(1, "era", [])
-	check(err_e == "Faltam 200 de Ouro." and colony.food == 1000 and colony.amount("wood") == 1000 and colony.busy_t.is_empty()
+	check(err_e == "Faltam %d de Ouro." % int(ColonyData.ERAS[2].cost.gold) and colony.food == 1000 and colony.amount("wood") == 1000 and colony.busy_t.is_empty()
 		and colony.era() == 1, "servidor recusa avançar de era sem ouro e não cobra nada (%s)" % err_e)
 	colony.treasury = 5000
 	colony.citizens = colony.pop_cap() - 1

@@ -10,7 +10,7 @@ extends Node
 ## --horde=lead|join: testa o Desafio da Horda em grupo (lead abre o portal, join aceita o convite).
 ##   Use com o servidor em --horde-round=8 --horde-pick=5 para as rodadas e escolhas não demorarem.
 ## --city=lead|join: testa a Defesa da Cidade em grupo pelo salão (lead cria a sala e começa, join entra).
-##   Use com o servidor em --city-day=12 para o dia não demorar.
+##   Use com o servidor em --city-day=12 (dia curto) e --city-event=caravan (evento do dia 2 para a troca).
 
 var fails := 0
 var address := "127.0.0.1"
@@ -749,6 +749,14 @@ func _test_city() -> void:
 	# --- covis: gerados da semente em todos (com o servidor em --city-day curto é sempre entardecer: não acordam)
 	check(c.dens.size() >= 4 and c.dens[0].get_child_count() > 0, "covis gerados da semente do grupo (%d)" % c.dens.size())
 
+	# --- serraria pedida pelo cliente (o líder), base da pesquisa do dia 2
+	if city_role == "lead":
+		var spot := _camp_spot(c)
+		check(spot != Vector3.INF, "há lugar para a serraria perto de um bosque")
+		if spot != Vector3.INF:
+			c.place("lumber_camp", spot, 0.0)
+			check(await _wait_until(func() -> bool: return c.count_of("lumber_camp") == 1, 5.0), "serraria construída pelo servidor")
+
 	# --- a noite: votação, monstros replicados, abates pagam o cofre
 	var rgold := Game.gold
 	var rxp := Game.xp + Game.level * 100000
@@ -791,6 +799,7 @@ func _test_city() -> void:
 		"recompensa da noite no personagem (+%d ouro: %d → %d)" % [rw.gold, rgold, Game.gold])
 	check(Game.xp + Game.level * 100000 > rxp, "recompensa de XP no personagem")
 	check(int(Game.flags.get("city_best", 0)) >= 1, "melhor noite salva no personagem")
+	await _test_city_day2(w, c)
 
 	# --- volta ao salão: o join sai primeiro, o líder em seguida (a partida acaba quando todos saem)
 	await wait(0.5 if city_role == "join" else 2.5)
@@ -804,6 +813,57 @@ func _test_city() -> void:
 	Lobby.go_world()
 	check(await _wait_until(func() -> bool: return Network.world != null and Network.world.get("player") != null, 15.0), "entrou em Valdoria depois da cidade")
 	await wait(1.0)
+
+
+## Dia 2 (o líder; o colega caiu na noite 1): o evento forçado no servidor (--city-event=caravan) chega pela
+## rede, a troca pedida de longe é recusada pelo servidor e de perto é aceita; a pesquisa pedida pelo cliente
+## aparece em andamento no estado ("busy"). O dia curto do teste (--city-day) não deixa a pesquisa terminar.
+func _test_city_day2(w: Node, c: Colony) -> void:
+	check(await _wait_until(func() -> bool: return c.events.active == "caravan", 5.0),
+		"evento do dia forçado no servidor chega ao cliente (%s)" % c.events.active)
+	if c.events.active == "caravan":
+		var notes: Array[String] = []
+		var grab := func(text: String, _color: Color) -> void: notes.append(text)
+		Game.notify.connect(grab)
+		var give: Dictionary = ColonyData.TRADES[1][0]
+		var take: Dictionary = ColonyData.TRADES[1][1]
+		var g0 := c.treasury
+		var i0 := c.amount("iron")
+		w.player.global_position = c.events.pos + Vector3(ColonyData.EVENT_REACH + 20.0, 0.5, 0)
+		await wait(0.6)   # a posição longe chega ao servidor antes do pedido
+		check(c.trade(1) == "", "pede a troca com a caravana")
+		check(await _wait_until(func() -> bool: return notes.any(func(s: String) -> bool: return s.contains("perto")), 3.0)
+			and c.treasury == g0 and c.amount("iron") == i0, "servidor recusa a troca de longe (%s)" % ", ".join(notes))
+		w.player.global_position = c.events.pos + Vector3(2.0, 0.5, 0)
+		await wait(0.6)
+		c.trade(1)
+		check(await _wait_until(func() -> bool:
+			return c.treasury == g0 - int(give.gold) and c.amount("iron") == i0 + int(take.iron), 4.0),
+			"troca aceita de perto: %s por %s (ferro %d)" % [ColonyData.cost_text(give), ColonyData.cost_text(take), c.amount("iron")])
+		Game.notify.disconnect(grab)
+	if c.count_of("lumber_camp") == 0:
+		return
+	var err := c.research("sharp_axe")
+	check(err == "", "pede a pesquisa Machado Afiado (%s)" % err)
+	check(await _wait_until(func() -> bool:
+		for k in c.busy_t:
+			if c.busy_t[k][0] == "sharp_axe":
+				return true
+		return false, 5.0), "pesquisa em andamento replicada no estado (busy %s)" % str(c.busy_t))
+
+
+## Ponto livre a até ~74 m do centro com árvores suficientes em volta para a serraria (como no colony_test).
+func _camp_spot(c: Colony) -> Vector3:
+	for n in c.nature.nodes:
+		var d := Vector2(n.global_position.x, n.global_position.z).length()
+		if n.kind != "tree" or not n.alive or d < 30.0 or d > 72.0:
+			continue
+		for dx in [-6.0, -3.0, 0.0, 3.0, 6.0]:
+			for dz in [-6.0, -3.0, 0.0, 3.0, 6.0]:
+				var p: Vector3 = n.global_position + Vector3(dx, 0.0, dz)
+				if Vector2(p.x, p.z).length() <= 74.0 and c.can_place("lumber_camp", p, 0.0) == "":
+					return p
+	return Vector3.INF
 
 
 ## Beto (--city=join), antes da cidade: mata um slime em Valdoria e guarda o net_id de um pickup dele sem

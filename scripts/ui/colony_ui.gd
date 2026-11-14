@@ -257,8 +257,8 @@ func _build_hall() -> void:
 	_box.add_child(_line("Aldeões: %d / %d (%d livres, %d ocupados). Eles não nascem sozinhos: treine mais aqui." %
 		[colony.citizens, colony.pop_cap(), colony.free_villagers(), colony.busy()], UITheme.DIM, 14))
 	var tr := _row()
-	var train := UITheme.button("Treinar aldeão — %s" % ColonyData.cost_text(ColonyData.VILLAGER_COST), func() -> void: _act(colony.train_villager()))
-	train.disabled = colony.citizens + colony.train_queue >= colony.pop_cap() or colony.missing(ColonyData.VILLAGER_COST) != ""
+	var train := UITheme.button("Treinar aldeão — %s" % ColonyData.cost_text(colony.villager_cost()), func() -> void: _act(colony.train_villager()))
+	train.disabled = colony.citizens + colony.train_queue >= colony.pop_cap() or colony.missing(colony.villager_cost()) != ""
 	tr.add_child(train)
 	if colony.train_queue > 0:
 		tr.add_child(UITheme.label("Na fila: %d" % colony.train_queue, 15, UITheme.GOLD))
@@ -275,7 +275,8 @@ func _build_hall() -> void:
 	var h := _row()
 	h.add_child(UITheme.label("Imposto:", 16))
 	for i in 3:
-		var btn := UITheme.button("%s (%d/aldeão)" % [ColonyData.TAX_NAMES[i], ColonyData.TAX[i]],
+		var btn := UITheme.button("%s (%d/aldeão, treino %d comida)" % [ColonyData.TAX_NAMES[i], ColonyData.TAX[i],
+				int(ColonyData.villager_cost(i).food)],
 			func() -> void:
 				colony.set_tax(i)
 				Sfx.play("click", 0.0)

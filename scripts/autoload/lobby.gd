@@ -51,6 +51,8 @@ var _rewards := {}              # peer -> {"gold", "xp", "items": []} somado na 
 ## Duração do dia na cidade (--city-day=SEG encurta para os testes).
 var city_day_time := ColonyData.DAY_LENGTH
 var city_first_bonus := ColonyData.FIRST_DAY_BONUS
+## Servidor: evento do dia forçado no primeiro amanhecer possível de cada partida (--city-event=TIPO, net_test).
+var city_force_event := ""
 
 
 func _ready() -> void:
@@ -59,6 +61,8 @@ func _ready() -> void:
 		if a.begins_with("--city-day="):
 			city_day_time = maxf(5.0, float(a.substr(11)))
 			city_first_bonus = 0.0
+		elif a.begins_with("--city-event="):
+			city_force_event = a.substr(13)
 
 
 # ================================================================ cliente: navegação
@@ -356,6 +360,8 @@ func _start_city() -> void:
 	_city.map_seed = seed
 	_city.coop_players = _room.members.size()
 	_vp.add_child(_city)
+	if city_force_event != "" and _city.colony and _city.colony.events:
+		_city.colony.events.force_next = city_force_event
 	print("[server] Defesa da Cidade em grupo começou (%d jogadores, mapa %d)" % [_room.members.size(), seed])
 	for pid in _room.members:
 		_city_go.rpc_id(pid, seed)
