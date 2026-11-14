@@ -143,7 +143,7 @@ func _ready() -> void:
 	# --- novas armas, armaduras e equipamentos
 	await _test_gear()
 
-	# --- persistência no solo.db: cada pedido já foi gravado; recriar o serviço local devolve o mesmo personagem
+	# --- persistência no save solo: cada pedido já foi gravado; recriar o serviço local devolve o mesmo personagem
 	var saved_gold := Game.gold
 	var saved_lvl := Game.level
 	var saved_inv: Array = Game.inventory.duplicate(true)
@@ -152,17 +152,17 @@ func _ready() -> void:
 	Game.gold = 1   # bagunça o espelho: o estado tem que voltar do banco
 	Game.level = 1
 	Game.inventory = []
-	check(Econ.reload_solo(), "serviço local recriado a partir do solo.db")
-	check(Game.gold == saved_gold and Game.level == saved_lvl, "solo.db guarda ouro e nível")
-	check(Game.inventory == saved_inv, "solo.db guarda a mochila (%d espaços)" % Game.inventory.size())
-	check(Game.equipment.weapon == "iron_sword", "solo.db guarda o equipamento")
-	check(Game.equipment.head == "leather_cap" and Game.equipment.feet == "leather_boots", "solo.db guarda cabeça e pés")
-	Econ.quick_load()   # F9: recarrega do solo.db e volta ao mundo
+	check(Econ.reload_solo(), "serviço local recriado a partir do save solo")
+	check(Game.gold == saved_gold and Game.level == saved_lvl, "save solo guarda ouro e nível")
+	check(Game.inventory == saved_inv, "save solo guarda a mochila (%d espaços)" % Game.inventory.size())
+	check(Game.equipment.weapon == "iron_sword", "save solo guarda o equipamento")
+	check(Game.equipment.head == "leather_cap" and Game.equipment.feet == "leather_boots", "save solo guarda cabeça e pés")
+	Econ.quick_load()   # F9: recarrega do save solo e volta ao mundo
 	await wait(0.6)
 	world = get_tree().current_scene
 	player = get_tree().get_first_node_in_group("player")
 	check(player != null and Game.gold == saved_gold and player.global_position.distance_to(saved_pos) < 1.5,
-		"F9 recarrega do solo.db na posição salva")
+		"F9 recarrega do save solo na posição salva")
 
 	# --- missões goblin e chefe
 	Game.start_quest("goblins")
@@ -300,13 +300,13 @@ func _test_farm() -> void:
 	Game.tick_food(999.0)
 	check(Game.food_buffs.is_empty() and abs(Game.melee_damage() - dmg0) < 0.01, "bônus expira e o dano volta")
 
-	# a horta também fica no solo.db
+	# a horta também fica no save solo
 	var farm_saved: Dictionary = Game.farm.duplicate(true)
 	var g_saved := Game.plot_growth(1)
 	Game.farm = {"unlocked": 0, "plots": []}
 	check(Econ.reload_solo(), "serviço local recriado (horta)")
 	check(Game.farm.unlocked == farm_saved.unlocked and Game.farm.plots[1].crop == "wheat" \
-		and abs(Game.plot_growth(1) - g_saved) < 0.05, "solo.db guarda a horta")
+		and abs(Game.plot_growth(1) - g_saved) < 0.05, "save solo guarda a horta")
 
 
 # ---------------------------------------------------------------- Desafio da Horda
