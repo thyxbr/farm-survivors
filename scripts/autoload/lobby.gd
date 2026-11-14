@@ -45,9 +45,16 @@ var _snap_t := 0.0
 var _state_t := 0.0
 var _room_t := 0.0
 var _force_t := 0.0
+## Recorde da Defesa: vem do banco (CharacterService.records().city, persiste entre deploys) na subida do
+## servidor e depois de cada partida; durante a partida sobe com as noites vencidas (_update_record).
 var _record := {"day": 0, "names": []}
+var _record_loaded := false
 var _present := {}              # peers que estavam na cidade quando a noite começou
-var _rewards := {}              # peer -> {"gold", "xp", "items": []} somado na partida
+## peer -> {"gold", "xp", "items": [], "account", "nights"} somado na partida (nights: noites em que estava presente)
+var _rewards := {}
+## Registro da partida em runs (CharacterService.start_run) e o bônus da base fixado no começo dela.
+var _run_id := 0
+var _bonus := {}
 ## Duração do dia na cidade (--city-day=SEG encurta para os testes).
 var city_day_time := ColonyData.DAY_LENGTH
 var city_first_bonus := ColonyData.FIRST_DAY_BONUS
@@ -194,6 +201,9 @@ func city_team_size() -> int:
 func _physics_process(delta: float) -> void:
 	if not Network.is_server():
 		return
+	if not _record_loaded and Network.characters != null:
+		_record_loaded = true
+		_load_record()
 	var c := _colony()
 	if c != null:
 		_state_t -= delta
@@ -301,6 +311,7 @@ func _room_msg_enter(id: int) -> void:
 		return
 	_room.members[id] = true
 	_room.names[id] = _name(id)
+	_reward_acc(id)   # quem entra no meio também fecha a partida (Ecos pelas noites em que esteve)
 	_city_go.rpc_id(id, int(_room.seed))
 	_broadcast_room()
 
@@ -341,6 +352,16 @@ func _start_city() -> void:
 		_room.members[pid] = true
 	_present.clear()
 	_rewards.clear()
+	var accounts: Array = []
+	for pid in _room.members:
+		_reward_acc(pid)
+		if int(_rewards[pid].account) > 0:
+			accounts.append(int(_rewards[pid].account))
+	_run_id = 0
+	_bonus = {}
+	if Network.characters != null:
+		_run_id = Network.characters.start_run("city", accounts)
+		_bonus = Network.characters.base_bonus()   # fixado agora: doações no meio da partida não mudam
 	_vp = SubViewport.new()
 	_vp.own_world_3d = true          # física e mundo separados de Valdoria
 	_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
@@ -349,6 +370,7 @@ func _start_city() -> void:
 	_city.role = "server"
 	_city.map_seed = seed
 	_city.coop_players = _room.members.size()
+	_city.base_bonus = _bonus
 	_vp.add_child(_city)
 	print("[server] Defesa da Cidade em grupo começou (%d jogadores, mapa %d)" % [_room.members.size(), seed])
 	for pid in _room.members:
@@ -398,7 +420,6 @@ func _end_city(reason: String, extra_peers: Array = []) -> void:
 	if c != null:
 		nights = maxi(0, c.day - 1)
 		kills = c.total_kills
-	_update_record(nights)
 	var names: Array = []
 	for pid in _room.get("names", {}):
 		names.append(_room.names[pid])
@@ -407,11 +428,17 @@ func _end_city(reason: String, extra_peers: Array = []) -> void:
 	for pid in extra_peers:
 		if Network.players.has(pid) and not (pid in to):
 			to.append(pid)
-	_city_summaries(nights, to)
+	var ecos := _city_summaries(nights, to)
+	if _run_id > 0 and Network.characters != null:
+		Network.characters.close_run(_run_id, nights, {"reason": reason, "kills": kills})
+	_run_id = 0
+	_update_record(nights)
+	_load_record()
+	Hub.server_records_changed()
 	for pid in to:
 		var r: Dictionary = _rewards.get(pid, {"gold": 0, "xp": 0, "items": []})
 		_city_over.rpc_id(pid, {"reason": reason, "nights": nights, "kills": kills, "gold": r.gold, "xp": r.xp,
-			"items": r.items, "names": names, "record": _record.day})
+			"items": r.items, "names": names, "record": _record.day, "ecos": int(ecos.get(pid, 0))})
 	_room = {}
 	_present.clear()
 	var vp := _vp
@@ -429,22 +456,59 @@ func _end_city(reason: String, extra_peers: Array = []) -> void:
 		vp.queue_free()
 
 
-## Uma linha de resumo da partida por jogador que ganhou algo (as concessões da noite não são registradas
-## uma a uma) e o recorde de noites no personagem de quem viu o fim.
-func _city_summaries(nights: int, to: Array) -> void:
+## Fim da partida de cada conta que passou pela cidade (CharacterService.finish_player: Ecos pelas
+## noites em que esteve presente e uma linha no registro — as concessões da noite não são registradas
+## uma a uma) e o recorde de noites no personagem de quem viu o fim. Devolve peer -> Ecos ganhos.
+## Por conta, não por peer: quem caiu e voltou no meio da partida tem dois peers e fecha uma vez só, somado.
+func _city_summaries(nights: int, to: Array) -> Dictionary:
+	var out := {}
 	if Network.characters == null:
-		return
+		return out
+	var by_account := {}   # conta -> {"gold", "xp", "items": {id: n}, "nights", "peers": []}
 	for pid in _rewards:
 		var r: Dictionary = _rewards[pid]
 		var account := int(r.get("account", 0))
-		if account <= 0 or (int(r.gold) <= 0 and int(r.xp) <= 0 and r.items.is_empty()):
+		if account <= 0:
 			continue
-		var items := {}
+		if not by_account.has(account):
+			by_account[account] = {"gold": 0, "xp": 0, "items": {}, "nights": 0, "peers": []}
+		var t: Dictionary = by_account[account]
+		t.gold += int(r.gold)
+		t.xp += int(r.xp)
+		t.nights += int(r.get("nights", 0))
+		t.peers.append(pid)
 		for id in r.items:
-			items[id] = int(items.get(id, 0)) + 1
-		Network.characters.run_summary(account, "city", int(r.gold), int(r.xp), items)
+			t.items[id] = int(t.items.get(id, 0)) + 1
+	for account in by_account:
+		var t: Dictionary = by_account[account]
+		var res: Dictionary = Network.characters.finish_player(_run_id, account, "city", int(t.nights),
+			int(t.gold), int(t.xp), t.items, {})
+		var n := 0
+		for e in Econ.events_of(res):
+			if e is Dictionary and e.get("t") == "ecos":
+				n = int(e.get("n", 0))
+		for pid in t.peers:
+			out[pid] = n
+			Econ.server_push(pid, res)   # só chega a quem ainda está conectado
 	for pid in to:
 		Econ.server_record(pid, "city_best", nights)
+	return out
+
+
+## Acumulado da partida do peer (criado na primeira vez, com a conta: quem cair ainda fecha a partida).
+func _reward_acc(pid: int) -> Dictionary:
+	if not _rewards.has(pid):
+		_rewards[pid] = {"gold": 0, "xp": 0, "items": [], "account": Econ.account_of(pid), "nights": 0}
+	return _rewards[pid]
+
+
+## Servidor: recorde da Defesa a partir das partidas registradas (persiste entre deploys).
+func _load_record() -> void:
+	if Network.characters == null:
+		return
+	var rec: Dictionary = Network.characters.records().get("city", {})
+	if int(rec.get("reached", 0)) > 0:
+		_record = {"day": int(rec.reached), "names": (rec.get("names", []) as Array).duplicate()}
 
 
 func _update_record(nights: int) -> void:
@@ -469,9 +533,12 @@ func _city_ready() -> void:
 	if not _room.members.has(id):
 		_room.members[id] = true
 		_room.names[id] = _name(id)
+	_reward_acc(id)
 	Network.server_set_zone(id, "city")
 	c.team_size = city_team_size()
-	_city_full.rpc_id(id, c.net_full())
+	var full := c.net_full()
+	full["bonus"] = c.base_bonus   # o cliente aplica antes das construções (vida da prefeitura)
+	_city_full.rpc_id(id, full)
 	Network.send_zone_enemies(id, "city")
 	for e in c.live_enemies():
 		if e.affix != "" and e.net_id != 0:
@@ -534,7 +601,8 @@ func city_night_survived(n: int) -> void:
 		if not _present.has(pid):
 			continue
 		var items := ColonyData.night_chest(n)
-		var acc: Dictionary = _rewards.get(pid, {"gold": 0, "xp": 0, "items": [], "account": Econ.account_of(pid)})
+		var acc := _reward_acc(pid)
+		acc.nights = int(acc.get("nights", 0)) + 1
 		var got := {}
 		for id in items:
 			got[id] = int(got.get(id, 0)) + 1
@@ -544,7 +612,6 @@ func city_night_survived(n: int) -> void:
 			acc.gold += int(rw.gold)
 			acc.xp += int(rw.xp)
 			acc.items.append_array(items)
-		_rewards[pid] = acc
 		Econ.server_record(pid, "city_best", n)
 		_city_reward.rpc_id(pid, n, int(rw.gold), int(rw.xp), items)
 	_update_record(n)
@@ -649,6 +716,9 @@ func _city_full(d: Dictionary) -> void:
 	var c := _colony()
 	if c == null:
 		return
+	# bônus da base fixado pelo servidor no começo da partida (antes das construções: vida da prefeitura)
+	if d.get("bonus") is Dictionary:
+		c.base_bonus = (d.bonus as Dictionary).duplicate()
 	for b in d.get("buildings", []):
 		c.net_building_add(int(b[0]), str(b[1]), float(b[2]), float(b[3]), float(b[4]), int(b[5]), float(b[6]), int(b[7]), false)
 	for s in d.get("soldiers", []):

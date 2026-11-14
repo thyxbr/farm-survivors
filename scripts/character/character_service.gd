@@ -206,16 +206,6 @@ func grant_test_ecos(account_id: int, amount: int, enabled: bool) -> Dictionary:
 	return _result(account_id, _persist(account_id, s, before, "grant", "test", {"ok": true, "err": "", "events": []}))
 
 
-## Obsoleta: a Task 4 apaga junto com os chamadores; use finish_player. Uma linha só, ouro em `amount` e xp + itens em `detail`.
-## false (e push_error) se não gravou.
-func run_summary(account_id: int, mode: String, gold: int, xp: int, items: Dictionary) -> bool:
-	var ok := _db.exec("INSERT INTO economy_log(at, account_id, kind, amount, item_id, source, detail) VALUES(?,?,?,?,?,?,?)",
-		[int(_now()), account_id, "run", gold, null, mode, JSON.stringify({"xp": xp, "items": items})])
-	if not ok:
-		push_error("CharacterService: run_summary de %d não gravou: %s" % [account_id, _db.last_error])
-	return ok
-
-
 # ================================================================ base, partidas e recordes
 ## Estado da base compartilhada: todas as construções (nível 0 as que ninguém tocou).
 func base_state() -> Dictionary:

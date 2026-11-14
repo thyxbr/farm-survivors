@@ -140,7 +140,7 @@ func test_grant_logs_source() -> void:
 	db.close()
 
 
-func test_kill_and_run_summary() -> void:
+func test_kill_and_run_finish() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(db, _tables())
 	svc.load_or_create(2)

@@ -1158,6 +1158,8 @@ func _horde_launch() -> void:
 				_lobby.t = HORDE_TRAVEL_STEP
 				return
 	var team := {}
+	# Forja da base: o bônus de dano é fixado agora, igual para todo o grupo (doações no meio não mudam)
+	var forge := float(characters.base_bonus().get("horde_damage", 0.0)) if characters != null else 0.0
 	for pid in _lobby.members:
 		if not players.has(pid) or not players[pid].ready:
 			continue
@@ -1169,7 +1171,7 @@ func _horde_launch() -> void:
 		if rp and is_instance_valid(rp) and rp.dead:
 			_horde_notice.rpc_id(pid, "Você estava caído e ficou fora do Desafio da Horda.")
 			continue
-		team[pid] = {"name": players[pid].name, "dead": false, "ready": false, "lv_ready": true}
+		team[pid] = {"name": players[pid].name, "dead": false, "ready": false, "lv_ready": true, "forge": forge}
 	_lobby = {}
 	_broadcast_lobby()
 	if team.is_empty() or world == null or not world.has_method("server_start_horde"):

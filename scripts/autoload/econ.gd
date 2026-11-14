@@ -154,17 +154,6 @@ func kill(kind: String, xp: int) -> void:
 	_deliver("kill", [kind, xp], _svc.kill(SOLO_ACCOUNT, kind, xp))
 
 
-## Obsoleta: a Task 4 apaga junto com os chamadores; use run_start/run_finish.
-## Fim de uma partida (Horda "horde", Defesa da Cidade "city"): uma linha de resumo no registro da economia
-## do personagem solo — as concessões da partida usam origens que não são registradas uma a uma
-## (CharacterService.UNLOGGED_SOURCES). Online não faz nada: quem grava é o servidor
-## (Network.characters.run_summary). true se gravou.
-func run_summary(mode: String, gold: int, xp: int, items: Dictionary) -> bool:
-	if Network.is_online() or not ensure_solo():
-		return false
-	return _svc.run_summary(SOLO_ACCOUNT, mode, gold, xp, items)
-
-
 ## Começo de uma partida no solo: abre o registro (runs) e devolve o run_id. Online não faz nada (0): quem
 ## registra é o servidor.
 func run_start(mode: String) -> int:

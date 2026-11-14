@@ -14,8 +14,10 @@ extends Node3D
 ##              de cada jogador (cada um monta a própria build).
 ##
 ## Prêmios do personagem (ouro das moedas, sementes, XP do fim): no solo pelo Econ (origem "horde_run" e
-## um resumo no fim); no grupo quem concede é o servidor — sementes e XP direto no personagem de cada um,
-## moedas como pickups do PickupRegistry (cada jogador tem as suas) — e o cliente só mostra.
+## o fim da partida em Econ.run_finish, que concede os Ecos); no grupo quem concede é o servidor — sementes
+## e XP direto no personagem de cada um, moedas como pickups do PickupRegistry (cada jogador tem as suas),
+## Ecos no fim (CharacterService.finish_player) — e o cliente só mostra.
+## A Forja da base (bônus horde_damage) é fixada no começo: no grupo o servidor põe em team[pid].forge.
 
 const ENEMY := preload("res://scripts/enemies/enemy.gd")
 const GEM := preload("res://scripts/survival/xp_gem.gd")
@@ -106,6 +108,8 @@ var _gains := {}
 var _finalized := {}
 ## Solo: sementes ganhas (para o resumo da partida).
 var _solo_seeds := {}
+## Registro da partida em runs: no servidor (CharacterService.start_run) e no solo (Econ.run_start).
+var run_id := 0
 ## Servidor: níveis ganhos que ainda vão abrir uma escolha; estado de XP a reenviar.
 var _lv_pending := 0
 var _state_dirty := false
@@ -131,11 +135,23 @@ func _ready() -> void:
 			team[pid].merge({"dmg": 0.0, "kills": 0, "falls": 0, "build": {}})
 			_accounts[pid] = Econ.account_of(pid)
 			_gains[pid] = {"gold": 0, "xp": 0, "items": {}}
+		if Network.characters != null:
+			var accounts: Array = []
+			for pid in _accounts:
+				if int(_accounts[pid]) > 0:
+					accounts.append(int(_accounts[pid]))
+			run_id = Network.characters.start_run("horde", accounts)
 		print("[server] Desafio da Horda começou: %s" % ", ".join(_names()))
 		_start_round()
 		return
 	Game.reset_run_mods()
 	Game.run_mods.active = true
+	# Forja da base: dano extra fixado no começo da partida (no grupo, o valor que o servidor mandou)
+	if role == "client":
+		Game.run_mods.damage += float(team.get(multiplayer.get_unique_id(), {}).get("forge", 0.0))
+	else:
+		Game.run_mods.damage += float(Hub.base_bonus().get("horde_damage", 0.0))
+		run_id = Econ.run_start("horde")
 	Game.hp = Game.max_hp()
 	Game.mp = Game.max_mp()
 	Game.stamina = Game.max_stamina()
@@ -1086,7 +1102,7 @@ func server_note_gain(pid: int, gold: int, items: Dictionary) -> void:
 
 
 ## Servidor: o jogador terminou a partida (saiu, caiu a conexão ou o grupo acabou): XP do fim no
-## personagem, resumo da partida no registro, recorde e fim das moedas que ficaram no chão.
+## personagem, Ecos e fim da partida no registro (finish_player), recorde e fim das moedas que ficaram no chão.
 func _server_finish(pid: int) -> void:
 	if _finalized.has(pid):
 		return
@@ -1101,9 +1117,17 @@ func _server_finish(pid: int) -> void:
 		if r.ok:
 			_add_gain(pid, 0, xp, {})
 	var g: Dictionary = _gains.get(pid, {"gold": 0, "xp": 0, "items": {}})
-	Network.characters.run_summary(account, "horde", int(g.gold), int(g.xp), g.items)
+	var build: Dictionary = team.get(pid, {}).get("build", {})
+	var fin := Network.characters.finish_player(run_id, account, "horde", rounds_cleared, int(g.gold), int(g.xp),
+		g.items, build)
+	Econ.server_push(pid, fin)
 	Econ.server_record(pid, "horde_best", {"round": rounds_cleared, "kills": kills, "time": int(elapsed),
 		"level": run_level}, account)
+
+
+## Ecos da partida (moeda permanente) pelas rodadas concluídas: o que o servidor/solo concede no fim.
+func ecos_reward() -> int:
+	return RewardRules.ecos(Balance.tables, "horde", rounds_cleared)
 
 
 ## XP de recompensa do personagem ao fim da partida.
@@ -1336,10 +1360,10 @@ func _return_to_village() -> void:
 	if rewards.gold > 0:
 		Game.notify.emit("+%d ouro coletado" % rewards.gold, Color(1, 0.85, 0.3))
 	if role == "solo":
-		# no grupo o servidor concede o XP do fim (e grava o resumo) quando o jogador sai da partida
+		# no grupo o servidor concede o XP do fim (e os Ecos) quando o jogador sai da partida
 		if rewards.xp > 0:
 			Econ.grant(0, rewards.xp, {}, "horde_run")
-		Econ.run_summary("horde", rewards.gold, rewards.xp, _solo_seeds)
+		Econ.run_finish(run_id, "horde", rounds_cleared, rewards.gold, rewards.xp, _solo_seeds, my_build())
 
 
 # ================================================================ servidor: grupo
@@ -1465,6 +1489,9 @@ func _server_end(reason: String) -> void:
 	print("[server] Desafio da Horda terminou (%s): %d rodadas, %d abates" % [reason, rounds_cleared, kills])
 	for pid in team:
 		_server_finish(pid)
+	if run_id > 0 and Network.characters != null:
+		Network.characters.close_run(run_id, rounds_cleared, {"reason": reason, "kills": kills})
+		Hub.server_records_changed()
 	_send_all("_horde_over", [reason])
 	for c in get_children():
 		if c is Enemy and not c.dead:

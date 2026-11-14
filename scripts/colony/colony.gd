@@ -47,9 +47,13 @@ var first_day_bonus := ColonyData.FIRST_DAY_BONUS
 # ---- cooperativo
 ## Caixa da partida (ouro da cidade): solo começa com START_GOLD; em grupo, compartilhado.
 var treasury := 0
-## Solo: o que o personagem já ganhou nesta partida (recompensas por noite) — vira a linha de resumo
-## no registro da economia no fim (Econ.run_summary). Vai no save da cidade.
+## Solo: o que o personagem já ganhou nesta partida (recompensas por noite) e o `run_id` do registro da
+## partida (Econ.run_start) — viram o fim da partida no registro (Econ.run_finish, que concede os Ecos).
+## Vai no save da cidade.
 var run_rewards := {"gold": 0, "xp": 0, "items": []}
+## Bônus da base compartilhada fixados no começo da partida (BaseRules.bonus: city_gold, city_food,
+## hall_hp...). Vai no save: a cidade carregada mantém o bônus com que começou.
+var base_bonus := {}
 ## Solo: XP dos abates do cerco ainda não concedido (vai ao personagem no amanhecer, com a recompensa da
 ## noite; na derrota, no resumo). Não é salvo: só se salva de dia, depois do amanhecer.
 var siege_xp := 0
@@ -83,29 +87,43 @@ var _dawn_pending := false
 var _flag: Node3D
 
 
-func new_colony() -> void:
+## Cidade solo nova. `bonus`: bônus da base (Hub.base_bonus()) — Muralha soma ouro ao caixa, Celeiro
+## soma comida, e a prefeitura ganha vida (ColonyBuilding._apply_level).
+func new_colony(bonus := {}) -> void:
 	day = 1
 	phase = "setup"
 	phase_t = 0.0
-	food = ColonyData.START_FOOD
+	base_bonus = bonus.duplicate()
+	food = ColonyData.START_FOOD + _bonus_int("city_food")
 	citizens = ColonyData.START_CITIZENS
 	tax_level = 1
-	treasury = ColonyData.START_GOLD
+	treasury = ColonyData.START_GOLD + _bonus_int("city_gold")
 	run_rewards = {"gold": 0, "xp": 0, "items": []}
 	Game.stats_changed.emit()
 
 
 ## Servidor: cidade cooperativa nova para `players` jogadores.
-func new_coop(players: int) -> void:
+## `bonus`: bônus da base do servidor no começo da partida (como em new_colony).
+func new_coop(players: int, bonus := {}) -> void:
 	day = 1
 	phase = "setup"
 	phase_t = 0.0
+	base_bonus = bonus.duplicate()
 	team_size = maxi(1, players)
-	food = ColonyData.COOP_START_FOOD
+	food = ColonyData.COOP_START_FOOD + _bonus_int("city_food")
 	citizens = ColonyData.COOP_START_CITIZENS
 	tax_level = 1
-	treasury = ColonyData.COOP_START_GOLD + ColonyData.COOP_GOLD_PER_PLAYER * (team_size - 1)
+	treasury = ColonyData.COOP_START_GOLD + ColonyData.COOP_GOLD_PER_PLAYER * (team_size - 1) + _bonus_int("city_gold")
 	_dirty()
+
+
+func _bonus_int(key: String) -> int:
+	return maxi(0, int(round(float(base_bonus.get(key, 0)))))
+
+
+## Multiplicador da vida da prefeitura pelo bônus da base (Muralha).
+func hall_hp_mult() -> float:
+	return 1.0 + maxf(0.0, float(base_bonus.get("hall_hp", 0.0)))
 
 
 func is_coop() -> bool:
@@ -1586,7 +1604,8 @@ func to_dict() -> Dictionary:
 		sl.append({"unit": s.unit, "hp": s.hp, "x": s.global_position.x, "z": s.global_position.z})
 	return {"version": 1, "day": day, "phase": phase, "phase_t": phase_t, "food": food, "citizens": citizens,
 		"tax": tax_level, "army_mode": army_mode, "rally": [rally.x, rally.z], "kills": total_kills,
-		"treasury": treasury, "run": run_rewards.duplicate(true), "buildings": bl, "soldiers": sl}
+		"treasury": treasury, "run": run_rewards.duplicate(true), "base_bonus": base_bonus.duplicate(),
+		"buildings": bl, "soldiers": sl}
 
 
 func from_dict(d: Dictionary) -> void:
@@ -1599,7 +1618,12 @@ func from_dict(d: Dictionary) -> void:
 	treasury = int(d.get("treasury", ColonyData.START_GOLD))
 	var run: Dictionary = d.get("run", {}) if d.get("run", {}) is Dictionary else {}
 	run_rewards = {"gold": int(run.get("gold", 0)), "xp": int(run.get("xp", 0)),
-		"items": (run.get("items", []) as Array).duplicate() if run.get("items", []) is Array else []}
+		"items": (run.get("items", []) as Array).duplicate() if run.get("items", []) is Array else [],
+		"run_id": int(run.get("run_id", 0))}
+	if run.get("done", false):
+		run_rewards["done"] = true   # save de uma partida que já caiu: não fecha de novo
+	# antes das construções: a prefeitura carregada usa o bônus com que a partida começou
+	base_bonus = (d.get("base_bonus") as Dictionary).duplicate() if d.get("base_bonus") is Dictionary else {}
 	phase = "loading"
 	for bd in d.get("buildings", []):
 		var kind := str(bd.kind)

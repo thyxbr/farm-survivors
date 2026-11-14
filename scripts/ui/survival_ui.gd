@@ -227,6 +227,7 @@ func _build_results(v: VBoxContainer) -> void:
 		["Ouro coletado", "◆ %d" % survival.rewards.gold],
 		["Sementes para a Horta", str(survival.seeds_won)],
 		["XP de recompensa", "+%d XP" % survival.rewards.xp],
+		["Ecos", "+%d Ecos" % survival.ecos_reward()],
 	]
 	for r in rows:
 		grid.add_child(UITheme.label(r[0], 19, UITheme.DIM))
