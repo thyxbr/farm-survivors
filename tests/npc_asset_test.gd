@@ -8,7 +8,10 @@ extends SceneTree
 const ELDER_TOP := 1.753              # topo da cabeça (cabelo), sem o cajado
 const ELDER_SHOULDERS := 0.552        # largura entre as ombreiras da túnica
 const ELDER_STAFF_TOP := 2.011        # topo do cajado (gancho)
-const ELDER_STAFF_AT := Vector2(0.25, 0.07)   # (x, z) do eixo do cajado, ao lado da mão esquerda
+# staff_hold segura o cajado como cajado de caminhada: cotovelo dobrado, punho em volta do cajado a ~1 m (antes
+# o braço caía esticado e a mão ficava a 0,88 m, sem folga para o braço alcançar o cajado fincado nos clipes).
+# O cajado é o mesmo, na mesma altura; fica à frente e para fora, longe da túnica.
+const ELDER_STAFF_AT := Vector2(0.429, 0.27)   # (x, z) do centro do cajado no staff_hold (antes 0.25, 0.07)
 # Medidas da Mira de antes do esqueleto (peças rígidas, braços caídos).
 const MERCHANT_TOP := 1.865           # topo da cabeça (turbante)
 const MERCHANT_WRIST := Vector3(0.24, 0.93, 0.0)   # punho esquerdo (fim do antebraço); o direito é o espelho em x
@@ -101,7 +104,7 @@ func _check_elder() -> void:
 		check(sb.position.y > -0.01 and sb.position.y < 0.06, "Bram: staff_hold, pé do cajado no chão (%.3f m)" % sb.position.y)
 		var c := sb.get_center()
 		check(Vector2(c.x, c.z).distance_to(ELDER_STAFF_AT) <= 0.03,
-				"Bram: staff_hold, cajado ao lado da mão esquerda (%.3f, %.3f)" % [c.x, c.z])
+				"Bram: staff_hold, cajado na mão esquerda, à frente e para fora (%.3f, %.3f)" % [c.x, c.z])
 	m.free()
 
 
@@ -159,8 +162,11 @@ const LIBS := {
 	"elder": ["res://assets/animations/elder_mixamo.res", {"idle": true, "excited": false, "talk": true}],
 	"merchant": ["res://assets/animations/merchant_mixamo.res", {"idle": true, "call": false, "talk": true}],
 }
-## Ossos do braço esquerdo do Bram presos na pose staff_hold (o cajado não balança).
-const ELDER_LOCKED := ["LeftShoulder", "LeftUpperArm", "LeftLowerArm", "LeftHand"]
+const STAFF_SAMPLES := 12       # instantes conferidos por clipe
+const STAFF_TILT := 5.0         # inclinação máxima do cajado (graus)
+const STAFF_FOOT := 0.02        # pé do cajado: altura máxima acima/abaixo do chão (m)
+const ELBOW_AXIS := 0.999       # cotovelo como dobradiça: eixo da rotação de LeftLowerArm ~ X local
+const WRIST_TWIST := 25.0       # torção máxima da mão em torno do antebraço (graus)
 const SK := "%GeneralSkeleton:"
 
 
@@ -224,26 +230,101 @@ func _check_library(npc: String, lib: AnimationLibrary) -> void:
 				return a.find_track(NodePath(k.get_slice(":", 0) + ":" + k.get_slice(":", 1)), int(k.get_slice(":", 2))) < 0)
 			check(missing.is_empty(), "%s: %s anima todos os ossos da biblioteca (faltam %s)" % [npc, c, missing])
 	if key == "elder":
-		_check_staff_lock(npc, lib)
+		_check_staff_planted(npc, lib)
+	if key == "merchant" and lib.has_animation("call"):
+		_check_seamless(npc, lib.get_animation("call"))
 
 
-## Bram: em todos os clipes o braço esquerdo fica parado na pose staff_hold do elder.glb.
-func _check_staff_lock(npc: String, lib: AnimationLibrary) -> void:
+## A Mira toca o call várias vezes seguidas: o último quadro tem de casar com o primeiro (sem salto na emenda).
+func _check_seamless(npc: String, a: Animation) -> void:
+	var seam := 0.0
+	var where := ""
+	for t in a.get_track_count():
+		var d := 0.0
+		match a.track_get_type(t):
+			Animation.TYPE_ROTATION_3D:
+				d = rad_to_deg((a.rotation_track_interpolate(t, 0.0) as Quaternion).angle_to(a.rotation_track_interpolate(t, a.length)))
+			Animation.TYPE_POSITION_3D:   # 1 cm conta como 1°
+				d = 100.0 * (a.position_track_interpolate(t, 0.0) as Vector3).distance_to(a.position_track_interpolate(t, a.length))
+		if d > seam:
+			seam = d
+			where = str(a.track_get_path(t)).get_slice(":", 1)
+	check(seam <= 1.0, "%s: call emenda sem salto (maior diferença fim/início %.2f em %s)" % [npc, seam, where])
+
+
+## Bram: em todos os clipes o cajado (preso à mão esquerda como o jogo prende) fica de pé, com o pé no chão, e
+## o braço esquerdo é dobradiça (cotovelo só no eixo X local, mão sem torção em torno do antebraço).
+func _check_staff_planted(npc: String, lib: AnimationLibrary) -> void:
 	var m: Node3D = (load("res://assets/models/elder.glb") as PackedScene).instantiate()
+	root.add_child(m)
 	var ap := m.find_children("*", "AnimationPlayer")[0] as AnimationPlayer
-	var hold := ap.get_animation("staff_hold")
-	var t_hold := hold.find_track(SK + "LeftLowerArm", Animation.TYPE_ROTATION_3D)
-	var want: Quaternion = hold.rotation_track_interpolate(t_hold, 0.0)
-	m.free()
+	var sk := m.find_children("*", "Skeleton3D")[0] as Skeleton3D
+	var staff := m.find_child("Staff", true, false) as MeshInstance3D
+	var s := _xform_to(sk, m)
+	var hd := sk.find_bone("LeftHand")
+	var la := sk.find_bone("LeftLowerArm")
+	var cl := sk.find_bone("LeftShoulder")
+	ap.play("staff_hold")
+	ap.seek(0.0, true)
+	var cl_hold := sk.get_bone_pose_rotation(cl)
+	var la_rest := sk.get_bone_rest(la).basis.get_rotation_quaternion()
+	var hd_rest := sk.get_bone_rest(hd).basis.get_rotation_quaternion()
+	# como SkinnedNPC._attach: o cajado segue a mão mantendo onde estava em relação a ela na pose T
+	var grip := (s * sk.get_bone_global_rest(hd)).affine_inverse() * _xform_to(staff, m)
+	var box := staff.get_aabb()
+	var long := box.get_longest_axis_index()
+	var axis := Vector3.ZERO
+	axis[long] = 1.0
+	ap.add_animation_library("teste", lib)
 	for c in lib.get_animation_list():
 		var a := lib.get_animation(c)
-		for b: String in ELDER_LOCKED:
-			var t := a.find_track(SK + b, Animation.TYPE_ROTATION_3D)
-			var other := a.find_track(SK + b, Animation.TYPE_POSITION_3D) >= 0 or a.find_track(SK + b, Animation.TYPE_SCALE_3D) >= 0
-			var r0: Quaternion = a.rotation_track_interpolate(t, 0.0) if t >= 0 else Quaternion()
-			var r1: Quaternion = a.rotation_track_interpolate(t, a.length * 0.5) if t >= 0 else Quaternion()
-			check(t >= 0 and not other and r0.is_equal_approx(r1),
-					"%s: %s, %s constante (t=0 e meio iguais)" % [npc, c, b])
-		var tl := a.find_track(SK + "LeftLowerArm", Animation.TYPE_ROTATION_3D)
-		check(tl >= 0 and (a.rotation_track_interpolate(tl, a.length * 0.5) as Quaternion).is_equal_approx(want),
-				"%s: %s, LeftLowerArm na pose staff_hold" % [npc, c])
+		ap.play("teste/" + c)
+		var tilt := 0.0
+		var foot_lo := INF
+		var foot_hi := -INF
+		var spot_min := Vector2(INF, INF)
+		var spot_max := Vector2(-INF, -INF)
+		var hinge := 1.0
+		var twist := 0.0
+		var clav := 0.0   # quanto a clavícula sai da pose staff_hold (graus)
+		for i in STAFF_SAMPLES:
+			var t := a.length * i / float(STAFF_SAMPLES - 1)
+			ap.seek(t, true)
+			var st := s * _pose_global(sk, hd) * grip
+			var v := (st.basis * axis).normalized()
+			tilt = maxf(tilt, rad_to_deg(acos(absf(v.y))))
+			var low := INF
+			for k in 8:
+				low = minf(low, (st * box.get_endpoint(k)).y)
+			foot_lo = minf(foot_lo, low)
+			foot_hi = maxf(foot_hi, low)
+			var o := st * box.get_center()
+			spot_min = spot_min.min(Vector2(o.x, o.z))
+			spot_max = spot_max.max(Vector2(o.x, o.z))
+			var dq := la_rest.inverse() * sk.get_bone_pose_rotation(la)
+			if dq.get_angle() > deg_to_rad(3.0):
+				hinge = minf(hinge, dq.get_axis().dot(Vector3.RIGHT))
+			clav = maxf(clav, rad_to_deg(sk.get_bone_pose_rotation(cl).angle_to(cl_hold)))
+			var dh := hd_rest.inverse() * sk.get_bone_pose_rotation(hd)
+			twist = maxf(twist, absf(rad_to_deg(wrapf(2.0 * atan2(dh.y, dh.w), -PI, PI))))
+		check(tilt <= STAFF_TILT, "%s: %s, cajado de pé (inclinação até %.1f°)" % [npc, c, tilt])
+		check(foot_lo >= -STAFF_FOOT and foot_hi <= STAFF_FOOT,
+				"%s: %s, pé do cajado no chão (%.3f a %.3f m)" % [npc, c, foot_lo, foot_hi])
+		check(spot_min.distance_to(spot_max) <= 0.02,
+				"%s: %s, cajado parado no mesmo ponto (varia %.3f m)" % [npc, c, spot_min.distance_to(spot_max)])
+		check(hinge >= ELBOW_AXIS, "%s: %s, cotovelo como dobradiça (eixo·X %.4f)" % [npc, c, hinge])
+		check(twist <= WRIST_TWIST, "%s: %s, mão sem torção (até %.1f°)" % [npc, c, twist])
+		check(clav <= 0.5, "%s: %s, alcança o cajado sem baixar a clavícula (até %.1f°)" % [npc, c, clav])
+	ap.stop()
+	ap.remove_animation_library("teste")
+	m.free()
+
+
+## Pose global (espaço do esqueleto) do osso b a partir das poses locais atuais: o cache global do Skeleton3D
+## só se atualiza no quadro seguinte, então depois de vários seek() no mesmo quadro ele estaria velho.
+func _pose_global(sk: Skeleton3D, b: int) -> Transform3D:
+	var x := Transform3D.IDENTITY
+	while b >= 0:
+		x = sk.get_bone_pose(b) * x
+		b = sk.get_bone_parent(b)
+	return x

@@ -531,6 +531,7 @@ def build_knight():
 # campo de pesos só (robe_field): gradiente no tronco e, abaixo do quadril, quadril cedendo às coxas.
 # O cajado ("Staff") é um objeto à parte, sem pesos, com o pivô na mão esquerda (pose T).
 ELDER_SPINE = (1.03, 1.13, 1.25, 1.40, 1.50)   # início de Spine, Spine1, Spine2, Neck e Head
+ELDER_STAFF_SPOT = Vector((0.42, -0.27))       # eixo do cajado no staff_hold (x, y do Blender), fora da túnica
 
 
 def build_elder():
@@ -650,8 +651,12 @@ def build_elder():
 
     body = join_objs("Elder", [o for o in coll.objects if o.type == 'MESH'])
 
-    # ---------------- cajado (objeto à parte): modelado de pé ao lado do corpo, onde a mão esquerda o segura
-    # no staff_hold, e levado para a pose T junto com a mão (o pivô fica no punho fechado em volta dele)
+    # ---------------- cajado (objeto à parte): cajado de caminhada. No staff_hold o braço esquerdo desce do
+    # ombro um pouco para a frente e o cotovelo dobra, com o antebraço e a mão apontando para a frente e para fora
+    # (o braço modelado caído gira para a frente: polegar para cima, palma para dentro); o punho fecha em volta do
+    # cajado na altura de ~1 m, com o cajado de pé, fora da túnica (que abre para a frente quando ele se curva ou
+    # dá passos). O cajado é o mesmo de antes, na mesma altura (pé no chão, gancho em cima); só muda de lugar.
+    # Na pose T ele vai junto com a mão, com o pivô no punho.
     st = [limb("Staff", (0.25, -0.07, 0.02), (0.25, -0.07, 1.82), 0.022, 0.026, wood, sides=6, twist=0.6),
           limb("StaffWrap", (0.25, -0.07, 1.0), (0.25, -0.07, 1.12), 0.03, 0.03, lea, sides=6),
           limb("StaffCrook1", (0.25, -0.07, 1.82), (0.29, -0.07, 1.94), 0.026, 0.02, wood, sides=6),
@@ -659,24 +664,38 @@ def build_elder():
           shell("StaffGem", (0.255, -0.07, 1.93), (0.075, 0.075, 0.1), gem, cut=-1.0, thick=0, seg=6, rings=4)]
     staff = join_objs("Staff", st)
     r_up, r_fo, el, el_t = turn["Left"]
-    grip = el_t + r_fo @ (Vector((0.25, -0.07, 0.83)) - el)
+    sh_l = joints["Left"][0]
+    fist = Vector((0.245, -0.006, 0.83))                       # centro do punho modelado (bloco da mão)
+    up_dir = Vector((0.12, -0.25, -1.0)).normalized()          # braço: um pouco para a frente e para fora
+    r_hu = (el - sh_l).normalized().rotation_difference(up_dir)
+    el_h = sh_l + r_hu @ (el - sh_l)                           # cotovelo no staff_hold
+    reach = (fist - el).length
+    flat = ELDER_STAFF_SPOT - el_h.to_2d()
+    fist_h = Vector((ELDER_STAFF_SPOT.x, ELDER_STAFF_SPOT.y, el_h.z - math.sqrt(reach * reach - flat.length_squared)))
+    r_hf = (fist - el).normalized().rotation_difference((fist_h - el_h).normalized())
+    print("Bram: punho no cajado a %.3f m, cotovelo a %.3f m" % (fist_h.z, el_h.z))
+    # malha de pé em volta do punho (eixos da malha alinhados ao cajado); a rotação da pose T fica no objeto
     mw = staff.matrix_world.copy()
+    move = Vector((ELDER_STAFF_SPOT.x - 0.25, ELDER_STAFF_SPOT.y + 0.07, 0))
     for v in staff.data.vertices:
-        v.co = el_t + r_fo @ (mw @ v.co - el) - grip
-    staff.matrix_world = Matrix.Identity(4)
-    staff.location = grip
+        v.co = mw @ v.co + move - fist_h
+    to_t = (r_fo @ r_hf.inverted()).to_matrix().to_4x4()
+    staff.matrix_world = Matrix.Translation(el_t + r_fo @ r_hf.inverted() @ (fist_h - el_h)) @ to_t
 
     # ---------------- esqueleto em pose T, nomes do Mixamo (sem pernas modeladas: ossos dentro da túnica)
     P = {"hip": Vector((0.08, 0, hip_z)), "knee": Vector((0.08, 0, 0.5)), "ankle": Vector((0.08, 0, 0.08))}
     arm = mixamo_rig([body], P, joints, hip_z, H["top"], spine=ELDER_SPINE)
 
     # ---------------- clipes (direções de mundo: frente = -Y, esquerda = +X)
-    # staff_hold: braços de volta à posição modelada (a esquerda segurando o cajado de pé ao lado do corpo)
+    # staff_hold: braço direito de volta à posição modelada; o esquerdo segura o cajado de caminhada (acima)
     hold = {}
     for sd in ("Left", "Right"):
         r_up, r_fo, _, _ = turn[sd]
         hold[sd + "Arm"] = r_up.inverted().to_matrix()
         hold[sd + "ForeArm"] = hold[sd + "Hand"] = r_fo.inverted().to_matrix()
+    r_up, r_fo, _, _ = turn["Left"]
+    hold["LeftArm"] = (r_hu.to_matrix() @ r_up.inverted().to_matrix())
+    hold["LeftForeArm"] = hold["LeftHand"] = r_hf.to_matrix() @ r_fo.inverted().to_matrix()
 
     # excited: o braço direito sobe com o punho fechado e "bombeia" duas vezes, como dobradiça (braço, antebraço
     # e mão com o mesmo eixo de dobra); o tronco recua um pouco e a cabeça sobe. O braço esquerdo fica no
