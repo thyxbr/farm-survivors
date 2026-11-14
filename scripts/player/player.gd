@@ -257,6 +257,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
+## Saiu da árvore (réplica removida porque o jogador saiu ou trocou de zona, troca de cena): fim duro da
+## habilidade, senão os nós dela fora do jogador (o céu da Chuva de Meteoros, na raiz da cena) ficariam
+## órfãos. end_ability só libera nós e restaura estado (nada de efeito novo), então é seguro mesmo com a
+## cena sendo desmontada.
+func _exit_tree() -> void:
+	if ability != "":
+		end_ability()
+
+
 func _physics_process(delta: float) -> void:
 	if remote:
 		_remote_process(delta)
@@ -771,7 +780,9 @@ func _ab_module(id: String) -> Object:
 
 ## O `kind` de um evento remoto é de uma habilidade de arma (e não de uma magia antiga ou emote)?
 func _is_ability_kind(kind: String) -> bool:
-	return ItemDB.ABILITIES.has(kind) and not kind in ["fireball", "heal", "frost_nova"] 		or kind.begins_with("sword_") or kind.begins_with("bow_") or kind.begins_with("meteor")
+	var weapon_ability: bool = ItemDB.ABILITIES.has(kind) and not (kind in ["fireball", "heal", "frost_nova"])
+	var by_prefix: bool = kind.begins_with("sword_") or kind.begins_with("bow_") or kind.begins_with("meteor")
+	return weapon_ability or by_prefix
 
 
 ## Começa a habilidade de arma `id` (use do módulo e, nas réplicas, play_remote).
@@ -1076,8 +1087,12 @@ func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int,
 		attacking = false
 		parts.Body.rotation.y = 0.0
 	# a habilidade da réplica termina sozinha pelo tempo; o estado sem a flag a encerra antes (esquiva,
-	# morte). Uma folga ignora estado atrasado que chegue depois do evento de início.
+	# morte). Uma folga ignora estado atrasado que chegue depois do evento de início. Sem morte, o fim é o
+	# macio do módulo (o da esquiva): a Chuva de Meteoros deixa os meteoros no ar caírem, mesmo se o estado
+	# chegar antes do evento "meteor_rain_end"; morto, fim duro.
 	if flags & NF_ABILITY == 0 and ability != "" and ability_t > 0.2:
+		if flags & NF_DEAD == 0:
+			_ab_module(ability).dodge_cancel(self)
 		end_ability()
 	var now_dead := flags & NF_DEAD != 0
 	if now_dead and not dead:

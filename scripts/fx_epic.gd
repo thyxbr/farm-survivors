@@ -216,9 +216,10 @@ static func _fade_ramp(c0: Color, c1: Color, c2: Color) -> Gradient:
 	return g
 
 
-## QuadMesh compartilhada de lado `side` (arredondado a 0,05 m) com o material `mat`.
+## QuadMesh compartilhada de lado `side` (arredondado a 0,01 m: o cache fica limitado sem encolher as
+## partículas pequenas) com o material `mat`.
 static func _quad(side: float, mat: Material) -> QuadMesh:
-	side = maxf(0.05, snappedf(side, 0.05))
+	side = maxf(0.01, snappedf(side, 0.01))
 	var key := "%d/%.2f" % [mat.get_instance_id(), side]
 	var q: QuadMesh = _quads.get(key)
 	if q == null:

@@ -16,6 +16,7 @@ extends RefCounted
 # ------------------------------------------------------------------ Chuva de Meteoros (ultimate, slot 4)
 const METEOR_WINDUP := 0.5        ## preparo (s): cajado erguido; a esquiva não cancela
 const METEOR_CHANNEL := 4.0       ## canalização máxima depois do preparo (s)
+const METEOR_TAP_MIN := 0.8       ## soltar no preparo não desperdiça a ultimate: a chuva abre e dura ao menos isto (s)
 const METEOR_INTERVAL := 0.18     ## um meteoro a cada (s)
 const METEOR_FALL := 0.45         ## tempo de queda de cada meteoro (s)
 const METEOR_RANGE := 14.0        ## o centro da área fica a até 14 m do jogador (no plano)
@@ -110,10 +111,14 @@ static func play_remote(player: Node, kind: String, a: Vector3, b: Vector3) -> v
 				_meteor_soft_end(player)
 
 
-## A tecla do slot foi solta: a chuva para na hora (os meteoros já no ar ainda caem e ferem). Solta no
-## preparo, acaba ali mesmo sem meteoro nenhum: a fúria gasta é o preço de uma ultimate canalizada.
+## A tecla do slot foi solta: na canalização a chuva para na hora (os meteoros já no ar ainda caem e
+## ferem). Solta no preparo (um toque na tecla), fica guardado: a chuva abre no fim do preparo, canaliza
+## METEOR_TAP_MIN s e então termina macia (como a carga mínima da Flecha do Vendaval).
 static func release(player: Node) -> void:
 	if player.ability != "meteor_rain" or player.remote:
+		return
+	if player.ability_t < METEOR_WINDUP:
+		player.ability_data.released = true
 		return
 	_meteor_soft_end(player)
 
@@ -275,7 +280,7 @@ static func _meteor_tick(player: Node, t0: float, t: float, delta: float) -> voi
 		while float(d.next_t) <= t and float(d.next_t) < end_t - 0.0001:
 			_spawn_meteor(player, d)
 			d.next_t = float(d.next_t) + METEOR_INTERVAL
-	if t >= end_t - 0.0001:
+	if t >= end_t - 0.0001 or (local and d.get("released", false) and t >= METEOR_WINDUP + METEOR_TAP_MIN - 0.0001):
 		_meteor_soft_end(player)
 
 

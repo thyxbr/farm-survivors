@@ -1148,19 +1148,28 @@ func _test_meteor_rain() -> void:
 	check(Game.mp == mp1, "Meteoros: não gasta mana (%.1f -> %.1f)" % [mp1, Game.mp])
 	check(is_equal_approx(Engine.time_scale, 1.0) and player.cam_back == 0.0, "Meteoros: fim restaura tempo e câmera")
 
-	# --- soltar no preparo: acaba na hora, sem meteoro nenhum (a fúria já foi gasta)
+	# --- soltar no preparo (um toque na tecla): fica guardado; a chuva abre no fim do preparo, canaliza
+	# METEOR_TAP_MIN s e termina sozinha (a ultimate não se desperdiça)
 	place_at.call(c)
 	await wait(0.1)
-	var hw: Array = hps.call()
 	Game.fury = 100.0
 	Game.level = 8
 	player.use_slot(4)
 	await wait_until(func(): return player.ability_t >= 0.2 or player.ability == "")
 	check(player.ability == "meteor_rain" and player.ability_t < StaffAbilities.METEOR_WINDUP, "Meteoros: no preparo antes de soltar")
+	var dw: Dictionary = player.ability_data
 	StaffAbilities.release(player)
-	check(player.ability == "" and Game.fury == 0.0, "Meteoros: soltar no preparo encerra na hora e a fúria fica gasta")
-	await wait(0.8)
-	check(mets.call(player).is_empty() and hps.call() == hw, "Meteoros: soltar no preparo não faz cair meteoro nenhum")
+	check(player.ability == "meteor_rain" and Game.fury == 0.0, "Meteoros: soltar no preparo não encerra (fica guardado)")
+	var tap_t := [0.0]
+	await wait_until(func():
+		if player.ability == "meteor_rain":
+			tap_t[0] = player.ability_t
+		return player.ability == "", 3.0)
+	var tap_end: float = StaffAbilities.METEOR_WINDUP + StaffAbilities.METEOR_TAP_MIN
+	check(player.ability == "" and tap_t[0] >= tap_end - 0.1 and tap_t[0] <= tap_end + 0.05 and dw.get("targets", []).size() >= 4,
+		"Meteoros: um toque abre a chuva e ela dura o mínimo (fim aos %.2f s, %d meteoros)" % [tap_t[0], dw.get("targets", []).size()])
+	await wait(0.6)
+	check(airborne.call(player) == 0, "Meteoros: depois do toque não nasce meteoro novo")
 	player.cooldowns.meteor_rain = 0.0
 
 	# --- 2) sem soltar: termina sozinha em <= 4,6 s
@@ -1268,7 +1277,51 @@ func _test_meteor_rain() -> void:
 	check(rp.ability == "", "réplica: 'meteor_rain_end' encerra a chuva")
 	await wait(0.6)
 	check(airborne.call(rp) == 0 and hps.call() == h5, "réplica: nenhum meteoro novo depois do fim e nenhum dano")
+	# o estado de rede sem a flag de habilidade (sem morte) encerra macio: os meteoros no ar ainda caem
+	StaffAbilities.play_remote(rp, "meteor_rain", center1, Vector3(seed1, 0, 0))
+	await wait_until(func(): return airborne.call(rp) >= 1 or rp.ability == "", 3.0)
+	var rp_air: Array = []
+	for m in mets.call(rp):
+		if not m.landed:
+			rp_air.append(m)
+	rp.apply_net_state(rp.global_position, 0.0, Vector3.ZERO, 0, 0, 0.0)
+	await get_tree().process_frame
+	var still := 0
+	for m in rp_air:
+		if is_instance_valid(m) and not m.is_queued_for_deletion():
+			still += 1
+	check(rp.ability == "" and rp_air.size() >= 1 and still == rp_air.size(),
+		"réplica: perder a flag encerra macio, os meteoros no ar continuam (%d de %d)" % [still, rp_air.size()])
+	await wait(0.8)
 	rp.queue_free()
+
+	# --- réplica removida no meio da chuva (o jogador saiu ou trocou de zona): nada fica órfão na cena
+	await wait(1.0)
+	var budget0: int = FXEpic._active_amount
+	var skies := func() -> int:
+		var n := 0
+		for x in world.get_children():
+			if x.has_node("Dark") and x.has_node("Glow") and not x.is_queued_for_deletion():
+				n += 1
+		return n
+	var sky0: int = skies.call()
+	var rq := Player.new()
+	rq.remote = true
+	world.add_child(rq)
+	rq.global_position = player.global_position
+	StaffAbilities.play_remote(rq, "meteor_rain", center1, Vector3(seed1, 0, 0))
+	await wait_until(func(): return rq.ability_t >= StaffAbilities.METEOR_WINDUP + 0.6 or rq.ability == "", 3.0)
+	check(rq.ability == "meteor_rain" and skies.call() == sky0 + 1, "réplica removida: céu escuro no ar antes de sair (%d)" % skies.call())
+	rq.queue_free()
+	for i in 3:
+		await get_tree().process_frame
+	var live_mets := 0
+	for x in world.get_children():
+		if x is StaffAbilities.MeteorStrike and not x.is_queued_for_deletion():
+			live_mets += 1
+	check(skies.call() == sky0 and live_mets == 0, "réplica removida: céu, redemoinho e meteoros somem com ela (%d céus, %d meteoros)" % [skies.call(), live_mets])
+	await wait(1.2)   # as explosões que já tinham começado terminam a vida
+	check(FXEpic._active_amount <= budget0, "réplica removida: o orçamento de partículas volta (%d -> %d)" % [budget0, FXEpic._active_amount])
 
 	# --- 6) encosta de montanha: de pé na encosta do Pico do sudoeste, mirando no céu para fora (para a
 	# planície lá embaixo). O centro e cada ponto de impacto ficam no chão de verdade (um raio de cima a
