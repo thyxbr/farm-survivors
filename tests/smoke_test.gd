@@ -446,6 +446,14 @@ func _ready() -> void:
 	Game.level = 8
 	player.use_slot(4)
 	check(Game.fury == 100.0 and player.cooldowns.meteor_rain == 0.0, "ultimate ainda não construída mantém a fúria")
+	# --- despacho por módulo da classe da arma, com fonte única de "pronta"
+	for id in ItemDB.ABILITIES:
+		check(Game.ability_implemented(id) == ItemDB.ABILITIES[id].ready, "fonte única de 'pronta' (%s)" % id)
+	check(player._ab_module("sword_whirl") == SwordAbilities and player._ab_module("bow_gale") == BowAbilities
+		and player._ab_module("meteor_rain") == StaffAbilities, "despacho por módulo da classe")
+	check(player._ab_module("meteor_rain_end") == StaffAbilities and player._ab_module("bow_gale_fire") == BowAbilities
+		and player._ab_module("sword_charge") == SwordAbilities, "kind de evento remoto roteia por prefixo")
+
 	Game.level = lvl_f
 	Game.fury = 0.0
 	Game.hp = hp_f

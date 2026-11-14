@@ -17,28 +17,28 @@ static var RECIPES: Dictionary = {}
 const RECIPE_ORDER := ["bread", "carrot_stew", "spicy_soup", "dragon_chili", "mint_tea", "garden_salad", "pumpkin_pie", "valdoria_feast"]
 
 ## Habilidades de todas as armas. `slot` 1..4 (tecla 1..4); o slot 4 é a ultimate.
-## `cost` é mana (0 = só recarga). `icon` é o desenho do IconPainter.
+## `ready` = a habilidade já está implementada (fonte única; senão "Em breve"). `cost` é mana (0 = só recarga). `icon` é o desenho do IconPainter.
 const ABILITIES := {
 	"fireball": {"name": "Bola de Fogo", "class": "staff", "slot": 1, "level": 1, "cooldown": 0.9, "cost": 12,
-		"ultimate": false, "icon": "fireball", "desc": "Projétil flamejante. Dano = 18 + INT x 2.5"},
+		"ready": true, "ultimate": false, "icon": "fireball", "desc": "Projétil flamejante. Dano = 18 + INT x 2.5"},
 	"frost_nova": {"name": "Nova Gélida", "class": "staff", "slot": 2, "level": 3, "cooldown": 7.0, "cost": 28,
-		"ultimate": false, "icon": "frost", "desc": "Explosão de gelo ao redor: dano e lentidão."},
+		"ready": true, "ultimate": false, "icon": "frost", "desc": "Explosão de gelo ao redor: dano e lentidão."},
 	"heal": {"name": "Cura", "class": "staff", "slot": 3, "level": 5, "cooldown": 4.0, "cost": 20,
-		"ultimate": false, "icon": "heal", "desc": "Restaura 30 + INT x 4 de vida."},
+		"ready": true, "ultimate": false, "icon": "heal", "desc": "Restaura 30 + INT x 4 de vida."},
 	"meteor_rain": {"name": "Chuva de Meteoros", "class": "staff", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
-		"ultimate": true, "icon": "fireball", "desc": "Ultimate: meteoros caem sobre a área."},
+		"ready": false, "ultimate": true, "icon": "fireball", "desc": "Ultimate: meteoros caem sobre a área."},
 	"sword_charge": {"name": "Investida", "class": "sword", "slot": 1, "level": 1, "cooldown": 6.0, "cost": 0,
-		"ultimate": false, "icon": "saber", "desc": "Avança sobre os inimigos à frente, causando dano."},
+		"ready": true, "ultimate": false, "icon": "saber", "desc": "Avança sobre os inimigos à frente, causando dano."},
 	"sword_quake": {"name": "Golpe Sísmico", "class": "sword", "slot": 2, "level": 3, "cooldown": 9.0, "cost": 0,
-		"ultimate": false, "icon": "greatsword", "desc": "Golpe no chão: dano em área e atordoamento."},
+		"ready": true, "ultimate": false, "icon": "greatsword", "desc": "Golpe no chão: dano em área e atordoamento."},
 	"sword_whirl": {"name": "Turbilhão", "class": "sword", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
-		"ultimate": true, "icon": "cleaver", "desc": "Ultimate: redemoinho de lâminas ao redor."},
+		"ready": true, "ultimate": true, "icon": "cleaver", "desc": "Ultimate: redemoinho de lâminas ao redor."},
 	"bow_triple": {"name": "Tiro Triplo", "class": "bow", "slot": 1, "level": 1, "cooldown": 5.0, "cost": 0,
-		"ultimate": false, "icon": "bow", "desc": "Três flechas em leque."},
+		"ready": false, "ultimate": false, "icon": "bow", "desc": "Três flechas em leque."},
 	"bow_frost": {"name": "Flecha Glacial", "class": "bow", "slot": 2, "level": 3, "cooldown": 8.0, "cost": 0,
-		"ultimate": false, "icon": "frost", "desc": "Flecha de gelo: prende e atrasa o alvo atingido."},
+		"ready": false, "ultimate": false, "icon": "frost", "desc": "Flecha de gelo: prende e atrasa o alvo atingido."},
 	"bow_gale": {"name": "Flecha do Vendaval", "class": "bow", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
-		"ultimate": true, "icon": "bow", "desc": "Ultimate: o arqueiro agacha, tensiona e solta uma flecha que atravessa tudo em linha reta, rasgando o ar."},
+		"ready": false, "ultimate": true, "icon": "bow", "desc": "Ultimate: o arqueiro agacha, tensiona e solta uma flecha que atravessa tudo em linha reta, rasgando o ar."},
 }
 
 

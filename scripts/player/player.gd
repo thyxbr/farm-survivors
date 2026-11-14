@@ -81,6 +81,7 @@ var _cam_back_now := 0.0
 var ability := ""
 var ability_t := 0.0
 var ability_data := {}
+var ability_slot := 0   ## slot (1..4) da tecla que começou a habilidade em execução (0 = nenhum)
 var cooldowns := _make_cooldowns()   # todas as habilidades: a recarga continua ao trocar de arma
 var interact_target: Node3D = null
 var spawn_point := Vector3(0, 0.5, 6)
@@ -314,7 +315,7 @@ func _local_process(delta: float) -> void:
 	if busy:
 		# controla a velocidade horizontal (e pode terminar); recebe a direção pedida pelo jogador
 		# (relativa à câmera) e a velocidade de andar, para habilidades que andam devagar
-		SwordAbilities.tick(self, delta, dir, speed)
+		_ab_module(ability).tick(self, delta, dir, speed)
 	elif dodge_timer > 0:
 		dodge_timer -= delta
 		velocity.x = dodge_dir.x * DODGE_SPEED
@@ -352,6 +353,9 @@ func _local_process(delta: float) -> void:
 	for i in 4:
 		if Input.is_action_just_pressed("spell_%d" % (i + 1)) and not build_lock:
 			use_slot(i + 1)
+	# soltou a tecla da habilidade em execução (ex.: o arqueiro solta a flecha ao largar a tecla)
+	if ability != "" and ability_slot >= 1 and Input.is_action_just_released("spell_%d" % ability_slot):
+		_ab_module(ability).release(self)
 	if Input.is_action_just_pressed("potion") and not build_lock:   # R gira a construção no modo construção
 		_quick_potion("health_potion")
 	if Input.is_action_just_pressed("mana_potion") and not peaceful:
@@ -430,7 +434,7 @@ func facing() -> Vector3:
 ## Tecla de esquiva: com habilidade em execução, só esquiva se ela puder ser cancelada agora.
 func _dodge_pressed(dir: Vector3) -> void:
 	if ability != "":
-		if not SwordAbilities.can_dodge_cancel(self):
+		if not _ab_module(ability).can_dodge_cancel(self):
 			return
 		end_ability()
 	_try_dodge(dir)
@@ -677,6 +681,8 @@ func use_slot(slot: int) -> void:
 	for id in Game.ability_kit():
 		if ItemDB.ABILITIES[id].slot == slot:
 			cast(id)
+			if ability != "":
+				ability_slot = slot
 			return
 
 
@@ -693,9 +699,10 @@ func cast(id: String) -> void:
 	if sp.cost > 0 and Game.mp < sp.cost:
 		Game.notify.emit("Mana insuficiente!", Color(0.6, 0.7, 1.0))
 		return
-	# habilidade de espada ainda sem implementação: "Em breve", sem custo nem recarga
-	if id.begins_with("sword_"):
-		if not SwordAbilities.use(self, id):
+	# habilidade de arma (espada, cajado, arco): o módulo da classe executa. Ainda sem implementação
+	# (ready == false): "Em breve", sem custo nem recarga. As magias antigas seguem no match abaixo.
+	if not id in ["fireball", "heal", "frost_nova"]:
+		if not sp.ready or not _ab_module(id).use(self, id):
 			Game.notify.emit("Em breve!", Color(0.85, 0.8, 0.65))
 			return
 		# a ultimate zera a fúria só quando realmente começa; recarga tem dono único: aqui
@@ -703,9 +710,6 @@ func cast(id: String) -> void:
 			Game.fury = 0.0
 		cooldowns[id] = sp.cooldown * Game.cooldown_mult()
 		Game.stats_changed.emit()
-		return
-	if not id in ["fireball", "heal", "frost_nova"]:
-		Game.notify.emit("Em breve!", Color(0.85, 0.8, 0.65))
 		return
 	_cancel_draw()
 	if sp.cost > 0:
@@ -729,7 +733,32 @@ func cast(id: String) -> void:
 	Game.stats_changed.emit()
 
 
-## Começa a habilidade de arma `id` (SwordAbilities.use e, nas réplicas, play_remote).
+## Módulo da classe da arma dona da habilidade `id` (ou do `kind` de um evento remoto).
+## Um id de ABILITIES usa a `class`; um kind que não é id (ex.: "bow_gale_fire", "meteor_rain_end") cai no prefixo.
+func _ab_module(id: String) -> Object:
+	var cls := ""
+	if ItemDB.ABILITIES.has(id):
+		cls = ItemDB.ABILITIES[id]["class"]
+	elif id.begins_with("sword_"):
+		cls = "sword"
+	elif id.begins_with("bow_"):
+		cls = "bow"
+	elif id.begins_with("meteor"):
+		cls = "staff"
+	match cls:
+		"staff":
+			return StaffAbilities
+		"bow":
+			return BowAbilities
+	return SwordAbilities
+
+
+## O `kind` de um evento remoto é de uma habilidade de arma (e não de uma magia antiga ou emote)?
+func _is_ability_kind(kind: String) -> bool:
+	return ItemDB.ABILITIES.has(kind) and not kind in ["fireball", "heal", "frost_nova"] 		or kind.begins_with("sword_") or kind.begins_with("bow_") or kind.begins_with("meteor")
+
+
+## Começa a habilidade de arma `id` (use do módulo e, nas réplicas, play_remote).
 func begin_ability(id: String, data := {}) -> void:
 	end_ability()
 	ability = id
@@ -759,6 +788,7 @@ func end_ability() -> void:
 		cam_back = 0.0
 	ability = ""
 	ability_t = 0.0
+	ability_slot = 0
 	ability_data = {}
 
 
@@ -1063,7 +1093,7 @@ func _remote_process(delta: float) -> void:
 		end_ability()
 		return
 	if ability != "":
-		SwordAbilities.tick(self, delta)
+		_ab_module(ability).tick(self, delta)
 	dodge_timer = max(0.0, dodge_timer - delta)
 	cast_timer = max(0.0, cast_timer - delta)
 	if attacking:
@@ -1094,8 +1124,8 @@ func _start_cast_pose(kind: String) -> void:
 
 ## Efeitos das ações de outro jogador (só visuais: o dano já foi enviado pelo dono).
 func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
-	if kind.begins_with("sword_"):
-		SwordAbilities.play_remote(self, kind, a, b)
+	if _is_ability_kind(kind):
+		_ab_module(kind).play_remote(self, kind, a, b)
 		return
 	match kind:
 		"fireball":
@@ -1243,7 +1273,7 @@ func _animate(delta: float) -> void:
 	if arrow and is_instance_valid(arrow):
 		arrow.visible = drawing
 	if ability != "":
-		SwordAbilities.pose(self, p)
+		_ab_module(ability).pose(self, p)
 	elif cls == "bow" and drawing:
 		KnightAnim.bow_draw_pose(p, bow_charge())
 	elif cls == "bow" and attacking:

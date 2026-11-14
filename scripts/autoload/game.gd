@@ -477,7 +477,7 @@ func fury_full() -> bool:
 
 ## Habilidades ainda "Em breve" (fases seguintes) não são anunciadas.
 func ability_implemented(id: String) -> bool:
-	return id in ["fireball", "heal", "frost_nova", "sword_charge", "sword_quake", "sword_whirl"]
+	return bool(ItemDB.ABILITIES[id].ready)
 
 
 func knows_ability(id: String) -> bool:

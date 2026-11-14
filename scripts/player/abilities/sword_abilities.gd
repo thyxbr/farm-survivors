@@ -94,6 +94,11 @@ static func tick(player: Node, delta: float, move_dir := Vector3.ZERO, move_spee
 			player.end_ability()
 
 
+## A tecla do slot da habilidade em execução foi solta (nenhuma habilidade da espada depende disso).
+static func release(_player: Node) -> void:
+	pass
+
+
 ## A esquiva pode interromper a habilidade agora?
 static func can_dodge_cancel(player: Node) -> bool:
 	# o Golpe Sísmico é curto demais: a esquiva não o cancela
