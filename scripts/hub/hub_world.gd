@@ -73,6 +73,8 @@ func _ready() -> void:
 		Econ.ensure_solo()
 	rng.seed = 20261114
 	WorldLighting.build(self)
+	if DisplayServer.get_name() != "headless":
+		add_child(WeatherFX.new())   # clima (só visual), o mesmo de Valdoria
 	_build_ground()
 	_build_square()
 	_build_edge()
