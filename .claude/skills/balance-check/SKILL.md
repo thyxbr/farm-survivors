@@ -32,10 +32,10 @@ Pelo argumento (se não houver, pergunte):
 
 | Domínio | O que olhar | Fonte |
 |---|---|---|
-| `combate` | dano por classe (espada/cajado/arco) por raridade, escala com FOR/INT/AGI, crítico, roubo de vida, magias | `ITEMS`, `SPELLS` em `scripts/autoload/item_db.gd`; `damage_mult()`, `weapon_damage()`, `melee_damage()`, `spell_power()`, `crit_chance()`, `max_hp()` em `scripts/autoload/game.gd`; dano recebido em `take_damage()` de `scripts/player/player.gd` |
+| `combate` | dano por classe (espada/cajado/arco) por raridade, escala com FOR/INT/AGI, crítico, roubo de vida, magias | `ITEMS`, `ABILITIES` em `scripts/autoload/item_db.gd`; `damage_mult()`, `weapon_damage()`, `melee_damage()`, `spell_power()`, `crit_chance()`, `max_hp()` em `scripts/autoload/game.gd`; dano recebido em `take_damage()` de `scripts/player/player.gd` |
 | `itens` | preço x poder por raridade, itens da loja (`SHOP_STOCK`), bônus de `stats`, preço de venda | `scripts/autoload/item_db.gd` (inclui `power_score()`, a nota de poder que o jogo usa); `sell()` em `scripts/autoload/game.gd` |
 | `loot` | chance de drop por inimigo, ouro por inimigo, raridade esperada por região | `TYPES[*].loot` e `gold` em `scripts/enemies/enemy.gd`; `drop_loot()` |
-| `progressao` | `xp_to_next()` = `int(60 * level^1.55)`, XP por inimigo e por missão, 3 pontos por nível, magias por nível | `scripts/autoload/game.gd`, `QUESTS`/`SPELLS` em `item_db.gd`, `TYPES[*].xp` |
+| `progressao` | `xp_to_next()` = `int(60 * level^1.55)`, XP por inimigo e por missão, 3 pontos por nível, magias por nível | `scripts/autoload/game.gd`, `QUESTS`/`ABILITIES` em `item_db.gd`, `TYPES[*].xp` |
 | `horda` | `xp_needed()` da partida, armas automáticas, passivas, bênçãos, combos em grupo, eventos | `scripts/survival/survival_mode.gd`, `upgrades.gd`, `horde_events.gd`, `auto_weapons.gd` |
 | `cidade` | ouro/comida por dia, impostos x crescimento, custo x HP das construções, torres (dano/alcance/cadência), chefe a cada 5 noites | `scripts/colony/colony_data.gd`, `colony.gd`, `soldier.gd` |
 | `comida` | colheitas, receitas, buffs e recarga de comer | `CROPS`/`RECIPES` em `item_db.gd`; `EAT_COOLDOWN` em `game.gd`; `scripts/farm/` |

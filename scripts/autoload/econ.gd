@@ -312,10 +312,10 @@ func report_vitals(pos: Vector3, yaw: float) -> void:
 		if multiplayer.multiplayer_peer == null or \
 				multiplayer.multiplayer_peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
 			return
-		_econ_report.rpc_id(1, Game.hp, Game.mp, pos, yaw)
+		_econ_report.rpc_id(1, Game.hp, Game.mp, pos, yaw, Game.fury)
 		reports_sent += 1
 	elif not Network.is_online() and _solo_loaded and _svc != null:
-		_svc.report(SOLO_ACCOUNT, SOLO_SESSION, Game.hp, Game.mp, pos, yaw)
+		_svc.report(SOLO_ACCOUNT, SOLO_SESSION, Game.hp, Game.mp, pos, yaw, Game.fury)
 		_svc.save(SOLO_ACCOUNT)
 		reports_sent += 1
 
@@ -618,7 +618,7 @@ func _econ_req(seq: int, op: String, args: Array) -> void:
 ## Só atualiza o cache (CharacterService.report); grava no próximo pedido, na saída ou no flush periódico.
 ## Um relatório por segundo por peer, no máximo (os legítimos vêm a cada autosave ou troca de zona).
 @rpc("any_peer", "call_remote", "reliable")
-func _econ_report(hp: float, mp: float, pos: Vector3, yaw: float) -> void:
+func _econ_report(hp: float, mp: float, pos: Vector3, yaw: float, fury: float) -> void:
 	var account := _sender_account()
 	if account <= 0:
 		return
@@ -627,7 +627,7 @@ func _econ_report(hp: float, mp: float, pos: Vector3, yaw: float) -> void:
 	if _last_report.has(peer) and now_ms - int(_last_report[peer]) < REPORT_MIN_MS:
 		return
 	_last_report[peer] = now_ms
-	Network.characters.report(account, peer, hp, mp, pos, yaw)
+	Network.characters.report(account, peer, hp, mp, pos, yaw, fury)
 
 
 ## Só com o servidor em --test (net_test): ouro para os testes de compra.

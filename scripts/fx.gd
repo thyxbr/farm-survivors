@@ -2,11 +2,41 @@ class_name FX
 extends RefCounted
 ## Efeitos visuais simples criados por código (números de dano, partículas, anéis).
 
+## Material das partículas de burst (compartilhado: a cor vem por vértice) e um material do anel que
+## fica vivo: quando o último material de um tipo é liberado o Godot descarta o shader e o recompila
+## no próximo efeito, um engasgo de 10-20 ms em todo golpe depois de uns segundos sem efeitos.
+static var _burst_mat: StandardMaterial3D
+static var _ring_keep: StandardMaterial3D
+
 
 static func _scene() -> Node:
 	if Network.is_server():
 		return null   # servidor dedicado: ninguém vê os efeitos
 	return (Engine.get_main_loop() as SceneTree).current_scene
+
+
+## Materiais compartilhados prontos antes do primeiro efeito (FXEpic.prewarm chama).
+static func prewarm() -> void:
+	_burst_material()
+	_ring_material()
+
+
+static func _burst_material() -> StandardMaterial3D:
+	if _burst_mat == null:
+		_burst_mat = StandardMaterial3D.new()
+		_burst_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_burst_mat.vertex_color_use_as_albedo = true
+		_burst_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	return _burst_mat
+
+
+static func _ring_material() -> StandardMaterial3D:
+	if _ring_keep == null:
+		_ring_keep = StandardMaterial3D.new()
+		_ring_keep.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_ring_keep.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_ring_keep.emission_enabled = true
+	return _ring_keep
 
 
 static func damage_number(pos: Vector3, text: String, color := Color.WHITE, size := 48) -> void:
@@ -49,11 +79,7 @@ static func burst_particles(color: Color, amount := 16, speed := 4.0, size := 0.
 	var p := CPUParticles3D.new()
 	var mesh := BoxMesh.new()
 	mesh.size = Vector3.ONE * size
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.vertex_color_use_as_albedo = true
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mesh.material = m
+	mesh.material = _burst_material()
 	p.mesh = mesh
 	p.amount = amount
 	p.one_shot = true
@@ -84,11 +110,8 @@ static func ring(pos: Vector3, color: Color, radius: float, duration := 0.5) -> 
 	torus.outer_radius = 1.0
 	torus.rings = 32
 	torus.ring_segments = 6
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var m := _ring_material().duplicate() as StandardMaterial3D   # cada anel apaga a própria cor
 	m.albedo_color = color
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.emission_enabled = true
 	m.emission = color
 	torus.material = m
 	mi.mesh = torus

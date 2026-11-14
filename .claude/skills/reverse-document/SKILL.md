@@ -23,7 +23,7 @@ o que cada sistema **faz**, e registra a **intenção** só quando o usuário co
 | Sistema | Arquivos principais |
 |---|---|
 | `missoes` (vila, Bram, Mira, cadeia até o Rei Goblin) | `scripts/world/npc.gd`, `QUESTS` em `scripts/autoload/item_db.gd`, `scripts/ui/dialogue_ui.gd`, `scripts/world/world.gd` |
-| `combate` (espada, cajado, arco, esquiva, magias) | `scripts/player/player.gd`, `projectile.gd`, `fireball.gd`, `SPELLS` em `item_db.gd` |
+| `combate` (espada, cajado, arco, esquiva, magias) | `scripts/player/player.gd`, `projectile.gd`, `fireball.gd`, `ABILITIES` em `item_db.gd` |
 | `inimigos` (IA, chefe, loot) | `scripts/enemies/enemy.gd`, `enemy_arrow.gd` |
 | `progressao` (XP, níveis, atributos) | `scripts/autoload/game.gd` |
 | `itens` (raridades, equipamento, loja) | `scripts/autoload/item_db.gd`, `scripts/ui/shop_ui.gd`, `item_slot.gd`, `item_tooltip.gd` |
