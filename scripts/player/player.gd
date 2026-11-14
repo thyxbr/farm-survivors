@@ -471,7 +471,7 @@ func _try_dodge(dir: Vector3) -> void:
 	attacking = false
 	buffered_attack = false
 	_cancel_draw()
-	Sfx.play("swing", 0.1, -6.0)
+	Sfx.play("dodge", 0.1, -4.0)
 
 
 # ------------------------------------------------------------ ataque corpo a corpo
@@ -497,13 +497,13 @@ func _start_swing() -> void:
 	Game.stamina -= (4.0 + combo * 1.5) if staff else (8.0 + combo * 2.0)
 	stamina_delay = 0.6
 	if staff:
-		Sfx.play("swing", 0.15, -10.0)
+		Sfx.play("staff_wind", 0.15, -8.0)
 		return
 	if is_on_floor():
 		var f := facing()
 		velocity.x += f.x * 3.0
 		velocity.z += f.z * 3.0
-	Sfx.play("swing", 0.12)
+	Sfx.play("sword_swing_heavy" if Sfx.heavy_sword(_weapon_id()) else "sword_swing", 0.1)
 
 
 func _update_attack(delta: float) -> void:
@@ -535,6 +535,8 @@ func _do_hit() -> void:
 	var mult: float = SWING_MULT[combo - 1]
 	var reach := 2.4 if combo < 3 else 2.9
 	var hit_any := false
+	var flesh := false   # acertou algo que não é slime: lâmina em carne; só slime: só a lâmina
+	var hit_enemy := false
 	var f := facing()
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e.dead:
@@ -552,6 +554,8 @@ func _do_hit() -> void:
 		Game.on_damage_dealt(dmg, e.max_hp)
 		EnchantHit.on_hit(e, dmg)   # efeito do elemento da arma encantada
 		hit_any = true
+		hit_enemy = true
+		flesh = flesh or str(e.data.get("model", "")) != "slime"
 	# nós de recurso da Defesa da Cidade (árvores, pedras, veios...): mesmo alcance e mesmo cone
 	for n in get_tree().get_nodes_in_group("harvest"):
 		if not n.alive:
@@ -565,8 +569,9 @@ func _do_hit() -> void:
 			continue
 		n.hit(global_position)
 		hit_any = true
+	if hit_enemy:   # o nó de recurso toca o próprio som (madeira, pedra) em hit()
+		Sfx.play(Sfx.sword_hit(flesh, Sfx.heavy_sword(_weapon_id())), 0.1)
 	if hit_any:
-		Sfx.play("hit")
 		add_shake(0.12 if combo < 3 else 0.22)
 
 
@@ -577,6 +582,21 @@ func _swing_time(c: int) -> float:
 		"bow":
 			return BOW_RECOVER
 	return SWING_TIMES[clampi(c, 1, 3) - 1]
+
+
+## Arma equipada: a do jogo local ou, numa réplica de outro jogador, a do último visual recebido.
+func _weapon_id() -> String:
+	return str(_last_look.get("weapon", "")) if remote else str(Game.equipment.weapon)
+
+
+## Som do golpe de uma réplica, pela classe da arma que ela carrega.
+func _attack_sound() -> String:
+	match look["class"]:
+		"staff":
+			return "staff_wind"
+		"bow":
+			return "bow_shot"
+	return "sword_swing_heavy" if Sfx.heavy_sword(_weapon_id()) else "sword_swing"
 
 
 func _weapon_fx() -> String:
@@ -630,7 +650,7 @@ func _staff_shot() -> void:
 		var d: Vector3 = dir.rotated(Vector3.UP, a)
 		_spawn_projectile("bolt", origin, d, Game.melee_damage() * (1.25 if combo == 3 else 1.0) * (1.8 if crit else 1.0), crit, 0)
 		Network.send_event("bolt", origin, d)
-	Sfx.play("fire", 0.2, -8.0)
+	Sfx.play(Sfx.staff_element(_weapon_id()) + "_cast", 0.12, -4.0)
 
 
 ## Arco: segurar o ataque tensiona, soltar dispara (dano e alcance crescem com a tensão).
@@ -641,13 +661,13 @@ func _update_bow(delta: float) -> void:
 		else:
 			drawing = true
 			draw_t = 0.0
-			Sfx.play("swing", 0.3, -12.0)
+			Sfx.play("bow_draw", 0.05, -4.0)
 	if not drawing:
 		return
 	var was := draw_t
 	draw_t = min(draw_t + delta, BOW_FULL)
 	if was < BOW_FULL and draw_t >= BOW_FULL:
-		Sfx.play("click", 0.0, -4.0)
+		Sfx.play("bow_full", 0.05, -6.0)
 	stamina_delay = 0.4
 	if not Input.is_action_pressed("attack"):
 		release_arrow()
@@ -681,7 +701,7 @@ func release_arrow() -> void:
 	combo = 1
 	attack_timer = 0.0
 	hit_done = true
-	Sfx.play("swing", 0.1, -2.0 if full else -6.0)
+	Sfx.play("bow_shot", 0.08, 0.0 if full else -3.0)
 	if full:
 		add_shake(0.06)
 
@@ -700,6 +720,7 @@ func _spawn_projectile(kind: String, origin: Vector3, d: Vector3, dmg: float, cr
 	p.pierce = pierce
 	p.fx = _weapon_fx() if _weapon_fx() != "multishot" else ""
 	p.color = _weapon_color()
+	p.element = Sfx.staff_element(_weapon_id())
 	if fx_override != "":
 		p.fx = fx_override
 	if color_override.a > 0.0:
@@ -734,6 +755,7 @@ func cast(id: String) -> void:
 	var sp: Dictionary = ItemDB.ABILITIES[id]
 	if not Game.knows_ability(id):
 		Game.notify.emit("%s exige nível %d" % [sp.name, sp.level], Color(1, 0.6, 0.6))
+		Sfx.play("error", 0.0, -6.0)
 		return
 	if cooldowns[id] > 0 or attacking or dodge_timer > 0 or ability != "":
 		return
@@ -742,6 +764,7 @@ func cast(id: String) -> void:
 		return
 	if sp.cost > 0 and Game.mp < sp.cost:
 		Game.notify.emit("Mana insuficiente!", Color(0.6, 0.7, 1.0))
+		Sfx.play("error", 0.0, -6.0)
 		return
 	# habilidade de arma (espada, cajado, arco): o módulo da classe executa. Ainda sem implementação
 	# (ready == false): "Em breve", sem custo nem recarga. As magias antigas seguem no match abaixo.
@@ -1102,7 +1125,7 @@ func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int,
 		drawing = false
 	if flags & NF_ATTACK:
 		if not attacking or c != combo:
-			Sfx.play_at("swing", global_position, 0.12, -6.0)
+			Sfx.play_at(_attack_sound(), global_position, 0.1, -6.0)
 		attacking = true
 		combo = clampi(c, 1, 3)
 		attack_timer = attack_t
@@ -1202,6 +1225,9 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 			p.direction = b
 			p.visual_only = true
 			p.color = ItemDB.get_item(_last_look.get("weapon", "")).get("color", Color(0.6, 0.8, 1.0))
+			p.element = Sfx.staff_element(_weapon_id())
+			if kind == "bolt":
+				Sfx.play_at(p.element + "_cast", a, 0.12, -8.0)
 			p.speed = 34.0 if kind == "arrow" else 26.0
 			p.life = 1.6 if kind == "arrow" else 1.2
 			get_tree().current_scene.add_child(p)

@@ -71,6 +71,7 @@ func _ready() -> void:
 	_soup_mat.emission_enabled = true
 	_soup_mat.emission = Color(0.9, 0.5, 0.1)
 	_soup_mat.emission_energy_multiplier = 0.6
+	ToonLook.sync(_soup_mat)      # o brilho e a cor do caldo mudam por código: o toon acompanha
 	soup.material_override = _soup_mat
 	soup.position.y = 1.08
 	add_child(soup)
@@ -135,6 +136,7 @@ func _process(delta: float) -> void:
 	_boost = max(0.0, _boost - delta)
 	_light.light_energy = 1.8 + 0.35 * sin(_t * 8.0) + 0.15 * sin(_t * 21.0) + _boost * 2.0
 	_soup_mat.emission_energy_multiplier = 0.5 + 0.15 * sin(_t * 3.0) + _boost
+	ToonLook.sync(_soup_mat)
 
 
 ## Chamado pelo menu de receitas ao cozinhar: muda a cor do caldo e solta vapor.

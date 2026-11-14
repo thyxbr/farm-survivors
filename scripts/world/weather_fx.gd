@@ -120,10 +120,18 @@ func _apply_light(s: Dictionary) -> void:
 	var rain: float = s.rain
 	var wind: float = s.wind
 	var dust := clampf((wind - 0.3) / 0.7, 0.0, 1.0) * (1.0 - cloud)
+	# Estilo desenhado: tempo fechado mais brando. A sombra em dois tons depende do sol; com ele a 38% e
+	# a névoa cheia, chuva e neve viravam um cinza só (docs/ESTILO_TOON.md, "Luz e pós-processo").
+	var toon := ToonLook.enabled()
+	var sun_loss := 0.45 if toon else 0.62
+	var shadow_loss := 0.35 if toon else 0.6
+	var fog_gain := 0.55 if toon else 1.0
+	var amb_gain := 0.5 if toon else 1.0
+	var sat_loss := 0.15 if toon else 0.25
 	if _sun != null:
-		_sun.light_energy = _base.sun * (1.0 - 0.62 * cloud)
+		_sun.light_energy = _base.sun * (1.0 - sun_loss * cloud)
 		_sun.light_color = (_base.sun_color as Color).lerp(Color(0.86, 0.9, 1.0), cloud * 0.8)
-		_sun.shadow_opacity = 1.0 - 0.6 * cloud
+		_sun.shadow_opacity = 1.0 - shadow_loss * cloud
 	if _rim != null:
 		_rim.light_energy = _base.rim * (1.0 - 0.5 * cloud)
 	if _env == null:
@@ -133,9 +141,9 @@ func _apply_light(s: Dictionary) -> void:
 	var dusty := Color(0.8, 0.76, 0.66)
 	var fog: Color = (_base.fog_color as Color).lerp(grey, cloud).lerp(white, snow * 0.8).lerp(dusty, dust * 0.6)
 	_env.fog_light_color = fog
-	_env.fog_density = _base.fog_density + 0.009 * rain + 0.009 * s.snow + 0.004 * dust
-	_env.ambient_light_energy = _base.ambient * (1.0 + 0.12 * cloud + 0.15 * snow)
-	_env.adjustment_saturation = _base.saturation - 0.25 * cloud
+	_env.fog_density = _base.fog_density + (0.009 * rain + 0.009 * s.snow + 0.004 * dust) * fog_gain
+	_env.ambient_light_energy = _base.ambient * (1.0 + (0.12 * cloud + 0.15 * snow) * amb_gain)
+	_env.adjustment_saturation = _base.saturation - sat_loss * cloud
 	if _sky != null:
 		_sky.sky_top_color = (_base.sky_top as Color).lerp(Color(0.45, 0.5, 0.56), cloud).lerp(Color(0.7, 0.74, 0.8), snow * cloud * 0.6)
 		var hz: Color = (_base.sky_hz as Color).lerp(Color(0.62, 0.65, 0.69), cloud).lerp(white, snow * 0.6).lerp(dusty, dust * 0.4)
