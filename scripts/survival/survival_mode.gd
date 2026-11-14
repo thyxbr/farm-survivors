@@ -12,6 +12,12 @@ extends Node3D
 ##   "client" — multiplayer: jogador local, armas automáticas e gemas próprias; manda o XP das gemas
 ##              para o servidor e recebe nível, rodadas, eventos e abates dele. Cartas e bênçãos são
 ##              de cada jogador (cada um monta a própria build).
+##
+## Prêmios do personagem (ouro das moedas, sementes, XP do fim): no solo pelo Econ (origem "horde_run" e
+## o fim da partida em Econ.run_finish, que concede os Ecos); no grupo quem concede é o servidor — sementes
+## e XP direto no personagem de cada um, moedas como pickups do PickupRegistry (cada jogador tem as suas),
+## Ecos no fim (CharacterService.finish_player) — e o cliente só mostra.
+## A Forja da base (bônus horde_damage) é fixada no começo: no grupo o servidor põe em team[pid].forge.
 
 const ENEMY := preload("res://scripts/enemies/enemy.gd")
 const GEM := preload("res://scripts/survival/xp_gem.gd")
@@ -33,6 +39,8 @@ const METEOR_FALL := 1.4
 const GOLD_ESCAPE := 22.0
 
 var role := "solo"
+## A partida veio do portal da praça (Hub.go_horde): no fim volta para a praça, não para a vila.
+var return_to_hub := false
 var world: Node
 var player: Player
 var center := Vector3.ZERO
@@ -95,6 +103,15 @@ var _meteor_t := 0.0
 var _meteors: Array = []      # {"pos": Vector3, "t": float, "node": Node3D}
 var _gold_spawns: Array = []  # instantes (_round_t) para soltar Goblins Dourados
 var _champ_spawns: Array = [] # instantes para soltar Campeões
+## Servidor: conta de cada jogador do grupo (quem cai da conexão sai da lista de jogadores antes do
+## prêmio ser gravado) e o que cada um ganhou na partida (resumo no fim). pid -> {"gold", "xp", "items"}
+var _accounts := {}
+var _gains := {}
+var _finalized := {}
+## Solo: sementes ganhas (para o resumo da partida).
+var _solo_seeds := {}
+## Registro da partida em runs: no servidor (CharacterService.start_run) e no solo (Econ.run_start).
+var run_id := 0
 ## Servidor: níveis ganhos que ainda vão abrir uma escolha; estado de XP a reenviar.
 var _lv_pending := 0
 var _state_dirty := false
@@ -118,11 +135,25 @@ func _ready() -> void:
 	if role == "server":
 		for pid in team:
 			team[pid].merge({"dmg": 0.0, "kills": 0, "falls": 0, "build": {}})
+			_accounts[pid] = Econ.account_of(pid)
+			_gains[pid] = {"gold": 0, "xp": 0, "items": {}}
+		if Network.characters != null:
+			var accounts: Array = []
+			for pid in _accounts:
+				if int(_accounts[pid]) > 0:
+					accounts.append(int(_accounts[pid]))
+			run_id = Network.characters.start_run("horde", accounts)
 		print("[server] Desafio da Horda começou: %s" % ", ".join(_names()))
 		_start_round()
 		return
 	Game.reset_run_mods()
 	Game.run_mods.active = true
+	# Forja da base: dano extra fixado no começo da partida (no grupo, o valor que o servidor mandou)
+	if role == "client":
+		Game.run_mods.damage += float(team.get(multiplayer.get_unique_id(), {}).get("forge", 0.0))
+	else:
+		Game.run_mods.damage += float(Hub.base_bonus().get("horde_damage", 0.0))
+		run_id = Econ.run_start("horde")
 	Game.hp = Game.max_hp()
 	Game.mp = Game.max_mp()
 	Game.stamina = Game.max_stamina()
@@ -142,6 +173,8 @@ func _ready() -> void:
 	hud.survival = self
 	add_child(hud)
 	if role == "client":
+		# sementes da rodada chegam do servidor (estado do personagem + contagem para os resultados)
+		Econ.done.connect(_on_econ_push)
 		# a rodada 1 chega do servidor logo em seguida (_horde_round_start)
 		Game.notify.emit("Desafio da Horda em grupo: %s. O nível é do grupo!" % ", ".join(_names()), Color(0.85, 0.6, 1.0))
 		return
@@ -567,6 +600,7 @@ func _end_round() -> void:
 		for pid in team:
 			team[pid].dead = false   # quem caiu volta no fim da rodada
 			team[pid].ready = false
+			_server_seeds(pid, 1 + round_num / 3)
 		print("[server] Desafio da Horda: rodada %d concluída (%d abates)" % [round_num, kills])
 		_send_all("_horde_round_end", [round_num, BREAK_TIMEOUT])
 		_send_team()
@@ -586,7 +620,8 @@ func _round_cleared() -> void:
 	player.add_shake(0.25)
 	Game.hp = min(Game.max_hp(), Game.hp + Game.max_hp() * 0.3)
 	Game.stats_changed.emit()
-	_reward_seeds(1 + round_num / 3)
+	if role == "solo":
+		_reward_seeds(1 + round_num / 3)   # no grupo o servidor dá as sementes
 	await get_tree().create_timer(0.9, false).timeout
 	if phase != "break":
 		return
@@ -733,6 +768,11 @@ func _clear_meteors() -> void:
 func _hunt_complete() -> void:
 	if role == "server":
 		print("[server] Desafio da Horda: Caçada concluída na rodada %d" % round_num)
+		hunts_won += 1
+		# moedas do baú, perto de onde cada jogador está
+		for pid in team:
+			var at: Vector3 = Network.last_pos.get(pid, center)
+			_server_coin(pid, at + Vector3.UP * 0.8, randi_range(8, 14) + 2 * round_num)
 		_send_all("_horde_bonus", ["cacada"])
 		return
 	_hunt_reward()
@@ -752,7 +792,8 @@ func _hunt_reward() -> void:
 	for i in 6:
 		_drop_gem("xp", 5 + round_num, pos)
 	_drop_gem("heal", 0, pos)
-	_drop_coin(pos, randi_range(8, 14) + 2 * round_num)
+	if role == "solo":
+		_drop_coin(pos, randi_range(8, 14) + 2 * round_num)   # no grupo a moeda vem do servidor
 
 
 # ---------------------------------------------------------------- cliente: mensagens do servidor
@@ -890,8 +931,14 @@ func _on_enemy_died(e: Enemy) -> void:
 	if role == "server":
 		if team.has(e.last_hitter):
 			team[e.last_hitter].kills += 1
-		# cada jogador solta e coleta as próprias gemas (como o loot pessoal do RPG)
+		# cada jogador solta e coleta as próprias gemas (como o loot pessoal do RPG); moedas e sementes
+		# do personagem são do servidor, com um sorteio por jogador
 		_send_all("_horde_kill", [e.kind, pos, tier])
+		for pid in team:
+			for amount in _coin_amounts(e.kind, tier, randf()):
+				_server_coin(pid, pos, amount)
+			if tier == 2:
+				_server_seeds(pid, 2, "seed_pumpkin")
 		return
 	_kill_drops(e.kind, pos, tier)
 
@@ -918,12 +965,16 @@ func _kill_drops(kind: String, pos: Vector3, tier: int) -> void:
 	if Game.mod("lifesteal") > 0.0 and not player.dead:
 		Game.hp = min(Game.max_hp(), Game.hp + Game.mod("lifesteal"))
 	var xp_mult := 2 if event == "lua_sangue" else 1
+	var r := randf()
+	# moedas: no solo caem aqui; no grupo o servidor sorteia as de cada jogador (pickups dele)
+	if role == "solo":
+		for amount in _coin_amounts(kind, tier, r):
+			_drop_coin(pos, amount)
 	if tier == 1:
 		for i in 3:
 			_drop_gem("xp", 10 * xp_mult, pos)
 		if randf() < 0.35:
 			_drop_gem("heal", 0, pos)
-		_drop_coin(pos, randi_range(3, 8))
 		return
 	if tier == 2:
 		Game.notify.emit("Rei Goblin derrotado!", Color(1, 0.85, 0.3))
@@ -931,14 +982,12 @@ func _kill_drops(kind: String, pos: Vector3, tier: int) -> void:
 			_drop_gem("xp", 20, pos)
 		_drop_gem("heal", 0, pos)
 		_drop_gem("magnet", 0, pos)
-		_drop_coin(pos, randi_range(20, 35))
-		_reward_seeds(2, "seed_pumpkin")
+		if role == "solo":
+			_reward_seeds(2, "seed_pumpkin")
 		return
 	match kind:
 		"goblin_dourado":
 			Game.notify.emit("Goblin Dourado abatido! Chuva de ouro!", Color(1, 0.85, 0.3))
-			for i in 3:
-				_drop_coin(pos, randi_range(8, 15) + round_num)
 			for i in 3:
 				_drop_gem("xp", 20 * xp_mult, pos)
 			_drop_gem("magnet", 0, pos)
@@ -946,7 +995,6 @@ func _kill_drops(kind: String, pos: Vector3, tier: int) -> void:
 		"goblin_campeao":
 			for i in 4:
 				_drop_gem("xp", 20 * xp_mult, pos)
-			_drop_coin(pos, randi_range(8, 15))
 			if randf() < 0.5:
 				_drop_gem("heal", 0, pos)
 			return
@@ -959,18 +1007,33 @@ func _kill_drops(kind: String, pos: Vector3, tier: int) -> void:
 		_:
 			value = 5 if randf() < 0.04 else 1
 	_drop_gem("xp", value * xp_mult, pos)
-	var r := randf()
-	var coin_chance := 0.24 if event == "febre_ouro" else 0.08
+	# r < 0.019: cura ou ímã; a moeda (0.019 <= r < chance) é de _coin_amounts
 	if r < 0.012:
 		_drop_gem("heal", 0, pos)
 	elif r < 0.019:
 		_drop_gem("magnet", 0, pos)
-	elif r < coin_chance:
-		_drop_coin(pos, randi_range(1, 3))
 
 
-## Sementes de recompensa (levadas para a Horta). Rodadas mais altas liberam sementes raras.
-func _reward_seeds(n: int, first := "") -> void:
+## Moedas de um abate (antes do bônus de ouro). `r` é o mesmo sorteio da cura/ímã dos inimigos comuns
+## (exclusivos: cura < 0.012 <= ímã < 0.019 <= moeda < chance).
+func _coin_amounts(kind: String, tier: int, r: float) -> Array:
+	if tier == 1:
+		return [randi_range(3, 8)]
+	if tier == 2:
+		return [randi_range(20, 35)]
+	match kind:
+		"goblin_dourado":
+			return [randi_range(8, 15) + round_num, randi_range(8, 15) + round_num, randi_range(8, 15) + round_num]
+		"goblin_campeao":
+			return [randi_range(8, 15)]
+	var coin_chance := 0.24 if event == "febre_ouro" else 0.08
+	if r >= 0.019 and r < coin_chance:
+		return [randi_range(1, 3)]
+	return []
+
+
+## Sementes sorteadas (levadas para a Horta). Rodadas mais altas liberam sementes raras.
+func _roll_seeds(n: int, first := "") -> Dictionary:
 	var pool := ["seed_carrot", "seed_wheat", "seed_tomato"]
 	if round_num >= 3:
 		pool += ["seed_pepper", "seed_mint"]
@@ -980,12 +1043,107 @@ func _reward_seeds(n: int, first := "") -> void:
 	for i in n:
 		var id: String = first if (i == 0 and first != "") else pool.pick_random()
 		got[id] = got.get(id, 0) + 1
+	return got
+
+
+static func _seeds_text(got: Dictionary) -> String:
 	var parts: Array[String] = []
 	for id in got:
-		Game.add_item(id, got[id], true)
-		seeds_won += got[id]
 		parts.append("%s x%d" % [ItemDB.get_item(id).name, got[id]])
-	Game.notify.emit("Recompensa: " + ", ".join(parts), Color(0.75, 1.0, 0.5))
+	return "Recompensa: " + ", ".join(parts)
+
+
+## Solo: sementes de recompensa no personagem.
+func _reward_seeds(n: int, first := "") -> void:
+	var got := _roll_seeds(n, first)
+	Econ.grant(0, 0, got, "horde_run", true)
+	for id in got:
+		seeds_won += got[id]
+		_solo_seeds[id] = int(_solo_seeds.get(id, 0)) + got[id]
+	Game.notify.emit(_seeds_text(got), Color(0.75, 1.0, 0.5))
+
+
+## Servidor: sementes no personagem do jogador; o aviso e a contagem vão junto do estado novo.
+func _server_seeds(pid: int, n: int, first := "") -> void:
+	var got := _roll_seeds(n, first)
+	var count := 0
+	for id in got:
+		count += int(got[id])
+	var r := Econ.server_grant(pid, 0, 0, got, "horde_run", int(_accounts.get(pid, 0)), true,
+		[{"t": "notify", "text": _seeds_text(got), "color": Color(0.75, 1.0, 0.5)}, {"t": "horde_seeds", "n": count}])
+	if r.ok:
+		_add_gain(pid, 0, 0, got)
+
+
+## Servidor: moeda no chão só para o jogador (com a Bênção do Ouro dele).
+func _server_coin(pid: int, pos: Vector3, amount: int) -> void:
+	Econ.server_spawn_pickup(pid, "horde", pos, max(1, int(round(amount * _gold_mult(pid)))), {})
+
+
+## Bônus de ouro do jogador no servidor: Bênção do Ouro da build (cada uma no máximo uma por rodada).
+func _gold_mult(pid: int) -> float:
+	var b: Dictionary = team.get(pid, {}).get("build", {}).get("b", {})
+	var n := mini(int(b.get("ouro", 0)), rounds_cleared)
+	var add := float(UPG.BLESSINGS.get("ouro", {}).get("add", {}).get("gold", 0.0))
+	return 1.0 + add * maxi(0, n)
+
+
+func _add_gain(pid: int, gold: int, xp: int, items: Dictionary) -> void:
+	if not _gains.has(pid):
+		_gains[pid] = {"gold": 0, "xp": 0, "items": {}}
+	var g: Dictionary = _gains[pid]
+	g.gold += gold
+	g.xp += xp
+	for id in items:
+		g.items[id] = int(g.items.get(id, 0)) + int(items[id])
+
+
+## Servidor: moeda da partida coletada (Econ._claim_pickup).
+func server_note_gain(pid: int, gold: int, items: Dictionary) -> void:
+	_add_gain(pid, gold, 0, items)
+
+
+## Servidor: o jogador terminou a partida (saiu, caiu a conexão ou o grupo acabou): XP do fim no
+## personagem, Ecos e fim da partida no registro (finish_player), recorde e fim das moedas que ficaram no chão.
+func _server_finish(pid: int) -> void:
+	if _finalized.has(pid):
+		return
+	_finalized[pid] = true
+	var account := int(_accounts.get(pid, 0))
+	Econ.pickups.drop_peer(pid, "horde")
+	if account <= 0 or Network.characters == null:
+		return
+	var xp := run_xp_reward()
+	if xp > 0:
+		var r := Econ.server_grant(pid, 0, xp, {}, "horde_run", account)
+		if r.ok:
+			_add_gain(pid, 0, xp, {})
+	var g: Dictionary = _gains.get(pid, {"gold": 0, "xp": 0, "items": {}})
+	var build: Dictionary = team.get(pid, {}).get("build", {})
+	var fin := Network.characters.finish_player(run_id, account, "horde", rounds_cleared, int(g.gold), int(g.xp),
+		g.items, build)
+	Econ.server_push(pid, fin)
+	Econ.server_record(pid, "horde_best", {"round": rounds_cleared, "kills": kills, "time": int(elapsed),
+		"level": run_level}, account)
+
+
+## Ecos da partida (moeda permanente) pelas rodadas concluídas: o que o servidor/solo concede no fim.
+func ecos_reward() -> int:
+	return RewardRules.ecos(Balance.tables, "horde", rounds_cleared)
+
+
+## XP de recompensa do personagem ao fim da partida.
+func run_xp_reward() -> int:
+	return kills * 2 + rounds_cleared * 25 + hunts_won * 20
+
+
+## Cliente: estado mandado pelo servidor; conta as sementes da partida para os resultados.
+func _on_econ_push(op: String, _args: Array, _ok: bool, _err: String, events: Array) -> void:
+	if op != "push" or phase == "over":
+		return
+	for e in events:
+		if e is Dictionary and e.get("t") == "horde_seeds":
+			seeds_won += int(e.get("n", 0))
 
 
 func _drop_gem(kind: String, value: int, pos: Vector3) -> void:
@@ -997,12 +1155,9 @@ func _drop_gem(kind: String, value: int, pos: Vector3) -> void:
 	add_child(g)
 
 
+## Solo: moeda no chão (concede pelo Econ com origem "horde_run").
 func _drop_coin(pos: Vector3, amount: int) -> void:
-	var p := PICKUP.new()
-	p.item_id = ""
-	p.amount = max(1, int(round(amount * Game.mod("gold"))))
-	add_child(p)
-	p.global_position = pos
+	PICKUP.spawn(self, "", max(1, int(round(amount * Game.mod("gold")))), pos, 0, "horde_run")
 
 
 func vacuum_gems() -> void:
@@ -1169,13 +1324,13 @@ func end_run(reason: String, from_server := false) -> void:
 		player.horde_frozen = false
 	_queue.clear()
 	_clear_meteors()
-	var xp_reward := kills * 2 + rounds_cleared * 25 + hunts_won * 20
+	var xp_reward := run_xp_reward()
 	rewards = {"xp": xp_reward, "gold": max(0, Game.gold - _gold_start)}
 	var best: Dictionary = Game.flags.get("horde_best", {})
 	var best_round := int(best.get("round", -1))
 	if rounds_cleared > best_round or (rounds_cleared == best_round and kills > int(best.get("kills", 0))):
 		new_record = true
-		Game.flags["horde_best"] = {"round": rounds_cleared, "kills": kills, "time": int(elapsed), "level": run_level}
+		Econ.set_record("horde_best", {"round": rounds_cleared, "kills": kills, "time": int(elapsed), "level": run_level})
 	_open_results.call_deferred()
 
 
@@ -1206,8 +1361,13 @@ func _return_to_village() -> void:
 	Game.notify.emit("Desafio encerrado: %d rodadas, %d abates." % [rounds_cleared, kills], Color(0.85, 0.6, 1.0))
 	if rewards.gold > 0:
 		Game.notify.emit("+%d ouro coletado" % rewards.gold, Color(1, 0.85, 0.3))
-	if rewards.xp > 0:
-		Game.add_xp(rewards.xp)
+	if role == "solo":
+		# no grupo o servidor concede o XP do fim (e os Ecos) quando o jogador sai da partida
+		if rewards.xp > 0:
+			Econ.grant(0, rewards.xp, {}, "horde_run")
+		Econ.run_finish(run_id, "horde", rounds_cleared, rewards.gold, rewards.xp, _solo_seeds, my_build())
+	if return_to_hub:
+		Lobby.go_hub(false)   # a posição de Valdoria que vale é a de antes da praça, não a da arena
 
 
 # ================================================================ servidor: grupo
@@ -1304,6 +1464,7 @@ func server_player_left(pid: int) -> void:
 	if not team.has(pid) or phase == "over":
 		return
 	print("[server] %s saiu do Desafio da Horda" % team[pid].name)
+	_server_finish(pid)
 	team.erase(pid)
 	if team.is_empty():
 		_server_end("quit")
@@ -1330,6 +1491,11 @@ func _server_end(reason: String) -> void:
 	phase = "over"
 	frozen = false
 	print("[server] Desafio da Horda terminou (%s): %d rodadas, %d abates" % [reason, rounds_cleared, kills])
+	for pid in team:
+		_server_finish(pid)
+	if run_id > 0 and Network.characters != null:
+		Network.characters.close_run(run_id, rounds_cleared, {"reason": reason, "kills": kills})
+		Hub.server_records_changed()
 	_send_all("_horde_over", [reason])
 	for c in get_children():
 		if c is Enemy and not c.dead:

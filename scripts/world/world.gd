@@ -5,6 +5,13 @@ const M := {
 	"house": preload("res://assets/models/house.glb"),
 	"tree_pine": preload("res://assets/models/tree_pine.glb"),
 	"tree_oak": preload("res://assets/models/tree_oak.glb"),
+	"tree_fir": preload("res://assets/models/tree_fir.glb"),
+	"tree_birch": preload("res://assets/models/tree_birch.glb"),
+	"tree_maple": preload("res://assets/models/tree_maple.glb"),
+	"tree_cherry": preload("res://assets/models/tree_cherry.glb"),
+	"flower_sunflower": preload("res://assets/models/flower_sunflower.glb"),
+	"flower_lavender": preload("res://assets/models/flower_lavender.glb"),
+	"flower_tulips": preload("res://assets/models/flower_tulips.glb"),
 	"rock": preload("res://assets/models/rock.glb"),
 	"well": preload("res://assets/models/well.glb"),
 	"fence": preload("res://assets/models/fence.glb"),
@@ -46,6 +53,17 @@ const CAMP := Vector3(62, 0, 0)
 const ARENA := Vector3(-72, 0, -10)     # Desafio da Horda
 const PORTAL_POS := Vector3(-8, 0, -9.5)
 const FARM := Vector3(0, 0, 33)          # Horta da Vila (saída sul)
+## Maciços dentro do mapa: [centro, raio da base, altura]. Ficam nos cantos vazios, longe das
+## áreas de missão; a serra em volta do mapa é só visual (fora da borda).
+const MOUNTAINS := [
+	[Vector3(-82, 0, 86), 38.0, 34.0],    # Pico do sudoeste
+	[Vector3(86, 0, -96), 30.0, 26.0],    # nordeste, atrás da floresta
+	[Vector3(-88, 0, -84), 22.0, 15.0],   # morro do noroeste
+	[Vector3(84, 0, 96), 26.0, 17.0],     # colinas do sudeste
+]
+## Raio de colisão do tronco por árvore (prop "cyl").
+const TREE_R := {"tree_oak": 0.4, "tree_pine": 0.35, "tree_fir": 0.32, "tree_birch": 0.25,
+		"tree_maple": 0.4, "tree_cherry": 0.38}
 
 var player: Player
 var hud
@@ -64,6 +82,9 @@ var _t := 0.0
 
 
 func _ready() -> void:
+	# solo: o personagem vem do save solo (antes de montar o mapa: o chefe depende dos flags)
+	if not Network.is_online():
+		Econ.ensure_solo()
 	rng.seed = 20261113
 	_build_environment()
 	_build_ground()
@@ -108,6 +129,8 @@ func _ready() -> void:
 		add_child(chat)
 		Game.notify.emit("Conectado como %s — %d jogador(es) online." % [Network.my_name, Network.players.size()], Color(0.6, 0.9, 1.0))
 		Network.world_ready(self)
+	elif Hub.take_pending_horde():
+		start_survival.call_deferred()   # solo: o portal da praça pediu a Horda
 
 
 func _exit_tree() -> void:
@@ -123,6 +146,10 @@ func _build_ground() -> void:
 	ground = GROUND.new()
 	add_child(ground)
 	ground.setup(MAP_HALF)
+	for m in MOUNTAINS:
+		ground.add_mountain(m[0], m[1], m[2])
+	ground.border_mountains(58.0)
+	ground.build_terrain()
 	var dirt := Color(0.45, 0.35, 0.22)
 	_flat(Vector3(0, 0.02, -50), Vector2(4.5, 80), dirt)          # trilha norte
 	_flat(Vector3(38, 0.02, 0), Vector2(52, 4.5), dirt)           # trilha leste
@@ -138,6 +165,25 @@ func _flat(pos: Vector3, size: Vector2, c: Color, soft := 0.8) -> void:
 
 func _disc(pos: Vector3, r: float, c: Color, soft := 0.9) -> void:
 	ground.add_disc(pos, r, c, soft)
+
+
+## Árvore com colisão no tronco, apoiada no chão (sobe nas encostas).
+func tree(model: String, p: Vector3, s: float) -> void:
+	p.y = maxf(0.0, ground.height_at(p.x, p.z) - 0.35)
+	prop(model, p, rng.randf() * TAU, s, "cyl", Vector3(TREE_R[model], 3, 0))
+
+
+## Sorteia uma espécie por peso: {"tree_oak": 3, ...}.
+func _pick(weights: Dictionary) -> String:
+	var total := 0.0
+	for k in weights:
+		total += weights[k]
+	var r := rng.randf() * total
+	for k in weights:
+		r -= weights[k]
+		if r <= 0.0:
+			return k
+	return weights.keys()[0]
 
 
 ## Instancia um modelo e (opcionalmente) uma colisão simples ("box" ou "cyl").
@@ -207,7 +253,16 @@ func _build_village() -> void:
 	prop("chest", Vector3(7.6, 0, -0.6), -PI / 2, 1.0, "box", Vector3(0.9, 0.7, 0.6))
 	prop("barrel", Vector3(-11, 0, 0.5), 0.0, 1.0, "cyl", Vector3(0.38, 1.0, 0))
 	prop("crate", Vector3(-10.5, 0, -1.2), 0.4, 1.0, "box", Vector3(0.8, 0.8, 0.8))
-	prop("tree_oak", Vector3(-7, 0, 2), 0.3, 0.9, "cyl", Vector3(0.4, 3, 0))
+	prop("tree_cherry", Vector3(-7, 0, 2), 0.3, 0.85, "cyl", Vector3(0.38, 3, 0))
+	prop("tree_cherry", Vector3(9, 0, 11.5), 2.0, 0.75, "cyl", Vector3(0.38, 3, 0))
+	# canteiros de flores na frente das casas e em volta da praça (sem colisão)
+	for h in houses:
+		var fwd := Vector3(sin(h[1]), 0, cos(h[1]))
+		var side := Vector3(fwd.z, 0, -fwd.x)
+		for off in [-2.2, -1.5, 1.5, 2.2]:   # dos dois lados da porta
+			var kind := "flower_lavender" if rng.randf() < 0.5 else "flower_tulips"
+			var fp: Vector3 = h[0] + fwd * 2.75 + side * (off + rng.randf_range(-0.15, 0.15))
+			prop(kind, fp, rng.randf() * TAU, rng.randf_range(0.9, 1.2))
 	# cercas: perímetro x[-19,19], z[-13,23], com aberturas ao norte e a leste
 	var x := -18.0
 	while x <= 18.0:
@@ -282,6 +337,12 @@ func _build_farm() -> void:
 	prop("barrel", FARM + Vector3(9.2, 0, -5.6), 0.0, 1.0, "cyl", Vector3(0.38, 1.0, 0))
 	prop("barrel", FARM + Vector3(-9.0, 0, -5.4), 0.0, 1.0, "cyl", Vector3(0.38, 1.0, 0))
 	prop("tree_oak", FARM + Vector3(-8.2, 0, 5.0), 0.8, 1.1, "cyl", Vector3(0.4, 3, 0))
+	# girassóis encostados na cerca norte da horta
+	for i in 7:
+		var sx := -9.5 + i * 1.3 + rng.randf_range(-0.25, 0.25)
+		if absf(sx - 1.0) < 2.2:
+			continue   # portão
+		prop("flower_sunflower", FARM + Vector3(sx, 0, -7.6), PI + rng.randf_range(-0.3, 0.3), rng.randf_range(0.85, 1.15))
 	var lamp := prop("lamp", FARM + Vector3(3.6, 0, -7.6), PI, 1.0, "cyl", Vector3(0.12, 2.8, 0))
 	_light(lamp, Vector3(0, 2.4, 0.5), Color(1, 0.75, 0.4), 1.4, 8.0)
 	_scarecrow(FARM + Vector3(-7.6, 0, 1.2))
@@ -443,6 +504,7 @@ func start_survival() -> void:
 	survival.world = self
 	survival.player = player
 	survival.center = ARENA
+	survival.return_to_hub = Hub.take_horde_return()
 	add_child(survival)
 
 
@@ -463,6 +525,7 @@ func start_survival_net(team: Dictionary, slot: int, round_time: float) -> void:
 	survival.team = team
 	survival.my_slot = slot
 	survival.round_time = round_time
+	survival.return_to_hub = Hub.take_horde_return()
 	add_child(survival)
 
 
@@ -504,7 +567,36 @@ func _build_borders() -> void:
 		t += rng.randf_range(4.0, 6.5)
 
 
+## Abetos e pinheiros nas encostas dos maciços (mais densos embaixo) e pedras nas faces de rocha.
+func _mountain_nature() -> void:
+	for m in MOUNTAINS:
+		var c: Vector3 = m[0]
+		var r: float = m[1]
+		var peak: float = m[2]
+		var n := int(r * r * 0.04)
+		for i in n:
+			var a := rng.randf() * TAU
+			var d := sqrt(rng.randf()) * r
+			var p := c + Vector3(cos(a) * d, 0, sin(a) * d)
+			if absf(p.x) > MAP_HALF - 4 or absf(p.z) > MAP_HALF - 4:
+				continue
+			var h: float = ground.height_at(p.x, p.z)
+			var sl: float = ground.slope_at(p.x, p.z)
+			if h > peak * 0.7:
+				continue
+			if sl > 0.45:
+				if sl < 0.6 and rng.randf() < 0.25:   # mais íngreme que isso a pedra fica no ar
+					var s := rng.randf_range(0.8, 2.0)
+					p.y = h - 0.65 * s   # afunda: na encosta um lado fica no ar
+					prop("rock", p, rng.randf() * TAU, s)
+				continue
+			if rng.randf() < 0.2 + 0.5 * (1.0 - h / peak):
+				tree(_pick({"tree_fir": 5, "tree_pine": 3, "tree_birch": 0.6}), p, rng.randf_range(0.8, 1.4))
+
+
 func _blocked(p: Vector3) -> bool:
+	if ground.on_mountain(Vector2(p.x, p.z)) and (ground.slope_at(p.x, p.z) > 0.45 or ground.height_at(p.x, p.z) > 18.0):
+		return true   # penhasco ou alto demais
 	for a in _avoid:
 		if Vector2(p.x, p.z).distance_to(a[0]) < a[1]:
 			return true
@@ -524,7 +616,7 @@ func _scatter_nature() -> void:
 		var p := Vector3(rng.randf_range(28, MAP_HALF - 8), 0, rng.randf_range(-70, 70))
 		if _blocked(p):
 			continue
-		prop("tree_pine", p, rng.randf() * TAU, rng.randf_range(0.8, 1.5), "cyl", Vector3(0.35, 3, 0))
+		tree(_pick({"tree_pine": 5, "tree_fir": 4, "tree_birch": 1.2}), p, rng.randf_range(0.8, 1.5))
 		placed += 1
 	# árvores esparsas e pedras no resto do mapa
 	placed = 0
@@ -535,14 +627,16 @@ func _scatter_nature() -> void:
 		if _blocked(p):
 			continue
 		var r := rng.randf()
-		if r < 0.45:
-			prop("tree_oak", p, rng.randf() * TAU, rng.randf_range(0.8, 1.3), "cyl", Vector3(0.4, 3, 0))
-		elif r < 0.75:
-			prop("tree_pine", p, rng.randf() * TAU, rng.randf_range(0.8, 1.4), "cyl", Vector3(0.35, 3, 0))
+		if r < 0.75:
+			var kind := _pick({"tree_oak": 3.5, "tree_pine": 2.2, "tree_birch": 1.6, "tree_maple": 1.2,
+					"tree_cherry": 0.5, "tree_fir": 0.8})
+			tree(kind, p, rng.randf_range(0.8, 1.3))
 		else:
 			var s := rng.randf_range(0.6, 1.6)
+			p.y = maxf(0.0, ground.height_at(p.x, p.z) - 0.3 * s)
 			prop("rock", p, rng.randf() * TAU, s, "cyl", Vector3(0.65, 0.9, 0))
 		placed += 1
+	_mountain_nature()
 	if Network.is_server():
 		return   # grama é só visual
 	# capim e flores (fora das trilhas pintadas, das pegadas de props e da arena)
@@ -818,14 +912,11 @@ func _on_player_died() -> void:
 
 
 func _respawn() -> void:
-	var lost := int(Game.gold * 0.1)
-	Game.gold -= lost
+	Game.death_penalty()   # o ouro perdido e o aviso vêm das regras
 	modal = null
 	_set_paused(false)
 	player.revive(VILLAGE_SPAWN)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	if lost > 0:
-		Game.notify.emit("Você perdeu %d ouro." % lost, Color(1, 0.6, 0.5))
 	if Network.is_online():
 		return   # no multiplayer o servidor cuida dos inimigos
 	# inimigos voltam para casa

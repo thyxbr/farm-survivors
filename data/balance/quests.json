@@ -1,0 +1,38 @@
+{
+	"slimes": {
+		"name": "Praga Gosmenta",
+		"giver": "Ancião Bram",
+		"desc": "Os slimes estão devorando as plantações ao norte da vila. Derrote 5 deles.",
+		"target": "slime",
+		"count": 5,
+		"reward_xp": 120,
+		"reward_gold": 50,
+		"reward_items": {
+			"health_potion": 3
+		}
+	},
+	"goblins": {
+		"name": "Batedores Goblins",
+		"giver": "Ancião Bram",
+		"desc": "Goblins acamparam na floresta a leste. Derrote 4 batedores.",
+		"target": "goblin",
+		"count": 4,
+		"reward_xp": 250,
+		"reward_gold": 80,
+		"reward_items": {
+			"chain_mail": 1
+		}
+	},
+	"goblin_king": {
+		"name": "O Rei das Ruínas",
+		"giver": "Ancião Bram",
+		"desc": "O Rei Goblin comanda tudo das ruínas antigas ao norte. Acabe com ele.",
+		"target": "goblin_king",
+		"count": 1,
+		"reward_xp": 600,
+		"reward_gold": 300,
+		"reward_items": {
+			"royal_plate": 1
+		}
+	}
+}

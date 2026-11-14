@@ -281,14 +281,14 @@ func _use_index(i: int) -> void:
 	var id: String = Game.inventory[i].id
 	if Game.use_item(id):
 		Sfx.play("click", 0.0)
-		if Game.count_item(id) <= 0:
+		if Game.count_item(id) <= 0:   # (no solo a resposta já chegou; online o refresh acerta depois)
 			sel_index = -1
 
 
 func _drop_selected() -> void:
 	if sel_index < 0 or sel_index >= Game.inventory.size():
 		return
-	Game.remove_item(Game.inventory[sel_index].id, 1)
+	Game.discard(Game.inventory[sel_index].id)
 	if sel_index >= Game.inventory.size():
 		sel_index = -1
 
@@ -312,7 +312,8 @@ func _drop_on_bag(_target: ItemSlot, data: Dictionary, apply: bool) -> bool:
 func _drop_on_equip(target: ItemSlot, data: Dictionary, apply: bool) -> bool:
 	if data.source != "bag" or ItemDB.slot_of(data.id) != target.slot_name:
 		return false
-	if apply and Game.equip(data.id):
+	if apply:
+		Game.equip(data.id)
 		Sfx.play("click", 0.0)
 	return true
 

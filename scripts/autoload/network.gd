@@ -1,12 +1,14 @@
 extends Node
 ## Multiplayer: servidor dedicado (headless) + clientes, via ENet (UDP).
 ##
-## Servidor:  godot --headless --path . -- --server [--port=7777]
-## Cliente:   menu principal → Multiplayer → Entrar.
+## Servidor:  godot --headless --path . -- --server [--port=7777] [--http-port=8080] [--db=user://server.db]
+## Cliente:   menu principal → Multiplayer → Entrar (login pela API HTTP; o ENet recebe o token da sessão).
 ##
-## Modelo: o servidor é dono dos inimigos (IA, vida, morte). Cada cliente é dono do próprio
-## personagem (movimento, atributos, inventário, save local) e envia a posição ~20x/s.
-## Todas as RPCs passam por este autoload (/root/Network existe igual em todos os peers).
+## Modelo: o servidor é dono dos inimigos (IA, vida, morte) e do personagem de cada conta (ouro, itens,
+## XP, equipamento, missões, horta — no banco, pelo CharacterService; os pedidos passam pelo autoload Econ).
+## O cliente é dono do combate (movimento, vida/mana) e envia a posição ~20x/s.
+## As RPCs deste autoload ficam como estão (o id de cada uma segue a ordem alfabética e o _register
+## precisa do mesmo id para clientes antigos); as RPCs novas moram no Econ.
 ##
 ## Desafio da Horda em grupo: quem entra no portal abre uma fila (HORDE_LOBBY_TIME s) e todos os
 ## outros jogadores recebem o convite. Quem aceita entra junto na mesma arena: o servidor cria um
@@ -37,6 +39,10 @@ const SNAP_STRIDE := 10   # id, x, y, z, yaw, hp, state, attack_timer, attack_ki
 ## Tempo da fila do Desafio da Horda (cai para HORDE_LOBBY_ALL quando todos já responderam).
 const HORDE_LOBBY_TIME := 15.0
 const HORDE_LOBBY_ALL := 3.0
+## Quem aceitou o convite na praça viaja até Valdoria: a partida espera por ele de HORDE_TRAVEL_STEP em
+## HORDE_TRAVEL_STEP segundos, até HORDE_TRAVEL_WAIT no total; quem não chegou fica fora.
+const HORDE_TRAVEL_WAIT := 12.0
+const HORDE_TRAVEL_STEP := 0.5
 ## Chat: tamanho máximo da mensagem e limite de mensagens por janela de tempo (anti-spam).
 const CHAT_MAX := 120
 const CHAT_BURST := 5
@@ -46,14 +52,29 @@ enum Mode { OFFLINE, SERVER, CLIENT }
 
 var mode := Mode.OFFLINE
 var port := DEFAULT_PORT
-## peer_id -> {"name": String, "look": Dictionary (espaço -> item), "ready": bool}
+## peer_id -> {"name": String (nome da conta), "account": int, "admin": bool, "look": Dictionary (espaço -> item),
+## "ready": bool, "zone": String}
 var players := {}
 var my_name := ""
+## Cliente: token da sessão (do Auth.login) mandado no _register.
+var my_token := ""
 ## Mensagem mostrada no menu principal depois de uma desconexão.
 var last_error := ""
 var world: Node = null
 var enemies := {}         # net_id -> Enemy (servidor: reais; cliente: réplicas)
 var remote_players := {}  # peer_id -> Player (réplica)
+## Servidor: última posição recebida de cada jogador na zona atual (coleta de pickups confere a distância).
+var last_pos := {}        # peer_id -> Vector3
+
+## Servidor: banco SQLite, contas e API HTTP de login (abertos em start_server).
+var db: Db = null
+var accounts: AccountStore = null
+var auth_http: AuthHttp = null
+## Servidor: personagens das contas (sessão = peer id do ENet).
+var characters: CharacterService = null
+var http_port := 0
+var db_path := ""
+var admin_users := PackedStringArray()
 
 var _next_enemy_id := 1
 var snapshots_received := 0
@@ -66,6 +87,7 @@ var autosave_interval := 120.0
 var _autosave_t := 120.0
 var _pending := {}        # servidor: peer_id -> segundos até expulsar quem não se registrou
 var _chat_log := {}       # servidor: peer_id -> [instantes das últimas mensagens]
+var _shut_down := false   # servidor: personagens já gravados na saída
 
 ## Servidor: fila aberta {"leader": id, "members": {id: true}, "declined": {id: true}, "t": s} ou {}.
 var _lobby := {}
@@ -91,6 +113,9 @@ func _ready() -> void:
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 	var args := OS.get_cmdline_user_args()
+	http_port = int(OS.get_environment("HTTP_PORT")) if OS.get_environment("HTTP_PORT") != "" else 8080
+	db_path = OS.get_environment("DB_PATH") if OS.get_environment("DB_PATH") != "" else "user://server.db"
+	admin_users = _split_names(OS.get_environment("ADMIN_USERS"))
 	for a in args:
 		if a.begins_with("--port="):
 			port = int(a.substr(7))
@@ -100,6 +125,12 @@ func _ready() -> void:
 			horde_pick_time = maxf(2.0, float(a.substr(13)))
 		elif a.begins_with("--horde-event="):
 			horde_force_event = a.substr(14)
+		elif a.begins_with("--http-port="):
+			http_port = int(a.substr(12))
+		elif a.begins_with("--db="):
+			db_path = a.substr(5)
+		elif a.begins_with("--admins="):
+			admin_users = _split_names(a.substr(9))
 		elif a.begins_with("--autosave="):
 			autosave_interval = maxf(1.0, float(a.substr(11)))
 	if "--server" in args:
@@ -123,7 +154,46 @@ func version() -> String:
 
 
 # ================================================================ servidor
+## "ana, bob" -> ["ana", "bob"] (sem vazios).
+func _split_names(csv: String) -> PackedStringArray:
+	var out := PackedStringArray()
+	for n in csv.split(","):
+		if n.strip_edges() != "":
+			out.append(n.strip_edges())
+	return out
+
+
 func start_server() -> void:
+	if OS.get_environment("DB_REQUIRE_MOUNT") == "1" and not _db_dir_is_mounted():
+		get_tree().quit(1)
+		return
+	db = Db.open(db_path)
+	if db == null:
+		printerr("[server] não foi possível abrir o banco em %s" % db_path)
+		get_tree().quit(1)
+		return
+	if http_port < 1 or http_port > 65535:
+		printerr("[server] porta HTTP inválida: %d (use 1-65535)" % http_port)
+		get_tree().quit(1)
+		return
+	if not Migrations.ensure_latest(db):
+		printerr("[server] migração do banco %s falhou (ou o banco é de uma versão mais nova): não subo" % db_path)
+		get_tree().quit(1)
+		return
+	accounts = AccountStore.new(db, admin_users)
+	characters = CharacterService.new(SqliteCharStore.new(db), Balance.tables)
+	for n in accounts.missing_admins():
+		var msg := "[server] aviso: admin '%s' ainda não tem conta — crie a conta antes que outro jogador registre esse nome" % n
+		print(msg)
+		push_warning(msg)
+	auth_http = AuthHttp.new()
+	auth_http.name = "AuthHttp"
+	add_child(auth_http)
+	if auth_http.start(http_port, accounts) == OK:
+		print("[server] API de login em TCP %d (banco: %s)" % [http_port, db_path])
+	else:
+		get_tree().quit(1)
+		return
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_server(port, MAX_PLAYERS)
 	if err != OK:
@@ -135,6 +205,37 @@ func start_server() -> void:
 	Engine.max_fps = 60
 	print("[server] Ecos de Valdoria v%s ouvindo em UDP %d (máx. %d jogadores)" % [version(), port, MAX_PLAYERS])
 	get_tree().change_scene_to_file(WORLD_SCENE)
+
+
+## DB_REQUIRE_MOUNT=1 (imagem Docker): a pasta do banco tem que ser um volume montado (/proc/mounts),
+## senão o banco ficaria na camada do container e o próximo deploy apagaria todas as contas.
+func _db_dir_is_mounted() -> bool:
+	var dir := ProjectSettings.globalize_path(db_path).get_base_dir()
+	var mounts := Mounts.read_proc_mounts()
+	if mounts.is_empty():
+		var out := []
+		OS.execute("cat", ["/proc/mounts"], out)
+		mounts = "".join(out)
+	if Mounts.is_mount_point(dir, mounts):
+		return true
+	printerr("[server] DB_REQUIRE_MOUNT=1 e a pasta do banco (%s) não é um volume montado: monte um volume em %s " % [dir, dir]
+		+ "(no Easypanel: Mounts → Volume em /data) ou rode com DB_REQUIRE_MOUNT=0 para testar sem guardar as contas")
+	return false
+
+
+## Servidor desligando (pedido de fechar ou saída da árvore no quit): grava todos os personagens em memória.
+## Idempotente (pode vir do pedido de fechar e da saída da árvore).
+func _server_shutdown() -> void:
+	if characters == null or _shut_down:
+		return
+	_shut_down = true
+	var n := characters.save_all()
+	print("[server] desligando: %d personagem(ns) gravado(s)" % n)
+
+
+func _exit_tree() -> void:
+	if is_server():
+		_server_shutdown()
 
 
 func _on_peer_connected(id: int) -> void:
@@ -157,23 +258,35 @@ func _no_throttle(id: int) -> void:
 func _on_peer_disconnected(id: int) -> void:
 	_pending.erase(id)
 	_chat_log.erase(id)
+	Econ.server_peer_gone(id)
 	if is_server() and players.has(id):
 		print("[server] %s saiu (%d online)" % [players[id].name, players.size() - 1])
-		var was_city: bool = players[id].get("zone", "") == "city"
-		players.erase(id)
-		_remove_remote_player(id)
-		for pid in _all_peers():
-			_player_left.rpc_id(pid, id)
-		players_changed.emit()
-		_horde_peer_gone(id)
-		Lobby.server_peer_gone(id, was_city)
+		_drop_player(id)
+
+
+## Servidor: tira o jogador do jogo (saiu ou foi substituído por uma conexão nova da mesma conta).
+func _drop_player(id: int) -> void:
+	var was_city: bool = players[id].get("zone", "") == "city"
+	var account := int(players[id].get("account", 0))
+	players.erase(id)
+	last_pos.erase(id)
+	_remove_remote_player(id)
+	for pid in _all_peers():
+		_player_left.rpc_id(pid, id)
+	players_changed.emit()
+	_horde_peer_gone(id)
+	Lobby.server_peer_gone(id, was_city)
+	if characters != null and account > 0:
+		# por sessão: a queda tardia de uma conexão velha não descarrega a sessão nova
+		characters.unload(account, id)
 
 
 @rpc("any_peer", "call_remote", "reliable")
-## Assinatura estável entre versões: (nome, versão, visual, extra). Os dois últimos ficam sem tipo para que
-## um cliente de versão antiga (que mandava arma e armadura como texto) ainda chegue à checagem de versão
-## e receba a mensagem "atualize o jogo" em vez de um erro de RPC. Não mude a quantidade de argumentos.
-func _register(player_name: String, client_version: String, look = {}, _extra = "") -> void:
+## Assinatura estável entre versões: (token, versão, visual, extra). O 1º argumento já foi o nome digitado
+## (também texto); os dois últimos ficam sem tipo para que um cliente de versão antiga (que mandava arma e
+## armadura como texto) ainda chegue à checagem de versão e receba a mensagem "atualize o jogo" em vez de
+## um erro de RPC. Não mude a quantidade de argumentos.
+func _register(token: String, client_version: String, _look = {}, _extra = "") -> void:
 	if not is_server():
 		return
 	var id := multiplayer.get_remote_sender_id()
@@ -185,11 +298,29 @@ func _register(player_name: String, client_version: String, look = {}, _extra = 
 		_rejected.rpc_id(id, "Versão diferente do servidor (sua: %s, servidor: %s). Atualize o jogo." % [client_version, version()])
 		_kick_later(id)
 		return
-	var name_clean := _clean_name(player_name)
-	# todo jogador começa no salão (lobby); "ready" = já carregou a cena da zona em que está
-	players[id] = {"name": name_clean, "look": _clean_look(look if look is Dictionary else {}), "ready": false,
-		"zone": "lobby"}
-	print("[server] %s entrou (peer %d, %d online)" % [name_clean, id, players.size()])
+	var acc: Dictionary = accounts.resolve_token(token) if accounts != null else {}
+	if acc.is_empty():
+		print("[server] recusado peer %d: token inválido ou expirado" % id)
+		_rejected.rpc_id(id, "Sessão expirada. Entre de novo.")
+		_kick_later(id)
+		return
+	var account := int(acc.id)
+	# uma sessão por conta: a conexão antiga cai antes de aceitar a nova
+	for old in players.keys():
+		if int(players[old].get("account", 0)) == account:
+			print("[server] %s entrou de novo (peer %d): derrubando o peer %d" % [acc.name, id, old])
+			_drop_player(old)
+			_rejected.rpc_id(old, "Sua conta entrou no jogo em outro lugar. Esta conexão foi encerrada.")
+			_kick_later(old)
+	characters.set_session(account, id)
+	# o visual vem do personagem guardado no servidor (o `look` do cliente fica só pela assinatura estável)
+	var char_look: Dictionary = characters.load_or_create(account).equipment
+	# todo jogador começa na praça (zona "hub"); "ready" = já carregou a cena da zona em que está
+	players[id] = {"name": str(acc.name), "account": account, "admin": bool(acc.get("is_admin", false)),
+		"look": _clean_look(char_look), "ready": false, "zone": "hub"}
+	print("[server] %s entrou (peer %d, conta %d, %d online)" % [acc.name, id, account, players.size()])
+	# tabelas e personagem antes do _accepted (mesmo canal confiável: chegam antes da troca de cena)
+	Econ.server_send_initial(id, account)
 	_accepted.rpc_id(id, players)
 	for pid in _all_peers():
 		if pid != id:
@@ -214,12 +345,13 @@ func _client_ready() -> void:
 
 
 # ---------------------------------------------------------------- zonas (salão, Valdoria, cidade)
-## Servidor: o jogador mudou de zona ("lobby", "world" ou "city"). Sai da anterior e avisa todos.
+## Servidor: o jogador mudou de zona ("hub" = praça/salão, "world" ou "city"). Sai da anterior e avisa todos.
 func server_set_zone(id: int, zone: String) -> void:
 	if not players.has(id):
 		return
-	var old: String = players[id].get("zone", "lobby")
+	var old: String = players[id].get("zone", "hub")
 	_remove_remote_player(id)
+	last_pos.erase(id)   # outra zona, outras coordenadas
 	players[id].zone = zone
 	players[id].ready = true
 	if old != zone:
@@ -228,13 +360,14 @@ func server_set_zone(id: int, zone: String) -> void:
 			_horde_peer_gone(id)
 		if old == "city":
 			Lobby.server_city_left(id)
+		Econ.server_peer_zone_left(id, old)
 	for pid in _all_peers():
 		_player_zone.rpc_id(pid, id, zone)
 	players_changed.emit()
 
 
 func zone_of(id: int) -> String:
-	return str(players[id].get("zone", "lobby")) if players.has(id) else ""
+	return str(players[id].get("zone", "hub")) if players.has(id) else ""
 
 
 ## Servidor: jogadores conectados que já carregaram a zona.
@@ -242,7 +375,7 @@ func zone_peers(zone: String) -> Array:
 	var out := []
 	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
 	for pid in players:
-		if not players[pid].ready or players[pid].get("zone", "lobby") != zone:
+		if not players[pid].ready or players[pid].get("zone", "hub") != zone:
 			continue
 		var pp := enet.get_peer(pid) if enet else null
 		if pp == null or pp.get_state() == ENetPacketPeer.STATE_CONNECTED:
@@ -279,24 +412,6 @@ func _player_zone(id: int, zone: String) -> void:
 	players_changed.emit()
 
 
-func _clean_name(n: String) -> String:
-	var s := n.strip_edges().substr(0, 16)
-	if s == "":
-		s = "Aventureiro"
-	var base := s
-	var i := 2
-	var taken := true
-	while taken:
-		taken = false
-		for pid in players:
-			if players[pid].name == s:
-				taken = true
-				s = "%s %d" % [base, i]
-				i += 1
-				break
-	return s
-
-
 func _kick_later(id: int) -> void:
 	await get_tree().create_timer(0.5).timeout
 	# o cliente recusado costuma sair sozinho antes disso
@@ -309,7 +424,7 @@ func _ready_peers() -> Array:
 	var out := []
 	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
 	for pid in players:
-		if not players[pid].ready or players[pid].get("zone", "lobby") != "world":
+		if not players[pid].ready or players[pid].get("zone", "hub") != "world":
 			continue
 		# quem está desconectando ainda aparece na lista por alguns quadros
 		var pp := enet.get_peer(pid) if enet else null
@@ -342,7 +457,7 @@ func _physics_process(delta: float) -> void:
 	elif mode == Mode.CLIENT:
 		if not horde_lobby.is_empty():
 			horde_lobby_t = maxf(0.0, horde_lobby_t - delta)
-		# o progresso fica no PC de cada jogador: salva de tempos em tempos para não perder tudo num crash
+		# vida, mana e posição vão ao servidor de tempos em tempos (o resto ele grava a cada pedido)
 		if world != null and _connect_t <= 0:
 			_autosave_t -= delta
 			if _autosave_t <= 0.0:
@@ -386,12 +501,24 @@ func server_enemy_killed(e: Enemy) -> void:
 		# cidade em grupo: o ouro vai para o cofre e quem acertou ganha XP (sem loot no chão)
 		Lobby.server_city_kill(e)
 	elif not e.horde:
-		# a horda não dá XP/loot do RPG: as gemas vêm pelo _horde_kill do modo sobrevivência
+		# a horda não dá XP/loot do RPG: as gemas vêm pelo _horde_kill do modo sobrevivência.
+		# Cada jogador que acertou ganha o abate no personagem (servidor) e o próprio sorteio de loot.
 		for pid in e.contributors:
-			if players.has(pid):
+			if players.has(pid) and zone_of(pid) == "world":
+				Econ.server_kill(pid, e.kind, int(e.data.xp))
+				Econ.server_drop_loot(pid, e.kind, pos, "world")
 				_kill_reward.rpc_id(pid, e.kind, int(e.data.xp), pos)
 	for pid in _enemy_peers(e):
 		_enemy_died.rpc_id(pid, e.net_id)
+
+
+## Inimigo que some sem morrer (guarda de covil que voltou a dormir): sem recompensa, só sai das réplicas.
+func server_enemy_despawn(e: Enemy) -> void:
+	if e.net_id == 0:
+		return
+	for pid in _enemy_peers(e):
+		_enemy_gone.rpc_id(pid, e.net_id)
+	unregister_enemy(e)
 
 
 func _send_enemy_snapshot() -> void:
@@ -433,6 +560,10 @@ func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow:
 	if e == null or not is_instance_valid(e) or e.dead or e.net_zone != zone_of(id):
 		return
 	amount = clampf(amount, 0.0, 5000.0)
+	# acerto de dano quase zero ou de longe (última posição recebida) não conta: nem dano, nem lentidão,
+	# nem "quem acertou" (que dá XP e sorteio de loot no abate)
+	if not HitGuard.accepts(amount, last_pos.get(id, Vector3.INF), e.global_position):
+		return
 	if amount > 0.0:
 		for pid in _enemy_peers(e):
 			_enemy_hit_fx.rpc_id(pid, net_id, amount, crit)
@@ -466,9 +597,8 @@ func _player_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, combo: in
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id) or not players[id].ready:
 		return
+	# a praça também replica posição (os jogadores se veem andando por ela)
 	var zone := zone_of(id)
-	if zone == "lobby":
-		return
 	_apply_remote_state(id, pos, yaw, vel, flags, combo, attack_t)
 	for pid in zone_peers(zone):
 		if pid != id:
@@ -507,8 +637,8 @@ func _player_event(kind: String, a: Vector3, b: Vector3) -> void:
 
 
 # ================================================================ cliente
-## Conecta em "host" ou "host:porta". O personagem (Game) já deve estar carregado.
-func join(address: String, player_name: String) -> void:
+## Conecta em "host" ou "host:porta" com o token da sessão (Auth.login). O personagem (Game) já deve estar carregado.
+func join(address: String, token: String) -> void:
 	leave()
 	var host := address.strip_edges()
 	var p := DEFAULT_PORT
@@ -525,7 +655,8 @@ func join(address: String, player_name: String) -> void:
 		return
 	multiplayer.multiplayer_peer = peer
 	mode = Mode.CLIENT
-	my_name = player_name
+	my_token = token
+	my_name = ""
 	last_error = ""
 	_connect_t = CONNECT_TIMEOUT
 	_autosave_t = autosave_interval
@@ -533,6 +664,9 @@ func join(address: String, player_name: String) -> void:
 
 func leave() -> void:
 	if multiplayer.multiplayer_peer and not (multiplayer.multiplayer_peer is OfflineMultiplayerPeer):
+		var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+		if enet != null and enet.host != null:
+			enet.host.flush()   # o último relatório de vida/posição sai antes de fechar
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	mode = Mode.OFFLINE
@@ -542,11 +676,13 @@ func leave() -> void:
 	horde_lobby = {}
 	_connect_t = 0.0
 	Lobby.client_reset()
+	Econ.client_reset()
+	Hub.client_reset()
 
 
 func _on_connected_to_server() -> void:
 	_no_throttle(1)
-	_register.rpc_id(1, my_name, version(), Game.equipment.duplicate(), "")
+	_register.rpc_id(1, my_token, version(), Game.equipment.duplicate(), "")
 
 
 func _on_connection_failed() -> void:
@@ -564,13 +700,22 @@ func _on_server_disconnected() -> void:
 		autosave()
 	leave()
 	if in_world:
-		last_error = "Conexão com o servidor perdida. Seu progresso foi salvo."
+		last_error = "Conexão com o servidor perdida. Seu progresso fica salvo no servidor."
 		Game.go_to_menu()
 
 
 @rpc("authority", "call_remote", "reliable")
 func _rejected(reason: String) -> void:
-	_fail(explain_rejection(reason, version()))
+	var why := explain_rejection(reason, version())
+	if world != null or Lobby.in_session():
+		# já estava jogando (a conta entrou em outro lugar): salva e volta ao menu com o aviso
+		autosave()
+		leave()
+		last_error = why
+		join_failed.emit(why)
+		Game.go_to_menu()
+		return
+	_fail(why)
 
 
 ## O texto de recusa vem do servidor, que pode ser o antigo: quando o jogador já atualizou e o servidor
@@ -596,6 +741,12 @@ func _accepted(all_players: Dictionary) -> void:
 	Lobby.on_accepted()
 
 
+## A praça terminou de montar (Hub.enter): ela é o mundo do cliente para réplicas e autosave, mas não
+## manda `_client_ready` (quem põe na zona "hub" é o Hub._enter_hub).
+func hub_ready(scene: Node) -> void:
+	world = scene
+
+
 ## Chamado pelo mundo quando terminou de montar a cena.
 func world_ready(w: Node) -> void:
 	world = w
@@ -610,9 +761,9 @@ func world_closed(w: Node) -> void:
 		remote_players.clear()
 
 
-## Salva o personagem local (o progresso no multiplayer fica no PC de cada jogador).
+## Manda vida, mana e posição ao servidor (o personagem mora lá; os pedidos já foram gravados).
 func autosave() -> void:
-	# no salão e na cidade em grupo o personagem é salvo onde estava em Valdoria
+	# no salão, na praça (role "hub") e na cidade em grupo o personagem fica onde estava em Valdoria
 	if world == null or world.get("role") != null:
 		if is_online():
 			Lobby.save_character()
@@ -621,12 +772,14 @@ func autosave() -> void:
 		return
 	var p: Player = world.player
 	if is_instance_valid(p):
-		Game.save_game(p.global_position if not p.dead else Vector3(0, 0.5, 6), p.model.rotation.y)
+		Econ.report_vitals(p.global_position if not p.dead else Vector3(0, 0.5, 6), p.model.rotation.y)
 
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST and is_client():
 		autosave()
+	elif what == NOTIFICATION_WM_CLOSE_REQUEST and is_server():
+		_server_shutdown()
 
 
 # ---------------------------------------------------------------- envio (cliente)
@@ -826,6 +979,14 @@ func _enemy_hit_fx(net_id: int, amount: float, crit: bool) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
+func _enemy_gone(net_id: int) -> void:
+	var e: Enemy = enemies.get(net_id)
+	enemies.erase(net_id)
+	if e and is_instance_valid(e):
+		e.queue_free()
+
+
+@rpc("authority", "call_remote", "reliable")
 func _enemy_died(net_id: int) -> void:
 	var e: Enemy = enemies.get(net_id)
 	enemies.erase(net_id)
@@ -834,12 +995,9 @@ func _enemy_died(net_id: int) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _kill_reward(kind: String, xp: int, pos: Vector3) -> void:
-	Game.on_enemy_killed(kind, xp)
-	if ENEMY.TYPES[kind].get("boss", false):
-		Game.flags["king_dead"] = true
-	if world:
-		ENEMY.drop_loot(world, kind, pos)
+func _kill_reward(_kind: String, _xp: int, _pos: Vector3) -> void:
+	# só o efeito no cliente: XP e abate chegam pelo Econ (estado do servidor) e o loot por _pickup_spawned
+	Game.kill_lifesteal()
 
 
 # ---------------------------------------------------------------- réplicas de jogadores
@@ -847,6 +1005,9 @@ func _apply_remote_state(id: int, pos: Vector3, yaw: float, vel: Vector3, flags:
 	# servidor: a réplica fica na zona do jogador (Valdoria ou a cidade); cliente: só quem está na mesma zona
 	var parent: Node = world
 	if is_server():
+		last_pos[id] = pos
+		if zone_of(id) == "hub":
+			return   # a praça não tem nada no servidor que precise do corpo do jogador: só a posição
 		parent = Lobby.server_city_root() if zone_of(id) == "city" else world
 	elif zone_of(id) != zone_of(multiplayer.get_unique_id()):
 		return
@@ -978,8 +1139,9 @@ func _server_horde_answer(id: int, accept: bool) -> void:
 
 
 ## Todos os jogadores online já responderam: começa logo (alguns segundos para se preparar).
+## Contam os de Valdoria e os da praça (os dois recebem o convite).
 func _lobby_check_answered() -> void:
-	for pid in _ready_peers():
+	for pid in _ready_peers() + zone_peers("hub"):
 		if not _lobby.members.has(pid) and not _lobby.declined.has(pid):
 			return
 	_lobby.t = minf(_lobby.t, HORDE_LOBBY_ALL)
@@ -996,22 +1158,37 @@ func _lobby_state() -> Dictionary:
 		"members": _lobby.members.keys(), "names": names, "declined": _lobby.declined.keys(), "t": _lobby.t}
 
 
+## A fila vai a quem está em Valdoria e a quem está na praça (o portal da praça leva a Valdoria).
 func _broadcast_lobby() -> void:
 	var st := _lobby_state()
-	for pid in _ready_peers():
+	for pid in _ready_peers() + zone_peers("hub"):
 		_horde_lobby.rpc_id(pid, st)
 
 
 func _horde_launch() -> void:
+	# alguém da fila ainda está na praça (viajando até Valdoria): adia um pouco, até HORDE_TRAVEL_WAIT
+	var waited := float(_lobby.get("travel", 0.0))
+	if waited < HORDE_TRAVEL_WAIT:
+		for pid in _lobby.members:
+			if players.has(pid) and zone_of(pid) == "hub":
+				_lobby["travel"] = waited + HORDE_TRAVEL_STEP
+				_lobby.t = HORDE_TRAVEL_STEP
+				return
 	var team := {}
+	# Forja da base: o bônus de dano é fixado agora, igual para todo o grupo (doações no meio não mudam)
+	var forge := float(characters.base_bonus().get("horde_damage", 0.0)) if characters != null else 0.0
 	for pid in _lobby.members:
 		if not players.has(pid) or not players[pid].ready:
+			continue
+		# a partida acontece em Valdoria: só entra quem está lá
+		if zone_of(pid) != "world":
+			_horde_notice.rpc_id(pid, "Você não chegou a tempo ao portal.")
 			continue
 		var rp: Player = remote_players.get(pid)
 		if rp and is_instance_valid(rp) and rp.dead:
 			_horde_notice.rpc_id(pid, "Você estava caído e ficou fora do Desafio da Horda.")
 			continue
-		team[pid] = {"name": players[pid].name, "dead": false, "ready": false, "lv_ready": true}
+		team[pid] = {"name": players[pid].name, "dead": false, "ready": false, "lv_ready": true, "forge": forge}
 	_lobby = {}
 	_broadcast_lobby()
 	if team.is_empty() or world == null or not world.has_method("server_start_horde"):
@@ -1064,7 +1241,11 @@ func _horde_lobby(state: Dictionary) -> void:
 	horde_lobby = state
 	horde_lobby_t = float(state.get("t", 0.0))
 	if not was_open and not state.is_empty() and horde_invite_pending() and _horde_survival() == null:
-		Game.notify.emit("%s abriu o Portal do Desafio! [Y] entrar · [N] recusar" % state.leader, Color(0.85, 0.6, 1.0))
+		if zone_of(multiplayer.get_unique_id()) == "hub":
+			Game.notify.emit("%s abriu o Portal do Desafio! Vá ao portal da praça para entrar." % state.leader,
+				Color(0.85, 0.6, 1.0))
+		else:
+			Game.notify.emit("%s abriu o Portal do Desafio! [Y] entrar · [N] recusar" % state.leader, Color(0.85, 0.6, 1.0))
 		Sfx.play("quest", 0.0)
 	horde_changed.emit()
 

@@ -147,19 +147,26 @@ func _ready() -> void:
 	# --- novas armas, armaduras e equipamentos
 	await _test_gear()
 
-	# --- save / load
-	Game.save_game(player.global_position, 0.0)
+	# --- persistência no save solo: cada pedido já foi gravado; recriar o serviço local devolve o mesmo personagem
 	var saved_gold := Game.gold
 	var saved_lvl := Game.level
-	Game.gold = 1
+	var saved_inv: Array = Game.inventory.duplicate(true)
+	var saved_pos := player.global_position
+	check(Econ.quick_save(saved_pos, 0.0), "F5 offline grava vida e posição")
+	Game.gold = 1   # bagunça o espelho: o estado tem que voltar do banco
 	Game.level = 1
-	check(Game.load_game(), "load_game executado")
+	Game.inventory = []
+	check(Econ.reload_solo(), "serviço local recriado a partir do save solo")
+	check(Game.gold == saved_gold and Game.level == saved_lvl, "save solo guarda ouro e nível")
+	check(Game.inventory == saved_inv, "save solo guarda a mochila (%d espaços)" % Game.inventory.size())
+	check(Game.equipment.weapon == "iron_sword", "save solo guarda o equipamento")
+	check(Game.equipment.head == "leather_cap" and Game.equipment.feet == "leather_boots", "save solo guarda cabeça e pés")
+	Econ.quick_load()   # F9: recarrega do save solo e volta ao mundo
 	await wait(0.6)
 	world = get_tree().current_scene
 	player = get_tree().get_first_node_in_group("player")
-	check(Game.gold == saved_gold and Game.level == saved_lvl, "save/load restaura ouro e nível")
-	check(Game.equipment.weapon == "iron_sword", "save/load restaura equipamento")
-	check(Game.equipment.head == "leather_cap" and Game.equipment.feet == "leather_boots", "save/load restaura cabeça e pés")
+	check(player != null and Game.gold == saved_gold and player.global_position.distance_to(saved_pos) < 1.5,
+		"F9 recarrega do save solo na posição salva")
 
 	# --- missões goblin e chefe
 	Game.start_quest("goblins")
@@ -191,17 +198,17 @@ func _ready() -> void:
 	check(player.dead, "jogador morre")
 	await wait(2.2)
 	check(world.modal != null and get_tree().paused, "tela de morte aparece")
+	var gold_dead := Game.gold
 	world.modal._respawn()
 	await wait(0.2)
 	check(not player.dead and not get_tree().paused and Game.hp == Game.max_hp(), "renasce na vila")
+	check(Game.gold == gold_dead - int(gold_dead * 0.1), "renascer custa 10%% do ouro (%d -> %d)" % [gold_dead, Game.gold])
 
 	await _test_farm()
 	await _test_survival()
 	await _test_update()
 
 	print("\n==== %s (%d falhas) ====" % ["OK" if fails == 0 else "FALHOU", fails])
-	if FileAccess.file_exists(Game.save_path):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(Game.save_path))
 	get_tree().quit(1 if fails > 0 else 0)
 
 
@@ -282,11 +289,13 @@ func _test_farm() -> void:
 	check(Game.count_item("seed_carrot") == seeds0 - 1, "semente consumida")
 	plot.interact(player)
 	check(Game.farm.plots[0].watered, "canteiro regado")
-	var g0: float = Game.farm.plots[0].growth
+	var g0: float = Game.plot_growth(0)
+	var t0 := Econ.now()
 	await wait(1.0)
-	var g1: float = Game.farm.plots[0].growth
-	check(g1 > g0 and abs((g1 - g0) - 2.0 / ItemDB.CROPS.carrot.time) < 0.02, "regado cresce 2x (%.3f/s)" % (g1 - g0))
-	Game.farm.plots[0].growth = 0.995
+	var g1: float = Game.plot_growth(0)
+	var rate := (g1 - g0) / (Econ.now() - t0)
+	check(g1 > g0 and abs(rate - 2.0 / ItemDB.CROPS.carrot.time) < 0.02, "regado cresce 2x (%.3f/s)" % rate)
+	Econ.time_offset += ItemDB.CROPS.carrot.time   # a horta cresce pelo relógio: adianta o relógio
 	await wait(0.3)
 	check(Game.plot_state(0) == "ready", "planta fica pronta")
 	var carrots := Game.count_item("carrot")
@@ -297,10 +306,11 @@ func _test_farm() -> void:
 	Game.add_item("slime_gel", 1, true)
 	Game.plant(1, "wheat", true)
 	Game.water(1)
-	check(Game.fertilize(1) and Game.farm.plots[1].growth >= 0.4, "adubo de gel de slime acelera")
+	Game.fertilize(1)
+	check(Game.farm.plots[1].fert and Game.plot_growth(1) >= 0.4, "adubo de gel de slime acelera")
 
 	# plantar em todos os vazios
-	Game.gold += 200
+	Econ.grant(200, 0, {}, "teste")
 	plot.interact(player)
 	await wait(0.1)
 	world.modal.seed_list.select(ItemDB.CROP_ORDER.find("tomato"))
@@ -315,7 +325,8 @@ func _test_farm() -> void:
 	# liberar canteiro
 	var gold0 := Game.gold
 	var cost := Game.unlock_cost()
-	check(Game.unlock_next_plot() and Game.farm.unlocked == Game.FARM_START_PLOTS + 1 and Game.gold == gold0 - cost, "canteiro novo liberado por %d ouro" % cost)
+	Game.unlock_next_plot()
+	check(Game.farm.unlocked == Game.FARM_START_PLOTS + 1 and Game.gold == gold0 - cost, "canteiro novo liberado por %d ouro" % cost)
 
 	# caldeirão
 	var kitchen := _interactable("kitchen")
@@ -331,7 +342,8 @@ func _test_farm() -> void:
 	check(Game.count_item("spicy_soup") == 3, "cozinhou 3 sopas picantes (%d)" % Game.count_item("spicy_soup"))
 	world.modal._close()
 	await wait(0.05)
-	check(Game.cook("dragon_chili") == 1 and Game.count_item("dragon_chili") == 1, "cozinhou chili do dragão")
+	Game.cook("dragon_chili")
+	check(Game.count_item("dragon_chili") == 1, "cozinhou chili do dragão")
 
 	# comer: bônus temporário
 	var dmg0 := Game.melee_damage()
@@ -343,16 +355,13 @@ func _test_farm() -> void:
 	Game.tick_food(999.0)
 	check(Game.food_buffs.is_empty() and abs(Game.melee_damage() - dmg0) < 0.01, "bônus expira e o dano volta")
 
-	# save/load da horta
-	Game.save_game(player.global_position, 0.0)
+	# a horta também fica no save solo
 	var farm_saved: Dictionary = Game.farm.duplicate(true)
-	Game.farm = Game.default_farm()
-	Game.load_game()
-	await wait(0.6)
-	world = get_tree().current_scene
-	player = get_tree().get_first_node_in_group("player")
+	var g_saved := Game.plot_growth(1)
+	Game.farm = {"unlocked": 0, "plots": []}
+	check(Econ.reload_solo(), "serviço local recriado (horta)")
 	check(Game.farm.unlocked == farm_saved.unlocked and Game.farm.plots[1].crop == "wheat" \
-		and abs(Game.farm.plots[1].growth - farm_saved.plots[1].growth) < 0.05, "save/load restaura a horta")
+		and abs(Game.plot_growth(1) - g_saved) < 0.05, "save solo guarda a horta")
 
 
 # ---------------------------------------------------------------- Desafio da Horda
@@ -509,7 +518,7 @@ func _test_survival() -> void:
 	check(player.global_position.distance_to(world.VILLAGE_SPAWN) < 3.0, "jogador volta para a vila")
 	check(Game.xp != xp0 or Game.level > lvl0, "XP de recompensa entregue ao RPG")
 	check(Game.flags.has("horde_best"), "recorde salvo")
-	check(Game.save_game(player.global_position, 0.0), "salvar volta a funcionar após o desafio")
+	check(Econ.quick_save(player.global_position, 0.0), "salvar volta a funcionar após o desafio")
 
 	# morte no desafio não tira ouro
 	world.start_survival()
@@ -769,7 +778,8 @@ func _test_gear() -> void:
 
 	# cajado: ataque básico dispara projétil arcano
 	var dmg_sword := Game.melee_damage()
-	check(Game.equip("apprentice_staff"), "equipou cajado")
+	Game.equip("apprentice_staff")
+	check(Game.equipment.weapon == "apprentice_staff", "equipou cajado")
 	await wait(0.05)
 	check(Game.weapon_class() == "staff" and player.look["class"] == "staff", "classe da arma: cajado")
 	check(player.look.holder != null and is_instance_valid(player.look.holder), "modelo do cajado montado na mão")
@@ -781,7 +791,8 @@ func _test_gear() -> void:
 	await wait(0.5)
 
 	# arco: tensionar e soltar
-	check(Game.equip("short_bow"), "equipou arco")
+	Game.equip("short_bow")
+	check(Game.equipment.weapon == "short_bow", "equipou arco")
 	await wait(0.05)
 	check(player.look["class"] == "bow" and player.look.arrow != null, "classe da arma: arco (com flecha encaixável)")
 	player.attacking = false
@@ -795,9 +806,17 @@ func _test_gear() -> void:
 
 	# mão secundária combina com a arma
 	Game.add_item("wooden_shield", 1, true)
-	check(not Game.equip("wooden_shield"), "escudo recusado com arco")
+	var refused := [""]
+	var on_res := func(op: String, ok: bool, err: String) -> void:
+		if op == "equip" and not ok:
+			refused[0] = err
+	Econ.result.connect(on_res)
+	Game.equip("wooden_shield")
+	Econ.result.disconnect(on_res)
+	check(refused[0] == "exige_classe" and Game.equipment.offhand == "", "escudo recusado com arco (%s)" % refused[0])
 	Game.equip("iron_sword")
-	check(Game.equip("wooden_shield") and Game.equipment.offhand == "wooden_shield", "escudo equipado com espada")
+	Game.equip("wooden_shield")
+	check(Game.equipment.offhand == "wooden_shield", "escudo equipado com espada")
 	var shield_mesh := player.model.find_child("Shield", true, false) as MeshInstance3D
 	check(shield_mesh == null or shield_mesh.visible, "escudo aparece no modelo")
 	Game.equip("apprentice_staff")

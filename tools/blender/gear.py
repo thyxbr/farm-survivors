@@ -17,7 +17,7 @@ import math
 from mathutils import Vector
 
 GEAR_P = dict(height=1.84, heads=7.5, shoulders=1.08, waist=0.92, limbs=1.06, hands=1.15, feet=1.1)
-HEAD_CHIN, HEAD_H = 1.555, 0.245        # cabeça humana sob os elmos (olhos ~1,68, na fenda do elmo do cavaleiro)
+HEAD_CHIN, HEAD_H = 1.555, 0.262        # cabeça humana sob os elmos (olhos ~1,68, na fenda do elmo do cavaleiro)
 ZUP = (0, 0, 1)
 
 
@@ -315,15 +315,14 @@ def split_x(ob, mats, fn):
 
 # ------------------------------------------------------------------ corpo vestido (peças reutilizadas)
 def cloth_sections(P):
-    """Seções do tronco para roupa: peito menos saltado, cintura solta e rampa do trapézio até o pescoço."""
+    """Seções do tronco para roupa: peito menos saltado e cintura solta (o tecido não entra na cintura).
+    A rampa do trapézio até o pescoço já vem do corpo."""
     b = [dict(x) for x in torso_sections(P)]
     for x in b:
         x["fr"] = min(x["fr"], 1.06)
     b[3]["rx"] = (b[2]["rx"] + b[4]["rx"]) / 2 * 0.98
     b[3]["ry"] = (b[2]["ry"] + b[4]["ry"]) / 2
-    top, nk = b[-2], b[-1]
-    trap = sec((0, 0, top["c"].z + (nk["c"].z - top["c"].z) * 0.55), top["rx"] * 0.68, top["ry"] * 0.86)
-    return b[:-1] + [trap, nk]
+    return b
 
 
 def clothed_torso(P, R, material, k=1.07, add=0.01, z_top=None, keel=0.0, steps=()):
@@ -337,12 +336,11 @@ def clothed_torso(P, R, material, k=1.07, add=0.01, z_top=None, keel=0.0, steps=
     return secs
 
 
-def neck(R, skin, collar=None, collar_z=1.455):
-    parts = [loft("Neck", [sec((0, 0.006, 1.43), 0.058, 0.056), sec((0, 0.01, 1.6), 0.05, 0.048)], skin, R["Head"],
-                  sides=8)]
-    if collar is not None:
-        parts.append(loft("Collar", [sec((0, 0.004, collar_z - 0.02), 0.098, 0.085),
-                                     sec((0, 0.006, collar_z + 0.025), 0.074, 0.07)], collar, R["Head"], sides=10))
+def neck(R, skin, collar=None, collar_z=1.497):
+    parts = [neck_mesh(body_proportions(**GEAR_P), skin, R["Head"])]
+    if collar is not None:     # gola: aro em volta da boca da roupa, na base do pescoço
+        parts.append(loft("Collar", [sec((0, 0.008, collar_z - 0.022), 0.104, 0.084),
+                                     sec((0, 0.01, collar_z + 0.016), 0.08, 0.074)], collar, R["Head"], sides=10))
     return join_objs("Neck", parts)
 
 
@@ -364,11 +362,11 @@ def sleeves(P, R, material, skin, upto=1.0, k=1.04, add=0.006, cap=True, cuff=No
     for n, s in (("L", 1), ("R", -1)):
         S = limb_sections(P, s)
         arm, elbow = R["Arm" + n], R["Elbow" + n]
-        U = grow(span(S["upper"], 0.1, 1.0), k, add)
+        U = grow(S["upper"], k, add)          # inteira: a manga fecha redonda sobre o deltoide
         if steps:
             U = stepped(U, [(i + 1) / (steps + 1) for i in range(steps)], drop=0.95, eps=0.008)
         up = [loft("Arm%s_Upper" % n, U, material, arm)]
-        if cap:
+        if cap and cap_mat is not None:     # costura do ombro em outra cor (opcional)
             sh = mirror(P["shoulder"], s)
             tilt = Vector((s * math.sin(1.0), 0, math.cos(1.0)))
             up.append(dome("Arm%s_Cap" % n, sh + Vector((-s * 0.014, 0, -0.026)), tilt, 0.062, 0.066, 0.05,
@@ -394,10 +392,11 @@ def plain_head(R, M, beard=False, hair=True):
     face_mats = {"skin": M["skin"], "pupil": M["eye"], "sclera": M["sclera"], "brow": M["hair"], "lip": M["lip"]}
     H = human_head("", HEAD_CHIN, HEAD_H, head, face_mats, {"jaw": 1.08, "chin": 1.1, "brow": 1.2, "nose": 1.05})
     if hair:
-        shell("HairBase", (0, 0.006, HEAD_CHIN + 0.165), (0.156, 0.208, 0.2), M["hair"], cut=0.25, seg=10, rings=6,
-              rot=(-0.2, 0, 0), thick=0.008, parent=head)
-        shell("HairBaseBack", (0, 0.006, HEAD_CHIN + 0.14), (0.162, 0.27, 0.2), M["hair"], cut=0.1, seg=10, rings=6,
-              rot=(-math.pi / 2, 0, 0), thick=0.008, parent=head)
+        f = HEAD_H / 0.245                                   # calotas medidas para a cabeça de 0,245 m
+        shell("HairBase", (0, 0.006 * f, HEAD_CHIN + 0.165 * f), (0.156 * f, 0.208 * f, 0.2 * f), M["hair"], cut=0.25,
+              seg=10, rings=6, rot=(-0.2, 0, 0), thick=0.008, parent=head)
+        shell("HairBaseBack", (0, 0.006 * f, HEAD_CHIN + 0.14 * f), (0.162 * f, 0.27 * f, 0.2 * f), M["hair"], cut=0.1,
+              seg=10, rings=6, rot=(-math.pi / 2, 0, 0), thick=0.008, parent=head)
         locks = []
         for phi in (-48, -24, 0, 24, 48):                      # franja curta penteada para o lado
             locks.append(dict(a=(phi * 0.6 + 150, 75), b=(phi - 15, 22), w=0.055, t=0.011, bulge=0.004, n=5))
@@ -673,7 +672,7 @@ def build_a_shirt():
 def parts_a_shirt(P, R, M):
     body = R["Body"]
     secs = clothed_torso(P, R, M["linen"], k=1.05, add=0.008)
-    neck(R, M["skin"], collar=M["linen_d"], collar_z=1.45)
+    neck(R, M["skin"], collar=M["linen_d"])
     fy = front_y(torso_at(secs, 1.42), 0.002)
     tbox("ShirtV", (0, fy + 0.004, 1.405), (0.06, 0.006, 0.075), M["skin"], bottom=(0.1, 1), parent=body)
     for k, z in enumerate((1.425, 1.395, 1.365)):
@@ -1043,14 +1042,15 @@ def _shin_hose(P, R, n, s, material):
 
 
 def _shoe(P, R, n, s, upper, sole, k=1.08, add=0.006, top=None):
+    """Pé do calçado e sola, no pivô do tornozelo (AnkleX): giram sem a canela na passada."""
     S = limb_sections(P, s)
-    knee = R["Knee" + n]
+    ankle = R["Ankle" + n]
     K = mirror(P["knee"], s)
     ft = grow(S["foot"], k, add)
-    parts = [loft("Leg%s_Foot" % n, ft, upper, knee, fwd=(0, 0, 1), chamfer=(0.01, 0.012))]
+    parts = [loft("Leg%s_Foot" % n, ft, upper, ankle, fwd=(0, 0, 1), chamfer=(0.01, 0.012))]
     heel_y, toe_y = ft[0]["c"].y, ft[-1]["c"].y
     parts.append(tbox("Leg%s_Sole" % n, (K.x, (heel_y + toe_y) / 2 - 0.006, 0.012),
-                      (0.13 * P["ft"], heel_y - toe_y + 0.07, 0.024), sole, bevel=0.006, parent=knee))
+                      (0.13 * P["ft"], heel_y - toe_y + 0.07, 0.024), sole, bevel=0.006, parent=ankle))
     return parts
 
 
@@ -1065,7 +1065,8 @@ def parts_f_shoes(P, R, M):
     for n, s in (("L", 1), ("R", -1)):
         S = limb_sections(P, s)
         _shin_hose(P, R, n, s, M["pants"])
-        parts = _shoe(P, R, n, s, M["lea"], M["lea_d"])
+        join_objs("Leg%s_ShoeFoot" % n, _shoe(P, R, n, s, M["lea"], M["lea_d"]))
+        parts = []
         parts.append(loft("Leg%s_Ankle" % n, grow(span(S["shin"], 0.86, 1.0), 1.14, 0.008), M["lea"], R["Knee" + n]))
         parts.append(band("Leg%s_AnkleStrap" % n, grow([sample(S["shin"], 0.9)], 1.14, 0.01)[0],
                           S["shin"][-1]["c"] - S["shin"][0]["c"], 0.014, M["lea_d"], R["Knee" + n], sides=8))
@@ -1083,8 +1084,8 @@ def build_f_boots():
         knee = R["Knee" + n]
         _shin_hose(P, R, n, s, M["pants"])
         dn = S["shin"][-1]["c"] - S["shin"][0]["c"]
-        parts = _shoe(P, R, n, s, bt, bt2)
-        parts.append(loft("Leg%s_Shaft" % n, grow(span(S["shin"], 0.2, 1.0), 1.14, 0.01), bt, knee))
+        foot = _shoe(P, R, n, s, bt, bt2)
+        parts = [loft("Leg%s_Shaft" % n, grow(span(S["shin"], 0.2, 1.0), 1.14, 0.01), bt, knee)]
         top = grow([sample(S["shin"], 0.16)], 1.26, 0.016)[0]
         parts.append(loft("Leg%s_Fold" % n, [top, dict(grow([sample(S["shin"], 0.3)], 1.18, 0.014)[0])], bt2, knee,
                           sides=8, chamfer=(0.004, 0.0)))
@@ -1103,8 +1104,9 @@ def build_f_boots():
                                                     0.004, 0.003) for x in fr], bt2, knee, sides=4, fwd=(0, -1, 0)))
         ft = grow(S["foot"], 1.08, 0.006)
         K = mirror(P["knee"], s)
-        parts.append(tbox("Leg%s_Heel" % n, (K.x, ft[0]["c"].y + 0.012, 0.03), (0.075, 0.06, 0.045), bt2, bevel=0.006,
-                          parent=knee))
+        foot.append(tbox("Leg%s_Heel" % n, (K.x, ft[0]["c"].y + 0.012, 0.03), (0.075, 0.06, 0.045), bt2, bevel=0.006,
+                         parent=R["Ankle" + n]))
+        join_objs("Leg%s_BootFoot" % n, foot)
         join_objs("Leg%s_Boot" % n, parts)
     g_export("f_boots", P, R)
 
@@ -1121,8 +1123,8 @@ def build_f_plated():
         knee = R["Knee" + n]
         K = mirror(P["knee"], s)
         _shin_hose(P, R, n, s, M["pants"])
-        parts = _shoe(P, R, n, s, bt, M["lea_d"])
-        parts.append(loft("Leg%s_Shaft" % n, grow(span(S["shin"], 0.12, 1.0), 1.14, 0.01), bt, knee))
+        foot = _shoe(P, R, n, s, bt, M["lea_d"])
+        parts = [loft("Leg%s_Shaft" % n, grow(span(S["shin"], 0.12, 1.0), 1.14, 0.01), bt, knee)]
         parts.append(loft("Leg%s_Greave" % n, grow(span(S["shin"], 0.1, 0.85), 1.24, 0.016, keel=0.14), st, knee,
                           phase=0, arc=2.4, thick=0.01, chamfer=(0.0, 0.0)))
         parts.append(loft("Leg%s_Poleyn" % n, [sec((K.x, K.y - 0.03, K.z + 0.01), 0.07, 0.074),
@@ -1131,7 +1133,9 @@ def build_f_plated():
                           st, knee, fwd=(0, 0, 1), chamfer=(0.0, 0.008)))
         parts.append(wing("Leg%s_PoleynWing" % n, (K.x + s * 0.064, K.y - 0.035, K.z), 0.07, 0.09, 0.008, st, knee))
         ft = grow(S["foot"], 1.13, 0.012)
-        parts.append(loft("Leg%s_ToeCap" % n, [dict(x) for x in ft[2:]], st, knee, fwd=(0, 0, 1), chamfer=(0.0, 0.01)))
+        foot.append(loft("Leg%s_ToeCap" % n, [dict(x) for x in ft[2:]], st, R["Ankle" + n], fwd=(0, 0, 1),
+                         chamfer=(0.0, 0.01)))
+        join_objs("Leg%s_BootFoot" % n, foot)
         for k, t in enumerate((0.3, 0.7)):
             parts.append(band("Leg%s_GreaveStrap%d" % (n, k), grow([sample(S["shin"], t)], 1.16, 0.012)[0],
                               S["shin"][-1]["c"] - S["shin"][0]["c"], 0.014, M["lea_d"], knee, sides=8))

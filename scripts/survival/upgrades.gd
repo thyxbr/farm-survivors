@@ -1,60 +1,15 @@
 extends RefCounted
 ## Tabelas de melhorias do Desafio da Horda: armas automáticas, passivas (cartas de nível)
-## e bênçãos (fim de rodada). "add" soma valores em Game.run_mods.
+## e bênçãos (fim de rodada). "add" soma valores em Game.run_mods. As tabelas vêm de
+## data/balance/horde.json (autoload Balance).
 
 const MAX_LEVEL := 5
 
-const WEAPONS := {
-	"fogo": {"name": "Orbe de Fogo", "color": Color(1.0, 0.5, 0.15), "desc": [
-		"Dispara bolas de fogo no inimigo mais próximo.",
-		"+30% de dano e recarga menor.",
-		"+1 bola de fogo por disparo.",
-		"+30% de dano e recarga menor.",
-		"+1 bola de fogo e dano maior.",
-	]},
-	"laminas": {"name": "Lâminas Orbitais", "color": Color(0.6, 0.8, 1.0), "desc": [
-		"Duas lâminas giram ao seu redor cortando quem encostar.",
-		"+1 lâmina.",
-		"+25% de dano e raio maior.",
-		"+1 lâmina e giro mais rápido.",
-		"+1 lâmina e +25% de dano.",
-	]},
-	"raio": {"name": "Relâmpago", "color": Color(0.55, 0.85, 1.0), "desc": [
-		"Raios caem sobre inimigos próximos.",
-		"+1 alvo por descarga.",
-		"+30% de dano e recarga menor.",
-		"+1 alvo por descarga.",
-		"+2 alvos e +30% de dano.",
-	]},
-	"aura": {"name": "Aura Gélida", "color": Color(0.5, 0.9, 1.0), "desc": [
-		"Um círculo de gelo fere e congela quem chega perto.",
-		"Raio maior e +30% de dano.",
-		"Raio maior e +30% de dano.",
-		"Raio maior e lentidão mais forte.",
-		"Raio maior e +40% de dano.",
-	]},
-}
+static var WEAPONS: Dictionary = {}
 
-const PASSIVES := {
-	"poder": {"name": "Poder", "color": Color(1, 0.4, 0.3), "desc": "+10% de dano (armas, espada e magias).", "add": {"damage": 0.10}},
-	"celeridade": {"name": "Celeridade", "color": Color(1, 0.85, 0.3), "desc": "−8% de recarga das armas automáticas.", "add": {"cooldown": -0.08}},
-	"vigor": {"name": "Vigor", "color": Color(0.9, 0.25, 0.3), "desc": "+15% de vida máxima.", "add": {"max_hp": 0.15}},
-	"botas": {"name": "Botas Velozes", "color": Color(0.5, 1, 0.5), "desc": "+8% de velocidade de movimento.", "add": {"speed": 0.08}},
-	"ima": {"name": "Ímã", "color": Color(0.4, 0.7, 1), "desc": "+35% de raio de coleta de gemas.", "add": {"magnet": 0.35}},
-	"alcance": {"name": "Alcance", "color": Color(0.8, 0.6, 1), "desc": "+12% de área das armas.", "add": {"area": 0.12}},
-	"armadura": {"name": "Armadura", "color": Color(0.7, 0.7, 0.75), "desc": "+3 de defesa.", "add": {"defense": 3.0}},
-	"regeneracao": {"name": "Regeneração", "color": Color(0.4, 1, 0.5), "desc": "+0,6 de vida por segundo.", "add": {"regen": 0.6}},
-}
+static var PASSIVES: Dictionary = {}
 
-const BLESSINGS := {
-	"furia": {"name": "Bênção da Fúria", "color": Color(1, 0.35, 0.2), "desc": "+20% de dano.", "add": {"damage": 0.2}},
-	"vida": {"name": "Bênção da Vida", "color": Color(1, 0.3, 0.4), "desc": "+20 de vida máxima e cura total.", "add": {"max_hp_flat": 20.0}, "heal": true},
-	"sabedoria": {"name": "Bênção da Sabedoria", "color": Color(0.4, 0.8, 1), "desc": "+25% de XP das gemas.", "add": {"xp": 0.25}},
-	"sorte": {"name": "Bênção da Sorte", "color": Color(0.5, 1, 0.4), "desc": "+8% de chance de crítico.", "add": {"crit": 0.08}},
-	"sangue": {"name": "Sede de Sangue", "color": Color(0.8, 0.1, 0.15), "desc": "Cada abate cura 1 de vida.", "add": {"lifesteal": 1.0}},
-	"vento": {"name": "Bênção do Vento", "color": Color(0.7, 1, 0.9), "desc": "+10% de velocidade e −10% de recarga.", "add": {"speed": 0.1, "cooldown": -0.1}},
-	"ouro": {"name": "Bênção do Ouro", "color": Color(1, 0.85, 0.3), "desc": "+50% de ouro das moedas.", "add": {"gold": 0.5}},
-}
+static var BLESSINGS: Dictionary = {}
 
 
 ## Combos em grupo: quando um jogador tem a arma "a" e um colega PERTO tem a "b" (ou o contrário),
@@ -63,26 +18,7 @@ const BLESSINGS := {
 ##   shape "area": dano em volta do ponto · "chain": salta entre inimigos · "strikes": raios em volta.
 const COMBO_RANGE := 14.0
 const COMBO_COOLDOWN := 3.0
-const COMBOS := {
-	"choque": {"name": "Choque Térmico", "a": "fogo", "b": "aura", "color": Color(1.0, 0.75, 0.6),
-		"shape": "area", "radius": 3.2, "dmg": 30.0, "slow": 1.0,
-		"desc": "Fogo em inimigo congelado: explosão de vapor em área."},
-	"plasma": {"name": "Plasma", "a": "fogo", "b": "raio", "color": Color(1.0, 0.55, 0.9),
-		"shape": "chain", "n": 4, "radius": 6.0, "dmg": 26.0, "slow": 0.0,
-		"desc": "Descarga de plasma salta entre 4 inimigos."},
-	"brasas": {"name": "Ciclone de Brasas", "a": "fogo", "b": "laminas", "color": Color(1.0, 0.6, 0.2),
-		"shape": "area", "radius": 4.0, "dmg": 24.0, "slow": 0.0,
-		"desc": "Lâminas em chamas: anel de fogo em volta do alvo."},
-	"tempestade": {"name": "Tempestade Gélida", "a": "raio", "b": "aura", "color": Color(0.6, 0.85, 1.0),
-		"shape": "strikes", "n": 3, "radius": 7.0, "dmg": 24.0, "slow": 1.5,
-		"desc": "3 raios de gelo caem perto do alvo e deixam lento."},
-	"eletro": {"name": "Lâminas Elétricas", "a": "raio", "b": "laminas", "color": Color(0.85, 0.95, 0.4),
-		"shape": "chain", "n": 3, "radius": 6.0, "dmg": 22.0, "slow": 0.0,
-		"desc": "Cada corte eletrifica e salta para mais 3 inimigos."},
-	"nevasca": {"name": "Nevasca Cortante", "a": "laminas", "b": "aura", "color": Color(0.75, 0.95, 1.0),
-		"shape": "area", "radius": 3.5, "dmg": 20.0, "slow": 1.5,
-		"desc": "Estilhaços de gelo em área que deixam lento."},
-}
+static var COMBOS: Dictionary = {}
 
 ## Combo formado pelas armas x e y (ordem livre); "" se não houver.
 static func combo_for(x: String, y: String) -> String:

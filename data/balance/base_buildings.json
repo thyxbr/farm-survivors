@@ -1,0 +1,120 @@
+{
+	"buildings": {
+		"forja": {
+			"name": "Forja",
+			"desc": "Armas mais fortes na Horda.",
+			"visual": "barracks",
+			"levels": [
+				{
+					"cost": 120,
+					"bonus": {
+						"horde_damage": 0.04
+					}
+				},
+				{
+					"cost": 250,
+					"bonus": {
+						"horde_damage": 0.08
+					}
+				},
+				{
+					"cost": 450,
+					"bonus": {
+						"horde_damage": 0.12
+					}
+				},
+				{
+					"cost": 700,
+					"bonus": {
+						"horde_damage": 0.17
+					}
+				},
+				{
+					"cost": 1000,
+					"bonus": {
+						"horde_damage": 0.22
+					}
+				}
+			]
+		},
+		"muralha": {
+			"name": "Muralha",
+			"desc": "Salão da cidade mais resistente.",
+			"visual": "gate",
+			"levels": [
+				{
+					"cost": 120,
+					"bonus": {
+						"hall_hp": 0.1
+					}
+				},
+				{
+					"cost": 250,
+					"bonus": {
+						"hall_hp": 0.2
+					}
+				},
+				{
+					"cost": 450,
+					"bonus": {
+						"hall_hp": 0.3
+					}
+				},
+				{
+					"cost": 700,
+					"bonus": {
+						"hall_hp": 0.45
+					}
+				},
+				{
+					"cost": 1000,
+					"bonus": {
+						"hall_hp": 0.6
+					}
+				}
+			]
+		},
+		"celeiro": {
+			"name": "Celeiro",
+			"desc": "Mais ouro e comida na Defesa da Cidade.",
+			"visual": "farm",
+			"levels": [
+				{
+					"cost": 120,
+					"bonus": {
+						"city_gold": 40,
+						"city_food": 6
+					}
+				},
+				{
+					"cost": 250,
+					"bonus": {
+						"city_gold": 80,
+						"city_food": 12
+					}
+				},
+				{
+					"cost": 450,
+					"bonus": {
+						"city_gold": 130,
+						"city_food": 18
+					}
+				},
+				{
+					"cost": 700,
+					"bonus": {
+						"city_gold": 190,
+						"city_food": 26
+					}
+				},
+				{
+					"cost": 1000,
+					"bonus": {
+						"city_gold": 260,
+						"city_food": 35
+					}
+				}
+			]
+		}
+	}
+}

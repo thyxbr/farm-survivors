@@ -3,11 +3,13 @@ extends RefCounted
 ## Animação procedural do cavaleiro (knight.glb), compartilhada pelo jogador, pelas réplicas do
 ## multiplayer, pela prévia 3D do inventário e pelo salão.
 ##
-## Pivôs do modelo: LegX (quadril) > KneeX, Body (pelve) > Head e ArmX (ombro) > ElbowX.
+## Pivôs do modelo: LegX (quadril) > KneeX > AnkleX, Body (pelve) > Head e ArmX (ombro) > ElbowX.
 ## Convenção de sinais (modelo olhando para +Z):
 ##   LegX.rotation.x  < 0 = coxa para a frente     KneeX.rotation.x  > 0 = joelho dobra (canela para trás)
 ##   ArmX.rotation.x  < 0 = braço para a frente    ElbowX.rotation.x < 0 = cotovelo dobra (antebraço sobe)
 ##   ArmL.rotation.z  > 0 e ArmR.rotation.z < 0 = braço se abre para o lado
+##   foot_l/foot_r (pose) = inclinação do pé em relação ao CHÃO; > 0 = ponta para baixo. O tornozelo
+##   (AnkleX.rotation.x) é calculado em apply() a partir dela, então o pé fica chato no chão por padrão.
 ##
 ## Uma pose é um Dictionary com os alvos de cada articulação (veja rest_pose()); apply() leva o
 ## modelo até ela suavizando, e mantém o pé de apoio no chão calculando a altura das pernas.
@@ -27,30 +29,61 @@ const IDLE_ARM_OUT := 0.06        ## braços um pouco afastados do corpo (rad)
 const IDLE_ARM_R_X := -0.15       ## braço da arma um pouco à frente
 
 # ------------------------------------------------------------------ andar / correr
-const WALK_AMP := 0.6             ## abertura da coxa na caminhada (rad); define o tamanho da passada
-const RUN_AMP := 0.85             ## na corrida
-const KNEE_SWING_WALK := 0.8      ## joelho dobra na perna que está no ar
-const KNEE_SWING_RUN := 1.5
-const KNEE_SWING_EARLY := 0.7     ## <1 adianta o pico de dobra do joelho na fase aérea
-const KNEE_STANCE_WALK := 0.1     ## flexão da perna de apoio (amortece e faz o quique)
-const KNEE_STANCE_RUN := 0.38
-const ARM_SWING_WALK := 0.4       ## balanço dos braços (rad)
-const ARM_SWING_RUN := 0.8
-const ELBOW_WALK := -0.32         ## cotovelo médio andando
-const ELBOW_RUN := -1.15          ## e correndo (braço de corredor)
-const ELBOW_SWING := -0.3         ## dobra extra quando o braço vai à frente
-const BODY_BOUNCE_WALK := 0.006   ## quique extra do tronco a cada passo (m), além do que as pernas dão
-const BODY_BOUNCE_RUN := 0.028
-const TORSO_TWIST_WALK := 0.07    ## ombros giram contra o quadril (rad)
-const TORSO_TWIST_RUN := 0.13
-const LEAN_WALK := 0.05           ## inclinação do tronco para a frente andando (rad)
+## Ciclo da marcha (por perna): apoio (pé no chão) e balanço (pé no ar). DUTY = fração do ciclo em apoio.
+## Caminhada humana ~0,6 (os dois pés no chão um tempo); corrida ~0,35-0,4 (os dois no ar um tempo).
+## WALK_SPEED do jogo (5,2 m/s) já é um trote, então o "andar" normal usa o estilo de trote.
+const WALK_DUTY := 0.6            ## andando devagar (aceleração, lentidão)
+const JOG_DUTY := 0.38            ## na velocidade normal
+const RUN_DUTY := 0.31            ## correndo
+const JOG_STYLE := 0.72           ## quanto o andar normal já se parece com a corrida (0 caminhada, 1 corrida)
+const WALK_AMP := 0.64            ## abertura da coxa na velocidade normal (rad); define o tamanho da passada
+const RUN_AMP := 0.8              ## na corrida
+const STRIDE_POW := 0.4           ## devagar a passada encolhe menos que a velocidade (evita pezinhos rápidos)
+## Joelho (rad, > 0 dobra) ao longo do ciclo. Chaves [x, valor]: no apoio x = 0..1 do apoio (0 = pé toca
+## o chão), no balanço x = 0..1 do balanço (0 = ponta do pé sai do chão). Valores de biomecânica:
+## caminhada ~5° no contato, ~20° amortecendo, ~40° saindo e ~60° no balanço; corrida ~25° no contato,
+## ~45° no meio do apoio e 100°+ no balanço (calcanhar sobe para trás).
+const KNEE_WALK_STANCE := [[0.0, 0.08], [0.2, 0.3], [0.55, 0.1]]
+const KNEE_WALK_SWING := [[0.0, 0.72], [0.3, 1.12], [0.78, 0.3]]
+const KNEE_RUN_STANCE := [[0.0, 0.42], [0.42, 0.8]]
+const KNEE_RUN_SWING := [[0.0, 0.6], [0.38, 2.05], [0.74, 0.8], [0.92, 0.45]]
+## Pé em relação ao chão no apoio (rad, > 0 = ponta para baixo): calcanhar toca com a ponta para cima,
+## pé assenta chato, o calcanhar sobe e a ponta empurra o chão até sair (o corpo sobe junto).
+const FOOT_WALK_STANCE := [[0.0, -0.3], [0.14, 0.0], [0.6, 0.0], [1.0, 0.62]]
+const FOOT_RUN_STANCE := [[0.0, -0.1], [0.12, 0.0], [0.45, 0.02], [1.0, 1.0]]
+## No balanço o pé solta em relação à canela (tornozelo, > 0 = ponta para baixo) e, no fim, se prepara
+## para o contato (volta à inclinação do começo do apoio). Andando a ponta sobe (dorsiflexão) para não
+## raspar no chão quando o pé passa por baixo do corpo; correndo o calcanhar sobe e o pé fica solto.
+const ANKLE_WALK_SWING := -0.28
+const ANKLE_RUN_SWING := 0.35
+const FOOT_RELEASE := 0.35        ## fração do balanço em que o pé passa da saída para a pose solta
+const FOOT_PREPARE := 0.6         ## a partir daqui se prepara para tocar o chão
+const FLIGHT_LIFT_JOG := 0.035    ## quanto o corpo sobe na fase de voo (m)
+const FLIGHT_LIFT_RUN := 0.07
+const ARM_SWING_WALK := 0.5       ## balanço dos braços (rad)
+const ARM_SWING_RUN := 0.85
+const ARM_LAG := 0.25             ## os braços vêm um pouco depois das pernas (rad de fase)
+const ELBOW_WALK := -0.55         ## cotovelo médio no andar normal (trote)
+const ELBOW_RUN := -1.25          ## e correndo (braço de corredor)
+const ELBOW_SWING := -0.35        ## dobra extra quando o braço vai à frente
+const BODY_BOUNCE_WALK := 0.012   ## o tronco amortece no meio de cada apoio (m), além do que as pernas dão
+const BODY_BOUNCE_RUN := 0.022
+const TORSO_TWIST_WALK := 0.1     ## ombros giram contra o quadril (rad)
+const TORSO_TWIST_RUN := 0.15
+const HIP_DROP := 0.04            ## o quadril pende para o lado da perna de apoio (rad)
+const LEAN_WALK := 0.08           ## inclinação do tronco para a frente andando (rad)
 const LEAN_RUN := 0.22            ## e correndo
 const LEAN_ACCEL := 0.01          ## por m/s² de aceleração para a frente
 const LEAN_MIN := -0.12
 const LEAN_MAX := 0.3
-const STRIDE_FIT := 1.0           ## <1 dá passos mais rápidos; 1 = pé parado no chão durante o apoio
 const MAX_CADENCE := 26.0         ## limite da fase (rad/s), só para velocidades fora do normal
-const MIN_STRIDE := 0.12          ## passada mínima (m) usada no cálculo da cadência
+const MIN_STRIDE := 0.12          ## meio passo mínimo (m) usado no cálculo da cadência
+## A pose do ciclo já é suave: a suavização de apply() só serve para as trocas de pose. Aplicada a um
+## ciclo de ~3 passos/s ela atrasa e achata o movimento (o joelho dobrava bem menos que o pedido),
+## então andando as articulações do ciclo seguem a pose este tanto mais rápido (veja follow_cycle).
+const CYCLE_FOLLOW := 8.0
+const CYCLE_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r", "foot_l", "foot_r", "body_y", "body_z", "twist",
+	"arm_l", "arm_r", "elbow_l", "elbow_r", "lift"]
 
 # ------------------------------------------------------------------ ar e aterrissagem
 const AIR_KNEE_RISE := Vector2(0.95, 0.35)   ## joelhos (L, R) recolhidos subindo
@@ -74,21 +107,42 @@ const JOINT_LAG := {
 	"twist": -0.015, "body_x": -0.012, "body_z": -0.012,
 	"elbow_r": 0.008, "elbow_l": 0.008, "wrist_r": 0.014, "wrist_l": 0.014, "head_x": 0.03, "head_y": 0.03,
 }
-const LEG_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r"]
-const POSE_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r", "body_x", "body_y", "body_z", "body_shift",
+const LEG_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r", "foot_l", "foot_r"]
+const POSE_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r", "foot_l", "foot_r", "lift", "body_x", "body_y", "body_z", "body_shift",
 	"twist", "head_x", "head_y", "arm_l", "arm_r", "elbow_l", "elbow_r", "wrist_l", "wrist_r", "ground"]
 
 
 ## Pivôs do modelo + medidas das pernas. Funciona com modelos antigos sem KneeX/ElbowX (ficam null).
 static func rig(model: Node3D) -> Dictionary:
 	var r := {"model": model}
-	for n in ["LegL", "LegR", "KneeL", "KneeR", "ArmL", "ArmR", "ElbowL", "ElbowR", "Body", "Head"]:
+	for n in ["LegL", "LegR", "KneeL", "KneeR", "AnkleL", "AnkleR", "ArmL", "ArmR", "ElbowL", "ElbowR", "Body", "Head"]:
 		r[n] = model.find_child(n, true, false)
 	r["body_y"] = r.Body.position.y
 	r["body_x0"] = r.Body.position.x
 	var leg: Node3D = r.LegL
 	var knee: Node3D = r.KneeL
-	if knee:
+	var ankle: Node3D = r.AnkleL
+	# pé: altura do tornozelo e o quanto calcanhar e ponta saem dele (pela caixa das malhas do pé)
+	r["ankle_h"] = 0.0
+	r["heel"] = 0.0
+	r["toe"] = 0.0
+	if knee and ankle:
+		r["thigh"] = maxf(0.05, -knee.position.y)
+		r["shin"] = maxf(0.05, -ankle.position.y)
+		var box := AABB()
+		var first := true
+		for c in ankle.get_children():
+			if c is MeshInstance3D:
+				var b: AABB = c.transform * (c as MeshInstance3D).get_aabb()
+				box = b if first else box.merge(b)
+				first = false
+		if first:
+			r.ankle_h = maxf(0.0, leg.position.y + knee.position.y + ankle.position.y)
+		else:
+			r.ankle_h = maxf(0.0, -box.position.y)
+			r.heel = maxf(0.0, -box.position.z)
+			r.toe = maxf(0.0, box.end.z)
+	elif knee:
 		r["thigh"] = maxf(0.05, -knee.position.y)
 		r["shin"] = maxf(0.05, leg.position.y + knee.position.y)
 	else:
@@ -97,14 +151,15 @@ static func rig(model: Node3D) -> Dictionary:
 	return r
 
 
-## Comprimento da perna esticada (quadril ao chão).
+## Comprimento da perna esticada (quadril ao tornozelo).
 static func leg_length(r: Dictionary) -> float:
 	return r.thigh + r.shin
 
 
 ## Pose neutra (em pé, braços soltos).
 static func rest_pose() -> Dictionary:
-	return {"leg_l": 0.0, "leg_r": 0.0, "knee_l": 0.0, "knee_r": 0.0, "body_x": 0.0, "body_y": 0.0,
+	return {"leg_l": 0.0, "leg_r": 0.0, "knee_l": 0.0, "knee_r": 0.0, "foot_l": 0.0, "foot_r": 0.0, "lift": 0.0,
+		"body_x": 0.0, "body_y": 0.0,
 		"body_z": 0.0, "body_shift": 0.0, "twist": 0.0, "head_x": 0.0, "head_y": 0.0, "wrist_l": 0.0, "wrist_r": 0.0,
 		"arm_l": Vector3(0, 0, IDLE_ARM_OUT), "arm_r": Vector3(IDLE_ARM_R_X, 0, -IDLE_ARM_OUT),
 		"elbow_l": IDLE_ELBOW, "elbow_r": IDLE_ELBOW, "ground": 1.0, "snap": [], "speed": {}}
@@ -134,51 +189,165 @@ static func idle_pose(t: float) -> Dictionary:
 
 
 ## Andar/correr na fase `phase` (rad). `move` 0..1 = quanto está andando, `run` 0..1 = quanto corre.
-## Perna esquerda: fase 0..PI = apoio (pé da frente para trás, em linha reta), PI..TAU = no ar.
-## A direita é a mesma meia volta defasada.
+## Perna esquerda: u = fase/TAU; 0..duty = apoio (o pé recua em linha reta, parado no chão), duty..1 = balanço.
+## A direita é a mesma meia volta defasada. Se duty < 0,5 sobra uma fase de voo entre os apoios.
 static func locomotion_pose(r: Dictionary, phase: float, move: float, run: float) -> Dictionary:
 	var p := rest_pose()
+	var st := gait_style(move, run)
+	var duty := gait_duty(move, run)
 	var reach := half_stride(r, move, run)
-	# o joelho no ar cai mais devagar que a passada: passos curtos ainda tiram o pé do chão
-	var knee_swing := lerpf(KNEE_SWING_WALK, KNEE_SWING_RUN, run) * sqrt(move)
-	var knee_stance := lerpf(KNEE_STANCE_WALK, KNEE_STANCE_RUN, run) * move
-	var arm_amp := lerpf(ARM_SWING_WALK, ARM_SWING_RUN, run) * move
-	var elbow := lerpf(ELBOW_WALK, ELBOW_RUN, run)
+	var amt := smoothstep(0.0, 0.25, move)   # parando, o ciclo some aos poucos
+	var foot_keys := _mix_keys(FOOT_WALK_STANCE, FOOT_RUN_STANCE, st)
+	var g := [r, duty, st, reach, amt, foot_keys]
+	var foot_off := _stance_foot(g, duty - 0.0001)   # como o pé sai do chão (com a ponta rolando)
+	var foot_on := _curve(foot_keys, 0.0)
+	var bounce := 0.0
 	for side in [["l", 0.0], ["r", PI]]:
 		var u := fposmod(phase + float(side[1]), TAU) / TAU
-		var d: float      # pé atrás do quadril (m); negativo = à frente
-		var knee: float
-		if u < 0.5:
+		var d: float      # tornozelo atrás do quadril (m); negativo = à frente
+		var knee := gait_knee(u, duty, st) * amt
+		var foot: float
+		if u < duty:
 			# apoio: o pé recua em velocidade constante = parado no chão enquanto o corpo avança
-			var s := u * 2.0
+			var s := u / duty
 			d = reach * (2.0 * s - 1.0)
-			knee = knee_stance * sin(PI * s)
+			foot = _stance_foot(g, u)
+			bounce = maxf(bounce, sin(PI * s))
 		else:
-			# no ar: volta para a frente com o joelho dobrando logo depois de sair do chão
-			var s := (u - 0.5) * 2.0
-			d = reach * (1.0 - 2.0 * s * s * (3.0 - 2.0 * s))
-			knee = knee_swing * sin(PI * pow(s, KNEE_SWING_EARLY))
+			# balanço: volta para a frente (lento na saída e na chegada)
+			var w := (u - duty) / (1.0 - duty)
+			d = reach * (1.0 - 2.0 * w * w * (3.0 - 2.0 * w))
+			# pé: da saída (ponta empurrando) solta em relação à canela e se prepara para o contato
+			var shin := thigh_for(r, d, knee) + knee
+			var free := shin + lerpf(ANKLE_WALK_SWING, ANKLE_RUN_SWING, st)
+			foot = lerpf(foot_off, free, smoothstep(0.0, FOOT_RELEASE, w))
+			foot = lerpf(foot, foot_on, smoothstep(FOOT_PREPARE, 1.0, w))
 		p["knee_" + side[0]] = knee
 		p["leg_" + side[0]] = thigh_for(r, d, knee)
-	# braços ao contrário das pernas do mesmo lado (sl = +1 com a perna esquerda atrás)
-	var sl := -cos(phase)
+		p["foot_" + side[0]] = foot if u < duty else foot * amt
+	# voo: entre a saída de um pé e a chegada do outro o corpo sobe
+	var x := fposmod(phase / TAU, 0.5)
+	if duty < 0.5 and x > duty:
+		p.lift = lerpf(FLIGHT_LIFT_JOG, FLIGHT_LIFT_RUN, run) * sin(PI * (x - duty) / (0.5 - duty)) * amt * st
+	# braços ao contrário das pernas do mesmo lado (sl = +1 com a perna esquerda atrás), um pouco atrasados
+	var arm_amp := lerpf(ARM_SWING_WALK, ARM_SWING_RUN, run) * move
+	var elbow := lerpf(lerpf(-0.3, ELBOW_WALK, minf(st / JOG_STYLE, 1.0)), ELBOW_RUN, run)
+	var sl := -cos(phase - ARM_LAG)
 	p.arm_l = Vector3(-sl * arm_amp, 0, IDLE_ARM_OUT + 0.05 * run * move)
 	p.arm_r = Vector3(IDLE_ARM_R_X * (1.0 - move) + sl * arm_amp * 0.8, 0, -IDLE_ARM_OUT - 0.05 * run * move)
 	# cotovelo dobra mais quando o braço vai à frente
 	p.elbow_l = lerpf(IDLE_ELBOW, elbow + ELBOW_SWING * maxf(sl, 0.0), move)
 	p.elbow_r = lerpf(IDLE_ELBOW, elbow + ELBOW_SWING * maxf(-sl, 0.0), move)
-	# quique: o tronco desce no meio de cada apoio (além do que a altura das pernas já dá)
-	var step := maxf(0.0, -cos(2.0 * phase))
-	p.body_y = -lerpf(BODY_BOUNCE_WALK, BODY_BOUNCE_RUN, run) * move * step
-	p.twist = -lerpf(TORSO_TWIST_WALK, TORSO_TWIST_RUN, run) * move * sl
+	# o tronco amortece no meio de cada apoio (além do que a altura das pernas já dá)
+	p.body_y = -lerpf(BODY_BOUNCE_WALK, BODY_BOUNCE_RUN, run) * move * bounce
+	p.twist = lerpf(TORSO_TWIST_WALK, TORSO_TWIST_RUN, run) * move * cos(phase)
 	# o quadril pende um pouco sobre a perna de apoio
-	p.body_z = -0.03 * move * sin(phase)
+	p.body_z = -HIP_DROP * move * sin(phase)
 	return p
 
 
-## Meio passo (m): quanto o pé vai à frente/atrás do quadril.
+## Inclinação do pé de apoio no ponto u do ciclo. g = [r, duty, estilo, meio passo, amt, chaves do pé].
+## Na caminhada (há apoio duplo) o pé de trás rola sobre a ponta: a inclinação sai da conta para a ponta
+## ficar na altura em que o outro pé está (ou vai tocar) o chão, em vez de erguer o corpo e deixar o
+## outro pé no ar e depois cair de uma vez. Na corrida (sem apoio duplo) a ponta empurra para o voo.
+static func _stance_foot(g: Array, u: float) -> float:
+	var r: Dictionary = g[0]
+	var duty: float = g[1]
+	var s := u / duty
+	var foot := _curve(g[5], s) * float(g[4])
+	var walk := clampf((duty - 0.5) / 0.05, 0.0, 1.0)
+	if s <= 0.5 or walk <= 0.0 or r.toe <= 0.0:
+		return foot
+	var uo := fposmod(u + 0.5, 1.0)
+	var w := 1.0
+	if uo >= duty:
+		# o outro pé ainda está no ar: vai mirando onde ele vai tocar o chão
+		w = smoothstep(0.45, 1.0, (uo - duty) / (1.0 - duty))
+		uo = 0.0
+	var front := _curve(g[5], uo / duty) * float(g[4])
+	var a: float = r.ankle_h
+	var t: float = r.toe
+	var ground := _stance_ankle_h(g, uo) + maxf(a * cos(front) + t * sin(front), a * cos(front) - float(r.heel) * sin(front))
+	var rr := sqrt(a * a + t * t)
+	var rolled := asin(clampf((ground - _stance_ankle_h(g, u)) / rr, a / rr, 1.0)) - atan2(a, t)
+	return lerpf(foot, minf(rolled, 1.1), w * walk * smoothstep(0.5, 0.62, s))
+
+
+## Do quadril ao tornozelo (vertical) da perna em apoio no ponto u.
+static func _stance_ankle_h(g: Array, u: float) -> float:
+	var r: Dictionary = g[0]
+	var duty: float = g[1]
+	var knee := gait_knee(u, duty, g[2]) * float(g[4])
+	var th := thigh_for(r, float(g[3]) * (2.0 * u / duty - 1.0), knee)
+	return r.thigh * cos(th) + r.shin * cos(th + knee)
+
+
+## 0 = caminhada, 1 = corrida: o andar normal já é um trote, devagar vira caminhada.
+static func gait_style(move: float, run: float) -> float:
+	return lerpf(smoothstep(0.3, 0.85, move) * JOG_STYLE, 1.0, run)
+
+
+## Fração do ciclo com o pé no chão.
+static func gait_duty(move: float, run: float) -> float:
+	return lerpf(lerpf(WALK_DUTY, JOG_DUTY, smoothstep(0.3, 0.85, move)), RUN_DUTY, run)
+
+
+## Joelho no ponto u (0..1) do ciclo de uma perna.
+static func gait_knee(u: float, duty: float, style: float) -> float:
+	var stance := _mix_keys(KNEE_WALK_STANCE, KNEE_RUN_STANCE, style)
+	var swing := _mix_keys(KNEE_WALK_SWING, KNEE_RUN_SWING, style)
+	if u < duty:
+		# o fim do apoio emenda na saída do pé (primeira chave do balanço)
+		stance.append([1.0, swing[0][1]])
+		return _curve(stance, u / duty)
+	swing.append([1.0, stance[0][1]])
+	return _curve(swing, (u - duty) / (1.0 - duty))
+
+
+## Mistura duas listas de chaves [x, v] (caminhada e corrida), amostrando cada uma nos x da outra.
+static func _mix_keys(a: Array, b: Array, t: float) -> Array:
+	var xs: Array = []
+	for k in a + b:
+		if not (k[0] in xs):
+			xs.append(k[0])
+	xs.sort()
+	var out: Array = []
+	for xv in xs:
+		out.append([xv, lerpf(_curve(a, xv), _curve(b, xv), t)])
+	return out
+
+
+## Curva suave (Hermite, tangentes pelos vizinhos) pelas chaves [x, v] com x crescente; fora delas segura.
+static func _curve(keys: Array, x: float) -> float:
+	var n := keys.size()
+	if x <= float(keys[0][0]):
+		return keys[0][1]
+	if x >= float(keys[n - 1][0]):
+		return keys[n - 1][1]
+	var i := 0
+	while i < n - 2 and x > float(keys[i + 1][0]):
+		i += 1
+	var x0: float = keys[i][0]
+	var x1: float = keys[i + 1][0]
+	var v0: float = keys[i][1]
+	var v1: float = keys[i + 1][1]
+	var h := x1 - x0
+	var m0 := (v1 - v0) / h
+	if i > 0:
+		m0 = (v1 - float(keys[i - 1][1])) / (x1 - float(keys[i - 1][0]))
+	var m1 := (v1 - v0) / h
+	if i + 2 < n:
+		m1 = (float(keys[i + 2][1]) - v0) / (float(keys[i + 2][0]) - x0)
+	var t := (x - x0) / h
+	var t2 := t * t
+	var t3 := t2 * t
+	return (2.0 * t3 - 3.0 * t2 + 1.0) * v0 + (t3 - 2.0 * t2 + t) * h * m0 + (-2.0 * t3 + 3.0 * t2) * v1 \
+		+ (t3 - t2) * h * m1
+
+
+## Meio passo (m): quanto o tornozelo vai à frente/atrás do quadril.
 static func half_stride(r: Dictionary, move: float, run: float) -> float:
-	return leg_length(r) * sin(lerpf(WALK_AMP, RUN_AMP, run) * move)
+	return leg_length(r) * sin(lerpf(WALK_AMP, RUN_AMP, run) * pow(clampf(move, 0.0, 1.0), STRIDE_POW))
 
 
 ## Ângulo da coxa que põe o tornozelo `d` metros atrás do quadril com o joelho dobrado `knee`.
@@ -190,11 +359,21 @@ static func thigh_for(r: Dictionary, d: float, knee: float) -> float:
 	return asin(clampf(d / reach, -1.0, 1.0)) - beta
 
 
-## Cadência (rad/s de fase) para o pé de apoio não deslizar: no apoio (meia volta) o pé percorre
-## a passada inteira (2 * half_stride) enquanto o corpo anda o mesmo tanto.
+## Cadência (rad/s de fase) para o pé de apoio não deslizar: no apoio (fração duty do ciclo) o pé
+## percorre a passada inteira (2 * half_stride) enquanto o corpo anda o mesmo tanto.
 static func cadence(r: Dictionary, hspeed: float, move: float, run: float) -> float:
-	var stride := maxf(2.0 * half_stride(r, move, run), MIN_STRIDE)
-	return minf(hspeed * PI / (stride * STRIDE_FIT), MAX_CADENCE)
+	var reach := maxf(half_stride(r, move, run), MIN_STRIDE)
+	return minf(hspeed * PI * gait_duty(move, run) / reach, MAX_CADENCE)
+
+
+## Andando, as articulações do ciclo seguem a pose sem o atraso da suavização. `w` 0..1.
+static func follow_cycle(p: Dictionary, w: float) -> void:
+	if w <= 0.001:
+		return
+	var spd: Dictionary = p.speed.duplicate()
+	for j in CYCLE_KEYS:
+		spd[j] = lerpf(float(spd.get(j, 1.0)), CYCLE_FOLLOW, w)
+	p.speed = spd
 
 
 ## No ar: `rise` +1 subindo forte, -1 caindo forte.
@@ -206,6 +385,9 @@ static func air_pose(rise: float) -> Dictionary:
 	p.leg_r = lerpf(AIR_LEG_FALL.y, AIR_LEG_RISE.y, t)
 	p.knee_l = lerpf(AIR_KNEE_FALL.x, AIR_KNEE_RISE.x, t)
 	p.knee_r = lerpf(AIR_KNEE_FALL.y, AIR_KNEE_RISE.y, t)
+	# pés soltos, a ponta um pouco para baixo em relação à canela
+	p.foot_l = p.leg_l + p.knee_l + 0.3
+	p.foot_r = p.leg_r + p.knee_r + 0.3
 	p.body_x = -0.12 * up + 0.1 * maxf(-rise, 0.0)
 	p.arm_l = Vector3(-0.3 * up, 0, IDLE_ARM_OUT + AIR_ARM_OUT)
 	p.arm_r = Vector3(IDLE_ARM_R_X - 0.2 * up, 0, -IDLE_ARM_OUT - AIR_ARM_OUT)
@@ -356,6 +538,12 @@ static func apply(r: Dictionary, p: Dictionary, k: float) -> void:
 	if r.KneeL:
 		r.KneeL.rotation.x = lerpf(r.KneeL.rotation.x, p.knee_l, f.call("knee_l"))
 		r.KneeR.rotation.x = lerpf(r.KneeR.rotation.x, p.knee_r, f.call("knee_r"))
+	# tornozelo: a pose dá a inclinação do pé em relação ao chão; desconta coxa e joelho
+	r["foot_l"] = lerpf(float(r.get("foot_l", 0.0)), p.foot_l, f.call("foot_l"))
+	r["foot_r"] = lerpf(float(r.get("foot_r", 0.0)), p.foot_r, f.call("foot_r"))
+	if r.AnkleL:
+		r.AnkleL.rotation.x = r.foot_l - r.LegL.rotation.x - r.KneeL.rotation.x
+		r.AnkleR.rotation.x = r.foot_r - r.LegR.rotation.x - r.KneeR.rotation.x
 	var body: Node3D = r.Body
 	body.rotation.x = lerpf(body.rotation.x, p.body_x, f.call("body_x"))
 	body.rotation.z = lerpf(body.rotation.z, p.body_z, f.call("body_z"))
@@ -374,8 +562,9 @@ static func apply(r: Dictionary, p: Dictionary, k: float) -> void:
 		r.ElbowR.rotation.x = lerpf(r.ElbowR.rotation.x, p.elbow_r, f.call("elbow_r"))
 	# pé de apoio no chão: o modelo desce o quanto a perna mais comprida (a de apoio) encolheu
 	var model: Node3D = r.model
-	var target := -ground_drop(r) * float(p.ground)
-	model.position.y = lerpf(model.position.y, target, minf(1.0, k * 1.5))
+	r["lift"] = lerpf(float(r.get("lift", 0.0)), p.lift, f.call("lift"))
+	var target := -ground_drop(r) * float(p.ground) + float(r.lift)
+	model.position.y = lerpf(model.position.y, target, minf(1.0, k * 1.5 * float(spd.get("lift", 1.0))))
 
 
 ## Suporte da arma: cajado e arco ficam de pé mesmo com o braço erguido (desfaz ombro + cotovelo
@@ -395,13 +584,21 @@ static func hold_weapon_upright(look: Dictionary, r: Dictionary) -> void:
 
 
 ## Quanto o quadril está abaixo da altura de pé, pela pose atual das pernas.
+## O pé que chega mais baixo (calcanhar ou ponta) é o que está no chão.
 static func ground_drop(r: Dictionary) -> float:
-	var kl: float = r.KneeL.rotation.x if r.KneeL else 0.0
-	var kr: float = r.KneeR.rotation.x if r.KneeR else 0.0
-	var hl := _leg_height(r, r.LegL.rotation.x, kl)
-	var hr := _leg_height(r, r.LegR.rotation.x, kr)
-	return maxf(0.0, leg_length(r) - maxf(hl, hr))
+	var hl := _leg_height(r, r.LegL, r.KneeL, r.AnkleL)
+	var hr := _leg_height(r, r.LegR, r.KneeR, r.AnkleR)
+	# pode ser negativo: com o calcanhar erguido a perna fica mais comprida e o corpo sobe
+	return leg_length(r) + float(r.ankle_h) - maxf(hl, hr)
 
 
-static func _leg_height(r: Dictionary, thigh: float, knee: float) -> float:
-	return r.thigh * cos(thigh) + r.shin * cos(thigh + knee)
+## Do quadril ao ponto mais baixo do pé (m).
+static func _leg_height(r: Dictionary, leg: Node3D, knee: Node3D, ankle: Node3D) -> float:
+	var th := leg.rotation.x
+	var kn := knee.rotation.x if knee else 0.0
+	var h: float = r.thigh * cos(th) + r.shin * cos(th + kn)
+	if ankle:
+		var f := th + kn + ankle.rotation.x
+		var a: float = r.ankle_h
+		h += maxf(a * cos(f) + float(r.toe) * sin(f), a * cos(f) - float(r.heel) * sin(f))
+	return h

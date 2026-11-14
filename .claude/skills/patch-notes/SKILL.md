@@ -57,7 +57,8 @@ Categorias (omita as vazias):
 - **Novidades**: modos, regiões, inimigos, itens, magias, missões, NPCs
 - **Mudanças de jogo**: balanceamento, dificuldade, progressão, economia
 - **Qualidade de vida**: HUD, menus, controles, atalhos, acessibilidade
-- **Multiplayer**: salão, grupo, Horda e Defesa da Cidade em grupo, chat
+- **Praça e progressão permanente**: praça da cidade, Ecos, passivas do Mestre Orin, base compartilhada (Forja, Muralha, Celeiro), recordes, emotes
+- **Multiplayer**: praça online, grupo, Horda e Defesa da Cidade em grupo, chat
 - **Correções**: agrupadas por sistema
 - **Desempenho**
 - **Problemas conhecidos**: só se o usuário informar ou houver issue aberta

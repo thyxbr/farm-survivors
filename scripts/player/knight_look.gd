@@ -9,7 +9,7 @@ const PARTS := {
 	"head": ["Helmet", "HelmetDome"],
 	"armor": ["Torso", "Fauld", "ArmL_Pauldron", "ArmR_Pauldron"],
 	"hands": ["ArmL_Gauntlet", "ArmR_Gauntlet", "ArmL_Hand", "ArmR_Hand"],
-	"feet": ["LegL_Sabaton", "LegR_Sabaton"],
+	"feet": ["LegL_Sabaton", "LegR_Sabaton", "LegL_Foot", "LegR_Foot"],
 }
 ## Todas as peças do knight.glb de cada espaço: somem quando o estilo do item vem de um GLB de equipamento.
 const REGION := {
@@ -17,7 +17,8 @@ const REGION := {
 	"armor": ["Hips", "Torso", "Fauld", "Belt", "Tabard", "Gorget", "ArmL_Pauldron", "ArmR_Pauldron",
 		"ArmL_Upper", "ArmR_Upper", "ArmL_Vambrace", "ArmR_Vambrace", "LegL_Thigh", "LegR_Thigh"],
 	"hands": ["ArmL_Gauntlet", "ArmR_Gauntlet", "ArmL_Hand", "ArmR_Hand"],
-	"feet": ["LegL_Sabaton", "LegR_Sabaton", "LegL_Knee", "LegR_Knee"],
+	"feet": ["LegL_Sabaton", "LegR_Sabaton", "LegL_Knee", "LegR_Knee", "LegL_Foot", "LegR_Foot", "LegL_Sole",
+		"LegR_Sole"],
 }
 ## Estilo de cada espaço vazio: o personagem sem equipamento usa camisa, calça e sapatos.
 const DEFAULT_STYLE := {"head": "h_bare", "armor": "a_shirt", "hands": "g_bare", "feet": "f_shoes"}
@@ -151,6 +152,7 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 			_:
 				_build_sword(holder, tip, wid)
 	model.set_meta("look_nodes", made)
+	PivotSkin.ensure(model)    # ossos das roupas com pele contínua seguem os pivôs
 	return res
 
 
@@ -184,6 +186,28 @@ static func _attach_gear(model: Node3D, style: String, id: String, pants: Color,
 	var glow: float = it.get("glow", 0.0)
 	var g := (load(path) as PackedScene).instantiate() as Node3D
 	WeaponModel.use_vertex_color(g)    # sombra assada (AO) na cor por vértice multiplica o albedo
+	# roupa com pele contínua (esqueleto próprio): o esqueleto inteiro entra no modelo e o PivotSkin faz os
+	# ossos seguirem os pivôs do cavaleiro
+	var skels := g.find_children("*", "Skeleton3D", true, false)
+	if not skels.is_empty():
+		for sk: Skeleton3D in skels:
+			var top: Node = sk
+			while top.get_parent() != g:
+				top = top.get_parent()
+			var xf := (top as Node3D).transform
+			top.owner = null
+			for d in top.find_children("*", "", true, false):
+				d.owner = null
+			g.remove_child(top)
+			top.name = "Gear_%s_%s" % [style, top.name]
+			model.add_child(top)
+			(top as Node3D).transform = xf
+			made.append(top)
+			for mi: MeshInstance3D in top.find_children("*", "MeshInstance3D", true, false):
+				mi.name = "Gear_" + mi.name
+				_tint_mesh(mi, tints, glow)
+		g.free()
+		return
 	for mi: MeshInstance3D in g.find_children("*", "MeshInstance3D", true, false):
 		var pivot := mi.get_parent()
 		var target := model.find_child(pivot.name, true, false) as Node3D
@@ -196,14 +220,18 @@ static func _attach_gear(model: Node3D, style: String, id: String, pants: Color,
 		target.add_child(mi)
 		mi.transform = xf
 		made.append(mi)
-		for s in mi.mesh.get_surface_count():
-			var src := mi.mesh.surface_get_material(s) as BaseMaterial3D
-			if src == null:
-				continue
-			var pre := src.resource_name.left(3)
-			if tints.has(pre):
-				mi.set_surface_override_material(s, _tinted(src, tints[pre], glow if pre == "t1_" else 0.0))
+		_tint_mesh(mi, tints, glow)
 	g.free()
+
+
+static func _tint_mesh(mi: MeshInstance3D, tints: Dictionary, glow: float) -> void:
+	for s in mi.mesh.get_surface_count():
+		var src := mi.mesh.surface_get_material(s) as BaseMaterial3D
+		if src == null:
+			continue
+		var pre := src.resource_name.left(3)
+		if tints.has(pre):
+			mi.set_surface_override_material(s, _tinted(src, tints[pre], glow if pre == "t1_" else 0.0))
 
 
 static func _tinted(src: BaseMaterial3D, c: Color, glow: float) -> BaseMaterial3D:
@@ -276,13 +304,16 @@ static func _build_sword(h: Node3D, tip: Node3D, id: String) -> void:
 
 ## Arma modelada no Blender (assets/models/<model>.glb): cabo na origem, lâmina em +Y do GLB, largura em X.
 ## O suporte usa +Z como direção da lâmina e Y como largura; o empty "Tip" do GLB vira a ponta.
+## O lado esquerdo da folha de conceito (-X do GLB, para onde as lâminas curvas dobram: as costas) vai para
+## +Y do suporte, como a "saber" procedural: ponta curvando para cima e gume para baixo na guarda, liderando
+## o golpe. Com -X -> +Y, o eixo Z do GLB vira -X do suporte (giro de 180° no eixo da lâmina, sem espelhar).
 static func _build_model(h: Node3D, tip: Node3D, model: String) -> bool:
 	var path := "res://assets/models/%s.glb" % model
 	if not ResourceLoader.exists(path):
 		return false
 	var w := (load(path) as PackedScene).instantiate() as Node3D
 	WeaponModel.use_vertex_color(w)
-	w.transform = Transform3D(Basis(Vector3(0, 1, 0), Vector3(0, 0, 1), Vector3(1, 0, 0)), Vector3.ZERO)
+	w.transform = Transform3D(Basis(Vector3(0, -1, 0), Vector3(0, 0, 1), Vector3(-1, 0, 0)), Vector3.ZERO)
 	h.add_child(w)
 	var t := w.find_child("Tip", true, false) as Node3D
 	tip.position = w.transform * t.position if t else Vector3(0, 0, 1.0)

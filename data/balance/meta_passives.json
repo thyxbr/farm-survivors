@@ -1,0 +1,180 @@
+{
+	"passives": {
+		"poder": {
+			"name": "Poder",
+			"desc": "+3% de dano por nível.",
+			"color": {
+				"$c": [
+					1.0,
+					0.4,
+					0.3,
+					1.0
+				]
+			},
+			"add": {
+				"damage": 0.03
+			},
+			"cost": [
+				25,
+				45,
+				75,
+				115,
+				170
+			]
+		},
+		"vigor": {
+			"name": "Vigor",
+			"desc": "+4% de vida máxima por nível.",
+			"color": {
+				"$c": [
+					0.9,
+					0.25,
+					0.3,
+					1.0
+				]
+			},
+			"add": {
+				"max_hp": 0.04
+			},
+			"cost": [
+				25,
+				45,
+				75,
+				115,
+				170
+			]
+		},
+		"armadura": {
+			"name": "Armadura",
+			"desc": "+1 de defesa por nível.",
+			"color": {
+				"$c": [
+					0.7,
+					0.7,
+					0.75,
+					1.0
+				]
+			},
+			"add": {
+				"defense": 1
+			},
+			"cost": [
+				25,
+				45,
+				75,
+				115,
+				170
+			]
+		},
+		"regeneracao": {
+			"name": "Regeneração",
+			"desc": "+0,1 de regeneração de vida por segundo por nível.",
+			"color": {
+				"$c": [
+					0.4,
+					1.0,
+					0.5,
+					1.0
+				]
+			},
+			"add": {
+				"regen": 0.1
+			},
+			"cost": [
+				25,
+				45,
+				75,
+				115,
+				170
+			]
+		},
+		"celeridade": {
+			"name": "Celeridade",
+			"desc": "−2% de recarga das armas por nível.",
+			"color": {
+				"$c": [
+					1.0,
+					0.85,
+					0.3,
+					1.0
+				]
+			},
+			"add": {
+				"cooldown": -0.02
+			},
+			"cost": [
+				25,
+				45,
+				75,
+				115,
+				170
+			]
+		},
+		"ima": {
+			"name": "Ímã",
+			"desc": "+8% de alcance de coleta por nível.",
+			"color": {
+				"$c": [
+					0.4,
+					0.7,
+					1.0,
+					1.0
+				]
+			},
+			"add": {
+				"magnet": 0.08
+			},
+			"cost": [
+				25,
+				45,
+				75,
+				115,
+				170
+			]
+		},
+		"alcance": {
+			"name": "Alcance",
+			"desc": "+3% de área dos ataques por nível.",
+			"color": {
+				"$c": [
+					0.8,
+					0.6,
+					1.0,
+					1.0
+				]
+			},
+			"add": {
+				"area": 0.03
+			},
+			"cost": [
+				25,
+				45,
+				75,
+				115,
+				170
+			]
+		},
+		"botas": {
+			"name": "Botas Velozes",
+			"desc": "+2% de velocidade por nível.",
+			"color": {
+				"$c": [
+					0.5,
+					1.0,
+					0.5,
+					1.0
+				]
+			},
+			"add": {
+				"speed": 0.02
+			},
+			"cost": [
+				25,
+				45,
+				75,
+				115,
+				170
+			]
+		}
+	}
+}

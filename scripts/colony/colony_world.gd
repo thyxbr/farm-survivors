@@ -3,7 +3,10 @@ extends Node3D
 ## posiciona todas as construções. Monta o terreno, o ciclo de luz dia/noite, o jogador e os HUDs,
 ## e repassa a entrada para o modo construção e para o exército. O estado fica em Colony (colony.gd).
 ##
-## role = "solo" (um jogador, com save próprio), "server" (cidade em grupo simulada no servidor dedicado,
+## O ouro da cidade é o caixa da partida (Colony.treasury); o personagem é o do jogo (save solo no solo,
+## o do servidor em grupo) e só ganha as recompensas por noite e o XP dos abates.
+##
+## role = "solo" (um jogador, com save da cidade), "server" (cidade em grupo simulada no servidor dedicado,
 ## sem jogador nem tela; criada pelo Lobby) ou "client" (réplica da cidade em grupo no PC do jogador).
 
 const PLAYER := preload("res://scripts/player/player.gd")
@@ -17,22 +20,23 @@ const COLONY := preload("res://scripts/colony/colony.gd")
 const BUILD := preload("res://scripts/colony/build_mode.gd")
 const CHAT := preload("res://scripts/ui/chat_ui.gd")
 const GROUND := preload("res://scripts/world/ground.gd")
+const NATURE := preload("res://scripts/colony/nature.gd")
 const M := {
 	"tree_pine": preload("res://assets/models/tree_pine.glb"),
-	"tree_oak": preload("res://assets/models/tree_oak.glb"),
-	"rock": preload("res://assets/models/rock.glb"),
 }
+## Semente fixa: saves antigos (sem semente), o teste e a demonstração.
+const FIXED_SEED := 7731
 
 const MAP_HALF := ColonyData.MAP_HALF
-const CLEARING := 52.0
 const SPAWN := Vector3(0, 0.5, 10)
-const CHAR_SAVE := "user://colony_character.json"
 
 var role := "solo"
-## Semente do mapa (a mesma no servidor e nos clientes da cidade em grupo).
-var map_seed := 7731
+## Semente do mapa (a mesma no servidor e nos clientes da cidade em grupo; no solo, sorteada e salva).
+var map_seed := FIXED_SEED
 ## Servidor: jogadores na sala quando a partida começou.
 var coop_players := 1
+## Servidor: bônus da base fixados no começo da partida (o Lobby preenche antes do add_child).
+var base_bonus := {}
 ## Chefe atual (o Network preenche quando o Rei Goblin chega pela rede).
 var boss: Enemy = null
 var player: Player
@@ -43,6 +47,8 @@ var modal: Control = null
 var colony: Colony
 var build: Node3D
 var rng := RandomNumberGenerator.new()
+## Solo: o que o personagem levou da partida que acabou (a tela de derrota mostra).
+var last_run := {}
 var ground: Node3D
 
 var _sun: DirectionalLight3D
@@ -56,6 +62,22 @@ func _ready() -> void:
 	if role == "solo" and Network.is_client() and Lobby.joining_city:
 		role = "client"
 		map_seed = Lobby.city_seed
+	var saved = null
+	if role == "solo":
+		# o personagem é o do save solo (antes de criar o jogador, que lê o equipamento); a cidade, a do save
+		Econ.ensure_solo()
+		saved = _read_colony_save() if Game.colony_continue else null
+		if saved == null:
+			Game.colony_continue = false
+			_summarize_abandoned()
+		# a semente vem antes do mapa: solo novo sorteia; save carrega a dele (o antigo, sem semente, usa a fixa)
+		var args := OS.get_cmdline_user_args()
+		if "--colonytest" in args or "--colonydemo" in args:
+			map_seed = FIXED_SEED
+		elif saved != null:
+			map_seed = int(saved.get("seed", FIXED_SEED))
+		else:
+			map_seed = randi()
 	rng.seed = map_seed
 	if role != "server":
 		_setup_input()
@@ -72,22 +94,16 @@ func _ready() -> void:
 	_build_borders()
 	if role == "server":
 		# servidor: só o mapa e a simulação; os jogadores chegam como réplicas
-		colony.new_coop(coop_players)
+		colony.new_coop(coop_players, base_bonus)
 		return
 
-	var saved = null
 	if role == "solo":
-		# personagem: o do save da cidade ou um novo (antes de criar o jogador, que lê o equipamento)
-		saved = _read_colony_save() if Game.colony_continue else null
-		if saved != null and not _load_character():
-			saved = null
 		if saved == null:
-			Game.colony_continue = false
-			Game.new_game()
-			colony.new_colony()
-	else:
-		# cidade em grupo: o personagem é o do RPG (já carregado); a cidade vem do servidor
-		Game.spawn_position = null
+			# bônus da base fixados agora (a cidade salva guarda os seus) e a partida aberta no registro
+			colony.new_colony(Hub.base_bonus())
+			colony.run_rewards["run_id"] = Econ.run_start("city")
+	# o jogador nasce na cidade (a posição de Valdoria do personagem fica onde está)
+	Game.spawn_position = null
 
 	player = PLAYER.new()
 	player.spawn_point = SPAWN
@@ -130,6 +146,11 @@ func _ready() -> void:
 		return
 	if saved != null:
 		colony.from_dict(saved)
+		var pp: Array = saved.get("player") if saved.get("player") is Array else []
+		if pp.size() >= 3:
+			player.global_position = Vector3(float(pp[0]), float(pp[1]), float(pp[2]))
+			if pp.size() >= 4:
+				player.model.rotation.y = float(pp[3])
 		Game.notify.emit("Cidade carregada: dia %d." % colony.day, Color(0.7, 1.0, 0.7))
 	else:
 		Game.notify.emit("Bem-vindo! Aperte B e posicione a Prefeitura na clareira.", Color(1, 0.9, 0.6))
@@ -289,6 +310,17 @@ func open_building_menu(b: ColonyBuilding) -> void:
 	_open_modal(ui)
 
 
+## Janela de troca da caravana do dia (ColonyData.TRADES).
+func open_trade_menu() -> void:
+	if build.active:
+		build.set_active(false)
+	var ui := COLONY_UI.new()
+	ui.mode = "trade"
+	ui.colony = colony
+	ui.world = self
+	_open_modal(ui)
+
+
 func _open_modal(c: Control) -> void:
 	if modal != null:
 		return
@@ -328,14 +360,13 @@ func _on_player_died() -> void:
 
 
 func _respawn() -> void:
-	var lost := int(Game.gold * 0.05) if role == "solo" else 0
-	Game.gold -= lost
+	var lost := colony.healer_fee(0.05) if role == "solo" else 0
 	var at := SPAWN
 	if colony.hall and is_instance_valid(colony.hall):
 		at = colony.hall.global_position + colony.hall.global_basis.z * (colony.hall.size.y / 2.0 + 2.0) + Vector3.UP * 0.5
 	player.revive(at)
 	if lost > 0:
-		Game.notify.emit("Os curandeiros cobraram %d ouro." % lost, Color(1, 0.75, 0.5))
+		Game.notify.emit("Os curandeiros cobraram %d ouro do caixa da cidade." % lost, Color(1, 0.75, 0.5))
 
 
 func on_defeat() -> void:
@@ -346,6 +377,7 @@ func on_defeat() -> void:
 		return   # o resultado chega do servidor (show_results)
 	if build.active:
 		build.set_active(false)
+	_summarize_run()
 	await get_tree().create_timer(2.5).timeout
 	if modal != null:
 		modal.queue_free()
@@ -358,7 +390,8 @@ func on_defeat() -> void:
 
 
 # ================================================================ salvar / carregar
-## O personagem (nível, itens) vai num save próprio do modo, separado do save do RPG.
+## Save da cidade (a partida: construções, exército, caixa, recompensas já ganhas). O personagem não vai
+## aqui: ele está no save solo, gravado a cada concessão.
 func save_colony() -> bool:
 	if role != "solo":
 		if role == "client":
@@ -379,13 +412,8 @@ func save_colony() -> bool:
 		return false
 	f.store_string(JSON.stringify(data, "\t"))
 	f.close()
-	var old := Game.save_path
-	Game.save_path = Game.colony_char_path
-	var ok := Game.save_game(player.global_position, player.model.rotation.y)
-	Game.save_path = old
-	if ok:
-		Game.notify.emit("Cidade salva (dia %d)." % colony.day, Color(0.7, 1.0, 0.7))
-	return ok
+	Game.notify.emit("Cidade salva (dia %d)." % colony.day, Color(0.7, 1.0, 0.7))
+	return true
 
 
 func autosave() -> void:
@@ -410,13 +438,49 @@ func _read_colony_save():
 	return data if data is Dictionary else null
 
 
-## Lê nível, itens, ouro e posição do personagem do save da cidade (Game.spawn_position posiciona o jogador).
-func _load_character() -> bool:
-	var old := Game.save_path
-	Game.save_path = Game.colony_char_path
-	var ok := Game.load_character()
-	Game.save_path = old
-	return ok
+## Solo, fim da partida (a cidade caiu): fecha a partida no registro (Econ.run_finish: Ecos pelas noites
+## seguradas, uma linha com o que o personagem ganhou) e o caixa some com a cidade. O save continua
+## ("Carregar o último save"), mas marcado como encerrado ("done"), para a partida não fechar duas vezes.
+func _summarize_run() -> void:
+	if role != "solo":
+		return
+	colony.flush_siege_xp()   # abates da noite em que a cidade caiu
+	last_run = colony.run_rewards.duplicate(true)
+	last_run["ecos"] = _write_summary(colony.run_rewards, maxi(0, colony.day - 1))
+	colony.run_rewards = {"gold": 0, "xp": 0, "items": [], "run_id": int(last_run.get("run_id", 0)), "done": true}
+	_clear_saved_run()
+
+
+## Solo, cidade nova por cima de uma salva: a partida salva foi abandonada — o resumo dela entra agora.
+func _summarize_abandoned() -> void:
+	var old = _read_colony_save()
+	if old == null or not (old.get("run") is Dictionary):
+		return
+	_write_summary(old.run, maxi(0, int(old.get("day", 1)) - 1))
+	_clear_saved_run()
+
+
+## Fecha a partida `run` (run_rewards) com `nights` noites seguradas. Devolve os Ecos ganhos.
+## Partida já encerrada ("done") ou save antigo sem partida ({}) não fecham de novo.
+func _write_summary(run: Dictionary, nights: int) -> int:
+	if run.is_empty() or run.get("done", false):
+		return 0
+	var list: Array = run.get("items") if run.get("items") is Array else []
+	var items := {}
+	for id in list:
+		items[str(id)] = int(items.get(str(id), 0)) + 1
+	return Econ.run_finish(int(run.get("run_id", 0)), "city", nights, int(run.get("gold", 0)), int(run.get("xp", 0)), items)
+
+
+func _clear_saved_run() -> void:
+	var data = _read_colony_save()
+	if data == null or not (data.get("run") is Dictionary) or data.run.is_empty() or data.run.get("done", false):
+		return
+	data["run"] = {"run_id": int(data.run.get("run_id", 0)), "done": true}
+	var f := FileAccess.open(Game.colony_save_path, FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify(data, "\t"))
+		f.close()
 
 
 # ================================================================ luz do dia
@@ -495,6 +559,8 @@ func _build_ground() -> void:
 	ground = GROUND.new()
 	add_child(ground)
 	ground.setup(MAP_HALF)
+	ground.border_mountains(55.0)   # serra em volta (fora da borda, só visual)
+	ground.build_terrain()
 	# clareira central (onde vai a prefeitura)
 	ground.add_disc(Vector3.ZERO, ColonyData.HALL_ZONE, Color(0.5, 0.5, 0.28), 1.6, 0.85)
 
@@ -521,42 +587,13 @@ func _prop(model: String, pos: Vector3, yaw: float, s: float, radius: float) -> 
 	colony.obstacles.append([Vector2(pos.x, pos.z), radius * s + 0.3])
 
 
+## Árvores, pedras, veios, cristais e arbustos viram nós de recurso coletáveis (ColonyNature).
 func _scatter_nature() -> void:
-	# bosques: aglomerados de árvores longe da clareira, com campos abertos entre eles (onde ficam os animais)
-	var groves := 26
-	for g in groves:
-		var a := rng.randf() * TAU
-		var d := rng.randf_range(CLEARING + 6.0, MAP_HALF - 14.0)
-		var c := Vector3(cos(a) * d, 0, sin(a) * d)
-		c.x = clampf(c.x, -MAP_HALF + 10, MAP_HALF - 10)
-		c.z = clampf(c.z, -MAP_HALF + 10, MAP_HALF - 10)
-		var n := rng.randi_range(5, 11)
-		for i in n:
-			var p := c + Vector3(rng.randf_range(-9, 9), 0, rng.randf_range(-9, 9))
-			if Vector2(p.x, p.z).length() < CLEARING:
-				continue
-			if rng.randf() < 0.6:
-				_prop("tree_pine", p, rng.randf() * TAU, rng.randf_range(0.9, 1.5), 0.35)
-			else:
-				_prop("tree_oak", p, rng.randf() * TAU, rng.randf_range(0.9, 1.3), 0.4)
-	# árvores e pedras soltas
-	var placed := 0
-	var tries := 0
-	while placed < 70 and tries < 2000:
-		tries += 1
-		var p := Vector3(rng.randf_range(-MAP_HALF + 8, MAP_HALF - 8), 0, rng.randf_range(-MAP_HALF + 8, MAP_HALF - 8))
-		if Vector2(p.x, p.z).length() < CLEARING - 4.0:
-			continue
-		if rng.randf() < 0.55:
-			_prop("rock", p, rng.randf() * TAU, rng.randf_range(0.6, 1.5), 0.65)
-		else:
-			_prop("tree_oak", p, rng.randf() * TAU, rng.randf_range(0.8, 1.2), 0.4)
-		placed += 1
-	# algumas pedras decorativas (sem colisão) na clareira
-	for i in 8:
-		var a := rng.randf() * TAU
-		var p := Vector3(cos(a), 0, sin(a)) * rng.randf_range(34.0, 48.0)
-		_prop("rock", p, rng.randf() * TAU, rng.randf_range(0.4, 0.7), 0.6)
+	var nature := NATURE.new()
+	nature.name = "Nature"
+	add_child(nature)
+	colony.nature = nature
+	nature.generate(rng, colony)
 	if DisplayServer.get_name() == "headless":
 		return
 	ground.scatter_grass(map_seed + 7, 0.55, [], [[Vector2.ZERO, ColonyData.HALL_ZONE]])
@@ -589,7 +626,7 @@ func _build_borders() -> void:
 # ================================================================ demonstração (screenshots)
 ## `--colonydemo` monta uma cidade de exemplo; `--night` já começa o ataque.
 func _demo_city() -> void:
-	Game.gold = 99999
+	colony.treasury = 99999
 	var c := colony
 	c.place("town_hall", Vector3(0, 0, -4), 0.0, true)
 	for p in [Vector3(-10, 0, -6), Vector3(10, 0, -6), Vector3(-10, 0, 2), Vector3(10, 0, 2)]:
@@ -618,7 +655,7 @@ func _demo_city() -> void:
 	player.global_position = Vector3(6, 0.5, 30)
 	player.model.rotation.y = PI
 	player.cam_yaw.rotation.y = 0.0
-	Game.gold = 640
+	colony.treasury = 640
 	var args := OS.get_cmdline_user_args()
 	if "--night" in args:
 		c.phase_t = 0.1

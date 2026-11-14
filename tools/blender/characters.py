@@ -241,7 +241,8 @@ exec(open(OUT.replace("assets/models/", "tools/blender/body.py"), encoding="utf-
 # Corpo-base em loft (body.py) com armadura em camadas derivada das mesmas seções.
 # Peças tingidas por scripts/player/knight_look.gd (cada uma com um material só):
 #   Helmet, HelmetDome | Torso, Fauld, ArmX_Pauldron | ArmX_Gauntlet, ArmX_Hand | LegX_Sabaton | Shield.
-# O resto é juntado por pivô para reduzir objetos. KneeX/ElbowX ficam retos (o jogo ainda não os anima).
+#   (LegX_Foot, no pivô AnkleX, também é tingida com as botas.)
+# O resto é juntado por pivô para reduzir objetos.
 def band(name, s, axis, w, material, parent, sides=10, phase=0.5, arc=None, fwd=(0, -1, 0), out=0.004,
          thick=0.006):
     """Friso: faixa fina (sem tampas) logo por fora da seção s, com largura w ao longo de axis."""
@@ -286,7 +287,7 @@ def build_knight():
     # ---------------- pernas
     for n, s in (("L", 1), ("R", -1)):
         S = limb_sections(P, s)
-        leg, knee = R["Leg" + n], R["Knee" + n]
+        leg, knee, ankle = R["Leg" + n], R["Knee" + n], R["Ankle" + n]
         K = mirror(P["knee"], s)
         th = loft("Leg%s_Thigh" % n, S["thigh"], chain, leg)
         cu = loft("Leg%s_Cuisse" % n, grow(span(S["thigh"], 0.12, 0.9), 1.12, 0.014), steel, leg, sides=6, arc=3.6,
@@ -299,16 +300,16 @@ def build_knight():
         sab_s = [dict(x, c=x["c"] + Vector((0, 0, 0.008))) for x in grow(S["foot"], 1.1, 0.006)]
         heel_y, toe_y = sab_s[0]["c"].y, sab_s[-1]["c"].y
         sole = tbox("Leg%s_Sole" % n, (K.x, (heel_y + toe_y) / 2 - 0.004, 0.011),
-                    (0.15 * P["ft"], heel_y - toe_y + 0.05, 0.022), lea_d, bevel=0.006, parent=knee)
+                    (0.15 * P["ft"], heel_y - toe_y + 0.05, 0.022), lea_d, bevel=0.006, parent=ankle)
         kw = wing("Leg%s_KneeWing" % n, (K.x + s * 0.066, K.y - 0.035, K.z), 0.075, 0.1, 0.009, steel, knee)
         gband = band("Leg%s_GreaveTrim" % n, grow([sample(S["shin"], 0.2)], 1.13, 0.008, keel=0.12)[0],
                      S["shin"][-1]["c"] - S["shin"][0]["c"], 0.016, trim, knee, sides=8, phase=0)
-        join_objs("Leg%s_Knee" % n, [pol, sole, kw, gband])
+        join_objs("Leg%s_Knee" % n, [pol, kw, gband])
         gr = loft("Leg%s_Sabaton" % n, grow(span(S["shin"], 0.04, 0.97), 1.13, 0.008, keel=0.12), steel, knee,
                   phase=0, chamfer=(0.006, 0.0))
-        sb = loft("Leg%s_Foot" % n, stepped(sab_s, (0.42, 0.58, 0.74), drop=0.92, keep_bottom=True), steel, knee,
-                  fwd=(0, 0, 1), chamfer=(0.008, 0.01))
-        join_objs("Leg%s_Sabaton" % n, [gr, sb])
+        # pé no tornozelo (AnkleX): calcanhar, pé chato e ponta giram sem a canela; sola fica à parte (couro)
+        loft("Leg%s_Foot" % n, stepped(sab_s, (0.42, 0.58, 0.74), drop=0.92, keep_bottom=True), steel, ankle,
+             fwd=(0, 0, 1), chamfer=(0.008, 0.01))
 
     # ---------------- tronco: cota por baixo, couraça, plackart, faldas em lâminas, tassets, cinto
     loft("Hips", [sec((0, 0, 1.0), 0.15, 0.112), sec((0, 0, 0.86), 0.17, 0.125)], chain, body, sides=12, phase=0)
