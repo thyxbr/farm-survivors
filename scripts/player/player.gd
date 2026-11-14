@@ -250,7 +250,7 @@ func _ready_remote() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if remote or input_locked:
+	if remote or input_locked or Loading.covering:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var s: float = Game.settings.mouse_sensitivity * 0.01
@@ -292,9 +292,10 @@ func _local_process(delta: float) -> void:
 	_tick_timers(delta)
 	_regen(delta)
 
-	if input_locked or horde_frozen or chat_typing or build_lock:
+	var loading: bool = Loading.covering   # tela de carregamento: sem controle até ela abrir
+	if input_locked or horde_frozen or chat_typing or build_lock or loading:
 		end_ability()
-	if input_locked or horde_frozen or chat_typing:
+	if input_locked or horde_frozen or chat_typing or loading:
 		velocity.x = move_toward(velocity.x, 0, 45 * delta)
 		velocity.z = move_toward(velocity.z, 0, 45 * delta)
 		move_and_slide()
@@ -967,7 +968,7 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 		if Network.is_server() and not dead:
 			Network.server_damage_player(peer_id, amount, from_pos)
 		return
-	if dead or invuln > 0:
+	if dead or invuln > 0 or Loading.covering:   # coberto pela tela de carregamento: imune
 		return
 	var final_dmg: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
 	Game.hp -= final_dmg
