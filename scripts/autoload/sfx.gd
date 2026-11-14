@@ -51,6 +51,7 @@ func _ready() -> void:
 	streams["harvest"] = _gen(0.3, _harvest)
 	streams["cook"] = _gen(0.8, _cook)
 	streams["eat"] = _gen(0.36, _eat)
+	streams["anvil"] = _gen(0.35, _anvil)
 
 
 func play(sound: String, pitch_var := 0.08, volume_db := 0.0) -> void:
@@ -137,6 +138,13 @@ func _tone(t: float, freq: float) -> float:
 
 func _swing(t: float, d: float) -> float:
 	return _noise(0.05 + 0.4 * t / d) * sin(PI * t / d) * 1.6
+
+
+func _anvil(t: float, d: float) -> float:
+	# tinido metálico: parciais inarmônicas agudas, cada uma morre mais rápido que a anterior, + clique de ruído no ataque
+	var ring := _tone(t, 1100.0) * exp(-t * 9.0) * 0.5 		+ _tone(t, 2700.0) * exp(-t * 16.0) * 0.35 		+ _tone(t, 4300.0) * exp(-t * 26.0) * 0.25
+	var click := _noise(0.7) * exp(-t * 180.0) * 0.8
+	return (ring + click) * _env(t, d, 0.001)
 
 
 func _hit(t: float, d: float) -> float:

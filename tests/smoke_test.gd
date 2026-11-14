@@ -42,6 +42,9 @@ func _ready() -> void:
 	var used: AudioStreamPlayer3D = Sfx._players_3d[slot0]
 	check(Sfx._next_3d != slot0 and used.global_position.is_equal_approx(near_pos) and used.volume_db < -1.0,
 		"som de combate perto toca no lugar certo, mais baixo (%.1f dB)" % used.volume_db)
+	var slot_anvil: int = Sfx._next_3d
+	Sfx.play_at("anvil", player.global_position + Vector3(2, 0, 0))
+	check(Sfx._next_3d != slot_anvil, "som da bigorna toca perto do jogador")
 	check(get_tree().get_nodes_in_group("enemies").size() >= 15, "inimigos spawnados (%d)" % get_tree().get_nodes_in_group("enemies").size())
 	check(get_tree().get_nodes_in_group("interactable").size() == 3 + Game.FARM_PLOTS + 1,
 		"2 NPCs + portal + %d canteiros + caldeirão interagíveis" % Game.FARM_PLOTS)
