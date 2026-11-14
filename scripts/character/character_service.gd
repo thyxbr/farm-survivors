@@ -7,7 +7,7 @@ extends RefCounted
 ## Operações que o cliente pode pedir. Conceder ouro/xp/itens e abates é só do servidor/solo.
 const CLIENT_OPS := ["buy", "sell", "equip", "unequip", "consume", "cook", "spend_point", "start_quest",
 	"complete_quest", "sort_inventory", "unlock_plot", "plant", "water", "fertilize", "harvest", "discard",
-	"death_penalty"]
+	"death_penalty", "buy_passive", "donate"]
 
 ## Assinatura posicional de cada op: tipos aceitos (TYPE_*) e quantos são opcionais no fim.
 ## `now` e o gerador de sorteio nunca vêm do cliente.
@@ -29,6 +29,8 @@ const ARGS := {
 	"harvest": {"types": [TYPE_INT], "optional": 0},
 	"discard": {"types": [TYPE_STRING], "optional": 0},
 	"death_penalty": {"types": [], "optional": 0},
+	"buy_passive": {"types": [TYPE_STRING], "optional": 0},
+	"donate": {"types": [TYPE_STRING, TYPE_INT], "optional": 0},
 }
 
 ## Concessões dessas origens acontecem a cada coleta durante a partida: o registro é um só, no fim (run_summary).
@@ -101,10 +103,12 @@ func apply(account_id: int, op: String, args: Array) -> Dictionary:
 	if not _args_ok(op, args):
 		return _result(account_id, {"ok": false, "err": "args", "events": []})
 	var s := load_or_create(account_id)
+	if op == "donate":
+		return _donate(account_id, s, args[0], args[1])
 	var before := _holdings(s)
 	var r := _dispatch(s, op, args)
 	if r.ok:
-		r = _persist(account_id, s, before, op, "player", r)
+		r = _persist(account_id, s, before, op, "passive" if op == "buy_passive" else "player", r, 0, args[0] if op == "buy_passive" else "")
 	return _result(account_id, r)
 
 
@@ -189,7 +193,7 @@ func grant_test_gold(account_id: int, amount: int, enabled: bool) -> Dictionary:
 	return grant(account_id, amount, 0, {}, "test")
 
 
-## Resumo de uma partida (Horda / Defesa da Cidade): uma linha só, ouro em `amount` e xp + itens em `detail`.
+## Obsoleta: a Task 4 apaga junto com os chamadores; use finish_player. Uma linha só, ouro em `amount` e xp + itens em `detail`.
 ## false (e push_error) se não gravou.
 func run_summary(account_id: int, mode: String, gold: int, xp: int, items: Dictionary) -> bool:
 	var ok := _db.exec("INSERT INTO economy_log(at, account_id, kind, amount, item_id, source, detail) VALUES(?,?,?,?,?,?,?)",
@@ -197,6 +201,84 @@ func run_summary(account_id: int, mode: String, gold: int, xp: int, items: Dicti
 	if not ok:
 		push_error("CharacterService: run_summary de %d não gravou: %s" % [account_id, _db.last_error])
 	return ok
+
+
+# ================================================================ base, partidas e recordes
+## Estado da base compartilhada: todas as construções (nível 0 as que ninguém tocou).
+func base_state() -> Dictionary:
+	var out := BaseRules.empty_state(_bt)
+	for row in _db.query("SELECT building_id, level, fund FROM base_buildings"):
+		out[row["building_id"]] = {"level": int(row["level"]), "fund": int(row["fund"])}
+	return out
+
+
+func base_bonus() -> Dictionary:
+	return BaseRules.bonus(_bt, base_state())
+
+
+## Maiores doadores de uma construção: [{"name", "amount"}], soma por conta, do maior para o menor.
+func top_donors(building_id: String, limit := 5) -> Array:
+	var out := []
+	for row in _db.query("SELECT a.username AS name, SUM(d.amount) AS total FROM base_donations d
+			JOIN accounts a ON a.id = d.account_id WHERE d.building_id = ?
+			GROUP BY d.account_id ORDER BY total DESC, MIN(d.id) LIMIT ?", [building_id, limit]):
+		out.append({"name": str(row["name"]), "amount": int(row["total"])})
+	return out
+
+
+## Abre o registro de uma partida. 0 se não gravou.
+func start_run(mode: String, accounts: Array) -> int:
+	if not _db.exec("INSERT INTO runs(mode, started_at, players) VALUES(?,?,?)", [mode, int(_now()), JSON.stringify(accounts)]):
+		push_error("CharacterService: start_run não gravou: %s" % _db.last_error)
+		return 0
+	return _db.last_id()
+
+
+## Fim da partida de um jogador: concede os Ecos e registra. Idempotente por (run_id, conta): repetir
+## devolve ok sem conceder de novo. Com run_id <= 0 só concede e registra a economia.
+## Ouro, xp e itens já foram concedidos durante a partida (grant); aqui só entram no registro.
+func finish_player(run_id: int, account_id: int, mode: String, reached: int, gold: int, xp: int, items: Dictionary, build: Dictionary) -> Dictionary:
+	var s := load_or_create(account_id)
+	if run_id > 0 and not _db.query("SELECT 1 FROM run_players WHERE run_id = ? AND account_id = ?", [run_id, account_id]).is_empty():
+		return _result(account_id, {"ok": true, "err": "", "events": [{"t": "ecos", "n": 0, "mode": mode, "reached": reached}]})
+	var ecos := RewardRules.ecos(_bt, mode, reached)
+	s.ecos += ecos
+	var ok := _db.transaction(func():
+		if not _write(account_id, s):
+			return false
+		if run_id > 0 and not _db.exec("INSERT INTO run_players(run_id, account_id, reached, ecos, gold, xp, build) VALUES(?,?,?,?,?,?,?)",
+				[run_id, account_id, reached, ecos, gold, xp, JSON.stringify(build)]):
+			return false
+		return _db.exec("INSERT INTO economy_log(at, account_id, kind, amount, item_id, source, detail) VALUES(?,?,?,?,?,?,?)",
+			[int(_now()), account_id, "run", gold, null, mode,
+			JSON.stringify({"xp": xp, "items": items, "ecos": ecos, "run_id": run_id, "reached": reached})]))
+	if not ok:
+		push_error("CharacterService: finish_player de %d não gravou: %s" % [account_id, _db.last_error])
+		_cache.erase(account_id)
+		return _result(account_id, {"ok": false, "err": "erro_banco", "events": []})
+	_dirty.erase(account_id)
+	return _result(account_id, {"ok": true, "err": "", "events": [{"t": "ecos", "n": ecos, "mode": mode, "reached": reached}]})
+
+
+func close_run(run_id: int, reached: int, result: Dictionary) -> bool:
+	return _db.exec("UPDATE runs SET ended_at = ?, reached = ?, result = ? WHERE id = ?",
+		[int(_now()), reached, JSON.stringify(result), run_id])
+
+
+## Recorde de cada modo: a partida encerrada que foi mais longe (empate: a mais antiga) e quem jogou.
+func records() -> Dictionary:
+	var out := {}
+	for mode in ["horde", "city"]:
+		var best := {"reached": 0, "names": []}
+		var rows := _db.query("SELECT id, reached FROM runs WHERE mode = ? AND ended_at IS NOT NULL AND reached > 0
+			ORDER BY reached DESC, id ASC LIMIT 1", [mode])
+		if not rows.is_empty():
+			best.reached = int(rows[0]["reached"])
+			for row in _db.query("SELECT a.username AS name FROM run_players p JOIN accounts a ON a.id = p.account_id
+					WHERE p.run_id = ? ORDER BY a.username", [rows[0]["id"]]):
+				best.names.append(str(row["name"]))
+		out[mode] = best
+	return out
 
 
 ## Grava todos os personagens em cache (o servidor desligando). Devolve quantos gravou.
@@ -216,6 +298,36 @@ func save(account_id: int) -> bool:
 
 
 # ================================================================ interno
+## Doação à base numa transação só: debita os Ecos, sobe a construção e registra a doação.
+## BaseRules valida construção/valor/nível máximo; só então confere os Ecos contra o valor pedido.
+## Debita só o `used` (nunca passa do que falta até o nível máximo).
+func _donate(account_id: int, s: CharState, building: String, amount: int) -> Dictionary:
+	var d := BaseRules.donate(base_state().get(building, {}), _bt, building, amount)
+	if not d.ok:
+		return _result(account_id, {"ok": false, "err": d.err, "events": []})
+	if s.ecos < amount:
+		return _result(account_id, {"ok": false, "err": "sem_ecos", "events": []})
+	s.ecos -= int(d.used)
+	var ok := _db.transaction(func():
+		if not _write(account_id, s):
+			return false
+		var at := int(_now())
+		return _db.exec("INSERT OR REPLACE INTO base_buildings(building_id, level, fund) VALUES(?,?,?)",
+				[building, d.level, d.fund]) \
+			and _db.exec("INSERT INTO base_donations(account_id, building_id, amount, at) VALUES(?,?,?,?)",
+				[account_id, building, d.used, at]) \
+			and _log(at, account_id, "ecos", -int(d.used), building, "donation"))
+	if not ok:
+		push_error("CharacterService: doação de %d não gravou: %s" % [account_id, _db.last_error])
+		_cache.erase(account_id)
+		return _result(account_id, {"ok": false, "err": "erro_banco", "events": []})
+	_dirty.erase(account_id)
+	var r := _result(account_id, {"ok": true, "err": "", "events": [{"t": "donated", "building": building,
+		"used": d.used, "level": d.level, "leveled": d.leveled}]})
+	r["base"] = base_state()
+	return r
+
+
 func _args_ok(op: String, args: Array) -> bool:
 	var spec: Dictionary = ARGS[op]
 	var types: Array = spec["types"]
@@ -246,12 +358,13 @@ func _dispatch(s: CharState, op: String, a: Array) -> Dictionary:
 		"harvest": return CharRules.harvest(s, _bt, a[0], _now(), _rng)
 		"discard": return CharRules.discard(s, _bt, a[0])
 		"death_penalty": return CharRules.death_penalty(s, _bt)
+		"buy_passive": return CharRules.buy_passive(s, _bt, a[0])
 	return {"ok": false, "err": "op_invalida", "events": []}
 
 
 ## Posse por id (inventário + equipado) e ouro: equipar/desequipar não muda a posse, então não gera linha.
 func _holdings(s: CharState) -> Dictionary:
-	var h := {"": s.gold}   # chave "" = ouro
+	var h := {"": s.gold, "$ecos": s.ecos}   # chave "" = ouro; "$ecos" = Ecos (não colide com id de item)
 	for slot in s.inventory:
 		h[slot.id] = int(h.get(slot.id, 0)) + int(slot.qty)
 	for k in s.equipment:
@@ -262,7 +375,7 @@ func _holdings(s: CharState) -> Dictionary:
 
 
 ## Grava estado + linhas da economia numa transação. Falha no banco: descarta o cache e relê do disco.
-func _persist(account_id: int, s: CharState, before: Dictionary, kind: String, source: String, r: Dictionary, xp := 0) -> Dictionary:
+func _persist(account_id: int, s: CharState, before: Dictionary, kind: String, source: String, r: Dictionary, xp := 0, ecos_item := "") -> Dictionary:
 	var after := _holdings(s)
 	var ok := _db.transaction(func():
 		if not _write(account_id, s):
@@ -280,7 +393,16 @@ func _persist(account_id: int, s: CharState, before: Dictionary, kind: String, s
 			ids[k] = true
 		for k in ids:
 			var d := int(after.get(k, 0)) - int(before.get(k, 0))
-			if d != 0 and not _log(at, account_id, kind, d, null if k == "" else k, source):
+			if d == 0:
+				continue
+			var log_kind := kind
+			var item = k
+			if k == "":
+				item = null
+			elif k == "$ecos":
+				log_kind = "ecos"
+				item = ecos_item if ecos_item != "" else null
+			if not _log(at, account_id, log_kind, d, item, source):
 				return false
 		return true)
 	if ok:
@@ -316,13 +438,13 @@ func _write(account_id: int, s: CharState) -> bool:
 			[SOLO_ACCOUNT, "local", "", "", "local", int(_now())])
 	var d := s.to_dict()
 	var pos = d["world_pos"]
-	var ok := _db.exec("INSERT INTO characters(account_id, level, xp, gold, stat_points, attributes, hp, mp, equipment, quests, flags, farm, world_pos, world_yaw, kills, updated_at)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-		ON CONFLICT(account_id) DO UPDATE SET level=excluded.level, xp=excluded.xp, gold=excluded.gold,
+	var ok := _db.exec("INSERT INTO characters(account_id, level, xp, gold, ecos, stat_points, attributes, hp, mp, equipment, quests, flags, farm, world_pos, world_yaw, kills, updated_at)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		ON CONFLICT(account_id) DO UPDATE SET level=excluded.level, xp=excluded.xp, gold=excluded.gold, ecos=excluded.ecos,
 		stat_points=excluded.stat_points, attributes=excluded.attributes, hp=excluded.hp, mp=excluded.mp,
 		equipment=excluded.equipment, quests=excluded.quests, flags=excluded.flags, farm=excluded.farm,
 		world_pos=excluded.world_pos, world_yaw=excluded.world_yaw, kills=excluded.kills, updated_at=excluded.updated_at",
-		[account_id, s.level, s.xp, s.gold, s.stat_points, JSON.stringify(d["attributes"]), s.hp, s.mp,
+		[account_id, s.level, s.xp, s.gold, s.ecos, s.stat_points, JSON.stringify(d["attributes"]), s.hp, s.mp,
 		JSON.stringify(d["equipment"]), JSON.stringify(d["quests"]), JSON.stringify(d["flags"]),
 		JSON.stringify(d["farm"]), JSON.stringify(pos), s.world_yaw, s.kills, int(_now())])
 	if not ok or not _db.exec("DELETE FROM inventory WHERE account_id = ?", [account_id]):
@@ -330,6 +452,11 @@ func _write(account_id: int, s: CharState) -> bool:
 	for i in s.inventory.size():
 		if not _db.exec("INSERT INTO inventory(account_id, slot_index, item_id, qty) VALUES(?,?,?,?)",
 				[account_id, i, s.inventory[i].id, s.inventory[i].qty]):
+			return false
+	if not _db.exec("DELETE FROM passives WHERE account_id = ?", [account_id]):
+		return false
+	for id in s.passives:
+		if not _db.exec("INSERT INTO passives(account_id, passive_id, level) VALUES(?,?,?)", [account_id, id, int(s.passives[id])]):
 			return false
 	return true
 
@@ -340,11 +467,15 @@ func _read(account_id: int) -> CharState:
 		return null
 	var r := rows[0]
 	var d := {"level": r["level"], "xp": r["xp"], "gold": r["gold"], "stat_points": r["stat_points"],
-		"hp": r["hp"], "mp": r["mp"], "world_yaw": r["world_yaw"], "kills": r["kills"]}
+		"ecos": r["ecos"], "hp": r["hp"], "mp": r["mp"], "world_yaw": r["world_yaw"], "kills": r["kills"]}
 	for k in ["attributes", "equipment", "quests", "flags", "farm", "world_pos"]:
 		d[k] = JSON.parse_string(str(r[k]))   # world_pos nulo volta como null
 	var inv := []
 	for row in _db.query("SELECT item_id, qty FROM inventory WHERE account_id = ? ORDER BY slot_index", [account_id]):
 		inv.append({"id": row["item_id"], "qty": row["qty"]})
 	d["inventory"] = inv
+	var pas := {}
+	for row in _db.query("SELECT passive_id, level FROM passives WHERE account_id = ?", [account_id]):
+		pas[row["passive_id"]] = row["level"]
+	d["passives"] = pas
 	return CharState.from_dict(d, _bt)
