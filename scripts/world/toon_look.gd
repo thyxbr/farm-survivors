@@ -180,9 +180,10 @@ static func _toon_of(src: BaseMaterial3D) -> ShaderMaterial:
 	if src.has_meta(LIVE):       # material que o código anima: toon exclusivo, mantido por sync()
 		return src.get_meta(LIVE)
 	var tex := src.albedo_texture
-	var key := "%s|%.2f|%s|%.2f|%d|%d|%d" % [src.albedo_color.to_html(), src.metallic,
+	var key := "%s|%.2f|%s|%.2f|%d|%d|%d|%d" % [src.albedo_color.to_html(), src.metallic,
 		src.emission.to_html() if src.emission_enabled else "-", src.emission_energy_multiplier,
-		int(src.vertex_color_use_as_albedo), int(src.vertex_color_is_srgb), tex.get_instance_id() if tex else 0]
+		int(src.vertex_color_use_as_albedo), int(src.vertex_color_is_srgb), tex.get_instance_id() if tex else 0,
+		int(_is_flat(src))]
 	if _mats.has(key):
 		return _mats[key]
 	var m := ShaderMaterial.new()
@@ -192,11 +193,18 @@ static func _toon_of(src: BaseMaterial3D) -> ShaderMaterial:
 	return m
 
 
+## Material com nome terminado em `_flat` (rosto e feições desenhadas, tools/blender/anime.py): sem sombra
+## de forma, como a pele do rosto em anime; a sombra projetada (cabelo, chapéu) continua valendo.
+static func _is_flat(src: BaseMaterial3D) -> bool:
+	return src.resource_name.ends_with("_flat")
+
+
 static func _fill(m: ShaderMaterial, src: BaseMaterial3D) -> void:
 	# metal no PBR reflete o céu e sai mais escuro que o albedo; aceso por inteiro ficaria quase branco
 	# (vale também para o metal fosco das malhas e cotas, com metallic em torno de 0.5)
 	m.set_shader_parameter("albedo", src.albedo_color.darkened(0.35 * clampf(src.metallic, 0.0, 1.0)))
 	m.set_shader_parameter("gloss", 0.9 if src.metallic > 0.55 else 0.0)
+	m.set_shader_parameter("no_form", _is_flat(src))
 	m.set_shader_parameter("use_vertex_color", src.vertex_color_use_as_albedo)
 	m.set_shader_parameter("vertex_color_srgb", src.vertex_color_is_srgb)
 	m.set_shader_parameter("albedo_tex", src.albedo_texture)
