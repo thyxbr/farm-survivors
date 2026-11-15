@@ -350,7 +350,7 @@ func _build_defeat() -> void:
 			[int(rw.gold), int(rw.xp)], UITheme.GOLD, 16))
 	if int(rw.get("ecos", 0)) > 0:
 		_box.add_child(_line("+%d Ecos pelas noites que a cidade resistiu." % int(rw.ecos), UITheme.GOOD, 16))
-	_box.add_child(UITheme.button("Voltar à praça", func() -> void: Lobby.go_hub()))
+	_box.add_child(UITheme.button("Voltar à vila", func() -> void: Lobby.go_village()))
 	_box.add_child(UITheme.button("Nova cidade", func() -> void: Game.start_colony(false)))
 	var load_btn := UITheme.button("Carregar o último save", func() -> void: Game.start_colony(true))
 	load_btn.disabled = not Game.has_colony_save()
@@ -400,7 +400,7 @@ func _build_results() -> void:
 	var rec := int(results.get("record", 0))
 	if rec > 0:
 		_box.add_child(_line("Recorde do servidor: %d noite(s)%s" % [rec, " — novo recorde!" if rec == nights and nights > 0 else ""], UITheme.DIM, 15))
-	_box.add_child(UITheme.button("Voltar à praça", func() -> void: Lobby.go_hub()))
+	_box.add_child(UITheme.button("Voltar à vila", func() -> void: Lobby.go_village()))
 
 
 func _close() -> void:

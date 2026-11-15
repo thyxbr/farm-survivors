@@ -236,6 +236,16 @@ func test_quest_flow() -> void:
 	var s := _blank()
 	T.eq(CharRules.start_quest(s, bt, "goblins").err, "missao_indisponivel", "anterior não concluída")
 	T.eq(CharRules.complete_quest(s, bt, "slimes").err, "missao_nao_pronta", "nem começou")
+	T.eq(CharRules.start_quest(s, bt, "slimes").err, "missao_indisponivel", "antes vêm as conversas da história")
+	# conversa: entregue ao falar com o alvo, sem precisar ficar pronta
+	T.ok(CharRules.start_quest(s, bt, "chegada").ok, "a história começa")
+	T.ok(CharRules.complete_quest(s, bt, "chegada").ok, "conversa entregue enquanto ativa")
+	T.eq(_count(s, "health_potion"), 2, "poções da Mira")
+	T.ok(CharRules.start_quest(s, bt, "forja").ok and CharRules.complete_quest(s, bt, "forja").ok, "Doran")
+	T.eq(CharRules.complete_quest(s, bt, "forja").err, "missao_nao_pronta", "não entrega duas vezes")
+	# os abates partem de um personagem zerado (as contas de XP e ouro abaixo são as de antes da história)
+	s = _blank()
+	s.quests = {"chegada": {"state": "done", "progress": 1}, "forja": {"state": "done", "progress": 1}}
 	var r := CharRules.start_quest(s, bt, "slimes")
 	T.ok(r.ok, "começa")
 	T.eq(r.events[0].text, "Nova missão: Praga Gosmenta", "aviso")
@@ -256,7 +266,144 @@ func test_quest_flow() -> void:
 	T.eq(_count(s, "health_potion"), 3, "itens da recompensa")
 	T.eq(s.level, 2, "120 XP: nível 2")
 	T.eq(s.xp, 60, "sobra 60")
-	T.ok(CharRules.start_quest(s, bt, "goblins").ok, "a próxima abre")
+	T.ok(CharRules.start_quest(s, bt, "gel").ok, "a próxima abre")
+
+
+func test_collect_and_multi_target_quests() -> void:
+	var bt := _tables()
+	var s := _blank()
+	for id in ["chegada", "forja", "slimes"]:
+		s.quests[id] = {"state": "done", "progress": 1}
+	T.ok(CharRules.start_quest(s, bt, "gel").ok, "coleta começa")
+	CharRules.add_item(s, bt, "slime_gel", 3)
+	T.eq(CharRules.complete_quest(s, bt, "gel").err, "missao_nao_pronta", "faltam géis")
+	CharRules.add_item(s, bt, "slime_gel", 3)
+	T.ok(CharRules.complete_quest(s, bt, "gel").ok, "entrega com 5 géis")
+	T.eq(_count(s, "slime_gel"), 1, "os 5 géis saem da mochila")
+	for id in ["rival", "goblins", "bilhete"]:
+		s.quests[id] = {"state": "done", "progress": 1}
+	var r := CharRules.start_quest(s, bt, "torta")
+	T.ok(r.ok, "torta começa")
+	T.eq(_count(s, "seed_pumpkin"), 2, "sementes de abóbora no início da missão")
+	T.ok(_has_event(r, "looted"), "aviso das sementes")
+	s.quests["torta"] = {"state": "done", "progress": 1}
+	T.ok(CharRules.start_quest(s, bt, "ossos").ok, "ossos começa")
+	CharRules.kill(s, bt, "slime", 0)
+	CharRules.kill(s, bt, "esqueleto_arqueiro", 0)
+	CharRules.kill(s, bt, "esqueleto", 0)
+	T.eq(s.quests.ossos.progress, 2, "qualquer esqueleto conta, slime não")
+
+
+func test_story_rules() -> void:
+	var qt: Dictionary = _tables().get_table("quests")
+	var q := {}
+	T.eq(StoryRules.current(qt, q), "chegada", "começa pela chegada")
+	T.eq(StoryRules.marker(qt, q, "elder", {}), "!", "Bram tem missão")
+	T.eq(StoryRules.marker(qt, q, "merchant", {}), "", "Mira ainda não")
+	q["chegada"] = {"state": "active", "progress": 0}
+	T.eq(StoryRules.marker(qt, q, "merchant", {}), "?", "Mira entrega a conversa")
+	T.eq(StoryRules.destination(qt, q, "chegada", {}), {"npc": "merchant"}, "rastreador aponta a Mira")
+	for id in ["chegada", "forja", "slimes"]:
+		q[id] = {"state": "done", "progress": 1}
+	T.eq(StoryRules.marker(qt, q, "alchemist", {}), "!", "Pip oferece o gel")
+	q["gel"] = {"state": "active", "progress": 0}
+	T.eq(StoryRules.destination(qt, q, "gel", {"slime_gel": 1}), {"pos": Vector2(0, -34)}, "falta gel: campos")
+	T.eq(StoryRules.marker(qt, q, "alchemist", {"slime_gel": 5}), "?", "com o gel: entregar")
+	T.eq(StoryRules.progress(qt, q, "gel", {"slime_gel": 9}), [5, 5], "progresso limitado ao total")
+	T.eq(StoryRules.new_chapters(qt, {}, {"chegada": {"state": "active"}}), ["chegada"], "capítulo novo")
+	T.eq(StoryRules.after(qt, "cerimonia"), "", "a cerimônia é a última")
+	for id in qt:
+		var d: Dictionary = qt[id]
+		T.ok(StoryRules.giver(qt, id) != "" and StoryRules.turn_in(qt, id) != "", "giver e entrega de %s" % id)
+		T.ok(CharRules.quest_type(d) in ["kill", "talk", "collect", "deliver", "gather", "visit"], "tipo de %s" % id)
+
+
+## Eventos de Natal do Papai Noel: secundárias fora da história, em qualquer ordem, entregues ao Noel.
+func test_christmas_events_story_rules() -> void:
+	var qt: Dictionary = _tables().get_table("quests")
+	var q := {}
+	T.eq(StoryRules.marker(qt, q, "santa", {}), "+", "Noel com eventos novos: \"+\"")
+	T.eq(StoryRules.side_offers_at(qt, q, "santa", "D").size(), 4, "os 4 eventos com o Noel, sem rank")
+	q["natal_ceia"] = {"state": "active", "progress": 0}
+	T.ok(not StoryRules.turnable(qt, q, "natal_ceia", {"bread": 2}), "ceia sem o ensopado não entrega")
+	T.ok(StoryRules.turnable(qt, q, "natal_ceia", {"bread": 2, "carrot_stew": 1}), "ceia completa entrega")
+	T.eq(StoryRules.count_ids(qt.natal_ceia), ["bread", "carrot_stew"], "itens contados da ceia")
+	T.eq(StoryRules.progress(qt, q, "natal_ceia", {"bread": 1}), [0, 1], "progresso da ceia: tudo ou nada")
+	q["natal_presentes"] = {"state": "active", "progress": 3, "got": [0, 1, 2]}
+	T.eq(StoryRules.progress(qt, q, "natal_presentes", {}), [3, 8], "progresso dos presentes")
+
+
+## Eventos de Natal do Papai Noel: fora da cadeia do Bram, em qualquer ordem.
+func test_christmas_events_skip_chain() -> void:
+	var bt := _tables()
+	var s := _blank()
+	for id in ["natal_entregas", "natal_ceia", "natal_ladroes", "natal_presentes"]:
+		T.ok(CharRules.start_quest(s, bt, id).ok, "%s abre sem a cadeia do Bram" % id)
+	T.eq(CharRules.start_quest(s, bt, "goblins").err, "missao_indisponivel", "cadeia da história continua valendo")
+	T.eq(s.quests.natal_presentes.get("got"), [], "coletar começa sem pontos feitos")
+	T.ok(not s.quests.natal_ladroes.has("got"), "abate não guarda pontos")
+
+
+func test_christmas_collect_marks_each_point_once() -> void:
+	var bt := _tables()
+	var s := _blank()
+	var q: Dictionary = bt.get_table("quests")["natal_presentes"]
+	T.eq(CharRules.quest_mark(s, bt, "natal_presentes", 0).err, "missao_nao_ativa", "sem aceitar")
+	CharRules.start_quest(s, bt, "natal_presentes")
+	T.ok(CharRules.quest_mark(s, bt, "natal_presentes", 3).ok, "ponto 3")
+	T.eq(CharRules.quest_mark(s, bt, "natal_presentes", 3).err, "ja_feito", "o mesmo ponto não conta duas vezes")
+	T.eq(CharRules.quest_mark(s, bt, "natal_presentes", int(q.count)).err, "valor_invalido", "índice fora")
+	T.eq(CharRules.quest_mark(s, bt, "natal_presentes", -1).err, "valor_invalido", "índice negativo")
+	T.eq(CharRules.quest_mark(s, bt, "natal_ladroes", 0).err, "missao_invalida", "abate não aceita ponto")
+	T.eq(s.quests.natal_presentes.progress, 1, "progresso 1")
+	for i in int(q.count):
+		CharRules.quest_mark(s, bt, "natal_presentes", i)
+	T.eq(s.quests.natal_presentes.state, "ready", "todos os pontos: pronta")
+	var gold := s.gold
+	T.ok(CharRules.complete_quest(s, bt, "natal_presentes").ok, "conclui")
+	T.eq(s.gold, gold + int(q.reward_gold), "ouro do Noel")
+	T.eq(CharRules.quest_mark(s, bt, "natal_presentes", 0).err, "missao_nao_ativa", "concluída não marca mais")
+
+
+func test_christmas_kill_any_goblin() -> void:
+	var bt := _tables()
+	var s := _blank()
+	CharRules.start_quest(s, bt, "natal_ladroes")
+	for kind in ["goblin", "goblin_arqueiro", "goblin_xama", "slime"]:
+		CharRules.kill(s, bt, kind, 0)
+	T.eq(s.quests.natal_ladroes.progress, 3, "três goblins de tipos diferentes contam, o slime não")
+	var q: Dictionary = bt.get_table("quests")["natal_ladroes"]
+	T.ok(CharRules.quest_counts_kill(q, "goblin_bruto"), "qualquer goblin da lista conta")
+	T.ok(not CharRules.quest_counts_kill(q, "esqueleto"), "esqueleto não conta")
+
+
+func test_christmas_deliver_takes_items() -> void:
+	var bt := _tables()
+	var s := _blank()
+	var q: Dictionary = bt.get_table("quests")["natal_ceia"]
+	CharRules.start_quest(s, bt, "natal_ceia")
+	T.eq(CharRules.complete_quest(s, bt, "natal_ceia").err, "missao_nao_pronta", "sem os pratos")
+	for item in q.deliver:
+		CharRules.add_item(s, bt, item, int(q.deliver[item]) + 1)
+	var gold := s.gold
+	T.ok(CharRules.complete_quest(s, bt, "natal_ceia").ok, "entrega com os pratos")
+	for item in q.deliver:
+		T.eq(_count(s, item), 1, "%s: sai só o que foi pedido" % item)
+	T.eq(s.quests.natal_ceia.state, "done", "concluída")
+	T.eq(s.gold, gold + int(q.reward_gold), "ouro da ceia")
+	T.eq(CharRules.complete_quest(s, bt, "natal_ceia").err, "missao_nao_pronta", "não entrega duas vezes")
+
+
+func test_christmas_got_survives_save() -> void:
+	var bt := _tables()
+	var s := _blank()
+	CharRules.start_quest(s, bt, "natal_entregas")
+	CharRules.quest_mark(s, bt, "natal_entregas", 2)
+	CharRules.quest_mark(s, bt, "natal_entregas", 5)
+	var d := s.to_dict()
+	d.quests.natal_entregas.got.append_array([2, "x", 999, -3])
+	var back := CharState.from_dict(d, bt)
+	T.eq(back.quests.natal_entregas.got, [2, 5], "pontos feitos voltam do save, sem lixo nem repetição")
 
 
 func test_sort_inventory() -> void:

@@ -16,7 +16,6 @@ const BOSS_ENTER := 40.0
 const BOSS_LEAVE := 60.0
 const SCENES := {
 	"res://scenes/main_menu.tscn": "menu",
-	"res://scenes/hub.tscn": "hub",
 	"res://scenes/world.tscn": "world",
 	"res://scenes/colony.tscn": "colony",
 }

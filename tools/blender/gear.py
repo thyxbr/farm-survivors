@@ -1041,16 +1041,24 @@ def _shin_hose(P, R, n, s, material):
     return loft("Leg%s_Shin" % n, grow(S["shin"], 1.05, 0.004), material, R["Knee" + n])
 
 
-def _shoe(P, R, n, s, upper, sole, k=1.08, add=0.006, top=None):
-    """Pé do calçado e sola, no pivô do tornozelo (AnkleX): giram sem a canela na passada."""
-    S = limb_sections(P, s)
+def _foot_secs(P, s, k, add):
+    """Seções do pé do calçado, com uma seção a mais à frente, baixa e estreita, que arredonda o bico."""
+    f = P["ft"]
+    ft = grow(limb_sections(P, s)["foot"], k, add)
+    tip = dict(ft[-1], c=ft[-1]["c"] + Vector((0, -0.022 * f, -0.006 * f)), rx=ft[-1]["rx"] * 0.62,
+               ry=ft[-1]["ry"] * 0.6)
+    return ft + [tip]
+
+
+def _shoe(P, R, n, s, upper, sole, k=1.08, add=0.006, top=None, heel=0.0):
+    """Pé do calçado e sola, no pivô do tornozelo (AnkleX): giram sem a canela na passada.
+    A sola segue o contorno do pé (calcanhar e bico redondos, cintura no arco) com só uma borda fina para fora;
+    heel > 0 engrossa a sola no calcanhar (salto da bota) na mesma peça."""
     ankle = R["Ankle" + n]
-    K = mirror(P["knee"], s)
-    ft = grow(S["foot"], k, add)
-    parts = [loft("Leg%s_Foot" % n, ft, upper, ankle, fwd=(0, 0, 1), chamfer=(0.01, 0.012))]
-    heel_y, toe_y = ft[0]["c"].y, ft[-1]["c"].y
-    parts.append(tbox("Leg%s_Sole" % n, (K.x, (heel_y + toe_y) / 2 - 0.006, 0.012),
-                      (0.13 * P["ft"], heel_y - toe_y + 0.07, 0.024), sole, bevel=0.006, parent=ankle))
+    f = P["ft"]
+    ft = _foot_secs(P, s, k, add)
+    parts = [loft("Leg%s_Foot" % n, ft, upper, ankle, fwd=(0, 0, 1), chamfer=(0.01, 0.006))]
+    parts.append(foot_sole("Leg%s_Sole" % n, ft, sole, ankle, f, heel=heel))
     return parts
 
 
@@ -1084,7 +1092,7 @@ def build_f_boots():
         knee = R["Knee" + n]
         _shin_hose(P, R, n, s, M["pants"])
         dn = S["shin"][-1]["c"] - S["shin"][0]["c"]
-        foot = _shoe(P, R, n, s, bt, bt2)
+        foot = _shoe(P, R, n, s, bt, bt2, heel=0.01 * P["ft"])
         parts = [loft("Leg%s_Shaft" % n, grow(span(S["shin"], 0.2, 1.0), 1.14, 0.01), bt, knee)]
         top = grow([sample(S["shin"], 0.16)], 1.26, 0.016)[0]
         parts.append(loft("Leg%s_Fold" % n, [top, dict(grow([sample(S["shin"], 0.3)], 1.18, 0.014)[0])], bt2, knee,
@@ -1098,14 +1106,10 @@ def build_f_boots():
             parts.append(tbox("Leg%s_BootBuckle%d" % (n, int(t * 100)), (c["c"].x + s * 0.05, c["c"].y - 0.02,
                                                                          c["c"].z - 0.02 + (0.0 if t > 0.5 else 0.008)),
                               (0.01, 0.026, 0.026), M["brass"], bevel=0.002, parent=knee))
-        # costura na frente do cano e salto escuro
+        # costura na frente do cano
         fr = [dict(x, c=x["c"]) for x in grow(span(S["shin"], 0.32, 0.95), 1.14, 0.013)]
         parts.append(loft("Leg%s_BootSeam" % n, [sec(Vector((x["c"].x, x["c"].y - x["ry"] * x["fr"], x["c"].z)),
                                                     0.004, 0.003) for x in fr], bt2, knee, sides=4, fwd=(0, -1, 0)))
-        ft = grow(S["foot"], 1.08, 0.006)
-        K = mirror(P["knee"], s)
-        foot.append(tbox("Leg%s_Heel" % n, (K.x, ft[0]["c"].y + 0.012, 0.03), (0.075, 0.06, 0.045), bt2, bevel=0.006,
-                         parent=R["Ankle" + n]))
         join_objs("Leg%s_BootFoot" % n, foot)
         join_objs("Leg%s_Boot" % n, parts)
     g_export("f_boots", P, R)
@@ -1132,7 +1136,7 @@ def build_f_plated():
                                                sec((K.x, K.y - 0.098, K.z - 0.008), 0.04, 0.044)],
                           st, knee, fwd=(0, 0, 1), chamfer=(0.0, 0.008)))
         parts.append(wing("Leg%s_PoleynWing" % n, (K.x + s * 0.064, K.y - 0.035, K.z), 0.07, 0.09, 0.008, st, knee))
-        ft = grow(S["foot"], 1.13, 0.012)
+        ft = _foot_secs(P, s, 1.13, 0.012)
         foot.append(loft("Leg%s_ToeCap" % n, [dict(x) for x in ft[2:]], st, R["Ankle" + n], fwd=(0, 0, 1),
                          chamfer=(0.0, 0.01)))
         join_objs("Leg%s_BootFoot" % n, foot)

@@ -94,10 +94,10 @@ func _ready() -> void:
 		if not explicit:
 			solo_save_path = "user://colonytest_solo.json"
 		_wipe_on_open = true
-	elif "--hubtest" in args:
-		# idem para o teste da praça
+	elif "--vilatest" in args:
+		# idem para o teste da vila
 		if not explicit:
-			solo_save_path = "user://hubtest_solo.json"
+			solo_save_path = "user://vilatest_solo.json"
 		_wipe_on_open = true
 	_test_server = "--test" in args
 	_report_t = Network.autosave_interval

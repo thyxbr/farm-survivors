@@ -1,0 +1,1084 @@
+# Cajados (st_<id>.glb), arcos (bw_<id>.glb + bw_arrow.glb) e as espadas clássicas (w_<id>.glb) que antes eram
+# montadas no código com caixas e cilindros. Carregado por build_assets.py via exec, depois de weapons.py (usa
+# slab, w_lathe, torus, paint, vc_mat, srgb, mix, ramp, smooth01, finish, WEAPONS).
+#
+# Convenções (todas com o centro da empunhadura na origem, frente = -Y):
+#   cajado  st_*: haste em +Z, ponta de baixo em z≈-0,55, cabeça entre 0,85 e 1,25; "Tip" = centro da gema.
+#                 Empunhadura em z = STAFF_HAND (0,3), o meio da vara, onde a mão do personagem fica.
+#   arco    bw_*: braços em ±Z, curvados para +Y (lado do arqueiro); corda em y = ponta dos braços.
+#                 "Nock" = centro da corda (onde a flecha encaixa), "Tip" = 0,3 m à frente. A corda não vai no
+#                 GLB: "StringTop"/"StringBot" marcam as pontas dela e o jogo a desenha (e puxa até os dedos).
+#   flecha  bw_arrow: ao longo de -Y a partir da corda (ponta em y≈-0,75).
+#   espada  w_*: lâmina em +Z, largura em X, costas das lâminas curvas em -X (mesma regra de weapons.py).
+#
+# Pintura: estilo anime em 3 tons (sombra / base / luz) gravado por canto na cor do vértice (cel()); os materiais
+# terminam em "_flat" para o toon do jogo não somar a sua própria sombra de forma por cima. Gemas e runas usam um
+# segundo material com emissão.
+import colorsys
+from mathutils import Matrix, Euler
+
+ARMORY = []          # (asset, builder) — entram em WEAPONS no fim do arquivo
+
+
+def H(hx):
+    return srgb(hx)
+
+
+def _hue_to(h, target, amt):
+    d = ((target - h + 0.5) % 1.0) - 0.5
+    return (h + d * amt) % 1.0
+
+
+def tones(c):
+    """Sombra fria e arroxeada, luz quente — como na pintura anime da folha das espadas."""
+    h, s, v = colorsys.rgb_to_hsv(*c)
+    if s < 0.08:
+        sh = colorsys.hsv_to_rgb(0.66, 0.16, v * 0.6)
+        li = colorsys.hsv_to_rgb(0.12, 0.05, min(1.0, v * 1.15 + 0.08))
+    else:
+        sh = colorsys.hsv_to_rgb(_hue_to(h, 0.74, 0.1), min(1.0, s * 1.08 + 0.06), v * 0.6)
+        li = colorsys.hsv_to_rgb(_hue_to(h, 0.14, 0.07), s * 0.78, min(1.0, v * 1.17 + 0.08))
+    return sh, c, li
+
+
+CEL = Vector((-0.6, -0.35, 0.72)).normalized()     # luz pintada: esquerda, um pouco à frente, de cima
+
+
+def cel(ob, col, lo=0.0, hi=0.58):
+    """Pinta por face (bandas duras) com a cor base col (sRGB) ou col(co) -> sRGB por canto."""
+    me = ob.data
+    me.update()
+    a = me.color_attributes.get("Col") or me.color_attributes.new("Col", 'BYTE_COLOR', 'CORNER')
+    for p in me.polygons:
+        d = p.normal.dot(CEL)
+        k = 0 if d < lo else (1 if d < hi else 2)
+        for li in p.loop_indices:
+            c = col(me.vertices[me.loops[li].vertex_index].co) if callable(col) else col
+            a.data[li].color_srgb = (*tones(c)[k], 1.0)
+    return ob
+
+
+def vcf(name, rough=0.6, metal=0.0, emit=None, strength=1.0):
+    m = vc_mat(name + "_flat", rough, metal, 0.15)
+    if emit:
+        b = next(n for n in m.node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
+        b.inputs["Emission Color"].default_value = (*[x ** 2.2 for x in H(emit)], 1)
+        b.inputs["Emission Strength"].default_value = strength * 0.3   # o bloom do jogo já abre bastante
+    return m
+
+
+def place(ob, loc=(0, 0, 0), rot=(0, 0, 0), scale=(1, 1, 1)):
+    M = Matrix.Translation(Vector(loc)) @ Euler(rot).to_matrix().to_4x4() @ Matrix.Diagonal((*scale, 1))
+    ob.data.transform(M)
+    ob.data.update()
+    return ob
+
+
+def deform(ob, fn):
+    for v in ob.data.vertices:
+        v.co = fn(v.co.copy())
+    ob.data.update()
+    return ob
+
+
+def spline(ctrl, per=6):
+    C = [Vector(c) for c in ctrl]
+    out = []
+    for i in range(len(C) - 1):
+        p0, p1, p2, p3 = C[max(i - 1, 0)], C[i], C[i + 1], C[min(i + 2, len(C) - 1)]
+        for k in range(per):
+            t = k / per
+            t2, t3 = t * t, t * t * t
+            out.append(0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2
+                              + (-p0 + 3 * p1 - 3 * p2 + p3) * t3))
+    out.append(C[-1])
+    return out
+
+
+def tube(name, pts, r, m, col=None, sides=6, flat=1.0, smooth=True, phase=0.0):
+    """Tubo ao longo de uma polilinha 3D (quadro por transporte paralelo). r: número, lista ou r(t).
+    flat < 1 achata o tubo na direção N (para um tubo vertical, N = Y: braço de arco, fita)."""
+    P = [Vector(p) for p in pts]
+    n = len(P)
+    rs = [r(i / (n - 1)) if callable(r) else (r[i] if isinstance(r, (list, tuple)) else r) for i in range(n)]
+    T = [(P[min(i + 1, n - 1)] - P[max(i - 1, 0)]).normalized() for i in range(n)]
+    up = Vector((1, 0, 0)) if abs(T[0].x) < 0.9 else Vector((0, 1, 0))
+    N = T[0].cross(up).normalized()
+    bm = bmesh.new()
+    rings = []
+    for i in range(n):
+        N = (N - T[i] * N.dot(T[i])).normalized()
+        B = T[i].cross(N)
+        if rs[i] <= 1e-5:
+            rings.append([bm.verts.new(P[i])])
+            continue
+        rings.append([bm.verts.new(P[i] + (N * math.cos(a) * flat + B * math.sin(a)) * rs[i])
+                      for a in (phase + 2 * math.pi * k / sides for k in range(sides))])
+    for A, Bv in zip(rings, rings[1:]):
+        for k in range(sides):
+            k2 = (k + 1) % sides
+            q = [A[k % len(A)], A[k2 % len(A)], Bv[k2 % len(Bv)], Bv[k % len(Bv)]]
+            q = [v for i, v in enumerate(q) if v not in q[:i]]
+            if len(q) >= 3:
+                try:
+                    bm.faces.new(q)
+                except ValueError:
+                    pass
+    for R in (rings[0], rings[-1]):
+        if len(R) > 2:
+            try:
+                bm.faces.new(R)
+            except ValueError:
+                pass
+    ob = _mk(name, bm, m, smooth)
+    return cel(ob, col) if col else ob
+
+
+def lathe(name, prof, m, col=None, seg=8, smooth=True, loc=(0, 0, 0), rot=(0, 0, 0), scale=(1, 1, 1), phase=0.0):
+    ob = w_lathe(name, prof, m, seg=seg, smooth=smooth, phase=phase)
+    place(ob, loc, rot, scale)
+    return cel(ob, col) if col else ob
+
+
+def flat(name, outline, m, col=None, th=0.008, bevel=0.008, loc=(0, 0, 0), rot=(0, 0, 0), holes=(), step=0.012,
+         paint2d=None, bend=None, ridge=0.25):
+    """Peça plana (slab) no plano XZ, curvada por bend(co) e posicionada; paint2d(x, z, d) pinta no plano,
+    senão cel() pinta em 3 tons depois de posicionada."""
+    ob = slab(name, outline, m, th, bevel, color=paint2d, step=step, holes=holes, ridge=ridge)
+    if bend:
+        deform(ob, bend)
+    place(ob, loc, rot)
+    return cel(ob, col) if (col and not paint2d) else ob
+
+
+def crystal(name, m, col, c, r, top, bot, seg=6, mid=0.0, rot=(0, 0, 0), phase=0.0):
+    """Cristal facetado: pirâmide dupla (mid=0) ou prisma com pontas (mid = meia altura do corpo)."""
+    prof = [(-bot, 0.0), (-mid, r)] + ([(mid, r)] if mid > 0 else []) + [(top, 0.0)]
+    ob = w_lathe(name, prof, m, seg=seg, smooth=False, phase=phase)
+    place(ob, c, rot)
+    return cel(ob, col, lo=-0.1, hi=0.45) if col else ob
+
+
+def orb(name, m, col, c, r, seg=10, sq=1.0):
+    rows = 6
+    prof = [(c[2] + r * sq * math.cos(math.pi * (1 - i / rows)), r * math.sin(math.pi * i / rows)) for i in range(rows + 1)]
+    prof[0] = (prof[0][0], 0.0)
+    prof[-1] = (prof[-1][0], 0.0)
+    ob = w_lathe(name, prof, m, seg=seg, smooth=True)
+    place(ob, (c[0], c[1], 0))
+    return cel(ob, col, lo=-0.15, hi=0.5)
+
+
+def ring_place(ob_fn, n, r0, z0, tilt, a0=0.0):
+    """Repete uma peça plana em volta do eixo Z: ob_fn(i) devolve a peça crua (plano XZ, base em z=0);
+    cada cópia inclina `tilt` para fora e gira para o ângulo a0 + i*2π/n."""
+    out = []
+    for i in range(n):
+        a = a0 + 2 * math.pi * i / n
+        ob = ob_fn(i)
+        place(ob, (0, 0, 0), (tilt, 0, 0))
+        place(ob, (math.sin(a) * r0, -math.cos(a) * r0, z0), (0, 0, a))
+        out.append(ob)
+    return out
+
+
+# ------------------------------------------------------------------ conferência: tudo preso a tudo
+from mathutils.bvhtree import BVHTree
+TOUCH = 0.0015       # peças a menos de 1,5 mm contam como encostadas
+
+
+def _bvh(o):
+    me = o.data
+    return BVHTree.FromPolygons([v.co.copy() for v in me.vertices], [tuple(p.vertices) for p in me.polygons])
+
+
+def _touch(a, b, ta, tb):
+    if ta.overlap(tb):
+        return True
+    for o, t in ((a, tb), (b, ta)):
+        for v in o.data.vertices:
+            hit = t.find_nearest(v.co, TOUCH)
+            if hit[0] is not None:
+                return True
+    return False
+
+
+def loose_parts(asset):
+    """Agrupa as peças que se tocam; mais de um grupo = alguma peça flutua solta. Imprime e devolve os grupos."""
+    objs = [o for o in coll.all_objects if o.type == 'MESH']
+    trees = {o.name: _bvh(o) for o in objs}
+    group = {o.name: i for i, o in enumerate(objs)}
+    for i, a in enumerate(objs):
+        for b in objs[i + 1:]:
+            if group[a.name] != group[b.name] and _touch(a, b, trees[a.name], trees[b.name]):
+                old, new = group[b.name], group[a.name]
+                for k in group:
+                    if group[k] == old:
+                        group[k] = new
+    comps = {}
+    for k, g in group.items():
+        comps.setdefault(g, []).append(k)
+    comps = sorted(comps.values(), key=len, reverse=True)
+    if len(comps) > 1:
+        print("LOOSE %s: %s" % (asset, " | ".join(", ".join(sorted(c)) for c in comps[1:])), flush=True)
+    else:
+        print("CONNECTED %s" % asset, flush=True)
+    LOOSE[asset] = comps[1:]
+    return comps
+
+
+LOOSE = {}
+_finish_weapon = finish
+
+
+def finish(asset, tip_x, tip_z):
+    """Toda arma (as espadas de weapons.py inclusive) passa pela conferência antes de juntar e exportar."""
+    loose_parts(asset)
+    _finish_weapon(asset, tip_x, tip_z)
+
+
+fin = finish
+
+
+# ------------------------------------------------------------------ peças de cajado
+def grain(base, dark, freq=3.0, zf=9.0, amt=0.45):
+    b, d = H(base), H(dark)
+
+    def fn(co):
+        a = math.atan2(co.y, co.x)
+        g = 0.5 + 0.5 * math.sin(a * freq + co.z * zf + math.sin(co.z * 23.0) * 0.8)
+        return mix(b, d, amt * smooth01((g - 0.55) / 0.45))
+    return fn
+
+
+def shaft(name, m, col, z0=-0.55, z1=0.9, r0=0.024, r1=0.02, seg=8, wobble=0.0, knots=(), seed=1, step=0.04,
+          smooth=True, phase=0.0):
+    rnd = random.Random(seed)
+    ph1, ph2 = rnd.uniform(0, 6), rnd.uniform(0, 6)
+    n = max(2, int((z1 - z0) / step))
+    prof = []
+    for i in range(n + 1):
+        t = i / n
+        z = z0 + (z1 - z0) * t
+        r = r0 + (r1 - r0) * t
+        for kz, ka, kw in knots:
+            r += ka * math.exp(-((z - kz) / kw) ** 2)
+        x = wobble * math.sin(t * 7 + ph1) * math.sin(t * 3.1 + ph2) * min(1.0, abs(z) / 0.25)
+        prof.append((z, r, x))
+    prof = [(z0, 0.0, prof[0][2])] + prof + [(z1, 0.0, prof[-1][2])]
+    return lathe(name, prof, m, col, seg=seg, smooth=smooth, phase=phase)
+
+
+def wrap(name, m, col, z0=-0.13, z1=0.13, r=0.027, turns=7, seg=8):
+    """Empunhadura enrolada: cristas e sulcos alternados."""
+    prof = [(z0, 0.0), (z0, r * 0.92)]
+    h = (z1 - z0) / turns
+    for k in range(turns):
+        zb = z0 + k * h
+        prof += [(zb + h * 0.2, r), (zb + h * 0.8, r), (zb + h, r * 0.9)]
+    prof.append((z1, 0.0))
+    return lathe(name, prof, m, col, seg=seg)
+
+
+def band(name, m, col, z, h=0.025, r=0.03, seg=8):
+    c = h * 0.25
+    return lathe(name, [(z - h / 2, 0.0), (z - h / 2, r - c), (z - h / 2 + c, r), (z + h / 2 - c, r),
+                        (z + h / 2, r - c), (z + h / 2, 0.0)], m, col, seg=seg, smooth=False)
+
+
+def ferrule(name, m, col, z0=-0.6, z1=-0.48, r=0.028):
+    return lathe(name, [(z0, 0.0), (z0, r * 0.55), (z0 + 0.02, r), (z1 - 0.01, r), (z1, r * 0.8), (z1, 0.0)],
+                 m, col, seg=8, smooth=False)
+
+
+def cup(name, m, col, z0, z1, r0, r1, seg=8):
+    """Colar que abre para cima e segura a cabeça do cajado."""
+    zm = z0 + (z1 - z0) * 0.55
+    return lathe(name, [(z0, 0.0), (z0, r0), (zm, r0 * 1.05), (z1 - 0.008, r1), (z1, r1 * 0.85), (z1, 0.0)],
+                 m, col, seg=seg, smooth=False)
+
+
+def helix(name, m, col, z0, z1, R, turns, r=0.006, phase=0.0, sides=5):
+    n = int(turns * 18) + 2
+    pts = [(R * math.cos(phase + 2 * math.pi * turns * i / (n - 1)), R * math.sin(phase + 2 * math.pi * turns * i / (n - 1)),
+            z0 + (z1 - z0) * i / (n - 1)) for i in range(n)]
+    return tube(name, pts, r, m, col, sides=sides)
+
+
+def leaf_outline(L, W, n=6):
+    pts = [(W * math.sin(math.pi * i / n) ** 0.8, L * i / n) for i in range(n + 1)]
+    return pts + [(-x, z) for x, z in reversed(pts[1:-1])]
+
+
+def finish_staff(asset, tip_z):
+    fin(asset, 0.0, tip_z)
+
+
+# ------------------------------------------------------------------ cajados atuais
+## O jogo segura o cajado no meio da vara (KnightLook.STAFF_GRIP desce a vara 0,3 m na mão), então a empunhadura
+## enrolada fica em z = STAFF_HAND, onde a mão de fato está.
+STAFF_HAND = 0.3
+
+
+def grip_wrap(m, col, **kw):
+    return wrap("Grip", m, col, z0=STAFF_HAND - 0.13, z1=STAFF_HAND + 0.13, **kw)
+
+
+def build_apprentice():
+    m = vcf("st_apprentice")
+    g = vcf("st_apprentice_gem", emit="#7fb2ff", strength=0.8)
+    wood = grain("#b07a48", "#7a4e2a")
+    shaft("Shaft", m, wood, z1=0.9, r0=0.022, r1=0.019, wobble=0.006)
+    ferrule("Ferrule", m, H("#c9963c"))
+    grip_wrap(m, H("#6b4226"))
+    band("Collar", m, H("#d7a648"), 0.88, 0.03, 0.026)
+    for k in range(3):
+        a = 2 * math.pi * k / 3 + 0.5
+        ctrl = [(rr * math.cos(a), rr * math.sin(a), z) for rr, z in
+                ((0.01, 0.88), (0.035, 0.94), (0.05, 1.0), (0.043, 1.07), (0.016, 1.12))]
+        tube("Prong%d" % k, spline(ctrl, 4), lambda t: 0.012 - 0.007 * t, m, wood, sides=6)
+    lathe("Seat", [(0.86, 0.0), (0.86, 0.016), (0.975, 0.011), (0.975, 0.0)], m, wood, seg=6)
+    crystal("Gem", g, H("#8cc0ff"), (0, 0, 1.02), 0.043, 0.075, 0.055, seg=8, mid=0.015)
+    finish_staff("st_apprentice_staff", 1.02)
+
+
+def build_oak():
+    m = vcf("st_oak")
+    g = vcf("st_oak_gem", emit="#6fe08a", strength=0.8)
+    wood = grain("#6a4628", "#3e2614", amt=0.6)
+    shaft("Shaft", m, wood, z1=0.88, r0=0.027, r1=0.023, seg=7, wobble=0.012, seed=4,
+          knots=((-0.32, 0.007, 0.03), (0.3, 0.009, 0.035), (0.62, 0.006, 0.025)))
+    lathe("Knot", [(-0.03, 0.0), (-0.01, 0.012), (0.012, 0.009), (0.025, 0.0)], m, wood, seg=6,
+          loc=(0.02, -0.012, 0.3), rot=(0.4, 1.2, 0))
+    ferrule("Ferrule", m, H("#5c5650"))
+    grip_wrap(m, H("#3f5a2a"), turns=6)
+    tips = []
+    for k in range(4):
+        a = 2 * math.pi * k / 4 + 0.3
+        ctrl = []
+        for i, (rr, z) in enumerate(((0.012, 0.84), (0.04, 0.92), (0.065, 1.0), (0.06, 1.08), (0.03, 1.15), (0.012, 1.19))):
+            aa = a + i * 0.28
+            ctrl.append((rr * math.cos(aa), rr * math.sin(aa), z))
+        tips.append(ctrl[3])
+        tube("Root%d" % k, spline(ctrl, 4), lambda t: 0.016 - 0.011 * t, m, wood, sides=6)
+    lathe("Seat", [(0.84, 0.0), (0.84, 0.018), (0.975, 0.012), (0.975, 0.0)], m, wood, seg=6)
+    crystal("Gem", g, H("#7ef09a"), (0, 0, 1.03), 0.04, 0.09, 0.07, seg=6, mid=0.02)
+    for k, p in enumerate(tips[:3]):
+        a = math.atan2(p[1], p[0])
+        lf = flat("Leaf%d" % k, leaf_outline(0.075, 0.022), m, H("#5fae3c"), th=0.004, bevel=0.004, step=0.01,
+                  bend=lambda c: Vector((c.x, c.y + 0.6 * c.z * c.z, c.z)))
+        place(lf, (0, 0, 0), (0.9, 0, 0))
+        place(lf, p, (0, 0, a + math.pi / 2))
+        cel(lf, H("#5fae3c"))
+    finish_staff("st_oak_staff", 1.03)
+
+
+def build_ember():
+    m = vcf("st_ember")
+    g = vcf("st_ember_gem", emit="#ff7a1a", strength=1.2)
+    char_b, crack = H("#3a2620"), H("#ff8a3a")
+
+    def charred(co):
+        a = math.atan2(co.y, co.x)
+        v = abs(math.sin(co.z * 21 + a * 2.0) * math.cos(co.z * 8.5 - a))
+        return mix(char_b, crack, smooth01((v - 0.86) / 0.1))
+    shaft("Shaft", m, charred, z1=0.88, r0=0.025, r1=0.022, seg=6, wobble=0.007, seed=7, smooth=False)
+    ferrule("Ferrule", m, H("#d0952e"))
+    grip_wrap(m, H("#7a2418"))
+    for z in (0.22, 0.62):
+        band("Band%.2f" % z, m, H("#d0952e"), z, 0.022, 0.027, seg=6)
+    cup("Cup", m, H("#4a464e"), 0.84, 0.92, 0.026, 0.04, seg=6)
+    flame = [(-0.012, 0.0), (0.012, 0.0), (0.03, 0.07), (0.052, 0.13), (0.04, 0.19), (0.05, 0.26), (0.026, 0.2),
+             (0.016, 0.12), (-0.006, 0.06)]
+    hot = lambda co: mix(H("#4a464e"), H("#ff9a3a"), smooth01((co.z - 1.02) / 0.12))
+    for ob in ring_place(lambda i: flat("Prong%d" % i, flame, m, th=0.007, bevel=0.006, step=0.01, loc=(0.022, 0, 0)),
+                         4, 0.0, 0.88, 0.0, a0=math.pi / 4):
+        cel(ob, hot)
+    lathe("Seat", [(0.9, 0.0), (0.9, 0.02), (0.97, 0.012), (0.97, 0.0)], m, H("#4a464e"), seg=6)
+    crystal("Gem", g, H("#ffa040"), (0, 0, 1.03), 0.04, 0.14, 0.07, seg=6, mid=0.01)
+    finish_staff("st_ember_staff", 1.04)
+
+
+def build_frost():
+    m = vcf("st_frost", metal=0.2)
+    g = vcf("st_frost_gem", emit="#8fe6ff", strength=0.9)
+    pale = lambda co: mix(H("#d8e4f2"), H("#a8bcd8"), 0.5 + 0.5 * math.sin(co.z * 14))
+    shaft("Shaft", m, pale, z1=0.88, r0=0.022, r1=0.021, seg=8)
+    helix("Spiral", m, H("#f2f8ff"), 0.2, 0.84, 0.023, 2.5, r=0.005)
+    grip_wrap(m, H("#2c4a7a"))
+    ferrule("Ferrule", m, H("#e6eef8"))
+    crystal("ButtShard", g, H("#b8f0ff"), (0, 0, -0.6), 0.016, 0.02, 0.07, seg=5)
+    cup("Cup", m, H("#e6eef8"), 0.84, 0.93, 0.025, 0.045, seg=8)
+    ice = H("#a8eeff")
+    crystal("Shard0", g, ice, (0, 0, 1.06), 0.034, 0.17, 0.13, seg=6, mid=0.04)
+    for k in range(4):
+        a = 2 * math.pi * k / 4 + 0.4
+        tilt = 0.45 + 0.08 * (k % 2)
+        ob = crystal("Shard%d" % (k + 1), g, ice, (0, 0, 0), 0.02, 0.1 + 0.03 * (k % 2), 0.03, seg=5)
+        place(ob, (0, 0, 0), (tilt, 0, 0))
+        place(ob, (math.sin(a) * 0.03, -math.cos(a) * 0.03, 0.95), (0, 0, a))
+        cel(ob, ice, lo=-0.1, hi=0.45)
+    finish_staff("st_frost_scepter", 1.06)
+
+
+def build_archmage():
+    m = vcf("st_archmage", metal=0.3)
+    g = vcf("st_archmage_gem", emit="#c27cff", strength=1.1)
+    gold = H("#e8b44a")
+    shaft("Shaft", m, grain("#4a2c5c", "#2a1838", freq=2, amt=0.5), z1=0.88, r0=0.025, r1=0.022, seg=8)
+    helix("Filigree", m, gold, 0.25, 0.7, 0.024, 2.0, r=0.0045)
+    helix("Filigree2", m, gold, 0.25, 0.7, 0.024, 2.0, r=0.0045, phase=math.pi)
+    for z in (-0.4, 0.25, 0.7):
+        band("Band%.2f" % z, m, gold, z, 0.026, 0.029)
+    ferrule("Ferrule", m, gold)
+    grip_wrap(m, H("#3c1e52"))
+    cup("Cup", m, gold, 0.84, 0.94, 0.026, 0.05)
+    tube("Stem", [(0, 0, 0.92), (0, 0, 1.04)], 0.012, m, gold)
+    tube("StemTop", [(0, 0, 1.12), (0, 0, 1.176)], 0.008, m, gold)
+    cel(torus("Ring", (0, 1.08), 0.09, 0.011, m, seg=20, sides=6), gold)
+    orb("Orb", g, H("#c890ff"), (0, 0, 1.08), 0.055)
+    wing = [(0.0, 0.0), (0.03, 0.02), (0.07, 0.07), (0.085, 0.13), (0.07, 0.11), (0.045, 0.075), (0.02, 0.05), (0.0, 0.035)]
+    for s in (1, -1):
+        ob = flat("Wing%s" % ("R" if s > 0 else "L"), [(x * s, z) for x, z in wing], m, th=0.007, bevel=0.006, step=0.01,
+                  loc=(0.085 * s, 0, 1.03))
+        cel(ob, gold)
+    star = []
+    for i in range(8):
+        rr = 0.045 if i % 2 == 0 else 0.014
+        a = math.pi / 2 + math.pi * i / 4
+        star.append((rr * math.cos(a), rr * math.sin(a)))
+    flat("Star", star, g, H("#f6e0ff"), th=0.008, bevel=0.006, step=0.008, loc=(0, 0, 1.22))
+    finish_staff("st_archmage_staff", 1.08)
+
+
+# ------------------------------------------------------------------ cajados novos
+def build_willow():
+    m = vcf("st_willow")
+    g = vcf("st_willow_gem", emit="#6ee0b8", strength=0.8)
+    wood = grain("#cdb47c", "#9a8050", freq=2, zf=14, amt=0.5)
+    shaft("Shaft", m, wood, z1=0.88, r0=0.02, r1=0.017, seg=7, wobble=0.009, seed=11)
+    ferrule("Ferrule", m, H("#8a7a5a"), r=0.022)
+    grip_wrap(m, H("#4f7240"), r=0.024)
+    for s in (1, -1):
+        ctrl = [(0, 0, 0.86), (0.05 * s, 0, 0.95), (0.062 * s, 0, 1.05), (0.035 * s, 0, 1.14), (0, 0, 1.17)]
+        tube("Arch%d" % s, spline(ctrl, 5), lambda t: 0.014 - 0.006 * t, m, wood, sides=6)
+    tube("Thread", [(0, 0, 1.16), (0, 0, 1.06)], 0.0025, m, H("#e8e0c8"), sides=4)
+    crystal("Gem", g, H("#7ef0c8"), (0, 0, 1.02), 0.032, 0.045, 0.05, seg=8, mid=0.012)
+    leafc = H("#86c45a")
+    for k, (sx, sy) in enumerate(((1, -1), (-1, -1), (1, 1), (-1, 1))):
+        ctrl = [(0, 0, 1.17), (0.03 * sx, 0.012 * sy, 1.18), (0.07 * sx, 0.02 * sy, 1.12),
+                (0.085 * sx, 0.025 * sy, 1.02), (0.09 * sx, 0.028 * sy, 0.9 + 0.03 * k)]
+        tube("Strand%d" % k, spline(ctrl, 5), lambda t: 0.009 * (1 - t) + 0.002, m, leafc, sides=4, flat=0.35)
+    finish_staff("st_willow_staff", 1.02)
+
+
+def build_bone():
+    m = vcf("st_bone")
+    g = vcf("st_bone_gem", emit="#8dff5a", strength=1.2)
+    bone = H("#e9dfc4")
+    joints = (-0.52, 0.32, 0.86)
+    bcol = lambda co: mix(bone, H("#b8a888"), max(0.0, 1 - min(abs(co.z - j) for j in joints) / 0.08) * 0.6)
+    shaft("Shaft", m, bcol, z0=-0.56, z1=0.97, r0=0.019, r1=0.019, seg=7,
+          knots=((-0.53, 0.012, 0.03), (0.32, 0.01, 0.03), (0.88, 0.01, 0.03)))
+    grip_wrap(m, H("#5a4632"), r=0.025)
+    wrap("Rag", m, H("#6a5a3c"), z0=0.02, z1=0.1, r=0.024, turns=3)
+    tube("RagTail", spline([(0.022, -0.005, 0.42), (0.04, -0.02, 0.38), (0.045, -0.025, 0.3)], 3),
+         lambda t: 0.008 * (1 - t) + 0.002, m, H("#6a5a3c"), sides=4, flat=0.3)
+    # crânio: calota, maçãs e mandíbula; órbitas e nariz pintados de escuro
+    eyes = [Vector((0.022, -0.063, 1.01)), Vector((-0.022, -0.063, 1.01))]
+    nose = Vector((0.0, -0.066, 0.988))
+
+    def skull(co):
+        if any((co - e).length < 0.018 for e in eyes) or (co - nose).length < 0.009:
+            return H("#2a2420")
+        return bone
+    lathe("Skull", [(0.95, 0.0), (0.955, 0.035), (0.975, 0.05), (1.01, 0.058), (1.05, 0.056), (1.08, 0.045),
+                    (1.1, 0.026), (1.108, 0.0)], m, skull, seg=10, loc=(0, -0.004, 0), scale=(0.95, 1.1, 1))
+    lathe("Jaw", [(0.925, 0.0), (0.928, 0.026), (0.95, 0.034), (0.965, 0.03), (0.965, 0.0)], m, bone, seg=8,
+          loc=(0, -0.018, 0), scale=(1.0, 1.15, 1))
+    for i, e in enumerate(eyes):
+        orb("Eye%d" % i, g, H("#9dff6a"), (e.x, e.y + 0.003, e.z), 0.009, seg=6)
+    for s in (1, -1):
+        ctrl = [(0.04 * s, 0, 1.05), (0.07 * s, 0, 1.1), (0.06 * s, 0, 1.16), (0.022 * s, 0, 1.18)]
+        tube("Horn%d" % s, spline(ctrl, 5), lambda t: 0.013 * (1 - t) + 0.003, m, bone, sides=6)
+    lathe("Seat", [(1.09, 0.0), (1.09, 0.014), (1.15, 0.009), (1.15, 0.0)], m, bone, seg=6)
+    crystal("Gem", g, H("#9dff6a"), (0, 0, 1.18), 0.028, 0.05, 0.04, seg=5, mid=0.01)
+    finish_staff("st_bone_staff", 1.18)
+
+
+def build_tide():
+    m = vcf("st_tide")
+    g = vcf("st_tide_gem", emit="#66d9ff", strength=0.9)
+    sea = lambda co: mix(H("#3f8f98"), H("#2a6070"), 0.5 + 0.5 * math.sin(co.z * 18 + math.sin(co.z * 5) * 2))
+    shaft("Shaft", m, sea, z1=0.88, r0=0.023, r1=0.02, seg=7, wobble=0.01, seed=21)
+    grip_wrap(m, H("#d8c49a"), turns=9)
+    ferrule("Ferrule", m, H("#e8dcc8"))
+    coral = H("#ff8a7a")
+    tube("ProngC", spline([(0, 0, 0.86), (0, 0, 1.0), (0.006, 0, 1.12), (0, 0, 1.24)], 4),
+         lambda t: 0.015 - 0.011 * t, m, coral)
+    for s in (1, -1):
+        tube("Prong%d" % s, spline([(0, 0, 0.86), (0.04 * s, 0, 0.92), (0.075 * s, 0, 1.0), (0.07 * s, 0, 1.1),
+                                    (0.055 * s, 0, 1.16)], 4), lambda t: 0.014 - 0.01 * t, m, coral)
+        tube("Twig%d" % s, spline([(0.072 * s, 0, 1.02), (0.1 * s, 0, 1.06), (0.105 * s, 0, 1.1)], 3),
+             lambda t: 0.008 - 0.005 * t, m, coral)
+    orb("Pearl", g, H("#e4fbff"), (0, 0, 1.03), 0.04)
+    fan = [(0.0, 0.0)] + [(0.05 * math.cos(a) * (1 + 0.12 * (i % 2)), 0.05 * math.sin(a) * (1 + 0.12 * (i % 2)))
+                          for i, a in enumerate([math.pi * (0.1 + 0.8 * k / 8) for k in range(9)])]
+    for s in (1, -1):
+        ob = flat("Shell%d" % s, fan, m, th=0.006, bevel=0.005, step=0.009, loc=(0.025 * s, -0.01, 0.86),
+                  rot=(0, -0.6 * s, 0))
+        cel(ob, lambda co: mix(H("#f6dcc6"), H("#e89a86"), smooth01((co.z - 0.86) / 0.05)))
+    finish_staff("st_tide_staff", 1.03)
+
+
+def build_sun():
+    m = vcf("st_sun", metal=0.3)
+    g = vcf("st_sun_gem", emit="#ffcf4a", strength=1.2)
+    gold = H("#f0b83a")
+    shaft("Shaft", m, lambda co: mix(H("#f4ecda"), H("#ddd0b4"), 0.5 + 0.5 * math.sin(co.z * 10)), z1=0.88,
+          r0=0.023, r1=0.021, seg=8)
+    for z in (0.15, 0.6):
+        band("Band%.2f" % z, m, gold, z, 0.03, 0.027)
+    ferrule("Ferrule", m, gold)
+    grip_wrap(m, H("#b23a2a"))
+    cup("Cup", m, gold, 0.84, 0.95, 0.025, 0.04)
+    rays = []
+    for i in range(24):
+        a = math.pi / 2 + math.pi * i / 12
+        rr = (0.155 if i % 4 == 0 else 0.135) if i % 2 == 0 else 0.095
+        rays.append((rr * math.cos(a), 1.09 + rr * math.sin(a)))
+    hole = [(0.07 * math.cos(2 * math.pi * k / 16), 1.09 + 0.07 * math.sin(2 * math.pi * k / 16)) for k in range(16)]
+    flat("Rays", rays, m, lambda co: mix(H("#ffd75a"), H("#e89a2a"), smooth01((Vector((co.x, 0, co.z - 1.09)).length - 0.08) / 0.07)),
+         th=0.01, bevel=0.008, step=0.012, holes=[hole])
+    cel(torus("Rim", (0, 1.09), 0.072, 0.011, m, seg=20, sides=6), gold)
+    tube("Stem", [(0, 0, 0.94), (0, 0, 1.05)], 0.012, m, gold)
+    orb("Gem", g, H("#ffc24a"), (0, 0, 1.09), 0.062)
+    finish_staff("st_sun_staff", 1.09)
+
+
+def build_storm():
+    m = vcf("st_storm", metal=0.4)
+    g = vcf("st_storm_gem", emit="#8ab0ff", strength=1.3)
+    steel = H("#8e9ab8")
+    shaft("Shaft", m, H("#3e4660"), z1=0.88, r0=0.024, r1=0.022, seg=6, smooth=False)
+    for z in (-0.3, 0.2, 0.45, 0.7):
+        band("Band%.2f" % z, m, steel, z, 0.02, 0.027, seg=6)
+    ferrule("Ferrule", m, steel)
+    grip_wrap(m, H("#1e2436"))
+    cup("Cup", m, steel, 0.83, 0.92, 0.025, 0.042, seg=6)
+    bolt = [(0.0, 0.0), (0.02, 0.0), (0.035, 0.12), (0.02, 0.12), (0.05, 0.25), (0.032, 0.25), (0.062, 0.37),
+            (0.012, 0.21), (0.028, 0.21), (0.004, 0.1), (0.016, 0.1)]
+    for s, a in (("R", 0.0), ("L", math.pi)):
+        ob = flat("Bolt" + s, bolt, g, th=0.007, bevel=0.005, step=0.008, loc=(0.03, 0, 0.86))
+        place(ob, (0, 0, 0), (0, 0, a))
+        cel(ob, lambda co: mix(H("#cfeeff"), H("#7aa8ff"), smooth01((co.z - 0.95) / 0.2)))
+    crystal("Gem", g, H("#8ab0ff"), (0, 0, 1.05), 0.03, 0.17, 0.14, seg=6, mid=0.03)
+    tr = torus("Halo", (0, 0), 0.062, 0.006, m, seg=20, sides=5)
+    place(tr, (0, 0, 1.06), (math.pi / 2 + 0.25, 0, 0))
+    cel(tr, steel)
+    finish_staff("st_storm_staff", 1.05)
+
+
+def build_thorn():
+    m = vcf("st_thorn")
+    g = vcf("st_thorn_gem", emit="#ff4a6a", strength=1.1)
+    vine = lambda co: mix(H("#3e3a26"), H("#2a2a1c"), 0.5 + 0.5 * math.sin(co.z * 30))
+    lathe("Core", [(-0.56, 0.0), (-0.56, 0.012), (0.88, 0.012), (0.88, 0.0)], m, vine, seg=6)
+    for k in range(2):
+        helix("Vine%d" % k, m, vine, -0.55, 0.88, 0.013, 4.5, r=0.012, phase=math.pi * k, sides=6)
+    grip_wrap(m, H("#5a1e24"), r=0.03)
+    rnd = random.Random(5)
+    for i in range(16):
+        z = -0.45 + i * 0.085
+        if -0.16 < z < 0.16:
+            continue
+        a = rnd.uniform(0, 2 * math.pi)
+        ob = crystal("Thorn%d" % i, m, H("#d9c7a0"), (0, 0, 0), 0.006, 0.042, 0.0, seg=4)
+        place(ob, (0, 0, 0), (0, 1.25, 0))
+        place(ob, (0.008 * math.cos(a), 0.008 * math.sin(a), z), (0, 0, a))
+        cel(ob, H("#d9c7a0"))
+    lathe("Bud", [(0.84, 0.0), (0.84, 0.014), (0.9, 0.022), (0.94, 0.033), (0.97, 0.031), (1.0, 0.018), (1.0, 0.0)],
+          m, H("#3f6a2e"), seg=8)
+    for k in range(3):
+        lf = flat("Sepal%d" % k, leaf_outline(0.07, 0.02), m, th=0.004, bevel=0.004, step=0.009,
+                  bend=lambda c: Vector((c.x, c.y - 0.5 * c.z * c.z, c.z)))
+        a = 2 * math.pi * k / 3
+        place(lf, (0, 0, 0), (1.9, 0, 0))
+        place(lf, (math.sin(a) * 0.015, -math.cos(a) * 0.015, 0.93), (0, 0, a))
+        cel(lf, H("#3f6a2e"))
+    petal = [(-0.008, 0.0), (0.008, 0.0), (0.028, 0.03), (0.034, 0.06), (0.024, 0.085), (0.0, 0.092),
+             (-0.024, 0.085), (-0.034, 0.06), (-0.028, 0.03)]
+    pc = lambda co: mix(H("#8c1a34"), H("#f0607a"), smooth01((co.z - 0.95) / 0.16))
+    for tier, (n, tilt, sc, r0, z0, a0) in enumerate(((5, 0.35, 1.1, 0.014, 0.96, 0.0), (5, 0.85, 1.4, 0.024, 0.95, 0.63),
+                                                         (6, 1.25, 1.55, 0.03, 0.94, 0.3))):
+        obs = ring_place(lambda i: flat("Petal%d_%d" % (tier, i), [(x * sc, z * sc) for x, z in petal], m, th=0.004,
+                                        bevel=0.004, step=0.008,
+                                        bend=lambda c: Vector((c.x, c.y + 4.0 * c.x * c.x - 0.8 * c.z * c.z, c.z))),
+                         n, r0, z0, tilt, a0)
+        for ob in obs:
+            cel(ob, pc)
+    crystal("Gem", g, H("#ff5a78"), (0, 0, 1.03), 0.032, 0.065, 0.035, seg=6, mid=0.01)
+    finish_staff("st_thorn_staff", 1.03)
+
+
+def _crescent(c1, R1, c2, R2, n=30):
+    """Contorno da lua com as pontas para cima: disco (c1, R1) menos o disco (c2, R2), c2 acima de c1."""
+    dy = c2[1] - c1[1]
+    yi = (R1 * R1 - R2 * R2 + dy * dy) / (2 * dy)            # altura da interseção acima de c1
+    xi = math.sqrt(max(R1 * R1 - yi * yi, 1e-9))
+    a1 = math.atan2(yi, xi)                                  # ponta direita no círculo externo
+    a2 = math.atan2(yi - dy, xi)                             # e no interno
+    outer = [(c1[0] + R1 * math.cos(a), c1[1] + R1 * math.sin(a))
+             for a in (a1 - (math.pi + 2 * a1) * k / n for k in range(n + 1))]          # desce pela direita
+    inner = [(c2[0] + R2 * math.cos(a), c2[1] + R2 * math.sin(a))
+             for a in (math.pi - a2 + (math.pi + 2 * a2) * k / n for k in range(1, n))]  # volta por dentro
+    return outer + inner
+
+
+def build_void():
+    m = vcf("st_void", metal=0.2)
+    g = vcf("st_void_gem", emit="#b066ff", strength=1.3)
+    silver = H("#cfd2e8")
+
+    def obsidian(co):
+        a = math.atan2(co.y, co.x)
+        v = abs(math.sin(co.z * 16 + a * 1.5 + math.sin(co.z * 7) * 1.5))
+        return mix(H("#2a2238"), H("#9a5aff"), smooth01((v - 0.9) / 0.08))
+    shaft("Shaft", m, obsidian, z1=0.9, r0=0.025, r1=0.021, seg=5, smooth=False, phase=0.3)
+    for z in (0.18, 0.66):
+        band("Band%.2f" % z, m, silver, z, 0.022, 0.028, seg=5)
+    ferrule("Ferrule", m, silver)
+    crystal("Spike", m, H("#3a2e50"), (0, 0, -0.6), 0.02, 0.0, 0.08, seg=5)
+    grip_wrap(m, H("#2c1e40"))
+    moon = _crescent((0.0, 1.07), 0.125, (0.0, 1.12), 0.1)
+    flat("Crescent", moon, m, lambda co: mix(H("#3a2e52"), H("#7a5ab0"), smooth01((co.z - 0.95) / 0.25)),
+         th=0.012, bevel=0.01, step=0.012)
+    tube("Neck", [(0, 0, 0.88), (0, 0, 0.955)], 0.016, m, silver)
+    crystal("Gem", g, H("#b47aff"), (0, 0, 1.1), 0.042, 0.075, 0.087, seg=4, phase=math.pi / 4)
+    tr = torus("Orbit", (0, 0), 0.04, 0.006, m, seg=16, sides=5)
+    place(tr, (0, 0, 1.1), (math.pi / 2 - 0.2, 0, 0))
+    cel(tr, silver)
+    for i, s in enumerate((1, -1)):
+        crystal("Mote%d" % i, g, H("#d0a8ff"), (0.1 * s, 0, 1.165), 0.012, 0.03, 0.036, seg=4)
+    finish_staff("st_void_staff", 1.1)
+
+
+def build_phoenix():
+    m = vcf("st_phoenix", metal=0.2)
+    g = vcf("st_phoenix_gem", emit="#ff8a2a", strength=1.4)
+    gold = H("#f2b440")
+    shaft("Shaft", m, lambda co: mix(H("#f6ecd6"), H("#e2d2b2"), 0.5 + 0.5 * math.sin(co.z * 12)), z1=0.9,
+          r0=0.024, r1=0.021, seg=8)
+    helix("Gild", m, gold, 0.2, 0.82, 0.023, 2.2, r=0.0045)
+    for z in (-0.42, 0.2, 0.82):
+        band("Band%.2f" % z, m, gold, z, 0.026, 0.028)
+    ferrule("Ferrule", m, gold)
+    grip_wrap(m, H("#a8281c"))
+    cup("Cup", m, gold, 0.86, 0.97, 0.025, 0.045)
+    feather = [(-0.012, 0.0), (0.012, 0.0), (0.026, 0.05), (0.03, 0.11), (0.022, 0.17), (0.01, 0.21), (0.022, 0.23),
+               (-0.004, 0.24), (-0.014, 0.18), (-0.022, 0.1), (-0.02, 0.04)]
+
+    def fire(x, z, d):
+        L = 0.24
+        base = ramp([(0.0, H("#ffe27a")), (0.4, H("#ffa63a")), (0.75, H("#ff6a2a")), (1.0, H("#d8302a"))], z / L)
+        return mix(mix(base, H("#8a1c18"), 0.45), base, smooth01(d / 0.006))
+    for side in (1, -1):
+        for k in range(4):
+            sc = 0.75 + 0.1 * k
+            ob = flat("Feather%d_%d" % (side, k), [(x * sc * side, z * sc) for x, z in feather], m, th=0.005, bevel=0.005,
+                      step=0.008, paint2d=lambda x, z, d, sc=sc: fire(x, z / sc, d),
+                      bend=lambda c: Vector((c.x, c.y + 0.4 * c.z * c.z, c.z)))
+            place(ob, (0, 0, 0), (0, side * (0.45 + 0.32 * k), 0))
+            place(ob, (0.03 * side, 0.004 * k, 0.96))
+    for k, a in enumerate((-0.18, 0.0, 0.18)):
+        ob = flat("Crest%d" % k, [(x * 0.6, z * 0.6) for x, z in feather], m, th=0.005, bevel=0.005, step=0.008,
+                  paint2d=lambda x, z, d: fire(x, z / 0.6, d))
+        place(ob, (0, 0, 0), (0, a, 0))
+        place(ob, (0, 0.004 * (k - 1), 1.06))
+    crystal("Gem", g, H("#ff9a3a"), (0, 0, 1.02), 0.034, 0.1, 0.07, seg=6, mid=0.012)
+    finish_staff("st_phoenix_staff", 1.02)
+
+
+ARMORY += [("st_apprentice_staff", build_apprentice), ("st_oak_staff", build_oak), ("st_ember_staff", build_ember),
+           ("st_frost_scepter", build_frost), ("st_archmage_staff", build_archmage),
+           ("st_willow_staff", build_willow), ("st_bone_staff", build_bone), ("st_tide_staff", build_tide),
+           ("st_sun_staff", build_sun), ("st_storm_staff", build_storm), ("st_thorn_staff", build_thorn),
+           ("st_void_staff", build_void), ("st_phoenix_staff", build_phoenix)]
+
+
+# ------------------------------------------------------------------ arcos
+def bow_curve(half, back, recurve=0.0, n=24, sway=0.0):
+    pts = []
+    for i in range(n + 1):
+        t = -1 + 2 * i / n
+        y = back * t * t - 0.02 - recurve * smooth01((abs(t) - 0.62) / 0.38) ** 1.5
+        pts.append((sway * math.sin(t * 3.3 + 0.4), y, t * half))
+    return pts
+
+
+def limb_at(pts, z):
+    """Ponto do braço na altura z."""
+    for a, b in zip(pts, pts[1:]):
+        if a[2] <= z <= b[2]:
+            u = (z - a[2]) / max(b[2] - a[2], 1e-6)
+            return Vector(a).lerp(Vector(b), u)
+    return Vector(pts[-1] if z > 0 else pts[0])
+
+
+def bow_base(m, wood, half, back, recurve=0.0, r_mid=0.019, r_tip=0.008, grip="#5a3a20", string="#efe6cc", sway=0.0,
+             flatk=0.62):
+    pts = bow_curve(half, back, recurve, sway=sway)
+    tube("Limbs", pts, lambda t: r_tip + (r_mid - r_tip) * (1 - abs(2 * t - 1)) ** 0.6, m, wood, sides=6, flat=flatk)
+    gp = limb_at(pts, 0.0)
+    ob = wrap("Grip", m, None, -0.075, 0.075, r_mid * 1.3, turns=5, seg=6)
+    place(ob, (gp.x, gp.y, 0))
+    cel(ob, H(grip))
+    top, bot = pts[-1], pts[0]
+    # a corda não entra no GLB: o jogo a desenha das pontas ("StringTop"/"StringBot") até os dedos ao puxar
+    _BOW_STRING[:] = [(top[0], top[1], top[2] - 0.01), (bot[0], bot[1], bot[2] + 0.01)]
+    return pts, top[1]
+
+
+def put(ob, col, loc=(0, 0, 0), rot=(0, 0, 0)):
+    place(ob, (0, 0, 0), rot)
+    place(ob, loc)
+    return cel(ob, col)
+
+
+_BOW_STRING = []   # pontas da corda do arco em montagem (bow_base)
+
+
+def bow_export(asset, nock_y):
+    loose_parts(asset)
+    join_all("Weapon")
+    empty("Tip", (0, -0.3, 0))
+    empty("Nock", (0, nock_y, 0))
+    empty("StringTop", _BOW_STRING[0])
+    empty("StringBot", _BOW_STRING[1])
+    export(asset)
+
+
+def end_cap(name, m, col, pts, z, prof):
+    """Peça na ponta do braço, alinhada à direção dele."""
+    s = 1 if z > 0 else -1
+    p, q = limb_at(pts, z), limb_at(pts, z - 0.05 * s)
+    d = (p - q).normalized()
+    ob = w_lathe(name, prof, m, seg=6)
+    rot = d.to_track_quat('Z', 'Y').to_euler()
+    return put(ob, col, p, rot)
+
+
+def build_short_bow():
+    m = vcf("bw_short")
+    wood = grain("#b07a42", "#8a5a2e", freq=1, zf=20, amt=0.5)
+    pts, ny = bow_base(m, wood, 0.55, 0.13)
+    for z in (-0.53, 0.53):
+        end_cap("Cap%d" % (z > 0), m, H("#5a3a20"), pts, z, [(-0.02, 0.0), (-0.02, 0.009), (0.015, 0.0075), (0.025, 0.0)])
+    bow_export("bw_short_bow", ny)
+
+
+def build_hunter_bow():
+    m = vcf("bw_hunter")
+    wood = grain("#6e4626", "#4a2c16", freq=1, zf=20, amt=0.55)
+    pts, ny = bow_base(m, wood, 0.58, 0.14, recurve=0.03, grip="#3e5a2c")
+    for z in (-0.55, 0.55):
+        end_cap("Tip%d" % (z > 0), m, H("#ece0c4"), pts, z, [(-0.03, 0.0), (-0.03, 0.0095), (0.0, 0.008), (0.035, 0.0)])
+    for z in (-0.3, 0.3):
+        put(band("Wrap%d" % (z > 0), m, None, 0, 0.03, 0.017, seg=6), H("#3e5a2c"), limb_at(pts, z))
+    g = limb_at(pts, -0.06)
+    tube("Cord", spline([(0.022, g.y, -0.05), (0.03, g.y - 0.01, -0.12), (0.028, g.y - 0.012, -0.17)], 3), 0.0025, m,
+         H("#d8c8a0"), sides=4)
+    feather = [(-0.004, 0.0), (0.004, 0.0), (0.014, 0.03), (0.012, 0.07), (0.0, 0.085), (-0.012, 0.07), (-0.014, 0.03)]
+    for k, (c, rz) in enumerate((("#c8402a", 0.25), ("#f2ece0", -0.2))):
+        ob = flat("Feather%d" % k, feather, m, th=0.003, bevel=0.003, step=0.007)
+        put(ob, H(c), (0.028, g.y - 0.012, -0.165), (math.pi + rz, 0, math.pi / 2))
+    bow_export("bw_hunter_bow", ny)
+
+
+def build_elven_bow():
+    m = vcf("bw_elven", metal=0.2)
+    pts, ny = bow_base(m, lambda co: mix(H("#f0e8cc"), H("#d8ccaa"), 0.5 + 0.5 * math.sin(co.z * 16)), 0.62, 0.14,
+                       recurve=0.035, r_mid=0.018, grip="#3a6a3a")
+    gold, leafc = H("#e0b44a"), H("#8fcf6a")
+    for z in (-0.13, 0.13, -0.45, 0.45):
+        put(band("Band%.2f" % z, m, None, 0, 0.018, 0.016, seg=6), gold, limb_at(pts, z))
+    for s in (1, -1):
+        top, prev = limb_at(pts, 0.62 * s), limb_at(pts, 0.57 * s)
+        d = (top - prev).normalized()
+        lf = flat("TipLeaf%d" % s, leaf_outline(0.11, 0.022), m, th=0.004, bevel=0.004, step=0.009,
+                  bend=lambda c: Vector((c.x, c.y + 0.8 * c.x * c.x, c.z)))
+        put(lf, leafc, top - d * 0.035, d.to_track_quat('Z', 'Y').to_euler())
+        for k, side in enumerate((1, -1)):
+            gl = flat("GripLeaf%d%d" % (s, k), leaf_outline(0.08, 0.018), m, th=0.004, bevel=0.004, step=0.009)
+            rot = (0, side * 0.45, 0) if s > 0 else (0, math.pi - side * 0.45, 0)
+            put(gl, leafc, limb_at(pts, 0.08 * s) + Vector((0.012 * side, -0.004, 0)), rot)
+    bow_export("bw_elven_bow", ny)
+
+
+def build_goblin_warbow():
+    m = vcf("bw_goblin")
+    wood = grain("#6e5a30", "#46381c", freq=1, zf=26, amt=0.6)
+    pts, ny = bow_base(m, wood, 0.6, 0.15, r_mid=0.023, r_tip=0.011, grip="#8a2a20", string="#c8b890", sway=0.018,
+                       flatk=0.8)
+    bone = H("#e2d6b4")
+    for z in (-0.5, -0.27, 0.27, 0.5):
+        put(band("Bone%.2f" % z, m, None, 0, 0.026, 0.02, seg=5), bone, limb_at(pts, z), (0.15 * z, 0, 0.3))
+    for k, z in enumerate((-0.42, -0.16, 0.16, 0.42)):
+        ob = crystal("Spike%d" % k, m, None, (0, 0, 0), 0.008, 0.05, 0.0, seg=4)
+        put(ob, H("#6a6a72"), limb_at(pts, z) + Vector((0, -0.012, 0)), (math.pi / 2 + 0.25 * (1 if z > 0 else -1), 0, 0))
+    for z in (-0.57, 0.57):
+        end_cap("Fang%d" % (z > 0), m, bone, pts, z, [(-0.01, 0.0), (-0.01, 0.013), (0.06, 0.0)])
+    bow_export("bw_goblin_warbow", ny)
+
+
+def build_storm_bow():
+    m = vcf("bw_storm", metal=0.4)
+    g = vcf("bw_storm_gem", emit="#9ad8ff", strength=1.4)
+    pts, ny = bow_base(m, H("#353d5a"), 0.62, 0.14, recurve=0.035, r_mid=0.02, grip="#1e2436", string="#d8f0ff")
+    for s in (1, -1):
+        seg = [(x, y - 0.012, z) for x, y, z in spline(pts, 2) if 0.12 < z * s < 0.55]
+        tube("Glow%d" % s, seg, 0.0045, g, H("#bfeaff"), sides=4)
+        fin = [(0.0, 0.0), (0.05, 0.03), (0.07, 0.1), (0.04, 0.08), (0.03, 0.16), (0.012, 0.11), (0.0, 0.14)]
+        ob = flat("Fin%d" % s, fin, m, th=0.005, bevel=0.005, step=0.008)
+        place(ob, (0, 0, 0), (0, 0, math.pi / 2))                       # plano YZ, aberta para trás (+Y)
+        if s < 0:
+            place(ob, (0, 0, 0), (math.pi, 0, 0))
+        put(ob, lambda co: mix(H("#cfd8f0"), H("#6a7aa0"), smooth01((co.y - 0.02) / 0.07)),
+            limb_at(pts, 0.18 * s) + Vector((0, 0.01, 0)))
+    crystal("Gem", g, H("#9ad8ff"), (0, -0.045, 0), 0.016, 0.03, 0.03, seg=4, rot=(math.pi / 2, 0, 0))
+    for z in (-0.58, 0.58):
+        end_cap("Cap%d" % (z > 0), m, H("#cfd8f0"), pts, z, [(-0.025, 0.0), (-0.025, 0.01), (0.015, 0.0065), (0.03, 0.0)])
+    bow_export("bw_storm_bow", ny)
+
+
+def build_arrow():
+    m = vcf("bw_arrow", metal=0.3)
+    tube("Shaft", [(0, 0, -0.07), (0, 0, 0.69)], 0.0055, m, H("#b08850"), sides=6)
+    crystal("Head", m, H("#c4ccd8"), (0, 0, 0.7), 0.017, 0.055, 0.012, seg=4)
+    lathe("Nock", [(-0.085, 0.0), (-0.085, 0.006), (-0.07, 0.0065), (-0.07, 0.0)], m, H("#d8402a"), seg=6)
+    vane = [(0.0, 0.0), (0.02, 0.012), (0.024, 0.075), (0.0, 0.1)]
+    for k in range(3):
+        ob = flat("Vane%d" % k, vane, m, th=0.002, bevel=0.002, step=0.006, loc=(0.004, 0, -0.065))
+        put(ob, H("#d8402a" if k == 0 else "#f2ece0"), (0, 0, 0), (0, 0, 2 * math.pi * k / 3 + math.pi / 2))
+    for o in [o for o in coll.all_objects if o.type == 'MESH']:
+        place(o, (0, 0, 0), (math.pi / 2, 0, 0))       # +Z -> -Y: a flecha sai da corda para a frente
+    fin("bw_arrow", 0.0, 0.0)
+
+
+ARMORY += [("bw_short_bow", build_short_bow), ("bw_hunter_bow", build_hunter_bow), ("bw_elven_bow", build_elven_bow),
+           ("bw_goblin_warbow", build_goblin_warbow), ("bw_storm_bow", build_storm_bow), ("bw_arrow", build_arrow)]
+
+
+# ------------------------------------------------------------------ espadas clássicas
+def metal(light, base, edge, cx=lambda z: 0.0, fuller=None, contour=0.009, extra=None):
+    """Pintura anime do metal: luz à esquerda da quina central, base à direita, contorno escuro no gume.
+    fuller = (z0, z1, meia_largura, cor) — sulco central; extra(x, z, cor) -> cor ajusta por cima."""
+    L, B, E = H(light), H(base), H(edge)
+
+    def fn(x, z, d):
+        side = x - cx(z)
+        c = mix(L, B, smooth01((side + 0.003) / 0.006))
+        if fuller and fuller[0] < z < fuller[1] and abs(side) < fuller[2]:
+            c = mix(c, H(fuller[3]), 0.85)
+        if extra:
+            c = extra(x, z, c)
+        return mix(E, c, smooth01((d - 0.001) / contour))
+    return fn
+
+
+def sword_blade(name, outline, m, paint2d, th=0.012, bevel=0.011, holes=()):
+    return flat(name, outline, m, th=th, bevel=bevel, step=0.01, paint2d=paint2d, holes=holes)
+
+
+def curved(z0, z1, cx, w, spine=0.4, n=14, tip_back=0.006):
+    """Contorno de lâmina curva: costas em cx - w*spine, gume em cx + w*(1-spine), ponta puxada para as costas."""
+    zs = [z0 + (z1 - z0) * i / n for i in range(n)]
+    back = [(cx(z) - w(z) * spine, z) for z in zs]
+    edge = [(cx(z) + w(z) * (1 - spine), z) for z in zs]
+    tip = (cx(z1) - tip_back, z1)
+    return back + [tip] + list(reversed(edge)), tip
+
+
+def build_wooden_sword():
+    m = vcf("w_wooden")
+    wood = H("#c09058")
+
+    def wpaint(x, z, d):
+        gr = 0.5 + 0.5 * math.sin(x * 160 + math.sin(z * 14) * 2.0)
+        c = mix(wood, H("#9a6c3c"), 0.5 * smooth01((gr - 0.6) / 0.4))
+        c = mix(H("#e0b880"), c, smooth01((x + 0.004) / 0.008))
+        return mix(H("#6a4626"), c, smooth01((d - 0.001) / 0.008))
+    sword_blade("Blade", [(-0.03, 0.07), (0.03, 0.07), (0.03, 0.74), (0.022, 0.8), (0.0, 0.83), (-0.022, 0.8),
+                          (-0.03, 0.74)], m, wpaint, th=0.013, bevel=0.012)
+    tube("Guard", [(-0.1, 0, 0.068), (0.1, 0, 0.068)], 0.016, m, H("#8a5a30"), sides=6, flat=0.8)
+    for s in (1, -1):
+        orb("GuardEnd%d" % s, m, H("#8a5a30"), (0.1 * s, 0, 0.068), 0.019, seg=6)
+    wrap("Grip", m, H("#e0d2b0"), -0.07, 0.055, 0.017, turns=5)
+    orb("Pommel", m, H("#8a5a30"), (0, 0, -0.088), 0.024, seg=8)
+    fin("w_wooden_sword", 0.0, 0.83)
+
+
+def build_iron_sword():
+    m = vcf("w_iron", metal=0.4)
+    sword_blade("Blade", [(-0.026, 0.07), (0.026, 0.07), (0.022, 0.72), (0.0, 0.95), (-0.022, 0.72)], m,
+                metal("#eef2f6", "#a8b4c4", "#46505e", fuller=(0.1, 0.62, 0.005, "#7a8696")))
+    iron = H("#6e7684")
+    tube("Guard", spline([(-0.11, 0, 0.1), (-0.085, 0, 0.072), (0, 0, 0.064), (0.085, 0, 0.072), (0.11, 0, 0.1)], 4),
+         lambda t: 0.012 - 0.004 * abs(2 * t - 1), m, iron, sides=6)
+    crystal("Block", m, iron, (0, 0, 0.064), 0.024, 0.02, 0.02, seg=4, phase=math.pi / 4)
+    wrap("Grip", m, H("#5a3a22"), -0.07, 0.055, 0.016, turns=6)
+    lathe("Pommel", [(-0.105, 0.0), (-0.105, 0.012), (-0.095, 0.024), (-0.08, 0.02), (-0.07, 0.01), (-0.07, 0.0)], m, iron,
+          seg=8, smooth=False)
+    fin("w_iron_sword", 0.0, 0.95)
+
+
+def build_steel_saber():
+    m = vcf("w_saber", metal=0.4)
+    cx = lambda z: -0.12 * ((z - 0.07) / 0.82) ** 2
+    w = lambda z: 0.04 - 0.01 * (z - 0.07) / 0.82
+    ol, tip = curved(0.07, 0.89, cx, w)
+    sword_blade("Blade", ol, m, metal("#f4f8fc", "#b8c6d6", "#4a5668", cx=lambda z: cx(z) - w(z) * 0.1), th=0.011,
+                bevel=0.01)
+    gold = H("#e0b050")
+    lathe("Guard", [(0.055, 0.0), (0.055, 0.028), (0.065, 0.034), (0.075, 0.03), (0.075, 0.0)], m, gold, seg=10,
+          scale=(1.3, 0.65, 1), smooth=False)
+    tube("Knuckle", spline([(0.035, 0, 0.065), (0.06, 0, 0.03), (0.058, 0, -0.04), (0.035, 0, -0.085),
+                            (0.008, 0, -0.095)], 4), 0.0065, m, gold, sides=5)
+    wrap("Grip", m, H("#2a2230"), -0.08, 0.055, 0.015, turns=7)
+    orb("Pommel", m, gold, (0, 0, -0.092), 0.016, seg=8, sq=0.8)
+    fin("w_steel_saber", *tip)
+
+
+def build_knight_blade():
+    m = vcf("w_knight", metal=0.4)
+    g = vcf("w_knight_gem", emit="#6ab8ff", strength=1.6)
+    sword_blade("Blade", [(-0.035, 0.08), (0.035, 0.08), (0.03, 0.78), (0.0, 0.98), (-0.03, 0.78)], m,
+                metal("#eef4fb", "#aebed4", "#3e4c66", fuller=(0.11, 0.72, 0.009, "#8aa0bc")), th=0.013, bevel=0.012)
+    for k in range(8):
+        z = 0.16 + k * 0.068
+        flat("Rune%d" % k, [(0.0, z - 0.016), (0.0055, z), (0.0, z + 0.016), (-0.0055, z)], g, H("#8acaff"), th=0.0142,
+             bevel=0.0015, step=0.004, ridge=0.0)
+    gold = H("#e8b84a")
+    wing = [(0.02, 0.058), (0.07, 0.062), (0.12, 0.1), (0.108, 0.074), (0.135, 0.068), (0.095, 0.046), (0.02, 0.04)]
+    for s in (1, -1):
+        flat("Wing%d" % s, [(x * s, z) for x, z in wing], m, gold, th=0.01, bevel=0.007, step=0.008)
+    crystal("Block", m, gold, (0, 0, 0.06), 0.028, 0.026, 0.022, seg=4, phase=math.pi / 4)
+    orb("Gem", g, H("#5aa8ff"), (0, -0.016, 0.06), 0.013, seg=8)
+    wrap("Grip", m, H("#2a3e70"), -0.08, 0.04, 0.017, turns=6)
+    lathe("Pommel", [(-0.12, 0.0), (-0.115, 0.016), (-0.1, 0.024), (-0.085, 0.016), (-0.08, 0.0)], m, gold, seg=8,
+          smooth=False)
+    orb("PommelGem", g, H("#5aa8ff"), (0, -0.018, -0.1), 0.009, seg=6)
+    fin("w_knight_blade", 0.0, 0.98)
+
+
+def build_frost_brand():
+    m = vcf("w_frost", metal=0.2)
+    g = vcf("w_frost_gem", emit="#8fe6ff", strength=1.2)
+    right = []
+    right = [(0.03, 0.058)]
+    z = 0.08
+    while z < 0.8:
+        right += [(0.034, z), (0.025, z + 0.035)]
+        z += 0.07
+    ol = right + [(0.0, 0.97)] + [(-x, zz) for x, zz in reversed(right)]
+    sword_blade("Blade", ol, m, metal("#f4feff", "#a6e4f6", "#3a86b0", fuller=(0.1, 0.8, 0.004, "#5ab8e0")),
+                th=0.012, bevel=0.011)
+    flat("Core", [(0.0, 0.1), (0.006, 0.45), (0.0, 0.88), (-0.006, 0.45)], g, H("#c8f6ff"), th=0.0132, bevel=0.002,
+         step=0.005, ridge=0.0)
+    silver = H("#dce8f4")
+    tube("Guard", [(-0.06, 0, 0.065), (0.06, 0, 0.065)], 0.013, m, silver, sides=6)
+    for s in (1, -1):
+        ob = crystal("Ice%d" % s, g, None, (0, 0, 0), 0.016, 0.07, 0.01, seg=5)
+        put(ob, H("#a8eeff"), (0.06 * s, 0, 0.065), (0, s * 1.1, 0))
+    wrap("Grip", m, H("#24406a"), -0.075, 0.058, 0.016, turns=6)
+    crystal("Pommel", g, H("#a8eeff"), (0, 0, -0.085), 0.018, 0.012, 0.045, seg=5)
+    fin("w_frost_brand", 0.0, 0.97)
+
+
+def build_goblin_cleaver():
+    m = vcf("w_cleaver", metal=0.3)
+    ol = [(-0.03, 0.07), (0.06, 0.075), (0.11, 0.11), (0.125, 0.2), (0.116, 0.26), (0.128, 0.3), (0.125, 0.4),
+          (0.113, 0.44), (0.127, 0.48), (0.13, 0.6), (0.12, 0.68), (0.06, 0.7), (-0.03, 0.66)]
+    hole = [(0.014 * math.cos(2 * math.pi * k / 10), 0.6 + 0.014 * math.sin(2 * math.pi * k / 10)) for k in range(10)]
+
+    def hot(x, z, c):
+        rust = 0.5 + 0.5 * math.sin(x * 70 + z * 40) * math.sin(z * 23 - x * 31)
+        c = mix(c, H("#8a4a2a"), 0.45 * smooth01((rust - 0.7) / 0.3))
+        return mix(c, H("#ff8a3a"), smooth01((x - 0.07) / 0.05))
+    sword_blade("Blade", ol, m, metal("#b0a098", "#7e6a62", "#2e221e", cx=lambda z: 0.02, extra=hot), th=0.015,
+                bevel=0.013, holes=[hole])
+    iron = H("#4e4a4e")
+    lathe("Guard", [(0.05, 0.0), (0.05, 0.03), (0.075, 0.03), (0.075, 0.0)], m, iron, seg=4, smooth=False,
+          scale=(1.9, 0.75, 1), phase=math.pi / 4)
+    wrap("Grip", m, H("#5a4a3a"), -0.08, 0.05, 0.018, turns=4)
+    for z in (-0.05, 0.02):
+        band("Bone%.2f" % z, m, H("#ddd0b0"), z, 0.018, 0.021, seg=5)
+    crystal("Spike", m, iron, (0, 0, -0.075), 0.02, 0.0, 0.07, seg=4)
+    fin("w_goblin_cleaver", 0.12, 0.69)
+
+
+def build_guardian_greatsword():
+    m = vcf("w_guardian", metal=0.4)
+    g = vcf("w_guardian_gem", emit="#ffc860", strength=1.2)
+    sword_blade("Blade", [(-0.044, 0.12), (0.044, 0.12), (0.038, 0.98), (0.0, 1.2), (-0.038, 0.98)], m,
+                metal("#f6f2e8", "#bcb8b0", "#55504a"), th=0.015, bevel=0.014)
+    gold = H("#e8c060")
+    flat("Inlay", [(-0.006, 0.15), (0.006, 0.15), (0.004, 0.86), (0.0, 0.92), (-0.004, 0.86)], m, gold, th=0.0158,
+         bevel=0.002, step=0.005, ridge=0.0)
+    tube("Guard", spline([(-0.17, 0, 0.14), (-0.13, 0, 0.112), (0, 0, 0.105), (0.13, 0, 0.112), (0.17, 0, 0.14)], 4),
+         lambda t: 0.017 - 0.005 * abs(2 * t - 1), m, gold, sides=6)
+    for s in (1, -1):
+        crystal("GuardEnd%d" % s, m, gold, (0.172 * s, 0, 0.145), 0.016, 0.03, 0.012, seg=4)
+    crystal("Block", m, gold, (0, 0, 0.105), 0.035, 0.03, 0.03, seg=4, phase=math.pi / 4)
+    orb("Gem", g, H("#ffc860"), (0, -0.02, 0.105), 0.02, seg=8)
+    wrap("Grip", m, H("#6a2a22"), -0.11, 0.08, 0.018, turns=9)
+    lathe("Pommel", [(-0.16, 0.0), (-0.155, 0.02), (-0.135, 0.03), (-0.12, 0.022), (-0.11, 0.0)], m, gold, seg=8,
+          smooth=False)
+    orb("PommelGem", g, H("#ffc860"), (0, -0.024, -0.135), 0.011, seg=6)
+    fin("w_guardian_greatsword", 0.0, 1.2)
+
+
+def build_dragonfang():
+    m = vcf("w_dragon", metal=0.2)
+    g = vcf("w_dragon_gem", emit="#ff4a2a", strength=1.4)
+    cx = lambda z: -0.1 * max(0.0, (z - 0.1) / 0.95) ** 1.6
+    w = lambda z: 0.078 * max(0.0, 1 - (z - 0.1) / 0.98) ** 0.75 + 0.004
+    n = 18
+    zs = [0.08 + 0.97 * i / n for i in range(n)]
+    back = []
+    for i, z in enumerate(zs):
+        b = cx(z) - w(z) * 0.45
+        back.append((b, z))
+        if 2 <= i < n - 4 and i % 2 == 0:
+            back.append((b - 0.016 * w(z) / 0.08, z + 0.025))       # dente nas costas
+    edge = [(cx(z) + w(z) * 0.55, z) for z in zs]
+    tip = (cx(1.06) - 0.004, 1.06)
+    ol = back + [tip] + list(reversed(edge))
+
+    def fang(x, z, c):
+        t = ramp([(0.1, H("#f4e8cc")), (0.55, H("#f8c890")), (0.85, H("#ff7a34")), (1.06, H("#d42a1c"))], z)
+        return mix(mix(t, H("#fff6e4"), 0.5), t, smooth01((x - cx(z) + 0.004) / 0.008))
+    sword_blade("Blade", ol, m, metal("#ffffff", "#f0e0c0", "#5a2418", cx=cx, extra=fang), th=0.016, bevel=0.015)
+    horn = H("#8a1c16")
+    for s in (1, -1):
+        tube("Horn%d" % s, spline([(0.02 * s, 0, 0.08), (0.07 * s, 0, 0.095), (0.11 * s, 0, 0.07), (0.125 * s, 0, 0.025)], 4),
+             lambda t: 0.017 * (1 - t) + 0.003, m, horn, sides=6)
+    crystal("Block", m, horn, (0, 0, 0.075), 0.03, 0.025, 0.02, seg=5)
+    wrap("Grip", m, H("#7a1e18"), -0.085, 0.055, 0.017, turns=6)
+    orb("PommelGem", g, H("#ff5a32"), (0, 0, -0.112), 0.019, seg=8)
+    for k in range(3):
+        a = 2 * math.pi * k / 3 + 0.5
+        tube("Claw%d" % k, spline([(0.008 * math.cos(a), 0.008 * math.sin(a), -0.085),
+                                   (0.024 * math.cos(a), 0.024 * math.sin(a), -0.105),
+                                   (0.014 * math.cos(a), 0.014 * math.sin(a), -0.13)], 3),
+             lambda t: 0.006 * (1 - t) + 0.0015, m, H("#2a1a18"), sides=5)
+    fin("w_dragonfang", *tip)
+
+
+ARMORY += [("w_wooden_sword", build_wooden_sword), ("w_iron_sword", build_iron_sword),
+           ("w_steel_saber", build_steel_saber), ("w_knight_blade", build_knight_blade),
+           ("w_frost_brand", build_frost_brand), ("w_goblin_cleaver", build_goblin_cleaver),
+           ("w_guardian_greatsword", build_guardian_greatsword), ("w_dragonfang", build_dragonfang)]
+
+
+WEAPONS.extend(ARMORY)   # ASSETS=weapons gera todas; ASSETS=staves / bows / classic geram só esse grupo

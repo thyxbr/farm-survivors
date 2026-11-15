@@ -315,7 +315,7 @@ func _register(token: String, client_version: String, _look = {}, _extra = "") -
 	characters.set_session(account, id)
 	# o visual vem do personagem guardado no servidor (o `look` do cliente fica só pela assinatura estável)
 	var char_look: Dictionary = characters.load_or_create(account).equipment
-	# todo jogador começa na praça (zona "hub"); "ready" = já carregou a cena da zona em que está
+	# todo jogador começa na zona "hub" (carregando) até Valdoria montar; "ready" = já carregou a cena da zona
 	players[id] = {"name": str(acc.name), "account": account, "admin": bool(acc.get("is_admin", false)),
 		"look": _clean_look(char_look, account), "ready": false, "zone": "hub"}
 	print("[server] %s entrou (peer %d, conta %d, %d online)" % [acc.name, id, account, players.size()])
@@ -343,6 +343,9 @@ func _client_ready() -> void:
 	send_zone_enemies(id, "world")
 	if not _lobby.is_empty():
 		_horde_lobby.rpc_id(id, _lobby_state())
+	# a vila mostra a base, os recordes e a sala da Defesa da Cidade (mesa de guerra)
+	Hub.server_send_state(id)
+	Lobby._room_state.rpc_id(id, Lobby._room_view(), Lobby._record)
 
 
 # ---------------------------------------------------------------- zonas (salão, Valdoria, cidade)
@@ -821,12 +824,6 @@ func _accepted(all_players: Dictionary) -> void:
 	get_tree().paused = false
 	# todo mundo chega pelo salão (lobby): de lá vai para Valdoria ou para a Defesa da Cidade em grupo
 	Lobby.on_accepted()
-
-
-## A praça terminou de montar (Hub.enter): ela é o mundo do cliente para réplicas e autosave, mas não
-## manda `_client_ready` (quem põe na zona "hub" é o Hub._enter_hub).
-func hub_ready(scene: Node) -> void:
-	world = scene
 
 
 ## Chamado pelo mundo quando terminou de montar a cena.
@@ -1336,7 +1333,7 @@ func _horde_lobby(state: Dictionary) -> void:
 	horde_lobby_t = float(state.get("t", 0.0))
 	if not was_open and not state.is_empty() and horde_invite_pending() and _horde_survival() == null:
 		if zone_of(multiplayer.get_unique_id()) == "hub":
-			Game.notify.emit("%s abriu o Portal do Desafio! Vá ao portal da praça para entrar." % state.leader,
+			Game.notify.emit("%s abriu o Portal do Desafio! Vá ao portal da vila para entrar." % state.leader,
 				Color(0.85, 0.6, 1.0))
 		else:
 			Game.notify.emit("%s abriu o Portal do Desafio! [Y] entrar · [N] recusar" % state.leader, Color(0.85, 0.6, 1.0))

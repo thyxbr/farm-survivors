@@ -10,7 +10,8 @@
 			"$c": [0.55, 0.38, 0.2, 1.0]
 		},
 		"shape": "wood",
-		"desc": "Uma espada de treino. Melhor que nada."
+		"desc": "Uma espada de treino. Melhor que nada.",
+		"model": "w_wooden_sword"
 	},
 	"iron_sword": {
 		"name": "Espada de Ferro",
@@ -22,7 +23,8 @@
 		"color": {
 			"$c": [0.8, 0.82, 0.86, 1.0]
 		},
-		"desc": "Lâmina confiável forjada na vila."
+		"desc": "Lâmina confiável forjada na vila.",
+		"model": "w_iron_sword"
 	},
 	"steel_saber": {
 		"name": "Sabre de Aço",
@@ -39,7 +41,8 @@
 			"agi": 2,
 			"speed": 0.04
 		},
-		"desc": "Leve e curvo. Feito para quem não para quieto."
+		"desc": "Leve e curvo. Feito para quem não para quieto.",
+		"model": "w_steel_saber"
 	},
 	"knight_blade": {
 		"name": "Lâmina do Cavaleiro",
@@ -56,7 +59,8 @@
 			"str": 2,
 			"vit": 1
 		},
-		"desc": "Aço temperado com runas azuladas."
+		"desc": "Aço temperado com runas azuladas.",
+		"model": "w_knight_blade"
 	},
 	"frost_brand": {
 		"name": "Marca Gélida",
@@ -74,7 +78,8 @@
 			"str": 2,
 			"int": 2
 		},
-		"desc": "O gelo da lâmina nunca derrete. Golpes deixam o alvo lento."
+		"desc": "O gelo da lâmina nunca derrete. Golpes deixam o alvo lento.",
+		"model": "w_frost_brand"
 	},
 	"goblin_cleaver": {
 		"name": "Cutelo do Rei Goblin",
@@ -92,7 +97,8 @@
 			"str": 3,
 			"crit": 0.05
 		},
-		"desc": "Pesado, brutal e ainda quente de batalha."
+		"desc": "Pesado, brutal e ainda quente de batalha.",
+		"model": "w_goblin_cleaver"
 	},
 	"guardian_greatsword": {
 		"name": "Montante do Guardião",
@@ -111,7 +117,8 @@
 			"vit": 3,
 			"hp": 25
 		},
-		"desc": "Forjado para os guardiões das ruínas antigas."
+		"desc": "Forjado para os guardiões das ruínas antigas.",
+		"model": "w_guardian_greatsword"
 	},
 	"dragonfang": {
 		"name": "Presa do Dragão",
@@ -130,7 +137,8 @@
 			"crit": 0.08,
 			"leech": 0.04
 		},
-		"desc": "Esculpida do dente de um dragão ancião. Cada golpe bebe vida."
+		"desc": "Esculpida do dente de um dragão ancião. Cada golpe bebe vida.",
+		"model": "w_dragonfang"
 	},
 	"azure_edge": {
 		"name": "Gume Celeste",
@@ -416,7 +424,8 @@
 			"spell": 3,
 			"mp": 10
 		},
-		"desc": "Dispara faíscas arcanas. Ninguém nasce arquimago."
+		"desc": "Dispara faíscas arcanas. Ninguém nasce arquimago.",
+		"model": "st_apprentice_staff"
 	},
 	"oak_staff": {
 		"name": "Cajado de Carvalho Antigo",
@@ -435,7 +444,8 @@
 			"int": 2,
 			"spell": 6
 		},
-		"desc": "Talhado de um carvalho que viu mil invernos."
+		"desc": "Talhado de um carvalho que viu mil invernos.",
+		"model": "st_oak_staff"
 	},
 	"ember_staff": {
 		"name": "Cajado das Brasas",
@@ -455,7 +465,8 @@
 			"int": 3,
 			"spell": 10
 		},
-		"desc": "Os projéteis explodem e queimam em área."
+		"desc": "Os projéteis explodem e queimam em área.",
+		"model": "st_ember_staff"
 	},
 	"frost_scepter": {
 		"name": "Cetro da Geada",
@@ -476,7 +487,8 @@
 			"spell": 10,
 			"mp": 15
 		},
-		"desc": "Cristal de gelo eterno. Os projéteis deixam inimigos lentos."
+		"desc": "Cristal de gelo eterno. Os projéteis deixam inimigos lentos.",
+		"model": "st_frost_scepter"
 	},
 	"archmage_staff": {
 		"name": "Cajado do Arquimago",
@@ -498,7 +510,158 @@
 			"mp": 40,
 			"cdr": 0.15
 		},
-		"desc": "Pertenceu ao último arquimago de Valdoria."
+		"desc": "Pertenceu ao último arquimago de Valdoria.",
+		"model": "st_archmage_staff"
+	},
+	"willow_staff": {
+		"name": "Cajado de Salgueiro",
+		"type": "weapon",
+		"class": "staff",
+		"rarity": "common",
+		"damage": 10,
+		"price": 50,
+		"color": {
+			"$c": [0.45, 0.9, 0.72, 1.0]
+		},
+		"stats": {
+			"spell": 4,
+			"vit": 1
+		},
+		"desc": "Galhos de salgueiro guardam uma pedra de jade. Calmo como o rio.",
+		"model": "st_willow_staff"
+	},
+	"bone_staff": {
+		"name": "Cajado de Ossos",
+		"type": "weapon",
+		"class": "staff",
+		"rarity": "uncommon",
+		"damage": 14,
+		"price": 120,
+		"color": {
+			"$c": [0.55, 1.0, 0.35, 1.0]
+		},
+		"stats": {
+			"int": 2,
+			"spell": 5,
+			"leech": 0.02
+		},
+		"desc": "Os olhos do crânio ainda brilham. Cada acerto rouba um fio de vida.",
+		"model": "st_bone_staff"
+	},
+	"tide_staff": {
+		"name": "Cajado das Marés",
+		"type": "weapon",
+		"class": "staff",
+		"rarity": "uncommon",
+		"damage": 14,
+		"price": 140,
+		"color": {
+			"$c": [0.4, 0.85, 1.0, 1.0]
+		},
+		"fx": "slow",
+		"stats": {
+			"int": 2,
+			"spell": 6,
+			"mp": 10
+		},
+		"desc": "Coral e pérola do fundo do mar. Os projéteis deixam inimigos lentos.",
+		"model": "st_tide_staff"
+	},
+	"sun_staff": {
+		"name": "Cetro Solar",
+		"type": "weapon",
+		"class": "staff",
+		"rarity": "rare",
+		"damage": 20,
+		"price": 260,
+		"color": {
+			"$c": [1.0, 0.8, 0.3, 1.0]
+		},
+		"stats": {
+			"int": 3,
+			"spell": 10,
+			"cdr": 0.05
+		},
+		"desc": "Um sol de ouro em volta de uma gema de âmbar. Esquenta só de segurar.",
+		"model": "st_sun_staff"
+	},
+	"storm_staff": {
+		"name": "Cajado da Tempestade",
+		"type": "weapon",
+		"class": "staff",
+		"rarity": "rare",
+		"damage": 21,
+		"price": 280,
+		"color": {
+			"$c": [0.55, 0.68, 1.0, 1.0]
+		},
+		"glow": 0.4,
+		"stats": {
+			"int": 3,
+			"spell": 9,
+			"speed": 0.04
+		},
+		"desc": "Dois raios presos em aço escuro. O ar em volta estala.",
+		"model": "st_storm_staff"
+	},
+	"thorn_staff": {
+		"name": "Cajado de Espinheiro",
+		"type": "weapon",
+		"class": "staff",
+		"rarity": "epic",
+		"damage": 27,
+		"price": 400,
+		"color": {
+			"$c": [1.0, 0.35, 0.48, 1.0]
+		},
+		"stats": {
+			"int": 4,
+			"spell": 14,
+			"leech": 0.03
+		},
+		"desc": "Uma rosa carmesim floresce no alto do espinheiro. Bebe o sangue de quem fere.",
+		"model": "st_thorn_staff"
+	},
+	"void_staff": {
+		"name": "Cajado do Vazio",
+		"type": "weapon",
+		"class": "staff",
+		"rarity": "epic",
+		"damage": 28,
+		"price": 430,
+		"color": {
+			"$c": [0.68, 0.38, 1.0, 1.0]
+		},
+		"glow": 0.5,
+		"fx": "splash",
+		"stats": {
+			"int": 5,
+			"spell": 15,
+			"crit": 0.05
+		},
+		"desc": "Obsidiana e lua negra. Os projéteis explodem em área.",
+		"model": "st_void_staff"
+	},
+	"phoenix_staff": {
+		"name": "Cajado da Fênix",
+		"type": "weapon",
+		"class": "staff",
+		"rarity": "legendary",
+		"damage": 32,
+		"price": 1000,
+		"color": {
+			"$c": [1.0, 0.55, 0.15, 1.0]
+		},
+		"glow": 0.8,
+		"fx": "splash",
+		"stats": {
+			"int": 6,
+			"spell": 22,
+			"hp": 30,
+			"cdr": 0.1
+		},
+		"desc": "Asas de fogo que nunca se apagam. Os projéteis explodem em chamas.",
+		"model": "st_phoenix_staff"
 	},
 	"short_bow": {
 		"name": "Arco Curto",
@@ -510,7 +673,8 @@
 		"color": {
 			"$c": [0.6, 0.42, 0.22, 1.0]
 		},
-		"desc": "Simples, mas atira longe. Segure o ataque para tensionar."
+		"desc": "Simples, mas atira longe. Segure o ataque para tensionar.",
+		"model": "bw_short_bow"
 	},
 	"hunter_bow": {
 		"name": "Arco do Caçador",
@@ -525,7 +689,8 @@
 		"stats": {
 			"agi": 2
 		},
-		"desc": "Teixo curado na fumaça. O favorito dos caçadores da vila."
+		"desc": "Teixo curado na fumaça. O favorito dos caçadores da vila.",
+		"model": "bw_hunter_bow"
 	},
 	"elven_bow": {
 		"name": "Arco Élfico",
@@ -542,7 +707,8 @@
 			"agi": 4,
 			"crit": 0.06
 		},
-		"desc": "Leve como uma folha. Flechas tensionadas atravessam inimigos."
+		"desc": "Leve como uma folha. Flechas tensionadas atravessam inimigos.",
+		"model": "bw_elven_bow"
 	},
 	"goblin_warbow": {
 		"name": "Arco de Guerra Goblin",
@@ -560,7 +726,8 @@
 			"agi": 3,
 			"crit": 0.04
 		},
-		"desc": "Feio, torto e mortal. Toda flecha perfura."
+		"desc": "Feio, torto e mortal. Toda flecha perfura.",
+		"model": "bw_goblin_warbow"
 	},
 	"storm_bow": {
 		"name": "Arco da Tempestade",
@@ -579,7 +746,8 @@
 			"crit": 0.1,
 			"speed": 0.05
 		},
-		"desc": "Disparos tensionados liberam três flechas de relâmpago."
+		"desc": "Disparos tensionados liberam três flechas de relâmpago.",
+		"model": "bw_storm_bow"
 	},
 	"leather_armor": {
 		"name": "Armadura de Couro",

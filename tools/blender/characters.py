@@ -310,17 +310,14 @@ def build_knight():
                                       sec((K.x, K.y - 0.075, K.z), 0.064, 0.068),
                                       sec((K.x, K.y - 0.1, K.z - 0.006), 0.042, 0.046)],
                    steel, knee, fwd=(0, 0, 1), chamfer=(0.0, 0.008))
-        sab_s = [dict(x, c=x["c"] + Vector((0, 0, 0.008))) for x in grow(S["foot"], 1.1, 0.006)]
-        heel_y, toe_y = sab_s[0]["c"].y, sab_s[-1]["c"].y
-        sole = tbox("Leg%s_Sole" % n, (K.x, (heel_y + toe_y) / 2 - 0.004, 0.011),
-                    (0.15 * P["ft"], heel_y - toe_y + 0.05, 0.022), lea_d, bevel=0.006, parent=ankle)
+        sab_s = grow(S["foot"], 1.1, 0.006)   # escarpe de aço inteiro, sem sola de couro: pisa direto no chão
         kw = wing("Leg%s_KneeWing" % n, (K.x + s * 0.066, K.y - 0.035, K.z), 0.075, 0.1, 0.009, steel, knee)
         gband = band("Leg%s_GreaveTrim" % n, grow([sample(S["shin"], 0.2)], 1.13, 0.008, keel=0.12)[0],
                      S["shin"][-1]["c"] - S["shin"][0]["c"], 0.016, trim, knee, sides=8, phase=0)
         join_objs("Leg%s_Knee" % n, [pol, kw, gband])
         gr = loft("Leg%s_Sabaton" % n, grow(span(S["shin"], 0.04, 0.97), 1.13, 0.008, keel=0.12), steel, knee,
                   phase=0, chamfer=(0.006, 0.0))
-        # pé no tornozelo (AnkleX): calcanhar, pé chato e ponta giram sem a canela; sola fica à parte (couro)
+        # pé no tornozelo (AnkleX): calcanhar, pé chato e ponta giram sem a canela
         loft("Leg%s_Foot" % n, stepped(sab_s, (0.42, 0.58, 0.74), drop=0.92, keep_bottom=True), steel, ankle,
              fwd=(0, 0, 1), chamfer=(0.008, 0.01))
 
@@ -547,12 +544,21 @@ ELDER_STAFF_SPOT = Vector((0.42, -0.27))       # eixo do cajado no staff_hold (x
 # ^ só a pose de referência do staff_hold; no jogo o cajado fica no "spot" de tools/build_npc_mixamo.gd (IK nos clipes)
 
 
-def build_elder():
+def build_elder(santa=False):
+    """santa=True: o Papai Noel da vila (santa.glb). Mesmo corpo, esqueleto e clipes do Bram (o jogo usa a
+    biblioteca do Mixamo do Bram nele): casaco vermelho com barra de pele branca, cinto preto de fivela dourada,
+    gorro com pompom, barba longa e cheia e uma bengala doce no lugar do cajado."""
     robe = mat("e_robe", (0.08, 0.2, 0.32), 0.95)
     robe_l = mat("e_robe_light", (0.12, 0.3, 0.42), 0.95)
     mantle = mat("e_mantle", (0.55, 0.42, 0.25), 0.95)
     mantle_d = mat("e_mantle_d", (0.38, 0.27, 0.15), 0.95)
     trim = mat("e_trim", (0.85, 0.72, 0.4), 0.5, 0.6)
+    fur = trim
+    if santa:
+        robe = mat("s_coat", (0.42, 0.02, 0.025), 0.9)
+        robe_l = mat("s_coat_light", (0.55, 0.04, 0.04), 0.9)
+        fur = mat("s_fur", (0.86, 0.85, 0.82), 1.0)
+        mantle = mantle_d = fur
     skin = mat("e_skin", (0.78, 0.55, 0.42), 0.8)
     hair = mat("e_hair", (0.9, 0.9, 0.88), 0.9)
     rope = mat("e_rope", (0.7, 0.6, 0.4), 0.95)
@@ -577,23 +583,38 @@ def build_elder():
     drape("RobeSkirt", 1.02, 0.05, 0.17, 0.29, 2 * PI, 2 * PI, robe, rows=5, cols=14, folds=0.018, thick=0.02)
     tbox("RobePanel", (0, -0.2, 0.55), (0.12, 0.02, 0.92), robe_l, top=(0.6, 1), shift_top=(0, 0.07), bevel=0.004,
          rot=(0.07, 0, 0))
-    ring("RobeHem", 0.07, 0.3, 0.035, trim, sides=14)
-    tbox("Chest", (0, 0, 1.22), (0.32, 0.2, 0.42), robe, top=(1.12, 1.05), bottom=(0.95, 0.95), bevel=0.04)
-    tbox("Collar", (0, -0.085, 1.36), (0.14, 0.05, 0.14), robe_l, bottom=(0.3, 1), bevel=0.01)
-    # manto sobre os ombros e capuz caído
-    shell("Mantle", (0, 0, 1.3), (0.5, 0.34, 0.36), mantle, cut=-0.15, seg=12, rings=8, thick=0.02)
-    ring("MantleTrim", 1.27, 0.25, 0.03, trim, sides=12, flat=0.68)
-    shell("Hood", (0, 0.11, 1.47), (0.3, 0.2, 0.22), mantle_d, cut=-0.5, rot=(0.9, 0, 0), jitter=0.006)
-    # cinto de corda, bolsa, estojo de pergaminho, pingente
-    ring("RopeBelt", 1.01, 0.178, 0.03, rope, sides=12)
-    limb("RopeEnd1", (0.06, -0.17, 1.0), (0.08, -0.19, 0.72), 0.012, 0.01, rope, sides=4)
-    limb("RopeEnd2", (0.09, -0.16, 1.0), (0.12, -0.18, 0.78), 0.012, 0.01, rope, sides=4)
-    tbox("Tassel1", (0.08, -0.19, 0.7), (0.03, 0.03, 0.05), trim, bottom=(1.5, 1.5))
-    pouch("Pouch", (-0.16, -0.09, 0.93), lea, lea, None, size=(0.08, 0.06, 0.1), rotz=-0.5)
-    limb("ScrollCase", (0.19, 0.06, 1.06), (0.21, 0.08, 0.78), 0.035, 0.035, lea, sides=7)
-    limb("ScrollCap", (0.21, 0.08, 0.79), (0.212, 0.082, 0.76), 0.04, 0.04, trim, sides=7)
-    limb("Necklace", (0, -0.1, 1.38), (0, -0.125, 1.26), 0.006, 0.006, rope, sides=4)
-    shell("Pendant", (0, -0.13, 1.24), (0.045, 0.02, 0.06), gem, cut=-1.0, thick=0)
+    ring("RobeHem", 0.07 if not santa else 0.08, 0.3 if not santa else 0.315, 0.035 if not santa else 0.1, fur, sides=14)
+    if santa:
+        # barriga redonda por baixo do casaco, pele descendo pela frente, cinto preto com fivela dourada
+        tbox("Chest", (0, 0, 1.22), (0.32, 0.21, 0.42), robe, top=(1.12, 1.05), bottom=(0.98, 1.0), bevel=0.04)
+        shell("Belly", (0, -0.045, 1.1), (0.42, 0.36, 0.42), robe, cut=-0.75, seg=12, rings=8, thick=0.02)
+        tbox("FurPanel", (0, -0.22, 0.5), (0.1, 0.03, 0.86), fur, top=(0.9, 1), shift_top=(0, 0.04), bevel=0.01,
+             rot=(0.07, 0, 0))
+        ring("Belt", 1.0, 0.214, 0.07, mat("s_belt", (0.03, 0.025, 0.025), 0.6), sides=14, y=-0.02)
+        tbox("Buckle", (0, -0.235, 1.0), (0.11, 0.025, 0.09), mat("s_buckle", (0.95, 0.7, 0.2), 0.3, 1.0), bevel=0.008)
+        tbox("BuckleHole", (0, -0.249, 1.0), (0.06, 0.006, 0.045), mat("s_belt", (0.03, 0.025, 0.025), 0.6))
+        ring("FurCollar", 1.41, 0.15, 0.07, fur, sides=12)
+        for k in range(3):   # botões pretos acima do cinto
+            shell(f"Button{k}", (0, -0.2 + k * 0.012, 1.12 + k * 0.08), (0.03, 0.02, 0.03),
+                  mat("s_belt", (0.03, 0.025, 0.025), 0.6), cut=-1.0, thick=0, seg=6, rings=4)
+        pouch("Pouch", (-0.17, -0.09, 0.93), lea, lea, None, size=(0.08, 0.06, 0.1), rotz=-0.5)
+    else:
+        tbox("Chest", (0, 0, 1.22), (0.32, 0.2, 0.42), robe, top=(1.12, 1.05), bottom=(0.95, 0.95), bevel=0.04)
+        tbox("Collar", (0, -0.085, 1.36), (0.14, 0.05, 0.14), robe_l, bottom=(0.3, 1), bevel=0.01)
+        # manto sobre os ombros e capuz caído
+        shell("Mantle", (0, 0, 1.3), (0.5, 0.34, 0.36), mantle, cut=-0.15, seg=12, rings=8, thick=0.02)
+        ring("MantleTrim", 1.27, 0.25, 0.03, trim, sides=12, flat=0.68)
+        shell("Hood", (0, 0.11, 1.47), (0.3, 0.2, 0.22), mantle_d, cut=-0.5, rot=(0.9, 0, 0), jitter=0.006)
+        # cinto de corda, bolsa, estojo de pergaminho, pingente
+        ring("RopeBelt", 1.01, 0.178, 0.03, rope, sides=12)
+        limb("RopeEnd1", (0.06, -0.17, 1.0), (0.08, -0.19, 0.72), 0.012, 0.01, rope, sides=4)
+        limb("RopeEnd2", (0.09, -0.16, 1.0), (0.12, -0.18, 0.78), 0.012, 0.01, rope, sides=4)
+        tbox("Tassel1", (0.08, -0.19, 0.7), (0.03, 0.03, 0.05), trim, bottom=(1.5, 1.5))
+        pouch("Pouch", (-0.16, -0.09, 0.93), lea, lea, None, size=(0.08, 0.06, 0.1), rotz=-0.5)
+        limb("ScrollCase", (0.19, 0.06, 1.06), (0.21, 0.08, 0.78), 0.035, 0.035, lea, sides=7)
+        limb("ScrollCap", (0.21, 0.08, 0.79), (0.212, 0.082, 0.76), 0.04, 0.04, trim, sides=7)
+        limb("Necklace", (0, -0.1, 1.38), (0, -0.125, 1.26), 0.006, 0.006, rope, sides=4)
+        shell("Pendant", (0, -0.13, 1.24), (0.045, 0.02, 0.06), gem, cut=-1.0, thick=0)
     weigh_by(take(), robe_field(hip_z, 0.5, [(0.98, "Hips"), (1.06, "Spine"), (1.17, "Spine1"), (1.3, "Spine2")]))
     # cabeça
     limb("Neck", (0, 0.005, 1.4), (0, 0.012, 1.6), 0.056, 0.052, skin, sides=7)
@@ -611,7 +632,15 @@ def build_elder():
     back = [([(th, 38, 0.1), (th, 60, 0.7), (th, 82, 1.0), (180 - th * 0.8, 66, 1.1), (180 - th * 0.7, 40, 1.3)], 4.2,
              "hair", 0.2) for th in (-42, -15, 13, 40)]
     anime_hair("", H, hm, None, {"bangs": False, "back": -46, "side": 8, "extra": back, "seed": 5})
-    anime_beard("", H, hm, None, {"length": 10.5})
+    anime_beard("", H, hm, None, {"length": 13.0, "full": 1.5} if santa else {"length": 10.5})
+    if santa:
+        # gorro: barra de pele, cone vermelho caindo para trás e pompom
+        zt = H["top"]
+        ring("HatBrim", zt - 0.055, 0.128, 0.05, fur, sides=14, y=0.005)
+        limb("Hat1", (0, 0.01, zt - 0.04), (0, 0.05, zt + 0.1), 0.122, 0.07, robe, sides=10)
+        limb("Hat2", (0, 0.05, zt + 0.1), (0, 0.16, zt + 0.12), 0.07, 0.035, robe, sides=8)
+        limb("Hat3", (0, 0.16, zt + 0.12), (0, 0.22, zt + 0.03), 0.035, 0.02, robe, sides=6)
+        shell("Pompom", (0, 0.225, zt + 0.01), (0.07, 0.07, 0.07), fur, cut=-1.0, thick=0, seg=8, rings=5)
     weigh(take(), Z, [(0.0, "Head")])
 
     # braços com mangas largas, modelados caídos (como antes) e girados até a pose T em volta do ombro e do
@@ -627,7 +656,8 @@ def build_elder():
         limb(side + "_Upper", (sx, 0, 1.42), (sx + s * 0.03, 0.01, 1.15), 0.065, 0.075, robe, sides=7)
         upper = take()
         limb(side + "_Sleeve", (sx + s * 0.03, 0.01, 1.16), (sx + s * 0.045, -0.01, 0.94), 0.08, 0.12, robe, sides=8)
-        ring(side + "_Cuff", 0.95, 0.122, 0.035, trim, sides=8, x=sx + s * 0.045, y=-0.01)
+        ring(side + "_Cuff", 0.95, 0.122 if not santa else 0.13, 0.035 if not santa else 0.06, fur, sides=8,
+             x=sx + s * 0.045, y=-0.01)
         limb(side + "_Wrist", (sx + s * 0.045, -0.01, 0.98), (sx + s * 0.045, -0.01, 0.9), 0.035, 0.032, skin, sides=6)
         fore = take()
         open_hand(side, (sx + s * 0.045, -0.01, 0.905), s, skin, None)
@@ -657,11 +687,26 @@ def build_elder():
     # cajado na altura de ~1 m, com o cajado de pé, fora da túnica (que abre para a frente quando ele se curva ou
     # dá passos). O cajado é o mesmo de antes, na mesma altura (pé no chão, gancho em cima); só muda de lugar.
     # Na pose T ele vai junto com a mão, com o pivô no punho.
-    st = [limb("Staff", (0.25, -0.07, 0.02), (0.25, -0.07, 1.82), 0.022, 0.026, wood, sides=6, twist=0.6),
-          limb("StaffWrap", (0.25, -0.07, 1.0), (0.25, -0.07, 1.12), 0.03, 0.03, lea, sides=6),
-          limb("StaffCrook1", (0.25, -0.07, 1.82), (0.29, -0.07, 1.94), 0.026, 0.02, wood, sides=6),
-          limb("StaffCrook2", (0.29, -0.07, 1.94), (0.22, -0.07, 2.0), 0.02, 0.016, wood, sides=6),
-          shell("StaffGem", (0.255, -0.07, 1.93), (0.075, 0.075, 0.1), gem, cut=-1.0, thick=0, seg=6, rings=4)]
+    if santa:
+        # bengala doce: haste branca com listras vermelhas e o gancho em arco, alternando as cores
+        cw, cr = mat("s_cane_white", (0.9, 0.88, 0.85), 0.5), mat("s_cane_red", (0.6, 0.02, 0.03), 0.5)
+        st = [limb("Staff", (0.25, -0.07, 0.02), (0.25, -0.07, 1.7), 0.026, 0.026, cw, sides=8)]
+        z = 0.08
+        while z < 1.66:
+            st.append(ring(f"Stripe{int(z * 100)}", z, 0.029, 0.06, cr, sides=8, x=0.25, y=-0.07))
+            z += 0.16
+        prev = Vector((0.25, -0.07, 1.7))
+        for k in range(1, 8):
+            a = PI * k / 7
+            p = Vector((0.25 + 0.11 - 0.11 * math.cos(a), -0.07, 1.7 + 0.13 * math.sin(a)))
+            st.append(limb(f"StaffCrook{k}", prev, p, 0.026, 0.026, cw if k % 2 else cr, sides=8))
+            prev = p
+    else:
+        st = [limb("Staff", (0.25, -0.07, 0.02), (0.25, -0.07, 1.82), 0.022, 0.026, wood, sides=6, twist=0.6),
+              limb("StaffWrap", (0.25, -0.07, 1.0), (0.25, -0.07, 1.12), 0.03, 0.03, lea, sides=6),
+              limb("StaffCrook1", (0.25, -0.07, 1.82), (0.29, -0.07, 1.94), 0.026, 0.02, wood, sides=6),
+              limb("StaffCrook2", (0.29, -0.07, 1.94), (0.22, -0.07, 2.0), 0.02, 0.016, wood, sides=6),
+              shell("StaffGem", (0.255, -0.07, 1.93), (0.075, 0.075, 0.1), gem, cut=-1.0, thick=0, seg=6, rings=4)]
     staff = join_objs("Staff", st)
     r_up, r_fo, el, el_t = turn["Left"]
     sh_l = joints["Left"][0]
@@ -725,7 +770,7 @@ def build_elder():
     up = ((-0.45, -0.2, 0.87), 15, 4, 10)                            # punho no alto, cotovelo quase esticado
     bake_clip(arm, "excited", [(0, hold), (7, cheer(*pump)), (13, cheer(*up)), (19, cheer(*pump)), (25, cheer(*up)),
                                (32, cheer(*pump)), (45, hold)])
-    export("elder", export_animations=True, export_skins=True, export_animation_mode='NLA_TRACKS')
+    export("santa" if santa else "elder", export_animations=True, export_skins=True, export_animation_mode='NLA_TRACKS')
     scn.render.fps = fps
 
 

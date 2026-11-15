@@ -65,6 +65,11 @@ static func track(ctx: Dictionary) -> String:
 
 ## Trecho do mundo aberto em que o jogador está: vila (com a horta), ruínas do Rei Goblin ou mata.
 static func area(pos: Vector3) -> String:
+	match Regions.region_at(pos):
+		"bosque":
+			return "wild"
+		"mina", "pico":
+			return "ruins"
 	var p := Vector2(pos.x, pos.z)
 	if p.distance_to(VILLAGE_CENTER) < VILLAGE_RADIUS or p.distance_to(FARM_CENTER) < FARM_RADIUS:
 		return "village"

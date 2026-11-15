@@ -17,8 +17,7 @@ const REGION := {
 	"armor": ["Hips", "Torso", "Fauld", "Belt", "Tabard", "Gorget", "ArmL_Pauldron", "ArmR_Pauldron",
 		"ArmL_Upper", "ArmR_Upper", "ArmL_Vambrace", "ArmR_Vambrace", "LegL_Thigh", "LegR_Thigh"],
 	"hands": ["ArmL_Gauntlet", "ArmR_Gauntlet", "ArmL_Hand", "ArmR_Hand"],
-	"feet": ["LegL_Sabaton", "LegR_Sabaton", "LegL_Knee", "LegR_Knee", "LegL_Foot", "LegR_Foot", "LegL_Sole",
-		"LegR_Sole"],
+	"feet": ["LegL_Sabaton", "LegR_Sabaton", "LegL_Knee", "LegR_Knee", "LegL_Foot", "LegR_Foot"],
 }
 ## Estilo de cada espaço vazio: o personagem sem equipamento usa camisa, calça e sapatos.
 const DEFAULT_STYLE := {"head": "h_bare", "armor": "a_shirt", "hands": "g_bare", "feet": "f_shoes"}
@@ -264,7 +263,7 @@ static func _tinted(src: BaseMaterial3D, c: Color, glow: float) -> BaseMaterial3
 # ------------------------------------------------------------------ armas
 static func _build_sword(h: Node3D, tip: Node3D, id: String) -> void:
 	var it := ItemDB.get_item(id)
-	if it.has("model") and _build_model(h, tip, it.model):
+	if it.has("model") and _build_model(h, tip, it.model) != null:
 		return
 	var shape: String = it.get("shape", "")
 	var length := 0.86
@@ -320,23 +319,35 @@ static func _build_sword(h: Node3D, tip: Node3D, id: String) -> void:
 ## O lado esquerdo da folha de conceito (-X do GLB, para onde as lâminas curvas dobram: as costas) vai para
 ## +Y do suporte, como a "saber" procedural: ponta curvando para cima e gume para baixo na guarda, liderando
 ## o golpe. Com -X -> +Y, o eixo Z do GLB vira -X do suporte (giro de 180° no eixo da lâmina, sem espelhar).
-static func _build_model(h: Node3D, tip: Node3D, model: String) -> bool:
+static func _build_model(h: Node3D, tip: Node3D, model: String, basis := SWORD_BASIS) -> Node3D:
 	var path := "res://assets/models/%s.glb" % model
 	if not ResourceLoader.exists(path):
-		return false
+		return null
 	var w := (load(path) as PackedScene).instantiate() as Node3D
 	WeaponModel.use_vertex_color(w)
-	w.transform = Transform3D(Basis(Vector3(0, -1, 0), Vector3(0, 0, 1), Vector3(-1, 0, 0)), Vector3.ZERO)
+	w.transform = Transform3D(basis, Vector3.ZERO)
 	h.add_child(w)
 	var t := w.find_child("Tip", true, false) as Node3D
 	tip.position = w.transform * t.position if t else Vector3(0, 0, 1.0)
-	return true
+	return w
 
 
+const SWORD_BASIS := Basis(Vector3(0, -1, 0), Vector3(0, 0, 1), Vector3(-1, 0, 0))
+
+
+## Cajado modelado no Blender (st_<id>.glb, tools/blender/armory.py): a haste já sobe em +Y do GLB, como o suporte
+## espera; o "Tip" é o centro da gema, onde nascem os projéteis e a luz.
 ## `grip` desce a vara inteira em relação ao suporte (a mão): o cajado empunhado usa STAFF_GRIP para a mão
 ## ficar no meio da vara; o ícone do inventário usa 0 (enquadramento de sempre).
 static func _build_staff(h: Node3D, tip: Node3D, id: String, grip := 0.0) -> void:
 	var it := ItemDB.get_item(id)
+	if it.has("model"):
+		var w := _build_model(h, tip, it.model, Basis.IDENTITY)
+		if w != null:
+			w.position.y -= grip
+			tip.position.y -= grip
+			_gem_light(h, tip.position, it.color)
+			return
 	var wood := _mat(it.get("wood", Color(0.45, 0.3, 0.16)), false)
 	var gem_c: Color = it.color
 	var dn := Vector3(0, -grip, 0)
@@ -352,18 +363,26 @@ static func _build_staff(h: Node3D, tip: Node3D, id: String, grip := 0.0) -> voi
 	var gem := _sphere(0.065 if it.rarity != "legendary" else 0.085, _glow_mat(gem_c, 2.2 + it.get("glow", 0.0)), top + Vector3(0, 0.1, 0))
 	gem.scale = Vector3(1, 1.35, 1)
 	h.add_child(gem)
+	_gem_light(h, top + Vector3(0, 0.1, 0), gem_c)
+	tip.position = top + Vector3(0, 0.1, 0)
+
+
+static func _gem_light(h: Node3D, at: Vector3, c: Color) -> void:
 	var lt := OmniLight3D.new()
-	lt.light_color = gem_c
+	lt.light_color = c
 	lt.light_energy = 0.7
 	lt.omni_range = 2.2
-	lt.position = top + Vector3(0, 0.1, 0)
+	lt.position = at
 	h.add_child(lt)
-	tip.position = top + Vector3(0, 0.1, 0)
 
 
 ## Arco vertical na mão esquerda (+Z = para frente). Devolve a flecha encaixada (oculta).
 static func _build_bow(h: Node3D, tip: Node3D, id: String) -> Node3D:
 	var it := ItemDB.get_item(id)
+	if it.has("model"):
+		var w := _build_model(h, tip, it.model, Basis.IDENTITY)
+		if w != null:
+			return _model_bow_string(h, w, _model_arrow(h, w))
 	var wood := _bow_mat(id)
 	var half := 0.62 if it.rarity in ["rare", "epic", "legendary"] else 0.55
 	var segs: Array = []
@@ -395,8 +414,32 @@ static func _build_bow(h: Node3D, tip: Node3D, id: String) -> Node3D:
 
 
 ## Encaixe da flecha com a corda solta (espaço do suporte do arco).
-static func bow_rest_nock(_h: Node3D) -> Vector3:
+static func bow_rest_nock(h: Node3D) -> Vector3:
+	var data: Dictionary = h.get_meta("bow", {})
+	if data.has("rest"):
+		return data.rest
 	return Vector3(0.0, 0.0, _bow_limb(1.0, 0.0).z)
+
+
+## Arco modelado: a corda não vem no GLB, só as pontas dela ("StringTop"/"StringBot"). Desenha a corda em dois
+## trechos que bow_shape estica até os dedos (o arco do GLB é uma peça só: não enverga). GLB antigo, com a
+## corda na malha e sem as pontas: fica como está (corda parada).
+static func _model_bow_string(h: Node3D, bow: Node3D, arrow: Node3D) -> Node3D:
+	var top := bow.find_child("StringTop", true, false) as Node3D
+	var bot := bow.find_child("StringBot", true, false) as Node3D
+	if top == null or bot == null:
+		return arrow
+	var string_m := _mat(Color(0.92, 0.89, 0.78), false)
+	var strings: Array = []
+	for i in 2:
+		var st := _box(Vector3(0.0065, 1.0, 0.0065), string_m, Vector3.ZERO)
+		h.add_child(st)
+		strings.append(st)
+	var tips := [bow.transform * top.position, bow.transform * bot.position]
+	var rest: Vector3 = arrow.position
+	h.set_meta("bow", {"tips": tips, "strings": strings, "arrow": arrow, "rest": Vector3(0.0, rest.y, rest.z)})
+	bow_shape(h, bow_rest_nock(h))
+	return arrow
 
 
 ## Ponto do arco no parâmetro `t` (-1 = ponta de baixo, 0 = punho, 1 = ponta de cima), envergado por `flex`
@@ -410,19 +453,21 @@ static func _bow_limb(t: float, flex: float, half := 1.0) -> Vector3:
 ## punho (ela passa rente à mão do arco).
 static func bow_shape(h: Node3D, nock: Vector3) -> void:
 	var data: Dictionary = h.get_meta("bow")
-	var half: float = data.half
-	var rest := bow_rest_nock(h)
-	var flex := clampf((rest.z - nock.z) / BOW_FULL_DRAW, 0.0, 1.2)
-	var segs: Array = data.segs
-	var n := segs.size()
-	for i in n:
-		var a := _bow_limb(-1.0 + 2.0 * i / n, flex, half)
-		var b := _bow_limb(-1.0 + 2.0 * (i + 1) / n, flex, half)
-		var d := b - a
-		var seg: Node3D = segs[i]
-		seg.basis = Basis.from_euler(Vector3(atan2(d.z, d.y), 0, 0)).scaled_local(Vector3(1.0, d.length() + 0.012, 1.0))
-		seg.position = (a + b) * 0.5
-	var tips := [_bow_limb(1.0, flex, half), _bow_limb(-1.0, flex, half)]
+	var tips: Array = data.get("tips", [])
+	if data.has("segs"):   # arco do código: os trechos vergam
+		var half: float = data.half
+		var rest := bow_rest_nock(h)
+		var flex := clampf((rest.z - nock.z) / BOW_FULL_DRAW, 0.0, 1.2)
+		var segs: Array = data.segs
+		var n := segs.size()
+		for i in n:
+			var a := _bow_limb(-1.0 + 2.0 * i / n, flex, half)
+			var b := _bow_limb(-1.0 + 2.0 * (i + 1) / n, flex, half)
+			var d := b - a
+			var seg: Node3D = segs[i]
+			seg.basis = Basis.from_euler(Vector3(atan2(d.z, d.y), 0, 0)).scaled_local(Vector3(1.0, d.length() + 0.012, 1.0))
+			seg.position = (a + b) * 0.5
+		tips = [_bow_limb(1.0, flex, half), _bow_limb(-1.0, flex, half)]
 	var strings: Array = data.strings
 	for i in 2:
 		var tp: Vector3 = tips[i]
@@ -435,6 +480,22 @@ static func bow_shape(h: Node3D, nock: Vector3) -> void:
 	var to := BOW_ARROW_REST - nock
 	if to.length() > 0.01:
 		arrow.basis = Basis.looking_at(to.normalized(), Vector3.UP, true)
+
+
+## Arco modelado no Blender (bw_<id>.glb, tools/blender/armory.py): braços em ±Y, corda atrás (-Z). A flecha
+## (bw_arrow.glb, ponta em +Z) encaixa no empty "Nock", o centro da corda; o "Tip" fica 0,3 m à frente.
+static func _model_arrow(h: Node3D, bow: Node3D) -> Node3D:
+	var arrow := Node3D.new()
+	arrow.visible = false
+	var nock := bow.find_child("Nock", true, false) as Node3D
+	arrow.position = bow.transform * nock.position if nock else Vector3(0, 0, -0.14)
+	h.add_child(arrow)
+	const ARROW := "res://assets/models/bw_arrow.glb"
+	if ResourceLoader.exists(ARROW):
+		var a := (load(ARROW) as PackedScene).instantiate() as Node3D
+		WeaponModel.use_vertex_color(a)
+		arrow.add_child(a)
+	return arrow
 
 
 # ------------------------------------------------------------------ helpers

@@ -616,10 +616,10 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun
 				_set_state("chase")
 	if is_boss and not enraged and hp < max_hp * 0.5:
 		enraged = true
-		Game.notify.emit("O Rei Goblin está enfurecido!", Color(1, 0.4, 0.3))
+		Game.notify.emit("%s está enfurecido!" % data.name, Color(1, 0.4, 0.3))
 		if not summoned:
 			summoned = true
-			get_parent().call_deferred("summon_minions", global_position, 2)
+			get_parent().call_deferred("summon_minions", global_position, 2, str(data.get("summon", "goblin")))
 	if hp <= 0:
 		_die()
 	elif stun > 0.0:
@@ -919,7 +919,7 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 	slow_timer = 0.25 if flags & 1 else 0.0
 	var now_enraged := flags & 2 != 0
 	if now_enraged and not enraged and (not horde or get_tree().current_scene.get("survival") != null):
-		Game.notify.emit("O Rei Goblin está enfurecido!", Color(1, 0.4, 0.3))
+		Game.notify.emit("%s está enfurecido!" % data.name, Color(1, 0.4, 0.3))
 	enraged = now_enraged
 	if new_state == "attack":
 		if state != "attack":
