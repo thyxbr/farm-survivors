@@ -5,7 +5,7 @@ extends Node3D
 ##   godot --path . --resolution 1900x1350 res://tools/weapon_pose_shot.tscn -- <saida.png> [cajado|arco] [roupa] [c=<coluna>]
 
 const KNIGHT := preload("res://assets/models/knight.glb")
-const STAFF_POSES := ["parado", "cajado 1 preparo", "cajado 1 meio", "cajado 1 mira", "cajado 1 coice", "cajado 2 preparo", "cajado 3 alto", "cajado 3 mira"]
+const STAFF_POSES := ["parado", "cajado 1 preparo", "cajado 1 meio", "cajado 1 mira", "cajado 1 coice", "meteoros", "cajado 3 alto", "cajado 3 mira"]
 const BOW_POSES := ["parado", "andando A", "andando B", "mirando", "puxando", "tenso", "andando tenso", "soltou"]
 const GAP := 1.35
 const ROW_H := 450
@@ -80,6 +80,8 @@ func _pose(r: Dictionary, lk: Dictionary, kind: String) -> void:
 			KnightAnim.staff_pose(p, 1, 0.25, 0.0)
 		"cajado 2 preparo":
 			KnightAnim.staff_pose(p, 2, 0.16, 0.0)
+		"meteoros":
+			KnightAnim.meteor_pose(p, 1.0, 0.0)
 		"cajado 3 mira":
 			KnightAnim.staff_pose(p, 3, 0.36, 0.0)
 		"cajado 1 mira":
@@ -105,9 +107,17 @@ func _pose(r: Dictionary, lk: Dictionary, kind: String) -> void:
 	for _i in 2:   # a segunda vez: a altura do modelo usa as rotações já aplicadas
 		KnightAnim.apply(r, p, 1.0)
 	KnightAnim.hold_weapon_upright(lk, r)
+	if OS.get_environment("POSE_DEBUG") != "" and lk.get("holder") and m_row(r) == 0:
+		var h: Node3D = lk.holder
+		var inv := (r.model as Node3D).global_transform.affine_inverse()
+		print("POSE %-16s mão %s  ponta de baixo %s" % [kind, inv * h.global_position, inv * (h.global_transform * Vector3(0, -0.85, 0))])
 	if lk.get("arrow"):
 		lk.arrow.visible = kind in ["mirando", "puxando", "tenso", "andando tenso"]
 	KnightAnim.bow_string(lk, r)
+
+
+func m_row(r: Dictionary) -> int:
+	return int((r.model as Node3D).position.x / 100.0)
 
 
 func _process(_delta: float) -> void:

@@ -30,6 +30,9 @@ const SWORD_PARTS := ["Grip", "Blade"]
 const SHIELD_PARTS := ["ShieldRim", "Shield"]
 ## Quanto o suporte da arma "desfaz" a rotação do braço (cajado fica quase de pé, arco fica vertical ao mirar).
 const COUNTER := {"sword": 0.0, "staff": 0.75, "bow": 1.0}
+## Cajado empunhado: quanto a vara desce na mão. A vara vai de -0,55 a 0,95 m do suporte (mais a gema, até
+## ~1,17): com 0,3 a mão fica no meio dela, em vez de a 1/3 da ponta de baixo.
+const STAFF_GRIP := 0.3
 ## Arco: número de trechos da curva, curvatura em repouso, quanto as pontas recuam e se aproximam com a
 ## corda toda puxada, a puxada "cheia" (m) e o ponto do punho onde a flecha descansa.
 const BOW_SEGS := 6
@@ -154,7 +157,7 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 		res.tip = tip
 		match cls:
 			"staff":
-				_build_staff(holder, tip, wid)
+				_build_staff(holder, tip, wid, STAFF_GRIP)
 			"bow":
 				res.arrow = _build_bow(holder, tip, wid)
 			_:
@@ -330,13 +333,16 @@ static func _build_model(h: Node3D, tip: Node3D, model: String) -> bool:
 	return true
 
 
-static func _build_staff(h: Node3D, tip: Node3D, id: String) -> void:
+## `grip` desce a vara inteira em relação ao suporte (a mão): o cajado empunhado usa STAFF_GRIP para a mão
+## ficar no meio da vara; o ícone do inventário usa 0 (enquadramento de sempre).
+static func _build_staff(h: Node3D, tip: Node3D, id: String, grip := 0.0) -> void:
 	var it := ItemDB.get_item(id)
 	var wood := _mat(it.get("wood", Color(0.45, 0.3, 0.16)), false)
 	var gem_c: Color = it.color
-	h.add_child(_cyl(0.022, 0.028, 1.5, wood, Vector3(0, 0.2, 0)))
-	h.add_child(_cyl(0.035, 0.035, 0.08, _mat(Color(0.85, 0.7, 0.3), true), Vector3(0, -0.5, 0)))
-	var top := Vector3(0, 0.98, 0)
+	var dn := Vector3(0, -grip, 0)
+	h.add_child(_cyl(0.022, 0.028, 1.5, wood, Vector3(0, 0.2, 0) + dn))
+	h.add_child(_cyl(0.035, 0.035, 0.08, _mat(Color(0.85, 0.7, 0.3), true), Vector3(0, -0.5, 0) + dn))
+	var top := Vector3(0, 0.98, 0) + dn
 	# garras segurando a gema
 	for i in 4:
 		var a := i * TAU / 4.0 + PI / 4.0

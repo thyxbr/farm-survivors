@@ -1063,7 +1063,10 @@ static func hold_weapon_upright(look: Dictionary, r: Dictionary) -> void:
 		holder.rotation.x = -bend * float(look.get("counter", 0.0)) + wrist
 		# cajado: desfaz também a abertura do braço, senão a vara tomba para dentro, na frente do corpo
 		if look.get("class", "") == "staff":
-			holder.rotation.z = -arm.rotation.z * float(look.get("counter", 0.0))
+			# tombando para a frente, a vara cruza na diagonal: a gema vem para a frente do peito e a ponta de
+			# baixo sai por fora do quadril direito (senão ela entra na coxa)
+			var tilt: float = holder.rotation.x + bend
+			holder.rotation.z = -arm.rotation.z * float(look.get("counter", 0.0)) 				- KnightMoves.STAFF_CROSS * smoothstep(0.15, 0.9, tilt)
 	# rolando: desfaz quadril, tronco, ombro e cotovelo para a arma ficar em ROLL_WEAPON_PITCH
 	var tuck: float = r.get("tuck", 0.0)
 	if tuck > 0.0:

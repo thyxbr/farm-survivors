@@ -84,6 +84,9 @@ const STAFF_CARRY := {"arm": Vector3(-0.14, 0.0, -0.17), "arm_run": Vector3(-0.5
 	"elbow": -0.55, "elbow_run": -1.1, "tilt": 0.08, "tilt_run": 0.4, "swing": 0.3}
 ## Duas mãos no cajado: onde a mão esquerda pega (no espaço do suporte; a direita fica na origem) e para
 ## onde aponta o cotovelo esquerdo (espaço do modelo).
+## Cajado tombado para a frente: quanto a vara gira no punho para cruzar na diagonal (rad; a ponta de baixo
+## vai para fora do quadril). Entra aos poucos com a inclinação (KnightAnim.hold_weapon_upright).
+const STAFF_CROSS := 0.45
 const STAFF_LEFT_GRIP := Vector3(0.0, -0.3, 0.0)
 const STAFF_POLE_L := Vector3(1.0, -0.4, -0.3)
 const STAFF := [
@@ -103,7 +106,7 @@ const STAFF := [
 		[0.48, [STAFF_RECOIL], "out"],
 	],
 	[  # 3: ergue o cajado de pé com as duas mãos e tomba a gema para o alvo (três disparos)
-		[0.22, {"arm_r": Vector3(-2.75, 0.1, -0.1), "elbow_r": -0.55, "wrist_r": 0.9,
+		[0.22, {"arm_r": Vector3(-2.4, 0.1, -0.1), "elbow_r": -0.6, "wrist_r": 0.35,
 			"arm_l": Vector3(-2.6, -0.1, 0.25), "elbow_l": -0.75, "body_x": -0.22, "head_x": -0.1,
 			"twist": -0.1, "leg_l": -0.05, "knee_l": 0.15, "knee_r": 0.15}],
 		[0.32, [STAFF_AIM, {"arm_r": Vector3(-1.2, -0.05, -0.1), "elbow_r": -0.35, "wrist_r": 1.2, "body_x": 0.35, "head_x": -0.15,
@@ -201,7 +204,7 @@ const GALE_RECOIL := -0.3       ## tranco extra do tronco para trás no disparo 
 ## Chuva de Meteoros (KnightAnim.meteor_pose): o cajado erguido acima da cabeça com as duas mãos, o tronco
 ## arqueado para trás, o olhar no céu e as pernas abertas firmando o corpo.
 const METEOR_RAISE := {
-	"arm_r": Vector3(-2.75, -0.1, -0.2), "elbow_r": -0.55, "wrist_r": 0.95,
+	"arm_r": Vector3(-2.4, -0.1, -0.2), "elbow_r": -0.6, "wrist_r": 0.65,
 	"arm_l": Vector3(-2.6, 0.15, 0.32), "elbow_l": -0.75, "wrist_l": 0.0,
 	"twist": -0.12, "body_x": -0.22, "body_y": -0.04, "head_x": -0.5, "head_y": 0.0,
 	"leg_l": -0.32, "knee_l": 0.38, "leg_r": 0.26, "knee_r": 0.3,
