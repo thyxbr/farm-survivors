@@ -126,6 +126,7 @@ func _on_submit(text: String) -> void:
 ##   /clima sol|chuva|neve|vento  força o clima nesta máquina · /clima auto  volta ao clima de todos
 ##   /hora 21 | 6:30  fixa a hora do dia nesta máquina · /hora auto  volta ao relógio do mundo
 ##   /w NOME msg  sussurro (mensagem só para ele) · /r msg  responde o último sussurro · /amigo NOME  pede amizade
+##   /admin  liga/desliga o modo admin (recursos infinitos; só contas de administrador)
 ##   /grupo NOME  convida para o grupo · /grupo sair · /grupo expulsar NOME (estes vão ao servidor, pelo Party)
 func _run_command(t: String) -> void:
 	# sussurro: o texto vai como foi digitado (o resto dos comandos é sem diferenciar maiúsculas)
@@ -147,6 +148,16 @@ func _run_command(t: String) -> void:
 	var cmd: String = parts[0] if parts.size() > 0 else ""
 	var arg: String = parts[1] if parts.size() > 1 else ""
 	match cmd:
+		"admin":
+			if not Game.can_admin():
+				_on_message("", "Só administradores podem usar o modo admin.")
+				return
+			if arg in ["on", "ligar", "liga"]:
+				Econ.set_admin(true)
+			elif arg in ["off", "desligar", "desliga"]:
+				Econ.set_admin(false)
+			else:
+				Game.toggle_admin()
 		"clima", "weather":
 			if arg == "auto":
 				Weather.release()

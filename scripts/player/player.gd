@@ -463,6 +463,13 @@ func _tick_timers(delta: float) -> void:
 
 
 func _regen(delta: float) -> void:
+	if Game.admin_mode():
+		# modo admin: vida, mana, fôlego e fúria sempre cheios
+		Game.hp = Game.max_hp()
+		Game.mp = Game.max_mp()
+		Game.stamina = Game.max_stamina()
+		Game.fury = Game.FURY_MAX
+		return
 	Game.mp = min(Game.max_mp(), Game.mp + (0.8 + Game.attr("int") * 0.15) * delta)
 	Game.hp = min(Game.max_hp(), Game.hp + (0.3 + Game.attr("vit") * 0.05 + Game.mod("regen")) * delta)
 	if stamina_delay <= 0:
@@ -1071,6 +1078,8 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 			Network.server_damage_player(peer_id, amount, from_pos)
 		return
 	if dead or invuln > 0 or Loading.covering:   # coberto pela tela de carregamento: imune
+		return
+	if Game.admin_mode():
 		return
 	var final_dmg: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
 	Game.hp -= final_dmg
