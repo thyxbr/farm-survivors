@@ -55,6 +55,8 @@ pacote comercial — só para olhar, nunca copiar design, nome ou paleta exata d
 - Mangas que alargam no antebraço; braçadeiras de couro ou metal.
 - Botas de cano alto com dobra no topo; calça justa.
 - Capuz com volume atrás da cabeça e borda grossa; chapéu de ferro (kettle hat) com aba larga.
+- **Rosto dos NPCs da vila** (Mira, Bram, Doran): desenhado, liso e sem sombra de forma, com olhos em
+  camadas (`anime.py`; ver docs/ESTILO_TOON.md). O rosto facetado abaixo vale para os demais.
 - **Rosto**: maçãs e queixo marcados, nariz em cunha, sobrancelha saliente; barba, bigode e cabelo
   como volumes facetados próprios (não pintados); olhos como pequenas faces escuras.
 
