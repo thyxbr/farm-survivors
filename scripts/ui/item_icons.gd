@@ -2,8 +2,10 @@ class_name ItemIcons
 extends Node
 ## Ícone do item tirado do modelo 3D de verdade (a mesma arma/armadura que o cavaleiro veste),
 ## renderizado uma vez num SubViewport e guardado em disco (IconCache, por versão do jogo). Sem janela
-## (servidor dedicado, testes) fica desligado. Itens sem modelo (poções, anéis, materiais) devolvem
-## null e o espaço cai no ícone pintado por código.
+## (servidor dedicado, testes) fica desligado e o espaço cai no ícone pintado por código (IconPainter),
+## que também aparece enquanto o ícone 3D não chega.
+## Item que o cavaleiro não veste (poções, comida, colheitas, sementes, materiais, anéis, amuletos, orbe,
+## aljava) usa o modelo da família, com a cor do item: a tabela está em ItemIconModels.
 
 const KNIGHT := preload("res://assets/models/knight.glb")
 const SIZE := 192
@@ -58,10 +60,15 @@ func _ready() -> void:
 
 
 static func _has_model(id: String) -> bool:
-	var slot := ItemDB.slot_of(id)
-	if slot == "weapon" or KnightLook.REGION.has(slot):
-		return true
-	return slot == "offhand" and ItemDB.get_item(id).get("needs", "") == "sword"
+	var item := ItemDB.get_item(id)
+	if item.is_empty():
+		return false
+	return ItemIconModels.is_gear(item) or not _family(id).is_empty()
+
+
+## Modelo e cor da família de um item sem modelo de equipamento (vazio para equipamento).
+static func _family(id: String) -> Dictionary:
+	return ItemIconModels.spec(id, ItemDB.ITEMS, ItemDB.CROPS)
 
 
 func _request(id: String, on_ready: Callable) -> void:
@@ -114,7 +121,14 @@ func _render(id: String) -> Texture2D:
 	vp.add_child(holder)
 	var slot := ItemDB.slot_of(id)
 	var weapon := slot == "weapon"
-	if weapon:
+	var family := _family(id)
+	if not family.is_empty():
+		var model := _family_model(family)
+		if model == null:
+			vp.queue_free()
+			return null
+		holder.add_child(model)
+	elif weapon:
 		var tip := Marker3D.new()
 		holder.add_child(tip)
 		match ItemDB.weapon_class(id):
@@ -150,16 +164,27 @@ func _render(id: String) -> Texture2D:
 			box = _bounds(holder)
 		dir = axes[order[2]]
 		up = (axes[order[0]] - axes[order[1]]).normalized()
+	elif not family.is_empty():
+		dir = (family.view as Vector3).normalized()     # peça em pé de frente; prato e monte, mais de cima
 	var x := up.cross(dir).normalized()
 	var y := dir.cross(x).normalized()
 	var c := box.get_center()
 	var half := 0.0
-	for i in 8:
-		var d := box.get_endpoint(i) - c
-		half = maxf(half, maxf(absf(d.dot(x)), absf(d.dot(y))))
+	var margin := 1.1
+	if family.is_empty():
+		for i in 8:
+			var d := box.get_endpoint(i) - c
+			half = maxf(half, maxf(absf(d.dot(x)), absf(d.dot(y))))
+	else:
+		# enquadra pelos vértices de verdade: pela caixa, peça redonda ou inclinada sobrava pequena no quadro
+		var frame := _frame(holder, x, y)
+		var mid := frame.get_center()
+		c += x * (mid.x - c.dot(x)) + y * (mid.y - c.dot(y))
+		half = maxf(frame.size.x, frame.size.y) * 0.5
+		margin = FAMILY_MARGIN
 	var cam := Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	cam.size = half * 2.0 * 1.1
+	cam.size = half * 2.0 * margin
 	cam.far = 30.0
 	vp.add_child(cam)
 	cam.global_transform = Transform3D(Basis(x, y, dir), c + dir * 8.0)
@@ -183,6 +208,71 @@ func _bounds(holder: Node3D) -> AABB:
 		box = b if first else box.merge(b)
 		first = false
 	return box
+
+
+## Folga em volta dos modelos de família no quadro.
+const FAMILY_MARGIN := 1.2
+## Brilho próprio do material `i_tint_glow` (orbe, cristal, brasa).
+const FAMILY_GLOW := 0.55
+
+
+## O modelo da família com a cor do item nos materiais `i_tint*` (os outros ficam como vieram do Blender).
+func _family_model(family: Dictionary) -> Node3D:
+	var scene := load(family.model) as PackedScene
+	if scene == null:
+		return null
+	var model := scene.instantiate() as Node3D
+	var tint: Color = family.tint
+	var made := {}       # material do GLB -> cópia tingida
+	for mi: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
+		for s in mi.mesh.get_surface_count():
+			var src := mi.mesh.surface_get_material(s) as BaseMaterial3D
+			if src == null:
+				continue
+			if not made.has(src):
+				made[src] = _tinted(src, tint)
+			if made[src] != null:
+				mi.set_surface_override_material(s, made[src])
+	return model
+
+
+## Cópia do material com a cor do item, ou null se o material não é um dos `i_tint*`.
+func _tinted(src: BaseMaterial3D, tint: Color) -> BaseMaterial3D:
+	var col := tint
+	match src.resource_name:
+		ItemIconModels.TINT, ItemIconModels.TINT_GLOW:
+			pass
+		ItemIconModels.TINT_DARK:
+			col = tint.darkened(0.38)
+		ItemIconModels.TINT_LIGHT:
+			col = tint.lightened(0.5)
+		_:
+			return null
+	var m := src.duplicate() as BaseMaterial3D
+	m.albedo_color = col
+	m.emission_enabled = src.resource_name == ItemIconModels.TINT_GLOW
+	if m.emission_enabled:
+		m.emission = tint
+		m.emission_energy_multiplier = FAMILY_GLOW
+	return m
+
+
+## Retângulo que os vértices visíveis ocupam no plano da câmera (eixos x e y dela).
+func _frame(holder: Node3D, x: Vector3, y: Vector3) -> Rect2:
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for mi: MeshInstance3D in holder.find_children("*", "MeshInstance3D", true, false):
+		if not mi.is_visible_in_tree() or mi.mesh == null or mi.name.begins_with("ToonOutline"):
+			continue
+		var xf := mi.global_transform
+		for s in mi.mesh.get_surface_count():
+			var verts: PackedVector3Array = mi.mesh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX]
+			for v in verts:
+				var p := xf * v
+				var q := Vector2(p.dot(x), p.dot(y))
+				lo = lo.min(q)
+				hi = hi.max(q)
+	return Rect2(lo, hi - lo)
 
 
 ## Materiais do corpo que vêm dentro dos GLBs de equipamento (rosto sob o capuz, pescoço da cota).

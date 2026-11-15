@@ -1,6 +1,7 @@
 # Interface "grimório" — o que aprendemos e plano de migração
 
-Estado em 14/11/2026: a base (etapa 1) e o menu do herói (etapa 2) estão prontos; as telas migram uma etapa por vez. O HUD de jogo fica como está.
+Estado em 14/11/2026: a base (etapa 1), o menu do herói (etapa 2) e os ícones 3D de todos os itens (etapa 3)
+estão prontos; as telas migram uma etapa por vez. O HUD de jogo fica como está.
 Todo o resto da interface (menus, inventário, lojas, ofícios, diálogos, telas da colônia e da Horda) migra
 para a aparência de um livro: páginas de pergaminho, texto a tinta, abas de marcador.
 
@@ -70,6 +71,32 @@ descartados: o primeiro fica "vetorial" demais, o segundo é caro para ornamento
     selo da tecla é tinta cheia.
 15. **Blender:** metal precisa de mundo com degradê para refletir algo; papel precisa de um pouco de emissão
    para não sair escuro; `use_nodes` está marcado para sair no Blender 6.
+16. **Item sem modelo ganha um modelo de família, não um desenho.** Poções, comida, colheitas, sementes,
+    materiais, anéis, amuletos, orbe e aljava (42 itens) usam 30 GLBs pequenos de `assets/models/items`,
+    fotografados pelo mesmo `ItemIcons`. O ícone vetorial ao lado do 3D destoava; agora ele só aparece
+    enquanto o 3D não chega e no modo sem janela.
+    - **A cor vem do item, pelo nome do material.** No GLB, `i_tint` recebe a cor do item, `i_tint_dark` e
+      `i_tint_light` a mesma cor escurecida e clareada (sombra e brilho pintados) e `i_tint_glow` a cor com
+      brilho próprio (orbe, cristal, brasa). Os outros materiais ficam como saíram do Blender. Assim as
+      duas poções dividem o frasco, os anéis o aro, as sementes o saquinho, os caldos a tigela.
+    - **A tabela item → modelo/cor é um script puro** (`ItemIconModels`, sem autoload), com teste unitário:
+      todo item de `data/balance` tem ícone 3D e o arquivo do modelo existe. Item novo cai no modelo do
+      tipo (material novo vira gosma, comida nova vira tigela) até ganhar uma linha própria.
+    - **Enquadrar pela caixa deixa a peça pequena.** A caixa de uma peça redonda ou inclinada, vista em três
+      quartos, é bem maior que a silhueta. Os modelos de família são enquadrados pelos vértices projetados
+      no plano da câmera, com 20% de folga.
+    - **Peça baixa e larga pede câmera mais de cima.** Torta, travessa, tigela, pão e monte de pó viravam
+      uma faixa fina vistos de frente (`VIEW_TOP`); o resto fica de frente, em três quartos (`VIEW_FRONT`).
+    - **Cor clara sobre papel some.** Caneca creme, osso e pão claros ficavam sem leitura no pergaminho: a
+      caneca virou madeira e as peças claras ganharam a parte de baixo em `i_tint_dark`.
+    - **Silhueta simétrica com miolo escuro lê como folha.** A orelha de goblin só virou orelha com a dobra
+      de cima em relevo, a concha fora do centro, o corte rosado na base e o brinco.
+    - **Material translúcido não entra no toon:** o vidro da poção é opaco e claro, com o líquido como
+      outra faixa do mesmo sólido.
+    - **O cache de ícones é por versão do jogo.** Ao mexer num modelo sem subir a versão, apague
+      `user://icons/<versão>` ou o ícone antigo continua aparecendo.
+    - **Fora do papel também:** `ItemSlot.model_icon = true` liga o ícone 3D num espaço do tema escuro (a
+      loja usa). O HUD continua no desenho vetorial.
 
 ## O que existe
 
@@ -83,6 +110,9 @@ descartados: o primeiro fica "vetorial" demais, o segundo é caro para ornamento
 | Tema de papel, cores de tinta, `ink()`, `ink_section()`, `ink_bar()`, `ink_inset()`, `on_paper()` | `scripts/ui/ui_theme.gd` |
 | Espaço de item sobre papel (`paper = true`) | `scripts/ui/item_slot.gd` |
 | Ícones 3D, guardados em `user://icons/<versão>` | `scripts/ui/item_icons.gd`, `scripts/ui/icon_cache.gd` |
+| Tabela item → modelo de família, cor e ponto de vista (script puro) | `scripts/ui/item_icon_models.gd` |
+| Modelos de família dos itens sem modelo de equipamento (30 GLBs) | `assets/models/items`, gerados por `tools/blender/item_icons.py` |
+| Ícone vetorial de reserva (sem janela, HUD e enquanto o 3D não chega) | `scripts/ui/icon_painter.gd` |
 | Dica de item em folha de papel (`paper = true`; o padrão continua escuro para loja e HUD) | `scripts/ui/item_tooltip.gd` |
 | Menu do herói, as três abas a tinta (`_spread()` monta as duas páginas de uma aba) | `scripts/ui/game_menu.gd` |
 
@@ -108,7 +138,7 @@ Cada etapa é um PR, sai com as capturas das telas tocadas e com `/smoke-check` 
 | 0 | Teste no inventário | `game_menu.gd` (aba Inventário) | feito |
 | 1 | **Base.** Refazer o teste como código de verdade: componente `BookWindow` (livro, margens, abas, fechar, aviso de tamanho), tema de papel completo (lista, abas, barra, deslizador, campo de texto), fonte embutida, remover as peças de aço | `ui_theme.gd`, `item_slot.gd`, `item_icons.gd`, novo `book_window.gd` | feito |
 | 2 | **Menu do herói inteiro no livro:** Inventário, Personagem e Missões a tinta; atalhos I/C/J nas abas; dica de item em pergaminho; fechar como marcador | `game_menu.gd`, `item_tooltip.gd`, `book_window.gd` (`skill_icon.gd` é só da Horda e não precisou mudar) | feito |
-| 3 | **Ícones dos itens sem modelo:** poções, comida, anéis, amuletos, orbe, aljava, materiais, sementes | `icon_painter.gd`, `item_icons.gd` | a fazer |
+| 3 | **Ícones dos itens sem modelo:** poções, comida, colheitas, anéis, amuletos, orbe, aljava, materiais, sementes; a loja também passa a mostrar os ícones 3D | `item_icons.gd`, novo `item_icon_models.gd`, `item_slot.gd`, `shop_ui.gd`, `tools/blender/item_icons.py` | feito |
 | 4 | **Comércio e ofícios:** loja, encantamento do ferreiro, cozinha, horta | `shop_ui.gd`, `enchant_ui.gd`, `cooking_ui.gd`, `plant_ui.gd` | a fazer |
 | 5 | **Conversa com NPC:** faixa de pergaminho embaixo, nome em placa, retrato 3D de quem fala, respostas a tinta | `dialogue_ui.gd` | a fazer |
 | 6 | **Menu principal, pausa, opções, atualização:** o livro fechado vira a capa do jogo; opções em páginas | `main_menu.gd`, `pause_menu.gd`, `options_panel.gd`, `update_panel.gd`, `updater.gd` | a fazer |
@@ -130,11 +160,16 @@ Ficam como estão: `hud.gd`, `hub_hud.gd`, `survival_hud.gd`, `colony_hud.gd`, `
 - **Testes:** o smoke test confere que as três abas ficam dentro das páginas e que nenhuma pede mais espaço
   do que o livro tem; a mochila tem 56 espaços (8 colunas, 7 linhas, com rolagem).
 
+## Decisões tomadas
+
+| Decisão | O que ficou |
+|---|---|
+| Ícones dos itens sem modelo (etapa 3) | Peças simples modeladas no Blender, uma por família, com a cor do item, fotografadas pelo mesmo `ItemIcons`. O `IconPainter` ficou como reserva |
+
 ## Decisões em aberto
 
 | Decisão | Recomendação |
 |---|---|
-| Ícones dos itens sem modelo (etapa 3) | Modelar peças simples no Blender e passar pelo mesmo `ItemIcons`, para tudo ter o mesmo traço |
 | Retrato no diálogo (etapa 5) | Câmera 3D no rosto do NPC, como o close que o diálogo já faz, dentro de uma moldura |
 
 ## Ferramentas
@@ -144,11 +179,15 @@ $G = "C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe"
 $B = "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe"
 # regenerar o livro e as abas (depois rodar --import)
 & $B --background --factory-startup --python tools/blender/ui_kit.py -- "$PWD/assets/ui"
+# regenerar os modelos de família dos ícones (todos, ou só os nomeados no fim: potion ring ...)
+& $B --background --factory-startup --python tools/blender/item_icons.py -- "$PWD/assets/models/items"
 & $G --headless --path . --import
 # abrir direto numa tela, com o save de demonstração: inv, char, quests, shop, enchant
 & $G --path . res://scenes/world.tscn -- --geardemo --ui=inv
-# captura (na primeira vez os ícones 3D levam uns 8 s; depois vêm do disco)
+# captura (na primeira vez os ícones 3D levam uns 8 s na mochila e uns 20 s na loja; depois vêm do disco)
 & $G --path . res://scenes/world.tscn -- --geardemo --ui=inv --shot=shots/inv.png --delay=8
+# depois de mexer num modelo sem subir a versão, apagar o cache para o ícone ser refeito
+Remove-Item -Recurse "$env:APPDATA/Godot/app_userdata/Ecos de Valdoria/icons"
 # captura com a dica do item do espaço 12 da mochila aberta (presa ao lado do espaço)
 & $G --path . res://scenes/world.tscn -- --geardemo --ui=inv --tip=12 --shot=shots/tip.png --delay=5
 ```
