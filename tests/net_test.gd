@@ -544,6 +544,14 @@ func _test_social(w: Node) -> void:
 	await _sync("social_out")
 
 
+## --shot-party=ARQUIVO (cliente com janela): foto da tela com o grupo formado (ARQUIVO_near.png, ARQUIVO_far.png).
+func _shot_hud(w: Node, tag: String) -> void:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--shot-party=") and DisplayServer.get_name() != "headless" and w.modal == null:
+			await wait(1.2)
+			get_viewport().get_texture().get_image().save_png(a.substr(13).replace(".png", "_%s.png" % tag))
+
+
 ## Grupo (com --peers=2): Ana convida, Beto aceita; os dois aparecem no grupo, na HUD e no filtro do mapa.
 ## Ana mata um slime com Beto ao lado: o XP é dividido e o abate conta na missão dos dois. Depois Beto vai
 ## para longe (outro mapa) e Ana mata outro: Beto ainda divide o XP, mas o abate não conta na missão dele.
@@ -564,6 +572,18 @@ func _test_party(w: Node) -> void:
 		"o mapa mostra o colega do grupo")
 	check(await _wait_until(func() -> bool:
 		return w.hud.party_frames != null and w.hud.party_frames._bars.has(other), 3.0), "quadro do colega na HUD")
+	# vida, mana e buffs: Beto toma uma sopa apimentada; Ana vê o buff no quadro dele, com o tempo
+	if my_name == "Beto":
+		Game.food_buffs["spicy_soup"] = 300.0
+	else:
+		check(await _wait_until(func() -> bool:
+			for m in Party.members:
+				if int(m.peer) == other:
+					return float(m.get("mp", -1.0)) > 0.0 and Party.buff_left(m, "spicy_soup") > 200.0
+			return false, 8.0), "o servidor repassa a mana e o buff do colega (%s)" % str(Party.members))
+		check(await _wait_until(func() -> bool: return w.hud.party_frames._bars[other].chips.has("spicy_soup"), 3.0),
+			"ícone do buff do colega no quadro do grupo")
+	await _shot_hud(w, "buff")
 	# livro do mapa e do grupo (P): o colega aparece com a vida e as duas abas cabem nas páginas
 	w.open_world_map(1)
 	var bk: Node = w.modal
@@ -630,6 +650,7 @@ func _test_party(w: Node) -> void:
 		if my_name == "Ana" and phase == "far":
 			check(await _wait_until(func() -> bool: return str(w.hud.party_frames._bars[other].tag.text).begins_with("longe"), 3.0),
 				"HUD avisa que o colega está longe")
+		await _shot_hud(w, phase)
 		await _sync("party_%s_done" % phase)
 	w.player.global_position = Vector3(0, 0.5, 6)
 	if my_name == "Ana":

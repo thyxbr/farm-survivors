@@ -30,6 +30,7 @@ var _region_row: HBoxContainer
 var _t := 0.0
 var _last_key := "-"
 var _hp_bars := {}   # peer -> ProgressBar
+var _mp_bars := {}   # peer -> ProgressBar
 var _where_labels := {}   # peer -> [Label, membro]
 var _fr_left: VBoxContainer
 var _fr_right: VBoxContainer
@@ -222,9 +223,11 @@ func _refresh_party() -> void:
 		for m in Party.members:
 			if _hp_bars.has(int(m.peer)):
 				_hp_bars[int(m.peer)].value = float(m.get("hp", 1.0))
+				_mp_bars[int(m.peer)].value = float(m.get("mp", 1.0))
 		return
 	_last_key = key
 	_hp_bars.clear()
+	_mp_bars.clear()
 	_where_labels.clear()
 	_clear(_party_left)
 	_clear(_party_right)
@@ -309,6 +312,12 @@ func _member_row(m: Dictionary, can_kick: bool, mine: bool) -> Control:
 	bar.value = float(m.get("hp", 1.0))
 	v.add_child(bar)
 	_hp_bars[int(m.peer)] = bar
+	var mp := UITheme.ink_bar(UITheme.MP, 300, 5)
+	mp.max_value = 1.0
+	mp.step = 0.001
+	mp.value = float(m.get("mp", 1.0))
+	v.add_child(mp)
+	_mp_bars[int(m.peer)] = mp
 	if not mine:
 		var where := UITheme.ink(_where(m), 14, UITheme.INK_DIM)
 		v.add_child(where)
