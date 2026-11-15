@@ -180,6 +180,7 @@ func _build_environment() -> void:
 	WorldLighting.build(self)
 	if DisplayServer.get_name() != "headless":
 		add_child(WeatherFX.new())   # clima (só visual)
+		add_child(DayNightFX.new())  # dia e noite por cima do clima (só visual)
 
 
 func _build_ground() -> void:
@@ -258,7 +259,7 @@ func prop(model: String, pos: Vector3, yaw := 0.0, s := 1.0, shape := "", size :
 	return inst
 
 
-func _light(parent: Node3D, local: Vector3, color: Color, energy: float, rng_range: float, flicker := false) -> void:
+func _light(parent: Node3D, local: Vector3, color: Color, energy: float, rng_range: float, flicker := false) -> OmniLight3D:
 	var l := OmniLight3D.new()
 	l.position = local
 	l.light_color = color
@@ -268,6 +269,7 @@ func _light(parent: Node3D, local: Vector3, color: Color, energy: float, rng_ran
 	parent.add_child(l)
 	if flicker:
 		flicker_lights.append([l, energy, randf() * 10.0])
+	return l
 
 
 # ================================================================ vila
@@ -280,11 +282,17 @@ func _build_village() -> void:
 		[Vector3(13, 0, -6), -PI / 2, "house_c"], [Vector3(13, 0, 7), -PI / 2, "house_b"],
 		[Vector3(-5, 0, 16), PI, "house_b"], [Vector3(6, 0, 16), PI, "house"],
 	]
+	var house_nodes: Array = []
 	for h in houses:
-		prop(h[2], h[0], h[1], 1.0, "box", Vector3(5.2, 3.2, 4.2))
-	for p in [Vector3(-5, 0, -5), Vector3(5, 0, -5), Vector3(-6, 0, 8), Vector3(6, 0, 8)]:
+		house_nodes.append(prop(h[2], h[0], h[1], 1.0, "box", Vector3(5.2, 3.2, 4.2)))
+	var lamps: Array = []
+	for p in [Vector3(-5, 0, -5), Vector3(5, 0, -5), Vector3(6, 0, 8), Vector3(-6, 0, 8)]:
 		var lamp := prop("lamp", p, atan2(-p.x, -p.z), 1.0, "cyl", Vector3(0.12, 2.8, 0))
-		_light(lamp, Vector3(0, 2.4, 0.5), Color(1, 0.75, 0.4), 1.6, 9.0)
+		DayNightFX.night_light(_light(lamp, Vector3(0, 2.4, 0.5), Color(1, 0.75, 0.4), 1.6, 9.0), 1.6)
+		lamps.append(lamp)
+	for hn in house_nodes:   # luz das janelas caindo na frente de cada casa, só à noite
+		DayNightFX.night_light(_light(hn, Vector3(0, 1.6, 3.2), Color(1, 0.72, 0.42), 0.9, 5.5), 0.9)
+	_build_christmas(houses, house_nodes, lamps)
 	# lojas: empório da mercadora no vão leste, botica do alquimista no vão oeste (de frente para a praça)
 	_shop("shop_merchant", MERCHANT_SHOP, -PI / 2, [[Vector3(0, 0, -0.4), Vector3(5.2, 3.0, 3.6)]], [], 3.4)
 	_shop("shop_alchemist", ALCHEMIST_SHOP, PI / 2, [[Vector3(0.2, 0, 0), Vector3(4.4, 3.4, 3.8)]],
@@ -340,6 +348,38 @@ func _build_village() -> void:
 	var portal := PORTAL.new()
 	portal.position = PORTAL_POS
 	add_child(portal)
+
+
+## Decoração de Natal da vila (ChristmasDecor): árvore enfeitada perto do portão norte, varal de luzes
+## entre os quatro lampiões da praça, pisca-pisca e guirlanda em cada casa, festão nos postes, bengalas
+## nos portões, árvores pequenas na frente das lojas, presentes e um boneco de neve.
+func _build_christmas(houses: Array, house_nodes: Array, lamps: Array) -> void:
+	var tree_pos := Vector3(6, 0, -9.5)
+	ChristmasDecor.tree(self, tree_pos, 1.0, 1225)
+	_no_grass.append([Vector2(tree_pos.x, tree_pos.z), 2.4])
+	for i in houses.size():
+		var model: String = houses[i][2]
+		ChristmasDecor.house_lights(house_nodes[i], model, i)
+		var d: Array = ChristmasDecor.HOUSE_DOORS[model]
+		ChristmasDecor.wreath(house_nodes[i], Vector3(d[0], d[1], d[2]))
+	var top := Vector3(0, 2.55, 0)
+	for i in lamps.size():
+		var a: Node3D = lamps[i]
+		var b: Node3D = lamps[(i + 1) % lamps.size()]
+		ChristmasDecor.light_string(self, a.transform * top, b.transform * top, 0.75, ChristmasDecor.MULTI, i % 2)
+		ChristmasDecor.lamp_garland(a)
+	# bengalas nos portões (norte, sul e leste)
+	for p in [Vector3(-3.4, 0, -12.4), Vector3(3.4, 0, -12.4), Vector3(-1.4, 0, 22.4), Vector3(3.4, 0, 22.4),
+			Vector3(18.4, 0, -3.4), Vector3(18.4, 0, 3.4)]:
+		ChristmasDecor.candy_cane(self, p, atan2(-p.x, -p.z) + PI / 2)
+	# árvores pequenas na frente da botica e do empório, e o boneco de neve olhando para o poço
+	for p in [Vector3(-9.2, 0, 3.6), Vector3(8.4, 0, -3.6)]:
+		ChristmasDecor.tree(self, p, 0.38, int(p.x * 10))
+		_no_grass.append([Vector2(p.x, p.z), 1.0])
+	var sp := Vector3(-8.5, 0, -3.6)
+	ChristmasDecor.snowman(self, sp, atan2(-sp.x, -sp.z))
+	_no_grass.append([Vector2(sp.x, sp.z), 0.8])
+	ChristmasDecor.gifts(self, Vector3(1.4, 0, -1.4), 3, rng, 0.0, 0.4)   # presentes ao pé do poço
 
 
 ## Loja da vila: modelo + colisões simples no espaço dela (boxes = [[centro local, tamanho]],

@@ -114,6 +114,7 @@ func _on_submit(text: String) -> void:
 
 ## Comandos locais (começam com "/"): não vão para o servidor; a resposta aparece só para quem digitou.
 ##   /clima sol|chuva|neve|vento  força o clima nesta máquina · /clima auto  volta ao clima de todos
+##   /hora 21 | 6:30  fixa a hora do dia nesta máquina · /hora auto  volta ao relógio do mundo
 func _run_command(t: String) -> void:
 	var parts := t.substr(1).to_lower().split(" ", false)
 	var cmd: String = parts[0] if parts.size() > 0 else ""
@@ -131,8 +132,20 @@ func _run_command(t: String) -> void:
 				return
 			Weather.force(i)
 			_on_message("", "Clima forçado: %s (só para você). /clima auto volta ao normal." % arg)
+		"hora", "time":
+			if arg == "auto":
+				DayNightFX.forced_hour = -1.0
+				_on_message("", "Hora de volta ao relógio do mundo (%s)." % DayNightRules.hour_text(DayNightFX.current_hour()))
+				return
+			var h := DayNightRules.parse_hour(arg)
+			if h < 0.0:
+				_on_message("", "Uso: /hora 21 | 6:30 | auto  (agora: %s%s)"
+						% [DayNightRules.hour_text(DayNightFX.current_hour()), ", fixa" if DayNightFX.forced_hour >= 0.0 else ""])
+				return
+			DayNightFX.forced_hour = h
+			_on_message("", "Hora fixada em %s (só para você). /hora auto volta ao normal." % DayNightRules.hour_text(h))
 		_:
-			_on_message("", "Comando desconhecido: /%s  (comandos: /clima)" % cmd)
+			_on_message("", "Comando desconhecido: /%s  (comandos: /clima, /hora)" % cmd)
 
 
 func _set_open(on: bool) -> void:

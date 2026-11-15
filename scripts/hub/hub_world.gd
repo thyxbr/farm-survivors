@@ -77,6 +77,7 @@ func _ready() -> void:
 	WorldLighting.build(self)
 	if DisplayServer.get_name() != "headless":
 		add_child(WeatherFX.new())   # clima (só visual), o mesmo de Valdoria
+		add_child(DayNightFX.new())  # dia e noite por cima do clima
 	_build_ground()
 	_build_square()
 	_build_edge()
@@ -164,32 +165,59 @@ func _prop(model: String, pos: Vector3, yaw := 0.0, s := 1.0, shape := "", size 
 	return inst
 
 
-func _lamp(p: Vector3) -> void:
+func _lamp(p: Vector3) -> Node3D:
 	var lamp := _prop("lamp", p, atan2(-p.x, -p.z), 1.0, "cyl", Vector3(0.12, 2.8, 0))
 	var l := OmniLight3D.new()
 	l.position = Vector3(0, 2.4, 0.5)
 	l.light_color = Color(1, 0.75, 0.4)
-	l.light_energy = 1.4
 	l.omni_range = 8.0
 	lamp.add_child(l)
+	DayNightFX.night_light(l, 1.4)   # acende ao anoitecer
+	ChristmasDecor.lamp_garland(lamp)
+	return lamp
 
 
 ## Poço no centro, lampiões em dois anéis e canteiros de flores em volta do poço.
 func _build_square() -> void:
 	_prop("well", Vector3.ZERO, 0.0, 1.0, "cyl", Vector3(0.95, 1.2, 0))
+	var inner: Array = []
+	var outer: Array = []
 	for i in 4:
 		var a := TAU * (i + 0.5) / 4.0
-		_lamp(Vector3(sin(a), 0, cos(a)) * 6.5)
+		inner.append(_lamp(Vector3(sin(a), 0, cos(a)) * 6.5))
 	for i in 8:
 		var a := TAU * (i + 0.5) / 8.0
 		var p := Vector3(sin(a), 0, cos(a)) * 19.5
 		if absf(p.x) < 3.0 and p.z > 0:
 			continue   # saída da estrada
-		_lamp(p)
+		outer.append(_lamp(p))
+	_build_christmas(inner, outer)
 	for i in 12:
 		var a := TAU * i / 12.0 + 0.13
 		var kind := "flower_lavender" if i % 2 == 0 else "flower_tulips"
 		_prop(kind, Vector3(sin(a), 0, cos(a)) * rng.randf_range(3.2, 3.8), rng.randf() * TAU, rng.randf_range(0.9, 1.2))
+
+
+## Natal na praça (ChristmasDecor): varal de luzes nos dois anéis de lampiões, árvore enfeitada com
+## presentes, bengalas na entrada da estrada, um boneco de neve e árvores pequenas ao lado do portal.
+func _build_christmas(inner: Array, outer: Array) -> void:
+	var top := Vector3(0, 2.55, 0)
+	for ring in [[inner, 0.6, ChristmasDecor.MULTI], [outer, 1.1, ChristmasDecor.WARM]]:
+		var lamps: Array = ring[0]
+		for i in lamps.size():
+			var a: Node3D = lamps[i]
+			var b: Node3D = lamps[(i + 1) % lamps.size()]
+			ChristmasDecor.light_string(self, a.transform * top, b.transform * top, ring[1], ring[2], i % 3)
+	var tree_pos := Vector3(8.5, 0, 1.5)
+	ChristmasDecor.tree(self, tree_pos, 1.15, 2512)
+	_no_grass.append([Vector2(tree_pos.x, tree_pos.z), 2.6])
+	for x in [-3.0, 3.0]:
+		ChristmasDecor.candy_cane(self, Vector3(x, 0, 21.0), PI / 2 if x < 0 else -PI / 2)
+	for x in [-4.4, 4.4]:
+		ChristmasDecor.tree(self, Vector3(x, 0, -17.0), 0.42, int(x * 10) + 7)
+	var sp := Vector3(-8.0, 0, -1.0)
+	ChristmasDecor.snowman(self, sp, atan2(-sp.x, -sp.z))
+	ChristmasDecor.gifts(self, Vector3(-1.6, 0, 1.4), 3, rng, 0.0, 0.4)
 
 
 ## Casas, tendas e árvores em volta da praça (fora das paredes invisíveis), viradas para o centro.
@@ -205,7 +233,16 @@ func _build_edge() -> void:
 			match i % 4:
 				0, 2:
 					var house: String = ["house", "house_b", "house_c"][(i >> 1) % 3]   # as três casas da vila, alternadas
-					_prop(house, p, yaw + rng.randf_range(-0.15, 0.15), 1.0, "box", Vector3(5.2, 3.2, 4.2))
+					var hn := _prop(house, p, yaw + rng.randf_range(-0.15, 0.15), 1.0, "box", Vector3(5.2, 3.2, 4.2))
+					ChristmasDecor.house_lights(hn, house, i >> 1)
+					var dr: Array = ChristmasDecor.HOUSE_DOORS[house]
+					ChristmasDecor.wreath(hn, Vector3(dr[0], dr[1], dr[2]))
+					var wl := OmniLight3D.new()   # luz das janelas na frente da casa, só à noite
+					wl.position = Vector3(0, 1.6, 3.2)
+					wl.light_color = Color(1, 0.72, 0.42)
+					wl.omni_range = 5.5
+					hn.add_child(wl)
+					DayNightFX.night_light(wl, 0.9)
 				1:
 					_prop("tent", d * 27.5, yaw, 1.1, "box", Vector3(2.0, 2.2, 2.0))
 					_prop("barrel", d * 27.5 + Vector3(d.z, 0, -d.x) * 1.8, 0.0)
