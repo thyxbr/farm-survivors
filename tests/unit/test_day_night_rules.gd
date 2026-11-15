@@ -70,3 +70,43 @@ func test_hour_matches_the_season_clock() -> void:
 		var c := SeasonRules.clock_at(t)
 		var h := DayNightRules.hour_at(t)
 		T.eq(floori(h), int(c.hour), "mesma hora em t=%d" % int(t))
+
+
+func test_seasons_change_the_day() -> void:
+	var summer := DayNightRules.day_of(SeasonRules.Kind.SUMMER)
+	var winter := DayNightRules.day_of(SeasonRules.Kind.WINTER)
+	var spring := DayNightRules.day_of(SeasonRules.Kind.SPRING)
+	T.eq(spring.sunrise, DayNightRules.SUNRISE, "primavera é o dia de sempre")
+	T.ok(summer.sunset - summer.sunrise > winter.sunset - winter.sunrise, "dia de verão mais longo que o de inverno")
+	T.ok(summer.peak > winter.peak, "sol mais alto no verão")
+	for k in 4:
+		var d := DayNightRules.day_of(k)
+		T.ok(d.peak < 60.0, "nunca a pino (estação %d)" % k)
+		T.ok(d.sunrise < 12.0 and d.sunset > 12.0, "meio-dia é dia (estação %d)" % k)
+		T.ok(DayNightRules.night(0.5, d.sunrise, d.sunset) == 1.0, "meia-noite é noite (estação %d)" % k)
+		for i in 480:
+			var h := i * 0.05
+			T.ok(DayNightRules.sun(h, d.sunrise, d.sunset) == 0.0 or DayNightRules.moon(h, d.sunrise, d.sunset) == 0.0,
+					"sol e lua juntos às %.2fh (estação %d)" % [h, k])
+	# 18h: ainda dia no verão, já noite no inverno
+	T.eq(DayNightRules.night(18.5, summer.sunrise, summer.sunset), 0.0, "18h30 de verão ainda é dia")
+	T.ok(DayNightRules.night(18.5, winter.sunrise, winter.sunset) > 0.9, "18h30 de inverno já é noite")
+	var noon_s := DayNightRules.sun_rotation(12.75, summer.sunrise, summer.sunset, summer.peak)
+	var noon_w := DayNightRules.sun_rotation(12.125, winter.sunrise, winter.sunset, winter.peak)
+	T.ok(-noon_s.x > -noon_w.x, "ao meio-dia o sol de verão está mais alto")
+
+
+func test_season_change_blends_the_day() -> void:
+	var half := DayNightRules.day_for([0.0, 0.0, 0.5, 0.5])
+	var autumn := DayNightRules.day_of(SeasonRules.Kind.AUTUMN)
+	var winter := DayNightRules.day_of(SeasonRules.Kind.WINTER)
+	T.ok(absf(half.sunset - (autumn.sunset + winter.sunset) * 0.5) < 0.001, "na virada, o pôr do sol fica no meio")
+	T.eq(DayNightRules.day_for([0.0, 0.0, 0.0, 0.0]).sunrise, DayNightRules.SUNRISE, "sem pesos, vale a primavera")
+	# os pesos do relógio somam 1 o tempo todo, inclusive na virada
+	var L := SeasonRules.LENGTH
+	for i in 60:
+		var t := 1_800_000_000.0 + i * L / 30.0 + (i % 3) * 7.0
+		var sum := 0.0
+		for w in SeasonRules.weights_at(t):
+			sum += w
+		T.ok(absf(sum - 1.0) < 0.001, "pesos somam 1 (t=%.0f)" % t)
