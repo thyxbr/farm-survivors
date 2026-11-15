@@ -69,6 +69,16 @@ func _ready() -> void:
 	for b in ["forja", "muralha", "celeiro"]:
 		check(_point(hub, "building", b) != null, "ponto da construção %s" % b)
 	check(hub.player.build_lock and hub.player.peaceful, "cavaleiro da praça não ataca")
+	# Orin (elder.glb) e Tobias (merchant.glb) parados no idle, não em pose T; o cajado do Orin na mão
+	for k in ["passive_master", "merchant"]:
+		var m: Node3D = _point(hub, k).model
+		var aps := m.find_children("*", "AnimationPlayer")
+		var ap: AnimationPlayer = aps[0] if aps.size() > 0 else null
+		check(ap != null and ap.is_playing() and ap.current_animation == "mixamo/idle",
+			"%s da praça toca o idle (%s)" % [k, ap.current_animation if ap else "sem AnimationPlayer"])
+	var staff: Node = _point(hub, "passive_master").model.find_child("Staff", true, false)
+	check(staff != null and staff.get_parent() is BoneAttachment3D and staff.get_parent().bone_name == "LeftHand",
+		"cajado do Mestre Orin preso à mão esquerda")
 
 	# --- Ecos do fim de partida (solo: CharacterService local)
 	var got := Econ.run_finish(Econ.run_start("horde"), "horde", 10, 0, 0, {})
