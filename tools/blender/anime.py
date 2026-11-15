@@ -5,7 +5,7 @@
 # Mesmas unidades e marcos de head.py (cm, queixo em z=0, rosto para -Y, altura nominal 23), para que
 # cabelo, turbante e brincos dos personagens continuem encaixando.
 # Materiais com nome terminado em "_flat" ficam sem sombra de forma no jogo (ToonLook).
-import bmesh, math
+import bmesh, math, random
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 
@@ -214,6 +214,7 @@ def anime_head(prefix, chin_z, height, parent, mats, params=None, y0=0.0):
         "front_y": y0 - 9.1 * s, "mouth_y": y0 - 8.9 * s, "chin_y": y0 - 8.1 * s,
         "half_w": 7.2 * p["width"] * s, "back_y": y0 + 9.7 * s, "cy": y0 + 0.45 * s,
         "eye_x": ex * s, "eye_y": y0 - 9.0 * s,
+        "y0": y0, "width": p["width"], "jaw": p["jaw"],        # para anime_hair / anime_beard seguirem a cabeça
     }
 
 
@@ -278,3 +279,323 @@ def open_hand(prefix, wrist, s, material, parent, k=1.12):
     bmesh.ops.triangulate(bm, faces=bm.faces[:], quad_method='BEAUTY')
     _place(bm, (0, 0, 0), parent)
     return _finish(prefix + "_Hand", bm, material, parent, smooth=True)
+
+
+# ------------------------------------------------------------------ cabelo e barba desenhados
+# Mechas largas, chatas e lisas, em loft ao longo de uma spline que corre sobre a cabeça e termina em
+# ponta (docs/ESTUDO_PERSONAGEM_ANIME.md, "Cabelo"). Tudo parte dos marcos de anime_head, então serve a
+# qualquer cabeça feita por ela (largura e mandíbula entram na conta).
+# Ângulos: th = 0 na frente do rosto, +90 à esquerda do personagem (+X), 180 atrás; ph = elevação a partir
+# do centro do crânio (90 = topo, 0 = altura do olho/orelha, negativo = nuca).
+def _ring_at(z):
+    R = ANIME_RINGS + [(22.6, 2.2, -1.5, 3.0), (ANIME_TOP, 0.05, 0.5, 0.7)]
+    if z <= R[0][0]:
+        return R[0][1:]
+    for a, b in zip(R, R[1:]):
+        if z <= b[0]:
+            k = (z - a[0]) / (b[0] - a[0])
+            return tuple(a[i] + (b[i] - a[i]) * k for i in (1, 2, 3))
+    return R[-1][1:]
+
+
+def _hp(H, deg, z):
+    """Ponto da superfície da cabeça (m) na coluna deg e altura z (cm acima do queixo)."""
+    s = H["s"]
+    W, fy, by = _ring_at(z)
+    W *= H.get("width", 1.0) * (H.get("jaw", 1.0) if z <= 6.2 else 1.0)
+    cy, D = (fy + by) / 2, (by - fy) / 2
+    th = math.radians(deg)
+    sn, cs = math.sin(th), math.cos(th)
+    nf = 2.9 if cs > 0 else 2.2
+    x = W * math.copysign(abs(sn) ** (2 / nf), sn)
+    y = cy - D * math.copysign(abs(cs) ** (2 / nf), cs)
+    return Vector((x * s, H.get("y0", 0.0) + y * s, H["chin"] + z * s))
+
+
+def _face_pt(H, x, z):
+    """Ponto da frente do rosto (m) na posição lateral x e altura z (cm)."""
+    W = _ring_at(z)[0] * H.get("width", 1.0) * (H.get("jaw", 1.0) if z <= 6.2 else 1.0)
+    sn = min(1.0, abs(x) / W) ** (2.9 / 2)
+    return _hp(H, math.copysign(math.degrees(math.asin(sn)), x), z)
+
+
+def _scalp(H, th, ph, lift=0.0):
+    s = H["s"]
+    C = Vector((0, H["cy"], H["chin"] + 12.0 * s))
+    e = math.radians(ph)
+    if ph >= 0:
+        p = _hp(H, th, 12.0 + 11.0 * math.sin(e))
+        zk = 1.0
+    else:                       # abaixo da orelha o cabelo cai mais reto que o crânio, fechando um pouco para o pescoço
+        k = 1.0 + 0.30 * math.sin(e)
+        q = _hp(H, th, 12.0)
+        p = Vector((q.x * k, C.y + (q.y - C.y) * k, C.z + 12.3 * s * math.sin(e)))
+        zk = 0.35
+    r = p - C
+    n = Vector((r.x / 7.5 ** 2, r.y / 9.5 ** 2, r.z * zk / 11.0 ** 2)).normalized()
+    return p + n * lift
+
+
+def _spline(P, k):
+    """Catmull-Rom pelos pontos P, k amostras por trecho. Devolve (pontos, tangentes)."""
+    P = [P[0] * 2 - P[1]] + list(P) + [P[-1] * 2 - P[-2]]
+    out, tg = [], []
+    for i in range(1, len(P) - 2):
+        p0, p1, p2, p3 = P[i - 1], P[i], P[i + 1], P[i + 2]
+        for j in range(k + (1 if i == len(P) - 3 else 0)):
+            t = j / k
+            out.append(0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t
+                              + (-p0 + 3 * p1 - 3 * p2 + p3) * t ** 3))
+            tg.append((0.5 * ((-p0 + p2) + 2 * (2 * p0 - 5 * p1 + 4 * p2 - p3) * t
+                              + 3 * (-p0 + 3 * p1 - 3 * p2 + p3) * t * t)).normalized())
+    return out, tg
+
+
+# seção da mecha: bordas finas dos lados, dorso arredondado em cima, barriga rasa embaixo (colada à cabeça)
+_LOCK_SEC = ((1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -0.4))
+
+
+def _lock(bm, ctrl, w, nrm, th_k=0.30, k=2, root=0.5):
+    """Mecha: ctrl = pontos (m), w = meia-largura máxima, nrm(p) = normal de apoio (para fora da cabeça).
+    A largura abre de `root` até 1 no primeiro sexto e afina em ponta; a espessura é th_k * w."""
+    pts, tgs = _spline([Vector(c) for c in ctrl], k)
+    m = len(pts)
+    rings = []
+    for i, (p, tg) in enumerate(zip(pts, tgs)):
+        if i == m - 1:
+            rings.append([bm.verts.new(p)])
+            break
+        f = i / (m - 1)
+        u = tg.cross(nrm(p))
+        if u.length < 1e-5:
+            u = tg.cross(Vector((0, 0, 1)))
+        u.normalize()
+        v = u.cross(tg).normalized()
+        ww = w * min(1.0, root + f * 3.2) * (1.0 - f ** 2.6) ** 0.85
+        tt = w * th_k * min(1.0, 0.6 + f * 2.5) * (1.0 - f ** 3) ** 0.7
+        rings.append([bm.verts.new(p + u * (a * ww) + v * (b * tt)) for a, b in _LOCK_SEC])
+    ns = len(_LOCK_SEC)
+    for r0, r1 in zip(rings, rings[1:]):
+        for i in range(ns):
+            j = (i + 1) % ns
+            if len(r1) == 1:
+                bm.faces.new((r0[i], r0[j], r1[0]))
+            else:
+                bm.faces.new((r0[i], r0[j], r1[j], r1[i]))
+
+
+def _hair_obj(name, bm, material, parent, recalc=True):
+    if not bm.faces:
+        bm.free()
+        return None
+    if recalc:
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bmesh.ops.triangulate(bm, faces=bm.faces[:], quad_method='BEAUTY')
+    _place(bm, (0, 0, 0), parent)
+    return _finish(name, bm, material, parent, smooth=True)
+
+
+HAIR_STYLE = {
+    "fringe": 30,            # elevação onde terminam as pontas da franja (30 = testa à mostra; 8 = na sobrancelha)
+    "side": 10,              # idem nos lados (acima da orelha: > 6)
+    "back": -34,             # idem na nuca
+    "part": 20,              # ângulo do repartido da franja
+    "sweep": -1,             # para que lado a franja cai (-1 = direita do personagem)
+    "top": 8,                # mechas da camada de cima, dos lados e de trás (0 = sem; ex.: sob um turbante)
+    "nape": True, "frame": True, "bangs": True,      # camadas que podem ser desligadas
+    "extra": [],             # mechas à mão: ([(th, ph, afastamento em cm), ...], meia-largura em cm, "hair"|"mid"|"under"[, espessura])
+    "w": 1.0, "lift": 1.0, "seed": 3,
+    "hairline": [(0, 37), (35, 35), (60, 25), (78, 13), (97, 8), (112, -6), (135, -27), (180, -33)],
+}
+
+
+def anime_hair(prefix, H, mats, parent, style=None):
+    """Cabelo em camadas. mats: hair (mechas), mid (calota e vãos entre as mechas), under (nuca, por baixo).
+    Devolve as malhas criadas (prefix + HairCap / HairUnder / HairTop)."""
+    st = dict(HAIR_STYLE)
+    st.update(style or {})
+    rnd = random.Random(st["seed"])
+    s, W, LF = H["s"], st["w"] * H["s"], st["lift"] * H["s"]
+    C = Vector((0, H["cy"], H["chin"] + 12.0 * s))
+
+    def J(a):
+        return rnd.uniform(-a, a)
+
+    def nrm(p):
+        r = p - C
+        return Vector((r.x / 7.5 ** 2, r.y / 9.5 ** 2, r.z * (1.0 if r.z > 0 else 0.35) / 11.0 ** 2)).normalized()
+
+    def sp(th, ph, lift):                       # lift em cm
+        return _scalp(H, th, ph, lift * LF)
+
+    def wrap(th):
+        return abs((th + 180) % 360 - 180)
+
+    def end(th):                                # onde a ponta termina, por direção
+        return _tab([(0, st["fringe"]), (45, st["fringe"]), (70, st["side"] + 6), (95, st["side"]),
+                     (115, st["side"] - 4), (140, st["back"] + 12), (180, st["back"])], wrap(th))
+
+    # ---- calota no tom intermediário: nunca aparece pele, e a borda em serra aparece entre as mechas
+    cb = bmesh.new()
+    cols = 20
+    grid = []
+    for r in (0.0, 0.3, 0.62, 0.86):
+        row = []
+        for c in range(cols):
+            th = -180 + 360 * c / cols
+            h0 = _tab(st["hairline"], abs(th)) + (2.0 if c % 2 else -3.0) * (1.0 if abs(th) > 20 else 0.3)
+            row.append(cb.verts.new(sp(th, h0 + (90 - h0) * r, 0.35)))
+        grid.append(row)
+    topv = cb.verts.new(sp(0, 90, 0.35))
+    for r0, r1 in zip(grid, grid[1:]):
+        for c in range(cols):
+            d = (c + 1) % cols
+            cb.faces.new((r0[c], r0[d], r1[d], r1[c]))
+    for c in range(cols):
+        cb.faces.new((grid[-1][c], grid[-1][(c + 1) % cols], topv))
+    out = [_hair_obj(prefix + "HairCap", cb, mats["mid"], parent)]
+
+    # ---- nuca: mechas curtas no tom escuro, por baixo de tudo
+    ub = bmesh.new()
+    mb = bmesh.new()
+    for th in (128, 154, 180, 206, 232) if st["nape"] else ():
+        t = th + J(4)
+        e = end(t)
+        _lock(ub, [sp(t, e + 34, 0.3), sp(t + J(3), e + 14, 0.6), sp(t + J(4), e - 7, 0.9)], 3.3 * W, nrm)
+
+    # ---- camada de cima: do topo para fora; perto da orelha a mecha para cedo e vira para trás
+    tb = bmesh.new()
+    n = st["top"]
+    for i in range(n) if n > 1 else ():
+        t = 58 + (244 / (n - 1)) * i + J(5)
+        sg = 1 if t < 180 else -1
+        e = end(t)
+        lf = rnd.uniform(0.0, 0.5)
+        if 76 < wrap(t + 12 * sg) < 114:
+            ctrl = [sp(t, 84, 0.5 + lf), sp(t + 5 * sg, 58, 1.1 + lf), sp(t + 14 * sg, 34, 1.3 + lf),
+                    sp(t + 30 * sg, e + 6, 1.3 + lf)]
+        else:
+            ctrl = [sp(t, 84, 0.5 + lf), sp(t + 4 * sg, 58, 1.1 + lf), sp(t + 9 * sg, 30, 1.3 + lf),
+                    sp(t + 14 * sg + J(4), e + J(4), 1.5 + J(0.4))]
+        _lock(tb, ctrl, 4.3 * W * rnd.uniform(0.9, 1.1), nrm, th_k=0.28)
+    # mechas que emolduram o rosto: uma curta na têmpora, uma atrás da orelha
+    for sg in (1, -1) if st["frame"] else ():
+        _lock(tb, [sp(sg * 60, 62, 0.6), sp(sg * 65, 40, 1.0), sp(sg * 73, st["side"] + 6, 1.0)], 3.0 * W, nrm)
+        _lock(tb, [sp(sg * 118, 46, 0.7), sp(sg * 120, 18, 1.0), sp(sg * 117, end(118) - 4, 1.1)], 3.0 * W, nrm)
+    # franja: folhas largas a partir do repartido, cruzando a testa (a0 = raiz, a1 = ponta, em graus a partir do repartido)
+    pt, sw, fr = st["part"], st["sweep"], st["fringe"]
+    for a0, a1, dz, ww in (((0, -30, 3, 3.4), (4, -4, -2, 3.6), (8, 22, -5, 4.0), (6, 46, -3, 4.0), (0, 70, 2, 3.6))
+                           if st["bangs"] else ()):
+        b0, b1 = pt + sw * a0, pt + sw * a1
+        _lock(tb, [sp(b0, 80, 0.5), sp(b0 + (b1 - b0) * 0.35, 62, 1.5), sp(b0 + (b1 - b0) * 0.75, 44, 1.6),
+                   sp(b1, fr + dz, 1.5)], ww * W, nrm, th_k=0.34)
+    for ctrl, ww, key, *thk in st["extra"]:
+        _lock({"hair": tb, "mid": mb, "under": ub}[key], [sp(*c) for c in ctrl], ww * W, nrm,
+              th_k=thk[0] if thk else 0.32)
+    out.append(_hair_obj(prefix + "HairUnder", ub, mats["under"], parent))
+    out.append(_hair_obj(prefix + "HairMid", mb, mats["mid"], parent))
+    out.append(_hair_obj(prefix + "HairTop", tb, mats["hair"], parent))
+    return [o for o in out if o]
+
+
+def anime_bun(name, loc, size, material, parent, seg=8, rings=6):
+    """Coque: elipsoide liso (size = diâmetros)."""
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=seg, v_segments=rings, radius=0.5)
+    for v in bm.verts:
+        v.co = Vector(loc) + Vector((v.co.x * size[0], v.co.y * size[1], v.co.z * size[2]))
+    return _hair_obj(name, bm, material, parent)
+
+
+BEARD_STYLE = {
+    "length": 4.2,           # cm abaixo do queixo
+    "full": 1.0,             # volume
+    "mustache": True,
+    "locks": True,           # mechas sobrepostas à massa
+}
+# colunas da cabeça (o ângulo é o parâmetro da grade de anime_head, não o geométrico: 84 fica logo à frente da
+# orelha e 98 embaixo dela)
+_BEARD_DEG = [0, 4, 9, 16, 26, 38, 52, 68, 84, 98]
+_BEARD_TOP = [3.1, 3.1, 3.5, 5.0, 6.0, 6.6, 7.4, 8.8, 14.6, 6.8]  # linha de cima (cm): sob o lábio, bochecha, costeleta
+# borda de baixo: em fração do comprimento abaixo do queixo (pontas e reentrâncias alternadas); atrás da
+# mandíbula (valores positivos, em cm) a borda sobe até a orelha
+_BEARD_BOT = [-1.0, -0.88, -0.56, -0.80, -0.50, -0.62, -0.22, -0.42, 0.3, 1.8]
+
+
+def anime_beard(prefix, H, mats, parent, style=None):
+    """Barba cheia: massa lisa que cobre mandíbula e queixo, com a borda de baixo recortada em pontas, mechas
+    largas por cima e bigode em duas mechas. mats: hair (massa e mechas), mid (por baixo, entre as pontas)."""
+    st = dict(BEARD_STYLE)
+    st.update(style or {})
+    s, L, full = H["s"], st["length"], st["full"]
+    cy = H["cy"] - 3.0 * s
+
+    def radial(p):
+        r = Vector((p.x, p.y - cy, 0))
+        return r.normalized() if r.length > 1e-6 else Vector((0, -1, 0))
+
+    def col(i, sg):
+        zb = _BEARD_BOT[i]
+        return _BEARD_DEG[i] * sg, _BEARD_TOP[i], (zb * L if zb < 0 else zb)
+
+    def surf(i, sg, t, lift=0.0):
+        """Ponto da massa na coluna i, do topo (t=0) à borda de baixo (t=1); t > 1 continua além da ponta."""
+        deg, zt, zb = col(i, sg)
+        z = zt + (zb - zt) * t
+        side = min(1.0, abs(deg) / 50.0)
+        # abaixo da linha da mandíbula a barba cai na vertical; nos lados a linha é mais alta (anel mais largo),
+        # para a barba descer por fora do pescoço e cobrir a mandíbula de perfil
+        zr = max(z, 2.0 + 2.6 * min(1.0, abs(deg) / 70.0))
+        p = _hp(H, deg, zr)
+        dn = (zr - z) / L                                               # quanto desceu abaixo da mandíbula
+        p.z -= (zr - z) * s
+        p.x *= 1.0 - (0.42 - 0.28 * side) * min(1.0, dn) ** 1.4
+        p.y -= 0.25 * dn * s
+        off = (0.45 + (1.2 + 0.5 * side) * full * math.sin(math.pi * min(1.0, t * 1.25) / 2)) * s
+        return p + radial(p) * (off + lift * s)
+
+    n = len(_BEARD_DEG)
+    order = [(i, -1) for i in range(n - 1, 0, -1)] + [(i, 1) for i in range(n)]
+    bm = bmesh.new()
+    G = [[bm.verts.new(surf(i, sg, t)) for (i, sg) in order] for t in (0.0, 0.2, 0.5, 0.8, 1.0)]
+    for r0, r1 in zip(G, G[1:]):
+        for c in range(len(order) - 1):
+            bm.faces.new((r0[c], r1[c], r1[c + 1], r0[c + 1]))
+    out = [_hair_obj(prefix + "Beard", bm, mats["hair"], parent)]
+
+    # por baixo: fecha da borda recortada até o queixo, no tom intermediário (vira sombra entre as pontas)
+    ub = bmesh.new()
+    e0 = [ub.verts.new(surf(i, sg, 1.0)) for (i, sg) in order]
+    e1 = [ub.verts.new(v.co - radial(v.co) * 3.5 * s + Vector((0, 0, 1.2 * s))) for v in e0]     # some no pescoço
+    for c in range(len(order) - 1):
+        f = ub.faces.new((e0[c], e0[c + 1], e1[c + 1], e1[c]))
+        f.normal_update()
+        # a face olha para baixo e para dentro; sem ela, de costas aparece o avesso da massa (a casca, preta)
+        if f.normal.dot(Vector((0, 0, -0.6)) - radial(f.calc_center_median())) < 0:
+            f.normal_flip()
+    out.append(_hair_obj(prefix + "BeardUnder", ub, mats["mid"], parent, recalc=False))
+
+    if st["locks"]:
+        lb = bmesh.new()
+        # mechas curtas, só sobre as pontas: compridas, viram "dedos" pendurados
+        for i, w, t0 in ((0, 2.0, 0.3), (3, 1.9, 0.5), (5, 2.0, 0.58), (7, 1.9, 0.55)):
+            for sg in ((1,) if i == 0 else (1, -1)):
+                # a raiz nasce dentro da massa: só a metade da ponta aparece, como uma folha, não um gomo
+                _lock(lb, [surf(i, sg, t0 - 0.12, -0.35), surf(i, sg, (t0 + 1.14) / 2, 0.4), surf(i, sg, 1.14, 0.2)],
+                      w * 1.15 * s, radial, th_k=0.24, root=0.35)
+        out.append(_hair_obj(prefix + "BeardLocks", lb, mats["hair"], parent))
+    if st["mustache"]:
+        mb = bmesh.new()
+        fwd = Vector((0, -1, 0))
+
+        def mn(p):
+            return (radial(p) * 0.4 + fwd * 0.6).normalized()
+
+        for sg in (1, -1):
+            ctrl = []
+            for x, z, lf in ((0.15, 6.0, 0.45), (1.5, 5.45, 0.6), (2.9, 4.4, 0.55), (3.7, 2.7, 0.45)):
+                p = _face_pt(H, sg * x, z)
+                ctrl.append(p + mn(p) * lf * s)
+            _lock(mb, ctrl, 1.15 * s, mn, th_k=0.5, root=0.75)
+        out.append(_hair_obj(prefix + "Mustache", mb, mats["hair"], parent))
+    return [o for o in out if o]

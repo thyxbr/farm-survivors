@@ -605,28 +605,13 @@ def build_elder():
                    anime_mats("e", (0.78, 0.55, 0.42), (0.20, 0.30, 0.42), (0.50, 0.50, 0.55), (0.2, 0.16, 0.14),
                               (0.42, 0.22, 0.2)),
                    {"eye_h": 0.6, "eye_w": 0.88, "lash": 0.6, "brow": 2.0, "brow_dz": -0.25, "brow_tilt": 0.3, "nose": 1.2})
-    # cabelo: base escura colada ao crânio + mechas facetadas penteadas para trás, caindo até a nuca
+    # cabelo branco penteado para trás, caindo até a nuca, e barba longa (anime.py)
     hair_d = mat("e_hair_d", (0.42, 0.42, 0.45), 0.9)
-    shell("HairBase", (0, 0.004, 1.628), (0.152, 0.2, 0.226), hair_d, cut=0.22, seg=10, rings=6, rot=(-0.35, 0, 0),
-          thick=0.008)
-    shell("HairBaseBack", (0, 0.006, 1.6), (0.158, 0.28, 0.204), hair_d, cut=0.05, seg=10, rings=6, rot=(-PI / 2, 0, 0),
-          thick=0.008)
-    locks = []
-    for phi, drop in ((-58, 0.07), (-35, 0.09), (-12, 0.08), (12, 0.095), (35, 0.075), (58, 0.088)):  # topo, para trás
-        locks.append(dict(a=(phi, 31), b=(180 - phi * 0.5, 4), drop=drop, w=0.06, t=0.012, bulge=0.006))
-    for sg in (1, -1):
-        locks.append(dict(a=(sg * 72, 23), b=(sg * 138, 0), drop=0.08, w=0.056, t=0.012, bulge=0.005))   # têmporas
-        locks.append(dict(a=(sg * 92, 22), b=(sg * 118, -6), drop=0.088, w=0.05, t=0.011, flare=0.01))   # sobre a orelha
-    for phi in (148, 180, -148):                                                              # nuca
-        locks.append(dict(a=(phi, 55), b=(phi, -6), drop=0.1, w=0.062, t=0.012, bulge=0.006))
-    hair_locks("Hair", H, locks, hair, None)
-    # barba: cunha facetada cobrindo a mandíbula até o peito, bigode caído
-    for sg, n in ((1, "L"), (-1, "R")):
-        limb("Mustache" + n, (sg * 0.004, H["mouth_y"] - 0.004, H["nose_base_z"] - 0.006),
-             (sg * 0.031, H["mouth_y"] + 0.008, H["mouth_z"] - 0.016), 0.0075, 0.0035, hair, sides=5, flat=0.7)
-    limb("Beard", (0, -0.036, H["mouth_z"] - 0.004), (0, -0.105, 1.34), 0.075, 0.012, hair, sides=7, flat=0.78,
-         twist=PI / 7, jitter=0.003, seed=9)
-    limb("BeardTip", (0.012, -0.1, 1.38), (0.026, -0.112, 1.31), 0.018, 0.004, hair, sides=4, flat=0.7)
+    hm = {"hair": hair, "mid": mat("e_hair_mid", (0.66, 0.66, 0.69), 0.9), "under": hair_d}
+    back = [([(th, 38, 0.1), (th, 60, 0.7), (th, 82, 1.0), (180 - th * 0.8, 66, 1.1), (180 - th * 0.7, 40, 1.3)], 4.2,
+             "hair", 0.2) for th in (-42, -15, 13, 40)]
+    anime_hair("", H, hm, None, {"bangs": False, "back": -46, "side": 8, "extra": back, "seed": 5})
+    anime_beard("", H, hm, None, {"length": 10.5})
     weigh(take(), Z, [(0.0, "Head")])
 
     # braços com mangas largas, modelados caídos (como antes) e girados até a pose T em volta do ombro e do
@@ -831,20 +816,17 @@ def build_merchant():
     H = anime_head("", 1.52, HH, head, anime_mats("m", hexc("#E3A47E"), hexc("#7A4A22"), hexc("#4A2A18"), hexc("#2B170C"),
                                               hexc("#8C3F38")))
     k = HH / 23.0                                # 1 cm do modelo anatômico -> metros
-    # cabelo: base escura + mechas facetadas que saem de baixo do turbante e se juntam no coque baixo
+    # cabelo: mechas lisas que saem de baixo do turbante e se juntam no coque baixo (anime.py)
     hair_d = mat("m_hair_d", hexc("#2B170C"), 0.9)
-    shell("HairBase", (0, 0.006, 1.62), (0.152, 0.25, 0.2), hair_d, cut=0.15, seg=10, rings=6, rot=(-PI / 2, 0, 0),
-          thick=0.008, parent=head)
+    hm = {"hair": hair, "mid": mat("m_hair_mid", hexc("#3A2012"), 0.9), "under": hair_d}
     locks = []
-    for phi in (110, 135, 158, 180, -158, -135, -110):
-        sg = 1 if phi > 0 else -1
-        pb = 180 if phi == 180 else sg * (180 - (180 - abs(phi)) * 0.3)
-        locks.append(dict(a=(phi, 27), b=(pb, -35), w=0.042, t=0.011, bulge=0.007, n=4))
+    for th in (112, 135, 158, 180, 202, 225, 248):
+        locks.append(([(th, 30, 0.4), (180 + (th - 180) * 0.75, 2, 1.1), (180 + (th - 180) * 0.3, -34, 1.0)], 3.3,
+                      "hair"))
     for sg in (1, -1):
-        locks.append(dict(a=(sg * 68, 25), b=(sg * 92, -10), drop=0.02, w=0.03, t=0.009, bulge=0.004, n=4))
-    hair_locks("Hair", H, locks, hair, head)
-    shell("HairBun", (0, 0.105, 1.56), (0.085, 0.07, 0.075), hair, cut=-1.0, thick=0, seg=8, rings=6, jitter=0.003,
-          seed=14, parent=head)
+        locks.append(([(sg * 62, 29, 0.2), (sg * 68, 14, 0.6), (sg * 75, -3, 0.4)], 1.9, "hair"))
+    anime_hair("", H, hm, head, {"top": 0, "nape": False, "frame": False, "bangs": False, "extra": locks})
+    anime_bun("HairBun", (0, 0.105, 1.56), (0.085, 0.07, 0.075), hair, head)
     ring("HairTie", 1.56, 0.03, 0.022, gold_m, parent=head, sides=8, y=0.075, flat=0.6)
     for sg, n in ((1, "L"), (-1, "R")):
         shell("Earring" + n, (sg * 0.077, 0.012, 1.575), (0.02, 0.02, 0.028), gold_m, cut=-1, thick=0, seg=6, rings=4,
@@ -1226,27 +1208,10 @@ def build_blacksmith():
                    anime_mats("b", hexc("#D08A62"), hexc("#4A3220"), hexc("#5A2C16"), hexc("#3A1C0E"), hexc("#7A3E30")),
                    {"width": 1.1, "jaw": 1.18, "eye_h": 0.58, "eye_w": 0.88, "lash": 0.65, "brow": 2.6, "brow_dz": -0.4,
                     "brow_tilt": 0.55, "nose": 1.3})
-    shell("HairBase", (0, 0.006, 1.66), (0.168, 0.214, 0.21), hair_d, cut=0.25, seg=10, rings=6, rot=(-0.35, 0, 0),
-          thick=0.008)
-    shell("HairBaseBack", (0, 0.01, 1.63), (0.172, 0.27, 0.19), hair_d, cut=0.1, seg=10, rings=6, rot=(-PI / 2, 0, 0),
-          thick=0.008)
-    locks = []
-    for phi in (-50, -25, 0, 25, 50):                                   # topo curto, penteado para trás
-        locks.append(dict(a=(phi, 30), b=(180 - phi * 0.6, 30), w=0.065, t=0.012, bulge=0.012, n=5))
-    for sg in (1, -1):
-        locks.append(dict(a=(sg * 75, 22), b=(sg * 125, 8), w=0.05, t=0.01, bulge=0.004))   # têmporas
-    for phi in (150, 180, -150):                                        # nuca
-        locks.append(dict(a=(phi, 45), b=(phi, 5), w=0.06, t=0.01, bulge=0.004))
-    hair_locks("Hair", H, locks, hair, None)
-    # barba cheia: costeletas pela mandíbula, cunha volumosa no queixo, bigode grosso caído
-    for sg, n in ((1, "L"), (-1, "R")):
-        limb("Sideburn" + n, (sg * (H["half_w"] - 0.012), H["cy"] - 0.01, H["eye_z"] - 0.02),
-             (sg * 0.05, H["chin_y"] + 0.03, H["chin"] + 0.01), 0.026, 0.03, hair, sides=5, flat=0.7)
-        limb("Mustache" + n, (sg * 0.004, H["mouth_y"] - 0.008, H["nose_base_z"] - 0.004),
-             (sg * 0.042, H["mouth_y"] + 0.004, H["mouth_z"] - 0.03), 0.011, 0.006, hair, sides=5, flat=0.7)
-    limb("Beard", (0, -0.03, H["mouth_z"]), (0, -0.1, 1.42), 0.088, 0.03, hair, sides=7, flat=0.82,
-         twist=PI / 7, jitter=0.003, seed=4)
-    limb("BeardTip", (0, -0.1, 1.45), (0.004, -0.112, 1.39), 0.03, 0.008, hair_d, sides=5, flat=0.7)
+    # cabelo curto e barba cheia desenhados (anime.py): mechas largas e lisas em camadas
+    hm = {"hair": hair, "mid": mat("b_hair_mid", hexc("#4A2412"), 0.9), "under": hair_d}
+    anime_hair("", H, hm, None, {"back": -20})
+    anime_beard("", H, hm, None)
     weigh(take(), Z, [(0.0, "Head")])
 
     # ---------------- braços fortes: manga arregaçada, antebraço à mostra, luva de couro grossa.
