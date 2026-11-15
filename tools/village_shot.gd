@@ -4,9 +4,12 @@ extends SceneTree
 ## Usa o personagem de demonstração (--geardemo), não o save. Precisa de janela (sem --headless) e do --import:
 ##   godot --path . --resolution 1600x900 --script res://tools/village_shot.gd -- <pasta_saida> [vista,vista] --geardemo
 ## Vistas: over (de cima), east (empório), west (botica), smithy (ferraria), north (casas do fundo), south,
-## well (poço), sign (poste de direção), board (quadro de avisos), orchard (pomar).
+## well (poço), sign (poste de direção), board (quadro de avisos), orchard (pomar), xmas (árvore de Natal),
+## gate (bengalas do portão norte). `--hora=22` tira as fotos de noite.
 
 const VIEWS := {
+	"xmas": [Vector3(2.5, 2.6, -3.5), Vector3(8.8, 2.0, -10.3)],
+	"gate": [Vector3(0, 2.2, -8.0), Vector3(2.5, 0.8, -12.4)],
 	"over": [Vector3(2, 26, -20), Vector3(0, 0, 4)],
 	"east": [Vector3(-1, 4.5, -5), Vector3(9.5, 1.4, 0.5)],
 	"west": [Vector3(1, 4.5, 5.5), Vector3(-12, 1.6, 0.5)],
