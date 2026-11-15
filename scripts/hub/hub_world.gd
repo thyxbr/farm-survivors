@@ -23,6 +23,8 @@ const M := {
 	"well": preload("res://assets/models/well.glb"),
 	"lamp": preload("res://assets/models/lamp.glb"),
 	"house": preload("res://assets/models/house.glb"),
+	"house_b": preload("res://assets/models/house_b.glb"),
+	"house_c": preload("res://assets/models/house_c.glb"),
 	"tent": preload("res://assets/models/tent.glb"),
 	"tree_oak": preload("res://assets/models/tree_oak.glb"),
 	"tree_pine": preload("res://assets/models/tree_pine.glb"),
@@ -202,7 +204,8 @@ func _build_edge() -> void:
 			var yaw := atan2(-d.x, -d.z)
 			match i % 4:
 				0, 2:
-					_prop("house", p, yaw + rng.randf_range(-0.15, 0.15), 1.0, "box", Vector3(5.2, 3.2, 4.2))
+					var house: String = ["house", "house_b", "house_c"][(i >> 1) % 3]   # as três casas da vila, alternadas
+					_prop(house, p, yaw + rng.randf_range(-0.15, 0.15), 1.0, "box", Vector3(5.2, 3.2, 4.2))
 				1:
 					_prop("tent", d * 27.5, yaw, 1.1, "box", Vector3(2.0, 2.2, 2.0))
 					_prop("barrel", d * 27.5 + Vector3(d.z, 0, -d.x) * 1.8, 0.0)

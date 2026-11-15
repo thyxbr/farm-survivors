@@ -1,13 +1,14 @@
 class_name ColonyVisuals
 extends RefCounted
 ## Modelos das construções da Defesa da Cidade. Cada tipo tem um GLB por nível, gerado por
-## tools/blender/buildings.py em assets/models/buildings/<tipo>_<nível>.glb (a casa usa o house.glb).
+## tools/blender/buildings.py em assets/models/buildings/<tipo>_<nível>.glb. A casa usa as casas da vila
+## (tools/blender/village.py): nível 1 de sapê, 2 em enxaimel e 3 o sobrado de pedra.
 ## make(kind, level) devolve um Node3D centrado na pegada, frente em +Z. Torres têm os nós "Turret"
 ## (gira para o alvo, com o modelo <tipo>_turret_<nível>.glb) e "Muzzle" (de onde sai o disparo).
 ## As primitivas no fim do arquivo continuam servindo a bandeira da cidade e os animais.
 
-const HOUSE := preload("res://assets/models/house.glb")
-const BARREL := preload("res://assets/models/barrel.glb")
+const HOUSES := [preload("res://assets/models/house_b.glb"), preload("res://assets/models/house.glb"),
+	preload("res://assets/models/house_c.glb")]
 const DIR := "res://assets/models/buildings/"
 
 const WOOD := Color(0.45, 0.3, 0.17)
@@ -69,7 +70,7 @@ static func height(kind: String) -> float:
 		"town_hall":
 			return 7.2
 		"house":
-			return 5.0
+			return 5.5
 		"barracks":
 			return 4.6
 		"market":
@@ -96,12 +97,7 @@ static func height(kind: String) -> float:
 
 
 static func _house(r: Node3D, level: int) -> void:
-	_glb(r, HOUSE, Vector3.ZERO, 0.0, 1.0)
-	if level >= 2:
-		_glb(r, BARREL, Vector3(2.6, 0, 1.6), 0.0, 0.8)
-		_box(r, Vector3(1.4, 0.5, 0.6), Vector3(-1.8, 0.25, 2.4), WOOD)
-	if level >= 3:
-		_box(r, Vector3(0.44, 0.5, 0.44), Vector3(1.5, 5.89, -1.0), STONE_DARK)   # chaminé mais alta
+	_glb(r, HOUSES[level - 1], Vector3.ZERO, 0.0, 1.0)
 
 
 # ================================================================ primitivas
