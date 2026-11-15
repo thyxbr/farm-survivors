@@ -660,7 +660,7 @@ static func bow_gale_pose(p: Dictionary, c: float, recoil := -1.0) -> void:
 ##  - cajado: segurado firme ao lado do corpo como um bordão, gema um pouco à frente; o braço balança pouco
 ##    (antes ele girava o cajado inteiro e a vara atravessava a perna e o tronco). Correndo, vai inclinado à
 ##    frente, mão na altura do quadril.
-##  - arco: o braço do arco balança menos e fica um pouco dobrado (o arco pendurado ao lado da perna).
+##  - arco: parado, o braço do arco fica reto ao lado do corpo; andando, dobra e balança menos.
 static func weapon_carry(p: Dictionary, cls: String, move: float, run: float) -> void:
 	match cls:
 		"staff":
@@ -676,8 +676,10 @@ static func weapon_carry(p: Dictionary, cls: String, move: float, run: float) ->
 			p.wrist_r = tilt - bend * (1.0 - float(KnightLook.COUNTER.staff))
 		"bow":
 			var c: Dictionary = KnightMoves.BOW_CARRY
-			p.arm_l = Vector3(lerpf(c.arm.x, p.arm_l.x * float(c.swing), move), c.arm.y, c.arm.z)
-			p.elbow_l = lerpf(c.elbow, c.elbow_run, run)
+			# parado o braço fica solto e reto (a pose de respirar); andando dobra e balança pela metade
+			var walk := Vector3(c.arm.x + p.arm_l.x * float(c.swing), c.arm.y, c.arm.z)
+			p.arm_l = (p.arm_l as Vector3).lerp(walk, move)
+			p.elbow_l = lerpf(c.elbow_idle, lerpf(c.elbow, c.elbow_run, run), move)
 
 
 ## IK de dois ossos do braço: ombro (ArmX, giro livre, ordem YXZ) e cotovelo (ElbowX, dobra só em X).
