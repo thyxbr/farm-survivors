@@ -265,7 +265,7 @@ já existem no banco, mas semear e ler o balanceamento do banco (e editar pelo p
   e horta mudam só por pedido ao servidor (autoload `Econ`); o cliente manda vida, mana e posição de tempos em tempos.
   O solo tem personagem próprio em `user://solo_character.json` (o cliente não leva o SQLite) (F5/F9 só em Valdoria, no solo). Esc → *Voltar à vila* sai da cidade.
 - O chat (**Enter**) é do servidor inteiro: funciona em Valdoria e na cidade em grupo.
-- **Grupo** (até 4 jogadores, autoload `Party` + `PartyBook`/`PartyRules`): convide pelo painel (**P**) ou pelo chat
+- **Grupo** (até 4 jogadores, autoload `Party` + `PartyBook`/`PartyRules`): convide pela aba Grupo do livro (**P**; a aba Mapa abre com **M**) ou pelo chat
   (`/grupo NOME`, `/grupo sair`, `/grupo expulsar NOME`); quem convida sem grupo vira o líder, e só o líder convida e expulsa.
   A HUD mostra nome, nível e vida de cada companheiro (e avisa quando ele está longe ou em outra zona). O XP de cada monstro
   morto é dividido entre o grupo que está em Valdoria (arredondado para cima); o abate conta na missão de quem acertou e de

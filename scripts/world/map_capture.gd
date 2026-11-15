@@ -3,6 +3,8 @@ extends Node
 ## Imagem de cima de cada mapa (para o minimapa e o mapa-mundi): uma câmera ortográfica olhando para baixo
 ## renderiza a região uma vez num SubViewport do mesmo mundo 3D e guarda a textura. Uma região por vez,
 ## só quando alguém pede (`texture`). Sem tela (headless/servidor) não renderiza: o mapa fica com o fundo liso.
+## O clima não entra na foto: durante a captura a neve, a chuva e as poças ficam em 0 (depois do WeatherFX
+## publicar as globais no quadro) e as partículas do clima ficam escondidas.
 
 signal captured(region: String)
 
@@ -12,6 +14,17 @@ const RES_DEFAULT := 640
 var _tex := {}       # região -> Texture2D
 var _queue: Array = []
 var _busy := false
+var _hidden: Array = []   # partículas do clima escondidas durante a captura
+
+
+func _ready() -> void:
+	process_priority = 1000   # depois do WeatherFX, que publica as globais de clima a cada quadro
+
+
+func _process(_delta: float) -> void:
+	if _busy:
+		for k in ["weather_snow", "weather_wet", "weather_rain"]:
+			RenderingServer.global_shader_parameter_set(k, 0.0)
 
 
 ## Textura do mapa da região (null enquanto não ficou pronta; pede a captura na primeira vez).
@@ -67,14 +80,34 @@ func _render(region: String) -> Texture2D:
 	cam.global_transform = Transform3D(Basis.from_euler(Vector3(-PI / 2, 0, 0)),
 		Vector3(r.get_center().x, 160.0, r.get_center().y))
 	cam.current = true
+	_hide_weather(true)
+	_process(0.0)
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
 	var img := vp.get_texture().get_image() if is_inside_tree() else null
+	_hide_weather(false)
 	vp.queue_free()
 	if img == null or img.is_empty():
 		return null
 	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)
+
+
+func _hide_weather(on: bool) -> void:
+	if on:
+		_hidden.clear()
+		var fx: Node = Weather.fx if is_instance_valid(Weather.fx) else null
+		if fx == null:
+			return
+		for n in fx.find_children("*", "GPUParticles3D", true, false):
+			if n.visible:
+				n.visible = false
+				_hidden.append(n)
+	else:
+		for n in _hidden:
+			if is_instance_valid(n):
+				n.visible = true
+		_hidden.clear()
 
 
 ## Luz própria da foto do mapa: sem neblina e com ambiente forte (o mapa fica legível também à noite).

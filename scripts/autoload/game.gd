@@ -222,7 +222,7 @@ func _debug_screenshot() -> void:
 					"map":
 						w.open_world_map()
 					"party":
-						w._open_modal(w.PARTY_UI.new())
+						w.open_world_map(1)
 					"enchant":
 						for n in get_tree().get_nodes_in_group("interactable"):
 							if n.get("npc_id") == "blacksmith":

@@ -74,7 +74,6 @@ const PLANT_UI := preload("res://scripts/ui/plant_ui.gd")
 const COOKING_UI := preload("res://scripts/ui/cooking_ui.gd")
 const GROUND := preload("res://scripts/world/ground.gd")
 const WORLD_MAP_UI := preload("res://scripts/ui/world_map_ui.gd")
-const PARTY_UI := preload("res://scripts/ui/party_ui.gd")
 const FIELD_CROP := preload("res://assets/models/field_crop.glb")
 
 const MAP_HALF := 125.0
@@ -1143,7 +1142,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("world_map") and survival == null:
 		open_world_map()
 	elif event.is_action_pressed("party"):
-		_open_modal(PARTY_UI.new())
+		open_world_map(WORLD_MAP_UI.TAB_PARTY)
 	elif survival == null:
 		for i in KnightEmotes.KINDS.size():
 			if event.is_action_pressed("emote_%d" % (i + 1)):
@@ -1151,8 +1150,10 @@ func _unhandled_input(event: InputEvent) -> void:
 				return
 
 
-func open_world_map() -> void:
+## Livro do mapa e do grupo, aberto na aba `tab` (WORLD_MAP_UI.TAB_MAP ou TAB_PARTY).
+func open_world_map(tab := 0) -> void:
 	var m := WORLD_MAP_UI.new()
+	m.start_tab = tab
 	m.world = self
 	m.capture = map_capture
 	_open_modal(m)

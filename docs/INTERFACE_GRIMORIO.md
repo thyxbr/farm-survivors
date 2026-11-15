@@ -115,6 +115,7 @@ descartados: o primeiro fica "vetorial" demais, o segundo é caro para ornamento
 | Ícone vetorial de reserva (sem janela, HUD e enquanto o 3D não chega) | `scripts/ui/icon_painter.gd` |
 | Dica de item em folha de papel (`paper = true`; o padrão continua escuro para loja e HUD) | `scripts/ui/item_tooltip.gd` |
 | Menu do herói, as três abas a tinta (`_spread()` monta as duas páginas de uma aba) | `scripts/ui/game_menu.gd` |
+| Livro do mapa e do grupo: aba Mapa (M, região vista de cima, seletor de mapas, legenda e lugares) e aba Grupo (P, membros, convite, quem está online) | `scripts/ui/world_map_ui.gd` (o desenho do mapa é `map_view.gd`, a foto de cima `map_capture.gd`) |
 
 Para criar uma tela nova no livro:
 
@@ -145,6 +146,8 @@ Cada etapa é um PR, sai com as capturas das telas tocadas e com `/smoke-check` 
 | 7 | **Praça e Horda fora de combate:** portal, mesa de guerra, mestre de passivas, recordes, convite, placar | `horde_portal_ui.gd`, `war_table_ui.gd`, `passive_master_ui.gd`, `records_ui.gd`, `horde_invite_ui.gd`, `horde_scoreboard.gd`, `survival_ui.gd` | a fazer |
 | 8 | **Colônia:** painel da cidade e das construções (a parte de menu; o HUD da colônia fica) | `colony_ui.gd`, `base_building_ui.gd` | a fazer |
 | 9 | **Limpeza:** apagar o tema antigo e os `StyleBoxFlat` soltos das telas migradas; opção "interface clássica" só se alguém pedir | `ui_theme.gd` e sobras | a fazer |
+
+Telas novas já nascem no livro (o mapa e o grupo, 0.18.0). O minimapa e os quadros do grupo são HUD.
 
 Ficam como estão: `hud.gd`, `hub_hud.gd`, `survival_hud.gd`, `colony_hud.gd`, `chat_ui.gd`, `stat_orb.gd`,
 `fury_ring.gd`, `horde_icon.gd`.
