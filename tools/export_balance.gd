@@ -8,7 +8,6 @@ const OUT := "res://data/balance"
 const SNAPSHOT := "res://tests/unit/fixtures/balance_snapshot.bin"
 
 const IDB := preload("res://scripts/autoload/item_db.gd")
-const COL := preload("res://scripts/colony/colony_data.gd")
 const UPG := preload("res://scripts/survival/upgrades.gd")
 const ENM := preload("res://scripts/enemies/enemy.gd")
 const EVT := preload("res://scripts/survival/horde_events.gd")
@@ -26,9 +25,6 @@ func _init() -> void:
 		"enemies": ENM.TYPES,
 		"horde": {"weapons": UPG.WEAPONS, "passives": UPG.PASSIVES, "blessings": UPG.BLESSINGS, "combos": UPG.COMBOS},
 		"horde_events": {"events": EVT.EVENTS, "hunt": EVT.HUNT},
-		"colony": {"buildings": COL.BUILDINGS, "units": COL.UNITS, "animals": COL.ANIMALS,
-			"wave_costs": COL.WAVE_COSTS, "cost_growth": COL.COST_GROWTH, "upkeep": COL.UPKEEP,
-			"affixes": COL.AFFIXES, "night_mods": COL.NIGHT_MODS},
 		# números soltos que hoje vivem espalhados em game.gd
 		"rules": {"sell_ratio": 0.5, "xp_curve": {"base": 60, "exp": 1.55}, "points_per_level": 3,
 			"farm": {"plots": 12, "start": 6, "unlock_base": 30, "unlock_step": 15, "fert_bonus": 0.4,

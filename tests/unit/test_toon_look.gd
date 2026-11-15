@@ -22,7 +22,7 @@ func test_dedicated_server_never_converts() -> void:
 
 
 func test_tests_ignore_menu_option() -> void:
-	for flag in ["--smoketest", "--colonytest", "--vilatest"]:
+	for flag in ["--smoketest", "--vilatest"]:
 		T.ok(ToonLook.decide_style(_args([flag]), true, false), "%s roda com o estilo, mesmo com a opção desligada" % flag)
 		T.ok(ToonLook.decide_outline(_args([flag]), false), "%s roda com contorno" % flag)
 

@@ -8,7 +8,7 @@ extends CanvasLayer
 
 var player: Player
 var boss: Enemy
-## Defesa da Cidade: texto de ajuda próprio e sem o painel de missões.
+## Texto de ajuda próprio e painel de missões escondido (cenas que não são Valdoria).
 var help_text := ""
 var hide_quests := false
 var boss_top := 24.0
@@ -56,6 +56,9 @@ var _compass_far := ""
 ## Minimapa (só em Valdoria, ver add_minimap) e quadros do grupo (multiplayer).
 const MINIMAP_SIZE := 196.0
 var minimap: MapView
+## Moldura e dica do minimapa: somem no Desafio da Horda (a arena é um mapa à parte, sem foto de cima).
+var _minimap_frame: Control
+var _minimap_hint: Control
 var party_frames: PartyFrames
 
 
@@ -129,10 +132,12 @@ func add_minimap(world: Node, capture: MapCapture) -> void:
 	minimap.capture = capture
 	minimap.custom_minimum_size = Vector2(MINIMAP_SIZE, MINIMAP_SIZE)
 	frame.add_child(minimap)
+	_minimap_frame = frame
 	var hint := UITheme.outlined("[M] mapa", 12, Color(0.85, 0.8, 0.65, 0.85), 3)
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_anchor(hint, 1, 0, -MINIMAP_SIZE - 20, MINIMAP_SIZE + 20, 80, 16)
 	root.add_child(hint)
+	_minimap_hint = hint
 	var below := MINIMAP_SIZE + 22.0
 	season_badge.offset_top += below
 	season_badge.offset_bottom += below
@@ -407,6 +412,9 @@ func _process(delta: float) -> void:
 	# Desafio da Horda: esconde as missões e desce a barra do chefe para não cobrir o HUD da horda
 	var horde: bool = Game.run_mods.active
 	quest_box.visible = not horde and not hide_quests
+	if _minimap_frame != null:
+		_minimap_frame.visible = not horde
+		_minimap_hint.visible = not horde
 	season_badge.visible = not horde
 	boss_panel.offset_top = 76.0 if horde else boss_top
 	boss_panel.offset_bottom = boss_panel.offset_top + 40.0

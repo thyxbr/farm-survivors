@@ -1,6 +1,6 @@
 class_name FriendStore
 extends RefCounted
-## Amigos das contas, no banco (tabela `friends`, migração v6). Sem autoload: roda no teste unitário.
+## Amigos das contas, no banco (tabela `friends`, migração v7). Sem autoload: roda no teste unitário.
 ##
 ## Pedido de amizade: quem pede fica com "out", quem recebe com "in"; aceitar vira "accepted" dos dois lados.
 ## Pedir para quem já tinha pedido para você aceita na hora. Recusar, cancelar e desfazer apagam as duas

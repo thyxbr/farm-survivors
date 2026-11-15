@@ -17,7 +17,6 @@ extends Node3D
 ## o fim da partida em Econ.run_finish, que concede os Ecos); no grupo quem concede é o servidor — sementes
 ## e XP direto no personagem de cada um, moedas como pickups do PickupRegistry (cada jogador tem as suas),
 ## Ecos no fim (CharacterService.finish_player) — e o cliente só mostra.
-## A Forja da base (bônus horde_damage) é fixada no começo: no grupo o servidor põe em team[pid].forge.
 
 const ENEMY := preload("res://scripts/enemies/enemy.gd")
 const GEM := preload("res://scripts/survival/xp_gem.gd")
@@ -146,11 +145,7 @@ func _ready() -> void:
 		return
 	Game.reset_run_mods()
 	Game.run_mods.active = true
-	# Forja da base: dano extra fixado no começo da partida (no grupo, o valor que o servidor mandou)
-	if role == "client":
-		Game.run_mods.damage += float(team.get(multiplayer.get_unique_id(), {}).get("forge", 0.0))
-	else:
-		Game.run_mods.damage += float(Hub.base_bonus().get("horde_damage", 0.0))
+	if role != "client":
 		run_id = Econ.run_start("horde")
 	Game.hp = Game.max_hp()
 	Game.mp = Game.max_mp()
@@ -1361,7 +1356,7 @@ func _return_to_village() -> void:
 	if world.hud and world.hud.boss == boss:
 		world.hud.boss = null
 	player.horde_frozen = false
-	player.revive(world.VILLAGE_SPAWN)
+	player.revive(world.HORDE_RETURN)   # de volta à vila, na frente do portal
 	player.invuln = 1.0
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	world.survival = null

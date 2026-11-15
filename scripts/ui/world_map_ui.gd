@@ -181,10 +181,8 @@ func _legend(c: Color, text: String) -> Control:
 ## Onde o companheiro está, em palavras: zona, mapa e distância (e se o abate conta na missão dele).
 func _where(m: Dictionary) -> String:
 	var zone := str(m.get("zone", ""))
-	if zone == "hub":
-		return "na praça"
-	if zone == "city":
-		return "na Defesa da Cidade"
+	if zone == "loading":
+		return "carregando"
 	var rp = Network.remote_players.get(int(m.peer))
 	var p3 = world.get("player") if world else null
 	if rp == null or not is_instance_valid(rp) or p3 == null:
@@ -445,12 +443,11 @@ func _friend_row(f: Dictionary) -> Control:
 	return p
 
 
-## "Bosque Sussurrante", "na praça", "visto há 3 dia(s)"...
+## "Bosque Sussurrante", "carregando", "visto há 3 dia(s)"...
 func _friend_status(f: Dictionary) -> String:
 	if bool(f.get("online", false)):
-		match str(f.get("zone", "")):
-			"city": return "na Defesa da Cidade"
-			"hub": return "na praça"
+		if str(f.get("zone", "")) == "loading":
+			return "carregando"
 		return str(f.get("region", "")) if str(f.get("region", "")) != "" else "em Valdoria"
 	var last := int(f.get("last_login", 0))
 	if last <= 0:
@@ -488,8 +485,7 @@ func _whisper_to(player_name: String) -> void:
 func _zone_name(zone: String) -> String:
 	match zone:
 		"world": return "em Valdoria"
-		"city": return "na Defesa da Cidade"
-	return "na praça"
+	return "carregando"
 
 
 func _invite(peer: int) -> void:

@@ -5,6 +5,10 @@ const DIR := "res://data/balance"
 const SNAPSHOT := "res://tests/unit/fixtures/balance_snapshot.bin"
 
 
+## Tabelas do snapshot que não existem mais.
+const REMOVED := ["colony"]
+
+
 func _snapshot() -> Dictionary:
 	var f := FileAccess.open(SNAPSHOT, FileAccess.READ)
 	var snap = bytes_to_var(f.get_buffer(f.get_length()))
@@ -15,6 +19,9 @@ func _snapshot() -> Dictionary:
 func test_roundtrip_matches_consts() -> void:
 	var t := BalanceTables.load_dir(DIR)
 	var snap := _snapshot()
+	# tabelas que saíram do jogo (a Defesa da Cidade) continuam no snapshot binário: ficam de fora
+	for gone in REMOVED:
+		snap.erase(gone)
 	# o snapshot da fase 1 não tem as tabelas novas (Ecos, passivas, base): basta cada nome dele existir
 	for n in snap:
 		T.ok(n in BalanceTables.NAMES, "tabela %s do snapshot está em NAMES" % n)
@@ -36,7 +43,6 @@ func test_color_and_vector() -> void:
 	var t := BalanceTables.load_dir(DIR)
 	T.eq(typeof(t.get_table("items")["wooden_sword"].color), TYPE_COLOR, "cor do item")
 	T.eq(t.get_table("enemies")["slime"].color, Color(0.3, 0.9, 0.35), "cor do slime")
-	T.eq(typeof(t.get_table("colony")["buildings"]["house"].size), TYPE_VECTOR2, "pegada da casa")
 	T.eq(BalanceTables.decode({"$v3": [1, 2.5, 3]}), Vector3(1, 2.5, 3), "decode Vector3")
 	T.eq(BalanceTables.decode(BalanceTables.encode(Color(0.1, 0.2, 0.3, 0.4))), Color(0.1, 0.2, 0.3, 0.4), "Color ida e volta")
 

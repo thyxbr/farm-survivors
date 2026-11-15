@@ -147,7 +147,7 @@ Cada etapa é um PR, sai com as capturas das telas tocadas e com `/smoke-check` 
 | 8 | **Colônia:** painel da cidade e das construções (a parte de menu; o HUD da colônia fica) | `colony_ui.gd`, `base_building_ui.gd` | a fazer |
 | 9 | **Limpeza:** apagar o tema antigo e os `StyleBoxFlat` soltos das telas migradas; opção "interface clássica" só se alguém pedir | `ui_theme.gd` e sobras | a fazer |
 
-Telas novas já nascem no livro (o mapa e o grupo, 0.18.0; os amigos, 0.19.0). O minimapa e os quadros do grupo são HUD.
+Telas novas já nascem no livro (o mapa e o grupo, 0.18.0; os amigos, 0.20.0). O minimapa e os quadros do grupo são HUD.
 
 Ficam como estão: `hud.gd`, `hub_hud.gd`, `survival_hud.gd`, `colony_hud.gd`, `chat_ui.gd`, `stat_orb.gd`,
 `fury_ring.gd`, `horde_icon.gd`.

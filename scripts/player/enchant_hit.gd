@@ -19,7 +19,7 @@ static func scale(target: Node, dmg: float) -> float:
 	if fx.get("el", "") != "sagrado":
 		return dmg
 	var e: Enemy = target
-	if e.is_boss or e.elite or e.affix != "" or e.data.get("elite", false):
+	if e.is_boss or e.elite or e.data.get("elite", false):
 		return dmg * (1.0 + float(fx.value))
 	return dmg
 

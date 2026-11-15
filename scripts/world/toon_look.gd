@@ -66,7 +66,7 @@ static func decide_outline(args: PackedStringArray, setting: bool) -> bool:
 
 
 static func is_test(args: PackedStringArray) -> bool:
-	return "--smoketest" in args or "--colonytest" in args or "--vilatest" in args
+	return "--smoketest" in args or "--vilatest" in args
 
 
 ## Verdadeiro quando a linha de comando decide (`--notoon` / `--nooutline`) e a opção do menu não vale.

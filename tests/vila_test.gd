@@ -2,11 +2,12 @@ extends Node
 ## Teste automatizado da vila de Valdoria (solo), o ponto de chegada desde que a praça da cidade saiu. Rode com:
 ##   godot --headless --path . res://scenes/world.tscn -- --vilatest
 ## Imprime PASS/FAIL para cada verificação e encerra com código 0 (ok) ou 1 (falhas).
-## Usa um personagem solo novo num arquivo só dele (user://vilatest_solo.json, apagado no início), como o --colonytest.
-## Confere: os bairros novos (casas variadas, pintadas), os 6 pontos que vieram da praça, Ecos do fim de partida,
-## passiva e doação pelo Econ.request, o rótulo da Forja, os painéis abrindo e fechando, o Papai Noel e os quatro
-## eventos de Natal (presentes, ladrões, ceia e entregas), a réplica com emotes, a Horda pelo portal da vila
-## (volta para a vila) e a tela de carregamento.
+## Usa um personagem solo novo num arquivo só dele (user://vilatest_solo.json, apagado no início).
+## Confere: os bairros novos (casas variadas, pintadas), o Mestre Orin e o quadro de recordes (os pontos que
+## vieram da praça), Ecos do fim de partida, passiva pelo Econ.request, o quadro de recordes, os painéis abrindo e
+## fechando, o Papai Noel e os quatro eventos de Natal (presentes, ladrões, ceia e entregas), a réplica com
+## emotes, a Horda pelo portal da vila (arena num mapa à parte, volta à vila na frente do portal) e a tela de
+## carregamento.
 
 var fails := 0
 
@@ -36,14 +37,14 @@ func _vila() -> Node:
 	return s if s != null and s.get("role") == null and s.get("points") != null and s.get("built") else null
 
 
-## Texto do saldo nos painéis (passive_master_ui/base_building_ui).
+## Texto do saldo no painel do Mestre Orin (passive_master_ui).
 func _ecos_text() -> String:
 	return "✦ %d Ecos" % Game.ecos
 
 
-func _point(w: Node, kind: String, building := "") -> Node:
+func _point(w: Node, kind: String) -> Node:
 	for p in w.points:
-		if p.kind == kind and p.building_id == building:
+		if p.kind == kind:
 			return p
 	return null
 
@@ -83,15 +84,15 @@ func _ready() -> void:
 	check(models.size() == 6, "seis modelos de casa na vila (%s)" % str(models.keys()))
 	check(tinted >= VillageLayout.HOUSES.size(), "casas pintadas com as paletas (%d)" % tinted)
 
-	# --- os 6 pontos que vieram da praça
-	check(w.points.size() == 6, "vila monta os 6 pontos da antiga praça (%d)" % w.points.size())
+	# --- os pontos que vieram da praça: Mestre Orin e o quadro de recordes (sem mesa de guerra nem base)
+	check(w.points.size() == 2, "vila monta o Orin e o quadro de recordes (%d)" % w.points.size())
 	var interactable := 0
 	for p in w.points:
 		if p.is_in_group("interactable") and p.interact_prompt() != "":
 			interactable += 1
-	check(interactable == 6, "os 6 pontos são interagíveis com texto de [E] (%d)" % interactable)
-	for b in ["forja", "muralha", "celeiro"]:
-		check(_point(w, "building", b) != null, "ponto da construção %s" % b)
+	check(interactable == 2, "os 2 pontos são interagíveis com texto de [E] (%d)" % interactable)
+	check(_point(w, "passive_master") != null and _point(w, "records") != null, "Orin e recordes na vila")
+	check(not ResourceLoader.exists("res://scenes/colony.tscn"), "sem a Defesa da Cidade")
 	# Orin (elder.glb) parado no idle, não em pose T; o cajado na mão
 	var om: Node3D = _point(w, "passive_master").model
 	var oaps := om.find_children("*", "AnimationPlayer")
@@ -129,32 +130,17 @@ func _ready() -> void:
 	await wait(0.1)
 	check(w.modal == null and not get_tree().paused, "painel do Mestre Orin fecha e a vila volta")
 
-	# --- doação pelo Econ.request: sobe a Forja, a placa mostra o nível novo
-	var forge_cost := int(Balance.tables.get_table("base_buildings").buildings.forja.levels[0].cost)
-	var forge := _point(w, "building", "forja")
-	check(forge != null and forge._label.text == "Forja — nível 0", "placa da Forja no nível 0 (%s)" % forge._label.text)
-	e0 = Game.ecos
-	Econ.request("donate", ["forja", forge_cost])
-	check(Game.ecos == e0 - forge_cost, "doação desconta os Ecos (%d → %d)" % [e0, Game.ecos])
-	var entry: Dictionary = Hub.base.get("forja", {})
-	check(int(entry.get("level", 0)) == 1 and BaseRules.total_invested(Balance.tables, "forja", entry) == forge_cost,
-		"Hub.base: Forja no nível 1 (%s)" % str(entry))
-	check(forge._label.text == "Forja — nível 1", "placa da Forja mostra o nível novo (%s)" % forge._label.text)
-	var donors: Array = entry.get("donors", [])
-	check(donors.size() == 1 and donors[0].name == Hub.SOLO_NAME and int(donors[0].amount) == forge_cost,
-		"doador do solo aparece como \"%s\" (%s)" % [Hub.SOLO_NAME, str(donors)])
-	check(is_equal_approx(float(Hub.base_bonus().get("horde_damage", 0.0)),
-		float(Balance.tables.get_table("base_buildings").buildings.forja.levels[0].bonus.horde_damage)),
-		"bônus da Forja vale no solo (%s)" % str(Hub.base_bonus()))
 	var rec: Dictionary = Hub.records.get("horde", {})
 	check(int(rec.get("reached", 0)) == 40 and rec.get("names", []) == [Hub.SOLO_NAME],
 		"recorde da Horda no quadro da vila (%s)" % str(rec))
+	var board := _point(w, "records")
+	check(board != null and board._label.text.begins_with("Horda: rodada 40"), "quadro mostra o recorde (%s)" % board._label.text)
 
 	# --- cada painel abre e fecha
 	for p in w.points:
 		w.open_point_panel(p)
 		var ui: Control = w.modal
-		var label := "%s%s" % [p.kind, (" " + p.building_id) if p.building_id != "" else ""]
+		var label := str(p.kind)
 		check(ui != null and ui.is_inside_tree(), "painel abre: %s" % label)
 		if ui == null:
 			continue
@@ -162,14 +148,6 @@ func _ready() -> void:
 		ui._close()
 		await wait(0.1)
 		check(w.modal == null and not get_tree().paused, "painel fecha: %s" % label)
-
-	# --- painel da construção acompanha Ecos que chegam com ele aberto
-	w.open_point_panel(_point(w, "building", "muralha"))
-	var wall: Control = w.modal
-	Econ.run_finish(Econ.run_start("horde"), "horde", 5, 0, 0, {})
-	check(wall != null and wall.ecos_label.text == _ecos_text(), "painel da construção mostra os Ecos novos (%s)" % wall.ecos_label.text)
-	wall._close()
-	await wait(0.1)
 
 	await _christmas(w)
 
@@ -209,6 +187,7 @@ func _ready() -> void:
 		check(await _wait_until(func() -> bool: return not is_instance_valid(w.survival) and w.modal == null, 5.0),
 			"volta para a vila depois da Horda")
 		check(get_tree().current_scene == w, "a Horda não troca de cena")
+		check(w.player.global_position.distance_to(w.HORDE_RETURN) < 3.0, "volta na frente do portal da vila")
 		check(Game.ecos == ecos_before + RewardRules.ecos(Balance.tables, "horde", rounds),
 			"Ecos da partida do portal (%d → %d)" % [ecos_before, Game.ecos])
 	await _loading_screen()
@@ -311,7 +290,7 @@ func _loading_screen() -> void:
 		return
 	Loading.force = true
 	var before := get_tree().current_scene
-	Lobby.go_world()
+	Loading.go(Game.WORLD_SCENE)
 	check(Loading.covering, "tela de carregamento cobre a troca de cena")
 	var arrived: bool = await _wait_until(func() -> bool:
 		var s := get_tree().current_scene

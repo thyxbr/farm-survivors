@@ -53,58 +53,6 @@ func test_ecos_and_passives_persist() -> void:
 	db2.close()
 
 
-func test_donate_debits_and_levels_shared_base() -> void:
-	var db := _fresh()
-	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
-	_with_ecos(svc, 2, 200)
-	_with_ecos(svc, 3, 100)
-	var r := svc.apply(2, "donate", ["forja", 150])
-	T.ok(r.ok, "doou: %s" % r.err)
-	T.eq(r.state.ecos, 50, "debitou")
-	T.eq(r.base.forja.level, 1, "nível 1")
-	T.eq(r.base.forja.fund, 30, "fundo")
-	T.eq(r.events[0].t, "donated", "evento")
-	T.eq(r.events[0].used, 150, "usado")
-	var r2 := svc.apply(3, "donate", ["forja", 100])
-	T.ok(r2.ok, "segunda doação")
-	T.eq(svc.base_state().forja.fund, 130, "fundo somado")
-	T.eq(svc.top_donors("forja"), [{"name": "ana", "amount": 150}, {"name": "beto", "amount": 100}], "doadores")
-	T.ok(absf(float(svc.base_bonus().get("horde_damage", 0.0)) - 0.04) < 0.0001, "bônus")
-	var log := db.query("SELECT * FROM economy_log WHERE kind = 'ecos' AND source = 'donation' AND account_id = 2")
-	T.eq(log.size(), 1, "log da doação")
-	T.eq(log[0]["amount"], -150, "valor logado")
-	T.eq(log[0]["item_id"], "forja", "construção logada")
-	db.close()
-
-
-func test_donate_rejects_without_touching_db() -> void:
-	var db := _fresh()
-	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
-	_with_ecos(svc, 2, 10)
-	T.eq(svc.apply(2, "donate", ["forja", 50]).err, "sem_ecos", "sem ecos")
-	T.eq(svc.apply(2, "donate", ["forja", 0]).err, "valor_invalido", "valor inválido")
-	T.eq(svc.apply(2, "donate", ["forja", "50"]).err, "args", "tipo errado")
-	T.eq(db.query("SELECT COUNT(*) AS n FROM base_donations")[0]["n"], 0, "sem doações")
-	T.eq(db.query("SELECT COUNT(*) AS n FROM base_buildings")[0]["n"], 0, "sem construções")
-	T.eq(svc.load_or_create(2).ecos, 10, "ecos intactos")
-	db.close()
-
-
-func test_donate_at_max_charges_only_needed() -> void:
-	var db := _fresh()
-	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
-	_with_ecos(svc, 2, 1000)
-	db.exec("INSERT INTO base_buildings(building_id, level, fund) VALUES('forja', 4, 900)")
-	var r := svc.apply(2, "donate", ["forja", 500])
-	T.ok(r.ok, "doou: %s" % r.err)
-	T.eq(r.state.ecos, 900, "só o necessário")
-	T.eq(r.base.forja.level, 5, "nível máximo")
-	var r2 := svc.apply(2, "donate", ["forja", 10])
-	T.eq(r2.err, "nivel_maximo", "já no máximo")
-	T.eq(r2.state.ecos, 900, "ecos intactos")
-	db.close()
-
-
 func test_finish_player_idempotent() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
@@ -189,41 +137,28 @@ func test_solo_account_same_rules() -> void:
 	T.ok(svc.close_run(run, 5, {}), "fechou a partida")
 	var p := svc.apply(solo, "buy_passive", ["poder"])
 	T.ok(p.ok, "passiva no solo: %s" % p.err)
-	var d := svc.apply(solo, "donate", ["forja", 20])
-	T.ok(d.ok, "doação no solo: %s" % d.err)
-	T.eq(d.state.ecos, 0, "debitou tudo")
-	T.eq(d.base.forja.fund, 20, "fundo da base local")
-	T.eq(svc.top_donors("forja"), [{"name": "local", "amount": 20}], "doador local")
+	T.eq(p.state.ecos, 20, "passiva debitou")
 	T.eq(svc.records().city, {"reached": 5, "names": ["local"]}, "recorde local")
-	# economia: run, passiva e doação no *_economy.jsonl
+	# economia: run e passiva no *_economy.jsonl
 	var kinds := st.economy_rows().map(func(r: Dictionary) -> String: return "%s/%s" % [r.kind, r.source])
-	T.eq(kinds, ["run/city", "ecos/city", "ecos/passive", "ecos/donation"], "linhas da economia (%s)" % str(kinds))
+	T.eq(kinds, ["run/city", "ecos/city", "ecos/passive"], "linhas da economia (%s)" % str(kinds))
 	# tudo relido do disco por um serviço novo
 	var svc2 := CharacterService.new(FileCharStore.new(SOLO_PATH), _tables())
 	var s := svc2.load_or_create(solo)
-	T.eq(s.ecos, 0, "ecos persistiram")
+	T.eq(s.ecos, 20, "ecos persistiram")
 	T.eq(int(s.passives.get("poder", 0)), 1, "passiva persistiu")
-	T.eq(svc2.base_state().forja, {"level": 0, "fund": 20}, "base persistiu")
 	T.eq(svc2.records().city.reached, 5, "recorde persistiu")
 	T.ok(svc2.finish_player(run, solo, "city", 5, 0, 0, {}, {}).events[0].n == 0, "idempotente depois de reabrir")
 	Db.sqlite_class = real
 	st.remove_files()
 
 
-## Arquivo: se o personagem não grava, a base não fica creditada nem a partida marcada como concedida.
+## Arquivo: se o personagem não grava, a partida não fica marcada como concedida.
 func test_solo_files_all_or_nothing() -> void:
 	var st := _fresh_files()
 	var svc := CharacterService.new(st, _tables())
 	var solo := CharacterService.SOLO_ACCOUNT
-	_with_ecos(svc, solo, 100)
-	T.ok(svc.apply(solo, "donate", ["forja", 10]).ok, "primeira doação")
-	st.fail_next_write = true
-	st.fail_after_writes = 1   # a base grava, o personagem falha
-	var r := svc.apply(solo, "donate", ["forja", 30])
-	T.eq(r.err, "erro_banco", "falha ao gravar")
-	T.eq(r.state.ecos, 90, "ecos não debitados")
-	T.eq(svc.base_state().forja.fund, 10, "base voltou ao que era")
-	T.eq(svc.top_donors("forja")[0].amount, 10, "doação não entrou no histórico")
+	_with_ecos(svc, solo, 90)
 	var run := svc.start_run("horde", [solo])
 	st.fail_next_write = true
 	st.fail_after_writes = 1   # o arquivo das partidas grava, o personagem falha
@@ -232,19 +167,6 @@ func test_solo_files_all_or_nothing() -> void:
 	var ok := svc.finish_player(run, solo, "horde", 10, 0, 0, {}, {})
 	T.ok(ok.ok and ok.state.ecos == 140, "tentar de novo concede uma vez (%d)" % ok.state.ecos)
 	st.remove_files()
-
-
-func test_donate_checks_ecos_against_used() -> void:
-	var db := _fresh()
-	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
-	_with_ecos(svc, 2, 120)
-	db.exec("INSERT INTO base_buildings(building_id, level, fund) VALUES('forja', 4, 900)")
-	var r := svc.apply(2, "donate", ["forja", 500])
-	T.ok(r.ok, "doou o que faltava mesmo pedindo mais do que tem: %s" % r.err)
-	T.eq(r.state.ecos, 20, "debitou só 100")
-	T.eq(r.events[0].used, 100, "usado")
-	T.eq(r.base.forja.level, 5, "nível máximo")
-	db.close()
 
 
 func test_grant_test_ecos_only_in_test() -> void:

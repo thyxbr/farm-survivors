@@ -130,7 +130,13 @@ const MIGRATIONS := [
 	[
 		"ALTER TABLE characters ADD COLUMN enchants TEXT NOT NULL DEFAULT '{}'",
 	],
-	# v6: amigos (FriendStore). Duas linhas por par, uma de cada lado: "accepted" nos dois, ou
+	# v6: a base compartilhada (doações em Ecos) saiu do jogo junto com a Defesa da Cidade
+	[
+		"DROP INDEX IF EXISTS idx_donations_building",
+		"DROP TABLE IF EXISTS base_donations",
+		"DROP TABLE IF EXISTS base_buildings",
+	],
+	# v7: amigos (FriendStore). Duas linhas por par, uma de cada lado: "accepted" nos dois, ou
 	# "out" (pedido que eu mandei) de um lado e "in" (pedido que recebi) do outro
 	[
 		"CREATE TABLE friends (
