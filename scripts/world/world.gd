@@ -3,6 +3,11 @@ extends Node3D
 
 const M := {
 	"house": preload("res://assets/models/house.glb"),
+	"house_b": preload("res://assets/models/house_b.glb"),
+	"house_c": preload("res://assets/models/house_c.glb"),
+	"shop_smithy": preload("res://assets/models/shop_smithy.glb"),
+	"shop_alchemist": preload("res://assets/models/shop_alchemist.glb"),
+	"shop_merchant": preload("res://assets/models/shop_merchant.glb"),
 	"tree_pine": preload("res://assets/models/tree_pine.glb"),
 	"tree_oak": preload("res://assets/models/tree_oak.glb"),
 	"tree_fir": preload("res://assets/models/tree_fir.glb"),
@@ -30,6 +35,8 @@ const ENEMY := preload("res://scripts/enemies/enemy.gd")
 const BLACKSMITH := preload("res://scripts/world/blacksmith.gd")
 const ELDER := preload("res://scripts/world/elder.gd")
 const MERCHANT := preload("res://scripts/world/merchant.gd")
+const MERCHANT_SHOP := Vector3(9.4, 0, 0.5)     # empório atrás do balcão da Mira (frente para -X)
+const ALCHEMIST_SHOP := Vector3(-12.0, 0, 0.5)  # botica no vão oeste (frente para +X)
 const PLAYER := preload("res://scripts/player/player.gd")
 const HUD := preload("res://scripts/ui/hud.gd")
 const DIALOGUE := preload("res://scripts/ui/dialogue_ui.gd")
@@ -267,26 +274,22 @@ func _light(parent: Node3D, local: Vector3, color: Color, energy: float, rng_ran
 func _build_village() -> void:
 	_avoid.append([Vector2(0, 4), 26.0])
 	prop("well", Vector3(0, 0, 0), 0.0, 1.0, "cyl", Vector3(0.95, 1.2, 0))
+	# [posição, yaw, modelo]: as três variações (enxaimel, sapê, sobrado) alternadas em volta da praça
 	var houses := [
-		[Vector3(-13, 0, -6), PI / 2], [Vector3(-13, 0, 7), PI / 2],
-		[Vector3(13, 0, -6), -PI / 2], [Vector3(13, 0, 7), -PI / 2],
-		[Vector3(-5, 0, 16), PI], [Vector3(6, 0, 16), PI],
+		[Vector3(-13, 0, -6), PI / 2, "house"], [Vector3(-13, 0, 7), PI / 2, "house_c"],
+		[Vector3(13, 0, -6), -PI / 2, "house_c"], [Vector3(13, 0, 7), -PI / 2, "house_b"],
+		[Vector3(-5, 0, 16), PI, "house_b"], [Vector3(6, 0, 16), PI, "house"],
 	]
 	for h in houses:
-		prop("house", h[0], h[1], 1.0, "box", Vector3(5.2, 3.2, 4.2))
+		prop(h[2], h[0], h[1], 1.0, "box", Vector3(5.2, 3.2, 4.2))
 	for p in [Vector3(-5, 0, -5), Vector3(5, 0, -5), Vector3(-6, 0, 8), Vector3(6, 0, 8)]:
 		var lamp := prop("lamp", p, atan2(-p.x, -p.z), 1.0, "cyl", Vector3(0.12, 2.8, 0))
 		_light(lamp, Vector3(0, 2.4, 0.5), Color(1, 0.75, 0.4), 1.6, 9.0)
-	# barraca da mercadora
-	prop("crate", Vector3(8.2, 0, 0.6), 0.2, 1.0, "box", Vector3(0.8, 0.8, 0.8))
-	prop("crate", Vector3(8.3, 0, 1.6), -0.1, 1.0, "box", Vector3(0.8, 0.8, 0.8))
-	prop("crate", Vector3(8.25, 0.8, 1.1), 0.5, 0.8)
-	prop("barrel", Vector3(8.0, 0, 3.0), 0.0, 1.0, "cyl", Vector3(0.38, 1.0, 0))
-	prop("barrel", Vector3(8.6, 0, 3.8), 0.0, 1.0, "cyl", Vector3(0.38, 1.0, 0))
-	prop("chest", Vector3(7.6, 0, -0.6), -PI / 2, 1.0, "box", Vector3(0.9, 0.7, 0.6))
-	prop("barrel", Vector3(-11, 0, 0.5), 0.0, 1.0, "cyl", Vector3(0.38, 1.0, 0))
-	prop("crate", Vector3(-10.5, 0, -1.2), 0.4, 1.0, "box", Vector3(0.8, 0.8, 0.8))
-	prop("tree_cherry", Vector3(-7, 0, 2), 0.3, 0.85, "cyl", Vector3(0.38, 3, 0))
+	# lojas: empório da mercadora no vão leste, botica do alquimista no vão oeste (de frente para a praça)
+	_shop("shop_merchant", MERCHANT_SHOP, -PI / 2, [[Vector3(0, 0, -0.4), Vector3(5.2, 3.0, 3.6)]], [], 3.4)
+	_shop("shop_alchemist", ALCHEMIST_SHOP, PI / 2, [[Vector3(0.2, 0, 0), Vector3(4.4, 3.4, 3.8)]],
+		[[Vector3(-2.05, 0, -1.8), 0.95], [Vector3(-1.05, 0, 2.85), 0.45]], 3.6)
+	prop("tree_cherry", Vector3(-17, 0, -1.5), 0.3, 0.85, "cyl", Vector3(0.38, 3, 0))   # atrás da botica
 	prop("tree_cherry", Vector3(9, 0, 11.5), 2.0, 0.75, "cyl", Vector3(0.38, 3, 0))
 	# canteiros de flores na frente das casas e em volta da praça (sem colisão)
 	for h in houses:
@@ -316,7 +319,7 @@ func _build_village() -> void:
 	elder.rotation.y = atan2(3.0, 8.5)
 	add_child(elder)
 	var merchant := MERCHANT.new()
-	merchant.position = Vector3(6.8, 0, 1.6)
+	merchant.position = Vector3(7.0, 0, -0.2)   # na frente do balcão do empório
 	merchant.rotation.y = -PI / 2
 	add_child(merchant)
 	# ferraria no vão entre as casas de (-13, 7) e (-5, 16), de frente para o poço: da praça se vê o ferreiro
@@ -330,10 +333,42 @@ func _build_village() -> void:
 	prop("forge", smithy * BLACKSMITH.FORGE_OFFSET, smith.rotation.y + BLACKSMITH.FORGE_YAW, 1.0,
 		"box", Vector3(0.9, 1.0, 0.8))
 	_forge_fire(smithy * BLACKSMITH.FORGE_OFFSET)
+	# a ferraria tem a origem no ferreiro: a forja fica sob a coifa e a chaminé, a bigorna na frente
+	_shop("shop_smithy", smith.position, smith.rotation.y, [[Vector3(0, 0, -2.6), Vector3(4.0, 3.0, 0.5)],
+		[Vector3(-1.8, 0, -0.7), Vector3(0.4, 1.1, 3.4)]], [[Vector3(1.4, 0, -0.4), 0.5]], 2.8)
 	add_child(smith)
 	var portal := PORTAL.new()
 	portal.position = PORTAL_POS
 	add_child(portal)
+
+
+## Loja da vila: modelo + colisões simples no espaço dela (boxes = [[centro local, tamanho]],
+## cyls = [[centro local, raio]]) e um círculo sem capim de raio grass_r (0 = nenhum).
+func _shop(model: String, pos: Vector3, yaw: float, boxes: Array, cyls: Array, grass_r: float) -> void:
+	prop(model, pos, yaw)
+	var xf := Transform3D(Basis(Vector3.UP, yaw), pos)
+	if grass_r > 0.0:
+		_no_grass.append([Vector2(pos.x, pos.z), grass_r])
+	for b in boxes:
+		var size: Vector3 = b[1]
+		var shape := BoxShape3D.new()
+		shape.size = size
+		_static_shape(xf, b[0] + Vector3(0, size.y / 2.0, 0), shape)
+	for c in cyls:
+		var shape := CylinderShape3D.new()
+		shape.radius = c[1]
+		shape.height = 1.2
+		_static_shape(xf, c[0] + Vector3(0, 0.6, 0), shape)
+
+
+func _static_shape(xf: Transform3D, local: Vector3, shape: Shape3D) -> void:
+	var body := StaticBody3D.new()
+	body.transform = Transform3D(xf.basis, xf * local)
+	body.collision_mask = 0
+	var cs := CollisionShape3D.new()
+	cs.shape = shape
+	body.add_child(cs)
+	add_child(body)
 
 
 ## Crepitar de fogo em loop na boca da forja, só ouvido de perto (bus Ambience). Nada no servidor.
