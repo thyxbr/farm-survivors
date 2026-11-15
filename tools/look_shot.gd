@@ -4,7 +4,8 @@ extends Node3D
 ## Precisa de janela (sem --headless) e do --import feito antes:
 ##   godot --path . --resolution 1800x900 res://tools/look_shot.tscn -- <saida.png> [conjunto] [3q|back|close|torso|legs|hands] [run]
 ## run = pose de corrida no meio da passada.
-## conjunto: "leves", "pesados", "todos" (padrão) ou ids separados por vírgula num só personagem.
+## conjunto: "leves", "pesados", "todos" (padrão) ou ids separados por vírgula num só personagem;
+## "cada:id1,id2,..." põe um personagem por id (para comparar armas lado a lado).
 
 const KNIGHT := preload("res://assets/models/knight.glb")
 const SETS := {
@@ -38,6 +39,9 @@ func _ready() -> void:
 		looks = SETS[which]
 	elif which == "todos":
 		looks = SETS.leves + SETS.pesados
+	elif which.begins_with("cada:"):
+		for id in which.substr(5).split(","):
+			looks.append({ItemDB.slot_of(id): id})
 	else:
 		var l := {}
 		for id in which.split(","):

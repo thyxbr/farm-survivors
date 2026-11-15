@@ -25,7 +25,8 @@
 			["leather_boots", 0.02],
 			["apprentice_staff", 0.015],
 			["short_bow", 0.015],
-			["life_amulet", 0.01]
+			["life_amulet", 0.01],
+			["willow_staff", 0.015]
 		]
 	},
 	"slime_grande": {
@@ -124,7 +125,9 @@
 			["rose_flame", 0.01],
 			["moon_crescent", 0.01],
 			["crystal_frost", 0.008],
-			["neon_edge", 0.008]
+			["neon_edge", 0.008],
+			["sun_staff", 0.008],
+			["storm_staff", 0.008]
 		]
 	},
 	"slime_explosivo": {
@@ -234,7 +237,9 @@
 		"ai": "caster",
 		"heal_radius": 8.0,
 		"loot": [
-			["thunder_totem", 0.7]
+			["thunder_totem", 0.7],
+			["storm_staff", 0.04],
+			["tide_staff", 0.05]
 		]
 	},
 	"goblin_dourado": {
@@ -369,7 +374,10 @@
 			["scarlet_talon", 0.2],
 			["pale_crescent", 0.2],
 			["ivory_wing", 0.05],
-			["royal_wings", 0.05]
+			["royal_wings", 0.05],
+			["thorn_staff", 0.2],
+			["void_staff", 0.2],
+			["phoenix_staff", 0.05]
 		]
 	},
 	"esqueleto": {
@@ -450,7 +458,9 @@
 			["bone_shard", 0.6],
 			["mana_potion", 0.25],
 			["oak_staff", 0.03],
-			["ember_staff", 0.01]
+			["ember_staff", 0.01],
+			["bone_staff", 0.04],
+			["void_staff", 0.005]
 		]
 	},
 	"esqueleto_cavaleiro": {
@@ -530,7 +540,8 @@
 		"chill": 2.5,
 		"loot": [
 			["frost_drop", 0.6],
-			["slime_gel", 0.4]
+			["slime_gel", 0.4],
+			["tide_staff", 0.01]
 		]
 	}
 }
