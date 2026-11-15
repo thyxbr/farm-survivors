@@ -177,6 +177,32 @@ def loft(name, secs, material, parent, sides=8, phase=0.5, chamfer=(0.0, 0.0), c
     return _finish(name, bm, material, parent)
 
 
+def foot_sole(name, ft, material, parent, f=1.0, heel=0.0, th=0.012, lip=0.006):
+    """Sola que segue o contorno do pé ft (seções do calcanhar ao bico, como S["foot"] crescido): calcanhar e
+    bico redondos, cintura no arco, só uma borda fina para fora. th = meia espessura; heel > 0 engrossa o
+    calcanhar (salto) na mesma peça. Assenta no chão (z = 0)."""
+    x, heel_y, tip = ft[0]["c"].x, ft[0]["c"].y, ft[-1]
+    lip, th = lip * f, th * f
+    hz = th + heel
+
+    def row(y, rx, half):
+        return sec((x, y, half), rx, half, sq=3.2)
+
+    rows = [row(heel_y + 0.022 * f, ft[0]["rx"] * 0.55, hz * 0.85),       # fecha o calcanhar redondo
+            row(heel_y + 0.008 * f, ft[0]["rx"] * 0.92 + lip, hz),
+            row(heel_y - 0.035 * f, ft[1]["rx"] + lip, hz)]
+    if heel:                           # degrau do salto para a sola fina do arco
+        rows.append(row(heel_y - 0.05 * f, ft[1]["rx"] * 0.96 + lip, th))
+    rows += [row(ft[2]["c"].y, ft[2]["rx"] * 0.93 + lip, th),                # cintura no arco
+             row(ft[3]["c"].y, ft[3]["rx"] + lip, th),                       # peito do pé, a parte mais larga
+             row(ft[4]["c"].y, ft[4]["rx"] + lip, th * 0.95)]
+    if len(ft) > 5:                    # bico arredondado
+        rows.append(row(tip["c"].y - 0.004 * f, tip["rx"] * 0.9 + lip, th * 0.8))
+    else:
+        rows.append(row(tip["c"].y - 0.02 * f, tip["rx"] * 0.6 + lip, th * 0.8))
+    return loft(name, rows, material, parent, sides=12, axis=(0, -1, 0), fwd=(0, 0, 1), chamfer=(0.004, 0.004))
+
+
 def dome(name, base, axis, rx, ry, h, material, parent, sides=8, phase=0.5, fwd=(0, -1, 0), keel=0.0, lip=0.0):
     """Calota fechada (ombreira, cotoveleira, joelheira) assentada em base, crescendo ao longo de axis."""
     ax = Vector(axis).normalized()
