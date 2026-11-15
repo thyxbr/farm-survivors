@@ -1358,6 +1358,13 @@
 		"stack": true,
 		"desc": "Sobrou de um esqueleto. Ainda range."
 	},
+	"raptor_claw": {
+		"name": "Garra de Raptor",
+		"type": "material",
+		"price": 10,
+		"stack": true,
+		"desc": "Curva como uma foice. Ainda corta."
+	},
 	"goblin_crown": {
 		"name": "Coroa do Rei Goblin",
 		"type": "material",

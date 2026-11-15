@@ -44,6 +44,7 @@ const BY_ID := {
 	"toxic_gland": ["gland", Color(0.55, 0.85, 0.2)],
 	"golden_dust": ["dust", Color(1.0, 0.8, 0.25)],
 	"shadow_fang": ["fang", Color(0.42, 0.3, 0.6)],
+	"raptor_claw": ["fang", Color(0.9, 0.86, 0.74)],
 	"champion_badge": ["badge", Color(0.92, 0.72, 0.3)],
 }
 
