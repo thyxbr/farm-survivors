@@ -15,3 +15,6 @@ Thumbs.db
 
 # Referências visuais (imagens de terceiros, só para uso local)
 /tools/blender/refs/
+
+# Capturas de conferência (locais)
+/shots/

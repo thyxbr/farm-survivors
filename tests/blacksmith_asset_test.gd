@@ -77,7 +77,7 @@ func _initialize() -> void:
 	quit(1 if fails > 0 else 0)
 
 
-# clipes do Mixamo (tools/build_blacksmith_mixamo.gd): mesmos ossos do perfil humanoide que o ferreiro
+# clipes do Mixamo (tools/build_npc_mixamo.gd): mesmos ossos do perfil humanoide que o ferreiro
 func _check_mixamo() -> void:
 	var lib := load("res://assets/animations/blacksmith_mixamo.res") as AnimationLibrary
 	check(lib != null, "blacksmith_mixamo.res carrega como AnimationLibrary")

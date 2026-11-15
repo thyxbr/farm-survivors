@@ -32,7 +32,7 @@ var colony_continue := false
 
 var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "music_volume": 0.45, "sfx_volume": 0.9,
 	"ambience_volume": 0.7, "fullscreen": false, "invert_y": false,
-	"player_name": "", "server_address": ""}
+	"player_name": "", "server_address": "", "toon": true, "toon_outline": true}
 
 # ---- espelho do personagem (escrito só por apply_state)
 var level := 1
@@ -285,7 +285,7 @@ func start_new_game() -> void:
 	Econ.reset_solo()
 	Lobby._last_world_pos = null   # personagem novo: Valdoria começa na vila
 	get_tree().paused = false
-	get_tree().change_scene_to_file(Lobby.HUB_SCENE)
+	Loading.go(Lobby.HUB_SCENE)
 
 
 ## "Continuar": o personagem do save solo, chegando pela praça (a posição em Valdoria fica guardada).
@@ -295,7 +295,7 @@ func continue_game() -> bool:
 		return false
 	reset_run_mods()
 	get_tree().paused = false
-	get_tree().change_scene_to_file(Lobby.HUB_SCENE)
+	Loading.go(Lobby.HUB_SCENE)
 	return true
 
 
@@ -305,7 +305,7 @@ func start_colony(cont: bool) -> void:
 	colony_continue = cont and has_colony_save()
 	reset_run_mods()
 	get_tree().paused = false
-	get_tree().change_scene_to_file(COLONY_SCENE)
+	Loading.go(COLONY_SCENE)
 
 
 func has_colony_save() -> bool:
@@ -334,7 +334,7 @@ func go_to_menu() -> void:
 	reset_run_mods()
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	get_tree().change_scene_to_file(MENU_SCENE)
+	Loading.go(MENU_SCENE)
 
 
 # ---------------------------------------------------------------- bônus da horda
@@ -686,6 +686,7 @@ func save_settings() -> void:
 	for k in settings:
 		cfg.set_value("settings", k, settings[k])
 	cfg.save(SETTINGS_PATH)
+	ToonLook.reload_settings()   # estilo desenhado e contorno: lidos do arquivo, valem para o que for criado depois
 	apply_settings()
 
 

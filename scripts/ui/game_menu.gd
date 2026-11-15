@@ -1,5 +1,5 @@
 extends Control
-## Menu do jogo: Inventário (boneco de equipamento com prévia 3D + mochila em grade),
+## Menu do herói, num livro aberto (BookWindow): Inventário (herói com o equipamento + mochila em grade),
 ## Personagem (atributos, estatísticas, magias) e Missões (lista + detalhes).
 ## Referências: boneco e grade de Diablo/Path of Exile, dicas com comparação calculada,
 ## filtros por categoria, atalhos visíveis nas abas.
@@ -9,14 +9,14 @@ signal closed
 const TAB_KEYS := ["I", "C", "J"]
 const TAB_NAMES := ["Inventário", "Personagem", "Missões"]
 const TAB_ACTIONS := ["inventory", "character", "quest_log"]
-const BAG_COLS := 9
-const BAG_MIN := 54
+const BAG_COLS := 8
+const BAG_MIN := 56
 const SLOT := 62.0
 
 var start_tab := 0
 var tooltip: ItemTooltip
 var pages: Array[Control] = []
-var tab_buttons: Array[Button] = []
+var book: BookWindow
 var gold_label: Label
 
 # inventário
@@ -28,7 +28,8 @@ var sel_index := -1
 var sel_label: Label
 var use_btn: Button
 var drop_btn: Button
-var stats_box: GridContainer
+var stats_box: HBoxContainer
+var hero_label: Label
 var class_label: Label
 var bag_count: Label
 
@@ -42,36 +43,26 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = UITheme.get_theme()
-	var bg := ColorRect.new()
-	bg.color = Color(0, 0, 0, 0.6)
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
-	var win := PanelContainer.new()
-	win.custom_minimum_size = Vector2(1260, 740)
-	center.add_child(win)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 8)
-	win.add_child(v)
-	v.add_child(_build_header())
-	v.add_child(HSeparator.new())
-	var stack := Control.new()
-	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	stack.custom_minimum_size = Vector2(0, 640)
-	v.add_child(stack)
-	for builder in [_build_inventory, _build_character, _build_quests]:
-		var page: Control = builder.call()
-		page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		stack.add_child(page)
+	book = BookWindow.new()
+	add_child(book)
+	var builders := [_build_inventory, _build_character, _build_quests]
+	for i in builders.size():
+		var page: Control = builders[i].call()
 		pages.append(page)
+		# Personagem e Missões ainda usam painéis escuros (viram tinta na etapa 2 do plano)
+		book.add_page(TAB_NAMES[i], TAB_KEYS[i], TAB_ACTIONS[i], page, i == 0)
+	book.closed.connect(_close)
+	book.page_shown.connect(_on_page_shown)
 	tooltip = ItemTooltip.new()
 	add_child(tooltip)
 	for s in equip_slots.values():
 		s.tooltip = tooltip
 	for s in bag_slots:
 		s.tooltip = tooltip
+	var ids: Array = Game.equipment.values()
+	for entry in Game.inventory:
+		ids.append(entry.id)
+	ItemIcons.prewarm(ids)
 	_show_tab(start_tab)
 	Game.inventory_changed.connect(_refresh)
 	Game.stats_changed.connect(_refresh)
@@ -79,79 +70,50 @@ func _ready() -> void:
 	_refresh()
 
 
-# ================================================================ cabeçalho
-func _build_header() -> HBoxContainer:
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 6)
-	var group := ButtonGroup.new()
-	for i in 3:
-		var b := Button.new()
-		b.text = "  %s  " % TAB_NAMES[i]
-		b.toggle_mode = true
-		b.button_group = group
-		b.custom_minimum_size = Vector2(170, 44)
-		b.add_theme_font_override("font", UITheme.serif())
-		b.add_theme_font_size_override("font_size", 20)
-		b.pressed.connect(_show_tab.bind(i))
-		h.add_child(b)
-		tab_buttons.append(b)
-		var k := UITheme.keycap(TAB_KEYS[i], 13)
-		k.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		h.add_child(k)
-		if i < 2:
-			var gap := Control.new()
-			gap.custom_minimum_size.x = 14
-			h.add_child(gap)
-	h.add_child(UITheme.spacer())
-	gold_label = UITheme.heading("", 22, Color(1, 0.84, 0.35))
-	gold_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	h.add_child(gold_label)
-	var gap2 := Control.new()
-	gap2.custom_minimum_size.x = 16
-	h.add_child(gap2)
-	var x := UITheme.button("✕", _close, 44)
-	x.tooltip_text = "Fechar (Esc)"
-	h.add_child(x)
-	return h
-
-
 func _show_tab(i: int) -> void:
+	book.show_page(i)
+
+
+func _on_page_shown(i: int) -> void:
 	start_tab = i
-	for j in pages.size():
-		pages[j].visible = j == i
-	tab_buttons[i].button_pressed = true
 	if tooltip:
 		tooltip.visible = false
 
 
 # ================================================================ inventário
+## Livro aberto: página esquerda com o herói e o que ele veste; página direita com a mochila.
 func _build_inventory() -> Control:
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 14)
-	# ---- equipamento
-	var left := _inset()
-	left.custom_minimum_size.x = 520
-	h.add_child(left)
+	var spread := HBoxContainer.new()
+	spread.add_theme_constant_override("separation", 84)   # a lombada
+
+	# ================= página esquerda
 	var lv := VBoxContainer.new()
-	lv.add_theme_constant_override("separation", 8)
-	left.add_child(lv)
-	lv.add_child(UITheme.section("Equipamento"))
+	lv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lv.add_theme_constant_override("separation", 6)
+	spread.add_child(lv)
+	hero_label = UITheme.ink("", 30, UITheme.INK, true)
+	hero_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lv.add_child(hero_label)
+	class_label = UITheme.ink("", 14, UITheme.INK_DIM)
+	class_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lv.add_child(class_label)
+	lv.add_child(HSeparator.new())
 	var doll := HBoxContainer.new()
-	doll.add_theme_constant_override("separation", 10)
+	doll.add_theme_constant_override("separation", 16)
 	doll.alignment = BoxContainer.ALIGNMENT_CENTER
 	lv.add_child(doll)
 	var col_l := VBoxContainer.new()
 	var col_r := VBoxContainer.new()
 	for c in [col_l, col_r]:
-		c.add_theme_constant_override("separation", 12)
+		c.add_theme_constant_override("separation", 10)
 		c.alignment = BoxContainer.ALIGNMENT_CENTER
 	doll.add_child(col_l)
-	var preview := CharPreview.new(Vector2(250, 330))
-	doll.add_child(preview)
+	doll.add_child(CharPreview.new(Vector2(250, 330)))
 	doll.add_child(col_r)
 	for i in ItemDB.SLOTS.size():
 		var sname: String = ItemDB.SLOTS[i]
-		var s := ItemSlot.new(72)
+		var s := ItemSlot.new(74)
+		s.paper = true
 		s.slot_name = sname
 		s.context = "equip"
 		s.ghost_kind = IconPainter.slot_kind(sname)
@@ -162,30 +124,29 @@ func _build_inventory() -> Control:
 		s.double_clicked.connect(func(sl: ItemSlot) -> void: _unequip(sl.slot_name))
 		(col_l if i < 4 else col_r).add_child(s)
 		equip_slots[sname] = s
-	class_label = UITheme.label("", 15, UITheme.GOLD)
-	class_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	class_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lv.add_child(class_label)
 	lv.add_child(HSeparator.new())
-	stats_box = GridContainer.new()
-	stats_box.columns = 4
-	stats_box.add_theme_constant_override("h_separation", 14)
-	stats_box.add_theme_constant_override("v_separation", 4)
+	stats_box = HBoxContainer.new()
+	stats_box.add_theme_constant_override("separation", 22)
+	stats_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	lv.add_child(stats_box)
+	gold_label = UITheme.ink("", 20, Color(0.45, 0.27, 0.02), true)
+	gold_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lv.add_child(gold_label)
 
-	# ---- mochila
-	var right := _inset()
-	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	h.add_child(right)
+	# ================= página direita
 	var rv := VBoxContainer.new()
+	rv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	rv.add_theme_constant_override("separation", 8)
-	right.add_child(rv)
+	spread.add_child(rv)
+	var top_gap := Control.new()
+	top_gap.custom_minimum_size.y = 4
+	rv.add_child(top_gap)
 	var head := HBoxContainer.new()
-	head.add_child(UITheme.heading("Mochila", 20))
-	bag_count = UITheme.label("", 15, UITheme.DIM)
-	bag_count.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	head.add_child(bag_count)
+	head.add_child(UITheme.ink("Mochila", 26, UITheme.INK, true))
 	head.add_child(UITheme.spacer())
+	bag_count = UITheme.ink("", 14, UITheme.INK_DIM)
+	bag_count.size_flags_vertical = Control.SIZE_SHRINK_END
+	head.add_child(bag_count)
 	rv.add_child(head)
 	var filters := HBoxContainer.new()
 	filters.add_theme_constant_override("separation", 6)
@@ -196,14 +157,14 @@ func _build_inventory() -> Control:
 		b.toggle_mode = true
 		b.button_group = fg
 		b.button_pressed = f[0] == bag_filter
-		b.custom_minimum_size = Vector2(0, 34)
-		b.add_theme_font_size_override("font_size", 15)
+		b.custom_minimum_size = Vector2(0, 30)
+		b.add_theme_font_size_override("font_size", 17)
 		b.pressed.connect(_set_filter.bind(f[0]))
 		filters.add_child(b)
 	filters.add_child(UITheme.spacer())
 	var sort := UITheme.button("Organizar", _sort_bag)
-	sort.custom_minimum_size.y = 34
-	sort.add_theme_font_size_override("font_size", 15)
+	sort.custom_minimum_size.y = 30
+	sort.add_theme_font_size_override("font_size", 17)
 	sort.tooltip_text = "Ordena por tipo e raridade"
 	filters.add_child(sort)
 	rv.add_child(filters)
@@ -213,24 +174,28 @@ func _build_inventory() -> Control:
 	rv.add_child(scroll)
 	bag_grid = GridContainer.new()
 	bag_grid.columns = BAG_COLS
-	bag_grid.add_theme_constant_override("h_separation", 6)
-	bag_grid.add_theme_constant_override("v_separation", 6)
+	bag_grid.add_theme_constant_override("h_separation", 5)
+	bag_grid.add_theme_constant_override("v_separation", 5)
 	scroll.add_child(bag_grid)
 	_ensure_bag_slots(BAG_MIN)
 	rv.add_child(HSeparator.new())
 	var foot := HBoxContainer.new()
-	foot.add_theme_constant_override("separation", 10)
-	sel_label = UITheme.label("", 17)
+	foot.add_theme_constant_override("separation", 8)
+	sel_label = UITheme.ink("", 17)
 	sel_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sel_label.clip_text = true
 	foot.add_child(sel_label)
-	use_btn = UITheme.button("Usar", _use_selected, 130)
-	drop_btn = UITheme.button("Descartar", _drop_selected, 130)
-	foot.add_child(use_btn)
-	foot.add_child(drop_btn)
+	use_btn = UITheme.button("Usar", _use_selected, 110)
+	drop_btn = UITheme.button("Descartar", _drop_selected, 110)
+	for b in [use_btn, drop_btn]:
+		b.custom_minimum_size.y = 34
+		b.add_theme_font_size_override("font_size", 18)
+		foot.add_child(b)
 	rv.add_child(foot)
-	rv.add_child(UITheme.label("Clique: selecionar · Clique direito/duplo: usar ou equipar · Arraste itens entre a mochila e o boneco", 13, UITheme.DIM))
-	return h
+	var hint := UITheme.ink("Clique direito ou duplo: usar/equipar · Arraste entre a mochila e o herói", 12, UITheme.INK_DIM)
+	hint.clip_text = true
+	rv.add_child(hint)
+	return spread
 
 
 func _set_filter(f: String) -> void:
@@ -248,6 +213,7 @@ func _sort_bag() -> void:
 func _ensure_bag_slots(n: int) -> void:
 	while bag_slots.size() < n:
 		var s := ItemSlot.new(SLOT)
+		s.paper = true
 		s.context = "bag"
 		s.drag_source = "bag"
 		s.drop_handler = _drop_on_bag
@@ -319,7 +285,7 @@ func _drop_on_equip(target: ItemSlot, data: Dictionary, apply: bool) -> bool:
 
 
 func _refresh_inventory() -> void:
-	gold_label.text = "◆ %d ouro" % Game.gold
+	gold_label.text = "%d moedas de ouro" % Game.gold
 	for sname in equip_slots:
 		var s: ItemSlot = equip_slots[sname]
 		s.set_state(Game.equipment.get(sname, ""))
@@ -341,7 +307,8 @@ func _refresh_inventory() -> void:
 		else:
 			s.index = -1
 			s.set_state("")
-	bag_count.text = "   %d itens" % Game.inventory.size()
+	bag_count.text = "%d itens" % Game.inventory.size()
+	hero_label.text = "%s · Nível %d" % [_hero_name(), Game.level]
 	if sel_index >= Game.inventory.size():
 		sel_index = -1
 	_refresh_selection()
@@ -351,14 +318,23 @@ func _refresh_inventory() -> void:
 	for c in stats_box.get_children():
 		c.queue_free()
 	var st := Game.stat_snapshot()
-	var rows := [["Dano", "%.0f" % st.dmg], ["Defesa", "%.1f" % st.def], ["Vida", "%d" % st.hp], ["Mana", "%d" % st.mp],
-		["Poder mág.", "%.0f" % st.spell], ["Crítico", "%d%%" % int(round(st.crit * 100))],
-		["Velocidade", "%d%%" % int(round(st.speed * 100))], ["Roubo de vida", "%d%%" % int(round(st.leech * 100))]]
-	for r in rows:
-		stats_box.add_child(UITheme.label(r[0], 15, UITheme.DIM))
-		var val := UITheme.label(r[1], 16, UITheme.TEXT)
-		val.custom_minimum_size.x = 70
-		stats_box.add_child(val)
+	var groups := [
+		["Ataque", [["Dano", "%.0f" % st.dmg], ["Crítico", "%d%%" % int(round(st.crit * 100))],
+			["Velocidade", "%d%%" % int(round(st.speed * 100))]]],
+		["Defesa", [["Defesa", "%.1f" % st.def], ["Vida", "%d" % st.hp], ["Roubo de vida", "%d%%" % int(round(st.leech * 100))]]],
+		["Magia", [["Poder mágico", "%.0f" % st.spell], ["Mana", "%d" % st.mp]]]]
+	for g in groups:
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.add_theme_constant_override("separation", 2)
+		col.add_child(UITheme.ink(g[0], 18, UITheme.INK_RED, true))
+		for r in g[1]:
+			var row := HBoxContainer.new()
+			row.add_child(UITheme.ink(r[0], 14, UITheme.INK_DIM))
+			row.add_child(UITheme.spacer())
+			row.add_child(UITheme.ink(r[1], 15, UITheme.INK))
+			col.add_child(row)
+		stats_box.add_child(col)
 
 
 func _refresh_selection() -> void:
@@ -367,7 +343,7 @@ func _refresh_selection() -> void:
 		s.queue_redraw()
 	if sel_index < 0 or sel_index >= Game.inventory.size():
 		sel_label.text = "Selecione um item."
-		sel_label.add_theme_color_override("font_color", UITheme.DIM)
+		sel_label.add_theme_color_override("font_color", UITheme.INK_DIM)
 		use_btn.disabled = true
 		drop_btn.disabled = true
 		use_btn.text = "Usar"
@@ -375,7 +351,7 @@ func _refresh_selection() -> void:
 	var id: String = Game.inventory[sel_index].id
 	var it := ItemDB.get_item(id)
 	sel_label.text = it.name + ("  x%d" % Game.inventory[sel_index].qty if Game.inventory[sel_index].qty > 1 else "")
-	sel_label.add_theme_color_override("font_color", ItemDB.rarity_color(id) if ItemDB.is_equippable(id) else UITheme.TEXT)
+	sel_label.add_theme_color_override("font_color", ItemDB.rarity_color(id).darkened(0.55) if ItemDB.is_equippable(id) else UITheme.INK)
 	var t: String = it.type
 	use_btn.disabled = t == "material" or t == "seed" or (t == "crop" and not Game.is_edible(id))
 	use_btn.text = "Equipar" if ItemDB.is_equippable(id) else ("Comer" if t in ["food", "crop"] else "Usar")
@@ -611,18 +587,3 @@ func _refresh() -> void:
 func _close() -> void:
 	closed.emit()
 	queue_free()
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("pause"):
-		get_viewport().set_input_as_handled()
-		_close()
-		return
-	for i in 3:
-		if event.is_action_pressed(TAB_ACTIONS[i]):
-			get_viewport().set_input_as_handled()
-			if i == start_tab:
-				_close()
-			else:
-				_show_tab(i)
-			return
