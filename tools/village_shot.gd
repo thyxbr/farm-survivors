@@ -24,7 +24,8 @@ const VIEWS := {
 	"wide": [Vector3(0, 62, 52), Vector3(0, 0, 3)],
 	"westside": [Vector3(-10, 9, -8), Vector3(-27, 1, 3)],
 	"eastside": [Vector3(10, 9, -8), Vector3(28, 1, 3)],
-	"santa": [Vector3(3.2, 2.4, -4.0), Vector3(6.6, 1.3, -9.4)],
+	"santa": [Vector3(9.0, 2.8, -15.0), Vector3(15.0, 1.2, -11.2)],
+	"northgate": [Vector3(-2, 7, -6), Vector3(-6, 0.5, -18)],
 	"largo": [Vector3(21, 5.5, 0.5), Vector3(21, 1.2, 9)],
 	"street": [Vector3(-34, 2.2, -15), Vector3(10, 1.5, -15)],
 }

@@ -26,16 +26,35 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
 
 ## Conteúdo
 - **Vila de Valdoria** (o ponto de chegada, no solo e online): a praça do poço com o Ancião Bram (missões), a Mira
-  (loja), o ferreiro, o alquimista e o Portal do Desafio da Horda, e dois bairros novos ligados por ruas paralelas e
+  (loja), o Doran (encantamento), a Pip (alquimista), o Kael (o rival, no portão leste) e o Portal do Desafio da Horda, e dois bairros novos ligados por ruas paralelas e
   travessas (Rua do Portal, Rua do Oeste, Estrada Leste, Rua das Flores), com casas de seis modelos (enxaimel, sapê,
   sobrado, cabana de toras com alpendre, taverna e sobradinho estreito) pintadas em paletas diferentes. No bairro
   leste, o **Largo dos Ecos** tem o Mestre Orin (passivas), a **mesa de guerra** (Defesa da Cidade) e o quadro de
   recordes; a **Forja**, o **Celeiro** e a **Muralha** da base ficam nas ruas (detalhes em *Progressão permanente*).
-- **Natal em Valdoria**: o **Papai Noel** está ao lado da árvore grande, com o trenó, e dá quatro eventos (em qualquer
-  ordem, fora da cadeia do Bram): **Presentes Espalhados** (8 presentes caídos pelo vale), **Ladrões de Natal**
-  (6 goblins de qualquer tipo), **A Ceia do Noel** (levar 1 Torta de Abóbora e 2 Pães Rústicos da Horta) e
+- **Natal em Valdoria**: o **Papai Noel** está ao lado da árvore grande, com o trenó, e dá quatro eventos (missões secundárias,
+  em qualquer ordem, fora da história): **Presentes Espalhados** (8 presentes caídos pelo vale), **Ladrões de Natal**
+  (6 goblins de qualquer tipo), **A Ceia do Noel** (levar 2 Pães Rústicos e 1 Ensopado de Cenoura da Horta) e
   **Entregas na Vila** (deixar presentes nas 6 portas marcadas com estrela).
-- **3 missões em cadeia**: slimes nos campos → batedores goblins na floresta a leste → **Rei Goblin** nas ruínas ao norte (chefe com ataque em área, fúria e invocação).
+- **História "Um Herói Caiu na Vila"** (~30 min, comédia no estilo anime, 6 episódios e 11 missões em cadeia):
+  o Bram decide que você é o herói de uma profecia que ele inventa na hora; a Mira anota sua dívida num caderninho,
+  o Doran mede sua "paixão", a Pip explode coisas e o Kael, rank "Super-D", vira seu rival eterno. Missões de
+  conversa, coleta (gel de slime, uma Torta de Abóbora plantada e cozida na Horta) e abate (slimes, batedores
+  goblins, esqueletos das ruínas e o **Rei Goblin**, chefe com ataque em área, fúria e invocação). Diálogo em
+  estilo visual novel (faixas de cinema, nome na cor de quem fala, escolhas com resposta), cartão de título a cada
+  episódio e rastreador com bússola até o próximo objetivo. Roteiro em `scripts/story/story_dialogue.gd`,
+  missões em `data/balance/quests.json`.
+- **Guilda dos Aventureiros e Arco 2** (Valdoria é o centro de tudo): depois da festa, a Lina registra o herói
+  no **Rank D** ("feitos de antes do registro não contam"). Missões e contratos dão **pontos de guilda**; com
+  pontos suficientes a Lina promove a **C, B, A e S** (cada promoção dá pontos de atributo e ouro; o S exige
+  derrotar o Lich). O Arco 2 (episódios 7 a 11) segue por mapas novos: **Bosque Sussurrante** (Rank C: Sylvi, o
+  Tico perdido e a Slime Rainha), **Mina de Cristal** (Rank B: o anão Bolgar, esqueletos de crachá, veios de
+  cristal e o diário do Lich) e **Pico das Cinzas** (Rank A: o Kael na guilda falsa e **Morgrath, o Lich
+  Aposentado**). A viagem é pela **carruagem da guilda** (portão norte), liberada por rank.
+- **19 missões secundárias**: o **Quadro de Contratos** da guilda (vários repetíveis, por rank) e moradores com
+  pedidos espalhados pelo vale e pelos mapas: Dona Zélia e o gato fugitivo, o guarda Rufus e a sopa picante,
+  Seu Tonico nos campos, o caçador Ravi na trilha leste, Sir Osvaldo nas ruínas, além de Doran, Pip, Sylvi,
+  Bolgar e Kael. `!` dourado = história, `!` azul = contrato, `?` = entregar. Mapas montados em
+  `scripts/world/region_builder.gd` (regiões da mesma cena, então funcionam igual no solo e online).
 - **Monstros**: slimes (comum, grande, veloz, explosiva, mãe e de gelo, que deixa você lento), goblins com equipamento próprio (batedor, arqueiro, xamã, bombardeiro, bruto, campeão, dourado e o rei) e **esqueletos** nas ruínas (guerreiro, arqueiro, mago e o Cavaleiro Esqueleto, de elite).
 - **Progressão**: XP, níveis, 3 pontos de atributo por nível (Força, Inteligência, Vitalidade, Agilidade), magias liberadas por nível.
 - **Itens**: 70 itens com 5 raridades (Comum, Incomum, Raro, Épico, Lendário), poções, materiais para vender, loot aleatório.

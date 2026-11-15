@@ -225,9 +225,11 @@ func _christmas(w: Node) -> void:
 		"Papai Noel toca o idle do Bram, não fica em pose T (%s)" % [santa.anim.current_animation if santa.anim else "-"])
 	var cane: Node = santa.model.find_child("Staff", true, false)
 	check(cane != null and cane.get_parent() is BoneAttachment3D, "bengala doce presa à mão do Noel")
-	check(santa.marker.text == "!", "marcador \"!\" com eventos novos (%s)" % santa.marker.text)
-	var menu: Array = santa._build_dialogue()
-	check(menu.size() == 1 and menu[0].choices.size() == 5, "menu do Noel com os 4 eventos e \"Até logo\"")
+	check(santa.marker.text == "!", "marcador azul de evento novo (%s)" % santa.marker.text)
+	var offer: Array = santa._build_dialogue()
+	var last: Dictionary = offer[offer.size() - 1] if not offer.is_empty() else {}
+	check(last.has("choices") and str(last.choices[0].text) == str(ItemDB.QUESTS.natal_presentes.talk.accept),
+		"Noel oferece o primeiro evento pelo roteiro em dados (%d páginas)" % offer.size())
 
 	# Presentes Espalhados
 	var gifts := _event_points(w, "gift")
@@ -252,8 +254,13 @@ func _christmas(w: Node) -> void:
 	check(santa.marker.text == "?", "marcador \"?\" com evento pronto (%s)" % santa.marker.text)
 	var gold := Game.gold
 	var pages: Array = santa._build_dialogue()
-	check(pages.size() == 2 and pages[1].has("on_show"), "Noel agradece e entrega a recompensa")
-	(pages[1].on_show as Callable).call()
+	var reward_page: Dictionary = {}
+	for pg in pages:
+		if pg.has("on_show"):
+			reward_page = pg
+	check(not reward_page.is_empty(), "Noel agradece e entrega a recompensa")
+	if not reward_page.is_empty():
+		(reward_page.on_show as Callable).call()
 	var reward := int(ItemDB.QUESTS.natal_presentes.reward_gold)
 	check(Game.quest_state("natal_presentes") == "done" and Game.gold == gold + reward,
 		"Presentes Espalhados concluído (+%d ouro)" % (Game.gold - gold))
@@ -265,7 +272,7 @@ func _christmas(w: Node) -> void:
 	Game.on_enemy_killed("slime", 0)
 	check(int(Game.quests.natal_ladroes.progress) == 2, "goblins de tipos diferentes contam (%d)" % int(Game.quests.natal_ladroes.progress))
 	Game.start_quest("goblins")
-	check(Game.quest_state("goblins") == "none", "eventos não destravam a cadeia do Bram")
+	check(Game.quest_state("goblins") == "none", "eventos não destravam a história")
 
 	# A Ceia do Noel: entrega com os pratos na mochila
 	Game.start_quest("natal_ceia")
@@ -276,7 +283,8 @@ func _christmas(w: Node) -> void:
 	for item in need:
 		had[item] = Game.count_item(item)
 	Econ.grant(0, 0, need, "vilatest", true)
-	check(santa._can_turn_in("natal_ceia"), "Noel vê os pratos na mochila")
+	santa._update_marker()
+	check(santa.marker.text == "?", "Noel vê os pratos na mochila (%s)" % santa.marker.text)
 	Game.complete_quest("natal_ceia")
 	check(Game.quest_state("natal_ceia") == "done", "ceia entregue")
 	for item in need:

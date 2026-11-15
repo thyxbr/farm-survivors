@@ -197,6 +197,7 @@ exec(open(OUT.replace("assets/models/", "tools/blender/buildings.py"), encoding=
 exec(open(OUT.replace("assets/models/", "tools/blender/village.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/trees.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/weapons.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/armory.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/gear.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/body_mesh.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/anime.py"), encoding="utf-8").read(), globals())
@@ -226,6 +227,9 @@ BUILDERS.update(TREE_BUILDERS)   # árvores e flores (trees.py)
 BUILDERS.update(dict(WEAPONS))   # w_<id>: espadas (weapons.py); ASSETS=weapons gera todas
 if "weapons" in _only:
     _only += [n for n, _ in WEAPONS]
+for _grp, _pre in (("staves", "st_"), ("bows", "bw_"), ("classic", "w_")):   # grupos de armory.py
+    if _grp in _only:
+        _only += [n for n, _ in ARMORY if n.startswith(_pre)]
 BUILDERS.update(dict(GEAR))      # roupas e armaduras modulares (gear.py); ASSETS=gear gera todas
 if "gear" in _only:
     _only += [n for n, _ in GEAR]

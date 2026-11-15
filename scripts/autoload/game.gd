@@ -10,6 +10,7 @@ extends Node
 signal stats_changed
 signal inventory_changed
 signal quests_changed
+signal ranked_up(rank: String)   # promoção na guilda (cartão "PROMOÇÃO")
 signal notify(text: String, color: Color)
 signal leveled_up(new_level: int)
 signal food_eaten(id: String)
@@ -633,6 +634,18 @@ func quest_mark(id: String, index: int) -> void:
 ## Pontos já feitos de uma missão de coletar/visitar.
 func quest_got(id: String) -> Array:
 	return quests[id].get("got", []) if quests.has(id) else []
+## Promoção na guilda (as regras conferem pontos e missões).
+func rank_up() -> void:
+	Econ.request("rank_up")
+
+
+## Rank na guilda ("D" a "S") e pontos de guilda (espelho do personagem).
+func rank() -> String:
+	return str(flags.get("rank", "D"))
+
+
+func guild_points() -> int:
+	return int(flags.get("guild_pts", 0))
 
 
 ## Abate: a cura da comida (roubo de vida) é do combate, do cliente; XP e missão são do Econ.
@@ -988,6 +1001,8 @@ func apply_events(events: Array) -> void:
 				item_looted.emit(str(e.get("id", "")), int(e.get("qty", 1)))
 			"quest":
 				quests_changed.emit()
+			"rank":
+				ranked_up.emit(str(e.get("rank", "")))
 			"farm":
 				farm_changed.emit()
 

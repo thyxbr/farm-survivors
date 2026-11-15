@@ -1,45 +1,1408 @@
 {
+	"chegada": {
+		"name": "O Herói da Profecia (Talvez)",
+		"giver": "Ancião Bram",
+		"giver_id": "elder",
+		"turn_in": "Mira, a Mercadora",
+		"turn_in_id": "merchant",
+		"type": "talk",
+		"target": "merchant",
+		"count": 1,
+		"chapter": {
+			"n": 1,
+			"title": "Um Herói Caiu na Vila"
+		},
+		"desc": "O Ancião Bram jura que você é o herói de uma profecia (que ele parece estar inventando agora). Pegue o \"Kit do Herói\" com a Mira, no empório a leste do poço.",
+		"objective": "Fale com a Mira no empório",
+		"reward_xp": 30,
+		"reward_gold": 20,
+		"reward_items": {
+			"health_potion": 2
+		}
+	},
+	"forja": {
+		"name": "Uma Alma em Chamas",
+		"giver": "Mira, a Mercadora",
+		"giver_id": "merchant",
+		"turn_in": "Doran, o Ferreiro",
+		"turn_in_id": "blacksmith",
+		"type": "talk",
+		"target": "blacksmith",
+		"count": 1,
+		"desc": "O ferreiro Doran está gritando há uma hora que quer \"sentir a paixão\" do herói. A Mira pediu, com muita educação, que você vá fazê-lo parar. Fica na ferraria, a sudoeste do poço.",
+		"objective": "Fale com o Doran na ferraria",
+		"reward_xp": 40,
+		"reward_gold": 10,
+		"reward_items": {
+			"wooden_shield": 1
+		}
+	},
 	"slimes": {
 		"name": "Praga Gosmenta",
-		"giver": "Ancião Bram",
-		"desc": "Os slimes estão devorando as plantações ao norte da vila. Derrote 5 deles.",
+		"giver": "Doran, o Ferreiro",
+		"giver_id": "blacksmith",
+		"turn_in": "Ancião Bram",
+		"turn_in_id": "elder",
+		"type": "kill",
 		"target": "slime",
 		"count": 5,
+		"where": [
+			0,
+			-34
+		],
+		"desc": "Os slimes estão devorando as plantações ao norte da vila. Doran quer que você prove sua paixão derrotando 5 deles. Depois, conte tudo ao Ancião Bram.",
+		"objective": "Slimes derrotados nos campos ao norte",
 		"reward_xp": 120,
 		"reward_gold": 50,
 		"reward_items": {
 			"health_potion": 3
 		}
 	},
+	"gel": {
+		"name": "Ciência Explosiva",
+		"giver": "Pip, a Alquimista",
+		"giver_id": "alchemist",
+		"turn_in": "Pip, a Alquimista",
+		"turn_in_id": "alchemist",
+		"type": "collect",
+		"target": "slime_gel",
+		"count": 5,
+		"where": [
+			0,
+			-34
+		],
+		"chapter": {
+			"n": 2,
+			"title": "A Alquimista Que Explode Coisas"
+		},
+		"desc": "Pip, a alquimista da botica, precisa de 5 Géis de Slime para um experimento \"totalmente seguro\". Os slimes dos campos ao norte deixam cair o gel.",
+		"objective": "Gel de Slime para a Pip",
+		"reward_xp": 90,
+		"reward_gold": 40,
+		"reward_items": {
+			"mana_potion": 3
+		}
+	},
+	"rival": {
+		"name": "O Barulho no Portão Leste",
+		"giver": "Pip, a Alquimista",
+		"giver_id": "alchemist",
+		"turn_in": "Kael, a Lâmina Carmesim",
+		"turn_in_id": "rival",
+		"type": "talk",
+		"target": "rival",
+		"count": 1,
+		"chapter": {
+			"n": 3,
+			"title": "O Rival Carmesim!"
+		},
+		"desc": "Um sujeito de capa vermelha está fazendo discursos heroicos no portão leste há horas. A Pip quer silêncio. Vá ver quem é.",
+		"objective": "Fale com o aventureiro no portão leste",
+		"reward_xp": 40,
+		"reward_gold": 15,
+		"reward_items": {}
+	},
 	"goblins": {
 		"name": "Batedores Goblins",
-		"giver": "Ancião Bram",
-		"desc": "Goblins acamparam na floresta a leste. Derrote 4 batedores.",
+		"giver": "Kael, a Lâmina Carmesim",
+		"giver_id": "rival",
+		"turn_in": "Kael, a Lâmina Carmesim",
+		"turn_in_id": "rival",
+		"type": "kill",
 		"target": "goblin",
 		"count": 4,
+		"where": [
+			62,
+			0
+		],
+		"desc": "Kael desafiou você: quem derrotar mais batedores goblins no acampamento da floresta a leste é o verdadeiro herói. Derrote 4 e volte para contar vantagem.",
+		"objective": "Batedores goblins derrotados no acampamento a leste",
 		"reward_xp": 250,
 		"reward_gold": 80,
 		"reward_items": {
 			"chain_mail": 1
 		}
 	},
+	"bilhete": {
+		"name": "O Bilhete Amassado",
+		"giver": "Kael, a Lâmina Carmesim",
+		"giver_id": "rival",
+		"turn_in": "Bilhete Amassado",
+		"turn_in_id": "camp_note",
+		"type": "talk",
+		"target": "camp_note",
+		"count": 1,
+		"desc": "Kael \"viu de longe\" um bilhete preso num caixote do acampamento goblin, mas está \"ocupado demais\" para buscar. Leia o que está escrito.",
+		"objective": "Leia o bilhete no acampamento goblin",
+		"reward_xp": 60,
+		"reward_gold": 25,
+		"reward_items": {}
+	},
+	"torta": {
+		"name": "A Torta da Discórdia",
+		"giver": "Ancião Bram",
+		"giver_id": "elder",
+		"turn_in": "Ancião Bram",
+		"turn_in_id": "elder",
+		"type": "collect",
+		"target": "pumpkin_pie",
+		"count": 1,
+		"where": [
+			0,
+			33
+		],
+		"chapter": {
+			"n": 4,
+			"title": "A Torta da Discórdia"
+		},
+		"start_items": {
+			"seed_pumpkin": 2,
+			"seed_wheat": 2
+		},
+		"desc": "O Rei Goblin quer a lendária Torta de Abóbora de Valdoria. O plano do Bram: assar uma como isca. Plante abóbora e trigo na Horta (saída sul), colha e cozinhe a torta no caldeirão.",
+		"objective": "Torta de Abóbora para o Bram",
+		"reward_xp": 200,
+		"reward_gold": 120,
+		"reward_items": {
+			"life_amulet": 1
+		}
+	},
+	"ossos": {
+		"name": "Ossos no Caminho",
+		"giver": "Ancião Bram",
+		"giver_id": "elder",
+		"turn_in": "Doran, o Ferreiro",
+		"turn_in_id": "blacksmith",
+		"type": "kill",
+		"target": "esqueleto",
+		"targets": [
+			"esqueleto",
+			"esqueleto_arqueiro",
+			"esqueleto_mago",
+			"esqueleto_cavaleiro"
+		],
+		"count": 5,
+		"where": [
+			0,
+			-76
+		],
+		"desc": "Esqueletos guardam a trilha das ruínas ao norte. Abra caminho derrotando 5 deles; o Doran prometeu uma surpresa para quando você voltar.",
+		"objective": "Esqueletos derrotados na trilha das ruínas",
+		"reward_xp": 300,
+		"reward_gold": 100,
+		"reward_items": {
+			"iron_helm": 1
+		}
+	},
 	"goblin_king": {
 		"name": "O Rei das Ruínas",
-		"giver": "Ancião Bram",
-		"desc": "O Rei Goblin comanda tudo das ruínas antigas ao norte. Acabe com ele.",
+		"giver": "Doran, o Ferreiro",
+		"giver_id": "blacksmith",
+		"turn_in": "Ancião Bram",
+		"turn_in_id": "elder",
+		"type": "kill",
 		"target": "goblin_king",
 		"count": 1,
+		"where": [
+			0,
+			-100
+		],
+		"chapter": {
+			"n": 5,
+			"title": "O Rei das Ruínas"
+		},
+		"desc": "Com a torta como isca, o Rei Goblin saiu do esconderijo nas ruínas antigas ao norte. Acabe com ele e traga a paz (e a torta) de volta a Valdoria.",
+		"objective": "Derrote o Rei Goblin nas ruínas ao norte",
 		"reward_xp": 600,
 		"reward_gold": 300,
 		"reward_items": {
 			"royal_plate": 1
 		}
 	},
+	"festa": {
+		"name": "Festa em Valdoria",
+		"giver": "Ancião Bram",
+		"giver_id": "elder",
+		"turn_in": "Kael, a Lâmina Carmesim",
+		"turn_in_id": "rival",
+		"type": "talk",
+		"target": "rival",
+		"count": 1,
+		"chapter": {
+			"n": 6,
+			"title": "Epílogo: Festa em Valdoria"
+		},
+		"desc": "A vila está em festa! Mas o Kael está parado no portão leste com cara de quem ensaiou um discurso. Vá ouvir.",
+		"objective": "Fale com o Kael no portão leste",
+		"reward_xp": 150,
+		"reward_gold": 150,
+		"reward_items": {
+			"wind_ring": 1
+		}
+	},
+	"registro": {
+		"name": "Rank D?!",
+		"giver": "Ancião Bram",
+		"giver_id": "elder",
+		"turn_in": "Lina, da Guilda",
+		"turn_in_id": "lina",
+		"type": "talk",
+		"target": "lina",
+		"count": 1,
+		"chapter": {
+			"n": 7,
+			"title": "Rank D?!"
+		},
+		"guild_pts": 60,
+		"hint": "(O Ancião Bram tem novidades: fale com ele perto do poço.)",
+		"talk": {
+			"offer": [
+				"! HERÓI! Notícia maravilhosa! Abriram uma filial da GUILDA DOS AVENTUREIROS aqui em Valdoria!",
+				"Fica ali, ao lado do quadro de avisos, perto do portão norte. A recepcionista se chama Lina. Muito organizada. Assustadoramente organizada.",
+				"Com o seu currículo, aposto que te registram direto no Rank S! Vá lá!"
+			],
+			"accept": "Vou me registrar",
+			"remind": "A Guilda fica ao lado do quadro de avisos, perto do portão norte. A Lina está te esperando. Com uma pilha de formulários.",
+			"done": [
+				"Bem-vindo à Guilda dos Aventureiros de Valdoria! Eu sou a Lina. Nome? Classe? Assinatura aqui, aqui e aqui.",
+				{
+					"choices": [
+						[
+							"Eu derrotei o Rei Goblin.",
+							[
+								"Que ótimo! Tem o formulário 27-B de Abate de Monarca, carimbado por um oficial da guilda?",
+								"...Não? Então não conta."
+							]
+						],
+						[
+							"Pode me colocar no Rank S.",
+							[
+								"Hihi. Todo mundo diz isso. Todo mundo."
+							]
+						]
+					]
+				},
+				"Pronto! Aqui está o seu cartão: {heroi}, RANK D!",
+				"@narr:! RANK D?!",
+				"Regras são regras! Feitos de antes do registro não valem pontos. Mas como o Bram mandou uma carta de recomendação de onze páginas, te dou um bônus de 60 pontos.",
+				"[reward]Funciona assim: cada contrato concluído dá pontos de guilda. Junte pontos e venha falar comigo para a promoção. D, C, B, A... e, quem sabe um dia, S."
+			]
+		},
+		"desc": "Uma filial da Guilda dos Aventureiros abriu em Valdoria, ao lado do quadro de avisos. O Bram quer que o herói da vila se registre oficialmente.",
+		"objective": "Registre-se com a Lina, na Guilda (ao lado do quadro de avisos)",
+		"reward_xp": 80,
+		"reward_gold": 30,
+		"reward_items": {
+			"health_potion": 2
+		}
+	},
+	"quadro": {
+		"name": "Primeiro Contrato",
+		"giver": "Lina, da Guilda",
+		"giver_id": "lina",
+		"turn_in": "Quadro de Contratos",
+		"turn_in_id": "board",
+		"type": "talk",
+		"target": "board",
+		"count": 1,
+		"guild_pts": 10,
+		"hint": "(Fale com a Lina para conhecer o Quadro de Contratos.)",
+		"talk": {
+			"offer": [
+				"Contratos ficam no Quadro, bem ali do meu lado. Monstros, entregas, gatos fugitivos... tem de tudo.",
+				"Alguns contratos você pode repetir quantas vezes quiser. É assim que se sobe de rank: suor, sangue e papelada.",
+				"E converse com o pessoal da vila e de fora dela! Quem tem um pedido mostra um + azul em cima da cabeça."
+			],
+			"accept": "Ver o quadro",
+			"remind": "O Quadro de Contratos fica bem do meu lado. Não morde. Quase nunca.",
+			"done": [
+				"* (Dezenas de papéis pregados. Um deles diz: \"PROCURA-SE: alguém que não seja o Kael.\")",
+				"[reward]* (Agora é só escolher um contrato. Pontos de guilda levam à promoção para o Rank C.)"
+			]
+		},
+		"desc": "Lina pediu que você conheça o Quadro de Contratos da Guilda, onde ficam os pedidos dos moradores.",
+		"objective": "Leia o Quadro de Contratos, ao lado da Lina",
+		"reward_xp": 30,
+		"reward_gold": 10,
+		"reward_items": {}
+	},
+	"bosque": {
+		"name": "O Bosque Sussurrante",
+		"giver": "Lina, da Guilda",
+		"giver_id": "lina",
+		"turn_in": "Sylvi, a Patrulheira",
+		"turn_in_id": "sylvi",
+		"type": "talk",
+		"target": "sylvi",
+		"count": 1,
+		"rank": "C",
+		"chapter": {
+			"n": 8,
+			"title": "O Bosque Sussurrante"
+		},
+		"where": [
+			0,
+			830
+		],
+		"hint": "(Volte à Guilda: a Lina tem um pedido urgente.)",
+		"talk": {
+			"offer": [
+				"! Rank C! Parabéns! Bem na hora, porque chegou um pedido urgente.",
+				"O Tico, o menino da Dona Zélia, seguiu um \"slime dourado\" até o Bosque Sussurrante e não voltou.",
+				"A carruagem da guilda fica do lado de fora do portão norte. O Beto leva você. Procure a Sylvi, a patrulheira do bosque."
+			],
+			"accept": "Vou para o bosque",
+			"locked": "Tenho um pedido sério do Bosque Sussurrante, mas é para Rank C. Junte pontos no Quadro de Contratos e volte para a promoção!",
+			"remind": "A carruagem fica do lado de fora do portão norte. Bosque Sussurrante. A Sylvi te espera no acampamento dela.",
+			"done": [
+				"Shh! Fale baixo. As árvores daqui escutam. E fofocam.",
+				"Sou a Sylvi, patrulheira do bosque. Você é o tal herói Rank D? ...Rank C? Que progresso.",
+				{
+					"choices": [
+						[
+							"As árvores fofocam?",
+							[
+								"Claro. Aquele carvalho ali me contou que o Kael chorou quando viu um esquilo."
+							]
+						],
+						[
+							"Cadê o Tico?",
+							[
+								"Direto ao ponto. Gosto disso."
+							]
+						]
+					]
+				},
+				"[reward]Vi pegadas pequenas indo para o nordeste, na direção da clareira. E um rastro de gosma. Muita gosma."
+			]
+		},
+		"desc": "Um pedido urgente chegou do Bosque Sussurrante: um menino da vila sumiu por lá. Pegue a carruagem da guilda e procure a patrulheira Sylvi.",
+		"objective": "Viaje ao Bosque Sussurrante (carruagem, portão norte) e fale com a Sylvi",
+		"reward_xp": 80,
+		"reward_gold": 20,
+		"reward_items": {}
+	},
+	"tico": {
+		"name": "Criança Perdida",
+		"giver": "Sylvi, a Patrulheira",
+		"giver_id": "sylvi",
+		"turn_in": "Tico",
+		"turn_in_id": "tico",
+		"type": "talk",
+		"target": "tico",
+		"count": 1,
+		"where": [
+			30,
+			772
+		],
+		"hint": "(Fale com a Sylvi no acampamento do bosque.)",
+		"talk": {
+			"offer": [
+				"Siga as pegadas para o nordeste. E cuidado com os slimes velozes: eles mordem o calcanhar.",
+				"Se achar o menino, traga ele de volta inteiro. A mãe dele já me mandou quatro bilhetes."
+			],
+			"accept": "Vou achar o Tico",
+			"remind": "As pegadas iam para o nordeste. Siga a gosma.",
+			"done": [
+				"! AAAH! ...Ah. Você é o herói da vila! Ufa!",
+				"Eu tava seguindo um slime DOURADO! Ele brilhava! Aí apareceu um slime GIGANTE com uma COROA e eu me escondi aqui.",
+				{
+					"choices": [
+						[
+							"Uma coroa?",
+							[
+								"Uma coroa de gosma! Ela é a Slime Rainha! Ela engoliu meu estilingue!"
+							]
+						],
+						[
+							"Você está bem?",
+							[
+								"Tô! Só um pouco grudento. E com fome. E com medo. Mas tô bem!"
+							]
+						]
+					]
+				},
+				"[reward]Herói... você pode derrotar a Slime Rainha? Ela fica na clareira a oeste. E pegar meu estilingue de volta?"
+			]
+		},
+		"desc": "Sylvi viu pegadas pequenas indo para o nordeste do bosque. Encontre o Tico.",
+		"objective": "Encontre o Tico no nordeste do Bosque Sussurrante",
+		"reward_xp": 80,
+		"reward_gold": 20,
+		"reward_items": {}
+	},
+	"rainha": {
+		"name": "A Slime Rainha",
+		"giver": "Tico",
+		"giver_id": "tico",
+		"turn_in": "Sylvi, a Patrulheira",
+		"turn_in_id": "sylvi",
+		"type": "kill",
+		"target": "slime_rainha",
+		"count": 1,
+		"where": [
+			-26,
+			766
+		],
+		"guild_pts": 70,
+		"hint": "(O Tico está no nordeste do bosque.)",
+		"talk": {
+			"offer": [
+				"Ela é ENORME e quando apanha se divide em slimezinhos! Mas você é o herói, né? Né?!"
+			],
+			"accept": "Deixa comigo, Tico",
+			"remind": "A Slime Rainha fica na clareira a oeste! Cuidado com os filhotes dela!",
+			"done": [
+				"Você derrotou a Slime Rainha?! As árvores vão falar disso por um século.",
+				"* (Sylvi devolve o estilingue grudento do Tico. O menino comemora e volta para a vila com a carruagem.)",
+				"Mas tem uma coisa estranha. Os slimes não moram aqui. Eles FUGIRAM para cá. De alguma coisa na Mina de Cristal.",
+				"[reward]Tome estas botas. São rápidas. Vai precisar delas se for se meter com o que assusta até slime."
+			]
+		},
+		"desc": "A Slime Rainha domina a clareira a oeste do Bosque Sussurrante. Derrote-a e conte tudo à Sylvi.",
+		"objective": "Derrote a Slime Rainha na clareira oeste do bosque",
+		"reward_xp": 350,
+		"reward_gold": 150,
+		"reward_items": {
+			"swift_boots": 1
+		}
+	},
+	"mina": {
+		"name": "A Mina de Cristal",
+		"giver": "Lina, da Guilda",
+		"giver_id": "lina",
+		"turn_in": "Bolgar, o Minerador",
+		"turn_in_id": "bolgar",
+		"type": "talk",
+		"target": "bolgar",
+		"count": 1,
+		"rank": "B",
+		"chapter": {
+			"n": 9,
+			"title": "A Mina de Cristal"
+		},
+		"where": [
+			806,
+			32
+		],
+		"hint": "(Volte à Guilda: chegou um pedido da Mina de Cristal.)",
+		"talk": {
+			"offer": [
+				"Recebi o relatório da Sylvi. E logo em seguida chegou ISTO da Mina de Cristal:",
+				"* (\"SOCORRO. ESQUELETOS NA MINA. ELES NÃO PAGAM ALUGUEL. — Bolgar\")",
+				"Missão de Rank B. E você... é Rank B! Que coincidência burocraticamente perfeita. A carruagem te leva."
+			],
+			"accept": "Vou para a mina",
+			"locked": "Tem um pedido da Mina de Cristal, mas é para Rank B. Continue juntando pontos e volte para a promoção!",
+			"remind": "Mina de Cristal, pela carruagem do portão norte. O Bolgar está na entrada. Provavelmente reclamando.",
+			"done": [
+				"Finalmente! A guilda mandou alguém! E é... um só? Tá. Melhor que nada. Bolgar, minerador há 140 anos.",
+				"! Os esqueletos tomaram as galerias! Cavam, carregam pedra, empilham cristal... e não me deixam entrar na MINHA mina!",
+				{
+					"choices": [
+						[
+							"Esqueletos trabalhando?",
+							[
+								"Organizados! Com crachá! Alguém está mandando neles. Alguém com muito tempo livre."
+							]
+						],
+						[
+							"140 anos?",
+							[
+								"Sou anão, ué. Ainda sou jovem. Minha mãe ainda me chama de \"pedrinha\"."
+							]
+						]
+					]
+				},
+				"[reward]Me ajude a limpar as galerias e eu descubro quem está por trás disso."
+			]
+		},
+		"desc": "Os slimes do bosque fugiram de algo na Mina de Cristal. A guilda recebeu um pedido do minerador Bolgar. Missão para Rank B.",
+		"objective": "Viaje à Mina de Cristal (carruagem) e fale com o Bolgar",
+		"reward_xp": 120,
+		"reward_gold": 40,
+		"reward_items": {}
+	},
+	"galerias": {
+		"name": "Esqueletos de Crachá",
+		"giver": "Bolgar, o Minerador",
+		"giver_id": "bolgar",
+		"turn_in": "Bolgar, o Minerador",
+		"turn_in_id": "bolgar",
+		"type": "kill",
+		"target": "esqueleto",
+		"count": 8,
+		"targets": [
+			"esqueleto",
+			"esqueleto_arqueiro",
+			"esqueleto_mago",
+			"esqueleto_cavaleiro"
+		],
+		"where": [
+			800,
+			-25
+		],
+		"guild_pts": 60,
+		"hint": "(Fale com o Bolgar na entrada da mina.)",
+		"talk": {
+			"offer": [
+				"As galerias ficam ao norte da entrada. Derrube oito esqueletos e eles param de achar que mandam aqui."
+			],
+			"accept": "Às galerias!",
+			"remind": "Ainda tem osso andando nas minhas galerias! ({n})",
+			"done": [
+				"! HAHA! Olha só, pedaço de esqueleto pra todo lado! Vou fazer um xilofone.",
+				"[reward]Toma este escudo. Achei numa galeria velha. Tem um brasão de cavaleiro, mas o dono não vai reclamar. Ele é um dos esqueletos."
+			]
+		},
+		"desc": "Esqueletos tomaram as galerias da Mina de Cristal. Derrote 8 deles.",
+		"objective": "Esqueletos derrotados nas galerias da mina",
+		"reward_xp": 420,
+		"reward_gold": 160,
+		"reward_items": {
+			"knight_shield": 1
+		}
+	},
+	"diario": {
+		"name": "O Diário do Lich",
+		"giver": "Bolgar, o Minerador",
+		"giver_id": "bolgar",
+		"turn_in": "Diário Rasgado",
+		"turn_in_id": "diario",
+		"type": "talk",
+		"target": "diario",
+		"count": 1,
+		"where": [
+			800,
+			-52
+		],
+		"guild_pts": 30,
+		"hint": "(Fale com o Bolgar.)",
+		"talk": {
+			"offer": [
+				"Lá no fundo da galeria norte tem um livro velho que os esqueletos guardavam como se fosse ouro.",
+				"Eu não sei ler letra de morto-vivo. Você sabe? Não? Vai lá mesmo assim."
+			],
+			"accept": "Vou ler o diário",
+			"remind": "O livro está no fim da galeria norte. Bem no fundo. Onde é mais escuro. Claro.",
+			"done": [
+				"* (Um diário de capa de couro... de quê? Melhor não saber.)",
+				"! \"Diário de MORGRATH, O LICH. Dia 3.402 de aposentadoria. Que tédio.\"",
+				"\"Pedi para entrar na Guilda dos Aventureiros. A recepcionista disse que mortos-vivos não podem ser Rank S. PRECONCEITO.\"",
+				"\"Plano: montar minha PRÓPRIA guilda no Pico das Cinzas. Já recrutei esqueletos, um rei goblin (foi pela torta) e um tal de Kael. Prometi Rank S instantâneo. Ele aceitou na hora.\"",
+				"[reward]* (...O Kael entrou para a guilda do Lich?! A Lina precisa saber disso.)"
+			]
+		},
+		"desc": "No fundo da mina, os esqueletos guardavam algo. Bolgar viu um livro velho no fim da galeria norte.",
+		"objective": "Leia o diário no fundo da galeria norte da mina",
+		"reward_xp": 200,
+		"reward_gold": 60,
+		"reward_items": {}
+	},
+	"kael_sumiu": {
+		"name": "O Rival do Outro Lado",
+		"giver": "Lina, da Guilda",
+		"giver_id": "lina",
+		"turn_in": "Kael, a Lâmina Carmesim",
+		"turn_in_id": "kael_pico",
+		"type": "talk",
+		"target": "kael_pico",
+		"count": 1,
+		"rank": "A",
+		"chapter": {
+			"n": 10,
+			"title": "O Pico das Cinzas"
+		},
+		"where": [
+			800,
+			820
+		],
+		"hint": "(Volte à Guilda: a Lina precisa saber do diário.)",
+		"talk": {
+			"offer": [
+				"Um LICH montando uma guilda pirata?! Sem alvará? Sem formulário?! Isso é... isso é...",
+				"! UM ULTRAJE ADMINISTRATIVO!",
+				"Desculpe. Respirei. O Pico das Cinzas é missão de Rank A. E o Kael está lá. Traga ele de volta. E, se puder, feche essa guilda falsificada."
+			],
+			"accept": "Vou buscar o Kael",
+			"locked": "O Pico das Cinzas é missão de Rank A. Eu sei que é pessoal, mas regras são regras! Junte pontos e volte.",
+			"remind": "Pico das Cinzas, pela carruagem. O Kael está lá em cima. Provavelmente fazendo pose.",
+			"done": [
+				"! ALTO! Quem vem lá? ...Ah. É você.",
+				"Eu sou KAEL, RANK S da Guilda do Pico! Olha meu cartão novo! É preto com bordas douradas!",
+				"* (O cartão diz \"RANK S\" escrito à caneta, com um esqueleto desenhado do lado.)",
+				{
+					"choices": [
+						[
+							"Kael, esse cartão é falso.",
+							[
+								"...Eu sei. Eu SEI, tá bom? Mas ele brilha!"
+							]
+						],
+						[
+							"O Lich está te usando.",
+							[
+								"Ele disse que eu tinha \"potencial de lenda\"! Ninguém nunca me disse isso! ...Nem você."
+							]
+						]
+					]
+				},
+				"Ele quer que eu te impeça de subir. Mas rivais de verdade não sabotam o outro. Rivais de verdade lutam lado a lado e depois discutem quem lutou melhor.",
+				"[reward]! Chega! KAEL, A LÂMINA CARMESIM, SE DEMITE DA GUILDA DO LICH!"
+			]
+		},
+		"desc": "Morgrath, o Lich, está montando uma guilda rival no Pico das Cinzas, e o Kael foi junto. Missão de Rank A.",
+		"objective": "Viaje ao Pico das Cinzas e encontre o Kael",
+		"reward_xp": 200,
+		"reward_gold": 60,
+		"reward_items": {}
+	},
+	"lich": {
+		"name": "Morgrath, o Lich Aposentado",
+		"giver": "Kael, a Lâmina Carmesim",
+		"giver_id": "kael_pico",
+		"turn_in": "Lina, da Guilda",
+		"turn_in_id": "lina",
+		"type": "kill",
+		"target": "lich",
+		"count": 1,
+		"where": [
+			800,
+			766
+		],
+		"guild_pts": 150,
+		"hint": "(Fale com o Kael no Pico das Cinzas.)",
+		"talk": {
+			"offer": [
+				"Ele está no topo, no círculo de pedras. Cuidado: ele invoca esqueletos quando se irrita. E ele se irrita fácil.",
+				"Eu vou com você! ...Atrás de você. Bem atrás. É estratégia, você sabe."
+			],
+			"accept": "Juntos, Kael!",
+			"remind": "O Lich está no topo do pico, no círculo de pedras! Vai! Eu cubro a retaguarda! Daqui!",
+			"done": [
+				"Morgrath... derrotado. E o Kael voltou pedindo desculpas, com um bolo. Feito por ele. Está queimado, mas é a intenção.",
+				"Encontramos o último registro do Lich: \"Talvez eu devesse ter tentado o Rank D primeiro.\" Pobre coitado.",
+				"[reward]Com isso, você cumpre o requisito da prova final: o Rank S. Junte os pontos e venha falar comigo."
+			]
+		},
+		"desc": "Morgrath, o Lich, espera no topo do Pico das Cinzas. Derrote-o e leve a notícia à Lina.",
+		"objective": "Derrote Morgrath no topo do Pico das Cinzas",
+		"reward_xp": 900,
+		"reward_gold": 500,
+		"reward_items": {
+			"archmage_staff": 1
+		}
+	},
+	"cerimonia": {
+		"name": "A Lenda de Valdoria",
+		"giver": "Lina, da Guilda",
+		"giver_id": "lina",
+		"turn_in": "Ancião Bram",
+		"turn_in_id": "elder",
+		"type": "talk",
+		"target": "elder",
+		"count": 1,
+		"chapter": {
+			"n": 11,
+			"title": "Epílogo: A Lenda de Valdoria"
+		},
+		"talk": {
+			"offer": [
+				"A vila preparou uma festa para você. O Bram escreveu um discurso. Tem quarenta páginas. Boa sorte."
+			],
+			"accept": "Vou à festa",
+			"remind": "O Bram está perto do poço, ensaiando o discurso. Ainda na página doze.",
+			"done": [
+				"! HERÓI! LENDA! ORGULHO DE VALDORIA!",
+				"Eu sempre soube! Desde o primeiro dia! Está na profecia! Página... ah, esqueci a profecia em casa.",
+				"* (A Mira rasga uma página do caderninho. Só uma. Das grandes dívidas, só uma.)",
+				"* (O Doran chora. A Pip explode uma poção de fogos de artifício. O Kael faz a pose heroica, e dessa vez ninguém reclama.)",
+				"[reward]Obrigado, {heroi}. De forasteiro com fome a lenda da guilda. A profecia estava certa. Eu é que escrevi depois.",
+				"[end]> FIM DO SEGUNDO ARCO. Valdoria continua de portas abertas: contratos, mapas e a Horda esperam por você."
+			]
+		},
+		"desc": "A vila inteira quer comemorar. O Bram está preparando um discurso (longo).",
+		"objective": "Fale com o Ancião Bram para a festa",
+		"reward_xp": 200,
+		"reward_gold": 200,
+		"reward_items": {
+			"sage_amulet": 1
+		}
+	},
+	"q_gelo": {
+		"name": "Contrato: Slimes de Gelo",
+		"giver": "Quadro de Contratos",
+		"giver_id": "board",
+		"turn_in": "Lina, da Guilda",
+		"turn_in_id": "lina",
+		"type": "kill",
+		"target": "slime_gelo",
+		"count": 3,
+		"repeat": true,
+		"where": [
+			0,
+			-50
+		],
+		"talk": {
+			"offer": [
+				"* \"CONTRATO: 3 slimes de gelo congelaram o milho do Seu Tonico. Agora ele faz pipoca gelada. Ninguém quer pipoca gelada.\""
+			],
+			"accept": "Aceitar contrato",
+			"remind": "Slimes de gelo, campos ao norte ({n})",
+			"done": [
+				"Contrato dos slimes de gelo cumprido! Carimbo! Pontos! Que dia lindo.",
+				"[reward]Aqui está o pagamento."
+			]
+		},
+		"side": true,
+		"desc": "Slimes de gelo estão congelando as plantações dos campos ao norte.",
+		"objective": "Slimes de gelo derrotados nos campos ao norte",
+		"reward_xp": 90,
+		"reward_gold": 40,
+		"reward_items": {
+			"mana_potion": 1
+		}
+	},
+	"q_bombas": {
+		"name": "Contrato: Bombardeiros",
+		"giver": "Quadro de Contratos",
+		"giver_id": "board",
+		"turn_in": "Lina, da Guilda",
+		"turn_in_id": "lina",
+		"type": "kill",
+		"target": "goblin_bombardeiro",
+		"count": 2,
+		"repeat": true,
+		"where": [
+			62,
+			0
+		],
+		"talk": {
+			"offer": [
+				"* \"CONTRATO: 2 goblins bombardeiros explodiram o banheiro da guarda. O Rufus está muito chateado.\""
+			],
+			"accept": "Aceitar contrato",
+			"remind": "Bombardeiros no acampamento goblin, a leste ({n})",
+			"done": [
+				"Os bombardeiros não vão mais explodir banheiros. O Rufus mandou um abraço. Um abraço bem formal.",
+				"[reward]Pagamento do contrato."
+			]
+		},
+		"side": true,
+		"desc": "Goblins bombardeiros rondam o acampamento a leste e explodiram o banheiro da guarda.",
+		"objective": "Bombardeiros derrotados no acampamento a leste",
+		"reward_xp": 120,
+		"reward_gold": 55,
+		"reward_items": {
+			"health_potion": 2
+		}
+	},
+	"q_ninho": {
+		"name": "Contrato: O Ninho",
+		"giver": "Quadro de Contratos",
+		"giver_id": "board",
+		"turn_in": "Lina, da Guilda",
+		"turn_in_id": "lina",
+		"type": "kill",
+		"target": "slime_mae",
+		"count": 1,
+		"rank": "C",
+		"repeat": true,
+		"where": [
+			-36,
+			36
+		],
+		"guild_pts": 40,
+		"talk": {
+			"offer": [
+				"* \"CONTRATO (Rank C): a Slime Mãe do ninho a sudoeste teve 47 filhotes esta semana. Ninguém aguenta mais.\""
+			],
+			"accept": "Aceitar contrato",
+			"remind": "A Slime Mãe fica no ninho a sudoeste da vila",
+			"done": [
+				"O ninho está calmo. Por umas horas. Slimes são assim.",
+				"[reward]Aqui está. E o gel que sobrou, a Pip pediu para eu não aceitar de volta."
+			]
+		},
+		"side": true,
+		"desc": "A Slime Mãe do ninho a sudoeste não para de ter filhotes.",
+		"objective": "Derrote a Slime Mãe no ninho a sudoeste",
+		"reward_xp": 160,
+		"reward_gold": 70,
+		"reward_items": {
+			"slime_gel": 3
+		}
+	},
+	"q_dourado": {
+		"name": "Contrato: Goblin Dourado",
+		"giver": "Quadro de Contratos",
+		"giver_id": "board",
+		"turn_in": "Lina, da Guilda",
+		"turn_in_id": "lina",
+		"type": "kill",
+		"target": "goblin_dourado",
+		"count": 1,
+		"rank": "C",
+		"repeat": true,
+		"where": [
+			30,
+			44
+		],
+		"guild_pts": 40,
+		"talk": {
+			"offer": [
+				"* \"CONTRATO (Rank C): goblin dourado avistado a sudeste. Ele é rápido. Ele é brilhante. Ele é muito irritante.\""
+			],
+			"accept": "Aceitar contrato",
+			"remind": "O goblin dourado anda pelo sudeste do vale (e foge!)",
+			"done": [
+				"Você pegou o dourado! Ninguém pega o dourado! Bom, agora alguém pegou.",
+				"[reward]Pagamento caprichado."
+			]
+		},
+		"side": true,
+		"desc": "Um goblin dourado foge de todo mundo pelo vale. A guilda quer o pó dourado dele.",
+		"objective": "Cace um goblin dourado pelo vale",
+		"reward_xp": 160,
+		"reward_gold": 120,
+		"reward_items": {}
+	},
+	"q_veloz": {
+		"name": "Contrato: Mordidas no Calcanhar",
+		"giver": "Quadro de Contratos",
+		"giver_id": "board",
+		"turn_in": "Lina, da Guilda",
+		"turn_in_id": "lina",
+		"type": "kill",
+		"target": "slime_veloz",
+		"count": 6,
+		"rank": "C",
+		"repeat": true,
+		"where": [
+			15,
+			800
+		],
+		"talk": {
+			"offer": [
+				"* \"CONTRATO (Rank C): 6 slimes velozes no Bosque Sussurrante. Os lenhadores pedem botas mais grossas ou um herói.\""
+			],
+			"accept": "Aceitar contrato",
+			"remind": "Slimes velozes, Bosque Sussurrante ({n})",
+			"done": [
+				"Calcanhares salvos! Os lenhadores mandaram um cesto de nozes. Eu comi metade. Desculpa.",
+				"[reward]Pagamento do contrato."
+			]
+		},
+		"side": true,
+		"desc": "Slimes velozes no Bosque Sussurrante estão mordendo o calcanhar dos lenhadores.",
+		"objective": "Slimes velozes derrotados no Bosque Sussurrante",
+		"reward_xp": 200,
+		"reward_gold": 80,
+		"reward_items": {}
+	},
+	"q_cavaleiro": {
+		"name": "Contrato: O Cavaleiro Sem Descanso",
+		"giver": "Quadro de Contratos",
+		"giver_id": "board",
+		"turn_in": "Lina, da Guilda",
+		"turn_in_id": "lina",
+		"type": "kill",
+		"target": "esqueleto_cavaleiro",
+		"count": 1,
+		"rank": "B",
+		"repeat": true,
+		"where": [
+			18,
+			-112
+		],
+		"guild_pts": 50,
+		"talk": {
+			"offer": [
+				"* \"CONTRATO (Rank B): Cavaleiro Esqueleto nas ruínas ao norte. Desafia todo mundo para duelo. Ganha todos. Muito chato.\""
+			],
+			"accept": "Aceitar contrato",
+			"remind": "O Cavaleiro Esqueleto fica nos fundos das ruínas, a nordeste",
+			"done": [
+				"O cavaleiro foi derrotado! Ele vai voltar, eles sempre voltam. Mas hoje, vitória!",
+				"[reward]Pagamento do contrato."
+			]
+		},
+		"side": true,
+		"desc": "O Cavaleiro Esqueleto das ruínas desafia todo mundo que passa.",
+		"objective": "Derrote um Cavaleiro Esqueleto",
+		"reward_xp": 260,
+		"reward_gold": 120,
+		"reward_items": {}
+	},
+	"q_brutos": {
+		"name": "Contrato: Brutamontes",
+		"giver": "Quadro de Contratos",
+		"giver_id": "board",
+		"turn_in": "Lina, da Guilda",
+		"turn_in_id": "lina",
+		"type": "kill",
+		"target": "goblin_bruto",
+		"count": 3,
+		"rank": "B",
+		"repeat": true,
+		"where": [
+			830,
+			0
+		],
+		"guild_pts": 50,
+		"talk": {
+			"offer": [
+				"* \"CONTRATO (Rank B): 3 goblins brutos. Grandes. Bravos. Com clava. Leve poções.\""
+			],
+			"accept": "Aceitar contrato",
+			"remind": "Goblins brutos nas ruínas ou na Mina de Cristal ({n})",
+			"done": [
+				"Três brutos a menos no mundo! A balança da guilda agradece.",
+				"[reward]Pagamento do contrato."
+			]
+		},
+		"side": true,
+		"desc": "Goblins brutos guardam as ruínas e a Mina de Cristal.",
+		"objective": "Goblins brutos derrotados (ruínas ou mina)",
+		"reward_xp": 300,
+		"reward_gold": 130,
+		"reward_items": {}
+	},
+	"q_cinzas": {
+		"name": "Contrato: Legião das Cinzas",
+		"giver": "Quadro de Contratos",
+		"giver_id": "board",
+		"turn_in": "Lina, da Guilda",
+		"turn_in_id": "lina",
+		"type": "kill",
+		"target": "esqueleto",
+		"count": 8,
+		"rank": "A",
+		"repeat": true,
+		"where": [
+			800,
+			800
+		],
+		"guild_pts": 60,
+		"targets": [
+			"esqueleto",
+			"esqueleto_arqueiro",
+			"esqueleto_mago",
+			"esqueleto_cavaleiro"
+		],
+		"talk": {
+			"offer": [
+				"* \"CONTRATO (Rank A): a legião de esqueletos do Pico das Cinzas continua marchando. Ninguém avisou que o chefe saiu.\""
+			],
+			"accept": "Aceitar contrato",
+			"remind": "Esqueletos no Pico das Cinzas ({n})",
+			"done": [
+				"A legião está menor! Ainda sobram uns ossos, mas a gente chega lá.",
+				"[reward]Pagamento de Rank A. Gaste bem!"
+			]
+		},
+		"side": true,
+		"desc": "Os restos da legião do Lich ainda andam pelo Pico das Cinzas.",
+		"objective": "Esqueletos derrotados no Pico das Cinzas",
+		"reward_xp": 450,
+		"reward_gold": 200,
+		"reward_items": {}
+	},
+	"gato": {
+		"name": "O Gato Fugitivo",
+		"giver": "Dona Zélia",
+		"giver_id": "zelia",
+		"turn_in": "Sr. Bigodes",
+		"turn_in_id": "gato",
+		"type": "talk",
+		"target": "gato",
+		"count": 1,
+		"where": [
+			22,
+			31
+		],
+		"guild_pts": 15,
+		"talk": {
+			"offer": [
+				"Ai, meu filho! Que bom que apareceu alguém! O Sr. Bigodes fugiu de novo!",
+				"Ele é laranja, gordo e muito orgulhoso. Sempre vai para o pomar, a leste da Horta, caçar passarinho. Nunca pegou nenhum.",
+				{
+					"choices": [
+						[
+							"Vou achar ele.",
+							[
+								"Ah, que amor de herói! Leve um pãozinho na volta!"
+							]
+						],
+						[
+							"Gatos voltam sozinhos.",
+							[
+								"O Sr. Bigodes não. Ele é orgulhoso demais para admitir que se perdeu."
+							]
+						]
+					]
+				},
+				"Você me ajuda?"
+			],
+			"accept": "Procurar o gato",
+			"remind": "O Sr. Bigodes deve estar no pomar, a leste da Horta. Chame \"psss psss\". Ele finge que não ouve.",
+			"done": [
+				"* (Um gato laranja enorme, sentado no chão do pomar, olhando um passarinho com desprezo.)",
+				"Miau.",
+				"* (Ele se esfrega na sua bota e sai andando para casa como se a ideia fosse dele.)",
+				"[reward]* (Lá da vila, dá para ouvir a Dona Zélia: \"SR. BIGODES!\". Ela deixou uns pãezinhos na sua mochila. Como? Ninguém sabe.)"
+			]
+		},
+		"side": true,
+		"desc": "O Sr. Bigodes, gato da Dona Zélia, fugiu de novo. Ela acha que ele foi para o pomar a leste da Horta.",
+		"objective": "Encontre o Sr. Bigodes no pomar (a leste da Horta)",
+		"reward_xp": 60,
+		"reward_gold": 25,
+		"reward_items": {
+			"bread": 2
+		}
+	},
+	"sopa": {
+		"name": "Sopa para o Guarda",
+		"giver": "Rufus, o Guarda",
+		"giver_id": "rufus",
+		"turn_in": "Rufus, o Guarda",
+		"turn_in_id": "rufus",
+		"type": "collect",
+		"target": "spicy_soup",
+		"count": 1,
+		"where": [
+			0,
+			33
+		],
+		"guild_pts": 25,
+		"talk": {
+			"offer": [
+				"Alto lá, cidadão! ...Ah, é o herói. Perdão. Estou de plantão há dois turnos.",
+				"Eu daria qualquer coisa por uma Sopa Picante. Tomate e pimenta-de-fogo, cozidos no caldeirão da Horta. Minha avó fazia.",
+				"Não posso sair do posto. Regulamento. Você me traria uma?"
+			],
+			"accept": "Trago a sopa",
+			"remind": "Sopa Picante: dois tomates e uma pimenta-de-fogo, no caldeirão da Horta. Estou contando os segundos. Literalmente.",
+			"done": [
+				"! SOPA! Ah, o cheiro... igualzinho ao da vó!",
+				"* (Rufus toma a sopa inteira em posição de sentido.)",
+				"[reward]Tome estas manoplas. Regulamento da guarda: quem alimenta a guarda, protege as mãos."
+			]
+		},
+		"side": true,
+		"desc": "O guarda Rufus está de plantão há dois turnos e só pensa em sopa picante.",
+		"objective": "Leve uma Sopa Picante ao Rufus (tomate e pimenta na Horta)",
+		"reward_xp": 80,
+		"reward_gold": 35,
+		"reward_items": {
+			"iron_gauntlets": 1
+		}
+	},
+	"minerio": {
+		"name": "Minério para o Doran",
+		"giver": "Doran, o Ferreiro",
+		"giver_id": "blacksmith",
+		"turn_in": "Doran, o Ferreiro",
+		"turn_in_id": "blacksmith",
+		"type": "collect",
+		"target": "iron_ore",
+		"count": 6,
+		"repeat": true,
+		"where": [
+			62,
+			0
+		],
+		"guild_pts": 25,
+		"talk": {
+			"offer": [
+				"! HERÓI! A FORJA TEM FOME! E ELA SÓ COME FERRO!",
+				"Os veios de ferro ficam em volta do acampamento goblin, a leste. Traga seis pedaços de minério e eu pago bem!"
+			],
+			"accept": "Trago o minério",
+			"remind": "SEIS MINÉRIOS! OS VEIOS FICAM PERTO DO ACAMPAMENTO GOBLIN! ({n})",
+			"done": [
+				"! ISSO! FERRO BOM! SINTO A FORJA SORRINDO!",
+				"[reward]Tome o pagamento. E volte sempre: a forja SEMPRE tem fome."
+			]
+		},
+		"side": true,
+		"desc": "Doran precisa de minério de ferro dos veios perto do acampamento goblin.",
+		"objective": "Minério de Ferro para o Doran (veios a leste)",
+		"reward_xp": 90,
+		"reward_gold": 40,
+		"reward_items": {}
+	},
+	"cristais": {
+		"name": "Cristais Arcanos",
+		"giver": "Pip, a Alquimista",
+		"giver_id": "alchemist",
+		"turn_in": "Pip, a Alquimista",
+		"turn_in_id": "alchemist",
+		"type": "collect",
+		"target": "arcane_crystal",
+		"count": 3,
+		"rank": "C",
+		"repeat": true,
+		"where": [
+			0,
+			-100
+		],
+		"guild_pts": 30,
+		"talk": {
+			"offer": [
+				"Hm. Herói. Preciso de três cristais arcanos. Tem nas ruínas ao norte e, dizem, uma mina inteira deles por aí.",
+				"É para uma poção que definitivamente não vai abrir um portal para outra dimensão. Uns 70% de certeza."
+			],
+			"accept": "Trago os cristais",
+			"remind": "Cristais arcanos: {n}. Nas ruínas ou na Mina de Cristal. Zzz.",
+			"done": [
+				"Três cristais. Perfeito. Agora... não olhe.",
+				"* (Um zumbido. Um clarão roxo. Por um segundo, a botica cheira a outra dimensão.)",
+				"[reward]Hm. Abriu um portal. Bem pequeno. Já fechei. Toma as poções e não conta pra ninguém."
+			]
+		},
+		"side": true,
+		"desc": "Pip quer cristais arcanos para uma poção que \"definitivamente não vai abrir um portal\".",
+		"objective": "Cristais Arcanos para a Pip (ruínas ou Mina de Cristal)",
+		"reward_xp": 140,
+		"reward_gold": 60,
+		"reward_items": {
+			"mana_potion": 2
+		}
+	},
+	"espantalho": {
+		"name": "O Espantalho Medroso",
+		"giver": "Seu Tonico",
+		"giver_id": "tonico",
+		"turn_in": "Seu Tonico",
+		"turn_in_id": "tonico",
+		"type": "kill",
+		"target": "slime",
+		"count": 8,
+		"where": [
+			-18,
+			-30
+		],
+		"guild_pts": 30,
+		"talk": {
+			"offer": [
+				"Ô, herói! Chega mais. Tá vendo aquele espantalho? Fiz com as minhas próprias mãos.",
+				"Os slimes subiram NELE. Fizeram ninho no chapéu. Agora o espantalho tem medo dos slimes.",
+				"Me dá uma mão? Oito slimes e a lavoura respira."
+			],
+			"accept": "Ajudar o Seu Tonico",
+			"remind": "Os slimes tão comendo meu milho! ({n})",
+			"done": [
+				"Ó, que beleza! Até o espantalho tá mais animado. Acho que vi ele sorrir.",
+				"[reward]Leva umas sementes boas da lavoura. Abóbora dá torta, viu? Mas isso você já sabe."
+			]
+		},
+		"side": true,
+		"desc": "Seu Tonico construiu um espantalho, mas os slimes não têm medo dele. Ninguém tem.",
+		"objective": "Slimes derrotados nos campos do Seu Tonico",
+		"reward_xp": 110,
+		"reward_gold": 45,
+		"reward_items": {
+			"seed_pumpkin": 2,
+			"seed_pepper": 2
+		}
+	},
+	"cacada": {
+		"name": "Caçada na Trilha",
+		"giver": "Ravi, o Caçador",
+		"giver_id": "ravi",
+		"turn_in": "Ravi, o Caçador",
+		"turn_in_id": "ravi",
+		"type": "kill",
+		"target": "goblin_arqueiro",
+		"count": 3,
+		"rank": "C",
+		"targets": [
+			"goblin_arqueiro",
+			"goblin_xama"
+		],
+		"where": [
+			62,
+			0
+		],
+		"guild_pts": 35,
+		"talk": {
+			"offer": [
+				"Psst. Fique abaixado. Estou caçando. Faz três dias. Não peguei nada.",
+				"É que os goblins arqueiros espantam toda a caça da trilha. E os xamãs ficam cantando. Desafinado.",
+				"Derrube três deles no acampamento e a floresta volta a ter silêncio."
+			],
+			"accept": "Vamos caçar",
+			"remind": "Arqueiros e xamãs no acampamento goblin. Silêncio é tudo, herói. ({n})",
+			"done": [
+				"Ouviu isso? ...Nada. Silêncio absoluto. Que maravilha.",
+				"[reward]Tome minha aljava reserva. Flecha boa é flecha que volta. Essa não volta, mas é boa."
+			]
+		},
+		"side": true,
+		"desc": "Ravi, o caçador, quer a trilha leste livre dos goblins arqueiros e xamãs.",
+		"objective": "Goblins arqueiros e xamãs derrotados no acampamento",
+		"reward_xp": 160,
+		"reward_gold": 60,
+		"reward_items": {
+			"hunter_quiver": 1
+		}
+	},
+	"aposentado": {
+		"name": "O Cavaleiro Aposentado",
+		"giver": "Sir Osvaldo",
+		"giver_id": "osvaldo",
+		"turn_in": "Sir Osvaldo",
+		"turn_in_id": "osvaldo",
+		"type": "kill",
+		"target": "esqueleto_mago",
+		"count": 4,
+		"rank": "B",
+		"targets": [
+			"esqueleto_mago",
+			"esqueleto_arqueiro"
+		],
+		"where": [
+			0,
+			-82
+		],
+		"guild_pts": 45,
+		"talk": {
+			"offer": [
+				"Hm? Um aventureiro? Sou Sir Osvaldo. Guardo estas ruínas há quarenta anos. Por hábito, mais que por ordem.",
+				"Na minha época, esqueleto ficava no cemitério e mago ficava na torre. Agora ficam os dois aqui, juntos. Uma bagunça.",
+				"Meus joelhos já não ajudam. Derrube quatro magos e arqueiros esqueletos por mim?"
+			],
+			"accept": "Pelo senhor, Sir Osvaldo",
+			"remind": "Magos e arqueiros, nas ruínas. Na minha época, era tudo mais simples. ({n})",
+			"done": [
+				"Muito bem! Lutou como um cavaleiro da velha guarda. Só que mais rápido. Bem mais rápido.",
+				"[reward]Tome meu elmo antigo. Usei na batalha do Vau Gelado. Perdi a batalha, mas o elmo é ótimo."
+			]
+		},
+		"side": true,
+		"desc": "Sir Osvaldo, um cavaleiro velho, guarda a entrada das ruínas e quer os magos e arqueiros esqueletos longe dela.",
+		"objective": "Magos e arqueiros esqueletos derrotados nas ruínas",
+		"reward_xp": 240,
+		"reward_gold": 100,
+		"reward_items": {
+			"knight_helm": 1
+		}
+	},
+	"sylvi_xama": {
+		"name": "Cantoria no Bosque",
+		"giver": "Sylvi, a Patrulheira",
+		"giver_id": "sylvi",
+		"turn_in": "Sylvi, a Patrulheira",
+		"turn_in_id": "sylvi",
+		"type": "kill",
+		"target": "goblin_xama",
+		"count": 3,
+		"rank": "C",
+		"where": [
+			24,
+			808
+		],
+		"guild_pts": 35,
+		"talk": {
+			"offer": [
+				"Três xamãs goblins acamparam a leste daqui. Cantam a noite toda. As árvores não dormem. Eu não durmo.",
+				"Uma patrulheira sem sono é uma patrulheira perigosa. Me ajuda?"
+			],
+			"accept": "Silêncio no bosque",
+			"remind": "Xamãs goblins a leste do acampamento ({n}). Ainda dá pra ouvir eles desafinando.",
+			"done": [
+				"Silêncio. As árvores agradecem. Uma delas até parou de fofocar.",
+				"[reward]Leve este arco élfico. Era da minha avó. Ela era melhor que eu. Não conte pra ela que eu disse isso."
+			]
+		},
+		"side": true,
+		"desc": "Xamãs goblins fazem rituais barulhentos no Bosque Sussurrante.",
+		"objective": "Xamãs goblins derrotados no Bosque Sussurrante",
+		"reward_xp": 220,
+		"reward_gold": 80,
+		"reward_items": {
+			"elven_bow": 1
+		}
+	},
+	"bolgar_cristal": {
+		"name": "Cristais do Bolgar",
+		"giver": "Bolgar, o Minerador",
+		"giver_id": "bolgar",
+		"turn_in": "Bolgar, o Minerador",
+		"turn_in_id": "bolgar",
+		"type": "collect",
+		"target": "arcane_crystal",
+		"count": 4,
+		"rank": "B",
+		"repeat": true,
+		"where": [
+			776,
+			-8
+		],
+		"guild_pts": 35,
+		"talk": {
+			"offer": [
+				"Esqueleto não paga aluguel, e agora tenho que reformar tudo! Me traz quatro cristais arcanos dos veios da mina?"
+			],
+			"accept": "Trago os cristais",
+			"remind": "Quatro cristais! Os veios brilham roxo, não tem como errar. ({n})",
+			"done": [
+				"Olha que brilho! Isso paga a reforma e ainda sobra pra uma cerveja. Ou três.",
+				"[reward]Toma tua parte. Anão honesto paga em dia. Às vezes adiantado."
+			]
+		},
+		"side": true,
+		"desc": "Bolgar quer cristais arcanos dos veios da mina para pagar a reforma.",
+		"objective": "Cristais Arcanos para o Bolgar (veios da mina)",
+		"reward_xp": 260,
+		"reward_gold": 140,
+		"reward_items": {}
+	},
+	"kael_treino": {
+		"name": "Treino com o Rival",
+		"giver": "Kael, a Lâmina Carmesim",
+		"giver_id": "kael_pico",
+		"turn_in": "Kael, a Lâmina Carmesim",
+		"turn_in_id": "kael_pico",
+		"type": "kill",
+		"target": "esqueleto_cavaleiro",
+		"count": 2,
+		"rank": "A",
+		"where": [
+			818,
+			794
+		],
+		"guild_pts": 60,
+		"talk": {
+			"offer": [
+				"Rival! Uma última competição antes de tudo acabar: dois cavaleiros esqueletos. Quem derrotar primeiro, vence!",
+				"...E se eu perder, pelo menos perdi pra você. Isso é quase ganhar."
+			],
+			"accept": "Competição aceita!",
+			"remind": "Cavaleiros esqueletos, nos lados do pico! ({n}) Eu... estou quase alcançando você!",
+			"done": [
+				"Dois?! Você é rápido demais! Eu derrotei... meio. Um meio cavaleiro. As pernas.",
+				"[reward]Toma. É um anel que eu achei com o Lich. Ele não vai precisar. Rival justo divide o saque."
+			]
+		},
+		"side": true,
+		"desc": "Kael quer provar que mudou: quem derrota mais Cavaleiros Esqueletos no Pico das Cinzas?",
+		"objective": "Cavaleiros Esqueletos derrotados no Pico das Cinzas",
+		"reward_xp": 420,
+		"reward_gold": 180,
+		"reward_items": {
+			"vampire_ring": 1
+		}
+	},
 	"natal_presentes": {
-		"name": "Presentes Espalhados",
 		"giver": "Papai Noel",
 		"event": "natal",
-		"type": "collect",
+		"side": true,
+		"guild_pts": 20,
+		"name": "Presentes Espalhados",
+		"type": "gather",
 		"desc": "Uma rena se assustou e os presentes caíram do trenó por todo o vale. Encontre os 8 presentes e traga de volta.",
 		"count": 8,
 		"reward_xp": 220,
@@ -47,43 +1410,114 @@
 		"reward_items": {
 			"health_potion": 3,
 			"seed_pumpkin": 3
-		}
+		},
+		"giver_id": "santa",
+		"turn_in": "Papai Noel",
+		"turn_in_id": "santa",
+		"talk": {
+			"offer": [
+				"! Ho, ho, ho! Feliz Natal, {heroi}! O velho Noel está numa enrascada...",
+				"Uma das renas se assustou com um slime no meio do voo. O saco abriu e os presentes caíram por todo o vale!",
+				"Procure nos campos, perto das ruínas, da floresta e do ninho dos slimes. Eles brilham, não tem como errar."
+			],
+			"accept": "Procurar os presentes",
+			"remind": "Os presentes brilham no chão: campos, ruínas, floresta, ninho dos slimes e o caminho da arena. ({n})",
+			"done": [
+				"! Todos de volta no saco! Nenhuma criança vai ficar sem o seu presente!",
+				"* (O Noel confere cada laço, um por um. Demora um pouco.)",
+				"[reward]Tome, isto é para você. Feliz Natal!"
+			]
+		},
+		"objective": "Presentes encontrados pelo vale"
 	},
 	"natal_ladroes": {
-		"name": "Ladrões de Natal",
 		"giver": "Papai Noel",
 		"event": "natal",
+		"side": true,
+		"guild_pts": 20,
+		"name": "Ladrões de Natal",
 		"type": "kill",
 		"desc": "Goblins andam roubando as meias penduradas nas janelas. Derrote 6 goblins de qualquer tipo.",
-		"target": "goblin*",
+		"targets": [
+			"goblin",
+			"goblin_arqueiro",
+			"goblin_xama",
+			"goblin_dourado",
+			"goblin_campeao",
+			"goblin_bruto",
+			"goblin_king",
+			"goblin_bombardeiro"
+		],
 		"count": 6,
 		"reward_xp": 320,
 		"reward_gold": 200,
 		"reward_items": {
 			"wind_ring": 1
-		}
+		},
+		"giver_id": "santa",
+		"turn_in": "Papai Noel",
+		"turn_in_id": "santa",
+		"talk": {
+			"offer": [
+				"Tem mais uma coisa me tirando o sono... e olha que eu durmo pouco em dezembro.",
+				"Goblins andam rondando as janelas e roubando as meias penduradas. Que falta de espírito natalino!",
+				"Seis goblins, de qualquer tipo. Eles ficam no acampamento a leste e nas ruínas ao norte."
+			],
+			"accept": "Recuperar as meias",
+			"remind": "Os goblins ficam no acampamento a leste e nas ruínas ao norte. ({n})",
+			"done": [
+				"Ho, ho! As meias estão a salvo! Aqueles goblins vão ganhar carvão este ano.",
+				"[reward]Um anel para dedos rápidos. Combina com quem corre atrás de goblin."
+			]
+		},
+		"objective": "Goblins derrotados",
+		"where": [
+			62,
+			0
+		]
 	},
 	"natal_ceia": {
-		"name": "A Ceia do Noel",
 		"giver": "Papai Noel",
 		"event": "natal",
+		"side": true,
+		"guild_pts": 20,
+		"name": "A Ceia do Noel",
 		"type": "deliver",
-		"desc": "O Noel quer uma ceia caseira antes da grande viagem: leve 1 Torta de Abóbora e 2 Pães Rústicos (cozinhe no Caldeirão da Horta).",
+		"desc": "O Noel quer uma ceia caseira antes da grande viagem: leve 2 Pães Rústicos e 1 Ensopado de Cenoura (cozinhe no Caldeirão da Horta).",
 		"deliver": {
-			"pumpkin_pie": 1,
-			"bread": 2
+			"bread": 2,
+			"carrot_stew": 1
 		},
 		"count": 1,
 		"reward_xp": 260,
 		"reward_gold": 160,
 		"reward_items": {
 			"valdoria_feast": 2
-		}
+		},
+		"giver_id": "santa",
+		"turn_in": "Papai Noel",
+		"turn_in_id": "santa",
+		"talk": {
+			"offer": [
+				"Uma viagem dessas pede uma boa ceia. Disseram que a Horta de Valdoria é a melhor do reino...",
+				"~ Não conte para a Mamãe Noel, mas eu trocaria todos os biscoitos do Polo por um pão quentinho.",
+				"Dois Pães Rústicos e um Ensopado de Cenoura. As renas também gostam de cenoura, então... faça bastante."
+			],
+			"accept": "Preparar a ceia",
+			"remind": "Plante e cozinhe no Caldeirão da Horta, pelo portão sul: 2 Pães Rústicos e 1 Ensopado de Cenoura.",
+			"done": [
+				"! Hmm, que cheiro! Pão quentinho e ensopado... igualzinho ao da Mamãe Noel. Não conte a ela.",
+				"[reward]Um banquete para você também. Ninguém passa fome no Natal!"
+			]
+		},
+		"objective": "Leve 2 Pães Rústicos e 1 Ensopado de Cenoura ao Noel"
 	},
 	"natal_entregas": {
-		"name": "Entregas na Vila",
 		"giver": "Papai Noel",
 		"event": "natal",
+		"side": true,
+		"guild_pts": 20,
+		"name": "Entregas na Vila",
 		"type": "visit",
 		"desc": "Ajude o Noel a deixar presentes nas 6 casas marcadas com uma estrela pelas ruas de Valdoria.",
 		"count": 6,
@@ -91,6 +1525,27 @@
 		"reward_gold": 180,
 		"reward_items": {
 			"sage_amulet": 1
-		}
+		},
+		"giver_id": "santa",
+		"turn_in": "Papai Noel",
+		"turn_in_id": "santa",
+		"talk": {
+			"offer": [
+				"Algumas famílias pediram para receber os presentes antes da grande noite.",
+				"Marquei as portas com uma estrela dourada. São seis casas, espalhadas pelas ruas novas da vila.",
+				"Eu iria pessoalmente, mas a chaminé da taverna... digamos que ficou apertada."
+			],
+			"accept": "Fazer as entregas",
+			"remind": "As casas com a estrela dourada na porta esperam o presente. ({n})",
+			"done": [
+				"Todas as casas receberam o presente! Ouvi daqui as crianças comemorando.",
+				"[reward]Um amuleto para quem entrega alegria. Ho, ho, ho!"
+			]
+		},
+		"objective": "Casas da vila visitadas",
+		"where": [
+			0,
+			4
+		]
 	}
 }

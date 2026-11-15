@@ -583,7 +583,7 @@ func _spawn_boss() -> void:
 
 
 ## Chamado pelo Rei Goblin enfurecido (get_parent().summon_minions).
-func summon_minions(pos: Vector3, n: int) -> void:
+func summon_minions(pos: Vector3, n: int, _kind := "goblin") -> void:
 	if phase == "over":
 		return
 	for i in n + 1:

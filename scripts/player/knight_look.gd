@@ -253,7 +253,7 @@ static func _tinted(src: BaseMaterial3D, c: Color, glow: float) -> BaseMaterial3
 # ------------------------------------------------------------------ armas
 static func _build_sword(h: Node3D, tip: Node3D, id: String) -> void:
 	var it := ItemDB.get_item(id)
-	if it.has("model") and _build_model(h, tip, it.model):
+	if it.has("model") and _build_model(h, tip, it.model) != null:
 		return
 	var shape: String = it.get("shape", "")
 	var length := 0.86
@@ -309,21 +309,29 @@ static func _build_sword(h: Node3D, tip: Node3D, id: String) -> void:
 ## O lado esquerdo da folha de conceito (-X do GLB, para onde as lâminas curvas dobram: as costas) vai para
 ## +Y do suporte, como a "saber" procedural: ponta curvando para cima e gume para baixo na guarda, liderando
 ## o golpe. Com -X -> +Y, o eixo Z do GLB vira -X do suporte (giro de 180° no eixo da lâmina, sem espelhar).
-static func _build_model(h: Node3D, tip: Node3D, model: String) -> bool:
+static func _build_model(h: Node3D, tip: Node3D, model: String, basis := SWORD_BASIS) -> Node3D:
 	var path := "res://assets/models/%s.glb" % model
 	if not ResourceLoader.exists(path):
-		return false
+		return null
 	var w := (load(path) as PackedScene).instantiate() as Node3D
 	WeaponModel.use_vertex_color(w)
-	w.transform = Transform3D(Basis(Vector3(0, -1, 0), Vector3(0, 0, 1), Vector3(-1, 0, 0)), Vector3.ZERO)
+	w.transform = Transform3D(basis, Vector3.ZERO)
 	h.add_child(w)
 	var t := w.find_child("Tip", true, false) as Node3D
 	tip.position = w.transform * t.position if t else Vector3(0, 0, 1.0)
-	return true
+	return w
 
 
+const SWORD_BASIS := Basis(Vector3(0, -1, 0), Vector3(0, 0, 1), Vector3(-1, 0, 0))
+
+
+## Cajado modelado no Blender (st_<id>.glb, tools/blender/armory.py): a haste já sobe em +Y do GLB, como o suporte
+## espera; o "Tip" é o centro da gema, onde nascem os projéteis e a luz.
 static func _build_staff(h: Node3D, tip: Node3D, id: String) -> void:
 	var it := ItemDB.get_item(id)
+	if it.has("model") and _build_model(h, tip, it.model, Basis.IDENTITY) != null:
+		_gem_light(h, tip.position, it.color)
+		return
 	var wood := _mat(it.get("wood", Color(0.45, 0.3, 0.16)), false)
 	var gem_c: Color = it.color
 	h.add_child(_cyl(0.022, 0.028, 1.5, wood, Vector3(0, 0.2, 0)))
@@ -338,18 +346,26 @@ static func _build_staff(h: Node3D, tip: Node3D, id: String) -> void:
 	var gem := _sphere(0.065 if it.rarity != "legendary" else 0.085, _glow_mat(gem_c, 2.2 + it.get("glow", 0.0)), top + Vector3(0, 0.1, 0))
 	gem.scale = Vector3(1, 1.35, 1)
 	h.add_child(gem)
+	_gem_light(h, top + Vector3(0, 0.1, 0), gem_c)
+	tip.position = top + Vector3(0, 0.1, 0)
+
+
+static func _gem_light(h: Node3D, at: Vector3, c: Color) -> void:
 	var lt := OmniLight3D.new()
-	lt.light_color = gem_c
+	lt.light_color = c
 	lt.light_energy = 0.7
 	lt.omni_range = 2.2
-	lt.position = top + Vector3(0, 0.1, 0)
+	lt.position = at
 	h.add_child(lt)
-	tip.position = top + Vector3(0, 0.1, 0)
 
 
 ## Arco vertical na mão esquerda (+Z = para frente). Devolve a flecha encaixada (oculta).
 static func _build_bow(h: Node3D, tip: Node3D, id: String) -> Node3D:
 	var it := ItemDB.get_item(id)
+	if it.has("model"):
+		var w := _build_model(h, tip, it.model, Basis.IDENTITY)
+		if w != null:
+			return _model_arrow(h, w)
 	var wood := _bow_mat(id)
 	var half := 0.62 if it.rarity in ["rare", "epic", "legendary"] else 0.55
 	var n := 6
@@ -381,6 +397,22 @@ static func _build_bow(h: Node3D, tip: Node3D, id: String) -> Node3D:
 	arrow.add_child(_cyl(0.0, 0.022, 0.07, head_m, Vector3(0, 0, 0.71), Vector3(PI / 2, 0, 0)))
 	arrow.add_child(_box(Vector3(0.004, 0.04, 0.09), _mat(Color(0.9, 0.25, 0.2), false), Vector3(0, 0, -0.02)))
 	tip.position = Vector3(0, 0, 0.3)
+	return arrow
+
+
+## Arco modelado no Blender (bw_<id>.glb, tools/blender/armory.py): braços em ±Y, corda atrás (-Z). A flecha
+## (bw_arrow.glb, ponta em +Z) encaixa no empty "Nock", o centro da corda; o "Tip" fica 0,3 m à frente.
+static func _model_arrow(h: Node3D, bow: Node3D) -> Node3D:
+	var arrow := Node3D.new()
+	arrow.visible = false
+	var nock := bow.find_child("Nock", true, false) as Node3D
+	arrow.position = bow.transform * nock.position if nock else Vector3(0, 0, -0.14)
+	h.add_child(arrow)
+	const ARROW := "res://assets/models/bw_arrow.glb"
+	if ResourceLoader.exists(ARROW):
+		var a := (load(ARROW) as PackedScene).instantiate() as Node3D
+		WeaponModel.use_vertex_color(a)
+		arrow.add_child(a)
 	return arrow
 
 

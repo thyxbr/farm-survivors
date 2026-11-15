@@ -19,8 +19,9 @@ const W := -PI / 2
 ## Limites da cerca (x0, x1, z0, z1) e as aberturas: [lado, centro, meia largura].
 const BOUNDS := Rect2(-36, -18, 75, 45)
 ## O lado sul não tem cerca entre x = -12 e 12: ali a cerca da Horta faz a divisa (com o portão dela).
-## No oeste, em z = 10, a Muralha da base ocupa o vão da cerca.
-const GATES := [["n", 0.0, 3.0], ["e", 0.0, 3.0], ["w", 2.5, 3.0], ["w", 10.0, 2.6], ["s", 20.0, 2.0]]
+## No oeste, em z = 10, a Muralha da base ocupa o vão da cerca. O portão norte é largo: a carruagem da guilda
+## (Regions.coach_point("vila")) para logo ali, no começo da trilha dos campos.
+const GATES := [["n", -5.0, 8.2], ["e", 0.0, 3.0], ["w", 2.5, 3.0], ["w", 10.0, 2.6], ["s", 20.0, 2.0]]
 const SOUTH_OPEN := 12.0
 
 ## Ruas pintadas no chão: [centro, tamanho (x, z)].
@@ -98,10 +99,11 @@ const POINTS := [
 ## Largo dos Ecos (calçamento em volta do Orin, da mesa de guerra e dos recordes).
 const LARGO := Vector3(21.0, 0, 7.6)
 
-## Papai Noel: perto da árvore de Natal grande, de frente para a praça; o trenó fica atrás dele.
-const SANTA := Vector3(5.8, 0, -8.6)
-const SANTA_YAW := -0.54
-const SLEIGH := Vector3(12.6, 0, -11.2)
+## Papai Noel: do outro lado da árvore de Natal grande (a Lina e o Quadro de Contratos da guilda ficam do lado
+## oeste dela), de frente para a praça; o trenó fica entre ele e a árvore.
+const SANTA := Vector3(16.0, 0, -11.4)
+const SANTA_YAW := -0.92
+const SLEIGH := Vector3(12.7, 0, -11.9)
 
 ## Entregas na Vila: índices em HOUSES das 6 casas que recebem presente.
 const DELIVERY := [1, 4, 7, 9, 10, 13]
