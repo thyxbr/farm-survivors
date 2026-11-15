@@ -115,10 +115,6 @@ var input_locked := false
 var horde_frozen := false
 ## Digitando no chat: as teclas vão para a caixa de texto, não para o personagem.
 var chat_typing := false
-## Defesa da Cidade: no modo construção o clique posiciona prédios (sem atacar, esquivar ou conjurar).
-var build_lock := false
-## Praça: além do build_lock, sem poção de mana nem comida (lá não há combate).
-var peaceful := false
 ## Emote em andamento (KnightEmotes.KINDS) ou "". Andar, pular ou abrir o chat cancela.
 var emote := ""
 var _emote_t := 0.0
@@ -317,7 +313,7 @@ func _local_process(delta: float) -> void:
 	_regen(delta)
 
 	var loading: bool = Loading.covering   # tela de carregamento: sem controle até ela abrir
-	if input_locked or horde_frozen or chat_typing or build_lock or loading:
+	if input_locked or horde_frozen or chat_typing or loading:
 		end_ability()
 	if input_locked or horde_frozen or chat_typing or loading:
 		aiming = false
@@ -387,29 +383,27 @@ func _local_process(delta: float) -> void:
 		velocity.y = JUMP_VELOCITY
 	# com arco o botão direito mira: o mesmo clique não esquiva (a esquiva fica no Ctrl/Alt)
 	var aim_click: bool = look["class"] == "bow" and Input.is_action_just_pressed("aim")
-	if Input.is_action_just_pressed("dodge") and not build_lock and not aim_click:
+	if Input.is_action_just_pressed("dodge") and not aim_click:
 		_dodge_pressed(dir)
-	if look["class"] != "bow" or build_lock or busy:
+	if look["class"] != "bow" or busy:
 		aiming = false
-	if build_lock:
-		_cancel_draw()
-	elif busy:
+	if busy:
 		pass   # habilidade em execução: sem ataque nem arco
 	elif look["class"] == "bow":
 		_update_bow(delta)
 	elif Input.is_action_just_pressed("attack"):
 		_try_attack()
 	for i in 4:
-		if Input.is_action_just_pressed("spell_%d" % (i + 1)) and not build_lock:
+		if Input.is_action_just_pressed("spell_%d" % (i + 1)):
 			use_slot(i + 1)
 	# soltou a tecla da habilidade em execução (ex.: o arqueiro solta a flecha ao largar a tecla)
 	if ability != "" and ability_slot >= 1 and Input.is_action_just_released("spell_%d" % ability_slot):
 		_ab_module(ability).release(self)
-	if Input.is_action_just_pressed("potion") and not build_lock:   # R gira a construção no modo construção
+	if Input.is_action_just_pressed("potion"):
 		_quick_potion("health_potion")
-	if Input.is_action_just_pressed("mana_potion") and not peaceful:
+	if Input.is_action_just_pressed("mana_potion"):
 		_quick_potion("mana_potion")
-	if Input.is_action_just_pressed("eat") and not peaceful:
+	if Input.is_action_just_pressed("eat"):
 		Game.eat_selected()
 	if Input.is_action_just_pressed("food_next"):
 		Game.cycle_food()
@@ -590,7 +584,7 @@ func _do_hit() -> void:
 		hit_any = true
 		hit_enemy = true
 		flesh = flesh or str(e.data.get("model", "")) != "slime"
-	# nós de recurso da Defesa da Cidade (árvores, pedras, veios...): mesmo alcance e mesmo cone
+	# veios de ferro e cristal de Valdoria: mesmo alcance e mesmo cone
 	for n in get_tree().get_nodes_in_group("harvest"):
 		if not n.alive:
 			continue
@@ -1145,7 +1139,7 @@ func _find_interact_target() -> void:
 	var best: Node3D = null
 	var best_d := 3.0
 	for n in get_tree().get_nodes_in_group("interactable"):
-		# alvos grandes (construções da cidade) medem a partir da borda, não do centro
+		# alvos grandes medem a partir da borda, não do centro
 		var d: float = n.interact_distance(global_position) if n.has_method("interact_distance") \
 			else n.global_position.distance_to(global_position)
 		if d < best_d:

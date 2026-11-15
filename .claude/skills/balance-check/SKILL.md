@@ -1,7 +1,7 @@
 ---
 name: balance-check
-description: "Confere o balanceamento do Ecos de Valdoria a partir dos dados reais do código: armas e itens por raridade, preços da loja, curva de XP, inimigos e loot, cartas e combos do Desafio da Horda, economia da Defesa da Cidade e receitas. Use quando pedirem para checar balanceamento, achar item quebrado, outlier, estratégia dominante, curva de progressão ou economia."
-argument-hint: "[combate | itens | loot | progressao | horda | cidade | comida | caminho/do/arquivo.gd]"
+description: "Confere o balanceamento do Ecos de Valdoria a partir dos dados reais do código: armas e itens por raridade, preços da loja, curva de XP, inimigos e loot, cartas e combos do Desafio da Horda e receitas. Use quando pedirem para checar balanceamento, achar item quebrado, outlier, estratégia dominante, curva de progressão ou economia."
+argument-hint: "[combate | itens | loot | progressao | horda | comida | caminho/do/arquivo.gd]"
 license: MIT
 metadata:
   adapted-from: https://github.com/Donchitos/Claude-Code-Game-Studios (.claude/skills/balance-check)
@@ -37,7 +37,6 @@ Pelo argumento (se não houver, pergunte):
 | `loot` | chance de drop por inimigo, ouro por inimigo, raridade esperada por região | `TYPES[*].loot` e `gold` em `scripts/enemies/enemy.gd`; `drop_loot()` |
 | `progressao` | `xp_to_next()` = `int(60 * level^1.55)`, XP por inimigo e por missão, 3 pontos por nível, magias por nível | `scripts/autoload/game.gd`, `QUESTS`/`ABILITIES` em `item_db.gd`, `TYPES[*].xp` |
 | `horda` | `xp_needed()` da partida, armas automáticas, passivas, bênçãos, combos em grupo, eventos | `scripts/survival/survival_mode.gd`, `upgrades.gd`, `horde_events.gd`, `auto_weapons.gd` |
-| `cidade` | ouro/comida por dia, impostos x crescimento, custo x HP das construções, torres (dano/alcance/cadência), chefe a cada 5 noites | `scripts/colony/colony_data.gd`, `colony.gd`, `soldier.gd` |
 | `comida` | colheitas, receitas, buffs e recarga de comer | `CROPS`/`RECIPES` em `item_db.gd`; `EAT_COOLDOWN` em `game.gd`; `scripts/farm/` |
 
 Caminho de arquivo como argumento: leia o arquivo e deduza o domínio.
@@ -53,7 +52,7 @@ grep '^BALANCE_JSON ' "$TEMP/balance.log" | cut -c14- > "$TEMP/balance.json"
 ```
 
 O JSON tem as constantes de `item_db`, `enemy`, `upgrades`, `horde_events`,
-`colony_data` e `game`. Fórmulas (dano, XP, escala de atributo, dificuldade da horda) não
+e `game`. Fórmulas (dano, XP, escala de atributo, dificuldade da horda) não
 são constantes: leia as funções no código e cite `arquivo:linha`.
 
 Faça as contas com um script Python no scratchpad lendo esse JSON (`python -I script.py
@@ -77,10 +76,6 @@ Toda conta cita de onde veio o valor. Checagens por domínio:
 - **Horda:** curva de `xp_needed()` × XP que cai por rodada; arma/passiva/bênção que
   domina todas as outras; combos em grupo fortes demais com 2+ jogadores; eventos
   (`SAW`, `EVENT_CHANCE`) que tornam rodadas impossíveis ou triviais.
-- **Cidade:** ouro e comida por dia x custo das construções ao longo dos dias; imposto
-  alto compensa sempre (`TAX` x `GROWTH`)?; torre com dano por ouro muito acima das
-  outras; reparo/demolição (`REFUND`, `REPAIR_RATIO`) permitindo lucro; valores de
-  cooperação (`COOP_*`) por jogador.
 - **Comida:** buff por custo de plantio e tempo de colheita; receita que domina as
   outras.
 

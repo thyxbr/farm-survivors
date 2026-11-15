@@ -1,13 +1,12 @@
 extends Node
 ## Autoload das tabelas de balanceamento. Carrega data/balance/*.json e repovoa as `static var`
-## de ItemDB, ColonyData, UPG, Enemy e HordeEvents, que antes eram `const`. Fica ANTES do
+## de ItemDB, UPG, Enemy e HordeEvents, que antes eram `const`. Fica ANTES do
 ## ItemDB em project.godot. O resto do código continua lendo ItemDB.ITEMS, Enemy.TYPES etc.
 ## BalanceTables é uma classe pura (sem autoload) para as regras poderem ser testadas sozinhas;
 ## este nó só guarda a instância do jogo e avisa quando as tabelas trocam (`changed`).
 
 # preload dos scripts (e não dos nomes de autoload): o ItemDB ainda nem existe quando este _init roda
 const _ITEM_DB := preload("res://scripts/autoload/item_db.gd")
-const _COLONY := preload("res://scripts/colony/colony_data.gd")
 const _UPG := preload("res://scripts/survival/upgrades.gd")
 const _ENEMY := preload("res://scripts/enemies/enemy.gd")
 const _EVENTS := preload("res://scripts/survival/horde_events.gd")
@@ -61,12 +60,3 @@ func _populate() -> void:
 	var ev := t.get_table("horde_events")
 	_EVENTS.EVENTS = ev.get("events", {})
 	_EVENTS.HUNT = ev.get("hunt", {})
-	var c := t.get_table("colony")
-	_COLONY.BUILDINGS = c.get("buildings", {})
-	_COLONY.UNITS = c.get("units", {})
-	_COLONY.ANIMALS = c.get("animals", {})
-	_COLONY.WAVE_COSTS = c.get("wave_costs", {})
-	_COLONY.COST_GROWTH = c.get("cost_growth", {})
-	_COLONY.UPKEEP = c.get("upkeep", {})
-	_COLONY.AFFIXES = c.get("affixes", {})
-	_COLONY.NIGHT_MODS = c.get("night_mods", {})

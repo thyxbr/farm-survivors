@@ -10,10 +10,15 @@ enum Kind { SUN, RAIN, SNOW, WIND }
 const NAMES := ["sol", "chuva", "neve", "vento"]
 ## Cada clima dura um trecho fixo do relógio.
 const SEGMENT := 420.0
-## Peso de sorteio de cada clima (sol, chuva, neve, vento).
-const WEIGHTS := [40, 25, 17, 18]
-## No outono (SeasonRules) chove e venta mais e quase não neva.
-const AUTUMN_WEIGHTS := [30, 33, 4, 33]
+## Peso de sorteio de cada clima (sol, chuva, neve, vento) em cada estação, na ordem de
+## SeasonRules.Kind: primavera e verão não nevam, o outono chove e venta mais e quase não neva,
+## o inverno neva bastante.
+const SEASON_WEIGHTS := [
+	[42, 33, 0, 25],   # primavera
+	[58, 22, 0, 20],   # verão
+	[30, 33, 4, 33],   # outono
+	[28, 7, 45, 20],   # inverno
+]
 const SEED := 7349
 
 ## Intensidades-alvo de cada clima: chuva caindo, neve caindo, vento e nuvens (0..1).
@@ -44,9 +49,13 @@ const DRY_SNOW := 80.0
 const MELT_TO_WATER := 0.6
 
 
-## Clima no instante t (segundos Unix).
+## Clima no instante t (segundos Unix). Um trecho pode começar numa estação e terminar na
+## seguinte: se a estação de agora não neva, a neve sorteada vira chuva (o degelo da virada).
 static func kind_at(t: float, seed_value := SEED) -> int:
-	return kind_of_segment(segment_of(t), seed_value)
+	var k := kind_of_segment(segment_of(t), seed_value)
+	if k == Kind.SNOW and SEASON_WEIGHTS[SeasonRules.kind_at(t)][Kind.SNOW] == 0:
+		return Kind.RAIN
+	return k
 
 
 static func segment_of(t: float) -> int:
@@ -64,7 +73,7 @@ static func kind_of_segment(i: int, seed_value := SEED) -> int:
 
 ## Pesos do sorteio no trecho i: dependem da estação em que o trecho começa.
 static func weights_of_segment(i: int) -> Array:
-	return AUTUMN_WEIGHTS if SeasonRules.kind_at(i * SEGMENT) == SeasonRules.Kind.AUTUMN else WEIGHTS
+	return SEASON_WEIGHTS[SeasonRules.kind_at(i * SEGMENT)]
 
 
 static func _roll(i: int, seed_value: int, salt: int) -> int:

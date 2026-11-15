@@ -2,30 +2,36 @@ extends Node
 ## Grupo do multiplayer (até PartyBook.MAX_MEMBERS jogadores).
 ##
 ## Servidor: guarda os grupos (PartyBook), recebe os pedidos (convidar, aceitar, recusar, sair, expulsar),
-## a vida de cada membro, e manda a cada jogador o estado do grupo dele. No abate, Network usa
+## a vida, a mana e os buffs de comida de cada membro, e manda a cada jogador o estado do grupo dele. No abate, Network usa
 ## `server_kill_rewards` (PartyRules): o XP do monstro é dividido entre o grupo em Valdoria e o abate conta
 ## na missão de quem está perto do combate.
 ## Cliente: o estado do grupo (`members`), o convite recebido (`invite`) e os pedidos.
 ## As RPCs moram aqui (e não no Network, cujos ids de RPC seguem a ordem alfabética).
 
-## Cliente: o grupo mudou (entrou, saiu, vida, nível, zona).
+## Cliente: o grupo mudou (entrou, saiu, vida, mana, buffs, nível, zona).
 signal changed
 ## Cliente: chegou ou sumiu um convite.
 signal invite_changed
 
 ## Segundos entre os envios de vida (cliente) e de estado do grupo (servidor).
 const PULSE := 1.0
+## O cliente reenvia os buffs pelo menos a cada tanto (acerta o relógio dos outros), mesmo sem mudança.
+const VITALS_RESEND := 10.0
 
 var book := PartyBook.new()
-## Servidor: peer -> fração de vida (0..1) informada pelo cliente.
-var _hp := {}
+## Servidor: peer -> {"hp", "mp" (0..1), "buffs": {comida: segundos}, "at": instante do envio}.
+var _vitals := {}
 var _pulse_t := 0.0
 
-## Cliente: membros do grupo [{"peer", "name", "level", "hp", "zone", "leader": bool}] ([] = sem grupo).
+## Cliente: membros do grupo [{"peer", "name", "level", "hp", "mp", "buffs": {comida: segundos}, "zone",
+## "leader": bool}] ([] = sem grupo).
 var members: Array = []
+## Cliente: instante (s) em que `members` chegou (os segundos dos buffs contam a partir daí).
+var members_at := 0.0
 ## Cliente: convite esperando resposta {"from": peer, "name": nome} ou {}.
 var invite := {}
-var _sent_hp := -1.0
+var _sent := {}
+var _sent_t := 0.0
 
 
 func _ready() -> void:
@@ -43,7 +49,7 @@ func _physics_process(delta: float) -> void:
 		if not book.party_of.is_empty():
 			_push_all()
 	elif Network.is_client() and in_party():
-		_client_send_hp()
+		_client_send_vitals()
 
 
 # ================================================================ cliente
@@ -104,7 +110,7 @@ func request_kick(peer: int) -> void:
 func client_reset() -> void:
 	members = []
 	invite = {}
-	_sent_hp = -1.0
+	_sent = {}
 	changed.emit()
 	invite_changed.emit()
 
@@ -114,26 +120,41 @@ func _send(op: String, peer: int, text: String) -> void:
 		_party_req.rpc_id(1, op, peer, text)
 
 
-func _client_send_hp() -> void:
+## Vida, mana e buffs de comida deste jogador para o quadro do grupo: só quando mudam (ou a cada
+## VITALS_RESEND s, para os segundos dos buffs não se perderem).
+func _client_send_vitals() -> void:
 	var w = Network.world
 	if w == null or w.get("player") == null or not is_instance_valid(w.player):
 		return
-	var frac := clampf(Game.hp / maxf(1.0, Game.max_hp()), 0.0, 1.0)
-	if w.player.dead:
-		frac = 0.0
-	if absf(frac - _sent_hp) < 0.01:
+	var hp := 0.0 if w.player.dead else clampf(Game.hp / maxf(1.0, Game.max_hp()), 0.0, 1.0)
+	var mp := clampf(Game.mp / maxf(1.0, Game.max_mp()), 0.0, 1.0)
+	var buffs := {}
+	for id in Game.food_buffs:
+		buffs[id] = int(ceil(float(Game.food_buffs[id])))
+	var now := Time.get_ticks_msec() / 1000.0
+	var same: bool = not _sent.is_empty() and absf(hp - float(_sent.hp)) < 0.01 and absf(mp - float(_sent.mp)) < 0.01 \
+		and buffs.keys() == (_sent.buffs as Dictionary).keys()
+	if same and now - _sent_t < VITALS_RESEND:
 		return
-	_sent_hp = frac
-	_party_hp.rpc_id(1, frac)
+	_sent = {"hp": hp, "mp": mp, "buffs": buffs}
+	_sent_t = now
+	_party_vitals.rpc_id(1, hp, mp, buffs)
+
+
+## Segundos restantes do buff `id` do membro `m`, contados desde que o estado chegou.
+func buff_left(m: Dictionary, id: String) -> float:
+	return maxf(0.0, float(m.get("buffs", {}).get(id, 0)) - (Time.get_ticks_msec() / 1000.0 - members_at))
 
 
 @rpc("authority", "call_remote", "reliable")
 func _party_state(list: Array) -> void:
 	var had := in_party()
 	members = list
+	members_at = Time.get_ticks_msec() / 1000.0
 	if had and not in_party():
 		Game.notify.emit("Você saiu do grupo.", Color(0.75, 0.8, 0.9))
-	_sent_hp = -1.0
+	if not had and in_party():
+		_sent = {}   # entrou agora: manda os próprios dados na hora
 	changed.emit()
 
 
@@ -206,10 +227,12 @@ func _party_req(op: String, peer: int, text: String) -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _party_hp(frac: float) -> void:
+func _party_vitals(hp: float, mp: float, buffs: Dictionary) -> void:
 	var id := multiplayer.get_remote_sender_id()
-	if Network.is_server() and Network.players.has(id) and is_finite(frac):
-		_hp[id] = clampf(frac, 0.0, 1.0)
+	if not Network.is_server() or not Network.players.has(id) or not is_finite(hp) or not is_finite(mp):
+		return
+	_vitals[id] = {"hp": clampf(hp, 0.0, 1.0), "mp": clampf(mp, 0.0, 1.0),
+		"buffs": PartyRules.clean_buffs(buffs, ItemDB.ITEMS), "at": Time.get_ticks_msec() / 1000.0}
 
 
 func _server_leave(id: int, msg: String) -> void:
@@ -228,7 +251,7 @@ func _server_leave(id: int, msg: String) -> void:
 
 ## Servidor: o peer saiu do jogo (Network._drop_player).
 func server_peer_gone(id: int) -> void:
-	_hp.erase(id)
+	_vitals.erase(id)
 	if book.in_party(id):
 		var before := book.members(id)
 		book.drop(id)
@@ -242,7 +265,7 @@ func server_peer_gone(id: int) -> void:
 		book.drop(id)
 
 
-## Servidor: o estado de cada grupo para os membros dele (nome, nível, vida, zona, líder).
+## Servidor: o estado de cada grupo para os membros dele (nome, nível, vida, mana, buffs, zona, líder).
 func _push_all() -> void:
 	var done := {}
 	for peer in book.party_of:
@@ -253,11 +276,24 @@ func _push_all() -> void:
 		var list: Array = []
 		var lead := book.leader(peer)
 		for m in book.members(peer):
-			list.append({"peer": m, "name": _name(m), "level": _level(m), "hp": float(_hp.get(m, 1.0)),
-				"zone": Network.zone_of(m), "leader": m == lead})
+			var v: Dictionary = _vitals.get(m, {})
+			list.append({"peer": m, "name": _name(m), "level": _level(m), "hp": float(v.get("hp", 1.0)),
+				"mp": float(v.get("mp", 1.0)), "buffs": _buffs_now(v), "zone": Network.zone_of(m), "leader": m == lead})
 		for m in book.members(peer):
 			if Network.players.has(m):
 				_party_state.rpc_id(m, list)
+
+
+## Segundos que ainda faltam em cada buff (o cliente mandou há `now - at` segundos).
+func _buffs_now(v: Dictionary) -> Dictionary:
+	var out := {}
+	var gone := Time.get_ticks_msec() / 1000.0 - float(v.get("at", 0.0))
+	var b: Dictionary = v.get("buffs", {})
+	for id in b:
+		var left := int(b[id]) - int(gone)
+		if left > 0:
+			out[id] = left
+	return out
 
 
 ## Servidor: recompensas do abate de `e` (PartyRules.kill_rewards) para quem acertou e o grupo dele.
