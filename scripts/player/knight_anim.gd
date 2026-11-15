@@ -135,6 +135,8 @@ const ROLL_CONTACTS := [
 const DEATH_LIE_Y := 0.16
 ## e a inclinação do suporte da arma (a lâmina deita ao lado do corpo).
 const DEATH_WEAPON_X := 1.5
+## Dobra máxima do cotovelo no IK dos braços (rad; < 0 dobra).
+const ARM_IK_MAX_BEND := -2.5
 const LEG_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r", "foot_l", "foot_r"]
 const POSE_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r", "foot_l", "foot_r", "lift", "body_x", "body_y", "body_z", "body_shift",
 	"twist", "hip_twist", "roll", "head_x", "head_y", "arm_l", "arm_r", "elbow_l", "elbow_r", "wrist_l", "wrist_r", "ground"]
@@ -182,6 +184,17 @@ static func rig(model: Node3D) -> Dictionary:
 	else:
 		r["thigh"] = hip_y * 0.5
 		r["shin"] = hip_y * 0.5
+	# mãos: centro de cada mão no espaço do antebraço (alvo do IK dos braços) e o alcance do braço esticado
+	for side in ["l", "r"]:
+		var elbow: Node3D = r["Elbow" + side.to_upper()]
+		var arm: Node3D = r["Arm" + side.to_upper()]
+		if elbow and arm:
+			var hand := KnightLook._point_in(model, elbow, "Arm%s_Hand" % side.to_upper())
+			r["hand_" + side] = hand
+			r["reach_" + side] = (elbow.position + hand).length()
+	r["aim_pitch"] = 0.0     # inclinação da mira (rad, > 0 para cima); o jogador local atualiza ao mirar
+	r["bow_w"] = 0.0         # quanto o IK do arco manda nos braços agora (suavizado em apply)
+	r["two_hand"] = 0.0      # quanto a mão esquerda segura o cajado junto (suavizado em apply)
 	return r
 
 
@@ -561,6 +574,8 @@ static func sword_pose(p: Dictionary, combo: int, t: float, move: float) -> void
 
 static func staff_pose(p: Dictionary, combo: int, t: float, move: float) -> void:
 	play_track(p, KnightMoves.STAFF[clampi(combo, 1, 3) - 1], t, move)
+	if combo == 3:   # ergue e baixa o cajado com as duas mãos
+		p["two_hand"] = smoothstep(0.02, 0.16, t) * (1.0 - smoothstep(0.42, 0.62, t))
 
 
 ## Magia (`kind` = "fireball", "heal", "frost_nova"); `t` 0..1 dentro de KnightMoves.CAST_TIME.
@@ -571,44 +586,55 @@ static func cast_pose(p: Dictionary, kind: String, t: float, move: float, staff 
 	play_track(p, track, t, move)
 
 
-## Arco tensionando: `c` 0..1 (0 = flecha encaixada, 1 = corda no queixo).
-static func bow_draw_pose(p: Dictionary, c: float) -> void:
+## Arco tensionando: `c` 0..1 (0 = flecha encaixada com a corda frouxa, 1 = corda no queixo). `move` 0..1 =
+## quanto anda: andando o quadril gira menos (as pernas continuam passando para a frente).
+## Como no tiro com arco de verdade (e no pack "Longbow" do Mixamo): o corpo fica de lado, com o ombro
+## esquerdo para o alvo; o braço do arco estica na direção da mira; a mão da corda leva a corda até o canto
+## do queixo, com o cotovelo alto atrás, na linha da flecha. As mãos vão a pontos exatos por IK (veja
+## _bow_ik em apply): a mão da corda fica sempre na corda e a flecha passa rente ao queixo.
+static func bow_draw_pose(p: Dictionary, c: float, move := 0.0) -> void:
 	var a: Dictionary = KnightMoves.BOW_NOCK
 	var b: Dictionary = KnightMoves.BOW_FULL
-	var e := 1.0 - pow(1.0 - c, 2.0)   # puxa rápido no começo e assenta perto do fim
+	var e := 1.0 - pow(1.0 - clampf(c, 0.0, 1.0), 2.0)   # puxa rápido no começo e assenta perto do fim
 	for j in b:
 		p[j] = lerp(a.get(j, p[j]), b[j], e)
 	for j in a:
 		if not b.has(j):
 			p[j] = a[j]
-	# com a corda toda puxada o braço do arco treme de leve
-	p.arm_l += Vector3(sin(Time.get_ticks_msec() * 0.031) * KnightMoves.BOW_TREMBLE, 0, 0) * smoothstep(0.9, 1.0, c)
-	for j in ["arm_l", "arm_r", "elbow_l", "elbow_r", "twist", "head_y", "wrist_l"]:
+	p["bow"] = {"draw": e, "w": 1.0, "tremble": smoothstep(0.9, 1.0, c) * KnightMoves.BOW_TREMBLE}
+	p["hip_share"] = lerpf(KnightMoves.BOW_HIP_SHARE, KnightMoves.BOW_HIP_SHARE_MOVING, move)
+	for j in ["arm_l", "arm_r", "elbow_l", "elbow_r", "twist", "head_y", "head_x", "wrist_l"]:
 		p.speed[j] = KnightMoves.BOW_RAISE_SPEED
 
 
-## Logo depois de soltar a flecha: `t` 0..1 dentro do tempo de recuperação do arco.
-static func bow_release_pose(p: Dictionary, t: float, move: float) -> void:
-	play_track(p, KnightMoves.BOW_RELEASE, t, move)
+## Logo depois de soltar a flecha: `t` 0..1 dentro do tempo de recuperação do arco. A mão da corda escapa
+## para trás, passando pela orelha (o "follow-through"); o braço do arco segura a mira um instante e os dois
+## voltam à pose de andar.
+## `keep` = continua mirando (botão direito ainda segurado): o arco fica erguido e a mão volta para a corda,
+## pronta para encaixar a próxima flecha.
+static func bow_release_pose(p: Dictionary, t: float, move: float, keep := false) -> void:
+	var hold := 1.0 if keep else 1.0 - smoothstep(KnightMoves.BOW_RELEASE_HOLD, 1.0, t)
+	for j in KnightMoves.BOW_FULL:
+		p[j] = lerp(p[j], KnightMoves.BOW_FULL[j], hold)
+	p["bow"] = {"draw": 1.0, "w": hold, "release": t, "keep": keep}
+	p["hip_share"] = lerpf(KnightMoves.BOW_HIP_SHARE, KnightMoves.BOW_HIP_SHARE_MOVING, move)
+	for j in ["arm_l", "arm_r", "elbow_l", "elbow_r"]:
+		p.speed[j] = KnightMoves.BOW_RELEASE_SPEED
 
 
 ## Flecha do Vendaval. `c` 0..1 = carga: agacha (joelhos até KnightMoves.GALE_KNEE), o tronco inclina para
-## trás, a mão da corda puxa além da tensão normal e o arco treme (pulso) cada vez mais. `recoil` 0..1 =
+## trás, a mão da corda puxa além da tensão normal e o arco treme cada vez mais. `recoil` 0..1 =
 ## tempo na recuperação depois do disparo (< 0 = ainda tensionando): tranco para trás e levanta.
+## Os braços seguem o IK do arco: a flecha continua na linha da mira mesmo com o tronco inclinado.
 static func bow_gale_pose(p: Dictionary, c: float, recoil := -1.0) -> void:
 	var crouch := smoothstep(0.0, 1.0, minf(c * 1.6, 1.0))   # agacha logo no começo da tensão
 	var lean := crouch
 	if recoil < 0.0:
 		bow_draw_pose(p, minf(c * 2.5, 1.0))
-		# puxa além do normal: a mão da corda vai para trás da orelha
-		p.arm_r += Vector3(0.0, -0.3, -0.1) * c
-		p.elbow_r -= 0.35 * c
+		# puxa além do normal (a mão da corda vai para trás da orelha) e o arco treme mais com a carga
+		p.bow["over"] = KnightMoves.GALE_OVERDRAW * c
+		p.bow["tremble"] = KnightMoves.GALE_TREMBLE * c
 		p.twist -= 0.12 * c
-		# o arco treme mais com a carga (dois senos fora de fase: parece ruído)
-		var ms := float(Time.get_ticks_msec())
-		var n := sin(ms * 0.047) * 0.6 + sin(ms * 0.113 + 1.7) * 0.4
-		p.wrist_l += n * KnightMoves.GALE_TREMBLE * c
-		p.arm_l += Vector3(sin(ms * 0.061) * 0.3 * KnightMoves.GALE_TREMBLE * c, 0.0, 0.0)
 	else:
 		bow_release_pose(p, recoil, 0.0)
 		var up := smoothstep(0.35, 1.0, recoil)
@@ -616,12 +642,9 @@ static func bow_gale_pose(p: Dictionary, c: float, recoil := -1.0) -> void:
 		# tranco do tiro: o tronco joga para trás e volta; o braço do arco pula para cima
 		var kick := pow(1.0 - recoil, 2.0)
 		lean = lean * (1.0 - up) + kick * KnightMoves.GALE_RECOIL / KnightMoves.GALE_LEAN
-		p.arm_l += Vector3(-0.35 * kick, 0.0, 0.0)
+		p.bow["kick"] = kick
 	p.body_x += KnightMoves.GALE_LEAN * lean
 	p.head_x -= KnightMoves.GALE_LEAN * lean * 0.6   # a cabeça compensa: continua olhando a mira
-	# os braços compensam parte da inclinação: a flecha fica quase na horizontal
-	p.arm_l += Vector3(-KnightMoves.GALE_LEAN * lean * 0.5, 0.0, 0.0)
-	p.arm_r += Vector3(-KnightMoves.GALE_LEAN * lean * 0.5, 0.0, 0.0)
 	p.body_y += KnightMoves.GALE_CROUCH_Y * crouch
 	p.leg_l = lerpf(p.leg_l, KnightMoves.GALE_THIGH_L, crouch)
 	p.leg_r = lerpf(p.leg_r, KnightMoves.GALE_THIGH_R, crouch)
@@ -632,6 +655,153 @@ static func bow_gale_pose(p: Dictionary, c: float, recoil := -1.0) -> void:
 	p.ground = 1.0
 
 
+## Como cada arma é carregada parado, andando e correndo (`move`, `run` 0..1). Chamar logo depois da pose de
+## locomoção, antes dos golpes. A espada fica como está (o braço balança solto).
+##  - cajado: segurado firme ao lado do corpo como um bordão, gema um pouco à frente; o braço balança pouco
+##    (antes ele girava o cajado inteiro e a vara atravessava a perna e o tronco). Correndo, vai inclinado à
+##    frente, mão na altura do quadril.
+##  - arco: o braço do arco balança menos e fica um pouco dobrado (o arco pendurado ao lado da perna).
+static func weapon_carry(p: Dictionary, cls: String, move: float, run: float) -> void:
+	match cls:
+		"staff":
+			var c: Dictionary = KnightMoves.STAFF_CARRY
+			var sw: float = (p.arm_r.x - IDLE_ARM_R_X * (1.0 - move)) * float(c.swing)   # o que sobrou do balanço
+			var arm: Vector3 = (c.arm as Vector3).lerp(c.arm_run, run)
+			p.arm_r = Vector3(arm.x + sw, arm.y, arm.z)
+			p.elbow_r = lerpf(c.elbow, c.elbow_run, run)
+			# o suporte desfaz COUNTER do giro do braço; o resto inclinaria o cajado. O pulso completa a
+			# inclinação pedida (> 0 = gema à frente) para ela não depender do balanço.
+			var tilt: float = lerpf(c.tilt, c.tilt_run, run)
+			var bend: float = p.arm_r.x + p.elbow_r
+			p.wrist_r = tilt - bend * (1.0 - float(KnightLook.COUNTER.staff))
+		"bow":
+			var c: Dictionary = KnightMoves.BOW_CARRY
+			p.arm_l = Vector3(lerpf(c.arm.x, p.arm_l.x * float(c.swing), move), c.arm.y, c.arm.z)
+			p.elbow_l = lerpf(c.elbow, c.elbow_run, run)
+
+
+## IK de dois ossos do braço: ombro (ArmX, giro livre, ordem YXZ) e cotovelo (ElbowX, dobra só em X).
+## `target` = onde o centro da mão deve ficar e `pole` = para onde o cotovelo deve apontar, os dois no
+## espaço do pai do ombro (Body). Devolve [rotação do ombro, dobra do cotovelo]. Alvo fora do alcance:
+## o braço estica na direção dele.
+static func solve_arm(arm: Node3D, elbow: Node3D, hand: Vector3, target: Vector3, pole: Vector3) -> Array:
+	var u := elbow.position
+	var tv := target - arm.position
+	var lo := ARM_IK_MAX_BEND
+	var hi := 0.0
+	var dist := clampf(tv.length(), (u + Basis(Vector3.RIGHT, lo) * hand).length() + 0.001,
+		(u + hand).length() - 0.001)
+	for _i in 22:   # o alcance cresce com o cotovelo abrindo: busca binária
+		var mid := (lo + hi) * 0.5
+		if (u + Basis(Vector3.RIGHT, mid) * hand).length() < dist:
+			lo = mid
+		else:
+			hi = mid
+	var bend := (lo + hi) * 0.5
+	var reach := u + Basis(Vector3.RIGHT, bend) * hand
+	var tn := tv.normalized()
+	var q0 := Quaternion(reach.normalized(), tn)
+	# gira em volta da linha ombro-mão até o cotovelo apontar para o polo
+	var e0 := q0 * u
+	var e_perp := e0 - tn * e0.dot(tn)
+	var p_perp := pole - tn * pole.dot(tn)
+	var q := q0
+	if e_perp.length() > 0.0001 and p_perp.length() > 0.0001:
+		q = Quaternion(tn, e_perp.normalized().signed_angle_to(p_perp.normalized(), tn)) * q0
+	return [Basis(q).get_euler(EULER_ORDER_YXZ), bend]
+
+
+## Põe o braço `side` ("l"/"r") com a mão em `target_m` (espaço do modelo), cotovelo para `pole_m`, misturando
+## com o que a pose já pedia por `w`. O giro escolhido fica perto do atual (sem dar a volta inteira no lerp).
+static func arm_ik_pose(r: Dictionary, p: Dictionary, side: String, target_m: Vector3, pole_m: Vector3, w: float) -> void:
+	var sol := arm_ik(r, side, target_m, pole_m)
+	if sol.is_empty() or w <= 0.0:
+		return
+	var cur: Vector3 = p["arm_" + side]
+	var e: Vector3 = sol[0]
+	e = Vector3(cur.x + wrapf(e.x - cur.x, -PI, PI), cur.y + wrapf(e.y - cur.y, -PI, PI), cur.z + wrapf(e.z - cur.z, -PI, PI))
+	p["arm_" + side] = cur.lerp(e, w)
+	p["elbow_" + side] = lerpf(p["elbow_" + side], sol[1], w)
+
+
+## IK do braço com alvo e polo no espaço do modelo (pela pose atual do tronco). [] se o modelo não tem cotovelo.
+static func arm_ik(r: Dictionary, side: String, target_m: Vector3, pole_m: Vector3) -> Array:
+	var arm: Node3D = r["Arm" + side.to_upper()]
+	var elbow: Node3D = r["Elbow" + side.to_upper()]
+	if arm == null or elbow == null or r.get("hand_" + side) == null:
+		return []
+	var inv := KnightLook._chain(arm.get_parent(), r.model).affine_inverse()
+	return solve_arm(arm, elbow, r["hand_" + side], inv * target_m, inv.basis * pole_m)
+
+
+## Alvos das mãos com o arco (chamado em apply, com tronco e cabeça já postos). A âncora fica no canto do
+## queixo; a linha da flecha sai dela na direção da mira e passa pelo arco, que fica onde o braço esquerdo
+## chega quase esticado. A mão da corda segura a corda no encaixe da flecha: da corda frouxa (BOW_BRACE
+## atrás do arco) até a âncora, conforme a tensão.
+static func _bow_ik(r: Dictionary, p: Dictionary, k: float) -> void:
+	var b: Dictionary = p.get("bow", {})
+	var w: float = b.get("w", 0.0)
+	r["bow_w"] = lerpf(float(r.get("bow_w", 0.0)), w, minf(1.0, k * KnightMoves.BOW_RAISE_SPEED))
+	if w <= 0.001 or r.get("hand_l") == null:
+		return
+	var model: Node3D = r.model
+	var pitch: float = r.get("aim_pitch", 0.0)
+	var d := Vector3(0.0, sin(pitch), cos(pitch))          # mira no espaço do modelo (ele olha para +Z)
+	var up := Vector3(0.0, cos(pitch), -sin(pitch))
+	var right := Vector3(-1.0, 0.0, 0.0)
+	var anchor: Vector3 = KnightLook._chain(r.Head, model) * KnightMoves.BOW_ANCHOR
+	var drop: Vector3 = up * KnightMoves.BOW_GRIP_DROP     # a flecha passa por cima da mão do arco
+	# arco: ponto da linha da flecha onde o braço esquerdo chega quase esticado
+	var sl: Vector3 = KnightLook._chain(r.ArmL, model).origin
+	var o := anchor - drop - sl
+	var reach: float = float(r.reach_l) * KnightMoves.BOW_ARM_STRETCH
+	var bb := d.dot(o)
+	var s := clampf(-bb + sqrt(maxf(bb * bb - (o.length_squared() - reach * reach), 0.0)), 0.3, 0.9)
+	var grip := anchor + d * s
+	var hand_l := grip - drop
+	var draw := lerpf(KnightMoves.BOW_BRACE, s + float(b.get("over", 0.0)), float(b.get("draw", 0.0)))
+	var nock := grip - d * draw
+	var rel: float = b.get("release", -1.0)
+	if rel >= 0.0:
+		# soltou: os dedos abrem e a mão escapa para trás e para fora, rente à orelha
+		var e := ease_curve(clampf(rel / 0.45, 0.0, 1.0), "out")
+		nock = anchor - d * (KnightMoves.BOW_RELEASE_BACK * e) + right * (0.07 * e) + up * (0.03 * e)
+		if b.get("keep", false):   # ainda mirando: a mão volta para a corda solta
+			nock = nock.lerp(grip - d * KnightMoves.BOW_BRACE, smoothstep(0.45, 1.0, rel))
+	var tr: float = b.get("tremble", 0.0)
+	if tr > 0.0:
+		var ms := float(Time.get_ticks_msec())
+		hand_l += up * (sin(ms * 0.047) * 0.6 + sin(ms * 0.113 + 1.7) * 0.4) * tr \
+			+ right * sin(ms * 0.061) * tr * 0.5
+	hand_l += up * 0.12 * float(b.get("kick", 0.0))
+	# a mão da corda: os dedos no encaixe; o centro da mão fica um pouco atrás e para fora da corda
+	var f: Vector3 = KnightMoves.BOW_FINGERS
+	var hand_r := nock + right * f.x - up * f.y - d * f.z
+	r["bow_fingers"] = nock - hand_r if rel < 0.0 else Vector3(9, 9, 9)   # 9 = soltou (corda volta)
+	arm_ik_pose(r, p, "l", hand_l, KnightMoves.BOW_POLE_L, w)
+	arm_ik_pose(r, p, "r", hand_r, KnightMoves.BOW_POLE_R, w)
+
+
+## Corda e flecha do arco (depois de apply e hold_weapon_upright): a corda vai das pontas do arco até os
+## dedos da mão da corda (com o peso do IK do arco) e a flecha sai dos dedos passando rente ao punho. O arco
+## enverga conforme a corda é puxada.
+static func bow_string(look: Dictionary, r: Dictionary) -> void:
+	var holder: Node3D = look.get("holder")
+	if holder == null or not is_instance_valid(holder) or not holder.has_meta("bow"):
+		return
+	var rest: Vector3 = KnightLook.bow_rest_nock(holder)
+	var nock := rest
+	var w: float = r.get("bow_w", 0.0)
+	var fingers: Vector3 = r.get("bow_fingers", Vector3(9, 9, 9))
+	if w > 0.001 and fingers.x < 8.0 and r.ElbowR and r.get("hand_r") != null:
+		var model: Node3D = r.model
+		var hand_m: Vector3 = KnightLook._chain(r.ElbowR, model) * (r.hand_r as Vector3)
+		var nh := KnightLook._chain(holder, model).affine_inverse() * (hand_m + fingers)
+		nh = Vector3(0.0, clampf(nh.y, -0.12, 0.12), minf(nh.z, rest.z))
+		nock = rest.lerp(nh, smoothstep(0.0, 0.6, w))
+	KnightLook.bow_shape(holder, nock)
+
+
 ## Chuva de Meteoros: `u` 0..1 = preparo (ergue o cajado com as duas mãos acima da cabeça); `shake` 0..1 =
 ## o tremor da canalização (braços, pulso e tronco tremem como quem segura um peso enorme no céu).
 static func meteor_pose(p: Dictionary, u: float, shake: float) -> void:
@@ -639,6 +809,7 @@ static func meteor_pose(p: Dictionary, u: float, shake: float) -> void:
 	var e := smoothstep(0.0, 1.0, u)
 	for j in a:
 		p[j] = lerp(p[j], a[j], e)
+	p["two_hand"] = e
 	if shake > 0.0:
 		# dois senos fora de fase por junta: parece ruído
 		var ms := float(Time.get_ticks_msec())
@@ -661,7 +832,7 @@ static func meteor_pose(p: Dictionary, u: float, shake: float) -> void:
 static func hips_follow(p: Dictionary) -> void:
 	var spin: float = p.get("spin", 0.0)
 	var own := wrapf(p.twist - spin, -PI, PI)
-	p.hip_twist = wrapf(spin + own * HIP_TWIST_SHARE, -PI, PI)
+	p.hip_twist = wrapf(spin + own * float(p.get("hip_share", HIP_TWIST_SHARE)), -PI, PI)
 	if "twist" in p.snap and not ("hip_twist" in p.snap):
 		p.snap.append("hip_twist")
 
@@ -827,8 +998,13 @@ static func apply(r: Dictionary, p: Dictionary, k: float) -> void:
 		body.rotation.y = r.twist
 	body.position.y = lerpf(body.position.y, r.body_y + p.body_y, f.call("body_y"))
 	body.position.x = lerpf(body.position.x, r.body_x0 + p.body_shift, f.call("body_shift"))
-	r.Head.rotation.x = lerpf(r.Head.rotation.x, p.head_x, f.call("head_x"))
+	# mirando com o arco a cabeça acompanha a inclinação da mira
+	var aim_head: float = -float(r.get("aim_pitch", 0.0)) * 0.8 * float(p.get("bow", {}).get("w", 0.0))
+	r.Head.rotation.x = lerpf(r.Head.rotation.x, p.head_x + aim_head, f.call("head_x"))
 	r.Head.rotation.y = lerpf(r.Head.rotation.y, p.head_y, f.call("head_y"))
+	# arco: com tronco e cabeça no lugar, as mãos vão por IK até o arco e a corda
+	_bow_ik(r, p, f.call("arm_l"))
+	r["two_hand"] = lerpf(float(r.get("two_hand", 0.0)), float(p.get("two_hand", 0.0)), f.call("arm_l"))
 	# pulsos: o modelo não tem pivô; o suporte da arma gira com este valor (hold_weapon_upright)
 	r["wrist_l"] = lerpf(float(r.get("wrist_l", 0.0)), p.wrist_l, f.call("wrist_l"))
 	r["wrist_r"] = lerpf(float(r.get("wrist_r", 0.0)), p.wrist_r, f.call("wrist_r"))
@@ -881,13 +1057,47 @@ static func hold_weapon_upright(look: Dictionary, r: Dictionary) -> void:
 	if elbow and elbow != arm:
 		bend += elbow.rotation.x
 	var wrist: float = r.get("wrist_l" if arm == r.ArmL else "wrist_r", 0.0)
-	holder.rotation.x = -bend * float(look.get("counter", 0.0)) + wrist
+	if look.get("class", "") == "bow" and holder.has_meta("bow"):
+		_orient_bow(holder, r, bend + wrist)
+	else:
+		holder.rotation.x = -bend * float(look.get("counter", 0.0)) + wrist
+		# cajado: desfaz também a abertura do braço, senão a vara tomba para dentro, na frente do corpo
+		if look.get("class", "") == "staff":
+			holder.rotation.z = -arm.rotation.z * float(look.get("counter", 0.0))
 	# rolando: desfaz quadril, tronco, ombro e cotovelo para a arma ficar em ROLL_WEAPON_PITCH
 	var tuck: float = r.get("tuck", 0.0)
 	if tuck > 0.0:
 		var chain: float = float(r.get("roll", 0.0)) + r.Body.rotation.x + bend
 		var to := wrapf(ROLL_WEAPON_PITCH - chain - holder.rotation.x, -PI, PI)
 		holder.rotation.x += to * tuck
+	if float(r.get("two_hand", 0.0)) > 0.01 and look.get("class", "") == "staff":
+		_staff_left_hand(holder, r)
+
+
+## Arco: o punho fica na mão esquerda, mas a orientação vem do corpo, não do antebraço (o pulso solto).
+## Mirando (peso do IK do arco), a flecha aponta na mira e o arco fica de pé, com um leve tombo do topo para
+## fora; solto, o arco fica de pé ao lado da perna e inclina um pouco com o balanço do braço (`swing`).
+static func _orient_bow(holder: Node3D, r: Dictionary, swing: float) -> void:
+	var w: float = r.get("bow_w", 0.0)
+	var pitch: float = r.get("aim_pitch", 0.0)
+	var loose := Basis.from_euler(Vector3(clampf(swing * 0.4, -0.5, 0.5) + KnightMoves.BOW_LOOSE_TILT, 0.0, -0.06))
+	var aim := Basis.from_euler(Vector3(-pitch, 0.0, 0.0)) * Basis(Vector3.BACK, KnightMoves.BOW_CANT)
+	var want := Basis(Quaternion(loose).slerp(Quaternion(aim), smoothstep(0.0, 1.0, w)))
+	var parent_xf := KnightLook._chain(holder.get_parent(), r.model)
+	holder.basis = (parent_xf.basis.orthonormalized().inverse() * want).orthonormalized()
+
+
+## Cajado com as duas mãos (golpe 3 e Chuva de Meteoros): a mão esquerda pega a vara um pouco abaixo da
+## direita, por IK, com o peso r.two_hand (o braço sai da pose e volta a ela suavemente).
+static func _staff_left_hand(holder: Node3D, r: Dictionary) -> void:
+	var model: Node3D = r.model
+	var target: Vector3 = KnightLook._chain(holder, model) * KnightMoves.STAFF_LEFT_GRIP
+	var sol := arm_ik(r, "l", target, KnightMoves.STAFF_POLE_L)
+	if sol.is_empty():
+		return
+	var w: float = r.two_hand
+	r.ArmL.rotation = r.ArmL.rotation.lerp(sol[0], w)
+	r.ElbowL.rotation.x = lerpf(r.ElbowL.rotation.x, sol[1], w)
 
 
 ## Quanto o quadril está abaixo da altura de pé, pela pose atual das pernas.
@@ -909,3 +1119,4 @@ static func _leg_height(r: Dictionary, leg: Node3D, knee: Node3D, ankle: Node3D)
 		var a: float = r.ankle_h
 		h += maxf(a * cos(f) + float(r.toe) * sin(f), a * cos(f) - float(r.heel) * sin(f))
 	return h
+

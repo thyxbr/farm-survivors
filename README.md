@@ -11,8 +11,9 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
 |---|---|
 | Mover / correr / pular | WASD · Shift · Espaço |
 | Câmera | Mouse |
-| Atacar | Clique esquerdo — espada: combo de 3 golpes · cajado: projéteis (3º golpe em leque) · arco: segure para tensionar e solte |
-| Esquivar (invulnerável) | Clique direito ou Ctrl |
+| Atacar | Clique esquerdo — espada: combo de 3 golpes · cajado: projéteis (3º golpe em leque) · arco: veja abaixo |
+| Arco | Segure o clique direito para mirar (zoom; o personagem encaixa a flecha e puxa a corda até o queixo) e clique esquerdo para atirar: quanto mais puxada, mais dano e alcance. Segurando a mira, ele encaixa a próxima sozinho. Clique esquerdo sem mirar: tiro rápido, mais fraco |
+| Esquivar (invulnerável) | Clique direito ou Ctrl (com arco o clique direito mira: esquive no Ctrl) |
 | Magias | 1 Bola de Fogo · 2 Cura (nível 2) · 3 Nova Gélida (nível 4) |
 | Poções | R vida · F mana |
 | Comer / trocar comida | Q · T |

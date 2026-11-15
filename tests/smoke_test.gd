@@ -404,6 +404,44 @@ func _ready() -> void:
 	Game.equip("short_bow")
 	var lvl_bf: int = Game.level
 	check(Game.weapon_class() == "bow" and player.cooldowns.size() == ItemDB.ABILITIES.size(), "uma recarga por habilidade")
+	# --- arco: botão direito mira (puxa a corda), esquerdo atira; o clique direito não esquiva com arco
+	var bw_shot := [0]   # flechas disparadas (contadas ao entrar na cena: elas somem ao acertar ou expirar)
+	var bw_count := func(c: Node) -> void:
+		if c.get("kind") == "arrow" and not c.get("visual_only"):
+			bw_shot[0] += 1
+	world.child_entered_tree.connect(bw_count)
+	var bw_arrows := func() -> int: return bw_shot[0]
+	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking and not player.drawing)
+	Game.stamina = Game.max_stamina()
+	var bw_n0: int = bw_arrows.call()
+	Input.action_press("aim")
+	Input.action_press("dodge")    # o mesmo clique direito aperta as duas ações
+	await wait(0.5)
+	check(player.aiming and player.drawing and player.dodge_timer <= 0.0 and player.bow_charge() > 0.3,
+		"arco: botão direito mira e puxa sem esquivar (carga %.2f, esquiva %.2f)" % [player.bow_charge(), player.dodge_timer])
+	var bw_hand: Vector3 = (player.parts.ElbowR as Node3D).global_transform * (player.parts.hand_r as Vector3)
+	var bw_head: Vector3 = (player.parts.Head as Node3D).global_position
+	await wait(0.5)
+	bw_hand = (player.parts.ElbowR as Node3D).global_transform * (player.parts.hand_r as Vector3)
+	bw_head = (player.parts.Head as Node3D).global_position
+	check(bw_hand.distance_to(bw_head) < 0.25, "arco: com a corda toda puxada a mão vai ao queixo (%.2f m)" % bw_hand.distance_to(bw_head))
+	Input.action_press("attack")
+	await wait(0.05)
+	Input.action_release("attack")
+	check(bw_arrows.call() == bw_n0 + 1 and player.attacking, "arco: clique esquerdo mirando atira")
+	await wait(KnightMoves.BOW_RELEASE_HOLD + 0.5)
+	check(player.drawing, "arco: segurando a mira, encaixa a próxima flecha sozinho")
+	Input.action_release("aim")
+	Input.action_release("dodge")
+	await wait(0.1)
+	check(not player.drawing and not player.aiming and bw_arrows.call() == bw_n0 + 1, "arco: soltar a mira baixa o arco sem atirar")
+	await wait_until(func(): return not player.attacking)
+	Input.action_press("attack")
+	await wait(0.05)
+	Input.action_release("attack")
+	await wait(0.45)
+	check(bw_arrows.call() == bw_n0 + 2, "arco: clique esquerdo sem mirar dá um tiro rápido")
+	world.child_entered_tree.disconnect(bw_count)
 	# --- Tiro Triplo (arco, slot 1): 3 flechas em leque, ignora multishot, esquiva só cancela antes do disparo
 	var tt_pos := player.global_position
 	var tt_s := _nearest("slime")

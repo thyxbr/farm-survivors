@@ -295,8 +295,8 @@ func _build_help() -> void:
 	help_panel = PanelContainer.new()
 	help_panel.add_theme_stylebox_override("panel", UITheme.frame_box(Color(0.04, 0.035, 0.03, 0.78), Color(0.3, 0.25, 0.18), 12))
 	var help := UITheme.label(help_text if help_text != "" else
-		"WASD mover · Shift correr · Espaço pular · Ctrl/Clique dir. esquivar\n" +
-		"Clique esq.: atacar — espada: combo · cajado: projéteis · arco: segure e solte\n" +
+		"WASD mover · Shift correr · Espaço pular · Ctrl/Clique dir. esquivar (com arco: Ctrl)\n" +
+		"Clique esq.: atacar — espada: combo · cajado: projéteis · arco: dir. mira e puxa, esq. atira\n" +
 		"1–3 habilidades da arma · 4 ultimate (fúria cheia) · R/F poções · Q comer · T trocar\n" +
 		"E interagir · I inventário · C personagem · J missões\n" +
 		"F5 salvar · F9 carregar · Esc pausa · H esconder ajuda", 13, UITheme.DIM)
