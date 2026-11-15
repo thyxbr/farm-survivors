@@ -93,8 +93,8 @@ func _ready() -> void:
 		w2.sort()
 		gear_ok = gear_ok and got == w2
 	check(gear_ok, "cada monstro só carrega o equipamento da sua variante")
-	check(get_tree().get_nodes_in_group("interactable").size() == 4 + Game.FARM_PLOTS + 1,
-		"3 NPCs + portal + %d canteiros + caldeirão interagíveis" % Game.FARM_PLOTS)
+	check(get_tree().get_nodes_in_group("interactable").size() == 7 + Game.FARM_PLOTS + 1,
+		"5 NPCs + bilhete + portal + %d canteiros + caldeirão interagíveis" % Game.FARM_PLOTS)
 
 	# --- diálogo e missão
 	var elder: Node = null
@@ -111,10 +111,12 @@ func _ready() -> void:
 	var pages: Array = world.modal.pages
 	var last: Dictionary = pages[pages.size() - 1]
 	check(last.has("choices"), "diálogo oferece escolha de missão")
+	check(Game.quests.is_empty() and elder.marker.text == "!", "Bram mostra ! para a primeira missão da história")
 	world.modal._choose(last.choices[0].action)
 	await wait(0.1)
-	check(Game.quest_state("slimes") == "active", "missão dos slimes aceita")
+	check(Game.quest_state("chegada") == "active", "primeira missão da história aceita")
 	check(world.modal == null and not get_tree().paused, "diálogo fecha e despausa")
+	await _test_story_talk()
 	# o ferreiro primeiro, logo depois da missão como antes do Bram e da Mira: ~25 s depois ele pode estar
 	# na pausa entre ciclos (work_pause) e "começa trabalhando" falharia por sorte
 	await _test_blacksmith()
@@ -397,7 +399,7 @@ func _ready() -> void:
 	var kit_weapon: String = Game.equipment.weapon
 	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_whirl"], "kit da espada (%s)" % [Game.ability_kit()])
 	check(not Game.knows_ability("sword_quake") and Game.knows_ability("sword_charge"), "liberação por nível")
-	check(Game.level == 1 and not Game.knows_ability("heal") and ItemDB.ABILITIES.heal.level == 5, "cura só no nível 5")
+	check(Game.level < 5 and not Game.knows_ability("heal") and ItemDB.ABILITIES.heal.level == 5, "cura só no nível 5")
 	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
 	# quem testar; resta conferir que há recarga para cada habilidade
 	Game.add_item("short_bow")
@@ -780,12 +782,14 @@ func _ready() -> void:
 	check(player != null and Game.gold == saved_gold and player.global_position.distance_to(saved_pos) < 1.5,
 		"F9 recarrega do save solo na posição salva")
 
-	# --- missões goblin e chefe
+	# --- missões goblin e chefe (as da história antes delas são feitas direto pelas regras)
+	_story_to("goblins")
 	Game.start_quest("goblins")
 	for i in 4:
 		_nearest("goblin").take_damage(9999, player.global_position, false)
 	Game.complete_quest("goblins")
 	check(Game.count_item("chain_mail") == 1, "cota de malha recebida")
+	_story_to("goblin_king")
 	Game.start_quest("goblin_king")
 	await wait(0.1)
 	var boss: Enemy = world.boss
@@ -1869,6 +1873,63 @@ func _test_enchant_effects() -> void:
 
 
 # ---------------------------------------------------------------- Horta, caldeirão e comida
+## Conversas da história pelos NPCs de verdade: a Mira entrega a chegada (diálogo com escolha de sabor e a
+## próxima missão), o Doran entrega a forja e oferece os slimes; o rastreador e o cartão de episódio reagem.
+func _test_story_talk() -> void:
+	var mira := _interactable("merchant")
+	check(mira.marker.text == "?", "Mira mostra ? com a conversa da chegada ativa")
+	check(world.hud._track_dest == {"npc": "merchant"}, "rastreador aponta para a Mira (%s)" % world.hud._track_dest)
+	check(world.story_card.kicker.text == "EPISÓDIO 1" and world.story_card.title.text == "Um Herói Caiu na Vila",
+		"cartão do Episódio 1 ao aceitar a missão (%s)" % world.story_card.kicker.text)
+	mira.interact(player)
+	await wait(0.1)
+	var d = world.modal
+	check(d != null and d.get("box") != null, "diálogo novo (caixa estilo visual novel) abre")
+	var guard := 0
+	while is_instance_valid(d) and world.modal == d and guard < 60:
+		guard += 1
+		var page: Dictionary = d.pages[d.index]
+		d._finish_typing()
+		if page.has("choices"):
+			var ch: Dictionary = page.choices[0]
+			d._choose(ch.get("action", Callable()), ch.get("pages", []))
+		else:
+			d._advance()
+		await wait(0.02)
+	await wait(0.1)
+	check(Game.quest_state("chegada") == "done" and Game.quest_state("forja") == "active",
+		"Mira entrega a chegada e passa o favor do Doran (%s, %s)" % [Game.quest_state("chegada"), Game.quest_state("forja")])
+	check(Game.count_item("health_potion") >= 2, "poções da Mira recebidas")
+	var doran := _interactable("blacksmith")
+	check(doran.marker.text == "?", "Doran mostra ?")
+	_story_to("slimes")
+	Game.start_quest("slimes")
+	check(Game.quest_state("slimes") == "active", "missão dos slimes aceita")
+	check(world.hud._track_dest.has("pos"), "rastreador aponta para os campos durante a caça")
+	for id in ["alchemist", "rival", "camp_note"]:
+		check(_interactable(id) != null, "%s está no mapa" % id)
+
+
+## Completa pelas regras as missões da história antes de `target` (conversa, coleta com os itens dados, abates).
+func _story_to(target: String) -> void:
+	for id in ItemDB.QUESTS:
+		if id == target:
+			return
+		var d: Dictionary = ItemDB.QUESTS[id]
+		if Game.quest_state(id) == "done":
+			continue
+		if Game.quest_state(id) == "none":
+			Game.start_quest(id)
+		match CharRules.quest_type(d):
+			"collect":
+				Econ.grant(0, 0, {d.target: int(d.count)}, "teste", true)
+			"kill":
+				var kind: String = d.targets[0] if d.has("targets") else d.target
+				for i in maxi(0, int(d.count) - int(Game.quests[id].progress)):
+					Econ.kill(kind, 0)
+		Game.complete_quest(id)
+
+
 func _interactable(id: String, index := -1) -> Node:
 	for n in get_tree().get_nodes_in_group("interactable"):
 		if n.npc_id == id and (index < 0 or n.get("index") == index):
@@ -2431,6 +2492,7 @@ func _test_gear() -> void:
 	var on_res := func(op: String, ok: bool, err: String) -> void:
 		if op == "equip" and not ok:
 			refused[0] = err
+	var shields0 := Game.count_item("wooden_shield")   # o Doran também dá um, na história
 	Econ.result.connect(on_res)
 	Game.equip("wooden_shield")
 	Econ.result.disconnect(on_res)
@@ -2441,7 +2503,7 @@ func _test_gear() -> void:
 	var shield_mesh := player.model.find_child("Shield", true, false) as MeshInstance3D
 	check(shield_mesh == null or shield_mesh.visible, "escudo aparece no modelo")
 	Game.equip("apprentice_staff")
-	check(Game.equipment.offhand == "" and Game.count_item("wooden_shield") == 1, "trocar para cajado guarda o escudo")
+	check(Game.equipment.offhand == "" and Game.count_item("wooden_shield") == shields0, "trocar para cajado guarda o escudo")
 	Game.equip("iron_sword")
 	check(is_equal_approx(Game.melee_damage(), dmg_sword), "dano da espada volta ao trocar de volta")
 

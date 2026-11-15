@@ -40,6 +40,9 @@ const BLACKSMITH := preload("res://scripts/world/blacksmith.gd")
 const SIGNPOST := preload("res://scripts/world/signpost.gd")
 const ELDER := preload("res://scripts/world/elder.gd")
 const MERCHANT := preload("res://scripts/world/merchant.gd")
+const ALCHEMIST := preload("res://scripts/world/alchemist.gd")
+const RIVAL := preload("res://scripts/world/rival.gd")
+const STORY_POINT := preload("res://scripts/world/story_point.gd")
 const MERCHANT_SHOP := Vector3(9.4, 0, 0.5)     # empório atrás do balcão da Mira (frente para -X)
 const ALCHEMIST_SHOP := Vector3(-12.0, 0, 0.5)  # botica no vão oeste (frente para +X)
 const PLAYER := preload("res://scripts/player/player.gd")
@@ -89,6 +92,8 @@ var modal: Control = null
 var boss: Enemy = null
 var survival: Node3D = null
 var chat: CanvasLayer = null
+## Cartões de título dos episódios da história (StoryCard).
+var story_card: StoryCard = null
 var spawns: Array = []
 ## Veios de ferro e cristais arcanos (WorldResourceNode); vazio no servidor dedicado.
 var resource_nodes: Array = []
@@ -151,6 +156,9 @@ func _ready() -> void:
 	hud = HUD.new()
 	hud.player = player
 	add_child(hud)
+	story_card = StoryCard.new()
+	story_card.world = self
+	add_child(story_card)
 	ui_layer = CanvasLayer.new()
 	ui_layer.layer = 10
 	ui_layer.process_mode = Node.PROCESS_MODE_ALWAYS
@@ -159,8 +167,8 @@ func _ready() -> void:
 	Game.quests_changed.connect(_check_boss)
 	_check_boss()
 	if Game.quests.is_empty() and Game.kills == 0:
-		Game.notify.emit("Bem-vindo a Valdoria! Fale com o Ancião Bram (!) na praça.", Color(1, 0.9, 0.6))
-		Game.notify.emit("Plante e cozinhe na Horta, saindo pelo portão sul da vila.", Color(0.8, 1.0, 0.6))
+		Game.notify.emit("Bem-vindo a Valdoria! Fale com o Ancião Bram (!) perto do poço.", Color(1, 0.9, 0.6))
+		_play_intro()
 	if Network.is_client():
 		var invite := HORDE_INVITE.new()
 		invite.world = self
@@ -352,6 +360,16 @@ func _build_village() -> void:
 	_shop("shop_smithy", smith.position, smith.rotation.y, [[Vector3(0, 0, -2.6), Vector3(4.0, 3.0, 0.5)],
 		[Vector3(-1.8, 0, -0.7), Vector3(0.4, 1.1, 3.4)]], [[Vector3(1.4, 0, -0.4), 0.5]], 2.8)
 	add_child(smith)
+	# Pip, a Alquimista, na frente da botica (de frente para o poço)
+	var pip := ALCHEMIST.new()
+	pip.position = Vector3(-9.0, 0, 0.2)
+	pip.rotation.y = PI / 2
+	add_child(pip)
+	# Kael, o rival, no vão do portão leste, virado para a praça (ensaiando discursos)
+	var kael := RIVAL.new()
+	kael.position = Vector3(16.2, 0, -1.6)
+	kael.rotation.y = -PI / 2
+	add_child(kael)
 	_build_signs()
 	var portal := PORTAL.new()
 	portal.position = PORTAL_POS
@@ -615,6 +633,10 @@ func _build_goblin_camp() -> void:
 	var fire := prop("campfire", CAMP, 0.0, 1.0, "cyl", Vector3(0.6, 0.4, 0))
 	_light(fire, Vector3(0, 1.0, 0), Color(1.0, 0.55, 0.2), 3.0, 14.0, true)
 	prop("crate", CAMP + Vector3(-7, 0, 2), 0.3, 1.0, "box", Vector3(0.8, 0.8, 0.8))
+	var note := STORY_POINT.new()   # o bilhete do Rei Goblin (missão "bilhete"), em cima do caixote
+	note.npc_id = "camp_note"
+	note.position = CAMP + Vector3(-7, 0.82, 2)
+	add_child(note)
 	prop("barrel", CAMP + Vector3(-7.5, 0, 3.2), 0.0, 1.0, "cyl", Vector3(0.38, 1, 0))
 	prop("chest", CAMP + Vector3(8, 0, 3), -1.2, 1.0, "box", Vector3(0.9, 0.7, 0.6))
 	for a in [0.4, 1.2, 2.2, 3.6, 4.4, 5.4]:
@@ -995,10 +1017,20 @@ func _open_menu(tab: int) -> void:
 	_open_modal(m)
 
 
+## Narração de abertura da história (personagem novo, primeira vez no mundo). Não roda nos testes.
+func _play_intro() -> void:
+	if DisplayServer.get_name() == "headless" or "--smoketest" in OS.get_cmdline_user_args():
+		return
+	await get_tree().create_timer(1.5).timeout
+	if is_inside_tree() and modal == null and not Loading.covering and survival == null:
+		open_dialogue("", StoryDialogue.intro())
+
+
 func open_dialogue(speaker: String, pages: Array, focus: Node3D = null) -> void:
 	var d := DIALOGUE.new()
 	d.speaker = speaker
 	d.pages = pages
+	d.world = self
 	_open_modal(d)
 	if modal == d and focus != null and focus.has_method("face_point"):
 		_start_closeup(focus)

@@ -45,6 +45,10 @@ var _buff_chips := {}   # id da comida -> {"panel", "label"}
 var _last_hp := -1.0
 var _hurt := 0.0
 var _t := 0.0
+## Destino do rastreador de missões (StoryRules.destination) e a bússola que aponta para ele.
+var _track_dest := {}
+var _compass: CompassArrow
+var _compass_label: Label
 
 
 
@@ -91,6 +95,7 @@ func _ready() -> void:
 	Game.inventory_changed.connect(_refresh_static)
 	Game.kit_changed.connect(_refresh_kit)
 	Game.quests_changed.connect(_refresh_quests)
+	Game.inventory_changed.connect(_refresh_quests)   # coleta: o progresso vem da mochila
 	_refresh_static()
 	_refresh_quests()
 
@@ -344,6 +349,7 @@ func _process(delta: float) -> void:
 		if t:
 			prompt.text = t.interact_prompt()
 	_update_food()
+	_update_compass()
 
 	# Desafio da Horda: esconde as missões e desce a barra do chefe para não cobrir o HUD da horda
 	var horde: bool = Game.run_mods.active
@@ -477,39 +483,112 @@ func _update_food() -> void:
 func _refresh_quests() -> void:
 	for c in quest_box.get_children():
 		c.queue_free()
-	var any := false
+	_compass = null
+	_compass_label = null
+	var qt: Dictionary = ItemDB.QUESTS
+	var counts := _quest_counts()
+	var shown: Array = []
 	for id in Game.quests:
-		var q: Dictionary = Game.quests[id]
-		if q.state == "done":
-			continue
-		if not any:
-			var hdr := UITheme.outlined("MISSÕES", 11, UITheme.GOLD_DIM, 3)
-			hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-			quest_box.add_child(hdr)
-			any = true
-		var d: Dictionary = ItemDB.QUESTS[id]
-		var title := UITheme.outlined(("★ " if q.state == "ready" else "◆ ") + d.name, 15,
-			UITheme.GOOD if q.state == "ready" else UITheme.GOLD, 4)
+		if qt.has(id) and Game.quests[id].state != "done":
+			shown.append(id)
+	var cur := StoryRules.current(qt, Game.quests)
+	if cur != "" and StoryRules.state(Game.quests, cur) == "none" and not cur in shown:
+		shown.append(cur)   # a próxima da história ainda não aceita: "fale com Fulano"
+	if shown.is_empty():
+		_track_dest = {}
+		return
+	var hdr := UITheme.outlined("HISTÓRIA", 11, UITheme.GOLD_DIM, 3)
+	hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	quest_box.add_child(hdr)
+	for id in shown:
+		var d: Dictionary = qt[id]
+		var st := StoryRules.state(Game.quests, id)
+		# conversa ativa já "pode entregar", mas o jogador ainda tem que ir até lá: fica dourada, como as outras
+		var turn := StoryRules.turnable(qt, Game.quests, id, counts) and CharRules.quest_type(d) != "talk"
+		var icon := "!" if st == "none" else ("★" if turn else "◆")
+		var title := UITheme.outlined("%s %s" % [icon, d.name], 15, UITheme.GOOD if turn else UITheme.GOLD, 4)
 		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		quest_box.add_child(title)
-		var txt := "Volte para %s" % d.giver if q.state == "ready" else "%s: %d/%d" % [_target_name(d.target), q.progress, d.count]
+		var txt := ""
+		var prog := StoryRules.progress(qt, Game.quests, id, counts)
+		if st == "none":
+			txt = "Fale com %s" % StoryDialogue.NAMES.get(StoryRules.giver(qt, id), d.giver)
+		elif turn:
+			txt = "Volte para %s" % d.get("turn_in", d.giver)
+		elif CharRules.quest_type(d) == "talk":
+			txt = str(d.get("objective", "Fale com %s" % d.get("turn_in", d.giver)))
+		else:
+			txt = "%s: %d/%d" % [d.get("objective", d.target), prog[0], prog[1]]
 		var l := UITheme.outlined(txt, 13, UITheme.TEXT, 3)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size.x = 284
 		quest_box.add_child(l)
-		if q.state == "active":
+		if st == "active" and not turn and CharRules.quest_type(d) != "talk":
 			var pb := UITheme.bar(UITheme.XP, 140, 3)
-			pb.max_value = d.count
-			pb.value = q.progress
+			pb.max_value = prog[1]
+			pb.value = prog[0]
 			pb.size_flags_horizontal = Control.SIZE_SHRINK_END
 			quest_box.add_child(pb)
+		if id == shown[0]:
+			# bússola do objetivo: seta virada para onde ir (relativa à câmera) e a distância
+			_track_dest = StoryRules.destination(qt, Game.quests, id, counts)
+			var row := HBoxContainer.new()
+			row.alignment = BoxContainer.ALIGNMENT_END
+			row.add_theme_constant_override("separation", 6)
+			_compass_label = UITheme.outlined("", 13, UITheme.GOLD, 3)
+			row.add_child(_compass_label)
+			_compass = CompassArrow.new()
+			_compass.custom_minimum_size = Vector2(20, 20)
+			row.add_child(_compass)
+			quest_box.add_child(row)
 		var gap := Control.new()
 		gap.custom_minimum_size.y = 4
 		quest_box.add_child(gap)
 	_ignore_all(quest_box)
 
 
-func _target_name(t: String) -> String:
-	return {"slime": "Slimes derrotados", "goblin": "Goblins derrotados", "goblin_king": "Rei Goblin derrotado"}.get(t, t)
+func _quest_counts() -> Dictionary:
+	var c := {}
+	for id in ItemDB.QUESTS:
+		var q: Dictionary = ItemDB.QUESTS[id]
+		if CharRules.quest_type(q) == "collect":
+			c[q.target] = Game.count_item(str(q.target))
+	return c
+
+
+## Posição do destino do rastreador (NPC da história ou área da missão); null = nenhum.
+func _track_pos():
+	if _track_dest.has("npc"):
+		for n in get_tree().get_nodes_in_group("npc"):
+			if n.npc_id == _track_dest.npc:
+				return (n as Node3D).global_position
+		return null
+	if _track_dest.has("pos"):
+		var v: Vector2 = _track_dest.pos
+		return Vector3(v.x, 0, v.y)
+	return null
+
+
+func _update_compass() -> void:
+	if _compass == null or not is_instance_valid(_compass) or player == null or player.camera == null:
+		return
+	var pos = _track_pos()
+	_compass.visible = pos != null
+	if pos == null:
+		_compass_label.text = ""
+		return
+	var to: Vector3 = pos - player.global_position
+	to.y = 0.0
+	var dist := to.length()
+	var cb := player.camera.global_basis
+	var fwd := -cb.z
+	fwd.y = 0.0
+	var right := cb.x
+	right.y = 0.0
+	_compass.angle = atan2(to.normalized().dot(right.normalized()), to.normalized().dot(fwd.normalized()))
+	_compass.near = dist < 4.0
+	_compass_label.text = "aqui" if dist < 4.0 else "%d m" % int(dist)
 
 
 func _on_notify(text: String, color: Color) -> void:
@@ -645,3 +724,35 @@ class Crosshair extends Control:
 			_:
 				draw_circle(c, 3.0, shadow)
 				draw_circle(c, 2.0, white)
+
+
+## Seta da bússola do rastreador: aponta para o destino (0 = para a frente da câmera); perto dele vira um
+## losango pulsando.
+class CompassArrow extends Control:
+	var angle := 0.0
+	var near := false
+	var _t := 0.0
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _process(delta: float) -> void:
+		_t += delta
+		queue_redraw()
+
+	func _draw() -> void:
+		var c := size * 0.5
+		if near:
+			var r := 5.0 + sin(_t * 6.0) * 1.5
+			var d := PackedVector2Array([c + Vector2(0, -r), c + Vector2(r, 0), c + Vector2(0, r), c + Vector2(-r, 0)])
+			draw_colored_polygon(d, UITheme.GOOD)
+			return
+		var pts := PackedVector2Array([Vector2(0, -9), Vector2(7, 7), Vector2(0, 3), Vector2(-7, 7)])
+		var out := PackedVector2Array()
+		for p in pts:
+			out.append(c + p.rotated(angle))
+		var shadow := PackedVector2Array()
+		for p in out:
+			shadow.append(p + Vector2(1, 1.5))
+		draw_colored_polygon(shadow, Color(0, 0, 0, 0.6))
+		draw_colored_polygon(out, UITheme.GOLD)
