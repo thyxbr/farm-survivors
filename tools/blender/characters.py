@@ -1150,7 +1150,8 @@ def smith_cycle(arm, P, joints, grips):
     return keys
 
 
-def build_blacksmith():
+def build_blacksmith(hair_style="locks", out="blacksmith"):
+    # hair_style="anime": cabelo e barba desenhados (anime_hair/anime_beard), em teste como blacksmith_hair
     shirt = mat("b_shirt", hexc("#C9B48C"), 0.95)
     shirt_d = mat("b_shirt_d", hexc("#9A845E"), 0.95)
     pants = mat("b_pants", hexc("#4E4136"), 0.95)
@@ -1226,27 +1227,32 @@ def build_blacksmith():
                    anime_mats("b", hexc("#D08A62"), hexc("#4A3220"), hexc("#5A2C16"), hexc("#3A1C0E"), hexc("#7A3E30")),
                    {"width": 1.1, "jaw": 1.18, "eye_h": 0.58, "eye_w": 0.88, "lash": 0.65, "brow": 2.6, "brow_dz": -0.4,
                     "brow_tilt": 0.55, "nose": 1.3})
-    shell("HairBase", (0, 0.006, 1.66), (0.168, 0.214, 0.21), hair_d, cut=0.25, seg=10, rings=6, rot=(-0.35, 0, 0),
-          thick=0.008)
-    shell("HairBaseBack", (0, 0.01, 1.63), (0.172, 0.27, 0.19), hair_d, cut=0.1, seg=10, rings=6, rot=(-PI / 2, 0, 0),
-          thick=0.008)
-    locks = []
-    for phi in (-50, -25, 0, 25, 50):                                   # topo curto, penteado para trás
-        locks.append(dict(a=(phi, 30), b=(180 - phi * 0.6, 30), w=0.065, t=0.012, bulge=0.012, n=5))
-    for sg in (1, -1):
-        locks.append(dict(a=(sg * 75, 22), b=(sg * 125, 8), w=0.05, t=0.01, bulge=0.004))   # têmporas
-    for phi in (150, 180, -150):                                        # nuca
-        locks.append(dict(a=(phi, 45), b=(phi, 5), w=0.06, t=0.01, bulge=0.004))
-    hair_locks("Hair", H, locks, hair, None)
-    # barba cheia: costeletas pela mandíbula, cunha volumosa no queixo, bigode grosso caído
-    for sg, n in ((1, "L"), (-1, "R")):
-        limb("Sideburn" + n, (sg * (H["half_w"] - 0.012), H["cy"] - 0.01, H["eye_z"] - 0.02),
-             (sg * 0.05, H["chin_y"] + 0.03, H["chin"] + 0.01), 0.026, 0.03, hair, sides=5, flat=0.7)
-        limb("Mustache" + n, (sg * 0.004, H["mouth_y"] - 0.008, H["nose_base_z"] - 0.004),
-             (sg * 0.042, H["mouth_y"] + 0.004, H["mouth_z"] - 0.03), 0.011, 0.006, hair, sides=5, flat=0.7)
-    limb("Beard", (0, -0.03, H["mouth_z"]), (0, -0.1, 1.42), 0.088, 0.03, hair, sides=7, flat=0.82,
-         twist=PI / 7, jitter=0.003, seed=4)
-    limb("BeardTip", (0, -0.1, 1.45), (0.004, -0.112, 1.39), 0.03, 0.008, hair_d, sides=5, flat=0.7)
+    if hair_style == "anime":
+        hm = {"hair": hair, "mid": mat("b_hair_mid", hexc("#4A2412"), 0.9), "under": hair_d}
+        anime_hair("", H, hm, None, {"back": -20})
+        anime_beard("", H, hm, None)
+    else:
+        shell("HairBase", (0, 0.006, 1.66), (0.168, 0.214, 0.21), hair_d, cut=0.25, seg=10, rings=6, rot=(-0.35, 0, 0),
+              thick=0.008)
+        shell("HairBaseBack", (0, 0.01, 1.63), (0.172, 0.27, 0.19), hair_d, cut=0.1, seg=10, rings=6, rot=(-PI / 2, 0, 0),
+              thick=0.008)
+        locks = []
+        for phi in (-50, -25, 0, 25, 50):                                   # topo curto, penteado para trás
+            locks.append(dict(a=(phi, 30), b=(180 - phi * 0.6, 30), w=0.065, t=0.012, bulge=0.012, n=5))
+        for sg in (1, -1):
+            locks.append(dict(a=(sg * 75, 22), b=(sg * 125, 8), w=0.05, t=0.01, bulge=0.004))   # têmporas
+        for phi in (150, 180, -150):                                        # nuca
+            locks.append(dict(a=(phi, 45), b=(phi, 5), w=0.06, t=0.01, bulge=0.004))
+        hair_locks("Hair", H, locks, hair, None)
+        # barba cheia: costeletas pela mandíbula, cunha volumosa no queixo, bigode grosso caído
+        for sg, n in ((1, "L"), (-1, "R")):
+            limb("Sideburn" + n, (sg * (H["half_w"] - 0.012), H["cy"] - 0.01, H["eye_z"] - 0.02),
+                 (sg * 0.05, H["chin_y"] + 0.03, H["chin"] + 0.01), 0.026, 0.03, hair, sides=5, flat=0.7)
+            limb("Mustache" + n, (sg * 0.004, H["mouth_y"] - 0.008, H["nose_base_z"] - 0.004),
+                 (sg * 0.042, H["mouth_y"] + 0.004, H["mouth_z"] - 0.03), 0.011, 0.006, hair, sides=5, flat=0.7)
+        limb("Beard", (0, -0.03, H["mouth_z"]), (0, -0.1, 1.42), 0.088, 0.03, hair, sides=7, flat=0.82,
+             twist=PI / 7, jitter=0.003, seed=4)
+        limb("BeardTip", (0, -0.1, 1.45), (0.004, -0.112, 1.39), 0.03, 0.008, hair_d, sides=5, flat=0.7)
     weigh(take(), Z, [(0.0, "Head")])
 
     # ---------------- braços fortes: manga arregaçada, antebraço à mostra, luva de couro grossa.
@@ -1334,5 +1340,5 @@ def build_blacksmith():
     bake_clip(arm, "work_pause", [(0, down), (18, brow), (38, wipe), (55, brow), (75, down)])
     bake_clip(arm, "idle", [(0, down), (45, breathe), (90, down)])
     bake_clip(arm, "talk", [(0, down), (20, gest_a), (45, gest_b), (70, gest_c), (90, down)])
-    export("blacksmith", export_animations=True, export_skins=True, export_animation_mode='NLA_TRACKS')
+    export(out, export_animations=True, export_skins=True, export_animation_mode='NLA_TRACKS')
     scn.render.fps = fps

@@ -18,3 +18,6 @@ Thumbs.db
 
 # Capturas de conferência (locais)
 /shots/
+
+# Cópia de teste do ferreiro com cabelo e barba desenhados (ASSETS=blacksmith_hair)
+/assets/models/blacksmith_hair.glb*
