@@ -239,6 +239,13 @@ def build_chest():
     # fechadura (espelho dourado com buraco)
     b(bx("LockPlate", (0, -D / 2 - 0.012, 0.4), (0.15, 0.025, 0.17), p_gold, bev=0.01))
     b(bx("Keyhole", (0, -D / 2 - 0.026, 0.39), (0.025, 0.01, 0.055), p_wood_dk, bev=0.004))
+    for sx in (-1, 1):   # cantoneiras douradas no alto das quinas
+        for sy in (-1, 1):
+            cx, cy = sx * (W / 2 + 0.012), sy * (D / 2 + 0.012)
+            b(hull(base.nm("GoldCorner"), [(cx, cy, H - 0.005), (cx - sx * 0.13, cy, H - 0.005), (cx, cy - sy * 0.11, H - 0.005),
+                                            (cx, cy, H - 0.14), (cx - sx * 0.03, cy - sy * 0.03, H - 0.005)], p_gold))
+    b(lathe("LockRing", [(0.045, -0.008), (0.045, 0.008), (0.03, 0.008), (0.03, -0.008)], p_gold, seg=8,
+            loc=(0, -D / 2 - 0.035, 0.31), rot=(PI / 2, 0, 0)))
     join(base.items, "ChestBase")
 
     # tampa: 5 aduelas num meio-cilindro de raio R em torno do eixo (Y=0, Z=H)
@@ -273,6 +280,10 @@ def build_chest():
     l(bx("Hasp", (0, -R - 0.024, H + 0.02), (0.07, 0.02, 0.12), p_gold, bev=0.008))
     for x in (-0.27, 0.27):
         l(bx(lid.nm("Hinge"), (x, R + 0.02, H + 0.01), (0.09, 0.03, 0.07), p_iron, bev=0.008))
+    l(part("LidGem", "ico", (0, 0, H + R + 0.03), (0.1, 0.1, 0.07), p_gold, sub=1))
+    for sx in (-1, 1):   # pontas douradas nos cantos do arco
+        for sy in (-1, 1):
+            l(bx(lid.nm("LidCap"), (sx * (W / 2 - 0.005), sy * (R - 0.03), H + 0.09), (0.05, 0.1, 0.15), p_gold, bev=0.01))
     join(lid.items, "ChestLid")
     export("chest")
 
@@ -616,59 +627,85 @@ def build_tent():
 
 # ======================================================== POÇO
 def build_well():
+    # Poço de pedra (raio 0,88, colisão 0,95 no jogo): calçada em volta, muro de blocos irregulares com
+    # junta escura, capa de pedras, mourões sobre a borda, sarilho com corda e balde, telhado de tabuinhas.
+    # Usa tower_ring/grass e as pedras b_* de buildings.py (definidos antes de os construtores rodarem).
     bag = Bag()
     a = bag.add
     rnd = random.Random(12)
     R = 0.88
-    a(lathe("Core", [(R - 0.06, 0), (R - 0.06, 0.82)], p_stone_dk, seg=16, cap_top=False))
-    a(lathe("InnerWall", [(R - 0.2, 0.82), (R - 0.2, 0.2)], p_stone_dk, seg=16, cap_bot=False, cap_top=False))
-    a(lathe("Water", [(R - 0.2, 0.55), (R - 0.2, 0.56)], p_water, seg=16))
-    # pedras em 3 fiadas alternadas
-    n = 11
-    for row in range(3):
-        for i in range(n):
-            ang = (i + 0.5 * (row % 2)) / n * 2 * PI
-            hgt = 0.26
-            z = 0.02 + row * 0.27 + hgt / 2
-            w = 2 * PI * R / n - 0.035
-            col = (p_stone, p_stone_lt, p_stone_dk)[(i + row * 2) % 3] if rnd.random() > 0.2 else p_stone
-            a(bx(bag.nm("Block"), (math.cos(ang) * (R - 0.04), math.sin(ang) * (R - 0.04), z),
-                 (0.16, w * rnd.uniform(0.9, 1.0), hgt * rnd.uniform(0.9, 1.0)), col, rot=(0, 0, ang), bev=0.03))
-    # coroa de pedra lisa
-    a(lathe("Coping", [(R - 0.22, 0.83), (R + 0.04, 0.83), (R + 0.04, 0.9), (R - 0.22, 0.9)], p_stone_lt, seg=16))
-    # musgo
-    a(boulder("Moss", (0.55, -0.62, 0), (0.5, 0.3, 0.25), p_moss, n=9, seed=13))
-    # estrutura: mourões, sarilho com manivela, telhado de duas águas
+    mats = (b_stone, b_stone_lt, b_stone_dk)
+    # calçada de lajes em volta
+    for i in range(14):
+        ang = i / 14 * 2 * PI + rnd.uniform(-0.05, 0.05)
+        rr = R + 0.32
+        a(bx(bag.nm("Flag"), (math.cos(ang) * rr, math.sin(ang) * rr, 0.03), (0.42, 2 * PI * rr / 14 - 0.05, 0.06),
+             _pick(rnd, b_stone, b_stone_lt, b_stone_dk), rot=(0, 0, ang + rnd.uniform(-0.06, 0.06)), bev=0.025))
+    # muro: fiadas de blocos desencontrados (com núcleo escuro) e boca escura por dentro
+    tower_ring(bag, rnd, R + 0.03, R, 0.0, 0.8, 12, 0.2, mats, hmin=0.18, hmax=0.26, bev=0.03)
+    a(lathe("InnerWall", [(R - 0.2, 0.86), (R - 0.2, 0.15)], p_stone_dk, seg=12, cap_bot=False, cap_top=False))
+    a(lathe("Water", [(R - 0.2, 0.42), (R - 0.2, 0.43)], p_water, seg=12))
+    # capa: pedras lisas com leve saliência
+    n = 10
+    for i in range(n):
+        ang = (i + 0.5) / n * 2 * PI
+        rr = R - 0.06
+        a(bx(bag.nm("Cap"), (math.cos(ang) * rr, math.sin(ang) * rr, 0.85), (0.34, 2 * PI * rr / n - 0.025, 0.11),
+             b_stone_lt if i % 3 else b_stone, rot=(0, 0, ang), bev=0.03))
+    # musgo e capim no pé do muro
+    for k, ang in enumerate((-0.9, 0.6, 2.4)):
+        a(boulder(bag.nm("Moss"), (math.cos(ang) * (R + 0.05), math.sin(ang) * (R + 0.05), 0.02), (0.42, 0.26, 0.2),
+                  p_moss if k % 2 else p_moss_lt, n=9, seed=13 + k))
+    grass(bag, [(math.cos(t) * (R + 0.55), math.sin(t) * (R + 0.55)) for t in (0.2, 1.7, 3.6, 4.6)])
+    # mourões apoiados em sapatas de pedra sobre a capa, com mãos-francesas
     for sx in (-1, 1):
-        a(bx(bag.nm("WellPost"), (sx * 0.78, 0, 1.4), (0.13, 0.13, 1.5), p_wood_dk, bev=0.02))
-        a(beam(bag.nm("Brace"), (sx * 0.78, 0, 1.75), (sx * 0.55, 0, 2.05), 0.035, p_wood_dk, seg=5))
-    a(beam("Axle", (-0.88, 0, 1.85), (0.95, 0, 1.85), 0.055, p_wood, seg=8, end_mat=p_wood_end))
-    a(lathe("RopeCoil", [(0.08, -0.25), (0.08, 0.25)], p_rope, seg=8, rot=(0, PI / 2, 0), loc=(0, 0, 1.85)))
-    a(bx("CrankArm", (0.97, 0, 1.75), (0.04, 0.05, 0.25), p_iron, bev=0.01))
-    a(beam("CrankGrip", (0.97, 0, 1.64), (1.12, 0, 1.64), 0.025, p_wood_lt, seg=6))
-    a(beam("Rope", (0, -0.08, 1.85), (0, -0.08, 1.33), 0.012, p_rope, seg=4))
-    bk = 1.0
-    a(lathe("Bucket", [(0.13, bk), (0.15, bk + 0.22)], [p_wood, p_wood_lt], seg=8, cap_top=False, mats=lambda i: i % 2, loc=(0, -0.08, 0)))
-    a(lathe("BucketIn", [(0.125, bk + 0.18), (0.125, bk + 0.19)], p_water, seg=8, loc=(0, -0.08, 0)))
-    for zc in (bk + 0.04, bk + 0.18):
-        a(lathe(bag.nm("BucketHoop"), [(0.14 + (zc - bk) * 0.09 + 0.006, zc - 0.015), (0.14 + (zc - bk) * 0.09 + 0.006, zc + 0.015)], p_iron, seg=8, loc=(0, -0.08, 0)))
-    a(beam("Bail", (-0.15, -0.08, bk + 0.22), (0, -0.08, bk + 0.33), 0.01, p_iron, seg=4))
-    a(beam("Bail2", (0.15, -0.08, bk + 0.22), (0, -0.08, bk + 0.33), 0.01, p_iron, seg=4))
-    # telhado: fiadas de tábuas nas duas águas, cumeeira escura
-    th = math.radians(38)
-    zr = 2.42
-    half = 0.85
+        x = sx * 0.76
+        a(bx(bag.nm("PostFoot"), (x, 0, 0.98), (0.24, 0.24, 0.16), b_stone_dk, bev=0.03))
+        a(bx(bag.nm("WellPost"), (x, 0, 1.68), (0.14, 0.14, 1.3), p_wood_dk, bev=0.02))
+        a(beam(bag.nm("Brace"), (x, -0.02, 1.95), (sx * 0.5, -0.02, 2.2), 0.035, p_wood_dk, seg=5))
+    a(bx("TieBeam", (0, 0, 2.25), (1.72, 0.12, 0.1), p_wood_dk, bev=0.015))
+    a(beam("Axle", (-0.9, 0, 1.85), (0.98, 0, 1.85), 0.06, p_wood, seg=8, end_mat=p_wood_end))
+    for k in range(5):   # voltas de corda enroladas no sarilho
+        a(lathe(bag.nm("RopeCoil"), [(0.085, -0.24 + k * 0.08), (0.085, -0.17 + k * 0.08)], p_rope, seg=8,
+                rot=(0, PI / 2, 0), loc=(0, 0, 1.85), cap_top=False, cap_bot=False))
+    a(bx("CrankArm", (1.0, 0, 1.74), (0.045, 0.06, 0.3), p_iron, bev=0.01))
+    a(beam("CrankGrip", (1.0, 0, 1.6), (1.16, 0, 1.6), 0.028, p_wood_lt, seg=6))
+    a(beam("Rope", (0, -0.085, 1.85), (0, -0.085, 1.38), 0.013, p_rope, seg=4))
+    # balde pendurado e outro descansando na capa
+    for kx, ky, bz, hang in ((0.0, -0.085, 1.05, True), (-0.42, -0.55, 0.9, False)):
+        a(lathe(bag.nm("Bucket"), [(0.12, bz), (0.15, bz + 0.24)], [p_wood, p_wood_lt], seg=8, cap_top=False,
+                mats=lambda i: i % 2, loc=(kx, ky, 0)))
+        a(lathe(bag.nm("BucketIn"), [(0.13, bz + 0.19), (0.13, bz + 0.2)], p_water, seg=8, loc=(kx, ky, 0)))
+        for zc in (bz + 0.04, bz + 0.19):
+            rr = 0.125 + (zc - bz) * 0.12 + 0.008
+            a(lathe(bag.nm("BucketHoop"), [(rr, zc - 0.015), (rr, zc + 0.015)], p_iron, seg=8, loc=(kx, ky, 0)))
+        if hang:
+            a(beam(bag.nm("Bail"), (kx - 0.15, ky, bz + 0.24), (kx, ky, bz + 0.35), 0.01, p_iron, seg=4))
+            a(beam(bag.nm("Bail"), (kx + 0.15, ky, bz + 0.24), (kx, ky, bz + 0.35), 0.01, p_iron, seg=4))
+    # telhado de tabuinhas desencontradas, cumeeira, empenas de tábuas e ponteiras
+    th = math.radians(36)
+    zr = 2.55
+    half = 0.98
+    rows = 4
     for sy in (-1, 1):
-        for k in range(3):
-            s = (k + 0.5) * half / 3
-            y = sy * s * math.cos(th)
-            z = zr - s * math.sin(th) + 0.02 * (2 - k)
-            a(bx(bag.nm("Shingle"), (0, y, z), (2.0, half / 3 + 0.06, 0.05), p_roof if k % 2 == 0 else p_roof_dk,
-                 rot=(-sy * th, 0, 0), bev=0.012))
-    a(bx("RoofRidge", (0, 0, zr + 0.07), (2.08, 0.16, 0.16), p_roof_dk, rot=(PI / 4, 0, 0), bev=0.02))
-    for sx in (-1, 1):   # empena de madeira
-        a(hull(bag.nm("Gable"), [(sx * 0.78, -0.62, 2.0), (sx * 0.78, 0.62, 2.0), (sx * 0.78, 0, 2.42),
-                                 (sx * 0.72, -0.62, 2.0), (sx * 0.72, 0.62, 2.0), (sx * 0.72, 0, 2.42)], p_wood))
+        for k in range(rows):
+            sl = (k + 0.5) * half / rows
+            y = sy * sl * math.cos(th)
+            z = zr - sl * math.sin(th) + 0.025 * (rows - 1 - k)
+            for j in range(7):
+                x = -1.08 + (j + 0.5 * (k % 2)) * 0.36
+                if x > 1.1:
+                    continue
+                a(bx(bag.nm("Shingle"), (x, y, z), (0.35, half / rows + 0.07, 0.045),
+                     (p_roof, p_roof_dk, p_roof)[(j + k) % 3], rot=(-sy * th, rnd.uniform(-0.03, 0.03), 0), bev=0.01))
+    a(bx("RoofRidge", (0, 0, zr + 0.08), (2.3, 0.17, 0.17), p_roof_dk, rot=(PI / 4, 0, 0), bev=0.02))
+    for sx in (-1, 1):
+        for k in range(4):   # empena de tábuas verticais
+            yy = -0.45 + k * 0.3
+            hz = zr - abs(yy) * math.tan(th) - 0.04
+            a(bx(bag.nm("GablePlank"), (sx * 0.76, yy, (2.25 + hz) / 2), (0.04, 0.28, max(0.05, hz - 2.25)),
+                 p_wood if k % 2 else p_wood_lt, bev=0.008))
+        a(bx(bag.nm("Finial"), (sx * 1.12, 0, zr + 0.2), (0.06, 0.08, 0.4), p_wood_dk, bev=0.01))
     join(bag.items, "Well")
     export("well")
 
@@ -1248,6 +1285,70 @@ def build_forge():
     export("forge")
 
 
+
+
+# ======================================================== PLACAS
+def build_signpost():
+    # Poste de direção: pedras no pé, poste roliço com telhadinho e lanterna, e 4 setas soltas ("Arrow0".."Arrow3"),
+    # cada uma com a origem no eixo do poste e apontando para +X: o jogo gira cada seta para o seu destino e põe o
+    # texto (Label3D) nela; seta sem destino fica escondida. Frente da seta em -Y.
+    bag = Bag()
+    a = bag.add
+    for k in range(6):
+        ang = k / 6 * 2 * PI + 0.3
+        a(boulder(bag.nm("Stone"), (math.cos(ang) * 0.22, math.sin(ang) * 0.22, 0), (0.26, 0.22, 0.18),
+                  (p_stone, p_stone_lt)[k % 2], n=9, seed=780 + k))
+    a(beam("Post", (0, 0, 0.0), (0, 0, 2.55), 0.075, p_wood, seg=7, r2=0.065, end_mat=p_wood_end))
+    a(bx("Cap", (0, 0, 2.6), (0.3, 0.3, 0.06), p_wood_dk, bev=0.015))
+    for sy in (-1, 1):
+        a(bx(bag.nm("CapRoof"), (0, sy * 0.1, 2.7), (0.36, 0.24, 0.04), p_roof, rot=(-sy * 0.6, 0, 0), bev=0.01))
+    join(bag.items, "Signpost")
+    for i, z in enumerate((2.25, 1.93, 1.61, 1.29)):
+        arm = Bag()
+        x0, x1, h = 0.1, 1.15, 0.26
+        tone = (p_wood_lt, p_wood, p_wood_lt, p_wood)[i]
+        arm.add(hull("Board%d" % i, [(x0, -0.03, z - h / 2), (x0, 0.03, z - h / 2), (x0, -0.03, z + h / 2), (x0, 0.03, z + h / 2),
+                                     (x1 - 0.16, -0.03, z - h / 2), (x1 - 0.16, 0.03, z - h / 2), (x1 - 0.16, -0.03, z + h / 2),
+                                     (x1 - 0.16, 0.03, z + h / 2), (x1, -0.03, z), (x1, 0.03, z)], tone))
+        arm.add(bx("Trim%d" % i, (x0 + 0.02, 0, z), (0.04, 0.08, h + 0.04), p_wood_dk, bev=0.008))
+        for zz in (z - 0.07, z + 0.07):
+            arm.add(bx(arm.nm("Nail%d_" % i), (x0 + 0.05, -0.04, zz), (0.025, 0.02, 0.025), p_iron, bev=0.004))
+        ob = join(arm.items, "Arrow%d" % i)
+        set_origin(ob, (0, 0, z))
+    export("signpost")
+
+
+def build_notice_board():
+    # Quadro de avisos 2,4 m: dois postes, telhadinho, moldura e um pergaminho grande no meio (onde o jogo escreve
+    # com Label3D: centro a 1,6 m, frente em -Y a ~0,06 m do eixo) e bilhetes pregados nas bordas.
+    bag = Bag()
+    a = bag.add
+    for sx in (-1, 1):
+        a(bx(bag.nm("Post"), (sx * 1.25, 0, 1.4), (0.16, 0.16, 2.8), p_wood_dk, bev=0.02))
+        a(boulder(bag.nm("Foot"), (sx * 1.25, 0, 0), (0.34, 0.3, 0.2), p_stone, n=9, seed=912 + sx))
+    for k in range(5):   # tábuas do fundo
+        a(bx(bag.nm("BoardPlank"), (0, 0.0, 0.85 + k * 0.31 + 0.15), (2.34, 0.06, 0.3), p_wood if k % 2 else p_wood_lt, bev=0.008))
+    for sz in (-1, 1):
+        a(bx(bag.nm("FrameH"), (0, -0.03, 1.6 + sz * 0.8), (2.5, 0.08, 0.1), p_wood_dk, bev=0.012))
+    a(bx("Parchment", (0, -0.035, 1.6), (2.12, 0.012, 1.28), p_canvas, bev=0.0))
+    for x, z, w, hh, yaw in ((-1.07, 2.2, 0.2, 0.26, 0.12), (1.02, 2.22, 0.24, 0.18, -0.1), (1.1, 0.98, 0.18, 0.24, 0.08)):
+        a(bx(bag.nm("Note"), (x, -0.045, z), (w, 0.01, hh), b_cloth_w, rot=(0, yaw, 0), bev=0.0))
+        a(bx(bag.nm("Pin"), (x, -0.055, z + hh / 2 - 0.04), (0.025, 0.015, 0.025), p_roof, bev=0.004))
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            a(bx(bag.nm("Tack"), (sx * 1.0, -0.05, 1.6 + sz * 0.58), (0.035, 0.015, 0.035), p_iron, bev=0.005))
+    th = math.radians(30)
+    for sy in (-1, 1):
+        for k in range(2):
+            sl = (k + 0.5) * 0.25
+            a(bx(bag.nm("Roof"), (0, sy * sl * math.cos(th), 2.95 - sl * math.sin(th) + 0.02 * (1 - k)), (2.85, 0.28, 0.05),
+                 (p_roof, p_roof_dk)[k], rot=(-sy * th, 0, 0), bev=0.01))
+    a(bx("Ridge", (0, 0, 3.0), (2.9, 0.12, 0.12), p_roof_dk, rot=(PI / 4, 0, 0), bev=0.015))
+    a(bx("RoofBeam", (0, 0, 2.82), (2.7, 0.12, 0.12), p_wood_dk, bev=0.015))
+    join(bag.items, "NoticeBoard")
+    export("notice_board")
+
+
 PROP_BUILDERS = {
     "chest": build_chest, "fence": build_fence, "crate": build_crate, "barrel": build_barrel,
     "lamp": build_lamp, "campfire": build_campfire, "tent": build_tent, "well": build_well, "rock": build_rock,
@@ -1255,6 +1356,6 @@ PROP_BUILDERS = {
     "crop_carrot": build_crop_carrot, "crop_wheat": build_crop_wheat, "crop_tomato": build_crop_tomato,
     "crop_pepper": build_crop_pepper, "crop_mint": build_crop_mint, "crop_pumpkin": build_crop_pumpkin,
     "field_crop": build_field_crop,
-    "anvil": build_anvil, "forge": build_forge,
+    "anvil": build_anvil, "forge": build_forge, "signpost": build_signpost, "notice_board": build_notice_board,
     "bush": build_bush, "bush_berry": build_bush_berry, "fern": build_fern,
 }

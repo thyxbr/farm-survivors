@@ -164,6 +164,23 @@ def tr_crown(objs, name, center, rx, rz, mats, count, seed, s_min=0.75, s_max=1.
         objs.append(tr_clump("%s_C%d" % (name, k), p, (s, s * rnd.uniform(0.85, 1.1), s * squash), mats, seed * 31 + k, n=n))
 
 
+def tr_puffs(objs, name, center, rx, rz, mats, count, size, seed, z_min=-0.2, n=10):
+    """Tufinhos na borda da copa (fora do contorno dos tufos grandes): recortam a silhueta."""
+    rnd = random.Random(seed)
+    c = Vector(center)
+    pts = []
+    for k in range(count):
+        a = k / count * 2 * PI + rnd.uniform(-0.25, 0.25)
+        el = rnd.uniform(z_min, 0.75)
+        ce = math.cos(el * PI / 2)
+        d = Vector((math.cos(a) * ce, math.sin(a) * ce, math.sin(el * PI / 2)))
+        p = c + Vector((d.x * rx, d.y * rx, d.z * rz))
+        s = size * rnd.uniform(0.75, 1.2)
+        objs.append(tr_clump("%s_P%d" % (name, k), p, (s, s * rnd.uniform(0.85, 1.1), s * 0.85), mats, seed * 17 + k, n=n))
+        pts.append((p, d, s))
+    return pts
+
+
 def tr_finish(objs, name, fname):
     o = join(objs, name)
     me = o.data
@@ -175,15 +192,16 @@ def tr_finish(objs, name, fname):
 # ======================================================== CARVALHO
 def build_tree_oak():
     objs = []
-    objs.append(tr_trunk("Trunk", 2.3, 0.34, 0.2, t_bark, lean=(0.12, 0.05), seed=3))
-    tr_roots(objs, "Oak", 0.34, t_bark, n=5, seed=4)
+    objs.append(tr_trunk("Trunk", 2.3, 0.36, 0.2, t_bark, lean=(0.12, 0.05), seed=3))
+    tr_roots(objs, "Oak", 0.36, t_bark, n=6, seed=4)
     top = Vector((0.12, 0.05, 2.25))
     # três braços grossos que abrem a copa
     arms = [((1.15, 0.3, 3.3), (0.1, 0, 0.25)), ((-0.95, 0.55, 3.45), (0, 0, 0.2)), ((0.05, -1.05, 3.6), (0, 0, 0.2))]
     for i, (b, bend) in enumerate(arms):
         objs.append(tr_limb("Arm%d" % i, top - Vector((0, 0, 0.25)), b, 0.17, 0.07, t_bark, bend=bend, n=4, seg=6))
     objs.append(tr_limb("Branch", (0.08, 0.04, 1.55), (-1.05, -0.35, 2.2), 0.09, 0.035, t_bark, bend=(0, 0, 0.18), n=3, seg=5))
-    tr_crown(objs, "Oak", (0.05, 0.1, 3.85), 1.7, 1.0, t_oak, 15, seed=7, base=1.75, s_min=0.85, s_max=1.2)
+    tr_crown(objs, "Oak", (0.05, 0.1, 3.85), 1.8, 1.05, t_oak, 18, seed=7, base=1.6, s_min=0.85, s_max=1.2)
+    tr_puffs(objs, "Oak", (0.05, 0.1, 3.75), 2.55, 1.55, t_oak, 14, 0.85, seed=8)
     # tufo baixo no galho solto e um no topo (silhueta irregular)
     objs.append(tr_clump("Low", (-1.15, -0.4, 2.35), (1.0, 0.9, 0.75), t_oak, 61))
     objs.append(tr_clump("Top", (0.25, -0.1, 4.9), (1.9, 1.8, 1.3), t_oak, 63))
@@ -221,9 +239,9 @@ def build_tree_pine():
     objs = [tr_trunk("Trunk", 4.6, 0.24, 0.06, t_bark_dk, flare=1.7, seed=11, seg=7)]
     tr_roots(objs, "Pine", 0.24, t_bark_dk, n=4, seed=12, length=0.4)
     # saias: largas embaixo, afinando até a ponta
-    tiers = [(1.25, 1.75, 1.35), (2.05, 1.5, 1.25), (2.8, 1.22, 1.15), (3.5, 0.92, 1.05), (4.15, 0.62, 0.95)]
+    tiers = [(1.15, 1.8, 1.3), (1.8, 1.58, 1.2), (2.45, 1.34, 1.12), (3.05, 1.08, 1.05), (3.65, 0.84, 0.98), (4.2, 0.6, 0.9)]
     for i, (z, r, h) in enumerate(tiers):
-        objs.append(_tier("Tier%d" % i, z, r, h, t_pine, seed=40 + i, pts=9 - i // 2, droop=0.32))
+        objs.append(_tier("Tier%d" % i, z, r, h, t_pine, seed=40 + i, pts=10 - i // 2, droop=0.36))
     objs.append(_tier("Tip", 4.75, 0.32, 0.8, t_pine, seed=49, pts=5, droop=0.2))
     tr_finish(objs, "TreePine", "tree_pine")
 
@@ -256,7 +274,8 @@ def build_tree_birch():
     # copa leve: tufos menores e separados ao longo da metade de cima (deixa ver o céu entre eles)
     spots = [(0.4, 0.1, 5.0, 1.1), (0.85, -0.3, 4.2, 0.95), (-0.15, 0.4, 4.4, 1.0), (-0.5, -0.3, 3.75, 0.95),
              (-1.0, -0.5, 3.15, 0.8), (0.95, -0.35, 3.45, 0.8), (0.5, 0.9, 4.35, 0.85), (0.1, -0.5, 4.75, 0.85),
-             (-0.6, 0.2, 4.9, 0.8), (0.3, 0.3, 5.6, 0.75)]
+             (-0.6, 0.2, 4.9, 0.8), (0.3, 0.3, 5.6, 0.75), (1.2, 0.3, 3.9, 0.6), (-0.9, 0.6, 4.1, 0.65),
+             (0.0, -0.9, 4.0, 0.65), (0.7, 0.4, 5.3, 0.6), (-0.3, -0.2, 5.4, 0.7), (-1.15, -0.2, 3.6, 0.55)]
     for k, (x, y, z, s) in enumerate(spots):
         objs.append(tr_clump("C%d" % k, (x, y, z), (s * 1.35, s * 1.25, s * 1.5), t_birchleaf, 300 + k, n=14, flip=0.18))
     tr_roots(objs, "Birch", 0.15, t_birch, n=3, seed=33, length=0.3)
@@ -271,7 +290,8 @@ def build_tree_maple():
     for i, b in enumerate(((0.9, 0.2, 3.1), (-0.85, 0.45, 3.2), (0.0, -0.95, 3.3), (0.1, 0.4, 3.6))):
         objs.append(tr_limb("Arm%d" % i, top, b, 0.13, 0.05, t_bark_grey, bend=(0, 0, 0.2), n=4, seg=6))
     # copa redonda e cheia, um pouco mais alta que larga
-    tr_crown(objs, "Maple", (0.0, 0.1, 3.6), 1.25, 1.05, t_maple, 14, seed=53, base=1.65, squash=0.95, top_bias=0.1, s_min=0.85)
+    tr_crown(objs, "Maple", (0.0, 0.1, 3.6), 1.3, 1.1, t_maple, 16, seed=53, base=1.55, squash=0.95, top_bias=0.1, s_min=0.85)
+    tr_puffs(objs, "Maple", (0.0, 0.1, 3.65), 2.05, 1.7, t_maple, 13, 0.75, seed=55)
     objs.append(tr_clump("Top", (0.1, 0.0, 4.8), (1.7, 1.6, 1.3), t_maple, 54))
     # folhas caídas em volta do pé
     for k in range(10):
@@ -299,6 +319,7 @@ def build_tree_cherry():
         objs.append(tr_clump("Bloom%d" % i, b + Vector((0, 0, 0.25)), (1.9, 1.8, 1.15), t_blossom, 80 + i, n=16))
         objs.append(tr_clump("BloomB%d" % i, b * 0.65 + Vector((0, 0, 1.1)), (1.5, 1.4, 1.0), t_blossom, 90 + i, n=12))
     objs.append(tr_clump("Core", (0.1, 0.0, 3.25), (2.8, 2.6, 1.5), t_blossom, 99, n=18))
+    tr_puffs(objs, "Cherry", (0.1, 0.0, 3.0), 2.2, 0.9, t_blossom, 12, 0.7, seed=97, z_min=-0.3)
     # pétalas caídas
     for k in range(14):
         a = (k * 2.39996) % (2 * PI)
@@ -306,6 +327,88 @@ def build_tree_cherry():
         objs.append(leaf("Petal%d" % k, (math.cos(a) * d, math.sin(a) * d, 0.015), a * 2.3, 0.0, 0.08, 0.07,
                          t_blossom[1 + k % 2], droop=0.0, fold=0.05))
     tr_finish(objs, "TreeCherry", "tree_cherry")
+
+
+
+# ======================================================== FRUTÍFERAS (macieira, laranjeira, pereira)
+# Árvore baixa de pomar: tronco curto, copa redonda e cheia, frutas aparecendo na borda dos tufos e
+# algumas caídas no chão. Mesmo raio de tronco do carvalho (colisão em world.gd TREE_R).
+t_fruitleaf = [mat("t_fruitleaf_dark", _lin(0.12, 0.34, 0.10), 0.9), mat("t_fruitleaf", _lin(0.24, 0.52, 0.16), 0.9),
+               mat("t_fruitleaf_light", _lin(0.46, 0.70, 0.24), 0.9)]
+t_orangeleaf = [mat("t_orangeleaf_dark", _lin(0.07, 0.26, 0.10), 0.85), mat("t_orangeleaf", _lin(0.14, 0.40, 0.15), 0.85),
+                mat("t_orangeleaf_light", _lin(0.30, 0.56, 0.22), 0.85)]
+FRUIT = {
+    "apple": [mat("t_apple", _lin(0.86, 0.12, 0.10), 0.5), mat("t_apple_light", _lin(1.0, 0.42, 0.28), 0.5)],
+    "orange": [mat("t_orange", _lin(1.0, 0.52, 0.06), 0.5), mat("t_orange_light", _lin(1.0, 0.72, 0.25), 0.5)],
+    "pear": [mat("t_pear", _lin(0.80, 0.82, 0.22), 0.5), mat("t_pear_light", _lin(0.95, 0.92, 0.45), 0.5)],
+}
+t_fruit_stem = mat("t_fruit_stem", _lin(0.28, 0.18, 0.08), 0.9)
+
+
+def _fruit(objs, name, kind, p, r, seed, stem=True):
+    """Fruta: maçã/laranja = icosfera achatada; pera = gota (lathe). Topo claro e cabinho."""
+    rnd = random.Random(seed)
+    m = FRUIT[kind]
+    if kind == "pear":
+        ob = lathe(name, [(r * 0.55, -r), (r, -r * 0.3), (r * 0.5, r * 0.6), (r * 0.25, r * 1.2)], m[0], seg=6, loc=p)
+    else:
+        ob = part(name, "ico", p, (2 * r, 2 * r, 2 * r * (0.85 if kind == "orange" else 0.92)), m[0], sub=1)
+    tr_tone(ob, [m[0], m[0], m[1]], hi=0.45, lo=-2.0)
+    _drop_first_slot(ob)
+    objs.append(ob)
+    if stem:
+        top = Vector(p) + Vector((0, 0, r * (1.3 if kind == "pear" else 0.9)))
+        objs.append(tr_limb(name + "_Stem", top, top + Vector((rnd.uniform(-0.03, 0.03), rnd.uniform(-0.03, 0.03), 0.08)),
+                            0.012, 0.008, t_fruit_stem, n=1, seg=4, cap=False))
+
+
+def _build_fruit_tree(kind, fname, leaves, seed, n_fruit=22, fruit_r=0.11):
+    rnd = random.Random(seed)
+    objs = [tr_trunk("Trunk", 1.35, 0.26, 0.17, t_bark, lean=(0.06, -0.04), seed=seed)]
+    tr_roots(objs, "Fruit", 0.26, t_bark, n=5, seed=seed + 1, length=0.35)
+    top = Vector((0.06, -0.04, 1.3))
+    tips = []
+    for i in range(4):   # quatro braços abertos, baixos (árvore podada de pomar)
+        a = i * PI / 2 + 0.4 + rnd.uniform(-0.2, 0.2)
+        b = Vector((math.cos(a) * 1.05, math.sin(a) * 1.05, 2.3 + rnd.uniform(-0.1, 0.2)))
+        tips.append(b)
+        objs.append(tr_limb("Arm%d" % i, top - Vector((0, 0, 0.1)), b, 0.11, 0.045, t_bark, bend=(0, 0, 0.25), n=4, seg=5))
+    c = (0.05, 0.0, 2.85)
+    tr_crown(objs, "Fruit", c, 1.3, 0.85, leaves, 15, seed=seed + 2, base=1.45, squash=0.9, top_bias=0.15, s_min=0.85)
+    puffs = tr_puffs(objs, "Fruit", (0.05, 0.0, 2.8), 1.8, 1.15, leaves, 14, 0.75, seed=seed + 3, z_min=-0.15)
+    # frutas: na face de fora dos tufinhos da borda e soltas por baixo da copa (penduradas)
+    k = 0
+    for p, d, sz in puffs:
+        if k >= n_fruit:
+            break
+        for j in range(2 if rnd.random() < 0.6 else 1):
+            dd = (d + Vector((rnd.uniform(-0.5, 0.5), rnd.uniform(-0.5, 0.5), -0.35))).normalized()
+            fp = p + dd * (sz * 0.42 + fruit_r * 0.4)
+            _fruit(objs, "Fruit%d" % k, kind, fp, fruit_r * rnd.uniform(0.85, 1.1), seed * 7 + k)
+            k += 1
+    while k < n_fruit:   # por baixo da copa, entre os galhos
+        a = rnd.uniform(0, 2 * PI)
+        rr = rnd.uniform(0.6, 1.6)
+        _fruit(objs, "Fruit%d" % k, kind, (c[0] + math.cos(a) * rr, c[1] + math.sin(a) * rr, rnd.uniform(1.95, 2.25)),
+               fruit_r * rnd.uniform(0.85, 1.1), seed * 7 + k)
+        k += 1
+    for j in range(5):   # caídas no chão
+        a = (j * 2.39996 + seed) % (2 * PI)
+        d = 0.7 + (j * 0.41) % 1.2
+        _fruit(objs, "Fallen%d" % j, kind, (math.cos(a) * d, math.sin(a) * d, fruit_r * 0.85), fruit_r, seed * 13 + j, stem=False)
+    tr_finish(objs, "Tree" + kind.capitalize(), fname)
+
+
+def build_tree_apple():
+    _build_fruit_tree("apple", "tree_apple", t_fruitleaf, 401)
+
+
+def build_tree_orange():
+    _build_fruit_tree("orange", "tree_orange", t_orangeleaf, 431, fruit_r=0.12)
+
+
+def build_tree_pear():
+    _build_fruit_tree("pear", "tree_pear", t_fruitleaf, 461, n_fruit=18, fruit_r=0.1)
 
 
 # ======================================================== FLORES (MultiMesh em ground.gd)
@@ -465,6 +568,7 @@ def build_flower_sunflower():
 TREE_BUILDERS = {
     "tree_oak": build_tree_oak, "tree_pine": build_tree_pine, "tree_fir": build_tree_fir,
     "tree_birch": build_tree_birch, "tree_maple": build_tree_maple, "tree_cherry": build_tree_cherry,
+    "tree_apple": build_tree_apple, "tree_orange": build_tree_orange, "tree_pear": build_tree_pear,
     "flower_tulips": build_flower_tulips, "flower_poppies": build_flower_poppies,
     "flower_daisies": build_flower_daisies, "flower_lavender": build_flower_lavender,
     "flower_bluebells": build_flower_bluebells, "flower_sunflower": build_flower_sunflower,
