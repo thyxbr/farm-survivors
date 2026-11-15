@@ -3,7 +3,7 @@ extends Node
 ## As tabelas (ITEMS, CROPS, RECIPES, SPELLS, QUESTS, SHOP_STOCK, RARITY) moram em data/balance/*.json
 ## e são preenchidas pelo autoload Balance antes de qualquer _ready; aqui só ficam as `static var`.
 ## Campos de item (items.json): "class" sword (combo corpo a corpo, escala com FOR) · staff (projéteis
-## mágicos, escala com INT) · bow (segure para tensionar e solte, escala com AGI); "shape" muda o modelo 3D;
+## mágicos, escala com INT) · bow (botão direito mira e puxa, esquerdo atira; escala com AGI); "shape" muda o modelo 3D;
 ## "stats" = bônus do item (ver STAT_NAMES); "fx" = efeito ao acertar (slow, splash, pierce, multishot).
 
 static var ITEMS: Dictionary = {}

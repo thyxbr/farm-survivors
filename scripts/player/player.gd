@@ -19,7 +19,16 @@ const SWING_TIMES := [0.42, 0.42, 0.6]
 const SWING_MULT := [1.0, 1.1, 1.6]
 const STAFF_TIMES := [0.4, 0.4, 0.6]
 const BOW_FULL := 0.85        # segundos para tensionar o arco por completo
-const BOW_RECOVER := 0.28
+const BOW_RECOVER := 0.35     # soltou: a mão da corda escapa e o arco baixa (ou encaixa a próxima, mirando)
+const BOW_MIN_DRAW := 0.22    # segundos de tensão antes de poder atirar mirando (clique antes: atira ao chegar)
+## Tiro rápido (clique esquerdo sem mirar): puxa até BOW_SNAP_CHARGE em BOW_SNAP_TIME segundos e solta sozinho.
+const BOW_SNAP_TIME := 0.3
+const BOW_SNAP_CHARGE := 0.55
+const ARROW_AIM_RANGE := 30.0  # a compensação da queda da flecha mira no máximo até aqui (m)
+const AIM_FOV := 52.0         # campo de visão mirando com o arco (normal: 70)
+const CAM_SIDE := 0.45        # câmera um pouco à direita do jogador (m)
+const AIM_CAM_SIDE := 0.8     # mirando com o arco: sobre o ombro direito
+const AIM_CAM_CLOSER := 1.2   # e mais perto (m)
 ## Ganho da aproximação exponencial da velocidade (chão: andando, parando, invertendo; ar).
 const ACCEL_RUN := 14.0
 const ACCEL_STOP := 18.0
@@ -35,9 +44,14 @@ var model: Node3D
 var parts := {}
 ## Referências do visual da arma (KnightLook.apply): classe, suporte, ponta, flecha.
 var look := {"class": "sword", "holder": null, "tip": null, "arrow": null, "arm": null, "elbow": null, "counter": 0.0}
-## Arco: tensionando (segurando o ataque) e quanto já tensionou.
+## Arco: mirando (segurando o botão direito), tensionando e quanto já tensionou; tiro rápido (sem mirar) e
+## tiro pedido antes da tensão mínima; o zoom da mira (0..1, suavizado).
+var aiming := false
 var drawing := false
 var draw_t := 0.0
+var _bow_snap := false
+var _shot_queued := false
+var _aim_zoom := 0.0
 
 var anim_t := 0.0
 var idle_t := 0.0
@@ -151,7 +165,7 @@ func _ready() -> void:
 	spring.spring_length = 4.0
 	spring.collision_mask = 1
 	spring.margin = 0.2
-	spring.position.x = 0.45
+	spring.position.x = CAM_SIDE
 	var sphere := SphereShape3D.new()
 	sphere.radius = 0.25
 	spring.shape = sphere
@@ -227,8 +241,15 @@ func _process(delta: float) -> void:
 	_cam_y = clampf(_cam_y, o.y - 0.6, o.y + 0.6)
 	cam_yaw.global_position = Vector3(o.x, _cam_y + 1.55, o.z)
 	_vfx_sync()
-	# recuo pedido por habilidade: soma só a diferença, a distância base fica intacta
-	var back := lerpf(_cam_back_now, cam_back, 1.0 - exp(-6.0 * delta))
+	# mirando com o arco a câmera fecha e vai para cima do ombro direito: o corpo fica de lado, à esquerda
+	# da mira, com o arco e a corda à vista (a Flecha do Vendaval mexe no FOV sozinha)
+	var zoom_to := 1.0 if aiming and look["class"] == "bow" and not dead else 0.0
+	_aim_zoom = lerpf(_aim_zoom, zoom_to, 1.0 - exp(-10.0 * delta))
+	if ability == "" and camera:
+		camera.fov = lerpf(70.0, AIM_FOV, _aim_zoom)
+	spring.position.x = lerpf(CAM_SIDE, AIM_CAM_SIDE, _aim_zoom)
+	# recuo pedido por habilidade (e a aproximação da mira): soma só a diferença, a distância base fica intacta
+	var back := lerpf(_cam_back_now, cam_back - AIM_CAM_CLOSER * _aim_zoom, 1.0 - exp(-6.0 * delta))
 	spring.spring_length += back - _cam_back_now
 	_cam_back_now = back
 
@@ -299,6 +320,7 @@ func _local_process(delta: float) -> void:
 	if input_locked or horde_frozen or chat_typing or build_lock or loading:
 		end_ability()
 	if input_locked or horde_frozen or chat_typing or loading:
+		aiming = false
 		velocity.x = move_toward(velocity.x, 0, 45 * delta)
 		velocity.z = move_toward(velocity.z, 0, 45 * delta)
 		move_and_slide()
@@ -363,8 +385,12 @@ func _local_process(delta: float) -> void:
 
 	if Input.is_action_just_pressed("jump") and is_on_floor() and not attacking and dodge_timer <= 0 and not busy:
 		velocity.y = JUMP_VELOCITY
-	if Input.is_action_just_pressed("dodge") and not build_lock:
+	# com arco o botão direito mira: o mesmo clique não esquiva (a esquiva fica no Ctrl/Alt)
+	var aim_click: bool = look["class"] == "bow" and Input.is_action_just_pressed("aim")
+	if Input.is_action_just_pressed("dodge") and not build_lock and not aim_click:
 		_dodge_pressed(dir)
+	if look["class"] != "bow" or build_lock or busy:
+		aiming = false
 	if build_lock:
 		_cancel_draw()
 	elif busy:
@@ -407,7 +433,7 @@ func _local_process(delta: float) -> void:
 
 	# orientação do modelo: mira para frente da câmera ao atacar/conjurar, senão para onde anda
 	var face := Vector3.ZERO
-	if attacking or cast_timer > 0 or drawing:
+	if attacking or cast_timer > 0 or drawing or aiming:
 		face = fwd
 	elif dodge_timer > 0:
 		face = dodge_dir
@@ -532,7 +558,8 @@ func _update_attack(delta: float) -> void:
 	if t >= 1.0:
 		attacking = false
 		combo_window = 0.45
-		KnightAnim.reset_twist(parts)
+		if not (look["class"] == "bow" and aiming):   # mirando o arco continua de lado: sem desgirar
+			KnightAnim.reset_twist(parts)
 		if buffered_attack:
 			buffered_attack = false
 			_start_swing()
@@ -660,28 +687,82 @@ func _staff_shot() -> void:
 	Sfx.play(Sfx.staff_element(_weapon_id()) + "_cast", 0.12, -4.0)
 
 
-## Arco: segurar o ataque tensiona, soltar dispara (dano e alcance crescem com a tensão).
+## Arco: segurar o botão direito mira (o arco sobe, a flecha encaixa e a corda vem até o queixo) e o clique
+## esquerdo dispara (dano e alcance crescem com a tensão). Mirando, depois de cada tiro ele encaixa a próxima
+## sozinho. Soltar o botão direito sem atirar baixa o arco. Clique esquerdo sem mirar = tiro rápido: puxa
+## pela metade bem depressa e solta sozinho.
 func _update_bow(delta: float) -> void:
-	if Input.is_action_just_pressed("attack") and not drawing and not attacking and dodge_timer <= 0:
+	aiming = Input.is_action_pressed("aim") and dodge_timer <= 0
+	var shoot := Input.is_action_just_pressed("attack")
+	if attacking and aiming and shoot:
+		_shot_queued = true   # clicou ainda na recuperação: atira assim que a próxima flecha estiver puxada
+	if not drawing and not attacking and dodge_timer <= 0 and (aiming or shoot):
 		if Game.stamina < 5.0:
-			Game.notify.emit("Sem fôlego!", Color(1, 0.8, 0.5))
-		else:
-			drawing = true
-			draw_t = 0.0
-			Sfx.play("bow_draw", 0.05, -4.0)
+			if shoot or Input.is_action_just_pressed("aim"):
+				Game.notify.emit("Sem fôlego!", Color(1, 0.8, 0.5))
+			_shot_queued = false
+			return
+		drawing = true
+		draw_t = 0.0
+		_bow_snap = not aiming
+		_shot_queued = aiming and (_shot_queued or shoot)
+		Sfx.play("bow_draw", 0.05, -4.0)
+		shoot = false   # o clique que começou o tiro rápido não conta de novo
+	if not aiming and not drawing:
+		_shot_queued = false
 	if not drawing:
 		return
+	stamina_delay = 0.4
 	var was := draw_t
+	if _bow_snap:
+		draw_t = min(draw_t + delta * BOW_FULL * BOW_SNAP_CHARGE / BOW_SNAP_TIME, BOW_FULL)
+		if aiming:
+			_bow_snap = false   # começou a mirar no meio do tiro rápido: vira tiro mirado
+		elif bow_charge() >= BOW_SNAP_CHARGE:
+			release_arrow()
+		return
 	draw_t = min(draw_t + delta, BOW_FULL)
 	if was < BOW_FULL and draw_t >= BOW_FULL:
 		Sfx.play("bow_full", 0.05, -6.0)
-	stamina_delay = 0.4
-	if not Input.is_action_pressed("attack"):
+	if not aiming:
+		_cancel_draw()   # baixou o arco sem atirar
+		return
+	if shoot:
+		_shot_queued = true
+	if _shot_queued and draw_t >= BOW_MIN_DRAW:
 		release_arrow()
+
+
+## Inclinação da mira do arco a partir do ombro (o braço e a flecha apontam para onde a câmera mira).
+## Réplicas não têm a câmera do dono: miram na horizontal.
+func _update_aim_pitch() -> void:
+	var pitch := 0.0
+	if not remote and camera:
+		var shoulder := global_position + Vector3.UP * 1.42
+		pitch = clampf(asin(clampf(aim_dir(shoulder).y, -1.0, 1.0)), -0.9, 0.9)
+	parts["aim_pitch"] = lerpf(float(parts.get("aim_pitch", 0.0)), pitch, 0.35)
 
 
 func bow_charge() -> float:
 	return clampf(draw_t / BOW_FULL, 0.0, 1.0) if drawing else 0.0
+
+
+## Flecha na linha da mira: a câmera fica sobre o ombro direito e o arco à esquerda dela, então uma flecha
+## que saísse do arco só cruzaria a mira num ponto (e passaria à esquerda de quem está mais perto). Ela voa
+## na linha da câmera, nascendo na altura do arco; o visual começa no arco e encaixa na linha em seguida
+## (projectile.gd, vis_offset). A direção sobe o bastante para a queda da flecha terminar no ponto mirado.
+## Devolve [origem, direção, deslocamento do visual]. Réplicas (sem câmera): do arco para a mira.
+func arrow_launch(spd: float) -> Array:
+	var tip := weapon_tip()
+	if remote or camera == null or not camera.is_inside_tree():
+		return [tip, aim_dir(tip), Vector3.ZERO]
+	var co := camera.global_position
+	var f := -camera.global_basis.z
+	var start := co + f * maxf((tip - co).dot(f), 0.5)
+	var target := aim_point()
+	var t := minf(start.distance_to(target), ARROW_AIM_RANGE) / maxf(spd, 1.0)   # sem alvo: o raio vai a 80 m
+	target += Vector3.UP * 0.5 * PROJECTILE.ARROW_DROP * t * t
+	return [start, (target - start).normalized(), tip - start]
 
 
 func release_arrow() -> void:
@@ -689,12 +770,16 @@ func release_arrow() -> void:
 	drawing = false
 	draw_t = 0.0
 	Game.stamina = max(0.0, Game.stamina - 5.0)
-	var origin := weapon_tip()
-	var dir := aim_dir(origin)
+	var spd := lerpf(22.0, 42.0, charge)
+	var launch := arrow_launch(spd)
+	var origin: Vector3 = launch[0]
+	var dir: Vector3 = launch[1]
 	var full := charge >= 0.99
 	var fx := _weapon_fx()
 	var crit: bool = randf() < Game.crit_chance() + (0.1 if full else 0.0)
 	var dmg := Game.melee_damage() * lerpf(0.45, 1.5, charge) * (1.8 if crit else 1.0)
+	_bow_snap = false
+	_shot_queued = false
 	var pierce := 2 if full else 0
 	if fx == "pierce":
 		pierce += 2
@@ -702,7 +787,8 @@ func release_arrow() -> void:
 	if full and fx == "multishot":
 		dirs = [dir.rotated(Vector3.UP, -0.1), dir, dir.rotated(Vector3.UP, 0.1)]
 	for d in dirs:
-		_spawn_projectile("arrow", origin, d, dmg, crit, pierce, lerpf(22.0, 42.0, charge))
+		var ar = _spawn_projectile("arrow", origin, d, dmg, crit, pierce, spd)
+		ar.vis_offset = launch[2]
 		Network.send_event("arrow", origin, d)
 	attacking = true
 	combo = 1
@@ -716,6 +802,8 @@ func release_arrow() -> void:
 func _cancel_draw() -> void:
 	drawing = false
 	draw_t = 0.0
+	_bow_snap = false
+	_shot_queued = false
 
 
 func _spawn_projectile(kind: String, origin: Vector3, d: Vector3, dmg: float, crit: bool, pierce: int, spd := 30.0, fx_override := "", color_override := Color(0, 0, 0, 0)) -> Node:
@@ -1334,6 +1422,7 @@ func _animate(delta: float) -> void:
 
 	# pose: parado -> andar/correr -> ar, misturados pelos pesos suavizados
 	var p := KnightAnim.blend(KnightAnim.idle_pose(idle_t), KnightAnim.locomotion_pose(parts, anim_t, _amp, _run), _amp)
+	KnightAnim.weapon_carry(p, look["class"], _amp, _run)   # cajado firme, arco pendurado
 	if _air > 0.001:
 		p = KnightAnim.blend(p, KnightAnim.air_pose(clampf(velocity.y / JUMP_VELOCITY, -1.0, 1.0)), _air)
 	KnightAnim.add_landing(p, land)
@@ -1368,12 +1457,14 @@ func _animate(delta: float) -> void:
 	if arrow and is_instance_valid(arrow):
 		arrow.visible = drawing or ((ability == "bow_triple" and ability_t < BowAbilities.TRIPLE_DRAW) or (ability == "bow_frost" and ability_t < BowAbilities.FROST_DRAW)
 			or (ability == "bow_gale" and not ability_data.get("fired", false)))
+	if cls == "bow" and (drawing or attacking or ability.begins_with("bow_")):
+		_update_aim_pitch()
 	if ability != "":
 		_ab_module(ability).pose(self, p)
 	elif cls == "bow" and drawing:
-		KnightAnim.bow_draw_pose(p, bow_charge())
+		KnightAnim.bow_draw_pose(p, bow_charge(), _amp)
 	elif cls == "bow" and attacking:
-		KnightAnim.bow_release_pose(p, attack_timer / BOW_RECOVER, _amp)
+		KnightAnim.bow_release_pose(p, attack_timer / BOW_RECOVER, _amp, aiming)
 	elif attacking and cls == "staff":
 		KnightAnim.staff_pose(p, combo, attack_timer / _swing_time(combo), _amp)
 	elif attacking and cls == "sword":
@@ -1385,6 +1476,8 @@ func _animate(delta: float) -> void:
 	KnightAnim.apply(parts, p, k)
 
 	KnightAnim.hold_weapon_upright(look, parts)
+	if cls == "bow":
+		KnightAnim.bow_string(look, parts)   # corda nos dedos, arco envergando, flecha na linha
 
 	if on_floor and hspeed > 1.0:
 		_footstep -= delta * hspeed
@@ -1398,7 +1491,7 @@ func _animate(delta: float) -> void:
 ## jogadores mostram os mesmos efeitos. Formato: {"auras": [estilos], "en": elemento, "lv": nível}.
 ## As auras são declaradas pelo cliente (só cosméticas). O encanto (en/lv) vem do personagem:
 ## aqui, do espelho no Game; para os outros, o servidor preenche com o que ele gravou.
-## Linha de comando (para capturas): `--buffs=spicy_soup,mint_tea`, `--auras=escudo,vento`, `--vfxwalk`.
+## Linha de comando (para capturas): `--buffs=spicy_soup,mint_tea`, `--auras=escudo,vento`, `--vfxwalk`, `--aimdemo`.
 var vfx_aura: BuffAura
 var vfx_ability_auras := {}    # estilo -> true (auras ligadas por habilidades)
 var _vfx_sent := {}
@@ -1414,6 +1507,8 @@ func _vfx_setup() -> void:
 				vfx_ability_auras[st] = true
 		elif a == "--vfxwalk":
 			_vfx_walk_demo()
+		elif a == "--aimdemo":   # capturas da mira do arco: segura o botão direito
+			Input.action_press.call_deferred("aim")
 
 
 ## `--vfxwalk`: anda em zigue-zague, pula e ataca sozinho (para gravar os efeitos em movimento).

@@ -287,7 +287,8 @@ func _setup_input() -> void:
 			var ev := InputEventKey.new()
 			ev.physical_keycode = k
 			InputMap.action_add_event(action, ev)
-	var mouse := {"attack": MOUSE_BUTTON_LEFT, "dodge": MOUSE_BUTTON_RIGHT}
+	# "aim" divide o botão direito com a esquiva: com arco ele mira (o jogador ignora a esquiva desse clique)
+	var mouse := {"attack": MOUSE_BUTTON_LEFT, "dodge": MOUSE_BUTTON_RIGHT, "aim": MOUSE_BUTTON_RIGHT}
 	for action in mouse:
 		if not InputMap.has_action(action):
 			InputMap.add_action(action)

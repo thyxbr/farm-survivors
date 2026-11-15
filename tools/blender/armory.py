@@ -4,8 +4,10 @@
 #
 # Convenções (todas com o centro da empunhadura na origem, frente = -Y):
 #   cajado  st_*: haste em +Z, ponta de baixo em z≈-0,55, cabeça entre 0,85 e 1,25; "Tip" = centro da gema.
+#                 Empunhadura em z = STAFF_HAND (0,3), o meio da vara, onde a mão do personagem fica.
 #   arco    bw_*: braços em ±Z, curvados para +Y (lado do arqueiro); corda em y = ponta dos braços.
-#                 "Nock" = centro da corda (onde a flecha encaixa), "Tip" = 0,3 m à frente.
+#                 "Nock" = centro da corda (onde a flecha encaixa), "Tip" = 0,3 m à frente. A corda não vai no
+#                 GLB: "StringTop"/"StringBot" marcam as pontas dela e o jogo a desenha (e puxa até os dedos).
 #   flecha  bw_arrow: ao longo de -Y a partir da corda (ponta em y≈-0,75).
 #   espada  w_*: lâmina em +Z, largura em X, costas das lâminas curvas em -X (mesma regra de weapons.py).
 #
@@ -313,13 +315,22 @@ def finish_staff(asset, tip_z):
 
 
 # ------------------------------------------------------------------ cajados atuais
+## O jogo segura o cajado no meio da vara (KnightLook.STAFF_GRIP desce a vara 0,3 m na mão), então a empunhadura
+## enrolada fica em z = STAFF_HAND, onde a mão de fato está.
+STAFF_HAND = 0.3
+
+
+def grip_wrap(m, col, **kw):
+    return wrap("Grip", m, col, z0=STAFF_HAND - 0.13, z1=STAFF_HAND + 0.13, **kw)
+
+
 def build_apprentice():
     m = vcf("st_apprentice")
     g = vcf("st_apprentice_gem", emit="#7fb2ff", strength=0.8)
     wood = grain("#b07a48", "#7a4e2a")
     shaft("Shaft", m, wood, z1=0.9, r0=0.022, r1=0.019, wobble=0.006)
     ferrule("Ferrule", m, H("#c9963c"))
-    wrap("Grip", m, H("#6b4226"))
+    grip_wrap(m, H("#6b4226"))
     band("Collar", m, H("#d7a648"), 0.88, 0.03, 0.026)
     for k in range(3):
         a = 2 * math.pi * k / 3 + 0.5
@@ -340,7 +351,7 @@ def build_oak():
     lathe("Knot", [(-0.03, 0.0), (-0.01, 0.012), (0.012, 0.009), (0.025, 0.0)], m, wood, seg=6,
           loc=(0.02, -0.012, 0.3), rot=(0.4, 1.2, 0))
     ferrule("Ferrule", m, H("#5c5650"))
-    wrap("Grip", m, H("#3f5a2a"), turns=6)
+    grip_wrap(m, H("#3f5a2a"), turns=6)
     tips = []
     for k in range(4):
         a = 2 * math.pi * k / 4 + 0.3
@@ -373,7 +384,7 @@ def build_ember():
         return mix(char_b, crack, smooth01((v - 0.86) / 0.1))
     shaft("Shaft", m, charred, z1=0.88, r0=0.025, r1=0.022, seg=6, wobble=0.007, seed=7, smooth=False)
     ferrule("Ferrule", m, H("#d0952e"))
-    wrap("Grip", m, H("#7a2418"))
+    grip_wrap(m, H("#7a2418"))
     for z in (0.22, 0.62):
         band("Band%.2f" % z, m, H("#d0952e"), z, 0.022, 0.027, seg=6)
     cup("Cup", m, H("#4a464e"), 0.84, 0.92, 0.026, 0.04, seg=6)
@@ -394,7 +405,7 @@ def build_frost():
     pale = lambda co: mix(H("#d8e4f2"), H("#a8bcd8"), 0.5 + 0.5 * math.sin(co.z * 14))
     shaft("Shaft", m, pale, z1=0.88, r0=0.022, r1=0.021, seg=8)
     helix("Spiral", m, H("#f2f8ff"), 0.2, 0.84, 0.023, 2.5, r=0.005)
-    wrap("Grip", m, H("#2c4a7a"))
+    grip_wrap(m, H("#2c4a7a"))
     ferrule("Ferrule", m, H("#e6eef8"))
     crystal("ButtShard", g, H("#b8f0ff"), (0, 0, -0.6), 0.016, 0.02, 0.07, seg=5)
     cup("Cup", m, H("#e6eef8"), 0.84, 0.93, 0.025, 0.045, seg=8)
@@ -420,7 +431,7 @@ def build_archmage():
     for z in (-0.4, 0.25, 0.7):
         band("Band%.2f" % z, m, gold, z, 0.026, 0.029)
     ferrule("Ferrule", m, gold)
-    wrap("Grip", m, H("#3c1e52"))
+    grip_wrap(m, H("#3c1e52"))
     cup("Cup", m, gold, 0.84, 0.94, 0.026, 0.05)
     tube("Stem", [(0, 0, 0.92), (0, 0, 1.04)], 0.012, m, gold)
     tube("StemTop", [(0, 0, 1.12), (0, 0, 1.176)], 0.008, m, gold)
@@ -447,7 +458,7 @@ def build_willow():
     wood = grain("#cdb47c", "#9a8050", freq=2, zf=14, amt=0.5)
     shaft("Shaft", m, wood, z1=0.88, r0=0.02, r1=0.017, seg=7, wobble=0.009, seed=11)
     ferrule("Ferrule", m, H("#8a7a5a"), r=0.022)
-    wrap("Grip", m, H("#4f7240"), r=0.024)
+    grip_wrap(m, H("#4f7240"), r=0.024)
     for s in (1, -1):
         ctrl = [(0, 0, 0.86), (0.05 * s, 0, 0.95), (0.062 * s, 0, 1.05), (0.035 * s, 0, 1.14), (0, 0, 1.17)]
         tube("Arch%d" % s, spline(ctrl, 5), lambda t: 0.014 - 0.006 * t, m, wood, sides=6)
@@ -469,8 +480,8 @@ def build_bone():
     bcol = lambda co: mix(bone, H("#b8a888"), max(0.0, 1 - min(abs(co.z - j) for j in joints) / 0.08) * 0.6)
     shaft("Shaft", m, bcol, z0=-0.56, z1=0.97, r0=0.019, r1=0.019, seg=7,
           knots=((-0.53, 0.012, 0.03), (0.32, 0.01, 0.03), (0.88, 0.01, 0.03)))
-    wrap("Grip", m, H("#5a4632"), r=0.025)
-    wrap("Rag", m, H("#6a5a3c"), z0=0.38, z1=0.46, r=0.024, turns=3)
+    grip_wrap(m, H("#5a4632"), r=0.025)
+    wrap("Rag", m, H("#6a5a3c"), z0=0.02, z1=0.1, r=0.024, turns=3)
     tube("RagTail", spline([(0.022, -0.005, 0.42), (0.04, -0.02, 0.38), (0.045, -0.025, 0.3)], 3),
          lambda t: 0.008 * (1 - t) + 0.002, m, H("#6a5a3c"), sides=4, flat=0.3)
     # crânio: calota, maçãs e mandíbula; órbitas e nariz pintados de escuro
@@ -500,7 +511,7 @@ def build_tide():
     g = vcf("st_tide_gem", emit="#66d9ff", strength=0.9)
     sea = lambda co: mix(H("#3f8f98"), H("#2a6070"), 0.5 + 0.5 * math.sin(co.z * 18 + math.sin(co.z * 5) * 2))
     shaft("Shaft", m, sea, z1=0.88, r0=0.023, r1=0.02, seg=7, wobble=0.01, seed=21)
-    wrap("Grip", m, H("#d8c49a"), turns=9)
+    grip_wrap(m, H("#d8c49a"), turns=9)
     ferrule("Ferrule", m, H("#e8dcc8"))
     coral = H("#ff8a7a")
     tube("ProngC", spline([(0, 0, 0.86), (0, 0, 1.0), (0.006, 0, 1.12), (0, 0, 1.24)], 4),
@@ -529,7 +540,7 @@ def build_sun():
     for z in (0.15, 0.6):
         band("Band%.2f" % z, m, gold, z, 0.03, 0.027)
     ferrule("Ferrule", m, gold)
-    wrap("Grip", m, H("#b23a2a"))
+    grip_wrap(m, H("#b23a2a"))
     cup("Cup", m, gold, 0.84, 0.95, 0.025, 0.04)
     rays = []
     for i in range(24):
@@ -553,7 +564,7 @@ def build_storm():
     for z in (-0.3, 0.2, 0.45, 0.7):
         band("Band%.2f" % z, m, steel, z, 0.02, 0.027, seg=6)
     ferrule("Ferrule", m, steel)
-    wrap("Grip", m, H("#1e2436"))
+    grip_wrap(m, H("#1e2436"))
     cup("Cup", m, steel, 0.83, 0.92, 0.025, 0.042, seg=6)
     bolt = [(0.0, 0.0), (0.02, 0.0), (0.035, 0.12), (0.02, 0.12), (0.05, 0.25), (0.032, 0.25), (0.062, 0.37),
             (0.012, 0.21), (0.028, 0.21), (0.004, 0.1), (0.016, 0.1)]
@@ -575,7 +586,7 @@ def build_thorn():
     lathe("Core", [(-0.56, 0.0), (-0.56, 0.012), (0.88, 0.012), (0.88, 0.0)], m, vine, seg=6)
     for k in range(2):
         helix("Vine%d" % k, m, vine, -0.55, 0.88, 0.013, 4.5, r=0.012, phase=math.pi * k, sides=6)
-    wrap("Grip", m, H("#5a1e24"), r=0.03)
+    grip_wrap(m, H("#5a1e24"), r=0.03)
     rnd = random.Random(5)
     for i in range(16):
         z = -0.45 + i * 0.085
@@ -638,7 +649,7 @@ def build_void():
         band("Band%.2f" % z, m, silver, z, 0.022, 0.028, seg=5)
     ferrule("Ferrule", m, silver)
     crystal("Spike", m, H("#3a2e50"), (0, 0, -0.6), 0.02, 0.0, 0.08, seg=5)
-    wrap("Grip", m, H("#2c1e40"))
+    grip_wrap(m, H("#2c1e40"))
     moon = _crescent((0.0, 1.07), 0.125, (0.0, 1.12), 0.1)
     flat("Crescent", moon, m, lambda co: mix(H("#3a2e52"), H("#7a5ab0"), smooth01((co.z - 0.95) / 0.25)),
          th=0.012, bevel=0.01, step=0.012)
@@ -662,7 +673,7 @@ def build_phoenix():
     for z in (-0.42, 0.2, 0.82):
         band("Band%.2f" % z, m, gold, z, 0.026, 0.028)
     ferrule("Ferrule", m, gold)
-    wrap("Grip", m, H("#a8281c"))
+    grip_wrap(m, H("#a8281c"))
     cup("Cup", m, gold, 0.86, 0.97, 0.025, 0.045)
     feather = [(-0.012, 0.0), (0.012, 0.0), (0.026, 0.05), (0.03, 0.11), (0.022, 0.17), (0.01, 0.21), (0.022, 0.23),
                (-0.004, 0.24), (-0.014, 0.18), (-0.022, 0.1), (-0.02, 0.04)]
@@ -723,7 +734,8 @@ def bow_base(m, wood, half, back, recurve=0.0, r_mid=0.019, r_tip=0.008, grip="#
     place(ob, (gp.x, gp.y, 0))
     cel(ob, H(grip))
     top, bot = pts[-1], pts[0]
-    tube("String", [(top[0], top[1], top[2] - 0.01), (bot[0], bot[1], bot[2] + 0.01)], 0.0032, m, H(string), sides=4)
+    # a corda não entra no GLB: o jogo a desenha das pontas ("StringTop"/"StringBot") até os dedos ao puxar
+    _BOW_STRING[:] = [(top[0], top[1], top[2] - 0.01), (bot[0], bot[1], bot[2] + 0.01)]
     return pts, top[1]
 
 
@@ -733,11 +745,16 @@ def put(ob, col, loc=(0, 0, 0), rot=(0, 0, 0)):
     return cel(ob, col)
 
 
+_BOW_STRING = []   # pontas da corda do arco em montagem (bow_base)
+
+
 def bow_export(asset, nock_y):
     loose_parts(asset)
     join_all("Weapon")
     empty("Tip", (0, -0.3, 0))
     empty("Nock", (0, nock_y, 0))
+    empty("StringTop", _BOW_STRING[0])
+    empty("StringBot", _BOW_STRING[1])
     export(asset)
 
 

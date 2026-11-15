@@ -29,6 +29,17 @@ const SWORD_PARTS := ["Grip", "Blade"]
 const SHIELD_PARTS := ["ShieldRim", "Shield"]
 ## Quanto o suporte da arma "desfaz" a rotação do braço (cajado fica quase de pé, arco fica vertical ao mirar).
 const COUNTER := {"sword": 0.0, "staff": 0.75, "bow": 1.0}
+## Cajado empunhado: quanto a vara desce na mão. A vara vai de -0,55 a 0,95 m do suporte (mais a gema, até
+## ~1,17): com 0,3 a mão fica no meio dela, em vez de a 1/3 da ponta de baixo.
+const STAFF_GRIP := 0.3
+## Arco: número de trechos da curva, curvatura em repouso, quanto as pontas recuam e se aproximam com a
+## corda toda puxada, a puxada "cheia" (m) e o ponto do punho onde a flecha descansa.
+const BOW_SEGS := 6
+const BOW_CURVE := 0.16
+const BOW_FLEX_BACK := 0.1
+const BOW_FLEX_SHRINK := 0.06
+const BOW_FULL_DRAW := 0.5
+const BOW_ARROW_REST := Vector3(0.0, 0.04, 0.03)
 
 
 ## Aplica o visual e devolve referências: {"class", "holder", "tip", "arrow", "arm", "elbow", "counter"}.
@@ -145,7 +156,7 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 		res.tip = tip
 		match cls:
 			"staff":
-				_build_staff(holder, tip, wid)
+				_build_staff(holder, tip, wid, STAFF_GRIP)
 			"bow":
 				res.arrow = _build_bow(holder, tip, wid)
 			_:
@@ -326,16 +337,23 @@ const SWORD_BASIS := Basis(Vector3(0, -1, 0), Vector3(0, 0, 1), Vector3(-1, 0, 0
 
 ## Cajado modelado no Blender (st_<id>.glb, tools/blender/armory.py): a haste já sobe em +Y do GLB, como o suporte
 ## espera; o "Tip" é o centro da gema, onde nascem os projéteis e a luz.
-static func _build_staff(h: Node3D, tip: Node3D, id: String) -> void:
+## `grip` desce a vara inteira em relação ao suporte (a mão): o cajado empunhado usa STAFF_GRIP para a mão
+## ficar no meio da vara; o ícone do inventário usa 0 (enquadramento de sempre).
+static func _build_staff(h: Node3D, tip: Node3D, id: String, grip := 0.0) -> void:
 	var it := ItemDB.get_item(id)
-	if it.has("model") and _build_model(h, tip, it.model, Basis.IDENTITY) != null:
-		_gem_light(h, tip.position, it.color)
-		return
+	if it.has("model"):
+		var w := _build_model(h, tip, it.model, Basis.IDENTITY)
+		if w != null:
+			w.position.y -= grip
+			tip.position.y -= grip
+			_gem_light(h, tip.position, it.color)
+			return
 	var wood := _mat(it.get("wood", Color(0.45, 0.3, 0.16)), false)
 	var gem_c: Color = it.color
-	h.add_child(_cyl(0.022, 0.028, 1.5, wood, Vector3(0, 0.2, 0)))
-	h.add_child(_cyl(0.035, 0.035, 0.08, _mat(Color(0.85, 0.7, 0.3), true), Vector3(0, -0.5, 0)))
-	var top := Vector3(0, 0.98, 0)
+	var dn := Vector3(0, -grip, 0)
+	h.add_child(_cyl(0.022, 0.028, 1.5, wood, Vector3(0, 0.2, 0) + dn))
+	h.add_child(_cyl(0.035, 0.035, 0.08, _mat(Color(0.85, 0.7, 0.3), true), Vector3(0, -0.5, 0) + dn))
+	var top := Vector3(0, 0.98, 0) + dn
 	# garras segurando a gema
 	for i in 4:
 		var a := i * TAU / 4.0 + PI / 4.0
@@ -364,39 +382,104 @@ static func _build_bow(h: Node3D, tip: Node3D, id: String) -> Node3D:
 	if it.has("model"):
 		var w := _build_model(h, tip, it.model, Basis.IDENTITY)
 		if w != null:
-			return _model_arrow(h, w)
+			return _model_bow_string(h, w, _model_arrow(h, w))
 	var wood := _bow_mat(id)
 	var half := 0.62 if it.rarity in ["rare", "epic", "legendary"] else 0.55
-	var n := 6
-	var pts: Array[Vector3] = []
-	for i in n + 1:
-		var t := -1.0 + 2.0 * i / n
-		pts.append(Vector3(0, t * half, -0.16 * t * t + 0.02))
-	for i in n:
-		var a := pts[i]
-		var b := pts[i + 1]
-		var d := b - a
-		var thick := 0.045 if abs(i - n / 2.0 + 0.5) < 1.0 else 0.034
-		var seg := _box(Vector3(thick, d.length() + 0.012, thick * 1.2), wood, (a + b) * 0.5,
-			Vector3(atan2(d.z, d.y), 0, 0))
+	var segs: Array = []
+	for i in BOW_SEGS:
+		var thick := 0.045 if abs(i - BOW_SEGS / 2.0 + 0.5) < 1.0 else 0.034
+		var seg := _box(Vector3(thick, 1.0, thick * 1.2), wood, Vector3.ZERO)
 		h.add_child(seg)
+		segs.append(seg)
 	h.add_child(_box(Vector3(0.04, 0.12, 0.045), _mat(Color(0.25, 0.15, 0.08), false), Vector3(0, 0, 0.02)))
-	# corda
+	# corda em dois trechos (pontas do arco até o encaixe da flecha): segue os dedos ao puxar
 	var string_m := _mat(Color(0.92, 0.9, 0.82), false)
-	var ta := pts[0]
-	var tb := pts[n]
-	h.add_child(_box(Vector3(0.006, tb.y - ta.y, 0.006), string_m, Vector3(0, 0, ta.z)))
-	# flecha encaixada (aparece ao tensionar)
+	var strings: Array = []
+	for i in 2:
+		var st := _box(Vector3(0.006, 1.0, 0.006), string_m, Vector3.ZERO)
+		h.add_child(st)
+		strings.append(st)
+	# flecha encaixada (aparece ao tensionar): o nó fica no encaixe (fim da haste) e a haste vai para +Z
 	var arrow := Node3D.new()
 	arrow.visible = false
-	arrow.position = Vector3(0, 0.0, ta.z)
 	h.add_child(arrow)
-	arrow.add_child(_cyl(0.008, 0.008, 0.75, _mat(Color(0.55, 0.4, 0.22), false), Vector3(0, 0, 0.3), Vector3(PI / 2, 0, 0)))
+	arrow.add_child(_cyl(0.008, 0.008, 0.75, _mat(Color(0.55, 0.4, 0.22), false), Vector3(0, 0, 0.375), Vector3(PI / 2, 0, 0)))
 	var head_m := _glow_mat(it.color, 1.5) if it.get("glow", 0.0) > 0.0 else _mat(Color(0.75, 0.77, 0.8), true)
-	arrow.add_child(_cyl(0.0, 0.022, 0.07, head_m, Vector3(0, 0, 0.71), Vector3(PI / 2, 0, 0)))
-	arrow.add_child(_box(Vector3(0.004, 0.04, 0.09), _mat(Color(0.9, 0.25, 0.2), false), Vector3(0, 0, -0.02)))
+	arrow.add_child(_cyl(0.0, 0.022, 0.07, head_m, Vector3(0, 0, 0.785), Vector3(PI / 2, 0, 0)))
+	arrow.add_child(_box(Vector3(0.004, 0.04, 0.09), _mat(Color(0.9, 0.25, 0.2), false), Vector3(0, 0, 0.06)))
+	h.set_meta("bow", {"half": half, "segs": segs, "strings": strings, "arrow": arrow})
+	bow_shape(h, bow_rest_nock(h))
 	tip.position = Vector3(0, 0, 0.3)
 	return arrow
+
+
+## Encaixe da flecha com a corda solta (espaço do suporte do arco).
+static func bow_rest_nock(h: Node3D) -> Vector3:
+	var data: Dictionary = h.get_meta("bow", {})
+	if data.has("rest"):
+		return data.rest
+	return Vector3(0.0, 0.0, _bow_limb(1.0, 0.0).z)
+
+
+## Arco modelado: a corda não vem no GLB, só as pontas dela ("StringTop"/"StringBot"). Desenha a corda em dois
+## trechos que bow_shape estica até os dedos (o arco do GLB é uma peça só: não enverga). GLB antigo, com a
+## corda na malha e sem as pontas: fica como está (corda parada).
+static func _model_bow_string(h: Node3D, bow: Node3D, arrow: Node3D) -> Node3D:
+	var top := bow.find_child("StringTop", true, false) as Node3D
+	var bot := bow.find_child("StringBot", true, false) as Node3D
+	if top == null or bot == null:
+		return arrow
+	var string_m := _mat(Color(0.92, 0.89, 0.78), false)
+	var strings: Array = []
+	for i in 2:
+		var st := _box(Vector3(0.0065, 1.0, 0.0065), string_m, Vector3.ZERO)
+		h.add_child(st)
+		strings.append(st)
+	var tips := [bow.transform * top.position, bow.transform * bot.position]
+	var rest: Vector3 = arrow.position
+	h.set_meta("bow", {"tips": tips, "strings": strings, "arrow": arrow, "rest": Vector3(0.0, rest.y, rest.z)})
+	bow_shape(h, bow_rest_nock(h))
+	return arrow
+
+
+## Ponto do arco no parâmetro `t` (-1 = ponta de baixo, 0 = punho, 1 = ponta de cima), envergado por `flex`
+## (0..1): as pontas recuam (para o lado da corda) e se aproximam um pouco uma da outra.
+static func _bow_limb(t: float, flex: float, half := 1.0) -> Vector3:
+	return Vector3(0.0, t * half * (1.0 - BOW_FLEX_SHRINK * flex), -(BOW_CURVE + BOW_FLEX_BACK * flex) * t * t + 0.02)
+
+
+## Monta o arco com a corda puxada até `nock` (espaço do suporte; z menor = mais puxada): verga o arco,
+## estica os dois trechos da corda das pontas até o encaixe e põe a flecha no encaixe apontando para o
+## punho (ela passa rente à mão do arco).
+static func bow_shape(h: Node3D, nock: Vector3) -> void:
+	var data: Dictionary = h.get_meta("bow")
+	var tips: Array = data.get("tips", [])
+	if data.has("segs"):   # arco do código: os trechos vergam
+		var half: float = data.half
+		var rest := bow_rest_nock(h)
+		var flex := clampf((rest.z - nock.z) / BOW_FULL_DRAW, 0.0, 1.2)
+		var segs: Array = data.segs
+		var n := segs.size()
+		for i in n:
+			var a := _bow_limb(-1.0 + 2.0 * i / n, flex, half)
+			var b := _bow_limb(-1.0 + 2.0 * (i + 1) / n, flex, half)
+			var d := b - a
+			var seg: Node3D = segs[i]
+			seg.basis = Basis.from_euler(Vector3(atan2(d.z, d.y), 0, 0)).scaled_local(Vector3(1.0, d.length() + 0.012, 1.0))
+			seg.position = (a + b) * 0.5
+		tips = [_bow_limb(1.0, flex, half), _bow_limb(-1.0, flex, half)]
+	var strings: Array = data.strings
+	for i in 2:
+		var tp: Vector3 = tips[i]
+		var d := nock - tp
+		var st: Node3D = strings[i]
+		st.basis = Basis.from_euler(Vector3(atan2(d.z, d.y), 0, 0)).scaled_local(Vector3(1.0, maxf(d.length(), 0.01), 1.0))
+		st.position = (tp + nock) * 0.5
+	var arrow: Node3D = data.arrow
+	arrow.position = nock
+	var to := BOW_ARROW_REST - nock
+	if to.length() > 0.01:
+		arrow.basis = Basis.looking_at(to.normalized(), Vector3.UP, true)
 
 
 ## Arco modelado no Blender (bw_<id>.glb, tools/blender/armory.py): braços em ±Y, corda atrás (-Z). A flecha
