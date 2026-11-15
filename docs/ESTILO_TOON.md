@@ -256,7 +256,7 @@ Capturas (antes à esquerda, depois à direita; frente, três quartos, perfil e 
 Com rosto, cabelo e barba lisos, o corpo do Doran (tronco, quadril, cinto e avental em caixas; membros em
 loft facetado) passou a destoar. O teste está em `tools/blender/anime_body.py` e gera uma **cópia**,
 `blacksmith_body.glb` (`ASSETS=blacksmith_body`, fora do repositório); o `blacksmith.glb` do jogo não mudou
-e nada foi aplicado a Bram, Mira, cavaleiro ou goblins. Foram quatro rodadas de capturas lado a lado.
+e nada foi aplicado a Bram, Mira, cavaleiro ou goblins. Foram quatro rodadas de capturas lado a lado e uma quinta, de ajuste do pescoço e dos ombros.
 
 O que funcionou:
 1. **Liso pelo sombreado, não por subdivisão.** `sloft` usa as mesmas seções de `body.py` (`sec`, `grow`,
@@ -287,9 +287,11 @@ O que funcionou:
    (conferido em `work_hammer` a 0,2 s e 0,433 s e em `idle`).
 
 O que não funcionou ou ainda destoa:
-1. **Ombro caído.** A primeira tabela do tronco subia em rampa até o pescoço e o ferreiro ficou com ombro de
-   cabide. O trapézio só pode cair nos últimos 4 cm; mesmo assim o ombro ficou mais redondo que o quadrado
-   antigo, e de frente o Doran parece um pouco menos largo.
+1. **Ombro e pescoço.** A primeira tabela do tronco estreitava cedo e subia em rampa fina até o pescoço: ombro
+   de cabide. A segunda cortava o trapézio 4 cm acima do ombro e o pescoço ficou comprido (pedido do usuário:
+   encurtar e dar mais músculo). O que serviu: ombro largo até 1,44 m, trapézio **cheio** subindo até quase o
+   queixo (1,52 m), pescoço mais grosso e a manga engordando mais no deltoide (fator 1,26) que no meio do
+   braço (1,12). O ombro segue mais redondo que o quadrado antigo.
 2. **Punhos fechados antigos** (`fist`): continuam em placas facetadas ao lado do antebraço liso, e custam
    1.408 triângulos os dois (um quinto do personagem). Alisar por ângulo não muda a leitura.
 3. **Bolso sem contorno.** O bolso antigo era uma caixa saltada e ganhava traço preto em volta; a casca fina
@@ -301,9 +303,9 @@ O que não funcionou ou ainda destoa:
 6. **Encontro do pescoço com a camisa** de costas: peças que se atravessam, a linha sai um pouco serrilhada.
 7. **Fivela do cinto** saiu (ficava escondida atrás do avental).
 
-Custo (sem martelo e tenaz): 5.750 -> 6.611 triângulos (+861, +15%). Pernas e botas 680 -> 976, tronco e
-avental 468 -> 1.081, braços 696 -> 624; cabeça (2.498) e punhos (1.408) iguais. Com martelo e tenaz, cerca de
-6.050 -> 6.910, contra o orçamento de 5 mil. Refazer o punho em menos peças pagaria o corpo liso inteiro.
+Custo (sem martelo e tenaz): 5.750 -> 6.635 triângulos (+885, +15%). Pernas e botas 680 -> 976, tronco e
+avental 468 -> 1.105, braços 696 -> 624; cabeça (2.498) e punhos (1.408) iguais. Com martelo e tenaz, cerca de
+6.050 -> 6.940, contra o orçamento de 5 mil. Refazer o punho em menos peças pagaria o corpo liso inteiro.
 
 Capturas (atual à esquerda, teste à direita): `docs/screenshots/npc_corpo_doran.jpg` (frente, três quartos,
 perfil, costas e closes do tronco) e `npc_corpo_doran_golpe.jpg` (golpe de martelo e pernas).

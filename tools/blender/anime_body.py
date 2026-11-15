@@ -166,10 +166,11 @@ def _doran_torso_secs():
         (1.120, 0.200, 0.133, {"fr": 1.05}),
         (1.220, 0.212, 0.132, {"fr": 1.08}),
         (1.310, 0.222, 0.130, {"fr": 1.10}),
-        (1.385, 0.224, 0.122, {"fr": 1.04}),
-        (1.426, 0.215, 0.113, {}),                    # ombro quadrado: o trapézio só cai perto do pescoço
-        (1.452, 0.165, 0.096, {}),
-        (1.468, 0.090, 0.076, {}),
+        (1.385, 0.226, 0.124, {"fr": 1.04}),
+        (1.436, 0.222, 0.118, {}),                    # ombro quadrado e alto
+        (1.470, 0.180, 0.106, {}),                    # trapézio cheio: sobe até o pescoço e o encurta
+        (1.500, 0.122, 0.090, {}),
+        (1.522, 0.090, 0.078, {}),
     )
     return [sec((0, 0, z), rx, ry, sq=2.5, **ex) for z, rx, ry, ex in rows]
 
@@ -250,8 +251,8 @@ def doran_torso(P, M, take):
     sb = bmesh.new()
     zt = 1.048
     for s in (1, -1):
-        surf_band(sb, [(s * 0.100, -0.2, 1.36), (s * 0.100, -0.2, 1.41), (s * 0.099, -0.10, 1.47), (s * 0.097, -0.05, 1.5),
-                       (s * 0.092, 0.03, 1.5), (s * 0.087, 0.09, 1.47), (s * 0.082, 0.2, 1.40), (s * 0.050, 0.2, 1.22), (s * 0.006, 0.2, zt + 0.01)],
+        surf_band(sb, [(s * 0.100, -0.2, 1.36), (s * 0.100, -0.2, 1.41), (s * 0.104, -0.10, 1.48), (s * 0.106, -0.05, 1.52),
+                       (s * 0.104, 0.03, 1.52), (s * 0.096, 0.09, 1.49), (s * 0.082, 0.2, 1.40), (s * 0.050, 0.2, 1.22), (s * 0.006, 0.2, zt + 0.01)],
                   0.012, bvh, thick=0.005)
     ring = _ring(sec_at(T, zt), Vector((1, 0, 0)), Vector((0, -1, 0)), 24, 0.0, None, 0.0)
     surf_band(sb, [ring[k % 24] for k in range(10, 27, 2)], 0.014, bvh, thick=0.005)
@@ -286,8 +287,8 @@ def doran_torso(P, M, take):
     weigh(base + take(), Z, stops)
     # a saia do avental cede para as coxas (como a túnica do Bram): no passo à frente a coxa não atravessa o couro
     weigh_by(skirt, robe_field(0.985, 0.55, stops))
-    sloft("Neck", [sec((0, 0.012, 1.42), 0.076, 0.072), sec((0, 0.014, 1.52), 0.068, 0.064),
-                   sec((0, 0.016, 1.6), 0.062, 0.060)], M["skin"], sides=8, caps=(False, False))
+    sloft("Neck", [sec((0, 0.012, 1.44), 0.084, 0.078), sec((0, 0.014, 1.53), 0.076, 0.070),
+                   sec((0, 0.016, 1.6), 0.066, 0.062)], M["skin"], sides=8, caps=(False, False))
     weigh(take(), Z, [(1.44, "Spine2"), (1.5, "Neck")])
 
 
@@ -311,7 +312,8 @@ def doran_arms(P, M, take):
             return xf_secs(secs, el, r_fo, el_t)
 
         # manga: calota do ombro (fecha por cima quando o braço desce) e tubo até o meio do braço
-        sl = grow(U0[:6], 1.12, 0.012)
+        # deltoide cheio: a manga engorda mais no ombro que no meio do braço
+        sl = [grow([q], k, 0.012)[0] for q, k in zip(U0[:6], (1.22, 1.26, 1.26, 1.2, 1.14, 1.12))]
         tip = dict(sl[0], rx=sl[0]["rx"] * 0.45, ry=sl[0]["ry"] * 0.45, c=sl[0]["c"] + (sl[0]["c"] - sl[1]["c"]) * 1.6)
         sloft("Arm%s_Sleeve" % n, up([tip] + sl), M["shirt"], caps=(True, False))
         # manga arregaçada: dois rolos gordos
