@@ -20,6 +20,7 @@ Quando algo aqui contradiz uma skill genérica, **este arquivo vence**.
 | `tools/blender/characters.py` | personagens (`build_knight`, `build_elder`, `build_merchant`, `build_goblin`); helpers `limb`, `tbox`, `_finish`, `_place`; frisos `band`, asas `wing`, tiras `strap` |
 | `tools/blender/body.py` | corpo-base humanoide em loft de anéis: `loft`/`sec`/`dome`, `body_proportions` (altura, cabeças, ombros, cintura, mãos, pés), `humanoid_rig` (pivôs com joelho/cotovelo), `limb_sections`/`torso_sections`, `fist`, `humanoid_base`; armadura sai das mesmas seções com `grow`/`span`/`stepped`; `join_objs` junta peças de um pivô |
 | `tools/blender/anime.py` | rosto, mãos, cabelo e barba desenhados dos NPCs da vila: `anime_head` (cabeça lisa e feições em decalque), `open_hand`, `anime_hair` (mechas lisas em camadas), `anime_beard`, `anime_bun`; ver `docs/ESTILO_TOON.md` |
+| `tools/blender/anime_body.py` | corpo liso do Doran (`doran_legs`, `doran_torso`, `doran_arms`): `sloft` (loft liso com aresta por ângulo e material por faixa), `plate` (roupa em casca), `surf_band` (tiras assentadas na superfície), `fold_ring`; ver `docs/ESTILO_TOON.md`, "Do corpo liso" |
 | `tools/blender/preview_single.py` | folha frente / 3/4 / costas de um GLB; imprime `TRIS <nome> <n>`; modo `silhouette` |
 | `tools/blender/preview_assets.py` | todos os GLBs lado a lado |
 | `tools/blender/preview_closeup.py`, `preview_face.py` | close-ups de busto/rosto |

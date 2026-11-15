@@ -338,6 +338,7 @@ exec(open(OUT.replace("assets/models/", "tools/blender/weapons.py"), encoding="u
 exec(open(OUT.replace("assets/models/", "tools/blender/gear.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/body_mesh.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/anime.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/anime_body.py"), encoding="utf-8").read(), globals())
 
 # ASSETS="knight,elder" no ambiente gera só esses (útil para iterar).
 import os
