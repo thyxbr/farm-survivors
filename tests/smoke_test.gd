@@ -2355,10 +2355,16 @@ func _test_gear() -> void:
 	var m = world.modal
 	check(m != null and m.equip_slots.size() == 8 and m.bag_slots.size() >= 54, "inventário com boneco (8 espaços) e grade")
 	check(m.equip_slots.head.item_id == "leather_cap", "boneco mostra o capuz equipado")
-	m._show_tab(1)
-	await wait(0.05)
-	m._show_tab(2)
-	await wait(0.05)
+	var book: BookWindow = m.book
+	check(book != null and book.current_page() == 0, "menu do herói abre no livro, na aba Inventário")
+	for i in 3:
+		m._show_tab(i)
+		await wait(0.1)
+		var area := book.content_rect().grow(1.0)
+		var page_rect: Rect2 = m.pages[i].get_global_rect()
+		check(book.current_page() == i and area.encloses(page_rect), "aba %d fica dentro das páginas do livro" % i)
+	check(book.overflow_warnings == 0, "nenhuma aba pede mais espaço do que o livro tem")
+	check(not ItemIcons.enabled() and ItemIcons.icon("leather_cap", Callable()) == null, "sem janela, os ícones 3D ficam desligados")
 	m._close()
 	await wait(0.05)
 	world.open_shop()
