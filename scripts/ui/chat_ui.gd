@@ -105,9 +105,34 @@ func _input(event: InputEvent) -> void:
 
 func _on_submit(text: String) -> void:
 	var t := text.strip_edges()
-	if t != "":
+	if t.begins_with("/"):
+		_run_command(t)
+	elif t != "":
 		Network.send_chat(t)
 	_set_open(false)
+
+
+## Comandos locais (começam com "/"): não vão para o servidor; a resposta aparece só para quem digitou.
+##   /clima sol|chuva|neve|vento  força o clima nesta máquina · /clima auto  volta ao clima de todos
+func _run_command(t: String) -> void:
+	var parts := t.substr(1).to_lower().split(" ", false)
+	var cmd: String = parts[0] if parts.size() > 0 else ""
+	var arg: String = parts[1] if parts.size() > 1 else ""
+	match cmd:
+		"clima", "weather":
+			if arg == "auto":
+				Weather.release()
+				_on_message("", "Clima de volta ao normal (%s)." % WeatherRules.NAMES[WeatherRules.kind_at(Time.get_unix_time_from_system())])
+				return
+			var i := WeatherRules.NAMES.find(arg)
+			if i < 0:
+				_on_message("", "Uso: /clima sol | chuva | neve | vento | auto  (agora: %s%s)"
+						% [Weather.kind_name(), ", forçado" if Weather.is_forced() else ""])
+				return
+			Weather.force(i)
+			_on_message("", "Clima forçado: %s (só para você). /clima auto volta ao normal." % arg)
+		_:
+			_on_message("", "Comando desconhecido: /%s  (comandos: /clima)" % cmd)
 
 
 func _set_open(on: bool) -> void:
