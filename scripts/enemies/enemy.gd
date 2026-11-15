@@ -8,12 +8,10 @@ signal health_changed(enemy: Enemy)
 const PICKUP := preload("res://scripts/world/pickup.gd")
 const ENEMY_ARROW := preload("res://scripts/enemies/enemy_arrow.gd")
 const PROVOKE_TIME := 4.0   # ver `provoked`
-const MODELS := {
-	"slime": preload("res://assets/models/slime.glb"),
-	"goblin": preload("res://assets/models/goblin.glb"),
-}
 ## Tipos de inimigo: vêm de data/balance/enemies.json (autoload Balance). "ai" muda o comportamento,
-## "tint" recolore o modelo do goblin, "bld" multiplica o dano em construções.
+## "tint" recolore o modelo, "bld" multiplica o dano em construções, "gear" lista as peças opcionais do
+## modelo que a variante usa (EnemyGear), "shot": "bolt" troca a flecha por um projétil mágico e "chill"
+## são os segundos de lentidão que o golpe corpo a corpo deixa no jogador.
 static var TYPES: Dictionary = {}
 
 @export var kind := "slime"
@@ -74,9 +72,12 @@ var meshes: Array[MeshInstance3D] = []
 var anim_t := 0.0
 var bar_root: Node3D
 var bar_fg: MeshInstance3D
-var _overlay_hit: StandardMaterial3D
-var _overlay_slow: StandardMaterial3D
+## Camadas de piscar (acerto) e de lentidão: iguais para todos os inimigos, ninguém altera depois de criar.
+static var _overlay_hit: StandardMaterial3D
+static var _overlay_slow: StandardMaterial3D
+static var _bar_meshes: Array[QuadMesh] = []      # fundo e frente da barra de vida, com o material
 var _overlay_base: Material = null
+var _overlay_now: Material = null     # o que está nas malhas agora (ver _set_overlay)
 var _flash_t := 0.0
 
 ## Multiplayer: id comum entre servidor e clientes.
@@ -110,36 +111,16 @@ func _ready() -> void:
 	col.position.y = cap.height / 2.0
 	add_child(col)
 
-	model = MODELS[data.model].instantiate()
+	model = EnemyModel.instance(kind, data)     # tintura, toon e peças juntadas: montado uma vez por tipo
 	model.scale = Vector3.ONE * data.scale * (1.3 if elite else 1.0)
 	add_child(model)
 	if elite:
 		_make_elite_glow()
 	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head"]:
 		parts[n] = model.find_child(n, true, false)
-	var crown := model.find_child("Crown", true, false)
-	if crown:
-		crown.visible = is_boss
-	for mi in model.find_children("*", "MeshInstance3D", true, false):
-		meshes.append(mi)
-	if data.model == "slime" and ToonLook.enabled():
-		ToonLook.apply_slime(model, data.get("goo", ToonLook.SLIME_GOO))
-	elif data.model == "slime":
-		var body_mesh := model.find_child("BodyMesh", true, false) as MeshInstance3D
-		var base := model.find_child("Base", true, false) as MeshInstance3D
-		var goo := StandardMaterial3D.new()
-		goo.albedo_color = data.get("goo", Color(0.25, 0.85, 0.3, 0.78))
-		goo.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		goo.roughness = 0.1
-		goo.rim_enabled = true
-		goo.rim = 0.6
-		for m in [body_mesh, base]:
-			if m:
-				m.material_override = goo
-	if data.has("tint"):
-		_apply_tint(data.tint[0], data.tint[1])
-	if ToonLook.enabled():      # depois da tintura, que lê os materiais originais
-		ToonLook.apply(model)
+	for mi: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
+		if not mi.is_in_group(ToonLook.OUTLINE_GROUP):      # a casca de contorno não pisca nem tinge
+			meshes.append(mi)
 	if is_boss or data.get("elite", false):
 		var aura := OmniLight3D.new()
 		aura.light_color = Color(1, 0.3, 0.1) if is_boss else data.color
@@ -155,14 +136,9 @@ func _ready() -> void:
 		glow.position.y = 0.6
 		add_child(glow)
 
-	_overlay_hit = StandardMaterial3D.new()
-	_overlay_hit.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_overlay_hit.albedo_color = Color(1, 1, 1, 0.7)
-	_overlay_hit.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_overlay_slow = StandardMaterial3D.new()
-	_overlay_slow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_overlay_slow.albedo_color = Color(0.4, 0.75, 1.0, 0.35)
-	_overlay_slow.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	if _overlay_hit == null:
+		_overlay_hit = _flat_mat(Color(1, 1, 1, 0.7))
+		_overlay_slow = _flat_mat(Color(0.4, 0.75, 1.0, 0.35))
 
 	if not is_boss:
 		_make_health_bar()
@@ -217,21 +193,12 @@ func _exit_tree() -> void:
 		Network.unregister_enemy(self)
 
 
-## Recolore o modelo (variantes do goblin): cada material é copiado e puxado para a cor.
-func _apply_tint(c: Color, amount: float) -> void:
-	for mi in meshes:
-		if mi.mesh == null:
-			continue
-		for i in mi.mesh.get_surface_count():
-			var mat := mi.get_active_material(i) as StandardMaterial3D
-			if mat == null:
-				continue
-			var m2 := mat.duplicate() as StandardMaterial3D
-			m2.albedo_color = mat.albedo_color.lerp(c, amount)
-			if kind == "goblin_dourado":
-				m2.metallic = 0.7
-				m2.roughness = 0.3
-			mi.set_surface_override_material(i, m2)
+static func _flat_mat(c: Color) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = c
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	return m
 
 
 func ai() -> String:
@@ -253,22 +220,22 @@ func _make_health_bar() -> void:
 	bar_root = Node3D.new()
 	bar_root.position.y = data.height * data.scale + 0.45
 	add_child(bar_root)
+	if _bar_meshes.is_empty():      # as duas malhas (e os materiais) servem para todas as barras
+		for spec in [[Vector2(1.0, 0.12), Color(0, 0, 0, 0.7), 0], [Vector2(0.96, 0.08), Color(0.85, 0.15, 0.1), 1]]:
+			var q := QuadMesh.new()
+			q.size = spec[0]
+			q.material = _bar_mat(spec[1], spec[2])
+			_bar_meshes.append(q)
 	var bg := MeshInstance3D.new()
-	var q := QuadMesh.new()
-	q.size = Vector2(1.0, 0.12)
-	bg.mesh = q
-	bg.material_override = _bar_mat(Color(0, 0, 0, 0.7), 0)
+	bg.mesh = _bar_meshes[0]
 	bar_root.add_child(bg)
 	bar_fg = MeshInstance3D.new()
-	var q2 := QuadMesh.new()
-	q2.size = Vector2(0.96, 0.08)
-	bar_fg.mesh = q2
-	bar_fg.material_override = _bar_mat(Color(0.85, 0.15, 0.1), 1)
+	bar_fg.mesh = _bar_meshes[1]
 	bar_root.add_child(bar_fg)
 	bar_root.visible = false
 
 
-func _bar_mat(c: Color, priority: int) -> StandardMaterial3D:
+static func _bar_mat(c: Color, priority: int) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.albedo_color = c
@@ -551,6 +518,8 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 			var facing_ok := model_forward().dot(to_player.normalized()) > 0.2 or dist < 1.0
 			if facing_ok:
 				player.take_damage(data.damage * dmg_mult * randf_range(0.9, 1.1) * mult, global_position)
+				if data.has("chill") and player.has_method("apply_chill"):
+					player.apply_chill(float(data.chill))
 		if attack_kind == "swing":
 			Sfx.play_at("swing", global_position, 0.15, -4.0)
 	if attack_timer >= _attack_duration():
@@ -560,12 +529,14 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 
 ## Ataques especiais dos monstros novos. visual: réplica no cliente (só efeitos; o servidor aplica o dano).
 func _shoot(visual: bool) -> void:
+	var bolt: bool = data.get("shot", "") == "bolt"
 	Sfx.play_at("bow_shot", global_position, 0.1, -5.0)
 	var origin: Vector3 = global_position + Vector3.UP * 1.1 * float(data.scale) + model_forward() * 0.6
 	var arrow := ENEMY_ARROW.new()
 	arrow.direction = model_forward()
 	arrow.damage = 0.0 if visual else data.damage * dmg_mult
 	arrow.source = get_parent()
+	arrow.magic = bolt
 	get_parent().add_child(arrow)
 	arrow.global_position = origin
 
@@ -732,8 +703,7 @@ func set_affix(a: String) -> void:
 	tint.albedo_color = Color(d.color.r, d.color.g, d.color.b, 0.28)
 	tint.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_overlay_base = tint
-	for m in meshes:
-		m.material_overlay = tint
+	_set_overlay(tint)
 
 
 func _update_flash(delta: float) -> void:
@@ -743,9 +713,16 @@ func _update_flash(delta: float) -> void:
 		over = _overlay_hit
 	elif slow_timer > 0:
 		over = _overlay_slow
+	_set_overlay(over)
+
+
+## Troca a camada de todas as malhas, só quando ela muda (antes conferia peça por peça a cada passo).
+func _set_overlay(over: Material) -> void:
+	if over == _overlay_now:
+		return
+	_overlay_now = over
 	for m in meshes:
-		if m.material_overlay != over:
-			m.material_overlay = over
+		m.material_overlay = over
 
 
 func _die() -> void:
@@ -778,8 +755,7 @@ func die_visual() -> void:
 	remove_from_group("enemies")
 	collision_layer = 0
 	collision_mask = 1
-	for m in meshes:
-		m.material_overlay = null
+	_set_overlay(null)
 	if bar_root:
 		bar_root.visible = false
 	Sfx.play_at("slime" if data.model == "slime" else "enemy_die", global_position, 0.1, -4.0 if horde else 0.0)

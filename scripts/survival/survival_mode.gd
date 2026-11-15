@@ -477,11 +477,18 @@ func _pick_kind() -> String:
 	if r >= 4:
 		table.append(["slime_grande", 0.2 + 0.03 * r])
 		table.append(["goblin_arqueiro", 0.12 + 0.02 * r])
+		table.append(["slime_gelo", 0.15])
+	if r >= 5:
+		table.append(["esqueleto", 0.2 + 0.04 * r])
+		table.append(["goblin_bombardeiro", 0.08 + 0.015 * r])
 	if r >= 6:
 		table.append(["slime_mae", 0.15])
 		table.append(["goblin_xama", 0.06 + 0.01 * r])
+		table.append(["esqueleto_arqueiro", 0.1 + 0.02 * r])
 	if r >= 7:
 		table.append(["goblin_bruto", 0.08 + 0.015 * r])
+	if r >= 8:
+		table.append(["esqueleto_mago", 0.06 + 0.012 * r])
 	var total := 0.0
 	for t in table:
 		total += t[1]
@@ -676,9 +683,11 @@ func _event_tick(delta: float) -> void:
 		FX.ring(g.global_position, Color(1, 0.85, 0.3, 0.9), 3.0, 0.6)
 	if not _champ_spawns.is_empty() and _round_t >= _champ_spawns[0]:
 		_champ_spawns.pop_front()
+		# da rodada 8 em diante, o segundo campeão do evento é um Cavaleiro Esqueleto
+		var knight := round_num >= 8 and _champ_spawns.is_empty()
 		for i in 1 + (_team_size() - 1) / 2:
-			_spawn_enemy("goblin_campeao", _spawn_point())
-		_say("Um Campeão Goblin entrou na arena!", Color(1, 0.45, 0.3))
+			_spawn_enemy("esqueleto_cavaleiro" if knight else "goblin_campeao", _spawn_point())
+		_say("Um Cavaleiro Esqueleto entrou na arena!" if knight else "Um Campeão Goblin entrou na arena!", Color(1, 0.45, 0.3))
 	for c in get_children():
 		if c is Enemy and c.kind == "goblin_dourado" and not c.dead and c.born_t > GOLD_ESCAPE:
 			c.escaped = true
@@ -992,7 +1001,7 @@ func _kill_drops(kind: String, pos: Vector3, tier: int) -> void:
 				_drop_gem("xp", 20 * xp_mult, pos)
 			_drop_gem("magnet", 0, pos)
 			return
-		"goblin_campeao":
+		"goblin_campeao", "esqueleto_cavaleiro":
 			for i in 4:
 				_drop_gem("xp", 20 * xp_mult, pos)
 			if randf() < 0.5:
@@ -1000,7 +1009,8 @@ func _kill_drops(kind: String, pos: Vector3, tier: int) -> void:
 			return
 	var value := 1
 	match kind:
-		"goblin", "slime_grande", "goblin_arqueiro", "goblin_xama", "slime_mae":
+		"goblin", "slime_grande", "goblin_arqueiro", "goblin_xama", "slime_mae", "slime_gelo", "goblin_bombardeiro", \
+		"esqueleto", "esqueleto_arqueiro", "esqueleto_mago":
 			value = 20 if randf() < 0.08 else 5
 		"goblin_bruto":
 			value = 12
@@ -1024,7 +1034,7 @@ func _coin_amounts(kind: String, tier: int, r: float) -> Array:
 	match kind:
 		"goblin_dourado":
 			return [randi_range(8, 15) + round_num, randi_range(8, 15) + round_num, randi_range(8, 15) + round_num]
-		"goblin_campeao":
+		"goblin_campeao", "esqueleto_cavaleiro":
 			return [randi_range(8, 15)]
 	var coin_chance := 0.24 if event == "febre_ouro" else 0.08
 	if r >= 0.019 and r < coin_chance:

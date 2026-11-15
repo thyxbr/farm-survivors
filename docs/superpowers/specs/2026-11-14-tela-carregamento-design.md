@@ -23,7 +23,6 @@ personagem não se mexe nem sofre dano.
 
 ## Fora do escopo
 
-- Barra com porcentagem real (exigiria montar o mundo em etapas por vários quadros).
 - Servidor dedicado (não tem tela) e a entrada na Horda dentro de Valdoria (não troca de cena).
 
 ## Abordagens
@@ -42,3 +41,14 @@ personagem não se mexe nem sofre dano.
   dá a imunidade e clareia (0,4 s). Um `go` novo durante outro substitui o anterior.
 - Em modo headless (testes e servidor) a troca é direta, sem tela; `Loading.force` liga a tela num teste.
 - `player.gd`: sem controle enquanto `Loading.covering`.
+
+## Segunda parte: Valdoria montada em etapas (0.13.5)
+
+- Atrás da tela (`Loading.covering`), `world.gd` monta o mapa uma etapa por quadro e informa o progresso
+  com `Loading.set_progress`; a tela mostra a barra e espera `world.built`.
+- O capim, a etapa mais demorada (~0,6 s), é espalhado fileira por fileira (`ground.scatter_grass` com
+  `on_row`), um quadro cada. As maiores travadas que sobram são o ambiente e os inimigos (~0,2 s cada).
+- Durante a montagem o mundo fica com `process_mode` desligado: nada processa sem o jogador.
+- Sem a tela (testes headless, servidor, cena aberta direto) tudo monta de uma vez, como antes.
+- A ordem das etapas e o uso do `rng` não mudam: o mapa gerado é o mesmo.
+- Praça e Defesa da Cidade continuam montando de uma vez (só o anel girando, sem barra).

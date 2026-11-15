@@ -71,6 +71,9 @@ var dodge_timer := 0.0
 var dodge_dir := Vector3.ZERO
 var _dodge_age := 0.0   ## há quanto tempo a esquiva atual começou (anima o rolamento; réplicas também)
 var invuln := 0.0
+## Lentidão deixada pela Slime de Gelo (segundos restantes); ver apply_chill.
+var chill_t := 0.0
+const CHILL_SPEED := 0.6
 var cast_timer := 0.0
 var stamina_delay := 0.0
 var shake := 0.0
@@ -322,6 +325,9 @@ func _local_process(delta: float) -> void:
 		Game.stamina = max(0.0, Game.stamina - 20.0 * delta)
 		stamina_delay = 0.6
 	var speed := (SPRINT_SPEED if sprinting else WALK_SPEED) * Game.speed_multiplier()
+	if chill_t > 0.0:
+		chill_t -= delta
+		speed *= CHILL_SPEED
 	if attacking:
 		speed *= 0.3 if look["class"] == "sword" else 0.55
 	elif drawing:
@@ -962,6 +968,20 @@ func _food_frost_nova() -> void:
 
 
 # ------------------------------------------------------------ dano e morte
+## Golpe gelado (Slime de Gelo): anda mais devagar por `secs`. Não acumula, só renova.
+func apply_chill(secs: float) -> void:
+	if remote:
+		if Network.is_server() and not dead:
+			Network.server_chill_player(peer_id, secs)
+		return
+	if dead or secs <= 0.0:
+		return
+	if chill_t <= 0.0:
+		Game.notify.emit("Você está congelando: mais lento por um instante.", Color(0.6, 0.85, 1.0))
+	chill_t = maxf(chill_t, secs)
+	FX.burst(global_position + Vector3.UP, Color(0.6, 0.85, 1.0), 14, 2.5, 0.1, 0.6)
+
+
 func take_damage(amount: float, from_pos: Vector3) -> void:
 	if remote:
 		# no servidor, o golpe de um inimigo na réplica vira dano no PC do dono

@@ -369,7 +369,10 @@ static func _sd(s: Vector4, p: Vector2) -> float:
 ## Espalha capim, flores, arbustos e samambaias. keep_out = [[Vector2 centro, raio], ...] onde não
 ## nasce nada (casas, poço, arena); sparse = [[Vector2, raio], ...] onde nasce pouco (praças,
 ## acampamentos) e não nascem plantas. plants multiplica a quantidade de arbustos/samambaias.
-func scatter_grass(seed_value: int, density := 0.55, keep_out: Array = [], sparse: Array = [], plants := 1.0) -> void:
+## `on_row` (opcional): chamado com a fração pronta ao fim de cada fileira de blocos, e a função espera um
+## quadro antes da próxima — quem monta o mapa atrás da tela de carregamento chama com `await`.
+func scatter_grass(seed_value: int, density := 0.55, keep_out: Array = [], sparse: Array = [], plants := 1.0,
+		on_row := Callable()) -> void:
 	if DisplayServer.get_name() == "headless":
 		return   # só visual
 	var rng := RandomNumberGenerator.new()
@@ -473,6 +476,11 @@ func scatter_grass(seed_value: int, density := 0.55, keep_out: Array = [], spars
 			_chunk(flower, flowers, fcols, center, 50.0, false)
 			_scatter_plants(rng, clump, plant_meshes, box, plants, shapes, grassy, outs, few, center)
 			_scatter_flowers(rng, clump, flower_meshes, box, plants, shapes, grassy, outs, few, center)
+		if on_row.is_valid():
+			on_row.call(float(cx + 1) / n)
+			await get_tree().process_frame
+			if not is_inside_tree():
+				return   # trocaram de cena no meio
 
 
 ## Arbustos (alguns com frutinhas) e samambaias: mais nas touceiras cheias, nunca em trilhas,

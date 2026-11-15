@@ -1,7 +1,8 @@
 extends SceneTree
 ## Foto de um personagem (assets/models/<id>.glb) com a luz do jogo, lado a lado: como está hoje à
 ## esquerda e com o ToonLook à direita. Precisa de janela (sem --headless) e do --import feito antes:
-##   godot --path . --resolution 1400x1000 --script res://tools/toon_shot.gd -- merchant <saida.png> [3q] [close]
+##   godot --path . --resolution 1400x1000 --script res://tools/toon_shot.gd -- merchant <saida.png> [3q] [close] [merge]
+## `gear=A,B` deixa só essas peças opcionais (Opt_A, Opt_B) dos monstros; sem ele, todas aparecem.
 ## Com `slime`, aceita também `goo=RRGGBBAA` (cor da variante, como em data/balance/enemies.json).
 
 var _frames := 0
@@ -19,6 +20,11 @@ func _initialize() -> void:
 	var scene := load("res://assets/models/%s.glb" % id) as PackedScene
 	for i in 2:
 		var m := scene.instantiate() as Node3D
+		for arg in args:
+			if arg.begins_with("gear="):
+				var miss := EnemyGear.apply(m, Array(arg.substr(5).split(",", false)))
+				if not miss.is_empty():
+					push_warning("peças inexistentes: %s" % str(miss))
 		root.add_child(m)
 		m.position.x = (i - 0.5) * 1.5
 		if "3q" in args:
@@ -26,7 +32,12 @@ func _initialize() -> void:
 		_models.append(m)
 	if id == "slime":
 		_slime_goo(args)
-	print("TOON_SURFACES ", ToonLook.apply(_models[1]))
+	if "merge" in args:
+		# conferência das cascas juntadas: toon peça a peça à esquerda, juntado por grupo à direita
+		ToonLook.apply(_models[0])
+		print("TOON_SURFACES ", ToonLook.apply(_models[1], true, true))
+	else:
+		print("TOON_SURFACES ", ToonLook.apply(_models[1]))
 	# chão claro para a sombra projetada e o contato aparecerem
 	var floor_mi := MeshInstance3D.new()
 	var plane := PlaneMesh.new()

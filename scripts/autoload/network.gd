@@ -608,6 +608,11 @@ func server_damage_player(peer_id: int, amount: float, from_pos: Vector3) -> voi
 		_you_were_hit.rpc_id(peer_id, amount, from_pos)
 
 
+func server_chill_player(peer_id: int, secs: float) -> void:
+	if players.has(peer_id):
+		_you_were_chilled.rpc_id(peer_id, secs)
+
+
 func server_shake_player(peer_id: int, amount: float) -> void:
 	if players.has(peer_id):
 		_shake.rpc_id(peer_id, amount)
@@ -998,6 +1003,12 @@ func _player_event_relay(id: int, kind: String, a: Vector3, b: Vector3) -> void:
 func _you_were_hit(amount: float, from_pos: Vector3) -> void:
 	if world and world.player:
 		world.player.take_damage(amount, from_pos)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _you_were_chilled(secs: float) -> void:
+	if world and world.player:
+		world.player.apply_chill(secs)
 
 
 @rpc("authority", "call_remote", "unreliable")

@@ -81,6 +81,18 @@ func _ready() -> void:
 	check(by_kind.get("goblin_arqueiro", 0) == 2 and by_kind.get("goblin_xama", 0) == 1, "Acampamento: 2 arqueiros e 1 xamã")
 	check(by_kind.get("goblin_campeao", 0) == 1 and by_kind.get("goblin_bruto", 0) == 2 and by_kind.get("goblin_dourado", 0) == 2,
 		"fontes de +4 e +5: 1 Campeão no Acampamento, 2 Brutos nas Ruínas, 2 Goblins Dourados pelo mapa")
+	check(by_kind.get("esqueleto", 0) == 3 and by_kind.get("esqueleto_arqueiro", 0) == 2 and by_kind.get("esqueleto_mago", 0) == 1
+		and by_kind.get("esqueleto_cavaleiro", 0) == 1, "Ruínas: 3 esqueletos guerreiros, 2 arqueiros, 1 mago e 1 Cavaleiro")
+	check(by_kind.get("goblin_bombardeiro", 0) == 2 and by_kind.get("slime_gelo", 0) == 2, "2 bombardeiros no Acampamento e 2 slimes de gelo nos campos")
+	var gear_ok := true
+	for en in get_tree().get_nodes_in_group("enemies"):
+		var want: Array = en.data.get("gear", [])
+		var got: Array = EnemyGear.names(en.model)
+		got.sort()
+		var w2 := want.duplicate()
+		w2.sort()
+		gear_ok = gear_ok and got == w2
+	check(gear_ok, "cada monstro só carrega o equipamento da sua variante")
 	check(get_tree().get_nodes_in_group("interactable").size() == 4 + Game.FARM_PLOTS + 1,
 		"3 NPCs + portal + %d canteiros + caldeirão interagíveis" % Game.FARM_PLOTS)
 
@@ -2463,7 +2475,56 @@ func _test_gear() -> void:
 		var area := book.content_rect().grow(1.0)
 		var page_rect: Rect2 = m.pages[i].get_global_rect()
 		check(book.current_page() == i and area.encloses(page_rect), "aba %d fica dentro das páginas do livro" % i)
+		# as duas metades de cada aba respeitam a página e deixam a lombada livre
+		var halves: Array = m.pages[i].get_children()
+		var lr: Rect2 = halves[0].get_global_rect()
+		var rr: Rect2 = halves[1].get_global_rect()
+		var room := BookLayout.page_room().x * book.content_rect().size.x / BookLayout.content_room().x
+		check(halves.size() == 2 and lr.size.x <= room + 1.0 and rr.size.x <= room + 1.0 and lr.end.x <= rr.position.x,
+			"aba %d: duas páginas com a lombada livre (%.0f | %.0f)" % [i, lr.size.x, rr.size.x])
 	check(book.overflow_warnings == 0, "nenhuma aba pede mais espaço do que o livro tem")
+	var plain_tip := ItemTooltip.new()
+	check(m.tooltip.paper and not plain_tip.paper, "dica de item: papel no livro, escura por padrão")
+	plain_tip.free()
+	var tip_paper := ItemTooltip.build_text("leather_cap", "bag", true)
+	var tip_dark := ItemTooltip.build_text("leather_cap", "bag")
+	check(tip_paper != tip_dark and not tip_paper.contains(UITheme.GOOD.to_html(false))
+		and not tip_paper.contains(UITheme.DIM.to_html(false)), "dica de papel não usa as cores claras do tema escuro")
+	# Personagem e Missões a tinta: nenhum painel escuro nem texto claro
+	for i in [1, 2]:
+		m._show_tab(i)
+		await wait(0.1)
+		check(_light_text(m.pages[i]) == "", "aba %d sem texto claro nem painel escuro%s" % [i, _light_text(m.pages[i])])
+	# gastar um ponto de atributo pelo botão "+" da aba Personagem
+	m._show_tab(1)
+	if Game.stat_points <= 0:
+		Game.add_xp(Game.xp_to_next())   # sobe um nível para ter ponto a gastar
+	await wait(0.1)
+	var str0: int = Game.attributes.str
+	var pts0: int = Game.stat_points
+	var plus: Button = m.attr_buttons["str"]
+	check(not plus.disabled, "botão + de Força ligado com ponto sobrando")
+	plus.pressed.emit()
+	await wait(0.1)
+	check(Game.attributes.str == str0 + 1 and Game.stat_points == pts0 - 1, "botão + da aba Personagem gasta o ponto em Força")
+	check(m.attr_values["str"].text == str(Game.attr("str")), "aba Personagem mostra o novo valor de Força")
+	check(m.attr_buttons["str"].disabled == (Game.stat_points <= 0), "botão + desliga quando os pontos acabam")
+	# selecionar uma missão troca os detalhes
+	m._show_tab(2)
+	var fake_quest := not Game.quests.has("goblins")
+	if fake_quest:   # segunda missão só no espelho da tela (o estado de verdade fica no Econ)
+		Game.quests["goblins"] = {"state": "active", "progress": 1}
+	m._refresh()
+	await wait(0.1)
+	check(m.quest_buttons.size() == Game.quests.size() and Game.quests.size() >= 2,
+		"diário lista todas as missões (%d)" % m.quest_buttons.size())
+	for qid in Game.quests.keys():
+		m.quest_buttons[qid].pressed.emit()
+		await wait(0.1)
+		check(m.quest_sel == qid and m.quest_title.text == ItemDB.QUESTS[qid].name and m.quest_buttons[qid].button_pressed,
+			"selecionar a missão %s troca os detalhes" % qid)
+	if fake_quest:
+		Game.quests.erase("goblins")
 	check(not ItemIcons.enabled() and ItemIcons.icon("leather_cap", Callable()) == null, "sem janela, os ícones 3D ficam desligados")
 	m._close()
 	await wait(0.05)
@@ -2472,6 +2533,24 @@ func _test_gear() -> void:
 	check(world.modal != null and world.modal.buy_grid.get_child_count() > 10, "loja mostra a grade de mercadorias")
 	world.modal._close()
 	await wait(0.05)
+
+
+## Procura, numa página do livro, texto claro (ilegível sobre papel) ou painel de fundo escuro.
+## Devolve "" se estiver tudo a tinta, ou a descrição do primeiro problema.
+func _light_text(node: Node) -> String:
+	if node is Label and node.is_visible_in_tree() and node.text != "":
+		var c: Color = node.get_theme_color("font_color")
+		if c.get_luminance() > 0.45:
+			return " (texto claro: \"%s\")" % node.text
+	if node is PanelContainer:
+		var sb := node.get_theme_stylebox("panel") as StyleBoxFlat
+		if sb and sb.bg_color.a > 0.5 and sb.bg_color.get_luminance() < 0.2 and sb.bg_color != UITheme.INK:
+			return " (painel escuro em %s)" % node.get_path()
+	for c in node.get_children():
+		var r := _light_text(c)
+		if r != "":
+			return r
+	return ""
 
 
 ## Escolhe cartas de nível enquanto houver; se check_weapon, confere que a arma escolhida subiu.

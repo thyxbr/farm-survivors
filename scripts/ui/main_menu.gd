@@ -358,6 +358,7 @@ func _build_backdrop() -> void:
 	if arm:
 		arm.rotation.x = -1.2
 	var gob: Node3D = load("res://assets/models/goblin.glb").instantiate()
+	EnemyGear.apply(gob, ["Club"])
 	gob.position = Vector3(2.5, 0, 2.0)
 	gob.rotation.y = -2.4
 	gob.scale = Vector3.ONE * 1.6

@@ -84,6 +84,10 @@ var _avoid: Array = []   # [Vector2 centro, raio] áreas sem vegetação aleató
 var _no_grass: Array = []   # [Vector2 centro, raio] pegadas de props (o capim não atravessa)
 var ground: Node3D
 var _t := 0.0
+## O mapa terminou de montar (a tela de carregamento espera por isto antes de abrir).
+var built := false
+var _step_from := 0.0   # faixa da barra de carregamento da etapa em andamento
+var _step_to := 0.0
 
 
 func _ready() -> void:
@@ -91,20 +95,37 @@ func _ready() -> void:
 	if not Network.is_online():
 		Econ.ensure_solo()
 	rng.seed = 20261113
-	_build_environment()
-	_build_ground()
-	_build_village()
-	_build_farm()
-	_build_fields()
-	_build_goblin_camp()
-	_build_ruins()
-	_build_arena()
-	_build_borders()
-	_scatter_nature()
+	# Atrás da tela de carregamento o mapa é montado em etapas, uma por quadro (a tela não congela e a
+	# barra anda de verdade). Sem a tela (testes, servidor, cena aberta direto) monta tudo de uma vez.
+	var staged: bool = Loading.covering
+	if staged:
+		process_mode = Node.PROCESS_MODE_DISABLED   # nada do mapa processa pela metade, sem o jogador
+	# [etapa, peso na barra] — o peso acompanha o tempo medido de cada uma (o capim é a mais demorada)
+	var steps := [[_build_environment, 2.0], [_build_ground, 2.0], [_build_village, 1.0], [_build_farm, 1.0],
+		[_build_fields, 0.5], [_build_goblin_camp, 0.5], [_build_ruins, 0.5], [_build_arena, 0.5],
+		[_build_borders, 0.5], [_scatter_forest, 0.5], [_scatter_sparse, 0.5], [_mountain_nature, 0.5],
+		[_scatter_grass, 7.0]]
 	if not Network.is_client():
-		_setup_enemies()   # no cliente, os inimigos chegam do servidor
+		steps.append([_setup_enemies, 2.0])   # no cliente, os inimigos chegam do servidor
+	var total := 1.0   # o que sobra depois das etapas: jogador e HUD
+	for st in steps:
+		total += st[1]
+	var done := 0.0
+	for st in steps:
+		_step_from = done / total
+		done += st[1]
+		_step_to = done / total
+		await st[0].call()   # só o capim espera quadros (e só atrás da tela); o resto volta na hora
+		if staged:
+			if not is_inside_tree():
+				return   # trocaram de cena no meio da montagem
+			Loading.set_progress(_step_to)
+			await get_tree().process_frame
+			if not is_inside_tree():
+				return
 	if Network.is_server():
 		# servidor dedicado: só o mundo, os inimigos e as réplicas dos jogadores
+		built = true
 		Network.world_ready(self)
 		return
 
@@ -137,6 +158,10 @@ func _ready() -> void:
 		Network.world_ready(self)
 	elif Hub.take_pending_horde():
 		start_survival.call_deferred()   # solo: o portal da praça pediu a Horda
+	if staged:
+		process_mode = Node.PROCESS_MODE_INHERIT
+		Loading.set_progress(1.0)
+	built = true
 
 
 func _exit_tree() -> void:
@@ -634,8 +659,9 @@ func _blocked(p: Vector3) -> bool:
 	return false
 
 
-func _scatter_nature() -> void:
-	# floresta densa a leste
+## Floresta densa a leste. A natureza é espalhada em quatro etapas (floresta, resto do mapa, serra,
+## capim), sempre nesta ordem: todas tiram do mesmo `rng`.
+func _scatter_forest() -> void:
 	var placed := 0
 	var tries := 0
 	while placed < 140 and tries < 3000:
@@ -645,9 +671,12 @@ func _scatter_nature() -> void:
 			continue
 		tree(_pick({"tree_pine": 5, "tree_fir": 4, "tree_birch": 1.2}), p, rng.randf_range(0.8, 1.5))
 		placed += 1
-	# árvores esparsas e pedras no resto do mapa
-	placed = 0
-	tries = 0
+
+
+## Árvores esparsas e pedras no resto do mapa.
+func _scatter_sparse() -> void:
+	var placed := 0
+	var tries := 0
 	while placed < 110 and tries < 3000:
 		tries += 1
 		var p := Vector3(rng.randf_range(-MAP_HALF + 8, 28), 0, rng.randf_range(-MAP_HALF + 8, MAP_HALF - 8))
@@ -663,14 +692,21 @@ func _scatter_nature() -> void:
 			p.y = maxf(0.0, ground.height_at(p.x, p.z) - 0.3 * s)
 			prop("rock", p, rng.randf() * TAU, s, "cyl", Vector3(0.65, 0.9, 0))
 		placed += 1
-	_mountain_nature()
+
+
+## Capim e flores (fora das trilhas pintadas, das pegadas de props e da arena).
+func _scatter_grass() -> void:
 	if Network.is_server():
 		return   # grama é só visual
-	# capim e flores (fora das trilhas pintadas, das pegadas de props e da arena)
 	var keep_out := _no_grass.duplicate()
 	keep_out.append([Vector2(ARENA.x, ARENA.z), 33.0])
 	var sparse := [[Vector2(0, 4), 22.0], [Vector2(FARM.x, FARM.z), 12.0]]
-	ground.scatter_grass(rng.seed + 7, 0.6, keep_out, sparse)
+	if Loading.covering:
+		# fileira por fileira, um quadro cada: é a etapa mais demorada da montagem
+		await ground.scatter_grass(rng.seed + 7, 0.6, keep_out, sparse, 1.0,
+			func(frac: float) -> void: Loading.set_progress(lerpf(_step_from, _step_to, frac)))
+	else:
+		ground.scatter_grass(rng.seed + 7, 0.6, keep_out, sparse)
 
 
 # ================================================================ veios e cristais
@@ -709,6 +745,19 @@ func _setup_enemies() -> void:
 		spawns.append({"kind": "goblin_bruto", "pos": RUINS + off, "node": null, "timer": 0.0, "respawn": 150.0})
 	for p in [Vector3(30, 0, 44), Vector3(-30, 0, -72)]:
 		spawns.append({"kind": "goblin_dourado", "pos": p, "node": null, "timer": 0.0, "respawn": 240.0})
+	# esqueletos guardam o caminho das Ruínas (guerreiros na trilha, arqueiros nas pontas) e os fundos
+	# (o mago e o Cavaleiro), todos fora do alcance de quem luta com o rei no centro
+	for off in [Vector3(-5, 0, 24), Vector3(5, 0, 24), Vector3(0, 0, 30)]:
+		spawns.append({"kind": "esqueleto", "pos": RUINS + off, "node": null, "timer": 0.0, "respawn": 90.0})
+	for off in [Vector3(-14, 0, 22), Vector3(14, 0, 22)]:
+		spawns.append({"kind": "esqueleto_arqueiro", "pos": RUINS + off, "node": null, "timer": 0.0, "respawn": 100.0})
+	spawns.append({"kind": "esqueleto_mago", "pos": RUINS + Vector3(-18, 0, -12), "node": null, "timer": 0.0, "respawn": 150.0})
+	spawns.append({"kind": "esqueleto_cavaleiro", "pos": RUINS + Vector3(18, 0, -12), "node": null, "timer": 0.0, "respawn": 300.0})
+	# bombardeiros rondam o Acampamento Goblin e as slimes de gelo ficam no meio das comuns, nos campos
+	for off in [Vector3(-13, 0, 6), Vector3(12, 0, -10)]:
+		spawns.append({"kind": "goblin_bombardeiro", "pos": CAMP + off, "node": null, "timer": 0.0, "respawn": 90.0})
+	for p in [Vector3(-18, 0, -44), Vector3(16, 0, -54)]:
+		spawns.append({"kind": "slime_gelo", "pos": p, "node": null, "timer": 0.0, "respawn": 60.0})
 	# Ninho de Slimes: a mãe no meio, explosivos em volta dela e os velozes por fora
 	spawns.append({"kind": "slime_mae", "pos": NEST, "node": null, "timer": 0.0, "respawn": 120.0})
 	for i in 3:

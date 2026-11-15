@@ -273,6 +273,13 @@ static func ink(text: String, size := 16, color := INK, title := false) -> Label
 	return l
 
 
+## Cor clara do tema escuro (raridade, elemento) escurecida até dar para ler sobre o papel.
+static func on_paper(c: Color) -> Color:
+	var d := c.darkened(0.35)
+	var lum := d.get_luminance()
+	return d.darkened(1.0 - 0.33 / lum) if lum > 0.33 else d
+
+
 static func _ink_box(fill: float, border: float, bw := 1) -> StyleBoxFlat:
 	var s := _box(Color(INK.r, INK.g, INK.b, fill), Color(INK.r, INK.g, INK.b, border), bw, 3, 12, 4)
 	return s
