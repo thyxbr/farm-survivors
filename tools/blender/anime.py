@@ -384,11 +384,12 @@ def _lock(bm, ctrl, w, nrm, th_k=0.30, k=2, root=0.5):
                 bm.faces.new((r0[i], r0[j], r1[j], r1[i]))
 
 
-def _hair_obj(name, bm, material, parent):
+def _hair_obj(name, bm, material, parent, recalc=True):
     if not bm.faces:
         bm.free()
         return None
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    if recalc:
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     bmesh.ops.triangulate(bm, faces=bm.faces[:], quad_method='BEAUTY')
     _place(bm, (0, 0, 0), parent)
     return _finish(name, bm, material, parent, smooth=True)
@@ -501,7 +502,7 @@ _BEARD_DEG = [0, 4, 9, 16, 26, 38, 52, 68, 84, 98]
 _BEARD_TOP = [3.1, 3.1, 3.5, 5.0, 6.0, 6.6, 7.4, 8.8, 14.6, 6.8]  # linha de cima (cm): sob o lábio, bochecha, costeleta
 # borda de baixo: em fração do comprimento abaixo do queixo (pontas e reentrâncias alternadas); atrás da
 # mandíbula (valores positivos, em cm) a borda sobe até a orelha
-_BEARD_BOT = [-1.0, -0.88, -0.56, -0.80, -0.44, -0.60, -0.30, -0.36, 0.7, 3.0]
+_BEARD_BOT = [-1.0, -0.88, -0.56, -0.80, -0.50, -0.62, -0.22, -0.42, 0.3, 1.8]
 
 
 def anime_beard(prefix, H, mats, parent, style=None):
@@ -510,7 +511,6 @@ def anime_beard(prefix, H, mats, parent, style=None):
     st = dict(BEARD_STYLE)
     st.update(style or {})
     s, L, full = H["s"], st["length"], st["full"]
-    ZJ = 2.0                                     # abaixo deste anel a barba cai na vertical
     cy = H["cy"] - 3.0 * s
 
     def radial(p):
@@ -525,13 +525,15 @@ def anime_beard(prefix, H, mats, parent, style=None):
         """Ponto da massa na coluna i, do topo (t=0) à borda de baixo (t=1); t > 1 continua além da ponta."""
         deg, zt, zb = col(i, sg)
         z = zt + (zb - zt) * t
-        zr = max(z, ZJ)
+        side = min(1.0, abs(deg) / 50.0)
+        # abaixo da linha da mandíbula a barba cai na vertical; nos lados a linha é mais alta (anel mais largo),
+        # para a barba descer por fora do pescoço e cobrir a mandíbula de perfil
+        zr = max(z, 2.0 + 2.6 * min(1.0, abs(deg) / 70.0))
         p = _hp(H, deg, zr)
         dn = (zr - z) / L                                               # quanto desceu abaixo da mandíbula
         p.z -= (zr - z) * s
-        p.x *= 1.0 - 0.42 * min(1.0, dn) ** 1.4
+        p.x *= 1.0 - (0.42 - 0.28 * side) * min(1.0, dn) ** 1.4
         p.y -= 0.25 * dn * s
-        side = min(1.0, abs(deg) / 50.0)
         off = (0.45 + (1.2 + 0.5 * side) * full * math.sin(math.pi * min(1.0, t * 1.25) / 2)) * s
         return p + radial(p) * (off + lift * s)
 
@@ -547,17 +549,23 @@ def anime_beard(prefix, H, mats, parent, style=None):
     # por baixo: fecha da borda recortada até o queixo, no tom intermediário (vira sombra entre as pontas)
     ub = bmesh.new()
     e0 = [ub.verts.new(surf(i, sg, 1.0)) for (i, sg) in order]
-    e1 = [ub.verts.new(_hp(H, col(i, sg)[0], max(col(i, sg)[2], 0.9))) for (i, sg) in order]
+    e1 = [ub.verts.new(v.co - radial(v.co) * 3.5 * s + Vector((0, 0, 1.2 * s))) for v in e0]     # some no pescoço
     for c in range(len(order) - 1):
-        ub.faces.new((e0[c], e0[c + 1], e1[c + 1], e1[c]))
-    out.append(_hair_obj(prefix + "BeardUnder", ub, mats["mid"], parent))
+        f = ub.faces.new((e0[c], e0[c + 1], e1[c + 1], e1[c]))
+        f.normal_update()
+        # a face olha para baixo e para dentro; sem ela, de costas aparece o avesso da massa (a casca, preta)
+        if f.normal.dot(Vector((0, 0, -0.6)) - radial(f.calc_center_median())) < 0:
+            f.normal_flip()
+    out.append(_hair_obj(prefix + "BeardUnder", ub, mats["mid"], parent, recalc=False))
 
     if st["locks"]:
         lb = bmesh.new()
-        for i, w, t0 in ((0, 2.0, 0.2), (3, 2.0, 0.3), (5, 2.2, 0.3), (7, 2.0, 0.35)):
+        # mechas curtas, só sobre as pontas: compridas, viram "dedos" pendurados
+        for i, w, t0 in ((0, 2.0, 0.3), (3, 1.9, 0.5), (5, 2.0, 0.58), (7, 1.9, 0.55)):
             for sg in ((1,) if i == 0 else (1, -1)):
-                _lock(lb, [surf(i, sg, t0, 0.5), surf(i, sg, 0.7, 0.75), surf(i, sg, 1.2, 0.3)], w * s, radial,
-                      th_k=0.36)
+                # a raiz nasce dentro da massa: só a metade da ponta aparece, como uma folha, não um gomo
+                _lock(lb, [surf(i, sg, t0 - 0.12, -0.35), surf(i, sg, (t0 + 1.14) / 2, 0.4), surf(i, sg, 1.14, 0.2)],
+                      w * 1.15 * s, radial, th_k=0.24, root=0.35)
         out.append(_hair_obj(prefix + "BeardLocks", lb, mats["hair"], parent))
     if st["mustache"]:
         mb = bmesh.new()

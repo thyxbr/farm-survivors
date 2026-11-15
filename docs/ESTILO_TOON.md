@@ -231,12 +231,21 @@ deu origem à técnica está em [`ESTUDO_PERSONAGEM_ANIME.md`](ESTUDO_PERSONAGEM
 5. **O "ângulo" das colunas da cabeça não é geométrico**: a coluna 79 fica 4 cm à frente da orelha. A
    costeleta só encostou na orelha com a coluna 84, e a barba só cobriu a mandíbula com a 98.
 6. **Custo:** 5.270 -> 6.054 triângulos (cabelo e barba: de ~650 para ~1.430). Passa do orçamento de 5 mil.
-7. **O que ainda destoa:** de perfil a barba parece pendurada no queixo (falta volume sob a mandíbula); a
-   linha da barba na bochecha é uma reta sem traço; o contorno do cabelo é preto como o do corpo (no estudo
-   era um tom mais claro; no jogo o contorno tem uma cor só); de costas as mechas da nuca são lâminas grandes.
+7. **De perfil a barba precisa descer por fora do pescoço.** A cabeça de `anime_head` afina em cone até o
+   queixo, sem ângulo de mandíbula, e o pescoço do ferreiro é quase tão largo quanto o rosto: com a borda da
+   barba na linha da mandíbula, sobrava pele entre a bochecha e o pescoço e a barba parecia pendurada no
+   queixo. Nos lados a barba agora cai na vertical a partir de um anel mais alto e mais largo.
+8. **Massa de uma face só mostra o avesso.** De costas aparecia a casca do contorno (preta) dos dois lados do
+   pescoço. O fundo da barba fecha a borda para dentro e para cima, com a orientação das faces posta à mão.
+9. **Mecha comprida sobre a massa vira "dedo".** As mechas da barba nascem dentro da massa e só a ponta
+   aparece.
+10. **O que ainda destoa:** a linha da barba na bochecha é uma reta sem traço; de frente a barba ficou mais
+    quadrada; o contorno do cabelo é preto como o do corpo (no estudo era um tom mais claro; no jogo o
+    contorno tem uma cor só); de costas as mechas da nuca são lâminas grandes.
 
 Capturas (atual à esquerda, teste à direita; frente, três quartos, perfil e costas):
-`docs/screenshots/doran_cabelo_barba_rosto.jpg` e `doran_cabelo_barba_corpo.jpg`.
+`docs/screenshots/doran_cabelo_barba_rosto.jpg` e `doran_cabelo_barba_corpo.jpg`. Ajuste do perfil (antes à
+esquerda, depois à direita; perfil e 60 graus): `doran_barba_perfil.jpg`.
 
 ### Do desempenho
 1. **O custo do contorno é de nós, não de triângulos.** O goblin tem 102 peças (`MeshInstance3D`), 59 delas
