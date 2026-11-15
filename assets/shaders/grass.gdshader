@@ -1,5 +1,5 @@
 // Tufos de capim (MultiMesh): cor do chão embaixo + ponta mais clara, balanço de vento.
-// COLOR.r da malha = altura relativa da folha (0 na base, 1 na ponta).
+// COLOR.r da malha = altura relativa da folha (0 na base, 1 na ponta); COLOR.g = tom da folha.
 shader_type spatial;
 render_mode cull_disabled, diffuse_burley;
 
@@ -8,6 +8,8 @@ render_mode cull_disabled, diffuse_burley;
 
 uniform float sway = 0.1;
 uniform vec3 tip_tint : source_color = vec3(0.75, 0.82, 0.42);
+uniform vec3 dry_tint : source_color = vec3(1.12, 1.0, 0.62);   // folha seca (tom alto)
+uniform vec3 deep_tint : source_color = vec3(0.78, 0.9, 0.88);  // folha funda (tom baixo)
 
 // Clima (scripts/autoload/weather.gd): vento verga e sacode o capim; a neve soterra e branqueia.
 global uniform float weather_wind;
@@ -18,10 +20,12 @@ global uniform float weather_wet;
 
 varying vec3 base_col;
 varying float hgt;
+varying float tone;
 
 void vertex() {
 	vec3 origin = (MODEL_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
 	hgt = COLOR.r;
+	tone = COLOR.g;
 	base_col = grass_color(origin.xz) * INSTANCE_CUSTOM.rgb;
 	float w = weather_wind;
 	// frequência nunca multiplica TIME: com vento a fase só anda mais rápido (weather_phase)
@@ -44,7 +48,10 @@ void vertex() {
 void fragment() {
 	// as duas faces usam a normal "para cima" (senão a face de trás fica escura)
 	NORMAL = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
-	vec3 c = mix(base_col * 0.78, base_col * tip_tint * 1.55, hgt);
+	vec3 c = mix(base_col * 0.72, base_col * tip_tint * 1.55, smoothstep(0.0, 1.0, hgt));
+	// cada folha puxa um pouco para seca ou para funda: o tufo ganha volume sem precisar de sombra
+	c *= mix(deep_tint, vec3(1.0), smoothstep(0.0, 0.35, tone));
+	c *= mix(vec3(1.0), dry_tint, smoothstep(0.8, 1.0, tone) * hgt);
 	c *= 1.0 - 0.22 * weather_wet;
 	c = mix(c, vec3(0.88, 0.91, 0.96), weather_snow * (0.55 + 0.4 * hgt));
 	ALBEDO = c;

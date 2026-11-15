@@ -10,6 +10,8 @@ const CHUNK := 20.0
 ## Capim: candidatos por m² = density * GRASS_MUL; um ruído de touceiras decide quantos ficam
 ## (campo cheio onde ele sobe, ralo onde desce).
 const GRASS_MUL := 4.0
+## Até esta distância (do centro do bloco) o capim usa o tufo cheio; dali até 60 m, o tufo leve.
+const TUFT_NEAR := 28.0
 ## Plantas por m² (vezes o 'plants' de scatter_grass): arbustos e samambaias.
 const PLANT_DENSITY := 0.02
 const PLANT_MODELS := {
@@ -376,12 +378,16 @@ func scatter_grass(seed_value: int, density := 0.55, keep_out: Array = [], spars
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
 	var tuft := _tuft_mesh()
+	var tuft_far := _tuft_mesh(true)
+	var tuft_low := _tuft_mesh(false, true)
 	var flower := _flower_mesh()
 	var gmat := ShaderMaterial.new()
 	gmat.shader = GRASS_SHADER
 	gmat.set_shader_parameter("noise_tex", _noise_tex)
 	gmat.set_shader_parameter("toon", ToonLook.enabled())
 	tuft.surface_set_material(0, gmat)
+	tuft_far.surface_set_material(0, gmat)
+	tuft_low.surface_set_material(0, gmat)
 	var clump := FastNoiseLite.new()   # touceiras de capim e canteiros de flores/plantas
 	clump.seed = seed_value
 	clump.frequency = 0.045
@@ -413,6 +419,8 @@ func scatter_grass(seed_value: int, density := 0.55, keep_out: Array = [], spars
 			var few := _near(sparse, box)
 			var tufts: Array[Transform3D] = []
 			var tints: Array[Color] = []
+			var lows: Array[Transform3D] = []   # touceiras baixas e capim miúdo (só de perto)
+			var low_tints: Array[Color] = []
 			var flowers: Array[Transform3D] = []
 			var fcols: Array[Color] = []
 			for i in int(CHUNK * CHUNK * density * GRASS_MUL):
@@ -444,11 +452,27 @@ func scatter_grass(seed_value: int, density := 0.55, keep_out: Array = [], spars
 					flowers.append(Transform3D(bas, Vector3(p.x, y, p.y)))
 					fcols.append(FLOWER_COLORS[rng.randi() % FLOWER_COLORS.size()])
 				else:
-					tufts.append(Transform3D(bas, Vector3(p.x, y, p.y)))
 					var v := rng.randf_range(0.85, 1.15)
-					tints.append(Color(v, v * rng.randf_range(0.95, 1.05), v))
+					var tint := Color(v, v * rng.randf_range(0.95, 1.05), v)
+					if rng.randf() < 0.15:
+						lows.append(Transform3D(bas.scaled(Vector3(1.2, 1.0, 1.2)), Vector3(p.x, y, p.y)))
+						low_tints.append(tint)
+					else:
+						tufts.append(Transform3D(bas, Vector3(p.x, y, p.y)))
+						tints.append(tint)
+					# capim miúdo em volta: enche o chão entre os tufos sem pesar de longe
+					if g < 0.0 and rng.randf() < 0.6:
+						var off := Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(0.25, 0.55)
+						var q := p + off
+						if (shapes.is_empty() or shape_distance(q, shapes) >= 0.35) and not _inside(q, outs):
+							var fs := rng.randf_range(0.45, 0.7)
+							var fb := Basis().rotated(Vector3.UP, rng.randf() * TAU).scaled(Vector3(fs, fs, fs))
+							lows.append(Transform3D(fb, Vector3(q.x, y, q.y)))
+							low_tints.append(tint * rng.randf_range(0.9, 1.05))
 			var center := Vector3(x0 + CHUNK / 2.0, 0, z0 + CHUNK / 2.0)
-			_chunk(tuft, tufts, tints, center, 60.0, true)
+			_chunk(tuft, tufts, tints, center, TUFT_NEAR, true)
+			_chunk(tuft_far, tufts, tints, center, 60.0, true, false, TUFT_NEAR)
+			_chunk(tuft_low, lows, low_tints, center, TUFT_NEAR, true)
 			_chunk(flower, flowers, fcols, center, 50.0, false)
 			_scatter_plants(rng, clump, plant_meshes, box, plants, shapes, grassy, outs, few, center)
 			_scatter_flowers(rng, clump, flower_meshes, box, plants, shapes, grassy, outs, few, center)
@@ -581,7 +605,7 @@ func _inside(p: Vector2, areas: Array) -> bool:
 
 
 func _chunk(mesh: Mesh, xf: Array[Transform3D], cols: Array[Color], center: Vector3, far: float, custom: bool,
-		shadow := false) -> void:
+		shadow := false, near := 0.0) -> void:
 	if xf.is_empty():
 		return
 	var mm := MultiMesh.new()
@@ -604,36 +628,63 @@ func _chunk(mesh: Mesh, xf: Array[Transform3D], cols: Array[Color], center: Vect
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadow else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	if far > 0.0:
 		mmi.visibility_range_end = far
-	mmi.visibility_range_end_margin = 6.0
+	# na troca tufo cheio -> leve (TUFT_NEAR) sem margem: com histerese dos dois lados sobrava uma
+	# faixa em que nenhum dos dois aparecia
+	mmi.visibility_range_end_margin = 0.0 if far == TUFT_NEAR else 6.0
+	if near > 0.0:
+		mmi.visibility_range_begin = near
 	add_child(mmi)
 
 
-## Tufo de 9 folhas finas (triângulos dobrados) abertas em leque. COLOR.r = altura relativa.
-func _tuft_mesh() -> ArrayMesh:
+## Tufo de capim: folhas curvas (3 segmentos, afinando até a ponta) abertas em leque, as de fora
+## mais baixas e arqueadas, as do meio mais altas e retas. COLOR.r = altura relativa na folha,
+## COLOR.g = tom da folha (0 escura e fria .. 1 clara e seca), para o tufo não sair de uma cor só.
+## lite = versão de longe: menos folhas e um segmento só (mesma silhueta, ~1/3 dos triângulos).
+## low = touceira baixa e aberta (folhas mais curtas e deitadas), para variar e encher o chão.
+func _tuft_mesh(lite := false, low := false) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 5
-	for k in 9:
-		var yaw := k * TAU / 9.0 + rng.randf_range(-0.3, 0.3)
+	rng.seed = 9 if low else 5
+	var blades := 8 if lite else (11 if low else 14)
+	for k in blades:
+		var outer := k % 2 == 0   # alterna folha de fora (baixa, arqueada) e de dentro (alta, reta)
+		var yaw := k * TAU / blades + rng.randf_range(-0.35, 0.35)
 		var dir := Vector3(cos(yaw), 0, sin(yaw))
 		var side := Vector3(-dir.z, 0, dir.x)
-		var h := rng.randf_range(0.28, 0.55)
-		var lean := rng.randf_range(0.06, 0.16)
-		var w := rng.randf_range(0.035, 0.05)
-		var base := dir * 0.04
-		var mid := base + dir * lean * 0.45 + Vector3.UP * h * 0.55
-		var tip := base + dir * lean + Vector3.UP * h
-		var bl := base - side * w
-		var br := base + side * w
-		var ml := mid - side * w * 0.6
-		var mr := mid + side * w * 0.6
-		for tri in [[bl, br, mr, 0.0, 0.0, 0.55], [bl, mr, ml, 0.0, 0.55, 0.55], [ml, mr, tip, 0.55, 0.55, 1.0]]:
-			for j in 3:
-				st.set_color(Color(tri[3 + j], 0, 0))
-				st.set_normal(Vector3.UP)
-				st.add_vertex(tri[j])
+		var h := rng.randf_range(0.3, 0.46) if outer else rng.randf_range(0.5, 0.72)
+		var lean := rng.randf_range(0.14, 0.26) if outer else rng.randf_range(0.04, 0.12)
+		if low:
+			h *= 0.62
+			lean = minf(lean * 1.5 + 0.04, 0.3)
+		var w := rng.randf_range(0.03, 0.042) * (1.25 if lite else 1.0)
+		var base := dir * rng.randf_range(0.02, 0.09) + side * rng.randf_range(-0.03, 0.03)
+		var twist := rng.randf_range(-0.25, 0.25)   # a lâmina gira um pouco ao subir
+		var tone := rng.randf()
+		var segs := 1 if lite else 2
+		var rows: Array = []   # [esquerda, direita, altura relativa] da base até a ponta
+		for j in segs + 1:
+			var t := float(j) / (segs + 1)
+			var c := base + dir * lean * t * t + Vector3.UP * h * (t - 0.18 * lean / 0.26 * t * t)
+			var sd := side.rotated(Vector3.UP, twist * t)
+			var ww := w * (1.0 - t * 0.55)
+			rows.append([c - sd * ww, c + sd * ww, t])
+		var tip := base + dir * lean + Vector3.UP * h * (1.0 - 0.18 * lean / 0.26)
+		for j in segs:
+			var a: Array = rows[j]
+			var b: Array = rows[j + 1]
+			_blade_tri(st, [a[0], a[1], b[1]], [a[2], a[2], b[2]], tone)
+			_blade_tri(st, [a[0], b[1], b[0]], [a[2], b[2], b[2]], tone)
+		var last: Array = rows[segs]
+		_blade_tri(st, [last[0], last[1], tip], [last[2], last[2], 1.0], tone)
 	return st.commit()
+
+
+func _blade_tri(st: SurfaceTool, v: Array, hs: Array, tone: float) -> void:
+	for j in 3:
+		st.set_color(Color(hs[j], tone, 0))
+		st.set_normal(Vector3.UP)
+		st.add_vertex(v[j])
 
 
 ## Flor: caule e 4 pétalas em cruz + miolo. Cor por instância (vertex color x instância).
