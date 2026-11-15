@@ -5,6 +5,10 @@ extends Node
 ##                                    o jogador vivo e sem subir de nível, para a horda ficar cheia e girando
 ## Mede: tempo de quadro (média, p99 e pior), quadros em que nasceu inimigo x os outros, draw calls,
 ## triângulos, custo de ToonLook.apply, do gancho de cena e o tamanho dos caches. Desliga o vsync.
+## A linha `FASES` separa o quadro em física, process e desenho (média real, medida entre os sinais do
+## motor; os monitores TIME_PROCESS/TIME_PHYSICS_PROCESS da linha `PARTES` são o pico de um passo, não a
+## soma) e conta os passos de física por quadro: perto de 8, o teto do motor, o jogo está em espiral
+## (cada quadro lento pede mais passos, que deixam o próximo mais lento). Números em docs/desempenho/.
 ## Com `--notoon` mede a mesma coisa sem o estilo. Números em docs/ESTILO_TOON.md.
 
 const WARMUP := 10.0                      # carga da cena e compilação de shaders ficam fora do resumo
@@ -30,6 +34,16 @@ var _warm := {}                           # ToonLook.stats no fim do aquecimento
 var _phys := 0.0
 var _rcpu := 0.0
 var _rgpu := 0.0
+## Fases do quadro (usec acumulados): física = do primeiro passo até o começo do process; process = até o
+## começo do desenho; desenho = frame_pre_draw até frame_post_draw. Um conjunto por janela de 5 s e outro
+## para o resumo.
+var _phase := {"fis": 0, "proc": 0, "draw": 0}
+var _phase_all := {"fis": 0, "proc": 0, "draw": 0}
+var _mark_phys := 0
+var _mark_proc := 0
+var _mark_draw := 0
+var _steps0 := 0          # Engine.get_physics_frames() no começo da janela de 5 s
+var _steps_all0 := -1     # idem, no fim do aquecimento
 
 
 func _ready() -> void:
@@ -44,6 +58,43 @@ func _ready() -> void:
 	RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
 	get_tree().node_added.connect(_on_node_added)
 	_last = Time.get_ticks_usec()
+	_steps0 = Engine.get_physics_frames()
+	get_tree().physics_frame.connect(_on_physics_frame)
+	get_tree().process_frame.connect(_on_process_frame)
+	RenderingServer.frame_pre_draw.connect(_on_pre_draw)
+	RenderingServer.frame_post_draw.connect(_on_post_draw)
+
+
+func _on_physics_frame() -> void:
+	if _mark_phys == 0:
+		_mark_phys = Time.get_ticks_usec()
+
+
+func _on_process_frame() -> void:
+	_mark_proc = Time.get_ticks_usec()
+	if _mark_phys != 0:
+		_add_phase("fis", _mark_proc - _mark_phys)
+	_mark_phys = 0
+
+
+func _on_pre_draw() -> void:
+	_mark_draw = Time.get_ticks_usec()
+	_add_phase("proc", _mark_draw - _mark_proc)
+
+
+func _on_post_draw() -> void:
+	_add_phase("draw", Time.get_ticks_usec() - _mark_draw)
+
+
+func _add_phase(k: String, usec: int) -> void:
+	_phase[k] += usec
+	if _t >= WARMUP:
+		_phase_all[k] += usec
+
+
+func _phases(p: Dictionary, frames: float, steps: int) -> String:
+	return "física=%.2f ms (%.2f passos por quadro, %.2f ms por passo) process=%.2f ms desenho=%.2f ms" % [
+		p.fis / 1000.0 / frames, steps / frames, p.fis / 1000.0 / maxf(1.0, steps), p.proc / 1000.0 / frames, p.draw / 1000.0 / frames]
 
 
 func _on_node_added(n: Node) -> void:
@@ -61,6 +112,7 @@ func _process(delta: float) -> void:
 	if _t >= WARMUP:
 		if _warm.is_empty():
 			_warm = ToonLook.stats.duplicate()
+			_steps_all0 = Engine.get_physics_frames()
 			ToonLook.stats.apply_max_usec = 0
 		_all.append(ms)
 		if _spawned:
@@ -133,6 +185,10 @@ func _line() -> void:
 		ts.apply, ts.apply_usec / 1000.0, ts.apply_max_usec / 1000.0, ts.hulls, ts.hull_usec / 1000.0,
 		ts.outlines, ToonLook._mats.size(), ToonLook._hulls.size(), ToonLook._merged.size(),
 		hs.seen, hs.converted, hs.usec / 1000.0, hs.max_frame_usec / 1000.0, hs.max_batch])
+	print("[toonprobe] FASES (média por quadro, últimos 5 s) ", _phases(_phase, maxf(1.0, _frames.size()), Engine.get_physics_frames() - _steps0))
+	_steps0 = Engine.get_physics_frames()
+	for k in _phase:
+		_phase[k] = 0
 	_frames.clear()
 
 
@@ -148,6 +204,7 @@ func _summary() -> void:
 		ts.hulls - _warm.get("hulls", 0), (ts.hull_usec - _warm.get("hull_usec", 0)) / 1000.0, ts.outlines - _warm.get("outlines", 0)])
 	print("[toonprobe] PARTES process=%.2f ms fisica=%.2f ms render_cpu=%.2f ms render_gpu=%.2f ms (médias por quadro)" % [
 		_proc / n, _phys / n, _rcpu / n, _rgpu / n])
+	print("[toonprobe] FASES RESUMO (média por quadro) ", _phases(_phase_all, maxf(1.0, _all.size()), Engine.get_physics_frames() - maxi(0, _steps_all0)))
 	print("[toonprobe] RESUMO toon=%s contorno=%s quadros=%d media=%.2f ms p50=%.2f p99=%.2f pior=%.2f | quadro com nascimento=%.2f ms (%d) sem=%.2f ms (%d) | draw=%.0f tris=%.0f inimigos=%.1f | mats=%d hulls=%d juntas=%d" % [
 		ToonLook.enabled(), ToonLook.enabled() and ToonLook.outline_enabled(), _all.size(), sum / maxf(1.0, _all.size()), _pct(_all, 0.5), _pct(_all, 0.99), _pct(_all, 1.0),
 		_spawn_ms / maxf(1.0, _spawn_n), _spawn_n, _calm_ms / maxf(1.0, _calm_n), _calm_n,
