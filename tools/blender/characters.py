@@ -310,15 +310,14 @@ def build_knight():
                                       sec((K.x, K.y - 0.075, K.z), 0.064, 0.068),
                                       sec((K.x, K.y - 0.1, K.z - 0.006), 0.042, 0.046)],
                    steel, knee, fwd=(0, 0, 1), chamfer=(0.0, 0.008))
-        sab_s = [dict(x, c=x["c"] + Vector((0, 0, 0.008))) for x in grow(S["foot"], 1.1, 0.006)]
-        sole = foot_sole("Leg%s_Sole" % n, sab_s, lea_d, ankle, P["ft"], th=0.011, lip=0.008)
+        sab_s = grow(S["foot"], 1.1, 0.006)   # escarpe de aço inteiro, sem sola de couro: pisa direto no chão
         kw = wing("Leg%s_KneeWing" % n, (K.x + s * 0.066, K.y - 0.035, K.z), 0.075, 0.1, 0.009, steel, knee)
         gband = band("Leg%s_GreaveTrim" % n, grow([sample(S["shin"], 0.2)], 1.13, 0.008, keel=0.12)[0],
                      S["shin"][-1]["c"] - S["shin"][0]["c"], 0.016, trim, knee, sides=8, phase=0)
         join_objs("Leg%s_Knee" % n, [pol, kw, gband])
         gr = loft("Leg%s_Sabaton" % n, grow(span(S["shin"], 0.04, 0.97), 1.13, 0.008, keel=0.12), steel, knee,
                   phase=0, chamfer=(0.006, 0.0))
-        # pé no tornozelo (AnkleX): calcanhar, pé chato e ponta giram sem a canela; sola fica à parte (couro)
+        # pé no tornozelo (AnkleX): calcanhar, pé chato e ponta giram sem a canela
         loft("Leg%s_Foot" % n, stepped(sab_s, (0.42, 0.58, 0.74), drop=0.92, keep_bottom=True), steel, ankle,
              fwd=(0, 0, 1), chamfer=(0.008, 0.01))
 

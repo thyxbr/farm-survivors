@@ -29,8 +29,7 @@ func _initialize() -> void:
 		root.add_child(m)
 		m.position.z = i * 1.25
 		if "roupa" in args:
-			_wear(m, "f_shoes", ["LegL_Sabaton", "LegR_Sabaton", "LegL_Knee", "LegR_Knee", "LegL_Foot", "LegR_Foot",
-				"LegL_Sole", "LegR_Sole"])
+			_wear(m, "f_shoes", ["LegL_Sabaton", "LegR_Sabaton", "LegL_Knee", "LegR_Knee", "LegL_Foot", "LegR_Foot"])
 		var ri := KnightAnim.rig(m)
 		var p := KnightAnim.locomotion_pose(ri, TAU * i / N, move, run)
 		KnightAnim.apply(ri, p, 1.0)

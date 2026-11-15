@@ -17,8 +17,7 @@ const REGION := {
 	"armor": ["Hips", "Torso", "Fauld", "Belt", "Tabard", "Gorget", "ArmL_Pauldron", "ArmR_Pauldron",
 		"ArmL_Upper", "ArmR_Upper", "ArmL_Vambrace", "ArmR_Vambrace", "LegL_Thigh", "LegR_Thigh"],
 	"hands": ["ArmL_Gauntlet", "ArmR_Gauntlet", "ArmL_Hand", "ArmR_Hand"],
-	"feet": ["LegL_Sabaton", "LegR_Sabaton", "LegL_Knee", "LegR_Knee", "LegL_Foot", "LegR_Foot", "LegL_Sole",
-		"LegR_Sole"],
+	"feet": ["LegL_Sabaton", "LegR_Sabaton", "LegL_Knee", "LegR_Knee", "LegL_Foot", "LegR_Foot"],
 }
 ## Estilo de cada espaço vazio: o personagem sem equipamento usa camisa, calça e sapatos.
 const DEFAULT_STYLE := {"head": "h_bare", "armor": "a_shirt", "hands": "g_bare", "feet": "f_shoes"}
