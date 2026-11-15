@@ -31,6 +31,8 @@ var _height := Callable()
 
 
 func _ready() -> void:
+	if Engine.is_editor_hint():
+		set_notify_transform(true)
 	_refresh()
 
 
@@ -167,3 +169,8 @@ static func crops(parent: Node3D, size: Vector2, seed_value: int) -> void:
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
 	parent.add_child(mmi)
+
+## No editor: mover o nó reassenta a prévia no relevo.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSFORM_CHANGED and Engine.is_editor_hint():
+		_refresh()

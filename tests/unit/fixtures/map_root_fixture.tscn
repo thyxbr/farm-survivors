@@ -1,0 +1,58 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/map/map_root.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/map/map_prop.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/map/map_ground_paint.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/map/map_mountain.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/map/map_grass_area.gd" id="5"]
+
+[node name="Mapa" type="Node3D"]
+script = ExtResource("1")
+map_id = "vila"
+half = 40.0
+border_height = 20.0
+
+[node name="Chao" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1)
+
+[node name="Trilha" type="Node3D" parent="Chao"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, 3)
+script = ExtResource("3")
+size = Vector2(6, 2)
+color = Color(0.5, 0.4, 0.3, 1)
+soft = 0.5
+
+[node name="Praca" type="Node3D" parent="."]
+script = ExtResource("3")
+disc = true
+
+[node name="Morro" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, 30)
+script = ExtResource("4")
+radius = 12.0
+height = 9.0
+
+[node name="Carvalho" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 0)
+script = ExtResource("2")
+model = "tree_oak"
+shape = 2
+shape_size = Vector3(0.4, 3, 0)
+
+[node name="Cerca" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 12)
+script = ExtResource("2")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="SemCapim" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -8)
+script = ExtResource("5")
+
+[node name="Ralo" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 0, 7)
+script = ExtResource("5")
+sparse = true
+radius = 3.0

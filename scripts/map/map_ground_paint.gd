@@ -31,12 +31,15 @@ extends Node3D
 
 
 func _ready() -> void:
+	if Engine.is_editor_hint():
+		set_notify_transform(true)
 	_refresh()
 
 
 func _refresh() -> void:
 	if Engine.is_editor_hint() and is_inside_tree():
 		build_preview()
+		MapRoot.ground_changed(self)
 
 
 ## Contorno da área (o desenho de verdade é do chão, que o MapRoot remonta).
@@ -47,3 +50,9 @@ func build_preview(_height: Callable = Callable()) -> void:
 		MapPreview.disc(p, radius, c, 0.12)
 	else:
 		MapPreview.box(p, Vector3(0, 0.12, 0), Vector3(size.x, 0.02, size.y), c)
+
+
+## No editor: mover o nó remonta o chão da prévia.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSFORM_CHANGED and Engine.is_editor_hint():
+		MapRoot.ground_changed(self)

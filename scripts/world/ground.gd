@@ -1,3 +1,4 @@
+@tool
 extends Node3D
 ## Chão do mapa (vila e cidade): plano com o shader de grama em manchas, trilhas e clareiras
 ## pintadas no shader (bordas irregulares em vez de placas retas), tufos de capim com vento,

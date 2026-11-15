@@ -63,6 +63,8 @@ static func model_path(m: String) -> String:
 
 
 func _ready() -> void:
+	if Engine.is_editor_hint():
+		set_notify_transform(true)
 	_refresh()
 
 
@@ -99,3 +101,8 @@ func build_preview(height: Callable = Callable()) -> void:
 		p.add_child(mi)
 	MapPreview.seat(self, p, follow_ground, height)
 	MapPreview.toon(p)
+
+## No editor: mover o nó reassenta a prévia no relevo.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSFORM_CHANGED and Engine.is_editor_hint():
+		_refresh()

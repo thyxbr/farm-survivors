@@ -16,12 +16,15 @@ extends Node3D
 
 
 func _ready() -> void:
+	if Engine.is_editor_hint():
+		set_notify_transform(true)
 	_refresh()
 
 
 func _refresh() -> void:
 	if Engine.is_editor_hint() and is_inside_tree():
 		build_preview()
+		MapRoot.ground_changed(self)
 
 
 func build_preview(_height: Callable = Callable()) -> void:
@@ -35,3 +38,9 @@ func build_preview(_height: Callable = Callable()) -> void:
 	ring.material_override = MapPreview.mat(Color(0.55, 0.45, 0.3, 0.6))
 	p.add_child(ring)
 	MapPreview.label(p, Vector3(0, height + 1.5, 0), "morro %.0f m" % height)
+
+
+## No editor: mover o nó remonta o chão da prévia.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSFORM_CHANGED and Engine.is_editor_hint():
+		MapRoot.ground_changed(self)

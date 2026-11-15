@@ -15,6 +15,8 @@ var _height := Callable()
 
 func _ready() -> void:
 	if Engine.is_editor_hint():
+		set_notify_transform(true)
+	if Engine.is_editor_hint():
 		build_preview(_height)
 
 
@@ -25,3 +27,8 @@ func build_preview(height: Callable = Callable()) -> void:
 	MapPreview.box(p, Vector3(0.35, 2.75, 0), Vector3(0.7, 0.45, 0.04), Color(0.2, 0.7, 1.0))
 	MapPreview.label(p, Vector3(0, 3.6, 0), "📍 " + id)
 	MapPreview.seat(self, p, follow_ground, height)
+
+## No editor: mover o nó reassenta a prévia no relevo.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSFORM_CHANGED and Engine.is_editor_hint():
+		build_preview(_height)
