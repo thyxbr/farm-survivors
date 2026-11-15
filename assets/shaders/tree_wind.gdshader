@@ -9,19 +9,23 @@ global uniform vec2 weather_wind_dir;
 global uniform float weather_phase;   // vento acumulado: acelera o balanço sem saltos
 global uniform float weather_snow;
 global uniform float weather_wet;
+global uniform float season_autumn;   // 0..1 do outono: a copa das folhosas ganha tons de fogo
 
 uniform vec3 albedo : source_color = vec3(0.3, 0.5, 0.2);
 uniform float roughness = 0.9;
 uniform float tree_height = 5.0;   // altura da malha (espaço do modelo): o topo balança mais
 uniform sampler2D noise_tex : repeat_enable, filter_linear_mipmap;
+uniform float leaf = 0.0;   // 1 = folhagem de árvore que muda no outono (0: tronco e coníferas)
 
 #include "res://assets/shaders/toon_light.gdshaderinc"
 
 varying vec3 wpos;
 varying vec3 wnrm;
+varying vec3 tree_pos;
 
 void vertex() {
 	vec3 origin = MODEL_MATRIX[3].xyz;
+	tree_pos = origin;
 	float h = clamp(VERTEX.y / tree_height, 0.0, 1.2);
 	float bend = h * h;
 	float phase = origin.x * 0.21 + origin.z * 0.17;
@@ -47,7 +51,21 @@ void fragment() {
 			+ texture(noise_tex, wpos.xz * 0.6 + vec2(0.3, 0.7)).r * 0.35;
 	float th = 1.02 - weather_snow * 1.3;
 	float s = up * smoothstep(th, th + 0.1, nz) * step(0.002, weather_snow);
-	vec3 col = albedo * (1.0 - 0.3 * weather_wet);
+	vec3 col = albedo;
+	if (season_autumn > 0.0 && leaf > 0.0) {
+		// cada árvore puxa para um tom (vermelho, laranja ou dourado) e a copa varia em manchas
+		float h = fract(sin(dot(floor(tree_pos.xz * 2.0), vec2(12.9898, 78.233))) * 43758.5453);
+		float spot = texture(noise_tex, wpos.xz * 0.35 + wpos.y * 0.3).r;
+		float t = clamp(h + (spot - 0.5) * 0.5, 0.0, 1.0);
+		vec3 red = vec3(0.55, 0.06, 0.02);
+		vec3 orange = vec3(0.8, 0.22, 0.02);
+		vec3 gold = vec3(0.78, 0.48, 0.04);
+		vec3 aut = t < 0.5 ? mix(red, orange, t * 2.0) : mix(orange, gold, (t - 0.5) * 2.0);
+		// algumas árvores ainda guardam um pouco de verde
+		float keep = smoothstep(0.8, 0.95, fract(h * 7.13)) * 0.45;
+		col = mix(col, aut, season_autumn * leaf * (1.0 - keep));
+	}
+	col *= 1.0 - 0.3 * weather_wet;
 	ALBEDO = mix(col, vec3(0.9, 0.92, 0.97), s);
 	ROUGHNESS = mix(mix(roughness, 0.45, weather_wet), 0.85, s);
 	SPECULAR = mix(0.5, 0.3, s);
