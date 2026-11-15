@@ -78,6 +78,18 @@ void fragment() {
 		col = mix(col, sc, a);
 		dirt = mix(dirt, 1.0 - g, a);
 	}
+	// Outono: folhas caídas espalhadas pela grama (menos nas trilhas), em tons de fogo.
+	if (season_autumn > 0.0) {
+		float lf = texture(noise_tex, wxz * 2.9 + vec2(0.19, 0.83)).r * 0.7 + n4 * 0.3;
+		float patchy = smoothstep(0.35, 0.65, texture(noise_tex, wxz * 0.13 + vec2(0.61, 0.07)).r);
+		float th_l = 0.66 - 0.08 * patchy;
+		float leaf = smoothstep(th_l, th_l + 0.02, lf) * season_autumn * (1.0 - 0.85 * dirt);
+		float hue = texture(noise_tex, wxz * 0.9 + vec2(0.44, 0.29)).r;
+		vec3 lc = mix(vec3(0.62, 0.12, 0.02), vec3(0.75, 0.3, 0.03), smoothstep(0.35, 0.5, hue));
+		lc = mix(lc, vec3(0.7, 0.48, 0.05), smoothstep(0.55, 0.68, hue));
+		lc = mix(lc, vec3(0.24, 0.11, 0.03), smoothstep(0.72, 0.8, hue));   // folha velha, marrom
+		col = mix(col, lc * (0.85 + 0.3 * n3), leaf);
+	}
 	float rough = 1.0;
 	float spec = 0.25;
 	vec3 nrm = vec3(0.0, 1.0, 0.0);

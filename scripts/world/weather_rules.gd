@@ -2,8 +2,9 @@ class_name WeatherRules
 extends RefCounted
 ## Regras puras do clima (sem cena nem autoload): qual clima vale em cada instante e como o chão
 ## acumula água e neve. O cronograma sai só do relógio (hora Unix): servidor e clientes chegam ao
-## mesmo clima sem trocar nada pela rede. Por enquanto o clima é só visual; quando vierem mecânicas,
-## o servidor consulta estas mesmas funções.
+## mesmo clima sem trocar nada pela rede (o relógio do cliente é acertado pelo do servidor ao entrar).
+## A estação (SeasonRules) muda as chances de cada clima. Por enquanto o clima é só visual; quando
+## vierem mecânicas, o servidor consulta estas mesmas funções.
 
 enum Kind { SUN, RAIN, SNOW, WIND }
 const NAMES := ["sol", "chuva", "neve", "vento"]
@@ -11,6 +12,8 @@ const NAMES := ["sol", "chuva", "neve", "vento"]
 const SEGMENT := 420.0
 ## Peso de sorteio de cada clima (sol, chuva, neve, vento).
 const WEIGHTS := [40, 25, 17, 18]
+## No outono (SeasonRules) chove e venta mais e quase não neva.
+const AUTUMN_WEIGHTS := [30, 33, 4, 33]
 const SEED := 7349
 
 ## Intensidades-alvo de cada clima: chuva caindo, neve caindo, vento e nuvens (0..1).
@@ -59,13 +62,19 @@ static func kind_of_segment(i: int, seed_value := SEED) -> int:
 	return k
 
 
+## Pesos do sorteio no trecho i: dependem da estação em que o trecho começa.
+static func weights_of_segment(i: int) -> Array:
+	return AUTUMN_WEIGHTS if SeasonRules.kind_at(i * SEGMENT) == SeasonRules.Kind.AUTUMN else WEIGHTS
+
+
 static func _roll(i: int, seed_value: int, salt: int) -> int:
+	var weights := weights_of_segment(i)
 	var total := 0
-	for w in WEIGHTS:
+	for w in weights:
 		total += w
 	var r := _hash(i * 3 + salt * 7919 + seed_value * 104729) % total
-	for k in WEIGHTS.size():
-		r -= WEIGHTS[k]
+	for k in weights.size():
+		r -= weights[k]
 		if r < 0:
 			return k
 	return Kind.SUN

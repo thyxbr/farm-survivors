@@ -23,6 +23,7 @@ var name_label: Label
 var gold_label: Label
 var class_label: Label
 var points_chip: PanelContainer
+var season_badge: SeasonBadge
 var quest_box: VBoxContainer
 var notif_box: VBoxContainer
 var loot_box: VBoxContainer
@@ -155,11 +156,16 @@ func _build_plate() -> void:
 	_ignore_all(plate)
 
 
-## Rastreador de missões (superior direito).
+## Estação e hora do jogo (superior direito) e, embaixo, o rastreador de missões.
 func _build_quests() -> void:
+	season_badge = SeasonBadge.new()
+	_anchor(season_badge, 1, 0, -300, 14, 284, 0)
+	season_badge.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	season_badge.offset_left = season_badge.offset_right   # largura pelo conteúdo, encostado à direita
+	root.add_child(season_badge)
 	quest_box = VBoxContainer.new()
 	quest_box.add_theme_constant_override("separation", 2)
-	_anchor(quest_box, 1, 0, -300, 16, 284, 0)
+	_anchor(quest_box, 1, 0, -300, 72, 284, 0)
 	quest_box.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	quest_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(quest_box)
@@ -342,6 +348,7 @@ func _process(delta: float) -> void:
 	# Desafio da Horda: esconde as missões e desce a barra do chefe para não cobrir o HUD da horda
 	var horde: bool = Game.run_mods.active
 	quest_box.visible = not horde and not hide_quests
+	season_badge.visible = not horde
 	boss_panel.offset_top = 76.0 if horde else boss_top
 	boss_panel.offset_bottom = boss_panel.offset_top + 40.0
 	if boss and is_instance_valid(boss) and not boss.dead and boss.state != "idle" and boss.state != "wander" and player \
