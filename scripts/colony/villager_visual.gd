@@ -1,237 +1,187 @@
 class_name ColonyVillager
 extends Node3D
-## Aldeão decorativo (só no cliente com tela, nunca no headless): o boneco do cavaleiro vestido de plebeu
-## (KnightLook) com a ferramenta do ofício na mão direita. Anda da porta da construção até o alvo de
-## trabalho, golpeia por alguns segundos e volta. Sem colisão nem rede.
+## Aldeão decorativo (só no cliente com tela, nunca no headless): plebeu com esqueleto (assets/models/villager_<n>.glb,
+## três variações de roupa) tocando os clipes de assets/animations/villager_mixamo.res (tools/build_npc_mixamo.gd):
+## parado, andando e o trabalho do ofício da construção. Anda da porta até o alvo de trabalho, trabalha alguns
+## ciclos do clipe e volta. A ferramenta do ofício segue as mãos a cada quadro (place_prop). Sem colisão nem rede.
 
-const KNIGHT := preload("res://assets/models/knight.glb")
-const CRATE := preload("res://assets/models/crate.glb")
-const WORK_TIME := 3.0
-const SPEED := 1.6
-const SWING := 0.9          # segundos de um golpe da ferramenta
-## Capina (enxada, duas mãos, corpo inclinado): o ciclo leva HOE_CYCLE segundos. Cada linha é uma chave
-## [fração do ciclo, braço, cotovelo, inclinação do corpo, inclinação do cabo]: ergue e leva a enxada para a
-## frente, crava a lâmina no chão, puxa para perto dos pés e descansa um instante.
-## Inclinação do cabo: giro em X no espaço do boneco (0 = apontado para a frente, positivo = lâmina para baixo).
-const HOE_CYCLE := 1.5
-const HOE_KEYS := [
-	[0.0, -0.7, -0.8, 0.42, 0.98],     # fim da puxada: lâmina perto dos pés
-	[0.32, -1.2, -0.3, 0.3, 0.36],     # erguida e levada à frente
-	[0.46, -0.95, -0.25, 0.5, 0.7],    # cravada no chão, braço da frente estendido
-	[0.88, -0.7, -0.8, 0.42, 0.98],    # puxada até os pés
-	[1.0, -0.7, -0.8, 0.42, 0.98],
+const MODELS: Array[PackedScene] = [
+	preload("res://assets/models/villager_1.glb"),
+	preload("res://assets/models/villager_2.glb"),
+	preload("res://assets/models/villager_3.glb"),
 ]
-## As duas mãos ficam no cabo, uma na frente da outra: a direita vai à frente (é onde o suporte da ferramenta
-## fica) e a esquerda segura HOE_GAP metros atrás, perto do quadril, na frente da barriga, levada até lá por
-## _reach_left.
-const HOE_GAP := 0.32
-## Carregando o caixote: braço um pouco à frente e cotovelo dobrado, antebraço quase na horizontal.
-const CARRY_ARM := -0.4
-const CARRY_ELBOW := -1.1
-const CARRY_IN := 0.3       # antebraços fechados para dentro
-const CARRY_DROP := 0.3     # quanto abaixo do ombro fica a base do caixote (em cima dos antebraços)
-const CARRY_FRONT := 0.36   # centro do caixote à frente do corpo
-## Roupas sorteadas ("" = camisa, cabeça descoberta, sapatos).
-const ARMORS := ["", "", "traveler_tunic", "ranger_vest", "leather_armor"]
-const HEADS := ["", "", "leather_cap", "wool_hood", "ranger_hood"]
-const FEET := ["", "leather_boots"]
-## Ferramenta por construção (as demais levam a lança de vigia): assets/models/buildings/tool_<nome>.glb.
-const TOOLS := {"lumber_camp": "axe", "quarry": "pickaxe", "farm": "hoe", "market": "crate"}
-## Mesma base das armas modeladas (KnightLook._build_model): cabo do GLB (+Y) vai para +Z do suporte e o
-## gume (+X do GLB) para -Y, liderando o golpe.
-const TOOL_BASIS := Basis(Vector3(0, -1, 0), Vector3(0, 0, 1), Vector3(-1, 0, 0))
+const LIBRARY := "res://assets/animations/villager_mixamo.res"
+const CRATE := preload("res://assets/models/crate.glb")
+const SPEED := 1.4
+const STRIDE_SPEED := 1.1   # m/s que os clipes de andar do Mixamo cobrem em velocidade 1 (modelo em escala 1)
+const BLEND := 0.25
+## Ofício por construção (as demais ficam de vigia com a lança): ferramenta (assets/models/buildings/tool_<nome>.glb
+## ou o caixote), clipes de trabalho (um é sorteado a cada ida) e quantos ciclos do clipe dura o trabalho.
+const JOBS := {
+	"lumber_camp": {"tool": "axe", "work": ["chop"], "loops": 3},
+	"quarry": {"tool": "pickaxe", "work": ["chop"], "loops": 3},
+	"farm": {"tool": "hoe", "work": ["hoe", "hoe", "dig"], "loops": 2},
+	"market": {"tool": "crate", "work": ["carry_idle"], "loops": 1},
+}
+const GUARD := {"tool": "spear", "work": ["idle"], "loops": 1}
+## Clipes em que a ferramenta fica nas duas mãos (o cabo passa pelas duas palmas) e em que fica largada no chão.
+## Machado e picareta parados ou andando: a mão segura a CARRY_GRIP metros da origem (logo abaixo da cabeça da
+## ferramenta) e o cabo pende para baixo, CARRY_TILT radianos para trás.
+const CARRY_GRIP := 0.28
+const CARRY_TILT := -0.3
+const TWO_HANDS := ["hoe", "chop"]
+const ON_GROUND := ["dig"]
+## Caixote do tamanho que o clipe de carregar do Mixamo espera: a mão direita por baixo, junto do quadril, e a
+## esquerda por cima do canto de lá (as palmas ficam a uns 50 cm uma da outra de lado e 30 cm na altura).
+const CRATE_SIZE := Vector3(0.5, 0.3, 0.36)
+## Centro da palma em relação ao punho, na pose T, para a mão esquerda (a direita espelha em X).
+const PALM := Vector3(0.065, -0.03, 0.0)
 
 var home: ColonyBuilding
 var model: Node3D
-var parts := {}
 var tool_name := ""
-var _holder: Node3D
-var _made := {}        # o que make_model devolveu (pose() guarda nele o que mede do boneco)
+var _made := {}        # o que make_model devolveu
 var _state := "idle"   # idle | go | work | back
 var _t := 0.0
+var _work_time := 3.0
 var _from := Vector3.ZERO
 var _to := Vector3.ZERO
 var _target_id := -1
-var _bob := 0.0
 
 
 func _ready() -> void:
 	add_to_group("villager_visual")
 	_made = make_model(home.kind)
 	model = _made.model
-	parts = _made.parts
 	tool_name = _made.tool
-	_holder = _made.holder
 	add_child(model)
+	var sk: Skeleton3D = _made.skeleton
+	if sk:
+		sk.skeleton_updated.connect(place_prop.bind(_made))
 	_idle(randf() * 4.0)
 
 
-## Monta o boneco de um aldeão que trabalha numa construção `kind`:
-## {"model", "parts" (pivôs LegL/LegR/ArmL/ArmR/Body), "tool" (nome), "holder" (suporte da ferramenta ou null)}.
-static func make_model(kind: String) -> Dictionary:
-	var m: Node3D = KNIGHT.instantiate()
-	m.scale = Vector3.ONE * randf_range(0.86, 0.94)
-	var p := {}
-	for n in ["LegL", "LegR", "ArmL", "ArmR", "ElbowL", "ElbowR", "Body"]:
-		p[n] = m.find_child(n, true, false)
-	KnightLook.apply(m, {"armor": ARMORS.pick_random(), "head": HEADS.pick_random(), "feet": FEET.pick_random()})
-	var tool: String = TOOLS.get(kind, "spear")
-	var holder: Node3D = null
-	if tool == "crate":   # caixote apoiado nos antebraços dobrados, encostado na barriga
-		var body: Node3D = p.Body
-		if body and p.ArmL:
-			# altura do ombro no espaço do corpo: os antebraços ficam CARRY_DROP abaixo dele (veja pose)
-			var shoulder: Vector3 = KnightLook._chain(body, m, true).affine_inverse() * KnightLook._chain(p.ArmL, m, true).origin
-			holder = Node3D.new()
-			holder.name = "Carry"
-			holder.position = Vector3(0, shoulder.y - CARRY_DROP, CARRY_FRONT)
-			body.add_child(holder)
-			var c: Node3D = CRATE.instantiate()   # origem do crate.glb no chão: a base assenta nos antebraços
-			c.scale = Vector3.ONE * 0.36
-			holder.add_child(c)
+## Monta o modelo de um aldeão que trabalha numa construção `kind`: {"model", "anim" (AnimationPlayer),
+## "skeleton", "job" (linha de JOBS), "tool" (nome), "prop" (a ferramenta ou o caixote, filho do modelo) e o
+## que play()/place_prop() usam}. `look` escolhe a roupa (1 a MODELS.size(); 0 = sorteia).
+static func make_model(kind: String, look := 0) -> Dictionary:
+	var m: Node3D = (MODELS[look - 1] if look > 0 else MODELS.pick_random()).instantiate()
+	m.scale = Vector3.ONE * randf_range(0.9, 0.98)
+	var job: Dictionary = JOBS.get(kind, GUARD)
+	var ap := SkinnedNPC.pose_model(m, {}, LIBRARY)
+	var sks := m.find_children("*", "Skeleton3D")
+	var sk: Skeleton3D = sks[0] if sks.size() > 0 else null
+	var v := {"model": m, "anim": ap, "skeleton": sk, "job": job, "tool": job.tool, "prop": null, "clip": "",
+			"mode": "", "since": 0.0, "from": Transform3D.IDENTITY}
+	var prop: Node3D = null
+	if job.tool == "crate":
+		prop = Node3D.new()
+		var c: Node3D = CRATE.instantiate()   # origem do crate.glb na base, que assenta na palma direita
+		c.scale = CRATE_SIZE
+		prop.add_child(c)
 	else:
-		var fore := m.find_child("ElbowR", true, false) as Node3D
-		if fore == null:
-			fore = p.ArmR
-		var path := "res://assets/models/buildings/tool_%s.glb" % tool
-		if fore and ResourceLoader.exists(path):
-			holder = Node3D.new()
-			holder.name = "ToolHolder"
-			holder.position = KnightLook._point_in(m, fore, "Grip")
-			fore.add_child(holder)
-			var t := (load(path) as PackedScene).instantiate() as Node3D
-			t.transform = Transform3D(TOOL_BASIS, Vector3.ZERO)
-			holder.add_child(t)
-	if holder and ToonLook.enabled():
-		ToonLook.apply(holder)
-	var res := {"model": m, "parts": p, "tool": tool, "holder": holder}
-	pose(res, "idle", 0.0)
-	return res
+		var path := "res://assets/models/buildings/tool_%s.glb" % job.tool
+		if ResourceLoader.exists(path):
+			prop = (load(path) as PackedScene).instantiate()
+	if prop and sk:
+		prop.name = "Prop"
+		m.add_child(prop)
+		if ToonLook.enabled():
+			ToonLook.apply(prop)
+		var to_model := SkinnedNPC._xform_to(sk, m)
+		v["to_model"] = to_model
+		for side in ["Right", "Left"]:
+			var i := sk.find_bone(side + "Hand")
+			var rest := sk.get_bone_global_rest(i)
+			var s := -1.0 if side == "Right" else 1.0
+			v["bone_" + side] = i
+			# palma no espaço do osso, medida na pose T (espaço do modelo: esquerda = +X, frente = +Z)
+			v["palm_" + side] = (to_model * rest).affine_inverse() * (to_model * rest.origin + PALM * Vector3(s, 1, 1))
+	else:
+		prop = null
+	v.prop = prop
+	play(v, "idle", 0.0)
+	return v
 
 
-## Põe o boneco numa pose: "idle" (parado), "walk" (t = fase do passo, em radianos) ou "work"
-## (t = segundos desde o começo do trabalho). `k` = quanto se aproxima da pose (1 = na hora).
-static func pose(v: Dictionary, state: String, t: float, k := 1.0) -> void:
-	var p: Dictionary = v.parts
-	var tool: String = v.tool
-	var s := sin(t) if state == "walk" else 0.0
-	var leg := s * 0.55
-	var arm_l := Vector3(-s * 0.4, 0, 0)
-	var arm_r := Vector3(s * 0.3 - 0.15, 0, 0)
-	var lean := 0.0
-	var elbow_l := 0.0
-	var elbow_r := 0.0
-	# Inclinação da ferramenta em relação ao corpo (giro em X somando braço + suporte): 0 = apontada para a
-	# frente como uma espada, -PI/2 = de pé. Parado e andando ela vai de pé, encostada no ombro.
-	var tilt := -1.85
-	var follow := false   # a ferramenta segue o antebraço (golpe de machado e picareta)
-	match tool:
-		"crate":   # cotovelos dobrados, antebraços por baixo do caixote (o passo balança só de leve)
-			# o giro em Y fecha os antebraços para dentro: as mãos encostam nas laterais do caixote
-			arm_l = Vector3(CARRY_ARM + s * 0.04, -CARRY_IN, 0.06)
-			arm_r = Vector3(CARRY_ARM - s * 0.04, CARRY_IN, -0.06)
-			elbow_l = CARRY_ELBOW
-			elbow_r = CARRY_ELBOW
-			lean = -0.06   # corpo um pouco para trás, compensando o peso
-		"spear":   # lança de pé, apoiada no chão
-			arm_r = Vector3(-0.35, 0, 0)
-			tilt = -PI / 2
-		_:
-			if state == "work" and tool == "hoe":
-				var key := _hoe_key(fmod(t, HOE_CYCLE) / HOE_CYCLE)
-				arm_r = Vector3(key[1], 0.3, 0.0)   # fechado para dentro: o cabo fica na frente do corpo
-				elbow_r = key[2]
-				lean = key[3]
-				tilt = key[4]
-				arm_l = Vector3(key[1] - 0.3, -0.4, 0.0)   # palpite inicial; _reach_left acerta a mão no cabo
-				elbow_l = key[2] * 0.6
-			elif state == "work":
-				var u := fmod(t, SWING) / SWING
-				var up := Vector3(-2.5, 0, -0.2)
-				var down := Vector3(-0.35, 0, 0.1)
-				if u < 0.5:
-					arm_r = down.lerp(up, smoothstep(0.0, 0.5, u))
-				elif u < 0.68:
-					arm_r = up.lerp(down, smoothstep(0.5, 0.68, u))
-				else:
-					arm_r = down
-				lean = 0.12 + (0.22 if u >= 0.6 else 0.0)
-				arm_l = Vector3(-0.5, 0, 0)
-				follow = true
-	if p.LegL:
-		p.LegL.rotation.x = lerpf(p.LegL.rotation.x, leg, k)
-	if p.LegR:
-		p.LegR.rotation.x = lerpf(p.LegR.rotation.x, -leg, k)
-	if p.ArmL:
-		p.ArmL.rotation = p.ArmL.rotation.lerp(arm_l, k)
-	if p.ArmR:
-		p.ArmR.rotation = p.ArmR.rotation.lerp(arm_r, k)
-	if p.get("ElbowL"):
-		p.ElbowL.rotation.x = lerpf(p.ElbowL.rotation.x, elbow_l, k)
-	if p.get("ElbowR"):
-		p.ElbowR.rotation.x = lerpf(p.ElbowR.rotation.x, elbow_r, k)
-	if p.Body:
-		p.Body.rotation.x = lerpf(p.Body.rotation.x, lean, k)
-	var h: Node3D = v.holder
-	if h and tool != "crate":
-		# o suporte desfaz os giros em X do corpo, do braço e do cotovelo para o cabo ficar na inclinação pedida
-		h.rotation.x = lerpf(h.rotation.x, 0.0 if follow else tilt - arm_r.x - elbow_r - lean, k)
-	if tool == "hoe" and state == "work" and h:
-		_reach_left(v, h, -HOE_GAP)
+## Nome do clipe do estado ("idle", "walk" ou um de trabalho) para a ferramenta que o aldeão leva: quem
+## carrega o caixote anda e para com os clipes de carregar.
+static func clip_for(v: Dictionary, state: String) -> String:
+	if v.tool == "crate" and state in ["idle", "walk"]:
+		return "carry_" + state
+	return state
 
 
-## Leva a mão esquerda até o cabo, a `gap` metros da direita (negativo = atrás dela, para o lado da ponta do
-## cabo), ou o mais perto disso que o braço alcança: a mão escorrega pelo cabo em direção à direita até caber.
-## Dobra o cotovelo até a mão ficar à distância certa do ombro e gira o ombro para apontá-la para lá. Usa a
-## pose que o braço direito e o corpo têm agora, então acompanha o cabo quadro a quadro.
-static func _reach_left(v: Dictionary, holder: Node3D, gap: float) -> void:
-	var p: Dictionary = v.parts
-	var arm: Node3D = p.get("ArmL")
-	var elbow: Node3D = p.get("ElbowL")
-	var m: Node3D = v.get("model")
-	if arm == null or elbow == null or m == null or arm.get_parent() == null:
+## Toca o clipe do estado (versão do Mixamo, se a biblioteca tiver) e escolhe como a ferramenta fica.
+static func play(v: Dictionary, state: String, blend := BLEND, speed := 1.0) -> void:
+	var c := clip_for(v, state)
+	if c in ON_GROUND or v.clip in ON_GROUND:
+		blend = minf(blend * 2.0, blend + 0.3)   # ajoelhar e levantar pedem uma passagem mais longa
+	var ap: AnimationPlayer = v.anim
+	if ap:
+		var n := SkinnedNPC._resolve(ap, c)
+		if ap.has_animation(n):
+			ap.play(n, blend, speed)
+	var mode := "carry"   # machado e picareta: pendurados da mão, seguros logo abaixo da cabeça
+	if v.tool == "crate":
+		mode = "crate"
+	elif c in TWO_HANDS:
+		mode = "two"
+	elif c in ON_GROUND:
+		mode = "ground"
+	elif v.tool == "spear" or v.tool == "hoe":
+		mode = "upright"   # lança e enxada vão de pé, como um cajado
+	v.clip = c
+	if mode != v.mode and v.prop:
+		v.from = (v.prop as Node3D).transform
+		v.since = 0.0 if v.mode != "" and blend > 0.0 else BLEND
+		v.mode = mode
+
+
+## Duração de um ciclo do clipe do estado, em segundos.
+static func clip_length(v: Dictionary, state: String) -> float:
+	var ap: AnimationPlayer = v.anim
+	var n := SkinnedNPC._resolve(ap, clip_for(v, state)) if ap else ""
+	return ap.get_animation(n).length if ap and ap.has_animation(n) else 1.0
+
+
+## Leva a ferramenta para onde as mãos estão na pose atual do esqueleto (chamado a cada skeleton_updated):
+## com o cabo passando pelas duas palmas ("two": a esquerda atrás, a direita à frente, o gume para o lado de
+## baixo do golpe), de pé na mão direita ("upright"), pendurada da mão direita, segura perto da cabeça e com o
+## cabo para baixo ("carry"), largada no chão ("ground") ou, no caso do caixote, entre as duas mãos com a base
+## na palma direita ("crate"). Na troca de modo, vai de um ao outro em BLEND s.
+static func place_prop(v: Dictionary) -> void:
+	var prop: Node3D = v.prop
+	var sk: Skeleton3D = v.skeleton
+	if prop == null or sk == null:
 		return
-	if not v.has("hand_l"):   # centro da mão no espaço do antebraço (pose de repouso)
-		v["hand_l"] = KnightLook._point_in(m, elbow, "ArmL_Hand")
-	var hand: Vector3 = v.hand_l
-	# cabo no espaço do pai do braço (onde o ombro gira), medido a partir do ombro
-	var to_arm := KnightLook._chain(arm.get_parent() as Node3D, m).affine_inverse() * KnightLook._chain(holder, m)
-	var max_reach := (elbow.position.length() + hand.length()) * 0.97
-	var target := to_arm * Vector3(0, 0, gap) - arm.position
-	while absf(gap) > 0.12 and target.length() > max_reach:
-		gap -= 0.02 * signf(gap)
-		target = to_arm * Vector3(0, 0, gap) - arm.position
-	var reach := elbow.position.length() + hand.length()
-	var dist := clampf(target.length(), 0.12, reach * 0.995)
-	v["hoe_gap"] = gap   # para a foto de conferência (tools/villager_shot.gd)
-	# o cotovelo só dobra para a frente (giro negativo em X): quanto mais dobra, mais perto a mão fica do ombro
-	var lo := -2.6
-	var hi := 0.0
-	for i in 14:
-		var mid := (lo + hi) * 0.5
-		if (elbow.position + Basis(Vector3.RIGHT, mid) * hand).length() > dist:
-			hi = mid
-		else:
-			lo = mid
-	var bend := (lo + hi) * 0.5
-	elbow.rotation = Vector3(bend, 0, 0)
-	var cur := (elbow.position + Basis(Vector3.RIGHT, bend) * hand).normalized()
-	arm.basis = Basis(Quaternion(cur, target.normalized()))
+	var to_model: Transform3D = v.to_model
+	var hand_r: Transform3D = to_model * sk.get_bone_global_pose(v.bone_Right)
+	var hand_l: Transform3D = to_model * sk.get_bone_global_pose(v.bone_Left)
+	var pr: Vector3 = hand_r * v.palm_Right
+	var pl: Vector3 = hand_l * v.palm_Left
+	var xf := Transform3D.IDENTITY
+	match v.mode:
+		"two":
+			var y := (pr - pl).normalized()
+			var x := y.cross(Vector3.LEFT).normalized()   # Vector3.LEFT = direita do aldeão (ele olha para +Z)
+			xf = Transform3D(Basis(x, y, x.cross(y)), pr)
+		"upright":
+			xf = Transform3D(Basis(Vector3(0, 0, 1), Vector3(0, 1, 0), Vector3(-1, 0, 0)), pr)
+		"ground":
+			xf = Transform3D(Basis(Vector3(0, 1, 0), Vector3(0, 0, 1), Vector3(1, 0, 0)), Vector3(-0.55, 0.03, -0.1))
+		"crate":
+			xf = Transform3D(Basis.IDENTITY, Vector3((pr.x + pl.x) * 0.5, pr.y, (pr.z + pl.z) * 0.5))
+		_:   # "carry"
+			var b := Basis(Vector3.RIGHT, CARRY_TILT) * Basis(Vector3(0, 0, 1), Vector3(0, 1, 0), Vector3(-1, 0, 0))
+			xf = Transform3D(b, pr - b.y * CARRY_GRIP)
+	if v.since < BLEND:
+		xf = (v.from as Transform3D).interpolate_with(xf, smoothstep(0.0, 1.0, v.since / BLEND))
+	prop.transform = xf
 
 
-## Chave da capina na fração `u` do ciclo, interpolada entre as linhas de HOE_KEYS.
-static func _hoe_key(u: float) -> Array:
-	for i in range(1, HOE_KEYS.size()):
-		var a: Array = HOE_KEYS[i - 1]
-		var b: Array = HOE_KEYS[i]
-		if u <= b[0]:
-			var f := smoothstep(a[0], b[0], u)
-			return [u, lerpf(a[1], b[1], f), lerpf(a[2], b[2], f), lerpf(a[3], b[3], f), lerpf(a[4], b[4], f)]
-	return HOE_KEYS[-1]
-
-
-func _pose(state: String, t: float, delta: float) -> void:
-	pose(_made, state, t, 1.0 - exp(-14.0 * delta))
+func _play(state: String, speed := 1.0) -> void:
+	play(_made, state, BLEND, speed)
 
 
 func _door() -> Vector3:
@@ -247,6 +197,7 @@ func _idle(wait: float) -> void:
 	_t = wait
 	_target_id = -1
 	global_position = _door()
+	_play("idle")
 
 
 func _pick_target() -> bool:
@@ -285,45 +236,50 @@ func _go(to: Vector3, next: String) -> void:
 	_to = to
 	_state = next
 	_t = 0.0
+	# o passo do clipe acompanha a velocidade com que o aldeão se desloca
+	_play("walk", SPEED / (STRIDE_SPEED * model.scale.x))
+
+
+func _work() -> void:
+	_state = "work"
+	_t = 0.0
+	var job: Dictionary = _made.job
+	var clip: String = (job.work as Array).pick_random()
+	_work_time = clip_length(_made, clip) * (1 if clip in ON_GROUND else int(job.loops))
+	_play(clip)
 
 
 func _process(delta: float) -> void:
 	if not is_instance_valid(home):
 		return
+	_made.since += delta
 	match _state:
 		"idle":
 			_t -= delta
-			_pose("idle", 0.0, delta)
 			if _t <= 0.0:
 				if _pick_target():
-					_from = global_position
-					_state = "go"
-					_t = 0.0
+					_go(_to, "go")
 				else:
 					_idle(3.0)
 		"go", "back":
 			var dist := maxf(0.01, Vector2(_to.x - _from.x, _to.z - _from.z).length())
 			_t += delta * SPEED / dist
 			var p := _from.lerp(_to, clampf(_t, 0.0, 1.0))
-			_bob += delta * 7.0
 			p.y = _flat_y()
 			global_position = p
 			if dist > 0.05:
 				global_rotation.y = atan2(_to.x - _from.x, _to.z - _from.z)
-			_pose("walk", _bob, delta)
 			if _t >= 1.0:
 				if _state == "go":
-					_state = "work"
-					_t = 0.0
+					_work()
 				else:
 					_idle(randf_range(1.0, 4.0))
 		"work":
 			_t += delta
-			_pose("work", _t, delta)
 			if _target_id >= 0 and home.colony and home.colony.nature:
 				var n = home.colony.nature.node(_target_id)
 				if n and n.alive:
 					var d: Vector3 = n.global_position - global_position
 					global_rotation.y = atan2(d.x, d.z)
-			if _t >= WORK_TIME:
+			if _t >= _work_time:
 				_go(_door(), "back")

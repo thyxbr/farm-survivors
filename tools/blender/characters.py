@@ -975,6 +975,301 @@ def build_merchant():
     scn.render.fps = fps
 
 
+# ================================================================== ALDEÃO (Defesa da Cidade)
+# Plebeu com esqueleto (Mixamo, pose T), montado como a Mira: peças nos pivôs de sempre, levadas para
+# coordenadas de mundo e juntadas numa malha skinned. Túnica curta (não atrapalha as pernas no trabalho),
+# calça, botina e mangas arregaçadas. Braço e antebraço têm o comprimento de um adulto (26 cm cada), para as
+# mãos dos clipes de trabalho do Mixamo (enxada, caixote) caírem onde o clipe espera. Três variações de roupa
+# (VILLAGER_LOOKS), uma por arquivo: villager_1.glb, villager_2.glb, villager_3.glb. Sem ferramenta: o jogo
+# prende a do ofício no osso da mão (scripts/colony/villager_visual.gd). Único clipe do .glb: arms_down.
+VILLAGER_SPINE = (1.03, 1.13, 1.25, 1.41, 1.52)   # início de Spine, Spine1, Spine2, Neck e Head
+VILLAGER_LOOKS = {
+    # linho cru, chapéu de palha
+    1: dict(tunic="#B99C68", tunic_d="#8A6F44", tunic_l="#D8C190", pants="#5A4631", hair="#5A3A20", skin="#E0A27C",
+            head="straw", extra="pouch", fem=0.0),
+    # verde, avental e lenço na cabeça
+    2: dict(tunic="#5F8048", tunic_d="#3F5A30", tunic_l="#86A568", pants="#6B5A45", hair="#3A2416", skin="#E8B08C",
+            head="kerchief", extra="apron", fem=1.0),
+    # azul acinzentado, colete de couro, cabeça descoberta
+    3: dict(tunic="#5C7592", tunic_d="#3E526B", tunic_l="#8AA0B8", pants="#4A3A2C", hair="#8A5A2A", skin="#D99A72",
+            head="", extra="vest", fem=0.0),
+}
+
+
+# Clipes provisórios de trabalho com as duas mãos no cabo (o pacote do Mixamo não tem capina em pé nem golpe
+# de machado/picareta). Cada chave: quadro, inclinação e giro do tronco (graus; giro positivo leva o ombro
+# direito à frente), quanto o quadril desce e recua (m), cabeça (graus), palma esquerda L (a mão de trás, perto
+# da ponta do cabo; mundo: frente = -Y, esquerda = +X), ponto B para onde o cabo aponta (a cabeça da ferramenta)
+# e distância entre as mãos: a direita fica no cabo, gap metros à frente da esquerda. No jogo o cabo passa pelas
+# duas palmas (ColonyVillager), então a ferramenta acompanha as mãos em qualquer quadro.
+# Capina: cabo do lado esquerdo do corpo, mão esquerda junto da cintura, a direita cruzando à frente.
+#               quadro lean twist drop back head  L                    B                     gap
+VILLAGER_HOE = [(0, 40, 18, 0.08, 0.10, 16, (0.25, 0.00, 1.10), (-0.04, -0.90, 0.20), 0.38),     # fim da puxada
+                (14, 38, 20, 0.07, 0.10, 10, (0.25, -0.02, 1.06), (-0.10, -1.34, 0.62), 0.38),     # ergue e leva à frente
+                (22, 54, 22, 0.13, 0.14, 20, (0.25, -0.03, 0.97), (-0.08, -1.18, 0.20), 0.38),     # crava
+                (27, 55, 22, 0.13, 0.14, 21, (0.25, -0.03, 0.96), (-0.08, -1.17, 0.19), 0.38),
+                (48, 40, 18, 0.08, 0.10, 16, (0.25, 0.00, 1.10), (-0.04, -0.90, 0.20), 0.38)]     # puxa até os pés
+VILLAGER_HOE_POLE = (0.3, 0.7, -0.65)     # cotovelos para baixo e para trás
+VILLAGER_CHOP_POLE = (0.7, 0.25, -0.65)   # cotovelos para fora
+# Golpe de machado/picareta: armado por cima do ombro direito e descido à frente, na altura do tronco da árvore.
+VILLAGER_CHOP = [(0, 16, 0, 0.04, 0.0, 10, (0.02, -0.26, 1.10), (-0.04, -0.71, 0.88), 0.19),       # pronto
+                 (12, 4, -14, 0.0, -0.02, -8, (-0.12, -0.20, 1.58), (-0.10, 0.10, 2.10), 0.19),     # armado no alto
+                 (15, 4, -15, 0.0, -0.02, -8, (-0.12, -0.19, 1.59), (-0.10, 0.14, 2.09), 0.19),
+                 (20, 28, 4, 0.07, 0.03, 20, (0.00, -0.32, 1.07), (-0.03, -0.86, 0.75), 0.19),      # golpe
+                 (24, 29, 5, 0.08, 0.03, 20, (0.00, -0.32, 1.06), (-0.03, -0.86, 0.73), 0.19),
+                 (36, 16, 0, 0.04, 0.0, 10, (0.02, -0.26, 1.10), (-0.04, -0.71, 0.88), 0.19)]
+
+
+def two_hand_cycle(arm, P, joints, spec, pole, step=2):
+    """Chaves de bake_clip para um ciclo de trabalho com as duas mãos num cabo (spec como VILLAGER_HOE):
+    os parâmetros são interpolados (smoothstep) entre as chaves de spec e amostrados a cada step quadros; em
+    cada amostra, pernas por IK até os pés parados no chão e braços por IK até as palmas no cabo, com os
+    cotovelos para o lado de pole (o do braço esquerdo; o direito espelha em X). Braço e
+    antebraço formam uma dobradiça (hinge_frame, sem torção) e as mãos fecham em volta do cabo."""
+    bones = arm.data.bones
+    ln = {k: bones[MIXAMO + k].length for k in ("LeftArm", "LeftForeArm", "RightArm", "RightForeArm",
+                                                 "LeftUpLeg", "LeftLeg", "RightUpLeg", "RightLeg")}
+    wr = {sd: joints[sd][2] for sd in ("Left", "Right")}
+    palm = {sd: wr[sd] + Vector((s * 0.065, 0, -0.03)) for sd, s in (("Left", 1), ("Right", -1))}   # pose T
+    az = P["ankle"].z
+    ankles = {"Left": Vector((0.13, -0.1, az)), "Right": Vector((-0.13, 0.12, az))}
+    feet = {"Left": Matrix.Rotation(math.radians(6), 3, 'Z'), "Right": Matrix.Rotation(math.radians(-16), 3, 'Z')}
+
+    def sample(fr):
+        for a, b in zip(spec, spec[1:]):
+            if fr <= b[0]:
+                u = (fr - a[0]) / float(b[0] - a[0])
+                u = u * u * (3 - 2 * u)
+                out = []
+                for x, y in zip(a[1:], b[1:]):
+                    out.append(Vector(x).lerp(Vector(y), u) if isinstance(x, tuple) else x + (y - x) * u)
+                return out
+        return list(spec[-1][1:])
+
+    def key(fr, quiet=False):
+        lean, twist, drop, back, head, L, B, gap = sample(fr)
+        L = Vector(L)
+        f = (Vector(B) - L).normalized()
+        t = {"HipsLoc": (0, back, -drop), "Hips": _qx(lean * 0.3), "Spine": _qx(lean * 0.3),
+             "Spine1": _qz(twist) @ _qx(lean * 0.25), "Spine2": _qx(lean * 0.15), "Neck": _qx(-lean * 0.2),
+             "Head": _qx(head).to_matrix(), "LeftFoot": feet["Left"], "RightFoot": feet["Right"]}
+        pose_fk(arm, t)
+        bpy.context.view_layer.update()
+        h = {k: arm.pose.bones[MIXAMO + k].head.copy() for k in ("LeftArm", "RightArm", "LeftUpLeg", "RightUpLeg")}
+        dbg = os.environ.get("VILLAGER_DEBUG") and any(fr == k[0] for k in spec)
+        for sd, s in (("Left", 1), ("Right", -1)):
+            t[sd + "UpLeg"], t[sd + "Leg"] = _ik(h[sd + "UpLeg"], ankles[sd], ln[sd + "UpLeg"], ln[sd + "Leg"],
+                                                 (s * 0.2, -1, 0), warn=False)
+            target = L if sd == "Left" else L + f * gap
+            hm = Matrix.Identity(3)
+            for _ in range(6):
+                w = target - hm @ (palm[sd] - wr[sd])
+                up, fo = _ik(h[sd + "Arm"], w, ln[sd + "Arm"], ln[sd + "ForeArm"], (s * pole[0], pole[1], pole[2]),
+                             warn=False)
+                u = fo.normalized()
+                u = (u - f * f.dot(u)).normalized()
+                # pose T: dedos em s * X, polegar para a frente (-Y); o polegar aponta para a cabeça da ferramenta
+                hm = Matrix((s * u, -f, (s * u).cross(-f))).transposed()
+            miss = (w - h[sd + "Arm"]).length - (ln[sd + "Arm"] + ln[sd + "ForeArm"])
+            if miss > -0.004 and not quiet:
+                print("two_hand_cycle: quadro %d, braço %s sem folga (%.3f m)" % (fr, sd, miss))
+            if dbg:
+                print("DBG q%d %s ombro %s palma %s folga %.2f cabo %.2f" % (
+                    fr, sd, tuple(round(c, 2) for c in h[sd + "Arm"]), tuple(round(c, 2) for c in target), -miss,
+                    (Vector(B) - L).length - gap))
+            nrm = up.cross(fo).normalized()
+            t[sd + "Arm"], t[sd + "ForeArm"], t[sd + "Hand"] = hinge_frame(up, nrm, s), hinge_frame(fo, nrm, s), hm
+        return t
+
+    key(spec[0][0], True)   # a primeira avaliação da pose sai atrasada: descartada
+    return [(fr, key(fr)) for fr in range(spec[0][0], spec[-1][0] + 1, step)]
+
+
+def build_villager(n=1):
+    L = VILLAGER_LOOKS[n]
+    px = "v%d_" % n
+    tunic = mat(px + "tunic", hexc(L["tunic"]), 0.95)
+    tunic_d = mat(px + "tunic_d", hexc(L["tunic_d"]), 0.95)
+    tunic_l = mat(px + "tunic_l", hexc(L["tunic_l"]), 0.95)
+    pants = mat(px + "pants", hexc(L["pants"]), 0.95)
+    skin = mat(px + "skin", hexc(L["skin"]), 0.8)
+    hair = mat(px + "hair", hexc(L["hair"]), 0.9)
+    lea = mat("v_lea", hexc("#7A4B2A"), 0.85)
+    lea_d = mat("v_lea_d", hexc("#472A17"), 0.85)
+    sole = mat("v_sole", hexc("#2A1B12"), 0.9)
+    iron = mat("v_iron", hexc("#8E939B"), 0.5, 0.7)
+    straw = mat("v_straw", hexc("#D9B95C"), 0.95)
+    straw_d = mat("v_straw_d", hexc("#A8842F"), 0.95)
+    linen = mat("v_linen", hexc("#E6DCC4"), 0.95)
+    linen_d = mat("v_linen_d", hexc("#BFB294"), 0.95)
+    red = mat("v_red", hexc("#A8442F"), 0.95)
+    eye = mat("v_eye", hexc("#1E1512"), 0.5)
+    lips = mat("v_lips", hexc("#B8705F"), 0.7)
+
+    root = empty("Villager", (0, 0, 0))
+    # ---------------- pernas: calça e botina
+    for side, x in (("LegL", 0.09), ("LegR", -0.09)):
+        leg = empty(side, (x, 0, 0.93), root)
+        limb(side + "_Thigh", (x, 0, 0.94), (x, 0, 0.5), 0.082, 0.064, pants, sides=6, parent=leg)
+        limb(side + "_Shin", (x, 0, 0.52), (x, 0, 0.2), 0.064, 0.052, pants, sides=6, parent=leg)
+        boot(side, x, lea, sole, leg, top_z=0.26, cuff=lea_d)
+
+    body = empty("Body", (0, 0, 0.93), root)
+    # ---------------- túnica curta com barra, cinto
+    cloth("TunicSkirt", 1.0, 0.76, 0.155, 0.215, 2 * PI, 2 * PI, [tunic, tunic_d],
+          [(0.5, 0), (0.84, 0), (1.0, 1)], back=0.8, cols=12, folds=0.01, thick=0.018, parent=body)
+    tbox("Chest", (0, 0, 1.2), (0.3, 0.19, 0.4), tunic, top=(1.02, 1.0), bottom=(0.92, 0.95), bevel=0.035, parent=body)
+    tbox("Collar", (0, -0.094, 1.345), (0.07, 0.014, 0.11), skin, bottom=(0.25, 1), parent=body)
+    for s, nm in ((1, "L"), (-1, "R")):
+        tbox("CollarTrim" + nm, (s * 0.03, -0.097, 1.345), (0.016, 0.016, 0.125), tunic_d, rot=(0, -s * 0.27, 0), parent=body)
+    limb("Neckline", (0, 0.008, 1.385), (0, 0.012, 1.455), 0.085, 0.056, tunic, sides=8, parent=body)
+    tbox("Belt", (0, 0, 1.0), (0.325, 0.245, 0.042), lea_d, bevel=0.008, parent=body)
+    tbox("Buckle", (0.0, -0.126, 1.0), (0.05, 0.012, 0.05), iron, bevel=0.005, parent=body)
+    if L["extra"] == "pouch":
+        pouch("Pouch", (-0.15, -0.085, 0.93), lea, lea_d, body, size=(0.09, 0.055, 0.1), rotz=-0.5)
+        tbox("Patch", (0.07, -0.098, 1.14), (0.07, 0.01, 0.07), tunic_l, rot=(0, 0.2, 0), parent=body)
+    elif L["extra"] == "apron":
+        tbox("ApronBib", (0, -0.103, 1.17), (0.19, 0.012, 0.3), linen, top=(0.8, 1), bevel=0.003, parent=body)
+        cloth("Apron", 1.02, 0.66, 0.17, 0.24, 1.7, 1.8, [linen, linen_d], [(0.85, 0), (1.0, 1)], back=-0.8, cols=6,
+              folds=0.008, thick=0.012, parent=body)
+        for s, nm in ((1, "L"), (-1, "R")):
+            tbox("ApronStrap" + nm, (s * 0.085, -0.1, 1.36), (0.03, 0.014, 0.1), linen_d, rot=(0, s * 0.35, 0), parent=body)
+    elif L["extra"] == "vest":
+        for s, nm in ((1, "L"), (-1, "R")):
+            tbox("Vest" + nm, (s * 0.1, -0.098, 1.2), (0.105, 0.016, 0.37), lea, bottom=(0.9, 1), bevel=0.004, parent=body)
+            tbox("VestSide" + nm, (s * 0.153, 0, 1.17), (0.016, 0.2, 0.3), lea, bevel=0.004, parent=body)
+            tbox("VestTrim" + nm, (s * 0.05, -0.1, 1.2), (0.014, 0.018, 0.37), lea_d, parent=body)
+        tbox("VestBack", (0, 0.098, 1.2), (0.305, 0.016, 0.37), lea, bevel=0.004, parent=body)
+        tbox("Scarf", (0, -0.02, 1.4), (0.2, 0.2, 0.06), red, top=(0.8, 0.8), bevel=0.016, parent=body)
+
+    # ---------------- cabeça
+    head = empty("Head", (0, 0, 1.45), body)
+    limb("Neck", (0, 0.008, 1.4), (0, 0.014, 1.6), 0.046, 0.043, skin, sides=7, parent=head)
+    face_mats = {"skin": skin, "lip": lips, "sclera": mat("v_sclera", hexc("#EFE8DE"), 0.4),
+                 "iris": mat("v_iris", hexc("#5A3A1E"), 0.3), "pupil": mat("v_pupil", hexc("#2A1810"), 0.6),
+                 "mouth": mat("v_mouth", hexc("#A0594A"), 0.8), "brow": hair, "lash": eye}
+    HH = 0.232
+    fem = L["fem"]
+    H = human_head("", 1.52, HH, head, face_mats,
+                   {"fem": fem, "nose": 0.8 if fem else 1.0, "nose_w": 0.9 if fem else 1.05, "brow": 0.6 if fem else 1.0,
+                    "jaw": 0.95 if fem else 1.05, "chin": 0.8 if fem else 1.0, "eye_size": 1.1 if fem else 1.0,
+                    "width": 1.0, "lips": 1.1 if fem else 0.9})
+    hair_d = mat(px + "hair_d", tuple(c * 0.55 for c in hexc(L["hair"])), 0.9)
+    shell("HairBase", (0, 0.006, 1.62), (0.152, 0.25, 0.2), hair_d, cut=0.15, seg=10, rings=6, rot=(-PI / 2, 0, 0),
+          thick=0.008, parent=head)
+    locks = []
+    for phi in (110, 135, 158, 180, -158, -135, -110):
+        sg = 1 if phi > 0 else -1
+        pb = 180 if phi == 180 else sg * (180 - (180 - abs(phi)) * 0.3)
+        locks.append(dict(a=(phi, 27), b=(pb, -35 if fem else -18), w=0.042, t=0.011, bulge=0.007, n=4))
+    for sg in (1, -1):
+        locks.append(dict(a=(sg * 68, 25), b=(sg * 92, -10 if fem else 2), drop=0.02 if fem else 0.0, w=0.03, t=0.009,
+                          bulge=0.004, n=4))
+    if L["head"] == "":   # cabeça descoberta: mechas também no topo e na testa
+        for phi in (0, 35, -35, 75, -75, 120, -120, 165, -165):
+            locks.append(dict(a=(phi * 0.6, 78), b=(phi, 30), w=0.05, t=0.012, bulge=0.008, n=4))
+    hair_locks("Hair", H, locks, hair, head)
+    if fem:
+        shell("HairBun", (0, 0.105, 1.56), (0.085, 0.07, 0.075), hair, cut=-1.0, thick=0, seg=8, rings=6, jitter=0.003,
+              seed=14, parent=head)
+    if L["head"] == "straw":   # chapéu de palha: aba larga caída e copa baixa com fita
+        limb("HatBrim", (0, 0.004, 1.69), (0, 0.004, 1.715), 0.2, 0.125, straw, sides=12, flat=1.1, parent=head)
+        limb("HatBrimEdge", (0, 0.004, 1.683), (0, 0.004, 1.693), 0.203, 0.203, straw_d, sides=12, flat=1.1, parent=head)
+        limb("HatCrown", (0, 0.004, 1.71), (0, 0.004, 1.79), 0.094, 0.078, straw, sides=10, flat=1.2, parent=head)
+        ring("HatBand", 1.725, 0.096, 0.022, red, parent=head, sides=10, flat=1.2, y=0.004)
+    elif L["head"] == "kerchief":   # lenço justo cobrindo o topo, com as pontas amarradas atrás
+        limb("KerchiefBand", (0, 0.004, 1.685), (0, 0.004, 1.745), 0.083, 0.087, red, sides=10, flat=1.24, parent=head)
+        shell("KerchiefTop", (0, 0.004, 1.74), (0.18, 0.218, 0.12), red, cut=0.0, seg=10, rings=6, thick=0, jitter=0.003,
+              seed=12, parent=head)
+        for s, nm in ((1, "L"), (-1, "R")):
+            tbox("KerchiefTail" + nm, (s * 0.025, 0.11, 1.65), (0.045, 0.016, 0.11), red, bottom=(0.6, 1),
+                 rot=(0.25, 0, s * 0.3), bevel=0.004, parent=head)
+    scale_group(head, (0, 0.01, 1.52), 1.1)
+
+    # ---------------- braços: manga arregaçada até o cotovelo, antebraço à mostra
+    SH_Z, EL_Z, WR_Z = 1.38, 1.12, 0.87
+    for side, sx in (("ArmR", -0.2), ("ArmL", 0.2)):
+        s = 1 if sx > 0 else -1
+        pv = empty(side, (sx, 0, 1.4), body)
+        ex = sx + s * 0.03
+        wx = sx + s * 0.045
+        limb(side + "_Upper", (sx, 0, SH_Z - 0.01), (ex, 0.01, EL_Z), 0.048, 0.06, tunic, sides=7, parent=pv)
+        ring(side + "_SleeveRoll", EL_Z + 0.012, 0.066, 0.04, tunic_l, parent=pv, sides=7, x=ex, y=0.01)
+        limb(side + "_Fore", (ex, 0.01, EL_Z + 0.01), (wx, 0, WR_Z), 0.046, 0.036, skin, sides=6, parent=pv)
+        hand(side, wx, WR_Z - 0.055, skin, pv)
+
+    # ---------------- tudo em coordenadas de mundo, agrupado pelo pivô em que foi montado
+    scn.view_layers[0].update()
+    groups = {}
+    for o in [o for o in coll.objects if o.type == 'MESH']:
+        groups.setdefault(o.parent.name, []).append(o)
+        o.data.transform(o.matrix_world)
+        o.parent = None
+        o.matrix_world = Matrix.Identity(4)
+    for e in [o for o in coll.objects if o.type == 'EMPTY']:
+        bpy.data.objects.remove(e, do_unlink=True)
+
+    hip_z = 0.93
+    Z = (0, 0, 1)
+    for side, sd in (("LegL", "Left"), ("LegR", "Right")):
+        weigh(groups[side], Z, [(0.1, sd + "Foot"), (0.16, sd + "Leg"), (0.47, sd + "Leg"), (0.55, sd + "UpLeg")])
+    # túnica, cinto, avental, colete: o mesmo campo (peças coladas se movem juntas)
+    torso = [(0.98, "Hips"), (1.06, "Spine"), (1.17, "Spine1"), (1.3, "Spine2")]
+    weigh_by(groups["Body"], robe_field(hip_z, 0.66, torso, legs=0.6))
+    neck = [o for o in groups["Head"] if o.name == "Neck"]
+    weigh(neck, Z, [(1.42, "Spine2"), (1.47, "Neck"), (1.52, "Neck"), (1.57, "Head")])
+    weigh([o for o in groups["Head"] if o not in neck], Z, [(0.0, "Head")])
+    top = max(v.co.z for o in groups["Head"] if not o.name.startswith("Hat") for v in o.data.vertices)
+
+    # braços girados em volta do ombro e do cotovelo da pose caída até a pose T
+    joints, turn = {}, {}
+    for side, sx, sd in (("ArmR", -0.2, "Right"), ("ArmL", 0.2, "Left")):
+        s = 1 if sx > 0 else -1
+        sh = Vector((sx, 0, SH_Z))
+        el = Vector((sx + s * 0.03, 0.01, EL_Z))
+        wr = Vector((sx + s * 0.045, 0, WR_Z))
+        parts = {o.name[len(side):]: o for o in groups[side]}
+        upper = [parts["_Upper"]]
+        fore = [parts[k] for k in ("_SleeveRoll", "_Fore")]
+        palm = [parts[k] for k in ("_Hand", "_Thumb")]
+        assert len(upper) + len(fore) + len(palm) == len(groups[side])
+        tx = Vector((s, 0, 0))
+        r_up = (el - sh).normalized().rotation_difference(tx)
+        r_fo = (wr - el).normalized().rotation_difference(tx)
+        el_t = sh + r_up @ (el - sh)
+        wr_t = el_t + r_fo @ (wr - el)
+        for o in upper:
+            for v in o.data.vertices:
+                v.co = sh + r_up @ (v.co - sh)
+        for o in fore + palm:
+            for v in o.data.vertices:
+                v.co = el_t + r_fo @ (v.co - el)
+        # a manga cruza o cotovelo em gradiente; o rolo da manga e o antebraço seguem o ForeArm
+        weigh(upper, tx, [(abs(el_t.x) - 0.05, sd + "Arm"), (abs(el_t.x) + 0.01, sd + "ForeArm")])
+        weigh(fore, Z, [(0.0, sd + "ForeArm")])
+        weigh(palm, Z, [(0.0, sd + "Hand")])
+        joints[sd] = (sh, el_t, wr_t)
+        turn[sd] = (r_up, r_fo)
+
+    body = join_objs("Villager", [o for o in coll.objects if o.type == 'MESH'])
+    P = {"hip": Vector((0.09, 0, hip_z)), "knee": Vector((0.09, 0, 0.5)), "ankle": Vector((0.09, 0, 0.1))}
+    arm = mixamo_rig([body], P, joints, hip_z, top, spine=VILLAGER_SPINE)
+
+    down = {}
+    for sd in ("Left", "Right"):
+        r_up, r_fo = turn[sd]
+        down[sd + "Arm"] = r_up.inverted().to_matrix()
+        down[sd + "ForeArm"] = down[sd + "Hand"] = r_fo.inverted().to_matrix()
+    fps = scn.render.fps
+    scn.render.fps = 30
+    bake_clip(arm, "arms_down", [(0, down)])
+    # provisórios: o build_npc_mixamo.gd troca pelos do Mixamo quando houver villager_hoe.fbx / villager_chop.fbx
+    bake_clip(arm, "hoe", two_hand_cycle(arm, P, joints, VILLAGER_HOE, VILLAGER_HOE_POLE))
+    bake_clip(arm, "chop", two_hand_cycle(arm, P, joints, VILLAGER_CHOP, VILLAGER_CHOP_POLE))
+    export("villager_%d" % n, export_animations=True, export_skins=True, export_animation_mode='NLA_TRACKS')
+    scn.render.fps = fps
+
+
 # O goblin e o esqueleto ficam em monsters.py.
 
 
