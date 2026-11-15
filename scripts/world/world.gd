@@ -94,6 +94,11 @@ var survival: Node3D = null
 var chat: CanvasLayer = null
 ## Cartões de título dos episódios da história (StoryCard).
 var story_card: StoryCard = null
+## Mapas fora do vale (RegionBuilder): chão de cada um e os pontos de nascimento dos monstros deles.
+var region_grounds := {}
+var region_spawns: Array = []
+var _boss_scan := 0.0
+var _travel_fade: ColorRect
 var spawns: Array = []
 ## Veios de ferro e cristais arcanos (WorldResourceNode); vazio no servidor dedicado.
 var resource_nodes: Array = []
@@ -123,7 +128,7 @@ func _ready() -> void:
 	var steps := [[_build_environment, 2.0], [_build_ground, 2.0], [_build_village, 1.0], [_build_farm, 1.0],
 		[_build_fields, 0.5], [_build_goblin_camp, 0.5], [_build_ruins, 0.5], [_build_arena, 0.5],
 		[_build_borders, 0.5], [_scatter_forest, 0.5], [_scatter_sparse, 0.5], [_mountain_nature, 0.5],
-		[_scatter_grass, 7.0]]
+		[_build_regions, 2.0], [_scatter_grass, 7.0], [_scatter_region_grass, 3.0]]
 	if not Network.is_client():
 		steps.append([_setup_enemies, 2.0])   # no cliente, os inimigos chegam do servidor
 	var total := 1.0   # o que sobra depois das etapas: jogador e HUD
@@ -371,6 +376,7 @@ func _build_village() -> void:
 	kael.rotation.y = -PI / 2
 	add_child(kael)
 	_build_signs()
+	_build_guild()
 	var portal := PORTAL.new()
 	portal.position = PORTAL_POS
 	add_child(portal)
@@ -460,7 +466,7 @@ func _build_signs() -> void:
 	var yaw := atan2(-board_at.x, 4.0 - board_at.z)   # de frente para o centro da praça
 	var board := prop("notice_board", board_at, yaw, 1.0, "box", Vector3(2.7, 2.8, 0.3))
 	var notes := Label3D.new()
-	notes.text = "AVISOS\n\nGoblins vistos a leste da vila.\nCuidado na estrada!\n\nO pomar está carregado: maçãs, laranjas e peras!"
+	notes.text = "GUILDA DOS AVENTUREIROS\n\nContratos para todos os ranks!\nFale com a Lina.\n\nCarruagem da guilda no portão norte."
 	notes.font_size = 30
 	notes.pixel_size = 0.004
 	notes.outline_size = 0
@@ -916,6 +922,7 @@ func _setup_enemies() -> void:
 		var a := i * TAU / 4.0
 		spawns.append({"kind": "slime_veloz", "pos": NEST + Vector3(cos(a), 0, sin(a)) * 8.5, "node": null,
 			"timer": 0.0, "respawn": 45.0})
+	spawns.append_array(region_spawns)
 	for s in spawns:
 		_spawn(s)
 
@@ -934,10 +941,10 @@ func _on_spawn_died(_en: Enemy, entry: Dictionary) -> void:
 	entry.timer = entry.respawn
 
 
-func summon_minions(pos: Vector3, n: int) -> void:
+func summon_minions(pos: Vector3, n: int, kind := "goblin") -> void:
 	for i in n:
 		var e := ENEMY.new()
-		e.kind = "goblin"
+		e.kind = kind
 		e.position = pos + Vector3(cos(i * PI) * 4.0, 0.3, sin(i * PI + 0.5) * 4.0)
 		add_child(e)
 		FX.burst(e.position + Vector3.UP, Color(0.3, 0.5, 0.15), 25, 5.0)
@@ -969,6 +976,10 @@ func server_spawn_boss() -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	_boss_scan -= delta
+	if _boss_scan <= 0.0 and hud != null and player != null:
+		_boss_scan = 0.5
+		_scan_boss()
 	for f in flicker_lights:
 		f[0].light_energy = f[1] * (0.85 + 0.15 * sin(_t * 9.0 + f[2]) + 0.08 * sin(_t * 23.0 + f[2]))
 	for s in spawns:
@@ -1199,3 +1210,121 @@ func _respawn() -> void:
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e.state != "idle":
 			e._set_state("return")
+
+
+# ================================================================ guilda, NPCs novos e mapas
+## A Guilda dos Aventureiros no quadro de avisos (Lina + Quadro de Contratos), a carruagem da guilda do
+## lado de fora do portão norte e os moradores que pedem missões secundárias, na vila e pelo vale.
+func _build_guild() -> void:
+	var board_at := Vector3(5.0, 0, -10.6)
+	var fwd := (Vector3(0, 0, 4) - board_at).normalized()
+	add_child(RegionBuilder.point("board", board_at + fwd * 1.1))
+	var lina_at := Vector3(2.3, 0, -9.6)
+	add_child(RegionBuilder.npc("lina", lina_at, atan2(-lina_at.x, 4.0 - lina_at.z)))
+	var guild := Label3D.new()
+	guild.text = "GUILDA DOS AVENTUREIROS"
+	guild.font_size = 64
+	guild.outline_size = 10
+	guild.pixel_size = 0.006
+	guild.modulate = Color(0.55, 0.8, 1.0)
+	guild.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	guild.position = board_at + Vector3(0, 3.5, 0)
+	add_child(guild)
+	var coach_at: Vector3 = Regions.coach_point("vila")
+	add_child(RegionBuilder.wagon(coach_at + Vector3(-3.2, 0, -0.5), 0.0))
+	_no_grass.append([Vector2(coach_at.x - 3.2, coach_at.z - 0.5), 2.2])
+	add_child(RegionBuilder.npc("coach", coach_at, 0.0))
+	# moradores com pedidos
+	add_child(RegionBuilder.npc("rufus", Vector3(4.2, 0, -15.0), PI))       # guarda no portão norte, de fora
+	add_child(RegionBuilder.npc("zelia", Vector3(-2.6, 0, 12.6), PI))       # na porta da casa ao sul
+	add_child(RegionBuilder.npc("tonico", Vector3(-21.0, 0, -22.0), PI / 2))  # nos campos ao norte
+	add_child(RegionBuilder.npc("ravi", Vector3(34.0, 0, 4.0), -PI / 2))     # na trilha leste
+	add_child(RegionBuilder.npc("osvaldo", Vector3(6.0, 0, -76.0), PI))      # na entrada das ruínas
+	add_child(RegionBuilder.point("gato", Vector3(22.5, 0, 30.5), -0.8))     # no pomar
+
+
+## Bosque, Mina e Pico: cada um com chão, cenário, NPCs, carruagem e monstros (Regions/RegionBuilder).
+func _build_regions() -> void:
+	for id in Regions.ORDER:
+		if id != "vila":
+			region_grounds[id] = RegionBuilder.build(self, id)
+
+
+## O servidor dedicado e o solo criam os monstros; o cliente online recebe do servidor.
+func has_server_enemies() -> bool:
+	return not Network.is_client()
+
+
+func _scatter_region_grass() -> void:
+	if Network.is_server():
+		return
+	var ids: Array = region_grounds.keys()
+	for i in ids.size():
+		var id: String = ids[i]
+		var g = region_grounds[id]
+		var o: Vector3 = Regions.origin(id)
+		var half: float = Regions.DATA[id].half
+		var keep_out: Array = []
+		for k in _no_grass:
+			var c: Vector2 = k[0]
+			if absf(c.x - o.x) <= half + 5.0 and absf(c.y - o.z) <= half + 5.0:
+				keep_out.append([c - Vector2(o.x, o.z), k[1]])
+		var density := 0.45 if id == "bosque" else 0.18
+		var from := lerpf(_step_from, _step_to, float(i) / ids.size())
+		var to := lerpf(_step_from, _step_to, float(i + 1) / ids.size())
+		if Loading.covering:
+			await g.scatter_grass(rng.seed + 31 + i, density, keep_out, [], 0.6,
+				func(frac: float) -> void: Loading.set_progress(lerpf(from, to, frac)))
+		else:
+			g.scatter_grass(rng.seed + 31 + i, density, keep_out, [], 0.6)
+
+
+## Viagem pela carruagem da guilda: escurece a tela, leva o jogador ao ponto de chegada do mapa e mostra
+## o cartão com o nome do lugar.
+func travel_to(region: String) -> void:
+	if player == null or player.dead or not Regions.DATA.has(region):
+		return
+	if not Regions.unlocked(region, Game.rank()):
+		Game.notify.emit("A carruagem só vai para lá com Rank %s." % Regions.DATA[region].rank, Color(1, 0.6, 0.5))
+		return
+	if _travel_fade == null:
+		var layer := CanvasLayer.new()
+		layer.layer = 30
+		layer.process_mode = Node.PROCESS_MODE_ALWAYS
+		add_child(layer)
+		_travel_fade = ColorRect.new()
+		_travel_fade.color = Color(0, 0, 0, 0)
+		_travel_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_travel_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		layer.add_child(_travel_fade)
+	player.input_locked = true
+	var tw := create_tween()
+	tw.tween_property(_travel_fade, "color:a", 1.0, 0.4)
+	tw.tween_callback(_arrive.bind(region))
+	tw.tween_interval(0.35)
+	tw.tween_property(_travel_fade, "color:a", 0.0, 0.5)
+	tw.tween_callback(func() -> void: player.input_locked = false)
+
+
+func _arrive(region: String) -> void:
+	var to: Vector3 = Regions.arrive_point(region)
+	player.global_position = to
+	player.velocity = Vector3.ZERO
+	var back: Vector3 = Regions.coach_point(region)
+	var d := to - back
+	if region != "vila":
+		player.model.rotation.y = atan2(-d.x, -d.z)   # de costas para a carruagem, olhando para o mapa
+	Sfx.play("portal", -6.0)
+	if story_card:
+		story_card.enqueue("CARRUAGEM DA GUILDA", Regions.display_name(region))
+
+
+## Chefes que nascem como monstros comuns (o Lich, a Slime Rainha não é chefe): a barra aparece quando o
+## jogador chega perto, como a do Rei Goblin.
+func _scan_boss() -> void:
+	if hud.boss != null and is_instance_valid(hud.boss) and not hud.boss.dead:
+		return
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e is Enemy and e.is_boss and not e.dead and e.global_position.distance_to(player.global_position) < 40.0:
+			hud.boss = e
+			return

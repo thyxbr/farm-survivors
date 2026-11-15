@@ -38,6 +38,18 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
   estilo visual novel (faixas de cinema, nome na cor de quem fala, escolhas com resposta), cartão de título a cada
   episódio e rastreador com bússola até o próximo objetivo. Roteiro em `scripts/story/story_dialogue.gd`,
   missões em `data/balance/quests.json`.
+- **Guilda dos Aventureiros e Arco 2** (Valdoria é o centro de tudo): depois da festa, a Lina registra o herói
+  no **Rank D** ("feitos de antes do registro não contam"). Missões e contratos dão **pontos de guilda**; com
+  pontos suficientes a Lina promove a **C, B, A e S** (cada promoção dá pontos de atributo e ouro; o S exige
+  derrotar o Lich). O Arco 2 (episódios 7 a 11) segue por mapas novos: **Bosque Sussurrante** (Rank C: Sylvi, o
+  Tico perdido e a Slime Rainha), **Mina de Cristal** (Rank B: o anão Bolgar, esqueletos de crachá, veios de
+  cristal e o diário do Lich) e **Pico das Cinzas** (Rank A: o Kael na guilda falsa e **Morgrath, o Lich
+  Aposentado**). A viagem é pela **carruagem da guilda** (portão norte), liberada por rank.
+- **19 missões secundárias**: o **Quadro de Contratos** da guilda (vários repetíveis, por rank) e moradores com
+  pedidos espalhados pelo vale e pelos mapas: Dona Zélia e o gato fugitivo, o guarda Rufus e a sopa picante,
+  Seu Tonico nos campos, o caçador Ravi na trilha leste, Sir Osvaldo nas ruínas, além de Doran, Pip, Sylvi,
+  Bolgar e Kael. `!` dourado = história, `!` azul = contrato, `?` = entregar. Mapas montados em
+  `scripts/world/region_builder.gd` (regiões da mesma cena, então funcionam igual no solo e online).
 - **Monstros**: slimes (comum, grande, veloz, explosiva, mãe e de gelo, que deixa você lento), goblins com equipamento próprio (batedor, arqueiro, xamã, bombardeiro, bruto, campeão, dourado e o rei) e **esqueletos** nas ruínas (guerreiro, arqueiro, mago e o Cavaleiro Esqueleto, de elite).
 - **Progressão**: XP, níveis, 3 pontos de atributo por nível (Força, Inteligência, Vitalidade, Agilidade), magias liberadas por nível.
 - **Itens**: 70 itens com 5 raridades (Comum, Incomum, Raro, Épico, Lendário), poções, materiais para vender, loot aleatório.

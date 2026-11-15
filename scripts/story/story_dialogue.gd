@@ -16,7 +16,24 @@ const NAMES := {
 	"blacksmith": "Doran, o Ferreiro",
 	"alchemist": "Pip, a Alquimista",
 	"rival": "Kael, a Lâmina Carmesim",
+	"kael_pico": "Kael, a Lâmina Carmesim",
 	"camp_note": "Bilhete Amassado",
+	"lina": "Lina, da Guilda",
+	"board": "Quadro de Contratos",
+	"zelia": "Dona Zélia",
+	"rufus": "Rufus, o Guarda",
+	"tonico": "Seu Tonico",
+	"ravi": "Ravi, o Caçador",
+	"osvaldo": "Sir Osvaldo",
+	"sylvi": "Sylvi, a Patrulheira",
+	"tico": "Tico",
+	"bolgar": "Bolgar, o Minerador",
+	"diario": "Diário Rasgado",
+	"gato": "Sr. Bigodes",
+	"coach": "Beto, o Cocheiro",
+	"coach_bosque": "Beto, o Cocheiro",
+	"coach_mina": "Beto, o Cocheiro",
+	"coach_pico": "Beto, o Cocheiro",
 }
 ## Cor da plaquinha de nome de cada um (a caixa de diálogo pinta a borda e o nome com ela).
 const COLORS := {
@@ -25,7 +42,24 @@ const COLORS := {
 	"blacksmith": Color(1.0, 0.55, 0.25),
 	"alchemist": Color(0.78, 0.6, 1.0),
 	"rival": Color(1.0, 0.36, 0.38),
+	"kael_pico": Color(1.0, 0.36, 0.38),
 	"camp_note": Color(0.8, 0.68, 0.5),
+	"lina": Color(0.5, 0.75, 1.0),
+	"board": Color(0.8, 0.68, 0.5),
+	"zelia": Color(1.0, 0.7, 0.75),
+	"rufus": Color(0.7, 0.75, 0.85),
+	"tonico": Color(0.75, 0.85, 0.35),
+	"ravi": Color(0.55, 0.75, 0.45),
+	"osvaldo": Color(0.85, 0.82, 0.7),
+	"sylvi": Color(0.4, 0.9, 0.55),
+	"tico": Color(1.0, 0.85, 0.4),
+	"bolgar": Color(0.85, 0.6, 0.4),
+	"diario": Color(0.65, 0.45, 0.85),
+	"gato": Color(1.0, 0.6, 0.25),
+	"coach": Color(0.75, 0.6, 0.45),
+	"coach_bosque": Color(0.75, 0.6, 0.45),
+	"coach_mina": Color(0.75, 0.6, 0.45),
+	"coach_pico": Color(0.75, 0.6, 0.45),
 	"": Color(0.7, 0.72, 0.78),
 }
 const NARRATOR := ""
@@ -38,35 +72,309 @@ static func color_of(speaker: String) -> Color:
 	return COLORS[""]
 
 
+## Se o NPC (ou objeto) está no mapa agora: o Kael troca a vila pelo Pico das Cinzas enquanto está com o
+## Lich; o Tico volta para casa depois da Slime Rainha; o gato some quando é achado.
+static func present(id: String) -> bool:
+	var q: Dictionary = Game.quests
+	match id:
+		"rival":
+			return not (StoryRules.state(q, "diario") == "done" and StoryRules.state(q, "lich") != "done")
+		"kael_pico":
+			return StoryRules.state(q, "diario") == "done"
+		"tico":
+			return StoryRules.state(q, "rainha") != "done"
+		"gato":
+			return StoryRules.state(q, "gato") != "done"
+	return true
+
+
 ## Páginas do diálogo do NPC (Node com npc_id) agora.
+## Prioridade: carruagem > entregar > história nova > história travada por rank > lembrete da história >
+## secundárias (o quadro lista todas) > lembrete de secundária > conversa à toa (com os serviços).
 static func build(npc: Node) -> Array:
 	var id: String = npc.npc_id
+	if id == "coach" or id.begins_with("coach_"):
+		return _coach(id)
 	var qt: Dictionary = ItemDB.QUESTS
 	var quests: Dictionary = Game.quests
 	var counts := _counts(qt)
+	var rank := Game.rank()
 	var pages: Array = []
 	var done := StoryRules.turnable_at(qt, quests, id, counts)
 	if done != "":
-		pages.append_array(_complete(done))
+		pages.append_array(_complete_any(done))
 		var nxt := StoryRules.after(qt, done)
 		if nxt != "" and StoryRules.giver(qt, nxt) == id:
-			pages.append_array(_offer(nxt))
+			if StoryRules.rank_ge(rank, StoryRules.needs_rank(qt, nxt)):
+				pages.append_array(_offer_any(nxt))
+			else:
+				pages.append_array(_locked(nxt))
 		elif nxt != "":
 			pages.append_array(_hint(nxt, id))
 		return _with_services(id, pages)
-	var offer := StoryRules.offer_at(qt, quests, id)
+	var offer := StoryRules.offer_at(qt, quests, id, rank)
 	if offer != "":
-		return _offer(offer)
+		return _offer_any(offer)
+	var cur := StoryRules.current(qt, quests)
+	if cur != "" and StoryRules.state(quests, cur) == "none" and StoryRules.giver(qt, cur) == id:
+		pages.append_array(_locked(cur))   # a história segue com ele, mas falta rank
+		return _with_services(id, pages)
+	# lembrete da história primeiro; depois as secundárias novas; depois os lembretes das secundárias
+	var side_reminders: Array = []
 	for q in quests:
 		if not qt.has(q) or quests[q].state == "done":
 			continue
 		if StoryRules.giver(qt, q) == id or StoryRules.turn_in(qt, q) == id:
-			var r := _reminder(q, id)
-			if not r.is_empty():
+			var r := _reminder_any(q, id)
+			if r.is_empty():
+				continue
+			if StoryRules.is_side(qt, q):
+				side_reminders.append_array(r)
+			else:
 				pages.append_array(r)
 				return _with_services(id, pages)
+	var sides := StoryRules.side_offers_at(qt, quests, id, rank)
+	if id == "board":
+		return _board(sides, side_reminders)
+	if not sides.is_empty():
+		# contrato novo, mas os serviços (loja, encanto, promoção) continuam a uma escolha de distância
+		pages = _offer_any(sides[0])
+		var last: Dictionary = pages[pages.size() - 1]
+		var ch: Array = last.choices
+		ch.remove_at(ch.size() - 1)   # "Agora não" volta no fim, depois dos serviços
+		ch.append_array(_services(id))
+		ch.append({"text": "Agora não", "action": Callable()})
+		return pages
+	if not side_reminders.is_empty():
+		return _with_services(id, side_reminders)
 	pages.append_array(_idle(id))
 	return _with_services(id, pages)
+
+
+# ================================================================ falas em dados (quests.json, "talk")
+## Linha do roteiro em dados: prefixos (na ordem) "[reward]" entrega a missão ao aparecer, "[end]" cartão de
+## fim, "[boom]"/"[sparkle]" efeito, "@id:" outro personagem fala ("@narr:" = narrador), e um destes:
+## "!" grita, "~" sussurra, "*" pensamento do narrador, ">" narração. {n} vira o progresso da missão.
+static func parse_line(line: String, q := "", n := "") -> Dictionary:
+	var page := {}
+	var t := line.strip_edges()
+	var speaker = null
+	var go := true
+	while go:
+		go = false
+		for tag in ["[reward]", "[end]", "[boom]", "[sparkle]"]:
+			if t.begins_with(tag):
+				t = t.substr(tag.length()).strip_edges()
+				go = true
+				match tag:
+					"[reward]":
+						if q != "":
+							page["on_show"] = _finish.bind(q)
+					"[end]":
+						page["fx"] = "end"
+					_:
+						page["fx"] = tag.trim_prefix("[").trim_suffix("]")
+		if t.begins_with("@"):
+			var colon := t.find(":")
+			if colon > 0:
+				var who := t.substr(1, colon - 1)
+				speaker = NARRATOR if who == "narr" else NAMES.get(who, who)
+				t = t.substr(colon + 1).strip_edges()
+				go = true
+	var mood := ""
+	var narrated := false
+	if t.begins_with("!"):
+		mood = "shout"
+	elif t.begins_with("~"):
+		mood = "whisper"
+	elif t.begins_with("*"):
+		mood = "think"
+		narrated = true
+	elif t.begins_with(">"):
+		narrated = true
+	if mood != "" or narrated:
+		t = t.substr(1).strip_edges()
+	if narrated:
+		speaker = NARRATOR
+	var built := p(t.replace("{n}", n), speaker, mood)
+	built.merge(page)
+	return built
+
+
+## Lista de linhas (strings ou {"choices": [[texto, [linhas]], ...]}, que vira escolha da página anterior).
+static func parse_lines(lines: Array, q := "", n := "") -> Array:
+	var out: Array = []
+	for l in lines:
+		if l is Dictionary and l.has("choices"):
+			var ch: Array = []
+			for c in l.choices:
+				ch.append({"text": str(c[0]), "pages": parse_lines(c[1], q, n)})
+			if out.is_empty():
+				out.append(p("..."))
+			out[out.size() - 1]["choices"] = ch
+		else:
+			out.append(parse_line(str(l), q, n))
+	return out
+
+
+static func _talk(q: String) -> Dictionary:
+	return ItemDB.QUESTS.get(q, {}).get("talk", {})
+
+
+static func _offer_any(q: String) -> Array:
+	var t := _talk(q)
+	if t.is_empty():
+		return _offer(q)
+	var pages := parse_lines(t.get("offer", []))
+	var d: Dictionary = ItemDB.QUESTS[q]
+	var last := narr("(%s. Recompensa: %d ouro, %d XP%s.)" % [d.objective, d.reward_gold, d.reward_xp, _pts_text(d)])
+	last["choices"] = [
+		{"text": str(t.get("accept", "Aceitar")), "action": _accept.bind(q)},
+		{"text": "Agora não", "action": Callable()},
+	]
+	pages.append(last)
+	return pages
+
+
+static func _pts_text(d: Dictionary) -> String:
+	if StoryRules.state(Game.quests, "registro") != "done":
+		return ""
+	var pts := 0
+	if d.has("guild_pts"):
+		pts = int(d.guild_pts)
+	else:
+		pts = int(_guild().get("default_pts", {}).get(CharRules.quest_type(d), 0))
+	return ", %d pontos de guilda" % pts if pts > 0 else ""
+
+
+static func _complete_any(q: String) -> Array:
+	var t := _talk(q)
+	if t.is_empty():
+		return _complete(q)
+	var pages := parse_lines(t.get("done", []), q)
+	var has_reward := false
+	for pg in pages:
+		if pg.has("on_show"):
+			has_reward = true
+	if not has_reward and pages.size() > 0:
+		pages[pages.size() - 1]["on_show"] = _finish.bind(q)
+	return pages
+
+
+static func _reminder_any(q: String, at: String) -> Array:
+	var t := _talk(q)
+	if t.is_empty():
+		return _reminder(q, at)
+	if not t.has("remind"):
+		return []
+	var qt: Dictionary = ItemDB.QUESTS
+	var pr := StoryRules.progress(qt, Game.quests, q, _counts(qt))
+	return [parse_line(str(t.remind), "", "%d/%d" % [pr[0], pr[1]])]
+
+
+## A história segue com este NPC, mas falta rank: ele explica (e a Lina oferece a promoção, se der).
+static func _locked(q: String) -> Array:
+	var t := _talk(q)
+	var need := StoryRules.needs_rank(ItemDB.QUESTS, q)
+	return [parse_line(str(t.get("locked", "Ainda não é a hora. Volte quando for Rank %s." % need)))]
+
+
+## O Quadro de Contratos: cada contrato disponível vira uma escolha que mostra o contrato e o aceite.
+static func _board(sides: Array, reminders: Array) -> Array:
+	var head := narr("(Quadro de Contratos da Guilda de Valdoria. Seu rank: %s, %d pontos de guilda.)" % [Game.rank(), Game.guild_points()])
+	if sides.is_empty():
+		var pages: Array = [head]
+		pages.append_array(reminders)
+		pages.append(narr("(Nenhum contrato novo para o seu rank agora. Volte mais tarde, ou suba de rank.)"))
+		return pages
+	var choices: Array = []
+	for q in sides.slice(0, 4):
+		var d: Dictionary = ItemDB.QUESTS[q]
+		choices.append({"text": "[%s] %s" % [StoryRules.needs_rank(ItemDB.QUESTS, q), d.name], "pages": _offer_any(q)})
+	choices.append({"text": "Só olhando", "action": Callable()})
+	head["choices"] = choices
+	return [head]
+
+
+# ================================================================ guilda (Lina)
+static func _guild() -> Dictionary:
+	return Balance.tables.get_table("guild") if Balance.tables != null else {}
+
+
+## Próximo rank no espelho do personagem ({} = já é S).
+static func next_rank() -> Dictionary:
+	var ranks: Array = _guild().get("ranks", [])
+	var i := StoryRules.RANKS.find(Game.rank()) + 1
+	return ranks[i] if i < ranks.size() else {}
+
+
+## Por que a promoção ainda não sai ("" = pode), espelho de CharRules.rank_up_block.
+static func rank_block() -> String:
+	if StoryRules.state(Game.quests, "registro") != "done":
+		return "Primeiro você precisa se registrar na guilda!"
+	var nx := next_rank()
+	if nx.is_empty():
+		return "Você já é Rank S. Não existe Rank SS. Eu perguntei para a matriz. Duas vezes."
+	if Game.guild_points() < int(nx.pts):
+		return "Para o Rank %s faltam %d pontos de guilda. Os contratos do Quadro ajudam!" % [nx.id, int(nx.pts) - Game.guild_points()]
+	if nx.has("requires") and StoryRules.state(Game.quests, str(nx.requires)) != "done":
+		return "Para o Rank %s, além dos pontos, a matriz exige um feito lendário. Continue a história!" % nx.id
+	return ""
+
+
+static func _promote() -> void:
+	Game.rank_up()
+
+
+static func _lina_services() -> Array:
+	var nx := next_rank()
+	var card := "Rank %s · %d pontos de guilda" % [Game.rank(), Game.guild_points()]
+	if not nx.is_empty():
+		card += " · Rank %s com %d" % [nx.id, int(nx.pts)]
+	var out: Array = []
+	if StoryRules.state(Game.quests, "registro") == "done":
+		out.append({"text": "Ver meu cartão", "pages": [narr("(Cartão da Guilda: %s.)" % card)]})
+	if rank_block() == "" and not nx.is_empty():
+		var promo := p("Os moradores vão saber disso até o fim do dia. A Mira já está atualizando os preços. Para cima.")
+		promo["on_show"] = _promote
+		out.push_front({"text": "Pedir promoção a Rank %s" % nx.id, "pages": [
+			p("O exame de promoção! Formulário, carimbo, assinatura...", null, "shout"),
+			_fx(p("Parabéns, {heroi}! A partir de hoje você é RANK %s: %s!" % [nx.id, nx.get("title", "")]), "sparkle"),
+			promo,
+		]})
+	elif StoryRules.state(Game.quests, "registro") == "done" and not nx.is_empty():
+		out.append({"text": "Quero ser promovido", "pages": [p(rank_block())]})
+	return out
+
+
+# ================================================================ carruagem
+static func _coach(id: String) -> Array:
+	var here := "vila" if id == "coach" else id.trim_prefix("coach_")
+	if StoryRules.state(Game.quests, "registro") != "done":
+		return [p("Opa! Sou o Beto, cocheiro da guilda. Só levo aventureiro registrado. Fala com a Lina primeiro, ali no quadro de avisos.")]
+	var head := p("Pra onde vamos, chefe? A carruagem da guilda leva qualquer aventureiro registrado. Com o rank certo, claro.")
+	if here != "vila":
+		head = p("Pronto pra voltar? Ou quer conhecer outro lugar? Eu espero. Cocheiro bom espera. Cocheiro ótimo cobra a espera.")
+	var choices: Array = []
+	for r in Regions.ORDER:
+		if r == here:
+			continue
+		var need: String = Regions.DATA[r].rank
+		var label := Regions.display_name(r) if r != "vila" else "Voltar para Valdoria"
+		if Regions.unlocked(r, Game.rank()):
+			choices.append({"text": label, "action": _travel.bind(r)})
+		else:
+			choices.append({"text": "%s (Rank %s)" % [label, need], "pages": [
+				p("Esse caminho é só para Rank %s, chefe. Regra da guilda, não minha." % need)]})
+	choices.append({"text": "Fico por aqui", "action": Callable()})
+	head["choices"] = choices
+	return [head]
+
+
+static func _travel(region: String) -> void:
+	var w: Node = (Engine.get_main_loop() as SceneTree).current_scene
+	if w and w.has_method("travel_to"):
+		w.travel_to(region)
 
 
 static func _counts(qt: Dictionary) -> Dictionary:
@@ -145,6 +453,8 @@ static func _with_services(id: String, pages: Array) -> Array:
 
 static func _services(id: String) -> Array:
 	match id:
+		"lina":
+			return _lina_services()
 		"merchant":
 			return [{"text": "Ver mercadorias", "action": _open_shop}]
 		"alchemist":
@@ -419,6 +729,8 @@ static func _fx(page: Dictionary, fx: String) -> Dictionary:
 ## Quem entregou a missão aponta o próximo NPC da história.
 static func _hint(q: String, from: String) -> Array:
 	var who := StoryRules.giver(ItemDB.QUESTS, q)
+	if ItemDB.QUESTS.get(q, {}).has("hint"):
+		return [narr(str(ItemDB.QUESTS[q].hint))]
 	match q:
 		"gel":
 			return [

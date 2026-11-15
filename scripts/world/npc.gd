@@ -6,7 +6,6 @@ const MODELS := {
 	"elder": "res://assets/models/elder.glb",
 	"merchant": "res://assets/models/merchant.glb",
 	"blacksmith": "res://assets/models/blacksmith.glb",
-	"alchemist": "res://assets/models/villager_2.glb",
 }
 
 @export var npc_id := "elder"
@@ -116,14 +115,40 @@ func _process(delta: float) -> void:
 func _update_marker() -> void:
 	if marker == null:
 		return
+	_apply_presence()
 	var qt: Dictionary = ItemDB.QUESTS
 	var counts := {}
 	for id in qt:
 		if CharRules.quest_type(qt[id]) == "collect":
 			counts[qt[id].target] = Game.count_item(str(qt[id].target))
-	marker.text = StoryRules.marker(qt, Game.quests, npc_id, counts)
-	# "?" (entregar) em verde-dourado, "!" (missão nova) em dourado
-	marker.modulate = Color(0.55, 1.0, 0.45) if marker.text == "?" else Color(1, 0.8, 0.2)
+	var m := StoryRules.marker(qt, Game.quests, npc_id, counts, Game.rank())
+	set_marker(marker, m)
+
+
+## "?" (entregar) em verde, "!" (história) em dourado, "+" (secundária) como "!" azul.
+static func set_marker(lbl: Label3D, m: String) -> void:
+	lbl.text = "!" if m == "+" else m
+	match m:
+		"?":
+			lbl.modulate = Color(0.55, 1.0, 0.45)
+		"+":
+			lbl.modulate = Color(0.45, 0.8, 1.0)
+		_:
+			lbl.modulate = Color(1, 0.8, 0.2)
+
+
+## Alguns NPCs só aparecem em parte da história (o Kael some da vila enquanto está com o Lich).
+func _apply_presence() -> void:
+	var here := StoryDialogue.present(npc_id)
+	if here == visible:
+		return
+	visible = here
+	collision_layer = 8 if here else 0
+	for g in ["interactable", "npc"]:
+		if here:
+			add_to_group(g)
+		else:
+			remove_from_group(g)
 
 
 # ---------------------------------------------------------------- diálogos
