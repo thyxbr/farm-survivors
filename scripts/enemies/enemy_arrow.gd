@@ -1,6 +1,7 @@
 extends Node3D
-## Flecha do Goblin Arqueiro (Desafio da Horda). No solo e no servidor causa dano nos jogadores
-## que o modo sobrevivência persegue (source.targets()); a réplica no cliente usa damage = 0 e só desenha.
+## Projétil dos inimigos à distância: flecha (arqueiros) ou orbe mágico (`magic`, Esqueleto Mago). No solo e
+## no servidor causa dano: na Horda, em quem o modo sobrevivência persegue (source.targets()); no mundo e na
+## cidade, nos jogadores do mesmo mundo 3D. A réplica no cliente usa damage = 0 e só desenha.
 ## Para no ar enquanto o grupo escolhe as cartas de nível (frozen).
 
 const SPEED := 17.0
@@ -11,12 +12,17 @@ var direction := Vector3.FORWARD
 var damage := 0.0
 ## survival_mode (solo/servidor) ou o mundo (réplica no cliente).
 var source: Node
+## Orbe roxo no lugar da flecha.
+var magic := false
 var _life := LIFE
 
 
 func _ready() -> void:
 	direction.y = 0.0
 	direction = direction.normalized() if direction.length() > 0.01 else Vector3.FORWARD
+	if magic:
+		_build_orb()
+		return
 	var mi := MeshInstance3D.new()
 	var shaft := CylinderMesh.new()
 	shaft.top_radius = 0.035
@@ -49,6 +55,38 @@ func _ready() -> void:
 	rotate_object_local(Vector3.UP, PI)   # o +Z local (ponta) aponta para a frente
 
 
+func _build_orb() -> void:
+	var mi := MeshInstance3D.new()
+	var orb := SphereMesh.new()
+	orb.radius = 0.2
+	orb.height = 0.4
+	orb.radial_segments = 8
+	orb.rings = 4
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = Color(0.75, 0.45, 1.0)
+	m.emission_enabled = true
+	m.emission = Color(0.6, 0.25, 1.0)
+	m.emission_energy_multiplier = 2.5
+	orb.material = m
+	mi.mesh = orb
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	var light := OmniLight3D.new()
+	light.light_color = Color(0.65, 0.35, 1.0)
+	light.light_energy = 1.2
+	light.omni_range = 3.0
+	add_child(light)
+
+
+## Quem o projétil pode acertar.
+func _targets() -> Array:
+	if source.has_method("targets"):
+		return source.targets()
+	var w := get_world_3d()
+	return get_tree().get_nodes_in_group("players").filter(func(p): return p.get_world_3d() == w)
+
+
 func _frozen() -> bool:
 	if source == null or not is_instance_valid(source):
 		return false
@@ -66,14 +104,16 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 	global_position += direction * SPEED * delta
-	if damage <= 0.0 or source == null or not is_instance_valid(source) or not source.has_method("targets"):
+	if magic and Engine.get_physics_frames() % 3 == 0:
+		FX.burst(global_position, Color(0.7, 0.4, 1.0), 2, 0.8, 0.07, 0.35)
+	if damage <= 0.0 or source == null or not is_instance_valid(source):
 		return
-	for p in source.targets():
+	for p in _targets():
 		if p.dead:
 			continue
 		var c: Vector3 = p.global_position + Vector3.UP * 1.0
 		if c.distance_to(global_position) <= HIT_RADIUS:
 			p.take_damage(damage, global_position - direction)
-			FX.burst(global_position, Color(0.7, 0.5, 0.3), 8, 2.5, 0.08, 0.4)
+			FX.burst(global_position, Color(0.7, 0.4, 1.0) if magic else Color(0.7, 0.5, 0.3), 8, 2.5, 0.08, 0.4)
 			queue_free()
 			return

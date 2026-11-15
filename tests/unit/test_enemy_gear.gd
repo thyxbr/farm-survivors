@@ -1,0 +1,90 @@
+extends RefCounted
+## EnemyGear: peças opcionais (Opt_<Nome>) dos modelos de monstro e o "gear" de data/balance/enemies.json.
+
+const MODELS := {
+	"goblin": "res://assets/models/goblin.glb",
+	"skeleton": "res://assets/models/skeleton.glb",
+}
+const PIVOTS := ["LegL", "LegR", "Body", "Head", "ArmL", "ArmR"]
+
+
+func _fake() -> Node3D:
+	var m := Node3D.new()
+	var body := Node3D.new()
+	body.name = "Body"
+	m.add_child(body)
+	for n in ["Opt_A", "Opt_B", "Fixo"]:
+		var c := Node3D.new()
+		c.name = n
+		body.add_child(c)
+	return m
+
+
+func test_keeps_only_listed() -> void:
+	var m := _fake()
+	T.eq(EnemyGear.apply(m, ["A"]), [], "nada faltando")
+	T.ok(m.find_child("Opt_A", true, false) != null, "Opt_A fica")
+	T.ok(m.find_child("Opt_B", true, false) == null, "Opt_B sai")
+	T.ok(m.find_child("Fixo", true, false) != null, "peça fixa fica")
+	m.free()
+
+
+func test_missing_is_reported() -> void:
+	var m := _fake()
+	T.eq(EnemyGear.apply(m, ["X", "B"]), ["X"], "nome inexistente é devolvido")
+	T.ok(m.find_child("Opt_B", true, false) != null, "o que existe continua")
+	m.free()
+
+
+func test_empty_gear_strips_all() -> void:
+	var m := _fake()
+	T.eq(EnemyGear.apply(m, []), [], "lista vazia não falta nada")
+	T.eq(EnemyGear.names(m), [], "nenhuma peça opcional sobra")
+	T.ok(m.find_child("Fixo", true, false) != null, "peça fixa fica")
+	m.free()
+
+
+func test_model_without_optional_parts() -> void:
+	var m := Node3D.new()
+	T.eq(EnemyGear.apply(m, []), [], "modelo sem peças (slime) passa direto")
+	m.free()
+
+
+## Todo tipo humanoide lista "gear", e cada peça existe no modelo dele. Os pivôs que o jogo anima também.
+func test_every_enemy_gear_exists_in_model() -> void:
+	var enemies: Dictionary = BalanceTables.load_dir("res://data/balance").get_table("enemies")
+	var have := {}
+	for id in MODELS:
+		var inst: Node = (load(MODELS[id]) as PackedScene).instantiate()
+		have[id] = EnemyGear.names(inst)
+		for p in PIVOTS:
+			T.ok(inst.find_child(p, true, false) != null, "%s tem o pivô %s" % [id, p])
+		inst.free()
+	var used := {}
+	for kind in enemies:
+		var d: Dictionary = enemies[kind]
+		if not MODELS.has(d.model):
+			T.ok(not d.has("gear"), "%s (modelo %s) não usa gear" % [kind, d.model])
+			continue
+		T.ok(d.has("gear"), "%s lista gear" % kind)
+		for g in d.get("gear", []):
+			T.ok(g in have[d.model], "%s: peça %s existe em %s.glb" % [kind, g, d.model])
+			used["%s/%s" % [d.model, g]] = true
+	for id in have:
+		for g in have[id]:
+			T.ok(used.has("%s/%s" % [id, g]), "peça %s de %s.glb é usada por algum tipo" % [g, id])
+
+
+func test_new_kinds_present() -> void:
+	var enemies: Dictionary = BalanceTables.load_dir("res://data/balance").get_table("enemies")
+	for k in ["esqueleto", "esqueleto_arqueiro", "esqueleto_mago", "esqueleto_cavaleiro", "goblin_bombardeiro", "slime_gelo"]:
+		T.ok(enemies.has(k), "tipo %s existe" % k)
+	T.eq(enemies["esqueleto_mago"].get("shot", ""), "bolt", "mago atira projétil mágico")
+	T.eq(enemies["goblin_bombardeiro"].get("ai", ""), "bomber", "bombardeiro explode")
+	T.eq(float(enemies["slime_gelo"].get("chill", 0.0)), 2.5, "slime de gelo deixa lento por 2,5 s")
+	T.ok(enemies["esqueleto_cavaleiro"].get("elite", false), "cavaleiro é elite")
+	var items: Dictionary = BalanceTables.load_dir("res://data/balance").get_table("items")
+	T.ok(items.has("bone_shard"), "item bone_shard existe")
+	for kind in enemies:
+		for l in enemies[kind].loot:
+			T.ok(items.has(l[0]), "%s: item %s do loot existe" % [kind, l[0]])

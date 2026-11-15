@@ -11,6 +11,10 @@ const OUTLINE := preload("res://assets/shaders/toon_outline.gdshader")
 const SLIME := preload("res://assets/shaders/toon_slime.gdshader")
 const SLIME_OUTLINE := preload("res://assets/shaders/toon_slime_outline.gdshader")
 const MIN_OUTLINE_SIZE := 0.07
+const OUTLINE_RANGE := 36.0          # metros da câmera; além disso a casca não é desenhada
+const OUTLINE_RANGE_MARGIN := 4.0    # folga para não piscar na fronteira
+const OUTLINE_GROUP := "toon_outline"
+const SETTINGS_PATH := "user://settings.cfg"     # o mesmo arquivo de Game.settings
 const LIVE := &"toon_live"     # meta no material original: o toon exclusivo dele (ver sync)
 const SLIME_GOO := Color(0.25, 0.85, 0.3, 0.78)      # slime comum; as variantes trazem `goo` nos dados
 
@@ -19,21 +23,76 @@ const SLIME_FACE := {"EyeL": Vector3(0.012, 0, 0.05), "EyeR": Vector3(-0.012, 0,
 
 static var _mats := {}          # chave das propriedades do material -> ShaderMaterial toon
 static var _hulls := {}         # malha original -> ArrayMesh da casca
+static var _merged := {}        # hash das peças de um grupo -> ArrayMesh com as cascas juntas
 static var _outline_mat: ShaderMaterial
+static var _enabled := -1       # -1 = ainda não leu os argumentos nem a opção do menu
+static var _outline := -1
+## Contadores para a sonda de desempenho (tools/toon_probe.gd, `-- --toonprobe`).
+static var stats := {"apply": 0, "apply_usec": 0, "apply_max_usec": 0, "hulls": 0, "hull_usec": 0, "outlines": 0}
 static var _slime_mats := {}    # cor da gelatina -> ShaderMaterial
 static var _slime_outline_mat: ShaderMaterial
-static var _enabled := -1       # -1 = ainda não leu os argumentos
 
 
-## Desligado com `-- --notoon` e no servidor dedicado (sem janela e sem ser um dos testes), que não
-## desenha nada e só gastaria memória com materiais e cascas.
+## Desligado com `-- --notoon`, pela opção "Estilo desenhado" do menu e no servidor dedicado (sem janela e
+## sem ser um dos testes), que não desenha nada e só gastaria memória com materiais e cascas.
+## A linha de comando vence a opção; os testes ignoram a opção (rodam sempre com o estilo).
 static func enabled() -> bool:
 	if _enabled < 0:
-		var args := OS.get_cmdline_user_args()
-		var is_test := "--smoketest" in args or "--colonytest" in args or "--hubtest" in args
-		var off := "--notoon" in args or (DisplayServer.get_name() == "headless" and not is_test)
-		_enabled = 0 if off else 1
+		_enabled = 1 if decide_style(OS.get_cmdline_user_args(), DisplayServer.get_name() == "headless", _setting("toon")) else 0
 	return _enabled == 1
+
+
+## Contorno dos personagens: desligado com `-- --nooutline` ou pela opção "Contorno" do menu.
+static func outline_enabled() -> bool:
+	if _outline < 0:
+		_outline = 1 if decide_outline(OS.get_cmdline_user_args(), _setting("toon_outline")) else 0
+	return _outline == 1
+
+
+## Regra pura (testada em tests/unit/test_toon_look.gd): a linha de comando vence a opção do menu, os
+## testes ignoram a opção, e sem janela só os testes ligam o estilo.
+static func decide_style(args: PackedStringArray, headless: bool, setting: bool) -> bool:
+	if "--notoon" in args:
+		return false
+	if is_test(args):
+		return true
+	return setting and not headless
+
+
+static func decide_outline(args: PackedStringArray, setting: bool) -> bool:
+	if "--nooutline" in args:
+		return false
+	return setting or is_test(args)
+
+
+static func is_test(args: PackedStringArray) -> bool:
+	return "--smoketest" in args or "--colonytest" in args or "--hubtest" in args
+
+
+## Verdadeiro quando a linha de comando decide (`--notoon` / `--nooutline`) e a opção do menu não vale.
+static func forced_off(outline := false) -> bool:
+	return ("--nooutline" if outline else "--notoon") in OS.get_cmdline_user_args()
+
+
+## O menu de opções gravou o settings.cfg: lê de novo. Vale para o que for criado dali em diante
+## (a cena já montada fica como está até ser recarregada).
+static func reload_settings() -> void:
+	_enabled = -1
+	_outline = -1
+	# contornos que já existem: desligar a opção esconde na hora, ligar de novo mostra
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree != null:
+		var show := enabled() and outline_enabled()
+		for o in tree.get_nodes_in_group(OUTLINE_GROUP):
+			(o as Node3D).visible = show
+
+
+## Lê direto do arquivo de Game.settings (este script não pode depender de autoload).
+static func _setting(key: String) -> bool:
+	var cfg := ConfigFile.new()
+	if cfg.load(SETTINGS_PATH) != OK:
+		return true
+	return bool(cfg.get_value("settings", key, true))
 
 
 ## Verdadeiro para um material montado por ToonLook (o clima trata esse material como liso comum).
@@ -43,8 +102,14 @@ static func is_toon(m: Material) -> bool:
 
 ## Personagens: aplica em todas as malhas abaixo de `root`, com contorno. Devolve quantas superfícies
 ## foram convertidas. Pode ser chamada de novo no mesmo modelo (troca de equipamento).
-static func apply(root: Node, outline := true) -> int:
+## `merge` junta numa casca só as peças irmãs (mesmo nó pai): o goblin cai de 59 cascas para 7. Só serve
+## para modelos cujas peças não mudam depois (o código anima e esconde os grupos, nunca uma peça sozinha):
+## inimigos sim; cavaleiro não, porque o equipamento troca peça por peça.
+static func apply(root: Node, outline := true, merge := false) -> int:
+	var t0 := Time.get_ticks_usec()
 	var n := 0
+	outline = outline and outline_enabled()
+	var groups := {}        # nó pai -> peças que levam contorno
 	for mi: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
 		if mi.name.begins_with("ToonOutline") or mi.mesh == null:
 			continue
@@ -53,7 +118,19 @@ static func apply(root: Node, outline := true) -> int:
 		# peças miúdas (olhos, sobrancelhas, rebites) ficam sem contorno: a casca engoliria a peça
 		if (c > 0 or mi.has_meta("toon")) and outline and not mi.has_meta("toon_outline") 				and mi.get_aabb().get_longest_axis_size() >= MIN_OUTLINE_SIZE:
 			mi.set_meta("toon_outline", true)
-			_add_outline(mi)
+			if merge and mi.skin == null:
+				var p := mi.get_parent()
+				if not groups.has(p):
+					groups[p] = []
+				groups[p].append(mi)
+			else:
+				_add_outline(mi)
+	for p in groups:
+		_add_group_outline(p, groups[p])
+	var dt := Time.get_ticks_usec() - t0
+	stats.apply += 1
+	stats.apply_usec += dt
+	stats.apply_max_usec = maxi(stats.apply_max_usec, dt)
 	return n
 
 
@@ -77,7 +154,7 @@ static func apply_slime(root: Node, goo := SLIME_GOO) -> void:
 			continue
 		mi.material_override = m
 		mi.set_meta("toon", true)
-		if not mi.has_meta("toon_outline"):
+		if outline_enabled() and not mi.has_meta("toon_outline"):
 			mi.set_meta("toon_outline", true)
 			_add_outline(mi, _slime_outline_mat)
 	# olhos e brilho nascem meio afundados na gelatina; com contorno, a parte de dentro saía riscada e
@@ -208,15 +285,9 @@ static func _add_outline(mi: MeshInstance3D, mat: ShaderMaterial = null) -> void
 	var hull := _hull_of(mi.mesh)
 	if hull == null:
 		return
-	if _outline_mat == null:
-		_outline_mat = ShaderMaterial.new()
-		_outline_mat.shader = OUTLINE
-	var o := MeshInstance3D.new()
-	o.name = "ToonOutline"
-	o.mesh = hull
-	o.material_override = mat if mat != null else _outline_mat
-	o.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	o.layers = mi.layers
+	var o := _outline_node(hull, mi.layers)
+	if mat != null:
+		o.material_override = mat
 	if mi.skin != null:
 		# malha com esqueleto: a casca fica ao lado, presa ao mesmo esqueleto
 		o.skin = mi.skin
@@ -227,10 +298,93 @@ static func _add_outline(mi: MeshInstance3D, mat: ShaderMaterial = null) -> void
 		mi.add_child(o)      # filha: herda transformação e visibilidade da peça
 
 
+## Uma casca só para várias peças irmãs, filha do nó pai delas (herda a animação e a visibilidade do grupo).
+static func _add_group_outline(parent: Node, pieces: Array) -> void:
+	if pieces.size() == 1:
+		_add_outline(pieces[0])
+		return
+	var hull := _merged_hull(pieces)
+	if hull != null:
+		parent.add_child(_outline_node(hull, (pieces[0] as MeshInstance3D).layers))
+
+
+static func _outline_node(hull: ArrayMesh, layers: int) -> MeshInstance3D:
+	if _outline_mat == null:
+		_outline_mat = ShaderMaterial.new()
+		_outline_mat.shader = OUTLINE
+	var o := MeshInstance3D.new()
+	o.name = "ToonOutline"
+	o.mesh = hull
+	o.material_override = _outline_mat
+	o.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	o.layers = layers
+	# de longe o traço tem menos de meio pixel: a casca nem é desenhada
+	o.visibility_range_end = OUTLINE_RANGE
+	o.visibility_range_end_margin = OUTLINE_RANGE_MARGIN
+	o.add_to_group(OUTLINE_GROUP)
+	stats.outlines += 1
+	return o
+
+
+## Cascas de várias peças numa malha só, cada uma na posição da peça (espaço do nó pai). A chave é a
+## lista de malhas e transformações: todos os goblins compartilham as mesmas 7 cascas.
+static func _merged_hull(pieces: Array) -> ArrayMesh:
+	var key_parts := []
+	for mi: MeshInstance3D in pieces:
+		key_parts.append(mi.mesh.get_instance_id())
+		key_parts.append(mi.transform)
+	var key := key_parts.hash()
+	if _merged.has(key):
+		return _merged[key]
+	var t0 := Time.get_ticks_usec()
+	var verts := PackedVector3Array()
+	var norms := PackedVector3Array()
+	var idx := PackedInt32Array()
+	for mi: MeshInstance3D in pieces:
+		var hull := _hull_of(mi.mesh)
+		if hull == null:
+			continue
+		var xf := mi.transform
+		var nb := xf.basis.inverse().transposed()      # normais: inversa transposta (escala não uniforme)
+		var plain := xf.is_equal_approx(Transform3D.IDENTITY)
+		for s in hull.get_surface_count():
+			var arr := hull.surface_get_arrays(s)
+			var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var nn: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+			var base := verts.size()
+			if plain:
+				verts.append_array(v)
+				norms.append_array(nn)
+			else:
+				for i in v.size():
+					verts.append(xf * v[i])
+					norms.append((nb * nn[i]).normalized())
+			if arr[Mesh.ARRAY_INDEX] != null:
+				for i in (arr[Mesh.ARRAY_INDEX] as PackedInt32Array):
+					idx.append(base + i)
+			else:
+				for i in v.size():
+					idx.append(base + i)
+	var out: ArrayMesh = null
+	if not verts.is_empty():
+		var arrays := []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = verts
+		arrays[Mesh.ARRAY_NORMAL] = norms
+		arrays[Mesh.ARRAY_INDEX] = idx
+		out = ArrayMesh.new()
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	_merged[key] = out
+	stats.hulls += 1
+	stats.hull_usec += Time.get_ticks_usec() - t0
+	return out
+
+
 ## Cópia da malha só com posição, ossos e uma normal por posição (média das faces vizinhas).
 static func _hull_of(mesh: Mesh) -> ArrayMesh:
 	if _hulls.has(mesh):
 		return _hulls[mesh]
+	var t0 := Time.get_ticks_usec()
 	var sums := {}
 	var surfaces := []
 	for s in mesh.get_surface_count():
@@ -268,4 +422,6 @@ static func _hull_of(mesh: Mesh) -> ArrayMesh:
 			flags = (mesh as ArrayMesh).surface_get_format(s) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
 		hull.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, out, [], {}, flags)
 	_hulls[mesh] = hull
+	stats.hulls += 1
+	stats.hull_usec += Time.get_ticks_usec() - t0
 	return hull

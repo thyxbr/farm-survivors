@@ -1420,7 +1420,8 @@ func _build_wave(n: int) -> Array:
 	var out: Array = []
 	if n % ColonyData.BOSS_EVERY == 0:
 		budget *= 0.7
-	var weights := {"slime": 3.0, "slime_veloz": 1.4, "goblin": 2.0, "slime_grande": 1.0, "goblin_bruto": 0.5 + 0.1 * n}
+	var weights := {"slime": 3.0, "slime_veloz": 1.4, "goblin": 2.0, "slime_grande": 1.0, "goblin_bruto": 0.5 + 0.1 * n,
+		"esqueleto": 1.0 + 0.06 * n}
 	var extra := _den_budgets(budget, n)
 	_fill_wave(out, budget, n, weights)
 	_fill_den_waves(out, extra, n, weights)
@@ -1452,7 +1453,7 @@ func _build_wave_coop(n: int) -> Array:
 		for d in extra:
 			extra[d] = float(extra[d]) / _overflow_hp
 	var weights := {"slime": maxf(0.6, 3.0 - 0.15 * n), "slime_veloz": 1.4, "goblin": 2.0 + 0.05 * n,
-		"slime_grande": 1.0 + 0.08 * n, "goblin_bruto": 0.5 + 0.12 * n}
+		"slime_grande": 1.0 + 0.08 * n, "goblin_bruto": 0.5 + 0.12 * n, "esqueleto": 1.0 + 0.07 * n}
 	if night_mod == "cerco":
 		weights.goblin_bruto *= 3.0
 	var out: Array = []
