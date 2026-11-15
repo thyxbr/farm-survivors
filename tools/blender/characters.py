@@ -1132,7 +1132,9 @@ def smith_cycle(arm, P, joints, grips):
     return keys
 
 
-def build_blacksmith():
+def build_blacksmith(anime_body=False, out="blacksmith"):
+    """anime_body=True troca o corpo em caixas e lofts facetados pelo corpo liso de anime_body.py (cópia de teste,
+    ASSETS=blacksmith_body); cabeça, martelo, esqueleto e clipes são os mesmos."""
     shirt = mat("b_shirt", hexc("#C9B48C"), 0.95)
     shirt_d = mat("b_shirt_d", hexc("#9A845E"), 0.95)
     pants = mat("b_pants", hexc("#4E4136"), 0.95)
@@ -1163,42 +1165,48 @@ def build_blacksmith():
         return new
 
     Z = (0, 0, 1)
-    # ---------------- pernas: calça grossa enfiada na bota de cano curto
-    for n, s, sd in (("L", 1, "Left"), ("R", -1, "Right")):
-        S = limb_sections(P, s)
-        K = mirror(P["knee"], s)
-        loft("Leg%s_Pants" % n, grow(S["thigh"], 1.12, 0.012), pants, None)
-        loft("Leg%s_PantsShin" % n, grow(span(S["shin"], 0.0, 0.62), 1.2, 0.01), pants, None)
-        weigh(take(), Z, [(K.z - 0.035, sd + "Leg"), (K.z + 0.045, sd + "UpLeg"), (hip_z - 0.06, sd + "UpLeg"),
-                          (hip_z + 0.02, "Hips")])
-        boot("Leg" + n, K.x, lea_d, sole, None, top_z=0.34, cuff=glove_d)
-        ring("Leg%s_BootStrap" % n, 0.2, 0.068, 0.026, glove, sides=7, x=K.x)
-        tbox("Leg%s_BootBuckle" % n, (K.x + s * 0.04, -0.052, 0.2), (0.026, 0.012, 0.026), iron, bevel=0.003)
-        weigh(take(), Z, [(0.11, sd + "Foot"), (0.16, sd + "Leg")])
+    M = dict(shirt=shirt, shirt_d=shirt_d, pants=pants, apron=apron, apron_d=apron_d, apron_l=apron_l, glove=glove,
+             glove_d=glove_d, lea_d=lea_d, sole=sole, iron=iron, skin=skin, skin_d=skin_d)
+    if anime_body:
+        doran_legs(P, M, take)
+        doran_torso(P, M, take)
+    else:
+        # ---------------- pernas: calça grossa enfiada na bota de cano curto
+        for n, s, sd in (("L", 1, "Left"), ("R", -1, "Right")):
+            S = limb_sections(P, s)
+            K = mirror(P["knee"], s)
+            loft("Leg%s_Pants" % n, grow(S["thigh"], 1.12, 0.012), pants, None)
+            loft("Leg%s_PantsShin" % n, grow(span(S["shin"], 0.0, 0.62), 1.2, 0.01), pants, None)
+            weigh(take(), Z, [(K.z - 0.035, sd + "Leg"), (K.z + 0.045, sd + "UpLeg"), (hip_z - 0.06, sd + "UpLeg"),
+                              (hip_z + 0.02, "Hips")])
+            boot("Leg" + n, K.x, lea_d, sole, None, top_z=0.34, cuff=glove_d)
+            ring("Leg%s_BootStrap" % n, 0.2, 0.068, 0.026, glove, sides=7, x=K.x)
+            tbox("Leg%s_BootBuckle" % n, (K.x + s * 0.04, -0.052, 0.2), (0.026, 0.012, 0.026), iron, bevel=0.003)
+            weigh(take(), Z, [(0.11, sd + "Foot"), (0.16, sd + "Leg")])
 
-    # ---------------- tronco: camisa de linho, cinto largo e avental de couro com bolso
-    tbox("Hips", (0, 0, 0.965), (0.35, 0.25, 0.17), pants, bottom=(0.9, 0.9), bevel=0.03)
-    tbox("Belt", (0, 0, 1.0), (0.37, 0.27, 0.055), lea_d, bevel=0.008)
-    tbox("Buckle", (0.06, -0.137, 1.0), (0.056, 0.012, 0.05), iron, bevel=0.004)
-    tbox("Rag", (-0.185, -0.07, 0.9), (0.08, 0.02, 0.17), shirt_d, bottom=(1.25, 1), rot=(0, 0, 0.6), jitter=0.004)
-    tbox("ApronSkirt", (0, -0.152, 0.745), (0.4, 0.02, 0.5), apron, bottom=(1.12, 1), rot=(-0.06, 0, 0), bevel=0.004)
-    tbox("ApronHem", (0, -0.168, 0.505), (0.452, 0.026, 0.04), apron_d, rot=(-0.06, 0, 0))
-    tbox("ApronPocket", (0.085, -0.17, 0.78), (0.15, 0.016, 0.13), apron_d, bevel=0.004, rot=(-0.06, 0, 0))
-    tbox("ApronPocketLip", (0.085, -0.18, 0.84), (0.152, 0.014, 0.022), apron_l, rot=(-0.06, 0, 0))
-    limb("TongsHandleA", (0.06, -0.18, 0.8), (0.07, -0.2, 0.97), 0.008, 0.008, iron, sides=4)
-    limb("TongsHandleB", (0.08, -0.18, 0.8), (0.1, -0.2, 0.96), 0.008, 0.008, iron, sides=4)
-    weigh(take(), Z, [(0.0, "Hips")])
-    tbox("Chest", (0, 0, 1.215), (0.4, 0.25, 0.45), shirt, top=(1.12, 1.0), bottom=(0.9, 0.94), bevel=0.04)
-    tbox("ChestOpen", (0, -0.127, 1.39), (0.085, 0.012, 0.09), skin_d, bottom=(0.2, 1))
-    tbox("ApronBib", (0, -0.14, 1.2), (0.27, 0.02, 0.36), apron, top=(0.8, 1), bevel=0.004)
-    tbox("ApronBibTrim", (0, -0.152, 1.375), (0.222, 0.014, 0.024), apron_d)
-    for s in (1, -1):
-        limb("ApronStrap%d" % s, (s * 0.1, -0.15, 1.38), (s * 0.075, 0.03, 1.47), 0.012, 0.012, apron_d, sides=4,
-             flat=0.4)
-        limb("ApronTie%d" % s, (s * 0.2, -0.13, 1.03), (s * 0.2, 0.0, 1.03), 0.014, 0.014, apron_d, sides=4, flat=0.4)
-    weigh(take(), Z, [(1.0, "Hips"), (1.08, "Spine"), (1.2, "Spine1"), (1.32, "Spine2")])
-    limb("Neck", (0, 0.012, 1.38), (0, 0.016, 1.6), 0.072, 0.062, skin, sides=8)
-    weigh(take(), Z, [(1.44, "Spine2"), (1.5, "Neck")])
+        # ---------------- tronco: camisa de linho, cinto largo e avental de couro com bolso
+        tbox("Hips", (0, 0, 0.965), (0.35, 0.25, 0.17), pants, bottom=(0.9, 0.9), bevel=0.03)
+        tbox("Belt", (0, 0, 1.0), (0.37, 0.27, 0.055), lea_d, bevel=0.008)
+        tbox("Buckle", (0.06, -0.137, 1.0), (0.056, 0.012, 0.05), iron, bevel=0.004)
+        tbox("Rag", (-0.185, -0.07, 0.9), (0.08, 0.02, 0.17), shirt_d, bottom=(1.25, 1), rot=(0, 0, 0.6), jitter=0.004)
+        tbox("ApronSkirt", (0, -0.152, 0.745), (0.4, 0.02, 0.5), apron, bottom=(1.12, 1), rot=(-0.06, 0, 0), bevel=0.004)
+        tbox("ApronHem", (0, -0.168, 0.505), (0.452, 0.026, 0.04), apron_d, rot=(-0.06, 0, 0))
+        tbox("ApronPocket", (0.085, -0.17, 0.78), (0.15, 0.016, 0.13), apron_d, bevel=0.004, rot=(-0.06, 0, 0))
+        tbox("ApronPocketLip", (0.085, -0.18, 0.84), (0.152, 0.014, 0.022), apron_l, rot=(-0.06, 0, 0))
+        limb("TongsHandleA", (0.06, -0.18, 0.8), (0.07, -0.2, 0.97), 0.008, 0.008, iron, sides=4)
+        limb("TongsHandleB", (0.08, -0.18, 0.8), (0.1, -0.2, 0.96), 0.008, 0.008, iron, sides=4)
+        weigh(take(), Z, [(0.0, "Hips")])
+        tbox("Chest", (0, 0, 1.215), (0.4, 0.25, 0.45), shirt, top=(1.12, 1.0), bottom=(0.9, 0.94), bevel=0.04)
+        tbox("ChestOpen", (0, -0.127, 1.39), (0.085, 0.012, 0.09), skin_d, bottom=(0.2, 1))
+        tbox("ApronBib", (0, -0.14, 1.2), (0.27, 0.02, 0.36), apron, top=(0.8, 1), bevel=0.004)
+        tbox("ApronBibTrim", (0, -0.152, 1.375), (0.222, 0.014, 0.024), apron_d)
+        for s in (1, -1):
+            limb("ApronStrap%d" % s, (s * 0.1, -0.15, 1.38), (s * 0.075, 0.03, 1.47), 0.012, 0.012, apron_d, sides=4,
+                 flat=0.4)
+            limb("ApronTie%d" % s, (s * 0.2, -0.13, 1.03), (s * 0.2, 0.0, 1.03), 0.014, 0.014, apron_d, sides=4, flat=0.4)
+        weigh(take(), Z, [(1.0, "Hips"), (1.08, "Spine"), (1.2, "Spine1"), (1.32, "Spine2")])
+        limb("Neck", (0, 0.012, 1.38), (0, 0.016, 1.6), 0.072, 0.062, skin, sides=8)
+        weigh(take(), Z, [(1.44, "Spine2"), (1.5, "Neck")])
 
     # ---------------- cabeça: rosto largo, sobrancelha pesada, cabelo curto, barba cheia
     face_mats = {"skin": skin, "lip": mat("b_lip", hexc("#A55E4A"), 0.7), "sclera": mat("b_sclera", hexc("#EAE2D6"), 0.4),
@@ -1214,44 +1222,51 @@ def build_blacksmith():
     anime_beard("", H, hm, None)
     weigh(take(), Z, [(0.0, "Head")])
 
-    # ---------------- braços fortes: manga arregaçada, antebraço à mostra, luva de couro grossa.
-    # Montados na pose natural (body.py) e girados em volta do ombro e do cotovelo até a pose T.
-    joints, grips = {}, {}
-    for n, s, sd in (("L", 1, "Left"), ("R", -1, "Right")):
-        S = limb_sections(dict(P, lb=1.35), s)       # braços mais grossos que as pernas
-        U, F = S["upper"], S["fore"]
-        sh, el, wr = (mirror(P[j], s) for j in ("shoulder", "elbow", "wrist"))
-        loft("Arm%s_Upper" % n, U, skin, None)
-        loft("Arm%s_Sleeve" % n, grow(span(U, 0.0, 0.5), 1.12, 0.012), shirt, None)
-        loft("Arm%s_Roll" % n, grow([sample(U, 0.42), sample(U, 0.54)], 1.22, 0.016), shirt_d, None)
-        upper = take()
-        loft("Arm%s_Fore" % n, F, skin, None)
-        cf = 1.3 * P["k"]
-        loft("Arm%s_GloveCuff" % n, [dict(sample(F, 0.5), rx=0.052 * cf, ry=0.056 * cf),
-                                     dict(sample(F, 1.0), rx=0.046 * cf, ry=0.05 * cf)], glove_d, None,
-             chamfer=(0.006, 0.0))
-        fist("Arm" + n, P, s, glove, None)
-        fore = take()
-        # pose T: braço reto em ±X, ombro fixo
-        tx = Vector((s, 0, 0))
-        r_up = (el - sh).normalized().rotation_difference(tx)
-        r_fo = (wr - el).normalized().rotation_difference(tx)
-        el_t = sh + r_up @ (el - sh)
-        wr_t = el_t + r_fo @ (wr - el)
-        for o in upper:
-            for v in o.data.vertices:
-                v.co = sh + r_up @ (v.co - sh)
-        for o in fore:
-            for v in o.data.vertices:
-                v.co = el_t + r_fo @ (v.co - el)
-        ax = (s, 0, 0)
-        weigh(upper, ax, [(0.0, sd + "Arm")])      # gradiente no ombro esticava a manga em ponta: rígido
-        weigh(fore, ax, [(abs(el_t.x) - 0.03, sd + "Arm"), (abs(el_t.x) + 0.04, sd + "ForeArm"),
-                         (abs(wr_t.x) - 0.005, sd + "ForeArm"), (abs(wr_t.x) + 0.02, sd + "Hand")])
-        joints[sd] = (sh, el_t, wr_t)
-        # centro do punho fechado (onde passa o cabo do martelo / da tenaz), na pose T
-        grips[sd] = el_t + r_fo @ (wr + Vector((-s * 0.004, 0, -0.064 * P["hd"])) - el)
+    if anime_body:
+        joints, grips = doran_arms(P, M, take)
+    else:
+        # ---------------- braços fortes: manga arregaçada, antebraço à mostra, luva de couro grossa.
+        # Montados na pose natural (body.py) e girados em volta do ombro e do cotovelo até a pose T.
+        joints, grips = {}, {}
+        for n, s, sd in (("L", 1, "Left"), ("R", -1, "Right")):
+            S = limb_sections(dict(P, lb=1.35), s)       # braços mais grossos que as pernas
+            U, F = S["upper"], S["fore"]
+            sh, el, wr = (mirror(P[j], s) for j in ("shoulder", "elbow", "wrist"))
+            loft("Arm%s_Upper" % n, U, skin, None)
+            loft("Arm%s_Sleeve" % n, grow(span(U, 0.0, 0.5), 1.12, 0.012), shirt, None)
+            loft("Arm%s_Roll" % n, grow([sample(U, 0.42), sample(U, 0.54)], 1.22, 0.016), shirt_d, None)
+            upper = take()
+            loft("Arm%s_Fore" % n, F, skin, None)
+            cf = 1.3 * P["k"]
+            loft("Arm%s_GloveCuff" % n, [dict(sample(F, 0.5), rx=0.052 * cf, ry=0.056 * cf),
+                                         dict(sample(F, 1.0), rx=0.046 * cf, ry=0.05 * cf)], glove_d, None,
+                 chamfer=(0.006, 0.0))
+            fist("Arm" + n, P, s, glove, None)
+            fore = take()
+            # pose T: braço reto em ±X, ombro fixo
+            tx = Vector((s, 0, 0))
+            r_up = (el - sh).normalized().rotation_difference(tx)
+            r_fo = (wr - el).normalized().rotation_difference(tx)
+            el_t = sh + r_up @ (el - sh)
+            wr_t = el_t + r_fo @ (wr - el)
+            for o in upper:
+                for v in o.data.vertices:
+                    v.co = sh + r_up @ (v.co - sh)
+            for o in fore:
+                for v in o.data.vertices:
+                    v.co = el_t + r_fo @ (v.co - el)
+            ax = (s, 0, 0)
+            weigh(upper, ax, [(0.0, sd + "Arm")])      # gradiente no ombro esticava a manga em ponta: rígido
+            weigh(fore, ax, [(abs(el_t.x) - 0.03, sd + "Arm"), (abs(el_t.x) + 0.04, sd + "ForeArm"),
+                             (abs(wr_t.x) - 0.005, sd + "ForeArm"), (abs(wr_t.x) + 0.02, sd + "Hand")])
+            joints[sd] = (sh, el_t, wr_t)
+            # centro do punho fechado (onde passa o cabo do martelo / da tenaz), na pose T
+            grips[sd] = el_t + r_fo @ (wr + Vector((-s * 0.004, 0, -0.064 * P["hd"])) - el)
 
+    if os.environ.get("PART_TRIS"):     # custo por peça, antes de juntar
+        for o in coll.objects:
+            if o.type == 'MESH':
+                print("TRIS_PART", o.name, sum(len(q.vertices) - 2 for q in o.data.polygons))
     body = join_objs("Blacksmith", [o for o in coll.objects if o.type == 'MESH'])
 
     # ---------------- martelo (objeto à parte, pivô no punho da mão direita, cabo para a frente)
@@ -1299,5 +1314,5 @@ def build_blacksmith():
     bake_clip(arm, "work_pause", [(0, down), (18, brow), (38, wipe), (55, brow), (75, down)])
     bake_clip(arm, "idle", [(0, down), (45, breathe), (90, down)])
     bake_clip(arm, "talk", [(0, down), (20, gest_a), (45, gest_b), (70, gest_c), (90, down)])
-    export("blacksmith", export_animations=True, export_skins=True, export_animation_mode='NLA_TRACKS')
+    export(out, export_animations=True, export_skins=True, export_animation_mode='NLA_TRACKS')
     scn.render.fps = fps

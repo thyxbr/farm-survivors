@@ -18,3 +18,6 @@ Thumbs.db
 
 # Capturas de conferência (locais)
 /shots/
+
+# Cópia de teste do corpo liso do Doran (ASSETS=blacksmith_body)
+/assets/models/blacksmith_body.glb*

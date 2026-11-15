@@ -338,6 +338,7 @@ exec(open(OUT.replace("assets/models/", "tools/blender/weapons.py"), encoding="u
 exec(open(OUT.replace("assets/models/", "tools/blender/gear.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/body_mesh.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/anime.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/anime_body.py"), encoding="utf-8").read(), globals())
 
 # ASSETS="knight,elder" no ambiente gera só esses (útil para iterar).
 import os
@@ -348,6 +349,8 @@ BUILDERS = {
     "blacksmith": build_blacksmith,
     "skeleton": build_skeleton,
 }
+if "blacksmith_body" in _only:   # cópia de teste do Doran com o corpo liso (anime_body.py); só quando pedida
+    BUILDERS["blacksmith_body"] = lambda: build_blacksmith(anime_body=True, out="blacksmith_body")
 BUILDERS.update(PROP_BUILDERS)
 if "buildings" in _only:   # ASSETS=buildings gera todas as construções da Defesa da Cidade (b_<tipo>_<nível>)
     _only += [n for n in PROP_BUILDERS if n.startswith("b_")]
