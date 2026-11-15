@@ -648,7 +648,10 @@ func _demo_city() -> void:
 	c.place("archer_tower", Vector3(14, 0, 14), 0.0, true, 2)
 	c.place("cannon_tower", Vector3(0, 0, -19), 0.0, true)
 	c.place("mage_tower", Vector3(14, 0, -19), 0.0, true, 3)
-	c.citizens = 20
+	# serraria e pedreira do lado de fora do portão, de frente para a câmera
+	c.place("lumber_camp", Vector3(-8, 0, 24), 0.0, true)
+	c.place("quarry", Vector3(13, 0, 24), 0.0, true, 2)
+	c.citizens = 30
 	for u in ["soldier", "soldier", "archer", "archer", "knight", "militia"]:
 		c.spawn_soldier(u, Vector3(randf_range(-3, 3), 0, 12))
 	c.set_rally(Vector3(0, 0, 14), true)

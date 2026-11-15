@@ -197,6 +197,13 @@ func _update_interactable() -> void:
 		remove_from_group("interactable")
 
 
+## Distância usada pelo jogador para escolher o alvo do E: da borda da pegada (a prefeitura tem 7 m de
+## largura; medindo do centro ela quase nunca entrava nos 3 m). O +0,8 deixa o alcance em ~2,2 m da parede
+## e dá a preferência a quem está mais perto de verdade (caravana, baú) quando os dois estão ao alcance.
+func interact_distance(p: Vector3) -> float:
+	return distance_to_point(p) + 0.8
+
+
 func interact_prompt() -> String:
 	match kind:
 		"town_hall":
