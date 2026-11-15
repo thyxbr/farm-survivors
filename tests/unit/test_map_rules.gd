@@ -1,0 +1,34 @@
+extends RefCounted
+## MapRules: conversão mundo ↔ mapa de cada região e o filtro de quem aparece no mapa (só o grupo).
+
+
+func test_village_corners_and_center() -> void:
+	T.eq(MapRules.to_uv("vila", Vector3(0, 0, 0)), Vector2(0.5, 0.5), "centro do vale")
+	T.eq(MapRules.to_uv("vila", Vector3(-125, 0, -125)), Vector2(0, 0), "canto noroeste")
+	T.eq(MapRules.to_uv("vila", Vector3(125, 9, 125)), Vector2(1, 1), "canto sudeste (altura não conta)")
+	T.ok(MapRules.to_uv("vila", Vector3(0, 0, -100)).y < 0.5, "as ruínas (norte) ficam em cima")
+
+
+func test_round_trip_in_far_region() -> void:
+	var p := Regions.at("mina", Vector3(12, 0, -30))
+	var uv := MapRules.to_uv("mina", p)
+	T.ok(uv.x > 0.0 and uv.x < 1.0 and uv.y > 0.0 and uv.y < 1.0, "dentro do mapa da mina")
+	T.ok(MapRules.from_uv("mina", uv).distance_to(p) < 0.01, "ida e volta")
+
+
+func test_places_include_coach_for_every_region() -> void:
+	for id in Regions.ORDER:
+		var names: Array = MapRules.places(id).map(func(p: Array) -> String: return p[0])
+		T.ok("Carruagem da Guilda" in names, "carruagem no mapa %s" % id)
+		for p in MapRules.places(id):
+			T.eq(Regions.region_at(p[1]), id, "%s fica dentro de %s" % [p[0], id])
+
+
+func test_only_party_members_are_shown() -> void:
+	T.eq(MapRules.shown_players([1, 2, 3, 4], [1, 3], 1), [3], "só o grupo, sem eu")
+	T.eq(MapRules.shown_players([1, 2], [], 1), [], "sem grupo ninguém aparece")
+
+
+func test_heading_north_is_zero() -> void:
+	T.ok(absf(MapRules.heading(Vector3(0, 0, -1))) < 0.001, "norte = 0")
+	T.ok(absf(MapRules.heading(Vector3(1, 0, 0)) - PI / 2) < 0.001, "leste = 90°")

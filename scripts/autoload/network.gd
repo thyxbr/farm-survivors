@@ -275,6 +275,7 @@ func _drop_player(id: int) -> void:
 		_player_left.rpc_id(pid, id)
 	players_changed.emit()
 	_horde_peer_gone(id)
+	Party.server_peer_gone(id)
 	Lobby.server_peer_gone(id, was_city)
 	if characters != null and account > 0:
 		# por sessão: a queda tardia de uma conexão velha não descarrega a sessão nova
@@ -506,12 +507,26 @@ func server_enemy_killed(e: Enemy) -> void:
 		Lobby.server_city_kill(e)
 	elif not e.horde:
 		# a horda não dá XP/loot do RPG: as gemas vêm pelo _horde_kill do modo sobrevivência.
-		# Cada jogador que acertou ganha o abate no personagem (servidor) e o próprio sorteio de loot.
+		# Cada jogador que acertou ganha o próprio sorteio de loot. O XP é dividido com o grupo de quem
+		# acertou (em Valdoria) e o abate conta na missão de quem está perto do combate (PartyRules).
+		var hitters: Array = []
 		for pid in e.contributors:
 			if players.has(pid) and zone_of(pid) == "world":
-				Econ.server_kill(pid, e.kind, int(e.data.xp))
+				hitters.append(pid)
+		var rewards := Party.server_kill_rewards(int(e.data.xp), hitters, pos, "world")
+		for pid in rewards:
+			if not players.has(pid):
+				continue
+			var r: Dictionary = rewards[pid]
+			if r.kill:
+				Econ.server_kill(pid, e.kind, int(r.xp))
+			elif int(r.xp) > 0:
+				Econ.server_grant(pid, 0, int(r.xp), {}, "party_xp", 0, false,
+					[{"t": "notify", "text": "+%d XP do grupo (longe demais para contar na missão)" % int(r.xp),
+						"color": Color(0.7, 0.85, 1.0)}])
+			if r.loot:
 				Econ.server_drop_loot(pid, e.kind, pos, "world")
-				_kill_reward.rpc_id(pid, e.kind, int(e.data.xp), pos)
+				_kill_reward.rpc_id(pid, e.kind, int(r.xp), pos)
 	for pid in _enemy_peers(e):
 		_enemy_died.rpc_id(pid, e.net_id)
 
@@ -762,6 +777,7 @@ func leave() -> void:
 	Lobby.client_reset()
 	Econ.client_reset()
 	Hub.client_reset()
+	Party.client_reset()
 	Weather.clear_server_time()
 
 

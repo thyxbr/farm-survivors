@@ -73,6 +73,8 @@ const KITCHEN := preload("res://scripts/farm/kitchen.gd")
 const PLANT_UI := preload("res://scripts/ui/plant_ui.gd")
 const COOKING_UI := preload("res://scripts/ui/cooking_ui.gd")
 const GROUND := preload("res://scripts/world/ground.gd")
+const WORLD_MAP_UI := preload("res://scripts/ui/world_map_ui.gd")
+const PARTY_UI := preload("res://scripts/ui/party_ui.gd")
 const FIELD_CROP := preload("res://assets/models/field_crop.glb")
 
 const MAP_HALF := 125.0
@@ -106,6 +108,8 @@ var survival: Node3D = null
 var chat: CanvasLayer = null
 ## Cartões de título dos episódios da história (StoryCard).
 var story_card: StoryCard = null
+## Fotos de cima de cada mapa (minimapa e mapa-mundi); null no servidor dedicado.
+var map_capture: MapCapture = null
 ## Mapas fora do vale (RegionBuilder): chão de cada um e os pontos de nascimento dos monstros deles.
 var region_grounds := {}
 var region_spawns: Array = []
@@ -176,6 +180,10 @@ func _ready() -> void:
 	hud = HUD.new()
 	hud.player = player
 	add_child(hud)
+	map_capture = MapCapture.new()
+	add_child(map_capture)
+	hud.add_minimap(self, map_capture)
+	map_capture.texture(Regions.region_at(player.global_position))   # foto do mapa ainda atrás do carregamento
 	story_card = StoryCard.new()
 	story_card.world = self
 	add_child(story_card)
@@ -1132,11 +1140,22 @@ func _unhandled_input(event: InputEvent) -> void:
 		_open_menu(1)
 	elif event.is_action_pressed("quest_log"):
 		_open_menu(2)
+	elif event.is_action_pressed("world_map") and survival == null:
+		open_world_map()
+	elif event.is_action_pressed("party"):
+		_open_modal(PARTY_UI.new())
 	elif survival == null:
 		for i in KnightEmotes.KINDS.size():
 			if event.is_action_pressed("emote_%d" % (i + 1)):
 				player.play_emote(KnightEmotes.KINDS[i])
 				return
+
+
+func open_world_map() -> void:
+	var m := WORLD_MAP_UI.new()
+	m.world = self
+	m.capture = map_capture
+	_open_modal(m)
 
 
 func _open_menu(tab: int) -> void:
