@@ -9,3 +9,19 @@ extends Node3D
 @export var id := ""
 ## Assenta no relevo (a altura do nó vira distância até o chão).
 @export var follow_ground := true
+
+var _height := Callable()
+
+
+func _ready() -> void:
+	if Engine.is_editor_hint():
+		build_preview(_height)
+
+
+func build_preview(height: Callable = Callable()) -> void:
+	_height = height
+	var p := MapPreview.fresh(self)
+	MapPreview.box(p, Vector3(0, 1.5, 0), Vector3(0.08, 3.0, 0.08), Color(0.9, 0.9, 0.9))
+	MapPreview.box(p, Vector3(0.35, 2.75, 0), Vector3(0.7, 0.45, 0.04), Color(0.2, 0.7, 1.0))
+	MapPreview.label(p, Vector3(0, 3.6, 0), "📍 " + id)
+	MapPreview.seat(self, p, follow_ground, height)

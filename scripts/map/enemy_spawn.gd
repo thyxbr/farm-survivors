@@ -6,15 +6,31 @@ extends Node3D
 ## vêm do data/balance/enemies.json. `boss`: só nasce quando a missão chama (o rei goblin).
 
 ## Tipo do monstro (chave do enemies.json).
-@export var kind := "slime"
+@export var kind := "slime":
+	set(v):
+		kind = v
+		if Engine.is_editor_hint() and is_inside_tree():
+			build_preview(_height)
 ## Quantos monstros este ponto mantém.
-@export_range(0, 50) var count := 1
+@export_range(0, 50) var count := 1:
+	set(v):
+		count = v
+		if Engine.is_editor_hint() and is_inside_tree():
+			build_preview(_height)
 ## Raio (m) em volta do ponto onde eles nascem; 0 = todos no centro.
-@export_range(0.0, 40.0, 0.1) var radius := 0.0
+@export_range(0.0, 40.0, 0.1) var radius := 0.0:
+	set(v):
+		radius = v
+		if Engine.is_editor_hint() and is_inside_tree():
+			build_preview(_height)
 ## Segundos até um monstro morto voltar.
 @export_range(1.0, 3600.0, 1.0) var respawn := 30.0
 ## Só nasce pela missão (o chefe).
-@export var boss := false
+@export var boss := false:
+	set(v):
+		boss = v
+		if Engine.is_editor_hint() and is_inside_tree():
+			build_preview(_height)
 ## Assenta no relevo (a altura do nó vira distância até o chão).
 @export var follow_ground := true
 
@@ -33,3 +49,24 @@ static func spread(center: Vector3, count: int, radius: float) -> Array[Vector3]
 		var a := i * GOLDEN
 		out.append(center + Vector3(cos(a) * r, 0.0, sin(a) * r))
 	return out
+
+const SPAWN_COLOR := Color(1.0, 0.25, 0.2)
+
+var _height := Callable()
+
+
+func _ready() -> void:
+	if Engine.is_editor_hint():
+		build_preview(_height)
+
+
+## Disco do raio, um boneco vermelho onde nasce cada monstro e o rótulo "tipo ×quantidade".
+func build_preview(height: Callable = Callable()) -> void:
+	_height = height
+	var p := MapPreview.fresh(self)
+	if radius > 0.0:
+		MapPreview.disc(p, radius, Color(SPAWN_COLOR, 0.15), 0.08)
+	for at in spread(Vector3.ZERO, count, radius):
+		MapPreview.dummy(p, at, "", SPAWN_COLOR, 1.0)
+	MapPreview.label(p, Vector3(0, 2.0, 0), "%s ×%d%s" % [kind, count, " (chefe)" if boss else ""])
+	MapPreview.seat(self, p, follow_ground, height)
