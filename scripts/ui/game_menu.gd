@@ -605,8 +605,8 @@ func _refresh_quests() -> void:
 	rv.add_child(_gap(4))
 	rv.add_child(UITheme.ink_section("Objetivo", 18))
 	var counts := {}
-	if CharRules.quest_type(d) == "collect":
-		counts[d.target] = Game.count_item(str(d.target))
+	for item in StoryRules.count_ids(d):
+		counts[item] = Game.count_item(item)
 	var pr := StoryRules.progress(ItemDB.QUESTS, Game.quests, quest_sel, counts)
 	var turn := StoryRules.turnable(ItemDB.QUESTS, Game.quests, quest_sel, counts)
 	var obj := UITheme.ink(str(d.get("objective", d.desc)), 16)

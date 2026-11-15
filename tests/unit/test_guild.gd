@@ -143,10 +143,13 @@ func test_quest_data_valid() -> void:
 			T.ok(items.has(it), "%s: item de recompensa %s existe" % [id, it])
 		match CharRules.quest_type(d):
 			"kill":
-				for k in d.get("targets", [d.target]):
+				for k in d.get("targets", [d.get("target", "")]):
 					T.ok(enemies.has(k), "%s: inimigo %s existe" % [id, k])
 			"collect":
 				T.ok(items.has(d.target), "%s: item %s existe" % [id, d.target])
+			"deliver":
+				for it in d.deliver:
+					T.ok(items.has(it), "%s: item %s da entrega existe" % [id, it])
 		T.ok(StoryRules.RANKS.has(str(d.get("rank", "D"))), "%s: rank válido" % id)
 		if d.has("where"):
 			T.ok(d.where.size() == 2, "%s: where é [x, z]" % id)

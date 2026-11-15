@@ -6,6 +6,7 @@ const MODELS := {
 	"elder": "res://assets/models/elder.glb",
 	"merchant": "res://assets/models/merchant.glb",
 	"blacksmith": "res://assets/models/blacksmith.glb",
+	"santa": "res://assets/models/santa.glb",
 }
 
 @export var npc_id := "elder"
@@ -119,8 +120,8 @@ func _update_marker() -> void:
 	var qt: Dictionary = ItemDB.QUESTS
 	var counts := {}
 	for id in qt:
-		if CharRules.quest_type(qt[id]) == "collect":
-			counts[qt[id].target] = Game.count_item(str(qt[id].target))
+		for item in StoryRules.count_ids(qt[id]):
+			counts[item] = Game.count_item(item)
 	var m := StoryRules.marker(qt, Game.quests, npc_id, counts, Game.rank())
 	set_marker(marker, m)
 

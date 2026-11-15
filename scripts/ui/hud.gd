@@ -547,7 +547,7 @@ func _refresh_quests() -> void:
 		elif CharRules.quest_type(d) == "talk":
 			txt = str(d.get("objective", "Fale com %s" % d.get("turn_in", d.giver)))
 		else:
-			txt = "%s: %d/%d" % [d.get("objective", d.target), prog[0], prog[1]]
+			txt = "%s: %d/%d" % [d.get("objective", d.get("target", "")), prog[0], prog[1]]
 		var l := UITheme.outlined(txt, 13, UITheme.TEXT, 3)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -584,8 +584,8 @@ func _quest_counts() -> Dictionary:
 	var c := {}
 	for id in ItemDB.QUESTS:
 		var q: Dictionary = ItemDB.QUESTS[id]
-		if CharRules.quest_type(q) == "collect":
-			c[q.target] = Game.count_item(str(q.target))
+		for item in StoryRules.count_ids(q):
+			c[item] = Game.count_item(item)
 	return c
 
 

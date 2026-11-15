@@ -96,16 +96,16 @@ func _ready() -> void:
 		gear_ok = gear_ok and got == w2
 	check(gear_ok, "cada monstro só carrega o equipamento da sua variante")
 	# vale: 5 NPCs + bilhete + portal + guilda (Lina, quadro, cocheiro) + Rufus, Zélia, Tonico, Ravi, Osvaldo, gato;
-	# mapas: Sylvi, Tico e cocheiro no bosque; Bolgar, diário e cocheiro na mina; só o cocheiro no pico (o Kael
+	# mais o Papai Noel e os 6 pontos da antiga praça (VillageLayout.POINTS); mapas: Sylvi, Tico e cocheiro no bosque; Bolgar, diário e cocheiro na mina; só o cocheiro no pico (o Kael
 	# de lá aparece no Arco 2)
 	var n_inter := get_tree().get_nodes_in_group("interactable").size()
-	check(n_inter == 7 + 9 + 7 + Game.FARM_PLOTS + 1,
+	check(n_inter == 7 + 9 + 7 + 1 + VillageLayout.POINTS.size() + Game.FARM_PLOTS + 1,
 		"interagíveis do vale, da guilda e dos mapas + %d canteiros + caldeirão (%d)" % [Game.FARM_PLOTS, n_inter])
 
 	# --- diálogo e missão
 	var elder: Node = null
 	for n in get_tree().get_nodes_in_group("interactable"):
-		if n.npc_id == "elder":
+		if n.get("npc_id") == "elder":
 			elder = n
 	player.global_position = elder.global_position + Vector3(0, 0.2, 1.5)
 	await wait(0.3)
@@ -2001,7 +2001,7 @@ func _story_to(target: String) -> void:
 
 func _interactable(id: String, index := -1) -> Node:
 	for n in get_tree().get_nodes_in_group("interactable"):
-		if n.npc_id == id and (index < 0 or n.get("index") == index):
+		if n.get("npc_id") == id and (index < 0 or n.get("index") == index):
 			return n
 	return null
 
@@ -2103,7 +2103,7 @@ func _test_farm() -> void:
 func _test_survival() -> void:
 	var portal: Node = null
 	for n in get_tree().get_nodes_in_group("interactable"):
-		if n.npc_id == "portal":
+		if n.get("npc_id") == "portal":
 			portal = n
 	check(portal != null, "portal do desafio na vila")
 	player.global_position = portal.global_position + Vector3(0, 0.3, 1.5)

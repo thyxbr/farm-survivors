@@ -34,6 +34,7 @@ const NAMES := {
 	"coach_bosque": "Beto, o Cocheiro",
 	"coach_mina": "Beto, o Cocheiro",
 	"coach_pico": "Beto, o Cocheiro",
+	"santa": "Papai Noel",
 }
 ## Cor da plaquinha de nome de cada um (a caixa de diálogo pinta a borda e o nome com ela).
 const COLORS := {
@@ -60,6 +61,7 @@ const COLORS := {
 	"coach_bosque": Color(0.75, 0.6, 0.45),
 	"coach_mina": Color(0.75, 0.6, 0.45),
 	"coach_pico": Color(0.75, 0.6, 0.45),
+	"santa": Color(1.0, 0.35, 0.3),
 	"": Color(0.7, 0.72, 0.78),
 }
 const NARRATOR := ""
@@ -381,8 +383,8 @@ static func _counts(qt: Dictionary) -> Dictionary:
 	var c := {}
 	for id in qt:
 		var q: Dictionary = qt[id]
-		if CharRules.quest_type(q) == "collect":
-			c[q.target] = Game.count_item(str(q.target))
+		for item in StoryRules.count_ids(q):
+			c[item] = Game.count_item(item)
 	return c
 
 
@@ -817,6 +819,11 @@ static func _idle(id: String) -> Array:
 				lines = ["Rival! Pronto para o nosso duelo? ...Hoje não, estou com cãibra.",
 					"Eu treinei a noite toda. Bem, treinei a pose. A espada fica para amanhã.",
 					"A Pip me ofereceu uma poção de coragem. Recusei. Por coragem."]
+		"santa":
+			lines = ["Ho, ho, ho! O trenó está carregado e as renas descansadas. Feliz Natal, {heroi}!",
+				"As renas adoraram as cenouras da Horta. A Rodolfa comeu doze. Doze!",
+				"Já fiz a lista de quem foi bonzinho este ano. Você está nela. Em letra grande.",
+				"Ho, ho... ho? Alguém viu meu gorro reserva? Ah, está na cabeça. Ho, ho, ho!"]
 		"camp_note":
 			if StoryRules.state(Game.quests, "bilhete") == "done":
 				return [narr("(Só restou a faca de manteiga presa no caixote. Ainda cheira a cebola.)")]

@@ -11,7 +11,7 @@ var stat_points := 0
 var attributes := {"str": 5, "int": 5, "vit": 5, "agi": 5}
 var inventory: Array = []   # [{"id": String, "qty": int}]
 var equipment := {}         # espaço -> id ("" = vazio), ver CharRules.SLOTS
-var quests := {}            # id -> {"state": "active"|"ready"|"done", "progress": int}
+var quests := {}            # id -> {"state": "active"|"ready"|"done", "progress": int[, "got": [int]]}
 var flags := {}
 ## {"unlocked": int, "plots": [{"crop", "growth" 0..1, "t" unix s, "watered", "fert"}]}
 var farm := {}
@@ -112,6 +112,14 @@ static func from_dict(d, bt: BalanceTables = null) -> CharState:
 			if not (st is String and st in ["active", "ready", "done"]):   # "none" = sem entrada
 				continue
 			s.quests[id] = {"state": st, "progress": maxi(0, _int(q.get("progress"), 0))}
+			var got = q.get("got")
+			if got is Array:   # missões de coletar/visitar: os pontos já feitos (índices sem repetição)
+				var clean: Array = []
+				for g in got:
+					var gi := _int(g, -1)
+					if gi >= 0 and gi < 64 and not gi in clean:
+						clean.append(gi)
+				s.quests[id]["got"] = clean
 	var fl = d.get("flags")
 	s.flags = fl.duplicate(true) if fl is Dictionary else {}
 	s.farm = _parse_farm(d.get("farm"), bt)

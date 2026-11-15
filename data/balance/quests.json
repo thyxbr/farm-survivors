@@ -1395,5 +1395,157 @@
 		"reward_items": {
 			"vampire_ring": 1
 		}
+	},
+	"natal_presentes": {
+		"giver": "Papai Noel",
+		"event": "natal",
+		"side": true,
+		"guild_pts": 20,
+		"name": "Presentes Espalhados",
+		"type": "gather",
+		"desc": "Uma rena se assustou e os presentes caíram do trenó por todo o vale. Encontre os 8 presentes e traga de volta.",
+		"count": 8,
+		"reward_xp": 220,
+		"reward_gold": 150,
+		"reward_items": {
+			"health_potion": 3,
+			"seed_pumpkin": 3
+		},
+		"giver_id": "santa",
+		"turn_in": "Papai Noel",
+		"turn_in_id": "santa",
+		"talk": {
+			"offer": [
+				"! Ho, ho, ho! Feliz Natal, {heroi}! O velho Noel está numa enrascada...",
+				"Uma das renas se assustou com um slime no meio do voo. O saco abriu e os presentes caíram por todo o vale!",
+				"Procure nos campos, perto das ruínas, da floresta e do ninho dos slimes. Eles brilham, não tem como errar."
+			],
+			"accept": "Procurar os presentes",
+			"remind": "Os presentes brilham no chão: campos, ruínas, floresta, ninho dos slimes e o caminho da arena. ({n})",
+			"done": [
+				"! Todos de volta no saco! Nenhuma criança vai ficar sem o seu presente!",
+				"* (O Noel confere cada laço, um por um. Demora um pouco.)",
+				"[reward]Tome, isto é para você. Feliz Natal!"
+			]
+		},
+		"objective": "Presentes encontrados pelo vale"
+	},
+	"natal_ladroes": {
+		"giver": "Papai Noel",
+		"event": "natal",
+		"side": true,
+		"guild_pts": 20,
+		"name": "Ladrões de Natal",
+		"type": "kill",
+		"desc": "Goblins andam roubando as meias penduradas nas janelas. Derrote 6 goblins de qualquer tipo.",
+		"targets": [
+			"goblin",
+			"goblin_arqueiro",
+			"goblin_xama",
+			"goblin_dourado",
+			"goblin_campeao",
+			"goblin_bruto",
+			"goblin_king",
+			"goblin_bombardeiro"
+		],
+		"count": 6,
+		"reward_xp": 320,
+		"reward_gold": 200,
+		"reward_items": {
+			"wind_ring": 1
+		},
+		"giver_id": "santa",
+		"turn_in": "Papai Noel",
+		"turn_in_id": "santa",
+		"talk": {
+			"offer": [
+				"Tem mais uma coisa me tirando o sono... e olha que eu durmo pouco em dezembro.",
+				"Goblins andam rondando as janelas e roubando as meias penduradas. Que falta de espírito natalino!",
+				"Seis goblins, de qualquer tipo. Eles ficam no acampamento a leste e nas ruínas ao norte."
+			],
+			"accept": "Recuperar as meias",
+			"remind": "Os goblins ficam no acampamento a leste e nas ruínas ao norte. ({n})",
+			"done": [
+				"Ho, ho! As meias estão a salvo! Aqueles goblins vão ganhar carvão este ano.",
+				"[reward]Um anel para dedos rápidos. Combina com quem corre atrás de goblin."
+			]
+		},
+		"objective": "Goblins derrotados",
+		"where": [
+			62,
+			0
+		]
+	},
+	"natal_ceia": {
+		"giver": "Papai Noel",
+		"event": "natal",
+		"side": true,
+		"guild_pts": 20,
+		"name": "A Ceia do Noel",
+		"type": "deliver",
+		"desc": "O Noel quer uma ceia caseira antes da grande viagem: leve 2 Pães Rústicos e 1 Ensopado de Cenoura (cozinhe no Caldeirão da Horta).",
+		"deliver": {
+			"bread": 2,
+			"carrot_stew": 1
+		},
+		"count": 1,
+		"reward_xp": 260,
+		"reward_gold": 160,
+		"reward_items": {
+			"valdoria_feast": 2
+		},
+		"giver_id": "santa",
+		"turn_in": "Papai Noel",
+		"turn_in_id": "santa",
+		"talk": {
+			"offer": [
+				"Uma viagem dessas pede uma boa ceia. Disseram que a Horta de Valdoria é a melhor do reino...",
+				"~ Não conte para a Mamãe Noel, mas eu trocaria todos os biscoitos do Polo por um pão quentinho.",
+				"Dois Pães Rústicos e um Ensopado de Cenoura. As renas também gostam de cenoura, então... faça bastante."
+			],
+			"accept": "Preparar a ceia",
+			"remind": "Plante e cozinhe no Caldeirão da Horta, pelo portão sul: 2 Pães Rústicos e 1 Ensopado de Cenoura.",
+			"done": [
+				"! Hmm, que cheiro! Pão quentinho e ensopado... igualzinho ao da Mamãe Noel. Não conte a ela.",
+				"[reward]Um banquete para você também. Ninguém passa fome no Natal!"
+			]
+		},
+		"objective": "Leve 2 Pães Rústicos e 1 Ensopado de Cenoura ao Noel"
+	},
+	"natal_entregas": {
+		"giver": "Papai Noel",
+		"event": "natal",
+		"side": true,
+		"guild_pts": 20,
+		"name": "Entregas na Vila",
+		"type": "visit",
+		"desc": "Ajude o Noel a deixar presentes nas 6 casas marcadas com uma estrela pelas ruas de Valdoria.",
+		"count": 6,
+		"reward_xp": 260,
+		"reward_gold": 180,
+		"reward_items": {
+			"sage_amulet": 1
+		},
+		"giver_id": "santa",
+		"turn_in": "Papai Noel",
+		"turn_in_id": "santa",
+		"talk": {
+			"offer": [
+				"Algumas famílias pediram para receber os presentes antes da grande noite.",
+				"Marquei as portas com uma estrela dourada. São seis casas, espalhadas pelas ruas novas da vila.",
+				"Eu iria pessoalmente, mas a chaminé da taverna... digamos que ficou apertada."
+			],
+			"accept": "Fazer as entregas",
+			"remind": "As casas com a estrela dourada na porta esperam o presente. ({n})",
+			"done": [
+				"Todas as casas receberam o presente! Ouvi daqui as crianças comemorando.",
+				"[reward]Um amuleto para quem entrega alegria. Ho, ho, ho!"
+			]
+		},
+		"objective": "Casas da vila visitadas",
+		"where": [
+			0,
+			4
+		]
 	}
 }

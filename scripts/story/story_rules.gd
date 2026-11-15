@@ -12,6 +12,25 @@ extends RefCounted
 const RANKS := ["D", "C", "B", "A", "S"]
 
 
+## Itens que o personagem precisa contar para a missão q: o alvo da coleta ou os itens da entrega ("deliver").
+static func count_ids(q: Dictionary) -> Array:
+	match CharRules.quest_type(q):
+		"collect":
+			return [str(q.target)]
+		"deliver":
+			return q.get("deliver", {}).keys()
+	return []
+
+
+## Quantos dos itens pedidos pela entrega q o personagem já tem, de 0 a count (tudo ou nada: 1 só com todos).
+static func _delivered(q: Dictionary, counts: Dictionary) -> bool:
+	var need: Dictionary = q.get("deliver", {})
+	for item in need:
+		if int(counts.get(item, 0)) < int(need[item]):
+			return false
+	return true
+
+
 static func rank_ge(rank: String, need: String) -> bool:
 	return RANKS.find(rank) >= RANKS.find(need)
 
@@ -74,6 +93,8 @@ static func turnable(qt: Dictionary, quests: Dictionary, id: String, counts: Dic
 			return true
 		"collect":
 			return int(counts.get(q.target, 0)) >= int(q.count)
+		"deliver":
+			return _delivered(q, counts)
 	return false
 
 
@@ -137,6 +158,8 @@ static func progress(qt: Dictionary, quests: Dictionary, id: String, counts: Dic
 			return [0, total]
 		"collect":
 			return [mini(int(counts.get(q.target, 0)), total), total]
+		"deliver":
+			return [total if _delivered(q, counts) else 0, total]
 	return [mini(int(quests.get(id, {}).get("progress", 0)), total), total]
 
 

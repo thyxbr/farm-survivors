@@ -1,10 +1,15 @@
 extends Node3D
 ## Monta o mundo (vila, campos, acampamento goblin, ruínas), gerencia inimigos, UI modal e morte.
+## A vila é o ponto de chegada (online e solo): a antiga praça da cidade deixou de existir e os pontos dela
+## (Mestre Orin, mesa de guerra, recordes e as construções da base) ficam nas ruas novas (VillageLayout).
 
 const M := {
 	"house": preload("res://assets/models/house.glb"),
 	"house_b": preload("res://assets/models/house_b.glb"),
 	"house_c": preload("res://assets/models/house_c.glb"),
+	"house_d": preload("res://assets/models/house_d.glb"),
+	"house_e": preload("res://assets/models/house_e.glb"),
+	"house_f": preload("res://assets/models/house_f.glb"),
 	"shop_smithy": preload("res://assets/models/shop_smithy.glb"),
 	"shop_alchemist": preload("res://assets/models/shop_alchemist.glb"),
 	"shop_merchant": preload("res://assets/models/shop_merchant.glb"),
@@ -40,6 +45,13 @@ const BLACKSMITH := preload("res://scripts/world/blacksmith.gd")
 const SIGNPOST := preload("res://scripts/world/signpost.gd")
 const ELDER := preload("res://scripts/world/elder.gd")
 const MERCHANT := preload("res://scripts/world/merchant.gd")
+const SANTA := preload("res://scripts/world/santa.gd")
+const EVENT_POINT := preload("res://scripts/world/christmas_event_point.gd")
+const POINT := preload("res://scripts/hub/hub_point.gd")
+const PASSIVE_MASTER := preload("res://scripts/ui/passive_master_ui.gd")
+const BASE_BUILDING := preload("res://scripts/ui/base_building_ui.gd")
+const RECORDS := preload("res://scripts/ui/records_ui.gd")
+const WAR_TABLE := preload("res://scripts/ui/war_table_ui.gd")
 const ALCHEMIST := preload("res://scripts/world/alchemist.gd")
 const RIVAL := preload("res://scripts/world/rival.gd")
 const STORY_POINT := preload("res://scripts/world/story_point.gd")
@@ -100,6 +112,9 @@ var region_spawns: Array = []
 var _boss_scan := 0.0
 var _travel_fade: ColorRect
 var spawns: Array = []
+## Pontos que vieram da praça (hub_point.gd): construções da base, Mestre Orin, mesa de guerra, recordes.
+var points: Array = []
+var santa: Node3D = null
 ## Veios de ferro e cristais arcanos (WorldResourceNode); vazio no servidor dedicado.
 var resource_nodes: Array = []
 var flicker_lights: Array = []
@@ -174,6 +189,8 @@ func _ready() -> void:
 	if Game.quests.is_empty() and Game.kills == 0:
 		Game.notify.emit("Bem-vindo a Valdoria! Fale com o Ancião Bram (!) perto do poço.", Color(1, 0.9, 0.6))
 		_play_intro()
+	if Game.quest_state("natal_presentes") == "none":
+		Game.notify.emit("O Papai Noel chegou a Valdoria! Procure o trenó ao lado da árvore de Natal.", Color(1, 0.55, 0.45))
 	if Network.is_client():
 		var invite := HORDE_INVITE.new()
 		invite.world = self
@@ -183,8 +200,7 @@ func _ready() -> void:
 		add_child(chat)
 		Game.notify.emit("Conectado como %s — %d jogador(es) online." % [Network.my_name, Network.players.size()], Color(0.6, 0.9, 1.0))
 		Network.world_ready(self)
-	elif Hub.take_pending_horde():
-		start_survival.call_deferred()   # solo: o portal da praça pediu a Horda
+	Hub.enter()   # solo: base e recordes do save local (online o servidor manda no _client_ready)
 	if staged:
 		process_mode = Node.PROCESS_MODE_INHERIT
 		Loading.set_progress(1.0)
@@ -215,6 +231,10 @@ func _build_ground() -> void:
 	_flat(Vector3(0, 0.02, -50), Vector2(4.5, 80), dirt)          # trilha norte
 	_flat(Vector3(38, 0.02, 0), Vector2(52, 4.5), dirt)           # trilha leste
 	_disc(Vector3(0, 0.018, 1), 10.0, Color(0.5, 0.45, 0.36))     # praça
+	for st in VillageLayout.STREETS:                               # ruas da vila
+		_flat(st[0] + Vector3(0, 0.017, 0), st[1], VillageLayout.STREET_COLOR, 0.5)
+	_disc(VillageLayout.LARGO + Vector3(0, 0.019, 0), 4.8, Color(0.55, 0.5, 0.42), 0.5)   # Largo dos Ecos
+	_flat(Vector3(-40, 0.02, 0), Vector2(9, 3.6), dirt)            # do portão oeste para a arena
 	_disc(RUINS + Vector3(0, 0.02, 0), 15.0, Color(0.42, 0.42, 0.4))
 	_disc(CAMP + Vector3(0, 0.02, 0), 13.0, Color(0.4, 0.32, 0.2))
 
@@ -327,20 +347,7 @@ func _build_village() -> void:
 			var kind := "flower_lavender" if rng.randf() < 0.5 else "flower_tulips"
 			var fp: Vector3 = h[0] + fwd * 2.75 + side * (off + rng.randf_range(-0.15, 0.15))
 			prop(kind, fp, rng.randf() * TAU, rng.randf_range(0.9, 1.2))
-	# cercas: perímetro x[-19,19], z[-13,23], com aberturas ao norte e a leste
-	var x := -18.0
-	while x <= 18.0:
-		if abs(x) > 3.0:
-			prop("fence", Vector3(x, 0, -13), 0.0, 1.0, "box", Vector3(2.1, 1.0, 0.25))
-		if x != 0.0 and x != 2.0:   # portão sul, para a horta
-			prop("fence", Vector3(x, 0, 23), 0.0, 1.0, "box", Vector3(2.1, 1.0, 0.25))
-		x += 2.0
-	var z := -12.0
-	while z <= 22.0:
-		prop("fence", Vector3(-19, 0, z), PI / 2, 1.0, "box", Vector3(2.1, 1.0, 0.25))
-		if abs(z) > 3.0:
-			prop("fence", Vector3(19, 0, z), PI / 2, 1.0, "box", Vector3(2.1, 1.0, 0.25))
-		z += 2.0
+	_build_fence()
 	# NPCs
 	var elder := ELDER.new()
 	elder.position = Vector3(-3, 0, -2.5)
@@ -380,6 +387,7 @@ func _build_village() -> void:
 	var portal := PORTAL.new()
 	portal.position = PORTAL_POS
 	add_child(portal)
+	_build_districts()
 
 
 ## Decoração de Natal da vila (ChristmasDecor): árvore enfeitada perto do portão norte, varal de luzes
@@ -400,9 +408,11 @@ func _build_christmas(houses: Array, house_nodes: Array, lamps: Array) -> void:
 		var b: Node3D = lamps[(i + 1) % lamps.size()]
 		ChristmasDecor.light_string(self, a.transform * top, b.transform * top, 0.6, ChristmasDecor.MULTI, i % 2)
 		ChristmasDecor.lamp_garland(a)
-	# bengalas nos portões (norte, sul e leste)
-	for p in [Vector3(-3.4, 0, -12.4), Vector3(3.4, 0, -12.4), Vector3(-1.4, 0, 22.4), Vector3(3.4, 0, 22.4),
-			Vector3(18.4, 0, -3.4), Vector3(18.4, 0, 3.4)]:
+	# bengalas nos portões (norte, sul da Horta, leste e oeste)
+	var b := VillageLayout.BOUNDS
+	for p in [Vector3(-13.4, 0, b.position.y + 0.6), Vector3(3.4, 0, b.position.y + 0.6), Vector3(-1.4, 0, 25.4),
+			Vector3(3.4, 0, 25.4), Vector3(b.end.x - 0.6, 0, -3.4), Vector3(b.end.x - 0.6, 0, 3.4),
+			Vector3(b.position.x + 0.6, 0, -0.9), Vector3(b.position.x + 0.6, 0, 5.9)]:
 		ChristmasDecor.candy_cane(self, p, atan2(-p.x, -p.z) + PI / 2)
 	# árvores pequenas na frente da botica e do empório, e o boneco de neve olhando para o poço
 	for p in [Vector3(-9.2, 0, 3.6), Vector3(8.4, 0, -3.6)]:
@@ -413,6 +423,107 @@ func _build_christmas(houses: Array, house_nodes: Array, lamps: Array) -> void:
 	_no_grass.append([Vector2(sp.x, sp.z), 0.8])
 	ChristmasDecor.gifts(self, Vector3(1.4, 0, -1.4), 3, rng, 0.0, 0.4)   # presentes ao pé do poço
 
+
+## Cerca em volta da vila toda (VillageLayout.BOUNDS), com os portões abertos. No sul, entre as casas, a
+## cerca da Horta faz a divisa.
+func _build_fence() -> void:
+	var b := VillageLayout.BOUNDS
+	var x := b.position.x + 1.0
+	while x <= b.end.x - 1.0:
+		if not _gate_at("n", x):
+			prop("fence", Vector3(x, 0, b.position.y), 0.0, 1.0, "box", Vector3(2.1, 1.0, 0.25))
+		if not _gate_at("s", x) and absf(x - 1.0) > VillageLayout.SOUTH_OPEN:
+			prop("fence", Vector3(x, 0, b.end.y), 0.0, 1.0, "box", Vector3(2.1, 1.0, 0.25))
+		x += 2.0
+	var z := b.position.y + 1.0
+	while z <= b.end.y - 1.0:
+		if not _gate_at("w", z):
+			prop("fence", Vector3(b.position.x, 0, z), PI / 2, 1.0, "box", Vector3(2.1, 1.0, 0.25))
+		if not _gate_at("e", z):
+			prop("fence", Vector3(b.end.x, 0, z), PI / 2, 1.0, "box", Vector3(2.1, 1.0, 0.25))
+		z += 2.0
+
+
+func _gate_at(side: String, t: float) -> bool:
+	for g in VillageLayout.GATES:
+		if g[0] == side and absf(t - float(g[1])) < float(g[2]):
+			return true
+	return false
+
+
+## Bairros novos (VillageLayout): casas variadas pintadas com as paletas, lampiões nas esquinas, os pontos
+## que eram da praça, o Papai Noel com o trenó e os pontos dos eventos de Natal.
+func _build_districts() -> void:
+	_avoid.append([Vector2(-24, 4), 15.5])
+	_avoid.append([Vector2(26, 4), 15.5])
+	for i in VillageLayout.HOUSES.size():
+		var h: Array = VillageLayout.HOUSES[i]
+		var model: String = h[2]
+		var size: Vector3 = VillageLayout.HOUSE_SIZE[model]
+		var hn := prop(model, h[0], h[1], 1.0, "box", size)
+		VillageLayout.tint(hn, h[3])
+		ChristmasDecor.house_lights(hn, model, i + 1)
+		var d: Array = ChristmasDecor.HOUSE_DOORS[model]
+		ChristmasDecor.wreath(hn, Vector3(d[0], d[1], d[2]))
+		DayNightFX.night_light(_light(hn, Vector3(0, 1.6, size.z * 0.5 + 1.2), Color(1, 0.72, 0.42), 0.9, 5.5), 0.9)
+		# canteiro de flores dos lados da porta (as casas de alpendre já têm banco e floreira)
+		if model != "house_d":
+			var xf := VillageLayout.house_xform(h)
+			for off in [-1.6, 1.6]:
+				if absf(off - float(d[0])) < 0.9:
+					continue
+				var kind := "flower_lavender" if (i + int(off)) % 2 == 0 else "flower_tulips"
+				prop(kind, xf * Vector3(off, 0, size.z * 0.5 + 0.55), rng.randf() * TAU, rng.randf_range(0.85, 1.1))
+	# lampiões nas esquinas das ruas, com festão e luz à noite
+	for p in [Vector3(-23.6, 0, -12.6), Vector3(-23.6, 0, 4.9), Vector3(-23.7, 0, 17.8), Vector3(-34.0, 0, 0.2),
+			Vector3(24.6, 0, -12.6), Vector3(24.6, 0, 2.4), Vector3(24.6, 0, 17.8), Vector3(37.0, 0, -2.3),
+			Vector3(-3.0, 0, -12.8), Vector3(3.0, 0, -12.8)]:
+		var lamp := prop("lamp", p, atan2(-p.x, -p.z), 1.0, "cyl", Vector3(0.12, 3.7, 0))
+		DayNightFX.night_light(_light(lamp, Vector3(0, 3.3, 0.5), Color(1, 0.75, 0.4), 1.4, 8.0), 1.4)
+		ChristmasDecor.lamp_garland(lamp)
+	# varal de luzes atravessando a saída norte da praça
+	var top := Vector3(0, 3.45, 0)
+	ChristmasDecor.light_string(self, Vector3(-3.0, 0, -12.8) + top, Vector3(3.0, 0, -12.8) + top, 0.5,
+		ChristmasDecor.MULTI, 1)
+	# pontos da antiga praça
+	for pd in VillageLayout.POINTS:
+		var pt := POINT.new()
+		pt.kind = pd[0]
+		pt.building_id = pd[3]
+		var pos: Vector3 = pd[1]
+		pt.position = pos
+		pt.rotation.y = pd[2]
+		add_child(pt)
+		points.append(pt)
+		_no_grass.append([Vector2(pos.x, pos.z), 2.5])
+		if pd[0] == "building":
+			var back: Vector3 = pos - Vector3(sin(pd[2]), 0, cos(pd[2])) * POINT.BUILDING_BACK
+			_no_grass.append([Vector2(back.x, back.z), 4.2])
+	# Papai Noel, de frente para a praça, e o trenó atrás dele, perto da árvore grande
+	santa = SANTA.new()
+	santa.position = VillageLayout.SANTA
+	santa.rotation.y = VillageLayout.SANTA_YAW
+	add_child(santa)
+	ChristmasDecor.sleigh(self, VillageLayout.SLEIGH, -2.2)
+	_no_grass.append([Vector2(VillageLayout.SLEIGH.x, VillageLayout.SLEIGH.z), 1.8])
+	# eventos: presentes caídos pelo vale e as portas das entregas
+	for i in VillageLayout.GIFTS.size():
+		var g := EVENT_POINT.new()
+		g.kind = "gift"
+		g.index = i
+		var gp: Vector3 = VillageLayout.GIFTS[i]
+		_avoid.append([Vector2(gp.x, gp.z), 2.5])
+		gp.y = ground.height_at(gp.x, gp.z)
+		g.position = gp
+		add_child(g)
+	for i in VillageLayout.DELIVERY.size():
+		var h: Array = VillageLayout.HOUSES[VillageLayout.DELIVERY[i]]
+		var d: Array = ChristmasDecor.HOUSE_DOORS[h[2]]
+		var e := EVENT_POINT.new()
+		e.kind = "door"
+		e.index = i
+		e.position = VillageLayout.house_xform(h) * Vector3(d[0], 0, d[2] + 0.7)
+		add_child(e)
 
 ## Loja da vila: modelo + colisões simples no espaço dela (boxes = [[centro local, tamanho]],
 ## cyls = [[centro local, raio]]) e um círculo sem capim de raio grass_r (0 = nenhum).
@@ -708,7 +819,6 @@ func start_survival() -> void:
 	survival.world = self
 	survival.player = player
 	survival.center = ARENA
-	survival.return_to_hub = Hub.take_horde_return()
 	add_child(survival)
 	Sfx.play("portal", 0.0, -3.0)
 
@@ -730,7 +840,6 @@ func start_survival_net(team: Dictionary, slot: int, round_time: float) -> void:
 	survival.team = team
 	survival.my_slot = slot
 	survival.round_time = round_time
-	survival.return_to_hub = Hub.take_horde_return()
 	add_child(survival)
 	Sfx.play("portal", 0.0, -3.0)
 
@@ -854,7 +963,10 @@ func _scatter_grass() -> void:
 		return   # grama é só visual
 	var keep_out := _no_grass.duplicate()
 	keep_out.append([Vector2(ARENA.x, ARENA.z), 33.0])
-	var sparse := [[Vector2(0, 4), 22.0], [Vector2(FARM.x, FARM.z), 12.0]]
+	keep_out.append_array(VillageLayout.street_circles())
+	keep_out.append([Vector2(VillageLayout.LARGO.x, VillageLayout.LARGO.z), 4.8])
+	var sparse := [[Vector2(0, 4), 22.0], [Vector2(FARM.x, FARM.z), 12.0], [Vector2(-24, 4), 15.0],
+		[Vector2(26, 4), 15.0]]
 	if Loading.covering:
 		# fileira por fileira, um quadro cada: é a etapa mais demorada da montagem
 		await ground.scatter_grass(rng.seed + 7, 0.6, keep_out, sparse, 1.0,
@@ -1020,6 +1132,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		_open_menu(1)
 	elif event.is_action_pressed("quest_log"):
 		_open_menu(2)
+	elif survival == null:
+		for i in KnightEmotes.KINDS.size():
+			if event.is_action_pressed("emote_%d" % (i + 1)):
+				player.play_emote(KnightEmotes.KINDS[i])
+				return
 
 
 func _open_menu(tab: int) -> void:
@@ -1151,6 +1268,32 @@ func open_cooking(kitchen: Node = null) -> void:
 	_open_modal(ui)
 
 
+## Painel de um ponto que veio da praça (hub_point.interact): mesa de guerra, Mestre Orin, recordes ou as
+## doações de uma construção da base.
+func open_point_panel(point: Node) -> void:
+	var ui: Control = null
+	match str(point.get("kind")):
+		"war_table":
+			ui = WAR_TABLE.new()
+		"passive_master":
+			ui = PASSIVE_MASTER.new()
+		"records":
+			ui = RECORDS.new()
+		"building":
+			var b := BASE_BUILDING.new()
+			b.building_id = str(point.get("building_id"))
+			ui = b
+		"merchant":
+			open_shop()
+			return
+	if ui != null:
+		open_modal(ui)
+
+
+func open_modal(c: Control) -> void:
+	_open_modal(c)
+
+
 func _open_modal(c: Control) -> void:
 	if modal != null:
 		return
@@ -1235,10 +1378,10 @@ func _build_guild() -> void:
 	_no_grass.append([Vector2(coach_at.x - 3.2, coach_at.z - 0.5), 2.2])
 	add_child(RegionBuilder.npc("coach", coach_at, 0.0))
 	# moradores com pedidos
-	add_child(RegionBuilder.npc("rufus", Vector3(4.2, 0, -15.0), PI))       # guarda no portão norte, de fora
+	add_child(RegionBuilder.npc("rufus", Vector3(4.6, 0, -16.6), PI))       # guarda no portão norte
 	add_child(RegionBuilder.npc("zelia", Vector3(-2.6, 0, 12.6), PI))       # na porta da casa ao sul
 	add_child(RegionBuilder.npc("tonico", Vector3(-21.0, 0, -22.0), PI / 2))  # nos campos ao norte
-	add_child(RegionBuilder.npc("ravi", Vector3(34.0, 0, 4.0), -PI / 2))     # na trilha leste
+	add_child(RegionBuilder.npc("ravi", Vector3(44.0, 0, 3.6), -PI / 2))     # na trilha leste, depois do portão
 	add_child(RegionBuilder.npc("osvaldo", Vector3(6.0, 0, -76.0), PI))      # na entrada das ruínas
 	add_child(RegionBuilder.point("gato", Vector3(22.5, 0, 30.5), -0.8))     # no pomar
 

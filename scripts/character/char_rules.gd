@@ -419,8 +419,10 @@ static func quest_state(s: CharState, id: String) -> String:
 	return s.quests[id].state if s.quests.has(id) else "none"
 
 
-## Tipo da missão: "kill" (padrão: abates de target ou de um dos targets), "talk" (falar com o NPC target)
-## ou "collect" (entregar count unidades do item target).
+## Tipo da missão: "kill" (padrão: abates de target ou de um dos targets), "talk" (falar com o NPC target),
+## "collect" (entregar count unidades do item target), "deliver" (entregar os itens de "deliver": {item: qtd}),
+## "gather" (achar count pontos espalhados pelo mundo) ou "visit" (passar em count pontos, como portas da vila).
+## gather e visit avançam por quest_mark; os eventos de Natal do Papai Noel usam deliver, gather e visit.
 static func quest_type(q: Dictionary) -> String:
 	return str(q.get("type", "kill"))
 
@@ -448,6 +450,46 @@ static func main_chain(qt: Dictionary) -> Array:
 	return out
 
 
+## Tipos que avançam ponto a ponto (quest_mark).
+const MARK_TYPES := ["gather", "visit"]
+
+
+## Missão gather/visit: o ponto `index` (0..count-1) foi feito. Cada ponto conta uma vez só ("got" guarda os
+## feitos); ao completar, a missão fica pronta para entregar.
+static func quest_mark(s: CharState, bt: BalanceTables, id: String, index: int) -> Dictionary:
+	var qt := bt.get_table("quests")
+	if not qt.has(id) or not (quest_type(qt[id]) in MARK_TYPES):
+		return _fail("missao_invalida")
+	var q: Dictionary = qt[id]
+	if quest_state(s, id) != "active":
+		return _fail("missao_nao_ativa")
+	if index < 0 or index >= int(q.count):
+		return _fail("valor_invalido")
+	var got: Array = s.quests[id].get("got", [])
+	if index in got:
+		return _fail("ja_feito")
+	got.append(index)
+	s.quests[id]["got"] = got
+	s.quests[id].progress = got.size()
+	var ev: Array = []
+	if got.size() >= int(q.count):
+		s.quests[id].state = "ready"
+		ev.append(_notify("%s: volte para %s" % [q.name, q.get("turn_in", q.giver)], C_QUEST))
+	else:
+		ev.append(_notify("%s %d/%d" % [q.name, got.size(), int(q.count)], Color(1.0, 0.9, 0.6)))
+	ev.append({"t": "quest"})
+	return _ok(ev)
+
+
+## Missão de entregar ("deliver": {item: qtd}) pode ser concluída agora? (tem tudo na mochila)
+static func can_deliver(s: CharState, q: Dictionary) -> bool:
+	var need: Dictionary = q.get("deliver", {})
+	for item in need:
+		if count_item(s, item) < int(need[item]):
+			return false
+	return true
+
+
 static func start_quest(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	var qt := bt.get_table("quests")
 	if not qt.has(id):
@@ -464,6 +506,8 @@ static func start_quest(s: CharState, bt: BalanceTables, id: String) -> Dictiona
 	if not rank_at_least(s, bt, str(q.get("rank", "D"))):
 		return _fail("rank_insuficiente", [_notify("Exige Rank %s na Guilda." % q.get("rank", "D"), C_BAD)])
 	s.quests[id] = {"state": "active", "progress": 0}
+	if quest_type(q) in MARK_TYPES:
+		s.quests[id]["got"] = []
 	var ev: Array = [_notify("Nova missão: %s" % qt[id].name, C_QUEST)]
 	# itens para começar (as sementes da torta): entram junto com a missão
 	var start: Dictionary = qt[id].get("start_items", {})
@@ -494,6 +538,11 @@ static func complete_quest(s: CharState, bt: BalanceTables, id: String) -> Dicti
 			return _fail("missao_nao_pronta", [_notify("Faltam itens: %s %d/%d" % [_item(bt, str(q.target)).get("name", q.target),
 				count_item(s, str(q.target)), int(q.count)], C_BAD)])
 		remove_item(s, str(q.target), int(q.count))
+	elif kind == "deliver":
+		if st != "active" or not can_deliver(s, q):
+			return _fail("missao_nao_pronta", [_notify("Faltam itens para a entrega.", C_BAD)])
+		for item in q.deliver:
+			remove_item(s, item, int(q.deliver[item]))
 	elif st != "ready":
 		return _fail("missao_nao_pronta")
 	var ev: Array = []

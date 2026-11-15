@@ -1,9 +1,10 @@
 extends Node
-## Navegação entre a praça, Valdoria e a cidade, e a Defesa da Cidade em grupo.
+## Navegação entre Valdoria e a cidade, e a Defesa da Cidade em grupo.
 ##
-## Ao entrar no servidor (e no solo, pelo menu) o jogador cai na praça da cidade (hub.tscn, autoload Hub):
-## de lá segue a estrada para Valdoria (o mundo do RPG), entra no portal da Horda ou abre/entra na sala da
-## Defesa da Cidade cooperativa.
+## Ao entrar no servidor (e no solo, pelo menu) o jogador cai direto na vila de Valdoria (world.tscn): a antiga
+## praça da cidade deixou de existir e os pontos dela (Mestre Orin, mesa de guerra, recordes e as construções
+## da base) moram nas ruas da vila. Da vila ele entra no portal da Horda ou abre/entra na sala da Defesa da
+## Cidade cooperativa (mesa de guerra).
 ##
 ## A cidade em grupo roda no servidor dentro de um SubViewport com mundo 3D próprio (física separada
 ## de Valdoria, que continua rodando). O servidor simula tudo (Colony role "server"): economia, ondas,
@@ -14,7 +15,6 @@ extends Node
 
 signal changed   # cliente: sala, recorde ou lista de jogadores mudou
 
-const HUB_SCENE := "res://scenes/hub.tscn"
 const WORLD_SCENE := "res://scenes/world.tscn"
 const COLONY_SCENE := "res://scenes/colony.tscn"
 const SNAP_RATE := 8.0
@@ -30,14 +30,14 @@ var record := {}
 ## Cliente: recompensas de noite vencida recebidas nesta execução (só cresce). O servidor conta a mesma
 ## noite para o resumo do fim (Ecos), então o net_test confere os Ecos com a diferença deste contador.
 var city_nights_rewarded := 0
-## Resultado da última partida (mostrado na praça ao voltar).
+## Resultado da última partida (mostrado na mesa de guerra ao voltar).
 var last_result := {}
 ## Cliente: a cena da cidade que está carregando deve entrar como réplica.
 var joining_city := false
 var city_seed := 0
 ## Cliente: colony_world (role "client") em uso.
 var city: Node = null
-## Onde o personagem estava em Valdoria (a praça guarda ao montar; go_world devolve ao Game.spawn_position).
+## Onde o personagem estava em Valdoria (guardado ao sair para a cidade; go_world devolve ao Game.spawn_position).
 var _last_world_pos = null
 var _last_world_yaw := 0.0
 
@@ -78,27 +78,34 @@ func _ready() -> void:
 
 
 # ================================================================ cliente: navegação
-## O servidor aceitou a conexão: todo mundo chega pela praça.
+## O servidor aceitou a conexão: todo mundo chega direto na vila, onde o personagem estava.
 func on_accepted() -> void:
 	_last_world_pos = Game.spawn_position
 	_last_world_yaw = Game.spawn_yaw
 	last_result = {}
-	Loading.go(HUB_SCENE)
+	go_world()
 
 
-## Está na praça ou na cidade em grupo (para a desconexão voltar ao menu).
+## Está na cidade em grupo (para a desconexão voltar ao menu).
 func in_session() -> bool:
 	var s := get_tree().current_scene
-	return s != null and (s.get("role") == "hub" or s.get("role") == "client")
+	return s != null and s.get("role") == "client"
 
 
-## Da praça para Valdoria (a estrada; o portal da Horda passa por Hub.go_horde).
+## Guarda onde o jogador está em Valdoria antes de sair dela (para a cidade): a volta o põe no mesmo lugar.
+func remember_world_pos() -> void:
+	var w := get_tree().current_scene
+	if w == null or w.get("role") != null or w.get("player") == null or not is_instance_valid(w.player):
+		return
+	var p: Player = w.player
+	if not p.dead and not Game.run_mods.get("active", false):
+		_last_world_pos = p.global_position
+		_last_world_yaw = p.model.rotation.y
+
+
+## Carrega Valdoria com o personagem onde ele estava (a vila, se não houver posição guardada).
 func go_world() -> void:
 	joining_city = false
-	# a praça deixa de ser o mundo do cliente já agora: quem espera Valdoria montar (Network.world) não a
-	# confunde com a praça que ainda está na tela até a troca de cena
-	if Network.world != null and Network.world.get("role") == "hub":
-		Network.world_closed(Network.world)
 	if Game.hp <= 0.0:
 		Game.hp = Game.max_hp()
 	Game.spawn_position = _last_world_pos
@@ -107,22 +114,12 @@ func go_world() -> void:
 	Loading.go(WORLD_SCENE)
 
 
-## De Valdoria, da Horda ou da cidade de volta à praça (online e solo; salva o personagem antes).
-## save_pos = false: não grava onde o jogador está (a arena da Horda que veio da praça; vale o de antes).
-func go_hub(save_pos := true) -> void:
-	var w := get_tree().current_scene
-	if save_pos and w != null and w.get("role") == null and w.get("player") != null and is_instance_valid(w.player):
-		var p: Player = w.player
-		if not p.dead and not Game.run_mods.get("active", false):
-			_last_world_pos = p.global_position
-			_last_world_yaw = p.model.rotation.y
+## Da cidade (em grupo ou solo) de volta à vila (online e solo; salva o personagem antes).
+func go_village() -> void:
 	save_character()
 	Game.reset_run_mods()
-	Hub.pending_horde = false
-	Hub.horde_return = false
 	get_tree().paused = false
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	Loading.go(HUB_SCENE)
+	go_world()
 
 
 ## Manda vida/mana e a última posição em Valdoria ao servidor (a cidade não muda onde ele está no RPG).
@@ -266,10 +263,10 @@ func _room_msg(kind: String) -> void:
 	var id := _sender()
 	if id == 0:
 		return
-	var in_hub := Network.zone_of(id) == "hub"
+	var in_village := Network.zone_of(id) in ["hub", "world"]
 	match kind:
 		"create", "join":
-			if not in_hub:
+			if not in_village:
 				return
 			if _room.is_empty():
 				_room = {"state": "open", "leader": id, "members": {id: false}, "names": {id: _name(id)}, "seed": 0}
@@ -309,11 +306,11 @@ func _room_msg(kind: String) -> void:
 	_broadcast_room()
 
 
-## Entrar na partida em andamento (direto da praça).
+## Entrar na partida em andamento (direto da vila, pela mesa de guerra).
 func _room_msg_enter(id: int) -> void:
 	if _room.is_empty() or _room.state != "running" or _city == null:
 		return
-	if Network.zone_of(id) != "hub":
+	if not Network.zone_of(id) in ["hub", "world"]:
 		return
 	if Network.zone_peers("city").size() >= ColonyData.COOP_MAX_PLAYERS:
 		_notice.rpc_id(id, "A cidade está cheia (%d jogadores)." % ColonyData.COOP_MAX_PLAYERS)
@@ -349,7 +346,7 @@ func _broadcast_room() -> void:
 
 
 func _hub_say(text: String, color: Color) -> void:
-	for pid in Network.zone_peers("hub"):
+	for pid in Network.zone_peers("hub") + Network.zone_peers("world"):
 		_city_say.rpc_id(pid, text, color)
 
 
@@ -386,10 +383,10 @@ func _start_city() -> void:
 	print("[server] Defesa da Cidade em grupo começou (%d jogadores, mapa %d)" % [_room.members.size(), seed])
 	for pid in _room.members:
 		_city_go.rpc_id(pid, seed)
-	_hub_say("A Defesa da Cidade começou! Quem estiver na praça ainda pode entrar.", Color(1, 0.85, 0.5))
+	_hub_say("A Defesa da Cidade começou! Quem estiver na vila ainda pode entrar pela mesa de guerra.", Color(1, 0.85, 0.5))
 
 
-## Um jogador saiu da cidade (voltou à praça, caiu a conexão...).
+## Um jogador saiu da cidade (voltou à vila, caiu a conexão...).
 func server_city_left(id: int) -> void:
 	_present.erase(id)
 	_harvest_last.erase(id)
@@ -399,9 +396,9 @@ func server_city_left(id: int) -> void:
 	if _room.state == "running" and _colony() != null:
 		_colony().say("%s saiu da cidade." % _name(id), Color(0.8, 0.8, 0.9))
 	if _room.members.is_empty() or (_room.state == "running" and Network.zone_peers("city").is_empty()
-			and _room.members.keys().all(func(pid) -> bool: return Network.zone_of(pid) != "hub")):
+			and _room.members.keys().all(func(pid) -> bool: return not Network.zone_of(pid) in ["hub", "world"])):
 		if _room.state == "running":
-			_end_city("abandon", [id])   # quem saiu por último também vê o resumo na praça
+			_end_city("abandon", [id])   # quem saiu por último também vê o resumo na vila
 		else:
 			_room = {}
 	elif _room.leader == id:
@@ -757,6 +754,7 @@ func _city_say(text: String, color: Color) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func _city_go(seed: int) -> void:
+	remember_world_pos()
 	city_seed = seed
 	joining_city = true
 	save_character()
@@ -769,7 +767,7 @@ func _city_go(seed: int) -> void:
 func _city_closed(reason: String) -> void:
 	Game.notify.emit(reason, Color(1, 0.7, 0.5))
 	if city != null:
-		go_hub()
+		go_village()
 
 
 @rpc("authority", "call_remote", "reliable")

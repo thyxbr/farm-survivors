@@ -1,12 +1,12 @@
 extends StaticBody3D
-## Um ponto da praça com que o jogador interage ([E]): portal da Horda, mesa de guerra (Defesa da Cidade),
-## estrada para Valdoria, mestre das passivas, mercador, quadro de recordes ou uma construção da base.
-## Monta o próprio visual pelo `kind`. A estrada viaja na hora; os outros abrem o painel da praça
-## (hub_world.open_point_panel); o botão do painel do portal leva à Horda (Hub.go_horde).
+## Um ponto que veio da antiga praça da cidade e hoje fica nas ruas da vila (VillageLayout.POINTS), com que o
+## jogador interage ([E]): mesa de guerra (Defesa da Cidade), mestre das passivas, quadro de recordes ou uma
+## construção da base. Monta o próprio visual pelo `kind` e abre o painel pela cena (world.open_point_panel).
+## Os tipos "horde_portal", "road" e "merchant" sobraram da praça e não são mais usados pela vila.
 ##
 ## A construção da base fica atrás do ponto (o nó é a placa/caixa de doações na frente dela, virada para
-## o centro da praça): a distância de interação do Player é medida até este nó, e um prédio de 6 m com o
-## ponto no meio ficaria fora do alcance.
+## a rua): a distância de interação do Player é medida até este nó, e um prédio de 6 m com o ponto no meio
+## ficaria fora do alcance.
 
 const MODELS := {
 	"elder": preload("res://assets/models/elder.glb"),
