@@ -9,7 +9,8 @@ extends Node3D
 ## Imprime a distância entre o ponto mais baixo do martelo e o StrikePoint da bigorna.
 
 const BLACKSMITH := preload("res://scripts/world/blacksmith.gd")
-const NPC := preload("res://scripts/world/npc.gd")
+const ELDER := preload("res://scripts/world/elder.gd")
+const MERCHANT := preload("res://scripts/world/merchant.gd")
 const WORLD := preload("res://scripts/world/world.gd")
 const ANVIL := preload("res://assets/models/anvil.glb")
 const FORGE := preload("res://assets/models/forge.glb")
@@ -64,9 +65,9 @@ func _ready() -> void:
 	_smith.anim.seek(t, true)
 	_smith.anim.pause()
 	if "lineup" in args:
-		for pair in [["elder", -2.1], ["merchant", 2.1]]:
-			var n := NPC.new()
-			n.npc_id = pair[0]
+		# os NPCs de verdade (com esqueleto, cajado na mão e o idle do Mixamo), sem máquina de estados
+		for pair in [[ELDER, -2.1], [MERCHANT, 2.1]]:
+			var n: Node3D = pair[0].new()
 			n.position = Vector3(pair[1], 0, 0)
 			add_child(n)
 			n.set_process(false)
