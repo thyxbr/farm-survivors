@@ -9,7 +9,7 @@ jogo**. O que interessa aqui é a técnica, e as medidas genéricas que servem p
 O resumo está em [`ESTILO_TOON.md`](ESTILO_TOON.md), seções "Do estudo no Blender" e "Do rosto e das
 mãos desenhados". Este documento aprofunda cada parte e diz, para cada uma, o que funcionou, o que foi
 tentado e abandonado, e onde o código para de render. O que já veio para o jogo está em
-`tools/blender/anime.py` (`anime_head`, `open_hand`, `anime_hair`, `anime_beard`).
+`tools/blender/anime.py` (`anime_head`, `open_hand`, `anime_hair`, `anime_beard`, `anime_bun`).
 
 O estudo teve sete rodadas de script (`v1` a `v7`, mais a final). Diferença importante em relação ao
 jogo: lá cada peça usava subdivisão (Subsurf nível 1 ou 2) e a cena chegou a centenas de milhares de
@@ -132,6 +132,11 @@ de 3 a 4 cm de largura; 10 a 13 mechas por camada em volta da cabeça.
   orelha as mechas param cedo e viram para trás.
 - Um tom só de cabelo (`v1`): sem a camada intermediária e a nuca escura, a massa vira um capacete.
 - Calota do mesmo tom claro das mechas: os vãos acendem. A calota vai no tom intermediário.
+
+**No jogo.** `anime_hair` e `anime_beard` usam a mesma mecha sem subdivisão: seção de 4 vértices, 2 amostras
+por trecho da spline, 40 a 50 triângulos por mecha, e seguem a superfície da cabeça de `anime_head` em vez
+de um elipsoide. O que mudou em relação ao estudo e o que ainda destoa está em `ESTILO_TOON.md`, "Do cabelo
+e da barba desenhados".
 
 **Limite.** O acaso (`random`) só serve para variar largura e ângulo de mechas que já estão no lugar.
 Franja, moldura do rosto e as mechas que saem da silhueta foram postas uma a uma, olhando a ficha. E a

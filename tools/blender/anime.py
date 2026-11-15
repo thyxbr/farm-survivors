@@ -401,7 +401,9 @@ HAIR_STYLE = {
     "back": -34,             # idem na nuca
     "part": 20,              # ângulo do repartido da franja
     "sweep": -1,             # para que lado a franja cai (-1 = direita do personagem)
-    "top": 8,                # mechas da camada de cima, dos lados e de trás
+    "top": 8,                # mechas da camada de cima, dos lados e de trás (0 = sem; ex.: sob um turbante)
+    "nape": True, "frame": True, "bangs": True,      # camadas que podem ser desligadas
+    "extra": [],             # mechas à mão: ([(th, ph, afastamento em cm), ...], meia-largura em cm, "hair"|"mid"|"under"[, espessura])
     "w": 1.0, "lift": 1.0, "seed": 3,
     "hairline": [(0, 37), (35, 35), (60, 25), (78, 13), (97, 8), (112, -6), (135, -27), (180, -33)],
 }
@@ -455,16 +457,16 @@ def anime_hair(prefix, H, mats, parent, style=None):
 
     # ---- nuca: mechas curtas no tom escuro, por baixo de tudo
     ub = bmesh.new()
-    for th in (128, 154, 180, 206, 232):
+    mb = bmesh.new()
+    for th in (128, 154, 180, 206, 232) if st["nape"] else ():
         t = th + J(4)
         e = end(t)
         _lock(ub, [sp(t, e + 34, 0.3), sp(t + J(3), e + 14, 0.6), sp(t + J(4), e - 7, 0.9)], 3.3 * W, nrm)
-    out.append(_hair_obj(prefix + "HairUnder", ub, mats["under"], parent))
 
     # ---- camada de cima: do topo para fora; perto da orelha a mecha para cedo e vira para trás
     tb = bmesh.new()
     n = st["top"]
-    for i in range(n):
+    for i in range(n) if n > 1 else ():
         t = 58 + (244 / (n - 1)) * i + J(5)
         sg = 1 if t < 180 else -1
         e = end(t)
@@ -477,17 +479,32 @@ def anime_hair(prefix, H, mats, parent, style=None):
                     sp(t + 14 * sg + J(4), e + J(4), 1.5 + J(0.4))]
         _lock(tb, ctrl, 4.3 * W * rnd.uniform(0.9, 1.1), nrm, th_k=0.28)
     # mechas que emolduram o rosto: uma curta na têmpora, uma atrás da orelha
-    for sg in (1, -1):
+    for sg in (1, -1) if st["frame"] else ():
         _lock(tb, [sp(sg * 60, 62, 0.6), sp(sg * 65, 40, 1.0), sp(sg * 73, st["side"] + 6, 1.0)], 3.0 * W, nrm)
         _lock(tb, [sp(sg * 118, 46, 0.7), sp(sg * 120, 18, 1.0), sp(sg * 117, end(118) - 4, 1.1)], 3.0 * W, nrm)
     # franja: folhas largas a partir do repartido, cruzando a testa (a0 = raiz, a1 = ponta, em graus a partir do repartido)
     pt, sw, fr = st["part"], st["sweep"], st["fringe"]
-    for a0, a1, dz, ww in ((0, -30, 3, 3.4), (4, -4, -2, 3.6), (8, 22, -5, 4.0), (6, 46, -3, 4.0), (0, 70, 2, 3.6)):
+    for a0, a1, dz, ww in (((0, -30, 3, 3.4), (4, -4, -2, 3.6), (8, 22, -5, 4.0), (6, 46, -3, 4.0), (0, 70, 2, 3.6))
+                           if st["bangs"] else ()):
         b0, b1 = pt + sw * a0, pt + sw * a1
         _lock(tb, [sp(b0, 80, 0.5), sp(b0 + (b1 - b0) * 0.35, 62, 1.5), sp(b0 + (b1 - b0) * 0.75, 44, 1.6),
                    sp(b1, fr + dz, 1.5)], ww * W, nrm, th_k=0.34)
+    for ctrl, ww, key, *thk in st["extra"]:
+        _lock({"hair": tb, "mid": mb, "under": ub}[key], [sp(*c) for c in ctrl], ww * W, nrm,
+              th_k=thk[0] if thk else 0.32)
+    out.append(_hair_obj(prefix + "HairUnder", ub, mats["under"], parent))
+    out.append(_hair_obj(prefix + "HairMid", mb, mats["mid"], parent))
     out.append(_hair_obj(prefix + "HairTop", tb, mats["hair"], parent))
     return [o for o in out if o]
+
+
+def anime_bun(name, loc, size, material, parent, seg=8, rings=6):
+    """Coque: elipsoide liso (size = diâmetros)."""
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=seg, v_segments=rings, radius=0.5)
+    for v in bm.verts:
+        v.co = Vector(loc) + Vector((v.co.x * size[0], v.co.y * size[1], v.co.z * size[2]))
+    return _hair_obj(name, bm, material, parent)
 
 
 BEARD_STYLE = {

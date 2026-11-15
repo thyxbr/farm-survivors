@@ -348,8 +348,6 @@ BUILDERS = {
     "blacksmith": build_blacksmith,
     "skeleton": build_skeleton,
 }
-if "blacksmith_hair" in _only:   # cópia de teste do ferreiro com cabelo e barba desenhados (fora do build geral)
-    BUILDERS["blacksmith_hair"] = lambda: build_blacksmith("anime", "blacksmith_hair")
 BUILDERS.update(PROP_BUILDERS)
 if "buildings" in _only:   # ASSETS=buildings gera todas as construções da Defesa da Cidade (b_<tipo>_<nível>)
     _only += [n for n in PROP_BUILDERS if n.startswith("b_")]

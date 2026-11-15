@@ -215,37 +215,42 @@ Mira, Bram e Doran usam `tools/blender/anime.py` no lugar do rosto facetado de `
 8. **Custo:** Mira 3.792 -> 5.106 triângulos, ferreiro 5.270, ancião 4.652 (orçamento de 5 mil).
    Conferir com `tools/face_shot.gd` (dois modelos lado a lado, modos face/hands/body).
 
-### Do cabelo e da barba desenhados (em teste, só no Doran)
-O rosto liso deixou à mostra o cabelo facetado (`hair_locks`, mecha em losango) e a barba em cones. Teste em
-uma cópia do ferreiro (`blacksmith_hair.glb`, fora do repositório; o modelo do jogo não mudou). O estudo que
-deu origem à técnica está em [`ESTUDO_PERSONAGEM_ANIME.md`](ESTUDO_PERSONAGEM_ANIME.md).
+### Do cabelo e da barba desenhados (NPCs da vila)
+O rosto liso deixou à mostra o cabelo facetado (`hair_locks`, mecha em losango) e a barba em cones. Doran,
+Bram e Mira usam agora `anime_hair`, `anime_beard` e `anime_bun` (`tools/blender/anime.py`). A técnica veio do
+estudo descrito em [`ESTUDO_PERSONAGEM_ANIME.md`](ESTUDO_PERSONAGEM_ANIME.md) e foi acertada primeiro numa
+cópia de teste do Doran, em capturas lado a lado.
 1. **`anime_hair`**: calota no tom intermediário (borda em serra, aparece entre as mechas), nuca em mechas
    escuras por baixo, camada de cima saindo do topo, franja em cinco folhas a partir de um repartido, mechas
    na têmpora e atrás da orelha. As mechas seguem a superfície real da cabeça (`_hp`), não um elipsoide: a
    cabeça de `anime_head` é mais quadrada em planta e um elipsoide ficava 1 cm para dentro na diagonal.
-2. **`anime_beard`**: massa lisa em grade sobre a mandíbula, com a borda de baixo recortada em pontas, um
-   fundo no tom intermediário, mechas sobrepostas e bigode em duas mechas.
-3. **Mecha com seção de 4 vértices** (duas bordas, dorso, barriga rasa) e sombreado liso: não se distingue da
+2. **Cada camada pode ser desligada** (`top`, `nape`, `frame`, `bangs`) e o personagem pode pôr mechas à mão
+   (`extra`): o Bram troca a franja por quatro mechas que saem da testa e vão para trás; a Mira, de turbante,
+   usa só a calota e mechas que vão de baixo do turbante até o coque (`anime_bun`, elipsoide liso).
+3. **`anime_beard`**: massa lisa em grade sobre a mandíbula, com a borda de baixo recortada em pontas, um
+   fundo no tom intermediário, mechas sobrepostas e bigode em duas mechas. `length` dá o comprimento (Doran
+   4,2 cm; Bram 10,5 cm).
+4. **Mecha com seção de 4 vértices** (duas bordas, dorso, barriga rasa) e sombreado liso: não se distingue da
    de 5 no jogo e custa um quinto a menos.
-4. **Poucas pontas grandes.** A primeira borda da barba tinha sete pontas miúdas por lado e virava serrilha.
-5. **O "ângulo" das colunas da cabeça não é geométrico**: a coluna 79 fica 4 cm à frente da orelha. A
+5. **Poucas pontas grandes.** A primeira borda da barba tinha sete pontas miúdas por lado e virava serrilha.
+6. **O "ângulo" das colunas da cabeça não é geométrico**: a coluna 79 fica 4 cm à frente da orelha. A
    costeleta só encostou na orelha com a coluna 84, e a barba só cobriu a mandíbula com a 98.
-6. **Custo:** 5.270 -> 6.054 triângulos (cabelo e barba: de ~650 para ~1.430). Passa do orçamento de 5 mil.
 7. **De perfil a barba precisa descer por fora do pescoço.** A cabeça de `anime_head` afina em cone até o
    queixo, sem ângulo de mandíbula, e o pescoço do ferreiro é quase tão largo quanto o rosto: com a borda da
    barba na linha da mandíbula, sobrava pele entre a bochecha e o pescoço e a barba parecia pendurada no
-   queixo. Nos lados a barba agora cai na vertical a partir de um anel mais alto e mais largo.
+   queixo. Nos lados a barba cai na vertical a partir de um anel mais alto e mais largo.
 8. **Massa de uma face só mostra o avesso.** De costas aparecia a casca do contorno (preta) dos dois lados do
    pescoço. O fundo da barba fecha a borda para dentro e para cima, com a orientação das faces posta à mão.
 9. **Mecha comprida sobre a massa vira "dedo".** As mechas da barba nascem dentro da massa e só a ponta
-   aparece.
-10. **O que ainda destoa:** a linha da barba na bochecha é uma reta sem traço; de frente a barba ficou mais
-    quadrada; o contorno do cabelo é preto como o do corpo (no estudo era um tom mais claro; no jogo o
-    contorno tem uma cor só); de costas as mechas da nuca são lâminas grandes.
+   aparece. Mecha que nasce na testa precisa ser fina (espessura 0,2), senão vira um rolo saltado de perfil.
+10. **Custo** (orçamento de 5 mil triângulos): Doran 5.270 -> 6.054, Bram 4.652 -> 5.250, Mira 5.106 -> 5.196.
+11. **O que ainda destoa:** a linha da barba na bochecha é uma reta sem traço; de frente a barba do Doran
+    ficou quadrada; no topo do Bram duas mechas se cruzam em "X"; o contorno do cabelo é preto como o do
+    corpo (no estudo era um tom mais claro; no jogo o contorno tem uma cor só); de costas as mechas da nuca
+    do Doran são lâminas grandes.
 
-Capturas (atual à esquerda, teste à direita; frente, três quartos, perfil e costas):
-`docs/screenshots/doran_cabelo_barba_rosto.jpg` e `doran_cabelo_barba_corpo.jpg`. Ajuste do perfil (antes à
-esquerda, depois à direita; perfil e 60 graus): `doran_barba_perfil.jpg`.
+Capturas (antes à esquerda, depois à direita; frente, três quartos, perfil e costas):
+`docs/screenshots/npc_cabelo_doran.jpg`, `npc_cabelo_bram.jpg` e `npc_cabelo_mira.jpg`.
 
 ### Do desempenho
 1. **O custo do contorno é de nós, não de triângulos.** O goblin tem 102 peças (`MeshInstance3D`), 59 delas
@@ -393,10 +398,8 @@ $G = "C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe"
 & $G --path . --resolution 1280x720 res://scenes/world.tscn -- --geardemo --survival --hordedemo --toonprobe=50 --proberound=12
 # conferir as cascas juntadas: toon por peça à esquerda, juntado à direita
 & $G --path . --resolution 1400x1000 --script res://tools/toon_shot.gd -- goblin saida.png 3q merge
-# cabelo e barba desenhados: gera a cópia de teste do ferreiro, importa e compara com o atual
-$env:ASSETS = "blacksmith_hair"; & "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup --python tools/blender/build_assets.py; $env:ASSETS = ""
-& $G --headless --path . --import
-& $G --path . --resolution 1600x900 --script res://tools/face_shot.gd -- blacksmith blacksmith_hair saida.png face 35
+# comparar dois modelos em close (ex.: uma cópia do GLB antigo e o novo); modos face, hands, body e o giro em graus
+& $G --path . --resolution 1600x900 --script res://tools/face_shot.gd -- blacksmith_old blacksmith saida.png face 35
 # jogo com o sombreado antigo, para comparar
 & $G --path . res://scenes/world.tscn -- --notoon
 # auditoria: depois de 5 s lista no console as peças visíveis que ficaram com material iluminado comum
