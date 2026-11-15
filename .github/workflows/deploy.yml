@@ -78,9 +78,10 @@ jobs:
       - name: Teste da Defesa da Cidade
         run: timeout 600 godot --headless --path . res://scenes/colony.tscn -- --colonytest
 
-      # a praça no solo: pontos, Ecos, passiva, doação, painéis, emotes e portal → Horda → praça
-      - name: Teste da praça (solo)
-        run: timeout 300 godot --headless --path . res://scenes/hub.tscn -- --hubtest
+      # a vila no solo: bairros, pontos da antiga praça, Ecos, passiva, doação, painéis, Papai Noel e os
+      # quatro eventos de Natal, Horda pelo portal da vila e a tela de carregamento
+      - name: Teste da vila (solo)
+        run: timeout 300 godot --headless --path . res://scenes/world.tscn -- --vilatest
 
       # servidor com banco novo (arquivo temporário), API HTTP de login numa porta própria e --test
       # (ouro e Ecos de teste do net_test); os clientes criam conta via --auth-url
@@ -100,7 +101,7 @@ jobs:
         if: failure()
         run: tail -n 60 server.log ana.log beto.log || true
 
-      - name: Teste da Defesa da Cidade em grupo (praça + servidor + 2 clientes)
+      - name: Teste da Defesa da Cidade em grupo (vila + servidor + 2 clientes)
         run: |
           db=$(mktemp --suffix=.db); rm -f "$db"
           godot --headless --path . -- --server --port=7791 --http-port=8791 --db="$db" --test --city-day=12 --city-event=caravan > city_server.log 2>&1 &

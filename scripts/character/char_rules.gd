@@ -17,6 +17,7 @@ const CLASS_NAMES := {"sword": "Espada", "staff": "Cajado", "bow": "Arco"}
 const C_GOLD := Color(1, 0.85, 0.3)
 const C_BAD := Color(1, 0.5, 0.5)
 const C_QUEST := Color(1.0, 0.8, 0.35)
+const C_GUILD := Color(0.55, 0.85, 1.0)
 const C_FARM := Color(0.8, 1.0, 0.6)
 ## Teto de toda quantidade escolhida pelo cliente (compra, vezes de cozinhar): evita estouro de
 ## int64 em preço*qty e laço gigante de add_item em item não empilhável no servidor.
@@ -225,9 +226,12 @@ static func kill(s: CharState, bt: BalanceTables, kind: String, xp: int) -> Dict
 		return _fail("valor_invalido")
 	var ev: Array = []
 	s.kills += 1
-	# chefe derrotado (o Rei Goblin): o mundo deixa de gerá-lo, como fazia Enemy._die
+	# chefe derrotado: o Rei Goblin deixa de nascer (king_dead, como fazia Enemy._die); os outros chefes
+	# ficam marcados como boss_<tipo>
 	if bt.get_table("enemies").get(kind, {}).get("boss", false):
-		s.flags["king_dead"] = true
+		if kind == "goblin_king":
+			s.flags["king_dead"] = true
+		s.flags["boss_" + kind] = true
 	_add_xp(s, bt, xp, ev)
 	var qt := bt.get_table("quests")
 	var changed := false
@@ -235,12 +239,12 @@ static func kill(s: CharState, bt: BalanceTables, kind: String, xp: int) -> Dict
 		if not qt.has(id):
 			continue
 		var q: Dictionary = qt[id]
-		if s.quests[id].state == "active" and q.target == kind:
+		if s.quests[id].state == "active" and quest_counts_kill(q, kind):
 			s.quests[id].progress += 1
 			changed = true
 			if s.quests[id].progress >= int(q.count):
 				s.quests[id].state = "ready"
-				ev.append(_notify("%s: volte para %s" % [q.name, q.giver], C_QUEST))
+				ev.append(_notify("%s: volte para %s" % [q.name, q.get("turn_in", q.giver)], C_QUEST))
 			else:
 				ev.append(_notify("%s %d/%d" % [q.name, s.quests[id].progress, q.count], Color(1.0, 0.9, 0.6)))
 	if changed:
@@ -415,29 +419,134 @@ static func quest_state(s: CharState, id: String) -> String:
 	return s.quests[id].state if s.quests.has(id) else "none"
 
 
-## Cadeia de missões = ordem das chaves em quests.json.
+## Tipo da missão: "kill" (padrão: abates de target ou de um dos targets), "talk" (falar com o NPC target),
+## "collect" (entregar count unidades do item target), "deliver" (entregar os itens de "deliver": {item: qtd}),
+## "gather" (achar count pontos espalhados pelo mundo) ou "visit" (passar em count pontos, como portas da vila).
+## gather e visit avançam por quest_mark; os eventos de Natal do Papai Noel usam deliver, gather e visit.
+static func quest_type(q: Dictionary) -> String:
+	return str(q.get("type", "kill"))
+
+
+## Se o abate de `kind` conta para a missão q (só missões de abate).
+static func quest_counts_kill(q: Dictionary, kind: String) -> bool:
+	if quest_type(q) != "kill":
+		return false
+	if q.has("targets"):
+		return kind in q.targets
+	return q.get("target", "") == kind
+
+
+## Missão secundária: fora da cadeia da história (pode ter rank mínimo e ser repetível).
+static func is_side(q: Dictionary) -> bool:
+	return bool(q.get("side", false))
+
+
+## Cadeia da história = ordem das chaves em quests.json, sem as secundárias.
+static func main_chain(qt: Dictionary) -> Array:
+	var out: Array = []
+	for id in qt:
+		if not is_side(qt[id]):
+			out.append(id)
+	return out
+
+
+## Tipos que avançam ponto a ponto (quest_mark).
+const MARK_TYPES := ["gather", "visit"]
+
+
+## Missão gather/visit: o ponto `index` (0..count-1) foi feito. Cada ponto conta uma vez só ("got" guarda os
+## feitos); ao completar, a missão fica pronta para entregar.
+static func quest_mark(s: CharState, bt: BalanceTables, id: String, index: int) -> Dictionary:
+	var qt := bt.get_table("quests")
+	if not qt.has(id) or not (quest_type(qt[id]) in MARK_TYPES):
+		return _fail("missao_invalida")
+	var q: Dictionary = qt[id]
+	if quest_state(s, id) != "active":
+		return _fail("missao_nao_ativa")
+	if index < 0 or index >= int(q.count):
+		return _fail("valor_invalido")
+	var got: Array = s.quests[id].get("got", [])
+	if index in got:
+		return _fail("ja_feito")
+	got.append(index)
+	s.quests[id]["got"] = got
+	s.quests[id].progress = got.size()
+	var ev: Array = []
+	if got.size() >= int(q.count):
+		s.quests[id].state = "ready"
+		ev.append(_notify("%s: volte para %s" % [q.name, q.get("turn_in", q.giver)], C_QUEST))
+	else:
+		ev.append(_notify("%s %d/%d" % [q.name, got.size(), int(q.count)], Color(1.0, 0.9, 0.6)))
+	ev.append({"t": "quest"})
+	return _ok(ev)
+
+
+## Missão de entregar ("deliver": {item: qtd}) pode ser concluída agora? (tem tudo na mochila)
+static func can_deliver(s: CharState, q: Dictionary) -> bool:
+	var need: Dictionary = q.get("deliver", {})
+	for item in need:
+		if count_item(s, item) < int(need[item]):
+			return false
+	return true
+
+
 static func start_quest(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	var qt := bt.get_table("quests")
 	if not qt.has(id):
 		return _fail("missao_invalida")
-	if quest_state(s, id) != "none":
+	var q: Dictionary = qt[id]
+	var st := quest_state(s, id)
+	if st != "none" and not (st == "done" and bool(q.get("repeat", false))):
 		return _fail("missao_indisponivel")
-	var order: Array = qt.keys()
-	var i := order.find(id)
-	if i > 0 and quest_state(s, order[i - 1]) != "done":
-		return _fail("missao_indisponivel")
+	if not is_side(q):
+		var order := main_chain(qt)
+		var i := order.find(id)
+		if i > 0 and quest_state(s, order[i - 1]) != "done":
+			return _fail("missao_indisponivel")
+	if not rank_at_least(s, bt, str(q.get("rank", "D"))):
+		return _fail("rank_insuficiente", [_notify("Exige Rank %s na Guilda." % q.get("rank", "D"), C_BAD)])
 	s.quests[id] = {"state": "active", "progress": 0}
-	return _ok([_notify("Nova missão: %s" % qt[id].name, C_QUEST), {"t": "quest"}])
+	if quest_type(q) in MARK_TYPES:
+		s.quests[id]["got"] = []
+	var ev: Array = [_notify("Nova missão: %s" % qt[id].name, C_QUEST)]
+	# itens para começar (as sementes da torta): entram junto com a missão
+	var start: Dictionary = qt[id].get("start_items", {})
+	for item in start:
+		if bt.get_table("items").has(item):
+			add_item(s, bt, item, int(start[item]))
+			ev.append({"t": "looted", "id": item, "qty": int(start[item])})
+	ev.append({"t": "quest"})
+	return _ok(ev)
 
 
 static func complete_quest(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	var qt := bt.get_table("quests")
 	if not qt.has(id):
 		return _fail("missao_invalida")
-	if quest_state(s, id) != "ready":
-		return _fail("missao_nao_pronta")
 	var q: Dictionary = qt[id]
+	var st := quest_state(s, id)
+	var kind := quest_type(q)
+	# conversa: entregue ao falar com o alvo (o cliente pede ao abrir o diálogo); coleta: entregue com os
+	# itens na mochila, que saem dela aqui. Abate: só depois de pronta (o servidor contou os abates).
+	if kind == "talk":
+		if st != "active" and st != "ready":
+			return _fail("missao_nao_pronta")
+	elif kind == "collect":
+		if st != "active" and st != "ready":
+			return _fail("missao_nao_pronta")
+		if count_item(s, str(q.target)) < int(q.count):
+			return _fail("missao_nao_pronta", [_notify("Faltam itens: %s %d/%d" % [_item(bt, str(q.target)).get("name", q.target),
+				count_item(s, str(q.target)), int(q.count)], C_BAD)])
+		remove_item(s, str(q.target), int(q.count))
+	elif kind == "deliver":
+		if st != "active" or not can_deliver(s, q):
+			return _fail("missao_nao_pronta", [_notify("Faltam itens para a entrega.", C_BAD)])
+		for item in q.deliver:
+			remove_item(s, item, int(q.deliver[item]))
+	elif st != "ready":
+		return _fail("missao_nao_pronta")
 	var ev: Array = []
+	s.quests[id].progress = int(q.count)
 	s.quests[id].state = "done"
 	ev.append(_notify("Missão concluída: %s" % q.name, C_QUEST))
 	s.gold += int(q.reward_gold)
@@ -446,6 +555,92 @@ static func complete_quest(s: CharState, bt: BalanceTables, id: String) -> Dicti
 		add_item(s, bt, item, int(q.reward_items[item]))
 		ev.append({"t": "looted", "id": item, "qty": int(q.reward_items[item])})
 	_add_xp(s, bt, int(q.reward_xp), ev)
+	# pontos de guilda (só depois do registro na guilda contam para o rank; antes ficam guardados)
+	var pts := quest_points(bt, q)
+	var registered := id == "registro" or quest_state(s, "registro") == "done" or not bt.get_table("quests").has("registro")
+	if pts > 0 and registered:
+		var could := next_rank_ready(s, bt)
+		s.flags["guild_pts"] = guild_points(s) + pts
+		ev.append(_notify("+%d pontos de guilda" % pts, C_GUILD))
+		if not could and next_rank_ready(s, bt):
+			ev.append(_notify("Promoção disponível! Fale com a Lina na Guilda.", C_GUILD))
+	ev.append({"t": "quest"})
+	return _ok(ev)
+
+
+# ================================================================ guilda (rank D a S)
+## Ordem dos ranks (guild.json, "ranks").
+static func ranks(bt: BalanceTables) -> Array:
+	return bt.get_table("guild").get("ranks", [])
+
+
+static func rank_of(s: CharState) -> String:
+	return str(s.flags.get("rank", "D"))
+
+
+static func guild_points(s: CharState) -> int:
+	return int(s.flags.get("guild_pts", 0))
+
+
+static func rank_index(bt: BalanceTables, id: String) -> int:
+	var r := ranks(bt)
+	for i in r.size():
+		if r[i].id == id:
+			return i
+	return 0
+
+
+static func rank_at_least(s: CharState, bt: BalanceTables, id: String) -> bool:
+	return rank_index(bt, rank_of(s)) >= rank_index(bt, id)
+
+
+## Pontos de guilda que a missão dá: "guild_pts" ou o padrão do tipo (guild.json, "default_pts").
+static func quest_points(bt: BalanceTables, q: Dictionary) -> int:
+	if q.has("guild_pts"):
+		return int(q.guild_pts)
+	return int(bt.get_table("guild").get("default_pts", {}).get(quest_type(q), 0))
+
+
+## O próximo rank ({} = já é o último).
+static func next_rank(s: CharState, bt: BalanceTables) -> Dictionary:
+	var r := ranks(bt)
+	var i := rank_index(bt, rank_of(s)) + 1
+	return r[i] if i < r.size() else {}
+
+
+## Motivo de não poder subir agora ("" = pode).
+static func rank_up_block(s: CharState, bt: BalanceTables) -> String:
+	if quest_state(s, "registro") != "done" and bt.get_table("quests").has("registro"):
+		return "sem_registro"
+	var nx := next_rank(s, bt)
+	if nx.is_empty():
+		return "rank_maximo"
+	if guild_points(s) < int(nx.pts):
+		return "pontos_insuficientes"
+	if nx.has("requires") and quest_state(s, str(nx.requires)) != "done":
+		return "falta_missao"
+	return ""
+
+
+static func next_rank_ready(s: CharState, bt: BalanceTables) -> bool:
+	return rank_up_block(s, bt) == ""
+
+
+## Promoção na guilda: sobe um rank, dá pontos de atributo e ouro.
+static func rank_up(s: CharState, bt: BalanceTables) -> Dictionary:
+	var block := rank_up_block(s, bt)
+	if block != "":
+		return _fail(block)
+	var nx := next_rank(s, bt)
+	s.flags["rank"] = str(nx.id)
+	s.stat_points += int(nx.get("stat_points", 0))
+	s.gold += int(nx.get("gold", 0))
+	var ev: Array = [_notify("Promovido ao Rank %s — %s!" % [nx.id, nx.get("title", "")], C_GUILD),
+		{"t": "rank", "rank": str(nx.id)}]
+	if int(nx.get("stat_points", 0)) > 0:
+		ev.append(_notify("+%d pontos de atributo" % int(nx.stat_points), C_QUEST))
+	if int(nx.get("gold", 0)) > 0:
+		ev.append(_notify("+%d ouro" % int(nx.gold), C_GOLD))
 	ev.append({"t": "quest"})
 	return _ok(ev)
 

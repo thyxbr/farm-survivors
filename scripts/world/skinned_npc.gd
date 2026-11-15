@@ -27,7 +27,8 @@ func _ready() -> void:
 	anim = aps[0] if aps.size() > 0 else null
 	var headless := DisplayServer.get_name() == "headless"
 	# o smoke test roda headless, mas precisa da animação para conferir os NPCs
-	_animate = anim != null and (not headless or "--smoketest" in OS.get_cmdline_user_args())
+	var args := OS.get_cmdline_user_args()
+	_animate = anim != null and (not headless or "--smoketest" in args or "--vilatest" in args)
 	if _animate:   # o servidor dedicado nem carrega a biblioteca
 		_add_library(anim, library_path())
 	else:

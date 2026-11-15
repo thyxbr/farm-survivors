@@ -10,6 +10,7 @@ extends Node
 signal stats_changed
 signal inventory_changed
 signal quests_changed
+signal ranked_up(rank: String)   # promoção na guilda (cartão "PROMOÇÃO")
 signal notify(text: String, color: Color)
 signal leveled_up(new_level: int)
 signal food_eaten(id: String)
@@ -104,9 +105,9 @@ func _ready() -> void:
 	if "--smoketest" in OS.get_cmdline_user_args():
 		# o Econ usa user://smoketest_solo.json, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())
-	if "--hubtest" in OS.get_cmdline_user_args():
-		# o Econ usa user://hubtest_solo.json, apagado no início
-		get_tree().root.add_child.call_deferred(load("res://tests/hub_test.gd").new())
+	if "--vilatest" in OS.get_cmdline_user_args():
+		# o Econ usa user://vilatest_solo.json, apagado no início
+		get_tree().root.add_child.call_deferred(load("res://tests/vila_test.gd").new())
 
 
 ## Depuração: `godot -- --shot=shot.png [--delay=4]` salva um screenshot e fecha.
@@ -276,6 +277,8 @@ func _setup_input() -> void:
 		"potion": [KEY_R], "mana_potion": [KEY_F], "inventory": [KEY_I, KEY_TAB], "character": [KEY_C],
 		"quest_log": [KEY_J], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
 		"eat": [KEY_Q], "food_next": [KEY_T],
+		# emotes (acenar, comemorar, sentar): eram as teclas 1–3 da praça; na vila 1–4 são magias
+		"emote_1": [KEY_7], "emote_2": [KEY_8], "emote_3": [KEY_9],
 	}
 	for action in keys:
 		if not InputMap.has_action(action):
@@ -295,29 +298,31 @@ func _setup_input() -> void:
 
 
 # ---------------------------------------------------------------- jogo solo
-## "Novo jogo": apaga o personagem solo (o menu pergunta antes) e chega à praça com um novo.
+## "Novo jogo": apaga o personagem solo (o menu pergunta antes) e começa na vila com um novo.
 func start_new_game() -> void:
 	reset_run_mods()
 	Econ.reset_solo()
 	Lobby._last_world_pos = null   # personagem novo: Valdoria começa na vila
+	spawn_position = null
 	get_tree().paused = false
-	Loading.go(Lobby.HUB_SCENE)
+	Loading.go(Lobby.WORLD_SCENE)
 
 
-## "Continuar": o personagem do save solo, chegando pela praça (a posição em Valdoria fica guardada).
+## "Continuar": o personagem do save solo, de volta a Valdoria onde ele estava.
 func continue_game() -> bool:
 	if not Econ.has_solo() or not Econ.start_solo():
 		notify.emit("Nenhum jogo salvo.", Color(1, 0.5, 0.5))
 		return false
 	reset_run_mods()
 	get_tree().paused = false
-	Loading.go(Lobby.HUB_SCENE)
+	Loading.go(Lobby.WORLD_SCENE)
 	return true
 
 
 ## Defesa da Cidade solo: cont = continuar a cidade salva (senão começa uma nova). O personagem é sempre o
 ## do save solo (a cena o carrega); a cidade tem caixa próprio (Colony.treasury).
 func start_colony(cont: bool) -> void:
+	Lobby.remember_world_pos()
 	colony_continue = cont and has_colony_save()
 	reset_run_mods()
 	get_tree().paused = false
@@ -619,6 +624,28 @@ func start_quest(id: String) -> void:
 
 func complete_quest(id: String) -> void:
 	Econ.request("complete_quest", [id])
+
+
+## Missão de coletar/visitar: o ponto `index` dela foi feito (presente achado, casa visitada).
+func quest_mark(id: String, index: int) -> void:
+	Econ.request("quest_mark", [id, index])
+
+
+## Pontos já feitos de uma missão de coletar/visitar.
+func quest_got(id: String) -> Array:
+	return quests[id].get("got", []) if quests.has(id) else []
+## Promoção na guilda (as regras conferem pontos e missões).
+func rank_up() -> void:
+	Econ.request("rank_up")
+
+
+## Rank na guilda ("D" a "S") e pontos de guilda (espelho do personagem).
+func rank() -> String:
+	return str(flags.get("rank", "D"))
+
+
+func guild_points() -> int:
+	return int(flags.get("guild_pts", 0))
 
 
 ## Abate: a cura da comida (roubo de vida) é do combate, do cliente; XP e missão são do Econ.
@@ -974,6 +1001,8 @@ func apply_events(events: Array) -> void:
 				item_looted.emit(str(e.get("id", "")), int(e.get("qty", 1)))
 			"quest":
 				quests_changed.emit()
+			"rank":
+				ranked_up.emit(str(e.get("rank", "")))
 			"farm":
 				farm_changed.emit()
 
