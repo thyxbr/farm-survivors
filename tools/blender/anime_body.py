@@ -167,9 +167,9 @@ def _doran_torso_secs():
         (1.220, 0.212, 0.132, {"fr": 1.08}),
         (1.310, 0.222, 0.130, {"fr": 1.10}),
         (1.385, 0.224, 0.122, {"fr": 1.04}),
-        (1.432, 0.212, 0.112, {}),                    # ombro quadrado: o trapézio só cai perto do pescoço
-        (1.468, 0.150, 0.092, {}),
-        (1.495, 0.086, 0.074, {}),
+        (1.426, 0.215, 0.113, {}),                    # ombro quadrado: o trapézio só cai perto do pescoço
+        (1.452, 0.165, 0.096, {}),
+        (1.468, 0.090, 0.076, {}),
     )
     return [sec((0, 0, z), rx, ry, sq=2.5, **ex) for z, rx, ry, ex in rows]
 
@@ -220,6 +220,7 @@ def doran_torso(P, M, take):
     sloft("Belt", [dict(sec_at(T, z), rx=sec_at(T, z)["rx"] + a, ry=sec_at(T, z)["ry"] + a)
                    for z, a in ((0.974, 0.003), (0.979, 0.013), (1.019, 0.013), (1.024, 0.003))],
           M["lea_d"], sides=12, phase=0.0, axis=Z, caps=(False, False))
+    base = take()
 
     # avental de couro: casca curva sobre o tronco (peitilho) que se solta do cinto para baixo (saia), com o
     # friso de cima e a barra na mesma grade (material por faixa)
@@ -238,19 +239,20 @@ def doran_torso(P, M, take):
     plate("Apron", Pg, M["apron"], matf=lambda r, c: 1 if r in (0, 6, len(rows) - 2) else 0, mats=(M["apron_d"],),
           back_from=7)
     px = (0.012, 0.085, 0.158)
-    plate("ApronPocket", [[Vector((x, y_ap(x, z, 0.023), z)) for x in px] for z in (0.848, 0.822, 0.715)], M["apron_d"],
-          matf=lambda r, c: 1 if r == 0 else 0, mats=(M["apron_l"],), thick=0.009)
-    ya = y_ap(0.07, 0.82, 0.023)
+    plate("ApronPocket", [[Vector((x, y_ap(x, z, 0.030), z)) for x in px] for z in (0.848, 0.822, 0.715)], M["apron_d"],
+          matf=lambda r, c: 1 if r == 0 else 0, mats=(M["apron_l"],), thick=0.016)
+    ya = y_ap(0.07, 0.82, 0.030)
     limb("TongsHandleA", (0.06, ya + 0.004, 0.8), (0.07, ya - 0.022, 0.97), 0.008, 0.008, M["iron"], sides=4)
     limb("TongsHandleB", (0.08, ya + 0.004, 0.8), (0.1, ya - 0.022, 0.96), 0.008, 0.008, M["iron"], sides=4)
+    skirt = take()
 
     # alças por cima dos ombros até o nó nas costas, e a amarra em volta da cintura: tiras em relevo na camisa
     sb = bmesh.new()
     zt = 1.048
     for s in (1, -1):
-        surf_band(sb, [(s * 0.100, -0.2, 1.36), (s * 0.100, -0.2, 1.42), (s * 0.096, -0.04, 1.5), (s * 0.090, 0.04, 1.5),
-                       (s * 0.082, 0.2, 1.40), (s * 0.050, 0.2, 1.22), (s * 0.006, 0.2, zt + 0.01)],
-                  0.015, bvh, thick=0.005)
+        surf_band(sb, [(s * 0.100, -0.2, 1.36), (s * 0.100, -0.2, 1.41), (s * 0.099, -0.10, 1.47), (s * 0.097, -0.05, 1.5),
+                       (s * 0.092, 0.03, 1.5), (s * 0.087, 0.09, 1.47), (s * 0.082, 0.2, 1.40), (s * 0.050, 0.2, 1.22), (s * 0.006, 0.2, zt + 0.01)],
+                  0.012, bvh, thick=0.005)
     ring = _ring(sec_at(T, zt), Vector((1, 0, 0)), Vector((0, -1, 0)), 24, 0.0, None, 0.0)
     surf_band(sb, [ring[k % 24] for k in range(10, 27, 2)], 0.014, bvh, thick=0.005)
     band_obj("ApronStraps", sb, M["apron_d"])
@@ -265,12 +267,12 @@ def doran_torso(P, M, take):
     # gola: abertura em V desenhada na camisa (pele em sombra) e a barra da gola em duas tiras gordas
     d = Vector((0, 1, 0))
     vb = bmesh.new()
-    _fan(vb, [Vector((x, -0.2, z)) for x, z in ((-0.050, 1.452), (-0.032, 1.40), (-0.009, 1.35), (0.009, 1.35),
-                                               (0.032, 1.40), (0.050, 1.452), (0.0, 1.47))], bvh, d, 0.002)
+    _fan(vb, [Vector((x, -0.2, z)) for x, z in ((-0.044, 1.44), (-0.030, 1.40), (-0.008, 1.35), (0.008, 1.35),
+                                               (0.030, 1.40), (0.044, 1.44), (0.0, 1.44))], bvh, d, 0.002)
     _decal("ChestOpen", vb, M["skin_d"], None)
     cb = bmesh.new()
     for s in (1, -1):
-        surf_band(cb, [(s * 0.060, -0.2, 1.462), (s * 0.040, -0.2, 1.405), (s * 0.016, -0.2, 1.352), (s * 0.001, -0.2, 1.332)],
+        surf_band(cb, [(s * 0.056, -0.2, 1.45), (s * 0.040, -0.2, 1.405), (s * 0.016, -0.2, 1.352), (s * 0.001, -0.2, 1.332)],
                   [0.011, 0.011, 0.010, 0.007], bvh, thick=0.005)
     band_obj("Collar", cb, M["shirt_d"])
 
@@ -280,8 +282,11 @@ def doran_torso(P, M, take):
     sloft("Rag", [sec(p0 + rad * o + Vector((0, 0, z)), w, 0.007)
                   for z, w, o in ((1.012, 0.030, 0.0), (0.985, 0.034, 0.004), (0.92, 0.040, -0.002), (0.86, 0.046, 0.006),
                                   (0.815, 0.042, 0.002))], M["shirt_d"], sides=6, phase=0.0, fwd=rad)
-    weigh(take(), Z, [(1.0, "Hips"), (1.08, "Spine"), (1.2, "Spine1"), (1.32, "Spine2")])
-    sloft("Neck", [sec((0, 0.012, 1.44), 0.074, 0.070), sec((0, 0.014, 1.52), 0.068, 0.064),
+    stops = [(1.0, "Hips"), (1.08, "Spine"), (1.2, "Spine1"), (1.32, "Spine2")]
+    weigh(base + take(), Z, stops)
+    # a saia do avental cede para as coxas (como a túnica do Bram): no passo à frente a coxa não atravessa o couro
+    weigh_by(skirt, robe_field(0.985, 0.55, stops))
+    sloft("Neck", [sec((0, 0.012, 1.42), 0.076, 0.072), sec((0, 0.014, 1.52), 0.068, 0.064),
                    sec((0, 0.016, 1.6), 0.062, 0.060)], M["skin"], sides=8, caps=(False, False))
     weigh(take(), Z, [(1.44, "Spine2"), (1.5, "Neck")])
 

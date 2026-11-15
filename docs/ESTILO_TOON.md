@@ -252,6 +252,62 @@ cópia de teste do Doran, em capturas lado a lado.
 Capturas (antes à esquerda, depois à direita; frente, três quartos, perfil e costas):
 `docs/screenshots/npc_cabelo_doran.jpg`, `npc_cabelo_bram.jpg` e `npc_cabelo_mira.jpg`.
 
+### Do corpo liso (teste no Doran)
+Com rosto, cabelo e barba lisos, o corpo do Doran (tronco, quadril, cinto e avental em caixas; membros em
+loft facetado) passou a destoar. O teste está em `tools/blender/anime_body.py` e gera uma **cópia**,
+`blacksmith_body.glb` (`ASSETS=blacksmith_body`, fora do repositório); o `blacksmith.glb` do jogo não mudou
+e nada foi aplicado a Bram, Mira, cavaleiro ou goblins. Foram quatro rodadas de capturas lado a lado.
+
+O que funcionou:
+1. **Liso pelo sombreado, não por subdivisão.** `sloft` usa as mesmas seções de `body.py` (`sec`, `grow`,
+   `sample`) com normais suaves e aresta viva só onde as faces fazem mais de ~55 graus
+   (`Mesh.set_sharp_from_angle`): tampas e barras continuam secas, o resto arredonda. Tubo de 8 lados e tronco
+   de 12 colunas bastam; 16 colunas no tronco não mudaram a captura e custavam 128 triângulos.
+2. **Tronco numa grade só, com material por faixa**: calça até o cinto, camisa daí para cima; o cinto é um
+   anel por fora. Um anel um pouco mais gordo logo acima do cinto faz o "rolo" da camisa.
+3. **Roupa como casca** (`plate`): o avental é uma grade que segue a frente do tronco a 1,4 cm e se solta do
+   cinto para baixo; friso de cima, costura da cintura e barra são faixas da mesma grade (material por célula,
+   zero triângulos a mais). De perfil é a maior diferença: o avental em caixas flutuava ~10 cm à frente do
+   peito.
+4. **Tiras em relevo assentadas na superfície** (`surf_band`): alças, amarra da cintura e gola são caminhos
+   desenhados perto da peça; cada vértice gruda no ponto mais próximo dela (`BVHTree.find_nearest`). O caminho
+   precisa de pontos onde a superfície vira (ombro): um trecho reto de 10 cm atravessava o ombro por dentro.
+   E a BVH tirada do `bmesh` precisa de `normal_update()` antes, senão a normal vem zerada e a tira some.
+5. **Membro numa peça só pela articulação.** Calça do quadril até a bota e pele do braço do rolo da manga até
+   dentro da luva: some a emenda de sombreado no joelho e no cotovelo, e o gradiente de pesos de `weigh` dobra
+   a malha sem rasgar. As seções são levadas para a pose T antes do loft (`xf_secs`), em vez de girar a malha
+   pronta.
+6. **Rolos em vez de dobras**: dois na manga arregaçada, dois na calça em cima do cano, punho dobrado na bota
+   e na luva (`fold_ring`).
+7. **Bota em loft**: cano, punho dobrado, pé ao longo do eixo do pé com o peito alto atrás e a biqueira baixa
+   e larga, sola chata em superelipse.
+8. **Pesos**: mesmos grupos e paradas do corpo antigo. A saia do avental passou a usar `robe_field` (cede para
+   as coxas, como a túnica do Bram): no golpe de martelo a coxa da frente atravessava o avental antigo e não
+   atravessa mais. Tronco e avental dobram juntos; ombro, cotovelo e joelho não rasgam nem afundam
+   (conferido em `work_hammer` a 0,2 s e 0,433 s e em `idle`).
+
+O que não funcionou ou ainda destoa:
+1. **Ombro caído.** A primeira tabela do tronco subia em rampa até o pescoço e o ferreiro ficou com ombro de
+   cabide. O trapézio só pode cair nos últimos 4 cm; mesmo assim o ombro ficou mais redondo que o quadrado
+   antigo, e de frente o Doran parece um pouco menos largo.
+2. **Punhos fechados antigos** (`fist`): continuam em placas facetadas ao lado do antebraço liso, e custam
+   1.408 triângulos os dois (um quinto do personagem). Alisar por ângulo não muda a leitura.
+3. **Bolso sem contorno.** O bolso antigo era uma caixa saltada e ganhava traço preto em volta; a casca fina
+   não ganha, e o bolso virou uma mancha escura. Pede um friso ou costura em tira.
+4. **Gola**: o V desenhado e as duas tiras da gola leem, mas as pontas de cima das tiras viram dois riscos
+   perto do pescoço, e as alças largas formam uma moldura escura em volta do V.
+5. **Avental liso como papelão**: sem vinco nem dobra; só a costura da cintura quebra a superfície (é o limite
+   do código descrito no estudo).
+6. **Encontro do pescoço com a camisa** de costas: peças que se atravessam, a linha sai um pouco serrilhada.
+7. **Fivela do cinto** saiu (ficava escondida atrás do avental).
+
+Custo (sem martelo e tenaz): 5.750 -> 6.611 triângulos (+861, +15%). Pernas e botas 680 -> 976, tronco e
+avental 468 -> 1.081, braços 696 -> 624; cabeça (2.498) e punhos (1.408) iguais. Com martelo e tenaz, cerca de
+6.050 -> 6.910, contra o orçamento de 5 mil. Refazer o punho em menos peças pagaria o corpo liso inteiro.
+
+Capturas (atual à esquerda, teste à direita): `docs/screenshots/npc_corpo_doran.jpg` (frente, três quartos,
+perfil, costas e closes do tronco) e `npc_corpo_doran_golpe.jpg` (golpe de martelo e pernas).
+
 ### Do desempenho
 1. **O custo do contorno é de nós, não de triângulos.** O goblin tem 102 peças (`MeshInstance3D`), 59 delas
    com casca; cada casca era um nó a mais para o motor mover a cada passo. Com os goblins parados quase não
@@ -400,6 +456,8 @@ $G = "C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe"
 & $G --path . --resolution 1400x1000 --script res://tools/toon_shot.gd -- goblin saida.png 3q merge
 # comparar dois modelos em close (ex.: uma cópia do GLB antigo e o novo); modos face, hands, body e o giro em graus
 & $G --path . --resolution 1600x900 --script res://tools/face_shot.gd -- blacksmith_old blacksmith saida.png face 35
+# idem, de corpo inteiro e parado num quadro de um clipe do GLB (modos torso e legs para closes)
+& $G --path . --resolution 1500x900 --script res://tools/face_shot.gd -- blacksmith blacksmith_body saida.png body 35 work_hammer 0.433
 # jogo com o sombreado antigo, para comparar
 & $G --path . res://scenes/world.tscn -- --notoon
 # auditoria: depois de 5 s lista no console as peças visíveis que ficaram com material iluminado comum
