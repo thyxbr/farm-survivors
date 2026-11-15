@@ -185,6 +185,12 @@ func _debug_screenshot() -> void:
 		gear_ids["slime_gel"] = 7
 		gear_ids["goblin_ear"] = 3
 		gear_ids["spicy_soup"] = 2
+		# um de cada família de ícone sem modelo de equipamento (poção, semente, colheita, prato, material)
+		for id in ["health_potion", "mana_potion", "wind_ring", "seed_carrot", "seed_mint", "carrot", "wheat", "tomato",
+				"pepper", "mint", "pumpkin", "bread", "mint_tea", "pumpkin_pie", "valdoria_feast", "bone_shard",
+				"goblin_crown", "iron_ore", "arcane_crystal", "ember_core", "frost_drop", "thunder_totem", "toxic_gland",
+				"golden_dust", "shadow_fang", "champion_badge"]:
+			gear_ids[id] = 1 + gear_ids.size() % 4 if ItemDB.is_stackable(id) else 1
 		# nível 6 com 3 pontos sobrando: XP dos níveis 1→6 menos 3 níveis de pontos já gastos não existe;
 		# a demo só mostra a tela, então ajusta o espelho direto depois da concessão
 		Econ.grant(1425, 0, gear_ids, "demo", true)

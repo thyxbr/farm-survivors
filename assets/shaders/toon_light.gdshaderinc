@@ -10,6 +10,7 @@ uniform vec3 cast_tint = vec3(0.16, 0.16, 0.27);         // luz que sobra dentro
 uniform float threshold : hint_range(-1.0, 1.0) = 0.22;
 uniform float softness : hint_range(0.0, 0.2) = 0.015;
 uniform float gloss : hint_range(0.0, 1.0) = 0.0;       // brilho em faixa, para metal
+uniform bool no_form = false;                            // rosto desenhado: sem sombra de forma, só a projetada
 uniform bool toon = true;                               // falso (`--notoon`): Lambert comum
 
 void light() {
@@ -17,7 +18,7 @@ void light() {
 	if (!toon) {
 		DIFFUSE_LIGHT += max(ndl, 0.0) * ATTENUATION * LIGHT_COLOR / PI;
 	} else {
-		float lit = smoothstep(threshold - softness, threshold + softness, ndl);
+		float lit = no_form ? 1.0 : smoothstep(threshold - softness, threshold + softness, ndl);
 		float cast = 1.0;
 		float atten = ATTENUATION;
 		if (LIGHT_IS_DIRECTIONAL) {

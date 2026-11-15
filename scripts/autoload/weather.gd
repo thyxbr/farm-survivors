@@ -7,6 +7,7 @@ extends Node
 ## Depuração: `--weather=neve,sol` força uma sequência de climas (sol, chuva, neve, vento), cada um
 ## por `--weather-step=60` segundos, e o último fica; o primeiro já começa assentado (chão coberto,
 ## encharcado...). Ex.: `--weather=neve,sol --weather-step=10` mostra a neve derretendo.
+## No jogo, o comando de chat `/clima neve` força um clima (só para quem digitou) e `/clima auto` volta.
 
 signal changed(kind: int)
 
@@ -68,6 +69,31 @@ func _process(delta: float) -> void:
 
 func _now() -> float:
 	return Time.get_unix_time_from_system()
+
+
+## Força um clima (WeatherRules.Kind) só nesta máquina, até chamar `release()`. A troca é gradual,
+## como uma troca normal. Usado pelo comando de chat `/clima`.
+func force(k: int) -> void:
+	_forced = [k]
+	_forced_t0 = _clock
+	_refresh_kind()
+
+
+## Volta ao cronograma do relógio (o mesmo clima de todos).
+func release() -> void:
+	_forced = []
+	_refresh_kind()
+
+
+func _refresh_kind() -> void:
+	var k := _kind_at(_clock)
+	if k != kind:
+		kind = k
+		changed.emit(k)
+
+
+func is_forced() -> bool:
+	return not _forced.is_empty()
 
 
 func _kind_at(t: float) -> int:

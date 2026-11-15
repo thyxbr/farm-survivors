@@ -164,6 +164,7 @@ func _refresh() -> void:
 
 func _slot(ctx: String, id: String, q: int) -> ItemSlot:
 	var s := ItemSlot.new(SLOT)
+	s.model_icon = true
 	s.set_state(id, q)
 	s.context = ctx
 	s.tooltip = tooltip
