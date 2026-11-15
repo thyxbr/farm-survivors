@@ -244,9 +244,10 @@ por quadro **com ou sem toon**:
 - Medido: o quadro em que nasce inimigo não é mais lento que os outros (135 ms x 154 ms na rodada de 190 s).
 - Medido: a GPU quase não trabalha (1,5–2,1 ms por quadro); o tempo está em script e física (40–58 ms de
   `_process`, 23–32 ms de física por quadro).
-- Suspeita (não investigada, não é do toon): o gargalo da Horda cheia é o próprio inimigo: 102 nós de malha
-  por goblin, `_update_flash` percorrendo todos a cada quadro e `_apply_tint` duplicando material por peça
-  (`scripts/enemies/enemy.gd`). Vale um perfil só disso.
+- Investigado depois (não era do toon): a Horda cheia ficava presa no teto de 8 passos de física por quadro,
+  movendo as 102 malhas soltas de cada goblin a cada passo. Corrigido com as peças juntadas por grupo
+  (`scripts/enemies/enemy_model.gd`); relatório e números em `docs/desempenho/horda-2026-11-14.md`.
+  Os tempos da tabela acima são de antes dessa correção.
 
 **Primeira vez de cada malha** (a casca é calculada uma vez e fica em cache):
 

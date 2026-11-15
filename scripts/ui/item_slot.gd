@@ -35,6 +35,8 @@ var drop_handler: Callable
 ## Barra de ações do HUD (variante B): mais margem em volta do ícone, tecla num selo no canto superior
 ## esquerdo e o texto (custo, quantidade) num selo embaixo, os dois fora do desenho.
 var badges := false
+## Espaço desenhado a tinta sobre pergaminho (telas do livro).
+var paper := false
 var _hover := false
 
 
@@ -120,6 +122,8 @@ func _draw() -> void:
 	var rc := ItemDB.rarity_color(item_id) if has_item else UITheme.GOLD_DIM
 	if border_override.a > 0.0:
 		rc = border_override
+	if paper:
+		_draw_paper(r, has_item, rc)
 	# fundo
 	var bg := StyleBoxFlat.new()
 	bg.bg_color = Color(0.06, 0.055, 0.05, 0.92)
@@ -134,8 +138,9 @@ func _draw() -> void:
 		bg.set_border_width_all(2)
 	elif _hover:
 		bg.border_color = bg.border_color.lightened(0.35)
-	draw_style_box(bg, r)
-	if has_item:
+	if not paper:
+		draw_style_box(bg, r)
+	if has_item and not paper:
 		# brilho interno e cantos na cor da raridade (leitura rápida, como nas lojas de ARPG)
 		var rank: int = ItemDB.RARITY[ItemDB.rarity_of(item_id)].rank
 		if rank > 0:
@@ -152,11 +157,15 @@ func _draw() -> void:
 	var inset := size.x * (0.17 if badges else 0.14)
 	var ir := r.grow(-inset)
 	if has_item:
-		IconPainter.draw(self, IconPainter.kind_for(item_id), IconPainter.color_for(item_id), ir)
+		var tex: Texture2D = ItemIcons.icon(item_id, queue_redraw) if paper else null
+		if tex:
+			draw_texture_rect(tex, r.grow(-size.x * 0.03), false)
+		else:
+			IconPainter.draw(self, IconPainter.kind_for(item_id), IconPainter.color_for(item_id), ir)
 	elif icon_kind != "":
 		IconPainter.draw(self, icon_kind, icon_color, ir)
 	elif ghost_kind != "":
-		IconPainter.draw(self, ghost_kind, Color(1, 1, 1, 0.1), ir, true)
+		IconPainter.draw(self, ghost_kind, Color(0.2, 0.125, 0.065, 0.28) if paper else Color(1, 1, 1, 0.1), ir, true)
 	if dim:
 		draw_rect(r.grow(-1), Color(0, 0, 0, 0.55))
 	# recarga radial (fatia escura que diminui no sentido horário)
@@ -205,7 +214,10 @@ func _draw() -> void:
 	if info_text != "":
 		_text(font, info_text, Vector2(0, size.y - 3), int(12 * k), Color(0.85, 0.85, 0.85), HORIZONTAL_ALIGNMENT_CENTER)
 	if label_text != "" and not has_item:
-		_text(font, label_text, Vector2(0, size.y - 5), 11, Color(0.6, 0.56, 0.48, 0.8), HORIZONTAL_ALIGNMENT_CENTER)
+		if paper:
+			draw_string(font, Vector2(0, size.y - 6), label_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 11, Color(0.2, 0.125, 0.065, 0.75))
+		else:
+			_text(font, label_text, Vector2(0, size.y - 5), 11, Color(0.6, 0.56, 0.48, 0.8), HORIZONTAL_ALIGNMENT_CENTER)
 
 
 func _text(font: Font, t: String, pos: Vector2, fs: int, col: Color, align: HorizontalAlignment) -> void:
@@ -215,3 +227,26 @@ func _text(font: Font, t: String, pos: Vector2, fs: int, col: Color, align: Hori
 		p.x = pos.x
 	draw_string_outline(font, p, t, align, w, fs, 4, Color(0, 0, 0, 0.95))
 	draw_string(font, p, t, align, w, fs, col)
+
+
+func _draw_paper(r: Rect2, has_item: bool, rc: Color) -> void:
+	var box := StyleBoxFlat.new()
+	box.set_corner_radius_all(4)
+	box.set_border_width_all(2)
+	box.bg_color = Color(0.2, 0.125, 0.065, 0.1)
+	box.border_color = Color(0.2, 0.125, 0.065, 0.45)
+	if has_item:
+		# papel tingido de leve pela raridade, com a borda na cor dela
+		var rank: int = ItemDB.RARITY[ItemDB.rarity_of(item_id)].rank
+		var w := 0.1 + rank * 0.05
+		box.bg_color = Color(rc.r * 0.7, rc.g * 0.7, rc.b * 0.7, w) if rank > 0 else box.bg_color
+		box.border_color = rc.darkened(0.35) if rank > 0 else Color(0.2, 0.125, 0.065, 0.7)
+	if selected:
+		box.border_color = UITheme.INK_RED
+		box.set_border_width_all(3)
+	elif drop_hint:
+		box.border_color = Color(0.1, 0.45, 0.12)
+		box.set_border_width_all(3)
+	elif _hover:
+		box.border_color = UITheme.INK
+	draw_style_box(box, r)
