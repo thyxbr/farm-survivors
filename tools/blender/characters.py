@@ -311,9 +311,7 @@ def build_knight():
                                       sec((K.x, K.y - 0.1, K.z - 0.006), 0.042, 0.046)],
                    steel, knee, fwd=(0, 0, 1), chamfer=(0.0, 0.008))
         sab_s = [dict(x, c=x["c"] + Vector((0, 0, 0.008))) for x in grow(S["foot"], 1.1, 0.006)]
-        heel_y, toe_y = sab_s[0]["c"].y, sab_s[-1]["c"].y
-        sole = tbox("Leg%s_Sole" % n, (K.x, (heel_y + toe_y) / 2 - 0.004, 0.011),
-                    (0.15 * P["ft"], heel_y - toe_y + 0.05, 0.022), lea_d, bevel=0.006, parent=ankle)
+        sole = foot_sole("Leg%s_Sole" % n, sab_s, lea_d, ankle, P["ft"], th=0.011, lip=0.008)
         kw = wing("Leg%s_KneeWing" % n, (K.x + s * 0.066, K.y - 0.035, K.z), 0.075, 0.1, 0.009, steel, knee)
         gband = band("Leg%s_GreaveTrim" % n, grow([sample(S["shin"], 0.2)], 1.13, 0.008, keel=0.12)[0],
                      S["shin"][-1]["c"] - S["shin"][0]["c"], 0.016, trim, knee, sides=8, phase=0)
