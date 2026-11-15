@@ -1183,6 +1183,13 @@
 		"stack": true,
 		"desc": "Prova de caça. Eca."
 	},
+	"bone_shard": {
+		"name": "Lasca de Osso",
+		"type": "material",
+		"price": 9,
+		"stack": true,
+		"desc": "Sobrou de um esqueleto. Ainda range."
+	},
 	"goblin_crown": {
 		"name": "Coroa do Rei Goblin",
 		"type": "material",

@@ -55,7 +55,7 @@ static func kind_for(id: String) -> String:
 		"seed":
 			return "seed"
 		"material":
-			return {"slime_gel": "gel", "goblin_ear": "ear", "goblin_crown": "crown"}.get(id, "gel")
+			return {"slime_gel": "gel", "goblin_ear": "ear", "goblin_crown": "crown", "bone_shard": "bone"}.get(id, "gel")
 	return "gel"
 
 
@@ -72,7 +72,8 @@ static func color_for(id: String) -> Color:
 		"crop":
 			return ItemDB.CROPS[id].color if ItemDB.CROPS.has(id) else Color(0.6, 0.8, 0.3)
 		"material":
-			return {"slime_gel": Color(0.35, 0.9, 0.4), "goblin_ear": Color(0.45, 0.6, 0.25), "goblin_crown": GOLDC}.get(id, Color.GRAY)
+			return {"slime_gel": Color(0.35, 0.9, 0.4), "goblin_ear": Color(0.45, 0.6, 0.25), "goblin_crown": GOLDC,
+				"bone_shard": Color(0.9, 0.87, 0.76)}.get(id, Color.GRAY)
 	return Color(0.7, 0.7, 0.7)
 
 
@@ -230,6 +231,10 @@ static func draw(ci: CanvasItem, kind: String, col: Color, r: Rect2, ghost := fa
 				ci.draw_circle(P.call(0.4, 0.52), S * 0.06, Color(1, 1, 1, 0.6))
 		"ear":
 			_poly(ci, P, [Vector2(0.2, 0.75), Vector2(0.86, 0.14), Vector2(0.62, 0.82)], col, ol, lw)
+		"bone":
+			_bar(ci, P, Vector2(0.28, 0.72), Vector2(0.72, 0.28), 0.12, col, ol, lw)
+			for v in [Vector2(0.22, 0.66), Vector2(0.34, 0.78), Vector2(0.66, 0.22), Vector2(0.78, 0.34)]:
+				_circle(ci, P.call(v.x, v.y), S * 0.085, col, ol, lw)
 		"crown":
 			_poly(ci, P, [Vector2(0.16, 0.74), Vector2(0.16, 0.32), Vector2(0.33, 0.52), Vector2(0.5, 0.24),
 				Vector2(0.67, 0.52), Vector2(0.84, 0.32), Vector2(0.84, 0.74)], col, ol, lw)

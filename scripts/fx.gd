@@ -7,6 +7,10 @@ extends RefCounted
 ## no próximo efeito, um engasgo de 10-20 ms em todo golpe depois de uns segundos sem efeitos.
 static var _burst_mat: StandardMaterial3D
 static var _ring_keep: StandardMaterial3D
+static var _fade_mode := -1
+## Cubo (por tamanho) e degradê (por cor) das rajadas: iguais em toda rajada do mesmo tipo, ninguém altera.
+static var _burst_meshes := {}
+static var _burst_ramps := {}
 
 
 static func _scene() -> Node:
@@ -39,6 +43,13 @@ static func _ring_material() -> StandardMaterial3D:
 	return _ring_keep
 
 
+## `GeometryInstance3D.transparency` só existe no Forward+; nos outros renderizadores o número apaga pela cor.
+static func _instance_fade() -> bool:
+	if _fade_mode < 0:
+		_fade_mode = 1 if RenderingServer.get_current_rendering_method() == "forward_plus" else 0
+	return _fade_mode == 1
+
+
 static func damage_number(pos: Vector3, text: String, color := Color.WHITE, size := 48) -> void:
 	var root := _scene()
 	if root == null:
@@ -57,8 +68,13 @@ static func damage_number(pos: Vector3, text: String, color := Color.WHITE, size
 	l.global_position = pos + Vector3(randf_range(-0.3, 0.3), 0, randf_range(-0.3, 0.3))
 	var tw := l.create_tween().set_parallel()
 	tw.tween_property(l, "global_position:y", l.global_position.y + 1.2, 0.9).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
-	tw.tween_property(l, "modulate:a", 0.0, 0.45).set_delay(0.45)
-	tw.tween_property(l, "outline_modulate:a", 0.0, 0.45).set_delay(0.45)
+	if _instance_fade():
+		# apaga pela transparência da instância: mexer em `modulate` refaz a malha do texto a cada quadro, e
+		# na Horda cheia há dezenas de números apagando ao mesmo tempo
+		tw.tween_property(l, "transparency", 1.0, 0.45).set_delay(0.45)
+	else:
+		tw.tween_property(l, "modulate:a", 0.0, 0.45).set_delay(0.45)
+		tw.tween_property(l, "outline_modulate:a", 0.0, 0.45).set_delay(0.45)
 	tw.chain().tween_callback(l.queue_free)
 
 
@@ -77,9 +93,12 @@ static func burst(pos: Vector3, color: Color, amount := 16, speed := 4.0, size :
 ## restart() a cada vez (ex.: as faíscas da bigorna do ferreiro).
 static func burst_particles(color: Color, amount := 16, speed := 4.0, size := 0.12, lifetime := 0.6, gravity := -9.0) -> CPUParticles3D:
 	var p := CPUParticles3D.new()
-	var mesh := BoxMesh.new()
-	mesh.size = Vector3.ONE * size
-	mesh.material = _burst_material()
+	var mesh: BoxMesh = _burst_meshes.get(size)
+	if mesh == null:
+		mesh = BoxMesh.new()
+		mesh.size = Vector3.ONE * size
+		mesh.material = _burst_material()
+		_burst_meshes[size] = mesh
 	p.mesh = mesh
 	p.amount = amount
 	p.one_shot = true
@@ -92,9 +111,14 @@ static func burst_particles(color: Color, amount := 16, speed := 4.0, size := 0.
 	p.gravity = Vector3(0, gravity, 0)
 	p.scale_amount_min = 0.6
 	p.scale_amount_max = 1.2
-	var grad := Gradient.new()
-	grad.set_color(0, color)
-	grad.set_color(1, Color(color.r, color.g, color.b, 0.0))
+	var grad: Gradient = _burst_ramps.get(color)
+	if grad == null:
+		grad = Gradient.new()
+		grad.set_color(0, color)
+		grad.set_color(1, Color(color.r, color.g, color.b, 0.0))
+		if _burst_ramps.size() >= 128:      # há rajadas de cor sorteada: o cache não cresce sem fim
+			_burst_ramps.clear()
+		_burst_ramps[color] = grad
 	p.color_ramp = grad
 	p.emitting = false
 	return p

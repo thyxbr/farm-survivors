@@ -7,6 +7,10 @@ const STAT_LABELS := {"dmg": ["Dano do ataque", false], "def": ["Defesa", false]
 	"mp": ["Mana máxima", false], "spell": ["Poder mágico", false], "crit": ["Crítico", true],
 	"speed": ["Velocidade", true], "cdr": ["Recarga reduzida", true], "leech": ["Roubo de vida", true]}
 
+## Folha de papel com texto a tinta, para as telas do livro; desligado, o painel escuro de sempre
+## (loja, HUD). Ligar antes de entrar na árvore.
+var paper := false
+
 var _owner_slot: ItemSlot
 var _text: RichTextLabel
 
@@ -17,6 +21,9 @@ func _ready() -> void:
 	z_index = 100
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sb := UITheme.frame_box(Color(0.04, 0.035, 0.035, 0.97), UITheme.GOLD_DIM, 14)
+	if paper:
+		sb = UITheme.frame_box(UITheme.PAGE, UITheme.INK, 14)
+		sb.shadow_color = Color(0, 0, 0, 0.4)
 	add_theme_stylebox_override("panel", sb)
 	_text = RichTextLabel.new()
 	_text.bbcode_enabled = true
@@ -27,6 +34,16 @@ func _ready() -> void:
 	_text.add_theme_font_size_override("normal_font_size", 16)
 	_text.add_theme_font_size_override("bold_font_size", 16)
 	_text.add_theme_font_override("bold_font", UITheme.serif())
+	if paper:
+		# a Garamond é menor: 2 px a mais, como em UITheme.ink()
+		_text.add_theme_font_size_override("normal_font_size", 18)
+		_text.add_theme_font_size_override("italics_font_size", 18)
+		_text.add_theme_font_override("normal_font", UITheme.body())
+		var slanted := FontVariation.new()   # a Garamond embutida não tem itálico: inclina a normal
+		slanted.base_font = UITheme.body()
+		slanted.variation_transform = Transform2D(Vector2(1, 0), Vector2(0.2, 1), Vector2.ZERO)
+		_text.add_theme_font_override("italics_font", slanted)
+		_text.add_theme_color_override("default_color", UITheme.INK)
 	add_child(_text)
 
 
@@ -34,8 +51,11 @@ func show_for(slot: ItemSlot) -> void:
 	_owner_slot = slot
 	var id := slot.item_id
 	var rc := ItemDB.rarity_color(id)
-	(get_theme_stylebox("panel") as StyleBoxFlat).border_color = rc.darkened(0.15) if ItemDB.is_equippable(id) else UITheme.GOLD_DIM
-	_text.text = build_text(id, slot.context)
+	var border := rc.darkened(0.15) if ItemDB.is_equippable(id) else UITheme.GOLD_DIM
+	if paper:
+		border = _rarity_ink(id) if ItemDB.is_equippable(id) else UITheme.INK
+	(get_theme_stylebox("panel") as StyleBoxFlat).border_color = border
+	_text.text = build_text(id, slot.context, paper)
 	_text.size = Vector2.ZERO
 	reset_size()
 	visible = true
@@ -72,15 +92,34 @@ static func _hex(c: Color) -> String:
 	return c.to_html(false)
 
 
-static func build_text(id: String, context := "bag") -> String:
+## Cor da raridade escurecida para ler sobre papel; o comum (branco) vira tinta.
+static func _rarity_ink(id: String) -> Color:
+	var rar: Dictionary = ItemDB.RARITY[ItemDB.rarity_of(id)]
+	return UITheme.on_paper(rar.color) if rar.rank > 0 else UITheme.INK
+
+
+## Cores do texto: as claras do tema escuro ou, com `paper`, as mesmas ideias a tinta.
+static func _palette(paper: bool) -> Dictionary:
+	if paper:
+		return {"dim": UITheme.INK_DIM, "good": Color(0.1, 0.4, 0.12), "bad": UITheme.INK_RED,
+			"stat": Color(0.12, 0.25, 0.52), "fx": Color(0.05, 0.36, 0.42), "desc": UITheme.INK_DIM,
+			"rule": Color(UITheme.INK, 0.45), "gold": Color(0.45, 0.27, 0.02)}
+	return {"dim": UITheme.DIM, "good": UITheme.GOOD, "bad": UITheme.BAD, "stat": Color(0.55, 0.75, 1.0),
+		"fx": Color(0.5, 0.95, 1.0), "desc": Color(0.78, 0.72, 0.58), "rule": UITheme.GOLD_DIM, "gold": UITheme.GOLD}
+
+
+## `paper` troca as cores claras por tinta (dica dentro do livro).
+static func build_text(id: String, context := "bag", paper := false) -> String:
 	var it := ItemDB.get_item(id)
 	if it.is_empty():
 		return ""
+	var pal := _palette(paper)
 	var rar: Dictionary = ItemDB.RARITY[ItemDB.rarity_of(id)]
-	var rc := _hex(rar.color)
-	var dim := _hex(UITheme.DIM)
-	var good := _hex(UITheme.GOOD)
-	var bad := _hex(UITheme.BAD)
+	var rc := _hex(_rarity_ink(id) if paper else rar.color)
+	var dim := _hex(pal.dim)
+	var good := _hex(pal.good)
+	var bad := _hex(pal.bad)
+	var gold := _hex(pal.gold)
 	var t := "[font_size=22][b][color=#%s]%s[/color][/b][/font_size]\n" % [rc, it.name]
 	var slot := ItemDB.slot_of(id)
 	if slot != "":
@@ -92,15 +131,17 @@ static func build_text(id: String, context := "bag") -> String:
 			var ench := Game.enchant_of(id)
 			if ench.lv > 0:   # encanto do ferreiro, na cor do elemento
 				var ec: Color = EnchantFX.ELEMENTS.get(ench.el, {}).get("color", Color.WHITE)
+				if paper:
+					ec = UITheme.on_paper(ec)
 				t += "[color=#%s]✦ %s[/color]\n" % [_hex(ec), Game.enchant_text(id)]
 		if it.get("defense", 0) > 0:
 			t += "[font_size=26]%d[/font_size] [color=#%s]Defesa[/color]\n" % [it.defense, dim]
 		var st := ItemDB.item_stats(id)
 		for k in ItemDB.STAT_ORDER:
 			if st.has(k):
-				t += "[color=#%s]%s[/color]\n" % [_hex(Color(0.55, 0.75, 1.0)), ItemDB.format_stat(k, float(st[k]))]
+				t += "[color=#%s]%s[/color]\n" % [_hex(pal.stat), ItemDB.format_stat(k, float(st[k]))]
 		if it.has("fx"):
-			t += "[color=#%s]✦ %s[/color]\n" % [_hex(Color(0.5, 0.95, 1.0)), ItemDB.FX_NAMES[it.fx]]
+			t += "[color=#%s]✦ %s[/color]\n" % [_hex(pal.fx), ItemDB.FX_NAMES[it.fx]]
 		if it.has("needs"):
 			var ok: bool = Game.weapon_class() == it.needs
 			t += "[color=#%s]Exige: %s[/color]\n" % [good if ok else bad, ItemDB.CLASS_NAMES[it.needs]]
@@ -108,12 +149,12 @@ static func build_text(id: String, context := "bag") -> String:
 		var lines := ItemDB.item_summary(id).split("\n")
 		for i in range(1, lines.size() - 2):
 			t += "%s\n" % lines[i]
-	t += "[i][color=#%s]%s[/color][/i]\n" % [_hex(Color(0.78, 0.72, 0.58)), it.desc]
+	t += "[i][color=#%s]%s[/color][/i]\n" % [_hex(pal.desc), it.desc]
 
 	# comparação calculada com o equipado
 	if slot != "" and context != "equip":
 		var cur: String = Game.equipment.get(slot, "")
-		t += "[color=#%s]━━━━━━━━━━━━━━━━━━━━[/color]\n" % _hex(UITheme.GOLD_DIM)
+		t += "[color=#%s]━━━━━━━━━━━━━━━━━━━━[/color]\n" % _hex(pal.rule)
 		if cur == id:
 			t += "[color=#%s]Igual ao equipado.[/color]\n" % dim
 		else:
@@ -131,16 +172,16 @@ static func build_text(id: String, context := "bag") -> String:
 			if not any:
 				t += "  [color=#%s]Nenhuma mudança nos números.[/color]\n" % dim
 			if slot == "weapon" and ItemDB.weapon_class(id) != Game.weapon_class():
-				t += "  [color=#%s]Muda o ataque para %s[/color]\n" % [_hex(UITheme.GOLD), ItemDB.CLASS_NAMES[ItemDB.weapon_class(id)].to_lower()]
+				t += "  [color=#%s]Muda o ataque para %s[/color]\n" % [gold, ItemDB.CLASS_NAMES[ItemDB.weapon_class(id)].to_lower()]
 
 	# preço e dicas
 	var price: int = it.price
 	match context:
 		"buy":
-			t += "[color=#%s]Preço: %d ◆[/color]\n" % [_hex(UITheme.GOLD) if Game.gold >= price else bad, price]
+			t += "[color=#%s]Preço: %d ◆[/color]\n" % [gold if Game.gold >= price else bad, price]
 			t += "[color=#%s]Clique direito ou duplo clique: comprar[/color]" % dim
 		"sell":
-			t += "[color=#%s]Vende por: %d ◆[/color]\n" % [_hex(UITheme.GOLD), int(ceil(price * 0.5))]
+			t += "[color=#%s]Vende por: %d ◆[/color]\n" % [gold, int(ceil(price * 0.5))]
 			t += "[color=#%s]Clique direito ou duplo clique: vender[/color]" % dim
 		"equip":
 			t += "[color=#%s]Valor: %d ◆[/color]\n" % [dim, price]

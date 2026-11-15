@@ -330,6 +330,7 @@ def build_house():
 
 
 exec(open(OUT.replace("assets/models/", "tools/blender/characters.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/monsters.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/props.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/buildings.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/trees.py"), encoding="utf-8").read(), globals())
@@ -345,6 +346,7 @@ BUILDERS = {
     "knight": build_knight, "goblin": build_goblin, "slime": build_slime, "elder": build_elder,
     "merchant": build_merchant, "house": build_house, "body_base": build_body_base,
     "blacksmith": build_blacksmith,
+    "skeleton": build_skeleton,
 }
 BUILDERS.update(PROP_BUILDERS)
 if "buildings" in _only:   # ASSETS=buildings gera todas as construções da Defesa da Cidade (b_<tipo>_<nível>)

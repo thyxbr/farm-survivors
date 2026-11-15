@@ -215,16 +215,105 @@ Mira, Bram e Doran usam `tools/blender/anime.py` no lugar do rosto facetado de `
 8. **Custo:** Mira 3.792 -> 5.106 triângulos, ferreiro 5.270, ancião 4.652 (orçamento de 5 mil).
    Conferir com `tools/face_shot.gd` (dois modelos lado a lado, modos face/hands/body).
 
+### Do desempenho
+1. **O custo do contorno é de nós, não de triângulos.** O goblin tem 102 peças (`MeshInstance3D`), 59 delas
+   com casca; cada casca era um nó a mais para o motor mover a cada passo. Com os goblins parados quase não
+   pesa; andando, pesava 60% do quadro.
+2. **Cascas juntadas por grupo.** `ToonLook.apply(modelo, true, true)` junta numa malha só as cascas das
+   peças irmãs (mesmo nó pai): 59 → 7 por goblin (braços, pernas, corpo, cabeça, coroa). O desenho é o
+   mesmo, porque as peças não têm transformação própria. Só serve para modelo cujas peças não mudam depois
+   de montado: os inimigos sim; cavaleiro, soldados e NPCs não (o equipamento troca peça por peça).
+3. **De longe a casca não é desenhada** (`visibility_range_end`, 36 m): a 25 m o traço já tem um quarto de
+   pixel em 720p.
+4. **Opção x linha de comando.** `ToonLook` lê `toon` e `toon_outline` direto do `settings.cfg` (não pode
+   depender do autoload `Game`). `--notoon` e `--nooutline` vencem a opção; os testes ignoram a opção.
+5. **Medir na Horda cheia é ruidoso.** Duas rodadas iguais diferem em até 60% no tempo de quadro (a partida é
+   sorteada e a máquina divide CPU com outros processos). Contagens (nós, draw calls, triângulos, caches)
+   são estáveis; para tempo, a bancada `tools/toon_cost.gd ... move` é a que decide.
+
 ### Custo medido
-80 goblins parados, 1280×720, `tools/toon_cost.gd` (medida simples, sem IA nem efeitos):
+Medições de 14/11/2026, Ryzen 7 5700X + RX 9070 XT, 1280×720, vsync desligado. **Medido** tem número e
+ferramenta; o que é **suspeita** está marcado. Não há meta de desempenho combinada para o jogo.
 
-| | Sem toon | Com toon |
+**Bancada: 80 goblins, luz do jogo** (`tools/toon_cost.gd`, quatro rodadas de cada):
+
+| | Sem toon | Toon, casca por peça (antes) | Toon, cascas juntadas (depois) |
+|---|---|---|---|
+| Quadro, goblins parados | 3,7–5,0 ms | 4,5–6,6 ms | 3,3–5,0 ms |
+| Quadro, goblins andando (`move`) | 13,2–19,5 ms | 23,9–31,4 ms | 15,1–16,5 ms |
+| Draw calls | 445 | 505 | 452 |
+| Objetos desenhados | 22 mil | 26,8 mil | 22,6 mil |
+| Triângulos | 505 mil | 642 mil | 642 mil |
+
+**Horda real** (`--geardemo --survival --hordedemo --toonprobe=50 --proberound=12`: rodada 12 fixa, 90
+inimigos vivos, jogador imortal e sem carta de nível). Nesse regime o jogo fica saturado, entre 100 e 200 ms
+por quadro **com ou sem toon**:
+
+| | Sem toon | Toon sem contorno | Toon antes | Toon depois |
+|---|---|---|---|---|
+| Quadro médio (cada valor é uma rodada) | 115 · 122 · 133 · 172 · 174 ms | 111 ms | 135 · 195 · 195 ms | 101 · 149 · 151 · 165 ms |
+| Cascas por inimigo nascido | 0 | 0 | 27 | 3,5–4,6 |
+| `ToonLook.apply` por inimigo | 0 | 0,65 ms | 1,05 ms | 0,70–0,91 ms |
+| Pior `apply` depois da carga | — | 3,0 ms | 5,4 ms | 2,8–3,9 ms |
+| Draw calls (média) | 4,4–6,3 mil | 3,2 mil | 3,6–4,2 mil | 3,3–4,4 mil |
+| Triângulos (média) | 0,62–0,84 mi | 0,61 mi | 0,72–0,99 mi | 0,69–0,96 mi |
+
+- Medido: nos três pares rodados em seguida, o toon com casca por peça ficou 12%, 13% e 18% acima do
+  sem toon; sem contorno, empatou. Depois de juntar as cascas a diferença some no ruído.
+- Medido: o quadro em que nasce inimigo não é mais lento que os outros (135 ms x 154 ms na rodada de 190 s).
+- Medido: a GPU quase não trabalha (1,5–2,1 ms por quadro); o tempo está em script e física (40–58 ms de
+  `_process`, 23–32 ms de física por quadro).
+- Investigado depois (não era do toon): a Horda cheia ficava presa no teto de 8 passos de física por quadro,
+  movendo as 102 malhas soltas de cada goblin a cada passo. Corrigido com as peças juntadas por grupo
+  (`scripts/enemies/enemy_model.gd`); relatório e números em `docs/desempenho/horda-2026-11-14.md`.
+  Os tempos da tabela acima são de antes dessa correção.
+
+**Primeira vez de cada malha** (a casca é calculada uma vez e fica em cache):
+
+- Medido: na carga da vila, 246–254 cascas levam 140–210 ms no total; o `apply` do cavaleiro do jogador, que
+  calcula quase todas, leva 56–79 ms. Fica dentro do quadro de carga da cena (1,9–2,1 s).
+- Medido: na cidade (`--colonytest` com janela), um tipo novo de unidade aparecendo no meio da partida custa
+  até 33 ms uma vez.
+- Suspeita: perceptível só como um engasgo isolado na primeira aparição; pré-calcular as cascas na tela de
+  carga resolveria, se incomodar.
+
+**Gancho de cena** (`scripts/autoload/toon.gd`, converte no quadro seguinte ao da entrada):
+
+| Cena | Malhas no maior lote | Tempo do lote | Quadro de carga da cena |
+|---|---|---|---|
+| Vila (`world.tscn`) | 4776–5716 | 29–32 ms | 1,9–2,1 s |
+| Praça (`hub.tscn`) | 4806 | 22 ms | 1,2 s |
+| Cidade (`colony.tscn`) | 5209 | 11 ms | 3,8 s |
+
+- Medido: o gancho é 1–2% do quadro de carga; durante a Horda vê ~130 malhas por segundo (efeitos, gemas,
+  peças de inimigo) e gasta 0,8 ms por segundo. Converter em lotes por quadro não se paga.
+
+**Caches** (`_mats`, `_hulls`, `_merged`):
+
+- Medido: Horda de 190 s, 342 inimigos nascidos: 256 materiais, 246 cascas e 8 cascas juntadas aos 5 s e os
+  mesmos números no fim. Não crescem com o número de inimigos.
+- Medido: no teste da cidade (105 s) vão de 148 a 364 materiais e de 72 a 473 cascas, conforme aparecem
+  tipos novos de construção e unidade.
+- Suspeita: o teto é a variedade de conteúdo (malhas e cores distintas); não foi medido numa partida longa
+  de cidade.
+
+**O que foi feito e o que foi descartado**
+
+| Candidato | Decisão | Por quê |
 |---|---|---|
-| Tempo por quadro | 4,9–5,1 ms | 6,6–7,5 ms |
-| Draw calls | 445 | 505 |
-| Triângulos | 505 mil | 642 mil |
+| Juntar cascas por personagem | feito (inimigos) | era o custo medido: 59 nós a mais por goblin |
+| Contorno só até certa distância | feito (36 m) | barato; ganho não medido isolado (na Horda tudo fica perto) |
+| Sem contorno em inimigos comuns acima de N | não feito | com as cascas juntadas o contorno deixou de pesar |
+| Converter em lotes no gancho | não feito | 11–32 ms dentro de cargas de 1–4 s |
 
-Cerca de 40% a mais, quase tudo do contorno (dobra os triângulos de cada personagem).
+**Não medido:** GPU fraca ou integrada (os triângulos a mais, +27% na bancada, podem pesar lá); cliente em
+partida em grupo; cidade com muitos soldados (cavaleiros seguem com casca por peça: 36 por soldado).
+
+### Opções no menu
+"Estilo desenhado" e "Contorno nos personagens" ficam no painel de opções (`scripts/ui/options_panel.gd`),
+gravadas em `settings.cfg` como `toon` e `toon_outline`. Desligar o contorno vale na hora (as cascas ficam
+no grupo `toon_outline` e são escondidas); o resto vale para o que for criado dali em diante, e o cenário
+já montado muda ao trocar de área. O painel avisa isso ao mexer na opção.
 
 ## Onde o estilo já está
 
@@ -252,8 +341,8 @@ Cerca de 40% a mais, quase tudo do contorno (dobra os triângulos de cada person
 | 5 | Materiais trocados ou alterados por código depois do primeiro quadro: `ToonLook.sync` e auditoria `--toonaudit` | feito |
 | 6 | Ajuste global de luz e pós-processo: SSAO, névoa, sol/ambiente/contraluz, clima e serra em faixas chapadas (vila, praça e Horda) | feito |
 | 6b | O mesmo ajuste na luz própria da Defesa da Cidade (`colony_world.gd`) | a fazer |
-| 7 | Desempenho: custo do contorno na Horda e do gancho de cena em mapas grandes | a medir |
-| 8 | Opção no menu de vídeo (estilo e contorno ligados/desligados) | a fazer |
+| 7 | Desempenho: medido na Horda e nas cargas de cena; cascas juntadas nos inimigos e corte do contorno ao longe | feito |
+| 8 | Opção no menu (estilo e contorno ligados/desligados); `--notoon` e `--nooutline` vencem | feito |
 | 9 | Rosto dos NPCs sem sombra de forma, como no estudo | em aberto |
 
 ## Ferramentas
@@ -266,6 +355,12 @@ $G = "C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe"
 & $G --path . --resolution 1400x1000 --script res://tools/toon_shot.gd -- slime saida.png 3q goo=8c40d9cc
 # custo numa multidão
 & $G --path . --resolution 1280x720 --script res://tools/toon_cost.gd -- 80 toon
+# idem, com as cascas juntadas e os goblins andando (o caso que pesa)
+& $G --path . --resolution 1280x720 --script res://tools/toon_cost.gd -- 80 toon merge move
+# sonda dentro do jogo: Horda na rodada 12 por 50 s (com --notoon ou --nooutline para comparar)
+& $G --path . --resolution 1280x720 res://scenes/world.tscn -- --geardemo --survival --hordedemo --toonprobe=50 --proberound=12
+# conferir as cascas juntadas: toon por peça à esquerda, juntado à direita
+& $G --path . --resolution 1400x1000 --script res://tools/toon_shot.gd -- goblin saida.png 3q merge
 # jogo com o sombreado antigo, para comparar
 & $G --path . res://scenes/world.tscn -- --notoon
 # auditoria: depois de 5 s lista no console as peças visíveis que ficaram com material iluminado comum

@@ -81,6 +81,7 @@
 	"goblin": {
 		"name": "Goblin Batedor",
 		"model": "goblin",
+		"gear": ["Club"],
 		"hp": 80,
 		"damage": 14,
 		"speed": 4.2,
@@ -180,6 +181,7 @@
 	"goblin_arqueiro": {
 		"name": "Goblin Arqueiro",
 		"model": "goblin",
+		"gear": ["Bow", "Quiver"],
 		"hp": 55,
 		"damage": 11,
 		"speed": 3.6,
@@ -207,6 +209,7 @@
 	"goblin_xama": {
 		"name": "Goblin Xamã",
 		"model": "goblin",
+		"gear": ["Staff", "Mask"],
 		"hp": 70,
 		"damage": 8,
 		"speed": 3.2,
@@ -237,6 +240,7 @@
 	"goblin_dourado": {
 		"name": "Goblin Dourado",
 		"model": "goblin",
+		"gear": ["Sack"],
 		"hp": 160,
 		"damage": 0,
 		"speed": 4.9,
@@ -266,6 +270,7 @@
 	"goblin_campeao": {
 		"name": "Campeão Goblin",
 		"model": "goblin",
+		"gear": ["Axe", "Armor", "Helm"],
 		"hp": 420,
 		"damage": 22,
 		"speed": 4.0,
@@ -295,6 +300,7 @@
 	"goblin_bruto": {
 		"name": "Goblin Bruto",
 		"model": "goblin",
+		"gear": ["BigClub", "Pads"],
 		"hp": 280,
 		"damage": 24,
 		"speed": 2.9,
@@ -322,6 +328,7 @@
 	"goblin_king": {
 		"name": "Rei Goblin",
 		"model": "goblin",
+		"gear": ["Club", "Crown", "Cape"],
 		"hp": 900,
 		"damage": 26,
 		"speed": 3.6,
@@ -363,6 +370,167 @@
 			["pale_crescent", 0.2],
 			["ivory_wing", 0.05],
 			["royal_wings", 0.05]
+		]
+	},
+	"esqueleto": {
+		"name": "Esqueleto Guerreiro",
+		"model": "skeleton",
+		"gear": ["Sword", "Shield"],
+		"hp": 95,
+		"damage": 16,
+		"speed": 3.7,
+		"xp": 48,
+		"gold": [4, 10],
+		"aggro": 14.0,
+		"reach": 1.9,
+		"cooldown": 1.4,
+		"radius": 0.4,
+		"height": 1.7,
+		"scale": 1.0,
+		"color": {
+			"$c": [0.9, 0.87, 0.76, 1.0]
+		},
+		"bld": 1.5,
+		"loot": [
+			["bone_shard", 0.7],
+			["health_potion", 0.15],
+			["mana_potion", 0.12],
+			["iron_sword", 0.04],
+			["wooden_shield", 0.04],
+			["kettle_hat", 0.02]
+		]
+	},
+	"esqueleto_arqueiro": {
+		"name": "Esqueleto Arqueiro",
+		"model": "skeleton",
+		"gear": ["Bow", "Quiver"],
+		"hp": 60,
+		"damage": 13,
+		"speed": 3.4,
+		"xp": 34,
+		"gold": [3, 8],
+		"aggro": 18.0,
+		"reach": 12.0,
+		"keep": 7.5,
+		"cooldown": 2.3,
+		"radius": 0.4,
+		"height": 1.7,
+		"scale": 1.0,
+		"color": {
+			"$c": [0.85, 0.8, 0.65, 1.0]
+		},
+		"ai": "ranged",
+		"loot": [
+			["bone_shard", 0.6],
+			["hunter_bow", 0.03]
+		]
+	},
+	"esqueleto_mago": {
+		"name": "Esqueleto Mago",
+		"model": "skeleton",
+		"gear": ["Staff", "Hood"],
+		"hp": 65,
+		"damage": 17,
+		"speed": 3.0,
+		"xp": 44,
+		"gold": [5, 11],
+		"aggro": 18.0,
+		"reach": 11.0,
+		"keep": 8.0,
+		"cooldown": 2.8,
+		"radius": 0.4,
+		"height": 1.7,
+		"scale": 1.0,
+		"color": {
+			"$c": [0.65, 0.4, 1.0, 1.0]
+		},
+		"ai": "ranged",
+		"shot": "bolt",
+		"loot": [
+			["bone_shard", 0.6],
+			["mana_potion", 0.25],
+			["oak_staff", 0.03],
+			["ember_staff", 0.01]
+		]
+	},
+	"esqueleto_cavaleiro": {
+		"name": "Cavaleiro Esqueleto",
+		"model": "skeleton",
+		"gear": ["Greatsword", "Helm", "Armor"],
+		"hp": 520,
+		"damage": 26,
+		"speed": 3.5,
+		"xp": 190,
+		"gold": [14, 28],
+		"aggro": 20.0,
+		"reach": 2.8,
+		"cooldown": 1.5,
+		"radius": 0.6,
+		"height": 2.2,
+		"scale": 1.3,
+		"color": {
+			"$c": [0.75, 0.2, 0.2, 1.0]
+		},
+		"elite": true,
+		"slam_every": 3,
+		"bld": 2.0,
+		"loot": [
+			["bone_shard", 1.0],
+			["health_potion", 0.5],
+			["knight_helm", 0.08],
+			["chain_mail", 0.06],
+			["guardian_greatsword", 0.04]
+		]
+	},
+	"goblin_bombardeiro": {
+		"name": "Goblin Bombardeiro",
+		"model": "goblin",
+		"gear": ["Barrel", "Torch"],
+		"hp": 45,
+		"damage": 28,
+		"speed": 4.3,
+		"xp": 22,
+		"gold": [2, 6],
+		"aggro": 15.0,
+		"reach": 2.0,
+		"cooldown": 1.0,
+		"radius": 0.4,
+		"height": 1.35,
+		"scale": 0.95,
+		"color": {
+			"$c": [1.0, 0.55, 0.15, 1.0]
+		},
+		"ai": "bomber",
+		"blast": 3.4,
+		"loot": [
+			["ember_core", 0.5],
+			["goblin_ear", 0.5]
+		]
+	},
+	"slime_gelo": {
+		"name": "Slime de Gelo",
+		"model": "slime",
+		"hp": 70,
+		"damage": 10,
+		"speed": 2.6,
+		"xp": 24,
+		"gold": [2, 5],
+		"aggro": 12.0,
+		"reach": 1.6,
+		"cooldown": 1.6,
+		"radius": 0.55,
+		"height": 0.85,
+		"scale": 1.1,
+		"color": {
+			"$c": [0.55, 0.85, 1.0, 1.0]
+		},
+		"goo": {
+			"$c": [0.5, 0.82, 1.0, 0.8]
+		},
+		"chill": 2.5,
+		"loot": [
+			["frost_drop", 0.6],
+			["slime_gel", 0.4]
 		]
 	}
 }

@@ -69,6 +69,16 @@ func _ready() -> void:
 	for b in ["forja", "muralha", "celeiro"]:
 		check(_point(hub, "building", b) != null, "ponto da construção %s" % b)
 	check(hub.player.build_lock and hub.player.peaceful, "cavaleiro da praça não ataca")
+	# Orin (elder.glb) e Tobias (merchant.glb) parados no idle, não em pose T; o cajado do Orin na mão
+	for k in ["passive_master", "merchant"]:
+		var m: Node3D = _point(hub, k).model
+		var aps := m.find_children("*", "AnimationPlayer")
+		var ap: AnimationPlayer = aps[0] if aps.size() > 0 else null
+		check(ap != null and ap.is_playing() and ap.current_animation == "mixamo/idle",
+			"%s da praça toca o idle (%s)" % [k, ap.current_animation if ap else "sem AnimationPlayer"])
+	var staff: Node = _point(hub, "passive_master").model.find_child("Staff", true, false)
+	check(staff != null and staff.get_parent() is BoneAttachment3D and staff.get_parent().bone_name == "LeftHand",
+		"cajado do Mestre Orin preso à mão esquerda")
 
 	# --- Ecos do fim de partida (solo: CharacterService local)
 	var got := Econ.run_finish(Econ.run_start("horde"), "horde", 10, 0, 0, {})
@@ -191,7 +201,34 @@ func _ready() -> void:
 		check(Game.ecos == ecos_before + RewardRules.ecos(Balance.tables, "horde", rounds),
 			"Ecos da partida do portal (%d → %d)" % [ecos_before, Game.ecos])
 		check(not Hub.horde_return and not Hub.pending_horde, "pedido de Horda da praça consumido")
+	await _loading_screen()
 	_finish()
+
+
+## Tela de carregamento (ligada à força: em headless a troca de cena é direta): cobre a ida a Valdoria,
+## o cavaleiro fica imune enquanto ela cobre e ainda um pouco depois que abre.
+func _loading_screen() -> void:
+	if _hub() == null:
+		return
+	Loading.force = true
+	Lobby.go_world()
+	check(Loading.covering, "tela de carregamento cobre a troca de cena")
+	var arrived: bool = await _wait_until(func() -> bool:
+		var s := get_tree().current_scene
+		return s != null and s.get("role") == null and s.get("player") != null, 15.0)
+	check(arrived, "Valdoria montada por trás da tela")
+	check(arrived and get_tree().current_scene.built and is_equal_approx(Loading.progress, 1.0),
+		"mapa montado em etapas com a barra em 100%% (%.2f)" % Loading.progress)
+	if arrived:
+		var p: Player = get_tree().current_scene.player
+		check(Loading.covering, "tela ainda cobre com Valdoria recém-montada")
+		var hp := Game.hp
+		p.take_damage(50.0, p.global_position + Vector3(1, 0, 0))
+		check(Game.hp == hp, "golpe durante o carregamento não tira vida")
+		check(await _wait_until(func() -> bool: return not Loading.covering, 12.0), "tela abre com o mundo pronto")
+		check(p.invuln > 1.0, "imunidade curta depois que a tela abre (%.1f s)" % p.invuln)
+		check(await _wait_until(func() -> bool: return not Loading._root.visible, 3.0), "tela some depois de abrir")
+	Loading.force = false
 
 
 func _finish() -> void:
