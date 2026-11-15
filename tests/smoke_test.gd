@@ -81,6 +81,18 @@ func _ready() -> void:
 	check(by_kind.get("goblin_arqueiro", 0) == 2 and by_kind.get("goblin_xama", 0) == 1, "Acampamento: 2 arqueiros e 1 xamã")
 	check(by_kind.get("goblin_campeao", 0) == 1 and by_kind.get("goblin_bruto", 0) == 2 and by_kind.get("goblin_dourado", 0) == 2,
 		"fontes de +4 e +5: 1 Campeão no Acampamento, 2 Brutos nas Ruínas, 2 Goblins Dourados pelo mapa")
+	check(by_kind.get("esqueleto", 0) == 3 and by_kind.get("esqueleto_arqueiro", 0) == 2 and by_kind.get("esqueleto_mago", 0) == 1
+		and by_kind.get("esqueleto_cavaleiro", 0) == 1, "Ruínas: 3 esqueletos guerreiros, 2 arqueiros, 1 mago e 1 Cavaleiro")
+	check(by_kind.get("goblin_bombardeiro", 0) == 2 and by_kind.get("slime_gelo", 0) == 2, "2 bombardeiros no Acampamento e 2 slimes de gelo nos campos")
+	var gear_ok := true
+	for en in get_tree().get_nodes_in_group("enemies"):
+		var want: Array = en.data.get("gear", [])
+		var got: Array = EnemyGear.names(en.model)
+		got.sort()
+		var w2 := want.duplicate()
+		w2.sort()
+		gear_ok = gear_ok and got == w2
+	check(gear_ok, "cada monstro só carrega o equipamento da sua variante")
 	check(get_tree().get_nodes_in_group("interactable").size() == 4 + Game.FARM_PLOTS + 1,
 		"3 NPCs + portal + %d canteiros + caldeirão interagíveis" % Game.FARM_PLOTS)
 

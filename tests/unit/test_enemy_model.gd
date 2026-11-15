@@ -109,20 +109,23 @@ func test_merged_copy_keeps_groups_and_special_pieces() -> void:
 	root.free()
 
 
-## O goblin de verdade: 102 peças no GLB, 7 malhas no modelo pronto (uma por grupo que o código anima).
+## O goblin de verdade: mais de cem peças no GLB, 8 malhas no modelo pronto (uma por grupo que o código
+## anima e uma por peça de equipamento da variante; as peças das outras variantes saem antes de juntar).
 func test_goblin_instance_has_one_mesh_per_group() -> void:
-	var data := {"model": "goblin", "scale": 1.0}
+	var data := {"model": "goblin", "scale": 1.0, "gear": ["Club", "Crown"]}
 	var src: Node3D = EnemyModel.MODELS.goblin.instantiate()
-	var m := EnemyModel.instance("goblin", data)
-	for n in ["Body", "Head", "ArmL", "ArmR", "LegL", "LegR", "Crown"]:
+	EnemyGear.apply(src, data.gear)
+	var m := EnemyModel.instance("goblin_teste_rei", data)
+	T.eq(EnemyGear.names(m).size(), 2, "só o equipamento da variante fica no modelo pronto")
+	for n in ["Body", "Head", "ArmL", "ArmR", "LegL", "LegR", "Opt_Club", "Opt_Crown"]:
 		var g := m.find_child(n, true, false) as Node3D
 		var g0 := src.find_child(n, true, false) as Node3D
 		T.ok(g != null and g.get_node_or_null(EnemyModel.MERGED) is MeshInstance3D, "%s tem a malha juntada" % n)
 		T.ok(g != null and g.transform.is_equal_approx(g0.transform), "%s na posição do GLB" % n)
 	if not ToonLook.enabled():
-		T.eq(m.find_children("*", "MeshInstance3D", true, false).size(), 7, "sete malhas")
+		T.eq(m.find_children("*", "MeshInstance3D", true, false).size(), 8, "oito malhas")
 	T.eq(_tris(m), _tris(src), "os mesmos triângulos do GLB")
-	T.ok(EnemyModel.instance("goblin", data) != m, "cada chamada devolve uma cópia nova")
+	T.ok(EnemyModel.instance("goblin_teste_rei", data) != m, "cada chamada devolve uma cópia nova")
 	src.free()
 	m.free()
 

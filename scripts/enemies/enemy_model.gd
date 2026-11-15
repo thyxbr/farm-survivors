@@ -5,13 +5,15 @@ extends RefCounted
 ## O GLB do goblin tem 102 peças soltas (uma MeshInstance3D por cubo/cilindro do Blender). Cada passo de
 ## física movia as 102, e a Horda cheia não saía do teto de 8 passos por quadro (docs/desempenho). Aqui a
 ## tintura, o material da gelatina e o estilo toon são aplicados uma vez por tipo, e as peças irmãs (mesmo nó
-## pai) viram uma malha só, com uma superfície por material: o goblin fica com 7 malhas, uma por grupo que o
-## código anima (Body, Head, ArmL, ArmR, LegL, LegR, Crown). O desenho é o mesmo.
+## pai) viram uma malha só, com uma superfície por material: o goblin fica com uma malha por grupo que o
+## código anima (Body, Head, ArmL, ArmR, LegL, LegR) e uma por peça de equipamento da variante (Opt_<Nome>,
+## ver EnemyGear). O desenho é o mesmo.
 ## Os nós de grupo continuam com o mesmo nome; as peças juntadas ficam num filho chamado "Merged".
 
 const MODELS := {
 	"slime": preload("res://assets/models/slime.glb"),
 	"goblin": preload("res://assets/models/goblin.glb"),
+	"skeleton": preload("res://assets/models/skeleton.glb"),
 }
 const MERGED := "Merged"
 
@@ -26,6 +28,10 @@ static func instance(kind: String, data: Dictionary) -> Node3D:
 	var ps: PackedScene = _scenes.get(key)
 	if ps == null:
 		var src: Node3D = MODELS[data.model].instantiate()
+		# só o equipamento da variante (Opt_<Nome>) entra no modelo pronto; o resto sai antes de juntar
+		var no_gear := EnemyGear.apply(src, data.get("gear", []))
+		if not no_gear.is_empty():
+			push_warning("%s: o modelo %s não tem as peças %s" % [kind, data.model, str(no_gear)])
 		_dress(src, kind, data)
 		var out := merged_copy(src) as Node3D
 		src.free()
