@@ -609,10 +609,7 @@ def build_core():
         c = f.calc_center_median()
         for v in f.verts:
             v.co = c + (v.co - c) * 0.86 + n * 0.02
-    for f in bm.faces:
-        if f.material_index == 0 and f not in res["faces"]:
-            pass
-    core = _obj(bm, [TINT_GLOW, STONE_DK], (0, 0, 0.13))
+    core =_obj(bm, [TINT_GLOW, STONE_DK], (0, 0, 0.13))
     # as laterais das placas extrudadas ficam escuras
     for p in core.data.polygons:
         if p.material_index == 0 and len(p.vertices) == 4:
