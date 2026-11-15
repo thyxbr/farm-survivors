@@ -1079,11 +1079,16 @@ static func hold_weapon_upright(look: Dictionary, r: Dictionary) -> void:
 
 ## Arco: o punho fica na mão esquerda, mas a orientação vem do corpo, não do antebraço (o pulso solto).
 ## Mirando (peso do IK do arco), a flecha aponta na mira e o arco fica de pé, com um leve tombo do topo para
-## fora; solto, o arco fica de pé ao lado da perna e inclina um pouco com o balanço do braço (`swing`).
+## fora; solto, o arco fica deitado ao lado da perna e inclina um pouco com o balanço do braço (`swing`); ao
+## erguer para mirar ele gira de deitado para de pé.
 static func _orient_bow(holder: Node3D, r: Dictionary, swing: float) -> void:
 	var w: float = r.get("bow_w", 0.0)
 	var pitch: float = r.get("aim_pitch", 0.0)
-	var loose := Basis.from_euler(Vector3(clampf(swing * 0.4, -0.5, 0.5) + KnightMoves.BOW_LOOSE_TILT, 0.0, -0.06))
+	# solto: deitado ao lado da perna, um braço do arco para a frente (a ponta um pouco para baixo) e o
+	# outro para trás, a corda para cima; balança um pouco com o braço
+	var dn := KnightMoves.BOW_LOOSE_DOWN
+	var lying := Basis(Vector3.RIGHT, Vector3(0.0, -sin(dn), cos(dn)), Vector3(0.0, -cos(dn), -sin(dn)))
+	var loose := Basis.from_euler(Vector3(clampf(swing * 0.4, -0.5, 0.5), 0.0, 0.0)) * lying
 	var aim := Basis.from_euler(Vector3(-pitch, 0.0, 0.0)) * Basis(Vector3.BACK, KnightMoves.BOW_CANT)
 	var want := Basis(Quaternion(loose).slerp(Quaternion(aim), smoothstep(0.0, 1.0, w)))
 	var parent_xf := KnightLook._chain(holder.get_parent(), r.model)

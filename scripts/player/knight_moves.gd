@@ -184,9 +184,9 @@ const BOW_FINGERS := Vector3(0.03, 0.03, 0.045)
 const BOW_POLE_L := Vector3(0.5, -1.0, 0.0)    ## cotovelo do arco: para fora e para baixo
 const BOW_POLE_R := Vector3(-0.6, 0.25, -1.0)  ## cotovelo da corda: alto, para trás e para fora
 const BOW_CANT := 0.1               ## topo do arco tomba um pouco para fora (rad)
-const BOW_LOOSE_TILT := 0.1         ## arco solto: topo um pouco à frente (rad)
+const BOW_LOOSE_DOWN := 0.2         ## arco solto (deitado): a ponta da frente um pouco para baixo (rad)
 ## Arco carregado (KnightAnim.weapon_carry): o braço do arco balança pela metade, cotovelo dobrado.
-const BOW_CARRY := {"arm": Vector3(-0.08, 0.0, 0.1), "swing": 0.5, "elbow": -0.35, "elbow_run": -1.0}
+const BOW_CARRY := {"arm": Vector3(-0.15, 0.0, 0.12), "swing": 0.5, "elbow": -0.7, "elbow_run": -1.1}
 const BOW_RELEASE_HOLD := 0.35      ## fração da recuperação em que o arco ainda fica na mira
 const BOW_RELEASE_BACK := 0.16      ## quanto a mão da corda escapa para trás da âncora ao soltar (m)
 const BOW_RELEASE_SPEED := 3.0      ## a mão da corda escapa rápido (multiplica a suavização)
