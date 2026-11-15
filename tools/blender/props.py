@@ -281,31 +281,51 @@ def build_chest():
 def build_fence():
     # Vão de 2 m: mourões em x = ±1 (iguais, para coincidir com o vizinho), duas travessas de
     # tora rachada presas na frente e uma escora diagonal. Altura ~1 m.
+    # Mourão: tora sextavada um pouco torta, topo cortado em bisel; travessas em 3 trechos com
+    # barriga e torção leve, dois tons, nós escuros; amarração de corda em X; pedrinhas no pé.
     bag = Bag()
     a = bag.add
     rnd = random.Random(4)
     for x in (-1.0, 1.0):
-        a(bx(bag.nm("Post"), (x, 0, 0.47), (0.16, 0.16, 0.94), p_wood_dk, bev=0.025))
-        # topo em ponta chanfrada
-        a(hull(bag.nm("PostTip"), [(x + sx * 0.08, sy * 0.08, 0.93) for sx in (-1, 1) for sy in (-1, 1)]
-               + [(x + sx * 0.03, sy * 0.03, 1.06) for sx in (-1, 1) for sy in (-1, 1)], p_wood_dk))
-        a(bx(bag.nm("PostFoot"), (x, 0, 0.04), (0.2, 0.2, 0.08), p_wood_dk, bev=0.02))
-    for z, sag in ((0.8, 0.02), (0.42, 0.015)):
-        y = -0.115
-        # travessa: tora de 6 lados um pouco torta, em dois trechos para "barrigar"
-        z0, z1 = z + rnd.uniform(-0.015, 0.015), z + rnd.uniform(-0.015, 0.015)
-        mid = (z0 + z1) / 2 - sag
-        a(beam(bag.nm("Rail"), (-1.08, y, z0), (0.0, y, mid), 0.05, p_wood, seg=6, end_mat=p_wood_end))
-        a(beam(bag.nm("Rail"), (0.0, y, mid), (1.08, y, z1), 0.05, p_wood, seg=6, end_mat=p_wood_end))
-        for x in (-1.0, 1.0):   # amarração de corda
-            a(bx(bag.nm("Lash"), (x, -0.1, (z0 if x < 0 else z1)), (0.19, 0.03, 0.12), p_rope, bev=0.01))
+        lean = (rnd.uniform(-0.02, 0.02), rnd.uniform(-0.015, 0.015))
+        top = (x + lean[0], lean[1], 0.97)
+        a(beam(bag.nm("Post"), (x, 0, -0.02), top, 0.085, p_wood_dk, seg=6, r2=0.074))
+        # topo em bisel (corte inclinado) com o miolo claro à mostra
+        a(hull(bag.nm("PostTip"), [(top[0] + math.cos(k * PI / 3) * 0.074, top[1] + math.sin(k * PI / 3) * 0.074,
+                                    top[2] - 0.01 + 0.06 * math.cos(k * PI / 3)) for k in range(6)]
+               + [(top[0], top[1], top[2] - 0.02)], p_wood_end))
+        a(lathe(bag.nm("PostRing"), [(0.088, 0.62), (0.09, 0.66)], p_wood, seg=6, loc=(x, 0, 0)))   # marca de casca
+        for k in range(3):   # pedrinhas no pé do mourão
+            ang = k * 2.1 + rnd.uniform(0, 0.6)
+            a(boulder(bag.nm("FootStone"), (x + math.cos(ang) * 0.13, math.sin(ang) * 0.13, 0),
+                      (0.12, 0.1, 0.07), (p_stone, p_stone_dk, p_stone_lt)[k], n=8, seed=40 + k + int(x * 5)))
+    for z, sag, tone in ((0.8, 0.03, p_wood), (0.42, 0.02, p_wood_lt)):
+        y = -0.12
+        z0, z1 = z + rnd.uniform(-0.02, 0.02), z + rnd.uniform(-0.02, 0.02)
+        pts = []
+        for k in range(4):   # 3 trechos: barriga no meio e um leve zigue-zague em Y
+            t = k / 3
+            pts.append(Vector((-1.1 + 2.2 * t, y + (rnd.uniform(-0.012, 0.012) if 0 < k < 3 else 0.0),
+                               z0 + (z1 - z0) * t - sag * math.sin(PI * t))))
+        for k in range(3):
+            r0 = 0.055 if k != 1 else 0.05
+            a(beam(bag.nm("Rail"), pts[k], pts[k + 1], r0, tone, seg=5, r2=0.05 if k != 1 else 0.055,
+                   end_mat=p_wood_end if k in (0, 2) else None))
+        for k in range(2):   # nós da madeira
+            t = rnd.uniform(0.2, 0.8)
+            c = pts[0].lerp(pts[3], t)
+            a(boulder(bag.nm("Knot"), (c.x, c.y - 0.045, c.z - 0.015), (0.045, 0.03, 0.035), p_wood_dk, n=7, seed=50 + k))
+        for x in (-1.0, 1.0):   # amarração de corda em X no mourão
+            zz = z0 if x < 0 else z1
+            for s in (-1, 1):
+                a(bx(bag.nm("Lash"), (x, -0.095, zz), (0.2, 0.03, 0.03), p_rope, rot=(0, s * 0.6, 0), bev=0.008))
     a(beam(bag.nm("Brace"), (-0.9, -0.06, 0.45), (0.9, -0.06, 0.78), 0.035, p_wood_lt, seg=5, end_mat=p_wood_end))
     # tufos de capim na base dos mourões
     for x in (-1.0, 1.0):
-        for k in range(4):
-            yaw = k * PI / 2 + 0.4
-            a(leaf(bag.nm("Grass"), (x + math.cos(yaw) * 0.08, math.sin(yaw) * 0.08, 0.0), yaw - PI / 2, 1.0,
-                   0.22, 0.05, p_moss_lt, droop=0.2))
+        for k in range(5):
+            yaw = k * 2 * PI / 5 + 0.4
+            a(leaf(bag.nm("Grass"), (x + math.cos(yaw) * 0.09, math.sin(yaw) * 0.09, 0.0), yaw - PI / 2, 1.05,
+                   rnd.uniform(0.18, 0.3), 0.05, (p_moss_lt, p_moss)[k % 2], droop=0.25))
     join(bag.items, "Fence")
     export("fence")
 
@@ -444,44 +464,152 @@ def build_campfire():
 
 
 # ======================================================== TENDA
+def sheet(name, grid, thick, materials, mat_fn=None):
+    """Lona/pano com espessura a partir de uma grade de pontos grid[i][j]. A face de trás sai
+    deslocada 'thick' pela normal local e as bordas fecham. mat_fn(i, j) -> índice em 'materials'
+    para o quadrado (i, j) (frente, verso e borda)."""
+    ni, nj = len(grid), len(grid[0])
+    G = [[Vector(p) for p in row] for row in grid]
+
+    def nrm(i, j):
+        a = G[min(i + 1, ni - 1)][j] - G[max(i - 1, 0)][j]
+        b = G[i][min(j + 1, nj - 1)] - G[i][max(j - 1, 0)]
+        n = a.cross(b)
+        return n.normalized() if n.length > 1e-6 else Vector((0, 0, 1))
+
+    bm = bmesh.new()
+    top = [[bm.verts.new(G[i][j]) for j in range(nj)] for i in range(ni)]
+    bot = [[bm.verts.new(G[i][j] - nrm(i, j) * thick) for j in range(nj)] for i in range(ni)]
+    for i in range(ni - 1):
+        for j in range(nj - 1):
+            m = mat_fn(i, j) if mat_fn else 0
+            bm.faces.new((top[i][j], top[i + 1][j], top[i + 1][j + 1], top[i][j + 1])).material_index = m
+            bm.faces.new((bot[i][j + 1], bot[i + 1][j + 1], bot[i + 1][j], bot[i][j])).material_index = m
+    rim = ([(i, 0) for i in range(ni)] + [(ni - 1, j) for j in range(1, nj)]
+           + [(i, nj - 1) for i in range(ni - 2, -1, -1)] + [(0, j) for j in range(nj - 2, 0, -1)])
+    for k in range(len(rim)):
+        (i0, j0), (i1, j1) = rim[k], rim[(k + 1) % len(rim)]
+        f = bm.faces.new((top[i0][j0], bot[i0][j0], bot[i1][j1], top[i1][j1]))
+        f.material_index = mat_fn(min(i0, i1, ni - 2), min(j0, j1, nj - 2)) if mat_fn else 0
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return _mesh_obj(name, bm, list(materials))
+
+
+# lona da tenda: o toon acende a face inteira, então os tons ficam abaixo do p_canvas comum
+p_tent_a = mat("p_tent_a", (0.44, 0.34, 0.20), 0.95)
+p_tent_b = mat("p_tent_b", (0.55, 0.45, 0.28), 0.95)
+p_tent_hem = mat("p_tent_hem", (0.24, 0.16, 0.08), 0.95)
+p_cloth_red = mat("p_cloth_red", (0.42, 0.08, 0.05), 0.95)
+p_cloth_blue = mat("p_cloth_blue", (0.10, 0.16, 0.30), 0.95)
+p_tent_dark = mat("p_tent_dark", (0.05, 0.04, 0.035), 1.0)   # sombra dentro da tenda
+
+
 def build_tent():
-    # Tenda em A: cumeeira ao longo de Y (porta em -Y), 2,2 m de largura, 2 m de altura.
+    # Tenda em A: cumeeira ao longo de Y (porta em -Y), ~2,4 m de largura, 2 m de altura.
+    # Lona em gomos de dois tons com barra escura, barriga entre os mastros e entre a cumeeira e a
+    # barra; uma aba da porta enrolada e amarrada, a outra puxada de lado; saco de dormir lá dentro.
     bag = Bag()
     a = bag.add
     hw, hd, Ht = 1.15, 1.1, 1.95
-    t = 0.035
-    for sx in (-1, 1):   # duas águas de lona (prisma fino), com barriga leve no meio
-        p = []
-        for y in (-hd, 0.0, hd):
-            sag = 0.06 if y == 0.0 else 0.0
-            p += [(0, y, Ht), (sx * hw, y, 0.0), (sx * (hw * 0.5 - sag), y, Ht * 0.5 - sag * 0.5)]
-        a(hull(bag.nm("Roof"), p + [(sx * t, y, Ht - t) for y in (-hd, hd)] + [(sx * (hw - t), y, 0.0) for y in (-hd, hd)],
-               p_canvas))
-        a(bx(bag.nm("Hem"), (sx * (hw - 0.02), 0, 0.04), (0.06, 2 * hd + 0.04, 0.08), p_canvas_dk, rot=(0, -sx * math.atan2(Ht, hw), 0), bev=0.01))
-    # remendo e costura central
-    a(bx("Patch", (0.62, 0.35, 0.95), (0.32, 0.4, 0.02), p_patch, rot=(0, -math.atan2(Ht, hw), 0), bev=0.005))
-    a(bx("Seam", (0, 0, Ht + 0.02), (0.08, 2 * hd + 0.1, 0.05), p_canvas_dk, bev=0.01))
-    # fundo fechado
-    a(hull("Back", [(-hw, hd, 0), (hw, hd, 0), (0, hd, Ht), (-hw, hd - t, 0), (hw, hd - t, 0), (0, hd - t, Ht)], p_canvas_dk))
-    # porta: abas amarradas para os lados, interior escuro
-    a(hull("Dark", [(-hw * 0.85, -hd + 0.25, 0), (hw * 0.85, -hd + 0.25, 0), (0, -hd + 0.25, Ht * 0.92),
-                    (-hw * 0.85, -hd + 0.2, 0), (hw * 0.85, -hd + 0.2, 0), (0, -hd + 0.2, Ht * 0.92)], p_iron))
+    y0, y1 = -hd - 0.1, hd + 0.04          # a lona passa um pouco da porta (beiral)
+    NV, NU = 8, 4                          # gomos ao longo de Y, faixas da cumeeira à barra
+    U = (0.0, 0.3, 0.58, 0.85, 1.0)       # a última faixa é a barra escura, mais estreita
+    pegs_v = (0, NV // 2, NV)              # onde a barra é presa por estaca (sem recorte ali)
+    beta = math.atan2(Ht, hw)              # inclinação da água
+
+    def roof_pt(sx, u, v):
+        y = y0 + (y1 - y0) * v
+        ridge = Vector((0, y, Ht - 0.06 * math.sin(PI * v)))
+        # barra: abre um pouco para fora e sobe em arco entre as estacas
+        half = (v * NV) % (NV // 2) / (NV // 2)
+        lift = 0.07 * math.sin(PI * half)
+        hem = Vector((sx * (hw + 0.06), y, 0.04 + lift * u ** 4))
+        pt = ridge.lerp(hem, u)
+        # barriga: a lona afunda para dentro no meio de cada água, mais no meio da tenda
+        sag = math.sin(PI * u) * (0.04 + 0.05 * math.sin(PI * v))
+        return pt - Vector((sx * math.sin(beta), 0, math.cos(beta))) * sag
+
     for sx in (-1, 1):
-        a(hull(bag.nm("Flap"), [(0, -hd, Ht), (sx * hw, -hd, 0.0), (sx * hw * 0.55, -hd - 0.12, 0.0),
-                                (sx * 0.2, -hd - 0.08, Ht * 0.55), (sx * hw * 0.5, -hd, 0.0)], p_canvas))
-        a(bx(bag.nm("Tie"), (sx * 0.42, -hd - 0.07, Ht * 0.5), (0.05, 0.05, 0.12), p_rope, bev=0.01))
-    # mastros, cumeeira e cordas com estacas
-    for sy in (-1, 1):
-        a(beam(bag.nm("Pole"), (0, sy * (hd + 0.04), 0), (0, sy * (hd + 0.04), Ht + 0.22), 0.04, p_wood_dk, seg=6, end_mat=p_wood_end))
-        top = (0, sy * (hd + 0.04), Ht + 0.12)
-        peg = (0, sy * (hd + 0.9), 0.02)
-        a(beam(bag.nm("Guy"), top, peg, 0.008, p_rope, seg=4))
-        a(bx(bag.nm("Peg"), (peg[0], peg[1], 0.05), (0.04, 0.04, 0.16), p_wood_dk, rot=(sy * 0.4, 0, 0), bev=0.008))
-    a(beam("RidgePole", (0, -hd - 0.12, Ht + 0.02), (0, hd + 0.12, Ht + 0.02), 0.035, p_wood_dk, seg=6, end_mat=p_wood_end))
-    for sx in (-1, 1):   # cordas laterais
-        for sy in (-1, 1):
-            a(beam(bag.nm("Guy"), (sx * hw * 0.5, sy * hd * 0.8, Ht * 0.5), (sx * (hw + 0.55), sy * hd * 0.8, 0.02), 0.008, p_rope, seg=4))
-            a(bx(bag.nm("Peg"), (sx * (hw + 0.55), sy * hd * 0.8, 0.05), (0.04, 0.04, 0.16), p_wood_dk, rot=(0, -sx * 0.4, 0), bev=0.008))
+        grid = [[roof_pt(sx, U[i], j / NV) for j in range(NV + 1)] for i in range(NU + 1)]
+        if sx < 0:
+            grid = [list(reversed(r)) for r in grid]
+
+        def mfn(i, j, sx=sx):
+            if i == NU - 1:
+                return 2                                   # barra escura (lama/respingo)
+            return (j if sx > 0 else NV - 1 - j) % 2       # gomos alternados
+        a(sheet(bag.nm("Roof"), grid, 0.035, [p_tent_a, p_tent_b, p_tent_hem], mfn))
+    # remendo costurado numa das águas
+    n = Vector((math.sin(beta), 0, math.cos(beta)))
+    c = roof_pt(1, 0.45, 0.68) + n * 0.012
+    a(bx("Patch", c, (0.34, 0.36, 0.02), p_patch, rot=(0, beta, 0), bev=0.005))
+    for k in range(4):
+        ang = k * PI / 2 + PI / 4
+        q = roof_pt(1, 0.45 + math.cos(ang) * 0.075, 0.68 + math.sin(ang) * 0.065) + n * 0.02
+        a(bx(bag.nm("Stitch"), q, (0.035, 0.035, 0.012), p_rope, rot=(0, beta, 0), bev=0))
+    a(beam("RidgePole", (0, y0 - 0.14, Ht + 0.03), (0, y1 + 0.14, Ht + 0.03), 0.04, p_wood_dk, seg=6, end_mat=p_wood_end))
+    # fundo fechado (empena de lona) e interior escuro atrás da porta
+    a(hull("Back", [(-hw, hd, 0.02), (hw, hd, 0.02), (0, hd, Ht - 0.05),
+                    (-hw, hd - 0.03, 0.02), (hw, hd - 0.03, 0.02), (0, hd - 0.03, Ht - 0.05)], p_tent_a))
+    a(hull("Dark", [(-hw * 0.88, -hd + 0.45, 0.01), (hw * 0.88, -hd + 0.45, 0.01), (0, -hd + 0.45, Ht * 0.93),
+                    (-hw * 0.88, -hd + 0.4, 0.01), (hw * 0.88, -hd + 0.4, 0.01), (0, -hd + 0.4, Ht * 0.93)], p_tent_dark))
+    a(bx("Floor", (0, 0.0, 0.012), (2 * hw - 0.3, 2 * hd - 0.1, 0.02), p_canvas_dk, bev=0.005))
+    # saco de dormir enrolado na entrada, com duas tiras, e um travesseiro
+    roll = (-0.28, -hd + 0.2, 0.13)
+    axis = Vector((math.cos(0.25), math.sin(0.25), 0))
+    ra, rb = Vector(roll) - axis * 0.4, Vector(roll) + axis * 0.4
+    a(beam("Bedroll", ra, rb, 0.13, p_cloth_red, seg=8, end_mat=p_cloth_blue))
+    for t in (0.25, 0.75):
+        cc = ra.lerp(rb, t)
+        a(beam(bag.nm("BedStrap"), cc - axis * 0.025, cc + axis * 0.025, 0.138, p_rope, seg=8))
+    a(boulder("Pillow", (0.4, -hd + 0.55, 0.0), (0.42, 0.28, 0.14), p_cloth_blue, n=10, seed=5))
+    # porta: aba esquerda enrolada e amarrada ao longo da água
+    slope = Vector((-hw, 0, -Ht)).normalized()
+    top = Vector((0, y0 - 0.04, Ht - 0.1))
+    roll_a, roll_b = top + slope * 0.12, top + slope * 1.3
+    a(beam("FlapRoll", roll_a, roll_b, 0.07, p_tent_b, seg=7, r2=0.095))
+    for t in (0.3, 0.78):
+        cc = roll_a.lerp(roll_b, t)
+        r = 0.07 + (0.095 - 0.07) * t + 0.008
+        a(beam(bag.nm("RollTie"), cc - slope * 0.025, cc + slope * 0.025, r, p_rope, seg=7))
+    # aba direita: pano que desce da cumeeira e é puxado para o lado (barriga para fora)
+    grid = []
+    for i in range(4):
+        u = i / 3
+        row = []
+        for j in range(3):
+            v = j / 2
+            edge = Vector((0.02, y0, Ht - 0.04)).lerp(Vector((hw + 0.06, y0, 0.04)), u)   # costurada na lona
+            free = Vector((0.08, y0 - 0.03, Ht - 0.12)).lerp(Vector((0.6, y0 - 0.16, 0.04)), u)
+            pt = edge.lerp(free, v)
+            pt.y -= math.sin(PI * v) * 0.05 * (0.4 + u)
+            row.append(pt)
+        grid.append(row)
+    a(sheet("FlapR", grid, 0.03, [p_tent_b]))
+    a(beam("FlapTie", (0.42, y0 - 0.12, Ht * 0.4), (hw * 0.62, y0 - 0.02, Ht * 0.44), 0.012, p_rope, seg=4))
+    # mastros com ponteira, pé de pedra, cordas e estacas; bandeirola no mastro da frente
+    for sy, yy in ((-1, y0 - 0.06), (1, y1 + 0.06)):
+        a(beam(bag.nm("Pole"), (0, yy, 0), (0, yy, Ht + 0.24), 0.042, p_wood_dk, seg=6, end_mat=p_wood_end))
+        a(lathe(bag.nm("PoleKnob"), [(0.05, Ht + 0.23), (0.065, Ht + 0.28), (0.0, Ht + 0.35)], p_wood_lt, seg=6, loc=(0, yy, 0)))
+        a(boulder(bag.nm("PoleFoot"), (0, yy, 0), (0.2, 0.18, 0.1), p_stone_dk, n=8, seed=90 + sy))
+        peg = (0, yy + sy * 0.95, 0.03)
+        a(beam(bag.nm("Guy"), (0, yy, Ht + 0.14), peg, 0.009, p_rope, seg=4))
+        a(bx(bag.nm("Peg"), (0, peg[1] - sy * 0.03, 0.06), (0.045, 0.045, 0.18), p_wood, rot=(sy * 0.45, 0, 0), bev=0.01, taper=(0.6, 0.6)))
+    fy = y0 - 0.06
+    fa, fb, ft = Vector((0, fy, Ht + 0.21)), Vector((0, fy, Ht + 0.02)), Vector((0.02, fy - 0.5, Ht + 0.06))
+    grid = [[fa, fa.lerp(ft, 0.5) + Vector((0.05, 0, 0.0)), ft],
+            [fb, fb.lerp(ft, 0.5) + Vector((0.05, 0, -0.01)), ft + Vector((0, 0, -0.004))]]
+    a(sheet("Pennant", grid, 0.012, [p_cloth_red]))
+    # cordas laterais presas na barra, com estacas inclinadas
+    for sx in (-1, 1):
+        for j in pegs_v:
+            y = min(max(y0 + (y1 - y0) * j / NV, -hd + 0.05), hd - 0.05)
+            peg = (sx * (hw + 0.62), y, 0.03)
+            a(beam(bag.nm("Guy"), tuple(roof_pt(sx, 0.55, j / NV)), peg, 0.008, p_rope, seg=4))
+            a(bx(bag.nm("Peg"), (peg[0] - sx * 0.02, y, 0.06), (0.045, 0.045, 0.18), p_wood, rot=(0, -sx * 0.45, 0), bev=0.01, taper=(0.6, 0.6)))
+    # pedras segurando a barra
+    for i, (x, y) in enumerate(((-hw - 0.05, hd - 0.15), (hw + 0.1, hd - 0.3), (-hw - 0.1, 0.25))):
+        a(boulder(bag.nm("HemStone"), (x, y, 0), (0.24, 0.2, 0.15), (p_stone, p_stone_lt)[i % 2], n=9, seed=80 + i))
     join(bag.items, "Tent")
     export("tent")
 
@@ -700,16 +828,24 @@ def build_ruin_pillar():
 
 # ======================================================== ROCHA
 def build_rock():
+    # Afloramento em camadas: base larga, massa de cima deslocada, laje inclinada no topo e uma
+    # lasca encostada; tons alternados por camada, musgo nas faces de cima e líquen claro.
+    # A massa principal cabe no cilindro de colisão (~0,65 m de raio a escala 1).
     bag = Bag()
     a = bag.add
-    a(boulder("RockMain", (0.0, 0.0, 0), (1.45, 1.15, 1.05), p_stone, n=18, seed=11, rot=(0, 0, 0.3)))
-    a(boulder("RockSide", (0.62, -0.38, 0), (0.75, 0.6, 0.55), p_stone_lt, n=12, seed=17, rot=(0, 0, 1.1)))
-    a(boulder("RockBack", (-0.55, 0.42, 0), (0.6, 0.55, 0.42), p_stone_dk, n=11, seed=23))
-    for i, (x, y, s) in enumerate(((0.9, 0.25, 0.2), (-0.8, -0.35, 0.16), (0.25, -0.75, 0.14))):
-        a(boulder(bag.nm("Pebble"), (x, y, 0), (s, s * 0.85, s * 0.6), p_stone_dk, n=8, seed=30 + i))
-    # musgo cobrindo o topo (casco achatado ligeiramente maior)
-    a(boulder("Moss", (-0.12, 0.1, 0.62), (0.95, 0.75, 0.22), p_moss, n=12, seed=19, flat_bottom=False))
-    a(boulder("Moss2", (0.2, -0.1, 0.72), (0.45, 0.4, 0.12), p_moss_lt, n=9, seed=21, flat_bottom=False))
+    a(boulder("RockBase", (0.0, 0.0, 0), (1.5, 1.2, 1.0), p_stone, n=18, seed=11, rot=(0, 0, 0.3)))
+    a(boulder("RockMid", (-0.1, 0.08, 0.22), (1.25, 1.0, 0.85), p_stone, n=16, seed=13, rot=(0.05, -0.04, 0.9)))
+    a(boulder("RockTop", (0.28, -0.2, 0.56), (0.72, 0.6, 0.24), p_stone_lt, n=12, seed=15, rot=(0.2, 0.16, 0.4)))
+    a(boulder("RockShard", (0.62, -0.42, 0), (0.42, 0.34, 0.85), p_stone_dk, n=10, seed=17, rot=(0.18, -0.22, 1.1)))
+    a(boulder("RockSide", (-0.6, 0.45, 0), (0.6, 0.5, 0.42), p_stone_lt, n=11, seed=23))
+    for i, (x, y, s) in enumerate(((0.95, 0.2, 0.2), (-0.85, -0.35, 0.16), (0.2, -0.8, 0.14), (-0.3, 0.85, 0.12))):
+        a(boulder(bag.nm("Pebble"), (x, y, 0), (s, s * 0.85, s * 0.6), (p_stone_dk, p_stone)[i % 2], n=8, seed=30 + i))
+    # musgo cobrindo o alto (cascos achatados por cima das camadas) e escorrendo de um lado
+    a(boulder("Moss", (-0.2, 0.15, 0.79), (0.78, 0.64, 0.16), p_moss, n=12, seed=19, flat_bottom=False))
+    a(boulder("Moss2", (-0.42, 0.3, 0.68), (0.45, 0.4, 0.12), p_moss_lt, n=9, seed=21, flat_bottom=False))
+    a(boulder("Moss3", (-0.62, 0.5, 0.36), (0.32, 0.3, 0.1), p_moss, n=8, seed=25, flat_bottom=False))
+    for i, (x, y, z) in enumerate(((0.35, -0.38, 0.62), (0.15, -0.5, 0.3), (0.62, 0.2, 0.5))):   # líquen
+        a(boulder(bag.nm("Lichen"), (x, y, z), (0.13, 0.11, 0.05), p_moss_lt, n=7, seed=60 + i, flat_bottom=False))
     join(bag.items, "Rock")
     export("rock")
 

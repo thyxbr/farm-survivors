@@ -1,5 +1,5 @@
-# Construções da Defesa da Cidade (prefeitura, fazenda, mercado, quartel, muro, portão, estacas e
-# as três torres), uma versão por nível. Executado por build_assets.py depois de props.py
+# Construções da Defesa da Cidade (prefeitura, fazenda, mercado, quartel, serraria, pedreira, muro,
+# portão, estacas e as três torres, mais as ferramentas dos aldeões), uma versão por nível. Executado por build_assets.py depois de props.py
 # (usa mat/part/hull/export/clear e bx/lathe/beam/boulder/leaf/join/Bag de lá).
 #
 # Saída: assets/models/buildings/<tipo>_<nível>.glb; as torres têm também <tipo>_turret_<nível>.glb
@@ -934,6 +934,249 @@ def build_market(level):
         for k in range(4):
             a(part(bag.nm("Gold"), "cyl", (0.75 + k * 0.1, -1.8, 0.6 + 0.02 * k), (0.12, 0.12, 0.03), p_gold, seg=8))
     _bexport(bag, "Market", "market_%d" % level)
+
+
+# ================================================================ SERRARIA (5,0 x 4,0)
+def _log_pile(bag, rnd, cx, cy, n_base, rows, length, r=0.2):
+    """Pilha de toras deitadas ao longo de Y, em pirâmide, com estacas segurando os lados."""
+    pitch = 2 * r + 0.02
+    for row in range(rows):
+        cnt = n_base - row
+        for i in range(cnt):
+            x = cx + (i - (cnt - 1) / 2) * pitch
+            z = r + row * (2 * r * 0.87)
+            dy = rnd.uniform(-0.1, 0.1)
+            bag.add(beam(bag.nm("Log"), (x, cy - length / 2 + dy, z), (x, cy + length / 2 + dy, z), r * rnd.uniform(0.86, 1.0),
+                         p_wood if rnd.random() < 0.6 else p_wood_dk, seg=7, end_mat=p_wood_end))
+    w = n_base * pitch / 2 + 0.05
+    for s in (-1, 1):
+        for y in (cy - length * 0.3, cy + length * 0.3):
+            bag.add(beam(bag.nm("Stake"), (cx + s * w, y, 0.0), (cx + s * (w - 0.03), y, r * 2.6), 0.045, p_wood_dk, seg=5))
+
+
+def _axe(bag, base, top, edge=(1, 0, 0)):
+    """Machado: cabo de base até top, lâmina em cunha apontando para 'edge' perto do topo."""
+    b, t, e = Vector(base), Vector(top), Vector(edge).normalized()
+    d = (t - b).normalized()
+    side = d.cross(e).normalized()
+    e = side.cross(d).normalized()
+    bag.add(beam(bag.nm("AxeHandle"), b, t, 0.028, p_wood_lt, seg=6))
+    c = t - d * 0.1
+    pts = []
+    for sd in (-1, 1):
+        pts += [c - e * 0.05 + side * sd * 0.035 + d * 0.07, c - e * 0.05 + side * sd * 0.035 - d * 0.07]
+    pts += [c + e * 0.2 + d * 0.13, c + e * 0.2 - d * 0.13]
+    bag.add(hull(bag.nm("AxeHead"), [tuple(p) for p in pts], p_iron_lt))
+
+
+def _pickaxe(bag, base, top, edge=(1, 0, 0)):
+    """Picareta: cabo de base até top e duas pontas ao longo de 'edge'."""
+    b, t, e = Vector(base), Vector(top), Vector(edge).normalized()
+    d = (t - b).normalized()
+    bag.add(beam(bag.nm("PickHandle"), b, t, 0.028, p_wood_lt, seg=6))
+    c = t - d * 0.06
+    for s in (-1, 1):
+        bag.add(beam(bag.nm("PickHead"), c, c + e * s * 0.34 - d * 0.07, 0.04, p_iron_lt, seg=4, r2=0.006))
+    bag.add(beam(bag.nm("PickEye"), c - d * 0.05, c + d * 0.05, 0.05, p_iron, seg=6))
+
+
+def build_lumber_camp(level):
+    rnd = random.Random(1100 + level)
+    bag = Bag()
+    a = bag.add
+    CX, CY = -0.95, 0.6
+    HW, HD = 1.3 + 0.1 * (level - 1), 1.15
+    ZT = 2.15 + 0.15 * (level - 1)
+    # galpão aberto: sapata de pedra, assoalho, esteios de tora, frechais e escoras
+    a(bx("Pad", (CX, CY, 0.05), (2 * HW + 0.35, 2 * HD + 0.35, 0.1), b_stone_dk, bev=0.03))
+    plank_floor(bag, CX, CY, 0.2, 2 * HW + 0.15, 2 * HD + 0.15, rnd=rnd)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            x, y = CX + sx * HW, CY + sy * HD
+            a(bx(bag.nm("Footing"), (x, y, 0.2), (0.4, 0.4, 0.24), b_stone, bev=0.04))
+            a(beam(bag.nm("Post"), (x, y, 0.3), (x, y, ZT), 0.11, p_wood_dk, seg=7, end_mat=p_wood_end))
+            a(beam(bag.nm("Brace"), (x, y, ZT - 0.75), (x - sx * 0.6, y, ZT - 0.1), 0.05, p_wood, seg=5))
+    for sy in (-1, 1):
+        a(bx(bag.nm("Plate"), (CX, CY + sy * HD, ZT - 0.02), (2 * HW + 0.4, 0.17, 0.17), p_wood_dk, bev=0.02))
+    for sx in (-1, 1):
+        a(bx(bag.nm("Tie"), (CX + sx * HW, CY, ZT + 0.1), (0.15, 2 * HD + 0.3, 0.15), p_wood_dk, bev=0.02))
+        a(beam(bag.nm("KingPost"), (CX + sx * HW, CY, ZT + 0.15), (CX + sx * HW, CY, ZT + HD * 0.6), 0.05, p_wood_dk, seg=5))
+    # fundo de tábuas (meia parede no nível 1, inteira depois) e lateral no nível 3
+    wall_h = (1.3 if level == 1 else ZT - 0.35)
+    n = int((2 * HW) / 0.29)
+    for i in range(n):
+        x = CX - HW + 0.14 + i * (2 * HW - 0.28) / (n - 1)
+        h = wall_h + rnd.uniform(-0.06, 0.06)
+        a(bx(bag.nm("Board"), (x, CY + HD + 0.02, 0.2 + h / 2), (0.27, 0.06, h), p_wood if i % 2 else p_wood_lt, bev=0.012))
+    a(bx("BoardRail", (CX, CY + HD - 0.03, 0.2 + wall_h * 0.6), (2 * HW, 0.07, 0.1), p_wood_dk, bev=0.01))
+    if level >= 3:
+        m = int((2 * HD) / 0.29)
+        for i in range(m):
+            y = CY - HD + 0.14 + i * (2 * HD - 0.28) / (m - 1)
+            hh = wall_h + rnd.uniform(-0.05, 0.05)
+            a(bx(bag.nm("Board"), (CX - HW - 0.02, y, 0.2 + hh / 2), (0.06, 0.27, hh), p_wood if i % 2 else p_wood_lt, bev=0.012))
+    gable_roof(bag, CX, CY, HW, HD, ZT + 0.06, math.radians(32), b_thatch if level == 1 else p_roof,
+               b_thatch_dk if level == 1 else p_roof_dk, rows=3, over_x=0.3, over_y=0.4)
+    # cavaletes com a tora e a serra de dois cabos (traçador)
+    for sx in (-0.65, 0.65):
+        x = CX + sx
+        a(bx(bag.nm("HorseTop"), (x, CY, 0.86), (0.13, 1.0, 0.11), p_wood, bev=0.02))
+        for sy in (-1, 1):
+            for k in (-1, 1):
+                a(beam(bag.nm("HorseLeg"), (x + k * 0.2, CY + sy * 0.42, 0.2), (x, CY + sy * 0.36, 0.84), 0.035, p_wood_dk, seg=4))
+    a(beam("SawLog", (CX - 1.05, CY, 1.12), (CX + 1.05, CY, 1.12), 0.2, p_wood, seg=8, end_mat=p_wood_end))
+    a(bx("SawBlade", (CX + 0.15, CY, 1.4), (0.025, 1.35, 0.16), p_iron_lt, rot=(0.12, 0, 0), bev=0.0))
+    for sy in (-1, 1):
+        a(beam(bag.nm("SawGrip"), (CX + 0.15, CY + sy * 0.7, 1.4 + sy * 0.085 - 0.02), (CX + 0.15, CY + sy * 0.7, 1.4 + sy * 0.085 + 0.24),
+               0.03, p_wood_lt, seg=5))
+    a(boulder("Sawdust", (CX + 0.2, CY - 0.2, 0.2), (0.9, 0.7, 0.14), b_straw, n=10, seed=3))
+    # pilha de toras à direita
+    _log_pile(bag, rnd, 1.6, 0.35, 4, 1 + level, 2.7)
+    # toco de rachar com o machado cravado e lenha rachada
+    a(lathe("Stump", [(0.4, 0.0), (0.33, 0.1), (0.3, 0.5)], p_wood_dk, seg=9, loc=(-1.75, -1.5, 0), wobble=0.06, seed=4, cap_top=False))
+    a(lathe("StumpTop", [(0.0, 0.5), (0.31, 0.5), (0.31, 0.505)], p_wood_end, seg=9, loc=(-1.75, -1.5, 0)))
+    _axe(bag, (-1.3, -1.62, 1.05), (-1.7, -1.5, 0.52), edge=(-0.3, 0.1, -1))
+    for i, (x, y, yaw) in enumerate(((-1.0, -1.65, 0.3), (-0.85, -1.4, 1.2), (-1.15, -1.25, 2.0), (-0.7, -1.7, 0.8), (-0.95, -1.5, 1.7))):
+        z = 0.07 if i < 3 else 0.2
+        dx, dy = math.cos(yaw) * 0.25, math.sin(yaw) * 0.25
+        a(beam(bag.nm("Firewood"), (x - dx, y - dy, z), (x + dx, y + dy, z), 0.075, p_wood_lt if i % 2 else p_wood, seg=3,
+               end_mat=p_wood_end))
+    # frente à direita: caixote; tábuas serradas e barril a partir do nível 2; lampião e placa no 3
+    a(bx("Crate", (0.75, -1.55, 0.28), (0.56, 0.56, 0.56), p_wood, rot=(0, 0, 0.2), bev=0.03))
+    a(bx("CrateBand", (0.75, -1.55, 0.28), (0.58, 0.58, 0.08), p_wood_dk, rot=(0, 0, 0.2), bev=0.01))
+    if level >= 2:
+        for k in range(3 + level):
+            a(bx(bag.nm("Lumber"), (1.75 + rnd.uniform(-0.04, 0.04), -1.5 + rnd.uniform(-0.03, 0.03), 0.1 + k * 0.075),
+                 (1.3, 0.34, 0.06), p_wood_end if k % 2 else p_wood_lt, rot=(0, 0, rnd.uniform(-0.04, 0.04)), bev=0.01))
+        for y in (-1.75, -1.25):
+            a(bx(bag.nm("LumberSkid"), (1.75, y, 0.04), (1.4, 0.1, 0.08), p_wood_dk, bev=0.01))
+        a(lathe("Barrel", [(0.26, 0.0), (0.3, 0.2), (0.32, 0.4), (0.3, 0.6), (0.26, 0.78)], p_wood, seg=10, loc=(-2.2, -0.75, 0)))
+        for z in (0.15, 0.63):
+            a(lathe(bag.nm("BarrelHoop"), [(0.31, z - 0.03), (0.31, z + 0.03)], p_iron, seg=10, loc=(-2.2, -0.75, 0),
+                    cap_top=False, cap_bot=False))
+    if level >= 3:
+        lx, ly = CX + HW, CY - HD
+        a(beam("LampArm", (lx, ly, ZT - 0.45), (lx, ly - 0.42, ZT - 0.4), 0.025, p_iron, seg=4))
+        a(bx("Lamp", (lx, ly - 0.4, ZT - 0.62), (0.18, 0.18, 0.24), p_lantern, bev=0.02))
+        a(bx("LampCap", (lx, ly - 0.4, ZT - 0.48), (0.24, 0.24, 0.05), p_iron, bev=0.01))
+        a(bx("SignBoard", (CX, CY - HD - 0.06, ZT - 0.42), (0.9, 0.06, 0.36), p_wood, bev=0.02))
+        a(lathe("SignSaw", [(0.0, 0.0), (0.13, 0.0), (0.13, 0.02), (0.0, 0.02)], p_iron_lt, seg=10,
+                loc=(CX, CY - HD - 0.09, ZT - 0.42), rot=(PI / 2, 0, 0)))
+    grass(bag, [(-2.3, -1.85), (2.35, -1.9), (0.1, -1.85), (2.4, 1.85), (-2.35, 1.9)])
+    _bexport(bag, "LumberCamp", "lumber_camp_%d" % level)
+
+
+# ================================================================ PEDREIRA (5,0 x 4,0)
+def build_quarry(level):
+    rnd = random.Random(1200 + level)
+    bag = Bag()
+    a = bag.add
+    cut = (b_stone_lt, b_stone, b_stone_lt)
+    # chão de cascalho e o afloramento ao fundo (cresce com o nível)
+    a(lathe("Gravel", [(2.35, 0.0), (2.2, 0.07), (0.0, 0.09)], b_stone_dk, seg=11, wobble=0.07, seed=level))
+    up = 0.25 * (level - 1)
+    for i, (x, y, sx, sy, sz, m) in enumerate(((-1.25, 1.15, 2.3, 1.6, 2.0 + up, p_stone_lt), (0.45, 1.3, 1.9, 1.3, 1.45 + up, p_stone),
+                                               (1.75, 1.2, 1.4, 1.2, 1.0 + up * 0.6, p_stone_lt), (-2.05, 0.4, 0.9, 1.0, 0.8, p_stone))):
+        a(boulder(bag.nm("Outcrop"), (x, y, 0.0), (sx, sy, sz), m, n=16, seed=20 + i + level))
+    # bancadas cortadas em degrau na frente do afloramento
+    a(bx("Bench1", (-1.2, 0.2, 0.33), (1.5, 0.9, 0.66), b_stone_lt, bev=0.05))
+    a(bx("Bench2", (-1.35, 0.5, 0.95), (1.1, 0.6, 0.6), b_stone, bev=0.05))
+    a(bx("Bench3", (0.0, 0.45, 0.25), (0.9, 0.75, 0.5), b_stone, rot=(0, 0, 0.12), bev=0.05))
+    for x in (-1.6, -1.2, -0.8):   # cunhas de ferro abrindo o bloco
+        a(bx(bag.nm("Wedge"), (x, 0.0, 0.7), (0.05, 0.08, 0.16), p_iron_lt, bev=0.0, taper=(1.0, 1.8)))
+    # tripé de içar com corda e bloco pendurado
+    ax, ay, az = 1.0, -0.25, 2.5 + 0.2 * (level - 1)
+    feet = ((0.2, -1.0), (1.85, -0.9), (1.05, 0.65))
+    for fx, fy in feet:
+        a(beam(bag.nm("TripodLeg"), (fx, fy, 0.0), (ax + (ax - fx) * 0.05, ay + (ay - fy) * 0.05, az + 0.12), 0.07, p_wood_dk, seg=6,
+               end_mat=p_wood_end))
+    a(lathe("TripodLash", [(0.13, az - 0.14), (0.15, az - 0.05), (0.13, az + 0.04)], p_rope, seg=8, loc=(ax, ay, 0)))
+    a(beam("Rope", (ax, ay, az - 0.15), (ax, ay, 1.25), 0.02, p_rope, seg=4))
+    a(lathe("Pulley", [(0.0, -0.04), (0.11, -0.04), (0.11, 0.04), (0.0, 0.04)], p_wood, seg=8, loc=(ax, ay, az - 0.3), rot=(PI / 2, 0, 0)))
+    a(bx("HangBlock", (ax, ay, 0.92), (0.62, 0.55, 0.46), b_stone_lt, rot=(0, 0, 0.3), bev=0.04))
+    a(bx("HangSling", (ax, ay, 0.92), (0.64, 0.12, 0.48), p_rope, rot=(0, 0, 0.3), bev=0.01))
+    a(bx("HangSling2", (ax, ay, 0.92), (0.12, 0.57, 0.48), p_rope, rot=(0, 0, 0.3), bev=0.01))
+    for k in (-1, 1):
+        a(beam(bag.nm("SlingRope"), (ax, ay, 1.27), (ax + k * 0.2, ay + k * 0.1, 1.15), 0.015, p_rope, seg=3))
+    if level >= 2:   # sarilho (manivela) entre duas pernas do tripé
+        a(beam("Windlass", (0.42, -0.98, 0.75), (1.6, -0.9, 0.75), 0.09, p_wood, seg=8, end_mat=p_wood_end))
+        a(lathe("WindlassRope", [(0.11, -0.16), (0.12, 0.0), (0.11, 0.16)], p_rope, seg=8, loc=(1.0, -0.94, 0.75), rot=(0, PI / 2, 0.07)))
+        a(beam("Crank", (1.6, -0.9, 0.75), (1.78, -0.89, 0.75), 0.025, p_iron, seg=4))
+        a(beam("CrankArm", (1.76, -0.89, 0.75), (1.76, -0.89, 1.02), 0.025, p_iron, seg=4))
+        a(beam("CrankGrip", (1.74, -0.89, 1.02), (1.95, -0.88, 1.02), 0.03, p_wood_lt, seg=5))
+        a(beam("RopeDown", (1.0, -0.94, 0.83), (ax, ay, az - 0.3), 0.015, p_rope, seg=3))
+    # blocos cortados empilhados à direita
+    stack = ((1.85, -1.5, 0), (1.15, -1.55, 0), (1.5, -1.5, 1), (1.9, -0.75, 0), (1.55, -1.45, 2))[:2 + level]
+    for i, (x, y, tier) in enumerate(stack):
+        a(bx(bag.nm("CutBlock"), (x, y, 0.3 + tier * 0.44), (0.64, 0.5, 0.42), cut[i % 3], rot=(0, 0, rnd.uniform(-0.12, 0.12)), bev=0.035))
+    # carrinho de mão com pedras
+    wx, wy = -1.45, -1.35
+    a(bx("BarrowTray", (wx, wy, 0.5), (1.0, 0.62, 0.1), p_wood, bev=0.02))
+    for sy in (-1, 1):
+        a(bx(bag.nm("BarrowSide"), (wx, wy + sy * 0.3, 0.66), (1.0, 0.05, 0.26), p_wood_lt, rot=(sy * -0.2, 0, 0), bev=0.012))
+        a(beam(bag.nm("BarrowShaft"), (wx - 0.55, wy + sy * 0.22, 0.36), (wx + 1.05, wy + sy * 0.3, 0.62), 0.03, p_wood_dk, seg=5))
+        a(beam(bag.nm("BarrowLeg"), (wx + 0.3, wy + sy * 0.26, 0.48), (wx + 0.36, wy + sy * 0.28, 0.0), 0.03, p_wood_dk, seg=4))
+    a(bx("BarrowFront", (wx - 0.5, wy, 0.66), (0.05, 0.58, 0.26), p_wood_lt, rot=(0, 0.2, 0), bev=0.012))
+    a(lathe("BarrowWheel", [(0.0, -0.045), (0.3, -0.045), (0.3, 0.045), (0.0, 0.045)], p_wood_dk, seg=10,
+            loc=(wx - 0.62, wy, 0.3), rot=(PI / 2, 0, 0)))
+    a(lathe("BarrowHub", [(0.07, -0.07), (0.07, 0.07)], p_iron, seg=6, loc=(wx - 0.62, wy, 0.3), rot=(PI / 2, 0, 0)))
+    for i, (dx, dy, s) in enumerate(((-0.2, 0.05, 0.4), (0.15, -0.08, 0.34), (0.0, 0.1, 0.3))):
+        a(boulder(bag.nm("Load"), (wx + dx, wy + dy, 0.55 + (0.12 if i == 2 else 0.0)), (s, s * 0.9, s * 0.8), cut[i % 3], n=10, seed=40 + i))
+    # ferramentas: picareta encostada na bancada, marreta no chão
+    _pickaxe(bag, (-0.35, -0.5, 0.0), (-0.42, -0.06, 0.92), edge=(1, 0.1, 0))
+    a(beam("MaulHandle", (0.25, -1.55, 0.06), (-0.4, -1.75, 0.1), 0.028, p_wood_lt, seg=5))
+    a(bx("MaulHead", (0.3, -1.53, 0.1), (0.16, 0.3, 0.16), p_iron, rot=(0, 0, 0.3), bev=0.02))
+    # entulho
+    for i in range(7 + 2 * level):
+        ang, rad = rnd.uniform(0, 2 * PI), rnd.uniform(0.6, 2.2)
+        x, y = math.cos(ang) * rad, math.sin(ang) * rad * 0.8 - 0.2
+        if y > 0.3 or (abs(x - wx) < 0.7 and abs(y - wy) < 0.5):
+            continue
+        s = rnd.uniform(0.14, 0.3)
+        a(boulder(bag.nm("Rubble"), (x, y, 0.05), (s, s * rnd.uniform(0.7, 1.0), s * 0.7), cut[i % 3] if i % 2 else p_stone, n=9, seed=60 + i))
+    if level >= 3:   # abrigo de lona do canteiro e lampião
+        sx0, sy0 = -2.1, -0.55
+        for (x, y, h) in ((sx0, sy0, 1.9), (sx0 + 1.3, sy0, 1.9), (sx0, sy0 + 0.95, 1.55), (sx0 + 1.3, sy0 + 0.95, 1.55)):
+            a(beam(bag.nm("TarpPole"), (x, y, 0.0), (x, y, h), 0.04, p_wood_dk, seg=5))
+        a(bx("Tarp", (sx0 + 0.65, sy0 + 0.47, 1.76), (1.6, 1.25, 0.04), p_canvas, rot=(-0.35, 0, 0), bev=0.01))
+        a(bx("TarpPatch", (sx0 + 0.9, sy0 + 0.3, 1.85), (0.4, 0.35, 0.03), p_patch, rot=(-0.35, 0, 0), bev=0.0))
+        a(bx("LampHook", (sx0 + 1.3, sy0 - 0.12, 1.78), (0.04, 0.26, 0.04), p_iron, bev=0.0))
+        a(bx("Lamp", (sx0 + 1.3, sy0 - 0.22, 1.6), (0.17, 0.17, 0.22), p_lantern, bev=0.02))
+    grass(bag, [(-2.35, -1.85), (2.4, -1.9), (2.4, 0.3), (-2.4, 1.85)])
+    _bexport(bag, "Quarry", "quarry_%d" % level)
+
+
+# ================================================================ FERRAMENTAS DOS ALDEÕES
+# Mesma convenção das armas (KnightLook._build_model): pegada na origem, cabo ao longo de +Z, gume/ponta
+# de trabalho para +X. Saída: assets/models/buildings/tool_<nome>.glb.
+def build_tool(kind):
+    bag = Bag()
+    a = bag.add
+    if kind == "axe":
+        _axe(bag, (0, 0, -0.22), (0, 0, 0.5))
+    elif kind == "pickaxe":
+        _pickaxe(bag, (0, 0, -0.24), (0, 0, 0.56))
+    elif kind == "hoe":
+        # enxada: cabo comprido (1,4 m). A origem é onde pega a mão da frente, a 1 m da lâmina; a outra mão
+        # segura uns 30 cm atrás. No topo, olhal de ferro e a lâmina saindo de lado (para +X, o lado de quem
+        # puxa), em esquadro com o cabo e mais larga no gume
+        a(beam("HoeHandle", (0, 0, -0.42), (0, 0, 1.0), 0.024, p_wood_lt, seg=6, end_mat=p_wood_end))
+        a(lathe("HoeSocket", [(0.04, 0.9), (0.042, 0.96), (0.036, 1.02)], p_iron, seg=6))
+        a(bx("HoeNeck", (0.05, 0, 0.96), (0.1, 0.05, 0.035), p_iron, bev=0.008))
+        a(hull("HoeBlade", [(0.07, -0.06, 0.97), (0.07, 0.06, 0.97), (0.07, -0.06, 0.95), (0.07, 0.06, 0.95),
+                            (0.28, -0.105, 0.942), (0.28, 0.105, 0.942), (0.285, -0.105, 0.93), (0.285, 0.105, 0.93)], p_iron_lt))
+    else:   # spear: lança de vigia
+        a(beam("SpearShaft", (0, 0, -0.75), (0, 0, 0.95), 0.022, p_wood_lt, seg=6))
+        a(beam("SpearTip", (0, 0, 0.95), (0, 0, 1.25), 0.045, p_iron_lt, seg=4, r2=0.0))
+        a(lathe("SpearCollar", [(0.035, 0.9), (0.035, 0.97)], p_iron, seg=6))
+    _bexport(bag, "Tool", "tool_%s" % kind)
+
+
+for _t in ("axe", "pickaxe", "hoe", "spear"):
+    PROP_BUILDERS["b_tool_" + _t] = (lambda t=_t: build_tool(t))
+for _lv in (1, 2, 3):
+    for _k, _f in (("lumber_camp", build_lumber_camp), ("quarry", build_quarry)):
+        PROP_BUILDERS["b_%s_%d" % (_k, _lv)] = (lambda f=_f, lv=_lv: f(lv))
 
 
 for _lv in (1, 2, 3):

@@ -4,7 +4,7 @@ extends Node3D
 ##   godot --path . --resolution 1800x1000 res://tools/building_shot.tscn -- <saida.png> [tipos] [back]
 ## tipos: ids separados por vírgula (padrão: todos). back = câmera por trás.
 
-const ALL := ["town_hall", "house", "barracks", "market", "farm", "archer_tower", "cannon_tower", "mage_tower",
+const ALL := ["town_hall", "house", "barracks", "market", "farm", "lumber_camp", "quarry", "archer_tower", "cannon_tower", "mage_tower",
 	"wall", "gate", "spikes"]
 
 var _frames := 0

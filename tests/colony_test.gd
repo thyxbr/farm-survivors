@@ -67,6 +67,17 @@ func _ready() -> void:
 	await wait(0.1)
 	check(colony.hall == hall and colony.phase == "day", "prefeitura fundada e o dia começa")
 	check(colony.pop_cap() == 6, "prefeitura abriga 6 (%d)" % colony.pop_cap())
+	# o menu abre de qualquer lado, encostado na parede (a pegada tem 7,4 x 6,4: o centro fica a mais de 3 m)
+	var sides_ok := true
+	for p in [Vector3(5.0, 0.5, -6), Vector3(-5.0, 0.5, -6), Vector3(0, 0.5, -1.5), Vector3(0, 0.5, -10.5), Vector3(4.6, 0.5, -1.9)]:
+		player.global_position = p
+		player._find_interact_target()
+		sides_ok = sides_ok and player.interact_target == hall
+	check(sides_ok, "prefeitura: o E alcança de todos os lados, perto da parede")
+	player.global_position = Vector3(0, 0.5, 0.5)
+	player._find_interact_target()
+	check(player.interact_target != hall, "prefeitura: a mais de 3 m da parede não vira alvo do E")
+	player.global_position = Vector3(0, 0.5, 14)
 	check(get_tree().get_nodes_in_group("animals").size() > 0, "animais de caça surgem no mapa")
 	# --- eras: a era é o nível da prefeitura
 	check(colony.era() == 1 and colony.advance_era().begins_with("Exige"), "era II exige serraria e pedreira")
