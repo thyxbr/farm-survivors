@@ -20,18 +20,42 @@ const XP := Color(0.85, 0.66, 0.2)
 
 static var _theme: Theme
 static var _serif: Font
+static var _body: Font
 
 
-## Fonte serifada para títulos (cai na fonte padrão se o sistema não tiver nenhuma).
+## Fonte dos títulos: Cinzel embutida (assets/fonts, licença OFL); sem o arquivo, a serifada do sistema.
 static func serif() -> Font:
-	if _serif:
-		return _serif
-	var f := SystemFont.new()
-	f.font_names = PackedStringArray(["Cinzel", "Trajan Pro", "Palatino Linotype", "Book Antiqua", "Georgia",
-		"Times New Roman", "serif"])
-	f.font_weight = 600
-	_serif = f
-	return f
+	if _serif == null:
+		var f := _load_font("res://assets/fonts/Cinzel.ttf", ["Cinzel", "Trajan Pro", "Palatino Linotype",
+			"Book Antiqua", "Georgia", "Times New Roman", "serif"])
+		if f is FontFile:
+			# a Cinzel é variável e o peso normal fica fino demais em título pequeno: usa 600
+			var heavy := FontVariation.new()
+			heavy.base_font = f
+			heavy.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 600}
+			f = heavy
+		_serif = f
+	return _serif
+
+
+## Fonte do texto corrido das telas do livro: EB Garamond embutida; sem o arquivo, a serifada do sistema.
+static func body() -> Font:
+	if _body == null:
+		_body = _load_font("res://assets/fonts/EBGaramond.ttf", ["EB Garamond", "Garamond", "Palatino Linotype",
+			"Georgia", "Times New Roman", "serif"])
+	return _body
+
+
+## Fonte do arquivo `path`; se não existir ou não carregar, uma fonte do sistema com os nomes de `fallback`.
+static func _load_font(path: String, fallback: Array) -> Font:
+	if ResourceLoader.exists(path):
+		var f := load(path) as FontFile
+		if f:
+			return f
+	var sys := SystemFont.new()
+	sys.font_names = PackedStringArray(fallback)
+	sys.font_weight = 600
+	return sys
 
 
 static func get_theme() -> Theme:
@@ -208,3 +232,151 @@ static func centered_panel(parent: Node, dim := 0.55) -> PanelContainer:
 	var p := PanelContainer.new()
 	center.add_child(p)
 	return p
+
+
+# ================================================================ peças renderizadas (assets/ui)
+
+
+static func tex(name: String) -> Texture2D:
+	return load("res://assets/ui/%s.png" % name)
+
+
+static func _tex_box(name: String, ml: int, mt: int, cx: int, cy: int, expand := 0) -> StyleBoxTexture:
+	var s := StyleBoxTexture.new()
+	s.texture = tex(name)
+	s.texture_margin_left = ml
+	s.texture_margin_right = ml
+	s.texture_margin_top = mt
+	s.texture_margin_bottom = mt
+	s.content_margin_left = cx
+	s.content_margin_right = cx
+	s.content_margin_top = cy
+	s.content_margin_bottom = cy
+	s.set_expand_margin_all(expand)
+	return s
+
+
+
+
+# ================================================================ grimório (páginas de pergaminho)
+const INK := Color(0.2, 0.125, 0.065)
+const INK_DIM := Color(0.42, 0.31, 0.19)
+const INK_RED := Color(0.55, 0.11, 0.07)
+const PAGE := Color(0.86, 0.76, 0.56)
+static var _paper: Theme
+
+
+## Texto a tinta (sem contorno); `title` usa a fonte serifada.
+static func ink(text: String, size := 16, color := INK, title := false) -> Label:
+	var l := label(text, size if title else size + 2, color)
+	l.add_theme_font_override("font", serif() if title else body())
+	return l
+
+
+static func _ink_box(fill: float, border: float, bw := 1) -> StyleBoxFlat:
+	var s := _box(Color(INK.r, INK.g, INK.b, fill), Color(INK.r, INK.g, INK.b, border), bw, 3, 12, 4)
+	return s
+
+
+static func paper_theme() -> Theme:
+	if _paper:
+		return _paper
+	var t: Theme = get_theme().duplicate()
+	t.default_font = body()
+	t.default_font_size = 20      # a Garamond é menor que a fonte padrão no mesmo tamanho
+	t.set_stylebox("normal", "Button", _ink_box(0.06, 0.55))
+	t.set_stylebox("hover", "Button", _ink_box(0.16, 0.8))
+	t.set_stylebox("pressed", "Button", _ink_box(0.78, 0.9))
+	t.set_stylebox("hover_pressed", "Button", _ink_box(0.85, 1.0))
+	t.set_stylebox("disabled", "Button", _ink_box(0.0, 0.2))
+	t.set_stylebox("focus", "Button", StyleBoxEmpty.new())
+	t.set_color("font_color", "Button", INK)
+	t.set_color("font_hover_color", "Button", INK)
+	t.set_color("font_pressed_color", "Button", PAGE)
+	t.set_color("font_hover_pressed_color", "Button", PAGE)
+	t.set_color("font_disabled_color", "Button", Color(INK.r, INK.g, INK.b, 0.35))
+	t.set_color("font_color", "Label", INK)
+	t.set_stylebox("separator", "HSeparator", _line(Color(INK.r, INK.g, INK.b, 0.45)))
+	t.set_stylebox("separator", "VSeparator", _line(Color(INK.r, INK.g, INK.b, 0.45)))
+	t.set_stylebox("grabber", "VScrollBar", _box(Color(INK.r, INK.g, INK.b, 0.5), Color(0, 0, 0, 0), 0, 3))
+	t.set_stylebox("grabber_highlight", "VScrollBar", _box(Color(INK.r, INK.g, INK.b, 0.7), Color(0, 0, 0, 0), 0, 3))
+	t.set_stylebox("grabber_pressed", "VScrollBar", _box(INK, Color(0, 0, 0, 0), 0, 3))
+	t.set_stylebox("scroll", "VScrollBar", _box(Color(INK.r, INK.g, INK.b, 0.1), Color(0, 0, 0, 0), 0, 3, 4, 0))
+	# listas e abas: selecionado é tinta cheia com texto cor de papel
+	t.set_stylebox("panel", "ItemList", _ink_box(0.05, 0.4))
+	t.set_stylebox("selected", "ItemList", _ink_box(0.78, 0.9))
+	t.set_stylebox("selected_focus", "ItemList", _ink_box(0.78, 0.9))
+	t.set_stylebox("hovered", "ItemList", _ink_box(0.14, 0.0, 0))
+	t.set_stylebox("focus", "ItemList", StyleBoxEmpty.new())
+	t.set_color("font_color", "ItemList", INK)
+	t.set_color("font_hovered_color", "ItemList", INK)
+	t.set_color("font_selected_color", "ItemList", PAGE)
+	t.set_stylebox("panel", "TabContainer", _ink_box(0.04, 0.45))
+	t.set_stylebox("tab_selected", "TabContainer", _ink_box(0.78, 0.9))
+	t.set_stylebox("tab_unselected", "TabContainer", _ink_box(0.06, 0.4))
+	t.set_stylebox("tab_hovered", "TabContainer", _ink_box(0.16, 0.7))
+	t.set_stylebox("tab_focus", "TabContainer", StyleBoxEmpty.new())
+	t.set_color("font_selected_color", "TabContainer", PAGE)
+	t.set_color("font_unselected_color", "TabContainer", INK)
+	t.set_color("font_hovered_color", "TabContainer", INK)
+	# barras e deslizadores
+	t.set_stylebox("background", "ProgressBar", _box(Color(INK.r, INK.g, INK.b, 0.16), Color(INK.r, INK.g, INK.b, 0.6), 1, 2))
+	t.set_stylebox("slider", "HSlider", _box(Color(INK.r, INK.g, INK.b, 0.2), Color(0, 0, 0, 0), 0, 3, 0, 3))
+	t.set_stylebox("grabber_area", "HSlider", _box(INK_RED, Color(0, 0, 0, 0), 0, 3, 0, 3))
+	t.set_stylebox("grabber_area_highlight", "HSlider", _box(INK_RED.lightened(0.15), Color(0, 0, 0, 0), 0, 3, 0, 3))
+	# campo de texto, caixa de marcar e seletor
+	var focus := _ink_box(0.04, 1.0, 2)
+	t.set_stylebox("normal", "LineEdit", _ink_box(0.05, 0.55))
+	t.set_stylebox("focus", "LineEdit", focus)
+	t.set_stylebox("read_only", "LineEdit", _ink_box(0.0, 0.25))
+	t.set_color("font_color", "LineEdit", INK)
+	t.set_color("font_placeholder_color", "LineEdit", Color(INK.r, INK.g, INK.b, 0.45))
+	t.set_color("caret_color", "LineEdit", INK)
+	t.set_color("selection_color", "LineEdit", Color(INK_RED.r, INK_RED.g, INK_RED.b, 0.3))
+	for type in ["CheckBox", "OptionButton"]:
+		t.set_stylebox("normal", type, _ink_box(0.06, 0.55))
+		t.set_stylebox("hover", type, _ink_box(0.16, 0.8))
+		t.set_stylebox("pressed", type, _ink_box(0.16, 0.8))
+		t.set_stylebox("focus", type, focus)
+		t.set_color("font_color", type, INK)
+		t.set_color("font_hover_color", type, INK)
+		t.set_color("font_pressed_color", type, INK)
+		t.set_color("font_focus_color", type, INK)
+	# menus suspensos e dicas: um pedaço de papel por cima da página
+	var sheet := _box(PAGE, INK, 1, 3, 10, 6)
+	sheet.shadow_color = Color(0, 0, 0, 0.35)
+	sheet.shadow_size = 6
+	t.set_stylebox("panel", "PopupMenu", sheet)
+	t.set_stylebox("hover", "PopupMenu", _ink_box(0.18, 0.0, 0))
+	t.set_color("font_color", "PopupMenu", INK)
+	t.set_color("font_hover_color", "PopupMenu", INK)
+	t.set_stylebox("panel", "TooltipPanel", sheet)
+	t.set_color("font_color", "TooltipLabel", INK)
+	t.set_color("default_color", "RichTextLabel", INK)
+	_paper = t
+	return t
+
+
+## Título de seção a tinta: vermelho, na serifada, com uma linha até o fim (o par de `section()`).
+static func ink_section(text: String, size := 18) -> HBoxContainer:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 10)
+	h.add_child(ink(text, size, INK_RED, true))
+	var line := HSeparator.new()
+	line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	line.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	line.add_theme_stylebox_override("separator", _line(Color(INK.r, INK.g, INK.b, 0.45)))
+	h.add_child(line)
+	return h
+
+
+## Barra de progresso sobre papel: fundo de tinta clara, preenchimento na cor pedida.
+static func ink_bar(color: Color, w: float, h: float) -> ProgressBar:
+	var b := bar(color.darkened(0.15), w, h)
+	b.add_theme_stylebox_override("background", _box(Color(INK.r, INK.g, INK.b, 0.16), Color(INK.r, INK.g, INK.b, 0.6), 1, 2))
+	return b
+
+
+## Quadro a tinta para subdividir uma página (o par de `inset_box()`).
+static func ink_inset(margin := 12) -> StyleBoxFlat:
+	return _box(Color(INK.r, INK.g, INK.b, 0.05), Color(INK.r, INK.g, INK.b, 0.4), 1, 4, margin, margin - 2)
