@@ -60,6 +60,10 @@
 			[
 				"life_amulet",
 				0.01
+			],
+			[
+				"willow_staff",
+				0.015
 			]
 		]
 	},
@@ -285,6 +289,14 @@
 			[
 				"neon_edge",
 				0.008
+			],
+			[
+				"sun_staff",
+				0.008
+			],
+			[
+				"storm_staff",
+				0.008
 			]
 		]
 	},
@@ -465,6 +477,14 @@
 			[
 				"thunder_totem",
 				0.7
+			],
+			[
+				"storm_staff",
+				0.04
+			],
+			[
+				"tide_staff",
+				0.05
 			]
 		]
 	},
@@ -751,6 +771,18 @@
 			[
 				"royal_wings",
 				0.05
+			],
+			[
+				"thorn_staff",
+				0.2
+			],
+			[
+				"void_staff",
+				0.2
+			],
+			[
+				"phoenix_staff",
+				0.05
 			]
 		]
 	},
@@ -901,6 +933,14 @@
 			[
 				"ember_staff",
 				0.01
+			],
+			[
+				"bone_staff",
+				0.04
+			],
+			[
+				"void_staff",
+				0.005
 			]
 		]
 	},
@@ -1044,6 +1084,10 @@
 			[
 				"slime_gel",
 				0.4
+			],
+			[
+				"tide_staff",
+				0.01
 			]
 		]
 	},
