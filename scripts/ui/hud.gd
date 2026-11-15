@@ -23,6 +23,8 @@ var name_label: Label
 var gold_label: Label
 var class_label: Label
 var points_chip: PanelContainer
+## Rank da guilda ao lado do nome (some antes do registro).
+var rank_chip: PanelContainer
 var season_badge: SeasonBadge
 var quest_box: VBoxContainer
 var notif_box: VBoxContainer
@@ -49,6 +51,8 @@ var _t := 0.0
 var _track_dest := {}
 var _compass: CompassArrow
 var _compass_label: Label
+## Nome do mapa do destino quando ele fica em outro mapa (a bússola aponta a carruagem).
+var _compass_far := ""
 
 
 
@@ -95,6 +99,7 @@ func _ready() -> void:
 	Game.inventory_changed.connect(_refresh_static)
 	Game.kit_changed.connect(_refresh_kit)
 	Game.quests_changed.connect(_refresh_quests)
+	Game.quests_changed.connect(_refresh_static)
 	Game.inventory_changed.connect(_refresh_quests)   # coleta: o progresso vem da mochila
 	_refresh_static()
 	_refresh_quests()
@@ -143,8 +148,16 @@ func _build_plate() -> void:
 	var info := VBoxContainer.new()
 	info.add_theme_constant_override("separation", -2)
 	info.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var name_row := HBoxContainer.new()
+	name_row.add_theme_constant_override("separation", 6)
 	name_label = UITheme.outlined("Cavaleiro", 16, UITheme.TEXT, 4)
-	info.add_child(name_label)
+	name_row.add_child(name_label)
+	rank_chip = PanelContainer.new()
+	rank_chip.add_theme_stylebox_override("panel", UITheme._box(Color(0.12, 0.2, 0.36, 0.92), Color(0.55, 0.8, 1.0), 1, 6, 6, 0))
+	rank_chip.add_child(UITheme.label("D", 12, Color(0.85, 0.93, 1.0)))
+	rank_chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	name_row.add_child(rank_chip)
+	info.add_child(name_row)
 	var line := HBoxContainer.new()
 	line.add_theme_constant_override("separation", 8)
 	class_label = UITheme.outlined("", 13, UITheme.GOLD, 4)
@@ -423,6 +436,8 @@ func _refresh_static() -> void:
 	var cls := Game.weapon_class()
 	class_label.text = ItemDB.CLASS_NAMES[cls]
 	gold_label.text = "◆ %d" % Game.gold
+	rank_chip.visible = Game.quest_state("registro") == "done"
+	(rank_chip.get_child(0) as Label).text = "RANK %s" % Game.rank()
 	points_chip.visible = Game.stat_points > 0
 	(points_chip.get_child(0) as Label).text = "+%d [C]" % Game.stat_points
 	for id in ["health_potion", "mana_potion"]:
@@ -487,32 +502,46 @@ func _refresh_quests() -> void:
 	_compass_label = null
 	var qt: Dictionary = ItemDB.QUESTS
 	var counts := _quest_counts()
-	var shown: Array = []
+	var main: Array = []
+	var sides: Array = []
 	for id in Game.quests:
 		if qt.has(id) and Game.quests[id].state != "done":
-			shown.append(id)
+			(sides if StoryRules.is_side(qt, id) else main).append(id)
 	var cur := StoryRules.current(qt, Game.quests)
-	if cur != "" and StoryRules.state(Game.quests, cur) == "none" and not cur in shown:
-		shown.append(cur)   # a próxima da história ainda não aceita: "fale com Fulano"
+	if cur != "" and StoryRules.state(Game.quests, cur) == "none" and not cur in main:
+		main.append(cur)   # a próxima da história ainda não aceita: "fale com Fulano" (ou falta rank)
+	var shown: Array = main + sides.slice(0, 3)
 	if shown.is_empty():
 		_track_dest = {}
 		return
-	var hdr := UITheme.outlined("HISTÓRIA", 11, UITheme.GOLD_DIM, 3)
-	hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	quest_box.add_child(hdr)
+	var first := true
+	var last_kind := ""
 	for id in shown:
+		var side_hdr: bool = StoryRules.is_side(qt, id)
+		if ("side" if side_hdr else "main") != last_kind:
+			last_kind = "side" if side_hdr else "main"
+			var hdr := UITheme.outlined("CONTRATOS" if side_hdr else "HISTÓRIA", 11,
+				Color(0.45, 0.65, 0.85) if side_hdr else UITheme.GOLD_DIM, 3)
+			hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			quest_box.add_child(hdr)
 		var d: Dictionary = qt[id]
 		var st := StoryRules.state(Game.quests, id)
+		var side: bool = StoryRules.is_side(qt, id)
 		# conversa ativa já "pode entregar", mas o jogador ainda tem que ir até lá: fica dourada, como as outras
 		var turn := StoryRules.turnable(qt, Game.quests, id, counts) and CharRules.quest_type(d) != "talk"
 		var icon := "!" if st == "none" else ("★" if turn else "◆")
-		var title := UITheme.outlined("%s %s" % [icon, d.name], 15, UITheme.GOOD if turn else UITheme.GOLD, 4)
+		var tint: Color = UITheme.GOOD if turn else (Color(0.6, 0.82, 1.0) if side else UITheme.GOLD)
+		var title := UITheme.outlined("%s %s" % [icon, d.name], 15, tint, 4)
 		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		quest_box.add_child(title)
 		var txt := ""
 		var prog := StoryRules.progress(qt, Game.quests, id, counts)
 		if st == "none":
-			txt = "Fale com %s" % StoryDialogue.NAMES.get(StoryRules.giver(qt, id), d.giver)
+			var need := StoryRules.needs_rank(qt, id)
+			if not StoryRules.rank_ge(Game.rank(), need):
+				txt = "Exige Rank %s: faça contratos e peça promoção à Lina" % need
+			else:
+				txt = "Fale com %s" % StoryDialogue.NAMES.get(StoryRules.giver(qt, id), d.giver)
 		elif turn:
 			txt = "Volte para %s" % d.get("turn_in", d.giver)
 		elif CharRules.quest_type(d) == "talk":
@@ -525,14 +554,16 @@ func _refresh_quests() -> void:
 		l.custom_minimum_size.x = 284
 		quest_box.add_child(l)
 		if st == "active" and not turn and CharRules.quest_type(d) != "talk":
-			var pb := UITheme.bar(UITheme.XP, 140, 3)
+			var pb := UITheme.bar(Color(0.4, 0.65, 0.95) if side else UITheme.XP, 140, 3)
 			pb.max_value = prog[1]
 			pb.value = prog[0]
 			pb.size_flags_horizontal = Control.SIZE_SHRINK_END
 			quest_box.add_child(pb)
-		if id == shown[0]:
+		if first:
 			# bússola do objetivo: seta virada para onde ir (relativa à câmera) e a distância
 			_track_dest = StoryRules.destination(qt, Game.quests, id, counts)
+			if st == "none" and not StoryRules.rank_ge(Game.rank(), StoryRules.needs_rank(qt, id)):
+				_track_dest = {"npc": "lina"}   # falta rank: a bússola leva à guilda
 			var row := HBoxContainer.new()
 			row.alignment = BoxContainer.ALIGNMENT_END
 			row.add_theme_constant_override("separation", 6)
@@ -542,6 +573,7 @@ func _refresh_quests() -> void:
 			_compass.custom_minimum_size = Vector2(20, 20)
 			row.add_child(_compass)
 			quest_box.add_child(row)
+		first = false
 		var gap := Control.new()
 		gap.custom_minimum_size.y = 4
 		quest_box.add_child(gap)
@@ -559,6 +591,19 @@ func _quest_counts() -> Dictionary:
 
 ## Posição do destino do rastreador (NPC da história ou área da missão); null = nenhum.
 func _track_pos():
+	var p = _track_raw()
+	if p == null or player == null:
+		return p
+	var here := Regions.region_at(player.global_position)
+	if Regions.region_at(p) != here:
+		_compass_far = Regions.display_name(Regions.region_at(p))
+		return Regions.coach_point(here)
+	_compass_far = ""
+	return p
+
+
+## Posição do destino como está (pode ser em outro mapa).
+func _track_raw():
 	if _track_dest.has("npc"):
 		for n in get_tree().get_nodes_in_group("npc"):
 			if n.npc_id == _track_dest.npc:
@@ -588,7 +633,10 @@ func _update_compass() -> void:
 	right.y = 0.0
 	_compass.angle = atan2(to.normalized().dot(right.normalized()), to.normalized().dot(fwd.normalized()))
 	_compass.near = dist < 4.0
-	_compass_label.text = "aqui" if dist < 4.0 else "%d m" % int(dist)
+	if _compass_far != "":
+		_compass_label.text = "carruagem → %s · %d m" % [_compass_far, int(dist)]
+	else:
+		_compass_label.text = "aqui" if dist < 4.0 else "%d m" % int(dist)
 
 
 func _on_notify(text: String, color: Color) -> void:

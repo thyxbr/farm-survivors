@@ -1,0 +1,10 @@
+{
+	"ranks": [
+		{"id": "D", "title": "Novato", "pts": 0, "stat_points": 0, "gold": 0},
+		{"id": "C", "title": "Aventureiro", "pts": 100, "stat_points": 3, "gold": 100},
+		{"id": "B", "title": "Veterano", "pts": 260, "stat_points": 3, "gold": 200},
+		{"id": "A", "title": "Elite", "pts": 480, "stat_points": 3, "gold": 350},
+		{"id": "S", "title": "Lenda de Valdoria", "pts": 800, "stat_points": 5, "gold": 800, "requires": "lich"}
+	],
+	"default_pts": {"talk": 10, "collect": 25, "kill": 30}
+}

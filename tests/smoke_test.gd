@@ -73,6 +73,8 @@ func _ready() -> void:
 	var by_kind := {}
 	var nest_ok := true
 	for en in get_tree().get_nodes_in_group("enemies"):
+		if Regions.region_at(en.global_position) != "vila":
+			continue   # os mapas da guilda (bosque, mina, pico) têm os monstros deles; aqui conta só o vale
 		by_kind[en.kind] = int(by_kind.get(en.kind, 0)) + 1
 		if en.kind in ["slime_veloz", "slime_explosivo", "slime_mae"]:
 			nest_ok = nest_ok and en.global_position.distance_to(world.NEST) < 12.0
@@ -93,8 +95,12 @@ func _ready() -> void:
 		w2.sort()
 		gear_ok = gear_ok and got == w2
 	check(gear_ok, "cada monstro só carrega o equipamento da sua variante")
-	check(get_tree().get_nodes_in_group("interactable").size() == 7 + Game.FARM_PLOTS + 1,
-		"5 NPCs + bilhete + portal + %d canteiros + caldeirão interagíveis" % Game.FARM_PLOTS)
+	# vale: 5 NPCs + bilhete + portal + guilda (Lina, quadro, cocheiro) + Rufus, Zélia, Tonico, Ravi, Osvaldo, gato;
+	# mapas: Sylvi, Tico e cocheiro no bosque; Bolgar, diário e cocheiro na mina; só o cocheiro no pico (o Kael
+	# de lá aparece no Arco 2)
+	var n_inter := get_tree().get_nodes_in_group("interactable").size()
+	check(n_inter == 7 + 9 + 7 + Game.FARM_PLOTS + 1,
+		"interagíveis do vale, da guilda e dos mapas + %d canteiros + caldeirão (%d)" % [Game.FARM_PLOTS, n_inter])
 
 	# --- diálogo e missão
 	var elder: Node = null
@@ -800,6 +806,7 @@ func _ready() -> void:
 	check(boss.enraged and _count("goblin") == goblins_before + 2, "chefe enfurece e invoca 2 goblins")
 	boss.take_damage(99999, boss.global_position + Vector3.FORWARD, false)
 	check(Game.quest_state("goblin_king") == "ready" and Game.flags.get("king_dead", false), "chefe derrotado")
+	await _test_guild_travel()
 
 	# --- IA ataca o jogador
 	var gob := _nearest("goblin")
@@ -1638,7 +1645,7 @@ func _test_blacksmith() -> void:
 
 # ---------------------------------------------------------------- Coleta de ferro e cristal
 func _test_gather() -> void:
-	check(world.resource_nodes.size() == 10, "10 veios e cristais no mapa (%d)" % world.resource_nodes.size())
+	check(world.resource_nodes.size() == 20, "10 veios e cristais no vale e 10 na mina (%d)" % world.resource_nodes.size())
 	if world.resource_nodes.size() < 10:
 		return
 	var back := player.global_position
@@ -1709,8 +1716,9 @@ func _test_enchant() -> void:
 	# ---- painel do Doran (a arma está em fogo +1, sem materiais)
 	var smith := _interactable("blacksmith") as Blacksmith
 	var pages: Array = smith._build_dialogue()
-	var choices: Array = pages[pages.size() - 1].get("choices", [])
-	check(choices.size() == 2 and choices[0].text == "Encantar arma", "Doran oferece encantar a arma")
+	var choices: Array = pages[pages.size() - 1].get("choices", []).filter(
+		func(c: Dictionary) -> bool: return c.text == "Encantar arma")
+	check(choices.size() == 1, "Doran oferece encantar a arma")
 	var wid: String = Game.equipment.weapon
 	var wname: String = ItemDB.get_item(wid).name
 	choices[0].action.call()
@@ -1908,6 +1916,67 @@ func _test_story_talk() -> void:
 	check(world.hud._track_dest.has("pos"), "rastreador aponta para os campos durante a caça")
 	for id in ["alchemist", "rival", "camp_note"]:
 		check(_interactable(id) != null, "%s está no mapa" % id)
+
+
+## Guilda e mapas: registro (Rank D), contrato do quadro, promoção pela Lina (Rank C), carruagem para o
+## Bosque Sussurrante (monstros e NPCs de lá) e volta para a vila.
+func _test_guild_travel() -> void:
+	_story_to("registro")
+	Game.start_quest("registro")
+	var lina := _interactable("lina")
+	check(lina != null and lina.marker.text == "?", "Lina espera o registro com ?")
+	Game.complete_quest("registro")
+	check(Game.rank() == "D" and Game.guild_points() == 60, "registrado no Rank D com 60 pontos (%s, %d)" % [Game.rank(), Game.guild_points()])
+	var board := _interactable("board")
+	check(board != null, "Quadro de Contratos na vila")
+	_story_to("bosque")
+	Game.start_quest("q_gelo")
+	for i in 3:
+		Econ.kill("slime_gelo", 0)
+	Game.complete_quest("q_gelo")
+	check(Game.guild_points() >= 100, "contrato do quadro dá pontos (%d)" % Game.guild_points())
+	# promoção pelo diálogo da Lina: a escolha de promoção está nos serviços dela
+	lina.interact(player)
+	await wait(0.1)
+	var d = world.modal
+	var promo: Dictionary = {}
+	if d != null:
+		for pg in d.pages:
+			for ch in pg.get("choices", []):
+				if str(ch.text).begins_with("Pedir promoção"):
+					promo = ch
+	check(not promo.is_empty(), "Lina oferece a promoção")
+	if not promo.is_empty():
+		for pg in promo.pages:
+			if pg.has("on_show"):
+				pg.on_show.call()
+	if d != null and is_instance_valid(d):
+		d._close()
+	await wait(0.1)
+	check(Game.rank() == "C", "promovido ao Rank C (%s)" % Game.rank())
+	check(world.story_card.kicker.text == "PROMOÇÃO NA GUILDA" or world.story_card._queue.any(
+		func(c: Array) -> bool: return c[0] == "PROMOÇÃO NA GUILDA"), "cartão de promoção")
+	# carruagem
+	var coach := _interactable("coach")
+	check(coach != null, "cocheiro da guilda no portão norte")
+	var pages: Array = StoryDialogue.build(coach)
+	var dests: Array = []
+	for ch in pages[0].get("choices", []):
+		dests.append(str(ch.text))
+	check("Bosque Sussurrante" in dests and "Mina de Cristal (Rank B)" in dests, "carruagem: bosque liberado, mina travada (%s)" % [dests])
+	world.travel_to("bosque")
+	await wait(1.6)
+	check(Regions.region_at(player.global_position) == "bosque", "viagem leva ao Bosque Sussurrante (%s)" % player.global_position)
+	check(_interactable("sylvi") != null and _interactable("coach_bosque") != null, "Sylvi e a carruagem no bosque")
+	var queen := false
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.kind == "slime_rainha" and not e.dead:
+			queen = true
+	check(queen, "Slime Rainha nasceu no bosque")
+	check(MusicRules.area(player.global_position) == "wild", "música do bosque")
+	world.travel_to("vila")
+	await wait(1.6)
+	check(Regions.region_at(player.global_position) == "vila", "carruagem traz de volta à vila")
 
 
 ## Completa pelas regras as missões da história antes de `target` (conversa, coleta com os itens dados, abates).

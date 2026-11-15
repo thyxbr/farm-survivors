@@ -311,10 +311,10 @@ func test_story_rules() -> void:
 	T.eq(StoryRules.marker(qt, q, "alchemist", {"slime_gel": 5}), "?", "com o gel: entregar")
 	T.eq(StoryRules.progress(qt, q, "gel", {"slime_gel": 9}), [5, 5], "progresso limitado ao total")
 	T.eq(StoryRules.new_chapters(qt, {}, {"chegada": {"state": "active"}}), ["chegada"], "capítulo novo")
-	T.eq(StoryRules.after(qt, "festa"), "", "festa é a última")
+	T.eq(StoryRules.after(qt, "cerimonia"), "", "a cerimônia é a última")
 	for id in qt:
 		var d: Dictionary = qt[id]
-		T.ok(StoryRules.giver(qt, id) in ["elder", "merchant", "blacksmith", "alchemist", "rival", "camp_note"], "giver de %s" % id)
+		T.ok(StoryRules.giver(qt, id) != "" and StoryRules.turn_in(qt, id) != "", "giver e entrega de %s" % id)
 		T.ok(CharRules.quest_type(d) in ["kill", "talk", "collect"], "tipo de %s" % id)
 
 

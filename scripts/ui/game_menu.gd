@@ -475,6 +475,9 @@ func _refresh_character() -> void:
 		["Poder mágico", "%.0f" % st.spell], ["Crítico", "%d%%" % int(round(st.crit * 100))],
 		["Velocidade", "%d%%" % int(round(st.speed * 100))], ["Recarga reduzida", "%d%%" % int(round(st.cdr * 100))],
 		["Roubo de vida", "%d%%" % int(round(st.leech * 100))], ["Inimigos derrotados", str(Game.kills)]]
+	if Game.quest_state("registro") == "done":
+		rows.push_front(["Pontos de guilda", str(Game.guild_points())])
+		rows.push_front(["Rank na Guilda", Game.rank()])
 	for r in rows:
 		var nl := UITheme.ink(r[0], 15, UITheme.INK_DIM)
 		nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -590,6 +593,11 @@ func _refresh_quests() -> void:
 		rv.add_child(UITheme.ink("Episódio %d · %s" % [int(d.chapter.get("n", 0)), d.chapter.get("title", "")], 14, INK_GOLD))
 	rv.add_child(quest_title)
 	rv.add_child(UITheme.ink("%s · dada por %s" % [sinfo[3], d.giver], 15, sinfo[2]))
+	if CharRules.is_side(d):
+		var tag := "Contrato secundário · Rank %s" % d.get("rank", "D")
+		if d.get("repeat", false):
+			tag += " · repetível"
+		rv.add_child(UITheme.ink(tag, 14, UITheme.INK_DIM))
 	rv.add_child(HSeparator.new())
 	var desc := UITheme.ink(d.desc, 17)
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

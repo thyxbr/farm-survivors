@@ -33,6 +33,7 @@ var _box_pos := Vector2.ZERO
 var _flash: ColorRect
 var _bars: Array[ColorRect] = []
 var _end_card := false
+var _end_kicker := ""
 var _box_style: StyleBoxFlat
 var _plate_style: StyleBoxFlat
 
@@ -224,6 +225,8 @@ func _show_page() -> void:
 			Sfx.play("gem", 0.0)
 		"end":
 			_end_card = true
+			var txt: String = page.text
+			_end_kicker = txt.substr(0, txt.find(".")) if txt.begins_with("FIM DO") and txt.find(".") > 0 else ""
 	if page.has("on_show"):
 		(page.on_show as Callable).call()
 
@@ -300,7 +303,7 @@ func _advance() -> void:
 
 func _close() -> void:
 	if _end_card and world != null and world.get("story_card") != null:
-		world.story_card.enqueue_end()
+		world.story_card.enqueue_end(_end_kicker)
 	closed.emit()
 	queue_free()
 

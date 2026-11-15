@@ -32,6 +32,9 @@ const FLOWER_COLORS := [Color(0.95, 0.95, 0.9), Color(1.0, 0.85, 0.25), Color(0.
 		Color(0.95, 0.5, 0.65), Color(0.5, 0.7, 1.0)]
 
 var half := 125.0
+## Onde o centro deste chão fica no mundo (xz). As formas ficam em coordenadas locais, mas o shader as
+## compara com a posição global: os mapas fora da origem (Regions) passam o próprio centro aqui.
+var world_offset := Vector2.ZERO
 var _shapes := PackedVector4Array()
 var _cols := PackedVector4Array()
 var _mix := PackedFloat32Array()
@@ -98,7 +101,9 @@ func _add(s: Vector4, c: Color, soft: float, grass: float) -> void:
 func _push() -> void:
 	if _mat == null:
 		return
-	var s := _shapes.duplicate()
+	var s := PackedVector4Array()
+	for sh in _shapes:
+		s.append(Vector4(sh.x + world_offset.x, sh.y + world_offset.y, sh.z, sh.w))
 	var c := _cols.duplicate()
 	var m := _mix.duplicate()
 	s.resize(MAX_SHAPES)

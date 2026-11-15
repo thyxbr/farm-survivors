@@ -49,6 +49,7 @@ func _ready() -> void:
 	v.add_child(title)
 	_last = Game.quests.duplicate(true)
 	Game.quests_changed.connect(_on_quests)
+	Game.ranked_up.connect(enqueue_rank)
 
 
 func _on_quests() -> void:
@@ -65,11 +66,22 @@ func enqueue(top: String, text: String) -> void:
 
 
 ## O cartão do fim da história.
-func enqueue_end() -> void:
-	enqueue("FIM DO PRIMEIRO ARCO", "Obrigado por jogar!")
+func enqueue_end(kicker := "") -> void:
+	enqueue(kicker if kicker != "" else "FIM DO PRIMEIRO ARCO", "Obrigado por jogar!")
+
+
+## Promoção na guilda (Game.ranked_up).
+func enqueue_rank(rank: String) -> void:
+	var title := ""
+	for r in Balance.tables.get_table("guild").get("ranks", []):
+		if r.id == rank:
+			title = str(r.get("title", ""))
+	enqueue("PROMOÇÃO NA GUILDA", "Rank %s · %s" % [rank, title])
 
 
 func _process(_delta: float) -> void:
+	# com uma janela aberta (diálogo, menu) o cartão em curso some, para não cobrir o texto
+	band.modulate.a = 0.0 if world and world.get("modal") != null else 1.0
 	if _playing or _queue.is_empty():
 		return
 	if world and world.get("modal") != null:

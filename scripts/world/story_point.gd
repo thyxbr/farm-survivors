@@ -1,16 +1,20 @@
 class_name StoryPoint
 extends StaticBody3D
-## Objeto da história que se examina com E (o bilhete do Rei Goblin no acampamento). Fala pelo mesmo roteiro
-## dos NPCs (StoryDialogue, npc_id = id do objeto), sem close de câmera. Enquanto a missão que pede para
-## examiná-lo está ativa, brilha e mostra o "?" por cima.
+## Objeto da história que se examina com E: o bilhete do Rei Goblin no acampamento ("camp_note"), o diário do
+## Lich na Mina ("diario"), o gato da Dona Zélia no pomar ("gato") e o Quadro de Contratos da guilda
+## ("board", sem visual próprio: fica na frente do quadro de avisos). Fala pelo mesmo roteiro dos NPCs
+## (StoryDialogue, npc_id = id do objeto), sem close de câmera. Mostra o marcador da história por cima e,
+## quando há algo a fazer nele, brilha.
+
+const PROMPTS := {"board": "Ver contratos", "gato": "Chamar o gato", "diario": "Ler o diário",
+	"camp_note": "Examinar bilhete"}
 
 @export var npc_id := "camp_note"
 
 var npc_name := ""
 var marker: Label3D
+var marker_h := 1.2
 var _glow: OmniLight3D
-var _paper: MeshInstance3D
-var _paper_mat: StandardMaterial3D
 var _t := 0.0
 
 
@@ -22,55 +26,41 @@ func _ready() -> void:
 	npc_name = StoryDialogue.NAMES.get(npc_id, npc_id)
 	var col := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(0.5, 0.3, 0.5)
+	box.size = Vector3(0.6, 0.5, 0.6)
 	col.shape = box
+	col.position.y = 0.25
 	add_child(col)
-	# o bilhete: um papel amassado (caixa fina, um pouco torta) com uma faca de manteiga espetada
-	_paper = MeshInstance3D.new()
-	var pm := BoxMesh.new()
-	pm.size = Vector3(0.32, 0.02, 0.24)
-	_paper.mesh = pm
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.93, 0.88, 0.72)
-	mat.emission_enabled = true
-	mat.emission = Color(1.0, 0.85, 0.5)
-	mat.emission_energy_multiplier = 0.0
-	_paper.material_override = mat
-	_paper_mat = mat
-	_paper.rotation = Vector3(0.12, 0.5, -0.08)
-	add_child(_paper)
-	var knife := MeshInstance3D.new()
-	var km := BoxMesh.new()
-	km.size = Vector3(0.03, 0.18, 0.012)
-	knife.mesh = km
-	var kmat := StandardMaterial3D.new()
-	kmat.albedo_color = Color(0.75, 0.76, 0.8)
-	kmat.metallic = 0.8
-	knife.material_override = kmat
-	knife.position = Vector3(0.04, 0.08, 0.02)
-	knife.rotation.z = 0.25
-	add_child(knife)
+	match npc_id:
+		"camp_note":
+			_paper()
+		"diario":
+			_book()
+		"gato":
+			_cat()
+			marker_h = 1.3
+		"board":
+			marker_h = 3.0
 	if DisplayServer.get_name() != "headless":
 		_glow = OmniLight3D.new()
 		_glow.light_color = Color(1.0, 0.85, 0.5)
 		_glow.omni_range = 2.5
 		_glow.light_energy = 0.0
-		_glow.position.y = 0.4
+		_glow.position.y = 0.5
 		add_child(_glow)
 	marker = Label3D.new()
 	marker.font_size = 110
 	marker.outline_size = 14
 	marker.pixel_size = 0.006
 	marker.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	marker.modulate = Color(0.55, 1.0, 0.45)
-	marker.position.y = 1.2
+	marker.position.y = marker_h
 	add_child(marker)
 	Game.quests_changed.connect(_update_marker)
+	Game.inventory_changed.connect(_update_marker)
 	_update_marker()
 
 
 func interact_prompt() -> String:
-	return "Examinar %s" % npc_name.to_lower()
+	return PROMPTS.get(npc_id, "Examinar")
 
 
 func interact(_player: Node) -> void:
@@ -80,13 +70,77 @@ func interact(_player: Node) -> void:
 
 
 func _update_marker() -> void:
-	marker.text = StoryRules.marker(ItemDB.QUESTS, Game.quests, npc_id, {})
-	var lit := marker.text != ""
-	_paper_mat.emission_energy_multiplier = 1.2 if lit else 0.0
+	var here := StoryDialogue.present(npc_id)
+	visible = here
+	collision_layer = 8 if here else 0
+	for g in ["interactable", "npc"]:
+		if here and not is_in_group(g):
+			add_to_group(g)
+		elif not here and is_in_group(g):
+			remove_from_group(g)
+	var m := StoryRules.marker(ItemDB.QUESTS, Game.quests, npc_id, {}, Game.rank())
+	NPC_SCRIPT.set_marker(marker, m)
 	if _glow:
-		_glow.light_energy = 1.2 if lit else 0.0
+		_glow.light_energy = 1.2 if m != "" and npc_id != "board" else 0.0
+
+
+const NPC_SCRIPT := preload("res://scripts/world/npc.gd")
 
 
 func _process(delta: float) -> void:
 	_t += delta
-	marker.position.y = 1.2 + sin(_t * 3.0) * 0.08
+	marker.position.y = marker_h + sin(_t * 3.0) * 0.08
+
+
+# ---------------------------------------------------------------- visuais
+func _mesh(m: Mesh, c: Color, pos: Vector3, rot := Vector3.ZERO, metal := 0.0) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = m
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = c
+	mat.metallic = metal
+	mi.material_override = mat
+	mi.position = pos
+	mi.rotation = rot
+	add_child(mi)
+	return mi
+
+
+func _box(size: Vector3, c: Color, pos: Vector3, rot := Vector3.ZERO, metal := 0.0) -> MeshInstance3D:
+	var b := BoxMesh.new()
+	b.size = size
+	return _mesh(b, c, pos, rot, metal)
+
+
+func _sphere(r: float, c: Color, pos: Vector3, squash := Vector3.ONE) -> MeshInstance3D:
+	var s := SphereMesh.new()
+	s.radius = r
+	s.height = r * 2.0
+	var mi := _mesh(s, c, pos)
+	mi.scale = squash
+	return mi
+
+
+## O bilhete: papel amassado com uma faca de manteiga espetada.
+func _paper() -> void:
+	_box(Vector3(0.32, 0.02, 0.24), Color(0.93, 0.88, 0.72), Vector3.ZERO, Vector3(0.12, 0.5, -0.08))
+	_box(Vector3(0.03, 0.18, 0.012), Color(0.75, 0.76, 0.8), Vector3(0.04, 0.08, 0.02), Vector3(0, 0, 0.25), 0.8)
+
+
+## O diário do Lich: livro grosso de capa roxa num pedestal de pedra.
+func _book() -> void:
+	_box(Vector3(0.6, 0.8, 0.6), Color(0.35, 0.33, 0.36), Vector3(0, 0.4, 0))
+	_box(Vector3(0.42, 0.1, 0.32), Color(0.3, 0.12, 0.38), Vector3(0, 0.85, 0), Vector3(0, 0.3, 0))
+	_box(Vector3(0.38, 0.08, 0.3), Color(0.9, 0.86, 0.72), Vector3(0.012, 0.85, 0), Vector3(0, 0.3, 0))
+	marker_h = 1.7
+
+
+## O Sr. Bigodes: gato laranja gordo, sentado, com orelhas e rabo.
+func _cat() -> void:
+	var fur := Color(0.95, 0.55, 0.18)
+	_sphere(0.22, fur, Vector3(0, 0.2, 0), Vector3(1.0, 0.95, 1.2))
+	_sphere(0.15, fur, Vector3(0, 0.46, 0.12))
+	for x in [-0.08, 0.08]:
+		_box(Vector3(0.07, 0.1, 0.03), fur.darkened(0.15), Vector3(x, 0.6, 0.12), Vector3(0, 0, 0.3 * signf(x)))
+		_sphere(0.025, Color(0.1, 0.12, 0.08), Vector3(x * 0.7, 0.49, 0.26))
+	_box(Vector3(0.05, 0.05, 0.38), fur.darkened(0.2), Vector3(0.12, 0.12, -0.3), Vector3(0.6, 0.4, 0))

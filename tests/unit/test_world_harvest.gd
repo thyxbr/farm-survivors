@@ -13,14 +13,16 @@ func _tables() -> BalanceTables:
 func test_table_shape() -> void:
 	var bt := _tables()
 	var items: Dictionary = bt.get_table("items")
-	T.eq(WorldHarvest.count(bt), 10, "dez nós no mapa")
+	T.eq(WorldHarvest.count(bt), 20, "dez nós no vale e dez na Mina de Cristal")
 	var kinds := {}
 	for i in WorldHarvest.count(bt):
 		var d := WorldHarvest.node_def(bt, i)
 		kinds[d.kind] = int(kinds.get(d.kind, 0)) + 1
 		T.ok(items.has(d.item), "item do nó %d existe" % i)
 		T.ok(d.amount >= 1 and d.hits >= 1 and d.respawn > 0, "números do nó %d" % i)
-	T.eq(kinds, {"iron": 6, "crystal": 4}, "6 de ferro e 4 de cristal")
+	T.eq(kinds, {"iron": 10, "crystal": 10}, "10 de ferro e 10 de cristal")
+	for i in range(10, 20):
+		T.eq(Regions.region_at(WorldHarvest.node_def(bt, i).pos), "mina", "nó %d fica na Mina de Cristal" % i)
 	var iron := WorldHarvest.node_def(bt, 0)
 	T.eq(iron.item, "iron_ore", "nó 0 dá minério")
 	T.eq(iron.amount, 3, "3 por veio")
