@@ -45,6 +45,41 @@ func _ready() -> void:
 	fs.toggled.connect(_on_fullscreen)
 	v.add_child(fs)
 
+	# estilo "desenhado" (docs/ESTILO_TOON.md): `--notoon` e `--nooutline` vencem estas opções
+	var toon := CheckBox.new()
+	toon.text = "Estilo desenhado (sombra em dois tons)"
+	var outline := CheckBox.new()
+	outline.text = "Contorno nos personagens"
+	if ToonLook.forced_off():
+		toon.text += " — desligado pela linha de comando"
+		toon.disabled = true
+	else:
+		toon.button_pressed = Game.settings.toon
+	if ToonLook.forced_off(true):
+		outline.text += " — desligado pela linha de comando"
+		outline.disabled = true
+	else:
+		outline.button_pressed = Game.settings.toon_outline
+		outline.disabled = toon.disabled or not toon.button_pressed
+	var note := UITheme.label("", 14, Color(0.78, 0.76, 0.7))
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.custom_minimum_size = Vector2(460, 0)
+	note.visible = false
+	toon.toggled.connect(func(on: bool) -> void:
+		Game.settings.toon = on
+		outline.disabled = not on or ToonLook.forced_off(true)
+		note.text = "O estilo muda no que aparecer daqui em diante; o cenário já montado muda ao trocar de área."
+		note.visible = true
+		Game.save_settings())
+	outline.toggled.connect(func(on: bool) -> void:
+		Game.settings.toon_outline = on
+		note.text = "Desligar vale na hora. Ligar vale para os personagens que aparecerem daqui em diante."
+		note.visible = true
+		Game.save_settings())
+	v.add_child(toon)
+	v.add_child(outline)
+	v.add_child(note)
+
 	v.add_child(UITheme.button("Voltar", _close))
 
 

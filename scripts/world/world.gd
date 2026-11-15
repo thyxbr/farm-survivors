@@ -27,8 +27,9 @@ const M := {
 	"forge": preload("res://assets/models/forge.glb"),
 }
 const ENEMY := preload("res://scripts/enemies/enemy.gd")
-const NPC := preload("res://scripts/world/npc.gd")
 const BLACKSMITH := preload("res://scripts/world/blacksmith.gd")
+const ELDER := preload("res://scripts/world/elder.gd")
+const MERCHANT := preload("res://scripts/world/merchant.gd")
 const PLAYER := preload("res://scripts/player/player.gd")
 const HUD := preload("res://scripts/ui/hud.gd")
 const DIALOGUE := preload("res://scripts/ui/dialogue_ui.gd")
@@ -310,13 +311,11 @@ func _build_village() -> void:
 			prop("fence", Vector3(19, 0, z), PI / 2, 1.0, "box", Vector3(2.1, 1.0, 0.25))
 		z += 2.0
 	# NPCs
-	var elder := NPC.new()
-	elder.npc_id = "elder"
+	var elder := ELDER.new()
 	elder.position = Vector3(-3, 0, -2.5)
 	elder.rotation.y = atan2(3.0, 8.5)
 	add_child(elder)
-	var merchant := NPC.new()
-	merchant.npc_id = "merchant"
+	var merchant := MERCHANT.new()
 	merchant.position = Vector3(6.8, 0, 1.6)
 	merchant.rotation.y = -PI / 2
 	add_child(merchant)

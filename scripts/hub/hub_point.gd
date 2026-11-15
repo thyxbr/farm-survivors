@@ -157,6 +157,11 @@ func _build_npc() -> void:
 	model = _glb("elder" if kind == "passive_master" else "merchant", Vector3.ZERO)
 	if ToonLook.enabled():
 		ToonLook.apply(model)
+	# modelos com esqueleto: parados no idle (sem isso, pose T); o cajado do Orin preso à mão
+	if kind == "passive_master":
+		SkinnedNPC.pose_model(model, {"Staff": "LeftHand"}, Elder.MIXAMO_LIB, "idle")
+	else:
+		SkinnedNPC.pose_model(model, {}, Merchant.MIXAMO_LIB, "idle")
 	_base_yaw = model.rotation.y
 	_shape(Vector3(0.4, 1.8, 0), Vector3(0, 0.9, 0), true)
 	_tag(NPC_NAMES[kind], 2.35, Color(1, 0.95, 0.8))
