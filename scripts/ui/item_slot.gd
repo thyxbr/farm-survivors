@@ -37,6 +37,8 @@ var drop_handler: Callable
 var badges := false
 ## Espaço desenhado a tinta sobre pergaminho (telas do livro).
 var paper := false
+## Ícone 3D do item (ItemIcons) também fora do papel: loja e ofícios. O HUD fica no desenho vetorial.
+var model_icon := false
 var _hover := false
 
 
@@ -157,7 +159,7 @@ func _draw() -> void:
 	var inset := size.x * (0.17 if badges else 0.14)
 	var ir := r.grow(-inset)
 	if has_item:
-		var tex: Texture2D = ItemIcons.icon(item_id, queue_redraw) if paper else null
+		var tex: Texture2D = ItemIcons.icon(item_id, queue_redraw) if paper or model_icon else null
 		if tex:
 			draw_texture_rect(tex, r.grow(-size.x * 0.03), false)
 		else:

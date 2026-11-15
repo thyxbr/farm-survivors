@@ -2526,6 +2526,12 @@ func _test_gear() -> void:
 	if fake_quest:
 		Game.quests.erase("goblins")
 	check(not ItemIcons.enabled() and ItemIcons.icon("leather_cap", Callable()) == null, "sem janela, os ícones 3D ficam desligados")
+	check(ItemIcons.icon("health_potion", Callable()) == null, "sem janela, item de família também cai no ícone pintado")
+	var no_icon: Array[String] = []
+	for id: String in ItemDB.ITEMS:
+		if not ItemIcons._has_model(id):
+			no_icon.append(id)
+	check(no_icon.is_empty(), "todo item tem modelo para o ícone 3D (sem: %s)" % ", ".join(no_icon))
 	m._close()
 	await wait(0.05)
 	world.open_shop()
