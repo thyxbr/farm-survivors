@@ -252,11 +252,11 @@ cópia de teste do Doran, em capturas lado a lado.
 Capturas (antes à esquerda, depois à direita; frente, três quartos, perfil e costas):
 `docs/screenshots/npc_cabelo_doran.jpg`, `npc_cabelo_bram.jpg` e `npc_cabelo_mira.jpg`.
 
-### Do corpo liso (teste no Doran)
+### Do corpo liso (Doran)
 Com rosto, cabelo e barba lisos, o corpo do Doran (tronco, quadril, cinto e avental em caixas; membros em
-loft facetado) passou a destoar. O teste está em `tools/blender/anime_body.py` e gera uma **cópia**,
-`blacksmith_body.glb` (`ASSETS=blacksmith_body`, fora do repositório); o `blacksmith.glb` do jogo não mudou
-e nada foi aplicado a Bram, Mira, cavaleiro ou goblins. Foram quatro rodadas de capturas lado a lado e uma quinta, de ajuste do pescoço e dos ombros.
+loft facetado) passou a destoar. O corpo novo está em `tools/blender/anime_body.py` (`doran_legs`,
+`doran_torso`, `doran_arms`, chamados por `build_blacksmith`). Foi acertado numa cópia de teste, aprovado pelo
+usuário e entrou no `blacksmith.glb` na versão 0.14.9; Bram, Mira, cavaleiro e goblins seguem como estavam. Foram quatro rodadas de capturas lado a lado e uma quinta, de ajuste do pescoço e dos ombros.
 
 O que funcionou:
 1. **Liso pelo sombreado, não por subdivisão.** `sloft` usa as mesmas seções de `body.py` (`sec`, `grow`,
@@ -307,7 +307,7 @@ Custo (sem martelo e tenaz): 5.750 -> 6.635 triângulos (+885, +15%). Pernas e b
 avental 468 -> 1.105, braços 696 -> 624; cabeça (2.498) e punhos (1.408) iguais. Com martelo e tenaz, cerca de
 6.050 -> 6.940, contra o orçamento de 5 mil. Refazer o punho em menos peças pagaria o corpo liso inteiro.
 
-Capturas (atual à esquerda, teste à direita): `docs/screenshots/npc_corpo_doran.jpg` (frente, três quartos,
+Capturas (corpo antigo à esquerda, novo à direita): `docs/screenshots/npc_corpo_doran.jpg` (frente, três quartos,
 perfil, costas e closes do tronco) e `npc_corpo_doran_golpe.jpg` (golpe de martelo e pernas).
 
 ### Do desempenho
@@ -459,7 +459,7 @@ $G = "C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe"
 # comparar dois modelos em close (ex.: uma cópia do GLB antigo e o novo); modos face, hands, body e o giro em graus
 & $G --path . --resolution 1600x900 --script res://tools/face_shot.gd -- blacksmith_old blacksmith saida.png face 35
 # idem, de corpo inteiro e parado num quadro de um clipe do GLB (modos torso e legs para closes)
-& $G --path . --resolution 1500x900 --script res://tools/face_shot.gd -- blacksmith blacksmith_body saida.png body 35 work_hammer 0.433
+& $G --path . --resolution 1500x900 --script res://tools/face_shot.gd -- blacksmith_old blacksmith saida.png body 35 work_hammer 0.433
 # jogo com o sombreado antigo, para comparar
 & $G --path . res://scenes/world.tscn -- --notoon
 # auditoria: depois de 5 s lista no console as peças visíveis que ficaram com material iluminado comum

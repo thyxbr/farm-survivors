@@ -624,7 +624,7 @@ func _build_borders() -> void:
 
 
 # ================================================================ demonstração (screenshots)
-## `--colonydemo` monta uma cidade de exemplo; `--night` já começa o ataque.
+## `--colonydemo` monta uma cidade de exemplo; `--night` já começa o ataque; `--at=x,z,graus` escolhe de onde olhar.
 func _demo_city() -> void:
 	colony.treasury = 99999
 	var c := colony
@@ -660,6 +660,12 @@ func _demo_city() -> void:
 	player.cam_yaw.rotation.y = 0.0
 	colony.treasury = 640
 	var args := OS.get_cmdline_user_args()
+	for a in args:   # --at=x,z,graus: de onde olhar a cidade (0 graus = olhando para -Z)
+		if a.begins_with("--at="):
+			var at := a.substr(5).split(",")
+			player.global_position = Vector3(float(at[0]), 0.5, float(at[1]))
+			player.cam_yaw.rotation.y = deg_to_rad(float(at[2])) if at.size() > 2 else 0.0
+			player.model.rotation.y = player.cam_yaw.rotation.y + PI
 	if "--night" in args:
 		c.phase_t = 0.1
 	# --ui=build | hall | barracks abre a tela correspondente
