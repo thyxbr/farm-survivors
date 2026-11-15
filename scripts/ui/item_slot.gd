@@ -167,7 +167,8 @@ func _draw() -> void:
 	elif ghost_kind != "":
 		IconPainter.draw(self, ghost_kind, Color(0.2, 0.125, 0.065, 0.28) if paper else Color(1, 1, 1, 0.1), ir, true)
 	if dim:
-		draw_rect(r.grow(-1), Color(0, 0, 0, 0.55))
+		# sobre papel o ícone desbota para a cor da página em vez de escurecer
+		draw_rect(r.grow(-2), Color(UITheme.PAGE, 0.62) if paper else Color(0, 0, 0, 0.55))
 	# recarga radial (fatia escura que diminui no sentido horário)
 	if cooldown > 0.0:
 		var c := r.get_center()
@@ -203,8 +204,8 @@ func _draw() -> void:
 		var kw := font.get_string_size(key_text, HORIZONTAL_ALIGNMENT_LEFT, -1, kfs).x + 6
 		var kr := Rect2(Vector2(2, 2), Vector2(maxf(kw, 14), kfs + 3))
 		var ks := StyleBoxFlat.new()
-		ks.bg_color = Color(0.12, 0.1, 0.08, 0.9)
-		ks.border_color = Color(0.5, 0.43, 0.32)
+		ks.bg_color = UITheme.INK if paper else Color(0.12, 0.1, 0.08, 0.9)
+		ks.border_color = UITheme.INK if paper else Color(0.5, 0.43, 0.32)
 		ks.set_border_width_all(1)
 		ks.set_corner_radius_all(3)
 		draw_style_box(ks, kr)

@@ -216,6 +216,16 @@ func _debug_screenshot() -> void:
 						for n in get_tree().get_nodes_in_group("interactable"):
 							if n.get("npc_id") == "blacksmith":
 								w.open_enchant(n)
+				# `--tip=<n>` (com --ui=inv): abre a dica do espaço n da mochila, presa ao lado dele, para a captura
+				for t in args:
+					if t.begins_with("--tip=") and w.modal and w.modal.get("bag_slots") != null:
+						await get_tree().create_timer(0.5).timeout
+						var slot: ItemSlot = w.modal.bag_slots[clampi(int(t.substr(6)), 0, w.modal.bag_slots.size() - 1)]
+						if slot.item_id != "":
+							var tip: ItemTooltip = w.modal.tooltip
+							tip.show_for(slot)
+							tip.set_process(false)   # não segue o ponteiro (que pode nem estar na janela)
+							tip.global_position = slot.get_global_rect().end + Vector2(8, 8)
 	# `--survival` começa direto no Desafio da Horda (com ou sem screenshot)
 	if "--survival" in OS.get_cmdline_user_args():
 		await get_tree().create_timer(0.3).timeout
