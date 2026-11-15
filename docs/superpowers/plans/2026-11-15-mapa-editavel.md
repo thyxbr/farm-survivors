@@ -49,13 +49,13 @@ conteúdo prova que o jogo ficou igual.
 
 ---
 
-### Tarefa 0: base do trabalho
+### Task 0: base do trabalho
 
 - [ ] **Passo 1:** pedir ao usuário para commitar a vila (`vila-cena`) e abrir o PR dela; criar o branch
   `mapa-editavel` a partir de `vila-cena` num worktree irmão (`../godot-3d-mapa`), rodar `--import` lá.
   Sem aprovação do usuário, não commitar nem dar push.
 
-### Tarefa 1: dados puros dos mapas (`MapData`) e espalhamento dos monstros
+### Task 1: dados puros dos mapas (`MapData`) e espalhamento dos monstros
 
 **Arquivos:**
 - Criar: `scripts/map/map_data.gd`, `scripts/map/enemy_spawn.gd` (só a parte pura nesta tarefa)
@@ -90,7 +90,7 @@ conteúdo prova que o jogo ficou igual.
 - [ ] **Passo 4:** `--import` e rodar os unitários — PASSA, "0 falharam".
 - [ ] **Passo 5:** commit `Mapa: MapData, EnemySpawn.spread e landmarks puros`.
 
-### Tarefa 2: peças da cena com prévia no editor
+### Task 2: peças da cena com prévia no editor
 
 **Arquivos:**
 - Criar em `scripts/map/`: `map_prop.gd`, `map_ground_paint.gd`, `map_mountain.gd`, `map_grass_area.gd`,
@@ -131,7 +131,7 @@ conteúdo prova que o jogo ficou igual.
   `"$G" -e --headless --path . res://tests/unit/fixtures/map_fixture.tscn --quit-after 300` sem `SCRIPT ERROR`.
 - [ ] **Passo 5:** commit `Mapa: peças @tool com prévia no editor`.
 
-### Tarefa 3: raiz do mapa (`MapRoot`) com chão, luz e toon na prévia; ferramenta de foto
+### Task 3: raiz do mapa (`MapRoot`) com chão, luz e toon na prévia; ferramenta de foto
 
 **Arquivos:**
 - Criar: `scripts/map/map_root.gd`, `tools/map_shot.gd`
@@ -154,7 +154,7 @@ conteúdo prova que o jogo ficou igual.
 - [ ] **Passo 3:** `map_shot` na fixture gera as PNGs; olhar a imagem (chão com relevo, prop no chão, toon).
 - [ ] **Passo 4:** unitários PASSAM. Commit `Mapa: MapRoot com prévia do chão e ferramenta de foto`.
 
-### Tarefa 4: carregador no jogo (`MapLoader`) e resumo de conteúdo
+### Task 4: carregador no jogo (`MapLoader`) e resumo de conteúdo
 
 **Arquivos:**
 - Criar: `scripts/world/map_loader.gd` (lado do jogo; pode citar autoload)
@@ -184,7 +184,7 @@ conteúdo prova que o jogo ficou igual.
 - [ ] **Passo 2:** implementar `MapLoader` e `make_entity` (ainda sem uso; o código antigo segue montando).
 - [ ] **Passo 3:** unitários e smoke PASSAM (nada mudou). Commit `Mapa: carregador e retrato do mundo atual`.
 
-### Tarefa 5: ferramenta de conversão e cena do vale
+### Task 5: ferramenta de conversão e cena do vale
 
 **Arquivos:**
 - Criar: `tools/bake_maps.gd`, `scenes/maps/vale.tscn` (gerada)
@@ -211,7 +211,7 @@ conteúdo prova que o jogo ficou igual.
   `docs/screenshots/mapa_vale_editor_x_jogo.png`; olhar.
 - [ ] **Passo 4:** commit `Mapa: conversão do vale para scenes/maps/vale.tscn`.
 
-### Tarefa 6: o jogo passa a carregar o vale da cena
+### Task 6: o jogo passa a carregar o vale da cena
 
 **Arquivos:**
 - Modificar: `scripts/world/world.gd` (etapas do `_ready`), `tests/vila_test.gd`, `tests/net_test.gd`,
@@ -229,7 +229,7 @@ conteúdo prova que o jogo ficou igual.
   todos PASSAM. Medir o tempo do `_ready` antes/depois (anotar no commit).
 - [ ] **Passo 5:** commit `Mapa: o vale vem de scenes/maps/vale.tscn`.
 
-### Tarefa 7: Bosque, Mina e Pico
+### Task 7: Bosque, Mina e Pico
 
 - [ ] **Passo 1:** `bake_maps.gd -- bosque mina pico`; fotos lado a lado; `MapLoader.build` para cada região no
   lugar de `RegionBuilder.build` (wagon e cocheiro viram `MapDecor`/`MapEntity`; paredes `StaticBody3D`).
@@ -237,7 +237,7 @@ conteúdo prova que o jogo ficou igual.
 - [ ] **Passo 3:** unitários, smoke (viagem ao bosque acha `sylvi`, `coach_bosque`, `slime_rainha`), vila, net
   PASSAM. Commit `Mapa: Bosque, Mina e Pico em cena`.
 
-### Tarefa 8: landmarks no lugar das constantes
+### Task 8: landmarks no lugar das constantes
 
 **Arquivos:** `scripts/world/world.gd`, `scripts/world/regions.gd`, `scripts/world/map_rules.gd`,
 `scripts/survival/survival_mode.gd`, testes que leem `w.ARENA`, `w.VILLAGE_SPAWN`, `w.NEST`, `w.MOUNTAINS`.
@@ -250,7 +250,7 @@ conteúdo prova que o jogo ficou igual.
   saem de `Regions.DATA`.
 - [ ] **Passo 3:** todos os testes PASSAM. Commit `Mapa: landmarks da cena no lugar das constantes`.
 
-### Tarefa 9: nós de coleta editáveis
+### Task 9: nós de coleta editáveis
 
 **Arquivos:** `scripts/world/world_harvest.gd`, `data/balance/world_nodes.json`, `scripts/balance/balance_tables.gd`,
 fixture do snapshot do balanceamento, `tests/unit/test_world_harvest.gd`, cenas (`resource_node` com `node_id`).
@@ -263,7 +263,7 @@ fixture do snapshot do balanceamento, `tests/unit/test_world_harvest.gd`, cenas 
 - [ ] **Passo 3:** smoke (20 nós, `[0]` é ferro com `node_id` 0) e net PASSAM. Commit
   `Mapa: nós de coleta editáveis com node_id fixo`.
 
-### Tarefa 10: monstros configuráveis e validação dos mapas
+### Task 10: monstros configuráveis e validação dos mapas
 
 **Arquivos:** cenas dos mapas, `tests/unit/test_map_validation.gd`
 
@@ -279,7 +279,7 @@ fixture do snapshot do balanceamento, `tests/unit/test_world_harvest.gd`, cenas 
   O resumo continua igual à linha de base.
 - [ ] **Passo 3:** todos os testes PASSAM. Commit `Mapa: pontos de monstro no Inspector e validação`.
 
-### Tarefa 11: limpeza, guia e versão
+### Task 11: limpeza, guia e versão
 
 - [ ] **Passo 1:** apagar do `world.gd` e do `region_builder.gd` as funções e listas que viraram cena
   (`_build_village`… `_mountain_nature`, `_setup_enemies` (listas), `_bosque/_mina/_pico`, `MOUNTAINS`, `TREE_R`
