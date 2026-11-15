@@ -4,10 +4,11 @@ extends SceneTree
 ## Usa o personagem de demonstração (--geardemo), não o save. Precisa de janela (sem --headless) e do --import:
 ##   godot --path . --resolution 1600x900 --script res://tools/village_shot.gd -- <pasta_saida> [vista,vista] --geardemo
 ## Vistas: over (de cima), east (empório), west (botica), smithy (ferraria), north (casas do fundo), south,
-## xmas (árvore de Natal), gate (bengalas do portão norte). `--hora=22` tira as fotos de noite.
+## well (poço), sign (poste de direção), board (quadro de avisos), orchard (pomar), xmas (árvore de Natal),
+## gate (bengalas do portão norte). `--hora=22` tira as fotos de noite.
 
 const VIEWS := {
-	"xmas": [Vector3(1.0, 2.6, -3.5), Vector3(6, 2.0, -9.5)],
+	"xmas": [Vector3(2.5, 2.6, -3.5), Vector3(8.8, 2.0, -10.3)],
 	"gate": [Vector3(0, 2.2, -8.0), Vector3(2.5, 0.8, -12.4)],
 	"over": [Vector3(2, 26, -20), Vector3(0, 0, 4)],
 	"east": [Vector3(-1, 4.5, -5), Vector3(9.5, 1.4, 0.5)],
@@ -15,6 +16,10 @@ const VIEWS := {
 	"smithy": [Vector3(-3.5, 4.0, 6.0), Vector3(-11.0, 1.4, 13.5)],
 	"north": [Vector3(0, 5.0, 3), Vector3(0, 2.0, 16)],
 	"south": [Vector3(3, 6.0, 9), Vector3(0, 1.5, -7)],
+	"well": [Vector3(3.5, 3.2, 4.5), Vector3(0, 1.0, 0)],
+	"sign": [Vector3(-1.0, 2.6, 16.5), Vector3(-1.8, 1.7, 20.5)],
+	"board": [Vector3(2.0, 2.4, -6.0), Vector3(5.0, 1.6, -10.6)],
+	"orchard": [Vector3(9, 7, 24), Vector3(20, 1.5, 33)],
 }
 
 var _out := ""

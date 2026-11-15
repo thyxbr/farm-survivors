@@ -7,6 +7,7 @@ extends Node
 ## --probe: sem conta, confere GET /health (versão) e se uma conexão ENet na porta UDP conecta (CI contra o servidor público).
 ## --relogin: no fim, abre uma segunda conexão (outro processo, mesmo token) e espera esta ser derrubada.
 ## --token=T: entra direto com o token (é o processo da segunda conexão do --relogin).
+## --expect-clock-offset=N: o servidor está com --clock-offset=N; confere que o relógio do mundo segue o dele.
 ## Todos os modos começam na praça: os outros jogadores e os emotes deles, Ecos de teste, passiva e doação.
 ## --horde=lead|join: testa o Desafio da Horda em grupo (lead abre a fila em Valdoria; join volta à praça,
 ##   vê a fila lá e entra pelo portal da praça, e no fim volta à praça).
@@ -31,6 +32,9 @@ var old_pickup := 0
 ## do fim pelas noites que este cliente viu de verdade (Review Focus 3).
 var city_ecos0 := 0
 var city_nights0 := 0
+
+## --expect-clock-offset=N: o servidor roda com --clock-offset=N (relógio adiantado N s).
+var expect_clock := 0.0
 
 const TEST_PASS := "teste-1234"
 const PICKUP := preload("res://scripts/world/pickup.gd")
@@ -70,6 +74,8 @@ func _ready() -> void:
 			relogin = true
 		elif a.begins_with("--token="):
 			token = a.substr(8)
+		elif a.begins_with("--expect-clock-offset="):
+			expect_clock = a.substr(22).to_float()
 	if probe:
 		await _probe()
 		_finish()
@@ -107,6 +113,12 @@ func _ready() -> void:
 		_finish()
 		return
 	check(Network.my_name == my_name, "nome no servidor é o da conta (%s)" % Network.my_name)
+	# estação, hora do jogo e clima seguem o relógio do servidor (o servidor pode rodar com
+	# --clock-offset=N para simular um relógio diferente; o cliente recebe --expect-clock-offset=N)
+	check(Weather.synced, "recebeu o relógio do servidor")
+	var want := Time.get_unix_time_from_system() + expect_clock
+	check(absf(Weather.now() - want) < 3.0, "relógio do mundo = do servidor (diferença %.1f s)" % (Weather.now() - want))
+	check(Weather.season == SeasonRules.kind_at(want), "mesma estação do servidor (%s)" % Weather.season_name())
 	var me_info: Dictionary = Network.players.get(multiplayer.get_unique_id(), {})
 	check(int(me_info.get("account", 0)) > 0, "servidor associou a conta ao jogador (%s)" % str(me_info.get("account")))
 	if second:

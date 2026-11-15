@@ -8,7 +8,7 @@ extends RefCounted
 ## estações (SeasonRules: LENGTH / DAYS_PER_SEASON), para a hora do HUD bater com a luz.
 
 ## Duração de um dia do jogo em segundos reais (8,5 min).
-const DAY_LENGTH := 510.0
+const DAY_LENGTH := SeasonRules.LENGTH / SeasonRules.DAYS_PER_SEASON
 ## Nascer e pôr do sol (hora do jogo). A luz cheia vai de SUNRISE + 1 a SUNSET - 1; a noite fechada,
 ## de SUNSET + 1 a SUNRISE - 1 (umas 8 h do jogo, menos de 3 min reais).
 const SUNRISE := 5.5

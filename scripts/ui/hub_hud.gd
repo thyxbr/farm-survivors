@@ -1,5 +1,5 @@
 extends CanvasLayer
-## HUD da praça: bem mais simples que o de Valdoria (não há combate). Mostra Ecos e ouro no canto,
+## HUD da praça: bem mais simples que o de Valdoria (não há combate). Mostra Ecos, ouro e a estação no canto,
 ## a dica de interação do ponto mais perto, a linha de emotes e os avisos (Game.notify).
 
 var player: Player
@@ -39,6 +39,16 @@ func _ready() -> void:
 	h.add_child(_ecos)
 	_gold = UITheme.outlined("", 20, Color(1, 0.85, 0.35), 4)
 	h.add_child(_gold)
+
+	# --- estação e hora do jogo, embaixo da bolsa
+	var season := SeasonBadge.new()
+	season.anchor_left = 1.0
+	season.anchor_right = 1.0
+	season.offset_left = -16
+	season.offset_right = -16
+	season.offset_top = 64
+	season.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	root.add_child(season)
 
 	# --- título da praça (canto superior esquerdo)
 	var title := UITheme.outlined("Praça de Valdoria", 30, UITheme.GOLD, 8)

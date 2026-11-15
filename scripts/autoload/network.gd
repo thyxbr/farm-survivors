@@ -321,6 +321,7 @@ func _register(token: String, client_version: String, _look = {}, _extra = "") -
 	print("[server] %s entrou (peer %d, conta %d, %d online)" % [acc.name, id, account, players.size()])
 	# tabelas e personagem antes do _accepted (mesmo canal confiável: chegam antes da troca de cena)
 	Econ.server_send_initial(id, account)
+	Weather.server_send_clock(id)   # estação, hora do jogo e clima pelo relógio do servidor
 	_accepted.rpc_id(id, players)
 	for pid in _all_peers():
 		if pid != id:
@@ -758,6 +759,7 @@ func leave() -> void:
 	Lobby.client_reset()
 	Econ.client_reset()
 	Hub.client_reset()
+	Weather.clear_server_time()
 
 
 func _on_connected_to_server() -> void:

@@ -61,3 +61,12 @@ func test_parse_hour() -> void:
 	T.eq(DayNightRules.parse_hour("25"), -1.0, "fora do dia")
 	T.eq(DayNightRules.parse_hour("noite"), -1.0, "texto")
 	T.eq(DayNightRules.hour_text(21.5), "21:30", "texto da hora")
+
+
+func test_hour_matches_the_season_clock() -> void:
+	# a hora do HUD (SeasonRules.clock_at) e a luz (DayNightRules) saem da mesma conta
+	for i in 30:
+		var t := 1_800_000_000.0 + i * 377.0
+		var c := SeasonRules.clock_at(t)
+		var h := DayNightRules.hour_at(t)
+		T.eq(floori(h), int(c.hour), "mesma hora em t=%d" % int(t))

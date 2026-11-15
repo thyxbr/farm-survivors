@@ -90,7 +90,7 @@ func _process(delta: float) -> void:
 static func current_hour() -> float:
 	if forced_hour >= 0.0:
 		return forced_hour
-	return DayNightRules.hour_at(Weather._clock)
+	return DayNightRules.hour_at(Weather.now())
 
 
 func _apply(delta: float) -> void:

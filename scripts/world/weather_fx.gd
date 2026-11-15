@@ -3,7 +3,8 @@ extends Node3D
 ## Desenha o clima do autoload Weather na cena (Valdoria e praça): chuva com respingos, neve,
 ## folhas e rajadas de vento (partículas que seguem a câmera), céu nublado, neblina, som de chuva e
 ## de vento, e publica as globais de shader que o chão, o capim e os modelos leem (poças, neve
-## acumulada, capim vergando). Criar depois de WorldLighting.build (lê o ambiente e o sol da cena).
+## acumulada, capim vergando). Também desenha a estação: no outono as copas ganham tons de fogo, a grama
+## doura, folhas caem e cobrem o chão e a luz fica mais quente (global `season_autumn`). Criar depois de WorldLighting.build (lê o ambiente e o sol da cena).
 ## Só visual: não existe no servidor dedicado.
 
 const OVERLAY_SHADER := preload("res://assets/shaders/weather_overlay.gdshader")
@@ -15,6 +16,12 @@ const MESSAGES := [
 	"Nuvens carregadas: começa a chover.",
 	"Esfria de repente: começa a nevar.",
 	"O vento aperta: rajadas fortes!",
+]
+const SEASON_MESSAGES := [
+	"A primavera chegou: tudo volta a florescer.",
+	"O verão chegou: dias longos e quentes.",
+	"O outono chegou: as folhas ganham tons de fogo.",
+	"O inverno chegou: o frio se instala em Valdoria.",
 ]
 const RATE := 22050
 
@@ -31,6 +38,8 @@ var _snow: GPUParticles3D
 var _snow_pm: ParticleProcessMaterial
 var _leaves: GPUParticles3D
 var _leaves_pm: ParticleProcessMaterial
+var _fall: GPUParticles3D
+var _fall_pm: ParticleProcessMaterial
 var _streaks: GPUParticles3D
 var _streaks_pm: ParticleProcessMaterial
 var _lines: GPUParticles3D
@@ -55,6 +64,7 @@ var _rng := RandomNumberGenerator.new()
 func _ready() -> void:
 	Weather.fx = self
 	Weather.changed.connect(_on_changed)
+	Weather.season_changed.connect(_on_season_changed)
 	_find_lighting()
 	var noise := FastNoiseLite.new()
 	noise.frequency = 0.02
@@ -78,12 +88,16 @@ func _exit_tree() -> void:
 	if Weather.fx == self:
 		Weather.fx = null
 	# fora de Valdoria/praça o chão e o capim voltam ao normal
-	for k in ["weather_wet", "weather_snow", "weather_rain", "weather_wind", "weather_phase"]:
+	for k in ["weather_wet", "weather_snow", "weather_rain", "weather_wind", "weather_phase", "season_autumn"]:
 		RenderingServer.global_shader_parameter_set(k, 0.0)
 
 
 func _on_changed(kind: int) -> void:
 	Game.notify.emit(MESSAGES[kind], Color(0.7, 0.85, 1.0))
+
+
+func _on_season_changed(kind: int) -> void:
+	Game.notify.emit(SEASON_MESSAGES[kind], SeasonRules.COLORS[kind])
 
 
 # ================================================================ luz
@@ -128,9 +142,11 @@ func _apply_light(s: Dictionary) -> void:
 	var fog_gain := 0.55 if toon else 1.0
 	var amb_gain := 0.5 if toon else 1.0
 	var sat_loss := 0.15 if toon else 0.25
+	# outono: sol mais baixo e dourado, névoa morna
+	var autumn := Weather.autumn * (1.0 - snow)
 	if _sun != null:
 		_sun.light_energy = _base.sun * (1.0 - sun_loss * cloud)
-		_sun.light_color = (_base.sun_color as Color).lerp(Color(0.86, 0.9, 1.0), cloud * 0.8)
+		_sun.light_color = (_base.sun_color as Color).lerp(Color(1.0, 0.84, 0.62), autumn * 0.35 * (1.0 - cloud)) 				.lerp(Color(0.86, 0.9, 1.0), cloud * 0.8)
 		_sun.shadow_opacity = 1.0 - shadow_loss * cloud
 	if _rim != null:
 		_rim.light_energy = _base.rim * (1.0 - 0.5 * cloud)
@@ -139,7 +155,7 @@ func _apply_light(s: Dictionary) -> void:
 	var grey := Color(0.6, 0.63, 0.67)
 	var white := Color(0.84, 0.87, 0.92)
 	var dusty := Color(0.8, 0.76, 0.66)
-	var fog: Color = (_base.fog_color as Color).lerp(grey, cloud).lerp(white, snow * 0.8).lerp(dusty, dust * 0.6)
+	var fog: Color = (_base.fog_color as Color).lerp(Color(0.88, 0.74, 0.55), autumn * 0.3).lerp(grey, cloud).lerp(white, snow * 0.8).lerp(dusty, dust * 0.6)
 	_env.fog_light_color = fog
 	_env.fog_density = _base.fog_density + (0.009 * rain + 0.009 * s.snow + 0.004 * dust) * fog_gain
 	_env.ambient_light_energy = _base.ambient * (1.0 + (0.12 * cloud + 0.15 * snow) * amb_gain)
@@ -262,6 +278,46 @@ func _build_particles() -> void:
 	_leaves.process_material = _leaves_pm
 	_leaves.draw_pass_1 = _leaf_mesh()
 	_add_particles(_leaves)
+
+	# outono: folhas soltas caindo devagar, balançando, em volta da câmera
+	_fall = GPUParticles3D.new()
+	_fall.amount = 260
+	_fall.lifetime = 8.0
+	_fall.preprocess = 6.0
+	_fall.local_coords = false
+	_fall.collision_base_size = 0.05
+	_fall_pm = ParticleProcessMaterial.new()
+	_fall_pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	_fall_pm.emission_box_extents = Vector3(17, 2, 17)
+	_fall_pm.direction = Vector3.DOWN
+	_fall_pm.spread = 35.0
+	_fall_pm.initial_velocity_min = 0.4
+	_fall_pm.initial_velocity_max = 0.9
+	_fall_pm.gravity = Vector3(0, -0.7, 0)
+	_fall_pm.angle_min = -180.0
+	_fall_pm.angle_max = 180.0
+	_fall_pm.angular_velocity_min = -160.0
+	_fall_pm.angular_velocity_max = 160.0
+	_fall_pm.scale_min = 0.9
+	_fall_pm.scale_max = 1.5
+	_fall_pm.turbulence_enabled = true
+	_fall_pm.turbulence_noise_strength = 2.0
+	_fall_pm.turbulence_noise_scale = 4.0
+	_fall_pm.turbulence_influence_min = 0.05
+	_fall_pm.turbulence_influence_max = 0.14
+	_fall_pm.collision_mode = ParticleProcessMaterial.COLLISION_HIDE_ON_CONTACT
+	var fg := Gradient.new()
+	fg.set_color(0, Color(0.72, 0.16, 0.06))
+	fg.set_color(1, Color(0.45, 0.24, 0.1))
+	fg.add_point(0.35, Color(0.9, 0.42, 0.08))
+	fg.add_point(0.7, Color(0.92, 0.68, 0.15))
+	var fgt := GradientTexture1D.new()
+	fgt.gradient = fg
+	_fall_pm.color_initial_ramp = fgt
+	_fall_pm.color_ramp = _fade_ramp(0.08, 0.85)
+	_fall.process_material = _fall_pm
+	_fall.draw_pass_1 = _leaf_mesh()
+	_add_particles(_fall)
 
 	_streaks = GPUParticles3D.new()
 	_streaks.amount = 160
@@ -469,6 +525,9 @@ func _update_particles(s: Dictionary, wind: float) -> void:
 	_leaves_pm.direction = (wd + Vector3(0, 0.12, 0)).normalized()
 	_leaves.global_position = c + Vector3(0, 1.5, 0) - wd * 14.0
 	_set_level(_leaves, strong * (0.5 + 0.5 * Weather.gust) * (1.0 - s.snow) * (1.0 - s.rain * 0.6))
+	_fall_pm.gravity = Vector3(0, -0.7, 0) + wd * (0.3 + wind * 2.0)
+	_fall.global_position = c + Vector3(0, 9, 0) - wd * (2.0 + wind * 8.0)
+	_set_level(_fall, Weather.autumn * (1.0 - s.snow) * (1.0 - s.rain * 0.5))
 	_streaks_pm.direction = (wd + Vector3(0, 0.02, 0)).normalized()
 	_streaks.global_position = c + Vector3(0, 2.0, 0) - wd * 13.0
 	_set_level(_streaks, strong * (0.35 + 0.65 * Weather.gust))
@@ -640,10 +699,12 @@ func _setup_trees(n: Node, cache: Dictionary) -> void:
 				var ov: Material = c.get_surface_override_material(i)
 				if m == null or (ov != null and not ToonLook.is_toon(ov)):
 					continue
-				var key := "%d:%.2f" % [m.get_instance_id(), top]
+				var leaf := 1.0 if _changes_in_autumn(c, m.albedo_color) else 0.0
+				var key := "%d:%.2f:%d" % [m.get_instance_id(), top, int(leaf)]
 				if not cache.has(key):
 					var sm := ShaderMaterial.new()
 					sm.shader = TREE_SHADER
+					sm.set_shader_parameter("leaf", leaf)
 					sm.set_shader_parameter("albedo", Color(m.albedo_color.r, m.albedo_color.g, m.albedo_color.b))
 					sm.set_shader_parameter("roughness", m.roughness)
 					sm.set_shader_parameter("tree_height", top)
@@ -652,6 +713,25 @@ func _setup_trees(n: Node, cache: Dictionary) -> void:
 					cache[key] = sm
 				c.set_surface_override_material(i, cache[key])
 		_setup_trees(c, cache)
+
+
+## Folhagem que muda no outono: copa colorida (não tronco: marrom escuro ou sem cor, como a
+## bétula) de árvore folhosa (pinheiro e abeto ficam verdes).
+func _changes_in_autumn(mi: MeshInstance3D, col: Color) -> bool:
+	var names := String(mi.mesh.resource_path)
+	var n: Node = mi
+	for i in 4:
+		if n == null:
+			break
+		names += " " + String(n.name)
+		n = n.get_parent()
+	names = names.to_lower()
+	if names.contains("pine") or names.contains("fir") or names.contains("pinh") or names.contains("abet"):
+		return false
+	var mx := maxf(col.r, maxf(col.g, col.b))
+	var mn := minf(col.r, minf(col.g, col.b))
+	var brown := col.r >= col.g and col.g >= col.b and mx < 0.5
+	return not brown and mx - mn > 0.12
 
 
 # ================================================================ quadro a quadro
@@ -671,6 +751,7 @@ func _apply(delta: float) -> void:
 	RenderingServer.global_shader_parameter_set("weather_wind", clampf(wind, 0.0, 1.3))
 	RenderingServer.global_shader_parameter_set("weather_wind_dir", Weather.wind_dir)
 	RenderingServer.global_shader_parameter_set("weather_phase", Weather.phase)
+	RenderingServer.global_shader_parameter_set("season_autumn", Weather.autumn)
 	_apply_light(s)
 	_update_particles(s, wind)
 	_update_overlay(s, delta)
