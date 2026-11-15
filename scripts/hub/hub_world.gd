@@ -31,6 +31,9 @@ const M := {
 	"tree_birch": preload("res://assets/models/tree_birch.glb"),
 	"tree_cherry": preload("res://assets/models/tree_cherry.glb"),
 	"tree_maple": preload("res://assets/models/tree_maple.glb"),
+	"tree_apple": preload("res://assets/models/tree_apple.glb"),
+	"tree_orange": preload("res://assets/models/tree_orange.glb"),
+	"tree_pear": preload("res://assets/models/tree_pear.glb"),
 	"barrel": preload("res://assets/models/barrel.glb"),
 	"crate": preload("res://assets/models/crate.glb"),
 	"flower_lavender": preload("res://assets/models/flower_lavender.glb"),
@@ -210,7 +213,8 @@ func _build_edge() -> void:
 					_prop("tent", d * 27.5, yaw, 1.1, "box", Vector3(2.0, 2.2, 2.0))
 					_prop("barrel", d * 27.5 + Vector3(d.z, 0, -d.x) * 1.8, 0.0)
 				3:
-					_prop("tree_cherry" if rng.randf() < 0.5 else "tree_maple", d * 28.0, rng.randf() * TAU,
+					var kind: String = ["tree_cherry", "tree_apple", "tree_maple", "tree_orange", "tree_pear"][(i >> 2) % 5]
+					_prop(kind, d * 28.0, rng.randf() * TAU,
 						rng.randf_range(0.9, 1.2), "cyl", Vector3(0.4, 3, 0))
 		a += 0.29
 		i += 1
