@@ -15,6 +15,8 @@ efeitos e renomeação para o uso no jogo.
 | `music/menu_asamis_journey` | "Asami's Journey" (main loop A), de [Contemplative Fantasy Vol. 2](https://opengameart.org/node/177224) | YannZ | CC-BY 4.0 |
 | `music/hub_town_theme` | [Town Theme RPG](https://opengameart.org/content/town-theme-rpg) | cynicmusic | CC0 |
 | `music/village_squirrel_village` | [Squirrel Village](https://opengameart.org/content/squirrel-village) (loop) | SoManyWhales | CC-BY 4.0 |
+| `music/village_deck_the_halls` | [Deck the Halls - Christmas Song](https://opengameart.org/content/deck-the-halls-christmas-song-203) (música da vila no evento de Natal) | Dizzy Crow (Daniel Michel) | CC-BY 4.0 |
+| `music/village_morning_frost` | [Morning Frost & Cheerful Christmas Time](https://opengameart.org/content/morning-frost-cheerful-christmas-time-jonathan-shaw-tarush-singhal) (guardada, ainda sem uso): mixagem de glitchart sobre ["Morning Frost"](https://opengameart.org/content/morning-frost-rpg-orchestral-essentials-village-music), de Jonathan Shaw (www.jshaw.co.uk, CC-BY 3.0), e [Cheerful Christmas Time](https://opengameart.org/content/cheerful-christmas-time), de Tarush Singhal (CC0) | glitchart, Jonathan Shaw, Tarush Singhal | CC-BY 3.0 |
 | `music/wild_greenland_theme` | "Greenland Theme", de [Heroes 3 type music](https://opengameart.org/content/heroes-3-type-music) | Alexandr Zhelanov | CC-BY 4.0 |
 | `music/ruins_dark_cavern` | [Dark Cavern Ambient](https://opengameart.org/content/dark-cavern-ambient) | Paul Wortmann | CC0 |
 | `music/combat_battle_theme_3` | "Battle Theme 3", de [Battle themes](https://opengameart.org/node/76534) | Alexandr Zhelanov | CC-BY 4.0 |
