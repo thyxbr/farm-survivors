@@ -166,9 +166,9 @@ func _prop(model: String, pos: Vector3, yaw := 0.0, s := 1.0, shape := "", size 
 
 
 func _lamp(p: Vector3) -> Node3D:
-	var lamp := _prop("lamp", p, atan2(-p.x, -p.z), 1.0, "cyl", Vector3(0.12, 2.8, 0))
+	var lamp := _prop("lamp", p, atan2(-p.x, -p.z), 1.0, "cyl", Vector3(0.12, 3.7, 0))
 	var l := OmniLight3D.new()
-	l.position = Vector3(0, 2.4, 0.5)
+	l.position = Vector3(0, 3.3, 0.5)
 	l.light_color = Color(1, 0.75, 0.4)
 	l.omni_range = 8.0
 	lamp.add_child(l)
@@ -201,8 +201,8 @@ func _build_square() -> void:
 ## Natal na praça (ChristmasDecor): varal de luzes nos dois anéis de lampiões, árvore enfeitada com
 ## presentes, bengalas na entrada da estrada, um boneco de neve e árvores pequenas ao lado do portal.
 func _build_christmas(inner: Array, outer: Array) -> void:
-	var top := Vector3(0, 2.55, 0)
-	for ring in [[inner, 0.6, ChristmasDecor.MULTI], [outer, 1.1, ChristmasDecor.WARM]]:
+	var top := Vector3(0, 3.45, 0)   # logo abaixo do chapéu do poste
+	for ring in [[inner, 0.5, ChristmasDecor.MULTI], [outer, 0.7, ChristmasDecor.WARM]]:
 		var lamps: Array = ring[0]
 		for i in lamps.size():
 			var a: Node3D = lamps[i]

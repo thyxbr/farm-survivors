@@ -287,8 +287,8 @@ func _build_village() -> void:
 		house_nodes.append(prop(h[2], h[0], h[1], 1.0, "box", Vector3(5.2, 3.2, 4.2)))
 	var lamps: Array = []
 	for p in [Vector3(-5, 0, -5), Vector3(5, 0, -5), Vector3(6, 0, 8), Vector3(-6, 0, 8)]:
-		var lamp := prop("lamp", p, atan2(-p.x, -p.z), 1.0, "cyl", Vector3(0.12, 2.8, 0))
-		DayNightFX.night_light(_light(lamp, Vector3(0, 2.4, 0.5), Color(1, 0.75, 0.4), 1.6, 9.0), 1.6)
+		var lamp := prop("lamp", p, atan2(-p.x, -p.z), 1.0, "cyl", Vector3(0.12, 3.7, 0))
+		DayNightFX.night_light(_light(lamp, Vector3(0, 3.3, 0.5), Color(1, 0.75, 0.4), 1.6, 9.0), 1.6)
 		lamps.append(lamp)
 	for hn in house_nodes:   # luz das janelas caindo na frente de cada casa, só à noite
 		DayNightFX.night_light(_light(hn, Vector3(0, 1.6, 3.2), Color(1, 0.72, 0.42), 0.9, 5.5), 0.9)
@@ -362,11 +362,11 @@ func _build_christmas(houses: Array, house_nodes: Array, lamps: Array) -> void:
 		ChristmasDecor.house_lights(house_nodes[i], model, i)
 		var d: Array = ChristmasDecor.HOUSE_DOORS[model]
 		ChristmasDecor.wreath(house_nodes[i], Vector3(d[0], d[1], d[2]))
-	var top := Vector3(0, 2.55, 0)
+	var top := Vector3(0, 3.45, 0)   # logo abaixo do chapéu do poste
 	for i in lamps.size():
 		var a: Node3D = lamps[i]
 		var b: Node3D = lamps[(i + 1) % lamps.size()]
-		ChristmasDecor.light_string(self, a.transform * top, b.transform * top, 0.75, ChristmasDecor.MULTI, i % 2)
+		ChristmasDecor.light_string(self, a.transform * top, b.transform * top, 0.6, ChristmasDecor.MULTI, i % 2)
 		ChristmasDecor.lamp_garland(a)
 	# bengalas nos portões (norte, sul e leste)
 	for p in [Vector3(-3.4, 0, -12.4), Vector3(3.4, 0, -12.4), Vector3(-1.4, 0, 22.4), Vector3(3.4, 0, 22.4),
@@ -468,8 +468,8 @@ func _build_farm() -> void:
 		if absf(sx - 1.0) < 2.2:
 			continue   # portão
 		prop("flower_sunflower", FARM + Vector3(sx, 0, -7.6), PI + rng.randf_range(-0.3, 0.3), rng.randf_range(0.85, 1.15))
-	var lamp := prop("lamp", FARM + Vector3(3.6, 0, -7.6), PI, 1.0, "cyl", Vector3(0.12, 2.8, 0))
-	_light(lamp, Vector3(0, 2.4, 0.5), Color(1, 0.75, 0.4), 1.4, 8.0)
+	var lamp := prop("lamp", FARM + Vector3(3.6, 0, -7.6), PI, 1.0, "cyl", Vector3(0.12, 3.7, 0))
+	DayNightFX.night_light(_light(lamp, Vector3(0, 3.3, 0.5), Color(1, 0.75, 0.4), 1.4, 8.0), 1.4)
 	_scarecrow(FARM + Vector3(-7.6, 0, 1.2))
 	var sign := Label3D.new()
 	sign.text = "Horta da Vila"

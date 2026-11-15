@@ -398,10 +398,10 @@ static func lamp_garland(lamp: Node3D) -> void:
 	var pts := PackedVector3Array()
 	for i in 49:
 		var u := i / 48.0
-		var ang := u * TAU * 3.5
-		pts.append(Vector3(sin(ang) * 0.1, 0.75 + u * 1.75, cos(ang) * 0.1))
+		var ang := u * TAU * 5.0
+		pts.append(Vector3(sin(ang) * 0.1, 0.75 + u * 2.65, cos(ang) * 0.1))
 	_piece(lamp, tube(pts, 0.035, 5), mat(Color(0.12, 0.4, 0.2)), Vector3.ZERO, Vector3.ZERO, false)
-	_bow(lamp, Vector3(0, 2.2, 0.12), RED, 1.3)
+	_bow(lamp, Vector3(0, 3.05, 0.12), RED, 1.3)
 
 
 ## Bengala doce listrada (vermelho e branco), com o gancho virado para +X. Fica fincada no chão.

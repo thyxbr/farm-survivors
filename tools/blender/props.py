@@ -402,19 +402,21 @@ def build_barrel():
 
 # ======================================================== LAMPIÃO
 def build_lamp():
-    # Lanterna em (0, -0,5, ~2,4) — world.gd põe a OmniLight ali.
+    # Lanterna em (0, -0,5, ~3,3) — world.gd e hub_world.gd põem a OmniLight ali. O poste é alto (topo a
+    # ~3,5 m) para o varal de luzes de Natal pendurado entre os postes passar acima da cabeça do jogador.
+    up = 0.9   # quanto o poste cresceu (antes o topo ficava a ~2,6 m)
     bag = Bag()
     a = bag.add
     a(boulder("Base", (0, 0, 0), (0.55, 0.5, 0.3), p_stone, n=12, seed=31))
     a(bx("Plinth", (0, 0, 0.3), (0.26, 0.26, 0.2), p_stone_dk, bev=0.03))
-    a(bx("Post", (0, 0, 1.45), (0.15, 0.15, 2.3), p_wood_dk, bev=0.03, taper=(0.8, 0.8)))
-    a(bx("PostCap", (0, 0, 2.63), (0.2, 0.2, 0.08), p_wood_dk, bev=0.02))
-    a(bx("Arm", (0, -0.28, 2.6), (0.08, 0.6, 0.08), p_wood_dk, bev=0.015))
-    a(beam("Strut", (0, -0.06, 2.25), (0, -0.4, 2.57), 0.03, p_wood_dk, seg=5))
-    a(bx("ArmRing", (0, -0.08, 2.6), (0.18, 0.04, 0.12), p_iron, bev=0.008))
-    a(bx("Hook", (0, -0.5, 2.6), (0.03, 0.03, 0.1), p_iron, bev=0.005))
+    a(bx("Post", (0, 0, 1.45 + up / 2), (0.15, 0.15, 2.3 + up), p_wood_dk, bev=0.03, taper=(0.8, 0.8)))
+    a(bx("PostCap", (0, 0, 2.63 + up), (0.2, 0.2, 0.08), p_wood_dk, bev=0.02))
+    a(bx("Arm", (0, -0.28, 2.6 + up), (0.08, 0.6, 0.08), p_wood_dk, bev=0.015))
+    a(beam("Strut", (0, -0.06, 2.25 + up), (0, -0.4, 2.57 + up), 0.03, p_wood_dk, seg=5))
+    a(bx("ArmRing", (0, -0.08, 2.6 + up), (0.18, 0.04, 0.12), p_iron, bev=0.008))
+    a(bx("Hook", (0, -0.5, 2.6 + up), (0.03, 0.03, 0.1), p_iron, bev=0.005))
     # lanterna: base, 4 colunas, vidro, telhado de 4 águas com argola
-    zc = 2.36
+    zc = 2.36 + up
     a(bx("LBase", (0, -0.5, zc - 0.16), (0.24, 0.24, 0.04), p_iron, bev=0.01))
     a(bx("LTop", (0, -0.5, zc + 0.15), (0.26, 0.26, 0.035), p_iron, bev=0.01))
     for sx in (-1, 1):
