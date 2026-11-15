@@ -111,6 +111,9 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--mapsummary="):   # retrato do mundo montado (conversão para cenas, smoke test)
 			get_tree().root.add_child.call_deferred(load("res://tests/map_summary_tool.gd").new())
+		if a.begins_with("--bakemaps="):   # conversão do mundo para scenes/maps (tools/bake_maps.gd)
+			ChristmasDecor.recording = true
+			get_tree().root.add_child.call_deferred(load("res://tools/bake_maps.gd").new())
 
 
 ## Depuração: `godot -- --shot=shot.png [--delay=4]` salva um screenshot e fecha.

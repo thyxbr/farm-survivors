@@ -5,6 +5,8 @@ extends RefCounted
 ## o estilo toon (ToonLook por load(), porque estas peças não podem depender de nada que cite autoload).
 
 const NAME := "Preview"
+## Desenha o contorno das colisões dos objetos (MapRoot.show_colliders liga).
+static var show_colliders := false
 
 
 ## Altura de uma peça: com `follow` ligado é o chão em (x, z) + a distância salva (`local_y`); sem chão válido

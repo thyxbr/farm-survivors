@@ -44,7 +44,7 @@ func _refresh() -> void:
 
 
 ## Monta a prévia (o editor chama sozinho; as ferramentas de foto chamam direto).
-func build_preview() -> void:
+func build_preview(_height: Callable = Callable()) -> void:
 	var old := get_node_or_null("Preview")
 	if old != null:
 		remove_child(old)

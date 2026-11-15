@@ -119,6 +119,8 @@ var points: Array = []
 var landmarks := {}
 ## Áreas do capim lidas das cenas (MapGrassArea), por mapa: {"keep_out": [...], "sparse": [...]} (mundo).
 var grass_areas := {}
+## Faixa de _no_grass preenchida pelas casas/lojas (para a conversão para cenas separar).
+var building_grass := [0, 0]
 var santa: Node3D = null
 ## Veios de ferro e cristais arcanos (WorldResourceNode); vazio no servidor dedicado.
 var resource_nodes: Array = []
@@ -330,7 +332,12 @@ func _build_village() -> void:
 		DayNightFX.night_light(_light(lamp, Vector3(0, 3.3, 0.5), Color(1, 0.75, 0.4), 1.6, 9.0), 1.6)
 		lamps.append(lamp)
 	_build_christmas(lamps)
+	var c0 := get_child_count()
+	var g0 := _no_grass.size()
 	_build_buildings()
+	for i in range(c0, get_child_count()):   # a conversão para cenas (tools/bake_maps.gd) pula o que vem das casas
+		get_child(i).set_meta("from_building", true)
+	building_grass = [g0, _no_grass.size()]
 	for c in VillageLayout.CHERRIES:
 		prop("tree_cherry", c[0], c[1], c[2], "cyl", Vector3(0.38, 3, 0))
 	_build_fence()
@@ -648,40 +655,8 @@ func _scarecrow(pos: Vector3) -> void:
 	root.position = pos
 	root.rotation.y = 0.5
 	add_child(root)
-	var wood := StandardMaterial3D.new()
-	wood.albedo_color = Color(0.45, 0.3, 0.17)
-	var cloth := StandardMaterial3D.new()
-	cloth.albedo_color = Color(0.55, 0.2, 0.15)
-	var sack := StandardMaterial3D.new()
-	sack.albedo_color = Color(0.8, 0.7, 0.45)
-	var straw := StandardMaterial3D.new()
-	straw.albedo_color = Color(0.95, 0.8, 0.35)
-	var parts := [
-		[BoxMesh.new(), Vector3(0.1, 2.0, 0.1), Vector3(0, 1.0, 0), wood],
-		[BoxMesh.new(), Vector3(1.5, 0.08, 0.08), Vector3(0, 1.5, 0), wood],
-		[BoxMesh.new(), Vector3(0.6, 0.7, 0.3), Vector3(0, 1.35, 0), cloth],
-		[SphereMesh.new(), Vector3(0.36, 0.36, 0.36), Vector3(0, 2.0, 0), sack],
-		[CylinderMesh.new(), Vector3(0.5, 0.06, 0.5), Vector3(0, 2.2, 0), straw],
-		[CylinderMesh.new(), Vector3(0.22, 0.3, 0.22), Vector3(0, 2.35, 0), straw],
-		[BoxMesh.new(), Vector3(0.12, 0.25, 0.1), Vector3(0.78, 1.42, 0), straw],
-		[BoxMesh.new(), Vector3(0.12, 0.25, 0.1), Vector3(-0.78, 1.42, 0), straw],
-	]
-	for p in parts:
-		var mi := MeshInstance3D.new()
-		var m: Mesh = p[0]
-		if m is BoxMesh:
-			m.size = p[1]
-		elif m is SphereMesh:
-			m.radius = p[1].x / 2.0
-			m.height = p[1].y
-		else:
-			m.top_radius = p[1].x / 2.0
-			m.bottom_radius = p[1].x / 2.0
-			m.height = p[1].y
-		mi.mesh = m
-		mi.material_override = p[3]
-		mi.position = p[2]
-		root.add_child(mi)
+	ChristmasDecor._rec("scarecrow", null, root.transform, {})
+	MapDecor.scarecrow(root)
 
 
 # ================================================================ campos (slimes)
@@ -695,6 +670,8 @@ func _build_fields() -> void:
 	var xforms: Array[Transform3D] = []
 	for plot in [Vector3(-14, 0, -24), Vector3(12, 0, -26), Vector3(-16, 0, -40), Vector3(15, 0, -42)]:
 		_flat(plot + Vector3(0, 0.025, 0), Vector2(10, 7), soil, 0.25)
+		ChristmasDecor._rec("crops", null, Transform3D(Basis(), plot), {"size": Vector2(10, 7), "seed": rng.seed,
+			"state": rng.state})
 		for row in 5:
 			for col in 12:
 				if rng.randf() < 0.25:

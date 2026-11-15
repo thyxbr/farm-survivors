@@ -7,8 +7,9 @@ extends Node3D
 ## verdade. O enfeite fica na origem do nó: mova e gire o nó.
 ##
 ## params por tipo: xmas_tree {scale, seed}; candy_cane {scale}; gifts {count, seed, r0, r1};
-## light_string {end (Vector3 no espaço do nó), sag, pattern, palette ("multi"/"warm")}; wreath {scale};
-## crops {size (Vector2), seed}; label {text, font_size, color, billboard, width}.
+## light_string {end (Vector3 no espaço do nó), sag, pattern, palette ("multi"/"warm"), spacing}; wreath {scale};
+## crops {size (Vector2), seed, state}; label {text, font_size, pixel_size, outline_size, color, billboard,
+## width, double_sided}. `state` (gifts, crops) repete um sorteio exato gravado na conversão.
 
 const KINDS := ["xmas_tree", "snowman", "sleigh", "candy_cane", "gifts", "light_string", "lamp_garland", "wreath",
 	"wagon", "scarecrow", "crops", "label", "forge_fire"]
@@ -65,11 +66,13 @@ func build_into(parent: Node3D, preview := false) -> void:
 		"gifts":
 			var rng := RandomNumberGenerator.new()
 			rng.seed = int(g.call("seed", 1))
+			if params.has("state"):
+				rng.state = int(params.state)
 			cd.gifts(parent, Vector3.ZERO, int(g.call("count", 3)), rng, float(g.call("r0", 0.0)), float(g.call("r1", 0.4)))
 		"light_string":
 			var pal: Array = cd.WARM if str(g.call("palette", "multi")) == "warm" else cd.MULTI
 			cd.light_string(parent, Vector3.ZERO, g.call("end", Vector3(4, 0, 0)), float(g.call("sag", 0.5)), pal,
-				int(g.call("pattern", 0)))
+				int(g.call("pattern", 0)), float(g.call("spacing", 0.42)))
 		"lamp_garland":
 			cd.lamp_garland(parent)
 		"wreath":
@@ -79,7 +82,7 @@ func build_into(parent: Node3D, preview := false) -> void:
 		"scarecrow":
 			scarecrow(parent)
 		"crops":
-			crops(parent, g.call("size", Vector2(10, 7)), int(g.call("seed", 1)))
+			crops(parent, g.call("size", Vector2(10, 7)), int(g.call("seed", 1)), int(g.call("state", -1)))
 		"label":
 			var l := Label3D.new()
 			l.text = str(g.call("text", "Placa"))
@@ -89,6 +92,7 @@ func build_into(parent: Node3D, preview := false) -> void:
 			l.modulate = g.call("color", Color.WHITE)
 			if bool(g.call("billboard", true)):
 				l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			l.double_sided = bool(g.call("double_sided", true))
 			if g.call("width", 0) > 0:
 				l.width = float(g.call("width", 0))
 				l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -145,9 +149,11 @@ static func scarecrow(parent: Node3D) -> void:
 
 
 ## Lote plantado: fileiras de field_crop (MultiMesh) num retângulo `size`, com falhas sorteadas por `seed`.
-static func crops(parent: Node3D, size: Vector2, seed_value: int) -> void:
+static func crops(parent: Node3D, size: Vector2, seed_value: int, state := -1) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
+	if state != -1:
+		rng.state = state
 	var scn: Node3D = (load(FIELD_CROP) as PackedScene).instantiate()
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D

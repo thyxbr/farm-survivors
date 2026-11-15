@@ -75,7 +75,11 @@ func _refresh() -> void:
 
 ## Pegada no chão (raio) já com a escala do nó; 0 sem colisão.
 func footprint() -> float:
-	var s := scale.x
+	return footprint_for(scale.x)
+
+
+## Pegada no chão (raio) com a escala `s`; 0 sem colisão.
+func footprint_for(s: float) -> float:
 	if shape == 1:
 		return maxf(shape_size.x, shape_size.z) * 0.5 * s
 	if shape == 2:
@@ -87,7 +91,9 @@ func build_preview(height: Callable = Callable()) -> void:
 	_height = height
 	var p := MapPreview.fresh(self)
 	MapPreview.model(p, model_path(model))
-	if shape == 1:
+	if not MapPreview.show_colliders:
+		pass
+	elif shape == 1:
 		MapPreview.box(p, Vector3(0, shape_size.y / 2.0, 0), shape_size, COLLIDER_COLOR)
 	elif shape == 2:
 		var mi := MeshInstance3D.new()

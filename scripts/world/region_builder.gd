@@ -68,6 +68,7 @@ static func point(id: String, pos: Vector3, yaw := 0.0) -> Node3D:
 
 ## Carroça da guilda (montada com caixas e cilindros): caixa de madeira, quatro rodas, toldo e lanterna.
 static func wagon(pos: Vector3, yaw: float) -> Node3D:
+	ChristmasDecor._rec("wagon", null, Transform3D(Basis(Vector3.UP, yaw), pos), {})
 	var root := Node3D.new()
 	root.position = pos
 	root.rotation.y = yaw

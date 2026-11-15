@@ -46,6 +46,19 @@ static var _mats := {}
 
 
 ## Brilho das lâmpadas: 0 de dia, 1 à noite (DayNightFX).
+## Gravação para a conversão do mundo em cenas (tools/bake_maps.gd): com `recording` ligado, cada enfeite
+## pedido de fora (não os que um enfeite monta dentro de si) fica em `records` com o pai, o transform local e
+## os parâmetros, no formato do MapDecor. Desligado no jogo.
+static var recording := false
+static var records: Array = []
+static var _depth := 0
+
+
+static func _rec(kind: String, parent: Node3D, xf: Transform3D, params: Dictionary) -> void:
+	if recording and _depth == 0:
+		records.append({"kind": kind, "parent": parent, "xform": xf, "params": params})
+
+
 static func set_night(n: float) -> void:
 	if _bulb_mat != null:
 		_bulb_mat.set_shader_parameter("night", n)
@@ -193,6 +206,8 @@ static func bulbs(parent: Node3D, pts: PackedVector3Array, palette: Array, patte
 ## penduradas embaixo, a cada `spacing` metros.
 static func light_string(parent: Node3D, a: Vector3, b: Vector3, sag := 0.5, palette: Array = MULTI,
 		pattern := 0, spacing := 0.42) -> void:
+	_rec("light_string", parent, Transform3D(Basis(), a), {"end": b - a, "sag": sag, "pattern": pattern,
+		"palette": "warm" if palette == WARM else "multi", "spacing": spacing})
 	var wire := sag_points(a, b, sag, 0.3)
 	_piece(parent, tube(wire, 0.012, 4), mat(Color(0.06, 0.12, 0.08)), Vector3.ZERO, Vector3.ZERO, false)
 	var pts := sag_points(a, b, sag, spacing)
@@ -230,7 +245,9 @@ static func house_lights(house: Node3D, model: String, variant := 0) -> void:
 	for i in hooks:
 		var a := Vector3(-hw + 2.0 * hw * i / hooks, ye, zf + 0.04)
 		var b := Vector3(-hw + 2.0 * hw * (i + 1) / hooks, ye, zf + 0.04)
+		_depth += 1
 		light_string(house, a, b, 0.14, palette, pattern, 0.3)
+		_depth -= 1
 	# empenas: sobem do beiral da frente até a cumeeira e descem até o de trás
 	for sx in [-1.0, 1.0]:
 		var x: float = sx * (hw + 0.04)
@@ -256,6 +273,7 @@ static func _crown_r(y: float) -> float:
 ## Árvore de Natal enfeitada: copa em quatro camadas, bolas coloridas, pisca-pisca em espiral, estrela
 ## no topo, presentes no pé e uma luz quente que acende à noite. Colisão no tronco.
 static func tree(parent: Node3D, pos: Vector3, s := 1.0, seed_value := 1) -> Node3D:
+	_rec("xmas_tree", parent, Transform3D(Basis(), pos), {"scale": s, "seed": seed_value})
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
 	var root := Node3D.new()
@@ -306,7 +324,9 @@ static func tree(parent: Node3D, pos: Vector3, s := 1.0, seed_value := 1) -> Nod
 	root.add_child(glow)
 	DayNightFX.night_light(glow, 1.3)
 	# presentes no pé da árvore
+	_depth += 1
 	gifts(root, Vector3.ZERO, 6, rng, 1.25, 2.1)
+	_depth -= 1
 	# colisão no tronco e na saia
 	_collider(parent, pos, 0.75 * s, 3.0 * s)
 	return root
@@ -338,6 +358,8 @@ static func _star_mesh(r_out: float, r_in: float, depth: float) -> ArrayMesh:
 
 ## Pilha de presentes em volta de `center`, entre os raios r0 e r1.
 static func gifts(parent: Node3D, center: Vector3, n: int, rng: RandomNumberGenerator, r0 := 0.0, r1 := 0.8) -> void:
+	_rec("gifts", parent, Transform3D(Basis(), center), {"count": n, "r0": r0, "r1": r1, "seed": rng.seed,
+		"state": rng.state})
 	var wraps := [RED, Color(0.15, 0.45, 0.25), Color(0.2, 0.35, 0.8), Color(0.92, 0.9, 0.85), Color(0.55, 0.2, 0.6),
 		GOLD]
 	var ribbons := [GOLD, RED, Color(0.95, 0.95, 0.95), GOLD, Color(0.2, 0.5, 0.25), RED]
@@ -382,6 +404,7 @@ static func _bow(parent: Node3D, pos: Vector3, c: Color, s := 1.0, flat := false
 # ================================================================ guirlanda, laços, bengala, boneco
 ## Guirlanda de porta (no espaço de `parent`), de frente para +Z.
 static func wreath(parent: Node3D, pos: Vector3, s := 1.0) -> void:
+	_rec("wreath", parent, Transform3D(Basis(), pos), {"scale": s})
 	var w := Node3D.new()
 	w.position = pos
 	w.scale = Vector3.ONE * s
@@ -401,6 +424,7 @@ static func wreath(parent: Node3D, pos: Vector3, s := 1.0) -> void:
 
 ## Festão verde em espiral no poste do lampião, com laço vermelho virado para a praça (+Z do lampião).
 static func lamp_garland(lamp: Node3D) -> void:
+	_rec("lamp_garland", lamp, Transform3D(), {})
 	var pts := PackedVector3Array()
 	for i in 49:
 		var u := i / 48.0
@@ -412,6 +436,7 @@ static func lamp_garland(lamp: Node3D) -> void:
 
 ## Bengala doce listrada (vermelho e branco), com o gancho virado para +X. Fica fincada no chão.
 static func candy_cane(parent: Node3D, pos: Vector3, yaw := 0.0, s := 1.0) -> void:
+	_rec("candy_cane", parent, Transform3D(Basis(Vector3.UP, yaw), pos), {"scale": s})
 	var pts := PackedVector3Array()
 	var h := 1.05
 	for i in 15:
@@ -433,6 +458,7 @@ static func candy_cane(parent: Node3D, pos: Vector3, yaw := 0.0, s := 1.0) -> vo
 
 ## Boneco de neve de cachecol e cartola, de frente para +Z (gire com `yaw`).
 static func snowman(parent: Node3D, pos: Vector3, yaw := 0.0) -> void:
+	_rec("snowman", parent, Transform3D(Basis(Vector3.UP, yaw), pos), {})
 	var sm := Node3D.new()
 	sm.name = "Snowman"
 	sm.position = pos
@@ -486,6 +512,7 @@ static func _collider(parent: Node3D, pos: Vector3, r: float, h: float) -> void:
 # ================================================================ trenó do Papai Noel
 ## Trenó vermelho de patins dourados com o saco de presentes, de frente para +Z (gire com `yaw`).
 static func sleigh(parent: Node3D, pos: Vector3, yaw := 0.0) -> Node3D:
+	_rec("sleigh", parent, Transform3D(Basis(Vector3.UP, yaw), pos), {})
 	var sl := Node3D.new()
 	sl.name = "Sleigh"
 	sl.position = pos
@@ -523,6 +550,8 @@ static func sleigh(parent: Node3D, pos: Vector3, yaw := 0.0) -> Node3D:
 	_piece(sl, _cone(0.12, 0.2, 0.22, 8), mat(Color(0.55, 0.38, 0.22)), Vector3(0.1, 1.68, -0.45))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1224
+	_depth += 1
 	gifts(sl, Vector3(-0.35, 0.61, 0.35), 3, rng, 0.0, 0.3)
+	_depth -= 1
 	_collider(parent, pos, 1.1, 1.6)
 	return sl

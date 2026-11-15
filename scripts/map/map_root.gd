@@ -27,6 +27,11 @@ const PLAN := "Planta"
 	set(v):
 		show_preview = v
 		_queue_rebuild()
+## Mostra o contorno das colisões dos objetos (caixas e cilindros azuis).
+@export var show_colliders := false:
+	set(v):
+		show_colliders = v
+		_queue_rebuild()
 ## Desenha também o capim na prévia (pesado: desligado por padrão).
 @export var preview_grass := false:
 	set(v):
@@ -153,6 +158,7 @@ func build_preview() -> void:
 	_ground = null
 	if not show_preview:
 		return
+	MapPreview.show_colliders = show_colliders
 	var plan := Node3D.new()
 	plan.name = PLAN
 	add_child(plan)
