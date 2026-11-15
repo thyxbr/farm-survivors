@@ -6,8 +6,8 @@ extends RefCounted
 ## o contador até a próxima estação e a hora do jogo batem entre os jogadores.
 ##
 ## Cada estação dura LENGTH segundos reais e tem DAYS_PER_SEASON dias do jogo. A ordem é primavera,
-## verão, outono, inverno, e o ano recomeça. Por enquanto só o outono muda o visual (folhas, capim,
-## luz e clima com mais chuva e vento).
+## verão, outono, inverno, e o ano recomeça. O outono muda o visual (folhas, capim, luz e clima com mais
+## chuva e vento) e todas mudam o dia e a noite (DayNightRules.SEASONS: duração do dia, altura do sol, luar).
 
 enum Kind { SPRING, SUMMER, AUTUMN, WINTER }
 const NAMES := ["primavera", "verão", "outono", "inverno"]
@@ -57,6 +57,14 @@ static func weight_at(t: float, kind: int) -> float:
 		var b := 0.5 + 0.5 * left / half
 		return b if cur == kind else (1.0 - b if next_kind(cur) == kind else 0.0)
 	return 1.0 if cur == kind else 0.0
+
+
+## Peso (0..1) de cada estação no instante t, na ordem de Kind (somam 1; na troca, duas se misturam).
+static func weights_at(t: float) -> Array:
+	var w := [0.0, 0.0, 0.0, 0.0]
+	for k in 4:
+		w[k] = weight_at(t, k)
+	return w
 
 
 ## Hora do jogo no instante t: {"day": dia dentro da estação (1..DAYS_PER_SEASON), "hour", "minute"}.
