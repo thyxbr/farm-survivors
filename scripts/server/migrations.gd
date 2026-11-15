@@ -130,6 +130,18 @@ const MIGRATIONS := [
 	[
 		"ALTER TABLE characters ADD COLUMN enchants TEXT NOT NULL DEFAULT '{}'",
 	],
+	# v6: amigos (FriendStore). Duas linhas por par, uma de cada lado: "accepted" nos dois, ou
+	# "out" (pedido que eu mandei) de um lado e "in" (pedido que recebi) do outro
+	[
+		"CREATE TABLE friends (
+			account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+			friend_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+			state TEXT NOT NULL,
+			since INTEGER NOT NULL,
+			PRIMARY KEY (account_id, friend_id)
+		)",
+		"CREATE INDEX idx_friends_friend ON friends(friend_id)",
+	],
 ]
 
 

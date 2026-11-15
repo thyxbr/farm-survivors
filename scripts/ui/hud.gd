@@ -356,7 +356,7 @@ func _build_help() -> void:
 		"WASD mover · Shift correr · Espaço pular · Ctrl/Clique dir. esquivar (com arco: Ctrl)\n" +
 		"Clique esq.: atacar — espada: combo · cajado: projéteis · arco: dir. mira e puxa, esq. atira\n" +
 		"1–3 habilidades da arma · 4 ultimate (fúria cheia) · R/F poções · Q comer · T trocar\n" +
-		"E interagir · I inventário · C personagem · J missões · M mapa · P grupo\n" +
+		"E interagir · I inventário · C personagem · J missões · M mapa · P grupo · O amigos\n" +
 		"F5 salvar · F9 carregar · Esc pausa · H esconder ajuda", 13, UITheme.DIM)
 	help_panel.add_child(help)
 	help_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
