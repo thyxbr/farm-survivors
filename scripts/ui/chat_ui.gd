@@ -115,6 +115,7 @@ func _on_submit(text: String) -> void:
 ## Comandos locais (começam com "/"): não vão para o servidor; a resposta aparece só para quem digitou.
 ##   /clima sol|chuva|neve|vento  força o clima nesta máquina · /clima auto  volta ao clima de todos
 ##   /hora 21 | 6:30  fixa a hora do dia nesta máquina · /hora auto  volta ao relógio do mundo
+##   /grupo NOME  convida para o grupo · /grupo sair · /grupo expulsar NOME (estes vão ao servidor, pelo Party)
 func _run_command(t: String) -> void:
 	var parts := t.substr(1).to_lower().split(" ", false)
 	var cmd: String = parts[0] if parts.size() > 0 else ""
@@ -144,8 +145,29 @@ func _run_command(t: String) -> void:
 				return
 			DayNightFX.forced_hour = h
 			_on_message("", "Hora fixada em %s (só para você). /hora auto volta ao normal." % DayNightRules.hour_text(h))
+		"grupo", "party", "convidar", "invite":
+			var who: String = parts[2] if parts.size() > 2 else ""
+			if arg in ["sair", "leave"] and cmd in ["grupo", "party"]:
+				Party.request_leave()
+			elif arg in ["expulsar", "kick"] and cmd in ["grupo", "party"]:
+				var peer := _peer_named(who)
+				if peer == 0:
+					_on_message("", "Uso: /grupo expulsar NOME")
+				else:
+					Party.request_kick(peer)
+			elif arg != "":
+				Party.request_invite_name(arg)
+			else:
+				_on_message("", "Uso: /grupo NOME (convida) · /grupo sair · /grupo expulsar NOME · [P] painel do grupo")
 		_:
-			_on_message("", "Comando desconhecido: /%s  (comandos: /clima, /hora)" % cmd)
+			_on_message("", "Comando desconhecido: /%s  (comandos: /clima, /hora, /grupo)" % cmd)
+
+
+func _peer_named(n: String) -> int:
+	for pid in Network.players:
+		if str(Network.players[pid].name).to_lower() == n.to_lower():
+			return pid
+	return 0
 
 
 func _set_open(on: bool) -> void:

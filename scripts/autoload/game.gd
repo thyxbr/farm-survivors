@@ -219,6 +219,10 @@ func _debug_screenshot() -> void:
 						w._open_menu(2)
 					"shop":
 						w.open_shop()
+					"map":
+						w.open_world_map()
+					"party":
+						w.open_world_map(1)
 					"enchant":
 						for n in get_tree().get_nodes_in_group("interactable"):
 							if n.get("npc_id") == "blacksmith":
@@ -276,7 +280,7 @@ func _setup_input() -> void:
 		"interact": [KEY_E], "spell_1": [KEY_1], "spell_2": [KEY_2], "spell_3": [KEY_3], "spell_4": [KEY_4],
 		"potion": [KEY_R], "mana_potion": [KEY_F], "inventory": [KEY_I, KEY_TAB], "character": [KEY_C],
 		"quest_log": [KEY_J], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
-		"eat": [KEY_Q], "food_next": [KEY_T],
+		"eat": [KEY_Q], "food_next": [KEY_T], "world_map": [KEY_M], "party": [KEY_P],
 		# emotes (acenar, comemorar, sentar): eram as teclas 1–3 da praça; na vila 1–4 são magias
 		"emote_1": [KEY_7], "emote_2": [KEY_8], "emote_3": [KEY_9],
 	}

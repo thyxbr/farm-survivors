@@ -21,6 +21,8 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
 | Emotes na vila (acenar · comemorar · sentar) | 7 · 8 · 9 |
 | Inventário · Personagem · Missões | I (ou Tab fora da Horda) · C · J |
 | Placar do grupo (no Desafio da Horda, segurar) | Tab |
+| Mapa-mundi (o minimapa fica no canto superior direito) | M |
+| Grupo (multiplayer): painel · aceitar/recusar convite | P · Y / N |
 | Salvar / carregar rápido | F5 / F9 |
 | Pausa | Esc |
 | Mostrar/esconder ajuda (começa escondida) | H |
@@ -263,6 +265,12 @@ já existem no banco, mas semear e ler o balanceamento do banco (e editar pelo p
   e horta mudam só por pedido ao servidor (autoload `Econ`); o cliente manda vida, mana e posição de tempos em tempos.
   O solo tem personagem próprio em `user://solo_character.json` (o cliente não leva o SQLite) (F5/F9 só em Valdoria, no solo). Esc → *Voltar à vila* sai da cidade.
 - O chat (**Enter**) é do servidor inteiro: funciona em Valdoria e na cidade em grupo.
+- **Grupo** (até 4 jogadores, autoload `Party` + `PartyBook`/`PartyRules`): convide pela aba Grupo do livro (**P**; a aba Mapa abre com **M**) ou pelo chat
+  (`/grupo NOME`, `/grupo sair`, `/grupo expulsar NOME`); quem convida sem grupo vira o líder, e só o líder convida e expulsa.
+  A HUD mostra nome, nível e vida de cada companheiro (e avisa quando ele está longe ou em outra zona). O XP de cada monstro
+  morto é dividido entre o grupo que está em Valdoria (arredondado para cima); o abate conta na missão de quem acertou e de
+  quem do grupo está a até 45 m do combate (`PartyRules.SHARE_RANGE`); mais longe recebe só a parte do XP. O loot continua
+  um sorteio para cada um que acertou. No minimapa e no mapa-mundi (**M**) só aparecem os companheiros de grupo.
 - O servidor guarda a zona de cada jogador (`players[id].zone`: `hub` enquanto carrega, `world` ou `city`): inimigos,
   posições e efeitos só vão para quem está na mesma zona. A base e os recordes chegam pelo autoload `Hub`
   (`scripts/autoload/hub.gd`) quando Valdoria termina de montar.

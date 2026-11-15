@@ -374,6 +374,7 @@ func _ready() -> void:
 	if peers > 1:
 		await _test_sword(w)
 		await _test_bow_staff(w)
+		await _test_party(w)
 
 	if horde_role != "":
 		await _test_horde(w)
@@ -497,6 +498,99 @@ func _test_bow_staff(w: Node) -> void:
 # ---------------------------------------------------------------- vila
 ## Logo depois de conectar, todos na vila: os outros jogadores com o nome em cima, o emote chegando à
 ## réplica do outro cliente, a base e os recordes que o servidor manda ao montar Valdoria, Ecos de teste,
+## Grupo (com --peers=2): Ana convida, Beto aceita; os dois aparecem no grupo, na HUD e no filtro do mapa.
+## Ana mata um slime com Beto ao lado: o XP é dividido e o abate conta na missão dos dois. Depois Beto vai
+## para longe (outro mapa) e Ana mata outro: Beto ainda divide o XP, mas o abate não conta na missão dele.
+func _test_party(w: Node) -> void:
+	await wait(Network.CHAT_WINDOW)
+	await _sync("party_in")
+	var me := multiplayer.get_unique_id()
+	var other: int = Network.remote_players.keys()[0] if not Network.remote_players.is_empty() else 0
+	check(other != 0, "achou o colega para o grupo")
+	if my_name == "Ana":
+		Party.request_invite(other)
+	else:
+		check(await _wait_until(func() -> bool: return not Party.invite.is_empty(), 6.0), "recebeu o convite do grupo")
+		Party.answer_invite(true)
+	check(await _wait_until(func() -> bool: return Party.members.size() == 2, 6.0), "grupo com os dois (%s)" % str(Party.members))
+	check(Party.is_member(other) and Party.am_leader() == (my_name == "Ana"), "colega no grupo e Ana lidera")
+	check(MapRules.shown_players(Network.remote_players.keys(), Party.others(), me) == [other],
+		"o mapa mostra o colega do grupo")
+	check(await _wait_until(func() -> bool:
+		return w.hud.party_frames != null and w.hud.party_frames._bars.has(other), 3.0), "quadro do colega na HUD")
+	# livro do mapa e do grupo (P): o colega aparece com a vida e as duas abas cabem nas páginas
+	w.open_world_map(1)
+	var bk: Node = w.modal
+	check(bk != null and bk._hp_bars.has(other), "livro do grupo lista o colega")
+	await wait(0.3)
+	if bk != null:
+		bk.book.show_page(0)
+		await wait(0.3)
+		check(bk.book.overflow_warnings == 0, "abas Mapa e Grupo cabem no livro")
+		bk.book.close()
+	check(w.modal == null, "livro fechado")
+	Econ.request("start_quest", ["espantalho"])
+	check(await _wait_until(func() -> bool: return Game.quest_state("espantalho") == "active", 4.0), "missão de slimes ativa")
+	await _sync("party_ready")
+
+	var slime_xp := int(Balance.tables.get_table("enemies").get("slime", {}).get("xp", 0))
+	for phase in ["near", "far"]:
+		await wait(Network.CHAT_WINDOW)   # as barreiras usam o chat: o anti-spam precisa esvaziar para o alvo passar
+		var kills0 := Game.kills
+		var prog0 := int(Game.quests.get("espantalho", {}).get("progress", 0))
+		var xp0 := Game.xp + Game.level * 100000
+		var target: Enemy = null
+		if my_name == "Ana":
+			for e in Network.enemies.values():
+				if is_instance_valid(e) and e.kind == "slime" and not e.dead:
+					target = e
+					break
+			check(target != null, "achou um slime para o grupo (%s)" % phase)
+			Network.send_chat("party_target:%d" % (target.net_id if target else 0))
+		var tid := [0]
+		check(await _wait_until(func() -> bool:
+			for m in chat_got:
+				if str(m[1]).begins_with("party_target:"):
+					tid[0] = int(str(m[1]).get_slice(":", 1))
+			return tid[0] > 0, 6.0), "alvo do grupo combinado (%s)" % phase)
+		chat_got = chat_got.filter(func(m: Array) -> bool: return not str(m[1]).begins_with("party_target:"))
+		var tgt: Enemy = Network.enemies.get(tid[0])
+		if tgt == null or not is_instance_valid(tgt):
+			check(false, "slime do grupo existe no cliente (%s)" % phase)
+			return
+		var at := tgt.global_position
+		if my_name == "Ana":
+			w.player.global_position = at + Vector3(0, 0.5, 3)
+		elif phase == "near":
+			w.player.global_position = at + Vector3(3, 0.5, 0)
+		else:
+			w.player.global_position = Regions.arrive_point("mina")   # outro mapa: bem longe do combate
+		await wait(1.0)   # a posição nova chega ao servidor
+		await _sync("party_%s_pos" % phase)
+		if my_name == "Ana":
+			tgt.take_damage(9999.0, w.player.global_position, false)
+		check(await _wait_until(func() -> bool: return Game.xp + Game.level * 100000 > xp0, 5.0),
+			"XP do abate dividido chega aos dois (%s)" % phase)
+		await wait(0.8)
+		var gained := Game.xp + Game.level * 100000 - xp0
+		if Game.level * 100000 + Game.xp - xp0 < 100000:
+			check(gained == ceili(slime_xp / 2.0), "metade do XP do slime (%d de %d, %s)" % [gained, slime_xp, phase])
+		var counted: bool = my_name == "Ana" or phase == "near"
+		check(Game.kills == kills0 + (1 if counted else 0),
+			"abate %s para %s (%s: %d → %d)" % ["conta" if counted else "não conta", my_name, phase, kills0, Game.kills])
+		check(int(Game.quests.get("espantalho", {}).get("progress", 0)) == prog0 + (1 if counted else 0),
+			"missão %s (%s)" % ["avança" if counted else "não avança de longe", phase])
+		if my_name == "Ana" and phase == "far":
+			check(await _wait_until(func() -> bool: return str(w.hud.party_frames._bars[other].tag.text).begins_with("longe"), 3.0),
+				"HUD avisa que o colega está longe")
+		await _sync("party_%s_done" % phase)
+	w.player.global_position = Vector3(0, 0.5, 6)
+	if my_name == "Ana":
+		Party.request_leave()
+	check(await _wait_until(func() -> bool: return not Party.in_party(), 5.0), "grupo desfeito quando Ana sai")
+	await _sync("party_out")
+
+
 ## passiva e doação à Forja (com --peers=2 as duas doações sobem a Forja para o nível 1 e o aviso chega pelo chat).
 func _test_village() -> void:
 	var hub := get_tree().current_scene

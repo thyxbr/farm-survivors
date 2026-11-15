@@ -53,6 +53,10 @@ var _compass: CompassArrow
 var _compass_label: Label
 ## Nome do mapa do destino quando ele fica em outro mapa (a bússola aponta a carruagem).
 var _compass_far := ""
+## Minimapa (só em Valdoria, ver add_minimap) e quadros do grupo (multiplayer).
+const MINIMAP_SIZE := 196.0
+var minimap: MapView
+var party_frames: PartyFrames
 
 
 
@@ -92,6 +96,11 @@ func _ready() -> void:
 	_build_dock()
 	_build_boss()
 	_build_help()
+	if Network.is_online():
+		party_frames = PartyFrames.new()
+		party_frames.player = player
+		party_frames.position = Vector2(16, 66)
+		root.add_child(party_frames)
 
 	Game.notify.connect(_on_notify)
 	Game.item_looted.connect(_on_loot)
@@ -103,6 +112,37 @@ func _ready() -> void:
 	Game.inventory_changed.connect(_refresh_quests)   # coleta: o progresso vem da mochila
 	_refresh_static()
 	_refresh_quests()
+
+
+## Minimapa no canto superior direito (Valdoria); a estação e as missões descem para baixo dele.
+func add_minimap(world: Node, capture: MapCapture) -> void:
+	if minimap != null:
+		return
+	var frame := PanelContainer.new()
+	frame.add_theme_stylebox_override("panel", UITheme._box(Color(0.04, 0.035, 0.03, 0.9), UITheme.GOLD_DIM, 2, 6, 3, 3))
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_anchor(frame, 1, 0, -MINIMAP_SIZE - 22, 12, MINIMAP_SIZE + 6, MINIMAP_SIZE + 6)
+	root.add_child(frame)
+	minimap = MapView.new()
+	minimap.mode = "mini"
+	minimap.world = world
+	minimap.capture = capture
+	minimap.custom_minimum_size = Vector2(MINIMAP_SIZE, MINIMAP_SIZE)
+	frame.add_child(minimap)
+	var hint := UITheme.outlined("[M] mapa", 12, Color(0.85, 0.8, 0.65, 0.85), 3)
+	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_anchor(hint, 1, 0, -MINIMAP_SIZE - 20, MINIMAP_SIZE + 20, 80, 16)
+	root.add_child(hint)
+	var below := MINIMAP_SIZE + 22.0
+	season_badge.offset_top += below
+	season_badge.offset_bottom += below
+	quest_box.offset_top += below
+	quest_box.offset_bottom += below
+
+
+## Destino da missão rastreada no mapa atual (ou a carruagem, se ele é em outro mapa); null = nenhum.
+func track_pos():
+	return _track_pos()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -316,7 +356,7 @@ func _build_help() -> void:
 		"WASD mover · Shift correr · Espaço pular · Ctrl/Clique dir. esquivar (com arco: Ctrl)\n" +
 		"Clique esq.: atacar — espada: combo · cajado: projéteis · arco: dir. mira e puxa, esq. atira\n" +
 		"1–3 habilidades da arma · 4 ultimate (fúria cheia) · R/F poções · Q comer · T trocar\n" +
-		"E interagir · I inventário · C personagem · J missões\n" +
+		"E interagir · I inventário · C personagem · J missões · M mapa · P grupo\n" +
 		"F5 salvar · F9 carregar · Esc pausa · H esconder ajuda", 13, UITheme.DIM)
 	help_panel.add_child(help)
 	help_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
