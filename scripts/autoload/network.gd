@@ -759,6 +759,7 @@ func leave() -> void:
 	Econ.client_reset()
 	Hub.client_reset()
 	Party.client_reset()
+	Social.client_reset()
 	Weather.clear_server_time()
 
 
@@ -1425,19 +1426,31 @@ func _chat_send(text: String) -> void:
 	var t := _clean_chat(text)
 	if t == "":
 		return
-	var now := Time.get_ticks_msec() / 1000.0
-	var recent: Array = _chat_log.get(id, []).filter(func(x: float) -> bool: return now - x < CHAT_WINDOW)
-	if recent.size() >= CHAT_BURST:
-		_chat_msg.rpc_id(id, "", "Calma! Espere alguns segundos para mandar outra mensagem.")
+	if not chat_allow(id):
 		return
-	recent.append(now)
-	_chat_log[id] = recent
 	var from: String = players[id].name
 	print("[chat] %s: %s" % [from, t])
 	# o chat é do servidor inteiro
 	for pid in _all_peers():
 		if players[pid].ready:
 			_chat_msg.rpc_id(pid, from, t)
+
+
+## Servidor: anti-spam do chat (vale também para os sussurros do Social). false = avisou o peer e recusou.
+func chat_allow(id: int) -> bool:
+	var now := Time.get_ticks_msec() / 1000.0
+	var recent: Array = _chat_log.get(id, []).filter(func(x: float) -> bool: return now - x < CHAT_WINDOW)
+	if recent.size() >= CHAT_BURST:
+		_chat_msg.rpc_id(id, "", "Calma! Espere alguns segundos para mandar outra mensagem.")
+		return false
+	recent.append(now)
+	_chat_log[id] = recent
+	return true
+
+
+## Texto de chat limpo (sem quebras nem controle, até CHAT_MAX); "" se não sobrou nada.
+func clean_chat(text: String) -> String:
+	return _clean_chat(text)
 
 
 @rpc("authority", "call_remote", "reliable")

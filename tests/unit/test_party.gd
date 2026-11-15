@@ -124,3 +124,17 @@ func test_unknown_position_counts_as_far() -> void:
 	T.ok(not PartyRules.near(null, Vector3.ZERO), "sem posição = longe")
 	T.ok(not PartyRules.near(Vector3.INF, Vector3.ZERO), "posição infinita = longe")
 	T.ok(PartyRules.near(Vector3(PartyRules.SHARE_RANGE - 1, 50, 0), Vector3.ZERO), "altura não conta")
+
+
+func test_clean_buffs_keeps_only_known_food_buffs() -> void:
+	var items := {"sopa": {"buff": {"add": {"atk": 2}}}, "espada": {"slot": "weapon"}, "pao": {"buff": {}}}
+	T.eq(PartyRules.clean_buffs({"sopa": 30.2, "espada": 10, "xyz": 5, "pao": -3}, items), {"sopa": 31},
+		"só comida com buff, segundos inteiros para cima, sem negativos")
+	T.eq(PartyRules.clean_buffs({"sopa": 999999}, items), {"sopa": PartyRules.MAX_BUFF_SECS}, "teto de segundos")
+	T.eq(PartyRules.clean_buffs({"sopa": INF}, items), {}, "infinito fora")
+	T.eq(PartyRules.clean_buffs("nada", items), {}, "não é dicionário")
+	var many := {}
+	for i in 10:
+		items["c%d" % i] = {"buff": {}}
+		many["c%d" % i] = 60
+	T.eq(PartyRules.clean_buffs(many, items).size(), PartyRules.MAX_BUFFS, "no máximo MAX_BUFFS")

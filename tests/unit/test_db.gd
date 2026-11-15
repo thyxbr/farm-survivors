@@ -3,7 +3,7 @@ extends RefCounted
 
 const PATH := "user://test_db.db"
 const TABELAS := ["accounts", "sessions", "characters", "inventory", "passives",
-	"balance_tables", "balance_history", "runs", "run_players", "economy_log", "schema_version"]
+	"balance_tables", "balance_history", "runs", "run_players", "economy_log", "friends", "schema_version"]
 
 
 func _fresh() -> Db:

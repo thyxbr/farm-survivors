@@ -23,6 +23,8 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
 | Placar do grupo (no Desafio da Horda, segurar) | Tab |
 | Mapa-mundi (o minimapa fica no canto superior direito) | M |
 | Grupo (multiplayer): painel · aceitar/recusar convite | P · Y / N |
+| Amigos (multiplayer) | O |
+| Sussurro (mensagem privada) · responder | `/w NOME mensagem` · `/r mensagem` no chat |
 | Salvar / carregar rápido | F5 / F9 |
 | Pausa | Esc |
 | Mostrar/esconder ajuda (começa escondida) | H |
@@ -233,6 +235,11 @@ já existem no banco, mas semear e ler o balanceamento do banco (e editar pelo p
   morto é dividido entre o grupo que está em Valdoria (arredondado para cima); o abate conta na missão de quem acertou e de
   quem do grupo está a até 45 m do combate (`PartyRules.SHARE_RANGE`); mais longe recebe só a parte do XP. O loot continua
   um sorteio para cada um que acertou. No minimapa e no mapa-mundi (**M**) só aparecem os companheiros de grupo.
+- **Amigos** (aba Amigos do livro, **O**; autoload `Social` + `FriendStore`, tabela `friends` da migração v7): peça amizade pelo
+  nome (ou `/amigo NOME`, ou "Amigo +" na lista de online da aba Grupo); o outro aceita ou recusa, e pedir de volta aceita na hora.
+  A lista fica na conta, no banco do servidor: mostra quem está online, em que mapa e nível (e há quanto tempo foi visto quem está
+  offline), com "Chamar ao grupo", "Sussurrar" e "Remover". Os amigos recebem um aviso quando você entra ou sai do jogo.
+  O sussurro (`/w NOME mensagem`, `/r` responde o último) vai só para o outro jogador e segue o anti-spam do chat.
 - O servidor guarda a zona de cada jogador (`players[id].zone`: `loading` enquanto carrega, depois `world`): inimigos,
   posições e efeitos só vão para quem já está em Valdoria. Os recordes chegam pelo autoload `Hub`
   (`scripts/autoload/hub.gd`) quando Valdoria termina de montar.

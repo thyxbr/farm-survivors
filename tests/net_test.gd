@@ -20,6 +20,7 @@ var my_name := "Teste"
 var probe := false
 var horde_role := ""
 var chat_got: Array = []   # [nome, texto]
+var whispers: Array = []   # [de, para, texto, recebido]
 var relogin := false
 var token := ""
 var join_error := ""
@@ -359,6 +360,7 @@ func _ready() -> void:
 		await _test_sword(w)
 		await _test_bow_staff(w)
 		await _test_party(w)
+		await _test_social(w)
 
 	if horde_role != "":
 		await _test_horde(w)
@@ -482,6 +484,74 @@ func _test_bow_staff(w: Node) -> void:
 # ---------------------------------------------------------------- vila
 ## Logo depois de conectar, todos na vila: os outros jogadores com o nome em cima, o emote chegando à
 ## réplica do outro cliente, a base e os recordes que o servidor manda ao montar Valdoria, Ecos de teste,
+## Amigos e sussurro (com --peers=2): Ana pede amizade ao Beto pelo nome, Beto aceita; os dois se veem
+## online na lista e na aba Amigos do livro; Ana sussurra, Beto responde com /r; Ana desfaz a amizade.
+func _test_social(w: Node) -> void:
+	Social.whisper.connect(func(from: String, to: String, text: String, incoming: bool) -> void:
+		whispers.append([from, to, text, incoming]))
+	await wait(Network.CHAT_WINDOW)
+	await _sync("social_in")
+	var other_name := "Beto" if my_name == "Ana" else "Ana"
+	if my_name == "Ana" and Social.state_of("Beto") == "":
+		Social.request_add("beto")   # o nome vale sem diferenciar maiúsculas
+	if my_name == "Beto":
+		check(await _wait_until(func() -> bool: return Social.state_of("Ana") in ["in", "accepted"], 8.0),
+			"Beto recebeu o pedido de amizade (%s)" % str(Social.friends))
+		for f in Social.friends:
+			if f.name == "Ana" and f.state == "in":
+				Social.accept(int(f.id))
+	check(await _wait_until(func() -> bool:
+		for f in Social.friends:
+			if f.name == other_name and f.state == "accepted" and f.online and int(f.peer) != 0:
+				return true
+		return false, 12.0), "amizade aceita e o amigo aparece online (%s)" % str(Social.friends))
+	# livro, aba Amigos: o amigo aparece e a página cabe
+	w.open_world_map(2)
+	var bk: Node = w.modal
+	await wait(0.4)
+	check(bk != null and bk._fr_right.get_child_count() >= 2, "aba Amigos lista o amigo")
+	check(bk != null and bk.book.overflow_warnings == 0, "aba Amigos cabe no livro")
+	# --shot-social=ARQUIVO (cliente com janela): foto da aba Amigos e da aba Grupo com dados de verdade
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--shot-social=") and bk != null and DisplayServer.get_name() != "headless":
+			await wait(1.0)
+			get_viewport().get_texture().get_image().save_png(a.substr(14))
+			bk.book.show_page(1)
+			await wait(1.0)
+			get_viewport().get_texture().get_image().save_png(a.substr(14).replace(".png", "_grupo.png"))
+	if bk != null:
+		bk.book.close()
+	await _sync("social_friends")
+	# sussurro: Ana manda, Beto responde pelo /r (o último que sussurrou)
+	if my_name == "Ana":
+		Social.send_whisper("beto", "oi Beto, só pra você")
+	else:
+		check(await _wait_until(func() -> bool:
+			return whispers.any(func(x: Array) -> bool: return x[3] and x[0] == "Ana" and x[2] == "oi Beto, só pra você"), 6.0),
+			"Beto recebeu o sussurro da Ana")
+		check(Social.last_whisper_from == "Ana", "/r responde para a Ana")
+		w.chat._run_command("/r Oi Ana!")
+	check(await _wait_until(func() -> bool:
+		return whispers.any(func(x: Array) -> bool: return x[2] == "Oi Ana!" and x[3] == (my_name == "Ana")), 6.0),
+		"resposta do sussurro chegou (e o eco para quem mandou)")
+	check(not chat_got.any(func(m: Array) -> bool: return str(m[1]).contains("só pra você")), "sussurro não vai para o chat geral")
+	await _sync("social_whisper")
+	if my_name == "Ana":
+		for f in Social.friends:
+			if f.name == "Beto":
+				Social.remove(int(f.id))
+	check(await _wait_until(func() -> bool: return Social.state_of(other_name) == "", 8.0), "amizade desfeita dos dois lados")
+	await _sync("social_out")
+
+
+## --shot-party=ARQUIVO (cliente com janela): foto da tela com o grupo formado (ARQUIVO_near.png, ARQUIVO_far.png).
+func _shot_hud(w: Node, tag: String) -> void:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--shot-party=") and DisplayServer.get_name() != "headless" and w.modal == null:
+			await wait(1.2)
+			get_viewport().get_texture().get_image().save_png(a.substr(13).replace(".png", "_%s.png" % tag))
+
+
 ## Grupo (com --peers=2): Ana convida, Beto aceita; os dois aparecem no grupo, na HUD e no filtro do mapa.
 ## Ana mata um slime com Beto ao lado: o XP é dividido e o abate conta na missão dos dois. Depois Beto vai
 ## para longe (outro mapa) e Ana mata outro: Beto ainda divide o XP, mas o abate não conta na missão dele.
@@ -502,6 +572,18 @@ func _test_party(w: Node) -> void:
 		"o mapa mostra o colega do grupo")
 	check(await _wait_until(func() -> bool:
 		return w.hud.party_frames != null and w.hud.party_frames._bars.has(other), 3.0), "quadro do colega na HUD")
+	# vida, mana e buffs: Beto toma uma sopa apimentada; Ana vê o buff no quadro dele, com o tempo
+	if my_name == "Beto":
+		Game.food_buffs["spicy_soup"] = 300.0
+	else:
+		check(await _wait_until(func() -> bool:
+			for m in Party.members:
+				if int(m.peer) == other:
+					return float(m.get("mp", -1.0)) > 0.0 and Party.buff_left(m, "spicy_soup") > 200.0
+			return false, 8.0), "o servidor repassa a mana e o buff do colega (%s)" % str(Party.members))
+		check(await _wait_until(func() -> bool: return w.hud.party_frames._bars[other].chips.has("spicy_soup"), 3.0),
+			"ícone do buff do colega no quadro do grupo")
+	await _shot_hud(w, "buff")
 	# livro do mapa e do grupo (P): o colega aparece com a vida e as duas abas cabem nas páginas
 	w.open_world_map(1)
 	var bk: Node = w.modal
@@ -523,6 +605,7 @@ func _test_party(w: Node) -> void:
 		var kills0 := Game.kills
 		var prog0 := int(Game.quests.get("espantalho", {}).get("progress", 0))
 		var xp0 := Game.xp + Game.level * 100000
+		var lvl0 := Game.level
 		var target: Enemy = null
 		if my_name == "Ana":
 			for e in Network.enemies.values():
@@ -557,7 +640,7 @@ func _test_party(w: Node) -> void:
 			"XP do abate dividido chega aos dois (%s)" % phase)
 		await wait(0.8)
 		var gained := Game.xp + Game.level * 100000 - xp0
-		if Game.level * 100000 + Game.xp - xp0 < 100000:
+		if Game.level == lvl0:   # subir de nível zera o XP da barra: aí só confere que subiu
 			check(gained == ceili(slime_xp / 2.0), "metade do XP do slime (%d de %d, %s)" % [gained, slime_xp, phase])
 		var counted: bool = my_name == "Ana" or phase == "near"
 		check(Game.kills == kills0 + (1 if counted else 0),
@@ -567,6 +650,7 @@ func _test_party(w: Node) -> void:
 		if my_name == "Ana" and phase == "far":
 			check(await _wait_until(func() -> bool: return str(w.hud.party_frames._bars[other].tag.text).begins_with("longe"), 3.0),
 				"HUD avisa que o colega está longe")
+		await _shot_hud(w, phase)
 		await _sync("party_%s_done" % phase)
 	w.player.global_position = Vector3(0, 0.5, 6)
 	if my_name == "Ana":

@@ -1203,6 +1203,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		open_world_map()
 	elif event.is_action_pressed("party"):
 		open_world_map(WORLD_MAP_UI.TAB_PARTY)
+	elif event.is_action_pressed("friends"):
+		open_world_map(WORLD_MAP_UI.TAB_FRIENDS)
 	elif survival == null:
 		for i in KnightEmotes.KINDS.size():
 			if event.is_action_pressed("emote_%d" % (i + 1)):
@@ -1227,7 +1229,9 @@ func _open_menu(tab: int) -> void:
 
 ## Narração de abertura da história (personagem novo, primeira vez no mundo). Não roda nos testes.
 func _play_intro() -> void:
-	if DisplayServer.get_name() == "headless" or "--smoketest" in OS.get_cmdline_user_args():
+	var args := OS.get_cmdline_user_args()
+	if DisplayServer.get_name() == "headless" or "--smoketest" in args \
+			or Array(args).any(func(a: String) -> bool: return a.begins_with("--nettest")):
 		return
 	await get_tree().create_timer(1.5).timeout
 	if is_inside_tree() and modal == null and not Loading.covering and survival == null:
