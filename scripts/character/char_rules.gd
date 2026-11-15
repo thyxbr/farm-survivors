@@ -235,12 +235,12 @@ static func kill(s: CharState, bt: BalanceTables, kind: String, xp: int) -> Dict
 		if not qt.has(id):
 			continue
 		var q: Dictionary = qt[id]
-		if s.quests[id].state == "active" and q.target == kind:
+		if s.quests[id].state == "active" and quest_counts_kill(q, kind):
 			s.quests[id].progress += 1
 			changed = true
 			if s.quests[id].progress >= int(q.count):
 				s.quests[id].state = "ready"
-				ev.append(_notify("%s: volte para %s" % [q.name, q.giver], C_QUEST))
+				ev.append(_notify("%s: volte para %s" % [q.name, q.get("turn_in", q.giver)], C_QUEST))
 			else:
 				ev.append(_notify("%s %d/%d" % [q.name, s.quests[id].progress, q.count], Color(1.0, 0.9, 0.6)))
 	if changed:
@@ -415,6 +415,21 @@ static func quest_state(s: CharState, id: String) -> String:
 	return s.quests[id].state if s.quests.has(id) else "none"
 
 
+## Tipo da missão: "kill" (padrão: abates de target ou de um dos targets), "talk" (falar com o NPC target)
+## ou "collect" (entregar count unidades do item target).
+static func quest_type(q: Dictionary) -> String:
+	return str(q.get("type", "kill"))
+
+
+## Se o abate de `kind` conta para a missão q (só missões de abate).
+static func quest_counts_kill(q: Dictionary, kind: String) -> bool:
+	if quest_type(q) != "kill":
+		return false
+	if q.has("targets"):
+		return kind in q.targets
+	return q.get("target", "") == kind
+
+
 ## Cadeia de missões = ordem das chaves em quests.json.
 static func start_quest(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	var qt := bt.get_table("quests")
@@ -427,17 +442,40 @@ static func start_quest(s: CharState, bt: BalanceTables, id: String) -> Dictiona
 	if i > 0 and quest_state(s, order[i - 1]) != "done":
 		return _fail("missao_indisponivel")
 	s.quests[id] = {"state": "active", "progress": 0}
-	return _ok([_notify("Nova missão: %s" % qt[id].name, C_QUEST), {"t": "quest"}])
+	var ev: Array = [_notify("Nova missão: %s" % qt[id].name, C_QUEST)]
+	# itens para começar (as sementes da torta): entram junto com a missão
+	var start: Dictionary = qt[id].get("start_items", {})
+	for item in start:
+		if bt.get_table("items").has(item):
+			add_item(s, bt, item, int(start[item]))
+			ev.append({"t": "looted", "id": item, "qty": int(start[item])})
+	ev.append({"t": "quest"})
+	return _ok(ev)
 
 
 static func complete_quest(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	var qt := bt.get_table("quests")
 	if not qt.has(id):
 		return _fail("missao_invalida")
-	if quest_state(s, id) != "ready":
-		return _fail("missao_nao_pronta")
 	var q: Dictionary = qt[id]
+	var st := quest_state(s, id)
+	var kind := quest_type(q)
+	# conversa: entregue ao falar com o alvo (o cliente pede ao abrir o diálogo); coleta: entregue com os
+	# itens na mochila, que saem dela aqui. Abate: só depois de pronta (o servidor contou os abates).
+	if kind == "talk":
+		if st != "active" and st != "ready":
+			return _fail("missao_nao_pronta")
+	elif kind == "collect":
+		if st != "active" and st != "ready":
+			return _fail("missao_nao_pronta")
+		if count_item(s, str(q.target)) < int(q.count):
+			return _fail("missao_nao_pronta", [_notify("Faltam itens: %s %d/%d" % [_item(bt, str(q.target)).get("name", q.target),
+				count_item(s, str(q.target)), int(q.count)], C_BAD)])
+		remove_item(s, str(q.target), int(q.count))
+	elif st != "ready":
+		return _fail("missao_nao_pronta")
 	var ev: Array = []
+	s.quests[id].progress = int(q.count)
 	s.quests[id].state = "done"
 	ev.append(_notify("Missão concluída: %s" % q.name, C_QUEST))
 	s.gold += int(q.reward_gold)

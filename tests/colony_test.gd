@@ -47,6 +47,11 @@ func _ready() -> void:
 	var fresh := CharState.new_character(Balance.tables)
 	check(char_gold0 == fresh.gold and Econ.ensure_solo(), "personagem da cidade é o do save solo (ouro %d)" % char_gold0)
 	# missão de abate ativa: os abates da cidade não contam para ela (nem para o abate/chefe do personagem)
+	for id in ["chegada", "forja"]:   # conversas da história que vêm antes dos slimes
+		Game.start_quest(id)
+		Game.complete_quest(id)
+	char_gold0 = Game.gold   # as conversas dão ouro e XP: a conta da cidade parte daqui
+	char_xp0 = _total_xp()
 	Game.start_quest("slimes")
 	var quests0: Dictionary = Game.quests.duplicate(true)
 	var kills0 := Game.kills

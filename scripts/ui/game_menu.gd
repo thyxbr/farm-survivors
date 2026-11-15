@@ -544,7 +544,7 @@ func _refresh_quests() -> void:
 	rv.add_child(_gap(4))
 	if Game.quests.is_empty():
 		lv.add_child(UITheme.ink("Nenhuma missão ainda.", 16, UITheme.INK_DIM))
-		var l := UITheme.ink("Fale com o Ancião Bram na vila para receber sua primeira missão.", 17, UITheme.INK_DIM)
+		var l := UITheme.ink("Fale com o Ancião Bram, perto do poço da vila, para começar a história.", 17, UITheme.INK_DIM)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		rv.add_child(l)
 		return
@@ -586,6 +586,8 @@ func _refresh_quests() -> void:
 	var sinfo: Array = QUEST_STATES[q.state]
 	quest_title = UITheme.ink(d.name, 28, UITheme.INK, true)
 	quest_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if d.has("chapter"):
+		rv.add_child(UITheme.ink("Episódio %d · %s" % [int(d.chapter.get("n", 0)), d.chapter.get("title", "")], 14, INK_GOLD))
 	rv.add_child(quest_title)
 	rv.add_child(UITheme.ink("%s · dada por %s" % [sinfo[3], d.giver], 15, sinfo[2]))
 	rv.add_child(HSeparator.new())
@@ -594,15 +596,24 @@ func _refresh_quests() -> void:
 	rv.add_child(desc)
 	rv.add_child(_gap(4))
 	rv.add_child(UITheme.ink_section("Objetivo", 18))
-	var done: int = mini(q.progress, d.count)
-	var pb := UITheme.ink_bar(UITheme.XP, 0, 16)
-	pb.max_value = d.count
-	pb.value = d.count if q.state == "done" else done
-	rv.add_child(pb)
-	var prog := "%d / %d" % [d.count if q.state == "done" else done, d.count]
-	if q.state == "ready":
-		prog += " — volte para %s" % d.giver
-	rv.add_child(UITheme.ink(prog, 16))
+	var counts := {}
+	if CharRules.quest_type(d) == "collect":
+		counts[d.target] = Game.count_item(str(d.target))
+	var pr := StoryRules.progress(ItemDB.QUESTS, Game.quests, quest_sel, counts)
+	var turn := StoryRules.turnable(ItemDB.QUESTS, Game.quests, quest_sel, counts)
+	var obj := UITheme.ink(str(d.get("objective", d.desc)), 16)
+	obj.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rv.add_child(obj)
+	if CharRules.quest_type(d) != "talk":
+		var pb := UITheme.ink_bar(UITheme.XP, 0, 16)
+		pb.max_value = pr[1]
+		pb.value = pr[0]
+		rv.add_child(pb)
+	var prog := "%d / %d" % [pr[0], pr[1]] if CharRules.quest_type(d) != "talk" else ""
+	if q.state != "done" and turn:
+		prog += (" — " if prog != "" else "") + "fale com %s" % d.get("turn_in", d.giver)
+	if prog != "":
+		rv.add_child(UITheme.ink(prog, 16))
 	rv.add_child(_gap(4))
 	rv.add_child(UITheme.ink_section("Recompensas", 18))
 	var rw := HBoxContainer.new()
