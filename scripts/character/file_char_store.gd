@@ -7,18 +7,16 @@ extends CharStore
 ##   escrita do temporário falhar, o arquivo anterior fica intacto.
 ## - Economia: uma linha JSON por registro em `<path sem extensão>_economy.jsonl` (só acrescenta).
 ##   Vai depois do personagem: numa queda entre os dois perde-se no máximo o registro, nunca o personagem.
-## - Base local: `<path sem extensão>_base.json` ({"buildings": {id: {"level", "fund"}}, "donations": [...]}).
 ## - Partidas: `<path sem extensão>_runs.json` ({"next_id", "runs": [...]}, cada partida com a parte de
 ##   cada conta em "done"). Guarda as partidas recentes e o recorde de cada modo (o resto é podado).
-## Doação e fim de partida mexem em dois arquivos (base/partidas + personagem): grava primeiro o da
-## base/partidas e depois o personagem; se o personagem falhar, o arquivo da base/partidas volta ao que era.
-## Assim nunca fica Ecos debitado sem a base creditada, nem partida concedida duas vezes.
-## "Novo jogo" (delete_char) apaga o personagem e a economia; a base e os recordes locais continuam.
+## Fim de partida mexe em dois arquivos (partidas + personagem): grava primeiro o das partidas e depois o
+## personagem; se o personagem falhar, o arquivo das partidas volta ao que era (nunca concede duas vezes).
+## "Novo jogo" (delete_char) apaga o personagem e a economia; os recordes locais continuam.
 
 const SOLO_ACCOUNT := 1
 ## Partidas mais recentes guardadas no arquivo (além do recorde de cada modo).
 const KEEP_RUNS := 20
-## Nome da conta solo nos doadores e recordes (o mesmo da conta "local" do SQLite; a praça mostra "Você").
+## Nome da conta solo nos recordes (o mesmo da conta "local" do SQLite; o quadro da vila mostra "Você").
 const SOLO_NAME := "local"
 
 var path: String
@@ -30,6 +28,10 @@ var fail_after_writes := 0
 
 func _init(p_path: String) -> void:
 	path = p_path
+	# a base compartilhada (doações) saiu do jogo: apaga o arquivo dela de saves antigos
+	for f in [path.get_basename() + "_base.json", path.get_basename() + "_base.json.tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 
 
 func char_path(account_id: int) -> String:
@@ -40,21 +42,17 @@ func economy_path() -> String:
 	return path.get_basename() + "_economy.jsonl"
 
 
-func base_path() -> String:
-	return path.get_basename() + "_base.json"
-
-
 func runs_path() -> String:
 	return path.get_basename() + "_runs.json"
 
 
-## Todos os arquivos deste armazenamento (personagem solo, base, partidas, temporários e economia), para apagar.
+## Todos os arquivos deste armazenamento (personagem solo, partidas, temporários e economia), para apagar.
 func files() -> Array[String]:
 	var p := char_path(SOLO_ACCOUNT)
-	return [p, p + ".tmp", economy_path(), base_path(), base_path() + ".tmp", runs_path(), runs_path() + ".tmp"]
+	return [p, p + ".tmp", economy_path(), runs_path(), runs_path() + ".tmp"]
 
 
-## Apaga os arquivos do personagem solo, da base, das partidas e da economia (testes e wipe).
+## Apaga os arquivos do personagem solo, das partidas e da economia (testes e wipe).
 func remove_files() -> void:
 	for f in files():
 		if FileAccess.file_exists(f):
@@ -138,51 +136,6 @@ func delete_char(account_id: int) -> bool:
 			return false
 	last_error = ""
 	return true
-
-
-# ================================================================ base local
-func _base() -> Dictionary:
-	var d = _read_json(base_path())
-	var out := {"buildings": {}, "donations": []}
-	if d is Dictionary:
-		if d.get("buildings") is Dictionary:
-			out.buildings = d.buildings
-		if d.get("donations") is Array:
-			out.donations = d.donations
-	return out
-
-
-func load_base() -> Dictionary:
-	var out := {}
-	var b: Dictionary = _base().buildings
-	for id in b:
-		if b[id] is Dictionary:
-			out[id] = {"level": int(b[id].get("level", 0)), "fund": int(b[id].get("fund", 0))}
-	return out
-
-
-func save_donation(account_id: int, state: Dictionary, building_id: String, level: int, fund: int,
-		amount: int, rows: Array, at: int) -> bool:
-	var b := _base()
-	b.buildings[building_id] = {"level": level, "fund": fund}
-	b.donations.append({"account_id": account_id, "building_id": building_id, "amount": amount, "at": at})
-	return _write_with_char(base_path(), b, account_id, state, rows, at)
-
-
-func top_donors(building_id: String, limit: int) -> Array:
-	var totals := {}   # conta -> soma; a ordem de inserção é a da primeira doação (desempate)
-	for d in _base().donations:
-		if d is Dictionary and str(d.get("building_id", "")) == building_id:
-			var acc := int(d.get("account_id", 0))
-			totals[acc] = int(totals.get(acc, 0)) + int(d.get("amount", 0))
-	var order := totals.keys()   # ordem da primeira doação
-	var ranked := order.duplicate()
-	ranked.sort_custom(func(a, b) -> bool:
-		return totals[a] > totals[b] or (totals[a] == totals[b] and order.find(a) < order.find(b)))
-	var out := []
-	for acc in ranked.slice(0, maxi(0, limit)):
-		out.append({"name": _name(acc), "amount": int(totals[acc])})
-	return out
 
 
 # ================================================================ partidas

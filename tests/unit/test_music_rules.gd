@@ -17,22 +17,13 @@ func test_world_areas() -> void:
 
 
 func test_priorities() -> void:
-	var horde := {"scene": "world", "horde": true, "pos": Vector3(-72, 0, -10)}
+	var horde := {"scene": "world", "horde": true, "pos": Vector3(0, 0, -1000)}
 	T.eq(MusicRules.track(horde), "horde", "horda")
 	T.eq(MusicRules.ambience(horde), "", "horda sem ambiente")
 	horde.boss_near = true
 	T.eq(MusicRules.track(horde), "boss", "chefe vence a horda")
 	horde.dead = true
 	T.eq(MusicRules.track(horde), "game_over", "morte vence tudo")
-
-
-func test_colony_phases() -> void:
-	T.eq(MusicRules.track({"scene": "colony", "phase": "setup"}), "city_day", "montagem")
-	T.eq(MusicRules.track({"scene": "colony", "phase": "day"}), "city_day", "dia")
-	T.eq(MusicRules.track({"scene": "colony", "phase": "night"}), "city_night", "noite")
-	T.eq(MusicRules.track({"scene": "colony", "phase": "over"}), "game_over", "cidade caiu")
-	T.eq(MusicRules.ambience({"scene": "colony", "phase": "night"}), "night", "grilos à noite")
-	T.eq(MusicRules.ambience({"scene": "colony", "phase": "day"}), "day", "pássaros de dia")
 
 
 func test_every_track_file_exists() -> void:

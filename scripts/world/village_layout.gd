@@ -86,17 +86,12 @@ const PALETTES := [
 ## Cores para as seis casas da praça (índices de PALETTES; -1 = cores originais do modelo).
 const SQUARE_PALETTES := [-1, 1, 4, -1, 6, 9]
 
-## Pontos que eram da praça da cidade: [kind, posição, yaw (frente do ponto), building_id].
-## Construção da base: o prédio fica BUILDING_BACK atrás do ponto (hub_point.gd).
+## Pontos que eram da praça da cidade: [kind, posição, yaw (frente do ponto)] (hub_point.gd).
 const POINTS := [
-	["building", Vector3(33.5, 0, -2.4), S, "forja"],
-	["building", Vector3(33.5, 0, 2.4), N, "celeiro"],
-	["building", Vector3(-32.4, 0, 10.0), E, "muralha"],
-	["passive_master", Vector3(21.0, 0, 11.6), N, ""],
-	["war_table", Vector3(24.6, 0, 6.4), W, ""],
-	["records", Vector3(17.4, 0, 6.4), E, ""],
+	["passive_master", Vector3(21.0, 0, 11.6), N],
+	["records", Vector3(17.4, 0, 6.4), E],
 ]
-## Largo dos Ecos (calçamento em volta do Orin, da mesa de guerra e dos recordes).
+## Largo dos Ecos (calçamento em volta do Orin e do quadro de recordes).
 const LARGO := Vector3(21.0, 0, 7.6)
 
 ## Papai Noel: do outro lado da árvore de Natal grande (a Lina e o Quadro de Contratos da guilda ficam do lado

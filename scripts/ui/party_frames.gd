@@ -110,7 +110,7 @@ func _update_tags() -> void:
 		var text := ""
 		var zone := str(m.get("zone", ""))
 		if zone != my_zone:
-			text = "na praça" if zone == "hub" else ("na Defesa da Cidade" if zone == "city" else "em outro lugar")
+			text = "carregando" if zone == "loading" else "em outro lugar"
 		elif float(m.get("hp", 1.0)) <= 0.0:
 			text = "caído"
 		else:

@@ -39,7 +39,7 @@ const SNAP_STRIDE := 10   # id, x, y, z, yaw, hp, state, attack_timer, attack_ki
 ## Tempo da fila do Desafio da Horda (cai para HORDE_LOBBY_ALL quando todos já responderam).
 const HORDE_LOBBY_TIME := 15.0
 const HORDE_LOBBY_ALL := 3.0
-## Quem aceitou o convite na praça viaja até Valdoria: a partida espera por ele de HORDE_TRAVEL_STEP em
+## Quem aceitou o convite ainda carregando Valdoria: a partida espera por ele de HORDE_TRAVEL_STEP em
 ## HORDE_TRAVEL_STEP segundos, até HORDE_TRAVEL_WAIT no total; quem não chegou fica fora.
 const HORDE_TRAVEL_WAIT := 12.0
 const HORDE_TRAVEL_STEP := 0.5
@@ -266,7 +266,6 @@ func _on_peer_disconnected(id: int) -> void:
 
 ## Servidor: tira o jogador do jogo (saiu ou foi substituído por uma conexão nova da mesma conta).
 func _drop_player(id: int) -> void:
-	var was_city: bool = players[id].get("zone", "") == "city"
 	var account := int(players[id].get("account", 0))
 	players.erase(id)
 	last_pos.erase(id)
@@ -276,7 +275,6 @@ func _drop_player(id: int) -> void:
 	players_changed.emit()
 	_horde_peer_gone(id)
 	Party.server_peer_gone(id)
-	Lobby.server_peer_gone(id, was_city)
 	if characters != null and account > 0:
 		# por sessão: a queda tardia de uma conexão velha não descarrega a sessão nova
 		characters.unload(account, id)
@@ -316,9 +314,9 @@ func _register(token: String, client_version: String, _look = {}, _extra = "") -
 	characters.set_session(account, id)
 	# o visual vem do personagem guardado no servidor (o `look` do cliente fica só pela assinatura estável)
 	var char_look: Dictionary = characters.load_or_create(account).equipment
-	# todo jogador começa na zona "hub" (carregando) até Valdoria montar; "ready" = já carregou a cena da zona
+	# zona "loading" até o cliente terminar de carregar Valdoria (_client_ready); "ready" = já carregou
 	players[id] = {"name": str(acc.name), "account": account, "admin": bool(acc.get("is_admin", false)),
-		"look": _clean_look(char_look, account), "ready": false, "zone": "hub"}
+		"look": _clean_look(char_look, account), "ready": false, "zone": "loading"}
 	print("[server] %s entrou (peer %d, conta %d, %d online)" % [acc.name, id, account, players.size()])
 	# tabelas e personagem antes do _accepted (mesmo canal confiável: chegam antes da troca de cena)
 	Econ.server_send_initial(id, account)
@@ -341,20 +339,18 @@ func _client_ready() -> void:
 	for pid in players:
 		if pid != id:
 			_player_joined.rpc_id(id, pid, players[pid])
-	send_zone_enemies(id, "world")
+	send_zone_enemies(id)
+	Hub.server_send_state(id)   # recordes (o mestre das passivas e o quadro da vila mostram)
 	if not _lobby.is_empty():
 		_horde_lobby.rpc_id(id, _lobby_state())
-	# a vila mostra a base, os recordes e a sala da Defesa da Cidade (mesa de guerra)
-	Hub.server_send_state(id)
-	Lobby._room_state.rpc_id(id, Lobby._room_view(), Lobby._record)
 
 
-# ---------------------------------------------------------------- zonas (salão, Valdoria, cidade)
-## Servidor: o jogador mudou de zona ("hub" = praça/salão, "world" ou "city"). Sai da anterior e avisa todos.
+# ---------------------------------------------------------------- zonas ("loading" e Valdoria)
+## Servidor: o jogador mudou de zona ("loading" ou "world"). Sai da anterior e avisa todos.
 func server_set_zone(id: int, zone: String) -> void:
 	if not players.has(id):
 		return
-	var old: String = players[id].get("zone", "hub")
+	var old: String = players[id].get("zone", "loading")
 	_remove_remote_player(id)
 	last_pos.erase(id)   # outra zona, outras coordenadas
 	players[id].zone = zone
@@ -363,8 +359,6 @@ func server_set_zone(id: int, zone: String) -> void:
 		print("[server] %s: %s -> %s" % [players[id].name, old, zone])
 		if old == "world":
 			_horde_peer_gone(id)
-		if old == "city":
-			Lobby.server_city_left(id)
 		Econ.server_peer_zone_left(id, old)
 	for pid in _all_peers():
 		_player_zone.rpc_id(pid, id, zone)
@@ -372,7 +366,7 @@ func server_set_zone(id: int, zone: String) -> void:
 
 
 func zone_of(id: int) -> String:
-	return str(players[id].get("zone", "hub")) if players.has(id) else ""
+	return str(players[id].get("zone", "loading")) if players.has(id) else ""
 
 
 ## Servidor: jogadores conectados que já carregaram a zona.
@@ -380,7 +374,7 @@ func zone_peers(zone: String) -> Array:
 	var out := []
 	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
 	for pid in players:
-		if not players[pid].ready or players[pid].get("zone", "hub") != zone:
+		if not players[pid].ready or players[pid].get("zone", "loading") != zone:
 			continue
 		var pp := enet.get_peer(pid) if enet else null
 		if pp == null or pp.get_state() == ENetPacketPeer.STATE_CONNECTED:
@@ -399,11 +393,11 @@ func _all_peers() -> Array:
 	return out
 
 
-## Servidor: manda ao jogador os inimigos vivos de uma zona.
-func send_zone_enemies(id: int, zone: String) -> void:
+## Servidor: manda ao jogador os inimigos vivos de Valdoria.
+func send_zone_enemies(id: int) -> void:
 	for net_id in enemies:
 		var e: Enemy = enemies[net_id]
-		if is_instance_valid(e) and not e.dead and e.net_zone == zone:
+		if is_instance_valid(e) and not e.dead:
 			_enemy_spawned.rpc_id(id, net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e))
 
 
@@ -429,7 +423,7 @@ func _ready_peers() -> Array:
 	var out := []
 	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
 	for pid in players:
-		if not players[pid].ready or players[pid].get("zone", "hub") != "world":
+		if not players[pid].ready or players[pid].get("zone", "loading") != "world":
 			continue
 		# quem está desconectando ainda aparece na lista por alguns quadros
 		var pp := enet.get_peer(pid) if enet else null
@@ -479,7 +473,6 @@ func _physics_process(delta: float) -> void:
 func server_register_enemy(e: Enemy) -> void:
 	e.net_id = _next_enemy_id
 	_next_enemy_id += 1
-	e.net_zone = "city" if Lobby.is_city_node(e) else "world"
 	enemies[e.net_id] = e
 	for pid in _enemy_peers(e):
 		_enemy_spawned.rpc_id(pid, e.net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e))
@@ -490,9 +483,9 @@ static func _enemy_flags(e: Enemy) -> int:
 	return (1 if e.horde else 0) | (2 if e.elite else 0)
 
 
-## Quem vê este inimigo: Valdoria ou a cidade em grupo.
-func _enemy_peers(e: Enemy) -> Array:
-	return zone_peers("city") if e.net_zone == "city" else _ready_peers()
+## Quem vê os inimigos: os jogadores em Valdoria.
+func _enemy_peers(_e: Enemy) -> Array:
+	return _ready_peers()
 
 
 func unregister_enemy(e: Enemy) -> void:
@@ -502,10 +495,7 @@ func unregister_enemy(e: Enemy) -> void:
 
 func server_enemy_killed(e: Enemy) -> void:
 	var pos := e.global_position
-	if e.net_zone == "city":
-		# cidade em grupo: o ouro vai para o cofre e quem acertou ganha XP (sem loot no chão)
-		Lobby.server_city_kill(e)
-	elif not e.horde:
+	if not e.horde:
 		# a horda não dá XP/loot do RPG: as gemas vêm pelo _horde_kill do modo sobrevivência.
 		# Cada jogador que acertou ganha o próprio sorteio de loot. O XP é dividido com o grupo de quem
 		# acertou (em Valdoria) e o abate conta na missão de quem está perto do combate (PartyRules).
@@ -543,9 +533,7 @@ func server_enemy_despawn(e: Enemy) -> void:
 func _send_enemy_snapshot() -> void:
 	if enemies.is_empty():
 		return
-	# PackedFloat32Array é copiado por valor: um array local por zona
 	var snap_world := PackedFloat32Array()
-	var snap_city := PackedFloat32Array()
 	for net_id in enemies:
 		var e: Enemy = enemies[net_id]
 		if not is_instance_valid(e) or e.dead:
@@ -554,20 +542,15 @@ func _send_enemy_snapshot() -> void:
 		var flags := (1 if e.slow_timer > 0 else 0) | (2 if e.enraged else 0)
 		var row := [net_id, p.x, p.y, p.z, e.model.rotation.y, e.hp,
 			max(0, STATES.find(e.state)), e.attack_timer, max(0, ATTACK_KINDS.find(e.attack_kind)), flags]
-		if e.net_zone == "city":
-			snap_city.append_array(row)
-		else:
-			snap_world.append_array(row)
-	for zone in ["world", "city"]:
-		var snap: PackedFloat32Array = snap_world if zone == "world" else snap_city
-		if snap.is_empty():
-			continue
-		var peers := _ready_peers() if zone == "world" else zone_peers(zone)
-		if peers.is_empty():
-			continue
-		_snapshots_sent += 1
-		for pid in peers:
-			_enemy_snapshot.rpc_id(pid, snap)
+		snap_world.append_array(row)
+	if snap_world.is_empty():
+		return
+	var peers := _ready_peers()
+	if peers.is_empty():
+		return
+	_snapshots_sent += 1
+	for pid in peers:
+		_enemy_snapshot.rpc_id(pid, snap_world)
 
 
 ## Marca tóxica pedida por um cliente: mesmas conferências de um acerto (zona e alcance) e os valores
@@ -578,7 +561,7 @@ func _mark_enemy(net_id: int, amp: float, secs: float) -> void:
 	if not is_server() or not players.has(id):
 		return
 	var e: Enemy = enemies.get(net_id)
-	if e == null or not is_instance_valid(e) or e.dead or e.net_zone != zone_of(id):
+	if e == null or not is_instance_valid(e) or e.dead or zone_of(id) != "world":
 		return
 	if not HitGuard.accepts(0.0, last_pos.get(id, Vector3.INF), e.global_position):
 		return
@@ -595,7 +578,7 @@ func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow:
 	if not is_server() or not players.has(id):
 		return
 	var e: Enemy = enemies.get(net_id)
-	if e == null or not is_instance_valid(e) or e.dead or e.net_zone != zone_of(id):
+	if e == null or not is_instance_valid(e) or e.dead or zone_of(id) != "world":
 		return
 	amount = clampf(amount, 0.0, 5000.0)
 	# acerto de dano quase zero ou de longe (última posição recebida) não conta: nem dano, nem lentidão,
@@ -642,7 +625,6 @@ func _player_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, combo: in
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id) or not players[id].ready:
 		return
-	# a praça também replica posição (os jogadores se veem andando por ela)
 	var zone := zone_of(id)
 	_apply_remote_state(id, pos, yaw, vel, flags, combo, attack_t)
 	for pid in zone_peers(zone):
@@ -774,7 +756,6 @@ func leave() -> void:
 	remote_players.clear()
 	horde_lobby = {}
 	_connect_t = 0.0
-	Lobby.client_reset()
 	Econ.client_reset()
 	Hub.client_reset()
 	Party.client_reset()
@@ -796,7 +777,7 @@ func _fail(reason: String) -> void:
 
 
 func _on_server_disconnected() -> void:
-	var in_world := world != null or Lobby.in_session()
+	var in_world := world != null
 	if in_world:
 		autosave()
 	leave()
@@ -808,7 +789,7 @@ func _on_server_disconnected() -> void:
 @rpc("authority", "call_remote", "reliable")
 func _rejected(reason: String) -> void:
 	var why := explain_rejection(reason, version())
-	if world != null or Lobby.in_session():
+	if world != null:
 		# já estava jogando (a conta entrou em outro lugar): salva e volta ao menu com o aviso
 		autosave()
 		leave()
@@ -838,8 +819,10 @@ func _accepted(all_players: Dictionary) -> void:
 	if players.has(me):
 		my_name = players[me].name
 	get_tree().paused = false
-	# todo mundo chega pelo salão (lobby): de lá vai para Valdoria ou para a Defesa da Cidade em grupo
-	Lobby.on_accepted()
+	# todo mundo entra direto em Valdoria, onde o personagem estava (Game.spawn_position veio do servidor)
+	if Game.hp <= 0.0:
+		Game.hp = Game.max_hp()
+	Loading.go(WORLD_SCENE)
 
 
 ## Chamado pelo mundo quando terminou de montar a cena.
@@ -858,12 +841,7 @@ func world_closed(w: Node) -> void:
 
 ## Manda vida, mana e posição ao servidor (o personagem mora lá; os pedidos já foram gravados).
 func autosave() -> void:
-	# no salão, na praça (role "hub") e na cidade em grupo o personagem fica onde estava em Valdoria
-	if world == null or world.get("role") != null:
-		if is_online():
-			Lobby.save_character()
-		return
-	if world.get("player") == null:
+	if world == null or world.get("player") == null:
 		return
 	var p: Player = world.player
 	if is_instance_valid(p):
@@ -1044,7 +1022,7 @@ func _enemy_spawned(net_id: int, kind: String, pos: Vector3, yaw: float, max_hp:
 	e.elite = flags & 2 != 0
 	e.net_id = net_id
 	e.position = pos
-	# na cidade os monstros ficam dentro da Colony (as torres e o HUD contam por lá)
+	# a cena pode escolher onde os monstros ficam (enemy_parent)
 	var parent: Node = world.enemy_parent() if world.has_method("enemy_parent") else world
 	parent.add_child(e)
 	e.max_hp = max_hp
@@ -1109,13 +1087,12 @@ func _kill_reward(_kind: String, _xp: int, _pos: Vector3) -> void:
 
 # ---------------------------------------------------------------- réplicas de jogadores
 func _apply_remote_state(id: int, pos: Vector3, yaw: float, vel: Vector3, flags: int, combo: int, attack_t: float) -> void:
-	# servidor: a réplica fica na zona do jogador (Valdoria ou a cidade); cliente: só quem está na mesma zona
+	# servidor: a réplica fica em Valdoria; cliente: só quem está na mesma zona
 	var parent: Node = world
 	if is_server():
 		last_pos[id] = pos
-		if zone_of(id) == "hub":
-			return   # a praça não tem nada no servidor que precise do corpo do jogador: só a posição
-		parent = Lobby.server_city_root() if zone_of(id) == "city" else world
+		if zone_of(id) != "world":
+			return
 	elif zone_of(id) != zone_of(multiplayer.get_unique_id()):
 		return
 	if parent == null:
@@ -1129,8 +1106,6 @@ func _apply_remote_state(id: int, pos: Vector3, yaw: float, vel: Vector3, flags:
 		rp.position = pos
 		parent.add_child(rp)
 		remote_players[id] = rp
-		if is_server() and zone_of(id) == "city":
-			rp.add_to_group("colony_units")   # os monstros do cerco atacam quem está na cidade
 		_apply_remote_look(id)
 	rp.apply_net_state(pos, yaw, vel, flags, combo, attack_t)
 
@@ -1246,9 +1221,8 @@ func _server_horde_answer(id: int, accept: bool) -> void:
 
 
 ## Todos os jogadores online já responderam: começa logo (alguns segundos para se preparar).
-## Contam os de Valdoria e os da praça (os dois recebem o convite).
 func _lobby_check_answered() -> void:
-	for pid in _ready_peers() + zone_peers("hub"):
+	for pid in _ready_peers():
 		if not _lobby.members.has(pid) and not _lobby.declined.has(pid):
 			return
 	_lobby.t = minf(_lobby.t, HORDE_LOBBY_ALL)
@@ -1265,25 +1239,23 @@ func _lobby_state() -> Dictionary:
 		"members": _lobby.members.keys(), "names": names, "declined": _lobby.declined.keys(), "t": _lobby.t}
 
 
-## A fila vai a quem está em Valdoria e a quem está na praça (o portal da praça leva a Valdoria).
+## A fila vai a quem está em Valdoria.
 func _broadcast_lobby() -> void:
 	var st := _lobby_state()
-	for pid in _ready_peers() + zone_peers("hub"):
+	for pid in _ready_peers():
 		_horde_lobby.rpc_id(pid, st)
 
 
 func _horde_launch() -> void:
-	# alguém da fila ainda está na praça (viajando até Valdoria): adia um pouco, até HORDE_TRAVEL_WAIT
+	# alguém da fila ainda está carregando Valdoria: adia um pouco, até HORDE_TRAVEL_WAIT
 	var waited := float(_lobby.get("travel", 0.0))
 	if waited < HORDE_TRAVEL_WAIT:
 		for pid in _lobby.members:
-			if players.has(pid) and zone_of(pid) == "hub":
+			if players.has(pid) and zone_of(pid) == "loading":
 				_lobby["travel"] = waited + HORDE_TRAVEL_STEP
 				_lobby.t = HORDE_TRAVEL_STEP
 				return
 	var team := {}
-	# Forja da base: o bônus de dano é fixado agora, igual para todo o grupo (doações no meio não mudam)
-	var forge := float(characters.base_bonus().get("horde_damage", 0.0)) if characters != null else 0.0
 	for pid in _lobby.members:
 		if not players.has(pid) or not players[pid].ready:
 			continue
@@ -1295,7 +1267,7 @@ func _horde_launch() -> void:
 		if rp and is_instance_valid(rp) and rp.dead:
 			_horde_notice.rpc_id(pid, "Você estava caído e ficou fora do Desafio da Horda.")
 			continue
-		team[pid] = {"name": players[pid].name, "dead": false, "ready": false, "lv_ready": true, "forge": forge}
+		team[pid] = {"name": players[pid].name, "dead": false, "ready": false, "lv_ready": true}
 	_lobby = {}
 	_broadcast_lobby()
 	if team.is_empty() or world == null or not world.has_method("server_start_horde"):
@@ -1348,11 +1320,7 @@ func _horde_lobby(state: Dictionary) -> void:
 	horde_lobby = state
 	horde_lobby_t = float(state.get("t", 0.0))
 	if not was_open and not state.is_empty() and horde_invite_pending() and _horde_survival() == null:
-		if zone_of(multiplayer.get_unique_id()) == "hub":
-			Game.notify.emit("%s abriu o Portal do Desafio! Vá ao portal da vila para entrar." % state.leader,
-				Color(0.85, 0.6, 1.0))
-		else:
-			Game.notify.emit("%s abriu o Portal do Desafio! [Y] entrar · [N] recusar" % state.leader, Color(0.85, 0.6, 1.0))
+		Game.notify.emit("%s abriu o Portal do Desafio! [Y] entrar · [N] recusar" % state.leader, Color(0.85, 0.6, 1.0))
 		Sfx.play("quest", 0.0)
 	horde_changed.emit()
 
@@ -1466,7 +1434,7 @@ func _chat_send(text: String) -> void:
 	_chat_log[id] = recent
 	var from: String = players[id].name
 	print("[chat] %s: %s" % [from, t])
-	# o chat é do servidor inteiro: salão, Valdoria e a cidade em grupo
+	# o chat é do servidor inteiro
 	for pid in _all_peers():
 		if players[pid].ready:
 			_chat_msg.rpc_id(pid, from, t)

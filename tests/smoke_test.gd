@@ -96,11 +96,12 @@ func _ready() -> void:
 		gear_ok = gear_ok and got == w2
 	check(gear_ok, "cada monstro só carrega o equipamento da sua variante")
 	# vale: 5 NPCs + bilhete + portal + guilda (Lina, quadro, cocheiro) + Rufus, Zélia, Tonico, Ravi, Osvaldo, gato;
-	# mais o Papai Noel e os 6 pontos da antiga praça (VillageLayout.POINTS); mapas: Sylvi, Tico e cocheiro no bosque; Bolgar, diário e cocheiro na mina; só o cocheiro no pico (o Kael
+	# mais o Papai Noel e os pontos da antiga praça (Orin e recordes, VillageLayout.POINTS); mapas: Sylvi, Tico e cocheiro no bosque; Bolgar, diário e cocheiro na mina; só o cocheiro no pico (o Kael
 	# de lá aparece no Arco 2)
 	var n_inter := get_tree().get_nodes_in_group("interactable").size()
 	check(n_inter == 7 + 9 + 7 + 1 + VillageLayout.POINTS.size() + Game.FARM_PLOTS + 1,
 		"interagíveis do vale, da guilda e dos mapas + %d canteiros + caldeirão (%d)" % [Game.FARM_PLOTS, n_inter])
+	check(not ResourceLoader.exists("res://scenes/colony.tscn"), "sem a Defesa da Cidade")
 
 	# --- diálogo e missão
 	var elder: Node = null
@@ -222,14 +223,14 @@ func _ready() -> void:
 	player._dodge_pressed(Vector3.ZERO)
 	check(player.ability == "sword_charge" and player.dodge_timer <= 0.0, "esquiva no avanço é ignorada")
 	await wait(0.45)
-	# abrir menu (build_lock) encerra
+	# abrir menu (input_locked) encerra
 	player.global_position = away
 	player.cooldowns.sword_charge = 0.0
 	player.use_slot(1)
-	player.build_lock = true
+	player.input_locked = true
 	await wait(0.05)
-	player.build_lock = false
-	check(player.ability == "", "menu (build_lock) encerra a habilidade")
+	player.input_locked = false
+	check(player.ability == "", "menu (input_locked) encerra a habilidade")
 	Game.fury = 0.0
 	Game.stamina = Game.max_stamina()
 	player.cooldowns.sword_charge = 0.0
@@ -2167,6 +2168,8 @@ func _test_survival() -> void:
 	var sv = world.survival
 	check(sv != null and Game.run_mods.active, "desafio iniciado pelo portal")
 	check(player.global_position.distance_to(world.ARENA) < 3.0, "jogador teleportado para a arena")
+	check(absf(world.ARENA.z) > world.MAP_HALF + 200.0, "arena é um mapa à parte, fora de Valdoria")
+	check(player.is_on_floor() or player.global_position.y > -1.0, "arena tem chão próprio")
 	check(sv.weapon_levels.get("fogo", 0) == 1, "começa com Orbe de Fogo Nv 1")
 	sv.round_time = 6.0
 	sv.round_left = 6.0
@@ -2297,7 +2300,7 @@ func _test_survival() -> void:
 	world.modal._finish()
 	await wait(0.2)
 	check(world.survival == null and not Game.run_mods.active, "desafio encerrado e bônus zerados")
-	check(player.global_position.distance_to(world.VILLAGE_SPAWN) < 3.0, "jogador volta para a vila")
+	check(player.global_position.distance_to(world.HORDE_RETURN) < 3.0, "jogador volta para a vila, na frente do portal")
 	check(Game.xp != xp0 or Game.level > lvl0, "XP de recompensa entregue ao RPG")
 	check(Game.flags.has("horde_best"), "recorde salvo")
 	check(Econ.quick_save(player.global_position, 0.0), "salvar volta a funcionar após o desafio")

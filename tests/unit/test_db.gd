@@ -2,8 +2,8 @@ extends RefCounted
 ## Db + Migrations: SQLite de verdade em user://, sem autoloads.
 
 const PATH := "user://test_db.db"
-const TABELAS := ["accounts", "sessions", "characters", "inventory", "passives", "base_buildings",
-	"base_donations", "balance_tables", "balance_history", "runs", "run_players", "economy_log", "schema_version"]
+const TABELAS := ["accounts", "sessions", "characters", "inventory", "passives",
+	"balance_tables", "balance_history", "runs", "run_players", "economy_log", "schema_version"]
 
 
 func _fresh() -> Db:
@@ -20,6 +20,28 @@ func test_migrate_fresh() -> void:
 		nomes.append(r["name"])
 	for t in TABELAS:
 		T.ok(nomes.has(t), "tabela %s existe" % t)
+	for t in ["base_buildings", "base_donations"]:
+		T.ok(not nomes.has(t), "tabela %s da base removida (v6)" % t)
+	db.close()
+
+
+## Banco do servidor na v5 com doações: a v6 apaga a base sem mexer nos personagens.
+func test_v6_drops_base_keeps_characters() -> void:
+	var db := _fresh()
+	var v5 := Migrations.MIGRATIONS.slice(0, 5)
+	T.ok(db.exec("CREATE TABLE schema_version (version INTEGER NOT NULL, applied_at INTEGER NOT NULL)"), "schema_version")
+	for i in v5.size():
+		for sql in v5[i]:
+			T.ok(db.exec(sql), "v%d aplicada à mão" % (i + 1))
+		db.exec("INSERT INTO schema_version(version, applied_at) VALUES(?, 0)", [i + 1])
+	db.exec("INSERT INTO accounts(username, pass_hash, pass_salt, created_at) VALUES('ana', 'h', 's', 0)")
+	db.exec("INSERT INTO characters(account_id, ecos) VALUES(1, 42)")
+	db.exec("INSERT INTO base_buildings(building_id, level, fund) VALUES('forja', 2, 30)")
+	db.exec("INSERT INTO base_donations(account_id, building_id, amount, at) VALUES(1, 'forja', 400, 0)")
+	T.ok(Migrations.ensure_latest(db), "migrou até a mais nova")
+	T.eq(db.query("SELECT COUNT(*) AS n FROM sqlite_master WHERE name IN ('base_buildings', 'base_donations')")[0]["n"],
+		0, "tabelas da base apagadas")
+	T.eq(db.query("SELECT ecos FROM characters WHERE account_id = 1")[0]["ecos"], 42, "personagem intacto")
 	db.close()
 
 

@@ -8,7 +8,7 @@ extends RefCounted
 const PLACES := {
 	"vila": [["Vila de Valdoria", Vector3(0, 0, 0)], ["Horta", Vector3(0, 0, 33)], ["Pomar", Vector3(20, 0, 33)],
 		["Acampamento Goblin", Vector3(62, 0, 0)], ["Ruínas", Vector3(0, 0, -100)],
-		["Portal da Horda", Vector3(-72, 0, -10)], ["Ninho de Slimes", Vector3(-36, 0, 36)]],
+		["Portal da Horda", Vector3(-8, 0, -9.5)], ["Ninho de Slimes", Vector3(-36, 0, 36)]],
 	"bosque": [["Bosque Sussurrante", Vector3(0, 0, 0)]],
 	"mina": [["Mina de Cristal", Vector3(0, 0, 0)]],
 	"pico": [["Pico das Cinzas", Vector3(0, 0, 0)]],

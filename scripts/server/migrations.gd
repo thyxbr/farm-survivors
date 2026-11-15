@@ -130,6 +130,12 @@ const MIGRATIONS := [
 	[
 		"ALTER TABLE characters ADD COLUMN enchants TEXT NOT NULL DEFAULT '{}'",
 	],
+	# v6: a base compartilhada (doações em Ecos) saiu do jogo junto com a Defesa da Cidade
+	[
+		"DROP INDEX IF EXISTS idx_donations_building",
+		"DROP TABLE IF EXISTS base_donations",
+		"DROP TABLE IF EXISTS base_buildings",
+	],
 ]
 
 

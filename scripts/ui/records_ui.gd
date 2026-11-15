@@ -1,6 +1,6 @@
 extends Control
-## Quadro de recordes: a melhor noite da Defesa e a melhor rodada da Horda do servidor (com os nomes)
-## e os recordes pessoais do personagem.
+## Quadro de recordes: a melhor rodada da Horda do servidor (com os nomes) e o recorde pessoal do
+## personagem.
 
 signal closed
 
@@ -16,7 +16,7 @@ func _ready() -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 10)
 	p.add_child(v)
-	v.add_child(UITheme.heading("Recordes da cidade", 30))
+	v.add_child(UITheme.heading("Recordes da Horda", 30))
 	v.add_child(HSeparator.new())
 	body = VBoxContainer.new()
 	body.add_theme_constant_override("separation", 8)
@@ -35,13 +35,6 @@ func _refresh() -> void:
 	for c in body.get_children():
 		c.queue_free()
 	var r: Dictionary = Hub.records
-	var c: Dictionary = r.get("city", {})
-	body.add_child(UITheme.section("Defesa da Cidade"))
-	if int(c.get("reached", 0)) > 0:
-		body.add_child(UITheme.label("Melhor noite: %d — %s" % [int(c.reached), ", ".join(c.get("names", []))], 18, UITheme.TEXT))
-	else:
-		body.add_child(UITheme.label("Ninguém defendeu uma cidade ainda.", 16, UITheme.DIM))
-	body.add_child(UITheme.label("Seu melhor: %d noite(s)" % int(Game.flags.get("city_best", 0)), 16, UITheme.GOLD))
 	var h: Dictionary = r.get("horde", {})
 	body.add_child(UITheme.section("Desafio da Horda"))
 	if int(h.get("reached", 0)) > 0:
