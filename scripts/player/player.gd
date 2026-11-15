@@ -24,6 +24,7 @@ const BOW_MIN_DRAW := 0.22    # segundos de tensão antes de poder atirar mirand
 ## Tiro rápido (clique esquerdo sem mirar): puxa até BOW_SNAP_CHARGE em BOW_SNAP_TIME segundos e solta sozinho.
 const BOW_SNAP_TIME := 0.3
 const BOW_SNAP_CHARGE := 0.55
+const ARROW_AIM_RANGE := 30.0  # a compensação da queda da flecha mira no máximo até aqui (m)
 const AIM_FOV := 52.0         # campo de visão mirando com o arco (normal: 70)
 const CAM_SIDE := 0.45        # câmera um pouco à direita do jogador (m)
 const AIM_CAM_SIDE := 0.8     # mirando com o arco: sobre o ombro direito
@@ -746,13 +747,33 @@ func bow_charge() -> float:
 	return clampf(draw_t / BOW_FULL, 0.0, 1.0) if drawing else 0.0
 
 
+## Flecha na linha da mira: a câmera fica sobre o ombro direito e o arco à esquerda dela, então uma flecha
+## que saísse do arco só cruzaria a mira num ponto (e passaria à esquerda de quem está mais perto). Ela voa
+## na linha da câmera, nascendo na altura do arco; o visual começa no arco e encaixa na linha em seguida
+## (projectile.gd, vis_offset). A direção sobe o bastante para a queda da flecha terminar no ponto mirado.
+## Devolve [origem, direção, deslocamento do visual]. Réplicas (sem câmera): do arco para a mira.
+func arrow_launch(spd: float) -> Array:
+	var tip := weapon_tip()
+	if remote or camera == null or not camera.is_inside_tree():
+		return [tip, aim_dir(tip), Vector3.ZERO]
+	var co := camera.global_position
+	var f := -camera.global_basis.z
+	var start := co + f * maxf((tip - co).dot(f), 0.5)
+	var target := aim_point()
+	var t := minf(start.distance_to(target), ARROW_AIM_RANGE) / maxf(spd, 1.0)   # sem alvo: o raio vai a 80 m
+	target += Vector3.UP * 0.5 * PROJECTILE.ARROW_DROP * t * t
+	return [start, (target - start).normalized(), tip - start]
+
+
 func release_arrow() -> void:
 	var charge := bow_charge()
 	drawing = false
 	draw_t = 0.0
 	Game.stamina = max(0.0, Game.stamina - 5.0)
-	var origin := weapon_tip()
-	var dir := aim_dir(origin)
+	var spd := lerpf(22.0, 42.0, charge)
+	var launch := arrow_launch(spd)
+	var origin: Vector3 = launch[0]
+	var dir: Vector3 = launch[1]
 	var full := charge >= 0.99
 	var fx := _weapon_fx()
 	var crit: bool = randf() < Game.crit_chance() + (0.1 if full else 0.0)
@@ -766,7 +787,8 @@ func release_arrow() -> void:
 	if full and fx == "multishot":
 		dirs = [dir.rotated(Vector3.UP, -0.1), dir, dir.rotated(Vector3.UP, 0.1)]
 	for d in dirs:
-		_spawn_projectile("arrow", origin, d, dmg, crit, pierce, lerpf(22.0, 42.0, charge))
+		var ar = _spawn_projectile("arrow", origin, d, dmg, crit, pierce, spd)
+		ar.vis_offset = launch[2]
 		Network.send_event("arrow", origin, d)
 	attacking = true
 	combo = 1

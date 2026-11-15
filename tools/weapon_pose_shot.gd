@@ -5,7 +5,7 @@ extends Node3D
 ##   godot --path . --resolution 1900x1350 res://tools/weapon_pose_shot.tscn -- <saida.png> [cajado|arco] [roupa] [c=<coluna>]
 
 const KNIGHT := preload("res://assets/models/knight.glb")
-const STAFF_POSES := ["parado", "andando A", "andando B", "correndo", "cajado 1 mira", "cajado 1 coice", "cajado 3 alto", "magia"]
+const STAFF_POSES := ["parado", "cajado 1 preparo", "cajado 1 meio", "cajado 1 mira", "cajado 1 coice", "cajado 2 preparo", "cajado 3 alto", "cajado 3 mira"]
 const BOW_POSES := ["parado", "andando A", "andando B", "mirando", "puxando", "tenso", "andando tenso", "soltou"]
 const GAP := 1.35
 const ROW_H := 450
@@ -74,6 +74,14 @@ func _pose(r: Dictionary, lk: Dictionary, kind: String) -> void:
 	KnightAnim.weapon_carry(p, cls, move, 1.0 if kind == "correndo" else 0.0)
 	var atk := true
 	match kind:
+		"cajado 1 preparo":
+			KnightAnim.staff_pose(p, 1, 0.16, 0.0)
+		"cajado 1 meio":
+			KnightAnim.staff_pose(p, 1, 0.25, 0.0)
+		"cajado 2 preparo":
+			KnightAnim.staff_pose(p, 2, 0.16, 0.0)
+		"cajado 3 mira":
+			KnightAnim.staff_pose(p, 3, 0.36, 0.0)
 		"cajado 1 mira":
 			KnightAnim.staff_pose(p, 1, 0.34, 0.0)
 		"cajado 1 coice":

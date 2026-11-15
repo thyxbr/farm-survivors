@@ -181,13 +181,15 @@ static func _triple_dirs(center: Vector3) -> Array:
 
 ## Dispara as 3 flechas (só o dono): a arma "multishot" não multiplica; "pierce" soma 2 de perfuração.
 static func _triple_fire(player: Node) -> void:
-	var origin: Vector3 = player.weapon_tip()
-	var dir: Vector3 = player.aim_dir(origin)
+	var launch: Array = player.arrow_launch(TRIPLE_SPEED)
+	var origin: Vector3 = launch[0]
+	var dir: Vector3 = launch[1]
 	var pierce := 2 if player._weapon_fx() == "pierce" else 0
 	for d in _triple_dirs(dir):
 		var crit: bool = randf() < Game.crit_chance()
 		var dmg: float = Game.melee_damage() * TRIPLE_MULT * (1.8 if crit else 1.0)
-		player._spawn_projectile("arrow", origin, d, dmg, crit, pierce, TRIPLE_SPEED)
+		var ar = player._spawn_projectile("arrow", origin, d, dmg, crit, pierce, TRIPLE_SPEED)
+		ar.vis_offset = launch[2]
 	Network.send_event("bow_triple", origin, dir)
 	_triple_fx(player, origin, dir)
 	Sfx.play("bow_shot", 0.08, 0.0)
@@ -228,11 +230,13 @@ static func _frost_glow(tip: Vector3) -> void:
 
 ## Dispara a flecha única (só o dono): dano x1,4, velocidade 40, sem perfuração; o gelo é do projétil (fx "glacial").
 static func _frost_fire(player: Node) -> void:
-	var origin: Vector3 = player.weapon_tip()
-	var dir: Vector3 = player.aim_dir(origin)
+	var launch: Array = player.arrow_launch(FROST_SPEED)
+	var origin: Vector3 = launch[0]
+	var dir: Vector3 = launch[1]
 	var crit: bool = randf() < Game.crit_chance()
 	var dmg: float = Game.melee_damage() * FROST_MULT * (1.8 if crit else 1.0)
 	var p = player._spawn_projectile("arrow", origin, dir, dmg, crit, 0, FROST_SPEED, "glacial", FROST_COLOR)
+	p.vis_offset = launch[2]
 	FXEpic.trail(p, FROST_COLOR, 0.22, 0.5)
 	Network.send_event("bow_frost", origin, dir)
 	_frost_fx(origin, dir)

@@ -59,17 +59,24 @@ const SPIN_END := 0.78          ## e termina aqui (uma volta inteira)
 # ------------------------------------------------------------------ cajado (0,4 s / 0,4 s / 0,6 s)
 ## Inclinação do cajado: o suporte desfaz 3/4 do giro do braço (KnightLook.COUNTER), então o cajado tomba
 ## 0,25 * (arm_r.x + elbow_r) + wrist_r para a frente (0 = de pé, > 0 = gema à frente, ~1,57 = deitado).
-## Mira: braço estendido à frente, cajado a ~45° com a gema à frente e acima da mão (antes ele ficava
-## deitado na horizontal, como um rifle). O disparo (0,35 do golpe) e a bola de fogo saem da gema, então
-## ela fica parada nessa pose no disparo.
-const STAFF_AIM := {"arm_r": Vector3(-1.3, -0.12, 0.0), "elbow_r": -0.15, "wrist_r": 1.15,
-	"twist": 0.12, "body_x": 0.12, "head_y": -0.15,
+## O golpe do cajado é um gesto de "reger" o feitiço: a mão quase não viaja (fica na frente do peito com o
+## cotovelo dobrado) e quem se move é a vara, girando no punho: começa de pé com a gema um pouco para trás
+## (STAFF_WINDUP), tomba rápido para a frente até a gema apontar o alvo (STAFF_AIM, ~55° somando a inclinação
+## do tronco, que também tomba a vara; a mão sai um pouco para fora, a ponta de baixo passa ao lado do
+## quadril) e volta um pouco no
+## coice (STAFF_RECOIL). Antes o braço esticava inteiro com a vara deitada, como um rifle.
+## O disparo (0,35 do golpe) e a bola de fogo saem da gema, então ela fica parada na pose de mira no disparo.
+const STAFF_WINDUP := {"arm_r": Vector3(-0.6, 0.2, -0.22), "elbow_r": -1.05, "wrist_r": 0.06,
+	"twist": -0.25, "body_x": -0.06, "head_y": 0.15,
+	"arm_l": Vector3(-0.7, 0.3, 0.2), "elbow_l": -1.3}
+const STAFF_AIM := {"arm_r": Vector3(-1.05, 0.05, -0.2), "elbow_r": -0.42, "wrist_r": 1.3,
+	"twist": 0.12, "body_x": 0.14, "head_y": -0.1,
 	"arm_l": Vector3(-0.95, -0.15, 0.3), "elbow_l": -1.0}
 ## Passo à frente ao mirar (só com o jogador parado).
 const STAFF_AIM_LEGS := {"leg_l": -0.32, "knee_l": 0.32, "leg_r": 0.22, "knee_r": 0.2}
-## Coice depois do disparo: a gema sobe um pouco e o braço recua, sem trazer a vara para o rosto.
-const STAFF_RECOIL := {"arm_r": Vector3(-1.4, -0.1, -0.05), "elbow_r": -0.3, "wrist_r": 0.85, "body_x": 0.02,
-	"twist": 0.2}
+## Coice depois do disparo: a vara volta um pouco para cima (a gema sobe) e a mão fica onde estava.
+const STAFF_RECOIL := {"arm_r": Vector3(-1.0, 0.05, -0.2), "elbow_r": -0.5, "wrist_r": 0.95, "body_x": 0.06,
+	"twist": 0.15}
 ## Cajado carregado (KnightAnim.weapon_carry), parado/andando e correndo: braço um pouco à frente e aberto
 ## (a vara não raspa na perna), cotovelo dobrado, só 30% do balanço do braço; `tilt` = inclinação do cajado
 ## (> 0 gema à frente). Correndo vai na diagonal à frente, com a mão no quadril.
@@ -80,17 +87,14 @@ const STAFF_CARRY := {"arm": Vector3(-0.14, 0.0, -0.17), "arm_run": Vector3(-0.5
 const STAFF_LEFT_GRIP := Vector3(0.0, -0.3, 0.0)
 const STAFF_POLE_L := Vector3(1.0, -0.4, -0.3)
 const STAFF := [
-	[  # 1: recolhe o cajado junto ao ombro, aponta a gema e dispara
-		[0.16, {"arm_r": Vector3(-0.45, 0.3, -0.3), "elbow_r": -1.6, "wrist_r": 0.25, "twist": -0.4,
-			"body_x": -0.08, "head_y": 0.3,
-			"arm_l": Vector3(-1.0, 0.45, 0.15), "elbow_l": -1.5,
-			"leg_r": 0.15, "knee_r": 0.3}],
+	[  # 1: ergue a vara de pé junto ao ombro e tomba a gema para o alvo
+		[0.16, [STAFF_WINDUP, {"leg_r": 0.15, "knee_r": 0.3}]],
 		[0.3, [STAFF_AIM, STAFF_AIM_LEGS], "in"],
 		[0.37, [STAFF_AIM], "lin"],   # firme no disparo
 		[0.48, [STAFF_RECOIL], "out"],
 	],
-	[  # 2: traz o cajado da direita, varrendo até a mira
-		[0.16, {"arm_r": Vector3(-1.0, -0.85, -0.3), "elbow_r": -0.9, "wrist_r": 0.6, "twist": -0.45,
+	[  # 2: leva a vara para a direita, de pé, e tomba a gema para o alvo varrendo para o centro
+		[0.16, {"arm_r": Vector3(-0.75, -0.7, -0.35), "elbow_r": -0.85, "wrist_r": 0.3, "twist": -0.45,
 			"body_x": 0.0, "head_y": 0.35,
 			"arm_l": Vector3(-1.1, 0.6, 0.1), "elbow_l": -1.6,
 			"leg_l": -0.1, "knee_l": 0.25, "leg_r": 0.15, "knee_r": 0.25}],
@@ -98,14 +102,14 @@ const STAFF := [
 		[0.37, [STAFF_AIM], "lin"],
 		[0.48, [STAFF_RECOIL], "out"],
 	],
-	[  # 3: ergue o cajado com as duas mãos e baixa a gema apontando (três disparos)
+	[  # 3: ergue o cajado de pé com as duas mãos e tomba a gema para o alvo (três disparos)
 		[0.22, {"arm_r": Vector3(-2.75, 0.1, -0.1), "elbow_r": -0.55, "wrist_r": 0.9,
 			"arm_l": Vector3(-2.6, -0.1, 0.25), "elbow_l": -0.75, "body_x": -0.22, "head_x": -0.1,
 			"twist": -0.1, "leg_l": -0.05, "knee_l": 0.15, "knee_r": 0.15}],
-		[0.32, [STAFF_AIM, {"arm_r": Vector3(-1.3, -0.12, 0.0), "wrist_r": 1.35, "body_x": 0.35, "head_x": -0.15,
+		[0.32, [STAFF_AIM, {"arm_r": Vector3(-1.2, -0.05, -0.1), "elbow_r": -0.35, "wrist_r": 1.2, "body_x": 0.35, "head_x": -0.15,
 			"arm_l": Vector3(-1.25, -0.3, 0.25), "elbow_l": -0.3,
 			"leg_l": -0.38, "knee_l": 0.7, "leg_r": 0.3, "knee_r": 0.55}], "in"],
-		[0.4, [STAFF_AIM, {"arm_r": Vector3(-1.3, -0.12, 0.0), "wrist_r": 1.35, "body_x": 0.35,
+		[0.4, [STAFF_AIM, {"arm_r": Vector3(-1.2, -0.05, -0.1), "elbow_r": -0.35, "wrist_r": 1.2, "body_x": 0.35,
 			"arm_l": Vector3(-1.25, -0.3, 0.25), "elbow_l": -0.3}], "lin"],
 		[0.6, [STAFF_RECOIL, {"body_x": 0.25}], "out"],
 	],
@@ -142,12 +146,11 @@ const CAST := {
 		[0.7, {"body_x": 0.48, "leg_l": -0.58, "knee_l": 0.95, "leg_r": -0.3, "knee_r": 0.78}],
 	],
 }
-## Com cajado, a bola de fogo usa a mira do cajado: recolhe, aponta a gema (dispara em CAST_RELEASE)
-## e dá o coice.
+## Com cajado, a bola de fogo usa o gesto do golpe: ergue a vara, tomba a gema para o alvo (dispara em
+## CAST_RELEASE) e dá o coice.
 const CAST_STAFF := {
 	"fireball": [
-		[0.12, {"arm_r": Vector3(-0.45, 0.3, -0.3), "elbow_r": -1.6, "wrist_r": 0.25, "twist": -0.4,
-			"body_x": -0.08, "head_y": 0.3, "arm_l": Vector3(-1.0, 0.45, 0.15), "elbow_l": -1.5}],
+		[0.12, [STAFF_WINDUP]],
 		[0.24, [STAFF_AIM, STAFF_AIM_LEGS], "in"],
 		[0.36, [STAFF_AIM], "lin"],
 		[0.55, [STAFF_RECOIL], "out"],

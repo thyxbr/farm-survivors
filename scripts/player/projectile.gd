@@ -15,6 +15,13 @@ var pierce := 0
 var life := 1.6
 ## Multiplayer: projétil de outro jogador — só o visual, sem dano.
 var visual_only := false
+## Flecha: queda (m/s²). player.arrow_launch compensa na mira.
+const ARROW_DROP := 4.0
+## Deslocamento do visual em relação à posição real no disparo (a flecha nasce na linha da câmera, mas aparece
+## saindo do arco); some em VIS_SETTLE segundos.
+var vis_offset := Vector3.ZERO
+const VIS_SETTLE := 0.12
+var _age := 0.0
 var _vel := Vector3.ZERO
 var _done := false
 var _hit := {}
@@ -126,8 +133,14 @@ func _physics_process(delta: float) -> void:
 	if _done:
 		return
 	if kind == "arrow":
-		_vel.y -= 4.0 * delta
+		_vel.y -= ARROW_DROP * delta
 	global_position += _vel * delta
+	_age += delta
+	if vis_offset != Vector3.ZERO:
+		var k := 1.0 - smoothstep(0.0, VIS_SETTLE, _age)
+		_vis.position = vis_offset * k
+		if k <= 0.0:
+			vis_offset = Vector3.ZERO
 	_orient()
 	life -= delta
 	if life <= 0:

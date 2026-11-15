@@ -405,10 +405,11 @@ func _ready() -> void:
 	var lvl_bf: int = Game.level
 	check(Game.weapon_class() == "bow" and player.cooldowns.size() == ItemDB.ABILITIES.size(), "uma recarga por habilidade")
 	# --- arco: botão direito mira (puxa a corda), esquerdo atira; o clique direito não esquiva com arco
-	var bw_shot := [0]   # flechas disparadas (contadas ao entrar na cena: elas somem ao acertar ou expirar)
+	var bw_shot := [0, null]   # flechas disparadas (contadas ao entrar na cena: somem ao acertar) e a última
 	var bw_count := func(c: Node) -> void:
 		if c.get("kind") == "arrow" and not c.get("visual_only"):
 			bw_shot[0] += 1
+			bw_shot[1] = c
 	world.child_entered_tree.connect(bw_count)
 	var bw_arrows := func() -> int: return bw_shot[0]
 	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking and not player.drawing)
@@ -429,6 +430,14 @@ func _ready() -> void:
 	await wait(0.05)
 	Input.action_release("attack")
 	check(bw_arrows.call() == bw_n0 + 1 and player.attacking, "arco: clique esquerdo mirando atira")
+	# a flecha voa na linha da câmera (a mira), não do arco à esquerda dela
+	var bw_ar = bw_shot[1]
+	if bw_ar and is_instance_valid(bw_ar):
+		var bw_co: Vector3 = player.camera.global_position
+		var bw_f: Vector3 = -player.camera.global_basis.z
+		var bw_rel: Vector3 = (bw_ar as Node3D).global_position - bw_co
+		var bw_off := (bw_rel - bw_f * bw_rel.dot(bw_f)).length()
+		check(bw_off < 0.6, "arco: a flecha sai na linha da mira (%.2f m dela)" % bw_off)
 	await wait(KnightMoves.BOW_RELEASE_HOLD + 0.5)
 	check(player.drawing, "arco: segurando a mira, encaixa a próxima flecha sozinho")
 	Input.action_release("aim")
