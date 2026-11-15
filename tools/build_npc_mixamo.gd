@@ -1,10 +1,10 @@
 extends SceneTree
-## Monta as AnimationLibrary "mixamo" dos NPCs com esqueleto (ferreiro, Bram, Mira) a partir dos FBX baixados
+## Monta as AnimationLibrary "mixamo" dos NPCs com esqueleto (ferreiro, Bram, Mira, aldeões da cidade) a partir dos FBX baixados
 ## do Mixamo em assets/animations/mixamo/. Os .import dos FBX usam o mesmo BoneMap (SkeletonProfileHumanoid,
 ## renomear ossos, rest fixer) dos modelos, então as tracks já saem como %GeneralSkeleton:<osso do perfil> e
 ## tocam direto no esqueleto de qualquer um deles. Rode depois do --import:
-##   godot --headless --path . --script res://tools/build_npc_mixamo.gd [-- blacksmith elder merchant]
-## Sem argumentos monta as três. Imprime, por clipe, a origem: FBX ou SUBSTITUTO (<origem>).
+##   godot --headless --path . --script res://tools/build_npc_mixamo.gd [-- blacksmith elder merchant villager]
+## Sem argumentos monta todas. Imprime, por clipe, a origem: FBX ou SUBSTITUTO (<origem>).
 ## FBX faltando: idle/talk vêm de blacksmith_mixamo.res; excited/call, do clipe provisório do próprio .glb.
 ## O ferreiro não tem substitutos (o Mixamo não tinha martelar: work_hammer segue o provisório do .glb).
 
@@ -13,7 +13,8 @@ const SMITH_LIB := "res://assets/animations/blacksmith_mixamo.res"
 const SK := "%GeneralSkeleton:"
 
 ## npc -> saída, modelo (.glb: substitutos provisórios, pose de repouso e braço preso), braço preso e clipes.
-## Clipe: fbx (nome do arquivo em DIR), loop e sub ("smith" = mesmo clipe do ferreiro, "glb" = do modelo).
+## Clipe: fbx (nome do arquivo em DIR), loop, sub ("smith" = mesmo clipe do ferreiro, "glb" = do modelo) e
+## in_place (clipe de andar: tira o deslocamento, ver _in_place).
 const NPCS := {
 	"blacksmith": {
 		"out": "res://assets/animations/blacksmith_mixamo.res",
@@ -47,6 +48,22 @@ const NPCS := {
 			"idle": {"fbx": "merchant_idle", "loop": true, "sub": "smith"},
 			"call": {"fbx": "merchant_call", "loop": false, "sub": "glb"},
 			"talk": {"fbx": "merchant_talk", "loop": true, "sub": "smith"},
+		},
+	},
+	"villager": {
+		"out": "res://assets/animations/villager_mixamo.res",
+		"model": "res://assets/models/villager_1.glb",
+		"clips": {
+			# Farming Pack do Mixamo: "holding idle/walk", "box idle/walk arc" e "dig and plant seeds"
+			"idle": {"fbx": "villager_hold_idle", "loop": true, "sub": ""},
+			"walk": {"fbx": "villager_hold_walk", "loop": true, "sub": "", "in_place": true},
+			"carry_idle": {"fbx": "villager_box_idle", "loop": true, "sub": ""},
+			"carry_walk": {"fbx": "villager_box_walk", "loop": true, "sub": "", "in_place": true},
+			"dig": {"fbx": "villager_dig", "loop": true, "sub": ""},
+			# o pacote não tem capina em pé nem golpe de machado/picareta: até haver villager_hoe.fbx e
+			# villager_chop.fbx, valem os provisórios de duas mãos do villager_1.glb (two_hand_cycle)
+			"hoe": {"fbx": "villager_hoe", "loop": true, "sub": "glb"},
+			"chop": {"fbx": "villager_chop", "loop": true, "sub": "glb"},
 		},
 	},
 }
@@ -108,6 +125,8 @@ static func build(npc: String, fbx_dir: String, origins: Dictionary) -> Animatio
 			if model:
 				model.free()
 			return null
+		if clip.get("in_place", false):
+			_in_place(a)
 		a.resource_name = c
 		a.loop_mode = Animation.LOOP_LINEAR if clip.loop else Animation.LOOP_NONE
 		a.set_meta("origem", origins[c])
@@ -138,6 +157,30 @@ static func _first_clip(scene: PackedScene) -> Animation:
 		a = ap.get_animation(ap.get_animation_list()[0]).duplicate(true)
 	m.free()
 	return a
+
+
+## Andar no lugar: o quadril fica no x, z do primeiro quadro (o jogo é quem desloca o aldeão) e a guinada que o
+## clipe acumula do começo ao fim (andar em arco) é desfeita aos poucos, de forma linear.
+static func _in_place(a: Animation) -> void:
+	var path := NodePath(SK + "Hips")
+	var tp := a.find_track(path, Animation.TYPE_POSITION_3D)
+	if tp >= 0:
+		var p0: Vector3 = a.track_get_key_value(tp, 0)
+		for k in a.track_get_key_count(tp):
+			var p: Vector3 = a.track_get_key_value(tp, k)
+			a.track_set_key_value(tp, k, Vector3(p0.x, p.y, p0.z))
+	var tr := a.find_track(path, Animation.TYPE_ROTATION_3D)
+	if tr < 0:
+		return
+	var n := a.track_get_key_count(tr)
+	var q0: Quaternion = a.track_get_key_value(tr, 0)
+	var q1: Quaternion = a.track_get_key_value(tr, n - 1)
+	var turn := wrapf(q1.get_euler().y - q0.get_euler().y, -PI, PI)
+	if absf(turn) < deg_to_rad(3.0):
+		return
+	for k in n:
+		var q: Quaternion = a.track_get_key_value(tr, k)
+		a.track_set_key_value(tr, k, Quaternion(Vector3.UP, -turn * a.track_get_key_time(tr, k) / a.length) * q)
 
 
 ## Em todos os clipes, os ossos dados ficam constantes na pose do clipe pose (ou no repouso, se ele não os anima).

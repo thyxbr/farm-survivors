@@ -347,6 +347,10 @@ BUILDERS = {
     "blacksmith": build_blacksmith,
     "skeleton": build_skeleton,
 }
+for _n in VILLAGER_LOOKS:   # aldeões da Defesa da Cidade (villager_<n>); ASSETS=villagers gera todos
+    BUILDERS["villager_%d" % _n] = (lambda n=_n: build_villager(n))
+if "villagers" in _only:
+    _only += ["villager_%d" % _n for _n in VILLAGER_LOOKS]
 BUILDERS.update(PROP_BUILDERS)
 if "buildings" in _only:   # ASSETS=buildings gera todas as construções da Defesa da Cidade (b_<tipo>_<nível>)
     _only += [n for n in PROP_BUILDERS if n.startswith("b_")]

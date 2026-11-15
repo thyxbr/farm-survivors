@@ -1153,18 +1153,19 @@ def build_tool(kind):
     bag = Bag()
     a = bag.add
     if kind == "axe":
-        _axe(bag, (0, 0, -0.22), (0, 0, 0.5))
+        # origem = mão direita; a esquerda segura 19 cm abaixo, perto da ponta do cabo
+        _axe(bag, (0, 0, -0.3), (0, 0, 0.5))
     elif kind == "pickaxe":
-        _pickaxe(bag, (0, 0, -0.24), (0, 0, 0.56))
+        _pickaxe(bag, (0, 0, -0.3), (0, 0, 0.56))
     elif kind == "hoe":
-        # enxada: cabo comprido (1,4 m). A origem é onde pega a mão da frente, a 1 m da lâmina; a outra mão
-        # segura uns 30 cm atrás. No topo, olhal de ferro e a lâmina saindo de lado (para +X, o lado de quem
-        # puxa), em esquadro com o cabo e mais larga no gume
-        a(beam("HoeHandle", (0, 0, -0.42), (0, 0, 1.0), 0.024, p_wood_lt, seg=6, end_mat=p_wood_end))
-        a(lathe("HoeSocket", [(0.04, 0.9), (0.042, 0.96), (0.036, 1.02)], p_iron, seg=6))
-        a(bx("HoeNeck", (0.05, 0, 0.96), (0.1, 0.05, 0.035), p_iron, bev=0.008))
-        a(hull("HoeBlade", [(0.07, -0.06, 0.97), (0.07, 0.06, 0.97), (0.07, -0.06, 0.95), (0.07, 0.06, 0.95),
-                            (0.28, -0.105, 0.942), (0.28, 0.105, 0.942), (0.285, -0.105, 0.93), (0.285, 0.105, 0.93)], p_iron_lt))
+        # enxada: cabo comprido (1,6 m). A origem é onde pega a mão da frente (a direita), a 1,1 m da lâmina; a
+        # esquerda segura 38 cm atrás, perto da ponta. No topo, olhal de ferro e a lâmina saindo de lado (para +X,
+        # o lado de quem puxa), em esquadro com o cabo e mais larga no gume
+        a(beam("HoeHandle", (0, 0, -0.5), (0, 0, 1.12), 0.024, p_wood_lt, seg=6, end_mat=p_wood_end))
+        a(lathe("HoeSocket", [(0.04, 1.02), (0.042, 1.08), (0.036, 1.14)], p_iron, seg=6))
+        a(bx("HoeNeck", (0.05, 0, 1.08), (0.1, 0.05, 0.035), p_iron, bev=0.008))
+        a(hull("HoeBlade", [(0.07, -0.06, 1.09), (0.07, 0.06, 1.09), (0.07, -0.06, 1.07), (0.07, 0.06, 1.07),
+                            (0.28, -0.105, 1.062), (0.28, 0.105, 1.062), (0.285, -0.105, 1.05), (0.285, 0.105, 1.05)], p_iron_lt))
     else:   # spear: lança de vigia
         a(beam("SpearShaft", (0, 0, -0.75), (0, 0, 0.95), 0.022, p_wood_lt, seg=6))
         a(beam("SpearTip", (0, 0, 0.95), (0, 0, 1.25), 0.045, p_iron_lt, seg=4, r2=0.0))
