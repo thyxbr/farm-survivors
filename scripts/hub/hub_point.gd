@@ -15,7 +15,9 @@ const MODELS := {
 	"barrel": preload("res://assets/models/barrel.glb"),
 	"fence": preload("res://assets/models/fence.glb"),
 	"chest": preload("res://assets/models/chest.glb"),
+	"notice_board": preload("res://assets/models/notice_board.glb"),
 }
+const SIGNPOST := preload("res://scripts/world/signpost.gd")
 const PORTAL := preload("res://scripts/world/challenge_portal.gd")
 const KINDS := ["horde_portal", "war_table", "road", "passive_master", "merchant", "records", "building"]
 ## Nomes dos personagens da praça.
@@ -209,29 +211,14 @@ func _build_war_table() -> void:
 
 
 func _build_road() -> void:
-	# placa de madeira na saída sul da praça
-	var wood := Color(0.45, 0.3, 0.17)
-	_box(Vector3(0.18, 2.4, 0.18), Vector3(0, 1.2, 0), wood.darkened(0.15))
-	var plank := _box(Vector3(1.7, 0.42, 0.08), Vector3(0.35, 1.95, 0.13), wood)   # na frente do poste
-	plank.rotation.z = -0.05
-	var txt := Label3D.new()   # a frente do ponto (+Z) está virada para o centro da praça
-	txt.text = "VALDORIA"
-	txt.font_size = 48
-	txt.outline_size = 6
-	txt.pixel_size = 0.005
-	txt.modulate = Color(1, 0.92, 0.75)
-	txt.position = Vector3(0.35, 1.95, 0.18)
-	add_child(txt)
+	# poste de direção na saída sul da praça: a seta aponta para fora (-Z do ponto, que olha para o centro)
+	add_child(SIGNPOST.make(Vector3.ZERO, [["Valdoria", Vector3(0, 0, -10)]]))
 	_shape(Vector3(0.3, 2.4, 0.3), Vector3(0, 1.2, 0))
 	_tag("Estrada para Valdoria", 2.9, Color(0.85, 1.0, 0.7))
 
 
 func _build_records() -> void:
-	var wood := Color(0.4, 0.27, 0.15)
-	for x in [-1.1, 1.1]:
-		_box(Vector3(0.14, 2.6, 0.14), Vector3(x, 1.3, 0), wood.darkened(0.2))
-	_box(Vector3(2.4, 1.5, 0.08), Vector3(0, 1.6, 0), wood)
-	_box(Vector3(2.2, 1.3, 0.02), Vector3(0, 1.6, 0.05), Color(0.82, 0.74, 0.55))
+	_glb("notice_board", Vector3.ZERO)
 	_label = Label3D.new()
 	_label.font_size = 30
 	_label.outline_size = 0

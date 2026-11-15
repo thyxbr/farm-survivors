@@ -14,6 +14,10 @@ const M := {
 	"tree_birch": preload("res://assets/models/tree_birch.glb"),
 	"tree_maple": preload("res://assets/models/tree_maple.glb"),
 	"tree_cherry": preload("res://assets/models/tree_cherry.glb"),
+	"tree_apple": preload("res://assets/models/tree_apple.glb"),
+	"tree_orange": preload("res://assets/models/tree_orange.glb"),
+	"tree_pear": preload("res://assets/models/tree_pear.glb"),
+	"notice_board": preload("res://assets/models/notice_board.glb"),
 	"flower_sunflower": preload("res://assets/models/flower_sunflower.glb"),
 	"flower_lavender": preload("res://assets/models/flower_lavender.glb"),
 	"flower_tulips": preload("res://assets/models/flower_tulips.glb"),
@@ -33,6 +37,7 @@ const M := {
 }
 const ENEMY := preload("res://scripts/enemies/enemy.gd")
 const BLACKSMITH := preload("res://scripts/world/blacksmith.gd")
+const SIGNPOST := preload("res://scripts/world/signpost.gd")
 const ELDER := preload("res://scripts/world/elder.gd")
 const MERCHANT := preload("res://scripts/world/merchant.gd")
 const MERCHANT_SHOP := Vector3(9.4, 0, 0.5)     # empório atrás do balcão da Mira (frente para -X)
@@ -73,7 +78,9 @@ const MOUNTAINS := [
 ]
 ## Raio de colisão do tronco por árvore (prop "cyl").
 const TREE_R := {"tree_oak": 0.4, "tree_pine": 0.35, "tree_fir": 0.32, "tree_birch": 0.25,
-		"tree_maple": 0.4, "tree_cherry": 0.38}
+		"tree_maple": 0.4, "tree_cherry": 0.38, "tree_apple": 0.3, "tree_orange": 0.3, "tree_pear": 0.3}
+const FRUIT_TREES := ["tree_apple", "tree_orange", "tree_pear"]
+const ORCHARD := Vector3(20, 0, 33)      # pomar a leste da Horta
 
 var player: Player
 var hud
@@ -337,6 +344,7 @@ func _build_village() -> void:
 	_shop("shop_smithy", smith.position, smith.rotation.y, [[Vector3(0, 0, -2.6), Vector3(4.0, 3.0, 0.5)],
 		[Vector3(-1.8, 0, -0.7), Vector3(0.4, 1.1, 3.4)]], [[Vector3(1.4, 0, -0.4), 0.5]], 2.8)
 	add_child(smith)
+	_build_signs()
 	var portal := PORTAL.new()
 	portal.position = PORTAL_POS
 	add_child(portal)
@@ -371,6 +379,48 @@ func _static_shape(xf: Transform3D, local: Vector3, shape: Shape3D) -> void:
 	add_child(body)
 
 
+## Pomar a leste da Horta: três fileiras de frutíferas (maçã, laranja, pera), cestos e caixotes.
+func _build_orchard() -> void:
+	_avoid.append([Vector2(ORCHARD.x, ORCHARD.z), 9.5])
+	_flat(ORCHARD + Vector3(0, 0.018, 0), Vector2(16, 15), Color(0.36, 0.42, 0.2), 0.6)
+	for row in 3:
+		for col in 3:
+			var p := ORCHARD + Vector3(-5.0 + col * 5.0 + rng.randf_range(-0.4, 0.4), 0, -5.0 + row * 5.0 + rng.randf_range(-0.4, 0.4))
+			tree(FRUIT_TREES[(row + col) % 3], p, rng.randf_range(0.95, 1.15))
+	prop("crate", ORCHARD + Vector3(-7.4, 0, 0.8), 0.3, 1.0, "box", Vector3(0.8, 0.8, 0.8))
+	prop("crate", ORCHARD + Vector3(-7.3, 0.8, 0.8), -0.2, 0.75)
+	prop("barrel", ORCHARD + Vector3(-7.5, 0, -0.4), 0.0, 1.0, "cyl", Vector3(0.38, 1.0, 0))
+
+
+## Poste de direção perto do portão sul e quadro de avisos ao norte da praça.
+func _build_signs() -> void:
+	var at := Vector3(-1.8, 0, 20.5)
+	add_child(SIGNPOST.make(at, [["Horta", FARM], ["Ruínas", RUINS], ["Goblins", CAMP], ["Horda", ARENA]]))
+	_static_shape(Transform3D(Basis(), at), Vector3(0, 1.3, 0), _cyl_shape(0.25, 2.6))
+	_no_grass.append([Vector2(at.x, at.z), 0.5])
+	var board_at := Vector3(5.0, 0, -10.6)
+	var yaw := atan2(-board_at.x, 4.0 - board_at.z)   # de frente para o centro da praça
+	var board := prop("notice_board", board_at, yaw, 1.0, "box", Vector3(2.7, 2.8, 0.3))
+	var notes := Label3D.new()
+	notes.text = "AVISOS\n\nGoblins vistos a leste da vila.\nCuidado na estrada!\n\nO pomar está carregado: maçãs, laranjas e peras!"
+	notes.font_size = 30
+	notes.pixel_size = 0.004
+	notes.outline_size = 0
+	notes.modulate = Color(0.2, 0.12, 0.05)
+	notes.width = 480
+	notes.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	notes.double_sided = false
+	notes.position = Vector3(0, 1.6, 0.05)
+	board.add_child(notes)
+
+
+func _cyl_shape(r: float, h: float) -> CylinderShape3D:
+	var c := CylinderShape3D.new()
+	c.radius = r
+	c.height = h
+	return c
+
+
 ## Crepitar de fogo em loop na boca da forja, só ouvido de perto (bus Ambience). Nada no servidor.
 func _forge_fire(pos: Vector3) -> void:
 	if DisplayServer.get_name() == "headless":
@@ -392,6 +442,7 @@ func _forge_fire(pos: Vector3) -> void:
 # ================================================================ horta da vila
 func _build_farm() -> void:
 	_avoid.append([Vector2(FARM.x, FARM.z), 15.0])
+	_build_orchard()
 	_avoid.append([Vector2(1, 24), 4.0])
 	_flat(Vector3(1, 0.021, 19.5), Vector2(3.2, 17), Color(0.45, 0.35, 0.22))       # trilha praça -> horta
 	_flat(FARM + Vector3(0, 0.019, 0.5), Vector2(20, 13.5), Color(0.4, 0.42, 0.22), 0.5)  # chão da horta
@@ -720,7 +771,7 @@ func _scatter_sparse() -> void:
 		var r := rng.randf()
 		if r < 0.75:
 			var kind := _pick({"tree_oak": 3.5, "tree_pine": 2.2, "tree_birch": 1.6, "tree_maple": 1.2,
-					"tree_cherry": 0.5, "tree_fir": 0.8})
+					"tree_cherry": 0.5, "tree_fir": 0.8, "tree_apple": 0.6, "tree_orange": 0.4, "tree_pear": 0.4})
 			tree(kind, p, rng.randf_range(0.8, 1.3))
 		else:
 			var s := rng.randf_range(0.6, 1.6)
