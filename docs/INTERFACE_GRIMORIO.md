@@ -1,6 +1,6 @@
 # Interface "grimório" — o que aprendemos e plano de migração
 
-Estado em 14/11/2026, branch `ui-teste`: a base (etapa 1) está pronta; as telas migram uma etapa por vez. O HUD de jogo fica como está.
+Estado em 14/11/2026: a base (etapa 1) e o menu do herói (etapa 2) estão prontos; as telas migram uma etapa por vez. O HUD de jogo fica como está.
 Todo o resto da interface (menus, inventário, lojas, ofícios, diálogos, telas da colônia e da Horda) migra
 para a aparência de um livro: páginas de pergaminho, texto a tinta, abas de marcador.
 
@@ -53,7 +53,22 @@ descartados: o primeiro fica "vetorial" demais, o segundo é caro para ornamento
    - Os ícones chegam um por vez (6 quadros cada); o espaço mostra o ícone pintado até lá.
 8. **`draw_texture_rect` dentro de `ItemSlot._draw` saiu branco** com a textura do espaço de aço; com
    `StyleBoxTexture` funcionou. Causa não investigada.
-9. **Blender:** metal precisa de mundo com degradê para refletir algo; papel precisa de um pouco de emissão
+9. **Não existe lugar livre dentro da página para o botão de fechar.** O conteúdo vai até a margem e a
+   vinheta ocupa o canto; o "✕" solto ficava colado nela e por cima de qualquer linha que chegasse ao canto.
+   Ele virou um marcador curto no fim da fila de abas, fora do papel: nenhuma página precisa desviar dele.
+10. **Cor clara do tema escuro some no papel.** Verde, azul e dourado claros (raridade, bônus, elemento)
+    viram a mesma ideia escurecida (`UITheme.on_paper()`); o comum, que é branco, vira tinta pura. Selo de
+    cor cheia com texto escuro destoa: o aviso de pontos a distribuir é um quadro de tinta vermelha.
+11. **Uma abertura = duas colunas que expandem** dentro de um `HBoxContainer` com `separation = SPINE`.
+    Elas só ficam iguais enquanto o mínimo de cada uma cabe em `page_room()`; rótulo comprido sem quebra
+    empurra a lombada. O smoke test mede as duas metades de cada aba.
+12. **Página refeita a cada mudança:** `queue_free()` sozinho deixa o conteúdo velho na página até o fim do
+    quadro (a página mede o dobro e o aviso de tamanho dispara). Tirar com `remove_child` antes.
+13. **A Garamond embutida não tem itálico nem ★ ◆ ✓ ✕:** os símbolos vêm da fonte do sistema (funciona,
+    mas "✔" vira emoji colorido; usar "✓") e o itálico da dica é a fonte normal inclinada (`FontVariation`).
+14. **Espaço de item sobre papel:** apagado (`dim`) desbota para a cor da página em vez de escurecer, e o
+    selo da tecla é tinta cheia.
+15. **Blender:** metal precisa de mundo com degradê para refletir algo; papel precisa de um pouco de emissão
    para não sair escuro; `use_nodes` está marcado para sair no Blender 6.
 
 ## O que existe
@@ -63,12 +78,13 @@ descartados: o primeiro fica "vetorial" demais, o segundo é caro para ornamento
 | Livro aberto e abas de marcador (PNG) | `assets/ui/book.png`, `tab_on.png`, `tab_off.png` |
 | Gerador das imagens | `tools/blender/ui_kit.py` |
 | Medidas do livro, regra "cabe na página", escala para janela pequena | `scripts/ui/book_layout.gd` |
-| Janela-livro: abas, fechar, rolagem, aviso de página grande demais | `scripts/ui/book_window.gd` |
+| Janela-livro: abas, marcador de fechar, rolagem, aviso de página grande demais | `scripts/ui/book_window.gd` |
 | Fontes embutidas: Cinzel (títulos, peso 600) e EB Garamond (texto), licença OFL | `assets/fonts`, `UITheme.serif()` e `UITheme.body()` |
-| Tema de papel, cores de tinta, `ink()`, `ink_section()`, `ink_bar()`, `ink_inset()` | `scripts/ui/ui_theme.gd` |
+| Tema de papel, cores de tinta, `ink()`, `ink_section()`, `ink_bar()`, `ink_inset()`, `on_paper()` | `scripts/ui/ui_theme.gd` |
 | Espaço de item sobre papel (`paper = true`) | `scripts/ui/item_slot.gd` |
 | Ícones 3D, guardados em `user://icons/<versão>` | `scripts/ui/item_icons.gd`, `scripts/ui/icon_cache.gd` |
-| Menu do herói (Inventário a tinta; Personagem e Missões ainda em painéis escuros) | `scripts/ui/game_menu.gd` |
+| Dica de item em folha de papel (`paper = true`; o padrão continua escuro para loja e HUD) | `scripts/ui/item_tooltip.gd` |
+| Menu do herói, as três abas a tinta (`_spread()` monta as duas páginas de uma aba) | `scripts/ui/game_menu.gd` |
 
 Para criar uma tela nova no livro:
 
@@ -91,7 +107,7 @@ Cada etapa é um PR, sai com as capturas das telas tocadas e com `/smoke-check` 
 |---|---|---|---|
 | 0 | Teste no inventário | `game_menu.gd` (aba Inventário) | feito |
 | 1 | **Base.** Refazer o teste como código de verdade: componente `BookWindow` (livro, margens, abas, fechar, aviso de tamanho), tema de papel completo (lista, abas, barra, deslizador, campo de texto), fonte embutida, remover as peças de aço | `ui_theme.gd`, `item_slot.gd`, `item_icons.gd`, novo `book_window.gd` | feito |
-| 2 | **Menu do herói inteiro no livro:** Inventário, Personagem e Missões a tinta; atalhos I/C/J de volta nas abas; dica de item em pergaminho | `game_menu.gd`, `item_tooltip.gd`, `skill_icon.gd` | a fazer |
+| 2 | **Menu do herói inteiro no livro:** Inventário, Personagem e Missões a tinta; atalhos I/C/J nas abas; dica de item em pergaminho; fechar como marcador | `game_menu.gd`, `item_tooltip.gd`, `book_window.gd` (`skill_icon.gd` é só da Horda e não precisou mudar) | feito |
 | 3 | **Ícones dos itens sem modelo:** poções, comida, anéis, amuletos, orbe, aljava, materiais, sementes | `icon_painter.gd`, `item_icons.gd` | a fazer |
 | 4 | **Comércio e ofícios:** loja, encantamento do ferreiro, cozinha, horta | `shop_ui.gd`, `enchant_ui.gd`, `cooking_ui.gd`, `plant_ui.gd` | a fazer |
 | 5 | **Conversa com NPC:** faixa de pergaminho embaixo, nome em placa, retrato 3D de quem fala, respostas a tinta | `dialogue_ui.gd` | a fazer |
@@ -133,4 +149,6 @@ $B = "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe"
 & $G --path . res://scenes/world.tscn -- --geardemo --ui=inv
 # captura (na primeira vez os ícones 3D levam uns 8 s; depois vêm do disco)
 & $G --path . res://scenes/world.tscn -- --geardemo --ui=inv --shot=shots/inv.png --delay=8
+# captura com a dica do item do espaço 12 da mochila aberta (presa ao lado do espaço)
+& $G --path . res://scenes/world.tscn -- --geardemo --ui=inv --tip=12 --shot=shots/tip.png --delay=5
 ```

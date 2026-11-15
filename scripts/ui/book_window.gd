@@ -20,6 +20,7 @@ var _contents: Array[Control] = []
 var _titles: Array[String] = []
 var _actions: Array[String] = []
 var _current := -1
+var _close_tab: Button
 
 
 func _init() -> void:
@@ -41,7 +42,7 @@ func _init() -> void:
 	_holder.add_child(book)
 	_tabs = HBoxContainer.new()
 	_tabs.add_theme_constant_override("separation", 4)
-	_tabs.position = Vector2(BookLayout.SIZE.x * 0.5 + 60, -16)
+	_tabs.position = Vector2(BookLayout.SIZE.x * 0.5 + 36, -16)
 	_holder.add_child(_tabs)
 	var margin := MarginContainer.new()
 	margin.position = Vector2(BookLayout.SIDE, BookLayout.TOP)
@@ -50,17 +51,22 @@ func _init() -> void:
 	_stack = PanelContainer.new()
 	_stack.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	margin.add_child(_stack)
-	var x := Button.new()
-	x.text = "✕"
-	x.tooltip_text = "Fechar (Esc)"
-	for st in ["normal", "hover", "pressed", "focus"]:
-		x.add_theme_stylebox_override(st, StyleBoxEmpty.new())
-	x.add_theme_font_size_override("font_size", 22)
-	x.add_theme_color_override("font_color", UITheme.INK_DIM)
-	x.add_theme_color_override("font_hover_color", UITheme.INK_RED)
-	x.pressed.connect(close)
-	x.position = Vector2(BookLayout.SIZE.x - 124, 50)   # dentro da página, longe da vinheta do canto
-	_holder.add_child(x)
+	# fechar: um marcador curto no fim da fila de abas, fora da página (não encosta na vinheta do canto
+	# nem em texto nenhum, e não depende do que cada página põe no canto)
+	_close_tab = Button.new()
+	_close_tab.text = "✕"
+	_close_tab.tooltip_text = "Fechar (Esc)"
+	_close_tab.custom_minimum_size = Vector2(46, 52)
+	_close_tab.add_theme_font_size_override("font_size", 20)
+	_close_tab.add_theme_stylebox_override("normal", _tab_box("tab_off", Color(0.9, 0.9, 0.9)))
+	_close_tab.add_theme_stylebox_override("hover", _tab_box("tab_off", Color(1.3, 1.2, 1.2)))
+	_close_tab.add_theme_stylebox_override("pressed", _tab_box("tab_off", Color(0.75, 0.75, 0.75)))
+	_close_tab.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	_close_tab.add_theme_color_override("font_color", Color(0.93, 0.84, 0.66))
+	_close_tab.add_theme_color_override("font_hover_color", Color(1, 0.96, 0.85))
+	_close_tab.add_theme_color_override("font_pressed_color", Color(1, 0.96, 0.85))
+	_close_tab.pressed.connect(close)
+	_tabs.add_child(_close_tab)
 	resized.connect(_layout)
 
 
@@ -98,16 +104,9 @@ func add_page(title: String, key: String, action: String, page: Control, on_pape
 	b.custom_minimum_size = Vector2(178, 52)
 	b.add_theme_font_override("font", UITheme.serif())
 	b.add_theme_font_size_override("font_size", 19)
-	var on := StyleBoxTexture.new()
-	on.texture = UITheme.tex("tab_on")
-	var off := StyleBoxTexture.new()
-	off.texture = UITheme.tex("tab_off")
-	off.modulate_color = Color(0.9, 0.9, 0.9)
-	var off_hover := StyleBoxTexture.new()
-	off_hover.texture = UITheme.tex("tab_off")
-	off_hover.modulate_color = Color(1.25, 1.2, 1.2)
-	b.add_theme_stylebox_override("normal", off)
-	b.add_theme_stylebox_override("hover", off_hover)
+	var on := _tab_box("tab_on", Color.WHITE)
+	b.add_theme_stylebox_override("normal", _tab_box("tab_off", Color(0.9, 0.9, 0.9)))
+	b.add_theme_stylebox_override("hover", _tab_box("tab_off", Color(1.25, 1.2, 1.2)))
 	b.add_theme_stylebox_override("pressed", on)
 	b.add_theme_stylebox_override("hover_pressed", on)
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
@@ -117,7 +116,18 @@ func add_page(title: String, key: String, action: String, page: Control, on_pape
 	b.add_theme_color_override("font_hover_pressed_color", UITheme.INK)
 	b.pressed.connect(show_page.bind(index))
 	_tabs.add_child(b)
+	_tabs.move_child(_close_tab, -1)   # o fechar fica sempre depois da última aba
 	_buttons.append(b)
+
+
+## Marcador de aba; as pontas arredondadas não esticam, então serve também para o marcador curto do fechar.
+func _tab_box(tex_name: String, tint: Color) -> StyleBoxTexture:
+	var sb := StyleBoxTexture.new()
+	sb.texture = UITheme.tex(tex_name)
+	sb.texture_margin_left = 18
+	sb.texture_margin_right = 18
+	sb.modulate_color = tint
+	return sb
 
 
 func show_page(index: int) -> void:

@@ -33,9 +33,29 @@ var hero_label: Label
 var class_label: Label
 var bag_count: Label
 
-# personagem e missões
-var char_page: HBoxContainer
-var quest_page: HBoxContainer
+# personagem
+const ATTR_ORDER := ["str", "int", "vit", "agi"]
+## nome, o que o atributo faz, cor da tinta
+const ATTR_INFO := {"str": ["Força", "Dano da espada, um pouco do arco", Color(0.6, 0.22, 0.06)],
+	"int": ["Inteligência", "Mana, magias e dano do cajado", Color(0.15, 0.24, 0.56)],
+	"vit": ["Vitalidade", "Vida, defesa e regeneração", Color(0.58, 0.1, 0.12)],
+	"agi": ["Agilidade", "Vigor, velocidade, crítico e dano do arco", Color(0.12, 0.4, 0.15)]}
+const INK_GOOD := Color(0.1, 0.4, 0.12)
+const INK_GOLD := Color(0.45, 0.27, 0.02)
+var char_left: VBoxContainer
+var char_right: VBoxContainer
+var attr_buttons := {}      # atributo -> botão "+"
+var attr_values := {}       # atributo -> rótulo do valor
+
+# missões
+## estado -> título do grupo no diário, marca, cor da tinta, texto do estado nos detalhes (na ordem do diário)
+const QUEST_STATES := {"ready": ["Prontas para entregar", "★", INK_GOOD, "Pronta para entregar"],
+	"active": ["Em andamento", "◆", UITheme.INK, "Em andamento"],
+	"done": ["Concluídas", "✓", UITheme.INK_DIM, "Concluída"]}
+var quest_left: VBoxContainer
+var quest_right: VBoxContainer
+var quest_buttons := {}     # id da missão -> botão no diário
+var quest_title: Label
 var quest_sel := ""
 
 
@@ -49,11 +69,11 @@ func _ready() -> void:
 	for i in builders.size():
 		var page: Control = builders[i].call()
 		pages.append(page)
-		# Personagem e Missões ainda usam painéis escuros (viram tinta na etapa 2 do plano)
-		book.add_page(TAB_NAMES[i], TAB_KEYS[i], TAB_ACTIONS[i], page, i == 0)
+		book.add_page(TAB_NAMES[i], TAB_KEYS[i], TAB_ACTIONS[i], page)
 	book.closed.connect(_close)
 	book.page_shown.connect(_on_page_shown)
 	tooltip = ItemTooltip.new()
+	tooltip.paper = true
 	add_child(tooltip)
 	for s in equip_slots.values():
 		s.tooltip = tooltip
@@ -84,7 +104,7 @@ func _on_page_shown(i: int) -> void:
 ## Livro aberto: página esquerda com o herói e o que ele veste; página direita com a mochila.
 func _build_inventory() -> Control:
 	var spread := HBoxContainer.new()
-	spread.add_theme_constant_override("separation", 84)   # a lombada
+	spread.add_theme_constant_override("separation", int(BookLayout.SPINE))   # a lombada
 
 	# ================= página esquerda
 	var lv := VBoxContainer.new()
@@ -129,7 +149,7 @@ func _build_inventory() -> Control:
 	stats_box.add_theme_constant_override("separation", 22)
 	stats_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	lv.add_child(stats_box)
-	gold_label = UITheme.ink("", 20, Color(0.45, 0.27, 0.02), true)
+	gold_label = UITheme.ink("", 20, INK_GOLD, true)
 	gold_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lv.add_child(gold_label)
 
@@ -359,83 +379,93 @@ func _refresh_selection() -> void:
 
 
 # ================================================================ personagem
+## Página esquerda: nome, experiência e atributos; página direita: estatísticas e habilidades.
 func _build_character() -> Control:
-	char_page = HBoxContainer.new()
-	char_page.add_theme_constant_override("separation", 14)
-	return char_page
+	var cols := _spread(8)
+	char_left = cols[1]
+	char_right = cols[2]
+	return cols[0]
 
 
 func _refresh_character() -> void:
-	for c in char_page.get_children():
-		c.queue_free()
-	# ---- atributos
-	var left := _inset()
-	left.custom_minimum_size.x = 560
-	char_page.add_child(left)
-	var lv := VBoxContainer.new()
-	lv.add_theme_constant_override("separation", 10)
-	left.add_child(lv)
-	var top := HBoxContainer.new()
-	top.add_child(UITheme.heading("%s — Nível %d" % [_hero_name(), Game.level], 26))
-	lv.add_child(top)
-	var xpb := UITheme.bar(UITheme.XP, 520, 14)
+	_clear(char_left)
+	_clear(char_right)
+	attr_buttons.clear()
+	attr_values.clear()
+	# ---- página esquerda: quem é o herói e os atributos
+	var lv := char_left
+	var title := UITheme.ink("%s · Nível %d" % [_hero_name(), Game.level], 30, UITheme.INK, true)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.clip_text = true
+	lv.add_child(title)
+	var xrow := HBoxContainer.new()
+	xrow.add_child(UITheme.ink("Experiência", 15, UITheme.INK_DIM))
+	xrow.add_child(UITheme.spacer())
+	xrow.add_child(UITheme.ink("%d / %d" % [Game.xp, Game.xp_to_next()], 15))
+	lv.add_child(xrow)
+	var xpb := UITheme.ink_bar(UITheme.XP, 0, 14)
 	xpb.max_value = Game.xp_to_next()
 	xpb.value = Game.xp
 	lv.add_child(xpb)
-	lv.add_child(UITheme.label("Experiência: %d / %d" % [Game.xp, Game.xp_to_next()], 15, UITheme.DIM))
-	var pts := UITheme.section("Atributos")
+	lv.add_child(_gap(6))
+	var pts := UITheme.ink_section("Atributos", 20)
 	if Game.stat_points > 0:
-		var chip := UITheme.label("  %d pontos para distribuir  " % Game.stat_points, 15, Color(0.1, 0.07, 0.02))
-		var chip_bg := PanelContainer.new()
-		chip_bg.add_theme_stylebox_override("panel", UITheme._box(Color(1, 0.8, 0.3), Color(1, 0.9, 0.5), 1, 10, 4, 1))
-		chip_bg.add_child(chip)
-		pts.add_child(chip_bg)
+		# aviso em quadro de tinta vermelha (texto a tinta, não um selo de cor cheia)
+		var chip := PanelContainer.new()
+		chip.add_theme_stylebox_override("panel", UITheme._box(Color(UITheme.INK_RED, 0.1), UITheme.INK_RED, 1, 10, 10, 1))
+		var n := Game.stat_points
+		chip.add_child(UITheme.ink("%d %s para distribuir" % [n, "ponto" if n == 1 else "pontos"], 15, UITheme.INK_RED))
+		pts.add_child(chip)
 	lv.add_child(pts)
-	var info := {"str": ["Força", "Dano da espada, um pouco do arco", Color(1, 0.55, 0.35)],
-		"int": ["Inteligência", "Mana, magias e dano do cajado", Color(0.55, 0.65, 1.0)],
-		"vit": ["Vitalidade", "Vida, defesa e regeneração", Color(1, 0.4, 0.4)],
-		"agi": ["Agilidade", "Vigor, velocidade, crítico e dano do arco", Color(0.5, 0.95, 0.55)]}
-	for a in ["str", "int", "vit", "agi"]:
+	for a in ATTR_ORDER:
+		var info: Array = ATTR_INFO[a]
 		var row := PanelContainer.new()
-		row.add_theme_stylebox_override("panel", UITheme._box(Color(0.12, 0.1, 0.08, 0.8), Color(0.28, 0.23, 0.16), 1, 4, 12, 6))
+		row.add_theme_stylebox_override("panel", UITheme.ink_inset(12))
 		lv.add_child(row)
 		var rh := HBoxContainer.new()
 		rh.add_theme_constant_override("separation", 12)
 		row.add_child(rh)
-		var bar := ColorRect.new()
-		bar.color = info[a][2]
-		bar.custom_minimum_size = Vector2(4, 0)
-		rh.add_child(bar)
+		var strip := ColorRect.new()
+		strip.color = info[2]
+		strip.custom_minimum_size = Vector2(4, 0)
+		rh.add_child(strip)
 		var names := VBoxContainer.new()
 		names.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		names.add_child(UITheme.heading(info[a][0], 19, info[a][2].lightened(0.2)))
-		names.add_child(UITheme.label(info[a][1], 14, UITheme.DIM))
+		names.add_theme_constant_override("separation", 0)
+		names.add_child(UITheme.ink(info[0], 19, info[2], true))
+		var desc := UITheme.ink(info[1], 14, UITheme.INK_DIM)
+		desc.clip_text = true
+		names.add_child(desc)
 		rh.add_child(names)
-		var val := UITheme.heading(str(Game.attr(a)), 28, UITheme.TEXT)
-		val.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		rh.add_child(val)
 		var bonus := int(Game.gear(a))
-		var bl := UITheme.label("(+%d itens)" % bonus if bonus > 0 else "", 14, UITheme.GOOD)
-		bl.custom_minimum_size.x = 80
+		var bl := UITheme.ink("+%d de itens" % bonus if bonus > 0 else "", 13, INK_GOOD)
 		bl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		rh.add_child(bl)
-		var b := UITheme.button("+", Game.spend_point.bind(a), 44)
+		var val := UITheme.ink(str(Game.attr(a)), 28, UITheme.INK, true)
+		val.custom_minimum_size.x = 44
+		val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		val.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		rh.add_child(val)
+		attr_values[a] = val
+		var b := UITheme.button("+", Game.spend_point.bind(a), 40)
+		b.custom_minimum_size.y = 36
+		b.tooltip_text = "Gastar 1 ponto em %s" % info[0]
 		b.disabled = Game.stat_points <= 0
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		rh.add_child(b)
+		attr_buttons[a] = b
+	var tip := UITheme.ink("Cada nível dá pontos para distribuir. O valor já soma o que os itens dão.", 13, UITheme.INK_DIM)
+	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lv.add_child(tip)
 
-	# ---- estatísticas e magias
-	var right := _inset()
-	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	char_page.add_child(right)
-	var rv := VBoxContainer.new()
-	rv.add_theme_constant_override("separation", 8)
-	right.add_child(rv)
-	rv.add_child(UITheme.section("Estatísticas"))
+	# ---- página direita: estatísticas e habilidades
+	var rv := char_right
+	rv.add_child(_gap(4))
+	rv.add_child(UITheme.ink_section("Estatísticas", 20))
 	var g := GridContainer.new()
 	g.columns = 4
-	g.add_theme_constant_override("h_separation", 18)
-	g.add_theme_constant_override("v_separation", 5)
+	g.add_theme_constant_override("h_separation", 12)
+	g.add_theme_constant_override("v_separation", 2)
 	rv.add_child(g)
 	var st := Game.stat_snapshot()
 	var red := 1.0 - 50.0 / (50.0 + Game.defense() * 4.0)
@@ -446,30 +476,44 @@ func _refresh_character() -> void:
 		["Velocidade", "%d%%" % int(round(st.speed * 100))], ["Recarga reduzida", "%d%%" % int(round(st.cdr * 100))],
 		["Roubo de vida", "%d%%" % int(round(st.leech * 100))], ["Inimigos derrotados", str(Game.kills)]]
 	for r in rows:
-		g.add_child(UITheme.label(r[0], 15, UITheme.DIM))
-		var vl := UITheme.label(r[1], 16)
-		vl.custom_minimum_size.x = 80
+		var nl := UITheme.ink(r[0], 15, UITheme.INK_DIM)
+		nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		g.add_child(nl)
+		var vl := UITheme.ink(r[1], 16)
+		vl.custom_minimum_size.x = 62
+		vl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		g.add_child(vl)
-	rv.add_child(UITheme.section("Habilidades"))
+	rv.add_child(_gap(6))
+	rv.add_child(UITheme.ink_section("Habilidades", 20))
 	for id in Game.ability_kit():
 		var sp: Dictionary = ItemDB.ABILITIES[id]
 		var known := Game.knows_ability(id)
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 12)
-		var s := ItemSlot.new(52)
+		var s := ItemSlot.new(50)
+		s.paper = true
 		s.icon_kind = sp.icon
 		s.key_text = str(sp.slot)
 		s.dim = not known
 		s.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		s.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		row.add_child(s)
 		var tv := VBoxContainer.new()
 		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		tv.add_child(UITheme.label("%s   ·   %s   ·   %s" % [sp.name, ("%d MP" % sp.cost) if sp.cost > 0 else "sem custo",
-			("ultimate (fúria)" if sp.ultimate else "recarga %.1fs" % (sp.cooldown * Game.cooldown_mult()))], 17,
-			UITheme.TEXT if known else UITheme.DIM))
-		var d := UITheme.label(sp.desc + ("" if known else "   (aprende no nível %d)" % sp.level), 14, UITheme.DIM)
+		tv.add_theme_constant_override("separation", 0)
+		var head := HBoxContainer.new()
+		head.add_theme_constant_override("separation", 10)
+		head.add_child(UITheme.ink(sp.name, 17, UITheme.INK if known else UITheme.INK_DIM, true))
+		head.add_child(UITheme.spacer())
+		var meta := "%s · %s" % [("%d MP" % sp.cost) if sp.cost > 0 else "sem custo",
+			"ultimate (fúria)" if sp.ultimate else "recarga %.1fs" % (sp.cooldown * Game.cooldown_mult())]
+		head.add_child(UITheme.ink(meta, 14, UITheme.INK_DIM))
+		tv.add_child(head)
+		var d := UITheme.ink(sp.desc, 14, UITheme.INK if known else UITheme.INK_DIM)
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		tv.add_child(d)
+		if not known:
+			tv.add_child(UITheme.ink("Aprende no nível %d" % sp.level, 13, UITheme.INK_RED))
 		row.add_child(tv)
 		rv.add_child(row)
 
@@ -480,35 +524,32 @@ func _hero_name() -> String:
 
 
 # ================================================================ missões
+## Página esquerda: o diário (lista por estado); página direita: os detalhes da missão escolhida.
 func _build_quests() -> Control:
-	quest_page = HBoxContainer.new()
-	quest_page.add_theme_constant_override("separation", 14)
-	return quest_page
+	var cols := _spread(8)
+	quest_left = cols[1]
+	quest_right = cols[2]
+	return cols[0]
 
 
 func _refresh_quests() -> void:
-	for c in quest_page.get_children():
-		c.queue_free()
-	var left := _inset()
-	left.custom_minimum_size.x = 380
-	quest_page.add_child(left)
-	var lv := VBoxContainer.new()
-	lv.add_theme_constant_override("separation", 6)
-	left.add_child(lv)
-	lv.add_child(UITheme.section("Diário"))
-	var right := _inset()
-	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	quest_page.add_child(right)
-	var rv := VBoxContainer.new()
-	rv.add_theme_constant_override("separation", 10)
-	right.add_child(rv)
+	_clear(quest_left)
+	_clear(quest_right)
+	quest_buttons.clear()
+	quest_title = null
+	var lv := quest_left
+	var rv := quest_right
+	lv.add_child(_gap(4))
+	lv.add_child(UITheme.ink_section("Diário", 20))
+	rv.add_child(_gap(4))
 	if Game.quests.is_empty():
-		lv.add_child(UITheme.label("Nenhuma missão ainda.", 16, UITheme.DIM))
-		var l := UITheme.label("Fale com o Ancião Bram na vila para receber sua primeira missão.", 17, UITheme.DIM)
+		lv.add_child(UITheme.ink("Nenhuma missão ainda.", 16, UITheme.INK_DIM))
+		var l := UITheme.ink("Fale com o Ancião Bram na vila para receber sua primeira missão.", 17, UITheme.INK_DIM)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		rv.add_child(l)
 		return
 	if quest_sel == "" or not Game.quests.has(quest_sel):
+		quest_sel = ""
 		for id in Game.quests:   # a primeira não concluída
 			if Game.quests[id].state != "done":
 				quest_sel = id
@@ -516,52 +557,69 @@ func _refresh_quests() -> void:
 		if quest_sel == "":
 			quest_sel = Game.quests.keys()[0]
 	var group := ButtonGroup.new()
-	for state in ["ready", "active", "done"]:
+	for state in QUEST_STATES:
+		var info: Array = QUEST_STATES[state]
+		var first := true
 		for id in Game.quests:
 			if Game.quests[id].state != state:
 				continue
-			var d: Dictionary = ItemDB.QUESTS[id]
+			if first:
+				first = false
+				lv.add_child(UITheme.ink(info[0], 13, info[2]))
 			var b := Button.new()
 			b.toggle_mode = true
 			b.button_group = group
 			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			b.text = ("✔ " if state == "done" else ("★ " if state == "ready" else "◆ ")) + d.name
+			b.text = "%s  %s" % [info[1], ItemDB.QUESTS[id].name]
+			b.clip_text = true
 			b.button_pressed = id == quest_sel
-			b.custom_minimum_size.y = 42
-			if state == "done":
-				b.add_theme_color_override("font_color", UITheme.DIM)
-			elif state == "ready":
-				b.add_theme_color_override("font_color", UITheme.GOOD)
+			b.custom_minimum_size.y = 38
+			b.add_theme_font_size_override("font_size", 19)
+			b.add_theme_color_override("font_color", info[2])
+			b.add_theme_color_override("font_hover_color", info[2])
 			b.pressed.connect(_select_quest.bind(id))
 			lv.add_child(b)
+			quest_buttons[id] = b
 	# detalhes
 	var q: Dictionary = Game.quests[quest_sel]
 	var d: Dictionary = ItemDB.QUESTS[quest_sel]
-	rv.add_child(UITheme.heading(d.name, 28))
-	var st: String = {"active": "Em andamento", "ready": "Pronta para entregar", "done": "Concluída"}[q.state]
-	var sc: Color = {"active": UITheme.GOLD, "ready": UITheme.GOOD, "done": UITheme.DIM}[q.state]
-	rv.add_child(UITheme.label("%s   ·   dada por %s" % [st, d.giver], 16, sc))
+	var sinfo: Array = QUEST_STATES[q.state]
+	quest_title = UITheme.ink(d.name, 28, UITheme.INK, true)
+	quest_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rv.add_child(quest_title)
+	rv.add_child(UITheme.ink("%s · dada por %s" % [sinfo[3], d.giver], 15, sinfo[2]))
 	rv.add_child(HSeparator.new())
-	var desc := UITheme.label(d.desc, 18)
+	var desc := UITheme.ink(d.desc, 17)
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	rv.add_child(desc)
-	rv.add_child(UITheme.section("Objetivo", 18))
-	var pb := UITheme.bar(UITheme.XP, 500, 16)
+	rv.add_child(_gap(4))
+	rv.add_child(UITheme.ink_section("Objetivo", 18))
+	var done: int = mini(q.progress, d.count)
+	var pb := UITheme.ink_bar(UITheme.XP, 0, 16)
 	pb.max_value = d.count
-	pb.value = mini(q.progress, d.count)
+	pb.value = d.count if q.state == "done" else done
 	rv.add_child(pb)
-	rv.add_child(UITheme.label("%d / %d" % [mini(q.progress, d.count), d.count] + ("   —   volte para %s" % d.giver if q.state == "ready" else ""), 16))
-	rv.add_child(UITheme.section("Recompensas", 18))
+	var prog := "%d / %d" % [d.count if q.state == "done" else done, d.count]
+	if q.state == "ready":
+		prog += " — volte para %s" % d.giver
+	rv.add_child(UITheme.ink(prog, 16))
+	rv.add_child(_gap(4))
+	rv.add_child(UITheme.ink_section("Recompensas", 18))
 	var rw := HBoxContainer.new()
 	rw.add_theme_constant_override("separation", 12)
-	rw.add_child(UITheme.label("◆ %d ouro     ✦ %d XP" % [d.reward_gold, d.reward_xp], 18, Color(1, 0.85, 0.4)))
+	var coins := UITheme.ink("%d de ouro  ·  %d de XP" % [d.reward_gold, d.reward_xp], 17, INK_GOLD)
+	coins.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	rw.add_child(coins)
 	for item in d.reward_items:
 		var s := ItemSlot.new(56)
+		s.paper = true
 		s.set_state(item, d.reward_items[item])
 		s.context = "reward"
 		s.tooltip = tooltip
 		rw.add_child(s)
 	rv.add_child(rw)
+	if q.state == "done":
+		rv.add_child(UITheme.ink("Recompensas já recebidas.", 14, UITheme.INK_DIM))
 
 
 func _select_quest(id: String) -> void:
@@ -570,10 +628,33 @@ func _select_quest(id: String) -> void:
 
 
 # ================================================================ geral
-func _inset() -> PanelContainer:
-	var p := PanelContainer.new()
-	p.add_theme_stylebox_override("panel", UITheme.inset_box(14))
-	return p
+## Uma abertura do livro: duas páginas lado a lado com a lombada livre no meio.
+## Devolve [abertura, página esquerda, página direita].
+func _spread(separation: int) -> Array:
+	var spread := HBoxContainer.new()
+	spread.add_theme_constant_override("separation", int(BookLayout.SPINE))
+	var out: Array = [spread]
+	for i in 2:
+		var v := VBoxContainer.new()
+		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		v.add_theme_constant_override("separation", separation)
+		spread.add_child(v)
+		out.append(v)
+	return out
+
+
+func _gap(h: float) -> Control:
+	var c := Control.new()
+	c.custom_minimum_size.y = h
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return c
+
+
+## Tira os filhos na hora (queue_free sozinho deixaria o conteúdo velho na página até o fim do quadro).
+func _clear(box: Control) -> void:
+	for c in box.get_children():
+		box.remove_child(c)
+		c.queue_free()
 
 
 func _refresh() -> void:
