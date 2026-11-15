@@ -379,7 +379,7 @@ def _rose_blade_col(x, z, d):
     return mix(E, base, smooth01((dp - 1.0) / 4.5))       # gume escuro largo, como o contorno pintado
 
 
-def _ribbon(line, w0, w1):
+def _w_ribbon(line, w0, w1):
     """Contorno de uma fita ao longo de uma polilinha 2D, largura w0 -> w1 (afina nas pontas)."""
     P = [Vector(p) for p in line]
     for _ in range(2):                                    # Chaikin: tira os cantos da polilinha
@@ -411,7 +411,7 @@ def build_w_rose_flame():
     vm = vc_mat("w_rose_vc", 0.5, 0.0, 0.25)
     slab("Blade", [_px(*p) for p in ROSE_BLADE], vm, th=0.012, bevel=0.016, color=_rose_blade_col, step=0.022)
     # faixa ciano: fita própria, um pouco mais grossa que a lâmina (aflora dos dois lados, borda limpa)
-    slab("Swirl", _ribbon([_px(*p) for p in ROSE_SWIRL], 4.4 * ROSE_S, 3.0 * ROSE_S), vm, th=0.0118,
+    slab("Swirl", _w_ribbon([_px(*p) for p in ROSE_SWIRL], 4.4 * ROSE_S, 3.0 * ROSE_S), vm, th=0.0118,
          bevel=0.0012, step=0.012, ridge=0.0,
          color=lambda x, z, d: mix(srgb("#1c6f9c"), srgb("#86d4f4"), smooth01(d / ROSE_S / 1.6)))
     slab("WingL", [_px(*p) for p in ((62, 319), (50, 325), (31, 331), (47, 337), (39, 348), (56, 342), (62, 338))],
