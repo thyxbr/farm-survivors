@@ -34,5 +34,63 @@
 		"reward_items": {
 			"royal_plate": 1
 		}
+	},
+	"natal_presentes": {
+		"name": "Presentes Espalhados",
+		"giver": "Papai Noel",
+		"event": "natal",
+		"type": "collect",
+		"desc": "Uma rena se assustou e os presentes caíram do trenó por todo o vale. Encontre os 8 presentes e traga de volta.",
+		"count": 8,
+		"reward_xp": 220,
+		"reward_gold": 150,
+		"reward_items": {
+			"health_potion": 3,
+			"seed_pumpkin": 3
+		}
+	},
+	"natal_ladroes": {
+		"name": "Ladrões de Natal",
+		"giver": "Papai Noel",
+		"event": "natal",
+		"type": "kill",
+		"desc": "Goblins andam roubando as meias penduradas nas janelas. Derrote 6 goblins de qualquer tipo.",
+		"target": "goblin*",
+		"count": 6,
+		"reward_xp": 320,
+		"reward_gold": 200,
+		"reward_items": {
+			"wind_ring": 1
+		}
+	},
+	"natal_ceia": {
+		"name": "A Ceia do Noel",
+		"giver": "Papai Noel",
+		"event": "natal",
+		"type": "deliver",
+		"desc": "O Noel quer uma ceia caseira antes da grande viagem: leve 1 Torta de Abóbora e 2 Pães Rústicos (cozinhe no Caldeirão da Horta).",
+		"deliver": {
+			"pumpkin_pie": 1,
+			"bread": 2
+		},
+		"count": 1,
+		"reward_xp": 260,
+		"reward_gold": 160,
+		"reward_items": {
+			"valdoria_feast": 2
+		}
+	},
+	"natal_entregas": {
+		"name": "Entregas na Vila",
+		"giver": "Papai Noel",
+		"event": "natal",
+		"type": "visit",
+		"desc": "Ajude o Noel a deixar presentes nas 6 casas marcadas com uma estrela pelas ruas de Valdoria.",
+		"count": 6,
+		"reward_xp": 260,
+		"reward_gold": 180,
+		"reward_items": {
+			"sage_amulet": 1
+		}
 	}
 }

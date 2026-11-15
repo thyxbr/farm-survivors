@@ -18,7 +18,6 @@ const GRACE := 2.0         # imunidade depois que a tela abre
 
 const NAMES := {
 	"res://scenes/world.tscn": "Viajando para Valdoria…",
-	"res://scenes/hub.tscn": "Chegando à praça…",
 	"res://scenes/colony.tscn": "Preparando a Defesa da Cidade…",
 	"res://scenes/main_menu.tscn": "Voltando ao menu…",
 }

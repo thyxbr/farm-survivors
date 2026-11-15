@@ -790,6 +790,186 @@ def build_shop_merchant():
     _vexport(bag, "MerchantShop", "shop_merchant")
 
 
+# ================================================================ CASA D: cabana de toras com alpendre
+v_log = mat("v_log", (0.30, 0.17, 0.08), 0.9)
+v_log_lt = mat("v_log_light", (0.40, 0.24, 0.11), 0.9)
+v_shingle = mat("v_shingle", (0.22, 0.13, 0.07), 0.9)
+v_shingle_dk = mat("v_shingle_dark", (0.14, 0.08, 0.04), 0.9)
+v_plaster_rose = mat("v_plaster_rose", (0.80, 0.55, 0.47), 0.95)
+v_plaster_cream = mat("v_plaster_cream", (0.88, 0.84, 0.72), 0.95)
+v_yellow = mat("v_shutter_yellow", (0.62, 0.45, 0.08), 0.85)
+
+
+def build_house_d():
+    rnd = random.Random(101)
+    bag = Bag()
+    a = bag.add
+    b = Body(0, 0, 2.5, 2.0)
+    Z0, ZT = 0.35, 2.55
+    th = math.radians(36)
+    a(bx("Foundation", (0, 0, 0.17), (2 * b.hw + 0.3, 2 * b.hd + 0.3, 0.34), b_stone_dk, bev=0.05))
+    a(bx("LogCore", (0, 0, (Z0 + ZT) / 2), (2 * b.hw - 0.12, 2 * b.hd - 0.12, ZT - Z0), v_log_lt, bev=0.0))
+    # toras deitadas, cruzando nos cantos (as das fachadas X ficam meio diâmetro acima)
+    r = 0.13
+    z, k = Z0 + r, 0
+    while z < ZT:
+        for sy in (-1, 1):
+            a(beam(bag.nm("Log"), (-b.hw - 0.28, sy * b.hd, z), (b.hw + 0.28, sy * b.hd, z), r + rnd.uniform(-0.01, 0.01),
+                   v_log if k % 2 else v_log_lt, seg=7, end_mat=p_wood_end))
+        for sx in (-1, 1):
+            zz = z + r
+            if zz < ZT:
+                a(beam(bag.nm("Log"), (sx * b.hw, -b.hd - 0.28, zz), (sx * b.hw, b.hd + 0.28, zz), r + rnd.uniform(-0.01, 0.01),
+                       v_log_lt if k % 2 else v_log, seg=7, end_mat=p_wood_end))
+        z += 2 * r
+        k += 1
+    tn = math.tan(th)
+    for sx in (-1, 1):   # empenas de tábuas verticais
+        g, gi = b.hw * sx + sx * 0.05, (b.hw - 0.15) * sx
+        a(hull(bag.nm("Gable"), [(g, -b.hd, ZT), (g, b.hd, ZT), (g, 0, ZT + b.hd * tn),
+                                 (gi, -b.hd, ZT), (gi, b.hd, ZT), (gi, 0, ZT + b.hd * tn)], p_wood))
+        for u in (-1.2, -0.6, 0.0, 0.6, 1.2):
+            h = (b.hd - abs(u)) * tn
+            if h > 0.15:
+                a(bx(bag.nm("GableBoard"), (g + sx * 0.02, u, ZT + h / 2), (0.04, 0.06, h - 0.05), p_wood_dk, bev=0.0))
+        window(bag, (g + sx * 0.03, 0, ZT + 0.45), 0.4, 0.4, "+x" if sx > 0 else "-x", frame=p_wood_dk)
+    fb = Body(0, 0, 2.5, 2.0 + 0.12)   # fachadas por fora das toras
+    sb = Body(0, 0, 2.5 + 0.12, 2.0)
+    door(bag, -0.7, -fb.hd, Z0, 0.95, 1.8)
+    for s in (-1, 1):
+        a(bx(bag.nm("Jamb"), (-0.7 + s * 0.55, -fb.hd - 0.02, Z0 + 0.95), (0.14, 0.12, 1.9), p_wood_dk, bev=0.01))
+    window_on(bag, fb, "-y", 1.2, 1.45, 0.85, 0.7, shutters=v_red, flowers=v_flower_y, rnd=rnd, frame=p_wood_dk)
+    for s in (-1, 1):
+        window_on(bag, fb, "+y", s * 1.2, 1.45, 0.6, 0.6, shutters=v_red, frame=p_wood_dk)
+    window_on(bag, sb, "+x", -0.6, 1.45, 0.6, 0.6, shutters=v_red, frame=p_wood_dk)
+    # alpendre: assoalho, dois esteios e telhado em balanço sobre a frente
+    py = -b.hd - 0.85
+    plank_floor(bag, 0, py, 0.3, 2 * b.hw, 1.5, rnd=rnd)
+    for x in (-b.hw + 0.15, b.hw - 0.15):
+        a(bx(bag.nm("PorchPost"), (x, py - 0.6, 1.4), (0.16, 0.16, 2.2), v_log, bev=0.02))
+        a(beam(bag.nm("PorchBrace"), (x, py - 0.6, 2.05), (x, py - 0.1, 2.45), 0.04, v_log, seg=5))
+        a(bx(bag.nm("Rail"), (x, py, 0.85), (0.08, 1.2, 0.08), v_log_lt, bev=0.01))
+    a(bx("PorchBeam", (0, py - 0.6, 2.5), (2 * b.hw + 0.2, 0.18, 0.16), v_log, bev=0.02))
+    a(bx("PorchRoof", (0, py - 0.25, 2.68), (2 * b.hw + 0.5, 1.9, 0.08), v_shingle, rot=(-0.2, 0, 0), bev=0.015))
+    a(bx("BenchSeat", (1.25, py + 0.35, 0.75), (1.2, 0.34, 0.07), p_wood_lt, bev=0.015))
+    for s in (-1, 1):
+        a(bx(bag.nm("BenchLeg"), (1.25 + s * 0.5, py + 0.35, 0.53), (0.08, 0.28, 0.42), p_wood_dk, bev=0.01))
+    top = gable_roof(bag, 0, 0, b.hw + 0.05, b.hd, ZT, th, v_shingle, v_shingle_dk, rows=6, over_x=0.45, over_y=0.5,
+                     trim=v_log)
+    chimney(bag, rnd, -b.hw - 0.5, 0.6, 0.0, top + 0.5, w=0.7)
+    woodpile(bag, rnd, b.hw + 0.55, 0.9, length=1.4)
+    lantern(bag, 0.05, -fb.hd, 2.05)
+    _vexport(bag, "HouseD", "house_d")
+
+
+# ================================================================ CASA E: casarão comprido (taverna)
+def build_house_e():
+    rnd = random.Random(131)
+    bag = Bag()
+    a = bag.add
+    b = Body(0, 0, 3.6, 2.2)
+    up = Body(0, 0, 3.7, 2.35)
+    Z0, Z1, ZT = 0.3, 2.0, 3.9
+    th = math.radians(40)
+    a(bx("Foundation", (0, 0, 0.15), (2 * b.hw + 0.34, 2 * b.hd + 0.34, 0.3), b_stone_dk, bev=0.05))
+    stone_band(bag, rnd, b, Z0, Z1, depth=0.36, out=0.0, skip=[("-y", -0.8, 0.8)])
+    a(bx("GroundCore", (0, 0, (Z0 + Z1) / 2), (2 * b.hw - 0.3, 2 * b.hd - 0.3, Z1 - Z0), v_plaster_dk, bev=0.0))
+    a(bx("Floor2", (0, 0, Z1 + 0.08), (2 * up.hw + 0.12, 2 * up.hd + 0.12, 0.16), v_timber, bev=0.02))
+    a(bx("Upper", (0, 0, (Z1 + ZT) / 2 + 0.08), (2 * up.hw, 2 * up.hd, ZT - Z1 - 0.16), v_plaster_cream, bev=0.0))
+    corner_posts(bag, up, Z1 + 0.16, ZT, w=0.22)
+    zr = Z1 + 0.9
+    for face in ("-y", "+y"):
+        half_timber(bag, up, face, Z1 + 0.16, ZT, posts=(-3.0, -1.9, -0.55, 0.55, 1.9, 3.0), rails=[(zr - 0.35, -3.7, 3.7)],
+                    braces=[(-3.7, zr - 0.3, -3.05, ZT - 0.2), (3.7, zr - 0.3, 3.05, ZT - 0.2)])
+    for face in ("-x", "+x"):
+        half_timber(bag, up, face, Z1 + 0.16, ZT, posts=(-0.8, 0.8), rails=[(zr - 0.35, -2.35, 2.35)])
+    # porta dupla em arco, janelas largas no térreo
+    door(bag, 0, -b.hd, Z0, 1.3, 1.6, double=True, studs=True, arch_mat=b_stone_lt)
+    step_stones(bag, rnd, 0, -b.hd - 0.02, n=2, w=1.8)
+    for s in (-1, 1):
+        for u in (1.6, 2.8):
+            window_on(bag, b, "-y", s * u, 1.15, 0.7, 0.7, frame=b_stone_dk)
+        window_on(bag, b, "+y", s * 2.0, 1.15, 0.6, 0.6, bars=True, frame=b_stone_dk)
+    for s, fl in ((-1, v_flower_r), (1, v_flower_v)):
+        for u in (1.25, 2.5):
+            window_on(bag, up, "-y", s * u, zr + 0.15, 0.6, 0.75, shutters=v_green, flowers=fl, rnd=rnd)
+            window_on(bag, up, "+y", s * u, zr + 0.15, 0.55, 0.7, shutters=v_green)
+    for face in ("-x", "+x"):
+        window_on(bag, up, face, 0, zr + 0.15, 0.6, 0.75, shutters=v_green)
+        window_on(bag, b, face, 0, 1.15, 0.6, 0.6, bars=True, frame=b_stone_dk)
+    # placa pendurada com caneca (taverna), dois lampiões
+    x0, y0 = 1.25, -up.hd
+    a(bx("SignArm", (x0, y0 - 0.45, 2.85), (0.07, 0.9, 0.07), p_iron, bev=0.01))
+    a(beam("SignBrace", (x0, y0 - 0.02, 2.45), (x0, y0 - 0.6, 2.84), 0.025, p_iron, seg=4))
+    a(bx("SignBoard", (x0, y0 - 0.65, 2.45), (0.06, 0.62, 0.48), p_wood_lt, bev=0.02))
+    a(bx("SignFrame", (x0, y0 - 0.65, 2.45), (0.05, 0.68, 0.54), p_wood_dk, bev=0.01))
+    for sx in (-1, 1):
+        a(lathe(bag.nm("Mug"), [(0.09, 2.3), (0.1, 2.5)], b_cloth_y, seg=8, loc=(x0 + sx * 0.05, y0 - 0.65, 0)))
+        a(bx(bag.nm("Foam"), (x0 + sx * 0.05, y0 - 0.65, 2.52), (0.08, 0.2, 0.05), v_flower_w, bev=0.02))
+    lantern(bag, -0.95, -b.hd, 1.75)
+    lantern(bag, 0.95, -b.hd, 1.75)
+    top = gable_roof(bag, 0, 0, up.hw, up.hd, ZT, th, v_teal, v_teal_dk, rows=7, over_x=0.35, over_y=0.35,
+                     gable=v_plaster_cream, trim=v_timber)
+    tn = math.tan(th)
+    for x in (-1.9, 1.9):   # duas águas-furtadas
+        dz0 = ZT + 0.3
+        yf, yb = -up.hd + 0.05, -up.hd + (dz0 + 0.95 - ZT) / tn
+        a(bx(bag.nm("DormerBody"), (x, (yf + yb) / 2, dz0 + 0.4), (1.1, yb - yf, 0.9), v_plaster_cream, bev=0.0))
+        window(bag, (x, yf, dz0 + 0.38), 0.45, 0.5, "-y", frame=v_timber)
+        for s in (-1, 1):
+            a(bx(bag.nm("DormerRoof"), (x + s * 0.32, (yf + yb) / 2 - 0.1, dz0 + 1.05),
+                 (0.85, yb - yf + 0.35, 0.08), v_teal_dk, rot=(0, s * 0.7, 0), bev=0.015))
+    chimney(bag, rnd, -2.6, 1.0, ZT - 0.3, top + 0.6, w=0.62)
+    chimney(bag, rnd, 2.6, 1.0, ZT - 0.3, top + 0.4, w=0.55)
+    barrel(bag, b.hw + 0.4, -1.4, top=p_wood_lt)
+    barrel(bag, b.hw + 0.45, -0.65)
+    crate(bag, -b.hw - 0.45, -1.3, 0.0, 0.6, 0.2)
+    _vexport(bag, "HouseE", "house_e")
+
+
+# ================================================================ CASA F: sobradinho estreito de três andares
+def build_house_f():
+    rnd = random.Random(151)
+    bag = Bag()
+    a = bag.add
+    b = Body(0, 0, 1.8, 1.8)
+    Z0, Z1, Z2, ZT = 0.3, 1.9, 3.4, 4.8
+    th = math.radians(52)
+    a(bx("Foundation", (0, 0, 0.15), (2 * b.hw + 0.3, 2 * b.hd + 0.3, 0.3), b_stone_dk, bev=0.05))
+    stone_band(bag, rnd, b, Z0, Z1, depth=0.32, out=0.0, skip=[("-y", -0.5, 0.5)])
+    a(bx("GroundCore", (0, 0, (Z0 + Z1) / 2), (2 * b.hw - 0.3, 2 * b.hd - 0.3, Z1 - Z0), v_plaster_dk, bev=0.0))
+    a(bx("Walls", (0, 0, (Z1 + ZT) / 2), (2 * b.hw, 2 * b.hd, ZT - Z1), v_plaster_rose, bev=0.0))
+    corner_posts(bag, b, Z1, ZT, w=0.2)
+    for face in ("-y", "+y", "-x", "+x"):
+        half_timber(bag, b, face, Z1, Z2, posts=(-0.65, 0.65))
+        b.at(bag, face, 0, 0.04, Z2, 2 * b.hw + 0.2, 0.16, 0.16, v_timber, name="Floor3")
+    door(bag, 0, -b.hd, Z0, 0.9, 1.45, arch_mat=b_stone_lt)
+    step_stones(bag, rnd, 0, -b.hd - 0.02, n=1, w=1.1)
+    for face in ("+y", "-x", "+x"):
+        window_on(bag, b, face, 0, 1.1, 0.5, 0.55, bars=True, frame=b_stone_dk)
+    for face in ("-y", "+y", "-x", "+x"):
+        window_on(bag, b, face, 0, (Z1 + Z2) / 2 + 0.1, 0.6, 0.75, shutters=v_yellow)
+        window_on(bag, b, face, 0, (Z2 + ZT) / 2 + 0.05, 0.55, 0.7, shutters=v_yellow,
+                  flowers=v_flower_r if face == "-y" else None, rnd=rnd)
+    # sacadinha de madeira no segundo andar, na frente
+    by = -b.hd - 0.45
+    a(bx("BalconyFloor", (0, by, Z1 + 0.1), (1.5, 0.9, 0.1), p_wood, bev=0.015))
+    for x in (-0.7, 0.7):
+        a(beam(bag.nm("BalconyBrace"), (x, -b.hd, Z1 - 0.45), (x, by - 0.3, Z1 + 0.05), 0.04, v_timber, seg=4))
+    a(bx("BalconyRail", (0, by - 0.42, Z1 + 0.85), (1.5, 0.07, 0.07), p_wood_dk, bev=0.01))
+    for k in range(7):
+        a(bx(bag.nm("Baluster"), (-0.66 + k * 0.22, by - 0.42, Z1 + 0.5), (0.05, 0.05, 0.7), p_wood_lt, bev=0.005))
+    for x in (-0.72, 0.72):
+        a(bx(bag.nm("BalconySide"), (x, by, Z1 + 0.85), (0.07, 0.9, 0.07), p_wood_dk, bev=0.01))
+    a(lathe("Pot", [(0.1, Z1 + 0.15), (0.14, Z1 + 0.38)], p_roof, seg=8, loc=(0.5, by - 0.15, 0), cap_top=False))
+    a(part("PotPlant", "ico", (0.5, by - 0.15, Z1 + 0.5), (0.3, 0.3, 0.26), v_leaf, sub=1))
+    top = gable_roof(bag, 0, 0, b.hw, b.hd, ZT, th, v_slate, v_slate_dk, rows=6, over_x=0.3, over_y=0.35,
+                     gable=v_plaster_rose, trim=v_timber)
+    chimney(bag, rnd, 0.9, 0.9, ZT - 0.3, top + 0.5, w=0.5)
+    lantern(bag, 0.7, -b.hd, 1.45)
+    _vexport(bag, "HouseF", "house_f")
+
+
 def _vexport(bag, name, fname):
     join(bag.items, name)
     export(fname)
@@ -797,5 +977,6 @@ def _vexport(bag, name, fname):
 
 VILLAGE_BUILDERS = {
     "house": build_house_a, "house_b": build_house_b, "house_c": build_house_c,
+    "house_d": build_house_d, "house_e": build_house_e, "house_f": build_house_f,
     "shop_smithy": build_shop_smithy, "shop_alchemist": build_shop_alchemist, "shop_merchant": build_shop_merchant,
 }

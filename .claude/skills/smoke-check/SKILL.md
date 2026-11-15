@@ -1,6 +1,6 @@
 ---
 name: smoke-check
-description: "Roda localmente os mesmos testes que o CI do Ecos de Valdoria roda antes do deploy (import, unitários, simulação da economia da cidade, smoke test de gameplay, Defesa da Cidade, praça, multiplayer da Horda e da cidade em grupo) e entrega um veredito PASSOU/FALHOU/NÃO RODOU por teste. Use antes de abrir PR, antes de merge no main, depois de mexer em gameplay ou rede, ou quando pedirem 'roda os testes'."
+description: "Roda localmente os mesmos testes que o CI do Ecos de Valdoria roda antes do deploy (import, unitários, simulação da economia da cidade, smoke test de gameplay, Defesa da Cidade, vila, multiplayer da Horda e da cidade em grupo) e entrega um veredito PASSOU/FALHOU/NÃO RODOU por teste. Use antes de abrir PR, antes de merge no main, depois de mexer em gameplay ou rede, ou quando pedirem 'roda os testes'."
 argument-hint: "[tudo | rapido | unit | gameplay | cidade | praca | rede]"
 license: MIT
 metadata:
@@ -47,7 +47,7 @@ grep -A1 "SCRIPT ERROR" "$TEMP/import.log"   # qualquer saída aqui = FALHOU
 
 Escopo pelo argumento (padrão `tudo`): `rapido` = import + unitários + economia + gameplay;
 `unit` = import + unitários; `gameplay` = import + gameplay; `cidade` = import + economia + cidade + cidade em grupo;
-`praca` = import + praça; `rede` = import + os dois testes de multiplayer.
+`vila` = import + vila; `rede` = import + os dois testes de multiplayer.
 
 Rode cada um com saída em arquivo no `$TEMP` e pegue o código de saída.
 Os testes imprimem `PASS  ...` / `FAIL  ...` e saem com 0 (ok) ou 1 (falhas).
@@ -88,16 +88,17 @@ timeout 600 "$G" --headless --path . res://scenes/world.tscn -- --smoketest > "$
 timeout 600 "$G" --headless --path . res://scenes/colony.tscn -- --colonytest > "$TEMP/colony.log" 2>&1; echo "exit=$?"
 ```
 
-**2b. Praça** (`tests/hub_test.gd`, solo, banco próprio apagado a cada vez): os 9 pontos, Ecos do fim de
-partida, passiva e doação, placa da Forja, cada painel abre e fecha, emotes e portal → Horda → praça.
+**2b. Vila** (`tests/vila_test.gd`, solo, banco próprio apagado a cada vez): casas variadas, os 6 pontos da
+antiga praça, Ecos do fim de partida, passiva e doação, placa da Forja, cada painel abre e fecha, Papai Noel e os
+quatro eventos de Natal, réplica com emotes, Horda pelo portal da vila e a tela de carregamento.
 
 ```bash
-timeout 300 "$G" --headless --path . res://scenes/hub.tscn -- --hubtest > "$TEMP/hub.log" 2>&1; echo "exit=$?"
+timeout 300 "$G" --headless --path . res://scenes/world.tscn -- --vilatest > "$TEMP/vila.log" 2>&1; echo "exit=$?"
 ```
 
-**3. Multiplayer da Horda** (servidor + 2 clientes, `tests/net_test.gd`). Todos os modos começam na praça
-(réplica com o nome, emote, Ecos de teste, passiva, doação à Forja); Beto (`--horde=join`) volta à praça e entra
-na Horda pelo portal de lá. Rode em
+**3. Multiplayer da Horda** (servidor + 2 clientes, `tests/net_test.gd`). Todos os modos começam na vila
+(réplica com o nome, emote, Ecos de teste, passiva, doação à Forja); Beto (`--horde=join`) aceita o convite da
+Horda na vila. Rode em
 segundo plano ou com tempo de sobra; espere o servidor dizer `ouvindo em UDP`.
 O servidor precisa de **banco novo** (`--db=` num arquivo apagado antes), da **API HTTP** numa porta livre
 (`--http-port=`) e de `--test` (ouro e Ecos de teste do net_test). Os clientes criam conta e fazem login
@@ -114,7 +115,7 @@ wait $A; RA=$?; wait $B; RB=$?; kill $S
 grep -hE "PASS|FAIL|NETTEST" "$TEMP/ana.log" "$TEMP/beto.log"; echo "exit=$(( RA | RB ))"
 ```
 
-**4. Cidade em grupo** (praça + servidor + 2 clientes): igual ao 3, com outras portas (UDP e HTTP) e outro
+**4. Cidade em grupo** (vila + servidor + 2 clientes): igual ao 3, com outras portas (UDP e HTTP) e outro
 banco novo, servidor com `--city-day=12 --city-event=caravan` (além de `--http-port`, `--db`, `--test`; o evento
 forçado é o da troca com a caravana no dia 2) e clientes com
 `--auth-url=...` e `--city=lead` / `--city=join` (nomes Caio e Duda, logs `city_server.log`, `caio.log`, `duda.log`).
@@ -150,7 +151,7 @@ de `server.log`), não FALHOU.
 | Economia da cidade | PASSOU | OK — 0 falha(s) |
 | Gameplay (--smoketest) | PASSOU | 74 PASS, 0 FAIL |
 | Defesa da Cidade (--colonytest) | FALHOU | FAIL  torre de canhão acerta em área |
-| Praça (--hubtest) | PASSOU | 55 PASS, 0 FAIL |
+| Vila (--vilatest) | PASSOU | 84 PASS, 0 FAIL |
 | Multiplayer Horda | NÃO RODOU | porta ocupada |
 | Cidade em grupo | PASSOU | |
 

@@ -492,7 +492,7 @@ func _refresh_quests() -> void:
 			UITheme.GOOD if q.state == "ready" else UITheme.GOLD, 4)
 		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		quest_box.add_child(title)
-		var txt := "Volte para %s" % d.giver if q.state == "ready" else "%s: %d/%d" % [_target_name(d.target), q.progress, d.count]
+		var txt := "Volte para %s" % d.giver if q.state == "ready" else _quest_line(d, q)
 		var l := UITheme.outlined(txt, 13, UITheme.TEXT, 3)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		quest_box.add_child(l)
@@ -509,7 +509,24 @@ func _refresh_quests() -> void:
 
 
 func _target_name(t: String) -> String:
-	return {"slime": "Slimes derrotados", "goblin": "Goblins derrotados", "goblin_king": "Rei Goblin derrotado"}.get(t, t)
+	return {"slime": "Slimes derrotados", "goblin": "Goblins derrotados", "goblin*": "Goblins derrotados",
+		"goblin_king": "Rei Goblin derrotado"}.get(t, t)
+
+
+## Linha de progresso de uma missão ativa, pelo tipo (abate, coletar, visitar ou entregar).
+func _quest_line(d: Dictionary, q: Dictionary) -> String:
+	match str(d.get("type", "kill")):
+		"collect":
+			return "Presentes encontrados: %d/%d" % [q.progress, d.count]
+		"visit":
+			return "Casas visitadas: %d/%d" % [q.progress, d.count]
+		"deliver":
+			var parts: Array[String] = []
+			for item in d.get("deliver", {}):
+				parts.append("%s %d/%d" % [ItemDB.ITEMS[item].name, mini(Game.count_item(item), int(d.deliver[item])),
+					int(d.deliver[item])])
+			return "Leve a %s: %s" % [d.giver, ", ".join(parts)]
+	return "%s: %d/%d" % [_target_name(str(d.get("target", ""))), q.progress, d.count]
 
 
 func _on_notify(text: String, color: Color) -> void:

@@ -235,7 +235,7 @@ static func kill(s: CharState, bt: BalanceTables, kind: String, xp: int) -> Dict
 		if not qt.has(id):
 			continue
 		var q: Dictionary = qt[id]
-		if s.quests[id].state == "active" and q.target == kind:
+		if s.quests[id].state == "active" and quest_targets(q, kind):
 			s.quests[id].progress += 1
 			changed = true
 			if s.quests[id].progress >= int(q.count):
@@ -415,29 +415,87 @@ static func quest_state(s: CharState, id: String) -> String:
 	return s.quests[id].state if s.quests.has(id) else "none"
 
 
-## Cadeia de missões = ordem das chaves em quests.json.
+## O abate de `kind` conta para a missão q? "target" igual ao tipo, ou "prefixo*" (ex.: "goblin*" = qualquer
+## goblin). Missões sem "target" (coletar, visitar, entregar) não contam abates.
+static func quest_targets(q: Dictionary, kind: String) -> bool:
+	var t := str(q.get("target", ""))
+	if t == "":
+		return false
+	if t.ends_with("*"):
+		return kind.begins_with(t.trim_suffix("*"))
+	return t == kind
+
+
+## Cadeia de missões = ordem das chaves em quests.json, só entre as missões sem "event". As de evento (o Natal
+## do Papai Noel) ficam fora da cadeia: qualquer uma pode ser aceita a qualquer momento, em qualquer ordem.
 static func start_quest(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	var qt := bt.get_table("quests")
 	if not qt.has(id):
 		return _fail("missao_invalida")
 	if quest_state(s, id) != "none":
 		return _fail("missao_indisponivel")
-	var order: Array = qt.keys()
-	var i := order.find(id)
-	if i > 0 and quest_state(s, order[i - 1]) != "done":
-		return _fail("missao_indisponivel")
+	if not qt[id].has("event"):
+		var order: Array = qt.keys().filter(func(k) -> bool: return not qt[k].has("event"))
+		var i := order.find(id)
+		if i > 0 and quest_state(s, order[i - 1]) != "done":
+			return _fail("missao_indisponivel")
 	s.quests[id] = {"state": "active", "progress": 0}
+	if str(qt[id].get("type", "")) in ["collect", "visit"]:
+		s.quests[id]["got"] = []
 	return _ok([_notify("Nova missão: %s" % qt[id].name, C_QUEST), {"t": "quest"}])
+
+
+## Missão de coletar/visitar (presentes espalhados, casas da entrega): o ponto `index` (0..count-1) foi feito.
+## Cada ponto conta uma vez só ("got" guarda os feitos); ao completar, a missão fica pronta para entregar.
+static func quest_mark(s: CharState, bt: BalanceTables, id: String, index: int) -> Dictionary:
+	var qt := bt.get_table("quests")
+	if not qt.has(id) or not (str(qt[id].get("type", "")) in ["collect", "visit"]):
+		return _fail("missao_invalida")
+	var q: Dictionary = qt[id]
+	if quest_state(s, id) != "active":
+		return _fail("missao_nao_ativa")
+	if index < 0 or index >= int(q.count):
+		return _fail("valor_invalido")
+	var got: Array = s.quests[id].get("got", [])
+	if index in got:
+		return _fail("ja_feito")
+	got.append(index)
+	s.quests[id]["got"] = got
+	s.quests[id].progress = got.size()
+	var ev: Array = []
+	if got.size() >= int(q.count):
+		s.quests[id].state = "ready"
+		ev.append(_notify("%s: volte para %s" % [q.name, q.giver], C_QUEST))
+	else:
+		ev.append(_notify("%s %d/%d" % [q.name, got.size(), int(q.count)], Color(1.0, 0.9, 0.6)))
+	ev.append({"t": "quest"})
+	return _ok(ev)
+
+
+## Missão de entregar ("deliver": {item: qtd}) pode ser concluída agora? (tem tudo na mochila)
+static func can_deliver(s: CharState, q: Dictionary) -> bool:
+	var need: Dictionary = q.get("deliver", {})
+	for item in need:
+		if count_item(s, item) < int(need[item]):
+			return false
+	return true
 
 
 static func complete_quest(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	var qt := bt.get_table("quests")
 	if not qt.has(id):
 		return _fail("missao_invalida")
-	if quest_state(s, id) != "ready":
-		return _fail("missao_nao_pronta")
 	var q: Dictionary = qt[id]
 	var ev: Array = []
+	if q.has("deliver"):
+		# entrega: vale com a missão ativa e os itens na mochila; os itens saem na hora
+		if quest_state(s, id) != "active" or not can_deliver(s, q):
+			return _fail("missao_nao_pronta", [_notify("Faltam itens para a entrega.", Color(1, 0.6, 0.5))])
+		for item in q.deliver:
+			remove_item(s, item, int(q.deliver[item]))
+		s.quests[id].progress = int(q.count)
+	elif quest_state(s, id) != "ready":
+		return _fail("missao_nao_pronta")
 	s.quests[id].state = "done"
 	ev.append(_notify("Missão concluída: %s" % q.name, C_QUEST))
 	s.gold += int(q.reward_gold)

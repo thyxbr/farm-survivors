@@ -207,6 +207,7 @@ import os
 _only = [a for a in os.environ.get("ASSETS", "").split(",") if a]
 BUILDERS = {
     "knight": build_knight, "goblin": build_goblin, "slime": build_slime, "elder": build_elder,
+    "santa": lambda: build_elder(santa=True),
     "merchant": build_merchant, "body_base": build_body_base,
     "blacksmith": build_blacksmith,
     "skeleton": build_skeleton,

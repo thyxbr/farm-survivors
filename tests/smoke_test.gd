@@ -93,13 +93,15 @@ func _ready() -> void:
 		w2.sort()
 		gear_ok = gear_ok and got == w2
 	check(gear_ok, "cada monstro só carrega o equipamento da sua variante")
-	check(get_tree().get_nodes_in_group("interactable").size() == 4 + Game.FARM_PLOTS + 1,
-		"3 NPCs + portal + %d canteiros + caldeirão interagíveis" % Game.FARM_PLOTS)
+	# os eventos de Natal (presentes e portas) só entram no grupo com a missão do Noel ativa
+	check(get_tree().get_nodes_in_group("interactable").size() == 5 + VillageLayout.POINTS.size() + Game.FARM_PLOTS + 1,
+		"4 NPCs (com o Papai Noel) + portal + %d pontos da antiga praça + %d canteiros + caldeirão interagíveis" % [
+			VillageLayout.POINTS.size(), Game.FARM_PLOTS])
 
 	# --- diálogo e missão
 	var elder: Node = null
 	for n in get_tree().get_nodes_in_group("interactable"):
-		if n.npc_id == "elder":
+		if n.get("npc_id") == "elder":
 			elder = n
 	player.global_position = elder.global_position + Vector3(0, 0.2, 1.5)
 	await wait(0.3)
@@ -1871,7 +1873,7 @@ func _test_enchant_effects() -> void:
 # ---------------------------------------------------------------- Horta, caldeirão e comida
 func _interactable(id: String, index := -1) -> Node:
 	for n in get_tree().get_nodes_in_group("interactable"):
-		if n.npc_id == id and (index < 0 or n.get("index") == index):
+		if n.get("npc_id") == id and (index < 0 or n.get("index") == index):
 			return n
 	return null
 
@@ -1973,7 +1975,7 @@ func _test_farm() -> void:
 func _test_survival() -> void:
 	var portal: Node = null
 	for n in get_tree().get_nodes_in_group("interactable"):
-		if n.npc_id == "portal":
+		if n.get("npc_id") == "portal":
 			portal = n
 	check(portal != null, "portal do desafio na vila")
 	player.global_position = portal.global_position + Vector3(0, 0.3, 1.5)

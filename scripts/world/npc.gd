@@ -5,11 +5,13 @@ const MODELS := {
 	"elder": preload("res://assets/models/elder.glb"),
 	"merchant": preload("res://assets/models/merchant.glb"),
 	"blacksmith": preload("res://assets/models/blacksmith.glb"),
+	"santa": preload("res://assets/models/santa.glb"),
 }
 const NAMES := {
 	"elder": "Ancião Bram",
 	"merchant": "Mira, a Mercadora",
 	"blacksmith": "Doran, o Ferreiro",
+	"santa": "Papai Noel",
 }
 
 @export var npc_id := "elder"

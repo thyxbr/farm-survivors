@@ -26,12 +26,18 @@ const HOUSE_ROOFS := {
 	"house": [2.88, 2.5, 2.62, 5.0],
 	"house_b": [2.9, 2.4, 2.25, 5.0],
 	"house_c": [2.95, 2.48, 3.48, 5.95],
+	"house_d": [3.0, 2.5, 2.16, 4.1],
+	"house_e": [4.05, 2.7, 3.58, 5.97],
+	"house_f": [2.1, 2.15, 4.32, 7.2],
 }
 ## Porta de cada casa: [x, altura do centro da guirlanda, z da face da porta].
 const HOUSE_DOORS := {
 	"house": [0.0, 1.9, 2.1],
 	"house_b": [0.6, 1.75, 2.1],
 	"house_c": [0.0, 1.45, 2.1],
+	"house_d": [-0.7, 1.8, 2.25],
+	"house_e": [0.0, 1.55, 2.3],
+	"house_f": [0.0, 1.4, 1.9],
 }
 
 static var _bulb_mat: ShaderMaterial = null
@@ -475,3 +481,48 @@ static func _collider(parent: Node3D, pos: Vector3, r: float, h: float) -> void:
 	cs.position.y = h * 0.5
 	body.add_child(cs)
 	parent.add_child(body)
+
+
+# ================================================================ trenó do Papai Noel
+## Trenó vermelho de patins dourados com o saco de presentes, de frente para +Z (gire com `yaw`).
+static func sleigh(parent: Node3D, pos: Vector3, yaw := 0.0) -> Node3D:
+	var sl := Node3D.new()
+	sl.name = "Sleigh"
+	sl.position = pos
+	sl.rotation.y = yaw
+	parent.add_child(sl)
+	var red := mat(Color(0.7, 0.06, 0.06))
+	var red_dk := mat(Color(0.45, 0.03, 0.04))
+	var gold := mat(GOLD, 0.7)
+	# caixa: fundo, laterais, encosto alto atrás e a frente curvada (três gomos)
+	_piece(sl, _box(Vector3(1.4, 0.12, 2.2)), red_dk, Vector3(0, 0.55, 0))
+	for sx in [-1.0, 1.0]:
+		_piece(sl, _box(Vector3(0.1, 0.55, 2.0)), red, Vector3(sx * 0.7, 0.85, -0.1))
+		_piece(sl, _box(Vector3(0.14, 0.06, 2.05)), gold, Vector3(sx * 0.7, 1.14, -0.1), Vector3.ZERO, false)
+	_piece(sl, _box(Vector3(1.5, 1.05, 0.12)), red, Vector3(0, 1.1, -1.05))
+	_piece(sl, _box(Vector3(1.56, 0.08, 0.16)), gold, Vector3(0, 1.64, -1.05), Vector3.ZERO, false)
+	for i in 3:
+		var a := 0.35 + i * 0.4
+		_piece(sl, _box(Vector3(1.4, 0.1, 0.45)), red, Vector3(0, 0.62 + sin(a) * 0.45, 1.0 + cos(a) * 0.3),
+			Vector3(-a, 0, 0))
+	_piece(sl, _box(Vector3(1.2, 0.18, 0.6)), mat(Color(0.18, 0.3, 0.2)), Vector3(0, 0.7, -0.6))   # banco
+	# patins curvos na frente
+	for sx in [-1.0, 1.0]:
+		var pts := PackedVector3Array()
+		for i in 9:
+			pts.append(Vector3(sx * 0.6, 0.06, -1.2 + i * 0.3))
+		for i in range(1, 8):
+			var a := PI * i / 7.0
+			pts.append(Vector3(sx * 0.6, 0.06 + 0.32 * (1.0 - cos(a)) * 0.5 + sin(a) * 0.12, 1.2 + sin(a) * 0.3))
+		_piece(sl, tube(pts, 0.045, 6), gold, Vector3.ZERO, Vector3.ZERO, false)
+		for z in [-0.8, 0.0, 0.8]:
+			_piece(sl, _box(Vector3(0.06, 0.5, 0.06)), gold, Vector3(sx * 0.6, 0.3, z), Vector3.ZERO, false)
+	# saco de presentes e uns embrulhos saindo
+	var sack := _piece(sl, _sphere(0.5, 10, 7), mat(Color(0.55, 0.38, 0.22)), Vector3(0.1, 1.05, -0.45))
+	sack.scale = Vector3(1.0, 1.15, 0.9)
+	_piece(sl, _cone(0.12, 0.2, 0.22, 8), mat(Color(0.55, 0.38, 0.22)), Vector3(0.1, 1.68, -0.45))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1224
+	gifts(sl, Vector3(-0.35, 0.61, 0.35), 3, rng, 0.0, 0.3)
+	_collider(parent, pos, 1.1, 1.6)
+	return sl

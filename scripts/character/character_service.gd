@@ -8,7 +8,7 @@ extends RefCounted
 ## Operações que o cliente pode pedir. Conceder ouro/xp/itens e abates é só do servidor/solo.
 const CLIENT_OPS := ["buy", "sell", "equip", "unequip", "consume", "cook", "spend_point", "start_quest",
 	"complete_quest", "sort_inventory", "unlock_plot", "plant", "water", "fertilize", "harvest", "discard",
-	"death_penalty", "buy_passive", "donate", "enchant"]
+	"death_penalty", "buy_passive", "donate", "enchant", "quest_mark"]
 
 ## Assinatura posicional de cada op: tipos aceitos (TYPE_*) e quantos são opcionais no fim.
 ## `now` e o gerador de sorteio nunca vêm do cliente.
@@ -22,6 +22,7 @@ const ARGS := {
 	"spend_point": {"types": [TYPE_STRING], "optional": 0},
 	"start_quest": {"types": [TYPE_STRING], "optional": 0},
 	"complete_quest": {"types": [TYPE_STRING], "optional": 0},
+	"quest_mark": {"types": [TYPE_STRING, TYPE_INT], "optional": 0},
 	"sort_inventory": {"types": [], "optional": 0},
 	"unlock_plot": {"types": [], "optional": 0},
 	"plant": {"types": [TYPE_INT, TYPE_STRING, TYPE_BOOL], "optional": 0},
@@ -365,6 +366,7 @@ func _dispatch(s: CharState, op: String, a: Array) -> Dictionary:
 		"spend_point": return CharRules.spend_point(s, _bt, a[0])
 		"start_quest": return CharRules.start_quest(s, _bt, a[0])
 		"complete_quest": return CharRules.complete_quest(s, _bt, a[0])
+		"quest_mark": return CharRules.quest_mark(s, _bt, a[0], a[1])
 		"sort_inventory": return CharRules.sort_inventory(s, _bt)
 		"unlock_plot": return CharRules.unlock_plot(s, _bt)
 		"plant": return CharRules.plant(s, _bt, a[0], a[1], a[2], _now())
