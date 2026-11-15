@@ -22,21 +22,9 @@ var dmg_mult := 1.0
 var speed_mult := 1.0
 ## Desafio da Horda: versão de elite (maior, dourada, mais vida e dano; o servidor manda junto no spawn).
 var elite := false
-## Defesa da Cidade em grupo: elite (chave de ColonyData.AFFIXES) com resistências por tipo de dano.
-var affix := ""
-## Multiplayer (servidor): "world" (Valdoria) ou "city" (Defesa da Cidade em grupo).
-var net_zone := "world"
 ## Goblin Dourado que fugiu: some sem contar como abate.
 var escaped := false
 var born_t := 0.0
-## Defesa da Cidade: marcha até a prefeitura e ataca construções, soldados e o jogador no caminho.
-var siege := false
-## Defesa da Cidade: guarda de covil (ColonyDen.id). Atraído para além de DEN_LEASH do centro, volta ao covil.
-var den_id := -1
-var den_center := Vector3.ZERO
-var _siege_target = null     # Player, ColonySoldier ou ColonyBuilding
-var _retarget := 0.0
-var _lock_t := 0.0
 
 var data: Dictionary
 var display_name := ""
@@ -148,13 +136,8 @@ func _ready() -> void:
 	wander_target = home
 	state_timer = randf_range(1.0, 3.0)
 	model.rotation.y = randf() * TAU
-	if horde or siege:
+	if horde:
 		state = "chase"
-	if siege:
-		collision_mask |= 64   # soldados seguram a passagem
-		_retarget = randf() * 0.3
-	if affix != "":
-		set_affix(affix)
 	if Network.is_server():
 		Network.server_register_enemy(self)
 
@@ -268,9 +251,6 @@ func _physics_process(delta: float) -> void:
 	stagger = max(0.0, stagger - delta)
 	provoked = maxf(0.0, provoked - delta)
 	_update_flash(delta)
-	if siege:
-		_siege_process(delta)
-		return
 
 	var player := _nearest_player()
 	var to_player := Vector3.ZERO
@@ -318,7 +298,7 @@ func _physics_process(delta: float) -> void:
 					_begin_attack()
 				elif dist > data.reach * 0.8:
 					move = to_player.normalized() * spd
-			elif global_position.distance_to(home) > 45.0 or _off_leash(global_position) \
+			elif global_position.distance_to(home) > 45.0 \
 					or (dist > data.aggro * 1.9 and provoked <= 0.0):
 				_set_state("return")
 			elif dist <= data.reach and attack_cd <= 0:
@@ -330,7 +310,7 @@ func _physics_process(delta: float) -> void:
 		"return":
 			var to := home - global_position
 			to.y = 0
-			if dist < data.aggro * 0.7 and not _off_leash(player.global_position):
+			if dist < data.aggro * 0.7:
 				_set_state("chase")
 			elif to.length() < 1.0:
 				hp = max_hp
@@ -360,11 +340,6 @@ func _physics_process(delta: float) -> void:
 	if bar_root and bar_root.visible:
 		bar_fg.scale.x = max(0.001, hp / max_hp)
 		bar_fg.position.x = 0.0
-
-
-## Guarda de covil: o ponto p está longe demais do centro do covil?
-func _off_leash(p: Vector3) -> bool:
-	return den_id >= 0 and Vector2(p.x - den_center.x, p.z - den_center.z).length() > ColonyData.DEN_LEASH
 
 
 ## Jogador vivo mais próximo (no multiplayer, o servidor tem réplicas de todos).
@@ -488,13 +463,8 @@ func _hit_time() -> float:
 	return 0.5 if not is_boss else 0.6
 
 
-## player: o alvo do ataque (Player no RPG; no cerco também soldado ou construção).
+## player: o alvo do ataque.
 func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> void:
-	var mult := 1.0
-	if player != null and player.is_in_group("buildings"):
-		mult = float(data.get("bld", 1.0))
-		if affix != "":
-			mult *= float(ColonyData.AFFIXES[affix].get("bld", 1.0))
 	attack_timer += delta
 	if not hit_done and attack_timer >= _hit_time():
 		hit_done = true
@@ -511,13 +481,13 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 			FX.ring(global_position, Color(0.8, 0.6, 0.3, 0.9), sr, 0.4)
 			FX.burst(global_position + Vector3.UP * 0.3, Color(0.5, 0.4, 0.3), 40, 7.0, 0.2, 0.8)
 			if player and dist <= sr:
-				player.take_damage(data.damage * dmg_mult * 1.4 * mult, global_position)
+				player.take_damage(data.damage * dmg_mult * 1.4, global_position)
 			if player is Player:
 				player.add_shake(0.4)
 		elif player and dist <= data.reach * 1.3 + 0.3:
 			var facing_ok := model_forward().dot(to_player.normalized()) > 0.2 or dist < 1.0
 			if facing_ok:
-				player.take_damage(data.damage * dmg_mult * randf_range(0.9, 1.1) * mult, global_position)
+				player.take_damage(data.damage * dmg_mult * randf_range(0.9, 1.1), global_position)
 				if data.has("chill") and player.has_method("apply_chill"):
 					player.apply_chill(float(data.chill))
 		if attack_kind == "swing":
@@ -660,50 +630,7 @@ func apply_slow(t: float) -> void:
 	if puppet:
 		Network.client_hit_enemy(net_id, 0.0, global_position, false, t)
 		return
-	if affix != "" and ColonyData.AFFIXES[affix].get("no_slow", false):
-		return
 	slow_timer = max(slow_timer, t)
-
-
-## Fração do dano que passa para este tipo ("arrow", "ball", "bolt", "melee"). Elites resistem a alguns.
-func resist_mult(dmg_kind: String) -> float:
-	if affix == "":
-		return 1.0
-	return 1.0 - float(ColonyData.AFFIXES[affix].resist.get(dmg_kind, 0.0))
-
-
-## Visual do elite (cor, tamanho e nome). Chamado no _ready e nas réplicas quando o servidor avisa.
-func set_affix(a: String) -> void:
-	if not ColonyData.AFFIXES.has(a) or model == null:
-		return
-	affix = a
-	var d: Dictionary = ColonyData.AFFIXES[a]
-	display_name = "%s %s" % [data.name, d.name]
-	model.scale = Vector3.ONE * data.scale * float(d.get("scale", 1.12))
-	if bar_root:
-		bar_root.position.y = data.height * data.scale * float(d.get("scale", 1.12)) + 0.45
-	var glow := OmniLight3D.new()
-	glow.light_color = d.color
-	glow.light_energy = 1.2
-	glow.omni_range = 3.0
-	glow.position.y = data.height * 0.6
-	add_child(glow)
-	var tag := Label3D.new()
-	tag.text = d.name
-	tag.font_size = 34
-	tag.outline_size = 8
-	tag.pixel_size = 0.006
-	tag.modulate = d.color
-	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	tag.no_depth_test = true
-	tag.position.y = data.height * data.scale * float(d.get("scale", 1.12)) + 0.75
-	add_child(tag)
-	var tint := StandardMaterial3D.new()
-	tint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	tint.albedo_color = Color(d.color.r, d.color.g, d.color.b, 0.28)
-	tint.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_overlay_base = tint
-	_set_overlay(tint)
 
 
 func _update_flash(delta: float) -> void:
@@ -729,18 +656,6 @@ func _die() -> void:
 	if Network.is_server():
 		# XP, missões e loot de cada jogador que acertou: o servidor concede (CharacterService + pickups)
 		Network.server_enemy_killed(self)
-	elif siege or (get_parent() != null and get_parent().has_method("add_siege_xp")):
-		# cidade solo (cerco e monstros errantes): o ouro do saque vai para o caixa da cidade e o XP do abate
-		# fica na partida, concedido ao personagem no amanhecer junto com a recompensa da noite (sem abate,
-		# missão nem chefe no personagem: o Rei Goblin da cidade não é o de Valdoria). Sem itens no chão,
-		# como em grupo.
-		Game.kill_lifesteal()
-		var loot := LootRules.roll(Balance.tables, kind, _loot_rng())
-		var c := get_parent()
-		if c != null and c.has_method("add_siege_xp"):
-			c.add_siege_xp(int(data.xp * 0.6))
-			if int(loot.gold) > 0:
-				c.earn(int(loot.gold))
 	elif not horde:
 		# solo: XP, missão e o chefe derrotado (king_dead) ficam com as regras (Econ.kill)
 		Game.on_enemy_killed(kind, data.xp)
@@ -793,113 +708,6 @@ static func _loot_rng() -> RandomNumberGenerator:
 		_rng = RandomNumberGenerator.new()
 		_rng.randomize()
 	return _rng
-
-
-# ------------------------------------------------------------ cerco (Defesa da Cidade)
-func _siege_process(delta: float) -> void:
-	_retarget -= delta
-	_lock_t = maxf(0.0, _lock_t - delta)
-	if not _target_alive(_siege_target):
-		_siege_target = null
-	if (_retarget <= 0.0 and state != "attack" and _lock_t <= 0.0) or (_siege_target == null and state != "attack"):
-		_retarget = 0.4
-		_siege_target = _pick_siege_target()
-	var t = _siege_target
-	var to := Vector3.ZERO
-	var dist := INF
-	if t != null:
-		var aim: Vector3 = t.closest_point(global_position) if t.has_method("closest_point") else t.global_position
-		to = aim - global_position
-		to.y = 0.0
-		dist = to.length()
-		if not t.has_method("closest_point"):
-			dist -= float(t.radius) if t.get("radius") != null else 0.35
-	var spd: float = data.speed * speed_mult * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0)
-	var move := Vector3.ZERO
-	var face := Vector3.ZERO
-	if state == "attack":
-		_update_attack(delta, t, to, dist)
-		if attack_kind == "lunge" and attack_timer > 0.35 and attack_timer < 0.6:
-			move = model_forward() * spd * 3.2
-		elif dist < INF and attack_timer < 0.35:
-			face = to
-	else:
-		state = "chase"
-		if t != null:
-			if dist <= data.reach and attack_cd <= 0:
-				_begin_attack()
-			elif dist > data.reach * 0.8:
-				move = to.normalized() * spd
-			face = to
-	if stagger > 0:
-		move = Vector3.ZERO
-	if face == Vector3.ZERO and move.length() > 0.1:
-		face = move
-	if face.length() > 0.01:
-		model.rotation.y = lerp_angle(model.rotation.y, atan2(face.x, face.z), 8.0 * delta)
-	velocity.x = move_toward(velocity.x, move.x, 30.0 * delta)
-	velocity.z = move_toward(velocity.z, move.z, 30.0 * delta)
-	move_and_slide()
-	# esbarrou num muro/construção (ou num soldado) no caminho: derruba antes de seguir
-	if state != "attack":
-		for i in get_slide_collision_count():
-			var c = get_slide_collision(i).get_collider()
-			if c == null or c == t:
-				continue
-			if c.is_in_group("buildings") and not c.dead:
-				_siege_target = c
-				_lock_t = 2.0
-				break
-			if c.is_in_group("soldiers") and not c.dead and not (t is Player):
-				_siege_target = c
-				_lock_t = 1.0
-				break
-	_animate(delta, Vector2(velocity.x, velocity.z).length())
-	if bar_root and bar_root.visible:
-		bar_fg.scale.x = max(0.001, hp / max_hp)
-
-
-func _target_alive(t) -> bool:
-	return t != null and is_instance_valid(t) and t.is_inside_tree() and not t.dead
-
-
-## Prioridade: jogador/soldado por perto > construção a poucos passos > prefeitura > qualquer construção.
-func _pick_siege_target():
-	var best = null
-	var best_d := INF
-	var aggro: float = data.aggro
-	var w := get_world_3d()
-	for u in get_tree().get_nodes_in_group("colony_units"):
-		if u.dead or u.get_world_3d() != w:
-			continue
-		var d := global_position.distance_to(u.global_position)
-		if d < aggro and d < best_d:
-			best = u
-			best_d = d
-	if best != null:
-		return best
-	var goal = null
-	var any = null
-	var any_d := INF
-	for b in get_tree().get_nodes_in_group("buildings"):
-		if b.dead or not b.targetable:
-			continue
-		var d: float = b.distance_to_point(global_position)
-		if b.is_core:
-			goal = b
-		if d < 7.0 and d < best_d:
-			best = b
-			best_d = d
-		if d < any_d:
-			any = b
-			any_d = d
-	if best != null:
-		return best
-	if goal != null:
-		return goal
-	if any != null:
-		return any
-	return _nearest_player()
 
 
 # ------------------------------------------------------------ réplica (cliente)

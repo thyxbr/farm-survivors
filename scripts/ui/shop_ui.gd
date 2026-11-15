@@ -13,7 +13,6 @@ var buy_grid: GridContainer
 var sell_grid: GridContainer
 var info: Label
 var filter := "all"
-## O mercador da praça usa o mesmo painel com outro nome e outra fala.
 var title := "Barraca da Mira"
 var quote := "\"Armas, armaduras e tudo que um herói precisa. Pago metade pelo que você trouxer!\""
 

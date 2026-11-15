@@ -17,7 +17,6 @@ const BOSS_LEAVE := 60.0
 const SCENES := {
 	"res://scenes/main_menu.tscn": "menu",
 	"res://scenes/world.tscn": "world",
-	"res://scenes/colony.tscn": "colony",
 }
 
 var current := ""            # id da faixa (MusicRules.TRACKS) tocando agora
@@ -93,8 +92,6 @@ func context() -> Dictionary:
 	ctx.boss_near = _boss_near
 	if ctx.scene == "world":
 		ctx.horde = root.get("survival") != null
-	elif ctx.scene == "colony":
-		ctx.phase = str(root.get("phase"))
 	return ctx
 
 

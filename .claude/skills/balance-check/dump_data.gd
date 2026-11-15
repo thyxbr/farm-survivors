@@ -10,7 +10,6 @@ const SOURCES := {
 	"enemy": "res://scripts/enemies/enemy.gd",
 	"upgrades": "res://scripts/survival/upgrades.gd",
 	"horde_events": "res://scripts/survival/horde_events.gd",
-	"colony_data": "res://scripts/colony/colony_data.gd",
 	"game": "res://scripts/autoload/game.gd",
 }
 

@@ -32,8 +32,8 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
   (loja), o Doran (encantamento), a Pip (alquimista), o Kael (o rival, no portão leste) e o Portal do Desafio da Horda, e dois bairros novos ligados por ruas paralelas e
   travessas (Rua do Portal, Rua do Oeste, Estrada Leste, Rua das Flores), com casas de seis modelos (enxaimel, sapê,
   sobrado, cabana de toras com alpendre, taverna e sobradinho estreito) pintadas em paletas diferentes. No bairro
-  leste, o **Largo dos Ecos** tem o Mestre Orin (passivas), a **mesa de guerra** (Defesa da Cidade) e o quadro de
-  recordes; a **Forja**, o **Celeiro** e a **Muralha** da base ficam nas ruas (detalhes em *Progressão permanente*).
+  leste, o **Largo dos Ecos** tem o Mestre Orin (passivas) e o quadro de recordes da Horda (detalhes em
+  *Progressão permanente*).
 - **Natal em Valdoria**: o **Papai Noel** está ao lado da árvore grande, com o trenó, e dá quatro eventos (missões secundárias,
   em qualquer ordem, fora da história): **Presentes Espalhados** (8 presentes caídos pelo vale), **Ladrões de Natal**
   (6 goblins de qualquer tipo), **A Ceia do Noel** (levar 2 Pães Rústicos e 1 Ensopado de Cenoura da Horta) e
@@ -84,8 +84,8 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
 - **Personagem solo** num arquivo local (`user://solo_character.json`, gravado de forma atômica; F5/F9 salvam e recarregam; a base local e os recordes do solo ficam ao lado, em `solo_character_base.json` e `solo_character_runs.json`), opções persistentes (volume, sensibilidade, inverter Y, tela cheia).
   O SQLite é só do servidor dedicado: o cliente Windows é um exe único, sem DLL (o Smart App Control do Windows
   bloqueia DLL sem assinatura). O `user://solo.db` da 0.8.0 é ignorado.
-- **Áudio**: trilha leve (orquestral, violão e piano) que muda com o lugar e a situação (menu, praça, vila, campos,
-  ruínas, Horda, chefe, dia e noite da Defesa da Cidade; silêncio na derrota), com crossfade e agudos suavizados;
+- **Áudio**: trilha leve (orquestral, violão e piano) que muda com o lugar e a situação (menu, vila, campos,
+  ruínas, Horda, chefe; silêncio na derrota), com crossfade e agudos suavizados;
   ambiente de pássaros e vento de dia, grilos à noite e fogo na forja. Golpes soam pela arma: espada (vento +
   metal, versão pesada para montantes e cutelos), cajado (sopro de vento + o elemento: arcano, fogo ou gelo, no
   disparo e no impacto) e arco (corda, disparo e flecha acertando). Volumes separados nas Opções.
@@ -98,7 +98,7 @@ Saia pelo **portão sul** da vila para a Horta:
   crescendo → **regar** (cresce 2x mais rápido e rende +1) e depois **adubar com Gel de Slime** (+40%),
   pronto → **colher** (12% de chance de colheita farta em dobro, 35% de devolver uma semente).
 - **6 culturas**: Cenoura, Trigo, Tomate, Pimenta-de-Fogo, Menta Gélida e Abóbora. As plantas crescem em tempo real,
-  inclusive enquanto você está na Arena. Sementes também caem de slimes/goblins/Rei Goblin e são
+  inclusive enquanto você está no Desafio da Horda. Sementes também caem de slimes/goblins/Rei Goblin e são
   recompensa de cada rodada do Desafio da Horda (rodadas altas dão sementes raras).
 - **Caldeirão da Horta**: 8 receitas (Pão Rústico, Ensopado de Cenoura, Sopa Picante, Chili do Dragão,
   Chá de Menta Gélida, Salada da Horta, Torta de Abóbora, Banquete de Valdoria). Cada prato cura e dá um
@@ -110,7 +110,9 @@ Saia pelo **portão sul** da vila para a Horta:
 - A horta é salva com o personagem. Dados de culturas/receitas em `data/balance/crops.json` e `recipes.json`.
 
 ## Desafio da Horda (modo sobrevivência)
-Entre no **Portal do Desafio** (perto do portão norte da vila, tecla E) para ir à **Arena** a oeste do mapa:
+Entre no **Portal do Desafio** (perto do portão norte da vila, tecla E): ele teleporta para a **Arena**, um mapa à parte
+(um vale de pedra fechado por penhascos, fora de Valdoria e sem caminho a pé; `ARENA` em `world.gd`). No fim você volta
+para a frente do portal. O minimapa some enquanto a partida dura:
 - Hordas de slimes e goblins surgem sem parar, cada rodada (45 s) mais fortes e numerosas; a cada 5 rodadas vem o **Rei Goblin**
   (a partir do 2º, com guardas de elite).
 - **Curva de dificuldade** (`survival_mode.gd` e `horde_events.gd`): ritmo em dente de serra dentro de cada ciclo de
@@ -128,41 +130,6 @@ Entre no **Portal do Desafio** (perto do portão norte da vila, tecla E) para ir
 
 Para editar as melhorias veja `scripts/survival/upgrades.gd`; o ritmo das rodadas fica em `scripts/survival/survival_mode.gd`.
 
-## Defesa da Cidade (tower defense)
-Menu principal → **Defesa da Cidade — nova** (ou a **Mesa de Guerra** do Largo dos Ecos). Começa num mapa vazio (uma clareira cercada de bosques) e o
-jogador posiciona **todas** as construções. De dia você constrói, recruta e sai para caçar; à noite os monstros
-atacam a cidade, cada noite mais fortes (a cada 5 noites vem o Rei Goblin). Se a Prefeitura cair, a cidade cai.
-
-| Ação | Tecla |
-|---|---|
-| Modo construção (fantasma verde = pode, vermelho = não e o motivo aparece) | B |
-| Escolher construção · girar 45° · demolir (devolve 50%) | 1–0 · roda do mouse ou R · X |
-| Construir · sair do modo | Clique esquerdo · B, Esc ou clique direito |
-| Abrir a construção (melhorar, reparar, demolir; Prefeitura: economia; Quartel: recrutar) | E |
-| Exército segue você (para caçar) / volta a defender | G |
-| Ponto de reunião do exército onde você está · chamar a noite agora | V · N |
-
-- **Construções** (`data/balance/colony.json`): Prefeitura (primeira, grátis, na clareira central), Casa (+5 moradores),
-  Fazenda (+12 comida/dia), Mercado (+25 ouro/dia), Quartel (recrutamento, 6 vagas), Muro (encaixa na ponta de
-  outro muro), Portão (você e os soldados passam, os monstros não), Estacas (ferem e atrasam), Torre de Arqueiros,
-  Torre de Canhão (dano em área) e Torre Arcana (deixa lento e salta entre monstros). Tudo tem 3 níveis
-  (só passa do nível da Prefeitura + 1) e precisa ficar a até 42 m da Prefeitura.
-- **Economia** (paga ao amanhecer): impostos por morador (Baixo 1 · Normal 2 · Alto 3 — imposto alto faz a cidade crescer
-  mais devagar), comércio dos mercados, renda da Prefeitura, **salários** do exército e consumo de **comida**
-  (1 por morador e por soldado). Fazendas e mercados precisam de moradores trabalhando. Sem ouro para os salários,
-  soldados desertam; sem comida, moradores vão embora. Monstros abatidos rendem ouro direto para o cofre.
-- **Exército**: Miliciano, Soldado, Arqueiro (atira por cima dos muros) e Cavaleiro (quartel nível 2). Cada recruta sai
-  dos moradores e cobra salário diário. Ficam em formação no ponto de reunião ou acompanham você.
-- **Caça**: de dia aparecem coelhos, cervos e javalis (o javali revida) longe da cidade; rendem comida e ouro (couro).
-  Slimes e goblins errantes rondam a mata. À noite os animais somem.
-- **Monstros da noite** marcham até a Prefeitura, derrubam o que estiver no caminho e atacam soldados e o jogador por perto.
-  Novo: **Goblin Bruto** (dano triplo em construções). O HUD mostra de que direção vem a onda.
-- Se você cair, renasce na Prefeitura em 6 s (as torres continuam lutando). Salva automaticamente a cada amanhecer
-  (F5 também salva, só de dia). O ouro da cidade é o caixa da partida; o personagem é o mesmo do RPG solo e
-  leva só as recompensas por noite e o XP dos abates (no amanhecer).
-- Pelo menu principal ou pela Mesa de Guerra da vila no solo é só para um jogador; em grupo, pela **Mesa de Guerra
-  da vila online** (abaixo). Ao fim da partida cada um ganha **Ecos** pelas noites em que esteve na cidade.
-
 ## Multiplayer (servidor dedicado)
 O servidor roda o Godot sem tela e é dono dos inimigos (IA, vida, morte) **e do personagem de cada conta**:
 ouro, itens, XP, equipamento, missões e a Horta ficam num banco SQLite no servidor (`addons/godot-sqlite`).
@@ -170,7 +137,7 @@ O SQLite existe **só no servidor**: o export do Windows exclui `addons/godot-sq
 `SQLite` pelo `ClassDB` (sem a extensão, `Db.open` devolve null em vez de quebrar a compilação dos scripts).
 O jogador entra com **usuário e senha** (cadastro e login pela API HTTP do servidor, por HTTPS no servidor
 público); o ENet (UDP) recebe só o token da sessão. Quem acerta um inimigo ganha XP, missão e loot quando ele
-morre, concedidos pelo servidor. Os números de balanceamento (itens, inimigos, cidade, horda...) ficam em
+morre, concedidos pelo servidor. Os números de balanceamento (itens, inimigos, horda...) ficam em
 `data/balance/*.json` e são lidos desses arquivos (servidor e solo); as tabelas `balance_tables`/`balance_history`
 já existem no banco, mas semear e ler o balanceamento do banco (e editar pelo painel de admin) fica para a fase 3.
 
@@ -210,7 +177,7 @@ já existem no banco, mas semear e ler o balanceamento do banco (e editar pelo p
     memória antes de sair. Os pedidos de economia já são gravados na hora; vida e posição vão ao banco a cada 60 s.
 - **Deploy automático:** cada push no `main` roda o GitHub Actions (`.github/workflows/deploy.yml`):
   importa o projeto (e confere se a extensão SQLite carregou no Linux), roda os testes unitários, o smoke test,
-  a Defesa da Cidade, a vila (`--vilatest`) e os testes de multiplayer (servidor com banco temporário, `--http-port` e `--test`; clientes
+  a vila (`--vilatest`) e os testes de multiplayer (servidor com banco temporário, `--http-port` e `--test`; clientes
   com `--auth-url`) e, se tudo passar, chama o webhook de deploy do Easypanel (secret `EASYPANEL_DEPLOY_URL`).
   Deixe o *Auto Deploy* do próprio Easypanel desligado, senão ele publica mesmo quando os testes falham. Depois do
   deploy, o job *Conferir servidor publicado* roda `--nettest=<domínio>:7777 --probe` até o servidor aceitar a versão
@@ -245,68 +212,30 @@ já existem no banco, mas semear e ler o balanceamento do banco (e editar pelo p
   Para testar com outro manifesto: `EcosDeValdoria.exe -- --update-manifest=http://127.0.0.1:8765/latest.json --update-now`.
 - Ainda só para um jogador: o "carregar save" durante a partida. No multiplayer os menus não pausam o mundo.
 
-### Progressão permanente (Ecos, passivas e a base)
+### Progressão permanente (Ecos e passivas)
 - **Menu → vila**: *Novo jogo* e *Continuar* (solo) e *Entrar* (online) levam direto à **vila de Valdoria**, onde o
   personagem estava. A antiga praça da cidade (`hub.tscn`) saiu do jogo; os pontos dela (`scripts/hub/hub_point.gd`)
   moram nas ruas da vila (`scripts/world/village_layout.gd`). Online os outros jogadores aparecem com o nome em cima,
   o chat (**Enter**) funciona e as teclas **7–9** fazem emotes (acenar, comemorar, sentar) que os outros veem.
-- **Pontos da antiga praça** (tecla **E**): a **Mesa de Guerra** (Defesa da Cidade: sala do servidor online,
-  nova/continuar no solo), **Mestre Orin** (passivas) e o **quadro de recordes** no Largo dos Ecos, e as três
-  construções da base: **Forja** e **Celeiro** na Estrada Leste, **Muralha** no portão oeste.
-- **Ecos** (moeda permanente): ganhos no fim das partidas — Horda pela rodada alcançada, Defesa pelas noites em que
-  você esteve na cidade (`data/balance/rewards.json`). Online quem concede é o servidor.
+- **Pontos da antiga praça** (tecla **E**): **Mestre Orin** (passivas) e o **quadro de recordes** da Horda, no
+  Largo dos Ecos.
+- **Ecos** (moeda permanente): ganhos no fim de cada partida da Horda pela rodada alcançada
+  (`data/balance/rewards.json`). Online quem concede é o servidor.
 - **Passivas** (Mestre Orin, `data/balance/meta_passives.json`): 8 passivas de 5 níveis compradas com Ecos (dano,
   vida máxima, defesa, regeneração, recarga, alcance de coleta, área, velocidade); valem em todo lugar.
-- **Base compartilhada** (`data/balance/base_buildings.json`): os Ecos doados vão para o servidor inteiro (no solo, para
-  a base local). **Forja** dá dano na Horda, **Muralha** vida à Prefeitura da Defesa e **Celeiro** ouro e comida por noite
-  na Defesa. Cada construção tem 5 níveis; a placa mostra o nível, o painel mostra o fundo e os maiores doadores, e
-  quando uma sobe de nível o chat avisa todo mundo. Os bônus são fixados no começo de cada partida.
 - O personagem online é o da conta e mora no servidor (banco): ouro, itens, XP, Ecos, passivas, equipamento, missões
   e horta mudam só por pedido ao servidor (autoload `Econ`); o cliente manda vida, mana e posição de tempos em tempos.
-  O solo tem personagem próprio em `user://solo_character.json` (o cliente não leva o SQLite) (F5/F9 só em Valdoria, no solo). Esc → *Voltar à vila* sai da cidade.
-- O chat (**Enter**) é do servidor inteiro: funciona em Valdoria e na cidade em grupo.
+  O solo tem personagem próprio em `user://solo_character.json` (o cliente não leva o SQLite) (F5/F9 só no solo).
+- O chat (**Enter**) é do servidor inteiro.
 - **Grupo** (até 4 jogadores, autoload `Party` + `PartyBook`/`PartyRules`): convide pela aba Grupo do livro (**P**; a aba Mapa abre com **M**) ou pelo chat
   (`/grupo NOME`, `/grupo sair`, `/grupo expulsar NOME`); quem convida sem grupo vira o líder, e só o líder convida e expulsa.
   A HUD mostra nome, nível e vida de cada companheiro (e avisa quando ele está longe ou em outra zona). O XP de cada monstro
   morto é dividido entre o grupo que está em Valdoria (arredondado para cima); o abate conta na missão de quem acertou e de
   quem do grupo está a até 45 m do combate (`PartyRules.SHARE_RANGE`); mais longe recebe só a parte do XP. O loot continua
   um sorteio para cada um que acertou. No minimapa e no mapa-mundi (**M**) só aparecem os companheiros de grupo.
-- O servidor guarda a zona de cada jogador (`players[id].zone`: `hub` enquanto carrega, `world` ou `city`): inimigos,
-  posições e efeitos só vão para quem está na mesma zona. A base e os recordes chegam pelo autoload `Hub`
+- O servidor guarda a zona de cada jogador (`players[id].zone`: `loading` enquanto carrega, depois `world`): inimigos,
+  posições e efeitos só vão para quem já está em Valdoria. Os recordes chegam pelo autoload `Hub`
   (`scripts/autoload/hub.gd`) quando Valdoria termina de montar.
-
-### Defesa da Cidade em grupo
-- Na **Mesa de Guerra** da vila: **Criar sala** → os outros clicam *Entrar na sala* e *Estou pronto* → o líder clica
-  **Começar** (até 6 jogadores). Com a partida rolando, quem estiver na vila pode **Entrar na partida** no meio.
-- Uma cidade por vez no servidor. Ela roda no servidor num `SubViewport` com mundo 3D próprio (física separada de
-  Valdoria, que continua rodando); o servidor simula economia, ondas, torres, soldados e animais, e cada cliente vê
-  réplicas. Construir, melhorar, reparar, demolir, recrutar, impostos e ponto de reunião viram pedidos que o servidor
-  valida (`Colony.net_request`). O **cofre é compartilhado**; **N** é um voto para chamar a noite (basta metade do grupo);
-  **G** faz o exército seguir quem apertou.
-- **Recompensas** (no personagem do RPG de cada um, ao amanhecer, para quem estava na cidade durante a noite):
-  `15 + 6n` ouro e `30 + 12n + n²` XP pela noite *n*; nas noites de chefe (a cada 5) um **baú** com um equipamento:
-  noite 5 incomum, 10 raro (60%), 15 épico (35%), 20 lendário (15%), 25 lendário (50%), 30+ lendário. Abates dão XP
-  a quem acertou e ouro ao cofre (elites valem o dobro). O recorde do servidor aparece no quadro de recordes da vila.
-- **Curva de dificuldade** (tabelas em `data/balance/colony.json`; constantes do bloco *cooperativo* em `colony_data.gd`):
-  - *Começo fácil:* cofre de 450 (+150 por jogador extra), 40 de comida, 6 moradores, primeiro dia de 4 min, as três
-    primeiras noites pequenas e de uma direção só.
-  - *Recursos sobem aos poucos:* a economia é a mesma do solo, mas **cada cópia** de uma construção custa mais
-    (casa +10% por casa existente, torres +14–18%, mercado +30%, muro +1,5%); mercados além do 2º rendem 20% a menos
-    cada (mínimo 40%); torres e quartéis cobram **manutenção** por nível ao amanhecer (sem ouro, elas se desgastam).
-    Cada jogador extra rende +15/dia na prefeitura.
-  - *Fim de jogo duro:* a vida dos monstros sobe 12% por noite e, depois da noite 10, mais 6% compostos por noite;
-    da noite 6 surgem **elites** (até 45% da onda): *Blindado* (resiste a flechas e soldados), *Arcano* (resiste à Torre
-    Arcana e não fica lento), *Ágil* (rápido, resiste a explosões) e, da noite 12, *Colosso* (vida ×2,2, derruba muros) —
-    é preciso misturar torres. A partir da noite 7, **noites especiais** são avisadas um amanhecer antes: Lua de Sangue,
-    Névoa Densa (torres −30% de alcance), Enxame e Cerco Pesado. Da noite 12 os ataques vêm de 4 direções; a noite 15
-    traz 2 Reis Goblin e a 25, 3. Acima de um teto o orçamento da onda vira vida extra (menos monstros, mais duros).
-  - *Grupo:* cada jogador extra dá +45% de monstros e +10% de vida.
-  - *Para não ficar impossível:* a prefeitura recupera 25% da vida a cada amanhecer; a partir do dia 3, se o cofre está
-    vazio ou a prefeitura muito ferida, chega a **ajuda do reino** (no máximo a cada 4 dias); 25% das manhãs trazem um
-    evento bom (caravana, refugiados, colheita farta); quem cai renasce em 6 s.
-- A partida acaba quando a prefeitura cai (tela de resultado com as recompensas) ou quando todos voltam à vila.
-  Não há save da cidade em grupo: o que fica é o que foi para o personagem.
-- Para testes, o servidor aceita `--city-day=SEG` (duração do dia na cidade).
 
 ### Desafio da Horda em grupo
 - Quem entra no **Portal do Desafio** abre uma fila de 15 s e **todos os jogadores online recebem o convite**
@@ -361,13 +290,13 @@ assets/audio/         música, ambiente e efeitos, todos do OpenGameArt (CC0 e C
 tools/blender/        build_assets.py (cenário + chama characters.py), characters.py (personagens detalhados),
                       preview_assets.py / preview_characters.py / preview_closeup.py (renders de conferência)
 data/balance/         tabelas de balanceamento em JSON (itens, culturas, receitas, magias, missões, loja, raridade,
-                      inimigos, horda, eventos, cidade, regras), carregadas pelo autoload Balance
+                      inimigos, horda, eventos, regras, guilda), carregadas pelo autoload Balance
 scripts/autoload/     game.gd (espelho do personagem para a UI e o jogo), econ.gd (pedidos ao dono do personagem:
                       servidor online, arquivo solo offline), balance.gd, auth.gd (cadastro/login HTTP), item_db.gd
                       (itens/magias/missões), sfx.gd (efeitos: arquivos + alguns sintetizados), music.gd
                       (música e ambiente por cena/situação, regras em scripts/audio/music_rules.gd), network.gd (multiplayer: servidor dedicado,
-                      zonas, réplicas, RPCs), updater.gd (auto update), lobby.gd (navegação Valdoria/cidade
-                      e Defesa em grupo), hub.gd (base compartilhada e recordes que a vila mostra)
+                      zonas, réplicas, RPCs), updater.gd (auto update), hub.gd (recordes da Horda
+                      que a vila mostra)
 scripts/character/    char_state.gd / char_rules.gd (regras puras do personagem), character_service.gd (carrega,
                       grava e aplica os pedidos), char_store.gd / file_char_store.gd (onde o personagem
                       fica: CharStore; FileCharStore = JSON do solo), loot_rules.gd
@@ -376,7 +305,7 @@ scripts/server/       db.gd + migrations.gd + sqlite_char_store.gd (SQLite, só 
 scripts/balance/      balance_tables.gd (lê/grava as tabelas JSON)
 scripts/player/       player.gd (controle, combate, magias), fireball.gd, cape_rig.gd (física da capa)
 scripts/enemies/      enemy.gd (slimes, goblins, rei goblin e os monstros da horda — IA e animação procedural), enemy_arrow.gd
-scripts/hub/          hub_point.gd (pontos que vieram da praça: Orin, mesa de guerra, recordes e as construções da base)
+scripts/hub/          hub_point.gd (pontos que vieram da praça: Mestre Orin e o quadro de recordes)
 scripts/world/        world.gd (monta o mapa e gerencia UI modal), village_layout.gd (planta da vila: ruas, casas,
                       paletas, pontos e lugares dos eventos), santa.gd (Papai Noel e os eventos de Natal),
                       christmas_event_point.gd (presentes e portas dos eventos), christmas_decor.gd, npc.gd, pickup.gd,
@@ -384,20 +313,16 @@ scripts/world/        world.gd (monta o mapa e gerencia UI modal), village_layou
 scripts/farm/         farm_plot.gd (canteiro: plantar/regar/adubar/colher), kitchen.gd (caldeirão)
 scripts/survival/     survival_mode.gd (rodadas, spawn, XP, nível do grupo), horde_events.gd (eventos e Caçada),
                       auto_weapons.gd, xp_gem.gd, upgrades.gd
-scripts/colony/       Defesa da Cidade: colony_world.gd (cena, luz dia/noite, entrada, save), colony.gd (economia,
-                      ciclo, ondas, regras de construção), colony_data.gd (tabelas de balanceamento), building.gd,
-                      building_visuals.gd, tower_shot.gd, soldier.gd, animal.gd, build_mode.gd
 scripts/ui/           war_table_ui.gd (Defesa: sala/solo),
-                      passive_master_ui.gd (passivas), base_building_ui.gd (doações), records_ui.gd (recordes), chat_ui.gd (chat), survival_hud.gd / skill_icon.gd (HUD da horda), horde_invite_ui.gd (convite/fila da horda em grupo), plant_ui.gd (plantio), cooking_ui.gd (receitas), hud, diálogo, inventário/personagem/missões, loja, pausa/morte, opções, menu principal
+                      passive_master_ui.gd (passivas), records_ui.gd (recordes), chat_ui.gd (chat), survival_hud.gd / skill_icon.gd (HUD da horda), horde_invite_ui.gd (convite/fila da horda em grupo), plant_ui.gd (plantio), cooking_ui.gd (receitas), hud, diálogo, inventário/personagem/missões, loja, pausa/morte, opções, menu principal
 tests/smoke_test.gd   teste automatizado do gameplay
-tests/colony_test.gd  teste automatizado da Defesa da Cidade
 tests/vila_test.gd    teste automatizado da vila (solo): bairros, pontos da antiga praça, Papai Noel e eventos de Natal
-tests/net_test.gd     teste do multiplayer (cliente headless contra um servidor: vila, --horde e --city em grupo)
+tests/net_test.gd     teste do multiplayer (cliente headless contra um servidor: vila e --horde em grupo)
 tests/unit/           testes unitários das regras puras (run.gd acha e roda os test_*.gd)
 Dockerfile            imagem do servidor dedicado
 ```
 O mapa, a UI e as animações são montados por código; para mudar dados de itens, missões,
-inimigos, cidade e horda edite `data/balance/*.json` (cores como `{"$c": [r, g, b, a]}`) e suba a versão.
+inimigos e horda edite `data/balance/*.json` (cores como `{"$c": [r, g, b, a]}`) e suba a versão.
 
 ## Regerar os modelos
 ```
@@ -430,16 +355,9 @@ Para tirar um screenshot da arena: `... -- --survival --shot=shot.png --delay=15
 evite a raiz `C:/`, que o Windows não deixa gravar sem administrador).
 Usa um personagem solo separado (`user://smoketest_solo.json`, apagado no início; ou `--solo-save=CAMINHO`), então não mexe no seu personagem.
 
-Defesa da Cidade (construção, economia, recrutamento, torres, cerco, caça, noite, save/load e derrota):
-```
-C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . res://scenes/colony.tscn -- --colonytest
-```
-Cidade de exemplo para screenshots: `... res://scenes/colony.tscn -- --colonydemo --shot=cidade.png --delay=5`
-(`--night` começa o ataque; `--ui=build|hall|barracks|hunt` abre o modo construção, a Prefeitura, o Quartel ou vai caçar).
-
-Vila (solo: os seis modelos de casa pintados, os 6 pontos da antiga praça, Ecos do fim de partida, passiva e doação,
-placa da Forja, cada painel abre e fecha, o Papai Noel e os quatro eventos de Natal, réplica com emotes, Horda pelo
-portal da vila e a tela de carregamento):
+Vila (solo: os seis modelos de casa pintados, o Mestre Orin e o quadro de recordes, Ecos do fim de partida, passiva,
+cada painel abre e fecha, o Papai Noel e os quatro eventos de Natal, réplica com emotes, Horda pelo portal da vila
+com volta na frente dele e a tela de carregamento):
 ```
 C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . res://scenes/world.tscn -- --vilatest
 ```
@@ -457,7 +375,7 @@ Os clientes entram com conta: `--name` é o usuário (senha fixa `teste-1234`); 
 segue), faz login pela API HTTP do servidor (`--auth-url`) e entra no ENet com o token. `--relogin` confere, no fim, que
 uma segunda conexão com o mesmo token derruba a primeira (abre outro processo do Godot) e que um token inválido é recusado.
 Todos os modos começam na vila: cada um vê o outro com o nome em cima e o emote dele, recebe Ecos de teste
-(`--test`), compra a passiva Poder e doa 60 Ecos à Forja (com `--peers=2` ela sobe para o nível 1 e o aviso chega pelo chat).
+(`--test`) e compra a passiva Poder.
 `--horde=lead|join` testa o Desafio da Horda em grupo (Ana abre a fila, Beto aceita o convite na vila; os dois
 conferem os Ecos da partida e voltam à vila; nível do grupo com
 a horda congelada até os dois escolherem, Beto "AFK" recebe carta sorteada; Beto cai e volta, os dois escolhem bênçãos
@@ -467,5 +385,5 @@ Cobre conexão, inimigos replicados (snapshots a 20/s), ver o outro jogador, dan
 e a horda em grupo.
 `--test` no servidor aceita o pedido de ouro de teste do `net_test` (Ana: compra, compra dupla, op forjada e
 reconexão); sem ele o pedido é recusado. XP, abate, loot (pickups com `net_id`, coleta conferida pelo servidor),
-sementes/XP da horda e prêmios da cidade vêm do servidor; o teste falha se o cliente tentar conceder a si mesmo.
+sementes/XP da horda vêm do servidor; o teste falha se o cliente tentar conceder a si mesmo.
 `--netstats` no servidor imprime jogadores, fps e snapshots/s a cada 5 s.

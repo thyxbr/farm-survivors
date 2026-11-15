@@ -23,30 +23,7 @@ func _ready() -> void:
 	v.add_theme_constant_override("separation", 10)
 	v.custom_minimum_size = Vector2(340, 0)
 	p.add_child(v)
-	var w = get_tree().current_scene
-	var colony_mode: bool = w != null and w.has_method("save_colony") and w.get("role") == "solo"
-	if mode == "pause" and w != null and w.get("role") == "client":
-		# Defesa da Cidade em grupo: não há save; as recompensas já foram para o personagem
-		v.add_child(_title("Cidade em grupo", UITheme.GOLD))
-		v.add_child(UITheme.button("Continuar", _close))
-		v.add_child(UITheme.button("Voltar à vila (sair da partida)", func() -> void: Lobby.go_village()))
-		v.add_child(UITheme.button("Opções", _options))
-		v.add_child(UITheme.button("Menu principal", func() -> void: Game.go_to_menu()))
-		v.add_child(UITheme.button("Sair do jogo", _quit))
-	elif mode == "pause" and colony_mode:
-		v.add_child(_title("Pausado", UITheme.GOLD))
-		v.add_child(UITheme.button("Continuar", _close))
-		v.add_child(UITheme.button("Salvar cidade", func() -> void:
-			if w.save_colony():
-				_status.text = "Cidade salva!"
-				_status.add_theme_color_override("font_color", Color(0.7, 1, 0.7))))
-		var cl := UITheme.button("Carregar cidade", func() -> void: Game.start_colony(true))
-		cl.disabled = not Game.has_colony_save()
-		v.add_child(cl)
-		v.add_child(UITheme.button("Opções", _options))
-		v.add_child(UITheme.button("Menu principal", func() -> void: Game.go_to_menu()))
-		v.add_child(UITheme.button("Sair do jogo", _quit))
-	elif mode == "pause":
+	if mode == "pause":
 		v.add_child(_title("Menu" if Network.is_online() else "Pausado", UITheme.GOLD))
 		v.add_child(UITheme.button("Continuar", _close))
 		if Game.run_mods.active:
@@ -73,13 +50,9 @@ func _ready() -> void:
 	v.add_child(_status)
 	if mode == "pause":
 		var upd := UPDATE_PANEL.new()
-		upd.before_install = _save_before_update.bind(colony_mode)
+		upd.before_install = _save_before_update
 		v.add_child(upd)
-	if colony_mode:
-		if Game.has_colony_save():
-			_status.text = "Save: " + Game.colony_save_info()
-			_status.add_theme_color_override("font_color", UITheme.DIM)
-	elif not Network.is_online() and Econ.has_solo():
+	if not Network.is_online() and Econ.has_solo():
 		_status.text = "Save: " + Econ.solo_info()
 		_status.add_theme_color_override("font_color", UITheme.DIM)
 	var first := v.get_child(1) as Button
@@ -101,12 +74,9 @@ func _save() -> void:
 
 
 ## O jogo reabre sozinho depois de atualizar: salva antes para não perder o progresso.
-func _save_before_update(colony_mode: bool) -> void:
-	var w = get_tree().current_scene
+func _save_before_update() -> void:
 	if Network.is_online():
 		Network.autosave()
-	elif colony_mode:
-		w.save_colony()
 	elif not Game.run_mods.active:
 		Econ.report_vitals(player_pos, player_yaw)
 

@@ -61,11 +61,6 @@ jobs:
       - name: Testes unitários
         run: timeout 300 godot --headless --path . -s tests/unit/run.gd
 
-      # metas de equilíbrio da Defesa da Cidade (seção 18 do spec: eras, munição, madeira parada, pesquisas)
-      # simuladas por 15 dias em solo, com 2 e com 4 jogadores; sai com 1 se alguma meta falhar
-      - name: Simulação da economia da cidade
-        run: timeout 120 godot --headless --path . --script res://tests/economy_sim.gd
-
       - name: Teste de gameplay (smoke test)
         run: timeout 600 godot --headless --path . res://scenes/world.tscn -- --smoketest
 
@@ -75,11 +70,8 @@ jobs:
       - name: Teste dos modelos do Bram e da Mira (esqueleto, cajado e clipes)
         run: timeout 120 godot --headless --path . --script res://tests/npc_asset_test.gd
 
-      - name: Teste da Defesa da Cidade
-        run: timeout 600 godot --headless --path . res://scenes/colony.tscn -- --colonytest
-
-      # a vila no solo: bairros, pontos da antiga praça, Ecos, passiva, doação, painéis, Papai Noel e os
-      # quatro eventos de Natal, Horda pelo portal da vila e a tela de carregamento
+      # a vila no solo: bairros, Mestre Orin e quadro de recordes, Ecos, passiva, Papai Noel e os quatro
+      # eventos de Natal, Horda pelo portal da vila e a tela de carregamento
       - name: Teste da vila (solo)
         run: timeout 300 godot --headless --path . res://scenes/world.tscn -- --vilatest
 
@@ -100,22 +92,6 @@ jobs:
       - name: Logs do multiplayer
         if: failure()
         run: tail -n 60 server.log ana.log beto.log || true
-
-      - name: Teste da Defesa da Cidade em grupo (vila + servidor + 2 clientes)
-        run: |
-          db=$(mktemp --suffix=.db); rm -f "$db"
-          godot --headless --path . -- --server --port=7791 --http-port=8791 --db="$db" --test --city-day=12 --city-event=caravan > city_server.log 2>&1 &
-          for i in $(seq 1 30); do grep -q "ouvindo em UDP" city_server.log && break; sleep 1; done
-          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7791 --auth-url=http://127.0.0.1:8791 --peers=2 --name=Caio --city=lead > caio.log 2>&1 & A=$!
-          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7791 --auth-url=http://127.0.0.1:8791 --peers=2 --name=Duda --city=join > duda.log 2>&1 & B=$!
-          wait $A; RA=$?
-          wait $B; RB=$?
-          grep -hE "PASS|FAIL|NETTEST" caio.log duda.log
-          exit $(( RA | RB ))
-
-      - name: Logs da cidade em grupo
-        if: failure()
-        run: tail -n 60 city_server.log caio.log duda.log || true
 
   # Exporta o cliente Windows (artefato `cliente-windows`), que o job seguinte liga no Windows antes de
   # publicar. Se a versão já tem release (e o jogo não mudou), não exporta nada (skip=true) e os jobs

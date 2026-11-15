@@ -165,10 +165,8 @@ func _legend(c: Color, text: String) -> Control:
 ## Onde o companheiro está, em palavras: zona, mapa e distância (e se o abate conta na missão dele).
 func _where(m: Dictionary) -> String:
 	var zone := str(m.get("zone", ""))
-	if zone == "hub":
-		return "na praça"
-	if zone == "city":
-		return "na Defesa da Cidade"
+	if zone == "loading":
+		return "carregando"
 	var rp = Network.remote_players.get(int(m.peer))
 	var p3 = world.get("player") if world else null
 	if rp == null or not is_instance_valid(rp) or p3 == null:
@@ -301,8 +299,7 @@ func _member_row(m: Dictionary, can_kick: bool, mine: bool) -> Control:
 func _zone_name(zone: String) -> String:
 	match zone:
 		"world": return "em Valdoria"
-		"city": return "na Defesa da Cidade"
-	return "na praça"
+	return "carregando"
 
 
 func _invite(peer: int) -> void:

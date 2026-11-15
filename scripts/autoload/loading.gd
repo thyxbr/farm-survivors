@@ -18,7 +18,6 @@ const GRACE := 2.0         # imunidade depois que a tela abre
 
 const NAMES := {
 	"res://scenes/world.tscn": "Viajando para Valdoria…",
-	"res://scenes/colony.tscn": "Preparando a Defesa da Cidade…",
 	"res://scenes/main_menu.tscn": "Voltando ao menu…",
 }
 const TIPS := [
@@ -29,7 +28,7 @@ const TIPS := [
 	"O Ancião Bram, na praça da vila, tem missões para você.",
 	"As teclas 1 a 3 usam as habilidades da arma; a 4, a ultimate.",
 	"I abre o inventário e C, a ficha do personagem.",
-	"Na Defesa da Cidade, B abre o modo de construção.",
+	"O Mestre Orin, ao lado do portal da vila, troca Ecos por passivas permanentes.",
 ]
 
 ## A tela está cobrindo o jogo (o jogador fica travado e imune).

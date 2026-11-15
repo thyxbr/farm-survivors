@@ -66,15 +66,6 @@ func _ready() -> void:
 	menu_box.add_child(cont)
 	if has_solo:
 		menu_box.add_child(UITheme.label("   " + Econ.solo_info(), 15, UITheme.DIM))
-	var colony := UITheme.button("Defesa da Cidade — nova", func() -> void:
-		Sfx.play("click", 0.0)
-		Game.start_colony(false), 320)
-	menu_box.add_child(colony)
-	if Game.has_colony_save():
-		menu_box.add_child(UITheme.button("Defesa da Cidade — continuar", func() -> void:
-			Sfx.play("click", 0.0)
-			Game.start_colony(true), 320))
-		menu_box.add_child(UITheme.label("   " + Game.colony_save_info(), 15, UITheme.DIM))
 	menu_box.add_child(UITheme.button("Jogar online", _open_multiplayer, 320))
 	menu_box.add_child(UITheme.button("Opções", _options, 320))
 	menu_box.add_child(UITheme.button("Créditos", _credits, 320))

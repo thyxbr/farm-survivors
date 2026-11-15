@@ -8,8 +8,6 @@ extends Node
 ## - Online (cliente): `request()` manda `_econ_req` ao servidor, que aplica no `Network.characters` e
 ##   responde só ao remetente com `_econ_res` (estado completo + eventos). Pedidos do mesmo peer chegam
 ##   em ordem (RPC confiável), então clique duplo vira dois pedidos processados em sequência.
-## - Defesa da Cidade: o ouro da cidade é o caixa da partida (Colony.treasury), fora do personagem; o
-##   personagem só recebe as recompensas por noite (solo: grant aqui; em grupo: o servidor).
 ##
 ## Todas as RPCs novas moram aqui (e não no Network): o Godot numera as RPCs de cada nó em ordem
 ## alfabética, e uma RPC nova no Network mudaria o id do `_register` que clientes antigos usam para
@@ -89,11 +87,6 @@ func _ready() -> void:
 		if not explicit:
 			solo_save_path = "user://smoketest_solo.json"
 		_wipe_on_open = true
-	elif "--colonytest" in args:
-		# idem para o teste da Defesa da Cidade
-		if not explicit:
-			solo_save_path = "user://colonytest_solo.json"
-		_wipe_on_open = true
 	elif "--vilatest" in args:
 		# idem para o teste da vila
 		if not explicit:
@@ -133,8 +126,6 @@ func request(op: String, args: Array = []) -> void:
 		return
 	var r := _svc.apply(SOLO_ACCOUNT, op, args)
 	_deliver(op, args, r)
-	if op == "donate" and r.ok:
-		Hub.refresh_solo()   # a base mudou: a praça redesenha (online quem avisa é o servidor)
 
 
 ## Ecos para o personagem de demonstração (só solo; usado pelas opções de depuração do Game).
@@ -223,38 +214,18 @@ func run_finish(run_id: int, mode: String, reached: int, gold: int, xp: int, ite
 	_deliver("run_finish", [run_id, mode, reached], r)
 	if not r.ok:
 		return 0
+	Hub.refresh_solo()   # recorde novo no quadro da vila (online quem avisa é o servidor)
 	for e in r.events:
 		if e.get("t") == "ecos":
 			return int(e.get("n", 0))
 	return 0
 
 
-## Solo: estado da base local ({id: {"level", "fund"}}). Online {}: a base é do servidor (Hub.base).
-func base_state() -> Dictionary:
-	if Network.is_online() or not ensure_solo():
-		return {}
-	return _svc.base_state()
-
-
-## Solo: bônus da base local. Online {} (Hub.base_bonus() usa a base que veio do servidor).
-func base_bonus() -> Dictionary:
-	if Network.is_online() or not ensure_solo():
-		return {}
-	return _svc.base_bonus()
-
-
-## Solo: recorde de cada modo ({"horde": {"reached", "names"}, "city": ...}). Online {} (Hub.records).
+## Solo: recorde de cada modo ({"horde": {"reached", "names"}}). Online {} (Hub.records).
 func records() -> Dictionary:
 	if Network.is_online() or not ensure_solo():
 		return {}
 	return _svc.records()
-
-
-## Solo: maiores doadores de uma construção ([{"name", "amount"}]). Online [] (vem em Hub.base).
-func top_donors(id: String, limit := 5) -> Array:
-	if Network.is_online() or not ensure_solo():
-		return []
-	return _svc.top_donors(id, limit)
 
 
 ## Recorde de partida (horde_best/city_best) no personagem solo. Online só no espelho: o servidor grava
@@ -617,9 +588,6 @@ func _econ_req(seq: int, op: String, args: Array) -> void:
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
 	if r.ok and op in ["enchant", "equip", "unequip"]:
 		Network.server_refresh_look(peer)   # o brilho que os outros veem acompanha o que foi gravado
-	if op == "donate" and r.ok:
-		# a base é de todos: o servidor manda o estado novo a quem está conectado
-		Hub.server_base_changed(account, r.events)
 
 
 ## Só atualiza o cache (CharacterService.report); grava no próximo pedido, na saída ou no flush periódico.
@@ -717,7 +685,7 @@ func _gather_node(seq: int, id: int) -> void:
 		return
 	var pos: Vector3 = Network.last_pos.get(peer, Vector3.INF)
 	if Network.zone_of(peer) != "world":
-		pos = Vector3.INF   # na praça ou na cidade não há veios
+		pos = Vector3.INF   # fora de Valdoria não há veios
 	var g := _gather.gather(Balance.tables, account, id, pos, now())
 	if not g.ok:
 		_econ_res.rpc_id(peer, seq, false, str(g.err), _gather_refusal(g.err), {})
