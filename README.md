@@ -28,8 +28,16 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
 - **Praça da cidade** (o ponto de chegada, no solo e online): de lá a estrada leva a Valdoria, o portal ao Desafio
   da Horda e a mesa de guerra à Defesa da Cidade; os **Ecos** ganhos nas partidas viram **passivas permanentes** e
   **doações para a base** (detalhes em *A praça da cidade*, abaixo).
-- **Vila** com o Ancião Bram (missões) e a Mira (loja: compra e venda).
-- **3 missões em cadeia**: slimes nos campos → batedores goblins na floresta a leste → **Rei Goblin** nas ruínas ao norte (chefe com ataque em área, fúria e invocação).
+- **Vila** com o Ancião Bram, a Mira (loja: compra e venda), o Doran (encantamento), a Pip (alquimista) e o
+  Kael (o rival, no portão leste).
+- **História "Um Herói Caiu na Vila"** (~30 min, comédia no estilo anime, 6 episódios e 11 missões em cadeia):
+  o Bram decide que você é o herói de uma profecia que ele inventa na hora; a Mira anota sua dívida num caderninho,
+  o Doran mede sua "paixão", a Pip explode coisas e o Kael, rank "Super-D", vira seu rival eterno. Missões de
+  conversa, coleta (gel de slime, uma Torta de Abóbora plantada e cozida na Horta) e abate (slimes, batedores
+  goblins, esqueletos das ruínas e o **Rei Goblin**, chefe com ataque em área, fúria e invocação). Diálogo em
+  estilo visual novel (faixas de cinema, nome na cor de quem fala, escolhas com resposta), cartão de título a cada
+  episódio e rastreador com bússola até o próximo objetivo. Roteiro em `scripts/story/story_dialogue.gd`,
+  missões em `data/balance/quests.json`.
 - **Monstros**: slimes (comum, grande, veloz, explosiva, mãe e de gelo, que deixa você lento), goblins com equipamento próprio (batedor, arqueiro, xamã, bombardeiro, bruto, campeão, dourado e o rei) e **esqueletos** nas ruínas (guerreiro, arqueiro, mago e o Cavaleiro Esqueleto, de elite).
 - **Progressão**: XP, níveis, 3 pontos de atributo por nível (Força, Inteligência, Vitalidade, Agilidade), magias liberadas por nível.
 - **Itens**: 70 itens com 5 raridades (Comum, Incomum, Raro, Épico, Lendário), poções, materiais para vender, loot aleatório.

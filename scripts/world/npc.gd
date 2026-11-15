@@ -1,15 +1,12 @@
 extends StaticBody3D
-## NPC da vila. O diálogo é montado conforme o estado das missões.
+## NPC da vila. O diálogo vem do roteiro da história (StoryDialogue), conforme o estado das missões;
+## o marcador !/? sobre a cabeça vem de StoryRules.
 
 const MODELS := {
-	"elder": preload("res://assets/models/elder.glb"),
-	"merchant": preload("res://assets/models/merchant.glb"),
-	"blacksmith": preload("res://assets/models/blacksmith.glb"),
-}
-const NAMES := {
-	"elder": "Ancião Bram",
-	"merchant": "Mira, a Mercadora",
-	"blacksmith": "Doran, o Ferreiro",
+	"elder": "res://assets/models/elder.glb",
+	"merchant": "res://assets/models/merchant.glb",
+	"blacksmith": "res://assets/models/blacksmith.glb",
+	"alchemist": "res://assets/models/villager_2.glb",
 }
 
 @export var npc_id := "elder"
@@ -24,9 +21,10 @@ var _base_yaw := 0.0
 
 func _ready() -> void:
 	add_to_group("interactable")
+	add_to_group("npc")
 	collision_layer = 8
 	collision_mask = 0
-	npc_name = NAMES[npc_id]
+	npc_name = StoryDialogue.NAMES[npc_id]
 	var col := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = 0.4
@@ -34,7 +32,7 @@ func _ready() -> void:
 	col.shape = cap
 	col.position.y = 0.9
 	add_child(col)
-	model = MODELS[npc_id].instantiate()
+	model = _make_model()
 	add_child(model)
 	if ToonLook.enabled():
 		ToonLook.apply(model)
@@ -58,7 +56,13 @@ func _ready() -> void:
 	marker.position.y = 2.85
 	add_child(marker)
 	Game.quests_changed.connect(_update_marker)
+	Game.inventory_changed.connect(_update_marker)   # coleta: o "?" aparece quando os itens chegam
 	_update_marker()
+
+
+## Modelo do NPC (as subclasses com modelo próprio sobrescrevem).
+func _make_model() -> Node3D:
+	return (load(MODELS[npc_id]) as PackedScene).instantiate()
 
 
 func interact_prompt() -> String:
@@ -69,6 +73,11 @@ func interact(_player: Node) -> void:
 	var world := get_tree().current_scene
 	if world.has_method("open_dialogue"):
 		world.open_dialogue(npc_name, _build_dialogue(), self)
+
+
+## Cor da plaquinha de nome no diálogo.
+func speaker_color() -> Color:
+	return StoryDialogue.COLORS.get(npc_id, Color.WHITE)
 
 
 ## Ponto entre os olhos, em coordenadas globais (usado pelo close do diálogo).
@@ -105,133 +114,19 @@ func _process(delta: float) -> void:
 
 
 func _update_marker() -> void:
-	if npc_id != "elder":
-		marker.text = ""
+	if marker == null:
 		return
-	var available := false
-	var can_turn_in := false
-	for id in ["slimes", "goblins", "goblin_king"]:
-		if Game.quest_state(id) == "ready":
-			can_turn_in = true
-	var next := _next_quest()
-	if next != "" and Game.quest_state(next) == "none":
-		available = true
-	marker.text = "?" if can_turn_in else ("!" if available else "")
-
-
-func _next_quest() -> String:
-	for id in ["slimes", "goblins", "goblin_king"]:
-		if Game.quest_state(id) != "done":
-			return id
-	return ""
+	var qt: Dictionary = ItemDB.QUESTS
+	var counts := {}
+	for id in qt:
+		if CharRules.quest_type(qt[id]) == "collect":
+			counts[qt[id].target] = Game.count_item(str(qt[id].target))
+	marker.text = StoryRules.marker(qt, Game.quests, npc_id, counts)
+	# "?" (entregar) em verde-dourado, "!" (missão nova) em dourado
+	marker.modulate = Color(0.55, 1.0, 0.45) if marker.text == "?" else Color(1, 0.8, 0.2)
 
 
 # ---------------------------------------------------------------- diálogos
-## Cada página: {"text": String, "choices": [{"text": String, "action": Callable}]}
+## Páginas do diálogo agora (roteiro em StoryDialogue, conforme o estado das missões).
 func _build_dialogue() -> Array:
-	if npc_id == "blacksmith":
-		return [
-			{"text": "Mais um golpe e essa lâmina fica pronta. Ferro bom vem das minas do norte, mas o carvão... esse está cada vez mais caro."},
-			{"text": "Se a Mira te vendeu alguma espada, pode apostar que passou por esta bigorna."},
-			{"text": "Mas se trouxer minério e o que a mata dá, eu ponho um encanto na sua arma. Ferro frio não morde; ferro encantado, sim.",
-				"choices": [
-					{"text": "Encantar arma", "action": _open_enchant},
-					{"text": "Até logo", "action": Callable()},
-				]},
-		]
-	if npc_id == "merchant":
-		return [{
-			"text": "Bem-vindo à barraca da Mira! Poções, lâminas e armaduras — tudo pelo preço justo. Também compro o que você trouxer da mata.",
-			"choices": [
-				{"text": "Ver mercadorias", "action": _open_shop},
-				{"text": "Até logo", "action": Callable()},
-			]}]
-
-	var pages: Array = []
-	var q := _next_quest()
-	if q == "":
-		pages.append({"text": "Herói de Valdoria! As crianças já cantam canções sobre você. Obrigado por salvar nossa vila."})
-		pages.append({"text": "(Você concluiu todas as missões deste protótipo. Sinta-se livre para explorar e caçar!)"})
-		return pages
-
-	var st := Game.quest_state(q)
-	if st == "ready":
-		pages.append_array(_completion_text(q))
-		pages.append({"text": "Tome, você mereceu esta recompensa.", "on_show": _complete.bind(q)})
-		var nxt := _next_quest_after(q)
-		if nxt != "":
-			pages.append_array(_offer(nxt))
-		else:
-			pages.append({"text": "Valdoria está livre do Rei Goblin. Você é um verdadeiro herói!"})
-		return pages
-	if st == "active":
-		var prog: int = Game.quests[q].progress
-		var count: int = ItemDB.QUESTS[q].count
-		pages.append({"text": _reminder(q) + "  (%d/%d)" % [prog, count]})
-		return pages
-	# nenhuma missão ativa: oferecer
-	if q == "slimes":
-		pages.append({"text": "Ah, um viajante! Seja bem-vindo a Valdoria. Sou Bram, o ancião desta vila."})
-	pages.append_array(_offer(q))
-	return pages
-
-
-func _accept(q: String) -> void:
-	Game.start_quest(q)
-	Sfx.play("quest", 0.0)
-
-
-func _complete(q: String) -> void:
-	Game.complete_quest(q)
-	Sfx.play("quest", 0.0)
-
-
-func _open_shop() -> void:
-	get_tree().current_scene.open_shop()
-
-
-func _open_enchant() -> void:
-	get_tree().current_scene.open_enchant(self)
-
-
-func _next_quest_after(q: String) -> String:
-	var order := ["slimes", "goblins", "goblin_king"]
-	var i := order.find(q)
-	return order[i + 1] if i + 1 < order.size() else ""
-
-
-func _offer(q: String) -> Array:
-	var intro := {
-		"slimes": "Nossas plantações ao norte foram tomadas por slimes. Os aldeões têm medo de sair de casa...",
-		"goblins": "Mas temo que haja algo pior. Batedores goblins montaram acampamento na floresta a leste.",
-		"goblin_king": "Os batedores falavam de um rei... O Rei Goblin se esconde nas ruínas antigas, bem ao norte, depois dos campos.",
-	}
-	var data: Dictionary = ItemDB.QUESTS[q]
-	return [
-		{"text": intro[q]},
-		{"text": "%s\nRecompensa: %d ouro, %d XP." % [data.desc, data.reward_gold, data.reward_xp],
-			"choices": [
-				{"text": "Aceitar missão", "action": _accept.bind(q)},
-				{"text": "Agora não", "action": Callable()},
-			]},
-	]
-
-
-func _reminder(q: String) -> String:
-	match q:
-		"slimes":
-			return "Os slimes ainda infestam os campos ao norte da vila."
-		"goblins":
-			return "O acampamento goblin fica na floresta a leste. Siga a trilha de terra."
-		_:
-			return "As ruínas ficam no extremo norte. Ele é forte — leve poções da Mira."
-
-
-func _completion_text(q: String) -> Array:
-	match q:
-		"slimes":
-			return [{"text": "Os campos estão limpos! Os fazendeiros já voltaram ao trabalho. Muito obrigado!"}]
-		"goblins":
-			return [{"text": "Você dispersou os batedores! Agora eles pensarão duas vezes antes de chegar perto."}]
-		_:
-			return [{"text": "O Rei Goblin... derrotado?! Eu mal posso acreditar!"}]
+	return StoryDialogue.build(self)

@@ -236,6 +236,16 @@ func test_quest_flow() -> void:
 	var s := _blank()
 	T.eq(CharRules.start_quest(s, bt, "goblins").err, "missao_indisponivel", "anterior não concluída")
 	T.eq(CharRules.complete_quest(s, bt, "slimes").err, "missao_nao_pronta", "nem começou")
+	T.eq(CharRules.start_quest(s, bt, "slimes").err, "missao_indisponivel", "antes vêm as conversas da história")
+	# conversa: entregue ao falar com o alvo, sem precisar ficar pronta
+	T.ok(CharRules.start_quest(s, bt, "chegada").ok, "a história começa")
+	T.ok(CharRules.complete_quest(s, bt, "chegada").ok, "conversa entregue enquanto ativa")
+	T.eq(_count(s, "health_potion"), 2, "poções da Mira")
+	T.ok(CharRules.start_quest(s, bt, "forja").ok and CharRules.complete_quest(s, bt, "forja").ok, "Doran")
+	T.eq(CharRules.complete_quest(s, bt, "forja").err, "missao_nao_pronta", "não entrega duas vezes")
+	# os abates partem de um personagem zerado (as contas de XP e ouro abaixo são as de antes da história)
+	s = _blank()
+	s.quests = {"chegada": {"state": "done", "progress": 1}, "forja": {"state": "done", "progress": 1}}
 	var r := CharRules.start_quest(s, bt, "slimes")
 	T.ok(r.ok, "começa")
 	T.eq(r.events[0].text, "Nova missão: Praga Gosmenta", "aviso")
@@ -256,7 +266,56 @@ func test_quest_flow() -> void:
 	T.eq(_count(s, "health_potion"), 3, "itens da recompensa")
 	T.eq(s.level, 2, "120 XP: nível 2")
 	T.eq(s.xp, 60, "sobra 60")
-	T.ok(CharRules.start_quest(s, bt, "goblins").ok, "a próxima abre")
+	T.ok(CharRules.start_quest(s, bt, "gel").ok, "a próxima abre")
+
+
+func test_collect_and_multi_target_quests() -> void:
+	var bt := _tables()
+	var s := _blank()
+	for id in ["chegada", "forja", "slimes"]:
+		s.quests[id] = {"state": "done", "progress": 1}
+	T.ok(CharRules.start_quest(s, bt, "gel").ok, "coleta começa")
+	CharRules.add_item(s, bt, "slime_gel", 3)
+	T.eq(CharRules.complete_quest(s, bt, "gel").err, "missao_nao_pronta", "faltam géis")
+	CharRules.add_item(s, bt, "slime_gel", 3)
+	T.ok(CharRules.complete_quest(s, bt, "gel").ok, "entrega com 5 géis")
+	T.eq(_count(s, "slime_gel"), 1, "os 5 géis saem da mochila")
+	for id in ["rival", "goblins", "bilhete"]:
+		s.quests[id] = {"state": "done", "progress": 1}
+	var r := CharRules.start_quest(s, bt, "torta")
+	T.ok(r.ok, "torta começa")
+	T.eq(_count(s, "seed_pumpkin"), 2, "sementes de abóbora no início da missão")
+	T.ok(_has_event(r, "looted"), "aviso das sementes")
+	s.quests["torta"] = {"state": "done", "progress": 1}
+	T.ok(CharRules.start_quest(s, bt, "ossos").ok, "ossos começa")
+	CharRules.kill(s, bt, "slime", 0)
+	CharRules.kill(s, bt, "esqueleto_arqueiro", 0)
+	CharRules.kill(s, bt, "esqueleto", 0)
+	T.eq(s.quests.ossos.progress, 2, "qualquer esqueleto conta, slime não")
+
+
+func test_story_rules() -> void:
+	var qt: Dictionary = _tables().get_table("quests")
+	var q := {}
+	T.eq(StoryRules.current(qt, q), "chegada", "começa pela chegada")
+	T.eq(StoryRules.marker(qt, q, "elder", {}), "!", "Bram tem missão")
+	T.eq(StoryRules.marker(qt, q, "merchant", {}), "", "Mira ainda não")
+	q["chegada"] = {"state": "active", "progress": 0}
+	T.eq(StoryRules.marker(qt, q, "merchant", {}), "?", "Mira entrega a conversa")
+	T.eq(StoryRules.destination(qt, q, "chegada", {}), {"npc": "merchant"}, "rastreador aponta a Mira")
+	for id in ["chegada", "forja", "slimes"]:
+		q[id] = {"state": "done", "progress": 1}
+	T.eq(StoryRules.marker(qt, q, "alchemist", {}), "!", "Pip oferece o gel")
+	q["gel"] = {"state": "active", "progress": 0}
+	T.eq(StoryRules.destination(qt, q, "gel", {"slime_gel": 1}), {"pos": Vector2(0, -34)}, "falta gel: campos")
+	T.eq(StoryRules.marker(qt, q, "alchemist", {"slime_gel": 5}), "?", "com o gel: entregar")
+	T.eq(StoryRules.progress(qt, q, "gel", {"slime_gel": 9}), [5, 5], "progresso limitado ao total")
+	T.eq(StoryRules.new_chapters(qt, {}, {"chegada": {"state": "active"}}), ["chegada"], "capítulo novo")
+	T.eq(StoryRules.after(qt, "festa"), "", "festa é a última")
+	for id in qt:
+		var d: Dictionary = qt[id]
+		T.ok(StoryRules.giver(qt, id) in ["elder", "merchant", "blacksmith", "alchemist", "rival", "camp_note"], "giver de %s" % id)
+		T.ok(CharRules.quest_type(d) in ["kill", "talk", "collect"], "tipo de %s" % id)
 
 
 func test_sort_inventory() -> void:

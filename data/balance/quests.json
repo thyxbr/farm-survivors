@@ -1,38 +1,202 @@
 {
+	"chegada": {
+		"name": "O Herói da Profecia (Talvez)",
+		"giver": "Ancião Bram",
+		"giver_id": "elder",
+		"turn_in": "Mira, a Mercadora",
+		"turn_in_id": "merchant",
+		"type": "talk",
+		"target": "merchant",
+		"count": 1,
+		"chapter": {"n": 1, "title": "Um Herói Caiu na Vila"},
+		"desc": "O Ancião Bram jura que você é o herói de uma profecia (que ele parece estar inventando agora). Pegue o \"Kit do Herói\" com a Mira, no empório a leste do poço.",
+		"objective": "Fale com a Mira no empório",
+		"reward_xp": 30,
+		"reward_gold": 20,
+		"reward_items": {
+			"health_potion": 2
+		}
+	},
+	"forja": {
+		"name": "Uma Alma em Chamas",
+		"giver": "Mira, a Mercadora",
+		"giver_id": "merchant",
+		"turn_in": "Doran, o Ferreiro",
+		"turn_in_id": "blacksmith",
+		"type": "talk",
+		"target": "blacksmith",
+		"count": 1,
+		"desc": "O ferreiro Doran está gritando há uma hora que quer \"sentir a paixão\" do herói. A Mira pediu, com muita educação, que você vá fazê-lo parar. Fica na ferraria, a sudoeste do poço.",
+		"objective": "Fale com o Doran na ferraria",
+		"reward_xp": 40,
+		"reward_gold": 10,
+		"reward_items": {
+			"wooden_shield": 1
+		}
+	},
 	"slimes": {
 		"name": "Praga Gosmenta",
-		"giver": "Ancião Bram",
-		"desc": "Os slimes estão devorando as plantações ao norte da vila. Derrote 5 deles.",
+		"giver": "Doran, o Ferreiro",
+		"giver_id": "blacksmith",
+		"turn_in": "Ancião Bram",
+		"turn_in_id": "elder",
+		"type": "kill",
 		"target": "slime",
 		"count": 5,
+		"where": [0, -34],
+		"desc": "Os slimes estão devorando as plantações ao norte da vila. Doran quer que você prove sua paixão derrotando 5 deles. Depois, conte tudo ao Ancião Bram.",
+		"objective": "Slimes derrotados nos campos ao norte",
 		"reward_xp": 120,
 		"reward_gold": 50,
 		"reward_items": {
 			"health_potion": 3
 		}
 	},
+	"gel": {
+		"name": "Ciência Explosiva",
+		"giver": "Pip, a Alquimista",
+		"giver_id": "alchemist",
+		"turn_in": "Pip, a Alquimista",
+		"turn_in_id": "alchemist",
+		"type": "collect",
+		"target": "slime_gel",
+		"count": 5,
+		"where": [0, -34],
+		"chapter": {"n": 2, "title": "A Alquimista Que Explode Coisas"},
+		"desc": "Pip, a alquimista da botica, precisa de 5 Géis de Slime para um experimento \"totalmente seguro\". Os slimes dos campos ao norte deixam cair o gel.",
+		"objective": "Gel de Slime para a Pip",
+		"reward_xp": 90,
+		"reward_gold": 40,
+		"reward_items": {
+			"mana_potion": 3
+		}
+	},
+	"rival": {
+		"name": "O Barulho no Portão Leste",
+		"giver": "Pip, a Alquimista",
+		"giver_id": "alchemist",
+		"turn_in": "Kael, a Lâmina Carmesim",
+		"turn_in_id": "rival",
+		"type": "talk",
+		"target": "rival",
+		"count": 1,
+		"chapter": {"n": 3, "title": "O Rival Carmesim!"},
+		"desc": "Um sujeito de capa vermelha está fazendo discursos heroicos no portão leste há horas. A Pip quer silêncio. Vá ver quem é.",
+		"objective": "Fale com o aventureiro no portão leste",
+		"reward_xp": 40,
+		"reward_gold": 15,
+		"reward_items": {}
+	},
 	"goblins": {
 		"name": "Batedores Goblins",
-		"giver": "Ancião Bram",
-		"desc": "Goblins acamparam na floresta a leste. Derrote 4 batedores.",
+		"giver": "Kael, a Lâmina Carmesim",
+		"giver_id": "rival",
+		"turn_in": "Kael, a Lâmina Carmesim",
+		"turn_in_id": "rival",
+		"type": "kill",
 		"target": "goblin",
 		"count": 4,
+		"where": [62, 0],
+		"desc": "Kael desafiou você: quem derrotar mais batedores goblins no acampamento da floresta a leste é o verdadeiro herói. Derrote 4 e volte para contar vantagem.",
+		"objective": "Batedores goblins derrotados no acampamento a leste",
 		"reward_xp": 250,
 		"reward_gold": 80,
 		"reward_items": {
 			"chain_mail": 1
 		}
 	},
+	"bilhete": {
+		"name": "O Bilhete Amassado",
+		"giver": "Kael, a Lâmina Carmesim",
+		"giver_id": "rival",
+		"turn_in": "Bilhete Amassado",
+		"turn_in_id": "camp_note",
+		"type": "talk",
+		"target": "camp_note",
+		"count": 1,
+		"desc": "Kael \"viu de longe\" um bilhete preso num caixote do acampamento goblin, mas está \"ocupado demais\" para buscar. Leia o que está escrito.",
+		"objective": "Leia o bilhete no acampamento goblin",
+		"reward_xp": 60,
+		"reward_gold": 25,
+		"reward_items": {}
+	},
+	"torta": {
+		"name": "A Torta da Discórdia",
+		"giver": "Ancião Bram",
+		"giver_id": "elder",
+		"turn_in": "Ancião Bram",
+		"turn_in_id": "elder",
+		"type": "collect",
+		"target": "pumpkin_pie",
+		"count": 1,
+		"where": [0, 33],
+		"chapter": {"n": 4, "title": "A Torta da Discórdia"},
+		"start_items": {
+			"seed_pumpkin": 2,
+			"seed_wheat": 2
+		},
+		"desc": "O Rei Goblin quer a lendária Torta de Abóbora de Valdoria. O plano do Bram: assar uma como isca. Plante abóbora e trigo na Horta (saída sul), colha e cozinhe a torta no caldeirão.",
+		"objective": "Torta de Abóbora para o Bram",
+		"reward_xp": 200,
+		"reward_gold": 120,
+		"reward_items": {
+			"life_amulet": 1
+		}
+	},
+	"ossos": {
+		"name": "Ossos no Caminho",
+		"giver": "Ancião Bram",
+		"giver_id": "elder",
+		"turn_in": "Doran, o Ferreiro",
+		"turn_in_id": "blacksmith",
+		"type": "kill",
+		"target": "esqueleto",
+		"targets": ["esqueleto", "esqueleto_arqueiro", "esqueleto_mago", "esqueleto_cavaleiro"],
+		"count": 5,
+		"where": [0, -76],
+		"desc": "Esqueletos guardam a trilha das ruínas ao norte. Abra caminho derrotando 5 deles; o Doran prometeu uma surpresa para quando você voltar.",
+		"objective": "Esqueletos derrotados na trilha das ruínas",
+		"reward_xp": 300,
+		"reward_gold": 100,
+		"reward_items": {
+			"iron_helm": 1
+		}
+	},
 	"goblin_king": {
 		"name": "O Rei das Ruínas",
-		"giver": "Ancião Bram",
-		"desc": "O Rei Goblin comanda tudo das ruínas antigas ao norte. Acabe com ele.",
+		"giver": "Doran, o Ferreiro",
+		"giver_id": "blacksmith",
+		"turn_in": "Ancião Bram",
+		"turn_in_id": "elder",
+		"type": "kill",
 		"target": "goblin_king",
 		"count": 1,
+		"where": [0, -100],
+		"chapter": {"n": 5, "title": "O Rei das Ruínas"},
+		"desc": "Com a torta como isca, o Rei Goblin saiu do esconderijo nas ruínas antigas ao norte. Acabe com ele e traga a paz (e a torta) de volta a Valdoria.",
+		"objective": "Derrote o Rei Goblin nas ruínas ao norte",
 		"reward_xp": 600,
 		"reward_gold": 300,
 		"reward_items": {
 			"royal_plate": 1
+		}
+	},
+	"festa": {
+		"name": "Festa em Valdoria",
+		"giver": "Ancião Bram",
+		"giver_id": "elder",
+		"turn_in": "Kael, a Lâmina Carmesim",
+		"turn_in_id": "rival",
+		"type": "talk",
+		"target": "rival",
+		"count": 1,
+		"chapter": {"n": 6, "title": "Epílogo: Festa em Valdoria"},
+		"desc": "A vila está em festa! Mas o Kael está parado no portão leste com cara de quem ensaiou um discurso. Vá ouvir.",
+		"objective": "Fale com o Kael no portão leste",
+		"reward_xp": 150,
+		"reward_gold": 150,
+		"reward_items": {
+			"wind_ring": 1
 		}
 	}
 }
