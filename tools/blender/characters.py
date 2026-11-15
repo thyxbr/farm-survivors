@@ -269,6 +269,18 @@ def strap(name, p0, p1, width, material, parent, radial, t=0.005):
                 fwd=radial)
 
 
+def anime_mats(pre, skin_c, iris_c, brow_c, lash_c, mouth_c):
+    """Materiais do rosto desenhado (anime.py). O sufixo _flat tira a sombra de forma no jogo (ToonLook)."""
+    def sc(c, k):
+        return tuple(min(1.0, v * k) for v in c)
+    return {
+        "skin": mat(pre + "_skin_flat", skin_c, 0.8), "white": mat(pre + "_eyewhite_flat", hexc("#F7F1EA"), 0.5),
+        "iris": mat(pre + "_iris_flat", iris_c, 0.5), "iris_dark": mat(pre + "_irisdark_flat", sc(iris_c, 0.42), 0.5),
+        "iris_light": mat(pre + "_irislight_flat", sc(iris_c, 2.1), 0.5), "pupil": mat(pre + "_pupil_flat", sc(iris_c, 0.12), 0.5),
+        "lash": mat(pre + "_lash_flat", lash_c, 0.5), "brow": mat(pre + "_brow_flat", brow_c, 0.5),
+        "mouth": mat(pre + "_mouth_flat", mouth_c, 0.5), "line": mat(pre + "_line_flat", sc(skin_c, 0.62), 0.5)}
+
+
 def build_knight():
     steel = mat("k_steel", hexc("#A9B1BE"), 0.35, 0.85)
     steel_d = mat("k_steel_dark", hexc("#5D6573"), 0.45, 0.85)
@@ -589,8 +601,10 @@ def build_elder():
     face_mats = {"skin": skin, "lip": mat("e_lip", (0.62, 0.38, 0.34), 0.7), "sclera": mat("e_sclera", (0.88, 0.86, 0.8), 0.4),
                  "iris": mat("e_iris", (0.32, 0.42, 0.52), 0.3), "pupil": mat("e_pupil", (0.03, 0.03, 0.03), 0.2),
                  "brow": hair, "lash": mat("e_lash", (0.2, 0.16, 0.14), 0.9)}
-    H = human_head("", 1.505, 0.235, None, face_mats,
-                   {"age": 1.0, "nose": 1.15, "eye_depth": 1.25, "cheek": 1.1, "lips": 0.9})
+    H = anime_head("", 1.505, 0.235, None,
+                   anime_mats("e", (0.78, 0.55, 0.42), (0.20, 0.30, 0.42), (0.50, 0.50, 0.55), (0.2, 0.16, 0.14),
+                              (0.42, 0.22, 0.2)),
+                   {"eye_h": 0.6, "eye_w": 0.88, "lash": 0.6, "brow": 2.0, "brow_dz": -0.25, "brow_tilt": 0.3, "nose": 1.2})
     # cabelo: base escura colada ao crânio + mechas facetadas penteadas para trás, caindo até a nuca
     hair_d = mat("e_hair_d", (0.42, 0.42, 0.45), 0.9)
     shell("HairBase", (0, 0.004, 1.628), (0.152, 0.2, 0.226), hair_d, cut=0.22, seg=10, rings=6, rot=(-0.35, 0, 0),
@@ -631,7 +645,7 @@ def build_elder():
         ring(side + "_Cuff", 0.95, 0.122, 0.035, trim, sides=8, x=sx + s * 0.045, y=-0.01)
         limb(side + "_Wrist", (sx + s * 0.045, -0.01, 0.98), (sx + s * 0.045, -0.01, 0.9), 0.035, 0.032, skin, sides=6)
         fore = take()
-        hand(side, sx + s * 0.045, 0.86, skin, None)
+        open_hand(side, (sx + s * 0.045, -0.01, 0.905), s, skin, None)
         palm = take()
         tx = Vector((s, 0, 0))
         r_up = (el - sh).normalized().rotation_difference(tx)
@@ -814,9 +828,8 @@ def build_merchant():
                  "mouth": mat("m_mouth", hexc("#A0594A"), 0.8),
                  "brow": hair, "lash": eye}
     HH = 0.232                                   # 7,5 cabeças: legível como personagem estilizado
-    H = human_head("", 1.52, HH, head, face_mats,
-                   {"fem": 1.0, "nose": 0.8, "nose_w": 0.9, "brow": 0.6, "jaw": 0.95, "chin": 0.8, "eye_size": 1.1,
-                    "width": 1.0, "lips": 1.1})
+    H = anime_head("", 1.52, HH, head, anime_mats("m", hexc("#E3A47E"), hexc("#7A4A22"), hexc("#4A2A18"), hexc("#2B170C"),
+                                              hexc("#8C3F38")))
     k = HH / 23.0                                # 1 cm do modelo anatômico -> metros
     # cabelo: base escura + mechas facetadas que saem de baixo do turbante e se juntam no coque baixo
     hair_d = mat("m_hair_d", hexc("#2B170C"), 0.9)
@@ -862,7 +875,7 @@ def build_merchant():
         limb(side + "_Bracer", (sx + s * 0.034, 0.005, 1.06), (wx, 0, 0.94), 0.055, 0.047, lea, sides=7, parent=pv)
         ring(side + "_BracerTop", 1.058, 0.059, 0.022, lea_d, parent=pv, sides=7, x=sx + s * 0.034, y=0.005)
         ring(side + "_BracerBot", 0.947, 0.051, 0.02, lea_d, parent=pv, sides=7, x=wx)
-        hand(side, wx, 0.875, skin, pv)
+        open_hand(side, (wx, 0, 0.935), s, skin, pv)
 
     # ---------------- tudo em coordenadas de mundo, agrupado pelo pivô em que foi montado
     scn.view_layers[0].update()
@@ -915,7 +928,7 @@ def build_merchant():
         parts = {o.name[len(side):]: o for o in groups[side]}
         upper = [parts[n] for n in ("_Upper", "_SleeveTrimB", "_SleeveTrimA")]
         fore = [parts[n] for n in ("_Fore", "_Bracer", "_BracerTop", "_BracerBot")]
-        palm = [parts[n] for n in ("_Hand", "_Thumb")]
+        palm = [parts["_Hand"]]              # mão aberta (open_hand): palma, dedos e polegar numa malha só
         assert len(upper) + len(fore) + len(palm) == len(groups[side])
         tx = Vector((s, 0, 0))
         r_up = (el - sh).normalized().rotation_difference(tx)
@@ -1209,9 +1222,10 @@ def build_blacksmith():
     face_mats = {"skin": skin, "lip": mat("b_lip", hexc("#A55E4A"), 0.7), "sclera": mat("b_sclera", hexc("#EAE2D6"), 0.4),
                  "iris": mat("b_iris", hexc("#4A3220"), 0.3), "pupil": mat("b_pupil", hexc("#1E1410"), 0.5),
                  "mouth": mat("b_mouth", hexc("#7A3E30"), 0.8), "brow": hair, "lash": hair_d}
-    H = human_head("", 1.54, 0.238, None, face_mats,
-                   {"width": 1.1, "jaw": 1.15, "chin": 1.05, "nose": 1.25, "nose_w": 1.25, "brow": 1.5, "cheek": 1.15,
-                    "age": 0.3})
+    H = anime_head("", 1.54, 0.238, None,
+                   anime_mats("b", hexc("#D08A62"), hexc("#4A3220"), hexc("#5A2C16"), hexc("#3A1C0E"), hexc("#7A3E30")),
+                   {"width": 1.1, "jaw": 1.18, "eye_h": 0.58, "eye_w": 0.88, "lash": 0.65, "brow": 2.6, "brow_dz": -0.4,
+                    "brow_tilt": 0.55, "nose": 1.3})
     shell("HairBase", (0, 0.006, 1.66), (0.168, 0.214, 0.21), hair_d, cut=0.25, seg=10, rings=6, rot=(-0.35, 0, 0),
           thick=0.008)
     shell("HairBaseBack", (0, 0.01, 1.63), (0.172, 0.27, 0.19), hair_d, cut=0.1, seg=10, rings=6, rot=(-PI / 2, 0, 0),
