@@ -207,6 +207,8 @@ func _loading_screen() -> void:
 		var s := get_tree().current_scene
 		return s != null and s.get("role") == null and s.get("player") != null, 15.0)
 	check(arrived, "Valdoria montada por trás da tela")
+	check(arrived and get_tree().current_scene.built and is_equal_approx(Loading.progress, 1.0),
+		"mapa montado em etapas com a barra em 100%% (%.2f)" % Loading.progress)
 	if arrived:
 		var p: Player = get_tree().current_scene.player
 		check(Loading.covering, "tela ainda cobre com Valdoria recém-montada")

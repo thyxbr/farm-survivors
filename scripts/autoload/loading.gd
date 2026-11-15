@@ -13,7 +13,7 @@ const FADE_OUT := 0.4
 const MIN_TIME := 0.7      # tempo mínimo coberto: sem isso a tela só pisca
 const MIN_FRAMES := 6      # quadros da cena nova desenhados por baixo antes de abrir
 const NET_WAIT := 1.5      # online: espera o primeiro snapshot de inimigos até aqui
-const MAX_WAIT := 10.0     # teto: abre de qualquer jeito
+const MAX_WAIT := 15.0     # teto: abre de qualquer jeito
 const GRACE := 2.0         # imunidade depois que a tela abre
 
 const NAMES := {
@@ -37,6 +37,9 @@ const TIPS := [
 var covering := false
 ## Testes: usa a tela mesmo em headless.
 var force := false
+
+## Fração montada do mundo (0–1); -1 = a cena não informa (sem barra, só o anel girando).
+var progress := -1.0
 
 var _seq := 0
 var _root: Control
@@ -65,6 +68,7 @@ func go(path: String) -> void:
 	var seq := _seq
 	_dest.text = NAMES.get(path, "Carregando…")
 	_tip.text = TIPS[randi() % TIPS.size()]
+	progress = -1.0
 	covering = true
 	_root.visible = true
 	_root.mouse_filter = Control.MOUSE_FILTER_STOP   # nenhum clique passa para o jogo coberto
@@ -92,6 +96,11 @@ func go(path: String) -> void:
 		if _elapsed(t0) > MAX_WAIT:
 			break
 	var scene := tree.current_scene
+	# Valdoria monta o mapa em etapas (world.gd): espera terminar
+	while is_instance_valid(scene) and scene.get("built") == false and _elapsed(t0) < MAX_WAIT:
+		await tree.process_frame
+		if seq != _seq:
+			return
 	var t_ready := Time.get_ticks_msec()
 	var frames := 0
 	while _elapsed(t0) < MAX_WAIT:
@@ -127,6 +136,11 @@ func _open(seq: int) -> void:
 	await _fade.finished
 	if seq == _seq:
 		_root.visible = false
+
+
+## A cena que monta o mundo em etapas informa quanto já fez (a barra aparece a partir da primeira chamada).
+func set_progress(frac: float) -> void:
+	progress = clampf(frac, 0.0, 1.0)
 
 
 func _fade_to(alpha: float, time: float) -> void:
@@ -193,7 +207,7 @@ func _build() -> void:
 	center.add_child(_dest)
 
 	_spinner = Control.new()
-	_spinner.custom_minimum_size = Vector2(0, 72)
+	_spinner.custom_minimum_size = Vector2(0, 110)
 	_spinner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_spinner.draw.connect(_draw_spinner)
 	center.add_child(_spinner)
@@ -212,8 +226,12 @@ func _build() -> void:
 
 ## Anel dourado girando: um arco claro correndo sobre um aro apagado.
 func _draw_spinner() -> void:
-	var c := _spinner.size * 0.5
+	var c := Vector2(_spinner.size.x * 0.5, 36.0)
 	var r := 22.0
 	_spinner.draw_arc(c, r, 0.0, TAU, 48, Color(UITheme.GOLD_DIM, 0.35), 3.0, true)
 	var a := _spin * 4.0
 	_spinner.draw_arc(c, r, a, a + TAU * 0.3, 24, UITheme.GOLD, 3.0, true)
+	if progress >= 0.0:
+		var bar := Rect2(c.x - 160.0, c.y + r + 22.0, 320.0, 6.0)
+		_spinner.draw_rect(bar, Color(UITheme.GOLD_DIM, 0.35))
+		_spinner.draw_rect(Rect2(bar.position, Vector2(bar.size.x * progress, bar.size.y)), UITheme.GOLD)
