@@ -1,9 +1,10 @@
 class_name SkinnedNPC
 extends "res://scripts/world/npc.gd"
 ## Base dos NPCs com esqueleto (ferreiro, Bram, Mira): acha o AnimationPlayer e o Skeleton3D do modelo,
-## carrega a biblioteca de clipes do Mixamo como "mixamo" (com prioridade sobre os provisórios do .glb, ver
-## clip()), prende ferramentas soltas aos ossos, vira o close do diálogo para o osso Head e sabe se o diálogo
-## aberto por ele continua aberto. As subclasses dizem a biblioteca (library_path) e cuidam dos estados.
+## carrega (só se for animar) a biblioteca de clipes do Mixamo como "mixamo" (com prioridade sobre os
+## provisórios do .glb, ver clip()), prende ferramentas soltas aos ossos, vira o close do diálogo para o osso
+## Head e sabe se o diálogo aberto por ele continua aberto. As subclasses dizem a biblioteca (library_path) e
+## cuidam dos estados.
 
 const BLEND := 0.25
 
@@ -24,11 +25,12 @@ func _ready() -> void:
 	var aps := model.find_children("*", "AnimationPlayer")
 	skeleton = sks[0] if sks.size() > 0 else null
 	anim = aps[0] if aps.size() > 0 else null
-	_add_library(anim, library_path())
 	var headless := DisplayServer.get_name() == "headless"
 	# o smoke test roda headless, mas precisa da animação para conferir os NPCs
 	_animate = anim != null and (not headless or "--smoketest" in OS.get_cmdline_user_args())
-	if not _animate:
+	if _animate:   # o servidor dedicado nem carrega a biblioteca
+		_add_library(anim, library_path())
+	else:
 		if anim:
 			anim.stop()
 			anim.active = false
