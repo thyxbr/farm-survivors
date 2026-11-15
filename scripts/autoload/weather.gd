@@ -167,6 +167,15 @@ func _autumn_at(t: float) -> float:
 	return SeasonRules.weight_at(t, SeasonRules.Kind.AUTUMN)
 
 
+## Peso (0..1) de cada estação agora, na ordem de SeasonRules.Kind (na troca, duas se misturam).
+func season_weights() -> Array:
+	if _forced_season >= 0:
+		var w := [0.0, 0.0, 0.0, 0.0]
+		w[_forced_season] = 1.0
+		return w
+	return SeasonRules.weights_at(_clock)
+
+
 ## Nome da estação atual ("primavera", "verão", "outono", "inverno").
 func season_name() -> String:
 	return SeasonRules.NAMES[season]

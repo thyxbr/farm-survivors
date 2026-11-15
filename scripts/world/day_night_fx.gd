@@ -4,6 +4,9 @@ extends Node
 ## dia; à noite a luz vira um luar azulado, o céu escurece e ganha estrelas, e as luzes da cidade acendem
 ## (lampiões, janelas das casas, pisca-pisca de Natal). A hora sai de DayNightRules e do relógio do Weather.
 ##
+## A estação (Weather.season_weights) muda o dia: nascer e pôr do sol, altura do sol e força do luar
+## (DayNightRules.SEASONS). Na troca de estação os valores se misturam (SeasonRules.BLEND).
+##
 ## Roda depois do WeatherFX em cada quadro: o clima monta a luz do dia (nuvens, neblina) e o dia/noite
 ## escurece e tinge por cima do que ele deixou. Sem WeatherFX na cena, parte da luz guardada no _ready.
 ## Criar depois de WorldLighting.build e do WeatherFX. Só visual: não existe no servidor dedicado.
@@ -18,6 +21,8 @@ static var forced_hour := -1.0
 ## Hora e noite (0..1) atuais, para quem quiser ler (HUD, testes).
 static var hour := 12.0
 static var night_amount := 0.0
+## Dia da estação atual (DayNightRules.day_for: nascer, pôr, altura do sol, luar).
+static var day := DayNightRules.day_of(SeasonRules.Kind.SPRING)
 
 var _env: Environment
 var _sky: ProceduralSkyMaterial
@@ -95,11 +100,15 @@ static func current_hour() -> float:
 
 func _apply(delta: float) -> void:
 	hour = current_hour()
-	var n := DayNightRules.night(hour)
+	day = DayNightRules.day_for(Weather.season_weights())
+	var rise: float = day.sunrise
+	var fall: float = day.sunset
+	var n := DayNightRules.night(hour, rise, fall)
 	night_amount = n
-	var sun_k := DayNightRules.sun(hour)
-	var moon_k := DayNightRules.moon(hour)
-	var gold := DayNightRules.golden(hour) * (1.0 - n * 0.5)
+	var sun_k := DayNightRules.sun(hour, rise, fall)
+	var moon_k := DayNightRules.moon(hour, rise, fall)
+	var moon_e: float = day.moon
+	var gold := DayNightRules.golden(hour, rise, fall) * (1.0 - n * 0.5)
 	var cloud: float = Weather.state.get("cloud", 0.0)
 	var weather_live := Weather.fx != null and is_instance_valid(Weather.fx)
 	# ---- sol e lua (a direção troca no escuro, quando os dois estão perto de zero)
@@ -107,10 +116,10 @@ func _apply(delta: float) -> void:
 		var e: float = _sun.light_energy if weather_live else _base.sun
 		var c: Color = _sun.light_color if weather_live else _base.sun_color
 		if sun_k > 0.0 or moon_k <= 0.0:
-			_sun.rotation_degrees = DayNightRules.sun_rotation(hour)
+			_sun.rotation_degrees = DayNightRules.sun_rotation(hour, rise, fall, day.peak)
 		else:
 			_sun.rotation_degrees = DayNightRules.MOON_ROTATION
-		_sun.light_energy = e * (sun_k * (1.0 - 0.25 * gold) + 0.3 * moon_k)
+		_sun.light_energy = e * (sun_k * (1.0 - 0.25 * gold) + 0.3 * moon_k * moon_e)
 		c = c.lerp(Color(1.0, 0.62, 0.38), gold * 0.75 * sun_k)
 		_sun.light_color = c.lerp(Color(0.62, 0.72, 1.0), moon_k)
 	if _rim != null:
@@ -120,7 +129,8 @@ func _apply(delta: float) -> void:
 	# ---- céu, ambiente e névoa
 	if _env != null:
 		var amb: float = _env.ambient_light_energy if weather_live else _base.ambient
-		_env.ambient_light_energy = amb * (1.0 - 0.35 * n)
+		# luar mais forte (inverno, neve) deixa a noite menos escura
+		_env.ambient_light_energy = amb * (1.0 - 0.35 * n / maxf(moon_e, 0.5))
 		_env.ambient_light_color = (_base.ambient_color as Color).lerp(Color(0.32, 0.38, 0.68), n)
 		var fog: Color = _env.fog_light_color if weather_live else _base.fog_color
 		_env.fog_light_color = fog.lerp(Color(0.95, 0.62, 0.45), gold * 0.45).lerp(Color(0.1, 0.13, 0.26), n)
