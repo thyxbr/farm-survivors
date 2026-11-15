@@ -81,7 +81,7 @@ func _ready() -> void:
 					tinted += 1
 					break
 	check(models.size() == 6, "seis modelos de casa na vila (%s)" % str(models.keys()))
-	check(tinted >= VillageLayout.HOUSES.size(), "casas pintadas com as paletas (%d)" % tinted)
+	check(tinted >= VillageLayout.houses().filter(func(h: Dictionary) -> bool: return h.palette >= 0).size(), "casas pintadas com as paletas (%d)" % tinted)
 
 	# --- os 6 pontos que vieram da praça
 	check(w.points.size() == 6, "vila monta os 6 pontos da antiga praça (%d)" % w.points.size())

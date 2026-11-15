@@ -1,65 +1,104 @@
 extends RefCounted
-## VillageLayout: a planta da vila não pode ter casa dentro de casa, casa em cima da rua (a não ser a borda
-## de um alpendre) nem nada fora da cerca. As seis casas da praça e as três lojas ficam onde sempre ficaram.
+## VillageLayout: a planta da vila (scenes/village.tscn) não pode ter construção dentro de outra, casa em cima
+## da rua (a não ser a borda de um alpendre) nem nada fora da cerca. Mexeu na cena no editor? Rode este teste.
 
-## As seis casas da praça e as lojas (world.gd): [centro, yaw, largura, profundidade].
-const OLD := [
-	[Vector3(-13, 0, -6), PI / 2, 5.2, 4.2], [Vector3(-13, 0, 7), PI / 2, 5.2, 4.2],
-	[Vector3(13, 0, -6), -PI / 2, 5.2, 4.2], [Vector3(13, 0, 7), -PI / 2, 5.2, 4.2],
-	[Vector3(-5, 0, 16), PI, 5.2, 4.2], [Vector3(6, 0, 16), PI, 5.2, 4.2],
-	[Vector3(9.4, 0, 0.5), -PI / 2, 5.2, 3.6], [Vector3(-12, 0, 0.5), PI / 2, 4.4, 3.8],
-	[Vector3(-10.5, 0, 13), 0.0, 4.6, 4.6],
-]
+## As construções vêm de scenes/village.tscn (VillageLayout.buildings()) e podem ter qualquer giro, então
+## a pegada é um retângulo girado: [cantos (4 × Vector2), descrição].
 
 
-## Retângulo no chão (x, z) de uma pegada girada em múltiplos de 90°.
-func _rect(c: Vector3, yaw: float, w: float, d: float) -> Rect2:
-	var quarter := absf(roundf(yaw / (PI / 2))) as int % 2 == 1
-	var sx := d if quarter else w
-	var sz := w if quarter else d
-	return Rect2(c.x - sx / 2.0, c.z - sz / 2.0, sx, sz)
+## Pegada (largura, profundidade) de uma construção.
+func _size(b: Dictionary) -> Vector2:
+	if VillageLayout.HOUSE_SIZE.has(b.model):
+		var s: Vector3 = VillageLayout.HOUSE_SIZE[b.model]
+		return Vector2(s.x, s.z)
+	return VillageLayout.FOOTPRINT[b.model]
 
 
-func _houses() -> Array:
+func _foot(b: Dictionary) -> Array:
+	var sz := _size(b)
+	var xf := VillageLayout.xform(b)
 	var out: Array = []
-	for h in VillageLayout.HOUSES:
-		var size: Vector3 = VillageLayout.HOUSE_SIZE[h[2]]
-		out.append([_rect(h[0], h[1], size.x, size.z), "%s em %s" % [h[2], str(h[0])]])
+	for c in [Vector3(-1, 0, -1), Vector3(1, 0, -1), Vector3(1, 0, 1), Vector3(-1, 0, 1)]:
+		var p: Vector3 = xf * Vector3(c.x * sz.x / 2.0, 0, c.z * sz.y / 2.0)
+		out.append(Vector2(p.x, p.z))
+	return [out, "%s (%s em %s)" % [b.name, b.model, str(b.pos)]]
+
+
+func _all(only_houses := false) -> Array:
+	var out: Array = []
+	for b in (VillageLayout.houses() if only_houses else VillageLayout.buildings()):
+		out.append(_foot(b))
 	return out
 
 
+## Retângulo do chão que cobre os cantos.
+func _bounds(pts: Array) -> Rect2:
+	var r := Rect2(pts[0], Vector2.ZERO)
+	for p in pts:
+		r = r.expand(p)
+	return r
+
+
+## Dois retângulos girados se cruzam (eixos separadores), com folga de 5 cm.
+func _overlap(a: Array, b: Array) -> bool:
+	for poly in [a, b]:
+		for i in 4:
+			var e: Vector2 = poly[(i + 1) % 4] - poly[i]
+			var axis := Vector2(-e.y, e.x).normalized()
+			var amin := INF
+			var amax := -INF
+			var bmin := INF
+			var bmax := -INF
+			for p in a:
+				amin = minf(amin, axis.dot(p))
+				amax = maxf(amax, axis.dot(p))
+			for p in b:
+				bmin = minf(bmin, axis.dot(p))
+				bmax = maxf(bmax, axis.dot(p))
+			if amax - 0.05 <= bmin or bmax - 0.05 <= amin:
+				return false
+	return true
+
+
+func test_scene_has_the_village() -> void:
+	var count := {}
+	for b in VillageLayout.buildings():
+		count[b.model] = int(count.get(b.model, 0)) + 1
+	T.ok(VillageLayout.houses().size() >= 6, "casas na cena (%d)" % VillageLayout.houses().size())
+	for m in ["well", "shop_merchant", "shop_alchemist", "shop_smithy"]:
+		T.eq(int(count.get(m, 0)), 1, "um %s na cena" % m)
+	for b in VillageLayout.buildings():
+		T.ok(VillageLayout.HOUSE_SIZE.has(b.model) or VillageLayout.FOOTPRINT.has(b.model),
+			"%s tem tamanho conhecido" % b.name)
+		T.ok(int(b.palette) < VillageLayout.PALETTES.size(), "%s com paleta que existe" % b.name)
+
+
 func test_houses_do_not_overlap() -> void:
-	var hs := _houses()
-	for h in OLD:
-		hs.append([_rect(h[0], h[1], h[2], h[3]), "casa antiga em %s" % str(h[0])])
+	var hs := _all()
 	for i in hs.size():
 		for j in range(i + 1, hs.size()):
-			var a: Rect2 = hs[i][0]
-			var b: Rect2 = hs[j][0]
-			T.ok(not a.grow(-0.05).intersects(b.grow(-0.05)), "%s não encosta em %s" % [hs[i][1], hs[j][1]])
+			T.ok(not _overlap(hs[i][0], hs[j][0]), "%s não encosta em %s" % [hs[i][1], hs[j][1]])
 
 
 func test_houses_inside_fence() -> void:
 	var fence: Rect2 = VillageLayout.BOUNDS
-	for h in _houses():
-		T.ok(fence.encloses(h[0]), "%s dentro da cerca" % h[1])
+	for h in _all():
+		T.ok(fence.encloses(_bounds(h[0])), "%s dentro da cerca" % h[1])
 
 
 func test_houses_off_the_streets() -> void:
-	for h in _houses():
+	for h in _all(true):
 		for st in VillageLayout.STREETS:
 			var c: Vector3 = st[0]
 			var sz: Vector2 = st[1]
 			var road := Rect2(c.x - sz.x / 2.0, c.z - sz.y / 2.0, sz.x, sz.y)
-			var inter: Rect2 = (h[0] as Rect2).intersection(road)
+			var inter: Rect2 = _bounds(h[0]).intersection(road)
 			T.ok(inter.get_area() < 0.6, "%s fora da rua em %s (%.2f m²)" % [h[1], str(c), inter.get_area()])
 
 
 func test_event_spots() -> void:
 	T.eq(VillageLayout.GIFTS.size(), 8, "8 presentes, como a missão pede")
-	T.eq(VillageLayout.DELIVERY.size(), 6, "6 casas de entrega, como a missão pede")
-	for i in VillageLayout.DELIVERY:
-		T.ok(i >= 0 and i < VillageLayout.HOUSES.size(), "casa de entrega %d existe" % i)
+	T.eq(VillageLayout.deliveries().size(), 6, "6 casas de entrega (delivery) na cena, como a missão pede")
 	var fence: Rect2 = VillageLayout.BOUNDS
 	for g in VillageLayout.GIFTS:
 		T.ok(not fence.has_point(Vector2(g.x, g.z)), "presente %s fora da vila" % str(g))

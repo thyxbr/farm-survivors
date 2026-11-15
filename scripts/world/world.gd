@@ -55,8 +55,6 @@ const WAR_TABLE := preload("res://scripts/ui/war_table_ui.gd")
 const ALCHEMIST := preload("res://scripts/world/alchemist.gd")
 const RIVAL := preload("res://scripts/world/rival.gd")
 const STORY_POINT := preload("res://scripts/world/story_point.gd")
-const MERCHANT_SHOP := Vector3(9.4, 0, 0.5)     # empório atrás do balcão da Mira (frente para -X)
-const ALCHEMIST_SHOP := Vector3(-12.0, 0, 0.5)  # botica no vão oeste (frente para +X)
 const PLAYER := preload("res://scripts/player/player.gd")
 const HUD := preload("res://scripts/ui/hud.gd")
 const DIALOGUE := preload("res://scripts/ui/dialogue_ui.gd")
@@ -81,8 +79,8 @@ const VILLAGE_SPAWN := Vector3(0, 0.3, 6)
 const RUINS := Vector3(0, 0, -100)
 const CAMP := Vector3(62, 0, 0)
 const ARENA := Vector3(-72, 0, -10)     # Desafio da Horda
-const PORTAL_POS := Vector3(-8, 0, -9.5)
-const FARM := Vector3(0, 0, 33)          # Horta da Vila (saída sul)
+const PORTAL_POS := VillageLayout.PORTAL
+const FARM := VillageLayout.FARM          # Horta da Vila (saída sul)
 const NEST := Vector3(-36, 0, 36)        # Ninho de Slimes (sudoeste da vila)
 ## Maciços dentro do mapa: [centro, raio da base, altura]. Ficam nos cantos vazios, longe das
 ## áreas de missão; a serra em volta do mapa é só visual (fora da borda).
@@ -96,7 +94,7 @@ const MOUNTAINS := [
 const TREE_R := {"tree_oak": 0.4, "tree_pine": 0.35, "tree_fir": 0.32, "tree_birch": 0.25,
 		"tree_maple": 0.4, "tree_cherry": 0.38, "tree_apple": 0.3, "tree_orange": 0.3, "tree_pear": 0.3}
 const FRUIT_TREES := ["tree_apple", "tree_orange", "tree_pear"]
-const ORCHARD := Vector3(20, 0, 33)      # pomar a leste da Horta
+const ORCHARD := VillageLayout.ORCHARD      # pomar a leste da Horta
 
 var player: Player
 var hud
@@ -322,72 +320,26 @@ func _light(parent: Node3D, local: Vector3, color: Color, energy: float, rng_ran
 # ================================================================ vila
 func _build_village() -> void:
 	_avoid.append([Vector2(0, 4), 26.0])
-	prop("well", Vector3(0, 0, 0), 0.0, 1.0, "cyl", Vector3(0.95, 1.2, 0))
-	# [posição, yaw, modelo]: as três variações (enxaimel, sapê, sobrado) alternadas em volta da praça
-	var houses := [
-		[Vector3(-13, 0, -6), PI / 2, "house"], [Vector3(-13, 0, 7), PI / 2, "house_c"],
-		[Vector3(13, 0, -6), -PI / 2, "house_c"], [Vector3(13, 0, 7), -PI / 2, "house_b"],
-		[Vector3(-5, 0, 16), PI, "house_b"], [Vector3(6, 0, 16), PI, "house"],
-	]
-	var house_nodes: Array = []
-	for h in houses:
-		house_nodes.append(prop(h[2], h[0], h[1], 1.0, "box", Vector3(5.2, 3.2, 4.2)))
 	var lamps: Array = []
-	for p in [Vector3(-5, 0, -5), Vector3(5, 0, -5), Vector3(6, 0, 8), Vector3(-6, 0, 8)]:
+	for p: Vector3 in VillageLayout.LAMPS_SQUARE:
 		var lamp := prop("lamp", p, atan2(-p.x, -p.z), 1.0, "cyl", Vector3(0.12, 3.7, 0))
 		DayNightFX.night_light(_light(lamp, Vector3(0, 3.3, 0.5), Color(1, 0.75, 0.4), 1.6, 9.0), 1.6)
 		lamps.append(lamp)
-	for hn in house_nodes:   # luz das janelas caindo na frente de cada casa, só à noite
-		DayNightFX.night_light(_light(hn, Vector3(0, 1.6, 3.2), Color(1, 0.72, 0.42), 0.9, 5.5), 0.9)
-	_build_christmas(houses, house_nodes, lamps)
-	# lojas: empório da mercadora no vão leste, botica do alquimista no vão oeste (de frente para a praça)
-	_shop("shop_merchant", MERCHANT_SHOP, -PI / 2, [[Vector3(0, 0, -0.4), Vector3(5.2, 3.0, 3.6)]], [], 3.4)
-	_shop("shop_alchemist", ALCHEMIST_SHOP, PI / 2, [[Vector3(0.2, 0, 0), Vector3(4.4, 3.4, 3.8)]],
-		[[Vector3(-2.05, 0, -1.8), 0.95], [Vector3(-1.05, 0, 2.85), 0.45]], 3.6)
-	prop("tree_cherry", Vector3(-17, 0, -1.5), 0.3, 0.85, "cyl", Vector3(0.38, 3, 0))   # atrás da botica
-	prop("tree_cherry", Vector3(9, 0, 11.5), 2.0, 0.75, "cyl", Vector3(0.38, 3, 0))
-	# canteiros de flores na frente das casas e em volta da praça (sem colisão)
-	for h in houses:
-		var fwd := Vector3(sin(h[1]), 0, cos(h[1]))
-		var side := Vector3(fwd.z, 0, -fwd.x)
-		for off in [-2.2, -1.5, 1.5, 2.2]:   # dos dois lados da porta
-			var kind := "flower_lavender" if rng.randf() < 0.5 else "flower_tulips"
-			var fp: Vector3 = h[0] + fwd * 2.75 + side * (off + rng.randf_range(-0.15, 0.15))
-			prop(kind, fp, rng.randf() * TAU, rng.randf_range(0.9, 1.2))
+	_build_christmas(lamps)
+	_build_buildings()
+	for c in VillageLayout.CHERRIES:
+		prop("tree_cherry", c[0], c[1], c[2], "cyl", Vector3(0.38, 3, 0))
 	_build_fence()
 	# NPCs
+	var spots := VillageLayout.npc_spots()
 	var elder := ELDER.new()
-	elder.position = Vector3(-3, 0, -2.5)
-	elder.rotation.y = atan2(3.0, 8.5)
+	elder.position = spots.elder[0]
+	elder.rotation.y = spots.elder[1]
 	add_child(elder)
-	var merchant := MERCHANT.new()
-	merchant.position = Vector3(7.0, 0, -0.2)   # na frente do balcão do empório
-	merchant.rotation.y = -PI / 2
-	add_child(merchant)
-	# ferraria no vão entre as casas de (-13, 7) e (-5, 16), de frente para o poço: da praça se vê o ferreiro
-	# atrás da bigorna (o lampião de (-6, 8) fica de lado na visada); longe dos canteiros das portas
-	var smith := BLACKSMITH.new()
-	smith.position = Vector3(-10.5, 0, 13)
-	smith.rotation.y = atan2(10.5, -9.0)
-	var smithy := Transform3D(Basis(Vector3.UP, smith.rotation.y), smith.position)
-	smith.anvil = prop("anvil", smithy * BLACKSMITH.ANVIL_OFFSET, smith.rotation.y + BLACKSMITH.ANVIL_YAW, 1.0,
-		"cyl", Vector3(0.3, 0.8, 0))
-	prop("forge", smithy * BLACKSMITH.FORGE_OFFSET, smith.rotation.y + BLACKSMITH.FORGE_YAW, 1.0,
-		"box", Vector3(0.9, 1.0, 0.8))
-	_forge_fire(smithy * BLACKSMITH.FORGE_OFFSET)
-	# a ferraria tem a origem no ferreiro: a forja fica sob a coifa e a chaminé, a bigorna na frente
-	_shop("shop_smithy", smith.position, smith.rotation.y, [[Vector3(0, 0, -2.6), Vector3(4.0, 3.0, 0.5)],
-		[Vector3(-1.8, 0, -0.7), Vector3(0.4, 1.1, 3.4)]], [[Vector3(1.4, 0, -0.4), 0.5]], 2.8)
-	add_child(smith)
-	# Pip, a Alquimista, na frente da botica (de frente para o poço)
-	var pip := ALCHEMIST.new()
-	pip.position = Vector3(-9.0, 0, 0.2)
-	pip.rotation.y = PI / 2
-	add_child(pip)
 	# Kael, o rival, no vão do portão leste, virado para a praça (ensaiando discursos)
 	var kael := RIVAL.new()
-	kael.position = Vector3(16.2, 0, -1.6)
-	kael.rotation.y = -PI / 2
+	kael.position = spots.kael[0]
+	kael.rotation.y = spots.kael[1]
 	add_child(kael)
 	_build_signs()
 	_build_guild()
@@ -397,18 +349,81 @@ func _build_village() -> void:
 	_build_districts()
 
 
+## Construções da cena village.tscn (VillageLayout.buildings(), editada no 3D do Godot): o poço, as lojas
+## com os donos na frente e as casas com cores, pisca-pisca, guirlanda, luz da janela e canteiro.
+func _build_buildings() -> void:
+	var n_house := 0
+	for b: Dictionary in VillageLayout.buildings():
+		var model: String = b.model
+		var xf := VillageLayout.xform(b)
+		if model == "well":
+			prop("well", b.pos, b.yaw, 1.0, "cyl", Vector3(0.95, 1.2, 0))
+		elif model.begins_with("shop_"):
+			var sh: Array = VillageLayout.SHOP_SHAPES[model]
+			_shop(model, b.pos, b.yaw, sh[0], sh[1], sh[2])
+			_shop_keeper(model, xf)
+		else:
+			_house(b, xf, n_house)
+			n_house += 1
+
+
+## Casa: modelo pintado com a paleta, colisão, enfeites de Natal, luz da janela à noite e canteiro de flores.
+func _house(b: Dictionary, xf: Transform3D, i: int) -> void:
+	var model: String = b.model
+	var size: Vector3 = VillageLayout.HOUSE_SIZE[model]
+	var hn := prop(model, b.pos, b.yaw, 1.0, "box", size)
+	VillageLayout.tint(hn, b.palette)
+	ChristmasDecor.house_lights(hn, model, i)
+	var d: Array = ChristmasDecor.HOUSE_DOORS[model]
+	ChristmasDecor.wreath(hn, Vector3(d[0], d[1], d[2]))
+	DayNightFX.night_light(_light(hn, Vector3(0, 1.6, size.z * 0.5 + 1.2), Color(1, 0.72, 0.42), 0.9, 5.5), 0.9)
+	if b.flowers == 1:   # um vaso de cada lado da porta
+		for off in [-1.6, 1.6]:
+			if absf(off - float(d[0])) < 0.9:
+				continue
+			var kind := "flower_lavender" if (i + int(off)) % 2 == 0 else "flower_tulips"
+			prop(kind, xf * Vector3(off, 0, size.z * 0.5 + 0.55), rng.randf() * TAU, rng.randf_range(0.85, 1.1))
+	elif b.flowers == 2:   # quatro flores sorteadas, duas de cada lado da porta
+		for off in [-2.2, -1.5, 1.5, 2.2]:
+			var kind := "flower_lavender" if rng.randf() < 0.5 else "flower_tulips"
+			var fp: Vector3 = xf * Vector3(off + rng.randf_range(-0.15, 0.15), 0, 2.75)
+			prop(kind, fp, rng.randf() * TAU, rng.randf_range(0.9, 1.2))
+
+
+## O dono de cada loja na frente dela: a Mira no balcão do empório, a Pip na porta da botica e o ferreiro na
+## ferraria (a origem da ferraria é o lugar dele; a bigorna e a forja ficam em volta).
+func _shop_keeper(model: String, xf: Transform3D) -> void:
+	var yaw := xf.basis.get_euler().y
+	match model:
+		"shop_merchant":
+			var merchant := MERCHANT.new()
+			merchant.position = xf * VillageLayout.MERCHANT_SPOT
+			merchant.rotation.y = yaw
+			add_child(merchant)
+		"shop_alchemist":
+			var pip := ALCHEMIST.new()
+			pip.position = xf * VillageLayout.ALCHEMIST_SPOT
+			pip.rotation.y = yaw
+			add_child(pip)
+		"shop_smithy":
+			var smith := BLACKSMITH.new()
+			smith.position = xf.origin
+			smith.rotation.y = yaw
+			smith.anvil = prop("anvil", xf * BLACKSMITH.ANVIL_OFFSET, yaw + BLACKSMITH.ANVIL_YAW, 1.0,
+				"cyl", Vector3(0.3, 0.8, 0))
+			prop("forge", xf * BLACKSMITH.FORGE_OFFSET, yaw + BLACKSMITH.FORGE_YAW, 1.0,
+				"box", Vector3(0.9, 1.0, 0.8))
+			_forge_fire(xf * BLACKSMITH.FORGE_OFFSET)
+			add_child(smith)
+
+
 ## Decoração de Natal da vila (ChristmasDecor): árvore enfeitada perto do portão norte, varal de luzes
 ## entre os quatro lampiões da praça, pisca-pisca e guirlanda em cada casa, festão nos postes, bengalas
 ## nos portões, árvores pequenas na frente das lojas, presentes e um boneco de neve.
-func _build_christmas(houses: Array, house_nodes: Array, lamps: Array) -> void:
-	var tree_pos := Vector3(8.8, 0, -10.3)   # ao lado do quadro de avisos, longe do portão norte
+func _build_christmas(lamps: Array) -> void:
+	var tree_pos := VillageLayout.XMAS_TREE   # ao lado do quadro de avisos, longe do portão norte
 	ChristmasDecor.tree(self, tree_pos, 1.0, 1225)
 	_no_grass.append([Vector2(tree_pos.x, tree_pos.z), 2.4])
-	for i in houses.size():
-		var model: String = houses[i][2]
-		ChristmasDecor.house_lights(house_nodes[i], model, i)
-		var d: Array = ChristmasDecor.HOUSE_DOORS[model]
-		ChristmasDecor.wreath(house_nodes[i], Vector3(d[0], d[1], d[2]))
 	var top := Vector3(0, 3.45, 0)   # logo abaixo do chapéu do poste
 	for i in lamps.size():
 		var a: Node3D = lamps[i]
@@ -416,81 +431,38 @@ func _build_christmas(houses: Array, house_nodes: Array, lamps: Array) -> void:
 		ChristmasDecor.light_string(self, a.transform * top, b.transform * top, 0.6, ChristmasDecor.MULTI, i % 2)
 		ChristmasDecor.lamp_garland(a)
 	# bengalas nos portões (norte, sul da Horta, leste e oeste)
-	var b := VillageLayout.BOUNDS
-	for p in [Vector3(-13.4, 0, b.position.y + 0.6), Vector3(3.4, 0, b.position.y + 0.6), Vector3(-1.4, 0, 25.4),
-			Vector3(3.4, 0, 25.4), Vector3(b.end.x - 0.6, 0, -3.4), Vector3(b.end.x - 0.6, 0, 3.4),
-			Vector3(b.position.x + 0.6, 0, -0.9), Vector3(b.position.x + 0.6, 0, 5.9)]:
-		ChristmasDecor.candy_cane(self, p, atan2(-p.x, -p.z) + PI / 2)
+	for c in VillageLayout.candy_canes():
+		ChristmasDecor.candy_cane(self, c[0], c[1])
 	# árvores pequenas na frente da botica e do empório, e o boneco de neve olhando para o poço
-	for p in [Vector3(-9.2, 0, 3.6), Vector3(8.4, 0, -3.6)]:
+	for p: Vector3 in VillageLayout.XMAS_SMALL:
 		ChristmasDecor.tree(self, p, 0.38, int(p.x * 10))
 		_no_grass.append([Vector2(p.x, p.z), 1.0])
-	var sp := Vector3(-8.5, 0, -3.6)
+	var sp := VillageLayout.SNOWMAN
 	ChristmasDecor.snowman(self, sp, atan2(-sp.x, -sp.z))
 	_no_grass.append([Vector2(sp.x, sp.z), 0.8])
-	ChristmasDecor.gifts(self, Vector3(1.4, 0, -1.4), 3, rng, 0.0, 0.4)   # presentes ao pé do poço
+	ChristmasDecor.gifts(self, VillageLayout.WELL_GIFTS, 3, rng, 0.0, 0.4)   # presentes ao pé do poço
 
 
 ## Cerca em volta da vila toda (VillageLayout.BOUNDS), com os portões abertos. No sul, entre as casas, a
 ## cerca da Horta faz a divisa.
 func _build_fence() -> void:
-	var b := VillageLayout.BOUNDS
-	var x := b.position.x + 1.0
-	while x <= b.end.x - 1.0:
-		if not _gate_at("n", x):
-			prop("fence", Vector3(x, 0, b.position.y), 0.0, 1.0, "box", Vector3(2.1, 1.0, 0.25))
-		if not _gate_at("s", x) and absf(x - 1.0) > VillageLayout.SOUTH_OPEN:
-			prop("fence", Vector3(x, 0, b.end.y), 0.0, 1.0, "box", Vector3(2.1, 1.0, 0.25))
-		x += 2.0
-	var z := b.position.y + 1.0
-	while z <= b.end.y - 1.0:
-		if not _gate_at("w", z):
-			prop("fence", Vector3(b.position.x, 0, z), PI / 2, 1.0, "box", Vector3(2.1, 1.0, 0.25))
-		if not _gate_at("e", z):
-			prop("fence", Vector3(b.end.x, 0, z), PI / 2, 1.0, "box", Vector3(2.1, 1.0, 0.25))
-		z += 2.0
+	for f in VillageLayout.fence_posts():
+		prop("fence", f[0], f[1], 1.0, "box", Vector3(2.1, 1.0, 0.25))
 
 
-func _gate_at(side: String, t: float) -> bool:
-	for g in VillageLayout.GATES:
-		if g[0] == side and absf(t - float(g[1])) < float(g[2]):
-			return true
-	return false
-
-
-## Bairros novos (VillageLayout): casas variadas pintadas com as paletas, lampiões nas esquinas, os pontos
-## que eram da praça, o Papai Noel com o trenó e os pontos dos eventos de Natal.
+## Bairros novos (VillageLayout): lampiões nas esquinas, os pontos que eram da praça, o Papai Noel com o
+## trenó e os pontos dos eventos de Natal. As casas vêm de village.tscn (_build_buildings).
 func _build_districts() -> void:
 	_avoid.append([Vector2(-24, 4), 15.5])
 	_avoid.append([Vector2(26, 4), 15.5])
-	for i in VillageLayout.HOUSES.size():
-		var h: Array = VillageLayout.HOUSES[i]
-		var model: String = h[2]
-		var size: Vector3 = VillageLayout.HOUSE_SIZE[model]
-		var hn := prop(model, h[0], h[1], 1.0, "box", size)
-		VillageLayout.tint(hn, h[3])
-		ChristmasDecor.house_lights(hn, model, i + 1)
-		var d: Array = ChristmasDecor.HOUSE_DOORS[model]
-		ChristmasDecor.wreath(hn, Vector3(d[0], d[1], d[2]))
-		DayNightFX.night_light(_light(hn, Vector3(0, 1.6, size.z * 0.5 + 1.2), Color(1, 0.72, 0.42), 0.9, 5.5), 0.9)
-		# canteiro de flores dos lados da porta (as casas de alpendre já têm banco e floreira)
-		if model != "house_d":
-			var xf := VillageLayout.house_xform(h)
-			for off in [-1.6, 1.6]:
-				if absf(off - float(d[0])) < 0.9:
-					continue
-				var kind := "flower_lavender" if (i + int(off)) % 2 == 0 else "flower_tulips"
-				prop(kind, xf * Vector3(off, 0, size.z * 0.5 + 0.55), rng.randf() * TAU, rng.randf_range(0.85, 1.1))
 	# lampiões nas esquinas das ruas, com festão e luz à noite
-	for p in [Vector3(-23.6, 0, -12.6), Vector3(-23.6, 0, 4.9), Vector3(-23.7, 0, 17.8), Vector3(-34.0, 0, 0.2),
-			Vector3(24.6, 0, -12.6), Vector3(24.6, 0, 2.4), Vector3(24.6, 0, 17.8), Vector3(37.0, 0, -2.3),
-			Vector3(-3.0, 0, -12.8), Vector3(3.0, 0, -12.8)]:
+	for p: Vector3 in VillageLayout.LAMPS_STREET:
 		var lamp := prop("lamp", p, atan2(-p.x, -p.z), 1.0, "cyl", Vector3(0.12, 3.7, 0))
 		DayNightFX.night_light(_light(lamp, Vector3(0, 3.3, 0.5), Color(1, 0.75, 0.4), 1.4, 8.0), 1.4)
 		ChristmasDecor.lamp_garland(lamp)
 	# varal de luzes atravessando a saída norte da praça
 	var top := Vector3(0, 3.45, 0)
-	ChristmasDecor.light_string(self, Vector3(-3.0, 0, -12.8) + top, Vector3(3.0, 0, -12.8) + top, 0.5,
+	ChristmasDecor.light_string(self, VillageLayout.NORTH_STRING[0] + top, VillageLayout.NORTH_STRING[1] + top, 0.5,
 		ChristmasDecor.MULTI, 1)
 	# pontos da antiga praça
 	for pd in VillageLayout.POINTS:
@@ -511,7 +483,7 @@ func _build_districts() -> void:
 	santa.position = VillageLayout.SANTA
 	santa.rotation.y = VillageLayout.SANTA_YAW
 	add_child(santa)
-	ChristmasDecor.sleigh(self, VillageLayout.SLEIGH, -2.2)
+	ChristmasDecor.sleigh(self, VillageLayout.SLEIGH, VillageLayout.SLEIGH_YAW)
 	_no_grass.append([Vector2(VillageLayout.SLEIGH.x, VillageLayout.SLEIGH.z), 1.8])
 	# eventos: presentes caídos pelo vale e as portas das entregas
 	for i in VillageLayout.GIFTS.size():
@@ -523,13 +495,14 @@ func _build_districts() -> void:
 		gp.y = ground.height_at(gp.x, gp.z)
 		g.position = gp
 		add_child(g)
-	for i in VillageLayout.DELIVERY.size():
-		var h: Array = VillageLayout.HOUSES[VillageLayout.DELIVERY[i]]
-		var d: Array = ChristmasDecor.HOUSE_DOORS[h[2]]
+	var doors := VillageLayout.deliveries()
+	for i in doors.size():
+		var h: Dictionary = doors[i]
+		var d: Array = ChristmasDecor.HOUSE_DOORS[h.model]
 		var e := EVENT_POINT.new()
 		e.kind = "door"
 		e.index = i
-		e.position = VillageLayout.house_xform(h) * Vector3(d[0], 0, d[2] + 0.7)
+		e.position = VillageLayout.xform(h) * Vector3(d[0], 0, d[2] + 0.7)
 		add_child(e)
 
 ## Loja da vila: modelo + colisões simples no espaço dela (boxes = [[centro local, tamanho]],
@@ -576,11 +549,11 @@ func _build_orchard() -> void:
 
 ## Poste de direção perto do portão sul e quadro de avisos ao norte da praça.
 func _build_signs() -> void:
-	var at := Vector3(-1.8, 0, 20.5)
+	var at := VillageLayout.SIGNPOST
 	add_child(SIGNPOST.make(at, [["Horta", FARM], ["Ruínas", RUINS], ["Goblins", CAMP], ["Horda", ARENA]]))
 	_static_shape(Transform3D(Basis(), at), Vector3(0, 1.3, 0), _cyl_shape(0.25, 2.6))
 	_no_grass.append([Vector2(at.x, at.z), 0.5])
-	var board_at := Vector3(5.0, 0, -10.6)
+	var board_at := VillageLayout.NOTICE_BOARD
 	var yaw := atan2(-board_at.x, 4.0 - board_at.z)   # de frente para o centro da praça
 	var board := prop("notice_board", board_at, yaw, 1.0, "box", Vector3(2.7, 2.8, 0.3))
 	var notes := Label3D.new()
@@ -630,17 +603,8 @@ func _build_farm() -> void:
 	_flat(FARM + Vector3(0, 0.019, 0.5), Vector2(20, 13.5), Color(0.4, 0.42, 0.22), 0.5)  # chão da horta
 	_flat(FARM + Vector3(1, 0.021, -2), Vector2(2.6, 9), Color(0.45, 0.35, 0.22))
 	# cerca da horta, com portão alinhado ao portão sul da vila
-	var x := -10.0
-	while x <= 10.0:
-		if x != 0.0 and x != 2.0:
-			prop("fence", FARM + Vector3(x, 0, -7), 0.0, 1.0, "box", Vector3(2.1, 1.0, 0.25))
-		prop("fence", FARM + Vector3(x, 0, 7.5), 0.0, 1.0, "box", Vector3(2.1, 1.0, 0.25))
-		x += 2.0
-	var z := -6.0
-	while z <= 6.5:
-		prop("fence", FARM + Vector3(-11, 0, z), PI / 2, 1.0, "box", Vector3(2.1, 1.0, 0.25))
-		prop("fence", FARM + Vector3(11, 0, z), PI / 2, 1.0, "box", Vector3(2.1, 1.0, 0.25))
-		z += 2.0
+	for f in VillageLayout.farm_fence_posts():
+		prop("fence", f[0], f[1], 1.0, "box", Vector3(2.1, 1.0, 0.25))
 	# canteiros 4 x 3 (os mais próximos do portão são liberados primeiro)
 	for i in Game.FARM_PLOTS:
 		var plot := PLOT.new()
@@ -1379,11 +1343,11 @@ func _respawn() -> void:
 ## A Guilda dos Aventureiros no quadro de avisos (Lina + Quadro de Contratos), a carruagem da guilda do
 ## lado de fora do portão norte e os moradores que pedem missões secundárias, na vila e pelo vale.
 func _build_guild() -> void:
-	var board_at := Vector3(5.0, 0, -10.6)
+	var board_at := VillageLayout.NOTICE_BOARD
 	var fwd := (Vector3(0, 0, 4) - board_at).normalized()
 	add_child(RegionBuilder.point("board", board_at + fwd * 1.1))
-	var lina_at := Vector3(2.3, 0, -9.6)
-	add_child(RegionBuilder.npc("lina", lina_at, atan2(-lina_at.x, 4.0 - lina_at.z)))
+	var spots := VillageLayout.npc_spots()
+	add_child(RegionBuilder.npc("lina", spots.lina[0], spots.lina[1]))
 	var guild := Label3D.new()
 	guild.text = "GUILDA DOS AVENTUREIROS"
 	guild.font_size = 64
@@ -1398,8 +1362,8 @@ func _build_guild() -> void:
 	_no_grass.append([Vector2(coach_at.x - 3.2, coach_at.z - 0.5), 2.2])
 	add_child(RegionBuilder.npc("coach", coach_at, 0.0))
 	# moradores com pedidos
-	add_child(RegionBuilder.npc("rufus", Vector3(4.6, 0, -16.6), PI))       # guarda no portão norte
-	add_child(RegionBuilder.npc("zelia", Vector3(-2.6, 0, 12.6), PI))       # na porta da casa ao sul
+	add_child(RegionBuilder.npc("rufus", spots.rufus[0], spots.rufus[1]))       # guarda no portão norte
+	add_child(RegionBuilder.npc("zelia", spots.zelia[0], spots.zelia[1]))       # na porta da casa ao sul
 	add_child(RegionBuilder.npc("tonico", Vector3(-21.0, 0, -22.0), PI / 2))  # nos campos ao norte
 	add_child(RegionBuilder.npc("ravi", Vector3(44.0, 0, 3.6), -PI / 2))     # na trilha leste, depois do portão
 	add_child(RegionBuilder.npc("osvaldo", Vector3(6.0, 0, -76.0), PI))      # na entrada das ruínas
