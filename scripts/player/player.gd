@@ -1057,7 +1057,9 @@ func _find_interact_target() -> void:
 	var best: Node3D = null
 	var best_d := 3.0
 	for n in get_tree().get_nodes_in_group("interactable"):
-		var d: float = n.global_position.distance_to(global_position)
+		# alvos grandes (construções da cidade) medem a partir da borda, não do centro
+		var d: float = n.interact_distance(global_position) if n.has_method("interact_distance") \
+			else n.global_position.distance_to(global_position)
 		if d < best_d:
 			best_d = d
 			best = n

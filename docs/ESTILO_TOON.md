@@ -196,6 +196,25 @@ Capturas antes/depois (mesma posição e câmera): `docs/screenshots/toon_luz_so
    noite) e ainda usa SSAO e névoa antigos; a sombra do próprio corpo na armadura sai em blocos (é
    resolução do mapa de sombra, não do estilo).
 
+### Do rosto e das mãos desenhados (NPCs da vila)
+Mira, Bram e Doran usam `tools/blender/anime.py` no lugar do rosto facetado de `head.py` e da mão em bloco.
+1. **Cabeça lisa por curvas de perfil** (largura, frente e nuca por altura), com o mesmo crânio e os mesmos
+   marcos de `head.py`: cabelo, turbante, barba e brincos encaixam sem mexer.
+2. **Pele do rosto sem sombra de forma.** Material com nome terminado em `_flat` vira `no_form` no shader
+   (`ToonLook._is_flat`): só a sombra projetada escurece o rosto.
+3. **Feições são decalques projetados na cabeça**, em camadas a 1 mm uma da outra (branco, íris, pupila,
+   brilho, cílios). Todas as faces precisam olhar para a frente: `recalc_face_normals` numa tira solta vira
+   ao acaso e a face some no jogo.
+4. **Olho grande rejuvenesce.** Com os olhos da Mira, o ancião e o ferreiro pareciam crianças. Homem adulto
+   ou idoso: `eye_h` ~0.6, sobrancelha grossa, mais baixa (`brow_dz`) e com o cenho inclinado (`brow_tilt`).
+5. **Sobrancelha clara some na pele sem sombra**: a do ancião precisou ser cinza, não branca.
+6. **De perfil o olho é um desenho comprimido**; o estilo rende de frente e em três quartos, que é como o
+   diálogo enquadra.
+7. **Mão aberta e relaxada** (`open_hand`): palma, quatro dedos em falanges e polegar. O ferreiro mantém o
+   punho fechado da luva, que segura o martelo.
+8. **Custo:** Mira 3.792 -> 5.106 triângulos, ferreiro 5.270, ancião 4.652 (orçamento de 5 mil).
+   Conferir com `tools/face_shot.gd` (dois modelos lado a lado, modos face/hands/body).
+
 ### Do desempenho
 1. **O custo do contorno é de nós, não de triângulos.** O goblin tem 102 peças (`MeshInstance3D`), 59 delas
    com casca; cada casca era um nó a mais para o motor mover a cada passo. Com os goblins parados quase não
