@@ -108,6 +108,9 @@ func _ready() -> void:
 	if "--vilatest" in OS.get_cmdline_user_args():
 		# o Econ usa user://vilatest_solo.json, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/vila_test.gd").new())
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--mapsummary="):   # retrato do mundo montado (conversão para cenas, smoke test)
+			get_tree().root.add_child.call_deferred(load("res://tests/map_summary_tool.gd").new())
 
 
 ## Depuração: `godot -- --shot=shot.png [--delay=4]` salva um screenshot e fecha.

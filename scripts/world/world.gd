@@ -115,6 +115,10 @@ var _travel_fade: ColorRect
 var spawns: Array = []
 ## Pontos que vieram da praça (hub_point.gd): construções da base, Mestre Orin, mesa de guerra, recordes.
 var points: Array = []
+## Lugares com nome dos mapas (MapLandmark): id -> posição (vale) e "mapa:id" -> posição (todos).
+var landmarks := {}
+## Áreas do capim lidas das cenas (MapGrassArea), por mapa: {"keep_out": [...], "sparse": [...]} (mundo).
+var grass_areas := {}
 var santa: Node3D = null
 ## Veios de ferro e cristais arcanos (WorldResourceNode); vazio no servidor dedicado.
 var resource_nodes: Array = []
@@ -1368,6 +1372,57 @@ func _build_guild() -> void:
 	add_child(RegionBuilder.npc("ravi", Vector3(44.0, 0, 3.6), -PI / 2))     # na trilha leste, depois do portão
 	add_child(RegionBuilder.npc("osvaldo", Vector3(6.0, 0, -76.0), PI))      # na entrada das ruínas
 	add_child(RegionBuilder.point("gato", Vector3(22.5, 0, 30.5), -0.8))     # no pomar
+
+
+## Cria o nó de jogo de uma MapEntity das cenas de mapa (sem adicionar à árvore; o MapLoader adiciona), na
+## posição e no giro dela, e guarda as referências que o mundo usa (points, santa). null para tipo desconhecido.
+func make_entity(e: MapEntity) -> Node3D:
+	var n: Node3D = null
+	var yaw := e.global_rotation.y
+	match e.kind:
+		"elder":
+			n = ELDER.new()
+		"rival":
+			n = RIVAL.new()
+		"npc":
+			n = RegionBuilder.npc(e.ref, e.global_position, yaw)
+			if e.params.has("npc_id"):
+				n.set("npc_id", e.params.npc_id)
+		"story_point":
+			n = RegionBuilder.point(e.ref, e.global_position, yaw)
+		"hub_point":
+			var pt := POINT.new()
+			pt.kind = e.ref
+			pt.building_id = str(e.params.get("building_id", ""))
+			points.append(pt)
+			n = pt
+		"farm_plot":
+			var plot := PLOT.new()
+			plot.index = e.index
+			n = plot
+		"kitchen":
+			n = KITCHEN.new()
+		"portal":
+			n = PORTAL.new()
+		"santa":
+			santa = SANTA.new()
+			n = santa
+		"xmas_gift":
+			var g := EVENT_POINT.new()
+			g.kind = "gift"
+			g.index = e.index
+			n = g
+		"signpost":
+			var dests: Array = []
+			for d in e.params.get("dests", []):
+				dests.append([d[0], MapData.landmark("vila", d[1])])
+			return SIGNPOST.make(e.global_position, dests)
+		_:
+			push_error("make_entity: tipo desconhecido %s (%s)" % [e.kind, e.get_path()])
+			return null
+	n.position = e.global_position
+	n.rotation.y = yaw
+	return n
 
 
 ## Bosque, Mina e Pico: cada um com chão, cenário, NPCs, carruagem e monstros (Regions/RegionBuilder).
