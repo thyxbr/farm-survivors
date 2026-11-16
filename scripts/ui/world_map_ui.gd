@@ -150,6 +150,9 @@ func _refresh_map_side() -> void:
 	legend.add_child(_legend(MapView.C_PLAYER, "você (seta na direção da câmera)"))
 	legend.add_child(_legend(MapView.C_NPC, "personagens"))
 	legend.add_child(_legend(MapView.C_QUEST, "missão rastreada"))
+	legend.add_child(_legend(Color(1, 0.8, 0.2), "! missão da história"))
+	legend.add_child(_legend(Color(0.45, 0.8, 1.0), "! contrato"))
+	legend.add_child(_legend(Color(0.55, 1.0, 0.45), "? pronta para entregar"))
 	if Network.is_online():
 		legend.add_child(_legend(MapView.C_PARTY, "companheiros de grupo"))
 	_map_right.add_child(legend)
