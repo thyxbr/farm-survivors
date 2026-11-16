@@ -87,6 +87,19 @@ func _ready() -> void:
 	credit.offset_top = -36
 	add_child(credit)
 
+	var ver := UITheme.label("v" + Network.version(), 14, UITheme.DIM)
+	ver.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	ver.anchor_left = 1.0
+	ver.anchor_right = 1.0
+	ver.anchor_top = 1.0
+	ver.anchor_bottom = 1.0
+	ver.offset_left = -224
+	ver.offset_right = -24
+	ver.offset_top = -36
+	ver.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	ver.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(ver)
+
 
 func _new_game() -> void:
 	Sfx.play("click", 0.0)
