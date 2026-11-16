@@ -65,6 +65,7 @@ var enemies := {}         # net_id -> Enemy (servidor: reais; cliente: réplicas
 var remote_players := {}  # peer_id -> Player (réplica)
 ## Servidor: última posição recebida de cada jogador na zona atual (coleta de pickups confere a distância).
 var last_pos := {}        # peer_id -> Vector3
+var _last_heal := {}      # peer_id -> instante (s) da última Cura de healer aceita
 
 ## Servidor: banco SQLite, contas e API HTTP de login (abertos em start_server).
 var db: Db = null
@@ -270,6 +271,7 @@ func _drop_player(id: int) -> void:
 	var account := int(players[id].get("account", 0))
 	players.erase(id)
 	last_pos.erase(id)
+	_last_heal.erase(id)
 	_remove_remote_player(id)
 	for pid in _all_peers():
 		_player_left.rpc_id(pid, id)
@@ -598,6 +600,29 @@ func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow:
 		e.apply_stun(minf(stun, 3.0))
 
 
+## Servidor: só a conta de classe healer cura, no máximo uma vez a cada HealRules.MIN_INTERVAL. O valor vem do
+## personagem gravado no servidor (CharRules.heal_amount), nunca do cliente. Atinge quem está na mesma zona
+## a até HealRules.RADIUS m da última posição conhecida (o healer sempre se cura).
+@rpc("any_peer", "call_remote", "reliable")
+func _request_heal() -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not is_server() or not players.has(id) or characters == null:
+		return
+	var account := int(players[id].get("account", 0))
+	if account <= 0:
+		return
+	var s := characters.load_or_create(account)
+	if s.char_class != "healer":
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	if not HealRules.interval_ok(_last_heal.get(id, -INF), now):
+		return
+	_last_heal[id] = now
+	var amount := CharRules.heal_amount(s, Balance.tables)
+	for pid in HealRules.targets(id, zone_peers(zone_of(id)), last_pos):
+		_you_were_healed.rpc_id(pid, amount, id)
+
+
 @rpc("any_peer", "call_remote", "reliable")
 func _request_boss() -> void:
 	var id := multiplayer.get_remote_sender_id()
@@ -868,6 +893,12 @@ func send_look(look: Dictionary) -> void:
 		_player_look.rpc_id(1, look)
 
 
+## Healer (cliente): pede ao servidor a Cura nos aliados por perto (o próprio incluído). Sem valor: o servidor calcula.
+func request_heal() -> void:
+	if is_client():
+		_request_heal.rpc_id(1)
+
+
 func send_event(kind: String, a := Vector3.ZERO, b := Vector3.ZERO) -> void:
 	if is_client() and world:
 		_player_event.rpc_id(1, kind, a, b)
@@ -998,6 +1029,12 @@ func _player_event_relay(id: int, kind: String, a: Vector3, b: Vector3) -> void:
 func _you_were_hit(amount: float, from_pos: Vector3) -> void:
 	if world and world.player:
 		world.player.take_damage(amount, from_pos)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _you_were_healed(amount: float, _from_peer: int) -> void:
+	if world and world.player:
+		world.player.receive_heal(amount)
 
 
 @rpc("authority", "call_remote", "reliable")

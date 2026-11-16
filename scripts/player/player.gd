@@ -911,13 +911,21 @@ func cast(id: String) -> void:
 			_pending_spell = id
 			_pending_t = KnightMoves.CAST_RELEASE * KnightMoves.CAST_TIME
 		"heal":
-			var amount := Game.heal_amount()
-			Game.hp = min(Game.max_hp(), Game.hp + amount)
-			_heal_fx()
-			FX.damage_number(global_position + Vector3.UP * 2.2, "+%d" % amount, Color(0.4, 1.0, 0.5))
+			if Network.is_client():
+				Network.request_heal()   # online: a cura (a minha também) volta do servidor em _you_were_healed
+			else:
+				receive_heal(Game.heal_amount())
 			Network.send_event("heal", global_position)
 		"frost_nova":
 			_cast_frost_nova()
+	Game.stats_changed.emit()
+
+
+## Vida recebida de uma Cura (a própria no solo, ou a de um healer vinda do servidor).
+func receive_heal(amount: float) -> void:
+	Game.hp = min(Game.max_hp(), Game.hp + amount)
+	_heal_fx()
+	FX.damage_number(global_position + Vector3.UP * 2.2, "+%d" % amount, Color(0.4, 1.0, 0.5))
 	Game.stats_changed.emit()
 
 

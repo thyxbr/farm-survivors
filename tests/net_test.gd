@@ -359,6 +359,7 @@ func _ready() -> void:
 	if peers > 1:
 		await _test_sword(w)
 		await _test_bow_staff(w)
+		await _test_heal(w)
 		await _test_party(w)
 		await _test_social(w)
 
@@ -479,6 +480,42 @@ func _test_bow_staff(w: Node) -> void:
 		Game.level = lvl0
 		Game.fury = 0.0
 		await _pick_class("mage", "apprentice_staff")
+
+
+# ---------------------------------------------------------------- cura do healer em aliados
+## Ana vira healer, Beto (guerreiro) fica ferido perto dela. Beto pedindo a cura direto não faz nada (não é
+## healer); Ana conjura `heal` e a vida de Beto sobe (e a dela uma vez só: vem do servidor, não também do cliente).
+func _test_heal(w: Node) -> void:
+	await _sync("heal_in")
+	var actor := horde_role != "join"
+	if actor:
+		await _pick_class("healer", "sc_novice_scepter")
+		check(Game.char_class == "healer", "Ana virou healer")
+	w.player.global_position = w.VILLAGE_SPAWN + Vector3(2.0 if actor else -2.0, 0, 0)
+	await wait(0.6)
+	Game.hp = 10.0
+	Game.mp = Game.max_mp()
+	await wait(1.2)   # o servidor recebe a posição e a vida baixa fica registrada
+	await _sync("heal_ready")
+	var hp0 := Game.hp
+	if not actor:
+		Network.request_heal()   # guerreiro: o servidor recusa
+	await wait(1.2)
+	check(Game.hp <= hp0 + 3.0, "pedido de cura de quem não é healer não faz nada (%.0f → %.0f)" % [hp0, Game.hp])
+	await _sync("heal_denied")
+	if actor:
+		var expected := Game.heal_amount()
+		Game.hp = 10.0
+		w.player.cast("heal")
+		check(await _wait_until(func() -> bool: return Game.hp > 10.5, 3.0), "Ana se cura pela cura do servidor (%.0f)" % Game.hp)
+		await wait(1.0)
+		check(Game.hp - 10.0 <= expected + 3.0, "a cura própria vem uma vez só (+%.0f, máximo %.0f)" % [Game.hp - 10.0, expected])
+	else:
+		check(await _wait_until(func() -> bool: return Game.hp > hp0 + 10.0, 3.0), "Beto recebe a cura de Ana (%.0f → %.0f)" % [hp0, Game.hp])
+	await _sync("heal_out")
+	if actor:
+		await _pick_class("mage", "apprentice_staff")
+	Game.hp = Game.max_hp()
 
 
 # ---------------------------------------------------------------- vila
