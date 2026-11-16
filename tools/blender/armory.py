@@ -1,4 +1,4 @@
-# Cajados (st_<id>.glb), arcos (bw_<id>.glb + bw_arrow.glb) e as espadas clássicas (w_<id>.glb) que antes eram
+# Cajados (st_<id>.glb), cetros (sc_<id>.glb), arcos (bw_<id>.glb + bw_arrow.glb) e as espadas clássicas (w_<id>.glb) que antes eram
 # montadas no código com caixas e cilindros. Carregado por build_assets.py via exec, depois de weapons.py (usa
 # slab, w_lathe, torus, paint, vc_mat, srgb, mix, ramp, smooth01, finish, WEAPONS).
 #
@@ -1079,6 +1079,119 @@ ARMORY += [("w_wooden_sword", build_wooden_sword), ("w_iron_sword", build_iron_s
            ("w_steel_saber", build_steel_saber), ("w_knight_blade", build_knight_blade),
            ("w_frost_brand", build_frost_brand), ("w_goblin_cleaver", build_goblin_cleaver),
            ("w_guardian_greatsword", build_guardian_greatsword), ("w_dragonfang", build_dragonfang)]
+
+
+# ------------------------------------------------------------------ cetros do healer (sc_<id>.glb)
+## Cetro: ~0,7x o cajado. Mesma empunhadura (z = STAFF_HAND), mas a vara termina em z≈-0,27 e a cabeça fica em
+## ~0,8; paleta marfim/dourada, cabeça luminosa (gema, disco de sol, emblema, auréola) presa à vara.
+def sc_body(prefix, wood, z1, bands=(), gold="#d7a648", grip="#7a5a3a", r0=0.021, r1=0.018, seg=8, metal=0.0):
+    m = vcf(prefix, metal=metal)
+    shaft("Shaft", m, wood, z0=-0.25, z1=z1, r0=r0, r1=r1, seg=seg)
+    ferrule("Ferrule", m, H(gold), z0=-0.28, z1=-0.17, r=r0 + 0.004)
+    grip_wrap(m, H(grip), r=r0 + 0.005)
+    for z in bands:
+        band("Band%.2f" % z, m, H(gold), z, 0.024, r1 + 0.005)
+    return m
+
+
+def build_sc_novice():
+    g = vcf("sc_novice_gem", emit="#fff2a0", strength=0.8)
+    m = sc_body("sc_novice", grain("#c89a5e", "#8f6a3a"), 0.72, bands=(0.62,), gold="#c99a3c", grip="#6b4226")
+    cup("Cup", m, H("#c99a3c"), 0.64, 0.76, 0.022, 0.034)
+    orb("Gem", g, H("#fff0a0"), (0, 0, 0.8), 0.045)
+    finish_staff("sc_novice_scepter", 0.8)
+
+
+def build_sc_dawn():
+    g = vcf("sc_dawn_gem", emit="#ffd98a", strength=1.0)
+    gold = H("#f0b83a")
+    m = sc_body("sc_dawn", lambda co: mix(H("#f6eedc"), H("#e0d2b4"), 0.5 + 0.5 * math.sin(co.z * 11)), 0.7,
+                bands=(0.0, 0.5), gold="#e8b440", grip="#b8452e", metal=0.3)
+    cup("Cup", m, gold, 0.66, 0.74, 0.022, 0.03)
+    tube("Stem", [(0, 0, 0.7), (0, 0, 0.82)], 0.011, m, gold)
+    cz = 0.84
+    rays = []
+    for i in range(16):
+        a = math.pi / 2 + math.pi * i / 8
+        rr = 0.11 if i % 2 == 0 else 0.072
+        rays.append((rr * math.cos(a), cz + rr * math.sin(a)))
+    hole = [(0.046 * math.cos(2 * math.pi * k / 12), cz + 0.046 * math.sin(2 * math.pi * k / 12)) for k in range(12)]
+    flat("Rays", rays, m, lambda co: mix(H("#ffd75a"), H("#e89a2a"), smooth01((Vector((co.x, 0, co.z - cz)).length - 0.05) / 0.06)),
+         th=0.008, bevel=0.006, step=0.012, holes=[hole])
+    cel(torus("Rim", (0, cz), 0.052, 0.009, m, seg=18, sides=6), gold)
+    orb("Gem", g, H("#ffe29a"), (0, 0, cz), 0.05)
+    finish_staff("sc_dawn_scepter", cz)
+
+
+def cross_star(cz, L, W):
+    """Estrela de quatro pontas (emblema sagrado) no plano XZ, centrada em (0, cz)."""
+    pts = []
+    for i in range(8):
+        a = math.pi / 2 + i * math.pi / 4
+        r = L if i % 2 == 0 else W
+        pts.append((r * math.cos(a), cz + r * math.sin(a)))
+    return pts
+
+
+def build_sc_blessed():
+    g = vcf("sc_blessed_gem", emit="#fff6c0", strength=1.1)
+    gold = H("#eab83e")
+    m = sc_body("sc_blessed", lambda co: mix(H("#f4ecd8"), H("#d9c9a6"), 0.5 + 0.5 * math.sin(co.z * 9)), 0.72,
+                bands=(0.05, 0.56), gold="#eab83e", grip="#f0e6d0", metal=0.35)
+    cup("Cup", m, gold, 0.66, 0.76, 0.022, 0.034)
+    cz = 0.86
+    tube("Stem", [(0, 0, 0.72), (0, 0, cz)], 0.012, m, gold)
+    flat("Star", cross_star(cz, 0.14, 0.045), m, lambda co: mix(H("#ffd75a"), H("#e8a830"), smooth01((abs(co.z - cz) + abs(co.x)) / 0.2)),
+         th=0.012, bevel=0.007, step=0.01)
+    cel(torus("Rim", (0, cz), 0.058, 0.01, m, seg=18, sides=6), gold)
+    orb("Gem", g, H("#fff3b8"), (0, 0, cz), 0.055)
+    finish_staff("sc_blessed_scepter", cz)
+
+
+def build_sc_seraph():
+    g = vcf("sc_seraph_gem", emit="#fffbe0", strength=1.3)
+    gold = H("#f2c04a")
+    ivory = H("#fbf6ea")
+    m = sc_body("sc_seraph", lambda co: mix(H("#fbf6ea"), H("#e6dcc4"), 0.5 + 0.5 * math.sin(co.z * 10)), 0.72,
+                bands=(0.0, 0.46, 0.58), gold="#f2c04a", grip="#d9a93e", r0=0.022, r1=0.019, metal=0.4)
+    cup("Cup", m, gold, 0.64, 0.77, 0.024, 0.036)
+    cz = 0.86
+    tube("Stem", [(0, 0, 0.72), (0, 0, cz)], 0.013, m, gold)
+    for sgn in (-1, 1):   # asas de penas abertas dos dois lados da gema, pontas douradas
+        for k, (L, W, ry) in enumerate(((0.19, 0.04, 1.4), (0.2, 0.042, 1.0), (0.17, 0.038, 0.6))):
+            flat("Wing%d_%d" % (sgn, k), leaf_outline(L, W), m,
+                 lambda co: mix(H("#fbf6ea"), H("#f2c04a"), smooth01((Vector((co.x, 0, co.z - cz)).length - 0.1) / 0.1)),
+                 th=0.01, bevel=0.005, step=0.012, loc=(sgn * 0.03, 0.0, cz - 0.03 + k * 0.012), rot=(0, sgn * ry, 0))
+    cel(torus("Halo", (0, cz), 0.075, 0.01, m, seg=20, sides=6), gold)
+    orb("Gem", g, H("#fffbe6"), (0, 0, cz), 0.058)
+    finish_staff("sc_seraph_scepter", cz)
+
+
+def build_sc_halo():
+    g = vcf("sc_halo_gem", emit="#fff2a8", strength=1.6)
+    gold = H("#f6c84e")
+    m = sc_body("sc_halo", lambda co: mix(H("#f7d46a"), H("#d49a2a"), 0.5 + 0.5 * math.sin(co.z * 12)), 0.74,
+                bands=(-0.05, 0.42, 0.52, 0.62), gold="#fff0b0", grip="#fbf2dc", r0=0.023, r1=0.02, metal=0.5)
+    cup("Cup", m, gold, 0.66, 0.8, 0.026, 0.04)
+    cz = 0.97
+    tube("Stem", [(0, 0, 0.74), (0, 0, cz)], 0.015, m, gold)
+    rays = []
+    for i in range(32):
+        a = math.pi / 2 + math.pi * i / 16
+        rr = 0.19 if i % 4 == 0 else (0.15 if i % 2 == 0 else 0.108)
+        rays.append((rr * math.cos(a), cz + rr * math.sin(a)))
+    hole = [(0.082 * math.cos(2 * math.pi * k / 16), cz + 0.082 * math.sin(2 * math.pi * k / 16)) for k in range(16)]
+    flat("Rays", rays, m, lambda co: mix(H("#fff0a0"), H("#eaa530"), smooth01((Vector((co.x, 0, co.z - cz)).length - 0.09) / 0.1)),
+         th=0.01, bevel=0.007, step=0.012, holes=[hole])
+    cel(torus("Halo", (0, cz), 0.088, 0.013, m, seg=24, sides=6), gold)
+    cel(torus("Halo2", (0, cz), 0.125, 0.008, m, seg=24, sides=5), H("#fff6d0"))
+    orb("Gem", g, H("#fff6b8"), (0, 0, cz), 0.075)
+    finish_staff("sc_halo_scepter", cz)
+
+
+ARMORY += [("sc_novice_scepter", build_sc_novice), ("sc_dawn_scepter", build_sc_dawn),
+           ("sc_blessed_scepter", build_sc_blessed), ("sc_seraph_scepter", build_sc_seraph),
+           ("sc_halo_scepter", build_sc_halo)]
 
 
 WEAPONS.extend(ARMORY)   # ASSETS=weapons gera todas; ASSETS=staves / bows / classic geram só esse grupo
