@@ -675,7 +675,7 @@ func server_enemy_killed(e: Enemy) -> void:
 					[{"t": "notify", "text": "+%d XP do grupo (longe demais para contar na missão)" % far_xp,
 						"color": Color(0.7, 0.85, 1.0)}])
 			if r.loot:
-				Econ.server_drop_loot(pid, e.kind, pos, "world")
+				Econ.server_drop_loot(pid, e.kind, pos, "world", e.level, e.elite)
 				_kill_reward.rpc_id(pid, e.kind, int(r.xp), pos)
 	for pid in _enemy_peers(e):
 		_enemy_died.rpc_id(pid, e.net_id)

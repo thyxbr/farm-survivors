@@ -893,7 +893,7 @@ func _die() -> void:
 	elif not horde:
 		# solo: XP, missão e o chefe derrotado (king_dead) ficam com as regras (Econ.kill)
 		Game.on_enemy_killed(kind, xp_reward(), level)
-		drop_loot(get_parent(), kind, global_position)
+		drop_loot(get_parent(), kind, global_position, true, level, elite)
 	die_visual()
 
 
@@ -934,8 +934,8 @@ func die_visual() -> void:
 
 
 ## Solo: sorteio do loot (LootRules, o mesmo do servidor) em pickups no chão.
-static func drop_loot(parent: Node, enemy_kind: String, pos: Vector3, with_gold := true) -> void:
-	var loot := LootRules.roll(Balance.tables, enemy_kind, _loot_rng(), Game.char_class)
+static func drop_loot(parent: Node, enemy_kind: String, pos: Vector3, with_gold := true, level := 0, elite := false) -> void:
+	var loot := LootRules.roll(Balance.tables, enemy_kind, _loot_rng(), Game.char_class, level, elite)
 	_spawn_loot(parent, pos, int(loot.gold) if with_gold else 0, loot.items)
 
 

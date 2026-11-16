@@ -579,6 +579,96 @@ func test_loot_roll_deterministic() -> void:
 	T.eq(LootRules.roll(bt, "nao_existe", _rng(1)), {"gold": 0, "items": {}}, "tipo desconhecido")
 
 
+# ---------------------------------------------------------------- loot por nível
+## Cópia das tabelas com `gear_drop.chance` trocado (não mexe nas tabelas compartilhadas).
+func _tables_gear_chance(chance: float) -> BalanceTables:
+	var bt := BalanceTables.from_dict(_tables().to_dict())
+	var prog: Dictionary = bt.get_table("progression").duplicate(true)
+	prog["gear_drop"]["chance"] = chance
+	bt.set_table("progression", prog)
+	return bt
+
+
+func _is_gear(bt: BalanceTables, id: String) -> bool:
+	return CharRules.slot_of(bt, id) != ""
+
+
+func test_loot_has_no_gear_for_common() -> void:
+	var bt := _tables_gear_chance(0.0)
+	var rng := _rng(7)
+	for i in 2000:
+		var loot := LootRules.roll(bt, "goblin", rng, "", 6)
+		for id in loot.items:
+			T.ok(not _is_gear(bt, id), "goblin sem equipamento na tabela: " + id)
+
+
+func test_quest_materials_keep_rate() -> void:
+	var bt := _tables()
+	var rng := _rng(9)
+	var ear := 0
+	var bone := 0
+	for i in 4000:
+		if LootRules.roll(bt, "goblin", rng, "", 6).items.has("goblin_ear"):
+			ear += 1
+		if LootRules.roll(bt, "esqueleto", rng, "", 22).items.has("bone_shard"):
+			bone += 1
+	T.ok(ear / 4000.0 >= 0.66 and ear / 4000.0 <= 0.74, "goblin_ear ~0,70: %f" % (ear / 4000.0))
+	T.ok(bone / 4000.0 >= 0.66 and bone / 4000.0 <= 0.74, "bone_shard ~0,70: %f" % (bone / 4000.0))
+
+
+func test_gear_drop_respects_level() -> void:
+	var bt := _tables_gear_chance(1.0)
+	var rng := _rng(3)
+	var seen := 0
+	for i in 500:
+		var loot := LootRules.roll(bt, "goblin", rng, "", 20)
+		for id in loot.items:
+			if _is_gear(bt, id):
+				seen += 1
+				var lv := CharRules.item_level(bt, id)
+				T.ok(lv >= 17 and lv <= 21, "%s nível %d fora da janela 17..21" % [id, lv])
+	T.ok(seen >= 400, "com chance 1.0 quase todo sorteio dá equipamento: %d" % seen)
+
+
+func test_gold_scales_with_level() -> void:
+	var bt := _tables()
+	var rng := _rng(5)
+	var lo := 0
+	var hi := 0
+	for i in 1000:
+		lo += int(LootRules.roll(bt, "goblin", rng, "", 6).gold)
+		hi += int(LootRules.roll(bt, "goblin", rng, "", 30).gold)
+	T.ok(hi > 2 * lo, "ouro no nível 30 (%d) > 2x o do nível 6 (%d)" % [hi, lo])
+
+
+func test_roll_without_level_unchanged() -> void:
+	var bt := _tables()
+	T.eq(LootRules.roll(bt, "slime", _rng(42)), LootRules.roll(bt, "slime", _rng(42), "", 0), "sem nível = nível 0")
+	T.eq(LootRules.roll(bt, "slime", _rng(42)), LootRules.roll(bt, "slime", _rng(42), "", 0, false), "elite sem nível não muda")
+
+
+func test_gear_pool_window_and_named() -> void:
+	var bt := _tables()
+	var pool := LootRules.gear_pool(bt, 20)
+	T.ok(not pool.is_empty(), "há equipamento perto do nível 20")
+	var sorted := pool.duplicate()
+	sorted.sort()
+	T.eq(pool, sorted, "ordenado")
+	for id in pool:
+		T.ok(not bt.get_table("items")[id].get("named", false), "sem nomeado: " + id)
+		T.ok(CharRules.item_level(bt, id) >= 17 and CharRules.item_level(bt, id) <= 21, "janela: " + id)
+
+
+func test_gear_roll_deterministic_and_adapted_in_window() -> void:
+	var bt := _tables_gear_chance(1.0)
+	T.eq(LootRules.roll(bt, "goblin", _rng(8), "mage", 20), LootRules.roll(bt, "goblin", _rng(8), "mage", 20), "mesma seed")
+	var rng := _rng(8)
+	for i in 300:
+		for id in LootRules.roll(bt, "goblin", rng, "mage", 20).items:
+			if _is_gear(bt, id):
+				T.ok(CharRules.item_level(bt, id) <= 21, "adaptada continua na janela: " + id)
+
+
 # ---------------------------------------------------------------- correções da revisão
 func test_counts_are_bounded() -> void:
 	var bt := _tables()

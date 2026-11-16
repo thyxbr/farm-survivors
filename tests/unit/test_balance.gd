@@ -35,6 +35,13 @@ func test_roundtrip_matches_consts() -> void:
 			cur = cur.duplicate(true)
 			for kind in cur:
 				(cur[kind] as Dictionary).erase("ref_level")
+			# o loot foi enxugado (equipamento vem do sorteio por nível): compara o resto, dos dois lados
+			var snap_enemies: Dictionary = (BalanceTables.decode(snap[n]) as Dictionary).duplicate(true)
+			for kind in cur:
+				(cur[kind] as Dictionary).erase("loot")
+				(snap_enemies[kind] as Dictionary).erase("loot")
+			T.ok(cur == snap_enemies, "tabela enemies igual ao snapshot das const (sem loot)")
+			continue
 		elif n == "items":
 			# o nível de equipar (level) nasceu depois do snapshot: compara sem ele
 			cur = cur.duplicate(true)
