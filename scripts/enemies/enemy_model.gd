@@ -15,6 +15,7 @@ const MODELS := {
 	"goblin": preload("res://assets/models/goblin.glb"),
 	"skeleton": preload("res://assets/models/skeleton.glb"),
 	"raptor": preload("res://assets/models/raptor.glb"),
+	"spider": preload("res://assets/models/spider.glb"),
 }
 const MERGED := "Merged"
 

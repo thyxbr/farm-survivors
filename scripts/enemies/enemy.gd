@@ -82,6 +82,9 @@ var contributors := {}
 var last_hitter := 0
 var _net_pos := Vector3.ZERO
 var _net_yaw := 0.0
+## Tecelã: recarga da teia (segundos), à parte da do bote.
+var web_cd := 0.0
+const SPIDER_PARTS := ["Abdomen", "Leg0L", "Leg1L", "Leg2L", "Leg3L", "Leg0R", "Leg1R", "Leg2R", "Leg3R"]
 
 
 func _ready() -> void:
@@ -111,6 +114,9 @@ func _ready() -> void:
 		_make_elite_glow()
 	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head", "Tail", "Jaw"]:   # Tail e Jaw: só o raptor
 		parts[n] = model.find_child(n, true, false)
+	if data.model == "spider":   # Tecelã: abdômen e as oito pernas (Leg0L..Leg3R)
+		for n in SPIDER_PARTS:
+			parts[n] = model.find_child(n, true, false)
 	for mi: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
 		if not mi.is_in_group(ToonLook.OUTLINE_GROUP):      # a casca de contorno não pisca nem tinge
 			meshes.append(mi)
@@ -319,6 +325,7 @@ func _physics_process(delta: float) -> void:
 		return
 	born_t += delta
 	attack_cd = max(0.0, attack_cd - delta)
+	web_cd = maxf(0.0, web_cd - delta)
 	slow_timer = max(0.0, slow_timer - delta)
 	venom_timer = maxf(0.0, venom_timer - delta)
 	stagger = max(0.0, stagger - delta)
@@ -374,8 +381,8 @@ func _physics_process(delta: float) -> void:
 			elif global_position.distance_to(home) > 45.0 \
 					or (dist > data.aggro * 1.9 and provoked <= 0.0):
 				_set_state("return")
-			elif dist <= data.reach and attack_cd <= 0:
-				_begin_attack()
+			elif (dist <= data.reach or _web_ready(dist)) and attack_cd <= 0:
+				_begin_attack(dist)
 			elif dist > data.reach * 0.8:
 				move = _pack_dir(to_player, dist) * spd if ai() == "pack" else to_player.normalized() * spd
 			if face == Vector3.ZERO:
@@ -394,8 +401,9 @@ func _physics_process(delta: float) -> void:
 		"attack":
 			_update_attack(delta, player, to_player, dist)
 			if attack_kind == "lunge" and attack_timer > 0.35 and attack_timer < 0.6:
-				move = model_forward() * spd * (2.0 if ai() == "pack" else 3.2)
-			elif dist < INF and (attack_timer < 0.35 or (attack_kind == "shoot" and attack_timer < _hit_time())):
+				move = model_forward() * spd * (2.0 if ai() == "pack" or ai() == "weaver" else 3.2)
+			elif dist < INF and (attack_timer < 0.35 or ((attack_kind == "shoot" or attack_kind == "web")
+					and attack_timer < _hit_time())):
 				face = to_player
 
 	if stagger > 0:
@@ -494,7 +502,12 @@ func _ranged_move(to_player: Vector3, dist: float, spd: float) -> Array:
 
 
 # ------------------------------------------------------------ ataques
-func _begin_attack() -> void:
+## Tecelã: de meia distância, com a teia pronta, cospe teia em vez de correr até o jogador.
+func _web_ready(dist: float) -> bool:
+	return ai() == "weaver" and web_cd <= 0.0 and dist > data.reach * 1.6 and dist < float(data.get("web_range", 10.0))
+
+
+func _begin_attack(dist := 0.0) -> void:
 	state = "attack"
 	attack_timer = 0.0
 	hit_done = false
@@ -512,6 +525,13 @@ func _begin_attack() -> void:
 			return
 		"pack":
 			attack_kind = "lunge"   # bote com mordida (o salto para a frente fica no estado "attack")
+			return
+		"weaver":
+			if _web_ready(dist):
+				attack_kind = "web"
+				web_cd = float(data.get("web_cd", 6.0)) * randf_range(0.85, 1.15)
+			else:
+				attack_kind = "lunge"
 			return
 	if data.model == "slime":
 		attack_kind = "lunge"
@@ -539,6 +559,8 @@ func _attack_duration() -> float:
 			return 1.3
 		"fuse":
 			return 1.2
+		"web":
+			return 1.0
 	return 0.95 if not is_boss else 1.1
 
 
@@ -554,6 +576,8 @@ func _hit_time() -> float:
 			return 0.75
 		"fuse":
 			return 0.95
+		"web":
+			return 0.55
 	return 0.5 if not is_boss else 0.6
 
 
@@ -564,6 +588,8 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 		hit_done = true
 		if attack_kind == "shoot":
 			_shoot(false)
+		elif attack_kind == "web":
+			_shoot_web(false)
 		elif attack_kind == "cast":
 			_cast_heal(false)
 		elif attack_kind == "fuse":
@@ -584,7 +610,7 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 				player.take_damage(data.damage * dmg_mult * randf_range(0.9, 1.1), global_position)
 				if data.has("chill") and player.has_method("apply_chill"):
 					player.apply_chill(float(data.chill))
-		if attack_kind == "swing" or (attack_kind == "lunge" and data.model == "raptor"):
+		if attack_kind == "swing" or (attack_kind == "lunge" and (data.model == "raptor" or data.model == "spider")):
 			Sfx.play_at("swing", global_position, 0.15, -4.0)
 	if attack_timer >= _attack_duration():
 		attack_cd = data.cooldown * (0.7 if enraged else 1.0) * randf_range(0.8, 1.2)
@@ -603,6 +629,19 @@ func _shoot(visual: bool) -> void:
 	arrow.magic = bolt
 	get_parent().add_child(arrow)
 	arrow.global_position = origin
+
+
+## Tecelã: bola de teia que prende quem acerta (dano menor que o bote).
+func _shoot_web(visual: bool) -> void:
+	Sfx.play_at("bow_shot", global_position, 0.25, -8.0)
+	var ball := ENEMY_ARROW.new()
+	ball.web = true
+	ball.web_secs = float(data.get("web_secs", 1.8))
+	ball.direction = model_forward()
+	ball.damage = 0.0 if visual else data.damage * dmg_mult * 0.5
+	ball.source = get_parent()
+	get_parent().add_child(ball)
+	ball.global_position = global_position + Vector3.UP * 0.55 * float(data.scale) + model_forward() * 0.7
 
 
 func _cast_heal(visual: bool) -> void:
@@ -879,6 +918,8 @@ func _puppet_process(delta: float) -> void:
 				FX.burst(global_position + Vector3.UP * 0.3, Color(0.5, 0.4, 0.3), 40, 7.0, 0.2, 0.8)
 			elif attack_kind == "shoot":
 				_shoot(true)
+			elif attack_kind == "web":
+				_shoot_web(true)
 			elif attack_kind == "cast":
 				_cast_heal(true)
 			elif attack_kind == "fuse":
@@ -910,6 +951,9 @@ func _animate(delta: float, hspeed: float) -> void:
 		return
 	if data.model == "raptor":
 		_animate_raptor(hspeed, s, k)
+		return
+	if data.model == "spider":
+		_animate_spider(hspeed, k)
 		return
 	var amp: float = clamp(hspeed / 4.0, 0.0, 1.0) * 0.8
 	parts.LegL.rotation.x = lerp(parts.LegL.rotation.x, s * amp, k)
@@ -980,3 +1024,45 @@ func _animate_raptor(hspeed: float, s: float, k: float) -> void:
 	if parts.Tail:
 		parts.Tail.rotation.y = sin(anim_t * 0.5) * (0.12 + amp * 0.15)
 		parts.Tail.rotation.x = -body_x * 0.8
+
+
+## Tecelã: oito patas em dois grupos alternados (1 e 3 de um lado com 2 e 4 do outro), cada pata varrendo e
+## levantando na sua vez; o abdômen respira. No bote ergue a frente com as patas dianteiras e desce mordendo;
+## na teia ergue a frente e cospe. Pivôs das pernas no quadril: y varre para a frente e para trás, z levanta.
+func _animate_spider(hspeed: float, k: float) -> void:
+	var amp: float = clamp(hspeed / 4.0, 0.0, 1.0)
+	var walk := anim_t * 1.7
+	var body_x := 0.0
+	var head_x := 0.0
+	var front_lift := 0.0
+	if state == "attack" and (attack_kind == "lunge" or attack_kind == "web"):
+		var t := attack_timer
+		if t < _hit_time():          # arma: frente para cima, patas da frente no ar, quelíceras abertas
+			body_x = -0.28
+			head_x = -0.45
+			front_lift = 0.7
+		elif t < _hit_time() + 0.25:  # morde (ou cospe) descendo a frente
+			body_x = 0.18 if attack_kind == "lunge" else -0.1
+			head_x = 0.35
+			front_lift = 0.15
+	for i in 4:
+		for side in 2:
+			var leg: Node3D = parts.get("Leg%d%s" % [i, "L" if side == 0 else "R"])
+			if leg == null:
+				continue
+			var sgn := 1.0 if side == 0 else -1.0
+			var ph := walk + (PI if (i + side) % 2 == 1 else 0.0)
+			var swing := sin(ph) * 0.32 * amp + sin(anim_t * 0.6 + i) * 0.03 * (1.0 - amp)
+			var lift := maxf(0.0, cos(ph)) * 0.3 * amp
+			if i == 0:
+				lift = maxf(lift, front_lift)
+			leg.rotation.y = lerp(leg.rotation.y, swing * sgn, k)
+			leg.rotation.z = lerp(leg.rotation.z, lift * sgn, k)
+	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x + sin(walk * 2.0) * 0.03 * amp, k)
+	if parts.Head:
+		parts.Head.rotation.x = lerp(parts.Head.rotation.x, head_x, k)
+	var abd: Node3D = parts.get("Abdomen")
+	if abd:
+		var br := 1.0 + sin(anim_t * 0.8) * 0.035
+		abd.scale = abd.scale.lerp(Vector3(br, br, br), k)
+		abd.rotation.x = lerp(abd.rotation.x, 0.12 if attack_kind == "web" and state == "attack" else 0.0, k)

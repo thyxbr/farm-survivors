@@ -1280,5 +1280,69 @@
 				0.02
 			]
 		]
+	},
+	"tecela": {
+		"name": "Tecelã",
+		"model": "spider",
+		"ai": "weaver",
+		"hp": 85,
+		"damage": 13,
+		"speed": 4.4,
+		"xp": 40,
+		"gold": [
+			4,
+			10
+		],
+		"aggro": 13.0,
+		"reach": 1.9,
+		"cooldown": 1.6,
+		"radius": 0.55,
+		"height": 0.9,
+		"scale": 1.0,
+		"color": {
+			"$c": [
+				0.76,
+				0.23,
+				0.29,
+				1.0
+			]
+		},
+		"web_cd": 6.0,
+		"web_secs": 1.8,
+		"web_range": 11.0,
+		"loot": [
+			[
+				"spider_silk",
+				0.6
+			],
+			[
+				"health_potion",
+				0.15
+			],
+			[
+				"mana_potion",
+				0.12
+			],
+			[
+				"leather_gloves",
+				0.04
+			],
+			[
+				"wool_hood",
+				0.04
+			],
+			[
+				"oak_staff",
+				0.03
+			],
+			[
+				"seed_mint",
+				0.1
+			],
+			[
+				"wind_ring",
+				0.02
+			]
+		]
 	}
 }

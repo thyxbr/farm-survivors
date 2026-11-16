@@ -34,7 +34,7 @@ const FIREBALL := preload("res://scripts/player/fireball.gd")
 const UPG := preload("res://scripts/survival/upgrades.gd")
 
 const STATES := ["idle", "wander", "chase", "return", "attack", "dead"]
-const ATTACK_KINDS := ["swing", "lunge", "slam", "shoot", "fuse", "cast"]
+const ATTACK_KINDS := ["swing", "lunge", "slam", "shoot", "fuse", "cast", "web"]
 const SNAP_STRIDE := 10   # id, x, y, z, yaw, hp, state, attack_timer, attack_kind, flags
 ## Tempo da fila do Desafio da Horda (cai para HORDE_LOBBY_ALL quando todos já responderam).
 const HORDE_LOBBY_TIME := 15.0
@@ -615,6 +615,11 @@ func server_chill_player(peer_id: int, secs: float) -> void:
 		_you_were_chilled.rpc_id(peer_id, secs)
 
 
+func server_web_player(peer_id: int, secs: float) -> void:
+	if players.has(peer_id):
+		_you_were_webbed.rpc_id(peer_id, secs)
+
+
 func server_shake_player(peer_id: int, amount: float) -> void:
 	if players.has(peer_id):
 		_shake.rpc_id(peer_id, amount)
@@ -1003,6 +1008,12 @@ func _you_were_hit(amount: float, from_pos: Vector3) -> void:
 func _you_were_chilled(secs: float) -> void:
 	if world and world.player:
 		world.player.apply_chill(secs)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _you_were_webbed(secs: float) -> void:
+	if world and world.player:
+		world.player.apply_web(secs)
 
 
 @rpc("authority", "call_remote", "unreliable")

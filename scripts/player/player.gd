@@ -87,7 +87,10 @@ var _dodge_age := 0.0   ## há quanto tempo a esquiva atual começou (anima o ro
 var invuln := 0.0
 ## Lentidão deixada pela Slime de Gelo (segundos restantes); ver apply_chill.
 var chill_t := 0.0
+## Preso na teia da Tecelã (segundos restantes): anda bem mais devagar; ver apply_web.
+var web_t := 0.0
 const CHILL_SPEED := 0.6
+const WEB_SPEED := 0.3
 var cast_timer := 0.0
 var stamina_delay := 0.0
 var shake := 0.0
@@ -346,6 +349,9 @@ func _local_process(delta: float) -> void:
 	if chill_t > 0.0:
 		chill_t -= delta
 		speed *= CHILL_SPEED
+	if web_t > 0.0:
+		web_t -= delta
+		speed *= WEB_SPEED
 	if attacking:
 		speed *= 0.3 if look["class"] == "sword" else 0.55
 	elif drawing:
@@ -1069,6 +1075,20 @@ func apply_chill(secs: float) -> void:
 		Game.notify.emit("Você está congelando: mais lento por um instante.", Color(0.6, 0.85, 1.0))
 	chill_t = maxf(chill_t, secs)
 	FX.burst(global_position + Vector3.UP, Color(0.6, 0.85, 1.0), 14, 2.5, 0.1, 0.6)
+
+
+## Teia da Tecelã: quase parado por `secs`. Não acumula, só renova.
+func apply_web(secs: float) -> void:
+	if remote:
+		if Network.is_server() and not dead:
+			Network.server_web_player(peer_id, secs)
+		return
+	if dead or secs <= 0.0:
+		return
+	if web_t <= 0.0:
+		Game.notify.emit("Preso na teia! Mal consegue andar.", Color(0.9, 0.9, 0.95))
+	web_t = maxf(web_t, secs)
+	FX.burst(global_position + Vector3.UP * 0.8, Color(0.92, 0.92, 0.96), 18, 2.0, 0.12, 0.7)
 
 
 func take_damage(amount: float, from_pos: Vector3) -> void:

@@ -1358,6 +1358,13 @@
 		"stack": true,
 		"desc": "Sobrou de um esqueleto. Ainda range."
 	},
+	"spider_silk": {
+		"name": "Seda de Tecelã",
+		"type": "material",
+		"price": 12,
+		"stack": true,
+		"desc": "Fina e mais forte que corda. Gruda nos dedos."
+	},
 	"raptor_claw": {
 		"name": "Garra de Raptor",
 		"type": "material",
