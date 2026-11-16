@@ -92,6 +92,7 @@ func _ready() -> void:
 	check(by_kind.get("esqueleto", 0) == 3 and by_kind.get("esqueleto_arqueiro", 0) == 2 and by_kind.get("esqueleto_mago", 0) == 1
 		and by_kind.get("esqueleto_cavaleiro", 0) == 1, "Ruínas: 3 esqueletos guerreiros, 2 arqueiros, 1 mago e 1 Cavaleiro")
 	check(by_kind.get("goblin_bombardeiro", 0) == 2 and by_kind.get("slime_gelo", 0) == 2, "2 bombardeiros no Acampamento e 2 slimes de gelo nos campos")
+	check(by_kind.get("raptor_capim", 0) == 6, "2 bandos de 3 Raptores-capim nos campos (%d)" % by_kind.get("raptor_capim", 0))
 	var gear_ok := true
 	for en in get_tree().get_nodes_in_group("enemies"):
 		var want: Array = en.data.get("gear", [])

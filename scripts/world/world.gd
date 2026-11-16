@@ -87,6 +87,10 @@ const PORTAL_POS := Vector3(-8, 0, -9.5)
 const HORDE_RETURN := Vector3(-8, 0.5, -6.5)
 const FARM := Vector3(0, 0, 33)          # Horta da Vila (saída sul)
 const NEST := Vector3(-36, 0, 36)        # Ninho de Slimes (sudoeste da vila)
+# bandos de Raptor-capim no capim alto, a 35+ m dos slimes dos campos (o raptor persegue a 15 m e não
+# pode cair em cima de quem está começando nos slimes)
+const RAPTOR_PACK_E := Vector3(60, 0, -55)
+const RAPTOR_PACK_W := Vector3(-62, 0, -38)
 ## Maciços dentro do mapa: [centro, raio da base, altura]. Ficam nos cantos vazios, longe das
 ## áreas de missão; a serra em volta do mapa é só visual (fora da borda).
 const MOUNTAINS := [
@@ -1091,6 +1095,12 @@ func _setup_enemies() -> void:
 		spawns.append({"kind": "goblin_bombardeiro", "pos": CAMP + off, "node": null, "timer": 0.0, "respawn": 90.0})
 	for p in [Vector3(-18, 0, -44), Vector3(16, 0, -54)]:
 		spawns.append({"kind": "slime_gelo", "pos": p, "node": null, "timer": 0.0, "respawn": 60.0})
+	# Raptores-capim caçam em bando de 3 no capim alto, a nordeste e a oeste dos campos de slime
+	for c in [RAPTOR_PACK_E, RAPTOR_PACK_W]:
+		for i in 3:
+			var a := i * TAU / 3.0
+			spawns.append({"kind": "raptor_capim", "pos": c + Vector3(cos(a), 0, sin(a)) * 2.5, "node": null,
+				"timer": 0.0, "respawn": 75.0})
 	# Ninho de Slimes: a mãe no meio, explosivos em volta dela e os velozes por fora
 	spawns.append({"kind": "slime_mae", "pos": NEST, "node": null, "timer": 0.0, "respawn": 120.0})
 	for i in 3:

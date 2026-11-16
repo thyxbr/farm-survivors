@@ -1223,5 +1223,62 @@
 		],
 		"boss": true,
 		"summon": "esqueleto"
+	},
+	"raptor_capim": {
+		"name": "Raptor-capim",
+		"model": "raptor",
+		"ai": "pack",
+		"hp": 70,
+		"damage": 12,
+		"speed": 5.6,
+		"xp": 34,
+		"gold": [
+			3,
+			8
+		],
+		"aggro": 15.0,
+		"reach": 2.1,
+		"cooldown": 1.8,
+		"radius": 0.45,
+		"height": 1.2,
+		"scale": 1.0,
+		"color": {
+			"$c": [
+				0.37,
+				0.48,
+				0.24,
+				1.0
+			]
+		},
+		"loot": [
+			[
+				"raptor_claw",
+				0.6
+			],
+			[
+				"health_potion",
+				0.15
+			],
+			[
+				"leather_boots",
+				0.04
+			],
+			[
+				"leather_gloves",
+				0.04
+			],
+			[
+				"hunter_bow",
+				0.03
+			],
+			[
+				"seed_pepper",
+				0.1
+			],
+			[
+				"wind_ring",
+				0.02
+			]
+		]
 	}
 }

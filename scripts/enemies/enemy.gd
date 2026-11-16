@@ -109,7 +109,7 @@ func _ready() -> void:
 	add_child(model)
 	if elite:
 		_make_elite_glow()
-	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head"]:
+	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head", "Tail", "Jaw"]:   # Tail e Jaw: só o raptor
 		parts[n] = model.find_child(n, true, false)
 	for mi: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
 		if not mi.is_in_group(ToonLook.OUTLINE_GROUP):      # a casca de contorno não pisca nem tinge
@@ -357,7 +357,7 @@ func _physics_process(delta: float) -> void:
 				move = to.normalized() * spd * 0.4
 				state_timer += delta
 		"chase":
-			if horde and ai() != "melee" and ai() != "bomber":
+			if horde and ai() != "melee" and ai() != "bomber" and ai() != "pack":
 				if dist == INF:
 					_set_state("idle")
 				else:
@@ -377,7 +377,7 @@ func _physics_process(delta: float) -> void:
 			elif dist <= data.reach and attack_cd <= 0:
 				_begin_attack()
 			elif dist > data.reach * 0.8:
-				move = to_player.normalized() * spd
+				move = _pack_dir(to_player, dist) * spd if ai() == "pack" else to_player.normalized() * spd
 			if face == Vector3.ZERO:
 				face = to_player
 		"return":
@@ -394,7 +394,7 @@ func _physics_process(delta: float) -> void:
 		"attack":
 			_update_attack(delta, player, to_player, dist)
 			if attack_kind == "lunge" and attack_timer > 0.35 and attack_timer < 0.6:
-				move = model_forward() * spd * 3.2
+				move = model_forward() * spd * (2.0 if ai() == "pack" else 3.2)
 			elif dist < INF and (attack_timer < 0.35 or (attack_kind == "shoot" and attack_timer < _hit_time())):
 				face = to_player
 
@@ -441,6 +441,24 @@ func _set_state(s: String) -> void:
 	state_timer = 0.0
 	if s == "chase" and bar_root and not horde:
 		bar_root.visible = true
+	if s == "chase" and ai() == "pack" and not horde:
+		_alert_pack()
+
+
+## Bando (raptor): quem vê o jogador chama os do mesmo tipo que estão por perto, e o bando ataca junto.
+func _alert_pack() -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e != self and e.kind == kind and not e.dead and (e.state == "idle" or e.state == "wander") 				and e.global_position.distance_to(global_position) < 14.0:
+			e._set_state("chase")
+
+
+## Bando: de longe, cada membro abre para um lado (um vem de frente, os outros pelos flancos) e fecha o
+## cerco ao chegar perto. O lado sai do id, então é o mesmo no servidor e em cada nascimento.
+func _pack_dir(to_player: Vector3, dist: float) -> Vector3:
+	var dir := to_player.normalized()
+	var slot := (net_id if net_id != 0 else get_instance_id()) % 3
+	var ang: float = [0.0, 0.75, -0.75][slot] * clampf((dist - data.reach * 1.5) / 6.0, 0.0, 1.0)
+	return dir.rotated(Vector3.UP, ang)
 
 
 ## Arqueiro, xamã e goblin dourado: mantêm distância (ou fogem) em vez de correr para cima.
@@ -491,6 +509,9 @@ func _begin_attack() -> void:
 		"bomber":
 			attack_kind = "fuse"
 			FX.telegraph(global_position, data.blast, _hit_time())
+			return
+		"pack":
+			attack_kind = "lunge"   # bote com mordida (o salto para a frente fica no estado "attack")
 			return
 	if data.model == "slime":
 		attack_kind = "lunge"
@@ -563,7 +584,7 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 				player.take_damage(data.damage * dmg_mult * randf_range(0.9, 1.1), global_position)
 				if data.has("chill") and player.has_method("apply_chill"):
 					player.apply_chill(float(data.chill))
-		if attack_kind == "swing":
+		if attack_kind == "swing" or (attack_kind == "lunge" and data.model == "raptor"):
 			Sfx.play_at("swing", global_position, 0.15, -4.0)
 	if attack_timer >= _attack_duration():
 		attack_cd = data.cooldown * (0.7 if enraged else 1.0) * randf_range(0.8, 1.2)
@@ -887,6 +908,9 @@ func _animate(delta: float, hspeed: float) -> void:
 				target = Vector3(0.8, 1.4, 0.8)
 		body.scale = body.scale.lerp(target, k)
 		return
+	if data.model == "raptor":
+		_animate_raptor(hspeed, s, k)
+		return
 	var amp: float = clamp(hspeed / 4.0, 0.0, 1.0) * 0.8
 	parts.LegL.rotation.x = lerp(parts.LegL.rotation.x, s * amp, k)
 	parts.LegR.rotation.x = lerp(parts.LegR.rotation.x, -s * amp, k)
@@ -915,3 +939,44 @@ func _animate(delta: float, hspeed: float) -> void:
 	var kk := k if not (state == "attack" and attack_timer >= _hit_time() and attack_timer < _hit_time() + 0.12) else 1.0 - exp(-40.0 * delta)
 	parts.ArmR.rotation = parts.ArmR.rotation.lerp(arm, kk)
 	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x, k)
+
+
+## Raptor: passada de ave (pernas longas, corpo balançando pouco), cauda que serpenteia e bote com a boca aberta.
+## Pivôs: rotação x positiva abaixa a frente (cabeça, mandíbula) e leva a perna para trás.
+func _animate_raptor(hspeed: float, s: float, k: float) -> void:
+	var amp: float = clamp(hspeed / 5.0, 0.0, 1.0) * 0.75
+	var leg_l := s * amp
+	var leg_r := -s * amp
+	var body_x := -absf(cos(anim_t)) * amp * 0.08
+	var head_x := sin(anim_t * 2.0) * amp * 0.1
+	var jaw := 0.04 + maxf(0.0, sin(anim_t * 0.37)) * 0.12 * (1.0 - amp)   # respira de boca entreaberta parado
+	if state == "attack" and attack_kind == "lunge":
+		var t := attack_timer
+		if t < 0.35:          # arma o bote: agacha, levanta a cabeça e abre a boca
+			body_x = 0.12
+			head_x = -0.35
+			jaw = 0.75
+			leg_l = -0.35
+			leg_r = 0.25
+		elif t < 0.6:         # salta para a frente e fecha a boca na hora do acerto
+			body_x = -0.2
+			head_x = 0.3
+			jaw = 0.0 if t >= _hit_time() else 0.8
+			leg_l = 0.7
+			leg_r = -0.6
+		else:
+			body_x = 0.05
+			head_x = 0.1
+			jaw = 0.15
+	var snap := 1.0 - exp(-40.0 * get_physics_process_delta_time())
+	parts.LegL.rotation.x = lerp(parts.LegL.rotation.x, leg_l, k)
+	parts.LegR.rotation.x = lerp(parts.LegR.rotation.x, leg_r, k)
+	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x, k)
+	parts.Head.rotation.x = lerp(parts.Head.rotation.x, head_x, k)
+	parts.ArmL.rotation.x = lerp(parts.ArmL.rotation.x, s * 0.15, k)
+	parts.ArmR.rotation.x = lerp(parts.ArmR.rotation.x, -s * 0.15, k)
+	if parts.Jaw:
+		parts.Jaw.rotation.x = lerp(parts.Jaw.rotation.x, jaw, snap if jaw == 0.0 else k)
+	if parts.Tail:
+		parts.Tail.rotation.y = sin(anim_t * 0.5) * (0.12 + amp * 0.15)
+		parts.Tail.rotation.x = -body_x * 0.8
