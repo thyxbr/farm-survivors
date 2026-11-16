@@ -27,6 +27,7 @@ const M := {
 	"flower_lavender": preload("res://assets/models/flower_lavender.glb"),
 	"flower_tulips": preload("res://assets/models/flower_tulips.glb"),
 	"rock": preload("res://assets/models/rock.glb"),
+	"fern": preload("res://assets/models/fern.glb"),   # margem da lagoa do oeste
 	"well": preload("res://assets/models/well.glb"),
 	"fence": preload("res://assets/models/fence.glb"),
 	"ruin_pillar": preload("res://assets/models/ruin_pillar.glb"),
@@ -93,6 +94,12 @@ const RAPTOR_PACK_E := Vector3(60, 0, -55)
 const RAPTOR_PACK_W := Vector3(-62, 0, -38)
 # Tecelãs (aranhas) entre os pinheiros da floresta do leste, longe do Acampamento Goblin e dos raptores
 const TECELA_SPOTS := [Vector3(96, 0, 38), Vector3(92, 0, -28), Vector3(106, 0, 6)]
+# Lagoa do oeste, casa dos Bocarrões (sapos gigantes)
+const POND := Vector3(-80, 0, 15)
+# Flores-famintas na beira das trilhas (paradas: só mordem quem passa perto)
+const FLOR_SPOTS := [Vector3(30, 0, 6.5), Vector3(48, 0, -6.5), Vector3(-20, 0, 52)]
+# Asas-couro rondam as Ruínas, mas só de noite (de dia vão embora e não renascem)
+const ASA_SPOTS := [Vector3(-27, 0, -92), Vector3(27, 0, -92), Vector3(0, 0, -128)]
 ## Maciços dentro do mapa: [centro, raio da base, altura]. Ficam nos cantos vazios, longe das
 ## áreas de missão; a serra em volta do mapa é só visual (fora da borda).
 const MOUNTAINS := [
@@ -132,6 +139,8 @@ var resource_nodes: Array = []
 var flicker_lights: Array = []
 var rng := RandomNumberGenerator.new()
 var _avoid: Array = []   # [Vector2 centro, raio] áreas sem vegetação aleatória
+var _night_scan := 0.0      # tempo até a próxima conferida de dia/noite (bichos noturnos)
+var _is_night_now := false
 var _no_grass: Array = []   # [Vector2 centro, raio] pegadas de props (o capim não atravessa)
 var ground: Node3D
 var _t := 0.0
@@ -153,7 +162,7 @@ func _ready() -> void:
 		process_mode = Node.PROCESS_MODE_DISABLED   # nada do mapa processa pela metade, sem o jogador
 	# [etapa, peso na barra] — o peso acompanha o tempo medido de cada uma (o capim é a mais demorada)
 	var steps := [[_build_environment, 2.0], [_build_ground, 2.0], [_build_village, 1.0], [_build_farm, 1.0],
-		[_build_fields, 0.5], [_build_goblin_camp, 0.5], [_build_ruins, 0.5], [_build_arena, 0.5],
+		[_build_fields, 0.5], [_build_goblin_camp, 0.5], [_build_ruins, 0.5], [_build_pond, 0.2], [_build_arena, 0.5],
 		[_build_borders, 0.5], [_scatter_forest, 0.5], [_scatter_sparse, 0.5], [_mountain_nature, 0.5],
 		[_build_regions, 2.0], [_scatter_grass, 7.0], [_scatter_region_grass, 3.0]]
 	if not Network.is_client():
@@ -722,6 +731,20 @@ func _scarecrow(pos: Vector3) -> void:
 
 
 # ================================================================ campos (slimes)
+## Lagoa do oeste: lama em volta, água escura no meio, samambaias e pedras na margem.
+func _build_pond() -> void:
+	_disc(POND + Vector3(0, 0.015, 0), 10.0, Color(0.3, 0.26, 0.17), 0.6)
+	_disc(POND + Vector3(0, 0.02, 0), 7.5, Color(0.16, 0.3, 0.34), 0.4)
+	_avoid.append([Vector2(POND.x, POND.z), 12.0])
+	_no_grass.append([Vector2(POND.x, POND.z), 9.0])
+	for i in 9:
+		var a := i * TAU / 9.0 + rng.randf_range(-0.2, 0.2)
+		var r := rng.randf_range(9.0, 11.0)
+		prop("fern", POND + Vector3(cos(a) * r, 0, sin(a) * r), rng.randf() * TAU, rng.randf_range(1.0, 1.5))
+	for a in [0.6, 2.4, 4.4]:
+		prop("rock", POND + Vector3(cos(a) * 9.6, -0.2, sin(a) * 9.6), a, 0.9, "cyl", Vector3(0.6, 0.8, 0))
+
+
 func _build_fields() -> void:
 	var soil := Color(0.36, 0.25, 0.15)
 	var crop_mm := MultiMesh.new()
@@ -1100,6 +1123,12 @@ func _setup_enemies() -> void:
 	# Raptores-capim caçam em bando de 3 no capim alto, a nordeste e a oeste dos campos de slime
 	for p in TECELA_SPOTS:
 		spawns.append({"kind": "tecela", "pos": p, "node": null, "timer": 0.0, "respawn": 80.0})
+	for p in FLOR_SPOTS:
+		spawns.append({"kind": "flor_faminta", "pos": p, "node": null, "timer": 0.0, "respawn": 70.0})
+	for off in [Vector3(-3, 0, -2), Vector3(3, 0, 2.5)]:
+		spawns.append({"kind": "bocarrao", "pos": POND + off, "node": null, "timer": 0.0, "respawn": 150.0})
+	for p in ASA_SPOTS:
+		spawns.append({"kind": "asa_couro", "pos": p, "node": null, "timer": 0.0, "respawn": 60.0, "night": true})
 	for c in [RAPTOR_PACK_E, RAPTOR_PACK_W]:
 		for i in 3:
 			var a := i * TAU / 3.0
@@ -1116,7 +1145,11 @@ func _setup_enemies() -> void:
 		spawns.append({"kind": "slime_veloz", "pos": NEST + Vector3(cos(a), 0, sin(a)) * 8.5, "node": null,
 			"timer": 0.0, "respawn": 45.0})
 	spawns.append_array(region_spawns)
+	var night := is_night()
 	for s in spawns:
+		if s.get("night", false) and not night:
+			s.timer = 3.0   # bicho da noite: espera escurecer
+			continue
 		_spawn(s)
 
 
@@ -1175,7 +1208,14 @@ func _process(delta: float) -> void:
 		_scan_boss()
 	for f in flicker_lights:
 		f[0].light_energy = f[1] * (0.85 + 0.15 * sin(_t * 9.0 + f[2]) + 0.08 * sin(_t * 23.0 + f[2]))
+	_night_scan -= delta
+	if _night_scan <= 0.0:
+		_night_scan = 2.0
+		_is_night_now = is_night()
 	for s in spawns:
+		if s.get("night", false) and not _is_night_now:
+			_day_leave(s)
+			continue
 		if s.node == null and s.timer > 0:
 			s.timer -= delta
 			if s.timer <= 0:
@@ -1183,6 +1223,25 @@ func _process(delta: float) -> void:
 					s.timer = 5.0
 				else:
 					_spawn(s)
+
+
+## É noite no Vale agora? (mesma hora e mesmo nascer/pôr do sol que o céu usa)
+static func is_night() -> bool:
+	var day := DayNightRules.day_for(Weather.season_weights())
+	return DayNightRules.night(DayNightFX.current_hour(), day.sunrise, day.sunset) > 0.5
+
+
+## Bicho da noite quando amanhece: some sem morrer (fora de combate) e espera a noite seguinte.
+func _day_leave(s: Dictionary) -> void:
+	s.timer = maxf(s.timer, 3.0)
+	var e = s.node
+	if e == null or not is_instance_valid(e) or e.dead or e.state in ["chase", "attack"]:
+		return
+	if Network.is_server():
+		Network.server_enemy_despawn(e)
+	FX.burst(e.global_position + Vector3.UP * 1.4, Color(0.3, 0.24, 0.3), 10, 2.5, 0.1, 0.6)
+	e.queue_free()
+	s.node = null
 
 
 func _any_player_near(pos: Vector3, dist: float) -> bool:

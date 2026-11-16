@@ -46,6 +46,8 @@ const BY_ID := {
 	"shadow_fang": ["fang", Color(0.42, 0.3, 0.6)],
 	"raptor_claw": ["fang", Color(0.9, 0.86, 0.74)],
 	"spider_silk": ["drop", Color(0.92, 0.92, 0.96)],
+	"frog_tongue": ["gland", Color(0.76, 0.27, 0.35)],
+	"bat_wing": ["ear", Color(0.29, 0.23, 0.28)],
 	"champion_badge": ["badge", Color(0.92, 0.72, 0.3)],
 }
 

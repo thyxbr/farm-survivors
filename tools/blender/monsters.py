@@ -616,19 +616,27 @@ def fera_curve(name, pts, r0, r1, material, parent, sides=8):
     secs = [sec(p, r0 + (r1 - r0) * i / (n - 1), r0 + (r1 - r0) * i / (n - 1)) for i, p in enumerate(pts)]
     return sloft(name, secs, material, parent, sides=sides, fwd=(0, 0, 1))
 
-def fera_surf(secs, y, deg, out=0.0):
-    """Ponto da superfície de um loft feito ao longo de -Y (frente do anel para cima) na altura y, no ângulo
-    deg do anel (0 = lado +X, 90 = em cima, -90 = embaixo); out empurra para fora (negativo: para dentro)."""
+def fera_surf(secs, y, deg, out=0.0, tilt=False):
+    """Ponto da superfície de um loft feito ao longo de Y (frente do anel para cima) na altura y, no ângulo
+    deg do anel (0 = lado +X, 90 = em cima, -90 = embaixo); out empurra para fora (negativo: para dentro).
+    tilt=True segue a inclinação do anel onde o loft sobe ou desce (dorso de sapo); sem ele, o anel é tomado
+    como vertical (bom para peças quase retas)."""
     for a, b in zip(secs, secs[1:]):
         if min(a["c"].y, b["c"].y) <= y <= max(a["c"].y, b["c"].y):     # loft para a frente ou para trás
             d = b["c"].y - a["c"].y
             s = _mix(a, b, (y - a["c"].y) / d if abs(d) > 1e-6 else 0.0)
+            t = (b["c"] - a["c"]).normalized()
             break
     else:
-        s = secs[-1]
+        s, t = secs[-1], Vector((0, -1, 0))
     r = math.radians(deg)
     k = s["fr"] if math.sin(r) > 0 else s["bk"]
-    return Vector((math.cos(r) * (s["rx"] + out), y, s["c"].z + math.sin(r) * (s["ry"] * k + out)))
+    if not tilt:
+        return Vector((math.cos(r) * (s["rx"] + out), y, s["c"].z + math.sin(r) * (s["ry"] * k + out)))
+    f = Vector((0, 0, 1)) - t * t.z
+    f.normalize()
+    side = Vector((1, 0, 0))
+    return s["c"] + side * (math.cos(r) * (s["rx"] + out)) + f * (math.sin(r) * (s["ry"] * k + out))
 
 
 # ================================================================== RAPTOR-CAPIM
@@ -936,3 +944,320 @@ def build_spider():
             smooth_sharp(ob, 80.0)
     loose_parts("spider")
     export("spider")
+
+
+# ================================================================== FLOR-FAMINTA (planta carnívora)
+# Planta da beira das trilhas: roseta de folhas no chão, caule grosso que se curva para a frente e uma cabeça de
+# duas mandíbulas (como uma dioneia) com dentes que se cruzam; dois cipós com espinhos saem da base. Não anda.
+# Pivôs animados por scripts/enemies/enemy.gd (só a planta): Body (caule e cabeça), Head (mandíbula de cima),
+# Jaw (de baixo), VineL e VineR (cipós).
+def build_plant():
+    leaf = mat("p_leaf", hexc("#3E6A2C"), 0.8)
+    leaf_d = mat("p_leaf_d", hexc("#284A1C"), 0.8)
+    leaf_l = mat("p_leaf_l", hexc("#6E9A44"), 0.8)
+    inner = mat("p_inner", hexc("#C23B4A"), 0.7)
+    throat = mat("p_throat", hexc("#6A1622"), 0.8)
+    tooth = mat("p_tooth", hexc("#EFE6D0"), 0.6)
+    thorn = mat("p_thorn", hexc("#2A2420"), 0.6)
+    up = (0, 0, 1)
+
+    root = empty("Plant", (0, 0, 0))
+    # ---------------- roseta de folhas largas no chão (fixa)
+    for k in range(6):
+        a = math.radians(30 + 60 * k)
+        d = Vector((math.cos(a), math.sin(a), 0))
+        lsecs = fera_dense([sec(d * 0.03 + Vector((0, 0, 0.05)), 0.05, 0.02),
+                            sec(d * 0.28 + Vector((0, 0, 0.13)), 0.15, 0.025),
+                            sec(d * 0.52 + Vector((0, 0, 0.1)), 0.13, 0.02),
+                            sec(d * 0.7 + Vector((0, 0, 0.03)), 0.03, 0.01)], 10)
+        sloft("Leaf%d" % k, lsecs, leaf, root, sides=8, fwd=up, mats=(leaf_l,),
+              matf=lambda i, j: 1 if j in (1, 2) else 0)
+
+    body = empty("Body", (0, 0, 0.05), root)
+    # ---------------- caule grosso, curvado para a frente, com veios claros
+    stem = fera_dense([sec((0, 0.02, 0.0), 0.11, 0.11), sec((0, 0.05, 0.4), 0.085, 0.085),
+                       sec((0, 0.0, 0.82), 0.072, 0.072), sec((0, -0.12, 1.07), 0.066, 0.066),
+                       sec((0, -0.21, 1.16), 0.06, 0.06)], 16)
+    sloft("Stem", stem, leaf, body, sides=10, fwd=(0, -1, 0), mats=(leaf_l,),
+          matf=lambda i, j: 1 if j in (2, 7) else 0)
+    for s, z in ((1, 0.45), (-1, 0.7)):   # duas folhinhas no caule
+        b = Vector((s * 0.06, 0.04, z))
+        sloft("StemLeaf%s" % ("L" if s > 0 else "R"),
+              fera_dense([sec(b, 0.03, 0.012), sec(b + Vector((s * 0.15, 0.02, 0.08)), 0.07, 0.014),
+                          sec(b + Vector((s * 0.28, 0.0, 0.08)), 0.01, 0.006)], 7), leaf, body, sides=8, fwd=up)
+
+    # ---------------- cabeça: mandíbula de cima (Head) e de baixo (Jaw), presas no fim do caule
+    head = empty("Head", (0, -0.2, 1.19), body)
+    upper = fera_dense([sec((0, -0.17, 1.2), 0.065, 0.05),
+                        sec((0, -0.3, 1.25), 0.2, 0.12, bk=0.3),
+                        sec((0, -0.48, 1.26), 0.23, 0.12, bk=0.3),
+                        sec((0, -0.64, 1.23), 0.17, 0.1, bk=0.3),
+                        sec((0, -0.72, 1.21), 0.07, 0.05, bk=0.3),
+                        sec((0, -0.745, 1.205), 0.012, 0.01)], 16, cut=1)
+    sloft("UpperLobe", upper, leaf, head, sides=16, fwd=up, mats=(inner, leaf_d),
+          matf=lambda i, j: 1 if 8 <= j <= 14 else 2 if j in (3,) else 0)
+    jaw = empty("Jaw", (0, -0.2, 1.15), body)
+    lower = fera_dense([sec((0, -0.17, 1.13), 0.065, 0.05),
+                        sec((0, -0.3, 1.1), 0.19, 0.11, fr=0.3),
+                        sec((0, -0.48, 1.085), 0.21, 0.11, fr=0.3),
+                        sec((0, -0.63, 1.1), 0.15, 0.09, fr=0.3),
+                        sec((0, -0.7, 1.115), 0.06, 0.04, fr=0.3),
+                        sec((0, -0.72, 1.12), 0.01, 0.01)], 16, cut=1)
+    sloft("LowerLobe", lower, leaf, jaw, sides=16, fwd=up, mats=(inner, throat),
+          matf=lambda i, j: 2 if (0 <= j <= 6 and 3 <= i <= 6) else 1 if 0 <= j <= 6 else 0)
+    # dentes na borda das duas mandíbulas, cruzando na boca fechada
+    for k in range(7):
+        y = -0.29 - 0.4 * k / 6
+        ln = 0.075 - 0.025 * abs(k - 3) / 3
+        for deg in (-6, 186):
+            p = fera_surf(upper, y, deg, -0.012)
+            tip_dir = Vector((-0.25 if p.x > 0 else 0.25, 0, -1)).normalized()
+            fera_tip("UpTooth%d_%d" % (k, deg), p, p + tip_dir * ln, 0.014, tooth, head)
+        for deg in (6, 174):
+            q = fera_surf(lower, y + 0.03, deg, -0.012)
+            tip_dir = Vector((-0.25 if q.x > 0 else 0.25, 0, 1)).normalized()
+            fera_tip("LowTooth%d_%d" % (k, deg), q, q + tip_dir * ln * 0.9, 0.013, tooth, jaw)
+
+    # ---------------- dois cipós com espinhos, saindo da base para os lados e para a frente
+    for s, nm in ((1, "L"), (-1, "R")):
+        vine = empty("Vine" + nm, (s * 0.07, 0.02, 0.12), root)
+        pts = [Vector((s * 0.05, 0.03, 0.1)), Vector((s * 0.22, 0.06, 0.24)), Vector((s * 0.42, 0.02, 0.34)),
+               Vector((s * 0.6, -0.1, 0.33)), Vector((s * 0.74, -0.26, 0.24)), Vector((s * 0.8, -0.42, 0.14))]
+        vs = fera_dense([sec(p, 0.04 - 0.032 * i / 5, 0.04 - 0.032 * i / 5) for i, p in enumerate(pts)], 14)
+        sloft("Vine%sMesh" % nm, vs, leaf_d, vine, sides=8, fwd=up)
+        for k, t in enumerate((0.3, 0.5, 0.7, 0.85)):
+            c = sample(vs, t)
+            out = Vector((s * 0.4, -0.3, 1.0 if k % 2 == 0 else -0.2)).normalized()
+            fera_tip("Thorn%s%d" % (nm, k), c["c"] + out * c["rx"] * 0.4, c["c"] + out * (c["rx"] + 0.05), 0.012,
+                     thorn, vine)
+
+    for ob in coll.all_objects:
+        if ob.type == 'MESH':
+            smooth_sharp(ob, 80.0)
+    loose_parts("plant")
+    export("plant")
+
+
+# ================================================================== BOCARRÃO (sapo gigante)
+# Sapo enorme da lagoa do oeste: corpo largo e verruguento, olhos saltados com pálpebra pesada (cara de poucos
+# amigos), boca de lado a lado e língua que estica. Frente = -Y.
+# Pivôs animados por scripts/enemies/enemy.gd (só o sapo): Body (corpo todo), Jaw (queixo, dentro de Body),
+# Tongue (língua, dentro de Jaw; estica no ataque), ArmL/ArmR (patas da frente) e LegL/LegR (de trás).
+def build_frog():
+    skin = mat("f_skin", hexc("#6B6A3A"), 0.8)
+    skin_d = mat("f_skin_d", hexc("#46461F"), 0.8)
+    belly = mat("f_belly", hexc("#C9B67A"), 0.85)
+    mouth = mat("f_mouth", hexc("#6A2230"), 0.85)
+    tongue_m = mat("f_tongue", hexc("#C2455A"), 0.6)
+    eye = mat("f_eye_flat", (0.9, 0.62, 0.08), 0.4, 0.0, emit=(0.8, 0.5, 0.0), strength=1.5)
+    pupil = mat("f_pupil_flat", hexc("#120C08"), 0.4)
+    up = (0, 0, 1)
+
+    root = empty("Frog", (0, 0, 0))
+    body = empty("Body", (0, 0, 0.4), root)
+    bsecs = fera_dense([sec((0, 0.62, 0.32), 0.12, 0.1),
+                        sec((0, 0.46, 0.43), 0.44, 0.34, bk=0.8),
+                        sec((0, 0.16, 0.56), 0.6, 0.47, bk=0.85),
+                        sec((0, -0.2, 0.68), 0.58, 0.4, bk=0.8),
+                        sec((0, -0.45, 0.76), 0.46, 0.29, bk=0.7),
+                        sec((0, -0.62, 0.78), 0.3, 0.17, bk=0.7),
+                        sec((0, -0.7, 0.78), 0.12, 0.08),
+                        sec((0, -0.72, 0.78), 0.02, 0.02)], 20, cut=1)
+    # dorso oliva com manchas escuras; embaixo, atrás da boca, a barriga clara; na frente, o céu da boca
+    def body_mat(i, j):
+        y = bsecs[min(i, len(bsecs) - 1)]["c"].y
+        if 10 <= j <= 15:
+            return 3 if y < 0.0 else 2
+        return 0
+    sloft("BodyMesh", bsecs, skin, body, sides=18, fwd=up, mats=(skin_d, belly, mouth), matf=body_mat)
+    for k, (y, deg) in enumerate(((0.3, 70), (0.3, 110), (0.1, 50), (0.1, 130), (0.42, 90), (-0.02, 75),
+                                  (-0.02, 105), (0.2, 90), (0.45, 55), (0.45, 125))):
+        c = fera_surf(bsecs, y, deg, -0.01, tilt=True)
+        r = 0.035 if k % 3 else 0.045
+        sloft("Wart%d" % k, [sec(c + Vector((0, 0.0, -0.01)), r * 0.6, r * 0.6), sec(c + Vector((0, 0, 0.012)), r, r),
+                             sec(c + Vector((0, 0, 0.03)), r * 0.4, r * 0.4)], skin_d, body, sides=8, fwd=(0, 1, 0),
+              axis=(0, 0, 1))
+
+    # ---------------- olhos saltados no alto, com pálpebra pesada caída para dentro
+    for s, nm in ((1, "L"), (-1, "R")):
+        base = fera_surf(bsecs, -0.3, 90 - s * 38, -0.06, tilt=True)
+        c = base + Vector((s * 0.02, 0, 0.1))
+        sloft("Eye" + nm, [sec(c + Vector((0, 0.1, 0)), 0.03, 0.03), sec(c + Vector((0, 0.05, 0)), 0.1, 0.1),
+                           sec(c + Vector((0, -0.04, 0)), 0.1, 0.1), sec(c + Vector((0, -0.1, 0)), 0.03, 0.03)],
+              eye, body, sides=12, fwd=up)
+        pc = c + Vector((s * 0.02, -0.098, 0.0))
+        sloft("Pupil" + nm, [sec(pc + Vector((0, 0, -0.06)), 0.006, 0.006), sec(pc, 0.016, 0.012),
+                             sec(pc + Vector((0, 0, 0.06)), 0.006, 0.006)], pupil, body, sides=8, fwd=(0, -1, 0))
+        # sobrancelha grossa por cima do olho, baixa no lado de dentro (cara fechada)
+        fera_curve("Brow" + nm, [c + Vector((-s * 0.1, -0.05, 0.04)), c + Vector((-s * 0.04, -0.08, 0.075)),
+                                 c + Vector((s * 0.04, -0.05, 0.1)), c + Vector((s * 0.1, 0.02, 0.09))],
+                   0.04, 0.02, skin_d, body, sides=10)
+        sloft("EyeBase" + nm, [sec(base, 0.1, 0.1), sec(base + Vector((0, 0, 0.06)), 0.1, 0.09),
+                               sec(c + Vector((0, 0.02, -0.02)), 0.07, 0.07)], skin, body, sides=12, fwd=(0, -1, 0),
+              axis=(0, 0, 1))
+
+    # ---------------- queixo: casca por baixo da frente do corpo; a linha onde encosta é a boca
+    jaw = empty("Jaw", (0, 0.02, 0.5), body)
+    jsecs = []
+    for y in (0.04, -0.12, -0.3, -0.48, -0.62, -0.69, -0.715):
+        sc = fera_surf(bsecs, y, 0, tilt=True)
+        bot = fera_surf(bsecs, y, -90, tilt=True)
+        half = (sc.z - bot.z)
+        jsecs.append(sec((0, y, bot.z + half * 0.45), abs(sc.x) * 1.03 + 0.008, half * 0.55 + 0.012, fr=0.9))
+    jsecs = fera_dense(jsecs, 14, cut=1)
+    # lábio escuro na borda de cima do queixo (a linha da boca), miolo da boca escondido por dentro
+    sloft("JawMesh", jsecs, skin, jaw, sides=18, fwd=up, mats=(belly, mouth),
+          matf=lambda i, j: 1 if 10 <= j <= 15 else 2 if (0 <= j <= 8 or j == 17) and i >= 1 else 0)
+    tongue = empty("Tongue", (0, -0.05, 0.5), jaw)
+    tz = jsecs[3]["c"].z + jsecs[3]["ry"] * 0.6
+    sloft("TongueMesh", fera_dense([sec((0, -0.04, tz - 0.02), 0.06, 0.025), sec((0, -0.3, tz), 0.075, 0.028),
+                                    sec((0, -0.5, tz + 0.005), 0.085, 0.035), sec((0, -0.58, tz + 0.01), 0.06, 0.03),
+                                    sec((0, -0.6, tz + 0.01), 0.015, 0.01)], 10), tongue_m, tongue, sides=12, fwd=up)
+
+    # ---------------- patas da frente curtas e firmes, com três dedos de ponta redonda
+    for s, nm in ((1, "L"), (-1, "R")):
+        sh = fera_surf(bsecs, -0.32, -90 + s * 55, -0.06, tilt=True)
+        arm = empty("Arm" + nm, sh, root)
+        hand = Vector((s * 0.46, -0.52, 0.05))
+        elbow = sh.lerp(hand, 0.5) + Vector((s * 0.12, 0.1, 0.02))   # cotovelo para fora e para trás
+        sloft("Arm%sMesh" % nm, fera_dense([sec(sh, 0.12, 0.12), sec(elbow, 0.1, 0.1),
+                                            sec(hand + Vector((0, 0, 0.04)), 0.075, 0.065)], 11),
+              skin, arm, sides=10, fwd=(0, -1, 0))
+        for k in range(3):
+            a = math.radians(-90 + s * (k - 1) * 32)
+            d = Vector((math.cos(a) * 0.6 + s * 0.15, math.sin(a), 0)).normalized()
+            f0 = hand + Vector((0, 0, 0.02))
+            sloft("Arm%sFinger%d" % (nm, k), [sec(f0, 0.045, 0.032), sec(f0 + d * 0.11 + Vector((0, 0, -0.01)), 0.03, 0.02),
+                                              sec(f0 + d * 0.15 + Vector((0, 0, -0.012)), 0.04, 0.026),
+                                              sec(f0 + d * 0.18 + Vector((0, 0, -0.012)), 0.01, 0.01)],
+                  skin_d, arm, sides=8, fwd=up)
+
+    # ---------------- pernas de trás dobradas (coxa grossa para a frente, pé comprido no chão)
+    for s, nm in ((1, "L"), (-1, "R")):
+        hip = fera_surf(bsecs, 0.36, s * -35 if s > 0 else 180 + 35, -0.12, tilt=True)
+        leg = empty("Leg" + nm, hip, root)
+        # coxa grossa colada no flanco, joelho baixo na frente, canela voltando por baixo dela, pé largo no chão
+        knee = Vector((s * 0.68, -0.04, 0.24))
+        ankle = Vector((s * 0.62, 0.42, 0.13))
+        foot = Vector((s * 0.68, 0.12, 0.05))
+        sloft("Leg%sMesh" % nm, fera_dense([sec(hip, 0.2, 0.2), sec(hip.lerp(knee, 0.5) + Vector((s * 0.05, 0, 0.04)), 0.2,
+                                                                      0.18),
+                                            sec(knee, 0.13, 0.12), sec(knee.lerp(ankle, 0.5) + Vector((s * 0.06, 0, -0.04)),
+                                                                       0.11, 0.1),
+                                            sec(ankle, 0.08, 0.075), sec(ankle.lerp(foot, 0.5), 0.07, 0.05),
+                                            sec(foot, 0.065, 0.04)], 20), skin, leg, sides=14, fwd=up)
+        for k in range(4):
+            a = math.radians(-90 + s * (k - 1.5) * 18)
+            d = Vector((math.cos(a) + s * 0.1, math.sin(a), 0)).normalized()
+            sloft("Leg%sToe%d" % (nm, k), [sec(foot, 0.045, 0.028), sec(foot + d * 0.17 + Vector((0, 0, -0.02)), 0.028, 0.018),
+                                           sec(foot + d * 0.22 + Vector((0, 0, -0.025)), 0.04, 0.022),
+                                           sec(foot + d * 0.25 + Vector((0, 0, -0.025)), 0.01, 0.01)],
+                  skin_d, leg, sides=8, fwd=up)
+
+    for ob in coll.all_objects:
+        if ob.type == 'MESH':
+            smooth_sharp(ob, 80.0)
+    loose_parts("frog")
+    export("frog")
+
+
+# ================================================================== ASA-COURO (morcego grande)
+# Morcego das ruínas, só de noite: voa a ~1,5 m do chão (o corpo físico fica no chão e o modelo é montado no ar),
+# orelhonas pontudas, focinho com presas para fora e asas de pele esticadas entre os dedos. Frente = -Y.
+# Pivôs animados por scripts/enemies/enemy.gd (só o morcego): Body (corpo todo, sobe e desce no voo), Head,
+# WingL/WingR (no ombro; batem girando no eixo da frente) e LegL/LegR (pezinhos pendurados).
+def _membrane(name, pts, material, parent, hub, thick=0.012):
+    """Pele de asa: leque de triângulos a partir do pulso (hub) passando por pts, com espessura (dos dois lados
+    aparece) e sombreado chapado."""
+    bm = bmesh.new()
+    h = bm.verts.new(hub)
+    vs = [bm.verts.new(p) for p in pts]
+    for a, b in zip(vs, vs[1:]):
+        bm.faces.new((h, a, b))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bmesh.ops.solidify(bm, geom=bm.faces[:], thickness=thick)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    print("PART", name, "membrane", flush=True)
+    bmesh.ops.translate(bm, vec=-_wloc(parent), verts=bm.verts)
+    return _finish(name, bm, material, parent)
+
+
+def build_bat():
+    fur = mat("b_fur", hexc("#5E4A3C"), 0.9)
+    fur_d = mat("b_fur_d", hexc("#3A2C24"), 0.9)
+    chest = mat("b_chest", hexc("#8A6E52"), 0.9)
+    skin = mat("b_skin", hexc("#4A3A48"), 0.75)
+    skin_d = mat("b_skin_d", hexc("#2E2230"), 0.75)
+    fang = mat("b_fang", hexc("#EFE6D0"), 0.5)
+    mouth = mat("b_mouth", hexc("#6A1E2A"), 0.8)
+    eye = mat("b_eye_flat", (1.0, 0.8, 0.1), 0.4, 0.0, emit=(1.0, 0.65, 0.0), strength=3.0)
+    claw = mat("b_claw", hexc("#1E1612"), 0.5)
+    up = (0, 0, 1)
+
+    root = empty("Bat", (0, 0, 0))
+    body = empty("Body", (0, 0, 1.5), root)
+    tsecs = fera_dense([sec((0, 0.27, 1.44), 0.04, 0.04), sec((0, 0.14, 1.47), 0.13, 0.12),
+                        sec((0, -0.03, 1.52), 0.155, 0.15), sec((0, -0.17, 1.56), 0.12, 0.12),
+                        sec((0, -0.25, 1.58), 0.085, 0.085)], 12)
+    sloft("Torso", tsecs, fur, body, sides=12, fwd=up, mats=(chest, fur_d),
+          matf=lambda i, j: 1 if 7 <= j <= 10 else 2 if j in (2, 3) and i >= 6 else 0)
+
+    # ---------------- cabeça: orelhonas, olho em fenda sob a testa, focinho curto com presas para fora
+    head = empty("Head", (0, -0.24, 1.58), body)
+    hsecs = fera_dense([sec((0, -0.19, 1.6), 0.08, 0.08), sec((0, -0.28, 1.63), 0.13, 0.12),
+                        sec((0, -0.38, 1.62), 0.11, 0.1, bk=0.9), sec((0, -0.46, 1.585), 0.065, 0.06),
+                        sec((0, -0.5, 1.575), 0.035, 0.035), sec((0, -0.515, 1.572), 0.008, 0.008)], 12, cut=1)
+    sloft("HeadMesh", hsecs, fur, head, sides=12, fwd=up, mats=(skin_d, mouth),
+          matf=lambda i, j: 1 if i >= 8 and j in (1, 2, 3, 4) else 2 if i >= 6 and j in (7, 8, 9, 10) else 0)
+    for s, nm in ((1, "L"), (-1, "R")):
+        e0 = fera_surf(hsecs, -0.29, 90 - s * 58, -0.02)
+        tipp = Vector((s * 0.22, -0.2, 1.93))
+        sloft("Ear" + nm, fera_dense([sec(e0, 0.065, 0.02), sec(e0.lerp(tipp, 0.45), 0.075, 0.018),
+                                      sec(e0.lerp(tipp, 0.85), 0.03, 0.012), sec(tipp, 0.005, 0.005)], 10),
+              fur, head, sides=8, fwd=(0, -1, 0), mats=(skin_d,), matf=lambda i, j: 1 if 0 < i < 8 and j in (1, 2, 3) else 0)
+        ec = fera_surf(hsecs, -0.38, 90 - s * 40, -0.004)
+        sloft("Eye" + nm, [sec(ec + Vector((s * 0.03, 0.015, 0.012)), 0.004, 0.004),
+                           sec(ec, 0.022, 0.009), sec(ec + Vector((-s * 0.02, -0.015, -0.006)), 0.004, 0.004)],
+              eye, head, sides=8, fwd=up, axis=(-s, -0.6, -0.3))
+        fera_curve("Brow" + nm, [fera_surf(hsecs, -0.33, 90 - s * 42, -0.005), fera_surf(hsecs, -0.37, 90 - s * 30, 0.0),
+                                 fera_surf(hsecs, -0.41, 90 - s * 16, -0.01)], 0.022, 0.01, fur_d, head, sides=8)
+        f0 = fera_surf(hsecs, -0.47, -90 + s * 50, -0.01)
+        fera_tip("Fang" + nm, f0, f0 + Vector((0, -0.006, -0.065)), 0.015, fang, head)
+
+    # ---------------- asas: braço e dedos (ossos) com a pele esticada entre eles e a borda de trás recortada
+    for s, nm in ((1, "L"), (-1, "R")):
+        sh = Vector((s * 0.11, -0.1, 1.58))
+        wing = empty("Wing" + nm, sh, body)
+        el = Vector((s * 0.42, 0.0, 1.7))
+        wr = Vector((s * 0.82, -0.1, 1.72))
+        tips = [Vector((s * 1.12, -0.28, 1.64)), Vector((s * 1.26, 0.04, 1.56)), Vector((s * 1.06, 0.36, 1.46)),
+                Vector((s * 0.66, 0.42, 1.44))]
+        fera_curve(nm + "Humerus", [sh, sh.lerp(el, 0.5) + Vector((0, 0, 0.02)), el], 0.045, 0.03, skin_d, wing)
+        fera_curve(nm + "Forearm", [el, el.lerp(wr, 0.5) + Vector((0, 0, 0.02)), wr], 0.03, 0.022, skin_d, wing)
+        for k, t in enumerate(tips[:3]):
+            fera_curve(nm + "Finger%d" % k, [wr, wr.lerp(t, 0.5) + Vector((0, 0, 0.015)), t], 0.02, 0.005, skin_d, wing)
+        fera_tip(nm + "Thumb", wr + Vector((0, 0, 0.01)), wr + Vector((s * 0.03, -0.08, 0.07)), 0.022, claw, wing)
+        side = Vector((s * 0.1, 0.2, 1.48))
+
+        def scallop(a, b, k=0.22):
+            return a.lerp(b, 0.5).lerp(wr, k)
+        ring = [sh, el, tips[0], scallop(tips[0], tips[1], 0.12), tips[1], scallop(tips[1], tips[2]), tips[2],
+                scallop(tips[2], tips[3], 0.18), tips[3], scallop(tips[3], side, 0.1), side, sh]
+        _membrane(nm + "Membrane", ring, skin, wing, wr)
+
+    # ---------------- pezinhos pendurados atrás, com garras
+    for s, nm in ((1, "L"), (-1, "R")):
+        hp = Vector((s * 0.07, 0.17, 1.45))
+        leg = empty("Leg" + nm, hp, body)
+        ft = Vector((s * 0.1, 0.3, 1.3))
+        fera_curve(nm + "LegMesh", [hp, hp.lerp(ft, 0.5) + Vector((0, 0.02, 0)), ft], 0.03, 0.018, skin_d, leg)
+        for k in range(3):
+            c0 = ft + Vector(((k - 1) * 0.015, 0, 0))
+            fera_curve(nm + "FootClaw%d" % k, [c0, c0 + Vector((0, 0.02, -0.03)), c0 + Vector((0, -0.01, -0.05))],
+                       0.01, 0.002, claw, leg, sides=6)
+
+    for ob in coll.all_objects:
+        if ob.type == 'MESH' and not ob.name.endswith("Membrane"):
+            smooth_sharp(ob, 80.0)
+    loose_parts("bat")
+    export("bat")
