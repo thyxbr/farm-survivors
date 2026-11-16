@@ -5,7 +5,7 @@ extends ColonyResourceNode
 ## seus veios, como o saque pessoal. Os golpes são contados aqui; no último o nó some e pede a coleta
 ## ao Econ (solo: concede na hora; online: o servidor confere distância e tempo de volta, ver WorldHarvest).
 
-## Id do nó em world_nodes.json (a posição na lista "nodes").
+## Id do nó (node_id fixo da MapEntity "resource_node" na cena do mapa; ver WorldHarvest).
 var node_id := 0
 ## Golpes para quebrar e segundos para voltar (da tabela).
 var hits := 5

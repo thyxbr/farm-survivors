@@ -35,7 +35,7 @@ static func build(w: Node3D, map_id: String) -> MapRoot:
 		elif n is MapDecor:
 			(n as MapDecor).build_into(n)
 		elif n is MapEntity:
-			if n.kind != "resource_node":   # os nós de coleta ainda vêm do world_nodes.json
+			if n.kind != "resource_node":   # nós de coleta: o mundo cria de WorldHarvest (cliente e solo)
 				var e: Node = w.make_entity(n)
 				if e != null:
 					w.add_child(e)

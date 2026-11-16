@@ -964,9 +964,10 @@ func _scatter_grass() -> void:
 
 # ================================================================ veios e cristais
 ## Materiais do encantamento: veios de ferro em volta do Acampamento Goblin e cristais nas Ruínas
-## (data/balance/world_nodes.json). São de cada jogador: nada aqui é replicado.
+## (posições nas cenas dos mapas, tipos em data/balance/world_nodes.json). São de cada jogador: nada aqui é
+## replicado.
 func _setup_resource_nodes() -> void:
-	for i in WorldHarvest.count(Balance.tables):
+	for i in WorldHarvest.ids(Balance.tables):
 		var def := WorldHarvest.node_def(Balance.tables, i)
 		if def.is_empty():
 			continue

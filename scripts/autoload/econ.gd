@@ -144,7 +144,7 @@ func demo_ecos(amount: int) -> void:
 	_deliver("test_ecos", [amount], _svc.grant_test_ecos(SOLO_ACCOUNT, amount, true))
 
 
-## Coleta de um veio de ferro ou cristal de Valdoria (nó `id` de world_nodes; ver WorldHarvest).
+## Coleta de um veio de ferro ou cristal de Valdoria (nó `id` das cenas dos mapas; ver WorldHarvest).
 ## Solo: confere e concede na hora, com `from` = posição do jogador. Online: o servidor decide com a
 ## última posição que recebeu do jogador (precisa estar em Valdoria). Resposta como op "gather".
 func gather_node(id: int, from: Vector3) -> void:
