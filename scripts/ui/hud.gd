@@ -55,6 +55,8 @@ var _compass_label: Label
 var _compass_far := ""
 ## Minimapa (só em Valdoria, ver add_minimap) e quadros do grupo (multiplayer).
 const MINIMAP_SIZE := 196.0
+## Largura do rastreador de missões (canto superior direito).
+const QUEST_W := 330.0
 var minimap: MapView
 ## Moldura e dica do minimapa: somem no Desafio da Horda (a arena é um mapa à parte, sem foto de cima).
 var _minimap_frame: Control
@@ -228,7 +230,7 @@ func _build_quests() -> void:
 	root.add_child(season_badge)
 	quest_box = VBoxContainer.new()
 	quest_box.add_theme_constant_override("separation", 2)
-	_anchor(quest_box, 1, 0, -300, 72, 284, 0)
+	_anchor(quest_box, 1, 0, -QUEST_W - 16, 72, QUEST_W, 0)
 	quest_box.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	quest_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(quest_box)
@@ -568,7 +570,7 @@ func _refresh_quests() -> void:
 		var side_hdr: bool = StoryRules.is_side(qt, id)
 		if ("side" if side_hdr else "main") != last_kind:
 			last_kind = "side" if side_hdr else "main"
-			var hdr := UITheme.outlined("CONTRATOS" if side_hdr else "HISTÓRIA", 11,
+			var hdr := UITheme.outlined("CONTRATOS" if side_hdr else "HISTÓRIA", 14,
 				Color(0.45, 0.65, 0.85) if side_hdr else UITheme.GOLD_DIM, 3)
 			hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 			quest_box.add_child(hdr)
@@ -579,7 +581,7 @@ func _refresh_quests() -> void:
 		var turn := StoryRules.turnable(qt, Game.quests, id, counts) and CharRules.quest_type(d) != "talk"
 		var icon := "!" if st == "none" else ("★" if turn else "◆")
 		var tint: Color = UITheme.GOOD if turn else (Color(0.6, 0.82, 1.0) if side else UITheme.GOLD)
-		var title := UITheme.outlined("%s %s" % [icon, d.name], 15, tint, 4)
+		var title := UITheme.outlined("%s %s" % [icon, d.name], 19, tint, 5)
 		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		quest_box.add_child(title)
 		var txt := ""
@@ -596,13 +598,13 @@ func _refresh_quests() -> void:
 			txt = str(d.get("objective", "Fale com %s" % d.get("turn_in", d.giver)))
 		else:
 			txt = "%s: %d/%d" % [d.get("objective", d.get("target", "")), prog[0], prog[1]]
-		var l := UITheme.outlined(txt, 13, UITheme.TEXT, 3)
+		var l := UITheme.outlined(txt, 16, UITheme.TEXT, 4)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.custom_minimum_size.x = 284
+		l.custom_minimum_size.x = QUEST_W
 		quest_box.add_child(l)
 		if st == "active" and not turn and CharRules.quest_type(d) != "talk":
-			var pb := UITheme.bar(Color(0.4, 0.65, 0.95) if side else UITheme.XP, 140, 3)
+			var pb := UITheme.bar(Color(0.4, 0.65, 0.95) if side else UITheme.XP, 170, 4)
 			pb.max_value = prog[1]
 			pb.value = prog[0]
 			pb.size_flags_horizontal = Control.SIZE_SHRINK_END
@@ -615,10 +617,10 @@ func _refresh_quests() -> void:
 			var row := HBoxContainer.new()
 			row.alignment = BoxContainer.ALIGNMENT_END
 			row.add_theme_constant_override("separation", 6)
-			_compass_label = UITheme.outlined("", 13, UITheme.GOLD, 3)
+			_compass_label = UITheme.outlined("", 16, UITheme.GOLD, 4)
 			row.add_child(_compass_label)
 			_compass = CompassArrow.new()
-			_compass.custom_minimum_size = Vector2(20, 20)
+			_compass.custom_minimum_size = Vector2(24, 24)
 			row.add_child(_compass)
 			quest_box.add_child(row)
 		first = false
