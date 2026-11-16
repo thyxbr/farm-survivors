@@ -368,7 +368,7 @@ func _set_state(s: String) -> void:
 	state_timer = 0.0
 	if s == "chase" and bar_root and not horde:
 		bar_root.visible = true
-	if s == "chase" and ai() == "pack" and not horde and not siege:
+	if s == "chase" and ai() == "pack" and not horde:
 		_alert_pack()
 
 
