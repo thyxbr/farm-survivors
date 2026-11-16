@@ -9,6 +9,8 @@ const RADIUS := 8.0
 const MIN_INTERVAL := 1.4
 ## Cura total do Banquete do Herói (o cliente limita à vida máxima).
 const ULT_HEAL := 9999.0
+## Teto da duração de um buff recebido de aliado (o cliente recusa mais do que isto).
+const MAX_BUFF_SECS := 60.0
 ## Buff que cada habilidade de aliados dá (o servidor nunca aceita um id de buff do cliente).
 const ALLY_BUFFS := {"scepter_ward": "scepter_ward", "scepter_ult": "scepter_feast"}
 ## Intervalo mínimo por habilidade = recarga x 0,4 (cooldown_mult mínimo) - 0,2 de folga para o jitter.
@@ -32,6 +34,11 @@ static func targets(caster: int, zone_peers: Array, positions: Dictionary, bonus
 	if not (caster in out):
 		out.append(caster)
 	return out
+
+
+## Duração, em segundos, de um buff em aliado: o tempo da tabela + o bônus de talento do healer (nunca negativo).
+static func ally_buff_seconds(base: float, bonus: float) -> float:
+	return base + maxf(0.0, bonus)
 
 
 ## Intervalo mínimo, em segundos, entre dois usos aceitos da habilidade `id` (desconhecida: o da Cura).

@@ -640,7 +640,8 @@ func _request_heal() -> void:
 		return
 	_last_heal[id] = now
 	var amount := CharRules.heal_amount(s, Balance.tables)
-	for pid in HealRules.targets(id, zone_peers(zone_of(id)), last_pos):
+	var radius_bonus := float(CharRules.talent_mods(Balance.tables, s).get("ally_radius", 0.0))
+	for pid in HealRules.targets(id, zone_peers(zone_of(id)), last_pos, radius_bonus):
 		if not server_peer_dead(pid):   # caído não recebe cura
 			_you_were_healed.rpc_id(pid, amount, id)
 
@@ -670,10 +671,13 @@ func _request_ally_buff(ability_id: String) -> void:
 	mine[ability_id] = now
 	_last_ally[id] = mine
 	var buff: String = HealRules.ALLY_BUFFS[ability_id]
-	for pid in HealRules.targets(id, zone_peers(zone_of(id)), last_pos):
+	var tm := CharRules.talent_mods(Balance.tables, s)
+	# a duração leva o talento do healer que conjurou (o servidor manda os segundos; o cliente só limita)
+	var secs := HealRules.ally_buff_seconds(float(ItemDB.BUFFS[buff].time), float(tm.get("ability_time:" + ability_id, 0.0)))
+	for pid in HealRules.targets(id, zone_peers(zone_of(id)), last_pos, float(tm.get("ally_radius", 0.0))):
 		if server_peer_dead(pid):
 			continue
-		_you_got_buff.rpc_id(pid, buff)
+		_you_got_buff.rpc_id(pid, buff, secs)
 		if ability_id == "scepter_ult":
 			_you_were_healed.rpc_id(pid, HealRules.ULT_HEAL, id)
 
@@ -1113,9 +1117,9 @@ func _you_were_healed(amount: float, _from_peer: int) -> void:
 
 ## Buff de um healer aliado. O cliente só aplica ids que existem em buffs.json.
 @rpc("authority", "call_remote", "reliable")
-func _you_got_buff(buff_id: String) -> void:
-	if world and world.player and ItemDB.BUFFS.has(buff_id):
-		Game.add_buff(buff_id)
+func _you_got_buff(buff_id: String, secs: float) -> void:
+	if world and world.player and ItemDB.BUFFS.has(buff_id) and secs > 0.0 and secs <= HealRules.MAX_BUFF_SECS:
+		Game.add_buff(buff_id, secs)
 
 
 @rpc("authority", "call_remote", "reliable")

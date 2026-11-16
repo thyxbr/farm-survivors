@@ -59,7 +59,7 @@ static func use(player: Node, id: String) -> bool:
 	match id:
 		"staff_ember":
 			player.begin_ability(id, {})
-			Game.add_buff(id)
+			Game.add_buff(id, Game.buff_duration(id))
 			Network.send_event(id, player.global_position, Vector3.ZERO)
 			FX.ring(player.global_position + Vector3.UP * 0.1, BUFF_COLOR, 2.2, 0.4)
 			Sfx.play("levelup", 0.1, -10.0)
@@ -486,7 +486,7 @@ static func _sky_fade(sky: Node3D) -> void:
 
 ## Explosão de um meteoro (só o dono): dano em METEOR_HIT_RADIUS com empurrão para fora, sem encher a fúria.
 static func _meteor_damage(caster: Node, pos: Vector3) -> void:
-	var dmg := (14.0 + Game.spell_power() * 1.6) * Game.damage_mult()
+	var dmg := (14.0 + Game.spell_power() * 1.6) * Game.damage_mult() * Game.ability_dmg_mult("meteor_rain")
 	var any := false
 	for e in caster.get_tree().get_nodes_in_group("enemies"):
 		if e.dead:

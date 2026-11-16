@@ -69,6 +69,8 @@ var eat_cooldown := 0.0
 var selected_food := ""
 ## Bônus das passivas permanentes (CharRules.meta_mods), recalculados em apply_state e somados em mod().
 var meta_mods := {}
+## Bônus dos talentos da classe (CharRules.talent_mods), recalculados em apply_state e somados em mod().
+var talent_mods := {}
 ## Encantamentos por tipo de arma (espelho de CharState.enchants): id -> {"el", "lv"}.
 var enchants := {}
 ## Classe fixa e corpo do personagem (espelho de CharState; "" = save antigo).
@@ -388,7 +390,7 @@ func damage_mult() -> float:
 
 ## Valor efetivo de um bônus: Desafio da Horda + comida + passivas permanentes.
 func mod(k: String) -> float:
-	return float(run_mods.get(k, 0.0)) + float(buff_mods.get(k, 0.0)) + float(meta_mods.get(k, 0.0)) 		+ (enchant_damage(equipment.weapon) if k == "damage" else 0.0)
+	return float(run_mods.get(k, 0.0)) + float(buff_mods.get(k, 0.0)) + float(meta_mods.get(k, 0.0)) + float(talent_mods.get(k, 0.0)) 		+ (enchant_damage(equipment.weapon) if k == "damage" else 0.0)
 
 
 # ---------------------------------------------------------------- encantamento
@@ -480,7 +482,7 @@ func max_hp() -> float:
 
 
 func max_mp() -> float:
-	return 25.0 + attr("int") * 6.0 + (level - 1) * 3.0 + gear("mp")
+	return (25.0 + attr("int") * 6.0 + (level - 1) * 3.0 + gear("mp")) * (1.0 + float(talent_mods.get("mp_pct", 0.0)))
 
 
 func max_stamina() -> float:
@@ -503,7 +505,7 @@ func spell_power() -> float:
 
 ## Vida da Cura (CharRules.heal_for: 30 + 4 x poder mágico, mais o bônus de cura do cetro).
 func heal_amount() -> float:
-	return CharRules.heal_for(spell_power(), Balance.tables, str(equipment.weapon))
+	return CharRules.heal_for(spell_power(), Balance.tables, str(equipment.weapon)) * (1.0 + float(talent_mods.get("heal_power", 0.0)))
 
 
 func crit_chance() -> float:
@@ -511,7 +513,25 @@ func crit_chance() -> float:
 
 
 func cooldown_mult() -> float:
-	return clampf(1.0 - gear("cdr") + float(buff_mods.get("cooldown", 0.0)), 0.4, 1.0)   # buff "cooldown" é negativo
+	# buff e talento "cooldown" são frações negativas (o mod("cooldown") das cartas da Horda é outra conta)
+	return clampf(1.0 - gear("cdr") + float(buff_mods.get("cooldown", 0.0)) + float(talent_mods.get("cooldown", 0.0)), 0.4, 1.0)
+
+
+## Segundos a mais que o talento dá à habilidade `ability_id` (chave "ability_time:<id>").
+func ability_time_bonus(ability_id: String) -> float:
+	return float(talent_mods.get("ability_time:" + ability_id, 0.0))
+
+
+## Multiplicador de dano do talento da habilidade `ability_id` (chave "ability_dmg:<id>"): 1 + bônus.
+func ability_dmg_mult(ability_id: String) -> float:
+	return 1.0 + float(talent_mods.get("ability_dmg:" + ability_id, 0.0))
+
+
+## Duração do buff `buff_id` para quem o conjurou: o tempo de buffs.json + o bônus de talento da habilidade
+## (o buff do Banquete, scepter_feast, vem da habilidade scepter_ult; os demais têm o mesmo id).
+func buff_duration(buff_id: String) -> float:
+	var ability_id := "scepter_ult" if buff_id == "scepter_feast" else buff_id
+	return float(ItemDB.BUFFS.get(buff_id, {}).get("time", 0.0)) + ability_time_bonus(ability_id)
 
 
 func defense() -> float:
@@ -1051,6 +1071,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 	ecos = s.ecos
 	passives = s.passives
 	meta_mods = CharRules.meta_mods(Balance.tables, passives)
+	talent_mods = CharRules.talent_mods(Balance.tables, s)
 	enchants = s.enchants
 	char_class = s.char_class
 	body = s.body

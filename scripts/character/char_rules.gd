@@ -127,9 +127,10 @@ static func spell_power(s: CharState, bt: BalanceTables) -> float:
 	return float(s.attributes.int) + gear(s, bt, "spell")
 
 
-## Vida restaurada pela Cura: (30 + 4 x poder mágico) x (1 + bônus "heal" da arma equipada).
+## Vida restaurada pela Cura: (30 + 4 x poder mágico) x (1 + bônus "heal" da arma equipada) x (1 + talentos "heal_power").
 static func heal_amount(s: CharState, bt: BalanceTables) -> float:
-	return heal_for(spell_power(s, bt), bt, str(s.equipment.get("weapon", "")))
+	var power := float(talent_mods(bt, s).get("heal_power", 0.0))
+	return heal_for(spell_power(s, bt), bt, str(s.equipment.get("weapon", ""))) * (1.0 + power)
 
 
 ## A mesma conta com o poder mágico já calculado (o cliente soma buffs e comida ao INT).

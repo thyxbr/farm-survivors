@@ -50,3 +50,14 @@ func test_level_ok() -> void:
 	T.ok(not HealRules.level_ok(2, 3), "nível 2 não usa o Escudo de Luz (nível 3)")
 	T.ok(HealRules.level_ok(3, 3) and HealRules.level_ok(8, 8), "nível exato vale")
 	T.ok(not HealRules.level_ok(7, 8), "nível 7 não usa o Banquete (nível 8)")
+
+
+func test_targets_talent_radius_bonus() -> void:
+	var pos := {1: Vector3.ZERO, 2: Vector3(9.0, 0, 0)}
+	T.ok(not (2 in HealRules.targets(1, [1, 2], pos)), "9 m fora do raio base")
+	T.ok(2 in HealRules.targets(1, [1, 2], pos, 2.0), "9 m dentro com +2 m")
+
+
+func test_ally_buff_seconds() -> void:
+	T.eq(HealRules.ally_buff_seconds(12.0, 4.0), 16.0, "tempo base + bonus")
+	T.eq(HealRules.ally_buff_seconds(12.0, -5.0), 12.0, "bonus negativo ignorado")

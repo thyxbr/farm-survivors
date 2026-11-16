@@ -19,7 +19,7 @@ static func use(player: Node, id: String) -> bool:
 	if Network.is_client():
 		Network.request_ally_buff(id)
 	else:
-		Game.add_buff(HealRules.ALLY_BUFFS[id])
+		Game.add_buff(HealRules.ALLY_BUFFS[id], Game.buff_duration(HealRules.ALLY_BUFFS[id]))
 		if id == "scepter_ult":
 			player.receive_heal(HealRules.ULT_HEAL)
 	Network.send_event(id, player.global_position, Vector3.ZERO)

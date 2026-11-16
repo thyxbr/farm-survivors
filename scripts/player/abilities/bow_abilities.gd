@@ -58,7 +58,7 @@ static func use(player: Node, id: String) -> bool:
 			return true
 		"bow_focus":
 			player.begin_ability(id, {})
-			Game.add_buff(id)
+			Game.add_buff(id, Game.buff_duration(id))
 			Network.send_event(id, player.global_position, Vector3.ZERO)
 			FX.ring(player.global_position + Vector3.UP * 0.1, BUFF_COLOR, 2.2, 0.4)
 			Sfx.play("bow_draw", 0.05, -4.0)
@@ -498,7 +498,7 @@ static func _gale_hits(player: Node, d: Dictionary, front: float) -> void:
 	var hit: Dictionary = d.hit
 	var first := hit.is_empty()
 	var n := hit.size()
-	var dmg: float = Game.melee_damage() * lerpf(GALE_MULT_MIN, GALE_MULT_MAX, float(d.charge))
+	var dmg: float = Game.melee_damage() * lerpf(GALE_MULT_MIN, GALE_MULT_MAX, float(d.charge)) * Game.ability_dmg_mult("bow_gale")
 	var any := false
 	for e in player.get_tree().get_nodes_in_group("enemies"):
 		if e.dead or hit.has(e.get_instance_id()):

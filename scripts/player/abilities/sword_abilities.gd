@@ -43,7 +43,7 @@ const WHIRL_TIME := WHIRL_WINDUP + WHIRL_SPIN + WHIRL_FINALE
 const WHIRL_IMPACT := WHIRL_WINDUP + WHIRL_SPIN + 0.08   ## a espada bate no chão
 const WHIRL_TURNS := 4
 const WHIRL_RAMP := 0.3         ## o giro acelera nos primeiros 0,3 s e depois mantém a velocidade
-const WHIRL_MULT := 1.2         ## dano por volta = Game.melee_damage() * WHIRL_MULT
+const WHIRL_MULT := 1.2         ## dano por volta = Game.melee_damage() * WHIRL_MULT * Game.ability_dmg_mult("sword_whirl")
 const WHIRL_RADIUS := 3.5
 const WHIRL_PULL := 6.0         ## puxão (m/s) em direção ao jogador a cada volta (6 = teto do servidor)
 const WHIRL_FINAL_MULT := 2.5   ## dano do golpe final
@@ -74,7 +74,7 @@ static func use(player: Node, id: String) -> bool:
 			return true
 		"sword_fury":
 			player.begin_ability(id, {})
-			Game.add_buff(id)
+			Game.add_buff(id, Game.buff_duration(id))
 			Network.send_event(id, player.global_position, Vector3.ZERO)
 			FX.ring(player.global_position + Vector3.UP * 0.1, BUFF_COLOR, 2.2, 0.4)
 			Sfx.play("sword_swing_heavy", 0.1, -4.0)
@@ -620,7 +620,7 @@ static func _whirl_finale(player: Node, d: Dictionary) -> void:
 		to.y = 0.0
 		if to.length() > WHIRL_FINAL_RADIUS + e.radius or absf(e.global_position.y - base.y) > 3.0:
 			continue
-		var dmg: float = Game.melee_damage() * WHIRL_FINAL_MULT
+		var dmg: float = Game.melee_damage() * WHIRL_FINAL_MULT * Game.ability_dmg_mult("sword_whirl")
 		e.take_damage(dmg, base, false)
 		Game.on_damage_dealt(dmg, e.max_hp, false)
 		any = true

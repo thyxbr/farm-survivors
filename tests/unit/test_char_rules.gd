@@ -968,3 +968,24 @@ func test_talents_from_dict_sanitized() -> void:
 	T.eq(CharState.from_dict(d, bt).talents, {"w_edge": 3}, "não passa dos pontos do nível (3)")
 	d["talents"] = "lixo"
 	T.eq(CharState.from_dict(d, bt).talents, {}, "tipo errado")
+
+
+# ---------------------------------------------------------------- talentos no combate
+func test_talent_heal_power_scales_heal() -> void:
+	var bt := _tables()
+	var s := _talent_char(20, "healer")
+	CharRules.choose_class(s, bt, "healer", "f")
+	s.level = 20
+	var base: float = CharRules.heal_amount(s, bt)
+	s.talents = {"h_heal": 2}
+	T.ok(absf(CharRules.heal_amount(s, bt) - base * 1.12) < 0.001, "h_heal 2 cura x1,12")
+	T.eq(CharRules.talent_mods(bt, s).get("heal_power", 0.0), 0.12, "heal_power 0,12")
+
+
+func test_talent_ally_radius_and_ability_time() -> void:
+	var bt := _tables()
+	var s := _talent_char(20, "healer")
+	s.talents = {"h_grace": 2, "h_ward": 1}
+	var m := CharRules.talent_mods(bt, s)
+	T.eq(float(m.get("ally_radius", 0.0)), 2.0, "h_grace 2 = +2 m")
+	T.eq(float(m.get("ability_time:scepter_ward", 0.0)), 2.0, "h_ward 1 = +2 s")

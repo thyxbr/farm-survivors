@@ -768,6 +768,30 @@ func _ready() -> void:
 		check(player.ability == "", "%s termina a pose" % bid)
 		Game.clear_buffs(true)
 	equip_any(wp_bz)
+
+	# --- talentos valem no combate: dano, duração de buff, recarga, mana, cura
+	var tm_saved: Dictionary = Game.talent_mods
+	var ts := CharState.new()
+	ts.char_class = "warrior"
+	ts.talents = {"w_edge": 3, "w_rage": 1, "w_focus": 2}
+	var dmg_t0: float = Game.mod("damage")
+	var cd_t0: float = Game.cooldown_mult()
+	Game.talent_mods = CharRules.talent_mods(Balance.tables, ts)
+	check(is_equal_approx(Game.mod("damage") - dmg_t0, 0.12), "talento w_edge 3: dano +0,12 (%.3f)" % (Game.mod("damage") - dmg_t0))
+	check(is_equal_approx(cd_t0 - Game.cooldown_mult(), 0.08) or Game.cooldown_mult() == 0.4, "talento w_focus 2: recarga -0,08 (%.3f)" % Game.cooldown_mult())
+	check(is_equal_approx(Game.buff_duration("sword_fury"), 12.0), "w_rage 1: Fúria Picante dura 12 s (%.1f)" % Game.buff_duration("sword_fury"))
+	Game.clear_buffs(true)
+	Game.add_buff("sword_fury", Game.buff_duration("sword_fury"))
+	check(is_equal_approx(float(Game.buffs.sword_fury), 12.0), "buff ligado com 12 s")
+	Game.clear_buffs(true)
+	var mp_t0 := Game.max_mp()
+	Game.talent_mods = {"mp_pct": 0.16, "ability_time:scepter_ult": 4.0}
+	check(is_equal_approx(Game.max_mp(), mp_t0 * 1.16), "mp_pct 0,16: mana máxima x1,16")
+	check(is_equal_approx(Game.buff_duration("scepter_feast"), 16.0), "scepter_ult +4 s vale para o Banquete (%.1f)" % Game.buff_duration("scepter_feast"))
+	check(is_equal_approx(Game.ability_dmg_mult("sword_whirl"), 1.0), "sem talento: dano da habilidade x1")
+	Game.talent_mods = {"ability_dmg:sword_whirl": 0.2}
+	check(is_equal_approx(Game.ability_dmg_mult("sword_whirl"), 1.2), "ability_dmg 0,2: x1,2")
+	Game.talent_mods = tm_saved
 	Game.level = lvl_bz
 	Game.mp = Game.max_mp()
 
