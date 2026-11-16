@@ -131,6 +131,11 @@ func _ready() -> void:
 	if Network.world == null:
 		_finish()
 		return
+	# personagem novo não tem equipamento: pede ao servidor (--test) o kit das três classes de arma
+	check(Game.equipment.weapon == "", "personagem novo começa sem arma")
+	Econ.request_test_items({"azure_edge": 1, "apprentice_staff": 1, "short_bow": 1, "leather_cap": 1})
+	check(await _wait_until(func() -> bool: return Game.count_item("short_bow") == 1 and Game.count_item("leather_cap") == 1, 5.0),
+		"kit de teste recebido do servidor")
 	# equipa arco e capuz logo ao entrar: os outros jogadores devem ver esse visual
 	Game.equip("short_bow")
 	Game.equip("leather_cap")
@@ -260,7 +265,7 @@ func _ready() -> void:
 		w.player._spawn_projectile("arrow", origin, (aim - origin).normalized(), 12.0, false, 0, 40.0)
 		await wait(0.8)
 		check(not is_instance_valid(tgt) or tgt.hp < hp1, "flecha causa dano pelo servidor (%.0f → %.0f)" % [hp1, tgt.hp if is_instance_valid(tgt) else 0.0])
-	# cajado (o do kit inicial: o cliente online não se dá itens): troca pedida ao servidor
+	# cajado (o do kit de teste: o cliente online não se dá itens): troca pedida ao servidor
 	Game.equip("apprentice_staff")
 	check(await _wait_until(func() -> bool: return Game.equipment.weapon == "apprentice_staff", 3.0)
 		and w.player.look["class"] == "staff", "trocou para o cajado")
