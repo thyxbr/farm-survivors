@@ -1,41 +1,16 @@
+@tool
 class_name VillageLayout
 extends RefCounted
-## Planta da vila de Valdoria (world.gd monta): ruas, casas, os pontos que vieram da antiga praça da cidade
-## e os lugares dos eventos de Natal do Papai Noel. Só dados e contas puras (sem autoload), para os testes.
-##
-## A praça do poço continua no meio, com as seis casas de sempre em volta. Dela saem as ruas: a Rua do
-## Portal ao norte (atravessa a vila de ponta a ponta), a Rua das Flores ao sul, a Rua do Oeste e a Estrada
-## Leste (a trilha do acampamento goblin), cortadas por duas travessas. Os bairros novos ficam a oeste
-## (casas e a Muralha, no caminho da arena) e a leste (Forja, Celeiro e o Largo dos Ecos, com o Mestre Orin,
-## a mesa de guerra e o quadro de recordes).
+## Regras das construções da vila (VillageBuilding, na cena scenes/maps/vale.tscn): tamanho da colisão de
+## cada casa, colisões das lojas e onde fica o dono, as paletas das casas, e a leitura das construções da cena
+## (buildings()). Só dados e contas puras (sem autoload), para os testes. O resto da vila (ruas, cerca,
+## lampiões, enfeites, NPCs, pontos) são peças da cena do vale.
 ##
 ## Frente das casas = +Z do modelo (yaw 0 olha para o sul, PI para o norte, PI/2 para o leste).
 
-const S := 0.0
-const N := PI
-const E := PI / 2
-const W := -PI / 2
-
-## Limites da cerca (x0, x1, z0, z1) e as aberturas: [lado, centro, meia largura].
+## Área da vila (x0, z0, largura, profundidade), a mesma da cerca do vale.tscn: a música da vila
+## (MusicRules) toca aqui dentro. Se mudar a cerca de lugar no editor, ajuste aqui também.
 const BOUNDS := Rect2(-36, -18, 75, 45)
-## O lado sul não tem cerca entre x = -12 e 12: ali a cerca da Horta faz a divisa (com o portão dela).
-## No oeste, em z = 10, a Muralha da base ocupa o vão da cerca. O portão norte é largo: a carruagem da guilda
-## (Regions.coach_point("vila")) para logo ali, no começo da trilha dos campos.
-const GATES := [["n", -5.0, 8.2], ["e", 0.0, 3.0], ["w", 2.5, 3.0], ["w", 10.0, 2.6], ["s", 20.0, 2.0]]
-const SOUTH_OPEN := 12.0
-
-## Ruas pintadas no chão: [centro, tamanho (x, z)].
-const STREETS := [
-	[Vector3(1.5, 0, -15), Vector2(73, 4.0)],    # Rua do Portal (norte, de ponta a ponta)
-	[Vector3(-25, 0, 2.5), Vector2(22, 4.0)],    # Rua do Oeste (até o portão oeste e a arena)
-	[Vector3(28, 0, 0), Vector2(22, 4.0)],       # Estrada Leste (vira a trilha do acampamento)
-	[Vector3(1.5, 0, 20), Vector2(73, 3.6)],     # Rua das Flores (sul)
-	[Vector3(-26, 0, 2.5), Vector2(4.0, 35)],    # Travessa do Moinho (oeste)
-	[Vector3(27, 0, 2.5), Vector2(4.0, 35)],     # Travessa do Leste
-	[Vector3(0, 0, -10), Vector2(4.0, 10)],      # saída norte da praça até a Rua do Portal
-]
-## Cor do calçamento das ruas (a praça é Color(0.5, 0.45, 0.36)).
-const STREET_COLOR := Color(0.5, 0.46, 0.38)
 
 ## Colisão (largura, altura, profundidade) de cada modelo de casa.
 const HOUSE_SIZE := {
@@ -43,26 +18,29 @@ const HOUSE_SIZE := {
 	"house_d": Vector3(5.6, 3.0, 4.4), "house_e": Vector3(7.6, 3.6, 4.8), "house_f": Vector3(3.8, 4.0, 3.8),
 }
 
-## Casas novas: [posição, yaw, modelo, cores (índice em PALETTES)]. As seis da praça ficam em world.gd.
-const HOUSES := [
-	# ---- bairro oeste
-	[Vector3(-31, 0, -10.5), N, "house_d", 0],
-	[Vector3(-20, 0, -10.5), N, "house_c", 1],
-	[Vector3(-31, 0, -2.3), S, "house", 2],
-	[Vector3(-20.2, 0, -2.3), S, "house_e", 3],
-	[Vector3(-30.5, 0, 6.6), N, "house_f", 4],
-	[Vector3(-20.3, 0, 7.4), N, "house_b", 5],
-	[Vector3(-31, 0, 15.6), S, "house_c", 6],
-	[Vector3(-20.5, 0, 15.3), S, "house_d", 7],
-	# ---- bairro leste
-	[Vector3(20.5, 0, -10.6), N, "house_f", 8],
-	[Vector3(21.0, 0, -4.3), S, "house_b", 9],
-	[Vector3(33.5, 0, 15.5), S, "house_e", 10],
-	[Vector3(21.0, 0, 15.6), S, "house", 11],
-	# ---- lado sul da Rua das Flores, dos dois lados da Horta
-	[Vector3(-16.5, 0, 24.4), N, "house_d", 14],
-	[Vector3(16.0, 0, 24.2), N, "house_b", 15],
-]
+## Pegada (largura, profundidade) das construções que não são casa, para os testes da planta.
+const FOOTPRINT := {
+	"shop_merchant": Vector2(5.2, 3.6), "shop_alchemist": Vector2(4.4, 3.8), "shop_smithy": Vector2(4.6, 4.6),
+	"well": Vector2(1.9, 1.9),
+}
+
+## Colisões das lojas no espaço delas: [boxes [[centro local, tamanho]], cyls [[centro local, raio]],
+## raio sem capim]. A ferraria tem a origem no ferreiro: a forja fica sob a coifa, a bigorna na frente.
+const SHOP_SHAPES := {
+	"shop_merchant": [[[Vector3(0, 0, -0.4), Vector3(5.2, 3.0, 3.6)]], [], 3.4],
+	"shop_alchemist": [[[Vector3(0.2, 0, 0), Vector3(4.4, 3.4, 3.8)]],
+		[[Vector3(-2.05, 0, -1.8), 0.95], [Vector3(-1.05, 0, 2.85), 0.45]], 3.6],
+	"shop_smithy": [[[Vector3(0, 0, -2.6), Vector3(4.0, 3.0, 0.5)], [Vector3(-1.8, 0, -0.7), Vector3(0.4, 1.1, 3.4)]],
+		[[Vector3(1.4, 0, -0.4), 0.5]], 2.8],
+}
+## Onde o dono fica, no espaço da loja (a Mira atrás do balcão do empório, a Pip na porta da botica).
+const MERCHANT_SPOT := Vector3(-0.7, 0, 2.4)
+const ALCHEMIST_SPOT := Vector3(0.3, 0, 3.0)
+
+## As construções (casas, lojas e o poço) ficam na cena do vale (scenes/maps/vale.tscn), que se edita no 3D do Godot
+## (VillageBuilding). O jogo lê a cena uma vez e guarda: buildings() devolve os dados de cada uma.
+const SCENE := "res://scenes/maps/vale.tscn"
+static var _buildings: Array = []
 
 ## Paletas: [reboco (multiplica a cor original), telhado (cor nova), venezianas (cor nova)].
 const PALETTES := [
@@ -83,42 +61,39 @@ const PALETTES := [
 	[Color(1.0, 0.92, 0.9), Color(0.33, 0.38, 0.52), Color(0.6, 0.45, 0.1)],
 	[Color(1.05, 1.05, 1.0), Color(0.52, 0.22, 0.14), Color(0.1, 0.22, 0.45)],
 ]
-## Cores para as seis casas da praça (índices de PALETTES; -1 = cores originais do modelo).
-const SQUARE_PALETTES := [-1, 1, 4, -1, 6, 9]
 
-## Pontos que eram da praça da cidade: [kind, posição, yaw (frente do ponto)] (hub_point.gd).
-const POINTS := [
-	["passive_master", Vector3(21.0, 0, 11.6), N],
-	["records", Vector3(17.4, 0, 6.4), E],
-]
-## Largo dos Ecos (calçamento em volta do Orin e do quadro de recordes).
-const LARGO := Vector3(21.0, 0, 7.6)
-
-## Papai Noel: do outro lado da árvore de Natal grande (a Lina e o Quadro de Contratos da guilda ficam do lado
-## oeste dela), de frente para a praça; o trenó fica entre ele e a árvore.
-const SANTA := Vector3(16.0, 0, -11.4)
-const SANTA_YAW := -0.92
-const SLEIGH := Vector3(12.7, 0, -11.9)
-
-## Entregas na Vila: índices em HOUSES das 6 casas que recebem presente.
-const DELIVERY := [1, 4, 7, 9, 10, 13]
-
-## Presentes Espalhados: 8 pontos pelo vale (fora da vila).
-const GIFTS := [
-	Vector3(-22, 0, -31),     # campos do noroeste
-	Vector3(22, 0, -48),      # campos do nordeste
-	Vector3(46, 0, 22),       # beira da floresta leste
-	Vector3(26, 0, 44),       # depois do pomar
-	Vector3(-24, 0, 44),      # perto do Ninho de Slimes
-	Vector3(-50, 0, 18),      # caminho da arena
-	Vector3(-8, 0, -78),      # trilha das Ruínas
-	Vector3(54, 0, -24),      # perto do Acampamento Goblin
-]
+## Construções (VillageBuilding) do vale.tscn, na ordem da árvore: {name, model, pos, yaw, palette, flowers,
+## delivery}. Só a posição e o giro em Y contam (o nó pode estar dentro de grupos, que também podem girar).
+static func buildings() -> Array:
+	if _buildings.is_empty():
+		var root: Node = (load(SCENE) as PackedScene).instantiate()
+		for n in root.find_children("*", "Node3D", true, false):
+			if not n is VillageBuilding:
+				continue
+			var xf := Transform3D()
+			var p: Node = n
+			while p != root:
+				xf = (p as Node3D).transform * xf
+				p = p.get_parent()
+			_buildings.append({"name": str(root.get_path_to(n)), "model": n.model, "pos": xf.origin,
+				"yaw": xf.basis.get_euler().y, "palette": n.palette, "flowers": n.flowers, "delivery": n.delivery})
+		root.free()
+	return _buildings
 
 
-## Casa i de HOUSES em coordenadas do mundo: Transform3D da casa.
-static func house_xform(h: Array) -> Transform3D:
-	return Transform3D(Basis(Vector3.UP, h[1]), h[0])
+## Só as casas (modelos house*), na ordem da cena.
+static func houses() -> Array:
+	return buildings().filter(func(b: Dictionary) -> bool: return str(b.model).begins_with("house"))
+
+
+## Entregas na Vila: as casas marcadas com "delivery", na ordem da cena (a missão pede 6).
+static func deliveries() -> Array:
+	return houses().filter(func(b: Dictionary) -> bool: return b.delivery)
+
+
+## Transform3D da construção no mundo.
+static func xform(b: Dictionary) -> Transform3D:
+	return Transform3D(Basis(Vector3.UP, b.yaw), b.pos)
 
 
 ## Pinta uma casa com a paleta: reboco (multiplica a cor), telhado e venezianas (trocam a cor). Os materiais
@@ -161,19 +136,3 @@ static func _swap(mat_name: String, c: Color, pal: Array) -> Color:
 	if mat_name.begins_with("v_shutter"):
 		return pal[2]
 	return c
-
-
-## Círculos [Vector2 centro, raio] que cobrem as ruas (sem capim por cima do calçamento).
-static func street_circles() -> Array:
-	var out: Array = []
-	for st in STREETS:
-		var c: Vector3 = st[0]
-		var sz: Vector2 = st[1]
-		var along_x := sz.x >= sz.y
-		var length: float = sz.x if along_x else sz.y
-		var r: float = minf(sz.x, sz.y) * 0.5 + 0.4
-		var n := int(ceil(length / r)) + 1
-		for i in n:
-			var t := -length / 2.0 + length * i / float(n - 1)
-			out.append([Vector2(c.x + (t if along_x else 0.0), c.z + (0.0 if along_x else t)), r])
-	return out

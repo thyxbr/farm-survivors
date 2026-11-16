@@ -1,0 +1,21 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/map/map_landmark.gd" id="1_lm"]
+[ext_resource type="Script" path="res://scripts/map/map_entity.gd" id="2_en"]
+
+[node name="Fixture" type="Node3D"]
+
+[node name="Grupo" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, 0)
+
+[node name="Acampamento" type="Node3D" parent="Grupo"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60, 0, 0)
+script = ExtResource("1_lm")
+id = "camp"
+
+[node name="Veio" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 7)
+script = ExtResource("2_en")
+kind = "resource_node"
+ref = "iron"
+node_id = 3

@@ -1,5 +1,5 @@
 extends StaticBody3D
-## Um ponto que veio da antiga praça da cidade e hoje fica nas ruas da vila (VillageLayout.POINTS), com que o
+## Um ponto que veio da antiga praça da cidade e hoje fica nas ruas da vila (MapEntity "hub_point" no vale.tscn), com que o
 ## jogador interage ([E]): o Mestre Orin (passivas compradas com Ecos) ou o quadro de recordes da Horda.
 ## Monta o próprio visual pelo `kind` e abre o painel pela cena (world.open_point_panel).
 

@@ -1,0 +1,63 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/map/map_prop.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/map/enemy_spawn.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/map/map_decor.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/map/map_entity.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/map/map_landmark.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/map/map_ground_paint.gd" id="6"]
+[ext_resource type="Script" path="res://scripts/map/map_mountain.gd" id="7"]
+[ext_resource type="Script" path="res://scripts/map/map_grass_area.gd" id="8"]
+[ext_resource type="Script" path="res://scripts/map/map_light.gd" id="9"]
+
+[node name="Pecas" type="Node3D"]
+
+[node name="Carvalho" type="Node3D" parent="."]
+script = ExtResource("1")
+model = "tree_oak"
+shape = 2
+shape_size = Vector3(0.4, 3, 0)
+
+[node name="Slimes" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, 0)
+script = ExtResource("2")
+count = 4
+radius = 3.0
+
+[node name="Arvore" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0, 0)
+script = ExtResource("3")
+
+[node name="Espantalho" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0, 5)
+script = ExtResource("3")
+kind = "scarecrow"
+
+[node name="Varal" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 5)
+script = ExtResource("3")
+kind = "light_string"
+params = {"end": Vector3(5, 0, 0)}
+
+[node name="Bram" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, -4)
+script = ExtResource("4")
+kind = "elder"
+
+[node name="Camp" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, -4)
+script = ExtResource("5")
+id = "camp"
+
+[node name="Trilha" type="Node3D" parent="."]
+script = ExtResource("6")
+
+[node name="Morro" type="Node3D" parent="."]
+script = ExtResource("7")
+
+[node name="Capim" type="Node3D" parent="."]
+script = ExtResource("8")
+
+[node name="Fogo" type="OmniLight3D" parent="."]
+script = ExtResource("9")
+mode = 2

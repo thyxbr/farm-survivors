@@ -1,8 +1,9 @@
 class_name WorldHarvest
 extends RefCounted
 ## Coleta de ferro e cristal em Valdoria, regras puras (o servidor e o solo rodam o mesmo código).
-## Os nós vêm de data/balance/world_nodes.json: "kinds" (item, quantidade, golpes, tempo de volta) e
-## "nodes" ([tipo, x, z]); o id de um nó é a posição dele na lista.
+## O que cada tipo de veio dá vem de data/balance/world_nodes.json ("kinds": item, quantidade, golpes, tempo
+## de volta); onde ficam os veios vem das cenas dos mapas (MapEntity "resource_node" com node_id fixo e o tipo
+## em ref; MapData.resource_nodes). O id é o node_id: apagar ou mover um veio no editor não renumera os outros.
 ## Cada jogador tem os seus veios, como o saque pessoal: aqui só se guarda quando cada conta pode
 ## coletar cada nó de novo (em memória; reiniciar o servidor devolve todos os veios).
 
@@ -14,26 +15,32 @@ static func _table(bt: BalanceTables) -> Dictionary:
 
 
 static func count(bt: BalanceTables) -> int:
-	return (_table(bt).get("nodes", []) as Array).size()
+	return ids(bt).size()
+
+
+## Ids dos veios das cenas cujo tipo existe na tabela, em ordem.
+static func ids(bt: BalanceTables) -> Array:
+	var kinds: Dictionary = _table(bt).get("kinds", {})
+	var nodes := MapData.resource_nodes()
+	var out: Array = nodes.keys().filter(func(id) -> bool: return kinds.has(str(nodes[id].kind)))
+	out.sort()
+	return out
 
 
 ## Dados de um nó: {"id", "kind", "pos", "item", "amount", "hits", "respawn", "model"}.
-## Id que não é um inteiro dentro da lista (vem do cliente) devolve {}.
+## Id que não é um inteiro ou não existe nas cenas (vem do cliente) devolve {}.
 static func node_def(bt: BalanceTables, id) -> Dictionary:
 	if typeof(id) != TYPE_INT:
 		return {}
-	var nodes: Array = _table(bt).get("nodes", [])
-	if id < 0 or id >= nodes.size():
+	var n = MapData.resource_nodes().get(id)
+	if n == null:
 		return {}
-	var n = nodes[id]
-	if not (n is Array) or n.size() < 3:
-		return {}
-	var k: Dictionary = _table(bt).get("kinds", {}).get(str(n[0]), {})
+	var k: Dictionary = _table(bt).get("kinds", {}).get(str(n.kind), {})
 	if k.is_empty():
 		return {}
-	return {"id": id, "kind": str(n[0]), "pos": Vector3(float(n[1]), 0.0, float(n[2])),
+	return {"id": id, "kind": str(n.kind), "pos": n.pos,
 		"item": str(k.get("item", "")), "amount": int(k.get("amount", 1)), "hits": int(k.get("hits", 1)),
-		"respawn": float(k.get("respawn", 60.0)), "model": str(k.get("model", n[0]))}
+		"respawn": float(k.get("respawn", 60.0)), "model": str(k.get("model", n.kind))}
 
 
 func _key(account: int, id: int) -> String:

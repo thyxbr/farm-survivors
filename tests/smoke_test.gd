@@ -109,10 +109,10 @@ func _ready() -> void:
 		gear_ok = gear_ok and got == w2
 	check(gear_ok, "cada monstro só carrega o equipamento da sua variante")
 	# vale: 5 NPCs + bilhete + portal + guilda (Lina, quadro, cocheiro) + Rufus, Zélia, Tonico, Ravi, Osvaldo, gato;
-	# mais o Papai Noel e os pontos da antiga praça (Orin e recordes, VillageLayout.POINTS); mapas: Sylvi, Tico e cocheiro no bosque; Bolgar, diário e cocheiro na mina; só o cocheiro no pico (o Kael
+	# mais o Papai Noel e os pontos da antiga praça (Orin e recordes, hub_point no vale.tscn); mapas: Sylvi, Tico e cocheiro no bosque; Bolgar, diário e cocheiro na mina; só o cocheiro no pico (o Kael
 	# de lá aparece no Arco 2)
 	var n_inter := get_tree().get_nodes_in_group("interactable").size()
-	check(n_inter == 7 + 9 + 7 + 1 + VillageLayout.POINTS.size() + Game.FARM_PLOTS + 1,
+	check(n_inter == 7 + 9 + 7 + 1 + world.points.size() + Game.FARM_PLOTS + 1,
 		"interagíveis do vale, da guilda e dos mapas + %d canteiros + caldeirão (%d)" % [Game.FARM_PLOTS, n_inter])
 	check(not ResourceLoader.exists("res://scenes/colony.tscn"), "sem a Defesa da Cidade")
 
@@ -1438,7 +1438,8 @@ func _test_meteor_rain() -> void:
 		var q := PhysicsRayQueryParameters3D.create(Vector3(x, 300.0, z), Vector3(x, -100.0, z), StaffAbilities.METEOR_GROUND_MASK)
 		var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(q)
 		return hit.position.y if not hit.is_empty() else -999.0
-	var pk: Vector3 = world.MOUNTAINS[0][0]
+	var m0: Vector4 = world.maps["vila"].mountain_data()[0]   # o primeiro morro da cena do vale
+	var pk := Vector3(m0.x, 0.0, m0.y)
 	var out := Vector3(-pk.x, 0.0, -pk.z).normalized()   # do pico para o meio do mapa
 	var best_r := 0.0
 	var best_drop := -1.0
