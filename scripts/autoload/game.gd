@@ -539,6 +539,16 @@ func cooldown_mult() -> float:
 	return clampf(1.0 - gear("cdr") + float(buff_mods.get("cooldown", 0.0)) + float(talent_mods.get("cooldown", 0.0)), 0.4, 1.0)
 
 
+## Recarga final de uma habilidade. Se ela dá um buff próprio, a recarga nunca fica abaixo da duração do
+## buff + 4 s: redução de recarga (equipamento, talento, o próprio buff) não deixa mantê-lo o tempo todo.
+func ability_cooldown(ability_id: String, base: float, mult: float) -> float:
+	var cd := base * mult
+	var buff_id := "scepter_feast" if ability_id == "scepter_ult" else ability_id
+	if ItemDB.BUFFS.has(buff_id) or ability_id == "scepter_ult":
+		cd = maxf(cd, buff_duration(buff_id) + 4.0)
+	return cd
+
+
 ## Segundos a mais que o talento dá à habilidade `ability_id` (chave "ability_time:<id>").
 func ability_time_bonus(ability_id: String) -> float:
 	return float(talent_mods.get("ability_time:" + ability_id, 0.0))
@@ -763,8 +773,9 @@ func on_enemy_killed(kind: String, xp_reward: int) -> void:
 
 ## Roubo de vida da comida ao abater (combate é do cliente; online o abate em si é do servidor).
 func kill_lifesteal() -> void:
-	if float(buff_mods.get("lifesteal", 0.0)) > 0.0 and hp > 0.0:
-		hp = min(max_hp(), hp + float(buff_mods.lifesteal))
+	var ls := float(buff_mods.get("lifesteal", 0.0)) + float(talent_mods.get("lifesteal", 0.0))
+	if ls > 0.0 and hp > 0.0:
+		hp = min(max_hp(), hp + ls)
 
 
 ## Renascer na vila: o ouro perdido é calculado pelas regras.

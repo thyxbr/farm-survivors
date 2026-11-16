@@ -15,8 +15,8 @@ const MAX_BUFF_SECS := 60.0
 const ALLY_BUFFS := {"scepter_ward": "scepter_ward", "scepter_ult": "scepter_feast"}
 ## Intervalo mínimo por habilidade = recarga x 0,4 (cooldown_mult mínimo) - 0,2 de folga para o jitter.
 ## A ultimate não tem recarga: quem limita é a fúria, no cliente; o servidor não vê a fúria e só impõe
-## um piso (15 s), muito menor do que o tempo de encher a fúria.
-const INTERVALS := {"heal": MIN_INTERVAL, "scepter_ward": 8.6, "scepter_ult": 15.0}
+## um piso (45 s): ainda bem abaixo do tempo legítimo de encher a fúria, mas limita um cliente modificado.
+const INTERVALS := {"heal": MIN_INTERVAL, "scepter_ward": 8.6, "scepter_ult": 45.0}
 
 
 ## Quem recebe a cura do `caster`: ele mesmo sempre e os de `zone_peers` a até RADIUS + `bonus` m dele.

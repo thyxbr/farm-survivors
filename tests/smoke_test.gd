@@ -791,6 +791,17 @@ func _ready() -> void:
 	check(is_equal_approx(Game.ability_dmg_mult("sword_whirl"), 1.0), "sem talento: dano da habilidade x1")
 	Game.talent_mods = {"ability_dmg:sword_whirl": 0.2}
 	check(is_equal_approx(Game.ability_dmg_mult("sword_whirl"), 1.2), "ability_dmg 0,2: x1,2")
+	Game.talent_mods = {"ability_time:staff_ember": 6.0, "cooldown": -0.12}   # m_dragon 3 + m_focus 3
+	var ember_dur: float = Game.buff_duration("staff_ember")
+	var ember_cd: float = Game.ability_cooldown("staff_ember", 30.0, 0.4)   # cdr no mínimo (talentos + equipamento + o buff)
+	check(is_equal_approx(ember_dur, 16.0) and is_equal_approx(ember_cd, ember_dur + 4.0), "recarga do buff >= duração + 4 s (%.1f / %.1f)" % [ember_cd, ember_dur])
+	check(Game.ability_cooldown("sword_whirl", 10.0, 0.5) == 5.0, "habilidade sem buff próprio: sem piso")
+	var hp_ls: float = Game.hp
+	Game.talent_mods = {"lifesteal": 3.0}
+	Game.hp = 10.0
+	Game.kill_lifesteal()
+	check(is_equal_approx(Game.hp, 13.0), "w_bloodlust: abate cura fora da Horda (%.1f)" % Game.hp)
+	Game.hp = hp_ls
 	Game.talent_mods = tm_saved
 	Game.level = lvl_bz
 	Game.mp = Game.max_mp()

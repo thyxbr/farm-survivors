@@ -631,6 +631,22 @@ func test_discard() -> void:
 	T.eq(CharRules.discard(s, bt, "nao_existe").err, "item_invalido", "id desconhecido")
 
 
+func test_death_clears_food_buffs() -> void:
+	var bt := _tables()
+	var s := _blank(95)
+	s.food_buffs = {"garden_salad_buff": 9999.0}
+	CharRules.death_penalty(s, bt)
+	T.ok(s.food_buffs.is_empty(), "morrer limpa a comida no servidor")
+
+
+func test_food_mult_includes_talent_gold() -> void:
+	var bt := _tables()
+	var s := _talent_char(10, "archer")
+	s.talents = {"a_trap": 2}
+	T.ok(is_equal_approx(CharRules.food_mult(s, bt, "gold", 0.0), 1.06), "a_trap 2: ouro x1,06 (%s)" % CharRules.food_mult(s, bt, "gold", 0.0))
+	T.eq(CharRules.food_mult(s, bt, "xp", 0.0), 1.0, "outro stat não muda")
+
+
 func test_death_penalty() -> void:
 	var bt := _tables()
 	var s := _blank(95)

@@ -340,6 +340,7 @@ static func discard(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 ## Renascer na vila custa uma fração do ouro (rules.death_gold_loss, padrão 10%). Pedido pelo próprio
 ## cliente ao renascer: só tira dele, então não há o que forjar.
 static func death_penalty(s: CharState, bt: BalanceTables) -> Dictionary:
+	s.food_buffs.clear()   # o cliente zera a comida ao morrer; o servidor acompanha
 	var lost := int(s.gold * float(_rules(bt).get("death_gold_loss", 0.1)))
 	if lost <= 0:
 		return _ok()
@@ -489,7 +490,7 @@ static func food_mult(s: CharState, bt: BalanceTables, stat: String, now: float)
 			s.food_buffs.erase(id)
 			continue
 		m += float(table[id].get("add", {}).get(stat, 0.0))
-	return m
+	return m + float(talent_mods(bt, s).get(stat, 0.0))
 
 
 static func can_cook(s: CharState, bt: BalanceTables, recipe: String) -> int:

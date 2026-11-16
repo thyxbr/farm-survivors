@@ -916,6 +916,7 @@ func cast(id: String) -> void:
 	# habilidade de arma (espada, cajado, arco): o módulo da classe executa. Ainda sem implementação
 	# (ready == false): "Em breve", sem custo nem recarga. As magias antigas seguem no match abaixo.
 	if not id in ["fireball", "heal", "frost_nova"]:
+		var cd_mult := Game.cooldown_mult()   # antes do use(): o buff que a habilidade dá não encurta a própria recarga
 		if not sp.ready or not _ab_module(id).use(self, id):
 			Game.notify.emit("Em breve!", Color(0.85, 0.8, 0.65))
 			return
@@ -924,7 +925,7 @@ func cast(id: String) -> void:
 			Game.fury = 0.0
 		if sp.cost > 0:
 			Game.mp -= sp.cost
-		cooldowns[id] = sp.cooldown * Game.cooldown_mult()
+		cooldowns[id] = Game.ability_cooldown(id, sp.cooldown, cd_mult)
 		Game.stats_changed.emit()
 		return
 	_cancel_draw()

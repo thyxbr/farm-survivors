@@ -33,10 +33,10 @@ func test_interval() -> void:
 func test_interval_per_ability() -> void:
 	T.ok(is_equal_approx(HealRules.min_interval("heal"), 1.4), "Cura: 1,4 s")
 	T.ok(is_equal_approx(HealRules.min_interval("scepter_ward"), 22.0 * 0.4 - 0.2), "Escudo de Luz: recarga x 0,4 - 0,2")
-	T.ok(HealRules.min_interval("scepter_ult") == 15.0, "ultimate: piso de 15 s no servidor")
+	T.ok(HealRules.min_interval("scepter_ult") == 45.0, "ultimate: piso de 45 s no servidor")
 	T.ok(not HealRules.interval_ok(100.0, 105.0, "scepter_ward"), "Escudo a 5 s recusa")
 	T.ok(HealRules.interval_ok(100.0, 108.7, "scepter_ward"), "Escudo a 8,7 s vale")
-	T.ok(not HealRules.interval_ok(100.0, 110.0, "scepter_ult") and HealRules.interval_ok(100.0, 115.0, "scepter_ult"), "ultimate: recusa a 10 s, vale a 15 s")
+	T.ok(not HealRules.interval_ok(100.0, 130.0, "scepter_ult") and HealRules.interval_ok(100.0, 145.0, "scepter_ult"), "ultimate: recusa a 30 s, vale a 45 s")
 	T.ok(HealRules.ALLY_BUFFS.get("scepter_ult") == "scepter_feast" and not HealRules.ALLY_BUFFS.has("heal"), "mapa habilidade -> buff")
 
 

@@ -156,7 +156,7 @@
 		},
 		"aura": "furia",
 		"icon": "",
-		"desc": "+30% de dano e cada acerto cura 2",
+		"desc": "+30% de dano e cada abate cura 2",
 		"color": {
 			"$c": [
 				1.0,
