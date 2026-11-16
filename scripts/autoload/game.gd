@@ -511,7 +511,7 @@ func crit_chance() -> float:
 
 
 func cooldown_mult() -> float:
-	return clampf(1.0 - gear("cdr"), 0.4, 1.0)
+	return clampf(1.0 - gear("cdr") + float(buff_mods.get("cooldown", 0.0)), 0.4, 1.0)   # buff "cooldown" é negativo
 
 
 func defense() -> float:

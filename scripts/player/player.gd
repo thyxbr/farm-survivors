@@ -902,6 +902,8 @@ func cast(id: String) -> void:
 		# a ultimate zera a fúria só quando realmente começa; recarga tem dono único: aqui
 		if sp.ultimate:
 			Game.fury = 0.0
+		if sp.cost > 0:
+			Game.mp -= sp.cost
 		cooldowns[id] = sp.cooldown * Game.cooldown_mult()
 		Game.stats_changed.emit()
 		return

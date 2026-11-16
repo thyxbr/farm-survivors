@@ -427,7 +427,7 @@ func _ready() -> void:
 
 	# --- kits de habilidade por arma (começa de espada: weapon_class() == "sword")
 	var kit_weapon: String = Game.equipment.weapon
-	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_whirl"], "kit da espada (%s)" % [Game.ability_kit()])
+	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_fury", "sword_whirl"], "kit da espada (%s)" % [Game.ability_kit()])
 	check(not Game.knows_ability("sword_quake") and Game.knows_ability("sword_charge"), "liberação por nível")
 	check(Game.level < 3 and not Game.knows_ability("frost_nova") and ItemDB.ABILITIES.frost_nova.level == 3, "Nova Gélida só no nível 3")
 	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
@@ -689,7 +689,7 @@ func _ready() -> void:
 	player.cooldowns.sword_charge = 3.0   # para conferir que a recarga atravessa a troca de arma
 	equip_any("apprentice_staff")
 	await wait(0.1)
-	check(Game.ability_kit() == ["fireball", "frost_nova", "meteor_rain"], "trocar de arma troca o kit (cajado sem Cura)")
+	check(Game.ability_kit() == ["fireball", "frost_nova", "staff_ember", "meteor_rain"], "trocar de arma troca o kit (cajado sem Cura)")
 	check(player.cooldowns.sword_charge > 2.5, "recarga continua depois de trocar de arma")
 	check(hud_slot_ids() == Game.ability_kit(), "barra de ações mostra o kit novo (%s)" % [hud_slot_ids()])
 	var mp_m := Game.mp
@@ -737,6 +737,39 @@ func _ready() -> void:
 	player.cooldowns.frost_nova = 0.0
 	player.global_position = pos_n
 	player.cast_timer = 0.0
+
+	# --- habilidades de buff do slot 3 (espada, arco, cajado): nível 5 libera, nível 4 bloqueia
+	var lvl_bz := Game.level
+	var wp_bz: String = Game.equipment.weapon
+	var bz_cases := [["sword_fury", kit_weapon, "damage", 0.3], ["bow_focus", "short_bow", "crit", 0.15],
+		["staff_ember", "apprentice_staff", "damage", 0.2]]
+	for bz in bz_cases:
+		var bid: String = bz[0]
+		equip_any(bz[1])
+		Game.clear_buffs(true)
+		Game.mp = Game.max_mp()
+		player.cooldowns[bid] = 0.0
+		player.cast_timer = 0.0
+		Game.level = 4
+		player.use_slot(3)
+		check(not Game.has_buff(bid) and player.ability == "" and player.cooldowns[bid] == 0.0, "%s bloqueada no nível 4" % bid)
+		Game.level = 5
+		var base_m: float = Game.mod(bz[2])
+		var mp_b: float = Game.mp
+		player.use_slot(3)
+		check(Game.has_buff(bid) and player.ability == bid, "%s dá o buff e começa (%s)" % [bid, player.ability])
+		check(is_equal_approx(Game.mod(bz[2]) - base_m, bz[3]), "%s sobe o %s em %.2f (%.2f)" % [bid, bz[2], bz[3], Game.mod(bz[2]) - base_m])
+		check(player.cooldowns[bid] > 0.0, "%s entra em recarga (%.1f)" % [bid, player.cooldowns[bid]])
+		if bid == "staff_ember":
+			check(Game.mp < mp_b, "staff_ember gasta mana")
+			check(Game.cooldown_mult() < 1.0, "staff_ember reduz a recarga (%.2f)" % Game.cooldown_mult())
+		check(player._vfx_state().auras.has(ItemDB.BUFFS[bid].aura), "%s liga a aura %s" % [bid, ItemDB.BUFFS[bid].aura])
+		await wait(0.7)
+		check(player.ability == "", "%s termina a pose" % bid)
+		Game.clear_buffs(true)
+	equip_any(wp_bz)
+	Game.level = lvl_bz
+	Game.mp = Game.max_mp()
 
 	# --- barra de fúria e ultimate (slot 4 do cajado = meteor_rain)
 	var lvl_f := Game.level
