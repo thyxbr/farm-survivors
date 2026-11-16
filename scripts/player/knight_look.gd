@@ -23,6 +23,12 @@ const REGION := {
 const DEFAULT_STYLE := {"head": "h_bare", "armor": "a_shirt", "hands": "g_bare", "feet": "f_shoes"}
 ## Estilo que usa as próprias peças de placas do knight.glb (tingidas por PARTS).
 const PLATE := "plate"
+## Modelo do herói por corpo ("m"/"f"): o feminino tem os mesmos pivôs e nomes, mais o nó "Ponytail" (rabo de
+## cavalo, filho de Head). As roupas e cabeças de equipamento também têm versão feminina: gear/<estilo>_f.glb.
+const KNIGHT_SCENE := {"m": "res://assets/models/knight.glb", "f": "res://assets/models/knight_f.glb"}
+## Estilos de cabeça que cobrem a nuca (capuz, coifas de malha e o chapéu de mago, que já traz o cabelo solto):
+## o rabo de cavalo atravessaria, então some.
+const HIDE_PONYTAIL := ["h_hood", "h_nasal", "h_kettle", "h_wizard"]
 ## Materiais copiados e tingidos, por material de origem + cor (evita duplicar a cada troca de equipamento).
 static var _tint_cache := {}
 const SWORD_PARTS := ["Grip", "Blade"]
@@ -40,6 +46,34 @@ const BOW_FLEX_BACK := 0.1
 const BOW_FLEX_SHRINK := 0.06
 const BOW_FULL_DRAW := 0.5
 const BOW_ARROW_REST := Vector3(0.0, 0.04, 0.03)
+
+
+## Corpo normalizado: "f" ou "m" (vazio ou desconhecido = masculino).
+static func body_key(body) -> String:
+	return "f" if str(body) == "f" else "m"
+
+
+## Novo modelo do herói para o corpo `body` (marca o corpo no meta "body", que apply() usa nas roupas).
+static func instance(body) -> Node3D:
+	var k := body_key(body)
+	var m := (load(KNIGHT_SCENE[k]) as PackedScene).instantiate() as Node3D
+	m.set_meta("body", k)
+	return m
+
+
+## Corpo do modelo montado por instance() ("m" para modelos antigos sem a marca).
+static func body_of(model: Node3D) -> String:
+	return str(model.get_meta("body", "m")) if model else "m"
+
+
+## GLB de equipamento do estilo para o corpo: a versão _f no feminino (cai na masculina se faltar).
+static func gear_path(style: String, body: String) -> String:
+	var path := "res://assets/models/gear/%s.glb" % style
+	if body_key(body) == "f":
+		var fem := "res://assets/models/gear/%s_f.glb" % style
+		if ResourceLoader.exists(fem):
+			return fem
+	return path
 
 
 ## Aplica o visual e devolve referências: {"class", "holder", "tip", "arrow", "arm", "elbow", "counter"}.
@@ -76,7 +110,11 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 				if mi:
 					mi.material_override = mat
 		else:
-			_attach_gear(model, style, id, pants, made)
+			_attach_gear(model, style, id, pants, made, body_of(model))
+	# rabo de cavalo (corpo feminino): some sob o capuz e as coifas de malha, que cobrem a nuca
+	var tail := model.find_child("Ponytail", true, false) as Node3D
+	if tail:
+		tail.visible = not (gear_style("head", look.get("head", "")) in HIDE_PONYTAIL)
 	# capa: só com armadura de placas ou peça que a pede ("cape": true)
 	var cape := model.find_child("Cape", true, false) as Node3D
 	if cape:
@@ -167,7 +205,20 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 	PivotSkin.ensure(model)    # ossos das roupas com pele contínua seguem os pivôs
 	if ToonLook.enabled():
 		ToonLook.apply(model)
+	if cape:
+		_sync_skinned_outline(cape)
 	return res
+
+
+## A capa tem esqueleto (CapeRig): o contorno toon dela fica ao lado (não é filho) e não some junto ao
+## esconder a capa. Copia a visibilidade da capa para as cascas que usam a mesma pele.
+static func _sync_skinned_outline(mi: Node3D) -> void:
+	var m := mi as MeshInstance3D
+	if m == null or m.skin == null or m.get_parent() == null:
+		return
+	for c in m.get_parent().get_children():
+		if c != m and c is MeshInstance3D and str(c.name).begins_with("ToonOutline") and (c as MeshInstance3D).skin == m.skin:
+			(c as MeshInstance3D).visible = m.visible
 
 
 # ------------------------------------------------------------------ roupas e armaduras
@@ -178,11 +229,11 @@ static func gear_style(slot: String, id: String) -> String:
 	return ItemDB.get_item(id).get("style", PLATE)
 
 
-## Veste o GLB assets/models/gear/<style>.glb: ele tem os mesmos pivôs do knight.glb (LegL, KneeL, Body,
+## Veste o GLB assets/models/gear/<style>.glb (<style>_f.glb no corpo feminino): ele tem os mesmos pivôs do knight.glb (LegL, KneeL, Body,
 ## Head, ArmL, ElbowL...), então cada malha passa para o pivô de mesmo nome do cavaleiro e anima junto.
 ## A cor por vértice é a sombra assada (AO) no Blender. Materiais t1_/t2_ (t1d_/t2d_ escurecidos) recebem a cor do item ("color" e "color2") e tp_ a cor da calça.
-static func _attach_gear(model: Node3D, style: String, id: String, pants: Color, made: Array) -> void:
-	var path := "res://assets/models/gear/%s.glb" % style
+static func _attach_gear(model: Node3D, style: String, id: String, pants: Color, made: Array, body := "m") -> void:
+	var path := gear_path(style, body)
 	if not ResourceLoader.exists(path):
 		push_warning("equipamento sem modelo: " + path)
 		return

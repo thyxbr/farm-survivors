@@ -62,13 +62,17 @@ var run_mods := {}
 const FARM_PLOTS := 12
 const FARM_START_PLOTS := 6
 const EAT_COOLDOWN := 3.0
-## Bônus de comida ativos (somados aos run_mods em mod()). Valem na vila e na Horda.
-var food_mods := {}
-var food_buffs := {}        # id da comida -> segundos restantes
+## Bônus de buffs ativos (somados aos run_mods em mod()). Valem na vila e na Horda.
+var buff_mods := {}
+var buffs := {}             # id em buffs.json (comida ou habilidade) -> segundos restantes
 var eat_cooldown := 0.0
 var selected_food := ""
 ## Bônus das passivas permanentes (CharRules.meta_mods), recalculados em apply_state e somados em mod().
 var meta_mods := {}
+## Talentos aprendidos {id: nível} (espelho do personagem; a aba Talentos lê daqui).
+var talents := {}
+## Bônus dos talentos da classe (CharRules.talent_mods), recalculados em apply_state e somados em mod().
+var talent_mods := {}
 ## Encantamentos por tipo de arma (espelho de CharState.enchants): id -> {"el", "lv"}.
 var enchants := {}
 ## Classe fixa e corpo do personagem (espelho de CharState; "" = save antigo).
@@ -158,8 +162,8 @@ func _debug_screenshot() -> void:
 		for r in ItemDB.RECIPE_ORDER:
 			dishes[r] = 2
 		Econ.grant(0, 0, dishes, "demo", true)
-		food_buffs = {"spicy_soup": 30.0, "garden_salad": 4.0}
-		_recalc_food_mods()
+		buffs = {"food_warm": 30.0, "food_eagle": 4.0}
+		_recalc_buff_mods()
 		for a in args:   # --farmdemo --ui=cook|plant abre o menu
 			if a.begins_with("--ui="):
 				await get_tree().create_timer(1.0).timeout
@@ -169,7 +173,7 @@ func _debug_screenshot() -> void:
 				else:
 					w.open_plant_menu(10)
 	# `--geardemo` dá um punhado dos equipamentos novos (para screenshots do inventário e da loja)
-	# `--weapon=<id>` equipa uma arma; `--ui=inv|char|quests|shop` abre a tela (sem --farmdemo)
+	# `--weapon=<id>` equipa uma arma; `--ui=inv|char|talents|quests|shop` abre a tela (sem --farmdemo)
 	if "--geardemo" in args:
 		var gear_ids := {}
 		for id in ["frost_brand", "ember_staff", "elven_bow", "storm_bow", "dragonfang", "knight_shield", "arcane_orb",
@@ -199,6 +203,24 @@ func _debug_screenshot() -> void:
 		if a.begins_with("--weapon="):
 			Econ.grant(0, 0, {a.substr(9): 1}, "demo", true)
 			equip(a.substr(9))
+		# `--equip=id,id,...` veste peças (capturas de armaduras; com `--body=f`, do corpo feminino);
+		# `-espaço` tira a peça do espaço (ex.: `--equip=-head,-armor,-hands,-feet` = sem armadura)
+		elif a.begins_with("--equip="):
+			for id in a.substr(8).split(",", false):
+				if id.begins_with("-"):
+					unequip(id.substr(1))
+				else:
+					Econ.grant(0, 0, {id: 1}, "demo", true)
+					equip(id)
+		# `--talents=id,id,...` aprende um nível de cada (repetir o id = mais níveis), para capturas da aba Talentos
+		# (sobe o personagem da demo ao nível 6 de verdade, para ter os 5 pontos)
+		elif a.begins_with("--talents="):
+			var xp_need := 0
+			for lv in range(1, 6):
+				xp_need += CharRules.xp_to_next(lv, Balance.tables)
+			Econ.grant(0, xp_need, {}, "demo", true)
+			for id in a.substr(10).split(",", false):
+				learn_talent(id)
 	if "--farmdemo" not in args:
 		for a in args:
 			if a.begins_with("--ui="):
@@ -209,8 +231,10 @@ func _debug_screenshot() -> void:
 						w._open_menu(0)
 					"char":
 						w._open_menu(1)
-					"quests":
+					"talents":
 						w._open_menu(2)
+					"quests":
+						w._open_menu(3)
 					"shop":
 						w.open_shop()
 					"map":
@@ -275,7 +299,7 @@ func _setup_input() -> void:
 		"jump": [KEY_SPACE], "sprint": [KEY_SHIFT], "dodge": [KEY_CTRL, KEY_ALT],
 		"interact": [KEY_E], "spell_1": [KEY_1], "spell_2": [KEY_2], "spell_3": [KEY_3], "spell_4": [KEY_4],
 		"potion": [KEY_R], "mana_potion": [KEY_F], "inventory": [KEY_I, KEY_TAB], "character": [KEY_C],
-		"quest_log": [KEY_J], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
+		"talents": [KEY_K], "quest_log": [KEY_J], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
 		"eat": [KEY_Q], "food_next": [KEY_T], "world_map": [KEY_M], "party": [KEY_P], "friends": [KEY_O],
 		# emotes (acenar, comemorar, sentar): eram as teclas 1–3 da praça; na vila 1–4 são magias
 		"emote_1": [KEY_7], "emote_2": [KEY_8], "emote_3": [KEY_9],
@@ -388,7 +412,7 @@ func damage_mult() -> float:
 
 ## Valor efetivo de um bônus: Desafio da Horda + comida + passivas permanentes.
 func mod(k: String) -> float:
-	return float(run_mods.get(k, 0.0)) + float(food_mods.get(k, 0.0)) + float(meta_mods.get(k, 0.0)) 		+ (enchant_damage(equipment.weapon) if k == "damage" else 0.0)
+	return float(run_mods.get(k, 0.0)) + float(buff_mods.get(k, 0.0)) + float(meta_mods.get(k, 0.0)) + float(talent_mods.get(k, 0.0)) 		+ (enchant_damage(equipment.weapon) if k == "damage" else 0.0)
 
 
 # ---------------------------------------------------------------- encantamento
@@ -480,7 +504,7 @@ func max_hp() -> float:
 
 
 func max_mp() -> float:
-	return 25.0 + attr("int") * 6.0 + (level - 1) * 3.0 + gear("mp")
+	return (25.0 + attr("int") * 6.0 + (level - 1) * 3.0 + gear("mp")) * (1.0 + float(talent_mods.get("mp_pct", 0.0)))
 
 
 func max_stamina() -> float:
@@ -503,7 +527,7 @@ func spell_power() -> float:
 
 ## Vida da Cura (CharRules.heal_for: 30 + 4 x poder mágico, mais o bônus de cura do cetro).
 func heal_amount() -> float:
-	return CharRules.heal_for(spell_power(), Balance.tables, str(equipment.weapon))
+	return CharRules.heal_for(spell_power(), Balance.tables, str(equipment.weapon)) * (1.0 + float(talent_mods.get("heal_power", 0.0)))
 
 
 func crit_chance() -> float:
@@ -511,7 +535,35 @@ func crit_chance() -> float:
 
 
 func cooldown_mult() -> float:
-	return clampf(1.0 - gear("cdr"), 0.4, 1.0)
+	# buff e talento "cooldown" são frações negativas (o mod("cooldown") das cartas da Horda é outra conta)
+	return clampf(1.0 - gear("cdr") + float(buff_mods.get("cooldown", 0.0)) + float(talent_mods.get("cooldown", 0.0)), 0.4, 1.0)
+
+
+## Recarga final de uma habilidade. Se ela dá um buff próprio, a recarga nunca fica abaixo da duração do
+## buff + 4 s: redução de recarga (equipamento, talento, o próprio buff) não deixa mantê-lo o tempo todo.
+func ability_cooldown(ability_id: String, base: float, mult: float) -> float:
+	var cd := base * mult
+	var buff_id := "scepter_feast" if ability_id == "scepter_ult" else ability_id
+	if ItemDB.BUFFS.has(buff_id) or ability_id == "scepter_ult":
+		cd = maxf(cd, buff_duration(buff_id) + 4.0)
+	return cd
+
+
+## Segundos a mais que o talento dá à habilidade `ability_id` (chave "ability_time:<id>").
+func ability_time_bonus(ability_id: String) -> float:
+	return float(talent_mods.get("ability_time:" + ability_id, 0.0))
+
+
+## Multiplicador de dano do talento da habilidade `ability_id` (chave "ability_dmg:<id>"): 1 + bônus.
+func ability_dmg_mult(ability_id: String) -> float:
+	return 1.0 + float(talent_mods.get("ability_dmg:" + ability_id, 0.0))
+
+
+## Duração do buff `buff_id` para quem o conjurou: o tempo de buffs.json + o bônus de talento da habilidade
+## (o buff do Banquete, scepter_feast, vem da habilidade scepter_ult; os demais têm o mesmo id).
+func buff_duration(buff_id: String) -> float:
+	var ability_id := "scepter_ult" if buff_id == "scepter_feast" else buff_id
+	return float(ItemDB.BUFFS.get(buff_id, {}).get("time", 0.0)) + ability_time_bonus(ability_id)
 
 
 func defense() -> float:
@@ -681,6 +733,29 @@ func rank_up() -> void:
 	Econ.request("rank_up")
 
 
+## Aprende um nível do talento (as regras conferem pontos, linha e máximo).
+func learn_talent(id: String) -> void:
+	Econ.request("learn_talent", [id])
+
+
+## Devolve todos os pontos de talento (na Lina, da Guilda; cobra talent_reset_cost()).
+func reset_talents() -> void:
+	Econ.request("reset_talents")
+
+
+## Pontos de talento livres no espelho: 1 por nível a partir do 2, menos os gastos (CharRules.talent_points).
+func talent_points() -> int:
+	var spent := 0
+	for id in talents:
+		spent += int(talents[id])
+	return maxi(0, level - 1 - spent)
+
+
+## Ouro para redistribuir os talentos agora (espelho de CharRules.reset_cost).
+func talent_reset_cost() -> int:
+	return 0 if level <= 5 else 50 * level
+
+
 ## Rank na guilda ("D" a "S") e pontos de guilda (espelho do personagem).
 func rank() -> String:
 	return str(flags.get("rank", "D"))
@@ -698,8 +773,9 @@ func on_enemy_killed(kind: String, xp_reward: int) -> void:
 
 ## Roubo de vida da comida ao abater (combate é do cliente; online o abate em si é do servidor).
 func kill_lifesteal() -> void:
-	if float(food_mods.get("lifesteal", 0.0)) > 0.0 and hp > 0.0:
-		hp = min(max_hp(), hp + float(food_mods.lifesteal))
+	var ls := float(buff_mods.get("lifesteal", 0.0)) + float(talent_mods.get("lifesteal", 0.0))
+	if ls > 0.0 and hp > 0.0:
+		hp = min(max_hp(), hp + ls)
 
 
 ## Renascer na vila: o ouro perdido é calculado pelas regras.
@@ -819,8 +895,7 @@ func _apply_food(id: String) -> void:
 	var it := ItemDB.get_item(id)
 	var old_max := max_hp()
 	if it.has("buff"):
-		food_buffs[id] = float(it.buff.time)
-		_recalc_food_mods()
+		add_buff(str(it.buff))
 		if max_hp() > old_max:
 			hp += max_hp() - old_max
 	if it.get("heal_full", false):
@@ -876,40 +951,54 @@ func cycle_food() -> void:
 	inventory_changed.emit()
 
 
-func tick_food(delta: float) -> void:
+## Liga o buff `id` (de buffs.json) por `secs` (negativo = o `time` da tabela); se já está ativo, renova.
+func add_buff(id: String, secs := -1.0) -> void:
+	var row: Dictionary = ItemDB.BUFFS.get(id, {})
+	if row.is_empty():
+		return
+	buffs[id] = float(row.time) if secs < 0.0 else secs
+	_recalc_buff_mods()
+	stats_changed.emit()
+
+
+func has_buff(id: String) -> bool:
+	return buffs.has(id)
+
+
+func tick_buffs(delta: float) -> void:
 	eat_cooldown = max(0.0, eat_cooldown - delta)
-	if food_buffs.is_empty():
+	if buffs.is_empty():
 		return
 	var expired: Array = []
-	for id in food_buffs:
-		food_buffs[id] -= delta
-		if food_buffs[id] <= 0.0:
+	for id in buffs:
+		buffs[id] -= delta
+		if buffs[id] <= 0.0:
 			expired.append(id)
 	if expired.is_empty():
 		return
 	for id in expired:
-		food_buffs.erase(id)
-		notify.emit("%s acabou." % ItemDB.get_item(id).buff.name, Color(0.75, 0.7, 0.6))
-	_recalc_food_mods()
+		buffs.erase(id)
+		notify.emit("%s acabou." % ItemDB.BUFFS.get(id, {}).get("name", id), Color(0.75, 0.7, 0.6))
+	_recalc_buff_mods()
 	hp = min(hp, max_hp())
 	stats_changed.emit()
 
 
-func clear_food(silent := false) -> void:
-	var had := not food_buffs.is_empty()
-	food_buffs = {}
+func clear_buffs(silent := false) -> void:
+	var had := not buffs.is_empty()
+	buffs = {}
 	eat_cooldown = 0.0
-	_recalc_food_mods()
+	_recalc_buff_mods()
 	if had and not silent:
-		notify.emit("Os efeitos da comida se perderam.", Color(0.8, 0.7, 0.6))
+		notify.emit("Os efeitos de comida e habilidades se perderam.", Color(0.8, 0.7, 0.6))
 
 
-func _recalc_food_mods() -> void:
-	food_mods = {}
-	for id in food_buffs:
-		var add: Dictionary = ItemDB.get_item(id).buff.add
+func _recalc_buff_mods() -> void:
+	buff_mods = {}
+	for id in buffs:
+		var add: Dictionary = ItemDB.BUFFS.get(id, {}).get("add", {})
 		for k in add:
-			food_mods[k] = float(food_mods.get(k, 0.0)) + float(add[k])
+			buff_mods[k] = float(buff_mods.get(k, 0.0)) + float(add[k])
 
 
 # ================================================================ caldeirão
@@ -1038,12 +1127,14 @@ func apply_state(d: Dictionary, full := false) -> void:
 	ecos = s.ecos
 	passives = s.passives
 	meta_mods = CharRules.meta_mods(Balance.tables, passives)
+	talents = s.talents
+	talent_mods = CharRules.talent_mods(Balance.tables, s)
 	enchants = s.enchants
 	char_class = s.char_class
 	body = s.body
 	if full:
 		reset_run_mods()
-		clear_food(true)
+		clear_buffs(true)
 		hp = s.hp if s.hp > 0.0 else max_hp()
 		mp = s.mp
 		fury = s.fury

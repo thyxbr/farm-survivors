@@ -153,6 +153,10 @@ const MIGRATIONS := [
 		"ALTER TABLE characters ADD COLUMN char_class TEXT NOT NULL DEFAULT ''",
 		"ALTER TABLE characters ADD COLUMN body TEXT NOT NULL DEFAULT ''",
 	],
+	# v9: talentos aprendidos (JSON id -> nível)
+	[
+		"ALTER TABLE characters ADD COLUMN talents TEXT NOT NULL DEFAULT '{}'",
+	],
 ]
 
 

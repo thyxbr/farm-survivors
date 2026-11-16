@@ -248,6 +248,14 @@ const QUAKE := [
 		"leg_l": -0.55, "knee_l": 0.75, "leg_r": 0.35, "knee_r": 0.55}, "lin"],
 ]
 
+## Pose curta das habilidades de buff (0,5 s): braços erguidos e volta.
+const BUFF := [
+	[0.35, {"arm_r": Vector3(-2.5, 0.0, -0.3), "elbow_r": -0.5, "arm_l": Vector3(-2.3, 0.0, 0.3), "elbow_l": -0.5,
+		"body_x": -0.15, "head_x": -0.2}, "out"],
+	[0.7, {"arm_r": Vector3(-2.5, 0.0, -0.3), "elbow_r": -0.5, "arm_l": Vector3(-2.3, 0.0, 0.3), "elbow_l": -0.5,
+		"body_x": -0.15, "head_x": -0.2}, "lin"],
+]
+
 ## Turbilhão (SwordAbilities.WHIRL_TIME = 2,1 s): preparo até 0,19 (agacha, espada para trás com as
 ## duas mãos, tronco torcido), giro de 0,19 a 0,905 (braços estendidos, lâmina na horizontal, tronco
 ## inclinado; o modelo inteiro gira em SwordAbilities) e golpe final para baixo, no chão em 0,943.

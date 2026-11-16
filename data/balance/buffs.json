@@ -1,0 +1,248 @@
+{
+	"food_full": {
+		"name": "Barriga Cheia",
+		"time": 120.0,
+		"add": {
+			"magnet": 0.2
+		},
+		"aura": "cura",
+		"icon": "bread",
+		"desc": "+20% de raio de coleta",
+		"color": {
+			"$c": [
+				0.9,
+				0.7,
+				0.4,
+				1.0
+			]
+		}
+	},
+	"food_garden": {
+		"name": "Vigor da Horta",
+		"time": 180.0,
+		"add": {
+			"xp": 0.05
+		},
+		"aura": "cura",
+		"icon": "carrot_stew",
+		"desc": "+5% de XP",
+		"color": {
+			"$c": [
+				1.0,
+				0.55,
+				0.2,
+				1.0
+			]
+		}
+	},
+	"food_warm": {
+		"name": "Calor Picante",
+		"time": 180.0,
+		"add": {
+			"gold": 0.05
+		},
+		"aura": "sorte",
+		"icon": "spicy_soup",
+		"desc": "+5% de ouro",
+		"color": {
+			"$c": [
+				1.0,
+				0.3,
+				0.15,
+				1.0
+			]
+		}
+	},
+	"food_chili": {
+		"name": "Coragem do Chili",
+		"time": 180.0,
+		"add": {
+			"gold": 0.08,
+			"magnet": 0.2
+		},
+		"aura": "dragao",
+		"icon": "dragon_chili",
+		"desc": "+8% de ouro e +20% de raio de coleta",
+		"color": {
+			"$c": [
+				1.0,
+				0.4,
+				0.05,
+				1.0
+			]
+		}
+	},
+	"food_mint": {
+		"name": "Mente Fresca",
+		"time": 180.0,
+		"add": {
+			"xp": 0.08
+		},
+		"aura": "vento",
+		"icon": "mint_tea",
+		"desc": "+8% de XP",
+		"color": {
+			"$c": [
+				0.5,
+				0.95,
+				1.0,
+				1.0
+			]
+		}
+	},
+	"food_eagle": {
+		"name": "Olhos de Águia",
+		"time": 240.0,
+		"add": {
+			"xp": 0.1,
+			"magnet": 0.4
+		},
+		"aura": "sorte",
+		"icon": "garden_salad",
+		"desc": "+10% de XP e +40% de raio de coleta",
+		"color": {
+			"$c": [
+				0.5,
+				1.0,
+				0.45,
+				1.0
+			]
+		}
+	},
+	"food_pie": {
+		"name": "Doce Lar",
+		"time": 240.0,
+		"add": {
+			"gold": 0.1
+		},
+		"aura": "escudo",
+		"icon": "pumpkin_pie",
+		"desc": "+10% de ouro",
+		"color": {
+			"$c": [
+				1.0,
+				0.6,
+				0.15,
+				1.0
+			]
+		}
+	},
+	"food_feast": {
+		"name": "Banquete do Herói",
+		"time": 300.0,
+		"add": {
+			"xp": 0.12,
+			"gold": 0.12,
+			"magnet": 0.4
+		},
+		"aura": "heroi",
+		"icon": "valdoria_feast",
+		"desc": "+12% de XP, +12% de ouro e +40% de raio de coleta",
+		"color": {
+			"$c": [
+				1.0,
+				0.85,
+				0.3,
+				1.0
+			]
+		}
+	},
+	"sword_fury": {
+		"name": "Fúria Picante",
+		"time": 10.0,
+		"add": {
+			"damage": 0.3,
+			"lifesteal": 2.0
+		},
+		"aura": "furia",
+		"icon": "",
+		"desc": "+30% de dano e cada abate cura 2",
+		"color": {
+			"$c": [
+				1.0,
+				0.3,
+				0.15,
+				1.0
+			]
+		}
+	},
+	"bow_focus": {
+		"name": "Olhos de Águia",
+		"time": 10.0,
+		"add": {
+			"crit": 0.15,
+			"speed": 0.1
+		},
+		"aura": "vento",
+		"icon": "",
+		"desc": "+15% de crítico e +10% de velocidade",
+		"color": {
+			"$c": [
+				0.5,
+				1.0,
+				0.45,
+				1.0
+			]
+		}
+	},
+	"staff_ember": {
+		"name": "Bafo de Dragão",
+		"time": 10.0,
+		"add": {
+			"damage": 0.2,
+			"crit": 0.1,
+			"cooldown": -0.2
+		},
+		"aura": "dragao",
+		"icon": "",
+		"desc": "+20% de dano, +10% de crítico e −20% de recarga",
+		"color": {
+			"$c": [
+				1.0,
+				0.4,
+				0.05,
+				1.0
+			]
+		}
+	},
+	"scepter_ward": {
+		"name": "Escudo de Luz",
+		"time": 12.0,
+		"add": {
+			"max_hp_flat": 30.0,
+			"defense": 4.0,
+			"regen": 3.0
+		},
+		"aura": "escudo",
+		"icon": "",
+		"desc": "+30 de vida máx., +4 de defesa e +3 de vida por segundo",
+		"color": {
+			"$c": [
+				0.5,
+				0.75,
+				1.0,
+				1.0
+			]
+		}
+	},
+	"scepter_feast": {
+		"name": "Banquete do Herói",
+		"time": 12.0,
+		"add": {
+			"damage": 0.25,
+			"speed": 0.12,
+			"cooldown": -0.15
+		},
+		"aura": "heroi",
+		"icon": "",
+		"desc": "+25% de dano, +12% de velocidade e −15% de recarga",
+		"color": {
+			"$c": [
+				1.0,
+				0.85,
+				0.3,
+				1.0
+			]
+		}
+	}
+}

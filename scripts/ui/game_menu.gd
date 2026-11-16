@@ -1,14 +1,14 @@
 extends Control
 ## Menu do herói, num livro aberto (BookWindow): Inventário (herói com o equipamento + mochila em grade),
-## Personagem (atributos, estatísticas, magias) e Missões (lista + detalhes).
+## Personagem (atributos, estatísticas, magias), Talentos (árvore da classe, TalentPanel) e Missões (lista + detalhes).
 ## Referências: boneco e grade de Diablo/Path of Exile, dicas com comparação calculada,
 ## filtros por categoria, atalhos visíveis nas abas.
 
 signal closed
 
-const TAB_KEYS := ["I", "C", "J"]
-const TAB_NAMES := ["Inventário", "Personagem", "Missões"]
-const TAB_ACTIONS := ["inventory", "character", "quest_log"]
+const TAB_KEYS := ["I", "C", "K", "J"]
+const TAB_NAMES := ["Inventário", "Personagem", "Talentos", "Missões"]
+const TAB_ACTIONS := ["inventory", "character", "talents", "quest_log"]
 const BAG_COLS := 8
 const BAG_MIN := 56
 const SLOT := 62.0
@@ -47,6 +47,9 @@ var char_right: VBoxContainer
 var attr_buttons := {}      # atributo -> botão "+"
 var attr_values := {}       # atributo -> rótulo do valor
 
+# talentos
+var talent_panel: TalentPanel
+
 # missões
 ## estado -> título do grupo no diário, marca, cor da tinta, texto do estado nos detalhes (na ordem do diário)
 const QUEST_STATES := {"ready": ["Prontas para entregar", "★", INK_GOOD, "Pronta para entregar"],
@@ -65,7 +68,7 @@ func _ready() -> void:
 	theme = UITheme.get_theme()
 	book = BookWindow.new()
 	add_child(book)
-	var builders := [_build_inventory, _build_character, _build_quests]
+	var builders := [_build_inventory, _build_character, _build_talents, _build_quests]
 	for i in builders.size():
 		var page: Control = builders[i].call()
 		pages.append(page)
@@ -523,6 +526,12 @@ func _refresh_character() -> void:
 		rv.add_child(row)
 
 
+# ================================================================ talentos
+func _build_talents() -> Control:
+	talent_panel = TalentPanel.new()
+	return talent_panel
+
+
 func _hero_name() -> String:
 	var n: String = str(Game.settings.get("player_name", ""))
 	return n if n != "" else "Cavaleiro"
@@ -732,6 +741,7 @@ func _refresh() -> void:
 		return
 	_refresh_inventory()
 	_refresh_character()
+	talent_panel.refresh()
 	_refresh_quests()
 
 

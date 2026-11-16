@@ -23,6 +23,8 @@ var name_label: Label
 var gold_label: Label
 var class_label: Label
 var points_chip: PanelContainer
+## Pontos de talento livres ("+N talento [K]"), ao lado dos de atributo.
+var talent_chip: PanelContainer
 ## Rank da guilda ao lado do nome (some antes do registro).
 var rank_chip: PanelContainer
 var season_badge: SeasonBadge
@@ -218,6 +220,11 @@ func _build_plate() -> void:
 	points_chip.add_child(UITheme.label("", 12, Color(0.12, 0.08, 0.02)))
 	points_chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	plate.add_child(points_chip)
+	talent_chip = PanelContainer.new()
+	talent_chip.add_theme_stylebox_override("panel", UITheme._box(Color(0.55, 0.8, 1.0, 0.9), Color(0.85, 0.95, 1.0), 1, 8, 6, 1))
+	talent_chip.add_child(UITheme.label("", 12, Color(0.03, 0.08, 0.16)))
+	talent_chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	plate.add_child(talent_chip)
 	_ignore_all(plate)
 
 
@@ -489,6 +496,9 @@ func _refresh_static() -> void:
 	(rank_chip.get_child(0) as Label).text = "RANK %s" % Game.rank()
 	points_chip.visible = Game.stat_points > 0
 	(points_chip.get_child(0) as Label).text = "+%d [C]" % Game.stat_points
+	var tp := Game.talent_points() if Game.char_class != "" else 0
+	talent_chip.visible = tp > 0
+	(talent_chip.get_child(0) as Label).text = "+%d talento [K]" % tp
 	for id in ["health_potion", "mana_potion"]:
 		var c := Game.count_item(id)
 		var s: ItemSlot = slots[id]
@@ -518,27 +528,25 @@ func _update_food() -> void:
 	s.queue_redraw()
 	# chips de bônus: cria/remove só quando a lista muda, o texto atualiza todo quadro
 	for id in _buff_chips.keys():
-		if not Game.food_buffs.has(id):
+		if not Game.buffs.has(id):
 			_buff_chips[id].panel.queue_free()
 			_buff_chips.erase(id)
-	for id in Game.food_buffs:
-		var it := ItemDB.get_item(id)
-		var c: Color = it.get("color", UITheme.GOLD)
+	for id in Game.buffs:
+		var row: Dictionary = ItemDB.BUFFS.get(id, {})
+		var c: Color = row.get("color", UITheme.GOLD)
 		if not _buff_chips.has(id):
 			var p := PanelContainer.new()
 			p.add_theme_stylebox_override("panel", UITheme._box(Color(0.05, 0.04, 0.03, 0.7), c.darkened(0.3), 1, 9, 6, 1))
 			var hb := HBoxContainer.new()
 			hb.add_theme_constant_override("separation", 4)
-			var icon := ItemSlot.new(18)
-			icon.item_id = id
-			hb.add_child(icon)
+			hb.add_child(ItemSlot.for_buff(id, 18))
 			var l := UITheme.label("", 12, c.lightened(0.2))
 			hb.add_child(l)
 			p.add_child(hb)
 			_ignore_all(p)
 			buff_box.add_child(p)
 			_buff_chips[id] = {"panel": p, "label": l}
-		var t: float = Game.food_buffs[id]
+		var t: float = Game.buffs[id]
 		var chip: Dictionary = _buff_chips[id]
 		chip.label.text = "%ds" % int(ceil(t))
 		chip.panel.modulate.a = 0.45 + 0.55 * abs(sin(t * 6.0)) if t < 5.0 else 1.0

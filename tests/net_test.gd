@@ -147,6 +147,7 @@ func _ready() -> void:
 	await wait(1.5)
 	var w: Node = Network.world
 	check(w.player.look["class"] == "bow", "arco equipado no personagem local")
+	check(Game.body == my_body() and KnightLook.body_of(w.player.model) == my_body(), "corpo local %s com o modelo dele" % my_body())
 	check(Network.enemies.size() >= 15, "inimigos replicados do servidor (%d)" % Network.enemies.size())
 	var e0: Enemy = Network.enemies.values()[0]
 	check(e0.puppet, "inimigos no cliente são réplicas")
@@ -175,7 +176,12 @@ func _ready() -> void:
 		for rp in Network.remote_players.values():
 			check(rp.look["class"] == "bow" and rp._last_look.get("head", "") == "leather_cap",
 				"vê o arco e o capuz de %s" % rp.display_name)
-			check(rp._last_look.get("body", "") == "m", "o corpo escolhido (m) chega na réplica de %s" % rp.display_name)
+			# Ana joga com o corpo feminino (_pick_class); Beto com o masculino
+			var want_body := "f" if rp.display_name == "Ana" else "m"
+			check(rp._last_look.get("body", "") == want_body, "o corpo escolhido (%s) chega na réplica de %s" % [want_body, rp.display_name])
+			check(KnightLook.body_of(rp.model) == want_body
+				and (rp.model.find_child("Ponytail", true, false) != null) == (want_body == "f"),
+				"réplica de %s com o modelo do corpo %s" % [rp.display_name, want_body])
 			var holder: Node3D = rp.look.get("holder")
 			check(holder != null and is_instance_valid(holder), "modelo do arco montado na réplica de %s" % rp.display_name)
 
@@ -281,6 +287,9 @@ func _ready() -> void:
 		for rp in Network.remote_players.values():
 			check(await _wait_until(func() -> bool: return rp.look["class"] == "staff", 10.0),
 				"vê %s trocar para cajado" % rp.display_name)
+			var keep := "f" if rp.display_name == "Ana" else "m"
+			check(KnightLook.body_of(rp.model) == keep and rp._last_look.get("body", "") == keep,
+				"trocar a arma não muda o corpo da réplica de %s (%s)" % [rp.display_name, keep])
 	# efeitos visuais: auras de habilidade (declaradas pelo cliente) e encanto (decidido pelo servidor).
 	# Ficam ligados até o fim: o colega chega a este ponto no ritmo dele e precisa encontrá-los.
 	w.player.set_ability_aura("escudo", true)
@@ -524,6 +533,32 @@ func _test_heal(w: Node) -> void:
 	else:
 		check(await _wait_until(func() -> bool: return Game.hp > hp0 + 10.0, 3.0), "Beto recebe a cura de Ana (%.0f → %.0f)" % [hp0, Game.hp])
 	await _sync("heal_out")
+	# Escudo de Luz e Banquete do Herói: Ana pede, Beto (perto) recebe o buff; Beto pedindo não faz nada
+	Game.clear_buffs(true)
+	Game.hp = 10.0
+	await _sync("ally_ready")
+	if not actor:
+		Network.request_ally_buff("scepter_ward")   # guerreiro: o servidor recusa
+		await wait(1.2)
+		check(not Game.has_buff("scepter_ward"), "pedido de buff de quem não é healer não faz nada")
+	await _sync("ally_denied")
+	if actor:
+		Network.request_ally_buff("scepter_ward")
+		check(await _wait_until(func() -> bool: return Game.has_buff("scepter_ward"), 3.0), "Ana recebe o próprio Escudo de Luz")
+		Network.request_ally_buff("scepter_ward")   # de novo: o intervalo mínimo recusa
+		Network.request_ally_buff("buff_inexistente")
+	else:
+		check(await _wait_until(func() -> bool: return Game.has_buff("scepter_ward"), 3.0), "Beto recebe o Escudo de Luz de Ana")
+		check(not Game.has_buff("scepter_feast"), "o escudo não traz o Banquete")
+	await _sync("ally_ward")
+	if actor:
+		Network.request_ally_buff("scepter_ult")
+		check(await _wait_until(func() -> bool: return Game.has_buff("scepter_feast"), 3.0), "Ana recebe o Banquete do Herói")
+	else:
+		check(await _wait_until(func() -> bool: return Game.has_buff("scepter_feast"), 3.0), "Beto recebe o Banquete do Herói")
+		check(await _wait_until(func() -> bool: return Game.hp >= Game.max_hp() - 0.5, 3.0), "o Banquete cura Beto ao máximo (%.0f/%.0f)" % [Game.hp, Game.max_hp()])
+	await _sync("ally_out")
+	Game.clear_buffs(true)
 	if actor:
 		await _pick_class("mage", "apprentice_staff")
 	Game.hp = Game.max_hp()
@@ -622,14 +657,14 @@ func _test_party(w: Node) -> void:
 		return w.hud.party_frames != null and w.hud.party_frames._bars.has(other), 3.0), "quadro do colega na HUD")
 	# vida, mana e buffs: Beto toma uma sopa apimentada; Ana vê o buff no quadro dele, com o tempo
 	if my_name == "Beto":
-		Game.food_buffs["spicy_soup"] = 300.0
+		Game.add_buff("food_warm", 300.0)
 	else:
 		check(await _wait_until(func() -> bool:
 			for m in Party.members:
 				if int(m.peer) == other:
-					return float(m.get("mp", -1.0)) > 0.0 and Party.buff_left(m, "spicy_soup") > 200.0
+					return float(m.get("mp", -1.0)) > 0.0 and Party.buff_left(m, "food_warm") > 200.0
 			return false, 8.0), "o servidor repassa a mana e o buff do colega (%s)" % str(Party.members))
-		check(await _wait_until(func() -> bool: return w.hud.party_frames._bars[other].chips.has("spicy_soup"), 3.0),
+		check(await _wait_until(func() -> bool: return w.hud.party_frames._bars[other].chips.has("food_warm"), 3.0),
 			"ícone do buff do colega no quadro do grupo")
 	await _shot_hud(w, "buff")
 	# livro do mapa e do grupo (P): o colega aparece com a vida e as duas abas cabem nas páginas
@@ -885,8 +920,13 @@ func _test_econ() -> void:
 ## passa pelas quatro armas, já que a classe é fixa no jogo de verdade.
 ## Depois equipa a arma `weapon` (a escolha da classe equipa a melhor que o personagem tem, e um saque
 ## melhor do que o inicial mudaria o id): se faltar na mochila, o servidor em --test dá uma.
+## Corpo do personagem do teste: Ana é mulher (o colega confere a réplica feminina), os outros homens.
+func my_body() -> String:
+	return "f" if my_name == "Ana" else "m"
+
+
 func _pick_class(cls: String, weapon: String) -> void:
-	Econ.request("choose_class", [cls, "m"])
+	Econ.request("choose_class", [cls, my_body()])
 	await _wait_until(func() -> bool: return Game.char_class == cls and Game.equipment.weapon != "", 3.0)
 	if Game.equipment.weapon == weapon:
 		return

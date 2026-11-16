@@ -346,7 +346,22 @@ static func _lina_services() -> Array:
 		]})
 	elif StoryRules.state(Game.quests, "registro") == "done" and not nx.is_empty():
 		out.append({"text": "Quero ser promovido", "pages": [p(rank_block())]})
+	if Game.char_class != "":
+		out.append({"text": "Redistribuir talentos", "pages": _talent_reset_pages()})
 	return out
+
+
+## A Lina redistribui os talentos da classe: devolve todos os pontos por talent_reset_cost() de ouro.
+static func _talent_reset_pages() -> Array:
+	if Game.talents.is_empty():
+		return [p("Seus pontos de talento estão todos guardados. Quando gastar algum e se arrepender, é só voltar aqui!")]
+	var cost := Game.talent_reset_cost()
+	var spent := Game.level - 1 - Game.talent_points()
+	var price := "Até o nível 5 é de graça, cortesia da guilda!" if cost == 0 		else "A taxa da guilda é %d de ouro. Papelada não se carimba sozinha." % cost
+	var head := p("Redistribuir talentos? Eu apago a ficha e você recebe os %d pontos de volta para gastar de novo. %s" % [spent, price])
+	var label := "Redistribuir (grátis)" if cost == 0 else "Redistribuir (%d de ouro)" % cost
+	head["choices"] = [{"text": label, "action": Game.reset_talents}, {"text": "Melhor não", "action": Callable()}]
+	return [head]
 
 
 # ================================================================ carruagem

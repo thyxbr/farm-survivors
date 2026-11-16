@@ -1503,14 +1503,7 @@
 		"price": 18,
 		"stack": true,
 		"heal_hp": 35,
-		"buff": {
-			"name": "Barriga Cheia",
-			"time": 60.0,
-			"add": {
-				"regen": 1.5
-			},
-			"desc": "+1,5 de vida por segundo"
-		},
+		"buff": "food_full",
 		"color": {
 			"$c": [0.9, 0.7, 0.4, 1.0]
 		},
@@ -1522,15 +1515,7 @@
 		"price": 30,
 		"stack": true,
 		"heal_hp": 60,
-		"buff": {
-			"name": "Vigor da Horta",
-			"time": 90.0,
-			"add": {
-				"max_hp_flat": 30.0,
-				"defense": 2.0
-			},
-			"desc": "+30 de vida máxima e +2 de defesa"
-		},
+		"buff": "food_garden",
 		"color": {
 			"$c": [1.0, 0.55, 0.2, 1.0]
 		},
@@ -1542,14 +1527,7 @@
 		"price": 40,
 		"stack": true,
 		"heal_hp": 30,
-		"buff": {
-			"name": "Fúria Picante",
-			"time": 45.0,
-			"add": {
-				"damage": 0.3
-			},
-			"desc": "+30% de dano"
-		},
+		"buff": "food_warm",
 		"color": {
 			"$c": [1.0, 0.3, 0.15, 1.0]
 		},
@@ -1561,20 +1539,11 @@
 		"price": 45,
 		"stack": true,
 		"heal_hp": 20,
-		"special": "fire_nova",
-		"buff": {
-			"name": "Bafo de Dragão",
-			"time": 30.0,
-			"add": {
-				"damage": 0.2,
-				"crit": 0.1
-			},
-			"desc": "+20% de dano e +10% de crítico"
-		},
+		"buff": "food_chili",
 		"color": {
 			"$c": [1.0, 0.4, 0.05, 1.0]
 		},
-		"desc": "Ao comer: explosão de fogo ao seu redor!"
+		"desc": "Pimenta que aquece o bolso e atrai moedas."
 	},
 	"mint_tea": {
 		"name": "Chá de Menta Gélida",
@@ -1582,20 +1551,11 @@
 		"price": 30,
 		"stack": true,
 		"heal_mp": 40,
-		"special": "frost_nova",
-		"buff": {
-			"name": "Mente Fresca",
-			"time": 60.0,
-			"add": {
-				"cooldown": -0.2,
-				"speed": 0.1
-			},
-			"desc": "−20% de recarga e +10% de velocidade"
-		},
+		"buff": "food_mint",
 		"color": {
 			"$c": [0.5, 0.95, 1.0, 1.0]
 		},
-		"desc": "Ao comer: congela os inimigos próximos."
+		"desc": "Clareia as ideias e rende experiência."
 	},
 	"garden_salad": {
 		"name": "Salada da Horta",
@@ -1603,15 +1563,7 @@
 		"price": 36,
 		"stack": true,
 		"heal_hp": 40,
-		"buff": {
-			"name": "Olhos de Águia",
-			"time": 90.0,
-			"add": {
-				"xp": 0.3,
-				"magnet": 0.6
-			},
-			"desc": "+30% de XP das gemas e +60% de raio de coleta"
-		},
+		"buff": "food_eagle",
 		"color": {
 			"$c": [0.5, 1.0, 0.45, 1.0]
 		},
@@ -1623,15 +1575,7 @@
 		"price": 55,
 		"stack": true,
 		"heal_hp": 120,
-		"buff": {
-			"name": "Casca Dura",
-			"time": 90.0,
-			"add": {
-				"defense": 5.0,
-				"lifesteal": 2.0
-			},
-			"desc": "+5 de defesa e cada abate cura 2"
-		},
+		"buff": "food_pie",
 		"color": {
 			"$c": [1.0, 0.6, 0.15, 1.0]
 		},
@@ -1643,18 +1587,7 @@
 		"price": 120,
 		"stack": true,
 		"heal_full": true,
-		"buff": {
-			"name": "Banquete do Herói",
-			"time": 120.0,
-			"add": {
-				"damage": 0.25,
-				"max_hp_flat": 40.0,
-				"speed": 0.12,
-				"gold": 0.4,
-				"cooldown": -0.15
-			},
-			"desc": "+25% de dano, +40 de vida máx., +12% de velocidade, −15% de recarga, +40% de ouro"
-		},
+		"buff": "food_feast",
 		"color": {
 			"$c": [1.0, 0.85, 0.3, 1.0]
 		},

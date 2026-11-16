@@ -138,6 +138,16 @@ func test_force_class(cls: String) -> void:
 	Game.char_class = cls
 
 
+## Só testes (solo): troca o corpo gravado ("m"/"f"), como test_force_class troca a classe.
+func test_force_body(body: String) -> void:
+	if Network.is_online() or not ensure_solo():
+		return
+	_svc.load_or_create(SOLO_ACCOUNT).body = body
+	_svc.save(SOLO_ACCOUNT)
+	Game.body = body
+	Game.inventory_changed.emit()
+
+
 ## Liga/desliga o modo admin (resposta como op "admin"). Solo: sempre pode. Online: o servidor decide
 ## (AdminRules.OPEN_TO_ALL ou conta em ADMIN_USERS).
 func set_admin(on: bool) -> void:

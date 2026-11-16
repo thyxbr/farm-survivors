@@ -249,6 +249,19 @@ static func draw(ci: CanvasItem, kind: String, col: Color, r: Rect2, ghost := fa
 			_poly(ci, P, [Vector2(0.4, 0.15), Vector2(0.6, 0.15), Vector2(0.6, 0.4), Vector2(0.85, 0.4), Vector2(0.85, 0.6),
 				Vector2(0.6, 0.6), Vector2(0.6, 0.85), Vector2(0.4, 0.85), Vector2(0.4, 0.6), Vector2(0.15, 0.6),
 				Vector2(0.15, 0.4), Vector2(0.4, 0.4)], Color(0.35, 0.95, 0.45), ol, lw)
+		"fury":   # punho em chamas vermelhas
+			_poly(ci, P, [Vector2(0.2, 0.8), Vector2(0.28, 0.35), Vector2(0.42, 0.55), Vector2(0.5, 0.12),
+				Vector2(0.62, 0.5), Vector2(0.76, 0.3), Vector2(0.82, 0.8)], Color(0.95, 0.22, 0.1), ol, lw)
+			ci.draw_circle(P.call(0.5, 0.7), S * 0.12, Color(1, 0.8, 0.35))
+		"focus":   # olho de águia
+			_poly(ci, P, [Vector2(0.1, 0.5), Vector2(0.3, 0.32), Vector2(0.5, 0.26), Vector2(0.7, 0.32), Vector2(0.9, 0.5),
+				Vector2(0.7, 0.68), Vector2(0.5, 0.74), Vector2(0.3, 0.68)], Color(0.7, 1.0, 0.6), ol, lw)
+			_circle(ci, P.call(0.5, 0.5), S * 0.15, Color(0.15, 0.35, 0.12), ol, lw * 0.6)
+			ci.draw_circle(P.call(0.5, 0.5), S * 0.06, Color(1, 1, 0.8))
+		"ember":   # baforada de brasa
+			_circle(ci, P.call(0.4, 0.62), S * 0.24, Color(1, 0.4, 0.05), ol, lw)
+			_circle(ci, P.call(0.66, 0.42), S * 0.16, Color(1, 0.6, 0.12), ol, lw)
+			ci.draw_circle(P.call(0.4, 0.64), S * 0.11, Color(1, 0.9, 0.45))
 		"frost":
 			for i in 3:
 				var a := i * PI / 3.0

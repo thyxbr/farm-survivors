@@ -32,6 +32,10 @@ var enchants := {}
 ## Classe fixa escolhida na criação (ver CharRules.CLASS_IDS) e corpo ("m" ou "f"); "" = save antigo, sem escolha.
 var char_class := ""
 var body := ""
+## Talentos aprendidos: id -> nível (1..max). Os pontos livres são calculados (ver CharRules.talent_points).
+var talents := {}
+## Bônus de comida ativos: buff_id -> expira_em (relógio do serviço). Só da sessão: não vai ao save.
+var food_buffs := {}
 
 
 ## Personagem novo: sem equipamento, só consumíveis e sementes.
@@ -59,7 +63,7 @@ func to_dict() -> Dictionary:
 		"world_yaw": world_yaw, "kills": kills, "fury": fury,
 		"ecos": ecos, "passives": passives.duplicate(true),
 		"enchants": enchants.duplicate(true),
-		"char_class": char_class, "body": body,
+		"char_class": char_class, "body": body, "talents": talents.duplicate(true),
 	}
 
 
@@ -152,7 +156,34 @@ static func from_dict(d, bt: BalanceTables = null) -> CharState:
 	s.char_class = cc if cc is String and cc in CharRules.CLASS_IDS else ""
 	var bd = d.get("body")
 	s.body = bd if bd is String and bd in ["m", "f"] else ""
+	s.talents = _parse_talents(d.get("talents"), s, bt)
 	return s
+
+
+## Talentos vindos de save ou da rede: só ids da árvore da classe, nível de 1 ao máximo, e no total
+## não mais que os pontos do nível (o que passar disso é descartado, na ordem da tabela).
+## Sem `bt`, só formato e nível >= 1 são conferidos.
+static func _parse_talents(data, s: CharState, bt: BalanceTables) -> Dictionary:
+	var out := {}
+	if not (data is Dictionary):
+		return out
+	if bt == null:
+		for id in data:
+			var lv := _int(data[id], 0)
+			if id is String and lv >= 1:
+				out[id] = lv
+		return out
+	var budget := maxi(0, s.level - 1)
+	for def in CharRules.talent_defs(bt, s.char_class):
+		var lv := mini(_int(data.get(def.id), 0), int(def.max))
+		if lv < 1:
+			continue
+		lv = mini(lv, budget)
+		if lv < 1:
+			break
+		budget -= lv
+		out[def.id] = lv
+	return out
 
 
 ## Encantos vindos de save ou da rede: só arma conhecida, elemento conhecido e nível de 1 ao máximo

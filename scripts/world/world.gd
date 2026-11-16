@@ -638,8 +638,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		_open_menu(0)
 	elif event.is_action_pressed("character"):
 		_open_menu(1)
-	elif event.is_action_pressed("quest_log"):
+	elif event.is_action_pressed("talents"):
 		_open_menu(2)
+	elif event.is_action_pressed("quest_log"):
+		_open_menu(3)
 	elif event.is_action_pressed("world_map") and survival == null:
 		open_world_map()
 	elif event.is_action_pressed("party"):
@@ -671,7 +673,7 @@ func _open_menu(tab: int) -> void:
 ## Narração de abertura da história (personagem novo, primeira vez no mundo). Não roda nos testes.
 func _play_intro() -> void:
 	var args := OS.get_cmdline_user_args()
-	if DisplayServer.get_name() == "headless" or "--smoketest" in args \
+	if DisplayServer.get_name() == "headless" or "--smoketest" in args or "--nointro" in args \
 			or Array(args).any(func(a: String) -> bool: return a.begins_with("--nettest")):
 		return
 	await get_tree().create_timer(1.5).timeout

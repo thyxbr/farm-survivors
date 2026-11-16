@@ -359,3 +359,56 @@ func test_op_blocked_without_class() -> void:
 	T.eq(svc.load_or_create(2).equipment.weapon, "short_bow", "arco inicial")
 	T.ok(svc.apply(2, "buy", ["health_potion", 1]).ok, "depois da escolha compra")
 	db.close()
+
+
+func test_food_bonus_xp_gold_in_town() -> void:
+	var db := _fresh()
+	var t := [1000.0]
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables(), func() -> float: return t[0])
+	svc.apply(2, "choose_class", ["warrior", "m"])
+	var s := svc.load_or_create(2)
+	var xp0 := s.xp
+	s.inventory.append({"id": "garden_salad", "qty": 1})
+	T.ok(svc.apply(2, "consume", ["garden_salad"]).ok, "comeu")
+	svc.kill(2, "slime", 10)
+	T.eq(s.xp - xp0, 11, "kill de 10 XP vira 11 (+10%)")
+	xp0 = s.xp
+	svc.grant(2, 0, 10, {}, "party_xp")
+	T.eq(s.xp - xp0, 11, "XP do grupo também")
+	xp0 = s.xp
+	svc.grant(2, 0, 10, {}, "horde_run")
+	T.eq(s.xp - xp0, 10, "horde_run não multiplica")
+	svc.grant(2, 0, 10, {}, "admin")
+	T.eq(s.xp - xp0, 20, "outras fontes não multiplicam")
+	xp0 = s.xp
+	t[0] += 1000.0   # passou do tempo do buff
+	svc.kill(2, "slime", 10)
+	T.eq(s.xp - xp0, 10, "depois de expirar volta ao normal")
+	db.close()
+
+
+func test_talents_ops_and_sqlite_roundtrip() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	var s := svc.load_or_create(2)
+	T.eq(svc.apply(2, "learn_talent", ["w_edge"]).err, "sem_classe", "sem classe o servidor recusa")
+	svc.apply(2, "choose_class", ["warrior", "m"])
+	s.level = 5
+	T.eq(svc.apply(2, "learn_talent", []).err, "args", "sem argumento")
+	T.eq(svc.apply(2, "learn_talent", [3]).err, "args", "tipo errado")
+	T.eq(svc.apply(2, "learn_talent", ["a_aim"]).err, "talento_invalido", "outra classe")
+	var r := svc.apply(2, "learn_talent", ["w_edge"])
+	T.ok(r.ok, "aprendeu: %s" % r.err)
+	T.eq(r.state.talents, {"w_edge": 1}, "estado devolvido")
+	svc.unload(2)
+	db.close()
+	var db2 := Db.open(PATH)
+	var svc2 := CharacterService.new(SqliteCharStore.new(db2), _tables())
+	var s2 := svc2.load_or_create(2)
+	T.eq(s2.talents, {"w_edge": 1}, "talentos sobrevivem a reabrir o banco")
+	T.ok(svc2.apply(2, "reset_talents", []).ok, "redistribui (nível baixo, grátis)")
+	svc2.unload(2)
+	db2.close()
+	var db3 := Db.open(PATH)
+	T.eq(CharacterService.new(SqliteCharStore.new(db3), _tables()).load_or_create(2).talents, {}, "reset persistiu")
+	db3.close()

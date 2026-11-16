@@ -127,9 +127,10 @@ static func spell_power(s: CharState, bt: BalanceTables) -> float:
 	return float(s.attributes.int) + gear(s, bt, "spell")
 
 
-## Vida restaurada pela Cura: (30 + 4 x poder mágico) x (1 + bônus "heal" da arma equipada).
+## Vida restaurada pela Cura: (30 + 4 x poder mágico) x (1 + bônus "heal" da arma equipada) x (1 + talentos "heal_power").
 static func heal_amount(s: CharState, bt: BalanceTables) -> float:
-	return heal_for(spell_power(s, bt), bt, str(s.equipment.get("weapon", "")))
+	var power := float(talent_mods(bt, s).get("heal_power", 0.0))
+	return heal_for(spell_power(s, bt), bt, str(s.equipment.get("weapon", ""))) * (1.0 + power)
 
 
 ## A mesma conta com o poder mágico já calculado (o cliente soma buffs e comida ao INT).
@@ -226,7 +227,9 @@ static func _add_xp(s: CharState, bt: BalanceTables, amount: int, ev: Array) -> 
 		s.xp -= xp_to_next(s.level, bt)
 		s.level += 1
 		s.stat_points += pts
-		ev.append(_notify("Nível %d! +%d pontos de atributo (C)" % [s.level, pts], Color(1.0, 0.85, 0.3)))
+		# com classe também vem 1 ponto de talento (calculado: level - 1 - gastos), aberto na aba Talentos (K)
+		var talent_txt := " e 1 de talento (K)" if s.char_class != "" else ""
+		ev.append(_notify("Nível %d! +%d pontos de atributo (C)%s" % [s.level, pts, talent_txt], Color(1.0, 0.85, 0.3)))
 		# o kit em ItemDB.ABILITIES é a fonte do que libera em cada nível (só da classe da arma equipada e já pronta)
 		for id in ItemDB.ABILITIES:
 			var ab: Dictionary = ItemDB.ABILITIES[id]
@@ -337,6 +340,7 @@ static func discard(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 ## Renascer na vila custa uma fração do ouro (rules.death_gold_loss, padrão 10%). Pedido pelo próprio
 ## cliente ao renascer: só tira dele, então não há o que forjar.
 static func death_penalty(s: CharState, bt: BalanceTables) -> Dictionary:
+	s.food_buffs.clear()   # o cliente zera a comida ao morrer; o servidor acompanha
 	var lost := int(s.gold * float(_rules(bt).get("death_gold_loss", 0.1)))
 	if lost <= 0:
 		return _ok()
@@ -454,7 +458,7 @@ static func unequip(s: CharState, bt: BalanceTables, slot_name: String) -> Dicti
 # ================================================================ consumo e caldeirão
 ## Tira 1 poção/comida/colheita da mochila. Cura, buff e recarga de comer ficam no cliente;
 ## o aviso de comida sai daqui para manter o texto num lugar só.
-static func consume(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
+static func consume(s: CharState, bt: BalanceTables, id: String, now: float) -> Dictionary:
 	var it := _item(bt, id)
 	if it.is_empty():
 		return _fail("item_invalido")
@@ -467,11 +471,26 @@ static func consume(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	remove_item(s, id, 1)
 	var ev: Array = []
 	if t != "consumable":
-		if it.has("buff"):
-			ev.append(_notify("%s: %s (%ds)" % [it.name, it.buff.name, int(it.buff.time)], it.get("color", Color(1, 0.85, 0.4))))
+		var b: Dictionary = bt.get_table("buffs").get(it.get("buff", ""), {})
+		if not b.is_empty():
+			s.food_buffs[str(it.buff)] = now + float(b.time)
+			ev.append(_notify("%s: %s (%ds)" % [it.name, b.name, int(b.time)], it.get("color", Color(1, 0.85, 0.4))))
 		else:
 			ev.append(_notify("Comeu %s" % it.name, Color(0.85, 1.0, 0.7)))
 	return _ok(ev)
+
+
+## Multiplicador de XP/ouro/ímã da comida ativa: 1 + soma de add[stat] dos buffs ainda válidos
+## (os vencidos saem de s.food_buffs). O servidor/solo usa isto na vila; a Horda aplica mod() no cliente.
+static func food_mult(s: CharState, bt: BalanceTables, stat: String, now: float) -> float:
+	var table := bt.get_table("buffs")
+	var m := 1.0
+	for id in s.food_buffs.keys():
+		if float(s.food_buffs[id]) <= now or not table.has(id):
+			s.food_buffs.erase(id)
+			continue
+		m += float(table[id].get("add", {}).get(stat, 0.0))
+	return m + float(talent_mods(bt, s).get(stat, 0.0))
 
 
 static func can_cook(s: CharState, bt: BalanceTables, recipe: String) -> int:
@@ -618,7 +637,7 @@ static func start_quest(s: CharState, bt: BalanceTables, id: String) -> Dictiona
 	return _ok(ev)
 
 
-static func complete_quest(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
+static func complete_quest(s: CharState, bt: BalanceTables, id: String, now := -1.0) -> Dictionary:
 	var qt := bt.get_table("quests")
 	if not qt.has(id):
 		return _fail("missao_invalida")
@@ -648,12 +667,18 @@ static func complete_quest(s: CharState, bt: BalanceTables, id: String) -> Dicti
 	s.quests[id].progress = int(q.count)
 	s.quests[id].state = "done"
 	ev.append(_notify("Missão concluída: %s" % q.name, C_QUEST))
-	s.gold += int(q.reward_gold)
-	ev.append(_notify("+%d ouro" % int(q.reward_gold), C_GOLD))
+	# comida (XP/ouro): só quando o serviço passa o relógio
+	var gold_r := int(q.reward_gold)
+	var xp_r := int(q.reward_xp)
+	if now >= 0.0:
+		gold_r = int(round(gold_r * food_mult(s, bt, "gold", now)))
+		xp_r = int(round(xp_r * food_mult(s, bt, "xp", now)))
+	s.gold += gold_r
+	ev.append(_notify("+%d ouro" % gold_r, C_GOLD))
 	for item in q.reward_items:
 		add_item(s, bt, item, int(q.reward_items[item]))
 		ev.append({"t": "looted", "id": item, "qty": int(q.reward_items[item])})
-	_add_xp(s, bt, int(q.reward_xp), ev)
+	_add_xp(s, bt, xp_r, ev)
 	# pontos de guilda (só depois do registro na guilda contam para o rank; antes ficam guardados)
 	var pts := quest_points(bt, q)
 	var registered := id == "registro" or quest_state(s, "registro") == "done" or not bt.get_table("quests").has("registro")
@@ -959,6 +984,99 @@ static func _harvest(s: CharState, bt: BalanceTables, i: int, now: float, rng: R
 		txt += " (+1 semente)"
 	var out := _ok([_notify(txt, Color(0.85, 1.0, 0.55)), {"t": "farm"}])
 	out["harvest"] = res
+	return out
+
+
+# ================================================================ talentos (árvore da classe)
+## Talentos da classe em ordem de tabela (ramo a ramo, linha 1 a 3): [{"id","name","row","max","add","desc","branch"}].
+static func talent_defs(bt: BalanceTables, char_class: String) -> Array:
+	var out: Array = []
+	var tree: Dictionary = bt.get_table("talents").get(char_class, {})
+	for b in tree.get("branches", []):
+		for t in b.get("talents", []):
+			var d: Dictionary = t.duplicate()
+			d["branch"] = b.id
+			out.append(d)
+	return out
+
+
+## Pontos de talento gastos (soma dos níveis aprendidos).
+static func talents_spent(s: CharState) -> int:
+	var n := 0
+	for id in s.talents:
+		n += int(s.talents[id])
+	return n
+
+
+## Pontos livres: 1 por nível a partir do 2, menos os gastos (calculado, não gravado).
+static func talent_points(s: CharState, _bt: BalanceTables) -> int:
+	return maxi(0, s.level - 1 - talents_spent(s))
+
+
+## Pontos gastos num ramo.
+static func branch_points(s: CharState, bt: BalanceTables, branch_id: String) -> int:
+	var n := 0
+	for d in talent_defs(bt, s.char_class):
+		if d.branch == branch_id:
+			n += int(s.talents.get(d.id, 0))
+	return n
+
+
+## Pontos que o ramo precisa ter para liberar a linha: 1 -> 0, 2 -> 3, 3 -> 6.
+static func row_requirement(row: int) -> int:
+	return maxi(0, (row - 1) * 3)
+
+
+## Aprende um nível do talento. Erros: talento_invalido (não existe na classe), talento_maximo,
+## talento_bloqueado (o ramo não tem pontos para a linha), sem_pontos. Só muta `s` se ok.
+static func learn_talent(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
+	var def := {}
+	for d in talent_defs(bt, s.char_class):
+		if d.id == id:
+			def = d
+			break
+	if def.is_empty():
+		return _fail("talento_invalido")
+	var level := int(s.talents.get(id, 0))
+	if level >= int(def.max):
+		return _fail("talento_maximo")
+	if branch_points(s, bt, def.branch) < row_requirement(int(def.row)):
+		return _fail("talento_bloqueado")
+	if talent_points(s, bt) < 1:
+		return _fail("sem_pontos")
+	s.talents[id] = level + 1
+	return _ok([{"t": "talent", "id": id, "level": level + 1}])
+
+
+## Custo em ouro de redistribuir: grátis até o nível 5, depois 50 x nível.
+static func reset_cost(s: CharState) -> int:
+	return 0 if s.level <= 5 else 50 * s.level
+
+
+## Devolve todos os pontos e cobra reset_cost. Erros: sem_talentos (nada a devolver), sem_ouro.
+static func reset_talents(s: CharState, _bt: BalanceTables) -> Dictionary:
+	if s.talents.is_empty():
+		return _fail("sem_talentos", [_notify("Nenhum ponto de talento para devolver.", C_BAD)])
+	var cost := reset_cost(s)
+	if s.gold < cost:
+		return _fail("sem_ouro", [_notify("Redistribuir custa %d de ouro." % cost, C_BAD)])
+	var back := talents_spent(s)
+	s.gold -= cost
+	s.talents = {}
+	var paid := "-%d de ouro" % cost if cost > 0 else "grátis até o nível 5"
+	var txt := "Talentos redistribuídos: %d %s de volta (%s)." % [back, "ponto" if back == 1 else "pontos", paid]
+	return _ok([_notify(txt, C_GUILD), {"t": "talents_reset", "cost": cost}])
+
+
+## Bônus dos talentos: chave de stat -> soma de (add x nível). Só conta talento da classe do personagem.
+static func talent_mods(bt: BalanceTables, s: CharState) -> Dictionary:
+	var out := {}
+	for d in talent_defs(bt, s.char_class):
+		var lv := mini(int(s.talents.get(d.id, 0)), int(d.max))
+		if lv < 1:
+			continue
+		for k in d.add:
+			out[k] = out.get(k, 0.0) + float(d.add[k]) * lv
 	return out
 
 

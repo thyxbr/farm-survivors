@@ -1,0 +1,451 @@
+{
+	"warrior": {
+		"branches": [
+			{
+				"id": "warrior_fury",
+				"name": "Fúria",
+				"talents": [
+					{
+						"id": "w_edge",
+						"name": "Fio Afiado",
+						"row": 1,
+						"max": 3,
+						"add": {
+							"damage": 0.04
+						},
+						"desc": "+4% de dano por nível."
+					},
+					{
+						"id": "w_bloodlust",
+						"name": "Sede de Sangue",
+						"row": 2,
+						"max": 3,
+						"add": {
+							"lifesteal": 1.0
+						},
+						"desc": "+1 de vida roubada por abate, por nível."
+					},
+					{
+						"id": "w_rage",
+						"name": "Fúria Prolongada",
+						"row": 3,
+						"max": 3,
+						"add": {
+							"ability_time:sword_fury": 2.0
+						},
+						"desc": "Fúria Picante dura +2 s por nível."
+					}
+				]
+			},
+			{
+				"id": "warrior_wall",
+				"name": "Muralha",
+				"talents": [
+					{
+						"id": "w_hide",
+						"name": "Couro Grosso",
+						"row": 1,
+						"max": 3,
+						"add": {
+							"defense": 2.0
+						},
+						"desc": "+2 de defesa por nível."
+					},
+					{
+						"id": "w_vigor",
+						"name": "Vigor",
+						"row": 2,
+						"max": 3,
+						"add": {
+							"max_hp": 0.05
+						},
+						"desc": "+5% de vida máxima por nível."
+					},
+					{
+						"id": "w_stand",
+						"name": "Pés Firmes",
+						"row": 3,
+						"max": 3,
+						"add": {
+							"regen": 1.0
+						},
+						"desc": "+1 de vida por segundo por nível."
+					}
+				]
+			},
+			{
+				"id": "warrior_storm",
+				"name": "Tempestade",
+				"talents": [
+					{
+						"id": "w_swift",
+						"name": "Passo Ligeiro",
+						"row": 1,
+						"max": 3,
+						"add": {
+							"speed": 0.03
+						},
+						"desc": "+3% de velocidade por nível."
+					},
+					{
+						"id": "w_focus",
+						"name": "Foco",
+						"row": 2,
+						"max": 3,
+						"add": {
+							"cooldown": -0.04
+						},
+						"desc": "-4% de recarga por nível."
+					},
+					{
+						"id": "w_whirl",
+						"name": "Ciclone",
+						"row": 3,
+						"max": 3,
+						"add": {
+							"ability_dmg:sword_whirl": 0.1
+						},
+						"desc": "+10% de dano do Turbilhão por nível."
+					}
+				]
+			}
+		]
+	},
+	"archer": {
+		"branches": [
+			{
+				"id": "archer_precision",
+				"name": "Precisão",
+				"talents": [
+					{
+						"id": "a_aim",
+						"name": "Mira Firme",
+						"row": 1,
+						"max": 3,
+						"add": {
+							"crit": 0.03
+						},
+						"desc": "+3% de crítico por nível."
+					},
+					{
+						"id": "a_power",
+						"name": "Força do Arco",
+						"row": 2,
+						"max": 3,
+						"add": {
+							"damage": 0.04
+						},
+						"desc": "+4% de dano por nível."
+					},
+					{
+						"id": "a_eagle",
+						"name": "Olhar de Águia",
+						"row": 3,
+						"max": 3,
+						"add": {
+							"ability_time:bow_focus": 2.0
+						},
+						"desc": "Olhos de Águia dura +2 s por nível."
+					}
+				]
+			},
+			{
+				"id": "archer_hunter",
+				"name": "Caçador",
+				"talents": [
+					{
+						"id": "a_hide",
+						"name": "Couro Curtido",
+						"row": 1,
+						"max": 3,
+						"add": {
+							"defense": 2.0
+						},
+						"desc": "+2 de defesa por nível."
+					},
+					{
+						"id": "a_vigor",
+						"name": "Vigor",
+						"row": 2,
+						"max": 3,
+						"add": {
+							"max_hp": 0.05
+						},
+						"desc": "+5% de vida máxima por nível."
+					},
+					{
+						"id": "a_trap",
+						"name": "Faro de Caçador",
+						"row": 3,
+						"max": 3,
+						"add": {
+							"magnet": 0.15,
+							"gold": 0.03
+						},
+						"desc": "+15% de alcance do ímã e +3% de ouro por nível."
+					}
+				]
+			},
+			{
+				"id": "archer_wind",
+				"name": "Vento",
+				"talents": [
+					{
+						"id": "a_swift",
+						"name": "Pés de Vento",
+						"row": 1,
+						"max": 3,
+						"add": {
+							"speed": 0.03
+						},
+						"desc": "+3% de velocidade por nível."
+					},
+					{
+						"id": "a_focus",
+						"name": "Foco",
+						"row": 2,
+						"max": 3,
+						"add": {
+							"cooldown": -0.04
+						},
+						"desc": "-4% de recarga por nível."
+					},
+					{
+						"id": "a_gale",
+						"name": "Tormenta",
+						"row": 3,
+						"max": 3,
+						"add": {
+							"ability_dmg:bow_gale": 0.1
+						},
+						"desc": "+10% de dano da Flecha do Vendaval por nível."
+					}
+				]
+			}
+		]
+	},
+	"mage": {
+		"branches": [
+			{
+				"id": "mage_fire",
+				"name": "Fogo",
+				"talents": [
+					{
+						"id": "m_fire",
+						"name": "Chama Viva",
+						"row": 1,
+						"max": 3,
+						"add": {
+							"damage": 0.04
+						},
+						"desc": "+4% de dano por nível."
+					},
+					{
+						"id": "m_crit",
+						"name": "Brasa Ardente",
+						"row": 2,
+						"max": 3,
+						"add": {
+							"crit": 0.03
+						},
+						"desc": "+3% de crítico por nível."
+					},
+					{
+						"id": "m_dragon",
+						"name": "Hálito Longo",
+						"row": 3,
+						"max": 3,
+						"add": {
+							"ability_time:staff_ember": 2.0
+						},
+						"desc": "Bafo de Dragão dura +2 s por nível."
+					}
+				]
+			},
+			{
+				"id": "mage_frost",
+				"name": "Gelo",
+				"talents": [
+					{
+						"id": "m_frost",
+						"name": "Manto de Gelo",
+						"row": 1,
+						"max": 3,
+						"add": {
+							"defense": 2.0
+						},
+						"desc": "+2 de defesa por nível."
+					},
+					{
+						"id": "m_mana",
+						"name": "Reserva Arcana",
+						"row": 2,
+						"max": 3,
+						"add": {
+							"mp_pct": 0.08
+						},
+						"desc": "+8% de mana máxima por nível."
+					},
+					{
+						"id": "m_nova",
+						"name": "Geada Profunda",
+						"row": 3,
+						"max": 3,
+						"add": {
+							"nova_stun": 0.2
+						},
+						"desc": "Nova Gélida atordoa +0,2 s por nível."
+					}
+				]
+			},
+			{
+				"id": "mage_arcane",
+				"name": "Arcano",
+				"talents": [
+					{
+						"id": "m_focus",
+						"name": "Foco",
+						"row": 1,
+						"max": 3,
+						"add": {
+							"cooldown": -0.04
+						},
+						"desc": "-4% de recarga por nível."
+					},
+					{
+						"id": "m_wis",
+						"name": "Sabedoria",
+						"row": 2,
+						"max": 3,
+						"add": {
+							"mp_regen": 0.1
+						},
+						"desc": "+10% de regeneração de mana por nível."
+					},
+					{
+						"id": "m_meteor",
+						"name": "Chuva Pesada",
+						"row": 3,
+						"max": 3,
+						"add": {
+							"ability_dmg:meteor_rain": 0.1
+						},
+						"desc": "+10% de dano dos Meteoros por nível."
+					}
+				]
+			}
+		]
+	},
+	"healer": {
+		"branches": [
+			{
+				"id": "healer_light",
+				"name": "Luz",
+				"talents": [
+					{
+						"id": "h_heal",
+						"name": "Mãos Curadoras",
+						"row": 1,
+						"max": 3,
+						"add": {
+							"heal_power": 0.06
+						},
+						"desc": "+6% de cura por nível."
+					},
+					{
+						"id": "h_light",
+						"name": "Luz Cortante",
+						"row": 2,
+						"max": 3,
+						"add": {
+							"damage": 0.04
+						},
+						"desc": "+4% de dano por nível."
+					},
+					{
+						"id": "h_dawn",
+						"name": "Alvorada",
+						"row": 3,
+						"max": 3,
+						"add": {
+							"ability_time:scepter_ult": 2.0
+						},
+						"desc": "Banquete do Herói dura +2 s por nível."
+					}
+				]
+			},
+			{
+				"id": "healer_protection",
+				"name": "Proteção",
+				"talents": [
+					{
+						"id": "h_hide",
+						"name": "Véu Protetor",
+						"row": 1,
+						"max": 3,
+						"add": {
+							"defense": 2.0
+						},
+						"desc": "+2 de defesa por nível."
+					},
+					{
+						"id": "h_vigor",
+						"name": "Vigor",
+						"row": 2,
+						"max": 3,
+						"add": {
+							"max_hp": 0.05
+						},
+						"desc": "+5% de vida máxima por nível."
+					},
+					{
+						"id": "h_ward",
+						"name": "Guarda Duradoura",
+						"row": 3,
+						"max": 3,
+						"add": {
+							"ability_time:scepter_ward": 2.0
+						},
+						"desc": "Escudo de Luz dura +2 s por nível."
+					}
+				]
+			},
+			{
+				"id": "healer_grace",
+				"name": "Graça",
+				"talents": [
+					{
+						"id": "h_focus",
+						"name": "Foco",
+						"row": 1,
+						"max": 3,
+						"add": {
+							"cooldown": -0.04
+						},
+						"desc": "-4% de recarga por nível."
+					},
+					{
+						"id": "h_mana",
+						"name": "Reserva de Luz",
+						"row": 2,
+						"max": 3,
+						"add": {
+							"mp_pct": 0.08
+						},
+						"desc": "+8% de mana máxima por nível."
+					},
+					{
+						"id": "h_grace",
+						"name": "Graça Ampla",
+						"row": 3,
+						"max": 3,
+						"add": {
+							"ally_radius": 1.0
+						},
+						"desc": "+1 m de alcance da Cura e dos buffs por nível (servidor também)."
+					}
+				]
+			}
+		]
+	}
+}

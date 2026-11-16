@@ -202,6 +202,7 @@ exec(open(OUT.replace("assets/models/", "tools/blender/gear.py"), encoding="utf-
 exec(open(OUT.replace("assets/models/", "tools/blender/body_mesh.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/anime.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/anime_body.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/female.py"), encoding="utf-8").read(), globals())
 
 # ASSETS="knight,elder" no ambiente gera só esses (útil para iterar).
 import os
@@ -233,6 +234,11 @@ for _grp, _pre in (("staves", "st_"), ("bows", "bw_"), ("classic", "w_"), ("scep
 BUILDERS.update(dict(GEAR))      # roupas e armaduras modulares (gear.py); ASSETS=gear gera todas
 if "gear" in _only:
     _only += [n for n, _ in GEAR]
+# corpo feminino (female.py): knight_f e gear/<estilo>_f; ASSETS=female gera tudo, ASSETS=gear_f só as roupas
+BUILDERS["knight_f"] = build_knight_f
+BUILDERS.update(dict(FEM_GEAR))
+if "female" in _only or "gear_f" in _only:
+    _only += [n for n, _ in FEM_GEAR] + (["knight_f"] if "female" in _only else [])
 clear()
 for _name, _fn in BUILDERS.items():
     if not _only or _name in _only:
