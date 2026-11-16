@@ -43,7 +43,7 @@ const WHIRL_TIME := WHIRL_WINDUP + WHIRL_SPIN + WHIRL_FINALE
 const WHIRL_IMPACT := WHIRL_WINDUP + WHIRL_SPIN + 0.08   ## a espada bate no chão
 const WHIRL_TURNS := 4
 const WHIRL_RAMP := 0.3         ## o giro acelera nos primeiros 0,3 s e depois mantém a velocidade
-const WHIRL_MULT := 1.2         ## dano por volta = Game.melee_damage() * WHIRL_MULT * Game.ability_dmg_mult("sword_whirl")
+const WHIRL_MULT := 1.2         ## dano por volta = Game.melee_damage() * WHIRL_MULT
 const WHIRL_RADIUS := 3.5
 const WHIRL_PULL := 6.0         ## puxão (m/s) em direção ao jogador a cada volta (6 = teto do servidor)
 const WHIRL_FINAL_MULT := 2.5   ## dano do golpe final
@@ -579,7 +579,7 @@ static func _whirl_turn(player: Node, d: Dictionary) -> void:
 		if to.length() > WHIRL_RADIUS + e.radius or absf(e.global_position.y - base.y) > 3.0:
 			continue
 		if local:
-			var dmg: float = Game.melee_damage() * WHIRL_MULT
+			var dmg: float = Game.melee_damage() * WHIRL_MULT * Game.ability_dmg_mult("sword_whirl")
 			e.take_damage(dmg, base, false, 0.0, 0.0, WHIRL_PULL)
 			Game.on_damage_dealt(dmg, e.max_hp, false)   # a ultimate não recarrega a própria fúria
 		any = true
