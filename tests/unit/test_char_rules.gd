@@ -377,6 +377,18 @@ func test_christmas_kill_any_goblin() -> void:
 	T.ok(not CharRules.quest_counts_kill(q, "esqueleto"), "esqueleto não conta")
 
 
+func test_quest_target_icon() -> void:
+	var bt := _tables()
+	var qt := bt.get_table("quests")
+	var s := _blank()
+	T.ok(not CharRules.is_quest_target(s.quests, qt, "goblin"), "sem missão, nenhum alvo")
+	CharRules.start_quest(s, bt, "natal_ladroes")
+	T.ok(CharRules.is_quest_target(s.quests, qt, "goblin_xama"), "goblin da lista é alvo da missão ativa")
+	T.ok(not CharRules.is_quest_target(s.quests, qt, "slime"), "slime não é alvo")
+	s.quests.natal_ladroes.state = "ready"
+	T.ok(not CharRules.is_quest_target(s.quests, qt, "goblin_xama"), "missão pronta para entregar: o ícone some")
+
+
 func test_christmas_deliver_takes_items() -> void:
 	var bt := _tables()
 	var s := _blank()
