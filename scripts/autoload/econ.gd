@@ -138,6 +138,15 @@ func test_force_class(cls: String) -> void:
 	Game.char_class = cls
 
 
+## Só testes (solo): troca o nível gravado, para o smoke test equipar itens acima do nível do personagem.
+func test_force_level(lv: int) -> void:
+	if Network.is_online() or not ensure_solo():
+		return
+	_svc.load_or_create(SOLO_ACCOUNT).level = lv
+	_svc.save(SOLO_ACCOUNT)
+	Game.level = lv
+
+
 ## Só testes (solo): troca o corpo gravado ("m"/"f"), como test_force_class troca a classe.
 func test_force_body(body: String) -> void:
 	if Network.is_online() or not ensure_solo():

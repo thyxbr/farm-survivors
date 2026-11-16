@@ -35,6 +35,11 @@ func test_roundtrip_matches_consts() -> void:
 			cur = cur.duplicate(true)
 			for kind in cur:
 				(cur[kind] as Dictionary).erase("ref_level")
+		elif n == "items":
+			# o nível de equipar (level) nasceu depois do snapshot: compara sem ele
+			cur = cur.duplicate(true)
+			for id in cur:
+				(cur[id] as Dictionary).erase("level")
 		elif n == "rules":
 			# a curva de XP foi para progression.json
 			cur = cur.duplicate(true)

@@ -116,6 +116,7 @@ func test_equip_offhand_needs_class() -> void:
 	T.eq(s.equipment.offhand, "", "nada equipado")
 	T.eq(_count(s, "arcane_orb"), 1, "continua na mochila")
 	s.inventory.append({"id": "knight_shield", "qty": 1})
+	s.level = CharRules.item_level(bt, "knight_shield")
 	T.ok(CharRules.equip(s, bt, "knight_shield").ok, "escudo com espada")
 	T.eq(s.equipment.offhand, "knight_shield", "escudo equipado")
 
@@ -124,6 +125,7 @@ func test_equip_swaps_back_to_bag() -> void:
 	var bt := _tables()
 	var s := _blank()
 	CharRules.choose_class(s, bt, "warrior", "m")
+	s.level = CharRules.item_level(bt, "iron_sword")
 	s.inventory = [{"id": "iron_sword", "qty": 1}]
 	var r := CharRules.equip(s, bt, "iron_sword")
 	T.ok(r.ok, "equipa")
@@ -143,6 +145,7 @@ func test_weapon_change_returns_offhand() -> void:
 	var s := _blank()
 	CharRules.choose_class(s, bt, "warrior", "m")
 	s.inventory = [{"id": "knight_shield", "qty": 1}]
+	s.level = CharRules.item_level(bt, "knight_shield")
 	CharRules.equip(s, bt, "knight_shield")
 	T.eq(s.equipment.offhand, "knight_shield", "escudo equipado")
 	# a classe é fixa: o escudo só volta para a mochila na escolha da classe de um personagem que o tinha
@@ -800,6 +803,43 @@ func test_equip_other_class_refused() -> void:
 	T.eq(r.err, "exige_classe", "erro")
 	T.eq(r.events[0].text, "Arco Curto é arma de Arqueiro.", "aviso diz a classe do personagem")
 	T.eq(s.equipment.weapon, "azure_edge", "arma intacta")
+
+
+func test_equip_refuses_below_level() -> void:
+	var s := _blank()
+	CharRules.choose_class(s, _tables(), "warrior", "m")
+	s.level = 3
+	CharRules.add_item(s, _tables(), "dragonfang", 1)
+	var before: String = s.equipment.weapon
+	var r := CharRules.equip(s, _tables(), "dragonfang")
+	T.ok(not r.ok, "nível baixo recusado")
+	T.eq(r.err, "exige_nivel", "erro")
+	T.eq(r.events[0].text, "Requer nível %d." % CharRules.item_level(_tables(), "dragonfang"), "aviso diz o nível")
+	T.eq(_count(s, "dragonfang"), 1, "item continua na mochila")
+	T.eq(s.equipment.weapon, before, "arma intacta")
+
+
+func test_equip_ok_at_level() -> void:
+	var s := _blank()
+	CharRules.choose_class(s, _tables(), "warrior", "m")
+	CharRules.add_item(s, _tables(), "dragonfang", 1)
+	s.level = CharRules.item_level(_tables(), "dragonfang")
+	T.ok(CharRules.equip(s, _tables(), "dragonfang").ok, "equipa no nível exigido")
+	T.eq(s.equipment.weapon, "dragonfang", "na mão")
+
+
+func test_item_level_defaults_to_one() -> void:
+	T.eq(CharRules.item_level(_tables(), "health_potion"), 1, "sem campo = 1")
+
+
+func test_all_equipables_have_level() -> void:
+	var items: Dictionary = _tables().get_table("items")
+	for id in items:
+		if CharRules.slot_of(_tables(), id) == "":
+			continue
+		T.ok(items[id].has("level"), "%s tem level" % id)
+		var lv := int(items[id].get("level", 0))
+		T.ok(lv >= 1 and lv <= 50, "%s: level %d entre 1 e 50" % [id, lv])
 
 
 func test_equip_weapon_without_class_refused() -> void:

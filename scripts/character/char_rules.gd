@@ -369,6 +369,11 @@ static func sell(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 
 
 # ================================================================ equipamento
+## Nível exigido para equipar o item (campo `level` do items.json; sem campo = 1).
+static func item_level(bt: BalanceTables, id: String) -> int:
+	return maxi(1, int(_item(bt, id).get("level", 1)))
+
+
 static func equip(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	var slot_name := slot_of(bt, id)
 	if slot_name == "":
@@ -384,6 +389,8 @@ static func equip(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	if slot_name == "offhand" and it.has("needs") and it.needs != weapon_class(bt, s.equipment.weapon):
 		return _fail("exige_classe", [_notify("%s exige %s." % [it.name, str(CLASS_NAMES.get(it.needs, it.needs)).to_lower()],
 			Color(1, 0.6, 0.5))])
+	if s.level < item_level(bt, id):
+		return _fail("exige_nivel", [_notify("Requer nível %d." % item_level(bt, id), Color(1, 0.6, 0.5))])
 	var ev: Array = []
 	remove_item(s, id, 1)
 	if s.equipment[slot_name] != "":

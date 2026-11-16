@@ -139,12 +139,12 @@ func _ready() -> void:
 	check(Game.char_class == "warrior" and Game.equipment.weapon == "azure_edge"
 		and Game.equipment.values().filter(func(v) -> bool: return v != "").size() == 1,
 		"personagem novo começa só com a arma da classe (%s, %s)" % [Game.char_class, Game.equipment.weapon])
-	Econ.request_test_items({"azure_edge": 1, "apprentice_staff": 1, "short_bow": 1, "leather_cap": 1})
-	check(await _wait_until(func() -> bool: return Game.count_item("short_bow") == 1 and Game.count_item("leather_cap") == 1, 5.0),
+	Econ.request_test_items({"azure_edge": 1, "apprentice_staff": 1, "short_bow": 1, "leather_boots": 1})
+	check(await _wait_until(func() -> bool: return Game.count_item("short_bow") == 1 and Game.count_item("leather_boots") == 1, 5.0),
 		"kit de teste recebido do servidor")
-	# equipa arco e capuz logo ao entrar: os outros jogadores devem ver esse visual
+	# equipa arco e botas (nível 1: o capuz pede nível 2) logo ao entrar: os outros jogadores devem ver esse visual
 	await _pick_class("archer", "short_bow")
-	Game.equip("leather_cap")
+	Game.equip("leather_boots")
 	await wait(1.5)
 	var w: Node = Network.world
 	check(w.player.look["class"] == "bow", "arco equipado no personagem local")
@@ -175,8 +175,8 @@ func _ready() -> void:
 		check(Network.remote_players.size() == peers - 1, "vê os outros jogadores (%d)" % Network.remote_players.size())
 		await wait(1.0)
 		for rp in Network.remote_players.values():
-			check(rp.look["class"] == "bow" and rp._last_look.get("head", "") == "leather_cap",
-				"vê o arco e o capuz de %s" % rp.display_name)
+			check(rp.look["class"] == "bow" and rp._last_look.get("feet", "") == "leather_boots",
+				"vê o arco e as botas de %s" % rp.display_name)
 			# Ana joga com o corpo feminino (_pick_class); Beto com o masculino
 			var want_body := "f" if rp.display_name == "Ana" else "m"
 			check(rp._last_look.get("body", "") == want_body, "o corpo escolhido (%s) chega na réplica de %s" % [want_body, rp.display_name])

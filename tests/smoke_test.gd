@@ -35,13 +35,20 @@ func hud_slot_ids() -> Array[String]:
 
 ## Equipa trocando antes a classe do personagem para a da arma (a classe é fixa no jogo de verdade;
 ## o teste precisa passar pelas quatro armas).
-func equip_any(id: String) -> void:
+func equip_any(id: String, use := false) -> void:
 	if CharRules.slot_of(Balance.tables, id) == "weapon":
 		var wc := CharRules.weapon_class(Balance.tables, id)
 		for cls in CharRules.CLASS_IDS:
 			if CharRules.class_weapon(Balance.tables, cls) == wc and Game.char_class != cls:
 				Econ.test_force_class(cls)
-	Game.equip(id)
+	# o item pede nível: sobe o personagem só para equipar e devolve (o item equipado fica)
+	var lv0 := Game.level
+	Econ.test_force_level(maxi(lv0, CharRules.item_level(Balance.tables, id)))
+	if use:
+		Game.use_item(id)
+	else:
+		Game.equip(id)
+	Econ.test_force_level(lv0)
 
 
 func wait(sec: float) -> void:
@@ -898,7 +905,7 @@ func _ready() -> void:
 	var g := Game.gold
 	Game.buy("iron_sword")
 	check(Game.count_item("iron_sword") == 1 and Game.gold == g - 60, "comprou espada de ferro (%d, ouro %d -> %d)" % [Game.count_item("iron_sword"), g, Game.gold])
-	Game.use_item("iron_sword")
+	equip_any("iron_sword", true)
 	check(Game.equipment.weapon == "iron_sword" and Game.count_item("azure_edge") == 1, "equipou espada de ferro (%s, gume %d)" % [Game.equipment.weapon, Game.count_item("azure_edge")])
 	Game.sell("azure_edge")
 	check(Game.count_item("azure_edge") == 0, "vendeu o gume celeste")
@@ -3060,14 +3067,14 @@ func _test_female_body() -> void:
 		if Game.count_item(id) == 0:
 			need[id] = 1
 	Econ.grant(0, 0, need, "test", true)
-	Game.equip("leather_cap")
-	Game.equip("guard_surcoat")
+	equip_any("leather_cap")
+	equip_any("guard_surcoat")
 	await wait(0.1)
 	check(player.model == m and KnightLook.body_of(player.model) == "f", "trocar armadura mantém o corpo feminino")
 	check(m.find_child("Gear_LashL", true, false) != null, "elmo aberto feminino (h_cap_f, com cílios)")
 	var tail := m.find_child("Ponytail", true, false) as Node3D
 	check(tail.visible, "rabo de cavalo aparece com o gorro")
-	Game.equip("ranger_hood")
+	equip_any("ranger_hood")
 	await wait(0.1)
 	check(not tail.visible, "capuz esconde o rabo de cavalo")
 	equip_any("short_bow")
