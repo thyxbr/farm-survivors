@@ -1,7 +1,9 @@
 extends Control
 ## Tela de criação do herói: sexo, uma das quatro classes (cartões), prévia 3D com a arma inicial e o kit.
 ## "Começar" pede `choose_class` (a regra mora em CharRules, no solo e no servidor) e entra em Valdoria.
-## Aberta por Game.go_to_world() quando o personagem ainda não tem classe (novo jogo, continuar, login).
+## Aberta por Game.go_to_world() quando o personagem solo ainda não tem classe (novo jogo, continuar).
+## Online é aberta por "Criar herói" da seleção de personagem: "Começar" pede ao servidor um personagem
+## novo (Network.char_create) e a seleção volta com ele escolhido; "Voltar" volta para a seleção.
 
 const ATTR_NAMES := {"str": "Força", "agi": "Agilidade", "int": "Inteligência", "vit": "Vitalidade"}
 
@@ -25,6 +27,8 @@ var desc_label: Label
 var kit_box: VBoxContainer
 var status: Label
 var start_btn: Button
+## Online: nome do herói (o que aparece no jogo). Solo não tem nome.
+var name_edit: LineEdit
 
 
 func _ready() -> void:
@@ -81,6 +85,22 @@ func _ready() -> void:
 	old_note.custom_minimum_size.x = 1040
 	old_note.visible = old
 	v.add_child(old_note)
+	if Network.is_client():
+		var nrow := HBoxContainer.new()
+		nrow.add_theme_constant_override("separation", 10)
+		v.add_child(nrow)
+		var nl := UITheme.label("Nome do herói", 18, UITheme.TEXT)
+		nl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		nrow.add_child(nl)
+		name_edit = LineEdit.new()
+		name_edit.max_length = CharacterService.NAME_MAX
+		name_edit.placeholder_text = "%d a %d letras ou números" % [CharacterService.NAME_MIN, CharacterService.NAME_MAX]
+		name_edit.custom_minimum_size = Vector2(320, 40)
+		name_edit.text_submitted.connect(func(_t: String) -> void: _start())
+		nrow.add_child(name_edit)
+		var hint := UITheme.label("É o nome que os outros jogadores veem.", 15, UITheme.DIM)
+		hint.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		nrow.add_child(hint)
 
 	# cartões das classes
 	var crow := HBoxContainer.new()
@@ -164,6 +184,7 @@ func _ready() -> void:
 
 	Econ.done.connect(_on_done)
 	if Network.is_client():
+		Network.char_list_changed.connect(_on_char_list)
 		multiplayer.server_disconnected.connect(_on_lost.bind("Conexão com o servidor perdida."))
 		Network.join_failed.connect(_on_lost)
 	# personagem antigo: começa na classe da arma que ele já usa
@@ -182,7 +203,7 @@ func _ready() -> void:
 			start_body = a.substr(7)
 	select_body(start_body)
 	select_class(start_cls)
-	start_btn.grab_focus.call_deferred()
+	(name_edit if name_edit else start_btn).grab_focus.call_deferred()
 
 
 func select_class(id: String) -> void:
@@ -252,11 +273,34 @@ func _ability_row(id: String) -> Control:
 func _start() -> void:
 	if busy or finished:
 		return
+	var hero_name := ""
+	if name_edit:
+		hero_name = CharacterService.clean_name(name_edit.text)
+		if hero_name == "":
+			_set_status(CharacterService.explain_create("nome_invalido"), UITheme.BAD)
+			name_edit.grab_focus()
+			return
 	Sfx.play("click", 0.0)
 	busy = true
 	start_btn.disabled = true
 	_set_status("Criando o herói...", UITheme.TEXT)
+	if Network.is_client():
+		Network.char_create(hero_name, cls, body)   # a resposta é a lista nova (_on_char_list)
+		return
 	Econ.request("choose_class", [cls, body])
+
+
+## Online: o servidor respondeu à criação. Deu certo: Network já abre a seleção com o herói novo.
+func _on_char_list(_list: Array, created: int, err: String) -> void:
+	if finished or not busy:
+		return
+	busy = false
+	if created > 0 and err == "":
+		finished = true
+		_set_status("", UITheme.DIM)
+		return
+	start_btn.disabled = false
+	_set_status(err if err != "" else "Não deu para criar o herói. Tente de novo.", UITheme.BAD)
 
 
 func _on_done(op: String, _args: Array, ok: bool, err: String, _events: Array) -> void:
@@ -273,11 +317,14 @@ func _on_done(op: String, _args: Array, ok: bool, err: String, _events: Array) -
 	_set_status("Não deu para criar o herói (%s). Tente de novo." % err, UITheme.BAD)
 
 
-## Volta ao menu (online: desconecta; o personagem continua sem classe e a tela volta no próximo login).
+## Volta ao menu (solo) ou à seleção de personagem (online, continua conectado).
 func _back() -> void:
 	if busy:
 		return
 	Sfx.play("click", 0.0)
+	if Network.is_client():
+		Loading.go(Network.CHAR_SELECT_SCENE)
+		return
 	Game.go_to_menu()
 
 

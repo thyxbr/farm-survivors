@@ -20,6 +20,7 @@ const NAMES := {
 	"res://scenes/world.tscn": "Viajando para Valdoria…",
 	"res://scenes/main_menu.tscn": "Voltando ao menu…",
 	"res://scenes/char_create.tscn": "Preparando a criação do herói…",
+	"res://scenes/char_select.tscn": "Acendendo a fogueira…",
 }
 const TIPS := [
 	"Esquivar (Ctrl) deixa você imune por um instante.",

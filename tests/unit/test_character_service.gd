@@ -412,3 +412,56 @@ func test_talents_ops_and_sqlite_roundtrip() -> void:
 	var db3 := Db.open(PATH)
 	T.eq(CharacterService.new(SqliteCharStore.new(db3), _tables()).load_or_create(2).talents, {}, "reset persistiu")
 	db3.close()
+
+
+## Seleção de personagem: a conta cria vários (já com classe), lista e exclui só os dela.
+func test_many_characters_per_account() -> void:
+	var db := _fresh()
+	db.exec("INSERT INTO accounts(id, username, pass_hash, pass_salt, created_at) VALUES(3, 'bia', 'h', 's', 1)")
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	T.eq(svc.list_characters(2).size(), 0, "conta nova sem personagens")
+	var a := svc.create_character(2, "Aldric", "warrior", "m")
+	var b := svc.create_character(2, "Lyra", "mage", "f")
+	T.ok(a.ok and b.ok and a.id != b.id, "criou dois personagens (%s, %s)" % [a, b])
+	T.ok(not svc.create_character(2, "Pirata", "pirata", "m").ok, "classe inválida recusada")
+	var list := svc.list_characters(2)
+	T.eq(list.size(), 2, "lista tem os dois")
+	T.eq(list[0].char_class, "warrior", "primeiro é o guerreiro")
+	T.eq(list[1].body, "f", "segunda é mulher")
+	T.eq(list[0].level, 1, "nível 1")
+	T.eq(list[0].name, "Aldric", "lista traz o nome")
+	T.eq(svc.name_of(b.id), "Lyra", "name_of")
+	T.ok(str(list[1].equipment.get("weapon", "")) != "", "já empunha a arma da classe")
+	# cada personagem tem a sua mochila e o seu ouro
+	svc.grant(a.id, 50, 0, {}, "test")
+	T.eq(svc.load_or_create(b.id).gold, svc.load_or_create(a.id).gold - 50, "ouro é por personagem")
+	T.eq(svc.owner_of(b.id), 2, "dono é a conta 2")
+	# economia registra conta e personagem
+	var row := db.query("SELECT account_id, char_id FROM economy_log WHERE source = 'test'")
+	T.ok(not row.is_empty() and int(row[0]["account_id"]) == 2 and int(row[0]["char_id"]) == a.id, "linha com conta e personagem")
+	# outra conta não exclui
+	T.ok(not svc.delete_character(3, a.id), "conta 3 não exclui personagem da 2")
+	T.ok(svc.delete_character(2, a.id), "dona exclui")
+	T.eq(svc.list_characters(2).size(), 1, "sobrou um")
+	T.eq(db.query("SELECT COUNT(*) AS n FROM inventory WHERE char_id = ?", [a.id])[0]["n"], 0, "mochila apagada")
+	db.close()
+
+
+## Nome do herói: regra (3 a 16 letras/números, começa por letra, sem espaço) e único entre todas as
+## contas, sem diferenciar maiúsculas. Excluir libera o nome.
+func test_character_names() -> void:
+	T.eq(CharacterService.clean_name("  Élise  "), "Élise", "acento vale e as pontas são cortadas")
+	T.eq(CharacterService.clean_name("Ana2"), "Ana2", "número depois da letra vale")
+	for bad in ["Al", "2Ana", "Ana Maria", "Ana_", "Abcdefghijklmnopq", ""]:
+		T.eq(CharacterService.clean_name(bad), "", "nome inválido: '%s'" % bad)
+	var db := _fresh()
+	db.exec("INSERT INTO accounts(id, username, pass_hash, pass_salt, created_at) VALUES(3, 'bia', 'h', 's', 1)")
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	var a := svc.create_character(2, "Aldric", "warrior", "m")
+	T.ok(a.ok, "criou Aldric")
+	var dup := svc.create_character(3, "ALDRIC", "mage", "f")
+	T.ok(not dup.ok and dup.err == "nome_em_uso", "outro jogador não usa o mesmo nome (%s)" % dup.err)
+	T.eq(svc.create_character(2, "A b", "mage", "f").err, "nome_invalido", "nome inválido recusado no servidor")
+	T.ok(svc.delete_character(2, a.id), "excluiu")
+	T.ok(svc.create_character(3, "Aldric", "mage", "f").ok, "nome livre de novo depois de excluir")
+	db.close()

@@ -27,6 +27,7 @@ const IDLE_KNEE_RELAX := 0.16     ## joelho da perna sem peso (rad)
 const IDLE_ELBOW := -0.2          ## cotovelos levemente dobrados (rad)
 const IDLE_ARM_OUT := 0.06        ## braços um pouco afastados do corpo (rad)
 const IDLE_ARM_R_X := -0.15       ## braço da arma um pouco à frente
+const SIT_LEAN := 0.22            ## sentado: tronco curvado para a frente (rad)
 
 # ------------------------------------------------------------------ andar / correr
 ## Ciclo da marcha (por perna): apoio (pé no chão) e balanço (pé no ar). DUTY = fração do ciclo em apoio.
@@ -306,6 +307,28 @@ static func idle_pose(t: float) -> Dictionary:
 	p.arm_r = Vector3(IDLE_ARM_R_X - 0.02 * b, 0, -IDLE_ARM_OUT - b * BREATH_ARM + w * 0.02)
 	p.elbow_l = IDLE_ELBOW - b * 0.03
 	p.elbow_r = IDLE_ELBOW - b * 0.03
+	return p
+
+
+## Sentado num tronco (tela de seleção): coxas para a frente, canelas na vertical, cotovelos nos joelhos e
+## o tronco um pouco curvado para a fogueira, respirando. Com "ground" 1 o modelo desce o quanto as coxas
+## subiram, e o quadril fica na altura do joelho (o tronco do assento fica ali). `t` em segundos.
+static func sit_pose(t: float) -> Dictionary:
+	var p := rest_pose()
+	var b := sin(t * BREATH_FREQ)
+	p.leg_l = -1.5
+	p.leg_r = -1.42
+	p.knee_l = 1.5
+	p.knee_r = 1.34
+	p.foot_l = 0.0
+	p.foot_r = 0.0
+	p.body_y = b * BREATH_BODY_Y
+	p.body_x = SIT_LEAN - b * BREATH_CHEST
+	p.head_x = -0.06 + b * BREATH_CHEST * 0.6
+	p.arm_l = Vector3(-0.95 - 0.02 * b, 0, 0.18)
+	p.arm_r = Vector3(-0.95 - 0.02 * b, 0, -0.18)
+	p.elbow_l = -0.75
+	p.elbow_r = -0.75
 	return p
 
 

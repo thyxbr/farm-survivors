@@ -157,6 +157,58 @@ const MIGRATIONS := [
 	[
 		"ALTER TABLE characters ADD COLUMN talents TEXT NOT NULL DEFAULT '{}'",
 	],
+	# v10: vários personagens por conta (tela de seleção). O personagem ganha id próprio e nome (único, sem
+	# diferenciar maiúsculas; "" só no solo e nos testes antigos); mochila e passivas passam a ser do
+	# personagem. Os personagens antigos (um por conta) são apagados de propósito.
+	# economy_log ganha char_id (a conta continua em account_id); run_players guarda o nome do herói.
+	[
+		"DROP TABLE IF EXISTS inventory",
+		"DROP TABLE IF EXISTS passives",
+		"DROP TABLE IF EXISTS characters",
+		"CREATE TABLE characters (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+			name TEXT NOT NULL DEFAULT '' COLLATE NOCASE,
+			level INTEGER NOT NULL DEFAULT 1,
+			xp INTEGER NOT NULL DEFAULT 0,
+			gold INTEGER NOT NULL DEFAULT 0,
+			ecos INTEGER NOT NULL DEFAULT 0,
+			stat_points INTEGER NOT NULL DEFAULT 0,
+			attributes TEXT NOT NULL DEFAULT '{}',
+			hp REAL NOT NULL DEFAULT 0,
+			mp REAL NOT NULL DEFAULT 0,
+			equipment TEXT NOT NULL DEFAULT '{}',
+			quests TEXT NOT NULL DEFAULT '{}',
+			flags TEXT NOT NULL DEFAULT '{}',
+			farm TEXT NOT NULL DEFAULT '{}',
+			world_pos TEXT NOT NULL DEFAULT '{}',
+			world_yaw REAL NOT NULL DEFAULT 0,
+			kills INTEGER NOT NULL DEFAULT 0,
+			enchants TEXT NOT NULL DEFAULT '{}',
+			char_class TEXT NOT NULL DEFAULT '',
+			body TEXT NOT NULL DEFAULT '',
+			talents TEXT NOT NULL DEFAULT '{}',
+			created_at INTEGER NOT NULL DEFAULT 0,
+			updated_at INTEGER NOT NULL DEFAULT 0
+		)",
+		"CREATE INDEX idx_characters_account ON characters(account_id)",
+		"CREATE UNIQUE INDEX idx_characters_name ON characters(name) WHERE name != ''",
+		"CREATE TABLE inventory (
+			char_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+			slot_index INTEGER NOT NULL,
+			item_id TEXT NOT NULL,
+			qty INTEGER NOT NULL DEFAULT 1,
+			PRIMARY KEY (char_id, slot_index)
+		)",
+		"CREATE TABLE passives (
+			char_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+			passive_id TEXT NOT NULL,
+			level INTEGER NOT NULL DEFAULT 1,
+			PRIMARY KEY (char_id, passive_id)
+		)",
+		"ALTER TABLE economy_log ADD COLUMN char_id INTEGER",
+		"ALTER TABLE run_players ADD COLUMN char_name TEXT",
+	],
 ]
 
 

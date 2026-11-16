@@ -91,7 +91,7 @@ func _ready() -> void:
 		if relogin:
 			await _test_bad_token()
 		if horde_role == "lead":
-			await _test_no_class_gate()
+			await _test_character_select()
 	Network.join(address, token)
 
 	# todo mundo chega direto na vila
@@ -104,7 +104,8 @@ func _ready() -> void:
 	if not _in_village():
 		_finish()
 		return
-	check(Network.my_name == my_name, "nome no servidor é o da conta (%s)" % Network.my_name)
+	# o herói criado sozinho pelo teste leva o nome da conta
+	check(Network.my_name == my_name, "nome no jogo é o do herói (%s)" % Network.my_name)
 	# estação, hora do jogo e clima seguem o relógio do servidor (o servidor pode rodar com
 	# --clock-offset=N para simular um relógio diferente; o cliente recebe --expect-clock-offset=N)
 	check(Weather.synced, "recebeu o relógio do servidor")
@@ -1027,35 +1028,62 @@ func _test_bad_token() -> void:
 	join_error = ""
 
 
-## Conta nova sem classe escolhida: mesmo dizendo ao servidor que carregou o mundo (_client_ready), o
-## servidor não a põe em zona nenhuma (fica em "loading") e avisa para escolher a classe.
-func _test_no_class_gate() -> void:
-	var nc_name := my_name + "Sem"
-	var reg: Dictionary = await Auth.register(address, nc_name, TEST_PASS)
-	var log_r: Dictionary = await Auth.login(address, nc_name, TEST_PASS)
-	check((reg.ok or reg.err == "nome_em_uso") and log_r.ok, "conta sem classe (%s)" % log_r.get("err", "ok"))
+## Seleção de personagem: a conta logada fica fora do jogo até escolher; cria dois heróis (já com classe),
+## a lista traz classe e nível, exclui um, pedido de personagem alheio é recusado e "enter" põe no jogo.
+func _test_character_select() -> void:
+	var sel_name := my_name + "Sel"
+	var reg: Dictionary = await Auth.register(address, sel_name, TEST_PASS)
+	var log_r: Dictionary = await Auth.login(address, sel_name, TEST_PASS)
+	check((reg.ok or reg.err == "nome_em_uso") and log_r.ok, "conta da seleção (%s)" % log_r.get("err", "ok"))
 	if not log_r.ok:
 		return
-	var notices: Array = []
-	var on_notice := func(text: String, _c: Color) -> void: notices.append(text)
-	Game.notify.connect(on_notice)
+	var lists: Array = []   # [lista, criado, erro]
+	var on_list := func(list: Array, created: int, err: String) -> void: lists.append([list, created, err])
+	Network.char_list_changed.connect(on_list)
 	Game.skip_auto_class = true
 	join_error = ""
 	Network.join(address, str(log_r.token))
-	var accepted: bool = await _wait_until(func() -> bool:
-		return Network.is_online() and Network.players.has(multiplayer.get_unique_id()), 10.0)
-	check(accepted and Game.char_class == "", "conta sem classe foi aceita sem classe (%s)" % Game.char_class)
-	if accepted:
-		Network._client_ready.rpc_id(1)   # um cliente que pula a tela de criação
-		var warned: bool = await _wait_until(func() -> bool:
-			return notices.any(func(s: String) -> bool: return s.contains("classe")), 5.0)
-		check(warned, "servidor avisa para escolher a classe antes de entrar")
-		check(Network.zone_of(multiplayer.get_unique_id()) == "loading",
-			"servidor não põe personagem sem classe em zona nenhuma (%s)" % Network.zone_of(multiplayer.get_unique_id()))
-	Game.notify.disconnect(on_notice)
+	var got: bool = await _wait_until(func() -> bool: return not lists.is_empty(), 10.0)
+	check(got, "servidor mandou a lista de personagens depois do login")
+	if got:
+		var me := multiplayer.get_unique_id()
+		check(not Network.players.has(me), "na seleção a conta ainda não está no jogo")
+		# reaproveita a conta entre execuções: começa sem personagens
+		for e in lists[-1][0]:
+			Network.char_delete(int(e.id))
+			await _wait_until(func() -> bool: return lists[-1][0].all(func(x: Dictionary) -> bool: return int(x.id) != int(e.id)), 5.0)
+		lists.clear()
+		Network.char_create(sel_name + "Mag", "mage", "f")
+		await _wait_until(func() -> bool: return not lists.is_empty(), 5.0)
+		Network.char_create(sel_name + "Arq", "archer", "m")
+		await _wait_until(func() -> bool: return lists.size() >= 2, 5.0)
+		Network.char_create(sel_name + "ARQ", "warrior", "m")   # mesmo nome, outra caixa
+		await _wait_until(func() -> bool: return lists.size() >= 3, 5.0)
+		check(lists.size() >= 3 and lists[-1][2].begins_with("Já existe"), "nome repetido recusado (%s)"
+			% (lists[-1][2] if lists.size() >= 3 else "sem resposta"))
+		var list: Array = lists[-1][0] if not lists.is_empty() else []
+		check(list.size() == 2, "criou dois heróis na mesma conta (%d)" % list.size())
+		check(lists.size() >= 2 and int(lists[1][1]) > 0 and lists[1][2] == "", "criação devolve o id do herói novo")
+		if list.size() == 2:
+			check(list[0].char_class == "mage" and list[1].char_class == "archer", "lista traz a classe de cada um")
+			check(int(list[0].level) == 1 and list[0].body == "f", "lista traz nível e corpo")
+			check(list[1].name == sel_name + "Arq", "lista traz o nome do herói (%s)" % list[1].name)
+			Network.char_delete(int(list[0].id))
+			await _wait_until(func() -> bool: return lists[-1][0].size() == 1, 5.0)
+			check(lists[-1][0].size() == 1, "excluiu um herói (%d sobrou)" % lists[-1][0].size())
+			Network.char_enter(999999)
+			await _wait_until(func() -> bool: return lists[-1][2] != "", 5.0)
+			check(lists[-1][2] != "" and not Network.players.has(me), "entrar com personagem alheio é recusado (%s)" % lists[-1][2])
+			var keep := int(list[1].id)
+			Network.char_enter(keep)
+			var entered: bool = await _wait_until(func() -> bool: return Network.players.has(me), 8.0)
+			check(entered and Game.char_class == "archer", "entrou no jogo com o herói escolhido (%s)" % Game.char_class)
+			check(int(Network.players.get(me, {}).get("char", 0)) == keep, "servidor associou o personagem ao jogador")
+			check(Network.my_name == sel_name + "Arq", "no jogo aparece o nome do herói, não o da conta (%s)" % Network.my_name)
+	Network.char_list_changed.disconnect(on_list)
 	Game.skip_auto_class = false
-	Network.leave()
-	await wait(0.5)
+	Game.go_to_menu()   # sai do servidor e fecha o mundo dessa conta antes da conta principal entrar
+	await wait(1.0)
 	join_error = ""
 
 

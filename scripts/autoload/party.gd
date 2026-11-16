@@ -322,7 +322,7 @@ func _name(peer: int) -> String:
 
 
 func _level(peer: int) -> int:
-	var account := int(Network.players[peer].get("account", 0)) if Network.players.has(peer) else 0
-	if account <= 0 or Network.characters == null:
+	var char_id := Econ.char_of(peer)
+	if char_id <= 0 or Network.characters == null:
 		return 1
-	return Network.characters.load_or_create(account).level
+	return Network.characters.load_or_create(char_id).level
