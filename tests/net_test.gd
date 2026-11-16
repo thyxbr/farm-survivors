@@ -736,11 +736,10 @@ func _test_party(w: Node) -> void:
 		await wait(0.8)
 		var gained := Game.xp + Game.level * 100000 - xp0
 		if Game.level == lvl0:   # subir de nível zera o XP da barra: aí só confere que subiu
-			# o slime tem nível e multiplicador de XP (xp_reward); perto o XP ainda passa pelo ajuste de nível
+			# perto e longe o XP leva o ajuste de nível (slime tem nível e xp_reward)
 			var share := ceili(tgt_reward / 2.0)
-			var expected := share
-			if phase == "near":
-				expected = int(round(share * ProgressionRules.xp_diff_mult(Balance.tables, tgt_level, lvl0)))
+			# premissa: Ana e Beto têm o mesmo nível (contas novas), então o maior nível do grupo é lvl0
+			var expected := int(round(share * ProgressionRules.xp_diff_mult(Balance.tables, tgt_level, lvl0)))
 			check(gained == expected, "metade do XP do slime (%d de %d, %s)" % [gained, tgt_reward, phase])
 		var counted: bool = my_name == "Ana" or phase == "near"
 		check(Game.kills == kills0 + (1 if counted else 0),

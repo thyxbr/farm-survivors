@@ -667,8 +667,12 @@ func server_enemy_killed(e: Enemy) -> void:
 			if r.kill:
 				Econ.server_kill(pid, e.kind, int(r.xp), e.level, group_level)
 			elif int(r.xp) > 0:
-				Econ.server_grant(pid, 0, int(r.xp), {}, "party_xp", 0, false,
-					[{"t": "notify", "text": "+%d XP do grupo (longe demais para contar na missão)" % int(r.xp),
+				# quem está longe também leva o ajuste de nível (o abate perto o aplica em CharRules.kill)
+				var far_xp := int(r.xp)
+				if e.level > 0:
+					far_xp = int(round(far_xp * ProgressionRules.xp_diff_mult(Balance.tables, e.level, group_level)))
+				Econ.server_grant(pid, 0, far_xp, {}, "party_xp", 0, false,
+					[{"t": "notify", "text": "+%d XP do grupo (longe demais para contar na missão)" % far_xp,
 						"color": Color(0.7, 0.85, 1.0)}])
 			if r.loot:
 				Econ.server_drop_loot(pid, e.kind, pos, "world")
