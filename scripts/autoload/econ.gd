@@ -128,6 +128,16 @@ func request(op: String, args: Array = []) -> void:
 	_deliver(op, args, r)
 
 
+## Só para testes (solo): troca a classe do personagem sem passar pelas regras, para o smoke test poder
+## experimentar as quatro armas. A escolha de verdade é a op "choose_class" (uma vez só).
+func test_force_class(cls: String) -> void:
+	if Network.is_online() or not ensure_solo():
+		return
+	_svc.load_or_create(SOLO_ACCOUNT).char_class = cls
+	_svc.save(SOLO_ACCOUNT)
+	Game.char_class = cls
+
+
 ## Liga/desliga o modo admin (resposta como op "admin"). Solo: sempre pode. Online: o servidor decide
 ## (AdminRules.OPEN_TO_ALL ou conta em ADMIN_USERS).
 func set_admin(on: bool) -> void:
@@ -390,6 +400,7 @@ func start_solo() -> bool:
 	var s := _svc.load_or_create(SOLO_ACCOUNT)
 	_solo_loaded = true
 	Game.apply_state(s.to_dict(), true)
+	Game.auto_choose_class()
 	return true
 
 
@@ -739,6 +750,7 @@ func _balance(tables: Dictionary) -> void:
 func _econ_res(seq: int, ok: bool, err: String, events: Array, state: Dictionary) -> void:
 	if seq == 0:
 		Game.apply_state(state, true)
+		Game.auto_choose_class()
 		return
 	if seq == PUSH_SEQ:
 		# concessão do servidor (abate, loot, prêmio): estado novo + eventos, sem pedido pendente

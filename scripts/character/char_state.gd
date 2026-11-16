@@ -39,11 +39,9 @@ static func new_character(bt: BalanceTables) -> CharState:
 	var s := CharState.new()
 	s.gold = 25
 	s.equipment = CharRules.empty_equipment()
-	s.equipment["weapon"] = "azure_edge"
 	s.farm = CharRules.default_farm(bt)
 	for e in [["health_potion", 3], ["mana_potion", 1], ["seed_carrot", 4], ["seed_wheat", 4], ["bread", 1],
-			# kit inicial para experimentar as três classes de arma
-			["apprentice_staff", 1], ["short_bow", 1], ["leather_cap", 1]]:
+			["leather_cap", 1]]:
 		CharRules.add_item(s, bt, e[0], e[1])
 	s.hp = CharRules.base_max_hp(s, bt)
 	s.mp = CharRules.base_max_mp(s, bt)

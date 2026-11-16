@@ -340,6 +340,10 @@ static func equip(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	if count_item(s, id) <= 0:
 		return _fail("sem_item")
 	var it := _item(bt, id)
+	# a arma é da classe do personagem (e sem classe escolhida não se equipa arma)
+	if slot_name == "weapon" and weapon_class(bt, id) != class_weapon(bt, s.char_class):
+		var cname: String = str(CLASS_NAMES.get(weapon_class(bt, id), weapon_class(bt, id)))
+		return _fail("exige_classe", [_notify("%s é arma de %s." % [it.name, cname.to_lower()], Color(1, 0.6, 0.5))])
 	# mão secundária precisa combinar com a classe da arma (escudo-espada, orbe-cajado, aljava-arco)
 	if slot_name == "offhand" and it.has("needs") and it.needs != weapon_class(bt, s.equipment.weapon):
 		return _fail("exige_classe", [_notify("%s exige %s." % [it.name, str(CLASS_NAMES.get(it.needs, it.needs)).to_lower()],
@@ -359,6 +363,58 @@ static func equip(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 			s.equipment.offhand = ""
 	ev.append(_notify("Equipado: %s" % it.name, rarity_color(bt, id)))
 	return _ok(ev)
+
+
+## Melhor arma de um tipo entre a mochila e a mão: maior raridade, desempate por dano. "" se não há.
+static func best_weapon_of(s: CharState, bt: BalanceTables, wclass: String) -> String:
+	var rar: Dictionary = bt.get_table("rarity")
+	var best := ""
+	var best_key := [-1, -1.0]
+	var cands: Array = []
+	for slot in s.inventory:
+		cands.append(slot.id)
+	if s.equipment.get("weapon", "") != "":
+		cands.append(s.equipment.weapon)
+	for id in cands:
+		var it := _item(bt, id)
+		if it.get("type", "") != "weapon" or weapon_class(bt, id) != wclass:
+			continue
+		var key := [int(rar.get(rarity_of(bt, id), {}).get("rank", 0)), float(it.get("damage", 0))]
+		if key[0] > best_key[0] or (key[0] == best_key[0] and key[1] > best_key[1]):
+			best = id
+			best_key = key
+	return best
+
+
+## Escolha única da classe e do corpo ("m"/"f") na criação. A arma passa a ser do tipo da classe:
+## fica a que já serve, senão a melhor que o personagem tem, senão a arma inicial da classe.
+static func choose_class(s: CharState, bt: BalanceTables, cls: String, body: String) -> Dictionary:
+	if s.char_class != "":
+		return _fail("ja_tem_classe")
+	var def: Dictionary = bt.get_table("classes").get(cls, {})
+	if not (cls in CLASS_IDS) or def.is_empty() or not (body in ["m", "f"]):
+		return _fail("classe_invalida")
+	s.char_class = cls
+	s.body = body
+	var wclass := class_weapon(bt, cls)
+	var cur: String = s.equipment.get("weapon", "")
+	if cur == "" or weapon_class(bt, cur) != wclass:
+		if cur != "":
+			add_item(s, bt, cur, 1)
+			s.equipment.weapon = ""
+		var pick := best_weapon_of(s, bt, wclass)
+		if pick == "":
+			pick = str(def.starter_weapon)
+			add_item(s, bt, pick, 1)
+		remove_item(s, pick, 1)
+		s.equipment.weapon = pick
+	# mão secundária incompatível com a nova arma volta para a mochila
+	var off: String = s.equipment.get("offhand", "")
+	if off != "" and _item(bt, off).has("needs") and _item(bt, off).needs != wclass:
+		add_item(s, bt, off, 1)
+		s.equipment.offhand = ""
+	return _ok([{"t": "class", "class": cls, "body": body},
+		_notify("Você agora é %s!" % def.name, def.get("color", Color.WHITE))])
 
 
 static func unequip(s: CharState, bt: BalanceTables, slot_name: String) -> Dictionary:

@@ -5,10 +5,13 @@ extends RefCounted
 ## e registra a economia. Sem autoload: recebe o armazenamento (CharStore), BalanceTables e relógio.
 ## Servidor: SqliteCharStore (SQLite); solo: FileCharStore (JSON em user://). Mesmas regras, uma economia.
 
+## Só servidor em --test (net_test): deixa "choose_class" valer de novo, para o teste passar pelas quatro armas.
+var allow_reclass := false
+
 ## Operações que o cliente pode pedir. Conceder ouro/xp/itens e abates é só do servidor/solo.
 const CLIENT_OPS := ["buy", "sell", "equip", "unequip", "consume", "cook", "spend_point", "start_quest",
 	"complete_quest", "sort_inventory", "unlock_plot", "plant", "water", "fertilize", "harvest", "discard",
-	"death_penalty", "buy_passive", "enchant", "rank_up", "quest_mark"]
+	"death_penalty", "buy_passive", "enchant", "rank_up", "quest_mark", "choose_class"]
 
 ## Assinatura posicional de cada op: tipos aceitos (TYPE_*) e quantos são opcionais no fim.
 ## `now` e o gerador de sorteio nunca vêm do cliente.
@@ -34,6 +37,7 @@ const ARGS := {
 	"enchant": {"types": [TYPE_STRING], "optional": 0},
 	"rank_up": {"types": [], "optional": 0},
 	"quest_mark": {"types": [TYPE_STRING, TYPE_INT], "optional": 0},
+	"choose_class": {"types": [TYPE_STRING, TYPE_STRING], "optional": 0},
 }
 
 ## Concessões dessas origens acontecem a cada coleta durante a partida: o registro é um só, no fim
@@ -108,8 +112,14 @@ func apply(account_id: int, op: String, args: Array) -> Dictionary:
 		return _result(account_id, {"ok": false, "err": "args", "events": []})
 	var s := load_or_create(account_id)
 	# modo admin: recursos no teto antes de cada pedido (a reposição não entra no registro da economia)
+	if allow_reclass and op == "choose_class":
+		s.char_class = ""
+		s.body = ""
+	if s.char_class == "" and op != "choose_class":
+		return _result(account_id, {"ok": false, "err": "sem_classe", "events": []})
 	AdminRules.top_up(s, _bt)
-	var before := _holdings(s)
+	# a arma inicial da classe não é negócio: não entra no registro da economia
+	var before := {} if op == "choose_class" else _holdings(s)
 	var r := _dispatch(s, op, args)
 	if r.ok:
 		# passivas e encantos gastam Ecos: a linha de Ecos diz em quê (id da passiva ou "enchant")
@@ -337,6 +347,7 @@ func _dispatch(s: CharState, op: String, a: Array) -> Dictionary:
 		"start_quest": return CharRules.start_quest(s, _bt, a[0])
 		"complete_quest": return CharRules.complete_quest(s, _bt, a[0])
 		"rank_up": return CharRules.rank_up(s, _bt)
+		"choose_class": return CharRules.choose_class(s, _bt, a[0], a[1])
 		"quest_mark": return CharRules.quest_mark(s, _bt, a[0], a[1])
 		"sort_inventory": return CharRules.sort_inventory(s, _bt)
 		"unlock_plot": return CharRules.unlock_plot(s, _bt)

@@ -28,6 +28,7 @@ func test_persists_across_instances() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	var antes := svc.load_or_create(2)
+	svc.apply(2, "choose_class", ["warrior", "m"])
 	var ouro := antes.gold
 	var pocoes := _count(antes, "health_potion")
 	var r := svc.apply(2, "buy", ["health_potion", 1])
@@ -80,6 +81,7 @@ func test_economy_log_rows() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	svc.load_or_create(2)
+	svc.apply(2, "choose_class", ["warrior", "m"])
 	var r := svc.apply(2, "buy", ["health_potion", 1])
 	T.ok(r.ok, "comprou")
 	var itens := db.query("SELECT * FROM economy_log WHERE item_id = 'health_potion'")
@@ -178,6 +180,7 @@ func test_discard_and_death_are_client_ops() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	var s := svc.load_or_create(2)
+	svc.apply(2, "choose_class", ["warrior", "m"])
 	var pocoes := _count(s, "health_potion")
 	T.ok(svc.apply(2, "discard", ["health_potion"]).ok, "jogar fora")
 	T.eq(_count(svc.load_or_create(2), "health_potion"), pocoes - 1, "uma poção a menos")
@@ -266,6 +269,7 @@ func test_enchant_persists_and_logs() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	svc.load_or_create(2)
+	svc.apply(2, "choose_class", ["warrior", "m"])
 	svc.grant(2, 50, 0, {"iron_ore": 4, "ember_core": 2}, "test")
 	var r := svc.apply(2, "enchant", ["fogo"])
 	T.ok(r.ok, "encantou pelo serviço: %s" % r.err)
@@ -286,6 +290,7 @@ func test_enchant_bad_args_and_refusal() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	svc.load_or_create(2)
+	svc.apply(2, "choose_class", ["warrior", "m"])
 	T.eq(svc.apply(2, "enchant", []).err, "args", "sem argumento")
 	T.eq(svc.apply(2, "enchant", [3]).err, "args", "tipo errado")
 	T.eq(svc.apply(2, "enchant", ["luz"]).err, "elemento_invalido", "elemento desconhecido")
@@ -299,6 +304,7 @@ func test_enchant_ecos_logged() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	var s := svc.load_or_create(2)
+	svc.apply(2, "choose_class", ["warrior", "m"])
 	s.enchants["azure_edge"] = {"el": "sombra", "lv": 4}
 	s.ecos = 40
 	svc.grant(2, 1000, 0, {"iron_ore": 20, "arcane_crystal": 12, "shadow_fang": 10}, "test")
@@ -321,4 +327,19 @@ func test_grant_test_items_gate() -> void:
 	var r := svc.grant_test_items(2, {"iron_ore": 4, "frost_drop": 2}, true)
 	T.ok(r.ok, "com --test concede")
 	T.eq(_count(svc.load_or_create(2), "iron_ore"), 4, "ferro na mochila")
+	db.close()
+
+
+func test_op_blocked_without_class() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	svc.load_or_create(2)
+	var r := svc.apply(2, "buy", ["health_potion", 1])
+	T.ok(not r.ok, "bloqueado")
+	T.eq(r.err, "sem_classe", "erro")
+	T.eq(svc.apply(2, "choose_class", ["archer"]).err, "args", "faltou o corpo")
+	var c := svc.apply(2, "choose_class", ["archer", "m"])
+	T.ok(c.ok, "escolheu")
+	T.eq(svc.load_or_create(2).equipment.weapon, "short_bow", "arco inicial")
+	T.ok(svc.apply(2, "buy", ["health_potion", 1]).ok, "depois da escolha compra")
 	db.close()

@@ -33,6 +33,17 @@ func hud_slot_ids() -> Array[String]:
 	return out
 
 
+## Equipa trocando antes a classe do personagem para a da arma (a classe é fixa no jogo de verdade;
+## o teste precisa passar pelas quatro armas).
+func equip_any(id: String) -> void:
+	if CharRules.slot_of(Balance.tables, id) == "weapon":
+		var wc := CharRules.weapon_class(Balance.tables, id)
+		for cls in CharRules.CLASS_IDS:
+			if CharRules.class_weapon(Balance.tables, cls) == wc and Game.char_class != cls:
+				Econ.test_force_class(cls)
+	Game.equip(id)
+
+
 func wait(sec: float) -> void:
 	await get_tree().create_timer(sec, true, true).timeout
 
@@ -52,7 +63,11 @@ func _ready() -> void:
 	player = get_tree().get_first_node_in_group("player")
 	check(world != null and player != null, "mundo e jogador carregados")
 	# confere o kit antes de qualquer combate: slimes podem soltar cajado/arco e o saque é aleatório
-	check(Game.count_item("apprentice_staff") == 1 and Game.count_item("short_bow") == 1, "kit inicial tem cajado e arco")
+	check(Game.char_class == "warrior" and Game.equipment.weapon == "azure_edge", "o teste escolheu guerreiro e começou com a espada")
+	check(Game.count_item("apprentice_staff") == 0 and Game.count_item("short_bow") == 0, "personagem novo não traz cajado nem arco")
+	# o kit das três armas, dado como concessão, para os testes de combate de cada classe de arma
+	Econ.grant(0, 0, {"apprentice_staff": 1, "short_bow": 1}, "test", true)
+	check(Game.count_item("apprentice_staff") == 1 and Game.count_item("short_bow") == 1, "kit de teste tem cajado e arco")
 
 	# --- som posicional: combate longe do jogador não deve ser ouvido
 	check(Sfx.distance_gain(0.0) == 1.0 and Sfx.distance_gain(15.0) < 0.5 and Sfx.distance_gain(Sfx.FAR_DIST + 1.0) == 0.0,
@@ -410,7 +425,7 @@ func _ready() -> void:
 	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
 	# quem testar; resta conferir que há recarga para cada habilidade
 	Game.add_item("short_bow")
-	Game.equip("short_bow")
+	equip_any("short_bow")
 	var lvl_bf: int = Game.level
 	check(Game.weapon_class() == "bow" and player.cooldowns.size() == ItemDB.ABILITIES.size(), "uma recarga por habilidade")
 	# --- arco: botão direito mira (puxa a corda), esquerdo atira; o clique direito não esquiva com arco
@@ -477,7 +492,7 @@ func _ready() -> void:
 	var tt_weapons := ["short_bow", "storm_bow", "goblin_warbow"]
 	var tt_grounded := func() -> bool: return player.is_on_floor()
 	for tt_w in tt_weapons:
-		Game.equip(tt_w)
+		equip_any(tt_w)
 		await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking)
 		for c in tt_fire.call():
 			c.queue_free()
@@ -521,7 +536,7 @@ func _ready() -> void:
 		await wait_until(func(): return player.ability == "")
 		check(player.cooldowns.bow_triple > 0.0 and tt_s.hp < tt_hp, "Tiro Triplo fere o slime e entra em recarga (%.0f -> %.0f)" % [tt_hp, tt_s.hp])
 	# esquiva antes do disparo cancela sem gastar flechas (logo no início, ability_t = 0); depois é ignorada
-	Game.equip("short_bow")
+	equip_any("short_bow")
 	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking)
 	Game.stamina = Game.max_stamina()
 	player.global_position = tt_pos
@@ -574,7 +589,7 @@ func _ready() -> void:
 	player.cooldowns.bow_triple = 0.0
 	# --- Flecha Glacial (arco, slot 2): tensão 0,35 s, 1 flecha (dano x1,4, vel 40), prende 1,5 s + lentidão 3 s; chefe só a lentidão
 	Game.level = 3
-	Game.equip("short_bow")
+	equip_any("short_bow")
 	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking)
 	var fg_boss0: bool = tt_s.is_boss
 	tt_s.global_position = tt_s.home
@@ -660,9 +675,9 @@ func _ready() -> void:
 	tt_s.global_position = tt_s.home
 	player.global_position = tt_pos
 	player.velocity = Vector3.ZERO
-	Game.equip(kit_weapon)
+	equip_any(kit_weapon)
 	player.cooldowns.sword_charge = 3.0   # para conferir que a recarga atravessa a troca de arma
-	Game.equip("apprentice_staff")
+	equip_any("apprentice_staff")
 	await wait(0.1)
 	check(Game.ability_kit() == ["fireball", "frost_nova", "heal", "meteor_rain"], "trocar de arma troca o kit")
 	check(player.cooldowns.sword_charge > 2.5, "recarga continua depois de trocar de arma")
@@ -779,7 +794,7 @@ func _ready() -> void:
 	check(player.cooldowns.heal == 0.0, "cura bloqueada no nível 1")
 	player.use_slot(2)   # Nova Gélida (nível 3) bloqueada no nível 1
 	check(player.cooldowns.frost_nova == 0.0, "slot 2 respeita o nível")
-	Game.equip(kit_weapon)   # restaura a arma inicial
+	equip_any(kit_weapon)   # restaura a arma inicial
 
 	# --- completar missão e subir de nível
 	for i in 4:
@@ -898,7 +913,7 @@ func _test_bow_gale() -> void:
 	var yaw0: float = player.cam_yaw.rotation.y
 	var spring0: float = player.spring.spring_length
 	var fov0: float = player.camera.fov
-	Game.equip("short_bow")
+	equip_any("short_bow")
 	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking and player.ability == "")
 	# 4 slimes (os mais perto): 3 na linha da mira a 5/10/15 m e 1 a 6 m do lado da linha
 	var gs: Array = []
@@ -1067,12 +1082,12 @@ func _test_bow_gale() -> void:
 	player.use_slot(4)
 	await wait(0.3)
 	check(player.ability == "bow_gale", "Vendaval: tensionando antes de trocar de arma")
-	Game.equip("apprentice_staff")   # outra classe: Game.kit_changed -> end_ability
+	equip_any("apprentice_staff")   # outra classe: Game.kit_changed -> end_ability
 	await wait(0.1)
 	check(player.ability == "" and player.cam_back == 0.0 and absf(player.camera.fov - fov0) < 0.01, "Vendaval: trocar de arma na tensão encerra")
 	await wait(1.3)
 	check(hps.call() == h0, "Vendaval: trocar de arma na tensão não dispara")
-	Game.equip("short_bow")
+	equip_any("short_bow")
 	await wait(0.1)
 
 	# --- 6) réplica: "bow_gale" toca a tensão sem dano; "bow_gale_fire" toca o disparo e a linha, sem dano nem hit stop
@@ -1115,7 +1130,7 @@ func _test_bow_gale() -> void:
 	player.global_position = pos0
 	player.velocity = Vector3.ZERO
 	player.cooldowns.bow_gale = 0.0
-	Game.equip(weapon0)
+	equip_any(weapon0)
 	Game.fury = fury0
 	Game.level = lvl0
 	await wait(0.1)
@@ -1130,7 +1145,7 @@ func _test_meteor_rain() -> void:
 	var yaw0: float = player.cam_yaw.rotation.y
 	var pitch0: float = player.cam_pitch.rotation.x
 	var spring0: float = player.spring.spring_length
-	Game.equip("apprentice_staff")
+	equip_any("apprentice_staff")
 	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking and player.ability == "")
 	var gs: Array = []
 	for e in get_tree().get_nodes_in_group("enemies"):
@@ -1482,7 +1497,7 @@ func _test_meteor_rain() -> void:
 	player.velocity = Vector3.ZERO
 	player.invuln = 0.0
 	player.cooldowns.meteor_rain = 0.0
-	Game.equip(weapon0)
+	equip_any(weapon0)
 	Game.fury = fury0
 	Game.level = lvl0
 	await wait(0.3)
@@ -1795,18 +1810,18 @@ func _test_enchant() -> void:
 	var other := "short_bow" if wid != "short_bow" else "apprentice_staff"
 	if Game.count_item(other) == 0:
 		Econ.grant(0, 0, {other: 1}, "teste", true)
-	Econ.request("equip", [other])
+	equip_any(other)
 	await wait(0.3)
 	check(ItemDB.get_item(other).name in eui.status_text(), "painel acompanha a troca de arma")
 	check(eui.cost_rows()[0].need == 50, "arma nova: custo do +1")
-	Econ.request("equip", [wid])
+	equip_any(wid)
 	await wait(0.3)
 	check(Game.weapon_enchant() == {"el": "fogo", "lv": 2}, "voltar à arma traz o encanto de volta")
 	# sem arma equipada
 	Econ.request("unequip", ["weapon"])
 	await wait(0.3)
 	check("Equipe uma arma" in eui.status_text() and eui.enchant_button.disabled, "sem arma: painel pede para equipar")
-	Econ.request("equip", [wid])
+	equip_any(wid)
 	await wait(0.3)
 	# servidor antigo, sem a tabela
 	var keep: Dictionary = Balance.tables.to_dict()
@@ -1914,13 +1929,13 @@ func _test_enchant_effects() -> void:
 	# arma sem encanto: nenhum efeito
 	var other := "short_bow" if Game.equipment.weapon != "short_bow" else "apprentice_staff"
 	var wid: String = Game.equipment.weapon
-	Econ.request("equip", [other])
+	equip_any(other)
 	await wait(0.1)
 	a.slow_timer = 0.0
 	Game.hp = 50.0
 	EnchantHit.on_hit(a, 100.0)
 	check(Game.weapon_effect().is_empty() and Game.hp <= 50.0 and a.slow_timer == 0.0, "arma sem encanto não tem efeito")
-	Econ.request("equip", [wid])
+	equip_any(wid)
 	await wait(0.1)
 	a.queue_free()
 	Game.hp = Game.max_hp()
@@ -2574,7 +2589,7 @@ func _test_gear() -> void:
 
 	# cajado: ataque básico dispara projétil arcano
 	var dmg_sword := Game.melee_damage()
-	Game.equip("apprentice_staff")
+	equip_any("apprentice_staff")
 	check(Game.equipment.weapon == "apprentice_staff", "equipou cajado")
 	await wait(0.05)
 	check(Game.weapon_class() == "staff" and player.look["class"] == "staff", "classe da arma: cajado")
@@ -2590,7 +2605,7 @@ func _test_gear() -> void:
 	await wait(0.5)
 
 	# arco: tensionar e soltar
-	Game.equip("short_bow")
+	equip_any("short_bow")
 	check(Game.equipment.weapon == "short_bow", "equipou arco")
 	await wait(0.05)
 	check(player.look["class"] == "bow" and player.look.arrow != null, "classe da arma: arco (com flecha encaixável)")
@@ -2613,17 +2628,17 @@ func _test_gear() -> void:
 			refused[0] = err
 	var shields0 := Game.count_item("wooden_shield")   # o Doran também dá um, na história
 	Econ.result.connect(on_res)
-	Game.equip("wooden_shield")
+	equip_any("wooden_shield")
 	Econ.result.disconnect(on_res)
 	check(refused[0] == "exige_classe" and Game.equipment.offhand == "", "escudo recusado com arco (%s)" % refused[0])
-	Game.equip("iron_sword")
-	Game.equip("wooden_shield")
+	equip_any("iron_sword")
+	equip_any("wooden_shield")
 	check(Game.equipment.offhand == "wooden_shield", "escudo equipado com espada")
 	var shield_mesh := player.model.find_child("Shield", true, false) as MeshInstance3D
 	check(shield_mesh == null or shield_mesh.visible, "escudo aparece no modelo")
-	Game.equip("apprentice_staff")
+	equip_any("apprentice_staff")
 	check(Game.equipment.offhand == "" and Game.count_item("wooden_shield") == shields0, "trocar para cajado guarda o escudo")
-	Game.equip("iron_sword")
+	equip_any("iron_sword")
 	check(is_equal_approx(Game.melee_damage(), dmg_sword), "dano da espada volta ao trocar de volta")
 
 	# armaduras: defesa e bônus somam
@@ -2633,9 +2648,9 @@ func _test_gear() -> void:
 	Game.add_item("life_amulet", 1, true)
 	var prev := Game.preview_equip("life_amulet")
 	check(prev.get("hp", 0.0) > 0.0, "comparação prevê +vida do amuleto (%+.0f)" % prev.get("hp", 0.0))
-	Game.equip("leather_cap")
-	Game.equip("leather_boots")
-	Game.equip("life_amulet")
+	equip_any("leather_cap")
+	equip_any("leather_boots")
+	equip_any("life_amulet")
 	check(Game.defense() > def0, "capuz e botas aumentam a defesa (%.1f -> %.1f)" % [def0, Game.defense()])
 	check(Game.max_hp() > hp0 and Game.attr("vit") == Game.attributes.vit + 1, "amuleto dá vida e vitalidade")
 	check(Game.speed_multiplier() > 1.0, "botas dão velocidade")

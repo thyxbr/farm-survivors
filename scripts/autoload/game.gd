@@ -918,6 +918,39 @@ func harvest(i: int) -> void:
 	Econ.request("harvest", [i])
 
 
+# ================================================================ classe (atalho dos testes e demos)
+## Personagem sem classe: o servidor recusa tudo até a escolha (a tela de criação é a de verdade).
+## Testes e demos pulam a tela: `--class=<id>` e `--body=m|f` escolhem; sem eles, --smoketest, --vilatest,
+## --nettest= e as demos (--farmdemo/--geardemo/--enchantdemo/--weapon=) pedem guerreiro/m (ou a classe da
+## arma de `--weapon=`). Chamado por Econ logo depois de carregar o personagem inteiro (solo ou servidor).
+func auto_choose_class() -> void:
+	if char_class != "":
+		return
+	var cls := ""
+	var bd := "m"
+	var harness := false
+	var weapon := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--class="):
+			cls = a.substr(8)
+		elif a.begins_with("--body="):
+			bd = a.substr(7)
+		elif a.begins_with("--weapon="):
+			weapon = a.substr(9)
+			harness = true
+		elif a in ["--smoketest", "--vilatest", "--farmdemo", "--geardemo", "--enchantdemo"] or a.begins_with("--nettest="):
+			harness = true
+	if cls == "" and weapon != "":
+		var wc := CharRules.weapon_class(Balance.tables, weapon)
+		for id in CharRules.CLASS_IDS:
+			if CharRules.class_weapon(Balance.tables, id) == wc:
+				cls = id
+	if cls == "" and harness:
+		cls = "warrior"
+	if cls != "":
+		Econ.request("choose_class", [cls, bd])
+
+
 # ================================================================ espelho
 ## Estado vindo do CharacterService (solo ou servidor). `full` = também vida, mana e posição
 ## (carga do personagem); senão o combate continua dono de vida/mana e só o teto do máximo é ajustado.

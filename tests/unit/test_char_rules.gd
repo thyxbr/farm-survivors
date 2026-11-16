@@ -43,10 +43,10 @@ func test_new_character_matches_new_game() -> void:
 	T.eq(s.level, 1, "nível")
 	T.eq(s.gold, 25, "ouro inicial")
 	T.eq(s.attributes, {"str": 5, "int": 5, "vit": 5, "agi": 5}, "atributos")
-	T.eq(s.equipment.weapon, "azure_edge", "arma inicial")
+	T.eq(s.equipment.weapon, "", "sem arma até escolher a classe")
+	T.eq(s.char_class, "", "sem classe")
 	T.eq(_count(s, "health_potion"), 3, "poções")
 	T.eq(_count(s, "seed_wheat"), 4, "sementes de trigo")
-	T.eq(_count(s, "short_bow"), 1, "arco")
 	T.eq(s.farm.unlocked, 6, "canteiros abertos")
 	T.eq(s.farm.plots.size(), 12, "canteiros")
 	T.eq(s.hp, 110.0, "vida cheia do nível 1")
@@ -122,6 +122,7 @@ func test_equip_offhand_needs_class() -> void:
 func test_equip_swaps_back_to_bag() -> void:
 	var bt := _tables()
 	var s := _blank()
+	CharRules.choose_class(s, bt, "warrior", "m")
 	s.inventory = [{"id": "iron_sword", "qty": 1}]
 	var r := CharRules.equip(s, bt, "iron_sword")
 	T.ok(r.ok, "equipa")
@@ -139,13 +140,17 @@ func test_equip_swaps_back_to_bag() -> void:
 func test_weapon_change_returns_offhand() -> void:
 	var bt := _tables()
 	var s := _blank()
-	s.inventory = [{"id": "knight_shield", "qty": 1}, {"id": "apprentice_staff", "qty": 1}]
+	CharRules.choose_class(s, bt, "warrior", "m")
+	s.inventory = [{"id": "knight_shield", "qty": 1}]
 	CharRules.equip(s, bt, "knight_shield")
-	var r := CharRules.equip(s, bt, "apprentice_staff")
-	T.ok(r.ok, "troca para cajado")
-	T.eq(s.equipment.offhand, "", "escudo sai da mão")
-	T.eq(_count(s, "knight_shield"), 1, "escudo na mochila")
-	T.eq(r.events[0].text, "Escudo do Cavaleiro guardado (exige espada).", "aviso do escudo")
+	T.eq(s.equipment.offhand, "knight_shield", "escudo equipado")
+	# a classe é fixa: o escudo só volta para a mochila na escolha da classe de um personagem que o tinha
+	var s2 := _blank()
+	s2.equipment.offhand = "knight_shield"
+	var r := CharRules.choose_class(s2, bt, "mage", "m")
+	T.ok(r.ok, "escolheu mago")
+	T.eq(s2.equipment.offhand, "", "escudo sai da mão")
+	T.eq(_count(s2, "knight_shield"), 1, "escudo na mochila")
 
 
 # ---------------------------------------------------------------- consumo e cozinha
@@ -658,3 +663,68 @@ func test_scepters_one_per_rarity() -> void:
 			T.ok(str(id).begins_with("sc_"), id)
 			seen[it.rarity] = true
 	T.eq(seen.size(), 5)
+
+
+# ---------------------------------------------------------------- classe
+func test_choose_class_new_char_gets_starter() -> void:
+	var s := _blank()
+	var r := CharRules.choose_class(s, _tables(), "healer", "f")
+	T.ok(r.ok, "escolheu")
+	T.eq(s.char_class, "healer", "classe")
+	T.eq(s.body, "f", "corpo")
+	T.eq(s.equipment.weapon, "sc_novice_scepter", "cetro inicial")
+
+
+func test_choose_class_only_once() -> void:
+	var s := _blank()
+	CharRules.choose_class(s, _tables(), "mage", "m")
+	T.ok(not CharRules.choose_class(s, _tables(), "warrior", "m").ok, "só uma vez")
+	T.eq(s.char_class, "mage", "continua mago")
+
+
+func test_choose_class_invalid() -> void:
+	var s := _blank()
+	T.ok(not CharRules.choose_class(s, _tables(), "ninja", "m").ok, "classe inválida")
+	T.ok(not CharRules.choose_class(s, _tables(), "mage", "x").ok, "corpo inválido")
+	T.eq(s.char_class, "", "nada gravado")
+
+
+func test_choose_class_keeps_matching_weapon() -> void:
+	var s := _blank()
+	s.equipment.weapon = "oak_staff"
+	CharRules.choose_class(s, _tables(), "mage", "m")
+	T.eq(s.equipment.weapon, "oak_staff", "arma da classe fica")
+
+
+func test_choose_class_equips_best_owned() -> void:
+	var s := _blank()
+	s.equipment.weapon = "azure_edge"
+	CharRules.add_item(s, _tables(), "apprentice_staff", 1)
+	CharRules.add_item(s, _tables(), "archmage_staff", 1)
+	CharRules.choose_class(s, _tables(), "mage", "m")
+	T.eq(s.equipment.weapon, "archmage_staff", "melhor cajado")
+	T.eq(_count(s, "azure_edge"), 1, "espada antiga volta para a mochila")
+	T.eq(_count(s, "apprentice_staff"), 1, "cajado menor fica na mochila")
+
+
+func test_equip_other_class_refused() -> void:
+	var s := _blank()
+	CharRules.choose_class(s, _tables(), "warrior", "m")
+	CharRules.add_item(s, _tables(), "short_bow", 1)
+	var r := CharRules.equip(s, _tables(), "short_bow")
+	T.ok(not r.ok, "arco recusado")
+	T.eq(r.err, "exige_classe", "erro")
+	T.eq(s.equipment.weapon, "azure_edge", "arma intacta")
+
+
+func test_equip_weapon_without_class_refused() -> void:
+	var s := _blank()
+	CharRules.add_item(s, _tables(), "short_bow", 1)
+	T.eq(CharRules.equip(s, _tables(), "short_bow").err, "exige_classe", "sem classe não equipa arma")
+
+
+func test_new_character_has_no_weapon() -> void:
+	var s := CharState.new_character(_tables())
+	T.eq(s.equipment.weapon, "", "sem arma")
+	T.eq(_count(s, "short_bow"), 0, "sem arco")
+	T.eq(_count(s, "apprentice_staff"), 0, "sem cajado")
