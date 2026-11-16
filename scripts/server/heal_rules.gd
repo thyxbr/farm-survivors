@@ -14,9 +14,9 @@ const MAX_BUFF_SECS := 60.0
 ## Buff que cada habilidade de aliados dá (o servidor nunca aceita um id de buff do cliente).
 const ALLY_BUFFS := {"scepter_ward": "scepter_ward", "scepter_ult": "scepter_feast"}
 ## Intervalo mínimo por habilidade = recarga x 0,4 (cooldown_mult mínimo) - 0,2 de folga para o jitter.
-## A ultimate não tem recarga: quem limita é a fúria, no cliente; o servidor não vê a fúria e só impõe
-## um piso (45 s): ainda bem abaixo do tempo legítimo de encher a fúria, mas limita um cliente modificado.
-const INTERVALS := {"heal": MIN_INTERVAL, "scepter_ward": 8.6, "scepter_ult": 45.0}
+## O servidor não vê a fúria: a recarga da ultimate no cliente é de pelo menos a duração do Banquete + 4 s (>= 16 s).
+## O piso do servidor (14,5 s) fica um pouco abaixo disso (margem para o jitter) e só barra spam.
+const INTERVALS := {"heal": MIN_INTERVAL, "scepter_ward": 8.6, "scepter_ult": 14.5}
 
 
 ## Quem recebe a cura do `caster`: ele mesmo sempre e os de `zone_peers` a até RADIUS + `bonus` m dele.
