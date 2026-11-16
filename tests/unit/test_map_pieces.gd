@@ -27,3 +27,12 @@ func test_decor_kinds() -> void:
 	for k in ["xmas_tree", "snowman", "sleigh", "candy_cane", "gifts", "light_string", "lamp_garland", "wreath",
 			"wagon", "scarecrow", "crops", "label", "forge_fire"]:
 		T.ok(k in MapDecor.KINDS, "enfeite %s na lista" % k)
+
+
+## Trocar o modelo põe a colisão padrão só quando a pessoa troca no editor; ao carregar a cena (nó ainda não
+## pronto), a colisão salva fica como está (senão as árvores sem colisão ganhariam uma ao salvar).
+func test_default_shape_only_on_interactive_change() -> void:
+	T.ok(MapProp.applies_default_shape(true, true, true), "troca no editor com a cena aberta: põe a colisão padrão")
+	T.ok(not MapProp.applies_default_shape(true, true, false), "carregando a cena: não mexe na colisão salva")
+	T.ok(not MapProp.applies_default_shape(true, false, true), "no jogo: nunca")
+	T.ok(not MapProp.applies_default_shape(false, true, true), "mesmo modelo: nada")

@@ -52,6 +52,16 @@ static func spread(center: Vector3, count: int, radius: float) -> Array[Vector3]
 		out.append(center + Vector3(cos(a) * r, 0.0, sin(a) * r))
 	return out
 
+## Como spread(), mas cada ponto assentado no chão (`height`, coordenadas do mapa) com a mesma distância
+## (`offset`) do centro: numa encosta os monstros não nascem dentro do morro. Sem chão: y = offset.
+static func spread_on_ground(center: Vector3, count: int, radius: float, offset: float, height: Callable) -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	for p in spread(center, count, radius):
+		p.y = MapPreview.ground_y(true, offset, height, p.x, p.z)
+		out.append(p)
+	return out
+
+
 const SPAWN_COLOR := Color(1.0, 0.25, 0.2)
 
 var _height := Callable()

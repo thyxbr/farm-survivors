@@ -55,15 +55,41 @@ static func local_xform(root: Node, n: Node3D) -> Transform3D:
 	return xf
 
 
-## Posição global de um landmark (origem da região + posição na cena); zero se não existe.
+## Posição de uma peça no espaço do mapa como o jogo põe: com follow_ground (e sem estar dentro de outra
+## peça), a altura salva é a distância até o chão do mapa (o mesmo relevo do MapLoader e da prévia).
+static func settled(root: Node, n: Node3D, ground: Node3D) -> Vector3:
+	var p := local_xform(root, n).origin
+	if ground == null or not n.get("follow_ground"):
+		return p
+	var up := n.get_parent()
+	while up != null and up != root:
+		if up.has_method("build_preview"):
+			return p   # vai junto com a peça de fora
+		up = up.get_parent()
+	p.y = MapPreview.ground_y(true, p.y, Callable(ground, "height_at"), p.x, p.z)
+	return p
+
+
+## Chão do mapa só para consultar a altura (sem malha nem colisão); null se o mapa não usa o chão de
+## Valdoria. Quem chama libera.
+static func ground_of(root: Node) -> Node3D:
+	if root is MapRoot and (root as MapRoot).has_ground:
+		return (root as MapRoot).make_ground()
+	return null
+
+
+## Posição global de um landmark (origem da região + posição na cena, assentada no relevo); zero se não existe.
 static func landmark(map_id: String, id: String) -> Vector3:
 	if not _landmarks.has(map_id):
 		var found := {}
 		var root := load_root(map_id)
 		if root != null:
+			var g := ground_of(root)
 			for n in root.find_children("*", "Node3D", true, false):
 				if n is MapLandmark:
-					found[n.id] = local_xform(root, n).origin
+					found[n.id] = settled(root, n, g)
+			if g != null:
+				g.free()
 			root.free()
 		_landmarks[map_id] = found
 	if not _landmarks[map_id].has(id):
@@ -71,7 +97,7 @@ static func landmark(map_id: String, id: String) -> Vector3:
 	return origin(map_id) + _landmarks[map_id][id]
 
 
-## Nós de coleta de todos os mapas: node_id -> {"kind": tipo do veio, "pos": posição global no chão (y = 0)}.
+## Nós de coleta de todos os mapas: node_id -> {"kind": tipo do veio, "pos": posição global (no relevo)}.
 static func resource_nodes() -> Dictionary:
 	if _resource_nodes == null:
 		var out := {}
@@ -79,10 +105,12 @@ static func resource_nodes() -> Dictionary:
 			var root := load_root(map_id)
 			if root == null:
 				continue
+			var g := ground_of(root)
 			for n in root.find_children("*", "Node3D", true, false):
 				if n is MapEntity and n.kind == "resource_node" and n.node_id >= 0:
-					var p: Vector3 = origin(map_id) + local_xform(root, n).origin
-					out[n.node_id] = {"kind": n.ref, "pos": Vector3(p.x, 0.0, p.z)}
+					out[n.node_id] = {"kind": n.ref, "pos": origin(map_id) + settled(root, n, g)}
+			if g != null:
+				g.free()
 			root.free()
 		_resource_nodes = out
 	return _resource_nodes

@@ -60,3 +60,33 @@ func test_enemy_kinds() -> void:
 	var kinds := MapData.enemy_kinds()
 	for k in ["slime", "goblin", "lich"]:
 		T.ok(k in kinds, "tipo %s vem do enemies.json" % k)
+
+
+## Lugares e veios com follow_ground ficam no relevo também nas leituras sem o mundo (viagem, coleta no
+## servidor), igual ao editor e ao jogo.
+func test_reads_follow_the_relief() -> void:
+	MapData.scene_override = {"mina": "res://tests/unit/fixtures/map_hill_fixture.tscn",
+		"vila": "res://tests/unit/fixtures/map_root_fixture.tscn", "bosque": "res://tests/unit/fixtures/map_root_fixture.tscn",
+		"pico": "res://tests/unit/fixtures/map_root_fixture.tscn", "arena": "res://tests/unit/fixtures/map_root_fixture.tscn"}
+	MapData.clear_cache()
+	var o := Regions.origin("mina")
+	var arrive := MapData.landmark("mina", "arrive")
+	T.ok(arrive.y > 5.0, "chegada no alto do morro, não dentro dele (y %.2f)" % arrive.y)
+	T.eq(MapData.landmark("mina", "fixo"), o + Vector3(1, 0.3, 1), "sem follow_ground: altura da cena")
+	var vein: Dictionary = MapData.resource_nodes().get(5, {})
+	T.ok(not vein.is_empty() and vein.pos.y > 5.0, "veio no alto do morro (%s)" % str(vein.get("pos")))
+	T.ok(not vein.is_empty() and is_equal_approx(vein.pos.y, arrive.y - 0.3), "veio e chegada no mesmo chão")
+	MapData.scene_override = {}
+	MapData.clear_cache()
+
+
+## Monstros de um ponto com raio nascem cada um no chão do lugar onde caem (encosta), não na altura do centro.
+func test_spread_on_ground() -> void:
+	var slope := func(x: float, _z: float) -> float: return x * 0.5
+	var pts := EnemySpawn.spread_on_ground(Vector3(0, 0, 0), 5, 8.0, 0.0, slope)
+	T.eq(pts.size(), 5, "5 pontos")
+	for p in pts:
+		T.ok(is_equal_approx(p.y, p.x * 0.5), "ponto %s no chão da encosta" % str(p))
+	var flat := EnemySpawn.spread_on_ground(Vector3(2, 0, 3), 3, 4.0, 0.2, Callable())
+	for p in flat:
+		T.ok(is_equal_approx(p.y, 0.2), "sem chão: fica na distância salva")

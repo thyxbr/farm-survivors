@@ -1,0 +1,35 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/map/map_root.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/map/map_mountain.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/map/map_landmark.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/map/map_entity.gd" id="4"]
+
+[node name="Morro" type="Node3D"]
+script = ExtResource("1")
+map_id = "mina"
+half = 70.0
+border_height = 0.0
+
+[node name="Pico" type="Node3D" parent="."]
+script = ExtResource("2")
+radius = 20.0
+height = 12.0
+
+[node name="Chegada" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.3, 1)
+script = ExtResource("3")
+id = "arrive"
+
+[node name="Fixo" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.3, 1)
+script = ExtResource("3")
+id = "fixo"
+follow_ground = false
+
+[node name="Cristal" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1)
+script = ExtResource("4")
+kind = "resource_node"
+ref = "crystal"
+node_id = 5

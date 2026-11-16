@@ -36,7 +36,7 @@ const COLLIDER_COLOR := Color(0.2, 0.6, 1.0, 0.25)
 	set(v):
 		var changed := v != model
 		model = v
-		if changed and Engine.is_editor_hint() and DEFAULT_SHAPE.has(v):
+		if applies_default_shape(changed, Engine.is_editor_hint(), is_node_ready()) and DEFAULT_SHAPE.has(v):
 			shape = DEFAULT_SHAPE[v][0]
 			shape_size = DEFAULT_SHAPE[v][1]
 		_refresh()
@@ -74,6 +74,13 @@ func apply_tint(inst: Node) -> void:
 		mi.material_override = m
 	if inst is MeshInstance3D:
 		(inst as MeshInstance3D).material_override = m
+
+
+## A colisão padrão entra só quando a pessoa troca o modelo no editor com a cena aberta (nó pronto). Ao
+## carregar a cena o Godot aplica o modelo salvo por cima do padrão ("rock"); isso não pode apagar a colisão
+## salva (ex.: árvores sem colisão, cuja forma "Nenhuma" nem vai para o arquivo).
+static func applies_default_shape(changed: bool, editor: bool, ready: bool) -> bool:
+	return changed and editor and ready
 
 
 static func model_path(m: String) -> String:

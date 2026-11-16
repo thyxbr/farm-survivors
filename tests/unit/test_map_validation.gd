@@ -36,6 +36,7 @@ func test_broken_map_is_reported() -> void:
 	T.ok("landmark" in text and "camp" in text, "landmark obrigatório faltando")
 	T.ok("fora do mapa" in text, "peça fora do mapa")
 	T.ok("mithril" in text, "veio de tipo que não existe")
+	T.ok("half" in text, "meia largura diferente da do Regions (o minimapa e as regiões usam a do Regions)")
 	var twice := MapValidation.check_all([r, _root(BROKEN)])
 	T.ok(twice.size() > 0 and "node_id 7" in "\n".join(twice), "o mesmo node_id em dois lugares")
 	r.free()

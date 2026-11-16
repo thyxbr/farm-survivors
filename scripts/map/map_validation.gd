@@ -25,6 +25,9 @@ static func check(root: MapRoot) -> PackedStringArray:
 			out.append("%s: quantidade e raio não podem ser negativos" % at)
 		if s.respawn <= 0.0:
 			out.append("%s: respawn precisa ser maior que 0 (veio %.1f)" % [at, s.respawn])
+	if Regions.DATA.has(root.map_id) and not is_equal_approx(root.half, float(Regions.DATA[root.map_id].half)):
+		out.append("half %.0f diferente do Regions.DATA (%.0f): o minimapa e a detecção de região usam o do Regions"
+			% [root.half, float(Regions.DATA[root.map_id].half)])
 	var paints := root.pieces(MapGroundPaint).size()
 	if paints > MAX_PAINTS:
 		out.append("%d formas pintadas no chão (o máximo é %d; as de sobra não aparecem)" % [paints, MAX_PAINTS])
