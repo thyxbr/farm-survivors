@@ -745,6 +745,16 @@ func reset_talents() -> void:
 	Econ.request("reset_talents")
 
 
+## Aviso único da migração da progressão (flags.prog_notice): devolve true uma vez e pede ao
+## servidor/solo que limpe a marca. O espelho limpa já, para não repetir antes da resposta.
+func take_prog_notice() -> bool:
+	if not flags.get("prog_notice", false):
+		return false
+	flags.erase("prog_notice")
+	Econ.request("ack_prog_notice")
+	return true
+
+
 ## Pontos de talento livres no espelho: 1 por nível a partir do 2, menos os gastos (CharRules.talent_points).
 func talent_points() -> int:
 	var spent := 0

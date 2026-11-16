@@ -465,3 +465,32 @@ func test_character_names() -> void:
 	T.ok(svc.delete_character(2, a.id), "excluiu")
 	T.ok(svc.create_character(3, "Aldric", "mage", "f").ok, "nome livre de novo depois de excluir")
 	db.close()
+
+
+func test_load_migrates_and_saves() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	var s := svc.load_or_create(2)
+	T.eq(int(s.flags.get("prog_v", 0)), 1, "personagem novo já nasce na versão")
+	# vira um save antigo: sem prog_v, nível 18 e atributos gastos
+	s.level = 18
+	s.flags.erase("prog_v")
+	s.flags["rank"] = "C"
+	s.attributes = {"str": 56, "int": 5, "vit": 5, "agi": 5}
+	s.stat_points = 0
+	T.ok(svc.save(2), "gravou o save antigo")
+	var svc2 := CharacterService.new(SqliteCharStore.new(db), _tables())
+	var m := svc2.load_or_create(2)
+	T.eq(m.attributes["str"], 5, "migrado ao carregar")
+	T.eq(m.stat_points, 17 * 3 + 3, "pontos devolvidos")
+	T.ok(m.flags.get("prog_notice", false), "aviso pendente")
+	var svc3 := CharacterService.new(SqliteCharStore.new(db), _tables())
+	var again := svc3.load_or_create(2)
+	T.eq(again.attributes["str"], 5, "o banco também está migrado")
+	T.eq(again.stat_points, 17 * 3 + 3, "pontos gravados")
+	# o cliente confirma o aviso (mesmo sem classe escolhida) e o servidor grava
+	T.ok(svc3.apply(2, "ack_prog_notice", []).ok, "confirma o aviso")
+	var svc4 := CharacterService.new(SqliteCharStore.new(db), _tables())
+	T.ok(not svc4.load_or_create(2).flags.has("prog_notice"), "aviso limpo no banco")
+	T.ok(not svc4.apply(2, "ack_prog_notice", [1]).ok, "argumentos de fora são recusados")
+	db.close()

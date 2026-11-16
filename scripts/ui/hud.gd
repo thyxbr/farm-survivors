@@ -112,6 +112,7 @@ func _ready() -> void:
 	Game.notify.connect(_on_notify)
 	Game.item_looted.connect(_on_loot)
 	Game.stats_changed.connect(_refresh_static)
+	Game.stats_changed.connect(_check_prog_notice)
 	Game.inventory_changed.connect(_refresh_static)
 	Game.kit_changed.connect(_refresh_kit)
 	Game.quests_changed.connect(_refresh_quests)
@@ -119,6 +120,7 @@ func _ready() -> void:
 	Game.inventory_changed.connect(_refresh_quests)   # coleta: o progresso vem da mochila
 	_refresh_static()
 	_refresh_quests()
+	_check_prog_notice()
 
 
 ## Minimapa no canto superior direito (Valdoria); a estação e as missões descem para baixo dele.
@@ -700,6 +702,12 @@ func _update_compass() -> void:
 		_compass_label.text = "carruagem → %s · %d m" % [_compass_far, int(dist)]
 	else:
 		_compass_label.text = "aqui" if dist < 4.0 else "%d m" % int(dist)
+
+
+## Personagem migrado para a progressão por nível: avisa uma vez que os pontos voltaram.
+func _check_prog_notice() -> void:
+	if Game.take_prog_notice():
+		_on_notify("Seus pontos de atributo foram devolvidos: a progressão mudou. Distribua de novo na ficha (C).", Color(1.0, 0.85, 0.3))
 
 
 func _on_notify(text: String, color: Color) -> void:

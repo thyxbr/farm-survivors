@@ -1203,3 +1203,80 @@ func test_talent_ally_radius_and_ability_time() -> void:
 	var m := CharRules.talent_mods(bt, s)
 	T.eq(float(m.get("ally_radius", 0.0)), 2.0, "h_grace 2 = +2 m")
 	T.eq(float(m.get("ability_time:scepter_ward", 0.0)), 2.0, "h_ward 1 = +2 s")
+
+
+# ================================================================ migração da progressão
+## Personagem de antes da progressão por nível (sem prog_v).
+func _old_char(level: int, rank: String) -> CharState:
+	var s := _blank()
+	s.level = level
+	s.flags.erase("prog_v")
+	s.flags["rank"] = rank
+	return s
+
+
+func test_migrate_refunds_points() -> void:
+	var bt := _tables()
+	var s := _old_char(18, "C")
+	s.attributes = {"str": 56, "int": 5, "vit": 5, "agi": 5}
+	s.stat_points = 0
+	T.ok(CharRules.migrate_progression(s, bt), "mudou")
+	for k in ["str", "int", "vit", "agi"]:
+		T.eq(s.attributes[k], 5, "atributo %s volta a 5" % k)
+	var pts := int(bt.get_table("rules").get("points_per_level", 3))
+	var rank_pts := 0
+	var ranks := CharRules.ranks(bt)
+	for i in CharRules.rank_index(bt, "C") + 1:
+		rank_pts += int(ranks[i].get("stat_points", 0))
+	T.eq(s.stat_points, 17 * pts + rank_pts, "pontos de nível + rank")
+	T.eq(s.stat_points, 17 * 3 + 3, "17 níveis x 3 + 3 do Rank C")
+	T.ok(s.flags.get("prog_notice", false), "aviso marcado")
+	T.eq(int(s.flags.prog_v), CharRules.PROG_VERSION, "versão gravada")
+
+
+func test_migrate_clamps_xp() -> void:
+	var bt := _tables()
+	var s := _old_char(5, "D")
+	s.xp = 999999999
+	CharRules.migrate_progression(s, bt)
+	T.eq(s.xp, CharRules.xp_to_next(5, bt) - 1, "xp limitado ao que falta para subir")
+	var m := _old_char(ProgressionRules.max_level(bt), "D")
+	m.xp = 500
+	CharRules.migrate_progression(m, bt)
+	T.eq(m.xp, 0, "nível máximo: xp 0")
+
+
+func test_migrate_keeps_gear_above_level() -> void:
+	var bt := _tables()
+	var s := _old_char(3, "D")
+	s.equipment["weapon"] = "dragonfang"
+	CharRules.migrate_progression(s, bt)
+	T.eq(s.equipment["weapon"], "dragonfang", "continua equipado")
+	var s2 := CharState.from_dict(s.to_dict(), bt)
+	T.eq(s2.equipment["weapon"], "dragonfang", "continua equipado depois de salvar e ler")
+
+
+func test_migrate_runs_once() -> void:
+	var bt := _tables()
+	var s := _old_char(10, "D")
+	T.ok(CharRules.migrate_progression(s, bt), "primeira vez")
+	s.stat_points -= 1
+	s.attributes["str"] += 1
+	var left := s.stat_points
+	T.ok(not CharRules.migrate_progression(s, bt), "segunda vez não muda")
+	T.eq(s.stat_points, left, "ponto gasto continua gasto")
+	T.eq(s.attributes["str"], 6, "atributo continua")
+
+
+func test_new_character_needs_no_migration() -> void:
+	var bt := _tables()
+	var s := CharState.new_character(bt)
+	T.ok(not CharRules.migrate_progression(s, bt), "novo não migra")
+	T.ok(not s.flags.get("prog_notice", false), "sem aviso")
+
+
+func test_ack_prog_notice() -> void:
+	var s := _blank()
+	s.flags["prog_notice"] = true
+	T.ok(CharRules.ack_prog_notice(s).ok, "limpa")
+	T.ok(not s.flags.has("prog_notice"), "aviso some")

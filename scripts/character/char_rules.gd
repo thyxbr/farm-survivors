@@ -209,6 +209,37 @@ static func _inv_less(bt: BalanceTables, a: Dictionary, b: Dictionary) -> bool:
 	return str(_item(bt, a.id).get("name", a.id)) < str(_item(bt, b.id).get("name", b.id))
 
 
+# ================================================================ migração da progressão
+## Versão da progressão por nível; vive em flags["prog_v"] (salvo no banco e no arquivo, sem coluna nova).
+const PROG_VERSION := 1
+
+
+## Personagem de antes da progressão por nível (sem prog_v): atributos voltam a 5 e os pontos gastos
+## voltam como livres, para redistribuir (fontes de ponto: níveis e promoções da guilda). XP em excesso é
+## cortado para não pular nível sozinho. Equipamento e talentos não mudam. Devolve true se mudou algo.
+static func migrate_progression(s: CharState, bt: BalanceTables) -> bool:
+	if int(s.flags.get("prog_v", 0)) >= PROG_VERSION:
+		return false
+	var pts := int(_rules(bt).get("points_per_level", 3))
+	var total := (s.level - 1) * pts
+	var all_ranks := ranks(bt)
+	for i in mini(rank_index(bt, rank_of(s)), all_ranks.size() - 1) + 1:
+		total += int(all_ranks[i].get("stat_points", 0))
+	for k in s.attributes:
+		s.attributes[k] = 5
+	s.stat_points = total
+	s.xp = mini(s.xp, maxi(0, xp_to_next(s.level, bt) - 1))
+	s.flags["prog_v"] = PROG_VERSION
+	s.flags["prog_notice"] = true
+	return true
+
+
+## O jogador viu o aviso da migração: tira a marca (o servidor grava).
+static func ack_prog_notice(s: CharState) -> Dictionary:
+	s.flags.erase("prog_notice")
+	return _ok()
+
+
 # ================================================================ XP e ouro
 static func xp_to_next(level: int, bt: BalanceTables) -> int:
 	return ProgressionRules.xp_to_next(bt, level)
