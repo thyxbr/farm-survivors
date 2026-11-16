@@ -656,10 +656,15 @@ func _test_party(w: Node) -> void:
 		var lvl0 := Game.level
 		var target: Enemy = null
 		if my_name == "Ana":
+			# o slime vivo mais perto da chegada da vila (o dos campos, longe dos outros monstros); não depende da
+			# ordem em que os pontos estão na cena do mapa
+			var best := INF
 			for e in Network.enemies.values():
 				if is_instance_valid(e) and e.kind == "slime" and not e.dead:
-					target = e
-					break
+					var d: float = e.global_position.distance_to(Vector3(0, 0, 6))
+					if d < best:
+						best = d
+						target = e
 			check(target != null, "achou um slime para o grupo (%s)" % phase)
 			Network.send_chat("party_target:%d" % (target.net_id if target else 0))
 		var tid := [0]
@@ -696,8 +701,11 @@ func _test_party(w: Node) -> void:
 		check(int(Game.quests.get("espantalho", {}).get("progress", 0)) == prog0 + (1 if counted else 0),
 			"missão %s (%s)" % ["avança" if counted else "não avança de longe", phase])
 		if my_name == "Ana" and phase == "far":
-			check(await _wait_until(func() -> bool: return str(w.hud.party_frames._bars[other].tag.text).begins_with("longe"), 3.0),
-				"HUD avisa que o colega está longe")
+			var far_ok: bool = await _wait_until(func() -> bool: return str(w.hud.party_frames._bars[other].tag.text).begins_with("longe"), 3.0)
+			var rp = Network.remote_players.get(other)
+			check(far_ok, "HUD avisa que o colega está longe (aviso \"%s\", colega em %s, eu em %s)" % [
+				w.hud.party_frames._bars[other].tag.text, str(rp.global_position) if rp != null and is_instance_valid(rp) else "-",
+				str(w.player.global_position)])
 		await _shot_hud(w, phase)
 		await _sync("party_%s_done" % phase)
 	w.player.global_position = Vector3(0, 0.5, 6)

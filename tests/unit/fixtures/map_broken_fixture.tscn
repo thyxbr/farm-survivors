@@ -1,0 +1,153 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/map/map_root.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/map/enemy_spawn.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/map/map_ground_paint.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/map/map_entity.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/map/map_prop.gd" id="5"]
+
+[node name="Quebrado" type="Node3D"]
+script = ExtResource("1")
+map_id = "vila"
+half = 50.0
+
+[node name="Dragao" type="Node3D" parent="."]
+script = ExtResource("2")
+kind = "dragao_imaginario"
+
+[node name="Slime" type="Node3D" parent="."]
+script = ExtResource("2")
+respawn = 0.0
+
+[node name="Veio" type="Node3D" parent="."]
+script = ExtResource("4")
+kind = "resource_node"
+ref = "mithril"
+node_id = 7
+
+[node name="Pedra" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 500, 0, 0)
+script = ExtResource("5")
+
+[node name="Area 0" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 1" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 2" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 3" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 4" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 5" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 6" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 7" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 8" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 9" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 10" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 11" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 12" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 13" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 14" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 15" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 16" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 17" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 18" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 19" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 20" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 21" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 22" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 23" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 24" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 25" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 26" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 27" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 28" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 29" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 30" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 31" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 32" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 33" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 34" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 35" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 36" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 37" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 38" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 39" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 40" type="Node3D" parent="."]
+script = ExtResource("3")

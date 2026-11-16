@@ -1,3 +1,4 @@
+@tool
 extends Node3D
 ## Chão do mapa (vila e cidade): plano com o shader de grama em manchas, trilhas e clareiras
 ## pintadas no shader (bordas irregulares em vez de placas retas), tufos de capim com vento,
@@ -73,8 +74,9 @@ func setup(map_half: float) -> void:
 	cs.position.y = -0.5
 	body.add_child(cs)
 	add_child(body)
-	if DisplayServer.get_name() != "headless":
-		var prints := Footprints.new()
+	# pegadas: só no jogo com tela; por load() porque o chão também é lido sem autoload (MapData, editor)
+	if DisplayServer.get_name() != "headless" and not Engine.is_editor_hint():
+		var prints: Node = load("res://scripts/world/footprints.gd").new()
 		add_child(prints)
 		prints.setup(_noise_tex, body)
 	_push()

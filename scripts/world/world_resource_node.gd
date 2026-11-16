@@ -7,7 +7,7 @@ extends Node3D
 
 const ROCK := preload("res://assets/models/rock.glb")
 
-## Id do nó em world_nodes.json (a posição na lista "nodes").
+## Id do nó (node_id fixo da MapEntity "resource_node" na cena do mapa; ver WorldHarvest).
 var node_id := 0
 ## "iron" ou "crystal": escolhe o visual.
 var kind := "iron"

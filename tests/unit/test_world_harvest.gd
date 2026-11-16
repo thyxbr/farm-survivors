@@ -74,3 +74,27 @@ func test_missing_table() -> void:
 	var bt := BalanceTables.from_dict({"items": _tables().get_table("items")})
 	T.eq(WorldHarvest.count(bt), 0, "sem tabela: nenhum nó")
 	T.eq(WorldHarvest.new().gather(bt, 2, 0, Vector3.ZERO, 1.0).err, "no_invalido", "sem tabela: recusa sem quebrar")
+
+
+## As posições e os tipos dos veios vêm das cenas dos mapas (MapEntity resource_node, node_id fixo); o
+## world_nodes.json só guarda o que cada tipo dá. Valores de antes da conversão.
+func test_positions_come_from_scene() -> void:
+	var bt := _tables()
+	T.ok(not bt.get_table("world_nodes").has("nodes"), "a lista de posições saiu do world_nodes.json")
+	T.ok(WorldHarvest.node_def(bt, 0).pos.is_equal_approx(Vector3(71.6, 0, 8.0)), "nó 0 no lugar de sempre")
+	T.ok(WorldHarvest.node_def(bt, 6).pos.is_equal_approx(Vector3(14.7, 0, -91.5)), "nó 6 no lugar de sempre")
+
+
+func test_ids_are_fixed_not_list_positions() -> void:
+	var bt := _tables()
+	MapData.scene_override = {"vila": "res://tests/unit/fixtures/map_nodes_fixture.tscn",
+		"bosque": "res://tests/unit/fixtures/map_root_fixture.tscn", "mina": "res://tests/unit/fixtures/map_root_fixture.tscn",
+		"pico": "res://tests/unit/fixtures/map_root_fixture.tscn"}
+	MapData.clear_cache()
+	T.eq(WorldHarvest.count(bt), 2, "dois nós na cena")
+	T.eq(WorldHarvest.ids(bt), [0, 2], "ids da cena, em ordem")
+	T.eq(WorldHarvest.node_def(bt, 1), {}, "id que a cena não tem: nada (apagar um nó não renumera os outros)")
+	T.eq(WorldHarvest.node_def(bt, 2).kind, "crystal", "nó 2 é o cristal da cena")
+	T.ok(WorldHarvest.node_def(bt, 2).pos.is_equal_approx(Vector3(-5, 0, 4)), "posição do nó 2 vem da cena")
+	MapData.scene_override = {}
+	MapData.clear_cache()

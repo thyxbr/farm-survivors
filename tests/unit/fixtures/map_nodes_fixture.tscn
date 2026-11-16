@@ -1,0 +1,19 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/map/map_entity.gd" id="1"]
+
+[node name="Coleta" type="Node3D"]
+
+[node name="Ferro" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 20)
+script = ExtResource("1")
+kind = "resource_node"
+ref = "iron"
+node_id = 0
+
+[node name="Cristal" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, 4)
+script = ExtResource("1")
+kind = "resource_node"
+ref = "crystal"
+node_id = 2

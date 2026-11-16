@@ -2,27 +2,5 @@
 	"kinds": {
 		"iron": {"item": "iron_ore", "amount": 3, "hits": 5, "respawn": 180, "model": "iron"},
 		"crystal": {"item": "arcane_crystal", "amount": 1, "hits": 6, "respawn": 300, "model": "crystal"}
-	},
-	"nodes": [
-		["iron", 71.6, 8.0],
-		["iron", 62.0, 12.5],
-		["iron", 52.4, 8.0],
-		["iron", 52.4, -8.0],
-		["iron", 62.0, -12.5],
-		["iron", 71.6, -8.0],
-		["crystal", 14.7, -91.5],
-		["crystal", -14.7, -91.5],
-		["crystal", -14.7, -108.5],
-		["crystal", 14.7, -108.5],
-		["crystal", 776.0, -6.0],
-		["crystal", 824.0, -6.0],
-		["crystal", 778.0, -28.0],
-		["crystal", 822.0, -28.0],
-		["crystal", 794.0, -50.0],
-		["crystal", 806.0, -50.0],
-		["iron", 764.0, 8.0],
-		["iron", 836.0, 8.0],
-		["iron", 770.0, -4.0],
-		["iron", 830.0, -4.0]
-	]
+	}
 }
