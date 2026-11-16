@@ -23,20 +23,30 @@ const ABILITIES := {
 		"ready": true, "ultimate": false, "icon": "fireball", "desc": "Projétil flamejante. Dano = 18 + INT x 2.5"},
 	"frost_nova": {"name": "Nova Gélida", "class": "staff", "slot": 2, "level": 3, "cooldown": 7.0, "cost": 28,
 		"ready": true, "ultimate": false, "icon": "frost", "desc": "Explosão de gelo ao redor: dano e lentidão."},
-	"heal": {"name": "Cura", "class": "staff", "slot": 3, "level": 5, "cooldown": 4.0, "cost": 20,
-		"ready": true, "ultimate": false, "icon": "heal", "desc": "Restaura 30 + INT x 4 de vida."},
+	"heal": {"name": "Cura", "class": "scepter", "slot": 1, "level": 1, "cooldown": 4.0, "cost": 20,
+		"ready": true, "ultimate": false, "icon": "heal", "desc": "Restaura 30 + INT x 4 de vida (mais o bônus de cura do cetro)."},
+	"scepter_ward": {"name": "Escudo de Luz", "class": "scepter", "slot": 2, "level": 3, "cooldown": 22.0, "cost": 30,
+		"ready": true, "ultimate": false, "icon": "heal", "desc": "Por 12 s, em você e nos aliados a 8 m: +30 de vida máx., +4 de defesa e +3 de vida por segundo."},
+	"scepter_ult": {"name": "Banquete do Herói", "class": "scepter", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
+		"ready": true, "ultimate": true, "icon": "heal", "desc": "Ultimate: cura por completo você e os aliados a 8 m e dá por 12 s +25% de dano, +12% de velocidade e -15% de recarga."},
+	"staff_ember": {"name": "Bafo de Dragão", "class": "staff", "slot": 3, "level": 5, "cooldown": 30.0, "cost": 25,
+		"ready": true, "ultimate": false, "icon": "ember", "desc": "Por 10 s: +20% de dano, +10% de crítico e -20% de recarga."},
 	"meteor_rain": {"name": "Chuva de Meteoros", "class": "staff", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
 		"ready": true, "ultimate": true, "icon": "fireball", "desc": "Ultimate: segure para canalizar uma chuva de meteoros sobre a área mirada."},
 	"sword_charge": {"name": "Investida", "class": "sword", "slot": 1, "level": 1, "cooldown": 6.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "saber", "desc": "Avança sobre os inimigos à frente, causando dano."},
 	"sword_quake": {"name": "Golpe Sísmico", "class": "sword", "slot": 2, "level": 3, "cooldown": 9.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "greatsword", "desc": "Golpe no chão: dano em área e atordoamento."},
+	"sword_fury": {"name": "Fúria Picante", "class": "sword", "slot": 3, "level": 5, "cooldown": 28.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "fury", "desc": "Por 10 s: +30% de dano e cada abate cura 2."},
 	"sword_whirl": {"name": "Turbilhão", "class": "sword", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
 		"ready": true, "ultimate": true, "icon": "cleaver", "desc": "Ultimate: redemoinho de lâminas ao redor."},
 	"bow_triple": {"name": "Tiro Triplo", "class": "bow", "slot": 1, "level": 1, "cooldown": 5.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "bow", "desc": "Três flechas em leque."},
 	"bow_frost": {"name": "Flecha Glacial", "class": "bow", "slot": 2, "level": 3, "cooldown": 8.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "frost", "desc": "Flecha de gelo: prende e atrasa o alvo atingido."},
+	"bow_focus": {"name": "Olhos de Águia", "class": "bow", "slot": 3, "level": 5, "cooldown": 26.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "focus", "desc": "Por 10 s: +15% de crítico e +10% de velocidade."},
 	"bow_gale": {"name": "Flecha do Vendaval", "class": "bow", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
 		"ready": true, "ultimate": true, "icon": "bow", "desc": "Ultimate: o arqueiro agacha, tensiona e solta uma flecha que atravessa tudo em linha reta, rasgando o ar."},
 }
@@ -63,14 +73,17 @@ static var SHOP_STOCK: Array = []
 const SLOTS := ["head", "amulet", "armor", "hands", "weapon", "offhand", "ring", "feet"]
 const SLOT_NAMES := {"weapon": "Arma", "offhand": "Mão secundária", "head": "Cabeça", "armor": "Peito",
 	"hands": "Mãos", "feet": "Pés", "amulet": "Amuleto", "ring": "Anel"}
-const CLASS_NAMES := {"sword": "Espada", "staff": "Cajado", "bow": "Arco"}
+const CLASS_NAMES := {"sword": "Espada", "staff": "Cajado", "bow": "Arco", "scepter": "Cetro"}
 const CLASS_HINT := {"sword": "Combo de 3 golpes · escala com Força",
 	"staff": "Projéteis arcanos · escala com Inteligência",
-	"bow": "Segure para tensionar, solte para atirar · escala com Agilidade"}
+	"bow": "Segure para tensionar, solte para atirar · escala com Agilidade",
+	"scepter": "Cura aliados com luz sagrada · escala com Inteligência"}
 const FX_NAMES := {"slow": "Golpes deixam o alvo lento", "splash": "Projéteis explodem em área",
 	"pierce": "Flechas perfuram inimigos", "multishot": "Disparo tensionado: 3 flechas"}
 
 static var RARITY: Dictionary = {}
+## Buffs (comida e habilidades): {id: {name, time, add, aura, icon, desc, color}}.
+static var BUFFS: Dictionary = {}
 
 ## Bônus que os itens podem dar. [nome, formato] (formato "%" multiplica por 100).
 const STAT_NAMES := {
@@ -208,6 +221,7 @@ func food_effect_text(id: String) -> String:
 		parts.append("+%d mana" % it.heal_mp)
 	var txt := " · ".join(parts)
 	if it.has("buff"):
-		var b: Dictionary = it.buff
-		txt += ("\n" if txt != "" else "") + "%s (%ds): %s" % [b.name, int(b.time), b.desc]
+		var b: Dictionary = BUFFS.get(it.buff, {})
+		if not b.is_empty():
+			txt += ("\n" if txt != "" else "") + "%s (%ds): %s" % [b.name, int(b.time), b.desc]
 	return txt

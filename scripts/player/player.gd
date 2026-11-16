@@ -4,10 +4,13 @@ extends CharacterBody3D
 
 signal died
 
-const KNIGHT := preload("res://assets/models/knight.glb")
 const FIREBALL := preload("res://scripts/player/fireball.gd")
 const PROJECTILE := preload("res://scripts/player/projectile.gd")
 const AUTO_WEAPONS := preload("res://scripts/survival/auto_weapons.gd")
+
+## Ataque básico do cetro: alcance (m) e cor da esfera de luz.
+const LIGHT_ORB_RANGE := 12.0
+const LIGHT_ORB_COLOR := Color(1.0, 0.92, 0.6)
 
 const WALK_SPEED := 5.2
 const SPRINT_SPEED := 8.6
@@ -41,6 +44,8 @@ var cam_pitch: Node3D
 var spring: SpringArm3D
 var camera: Camera3D
 var model: Node3D
+## Corpo do modelo montado ("m"/"f"): o jogador local segue Game.body e as réplicas o "body" do visual.
+var model_body := "m"
 var parts := {}
 ## Referências do visual da arma (KnightLook.apply): classe, suporte, ponta, flecha.
 var look := {"class": "sword", "holder": null, "tip": null, "arrow": null, "arm": null, "elbow": null, "counter": 0.0}
@@ -147,9 +152,8 @@ func _ready() -> void:
 	col.position.y = 0.9
 	add_child(col)
 
+	model_body = KnightLook.body_key(Game.body)
 	_build_model()
-	for mi in model.find_children("*", "MeshInstance3D", true, false):
-		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 
 	# o suporte da câmera fica fora da hierarquia interpolada: o mouse gira na hora, e
 	# _process o coloca sobre a posição interpolada do jogador a cada quadro.
@@ -202,8 +206,11 @@ func _ready() -> void:
 func _build_model() -> void:
 	# jogador e réplicas são interpolados entre os passos de física (movimento liso em telas >60 Hz)
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
-	model = KNIGHT.instantiate()
+	model = KnightLook.instance(model_body)
 	add_child(model)
+	if not remote:
+		for mi in model.find_children("*", "MeshInstance3D", true, false):
+			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	parts = KnightAnim.rig(model)
 	var cape_mesh := model.find_child("Cape", true, false) as MeshInstance3D
 	if cape_mesh:
@@ -212,6 +219,23 @@ func _build_model() -> void:
 		cape.add_capsule(parts.LegL, 0.11, 0.95, Vector3(0, -0.45, 0))
 		cape.add_capsule(parts.LegR, 0.11, 0.95, Vector3(0, -0.45, 0))
 		cape.add_capsule(parts.Body, 0.14, 0.75, Vector3(0, 0.25, 0.02))
+
+
+## Troca o modelo pelo do corpo `b` ("m"/"f"): o rabo de cavalo e as proporções vêm do GLB, então o
+## cavaleiro inteiro é refeito (pivôs, capa, aura). O equipamento é remontado logo depois por apply_look.
+func _rebuild_body(b: String) -> void:
+	var yaw := model.rotation.y
+	var old := model
+	remove_child(old)
+	old.queue_free()
+	vfx_aura = null    # era filha do modelo antigo
+	cape = null
+	model_body = b
+	_build_model()
+	model.rotation.y = yaw
+	_prev_yaw = yaw
+	look["holder"] = null
+	_snap_visuals()
 
 
 ## Depois de um teleporte: sem interpolação do ponto antigo ao novo e capa de volta ao repouso.
@@ -465,7 +489,7 @@ func _tick_timers(delta: float) -> void:
 	stamina_delay = max(0.0, stamina_delay - delta)
 	for k in cooldowns:
 		cooldowns[k] = max(0.0, cooldowns[k] - delta)
-	Game.tick_food(delta)
+	Game.tick_buffs(delta)
 
 
 func _regen(delta: float) -> void:
@@ -476,7 +500,7 @@ func _regen(delta: float) -> void:
 		Game.stamina = Game.max_stamina()
 		Game.fury = Game.FURY_MAX
 		return
-	Game.mp = min(Game.max_mp(), Game.mp + (0.8 + Game.attr("int") * 0.15) * delta)
+	Game.mp = min(Game.max_mp(), Game.mp + (0.8 + Game.attr("int") * 0.15) * (1.0 + float(Game.talent_mods.get("mp_regen", 0.0))) * delta)
 	Game.hp = min(Game.max_hp(), Game.hp + (0.3 + Game.attr("vit") * 0.05 + Game.mod("regen")) * delta)
 	if stamina_delay <= 0:
 		Game.stamina = min(Game.max_stamina(), Game.stamina + 32.0 * delta)
@@ -557,7 +581,10 @@ func _update_attack(delta: float) -> void:
 		hit_done = true
 		match look["class"]:
 			"staff":
-				_staff_shot()
+				if _is_scepter():
+					_scepter_shot()
+				else:
+					_staff_shot()
 			"bow":
 				pass   # o disparo do arco acontece ao soltar o botão
 			_:
@@ -694,6 +721,22 @@ func _staff_shot() -> void:
 	Sfx.play(Sfx.staff_element(_weapon_id()) + "_cast", 0.12, -4.0)
 
 
+## O cetro usa o visual e a animação do cajado (look["class"] == "staff"); só o ataque e o kit mudam.
+func _is_scepter() -> bool:
+	return ItemDB.weapon_class(_weapon_id()) == "scepter"
+
+
+## Cetro: esfera de luz curta (alcance LIGHT_ORB_RANGE), dourada e branca; o dano escala com INT (melee_damage).
+## O 3º golpe do combo é mais forte.
+func _scepter_shot() -> void:
+	var origin := weapon_tip()
+	var d := aim_dir(origin)
+	var crit: bool = randf() < Game.crit_chance()
+	_spawn_projectile("light_orb", origin, d, Game.melee_damage() * (1.25 if combo == 3 else 1.0) * (1.8 if crit else 1.0), crit, 0)
+	Network.send_event("light_orb", origin, d)
+	Sfx.play("arcane_cast", 0.12, -4.0)
+
+
 ## Arco: segurar o botão direito mira (o arco sobe, a flecha encaixa e a corda vem até o queixo) e o clique
 ## esquerdo dispara (dano e alcance crescem com a tensão). Mirando, depois de cada tiro ele encaixa a próxima
 ## sozinho. Soltar o botão direito sem atirar baixa o arco. Clique esquerdo sem mirar = tiro rápido: puxa
@@ -827,8 +870,10 @@ func _spawn_projectile(kind: String, origin: Vector3, d: Vector3, dmg: float, cr
 		p.fx = fx_override
 	if color_override.a > 0.0:
 		p.color = color_override
+	if kind == "light_orb":
+		p.color = LIGHT_ORB_COLOR
 	p.speed = spd if kind == "arrow" else 26.0
-	p.life = 1.8 if kind == "arrow" else 1.2
+	p.life = 1.8 if kind == "arrow" else (LIGHT_ORB_RANGE / 26.0 if kind == "light_orb" else 1.2)
 	get_tree().current_scene.add_child(p)
 	p.global_position = origin
 	return p
@@ -871,13 +916,16 @@ func cast(id: String) -> void:
 	# habilidade de arma (espada, cajado, arco): o módulo da classe executa. Ainda sem implementação
 	# (ready == false): "Em breve", sem custo nem recarga. As magias antigas seguem no match abaixo.
 	if not id in ["fireball", "heal", "frost_nova"]:
+		var cd_mult := Game.cooldown_mult()   # antes do use(): o buff que a habilidade dá não encurta a própria recarga
 		if not sp.ready or not _ab_module(id).use(self, id):
 			Game.notify.emit("Em breve!", Color(0.85, 0.8, 0.65))
 			return
 		# a ultimate zera a fúria só quando realmente começa; recarga tem dono único: aqui
 		if sp.ultimate:
 			Game.fury = 0.0
-		cooldowns[id] = sp.cooldown * Game.cooldown_mult()
+		if sp.cost > 0:
+			Game.mp -= sp.cost
+		cooldowns[id] = Game.ability_cooldown(id, sp.cooldown, cd_mult)
 		Game.stats_changed.emit()
 		return
 	_cancel_draw()
@@ -892,13 +940,24 @@ func cast(id: String) -> void:
 			_pending_spell = id
 			_pending_t = KnightMoves.CAST_RELEASE * KnightMoves.CAST_TIME
 		"heal":
-			var amount := 30.0 + Game.spell_power() * 4.0
-			Game.hp = min(Game.max_hp(), Game.hp + amount)
-			_heal_fx()
-			FX.damage_number(global_position + Vector3.UP * 2.2, "+%d" % amount, Color(0.4, 1.0, 0.5))
+			if Network.is_client():
+				Network.request_heal()   # online: a cura (a minha também) volta do servidor em _you_were_healed
+			else:
+				receive_heal(Game.heal_amount())
 			Network.send_event("heal", global_position)
 		"frost_nova":
 			_cast_frost_nova()
+	Game.stats_changed.emit()
+
+
+## Vida recebida de uma Cura (a própria no solo, ou a de um healer vinda do servidor).
+func receive_heal(amount: float) -> void:
+	if dead:   # caído não é curado (o servidor também pula, mas o estado dele pode estar atrasado)
+		return
+	var gained := minf(amount, Game.max_hp() - Game.hp)
+	Game.hp = min(Game.max_hp(), Game.hp + amount)
+	_heal_fx()
+	FX.damage_number(global_position + Vector3.UP * 2.2, "+%d" % maxf(gained, 0.0), Color(0.4, 1.0, 0.5))
 	Game.stats_changed.emit()
 
 
@@ -914,18 +973,22 @@ func _ab_module(id: String) -> Object:
 		cls = "bow"
 	elif id.begins_with("meteor"):
 		cls = "staff"
+	elif id.begins_with("scepter_"):
+		cls = "scepter"
 	match cls:
 		"staff":
 			return StaffAbilities
 		"bow":
 			return BowAbilities
+		"scepter":
+			return ScepterAbilities
 	return SwordAbilities
 
 
 ## O `kind` de um evento remoto é de uma habilidade de arma (e não de uma magia antiga ou emote)?
 func _is_ability_kind(kind: String) -> bool:
 	var weapon_ability: bool = ItemDB.ABILITIES.has(kind) and not (kind in ["fireball", "heal", "frost_nova"])
-	var by_prefix: bool = kind.begins_with("sword_") or kind.begins_with("bow_") or kind.begins_with("meteor")
+	var by_prefix: bool = kind.begins_with("sword_") or kind.begins_with("bow_") or kind.begins_with("meteor") or kind.begins_with("scepter_")
 	return weapon_ability or by_prefix
 
 
@@ -986,7 +1049,7 @@ func _cast_frost_nova() -> void:
 			continue
 		if e.global_position.distance_to(global_position) <= radius + e.radius:
 			var nova_dmg := (15.0 + Game.spell_power() * 2.0) * Game.damage_mult()
-			e.take_damage(nova_dmg, global_position, false, 4.0)
+			e.take_damage(nova_dmg, global_position, false, 4.0, float(Game.talent_mods.get("nova_stun", 0.0)))
 			Game.add_fury_from_damage(nova_dmg, e.max_hp)
 
 
@@ -1143,7 +1206,7 @@ func _die() -> void:
 	dead = true
 	end_ability()
 	Game.hp = 0
-	Game.clear_food()
+	Game.clear_buffs()
 	attacking = false
 	_cancel_draw()
 	Sfx.play("death", 0.0)
@@ -1183,6 +1246,7 @@ var _last_look := {}
 
 func _update_equipment_visual() -> void:
 	var l: Dictionary = Game.equipment.duplicate()
+	l["body"] = Game.body   # o servidor troca pelo corpo gravado; aqui troca o modelo local na hora
 	l["fx"] = _vfx_state()   # auras e encanto vão junto com o visual (os outros jogadores veem)
 	if l == _last_look:
 		return
@@ -1197,6 +1261,9 @@ func apply_look(l: Dictionary) -> void:
 	if gear_same:
 		_vfx_apply(l.get("fx", {}), false)
 		return
+	var b := KnightLook.body_key(l.get("body", ""))
+	if b != model_body:
+		_rebuild_body(b)
 	var old_class: String = look["class"]
 	look = KnightLook.apply(model, l)
 	_vfx_apply(l.get("fx", {}), true)
@@ -1353,17 +1420,17 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 		"heal":
 			_start_cast_pose(kind)
 			_heal_fx()
-		"bolt", "arrow":
+		"bolt", "arrow", "light_orb":
 			var p := PROJECTILE.new()
 			p.kind = kind
 			p.direction = b
 			p.visual_only = true
-			p.color = ItemDB.get_item(_last_look.get("weapon", "")).get("color", Color(0.6, 0.8, 1.0))
+			p.color = LIGHT_ORB_COLOR if kind == "light_orb" else ItemDB.get_item(_last_look.get("weapon", "")).get("color", Color(0.6, 0.8, 1.0))
 			p.element = Sfx.staff_element(_weapon_id())
-			if kind == "bolt":
+			if kind != "arrow":
 				Sfx.play_at(p.element + "_cast", a, 0.12, -8.0)
 			p.speed = 34.0 if kind == "arrow" else 26.0
-			p.life = 1.6 if kind == "arrow" else 1.2
+			p.life = 1.6 if kind == "arrow" else (LIGHT_ORB_RANGE / 26.0 if kind == "light_orb" else 1.2)
 			get_tree().current_scene.add_child(p)
 			p.global_position = a
 		"zap":
@@ -1499,6 +1566,7 @@ func _animate(delta: float) -> void:
 	KnightAnim.apply(parts, p, k)
 
 	KnightAnim.hold_weapon_upright(look, parts)
+	KnightAnim.sway_ponytail(parts, delta)
 	if cls == "bow":
 		KnightAnim.bow_string(look, parts)   # corda nos dedos, arco envergando, flecha na linha
 
@@ -1524,7 +1592,7 @@ func _vfx_setup() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--buffs="):
 			for id in a.substr(8).split(","):
-				Game.food_buffs[id] = 600.0
+				Game.buffs[id] = 600.0
 		elif a.begins_with("--auras="):
 			for st in a.substr(8).split(","):
 				vfx_ability_auras[st] = true
@@ -1570,7 +1638,7 @@ func set_ability_aura(style: String, on: bool) -> void:
 ## Efeitos que este jogador deveria estar mostrando agora.
 func _vfx_state() -> Dictionary:
 	var want := vfx_ability_auras.duplicate()
-	for id in Game.food_buffs:
+	for id in Game.buffs:
 		want[BuffAura.style_for(id)] = true
 	var auras: Array = []
 	for st in BuffAura.STYLES:     # ordem fixa: o mesmo conjunto dá sempre o mesmo dicionário

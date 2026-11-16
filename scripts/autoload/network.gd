@@ -65,6 +65,8 @@ var enemies := {}         # net_id -> Enemy (servidor: reais; cliente: réplicas
 var remote_players := {}  # peer_id -> Player (réplica)
 ## Servidor: última posição recebida de cada jogador na zona atual (coleta de pickups confere a distância).
 var last_pos := {}        # peer_id -> Vector3
+var _last_heal := {}      # peer_id -> instante (s) da última Cura de healer aceita
+var _last_ally := {}      # peer_id -> {id da habilidade: instante (s)} do último buff em aliados aceito
 
 ## Servidor: banco SQLite, contas e API HTTP de login (abertos em start_server).
 var db: Db = null
@@ -182,6 +184,7 @@ func start_server() -> void:
 		return
 	accounts = AccountStore.new(db, admin_users)
 	characters = CharacterService.new(SqliteCharStore.new(db), Balance.tables)
+	characters.allow_reclass = "--test" in OS.get_cmdline_user_args()
 	for n in accounts.missing_admins():
 		var msg := "[server] aviso: admin '%s' ainda não tem conta — crie a conta antes que outro jogador registre esse nome" % n
 		print(msg)
@@ -269,6 +272,8 @@ func _drop_player(id: int) -> void:
 	var account := int(players[id].get("account", 0))
 	players.erase(id)
 	last_pos.erase(id)
+	_last_heal.erase(id)
+	_last_ally.erase(id)
 	_remove_remote_player(id)
 	for pid in _all_peers():
 		_player_left.rpc_id(pid, id)
@@ -334,6 +339,11 @@ func _client_ready() -> void:
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id):
 		return
+	# personagem sem classe não entra em zona nenhuma: o cliente legítimo passa antes pela tela de criação
+	# (choose_class pelo Econ) e só carrega Valdoria depois; fica em "loading" até escolher
+	if not server_has_class(id):
+		_horde_notice.rpc_id(id, "Escolha sua classe antes de entrar no mundo.")
+		return
 	server_set_zone(id, "world")
 	# quem entrou enquanto este jogador carregava o mapa não foi anunciado para ele: manda todos agora
 	for pid in players:
@@ -363,6 +373,20 @@ func server_set_zone(id: int, zone: String) -> void:
 	for pid in _all_peers():
 		_player_zone.rpc_id(pid, id, zone)
 	players_changed.emit()
+
+
+## Servidor: o personagem guardado da conta do peer já tem classe (sem classe não entra em modo nenhum).
+func server_has_class(id: int) -> bool:
+	if not players.has(id) or characters == null:
+		return false
+	var account := int(players[id].get("account", 0))
+	return account > 0 and characters.load_or_create(account).char_class != ""
+
+
+## Servidor: a réplica do jogador está caída (flag NF_DEAD do último estado que ele mandou).
+func server_peer_dead(id: int) -> bool:
+	var rp: Player = remote_players.get(id)
+	return rp != null and is_instance_valid(rp) and rp.dead
 
 
 func zone_of(id: int) -> String:
@@ -597,6 +621,67 @@ func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow:
 		e.apply_stun(minf(stun, 3.0))
 
 
+## Servidor: só a conta de classe healer cura, no máximo uma vez a cada HealRules.MIN_INTERVAL. O valor vem do
+## personagem gravado no servidor (CharRules.heal_amount), nunca do cliente. Atinge quem está na mesma zona
+## a até HealRules.RADIUS m da última posição conhecida (o healer sempre se cura).
+@rpc("any_peer", "call_remote", "reliable")
+func _request_heal() -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not is_server() or not players.has(id) or characters == null:
+		return
+	var account := int(players[id].get("account", 0))
+	if account <= 0:
+		return
+	var s := characters.load_or_create(account)
+	if s.char_class != "healer" or server_peer_dead(id):
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	if not HealRules.interval_ok(_last_heal.get(id, -INF), now):
+		return
+	_last_heal[id] = now
+	var amount := CharRules.heal_amount(s, Balance.tables)
+	var radius_bonus := float(CharRules.talent_mods(Balance.tables, s).get("ally_radius", 0.0))
+	for pid in HealRules.targets(id, zone_peers(zone_of(id)), last_pos, radius_bonus):
+		if not server_peer_dead(pid):   # caído não recebe cura
+			_you_were_healed.rpc_id(pid, amount, id)
+
+
+## Servidor: Escudo de Luz / Banquete do Herói. O cliente manda só o id da habilidade; o buff vem de
+## HealRules.ALLY_BUFFS. Mesmas regras da Cura (healer, vivo, intervalo por habilidade, mesma zona, 8 m).
+## O Banquete também cura por completo. Quem pede (o healer) está sempre entre os alvos.
+@rpc("any_peer", "call_remote", "reliable")
+func _request_ally_buff(ability_id: String) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not is_server() or not players.has(id) or characters == null or not HealRules.ALLY_BUFFS.has(ability_id):
+		return
+	var account := int(players[id].get("account", 0))
+	if account <= 0:
+		return
+	var s := characters.load_or_create(account)
+	if s.char_class != "healer" or server_peer_dead(id):
+		return
+	# servidor em --test (allow_reclass): os personagens do net_test ficam no nível 1 e não há como subir; o gate
+	# em si é testado em test_heal_rules.gd
+	if not characters.allow_reclass and not HealRules.level_ok(s.level, int(ItemDB.ABILITIES[ability_id].level)):
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	var mine: Dictionary = _last_ally.get(id, {})
+	if not HealRules.interval_ok(mine.get(ability_id, -INF), now, ability_id):
+		return
+	mine[ability_id] = now
+	_last_ally[id] = mine
+	var buff: String = HealRules.ALLY_BUFFS[ability_id]
+	var tm := CharRules.talent_mods(Balance.tables, s)
+	# a duração leva o talento do healer que conjurou (o servidor manda os segundos; o cliente só limita)
+	var secs := HealRules.ally_buff_seconds(float(ItemDB.BUFFS[buff].time), float(tm.get("ability_time:" + ability_id, 0.0)))
+	for pid in HealRules.targets(id, zone_peers(zone_of(id)), last_pos, float(tm.get("ally_radius", 0.0))):
+		if server_peer_dead(pid):
+			continue
+		_you_got_buff.rpc_id(pid, buff, secs)
+		if ability_id == "scepter_ult":
+			_you_were_healed.rpc_id(pid, HealRules.ULT_HEAL, id)
+
+
 @rpc("any_peer", "call_remote", "reliable")
 func _request_boss() -> void:
 	var id := multiplayer.get_remote_sender_id()
@@ -691,7 +776,15 @@ func _clean_look(look: Dictionary, account := 0) -> Dictionary:
 	fx.en = e.el
 	fx.lv = e.lv
 	out["fx"] = fx
+	out["body"] = server_body(account)   # o corpo (m/f) vem do personagem gravado, nunca do cliente
 	return out
+
+
+## Servidor: corpo escolhido pela conta ("m", "f" ou "" se ainda não escolheu), lido do personagem gravado.
+func server_body(account: int) -> String:
+	if account <= 0 or characters == null:
+		return ""
+	return characters.load_or_create(account).body
 
 
 ## Efeitos visuais do jogador (auras e encanto): só estilos e elementos conhecidos, sem repetir.
@@ -828,7 +921,7 @@ func _accepted(all_players: Dictionary) -> void:
 	# todo mundo entra direto em Valdoria, onde o personagem estava (Game.spawn_position veio do servidor)
 	if Game.hp <= 0.0:
 		Game.hp = Game.max_hp()
-	Loading.go(WORLD_SCENE)
+	Game.go_to_world()   # sem classe ainda: passa antes pela tela de criação
 
 
 ## Chamado pelo mundo quando terminou de montar a cena.
@@ -870,6 +963,18 @@ func send_player_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, combo
 func send_look(look: Dictionary) -> void:
 	if is_client():
 		_player_look.rpc_id(1, look)
+
+
+## Healer (cliente): pede ao servidor a Cura nos aliados por perto (o próprio incluído). Sem valor: o servidor calcula.
+func request_heal() -> void:
+	if is_client():
+		_request_heal.rpc_id(1)
+
+
+## Healer (cliente): pede o Escudo de Luz / Banquete do Herói para si e os aliados por perto.
+func request_ally_buff(ability_id: String) -> void:
+	if is_client():
+		_request_ally_buff.rpc_id(1, ability_id)
 
 
 func send_event(kind: String, a := Vector3.ZERO, b := Vector3.ZERO) -> void:
@@ -1005,6 +1110,19 @@ func _you_were_hit(amount: float, from_pos: Vector3) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
+func _you_were_healed(amount: float, _from_peer: int) -> void:
+	if world and world.player:
+		world.player.receive_heal(amount)
+
+
+## Buff de um healer aliado. O cliente só aplica ids que existem em buffs.json.
+@rpc("authority", "call_remote", "reliable")
+func _you_got_buff(buff_id: String, secs: float) -> void:
+	if world and world.player and ItemDB.BUFFS.has(buff_id) and secs > 0.0 and secs <= HealRules.MAX_BUFF_SECS:
+		Game.add_buff(buff_id, secs)
+
+
+@rpc("authority", "call_remote", "reliable")
 func _you_were_chilled(secs: float) -> void:
 	if world and world.player:
 		world.player.apply_chill(secs)
@@ -1115,6 +1233,8 @@ func _apply_remote_state(id: int, pos: Vector3, yaw: float, vel: Vector3, flags:
 		rp.remote = true
 		rp.peer_id = id
 		rp.display_name = players[id].name if players.has(id) else "?"
+		# já nasce com o corpo do visual conhecido (sem montar o masculino para trocar em seguida)
+		rp.model_body = KnightLook.body_key(players[id].get("look", {}).get("body", "")) if players.has(id) else "m"
 		rp.position = pos
 		parent.add_child(rp)
 		remote_players[id] = rp
@@ -1143,6 +1263,9 @@ func _horde_msg(kind: String) -> void:
 	if not is_server() or not players.has(id) or not players[id].ready:
 		return
 	var run: Node = horde_run if horde_run != null and is_instance_valid(horde_run) else null
+	if kind in ["request", "accept"] and not server_has_class(id):
+		_horde_notice.rpc_id(id, "Escolha sua classe antes de entrar no Desafio da Horda.")
+		return
 	match kind:
 		"request":
 			_server_horde_request(id)
@@ -1269,7 +1392,7 @@ func _horde_launch() -> void:
 				return
 	var team := {}
 	for pid in _lobby.members:
-		if not players.has(pid) or not players[pid].ready:
+		if not players.has(pid) or not players[pid].ready or not server_has_class(pid):
 			continue
 		# a partida acontece em Valdoria: só entra quem está lá
 		if zone_of(pid) != "world":

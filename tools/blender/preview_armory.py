@@ -32,8 +32,8 @@ for i, f in enumerate(files):
 cam = bpy.data.objects.new("Cam", bpy.data.cameras.new("Cam"))
 scn.collection.objects.link(cam)
 cam.data.type = 'ORTHO'
-cam.data.ortho_scale = max(len(files) * gap + 0.2, 2.0)
-cam.location = (0, -10, 0.35 if pre == "st_" else 0.0)
+cam.data.ortho_scale = max(len(files) * gap + 0.2, 1.5 if pre == "sc_" else 2.0)
+cam.location = (0, -10, 0.35 if pre in ("st_", "sc_") else 0.0)
 cam.rotation_euler = (math.radians(90), 0, 0)
 scn.camera = cam
 scn.render.engine = 'BLENDER_WORKBENCH'

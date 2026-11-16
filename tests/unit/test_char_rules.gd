@@ -43,7 +43,8 @@ func test_new_character_matches_new_game() -> void:
 	T.eq(s.level, 1, "nível")
 	T.eq(s.gold, 25, "ouro inicial")
 	T.eq(s.attributes, {"str": 5, "int": 5, "vit": 5, "agi": 5}, "atributos")
-	T.eq(s.equipment, CharRules.empty_equipment(), "sem nenhum equipamento")
+	T.eq(s.equipment, CharRules.empty_equipment(), "sem nenhum equipamento (nem arma) até escolher a classe")
+	T.eq(s.char_class, "", "sem classe")
 	T.eq(_count(s, "health_potion"), 3, "poções")
 	T.eq(_count(s, "seed_wheat"), 4, "sementes de trigo")
 	T.eq(_count(s, "short_bow") + _count(s, "apprentice_staff") + _count(s, "leather_cap"), 0, "sem kit de armas")
@@ -122,7 +123,7 @@ func test_equip_offhand_needs_class() -> void:
 func test_equip_swaps_back_to_bag() -> void:
 	var bt := _tables()
 	var s := _blank()
-	s.equipment.weapon = "azure_edge"
+	CharRules.choose_class(s, bt, "warrior", "m")
 	s.inventory = [{"id": "iron_sword", "qty": 1}]
 	var r := CharRules.equip(s, bt, "iron_sword")
 	T.ok(r.ok, "equipa")
@@ -140,13 +141,17 @@ func test_equip_swaps_back_to_bag() -> void:
 func test_weapon_change_returns_offhand() -> void:
 	var bt := _tables()
 	var s := _blank()
-	s.inventory = [{"id": "knight_shield", "qty": 1}, {"id": "apprentice_staff", "qty": 1}]
+	CharRules.choose_class(s, bt, "warrior", "m")
+	s.inventory = [{"id": "knight_shield", "qty": 1}]
 	CharRules.equip(s, bt, "knight_shield")
-	var r := CharRules.equip(s, bt, "apprentice_staff")
-	T.ok(r.ok, "troca para cajado")
-	T.eq(s.equipment.offhand, "", "escudo sai da mão")
-	T.eq(_count(s, "knight_shield"), 1, "escudo na mochila")
-	T.eq(r.events[0].text, "Escudo do Cavaleiro guardado (exige espada).", "aviso do escudo")
+	T.eq(s.equipment.offhand, "knight_shield", "escudo equipado")
+	# a classe é fixa: o escudo só volta para a mochila na escolha da classe de um personagem que o tinha
+	var s2 := _blank()
+	s2.equipment.offhand = "knight_shield"
+	var r := CharRules.choose_class(s2, bt, "mage", "m")
+	T.ok(r.ok, "escolheu mago")
+	T.eq(s2.equipment.offhand, "", "escudo sai da mão")
+	T.eq(_count(s2, "knight_shield"), 1, "escudo na mochila")
 
 
 # ---------------------------------------------------------------- consumo e cozinha
@@ -154,13 +159,38 @@ func test_consume() -> void:
 	var bt := _tables()
 	var s := _blank()
 	s.inventory = [{"id": "health_potion", "qty": 2}, {"id": "carrot", "qty": 1}, {"id": "iron_sword", "qty": 1}]
-	T.ok(CharRules.consume(s, bt, "health_potion").ok, "poção")
+	T.ok(CharRules.consume(s, bt, "health_potion", 0.0).ok, "poção")
 	T.eq(_count(s, "health_potion"), 1, "tirou uma")
-	var r := CharRules.consume(s, bt, "carrot")
+	var r := CharRules.consume(s, bt, "carrot", 0.0)
 	T.ok(r.ok, "colheita crua")
 	T.eq(r.events[0].text, "Comeu Cenoura", "aviso")
-	T.eq(CharRules.consume(s, bt, "carrot").err, "sem_item", "acabou")
-	T.eq(CharRules.consume(s, bt, "iron_sword").err, "nao_consumivel", "espada não se come")
+	T.eq(CharRules.consume(s, bt, "carrot", 0.0).err, "sem_item", "acabou")
+	T.eq(CharRules.consume(s, bt, "iron_sword", 0.0).err, "nao_consumivel", "espada não se come")
+
+
+func test_food_buffs_are_generic() -> void:
+	var bt := _tables()
+	var items: Dictionary = bt.get_table("items")
+	var buffs: Dictionary = bt.get_table("buffs")
+	var combat := ["damage", "crit", "defense", "lifesteal", "cooldown", "speed", "max_hp_flat", "regen"]
+	var n := 0
+	for id in items:
+		if items[id].get("type", "") != "food":
+			continue
+		T.ok(not items[id].has("special"), "%s sem special" % id)
+		if not items[id].has("buff"):
+			continue
+		n += 1
+		T.ok(items[id].buff is String and buffs.has(items[id].buff), "%s aponta para um buff da tabela" % id)
+		for k in buffs[items[id].buff].add:
+			T.ok(not k in combat, "%s: bônus de comida sem combate (%s)" % [id, k])
+	T.eq(n, 8, "8 comidas com buff")
+	for id in ["sword_fury", "bow_focus", "staff_ember", "scepter_ward", "scepter_feast"]:
+		T.ok(buffs.has(id) and buffs[id].time > 0.0, "buff de habilidade %s" % id)
+	var s := _blank()
+	s.inventory = [{"id": "spicy_soup", "qty": 1}]
+	var r := CharRules.consume(s, bt, "spicy_soup", 0.0)
+	T.ok(r.events[0].text.contains("Calor Picante"), "aviso mostra o buff novo")
 
 
 func test_cook() -> void:
@@ -601,6 +631,22 @@ func test_discard() -> void:
 	T.eq(CharRules.discard(s, bt, "nao_existe").err, "item_invalido", "id desconhecido")
 
 
+func test_death_clears_food_buffs() -> void:
+	var bt := _tables()
+	var s := _blank(95)
+	s.food_buffs = {"garden_salad_buff": 9999.0}
+	CharRules.death_penalty(s, bt)
+	T.ok(s.food_buffs.is_empty(), "morrer limpa a comida no servidor")
+
+
+func test_food_mult_includes_talent_gold() -> void:
+	var bt := _tables()
+	var s := _talent_char(10, "archer")
+	s.talents = {"a_trap": 2}
+	T.ok(is_equal_approx(CharRules.food_mult(s, bt, "gold", 0.0), 1.06), "a_trap 2: ouro x1,06 (%s)" % CharRules.food_mult(s, bt, "gold", 0.0))
+	T.eq(CharRules.food_mult(s, bt, "xp", 0.0), 1.0, "outro stat não muda")
+
+
 func test_death_penalty() -> void:
 	var bt := _tables()
 	var s := _blank(95)
@@ -611,3 +657,377 @@ func test_death_penalty() -> void:
 	var pobre := _blank(5)
 	r = CharRules.death_penalty(pobre, bt)
 	T.ok(r.ok and r.events.is_empty() and pobre.gold == 5, "menos de 10 ouro: nada a perder, sem aviso")
+
+
+# ---------------------------------------------------------------- classes
+func test_state_class_roundtrip() -> void:
+	var s := _blank()
+	s.char_class = "healer"
+	s.body = "f"
+	var s2 := CharState.from_dict(s.to_dict(), _tables())
+	T.eq(s2.char_class, "healer")
+	T.eq(s2.body, "f")
+
+
+func test_state_old_save_has_no_class() -> void:
+	var d := _blank().to_dict()
+	d.erase("char_class")
+	d.erase("body")
+	var s := CharState.from_dict(d, _tables())
+	T.eq(s.char_class, "")
+	T.eq(s.body, "")
+
+
+func test_state_rejects_unknown_class() -> void:
+	var d := _blank().to_dict()
+	d["char_class"] = "ninja"
+	d["body"] = "x"
+	var s := CharState.from_dict(d, _tables())
+	T.eq(s.char_class, "")
+	T.eq(s.body, "")
+
+
+func test_class_table_complete() -> void:
+	for c in CharRules.CLASS_IDS:
+		var w := CharRules.class_weapon(_tables(), c)
+		T.ok(w in ["sword", "bow", "staff", "scepter"], c)
+		var st: String = _tables().get_table("classes")[c]["starter_weapon"]
+		T.eq(CharRules.weapon_class(_tables(), st), w, c)
+	T.eq(CharRules.class_weapon(_tables(), "healer"), "scepter")
+	T.eq(CharRules.class_weapon(_tables(), "ninja"), "")
+
+
+func test_scepters_one_per_rarity() -> void:
+	var seen := {}
+	for id in _tables().get_table("items"):
+		var it: Dictionary = _tables().get_table("items")[id]
+		if it.get("class", "") == "scepter":
+			T.ok(str(id).begins_with("sc_"), id)
+			seen[it.rarity] = true
+	T.eq(seen.size(), 5)
+
+
+# ---------------------------------------------------------------- classe
+func test_choose_class_new_char_gets_starter() -> void:
+	var s := _blank()
+	var r := CharRules.choose_class(s, _tables(), "healer", "f")
+	T.ok(r.ok, "escolheu")
+	T.eq(s.char_class, "healer", "classe")
+	T.eq(s.body, "f", "corpo")
+	T.eq(s.equipment.weapon, "sc_novice_scepter", "cetro inicial")
+
+
+func test_choose_class_only_once() -> void:
+	var s := _blank()
+	CharRules.choose_class(s, _tables(), "mage", "m")
+	T.ok(not CharRules.choose_class(s, _tables(), "warrior", "m").ok, "só uma vez")
+	T.eq(s.char_class, "mage", "continua mago")
+
+
+func test_choose_class_invalid() -> void:
+	var s := _blank()
+	T.ok(not CharRules.choose_class(s, _tables(), "ninja", "m").ok, "classe inválida")
+	T.ok(not CharRules.choose_class(s, _tables(), "mage", "x").ok, "corpo inválido")
+	T.eq(s.char_class, "", "nada gravado")
+
+
+func test_choose_class_keeps_matching_weapon() -> void:
+	var s := _blank()
+	s.equipment.weapon = "oak_staff"
+	CharRules.choose_class(s, _tables(), "mage", "m")
+	T.eq(s.equipment.weapon, "oak_staff", "arma da classe fica")
+
+
+func test_choose_class_equips_best_owned() -> void:
+	var s := _blank()
+	s.equipment.weapon = "azure_edge"
+	CharRules.add_item(s, _tables(), "apprentice_staff", 1)
+	CharRules.add_item(s, _tables(), "archmage_staff", 1)
+	CharRules.choose_class(s, _tables(), "mage", "m")
+	T.eq(s.equipment.weapon, "archmage_staff", "melhor cajado")
+	T.eq(_count(s, "azure_edge"), 1, "espada antiga volta para a mochila")
+	T.eq(_count(s, "apprentice_staff"), 1, "cajado menor fica na mochila")
+
+
+func test_equip_other_class_refused() -> void:
+	var s := _blank()
+	CharRules.choose_class(s, _tables(), "warrior", "m")
+	CharRules.add_item(s, _tables(), "short_bow", 1)
+	var r := CharRules.equip(s, _tables(), "short_bow")
+	T.ok(not r.ok, "arco recusado")
+	T.eq(r.err, "exige_classe", "erro")
+	T.eq(r.events[0].text, "Arco Curto é arma de Arqueiro.", "aviso diz a classe do personagem")
+	T.eq(s.equipment.weapon, "azure_edge", "arma intacta")
+
+
+func test_equip_weapon_without_class_refused() -> void:
+	var s := _blank()
+	CharRules.add_item(s, _tables(), "short_bow", 1)
+	T.eq(CharRules.equip(s, _tables(), "short_bow").err, "exige_classe", "sem classe não equipa arma")
+
+
+func test_new_character_has_no_weapon() -> void:
+	var s := CharState.new_character(_tables())
+	T.eq(s.equipment.weapon, "", "sem arma")
+	T.eq(_count(s, "short_bow"), 0, "sem arco")
+	T.eq(_count(s, "apprentice_staff"), 0, "sem cajado")
+
+
+# ---------------------------------------------------------------- drop segue a classe
+func test_adapt_weapon_to_class_same_rarity() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var out := LootRules.adapt_weapon(_tables(), "oak_staff", "warrior", rng)
+	T.eq(CharRules.weapon_class(_tables(), out), "sword", "vira espada")
+	T.eq(_tables().get_table("items")[out].rarity, "uncommon", "mesma raridade")
+	T.ok(not _tables().get_table("items")[out].get("named", false), "não é nomeada")
+
+
+func test_adapt_weapon_healer_gets_scepter() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	var out := LootRules.adapt_weapon(_tables(), "hunter_bow", "healer", rng)
+	T.eq(CharRules.weapon_class(_tables(), out), "scepter", "vira cetro")
+	T.eq(_tables().get_table("items")[out].rarity, "uncommon", "mesma raridade")
+
+
+func test_adapt_keeps_named_and_own_class_and_non_weapons() -> void:
+	var rng := RandomNumberGenerator.new()
+	T.eq(LootRules.adapt_weapon(_tables(), "archmage_staff", "warrior", rng), "archmage_staff", "nomeada fica")
+	T.eq(LootRules.adapt_weapon(_tables(), "oak_staff", "mage", rng), "oak_staff", "já é da classe")
+	T.eq(LootRules.adapt_weapon(_tables(), "health_potion", "mage", rng), "health_potion", "não é arma")
+	T.eq(LootRules.adapt_weapon(_tables(), "oak_staff", "", rng), "oak_staff", "sem classe")
+
+
+func test_roll_adapts_weapons_to_class() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	for i in 200:
+		var loot := LootRules.roll(_tables(), "goblin", rng, "archer")
+		for id in loot.items:
+			var it: Dictionary = _tables().get_table("items")[id]
+			# nomeada não se adapta; rara sem arco comum (o único é nomeado) também fica como saiu
+			if it.type == "weapon" and not it.get("named", false) and it.rarity in ["common", "uncommon"]:
+				T.eq(it["class"], "bow", "arma de goblin para arqueiro é arco: " + id)
+
+
+func test_roll_without_class_unchanged() -> void:
+	var a := RandomNumberGenerator.new()
+	var b := RandomNumberGenerator.new()
+	a.seed = 5
+	b.seed = 5
+	T.eq(LootRules.roll(_tables(), "goblin", a), LootRules.roll(_tables(), "goblin", b, ""), "igual sem classe")
+
+
+# ---------------------------------------------------------------- cura e kit pela classe
+func test_heal_amount_healer_novice_scepter() -> void:
+	var s := _blank()
+	CharRules.choose_class(s, _tables(), "healer", "f")
+	s.attributes.int = 5
+	var spell: float = float(_tables().get_table("items")["sc_novice_scepter"].stats.spell)
+	T.eq(CharRules.spell_power(s, _tables()), 5.0 + spell, "poder mágico")
+	T.eq(CharRules.heal_amount(s, _tables()), 30.0 + 4.0 * (5.0 + spell), "cura do cetro de noviço")
+
+
+func test_heal_amount_uses_scepter_heal_bonus() -> void:
+	var s := _blank()
+	CharRules.choose_class(s, _tables(), "healer", "f")
+	s.attributes.int = 5
+	var base: float = CharRules.heal_amount(s, _tables())
+	var tables := _tables()
+	var id := ""
+	for k in tables.get_table("items"):
+		if tables.get_table("items")[k].get("class", "") == "scepter" and float(tables.get_table("items")[k].get("heal", 0.0)) > 0.0:
+			id = k
+			break
+	T.ok(id != "", "há cetro com bônus de cura")
+	s.equipment.weapon = id
+	var it: Dictionary = tables.get_table("items")[id]
+	var sp: float = 5.0 + float(it.stats.get("spell", 0.0))
+	T.eq(CharRules.heal_amount(s, tables), (30.0 + 4.0 * sp) * (1.0 + float(it.heal)), "bônus de cura da arma")
+	T.ok(base > 0.0, "base positiva")
+
+
+func test_food_mult_xp_and_expiry() -> void:
+	var bt := _tables()
+	var s := _blank()
+	T.eq(CharRules.food_mult(s, bt, "xp", 0.0), 1.0, "sem buff = 1.0")
+	s.inventory = [{"id": "garden_salad", "qty": 1}]
+	var buff: Dictionary = bt.get_table("buffs")[bt.get_table("items")["garden_salad"].buff]
+	T.ok(CharRules.consume(s, bt, "garden_salad", 100.0).ok, "comeu")
+	var m := CharRules.food_mult(s, bt, "xp", 100.0)
+	T.ok(is_equal_approx(m, 1.0 + float(buff.add.get("xp", 0.0))) and m > 1.0, "salada dá XP: %s" % m)
+	T.eq(CharRules.food_mult(s, bt, "damage", 100.0), 1.0, "outro atributo não muda")
+	T.eq(CharRules.food_mult(s, bt, "xp", 100.0 + float(buff.time) + 1.0), 1.0, "expirou")
+	T.ok(s.food_buffs.is_empty(), "vencido removido")
+	T.ok(not s.to_dict().has("food_buffs"), "não vai ao save")
+
+
+# ---------------------------------------------------------------- talentos
+func _talent_char(level: int, cls := "warrior") -> CharState:
+	var s := _blank(0)
+	s.char_class = cls
+	s.level = level
+	return s
+
+
+func test_talent_points() -> void:
+	var bt := _tables()
+	T.eq(CharRules.talent_points(_talent_char(1), bt), 0, "nível 1: nenhum ponto")
+	T.eq(CharRules.talent_points(_talent_char(4), bt), 3, "nível 4: 3 pontos")
+	var s := _talent_char(4)
+	T.ok(CharRules.learn_talent(s, bt, "w_edge").ok, "aprende")
+	T.eq(CharRules.talent_points(s, bt), 2, "gasto desconta")
+	T.eq(s.talents, {"w_edge": 1}, "nível 1")
+
+
+func test_talent_errors_leave_state() -> void:
+	var bt := _tables()
+	var s := _talent_char(20)
+	var before := s.talents.duplicate(true)
+	T.eq(CharRules.learn_talent(s, bt, "w_bloodlust").err, "talento_bloqueado", "linha 2 sem 3 pontos no ramo")
+	T.eq(CharRules.learn_talent(s, bt, "w_rage").err, "talento_bloqueado", "linha 3 sem 6 pontos")
+	T.eq(CharRules.learn_talent(s, bt, "a_aim").err, "talento_invalido", "talento de outra classe")
+	T.eq(CharRules.learn_talent(s, bt, "nao_existe").err, "talento_invalido", "id desconhecido")
+	T.eq(s.talents, before, "recusas não mudam o estado")
+	var z := _talent_char(1)
+	T.eq(CharRules.learn_talent(z, bt, "w_edge").err, "sem_pontos", "nível 1 sem pontos")
+	var w := _talent_char(2, "")
+	T.eq(CharRules.learn_talent(w, bt, "w_edge").err, "talento_invalido", "sem classe")
+
+
+func test_talent_rows_and_max() -> void:
+	var bt := _tables()
+	var s := _talent_char(20)
+	for i in 3:
+		T.ok(CharRules.learn_talent(s, bt, "w_edge").ok, "nível %d" % (i + 1))
+	T.eq(CharRules.learn_talent(s, bt, "w_edge").err, "talento_maximo", "4º nível falha")
+	T.ok(CharRules.learn_talent(s, bt, "w_bloodlust").ok, "linha 2 liberada com 3 pontos")
+	T.eq(CharRules.learn_talent(s, bt, "w_rage").err, "talento_bloqueado", "linha 3 pede 6")
+	CharRules.learn_talent(s, bt, "w_bloodlust")
+	CharRules.learn_talent(s, bt, "w_bloodlust")
+	var r := CharRules.learn_talent(s, bt, "w_rage")
+	T.ok(r.ok, "linha 3 com 6 pontos no ramo")
+	T.eq(r.events[0], {"t": "talent", "id": "w_rage", "level": 1}, "evento")
+	T.eq(CharRules.learn_talent(s, bt, "w_hide").ok, true, "outro ramo, linha 1")
+
+
+func test_talent_reset() -> void:
+	var bt := _tables()
+	T.eq(CharRules.reset_cost(_talent_char(5)), 0, "grátis até o 5")
+	T.eq(CharRules.reset_cost(_talent_char(6)), 300, "50 x nível")
+	var s := _talent_char(4)
+	CharRules.learn_talent(s, bt, "w_edge")
+	CharRules.learn_talent(s, bt, "w_edge")
+	T.ok(CharRules.reset_talents(s, bt).ok, "grátis no nível baixo")
+	T.eq(s.talents, {}, "limpou")
+	T.eq(CharRules.talent_points(s, bt), 3, "pontos devolvidos")
+	T.eq(CharRules.reset_talents(s, bt).err, "sem_talentos", "nada a devolver")
+	var p := _talent_char(10)
+	CharRules.learn_talent(p, bt, "w_edge")
+	p.gold = 499
+	T.eq(CharRules.reset_talents(p, bt).err, "sem_ouro", "sem ouro")
+	T.eq(p.talents, {"w_edge": 1}, "não muda sem ouro")
+	p.gold = 520
+	T.ok(CharRules.reset_talents(p, bt).ok, "paga")
+	T.eq(p.gold, 20, "cobrou 500")
+
+
+func test_talent_level_up_notice() -> void:
+	var bt := _tables()
+	var s := _talent_char(1)
+	var r := CharRules.kill(s, bt, "slime", CharRules.xp_to_next(1, bt))
+	T.eq(r.events[1].text, "Nível 2! +3 pontos de atributo (C) e 1 de talento (K)", "com classe: avisa o ponto de talento")
+
+
+func test_talent_reset_notices() -> void:
+	var bt := _tables()
+	var s := _talent_char(8)
+	CharRules.learn_talent(s, bt, "w_edge")
+	CharRules.learn_talent(s, bt, "w_hide")
+	var poor := CharRules.reset_talents(s, bt)
+	T.eq(poor.err, "sem_ouro", "sem ouro")
+	T.eq(poor.events[0].text, "Redistribuir custa 400 de ouro.", "aviso do custo")
+	s.gold = 400
+	var r := CharRules.reset_talents(s, bt)
+	T.ok(r.ok, "paga")
+	T.eq(r.events[0].text, "Talentos redistribuídos: 2 pontos de volta (-400 de ouro).", "aviso da redistribuição")
+	T.ok(_has_event(r, "talents_reset"), "evento talents_reset")
+	T.eq(CharRules.reset_talents(s, bt).events[0].text, "Nenhum ponto de talento para devolver.", "aviso sem talentos")
+	var f := _talent_char(3)
+	CharRules.learn_talent(f, bt, "w_edge")
+	T.eq(CharRules.reset_talents(f, bt).events[0].text, "Talentos redistribuídos: 1 ponto de volta (grátis até o nível 5).", "grátis")
+
+
+func test_talent_mods() -> void:
+	var bt := _tables()
+	var s := _talent_char(20)
+	for id in ["w_edge", "w_edge", "w_bloodlust", "w_hide"]:
+		if id == "w_bloodlust":
+			CharRules.learn_talent(s, bt, "w_edge")
+		CharRules.learn_talent(s, bt, id)
+	var m := CharRules.talent_mods(bt, s)
+	T.ok(absf(m.get("damage", 0.0) - 0.12) < 0.0001, "3 níveis de dano")
+	T.ok(absf(m.get("lifesteal", 0.0) - 1.0) < 0.0001, "roubo de vida")
+	T.ok(absf(m.get("defense", 0.0) - 2.0) < 0.0001, "defesa")
+	s.talents["a_aim"] = 3   # de outra classe: ignorado
+	T.ok(not CharRules.talent_mods(bt, s).has("crit"), "talento de outra classe não conta")
+
+
+func test_talent_table_is_consistent() -> void:
+	var bt := _tables()
+	for cls in CharRules.CLASS_IDS:
+		var defs := CharRules.talent_defs(bt, cls)
+		T.eq(defs.size(), 9, "%s: 9 talentos" % cls)
+		var seen := {}
+		for d in defs:
+			T.ok(not seen.has(d.id), "id único: %s" % d.id)
+			seen[d.id] = true
+			T.eq(int(d.max), 3, "3 níveis")
+			T.ok(not d.add.is_empty(), "tem efeito")
+		T.eq(bt.get_table("talents")[cls].branches.size(), 3, "3 ramos")
+
+
+func test_talents_roundtrip_and_old_save() -> void:
+	var bt := _tables()
+	var s := _talent_char(6)
+	CharRules.learn_talent(s, bt, "w_edge")
+	var back := CharState.from_dict(JSON.parse_string(JSON.stringify(s.to_dict())), bt)
+	T.eq(back.talents, {"w_edge": 1}, "ida e volta pelo JSON")
+	var d := s.to_dict()
+	d.erase("talents")
+	T.eq(CharState.from_dict(d, bt).talents, {}, "save sem talents carrega vazio")
+	T.eq(CharRules.talent_points(CharState.from_dict(d, bt), bt), 5, "pontos retroativos")
+
+
+func test_talents_from_dict_sanitized() -> void:
+	var bt := _tables()
+	var d := _talent_char(4).to_dict()
+	d["talents"] = {"w_edge": 9, "a_aim": 2, "x": 1, "w_hide": "z"}
+	var s := CharState.from_dict(d, bt)
+	T.eq(s.talents, {"w_edge": 3}, "nível limitado, outra classe e lixo descartados")
+	d["talents"] = {"w_edge": 3, "w_hide": 3}
+	T.eq(CharState.from_dict(d, bt).talents, {"w_edge": 3}, "não passa dos pontos do nível (3)")
+	d["talents"] = "lixo"
+	T.eq(CharState.from_dict(d, bt).talents, {}, "tipo errado")
+
+
+# ---------------------------------------------------------------- talentos no combate
+func test_talent_heal_power_scales_heal() -> void:
+	var bt := _tables()
+	var s := _talent_char(20, "healer")
+	CharRules.choose_class(s, bt, "healer", "f")
+	s.level = 20
+	var base: float = CharRules.heal_amount(s, bt)
+	s.talents = {"h_heal": 2}
+	T.ok(absf(CharRules.heal_amount(s, bt) - base * 1.12) < 0.001, "h_heal 2 cura x1,12")
+	T.eq(CharRules.talent_mods(bt, s).get("heal_power", 0.0), 0.12, "heal_power 0,12")
+
+
+func test_talent_ally_radius_and_ability_time() -> void:
+	var bt := _tables()
+	var s := _talent_char(20, "healer")
+	s.talents = {"h_grace": 2, "h_ward": 1}
+	var m := CharRules.talent_mods(bt, s)
+	T.eq(float(m.get("ally_radius", 0.0)), 2.0, "h_grace 2 = +2 m")
+	T.eq(float(m.get("ability_time:scepter_ward", 0.0)), 2.0, "h_ward 1 = +2 s")

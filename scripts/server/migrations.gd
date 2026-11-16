@@ -148,6 +148,15 @@ const MIGRATIONS := [
 		)",
 		"CREATE INDEX idx_friends_friend ON friends(friend_id)",
 	],
+	# v8: classe do personagem (warrior/archer/mage/healer) e corpo (m/f); "" = ainda não escolheu
+	[
+		"ALTER TABLE characters ADD COLUMN char_class TEXT NOT NULL DEFAULT ''",
+		"ALTER TABLE characters ADD COLUMN body TEXT NOT NULL DEFAULT ''",
+	],
+	# v9: talentos aprendidos (JSON id -> nível)
+	[
+		"ALTER TABLE characters ADD COLUMN talents TEXT NOT NULL DEFAULT '{}'",
+	],
 ]
 
 

@@ -17,7 +17,10 @@ func _svc() -> CharacterService:
 	var db := Db.open(PATH)
 	Migrations.apply(db)
 	db.exec("INSERT INTO accounts(id, username, pass_hash, pass_salt, created_at) VALUES(2, 'ana', 'h', 's', 1)")
-	return CharacterService.new(SqliteCharStore.new(db), _tables())
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	svc.load_or_create(2)
+	svc.apply(2, "choose_class", ["warrior", "m"])
+	return svc
 
 
 func test_resource_ids_cover_enchant_materials() -> void:
@@ -30,7 +33,7 @@ func test_resource_ids_cover_enchant_materials() -> void:
 func test_on_fills_and_off_restores() -> void:
 	var bt := _tables()
 	var s := CharState.new_character(bt)
-	s.equipment.weapon = "azure_edge"   # o personagem novo começa sem arma
+	CharRules.choose_class(s, bt, "warrior", "m")
 	s.gold = 37
 	s.ecos = 4
 	CharRules.add_item(s, bt, "iron_ore", 2)

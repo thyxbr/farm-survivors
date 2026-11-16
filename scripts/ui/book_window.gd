@@ -21,6 +21,9 @@ var _titles: Array[String] = []
 var _actions: Array[String] = []
 var _current := -1
 var _close_tab: Button
+## Largura de cada marcador de aba e a folga mínima até a borda direita do livro.
+const TAB_W := 178.0
+const TAB_EDGE := 24.0
 
 
 func _init() -> void:
@@ -71,6 +74,7 @@ func _init() -> void:
 
 
 func _ready() -> void:
+	_fit_tabs()
 	_layout()
 
 
@@ -118,6 +122,20 @@ func add_page(title: String, key: String, action: String, page: Control, on_pape
 	_tabs.add_child(b)
 	_tabs.move_child(_close_tab, -1)   # o fechar fica sempre depois da última aba
 	_buttons.append(b)
+	_fit_tabs()
+
+
+## Marcadores começam sobre a página direita e não passam da borda do livro: com muitas abas eles
+## estreitam (até o tamanho do texto) e, se ainda faltar espaço, a fila recua para a esquerda.
+func _fit_tabs() -> void:
+	var start := BookLayout.SIZE.x * 0.5 + 36
+	var limit := BookLayout.SIZE.x - TAB_EDGE
+	var sep := _tabs.get_theme_constant("separation")
+	var room := limit - start - _close_tab.custom_minimum_size.x - sep * _buttons.size()
+	var w := minf(TAB_W, floorf(room / maxf(1.0, _buttons.size())))
+	for b in _buttons:
+		b.custom_minimum_size.x = w
+	_tabs.position.x = minf(start, limit - _tabs.get_combined_minimum_size().x)
 
 
 ## Marcador de aba; as pontas arredondadas não esticam, então serve também para o marcador curto do fechar.

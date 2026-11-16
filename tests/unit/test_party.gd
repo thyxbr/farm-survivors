@@ -126,15 +126,22 @@ func test_unknown_position_counts_as_far() -> void:
 	T.ok(PartyRules.near(Vector3(PartyRules.SHARE_RANGE - 1, 50, 0), Vector3.ZERO), "altura não conta")
 
 
-func test_clean_buffs_keeps_only_known_food_buffs() -> void:
-	var items := {"sopa": {"buff": {"add": {"atk": 2}}}, "espada": {"slot": "weapon"}, "pao": {"buff": {}}}
-	T.eq(PartyRules.clean_buffs({"sopa": 30.2, "espada": 10, "xyz": 5, "pao": -3}, items), {"sopa": 31},
-		"só comida com buff, segundos inteiros para cima, sem negativos")
-	T.eq(PartyRules.clean_buffs({"sopa": 999999}, items), {"sopa": PartyRules.MAX_BUFF_SECS}, "teto de segundos")
-	T.eq(PartyRules.clean_buffs({"sopa": INF}, items), {}, "infinito fora")
-	T.eq(PartyRules.clean_buffs("nada", items), {}, "não é dicionário")
+func test_clean_buffs_keeps_only_known_buffs() -> void:
+	var tbl := {"sopa": {"add": {"gold": 0.05}}, "pao": {}}
+	T.eq(PartyRules.clean_buffs({"sopa": 30.2, "espada": 10, "xyz": 5, "pao": -3}, tbl), {"sopa": 31},
+		"só ids da tabela, segundos inteiros para cima, sem negativos")
+	T.eq(PartyRules.clean_buffs({"sopa": 999999}, tbl), {"sopa": PartyRules.MAX_BUFF_SECS}, "teto de segundos")
+	T.eq(PartyRules.clean_buffs({"sopa": INF}, tbl), {}, "infinito fora")
+	T.eq(PartyRules.clean_buffs("nada", tbl), {}, "não é dicionário")
 	var many := {}
 	for i in 10:
-		items["c%d" % i] = {"buff": {}}
+		tbl["c%d" % i] = {}
 		many["c%d" % i] = 60
-	T.eq(PartyRules.clean_buffs(many, items).size(), PartyRules.MAX_BUFFS, "no máximo MAX_BUFFS")
+	T.eq(PartyRules.clean_buffs(many, tbl).size(), PartyRules.MAX_BUFFS, "no máximo MAX_BUFFS")
+
+
+func test_clean_buffs_real_table() -> void:
+	var tbl: Dictionary = BalanceTables.load_dir("res://data/balance").get_table("buffs")
+	T.eq(PartyRules.clean_buffs({"sword_fury": 10, "food_feast": 300}, tbl), {"sword_fury": 10, "food_feast": 300},
+		"buff de habilidade e de comida passam")
+	T.eq(PartyRules.clean_buffs({"spicy_soup": 30, "inventado": 5}, tbl), {}, "id fora da tabela é recusado")

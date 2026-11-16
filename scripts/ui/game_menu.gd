@@ -1,14 +1,14 @@
 extends Control
 ## Menu do herói, num livro aberto (BookWindow): Inventário (herói com o equipamento + mochila em grade),
-## Personagem (atributos, estatísticas, magias) e Missões (lista + detalhes).
+## Personagem (atributos, estatísticas, magias), Talentos (árvore da classe, TalentPanel) e Missões (lista + detalhes).
 ## Referências: boneco e grade de Diablo/Path of Exile, dicas com comparação calculada,
 ## filtros por categoria, atalhos visíveis nas abas.
 
 signal closed
 
-const TAB_KEYS := ["I", "C", "J"]
-const TAB_NAMES := ["Inventário", "Personagem", "Missões"]
-const TAB_ACTIONS := ["inventory", "character", "quest_log"]
+const TAB_KEYS := ["I", "C", "K", "J"]
+const TAB_NAMES := ["Inventário", "Personagem", "Talentos", "Missões"]
+const TAB_ACTIONS := ["inventory", "character", "talents", "quest_log"]
 const BAG_COLS := 8
 const BAG_MIN := 56
 const SLOT := 62.0
@@ -47,6 +47,9 @@ var char_right: VBoxContainer
 var attr_buttons := {}      # atributo -> botão "+"
 var attr_values := {}       # atributo -> rótulo do valor
 
+# talentos
+var talent_panel: TalentPanel
+
 # missões
 ## estado -> título do grupo no diário, marca, cor da tinta, texto do estado nos detalhes (na ordem do diário)
 const QUEST_STATES := {"ready": ["Prontas para entregar", "★", INK_GOOD, "Pronta para entregar"],
@@ -65,7 +68,7 @@ func _ready() -> void:
 	theme = UITheme.get_theme()
 	book = BookWindow.new()
 	add_child(book)
-	var builders := [_build_inventory, _build_character, _build_quests]
+	var builders := [_build_inventory, _build_character, _build_talents, _build_quests]
 	for i in builders.size():
 		var page: Control = builders[i].call()
 		pages.append(page)
@@ -296,7 +299,7 @@ func _drop_on_bag(_target: ItemSlot, data: Dictionary, apply: bool) -> bool:
 
 ## Soltar num espaço do boneco: equipa se o item couber naquele espaço.
 func _drop_on_equip(target: ItemSlot, data: Dictionary, apply: bool) -> bool:
-	if data.source != "bag" or ItemDB.slot_of(data.id) != target.slot_name:
+	if data.source != "bag" or ItemDB.slot_of(data.id) != target.slot_name or not Game.can_wield(data.id):
 		return false
 	if apply:
 		Game.equip(data.id)
@@ -324,9 +327,11 @@ func _refresh_inventory() -> void:
 			var i: int = shown[j]
 			s.index = i
 			s.set_state(Game.inventory[i].id, Game.inventory[i].qty)
+			s.dim = not Game.can_wield(s.item_id)   # arma de outra classe: só para vender
 		else:
 			s.index = -1
 			s.set_state("")
+			s.dim = false
 	bag_count.text = "%d itens" % Game.inventory.size()
 	hero_label.text = "%s · Nível %d" % [_hero_name(), Game.level]
 	if sel_index >= Game.inventory.size():
@@ -334,7 +339,7 @@ func _refresh_inventory() -> void:
 	_refresh_selection()
 	# resumo de estatísticas
 	var cls := Game.weapon_class()
-	class_label.text = "Ataque: %s — %s" % [ItemDB.CLASS_NAMES[cls], ItemDB.CLASS_HINT[cls]]
+	class_label.text = "%s · Ataque: %s — %s" % [Game.class_display_name(), ItemDB.CLASS_NAMES[cls], ItemDB.CLASS_HINT[cls]]
 	for c in stats_box.get_children():
 		c.queue_free()
 	var st := Game.stat_snapshot()
@@ -373,7 +378,7 @@ func _refresh_selection() -> void:
 	sel_label.text = it.name + ("  x%d" % Game.inventory[sel_index].qty if Game.inventory[sel_index].qty > 1 else "")
 	sel_label.add_theme_color_override("font_color", ItemDB.rarity_color(id).darkened(0.55) if ItemDB.is_equippable(id) else UITheme.INK)
 	var t: String = it.type
-	use_btn.disabled = t == "material" or t == "seed" or (t == "crop" and not Game.is_edible(id))
+	use_btn.disabled = t == "material" or t == "seed" or (t == "crop" and not Game.is_edible(id)) or not Game.can_wield(id)
 	use_btn.text = "Equipar" if ItemDB.is_equippable(id) else ("Comer" if t in ["food", "crop"] else "Usar")
 	drop_btn.disabled = false
 
@@ -469,7 +474,7 @@ func _refresh_character() -> void:
 	rv.add_child(g)
 	var st := Game.stat_snapshot()
 	var red := 1.0 - 50.0 / (50.0 + Game.defense() * 4.0)
-	var rows := [["Arma", ItemDB.CLASS_NAMES[Game.weapon_class()]], ["Dano do ataque", "%.0f" % st.dmg],
+	var rows := [["Classe", Game.class_display_name()], ["Arma", ItemDB.CLASS_NAMES[Game.weapon_class()]], ["Dano do ataque", "%.0f" % st.dmg],
 		["Defesa", "%.1f" % st.def], ["Redução de dano", "%d%%" % int(round(red * 100))],
 		["Vida máxima", "%d" % st.hp], ["Mana máxima", "%d" % st.mp], ["Vigor máximo", "%d" % Game.max_stamina()],
 		["Poder mágico", "%.0f" % st.spell], ["Crítico", "%d%%" % int(round(st.crit * 100))],
@@ -519,6 +524,12 @@ func _refresh_character() -> void:
 			tv.add_child(UITheme.ink("Aprende no nível %d" % sp.level, 13, UITheme.INK_RED))
 		row.add_child(tv)
 		rv.add_child(row)
+
+
+# ================================================================ talentos
+func _build_talents() -> Control:
+	talent_panel = TalentPanel.new()
+	return talent_panel
 
 
 func _hero_name() -> String:
@@ -730,6 +741,7 @@ func _refresh() -> void:
 		return
 	_refresh_inventory()
 	_refresh_character()
+	talent_panel.refresh()
 	_refresh_quests()
 
 

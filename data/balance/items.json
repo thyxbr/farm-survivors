@@ -86,6 +86,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "epic",
+		"named": true,
 		"damage": 30,
 		"price": 220,
 		"color": {
@@ -105,6 +106,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "epic",
+		"named": true,
 		"damage": 34,
 		"price": 420,
 		"color": {
@@ -125,6 +127,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "legendary",
+		"named": true,
 		"damage": 42,
 		"price": 900,
 		"color": {
@@ -372,6 +375,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "legendary",
+		"named": true,
 		"damage": 44,
 		"price": 950,
 		"color": {
@@ -392,6 +396,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "legendary",
+		"named": true,
 		"damage": 46,
 		"price": 1000,
 		"color": {
@@ -495,6 +500,7 @@
 		"type": "weapon",
 		"class": "staff",
 		"rarity": "legendary",
+		"named": true,
 		"damage": 30,
 		"price": 950,
 		"color": {
@@ -647,6 +653,7 @@
 		"type": "weapon",
 		"class": "staff",
 		"rarity": "legendary",
+		"named": true,
 		"damage": 32,
 		"price": 1000,
 		"color": {
@@ -697,6 +704,7 @@
 		"type": "weapon",
 		"class": "bow",
 		"rarity": "rare",
+		"named": true,
 		"damage": 21,
 		"price": 240,
 		"color": {
@@ -734,6 +742,7 @@
 		"type": "weapon",
 		"class": "bow",
 		"rarity": "legendary",
+		"named": true,
 		"damage": 34,
 		"price": 950,
 		"color": {
@@ -1494,14 +1503,7 @@
 		"price": 18,
 		"stack": true,
 		"heal_hp": 35,
-		"buff": {
-			"name": "Barriga Cheia",
-			"time": 60.0,
-			"add": {
-				"regen": 1.5
-			},
-			"desc": "+1,5 de vida por segundo"
-		},
+		"buff": "food_full",
 		"color": {
 			"$c": [0.9, 0.7, 0.4, 1.0]
 		},
@@ -1513,15 +1515,7 @@
 		"price": 30,
 		"stack": true,
 		"heal_hp": 60,
-		"buff": {
-			"name": "Vigor da Horta",
-			"time": 90.0,
-			"add": {
-				"max_hp_flat": 30.0,
-				"defense": 2.0
-			},
-			"desc": "+30 de vida máxima e +2 de defesa"
-		},
+		"buff": "food_garden",
 		"color": {
 			"$c": [1.0, 0.55, 0.2, 1.0]
 		},
@@ -1533,14 +1527,7 @@
 		"price": 40,
 		"stack": true,
 		"heal_hp": 30,
-		"buff": {
-			"name": "Fúria Picante",
-			"time": 45.0,
-			"add": {
-				"damage": 0.3
-			},
-			"desc": "+30% de dano"
-		},
+		"buff": "food_warm",
 		"color": {
 			"$c": [1.0, 0.3, 0.15, 1.0]
 		},
@@ -1552,20 +1539,11 @@
 		"price": 45,
 		"stack": true,
 		"heal_hp": 20,
-		"special": "fire_nova",
-		"buff": {
-			"name": "Bafo de Dragão",
-			"time": 30.0,
-			"add": {
-				"damage": 0.2,
-				"crit": 0.1
-			},
-			"desc": "+20% de dano e +10% de crítico"
-		},
+		"buff": "food_chili",
 		"color": {
 			"$c": [1.0, 0.4, 0.05, 1.0]
 		},
-		"desc": "Ao comer: explosão de fogo ao seu redor!"
+		"desc": "Pimenta que aquece o bolso e atrai moedas."
 	},
 	"mint_tea": {
 		"name": "Chá de Menta Gélida",
@@ -1573,20 +1551,11 @@
 		"price": 30,
 		"stack": true,
 		"heal_mp": 40,
-		"special": "frost_nova",
-		"buff": {
-			"name": "Mente Fresca",
-			"time": 60.0,
-			"add": {
-				"cooldown": -0.2,
-				"speed": 0.1
-			},
-			"desc": "−20% de recarga e +10% de velocidade"
-		},
+		"buff": "food_mint",
 		"color": {
 			"$c": [0.5, 0.95, 1.0, 1.0]
 		},
-		"desc": "Ao comer: congela os inimigos próximos."
+		"desc": "Clareia as ideias e rende experiência."
 	},
 	"garden_salad": {
 		"name": "Salada da Horta",
@@ -1594,15 +1563,7 @@
 		"price": 36,
 		"stack": true,
 		"heal_hp": 40,
-		"buff": {
-			"name": "Olhos de Águia",
-			"time": 90.0,
-			"add": {
-				"xp": 0.3,
-				"magnet": 0.6
-			},
-			"desc": "+30% de XP das gemas e +60% de raio de coleta"
-		},
+		"buff": "food_eagle",
 		"color": {
 			"$c": [0.5, 1.0, 0.45, 1.0]
 		},
@@ -1614,15 +1575,7 @@
 		"price": 55,
 		"stack": true,
 		"heal_hp": 120,
-		"buff": {
-			"name": "Casca Dura",
-			"time": 90.0,
-			"add": {
-				"defense": 5.0,
-				"lifesteal": 2.0
-			},
-			"desc": "+5 de defesa e cada abate cura 2"
-		},
+		"buff": "food_pie",
 		"color": {
 			"$c": [1.0, 0.6, 0.15, 1.0]
 		},
@@ -1634,18 +1587,7 @@
 		"price": 120,
 		"stack": true,
 		"heal_full": true,
-		"buff": {
-			"name": "Banquete do Herói",
-			"time": 120.0,
-			"add": {
-				"damage": 0.25,
-				"max_hp_flat": 40.0,
-				"speed": 0.12,
-				"gold": 0.4,
-				"cooldown": -0.15
-			},
-			"desc": "+25% de dano, +40 de vida máx., +12% de velocidade, −15% de recarga, +40% de ouro"
-		},
+		"buff": "food_feast",
 		"color": {
 			"$c": [1.0, 0.85, 0.3, 1.0]
 		},
@@ -1722,5 +1664,165 @@
 		"price": 60,
 		"stack": true,
 		"desc": "Só um goblin a carregava. Não carrega mais."
+	},
+	"sc_novice_scepter": {
+		"name": "Cetro de Noviço",
+		"type": "weapon",
+		"class": "scepter",
+		"rarity": "common",
+		"damage": 9,
+		"price": 40,
+		"color": {
+			"$c": [
+				0.95,
+				0.95,
+				0.7,
+				1.0
+			]
+		},
+		"wood": {
+			"$c": [
+				0.6,
+				0.45,
+				0.25,
+				1.0
+			]
+		},
+		"stats": {
+			"spell": 3,
+			"mp": 10
+		},
+		"heal": 0,
+		"desc": "Madeira clara e uma gema fraca. Cura quem estiver perto, devagar.",
+		"model": "sc_novice_scepter"
+	},
+	"sc_dawn_scepter": {
+		"name": "Cetro da Alvorada",
+		"type": "weapon",
+		"class": "scepter",
+		"rarity": "uncommon",
+		"damage": 13,
+		"price": 110,
+		"color": {
+			"$c": [
+				1.0,
+				0.85,
+				0.5,
+				1.0
+			]
+		},
+		"wood": {
+			"$c": [
+				0.7,
+				0.55,
+				0.3,
+				1.0
+			]
+		},
+		"stats": {
+			"int": 2,
+			"spell": 5,
+			"mp": 10
+		},
+		"heal": 0.05,
+		"desc": "Brilha como o primeiro raio do dia.",
+		"model": "sc_dawn_scepter"
+	},
+	"sc_blessed_scepter": {
+		"name": "Cetro Abençoado",
+		"type": "weapon",
+		"class": "scepter",
+		"rarity": "rare",
+		"damage": 18,
+		"price": 230,
+		"color": {
+			"$c": [
+				1.0,
+				0.95,
+				0.75,
+				1.0
+			]
+		},
+		"wood": {
+			"$c": [
+				0.85,
+				0.75,
+				0.5,
+				1.0
+			]
+		},
+		"stats": {
+			"int": 3,
+			"spell": 9,
+			"mp": 15
+		},
+		"heal": 0.1,
+		"desc": "Benzido no altar da vila; a luz acompanha cada golpe.",
+		"model": "sc_blessed_scepter"
+	},
+	"sc_seraph_scepter": {
+		"name": "Cetro do Serafim",
+		"type": "weapon",
+		"class": "scepter",
+		"rarity": "epic",
+		"damage": 27,
+		"price": 420,
+		"color": {
+			"$c": [
+				1.0,
+				1.0,
+				0.9,
+				1.0
+			]
+		},
+		"wood": {
+			"$c": [
+				0.9,
+				0.85,
+				0.7,
+				1.0
+			]
+		},
+		"stats": {
+			"int": 4,
+			"spell": 13,
+			"mp": 25
+		},
+		"heal": 0.15,
+		"desc": "Asas de ouro envolvem um cristal que nunca apaga.",
+		"model": "sc_seraph_scepter"
+	},
+	"sc_halo_scepter": {
+		"name": "Cetro do Halo Eterno",
+		"type": "weapon",
+		"class": "scepter",
+		"rarity": "legendary",
+		"damage": 31,
+		"price": 980,
+		"color": {
+			"$c": [
+				1.0,
+				0.95,
+				0.6,
+				1.0
+			]
+		},
+		"wood": {
+			"$c": [
+				0.95,
+				0.88,
+				0.55,
+				1.0
+			]
+		},
+		"stats": {
+			"int": 6,
+			"spell": 20,
+			"mp": 40,
+			"cdr": 0.1
+		},
+		"heal": 0.25,
+		"desc": "Quem o empunha jamais caminha sozinho na escuridão.",
+		"model": "sc_halo_scepter"
 	}
 }
