@@ -542,6 +542,8 @@ func _ready() -> void:
 			check(absf(ang_a - 12.0) < 0.5 and absf(ang_b - 12.0) < 0.5 and absf(ang_c - 24.0) < 0.5,
 				"Tiro Triplo: leque de 12 graus (%.1f, %.1f, total %.1f)" % [ang_a, ang_b, ang_c])
 		await wait_until(func(): return player.ability == "")
+		# as flechas ainda voam os 6 m até o slime quando a habilidade termina: espera o acerto (com prazo)
+		await wait_until(func(): return tt_s.hp < tt_hp, 1.0)
 		check(player.cooldowns.bow_triple > 0.0 and tt_s.hp < tt_hp, "Tiro Triplo fere o slime e entra em recarga (%.0f -> %.0f)" % [tt_hp, tt_s.hp])
 	# esquiva antes do disparo cancela sem gastar flechas (logo no início, ability_t = 0); depois é ignorada
 	equip_any("short_bow")
@@ -798,8 +800,12 @@ func _ready() -> void:
 	_stop_spawn_watch(fb_watch)
 	check(Game.mp < mp0, "bola de fogo gasta mana")
 	check("fireball" in fb_watch[0], "projétil de bola de fogo criado")
+	# nível 1 de fato: uma resposta do Econ (XP de um abate) pode ter devolvido outro nível no meio do teste
+	var lvl_sp := Game.level
+	Game.level = 1
 	player.use_slot(2)   # Nova Gélida (nível 3) bloqueada no nível 1
 	check(player.cooldowns.frost_nova == 0.0, "slot 2 respeita o nível")
+	Game.level = lvl_sp
 	equip_any(kit_weapon)   # restaura a arma inicial
 
 	# --- completar missão e subir de nível
@@ -1262,7 +1268,10 @@ func _test_meteor_rain() -> void:
 		% [want, h0[0] - h1[0], h0[1] - h1[1], h0[2] - h1[2]])
 	check(h1[3] == h0[3], "Meteoros: o slime fora da área não perde vida")
 	check(Game.fury == 0.0, "Meteoros: acertos da ultimate não recarregam a fúria (%.2f)" % Game.fury)
-	check(Game.mp == mp1, "Meteoros: não gasta mana (%.1f -> %.1f)" % [mp1, Game.mp])
+	# se um abate devolveu o nível real no meio do teste, a mana máxima cai e a mana é cortada junto: isso
+	# não é gasto. Gastar é ficar abaixo do que dava (a cheia de antes, limitada ao máximo de agora).
+	check(Game.mp >= minf(mp1, Game.max_mp()) - 0.01, "Meteoros: não gasta mana (%.1f -> %.1f, máximo %.1f)"
+		% [mp1, Game.mp, Game.max_mp()])
 	check(is_equal_approx(Engine.time_scale, 1.0) and player.cam_back == 0.0, "Meteoros: fim restaura tempo e câmera")
 
 	# --- soltar no preparo (um toque na tecla): fica guardado; a chuva abre no fim do preparo, canaliza
