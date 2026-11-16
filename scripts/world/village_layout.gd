@@ -1,7 +1,7 @@
 @tool
 class_name VillageLayout
 extends RefCounted
-## Planta da vila de Valdoria (world.gd monta): ruas, casas (lidas de scenes/village.tscn), os pontos que vieram da antiga praça da cidade
+## Planta da vila de Valdoria (world.gd monta): ruas, casas (lidas de scenes/maps/vale.tscn), os pontos que vieram da antiga praça da cidade
 ## e os lugares dos eventos de Natal do Papai Noel. Só dados e contas puras (sem autoload), para os testes.
 ##
 ## A praça do poço continua no meio, com as seis casas de sempre em volta. Dela saem as ruas: a Rua do
@@ -63,9 +63,9 @@ const SHOP_SHAPES := {
 const MERCHANT_SPOT := Vector3(-0.7, 0, 2.4)
 const ALCHEMIST_SPOT := Vector3(0.3, 0, 3.0)
 
-## As construções (casas, lojas e o poço) ficam na cena village.tscn, que se edita no 3D do Godot
+## As construções (casas, lojas e o poço) ficam na cena do vale (scenes/maps/vale.tscn), que se edita no 3D do Godot
 ## (VillageBuilding). O jogo lê a cena uma vez e guarda: buildings() devolve os dados de cada uma.
-const SCENE := "res://scenes/village.tscn"
+const SCENE := "res://scenes/maps/vale.tscn"
 static var _buildings: Array = []
 
 ## Paletas: [reboco (multiplica a cor original), telhado (cor nova), venezianas (cor nova)].
@@ -144,7 +144,7 @@ const GIFTS := [
 ]
 
 
-## Construções da cena village.tscn, na ordem da árvore: {name, model, pos, yaw, palette, flowers,
+## Construções (VillageBuilding) do vale.tscn, na ordem da árvore: {name, model, pos, yaw, palette, flowers,
 ## delivery}. Só a posição e o giro em Y contam (o nó pode estar dentro de grupos, que também podem girar).
 static func buildings() -> Array:
 	if _buildings.is_empty():

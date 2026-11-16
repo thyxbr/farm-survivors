@@ -9,7 +9,7 @@ extends Elder
 ## - natal_presentes (gather): 8 presentes caídos pelo vale (VillageLayout.GIFTS, ChristmasEventPoint);
 ## - natal_ladroes (kill, "targets"): 6 goblins de qualquer tipo;
 ## - natal_ceia (deliver): levar 2 Pães Rústicos e 1 Ensopado de Cenoura;
-## - natal_entregas (visit): deixar presentes nas 6 portas marcadas (VillageLayout.deliveries(), as casas com "delivery" em village.tscn).
+## - natal_entregas (visit): deixar presentes nas 6 portas marcadas (VillageLayout.deliveries(), as casas com "delivery" no vale.tscn).
 ## O marcador ("+" evento novo, "?" pronto para entregar) vem de StoryRules, como nos outros NPCs.
 
 const EVENTS := ["natal_presentes", "natal_ladroes", "natal_ceia", "natal_entregas"]

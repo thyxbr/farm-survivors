@@ -1,7 +1,7 @@
 @tool
 class_name VillageBuilding
 extends Node3D
-## Uma construção da vila na cena scenes/village.tscn (casa, loja ou o poço). No editor ela mostra o modelo
+## Uma construção da vila na cena scenes/maps/vale.tscn (casa, loja ou o poço). No editor ela mostra o modelo
 ## (com as cores da paleta), então dá para arrastar, girar e duplicar (Ctrl+D) as casas no 3D. No jogo o
 ## world.gd não põe esta cena na árvore: ele lê a posição, o giro e as opções de cada uma
 ## (VillageLayout.buildings()) e monta o modelo, a colisão, as luzes, os enfeites e as flores.

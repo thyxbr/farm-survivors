@@ -51,6 +51,12 @@ func _ready() -> void:
 	world = get_tree().current_scene
 	player = get_tree().get_first_node_in_group("player")
 	check(world != null and player != null, "mundo e jogador carregados")
+	# mapas em cena (scenes/maps): o mundo tem o mesmo conteúdo do retrato tirado antes da conversão
+	var base := FileAccess.get_file_as_string("res://tests/fixtures/map_baseline.txt").strip_edges().split("\n")
+	var diffs := MapSummary.compare(base, WorldSummary.collect(world))
+	for d in diffs.slice(0, 40):
+		print("      ", d)
+	check(diffs.is_empty(), "mundo igual ao retrato de antes da conversão para cenas (%d diferenças)" % diffs.size())
 	# confere o kit antes de qualquer combate: slimes podem soltar cajado/arco e o saque é aleatório
 	check(Game.count_item("apprentice_staff") == 1 and Game.count_item("short_bow") == 1, "kit inicial tem cajado e arco")
 

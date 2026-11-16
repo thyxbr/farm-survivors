@@ -97,6 +97,14 @@ func _bake() -> void:
 			_add(_map(n.global_position), "Luzes", _light(n, Transform3D()), n.global_transform, false)
 		elif n is Label3D:
 			_add(_map(n.global_position), "Enfeites", _label(n), n.global_transform, false)
+		elif not n.has_meta("decor"):
+			# nó vazio montado por código: os enfeites dele vêm da gravação; luzes e textos pendurados nele
+			# (tocha das Ruínas, runas da Arena) viram peças soltas
+			for c in n.find_children("*", "", true, false):
+				if c is OmniLight3D:
+					_add(_map(c.global_position), "Luzes", _light(c, Transform3D()), c.global_transform, false)
+				elif c is Label3D:
+					_add(_map(c.global_position), "Enfeites", _label(c), c.global_transform, false)
 	for rec in ChristmasDecor.records:
 		if rec.parent == null or rec.parent == w:
 			var xf: Transform3D = rec.xform
@@ -173,9 +181,9 @@ func _unique(parent: Node, base: String) -> String:
 
 ## Põe a peça no mapa certo, no grupo da área/categoria, com o transform local ao mapa. `follow`: a altura
 ## vira distância até o chão.
-func _add(id: String, category: String, piece: Node3D, global: Transform3D, follow: bool) -> void:
+func _add(id: String, category: String, piece: Node3D, global: Transform3D, follow: bool, by_area := true) -> void:
 	var o: Vector3 = Regions.origin(id)
-	var area := _area(id, global.origin)
+	var area := _area(id, global.origin) if by_area else ""
 	var parent := _group(id, (area + "/" + category) if area != "" else category)
 	var xf := global
 	xf.origin -= o
@@ -338,6 +346,8 @@ func _signpost(n: Node3D) -> void:
 
 
 func _body(src: StaticBody3D) -> void:
+	if src.has_meta("decor"):
+		return   # colisão de enfeite (árvore de Natal, boneco, trenó): o MapDecor recria
 	var b := StaticBody3D.new()
 	b.name = "Colisão"
 	b.collision_mask = src.collision_mask
@@ -446,12 +456,14 @@ func _grass_area(p: Vector3, r: float, sparse: bool) -> void:
 func _spawns() -> void:
 	for s in w.spawns:
 		var e := EnemySpawn.new()
-		e.name = s.kind
+		var area := _area(_map(s.pos), s.pos)
+		e.name = "%s (%s)" % [s.kind, area] if area != "" else s.kind
 		e.kind = s.kind
 		e.count = 1
 		e.radius = 0.0
 		e.respawn = s.respawn
-		_add(_map(s.pos), "Monstros", e, Transform3D(Basis(), s.pos), true)
+		# um grupo por mapa, na ordem original: os testes e a rede numeram os monstros nessa ordem
+		_add(_map(s.pos), "Monstros", e, Transform3D(Basis(), s.pos), true, false)
 
 
 func _landmarks() -> void:

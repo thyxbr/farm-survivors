@@ -121,6 +121,8 @@ var landmarks := {}
 var grass_areas := {}
 ## Faixa de _no_grass preenchida pelas casas/lojas (para a conversão para cenas separar).
 var building_grass := [0, 0]
+## Raiz da cena de cada mapa já montado (MapLoader): map_id -> MapRoot.
+var maps := {}
 var santa: Node3D = null
 ## Veios de ferro e cristais arcanos (WorldResourceNode); vazio no servidor dedicado.
 var resource_nodes: Array = []
@@ -147,10 +149,8 @@ func _ready() -> void:
 	if staged:
 		process_mode = Node.PROCESS_MODE_DISABLED   # nada do mapa processa pela metade, sem o jogador
 	# [etapa, peso na barra] — o peso acompanha o tempo medido de cada uma (o capim é a mais demorada)
-	var steps := [[_build_environment, 2.0], [_build_ground, 2.0], [_build_village, 1.0], [_build_farm, 1.0],
-		[_build_fields, 0.5], [_build_goblin_camp, 0.5], [_build_ruins, 0.5], [_build_arena, 0.5],
-		[_build_borders, 0.5], [_scatter_forest, 0.5], [_scatter_sparse, 0.5], [_mountain_nature, 0.5],
-		[_build_regions, 2.0], [_scatter_grass, 7.0], [_scatter_region_grass, 3.0]]
+	var steps := [[_build_environment, 2.0], [_load_vale, 6.0], [_build_regions, 2.0], [_scatter_grass, 7.0],
+		[_scatter_region_grass, 3.0]]
 	if not Network.is_client():
 		steps.append([_setup_enemies, 2.0])   # no cliente, os inimigos chegam do servidor
 	var total := 1.0   # o que sobra depois das etapas: jogador e HUD
@@ -323,7 +323,34 @@ func _light(parent: Node3D, local: Vector3, color: Color, energy: float, rng_ran
 	return l
 
 
-# ================================================================ vila
+# ================================================================ vale (scenes/maps/vale.tscn)
+## O vale vem da cena (MapLoader): chão, objetos, luzes, enfeites, NPCs, pontos, monstros e lugares. As
+## construções da vila (VillageBuilding) montam aqui as casas e lojas, com os donos e as portas do Natal.
+func _load_vale() -> void:
+	maps["vila"] = MapLoader.build(self, "vila")
+	var c0 := get_child_count()
+	var g0 := _no_grass.size()
+	_build_buildings()
+	for i in range(c0, get_child_count()):
+		get_child(i).set_meta("from_building", true)
+	building_grass = [g0, _no_grass.size()]
+	_build_doors()
+
+
+## Entregas na Vila: um ponto na porta de cada casa marcada com "delivery" (VillageLayout.deliveries()).
+func _build_doors() -> void:
+	var doors := VillageLayout.deliveries()
+	for i in doors.size():
+		var h: Dictionary = doors[i]
+		var d: Array = ChristmasDecor.HOUSE_DOORS[h.model]
+		var e := EVENT_POINT.new()
+		e.kind = "door"
+		e.index = i
+		e.position = VillageLayout.xform(h) * Vector3(d[0], 0, d[2] + 0.7)
+		add_child(e)
+
+
+# ================================================================ vila (montagem antiga, sai na limpeza)
 func _build_village() -> void:
 	_avoid.append([Vector2(0, 4), 26.0])
 	var lamps: Array = []
@@ -360,7 +387,7 @@ func _build_village() -> void:
 	_build_districts()
 
 
-## Construções da cena village.tscn (VillageLayout.buildings(), editada no 3D do Godot): o poço, as lojas
+## Construções do vale.tscn (VillageLayout.buildings(), editada no 3D do Godot): o poço, as lojas
 ## com os donos na frente e as casas com cores, pisca-pisca, guirlanda, luz da janela e canteiro.
 func _build_buildings() -> void:
 	var n_house := 0
@@ -462,7 +489,7 @@ func _build_fence() -> void:
 
 
 ## Bairros novos (VillageLayout): lampiões nas esquinas, os pontos que eram da praça, o Papai Noel com o
-## trenó e os pontos dos eventos de Natal. As casas vêm de village.tscn (_build_buildings).
+## trenó e os pontos dos eventos de Natal. As casas vêm do vale.tscn (_build_buildings).
 func _build_districts() -> void:
 	_avoid.append([Vector2(-24, 4), 15.5])
 	_avoid.append([Vector2(26, 4), 15.5])
@@ -913,18 +940,16 @@ func _scatter_sparse() -> void:
 func _scatter_grass() -> void:
 	if Network.is_server():
 		return   # grama é só visual
+	var root: MapRoot = maps["vila"]
 	var keep_out := _no_grass.duplicate()
-	keep_out.append([Vector2(ARENA.x, ARENA.z), 33.0])
-	keep_out.append_array(VillageLayout.street_circles())
-	keep_out.append([Vector2(VillageLayout.LARGO.x, VillageLayout.LARGO.z), 4.8])
-	var sparse := [[Vector2(0, 4), 22.0], [Vector2(FARM.x, FARM.z), 12.0], [Vector2(-24, 4), 15.0],
-		[Vector2(26, 4), 15.0]]
+	keep_out.append_array(grass_areas["vila"].keep_out)
+	var sparse: Array = grass_areas["vila"].sparse
 	if Loading.covering:
 		# fileira por fileira, um quadro cada: é a etapa mais demorada da montagem
-		await ground.scatter_grass(rng.seed + 7, 0.6, keep_out, sparse, 1.0,
+		await ground.scatter_grass(root.grass_seed, root.grass_density, keep_out, sparse, root.grass_plants,
 			func(frac: float) -> void: Loading.set_progress(lerpf(_step_from, _step_to, frac)))
 	else:
-		ground.scatter_grass(rng.seed + 7, 0.6, keep_out, sparse)
+		ground.scatter_grass(root.grass_seed, root.grass_density, keep_out, sparse, root.grass_plants)
 
 
 # ================================================================ veios e cristais
@@ -942,50 +967,7 @@ func _setup_resource_nodes() -> void:
 
 # ================================================================ inimigos
 func _setup_enemies() -> void:
-	for p in [Vector3(-12, 0, -30), Vector3(10, 0, -32), Vector3(-5, 0, -42), Vector3(14, 0, -47),
-			Vector3(-20, 0, -52), Vector3(4, 0, -57), Vector3(20, 0, -62), Vector3(-10, 0, -66),
-			Vector3(-26, 0, -34), Vector3(26, 0, -36)]:
-		spawns.append({"kind": "slime", "pos": p, "node": null, "timer": 0.0, "respawn": 30.0})
-	for off in [Vector3(-6, 0, 3), Vector3(4, 0, 2), Vector3(-2, 0, -10), Vector3(8, 0, -3),
-			Vector3(-9, 0, -4), Vector3(6, 0, 9)]:
-		spawns.append({"kind": "goblin", "pos": CAMP + off, "node": null, "timer": 0.0, "respawn": 60.0})
-	for off in [Vector3(-7, 0, 14), Vector3(7, 0, 14)]:
-		spawns.append({"kind": "goblin", "pos": RUINS + off, "node": null, "timer": 0.0, "respawn": 90.0})
-	# monstros da Defesa da Cidade reaproveitados aqui: soltam as essências do encantamento
-	# (enemies.json). Reforços do Acampamento Goblin: arqueiros nas pontas e um xamã no fundo.
-	for off in [Vector3(-11, 0, -8), Vector3(10, 0, 7)]:
-		spawns.append({"kind": "goblin_arqueiro", "pos": CAMP + off, "node": null, "timer": 0.0, "respawn": 75.0})
-	spawns.append({"kind": "goblin_xama", "pos": CAMP + Vector3(9, 0, -9), "node": null, "timer": 0.0, "respawn": 120.0})
-	# fontes de +4 e +5: o Campeão (insígnia) guarda o Acampamento, os Brutos (Sombra) guardam as Ruínas
-	# e os Goblins Dourados (Sagrado) ficam soltos pelo mapa e fogem de quem chega perto
-	spawns.append({"kind": "goblin_campeao", "pos": CAMP + Vector3(2, 0, -5), "node": null, "timer": 0.0, "respawn": 300.0})
-	for off in [Vector3(-11, 0, 4), Vector3(11, 0, 4)]:
-		spawns.append({"kind": "goblin_bruto", "pos": RUINS + off, "node": null, "timer": 0.0, "respawn": 150.0})
-	for p in [Vector3(30, 0, 44), Vector3(-30, 0, -72)]:
-		spawns.append({"kind": "goblin_dourado", "pos": p, "node": null, "timer": 0.0, "respawn": 240.0})
-	# esqueletos guardam o caminho das Ruínas (guerreiros na trilha, arqueiros nas pontas) e os fundos
-	# (o mago e o Cavaleiro), todos fora do alcance de quem luta com o rei no centro
-	for off in [Vector3(-5, 0, 24), Vector3(5, 0, 24), Vector3(0, 0, 30)]:
-		spawns.append({"kind": "esqueleto", "pos": RUINS + off, "node": null, "timer": 0.0, "respawn": 90.0})
-	for off in [Vector3(-14, 0, 22), Vector3(14, 0, 22)]:
-		spawns.append({"kind": "esqueleto_arqueiro", "pos": RUINS + off, "node": null, "timer": 0.0, "respawn": 100.0})
-	spawns.append({"kind": "esqueleto_mago", "pos": RUINS + Vector3(-18, 0, -12), "node": null, "timer": 0.0, "respawn": 150.0})
-	spawns.append({"kind": "esqueleto_cavaleiro", "pos": RUINS + Vector3(18, 0, -12), "node": null, "timer": 0.0, "respawn": 300.0})
-	# bombardeiros rondam o Acampamento Goblin e as slimes de gelo ficam no meio das comuns, nos campos
-	for off in [Vector3(-13, 0, 6), Vector3(12, 0, -10)]:
-		spawns.append({"kind": "goblin_bombardeiro", "pos": CAMP + off, "node": null, "timer": 0.0, "respawn": 90.0})
-	for p in [Vector3(-18, 0, -44), Vector3(16, 0, -54)]:
-		spawns.append({"kind": "slime_gelo", "pos": p, "node": null, "timer": 0.0, "respawn": 60.0})
-	# Ninho de Slimes: a mãe no meio, explosivos em volta dela e os velozes por fora
-	spawns.append({"kind": "slime_mae", "pos": NEST, "node": null, "timer": 0.0, "respawn": 120.0})
-	for i in 3:
-		var a := i * TAU / 3.0 + 0.5
-		spawns.append({"kind": "slime_explosivo", "pos": NEST + Vector3(cos(a), 0, sin(a)) * 4.5, "node": null,
-			"timer": 0.0, "respawn": 60.0})
-	for i in 4:
-		var a := i * TAU / 4.0
-		spawns.append({"kind": "slime_veloz", "pos": NEST + Vector3(cos(a), 0, sin(a)) * 8.5, "node": null,
-			"timer": 0.0, "respawn": 45.0})
+	# os pontos do vale já estão em spawns (MapLoader, cena do vale); as regiões trazem os delas
 	spawns.append_array(region_spawns)
 	for s in spawns:
 		_spawn(s)

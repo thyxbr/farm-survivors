@@ -17,7 +17,7 @@ static func collect(w: Node3D) -> PackedStringArray:
 	var out := PackedStringArray()
 	var flicker := {}
 	for f in w.get("flicker_lights"):
-		flicker[f[0]] = true
+		flicker[f[0]] = f[1]   # força-base (a luz em si muda a cada quadro)
 	for c in w.get_children():
 		_walk(c, out, flicker)
 	for s in w.get("spawns"):
@@ -42,6 +42,8 @@ static func _script_name(n: Node) -> String:
 
 
 static func _walk(n: Node, out: PackedStringArray, flicker: Dictionary) -> void:
+	if n is Node3D and (n as Node3D).global_position.y < -50.0:
+		return   # algo caindo (efeito, objeto solto): não é conteúdo de mapa
 	if n is MultiMeshInstance3D or n is CanvasLayer or n is Camera3D or n is AudioStreamPlayer3D:
 		return
 	if n.has_method("build_terrain") or n.has_method("take_damage"):
@@ -75,21 +77,30 @@ static func _walk(n: Node, out: PackedStringArray, flicker: Dictionary) -> void:
 				size = (sh as BoxShape3D).size
 			elif sh is CylinderShape3D:
 				size = Vector3((sh as CylinderShape3D).radius, (sh as CylinderShape3D).height, 0)
-			out.append("body|%s;%s;%s;%s" % [sh.get_class(), MapSummary.vec(n3.global_position), MapSummary.vec(size),
-				_yaw(n3)])
+			# cilindro girado em volta do eixo vertical é a mesma colisão: o giro só conta na caixa
+			out.append("body|%s;%s;%s%s" % [sh.get_class(), MapSummary.vec(n3.global_position), MapSummary.vec(size),
+				";" + _yaw(n3) if sh is BoxShape3D else ""])
 		elif n is OmniLight3D:
 			var l := n as OmniLight3D
 			var mode := "flicker" if flicker.has(l) else ("night" if l.has_meta("night_energy") else "normal")
-			var energy: float = l.get_meta("night_energy") if mode == "night" else l.light_energy
+			var energy: float = l.light_energy
+			if mode == "night":
+				energy = l.get_meta("night_energy")
+			elif mode == "flicker":
+				energy = flicker[l]
 			out.append("light|%s;%s;%s;%s;%s;%s;%s" % [mode, MapSummary.vec(l.global_position), MapSummary.num(energy),
 				MapSummary.num(l.omni_range), MapSummary.num(l.light_color.r), MapSummary.num(l.light_color.g),
 				MapSummary.num(l.light_color.b)])
 		elif n is Label3D:
 			out.append("label|%s;%s" % [(n as Label3D).text.replace(";", ",").replace("\n", " "),
 				MapSummary.vec(n3.global_position)])
+		elif n is MeshInstance3D and (n.name.begins_with("ToonOutline") or (n as MeshInstance3D).mesh is ImmediateMesh):
+			return   # contorno do toon (só existe com o estilo ligado) e desenho imediato (efeitos)
 		elif n is MeshInstance3D:
-			out.append("mesh|%s;%s" % [(n as MeshInstance3D).mesh.get_class() if (n as MeshInstance3D).mesh else "none",
-				MapSummary.vec(n3.global_position)])
+			# o centro da malha no mundo (a origem do nó pode mudar sem a malha mudar de lugar)
+			var mi := n as MeshInstance3D
+			var at := mi.global_transform * mi.get_aabb().get_center() if mi.mesh else n3.global_position
+			out.append("mesh|%s;%s" % [mi.mesh.get_class() if mi.mesh else "none", MapSummary.vec(at)])
 	for c in n.get_children():
 		# dentro de um modelo, só o que o código pendurou nele (luzes, enfeites); as peças do GLB têm dono
 		if model != "" and c.owner == n:

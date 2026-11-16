@@ -21,7 +21,7 @@ size = Vector3(2, 20, 128)
 [sub_resource type="BoxShape3D" id="BoxShape3D_mlpe5"]
 size = Vector3(2, 20, 128)
 
-[node name="Pico" type="Node3D" unique_id=2027053625]
+[node name="Pico" type="Node3D" unique_id=183400832]
 script = ExtResource("1_jmdld")
 map_id = "pico"
 half = 62.0
@@ -30,22 +30,22 @@ grass_density = 0.18
 grass_plants = 0.6
 grass_seed = 20261146
 
-[node name="Chão" type="Node3D" parent="." unique_id=1725686134]
+[node name="Chão" type="Node3D" parent="." unique_id=867067428]
 
-[node name="Área" type="Node3D" parent="Chão" unique_id=2071393671]
+[node name="Área" type="Node3D" parent="Chão" unique_id=189509836]
 script = ExtResource("2_035fp")
 size = Vector2(105.4, 105.4)
 color = Color(0.24000001, 0.22, 0.22, 1)
 soft = 4.0
 
-[node name="Área 2" type="Node3D" parent="Chão" unique_id=900169602]
+[node name="Área 2" type="Node3D" parent="Chão" unique_id=770414104]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 14)
 script = ExtResource("2_035fp")
 size = Vector2(4.5, 64)
 color = Color(0.32, 0.28, 0.26, 1)
 soft = 0.7
 
-[node name="Disco" type="Node3D" parent="Chão" unique_id=1225287440]
+[node name="Disco" type="Node3D" parent="Chão" unique_id=906148222]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -34)
 script = ExtResource("2_035fp")
 disc = true
@@ -53,7 +53,7 @@ radius = 15.0
 color = Color(0.18, 0.15, 0.17, 1)
 soft = 0.9
 
-[node name="Disco 2" type="Node3D" parent="Chão" unique_id=2118283557]
+[node name="Disco 2" type="Node3D" parent="Chão" unique_id=557687923]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, 20)
 script = ExtResource("2_035fp")
 disc = true
@@ -61,7 +61,7 @@ radius = 6.0
 color = Color(0.42, 0.15999998, 0.1, 1)
 soft = 1.2
 
-[node name="Disco 3" type="Node3D" parent="Chão" unique_id=2132539330]
+[node name="Disco 3" type="Node3D" parent="Chão" unique_id=1653846603]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0, -12)
 script = ExtResource("2_035fp")
 disc = true
@@ -69,7 +69,7 @@ radius = 6.0
 color = Color(0.42, 0.15999998, 0.1, 1)
 soft = 1.2
 
-[node name="Disco 4" type="Node3D" parent="Chão" unique_id=1319303756]
+[node name="Disco 4" type="Node3D" parent="Chão" unique_id=2095414050]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 0, -26)
 script = ExtResource("2_035fp")
 disc = true
@@ -77,7 +77,7 @@ radius = 6.0
 color = Color(0.42, 0.15999998, 0.1, 1)
 soft = 1.2
 
-[node name="Disco 5" type="Node3D" parent="Chão" unique_id=782149591]
+[node name="Disco 5" type="Node3D" parent="Chão" unique_id=2101582115]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 0, 30)
 script = ExtResource("2_035fp")
 disc = true
@@ -85,906 +85,906 @@ radius = 6.0
 color = Color(0.42, 0.15999998, 0.1, 1)
 soft = 1.2
 
-[node name="Colisões" type="Node3D" parent="." unique_id=1875216225]
+[node name="Colisões" type="Node3D" parent="." unique_id=1361114945]
 
-[node name="Colisão" type="StaticBody3D" parent="Colisões" unique_id=1109615225]
+[node name="Colisão" type="StaticBody3D" parent="Colisões" unique_id=646713368]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, -63)
 
-[node name="@CollisionShape3D@6372" type="CollisionShape3D" parent="Colisões/Colisão" unique_id=1093071407]
+[node name="@CollisionShape3D@6367" type="CollisionShape3D" parent="Colisões/Colisão" unique_id=1006656337]
 shape = SubResource("BoxShape3D_5erwl")
 
-[node name="Colisão 2" type="StaticBody3D" parent="Colisões" unique_id=1280331014]
+[node name="Colisão 2" type="StaticBody3D" parent="Colisões" unique_id=1202059773]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, 63)
 
-[node name="@CollisionShape3D@6373" type="CollisionShape3D" parent="Colisões/Colisão 2" unique_id=1851890457]
+[node name="@CollisionShape3D@6368" type="CollisionShape3D" parent="Colisões/Colisão 2" unique_id=1366337305]
 shape = SubResource("BoxShape3D_3wvvp")
 
-[node name="Colisão 3" type="StaticBody3D" parent="Colisões" unique_id=1528351694]
+[node name="Colisão 3" type="StaticBody3D" parent="Colisões" unique_id=938768259]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 63, 10, 0)
 
-[node name="@CollisionShape3D@6374" type="CollisionShape3D" parent="Colisões/Colisão 3" unique_id=1286750902]
+[node name="@CollisionShape3D@6369" type="CollisionShape3D" parent="Colisões/Colisão 3" unique_id=1782869557]
 shape = SubResource("BoxShape3D_n8bgx")
 
-[node name="Colisão 4" type="StaticBody3D" parent="Colisões" unique_id=1095192454]
+[node name="Colisão 4" type="StaticBody3D" parent="Colisões" unique_id=290497212]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -63, 10, 0)
 
-[node name="@CollisionShape3D@6375" type="CollisionShape3D" parent="Colisões/Colisão 4" unique_id=799238255]
+[node name="@CollisionShape3D@6370" type="CollisionShape3D" parent="Colisões/Colisão 4" unique_id=1036106892]
 shape = SubResource("BoxShape3D_mlpe5")
 
-[node name="Objetos" type="Node3D" parent="." unique_id=1416626774]
+[node name="Objetos" type="Node3D" parent="." unique_id=833521318]
 
-[node name="ruin_pillar" type="Node3D" parent="Objetos" unique_id=1392693303]
+[node name="ruin_pillar" type="Node3D" parent="Objetos" unique_id=1952828659]
 transform = Transform3D(1.1969384, 0, -0.08566599, 0, 1.2, 0, 0.08566599, 0, 1.1969384, 13, 0, -34)
 script = ExtResource("3_6gh7u")
 model = "ruin_pillar"
 shape = 2
 shape_size = Vector3(0.5, 4, 0)
 
-[node name="ruin_pillar 2" type="Node3D" parent="Objetos" unique_id=1572338161]
+[node name="ruin_pillar 2" type="Node3D" parent="Objetos" unique_id=2039085746]
 transform = Transform3D(-1.1397398, 0, 0.3754909, 0, 1.2, 0, -0.3754909, 0, -1.1397398, 10.517212, 0, -26.358765)
 script = ExtResource("3_6gh7u")
 model = "ruin_pillar"
 shape = 2
 shape_size = Vector3(0.5, 4, 0)
 
-[node name="ruin_pillar 3" type="Node3D" parent="Objetos" unique_id=2105198880]
+[node name="ruin_pillar 3" type="Node3D" parent="Objetos" unique_id=235892269]
 transform = Transform3D(0.6556708, 0, -1.0050353, 0, 1.2, 0, 1.0050353, 0, 0.6556708, 4.017212, 0, -21.636292)
 script = ExtResource("3_6gh7u")
 model = "ruin_pillar"
 shape = 2
 shape_size = Vector3(0.5, 4, 0)
 
-[node name="ruin_pillar 4" type="Node3D" parent="Objetos" unique_id=1965707385]
+[node name="ruin_pillar 4" type="Node3D" parent="Objetos" unique_id=146310551]
 transform = Transform3D(1.1926044, 0, -0.13302147, 0, 1.2, 0, 0.13302147, 0, 1.1926044, -4.017212, 0, -21.636292)
 script = ExtResource("3_6gh7u")
 model = "ruin_pillar"
 shape = 2
 shape_size = Vector3(0.5, 4, 0)
 
-[node name="ruin_pillar 5" type="Node3D" parent="Objetos" unique_id=1161299392]
+[node name="ruin_pillar 5" type="Node3D" parent="Objetos" unique_id=1032266327]
 transform = Transform3D(-0.95583993, 0, -0.72551376, 0, 1.2, 0, 0.72551376, 0, -0.95583993, -10.517212, 0, -26.358765)
 script = ExtResource("3_6gh7u")
 model = "ruin_pillar"
 shape = 2
 shape_size = Vector3(0.5, 4, 0)
 
-[node name="ruin_pillar 6" type="Node3D" parent="Objetos" unique_id=1879577218]
+[node name="ruin_pillar 6" type="Node3D" parent="Objetos" unique_id=835968577]
 transform = Transform3D(0.5130566, 0, 1.0847918, 0, 1.2, 0, -1.0847918, 0, 0.5130566, -13, 0, -34)
 script = ExtResource("3_6gh7u")
 model = "ruin_pillar"
 shape = 2
 shape_size = Vector3(0.5, 4, 0)
 
-[node name="ruin_pillar 7" type="Node3D" parent="Objetos" unique_id=749130686]
+[node name="ruin_pillar 7" type="Node3D" parent="Objetos" unique_id=428840928]
 transform = Transform3D(-0.47231236, 0, 1.1031414, 0, 1.2, 0, -1.1031414, 0, -0.47231236, -10.517212, 0, -41.641235)
 script = ExtResource("3_6gh7u")
 model = "ruin_pillar"
 shape = 2
 shape_size = Vector3(0.5, 4, 0)
 
-[node name="ruin_pillar 8" type="Node3D" parent="Objetos" unique_id=735158984]
+[node name="ruin_pillar 8" type="Node3D" parent="Objetos" unique_id=263090808]
 transform = Transform3D(1.1891241, 0, 0.16119555, 0, 1.2, 0, -0.16119555, 0, 1.1891241, -4.017212, 0, -46.36371)
 script = ExtResource("3_6gh7u")
 model = "ruin_pillar"
 shape = 2
 shape_size = Vector3(0.5, 4, 0)
 
-[node name="ruin_pillar 9" type="Node3D" parent="Objetos" unique_id=749566590]
+[node name="ruin_pillar 9" type="Node3D" parent="Objetos" unique_id=1031605609]
 transform = Transform3D(-0.21953373, 0, -1.1797478, 0, 1.2, 0, 1.1797478, 0, -0.21953373, 4.017212, 0, -46.36371)
 script = ExtResource("3_6gh7u")
 model = "ruin_pillar"
 shape = 2
 shape_size = Vector3(0.5, 4, 0)
 
-[node name="ruin_pillar 10" type="Node3D" parent="Objetos" unique_id=2052399507]
+[node name="ruin_pillar 10" type="Node3D" parent="Objetos" unique_id=239914397]
 transform = Transform3D(-1.0043635, 0, 0.6566993, 0, 1.2, 0, -0.6566993, 0, -1.0043635, 10.517212, 0, -41.641235)
 script = ExtResource("3_6gh7u")
 model = "ruin_pillar"
 shape = 2
 shape_size = Vector3(0.5, 4, 0)
 
-[node name="ruin_wall" type="Node3D" parent="Objetos" unique_id=1303569185]
+[node name="ruin_wall" type="Node3D" parent="Objetos" unique_id=2099504606]
 transform = Transform3D(-0.02827808, 0, 0.9996001, 0, 1, 0, -0.9996001, 0, -0.02827808, -6, 0, 2)
 script = ExtResource("3_6gh7u")
 model = "ruin_wall"
 shape = 1
 shape_size = Vector3(4.2, 2, 0.9)
 
-[node name="ruin_wall 2" type="Node3D" parent="Objetos" unique_id=686542148]
+[node name="ruin_wall 2" type="Node3D" parent="Objetos" unique_id=1259374564]
 transform = Transform3D(0.5529875, 0, -0.83318955, 0, 1, 0, 0.83318955, 0, 0.5529875, 6, 0, -8)
 script = ExtResource("3_6gh7u")
 model = "ruin_wall"
 shape = 1
 shape_size = Vector3(4.2, 2, 0.9)
 
-[node name="ruin_wall 3" type="Node3D" parent="Objetos" unique_id=1814055488]
+[node name="ruin_wall 3" type="Node3D" parent="Objetos" unique_id=376758345]
 transform = Transform3D(-0.43437183, 0, 0.90073365, 0, 1, 0, -0.90073365, 0, -0.43437183, -8, 0, 30)
 script = ExtResource("3_6gh7u")
 model = "ruin_wall"
 shape = 1
 shape_size = Vector3(4.2, 2, 0.9)
 
-[node name="ruin_wall 4" type="Node3D" parent="Objetos" unique_id=547194122]
+[node name="ruin_wall 4" type="Node3D" parent="Objetos" unique_id=2013743186]
 transform = Transform3D(0.9734143, 0, 0.22905144, 0, 1, 0, -0.22905144, 0, 0.9734143, 8, 0, 34)
 script = ExtResource("3_6gh7u")
 model = "ruin_wall"
 shape = 1
 shape_size = Vector3(4.2, 2, 0.9)
 
-[node name="Luzes" type="Node3D" parent="." unique_id=1262201564]
+[node name="Luzes" type="Node3D" parent="." unique_id=1745102848]
 
-[node name="Luz" type="OmniLight3D" parent="Luzes" unique_id=904606863]
+[node name="Luz" type="OmniLight3D" parent="Luzes" unique_id=696580034]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.289551, 2, -30.49524)
 light_color = Color(0.6, 0.3, 1, 1)
 light_energy = 1.6
 omni_range = 10.0
 script = ExtResource("4_vwf6d")
 
-[node name="Luz 2" type="OmniLight3D" parent="Luzes" unique_id=413518761]
+[node name="Luz 2" type="OmniLight3D" parent="Luzes" unique_id=1693401460]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5047607, 2, -25.71045)
 light_color = Color(0.6, 0.3, 1, 1)
 light_energy = 1.6
 omni_range = 10.0
 script = ExtResource("4_vwf6d")
 
-[node name="Luz 3" type="OmniLight3D" parent="Luzes" unique_id=1986119744]
+[node name="Luz 3" type="OmniLight3D" parent="Luzes" unique_id=976816789]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.289551, 2, -37.50476)
 light_color = Color(0.6, 0.3, 1, 1)
 light_energy = 1.6
 omni_range = 10.0
 script = ExtResource("4_vwf6d")
 
-[node name="Luz 4" type="OmniLight3D" parent="Luzes" unique_id=1068442712]
+[node name="Luz 4" type="OmniLight3D" parent="Luzes" unique_id=1420160110]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5047607, 2, -42.28955)
 light_color = Color(0.6, 0.3, 1, 1)
 light_energy = 1.6
 omni_range = 10.0
 script = ExtResource("4_vwf6d")
 
-[node name="Luz 5" type="OmniLight3D" parent="Luzes" unique_id=1314098406]
+[node name="Luz 5" type="OmniLight3D" parent="Luzes" unique_id=1950895133]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0.5, 20)
 light_color = Color(1, 0.35, 0.1, 1)
 light_energy = 1.3
 omni_range = 9.0
 script = ExtResource("4_vwf6d")
 
-[node name="Luz 6" type="OmniLight3D" parent="Luzes" unique_id=399124540]
+[node name="Luz 6" type="OmniLight3D" parent="Luzes" unique_id=161467017]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0.5, -12)
 light_color = Color(1, 0.35, 0.1, 1)
 light_energy = 1.3
 omni_range = 9.0
 script = ExtResource("4_vwf6d")
 
-[node name="Luz 7" type="OmniLight3D" parent="Luzes" unique_id=1940875057]
+[node name="Luz 7" type="OmniLight3D" parent="Luzes" unique_id=1889858150]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 0.5, -26)
 light_color = Color(1, 0.35, 0.1, 1)
 light_energy = 1.3
 omni_range = 9.0
 script = ExtResource("4_vwf6d")
 
-[node name="Luz 8" type="OmniLight3D" parent="Luzes" unique_id=2129350244]
+[node name="Luz 8" type="OmniLight3D" parent="Luzes" unique_id=473424998]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 0.5, 30)
 light_color = Color(1, 0.35, 0.1, 1)
 light_energy = 1.3
 omni_range = 9.0
 script = ExtResource("4_vwf6d")
 
-[node name="Pedras" type="Node3D" parent="." unique_id=109980100]
+[node name="Pedras" type="Node3D" parent="." unique_id=1147672279]
 
-[node name="rock" type="Node3D" parent="Pedras" unique_id=1739704170]
+[node name="rock" type="Node3D" parent="Pedras" unique_id=16095174]
 transform = Transform3D(0.6800068, 0, 0.8093839, 0, 1.0571243, 0, -0.8093839, 0, 0.6800068, 29.80371, 0, 25.765625)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 2" type="Node3D" parent="Pedras" unique_id=965282050]
+[node name="rock 2" type="Node3D" parent="Pedras" unique_id=1408015493]
 transform = Transform3D(-1.8224117, 0, 0.12777774, 0, 1.8268857, 0, -0.12777774, 0, -1.8224117, -41.103943, 0, -28.716736)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 3" type="Node3D" parent="Pedras" unique_id=1215143956]
+[node name="rock 3" type="Node3D" parent="Pedras" unique_id=1021579793]
 transform = Transform3D(1.4974388, 0, -1.9886688, 0, 2.4894028, 0, 1.9886688, 0, 1.4974388, 50.9411, 0, -3.600708)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 4" type="Node3D" parent="Pedras" unique_id=872438925]
+[node name="rock 4" type="Node3D" parent="Pedras" unique_id=1988907838]
 transform = Transform3D(0.2142372, 0, -1.1385868, 0, 1.158567, 0, 1.1385868, 0, 0.2142372, 39.053955, 0, -20.7182)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 5" type="Node3D" parent="Pedras" unique_id=784545454]
+[node name="rock 5" type="Node3D" parent="Pedras" unique_id=884002851]
 transform = Transform3D(1.0492681, 0, 0.83733314, 0, 1.3424196, 0, -0.83733314, 0, 1.0492681, -38.176453, 0, -21.227905)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 6" type="Node3D" parent="Pedras" unique_id=1095836619]
+[node name="rock 6" type="Node3D" parent="Pedras" unique_id=987124378]
 transform = Transform3D(1.2257485, 0, -0.13685325, 0, 1.2333646, 0, 0.13685325, 0, 1.2257485, -50.07837, 0, -43.631958)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 7" type="Node3D" parent="Pedras" unique_id=264708641]
+[node name="rock 7" type="Node3D" parent="Pedras" unique_id=1905700157]
 transform = Transform3D(2.1179676, 0, 0.23716463, 0, 2.1312048, 0, -0.23716463, 0, 2.1179676, -36.527283, 0, -4.3203735)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 8" type="Node3D" parent="Pedras" unique_id=1112326292]
+[node name="rock 8" type="Node3D" parent="Pedras" unique_id=1126339313]
 transform = Transform3D(1.1012417, 0, 0.6534739, 0, 1.2805316, 0, -0.6534739, 0, 1.1012417, -51.68701, 0, 53.75226)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8000001, 0)
 
-[node name="rock 9" type="Node3D" parent="Pedras" unique_id=1790704466]
+[node name="rock 9" type="Node3D" parent="Pedras" unique_id=1931425319]
 transform = Transform3D(0.32123914, 0, 2.3483844, 0, 2.370254, 0, -2.3483844, 0, 0.32123914, 11.259277, 0, 45.493286)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 10" type="Node3D" parent="Pedras" unique_id=320848738]
+[node name="rock 10" type="Node3D" parent="Pedras" unique_id=704046706]
 transform = Transform3D(0.26093847, 0, -2.565919, 0, 2.5791528, 0, 2.565919, 0, 0.26093847, 34.75061, 0, -18.05658)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 11" type="Node3D" parent="Pedras" unique_id=873185361]
+[node name="rock 11" type="Node3D" parent="Pedras" unique_id=1278287285]
 transform = Transform3D(1.0888557, 0, 0.6199686, 0, 1.2529836, 0, -0.6199686, 0, 1.0888557, 57.550903, 0, -49.239502)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8000001, 0)
 
-[node name="rock 12" type="Node3D" parent="Pedras" unique_id=1459005280]
+[node name="rock 12" type="Node3D" parent="Pedras" unique_id=1795693558]
 transform = Transform3D(-0.8831121, 0, -0.70549566, 0, 1.1303146, 0, 0.70549566, 0, -0.8831121, -30.109009, 0, 52.578613)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 13" type="Node3D" parent="Pedras" unique_id=711462064]
+[node name="rock 13" type="Node3D" parent="Pedras" unique_id=804744199]
 transform = Transform3D(-0.43364727, 0, -1.2037717, 0, 1.2794985, 0, 1.2037717, 0, -0.43364727, 44.21808, 0, 29.587524)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 14" type="Node3D" parent="Pedras" unique_id=1609394453]
+[node name="rock 14" type="Node3D" parent="Pedras" unique_id=1452304752]
 transform = Transform3D(0.013598336, 0, 2.107184, 0, 2.1072278, 0, -2.107184, 0, 0.013598336, 41.317993, 0, 20.85022)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 15" type="Node3D" parent="Pedras" unique_id=5859299]
+[node name="rock 15" type="Node3D" parent="Pedras" unique_id=2127807190]
 transform = Transform3D(1.9075793, 0, -1.5915937, 0, 2.4843569, 0, 1.5915937, 0, 1.9075793, -23.521606, 0, -28.846313)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 16" type="Node3D" parent="Pedras" unique_id=631155736]
+[node name="rock 16" type="Node3D" parent="Pedras" unique_id=655008912]
 transform = Transform3D(2.261616, 0, -1.2223285, 0, 2.5707965, 0, 1.2223285, 0, 2.261616, -23.262451, 0, 18.456482)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 17" type="Node3D" parent="Pedras" unique_id=1353212189]
+[node name="rock 17" type="Node3D" parent="Pedras" unique_id=1770388536]
 transform = Transform3D(0.4593881, 0, 1.5418265, 0, 1.608809, 0, -1.5418265, 0, 0.4593881, -41.175476, 0, -20.742188)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8000001, 0)
 
-[node name="rock 18" type="Node3D" parent="Pedras" unique_id=2001156641]
+[node name="rock 18" type="Node3D" parent="Pedras" unique_id=584928798]
 transform = Transform3D(-1.1712726, 0, 0.0015545009, 0, 1.1712737, 0, -0.0015545009, 0, -1.1712726, -56.686035, 0, 15.600952)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 19" type="Node3D" parent="Pedras" unique_id=2128389503]
+[node name="rock 19" type="Node3D" parent="Pedras" unique_id=1302758503]
 transform = Transform3D(0.22865538, 0, 2.5107431, 0, 2.5211334, 0, -2.5107431, 0, 0.22865538, -36.44226, 0, 29.49939)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 20" type="Node3D" parent="Pedras" unique_id=1317342249]
+[node name="rock 20" type="Node3D" parent="Pedras" unique_id=523071330]
 transform = Transform3D(-1.3390627, 0, 1.5596931, 0, 2.0556583, 0, -1.5596931, 0, -1.3390627, -18.506958, 0, 19.488403)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 21" type="Node3D" parent="Pedras" unique_id=544739632]
+[node name="rock 21" type="Node3D" parent="Pedras" unique_id=1750539776]
 transform = Transform3D(-1.4673815, 0, 2.0905938, 0, 2.5541713, 0, -2.0905938, 0, -1.4673815, -50.008667, 0, 2.7243042)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 22" type="Node3D" parent="Pedras" unique_id=1810439801]
+[node name="rock 22" type="Node3D" parent="Pedras" unique_id=8552489]
 transform = Transform3D(1.8380002, 0, 1.2679908, 0, 2.2329454, 0, -1.2679908, 0, 1.8380002, -6.275879, 0, 12.065186)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 23" type="Node3D" parent="Pedras" unique_id=51730090]
+[node name="rock 23" type="Node3D" parent="Pedras" unique_id=1137501159]
 transform = Transform3D(-1.9697219, 0, 1.4567049, 0, 2.4498558, 0, -1.4567049, 0, -1.9697219, -49.189697, 0, 57.939087)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 24" type="Node3D" parent="Pedras" unique_id=440291625]
+[node name="rock 24" type="Node3D" parent="Pedras" unique_id=1617889506]
 transform = Transform3D(-0.8177829, 0, -1.3468853, 0, 1.5757122, 0, 1.3468853, 0, -0.8177829, 32.019043, 0, 32.917053)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 25" type="Node3D" parent="Pedras" unique_id=2080216794]
+[node name="rock 25" type="Node3D" parent="Pedras" unique_id=666849379]
 transform = Transform3D(-1.2990971, 0, 1.3240793, 0, 1.85495, 0, -1.3240793, 0, -1.2990971, 53.845276, 0, -19.186523)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 26" type="Node3D" parent="Pedras" unique_id=1767699977]
+[node name="rock 26" type="Node3D" parent="Pedras" unique_id=689714626]
 transform = Transform3D(1.8495263, 0, -0.74532, 0, 1.9940536, 0, 0.74532, 0, 1.8495263, 23.675842, 0, -12.357361)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 27" type="Node3D" parent="Pedras" unique_id=1740671505]
+[node name="rock 27" type="Node3D" parent="Pedras" unique_id=1889304378]
 transform = Transform3D(1.722389, 0, 1.425081, 0, 2.2355044, 0, -1.425081, 0, 1.722389, 49.401733, 0, -42.5907)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 28" type="Node3D" parent="Pedras" unique_id=158313277]
+[node name="rock 28" type="Node3D" parent="Pedras" unique_id=718622833]
 transform = Transform3D(0.5734204, 0, -1.7726657, 0, 1.8631035, 0, 1.7726657, 0, 0.5734204, -34.900146, 0, -48.768677)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 29" type="Node3D" parent="Pedras" unique_id=1931210106]
+[node name="rock 29" type="Node3D" parent="Pedras" unique_id=1289753582]
 transform = Transform3D(0.808867, 0, -0.77082497, 0, 1.1173347, 0, 0.77082497, 0, 0.808867, 19.266052, 0, -44.23175)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 30" type="Node3D" parent="Pedras" unique_id=1667303946]
+[node name="rock 30" type="Node3D" parent="Pedras" unique_id=1091486377]
 transform = Transform3D(0.4174463, 0, -1.3541309, 0, 1.4170151, 0, 1.3541309, 0, 0.4174463, -44.08197, 0, 50.71875)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 31" type="Node3D" parent="Pedras" unique_id=1923626375]
+[node name="rock 31" type="Node3D" parent="Pedras" unique_id=79671825]
 transform = Transform3D(1.0059539, 0, 1.2490625, 0, 1.6037769, 0, -1.2490625, 0, 1.0059539, 30.019287, 0, 35.45392)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 32" type="Node3D" parent="Pedras" unique_id=208385295]
+[node name="rock 32" type="Node3D" parent="Pedras" unique_id=162273282]
 transform = Transform3D(-1.5206552, 0, 0.562676, 0, 1.621418, 0, -0.562676, 0, -1.5206552, -8.439575, 0, -2.7331543)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 33" type="Node3D" parent="Pedras" unique_id=349123325]
+[node name="rock 33" type="Node3D" parent="Pedras" unique_id=125688350]
 transform = Transform3D(-2.1548824, 0, -0.4549243, 0, 2.2023792, 0, 0.4549243, 0, -2.1548824, -26.783936, 0, 37.640137)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 34" type="Node3D" parent="Pedras" unique_id=560477210]
+[node name="rock 34" type="Node3D" parent="Pedras" unique_id=1343467304]
 transform = Transform3D(2.0621462, 0, 0.33744395, 0, 2.089573, 0, -0.33744395, 0, 2.0621462, 47.46875, 0, -37.94232)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 35" type="Node3D" parent="Pedras" unique_id=633259967]
+[node name="rock 35" type="Node3D" parent="Pedras" unique_id=808302967]
 transform = Transform3D(2.428725, 0, 0.2295215, 0, 2.439546, 0, -0.2295215, 0, 2.428725, 19.300415, 0, 9.529358)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 36" type="Node3D" parent="Pedras" unique_id=1052127112]
+[node name="rock 36" type="Node3D" parent="Pedras" unique_id=510949822]
 transform = Transform3D(0.54227436, 0, 1.3967468, 0, 1.4983201, 0, -1.3967468, 0, 0.54227436, 49.123474, 0, -14.066895)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 37" type="Node3D" parent="Pedras" unique_id=598974001]
+[node name="rock 37" type="Node3D" parent="Pedras" unique_id=1723903805]
 transform = Transform3D(0.80270904, 0, -0.84548706, 0, 1.1658431, 0, 0.84548706, 0, 0.80270904, 11.832092, 0, -10.302063)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 38" type="Node3D" parent="Pedras" unique_id=872764953]
+[node name="rock 38" type="Node3D" parent="Pedras" unique_id=1865424319]
 transform = Transform3D(-0.3806755, 0, 1.365375, 0, 1.4174495, 0, -1.365375, 0, -0.3806755, -7.0791626, 0, -6.5688477)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8000001, 0)
 
-[node name="rock 39" type="Node3D" parent="Pedras" unique_id=1958305579]
+[node name="rock 39" type="Node3D" parent="Pedras" unique_id=1934826014]
 transform = Transform3D(-0.2985275, 0, -1.0168855, 0, 1.0597994, 0, 1.0168855, 0, -0.2985275, -38.421448, 0, -34.64984)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 40" type="Node3D" parent="Pedras" unique_id=95511625]
+[node name="rock 40" type="Node3D" parent="Pedras" unique_id=59641985]
 transform = Transform3D(-0.9904898, 0, 1.6070735, 0, 1.8877912, 0, -1.6070735, 0, -0.9904898, 24.53888, 0, 37.094788)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 41" type="Node3D" parent="Pedras" unique_id=208537289]
+[node name="rock 41" type="Node3D" parent="Pedras" unique_id=822373366]
 transform = Transform3D(-0.16275987, 0, -2.591509, 0, 2.596615, 0, 2.591509, 0, -0.16275987, 48.65686, 0, 40.64038)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8000001, 0)
 
-[node name="rock 42" type="Node3D" parent="Pedras" unique_id=2108702146]
+[node name="rock 42" type="Node3D" parent="Pedras" unique_id=465251544]
 transform = Transform3D(0.3120482, 0, 2.0132499, 0, 2.0372896, 0, -2.0132499, 0, 0.3120482, 27.86499, 0, -55.61798)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 43" type="Node3D" parent="Pedras" unique_id=140681751]
+[node name="rock 43" type="Node3D" parent="Pedras" unique_id=1548440220]
 transform = Transform3D(-0.11465257, 0, -2.3346636, 0, 2.3374772, 0, 2.3346636, 0, -0.11465257, 11.720642, 0, -5.2944336)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 44" type="Node3D" parent="Pedras" unique_id=196609237]
+[node name="rock 44" type="Node3D" parent="Pedras" unique_id=1814744455]
 transform = Transform3D(-0.0070093055, 0, -1.8538978, 0, 1.853911, 0, 1.8538978, 0, -0.0070093055, -34.63623, 0, -18.336487)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 45" type="Node3D" parent="Pedras" unique_id=226688272]
+[node name="rock 45" type="Node3D" parent="Pedras" unique_id=2085862322]
 transform = Transform3D(-1.101385, 0, 0.20737611, 0, 1.120738, 0, -0.20737611, 0, -1.101385, 55.325073, 0, -43.119324)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 46" type="Node3D" parent="Pedras" unique_id=1585820406]
+[node name="rock 46" type="Node3D" parent="Pedras" unique_id=1464792924]
 transform = Transform3D(0.73018545, 0, -1.7423784, 0, 1.8891938, 0, 1.7423784, 0, 0.73018545, 17.662415, 0, 1.5805054)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 47" type="Node3D" parent="Pedras" unique_id=1119076242]
+[node name="rock 47" type="Node3D" parent="Pedras" unique_id=70497042]
 transform = Transform3D(1.3578168, 0, 0.7779698, 0, 1.5648973, 0, -0.7779698, 0, 1.3578168, 43.917786, 0, -29.779358)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 48" type="Node3D" parent="Pedras" unique_id=421706473]
+[node name="rock 48" type="Node3D" parent="Pedras" unique_id=1457541968]
 transform = Transform3D(1.516239, 0, 1.2725456, 0, 1.9794831, 0, -1.2725456, 0, 1.516239, -57.306763, 0, -14.45813)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 49" type="Node3D" parent="Pedras" unique_id=235053163]
+[node name="rock 49" type="Node3D" parent="Pedras" unique_id=1045682216]
 transform = Transform3D(-1.0030293, 0, -1.6945332, 0, 1.9691396, 0, 1.6945332, 0, -1.0030293, -18.626038, 0, 27.049988)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 50" type="Node3D" parent="Pedras" unique_id=236596952]
+[node name="rock 50" type="Node3D" parent="Pedras" unique_id=2130684584]
 transform = Transform3D(-1.3712091, 0, -0.025766544, 0, 1.3714511, 0, 0.025766544, 0, -1.3712091, 18.946716, 0, 11.404907)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 51" type="Node3D" parent="Pedras" unique_id=886284180]
+[node name="rock 51" type="Node3D" parent="Pedras" unique_id=1840496356]
 transform = Transform3D(-0.2178568, 0, 1.5891979, 0, 1.6040609, 0, -1.5891979, 0, -0.2178568, -22.230042, 0, 40.052612)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8000001, 0)
 
-[node name="rock 52" type="Node3D" parent="Pedras" unique_id=2146655911]
+[node name="rock 52" type="Node3D" parent="Pedras" unique_id=149138409]
 transform = Transform3D(1.4686885, 0, 1.9685619, 0, 2.4560704, 0, -1.9685619, 0, 1.4686885, 50.294006, 0, 24.299866)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 53" type="Node3D" parent="Pedras" unique_id=162728098]
+[node name="rock 53" type="Node3D" parent="Pedras" unique_id=1379721152]
 transform = Transform3D(1.9785925, 0, 1.4458866, 0, 2.4505951, 0, -1.4458866, 0, 1.9785925, -27.061035, 0, 9.62793)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 54" type="Node3D" parent="Pedras" unique_id=250379175]
+[node name="rock 54" type="Node3D" parent="Pedras" unique_id=1332402169]
 transform = Transform3D(1.3235128, 0, 0.56922597, 0, 1.4407306, 0, -0.56922597, 0, 1.3235128, 18.585327, 0, 41.0166)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 55" type="Node3D" parent="Pedras" unique_id=780748254]
+[node name="rock 55" type="Node3D" parent="Pedras" unique_id=73397346]
 transform = Transform3D(1.8999395, 0, -1.0626016, 0, 2.1768997, 0, 1.0626016, 0, 1.8999395, 7.8340454, 0, -55.189087)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 56" type="Node3D" parent="Pedras" unique_id=1347503696]
+[node name="rock 56" type="Node3D" parent="Pedras" unique_id=459484685]
 transform = Transform3D(-1.6884007, 0, -0.99083596, 0, 1.9576652, 0, 0.99083596, 0, -1.6884007, 36.46118, 0, -24.367798)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 57" type="Node3D" parent="Pedras" unique_id=1870500368]
+[node name="rock 57" type="Node3D" parent="Pedras" unique_id=615644345]
 transform = Transform3D(2.301166, 0, -0.8624104, 0, 2.4574616, 0, 0.8624104, 0, 2.301166, -6.1694336, 0, 57.122498)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 58" type="Node3D" parent="Pedras" unique_id=720004490]
+[node name="rock 58" type="Node3D" parent="Pedras" unique_id=242757985]
 transform = Transform3D(1.4284351, 0, -1.5180483, 0, 2.0844417, 0, 1.5180483, 0, 1.4284351, -49.636536, 0, -44.413025)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="rock 59" type="Node3D" parent="Pedras" unique_id=233617466]
+[node name="rock 59" type="Node3D" parent="Pedras" unique_id=410862474]
 transform = Transform3D(-2.304229, 0, -0.7947584, 0, 2.4374397, 0, 0.7947584, 0, -2.304229, 49.099, 0, 32.657654)
 script = ExtResource("3_6gh7u")
 shape = 2
 shape_size = Vector3(0.6, 0.8, 0)
 
-[node name="Árvores" type="Node3D" parent="." unique_id=2031846283]
+[node name="Árvores" type="Node3D" parent="." unique_id=1715033650]
 
-[node name="tree_fir" type="Node3D" parent="Árvores" unique_id=1309985923]
+[node name="tree_fir" type="Node3D" parent="Árvores" unique_id=1651326418]
 transform = Transform3D(-0.20704785, 0, 0.86166596, 0, 0.88619244, 0, -0.86166596, 0, -0.20704785, 37.220886, 0, 29.105652)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3.0000002, 0)
 
-[node name="tree_fir 2" type="Node3D" parent="Árvores" unique_id=328972784]
+[node name="tree_fir 2" type="Node3D" parent="Árvores" unique_id=726600167]
 transform = Transform3D(0.28488904, 0, 1.0425231, 0, 1.0807481, 0, -1.0425231, 0, 0.28488904, -35.037964, 0, -12.401978)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_fir 3" type="Node3D" parent="Árvores" unique_id=585077983]
+[node name="tree_fir 3" type="Node3D" parent="Árvores" unique_id=1886161195]
 transform = Transform3D(-0.5853754, 0, -0.80450517, 0, 0.9949336, 0, 0.80450517, 0, -0.5853754, -8.828613, 0, 15.90564)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_pine" type="Node3D" parent="Árvores" unique_id=1365049473]
+[node name="tree_pine" type="Node3D" parent="Árvores" unique_id=1880650449]
 transform = Transform3D(-0.7740356, 0, 0.16713971, 0, 0.7918755, 0, -0.16713971, 0, -0.7740356, 41.58075, 0, 3.3649292)
 script = ExtResource("3_6gh7u")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3.0000002, 0)
 
-[node name="tree_pine 2" type="Node3D" parent="Árvores" unique_id=1310427132]
+[node name="tree_pine 2" type="Node3D" parent="Árvores" unique_id=146396931]
 transform = Transform3D(0.7815456, 0, 0.6282718, 0, 1.0027657, 0, -0.6282718, 0, 0.7815456, -30.226013, 0, 42.262512)
 script = ExtResource("3_6gh7u")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_fir 4" type="Node3D" parent="Árvores" unique_id=5988030]
+[node name="tree_fir 4" type="Node3D" parent="Árvores" unique_id=1949487955]
 transform = Transform3D(-0.37942186, 0, -0.8697769, 0, 0.94893247, 0, 0.8697769, 0, -0.37942186, 30.570679, 0, -16.686401)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_fir 5" type="Node3D" parent="Árvores" unique_id=867943135]
+[node name="tree_fir 5" type="Node3D" parent="Árvores" unique_id=1423870720]
 transform = Transform3D(-0.1388377, 0, 0.99353147, 0, 1.0031853, 0, -0.99353147, 0, -0.1388377, -6.930786, 0, -52.83905)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_pine 3" type="Node3D" parent="Árvores" unique_id=300097575]
+[node name="tree_pine 3" type="Node3D" parent="Árvores" unique_id=113455727]
 transform = Transform3D(-0.11309324, 0, -1.0594281, 0, 1.0654473, 0, 1.0594281, 0, -0.11309324, -53.088135, 0, -33.31079)
 script = ExtResource("3_6gh7u")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_fir 6" type="Node3D" parent="Árvores" unique_id=1654439674]
+[node name="tree_fir 6" type="Node3D" parent="Árvores" unique_id=846990975]
 transform = Transform3D(-0.93249196, 0, 0.24209704, 0, 0.96340656, 0, -0.24209704, 0, -0.93249196, 40.014282, 0, 35.21167)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_pine 4" type="Node3D" parent="Árvores" unique_id=1673983563]
+[node name="tree_pine 4" type="Node3D" parent="Árvores" unique_id=2044890751]
 transform = Transform3D(0.30929583, 0, -0.6378752, 0, 0.70890665, 0, 0.6378752, 0, 0.30929583, -54.061096, 0, -38.78363)
 script = ExtResource("3_6gh7u")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_fir 7" type="Node3D" parent="Árvores" unique_id=68493040]
+[node name="tree_fir 7" type="Node3D" parent="Árvores" unique_id=607206556]
 transform = Transform3D(-0.48861977, 0, -0.66406363, 0, 0.8244573, 0, 0.66406363, 0, -0.48861977, -14.450562, 0, -20.591003)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32000002, 3.0000002, 0)
 
-[node name="tree_fir 8" type="Node3D" parent="Árvores" unique_id=1236652267]
+[node name="tree_fir 8" type="Node3D" parent="Árvores" unique_id=1169076411]
 transform = Transform3D(-0.7224748, 0, -0.15802976, 0, 0.73955613, 0, 0.15802976, 0, -0.7224748, 23.95105, 0, 25.95337)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_fir 9" type="Node3D" parent="Árvores" unique_id=2025937814]
+[node name="tree_fir 9" type="Node3D" parent="Árvores" unique_id=836380985]
 transform = Transform3D(-1.0690556, 0, -0.10108933, 0, 1.0738244, 0, 0.10108933, 0, -1.0690556, -32.976074, 0, 0.32495117)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_fir 10" type="Node3D" parent="Árvores" unique_id=283970566]
+[node name="tree_fir 10" type="Node3D" parent="Árvores" unique_id=1575499418]
 transform = Transform3D(-0.1532154, 0, 0.75494653, 0, 0.7703371, 0, -0.75494653, 0, -0.1532154, 55.742676, 0, 39.5343)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_pine 5" type="Node3D" parent="Árvores" unique_id=452252462]
+[node name="tree_pine 5" type="Node3D" parent="Árvores" unique_id=650472213]
 transform = Transform3D(-0.28936377, 0, -0.6917845, 0, 0.74986476, 0, 0.6917845, 0, -0.28936377, -26.910217, 0, -4.8170166)
 script = ExtResource("3_6gh7u")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_fir 11" type="Node3D" parent="Árvores" unique_id=2072023275]
+[node name="tree_fir 11" type="Node3D" parent="Árvores" unique_id=1018113468]
 transform = Transform3D(0.58366257, 0, 0.68652946, 0, 0.9011019, 0, -0.68652946, 0, 0.58366257, -12.856934, 0, 25.280762)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_pine 6" type="Node3D" parent="Árvores" unique_id=208969214]
+[node name="tree_pine 6" type="Node3D" parent="Árvores" unique_id=327064922]
 transform = Transform3D(-0.8872809, 0, -0.24608184, 0, 0.9207734, 0, 0.24608184, 0, -0.8872809, -53.28839, 0, 56.93683)
 script = ExtResource("3_6gh7u")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 2.9999998, 0)
 
-[node name="tree_fir 12" type="Node3D" parent="Árvores" unique_id=722672038]
+[node name="tree_fir 12" type="Node3D" parent="Árvores" unique_id=1887008086]
 transform = Transform3D(-0.5551084, 0, -0.5928961, 0, 0.8122014, 0, 0.5928961, 0, -0.5551084, -4.0197144, 0, 0.8648071)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 2.9999998, 0)
 
-[node name="tree_fir 13" type="Node3D" parent="Árvores" unique_id=2043255243]
+[node name="tree_fir 13" type="Node3D" parent="Árvores" unique_id=1431329753]
 transform = Transform3D(0.3610129, 0, -0.8514318, 0, 0.9248062, 0, 0.8514318, 0, 0.3610129, -44.16681, 0, -29.740967)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.31999996, 3, 0)
 
-[node name="tree_fir 14" type="Node3D" parent="Árvores" unique_id=1566027662]
+[node name="tree_fir 14" type="Node3D" parent="Árvores" unique_id=1989359661]
 transform = Transform3D(-0.621973, 0, 0.5919916, 0, 0.85866433, 0, -0.5919916, 0, -0.621973, 48.045166, 0, -17.610168)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_fir 15" type="Node3D" parent="Árvores" unique_id=1179193361]
+[node name="tree_fir 15" type="Node3D" parent="Árvores" unique_id=1203337904]
 transform = Transform3D(0.27701035, 0, 0.7553911, 0, 0.8045809, 0, -0.7553911, 0, 0.27701035, 21.073364, 0, -30.107483)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_fir 16" type="Node3D" parent="Árvores" unique_id=606276826]
+[node name="tree_fir 16" type="Node3D" parent="Árvores" unique_id=308111921]
 transform = Transform3D(0.40547994, 0, 0.8309143, 0, 0.9245715, 0, -0.8309143, 0, 0.40547994, 30.953308, 0, -13.0802)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_pine 7" type="Node3D" parent="Árvores" unique_id=1179444048]
+[node name="tree_pine 7" type="Node3D" parent="Árvores" unique_id=416406180]
 transform = Transform3D(1.0300883, 0, -0.19259542, 0, 1.0479383, 0, 0.19259542, 0, 1.0300883, -25.782349, 0, -16.155151)
 script = ExtResource("3_6gh7u")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_pine 8" type="Node3D" parent="Árvores" unique_id=158717245]
+[node name="tree_pine 8" type="Node3D" parent="Árvores" unique_id=1245530369]
 transform = Transform3D(-0.47365117, 0, 0.8224791, 0, 0.94911397, 0, -0.8224791, 0, -0.47365117, -39.975586, 0, 47.710815)
 script = ExtResource("3_6gh7u")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3.0000002, 0)
 
-[node name="tree_fir 17" type="Node3D" parent="Árvores" unique_id=1327947054]
+[node name="tree_fir 17" type="Node3D" parent="Árvores" unique_id=1035131788]
 transform = Transform3D(0.3845026, 0, -0.7728196, 0, 0.8631873, 0, 0.7728196, 0, 0.3845026, -16.235413, 0, -53.631226)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_pine 9" type="Node3D" parent="Árvores" unique_id=191289414]
+[node name="tree_pine 9" type="Node3D" parent="Árvores" unique_id=1529856460]
 transform = Transform3D(-0.91300964, 0, 0.114655286, 0, 0.9201807, 0, -0.114655286, 0, -0.91300964, -6.5081787, 0, 7.7874146)
 script = ExtResource("3_6gh7u")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 2.9999998, 0)
 
-[node name="tree_fir 18" type="Node3D" parent="Árvores" unique_id=577787903]
+[node name="tree_fir 18" type="Node3D" parent="Árvores" unique_id=1432214837]
 transform = Transform3D(-0.95445615, 0, 0.3967585, 0, 1.0336362, 0, -0.3967585, 0, -0.95445615, 26.083496, 0, -0.5946655)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_fir 19" type="Node3D" parent="Árvores" unique_id=1076238066]
+[node name="tree_fir 19" type="Node3D" parent="Árvores" unique_id=1192840779]
 transform = Transform3D(0.33487225, 0, 0.98613685, 0, 1.0414438, 0, -0.98613685, 0, 0.33487225, 27.224487, 0, 31.973572)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_fir 20" type="Node3D" parent="Árvores" unique_id=1045060400]
+[node name="tree_fir 20" type="Node3D" parent="Árvores" unique_id=656498717]
 transform = Transform3D(-0.32637137, 0, -0.77922016, 0, 0.84480906, 0, 0.77922016, 0, -0.32637137, -17.29425, 0, -27.83258)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_pine 10" type="Node3D" parent="Árvores" unique_id=119351186]
+[node name="tree_pine 10" type="Node3D" parent="Árvores" unique_id=1212614791]
 transform = Transform3D(-0.48080128, 0, 0.6437988, 0, 0.80352145, 0, -0.6437988, 0, -0.48080128, 26.239624, 0, -57.234863)
 script = ExtResource("3_6gh7u")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_fir 21" type="Node3D" parent="Árvores" unique_id=1524670462]
+[node name="tree_fir 21" type="Node3D" parent="Árvores" unique_id=536310565]
 transform = Transform3D(0.8319488, 0, 0.71202105, 0, 1.0950401, 0, -0.71202105, 0, 0.8319488, 19.33081, 0, 26.76532)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_fir 22" type="Node3D" parent="Árvores" unique_id=91911618]
+[node name="tree_fir 22" type="Node3D" parent="Árvores" unique_id=412427877]
 transform = Transform3D(0.01976208, 0, 0.73251075, 0, 0.73277724, 0, -0.73251075, 0, 0.01976208, 41.996887, 0, 26.707642)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3.0000002, 0)
 
-[node name="tree_fir 23" type="Node3D" parent="Árvores" unique_id=59178453]
+[node name="tree_fir 23" type="Node3D" parent="Árvores" unique_id=991930575]
 transform = Transform3D(-0.027486194, 0, -0.91403574, 0, 0.9144489, 0, 0.91403574, 0, -0.027486194, 25.581482, 0, 54.731995)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_fir 24" type="Node3D" parent="Árvores" unique_id=1139672972]
+[node name="tree_fir 24" type="Node3D" parent="Árvores" unique_id=818240290]
 transform = Transform3D(0.5146327, 0, 0.60706097, 0, 0.7958454, 0, -0.60706097, 0, 0.5146327, -43.338867, 0, -52.455994)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 2.9999998, 0)
 
-[node name="tree_fir 25" type="Node3D" parent="Árvores" unique_id=1489356276]
+[node name="tree_fir 25" type="Node3D" parent="Árvores" unique_id=923725861]
 transform = Transform3D(0.2132892, 0, -0.7832638, 0, 0.81178474, 0, 0.7832638, 0, 0.2132892, 12.87793, 0, 37.12372)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_fir 26" type="Node3D" parent="Árvores" unique_id=188140560]
+[node name="tree_fir 26" type="Node3D" parent="Árvores" unique_id=1259495265]
 transform = Transform3D(-0.9854812, 0, -0.2168799, 0, 1.009064, 0, 0.2168799, 0, -0.9854812, 23.322998, 0, 13.793396)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_fir 27" type="Node3D" parent="Árvores" unique_id=737350697]
+[node name="tree_fir 27" type="Node3D" parent="Árvores" unique_id=1180885370]
 transform = Transform3D(-0.1341205, 0, 0.69706315, 0, 0.7098488, 0, -0.69706315, 0, -0.1341205, 9.545105, 0, 34.798645)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_pine 11" type="Node3D" parent="Árvores" unique_id=419298369]
+[node name="tree_pine 11" type="Node3D" parent="Árvores" unique_id=2019129546]
 transform = Transform3D(-0.7422881, 0, -0.010095712, 0, 0.7423568, 0, 0.010095712, 0, -0.7422881, 38.558228, 0, -33.27777)
 script = ExtResource("3_6gh7u")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_pine 12" type="Node3D" parent="Árvores" unique_id=666593494]
+[node name="tree_pine 12" type="Node3D" parent="Árvores" unique_id=1687347412]
 transform = Transform3D(0.094540365, 0, -0.80999905, 0, 0.81549764, 0, 0.80999905, 0, 0.094540365, 35.780457, 0, 36.005676)
 script = ExtResource("3_6gh7u")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_fir 28" type="Node3D" parent="Árvores" unique_id=1840268679]
+[node name="tree_fir 28" type="Node3D" parent="Árvores" unique_id=1987923175]
 transform = Transform3D(0.6910198, 0, -0.74412423, 0, 1.0154946, 0, 0.74412423, 0, 0.6910198, 47.37439, 0, 26.40747)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_fir 29" type="Node3D" parent="Árvores" unique_id=607762830]
+[node name="tree_fir 29" type="Node3D" parent="Árvores" unique_id=344168707]
 transform = Transform3D(-0.77992755, 0, 0.22186014, 0, 0.8108692, 0, -0.22186014, 0, -0.77992755, 56.569214, 0, -6.8395386)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_pine 13" type="Node3D" parent="Árvores" unique_id=711036369]
+[node name="tree_pine 13" type="Node3D" parent="Árvores" unique_id=191728189]
 transform = Transform3D(-0.5158037, 0, -0.7353442, 0, 0.8982118, 0, 0.7353442, 0, -0.5158037, 52.66205, 0, 1.7440186)
 script = ExtResource("3_6gh7u")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_fir 30" type="Node3D" parent="Árvores" unique_id=1626478448]
+[node name="tree_fir 30" type="Node3D" parent="Árvores" unique_id=845702552]
 transform = Transform3D(-0.6702549, 0, 0.60103947, 0, 0.9002722, 0, -0.60103947, 0, -0.6702549, 47.894653, 0, -16.500977)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_fir 31" type="Node3D" parent="Árvores" unique_id=1926460664]
+[node name="tree_fir 31" type="Node3D" parent="Árvores" unique_id=2047314323]
 transform = Transform3D(-0.41638607, 0, 0.93710274, 0, 1.0254457, 0, -0.93710274, 0, -0.41638607, -27.114624, 0, -11.622986)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_fir 32" type="Node3D" parent="Árvores" unique_id=267507833]
+[node name="tree_fir 32" type="Node3D" parent="Árvores" unique_id=1253698870]
 transform = Transform3D(0.7400003, 0, -0.4244748, 0, 0.8530998, 0, 0.4244748, 0, 0.7400003, 26.990417, 0, -51.875183)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_fir 33" type="Node3D" parent="Árvores" unique_id=814416756]
+[node name="tree_fir 33" type="Node3D" parent="Árvores" unique_id=332730674]
 transform = Transform3D(0.045623835, 0, -0.95872575, 0, 0.95981073, 0, 0.95872575, 0, 0.045623835, -33.938477, 0, -8.631165)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_pine 14" type="Node3D" parent="Árvores" unique_id=1482592265]
+[node name="tree_pine 14" type="Node3D" parent="Árvores" unique_id=1772431599]
 transform = Transform3D(-0.9067836, 0, -0.42593446, 0, 1.0018367, 0, 0.42593446, 0, -0.9067836, -36.404236, 0, -41.400757)
 script = ExtResource("3_6gh7u")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_fir 34" type="Node3D" parent="Árvores" unique_id=1169384589]
+[node name="tree_fir 34" type="Node3D" parent="Árvores" unique_id=1273413909]
 transform = Transform3D(0.91651064, 0, -0.20770656, 0, 0.939752, 0, 0.20770656, 0, 0.91651064, 24.911865, 0, -0.26226807)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 2.9999998, 0)
 
-[node name="tree_fir 35" type="Node3D" parent="Árvores" unique_id=1988815074]
+[node name="tree_fir 35" type="Node3D" parent="Árvores" unique_id=224027351]
 transform = Transform3D(0.74925715, 0, -0.79139435, 0, 1.0898125, 0, 0.79139435, 0, 0.74925715, 6.2853394, 0, 28.345032)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_fir 36" type="Node3D" parent="Árvores" unique_id=1217083324]
+[node name="tree_fir 36" type="Node3D" parent="Árvores" unique_id=1818712390]
 transform = Transform3D(-0.0068119713, 0, -1.0195227, 0, 1.0195454, 0, 1.0195227, 0, -0.0068119713, 49.625793, 0, -19.543152)
 script = ExtResource("3_6gh7u")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="NPCs e pontos" type="Node3D" parent="." unique_id=418635894]
+[node name="NPCs e pontos" type="Node3D" parent="." unique_id=1194482850]
 
-[node name="kael_pico" type="Node3D" parent="NPCs e pontos" unique_id=499307350]
+[node name="kael_pico" type="Node3D" parent="NPCs e pontos" unique_id=421760830]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 0, 20)
 script = ExtResource("5_pw7pe")
 ref = "kael_pico"
 
-[node name="coach" type="Node3D" parent="NPCs e pontos" unique_id=1638214918]
+[node name="coach" type="Node3D" parent="NPCs e pontos" unique_id=729381089]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -4, 0, 48)
 script = ExtResource("5_pw7pe")
 ref = "coach"
@@ -992,96 +992,96 @@ params = {
 "npc_id": "coach_pico"
 }
 
-[node name="Enfeites" type="Node3D" parent="." unique_id=1013597514]
+[node name="Enfeites" type="Node3D" parent="." unique_id=1689977110]
 
-[node name="Carroça" type="Node3D" parent="Enfeites" unique_id=107108672]
+[node name="Carroça" type="Node3D" parent="Enfeites" unique_id=901355207]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0, 48)
 script = ExtResource("6_rc8vm")
 kind = "wagon"
 
-[node name="Monstros" type="Node3D" parent="." unique_id=2091505778]
+[node name="Monstros" type="Node3D" parent="." unique_id=129445188]
 
-[node name="esqueleto" type="Node3D" parent="Monstros" unique_id=797419798]
+[node name="esqueleto" type="Node3D" parent="Monstros" unique_id=2129434875]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, 6)
 script = ExtResource("7_3545x")
 kind = "esqueleto"
 respawn = 60.0
 
-[node name="esqueleto 2" type="Node3D" parent="Monstros" unique_id=249116387]
+[node name="esqueleto 2" type="Node3D" parent="Monstros" unique_id=1148885813]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 2)
 script = ExtResource("7_3545x")
 kind = "esqueleto"
 respawn = 60.0
 
-[node name="esqueleto 3" type="Node3D" parent="Monstros" unique_id=1093638031]
+[node name="esqueleto 3" type="Node3D" parent="Monstros" unique_id=1664280357]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0, -10)
 script = ExtResource("7_3545x")
 kind = "esqueleto"
 respawn = 60.0
 
-[node name="esqueleto 4" type="Node3D" parent="Monstros" unique_id=1165020159]
+[node name="esqueleto 4" type="Node3D" parent="Monstros" unique_id=1145619736]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, -14)
 script = ExtResource("7_3545x")
 kind = "esqueleto"
 respawn = 60.0
 
-[node name="esqueleto 5" type="Node3D" parent="Monstros" unique_id=1209647021]
+[node name="esqueleto 5" type="Node3D" parent="Monstros" unique_id=1012530596]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, -20)
 script = ExtResource("7_3545x")
 kind = "esqueleto"
 respawn = 60.0
 
-[node name="esqueleto 6" type="Node3D" parent="Monstros" unique_id=324083664]
+[node name="esqueleto 6" type="Node3D" parent="Monstros" unique_id=2137917223]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 0, -22)
 script = ExtResource("7_3545x")
 kind = "esqueleto"
 respawn = 60.0
 
-[node name="esqueleto_arqueiro" type="Node3D" parent="Monstros" unique_id=1148562780]
+[node name="esqueleto_arqueiro" type="Node3D" parent="Monstros" unique_id=1929070553]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0, 14)
 script = ExtResource("7_3545x")
 kind = "esqueleto_arqueiro"
 respawn = 80.0
 
-[node name="esqueleto_arqueiro 2" type="Node3D" parent="Monstros" unique_id=153943354]
+[node name="esqueleto_arqueiro 2" type="Node3D" parent="Monstros" unique_id=1894847210]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 12)
 script = ExtResource("7_3545x")
 kind = "esqueleto_arqueiro"
 respawn = 80.0
 
-[node name="esqueleto_mago" type="Node3D" parent="Monstros" unique_id=386536322]
+[node name="esqueleto_mago" type="Node3D" parent="Monstros" unique_id=1292931543]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22, 0, -30)
 script = ExtResource("7_3545x")
 kind = "esqueleto_mago"
 respawn = 100.0
 
-[node name="esqueleto_cavaleiro" type="Node3D" parent="Monstros" unique_id=519447731]
+[node name="esqueleto_cavaleiro" type="Node3D" parent="Monstros" unique_id=674963850]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, -6)
 script = ExtResource("7_3545x")
 kind = "esqueleto_cavaleiro"
 respawn = 180.0
 
-[node name="esqueleto_cavaleiro 2" type="Node3D" parent="Monstros" unique_id=1160570871]
+[node name="esqueleto_cavaleiro 2" type="Node3D" parent="Monstros" unique_id=1203360669]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 0, -6)
 script = ExtResource("7_3545x")
 kind = "esqueleto_cavaleiro"
 respawn = 180.0
 
-[node name="lich" type="Node3D" parent="Monstros" unique_id=508587945]
+[node name="lich" type="Node3D" parent="Monstros" unique_id=473922120]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -36)
 script = ExtResource("7_3545x")
 kind = "lich"
 respawn = 300.0
 
-[node name="Lugares" type="Node3D" parent="." unique_id=700313374]
+[node name="Lugares" type="Node3D" parent="." unique_id=849836428]
 
-[node name="coach" type="Node3D" parent="Lugares" unique_id=1045323735]
+[node name="coach" type="Node3D" parent="Lugares" unique_id=2063001227]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, 48)
 script = ExtResource("8_hgur3")
 id = "coach"
 follow_ground = false
 
-[node name="arrive" type="Node3D" parent="Lugares" unique_id=114731498]
+[node name="arrive" type="Node3D" parent="Lugares" unique_id=617640869]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 44)
 script = ExtResource("8_hgur3")
 id = "arrive"

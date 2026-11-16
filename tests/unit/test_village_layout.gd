@@ -1,8 +1,8 @@
 extends RefCounted
-## VillageLayout: a planta da vila (scenes/village.tscn) não pode ter construção dentro de outra, casa em cima
+## VillageLayout: a planta da vila (scenes/maps/vale.tscn) não pode ter construção dentro de outra, casa em cima
 ## da rua (a não ser a borda de um alpendre) nem nada fora da cerca. Mexeu na cena no editor? Rode este teste.
 
-## As construções vêm de scenes/village.tscn (VillageLayout.buildings()) e podem ter qualquer giro, então
+## As construções vêm de scenes/maps/vale.tscn (VillageLayout.buildings()) e podem ter qualquer giro, então
 ## a pegada é um retângulo girado: [cantos (4 × Vector2), descrição].
 
 

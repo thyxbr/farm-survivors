@@ -61,7 +61,7 @@ static func _settle(root: MapRoot, g: Node3D) -> void:
 	for n in root.all_pieces():
 		if not n.get("follow_ground"):
 			continue
-		var p := n.get_parent()
+		var p: Node = n.get_parent()
 		var nested := false
 		while p != root:
 			if p.has_method("build_preview"):

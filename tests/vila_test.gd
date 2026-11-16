@@ -48,8 +48,11 @@ func _point(w: Node, kind: String, building := "") -> Node:
 	return null
 
 
+## Pontos do evento de Natal do tipo `kind`, em ordem de índice (a ordem na árvore segue os grupos da cena).
 func _event_points(w: Node, kind: String) -> Array:
-	return w.get_children().filter(func(n) -> bool: return n is ChristmasEventPoint and n.kind == kind)
+	var pts := w.get_children().filter(func(n) -> bool: return n is ChristmasEventPoint and n.kind == kind)
+	pts.sort_custom(func(a, b) -> bool: return a.index < b.index)
+	return pts
 
 
 func _ready() -> void:

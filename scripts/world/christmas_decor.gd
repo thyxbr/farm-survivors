@@ -277,6 +277,8 @@ static func tree(parent: Node3D, pos: Vector3, s := 1.0, seed_value := 1) -> Nod
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
 	var root := Node3D.new()
+	if recording:
+		root.set_meta("decor", true)
 	root.name = "ChristmasTree"
 	root.position = pos
 	root.scale = Vector3.ONE * s
@@ -460,6 +462,8 @@ static func candy_cane(parent: Node3D, pos: Vector3, yaw := 0.0, s := 1.0) -> vo
 static func snowman(parent: Node3D, pos: Vector3, yaw := 0.0) -> void:
 	_rec("snowman", parent, Transform3D(Basis(Vector3.UP, yaw), pos), {})
 	var sm := Node3D.new()
+	if recording:
+		sm.set_meta("decor", true)
 	sm.name = "Snowman"
 	sm.position = pos
 	sm.rotation.y = yaw
@@ -497,6 +501,8 @@ static func snowman(parent: Node3D, pos: Vector3, yaw := 0.0) -> void:
 
 static func _collider(parent: Node3D, pos: Vector3, r: float, h: float) -> void:
 	var body := StaticBody3D.new()
+	if recording:
+		body.set_meta("decor", true)   # a conversão para cenas não grava: o MapDecor recria
 	body.position = pos
 	body.collision_mask = 0
 	var cs := CollisionShape3D.new()
@@ -514,6 +520,8 @@ static func _collider(parent: Node3D, pos: Vector3, r: float, h: float) -> void:
 static func sleigh(parent: Node3D, pos: Vector3, yaw := 0.0) -> Node3D:
 	_rec("sleigh", parent, Transform3D(Basis(Vector3.UP, yaw), pos), {})
 	var sl := Node3D.new()
+	if recording:
+		sl.set_meta("decor", true)
 	sl.name = "Sleigh"
 	sl.position = pos
 	sl.rotation.y = yaw
