@@ -768,6 +768,18 @@ func _test_gold(amount: int) -> bool:
 
 
 func _test_econ() -> void:
+	# modo admin pelo servidor: liga (recursos no teto), desliga (volta ao que era)
+	var ga := Game.gold
+	var fa := econ_log.size()
+	Econ.set_admin(true)
+	var ra: Array = await _results_after(fa, "admin")
+	check(not ra.is_empty() and ra[0][0] and Game.admin_mode() and Game.gold == AdminRules.GOLD,
+		"servidor liga o modo admin (ouro %d)" % Game.gold)
+	fa = econ_log.size()
+	Econ.set_admin(false)
+	ra = await _results_after(fa, "admin")
+	check(not ra.is_empty() and ra[0][0] and not Game.admin_mode() and Game.gold == ga,
+		"servidor desliga o modo admin e devolve o ouro (%d)" % Game.gold)
 	# compra com ouro concedido pelo servidor: o cliente só pede, o estado volta do servidor
 	var price := int(ItemDB.get_item("health_potion").price)
 	var g0 := Game.gold

@@ -107,6 +107,8 @@ func apply(account_id: int, op: String, args: Array) -> Dictionary:
 	if not _args_ok(op, args):
 		return _result(account_id, {"ok": false, "err": "args", "events": []})
 	var s := load_or_create(account_id)
+	# modo admin: recursos no teto antes de cada pedido (a reposição não entra no registro da economia)
+	AdminRules.top_up(s, _bt)
 	var before := _holdings(s)
 	var r := _dispatch(s, op, args)
 	if r.ok:
@@ -120,6 +122,7 @@ func apply(account_id: int, op: String, args: Array) -> Dictionary:
 			source = "enchant"
 			ecos_item = "enchant"
 		r = _persist(account_id, s, before, op, source, r, 0, ecos_item)
+		AdminRules.top_up(s, _bt)   # a tela já mostra cheio de novo (grava na próxima escrita)
 	return _result(account_id, r)
 
 
@@ -231,6 +234,18 @@ func grant_test_items(account_id: int, items: Dictionary, enabled: bool) -> Dict
 	if clean.is_empty():
 		return _result(account_id, {"ok": false, "err": "valor_invalido", "events": []})
 	return grant(account_id, 0, 0, clean, "test")
+
+
+## Liga/desliga o modo admin (AdminRules). `allowed` é decidido por quem chama: solo sempre, servidor
+## só para contas em ADMIN_USERS. Registrado na economia com origem "admin".
+func set_admin(account_id: int, on: bool, allowed: bool) -> Dictionary:
+	if not allowed:
+		return _result(account_id, {"ok": false, "err": "sem_permissao", "events": [CharRules._notify(
+				"Só administradores podem usar o modo admin.", CharRules.C_BAD)]})
+	var s := load_or_create(account_id)
+	var before := _holdings(s)
+	var r := AdminRules.set_on(s, _bt, on)
+	return _result(account_id, _persist(account_id, s, before, "grant", "admin", r))
 
 
 # ================================================================ partidas e recordes

@@ -128,6 +128,22 @@ func request(op: String, args: Array = []) -> void:
 	_deliver(op, args, r)
 
 
+## Liga/desliga o modo admin (resposta como op "admin"). Solo: sempre pode. Online: o servidor decide
+## (AdminRules.OPEN_TO_ALL ou conta em ADMIN_USERS).
+func set_admin(on: bool) -> void:
+	if Network.is_client():
+		_seq += 1
+		_pending[_seq] = {"op": "admin", "args": [on]}
+		_admin_req.rpc_id(1, _seq, on)
+		return
+	if Network.is_server():
+		return
+	if not ensure_solo():
+		_deliver("admin", [on], {"ok": false, "err": "sem_banco", "events": [], "state": {}})
+		return
+	_deliver("admin", [on], _svc.set_admin(SOLO_ACCOUNT, on, true))
+
+
 ## Ecos para o personagem de demonstração (só solo; usado pelas opções de depuração do Game).
 func demo_ecos(amount: int) -> void:
 	if Network.is_online() or not ensure_solo():
@@ -636,6 +652,22 @@ func _grant_test_items(seq: int, items: Dictionary) -> void:
 		return
 	var r := Network.characters.grant_test_items(account, items, _test_server)
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
+
+
+## Modo admin: com AdminRules.OPEN_TO_ALL qualquer conta; senão só contas em ADMIN_USERS
+## (Network.players[peer].admin, vindo do AccountStore).
+@rpc("any_peer", "call_remote", "reliable")
+func _admin_req(seq: int, on: bool) -> void:
+	var account := _sender_account()
+	if account <= 0:
+		_reply_no_session(seq)
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	var allowed := AdminRules.OPEN_TO_ALL or bool(Network.players.get(peer, {}).get("admin", false))
+	if allowed:
+		print("[server] modo admin %s: %s" % ["ligado" if on else "desligado", Network.players[peer].get("name", "?")])
+	var r := Network.characters.set_admin(account, on, allowed)
+	_econ_res.rpc_id(peer, seq, r.ok, r.err, events_of(r), r.state)
 
 
 ## Coleta de um pickup do servidor: confere dono, se já foi pego, validade e distância (última posição
