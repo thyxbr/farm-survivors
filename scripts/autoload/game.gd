@@ -203,6 +203,15 @@ func _debug_screenshot() -> void:
 		if a.begins_with("--weapon="):
 			Econ.grant(0, 0, {a.substr(9): 1}, "demo", true)
 			equip(a.substr(9))
+		# `--equip=id,id,...` veste peças (capturas de armaduras; com `--body=f`, do corpo feminino);
+		# `-espaço` tira a peça do espaço (ex.: `--equip=-head,-armor,-hands,-feet` = sem armadura)
+		elif a.begins_with("--equip="):
+			for id in a.substr(8).split(",", false):
+				if id.begins_with("-"):
+					unequip(id.substr(1))
+				else:
+					Econ.grant(0, 0, {id: 1}, "demo", true)
+					equip(id)
 		# `--talents=id,id,...` aprende um nível de cada (repetir o id = mais níveis), para capturas da aba Talentos
 		# (sobe o personagem da demo ao nível 6 de verdade, para ter os 5 pontos)
 		elif a.begins_with("--talents="):

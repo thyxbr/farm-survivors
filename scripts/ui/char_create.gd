@@ -15,7 +15,6 @@ var busy := false
 
 var title_label: Label
 var old_note: Label
-var body_note: Label
 var cards := {}
 var body_buttons := {}
 var preview: CharPreview
@@ -75,10 +74,6 @@ func _ready() -> void:
 		btn.button_group = bg
 		srow.add_child(btn)
 		body_buttons[b[0]] = btn
-	body_note = UITheme.label("O visual feminino chega em breve.", 14, UITheme.GOLD)
-	body_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	body_note.custom_minimum_size.y = 20
-	sex.add_child(body_note)
 
 	old_note = UITheme.label("Seu herói já tem história: escolha a classe dele. Se a arma equipada não for da classe, "
 		+ "ela vai para a mochila (nada se perde) e ele empunha a melhor arma da classe que tiver.", 15, Color(1, 0.8, 0.55))
@@ -214,7 +209,8 @@ func select_body(b: String) -> void:
 	body = b
 	if body_buttons.has(b):
 		body_buttons[b].set_pressed_no_signal(true)
-	body_note.visible = b == "f"
+	if preview:
+		preview.show_body(b)   # a prévia troca para o corpo escolhido na hora
 
 
 ## Nomes das habilidades do kit mostrado (na ordem da barra).

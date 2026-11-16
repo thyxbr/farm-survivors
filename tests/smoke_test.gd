@@ -898,6 +898,7 @@ func _ready() -> void:
 
 	# --- novas armas, armaduras e equipamentos
 	await _test_gear()
+	await _test_female_body()
 
 	# --- persistência no save solo: cada pedido já foi gravado; recriar o serviço local devolve o mesmo personagem
 	var saved_gold := Game.gold
@@ -3028,6 +3029,53 @@ func _light_text(node: Node) -> String:
 	return ""
 
 
+## Corpo feminino: o modelo do jogador segue Game.body (knight_f.glb + roupas _f); trocar arma e armadura
+## mantém o corpo; capuz e coifas de malha escondem o rabo de cavalo.
+func _test_female_body() -> void:
+	var body0 := Game.body
+	var eq0: Dictionary = Game.equipment.duplicate()
+	var want0 := "f" if body0 == "f" else "m"
+	check(KnightLook.body_of(player.model) == want0, "o modelo do jogador é o do corpo escolhido (%s)" % want0)
+	for sl in ["head", "armor", "hands", "feet"]:
+		if Game.equipment.get(sl, "") != "":
+			Game.unequip(sl)
+	Econ.test_force_body("f")
+	await wait(0.1)
+	var m: Node3D = player.model
+	check(KnightLook.body_of(m) == "f" and m.find_child("Ponytail", true, false) != null, "corpo feminino carrega o knight_f.glb")
+	check(m.find_child("Gear_HairLong", true, false) != null and m.find_child("Gear_HairLock00", true, false) == null,
+		"sem armadura: cabeça e roupas femininas (h_bare_f)")
+	check(player.parts.Head != null and player.parts.Head.is_inside_tree() and player.cape != null, "esqueleto e capa refeitos no corpo novo")
+	var need := {}
+	for id in ["leather_cap", "ranger_hood", "guard_surcoat", "short_bow"]:
+		if Game.count_item(id) == 0:
+			need[id] = 1
+	Econ.grant(0, 0, need, "test", true)
+	Game.equip("leather_cap")
+	Game.equip("guard_surcoat")
+	await wait(0.1)
+	check(player.model == m and KnightLook.body_of(player.model) == "f", "trocar armadura mantém o corpo feminino")
+	check(m.find_child("Gear_LashL", true, false) != null, "elmo aberto feminino (h_cap_f, com cílios)")
+	var tail := m.find_child("Ponytail", true, false) as Node3D
+	check(tail.visible, "rabo de cavalo aparece com o gorro")
+	Game.equip("ranger_hood")
+	await wait(0.1)
+	check(not tail.visible, "capuz esconde o rabo de cavalo")
+	equip_any("short_bow")
+	await wait(0.1)
+	check(player.model == m and KnightLook.body_of(player.model) == "f" and player.look["class"] == "bow"
+		and player.look.holder != null and is_instance_valid(player.look.holder), "trocar a arma mantém o corpo feminino")
+	for sl in ["head", "armor"]:
+		Game.unequip(sl)
+	for sl in ["weapon", "head", "armor", "hands", "feet"]:
+		if str(eq0.get(sl, "")) != "":
+			equip_any(eq0[sl])
+	Econ.test_force_body(body0)
+	await wait(0.1)
+	check(KnightLook.body_of(player.model) == want0 and (want0 == "f") == (player.model.find_child("Ponytail", true, false) != null),
+		"corpo de volta ao escolhido (%s)" % want0)
+
+
 ## Tela de criação: personagem sem classe passa por ela; escolher arqueiro dá o arco e trava a espada.
 func _test_char_create() -> void:
 	check(Game.harness_class(PackedStringArray(["--smoketest", "--class=archer"])) == ["archer", "m"]
@@ -3053,9 +3101,12 @@ func _test_char_create() -> void:
 		kit_ok = kit_ok and str(ItemDB.ABILITIES[id].name) in cc.kit_names()
 	check(kit_ok and cc.class_name_label.text == "Arqueiro", "detalhe do arqueiro lista as habilidades do kit")
 	cc.select_body("f")
-	check(cc.body == "f" and cc.body_note.visible, "feminino avisa que o visual chega em breve")
+	check(cc.body == "f" and KnightLook.body_of(cc.preview.model) == "f"
+		and cc.preview.model.find_child("Ponytail", true, false) != null, "Feminino troca a prévia para o corpo feminino")
+	check(cc.preview.model.find_child("Gear_HairLong", true, false) != null, "prévia feminina com o cabelo comprido")
 	cc.select_body("m")
-	check(not cc.body_note.visible, "masculino sem aviso")
+	check(cc.body == "m" and KnightLook.body_of(cc.preview.model) == "m"
+		and cc.preview.model.find_child("Ponytail", true, false) == null, "Masculino volta a prévia para o corpo masculino")
 	cc._start()
 	await wait(0.1)
 	check(cc.finished and Game.char_class == "archer" and Game.body == "m" and Game.equipment.weapon == "short_bow",

@@ -147,6 +147,7 @@ func _ready() -> void:
 	await wait(1.5)
 	var w: Node = Network.world
 	check(w.player.look["class"] == "bow", "arco equipado no personagem local")
+	check(Game.body == my_body() and KnightLook.body_of(w.player.model) == my_body(), "corpo local %s com o modelo dele" % my_body())
 	check(Network.enemies.size() >= 15, "inimigos replicados do servidor (%d)" % Network.enemies.size())
 	var e0: Enemy = Network.enemies.values()[0]
 	check(e0.puppet, "inimigos no cliente são réplicas")
@@ -175,7 +176,12 @@ func _ready() -> void:
 		for rp in Network.remote_players.values():
 			check(rp.look["class"] == "bow" and rp._last_look.get("head", "") == "leather_cap",
 				"vê o arco e o capuz de %s" % rp.display_name)
-			check(rp._last_look.get("body", "") == "m", "o corpo escolhido (m) chega na réplica de %s" % rp.display_name)
+			# Ana joga com o corpo feminino (_pick_class); Beto com o masculino
+			var want_body := "f" if rp.display_name == "Ana" else "m"
+			check(rp._last_look.get("body", "") == want_body, "o corpo escolhido (%s) chega na réplica de %s" % [want_body, rp.display_name])
+			check(KnightLook.body_of(rp.model) == want_body
+				and (rp.model.find_child("Ponytail", true, false) != null) == (want_body == "f"),
+				"réplica de %s com o modelo do corpo %s" % [rp.display_name, want_body])
 			var holder: Node3D = rp.look.get("holder")
 			check(holder != null and is_instance_valid(holder), "modelo do arco montado na réplica de %s" % rp.display_name)
 
@@ -281,6 +287,9 @@ func _ready() -> void:
 		for rp in Network.remote_players.values():
 			check(await _wait_until(func() -> bool: return rp.look["class"] == "staff", 10.0),
 				"vê %s trocar para cajado" % rp.display_name)
+			var keep := "f" if rp.display_name == "Ana" else "m"
+			check(KnightLook.body_of(rp.model) == keep and rp._last_look.get("body", "") == keep,
+				"trocar a arma não muda o corpo da réplica de %s (%s)" % [rp.display_name, keep])
 	# efeitos visuais: auras de habilidade (declaradas pelo cliente) e encanto (decidido pelo servidor).
 	# Ficam ligados até o fim: o colega chega a este ponto no ritmo dele e precisa encontrá-los.
 	w.player.set_ability_aura("escudo", true)
@@ -911,8 +920,13 @@ func _test_econ() -> void:
 ## passa pelas quatro armas, já que a classe é fixa no jogo de verdade.
 ## Depois equipa a arma `weapon` (a escolha da classe equipa a melhor que o personagem tem, e um saque
 ## melhor do que o inicial mudaria o id): se faltar na mochila, o servidor em --test dá uma.
+## Corpo do personagem do teste: Ana é mulher (o colega confere a réplica feminina), os outros homens.
+func my_body() -> String:
+	return "f" if my_name == "Ana" else "m"
+
+
 func _pick_class(cls: String, weapon: String) -> void:
-	Econ.request("choose_class", [cls, "m"])
+	Econ.request("choose_class", [cls, my_body()])
 	await _wait_until(func() -> bool: return Game.char_class == cls and Game.equipment.weapon != "", 3.0)
 	if Game.equipment.weapon == weapon:
 		return

@@ -195,7 +195,51 @@ static func rig(model: Node3D) -> Dictionary:
 	r["aim_pitch"] = 0.0     # inclinação da mira (rad, > 0 para cima); o jogador local atualiza ao mirar
 	r["bow_w"] = 0.0         # quanto o IK do arco manda nos braços agora (suavizado em apply)
 	r["two_hand"] = 0.0      # quanto a mão esquerda segura o cajado junto (suavizado em apply)
+	# rabo de cavalo (corpo feminino, knight_f.glb): balança atrasado em relação à cabeça (veja sway_ponytail)
+	var tail := model.find_child("Ponytail", true, false) as Node3D
+	r["Ponytail"] = tail
+	if tail:
+		r["tail_basis"] = tail.basis
+		r["tail_ang"] = Vector2.ZERO     # (para trás, para o lado) em rad
+		r["tail_vel"] = Vector2.ZERO
+		r["tail_prev"] = null
 	return r
+
+
+# ------------------------------------------------------------------ rabo de cavalo
+const TAIL_LAG := 0.045       ## rad por m/s da ponta: quanto o rabo fica para trás com o movimento
+const TAIL_STIFF := 70.0      ## mola que puxa o rabo para o alvo
+const TAIL_DAMP := 9.0        ## amortecimento (um pouco abaixo do crítico: balança uma vez e assenta)
+const TAIL_BACK := Vector2(-0.08, 0.6)   ## limites para a frente (encosta nas costas) e para trás (rad)
+const TAIL_SIDE := 0.35       ## limite para cada lado (rad)
+
+
+## Balança o rabo de cavalo como um pêndulo amortecido: a ponta (estimada abaixo e atrás do prendedor) fica
+## para trás quando a cabeça anda, gira ou desce. Sem rabo (corpo masculino) não faz nada.
+static func sway_ponytail(r: Dictionary, delta: float) -> void:
+	var tail: Node3D = r.get("Ponytail")
+	if tail == null or delta <= 0.0 or not tail.is_inside_tree():
+		return
+	var head := tail.get_parent() as Node3D
+	var hx := head.global_transform
+	var tip := hx * (tail.position + Vector3(0.0, -0.2, -0.08))
+	var prev = r.tail_prev
+	r.tail_prev = tip
+	var target := Vector2.ZERO
+	if prev != null:
+		var v: Vector3 = hx.basis.inverse() * ((tip - prev) / delta)
+		if v.length() > 25.0:   # teleporte ou troca de modelo: sem tranco
+			v = Vector3.ZERO
+		target = Vector2(clampf((v.z - v.y * 0.6) * TAIL_LAG, TAIL_BACK.x, TAIL_BACK.y),
+			clampf(-v.x * TAIL_LAG, -TAIL_SIDE, TAIL_SIDE))
+	var ang: Vector2 = r.tail_ang
+	var vel: Vector2 = r.tail_vel
+	vel += (TAIL_STIFF * (target - ang) - TAIL_DAMP * vel) * delta
+	ang += vel * delta
+	ang = Vector2(clampf(ang.x, TAIL_BACK.x, TAIL_BACK.y), clampf(ang.y, -TAIL_SIDE, TAIL_SIDE))
+	r.tail_ang = ang
+	r.tail_vel = vel
+	tail.basis = Basis.from_euler(Vector3(ang.x, 0.0, ang.y)) * (r.tail_basis as Basis)
 
 
 ## O knight.glb tem pernas e tronco (Body) como irmãos: girar ou deitar o Body mexia só a parte de cima

@@ -4,7 +4,6 @@ extends CharacterBody3D
 
 signal died
 
-const KNIGHT := preload("res://assets/models/knight.glb")
 const FIREBALL := preload("res://scripts/player/fireball.gd")
 const PROJECTILE := preload("res://scripts/player/projectile.gd")
 const AUTO_WEAPONS := preload("res://scripts/survival/auto_weapons.gd")
@@ -45,6 +44,8 @@ var cam_pitch: Node3D
 var spring: SpringArm3D
 var camera: Camera3D
 var model: Node3D
+## Corpo do modelo montado ("m"/"f"): o jogador local segue Game.body e as réplicas o "body" do visual.
+var model_body := "m"
 var parts := {}
 ## Referências do visual da arma (KnightLook.apply): classe, suporte, ponta, flecha.
 var look := {"class": "sword", "holder": null, "tip": null, "arrow": null, "arm": null, "elbow": null, "counter": 0.0}
@@ -151,9 +152,8 @@ func _ready() -> void:
 	col.position.y = 0.9
 	add_child(col)
 
+	model_body = KnightLook.body_key(Game.body)
 	_build_model()
-	for mi in model.find_children("*", "MeshInstance3D", true, false):
-		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 
 	# o suporte da câmera fica fora da hierarquia interpolada: o mouse gira na hora, e
 	# _process o coloca sobre a posição interpolada do jogador a cada quadro.
@@ -206,8 +206,11 @@ func _ready() -> void:
 func _build_model() -> void:
 	# jogador e réplicas são interpolados entre os passos de física (movimento liso em telas >60 Hz)
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
-	model = KNIGHT.instantiate()
+	model = KnightLook.instance(model_body)
 	add_child(model)
+	if not remote:
+		for mi in model.find_children("*", "MeshInstance3D", true, false):
+			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	parts = KnightAnim.rig(model)
 	var cape_mesh := model.find_child("Cape", true, false) as MeshInstance3D
 	if cape_mesh:
@@ -216,6 +219,23 @@ func _build_model() -> void:
 		cape.add_capsule(parts.LegL, 0.11, 0.95, Vector3(0, -0.45, 0))
 		cape.add_capsule(parts.LegR, 0.11, 0.95, Vector3(0, -0.45, 0))
 		cape.add_capsule(parts.Body, 0.14, 0.75, Vector3(0, 0.25, 0.02))
+
+
+## Troca o modelo pelo do corpo `b` ("m"/"f"): o rabo de cavalo e as proporções vêm do GLB, então o
+## cavaleiro inteiro é refeito (pivôs, capa, aura). O equipamento é remontado logo depois por apply_look.
+func _rebuild_body(b: String) -> void:
+	var yaw := model.rotation.y
+	var old := model
+	remove_child(old)
+	old.queue_free()
+	vfx_aura = null    # era filha do modelo antigo
+	cape = null
+	model_body = b
+	_build_model()
+	model.rotation.y = yaw
+	_prev_yaw = yaw
+	look["holder"] = null
+	_snap_visuals()
 
 
 ## Depois de um teleporte: sem interpolação do ponto antigo ao novo e capa de volta ao repouso.
@@ -1225,6 +1245,7 @@ var _last_look := {}
 
 func _update_equipment_visual() -> void:
 	var l: Dictionary = Game.equipment.duplicate()
+	l["body"] = Game.body   # o servidor troca pelo corpo gravado; aqui troca o modelo local na hora
 	l["fx"] = _vfx_state()   # auras e encanto vão junto com o visual (os outros jogadores veem)
 	if l == _last_look:
 		return
@@ -1239,6 +1260,9 @@ func apply_look(l: Dictionary) -> void:
 	if gear_same:
 		_vfx_apply(l.get("fx", {}), false)
 		return
+	var b := KnightLook.body_key(l.get("body", ""))
+	if b != model_body:
+		_rebuild_body(b)
 	var old_class: String = look["class"]
 	look = KnightLook.apply(model, l)
 	_vfx_apply(l.get("fx", {}), true)
@@ -1541,6 +1565,7 @@ func _animate(delta: float) -> void:
 	KnightAnim.apply(parts, p, k)
 
 	KnightAnim.hold_weapon_upright(look, parts)
+	KnightAnim.sway_ponytail(parts, delta)
 	if cls == "bow":
 		KnightAnim.bow_string(look, parts)   # corda nos dedos, arco envergando, flecha na linha
 

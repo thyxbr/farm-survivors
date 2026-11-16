@@ -673,7 +673,7 @@ func _open_menu(tab: int) -> void:
 ## Narração de abertura da história (personagem novo, primeira vez no mundo). Não roda nos testes.
 func _play_intro() -> void:
 	var args := OS.get_cmdline_user_args()
-	if DisplayServer.get_name() == "headless" or "--smoketest" in args \
+	if DisplayServer.get_name() == "headless" or "--smoketest" in args or "--nointro" in args \
 			or Array(args).any(func(a: String) -> bool: return a.begins_with("--nettest")):
 		return
 	await get_tree().create_timer(1.5).timeout

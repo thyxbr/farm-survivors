@@ -1233,6 +1233,8 @@ func _apply_remote_state(id: int, pos: Vector3, yaw: float, vel: Vector3, flags:
 		rp.remote = true
 		rp.peer_id = id
 		rp.display_name = players[id].name if players.has(id) else "?"
+		# já nasce com o corpo do visual conhecido (sem montar o masculino para trocar em seguida)
+		rp.model_body = KnightLook.body_key(players[id].get("look", {}).get("body", "")) if players.has(id) else "m"
 		rp.position = pos
 		parent.add_child(rp)
 		remote_players[id] = rp
