@@ -610,3 +610,51 @@ func test_death_penalty() -> void:
 	var pobre := _blank(5)
 	r = CharRules.death_penalty(pobre, bt)
 	T.ok(r.ok and r.events.is_empty() and pobre.gold == 5, "menos de 10 ouro: nada a perder, sem aviso")
+
+
+# ---------------------------------------------------------------- classes
+func test_state_class_roundtrip() -> void:
+	var s := _blank()
+	s.char_class = "healer"
+	s.body = "f"
+	var s2 := CharState.from_dict(s.to_dict(), _tables())
+	T.eq(s2.char_class, "healer")
+	T.eq(s2.body, "f")
+
+
+func test_state_old_save_has_no_class() -> void:
+	var d := _blank().to_dict()
+	d.erase("char_class")
+	d.erase("body")
+	var s := CharState.from_dict(d, _tables())
+	T.eq(s.char_class, "")
+	T.eq(s.body, "")
+
+
+func test_state_rejects_unknown_class() -> void:
+	var d := _blank().to_dict()
+	d["char_class"] = "ninja"
+	d["body"] = "x"
+	var s := CharState.from_dict(d, _tables())
+	T.eq(s.char_class, "")
+	T.eq(s.body, "")
+
+
+func test_class_table_complete() -> void:
+	for c in CharRules.CLASS_IDS:
+		var w := CharRules.class_weapon(_tables(), c)
+		T.ok(w in ["sword", "bow", "staff", "scepter"], c)
+		var st: String = _tables().get_table("classes")[c]["starter_weapon"]
+		T.eq(CharRules.weapon_class(_tables(), st), w, c)
+	T.eq(CharRules.class_weapon(_tables(), "healer"), "scepter")
+	T.eq(CharRules.class_weapon(_tables(), "ninja"), "")
+
+
+func test_scepters_one_per_rarity() -> void:
+	var seen := {}
+	for id in _tables().get_table("items"):
+		var it: Dictionary = _tables().get_table("items")[id]
+		if it.get("class", "") == "scepter":
+			T.ok(str(id).begins_with("sc_"), id)
+			seen[it.rarity] = true
+	T.eq(seen.size(), 5)

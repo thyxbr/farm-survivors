@@ -29,6 +29,9 @@ var ecos := 0
 var passives := {}
 ## Encantamentos por tipo de arma: id da arma -> {"el": elemento, "lv": nível >= 1} (ver EnchantRules).
 var enchants := {}
+## Classe fixa escolhida na criação (ver CharRules.CLASS_IDS) e corpo ("m" ou "f"); "" = save antigo, sem escolha.
+var char_class := ""
+var body := ""
 
 
 ## Personagem novo: mesmos valores do antigo Game.new_game.
@@ -58,6 +61,7 @@ func to_dict() -> Dictionary:
 		"world_yaw": world_yaw, "kills": kills, "fury": fury,
 		"ecos": ecos, "passives": passives.duplicate(true),
 		"enchants": enchants.duplicate(true),
+		"char_class": char_class, "body": body,
 	}
 
 
@@ -146,6 +150,10 @@ static func from_dict(d, bt: BalanceTables = null) -> CharState:
 					continue
 			s.passives[id] = lv
 	s.enchants = _parse_enchants(d.get("enchants"), bt)
+	var cc = d.get("char_class")
+	s.char_class = cc if cc is String and cc in CharRules.CLASS_IDS else ""
+	var bd = d.get("body")
+	s.body = bd if bd is String and bd in ["m", "f"] else ""
 	return s
 
 

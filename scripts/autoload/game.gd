@@ -70,6 +70,9 @@ var selected_food := ""
 var meta_mods := {}
 ## Encantamentos por tipo de arma (espelho de CharState.enchants): id -> {"el", "lv"}.
 var enchants := {}
+## Classe fixa e corpo do personagem (espelho de CharState; "" = save antigo).
+var char_class := ""
+var body := ""
 
 
 func _ready() -> void:
@@ -941,6 +944,8 @@ func apply_state(d: Dictionary, full := false) -> void:
 	passives = s.passives
 	meta_mods = CharRules.meta_mods(Balance.tables, passives)
 	enchants = s.enchants
+	char_class = s.char_class
+	body = s.body
 	if full:
 		reset_run_mods()
 		clear_food(true)

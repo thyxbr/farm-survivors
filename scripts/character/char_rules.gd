@@ -12,7 +12,9 @@ extends RefCounted
 
 ## Espaços de equipamento (mesma ordem de ItemDB.SLOTS).
 const SLOTS := ["head", "amulet", "armor", "hands", "weapon", "offhand", "ring", "feet"]
-const CLASS_NAMES := {"sword": "Espada", "staff": "Cajado", "bow": "Arco"}
+const CLASS_NAMES := {"sword": "Espada", "staff": "Cajado", "bow": "Arco", "scepter": "Cetro"}
+## Classes de personagem fixas (tabela "classes"); a classe define a arma inicial e o tipo de arma.
+const CLASS_IDS := ["warrior", "archer", "mage", "healer"]
 
 const C_GOLD := Color(1, 0.85, 0.3)
 const C_BAD := Color(1, 0.5, 0.5)
@@ -75,6 +77,14 @@ static func slot_of(bt: BalanceTables, id: String) -> String:
 
 static func weapon_class(bt: BalanceTables, id: String) -> String:
 	return _item(bt, id).get("class", "sword") if id != "" else "sword"
+
+
+## Tipo de arma de uma classe de personagem ("" se a classe não existe).
+static func class_weapon(bt: BalanceTables, cls: String) -> String:
+	var c: Dictionary = bt.get_table("classes").get(cls, {})
+	if c.is_empty():
+		return ""
+	return weapon_class(bt, str(c.get("starter_weapon", "")))
 
 
 static func rarity_of(bt: BalanceTables, id: String) -> String:
