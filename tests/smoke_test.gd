@@ -2961,9 +2961,11 @@ func _test_gear() -> void:
 	check(ItemIcons.icon("health_potion", Callable()) == null, "sem janela, item de família também cai no ícone pintado")
 	var no_icon: Array[String] = []
 	for id: String in ItemDB.ITEMS:
-		if not ItemIcons._has_model(id):
+		if not ItemIcons._has_model(id) and ItemSlot.item_art(id) == null:
 			no_icon.append(id)
-	check(no_icon.is_empty(), "todo item tem modelo para o ícone 3D (sem: %s)" % ", ".join(no_icon))
+	check(no_icon.is_empty(), "todo item tem arte pintada ou modelo para o ícone 3D (sem: %s)" % ", ".join(no_icon))
+	check(ItemSlot.item_art("health_potion") != null and not ItemIcons._has_model("health_potion"),
+		"item com arte pintada usa a arte e não é fotografado em 3D")
 	m._close()
 	await wait(0.05)
 	world.open_shop()
