@@ -542,6 +542,22 @@ func ability_kit() -> Array[String]:
 	return ItemDB.kit(weapon_class())
 
 
+# ---------------------------------------------------------------- modo admin
+## Recursos infinitos ligados (AdminRules; o estado vem do servidor/solo em flags["admin"]).
+func admin_mode() -> bool:
+	return flags.get("admin") is Dictionary
+
+
+## Pode ligar o modo admin: no solo sempre; online se liberado para todos ou conta de administrador
+## (o servidor confere de novo).
+func can_admin() -> bool:
+	return not Network.is_online() or AdminRules.OPEN_TO_ALL or Auth.is_admin
+
+
+func toggle_admin() -> void:
+	Econ.set_admin(not admin_mode())
+
+
 # ---------------------------------------------------------------- pedidos ao Econ
 ## Ganhos: só offline (online quem concede é o servidor; ver Econ.grant).
 func add_xp(amount: int) -> void:

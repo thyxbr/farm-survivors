@@ -436,6 +436,15 @@ static func quest_counts_kill(q: Dictionary, kind: String) -> bool:
 	return q.get("target", "") == kind
 
 
+## Se algum abate de `kind` ainda conta para uma missão ativa (ícone de missão sobre o inimigo).
+## `char_quests` é o mapa de missões do personagem (id -> {state, progress}); `qt`, a tabela quests.json.
+static func is_quest_target(char_quests: Dictionary, qt: Dictionary, kind: String) -> bool:
+	for id in char_quests:
+		if char_quests[id].get("state", "") == "active" and qt.has(id) and quest_counts_kill(qt[id], kind):
+			return true
+	return false
+
+
 ## Missão secundária: fora da cadeia da história (pode ter rank mínimo e ser repetível).
 static func is_side(q: Dictionary) -> bool:
 	return bool(q.get("side", false))

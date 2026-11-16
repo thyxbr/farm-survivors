@@ -51,8 +51,14 @@ func _ready() -> void:
 	world = get_tree().current_scene
 	player = get_tree().get_first_node_in_group("player")
 	check(world != null and player != null, "mundo e jogador carregados")
-	# confere o kit antes de qualquer combate: slimes podem soltar cajado/arco e o saque é aleatório
-	check(Game.count_item("apprentice_staff") == 1 and Game.count_item("short_bow") == 1, "kit inicial tem cajado e arco")
+	# personagem novo começa sem nenhum equipamento; o teste se dá o kit das três classes de arma
+	# antes de qualquer combate (slimes podem soltar cajado/arco e o saque é aleatório)
+	check(Game.equipment.values().all(func(v) -> bool: return v == ""), "personagem novo sem equipamento")
+	for id in ["azure_edge", "apprentice_staff", "short_bow", "leather_cap"]:
+		Game.add_item(id, 1, true)
+	Game.equip("azure_edge")
+	check(Game.equipment.weapon == "azure_edge" and Game.count_item("apprentice_staff") == 1
+		and Game.count_item("short_bow") == 1, "kit de teste: espada equipada, cajado e arco na mochila")
 
 	# --- som posicional: combate longe do jogador não deve ser ouvido
 	check(Sfx.distance_gain(0.0) == 1.0 and Sfx.distance_gain(15.0) < 0.5 and Sfx.distance_gain(Sfx.FAR_DIST + 1.0) == 0.0,

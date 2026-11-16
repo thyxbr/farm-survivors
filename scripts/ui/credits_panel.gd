@@ -9,6 +9,8 @@ const AUDIO := [
 		"\"Asami's Journey\" (Contemplative Fantasy Vol. 2) — YannZ (CC-BY 4.0)",
 		"Town Theme RPG — cynicmusic (CC0)",
 		"Squirrel Village — SoManyWhales (CC-BY 4.0)",
+		"Deck the Halls — Dizzy Crow (Daniel Michel) (CC-BY 4.0)",
+		"\"Morning Frost\" — Jonathan Shaw, www.jshaw.co.uk (CC-BY 3.0) · Cheerful Christmas Time — Tarush Singhal (CC0) · mixagem de glitchart",
 		"\"Greenland Theme\" e \"Battle Theme 3\" — Alexandr Zhelanov (CC-BY 4.0)",
 		"Dark Cavern Ambient — Paul Wortmann (CC0)",
 		"\"Blackmoor Colossus\" (Colossal Boss Battle Theme) — Matthew Pablo, www.matthewpablo.com (CC-BY 3.0)",
