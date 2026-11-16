@@ -340,8 +340,11 @@ func test_quest_flow() -> void:
 	T.eq(s.quests.slimes.state, "done", "concluída")
 	T.eq(s.gold, gold + int(q.reward_gold), "ouro da recompensa")
 	T.eq(_count(s, "health_potion"), 3, "itens da recompensa")
-	T.eq(s.level, 2, "120 XP: nível 2")
-	T.eq(s.xp, 60, "sobra 60")
+	# o XP da missão vem da tabela (fatia do nível): sobe para o nível 2 e sobra o resto
+	var need1 := ProgressionRules.xp_to_next(bt, 1)
+	T.ok(int(q.reward_xp) > need1, "a missão dá XP para subir do nível 1")
+	T.eq(s.level, 2, "XP da missão: nível 2")
+	T.eq(s.xp, int(q.reward_xp) - need1, "sobra o resto")
 	T.ok(CharRules.start_quest(s, bt, "gel").ok, "a próxima abre")
 
 

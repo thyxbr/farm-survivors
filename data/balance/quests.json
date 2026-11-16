@@ -14,7 +14,8 @@
 		},
 		"desc": "O Ancião Bram jura que você é o herói de uma profecia (que ele parece estar inventando agora). Pegue o \"Kit do Herói\" com a Mira, no empório a leste do poço.",
 		"objective": "Fale com a Mira no empório",
-		"reward_xp": 30,
+		"reward_xp": 27,
+		"level": 1,
 		"reward_gold": 20,
 		"reward_items": {
 			"health_potion": 2
@@ -31,7 +32,8 @@
 		"count": 1,
 		"desc": "O ferreiro Doran está gritando há uma hora que quer \"sentir a paixão\" do herói. A Mira pediu, com muita educação, que você vá fazê-lo parar. Fica na ferraria, a sudoeste do poço.",
 		"objective": "Fale com o Doran na ferraria",
-		"reward_xp": 40,
+		"reward_xp": 27,
+		"level": 1,
 		"reward_gold": 10,
 		"reward_items": {
 			"wooden_shield": 1
@@ -52,7 +54,8 @@
 		],
 		"desc": "Os slimes estão devorando as plantações ao norte da vila. Doran quer que você prove sua paixão derrotando 5 deles. Depois, conte tudo ao Ancião Bram.",
 		"objective": "Slimes derrotados nos campos ao norte",
-		"reward_xp": 120,
+		"reward_xp": 79,
+		"level": 2,
 		"reward_gold": 50,
 		"reward_items": {
 			"health_potion": 3
@@ -77,7 +80,8 @@
 		},
 		"desc": "Pip, a alquimista da botica, precisa de 5 Géis de Slime para um experimento \"totalmente seguro\". Os slimes dos campos ao norte deixam cair o gel.",
 		"objective": "Gel de Slime para a Pip",
-		"reward_xp": 90,
+		"reward_xp": 79,
+		"level": 2,
 		"reward_gold": 40,
 		"reward_items": {
 			"mana_potion": 3
@@ -98,7 +102,8 @@
 		},
 		"desc": "Um sujeito de capa vermelha está fazendo discursos heroicos no portão leste há horas. A Pip quer silêncio. Vá ver quem é.",
 		"objective": "Fale com o aventureiro no portão leste",
-		"reward_xp": 40,
+		"reward_xp": 79,
+		"level": 2,
 		"reward_gold": 15,
 		"reward_items": {}
 	},
@@ -117,7 +122,8 @@
 		],
 		"desc": "Kael desafiou você: quem derrotar mais batedores goblins no acampamento da floresta a leste é o verdadeiro herói. Derrote 4 e volte para contar vantagem.",
 		"objective": "Batedores goblins derrotados no acampamento a leste",
-		"reward_xp": 250,
+		"reward_xp": 434,
+		"level": 6,
 		"reward_gold": 80,
 		"reward_items": {
 			"chain_mail": 1
@@ -134,7 +140,8 @@
 		"count": 1,
 		"desc": "Kael \"viu de longe\" um bilhete preso num caixote do acampamento goblin, mas está \"ocupado demais\" para buscar. Leia o que está escrito.",
 		"objective": "Leia o bilhete no acampamento goblin",
-		"reward_xp": 60,
+		"reward_xp": 434,
+		"level": 6,
 		"reward_gold": 25,
 		"reward_items": {}
 	},
@@ -161,7 +168,8 @@
 		},
 		"desc": "O Rei Goblin quer a lendária Torta de Abóbora de Valdoria. O plano do Bram: assar uma como isca. Plante abóbora e trigo na Horta (saída sul), colha e cozinhe a torta no caldeirão.",
 		"objective": "Torta de Abóbora para o Bram",
-		"reward_xp": 200,
+		"reward_xp": 434,
+		"level": 6,
 		"reward_gold": 120,
 		"reward_items": {
 			"life_amulet": 1
@@ -188,7 +196,8 @@
 		],
 		"desc": "Esqueletos guardam a trilha das ruínas ao norte. Abra caminho derrotando 5 deles; o Doran prometeu uma surpresa para quando você voltar.",
 		"objective": "Esqueletos derrotados na trilha das ruínas",
-		"reward_xp": 300,
+		"reward_xp": 1271,
+		"level": 12,
 		"reward_gold": 100,
 		"reward_items": {
 			"iron_helm": 1
@@ -213,7 +222,8 @@
 		},
 		"desc": "Com a torta como isca, o Rei Goblin saiu do esconderijo nas ruínas antigas ao norte. Acabe com ele e traga a paz (e a torta) de volta a Valdoria.",
 		"objective": "Derrote o Rei Goblin nas ruínas ao norte",
-		"reward_xp": 600,
+		"reward_xp": 1271,
+		"level": 12,
 		"reward_gold": 300,
 		"reward_items": {
 			"royal_plate": 1
@@ -234,7 +244,8 @@
 		},
 		"desc": "A vila está em festa! Mas o Kael está parado no portão leste com cara de quem ensaiou um discurso. Vá ouvir.",
 		"objective": "Fale com o Kael no portão leste",
-		"reward_xp": 150,
+		"reward_xp": 1271,
+		"level": 12,
 		"reward_gold": 150,
 		"reward_items": {
 			"wind_ring": 1
@@ -290,7 +301,8 @@
 		},
 		"desc": "Uma filial da Guilda dos Aventureiros abriu em Valdoria, ao lado do quadro de avisos. O Bram quer que o herói da vila se registre oficialmente.",
 		"objective": "Registre-se com a Lina, na Guilda (ao lado do quadro de avisos)",
-		"reward_xp": 80,
+		"reward_xp": 1271,
+		"level": 12,
 		"reward_gold": 30,
 		"reward_items": {
 			"health_potion": 2
@@ -322,7 +334,8 @@
 		},
 		"desc": "Lina pediu que você conheça o Quadro de Contratos da Guilda, onde ficam os pedidos dos moradores.",
 		"objective": "Leia o Quadro de Contratos, ao lado da Lina",
-		"reward_xp": 30,
+		"reward_xp": 1271,
+		"level": 12,
 		"reward_gold": 10,
 		"reward_items": {}
 	},
@@ -378,7 +391,8 @@
 		},
 		"desc": "Um pedido urgente chegou do Bosque Sussurrante: um menino da vila sumiu por lá. Pegue a carruagem da guilda e procure a patrulheira Sylvi.",
 		"objective": "Viaje ao Bosque Sussurrante (carruagem, portão norte) e fale com a Sylvi",
-		"reward_xp": 80,
+		"reward_xp": 1271,
+		"level": 12,
 		"reward_gold": 20,
 		"reward_items": {}
 	},
@@ -427,7 +441,8 @@
 		},
 		"desc": "Sylvi viu pegadas pequenas indo para o nordeste do bosque. Encontre o Tico.",
 		"objective": "Encontre o Tico no nordeste do Bosque Sussurrante",
-		"reward_xp": 80,
+		"reward_xp": 1271,
+		"level": 12,
 		"reward_gold": 20,
 		"reward_items": {}
 	},
@@ -461,7 +476,8 @@
 		},
 		"desc": "A Slime Rainha domina a clareira a oeste do Bosque Sussurrante. Derrote-a e conte tudo à Sylvi.",
 		"objective": "Derrote a Slime Rainha na clareira oeste do bosque",
-		"reward_xp": 350,
+		"reward_xp": 2805,
+		"level": 20,
 		"reward_gold": 150,
 		"reward_items": {
 			"swift_boots": 1
@@ -519,7 +535,8 @@
 		},
 		"desc": "Os slimes do bosque fugiram de algo na Mina de Cristal. A guilda recebeu um pedido do minerador Bolgar. Missão para Rank B.",
 		"objective": "Viaje à Mina de Cristal (carruagem) e fale com o Bolgar",
-		"reward_xp": 120,
+		"reward_xp": 2805,
+		"level": 20,
 		"reward_gold": 40,
 		"reward_items": {}
 	},
@@ -557,7 +574,8 @@
 		},
 		"desc": "Esqueletos tomaram as galerias da Mina de Cristal. Derrote 8 deles.",
 		"objective": "Esqueletos derrotados nas galerias da mina",
-		"reward_xp": 420,
+		"reward_xp": 3964,
+		"level": 25,
 		"reward_gold": 160,
 		"reward_items": {
 			"knight_shield": 1
@@ -595,7 +613,8 @@
 		},
 		"desc": "No fundo da mina, os esqueletos guardavam algo. Bolgar viu um livro velho no fim da galeria norte.",
 		"objective": "Leia o diário no fundo da galeria norte da mina",
-		"reward_xp": 200,
+		"reward_xp": 3964,
+		"level": 25,
 		"reward_gold": 60,
 		"reward_items": {}
 	},
@@ -653,7 +672,8 @@
 		},
 		"desc": "Morgrath, o Lich, está montando uma guilda rival no Pico das Cinzas, e o Kael foi junto. Missão de Rank A.",
 		"objective": "Viaje ao Pico das Cinzas e encontre o Kael",
-		"reward_xp": 200,
+		"reward_xp": 3964,
+		"level": 25,
 		"reward_gold": 60,
 		"reward_items": {}
 	},
@@ -687,7 +707,8 @@
 		},
 		"desc": "Morgrath, o Lich, espera no topo do Pico das Cinzas. Derrote-o e leve a notícia à Lina.",
 		"objective": "Derrote Morgrath no topo do Pico das Cinzas",
-		"reward_xp": 900,
+		"reward_xp": 8859,
+		"level": 42,
 		"reward_gold": 500,
 		"reward_items": {
 			"archmage_staff": 1
@@ -723,7 +744,8 @@
 		},
 		"desc": "A vila inteira quer comemorar. O Bram está preparando um discurso (longo).",
 		"objective": "Fale com o Ancião Bram para a festa",
-		"reward_xp": 200,
+		"reward_xp": 8859,
+		"level": 42,
 		"reward_gold": 200,
 		"reward_items": {
 			"sage_amulet": 1
@@ -757,7 +779,8 @@
 		"side": true,
 		"desc": "Slimes de gelo estão congelando as plantações dos campos ao norte.",
 		"objective": "Slimes de gelo derrotados nos campos ao norte",
-		"reward_xp": 90,
+		"reward_xp": 271,
+		"level": 8,
 		"reward_gold": 40,
 		"reward_items": {
 			"mana_potion": 1
@@ -791,7 +814,8 @@
 		"side": true,
 		"desc": "Goblins bombardeiros rondam o acampamento a leste e explodiram o banheiro da guarda.",
 		"objective": "Bombardeiros derrotados no acampamento a leste",
-		"reward_xp": 120,
+		"reward_xp": 174,
+		"level": 6,
 		"reward_gold": 55,
 		"reward_items": {
 			"health_potion": 2
@@ -827,7 +851,8 @@
 		"side": true,
 		"desc": "A Slime Mãe do ninho a sudoeste não para de ter filhotes.",
 		"objective": "Derrote a Slime Mãe no ninho a sudoeste",
-		"reward_xp": 160,
+		"reward_xp": 32,
+		"level": 2,
 		"reward_gold": 70,
 		"reward_items": {
 			"slime_gel": 3
@@ -863,7 +888,8 @@
 		"side": true,
 		"desc": "Um goblin dourado foge de todo mundo pelo vale. A guilda quer o pó dourado dele.",
 		"objective": "Cace um goblin dourado pelo vale",
-		"reward_xp": 160,
+		"reward_xp": 383,
+		"level": 10,
 		"reward_gold": 120,
 		"reward_items": {}
 	},
@@ -896,7 +922,8 @@
 		"side": true,
 		"desc": "Slimes velozes no Bosque Sussurrante estão mordendo o calcanhar dos lenhadores.",
 		"objective": "Slimes velozes derrotados no Bosque Sussurrante",
-		"reward_xp": 200,
+		"reward_xp": 794,
+		"level": 16,
 		"reward_gold": 80,
 		"reward_items": {}
 	},
@@ -930,7 +957,8 @@
 		"side": true,
 		"desc": "O Cavaleiro Esqueleto das ruínas desafia todo mundo que passa.",
 		"objective": "Derrote um Cavaleiro Esqueleto",
-		"reward_xp": 260,
+		"reward_xp": 508,
+		"level": 12,
 		"reward_gold": 120,
 		"reward_items": {}
 	},
@@ -964,7 +992,8 @@
 		"side": true,
 		"desc": "Goblins brutos guardam as ruínas e a Mina de Cristal.",
 		"objective": "Goblins brutos derrotados (ruínas ou mina)",
-		"reward_xp": 300,
+		"reward_xp": 1586,
+		"level": 25,
 		"reward_gold": 130,
 		"reward_items": {}
 	},
@@ -1004,7 +1033,8 @@
 		"side": true,
 		"desc": "Os restos da legião do Lich ainda andam pelo Pico das Cinzas.",
 		"objective": "Esqueletos derrotados no Pico das Cinzas",
-		"reward_xp": 450,
+		"reward_xp": 2671,
+		"level": 35,
 		"reward_gold": 200,
 		"reward_items": {}
 	},
@@ -1056,7 +1086,8 @@
 		"side": true,
 		"desc": "O Sr. Bigodes, gato da Dona Zélia, fugiu de novo. Ela acha que ele foi para o pomar a leste da Horta.",
 		"objective": "Encontre o Sr. Bigodes no pomar (a leste da Horta)",
-		"reward_xp": 60,
+		"reward_xp": 18,
+		"level": 1,
 		"reward_gold": 25,
 		"reward_items": {
 			"bread": 2
@@ -1093,7 +1124,8 @@
 		"side": true,
 		"desc": "O guarda Rufus está de plantão há dois turnos e só pensa em sopa picante.",
 		"objective": "Leve uma Sopa Picante ao Rufus (tomate e pimenta na Horta)",
-		"reward_xp": 80,
+		"reward_xp": 18,
+		"level": 1,
 		"reward_gold": 35,
 		"reward_items": {
 			"iron_gauntlets": 1
@@ -1129,7 +1161,8 @@
 		"side": true,
 		"desc": "Doran precisa de minério de ferro dos veios perto do acampamento goblin.",
 		"objective": "Minério de Ferro para o Doran (veios a leste)",
-		"reward_xp": 90,
+		"reward_xp": 18,
+		"level": 1,
 		"reward_gold": 40,
 		"reward_items": {}
 	},
@@ -1165,7 +1198,8 @@
 		"side": true,
 		"desc": "Pip quer cristais arcanos para uma poção que \"definitivamente não vai abrir um portal\".",
 		"objective": "Cristais Arcanos para a Pip (ruínas ou Mina de Cristal)",
-		"reward_xp": 140,
+		"reward_xp": 18,
+		"level": 1,
 		"reward_gold": 60,
 		"reward_items": {
 			"mana_potion": 2
@@ -1201,7 +1235,8 @@
 		"side": true,
 		"desc": "Seu Tonico construiu um espantalho, mas os slimes não têm medo dele. Ninguém tem.",
 		"objective": "Slimes derrotados nos campos do Seu Tonico",
-		"reward_xp": 110,
+		"reward_xp": 52,
+		"level": 2,
 		"reward_gold": 45,
 		"reward_items": {
 			"seed_pumpkin": 2,
@@ -1243,7 +1278,8 @@
 		"side": true,
 		"desc": "Ravi, o caçador, quer a trilha leste livre dos goblins arqueiros e xamãs.",
 		"objective": "Goblins arqueiros e xamãs derrotados no acampamento",
-		"reward_xp": 160,
+		"reward_xp": 289,
+		"level": 6,
 		"reward_gold": 60,
 		"reward_items": {
 			"hunter_quiver": 1
@@ -1284,7 +1320,8 @@
 		"side": true,
 		"desc": "Sir Osvaldo, um cavaleiro velho, guarda a entrada das ruínas e quer os magos e arqueiros esqueletos longe dela.",
 		"objective": "Magos e arqueiros esqueletos derrotados nas ruínas",
-		"reward_xp": 240,
+		"reward_xp": 847,
+		"level": 12,
 		"reward_gold": 100,
 		"reward_items": {
 			"knight_helm": 1
@@ -1320,7 +1357,8 @@
 		"side": true,
 		"desc": "Xamãs goblins fazem rituais barulhentos no Bosque Sussurrante.",
 		"objective": "Xamãs goblins derrotados no Bosque Sussurrante",
-		"reward_xp": 220,
+		"reward_xp": 1323,
+		"level": 16,
 		"reward_gold": 80,
 		"reward_items": {
 			"elven_bow": 1
@@ -1356,7 +1394,8 @@
 		"side": true,
 		"desc": "Bolgar quer cristais arcanos dos veios da mina para pagar a reforma.",
 		"objective": "Cristais Arcanos para o Bolgar (veios da mina)",
-		"reward_xp": 260,
+		"reward_xp": 1870,
+		"level": 20,
 		"reward_gold": 140,
 		"reward_items": {}
 	},
@@ -1390,7 +1429,8 @@
 		"side": true,
 		"desc": "Kael quer provar que mudou: quem derrota mais Cavaleiros Esqueletos no Pico das Cinzas?",
 		"objective": "Cavaleiros Esqueletos derrotados no Pico das Cinzas",
-		"reward_xp": 420,
+		"reward_xp": 4452,
+		"level": 35,
 		"reward_gold": 180,
 		"reward_items": {
 			"vampire_ring": 1
@@ -1405,7 +1445,8 @@
 		"type": "gather",
 		"desc": "Uma rena se assustou e os presentes caíram do trenó por todo o vale. Encontre os 8 presentes e traga de volta.",
 		"count": 8,
-		"reward_xp": 220,
+		"reward_xp": 18,
+		"level": 1,
 		"reward_gold": 150,
 		"reward_items": {
 			"health_potion": 3,
@@ -1449,7 +1490,8 @@
 			"goblin_bombardeiro"
 		],
 		"count": 6,
-		"reward_xp": 320,
+		"reward_xp": 289,
+		"level": 6,
 		"reward_gold": 200,
 		"reward_items": {
 			"wind_ring": 1
@@ -1489,7 +1531,8 @@
 			"carrot_stew": 1
 		},
 		"count": 1,
-		"reward_xp": 260,
+		"reward_xp": 18,
+		"level": 1,
 		"reward_gold": 160,
 		"reward_items": {
 			"valdoria_feast": 2
@@ -1521,7 +1564,8 @@
 		"type": "visit",
 		"desc": "Ajude o Noel a deixar presentes nas 6 casas marcadas com uma estrela pelas ruas de Valdoria.",
 		"count": 6,
-		"reward_xp": 260,
+		"reward_xp": 18,
+		"level": 1,
 		"reward_gold": 180,
 		"reward_items": {
 			"sage_amulet": 1

@@ -47,6 +47,16 @@ func test_roundtrip_matches_consts() -> void:
 			cur = cur.duplicate(true)
 			for id in cur:
 				(cur[id] as Dictionary).erase("level")
+		elif n == "quests":
+			# o nível da missão e o XP pela fatia do nível nasceram depois do snapshot: compara sem eles
+			cur = cur.duplicate(true)
+			var snap_quests: Dictionary = (BalanceTables.decode(snap[n]) as Dictionary).duplicate(true)
+			for id in cur:
+				(cur[id] as Dictionary).erase("level")
+				(cur[id] as Dictionary).erase("reward_xp")
+				(snap_quests[id] as Dictionary).erase("reward_xp")
+			T.ok(cur == snap_quests, "tabela quests igual ao snapshot (sem level e reward_xp)")
+			continue
 		elif n == "rules":
 			# a curva de XP foi para progression.json
 			cur = cur.duplicate(true)

@@ -163,6 +163,7 @@ func _ready() -> void:
 	# --- combate corpo a corpo
 	var slime := _nearest("slime")
 	var xp0 := Game.xp
+	var lvl0 := Game.level
 	var gold0 := Game.gold
 	player.global_position = slime.global_position + Vector3(0, 0.3, 1.2)
 	player.model.rotation.y = PI
@@ -175,7 +176,7 @@ func _ready() -> void:
 	Game.fury = 0.0
 	check(slime.hp < hp0, "golpe de espada causa dano (%.0f -> %.0f)" % [hp0, slime.hp])
 	slime.take_damage(9999, player.global_position, false)
-	check(Game.xp > xp0, "XP ganho ao matar slime")
+	check(Game.level > lvl0 or Game.xp > xp0, "XP ganho ao matar slime")
 	check(Game.quests.slimes.progress == 1, "progresso da missão 1/5")
 	player.global_position = slime.global_position + Vector3(0, 0.3, 0)
 	await wait(2.5)

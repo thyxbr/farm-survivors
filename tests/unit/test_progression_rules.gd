@@ -79,3 +79,21 @@ func test_elite_adds_levels() -> void:
 	T.eq(ProgressionRules.spawn_level(bt, 5, 0, false, rng), 5, "level_max 0 = nível fixo")
 	T.eq(ProgressionRules.spawn_level(bt, 0, 0, false, rng), 0, "sem nível continua sem nível")
 	T.eq(ProgressionRules.spawn_level(bt, 0, 0, true, rng), 0, "elite sem nível não ganha nível")
+
+
+func test_quests_have_level_and_xp() -> void:
+	var bt := _tables()
+	var qt: Dictionary = bt.get_table("quests")
+	var maxl := ProgressionRules.max_level(bt)
+	var early := 0
+	for id in qt:
+		var l := int(qt[id].get("level", 0))
+		T.ok(l >= 1 and l <= maxl, "%s: nível %d dentro de 1..máx" % [id, l])
+		T.ok(int(qt[id].get("reward_xp", 0)) > 0, "%s: reward_xp > 0" % id)
+		if l <= 10:
+			early += int(qt[id].reward_xp)
+	var band := 0
+	for l in range(1, 10):
+		band += ProgressionRules.xp_to_next(bt, l)
+	T.ok(early >= band * 0.20 and early <= band * 0.45,
+		"missões até o nível 10 dão 20%%-45%% do XP dos níveis 1-9 (%d de %d)" % [early, band])
