@@ -714,6 +714,7 @@ func test_equip_other_class_refused() -> void:
 	var r := CharRules.equip(s, _tables(), "short_bow")
 	T.ok(not r.ok, "arco recusado")
 	T.eq(r.err, "exige_classe", "erro")
+	T.eq(r.events[0].text, "Arco Curto é arma de Arqueiro.", "aviso diz a classe do personagem")
 	T.eq(s.equipment.weapon, "azure_edge", "arma intacta")
 
 

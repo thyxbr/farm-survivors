@@ -23,6 +23,8 @@ func load_char(account_id: int) -> Variant:
 	var d := {"level": r["level"], "xp": r["xp"], "gold": r["gold"], "stat_points": r["stat_points"],
 		"ecos": r["ecos"], "hp": r["hp"], "mp": r["mp"], "world_yaw": r["world_yaw"], "kills": r["kills"],
 		"updated_at": r["updated_at"]}
+	d["char_class"] = str(r["char_class"])
+	d["body"] = str(r["body"])
 	for k in ["attributes", "equipment", "quests", "flags", "farm", "world_pos", "enchants"]:
 		d[k] = JSON.parse_string(str(r[k]))   # world_pos nulo volta como null
 	var inv := []
@@ -123,8 +125,8 @@ func _write(account_id: int, d: Dictionary, at: int) -> bool:
 		[account_id, d["level"], d["xp"], d["gold"], int(d.get("ecos", 0)), d["stat_points"], JSON.stringify(d["attributes"]), d["hp"], d["mp"],
 		JSON.stringify(d["equipment"]), JSON.stringify(d["quests"]), JSON.stringify(d["flags"]),
 		JSON.stringify(d["farm"]), JSON.stringify(d["world_pos"]), d["world_yaw"], d["kills"], at])
-	if not ok or not db.exec("UPDATE characters SET enchants = ? WHERE account_id = ?",
-			[JSON.stringify(d.get("enchants", {})), account_id]):
+	if not ok or not db.exec("UPDATE characters SET enchants = ?, char_class = ?, body = ? WHERE account_id = ?",
+			[JSON.stringify(d.get("enchants", {})), str(d.get("char_class", "")), str(d.get("body", "")), account_id]):
 		return false
 	if not db.exec("DELETE FROM inventory WHERE account_id = ?", [account_id]):
 		return false

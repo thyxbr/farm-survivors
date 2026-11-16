@@ -712,7 +712,15 @@ func _clean_look(look: Dictionary, account := 0) -> Dictionary:
 	fx.en = e.el
 	fx.lv = e.lv
 	out["fx"] = fx
+	out["body"] = server_body(account)   # o corpo (m/f) vem do personagem gravado, nunca do cliente
 	return out
+
+
+## Servidor: corpo escolhido pela conta ("m", "f" ou "" se ainda não escolheu), lido do personagem gravado.
+func server_body(account: int) -> String:
+	if account <= 0 or characters == null:
+		return ""
+	return characters.load_or_create(account).body
 
 
 ## Efeitos visuais do jogador (auras e encanto): só estilos e elementos conhecidos, sem repetir.
@@ -849,7 +857,7 @@ func _accepted(all_players: Dictionary) -> void:
 	# todo mundo entra direto em Valdoria, onde o personagem estava (Game.spawn_position veio do servidor)
 	if Game.hp <= 0.0:
 		Game.hp = Game.max_hp()
-	Loading.go(WORLD_SCENE)
+	Game.go_to_world()   # sem classe ainda: passa antes pela tela de criação
 
 
 ## Chamado pelo mundo quando terminou de montar a cena.

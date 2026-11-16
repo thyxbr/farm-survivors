@@ -23,6 +23,7 @@ signal kit_changed   # a classe da arma equipada mudou
 const SETTINGS_PATH := "user://settings.cfg"
 const WORLD_SCENE := "res://scenes/world.tscn"
 const MENU_SCENE := "res://scenes/main_menu.tscn"
+const CHAR_CREATE_SCENE := "res://scenes/char_create.tscn"
 
 var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "music_volume": 0.45, "sfx_volume": 0.9,
 	"ambience_volume": 0.7, "fullscreen": false, "invert_y": false,
@@ -73,6 +74,8 @@ var enchants := {}
 ## Classe fixa e corpo do personagem (espelho de CharState; "" = save antigo).
 var char_class := ""
 var body := ""
+## Escolha automática de classe (testes e demos) mandada e ainda sem resposta (online ela é assíncrona).
+var _auto_class_pending := false
 
 
 func _ready() -> void:
@@ -300,7 +303,7 @@ func start_new_game() -> void:
 	Econ.reset_solo()
 	spawn_position = null
 	get_tree().paused = false
-	Loading.go(WORLD_SCENE)
+	go_to_world()
 
 
 ## "Continuar": o personagem do save solo, de volta a Valdoria onde ele estava.
@@ -310,8 +313,47 @@ func continue_game() -> bool:
 		return false
 	reset_run_mods()
 	get_tree().paused = false
-	Loading.go(WORLD_SCENE)
+	go_to_world()
 	return true
+
+
+## Entrada no jogo (novo jogo, continuar, login aceito): personagem sem classe passa antes pela tela de
+## criação. Uma escolha automática dos testes ainda no ar (online) é esperada antes de decidir.
+func go_to_world() -> void:
+	while char_class == "" and _auto_class_pending:
+		await Econ.done
+	Loading.go(entry_scene())
+
+
+func entry_scene() -> String:
+	return CHAR_CREATE_SCENE if char_class == "" else WORLD_SCENE
+
+
+## Personagem de antes das classes (tem progresso): a tela de criação diz "Escolha sua classe".
+## O kit inicial (poções, sementes, pão, capuz) não conta; nível, XP, peça equipada ou arma na mochila
+## contam (personagem novo nunca tem arma antes da escolha).
+func is_old_character() -> bool:
+	if level > 1 or xp > 0:
+		return true
+	for v in equipment.values():
+		if str(v) != "":
+			return true
+	for slot in inventory:
+		if ItemDB.slot_of(str(slot.id)) == "weapon":
+			return true
+	return false
+
+
+## A arma pode ser equipada pela classe do personagem (itens que não são arma: sempre).
+func can_wield(id: String) -> bool:
+	if CharRules.slot_of(Balance.tables, id) != "weapon":
+		return true
+	return CharRules.weapon_class(Balance.tables, id) == CharRules.class_weapon(Balance.tables, char_class)
+
+
+## Nome da classe de personagem que usa a arma ("Arqueiro" para um arco).
+func weapon_owner(id: String) -> String:
+	return CharRules.class_of_weapon_name(Balance.tables, CharRules.weapon_class(Balance.tables, id))
 
 
 func go_to_menu() -> void:
@@ -931,11 +973,19 @@ func harvest(i: int) -> void:
 func auto_choose_class() -> void:
 	if char_class != "":
 		return
+	var pick := harness_class(OS.get_cmdline_user_args())
+	if pick[0] != "":
+		_auto_class_pending = true
+		Econ.request("choose_class", pick)
+
+
+## [classe, corpo] que os argumentos de teste pedem (classe "" = nenhuma: mostra a tela de criação).
+static func harness_class(args: PackedStringArray) -> Array:
 	var cls := ""
 	var bd := "m"
 	var harness := false
 	var weapon := ""
-	for a in OS.get_cmdline_user_args():
+	for a in args:
 		if a.begins_with("--class="):
 			cls = a.substr(8)
 		elif a.begins_with("--body="):
@@ -952,8 +1002,7 @@ func auto_choose_class() -> void:
 				cls = id
 	if cls == "" and harness:
 		cls = "warrior"
-	if cls != "":
-		Econ.request("choose_class", [cls, bd])
+	return [cls, bd]
 
 
 # ================================================================ espelho
@@ -1037,6 +1086,8 @@ func apply_events(events: Array) -> void:
 ## O que o cliente faz depois que uma op é confirmada (cura de poção/comida, comida selecionada).
 func after_op(op: String, args: Array, ok: bool, _events: Array) -> void:
 	match op:
+		"choose_class":
+			_auto_class_pending = false
 		"consume":
 			var id := str(args[0]) if not args.is_empty() else ""
 			if not ok:

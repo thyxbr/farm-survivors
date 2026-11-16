@@ -296,7 +296,7 @@ func _drop_on_bag(_target: ItemSlot, data: Dictionary, apply: bool) -> bool:
 
 ## Soltar num espaço do boneco: equipa se o item couber naquele espaço.
 func _drop_on_equip(target: ItemSlot, data: Dictionary, apply: bool) -> bool:
-	if data.source != "bag" or ItemDB.slot_of(data.id) != target.slot_name:
+	if data.source != "bag" or ItemDB.slot_of(data.id) != target.slot_name or not Game.can_wield(data.id):
 		return false
 	if apply:
 		Game.equip(data.id)
@@ -324,9 +324,11 @@ func _refresh_inventory() -> void:
 			var i: int = shown[j]
 			s.index = i
 			s.set_state(Game.inventory[i].id, Game.inventory[i].qty)
+			s.dim = not Game.can_wield(s.item_id)   # arma de outra classe: só para vender
 		else:
 			s.index = -1
 			s.set_state("")
+			s.dim = false
 	bag_count.text = "%d itens" % Game.inventory.size()
 	hero_label.text = "%s · Nível %d" % [_hero_name(), Game.level]
 	if sel_index >= Game.inventory.size():
@@ -373,7 +375,7 @@ func _refresh_selection() -> void:
 	sel_label.text = it.name + ("  x%d" % Game.inventory[sel_index].qty if Game.inventory[sel_index].qty > 1 else "")
 	sel_label.add_theme_color_override("font_color", ItemDB.rarity_color(id).darkened(0.55) if ItemDB.is_equippable(id) else UITheme.INK)
 	var t: String = it.type
-	use_btn.disabled = t == "material" or t == "seed" or (t == "crop" and not Game.is_edible(id))
+	use_btn.disabled = t == "material" or t == "seed" or (t == "crop" and not Game.is_edible(id)) or not Game.can_wield(id)
 	use_btn.text = "Equipar" if ItemDB.is_equippable(id) else ("Comer" if t in ["food", "crop"] else "Usar")
 	drop_btn.disabled = false
 

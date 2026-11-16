@@ -895,6 +895,7 @@ func _ready() -> void:
 	await _test_enchant_effects()
 	await _test_survival()
 	await _test_update()
+	await _test_char_create()   # por último: troca o personagem solo por um novo, sem classe
 
 	print("\n==== %s (%d falhas) ====" % ["OK" if fails == 0 else "FALHOU", fails])
 	get_tree().quit(1 if fails > 0 else 0)
@@ -2783,6 +2784,83 @@ func _light_text(node: Node) -> String:
 		if r != "":
 			return r
 	return ""
+
+
+## Tela de criação: personagem sem classe passa por ela; escolher arqueiro dá o arco e trava a espada.
+func _test_char_create() -> void:
+	check(Game.harness_class(PackedStringArray(["--smoketest", "--class=archer"])) == ["archer", "m"]
+		and Game.harness_class(PackedStringArray(["--body=f", "--class=healer"])) == ["healer", "f"],
+		"--class= e --body= pedem a classe e o corpo")
+	check(Game.harness_class(PackedStringArray(["--smoketest"])) == ["warrior", "m"]
+		and Game.harness_class(PackedStringArray([])) == ["", "m"], "testes sem --class= são guerreiros; o jogo normal mostra a tela")
+	check(Game.entry_scene() == Game.WORLD_SCENE, "personagem com classe entra direto no mundo")
+	Econ.start_scratch_solo("user://smoketest_create.json", false)
+	check(Game.char_class == "" and Game.equipment.weapon == "", "personagem novo começa sem classe e sem arma")
+	check(Game.entry_scene() == Game.CHAR_CREATE_SCENE, "sem classe a entrada abre a tela de criação")
+	check(not Game.is_old_character(), "personagem novo não conta como antigo (poções iniciais não contam)")
+	var cc = load(Game.CHAR_CREATE_SCENE).instantiate()
+	cc.enter_world = false
+	get_tree().root.add_child(cc)
+	await wait(0.2)
+	check(cc.title_label.text == "Crie seu herói" and not cc.old_note.visible, "título de herói novo, sem aviso de arma")
+	check(cc.cards.size() == 4, "quatro cartões de classe (%d)" % cc.cards.size())
+	cc.select_class("archer")
+	check(cc.preview.weapon_override == "short_bow", "prévia mostra o arco inicial sem equipar")
+	var kit_ok := true
+	for id in ItemDB.kit("bow"):
+		kit_ok = kit_ok and str(ItemDB.ABILITIES[id].name) in cc.kit_names()
+	check(kit_ok and cc.class_name_label.text == "Arqueiro", "detalhe do arqueiro lista as habilidades do kit")
+	cc.select_body("f")
+	check(cc.body == "f" and cc.body_note.visible, "feminino avisa que o visual chega em breve")
+	cc.select_body("m")
+	check(not cc.body_note.visible, "masculino sem aviso")
+	cc._start()
+	await wait(0.1)
+	check(cc.finished and Game.char_class == "archer" and Game.body == "m" and Game.equipment.weapon == "short_bow",
+		"Começar: arqueiro com o arco equipado (%s, %s)" % [Game.char_class, Game.equipment.weapon])
+	cc.queue_free()
+	var notes: Array = []
+	var cb := func(t: String, _c: Color) -> void: notes.append(t)
+	Game.notify.connect(cb)
+	Econ.grant(5000, 0, {"azure_edge": 1}, "test", true)   # ouro: na loja, só a classe apaga a arma
+	Game.equip("azure_edge")
+	Game.notify.disconnect(cb)
+	check(Game.equipment.weapon == "short_bow" and "Gume Celeste é arma de Guerreiro." in notes,
+		"espada da mochila recusada com aviso (%s)" % [notes])
+	check(not Game.can_wield("azure_edge") and Game.can_wield("short_bow") and Game.can_wield("health_potion"),
+		"arqueiro só empunha arco")
+	check(ItemTooltip.build_text("azure_edge", "buy").contains("Arma de Guerreiro"), "dica da loja marca arma de outra classe")
+	world.open_shop()
+	await wait(0.2)
+	var sword_dim := false
+	var bow_dim := true
+	for sl in world.modal.buy_grid.get_children():
+		if sl.item_id == "azure_edge":
+			sword_dim = sl.dim
+		elif sl.item_id == "short_bow":
+			bow_dim = sl.dim
+	check(sword_dim and not bow_dim, "loja apaga a espada e deixa o arco")
+	world.modal._close()
+	await wait(0.1)
+	world._open_menu(0)
+	await wait(0.2)
+	var m = world.modal
+	for i in Game.inventory.size():
+		if Game.inventory[i].id == "azure_edge":
+			m.sel_index = i
+	m._refresh_selection()
+	check(m.use_btn.disabled and m.use_btn.text == "Equipar", "inventário desabilita Equipar para a espada")
+	m._close()
+	await wait(0.1)
+	check(Game.is_old_character(), "com equipamento conta como personagem antigo")
+	Econ.start_scratch_solo("user://smoketest_create.json", false)
+	Econ.grant(0, 0, {"iron_sword": 1}, "test", true)
+	var old = load(Game.CHAR_CREATE_SCENE).instantiate()
+	old.enter_world = false
+	get_tree().root.add_child(old)
+	await wait(0.2)
+	check(old.title_label.text == "Escolha sua classe" and old.old_note.visible, "personagem antigo: Escolha sua classe e aviso da arma")
+	old.queue_free()
 
 
 ## Escolhe cartas de nível enquanto houver; se check_weapon, confere que a arma escolhida subiu.

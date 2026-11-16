@@ -147,7 +147,8 @@ func _refresh() -> void:
 		var s := _slot("buy", id, 0)
 		var price: int = ItemDB.get_item(id).price
 		s.info_text = "%d◆" % price
-		s.dim = price > Game.gold
+		# arma de outra classe continua à venda (dá para revender), mas apagada: a dica diz de quem ela é
+		s.dim = price > Game.gold or not Game.can_wield(id)
 		buy_grid.add_child(s)
 	var n := 0
 	for slot in Game.inventory:

@@ -388,7 +388,7 @@ func ensure_solo() -> bool:
 
 
 ## Abre o save solo e aplica o personagem salvo (vida, mana e posição inclusive).
-func start_solo() -> bool:
+func start_solo(choose_class := true) -> bool:
 	if not _open_store():
 		return false
 	if Balance.from_server:
@@ -400,7 +400,8 @@ func start_solo() -> bool:
 	var s := _svc.load_or_create(SOLO_ACCOUNT)
 	_solo_loaded = true
 	Game.apply_state(s.to_dict(), true)
-	Game.auto_choose_class()
+	if choose_class:
+		Game.auto_choose_class()
 	return true
 
 
@@ -461,7 +462,7 @@ func _open_store() -> bool:
 
 ## Demos de screenshot (`--farmdemo`/`--geardemo`/`--weapon=`): personagem novo num arquivo à parte,
 ## apagado a cada vez (não mexe no save solo). Chamado pelo Game antes do _ready deste autoload.
-func start_scratch_solo(path: String) -> bool:
+func start_scratch_solo(path: String, choose_class := true) -> bool:
 	if _store != null:
 		_store.close()
 		_store = null
@@ -469,7 +470,7 @@ func start_scratch_solo(path: String) -> bool:
 	_solo_loaded = false
 	solo_save_path = path
 	_wipe_on_open = true
-	return start_solo()
+	return start_solo(choose_class)
 
 
 # ================================================================ entrega do resultado
@@ -617,7 +618,7 @@ func _econ_req(seq: int, op: String, args: Array) -> void:
 		return
 	var r := Network.characters.apply(account, op, args)
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
-	if r.ok and op in ["enchant", "equip", "unequip"]:
+	if r.ok and op in ["enchant", "equip", "unequip", "choose_class"]:
 		Network.server_refresh_look(peer)   # o brilho que os outros veem acompanha o que foi gravado
 
 

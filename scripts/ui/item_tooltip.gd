@@ -128,6 +128,8 @@ static func build_text(id: String, context := "bag", paper := false) -> String:
 		if it.has("damage"):
 			t += "[font_size=26]%d[/font_size] [color=#%s]Dano[/color]\n" % [it.damage, dim]
 			t += "[color=#%s]%s[/color]\n" % [dim, ItemDB.CLASS_HINT[ItemDB.weapon_class(id)]]
+			if not Game.can_wield(id):
+				t += "[color=#%s]Arma de %s: sua classe não equipa.[/color]\n" % [bad, Game.weapon_owner(id)]
 			var ench := Game.enchant_of(id)
 			if ench.lv > 0:   # encanto do ferreiro, na cor do elemento
 				var ec: Color = EnchantFX.ELEMENTS.get(ench.el, {}).get("color", Color.WHITE)
@@ -152,7 +154,7 @@ static func build_text(id: String, context := "bag", paper := false) -> String:
 	t += "[i][color=#%s]%s[/color][/i]\n" % [_hex(pal.desc), it.desc]
 
 	# comparação calculada com o equipado
-	if slot != "" and context != "equip":
+	if slot != "" and context != "equip" and Game.can_wield(id):
 		var cur: String = Game.equipment.get(slot, "")
 		t += "[color=#%s]━━━━━━━━━━━━━━━━━━━━[/color]\n" % _hex(pal.rule)
 		if cur == id:
@@ -188,7 +190,7 @@ static func build_text(id: String, context := "bag", paper := false) -> String:
 			t += "[color=#%s]Clique direito: remover · arraste para a mochila[/color]" % dim
 		_:
 			t += "[color=#%s]Valor: %d ◆[/color]\n" % [dim, price]
-			if slot != "":
+			if slot != "" and Game.can_wield(id):
 				t += "[color=#%s]Clique direito: equipar · arraste para o boneco[/color]" % dim
 			elif Game.is_edible(id) or it.type == "consumable":
 				t += "[color=#%s]Clique direito: usar[/color]" % dim

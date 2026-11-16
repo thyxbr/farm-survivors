@@ -286,6 +286,22 @@ func test_enchant_persists_and_logs() -> void:
 	db2.close()
 
 
+## Classe e corpo vão para o SQLite (colunas char_class e body): sem isso, todo login online voltava sem classe.
+func test_class_and_body_persist_in_sqlite() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	svc.load_or_create(2)
+	T.ok(svc.apply(2, "choose_class", ["archer", "f"]).ok, "escolheu")
+	svc.unload(2)
+	db.close()
+	var db2 := Db.open(PATH)
+	var s := CharacterService.new(SqliteCharStore.new(db2), _tables()).load_or_create(2)
+	T.eq(s.char_class, "archer", "classe sobrevive a reabrir o banco")
+	T.eq(s.body, "f", "corpo sobrevive a reabrir o banco")
+	T.eq(s.equipment.weapon, "short_bow", "arco da classe")
+	db2.close()
+
+
 func test_enchant_bad_args_and_refusal() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())

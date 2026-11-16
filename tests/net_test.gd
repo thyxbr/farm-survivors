@@ -165,6 +165,7 @@ func _ready() -> void:
 		for rp in Network.remote_players.values():
 			check(rp.look["class"] == "bow" and rp._last_look.get("head", "") == "leather_cap",
 				"vê o arco e o capuz de %s" % rp.display_name)
+			check(rp._last_look.get("body", "") == "m", "o corpo escolhido (m) chega na réplica de %s" % rp.display_name)
 			var holder: Node3D = rp.look.get("holder")
 			check(holder != null and is_instance_valid(holder), "modelo do arco montado na réplica de %s" % rp.display_name)
 

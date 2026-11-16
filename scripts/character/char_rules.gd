@@ -87,6 +87,14 @@ static func class_weapon(bt: BalanceTables, cls: String) -> String:
 	return weapon_class(bt, str(c.get("starter_weapon", "")))
 
 
+## Nome da classe de personagem que usa um tipo de arma ("Arqueiro" para "bow"); sem classe, o nome da arma.
+static func class_of_weapon_name(bt: BalanceTables, wclass: String) -> String:
+	for cls in CLASS_IDS:
+		if class_weapon(bt, cls) == wclass:
+			return str(bt.get_table("classes")[cls].get("name", cls))
+	return str(CLASS_NAMES.get(wclass, wclass)).to_lower()
+
+
 static func rarity_of(bt: BalanceTables, id: String) -> String:
 	return _item(bt, id).get("rarity", "common")
 
@@ -358,8 +366,8 @@ static func equip(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	var it := _item(bt, id)
 	# a arma é da classe do personagem (e sem classe escolhida não se equipa arma)
 	if slot_name == "weapon" and weapon_class(bt, id) != class_weapon(bt, s.char_class):
-		var cname: String = str(CLASS_NAMES.get(weapon_class(bt, id), weapon_class(bt, id)))
-		return _fail("exige_classe", [_notify("%s é arma de %s." % [it.name, cname.to_lower()], Color(1, 0.6, 0.5))])
+		return _fail("exige_classe", [_notify("%s é arma de %s." % [it.name, class_of_weapon_name(bt, weapon_class(bt, id))],
+			Color(1, 0.6, 0.5))])
 	# mão secundária precisa combinar com a classe da arma (escudo-espada, orbe-cajado, aljava-arco)
 	if slot_name == "offhand" and it.has("needs") and it.needs != weapon_class(bt, s.equipment.weapon):
 		return _fail("exige_classe", [_notify("%s exige %s." % [it.name, str(CLASS_NAMES.get(it.needs, it.needs)).to_lower()],
