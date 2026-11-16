@@ -39,14 +39,12 @@ Depois disso, cada ícone é: `Subject: ... Background color: ...`
 
 ## Situação
 
-- **Prontas e no jogo** (`assets/ui/skills/`): `fireball`, `frost_nova`, `heal`, `meteor_rain`,
-  `sword_charge`, `sword_quake`, `sword_whirl`, `bow_triple`, `bow_frost`, `bow_gale`.
-  A Cura do Cetro usa a mesma `heal`.
-- **Faltam** as 5 da tabela 0 logo abaixo (habilidades novas do slot 3 e do Cetro).
+- **Prontas e no jogo** (`assets/ui/skills/`): as 15 habilidades de classe, incluindo as 5 da
+  tabela 0 abaixo. A Cura do Cetro usa a mesma `heal`.
 - **Horda (seções 2 a 5): adiada.** `potion_heal` e `h_fogo` já gerados ficaram guardados em
   `docs/icones_ref/horda/`.
 
-## 0. Habilidades que faltam (5)
+## 0. Habilidades do slot 3 e do Cetro (5, prontas)
 
 | Arquivo | Habilidade | Prompt (Subject + Background) |
 |---|---|---|
