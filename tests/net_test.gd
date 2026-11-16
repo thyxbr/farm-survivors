@@ -678,11 +678,11 @@ func _test_party(w: Node) -> void:
 		bk.book.close()
 	# mapa-mundi (M): o colega do grupo aparece no atlas
 	w.open_world_map(0)
-	var at: Node = w.modal
+	var atlas_ui: Node = w.modal
 	await wait(0.3)
-	check(at != null and at.get("view") is AtlasView, "M abre o mapa-mundi em tela cheia")
-	if at != null:
-		at._close()
+	check(atlas_ui != null and atlas_ui.get("view") is AtlasView, "M abre o mapa-mundi em tela cheia")
+	if atlas_ui != null:
+		atlas_ui._close()
 	check(w.modal == null, "livro fechado")
 	Econ.request("start_quest", ["espantalho"])
 	check(await _wait_until(func() -> bool: return Game.quest_state("espantalho") == "active", 4.0), "missão de slimes ativa")
