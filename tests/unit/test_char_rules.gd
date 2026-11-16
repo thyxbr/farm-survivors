@@ -168,6 +168,31 @@ func test_consume() -> void:
 	T.eq(CharRules.consume(s, bt, "iron_sword").err, "nao_consumivel", "espada não se come")
 
 
+func test_food_buffs_are_generic() -> void:
+	var bt := _tables()
+	var items: Dictionary = bt.get_table("items")
+	var buffs: Dictionary = bt.get_table("buffs")
+	var combat := ["damage", "crit", "defense", "lifesteal", "cooldown", "speed", "max_hp_flat", "regen"]
+	var n := 0
+	for id in items:
+		if items[id].get("type", "") != "food":
+			continue
+		T.ok(not items[id].has("special"), "%s sem special" % id)
+		if not items[id].has("buff"):
+			continue
+		n += 1
+		T.ok(items[id].buff is String and buffs.has(items[id].buff), "%s aponta para um buff da tabela" % id)
+		for k in buffs[items[id].buff].add:
+			T.ok(not k in combat, "%s: bônus de comida sem combate (%s)" % [id, k])
+	T.eq(n, 8, "8 comidas com buff")
+	for id in ["sword_fury", "bow_focus", "staff_ember", "scepter_ward", "scepter_feast"]:
+		T.ok(buffs.has(id) and buffs[id].time > 0.0, "buff de habilidade %s" % id)
+	var s := _blank()
+	s.inventory = [{"id": "spicy_soup", "qty": 1}]
+	var r := CharRules.consume(s, bt, "spicy_soup")
+	T.ok(r.events[0].text.contains("Calor Picante"), "aviso mostra o buff novo")
+
+
 func test_cook() -> void:
 	var bt := _tables()
 	var s := _blank()

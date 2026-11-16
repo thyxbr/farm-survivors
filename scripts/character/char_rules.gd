@@ -467,8 +467,9 @@ static func consume(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	remove_item(s, id, 1)
 	var ev: Array = []
 	if t != "consumable":
-		if it.has("buff"):
-			ev.append(_notify("%s: %s (%ds)" % [it.name, it.buff.name, int(it.buff.time)], it.get("color", Color(1, 0.85, 0.4))))
+		var b: Dictionary = bt.get_table("buffs").get(it.get("buff", ""), {})
+		if not b.is_empty():
+			ev.append(_notify("%s: %s (%ds)" % [it.name, b.name, int(b.time)], it.get("color", Color(1, 0.85, 0.4))))
 		else:
 			ev.append(_notify("Comeu %s" % it.name, Color(0.85, 1.0, 0.7)))
 	return _ok(ev)

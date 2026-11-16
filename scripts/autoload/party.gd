@@ -129,8 +129,8 @@ func _client_send_vitals() -> void:
 	var hp := 0.0 if w.player.dead else clampf(Game.hp / maxf(1.0, Game.max_hp()), 0.0, 1.0)
 	var mp := clampf(Game.mp / maxf(1.0, Game.max_mp()), 0.0, 1.0)
 	var buffs := {}
-	for id in Game.food_buffs:
-		buffs[id] = int(ceil(float(Game.food_buffs[id])))
+	for id in Game.buffs:
+		buffs[id] = int(ceil(float(Game.buffs[id])))
 	var now := Time.get_ticks_msec() / 1000.0
 	var same: bool = not _sent.is_empty() and absf(hp - float(_sent.hp)) < 0.01 and absf(mp - float(_sent.mp)) < 0.01 \
 		and buffs.keys() == (_sent.buffs as Dictionary).keys()
@@ -232,7 +232,7 @@ func _party_vitals(hp: float, mp: float, buffs: Dictionary) -> void:
 	if not Network.is_server() or not Network.players.has(id) or not is_finite(hp) or not is_finite(mp):
 		return
 	_vitals[id] = {"hp": clampf(hp, 0.0, 1.0), "mp": clampf(mp, 0.0, 1.0),
-		"buffs": PartyRules.clean_buffs(buffs, ItemDB.ITEMS), "at": Time.get_ticks_msec() / 1000.0}
+		"buffs": PartyRules.clean_buffs(buffs, ItemDB.BUFFS), "at": Time.get_ticks_msec() / 1000.0}
 
 
 func _server_leave(id: int, msg: String) -> void:

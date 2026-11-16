@@ -622,14 +622,14 @@ func _test_party(w: Node) -> void:
 		return w.hud.party_frames != null and w.hud.party_frames._bars.has(other), 3.0), "quadro do colega na HUD")
 	# vida, mana e buffs: Beto toma uma sopa apimentada; Ana vê o buff no quadro dele, com o tempo
 	if my_name == "Beto":
-		Game.food_buffs["spicy_soup"] = 300.0
+		Game.add_buff("food_warm", 300.0)
 	else:
 		check(await _wait_until(func() -> bool:
 			for m in Party.members:
 				if int(m.peer) == other:
-					return float(m.get("mp", -1.0)) > 0.0 and Party.buff_left(m, "spicy_soup") > 200.0
+					return float(m.get("mp", -1.0)) > 0.0 and Party.buff_left(m, "food_warm") > 200.0
 			return false, 8.0), "o servidor repassa a mana e o buff do colega (%s)" % str(Party.members))
-		check(await _wait_until(func() -> bool: return w.hud.party_frames._bars[other].chips.has("spicy_soup"), 3.0),
+		check(await _wait_until(func() -> bool: return w.hud.party_frames._bars[other].chips.has("food_warm"), 3.0),
 			"ícone do buff do colega no quadro do grupo")
 	await _shot_hud(w, "buff")
 	# livro do mapa e do grupo (P): o colega aparece com a vida e as duas abas cabem nas páginas

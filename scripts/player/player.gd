@@ -469,7 +469,7 @@ func _tick_timers(delta: float) -> void:
 	stamina_delay = max(0.0, stamina_delay - delta)
 	for k in cooldowns:
 		cooldowns[k] = max(0.0, cooldowns[k] - delta)
-	Game.tick_food(delta)
+	Game.tick_buffs(delta)
 
 
 func _regen(delta: float) -> void:
@@ -1182,7 +1182,7 @@ func _die() -> void:
 	dead = true
 	end_ability()
 	Game.hp = 0
-	Game.clear_food()
+	Game.clear_buffs()
 	attacking = false
 	_cancel_draw()
 	Sfx.play("death", 0.0)
@@ -1563,7 +1563,7 @@ func _vfx_setup() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--buffs="):
 			for id in a.substr(8).split(","):
-				Game.food_buffs[id] = 600.0
+				Game.buffs[id] = 600.0
 		elif a.begins_with("--auras="):
 			for st in a.substr(8).split(","):
 				vfx_ability_auras[st] = true
@@ -1609,7 +1609,7 @@ func set_ability_aura(style: String, on: bool) -> void:
 ## Efeitos que este jogador deveria estar mostrando agora.
 func _vfx_state() -> Dictionary:
 	var want := vfx_ability_auras.duplicate()
-	for id in Game.food_buffs:
+	for id in Game.buffs:
 		want[BuffAura.style_for(id)] = true
 	var auras: Array = []
 	for st in BuffAura.STYLES:     # ordem fixa: o mesmo conjunto dá sempre o mesmo dicionário

@@ -76,6 +76,8 @@ const FX_NAMES := {"slow": "Golpes deixam o alvo lento", "splash": "Projéteis e
 	"pierce": "Flechas perfuram inimigos", "multishot": "Disparo tensionado: 3 flechas"}
 
 static var RARITY: Dictionary = {}
+## Buffs (comida e habilidades): {id: {name, time, add, aura, icon, desc, color}}.
+static var BUFFS: Dictionary = {}
 
 ## Bônus que os itens podem dar. [nome, formato] (formato "%" multiplica por 100).
 const STAT_NAMES := {
@@ -213,6 +215,7 @@ func food_effect_text(id: String) -> String:
 		parts.append("+%d mana" % it.heal_mp)
 	var txt := " · ".join(parts)
 	if it.has("buff"):
-		var b: Dictionary = it.buff
-		txt += ("\n" if txt != "" else "") + "%s (%ds): %s" % [b.name, int(b.time), b.desc]
+		var b: Dictionary = BUFFS.get(it.buff, {})
+		if not b.is_empty():
+			txt += ("\n" if txt != "" else "") + "%s (%ds): %s" % [b.name, int(b.time), b.desc]
 	return txt

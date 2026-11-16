@@ -518,27 +518,25 @@ func _update_food() -> void:
 	s.queue_redraw()
 	# chips de bônus: cria/remove só quando a lista muda, o texto atualiza todo quadro
 	for id in _buff_chips.keys():
-		if not Game.food_buffs.has(id):
+		if not Game.buffs.has(id):
 			_buff_chips[id].panel.queue_free()
 			_buff_chips.erase(id)
-	for id in Game.food_buffs:
-		var it := ItemDB.get_item(id)
-		var c: Color = it.get("color", UITheme.GOLD)
+	for id in Game.buffs:
+		var row: Dictionary = ItemDB.BUFFS.get(id, {})
+		var c: Color = row.get("color", UITheme.GOLD)
 		if not _buff_chips.has(id):
 			var p := PanelContainer.new()
 			p.add_theme_stylebox_override("panel", UITheme._box(Color(0.05, 0.04, 0.03, 0.7), c.darkened(0.3), 1, 9, 6, 1))
 			var hb := HBoxContainer.new()
 			hb.add_theme_constant_override("separation", 4)
-			var icon := ItemSlot.new(18)
-			icon.item_id = id
-			hb.add_child(icon)
+			hb.add_child(ItemSlot.for_buff(id, 18))
 			var l := UITheme.label("", 12, c.lightened(0.2))
 			hb.add_child(l)
 			p.add_child(hb)
 			_ignore_all(p)
 			buff_box.add_child(p)
 			_buff_chips[id] = {"panel": p, "label": l}
-		var t: float = Game.food_buffs[id]
+		var t: float = Game.buffs[id]
 		var chip: Dictionary = _buff_chips[id]
 		chip.label.text = "%ds" % int(ceil(t))
 		chip.panel.modulate.a = 0.45 + 0.55 * abs(sin(t * 6.0)) if t < 5.0 else 1.0

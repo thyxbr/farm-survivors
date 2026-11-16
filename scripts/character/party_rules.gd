@@ -44,10 +44,10 @@ static func kill_rewards(xp: int, contributors: Array, teams: Dictionary, pos_of
 	return out
 
 
-## Buffs de comida que um cliente declarou para o quadro do grupo ({id da comida: segundos restantes}), limpos:
-## só itens da tabela `items` com "buff", segundos inteiros entre 1 e MAX_BUFF_SECS, no máximo MAX_BUFFS.
+## Buffs que um cliente declarou para o quadro do grupo ({id do buff: segundos restantes}), limpos:
+## só ids da tabela `buffs` (comida e habilidades), segundos inteiros entre 1 e MAX_BUFF_SECS, no máximo MAX_BUFFS.
 ## É só visual (o efeito do buff roda no cliente), mas o dicionário vem da rede e vai para os outros jogadores.
-static func clean_buffs(buffs, items: Dictionary) -> Dictionary:
+static func clean_buffs(buffs, buff_table: Dictionary) -> Dictionary:
 	var out := {}
 	if not (buffs is Dictionary):
 		return out
@@ -57,7 +57,7 @@ static func clean_buffs(buffs, items: Dictionary) -> Dictionary:
 		if out.size() >= MAX_BUFFS:
 			break
 		var secs = buffs[id]
-		if not (id is String) or not items.has(id) or not (items[id] is Dictionary) or not items[id].has("buff"):
+		if not (id is String) or not buff_table.has(id):
 			continue
 		if not (secs is int or secs is float) or not is_finite(float(secs)):
 			continue

@@ -51,6 +51,7 @@ func _populate() -> void:
 	_ITEM_DB.QUESTS = t.get_table("quests")
 	_ITEM_DB.SHOP_STOCK = t.get_table("shop").get("stock", [])
 	_ITEM_DB.RARITY = t.get_table("rarity")
+	_ITEM_DB.BUFFS = t.get_table("buffs")
 	_ENEMY.TYPES = t.get_table("enemies")
 	var h := t.get_table("horde")
 	_UPG.WEAPONS = h.get("weapons", {})

@@ -2247,11 +2247,13 @@ func _test_farm() -> void:
 	var dmg0 := Game.melee_damage()
 	Game.selected_food = "spicy_soup"
 	Game.eat_cooldown = 0.0
-	check(Game.eat_selected() and Game.food_buffs.has("spicy_soup"), "comeu sopa picante")
-	check(Game.melee_damage() > dmg0 * 1.25, "sopa aumenta o dano (%.1f -> %.1f)" % [dmg0, Game.melee_damage()])
+	var mgold0 := Game.mod("gold")
+	check(Game.eat_selected() and Game.has_buff("food_warm"), "comeu sopa picante")
+	check(abs(Game.mod("gold") - mgold0 - 0.05) < 0.001, "sopa dá +5% de ouro")
+	check(abs(Game.melee_damage() - dmg0) < 0.01, "sopa não muda o dano")
 	check(not Game.eat("spicy_soup"), "não come de novo durante a mastigação")
-	Game.tick_food(999.0)
-	check(Game.food_buffs.is_empty() and abs(Game.melee_damage() - dmg0) < 0.01, "bônus expira e o dano volta")
+	Game.tick_buffs(999.0)
+	check(Game.buffs.is_empty() and abs(Game.mod("gold") - mgold0) < 0.001, "bônus expira e o ouro volta")
 
 	# a horta também fica no save solo
 	var farm_saved: Dictionary = Game.farm.duplicate(true)
@@ -2345,15 +2347,13 @@ func _test_survival() -> void:
 	check(sv.blessing_counts.size() == 1 and sv.round_num == 2 and sv.phase == "fight", "bênção aplicada e rodada 2 começa")
 	check(sv.seeds_won >= 1, "rodada concluída dá sementes (%d)" % sv.seeds_won)
 
-	# comer no meio da rodada: chili explode e fere a horda em volta
-	var near_e: Enemy = sv._spawn_enemy("slime", player.global_position + Vector3(3, 0.2, 0))
+	# comer no meio da rodada: o bônus da comida soma aos da Horda
+	sv._spawn_enemy("slime", player.global_position + Vector3(3, 0.2, 0))
 	await wait(0.1)
-	var ehp := near_e.hp
 	Game.eat_cooldown = 0.0
 	Game.selected_food = "dragon_chili"
-	check(Game.eat_selected() and Game.food_buffs.has("dragon_chili"), "comeu chili do dragão na rodada")
-	check(near_e.dead or near_e.hp < ehp, "explosão do chili fere inimigos próximos")
-	check(Game.mod("damage") > Game.run_mods.damage, "bônus da comida soma aos da Horda")
+	check(Game.eat_selected() and Game.has_buff("food_chili"), "comeu chili do dragão na rodada")
+	check(Game.mod("gold") > float(Game.run_mods.get("gold", 0.0)), "bônus da comida soma aos da Horda")
 
 	# elite: maior, mais vida e solta mais gemas
 	var plain: Enemy = sv._spawn_enemy("slime", player.global_position + Vector3(-5, 0.2, 0))

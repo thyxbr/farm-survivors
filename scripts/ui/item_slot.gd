@@ -49,6 +49,22 @@ func _init(sz := 64.0) -> void:
 	mouse_exited.connect(_on_exit)
 
 
+## Ícone de um buff (buffs.json): o do prato, quando tem `icon`; senão um quadradinho na cor do buff
+## (buffs de habilidade).
+static func for_buff(buff_id: String, size: float) -> Control:
+	var row: Dictionary = ItemDB.BUFFS.get(buff_id, {})
+	var icon_id: String = row.get("icon", "")
+	if icon_id != "" and not ItemDB.get_item(icon_id).is_empty():
+		var slot := ItemSlot.new(size)
+		slot.item_id = icon_id
+		return slot
+	var sw := ColorRect.new()
+	sw.color = row.get("color", UITheme.GOLD)
+	sw.custom_minimum_size = Vector2(size, size) * 0.7
+	sw.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return sw
+
+
 func set_state(id: String, q := 0) -> void:
 	item_id = id
 	qty = q

@@ -62,9 +62,9 @@ var run_mods := {}
 const FARM_PLOTS := 12
 const FARM_START_PLOTS := 6
 const EAT_COOLDOWN := 3.0
-## Bônus de comida ativos (somados aos run_mods em mod()). Valem na vila e na Horda.
-var food_mods := {}
-var food_buffs := {}        # id da comida -> segundos restantes
+## Bônus de buffs ativos (somados aos run_mods em mod()). Valem na vila e na Horda.
+var buff_mods := {}
+var buffs := {}             # id em buffs.json (comida ou habilidade) -> segundos restantes
 var eat_cooldown := 0.0
 var selected_food := ""
 ## Bônus das passivas permanentes (CharRules.meta_mods), recalculados em apply_state e somados em mod().
@@ -158,8 +158,8 @@ func _debug_screenshot() -> void:
 		for r in ItemDB.RECIPE_ORDER:
 			dishes[r] = 2
 		Econ.grant(0, 0, dishes, "demo", true)
-		food_buffs = {"spicy_soup": 30.0, "garden_salad": 4.0}
-		_recalc_food_mods()
+		buffs = {"food_warm": 30.0, "food_eagle": 4.0}
+		_recalc_buff_mods()
 		for a in args:   # --farmdemo --ui=cook|plant abre o menu
 			if a.begins_with("--ui="):
 				await get_tree().create_timer(1.0).timeout
@@ -388,7 +388,7 @@ func damage_mult() -> float:
 
 ## Valor efetivo de um bônus: Desafio da Horda + comida + passivas permanentes.
 func mod(k: String) -> float:
-	return float(run_mods.get(k, 0.0)) + float(food_mods.get(k, 0.0)) + float(meta_mods.get(k, 0.0)) 		+ (enchant_damage(equipment.weapon) if k == "damage" else 0.0)
+	return float(run_mods.get(k, 0.0)) + float(buff_mods.get(k, 0.0)) + float(meta_mods.get(k, 0.0)) 		+ (enchant_damage(equipment.weapon) if k == "damage" else 0.0)
 
 
 # ---------------------------------------------------------------- encantamento
@@ -698,8 +698,8 @@ func on_enemy_killed(kind: String, xp_reward: int) -> void:
 
 ## Roubo de vida da comida ao abater (combate é do cliente; online o abate em si é do servidor).
 func kill_lifesteal() -> void:
-	if float(food_mods.get("lifesteal", 0.0)) > 0.0 and hp > 0.0:
-		hp = min(max_hp(), hp + float(food_mods.lifesteal))
+	if float(buff_mods.get("lifesteal", 0.0)) > 0.0 and hp > 0.0:
+		hp = min(max_hp(), hp + float(buff_mods.lifesteal))
 
 
 ## Renascer na vila: o ouro perdido é calculado pelas regras.
@@ -819,8 +819,7 @@ func _apply_food(id: String) -> void:
 	var it := ItemDB.get_item(id)
 	var old_max := max_hp()
 	if it.has("buff"):
-		food_buffs[id] = float(it.buff.time)
-		_recalc_food_mods()
+		add_buff(str(it.buff))
 		if max_hp() > old_max:
 			hp += max_hp() - old_max
 	if it.get("heal_full", false):
@@ -876,40 +875,54 @@ func cycle_food() -> void:
 	inventory_changed.emit()
 
 
-func tick_food(delta: float) -> void:
+## Liga o buff `id` (de buffs.json) por `secs` (negativo = o `time` da tabela); se já está ativo, renova.
+func add_buff(id: String, secs := -1.0) -> void:
+	var row: Dictionary = ItemDB.BUFFS.get(id, {})
+	if row.is_empty():
+		return
+	buffs[id] = float(row.time) if secs < 0.0 else secs
+	_recalc_buff_mods()
+	stats_changed.emit()
+
+
+func has_buff(id: String) -> bool:
+	return buffs.has(id)
+
+
+func tick_buffs(delta: float) -> void:
 	eat_cooldown = max(0.0, eat_cooldown - delta)
-	if food_buffs.is_empty():
+	if buffs.is_empty():
 		return
 	var expired: Array = []
-	for id in food_buffs:
-		food_buffs[id] -= delta
-		if food_buffs[id] <= 0.0:
+	for id in buffs:
+		buffs[id] -= delta
+		if buffs[id] <= 0.0:
 			expired.append(id)
 	if expired.is_empty():
 		return
 	for id in expired:
-		food_buffs.erase(id)
-		notify.emit("%s acabou." % ItemDB.get_item(id).buff.name, Color(0.75, 0.7, 0.6))
-	_recalc_food_mods()
+		buffs.erase(id)
+		notify.emit("%s acabou." % ItemDB.BUFFS.get(id, {}).get("name", id), Color(0.75, 0.7, 0.6))
+	_recalc_buff_mods()
 	hp = min(hp, max_hp())
 	stats_changed.emit()
 
 
-func clear_food(silent := false) -> void:
-	var had := not food_buffs.is_empty()
-	food_buffs = {}
+func clear_buffs(silent := false) -> void:
+	var had := not buffs.is_empty()
+	buffs = {}
 	eat_cooldown = 0.0
-	_recalc_food_mods()
+	_recalc_buff_mods()
 	if had and not silent:
-		notify.emit("Os efeitos da comida se perderam.", Color(0.8, 0.7, 0.6))
+		notify.emit("Os efeitos de comida e habilidades se perderam.", Color(0.8, 0.7, 0.6))
 
 
-func _recalc_food_mods() -> void:
-	food_mods = {}
-	for id in food_buffs:
-		var add: Dictionary = ItemDB.get_item(id).buff.add
+func _recalc_buff_mods() -> void:
+	buff_mods = {}
+	for id in buffs:
+		var add: Dictionary = ItemDB.BUFFS.get(id, {}).get("add", {})
 		for k in add:
-			food_mods[k] = float(food_mods.get(k, 0.0)) + float(add[k])
+			buff_mods[k] = float(buff_mods.get(k, 0.0)) + float(add[k])
 
 
 # ================================================================ caldeirão
@@ -1043,7 +1056,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 	body = s.body
 	if full:
 		reset_run_mods()
-		clear_food(true)
+		clear_buffs(true)
 		hp = s.hp if s.hp > 0.0 else max_hp()
 		mp = s.mp
 		fury = s.fury
