@@ -18,7 +18,7 @@ static func kind_for(id: String) -> String:
 	match it.type:
 		"weapon":
 			match ItemDB.weapon_class(id):
-				"staff":
+				"staff", "scepter":
 					return "staff"
 				"bow":
 					return "bow"

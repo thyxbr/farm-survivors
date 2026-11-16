@@ -440,7 +440,7 @@ func max_stamina() -> float:
 ## Dano do ataque básico conforme a classe da arma (espada FOR, cajado INT, arco AGI).
 func melee_damage() -> float:
 	match weapon_class():
-		"staff":
+		"staff", "scepter":
 			return (weapon_damage() + attr("int") * 1.4 + gear("spell") * 0.5) * mod("damage")
 		"bow":
 			return (weapon_damage() + attr("agi") * 1.5 + attr("str") * 0.3) * mod("damage")
@@ -449,6 +449,11 @@ func melee_damage() -> float:
 
 func spell_power() -> float:
 	return attr("int") * 1.0 + gear("spell")
+
+
+## Vida da Cura (CharRules.heal_for: 30 + 4 x poder mágico, mais o bônus de cura do cetro).
+func heal_amount() -> float:
+	return CharRules.heal_for(spell_power(), Balance.tables, str(equipment.weapon))
 
 
 func crit_chance() -> float:
@@ -542,7 +547,7 @@ func knows_ability(id: String) -> bool:
 
 ## Habilidades da arma equipada (slots 1..4, em ordem).
 func ability_kit() -> Array[String]:
-	return ItemDB.kit(weapon_class())
+	return ItemDB.kit(CharRules.class_weapon(Balance.tables, char_class))
 
 
 # ---------------------------------------------------------------- modo admin

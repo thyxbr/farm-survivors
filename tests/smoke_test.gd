@@ -421,7 +421,7 @@ func _ready() -> void:
 	var kit_weapon: String = Game.equipment.weapon
 	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_whirl"], "kit da espada (%s)" % [Game.ability_kit()])
 	check(not Game.knows_ability("sword_quake") and Game.knows_ability("sword_charge"), "liberação por nível")
-	check(Game.level < 5 and not Game.knows_ability("heal") and ItemDB.ABILITIES.heal.level == 5, "cura só no nível 5")
+	check(Game.level < 3 and not Game.knows_ability("frost_nova") and ItemDB.ABILITIES.frost_nova.level == 3, "Nova Gélida só no nível 3")
 	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
 	# quem testar; resta conferir que há recarga para cada habilidade
 	Game.add_item("short_bow")
@@ -679,7 +679,7 @@ func _ready() -> void:
 	player.cooldowns.sword_charge = 3.0   # para conferir que a recarga atravessa a troca de arma
 	equip_any("apprentice_staff")
 	await wait(0.1)
-	check(Game.ability_kit() == ["fireball", "frost_nova", "heal", "meteor_rain"], "trocar de arma troca o kit")
+	check(Game.ability_kit() == ["fireball", "frost_nova", "meteor_rain"], "trocar de arma troca o kit (cajado sem Cura)")
 	check(player.cooldowns.sword_charge > 2.5, "recarga continua depois de trocar de arma")
 	check(hud_slot_ids() == Game.ability_kit(), "barra de ações mostra o kit novo (%s)" % [hud_slot_ids()])
 	var mp_m := Game.mp
@@ -790,8 +790,6 @@ func _ready() -> void:
 	_stop_spawn_watch(fb_watch)
 	check(Game.mp < mp0, "bola de fogo gasta mana")
 	check("fireball" in fb_watch[0], "projétil de bola de fogo criado")
-	player.cast("heal")
-	check(player.cooldowns.heal == 0.0, "cura bloqueada no nível 1")
 	player.use_slot(2)   # Nova Gélida (nível 3) bloqueada no nível 1
 	check(player.cooldowns.frost_nova == 0.0, "slot 2 respeita o nível")
 	equip_any(kit_weapon)   # restaura a arma inicial
@@ -2602,6 +2600,38 @@ func _test_gear() -> void:
 	await wait_until(func(): return "bolt" in bolt_watch[0], 2.0)
 	_stop_spawn_watch(bolt_watch)
 	check("bolt" in bolt_watch[0], "cajado dispara faísca arcana")
+	await wait(0.5)
+	check(not ("heal" in ItemDB.kit("staff")) and ItemDB.kit("scepter")[0] == "heal", "Cura é do cetro, não do cajado")
+
+	# cetro (healer): kit pela classe, Cura sobe a vida e o ataque básico é a esfera de luz
+	Game.add_item("sc_novice_scepter")
+	equip_any("sc_novice_scepter")
+	await wait(0.05)
+	check(Game.char_class == "healer" and Game.weapon_class() == "scepter", "healer com cetro")
+	check(Game.ability_kit() == ["heal", "scepter_ward", "scepter_ult"], "kit do healer (%s)" % [Game.ability_kit()])
+	check(player.look["class"] == "staff" and player.look.holder != null, "cetro sem modelo próprio cai no cajado procedural")
+	Game.hp = Game.max_hp() * 0.3
+	Game.mp = Game.max_mp()
+	player.attacking = false
+	player.ability = ""
+	player.dodge_timer = 0.0
+	var hp_h := Game.hp
+	var mp_h := Game.mp
+	player.cast("heal")
+	check(Game.hp > hp_h and absf((Game.hp - hp_h) - minf(Game.heal_amount(), Game.max_hp() - hp_h)) < 0.01, "Cura sobe a vida (%.1f -> %.1f)" % [hp_h, Game.hp])
+	check(Game.mp < mp_h and player.cooldowns.heal > 0.0, "Cura gasta mana e entra em recarga")
+	var ward_mp := Game.mp
+	player.cast("scepter_ward")
+	check(Game.mp == ward_mp and player.cooldowns.scepter_ward == 0.0 and player.ability == "", "habilidade do cetro ainda em breve não gasta nada")
+	player.attacking = false
+	player.combo_window = 0.0
+	player.cast_timer = 0.0
+	Game.stamina = Game.max_stamina()
+	var orb_watch := _watch_spawns()
+	player._start_swing()
+	await wait_until(func(): return "light_orb" in orb_watch[0], 2.0)
+	_stop_spawn_watch(orb_watch)
+	check("light_orb" in orb_watch[0] and not ("bolt" in orb_watch[0]), "cetro dispara a esfera de luz")
 	await wait(0.5)
 
 	# arco: tensionar e soltar

@@ -9,6 +9,10 @@ const FIREBALL := preload("res://scripts/player/fireball.gd")
 const PROJECTILE := preload("res://scripts/player/projectile.gd")
 const AUTO_WEAPONS := preload("res://scripts/survival/auto_weapons.gd")
 
+## Ataque básico do cetro: alcance (m) e cor da esfera de luz.
+const LIGHT_ORB_RANGE := 12.0
+const LIGHT_ORB_COLOR := Color(1.0, 0.92, 0.6)
+
 const WALK_SPEED := 5.2
 const SPRINT_SPEED := 8.6
 const JUMP_VELOCITY := 7.0
@@ -551,7 +555,10 @@ func _update_attack(delta: float) -> void:
 		hit_done = true
 		match look["class"]:
 			"staff":
-				_staff_shot()
+				if _is_scepter():
+					_scepter_shot()
+				else:
+					_staff_shot()
 			"bow":
 				pass   # o disparo do arco acontece ao soltar o botão
 			_:
@@ -688,6 +695,22 @@ func _staff_shot() -> void:
 	Sfx.play(Sfx.staff_element(_weapon_id()) + "_cast", 0.12, -4.0)
 
 
+## O cetro usa o visual e a animação do cajado (look["class"] == "staff"); só o ataque e o kit mudam.
+func _is_scepter() -> bool:
+	return ItemDB.weapon_class(_weapon_id()) == "scepter"
+
+
+## Cetro: esfera de luz curta (alcance LIGHT_ORB_RANGE), dourada e branca; o dano escala com INT (melee_damage).
+## O 3º golpe do combo é mais forte.
+func _scepter_shot() -> void:
+	var origin := weapon_tip()
+	var d := aim_dir(origin)
+	var crit: bool = randf() < Game.crit_chance()
+	_spawn_projectile("light_orb", origin, d, Game.melee_damage() * (1.25 if combo == 3 else 1.0) * (1.8 if crit else 1.0), crit, 0)
+	Network.send_event("light_orb", origin, d)
+	Sfx.play("arcane_cast", 0.12, -4.0)
+
+
 ## Arco: segurar o botão direito mira (o arco sobe, a flecha encaixa e a corda vem até o queixo) e o clique
 ## esquerdo dispara (dano e alcance crescem com a tensão). Mirando, depois de cada tiro ele encaixa a próxima
 ## sozinho. Soltar o botão direito sem atirar baixa o arco. Clique esquerdo sem mirar = tiro rápido: puxa
@@ -821,8 +844,10 @@ func _spawn_projectile(kind: String, origin: Vector3, d: Vector3, dmg: float, cr
 		p.fx = fx_override
 	if color_override.a > 0.0:
 		p.color = color_override
+	if kind == "light_orb":
+		p.color = LIGHT_ORB_COLOR
 	p.speed = spd if kind == "arrow" else 26.0
-	p.life = 1.8 if kind == "arrow" else 1.2
+	p.life = 1.8 if kind == "arrow" else (LIGHT_ORB_RANGE / 26.0 if kind == "light_orb" else 1.2)
 	get_tree().current_scene.add_child(p)
 	p.global_position = origin
 	return p
@@ -886,7 +911,7 @@ func cast(id: String) -> void:
 			_pending_spell = id
 			_pending_t = KnightMoves.CAST_RELEASE * KnightMoves.CAST_TIME
 		"heal":
-			var amount := 30.0 + Game.spell_power() * 4.0
+			var amount := Game.heal_amount()
 			Game.hp = min(Game.max_hp(), Game.hp + amount)
 			_heal_fx()
 			FX.damage_number(global_position + Vector3.UP * 2.2, "+%d" % amount, Color(0.4, 1.0, 0.5))
@@ -908,18 +933,22 @@ func _ab_module(id: String) -> Object:
 		cls = "bow"
 	elif id.begins_with("meteor"):
 		cls = "staff"
+	elif id.begins_with("scepter_"):
+		cls = "scepter"
 	match cls:
 		"staff":
 			return StaffAbilities
 		"bow":
 			return BowAbilities
+		"scepter":
+			return ScepterAbilities
 	return SwordAbilities
 
 
 ## O `kind` de um evento remoto é de uma habilidade de arma (e não de uma magia antiga ou emote)?
 func _is_ability_kind(kind: String) -> bool:
 	var weapon_ability: bool = ItemDB.ABILITIES.has(kind) and not (kind in ["fireball", "heal", "frost_nova"])
-	var by_prefix: bool = kind.begins_with("sword_") or kind.begins_with("bow_") or kind.begins_with("meteor")
+	var by_prefix: bool = kind.begins_with("sword_") or kind.begins_with("bow_") or kind.begins_with("meteor") or kind.begins_with("scepter_")
 	return weapon_ability or by_prefix
 
 
@@ -1333,17 +1362,17 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 		"heal":
 			_start_cast_pose(kind)
 			_heal_fx()
-		"bolt", "arrow":
+		"bolt", "arrow", "light_orb":
 			var p := PROJECTILE.new()
 			p.kind = kind
 			p.direction = b
 			p.visual_only = true
-			p.color = ItemDB.get_item(_last_look.get("weapon", "")).get("color", Color(0.6, 0.8, 1.0))
+			p.color = LIGHT_ORB_COLOR if kind == "light_orb" else ItemDB.get_item(_last_look.get("weapon", "")).get("color", Color(0.6, 0.8, 1.0))
 			p.element = Sfx.staff_element(_weapon_id())
-			if kind == "bolt":
+			if kind != "arrow":
 				Sfx.play_at(p.element + "_cast", a, 0.12, -8.0)
 			p.speed = 34.0 if kind == "arrow" else 26.0
-			p.life = 1.6 if kind == "arrow" else 1.2
+			p.life = 1.6 if kind == "arrow" else (LIGHT_ORB_RANGE / 26.0 if kind == "light_orb" else 1.2)
 			get_tree().current_scene.add_child(p)
 			p.global_position = a
 		"zap":

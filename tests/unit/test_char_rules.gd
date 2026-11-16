@@ -774,3 +774,32 @@ func test_roll_without_class_unchanged() -> void:
 	a.seed = 5
 	b.seed = 5
 	T.eq(LootRules.roll(_tables(), "goblin", a), LootRules.roll(_tables(), "goblin", b, ""), "igual sem classe")
+
+
+# ---------------------------------------------------------------- cura e kit pela classe
+func test_heal_amount_healer_novice_scepter() -> void:
+	var s := _blank()
+	CharRules.choose_class(s, _tables(), "healer", "f")
+	s.attributes.int = 5
+	var spell: float = float(_tables().get_table("items")["sc_novice_scepter"].stats.spell)
+	T.eq(CharRules.spell_power(s, _tables()), 5.0 + spell, "poder mágico")
+	T.eq(CharRules.heal_amount(s, _tables()), 30.0 + 4.0 * (5.0 + spell), "cura do cetro de noviço")
+
+
+func test_heal_amount_uses_scepter_heal_bonus() -> void:
+	var s := _blank()
+	CharRules.choose_class(s, _tables(), "healer", "f")
+	s.attributes.int = 5
+	var base: float = CharRules.heal_amount(s, _tables())
+	var tables := _tables()
+	var id := ""
+	for k in tables.get_table("items"):
+		if tables.get_table("items")[k].get("class", "") == "scepter" and float(tables.get_table("items")[k].get("heal", 0.0)) > 0.0:
+			id = k
+			break
+	T.ok(id != "", "há cetro com bônus de cura")
+	s.equipment.weapon = id
+	var it: Dictionary = tables.get_table("items")[id]
+	var sp: float = 5.0 + float(it.stats.get("spell", 0.0))
+	T.eq(CharRules.heal_amount(s, tables), (30.0 + 4.0 * sp) * (1.0 + float(it.heal)), "bônus de cura da arma")
+	T.ok(base > 0.0, "base positiva")

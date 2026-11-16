@@ -114,6 +114,22 @@ static func base_max_mp(s: CharState, bt: BalanceTables) -> float:
 	return 25.0 + (int(s.attributes.int) + int(gear(s, bt, "int"))) * 6.0 + (s.level - 1) * 3.0 + gear(s, bt, "mp")
 
 
+## Poder mágico: atributo INT + bônus "spell" do equipamento (mesma conta de Game.spell_power()).
+static func spell_power(s: CharState, bt: BalanceTables) -> float:
+	return float(s.attributes.int) + gear(s, bt, "spell")
+
+
+## Vida restaurada pela Cura: (30 + 4 x poder mágico) x (1 + bônus "heal" da arma equipada).
+static func heal_amount(s: CharState, bt: BalanceTables) -> float:
+	return heal_for(spell_power(s, bt), bt, str(s.equipment.get("weapon", "")))
+
+
+## A mesma conta com o poder mágico já calculado (o cliente soma buffs e comida ao INT).
+static func heal_for(spell: float, bt: BalanceTables, weapon_id: String) -> float:
+	var bonus: float = float(_item(bt, weapon_id).get("heal", 0.0)) if weapon_id != "" else 0.0
+	return (30.0 + 4.0 * spell) * (1.0 + bonus)
+
+
 # ================================================================ inventário
 static func count_item(s: CharState, id: String) -> int:
 	var n := 0
