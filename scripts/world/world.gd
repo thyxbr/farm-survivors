@@ -1384,11 +1384,11 @@ func make_entity(e: MapEntity) -> Node3D:
 	return n
 
 
-## Bosque, Mina e Pico: cada um com chão, cenário, NPCs, carruagem e monstros (Regions/RegionBuilder).
+## Bosque, Mina e Pico: cada um vem da cena dele (scenes/maps/<mapa>.tscn, MapLoader), na origem da região.
 func _build_regions() -> void:
 	for id in Regions.ORDER:
 		if id != "vila":
-			region_grounds[id] = RegionBuilder.build(self, id)
+			maps[id] = MapLoader.build(self, id)   # chão em region_grounds[id], monstros em region_spawns
 
 
 ## O servidor dedicado e o solo criam os monstros; o cliente online recebe do servidor.
@@ -1405,19 +1405,20 @@ func _scatter_region_grass() -> void:
 		var g = region_grounds[id]
 		var o: Vector3 = Regions.origin(id)
 		var half: float = Regions.DATA[id].half
+		var root: MapRoot = maps[id]
 		var keep_out: Array = []
-		for k in _no_grass:
+		for k in _no_grass + grass_areas[id].keep_out:
 			var c: Vector2 = k[0]
 			if absf(c.x - o.x) <= half + 5.0 and absf(c.y - o.z) <= half + 5.0:
 				keep_out.append([c - Vector2(o.x, o.z), k[1]])
-		var density := 0.45 if id == "bosque" else 0.18
+		var density := root.grass_density
 		var from := lerpf(_step_from, _step_to, float(i) / ids.size())
 		var to := lerpf(_step_from, _step_to, float(i + 1) / ids.size())
 		if Loading.covering:
-			await g.scatter_grass(rng.seed + 31 + i, density, keep_out, [], 0.6,
+			await g.scatter_grass(root.grass_seed, density, keep_out, [], root.grass_plants,
 				func(frac: float) -> void: Loading.set_progress(lerpf(from, to, frac)))
 		else:
-			g.scatter_grass(rng.seed + 31 + i, density, keep_out, [], 0.6)
+			g.scatter_grass(root.grass_seed, density, keep_out, [], root.grass_plants)
 
 
 ## Viagem pela carruagem da guilda: escurece a tela, leva o jogador ao ponto de chegada do mapa e mostra
