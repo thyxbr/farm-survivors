@@ -66,14 +66,7 @@ func _draw() -> void:
 	var reg := shown_region()
 	_draw_terrain(reg)
 	var full := mode == "full"
-	var small := 1.0 if full else 0.85
-	# NPCs da região
-	for n in get_tree().get_nodes_in_group("npc"):
-		if n is Node3D and Regions.region_at(n.global_position) == reg:
-			var at := world_to_local(n.global_position)
-			if _inside(at, 4.0):
-				draw_circle(at, 3.5 * small, Color(0, 0, 0, 0.7))
-				draw_circle(at, 2.5 * small, C_NPC)
+	_draw_npcs(reg, full)
 	if full:
 		var font := UITheme.body()
 		for pl in MapRules.places(reg):
@@ -115,6 +108,42 @@ func _inside(at: Vector2, margin := 0.0) -> bool:
 ## Leva um ponto fora do minimapa para a borda (os marcadores ficam visíveis apontando a direção).
 func _clamp_edge(at: Vector2, margin: float) -> Vector2:
 	return Vector2(clampf(at.x, margin, size.x - margin), clampf(at.y, margin, size.y - margin))
+
+
+## NPCs da região: um ponto dourado; quem tem missão (o mesmo !/? de cima da cabeça) ganha um selo com o
+## símbolo, que no minimapa fica preso na borda quando o NPC está fora do raio. No mapa grande, o nome de
+## quem tem missão (todos os nomes juntos não cabem na vila).
+func _draw_npcs(reg: String, full: bool) -> void:
+	var font := UITheme.body()
+	var s := 1.0 if full else 0.9
+	for n in get_tree().get_nodes_in_group("npc"):
+		if not (n is Node3D) or Regions.region_at(n.global_position) != reg:
+			continue
+		var at := world_to_local(n.global_position)
+		var mk = n.get("marker")
+		var sym: String = mk.text if mk is Label3D else ""
+		if sym == "":
+			if not _inside(at, 6.0):
+				continue
+			draw_circle(at, 5.5 * s, Color(0, 0, 0, 0.75))
+			draw_circle(at, 4.0 * s, C_NPC)
+		else:
+			if mode == "mini":
+				at = _clamp_edge(at, 10.0)
+			elif not _inside(at):
+				continue
+			var r := 9.0 * s
+			draw_circle(at, r + 1.5, Color(0, 0, 0, 0.85))
+			draw_circle(at, r, (mk as Label3D).modulate)
+			var fs := int(16 * s)
+			var w := font.get_string_size(sym, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+			draw_string(font, at + Vector2(-w / 2.0, fs * 0.36), sym, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.1, 0.06, 0.02))
+		if full and sym != "":
+			var nm := str(n.get("npc_name"))
+			var w2 := font.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
+			var p := at + Vector2(-w2 / 2.0, 22)
+			draw_string_outline(font, p, nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 4, Color(0, 0, 0, 0.9))
+			draw_string(font, p, nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, C_NPC)
 
 
 func _draw_quest(reg: String) -> void:

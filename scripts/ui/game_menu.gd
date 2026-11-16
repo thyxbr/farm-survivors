@@ -559,30 +559,60 @@ func _refresh_quests() -> void:
 				break
 		if quest_sel == "":
 			quest_sel = Game.quests.keys()[0]
+	# linha do tempo: a história na ordem da cadeia, separada por episódio, até a próxima missão;
+	# depois os contratos (prontos e em andamento primeiro). A lista rola quando passa da página.
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	lv.add_child(scroll)
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 2)
+	scroll.add_child(list)
+	var qt: Dictionary = ItemDB.QUESTS
 	var group := ButtonGroup.new()
+	var sel_btn: Button = null
+	list.add_child(UITheme.ink("HISTÓRIA", 16, INK_GOLD, true))
+	var nxt := StoryRules.current(qt, Game.quests)
+	for id in qt:
+		if StoryRules.is_side(qt, id):
+			continue
+		var started := Game.quests.has(id)
+		if not started and id != nxt:
+			continue
+		if qt[id].has("chapter"):
+			var ch: Dictionary = qt[id].chapter
+			list.add_child(_gap(6))
+			list.add_child(UITheme.ink("Episódio %d · %s" % [int(ch.get("n", 0)), ch.get("title", "")], 15, INK_GOLD))
+		if started:
+			var b := _quest_button(id, group)
+			list.add_child(b)
+			if id == quest_sel:
+				sel_btn = b
+		else:
+			# a próxima da história, ainda não aceita: diz com quem falar (ou o rank que falta)
+			var need := StoryRules.needs_rank(qt, id)
+			var who: String = StoryDialogue.NAMES.get(StoryRules.giver(qt, id), qt[id].get("giver", ""))
+			var hint := "○  Próxima: fale com %s" % who if StoryRules.rank_ge(Game.rank(), need) \
+				else "○  Próxima: exige Rank %s" % need
+			var l := UITheme.ink(hint, 18, UITheme.INK_DIM)
+			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			list.add_child(l)
+	var sides: Array = []
 	for state in QUEST_STATES:
-		var info: Array = QUEST_STATES[state]
-		var first := true
 		for id in Game.quests:
-			if Game.quests[id].state != state:
-				continue
-			if first:
-				first = false
-				lv.add_child(UITheme.ink(info[0], 13, info[2]))
-			var b := Button.new()
-			b.toggle_mode = true
-			b.button_group = group
-			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			b.text = "%s  %s" % [info[1], ItemDB.QUESTS[id].name]
-			b.clip_text = true
-			b.button_pressed = id == quest_sel
-			b.custom_minimum_size.y = 38
-			b.add_theme_font_size_override("font_size", 19)
-			b.add_theme_color_override("font_color", info[2])
-			b.add_theme_color_override("font_hover_color", info[2])
-			b.pressed.connect(_select_quest.bind(id))
-			lv.add_child(b)
-			quest_buttons[id] = b
+			if Game.quests[id].state == state and StoryRules.is_side(qt, id):
+				sides.append(id)
+	if not sides.is_empty():
+		list.add_child(_gap(10))
+		list.add_child(UITheme.ink("CONTRATOS", 16, INK_GOLD, true))
+		for id in sides:
+			var b := _quest_button(id, group)
+			list.add_child(b)
+			if id == quest_sel:
+				sel_btn = b
+	if sel_btn != null:
+		(func() -> void: if is_instance_valid(sel_btn): scroll.ensure_control_visible(sel_btn)).call_deferred()
 	# detalhes
 	var q: Dictionary = Game.quests[quest_sel]
 	var d: Dictionary = ItemDB.QUESTS[quest_sel]
@@ -639,6 +669,25 @@ func _refresh_quests() -> void:
 	rv.add_child(rw)
 	if q.state == "done":
 		rv.add_child(UITheme.ink("Recompensas já recebidas.", 14, UITheme.INK_DIM))
+
+
+## Botão de uma missão do diário: ícone do estado (✓ ◆ ★) e o nome, na cor do estado.
+func _quest_button(id: String, group: ButtonGroup) -> Button:
+	var info: Array = QUEST_STATES[Game.quests[id].state]
+	var b := Button.new()
+	b.toggle_mode = true
+	b.button_group = group
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.text = "%s  %s" % [info[1], ItemDB.QUESTS[id].name]
+	b.clip_text = true
+	b.button_pressed = id == quest_sel
+	b.custom_minimum_size.y = 40
+	b.add_theme_font_size_override("font_size", 21)
+	b.add_theme_color_override("font_color", info[2])
+	b.add_theme_color_override("font_hover_color", info[2])
+	b.pressed.connect(_select_quest.bind(id))
+	quest_buttons[id] = b
+	return b
 
 
 func _select_quest(id: String) -> void:
