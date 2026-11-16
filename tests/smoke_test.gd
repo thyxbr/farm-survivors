@@ -175,7 +175,7 @@ func _ready() -> void:
 	check(Game.gold > gold0, "ouro coletado do chão (%d -> %d)" % [gold0, Game.gold])
 
 	# --- acerto de longe num slime parado em casa: ele persegue, não volta para casa curando o dano
-	var far_s := _nearest("slime")
+	var far_s := _today(_nearest("slime"))
 	far_s.global_position = far_s.home
 	far_s._set_state("idle")
 	player.global_position = far_s.home + Vector3(0, 0.3, far_s.data.aggro * 2.5)
@@ -188,7 +188,7 @@ func _ready() -> void:
 
 	# --- Investida (espada, slot 1): avança pela frente atravessando o slime
 	var pos_c := player.global_position
-	var ch_s := _nearest("slime")
+	var ch_s := _today(_nearest("slime"))
 	ch_s.global_position = ch_s.home
 	player.global_position = ch_s.global_position + Vector3(0, 0.3, 3.0)
 	player.model.rotation.y = PI   # olhando para -Z, para o slime
@@ -271,8 +271,8 @@ func _ready() -> void:
 			qk_b = e
 			break
 	var qk_base := pos_c + Vector3(0, 0.3, 0)   # chão firme da vila
-	qk_a.hp = qk_a.max_hp   # o mais próximo pode ser o ferido pela Investida
-	qk_b.hp = qk_b.max_hp
+	_today(qk_a)   # o mais próximo pode ser o ferido pela Investida
+	_today(qk_b)
 	player.global_position = qk_base
 	player.model.rotation.y = PI   # olhando para -Z
 	player.velocity = Vector3.ZERO
@@ -337,8 +337,7 @@ func _ready() -> void:
 	var spring_w: float = player.spring.spring_length
 	Game.level = 8
 	Game.fury = 100.0
-	var s1 := _nearest("slime")
-	s1.hp = s1.max_hp
+	var s1 := _today(_nearest("slime"))
 	player.global_position = s1.global_position + Vector3(2.5, 0.3, 0)
 	player.velocity = Vector3.ZERO
 	var h1: float = s1.hp
@@ -373,8 +372,7 @@ func _ready() -> void:
 	check(not player.dead and not get_tree().paused, "reviveu depois de morrer no Turbilhão")
 	check(absf(player.spring.spring_length - spring_w) < 0.05, "câmera volta ao normal (%.2f)" % player.spring.spring_length)
 	# puxão: o golpe com pull leva o inimigo em direção a quem bateu (em vez de empurrar)
-	var pl_s := _nearest("slime")
-	pl_s.hp = pl_s.max_hp
+	var pl_s := _today(_nearest("slime"))
 	pl_s.global_position = player.global_position + Vector3(3.0, 0.0, 0.0)
 	pl_s.velocity = Vector3.ZERO
 	pl_s.take_damage(0.5, player.global_position, false, 0.0, 0.0, SwordAbilities.WHIRL_PULL)
@@ -899,9 +897,9 @@ func _ready() -> void:
 	await wait(0.05)
 	var g := Game.gold
 	Game.buy("iron_sword")
-	check(Game.count_item("iron_sword") == 1 and Game.gold == g - 60, "comprou espada de ferro")
+	check(Game.count_item("iron_sword") == 1 and Game.gold == g - 60, "comprou espada de ferro (%d, ouro %d -> %d)" % [Game.count_item("iron_sword"), g, Game.gold])
 	Game.use_item("iron_sword")
-	check(Game.equipment.weapon == "iron_sword" and Game.count_item("azure_edge") == 1, "equipou espada de ferro")
+	check(Game.equipment.weapon == "iron_sword" and Game.count_item("azure_edge") == 1, "equipou espada de ferro (%s, gume %d)" % [Game.equipment.weapon, Game.count_item("azure_edge")])
 	Game.sell("azure_edge")
 	check(Game.count_item("azure_edge") == 0, "vendeu o gume celeste")
 	world.modal._close()
@@ -3186,6 +3184,14 @@ func _pick_levelups(check_weapon: bool) -> void:
 			var after: int = sv.weapon_levels.get(ch.id, 0) if ch.type == "weapon" else sv.passive_levels.get(ch.id, 0)
 			check(after == before + 1, "carta escolhida aplicada (%s %d -> %d)" % [ch.id, before, after])
 		first = false
+
+
+## Alvo com a vida de hoje (data.hp, cheia): os monstros do vale nascem com nível sorteado na faixa do ponto,
+## e a vida muda com o nível. As checagens de dano contam com a vida do tipo, não com a do nível sorteado.
+func _today(e: Enemy) -> Enemy:
+	e.max_hp = float(e.data.hp)
+	e.hp = e.max_hp
+	return e
 
 
 func _nearest(kind: String) -> Enemy:
