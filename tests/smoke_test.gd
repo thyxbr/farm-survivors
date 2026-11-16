@@ -1427,7 +1427,8 @@ func _test_meteor_rain() -> void:
 		var q := PhysicsRayQueryParameters3D.create(Vector3(x, 300.0, z), Vector3(x, -100.0, z), StaffAbilities.METEOR_GROUND_MASK)
 		var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(q)
 		return hit.position.y if not hit.is_empty() else -999.0
-	var pk: Vector3 = world.MOUNTAINS[0][0]
+	var m0: Vector4 = world.maps["vila"].mountain_data()[0]   # o primeiro morro da cena do vale
+	var pk := Vector3(m0.x, 0.0, m0.y)
 	var out := Vector3(-pk.x, 0.0, -pk.z).normalized()   # do pico para o meio do mapa
 	var best_r := 0.0
 	var best_drop := -1.0

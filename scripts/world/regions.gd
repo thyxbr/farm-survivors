@@ -4,17 +4,13 @@ extends RefCounted
 ## regiões com terreno próprio montadas na mesma cena, bem longe (fora do alcance da câmera), e a viagem é
 ## pela carruagem da guilda. Assim tudo continua na zona "world" da rede: solo e online iguais.
 ##   origin = centro do mapa; half = meia largura; rank = rank da guilda para viajar até lá;
-##   coach = ponto da carruagem (relativo ao centro); arrive = onde o jogador chega (relativo ao centro).
+## A carruagem e o ponto de chegada de cada mapa são landmarks da cena dele ("coach", "arrive"; MapData).
 
 const DATA := {
-	"vila": {"name": "Vale de Valdoria", "origin": Vector3(0, 0, 0), "half": 125.0, "rank": "D",
-		"coach": Vector3(-7.5, 0, -18.0), "arrive": Vector3(-4.0, 0.3, -16.0)},
-	"bosque": {"name": "Bosque Sussurrante", "origin": Vector3(0, 0, 800), "half": 70.0, "rank": "C",
-		"coach": Vector3(-4.0, 0, 56.0), "arrive": Vector3(0.0, 0.3, 52.0)},
-	"mina": {"name": "Mina de Cristal", "origin": Vector3(800, 0, 0), "half": 70.0, "rank": "B",
-		"coach": Vector3(-4.0, 0, 56.0), "arrive": Vector3(0.0, 0.3, 52.0)},
-	"pico": {"name": "Pico das Cinzas", "origin": Vector3(800, 0, 800), "half": 62.0, "rank": "A",
-		"coach": Vector3(-4.0, 0, 48.0), "arrive": Vector3(0.0, 0.3, 44.0)},
+	"vila": {"name": "Vale de Valdoria", "origin": Vector3(0, 0, 0), "half": 125.0, "rank": "D"},
+	"bosque": {"name": "Bosque Sussurrante", "origin": Vector3(0, 0, 800), "half": 70.0, "rank": "C"},
+	"mina": {"name": "Mina de Cristal", "origin": Vector3(800, 0, 0), "half": 70.0, "rank": "B"},
+	"pico": {"name": "Pico das Cinzas", "origin": Vector3(800, 0, 800), "half": 62.0, "rank": "A"},
 }
 const ORDER := ["vila", "bosque", "mina", "pico"]
 
@@ -29,11 +25,11 @@ static func at(id: String, local: Vector3) -> Vector3:
 
 
 static func arrive_point(id: String) -> Vector3:
-	return at(id, DATA[id].arrive)
+	return MapData.landmark(id, "arrive")
 
 
 static func coach_point(id: String) -> Vector3:
-	return at(id, DATA[id].coach)
+	return MapData.landmark(id, "coach")
 
 
 static func display_name(id: String) -> String:

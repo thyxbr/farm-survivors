@@ -4,14 +4,13 @@ extends RefCounted
 ## nomes dos lugares e quem aparece no mapa. O norte (-Z) fica para cima.
 
 ## Lugares com nome no mapa: região -> [[nome, posição local (relativa ao centro da região)]].
-## As posições do vale seguem as constantes de world.gd (CAMP, RUINS, ARENA, FARM, NEST, ORCHARD).
+## Nome no mapa -> landmark da cena do mapa (MapData.landmark); "" = o centro do mapa.
 const PLACES := {
-	"vila": [["Vila de Valdoria", Vector3(0, 0, 0)], ["Horta", Vector3(0, 0, 33)], ["Pomar", Vector3(20, 0, 33)],
-		["Acampamento Goblin", Vector3(62, 0, 0)], ["Ruínas", Vector3(0, 0, -100)],
-		["Portal da Horda", Vector3(-72, 0, -10)], ["Ninho de Slimes", Vector3(-36, 0, 36)]],
-	"bosque": [["Bosque Sussurrante", Vector3(0, 0, 0)]],
-	"mina": [["Mina de Cristal", Vector3(0, 0, 0)]],
-	"pico": [["Pico das Cinzas", Vector3(0, 0, 0)]],
+	"vila": [["Vila de Valdoria", ""], ["Horta", "farm"], ["Pomar", "orchard"], ["Acampamento Goblin", "camp"],
+		["Ruínas", "ruins"], ["Portal da Horda", "arena"], ["Ninho de Slimes", "nest"]],
+	"bosque": [["Bosque Sussurrante", ""]],
+	"mina": [["Mina de Cristal", ""]],
+	"pico": [["Pico das Cinzas", ""]],
 }
 ## Raio (m) do pedaço do mapa que o minimapa mostra em volta do jogador.
 const MINI_RADIUS := 42.0
@@ -40,7 +39,7 @@ static func from_uv(region: String, uv: Vector2) -> Vector3:
 static func places(region: String) -> Array:
 	var out: Array = []
 	for p in PLACES.get(region, []):
-		out.append([p[0], Regions.at(region, p[1])])
+		out.append([p[0], Regions.origin(region) if p[1] == "" else MapData.landmark(region, p[1])])
 	out.append(["Carruagem da Guilda", Regions.coach_point(region)])
 	return out
 

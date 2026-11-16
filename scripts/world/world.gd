@@ -75,13 +75,15 @@ const WORLD_MAP_UI := preload("res://scripts/ui/world_map_ui.gd")
 const FIELD_CROP := preload("res://assets/models/field_crop.glb")
 
 const MAP_HALF := 125.0
-const VILLAGE_SPAWN := Vector3(0, 0.3, 6)
-const RUINS := Vector3(0, 0, -100)
-const CAMP := Vector3(62, 0, 0)
-const ARENA := Vector3(-72, 0, -10)     # Desafio da Horda
-const PORTAL_POS := VillageLayout.PORTAL
-const FARM := VillageLayout.FARM          # Horta da Vila (saída sul)
-const NEST := Vector3(-36, 0, 36)        # Ninho de Slimes (sudoeste da vila)
+## Lugares com nome do vale: vêm dos landmarks da cena (MapLandmark, ids village_spawn, ruins, camp, arena,
+## portal, farm, nest, orchard) quando o vale é montado; os valores abaixo só valem antes disso.
+var VILLAGE_SPAWN := Vector3(0, 0.3, 6)
+var RUINS := Vector3(0, 0, -100)
+var CAMP := Vector3(62, 0, 0)
+var ARENA := Vector3(-72, 0, -10)     # Desafio da Horda
+var PORTAL_POS := VillageLayout.PORTAL
+var FARM := VillageLayout.FARM          # Horta da Vila (saída sul)
+var NEST := Vector3(-36, 0, 36)        # Ninho de Slimes (sudoeste da vila)
 ## Maciços dentro do mapa: [centro, raio da base, altura]. Ficam nos cantos vazios, longe das
 ## áreas de missão; a serra em volta do mapa é só visual (fora da borda).
 const MOUNTAINS := [
@@ -94,7 +96,7 @@ const MOUNTAINS := [
 const TREE_R := {"tree_oak": 0.4, "tree_pine": 0.35, "tree_fir": 0.32, "tree_birch": 0.25,
 		"tree_maple": 0.4, "tree_cherry": 0.38, "tree_apple": 0.3, "tree_orange": 0.3, "tree_pear": 0.3}
 const FRUIT_TREES := ["tree_apple", "tree_orange", "tree_pear"]
-const ORCHARD := VillageLayout.ORCHARD      # pomar a leste da Horta
+var ORCHARD := VillageLayout.ORCHARD      # pomar a leste da Horta
 
 var player: Player
 var hud
@@ -328,6 +330,14 @@ func _light(parent: Node3D, local: Vector3, color: Color, energy: float, rng_ran
 ## construções da vila (VillageBuilding) montam aqui as casas e lojas, com os donos e as portas do Natal.
 func _load_vale() -> void:
 	maps["vila"] = MapLoader.build(self, "vila")
+	VILLAGE_SPAWN = landmarks.get("village_spawn", VILLAGE_SPAWN)
+	RUINS = landmarks.get("ruins", RUINS)
+	CAMP = landmarks.get("camp", CAMP)
+	ARENA = landmarks.get("arena", ARENA)
+	PORTAL_POS = landmarks.get("portal", PORTAL_POS)
+	FARM = landmarks.get("farm", FARM)
+	NEST = landmarks.get("nest", NEST)
+	ORCHARD = landmarks.get("orchard", ORCHARD)
 	var c0 := get_child_count()
 	var g0 := _no_grass.size()
 	_build_buildings()
