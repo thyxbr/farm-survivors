@@ -14,6 +14,8 @@ var item_id := "":
 ## Ícone sem item (magias do HUD) e ícone "fantasma" de espaço vazio.
 var icon_kind := ""
 var icon_color := Color.WHITE
+## Arte pintada da habilidade (assets/ui/skills); quando existe, ocupa o espaço no lugar do icon_kind.
+var icon_tex: Texture2D
 var ghost_kind := ""
 var qty := 0
 var key_text := ""
@@ -42,7 +44,14 @@ var model_icon := false
 var _hover := false
 
 
+## Arte pintada da habilidade, ou null se ainda não há imagem para ela (fica o desenho do IconPainter).
+static func skill_art(ability_id: String) -> Texture2D:
+	var path := "res://assets/ui/skills/%s.png" % ability_id
+	return load(path) if ability_id != "" and ResourceLoader.exists(path) else null
+
+
 func _init(sz := 64.0) -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS   # arte de 256 px reduzida sem serrilhar
 	custom_minimum_size = Vector2(sz, sz)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	mouse_entered.connect(_on_enter)
@@ -146,7 +155,7 @@ func _draw() -> void:
 	var bg := StyleBoxFlat.new()
 	bg.bg_color = Color(0.06, 0.055, 0.05, 0.92)
 	bg.set_corner_radius_all(4)
-	bg.border_color = rc.darkened(0.25) if has_item or icon_kind != "" else Color(0.3, 0.26, 0.2, 0.7)
+	bg.border_color = rc.darkened(0.25) if has_item or icon_kind != "" or icon_tex else Color(0.3, 0.26, 0.2, 0.7)
 	bg.set_border_width_all(1)
 	if selected:
 		bg.border_color = Color(1, 0.88, 0.5)
@@ -180,6 +189,8 @@ func _draw() -> void:
 			draw_texture_rect(tex, r.grow(-size.x * 0.03), false)
 		else:
 			IconPainter.draw(self, IconPainter.kind_for(item_id), IconPainter.color_for(item_id), ir)
+	elif icon_tex:
+		draw_texture_rect(icon_tex, r.grow(-2), false)
 	elif icon_kind != "":
 		IconPainter.draw(self, icon_kind, icon_color, ir)
 	elif ghost_kind != "":
