@@ -524,6 +524,32 @@ func _test_heal(w: Node) -> void:
 	else:
 		check(await _wait_until(func() -> bool: return Game.hp > hp0 + 10.0, 3.0), "Beto recebe a cura de Ana (%.0f → %.0f)" % [hp0, Game.hp])
 	await _sync("heal_out")
+	# Escudo de Luz e Banquete do Herói: Ana pede, Beto (perto) recebe o buff; Beto pedindo não faz nada
+	Game.clear_buffs(true)
+	Game.hp = 10.0
+	await _sync("ally_ready")
+	if not actor:
+		Network.request_ally_buff("scepter_ward")   # guerreiro: o servidor recusa
+		await wait(1.2)
+		check(not Game.has_buff("scepter_ward"), "pedido de buff de quem não é healer não faz nada")
+	await _sync("ally_denied")
+	if actor:
+		Network.request_ally_buff("scepter_ward")
+		check(await _wait_until(func() -> bool: return Game.has_buff("scepter_ward"), 3.0), "Ana recebe o próprio Escudo de Luz")
+		Network.request_ally_buff("scepter_ward")   # de novo: o intervalo mínimo recusa
+		Network.request_ally_buff("buff_inexistente")
+	else:
+		check(await _wait_until(func() -> bool: return Game.has_buff("scepter_ward"), 3.0), "Beto recebe o Escudo de Luz de Ana")
+		check(not Game.has_buff("scepter_feast"), "o escudo não traz o Banquete")
+	await _sync("ally_ward")
+	if actor:
+		Network.request_ally_buff("scepter_ult")
+		check(await _wait_until(func() -> bool: return Game.has_buff("scepter_feast"), 3.0), "Ana recebe o Banquete do Herói")
+	else:
+		check(await _wait_until(func() -> bool: return Game.has_buff("scepter_feast"), 3.0), "Beto recebe o Banquete do Herói")
+		check(await _wait_until(func() -> bool: return Game.hp >= Game.max_hp() - 0.5, 3.0), "o Banquete cura Beto ao máximo (%.0f/%.0f)" % [Game.hp, Game.max_hp()])
+	await _sync("ally_out")
+	Game.clear_buffs(true)
 	if actor:
 		await _pick_class("mage", "apprentice_staff")
 	Game.hp = Game.max_hp()

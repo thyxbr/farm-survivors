@@ -2758,9 +2758,40 @@ func _test_gear() -> void:
 	player.cast("heal")
 	check(Game.hp > hp_h and absf((Game.hp - hp_h) - minf(Game.heal_amount(), Game.max_hp() - hp_h)) < 0.01, "Cura sobe a vida (%.1f -> %.1f)" % [hp_h, Game.hp])
 	check(Game.mp < mp_h and player.cooldowns.heal > 0.0, "Cura gasta mana e entra em recarga")
-	var ward_mp := Game.mp
+	# Escudo de Luz (nível 3) e Banquete do Herói (ultimate, nível 8) no solo: buff em si, mana, recarga, fúria
+	var lvl_hz := Game.level
+	Game.clear_buffs(true)
+	Game.level = 2
+	Game.mp = Game.max_mp()
+	player.cooldowns.scepter_ward = 0.0
 	player.cast("scepter_ward")
-	check(Game.mp == ward_mp and player.cooldowns.scepter_ward == 0.0 and player.ability == "", "habilidade do cetro ainda em breve não gasta nada")
+	check(not Game.has_buff("scepter_ward") and player.ability == "", "Escudo de Luz bloqueado no nível 2")
+	Game.level = 8
+	var ward_mp := Game.mp
+	var maxhp0 := Game.max_hp()
+	player.cast("scepter_ward")
+	check(Game.has_buff("scepter_ward") and player.ability == "scepter_ward", "Escudo de Luz dá o buff e começa")
+	check(is_equal_approx(Game.max_hp() - maxhp0, 30.0), "Escudo de Luz sobe a vida máx. em 30 (%.0f)" % (Game.max_hp() - maxhp0))
+	check(is_equal_approx(ward_mp - Game.mp, 30.0) and player.cooldowns.scepter_ward > 0.0, "Escudo de Luz gasta 30 de mana e entra em recarga")
+	await wait(0.7)
+	check(player.ability == "", "Escudo de Luz termina a pose")
+	Game.clear_buffs(true)
+	Game.fury = 0.0
+	player.cast("scepter_ult")
+	check(not Game.has_buff("scepter_feast") and player.ability == "", "Banquete do Herói exige a fúria cheia")
+	Game.fury = Game.FURY_MAX
+	Game.hp = 5.0
+	player.attacking = false
+	player.dodge_timer = 0.0
+	player.cast("scepter_ult")
+	check(Game.has_buff("scepter_feast") and Game.fury == 0.0, "Banquete do Herói dá o buff e zera a fúria")
+	check(is_equal_approx(Game.hp, Game.max_hp()), "Banquete do Herói cura por completo (%.0f)" % Game.hp)
+	await wait(0.7)
+	Game.clear_buffs(true)
+	Game.level = lvl_hz
+	Game.mp = Game.max_mp()
+	player.ability = ""
+	player.cast_timer = 0.0
 	player.attacking = false
 	player.combo_window = 0.0
 	player.cast_timer = 0.0

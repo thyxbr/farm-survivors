@@ -66,6 +66,7 @@ var remote_players := {}  # peer_id -> Player (réplica)
 ## Servidor: última posição recebida de cada jogador na zona atual (coleta de pickups confere a distância).
 var last_pos := {}        # peer_id -> Vector3
 var _last_heal := {}      # peer_id -> instante (s) da última Cura de healer aceita
+var _last_ally := {}      # peer_id -> {id da habilidade: instante (s)} do último buff em aliados aceito
 
 ## Servidor: banco SQLite, contas e API HTTP de login (abertos em start_server).
 var db: Db = null
@@ -272,6 +273,7 @@ func _drop_player(id: int) -> void:
 	players.erase(id)
 	last_pos.erase(id)
 	_last_heal.erase(id)
+	_last_ally.erase(id)
 	_remove_remote_player(id)
 	for pid in _all_peers():
 		_player_left.rpc_id(pid, id)
@@ -643,6 +645,35 @@ func _request_heal() -> void:
 			_you_were_healed.rpc_id(pid, amount, id)
 
 
+## Servidor: Escudo de Luz / Banquete do Herói. O cliente manda só o id da habilidade; o buff vem de
+## HealRules.ALLY_BUFFS. Mesmas regras da Cura (healer, vivo, intervalo por habilidade, mesma zona, 8 m).
+## O Banquete também cura por completo. Quem pede (o healer) está sempre entre os alvos.
+@rpc("any_peer", "call_remote", "reliable")
+func _request_ally_buff(ability_id: String) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not is_server() or not players.has(id) or characters == null or not HealRules.ALLY_BUFFS.has(ability_id):
+		return
+	var account := int(players[id].get("account", 0))
+	if account <= 0:
+		return
+	var s := characters.load_or_create(account)
+	if s.char_class != "healer" or server_peer_dead(id):
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	var mine: Dictionary = _last_ally.get(id, {})
+	if not HealRules.interval_ok(mine.get(ability_id, -INF), now, ability_id):
+		return
+	mine[ability_id] = now
+	_last_ally[id] = mine
+	var buff: String = HealRules.ALLY_BUFFS[ability_id]
+	for pid in HealRules.targets(id, zone_peers(zone_of(id)), last_pos):
+		if server_peer_dead(pid):
+			continue
+		_you_got_buff.rpc_id(pid, buff)
+		if ability_id == "scepter_ult":
+			_you_were_healed.rpc_id(pid, HealRules.ULT_HEAL, id)
+
+
 @rpc("any_peer", "call_remote", "reliable")
 func _request_boss() -> void:
 	var id := multiplayer.get_remote_sender_id()
@@ -932,6 +963,12 @@ func request_heal() -> void:
 		_request_heal.rpc_id(1)
 
 
+## Healer (cliente): pede o Escudo de Luz / Banquete do Herói para si e os aliados por perto.
+func request_ally_buff(ability_id: String) -> void:
+	if is_client():
+		_request_ally_buff.rpc_id(1, ability_id)
+
+
 func send_event(kind: String, a := Vector3.ZERO, b := Vector3.ZERO) -> void:
 	if is_client() and world:
 		_player_event.rpc_id(1, kind, a, b)
@@ -1068,6 +1105,13 @@ func _you_were_hit(amount: float, from_pos: Vector3) -> void:
 func _you_were_healed(amount: float, _from_peer: int) -> void:
 	if world and world.player:
 		world.player.receive_heal(amount)
+
+
+## Buff de um healer aliado. O cliente só aplica ids que existem em buffs.json.
+@rpc("authority", "call_remote", "reliable")
+func _you_got_buff(buff_id: String) -> void:
+	if world and world.player and ItemDB.BUFFS.has(buff_id):
+		Game.add_buff(buff_id)
 
 
 @rpc("authority", "call_remote", "reliable")
