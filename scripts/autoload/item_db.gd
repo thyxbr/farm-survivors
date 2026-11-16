@@ -63,10 +63,11 @@ static var SHOP_STOCK: Array = []
 const SLOTS := ["head", "amulet", "armor", "hands", "weapon", "offhand", "ring", "feet"]
 const SLOT_NAMES := {"weapon": "Arma", "offhand": "Mão secundária", "head": "Cabeça", "armor": "Peito",
 	"hands": "Mãos", "feet": "Pés", "amulet": "Amuleto", "ring": "Anel"}
-const CLASS_NAMES := {"sword": "Espada", "staff": "Cajado", "bow": "Arco"}
+const CLASS_NAMES := {"sword": "Espada", "staff": "Cajado", "bow": "Arco", "scepter": "Cetro"}
 const CLASS_HINT := {"sword": "Combo de 3 golpes · escala com Força",
 	"staff": "Projéteis arcanos · escala com Inteligência",
-	"bow": "Segure para tensionar, solte para atirar · escala com Agilidade"}
+	"bow": "Segure para tensionar, solte para atirar · escala com Agilidade",
+	"scepter": "Cura aliados com luz sagrada · escala com Inteligência"}
 const FX_NAMES := {"slow": "Golpes deixam o alvo lento", "splash": "Projéteis explodem em área",
 	"pierce": "Flechas perfuram inimigos", "multishot": "Disparo tensionado: 3 flechas"}
 

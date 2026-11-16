@@ -728,3 +728,49 @@ func test_new_character_has_no_weapon() -> void:
 	T.eq(s.equipment.weapon, "", "sem arma")
 	T.eq(_count(s, "short_bow"), 0, "sem arco")
 	T.eq(_count(s, "apprentice_staff"), 0, "sem cajado")
+
+
+# ---------------------------------------------------------------- drop segue a classe
+func test_adapt_weapon_to_class_same_rarity() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var out := LootRules.adapt_weapon(_tables(), "oak_staff", "warrior", rng)
+	T.eq(CharRules.weapon_class(_tables(), out), "sword", "vira espada")
+	T.eq(_tables().get_table("items")[out].rarity, "uncommon", "mesma raridade")
+	T.ok(not _tables().get_table("items")[out].get("named", false), "não é nomeada")
+
+
+func test_adapt_weapon_healer_gets_scepter() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	var out := LootRules.adapt_weapon(_tables(), "hunter_bow", "healer", rng)
+	T.eq(CharRules.weapon_class(_tables(), out), "scepter", "vira cetro")
+	T.eq(_tables().get_table("items")[out].rarity, "uncommon", "mesma raridade")
+
+
+func test_adapt_keeps_named_and_own_class_and_non_weapons() -> void:
+	var rng := RandomNumberGenerator.new()
+	T.eq(LootRules.adapt_weapon(_tables(), "archmage_staff", "warrior", rng), "archmage_staff", "nomeada fica")
+	T.eq(LootRules.adapt_weapon(_tables(), "oak_staff", "mage", rng), "oak_staff", "já é da classe")
+	T.eq(LootRules.adapt_weapon(_tables(), "health_potion", "mage", rng), "health_potion", "não é arma")
+	T.eq(LootRules.adapt_weapon(_tables(), "oak_staff", "", rng), "oak_staff", "sem classe")
+
+
+func test_roll_adapts_weapons_to_class() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	for i in 200:
+		var loot := LootRules.roll(_tables(), "goblin", rng, "archer")
+		for id in loot.items:
+			var it: Dictionary = _tables().get_table("items")[id]
+			# nomeada não se adapta; rara sem arco comum (o único é nomeado) também fica como saiu
+			if it.type == "weapon" and not it.get("named", false) and it.rarity in ["common", "uncommon"]:
+				T.eq(it["class"], "bow", "arma de goblin para arqueiro é arco: " + id)
+
+
+func test_roll_without_class_unchanged() -> void:
+	var a := RandomNumberGenerator.new()
+	var b := RandomNumberGenerator.new()
+	a.seed = 5
+	b.seed = 5
+	T.eq(LootRules.roll(_tables(), "goblin", a), LootRules.roll(_tables(), "goblin", b, ""), "igual sem classe")

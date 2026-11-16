@@ -764,7 +764,7 @@ func die_visual() -> void:
 
 ## Solo: sorteio do loot (LootRules, o mesmo do servidor) em pickups no chão.
 static func drop_loot(parent: Node, enemy_kind: String, pos: Vector3, with_gold := true) -> void:
-	var loot := LootRules.roll(Balance.tables, enemy_kind, _loot_rng())
+	var loot := LootRules.roll(Balance.tables, enemy_kind, _loot_rng(), Game.char_class)
 	_spawn_loot(parent, pos, int(loot.gold) if with_gold else 0, loot.items)
 
 
