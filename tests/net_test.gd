@@ -131,6 +131,11 @@ func _ready() -> void:
 	if Network.world == null:
 		_finish()
 		return
+	# personagem novo não tem equipamento: pede ao servidor (--test) o kit das três classes de arma
+	check(Game.equipment.weapon == "", "personagem novo começa sem arma")
+	Econ.request_test_items({"azure_edge": 1, "apprentice_staff": 1, "short_bow": 1, "leather_cap": 1})
+	check(await _wait_until(func() -> bool: return Game.count_item("short_bow") == 1 and Game.count_item("leather_cap") == 1, 5.0),
+		"kit de teste recebido do servidor")
 	# equipa arco e capuz logo ao entrar: os outros jogadores devem ver esse visual
 	Game.equip("short_bow")
 	Game.equip("leather_cap")
@@ -260,7 +265,7 @@ func _ready() -> void:
 		w.player._spawn_projectile("arrow", origin, (aim - origin).normalized(), 12.0, false, 0, 40.0)
 		await wait(0.8)
 		check(not is_instance_valid(tgt) or tgt.hp < hp1, "flecha causa dano pelo servidor (%.0f → %.0f)" % [hp1, tgt.hp if is_instance_valid(tgt) else 0.0])
-	# cajado (o do kit inicial: o cliente online não se dá itens): troca pedida ao servidor
+	# cajado (o do kit de teste: o cliente online não se dá itens): troca pedida ao servidor
 	Game.equip("apprentice_staff")
 	check(await _wait_until(func() -> bool: return Game.equipment.weapon == "apprentice_staff", 3.0)
 		and w.player.look["class"] == "staff", "trocou para o cajado")
@@ -768,6 +773,18 @@ func _test_gold(amount: int) -> bool:
 
 
 func _test_econ() -> void:
+	# modo admin pelo servidor: liga (recursos no teto), desliga (volta ao que era)
+	var ga := Game.gold
+	var fa := econ_log.size()
+	Econ.set_admin(true)
+	var ra: Array = await _results_after(fa, "admin")
+	check(not ra.is_empty() and ra[0][0] and Game.admin_mode() and Game.gold == AdminRules.GOLD,
+		"servidor liga o modo admin (ouro %d)" % Game.gold)
+	fa = econ_log.size()
+	Econ.set_admin(false)
+	ra = await _results_after(fa, "admin")
+	check(not ra.is_empty() and ra[0][0] and not Game.admin_mode() and Game.gold == ga,
+		"servidor desliga o modo admin e devolve o ouro (%d)" % Game.gold)
 	# compra com ouro concedido pelo servidor: o cliente só pede, o estado volta do servidor
 	var price := int(ItemDB.get_item("health_potion").price)
 	var g0 := Game.gold

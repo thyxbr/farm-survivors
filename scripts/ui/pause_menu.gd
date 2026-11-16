@@ -35,6 +35,8 @@ func _ready() -> void:
 			lb.disabled = not Econ.has_solo()
 			v.add_child(lb)
 		v.add_child(UITheme.button("Opções", _options))
+		if Game.can_admin():
+			v.add_child(UITheme.button("Desligar modo admin" if Game.admin_mode() else "Ligar modo admin", _toggle_admin))
 		v.add_child(UITheme.button("Menu principal", func() -> void: Game.go_to_menu()))
 		v.add_child(UITheme.button("Sair do jogo", _quit))
 	else:
@@ -79,6 +81,11 @@ func _save_before_update() -> void:
 		Network.autosave()
 	elif not Game.run_mods.active:
 		Econ.report_vitals(player_pos, player_yaw)
+
+
+func _toggle_admin() -> void:
+	Game.toggle_admin()
+	_close()
 
 
 func _quit() -> void:

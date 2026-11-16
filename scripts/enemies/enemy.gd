@@ -60,6 +60,11 @@ var meshes: Array[MeshInstance3D] = []
 var anim_t := 0.0
 var bar_root: Node3D
 var bar_fg: MeshInstance3D
+## Nome sobre a cabeça e, em cima dele, o ícone de alvo de missão (só no cliente/solo, fora da Horda).
+var name_tag: Label3D
+var quest_icon: Sprite3D
+static var _quest_tex: ImageTexture
+const NAME_RANGE := 30.0     # metros: mais longe que isso o nome some (menos poluição no campo aberto)
 ## Camadas de piscar (acerto) e de lentidão: iguais para todos os inimigos, ninguém altera depois de criar.
 static var _overlay_hit: StandardMaterial3D
 static var _overlay_slow: StandardMaterial3D
@@ -138,6 +143,8 @@ func _ready() -> void:
 		_make_health_bar()
 		if data.get("elite", false):
 			bar_root.visible = true
+	if not horde and not Network.is_server():
+		_make_name_tag()
 	home = global_position
 	wander_target = home
 	state_timer = randf_range(1.0, 3.0)
@@ -222,6 +229,72 @@ func _make_health_bar() -> void:
 	bar_fg.mesh = _bar_meshes[1]
 	bar_root.add_child(bar_fg)
 	bar_root.visible = false
+
+
+func _make_name_tag() -> void:
+	var top: float = data.height * data.scale * (1.3 if elite else 1.0)
+	name_tag = Label3D.new()
+	name_tag.text = display_name
+	name_tag.font_size = 32
+	name_tag.outline_size = 8
+	name_tag.pixel_size = 0.00075 if not is_boss else 0.001   # fixed_size: tamanho na tela, não no mundo
+	name_tag.fixed_size = true
+	name_tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	name_tag.no_depth_test = true
+	name_tag.render_priority = 2
+	name_tag.outline_render_priority = 1
+	name_tag.modulate = Color(1.0, 0.45, 0.25) if is_boss else (Color(1.0, 0.8, 0.35) if elite or data.get("elite", false) else Color(1.0, 0.92, 0.85))
+	name_tag.position.y = top + (0.75 if not is_boss else 0.5)
+	name_tag.visibility_range_end = NAME_RANGE * (2.0 if is_boss else 1.0)
+	add_child(name_tag)
+	quest_icon = Sprite3D.new()
+	quest_icon.texture = _quest_texture()
+	quest_icon.pixel_size = 0.0024
+	quest_icon.fixed_size = true
+	quest_icon.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	quest_icon.no_depth_test = true
+	quest_icon.render_priority = 2
+	quest_icon.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	quest_icon.position.y = name_tag.position.y
+	quest_icon.offset.y = 18.0     # em pixels do ícone: fica logo acima do nome a qualquer distância
+	quest_icon.visibility_range_end = name_tag.visibility_range_end
+	add_child(quest_icon)
+	Game.quests_changed.connect(_update_quest_icon)
+	_update_quest_icon()
+
+
+## Ícone de missão: só aparece se uma missão ativa conta o abate deste tipo (some quando fica pronta).
+func _update_quest_icon() -> void:
+	if quest_icon == null or dead:
+		return
+	quest_icon.visible = CharRules.is_quest_target(Game.quests, ItemDB.QUESTS, kind)
+
+
+## Escudo dourado com "!" escuro, desenhado uma vez e usado por todos os inimigos.
+static func _quest_texture() -> ImageTexture:
+	if _quest_tex:
+		return _quest_tex
+	const S := 24
+	var img := Image.create(S, S, false, Image.FORMAT_RGBA8)
+	var dark := Color(0.2, 0.1, 0.02)
+	var gold := Color(1.0, 0.78, 0.2)
+	var light := Color(1.0, 0.93, 0.55)
+	var c := (S - 1) / 2.0
+	for y in S:
+		for x in S:
+			var d := absf(x - c) + absf(y - c)      # losango
+			if d <= c - 2.0:
+				img.set_pixel(x, y, light if x + y < S - 3 else gold)
+			elif d <= c:
+				img.set_pixel(x, y, dark)
+	for y in range(6, 14):                         # "!": traço e ponto
+		for x in range(11, 13):
+			img.set_pixel(x, y, dark)
+	for y in range(15, 17):
+		for x in range(11, 13):
+			img.set_pixel(x, y, dark)
+	_quest_tex = ImageTexture.create_from_image(img)
+	return _quest_tex
 
 
 static func _bar_mat(c: Color, priority: int) -> StandardMaterial3D:
@@ -733,6 +806,9 @@ func die_visual() -> void:
 	_set_overlay(null)
 	if bar_root:
 		bar_root.visible = false
+	if name_tag:
+		name_tag.visible = false
+		quest_icon.visible = false
 	Sfx.play_at("slime" if data.model == "slime" else "enemy_die", global_position, 0.1, -4.0 if horde else 0.0)
 	FX.burst(global_position + Vector3.UP * 0.6 * data.scale, data.color, 30 if not is_boss else 120, 5.0, 0.14, 0.9)
 	died.emit(self)

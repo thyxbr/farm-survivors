@@ -10,9 +10,10 @@ func _tables() -> BalanceTables:
 	return _bt
 
 
-## Personagem com a arma inicial (azure_edge) e os recursos dados.
+## Personagem com o gume celeste (azure_edge) equipado e os recursos dados.
 func _rich(gold := 0, ecos := 0, items := {}) -> CharState:
 	var s := CharState.new_character(_tables())
+	s.equipment.weapon = "azure_edge"
 	s.gold = gold
 	s.ecos = ecos
 	for id in items:
@@ -78,7 +79,7 @@ func test_level_five_needs_ecos_and_max() -> void:
 
 func test_enchant_follows_weapon_type() -> void:
 	var bt := _tables()
-	var s := _rich()
+	var s := _rich(0, 0, {"short_bow": 1})
 	s.enchants["azure_edge"] = {"el": "raio", "lv": 2}
 	T.eq(EnchantRules.mods(s, bt), {"damage": 0.10}, "arma equipada encantada")
 	T.ok(CharRules.equip(s, bt, "short_bow").ok, "troca para o arco")

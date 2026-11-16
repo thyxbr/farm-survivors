@@ -10,8 +10,9 @@ extends RefCounted
 ##   horde: bool             Desafio da Horda em andamento
 ##   pos: Vector3            posição do jogador (no mundo aberto)
 
-const VILLAGE_CENTER := Vector2(0, 4)
-const VILLAGE_RADIUS := 30.0
+## A música da vila vai até VILLAGE_MARGIN m além da cerca (VillageLayout.BOUNDS). Antes era um círculo de
+## 30 m em volta da praça, que passava da cerca norte e seguia tocando até os campos das slimes.
+const VILLAGE_MARGIN := 4.0
 const FARM_CENTER := Vector2(0, 33)
 const FARM_RADIUS := 16.0
 const RUINS_CENTER := Vector2(0, -100)
@@ -21,7 +22,9 @@ const RUINS_RADIUS := 38.0
 ## um só fica em loop; lista vazia = silêncio (derrota).
 const TRACKS := {
 	"menu": ["menu_asamis_journey"],
-	"village": ["village_squirrel_village"],
+	# evento de Natal; fora dele a vila toca "village_squirrel_village". Guardada para outro momento:
+	# "village_morning_frost" (Morning Frost & Cheerful Christmas Time).
+	"village": ["village_deck_the_halls"],
 	"wild": ["wild_greenland_theme"],
 	"ruins": ["ruins_dark_cavern"],
 	"boss": ["boss_blackmoor_colossus"],
@@ -63,7 +66,7 @@ static func area(pos: Vector3) -> String:
 		"mina", "pico":
 			return "ruins"
 	var p := Vector2(pos.x, pos.z)
-	if p.distance_to(VILLAGE_CENTER) < VILLAGE_RADIUS or p.distance_to(FARM_CENTER) < FARM_RADIUS:
+	if VillageLayout.BOUNDS.grow(VILLAGE_MARGIN).has_point(p) or p.distance_to(FARM_CENTER) < FARM_RADIUS:
 		return "village"
 	if p.distance_to(RUINS_CENTER) < RUINS_RADIUS:
 		return "ruins"
