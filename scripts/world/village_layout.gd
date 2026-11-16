@@ -1,42 +1,16 @@
 @tool
 class_name VillageLayout
 extends RefCounted
-## Planta da vila de Valdoria (world.gd monta): ruas, casas (lidas de scenes/maps/vale.tscn), os pontos que vieram da antiga praça da cidade
-## e os lugares dos eventos de Natal do Papai Noel. Só dados e contas puras (sem autoload), para os testes.
-##
-## A praça do poço continua no meio, com as seis casas de sempre em volta. Dela saem as ruas: a Rua do
-## Portal ao norte (atravessa a vila de ponta a ponta), a Rua das Flores ao sul, a Rua do Oeste e a Estrada
-## Leste (a trilha do acampamento goblin), cortadas por duas travessas. Os bairros novos ficam a oeste
-## (casas e a Muralha, no caminho da arena) e a leste (Forja, Celeiro e o Largo dos Ecos, com o Mestre Orin,
-## a mesa de guerra e o quadro de recordes).
+## Regras das construções da vila (VillageBuilding, na cena scenes/maps/vale.tscn): tamanho da colisão de
+## cada casa, colisões das lojas e onde fica o dono, as paletas das casas, e a leitura das construções da cena
+## (buildings()). Só dados e contas puras (sem autoload), para os testes. O resto da vila (ruas, cerca,
+## lampiões, enfeites, NPCs, pontos) são peças da cena do vale.
 ##
 ## Frente das casas = +Z do modelo (yaw 0 olha para o sul, PI para o norte, PI/2 para o leste).
 
-const S := 0.0
-const N := PI
-const E := PI / 2
-const W := -PI / 2
-
-## Limites da cerca (x0, x1, z0, z1) e as aberturas: [lado, centro, meia largura].
+## Área da vila (x0, z0, largura, profundidade), a mesma da cerca do vale.tscn: a música da vila
+## (MusicRules) toca aqui dentro. Se mudar a cerca de lugar no editor, ajuste aqui também.
 const BOUNDS := Rect2(-36, -18, 75, 45)
-## O lado sul não tem cerca entre x = -12 e 12: ali a cerca da Horta faz a divisa (com o portão dela).
-## No oeste, em z = 10, a Muralha da base ocupa o vão da cerca. O portão norte é largo: a carruagem da guilda
-## (Regions.coach_point("vila")) para logo ali, no começo da trilha dos campos.
-const GATES := [["n", -5.0, 8.2], ["e", 0.0, 3.0], ["w", 2.5, 3.0], ["w", 10.0, 2.6], ["s", 20.0, 2.0]]
-const SOUTH_OPEN := 12.0
-
-## Ruas pintadas no chão: [centro, tamanho (x, z)].
-const STREETS := [
-	[Vector3(1.5, 0, -15), Vector2(73, 4.0)],    # Rua do Portal (norte, de ponta a ponta)
-	[Vector3(-25, 0, 2.5), Vector2(22, 4.0)],    # Rua do Oeste (até o portão oeste e a arena)
-	[Vector3(28, 0, 0), Vector2(22, 4.0)],       # Estrada Leste (vira a trilha do acampamento)
-	[Vector3(1.5, 0, 20), Vector2(73, 3.6)],     # Rua das Flores (sul)
-	[Vector3(-26, 0, 2.5), Vector2(4.0, 35)],    # Travessa do Moinho (oeste)
-	[Vector3(27, 0, 2.5), Vector2(4.0, 35)],     # Travessa do Leste
-	[Vector3(0, 0, -10), Vector2(4.0, 10)],      # saída norte da praça até a Rua do Portal
-]
-## Cor do calçamento das ruas (a praça é Color(0.5, 0.45, 0.36)).
-const STREET_COLOR := Color(0.5, 0.46, 0.38)
 
 ## Colisão (largura, altura, profundidade) de cada modelo de casa.
 const HOUSE_SIZE := {
@@ -88,57 +62,6 @@ const PALETTES := [
 	[Color(1.05, 1.05, 1.0), Color(0.52, 0.22, 0.14), Color(0.1, 0.22, 0.45)],
 ]
 
-## Pontos que eram da praça da cidade: [kind, posição, yaw (frente do ponto)] (hub_point.gd).
-const POINTS := [
-	["passive_master", Vector3(21.0, 0, 11.6), N],
-	["records", Vector3(17.4, 0, 6.4), E],
-]
-## Largo dos Ecos (calçamento em volta do Orin e do quadro de recordes).
-const LARGO := Vector3(21.0, 0, 7.6)
-
-## Papai Noel: do outro lado da árvore de Natal grande (a Lina e o Quadro de Contratos da guilda ficam do lado
-## oeste dela), de frente para a praça; o trenó fica entre ele e a árvore.
-const SANTA := Vector3(16.0, 0, -11.4)
-const SANTA_YAW := -0.92
-const SLEIGH := Vector3(12.7, 0, -11.9)
-const SLEIGH_YAW := -2.2
-
-## Horta da Vila (saída sul), o pomar a leste dela e o portal do Desafio da Horda (world.gd usa estas).
-const FARM := Vector3(0, 0, 33)
-const ORCHARD := Vector3(20, 0, 33)
-const PORTAL := Vector3(-8, 0, -9.5)
-## Lampiões: os quatro da praça (com o varal de luzes entre eles) e os das esquinas das ruas.
-const LAMPS_SQUARE := [Vector3(-5, 0, -5), Vector3(5, 0, -5), Vector3(6, 0, 8), Vector3(-6, 0, 8)]
-const LAMPS_STREET := [Vector3(-23.6, 0, -12.6), Vector3(-23.6, 0, 4.9), Vector3(-23.7, 0, 17.8),
-	Vector3(-34.0, 0, 0.2), Vector3(24.6, 0, -12.6), Vector3(24.6, 0, 2.4), Vector3(24.6, 0, 17.8),
-	Vector3(37.0, 0, -2.3), Vector3(-3.0, 0, -12.8), Vector3(3.0, 0, -12.8)]
-## Varal de luzes atravessando a saída norte da praça (entre os dois últimos lampiões das esquinas).
-const NORTH_STRING := [Vector3(-3.0, 0, -12.8), Vector3(3.0, 0, -12.8)]
-## Cerejeiras da praça: [posição, yaw, escala] (uma atrás da botica).
-const CHERRIES := [[Vector3(-17, 0, -1.5), 0.3, 0.85], [Vector3(9, 0, 11.5), 2.0, 0.75]]
-## Natal: a árvore grande ao lado do quadro de avisos, as pequenas na frente da botica e do empório, o
-## boneco de neve olhando para o poço e os presentes ao pé do poço.
-const XMAS_TREE := Vector3(8.8, 0, -10.3)
-const XMAS_SMALL := [Vector3(-9.2, 0, 3.6), Vector3(8.4, 0, -3.6)]
-const SNOWMAN := Vector3(-8.5, 0, -3.6)
-const WELL_GIFTS := Vector3(1.4, 0, -1.4)
-## Poste de direção perto do portão sul e o quadro de avisos da guilda ao norte da praça.
-const SIGNPOST := Vector3(-1.8, 0, 20.5)
-const NOTICE_BOARD := Vector3(5.0, 0, -10.6)
-
-## Presentes Espalhados: 8 pontos pelo vale (fora da vila).
-const GIFTS := [
-	Vector3(-22, 0, -31),     # campos do noroeste
-	Vector3(22, 0, -48),      # campos do nordeste
-	Vector3(46, 0, 22),       # beira da floresta leste
-	Vector3(26, 0, 44),       # depois do pomar
-	Vector3(-24, 0, 44),      # perto do Ninho de Slimes
-	Vector3(-50, 0, 18),      # caminho da arena
-	Vector3(-8, 0, -78),      # trilha das Ruínas
-	Vector3(54, 0, -24),      # perto do Acampamento Goblin
-]
-
-
 ## Construções (VillageBuilding) do vale.tscn, na ordem da árvore: {name, model, pos, yaw, palette, flowers,
 ## delivery}. Só a posição e o giro em Y contam (o nó pode estar dentro de grupos, que também podem girar).
 static func buildings() -> Array:
@@ -166,14 +89,6 @@ static func houses() -> Array:
 ## Entregas na Vila: as casas marcadas com "delivery", na ordem da cena (a missão pede 6).
 static func deliveries() -> Array:
 	return houses().filter(func(b: Dictionary) -> bool: return b.delivery)
-
-
-## A primeira construção com esse modelo ({} se a cena não tem nenhuma).
-static func first(model: String) -> Dictionary:
-	for b in buildings():
-		if b.model == model:
-			return b
-	return {}
 
 
 ## Transform3D da construção no mundo.
@@ -221,88 +136,3 @@ static func _swap(mat_name: String, c: Color, pal: Array) -> Color:
 	if mat_name.begins_with("v_shutter"):
 		return pal[2]
 	return c
-
-
-## Círculos [Vector2 centro, raio] que cobrem as ruas (sem capim por cima do calçamento).
-static func street_circles() -> Array:
-	var out: Array = []
-	for st in STREETS:
-		var c: Vector3 = st[0]
-		var sz: Vector2 = st[1]
-		var along_x := sz.x >= sz.y
-		var length: float = sz.x if along_x else sz.y
-		var r: float = minf(sz.x, sz.y) * 0.5 + 0.4
-		var n := int(ceil(length / r)) + 1
-		for i in n:
-			var t := -length / 2.0 + length * i / float(n - 1)
-			out.append([Vector2(c.x + (t if along_x else 0.0), c.z + (0.0 if along_x else t)), r])
-	return out
-
-
-## NPCs da vila que não são donos de loja: {id: [posição, yaw]} (os donos ficam na frente das lojas).
-static func npc_spots() -> Dictionary:
-	var lina := Vector3(2.3, 0, -9.6)
-	return {
-		"elder": [Vector3(-3, 0, -2.5), atan2(3.0, 8.5)],          # Ancião Bram, perto do poço
-		"kael": [Vector3(16.2, 0, -1.6), -PI / 2],                  # no vão do portão leste
-		"lina": [lina, atan2(-lina.x, 4.0 - lina.z)],               # ao lado do quadro de avisos
-		"rufus": [Vector3(4.6, 0, -16.6), PI],                      # guarda no portão norte
-		"zelia": [Vector3(-2.6, 0, 12.6), PI],                      # na porta da casa ao sul
-	}
-
-
-## Cerca em volta da vila (BOUNDS), aberta nos portões: [posição, yaw] de cada trecho de 2 m. No sul, entre
-## as casas, a cerca da Horta faz a divisa.
-static func fence_posts() -> Array:
-	var out: Array = []
-	var b := BOUNDS
-	var x := b.position.x + 1.0
-	while x <= b.end.x - 1.0:
-		if not gate_at("n", x):
-			out.append([Vector3(x, 0, b.position.y), 0.0])
-		if not gate_at("s", x) and absf(x - 1.0) > SOUTH_OPEN:
-			out.append([Vector3(x, 0, b.end.y), 0.0])
-		x += 2.0
-	var z := b.position.y + 1.0
-	while z <= b.end.y - 1.0:
-		if not gate_at("w", z):
-			out.append([Vector3(b.position.x, 0, z), PI / 2])
-		if not gate_at("e", z):
-			out.append([Vector3(b.end.x, 0, z), PI / 2])
-		z += 2.0
-	return out
-
-
-static func gate_at(side: String, t: float) -> bool:
-	for g in GATES:
-		if g[0] == side and absf(t - float(g[1])) < float(g[2]):
-			return true
-	return false
-
-
-## Cerca da Horta, com o portão alinhado ao portão sul da vila: [posição, yaw] de cada trecho.
-static func farm_fence_posts() -> Array:
-	var out: Array = []
-	var x := -10.0
-	while x <= 10.0:
-		if x != 0.0 and x != 2.0:
-			out.append([FARM + Vector3(x, 0, -7), 0.0])
-		out.append([FARM + Vector3(x, 0, 7.5), 0.0])
-		x += 2.0
-	var z := -6.0
-	while z <= 6.5:
-		out.append([FARM + Vector3(-11, 0, z), PI / 2])
-		out.append([FARM + Vector3(11, 0, z), PI / 2])
-		z += 2.0
-	return out
-
-
-## Bengalas doces nos portões (norte, sul da Horta, leste e oeste): [posição, yaw].
-static func candy_canes() -> Array:
-	var b := BOUNDS
-	var out: Array = []
-	for p in [Vector3(-13.4, 0, b.position.y + 0.6), Vector3(3.4, 0, b.position.y + 0.6), Vector3(-1.4, 0, 25.4),
-			Vector3(3.4, 0, 25.4), Vector3(b.end.x - 0.6, 0, -3.4), Vector3(b.end.x - 0.6, 0, 3.4),
-			Vector3(b.position.x + 0.6, 0, -0.9), Vector3(b.position.x + 0.6, 0, 5.9)]:
-		out.append([p, atan2(-p.x, -p.z) + PI / 2])
-	return out

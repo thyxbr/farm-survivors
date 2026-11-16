@@ -51,12 +51,6 @@ func _ready() -> void:
 	world = get_tree().current_scene
 	player = get_tree().get_first_node_in_group("player")
 	check(world != null and player != null, "mundo e jogador carregados")
-	# mapas em cena (scenes/maps): o mundo tem o mesmo conteúdo do retrato tirado antes da conversão
-	var base := FileAccess.get_file_as_string("res://tests/fixtures/map_baseline.txt").strip_edges().split("\n")
-	var diffs := MapSummary.compare(base, WorldSummary.collect(world))
-	for d in diffs.slice(0, 40):
-		print("      ", d)
-	check(diffs.is_empty(), "mundo igual ao retrato de antes da conversão para cenas (%d diferenças)" % diffs.size())
 	# personagem novo começa sem nenhum equipamento; o teste se dá o kit das três classes de arma
 	# antes de qualquer combate (slimes podem soltar cajado/arco e o saque é aleatório)
 	check(Game.equipment.values().all(func(v) -> bool: return v == ""), "personagem novo sem equipamento")
@@ -115,10 +109,10 @@ func _ready() -> void:
 		gear_ok = gear_ok and got == w2
 	check(gear_ok, "cada monstro só carrega o equipamento da sua variante")
 	# vale: 5 NPCs + bilhete + portal + guilda (Lina, quadro, cocheiro) + Rufus, Zélia, Tonico, Ravi, Osvaldo, gato;
-	# mais o Papai Noel e os pontos da antiga praça (Orin e recordes, VillageLayout.POINTS); mapas: Sylvi, Tico e cocheiro no bosque; Bolgar, diário e cocheiro na mina; só o cocheiro no pico (o Kael
+	# mais o Papai Noel e os pontos da antiga praça (Orin e recordes, hub_point no vale.tscn); mapas: Sylvi, Tico e cocheiro no bosque; Bolgar, diário e cocheiro na mina; só o cocheiro no pico (o Kael
 	# de lá aparece no Arco 2)
 	var n_inter := get_tree().get_nodes_in_group("interactable").size()
-	check(n_inter == 7 + 9 + 7 + 1 + VillageLayout.POINTS.size() + Game.FARM_PLOTS + 1,
+	check(n_inter == 7 + 9 + 7 + 1 + world.points.size() + Game.FARM_PLOTS + 1,
 		"interagíveis do vale, da guilda e dos mapas + %d canteiros + caldeirão (%d)" % [Game.FARM_PLOTS, n_inter])
 	check(not ResourceLoader.exists("res://scenes/colony.tscn"), "sem a Defesa da Cidade")
 

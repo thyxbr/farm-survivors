@@ -53,7 +53,6 @@ const PASSIVE_MASTER := preload("res://scripts/ui/passive_master_ui.gd")
 const RECORDS := preload("res://scripts/ui/records_ui.gd")
 const ALCHEMIST := preload("res://scripts/world/alchemist.gd")
 const RIVAL := preload("res://scripts/world/rival.gd")
-const STORY_POINT := preload("res://scripts/world/story_point.gd")
 const PLAYER := preload("res://scripts/player/player.gd")
 const HUD := preload("res://scripts/ui/hud.gd")
 const DIALOGUE := preload("res://scripts/ui/dialogue_ui.gd")
@@ -69,10 +68,9 @@ const PLOT := preload("res://scripts/farm/farm_plot.gd")
 const KITCHEN := preload("res://scripts/farm/kitchen.gd")
 const PLANT_UI := preload("res://scripts/ui/plant_ui.gd")
 const COOKING_UI := preload("res://scripts/ui/cooking_ui.gd")
-const GROUND := preload("res://scripts/world/ground.gd")
 const WORLD_MAP_UI := preload("res://scripts/ui/world_map_ui.gd")
-const FIELD_CROP := preload("res://assets/models/field_crop.glb")
 
+## Meia largura do vale (os testes conferem que a Arena fica fora dele).
 const MAP_HALF := 125.0
 ## Lugares com nome dos mapas: vêm dos landmarks das cenas (MapLandmark: village_spawn, ruins, camp, portal,
 ## horde_return, farm, nest, orchard, pond no vale) e da raiz da Arena quando os mapas são montados; os valores
@@ -91,19 +89,7 @@ var FARM := Vector3(0, 0, 33)          # Horta da Vila (saída sul)
 var NEST := Vector3(-36, 0, 36)        # Ninho de Slimes (sudoeste da vila)
 ## Lagoa do oeste, casa dos Bocarrões.
 var POND := Vector3(-80, 0, 15)
-## Maciços dentro do mapa: [centro, raio da base, altura]. Ficam nos cantos vazios, longe das
-## áreas de missão; a serra em volta do mapa é só visual (fora da borda).
-const MOUNTAINS := [
-	[Vector3(-82, 0, 86), 38.0, 34.0],    # Pico do sudoeste
-	[Vector3(86, 0, -96), 30.0, 26.0],    # nordeste, atrás da floresta
-	[Vector3(-88, 0, -84), 22.0, 15.0],   # morro do noroeste
-	[Vector3(84, 0, 96), 26.0, 17.0],     # colinas do sudeste
-]
-## Raio de colisão do tronco por árvore (prop "cyl").
-const TREE_R := {"tree_oak": 0.4, "tree_pine": 0.35, "tree_fir": 0.32, "tree_birch": 0.25,
-		"tree_maple": 0.4, "tree_cherry": 0.38, "tree_apple": 0.3, "tree_orange": 0.3, "tree_pear": 0.3}
-const FRUIT_TREES := ["tree_apple", "tree_orange", "tree_pear"]
-var ORCHARD := VillageLayout.ORCHARD      # pomar a leste da Horta
+var ORCHARD := Vector3(20, 0, 33)      # pomar a leste da Horta
 
 var player: Player
 var hud
@@ -128,8 +114,6 @@ var points: Array = []
 var landmarks := {}
 ## Áreas do capim lidas das cenas (MapGrassArea), por mapa: {"keep_out": [...], "sparse": [...]} (mundo).
 var grass_areas := {}
-## Faixa de _no_grass preenchida pelas casas/lojas (para a conversão para cenas separar).
-var building_grass := [0, 0]
 ## Raiz da cena de cada mapa já montado (MapLoader): map_id -> MapRoot.
 var maps := {}
 var santa: Node3D = null
@@ -137,7 +121,6 @@ var santa: Node3D = null
 var resource_nodes: Array = []
 var flicker_lights: Array = []
 var rng := RandomNumberGenerator.new()
-var _avoid: Array = []   # [Vector2 centro, raio] áreas sem vegetação aleatória
 var _night_scan := 0.0      # tempo até a próxima conferida de dia/noite (bichos noturnos)
 var _is_night_now := false
 var _no_grass: Array = []   # [Vector2 centro, raio] pegadas de props (o capim não atravessa)
@@ -241,54 +224,6 @@ func _build_environment() -> void:
 		add_child(DayNightFX.new())  # dia e noite por cima do clima (só visual)
 
 
-func _build_ground() -> void:
-	ground = GROUND.new()
-	add_child(ground)
-	ground.setup(MAP_HALF)
-	for m in MOUNTAINS:
-		ground.add_mountain(m[0], m[1], m[2])
-	ground.border_mountains(58.0)
-	ground.build_terrain()
-	var dirt := Color(0.45, 0.35, 0.22)
-	_flat(Vector3(0, 0.02, -50), Vector2(4.5, 80), dirt)          # trilha norte
-	_flat(Vector3(38, 0.02, 0), Vector2(52, 4.5), dirt)           # trilha leste
-	_disc(Vector3(0, 0.018, 1), 10.0, Color(0.5, 0.45, 0.36))     # praça
-	for st in VillageLayout.STREETS:                               # ruas da vila
-		_flat(st[0] + Vector3(0, 0.017, 0), st[1], VillageLayout.STREET_COLOR, 0.5)
-	_disc(VillageLayout.LARGO + Vector3(0, 0.019, 0), 4.8, Color(0.55, 0.5, 0.42), 0.5)   # Largo dos Ecos
-	_flat(Vector3(-40, 0.02, 0), Vector2(9, 3.6), dirt)            # do portão oeste para a arena
-	_disc(RUINS + Vector3(0, 0.02, 0), 15.0, Color(0.42, 0.42, 0.4))
-	_disc(CAMP + Vector3(0, 0.02, 0), 13.0, Color(0.4, 0.32, 0.2))
-
-
-## Área retangular pintada no chão (o shader do chão desenha a borda irregular).
-func _flat(pos: Vector3, size: Vector2, c: Color, soft := 0.8) -> void:
-	ground.add_rect(pos, size, c, soft)
-
-
-func _disc(pos: Vector3, r: float, c: Color, soft := 0.9) -> void:
-	ground.add_disc(pos, r, c, soft)
-
-
-## Árvore com colisão no tronco, apoiada no chão (sobe nas encostas).
-func tree(model: String, p: Vector3, s: float) -> void:
-	p.y = maxf(0.0, ground.height_at(p.x, p.z) - 0.35)
-	prop(model, p, rng.randf() * TAU, s, "cyl", Vector3(TREE_R[model], 3, 0))
-
-
-## Sorteia uma espécie por peso: {"tree_oak": 3, ...}.
-func _pick(weights: Dictionary) -> String:
-	var total := 0.0
-	for k in weights:
-		total += weights[k]
-	var r := rng.randf() * total
-	for k in weights:
-		r -= weights[k]
-		if r <= 0.0:
-			return k
-	return weights.keys()[0]
-
-
 ## Instancia um modelo e (opcionalmente) uma colisão simples ("box" ou "cyl").
 func prop(model: String, pos: Vector3, yaw := 0.0, s := 1.0, shape := "", size := Vector3.ONE) -> Node3D:
 	var inst: Node3D = M[model].instantiate()
@@ -348,12 +283,7 @@ func _load_vale() -> void:
 	ORCHARD = landmarks.get("orchard", ORCHARD)
 	HORDE_RETURN = landmarks.get("horde_return", HORDE_RETURN)
 	POND = landmarks.get("pond", POND)
-	var c0 := get_child_count()
-	var g0 := _no_grass.size()
 	_build_buildings()
-	for i in range(c0, get_child_count()):
-		get_child(i).set_meta("from_building", true)
-	building_grass = [g0, _no_grass.size()]
 	_build_doors()
 
 
@@ -380,42 +310,6 @@ func _build_doors() -> void:
 
 
 # ================================================================ vila (montagem antiga, sai na limpeza)
-func _build_village() -> void:
-	_avoid.append([Vector2(0, 4), 26.0])
-	var lamps: Array = []
-	for p: Vector3 in VillageLayout.LAMPS_SQUARE:
-		var lamp := prop("lamp", p, atan2(-p.x, -p.z), 1.0, "cyl", Vector3(0.12, 3.7, 0))
-		DayNightFX.night_light(_light(lamp, Vector3(0, 3.3, 0.5), Color(1, 0.75, 0.4), 1.6, 9.0), 1.6)
-		lamps.append(lamp)
-	_build_christmas(lamps)
-	var c0 := get_child_count()
-	var g0 := _no_grass.size()
-	_build_buildings()
-	for i in range(c0, get_child_count()):   # a conversão para cenas (tools/bake_maps.gd) pula o que vem das casas
-		get_child(i).set_meta("from_building", true)
-	building_grass = [g0, _no_grass.size()]
-	for c in VillageLayout.CHERRIES:
-		prop("tree_cherry", c[0], c[1], c[2], "cyl", Vector3(0.38, 3, 0))
-	_build_fence()
-	# NPCs
-	var spots := VillageLayout.npc_spots()
-	var elder := ELDER.new()
-	elder.position = spots.elder[0]
-	elder.rotation.y = spots.elder[1]
-	add_child(elder)
-	# Kael, o rival, no vão do portão leste, virado para a praça (ensaiando discursos)
-	var kael := RIVAL.new()
-	kael.position = spots.kael[0]
-	kael.rotation.y = spots.kael[1]
-	add_child(kael)
-	_build_signs()
-	_build_guild()
-	var portal := PORTAL.new()
-	portal.position = PORTAL_POS
-	add_child(portal)
-	_build_districts()
-
-
 ## Construções do vale.tscn (VillageLayout.buildings(), editada no 3D do Godot): o poço, as lojas
 ## com os donos na frente e as casas com cores, pisca-pisca, guirlanda, luz da janela e canteiro.
 func _build_buildings() -> void:
@@ -484,90 +378,6 @@ func _shop_keeper(model: String, xf: Transform3D) -> void:
 			add_child(smith)
 
 
-## Decoração de Natal da vila (ChristmasDecor): árvore enfeitada perto do portão norte, varal de luzes
-## entre os quatro lampiões da praça, pisca-pisca e guirlanda em cada casa, festão nos postes, bengalas
-## nos portões, árvores pequenas na frente das lojas, presentes e um boneco de neve.
-func _build_christmas(lamps: Array) -> void:
-	var tree_pos := VillageLayout.XMAS_TREE   # ao lado do quadro de avisos, longe do portão norte
-	ChristmasDecor.tree(self, tree_pos, 1.0, 1225)
-	_no_grass.append([Vector2(tree_pos.x, tree_pos.z), 2.4])
-	var top := Vector3(0, 3.45, 0)   # logo abaixo do chapéu do poste
-	for i in lamps.size():
-		var a: Node3D = lamps[i]
-		var b: Node3D = lamps[(i + 1) % lamps.size()]
-		ChristmasDecor.light_string(self, a.transform * top, b.transform * top, 0.6, ChristmasDecor.MULTI, i % 2)
-		ChristmasDecor.lamp_garland(a)
-	# bengalas nos portões (norte, sul da Horta, leste e oeste)
-	for c in VillageLayout.candy_canes():
-		ChristmasDecor.candy_cane(self, c[0], c[1])
-	# árvores pequenas na frente da botica e do empório, e o boneco de neve olhando para o poço
-	for p: Vector3 in VillageLayout.XMAS_SMALL:
-		ChristmasDecor.tree(self, p, 0.38, int(p.x * 10))
-		_no_grass.append([Vector2(p.x, p.z), 1.0])
-	var sp := VillageLayout.SNOWMAN
-	ChristmasDecor.snowman(self, sp, atan2(-sp.x, -sp.z))
-	_no_grass.append([Vector2(sp.x, sp.z), 0.8])
-	ChristmasDecor.gifts(self, VillageLayout.WELL_GIFTS, 3, rng, 0.0, 0.4)   # presentes ao pé do poço
-
-
-## Cerca em volta da vila toda (VillageLayout.BOUNDS), com os portões abertos. No sul, entre as casas, a
-## cerca da Horta faz a divisa.
-func _build_fence() -> void:
-	for f in VillageLayout.fence_posts():
-		prop("fence", f[0], f[1], 1.0, "box", Vector3(2.1, 1.0, 0.25))
-
-
-## Bairros novos (VillageLayout): lampiões nas esquinas, os pontos que eram da praça, o Papai Noel com o
-## trenó e os pontos dos eventos de Natal. As casas vêm do vale.tscn (_build_buildings).
-func _build_districts() -> void:
-	_avoid.append([Vector2(-24, 4), 15.5])
-	_avoid.append([Vector2(26, 4), 15.5])
-	# lampiões nas esquinas das ruas, com festão e luz à noite
-	for p: Vector3 in VillageLayout.LAMPS_STREET:
-		var lamp := prop("lamp", p, atan2(-p.x, -p.z), 1.0, "cyl", Vector3(0.12, 3.7, 0))
-		DayNightFX.night_light(_light(lamp, Vector3(0, 3.3, 0.5), Color(1, 0.75, 0.4), 1.4, 8.0), 1.4)
-		ChristmasDecor.lamp_garland(lamp)
-	# varal de luzes atravessando a saída norte da praça
-	var top := Vector3(0, 3.45, 0)
-	ChristmasDecor.light_string(self, VillageLayout.NORTH_STRING[0] + top, VillageLayout.NORTH_STRING[1] + top, 0.5,
-		ChristmasDecor.MULTI, 1)
-	# pontos da antiga praça
-	for pd in VillageLayout.POINTS:
-		var pt := POINT.new()
-		pt.kind = pd[0]
-		var pos: Vector3 = pd[1]
-		pt.position = pos
-		pt.rotation.y = pd[2]
-		add_child(pt)
-		points.append(pt)
-		_no_grass.append([Vector2(pos.x, pos.z), 2.5])
-	# Papai Noel, de frente para a praça, e o trenó atrás dele, perto da árvore grande
-	santa = SANTA.new()
-	santa.position = VillageLayout.SANTA
-	santa.rotation.y = VillageLayout.SANTA_YAW
-	add_child(santa)
-	ChristmasDecor.sleigh(self, VillageLayout.SLEIGH, VillageLayout.SLEIGH_YAW)
-	_no_grass.append([Vector2(VillageLayout.SLEIGH.x, VillageLayout.SLEIGH.z), 1.8])
-	# eventos: presentes caídos pelo vale e as portas das entregas
-	for i in VillageLayout.GIFTS.size():
-		var g := EVENT_POINT.new()
-		g.kind = "gift"
-		g.index = i
-		var gp: Vector3 = VillageLayout.GIFTS[i]
-		_avoid.append([Vector2(gp.x, gp.z), 2.5])
-		gp.y = ground.height_at(gp.x, gp.z)
-		g.position = gp
-		add_child(g)
-	var doors := VillageLayout.deliveries()
-	for i in doors.size():
-		var h: Dictionary = doors[i]
-		var d: Array = ChristmasDecor.HOUSE_DOORS[h.model]
-		var e := EVENT_POINT.new()
-		e.kind = "door"
-		e.index = i
-		e.position = VillageLayout.xform(h) * Vector3(d[0], 0, d[2] + 0.7)
-		add_child(e)
-
 ## Loja da vila: modelo + colisões simples no espaço dela (boxes = [[centro local, tamanho]],
 ## cyls = [[centro local, raio]]) e um círculo sem capim de raio grass_r (0 = nenhum).
 func _shop(model: String, pos: Vector3, yaw: float, boxes: Array, cyls: Array, grass_r: float) -> void:
@@ -597,48 +407,6 @@ func _static_shape(xf: Transform3D, local: Vector3, shape: Shape3D) -> void:
 	add_child(body)
 
 
-## Pomar a leste da Horta: três fileiras de frutíferas (maçã, laranja, pera), cestos e caixotes.
-func _build_orchard() -> void:
-	_avoid.append([Vector2(ORCHARD.x, ORCHARD.z), 9.5])
-	_flat(ORCHARD + Vector3(0, 0.018, 0), Vector2(16, 15), Color(0.36, 0.42, 0.2), 0.6)
-	for row in 3:
-		for col in 3:
-			var p := ORCHARD + Vector3(-5.0 + col * 5.0 + rng.randf_range(-0.4, 0.4), 0, -5.0 + row * 5.0 + rng.randf_range(-0.4, 0.4))
-			tree(FRUIT_TREES[(row + col) % 3], p, rng.randf_range(0.95, 1.15))
-	prop("crate", ORCHARD + Vector3(-7.4, 0, 0.8), 0.3, 1.0, "box", Vector3(0.8, 0.8, 0.8))
-	prop("crate", ORCHARD + Vector3(-7.3, 0.8, 0.8), -0.2, 0.75)
-	prop("barrel", ORCHARD + Vector3(-7.5, 0, -0.4), 0.0, 1.0, "cyl", Vector3(0.38, 1.0, 0))
-
-
-## Poste de direção perto do portão sul e quadro de avisos ao norte da praça.
-func _build_signs() -> void:
-	var at := VillageLayout.SIGNPOST
-	add_child(SIGNPOST.make(at, [["Horta", FARM], ["Ruínas", RUINS], ["Goblins", CAMP], ["Portal", PORTAL_POS]]))
-	_static_shape(Transform3D(Basis(), at), Vector3(0, 1.3, 0), _cyl_shape(0.25, 2.6))
-	_no_grass.append([Vector2(at.x, at.z), 0.5])
-	var board_at := VillageLayout.NOTICE_BOARD
-	var yaw := atan2(-board_at.x, 4.0 - board_at.z)   # de frente para o centro da praça
-	var board := prop("notice_board", board_at, yaw, 1.0, "box", Vector3(2.7, 2.8, 0.3))
-	var notes := Label3D.new()
-	notes.text = "GUILDA DOS AVENTUREIROS\n\nContratos para todos os ranks!\nFale com a Lina.\n\nCarruagem da guilda no portão norte."
-	notes.font_size = 30
-	notes.pixel_size = 0.004
-	notes.outline_size = 0
-	notes.modulate = Color(0.2, 0.12, 0.05)
-	notes.width = 480
-	notes.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	notes.double_sided = false
-	notes.position = Vector3(0, 1.6, 0.05)
-	board.add_child(notes)
-
-
-func _cyl_shape(r: float, h: float) -> CylinderShape3D:
-	var c := CylinderShape3D.new()
-	c.radius = r
-	c.height = h
-	return c
-
-
 ## Crepitar de fogo em loop na boca da forja, só ouvido de perto (bus Ambience). Nada no servidor.
 func _forge_fire(pos: Vector3) -> void:
 	if DisplayServer.get_name() == "headless":
@@ -658,236 +426,10 @@ func _forge_fire(pos: Vector3) -> void:
 
 
 # ================================================================ horta da vila
-func _build_farm() -> void:
-	_avoid.append([Vector2(FARM.x, FARM.z), 15.0])
-	_build_orchard()
-	_avoid.append([Vector2(1, 24), 4.0])
-	_flat(Vector3(1, 0.021, 19.5), Vector2(3.2, 17), Color(0.45, 0.35, 0.22))       # trilha praça -> horta
-	_flat(FARM + Vector3(0, 0.019, 0.5), Vector2(20, 13.5), Color(0.4, 0.42, 0.22), 0.5)  # chão da horta
-	_flat(FARM + Vector3(1, 0.021, -2), Vector2(2.6, 9), Color(0.45, 0.35, 0.22))
-	# cerca da horta, com portão alinhado ao portão sul da vila
-	for f in VillageLayout.farm_fence_posts():
-		prop("fence", f[0], f[1], 1.0, "box", Vector3(2.1, 1.0, 0.25))
-	# canteiros 4 x 3 (os mais próximos do portão são liberados primeiro)
-	for i in Game.FARM_PLOTS:
-		var plot := PLOT.new()
-		plot.index = i
-		plot.position = FARM + Vector3(-4.2 + (i % 4) * 2.8, 0, -3.3 + (i / 4) * 2.8)
-		add_child(plot)
-	var kitchen := KITCHEN.new()
-	kitchen.position = FARM + Vector3(7.5, 0, -3.5)
-	add_child(kitchen)
-	prop("crate", FARM + Vector3(8.6, 0, -1.4), 0.3, 1.0, "box", Vector3(0.8, 0.8, 0.8))
-	prop("crate", FARM + Vector3(8.7, 0.8, -1.4), -0.2, 0.75)
-	prop("barrel", FARM + Vector3(9.2, 0, -5.6), 0.0, 1.0, "cyl", Vector3(0.38, 1.0, 0))
-	prop("barrel", FARM + Vector3(-9.0, 0, -5.4), 0.0, 1.0, "cyl", Vector3(0.38, 1.0, 0))
-	prop("tree_oak", FARM + Vector3(-8.2, 0, 5.0), 0.8, 1.1, "cyl", Vector3(0.4, 3, 0))
-	# girassóis encostados na cerca norte da horta
-	for i in 7:
-		var sx := -9.5 + i * 1.3 + rng.randf_range(-0.25, 0.25)
-		if absf(sx - 1.0) < 2.2:
-			continue   # portão
-		prop("flower_sunflower", FARM + Vector3(sx, 0, -7.6), PI + rng.randf_range(-0.3, 0.3), rng.randf_range(0.85, 1.15))
-	var lamp := prop("lamp", FARM + Vector3(3.6, 0, -7.6), PI, 1.0, "cyl", Vector3(0.12, 3.7, 0))
-	DayNightFX.night_light(_light(lamp, Vector3(0, 3.3, 0.5), Color(1, 0.75, 0.4), 1.4, 8.0), 1.4)
-	_scarecrow(FARM + Vector3(-7.6, 0, 1.2))
-	var sign := Label3D.new()
-	sign.text = "Horta da Vila"
-	sign.font_size = 56
-	sign.outline_size = 10
-	sign.pixel_size = 0.006
-	sign.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	sign.modulate = Color(0.85, 1.0, 0.6)
-	sign.position = FARM + Vector3(1, 2.6, -7)
-	add_child(sign)
-
-
-func _scarecrow(pos: Vector3) -> void:
-	var root := Node3D.new()
-	root.position = pos
-	root.rotation.y = 0.5
-	add_child(root)
-	ChristmasDecor._rec("scarecrow", null, root.transform, {})
-	MapDecor.scarecrow(root)
-
-
 # ================================================================ campos (slimes)
-## Lagoa do oeste: lama em volta, água escura no meio, samambaias e pedras na margem.
-func _build_pond() -> void:
-	_disc(POND + Vector3(0, 0.015, 0), 10.0, Color(0.3, 0.26, 0.17), 0.6)
-	_disc(POND + Vector3(0, 0.02, 0), 7.5, Color(0.16, 0.3, 0.34), 0.4)
-	_avoid.append([Vector2(POND.x, POND.z), 12.0])
-	_no_grass.append([Vector2(POND.x, POND.z), 9.0])
-	for i in 9:
-		var a := i * TAU / 9.0 + rng.randf_range(-0.2, 0.2)
-		var r := rng.randf_range(9.0, 11.0)
-		prop("fern", POND + Vector3(cos(a) * r, 0, sin(a) * r), rng.randf() * TAU, rng.randf_range(1.0, 1.5))
-	for a in [0.6, 2.4, 4.4]:
-		prop("rock", POND + Vector3(cos(a) * 9.6, -0.2, sin(a) * 9.6), a, 0.9, "cyl", Vector3(0.6, 0.8, 0))
-
-
-func _build_fields() -> void:
-	var soil := Color(0.36, 0.25, 0.15)
-	var crop_mm := MultiMesh.new()
-	crop_mm.transform_format = MultiMesh.TRANSFORM_3D
-	var crop_scene: Node3D = FIELD_CROP.instantiate()
-	crop_mm.mesh = (crop_scene.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D).mesh
-	crop_scene.free()
-	var xforms: Array[Transform3D] = []
-	for plot in [Vector3(-14, 0, -24), Vector3(12, 0, -26), Vector3(-16, 0, -40), Vector3(15, 0, -42)]:
-		_flat(plot + Vector3(0, 0.025, 0), Vector2(10, 7), soil, 0.25)
-		ChristmasDecor._rec("crops", null, Transform3D(Basis(), plot), {"size": Vector2(10, 7), "seed": rng.seed,
-			"state": rng.state})
-		for row in 5:
-			for col in 12:
-				if rng.randf() < 0.25:
-					continue
-				var p: Vector3 = plot + Vector3(-4.4 + col * 0.8, 0.0, -2.6 + row * 1.3)
-				var cs := rng.randf_range(0.85, 1.25)
-				xforms.append(Transform3D(Basis().rotated(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * cs), p))
-		_avoid.append([Vector2(plot.x, plot.z), 6.5])
-		# cercas dos lotes
-		for i in 5:
-			prop("fence", plot + Vector3(-4 + i * 2, 0, -4.2), 0.0)
-	crop_mm.instance_count = xforms.size()
-	for i in xforms.size():
-		crop_mm.set_instance_transform(i, xforms[i])
-	var mmi := MultiMeshInstance3D.new()
-	mmi.multimesh = crop_mm
-	add_child(mmi)
-	prop("barrel", Vector3(-8, 0, -22), 0.0, 1.0, "cyl", Vector3(0.38, 1, 0))
-	prop("crate", Vector3(8, 0, -21), 0.6, 1.0, "box", Vector3(0.8, 0.8, 0.8))
-
-
 # ================================================================ acampamento goblin
-func _build_goblin_camp() -> void:
-	_avoid.append([Vector2(CAMP.x, CAMP.z), 15.0])
-	prop("tent", CAMP + Vector3(-5, 0, -7), 0.4, 1.0, "box", Vector3(2.0, 2.2, 2.0))
-	prop("tent", CAMP + Vector3(5, 0, -6), -0.3, 1.0, "box", Vector3(2.0, 2.2, 2.0))
-	prop("tent", CAMP + Vector3(2, 0, 8), 2.8, 1.2, "box", Vector3(2.0, 2.2, 2.0))
-	var fire := prop("campfire", CAMP, 0.0, 1.0, "cyl", Vector3(0.6, 0.4, 0))
-	_light(fire, Vector3(0, 1.0, 0), Color(1.0, 0.55, 0.2), 3.0, 14.0, true)
-	prop("crate", CAMP + Vector3(-7, 0, 2), 0.3, 1.0, "box", Vector3(0.8, 0.8, 0.8))
-	var note := STORY_POINT.new()   # o bilhete do Rei Goblin (missão "bilhete"), em cima do caixote
-	note.npc_id = "camp_note"
-	note.position = CAMP + Vector3(-7, 0.82, 2)
-	add_child(note)
-	prop("barrel", CAMP + Vector3(-7.5, 0, 3.2), 0.0, 1.0, "cyl", Vector3(0.38, 1, 0))
-	prop("chest", CAMP + Vector3(8, 0, 3), -1.2, 1.0, "box", Vector3(0.9, 0.7, 0.6))
-	for a in [0.4, 1.2, 2.2, 3.6, 4.4, 5.4]:
-		var p := CAMP + Vector3(cos(a), 0, sin(a)) * 13.0
-		prop("ruin_wall", p, -a + PI / 2, 0.8, "box", Vector3(4.2, 2.0, 0.9))
-
-
 # ================================================================ ruínas (chefe)
-func _build_ruins() -> void:
-	_avoid.append([Vector2(RUINS.x, RUINS.z), 22.0])
-	for i in 10:
-		if i == 7:
-			continue  # pilar caído
-		var a := i / 10.0 * TAU
-		var p := RUINS + Vector3(cos(a), 0, sin(a)) * 12.5
-		prop("ruin_pillar", p, rng.randf() * TAU, 1.0 + rng.randf() * 0.3, "cyl", Vector3(0.5, 4.0, 0))
-	for i in 7:
-		var a := i / 7.0 * TAU + 0.2
-		if abs(wrapf(a - PI / 2, -PI, PI)) < 0.5:
-			continue  # entrada voltada para o sul (para a vila)
-		var p := RUINS + Vector3(cos(a), 0, sin(a)) * 18.0
-		prop("ruin_wall", p, -a + PI / 2, 1.2, "box", Vector3(4.2, 2.0, 0.9))
-	prop("rock", RUINS + Vector3(-6, 0, 5), 0.5, 0.8, "cyl", Vector3(0.6, 0.8, 0))
-	prop("chest", RUINS + Vector3(0, 0, -9), 0.0, 1.2, "box", Vector3(0.9, 0.7, 0.6))
-	var torch := Node3D.new()
-	torch.position = RUINS + Vector3(0, 0, -9)
-	add_child(torch)
-	_light(torch, Vector3(0, 2, 0), Color(1, 0.5, 0.25), 2.0, 12.0, true)
-
-
 # ================================================================ Arena do Desafio (mapa da Horda)
-## A arena é um mapa à parte: um vale de pedra fechado por penhascos, longe de Valdoria (ARENA fica fora
-## das bordas do mapa, sem caminho a pé). O portal da vila teleporta para lá e o fim da partida traz de
-## volta (HORDE_RETURN). Fica na mesma cena para o servidor simular a Horda no mesmo mundo de física.
-func _build_arena() -> void:
-	# chão próprio: Valdoria (ground.gd) só cobre o mapa dela
-	var floor_body := StaticBody3D.new()
-	floor_body.position = ARENA + Vector3(0, -0.5, 0)
-	floor_body.collision_mask = 0
-	var fs := CollisionShape3D.new()
-	var fb := BoxShape3D.new()
-	fb.size = Vector3(ARENA_HALF * 2.0, 1.0, ARENA_HALF * 2.0)
-	fs.shape = fb
-	floor_body.add_child(fs)
-	add_child(floor_body)
-	if DisplayServer.get_name() != "headless":
-		_arena_disc(ARENA_HALF, 0.0, Color(0.2, 0.19, 0.23))          # pedra escura do vale
-		_arena_disc(33.0, 0.01, Color(0.31, 0.28, 0.33))             # piso da arena
-		_arena_disc(30.0, 0.02, Color(0.27, 0.25, 0.3))
-		_arena_disc(4.5, 0.03, Color(0.45, 0.32, 0.6), 0.6)          # runa do centro
-	# anel de ruínas em volta do piso
-	var n := 22
-	for i in n:
-		var a := TAU * i / n
-		var p := ARENA + Vector3(cos(a), 0, sin(a)) * 33.5
-		if i % 11 == 5:
-			prop("ruin_wall", p, -a + PI / 2, 1.0, "box", Vector3(4.2, 2.0, 0.9))
-		else:
-			prop("ruin_pillar", p, rng.randf() * TAU, 1.0 + rng.randf() * 0.4, "cyl", Vector3(0.5, 4.0, 0))
-	for i in 4:
-		var a := TAU * (i + 0.5) / 4.0
-		var fire := prop("campfire", ARENA + Vector3(cos(a), 0, sin(a)) * 32.0, a, 1.0, "cyl", Vector3(0.6, 0.4, 0))
-		_light(fire, Vector3(0, 1.2, 0), Color(0.75, 0.45, 1.0), 3.0, 16.0, true)
-	var rune := Node3D.new()
-	rune.position = ARENA
-	add_child(rune)
-	_light(rune, Vector3(0, 3.0, 0), Color(0.7, 0.5, 1.0), 1.5, 14.0)
-	# penhascos fechando o vale (duas voltas de rochas grandes, a de fora mais alta) e pinheiros mortos
-	for ring in [[40.0, 26, 4.5, 6.5], [50.0, 22, 7.0, 10.0]]:
-		var count: int = ring[1]
-		for i in count:
-			var a := TAU * (i + rng.randf_range(-0.2, 0.2)) / count
-			var r: float = ring[0] + rng.randf_range(-2.0, 2.0)
-			var s := rng.randf_range(ring[2], ring[3])
-			prop("rock", ARENA + Vector3(cos(a) * r, -0.3, sin(a) * r), rng.randf() * TAU, s, "cyl", Vector3(0.7, 1.4, 0))
-	for i in 18:
-		var a := rng.randf() * TAU
-		var p := ARENA + Vector3(cos(a), 0, sin(a)) * rng.randf_range(36.0, 39.0)
-		var t := prop("tree_pine", p, rng.randf() * TAU, rng.randf_range(0.8, 1.2), "cyl", Vector3(TREE_R.tree_pine, 3, 0))
-		_tint_dead(t)
-
-
-## Disco plano do chão da arena (o shader de Valdoria não chega aqui).
-func _arena_disc(r: float, y: float, c: Color, glow := 0.0) -> void:
-	var mi := MeshInstance3D.new()
-	var m := CylinderMesh.new()
-	m.top_radius = r
-	m.bottom_radius = r
-	m.height = 0.02
-	m.radial_segments = 48
-	m.rings = 1
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = c
-	mat.roughness = 1.0
-	if glow > 0.0:
-		mat.emission_enabled = true
-		mat.emission = c
-		mat.emission_energy_multiplier = glow
-	m.material = mat
-	mi.mesh = m
-	mi.position = ARENA + Vector3(0, y - 0.01, 0)
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
-
-
-## Pinheiro seco: troca as cores do modelo por tons de madeira morta.
-func _tint_dead(n: Node) -> void:
-	if n is MeshInstance3D:
-		var m := StandardMaterial3D.new()
-		m.albedo_color = Color(0.24, 0.2, 0.2)
-		m.roughness = 1.0
-		n.material_override = m
-	for c in n.get_children():
-		_tint_dead(c)
-
-
 func start_survival() -> void:
 	if survival != null or player == null or player.dead:
 		return
@@ -937,106 +479,6 @@ func server_start_horde(team: Dictionary, round_time: float) -> Node:
 
 
 # ================================================================ bordas e vegetação
-func _build_borders() -> void:
-	for side in [Vector3(0, 0, -1), Vector3(0, 0, 1), Vector3(1, 0, 0), Vector3(-1, 0, 0)]:
-		var body := StaticBody3D.new()
-		var cs := CollisionShape3D.new()
-		var b := BoxShape3D.new()
-		b.size = Vector3(MAP_HALF * 2 + 4 if side.x == 0 else 2.0, 20, MAP_HALF * 2 + 4 if side.z == 0 else 2.0)
-		cs.shape = b
-		body.position = side * (MAP_HALF + 1) + Vector3.UP * 10
-		body.add_child(cs)
-		add_child(body)
-	# anel de pinheiros densos
-	var t := -MAP_HALF
-	while t <= MAP_HALF:
-		for edge in 4:
-			var d := MAP_HALF - rng.randf_range(0, 7)
-			var p: Vector3
-			match edge:
-				0: p = Vector3(t, 0, -d)
-				1: p = Vector3(t, 0, d)
-				2: p = Vector3(d, 0, t)
-				_: p = Vector3(-d, 0, t)
-			prop("tree_pine", p, rng.randf() * TAU, rng.randf_range(1.1, 1.8))
-		t += rng.randf_range(4.0, 6.5)
-
-
-## Abetos e pinheiros nas encostas dos maciços (mais densos embaixo) e pedras nas faces de rocha.
-func _mountain_nature() -> void:
-	for m in MOUNTAINS:
-		var c: Vector3 = m[0]
-		var r: float = m[1]
-		var peak: float = m[2]
-		var n := int(r * r * 0.04)
-		for i in n:
-			var a := rng.randf() * TAU
-			var d := sqrt(rng.randf()) * r
-			var p := c + Vector3(cos(a) * d, 0, sin(a) * d)
-			if absf(p.x) > MAP_HALF - 4 or absf(p.z) > MAP_HALF - 4:
-				continue
-			var h: float = ground.height_at(p.x, p.z)
-			var sl: float = ground.slope_at(p.x, p.z)
-			if h > peak * 0.7:
-				continue
-			if sl > 0.45:
-				if sl < 0.6 and rng.randf() < 0.25:   # mais íngreme que isso a pedra fica no ar
-					var s := rng.randf_range(0.8, 2.0)
-					p.y = h - 0.65 * s   # afunda: na encosta um lado fica no ar
-					prop("rock", p, rng.randf() * TAU, s)
-				continue
-			if rng.randf() < 0.2 + 0.5 * (1.0 - h / peak):
-				tree(_pick({"tree_fir": 5, "tree_pine": 3, "tree_birch": 0.6}), p, rng.randf_range(0.8, 1.4))
-
-
-func _blocked(p: Vector3) -> bool:
-	if ground.on_mountain(Vector2(p.x, p.z)) and (ground.slope_at(p.x, p.z) > 0.45 or ground.height_at(p.x, p.z) > 18.0):
-		return true   # penhasco ou alto demais
-	for a in _avoid:
-		if Vector2(p.x, p.z).distance_to(a[0]) < a[1]:
-			return true
-	if abs(p.x) < 5.0 and p.z < -8 and p.z > -92:
-		return true   # trilha norte
-	if abs(p.z) < 5.0 and p.x > 10 and p.x < 66:
-		return true   # trilha leste
-	return false
-
-
-## Floresta densa a leste. A natureza é espalhada em quatro etapas (floresta, resto do mapa, serra,
-## capim), sempre nesta ordem: todas tiram do mesmo `rng`.
-func _scatter_forest() -> void:
-	var placed := 0
-	var tries := 0
-	while placed < 140 and tries < 3000:
-		tries += 1
-		var p := Vector3(rng.randf_range(28, MAP_HALF - 8), 0, rng.randf_range(-70, 70))
-		if _blocked(p):
-			continue
-		tree(_pick({"tree_pine": 5, "tree_fir": 4, "tree_birch": 1.2}), p, rng.randf_range(0.8, 1.5))
-		placed += 1
-
-
-## Árvores esparsas e pedras no resto do mapa.
-func _scatter_sparse() -> void:
-	var placed := 0
-	var tries := 0
-	while placed < 110 and tries < 3000:
-		tries += 1
-		var p := Vector3(rng.randf_range(-MAP_HALF + 8, 28), 0, rng.randf_range(-MAP_HALF + 8, MAP_HALF - 8))
-		if _blocked(p):
-			continue
-		var r := rng.randf()
-		if r < 0.75:
-			var kind := _pick({"tree_oak": 3.5, "tree_pine": 2.2, "tree_birch": 1.6, "tree_maple": 1.2,
-					"tree_cherry": 0.5, "tree_fir": 0.8, "tree_apple": 0.6, "tree_orange": 0.4, "tree_pear": 0.4})
-			tree(kind, p, rng.randf_range(0.8, 1.3))
-		else:
-			var s := rng.randf_range(0.6, 1.6)
-			p.y = maxf(0.0, ground.height_at(p.x, p.z) - 0.3 * s)
-			prop("rock", p, rng.randf() * TAU, s, "cyl", Vector3(0.65, 0.9, 0))
-		placed += 1
-
-
 ## Capim e flores (fora das trilhas pintadas, das pegadas de props e da arena).
 func _scatter_grass() -> void:
 	if Network.is_server():
@@ -1429,36 +871,6 @@ func _respawn() -> void:
 
 
 # ================================================================ guilda, NPCs novos e mapas
-## A Guilda dos Aventureiros no quadro de avisos (Lina + Quadro de Contratos), a carruagem da guilda do
-## lado de fora do portão norte e os moradores que pedem missões secundárias, na vila e pelo vale.
-func _build_guild() -> void:
-	var board_at := VillageLayout.NOTICE_BOARD
-	var fwd := (Vector3(0, 0, 4) - board_at).normalized()
-	add_child(RegionBuilder.point("board", board_at + fwd * 1.1))
-	var spots := VillageLayout.npc_spots()
-	add_child(RegionBuilder.npc("lina", spots.lina[0], spots.lina[1]))
-	var guild := Label3D.new()
-	guild.text = "GUILDA DOS AVENTUREIROS"
-	guild.font_size = 64
-	guild.outline_size = 10
-	guild.pixel_size = 0.006
-	guild.modulate = Color(0.55, 0.8, 1.0)
-	guild.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	guild.position = board_at + Vector3(0, 3.5, 0)
-	add_child(guild)
-	var coach_at: Vector3 = Regions.coach_point("vila")
-	add_child(RegionBuilder.wagon(coach_at + Vector3(-3.2, 0, -0.5), 0.0))
-	_no_grass.append([Vector2(coach_at.x - 3.2, coach_at.z - 0.5), 2.2])
-	add_child(RegionBuilder.npc("coach", coach_at, 0.0))
-	# moradores com pedidos
-	add_child(RegionBuilder.npc("rufus", spots.rufus[0], spots.rufus[1]))       # guarda no portão norte
-	add_child(RegionBuilder.npc("zelia", spots.zelia[0], spots.zelia[1]))       # na porta da casa ao sul
-	add_child(RegionBuilder.npc("tonico", Vector3(-21.0, 0, -22.0), PI / 2))  # nos campos ao norte
-	add_child(RegionBuilder.npc("ravi", Vector3(44.0, 0, 3.6), -PI / 2))     # na trilha leste, depois do portão
-	add_child(RegionBuilder.npc("osvaldo", Vector3(6.0, 0, -76.0), PI))      # na entrada das ruínas
-	add_child(RegionBuilder.point("gato", Vector3(22.5, 0, 30.5), -0.8))     # no pomar
-
-
 ## Cria o nó de jogo de uma MapEntity das cenas de mapa (sem adicionar à árvore; o MapLoader adiciona), na
 ## posição e no giro dela, e guarda as referências que o mundo usa (points, santa). null para tipo desconhecido.
 func make_entity(e: MapEntity) -> Node3D:

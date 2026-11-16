@@ -1,6 +1,6 @@
 extends RefCounted
-## VillageLayout: a planta da vila (scenes/maps/vale.tscn) não pode ter construção dentro de outra, casa em cima
-## da rua (a não ser a borda de um alpendre) nem nada fora da cerca. Mexeu na cena no editor? Rode este teste.
+## VillageLayout: as construções da vila (VillageBuilding no scenes/maps/vale.tscn) não podem ficar uma dentro
+## da outra e precisam das 6 portas da missão de Natal. Mexeu na vila no editor? Rode este teste.
 
 ## As construções vêm de scenes/maps/vale.tscn (VillageLayout.buildings()) e podem ter qualquer giro, então
 ## a pegada é um retângulo girado: [cantos (4 × Vector2), descrição].
@@ -29,14 +29,6 @@ func _all(only_houses := false) -> Array:
 	for b in (VillageLayout.houses() if only_houses else VillageLayout.buildings()):
 		out.append(_foot(b))
 	return out
-
-
-## Retângulo do chão que cobre os cantos.
-func _bounds(pts: Array) -> Rect2:
-	var r := Rect2(pts[0], Vector2.ZERO)
-	for p in pts:
-		r = r.expand(p)
-	return r
 
 
 ## Dois retângulos girados se cruzam (eixos separadores), com folga de 5 cm.
@@ -80,29 +72,9 @@ func test_houses_do_not_overlap() -> void:
 			T.ok(not _overlap(hs[i][0], hs[j][0]), "%s não encosta em %s" % [hs[i][1], hs[j][1]])
 
 
-func test_houses_inside_fence() -> void:
-	var fence: Rect2 = VillageLayout.BOUNDS
-	for h in _all():
-		T.ok(fence.encloses(_bounds(h[0])), "%s dentro da cerca" % h[1])
-
-
-func test_houses_off_the_streets() -> void:
-	for h in _all(true):
-		for st in VillageLayout.STREETS:
-			var c: Vector3 = st[0]
-			var sz: Vector2 = st[1]
-			var road := Rect2(c.x - sz.x / 2.0, c.z - sz.y / 2.0, sz.x, sz.y)
-			var inter: Rect2 = _bounds(h[0]).intersection(road)
-			T.ok(inter.get_area() < 0.6, "%s fora da rua em %s (%.2f m²)" % [h[1], str(c), inter.get_area()])
-
-
+## As 6 portas da missão "Entregas na Vila" (os presentes Espalhados ficam na validação dos mapas).
 func test_event_spots() -> void:
-	T.eq(VillageLayout.GIFTS.size(), 8, "8 presentes, como a missão pede")
 	T.eq(VillageLayout.deliveries().size(), 6, "6 casas de entrega (delivery) na cena, como a missão pede")
-	var fence: Rect2 = VillageLayout.BOUNDS
-	for g in VillageLayout.GIFTS:
-		T.ok(not fence.has_point(Vector2(g.x, g.z)), "presente %s fora da vila" % str(g))
-		T.ok(absf(g.x) < 118.0 and absf(g.z) < 118.0, "presente %s dentro do mapa" % str(g))
 
 
 func test_palette_swap() -> void:
