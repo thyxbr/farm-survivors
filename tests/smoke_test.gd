@@ -2251,6 +2251,9 @@ func _test_farm() -> void:
 	check(Game.eat_selected() and Game.has_buff("food_warm"), "comeu sopa picante")
 	check(abs(Game.mod("gold") - mgold0 - 0.05) < 0.001, "sopa dá +5% de ouro")
 	check(abs(Game.melee_damage() - dmg0) < 0.01, "sopa não muda o dano")
+	var gold_food0 := Game.gold
+	Game.add_gold(100)
+	check(Game.gold - gold_food0 == 105, "comida: ouro ganho na vila +5%% (%d)" % (Game.gold - gold_food0))
 	check(not Game.eat("spicy_soup"), "não come de novo durante a mastigação")
 	Game.tick_buffs(999.0)
 	check(Game.buffs.is_empty() and abs(Game.mod("gold") - mgold0) < 0.001, "bônus expira e o ouro volta")

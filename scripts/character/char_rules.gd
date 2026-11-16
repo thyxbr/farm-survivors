@@ -454,7 +454,7 @@ static func unequip(s: CharState, bt: BalanceTables, slot_name: String) -> Dicti
 # ================================================================ consumo e caldeirão
 ## Tira 1 poção/comida/colheita da mochila. Cura, buff e recarga de comer ficam no cliente;
 ## o aviso de comida sai daqui para manter o texto num lugar só.
-static func consume(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
+static func consume(s: CharState, bt: BalanceTables, id: String, now: float) -> Dictionary:
 	var it := _item(bt, id)
 	if it.is_empty():
 		return _fail("item_invalido")
@@ -469,10 +469,24 @@ static func consume(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	if t != "consumable":
 		var b: Dictionary = bt.get_table("buffs").get(it.get("buff", ""), {})
 		if not b.is_empty():
+			s.food_buffs[str(it.buff)] = now + float(b.time)
 			ev.append(_notify("%s: %s (%ds)" % [it.name, b.name, int(b.time)], it.get("color", Color(1, 0.85, 0.4))))
 		else:
 			ev.append(_notify("Comeu %s" % it.name, Color(0.85, 1.0, 0.7)))
 	return _ok(ev)
+
+
+## Multiplicador de XP/ouro/ímã da comida ativa: 1 + soma de add[stat] dos buffs ainda válidos
+## (os vencidos saem de s.food_buffs). O servidor/solo usa isto na vila; a Horda aplica mod() no cliente.
+static func food_mult(s: CharState, bt: BalanceTables, stat: String, now: float) -> float:
+	var table := bt.get_table("buffs")
+	var m := 1.0
+	for id in s.food_buffs.keys():
+		if float(s.food_buffs[id]) <= now or not table.has(id):
+			s.food_buffs.erase(id)
+			continue
+		m += float(table[id].get("add", {}).get(stat, 0.0))
+	return m
 
 
 static func can_cook(s: CharState, bt: BalanceTables, recipe: String) -> int:
@@ -619,7 +633,7 @@ static func start_quest(s: CharState, bt: BalanceTables, id: String) -> Dictiona
 	return _ok(ev)
 
 
-static func complete_quest(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
+static func complete_quest(s: CharState, bt: BalanceTables, id: String, now := -1.0) -> Dictionary:
 	var qt := bt.get_table("quests")
 	if not qt.has(id):
 		return _fail("missao_invalida")
@@ -649,12 +663,18 @@ static func complete_quest(s: CharState, bt: BalanceTables, id: String) -> Dicti
 	s.quests[id].progress = int(q.count)
 	s.quests[id].state = "done"
 	ev.append(_notify("Missão concluída: %s" % q.name, C_QUEST))
-	s.gold += int(q.reward_gold)
-	ev.append(_notify("+%d ouro" % int(q.reward_gold), C_GOLD))
+	# comida (XP/ouro): só quando o serviço passa o relógio
+	var gold_r := int(q.reward_gold)
+	var xp_r := int(q.reward_xp)
+	if now >= 0.0:
+		gold_r = int(round(gold_r * food_mult(s, bt, "gold", now)))
+		xp_r = int(round(xp_r * food_mult(s, bt, "xp", now)))
+	s.gold += gold_r
+	ev.append(_notify("+%d ouro" % gold_r, C_GOLD))
 	for item in q.reward_items:
 		add_item(s, bt, item, int(q.reward_items[item]))
 		ev.append({"t": "looted", "id": item, "qty": int(q.reward_items[item])})
-	_add_xp(s, bt, int(q.reward_xp), ev)
+	_add_xp(s, bt, xp_r, ev)
 	# pontos de guilda (só depois do registro na guilda contam para o rank; antes ficam guardados)
 	var pts := quest_points(bt, q)
 	var registered := id == "registro" or quest_state(s, "registro") == "done" or not bt.get_table("quests").has("registro")

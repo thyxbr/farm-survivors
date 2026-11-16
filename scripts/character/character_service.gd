@@ -43,6 +43,9 @@ const ARGS := {
 ## Concessões dessas origens acontecem a cada coleta durante a partida: o registro é um só, no fim
 ## (finish_player, que também concede os Ecos da partida).
 const UNLOGGED_SOURCES := ["horde_run", "city_night"]
+## Concessões de jogo na vila que recebem o bônus de comida (XP/ouro). Fora daqui: Horda (o cliente já
+## aplica mod()), admin, teste, venda, compra, coleta de material, demo.
+const FOOD_SOURCES := ["loot", "gold", "xp", "party_xp"]
 ## Recordes de partida que o servidor/solo grava no personagem (set_record).
 const RECORD_KEYS := ["horde_best", "city_best"]
 const SOLO_ACCOUNT := 1
@@ -140,6 +143,9 @@ func apply(account_id: int, op: String, args: Array) -> Dictionary:
 func grant(account_id: int, gold: int, xp: int, items: Dictionary, source: String) -> Dictionary:
 	var s := load_or_create(account_id)
 	var before := _holdings(s)
+	if source in FOOD_SOURCES and gold >= 0 and xp >= 0:
+		gold = int(round(gold * CharRules.food_mult(s, _bt, "gold", _now())))
+		xp = int(round(xp * CharRules.food_mult(s, _bt, "xp", _now())))
 	var r := CharRules.grant(s, _bt, gold, xp, items)
 	if r.ok:
 		var log_it := not (source in UNLOGGED_SOURCES)
@@ -149,6 +155,8 @@ func grant(account_id: int, gold: int, xp: int, items: Dictionary, source: Strin
 
 func kill(account_id: int, kind: String, xp: int) -> Dictionary:
 	var s := load_or_create(account_id)
+	if xp >= 0:
+		xp = int(round(xp * CharRules.food_mult(s, _bt, "xp", _now())))
 	var r := CharRules.kill(s, _bt, kind, xp)
 	if r.ok:
 		r = _persist(account_id, s, {}, "kill", "kill", r)
@@ -341,11 +349,11 @@ func _dispatch(s: CharState, op: String, a: Array) -> Dictionary:
 		"sell": return CharRules.sell(s, _bt, a[0])
 		"equip": return CharRules.equip(s, _bt, a[0])
 		"unequip": return CharRules.unequip(s, _bt, a[0])
-		"consume": return CharRules.consume(s, _bt, a[0])
+		"consume": return CharRules.consume(s, _bt, a[0], _now())
 		"cook": return CharRules.cook(s, _bt, a[0], a[1] if a.size() > 1 else 1)
 		"spend_point": return CharRules.spend_point(s, _bt, a[0])
 		"start_quest": return CharRules.start_quest(s, _bt, a[0])
-		"complete_quest": return CharRules.complete_quest(s, _bt, a[0])
+		"complete_quest": return CharRules.complete_quest(s, _bt, a[0], _now())
 		"rank_up": return CharRules.rank_up(s, _bt)
 		"choose_class": return CharRules.choose_class(s, _bt, a[0], a[1])
 		"quest_mark": return CharRules.quest_mark(s, _bt, a[0], a[1])

@@ -32,6 +32,8 @@ var enchants := {}
 ## Classe fixa escolhida na criação (ver CharRules.CLASS_IDS) e corpo ("m" ou "f"); "" = save antigo, sem escolha.
 var char_class := ""
 var body := ""
+## Bônus de comida ativos: buff_id -> expira_em (relógio do serviço). Só da sessão: não vai ao save.
+var food_buffs := {}
 
 
 ## Personagem novo: sem equipamento, só consumíveis e sementes.

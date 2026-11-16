@@ -143,7 +143,7 @@ func _physics_process(delta: float) -> void:
 		if to.length() < 1.0:
 			_collect()
 			return
-		if to.length() < 3.5:
+		if to.length() < 3.5 * Game.mod("magnet"):
 			global_position += to.normalized() * min(to.length(), (12.0 - to.length() * 2.0) * delta)
 			_grounded = true
 			if net_id > 0:

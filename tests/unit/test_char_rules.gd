@@ -159,13 +159,13 @@ func test_consume() -> void:
 	var bt := _tables()
 	var s := _blank()
 	s.inventory = [{"id": "health_potion", "qty": 2}, {"id": "carrot", "qty": 1}, {"id": "iron_sword", "qty": 1}]
-	T.ok(CharRules.consume(s, bt, "health_potion").ok, "poção")
+	T.ok(CharRules.consume(s, bt, "health_potion", 0.0).ok, "poção")
 	T.eq(_count(s, "health_potion"), 1, "tirou uma")
-	var r := CharRules.consume(s, bt, "carrot")
+	var r := CharRules.consume(s, bt, "carrot", 0.0)
 	T.ok(r.ok, "colheita crua")
 	T.eq(r.events[0].text, "Comeu Cenoura", "aviso")
-	T.eq(CharRules.consume(s, bt, "carrot").err, "sem_item", "acabou")
-	T.eq(CharRules.consume(s, bt, "iron_sword").err, "nao_consumivel", "espada não se come")
+	T.eq(CharRules.consume(s, bt, "carrot", 0.0).err, "sem_item", "acabou")
+	T.eq(CharRules.consume(s, bt, "iron_sword", 0.0).err, "nao_consumivel", "espada não se come")
 
 
 func test_food_buffs_are_generic() -> void:
@@ -189,7 +189,7 @@ func test_food_buffs_are_generic() -> void:
 		T.ok(buffs.has(id) and buffs[id].time > 0.0, "buff de habilidade %s" % id)
 	var s := _blank()
 	s.inventory = [{"id": "spicy_soup", "qty": 1}]
-	var r := CharRules.consume(s, bt, "spicy_soup")
+	var r := CharRules.consume(s, bt, "spicy_soup", 0.0)
 	T.ok(r.events[0].text.contains("Calor Picante"), "aviso mostra o buff novo")
 
 
@@ -830,3 +830,18 @@ func test_heal_amount_uses_scepter_heal_bonus() -> void:
 	var sp: float = 5.0 + float(it.stats.get("spell", 0.0))
 	T.eq(CharRules.heal_amount(s, tables), (30.0 + 4.0 * sp) * (1.0 + float(it.heal)), "bônus de cura da arma")
 	T.ok(base > 0.0, "base positiva")
+
+
+func test_food_mult_xp_and_expiry() -> void:
+	var bt := _tables()
+	var s := _blank()
+	T.eq(CharRules.food_mult(s, bt, "xp", 0.0), 1.0, "sem buff = 1.0")
+	s.inventory = [{"id": "garden_salad", "qty": 1}]
+	var buff: Dictionary = bt.get_table("buffs")[bt.get_table("items")["garden_salad"].buff]
+	T.ok(CharRules.consume(s, bt, "garden_salad", 100.0).ok, "comeu")
+	var m := CharRules.food_mult(s, bt, "xp", 100.0)
+	T.ok(is_equal_approx(m, 1.0 + float(buff.add.get("xp", 0.0))) and m > 1.0, "salada dá XP: %s" % m)
+	T.eq(CharRules.food_mult(s, bt, "damage", 100.0), 1.0, "outro atributo não muda")
+	T.eq(CharRules.food_mult(s, bt, "xp", 100.0 + float(buff.time) + 1.0), 1.0, "expirou")
+	T.ok(s.food_buffs.is_empty(), "vencido removido")
+	T.ok(not s.to_dict().has("food_buffs"), "não vai ao save")

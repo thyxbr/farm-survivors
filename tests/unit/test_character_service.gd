@@ -359,3 +359,29 @@ func test_op_blocked_without_class() -> void:
 	T.eq(svc.load_or_create(2).equipment.weapon, "short_bow", "arco inicial")
 	T.ok(svc.apply(2, "buy", ["health_potion", 1]).ok, "depois da escolha compra")
 	db.close()
+
+
+func test_food_bonus_xp_gold_in_town() -> void:
+	var db := _fresh()
+	var t := [1000.0]
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables(), func() -> float: return t[0])
+	svc.apply(2, "choose_class", ["warrior", "m"])
+	var s := svc.load_or_create(2)
+	var xp0 := s.xp
+	s.inventory.append({"id": "garden_salad", "qty": 1})
+	T.ok(svc.apply(2, "consume", ["garden_salad"]).ok, "comeu")
+	svc.kill(2, "slime", 10)
+	T.eq(s.xp - xp0, 11, "kill de 10 XP vira 11 (+10%)")
+	xp0 = s.xp
+	svc.grant(2, 0, 10, {}, "party_xp")
+	T.eq(s.xp - xp0, 11, "XP do grupo também")
+	xp0 = s.xp
+	svc.grant(2, 0, 10, {}, "horde_run")
+	T.eq(s.xp - xp0, 10, "horde_run não multiplica")
+	svc.grant(2, 0, 10, {}, "admin")
+	T.eq(s.xp - xp0, 20, "outras fontes não multiplicam")
+	xp0 = s.xp
+	t[0] += 1000.0   # passou do tempo do buff
+	svc.kill(2, "slime", 10)
+	T.eq(s.xp - xp0, 10, "depois de expirar volta ao normal")
+	db.close()
