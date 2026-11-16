@@ -25,14 +25,14 @@ FEM_LEG = (0.95, 0.92)             # perna: ao longo do eixo, na seção (pé ma
 FEM_ABDUCT = math.radians(4.5)     # braço um pouco mais aberto (o quadril mais largo passa perto da mão)
 FEM_NECK = 0.86                    # pescoço mais fino
 # largura (x) e profundidade (y) do tronco por altura (z do corpo masculino)
-FEM_SX = [(0.0, 1.07), (0.95, 1.07), (1.09, 0.81), (1.18, 0.83), (1.29, 0.88), (1.40, 0.86), (1.47, 0.85),
+FEM_SX = [(0.0, 1.1), (0.95, 1.1), (1.09, 0.77), (1.18, 0.8), (1.29, 0.88), (1.40, 0.86), (1.47, 0.85),
           (3.0, 0.85)]
 FEM_SY = [(0.0, 1.0), (0.95, 1.0), (1.09, 0.9), (1.29, 0.93), (1.45, 0.88), (3.0, 0.86)]
 # busto (medidas no corpo masculino): altura do centro, quedas para baixo/para cima, centro de cada volume,
 # largura de cada volume e projeção para a frente
 BUST_Z, BUST_LO, BUST_HI = 1.265, 0.05, 0.085
-BUST_X, BUST_W, BUST_A = 0.068, 0.05, 0.06
-BUST_LO_CLOTH = 0.085              # tecido desce reto do busto (não entra no vinco de baixo)
+BUST_X, BUST_W, BUST_A = 0.072, 0.05, 0.064
+BUST_LO_CLOTH = 0.06               # tecido: cai um pouco abaixo do busto (dobra/sombra embaixo dele)
 BUST_LO_PLATE = 0.07               # peitoral: curva de baixo um pouco mais marcada (o plackart cobre embaixo)
 
 
@@ -56,7 +56,7 @@ def _bust(x, y, z, mode):
     ax = abs(x)
     two = math.exp(-((ax - BUST_X) / BUST_W) ** 2)                    # dois volumes (vinco no meio)
     one = 1.0 if ax < BUST_X else two                                 # um volume só, plano no meio
-    gx = {"skin": two, "cloth": 0.45 * two + 0.55 * one, "plate": one}[mode]
+    gx = {"skin": two, "cloth": 0.6 * two + 0.4 * one, "plate": one}[mode]
     return BUST_A * fw * gz * gx
 
 
@@ -318,84 +318,67 @@ def _back_y(x, z, add):
     return add
 
 
-# mechas de trás: (phi, comprimento até z do corpo masculino); o meio desce mais (barra em V, pontas anime)
-BACK_LOCKS = [(102, 1.44), (122, 1.39), (142, 1.355), (162, 1.335), (180, 1.32), (-162, 1.34), (-142, 1.36),
-              (-122, 1.395), (-102, 1.445)]
+# mechas soltas de trás: (direção em graus, z da ponta no corpo masculino); o meio desce mais (barra em V)
+BACK_LOCKS = [(100, 1.43), (122, 1.385), (146, 1.345), (169, 1.32), (191, 1.32), (214, 1.345), (238, 1.385),
+              (260, 1.43)]
 HAIR_CLEAR = 0.04            # distância do cabelo solto às costas (pele); cobre camisa e couro
+# cabelo de cima no estilo dos NPCs (anime.py): franja larga repartida caindo para um lado com a testa e os
+# olhos à mostra, camada de cima com volume, mechas pontudas
+FEM_HAIR_STYLE = {"fringe": 24, "side": 4, "back": -30, "part": 30, "sweep": -1, "top": 9, "w": 1.3,
+                  "lift": 1.7, "seed": 7}
 
 
-def back_lock_pts(H, phi, z_end):
-    """Trajeto de uma mecha de trás: do alto da cabeça pela nuca e caindo pelas costas até z_end."""
-    pts = [_fscalp(H, phi * 0.55 + (180 if phi > 0 else -180) * 0.45, 72, lift=0.006)]
-    for th in (48, 22, -4, -24):
-        pts.append(_fscalp(H, phi, th, lift=0.012 + 0.006 * (th < 0)))
-    pe = pts[-1]
-    z0, n = pe.z, 5
-    for j in range(1, n + 1):
-        t = j / n
-        z = z0 + (z_end - z0) * t
-        x = pe.x * (1 - 0.3 * t)
-        y = max(pe.y + 0.01 * t, _back_y(x, z, HAIR_CLEAR + 0.004 * j))
-        pts.append(Vector((x, y, z)))
-    return pts
+def _hair_nrm(H):
+    s = H["s"]
+    C = Vector((0, H["cy"], H["chin"] + 12.0 * s))
+
+    def nrm(p):
+        r = p - C
+        if r.z > 0:
+            return Vector((r.x / 7.5 ** 2, r.y / 9.5 ** 2, r.z / 11.0 ** 2)).normalized()
+        h = Vector((r.x, r.y, 0))
+        return h.normalized() if h.length > 1e-5 else Vector((0, 1, 0))
+    return nrm
 
 
 def fem_hair(H, head, HM, back=True):
-    """Cabelo comprido: calota com volume, franja pontuda, mechas dos lados emoldurando o rosto e (back)
-    cabelo solto caindo nas costas até as escápulas. Tons: hair (base), mid (realce), under (avesso)."""
+    """Cabelo comprido: camadas anime (calota, camada de cima com volume, franja larga para o lado, nuca),
+    duas mechas largas emoldurando o rosto até o colo e (back) cabelo solto nas costas até as escápulas."""
     s = H["s"]
-    f = H["s"] * 23.0 / 0.245
-    C = Vector((0, H["cy"], H["chin"] + 12.0 * s))
-    parts = [shell("HairBase", (0, 0.006 * f, H["chin"] + 0.168 * f), (0.162 * f, 0.212 * f, 0.212 * f), HM["hair"],
-                   cut=0.25, seg=10, rings=6, rot=(-0.2, 0, 0), thick=0.008, parent=head),
-             shell("HairBaseBack", (0, 0.008 * f, H["chin"] + 0.14 * f), (0.168 * f, 0.276 * f, 0.21 * f),
-                   HM["under"], cut=0.1, seg=10, rings=6, rot=(-math.pi / 2, 0, 0), thick=0.008, parent=head)]
-    # franja: mechas da coroa até a sobrancelha, repartida um pouco à esquerda, pontas em alturas diferentes
-    bangs = []
-    for i, (phi, th, w) in enumerate(((-52, 30, 0.05), (-34, 19, 0.058), (-15, 15, 0.06), (6, 18, 0.056),
-                                       (24, 14, 0.06), (42, 21, 0.056), (58, 33, 0.048))):
-        bangs.append(dict(a=(phi * 0.45 + (170 if phi >= 0 else -170), 74), b=(phi, th), w=w, t=0.013,
-                          bulge=0.016, lift=0.007, n=6))
-    # volume do topo e dos lados (por cima das orelhas)
-    for phi in (78, 100, -78, -100):
-        bangs.append(dict(a=(phi * 0.4 + (180 if phi > 0 else -180) * 0.6, 80), b=(phi, 30), w=0.07, t=0.014,
-                          bulge=0.02, lift=0.008, n=5))
-    for i, L in enumerate(bangs):
-        hair_locks("HairTop%02d" % i, H, [L], HM["mid"] if i % 3 == 1 else HM["hair"], head, scale=1.06)
-    # mechas do rosto: da têmpora, passam na frente da orelha e descem até abaixo do queixo
-    for sg in (1, -1):
-        for k, (phi, drop, w) in enumerate(((62, 0.12, 0.05), (76, 0.15, 0.056))):
-            a, b = _fscalp(H, sg * (phi - 22), 58, lift=0.008), _fscalp(H, sg * (phi + 4), 14, lift=0.012)
-            m = _fscalp(H, sg * phi, 36, lift=0.016)
-            e = _fscalp(H, sg * (phi + 8), -8, lift=0.014)
-            out = Vector((e.x, 0, 0)).normalized() * 0.008
-            pts = [a, m, b, e, e + Vector((0, -0.006, -drop * 0.5)) + out,
-                   e + Vector((0, -0.012, -drop)) + out * 0.5]
-            n = len(pts) - 1
-            parts.append(strand("HairSide%s%d" % ("L" if sg > 0 else "R", k), pts,
-                                [w * (1 - i / n) ** 0.6 for i in range(n + 1)],
-                                [0.013 * (1 - 0.4 * i / n) for i in range(n + 1)],
-                                HM["hair"] if k else HM["mid"], head, C))
+    out = anime_hair("", H, HM, head, FEM_HAIR_STYLE)
+    nrm = _hair_nrm(H)
+
+    def sp(th, ph, lift):
+        return _scalp(H, th, ph, lift * s)
+    fb = bmesh.new()
+    for sg in (1, -1):        # mechas do rosto: da têmpora, na frente da orelha, até abaixo do queixo
+        _lock(fb, [sp(sg * 56, 46, 1.2), sp(sg * 70, 18, 1.8), sp(sg * 78, -12, 1.9),
+                   Vector((sg * 0.074, -0.022, H["chin"] - 0.012)), Vector((sg * 0.07, -0.05, H["chin"] - 0.062))],
+              0.024, nrm, th_k=0.32, k=3, root=0.6)
+    out.append(_hair_obj("HairFrame", fb, HM["hair"], head))
     if back:
-        for i, (phi, z_end) in enumerate(BACK_LOCKS):
-            pts = back_lock_pts(H, phi, z_end)
-            n = len(pts) - 1
-            w = 0.075 if abs(phi) > 150 else 0.07
-            parts.append(strand("HairBack%02d" % i, pts,
-                                [w * (1 - (i2 / n) ** 2.2) for i2 in range(n + 1)],
-                                [0.016 * (1 - 0.5 * i2 / n) for i2 in range(n + 1)],
-                                HM["under"] if i % 2 else HM["hair"], head, C))
-    return parts
+        bb = bmesh.new()
+        for th, z_end in BACK_LOCKS:
+            ctrl = [sp(180 + (th - 180) * 0.6, 74, 1.0), sp(th, 38, 1.8), sp(th, 0, 2.0), sp(th, -26, 1.8)]
+            pe = ctrl[-1]
+            for j in (1, 2, 3):
+                t = j / 3
+                z = pe.z + (z_end - pe.z) * t
+                x = pe.x * (1 - 0.3 * t)
+                ctrl.append(Vector((x, max(pe.y + 0.01 * t, _back_y(x, z, HAIR_CLEAR + 0.004 * j)), z)))
+            _lock(bb, ctrl, 0.036 if abs(th - 180) < 30 else 0.032, nrm, th_k=0.3, k=3, root=0.7)
+        out.append(_hair_obj("HairLong", bb, HM["under"], head))
+    return out
 
 
 def ponytail_path(H):
     """Rabo de cavalo alto (medidas do corpo masculino, região da cabeça): do prendedor no alto da nuca
     sobe um pouco para trás e cai pelas costas, por fora do cabelo solto, até abaixo das escápulas."""
-    tie = _fscalp(H, 180, 34, lift=0.022)
+    tie = _fscalp(H, 180, 34, lift=0.024)
     root = _fscalp(H, 180, 40, k=0.7)
-    path = [tie + Vector((0, 0.032, 0.002)), tie + Vector((0, 0.052, -0.03)), tie + Vector((0, 0.06, -0.075))]
+    path = [tie + Vector((0, 0.04, 0.004)), tie + Vector((0, 0.066, -0.03)), tie + Vector((0, 0.074, -0.078))]
     for z in (1.6, 1.545, 1.49):
-        y = max(_back_y(0, z, HAIR_CLEAR + 0.045), path[-1].y - 0.008)
+        y = max(_back_y(0, z, HAIR_CLEAR + 0.06), path[-1].y - 0.008)
         path.append(Vector((0, y, z)))
     path.append(path[-1] + Vector((0, -0.004, -0.045)))
     return root, tie, path
@@ -404,8 +387,8 @@ def ponytail_path(H):
 def build_ponytail(root, tie, path, head, HM):
     """Malha do rabo de cavalo (coordenadas de mundo; origem final no prendedor)."""
     # volume principal: seção oval (larga em x), cheia logo depois do prendedor, afina para a ponta
-    rad = [(0.034, 0.028), (0.048, 0.038), (0.052, 0.04), (0.048, 0.037), (0.043, 0.033), (0.036, 0.028),
-           (0.026, 0.021), (0.018, 0.015)]
+    rad = [(0.044, 0.04), (0.054, 0.046), (0.052, 0.044), (0.046, 0.038), (0.038, 0.032), (0.028, 0.024),
+           (0.018, 0.015), (0.01, 0.009)]
     secs = [sec(root, 0.022, 0.02), sec(tie, 0.024, 0.021)] + [sec(p, rx, ry) for p, (rx, ry) in zip(path, rad)]
     parts = [loft("Ponytail", secs, HM["hair"], head, sides=7, phase=0.5)]
     # pontas: três mechas pontudas saindo do fim (anime) e duas mechas soltas por fora do volume
@@ -418,16 +401,23 @@ def build_ponytail(root, tie, path, head, HM):
         b = end + Vector((dx, dy, 0)) + d * ln * 0.5
         c = end + Vector((dx * 1.5, dy + 0.004, 0)) + d * ln
         parts.append(strand("PonyTip%d" % k, [a, b, c], [w, w * 0.6, 0.0], [0.012, 0.009, 0.0], HM[m], head, axis))
-    for k, sg in enumerate((1, -1)):
-        pts = [path[1] + Vector((sg * 0.03, 0.006, -0.01)), path[3] + Vector((sg * 0.036, 0.01, 0)),
-               path[5] + Vector((sg * 0.026, 0.008, 0)), path[6] + Vector((sg * 0.014, 0.004, -0.02))]
-        parts.append(strand("PonyLock%d" % k, pts, [0.04, 0.036, 0.024, 0.0], [0.012, 0.011, 0.008, 0.0],
-                            HM["mid"], head, axis))
+    # mechas largas e pontudas por cima do volume (estilo anime): meio e dois lados, em tons diferentes
+    for k, (sg, m, ln) in enumerate(((0, "mid", 0.07), (1, "hair", 0.05), (-1, "under", 0.055))):
+        def at(i, f=1.0):
+            rx, ry = rad[i]
+            return path[i] + Vector((sg * rx * 0.62, ry * (0.82 if sg else 0.98) + 0.004, 0)) * f
+        ctrl = [at(0), at(1), at(3), at(5), path[6] + Vector((sg * 0.016, 0.012, -ln))]
+        lb = bmesh.new()
+        _lock(lb, ctrl, 0.03 if sg == 0 else 0.026, lambda p_, sg=sg: Vector((sg * 0.6, 1, 0)).normalized(),
+              th_k=0.3, k=3, root=0.8)
+        parts.append(_hair_obj("PonyLock%d" % k, lb, HM[m], head))
     # prendedor: aro de fita em volta do começo do rabo
     ax = (path[0] - tie).normalized()
     parts.append(loft("PonyTie", [sec(tie - ax * 0.008, 0.03, 0.027), sec(tie + ax * 0.016, 0.031, 0.028)],
                       HM["tie"], head, sides=8, axis=ax, chamfer=(0.003, 0.003)))
     ob = join_objs("Ponytail", parts)
+    for pl in ob.data.polygons:      # liso como o cabelo anime da cabeça
+        pl.use_smooth = True
     # origem no prendedor (o jogo pode balançar o nó em volta dele)
     off = tie - _wloc(head)
     for v in ob.data.vertices:
@@ -438,26 +428,17 @@ def build_ponytail(root, tie, path, head, HM):
 
 
 # ------------------------------------------------------------------ rosto feminino
-FEM_FACE = {"jaw": 0.97, "chin": 0.85, "brow": 0.8, "nose": 0.8, "nose_w": 0.85, "fem": 1.0, "eye_size": 1.18,
-            "cheek": 0.85, "mouth_w": 0.95}
-
-
-def fem_face_mats(M):
-    return {"skin": M["skin"], "pupil": M["eye"], "sclera": M["sclera"], "brow": gm("g_brow_f", "#3A2213", 0.9),
-            "lip": gm("g_lip_f", "#B65A63", 0.7)}
+FEM_FACE = {"eye_w": 1.12, "eye_h": 1.15, "lash": 1.5, "brow": 0.7, "brow_dz": 0.4, "nose": 0.55, "jaw": 0.86,
+            "mouth_w": 0.85}
 
 
 def fem_plain_head(R, M, beard=False, hair=True):
-    """plain_head do corpo feminino (barba nunca): rosto mais fino, olhos maiores com cílios marcados,
-    sobrancelha fina, boca rosada; cabelo comprido sem o rabo (que mora no knight_f.glb)."""
+    """plain_head do corpo feminino (barba nunca): rosto anime liso (anime.py) com olhos grandes e brilho,
+    cílios marcados, sobrancelha fina e alta, nariz pequeno, queixo fino e boca rosada; cabelo comprido sem o
+    rabo de cavalo (que mora no knight_f.glb)."""
     head = R["Head"]
-    fm = fem_face_mats(M)
-    H = human_head("", HEAD_CHIN, HEAD_H, head, fm, FEM_FACE)
-    s, es = H["s"], FEM_FACE["eye_size"]
-    for sg, nm in ((1, "L"), (-1, "R")):
-        x = sg * H["eye_x"]
-        tbox("LashTop" + nm, (x + sg * 0.15 * s, H["eye_y"] - 0.2 * s, H["eye_z"] + 0.55 * es * s),
-             (2.55 * es * s, 0.45 * s, 0.4 * s), M["eye"], top=(0.9, 1.0), rot=(0, -sg * 0.14, 0), parent=head)
+    am = anime_mats("hf", hexc("#D29A74"), hexc("#5B3A22"), hexc("#3A2213"), hexc("#1E120A"), hexc("#C25D68"))
+    H = anime_head("", HEAD_CHIN, HEAD_H, head, am, FEM_FACE)
     if hair:
         fem_hair(H, head, fem_hair_mats(M), back=True)
     return H
