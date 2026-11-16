@@ -87,7 +87,10 @@ var _dodge_age := 0.0   ## há quanto tempo a esquiva atual começou (anima o ro
 var invuln := 0.0
 ## Lentidão deixada pela Slime de Gelo (segundos restantes); ver apply_chill.
 var chill_t := 0.0
+## Preso na teia da Tecelã (segundos restantes): anda bem mais devagar; ver apply_web.
+var web_t := 0.0
 const CHILL_SPEED := 0.6
+const WEB_SPEED := 0.3
 var cast_timer := 0.0
 var stamina_delay := 0.0
 var shake := 0.0
@@ -115,10 +118,6 @@ var input_locked := false
 var horde_frozen := false
 ## Digitando no chat: as teclas vão para a caixa de texto, não para o personagem.
 var chat_typing := false
-## Defesa da Cidade: no modo construção o clique posiciona prédios (sem atacar, esquivar ou conjurar).
-var build_lock := false
-## Praça: além do build_lock, sem poção de mana nem comida (lá não há combate).
-var peaceful := false
 ## Emote em andamento (KnightEmotes.KINDS) ou "". Andar, pular ou abrir o chat cancela.
 var emote := ""
 var _emote_t := 0.0
@@ -317,7 +316,7 @@ func _local_process(delta: float) -> void:
 	_regen(delta)
 
 	var loading: bool = Loading.covering   # tela de carregamento: sem controle até ela abrir
-	if input_locked or horde_frozen or chat_typing or build_lock or loading:
+	if input_locked or horde_frozen or chat_typing or loading:
 		end_ability()
 	if input_locked or horde_frozen or chat_typing or loading:
 		aiming = false
@@ -350,6 +349,9 @@ func _local_process(delta: float) -> void:
 	if chill_t > 0.0:
 		chill_t -= delta
 		speed *= CHILL_SPEED
+	if web_t > 0.0:
+		web_t -= delta
+		speed *= WEB_SPEED
 	if attacking:
 		speed *= 0.3 if look["class"] == "sword" else 0.55
 	elif drawing:
@@ -387,29 +389,27 @@ func _local_process(delta: float) -> void:
 		velocity.y = JUMP_VELOCITY
 	# com arco o botão direito mira: o mesmo clique não esquiva (a esquiva fica no Ctrl/Alt)
 	var aim_click: bool = look["class"] == "bow" and Input.is_action_just_pressed("aim")
-	if Input.is_action_just_pressed("dodge") and not build_lock and not aim_click:
+	if Input.is_action_just_pressed("dodge") and not aim_click:
 		_dodge_pressed(dir)
-	if look["class"] != "bow" or build_lock or busy:
+	if look["class"] != "bow" or busy:
 		aiming = false
-	if build_lock:
-		_cancel_draw()
-	elif busy:
+	if busy:
 		pass   # habilidade em execução: sem ataque nem arco
 	elif look["class"] == "bow":
 		_update_bow(delta)
 	elif Input.is_action_just_pressed("attack"):
 		_try_attack()
 	for i in 4:
-		if Input.is_action_just_pressed("spell_%d" % (i + 1)) and not build_lock:
+		if Input.is_action_just_pressed("spell_%d" % (i + 1)):
 			use_slot(i + 1)
 	# soltou a tecla da habilidade em execução (ex.: o arqueiro solta a flecha ao largar a tecla)
 	if ability != "" and ability_slot >= 1 and Input.is_action_just_released("spell_%d" % ability_slot):
 		_ab_module(ability).release(self)
-	if Input.is_action_just_pressed("potion") and not build_lock:   # R gira a construção no modo construção
+	if Input.is_action_just_pressed("potion"):
 		_quick_potion("health_potion")
-	if Input.is_action_just_pressed("mana_potion") and not peaceful:
+	if Input.is_action_just_pressed("mana_potion"):
 		_quick_potion("mana_potion")
-	if Input.is_action_just_pressed("eat") and not peaceful:
+	if Input.is_action_just_pressed("eat"):
 		Game.eat_selected()
 	if Input.is_action_just_pressed("food_next"):
 		Game.cycle_food()
@@ -469,6 +469,13 @@ func _tick_timers(delta: float) -> void:
 
 
 func _regen(delta: float) -> void:
+	if Game.admin_mode():
+		# modo admin: vida, mana, fôlego e fúria sempre cheios
+		Game.hp = Game.max_hp()
+		Game.mp = Game.max_mp()
+		Game.stamina = Game.max_stamina()
+		Game.fury = Game.FURY_MAX
+		return
 	Game.mp = min(Game.max_mp(), Game.mp + (0.8 + Game.attr("int") * 0.15) * delta)
 	Game.hp = min(Game.max_hp(), Game.hp + (0.3 + Game.attr("vit") * 0.05 + Game.mod("regen")) * delta)
 	if stamina_delay <= 0:
@@ -590,7 +597,7 @@ func _do_hit() -> void:
 		hit_any = true
 		hit_enemy = true
 		flesh = flesh or str(e.data.get("model", "")) != "slime"
-	# nós de recurso da Defesa da Cidade (árvores, pedras, veios...): mesmo alcance e mesmo cone
+	# veios de ferro e cristal de Valdoria: mesmo alcance e mesmo cone
 	for n in get_tree().get_nodes_in_group("harvest"):
 		if not n.alive:
 			continue
@@ -1070,6 +1077,20 @@ func apply_chill(secs: float) -> void:
 	FX.burst(global_position + Vector3.UP, Color(0.6, 0.85, 1.0), 14, 2.5, 0.1, 0.6)
 
 
+## Teia da Tecelã: quase parado por `secs`. Não acumula, só renova.
+func apply_web(secs: float) -> void:
+	if remote:
+		if Network.is_server() and not dead:
+			Network.server_web_player(peer_id, secs)
+		return
+	if dead or secs <= 0.0:
+		return
+	if web_t <= 0.0:
+		Game.notify.emit("Preso na teia! Mal consegue andar.", Color(0.9, 0.9, 0.95))
+	web_t = maxf(web_t, secs)
+	FX.burst(global_position + Vector3.UP * 0.8, Color(0.92, 0.92, 0.96), 18, 2.0, 0.12, 0.7)
+
+
 func take_damage(amount: float, from_pos: Vector3) -> void:
 	if remote:
 		# no servidor, o golpe de um inimigo na réplica vira dano no PC do dono
@@ -1077,6 +1098,8 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 			Network.server_damage_player(peer_id, amount, from_pos)
 		return
 	if dead or invuln > 0 or Loading.covering:   # coberto pela tela de carregamento: imune
+		return
+	if Game.admin_mode():
 		return
 	var final_dmg: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
 	Game.hp -= final_dmg
@@ -1145,7 +1168,7 @@ func _find_interact_target() -> void:
 	var best: Node3D = null
 	var best_d := 3.0
 	for n in get_tree().get_nodes_in_group("interactable"):
-		# alvos grandes (construções da cidade) medem a partir da borda, não do centro
+		# alvos grandes medem a partir da borda, não do centro
 		var d: float = n.interact_distance(global_position) if n.has_method("interact_distance") \
 			else n.global_position.distance_to(global_position)
 		if d < best_d:

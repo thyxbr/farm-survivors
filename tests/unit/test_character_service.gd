@@ -265,7 +265,7 @@ func test_set_record() -> void:
 func test_enchant_persists_and_logs() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
-	svc.load_or_create(2)
+	svc.load_or_create(2).equipment.weapon = "azure_edge"
 	svc.grant(2, 50, 0, {"iron_ore": 4, "ember_core": 2}, "test")
 	var r := svc.apply(2, "enchant", ["fogo"])
 	T.ok(r.ok, "encantou pelo serviço: %s" % r.err)
@@ -285,7 +285,7 @@ func test_enchant_persists_and_logs() -> void:
 func test_enchant_bad_args_and_refusal() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
-	svc.load_or_create(2)
+	svc.load_or_create(2).equipment.weapon = "azure_edge"
 	T.eq(svc.apply(2, "enchant", []).err, "args", "sem argumento")
 	T.eq(svc.apply(2, "enchant", [3]).err, "args", "tipo errado")
 	T.eq(svc.apply(2, "enchant", ["luz"]).err, "elemento_invalido", "elemento desconhecido")
@@ -299,6 +299,7 @@ func test_enchant_ecos_logged() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	var s := svc.load_or_create(2)
+	s.equipment.weapon = "azure_edge"
 	s.enchants["azure_edge"] = {"el": "sombra", "lv": 4}
 	s.ecos = 40
 	svc.grant(2, 1000, 0, {"iron_ore": 20, "arcane_crystal": 12, "shadow_fang": 10}, "test")

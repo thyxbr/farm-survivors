@@ -1358,6 +1358,34 @@
 		"stack": true,
 		"desc": "Sobrou de um esqueleto. Ainda range."
 	},
+	"frog_tongue": {
+		"name": "Língua de Bocarrão",
+		"type": "material",
+		"price": 18,
+		"stack": true,
+		"desc": "Comprida, grudenta e ainda se mexe um pouco."
+	},
+	"bat_wing": {
+		"name": "Asa de Couro",
+		"type": "material",
+		"price": 9,
+		"stack": true,
+		"desc": "Pele fina e resistente das asas do morcego das ruínas."
+	},
+	"spider_silk": {
+		"name": "Seda de Tecelã",
+		"type": "material",
+		"price": 12,
+		"stack": true,
+		"desc": "Fina e mais forte que corda. Gruda nos dedos."
+	},
+	"raptor_claw": {
+		"name": "Garra de Raptor",
+		"type": "material",
+		"price": 10,
+		"stack": true,
+		"desc": "Curva como uma foice. Ainda corta."
+	},
 	"goblin_crown": {
 		"name": "Coroa do Rei Goblin",
 		"type": "material",

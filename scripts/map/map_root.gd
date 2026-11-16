@@ -12,7 +12,10 @@ const GROUND := "res://scripts/world/ground.gd"
 const PLAN := "Planta"
 
 ## Mapa: vila (vale de Valdoria), bosque, mina ou pico.
-@export_enum("vila", "bosque", "mina", "pico") var map_id := "vila"
+@export_enum("vila", "bosque", "mina", "pico", "arena") var map_id := "vila"
+## Usa o chão de Valdoria (ground.gd: relevo, serra, formas pintadas). A Arena não usa: o chão dela são
+## discos e uma colisão de caixa da própria cena.
+@export var has_ground := true
 ## Meia largura da área jogável (m).
 @export var half := 125.0
 ## Altura da serra em volta do mapa (0 = sem serra).
@@ -163,13 +166,14 @@ func build_preview() -> void:
 	plan.name = PLAN
 	add_child(plan)
 	load("res://scripts/world/world_lighting.gd").build(plan)
-	_ground = make_ground()
-	plan.add_child(_ground)
-	_ground.build_terrain()
-	if preview_grass:
+	if has_ground:
+		_ground = make_ground()
+		plan.add_child(_ground)
+		_ground.build_terrain()
+	if has_ground and preview_grass:
 		var g := grass_lists()
 		_ground.scatter_grass(grass_seed, grass_density, g.keep_out, g.sparse, grass_plants)
-	var height := Callable(_ground, "height_at")
+	var height := Callable(_ground, "height_at") if _ground != null else Callable()
 	for n in all_pieces():
 		n.build_preview(height)
 	MapPreview.toon(plan)

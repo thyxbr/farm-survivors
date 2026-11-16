@@ -43,10 +43,10 @@ func test_new_character_matches_new_game() -> void:
 	T.eq(s.level, 1, "nível")
 	T.eq(s.gold, 25, "ouro inicial")
 	T.eq(s.attributes, {"str": 5, "int": 5, "vit": 5, "agi": 5}, "atributos")
-	T.eq(s.equipment.weapon, "azure_edge", "arma inicial")
+	T.eq(s.equipment, CharRules.empty_equipment(), "sem nenhum equipamento")
 	T.eq(_count(s, "health_potion"), 3, "poções")
 	T.eq(_count(s, "seed_wheat"), 4, "sementes de trigo")
-	T.eq(_count(s, "short_bow"), 1, "arco")
+	T.eq(_count(s, "short_bow") + _count(s, "apprentice_staff") + _count(s, "leather_cap"), 0, "sem kit de armas")
 	T.eq(s.farm.unlocked, 6, "canteiros abertos")
 	T.eq(s.farm.plots.size(), 12, "canteiros")
 	T.eq(s.hp, 110.0, "vida cheia do nível 1")
@@ -122,6 +122,7 @@ func test_equip_offhand_needs_class() -> void:
 func test_equip_swaps_back_to_bag() -> void:
 	var bt := _tables()
 	var s := _blank()
+	s.equipment.weapon = "azure_edge"
 	s.inventory = [{"id": "iron_sword", "qty": 1}]
 	var r := CharRules.equip(s, bt, "iron_sword")
 	T.ok(r.ok, "equipa")
@@ -375,6 +376,18 @@ func test_christmas_kill_any_goblin() -> void:
 	var q: Dictionary = bt.get_table("quests")["natal_ladroes"]
 	T.ok(CharRules.quest_counts_kill(q, "goblin_bruto"), "qualquer goblin da lista conta")
 	T.ok(not CharRules.quest_counts_kill(q, "esqueleto"), "esqueleto não conta")
+
+
+func test_quest_target_icon() -> void:
+	var bt := _tables()
+	var qt := bt.get_table("quests")
+	var s := _blank()
+	T.ok(not CharRules.is_quest_target(s.quests, qt, "goblin"), "sem missão, nenhum alvo")
+	CharRules.start_quest(s, bt, "natal_ladroes")
+	T.ok(CharRules.is_quest_target(s.quests, qt, "goblin_xama"), "goblin da lista é alvo da missão ativa")
+	T.ok(not CharRules.is_quest_target(s.quests, qt, "slime"), "slime não é alvo")
+	s.quests.natal_ladroes.state = "ready"
+	T.ok(not CharRules.is_quest_target(s.quests, qt, "goblin_xama"), "missão pronta para entregar: o ícone some")
 
 
 func test_christmas_deliver_takes_items() -> void:

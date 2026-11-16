@@ -8,7 +8,7 @@ extends RefCounted
 ## Operações que o cliente pode pedir. Conceder ouro/xp/itens e abates é só do servidor/solo.
 const CLIENT_OPS := ["buy", "sell", "equip", "unequip", "consume", "cook", "spend_point", "start_quest",
 	"complete_quest", "sort_inventory", "unlock_plot", "plant", "water", "fertilize", "harvest", "discard",
-	"death_penalty", "buy_passive", "donate", "enchant", "rank_up", "quest_mark"]
+	"death_penalty", "buy_passive", "enchant", "rank_up", "quest_mark"]
 
 ## Assinatura posicional de cada op: tipos aceitos (TYPE_*) e quantos são opcionais no fim.
 ## `now` e o gerador de sorteio nunca vêm do cliente.
@@ -31,7 +31,6 @@ const ARGS := {
 	"discard": {"types": [TYPE_STRING], "optional": 0},
 	"death_penalty": {"types": [], "optional": 0},
 	"buy_passive": {"types": [TYPE_STRING], "optional": 0},
-	"donate": {"types": [TYPE_STRING, TYPE_INT], "optional": 0},
 	"enchant": {"types": [TYPE_STRING], "optional": 0},
 	"rank_up": {"types": [], "optional": 0},
 	"quest_mark": {"types": [TYPE_STRING, TYPE_INT], "optional": 0},
@@ -108,8 +107,8 @@ func apply(account_id: int, op: String, args: Array) -> Dictionary:
 	if not _args_ok(op, args):
 		return _result(account_id, {"ok": false, "err": "args", "events": []})
 	var s := load_or_create(account_id)
-	if op == "donate":
-		return _donate(account_id, s, args[0], args[1])
+	# modo admin: recursos no teto antes de cada pedido (a reposição não entra no registro da economia)
+	AdminRules.top_up(s, _bt)
 	var before := _holdings(s)
 	var r := _dispatch(s, op, args)
 	if r.ok:
@@ -123,6 +122,7 @@ func apply(account_id: int, op: String, args: Array) -> Dictionary:
 			source = "enchant"
 			ecos_item = "enchant"
 		r = _persist(account_id, s, before, op, source, r, 0, ecos_item)
+		AdminRules.top_up(s, _bt)   # a tela já mostra cheio de novo (grava na próxima escrita)
 	return _result(account_id, r)
 
 
@@ -236,26 +236,19 @@ func grant_test_items(account_id: int, items: Dictionary, enabled: bool) -> Dict
 	return grant(account_id, 0, 0, clean, "test")
 
 
-# ================================================================ base, partidas e recordes
-## Estado da base compartilhada: todas as construções (nível 0 as que ninguém tocou).
-## Servidor: a base de todos (SQLite); solo: a base local (arquivo ao lado do personagem).
-func base_state() -> Dictionary:
-	var out := BaseRules.empty_state(_bt)
-	var saved := _store.load_base()
-	for id in saved:
-		out[id] = saved[id]
-	return out
+## Liga/desliga o modo admin (AdminRules). `allowed` é decidido por quem chama: solo sempre, servidor
+## só para contas em ADMIN_USERS. Registrado na economia com origem "admin".
+func set_admin(account_id: int, on: bool, allowed: bool) -> Dictionary:
+	if not allowed:
+		return _result(account_id, {"ok": false, "err": "sem_permissao", "events": [CharRules._notify(
+				"Só administradores podem usar o modo admin.", CharRules.C_BAD)]})
+	var s := load_or_create(account_id)
+	var before := _holdings(s)
+	var r := AdminRules.set_on(s, _bt, on)
+	return _result(account_id, _persist(account_id, s, before, "grant", "admin", r))
 
 
-func base_bonus() -> Dictionary:
-	return BaseRules.bonus(_bt, base_state())
-
-
-## Maiores doadores de uma construção: [{"name", "amount"}], soma por conta, do maior para o menor.
-func top_donors(building_id: String, limit := 5) -> Array:
-	return _store.top_donors(building_id, limit)
-
-
+# ================================================================ partidas e recordes
 ## Abre o registro de uma partida. 0 se não gravou.
 func start_run(mode: String, accounts: Array) -> int:
 	var id := _store.start_run(mode, accounts, int(_now()))
@@ -321,30 +314,6 @@ func save(account_id: int) -> bool:
 
 
 # ================================================================ interno
-## Doação à base numa escrita só (CharStore.save_donation): debita os Ecos, sobe a construção e registra
-## a doação; se não gravar, nada muda. BaseRules valida construção/valor/nível máximo; só então confere os
-## Ecos contra o `used` (o que a construção aceita, nunca passa do que falta até o nível máximo): pedir 500
-## quando faltam 100 com 120 Ecos na mão doa 100.
-func _donate(account_id: int, s: CharState, building: String, amount: int) -> Dictionary:
-	var d := BaseRules.donate(base_state().get(building, {}), _bt, building, amount)
-	if not d.ok:
-		return _result(account_id, {"ok": false, "err": d.err, "events": []})
-	if s.ecos < int(d.used):
-		return _result(account_id, {"ok": false, "err": "sem_ecos", "events": []})
-	s.ecos -= int(d.used)
-	var at := int(_now())
-	var rows := [CharStore.row(at, account_id, "ecos", -int(d.used), building, "donation")]
-	if not _store.save_donation(account_id, s.to_dict(), building, int(d.level), int(d.fund), int(d.used), rows, at):
-		push_error("CharacterService: doação de %d não gravou: %s" % [account_id, _store.last_error])
-		_cache.erase(account_id)
-		return _result(account_id, {"ok": false, "err": "erro_banco", "events": []})
-	_dirty.erase(account_id)
-	var r := _result(account_id, {"ok": true, "err": "", "events": [{"t": "donated", "building": building,
-		"used": d.used, "level": d.level, "leveled": d.leveled}]})
-	r["base"] = base_state()
-	return r
-
-
 func _args_ok(op: String, args: Array) -> bool:
 	var spec: Dictionary = ARGS[op]
 	var types: Array = spec["types"]

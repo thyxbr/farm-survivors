@@ -7,7 +7,7 @@ extends RefCounted
 ## Nome no mapa -> landmark da cena do mapa (MapData.landmark); "" = o centro do mapa.
 const PLACES := {
 	"vila": [["Vila de Valdoria", ""], ["Horta", "farm"], ["Pomar", "orchard"], ["Acampamento Goblin", "camp"],
-		["Ruínas", "ruins"], ["Portal da Horda", "arena"], ["Ninho de Slimes", "nest"]],
+		["Ruínas", "ruins"], ["Portal da Horda", "portal"], ["Ninho de Slimes", "nest"]],
 	"bosque": [["Bosque Sussurrante", ""]],
 	"mina": [["Mina de Cristal", ""]],
 	"pico": [["Pico das Cinzas", ""]],

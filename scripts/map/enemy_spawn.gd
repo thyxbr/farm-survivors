@@ -25,6 +25,8 @@ extends Node3D
 			build_preview(_height)
 ## Segundos até um monstro morto voltar.
 @export_range(1.0, 3600.0, 1.0) var respawn := 30.0
+## Bicho da noite: só aparece depois de escurecer e vai embora de dia (as Asas-de-couro).
+@export var night_only := false
 ## Só nasce pela missão (o chefe).
 @export var boss := false:
 	set(v):

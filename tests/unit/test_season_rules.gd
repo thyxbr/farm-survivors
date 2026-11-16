@@ -77,3 +77,23 @@ func test_autumn_brings_more_rain_and_wind_less_snow() -> void:
 	T.ok(a[WeatherRules.Kind.RAIN] / an > o[WeatherRules.Kind.RAIN] / on, "outono chove mais")
 	T.ok(a[WeatherRules.Kind.WIND] / an > o[WeatherRules.Kind.WIND] / on, "outono venta mais")
 	T.ok(a[WeatherRules.Kind.SNOW] / an < o[WeatherRules.Kind.SNOW] / on * 0.5, "outono quase não neva")
+
+
+func test_no_snow_in_spring_or_summer_and_snows_in_winter() -> void:
+	var winter_snow := 0
+	var winter_n := 0
+	# um instante a cada 60 s por ~6 anos do jogo (cobre os trechos que atravessam a virada)
+	for i in 30000:
+		var t := 1_800_000_000.0 + i * 61.0
+		var season := SeasonRules.kind_at(t)
+		var k := WeatherRules.kind_at(t)
+		if season == SeasonRules.Kind.SPRING or season == SeasonRules.Kind.SUMMER:
+			if k == WeatherRules.Kind.SNOW:
+				T.ok(false, "nevou na %s em t=%d" % [SeasonRules.NAMES[season], int(t)])
+				return
+		elif season == SeasonRules.Kind.WINTER:
+			winter_n += 1
+			if k == WeatherRules.Kind.SNOW:
+				winter_snow += 1
+	T.ok(true, "primavera e verão sem neve")
+	T.ok(winter_snow > winter_n * 0.25, "o inverno neva bastante (%d de %d)" % [winter_snow, winter_n])

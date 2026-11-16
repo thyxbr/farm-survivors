@@ -66,15 +66,6 @@ func _ready() -> void:
 	menu_box.add_child(cont)
 	if has_solo:
 		menu_box.add_child(UITheme.label("   " + Econ.solo_info(), 15, UITheme.DIM))
-	var colony := UITheme.button("Defesa da Cidade — nova", func() -> void:
-		Sfx.play("click", 0.0)
-		Game.start_colony(false), 320)
-	menu_box.add_child(colony)
-	if Game.has_colony_save():
-		menu_box.add_child(UITheme.button("Defesa da Cidade — continuar", func() -> void:
-			Sfx.play("click", 0.0)
-			Game.start_colony(true), 320))
-		menu_box.add_child(UITheme.label("   " + Game.colony_save_info(), 15, UITheme.DIM))
 	menu_box.add_child(UITheme.button("Jogar online", _open_multiplayer, 320))
 	menu_box.add_child(UITheme.button("Opções", _options, 320))
 	menu_box.add_child(UITheme.button("Créditos", _credits, 320))
@@ -95,6 +86,19 @@ func _ready() -> void:
 	credit.offset_left = 24
 	credit.offset_top = -36
 	add_child(credit)
+
+	var ver := UITheme.label("v" + Network.version(), 14, UITheme.DIM)
+	ver.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	ver.anchor_left = 1.0
+	ver.anchor_right = 1.0
+	ver.anchor_top = 1.0
+	ver.anchor_bottom = 1.0
+	ver.offset_left = -224
+	ver.offset_right = -24
+	ver.offset_top = -36
+	ver.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	ver.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(ver)
 
 
 func _new_game() -> void:

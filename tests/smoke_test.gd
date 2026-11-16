@@ -57,8 +57,14 @@ func _ready() -> void:
 	for d in diffs.slice(0, 40):
 		print("      ", d)
 	check(diffs.is_empty(), "mundo igual ao retrato de antes da conversão para cenas (%d diferenças)" % diffs.size())
-	# confere o kit antes de qualquer combate: slimes podem soltar cajado/arco e o saque é aleatório
-	check(Game.count_item("apprentice_staff") == 1 and Game.count_item("short_bow") == 1, "kit inicial tem cajado e arco")
+	# personagem novo começa sem nenhum equipamento; o teste se dá o kit das três classes de arma
+	# antes de qualquer combate (slimes podem soltar cajado/arco e o saque é aleatório)
+	check(Game.equipment.values().all(func(v) -> bool: return v == ""), "personagem novo sem equipamento")
+	for id in ["azure_edge", "apprentice_staff", "short_bow", "leather_cap"]:
+		Game.add_item(id, 1, true)
+	Game.equip("azure_edge")
+	check(Game.equipment.weapon == "azure_edge" and Game.count_item("apprentice_staff") == 1
+		and Game.count_item("short_bow") == 1, "kit de teste: espada equipada, cajado e arco na mochila")
 
 	# --- som posicional: combate longe do jogador não deve ser ouvido
 	check(Sfx.distance_gain(0.0) == 1.0 and Sfx.distance_gain(15.0) < 0.5 and Sfx.distance_gain(Sfx.FAR_DIST + 1.0) == 0.0,
@@ -92,6 +98,13 @@ func _ready() -> void:
 	check(by_kind.get("esqueleto", 0) == 3 and by_kind.get("esqueleto_arqueiro", 0) == 2 and by_kind.get("esqueleto_mago", 0) == 1
 		and by_kind.get("esqueleto_cavaleiro", 0) == 1, "Ruínas: 3 esqueletos guerreiros, 2 arqueiros, 1 mago e 1 Cavaleiro")
 	check(by_kind.get("goblin_bombardeiro", 0) == 2 and by_kind.get("slime_gelo", 0) == 2, "2 bombardeiros no Acampamento e 2 slimes de gelo nos campos")
+	check(by_kind.get("raptor_capim", 0) == 6, "2 bandos de 3 Raptores-capim nos campos (%d)" % by_kind.get("raptor_capim", 0))
+	check(by_kind.get("tecela", 0) == 3, "3 Tecelãs na floresta do leste (%d)" % by_kind.get("tecela", 0))
+	check(by_kind.get("flor_faminta", 0) == 3, "3 Flores-famintas na beira das trilhas (%d)" % by_kind.get("flor_faminta", 0))
+	check(by_kind.get("bocarrao", 0) == 2, "2 Bocarrões na lagoa do oeste (%d)" % by_kind.get("bocarrao", 0))
+	var asas_want := 3 if world.is_night() else 0
+	check(by_kind.get("asa_couro", 0) == asas_want, "Asas-couro nas Ruínas só de noite (%d, esperado %d)"
+		% [by_kind.get("asa_couro", 0), asas_want])
 	var gear_ok := true
 	for en in get_tree().get_nodes_in_group("enemies"):
 		var want: Array = en.data.get("gear", [])
@@ -102,11 +115,12 @@ func _ready() -> void:
 		gear_ok = gear_ok and got == w2
 	check(gear_ok, "cada monstro só carrega o equipamento da sua variante")
 	# vale: 5 NPCs + bilhete + portal + guilda (Lina, quadro, cocheiro) + Rufus, Zélia, Tonico, Ravi, Osvaldo, gato;
-	# mais o Papai Noel e os 6 pontos da antiga praça (VillageLayout.POINTS); mapas: Sylvi, Tico e cocheiro no bosque; Bolgar, diário e cocheiro na mina; só o cocheiro no pico (o Kael
+	# mais o Papai Noel e os pontos da antiga praça (Orin e recordes, VillageLayout.POINTS); mapas: Sylvi, Tico e cocheiro no bosque; Bolgar, diário e cocheiro na mina; só o cocheiro no pico (o Kael
 	# de lá aparece no Arco 2)
 	var n_inter := get_tree().get_nodes_in_group("interactable").size()
 	check(n_inter == 7 + 9 + 7 + 1 + VillageLayout.POINTS.size() + Game.FARM_PLOTS + 1,
 		"interagíveis do vale, da guilda e dos mapas + %d canteiros + caldeirão (%d)" % [Game.FARM_PLOTS, n_inter])
+	check(not ResourceLoader.exists("res://scenes/colony.tscn"), "sem a Defesa da Cidade")
 
 	# --- diálogo e missão
 	var elder: Node = null
@@ -228,14 +242,14 @@ func _ready() -> void:
 	player._dodge_pressed(Vector3.ZERO)
 	check(player.ability == "sword_charge" and player.dodge_timer <= 0.0, "esquiva no avanço é ignorada")
 	await wait(0.45)
-	# abrir menu (build_lock) encerra
+	# abrir menu (input_locked) encerra
 	player.global_position = away
 	player.cooldowns.sword_charge = 0.0
 	player.use_slot(1)
-	player.build_lock = true
+	player.input_locked = true
 	await wait(0.05)
-	player.build_lock = false
-	check(player.ability == "", "menu (build_lock) encerra a habilidade")
+	player.input_locked = false
+	check(player.ability == "", "menu (input_locked) encerra a habilidade")
 	Game.fury = 0.0
 	Game.stamina = Game.max_stamina()
 	player.cooldowns.sword_charge = 0.0
@@ -885,6 +899,9 @@ func _ready() -> void:
 	await _test_gather()
 	await _test_enchant()
 	await _test_enchant_effects()
+	await _test_tecela_web()
+	await _test_bocarrao_tongue()
+	await _test_flor_rooted()
 	await _test_survival()
 	await _test_update()
 
@@ -1829,6 +1846,86 @@ func _test_enchant() -> void:
 	check(world.modal == null, "painel fecha")
 
 
+# ---------------------------------------------------------------- Bocarrão e Flor-faminta
+## O Bocarrão de meia distância lança a língua e puxa o jogador para perto da boca.
+func _test_bocarrao_tongue() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 40)
+	player.global_position = spot
+	var e := Enemy.new()
+	e.kind = "bocarrao"
+	world.add_child(e)
+	e.global_position = spot + Vector3(0, 0, -5.5)
+	e.home = e.global_position
+	await wait(0.2)
+	check(e.parts.get("Tongue") != null and e.parts.get("Jaw") != null, "Bocarrão: língua e queixo no modelo")
+	var hp0: float = Game.hp
+	var d0: float = Vector2(player.global_position.x - e.global_position.x, player.global_position.z - e.global_position.z).length()
+	e.web_cd = 0.0
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return Game.hp < hp0, 4.0)
+	check(Game.hp < hp0 and e.web_cd > 0.0, "Bocarrão: a língua acerta de longe e entra em recarga (%.0f -> %.0f)" % [hp0, Game.hp])
+	await wait(0.25)
+	var d1: float = Vector2(player.global_position.x - e.global_position.x, player.global_position.z - e.global_position.z).length()
+	check(d1 < d0 - 0.4, "Bocarrão: a língua puxa o jogador para perto (%.1f m -> %.1f m)" % [d0, d1])
+	e.queue_free()
+	Game.hp = Game.max_hp()
+	player.global_position = back
+	await wait(0.1)
+
+
+## A Flor-faminta não sai do lugar, nem apanhando.
+func _test_flor_rooted() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 60)
+	player.global_position = spot
+	var e := Enemy.new()
+	e.kind = "flor_faminta"
+	world.add_child(e)
+	e.global_position = spot + Vector3(0, 0, -2.0)
+	e.home = e.global_position
+	await wait(0.3)
+	var p0: Vector3 = e.global_position
+	e.take_damage(5.0, spot, false)
+	await wait(1.5)
+	var moved := Vector2(e.global_position.x - p0.x, e.global_position.z - p0.z).length()
+	check(moved < 0.05, "Flor-faminta: fica plantada mesmo apanhando (andou %.2f m)" % moved)
+	e.queue_free()
+	Game.hp = Game.max_hp()
+	player.global_position = back
+	await wait(0.1)
+
+
+# ---------------------------------------------------------------- Tecelã
+## A Tecelã de meia distância cospe teia e o jogador fica preso (anda a 30%); o modelo tem as oito patas.
+func _test_tecela_web() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 20)
+	player.global_position = spot
+	player.web_t = 0.0
+	var e := Enemy.new()
+	e.kind = "tecela"
+	world.add_child(e)
+	e.global_position = spot + Vector3(0, 0, -7)
+	e.home = e.global_position
+	await wait(0.2)
+	var legs := 0
+	for n in Enemy.SPIDER_PARTS:
+		legs += 1 if e.parts.get(n) != null else 0
+	check(legs == 9, "Tecelã: abdômen e oito patas no modelo (%d de 9)" % legs)
+	e.web_cd = 0.0
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return player.web_t > 0.0, 4.0)
+	check(player.web_t > 0.0, "Tecelã cospe teia de longe e prende o jogador (%.2f s)" % player.web_t)
+	check(e.web_cd > 0.0, "teia entra em recarga (%.1f s)" % e.web_cd)
+	e.queue_free()
+	player.web_t = 0.0
+	player.global_position = back
+	await wait(0.1)
+
+
 # ---------------------------------------------------------------- Efeitos dos elementos
 ## Um slime grande de teste num canto vazio do mapa (longe dos outros inimigos).
 func _fx_dummy(at: Vector3) -> Enemy:
@@ -2174,6 +2271,8 @@ func _test_survival() -> void:
 	var sv = world.survival
 	check(sv != null and Game.run_mods.active, "desafio iniciado pelo portal")
 	check(player.global_position.distance_to(world.ARENA) < 3.0, "jogador teleportado para a arena")
+	check(absf(world.ARENA.z) > world.MAP_HALF + 200.0, "arena é um mapa à parte, fora de Valdoria")
+	check(player.is_on_floor() or player.global_position.y > -1.0, "arena tem chão próprio")
 	check(sv.weapon_levels.get("fogo", 0) == 1, "começa com Orbe de Fogo Nv 1")
 	sv.round_time = 6.0
 	sv.round_left = 6.0
@@ -2304,7 +2403,7 @@ func _test_survival() -> void:
 	world.modal._finish()
 	await wait(0.2)
 	check(world.survival == null and not Game.run_mods.active, "desafio encerrado e bônus zerados")
-	check(player.global_position.distance_to(world.VILLAGE_SPAWN) < 3.0, "jogador volta para a vila")
+	check(player.global_position.distance_to(world.HORDE_RETURN) < 3.0, "jogador volta para a vila, na frente do portal")
 	check(Game.xp != xp0 or Game.level > lvl0, "XP de recompensa entregue ao RPG")
 	check(Game.flags.has("horde_best"), "recorde salvo")
 	check(Econ.quick_save(player.global_position, 0.0), "salvar volta a funcionar após o desafio")

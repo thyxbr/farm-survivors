@@ -27,6 +27,7 @@ const M := {
 	"flower_lavender": preload("res://assets/models/flower_lavender.glb"),
 	"flower_tulips": preload("res://assets/models/flower_tulips.glb"),
 	"rock": preload("res://assets/models/rock.glb"),
+	"fern": preload("res://assets/models/fern.glb"),   # margem da lagoa do oeste
 	"well": preload("res://assets/models/well.glb"),
 	"fence": preload("res://assets/models/fence.glb"),
 	"ruin_pillar": preload("res://assets/models/ruin_pillar.glb"),
@@ -49,9 +50,7 @@ const SANTA := preload("res://scripts/world/santa.gd")
 const EVENT_POINT := preload("res://scripts/world/christmas_event_point.gd")
 const POINT := preload("res://scripts/hub/hub_point.gd")
 const PASSIVE_MASTER := preload("res://scripts/ui/passive_master_ui.gd")
-const BASE_BUILDING := preload("res://scripts/ui/base_building_ui.gd")
 const RECORDS := preload("res://scripts/ui/records_ui.gd")
-const WAR_TABLE := preload("res://scripts/ui/war_table_ui.gd")
 const ALCHEMIST := preload("res://scripts/world/alchemist.gd")
 const RIVAL := preload("res://scripts/world/rival.gd")
 const STORY_POINT := preload("res://scripts/world/story_point.gd")
@@ -75,15 +74,23 @@ const WORLD_MAP_UI := preload("res://scripts/ui/world_map_ui.gd")
 const FIELD_CROP := preload("res://assets/models/field_crop.glb")
 
 const MAP_HALF := 125.0
-## Lugares com nome do vale: vêm dos landmarks da cena (MapLandmark, ids village_spawn, ruins, camp, arena,
-## portal, farm, nest, orchard) quando o vale é montado; os valores abaixo só valem antes disso.
+## Lugares com nome dos mapas: vêm dos landmarks das cenas (MapLandmark: village_spawn, ruins, camp, portal,
+## horde_return, farm, nest, orchard, pond no vale) e da raiz da Arena quando os mapas são montados; os valores
+## abaixo só valem antes disso.
 var VILLAGE_SPAWN := Vector3(0, 0.3, 6)
 var RUINS := Vector3(0, 0, -100)
 var CAMP := Vector3(62, 0, 0)
-var ARENA := Vector3(-72, 0, -10)     # Desafio da Horda
-var PORTAL_POS := VillageLayout.PORTAL
-var FARM := VillageLayout.FARM          # Horta da Vila (saída sul)
+## Arena do Desafio da Horda: mapa próprio (scenes/maps/arena.tscn), longe ao norte, fora de Valdoria.
+var ARENA := Vector3(0, 0, -1000)
+## Metade do lado do chão da arena (MapRoot.half da cena da Arena).
+var ARENA_HALF := 70.0
+var PORTAL_POS := Vector3(-8, 0, -9.5)
+## Onde o jogador volta ao fim do Desafio: na frente do portal da vila.
+var HORDE_RETURN := Vector3(-8, 0.5, -6.5)
+var FARM := Vector3(0, 0, 33)          # Horta da Vila (saída sul)
 var NEST := Vector3(-36, 0, 36)        # Ninho de Slimes (sudoeste da vila)
+## Lagoa do oeste, casa dos Bocarrões.
+var POND := Vector3(-80, 0, 15)
 ## Maciços dentro do mapa: [centro, raio da base, altura]. Ficam nos cantos vazios, longe das
 ## áreas de missão; a serra em volta do mapa é só visual (fora da borda).
 const MOUNTAINS := [
@@ -131,6 +138,8 @@ var resource_nodes: Array = []
 var flicker_lights: Array = []
 var rng := RandomNumberGenerator.new()
 var _avoid: Array = []   # [Vector2 centro, raio] áreas sem vegetação aleatória
+var _night_scan := 0.0      # tempo até a próxima conferida de dia/noite (bichos noturnos)
+var _is_night_now := false
 var _no_grass: Array = []   # [Vector2 centro, raio] pegadas de props (o capim não atravessa)
 var ground: Node3D
 var _t := 0.0
@@ -151,8 +160,8 @@ func _ready() -> void:
 	if staged:
 		process_mode = Node.PROCESS_MODE_DISABLED   # nada do mapa processa pela metade, sem o jogador
 	# [etapa, peso na barra] — o peso acompanha o tempo medido de cada uma (o capim é a mais demorada)
-	var steps := [[_build_environment, 2.0], [_load_vale, 6.0], [_build_regions, 2.0], [_scatter_grass, 7.0],
-		[_scatter_region_grass, 3.0]]
+	var steps := [[_build_environment, 2.0], [_load_vale, 6.0], [_load_arena, 0.5], [_build_regions, 2.0],
+		[_scatter_grass, 7.0], [_scatter_region_grass, 3.0]]
 	if not Network.is_client():
 		steps.append([_setup_enemies, 2.0])   # no cliente, os inimigos chegam do servidor
 	var total := 1.0   # o que sobra depois das etapas: jogador e HUD
@@ -333,11 +342,12 @@ func _load_vale() -> void:
 	VILLAGE_SPAWN = landmarks.get("village_spawn", VILLAGE_SPAWN)
 	RUINS = landmarks.get("ruins", RUINS)
 	CAMP = landmarks.get("camp", CAMP)
-	ARENA = landmarks.get("arena", ARENA)
 	PORTAL_POS = landmarks.get("portal", PORTAL_POS)
 	FARM = landmarks.get("farm", FARM)
 	NEST = landmarks.get("nest", NEST)
 	ORCHARD = landmarks.get("orchard", ORCHARD)
+	HORDE_RETURN = landmarks.get("horde_return", HORDE_RETURN)
+	POND = landmarks.get("pond", POND)
 	var c0 := get_child_count()
 	var g0 := _no_grass.size()
 	_build_buildings()
@@ -345,6 +355,15 @@ func _load_vale() -> void:
 		get_child(i).set_meta("from_building", true)
 	building_grass = [g0, _no_grass.size()]
 	_build_doors()
+
+
+## A Arena do Desafio da Horda: mapa à parte (scenes/maps/arena.tscn), com chão e paredes próprios.
+func _load_arena() -> void:
+	var root := MapLoader.build(self, "arena")
+	maps["arena"] = root
+	if root != null:
+		ARENA = root.position
+		ARENA_HALF = root.half
 
 
 ## Entregas na Vila: um ponto na porta de cada casa marcada com "delivery" (VillageLayout.deliveries()).
@@ -516,16 +535,12 @@ func _build_districts() -> void:
 	for pd in VillageLayout.POINTS:
 		var pt := POINT.new()
 		pt.kind = pd[0]
-		pt.building_id = pd[3]
 		var pos: Vector3 = pd[1]
 		pt.position = pos
 		pt.rotation.y = pd[2]
 		add_child(pt)
 		points.append(pt)
 		_no_grass.append([Vector2(pos.x, pos.z), 2.5])
-		if pd[0] == "building":
-			var back: Vector3 = pos - Vector3(sin(pd[2]), 0, cos(pd[2])) * POINT.BUILDING_BACK
-			_no_grass.append([Vector2(back.x, back.z), 4.2])
 	# Papai Noel, de frente para a praça, e o trenó atrás dele, perto da árvore grande
 	santa = SANTA.new()
 	santa.position = VillageLayout.SANTA
@@ -598,7 +613,7 @@ func _build_orchard() -> void:
 ## Poste de direção perto do portão sul e quadro de avisos ao norte da praça.
 func _build_signs() -> void:
 	var at := VillageLayout.SIGNPOST
-	add_child(SIGNPOST.make(at, [["Horta", FARM], ["Ruínas", RUINS], ["Goblins", CAMP], ["Horda", ARENA]]))
+	add_child(SIGNPOST.make(at, [["Horta", FARM], ["Ruínas", RUINS], ["Goblins", CAMP], ["Portal", PORTAL_POS]]))
 	_static_shape(Transform3D(Basis(), at), Vector3(0, 1.3, 0), _cyl_shape(0.25, 2.6))
 	_no_grass.append([Vector2(at.x, at.z), 0.5])
 	var board_at := VillageLayout.NOTICE_BOARD
@@ -697,6 +712,20 @@ func _scarecrow(pos: Vector3) -> void:
 
 
 # ================================================================ campos (slimes)
+## Lagoa do oeste: lama em volta, água escura no meio, samambaias e pedras na margem.
+func _build_pond() -> void:
+	_disc(POND + Vector3(0, 0.015, 0), 10.0, Color(0.3, 0.26, 0.17), 0.6)
+	_disc(POND + Vector3(0, 0.02, 0), 7.5, Color(0.16, 0.3, 0.34), 0.4)
+	_avoid.append([Vector2(POND.x, POND.z), 12.0])
+	_no_grass.append([Vector2(POND.x, POND.z), 9.0])
+	for i in 9:
+		var a := i * TAU / 9.0 + rng.randf_range(-0.2, 0.2)
+		var r := rng.randf_range(9.0, 11.0)
+		prop("fern", POND + Vector3(cos(a) * r, 0, sin(a) * r), rng.randf() * TAU, rng.randf_range(1.0, 1.5))
+	for a in [0.6, 2.4, 4.4]:
+		prop("rock", POND + Vector3(cos(a) * 9.6, -0.2, sin(a) * 9.6), a, 0.9, "cyl", Vector3(0.6, 0.8, 0))
+
+
 func _build_fields() -> void:
 	var soil := Color(0.36, 0.25, 0.15)
 	var crop_mm := MultiMesh.new()
@@ -773,12 +802,27 @@ func _build_ruins() -> void:
 	_light(torch, Vector3(0, 2, 0), Color(1, 0.5, 0.25), 2.0, 12.0, true)
 
 
-# ================================================================ arena do Desafio da Horda
+# ================================================================ Arena do Desafio (mapa da Horda)
+## A arena é um mapa à parte: um vale de pedra fechado por penhascos, longe de Valdoria (ARENA fica fora
+## das bordas do mapa, sem caminho a pé). O portal da vila teleporta para lá e o fim da partida traz de
+## volta (HORDE_RETURN). Fica na mesma cena para o servidor simular a Horda no mesmo mundo de física.
 func _build_arena() -> void:
-	_avoid.append([Vector2(ARENA.x, ARENA.z), 37.0])
-	_disc(ARENA + Vector3(0, 0.015, 0), 32.0, Color(0.36, 0.33, 0.28), 0.4)
-	_disc(ARENA + Vector3(0, 0.02, 0), 30.5, Color(0.3, 0.42, 0.18), 0.4)
-	_disc(ARENA + Vector3(0, 0.025, 0), 4.5, Color(0.42, 0.4, 0.36), 0.4)
+	# chão próprio: Valdoria (ground.gd) só cobre o mapa dela
+	var floor_body := StaticBody3D.new()
+	floor_body.position = ARENA + Vector3(0, -0.5, 0)
+	floor_body.collision_mask = 0
+	var fs := CollisionShape3D.new()
+	var fb := BoxShape3D.new()
+	fb.size = Vector3(ARENA_HALF * 2.0, 1.0, ARENA_HALF * 2.0)
+	fs.shape = fb
+	floor_body.add_child(fs)
+	add_child(floor_body)
+	if DisplayServer.get_name() != "headless":
+		_arena_disc(ARENA_HALF, 0.0, Color(0.2, 0.19, 0.23))          # pedra escura do vale
+		_arena_disc(33.0, 0.01, Color(0.31, 0.28, 0.33))             # piso da arena
+		_arena_disc(30.0, 0.02, Color(0.27, 0.25, 0.3))
+		_arena_disc(4.5, 0.03, Color(0.45, 0.32, 0.6), 0.6)          # runa do centro
+	# anel de ruínas em volta do piso
 	var n := 22
 	for i in n:
 		var a := TAU * i / n
@@ -795,6 +839,53 @@ func _build_arena() -> void:
 	rune.position = ARENA
 	add_child(rune)
 	_light(rune, Vector3(0, 3.0, 0), Color(0.7, 0.5, 1.0), 1.5, 14.0)
+	# penhascos fechando o vale (duas voltas de rochas grandes, a de fora mais alta) e pinheiros mortos
+	for ring in [[40.0, 26, 4.5, 6.5], [50.0, 22, 7.0, 10.0]]:
+		var count: int = ring[1]
+		for i in count:
+			var a := TAU * (i + rng.randf_range(-0.2, 0.2)) / count
+			var r: float = ring[0] + rng.randf_range(-2.0, 2.0)
+			var s := rng.randf_range(ring[2], ring[3])
+			prop("rock", ARENA + Vector3(cos(a) * r, -0.3, sin(a) * r), rng.randf() * TAU, s, "cyl", Vector3(0.7, 1.4, 0))
+	for i in 18:
+		var a := rng.randf() * TAU
+		var p := ARENA + Vector3(cos(a), 0, sin(a)) * rng.randf_range(36.0, 39.0)
+		var t := prop("tree_pine", p, rng.randf() * TAU, rng.randf_range(0.8, 1.2), "cyl", Vector3(TREE_R.tree_pine, 3, 0))
+		_tint_dead(t)
+
+
+## Disco plano do chão da arena (o shader de Valdoria não chega aqui).
+func _arena_disc(r: float, y: float, c: Color, glow := 0.0) -> void:
+	var mi := MeshInstance3D.new()
+	var m := CylinderMesh.new()
+	m.top_radius = r
+	m.bottom_radius = r
+	m.height = 0.02
+	m.radial_segments = 48
+	m.rings = 1
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = c
+	mat.roughness = 1.0
+	if glow > 0.0:
+		mat.emission_enabled = true
+		mat.emission = c
+		mat.emission_energy_multiplier = glow
+	m.material = mat
+	mi.mesh = m
+	mi.position = ARENA + Vector3(0, y - 0.01, 0)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+
+
+## Pinheiro seco: troca as cores do modelo por tons de madeira morta.
+func _tint_dead(n: Node) -> void:
+	if n is MeshInstance3D:
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color(0.24, 0.2, 0.2)
+		m.roughness = 1.0
+		n.material_override = m
+	for c in n.get_children():
+		_tint_dead(c)
 
 
 func start_survival() -> void:
@@ -980,7 +1071,11 @@ func _setup_resource_nodes() -> void:
 func _setup_enemies() -> void:
 	# os pontos do vale já estão em spawns (MapLoader, cena do vale); as regiões trazem os delas
 	spawns.append_array(region_spawns)
+	var night := is_night()
 	for s in spawns:
+		if s.get("night", false) and not night:
+			s.timer = 3.0   # bicho da noite: espera escurecer
+			continue
 		_spawn(s)
 
 
@@ -1039,7 +1134,14 @@ func _process(delta: float) -> void:
 		_scan_boss()
 	for f in flicker_lights:
 		f[0].light_energy = f[1] * (0.85 + 0.15 * sin(_t * 9.0 + f[2]) + 0.08 * sin(_t * 23.0 + f[2]))
+	_night_scan -= delta
+	if _night_scan <= 0.0:
+		_night_scan = 2.0
+		_is_night_now = is_night()
 	for s in spawns:
+		if s.get("night", false) and not _is_night_now:
+			_day_leave(s)
+			continue
 		if s.node == null and s.timer > 0:
 			s.timer -= delta
 			if s.timer <= 0:
@@ -1047,6 +1149,25 @@ func _process(delta: float) -> void:
 					s.timer = 5.0
 				else:
 					_spawn(s)
+
+
+## É noite no Vale agora? (mesma hora e mesmo nascer/pôr do sol que o céu usa)
+static func is_night() -> bool:
+	var day := DayNightRules.day_for(Weather.season_weights())
+	return DayNightRules.night(DayNightFX.current_hour(), day.sunrise, day.sunset) > 0.5
+
+
+## Bicho da noite quando amanhece: some sem morrer (fora de combate) e espera a noite seguinte.
+func _day_leave(s: Dictionary) -> void:
+	s.timer = maxf(s.timer, 3.0)
+	var e = s.node
+	if e == null or not is_instance_valid(e) or e.dead or e.state in ["chase", "attack"]:
+		return
+	if Network.is_server():
+		Network.server_enemy_despawn(e)
+	FX.burst(e.global_position + Vector3.UP * 1.4, Color(0.3, 0.24, 0.3), 10, 2.5, 0.1, 0.6)
+	e.queue_free()
+	s.node = null
 
 
 func _any_player_near(pos: Vector3, dist: float) -> bool:
@@ -1081,6 +1202,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		open_world_map()
 	elif event.is_action_pressed("party"):
 		open_world_map(WORLD_MAP_UI.TAB_PARTY)
+	elif event.is_action_pressed("friends"):
+		open_world_map(WORLD_MAP_UI.TAB_FRIENDS)
 	elif survival == null:
 		for i in KnightEmotes.KINDS.size():
 			if event.is_action_pressed("emote_%d" % (i + 1)):
@@ -1105,7 +1228,9 @@ func _open_menu(tab: int) -> void:
 
 ## Narração de abertura da história (personagem novo, primeira vez no mundo). Não roda nos testes.
 func _play_intro() -> void:
-	if DisplayServer.get_name() == "headless" or "--smoketest" in OS.get_cmdline_user_args():
+	var args := OS.get_cmdline_user_args()
+	if DisplayServer.get_name() == "headless" or "--smoketest" in args \
+			or Array(args).any(func(a: String) -> bool: return a.begins_with("--nettest")):
 		return
 	await get_tree().create_timer(1.5).timeout
 	if is_inside_tree() and modal == null and not Loading.covering and survival == null:
@@ -1226,24 +1351,14 @@ func open_cooking(kitchen: Node = null) -> void:
 	_open_modal(ui)
 
 
-## Painel de um ponto que veio da praça (hub_point.interact): mesa de guerra, Mestre Orin, recordes ou as
-## doações de uma construção da base.
+## Painel de um ponto que veio da praça (hub_point.interact): Mestre Orin ou o quadro de recordes.
 func open_point_panel(point: Node) -> void:
 	var ui: Control = null
 	match str(point.get("kind")):
-		"war_table":
-			ui = WAR_TABLE.new()
 		"passive_master":
 			ui = PASSIVE_MASTER.new()
 		"records":
 			ui = RECORDS.new()
-		"building":
-			var b := BASE_BUILDING.new()
-			b.building_id = str(point.get("building_id"))
-			ui = b
-		"merchant":
-			open_shop()
-			return
 	if ui != null:
 		open_modal(ui)
 
@@ -1363,7 +1478,8 @@ func make_entity(e: MapEntity) -> Node3D:
 		"hub_point":
 			var pt := POINT.new()
 			pt.kind = e.ref
-			pt.building_id = str(e.params.get("building_id", ""))
+			if e.params.has("building_id"):
+				pt.set("building_id", str(e.params.building_id))
 			points.append(pt)
 			n = pt
 		"farm_plot":

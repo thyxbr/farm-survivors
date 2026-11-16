@@ -23,13 +23,6 @@ signal kit_changed   # a classe da arma equipada mudou
 const SETTINGS_PATH := "user://settings.cfg"
 const WORLD_SCENE := "res://scenes/world.tscn"
 const MENU_SCENE := "res://scenes/main_menu.tscn"
-const COLONY_SCENE := "res://scenes/colony.tscn"
-
-## Defesa da Cidade solo: save da cidade (a partida em andamento, com o caixa dela). O personagem é o do
-## save solo: a cidade não tem personagem próprio.
-var colony_save_path := "user://colony_save.json"
-## true = a cena da cidade carrega o save em vez de começar do zero.
-var colony_continue := false
 
 var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "music_volume": 0.45, "sfx_volume": 0.9,
 	"ambience_volume": 0.7, "fullscreen": false, "invert_y": false,
@@ -95,13 +88,6 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--nettest="):
 			get_tree().root.add_child.call_deferred(load("res://tests/net_test.gd").new())
-	if "--colonytest" in OS.get_cmdline_user_args():
-		colony_save_path = "user://colonytest_save.json"   # o Econ usa user://colonytest_solo.json, apagado no início
-		# o save da cidade de uma execução anterior também sai já, antes do _ready da cena: senão a cena
-		# fecharia aquela partida como abandonada (uma linha "run" a mais no registro deste teste)
-		if FileAccess.file_exists(colony_save_path):
-			DirAccess.remove_absolute(ProjectSettings.globalize_path(colony_save_path))
-		get_tree().root.add_child.call_deferred(load("res://tests/colony_test.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
 		# o Econ usa user://smoketest_solo.json, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())
@@ -229,6 +215,8 @@ func _debug_screenshot() -> void:
 						w.open_world_map()
 					"party":
 						w.open_world_map(1)
+					"friends":
+						w.open_world_map(2)
 					"enchant":
 						for n in get_tree().get_nodes_in_group("interactable"):
 							if n.get("npc_id") == "blacksmith":
@@ -286,7 +274,7 @@ func _setup_input() -> void:
 		"interact": [KEY_E], "spell_1": [KEY_1], "spell_2": [KEY_2], "spell_3": [KEY_3], "spell_4": [KEY_4],
 		"potion": [KEY_R], "mana_potion": [KEY_F], "inventory": [KEY_I, KEY_TAB], "character": [KEY_C],
 		"quest_log": [KEY_J], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
-		"eat": [KEY_Q], "food_next": [KEY_T], "world_map": [KEY_M], "party": [KEY_P],
+		"eat": [KEY_Q], "food_next": [KEY_T], "world_map": [KEY_M], "party": [KEY_P], "friends": [KEY_O],
 		# emotes (acenar, comemorar, sentar): eram as teclas 1–3 da praça; na vila 1–4 são magias
 		"emote_1": [KEY_7], "emote_2": [KEY_8], "emote_3": [KEY_9],
 	}
@@ -313,10 +301,9 @@ func _setup_input() -> void:
 func start_new_game() -> void:
 	reset_run_mods()
 	Econ.reset_solo()
-	Lobby._last_world_pos = null   # personagem novo: Valdoria começa na vila
 	spawn_position = null
 	get_tree().paused = false
-	Loading.go(Lobby.WORLD_SCENE)
+	Loading.go(WORLD_SCENE)
 
 
 ## "Continuar": o personagem do save solo, de volta a Valdoria onde ele estava.
@@ -326,32 +313,8 @@ func continue_game() -> bool:
 		return false
 	reset_run_mods()
 	get_tree().paused = false
-	Loading.go(Lobby.WORLD_SCENE)
+	Loading.go(WORLD_SCENE)
 	return true
-
-
-## Defesa da Cidade solo: cont = continuar a cidade salva (senão começa uma nova). O personagem é sempre o
-## do save solo (a cena o carrega); a cidade tem caixa próprio (Colony.treasury).
-func start_colony(cont: bool) -> void:
-	Lobby.remember_world_pos()
-	colony_continue = cont and has_colony_save()
-	reset_run_mods()
-	get_tree().paused = false
-	Loading.go(COLONY_SCENE)
-
-
-func has_colony_save() -> bool:
-	return FileAccess.file_exists(colony_save_path)
-
-
-func colony_save_info() -> String:
-	var f := FileAccess.open(colony_save_path, FileAccess.READ)
-	if f == null:
-		return ""
-	var data = JSON.parse_string(f.get_as_text())
-	if not data is Dictionary:
-		return ""
-	return "Dia %d — %s" % [int(data.get("day", 1)), data.get("time", "")]
 
 
 func go_to_menu() -> void:
@@ -583,6 +546,22 @@ func knows_ability(id: String) -> bool:
 ## Habilidades da arma equipada (slots 1..4, em ordem).
 func ability_kit() -> Array[String]:
 	return ItemDB.kit(weapon_class())
+
+
+# ---------------------------------------------------------------- modo admin
+## Recursos infinitos ligados (AdminRules; o estado vem do servidor/solo em flags["admin"]).
+func admin_mode() -> bool:
+	return flags.get("admin") is Dictionary
+
+
+## Pode ligar o modo admin: no solo sempre; online se liberado para todos ou conta de administrador
+## (o servidor confere de novo).
+func can_admin() -> bool:
+	return not Network.is_online() or AdminRules.OPEN_TO_ALL or Auth.is_admin
+
+
+func toggle_admin() -> void:
+	Econ.set_admin(not admin_mode())
 
 
 # ---------------------------------------------------------------- pedidos ao Econ

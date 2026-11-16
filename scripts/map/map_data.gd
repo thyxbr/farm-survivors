@@ -8,7 +8,10 @@ const SCENES := {
 	"bosque": "res://scenes/maps/bosque.tscn",
 	"mina": "res://scenes/maps/mina.tscn",
 	"pico": "res://scenes/maps/pico.tscn",
+	"arena": "res://scenes/maps/arena.tscn",
 }
+## Centro dos mapas que não são regiões de viagem (Regions): a Arena da Horda, longe ao norte de Valdoria.
+const EXTRA_ORIGINS := {"arena": Vector3(0, 0, -1000)}
 const ENEMIES_JSON := "res://data/balance/enemies.json"
 
 ## Troca a cena de um mapa (map_id -> caminho); só para testes.
@@ -25,6 +28,11 @@ static func clear_cache() -> void:
 
 static func scene_path(map_id: String) -> String:
 	return str(scene_override.get(map_id, SCENES.get(map_id, "")))
+
+
+## Centro do mapa no mundo (Regions para as regiões; EXTRA_ORIGINS para a Arena).
+static func origin(map_id: String) -> Vector3:
+	return EXTRA_ORIGINS.get(map_id, Regions.origin(map_id) if Regions.DATA.has(map_id) else Vector3.ZERO)
 
 
 ## Instancia a cena do mapa sem pôr na árvore (quem chama libera). null se não existe.
@@ -60,7 +68,7 @@ static func landmark(map_id: String, id: String) -> Vector3:
 		_landmarks[map_id] = found
 	if not _landmarks[map_id].has(id):
 		return Vector3.ZERO
-	return Regions.origin(map_id) + _landmarks[map_id][id]
+	return origin(map_id) + _landmarks[map_id][id]
 
 
 ## Nós de coleta de todos os mapas: node_id -> {"kind": tipo do veio, "pos": posição global no chão (y = 0)}.
@@ -73,7 +81,7 @@ static func resource_nodes() -> Dictionary:
 				continue
 			for n in root.find_children("*", "Node3D", true, false):
 				if n is MapEntity and n.kind == "resource_node" and n.node_id >= 0:
-					var p: Vector3 = Regions.origin(map_id) + local_xform(root, n).origin
+					var p: Vector3 = origin(map_id) + local_xform(root, n).origin
 					out[n.node_id] = {"kind": n.ref, "pos": Vector3(p.x, 0.0, p.z)}
 			root.free()
 		_resource_nodes = out

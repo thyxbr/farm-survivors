@@ -7,8 +7,8 @@ const MAX_PAINTS := 40
 const MARGIN := 30.0   # além da meia largura (a serra e a floresta da borda ficam um pouco para fora)
 const WORLD_NODES := "res://data/balance/world_nodes.json"
 ## Landmarks que cada mapa precisa ter uma vez.
-const REQUIRED := {"vila": ["camp", "ruins", "arena", "farm", "nest", "orchard", "village_spawn", "portal", "coach",
-	"arrive"]}
+const REQUIRED := {"vila": ["camp", "ruins", "farm", "nest", "orchard", "village_spawn", "portal", "horde_return",
+	"pond", "coach", "arrive"], "arena": []}
 const REQUIRED_REGION := ["coach", "arrive"]
 ## Índices que o vale precisa ter completos: tipo -> quantidade (canteiros da Horta, presentes do Natal).
 const INDEXED := {"farm_plot": 12, "xmas_gift": 8}

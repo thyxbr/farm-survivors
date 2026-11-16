@@ -1,9 +1,9 @@
 class_name SqliteCharStore
 extends CharStore
 ## Personagens no SQLite (servidor dedicado; tabelas characters, inventory, passives e economy_log das
-## Migrations), mais a base compartilhada (base_buildings, base_donations) e as partidas (runs, run_players).
+## Migrations), mais as partidas (runs, run_players).
 ## Cada gravação é uma transação: personagem, mochila, passivas, linhas da economia e o que vier junto
-## (doação, fim de partida).
+## (fim de partida).
 
 const SOLO_ACCOUNT := 1
 
@@ -56,36 +56,6 @@ func delete_char(account_id: int) -> bool:
 			and db.exec("DELETE FROM characters WHERE account_id = ?", [account_id]))
 	last_error = "" if ok else db.last_error
 	return ok
-
-
-# ================================================================ base compartilhada
-func load_base() -> Dictionary:
-	var out := {}
-	for row in db.query("SELECT building_id, level, fund FROM base_buildings"):
-		out[row["building_id"]] = {"level": int(row["level"]), "fund": int(row["fund"])}
-	return out
-
-
-func save_donation(account_id: int, state: Dictionary, building_id: String, level: int, fund: int,
-		amount: int, rows: Array, at: int) -> bool:
-	var ok := db.transaction(func() -> bool:
-		return _write(account_id, state, at) \
-			and db.exec("INSERT OR REPLACE INTO base_buildings(building_id, level, fund) VALUES(?,?,?)",
-				[building_id, level, fund]) \
-			and db.exec("INSERT INTO base_donations(account_id, building_id, amount, at) VALUES(?,?,?,?)",
-				[account_id, building_id, amount, at]) \
-			and _insert_rows(rows))
-	last_error = "" if ok else db.last_error
-	return ok
-
-
-func top_donors(building_id: String, limit: int) -> Array:
-	var out := []
-	for row in db.query("SELECT a.username AS name, SUM(d.amount) AS total FROM base_donations d
-			JOIN accounts a ON a.id = d.account_id WHERE d.building_id = ?
-			GROUP BY d.account_id ORDER BY total DESC, MIN(d.id) LIMIT ?", [building_id, limit]):
-		out.append({"name": str(row["name"]), "amount": int(row["total"])})
-	return out
 
 
 # ================================================================ partidas

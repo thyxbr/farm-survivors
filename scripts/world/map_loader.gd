@@ -12,19 +12,20 @@ static func build(w: Node3D, map_id: String) -> MapRoot:
 	if root == null:
 		push_error("MapLoader: cena do mapa %s não existe (%s)" % [map_id, MapData.scene_path(map_id)])
 		return null
-	var o: Vector3 = Regions.origin(map_id)
+	var o: Vector3 = MapData.origin(map_id)
 	root.name = "Map_" + map_id
 	root.position = o
 	w.add_child(root)
-	var g := root.make_ground(Vector2(o.x, o.z))
-	g.position = o
-	w.add_child(g)
-	g.build_terrain()
-	if map_id == "vila":
-		w.ground = g
-	else:
-		w.region_grounds[map_id] = g
-	_settle(root, g)
+	if root.has_ground:
+		var g := root.make_ground(Vector2(o.x, o.z))
+		g.position = o
+		w.add_child(g)
+		g.build_terrain()
+		if map_id == "vila":
+			w.ground = g
+		else:
+			w.region_grounds[map_id] = g
+		_settle(root, g)
 	var keep: Array = []
 	var sparse: Array = []
 	for n in root.all_pieces():
@@ -43,7 +44,10 @@ static func build(w: Node3D, map_id: String) -> MapRoot:
 			if w.has_server_enemies() and not n.boss:
 				var list: Array = w.spawns if map_id == "vila" else w.region_spawns
 				for p in EnemySpawn.spread(n.global_position, n.count, n.radius):
-					list.append({"kind": n.kind, "pos": p, "node": null, "timer": 0.0, "respawn": n.respawn})
+					var entry := {"kind": n.kind, "pos": p, "node": null, "timer": 0.0, "respawn": n.respawn}
+					if n.night_only:
+						entry["night"] = true   # bicho da noite (o mundo segura de dia)
+					list.append(entry)
 		elif n is MapLandmark:
 			if map_id == "vila":
 				w.landmarks[n.id] = n.global_position
@@ -79,6 +83,7 @@ static func _settle(root: MapRoot, g: Node3D) -> void:
 static func _prop(w: Node3D, p: MapProp) -> void:
 	var inst: Node3D = (load(MapProp.model_path(p.model)) as PackedScene).instantiate()
 	p.add_child(inst)
+	p.apply_tint(inst)
 	var s := p.scale.x
 	var pos := p.global_position
 	if p.shape != 0 and p.no_grass:

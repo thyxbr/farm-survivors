@@ -9,15 +9,15 @@ extends Node3D
 ## params por tipo: xmas_tree {scale, seed}; candy_cane {scale}; gifts {count, seed, r0, r1};
 ## light_string {end (Vector3 no espaço do nó), sag, pattern, palette ("multi"/"warm"), spacing}; wreath {scale};
 ## crops {size (Vector2), seed, state}; label {text, font_size, pixel_size, outline_size, color, billboard,
-## width, double_sided}. `state` (gifts, crops) repete um sorteio exato gravado na conversão.
+## width, double_sided}; disc {radius, color, glow} (chão de pedra da Arena). `state` (gifts, crops) repete um sorteio exato gravado na conversão.
 
 const KINDS := ["xmas_tree", "snowman", "sleigh", "candy_cane", "gifts", "light_string", "lamp_garland", "wreath",
-	"wagon", "scarecrow", "crops", "label", "forge_fire"]
+	"wagon", "scarecrow", "crops", "label", "forge_fire", "disc"]
 const XMAS := "res://scripts/world/christmas_decor.gd"
 const FIELD_CROP := "res://assets/models/field_crop.glb"
 
 @export_enum("xmas_tree", "snowman", "sleigh", "candy_cane", "gifts", "light_string", "lamp_garland", "wreath",
-	"wagon", "scarecrow", "crops", "label", "forge_fire") var kind := "xmas_tree":
+	"wagon", "scarecrow", "crops", "label", "forge_fire", "disc") var kind := "xmas_tree":
 	set(v):
 		kind = v
 		_refresh()
@@ -97,6 +97,10 @@ func build_into(parent: Node3D, preview := false) -> void:
 				l.width = float(g.call("width", 0))
 				l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			parent.add_child(l)
+		"disc":
+			if not preview and DisplayServer.get_name() == "headless":
+				return   # só visual (o chão da Arena é a colisão de caixa da cena)
+			disc(parent, float(g.call("radius", 5.0)), g.call("color", Color(0.3, 0.3, 0.3)), float(g.call("glow", 0.0)))
 		"forge_fire":
 			if preview or DisplayServer.get_name() == "headless":
 				return
@@ -112,6 +116,29 @@ func build_into(parent: Node3D, preview := false) -> void:
 			a.volume_db = 2.0
 			a.autoplay = true
 			parent.add_child(a)
+
+
+## Disco plano de chão (o piso da Arena, onde o chão de Valdoria não chega).
+static func disc(parent: Node3D, r: float, c: Color, glow: float) -> void:
+	var mi := MeshInstance3D.new()
+	var m := CylinderMesh.new()
+	m.top_radius = r
+	m.bottom_radius = r
+	m.height = 0.02
+	m.radial_segments = 48
+	m.rings = 1
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = c
+	mat.roughness = 1.0
+	if glow > 0.0:
+		mat.emission_enabled = true
+		mat.emission = c
+		mat.emission_energy_multiplier = glow
+	m.material = mat
+	mi.mesh = m
+	mi.position.y = -0.01
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(mi)
 
 
 ## Espantalho de madeira, roupa e palha (o mesmo que a Horta tinha no world.gd).

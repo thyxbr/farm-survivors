@@ -8,8 +8,6 @@ extends Node
 ## - Online (cliente): `request()` manda `_econ_req` ao servidor, que aplica no `Network.characters` e
 ##   responde só ao remetente com `_econ_res` (estado completo + eventos). Pedidos do mesmo peer chegam
 ##   em ordem (RPC confiável), então clique duplo vira dois pedidos processados em sequência.
-## - Defesa da Cidade: o ouro da cidade é o caixa da partida (Colony.treasury), fora do personagem; o
-##   personagem só recebe as recompensas por noite (solo: grant aqui; em grupo: o servidor).
 ##
 ## Todas as RPCs novas moram aqui (e não no Network): o Godot numera as RPCs de cada nó em ordem
 ## alfabética, e uma RPC nova no Network mudaria o id do `_register` que clientes antigos usam para
@@ -89,11 +87,6 @@ func _ready() -> void:
 		if not explicit:
 			solo_save_path = "user://smoketest_solo.json"
 		_wipe_on_open = true
-	elif "--colonytest" in args:
-		# idem para o teste da Defesa da Cidade
-		if not explicit:
-			solo_save_path = "user://colonytest_solo.json"
-		_wipe_on_open = true
 	elif "--vilatest" in args:
 		# idem para o teste da vila
 		if not explicit:
@@ -133,8 +126,22 @@ func request(op: String, args: Array = []) -> void:
 		return
 	var r := _svc.apply(SOLO_ACCOUNT, op, args)
 	_deliver(op, args, r)
-	if op == "donate" and r.ok:
-		Hub.refresh_solo()   # a base mudou: a praça redesenha (online quem avisa é o servidor)
+
+
+## Liga/desliga o modo admin (resposta como op "admin"). Solo: sempre pode. Online: o servidor decide
+## (AdminRules.OPEN_TO_ALL ou conta em ADMIN_USERS).
+func set_admin(on: bool) -> void:
+	if Network.is_client():
+		_seq += 1
+		_pending[_seq] = {"op": "admin", "args": [on]}
+		_admin_req.rpc_id(1, _seq, on)
+		return
+	if Network.is_server():
+		return
+	if not ensure_solo():
+		_deliver("admin", [on], {"ok": false, "err": "sem_banco", "events": [], "state": {}})
+		return
+	_deliver("admin", [on], _svc.set_admin(SOLO_ACCOUNT, on, true))
 
 
 ## Ecos para o personagem de demonstração (só solo; usado pelas opções de depuração do Game).
@@ -223,38 +230,18 @@ func run_finish(run_id: int, mode: String, reached: int, gold: int, xp: int, ite
 	_deliver("run_finish", [run_id, mode, reached], r)
 	if not r.ok:
 		return 0
+	Hub.refresh_solo()   # recorde novo no quadro da vila (online quem avisa é o servidor)
 	for e in r.events:
 		if e.get("t") == "ecos":
 			return int(e.get("n", 0))
 	return 0
 
 
-## Solo: estado da base local ({id: {"level", "fund"}}). Online {}: a base é do servidor (Hub.base).
-func base_state() -> Dictionary:
-	if Network.is_online() or not ensure_solo():
-		return {}
-	return _svc.base_state()
-
-
-## Solo: bônus da base local. Online {} (Hub.base_bonus() usa a base que veio do servidor).
-func base_bonus() -> Dictionary:
-	if Network.is_online() or not ensure_solo():
-		return {}
-	return _svc.base_bonus()
-
-
-## Solo: recorde de cada modo ({"horde": {"reached", "names"}, "city": ...}). Online {} (Hub.records).
+## Solo: recorde de cada modo ({"horde": {"reached", "names"}}). Online {} (Hub.records).
 func records() -> Dictionary:
 	if Network.is_online() or not ensure_solo():
 		return {}
 	return _svc.records()
-
-
-## Solo: maiores doadores de uma construção ([{"name", "amount"}]). Online [] (vem em Hub.base).
-func top_donors(id: String, limit := 5) -> Array:
-	if Network.is_online() or not ensure_solo():
-		return []
-	return _svc.top_donors(id, limit)
 
 
 ## Recorde de partida (horde_best/city_best) no personagem solo. Online só no espelho: o servidor grava
@@ -617,9 +604,6 @@ func _econ_req(seq: int, op: String, args: Array) -> void:
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
 	if r.ok and op in ["enchant", "equip", "unequip"]:
 		Network.server_refresh_look(peer)   # o brilho que os outros veem acompanha o que foi gravado
-	if op == "donate" and r.ok:
-		# a base é de todos: o servidor manda o estado novo a quem está conectado
-		Hub.server_base_changed(account, r.events)
 
 
 ## Só atualiza o cache (CharacterService.report); grava no próximo pedido, na saída ou no flush periódico.
@@ -670,6 +654,22 @@ func _grant_test_items(seq: int, items: Dictionary) -> void:
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
 
 
+## Modo admin: com AdminRules.OPEN_TO_ALL qualquer conta; senão só contas em ADMIN_USERS
+## (Network.players[peer].admin, vindo do AccountStore).
+@rpc("any_peer", "call_remote", "reliable")
+func _admin_req(seq: int, on: bool) -> void:
+	var account := _sender_account()
+	if account <= 0:
+		_reply_no_session(seq)
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	var allowed := AdminRules.OPEN_TO_ALL or bool(Network.players.get(peer, {}).get("admin", false))
+	if allowed:
+		print("[server] modo admin %s: %s" % ["ligado" if on else "desligado", Network.players[peer].get("name", "?")])
+	var r := Network.characters.set_admin(account, on, allowed)
+	_econ_res.rpc_id(peer, seq, r.ok, r.err, events_of(r), r.state)
+
+
 ## Coleta de um pickup do servidor: confere dono, se já foi pego, validade e distância (última posição
 ## recebida do jogador, na mesma zona) e concede. Loot da Horda conta para o resumo da partida.
 @rpc("any_peer", "call_remote", "reliable")
@@ -717,7 +717,7 @@ func _gather_node(seq: int, id: int) -> void:
 		return
 	var pos: Vector3 = Network.last_pos.get(peer, Vector3.INF)
 	if Network.zone_of(peer) != "world":
-		pos = Vector3.INF   # na praça ou na cidade não há veios
+		pos = Vector3.INF   # fora de Valdoria não há veios
 	var g := _gather.gather(Balance.tables, account, id, pos, now())
 	if not g.ok:
 		_econ_res.rpc_id(peer, seq, false, str(g.err), _gather_refusal(g.err), {})

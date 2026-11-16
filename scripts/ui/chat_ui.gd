@@ -68,12 +68,22 @@ func _ready() -> void:
 	v.add_child(_hint)
 	_set_open(false)
 	Network.chat_received.connect(_on_message)
+	Social.whisper.connect(_on_whisper)
 	Network.players_changed.connect(_refresh_hint)
 	_refresh_hint()
 
 
 func is_open() -> bool:
 	return _open
+
+
+## Abre a caixa de texto já com `text` (ex.: "/w Ana " pelo botão Sussurrar da aba Amigos).
+func open_with(text: String) -> void:
+	if not _can_open():
+		return
+	_set_open(true)
+	_entry.text = text
+	_entry.caret_column = text.length()
 
 
 func _refresh_hint() -> void:
@@ -115,12 +125,39 @@ func _on_submit(text: String) -> void:
 ## Comandos locais (começam com "/"): não vão para o servidor; a resposta aparece só para quem digitou.
 ##   /clima sol|chuva|neve|vento  força o clima nesta máquina · /clima auto  volta ao clima de todos
 ##   /hora 21 | 6:30  fixa a hora do dia nesta máquina · /hora auto  volta ao relógio do mundo
+##   /w NOME msg  sussurro (mensagem só para ele) · /r msg  responde o último sussurro · /amigo NOME  pede amizade
+##   /admin  liga/desliga o modo admin (recursos infinitos; só contas de administrador)
 ##   /grupo NOME  convida para o grupo · /grupo sair · /grupo expulsar NOME (estes vão ao servidor, pelo Party)
 func _run_command(t: String) -> void:
+	# sussurro: o texto vai como foi digitado (o resto dos comandos é sem diferenciar maiúsculas)
+	var raw := t.substr(1).split(" ", false)
+	var c0: String = raw[0].to_lower() if raw.size() > 0 else ""
+	if c0 in ["w", "m", "sussurrar", "msg"]:
+		if raw.size() < 3:
+			_on_message("", "Uso: /w NOME mensagem (só para quem está online) · /r mensagem responde o último")
+		else:
+			Social.send_whisper(raw[1], " ".join(raw.slice(2)))
+		return
+	if c0 in ["r", "responder"]:
+		if Social.last_whisper_from == "" or raw.size() < 2:
+			_on_message("", "Ninguém sussurrou para você ainda. Use /w NOME mensagem.")
+		else:
+			Social.send_whisper(Social.last_whisper_from, " ".join(raw.slice(1)))
+		return
 	var parts := t.substr(1).to_lower().split(" ", false)
 	var cmd: String = parts[0] if parts.size() > 0 else ""
 	var arg: String = parts[1] if parts.size() > 1 else ""
 	match cmd:
+		"admin":
+			if not Game.can_admin():
+				_on_message("", "Só administradores podem usar o modo admin.")
+				return
+			if arg in ["on", "ligar", "liga"]:
+				Econ.set_admin(true)
+			elif arg in ["off", "desligar", "desliga"]:
+				Econ.set_admin(false)
+			else:
+				Game.toggle_admin()
 		"clima", "weather":
 			if arg == "auto":
 				Weather.release()
@@ -159,8 +196,13 @@ func _run_command(t: String) -> void:
 				Party.request_invite_name(arg)
 			else:
 				_on_message("", "Uso: /grupo NOME (convida) · /grupo sair · /grupo expulsar NOME · [P] painel do grupo")
+		"amigo", "friend", "add":
+			if arg == "":
+				_on_message("", "Uso: /amigo NOME (pede amizade) · [O] abre a aba Amigos")
+			else:
+				Social.request_add(arg)
 		_:
-			_on_message("", "Comando desconhecido: /%s  (comandos: /clima, /hora, /grupo)" % cmd)
+			_on_message("", "Comando desconhecido: /%s  (comandos: /clima, /hora, /grupo, /amigo, /w, /r)" % cmd)
 
 
 func _peer_named(n: String) -> int:
@@ -191,7 +233,23 @@ func _set_open(on: bool) -> void:
 	_layout()
 
 
+## Sussurro: "de Ana" (recebido) ou "para Ana" (o eco do que eu mandei), em lilás.
+func _on_whisper(from: String, to: String, text: String, incoming: bool) -> void:
+	var who := ("de %s" % from) if incoming else ("para %s" % to)
+	_add_line("[b][color=#e3a6ff]%s:[/color][/b] [color=#f1dcff]%s[/color]" % [who.replace("[", "[lb]"), text.replace("[", "[lb]")])
+
+
 func _on_message(from: String, text: String) -> void:
+	var safe := text.replace("[", "[lb]")
+	if from == "":
+		_add_line("[color=#ffb070]%s[/color]" % safe)
+	else:
+		var mine := from == Network.my_name
+		var col := "#9fd2ff" if mine else _name_color(from)
+		_add_line("[b][color=%s]%s:[/color][/b] [color=#f0ebe0]%s[/color]" % [col, from.replace("[", "[lb]"), safe])
+
+
+func _add_line(bbcode: String) -> void:
 	var l := RichTextLabel.new()
 	l.bbcode_enabled = true
 	l.fit_content = true
@@ -203,13 +261,7 @@ func _on_message(from: String, text: String) -> void:
 	l.add_theme_font_size_override("bold_font_size", 17)
 	l.add_theme_constant_override("outline_size", 5)
 	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	var safe := text.replace("[", "[lb]")
-	if from == "":
-		l.text = "[color=#ffb070]%s[/color]" % safe
-	else:
-		var mine := from == Network.my_name
-		var col := "#9fd2ff" if mine else _name_color(from)
-		l.text = "[b][color=%s]%s:[/color][/b] [color=#f0ebe0]%s[/color]" % [col, from.replace("[", "[lb]"), safe]
+	l.text = bbcode
 	_log.add_child(l)
 	_lines.append({"node": l, "t": 0.0})
 	while _lines.size() > MAX_LINES:

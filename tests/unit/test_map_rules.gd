@@ -46,7 +46,8 @@ func test_places_come_from_landmarks() -> void:
 	T.eq(at.get("Horta"), Vector3(0, 0, 33), "Horta")
 	T.eq(at.get("Pomar"), Vector3(20, 0, 33), "pomar")
 	T.eq(at.get("Ninho de Slimes"), Vector3(-36, 0, 36), "ninho")
-	T.eq(at.get("Portal da Horda"), MapData.landmark("vila", "arena"), "a arena da Horda pelo landmark arena")
+	T.eq(at.get("Portal da Horda"), MapData.landmark("vila", "portal"), "o portal da Horda pelo landmark portal")
+	T.eq(at.get("Portal da Horda"), Vector3(-8, 0, -9.5), "portal da Horda na frente da vila")
 
 
 func test_coach_and_arrive_from_landmarks() -> void:

@@ -1,10 +1,10 @@
 class_name CharStore
 extends RefCounted
-## Onde o CharacterService guarda os personagens, a base compartilhada (doações) e o registro das partidas
-## (runs, recordes). As regras (CharRules, BaseRules, RewardRules) e o registro da economia são os mesmos
+## Onde o CharacterService guarda os personagens e o registro das partidas (runs, recordes). As regras
+## (CharRules, RewardRules) e o registro da economia são os mesmos
 ## em qualquer armazenamento; só muda o meio:
 ## - SqliteCharStore: servidor dedicado, sobre o Db (SQLite; esquema e migrações em Migrations).
-## - FileCharStore: solo offline, JSON em user:// (o cliente Windows não leva o SQLite): personagem, base
+## - FileCharStore: solo offline, JSON em user:// (o cliente Windows não leva o SQLite): personagem
 ##   e partidas em arquivos ao lado um do outro.
 ##
 ## Linha da economia (append_economy / save_char): {"at": int, "account_id": int, "kind": String,
@@ -36,26 +36,6 @@ func append_economy(_rows: Array) -> bool:
 func delete_char(_account_id: int) -> bool:
 	last_error = "não implementado"
 	return false
-
-
-## Base compartilhada gravada: {building_id: {"level": int, "fund": int}} (só as que já receberam doação).
-func load_base() -> Dictionary:
-	return {}
-
-
-## Doação à base numa escrita só: o personagem (`state`, já debitado), o novo nível/fundo da construção, a
-## doação no histórico e as linhas da economia `rows`. Ou tudo fica gravado, ou nada: nunca debita os
-## Ecos sem creditar a base.
-func save_donation(_account_id: int, _state: Dictionary, _building_id: String, _level: int, _fund: int,
-		_amount: int, _rows: Array, _at: int) -> bool:
-	last_error = "não implementado"
-	return false
-
-
-## Maiores doadores de uma construção: [{"name", "amount"}], soma por conta, do maior para o menor
-## (empate: quem doou primeiro).
-func top_donors(_building_id: String, _limit: int) -> Array:
-	return []
 
 
 ## Abre o registro de uma partida (`accounts` = contas que começaram). Devolve o run_id (> 0) ou 0 se falhou.
