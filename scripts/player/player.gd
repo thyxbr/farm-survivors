@@ -929,6 +929,8 @@ func cast(id: String) -> void:
 
 ## Vida recebida de uma Cura (a própria no solo, ou a de um healer vinda do servidor).
 func receive_heal(amount: float) -> void:
+	if dead:   # caído não é curado (o servidor também pula, mas o estado dele pode estar atrasado)
+		return
 	Game.hp = min(Game.max_hp(), Game.hp + amount)
 	_heal_fx()
 	FX.damage_number(global_position + Vector3.UP * 2.2, "+%d" % amount, Color(0.4, 1.0, 0.5))

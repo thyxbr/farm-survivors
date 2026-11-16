@@ -76,6 +76,8 @@ var char_class := ""
 var body := ""
 ## Escolha automática de classe (testes e demos) mandada e ainda sem resposta (online ela é assíncrona).
 var _auto_class_pending := false
+## Só o net_test: não escolhe a classe sozinho (testa a recusa do servidor a personagem sem classe).
+var skip_auto_class := false
 
 
 func _ready() -> void:
@@ -442,6 +444,12 @@ func weapon_damage() -> int:
 
 func weapon_class() -> String:
 	return ItemDB.weapon_class(equipment.weapon)
+
+
+## Nome da classe do personagem (tabela `classes`: "Guerreiro", "Healer"...); sem classe ainda, "Sem classe".
+func class_display_name() -> String:
+	var row = Balance.tables.get_table("classes").get(char_class, {})
+	return str(row.get("name", char_class)) if row is Dictionary and char_class != "" else "Sem classe"
 
 
 ## Soma da defesa de todas as peças equipadas.
@@ -971,7 +979,7 @@ func harvest(i: int) -> void:
 ## --nettest= e as demos (--farmdemo/--geardemo/--enchantdemo/--weapon=) pedem guerreiro/m (ou a classe da
 ## arma de `--weapon=`). Chamado por Econ logo depois de carregar o personagem inteiro (solo ou servidor).
 func auto_choose_class() -> void:
-	if char_class != "":
+	if char_class != "" or skip_auto_class:
 		return
 	var pick := harness_class(OS.get_cmdline_user_args())
 	if pick[0] != "":

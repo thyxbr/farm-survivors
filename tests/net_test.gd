@@ -90,6 +90,8 @@ func _ready() -> void:
 		token = log_r.token
 		if relogin:
 			await _test_bad_token()
+		if horde_role == "lead":
+			await _test_no_class_gate()
 	Network.join(address, token)
 
 	# todo mundo chega direto na vila
@@ -974,6 +976,38 @@ func _test_bad_token() -> void:
 	await _wait_until(func() -> bool: return join_error != "", 8.0)
 	check(join_error.begins_with("Sessão expirada"), "token inválido é recusado (%s)" % join_error)
 	Network.leave()
+	join_error = ""
+
+
+## Conta nova sem classe escolhida: mesmo dizendo ao servidor que carregou o mundo (_client_ready), o
+## servidor não a põe em zona nenhuma (fica em "loading") e avisa para escolher a classe.
+func _test_no_class_gate() -> void:
+	var nc_name := my_name + "Sem"
+	var reg: Dictionary = await Auth.register(address, nc_name, TEST_PASS)
+	var log_r: Dictionary = await Auth.login(address, nc_name, TEST_PASS)
+	check((reg.ok or reg.err == "nome_em_uso") and log_r.ok, "conta sem classe (%s)" % log_r.get("err", "ok"))
+	if not log_r.ok:
+		return
+	var notices: Array = []
+	var on_notice := func(text: String, _c: Color) -> void: notices.append(text)
+	Game.notify.connect(on_notice)
+	Game.skip_auto_class = true
+	join_error = ""
+	Network.join(address, str(log_r.token))
+	var accepted: bool = await _wait_until(func() -> bool:
+		return Network.is_online() and Network.players.has(multiplayer.get_unique_id()), 10.0)
+	check(accepted and Game.char_class == "", "conta sem classe foi aceita sem classe (%s)" % Game.char_class)
+	if accepted:
+		Network._client_ready.rpc_id(1)   # um cliente que pula a tela de criação
+		var warned: bool = await _wait_until(func() -> bool:
+			return notices.any(func(s: String) -> bool: return s.contains("classe")), 5.0)
+		check(warned, "servidor avisa para escolher a classe antes de entrar")
+		check(Network.zone_of(multiplayer.get_unique_id()) == "loading",
+			"servidor não põe personagem sem classe em zona nenhuma (%s)" % Network.zone_of(multiplayer.get_unique_id()))
+	Game.notify.disconnect(on_notice)
+	Game.skip_auto_class = false
+	Network.leave()
+	await wait(0.5)
 	join_error = ""
 
 

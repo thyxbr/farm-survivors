@@ -336,7 +336,7 @@ func _refresh_inventory() -> void:
 	_refresh_selection()
 	# resumo de estatísticas
 	var cls := Game.weapon_class()
-	class_label.text = "Ataque: %s — %s" % [ItemDB.CLASS_NAMES[cls], ItemDB.CLASS_HINT[cls]]
+	class_label.text = "%s · Ataque: %s — %s" % [Game.class_display_name(), ItemDB.CLASS_NAMES[cls], ItemDB.CLASS_HINT[cls]]
 	for c in stats_box.get_children():
 		c.queue_free()
 	var st := Game.stat_snapshot()
@@ -471,7 +471,7 @@ func _refresh_character() -> void:
 	rv.add_child(g)
 	var st := Game.stat_snapshot()
 	var red := 1.0 - 50.0 / (50.0 + Game.defense() * 4.0)
-	var rows := [["Arma", ItemDB.CLASS_NAMES[Game.weapon_class()]], ["Dano do ataque", "%.0f" % st.dmg],
+	var rows := [["Classe", Game.class_display_name()], ["Arma", ItemDB.CLASS_NAMES[Game.weapon_class()]], ["Dano do ataque", "%.0f" % st.dmg],
 		["Defesa", "%.1f" % st.def], ["Redução de dano", "%d%%" % int(round(red * 100))],
 		["Vida máxima", "%d" % st.hp], ["Mana máxima", "%d" % st.mp], ["Vigor máximo", "%d" % Game.max_stamina()],
 		["Poder mágico", "%.0f" % st.spell], ["Crítico", "%d%%" % int(round(st.crit * 100))],

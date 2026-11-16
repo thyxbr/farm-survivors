@@ -111,12 +111,12 @@ func apply(account_id: int, op: String, args: Array) -> Dictionary:
 	if not _args_ok(op, args):
 		return _result(account_id, {"ok": false, "err": "args", "events": []})
 	var s := load_or_create(account_id)
-	# modo admin: recursos no teto antes de cada pedido (a reposição não entra no registro da economia)
 	if allow_reclass and op == "choose_class":
 		s.char_class = ""
 		s.body = ""
 	if s.char_class == "" and op != "choose_class":
 		return _result(account_id, {"ok": false, "err": "sem_classe", "events": []})
+	# modo admin: recursos no teto antes de cada pedido (a reposição não entra no registro da economia)
 	AdminRules.top_up(s, _bt)
 	# a arma inicial da classe não é negócio: não entra no registro da economia
 	var before := {} if op == "choose_class" else _holdings(s)

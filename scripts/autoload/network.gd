@@ -337,6 +337,11 @@ func _client_ready() -> void:
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id):
 		return
+	# personagem sem classe não entra em zona nenhuma: o cliente legítimo passa antes pela tela de criação
+	# (choose_class pelo Econ) e só carrega Valdoria depois; fica em "loading" até escolher
+	if not server_has_class(id):
+		_horde_notice.rpc_id(id, "Escolha sua classe antes de entrar no mundo.")
+		return
 	server_set_zone(id, "world")
 	# quem entrou enquanto este jogador carregava o mapa não foi anunciado para ele: manda todos agora
 	for pid in players:
@@ -366,6 +371,20 @@ func server_set_zone(id: int, zone: String) -> void:
 	for pid in _all_peers():
 		_player_zone.rpc_id(pid, id, zone)
 	players_changed.emit()
+
+
+## Servidor: o personagem guardado da conta do peer já tem classe (sem classe não entra em modo nenhum).
+func server_has_class(id: int) -> bool:
+	if not players.has(id) or characters == null:
+		return false
+	var account := int(players[id].get("account", 0))
+	return account > 0 and characters.load_or_create(account).char_class != ""
+
+
+## Servidor: a réplica do jogador está caída (flag NF_DEAD do último estado que ele mandou).
+func server_peer_dead(id: int) -> bool:
+	var rp: Player = remote_players.get(id)
+	return rp != null and is_instance_valid(rp) and rp.dead
 
 
 func zone_of(id: int) -> String:
@@ -612,7 +631,7 @@ func _request_heal() -> void:
 	if account <= 0:
 		return
 	var s := characters.load_or_create(account)
-	if s.char_class != "healer":
+	if s.char_class != "healer" or server_peer_dead(id):
 		return
 	var now := Time.get_ticks_msec() / 1000.0
 	if not HealRules.interval_ok(_last_heal.get(id, -INF), now):
@@ -620,7 +639,8 @@ func _request_heal() -> void:
 	_last_heal[id] = now
 	var amount := CharRules.heal_amount(s, Balance.tables)
 	for pid in HealRules.targets(id, zone_peers(zone_of(id)), last_pos):
-		_you_were_healed.rpc_id(pid, amount, id)
+		if not server_peer_dead(pid):   # caído não recebe cura
+			_you_were_healed.rpc_id(pid, amount, id)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -1189,6 +1209,9 @@ func _horde_msg(kind: String) -> void:
 	if not is_server() or not players.has(id) or not players[id].ready:
 		return
 	var run: Node = horde_run if horde_run != null and is_instance_valid(horde_run) else null
+	if kind in ["request", "accept"] and not server_has_class(id):
+		_horde_notice.rpc_id(id, "Escolha sua classe antes de entrar no Desafio da Horda.")
+		return
 	match kind:
 		"request":
 			_server_horde_request(id)
@@ -1315,7 +1338,7 @@ func _horde_launch() -> void:
 				return
 	var team := {}
 	for pid in _lobby.members:
-		if not players.has(pid) or not players[pid].ready:
+		if not players.has(pid) or not players[pid].ready or not server_has_class(pid):
 			continue
 		# a partida acontece em Valdoria: só entra quem está lá
 		if zone_of(pid) != "world":
