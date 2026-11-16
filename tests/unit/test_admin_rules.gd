@@ -73,6 +73,7 @@ func test_service_requires_permission() -> void:
 
 func test_service_refills_after_each_op() -> void:
 	var svc := _svc()
+	svc.load_or_create(2).equipment.weapon = "azure_edge"   # o personagem novo começa sem arma
 	T.ok(svc.set_admin(2, true, true).ok, "ligou")
 	var r := svc.apply(2, "buy", ["health_potion", 5])
 	T.ok(r.ok, "comprou: %s" % r.err)

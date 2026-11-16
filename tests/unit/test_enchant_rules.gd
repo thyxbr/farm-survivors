@@ -10,7 +10,7 @@ func _tables() -> BalanceTables:
 	return _bt
 
 
-## Personagem com a arma inicial (azure_edge) e os recursos dados.
+## Personagem com o gume celeste (azure_edge) equipado e os recursos dados.
 func _rich(gold := 0, ecos := 0, items := {}) -> CharState:
 	var s := CharState.new_character(_tables())
 	CharRules.choose_class(s, _tables(), "warrior", "m")

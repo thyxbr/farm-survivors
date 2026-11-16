@@ -65,8 +65,9 @@ func _ready() -> void:
 	# confere o kit antes de qualquer combate: slimes podem soltar cajado/arco e o saque é aleatório
 	check(Game.char_class == "warrior" and Game.equipment.weapon == "azure_edge", "o teste escolheu guerreiro e começou com a espada")
 	check(Game.count_item("apprentice_staff") == 0 and Game.count_item("short_bow") == 0, "personagem novo não traz cajado nem arco")
+	check(Game.equipment.head == "" and Game.count_item("leather_cap") == 0, "personagem novo sem nenhum equipamento além da arma da classe")
 	# o kit das três armas, dado como concessão, para os testes de combate de cada classe de arma
-	Econ.grant(0, 0, {"apprentice_staff": 1, "short_bow": 1}, "test", true)
+	Econ.grant(0, 0, {"apprentice_staff": 1, "short_bow": 1, "leather_cap": 1}, "test", true)
 	check(Game.count_item("apprentice_staff") == 1 and Game.count_item("short_bow") == 1, "kit de teste tem cajado e arco")
 
 	# --- som posicional: combate longe do jogador não deve ser ouvido
@@ -101,6 +102,13 @@ func _ready() -> void:
 	check(by_kind.get("esqueleto", 0) == 3 and by_kind.get("esqueleto_arqueiro", 0) == 2 and by_kind.get("esqueleto_mago", 0) == 1
 		and by_kind.get("esqueleto_cavaleiro", 0) == 1, "Ruínas: 3 esqueletos guerreiros, 2 arqueiros, 1 mago e 1 Cavaleiro")
 	check(by_kind.get("goblin_bombardeiro", 0) == 2 and by_kind.get("slime_gelo", 0) == 2, "2 bombardeiros no Acampamento e 2 slimes de gelo nos campos")
+	check(by_kind.get("raptor_capim", 0) == 6, "2 bandos de 3 Raptores-capim nos campos (%d)" % by_kind.get("raptor_capim", 0))
+	check(by_kind.get("tecela", 0) == 3, "3 Tecelãs na floresta do leste (%d)" % by_kind.get("tecela", 0))
+	check(by_kind.get("flor_faminta", 0) == 3, "3 Flores-famintas na beira das trilhas (%d)" % by_kind.get("flor_faminta", 0))
+	check(by_kind.get("bocarrao", 0) == 2, "2 Bocarrões na lagoa do oeste (%d)" % by_kind.get("bocarrao", 0))
+	var asas_want := 3 if world.is_night() else 0
+	check(by_kind.get("asa_couro", 0) == asas_want, "Asas-couro nas Ruínas só de noite (%d, esperado %d)"
+		% [by_kind.get("asa_couro", 0), asas_want])
 	var gear_ok := true
 	for en in get_tree().get_nodes_in_group("enemies"):
 		var want: Array = en.data.get("gear", [])
@@ -893,6 +901,9 @@ func _ready() -> void:
 	await _test_gather()
 	await _test_enchant()
 	await _test_enchant_effects()
+	await _test_tecela_web()
+	await _test_bocarrao_tongue()
+	await _test_flor_rooted()
 	await _test_survival()
 	await _test_update()
 	await _test_char_create()   # por último: troca o personagem solo por um novo, sem classe
@@ -1835,6 +1846,86 @@ func _test_enchant() -> void:
 	eui._close()
 	await wait(0.1)
 	check(world.modal == null, "painel fecha")
+
+
+# ---------------------------------------------------------------- Bocarrão e Flor-faminta
+## O Bocarrão de meia distância lança a língua e puxa o jogador para perto da boca.
+func _test_bocarrao_tongue() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 40)
+	player.global_position = spot
+	var e := Enemy.new()
+	e.kind = "bocarrao"
+	world.add_child(e)
+	e.global_position = spot + Vector3(0, 0, -5.5)
+	e.home = e.global_position
+	await wait(0.2)
+	check(e.parts.get("Tongue") != null and e.parts.get("Jaw") != null, "Bocarrão: língua e queixo no modelo")
+	var hp0: float = Game.hp
+	var d0: float = Vector2(player.global_position.x - e.global_position.x, player.global_position.z - e.global_position.z).length()
+	e.web_cd = 0.0
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return Game.hp < hp0, 4.0)
+	check(Game.hp < hp0 and e.web_cd > 0.0, "Bocarrão: a língua acerta de longe e entra em recarga (%.0f -> %.0f)" % [hp0, Game.hp])
+	await wait(0.25)
+	var d1: float = Vector2(player.global_position.x - e.global_position.x, player.global_position.z - e.global_position.z).length()
+	check(d1 < d0 - 0.4, "Bocarrão: a língua puxa o jogador para perto (%.1f m -> %.1f m)" % [d0, d1])
+	e.queue_free()
+	Game.hp = Game.max_hp()
+	player.global_position = back
+	await wait(0.1)
+
+
+## A Flor-faminta não sai do lugar, nem apanhando.
+func _test_flor_rooted() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 60)
+	player.global_position = spot
+	var e := Enemy.new()
+	e.kind = "flor_faminta"
+	world.add_child(e)
+	e.global_position = spot + Vector3(0, 0, -2.0)
+	e.home = e.global_position
+	await wait(0.3)
+	var p0: Vector3 = e.global_position
+	e.take_damage(5.0, spot, false)
+	await wait(1.5)
+	var moved := Vector2(e.global_position.x - p0.x, e.global_position.z - p0.z).length()
+	check(moved < 0.05, "Flor-faminta: fica plantada mesmo apanhando (andou %.2f m)" % moved)
+	e.queue_free()
+	Game.hp = Game.max_hp()
+	player.global_position = back
+	await wait(0.1)
+
+
+# ---------------------------------------------------------------- Tecelã
+## A Tecelã de meia distância cospe teia e o jogador fica preso (anda a 30%); o modelo tem as oito patas.
+func _test_tecela_web() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 20)
+	player.global_position = spot
+	player.web_t = 0.0
+	var e := Enemy.new()
+	e.kind = "tecela"
+	world.add_child(e)
+	e.global_position = spot + Vector3(0, 0, -7)
+	e.home = e.global_position
+	await wait(0.2)
+	var legs := 0
+	for n in Enemy.SPIDER_PARTS:
+		legs += 1 if e.parts.get(n) != null else 0
+	check(legs == 9, "Tecelã: abdômen e oito patas no modelo (%d de 9)" % legs)
+	e.web_cd = 0.0
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return player.web_t > 0.0, 4.0)
+	check(player.web_t > 0.0, "Tecelã cospe teia de longe e prende o jogador (%.2f s)" % player.web_t)
+	check(e.web_cd > 0.0, "teia entra em recarga (%.1f s)" % e.web_cd)
+	e.queue_free()
+	player.web_t = 0.0
+	player.global_position = back
+	await wait(0.1)
 
 
 # ---------------------------------------------------------------- Efeitos dos elementos

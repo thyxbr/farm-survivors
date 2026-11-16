@@ -211,7 +211,7 @@ BUILDERS = {
     "santa": lambda: build_elder(santa=True),
     "merchant": build_merchant, "body_base": build_body_base,
     "blacksmith": build_blacksmith,
-    "skeleton": build_skeleton,
+    "skeleton": build_skeleton, "raptor": build_raptor, "spider": build_spider, "plant": build_plant, "frog": build_frog, "bat": build_bat,
 }
 for _n in VILLAGER_LOOKS:   # aldeões da Defesa da Cidade (villager_<n>); ASSETS=villagers gera todos
     BUILDERS["villager_%d" % _n] = (lambda n=_n: build_villager(n))

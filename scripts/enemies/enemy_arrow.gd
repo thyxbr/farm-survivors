@@ -14,6 +14,9 @@ var damage := 0.0
 var source: Node
 ## Orbe roxo no lugar da flecha.
 var magic := false
+## Bola de teia (Tecelã): ao acertar, prende o jogador por web_secs (Player.apply_web).
+var web := false
+var web_secs := 0.0
 var _life := LIFE
 
 
@@ -22,6 +25,9 @@ func _ready() -> void:
 	direction = direction.normalized() if direction.length() > 0.01 else Vector3.FORWARD
 	if magic:
 		_build_orb()
+		return
+	if web:
+		_build_web()
 		return
 	var mi := MeshInstance3D.new()
 	var shaft := CylinderMesh.new()
@@ -53,6 +59,34 @@ func _ready() -> void:
 	add_child(tip)
 	look_at(global_position + direction, Vector3.UP)
 	rotate_object_local(Vector3.UP, PI)   # o +Z local (ponta) aponta para a frente
+
+
+func _build_web() -> void:
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = Color(0.93, 0.93, 0.97)
+	var ball := SphereMesh.new()
+	ball.radius = 0.16
+	ball.height = 0.32
+	ball.radial_segments = 8
+	ball.rings = 4
+	ball.material = m
+	var mi := MeshInstance3D.new()
+	mi.mesh = ball
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	for k in 3:   # fios soltos girando em volta da bola
+		var fio := CylinderMesh.new()
+		fio.top_radius = 0.012
+		fio.bottom_radius = 0.012
+		fio.height = 0.55
+		fio.radial_segments = 4
+		fio.material = m
+		var f := MeshInstance3D.new()
+		f.mesh = fio
+		f.rotation = Vector3(k * 1.1, k * 0.7, PI / 2 + k * 0.9)
+		f.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(f)
 
 
 func _build_orb() -> void:
@@ -104,6 +138,8 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 	global_position += direction * SPEED * delta
+	if web:
+		rotate_y(9.0 * delta)
 	if magic and Engine.get_physics_frames() % 3 == 0:
 		FX.burst(global_position, Color(0.7, 0.4, 1.0), 2, 0.8, 0.07, 0.35)
 	if damage <= 0.0 or source == null or not is_instance_valid(source):
@@ -114,6 +150,9 @@ func _physics_process(delta: float) -> void:
 		var c: Vector3 = p.global_position + Vector3.UP * 1.0
 		if c.distance_to(global_position) <= HIT_RADIUS:
 			p.take_damage(damage, global_position - direction)
-			FX.burst(global_position, Color(0.7, 0.4, 1.0) if magic else Color(0.7, 0.5, 0.3), 8, 2.5, 0.08, 0.4)
+			if web and p.has_method("apply_web"):
+				p.apply_web(web_secs)
+			FX.burst(global_position, Color(0.93, 0.93, 0.97) if web else Color(0.7, 0.4, 1.0) if magic
+				else Color(0.7, 0.5, 0.3), 8, 2.5, 0.08, 0.4)
 			queue_free()
 			return

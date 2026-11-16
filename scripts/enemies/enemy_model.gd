@@ -14,6 +14,11 @@ const MODELS := {
 	"slime": preload("res://assets/models/slime.glb"),
 	"goblin": preload("res://assets/models/goblin.glb"),
 	"skeleton": preload("res://assets/models/skeleton.glb"),
+	"raptor": preload("res://assets/models/raptor.glb"),
+	"spider": preload("res://assets/models/spider.glb"),
+	"plant": preload("res://assets/models/plant.glb"),
+	"frog": preload("res://assets/models/frog.glb"),
+	"bat": preload("res://assets/models/bat.glb"),
 }
 const MERGED := "Merged"
 

@@ -82,6 +82,11 @@ var contributors := {}
 var last_hitter := 0
 var _net_pos := Vector3.ZERO
 var _net_yaw := 0.0
+## Recarga do ataque especial (segundos), à parte da do golpe: teia da Tecelã, língua do Bocarrão.
+var web_cd := 0.0
+## Bocarrão: até onde a língua vai no ataque em curso (só para o desenho).
+var tongue_len := 0.0
+const SPIDER_PARTS := ["Abdomen", "Leg0L", "Leg1L", "Leg2L", "Leg3L", "Leg0R", "Leg1R", "Leg2R", "Leg3R"]
 
 
 func _ready() -> void:
@@ -109,7 +114,12 @@ func _ready() -> void:
 	add_child(model)
 	if elite:
 		_make_elite_glow()
-	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head"]:
+	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head", "Tail", "Jaw"]:   # Tail e Jaw: só o raptor
+		parts[n] = model.find_child(n, true, false)
+	if data.model == "spider":   # Tecelã: abdômen e as oito pernas (Leg0L..Leg3R)
+		for n in SPIDER_PARTS:
+			parts[n] = model.find_child(n, true, false)
+	for n in ["Tongue", "VineL", "VineR", "WingL", "WingR"]:   # Bocarrão, Flor-faminta e Asa-couro
 		parts[n] = model.find_child(n, true, false)
 	for mi: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
 		if not mi.is_in_group(ToonLook.OUTLINE_GROUP):      # a casca de contorno não pisca nem tinge
@@ -319,6 +329,7 @@ func _physics_process(delta: float) -> void:
 		return
 	born_t += delta
 	attack_cd = max(0.0, attack_cd - delta)
+	web_cd = maxf(0.0, web_cd - delta)
 	slow_timer = max(0.0, slow_timer - delta)
 	venom_timer = maxf(0.0, venom_timer - delta)
 	stagger = max(0.0, stagger - delta)
@@ -357,7 +368,7 @@ func _physics_process(delta: float) -> void:
 				move = to.normalized() * spd * 0.4
 				state_timer += delta
 		"chase":
-			if horde and ai() != "melee" and ai() != "bomber":
+			if horde and ai() != "melee" and ai() != "bomber" and ai() != "pack":
 				if dist == INF:
 					_set_state("idle")
 				else:
@@ -374,10 +385,15 @@ func _physics_process(delta: float) -> void:
 			elif global_position.distance_to(home) > 45.0 \
 					or (dist > data.aggro * 1.9 and provoked <= 0.0):
 				_set_state("return")
-			elif dist <= data.reach and attack_cd <= 0:
-				_begin_attack()
+			elif (dist <= data.reach or _web_ready(dist)) and attack_cd <= 0:
+				_begin_attack(dist)
 			elif dist > data.reach * 0.8:
-				move = to_player.normalized() * spd
+				if ai() == "pack":
+					move = _pack_dir(to_player, dist) * spd
+				elif ai() == "flyer":
+					move = _fly_dir(to_player, dist) * spd
+				else:
+					move = to_player.normalized() * spd
 			if face == Vector3.ZERO:
 				face = to_player
 		"return":
@@ -394,8 +410,9 @@ func _physics_process(delta: float) -> void:
 		"attack":
 			_update_attack(delta, player, to_player, dist)
 			if attack_kind == "lunge" and attack_timer > 0.35 and attack_timer < 0.6:
-				move = model_forward() * spd * 3.2
-			elif dist < INF and (attack_timer < 0.35 or (attack_kind == "shoot" and attack_timer < _hit_time())):
+				move = model_forward() * spd * (2.0 if ai() in ["pack", "weaver", "flyer"] else 3.2)
+			elif dist < INF and (attack_timer < 0.35 or ((attack_kind in ["shoot", "web", "tongue"])
+					and attack_timer < _hit_time())):
 				face = to_player
 
 	if stagger > 0:
@@ -441,6 +458,24 @@ func _set_state(s: String) -> void:
 	state_timer = 0.0
 	if s == "chase" and bar_root and not horde:
 		bar_root.visible = true
+	if s == "chase" and ai() == "pack" and not horde:
+		_alert_pack()
+
+
+## Bando (raptor): quem vê o jogador chama os do mesmo tipo que estão por perto, e o bando ataca junto.
+func _alert_pack() -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e != self and e.kind == kind and not e.dead and (e.state == "idle" or e.state == "wander") 				and e.global_position.distance_to(global_position) < 14.0:
+			e._set_state("chase")
+
+
+## Bando: de longe, cada membro abre para um lado (um vem de frente, os outros pelos flancos) e fecha o
+## cerco ao chegar perto. O lado sai do id, então é o mesmo no servidor e em cada nascimento.
+func _pack_dir(to_player: Vector3, dist: float) -> Vector3:
+	var dir := to_player.normalized()
+	var slot := (net_id if net_id != 0 else get_instance_id()) % 3
+	var ang: float = [0.0, 0.75, -0.75][slot] * clampf((dist - data.reach * 1.5) / 6.0, 0.0, 1.0)
+	return dir.rotated(Vector3.UP, ang)
 
 
 ## Arqueiro, xamã e goblin dourado: mantêm distância (ou fogem) em vez de correr para cima.
@@ -476,7 +511,26 @@ func _ranged_move(to_player: Vector3, dist: float, spd: float) -> Array:
 
 
 # ------------------------------------------------------------ ataques
-func _begin_attack() -> void:
+## Ataque especial de meia distância pronto? Tecelã: teia; Bocarrão: língua que puxa.
+func _web_ready(dist: float) -> bool:
+	if web_cd > 0.0 or dist <= data.reach * 1.4:
+		return false
+	match ai():
+		"weaver":
+			return dist > data.reach * 1.6 and dist < float(data.get("web_range", 10.0))
+		"frog":
+			return dist < float(data.get("tongue_range", 7.0))
+	return false
+
+
+## Asa-couro: de longe, chega rodeando (cada um para um lado) em vez de vir reto.
+func _fly_dir(to_player: Vector3, dist: float) -> Vector3:
+	var side := 1.0 if (net_id if net_id != 0 else get_instance_id()) % 2 == 0 else -1.0
+	var ang := side * 0.9 * clampf((dist - data.reach * 1.3) / 5.0, 0.0, 1.0)
+	return to_player.normalized().rotated(Vector3.UP, ang + sin(born_t * 1.3) * 0.25)
+
+
+func _begin_attack(dist := 0.0) -> void:
 	state = "attack"
 	attack_timer = 0.0
 	hit_done = false
@@ -491,6 +545,28 @@ func _begin_attack() -> void:
 		"bomber":
 			attack_kind = "fuse"
 			FX.telegraph(global_position, data.blast, _hit_time())
+			return
+		"pack":
+			attack_kind = "lunge"   # bote com mordida (o salto para a frente fica no estado "attack")
+			return
+		"weaver":
+			if _web_ready(dist):
+				attack_kind = "web"
+				web_cd = float(data.get("web_cd", 6.0)) * randf_range(0.85, 1.15)
+			else:
+				attack_kind = "lunge"
+			return
+		"frog":
+			if _web_ready(dist):
+				attack_kind = "tongue"
+				tongue_len = dist
+				web_cd = float(data.get("tongue_cd", 5.0)) * randf_range(0.85, 1.15)
+			else:
+				attack_kind = "lunge"   # bote curto com pulo
+				velocity.y = 3.5
+			return
+		"flyer":
+			attack_kind = "lunge"   # rasante
 			return
 	if data.model == "slime":
 		attack_kind = "lunge"
@@ -518,6 +594,10 @@ func _attack_duration() -> float:
 			return 1.3
 		"fuse":
 			return 1.2
+		"web":
+			return 1.0
+		"tongue":
+			return 1.2
 	return 0.95 if not is_boss else 1.1
 
 
@@ -533,6 +613,10 @@ func _hit_time() -> float:
 			return 0.75
 		"fuse":
 			return 0.95
+		"web":
+			return 0.55
+		"tongue":
+			return 0.5
 	return 0.5 if not is_boss else 0.6
 
 
@@ -543,6 +627,10 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 		hit_done = true
 		if attack_kind == "shoot":
 			_shoot(false)
+		elif attack_kind == "web":
+			_shoot_web(false)
+		elif attack_kind == "tongue":
+			_lash_tongue(player, to_player, dist)
 		elif attack_kind == "cast":
 			_cast_heal(false)
 		elif attack_kind == "fuse":
@@ -563,7 +651,7 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 				player.take_damage(data.damage * dmg_mult * randf_range(0.9, 1.1), global_position)
 				if data.has("chill") and player.has_method("apply_chill"):
 					player.apply_chill(float(data.chill))
-		if attack_kind == "swing":
+		if attack_kind == "swing" or (attack_kind == "lunge" and data.model in ["raptor", "spider", "frog", "bat"]):
 			Sfx.play_at("swing", global_position, 0.15, -4.0)
 	if attack_timer >= _attack_duration():
 		attack_cd = data.cooldown * (0.7 if enraged else 1.0) * randf_range(0.8, 1.2)
@@ -582,6 +670,32 @@ func _shoot(visual: bool) -> void:
 	arrow.magic = bolt
 	get_parent().add_child(arrow)
 	arrow.global_position = origin
+
+
+## Bocarrão: a língua acerta quem está na frente, até tongue_range, e puxa para perto da boca (o empurrão do
+## golpe sai de trás do jogador). Logo depois vem o bote.
+func _lash_tongue(player, to_player: Vector3, dist: float) -> void:
+	Sfx.play_at("slime", global_position, 0.2, -2.0)
+	if player == null or not (player is Player) or dist > float(data.get("tongue_range", 7.0)) + 0.8:
+		return
+	if model_forward().dot(to_player.normalized()) < 0.75:
+		return   # saiu da frente: a língua passa vazia
+	var dir := to_player.normalized()
+	player.take_damage(data.damage * dmg_mult * 0.6, player.global_position + dir)
+	attack_cd = 0.0
+
+
+## Tecelã: bola de teia que prende quem acerta (dano menor que o bote).
+func _shoot_web(visual: bool) -> void:
+	Sfx.play_at("bow_shot", global_position, 0.25, -8.0)
+	var ball := ENEMY_ARROW.new()
+	ball.web = true
+	ball.web_secs = float(data.get("web_secs", 1.8))
+	ball.direction = model_forward()
+	ball.damage = 0.0 if visual else data.damage * dmg_mult * 0.5
+	ball.source = get_parent()
+	get_parent().add_child(ball)
+	ball.global_position = global_position + Vector3.UP * 0.55 * float(data.scale) + model_forward() * 0.7
 
 
 func _cast_heal(visual: bool) -> void:
@@ -644,7 +758,7 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun
 		_set_state("chase")
 	if bar_root:
 		bar_root.visible = true
-	if not is_boss:
+	if not is_boss and ai() != "plant":   # a Flor-faminta tem raiz: não recua
 		var heavy: bool = data.get("elite", false) or elite   # campeões e elites da horda quase não recuam
 		var kb := global_position - from_pos
 		kb.y = 0
@@ -858,6 +972,10 @@ func _puppet_process(delta: float) -> void:
 				FX.burst(global_position + Vector3.UP * 0.3, Color(0.5, 0.4, 0.3), 40, 7.0, 0.2, 0.8)
 			elif attack_kind == "shoot":
 				_shoot(true)
+			elif attack_kind == "web":
+				_shoot_web(true)
+			elif attack_kind == "tongue":
+				Sfx.play_at("slime", global_position, 0.2, -2.0)
 			elif attack_kind == "cast":
 				_cast_heal(true)
 			elif attack_kind == "fuse":
@@ -887,6 +1005,21 @@ func _animate(delta: float, hspeed: float) -> void:
 				target = Vector3(0.8, 1.4, 0.8)
 		body.scale = body.scale.lerp(target, k)
 		return
+	if data.model == "raptor":
+		_animate_raptor(hspeed, s, k)
+		return
+	if data.model == "spider":
+		_animate_spider(hspeed, k)
+		return
+	if data.model == "plant":
+		_animate_plant(k)
+		return
+	if data.model == "frog":
+		_animate_frog(hspeed, k)
+		return
+	if data.model == "bat":
+		_animate_bat(hspeed, k)
+		return
 	var amp: float = clamp(hspeed / 4.0, 0.0, 1.0) * 0.8
 	parts.LegL.rotation.x = lerp(parts.LegL.rotation.x, s * amp, k)
 	parts.LegR.rotation.x = lerp(parts.LegR.rotation.x, -s * amp, k)
@@ -915,3 +1048,185 @@ func _animate(delta: float, hspeed: float) -> void:
 	var kk := k if not (state == "attack" and attack_timer >= _hit_time() and attack_timer < _hit_time() + 0.12) else 1.0 - exp(-40.0 * delta)
 	parts.ArmR.rotation = parts.ArmR.rotation.lerp(arm, kk)
 	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x, k)
+
+
+## Raptor: passada de ave (pernas longas, corpo balançando pouco), cauda que serpenteia e bote com a boca aberta.
+## Pivôs: rotação x positiva abaixa a frente (cabeça, mandíbula) e leva a perna para trás.
+func _animate_raptor(hspeed: float, s: float, k: float) -> void:
+	var amp: float = clamp(hspeed / 5.0, 0.0, 1.0) * 0.75
+	var leg_l := s * amp
+	var leg_r := -s * amp
+	var body_x := -absf(cos(anim_t)) * amp * 0.08
+	var head_x := sin(anim_t * 2.0) * amp * 0.1
+	var jaw := 0.04 + maxf(0.0, sin(anim_t * 0.37)) * 0.12 * (1.0 - amp)   # respira de boca entreaberta parado
+	if state == "attack" and attack_kind == "lunge":
+		var t := attack_timer
+		if t < 0.35:          # arma o bote: agacha, levanta a cabeça e abre a boca
+			body_x = 0.12
+			head_x = -0.35
+			jaw = 0.75
+			leg_l = -0.35
+			leg_r = 0.25
+		elif t < 0.6:         # salta para a frente e fecha a boca na hora do acerto
+			body_x = -0.2
+			head_x = 0.3
+			jaw = 0.0 if t >= _hit_time() else 0.8
+			leg_l = 0.7
+			leg_r = -0.6
+		else:
+			body_x = 0.05
+			head_x = 0.1
+			jaw = 0.15
+	var snap := 1.0 - exp(-40.0 * get_physics_process_delta_time())
+	parts.LegL.rotation.x = lerp(parts.LegL.rotation.x, leg_l, k)
+	parts.LegR.rotation.x = lerp(parts.LegR.rotation.x, leg_r, k)
+	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x, k)
+	parts.Head.rotation.x = lerp(parts.Head.rotation.x, head_x, k)
+	parts.ArmL.rotation.x = lerp(parts.ArmL.rotation.x, s * 0.15, k)
+	parts.ArmR.rotation.x = lerp(parts.ArmR.rotation.x, -s * 0.15, k)
+	if parts.Jaw:
+		parts.Jaw.rotation.x = lerp(parts.Jaw.rotation.x, jaw, snap if jaw == 0.0 else k)
+	if parts.Tail:
+		parts.Tail.rotation.y = sin(anim_t * 0.5) * (0.12 + amp * 0.15)
+		parts.Tail.rotation.x = -body_x * 0.8
+
+
+## Tecelã: oito patas em dois grupos alternados (1 e 3 de um lado com 2 e 4 do outro), cada pata varrendo e
+## levantando na sua vez; o abdômen respira. No bote ergue a frente com as patas dianteiras e desce mordendo;
+## na teia ergue a frente e cospe. Pivôs das pernas no quadril: y varre para a frente e para trás, z levanta.
+func _animate_spider(hspeed: float, k: float) -> void:
+	var amp: float = clamp(hspeed / 4.0, 0.0, 1.0)
+	var walk := anim_t * 1.7
+	var body_x := 0.0
+	var head_x := 0.0
+	var front_lift := 0.0
+	if state == "attack" and (attack_kind == "lunge" or attack_kind == "web"):
+		var t := attack_timer
+		if t < _hit_time():          # arma: frente para cima, patas da frente no ar, quelíceras abertas
+			body_x = -0.28
+			head_x = -0.45
+			front_lift = 0.7
+		elif t < _hit_time() + 0.25:  # morde (ou cospe) descendo a frente
+			body_x = 0.18 if attack_kind == "lunge" else -0.1
+			head_x = 0.35
+			front_lift = 0.15
+	for i in 4:
+		for side in 2:
+			var leg: Node3D = parts.get("Leg%d%s" % [i, "L" if side == 0 else "R"])
+			if leg == null:
+				continue
+			var sgn := 1.0 if side == 0 else -1.0
+			var ph := walk + (PI if (i + side) % 2 == 1 else 0.0)
+			var swing := sin(ph) * 0.32 * amp + sin(anim_t * 0.6 + i) * 0.03 * (1.0 - amp)
+			var lift := maxf(0.0, cos(ph)) * 0.3 * amp
+			if i == 0:
+				lift = maxf(lift, front_lift)
+			leg.rotation.y = lerp(leg.rotation.y, swing * sgn, k)
+			leg.rotation.z = lerp(leg.rotation.z, lift * sgn, k)
+	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x + sin(walk * 2.0) * 0.03 * amp, k)
+	if parts.Head:
+		parts.Head.rotation.x = lerp(parts.Head.rotation.x, head_x, k)
+	var abd: Node3D = parts.get("Abdomen")
+	if abd:
+		var br := 1.0 + sin(anim_t * 0.8) * 0.035
+		abd.scale = abd.scale.lerp(Vector3(br, br, br), k)
+		abd.rotation.x = lerp(abd.rotation.x, 0.12 if attack_kind == "web" and state == "attack" else 0.0, k)
+
+
+## Flor-faminta: balança devagar com a boca entreaberta; ao ver alguém perto abre a boca; no bote estica o caule e
+## fecha a boca; na pancada (slam) os cipós varrem o chão em volta.
+func _animate_plant(k: float) -> void:
+	var sway := sin(anim_t * 0.5) * 0.06
+	var open := 0.12 + maxf(0.0, sin(anim_t * 0.9)) * 0.08
+	var body_x := sway
+	var vine := sin(anim_t * 0.7) * 0.15
+	if state == "chase":
+		open = 0.45
+		body_x = -0.12
+	if state == "attack":
+		var t := attack_timer
+		var ht := _hit_time()
+		if attack_kind == "slam":
+			vine = -1.1 if t < ht else 0.9
+			open = 0.6
+			body_x = -0.2
+		elif t < ht:
+			open = 0.8
+			body_x = -0.35
+		elif t < ht + 0.3:
+			open = 0.0
+			body_x = 0.45
+	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x, k)
+	if parts.Head:
+		parts.Head.rotation.x = lerp(parts.Head.rotation.x, -open * 0.6, k)
+	if parts.Jaw:
+		parts.Jaw.rotation.x = lerp(parts.Jaw.rotation.x, open * 0.45, k)
+	if parts.VineL:
+		parts.VineL.rotation.y = lerp(parts.VineL.rotation.y, vine, k)
+	if parts.VineR:
+		parts.VineR.rotation.y = lerp(parts.VineR.rotation.y, -vine, k)
+
+
+## Bocarrão: anda aos pulinhos (o corpo sobe e desce com as patas de trás), o papo pulsa parado; a língua
+## estica até o jogador no ataque e volta; no bote abre a boca inteira.
+func _animate_frog(hspeed: float, k: float) -> void:
+	var amp: float = clamp(hspeed / 2.5, 0.0, 1.0)
+	var hop := absf(sin(anim_t * 1.2)) * amp
+	var jaw := 0.03 + maxf(0.0, sin(anim_t * 1.6)) * 0.04 * (1.0 - amp)
+	var body_x := -hop * 0.12
+	var stretch := 1.0
+	if state == "attack":
+		var t := attack_timer
+		var ht := _hit_time()
+		if attack_kind == "tongue":
+			jaw = 0.5
+			if t >= ht - 0.15 and t < ht + 0.3:   # sai, alcança e volta
+				var reach := tongue_len if tongue_len > 0.0 else float(data.get("tongue_range", 7.0)) * 0.7
+				var f := 1.0 - absf((t - (ht + 0.075)) / 0.225)
+				stretch = 1.0 + maxf(0.0, f) * reach / 0.6
+		elif t < ht:
+			jaw = 0.7
+			body_x = -0.25
+		elif t < ht + 0.25:
+			jaw = 0.0
+			body_x = 0.2
+	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x, k)
+	parts.Body.position.y = lerp(parts.Body.position.y, 0.4 + hop * 0.18, k)
+	if parts.Jaw:
+		parts.Jaw.rotation.x = lerp(parts.Jaw.rotation.x, jaw, k)
+	if parts.Tongue:
+		parts.Tongue.scale.z = stretch
+	for n in ["LegL", "LegR"]:
+		if parts[n]:
+			parts[n].rotation.x = lerp(parts[n].rotation.x, -hop * 0.5, k)
+	for n in ["ArmL", "ArmR"]:
+		if parts[n]:
+			parts[n].rotation.x = lerp(parts[n].rotation.x, hop * 0.3, k)
+
+
+## Asa-couro: bate as asas sem parar (mais rápido voando), o corpo sobe e desce no ritmo; no rasante desce até
+## a altura do jogador com as asas abertas para trás e sobe de volta.
+func _animate_bat(hspeed: float, k: float) -> void:
+	var beat := anim_t * 2.2
+	var flap := sin(beat) * (0.55 + clampf(hspeed / 5.0, 0.0, 1.0) * 0.2)
+	var y := sin(beat - 0.6) * 0.08
+	var body_x := 0.0
+	if state == "attack" and attack_kind == "lunge":
+		var t := attack_timer
+		var ht := _hit_time()
+		if t < ht + 0.15:
+			var f := clampf(t / maxf(ht, 0.01), 0.0, 1.0)
+			y = -0.75 * f
+			body_x = 0.35 * f
+			flap = -0.5
+		else:
+			y = -0.3
+			body_x = -0.2
+	parts.Body.position.y = lerp(parts.Body.position.y, 1.5 + y, k)
+	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x, k)
+	if parts.WingL:
+		parts.WingL.rotation.z = flap
+	if parts.WingR:
+		parts.WingR.rotation.z = -flap
+	if parts.Head:
+		parts.Head.rotation.x = lerp(parts.Head.rotation.x, -body_x * 0.5, k)

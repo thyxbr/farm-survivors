@@ -1223,5 +1223,280 @@
 		],
 		"boss": true,
 		"summon": "esqueleto"
+	},
+	"raptor_capim": {
+		"name": "Raptor-capim",
+		"model": "raptor",
+		"ai": "pack",
+		"hp": 70,
+		"damage": 12,
+		"speed": 5.6,
+		"xp": 34,
+		"gold": [
+			3,
+			8
+		],
+		"aggro": 15.0,
+		"reach": 2.1,
+		"cooldown": 1.8,
+		"radius": 0.45,
+		"height": 1.2,
+		"scale": 1.0,
+		"color": {
+			"$c": [
+				0.37,
+				0.48,
+				0.24,
+				1.0
+			]
+		},
+		"loot": [
+			[
+				"raptor_claw",
+				0.6
+			],
+			[
+				"health_potion",
+				0.15
+			],
+			[
+				"leather_boots",
+				0.04
+			],
+			[
+				"leather_gloves",
+				0.04
+			],
+			[
+				"hunter_bow",
+				0.03
+			],
+			[
+				"seed_pepper",
+				0.1
+			],
+			[
+				"wind_ring",
+				0.02
+			]
+		]
+	},
+	"tecela": {
+		"name": "Tecelã",
+		"model": "spider",
+		"ai": "weaver",
+		"hp": 85,
+		"damage": 13,
+		"speed": 4.4,
+		"xp": 40,
+		"gold": [
+			4,
+			10
+		],
+		"aggro": 13.0,
+		"reach": 1.9,
+		"cooldown": 1.6,
+		"radius": 0.55,
+		"height": 0.9,
+		"scale": 1.0,
+		"color": {
+			"$c": [
+				0.76,
+				0.23,
+				0.29,
+				1.0
+			]
+		},
+		"web_cd": 6.0,
+		"web_secs": 1.8,
+		"web_range": 11.0,
+		"loot": [
+			[
+				"spider_silk",
+				0.6
+			],
+			[
+				"health_potion",
+				0.15
+			],
+			[
+				"mana_potion",
+				0.12
+			],
+			[
+				"leather_gloves",
+				0.04
+			],
+			[
+				"wool_hood",
+				0.04
+			],
+			[
+				"oak_staff",
+				0.03
+			],
+			[
+				"seed_mint",
+				0.1
+			],
+			[
+				"wind_ring",
+				0.02
+			]
+		]
+	},
+	"flor_faminta": {
+		"name": "Flor-faminta",
+		"model": "plant",
+		"ai": "plant",
+		"hp": 60,
+		"damage": 14,
+		"speed": 0.0,
+		"xp": 26,
+		"gold": [
+			2,
+			6
+		],
+		"aggro": 6.0,
+		"reach": 2.8,
+		"cooldown": 1.8,
+		"radius": 0.4,
+		"height": 1.4,
+		"scale": 1.0,
+		"slam_every": 3,
+		"color": {
+			"$c": [
+				0.24,
+				0.42,
+				0.17,
+				1.0
+			]
+		},
+		"loot": [
+			[
+				"seed_pepper",
+				0.25
+			],
+			[
+				"seed_mint",
+				0.25
+			],
+			[
+				"seed_carrot",
+				0.2
+			],
+			[
+				"health_potion",
+				0.12
+			],
+			[
+				"mint",
+				0.2
+			]
+		]
+	},
+	"bocarrao": {
+		"name": "Bocarrão",
+		"model": "frog",
+		"ai": "frog",
+		"hp": 170,
+		"damage": 16,
+		"speed": 2.6,
+		"xp": 60,
+		"gold": [
+			6,
+			14
+		],
+		"aggro": 12.0,
+		"reach": 2.2,
+		"cooldown": 2.0,
+		"radius": 0.7,
+		"height": 1.3,
+		"scale": 1.0,
+		"tongue_cd": 5.0,
+		"tongue_range": 7.5,
+		"color": {
+			"$c": [
+				0.42,
+				0.42,
+				0.23,
+				1.0
+			]
+		},
+		"loot": [
+			[
+				"frog_tongue",
+				0.6
+			],
+			[
+				"health_potion",
+				0.25
+			],
+			[
+				"mana_potion",
+				0.15
+			],
+			[
+				"leather_boots",
+				0.05
+			],
+			[
+				"reinforced_boots",
+				0.03
+			],
+			[
+				"strength_ring",
+				0.02
+			]
+		]
+	},
+	"asa_couro": {
+		"name": "Asa-couro",
+		"model": "bat",
+		"ai": "flyer",
+		"hp": 50,
+		"damage": 10,
+		"speed": 5.2,
+		"xp": 30,
+		"gold": [
+			3,
+			8
+		],
+		"aggro": 15.0,
+		"reach": 1.8,
+		"cooldown": 1.6,
+		"radius": 0.45,
+		"height": 2.0,
+		"scale": 0.8,
+		"color": {
+			"$c": [
+				0.29,
+				0.23,
+				0.28,
+				1.0
+			]
+		},
+		"loot": [
+			[
+				"bat_wing",
+				0.6
+			],
+			[
+				"mana_potion",
+				0.15
+			],
+			[
+				"health_potion",
+				0.1
+			],
+			[
+				"wool_hood",
+				0.04
+			],
+			[
+				"wind_ring",
+				0.03
+			]
+		]
 	}
 }

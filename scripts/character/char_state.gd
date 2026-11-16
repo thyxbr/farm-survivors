@@ -34,14 +34,14 @@ var char_class := ""
 var body := ""
 
 
-## Personagem novo: mesmos valores do antigo Game.new_game.
+## Personagem novo: sem equipamento, só consumíveis e sementes.
 static func new_character(bt: BalanceTables) -> CharState:
 	var s := CharState.new()
 	s.gold = 25
+	# começa sem nenhum equipamento: o kit completo vem pelas missões
 	s.equipment = CharRules.empty_equipment()
 	s.farm = CharRules.default_farm(bt)
-	for e in [["health_potion", 3], ["mana_potion", 1], ["seed_carrot", 4], ["seed_wheat", 4], ["bread", 1],
-			["leather_cap", 1]]:
+	for e in [["health_potion", 3], ["mana_potion", 1], ["seed_carrot", 4], ["seed_wheat", 4], ["bread", 1]]:
 		CharRules.add_item(s, bt, e[0], e[1])
 	s.hp = CharRules.base_max_hp(s, bt)
 	s.mp = CharRules.base_max_mp(s, bt)

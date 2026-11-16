@@ -73,6 +73,10 @@ func setup(map_half: float) -> void:
 	cs.position.y = -0.5
 	body.add_child(cs)
 	add_child(body)
+	if DisplayServer.get_name() != "headless":
+		var prints := Footprints.new()
+		add_child(prints)
+		prints.setup(_noise_tex, body)
 	_push()
 
 
