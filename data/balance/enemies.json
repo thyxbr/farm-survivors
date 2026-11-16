@@ -65,7 +65,8 @@
 				"willow_staff",
 				0.015
 			]
-		]
+		],
+		"ref_level": 2
 	},
 	"slime_grande": {
 		"name": "Slime Grande",
@@ -106,7 +107,8 @@
 				"slime_gel",
 				0.8
 			]
-		]
+		],
+		"ref_level": 2
 	},
 	"slime_veloz": {
 		"name": "Slime Veloz",
@@ -150,7 +152,8 @@
 				"frost_drop",
 				0.5
 			]
-		]
+		],
+		"ref_level": 12
 	},
 	"goblin": {
 		"name": "Goblin Batedor",
@@ -298,7 +301,8 @@
 				"storm_staff",
 				0.008
 			]
-		]
+		],
+		"ref_level": 6
 	},
 	"slime_explosivo": {
 		"name": "Slime Explosivo",
@@ -340,7 +344,8 @@
 				"ember_core",
 				0.6
 			]
-		]
+		],
+		"ref_level": 2
 	},
 	"slime_mae": {
 		"name": "Slime Mãe",
@@ -384,7 +389,8 @@
 				"toxic_gland",
 				0.9
 			]
-		]
+		],
+		"ref_level": 2
 	},
 	"goblin_arqueiro": {
 		"name": "Goblin Arqueiro",
@@ -428,7 +434,8 @@
 			0.45
 		],
 		"ai": "ranged",
-		"loot": []
+		"loot": [],
+		"ref_level": 6
 	},
 	"goblin_xama": {
 		"name": "Goblin Xamã",
@@ -486,7 +493,8 @@
 				"tide_staff",
 				0.05
 			]
-		]
+		],
+		"ref_level": 14
 	},
 	"goblin_dourado": {
 		"name": "Goblin Dourado",
@@ -534,7 +542,8 @@
 				"golden_dust",
 				1.0
 			]
-		]
+		],
+		"ref_level": 10
 	},
 	"goblin_campeao": {
 		"name": "Campeão Goblin",
@@ -584,7 +593,8 @@
 				"champion_badge",
 				1.0
 			]
-		]
+		],
+		"ref_level": 10
 	},
 	"goblin_bruto": {
 		"name": "Goblin Bruto",
@@ -641,7 +651,8 @@
 				"shadow_fang",
 				0.8
 			]
-		]
+		],
+		"ref_level": 9
 	},
 	"goblin_king": {
 		"name": "Rei Goblin",
@@ -784,7 +795,8 @@
 				"phoenix_staff",
 				0.05
 			]
-		]
+		],
+		"ref_level": 12
 	},
 	"esqueleto": {
 		"name": "Esqueleto Guerreiro",
@@ -841,7 +853,8 @@
 				"kettle_hat",
 				0.02
 			]
-		]
+		],
+		"ref_level": 22
 	},
 	"esqueleto_arqueiro": {
 		"name": "Esqueleto Arqueiro",
@@ -883,7 +896,8 @@
 				"hunter_bow",
 				0.03
 			]
-		]
+		],
+		"ref_level": 22
 	},
 	"esqueleto_mago": {
 		"name": "Esqueleto Mago",
@@ -942,7 +956,8 @@
 				"void_staff",
 				0.005
 			]
-		]
+		],
+		"ref_level": 22
 	},
 	"esqueleto_cavaleiro": {
 		"name": "Cavaleiro Esqueleto",
@@ -998,7 +1013,8 @@
 				"guardian_greatsword",
 				0.04
 			]
-		]
+		],
+		"ref_level": 25
 	},
 	"goblin_bombardeiro": {
 		"name": "Goblin Bombardeiro",
@@ -1040,7 +1056,8 @@
 				"goblin_ear",
 				0.5
 			]
-		]
+		],
+		"ref_level": 6
 	},
 	"slime_gelo": {
 		"name": "Slime de Gelo",
@@ -1089,7 +1106,8 @@
 				"tide_staff",
 				0.01
 			]
-		]
+		],
+		"ref_level": 12
 	},
 	"slime_rainha": {
 		"name": "Slime Rainha",
@@ -1151,7 +1169,8 @@
 			]
 		],
 		"elite": true,
-		"slam_every": 3
+		"slam_every": 3,
+		"ref_level": 20
 	},
 	"lich": {
 		"name": "Morgrath, o Lich",
@@ -1222,7 +1241,8 @@
 			]
 		],
 		"boss": true,
-		"summon": "esqueleto"
+		"summon": "esqueleto",
+		"ref_level": 40
 	},
 	"raptor_capim": {
 		"name": "Raptor-capim",
@@ -1279,7 +1299,8 @@
 				"wind_ring",
 				0.02
 			]
-		]
+		],
+		"ref_level": 7
 	},
 	"tecela": {
 		"name": "Tecelã",
@@ -1343,7 +1364,8 @@
 				"wind_ring",
 				0.02
 			]
-		]
+		],
+		"ref_level": 7
 	},
 	"flor_faminta": {
 		"name": "Flor-faminta",
@@ -1393,7 +1415,8 @@
 				"mint",
 				0.2
 			]
-		]
+		],
+		"ref_level": 7
 	},
 	"bocarrao": {
 		"name": "Bocarrão",
@@ -1448,7 +1471,8 @@
 				"strength_ring",
 				0.02
 			]
-		]
+		],
+		"ref_level": 7
 	},
 	"asa_couro": {
 		"name": "Asa-couro",
@@ -1497,6 +1521,7 @@
 				"wind_ring",
 				0.03
 			]
-		]
+		],
+		"ref_level": 7
 	}
 }

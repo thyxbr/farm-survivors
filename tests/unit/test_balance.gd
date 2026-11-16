@@ -29,7 +29,13 @@ func test_roundtrip_matches_consts() -> void:
 		T.ok(not t.get_table(n).is_empty(), "tabela %s carregou" % n)
 		# o snapshot tem 40.0 onde o JSON devolve 40 (decode troca float inteiro por int), então
 		# normaliza o snapshot com a mesma regra antes do == profundo (que distingue int de float)
-		T.ok(t.get_table(n) == BalanceTables.decode(snap[n]), "tabela %s igual ao snapshot das const" % n)
+		var cur: Dictionary = t.get_table(n)
+		if n == "enemies":
+			# campos de progressão (ref_level) nasceram depois do snapshot: compara sem eles
+			cur = cur.duplicate(true)
+			for kind in cur:
+				(cur[kind] as Dictionary).erase("ref_level")
+		T.ok(cur == BalanceTables.decode(snap[n]), "tabela %s igual ao snapshot das const" % n)
 
 
 func test_ints_stay_int() -> void:
