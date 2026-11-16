@@ -10,12 +10,15 @@ signal double_clicked(slot: ItemSlot)
 var item_id := "":
 	set(v):
 		item_id = v
+		# carrega aqui, não no _draw: textura carregada no meio do desenho sai branca nesse quadro
+		_art = item_art(v)
 		queue_redraw()
 ## Ícone sem item (magias do HUD) e ícone "fantasma" de espaço vazio.
 var icon_kind := ""
 var icon_color := Color.WHITE
 ## Arte pintada da habilidade (assets/ui/skills); quando existe, ocupa o espaço no lugar do icon_kind.
 var icon_tex: Texture2D
+var _art: Texture2D    # arte pintada de item_id (ItemSlot.item_art)
 var ghost_kind := ""
 var qty := 0
 var key_text := ""
@@ -48,6 +51,13 @@ var _hover := false
 static func skill_art(ability_id: String) -> Texture2D:
 	var path := "res://assets/ui/skills/%s.png" % ability_id
 	return load(path) if ability_id != "" and ResourceLoader.exists(path) else null
+
+
+## Arte pintada do item (assets/ui/items, recortada das grades por tools/icons/slice_grid.py).
+## Vale em todo espaço e também sem janela; sem arte o item cai no ícone 3D ou no IconPainter.
+static func item_art(item_id: String) -> Texture2D:
+	var path := "res://assets/ui/items/%s.png" % item_id
+	return load(path) if item_id != "" and ResourceLoader.exists(path) else null
 
 
 func _init(sz := 64.0) -> void:
@@ -184,7 +194,9 @@ func _draw() -> void:
 	var inset := size.x * (0.17 if badges else 0.14)
 	var ir := r.grow(-inset)
 	if has_item:
-		var tex: Texture2D = ItemIcons.icon(item_id, queue_redraw) if paper or model_icon else null
+		var tex: Texture2D = _art
+		if tex == null and (paper or model_icon):
+			tex = ItemIcons.icon(item_id, queue_redraw)
 		if tex:
 			draw_texture_rect(tex, r.grow(-size.x * 0.03), false)
 		else:
