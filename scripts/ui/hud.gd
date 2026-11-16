@@ -479,6 +479,7 @@ func _refresh_kit() -> void:
 		var s: ItemSlot = slots["slot_%d" % n]
 		var id: String = _slot_ids[n - 1]
 		s.icon_kind = ItemDB.ABILITIES[id].icon if id != "" else ""
+		s.icon_tex = ItemSlot.skill_art(id)
 		s.dim = id == ""
 		s.cooldown = 0.0
 		s.cooldown_text = ""
