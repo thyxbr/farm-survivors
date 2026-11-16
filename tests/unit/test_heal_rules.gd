@@ -25,5 +25,6 @@ func test_targets_only_zone_peers() -> void:
 
 func test_interval() -> void:
 	T.ok(HealRules.interval_ok(-INF, 100.0), "primeira cura vale")
-	T.ok(not HealRules.interval_ok(100.0, 101.9), "a 1,9 s recusa")
-	T.ok(HealRules.interval_ok(100.0, 102.0), "a 2,0 s vale")
+	T.ok(not HealRules.interval_ok(100.0, 101.3), "a 1,3 s recusa")
+	T.ok(HealRules.interval_ok(100.0, 101.4), "a 1,4 s vale")
+	T.ok(HealRules.interval_ok(100.0, 101.6), "a 1,6 s (menor recarga legítima) vale")

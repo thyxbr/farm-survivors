@@ -5,7 +5,8 @@ extends RefCounted
 ## Distância máxima, em metros, entre o healer e o aliado curado (posições recebidas pelo servidor).
 const RADIUS := 8.0
 ## Tempo mínimo, em segundos, entre duas curas aceitas do mesmo jogador (a recarga de verdade é do cliente).
-const MIN_INTERVAL := 2.0
+## A menor recarga legítima é 4,0 x 0,4 (cooldown_mult mínimo) = 1,6 s; 1,4 s deixa folga para o jitter da rede.
+const MIN_INTERVAL := 1.4
 
 
 ## Quem recebe a cura do `caster`: ele mesmo sempre e os de `zone_peers` a até RADIUS m dele.
