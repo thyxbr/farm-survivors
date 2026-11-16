@@ -214,14 +214,15 @@ func test_cook() -> void:
 func test_kill_levels_up() -> void:
 	var bt := _tables()
 	var s := _blank()
-	var r := CharRules.kill(s, bt, "slime", 60)
+	var need1 := CharRules.xp_to_next(1, bt)
+	var r := CharRules.kill(s, bt, "slime", need1)
 	T.ok(r.ok, "ok")
 	T.eq(s.level, 2, "nível 2")
 	T.eq(s.xp, 0, "xp zerado")
 	T.eq(s.stat_points, 3, "3 pontos")
 	T.eq(s.kills, 1, "abate contado")
 	T.ok(_has_event(r, "level_up"), "evento level_up")
-	T.eq(r.events[0].text, "+60 XP", "aviso de XP")
+	T.eq(r.events[0].text, "+%d XP" % need1, "aviso de XP")
 	T.eq(r.events[1].text, "Nível 2! +3 pontos de atributo (C)", "aviso de nível")
 	T.eq(r.events[2].t, "level_up", "sem habilidade nova da espada no nível 2")
 	# nível 3: o Golpe Sísmico da espada; o aviso vem do kit (ABILITIES), não da tabela de magias
@@ -236,6 +237,47 @@ func test_kill_levels_up() -> void:
 	sc.equipment["weapon"] = "apprentice_staff"
 	var rc := CharRules.kill(sc, bt, "slime", CharRules.xp_to_next(2, bt))
 	T.eq(rc.events[2].text, "Nova habilidade: Nova Gélida [2]", "kit do cajado")
+
+
+func test_kill_xp_scaled_by_level_diff() -> void:
+	var bt := _tables()
+	var s := _blank()
+	s.level = 12
+	CharRules.kill(s, bt, "slime", 100, 2)
+	T.eq(s.xp, 5, "monstro 10 níveis abaixo: 5%")
+	s.xp = 0
+	CharRules.kill(s, bt, "slime", 100, 12)
+	T.eq(s.xp, 100, "mesmo nível: 100%")
+	s.xp = 0
+	CharRules.kill(s, bt, "slime", 100, 0)
+	T.eq(s.xp, 100, "sem nível: sem ajuste")
+
+
+func test_kill_xp_uses_group_level() -> void:
+	var bt := _tables()
+	var s := _blank()
+	s.level = 5
+	CharRules.kill(s, bt, "goblin", 100, 7, 14)
+	T.eq(s.xp, 25, "grupo de nível 14 contra monstro 7: 25%")
+
+
+func test_level_cap_50() -> void:
+	var bt := _tables()
+	var s := _blank()
+	s.level = 49
+	CharRules.grant(s, bt, 0, 10_000_000, {})
+	T.eq(s.level, 50, "chegou ao 50")
+	T.eq(s.xp, 0, "excesso descartado")
+	var r := CharRules.grant(s, bt, 0, 1000, {})
+	T.eq(s.level, 50, "continua no 50")
+	T.eq(s.xp, 0, "sem XP no máximo")
+	T.ok(not _has_event(r, "notify"), "sem aviso de XP no máximo")
+
+
+func test_xp_to_next_delegates() -> void:
+	var bt := _tables()
+	T.eq(CharRules.xp_to_next(10, bt), ProgressionRules.xp_to_next(bt, 10), "delega")
+	T.eq(CharRules.xp_to_next(50, bt), 0, "0 no máximo")
 
 
 func test_spend_point() -> void:

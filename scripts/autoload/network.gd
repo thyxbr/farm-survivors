@@ -655,13 +655,17 @@ func server_enemy_killed(e: Enemy) -> void:
 		for pid in e.contributors:
 			if players.has(pid) and zone_of(pid) == "world":
 				hitters.append(pid)
-		var rewards := Party.server_kill_rewards(int(e.data.xp), hitters, pos, "world")
+		var rewards := Party.server_kill_rewards(e.xp_reward(), hitters, pos, "world")
+		# em grupo, a diferença de nível usa o maior nível entre quem recebe
+		var group_level := 0
+		for pid in rewards:
+			group_level = maxi(group_level, Party._level(pid))
 		for pid in rewards:
 			if not players.has(pid):
 				continue
 			var r: Dictionary = rewards[pid]
 			if r.kill:
-				Econ.server_kill(pid, e.kind, int(r.xp))
+				Econ.server_kill(pid, e.kind, int(r.xp), e.level, group_level)
 			elif int(r.xp) > 0:
 				Econ.server_grant(pid, 0, int(r.xp), {}, "party_xp", 0, false,
 					[{"t": "notify", "text": "+%d XP do grupo (longe demais para contar na missão)" % int(r.xp),

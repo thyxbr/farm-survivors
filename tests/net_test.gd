@@ -688,7 +688,6 @@ func _test_party(w: Node) -> void:
 	check(await _wait_until(func() -> bool: return Game.quest_state("espantalho") == "active", 4.0), "missão de slimes ativa")
 	await _sync("party_ready")
 
-	var slime_xp := int(Balance.tables.get_table("enemies").get("slime", {}).get("xp", 0))
 	for phase in ["near", "far"]:
 		await wait(Network.CHAT_WINDOW)   # as barreiras usam o chat: o anti-spam precisa esvaziar para o alvo passar
 		var kills0 := Game.kills
@@ -719,6 +718,8 @@ func _test_party(w: Node) -> void:
 		if tgt == null or not is_instance_valid(tgt):
 			check(false, "slime do grupo existe no cliente (%s)" % phase)
 			return
+		var tgt_reward := tgt.xp_reward()
+		var tgt_level := tgt.level
 		var at := tgt.global_position
 		if my_name == "Ana":
 			w.player.global_position = at + Vector3(0, 0.5, 3)
@@ -735,7 +736,12 @@ func _test_party(w: Node) -> void:
 		await wait(0.8)
 		var gained := Game.xp + Game.level * 100000 - xp0
 		if Game.level == lvl0:   # subir de nível zera o XP da barra: aí só confere que subiu
-			check(gained == ceili(slime_xp / 2.0), "metade do XP do slime (%d de %d, %s)" % [gained, slime_xp, phase])
+			# o slime tem nível e multiplicador de XP (xp_reward); perto o XP ainda passa pelo ajuste de nível
+			var share := ceili(tgt_reward / 2.0)
+			var expected := share
+			if phase == "near":
+				expected = int(round(share * ProgressionRules.xp_diff_mult(Balance.tables, tgt_level, lvl0)))
+			check(gained == expected, "metade do XP do slime (%d de %d, %s)" % [gained, tgt_reward, phase])
 		var counted: bool = my_name == "Ana" or phase == "near"
 		check(Game.kills == kills0 + (1 if counted else 0),
 			"abate %s para %s (%s: %d → %d)" % ["conta" if counted else "não conta", my_name, phase, kills0, Game.kills])

@@ -398,8 +398,10 @@ func _process(delta: float) -> void:
 	st_bar.value = Game.stamina
 	var st_full := Game.stamina >= Game.max_stamina() - 0.5
 	st_bar.modulate.a = move_toward(st_bar.modulate.a, 0.0 if st_full else 1.0, delta * 3.0)
-	xp_bar.max_value = Game.xp_to_next()
-	xp_bar.value = Game.xp
+	# no nível máximo (xp_to_next = 0) a barra fica cheia
+	var xp_need := Game.xp_to_next()
+	xp_bar.max_value = maxi(xp_need, 1)
+	xp_bar.value = Game.xp if xp_need > 0 else 1
 
 	# vinheta: pisca ao levar dano e pulsa com vida baixa
 	if _last_hp >= 0.0 and Game.hp < _last_hp - 0.5:

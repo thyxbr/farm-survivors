@@ -211,19 +211,22 @@ static func _inv_less(bt: BalanceTables, a: Dictionary, b: Dictionary) -> bool:
 
 # ================================================================ XP e ouro
 static func xp_to_next(level: int, bt: BalanceTables) -> int:
-	var c: Dictionary = _rules(bt).get("xp_curve", {})
-	return int(float(c.base) * pow(level, float(c.exp)))
+	return ProgressionRules.xp_to_next(bt, level)
 
 
 ## Soma XP e sobe de nível quantas vezes der (eventos em `ev`).
 static func _add_xp(s: CharState, bt: BalanceTables, amount: int, ev: Array) -> void:
 	if amount <= 0:
 		return
+	# no nível máximo o XP não conta: zera o resto e não avisa
+	if s.level >= ProgressionRules.max_level(bt):
+		s.xp = 0
+		return
 	s.xp += amount
 	ev.append(_notify("+%d XP" % amount, Color(0.6, 0.85, 1.0)))
 	var pts := int(_rules(bt).get("points_per_level", 3))
 	var weapon_cls := weapon_class(bt, str(s.equipment.get("weapon", "")))
-	while s.xp >= xp_to_next(s.level, bt):
+	while s.level < ProgressionRules.max_level(bt) and s.xp >= xp_to_next(s.level, bt):
 		s.xp -= xp_to_next(s.level, bt)
 		s.level += 1
 		s.stat_points += pts
@@ -236,6 +239,8 @@ static func _add_xp(s: CharState, bt: BalanceTables, amount: int, ev: Array) -> 
 			if ab["class"] == weapon_cls and int(ab.level) == s.level and ab.ready:
 				ev.append(_notify("Nova habilidade: %s [%d]" % [ab.name, ab.slot], Color(0.75, 0.55, 1.0)))
 		ev.append({"t": "level_up", "level": s.level})
+	if s.level >= ProgressionRules.max_level(bt):
+		s.xp = 0
 
 
 ## Recompensa direta (coleta de loot, prêmio da Horda...): ouro, XP e itens.
@@ -257,10 +262,13 @@ static func grant(s: CharState, bt: BalanceTables, gold: int, xp: int, items: Di
 	return _ok(ev)
 
 
-## Abate: XP, contagem de abates e progresso de missão.
-static func kill(s: CharState, bt: BalanceTables, kind: String, xp: int) -> Dictionary:
+## Abate: XP, contagem de abates e progresso de missão. Com `enemy_level` > 0 o XP é ajustado pela diferença
+## para o maior nível entre o personagem e o grupo (`group_level`); sem nível, sem ajuste.
+static func kill(s: CharState, bt: BalanceTables, kind: String, xp: int, enemy_level := 0, group_level := 0) -> Dictionary:
 	if xp < 0:
 		return _fail("valor_invalido")
+	if enemy_level > 0:
+		xp = int(round(xp * ProgressionRules.xp_diff_mult(bt, enemy_level, maxi(s.level, group_level))))
 	var ev: Array = []
 	s.kills += 1
 	# chefe derrotado: o Rei Goblin deixa de nascer (king_dead, como fazia Enemy._die); os outros chefes

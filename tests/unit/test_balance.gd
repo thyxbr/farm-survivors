@@ -35,13 +35,20 @@ func test_roundtrip_matches_consts() -> void:
 			cur = cur.duplicate(true)
 			for kind in cur:
 				(cur[kind] as Dictionary).erase("ref_level")
+		elif n == "rules":
+			# a curva de XP foi para progression.json
+			cur = cur.duplicate(true)
+			var snap_rules: Dictionary = (BalanceTables.decode(snap[n]) as Dictionary).duplicate(true)
+			snap_rules.erase("xp_curve")
+			T.ok(cur == snap_rules, "tabela rules igual ao snapshot (sem xp_curve)")
+			continue
 		T.ok(cur == BalanceTables.decode(snap[n]), "tabela %s igual ao snapshot das const" % n)
 
 
 func test_ints_stay_int() -> void:
 	var t := BalanceTables.load_dir(DIR)
 	T.eq(typeof(t.get_table("items")["health_potion"].price), TYPE_INT, "price é int")
-	T.eq(typeof(t.get_table("rules")["xp_curve"]["base"]), TYPE_INT, "base da curva é int")
+	T.eq(typeof(t.get_table("progression")["xp_curve"]["base"]), TYPE_INT, "base da curva é int")
 	T.eq(typeof(t.get_table("rules")["sell_ratio"]), TYPE_FLOAT, "0.5 continua float")
 
 

@@ -892,7 +892,7 @@ func _die() -> void:
 		Network.server_enemy_killed(self)
 	elif not horde:
 		# solo: XP, missão e o chefe derrotado (king_dead) ficam com as regras (Econ.kill)
-		Game.on_enemy_killed(kind, xp_reward())
+		Game.on_enemy_killed(kind, xp_reward(), level)
 		drop_loot(get_parent(), kind, global_position)
 	die_visual()
 

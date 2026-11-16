@@ -768,9 +768,9 @@ func guild_points() -> int:
 
 
 ## Abate: a cura da comida (roubo de vida) é do combate, do cliente; XP e missão são do Econ.
-func on_enemy_killed(kind: String, xp_reward: int) -> void:
+func on_enemy_killed(kind: String, xp_reward: int, enemy_level := 0) -> void:
 	kill_lifesteal()
-	Econ.kill(kind, xp_reward)
+	Econ.kill(kind, xp_reward, enemy_level)
 
 
 ## Roubo de vida da comida ao abater (combate é do cliente; online o abate em si é do servidor).
