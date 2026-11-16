@@ -46,11 +46,18 @@ func _ready() -> void:
 	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	tag.position.y = 2.35
 	tag.modulate = Color(1, 0.95, 0.8)
+	# nome e marcador aparecem através de paredes e telhados (NPC dentro de construção ou atrás de outra):
+	# o nome só de perto, o !/? de qualquer distância
+	tag.no_depth_test = true
+	tag.render_priority = 5
+	tag.visibility_range_end = 22.0
 	add_child(tag)
 	marker = Label3D.new()
 	marker.font_size = 110
 	marker.outline_size = 14
 	marker.pixel_size = 0.006
+	marker.no_depth_test = true
+	marker.render_priority = 6
 	marker.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	marker.modulate = Color(1, 0.8, 0.2)
 	marker.position.y = 2.85
