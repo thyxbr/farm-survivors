@@ -69,6 +69,8 @@ var eat_cooldown := 0.0
 var selected_food := ""
 ## Bônus das passivas permanentes (CharRules.meta_mods), recalculados em apply_state e somados em mod().
 var meta_mods := {}
+## Talentos aprendidos {id: nível} (espelho do personagem; a aba Talentos lê daqui).
+var talents := {}
 ## Bônus dos talentos da classe (CharRules.talent_mods), recalculados em apply_state e somados em mod().
 var talent_mods := {}
 ## Encantamentos por tipo de arma (espelho de CharState.enchants): id -> {"el", "lv"}.
@@ -171,7 +173,7 @@ func _debug_screenshot() -> void:
 				else:
 					w.open_plant_menu(10)
 	# `--geardemo` dá um punhado dos equipamentos novos (para screenshots do inventário e da loja)
-	# `--weapon=<id>` equipa uma arma; `--ui=inv|char|quests|shop` abre a tela (sem --farmdemo)
+	# `--weapon=<id>` equipa uma arma; `--ui=inv|char|talents|quests|shop` abre a tela (sem --farmdemo)
 	if "--geardemo" in args:
 		var gear_ids := {}
 		for id in ["frost_brand", "ember_staff", "elven_bow", "storm_bow", "dragonfang", "knight_shield", "arcane_orb",
@@ -201,6 +203,15 @@ func _debug_screenshot() -> void:
 		if a.begins_with("--weapon="):
 			Econ.grant(0, 0, {a.substr(9): 1}, "demo", true)
 			equip(a.substr(9))
+		# `--talents=id,id,...` aprende um nível de cada (repetir o id = mais níveis), para capturas da aba Talentos
+		# (sobe o personagem da demo ao nível 6 de verdade, para ter os 5 pontos)
+		elif a.begins_with("--talents="):
+			var xp_need := 0
+			for lv in range(1, 6):
+				xp_need += CharRules.xp_to_next(lv, Balance.tables)
+			Econ.grant(0, xp_need, {}, "demo", true)
+			for id in a.substr(10).split(",", false):
+				learn_talent(id)
 	if "--farmdemo" not in args:
 		for a in args:
 			if a.begins_with("--ui="):
@@ -211,8 +222,10 @@ func _debug_screenshot() -> void:
 						w._open_menu(0)
 					"char":
 						w._open_menu(1)
-					"quests":
+					"talents":
 						w._open_menu(2)
+					"quests":
+						w._open_menu(3)
 					"shop":
 						w.open_shop()
 					"map":
@@ -277,7 +290,7 @@ func _setup_input() -> void:
 		"jump": [KEY_SPACE], "sprint": [KEY_SHIFT], "dodge": [KEY_CTRL, KEY_ALT],
 		"interact": [KEY_E], "spell_1": [KEY_1], "spell_2": [KEY_2], "spell_3": [KEY_3], "spell_4": [KEY_4],
 		"potion": [KEY_R], "mana_potion": [KEY_F], "inventory": [KEY_I, KEY_TAB], "character": [KEY_C],
-		"quest_log": [KEY_J], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
+		"talents": [KEY_K], "quest_log": [KEY_J], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
 		"eat": [KEY_Q], "food_next": [KEY_T], "world_map": [KEY_M], "party": [KEY_P], "friends": [KEY_O],
 		# emotes (acenar, comemorar, sentar): eram as teclas 1–3 da praça; na vila 1–4 são magias
 		"emote_1": [KEY_7], "emote_2": [KEY_8], "emote_3": [KEY_9],
@@ -701,6 +714,29 @@ func rank_up() -> void:
 	Econ.request("rank_up")
 
 
+## Aprende um nível do talento (as regras conferem pontos, linha e máximo).
+func learn_talent(id: String) -> void:
+	Econ.request("learn_talent", [id])
+
+
+## Devolve todos os pontos de talento (na Lina, da Guilda; cobra talent_reset_cost()).
+func reset_talents() -> void:
+	Econ.request("reset_talents")
+
+
+## Pontos de talento livres no espelho: 1 por nível a partir do 2, menos os gastos (CharRules.talent_points).
+func talent_points() -> int:
+	var spent := 0
+	for id in talents:
+		spent += int(talents[id])
+	return maxi(0, level - 1 - spent)
+
+
+## Ouro para redistribuir os talentos agora (espelho de CharRules.reset_cost).
+func talent_reset_cost() -> int:
+	return 0 if level <= 5 else 50 * level
+
+
 ## Rank na guilda ("D" a "S") e pontos de guilda (espelho do personagem).
 func rank() -> String:
 	return str(flags.get("rank", "D"))
@@ -1071,6 +1107,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 	ecos = s.ecos
 	passives = s.passives
 	meta_mods = CharRules.meta_mods(Balance.tables, passives)
+	talents = s.talents
 	talent_mods = CharRules.talent_mods(Balance.tables, s)
 	enchants = s.enchants
 	char_class = s.char_class

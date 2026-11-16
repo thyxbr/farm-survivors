@@ -23,6 +23,8 @@ var name_label: Label
 var gold_label: Label
 var class_label: Label
 var points_chip: PanelContainer
+## Pontos de talento livres ("+N talento [K]"), ao lado dos de atributo.
+var talent_chip: PanelContainer
 ## Rank da guilda ao lado do nome (some antes do registro).
 var rank_chip: PanelContainer
 var season_badge: SeasonBadge
@@ -218,6 +220,11 @@ func _build_plate() -> void:
 	points_chip.add_child(UITheme.label("", 12, Color(0.12, 0.08, 0.02)))
 	points_chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	plate.add_child(points_chip)
+	talent_chip = PanelContainer.new()
+	talent_chip.add_theme_stylebox_override("panel", UITheme._box(Color(0.55, 0.8, 1.0, 0.9), Color(0.85, 0.95, 1.0), 1, 8, 6, 1))
+	talent_chip.add_child(UITheme.label("", 12, Color(0.03, 0.08, 0.16)))
+	talent_chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	plate.add_child(talent_chip)
 	_ignore_all(plate)
 
 
@@ -489,6 +496,9 @@ func _refresh_static() -> void:
 	(rank_chip.get_child(0) as Label).text = "RANK %s" % Game.rank()
 	points_chip.visible = Game.stat_points > 0
 	(points_chip.get_child(0) as Label).text = "+%d [C]" % Game.stat_points
+	var tp := Game.talent_points() if Game.char_class != "" else 0
+	talent_chip.visible = tp > 0
+	(talent_chip.get_child(0) as Label).text = "+%d talento [K]" % tp
 	for id in ["health_potion", "mana_potion"]:
 		var c := Game.count_item(id)
 		var s: ItemSlot = slots[id]

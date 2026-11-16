@@ -917,6 +917,32 @@ func test_talent_reset() -> void:
 	T.eq(p.gold, 20, "cobrou 500")
 
 
+func test_talent_level_up_notice() -> void:
+	var bt := _tables()
+	var s := _talent_char(1)
+	var r := CharRules.kill(s, bt, "slime", CharRules.xp_to_next(1, bt))
+	T.eq(r.events[1].text, "Nível 2! +3 pontos de atributo (C) e 1 de talento (K)", "com classe: avisa o ponto de talento")
+
+
+func test_talent_reset_notices() -> void:
+	var bt := _tables()
+	var s := _talent_char(8)
+	CharRules.learn_talent(s, bt, "w_edge")
+	CharRules.learn_talent(s, bt, "w_hide")
+	var poor := CharRules.reset_talents(s, bt)
+	T.eq(poor.err, "sem_ouro", "sem ouro")
+	T.eq(poor.events[0].text, "Redistribuir custa 400 de ouro.", "aviso do custo")
+	s.gold = 400
+	var r := CharRules.reset_talents(s, bt)
+	T.ok(r.ok, "paga")
+	T.eq(r.events[0].text, "Talentos redistribuídos: 2 pontos de volta (-400 de ouro).", "aviso da redistribuição")
+	T.ok(_has_event(r, "talents_reset"), "evento talents_reset")
+	T.eq(CharRules.reset_talents(s, bt).events[0].text, "Nenhum ponto de talento para devolver.", "aviso sem talentos")
+	var f := _talent_char(3)
+	CharRules.learn_talent(f, bt, "w_edge")
+	T.eq(CharRules.reset_talents(f, bt).events[0].text, "Talentos redistribuídos: 1 ponto de volta (grátis até o nível 5).", "grátis")
+
+
 func test_talent_mods() -> void:
 	var bt := _tables()
 	var s := _talent_char(20)

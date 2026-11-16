@@ -2888,7 +2888,7 @@ func _test_gear() -> void:
 	check(m.equip_slots.head.item_id == "leather_cap", "boneco mostra o capuz equipado")
 	var book: BookWindow = m.book
 	check(book != null and book.current_page() == 0, "menu do herói abre no livro, na aba Inventário")
-	for i in 3:
+	for i in m.pages.size():
 		m._show_tab(i)
 		await wait(0.1)
 		var area := book.content_rect().grow(1.0)
@@ -2910,7 +2910,7 @@ func _test_gear() -> void:
 	check(tip_paper != tip_dark and not tip_paper.contains(UITheme.GOOD.to_html(false))
 		and not tip_paper.contains(UITheme.DIM.to_html(false)), "dica de papel não usa as cores claras do tema escuro")
 	# Personagem e Missões a tinta: nenhum painel escuro nem texto claro
-	for i in [1, 2]:
+	for i in [1, 2, 3]:
 		m._show_tab(i)
 		await wait(0.1)
 		check(_light_text(m.pages[i]) == "", "aba %d sem texto claro nem painel escuro%s" % [i, _light_text(m.pages[i])])
@@ -2929,7 +2929,7 @@ func _test_gear() -> void:
 	check(m.attr_values["str"].text == str(Game.attr("str")), "aba Personagem mostra o novo valor de Força")
 	check(m.attr_buttons["str"].disabled == (Game.stat_points <= 0), "botão + desliga quando os pontos acabam")
 	# selecionar uma missão troca os detalhes
-	m._show_tab(2)
+	m._show_tab(3)
 	var fake_quest := not Game.quests.has("goblins")
 	if fake_quest:   # segunda missão só no espelho da tela (o estado de verdade fica no Econ)
 		Game.quests["goblins"] = {"state": "active", "progress": 1}
@@ -2944,6 +2944,7 @@ func _test_gear() -> void:
 			"selecionar a missão %s troca os detalhes" % qid)
 	if fake_quest:
 		Game.quests.erase("goblins")
+	await _test_talent_tab(m)
 	check(not ItemIcons.enabled() and ItemIcons.icon("leather_cap", Callable()) == null, "sem janela, os ícones 3D ficam desligados")
 	check(ItemIcons.icon("health_potion", Callable()) == null, "sem janela, item de família também cai no ícone pintado")
 	var no_icon: Array[String] = []
@@ -2958,6 +2959,55 @@ func _test_gear() -> void:
 	check(world.modal != null and world.modal.buy_grid.get_child_count() > 10, "loja mostra a grade de mercadorias")
 	world.modal._close()
 	await wait(0.05)
+
+
+## Aba Talentos (Guerreiro): aprende pelo botão e vê x/3, linha bloqueada apagada; a Lina redistribui e
+## devolve os pontos (cobra 50 x nível acima do 5).
+func _test_talent_tab(m) -> void:
+	check(m.TAB_NAMES[2] == "Talentos" and m.TAB_ACTIONS[2] == "talents", "aba Talentos ao lado de Personagem (K)")
+	check(InputMap.has_action("talents"), "atalho K da aba Talentos")
+	while Game.talent_points() < 2:
+		Game.add_xp(Game.xp_to_next())
+	m._show_tab(2)
+	await wait(0.15)
+	var tp = m.talent_panel
+	check(tp != null and tp.buttons.size() == 9, "aba Talentos mostra os 9 talentos da classe")
+	if tp == null or tp.buttons.size() != 9:
+		return
+	var pts0 := Game.talent_points()
+	check(tp.points_label.text.contains(str(pts0)), "pontos livres no topo (%s)" % tp.points_label.text)
+	check(tp.level_labels["w_edge"].text == "0/3" and not tp.buttons["w_edge"].disabled, "linha 1 aberta em 0/3")
+	check(tp.buttons["w_bloodlust"].disabled and tp.slots["w_bloodlust"].dim, "linha 2 bloqueada: botão desligado e ícone apagado")
+	check(tp.buttons["w_edge"].tooltip_text.contains("dano"), "dica do talento com a descrição")
+	tp.buttons["w_edge"].pressed.emit()
+	await wait(0.1)
+	check(Game.talents.get("w_edge", 0) == 1 and Game.talent_points() == pts0 - 1,
+		"botão aprende o talento (%s, %d pontos)" % [Game.talents, Game.talent_points()])
+	check(tp.level_labels["w_edge"].text == "1/3", "aba mostra 1/3 (%s)" % tp.level_labels["w_edge"].text)
+	check(is_equal_approx(float(Game.talent_mods.get("damage", 0.0)), 0.04), "talento já vale: dano +4%")
+	check(tp.reset_label.text.contains("Lina"), "aba diz onde redistribuir (%s)" % tp.reset_label.text)
+	check(m.book.overflow_warnings == 0, "aba Talentos cabe no livro")
+	check(_light_text(m.pages[2]) == "", "aba Talentos a tinta%s" % _light_text(m.pages[2]))
+	# redistribuir pela Lina: a opção está nos serviços dela e cobra 50 x nível (grátis até o 5)
+	var cost := Game.talent_reset_cost()
+	if Game.gold < cost:
+		Econ.grant(cost, 0, {}, "teste", true)
+	var gold0 := Game.gold
+	check(_interactable("lina") != null, "Lina na vila")
+	var reset: Dictionary = {}
+	for ch in StoryDialogue._services("lina"):
+		if str(ch.text) == "Redistribuir talentos":
+			for sub in ch.get("pages", []):
+				for c2 in sub.get("choices", []):
+					if str(c2.text).begins_with("Redistribuir") and c2.get("action", Callable()).is_valid():
+						reset = c2
+	check(not reset.is_empty(), "Lina oferece redistribuir os talentos")
+	if not reset.is_empty():
+		reset.action.call()
+	await wait(0.1)
+	check(Game.talents.is_empty() and Game.talent_points() == pts0 and Game.gold == gold0 - cost,
+		"redistribuir devolve os pontos e cobra %d (%s, %d pontos, ouro %d -> %d)" % [cost, Game.talents, Game.talent_points(), gold0, Game.gold])
+	check(tp.level_labels["w_edge"].text == "0/3", "aba volta a 0/3 depois de redistribuir")
 
 
 ## Procura, numa página do livro, texto claro (ilegível sobre papel) ou painel de fundo escuro.

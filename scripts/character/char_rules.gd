@@ -227,7 +227,9 @@ static func _add_xp(s: CharState, bt: BalanceTables, amount: int, ev: Array) -> 
 		s.xp -= xp_to_next(s.level, bt)
 		s.level += 1
 		s.stat_points += pts
-		ev.append(_notify("Nível %d! +%d pontos de atributo (C)" % [s.level, pts], Color(1.0, 0.85, 0.3)))
+		# com classe também vem 1 ponto de talento (calculado: level - 1 - gastos), aberto na aba Talentos (K)
+		var talent_txt := " e 1 de talento (K)" if s.char_class != "" else ""
+		ev.append(_notify("Nível %d! +%d pontos de atributo (C)%s" % [s.level, pts, talent_txt], Color(1.0, 0.85, 0.3)))
 		# o kit em ItemDB.ABILITIES é a fonte do que libera em cada nível (só da classe da arma equipada e já pronta)
 		for id in ItemDB.ABILITIES:
 			var ab: Dictionary = ItemDB.ABILITIES[id]
@@ -1053,13 +1055,16 @@ static func reset_cost(s: CharState) -> int:
 ## Devolve todos os pontos e cobra reset_cost. Erros: sem_talentos (nada a devolver), sem_ouro.
 static func reset_talents(s: CharState, _bt: BalanceTables) -> Dictionary:
 	if s.talents.is_empty():
-		return _fail("sem_talentos")
+		return _fail("sem_talentos", [_notify("Nenhum ponto de talento para devolver.", C_BAD)])
 	var cost := reset_cost(s)
 	if s.gold < cost:
-		return _fail("sem_ouro")
+		return _fail("sem_ouro", [_notify("Redistribuir custa %d de ouro." % cost, C_BAD)])
+	var back := talents_spent(s)
 	s.gold -= cost
 	s.talents = {}
-	return _ok([{"t": "talents_reset", "cost": cost}])
+	var paid := "-%d de ouro" % cost if cost > 0 else "grátis até o nível 5"
+	var txt := "Talentos redistribuídos: %d %s de volta (%s)." % [back, "ponto" if back == 1 else "pontos", paid]
+	return _ok([_notify(txt, C_GUILD), {"t": "talents_reset", "cost": cost}])
 
 
 ## Bônus dos talentos: chave de stat -> soma de (add x nível). Só conta talento da classe do personagem.
