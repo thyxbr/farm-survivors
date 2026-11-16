@@ -62,9 +62,12 @@ var _store: CharStore
 var _bt: BalanceTables
 var _clock: Callable
 var _rng := RandomNumberGenerator.new()
-var _cache := {}      # account_id -> CharState
-var _sessions := {}   # account_id -> session_id atual
-var _dirty := {}      # account_id -> true: report mudou o cache e ainda não foi gravado
+## Tudo abaixo é por PERSONAGEM (char_id); uma conta pode ter vários (create_character/list_characters).
+## No solo o personagem 1 é o da conta 1.
+var _cache := {}      # char_id -> CharState
+var _sessions := {}   # char_id -> session_id atual
+var _dirty := {}      # char_id -> true: report mudou o cache e ainda não foi gravado
+var _owners := {}     # char_id -> conta dona (registro da economia)
 
 
 func _init(store: CharStore, bt: BalanceTables, clock: Callable = Callable()) -> void:
@@ -79,49 +82,138 @@ func _now() -> float:
 
 
 # ================================================================ carga
-func load_or_create(account_id: int) -> CharState:
-	if _cache.has(account_id):
-		return _cache[account_id]
-	var s := _read(account_id)
+func load_or_create(char_id: int) -> CharState:
+	if _cache.has(char_id):
+		return _cache[char_id]
+	var s := _read(char_id)
 	if s == null:
 		s = CharState.new_character(_bt)
-		if not _save(account_id, s):
-			push_error("CharacterService: não gravou personagem novo de %d: %s" % [account_id, _store.last_error])
+		if not _save(char_id, s):
+			push_error("CharacterService: não gravou personagem novo de %d: %s" % [char_id, _store.last_error])
 			return s   # sem cache: a próxima chamada tenta de novo
-	_cache[account_id] = s
+	_cache[char_id] = s
 	return s
+
+
+## Conta dona do personagem (guardada depois da primeira consulta).
+func owner_of(char_id: int) -> int:
+	if not _owners.has(char_id):
+		_owners[char_id] = _store.owner_of(char_id)
+	return int(_owners[char_id])
+
+
+# ================================================================ seleção de personagem
+## Personagens da conta para a tela de seleção ([{"id", "level", "char_class", "body", "equipment", ...}]).
+## Quem está no cache (ainda não gravado) aparece com o estado do cache.
+func list_characters(account_id: int) -> Array:
+	var out := _store.list_chars(account_id)
+	for e in out:
+		var id := int(e.id)
+		if _cache.has(id):
+			var s: CharState = _cache[id]
+			e.level = s.level
+			e.char_class = s.char_class
+			e.body = s.body
+			e.equipment = s.equipment.duplicate()
+	return out
+
+
+## Tamanho do nome do herói.
+const NAME_MIN := 3
+const NAME_MAX := 16
+
+
+## Nome do herói limpo (sem espaços nas pontas) ou "" se não vale: 3 a 16 letras (com acento) ou
+## números, começando por letra, sem espaços. A mesma regra no cliente (aviso na hora) e no servidor.
+static func clean_name(name: String) -> String:
+	var n := name.strip_edges()
+	if n.length() < NAME_MIN or n.length() > NAME_MAX:
+		return ""
+	var re := RegEx.create_from_string("^\\p{L}[\\p{L}\\p{N}]*$")
+	return n if re.search(n) != null else ""
+
+
+## Cria um personagem da conta com nome, classe e corpo (a mesma regra de "choose_class").
+## Devolve {"ok", "err", "id"}; err "nome_invalido" ou "nome_em_uso" quando o nome não serve.
+func create_character(account_id: int, name: String, cls: String, body: String) -> Dictionary:
+	var clean := clean_name(name)
+	if clean == "":
+		return {"ok": false, "err": "nome_invalido", "id": 0}
+	if _store.name_taken(clean):
+		return {"ok": false, "err": "nome_em_uso", "id": 0}
+	var s := CharState.new_character(_bt)
+	var r := _dispatch(s, "choose_class", [cls, body])
+	if not r.ok:
+		return {"ok": false, "err": str(r.err), "id": 0}
+	var id := _store.create_char(account_id, clean, s.to_dict(), int(_now()))
+	if id <= 0:
+		if _store.last_error == "nome_em_uso" or _store.name_taken(clean):
+			return {"ok": false, "err": "nome_em_uso", "id": 0}
+		push_error("CharacterService: não criou personagem da conta %d: %s" % [account_id, _store.last_error])
+		return {"ok": false, "err": "erro_banco", "id": 0}
+	_owners[id] = account_id
+	return {"ok": true, "err": "", "id": id}
+
+
+## Nome do personagem ("" sem nome: solo e testes antigos).
+func name_of(char_id: int) -> String:
+	return _store.name_of(char_id)
+
+
+## Texto para o jogador de um erro de criação.
+static func explain_create(err: String) -> String:
+	match err:
+		"nome_invalido":
+			return "Nome inválido: de %d a %d letras ou números, começando por letra, sem espaços." % [NAME_MIN, NAME_MAX]
+		"nome_em_uso":
+			return "Já existe um herói com esse nome. Escolha outro."
+	return "Não deu para criar o herói (%s)." % err
+
+
+## Exclui um personagem da conta (some do cache sem gravar). false se não é da conta ou o banco falhou.
+func delete_character(account_id: int, char_id: int) -> bool:
+	if char_id <= 0 or owner_of(char_id) != account_id:
+		return false
+	_cache.erase(char_id)
+	_dirty.erase(char_id)
+	_sessions.erase(char_id)
+	if not _store.delete_char(char_id):
+		push_error("CharacterService: não excluiu o personagem %d: %s" % [char_id, _store.last_error])
+		return false
+	_owners.erase(char_id)
+	return true
 
 
 ## Grava e tira do cache (jogador saiu). Com `session_id` >= 0, só descarrega se for a sessão atual da
 ## conta: a desconexão tardia de uma conexão velha não derruba a sessão nova (só grava).
-func unload(account_id: int, session_id: int = -1) -> void:
-	if session_id >= 0 and _sessions.get(account_id, -1) != session_id:
-		save(account_id)
+func unload(char_id: int, session_id: int = -1) -> void:
+	if session_id >= 0 and _sessions.get(char_id, -1) != session_id:
+		save(char_id)
 		return
-	if _cache.has(account_id):
-		if not _save(account_id, _cache[account_id]):
-			push_error("CharacterService: não gravou %d ao descarregar: %s" % [account_id, _store.last_error])
-		_cache.erase(account_id)
-	_sessions.erase(account_id)
+	if _cache.has(char_id):
+		if not _save(char_id, _cache[char_id]):
+			push_error("CharacterService: não gravou %d ao descarregar: %s" % [char_id, _store.last_error])
+		_cache.erase(char_id)
+	_sessions.erase(char_id)
 
 
-func set_session(account_id: int, session_id: int) -> void:
-	_sessions[account_id] = session_id
+func set_session(char_id: int, session_id: int) -> void:
+	_sessions[char_id] = session_id
 
 
 # ================================================================ operações
 ## Pedido do cliente. Devolve {"ok","err","events","state"}.
-func apply(account_id: int, op: String, args: Array) -> Dictionary:
+func apply(char_id: int, op: String, args: Array) -> Dictionary:
 	if not (op in CLIENT_OPS):
-		return _result(account_id, {"ok": false, "err": "op_invalida", "events": []})
+		return _result(char_id, {"ok": false, "err": "op_invalida", "events": []})
 	if not _args_ok(op, args):
-		return _result(account_id, {"ok": false, "err": "args", "events": []})
-	var s := load_or_create(account_id)
+		return _result(char_id, {"ok": false, "err": "args", "events": []})
+	var s := load_or_create(char_id)
 	if allow_reclass and op == "choose_class":
 		s.char_class = ""
 		s.body = ""
 	if s.char_class == "" and op != "choose_class":
-		return _result(account_id, {"ok": false, "err": "sem_classe", "events": []})
+		return _result(char_id, {"ok": false, "err": "sem_classe", "events": []})
 	# modo admin: recursos no teto antes de cada pedido (a reposição não entra no registro da economia)
 	AdminRules.top_up(s, _bt)
 	# a arma inicial da classe não é negócio: não entra no registro da economia
@@ -137,14 +229,14 @@ func apply(account_id: int, op: String, args: Array) -> Dictionary:
 		elif op == "enchant":
 			source = "enchant"
 			ecos_item = "enchant"
-		r = _persist(account_id, s, before, op, source, r, 0, ecos_item)
+		r = _persist(char_id, s, before, op, source, r, 0, ecos_item)
 		AdminRules.top_up(s, _bt)   # a tela já mostra cheio de novo (grava na próxima escrita)
-	return _result(account_id, r)
+	return _result(char_id, r)
 
 
 ## Concessão do servidor/solo (loot, missão, prêmio de partida).
-func grant(account_id: int, gold: int, xp: int, items: Dictionary, source: String) -> Dictionary:
-	var s := load_or_create(account_id)
+func grant(char_id: int, gold: int, xp: int, items: Dictionary, source: String) -> Dictionary:
+	var s := load_or_create(char_id)
 	var before := _holdings(s)
 	if source in FOOD_SOURCES and gold >= 0 and xp >= 0:
 		gold = int(round(gold * CharRules.food_mult(s, _bt, "gold", _now())))
@@ -152,26 +244,26 @@ func grant(account_id: int, gold: int, xp: int, items: Dictionary, source: Strin
 	var r := CharRules.grant(s, _bt, gold, xp, items)
 	if r.ok:
 		var log_it := not (source in UNLOGGED_SOURCES)
-		r = _persist(account_id, s, before if log_it else {}, "grant", source, r, xp if log_it else 0)
-	return _result(account_id, r)
+		r = _persist(char_id, s, before if log_it else {}, "grant", source, r, xp if log_it else 0)
+	return _result(char_id, r)
 
 
-func kill(account_id: int, kind: String, xp: int) -> Dictionary:
-	var s := load_or_create(account_id)
+func kill(char_id: int, kind: String, xp: int) -> Dictionary:
+	var s := load_or_create(char_id)
 	if xp >= 0:
 		xp = int(round(xp * CharRules.food_mult(s, _bt, "xp", _now())))
 	var r := CharRules.kill(s, _bt, kind, xp)
 	if r.ok:
-		r = _persist(account_id, s, {}, "kill", "kill", r)
-	return _result(account_id, r)
+		r = _persist(char_id, s, {}, "kill", "kill", r)
+	return _result(char_id, r)
 
 
 ## Recorde de partida no personagem (servidor/solo): "city_best" (noites, int) ou "horde_best"
 ## ({"round", "kills", "time", "level"}, comparado por rodada e depois abates). Só grava se for melhor.
-func set_record(account_id: int, key: String, value) -> Dictionary:
+func set_record(char_id: int, key: String, value) -> Dictionary:
 	if not (key in RECORD_KEYS):
-		return _result(account_id, {"ok": false, "err": "chave_invalida", "events": []})
-	var s := load_or_create(account_id)
+		return _result(char_id, {"ok": false, "err": "chave_invalida", "events": []})
+	var s := load_or_create(char_id)
 	var old = s.flags.get(key)
 	var better := false
 	if key == "city_best":
@@ -179,94 +271,94 @@ func set_record(account_id: int, key: String, value) -> Dictionary:
 		better = old == null or int(value) > int(old)
 	else:
 		if not (value is Dictionary):
-			return _result(account_id, {"ok": false, "err": "valor_invalido", "events": []})
+			return _result(char_id, {"ok": false, "err": "valor_invalido", "events": []})
 		var o: Dictionary = old if old is Dictionary else {}
 		var rnd := int(value.get("round", 0))
 		var best_round := int(o.get("round", -1))
 		better = rnd > best_round or (rnd == best_round and int(value.get("kills", 0)) > int(o.get("kills", 0)))
 	if not better:
-		return _result(account_id, {"ok": true, "err": "", "events": []})
+		return _result(char_id, {"ok": true, "err": "", "events": []})
 	s.flags[key] = value
-	if not _save(account_id, s):
-		push_error("CharacterService: recorde de %d não gravou: %s" % [account_id, _store.last_error])
-		_cache.erase(account_id)
-		return _result(account_id, {"ok": false, "err": "erro_banco", "events": []})
-	return _result(account_id, {"ok": true, "err": "", "events": []})
+	if not _save(char_id, s):
+		push_error("CharacterService: recorde de %d não gravou: %s" % [char_id, _store.last_error])
+		_cache.erase(char_id)
+		return _result(char_id, {"ok": false, "err": "erro_banco", "events": []})
+	return _result(char_id, {"ok": true, "err": "", "events": []})
 
 
 ## Estado de combate reportado pelo cliente. Só vale para a sessão atual da conta (uma conexão
 ## velha, já substituída, não sobrescreve a posição da nova). Gravado no próximo apply/unload.
-func report(account_id: int, session_id: int, hp: float, mp: float, pos: Vector3, yaw: float, fury := 0.0) -> void:
-	if not _cache.has(account_id) or _sessions.get(account_id, -1) != session_id:
+func report(char_id: int, session_id: int, hp: float, mp: float, pos: Vector3, yaw: float, fury := 0.0) -> void:
+	if not _cache.has(char_id) or _sessions.get(char_id, -1) != session_id:
 		return
 	if not (is_finite(hp) and is_finite(mp) and pos.is_finite() and is_finite(yaw) and is_finite(fury)):
 		return
-	var s: CharState = _cache[account_id]
+	var s: CharState = _cache[char_id]
 	s.hp = clampf(hp, 0.0, MAX_VITAL)
 	s.mp = clampf(mp, 0.0, MAX_VITAL)
 	s.fury = clampf(fury, 0.0, CharState.FURY_MAX)
 	s.world_pos = pos.clamp(-Vector3.ONE * MAX_COORD, Vector3.ONE * MAX_COORD)
 	s.world_yaw = yaw
-	_dirty[account_id] = true
+	_dirty[char_id] = true
 
 
 ## Grava as contas que só mudaram por report (o servidor chama de tempos em tempos). Devolve quantas.
 func flush_dirty() -> int:
 	var n := 0
-	for account_id in _dirty.keys():
-		if _cache.has(account_id) and _save(account_id, _cache[account_id]):
+	for char_id in _dirty.keys():
+		if _cache.has(char_id) and _save(char_id, _cache[char_id]):
 			n += 1
 	_dirty.clear()
 	return n
 
 
 ## Ouro de teste: só com o servidor em --test (`enabled`), 1..TEST_GOLD_MAX.
-func grant_test_gold(account_id: int, amount: int, enabled: bool) -> Dictionary:
+func grant_test_gold(char_id: int, amount: int, enabled: bool) -> Dictionary:
 	if not enabled:
-		return _result(account_id, {"ok": false, "err": "sem_teste", "events": []})
+		return _result(char_id, {"ok": false, "err": "sem_teste", "events": []})
 	if amount <= 0 or amount > TEST_GOLD_MAX:
-		return _result(account_id, {"ok": false, "err": "valor_invalido", "events": []})
-	return grant(account_id, amount, 0, {}, "test")
+		return _result(char_id, {"ok": false, "err": "valor_invalido", "events": []})
+	return grant(char_id, amount, 0, {}, "test")
 
 
 ## Ecos de teste: só com o servidor em --test (`enabled`), 1..TEST_GOLD_MAX. Registrado como "ecos"/"test".
-func grant_test_ecos(account_id: int, amount: int, enabled: bool) -> Dictionary:
+func grant_test_ecos(char_id: int, amount: int, enabled: bool) -> Dictionary:
 	if not enabled:
-		return _result(account_id, {"ok": false, "err": "sem_teste", "events": []})
+		return _result(char_id, {"ok": false, "err": "sem_teste", "events": []})
 	if amount <= 0 or amount > TEST_GOLD_MAX:
-		return _result(account_id, {"ok": false, "err": "valor_invalido", "events": []})
-	var s := load_or_create(account_id)
+		return _result(char_id, {"ok": false, "err": "valor_invalido", "events": []})
+	var s := load_or_create(char_id)
 	var before := _holdings(s)
 	s.ecos += amount
-	return _result(account_id, _persist(account_id, s, before, "grant", "test", {"ok": true, "err": "", "events": []}))
+	return _result(char_id, _persist(char_id, s, before, "grant", "test", {"ok": true, "err": "", "events": []}))
 
 
 ## Itens de teste: só com o servidor em --test (`enabled`); 1 a MAX_COUNT de cada item conhecido.
-func grant_test_items(account_id: int, items: Dictionary, enabled: bool) -> Dictionary:
+func grant_test_items(char_id: int, items: Dictionary, enabled: bool) -> Dictionary:
 	if not enabled:
-		return _result(account_id, {"ok": false, "err": "sem_teste", "events": []})
+		return _result(char_id, {"ok": false, "err": "sem_teste", "events": []})
 	var known: Dictionary = _bt.get_table("items")
 	var clean := {}
 	for id in items:
 		var n = items[id]
 		if not (id is String) or not known.has(id) or not CharRules._valid_count(n):
-			return _result(account_id, {"ok": false, "err": "valor_invalido", "events": []})
+			return _result(char_id, {"ok": false, "err": "valor_invalido", "events": []})
 		clean[id] = n
 	if clean.is_empty():
-		return _result(account_id, {"ok": false, "err": "valor_invalido", "events": []})
-	return grant(account_id, 0, 0, clean, "test")
+		return _result(char_id, {"ok": false, "err": "valor_invalido", "events": []})
+	return grant(char_id, 0, 0, clean, "test")
 
 
 ## Liga/desliga o modo admin (AdminRules). `allowed` é decidido por quem chama: solo sempre, servidor
 ## só para contas em ADMIN_USERS. Registrado na economia com origem "admin".
-func set_admin(account_id: int, on: bool, allowed: bool) -> Dictionary:
+func set_admin(char_id: int, on: bool, allowed: bool) -> Dictionary:
 	if not allowed:
-		return _result(account_id, {"ok": false, "err": "sem_permissao", "events": [CharRules._notify(
+		return _result(char_id, {"ok": false, "err": "sem_permissao", "events": [CharRules._notify(
 				"Só administradores podem usar o modo admin.", CharRules.C_BAD)]})
-	var s := load_or_create(account_id)
+	var s := load_or_create(char_id)
 	var before := _holdings(s)
 	var r := AdminRules.set_on(s, _bt, on)
-	return _result(account_id, _persist(account_id, s, before, "grant", "admin", r))
+	return _result(char_id, _persist(char_id, s, before, "grant", "admin", r))
 
 
 # ================================================================ partidas e recordes
@@ -282,25 +374,25 @@ func start_run(mode: String, accounts: Array) -> int:
 ## Fim da partida de um jogador: concede os Ecos e registra. Idempotente por (run_id, conta): repetir
 ## devolve ok sem conceder de novo. Com run_id <= 0 só concede e registra a economia.
 ## Ouro, xp e itens já foram concedidos durante a partida (grant); aqui só entram no registro.
-func finish_player(run_id: int, account_id: int, mode: String, reached: int, gold: int, xp: int, items: Dictionary, build: Dictionary) -> Dictionary:
-	var s := load_or_create(account_id)
-	if run_id > 0 and _store.run_player_done(run_id, account_id):
-		return _result(account_id, {"ok": true, "err": "", "events": [{"t": "ecos", "n": 0, "mode": mode, "reached": reached}]})
+func finish_player(run_id: int, char_id: int, mode: String, reached: int, gold: int, xp: int, items: Dictionary, build: Dictionary) -> Dictionary:
+	var s := load_or_create(char_id)
+	if run_id > 0 and _store.run_player_done(run_id, char_id):
+		return _result(char_id, {"ok": true, "err": "", "events": [{"t": "ecos", "n": 0, "mode": mode, "reached": reached}]})
 	var ecos := RewardRules.ecos(_bt, mode, reached)
 	s.ecos += ecos
 	var at := int(_now())
-	var rows := [CharStore.row(at, account_id, "run", gold, null, mode,
+	var rows := [_row(at, char_id, "run", gold, null, mode,
 		JSON.stringify({"xp": xp, "items": items, "ecos": ecos, "run_id": run_id, "reached": reached}))]
 	if ecos > 0:
 		# linha própria dos Ecos ganhos (fonte = modo), para somar "Ecos por fonte" sem abrir o detail
-		rows.append(CharStore.row(at, account_id, "ecos", ecos, null, mode))
+		rows.append(_row(at, char_id, "ecos", ecos, null, mode))
 	var entry := {"reached": reached, "ecos": ecos, "gold": gold, "xp": xp, "build": build}
-	if not _store.save_run_player(account_id, s.to_dict(), run_id, entry, rows, at):
-		push_error("CharacterService: finish_player de %d não gravou: %s" % [account_id, _store.last_error])
-		_cache.erase(account_id)
-		return _result(account_id, {"ok": false, "err": "erro_banco", "events": []})
-	_dirty.erase(account_id)
-	return _result(account_id, {"ok": true, "err": "", "events": [{"t": "ecos", "n": ecos, "mode": mode, "reached": reached}]})
+	if not _store.save_run_player(char_id, s.to_dict(), run_id, entry, rows, at):
+		push_error("CharacterService: finish_player de %d não gravou: %s" % [char_id, _store.last_error])
+		_cache.erase(char_id)
+		return _result(char_id, {"ok": false, "err": "erro_banco", "events": []})
+	_dirty.erase(char_id)
+	return _result(char_id, {"ok": true, "err": "", "events": [{"t": "ecos", "n": ecos, "mode": mode, "reached": reached}]})
 
 
 func close_run(run_id: int, reached: int, result: Dictionary) -> bool:
@@ -321,17 +413,17 @@ func records() -> Dictionary:
 ## Grava todos os personagens em cache (o servidor desligando). Devolve quantos gravou.
 func save_all() -> int:
 	var n := 0
-	for account_id in _cache.keys():
-		if _save(account_id, _cache[account_id]):
+	for char_id in _cache.keys():
+		if _save(char_id, _cache[char_id]):
 			n += 1
 		else:
-			push_error("CharacterService: personagem %d não gravou ao desligar: %s" % [account_id, _store.last_error])
+			push_error("CharacterService: personagem %d não gravou ao desligar: %s" % [char_id, _store.last_error])
 	return n
 
 
 ## Grava o personagem em cache sem descarregar.
-func save(account_id: int) -> bool:
-	return not _cache.has(account_id) or _save(account_id, _cache[account_id])
+func save(char_id: int) -> bool:
+	return not _cache.has(char_id) or _save(char_id, _cache[char_id])
 
 
 # ================================================================ interno
@@ -388,12 +480,12 @@ func _holdings(s: CharState) -> Dictionary:
 
 
 ## Grava estado + linhas da economia numa escrita só. Falha: descarta o cache e relê do armazenamento.
-func _persist(account_id: int, s: CharState, before: Dictionary, kind: String, source: String, r: Dictionary, xp := 0, ecos_item := "") -> Dictionary:
+func _persist(char_id: int, s: CharState, before: Dictionary, kind: String, source: String, r: Dictionary, xp := 0, ecos_item := "") -> Dictionary:
 	var after := _holdings(s)
 	var at := int(_now())
 	var rows := []
 	if xp > 0:
-		rows.append(CharStore.row(at, account_id, "xp", xp, null, source))
+		rows.append(_row(at, char_id, "xp", xp, null, source))
 	if not before.is_empty():
 		var ids := {}
 		for k in before:
@@ -411,30 +503,35 @@ func _persist(account_id: int, s: CharState, before: Dictionary, kind: String, s
 			elif k == "$ecos":
 				log_kind = "ecos"
 				item = ecos_item if ecos_item != "" else null
-			rows.append(CharStore.row(at, account_id, log_kind, d, item, source))
-	if _store.save_char(account_id, s.to_dict(), rows, at):
-		_dirty.erase(account_id)
+			rows.append(_row(at, char_id, log_kind, d, item, source))
+	if _store.save_char(char_id, s.to_dict(), rows, at):
+		_dirty.erase(char_id)
 		return r
-	push_error("CharacterService: falha ao gravar %d: %s" % [account_id, _store.last_error])
-	_cache.erase(account_id)
+	push_error("CharacterService: falha ao gravar %d: %s" % [char_id, _store.last_error])
+	_cache.erase(char_id)
 	return {"ok": false, "err": "erro_banco", "events": []}
 
 
-func _result(account_id: int, r: Dictionary) -> Dictionary:
+## Linha da economia do personagem: a conta é a dona dele.
+func _row(at: int, char_id: int, kind: String, amount: int, item_id, source: String, detail = null) -> Dictionary:
+	return CharStore.row(at, owner_of(char_id), kind, amount, item_id, source, detail, char_id)
+
+
+func _result(char_id: int, r: Dictionary) -> Dictionary:
 	var out := r.duplicate()
-	out["state"] = load_or_create(account_id).to_dict()
+	out["state"] = load_or_create(char_id).to_dict()
 	return out
 
 
-func _save(account_id: int, s: CharState) -> bool:
-	var ok := _store.save_char(account_id, s.to_dict(), [], int(_now()))
+func _save(char_id: int, s: CharState) -> bool:
+	var ok := _store.save_char(char_id, s.to_dict(), [], int(_now()))
 	if ok:
-		_dirty.erase(account_id)
+		_dirty.erase(char_id)
 	return ok
 
 
-func _read(account_id: int) -> CharState:
-	var d = _store.load_char(account_id)
+func _read(char_id: int) -> CharState:
+	var d = _store.load_char(char_id)
 	if not (d is Dictionary):
 		return null
 	return CharState.from_dict(d, _bt)

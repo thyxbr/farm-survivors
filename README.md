@@ -133,7 +133,8 @@ para a frente do portal. O minimapa some enquanto a partida dura:
 Para editar as melhorias veja `scripts/survival/upgrades.gd`; o ritmo das rodadas fica em `scripts/survival/survival_mode.gd`.
 
 ## Multiplayer (servidor dedicado)
-O servidor roda o Godot sem tela e é dono dos inimigos (IA, vida, morte) **e do personagem de cada conta**:
+O servidor roda o Godot sem tela e é dono dos inimigos (IA, vida, morte) **e dos personagens de cada conta**
+(até 4 por conta, escolhidos na tela de seleção em volta da fogueira, `scenes/char_select.tscn`):
 ouro, itens, XP, equipamento, missões e a Horta ficam num banco SQLite no servidor (`addons/godot-sqlite`).
 O SQLite existe **só no servidor**: o export do Windows exclui `addons/godot-sqlite/*` e o `Db` acha a classe
 `SQLite` pelo `ClassDB` (sem a extensão, `Db.open` devolve null em vez de quebrar a compilação dos scripts).
@@ -191,7 +192,10 @@ já existem no banco, mas semear e ler o balanceamento do banco (e editar pelo p
 - **Firewall da VPS (Hostinger):** o firewall do painel recusa tudo por padrão; adicione *Aceitar · UDP · 7777*
   (e TCP 22/80/443/3000 para SSH e o painel) antes do *Drop*.
 - **Jogadores:** menu principal → *Multiplayer* → endereço (`ip`, `ip:porta` ou domínio) + usuário e senha →
-  *Criar conta* na primeira vez, depois *Entrar* → **vila de Valdoria**. A senha não fica salva no PC.
+  *Criar conta* na primeira vez, depois *Entrar* → **seleção de personagem** (os heróis da conta sentados em volta
+  da fogueira; a lista à direita mostra nome, classe e nível; *Criar herói* pede o nome, único no servidor;
+  *Excluir*). No jogo (chat, nome em cima, grupo, amigos, recordes) aparece o nome do herói, não o da conta → *Entrar no mundo* → **vila de
+  Valdoria**. A senha não fica salva no PC.
   Antes de exportar, coloque o IP/domínio do servidor em `DEFAULT_ADDRESS` (`scripts/autoload/network.gd`).
 - **Versão:** o servidor recusa clientes com `application/config/version` diferente (*Projeto → Configurações → Application → Config*).
   Para lançar uma versão nova basta aumentar a versão e dar push no `main`: o CI publica o cliente e atualiza o servidor.
@@ -215,8 +219,8 @@ já existem no banco, mas semear e ler o balanceamento do banco (e editar pelo p
 - Ainda só para um jogador: o "carregar save" durante a partida. No multiplayer os menus não pausam o mundo.
 
 ### Progressão permanente (Ecos e passivas)
-- **Menu → vila**: *Novo jogo* e *Continuar* (solo) e *Entrar* (online) levam direto à **vila de Valdoria**, onde o
-  personagem estava. A antiga praça da cidade (`hub.tscn`) saiu do jogo; os pontos dela (`scripts/hub/hub_point.gd`)
+- **Menu → vila**: *Novo jogo* e *Continuar* (solo) levam direto à **vila de Valdoria**, onde o personagem estava;
+  online, *Entrar* passa antes pela seleção de personagem. A antiga praça da cidade (`hub.tscn`) saiu do jogo; os pontos dela (`scripts/hub/hub_point.gd`)
   moram nas ruas da vila (`scripts/world/village_layout.gd`). Online os outros jogadores aparecem com o nome em cima,
   o chat (**Enter**) funciona e as teclas **7–9** fazem emotes (acenar, comemorar, sentar) que os outros veem.
 - **Pontos da antiga praça** (tecla **E**): **Mestre Orin** (passivas) e o **quadro de recordes** da Horda, no

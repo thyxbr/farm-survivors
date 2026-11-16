@@ -157,7 +157,10 @@ func _build_multiplayer() -> void:
 	mp_address.custom_minimum_size = Vector2(320, 40)
 	mp_address.text_submitted.connect(func(_t: String) -> void: _join())
 	mp_box.add_child(mp_address)
-	mp_box.add_child(UITheme.label("O personagem online é o da sua conta (fica no servidor, separado do solo).", 15, UITheme.DIM))
+	var note := UITheme.label("Seus heróis online ficam na conta, no servidor (separados do solo). Depois de entrar você escolhe com quem jogar.", 15, UITheme.DIM)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.custom_minimum_size.x = 420
+	mp_box.add_child(note)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	mp_box.add_child(row)
@@ -245,7 +248,7 @@ func _login_and_connect(my_attempt: int) -> void:
 		_on_join_failed(r.msg)
 		return
 	mp_pass.text = ""
-	# o personagem chega do servidor junto com a aceitação (Econ._econ_res)
+	# o servidor responde com a lista de personagens da conta e a tela de seleção abre (Network._char_list)
 	_set_status("Conectando a %s como %s..." % [address, r.get("name", "")], UITheme.TEXT)
 	Network.join(address, str(r.token))
 
