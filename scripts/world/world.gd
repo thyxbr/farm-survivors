@@ -109,6 +109,8 @@ var region_spawns: Array = []
 var _boss_scan := 0.0
 var _travel_fade: ColorRect
 var spawns: Array = []
+## Sorteio do nível de quem nasce nos pontos (à parte do `rng` fixo do cenário).
+var _spawn_rng := RandomNumberGenerator.new()
 ## Pontos que vieram da praça (hub_point.gd): construções da base, Mestre Orin, mesa de guerra, recordes.
 var points: Array = []
 ## Lugares com nome dos mapas (MapLandmark): id -> posição (vale) e "mapa:id" -> posição (todos).
@@ -525,6 +527,8 @@ func _setup_enemies() -> void:
 func _spawn(entry: Dictionary) -> void:
 	var e := ENEMY.new()
 	e.kind = entry.kind
+	e.elite = entry.get("elite", false)
+	e.level = ProgressionRules.spawn_level(Balance.tables, entry.get("level", 0), entry.get("level_max", 0), e.elite, _spawn_rng)
 	e.position = entry.pos + Vector3.UP * 0.2
 	add_child(e)
 	entry.node = e
@@ -554,6 +558,7 @@ func _check_boss() -> void:
 		if boss == null or not is_instance_valid(boss):
 			boss = ENEMY.new()
 			boss.kind = "goblin_king"
+			boss.level = ProgressionRules.enemy_level(Balance.tables, "goblin_king", 0)
 			boss.position = RUINS + Vector3.UP * 0.3
 			add_child(boss)
 			hud.boss = boss
@@ -565,6 +570,7 @@ func server_spawn_boss() -> void:
 		return
 	boss = ENEMY.new()
 	boss.kind = "goblin_king"
+	boss.level = ProgressionRules.enemy_level(Balance.tables, "goblin_king", 0)
 	boss.position = RUINS + Vector3.UP * 0.3
 	add_child(boss)
 

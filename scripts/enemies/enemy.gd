@@ -20,8 +20,14 @@ var horde := false
 var hp_mult := 1.0
 var dmg_mult := 1.0
 var speed_mult := 1.0
-## Desafio da Horda: versão de elite (maior, dourada, mais vida e dano; o servidor manda junto no spawn).
+## Versão de elite (maior, dourada, mais vida; o servidor manda junto no spawn). Na Horda, com os números da
+## horda; no mundo (com nível), os do "elite" de data/balance/progression.json.
 var elite := false
+## Nível do monstro (0 = sem nível: Horda e cidade, com os números de hoje). Com nível, vida, dano, XP e ouro
+## seguem as curvas de ProgressionRules, e o modelo ganha a tinta e a escala da camada.
+var level := 0
+## Tamanho do modelo além de data.scale (elite e camada de nível).
+var size_mult := 1.0
 ## Goblin Dourado que fugiu: some sem contar como abate.
 var escaped := false
 var born_t := 0.0
@@ -65,6 +71,11 @@ var name_tag: Label3D
 var quest_icon: Sprite3D
 static var _quest_tex: ImageTexture
 const NAME_RANGE := 30.0     # metros: mais longe que isso o nome some (menos poluição no campo aberto)
+## Cor da placa (nível do monstro − nível do jogador): até PLATE_LOW cinza, de PLATE_HIGH amarelo, de
+## PLATE_DANGER vermelho; no meio, branco.
+const PLATE_LOW := -5
+const PLATE_HIGH := 3
+const PLATE_DANGER := 5
 ## Camadas de piscar (acerto) e de lentidão: iguais para todos os inimigos, ninguém altera depois de criar.
 static var _overlay_hit: StandardMaterial3D
 static var _overlay_slow: StandardMaterial3D
@@ -94,6 +105,21 @@ func _ready() -> void:
 	display_name = data.name
 	if elite:
 		display_name += " de Elite"
+	if level > 0:
+		display_name = "Nv %d %s" % [level, display_name]
+	var prog: Dictionary = Balance.tables.get_table("progression")
+	var m := ProgressionRules.enemy_mults(Balance.tables, kind, level)
+	hp_mult *= m.hp
+	dmg_mult *= m.dmg
+	var shade := Color.WHITE
+	size_mult = 1.3 if elite else 1.0
+	if level > 0:
+		var tier: Dictionary = prog.get("tiers", [{}])[ProgressionRules.tier_of(Balance.tables, level) - 1]
+		shade = tier.get("tint", Color.WHITE)
+		size_mult = float(tier.get("scale", 1.0))
+		if elite and not horde:   # elite do mundo (a da Horda já vem com os números dela)
+			hp_mult *= float(prog.get("elite", {}).get("hp", 1.0))
+			size_mult *= float(prog.get("elite", {}).get("scale", 1.0))
 	max_hp = data.hp * hp_mult
 	hp = max_hp
 	radius = data.radius * (1.2 if elite else 1.0)
@@ -109,8 +135,8 @@ func _ready() -> void:
 	col.position.y = cap.height / 2.0
 	add_child(col)
 
-	model = EnemyModel.instance(kind, data)     # tintura, toon e peças juntadas: montado uma vez por tipo
-	model.scale = Vector3.ONE * data.scale * (1.3 if elite else 1.0)
+	model = EnemyModel.instance(kind, data, shade)  # tintura, toon e peças juntadas: montado uma vez por tipo
+	model.scale = Vector3.ONE * data.scale * size_mult
 	add_child(model)
 	if elite:
 		_make_elite_glow()
@@ -218,7 +244,7 @@ func _horde_frozen() -> bool:
 
 func _make_health_bar() -> void:
 	bar_root = Node3D.new()
-	bar_root.position.y = data.height * data.scale + 0.45
+	bar_root.position.y = data.height * data.scale * (size_mult if level > 0 else 1.0) + 0.45
 	add_child(bar_root)
 	if _bar_meshes.is_empty():      # as duas malhas (e os materiais) servem para todas as barras
 		for spec in [[Vector2(1.0, 0.12), Color(0, 0, 0, 0.7), 0], [Vector2(0.96, 0.08), Color(0.85, 0.15, 0.1), 1]]:
@@ -236,7 +262,7 @@ func _make_health_bar() -> void:
 
 
 func _make_name_tag() -> void:
-	var top: float = data.height * data.scale * (1.3 if elite else 1.0)
+	var top: float = data.height * data.scale * size_mult
 	name_tag = Label3D.new()
 	name_tag.text = display_name
 	name_tag.font_size = 32
@@ -248,6 +274,9 @@ func _make_name_tag() -> void:
 	name_tag.render_priority = 2
 	name_tag.outline_render_priority = 1
 	name_tag.modulate = Color(1.0, 0.45, 0.25) if is_boss else (Color(1.0, 0.8, 0.35) if elite or data.get("elite", false) else Color(1.0, 0.92, 0.85))
+	if level > 0:
+		_update_plate_color()
+		Game.leveled_up.connect(_update_plate_color)
 	name_tag.position.y = top + (0.75 if not is_boss else 0.5)
 	name_tag.visibility_range_end = NAME_RANGE * (2.0 if is_boss else 1.0)
 	add_child(name_tag)
@@ -265,6 +294,22 @@ func _make_name_tag() -> void:
 	add_child(quest_icon)
 	Game.quests_changed.connect(_update_quest_icon)
 	_update_quest_icon()
+
+
+## Cor da placa pela diferença de nível para o jogador local: bem abaixo cinza, perto branco, acima amarelo,
+## muito acima vermelho.
+func _update_plate_color(_new_level := 0) -> void:
+	if name_tag == null:
+		return
+	var diff := level - Game.level
+	if diff <= PLATE_LOW:
+		name_tag.modulate = Color(0.6, 0.6, 0.6)
+	elif diff >= PLATE_DANGER:
+		name_tag.modulate = Color(1.0, 0.35, 0.3)
+	elif diff >= PLATE_HIGH:
+		name_tag.modulate = Color(1.0, 0.85, 0.3)
+	else:
+		name_tag.modulate = Color(1.0, 1.0, 1.0)
 
 
 ## Ícone de missão: só aparece se uma missão ativa conta o abate deste tipo (some quando fica pronta).
@@ -845,9 +890,19 @@ func _die() -> void:
 		Network.server_enemy_killed(self)
 	elif not horde:
 		# solo: XP, missão e o chefe derrotado (king_dead) ficam com as regras (Econ.kill)
-		Game.on_enemy_killed(kind, data.xp)
+		Game.on_enemy_killed(kind, xp_reward())
 		drop_loot(get_parent(), kind, global_position)
 	die_visual()
+
+
+## XP do abate: a do tipo pela curva do nível (sem nível, a de hoje).
+func xp_reward() -> int:
+	return roundi(float(data.xp) * float(ProgressionRules.enemy_mults(Balance.tables, kind, level).xp))
+
+
+## Multiplicador do ouro do abate pela curva do nível (sem nível, 1).
+func gold_mult() -> float:
+	return float(ProgressionRules.enemy_mults(Balance.tables, kind, level).gold)
 
 
 ## Morte sem regras de jogo (também usada pelas réplicas no cliente).

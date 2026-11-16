@@ -62,3 +62,14 @@ static func tier_of(bt: BalanceTables, level: int) -> int:
 	var size := maxi(int(p.get("tier_size", 10)), 1)
 	var n := maxi(p.get("tiers", []).size(), 1)
 	return clampi((maxi(level, 1) - 1) / size + 1, 1, n)
+
+
+## Nível de quem nasce num ponto: sorteio em [level, max(level, level_max)] e, se elite, + elite.level_bonus.
+## Ponto sem nível (level <= 0) continua sem nível (Horda e cidade).
+static func spawn_level(bt: BalanceTables, level: int, level_max: int, elite: bool, rng: RandomNumberGenerator) -> int:
+	if level <= 0:
+		return 0
+	var l := rng.randi_range(level, maxi(level, level_max))
+	if elite:
+		l += int(_prog(bt).get("elite", {}).get("level_bonus", 0))
+	return l

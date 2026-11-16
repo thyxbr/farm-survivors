@@ -143,3 +143,20 @@ func test_tint_shares_one_copy_per_material() -> void:
 		T.ok(cb.is_equal_approx(ca.lerp(Color(1, 0, 0), 0.5)), "cor puxada para a tintura")
 	plain.free()
 	red.free()
+
+
+## Tinta da camada de nível: multiplica a cor, peças com o mesmo material ficam com a mesma cópia e o
+## material original (compartilhado pelos outros monstros do tipo) não muda.
+func test_multiply_shades_copies() -> void:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.5, 0.5, 0.5)
+	var root := Node3D.new()
+	root.add_child(_piece(Vector3.ZERO, mat))
+	root.add_child(_piece(Vector3(1, 0, 0), mat))
+	EnemyModel.multiply(root, Color(1.2, 0.8, 1.0))
+	var a := (root.get_child(0) as MeshInstance3D).get_active_material(0) as StandardMaterial3D
+	var b := (root.get_child(1) as MeshInstance3D).get_active_material(0) as StandardMaterial3D
+	T.ok(a != mat and a == b, "uma cópia só, dividida pelas peças")
+	T.ok(a.albedo_color.is_equal_approx(Color(0.6, 0.4, 0.5)), "cor multiplicada")
+	T.ok(mat.albedo_color.is_equal_approx(Color(0.5, 0.5, 0.5)), "original intacto")
+	root.free()

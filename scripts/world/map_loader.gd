@@ -55,7 +55,8 @@ static func build(w: Node3D, map_id: String) -> MapRoot:
 					for q in EnemySpawn.spread_on_ground(c, n.count, n.radius, off, h):
 						pts.append(q + o)
 				for p in pts:
-					var entry := {"kind": n.kind, "pos": p, "node": null, "timer": 0.0, "respawn": n.respawn}
+					var entry := {"kind": n.kind, "pos": p, "node": null, "timer": 0.0, "respawn": n.respawn,
+							"level": n.level, "level_max": n.level_max, "elite": n.elite}
 					if n.night_only:
 						entry["night"] = true   # bicho da noite (o mundo segura de dia)
 					list.append(entry)

@@ -66,3 +66,16 @@ func test_tier_of() -> void:
 	T.eq(ProgressionRules.tier_of(bt, 10), 1, "nível 10")
 	T.eq(ProgressionRules.tier_of(bt, 11), 2, "nível 11")
 	T.eq(ProgressionRules.tier_of(bt, 50), 5, "nível 50")
+
+
+func test_elite_adds_levels() -> void:
+	var bt := _tables()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var bonus := int(bt.get_table("progression").elite.level_bonus)
+	for i in 20:
+		var l := ProgressionRules.spawn_level(bt, 5, 8, true, rng)
+		T.ok(l >= 5 + bonus and l <= 8 + bonus, "elite 5..8 sobe %d níveis (%d)" % [bonus, l])
+	T.eq(ProgressionRules.spawn_level(bt, 5, 0, false, rng), 5, "level_max 0 = nível fixo")
+	T.eq(ProgressionRules.spawn_level(bt, 0, 0, false, rng), 0, "sem nível continua sem nível")
+	T.eq(ProgressionRules.spawn_level(bt, 0, 0, true, rng), 0, "elite sem nível não ganha nível")
