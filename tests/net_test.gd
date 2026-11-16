@@ -132,7 +132,7 @@ func _ready() -> void:
 		_finish()
 		return
 	# equipa arco e capuz logo ao entrar: os outros jogadores devem ver esse visual
-	await _pick_class("archer")
+	await _pick_class("archer", "short_bow")
 	Game.equip("leather_cap")
 	await wait(1.5)
 	var w: Node = Network.world
@@ -261,7 +261,7 @@ func _ready() -> void:
 		await wait(0.8)
 		check(not is_instance_valid(tgt) or tgt.hp < hp1, "flecha causa dano pelo servidor (%.0f → %.0f)" % [hp1, tgt.hp if is_instance_valid(tgt) else 0.0])
 	# cajado (o do kit inicial: o cliente online não se dá itens): troca pedida ao servidor
-	await _pick_class("mage")
+	await _pick_class("mage", "apprentice_staff")
 	check(await _wait_until(func() -> bool: return Game.equipment.weapon == "apprentice_staff", 3.0)
 		and w.player.look["class"] == "staff", "trocou para o cajado")
 	await wait(0.6)
@@ -380,7 +380,7 @@ func _ready() -> void:
 ## isso é conferido no smoke test (FX._scene() nulo com Network.mode == SERVER).
 func _test_sword(w: Node) -> void:
 	# a espada inicial voltou para a mochila quando o cajado foi equipado (o cliente online não se dá itens)
-	await _pick_class("warrior")
+	await _pick_class("warrior", "azure_edge")
 	await _wait_until(func() -> bool: return Game.equipment.weapon == "azure_edge", 3.0)
 	await wait(1.0)
 	await wait(Network.CHAT_WINDOW)   # o anti-spam do chat (teste anterior) precisa esvaziar para os avisos de sincronia passarem
@@ -430,7 +430,7 @@ func _test_bow_staff(w: Node) -> void:
 	var actor := horde_role != "join"
 	var lvl0 := Game.level
 	if actor:
-		await _pick_class("archer")
+		await _pick_class("archer", "short_bow")
 		check(await _wait_until(func() -> bool: return Game.equipment.weapon == "short_bow", 3.0)
 			and w.player.look["class"] == "bow", "Ana trocou para o arco")
 		Game.level = 8
@@ -447,7 +447,7 @@ func _test_bow_staff(w: Node) -> void:
 			await wait(0.3)
 			check(await _wait_until(func() -> bool: return w.player.ability == "", 4.0), "habilidade do slot %d termina" % slot)
 			await wait(0.4)
-		await _pick_class("mage")
+		await _pick_class("mage", "apprentice_staff")
 		check(await _wait_until(func() -> bool: return Game.equipment.weapon == "apprentice_staff", 3.0)
 			and w.player.look["class"] == "staff", "Ana voltou para o cajado")
 		await wait(0.6)
@@ -478,7 +478,7 @@ func _test_bow_staff(w: Node) -> void:
 	if actor:
 		Game.level = lvl0
 		Game.fury = 0.0
-		await _pick_class("mage")
+		await _pick_class("mage", "apprentice_staff")
 
 
 # ---------------------------------------------------------------- vila
@@ -827,9 +827,18 @@ func _test_econ() -> void:
 
 ## O servidor em --test deixa "choose_class" valer de novo (CharacterService.allow_reclass): é como o teste
 ## passa pelas quatro armas, já que a classe é fixa no jogo de verdade.
-func _pick_class(cls: String) -> void:
+## Depois equipa a arma `weapon` (a escolha da classe equipa a melhor que o personagem tem, e um saque
+## melhor do que o inicial mudaria o id): se faltar na mochila, o servidor em --test dá uma.
+func _pick_class(cls: String, weapon: String) -> void:
 	Econ.request("choose_class", [cls, "m"])
 	await _wait_until(func() -> bool: return Game.char_class == cls and Game.equipment.weapon != "", 3.0)
+	if Game.equipment.weapon == weapon:
+		return
+	if Game.count_item(weapon) == 0:
+		Econ.request_test_items({weapon: 1})
+		await _wait_until(func() -> bool: return Game.count_item(weapon) > 0, 3.0)
+	Game.equip(weapon)
+	await _wait_until(func() -> bool: return Game.equipment.weapon == weapon, 3.0)
 
 
 ## Sai do servidor e entra de novo (mesmo token): o personagem volta igual, vindo do banco do servidor.
