@@ -87,6 +87,7 @@ func _ready() -> void:
 		and by_kind.get("esqueleto_cavaleiro", 0) == 1, "Ruínas: 3 esqueletos guerreiros, 2 arqueiros, 1 mago e 1 Cavaleiro")
 	check(by_kind.get("goblin_bombardeiro", 0) == 2 and by_kind.get("slime_gelo", 0) == 2, "2 bombardeiros no Acampamento e 2 slimes de gelo nos campos")
 	check(by_kind.get("raptor_capim", 0) == 6, "2 bandos de 3 Raptores-capim nos campos (%d)" % by_kind.get("raptor_capim", 0))
+	check(by_kind.get("tecela", 0) == 3, "3 Tecelãs na floresta do leste (%d)" % by_kind.get("tecela", 0))
 	var gear_ok := true
 	for en in get_tree().get_nodes_in_group("enemies"):
 		var want: Array = en.data.get("gear", [])
@@ -881,6 +882,7 @@ func _ready() -> void:
 	await _test_gather()
 	await _test_enchant()
 	await _test_enchant_effects()
+	await _test_tecela_web()
 	await _test_survival()
 	await _test_update()
 
@@ -1822,6 +1824,35 @@ func _test_enchant() -> void:
 	eui._close()
 	await wait(0.1)
 	check(world.modal == null, "painel fecha")
+
+
+# ---------------------------------------------------------------- Tecelã
+## A Tecelã de meia distância cospe teia e o jogador fica preso (anda a 30%); o modelo tem as oito patas.
+func _test_tecela_web() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 20)
+	player.global_position = spot
+	player.web_t = 0.0
+	var e := Enemy.new()
+	e.kind = "tecela"
+	world.add_child(e)
+	e.global_position = spot + Vector3(0, 0, -7)
+	e.home = e.global_position
+	await wait(0.2)
+	var legs := 0
+	for n in Enemy.SPIDER_PARTS:
+		legs += 1 if e.parts.get(n) != null else 0
+	check(legs == 9, "Tecelã: abdômen e oito patas no modelo (%d de 9)" % legs)
+	e.web_cd = 0.0
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return player.web_t > 0.0, 4.0)
+	check(player.web_t > 0.0, "Tecelã cospe teia de longe e prende o jogador (%.2f s)" % player.web_t)
+	check(e.web_cd > 0.0, "teia entra em recarga (%.1f s)" % e.web_cd)
+	e.queue_free()
+	player.web_t = 0.0
+	player.global_position = back
+	await wait(0.1)
 
 
 # ---------------------------------------------------------------- Efeitos dos elementos

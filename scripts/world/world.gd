@@ -91,6 +91,8 @@ const NEST := Vector3(-36, 0, 36)        # Ninho de Slimes (sudoeste da vila)
 # pode cair em cima de quem está começando nos slimes)
 const RAPTOR_PACK_E := Vector3(60, 0, -55)
 const RAPTOR_PACK_W := Vector3(-62, 0, -38)
+# Tecelãs (aranhas) entre os pinheiros da floresta do leste, longe do Acampamento Goblin e dos raptores
+const TECELA_SPOTS := [Vector3(96, 0, 38), Vector3(92, 0, -28), Vector3(106, 0, 6)]
 ## Maciços dentro do mapa: [centro, raio da base, altura]. Ficam nos cantos vazios, longe das
 ## áreas de missão; a serra em volta do mapa é só visual (fora da borda).
 const MOUNTAINS := [
@@ -1096,6 +1098,8 @@ func _setup_enemies() -> void:
 	for p in [Vector3(-18, 0, -44), Vector3(16, 0, -54)]:
 		spawns.append({"kind": "slime_gelo", "pos": p, "node": null, "timer": 0.0, "respawn": 60.0})
 	# Raptores-capim caçam em bando de 3 no capim alto, a nordeste e a oeste dos campos de slime
+	for p in TECELA_SPOTS:
+		spawns.append({"kind": "tecela", "pos": p, "node": null, "timer": 0.0, "respawn": 80.0})
 	for c in [RAPTOR_PACK_E, RAPTOR_PACK_W]:
 		for i in 3:
 			var a := i * TAU / 3.0
