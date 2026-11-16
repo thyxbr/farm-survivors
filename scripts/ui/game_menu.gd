@@ -501,6 +501,7 @@ func _refresh_character() -> void:
 		var s := ItemSlot.new(50)
 		s.paper = true
 		s.icon_kind = sp.icon
+		s.icon_tex = ItemSlot.skill_art(id)
 		s.key_text = str(sp.slot)
 		s.dim = not known
 		s.mouse_filter = Control.MOUSE_FILTER_IGNORE

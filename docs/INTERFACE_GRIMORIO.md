@@ -115,7 +115,8 @@ descartados: o primeiro fica "vetorial" demais, o segundo é caro para ornamento
 | Ícone vetorial de reserva (sem janela, HUD e enquanto o 3D não chega) | `scripts/ui/icon_painter.gd` |
 | Dica de item em folha de papel (`paper = true`; o padrão continua escuro para loja e HUD) | `scripts/ui/item_tooltip.gd` |
 | Menu do herói, as três abas a tinta (`_spread()` monta as duas páginas de uma aba) | `scripts/ui/game_menu.gd` |
-| Livro do mapa e do social: aba Mapa (M, região vista de cima, seletor de mapas, legenda e lugares), aba Grupo (P, membros, convite, quem está online) e aba Amigos (O, pedidos, amigos online/offline, chamar ao grupo, sussurrar) | `scripts/ui/world_map_ui.gd` (o desenho do mapa é `map_view.gd`, a foto de cima `map_capture.gd`) |
+| Mapa-mundi (M): tela cheia, fora do livro; todas as regiões lado a lado com zoom (roda), arrastar, clique duplo para aproximar, ficha ao passar o mouse (NPCs, carruagem com as saídas, lugares, grupo) e os nomes das regiões e lugares | `scripts/ui/world_atlas_ui.gd` e `atlas_view.gd` (a foto de cima `map_capture.gd`; fotos: `tools/atlas_shot.gd`) |
+| Livro do social: aba Grupo (P, membros, convite, quem está online) e aba Amigos (O, pedidos, amigos online/offline, chamar ao grupo, sussurrar) | `scripts/ui/world_map_ui.gd` |
 
 Para criar uma tela nova no livro:
 

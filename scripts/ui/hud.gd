@@ -126,7 +126,10 @@ func add_minimap(world: Node, capture: MapCapture) -> void:
 	if minimap != null:
 		return
 	var frame := PanelContainer.new()
-	frame.add_theme_stylebox_override("panel", UITheme._box(Color(0.04, 0.035, 0.03, 0.9), UITheme.GOLD_DIM, 2, 6, 3, 3))
+	# redondo: o MapView desenha o disco e a moldura; o painel só posiciona
+	var round := StyleBoxEmpty.new()
+	round.set_content_margin_all(3)
+	frame.add_theme_stylebox_override("panel", round)
 	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_anchor(frame, 1, 0, -MINIMAP_SIZE - 22, 12, MINIMAP_SIZE + 6, MINIMAP_SIZE + 6)
 	root.add_child(frame)
@@ -479,6 +482,7 @@ func _refresh_kit() -> void:
 		var s: ItemSlot = slots["slot_%d" % n]
 		var id: String = _slot_ids[n - 1]
 		s.icon_kind = ItemDB.ABILITIES[id].icon if id != "" else ""
+		s.icon_tex = ItemSlot.skill_art(id)
 		s.dim = id == ""
 		s.cooldown = 0.0
 		s.cooldown_text = ""

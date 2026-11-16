@@ -2,8 +2,9 @@ class_name MapView
 extends Control
 ## Desenho do mapa visto de cima (MapCapture) com os marcadores: o jogador (seta na direção da câmera),
 ## os companheiros de grupo (no multiplayer só o grupo aparece), os NPCs, o destino da missão rastreada e,
-## no mapa grande, os nomes dos lugares. Modo "mini" segue o jogador (raio MapRules.MINI_RADIUS); modo
-## "full" mostra a região inteira (`region`).
+## no mapa grande, os nomes dos lugares. Modo "mini" (o minimapa do HUD) é redondo e segue o jogador (raio
+## MapRules.MINI_RADIUS): só o chão de verdade, sem fundo liso; os marcadores longe ficam presos na borda do
+## círculo. Modo "full" mostra a região inteira (`region`).
 
 const C_BG := Color(0.13, 0.17, 0.12)
 const C_PLAYER := Color(1.0, 0.95, 0.7)
@@ -61,10 +62,28 @@ func world_to_local(pos: Vector3) -> Vector2:
 	return Vector2((pos.x - v.position.x) / v.size.x * size.x, (pos.z - v.position.y) / v.size.y * size.y)
 
 
+## Disco do mapa: a foto `tex` recortada em círculo (centro `c`, raio `r` em pixels). `uv_c` é o ponto da
+## foto (0..1) que fica no centro e `uv_r` o raio do disco em fração da foto. Sem foto, o fundo liso.
+static func draw_map_disc(ci: CanvasItem, c: Vector2, r: float, tex: Texture2D, uv_c: Vector2, uv_r: float, segs := 72) -> void:
+	if tex == null:
+		ci.draw_circle(c, r, C_BG)
+		return
+	var pts := PackedVector2Array()
+	var uvs := PackedVector2Array()
+	for i in segs:
+		var d := Vector2.from_angle(TAU * i / segs)
+		pts.append(c + d * r)
+		uvs.append(uv_c + d * uv_r)
+	ci.draw_polygon(pts, PackedColorArray([Color.WHITE]), uvs, tex)
+
+
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), C_BG)
 	var reg := shown_region()
-	_draw_terrain(reg)
+	if mode == "mini":
+		_draw_mini_disc(reg)
+	else:
+		draw_rect(Rect2(Vector2.ZERO, size), C_BG)
+		_draw_terrain(reg)
 	var full := mode == "full"
 	_draw_npcs(reg, full)
 	if full:
@@ -81,8 +100,18 @@ func _draw() -> void:
 	_draw_player(reg)
 	if not full:
 		var font := UITheme.body()
-		draw_string_outline(font, Vector2(size.x / 2.0 - 5, 15), "N", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0, 0.9))
-		draw_string(font, Vector2(size.x / 2.0 - 5, 15), "N", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 0.9, 0.6))
+		draw_arc(size / 2.0, size.x / 2.0 - 1.5, 0, TAU, 96, Color(0.04, 0.035, 0.03, 0.95), 4.0, true)
+		draw_arc(size / 2.0, size.x / 2.0 - 1.5, 0, TAU, 96, UITheme.GOLD_DIM, 2.0, true)
+		draw_string_outline(font, Vector2(size.x / 2.0 - 5, 17), "N", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0, 0.9))
+		draw_string(font, Vector2(size.x / 2.0 - 5, 17), "N", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 0.9, 0.6))
+
+
+## Minimapa: o disco da foto em volta do jogador (a foto cobre o raio inteiro até na borda do mapa).
+func _draw_mini_disc(reg: String) -> void:
+	var tex: Texture2D = capture.texture(reg) if capture else null
+	var cap := MapRules.capture_rect(reg)
+	var v := view_rect()
+	draw_map_disc(self, size / 2.0, size.x / 2.0, tex, (v.get_center() - cap.position) / cap.size, v.size.x / 2.0 / cap.size.x)
 
 
 ## A foto da região recortada pelo pedaço visível (o que passa da borda do mapa fica com o fundo).
@@ -91,7 +120,7 @@ func _draw_terrain(reg: String) -> void:
 	if tex == null:
 		return
 	var v := view_rect()
-	var m := MapRules.rect(reg)
+	var m := MapRules.capture_rect(reg)
 	var vis := v.intersection(m)
 	if vis.size.x <= 0.0 or vis.size.y <= 0.0:
 		return
@@ -102,12 +131,15 @@ func _draw_terrain(reg: String) -> void:
 
 
 func _inside(at: Vector2, margin := 0.0) -> bool:
+	if mode == "mini":
+		return at.distance_to(size / 2.0) <= size.x / 2.0 + margin
 	return at.x >= -margin and at.y >= -margin and at.x <= size.x + margin and at.y <= size.y + margin
 
 
-## Leva um ponto fora do minimapa para a borda (os marcadores ficam visíveis apontando a direção).
+## Leva um ponto fora do minimapa (redondo) para a borda do círculo (os marcadores ficam visíveis apontando a direção).
 func _clamp_edge(at: Vector2, margin: float) -> Vector2:
-	return Vector2(clampf(at.x, margin, size.x - margin), clampf(at.y, margin, size.y - margin))
+	var c := size / 2.0
+	return c + (at - c).limit_length(size.x / 2.0 - margin)
 
 
 ## NPCs da região: um ponto dourado; quem tem missão (o mesmo !/? de cima da cabeça) ganha um selo com o
@@ -123,7 +155,7 @@ func _draw_npcs(reg: String, full: bool) -> void:
 		var mk = n.get("marker")
 		var sym: String = mk.text if mk is Label3D else ""
 		if sym == "":
-			if not _inside(at, 6.0):
+			if not _inside(at, -5.0 if mode == "mini" else 6.0):
 				continue
 			draw_circle(at, 5.5 * s, Color(0, 0, 0, 0.75))
 			draw_circle(at, 4.0 * s, C_NPC)

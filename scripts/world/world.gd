@@ -69,6 +69,7 @@ const KITCHEN := preload("res://scripts/farm/kitchen.gd")
 const PLANT_UI := preload("res://scripts/ui/plant_ui.gd")
 const COOKING_UI := preload("res://scripts/ui/cooking_ui.gd")
 const WORLD_MAP_UI := preload("res://scripts/ui/world_map_ui.gd")
+const WORLD_ATLAS_UI := preload("res://scripts/ui/world_atlas_ui.gd")
 
 ## Meia largura do vale (os testes conferem que a Arena fica fora dele).
 const MAP_HALF := 125.0
@@ -655,12 +656,17 @@ func _unhandled_input(event: InputEvent) -> void:
 				return
 
 
-## Livro do mapa e do grupo, aberto na aba `tab` (WORLD_MAP_UI.TAB_MAP ou TAB_PARTY).
+## TAB_MAP abre o mapa-mundi em tela cheia (WORLD_ATLAS_UI); TAB_PARTY e TAB_FRIENDS, o livro do social.
 func open_world_map(tab := 0) -> void:
+	if tab == WORLD_MAP_UI.TAB_MAP:
+		var a := WORLD_ATLAS_UI.new()
+		a.world = self
+		a.capture = map_capture
+		_open_modal(a)
+		return
 	var m := WORLD_MAP_UI.new()
 	m.start_tab = tab
 	m.world = self
-	m.capture = map_capture
 	_open_modal(m)
 
 
