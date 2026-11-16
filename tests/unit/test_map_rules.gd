@@ -56,3 +56,46 @@ func test_coach_and_arrive_from_landmarks() -> void:
 	T.eq(Regions.arrive_point("mina"), Vector3(800, 0.3, 52.0), "chegada na Mina no lugar de sempre")
 	T.ok(not Regions.DATA.vila.has("coach") and not Regions.DATA.mina.has("arrive"),
 		"carruagem e chegada saíram do Regions.DATA (só a cena manda)")
+
+
+## Atlas do mapa-mundi: o vale no meio, as outras regiões a leste/sul, sem sobrepor, e cada ponto do mundo
+## cai dentro do retângulo da região dele.
+func test_atlas_layout() -> void:
+	T.eq(MapRules.atlas_center("vila"), Vector2.ZERO, "vale no centro do atlas")
+	T.ok(MapRules.atlas_center("bosque").y > 0.0 and absf(MapRules.atlas_center("bosque").x) < 0.01, "bosque ao sul")
+	T.ok(MapRules.atlas_center("mina").x > 0.0 and absf(MapRules.atlas_center("mina").y) < 0.01, "mina a leste")
+	for a in Regions.ORDER:
+		T.ok(MapRules.atlas_bounds().encloses(MapRules.atlas_rect(a)), "%s dentro do atlas" % a)
+		for b in Regions.ORDER:
+			if a < b:
+				T.ok(MapRules.atlas_center(a).distance_to(MapRules.atlas_center(b)) > MapRules.radius(a) + MapRules.radius(b),
+					"%s e %s não se sobrepõem" % [a, b])
+		T.eq(MapRules.atlas_region_at(MapRules.to_atlas(Regions.coach_point(a))), a, "carruagem de %s no círculo dela" % a)
+		var h: float = Regions.DATA[a].half
+		T.eq(MapRules.atlas_region_at(MapRules.to_atlas(Regions.at(a, Vector3(h, 0, -h)))), a, "canto de %s dentro do círculo" % a)
+		T.ok(MapRules.capture_rect(a).encloses(MapRules.rect(a).grow(MapRules.MINI_RADIUS)), "a foto de %s cobre o minimapa na borda" % a)
+	T.eq(MapRules.to_atlas(Regions.at("mina", Vector3(5, 3, -7))), MapRules.atlas_center("mina") + Vector2(5, -7), "ponto da mina")
+
+
+func test_coach_exits_follow_rank() -> void:
+	var ex := MapRules.exits("vila", "C")
+	T.eq(ex.map(func(e: Array) -> String: return e[0]), ["bosque", "mina", "pico"], "saídas do vale")
+	T.eq(ex.map(func(e: Array) -> bool: return e[1]), [true, false, false], "rank C só libera o bosque")
+	T.ok(not ("mina" in MapRules.exits("mina", "S").map(func(e: Array) -> String: return e[0])), "sem saída para si mesma")
+
+
+func test_zoom_keeps_point_under_mouse() -> void:
+	var anchor := Vector2(30, -12)
+	var off := Vector2(200, -50)
+	var c := MapRules.zoom_center(anchor, off, 4.0)
+	T.ok((c + off / 4.0).distance_to(anchor) < 0.001, "o ponto fica embaixo do mouse")
+
+
+## Arrastar o atlas não leva para o mar: o ponto volta para o mapa mais perto.
+func test_clamp_to_land() -> void:
+	T.eq(MapRules.clamp_to_land(Vector2(10, -20)), Vector2(10, -20), "dentro do vale fica")
+	var far := MapRules.clamp_to_land(Vector2(-900, 0))
+	T.eq(MapRules.atlas_region_at(far), "vila", "a oeste de tudo volta para o vale")
+	T.ok(absf(far.length() - MapRules.radius("vila")) < 0.1, "na borda do círculo")
+	T.eq(MapRules.atlas_region_at(Vector2(2000, 2000).lerp(Vector2.ZERO, 0.0)), "", "longe é mar")
+	T.eq(MapRules.atlas_region_at(MapRules.clamp_to_land(Vector2(2000, 2000))), "pico", "a sudeste volta para o Pico")

@@ -521,7 +521,7 @@ func _test_social(w: Node) -> void:
 		if a.begins_with("--shot-social=") and bk != null and DisplayServer.get_name() != "headless":
 			await wait(1.0)
 			get_viewport().get_texture().get_image().save_png(a.substr(14))
-			bk.book.show_page(1)
+			bk.book.show_page(0)
 			await wait(1.0)
 			get_viewport().get_texture().get_image().save_png(a.substr(14).replace(".png", "_grupo.png"))
 	if bk != null:
@@ -589,16 +589,21 @@ func _test_party(w: Node) -> void:
 		check(await _wait_until(func() -> bool: return w.hud.party_frames._bars[other].chips.has("spicy_soup"), 3.0),
 			"ícone do buff do colega no quadro do grupo")
 	await _shot_hud(w, "buff")
-	# livro do mapa e do grupo (P): o colega aparece com a vida e as duas abas cabem nas páginas
+	# livro do grupo (P): o colega aparece com a vida e a aba cabe nas páginas
 	w.open_world_map(1)
 	var bk: Node = w.modal
 	check(bk != null and bk._hp_bars.has(other), "livro do grupo lista o colega")
 	await wait(0.3)
 	if bk != null:
-		bk.book.show_page(0)
-		await wait(0.3)
-		check(bk.book.overflow_warnings == 0, "abas Mapa e Grupo cabem no livro")
+		check(bk.book.overflow_warnings == 0, "aba Grupo cabe no livro")
 		bk.book.close()
+	# mapa-mundi (M): o colega do grupo aparece no atlas
+	w.open_world_map(0)
+	var at: Node = w.modal
+	await wait(0.3)
+	check(at != null and at.get("view") is AtlasView, "M abre o mapa-mundi em tela cheia")
+	if at != null:
+		at._close()
 	check(w.modal == null, "livro fechado")
 	Econ.request("start_quest", ["espantalho"])
 	check(await _wait_until(func() -> bool: return Game.quest_state("espantalho") == "active", 4.0), "missão de slimes ativa")
