@@ -845,3 +845,126 @@ func test_food_mult_xp_and_expiry() -> void:
 	T.eq(CharRules.food_mult(s, bt, "xp", 100.0 + float(buff.time) + 1.0), 1.0, "expirou")
 	T.ok(s.food_buffs.is_empty(), "vencido removido")
 	T.ok(not s.to_dict().has("food_buffs"), "não vai ao save")
+
+
+# ---------------------------------------------------------------- talentos
+func _talent_char(level: int, cls := "warrior") -> CharState:
+	var s := _blank(0)
+	s.char_class = cls
+	s.level = level
+	return s
+
+
+func test_talent_points() -> void:
+	var bt := _tables()
+	T.eq(CharRules.talent_points(_talent_char(1), bt), 0, "nível 1: nenhum ponto")
+	T.eq(CharRules.talent_points(_talent_char(4), bt), 3, "nível 4: 3 pontos")
+	var s := _talent_char(4)
+	T.ok(CharRules.learn_talent(s, bt, "w_edge").ok, "aprende")
+	T.eq(CharRules.talent_points(s, bt), 2, "gasto desconta")
+	T.eq(s.talents, {"w_edge": 1}, "nível 1")
+
+
+func test_talent_errors_leave_state() -> void:
+	var bt := _tables()
+	var s := _talent_char(20)
+	var before := s.talents.duplicate(true)
+	T.eq(CharRules.learn_talent(s, bt, "w_bloodlust").err, "talento_bloqueado", "linha 2 sem 3 pontos no ramo")
+	T.eq(CharRules.learn_talent(s, bt, "w_rage").err, "talento_bloqueado", "linha 3 sem 6 pontos")
+	T.eq(CharRules.learn_talent(s, bt, "a_aim").err, "talento_invalido", "talento de outra classe")
+	T.eq(CharRules.learn_talent(s, bt, "nao_existe").err, "talento_invalido", "id desconhecido")
+	T.eq(s.talents, before, "recusas não mudam o estado")
+	var z := _talent_char(1)
+	T.eq(CharRules.learn_talent(z, bt, "w_edge").err, "sem_pontos", "nível 1 sem pontos")
+	var w := _talent_char(2, "")
+	T.eq(CharRules.learn_talent(w, bt, "w_edge").err, "talento_invalido", "sem classe")
+
+
+func test_talent_rows_and_max() -> void:
+	var bt := _tables()
+	var s := _talent_char(20)
+	for i in 3:
+		T.ok(CharRules.learn_talent(s, bt, "w_edge").ok, "nível %d" % (i + 1))
+	T.eq(CharRules.learn_talent(s, bt, "w_edge").err, "talento_maximo", "4º nível falha")
+	T.ok(CharRules.learn_talent(s, bt, "w_bloodlust").ok, "linha 2 liberada com 3 pontos")
+	T.eq(CharRules.learn_talent(s, bt, "w_rage").err, "talento_bloqueado", "linha 3 pede 6")
+	CharRules.learn_talent(s, bt, "w_bloodlust")
+	CharRules.learn_talent(s, bt, "w_bloodlust")
+	var r := CharRules.learn_talent(s, bt, "w_rage")
+	T.ok(r.ok, "linha 3 com 6 pontos no ramo")
+	T.eq(r.events[0], {"t": "talent", "id": "w_rage", "level": 1}, "evento")
+	T.eq(CharRules.learn_talent(s, bt, "w_hide").ok, true, "outro ramo, linha 1")
+
+
+func test_talent_reset() -> void:
+	var bt := _tables()
+	T.eq(CharRules.reset_cost(_talent_char(5)), 0, "grátis até o 5")
+	T.eq(CharRules.reset_cost(_talent_char(6)), 300, "50 x nível")
+	var s := _talent_char(4)
+	CharRules.learn_talent(s, bt, "w_edge")
+	CharRules.learn_talent(s, bt, "w_edge")
+	T.ok(CharRules.reset_talents(s, bt).ok, "grátis no nível baixo")
+	T.eq(s.talents, {}, "limpou")
+	T.eq(CharRules.talent_points(s, bt), 3, "pontos devolvidos")
+	T.eq(CharRules.reset_talents(s, bt).err, "sem_talentos", "nada a devolver")
+	var p := _talent_char(10)
+	CharRules.learn_talent(p, bt, "w_edge")
+	p.gold = 499
+	T.eq(CharRules.reset_talents(p, bt).err, "sem_ouro", "sem ouro")
+	T.eq(p.talents, {"w_edge": 1}, "não muda sem ouro")
+	p.gold = 520
+	T.ok(CharRules.reset_talents(p, bt).ok, "paga")
+	T.eq(p.gold, 20, "cobrou 500")
+
+
+func test_talent_mods() -> void:
+	var bt := _tables()
+	var s := _talent_char(20)
+	for id in ["w_edge", "w_edge", "w_bloodlust", "w_hide"]:
+		if id == "w_bloodlust":
+			CharRules.learn_talent(s, bt, "w_edge")
+		CharRules.learn_talent(s, bt, id)
+	var m := CharRules.talent_mods(bt, s)
+	T.ok(absf(m.get("damage", 0.0) - 0.12) < 0.0001, "3 níveis de dano")
+	T.ok(absf(m.get("lifesteal", 0.0) - 1.0) < 0.0001, "roubo de vida")
+	T.ok(absf(m.get("defense", 0.0) - 2.0) < 0.0001, "defesa")
+	s.talents["a_aim"] = 3   # de outra classe: ignorado
+	T.ok(not CharRules.talent_mods(bt, s).has("crit"), "talento de outra classe não conta")
+
+
+func test_talent_table_is_consistent() -> void:
+	var bt := _tables()
+	for cls in CharRules.CLASS_IDS:
+		var defs := CharRules.talent_defs(bt, cls)
+		T.eq(defs.size(), 9, "%s: 9 talentos" % cls)
+		var seen := {}
+		for d in defs:
+			T.ok(not seen.has(d.id), "id único: %s" % d.id)
+			seen[d.id] = true
+			T.eq(int(d.max), 3, "3 níveis")
+			T.ok(not d.add.is_empty(), "tem efeito")
+		T.eq(bt.get_table("talents")[cls].branches.size(), 3, "3 ramos")
+
+
+func test_talents_roundtrip_and_old_save() -> void:
+	var bt := _tables()
+	var s := _talent_char(6)
+	CharRules.learn_talent(s, bt, "w_edge")
+	var back := CharState.from_dict(JSON.parse_string(JSON.stringify(s.to_dict())), bt)
+	T.eq(back.talents, {"w_edge": 1}, "ida e volta pelo JSON")
+	var d := s.to_dict()
+	d.erase("talents")
+	T.eq(CharState.from_dict(d, bt).talents, {}, "save sem talents carrega vazio")
+	T.eq(CharRules.talent_points(CharState.from_dict(d, bt), bt), 5, "pontos retroativos")
+
+
+func test_talents_from_dict_sanitized() -> void:
+	var bt := _tables()
+	var d := _talent_char(4).to_dict()
+	d["talents"] = {"w_edge": 9, "a_aim": 2, "x": 1, "w_hide": "z"}
+	var s := CharState.from_dict(d, bt)
+	T.eq(s.talents, {"w_edge": 3}, "nível limitado, outra classe e lixo descartados")
+	d["talents"] = {"w_edge": 3, "w_hide": 3}
+	T.eq(CharState.from_dict(d, bt).talents, {"w_edge": 3}, "não passa dos pontos do nível (3)")
+	d["talents"] = "lixo"
+	T.eq(CharState.from_dict(d, bt).talents, {}, "tipo errado")

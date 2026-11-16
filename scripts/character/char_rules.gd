@@ -983,6 +983,96 @@ static func _harvest(s: CharState, bt: BalanceTables, i: int, now: float, rng: R
 	return out
 
 
+# ================================================================ talentos (árvore da classe)
+## Talentos da classe em ordem de tabela (ramo a ramo, linha 1 a 3): [{"id","name","row","max","add","desc","branch"}].
+static func talent_defs(bt: BalanceTables, char_class: String) -> Array:
+	var out: Array = []
+	var tree: Dictionary = bt.get_table("talents").get(char_class, {})
+	for b in tree.get("branches", []):
+		for t in b.get("talents", []):
+			var d: Dictionary = t.duplicate()
+			d["branch"] = b.id
+			out.append(d)
+	return out
+
+
+## Pontos de talento gastos (soma dos níveis aprendidos).
+static func talents_spent(s: CharState) -> int:
+	var n := 0
+	for id in s.talents:
+		n += int(s.talents[id])
+	return n
+
+
+## Pontos livres: 1 por nível a partir do 2, menos os gastos (calculado, não gravado).
+static func talent_points(s: CharState, _bt: BalanceTables) -> int:
+	return maxi(0, s.level - 1 - talents_spent(s))
+
+
+## Pontos gastos num ramo.
+static func branch_points(s: CharState, bt: BalanceTables, branch_id: String) -> int:
+	var n := 0
+	for d in talent_defs(bt, s.char_class):
+		if d.branch == branch_id:
+			n += int(s.talents.get(d.id, 0))
+	return n
+
+
+## Pontos que o ramo precisa ter para liberar a linha: 1 -> 0, 2 -> 3, 3 -> 6.
+static func row_requirement(row: int) -> int:
+	return maxi(0, (row - 1) * 3)
+
+
+## Aprende um nível do talento. Erros: talento_invalido (não existe na classe), talento_maximo,
+## talento_bloqueado (o ramo não tem pontos para a linha), sem_pontos. Só muta `s` se ok.
+static func learn_talent(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
+	var def := {}
+	for d in talent_defs(bt, s.char_class):
+		if d.id == id:
+			def = d
+			break
+	if def.is_empty():
+		return _fail("talento_invalido")
+	var level := int(s.talents.get(id, 0))
+	if level >= int(def.max):
+		return _fail("talento_maximo")
+	if branch_points(s, bt, def.branch) < row_requirement(int(def.row)):
+		return _fail("talento_bloqueado")
+	if talent_points(s, bt) < 1:
+		return _fail("sem_pontos")
+	s.talents[id] = level + 1
+	return _ok([{"t": "talent", "id": id, "level": level + 1}])
+
+
+## Custo em ouro de redistribuir: grátis até o nível 5, depois 50 x nível.
+static func reset_cost(s: CharState) -> int:
+	return 0 if s.level <= 5 else 50 * s.level
+
+
+## Devolve todos os pontos e cobra reset_cost. Erros: sem_talentos (nada a devolver), sem_ouro.
+static func reset_talents(s: CharState, _bt: BalanceTables) -> Dictionary:
+	if s.talents.is_empty():
+		return _fail("sem_talentos")
+	var cost := reset_cost(s)
+	if s.gold < cost:
+		return _fail("sem_ouro")
+	s.gold -= cost
+	s.talents = {}
+	return _ok([{"t": "talents_reset", "cost": cost}])
+
+
+## Bônus dos talentos: chave de stat -> soma de (add x nível). Só conta talento da classe do personagem.
+static func talent_mods(bt: BalanceTables, s: CharState) -> Dictionary:
+	var out := {}
+	for d in talent_defs(bt, s.char_class):
+		var lv := mini(int(s.talents.get(d.id, 0)), int(d.max))
+		if lv < 1:
+			continue
+		for k in d.add:
+			out[k] = out.get(k, 0.0) + float(d.add[k]) * lv
+	return out
+
+
 # ================================================================ passivas permanentes (Ecos)
 ## Compra o próximo nível de uma passiva permanente com Ecos. O custo do nível N é cost[N-1].
 static func buy_passive(s: CharState, bt: BalanceTables, id: String) -> Dictionary:

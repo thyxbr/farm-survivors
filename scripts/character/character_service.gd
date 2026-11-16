@@ -11,7 +11,8 @@ var allow_reclass := false
 ## Operações que o cliente pode pedir. Conceder ouro/xp/itens e abates é só do servidor/solo.
 const CLIENT_OPS := ["buy", "sell", "equip", "unequip", "consume", "cook", "spend_point", "start_quest",
 	"complete_quest", "sort_inventory", "unlock_plot", "plant", "water", "fertilize", "harvest", "discard",
-	"death_penalty", "buy_passive", "enchant", "rank_up", "quest_mark", "choose_class"]
+	"death_penalty", "buy_passive", "enchant", "rank_up", "quest_mark", "choose_class",
+	"learn_talent", "reset_talents"]
 
 ## Assinatura posicional de cada op: tipos aceitos (TYPE_*) e quantos são opcionais no fim.
 ## `now` e o gerador de sorteio nunca vêm do cliente.
@@ -38,6 +39,8 @@ const ARGS := {
 	"rank_up": {"types": [], "optional": 0},
 	"quest_mark": {"types": [TYPE_STRING, TYPE_INT], "optional": 0},
 	"choose_class": {"types": [TYPE_STRING, TYPE_STRING], "optional": 0},
+	"learn_talent": {"types": [TYPE_STRING], "optional": 0},
+	"reset_talents": {"types": [], "optional": 0},
 }
 
 ## Concessões dessas origens acontecem a cada coleta durante a partida: o registro é um só, no fim
@@ -366,6 +369,8 @@ func _dispatch(s: CharState, op: String, a: Array) -> Dictionary:
 		"discard": return CharRules.discard(s, _bt, a[0])
 		"death_penalty": return CharRules.death_penalty(s, _bt)
 		"buy_passive": return CharRules.buy_passive(s, _bt, a[0])
+		"learn_talent": return CharRules.learn_talent(s, _bt, a[0])
+		"reset_talents": return CharRules.reset_talents(s, _bt)
 		"enchant": return EnchantRules.enchant(s, _bt, a[0])
 	return {"ok": false, "err": "op_invalida", "events": []}
 
