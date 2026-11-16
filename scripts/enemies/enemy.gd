@@ -274,7 +274,8 @@ func _make_name_tag() -> void:
 	name_tag.render_priority = 2
 	name_tag.outline_render_priority = 1
 	name_tag.modulate = Color(1.0, 0.45, 0.25) if is_boss else (Color(1.0, 0.8, 0.35) if elite or data.get("elite", false) else Color(1.0, 0.92, 0.85))
-	if level > 0:
+	if level > 0 and not is_boss and not elite and not data.get("elite", false):
+		# só os comuns: chefes e elites ficam com a cor deles (o "Nv X" aparece igual)
 		_update_plate_color()
 		Game.leveled_up.connect(_update_plate_color)
 	name_tag.position.y = top + (0.75 if not is_boss else 0.5)
@@ -298,6 +299,7 @@ func _make_name_tag() -> void:
 
 ## Cor da placa pela diferença de nível para o jogador local: bem abaixo cinza, perto branco, acima amarelo,
 ## muito acima vermelho.
+## Só monstros comuns (chefes e elites mantêm a cor própria).
 func _update_plate_color(_new_level := 0) -> void:
 	if name_tag == null:
 		return
