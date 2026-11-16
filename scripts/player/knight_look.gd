@@ -53,6 +53,8 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 	var made: Array = []
 	var wid: String = look.get("weapon", "")
 	var cls := ItemDB.weapon_class(wid)
+	if cls == "scepter":
+		cls = "staff"   # o cetro usa a animação e a pegada do cajado; o visual vem de sc_<id>.glb (_build_staff; sem ele, o cajado procedural)
 
 	# ---- roupas e armaduras: cada espaço usa as placas do knight.glb ou um GLB de equipamento
 	var armor_id: String = look.get("armor", "")

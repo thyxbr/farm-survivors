@@ -1,0 +1,62 @@
+{
+	"warrior": {
+		"name": "Guerreiro",
+		"weapon_class": "sword",
+		"starter_weapon": "azure_edge",
+		"attr": "str",
+		"desc": "Combate corpo a corpo com espada: aguenta o tranco e acerta forte.",
+		"color": {
+			"$c": [
+				0.85,
+				0.35,
+				0.3,
+				1.0
+			]
+		}
+	},
+	"archer": {
+		"name": "Arqueiro",
+		"weapon_class": "bow",
+		"starter_weapon": "short_bow",
+		"attr": "agi",
+		"desc": "Ataca de longe com o arco: rápido, ágil e preciso.",
+		"color": {
+			"$c": [
+				0.45,
+				0.8,
+				0.4,
+				1.0
+			]
+		}
+	},
+	"mage": {
+		"name": "Mago",
+		"weapon_class": "staff",
+		"starter_weapon": "apprentice_staff",
+		"attr": "int",
+		"desc": "Dispara magias com o cajado: frágil, mas devastador.",
+		"color": {
+			"$c": [
+				0.55,
+				0.5,
+				1.0,
+				1.0
+			]
+		}
+	},
+	"healer": {
+		"name": "Healer",
+		"weapon_class": "scepter",
+		"starter_weapon": "sc_novice_scepter",
+		"attr": "int",
+		"desc": "Cura e apoia os aliados com o cetro, sem largar o ataque.",
+		"color": {
+			"$c": [
+				1.0,
+				0.9,
+				0.5,
+				1.0
+			]
+		}
+	}
+}

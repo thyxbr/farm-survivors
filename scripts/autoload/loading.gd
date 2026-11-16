@@ -19,6 +19,7 @@ const GRACE := 2.0         # imunidade depois que a tela abre
 const NAMES := {
 	"res://scenes/world.tscn": "Viajando para Valdoria…",
 	"res://scenes/main_menu.tscn": "Voltando ao menu…",
+	"res://scenes/char_create.tscn": "Preparando a criação do herói…",
 }
 const TIPS := [
 	"Esquivar (Ctrl) deixa você imune por um instante.",

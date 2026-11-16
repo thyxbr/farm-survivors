@@ -90,6 +90,8 @@ func _ready() -> void:
 		token = log_r.token
 		if relogin:
 			await _test_bad_token()
+		if horde_role == "lead":
+			await _test_no_class_gate()
 	Network.join(address, token)
 
 	# todo mundo chega direto na vila
@@ -131,13 +133,16 @@ func _ready() -> void:
 	if Network.world == null:
 		_finish()
 		return
-	# personagem novo não tem equipamento: pede ao servidor (--test) o kit das três classes de arma
-	check(Game.equipment.weapon == "", "personagem novo começa sem arma")
+	# personagem novo não tem equipamento: só a arma da classe que o --nettest escolheu (guerreiro);
+	# pede ao servidor (--test) o kit das três classes de arma
+	check(Game.char_class == "warrior" and Game.equipment.weapon == "azure_edge"
+		and Game.equipment.values().filter(func(v) -> bool: return v != "").size() == 1,
+		"personagem novo começa só com a arma da classe (%s, %s)" % [Game.char_class, Game.equipment.weapon])
 	Econ.request_test_items({"azure_edge": 1, "apprentice_staff": 1, "short_bow": 1, "leather_cap": 1})
 	check(await _wait_until(func() -> bool: return Game.count_item("short_bow") == 1 and Game.count_item("leather_cap") == 1, 5.0),
 		"kit de teste recebido do servidor")
 	# equipa arco e capuz logo ao entrar: os outros jogadores devem ver esse visual
-	Game.equip("short_bow")
+	await _pick_class("archer", "short_bow")
 	Game.equip("leather_cap")
 	await wait(1.5)
 	var w: Node = Network.world
@@ -170,6 +175,7 @@ func _ready() -> void:
 		for rp in Network.remote_players.values():
 			check(rp.look["class"] == "bow" and rp._last_look.get("head", "") == "leather_cap",
 				"vê o arco e o capuz de %s" % rp.display_name)
+			check(rp._last_look.get("body", "") == "m", "o corpo escolhido (m) chega na réplica de %s" % rp.display_name)
 			var holder: Node3D = rp.look.get("holder")
 			check(holder != null and is_instance_valid(holder), "modelo do arco montado na réplica de %s" % rp.display_name)
 
@@ -266,7 +272,7 @@ func _ready() -> void:
 		await wait(0.8)
 		check(not is_instance_valid(tgt) or tgt.hp < hp1, "flecha causa dano pelo servidor (%.0f → %.0f)" % [hp1, tgt.hp if is_instance_valid(tgt) else 0.0])
 	# cajado (o do kit de teste: o cliente online não se dá itens): troca pedida ao servidor
-	Game.equip("apprentice_staff")
+	await _pick_class("mage", "apprentice_staff")
 	check(await _wait_until(func() -> bool: return Game.equipment.weapon == "apprentice_staff", 3.0)
 		and w.player.look["class"] == "staff", "trocou para o cajado")
 	await wait(0.6)
@@ -364,6 +370,7 @@ func _ready() -> void:
 	if peers > 1:
 		await _test_sword(w)
 		await _test_bow_staff(w)
+		await _test_heal(w)
 		await _test_party(w)
 		await _test_social(w)
 
@@ -385,7 +392,7 @@ func _ready() -> void:
 ## isso é conferido no smoke test (FX._scene() nulo com Network.mode == SERVER).
 func _test_sword(w: Node) -> void:
 	# a espada inicial voltou para a mochila quando o cajado foi equipado (o cliente online não se dá itens)
-	Game.equip("azure_edge")
+	await _pick_class("warrior", "azure_edge")
 	await _wait_until(func() -> bool: return Game.equipment.weapon == "azure_edge", 3.0)
 	await wait(1.0)
 	await wait(Network.CHAT_WINDOW)   # o anti-spam do chat (teste anterior) precisa esvaziar para os avisos de sincronia passarem
@@ -435,7 +442,7 @@ func _test_bow_staff(w: Node) -> void:
 	var actor := horde_role != "join"
 	var lvl0 := Game.level
 	if actor:
-		Game.equip("short_bow")
+		await _pick_class("archer", "short_bow")
 		check(await _wait_until(func() -> bool: return Game.equipment.weapon == "short_bow", 3.0)
 			and w.player.look["class"] == "bow", "Ana trocou para o arco")
 		Game.level = 8
@@ -452,7 +459,7 @@ func _test_bow_staff(w: Node) -> void:
 			await wait(0.3)
 			check(await _wait_until(func() -> bool: return w.player.ability == "", 4.0), "habilidade do slot %d termina" % slot)
 			await wait(0.4)
-		Game.equip("apprentice_staff")
+		await _pick_class("mage", "apprentice_staff")
 		check(await _wait_until(func() -> bool: return Game.equipment.weapon == "apprentice_staff", 3.0)
 			and w.player.look["class"] == "staff", "Ana voltou para o cajado")
 		await wait(0.6)
@@ -483,7 +490,43 @@ func _test_bow_staff(w: Node) -> void:
 	if actor:
 		Game.level = lvl0
 		Game.fury = 0.0
-		Game.equip("apprentice_staff")
+		await _pick_class("mage", "apprentice_staff")
+
+
+# ---------------------------------------------------------------- cura do healer em aliados
+## Ana vira healer, Beto (guerreiro) fica ferido perto dela. Beto pedindo a cura direto não faz nada (não é
+## healer); Ana conjura `heal` e a vida de Beto sobe (e a dela uma vez só: vem do servidor, não também do cliente).
+func _test_heal(w: Node) -> void:
+	await _sync("heal_in")
+	var actor := horde_role != "join"
+	if actor:
+		await _pick_class("healer", "sc_novice_scepter")
+		check(Game.char_class == "healer", "Ana virou healer")
+	w.player.global_position = w.VILLAGE_SPAWN + Vector3(2.0 if actor else -2.0, 0, 0)
+	await wait(0.6)
+	Game.hp = 10.0
+	Game.mp = Game.max_mp()
+	await wait(1.2)   # o servidor recebe a posição e a vida baixa fica registrada
+	await _sync("heal_ready")
+	var hp0 := Game.hp
+	if not actor:
+		Network.request_heal()   # guerreiro: o servidor recusa
+	await wait(1.2)
+	check(Game.hp <= hp0 + 3.0, "pedido de cura de quem não é healer não faz nada (%.0f → %.0f)" % [hp0, Game.hp])
+	await _sync("heal_denied")
+	if actor:
+		var expected := Game.heal_amount()
+		Game.hp = 10.0
+		w.player.cast("heal")
+		check(await _wait_until(func() -> bool: return Game.hp > 10.5, 3.0), "Ana se cura pela cura do servidor (%.0f)" % Game.hp)
+		await wait(1.0)
+		check(Game.hp - 10.0 <= expected + 3.0, "a cura própria vem uma vez só (+%.0f, máximo %.0f)" % [Game.hp - 10.0, expected])
+	else:
+		check(await _wait_until(func() -> bool: return Game.hp > hp0 + 10.0, 3.0), "Beto recebe a cura de Ana (%.0f → %.0f)" % [hp0, Game.hp])
+	await _sync("heal_out")
+	if actor:
+		await _pick_class("mage", "apprentice_staff")
+	Game.hp = Game.max_hp()
 
 
 # ---------------------------------------------------------------- vila
@@ -838,6 +881,22 @@ func _test_econ() -> void:
 		"op forjada (grant) recusada com op_invalida (%s)" % str(f))
 
 
+## O servidor em --test deixa "choose_class" valer de novo (CharacterService.allow_reclass): é como o teste
+## passa pelas quatro armas, já que a classe é fixa no jogo de verdade.
+## Depois equipa a arma `weapon` (a escolha da classe equipa a melhor que o personagem tem, e um saque
+## melhor do que o inicial mudaria o id): se faltar na mochila, o servidor em --test dá uma.
+func _pick_class(cls: String, weapon: String) -> void:
+	Econ.request("choose_class", [cls, "m"])
+	await _wait_until(func() -> bool: return Game.char_class == cls and Game.equipment.weapon != "", 3.0)
+	if Game.equipment.weapon == weapon:
+		return
+	if Game.count_item(weapon) == 0:
+		Econ.request_test_items({weapon: 1})
+		await _wait_until(func() -> bool: return Game.count_item(weapon) > 0, 3.0)
+	Game.equip(weapon)
+	await _wait_until(func() -> bool: return Game.equipment.weapon == weapon, 3.0)
+
+
 ## Sai do servidor e entra de novo (mesmo token): o personagem volta igual, vindo do banco do servidor.
 func _test_reconnect_keeps_state() -> void:
 	var inv: Array = Game.inventory.duplicate(true)
@@ -925,6 +984,38 @@ func _test_bad_token() -> void:
 	await _wait_until(func() -> bool: return join_error != "", 8.0)
 	check(join_error.begins_with("Sessão expirada"), "token inválido é recusado (%s)" % join_error)
 	Network.leave()
+	join_error = ""
+
+
+## Conta nova sem classe escolhida: mesmo dizendo ao servidor que carregou o mundo (_client_ready), o
+## servidor não a põe em zona nenhuma (fica em "loading") e avisa para escolher a classe.
+func _test_no_class_gate() -> void:
+	var nc_name := my_name + "Sem"
+	var reg: Dictionary = await Auth.register(address, nc_name, TEST_PASS)
+	var log_r: Dictionary = await Auth.login(address, nc_name, TEST_PASS)
+	check((reg.ok or reg.err == "nome_em_uso") and log_r.ok, "conta sem classe (%s)" % log_r.get("err", "ok"))
+	if not log_r.ok:
+		return
+	var notices: Array = []
+	var on_notice := func(text: String, _c: Color) -> void: notices.append(text)
+	Game.notify.connect(on_notice)
+	Game.skip_auto_class = true
+	join_error = ""
+	Network.join(address, str(log_r.token))
+	var accepted: bool = await _wait_until(func() -> bool:
+		return Network.is_online() and Network.players.has(multiplayer.get_unique_id()), 10.0)
+	check(accepted and Game.char_class == "", "conta sem classe foi aceita sem classe (%s)" % Game.char_class)
+	if accepted:
+		Network._client_ready.rpc_id(1)   # um cliente que pula a tela de criação
+		var warned: bool = await _wait_until(func() -> bool:
+			return notices.any(func(s: String) -> bool: return s.contains("classe")), 5.0)
+		check(warned, "servidor avisa para escolher a classe antes de entrar")
+		check(Network.zone_of(multiplayer.get_unique_id()) == "loading",
+			"servidor não põe personagem sem classe em zona nenhuma (%s)" % Network.zone_of(multiplayer.get_unique_id()))
+	Game.notify.disconnect(on_notice)
+	Game.skip_auto_class = false
+	Network.leave()
+	await wait(0.5)
 	join_error = ""
 
 

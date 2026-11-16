@@ -23,8 +23,12 @@ const ABILITIES := {
 		"ready": true, "ultimate": false, "icon": "fireball", "desc": "Projétil flamejante. Dano = 18 + INT x 2.5"},
 	"frost_nova": {"name": "Nova Gélida", "class": "staff", "slot": 2, "level": 3, "cooldown": 7.0, "cost": 28,
 		"ready": true, "ultimate": false, "icon": "frost", "desc": "Explosão de gelo ao redor: dano e lentidão."},
-	"heal": {"name": "Cura", "class": "staff", "slot": 3, "level": 5, "cooldown": 4.0, "cost": 20,
-		"ready": true, "ultimate": false, "icon": "heal", "desc": "Restaura 30 + INT x 4 de vida."},
+	"heal": {"name": "Cura", "class": "scepter", "slot": 1, "level": 1, "cooldown": 4.0, "cost": 20,
+		"ready": true, "ultimate": false, "icon": "heal", "desc": "Restaura 30 + INT x 4 de vida (mais o bônus de cura do cetro)."},
+	"scepter_ward": {"name": "Escudo de Luz", "class": "scepter", "slot": 2, "level": 3, "cooldown": 10.0, "cost": 0,
+		"ready": false, "ultimate": false, "icon": "heal", "desc": "Em breve."},
+	"scepter_ult": {"name": "Luz Sagrada", "class": "scepter", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
+		"ready": false, "ultimate": true, "icon": "heal", "desc": "Ultimate: em breve."},
 	"meteor_rain": {"name": "Chuva de Meteoros", "class": "staff", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
 		"ready": true, "ultimate": true, "icon": "fireball", "desc": "Ultimate: segure para canalizar uma chuva de meteoros sobre a área mirada."},
 	"sword_charge": {"name": "Investida", "class": "sword", "slot": 1, "level": 1, "cooldown": 6.0, "cost": 0,
@@ -63,10 +67,11 @@ static var SHOP_STOCK: Array = []
 const SLOTS := ["head", "amulet", "armor", "hands", "weapon", "offhand", "ring", "feet"]
 const SLOT_NAMES := {"weapon": "Arma", "offhand": "Mão secundária", "head": "Cabeça", "armor": "Peito",
 	"hands": "Mãos", "feet": "Pés", "amulet": "Amuleto", "ring": "Anel"}
-const CLASS_NAMES := {"sword": "Espada", "staff": "Cajado", "bow": "Arco"}
+const CLASS_NAMES := {"sword": "Espada", "staff": "Cajado", "bow": "Arco", "scepter": "Cetro"}
 const CLASS_HINT := {"sword": "Combo de 3 golpes · escala com Força",
 	"staff": "Projéteis arcanos · escala com Inteligência",
-	"bow": "Segure para tensionar, solte para atirar · escala com Agilidade"}
+	"bow": "Segure para tensionar, solte para atirar · escala com Agilidade",
+	"scepter": "Cura aliados com luz sagrada · escala com Inteligência"}
 const FX_NAMES := {"slow": "Golpes deixam o alvo lento", "splash": "Projéteis explodem em área",
 	"pierce": "Flechas perfuram inimigos", "multishot": "Disparo tensionado: 3 flechas"}
 

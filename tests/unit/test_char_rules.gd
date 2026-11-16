@@ -43,7 +43,8 @@ func test_new_character_matches_new_game() -> void:
 	T.eq(s.level, 1, "nível")
 	T.eq(s.gold, 25, "ouro inicial")
 	T.eq(s.attributes, {"str": 5, "int": 5, "vit": 5, "agi": 5}, "atributos")
-	T.eq(s.equipment, CharRules.empty_equipment(), "sem nenhum equipamento")
+	T.eq(s.equipment, CharRules.empty_equipment(), "sem nenhum equipamento (nem arma) até escolher a classe")
+	T.eq(s.char_class, "", "sem classe")
 	T.eq(_count(s, "health_potion"), 3, "poções")
 	T.eq(_count(s, "seed_wheat"), 4, "sementes de trigo")
 	T.eq(_count(s, "short_bow") + _count(s, "apprentice_staff") + _count(s, "leather_cap"), 0, "sem kit de armas")
@@ -122,7 +123,7 @@ func test_equip_offhand_needs_class() -> void:
 func test_equip_swaps_back_to_bag() -> void:
 	var bt := _tables()
 	var s := _blank()
-	s.equipment.weapon = "azure_edge"
+	CharRules.choose_class(s, bt, "warrior", "m")
 	s.inventory = [{"id": "iron_sword", "qty": 1}]
 	var r := CharRules.equip(s, bt, "iron_sword")
 	T.ok(r.ok, "equipa")
@@ -140,13 +141,17 @@ func test_equip_swaps_back_to_bag() -> void:
 func test_weapon_change_returns_offhand() -> void:
 	var bt := _tables()
 	var s := _blank()
-	s.inventory = [{"id": "knight_shield", "qty": 1}, {"id": "apprentice_staff", "qty": 1}]
+	CharRules.choose_class(s, bt, "warrior", "m")
+	s.inventory = [{"id": "knight_shield", "qty": 1}]
 	CharRules.equip(s, bt, "knight_shield")
-	var r := CharRules.equip(s, bt, "apprentice_staff")
-	T.ok(r.ok, "troca para cajado")
-	T.eq(s.equipment.offhand, "", "escudo sai da mão")
-	T.eq(_count(s, "knight_shield"), 1, "escudo na mochila")
-	T.eq(r.events[0].text, "Escudo do Cavaleiro guardado (exige espada).", "aviso do escudo")
+	T.eq(s.equipment.offhand, "knight_shield", "escudo equipado")
+	# a classe é fixa: o escudo só volta para a mochila na escolha da classe de um personagem que o tinha
+	var s2 := _blank()
+	s2.equipment.offhand = "knight_shield"
+	var r := CharRules.choose_class(s2, bt, "mage", "m")
+	T.ok(r.ok, "escolheu mago")
+	T.eq(s2.equipment.offhand, "", "escudo sai da mão")
+	T.eq(_count(s2, "knight_shield"), 1, "escudo na mochila")
 
 
 # ---------------------------------------------------------------- consumo e cozinha
@@ -611,3 +616,192 @@ func test_death_penalty() -> void:
 	var pobre := _blank(5)
 	r = CharRules.death_penalty(pobre, bt)
 	T.ok(r.ok and r.events.is_empty() and pobre.gold == 5, "menos de 10 ouro: nada a perder, sem aviso")
+
+
+# ---------------------------------------------------------------- classes
+func test_state_class_roundtrip() -> void:
+	var s := _blank()
+	s.char_class = "healer"
+	s.body = "f"
+	var s2 := CharState.from_dict(s.to_dict(), _tables())
+	T.eq(s2.char_class, "healer")
+	T.eq(s2.body, "f")
+
+
+func test_state_old_save_has_no_class() -> void:
+	var d := _blank().to_dict()
+	d.erase("char_class")
+	d.erase("body")
+	var s := CharState.from_dict(d, _tables())
+	T.eq(s.char_class, "")
+	T.eq(s.body, "")
+
+
+func test_state_rejects_unknown_class() -> void:
+	var d := _blank().to_dict()
+	d["char_class"] = "ninja"
+	d["body"] = "x"
+	var s := CharState.from_dict(d, _tables())
+	T.eq(s.char_class, "")
+	T.eq(s.body, "")
+
+
+func test_class_table_complete() -> void:
+	for c in CharRules.CLASS_IDS:
+		var w := CharRules.class_weapon(_tables(), c)
+		T.ok(w in ["sword", "bow", "staff", "scepter"], c)
+		var st: String = _tables().get_table("classes")[c]["starter_weapon"]
+		T.eq(CharRules.weapon_class(_tables(), st), w, c)
+	T.eq(CharRules.class_weapon(_tables(), "healer"), "scepter")
+	T.eq(CharRules.class_weapon(_tables(), "ninja"), "")
+
+
+func test_scepters_one_per_rarity() -> void:
+	var seen := {}
+	for id in _tables().get_table("items"):
+		var it: Dictionary = _tables().get_table("items")[id]
+		if it.get("class", "") == "scepter":
+			T.ok(str(id).begins_with("sc_"), id)
+			seen[it.rarity] = true
+	T.eq(seen.size(), 5)
+
+
+# ---------------------------------------------------------------- classe
+func test_choose_class_new_char_gets_starter() -> void:
+	var s := _blank()
+	var r := CharRules.choose_class(s, _tables(), "healer", "f")
+	T.ok(r.ok, "escolheu")
+	T.eq(s.char_class, "healer", "classe")
+	T.eq(s.body, "f", "corpo")
+	T.eq(s.equipment.weapon, "sc_novice_scepter", "cetro inicial")
+
+
+func test_choose_class_only_once() -> void:
+	var s := _blank()
+	CharRules.choose_class(s, _tables(), "mage", "m")
+	T.ok(not CharRules.choose_class(s, _tables(), "warrior", "m").ok, "só uma vez")
+	T.eq(s.char_class, "mage", "continua mago")
+
+
+func test_choose_class_invalid() -> void:
+	var s := _blank()
+	T.ok(not CharRules.choose_class(s, _tables(), "ninja", "m").ok, "classe inválida")
+	T.ok(not CharRules.choose_class(s, _tables(), "mage", "x").ok, "corpo inválido")
+	T.eq(s.char_class, "", "nada gravado")
+
+
+func test_choose_class_keeps_matching_weapon() -> void:
+	var s := _blank()
+	s.equipment.weapon = "oak_staff"
+	CharRules.choose_class(s, _tables(), "mage", "m")
+	T.eq(s.equipment.weapon, "oak_staff", "arma da classe fica")
+
+
+func test_choose_class_equips_best_owned() -> void:
+	var s := _blank()
+	s.equipment.weapon = "azure_edge"
+	CharRules.add_item(s, _tables(), "apprentice_staff", 1)
+	CharRules.add_item(s, _tables(), "archmage_staff", 1)
+	CharRules.choose_class(s, _tables(), "mage", "m")
+	T.eq(s.equipment.weapon, "archmage_staff", "melhor cajado")
+	T.eq(_count(s, "azure_edge"), 1, "espada antiga volta para a mochila")
+	T.eq(_count(s, "apprentice_staff"), 1, "cajado menor fica na mochila")
+
+
+func test_equip_other_class_refused() -> void:
+	var s := _blank()
+	CharRules.choose_class(s, _tables(), "warrior", "m")
+	CharRules.add_item(s, _tables(), "short_bow", 1)
+	var r := CharRules.equip(s, _tables(), "short_bow")
+	T.ok(not r.ok, "arco recusado")
+	T.eq(r.err, "exige_classe", "erro")
+	T.eq(r.events[0].text, "Arco Curto é arma de Arqueiro.", "aviso diz a classe do personagem")
+	T.eq(s.equipment.weapon, "azure_edge", "arma intacta")
+
+
+func test_equip_weapon_without_class_refused() -> void:
+	var s := _blank()
+	CharRules.add_item(s, _tables(), "short_bow", 1)
+	T.eq(CharRules.equip(s, _tables(), "short_bow").err, "exige_classe", "sem classe não equipa arma")
+
+
+func test_new_character_has_no_weapon() -> void:
+	var s := CharState.new_character(_tables())
+	T.eq(s.equipment.weapon, "", "sem arma")
+	T.eq(_count(s, "short_bow"), 0, "sem arco")
+	T.eq(_count(s, "apprentice_staff"), 0, "sem cajado")
+
+
+# ---------------------------------------------------------------- drop segue a classe
+func test_adapt_weapon_to_class_same_rarity() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var out := LootRules.adapt_weapon(_tables(), "oak_staff", "warrior", rng)
+	T.eq(CharRules.weapon_class(_tables(), out), "sword", "vira espada")
+	T.eq(_tables().get_table("items")[out].rarity, "uncommon", "mesma raridade")
+	T.ok(not _tables().get_table("items")[out].get("named", false), "não é nomeada")
+
+
+func test_adapt_weapon_healer_gets_scepter() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	var out := LootRules.adapt_weapon(_tables(), "hunter_bow", "healer", rng)
+	T.eq(CharRules.weapon_class(_tables(), out), "scepter", "vira cetro")
+	T.eq(_tables().get_table("items")[out].rarity, "uncommon", "mesma raridade")
+
+
+func test_adapt_keeps_named_and_own_class_and_non_weapons() -> void:
+	var rng := RandomNumberGenerator.new()
+	T.eq(LootRules.adapt_weapon(_tables(), "archmage_staff", "warrior", rng), "archmage_staff", "nomeada fica")
+	T.eq(LootRules.adapt_weapon(_tables(), "oak_staff", "mage", rng), "oak_staff", "já é da classe")
+	T.eq(LootRules.adapt_weapon(_tables(), "health_potion", "mage", rng), "health_potion", "não é arma")
+	T.eq(LootRules.adapt_weapon(_tables(), "oak_staff", "", rng), "oak_staff", "sem classe")
+
+
+func test_roll_adapts_weapons_to_class() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	for i in 200:
+		var loot := LootRules.roll(_tables(), "goblin", rng, "archer")
+		for id in loot.items:
+			var it: Dictionary = _tables().get_table("items")[id]
+			# nomeada não se adapta; rara sem arco comum (o único é nomeado) também fica como saiu
+			if it.type == "weapon" and not it.get("named", false) and it.rarity in ["common", "uncommon"]:
+				T.eq(it["class"], "bow", "arma de goblin para arqueiro é arco: " + id)
+
+
+func test_roll_without_class_unchanged() -> void:
+	var a := RandomNumberGenerator.new()
+	var b := RandomNumberGenerator.new()
+	a.seed = 5
+	b.seed = 5
+	T.eq(LootRules.roll(_tables(), "goblin", a), LootRules.roll(_tables(), "goblin", b, ""), "igual sem classe")
+
+
+# ---------------------------------------------------------------- cura e kit pela classe
+func test_heal_amount_healer_novice_scepter() -> void:
+	var s := _blank()
+	CharRules.choose_class(s, _tables(), "healer", "f")
+	s.attributes.int = 5
+	var spell: float = float(_tables().get_table("items")["sc_novice_scepter"].stats.spell)
+	T.eq(CharRules.spell_power(s, _tables()), 5.0 + spell, "poder mágico")
+	T.eq(CharRules.heal_amount(s, _tables()), 30.0 + 4.0 * (5.0 + spell), "cura do cetro de noviço")
+
+
+func test_heal_amount_uses_scepter_heal_bonus() -> void:
+	var s := _blank()
+	CharRules.choose_class(s, _tables(), "healer", "f")
+	s.attributes.int = 5
+	var base: float = CharRules.heal_amount(s, _tables())
+	var tables := _tables()
+	var id := ""
+	for k in tables.get_table("items"):
+		if tables.get_table("items")[k].get("class", "") == "scepter" and float(tables.get_table("items")[k].get("heal", 0.0)) > 0.0:
+			id = k
+			break
+	T.ok(id != "", "há cetro com bônus de cura")
+	s.equipment.weapon = id
+	var it: Dictionary = tables.get_table("items")[id]
+	var sp: float = 5.0 + float(it.stats.get("spell", 0.0))
+	T.eq(CharRules.heal_amount(s, tables), (30.0 + 4.0 * sp) * (1.0 + float(it.heal)), "bônus de cura da arma")
+	T.ok(base > 0.0, "base positiva")

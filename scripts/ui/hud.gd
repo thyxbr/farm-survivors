@@ -483,8 +483,7 @@ func _refresh_static() -> void:
 	level_label.text = str(Game.level)
 	var n: String = str(Game.settings.get("player_name", ""))
 	name_label.text = n if n != "" else "Cavaleiro"
-	var cls := Game.weapon_class()
-	class_label.text = ItemDB.CLASS_NAMES[cls]
+	class_label.text = Game.class_display_name()
 	gold_label.text = "◆ ∞  ADMIN" if Game.admin_mode() else "◆ %d" % Game.gold
 	rank_chip.visible = Game.quest_state("registro") == "done"
 	(rank_chip.get_child(0) as Label).text = "RANK %s" % Game.rank()

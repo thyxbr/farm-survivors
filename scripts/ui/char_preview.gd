@@ -16,6 +16,8 @@ var _look := {}
 ## Encanto mostrado na arma da prévia (painel do ferreiro): elemento e nível; nível 0 = o do personagem.
 var _ench_el := ""
 var _ench_lv := -1
+## Arma mostrada no lugar da equipada (tela de criação: a arma inicial da classe, sem equipar). "" = a equipada.
+var weapon_override := ""
 
 
 func _init(sz := Vector2(260, 340)) -> void:
@@ -81,10 +83,17 @@ func _ready() -> void:
 
 func refresh() -> void:
 	if model:
-		_look = KnightLook.apply(model, Game.equipment)
+		var eq: Dictionary = Game.equipment
+		if weapon_override != "":
+			eq = eq.duplicate()
+			eq["weapon"] = weapon_override
+			eq["offhand"] = ""   # a mão secundária equipada pode não combinar com a arma mostrada
+		_look = KnightLook.apply(model, eq)
 		var e := Game.weapon_enchant()
 		if _ench_lv >= 0:
 			EnchantFX.apply(_look, _ench_el, _ench_lv)
+		elif weapon_override != "" and weapon_override != Game.equipment.weapon:
+			EnchantFX.apply(_look, "", 0)   # o encanto é da arma equipada, não da mostrada
 		else:
 			EnchantFX.apply(_look, e.el, e.lv)
 
@@ -93,6 +102,12 @@ func refresh() -> void:
 func show_enchant(element: String, level: int) -> void:
 	_ench_el = element
 	_ench_lv = level
+	refresh()
+
+
+## Mostra uma arma sem equipá-la (a arma inicial da classe na tela de criação). "" volta para a equipada.
+func show_weapon(id: String) -> void:
+	weapon_override = id
 	refresh()
 
 

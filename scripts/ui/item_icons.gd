@@ -132,7 +132,7 @@ func _render(id: String) -> Texture2D:
 		var tip := Marker3D.new()
 		holder.add_child(tip)
 		match ItemDB.weapon_class(id):
-			"staff":
+			"staff", "scepter":
 				KnightLook._build_staff(holder, tip, id)
 			"bow":
 				KnightLook._build_bow(holder, tip, id)

@@ -128,6 +128,16 @@ func request(op: String, args: Array = []) -> void:
 	_deliver(op, args, r)
 
 
+## Só para testes (solo): troca a classe do personagem sem passar pelas regras, para o smoke test poder
+## experimentar as quatro armas. A escolha de verdade é a op "choose_class" (uma vez só).
+func test_force_class(cls: String) -> void:
+	if Network.is_online() or not ensure_solo():
+		return
+	_svc.load_or_create(SOLO_ACCOUNT).char_class = cls
+	_svc.save(SOLO_ACCOUNT)
+	Game.char_class = cls
+
+
 ## Liga/desliga o modo admin (resposta como op "admin"). Solo: sempre pode. Online: o servidor decide
 ## (AdminRules.OPEN_TO_ALL ou conta em ADMIN_USERS).
 func set_admin(on: bool) -> void:
@@ -378,7 +388,7 @@ func ensure_solo() -> bool:
 
 
 ## Abre o save solo e aplica o personagem salvo (vida, mana e posição inclusive).
-func start_solo() -> bool:
+func start_solo(choose_class := true) -> bool:
 	if not _open_store():
 		return false
 	if Balance.from_server:
@@ -390,6 +400,8 @@ func start_solo() -> bool:
 	var s := _svc.load_or_create(SOLO_ACCOUNT)
 	_solo_loaded = true
 	Game.apply_state(s.to_dict(), true)
+	if choose_class:
+		Game.auto_choose_class()
 	return true
 
 
@@ -450,7 +462,7 @@ func _open_store() -> bool:
 
 ## Demos de screenshot (`--farmdemo`/`--geardemo`/`--weapon=`): personagem novo num arquivo à parte,
 ## apagado a cada vez (não mexe no save solo). Chamado pelo Game antes do _ready deste autoload.
-func start_scratch_solo(path: String) -> bool:
+func start_scratch_solo(path: String, choose_class := true) -> bool:
 	if _store != null:
 		_store.close()
 		_store = null
@@ -458,7 +470,7 @@ func start_scratch_solo(path: String) -> bool:
 	_solo_loaded = false
 	solo_save_path = path
 	_wipe_on_open = true
-	return start_solo()
+	return start_solo(choose_class)
 
 
 # ================================================================ entrega do resultado
@@ -570,7 +582,11 @@ func server_spawn_pickup(peer: int, zone: String, pos: Vector3, gold: int, items
 
 ## Servidor: sorteio do loot de um inimigo (LootRules) para um jogador, em pickups (um sorteio por jogador).
 func server_drop_loot(peer: int, kind: String, pos: Vector3, zone := "world") -> void:
-	var loot := LootRules.roll(Balance.tables, kind, _loot_rng)
+	var cls := ""
+	var account := account_of(peer)
+	if account > 0 and Network.characters != null:
+		cls = Network.characters.load_or_create(account).char_class
+	var loot := LootRules.roll(Balance.tables, kind, _loot_rng, cls)
 	if int(loot.gold) > 0:
 		server_spawn_pickup(peer, zone, pos, int(loot.gold), {})
 	for id in loot.items:
@@ -602,7 +618,7 @@ func _econ_req(seq: int, op: String, args: Array) -> void:
 		return
 	var r := Network.characters.apply(account, op, args)
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
-	if r.ok and op in ["enchant", "equip", "unequip"]:
+	if r.ok and op in ["enchant", "equip", "unequip", "choose_class"]:
 		Network.server_refresh_look(peer)   # o brilho que os outros veem acompanha o que foi gravado
 
 
@@ -739,6 +755,7 @@ func _balance(tables: Dictionary) -> void:
 func _econ_res(seq: int, ok: bool, err: String, events: Array, state: Dictionary) -> void:
 	if seq == 0:
 		Game.apply_state(state, true)
+		Game.auto_choose_class()
 		return
 	if seq == PUSH_SEQ:
 		# concessão do servidor (abate, loot, prêmio): estado novo + eventos, sem pedido pendente

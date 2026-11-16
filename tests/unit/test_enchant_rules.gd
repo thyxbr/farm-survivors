@@ -13,7 +13,7 @@ func _tables() -> BalanceTables:
 ## Personagem com o gume celeste (azure_edge) equipado e os recursos dados.
 func _rich(gold := 0, ecos := 0, items := {}) -> CharState:
 	var s := CharState.new_character(_tables())
-	s.equipment.weapon = "azure_edge"
+	CharRules.choose_class(s, _tables(), "warrior", "m")
 	s.gold = gold
 	s.ecos = ecos
 	for id in items:
@@ -79,11 +79,12 @@ func test_level_five_needs_ecos_and_max() -> void:
 
 func test_enchant_follows_weapon_type() -> void:
 	var bt := _tables()
-	var s := _rich(0, 0, {"short_bow": 1})
+	var s := _rich()
 	s.enchants["azure_edge"] = {"el": "raio", "lv": 2}
 	T.eq(EnchantRules.mods(s, bt), {"damage": 0.10}, "arma equipada encantada")
-	T.ok(CharRules.equip(s, bt, "short_bow").ok, "troca para o arco")
-	T.eq(EnchantRules.mods(s, bt), {}, "arco sem encanto: sem bônus")
+	CharRules.add_item(s, bt, "iron_sword", 1)
+	T.ok(CharRules.equip(s, bt, "iron_sword").ok, "troca para outra espada")
+	T.eq(EnchantRules.mods(s, bt), {}, "outra espada sem encanto: sem bônus")
 	T.ok(CharRules.sell(s, bt, "azure_edge").ok, "vende a espada")
 	T.eq(EnchantRules.of(s, "azure_edge"), {"el": "raio", "lv": 2}, "o encanto fica guardado")
 

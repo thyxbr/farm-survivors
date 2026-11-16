@@ -30,6 +30,8 @@ func _with_ecos(svc: CharacterService, account: int, n: int) -> void:
 func test_ecos_and_passives_persist() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	svc.load_or_create(2)
+	svc.apply(2, "choose_class", ["warrior", "m"])
 	var f := svc.finish_player(0, 2, "city", 5, 0, 0, {}, {})
 	T.ok(f.ok, "finish ok")
 	T.eq(f.state.ecos, 45, "ecos da partida")
@@ -129,6 +131,8 @@ func test_solo_account_same_rules() -> void:
 	var st := _fresh_files()
 	var svc := CharacterService.new(st, _tables())
 	var solo := CharacterService.SOLO_ACCOUNT
+	svc.load_or_create(solo)
+	svc.apply(solo, "choose_class", ["warrior", "m"])
 	var run := svc.start_run("city", [solo])
 	T.ok(run > 0, "partida aberta no arquivo")
 	var f := svc.finish_player(run, solo, "city", 5, 7, 3, {"health_potion": 1}, {})

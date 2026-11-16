@@ -86,6 +86,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "epic",
+		"named": true,
 		"damage": 30,
 		"price": 220,
 		"color": {
@@ -105,6 +106,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "epic",
+		"named": true,
 		"damage": 34,
 		"price": 420,
 		"color": {
@@ -125,6 +127,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "legendary",
+		"named": true,
 		"damage": 42,
 		"price": 900,
 		"color": {
@@ -372,6 +375,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "legendary",
+		"named": true,
 		"damage": 44,
 		"price": 950,
 		"color": {
@@ -392,6 +396,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "legendary",
+		"named": true,
 		"damage": 46,
 		"price": 1000,
 		"color": {
@@ -495,6 +500,7 @@
 		"type": "weapon",
 		"class": "staff",
 		"rarity": "legendary",
+		"named": true,
 		"damage": 30,
 		"price": 950,
 		"color": {
@@ -647,6 +653,7 @@
 		"type": "weapon",
 		"class": "staff",
 		"rarity": "legendary",
+		"named": true,
 		"damage": 32,
 		"price": 1000,
 		"color": {
@@ -697,6 +704,7 @@
 		"type": "weapon",
 		"class": "bow",
 		"rarity": "rare",
+		"named": true,
 		"damage": 21,
 		"price": 240,
 		"color": {
@@ -734,6 +742,7 @@
 		"type": "weapon",
 		"class": "bow",
 		"rarity": "legendary",
+		"named": true,
 		"damage": 34,
 		"price": 950,
 		"color": {
@@ -1722,5 +1731,165 @@
 		"price": 60,
 		"stack": true,
 		"desc": "Só um goblin a carregava. Não carrega mais."
+	},
+	"sc_novice_scepter": {
+		"name": "Cetro de Noviço",
+		"type": "weapon",
+		"class": "scepter",
+		"rarity": "common",
+		"damage": 9,
+		"price": 40,
+		"color": {
+			"$c": [
+				0.95,
+				0.95,
+				0.7,
+				1.0
+			]
+		},
+		"wood": {
+			"$c": [
+				0.6,
+				0.45,
+				0.25,
+				1.0
+			]
+		},
+		"stats": {
+			"spell": 3,
+			"mp": 10
+		},
+		"heal": 0,
+		"desc": "Madeira clara e uma gema fraca. Cura quem estiver perto, devagar.",
+		"model": "sc_novice_scepter"
+	},
+	"sc_dawn_scepter": {
+		"name": "Cetro da Alvorada",
+		"type": "weapon",
+		"class": "scepter",
+		"rarity": "uncommon",
+		"damage": 13,
+		"price": 110,
+		"color": {
+			"$c": [
+				1.0,
+				0.85,
+				0.5,
+				1.0
+			]
+		},
+		"wood": {
+			"$c": [
+				0.7,
+				0.55,
+				0.3,
+				1.0
+			]
+		},
+		"stats": {
+			"int": 2,
+			"spell": 5,
+			"mp": 10
+		},
+		"heal": 0.05,
+		"desc": "Brilha como o primeiro raio do dia.",
+		"model": "sc_dawn_scepter"
+	},
+	"sc_blessed_scepter": {
+		"name": "Cetro Abençoado",
+		"type": "weapon",
+		"class": "scepter",
+		"rarity": "rare",
+		"damage": 18,
+		"price": 230,
+		"color": {
+			"$c": [
+				1.0,
+				0.95,
+				0.75,
+				1.0
+			]
+		},
+		"wood": {
+			"$c": [
+				0.85,
+				0.75,
+				0.5,
+				1.0
+			]
+		},
+		"stats": {
+			"int": 3,
+			"spell": 9,
+			"mp": 15
+		},
+		"heal": 0.1,
+		"desc": "Benzido no altar da vila; a luz acompanha cada golpe.",
+		"model": "sc_blessed_scepter"
+	},
+	"sc_seraph_scepter": {
+		"name": "Cetro do Serafim",
+		"type": "weapon",
+		"class": "scepter",
+		"rarity": "epic",
+		"damage": 27,
+		"price": 420,
+		"color": {
+			"$c": [
+				1.0,
+				1.0,
+				0.9,
+				1.0
+			]
+		},
+		"wood": {
+			"$c": [
+				0.9,
+				0.85,
+				0.7,
+				1.0
+			]
+		},
+		"stats": {
+			"int": 4,
+			"spell": 13,
+			"mp": 25
+		},
+		"heal": 0.15,
+		"desc": "Asas de ouro envolvem um cristal que nunca apaga.",
+		"model": "sc_seraph_scepter"
+	},
+	"sc_halo_scepter": {
+		"name": "Cetro do Halo Eterno",
+		"type": "weapon",
+		"class": "scepter",
+		"rarity": "legendary",
+		"damage": 31,
+		"price": 980,
+		"color": {
+			"$c": [
+				1.0,
+				0.95,
+				0.6,
+				1.0
+			]
+		},
+		"wood": {
+			"$c": [
+				0.95,
+				0.88,
+				0.55,
+				1.0
+			]
+		},
+		"stats": {
+			"int": 6,
+			"spell": 20,
+			"mp": 40,
+			"cdr": 0.1
+		},
+		"heal": 0.25,
+		"desc": "Quem o empunha jamais caminha sozinho na escuridão.",
+		"model": "sc_halo_scepter"
 	}
 }

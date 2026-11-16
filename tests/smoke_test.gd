@@ -33,6 +33,17 @@ func hud_slot_ids() -> Array[String]:
 	return out
 
 
+## Equipa trocando antes a classe do personagem para a da arma (a classe é fixa no jogo de verdade;
+## o teste precisa passar pelas quatro armas).
+func equip_any(id: String) -> void:
+	if CharRules.slot_of(Balance.tables, id) == "weapon":
+		var wc := CharRules.weapon_class(Balance.tables, id)
+		for cls in CharRules.CLASS_IDS:
+			if CharRules.class_weapon(Balance.tables, cls) == wc and Game.char_class != cls:
+				Econ.test_force_class(cls)
+	Game.equip(id)
+
+
 func wait(sec: float) -> void:
 	await get_tree().create_timer(sec, true, true).timeout
 
@@ -51,14 +62,13 @@ func _ready() -> void:
 	world = get_tree().current_scene
 	player = get_tree().get_first_node_in_group("player")
 	check(world != null and player != null, "mundo e jogador carregados")
-	# personagem novo começa sem nenhum equipamento; o teste se dá o kit das três classes de arma
-	# antes de qualquer combate (slimes podem soltar cajado/arco e o saque é aleatório)
-	check(Game.equipment.values().all(func(v) -> bool: return v == ""), "personagem novo sem equipamento")
-	for id in ["azure_edge", "apprentice_staff", "short_bow", "leather_cap"]:
-		Game.add_item(id, 1, true)
-	Game.equip("azure_edge")
-	check(Game.equipment.weapon == "azure_edge" and Game.count_item("apprentice_staff") == 1
-		and Game.count_item("short_bow") == 1, "kit de teste: espada equipada, cajado e arco na mochila")
+	# confere o kit antes de qualquer combate: slimes podem soltar cajado/arco e o saque é aleatório
+	check(Game.char_class == "warrior" and Game.equipment.weapon == "azure_edge", "o teste escolheu guerreiro e começou com a espada")
+	check(Game.count_item("apprentice_staff") == 0 and Game.count_item("short_bow") == 0, "personagem novo não traz cajado nem arco")
+	check(Game.equipment.head == "" and Game.count_item("leather_cap") == 0, "personagem novo sem nenhum equipamento além da arma da classe")
+	# o kit das três armas, dado como concessão, para os testes de combate de cada classe de arma
+	Econ.grant(0, 0, {"apprentice_staff": 1, "short_bow": 1, "leather_cap": 1}, "test", true)
+	check(Game.count_item("apprentice_staff") == 1 and Game.count_item("short_bow") == 1, "kit de teste tem cajado e arco")
 
 	# --- som posicional: combate longe do jogador não deve ser ouvido
 	check(Sfx.distance_gain(0.0) == 1.0 and Sfx.distance_gain(15.0) < 0.5 and Sfx.distance_gain(Sfx.FAR_DIST + 1.0) == 0.0,
@@ -419,11 +429,11 @@ func _ready() -> void:
 	var kit_weapon: String = Game.equipment.weapon
 	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_whirl"], "kit da espada (%s)" % [Game.ability_kit()])
 	check(not Game.knows_ability("sword_quake") and Game.knows_ability("sword_charge"), "liberação por nível")
-	check(Game.level < 5 and not Game.knows_ability("heal") and ItemDB.ABILITIES.heal.level == 5, "cura só no nível 5")
+	check(Game.level < 3 and not Game.knows_ability("frost_nova") and ItemDB.ABILITIES.frost_nova.level == 3, "Nova Gélida só no nível 3")
 	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
 	# quem testar; resta conferir que há recarga para cada habilidade
 	Game.add_item("short_bow")
-	Game.equip("short_bow")
+	equip_any("short_bow")
 	var lvl_bf: int = Game.level
 	check(Game.weapon_class() == "bow" and player.cooldowns.size() == ItemDB.ABILITIES.size(), "uma recarga por habilidade")
 	# --- arco: botão direito mira (puxa a corda), esquerdo atira; o clique direito não esquiva com arco
@@ -490,7 +500,7 @@ func _ready() -> void:
 	var tt_weapons := ["short_bow", "storm_bow", "goblin_warbow"]
 	var tt_grounded := func() -> bool: return player.is_on_floor()
 	for tt_w in tt_weapons:
-		Game.equip(tt_w)
+		equip_any(tt_w)
 		await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking)
 		for c in tt_fire.call():
 			c.queue_free()
@@ -536,7 +546,7 @@ func _ready() -> void:
 		await wait_until(func(): return tt_s.hp < tt_hp, 1.0)
 		check(player.cooldowns.bow_triple > 0.0 and tt_s.hp < tt_hp, "Tiro Triplo fere o slime e entra em recarga (%.0f -> %.0f)" % [tt_hp, tt_s.hp])
 	# esquiva antes do disparo cancela sem gastar flechas (logo no início, ability_t = 0); depois é ignorada
-	Game.equip("short_bow")
+	equip_any("short_bow")
 	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking)
 	Game.stamina = Game.max_stamina()
 	player.global_position = tt_pos
@@ -589,7 +599,7 @@ func _ready() -> void:
 	player.cooldowns.bow_triple = 0.0
 	# --- Flecha Glacial (arco, slot 2): tensão 0,35 s, 1 flecha (dano x1,4, vel 40), prende 1,5 s + lentidão 3 s; chefe só a lentidão
 	Game.level = 3
-	Game.equip("short_bow")
+	equip_any("short_bow")
 	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking)
 	var fg_boss0: bool = tt_s.is_boss
 	tt_s.global_position = tt_s.home
@@ -675,11 +685,11 @@ func _ready() -> void:
 	tt_s.global_position = tt_s.home
 	player.global_position = tt_pos
 	player.velocity = Vector3.ZERO
-	Game.equip(kit_weapon)
+	equip_any(kit_weapon)
 	player.cooldowns.sword_charge = 3.0   # para conferir que a recarga atravessa a troca de arma
-	Game.equip("apprentice_staff")
+	equip_any("apprentice_staff")
 	await wait(0.1)
-	check(Game.ability_kit() == ["fireball", "frost_nova", "heal", "meteor_rain"], "trocar de arma troca o kit")
+	check(Game.ability_kit() == ["fireball", "frost_nova", "meteor_rain"], "trocar de arma troca o kit (cajado sem Cura)")
 	check(player.cooldowns.sword_charge > 2.5, "recarga continua depois de trocar de arma")
 	check(hud_slot_ids() == Game.ability_kit(), "barra de ações mostra o kit novo (%s)" % [hud_slot_ids()])
 	var mp_m := Game.mp
@@ -793,12 +803,10 @@ func _ready() -> void:
 	# nível 1 de fato: uma resposta do Econ (XP de um abate) pode ter devolvido outro nível no meio do teste
 	var lvl_sp := Game.level
 	Game.level = 1
-	player.cast("heal")
-	check(player.cooldowns.heal == 0.0, "cura bloqueada no nível 1")
 	player.use_slot(2)   # Nova Gélida (nível 3) bloqueada no nível 1
 	check(player.cooldowns.frost_nova == 0.0, "slot 2 respeita o nível")
 	Game.level = lvl_sp
-	Game.equip(kit_weapon)   # restaura a arma inicial
+	equip_any(kit_weapon)   # restaura a arma inicial
 
 	# --- completar missão e subir de nível
 	for i in 4:
@@ -904,6 +912,7 @@ func _ready() -> void:
 	await _test_flor_rooted()
 	await _test_survival()
 	await _test_update()
+	await _test_char_create()   # por último: troca o personagem solo por um novo, sem classe
 
 	print("\n==== %s (%d falhas) ====" % ["OK" if fails == 0 else "FALHOU", fails])
 	get_tree().quit(1 if fails > 0 else 0)
@@ -920,7 +929,7 @@ func _test_bow_gale() -> void:
 	var yaw0: float = player.cam_yaw.rotation.y
 	var spring0: float = player.spring.spring_length
 	var fov0: float = player.camera.fov
-	Game.equip("short_bow")
+	equip_any("short_bow")
 	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking and player.ability == "")
 	# 4 slimes (os mais perto): 3 na linha da mira a 5/10/15 m e 1 a 6 m do lado da linha
 	var gs: Array = []
@@ -1089,12 +1098,12 @@ func _test_bow_gale() -> void:
 	player.use_slot(4)
 	await wait(0.3)
 	check(player.ability == "bow_gale", "Vendaval: tensionando antes de trocar de arma")
-	Game.equip("apprentice_staff")   # outra classe: Game.kit_changed -> end_ability
+	equip_any("apprentice_staff")   # outra classe: Game.kit_changed -> end_ability
 	await wait(0.1)
 	check(player.ability == "" and player.cam_back == 0.0 and absf(player.camera.fov - fov0) < 0.01, "Vendaval: trocar de arma na tensão encerra")
 	await wait(1.3)
 	check(hps.call() == h0, "Vendaval: trocar de arma na tensão não dispara")
-	Game.equip("short_bow")
+	equip_any("short_bow")
 	await wait(0.1)
 
 	# --- 6) réplica: "bow_gale" toca a tensão sem dano; "bow_gale_fire" toca o disparo e a linha, sem dano nem hit stop
@@ -1137,7 +1146,7 @@ func _test_bow_gale() -> void:
 	player.global_position = pos0
 	player.velocity = Vector3.ZERO
 	player.cooldowns.bow_gale = 0.0
-	Game.equip(weapon0)
+	equip_any(weapon0)
 	Game.fury = fury0
 	Game.level = lvl0
 	await wait(0.1)
@@ -1152,7 +1161,7 @@ func _test_meteor_rain() -> void:
 	var yaw0: float = player.cam_yaw.rotation.y
 	var pitch0: float = player.cam_pitch.rotation.x
 	var spring0: float = player.spring.spring_length
-	Game.equip("apprentice_staff")
+	equip_any("apprentice_staff")
 	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking and player.ability == "")
 	var gs: Array = []
 	for e in get_tree().get_nodes_in_group("enemies"):
@@ -1508,7 +1517,7 @@ func _test_meteor_rain() -> void:
 	player.velocity = Vector3.ZERO
 	player.invuln = 0.0
 	player.cooldowns.meteor_rain = 0.0
-	Game.equip(weapon0)
+	equip_any(weapon0)
 	Game.fury = fury0
 	Game.level = lvl0
 	await wait(0.3)
@@ -1821,18 +1830,18 @@ func _test_enchant() -> void:
 	var other := "short_bow" if wid != "short_bow" else "apprentice_staff"
 	if Game.count_item(other) == 0:
 		Econ.grant(0, 0, {other: 1}, "teste", true)
-	Econ.request("equip", [other])
+	equip_any(other)
 	await wait(0.3)
 	check(ItemDB.get_item(other).name in eui.status_text(), "painel acompanha a troca de arma")
 	check(eui.cost_rows()[0].need == 50, "arma nova: custo do +1")
-	Econ.request("equip", [wid])
+	equip_any(wid)
 	await wait(0.3)
 	check(Game.weapon_enchant() == {"el": "fogo", "lv": 2}, "voltar à arma traz o encanto de volta")
 	# sem arma equipada
 	Econ.request("unequip", ["weapon"])
 	await wait(0.3)
 	check("Equipe uma arma" in eui.status_text() and eui.enchant_button.disabled, "sem arma: painel pede para equipar")
-	Econ.request("equip", [wid])
+	equip_any(wid)
 	await wait(0.3)
 	# servidor antigo, sem a tabela
 	var keep: Dictionary = Balance.tables.to_dict()
@@ -2020,13 +2029,13 @@ func _test_enchant_effects() -> void:
 	# arma sem encanto: nenhum efeito
 	var other := "short_bow" if Game.equipment.weapon != "short_bow" else "apprentice_staff"
 	var wid: String = Game.equipment.weapon
-	Econ.request("equip", [other])
+	equip_any(other)
 	await wait(0.1)
 	a.slow_timer = 0.0
 	Game.hp = 50.0
 	EnchantHit.on_hit(a, 100.0)
 	check(Game.weapon_effect().is_empty() and Game.hp <= 50.0 and a.slow_timer == 0.0, "arma sem encanto não tem efeito")
-	Econ.request("equip", [wid])
+	equip_any(wid)
 	await wait(0.1)
 	a.queue_free()
 	Game.hp = Game.max_hp()
@@ -2680,7 +2689,7 @@ func _test_gear() -> void:
 
 	# cajado: ataque básico dispara projétil arcano
 	var dmg_sword := Game.melee_damage()
-	Game.equip("apprentice_staff")
+	equip_any("apprentice_staff")
 	check(Game.equipment.weapon == "apprentice_staff", "equipou cajado")
 	await wait(0.05)
 	check(Game.weapon_class() == "staff" and player.look["class"] == "staff", "classe da arma: cajado")
@@ -2694,9 +2703,41 @@ func _test_gear() -> void:
 	_stop_spawn_watch(bolt_watch)
 	check("bolt" in bolt_watch[0], "cajado dispara faísca arcana")
 	await wait(0.5)
+	check(not ("heal" in ItemDB.kit("staff")) and ItemDB.kit("scepter")[0] == "heal", "Cura é do cetro, não do cajado")
+
+	# cetro (healer): kit pela classe, Cura sobe a vida e o ataque básico é a esfera de luz
+	Game.add_item("sc_novice_scepter")
+	equip_any("sc_novice_scepter")
+	await wait(0.05)
+	check(Game.char_class == "healer" and Game.weapon_class() == "scepter", "healer com cetro")
+	check(Game.ability_kit() == ["heal", "scepter_ward", "scepter_ult"], "kit do healer (%s)" % [Game.ability_kit()])
+	check(player.look["class"] == "staff" and player.look.holder != null, "cetro sem modelo próprio cai no cajado procedural")
+	Game.hp = Game.max_hp() * 0.3
+	Game.mp = Game.max_mp()
+	player.attacking = false
+	player.ability = ""
+	player.dodge_timer = 0.0
+	var hp_h := Game.hp
+	var mp_h := Game.mp
+	player.cast("heal")
+	check(Game.hp > hp_h and absf((Game.hp - hp_h) - minf(Game.heal_amount(), Game.max_hp() - hp_h)) < 0.01, "Cura sobe a vida (%.1f -> %.1f)" % [hp_h, Game.hp])
+	check(Game.mp < mp_h and player.cooldowns.heal > 0.0, "Cura gasta mana e entra em recarga")
+	var ward_mp := Game.mp
+	player.cast("scepter_ward")
+	check(Game.mp == ward_mp and player.cooldowns.scepter_ward == 0.0 and player.ability == "", "habilidade do cetro ainda em breve não gasta nada")
+	player.attacking = false
+	player.combo_window = 0.0
+	player.cast_timer = 0.0
+	Game.stamina = Game.max_stamina()
+	var orb_watch := _watch_spawns()
+	player._start_swing()
+	await wait_until(func(): return "light_orb" in orb_watch[0], 2.0)
+	_stop_spawn_watch(orb_watch)
+	check("light_orb" in orb_watch[0] and not ("bolt" in orb_watch[0]), "cetro dispara a esfera de luz")
+	await wait(0.5)
 
 	# arco: tensionar e soltar
-	Game.equip("short_bow")
+	equip_any("short_bow")
 	check(Game.equipment.weapon == "short_bow", "equipou arco")
 	await wait(0.05)
 	check(player.look["class"] == "bow" and player.look.arrow != null, "classe da arma: arco (com flecha encaixável)")
@@ -2719,17 +2760,17 @@ func _test_gear() -> void:
 			refused[0] = err
 	var shields0 := Game.count_item("wooden_shield")   # o Doran também dá um, na história
 	Econ.result.connect(on_res)
-	Game.equip("wooden_shield")
+	equip_any("wooden_shield")
 	Econ.result.disconnect(on_res)
 	check(refused[0] == "exige_classe" and Game.equipment.offhand == "", "escudo recusado com arco (%s)" % refused[0])
-	Game.equip("iron_sword")
-	Game.equip("wooden_shield")
+	equip_any("iron_sword")
+	equip_any("wooden_shield")
 	check(Game.equipment.offhand == "wooden_shield", "escudo equipado com espada")
 	var shield_mesh := player.model.find_child("Shield", true, false) as MeshInstance3D
 	check(shield_mesh == null or shield_mesh.visible, "escudo aparece no modelo")
-	Game.equip("apprentice_staff")
+	equip_any("apprentice_staff")
 	check(Game.equipment.offhand == "" and Game.count_item("wooden_shield") == shields0, "trocar para cajado guarda o escudo")
-	Game.equip("iron_sword")
+	equip_any("iron_sword")
 	check(is_equal_approx(Game.melee_damage(), dmg_sword), "dano da espada volta ao trocar de volta")
 
 	# armaduras: defesa e bônus somam
@@ -2739,9 +2780,9 @@ func _test_gear() -> void:
 	Game.add_item("life_amulet", 1, true)
 	var prev := Game.preview_equip("life_amulet")
 	check(prev.get("hp", 0.0) > 0.0, "comparação prevê +vida do amuleto (%+.0f)" % prev.get("hp", 0.0))
-	Game.equip("leather_cap")
-	Game.equip("leather_boots")
-	Game.equip("life_amulet")
+	equip_any("leather_cap")
+	equip_any("leather_boots")
+	equip_any("life_amulet")
 	check(Game.defense() > def0, "capuz e botas aumentam a defesa (%.1f -> %.1f)" % [def0, Game.defense()])
 	check(Game.max_hp() > hp0 and Game.attr("vit") == Game.attributes.vit + 1, "amuleto dá vida e vitalidade")
 	check(Game.speed_multiplier() > 1.0, "botas dão velocidade")
@@ -2844,6 +2885,83 @@ func _light_text(node: Node) -> String:
 		if r != "":
 			return r
 	return ""
+
+
+## Tela de criação: personagem sem classe passa por ela; escolher arqueiro dá o arco e trava a espada.
+func _test_char_create() -> void:
+	check(Game.harness_class(PackedStringArray(["--smoketest", "--class=archer"])) == ["archer", "m"]
+		and Game.harness_class(PackedStringArray(["--body=f", "--class=healer"])) == ["healer", "f"],
+		"--class= e --body= pedem a classe e o corpo")
+	check(Game.harness_class(PackedStringArray(["--smoketest"])) == ["warrior", "m"]
+		and Game.harness_class(PackedStringArray([])) == ["", "m"], "testes sem --class= são guerreiros; o jogo normal mostra a tela")
+	check(Game.entry_scene() == Game.WORLD_SCENE, "personagem com classe entra direto no mundo")
+	Econ.start_scratch_solo("user://smoketest_create.json", false)
+	check(Game.char_class == "" and Game.equipment.weapon == "", "personagem novo começa sem classe e sem arma")
+	check(Game.entry_scene() == Game.CHAR_CREATE_SCENE, "sem classe a entrada abre a tela de criação")
+	check(not Game.is_old_character(), "personagem novo não conta como antigo (poções iniciais não contam)")
+	var cc = load(Game.CHAR_CREATE_SCENE).instantiate()
+	cc.enter_world = false
+	get_tree().root.add_child(cc)
+	await wait(0.2)
+	check(cc.title_label.text == "Crie seu herói" and not cc.old_note.visible, "título de herói novo, sem aviso de arma")
+	check(cc.cards.size() == 4, "quatro cartões de classe (%d)" % cc.cards.size())
+	cc.select_class("archer")
+	check(cc.preview.weapon_override == "short_bow", "prévia mostra o arco inicial sem equipar")
+	var kit_ok := true
+	for id in ItemDB.kit("bow"):
+		kit_ok = kit_ok and str(ItemDB.ABILITIES[id].name) in cc.kit_names()
+	check(kit_ok and cc.class_name_label.text == "Arqueiro", "detalhe do arqueiro lista as habilidades do kit")
+	cc.select_body("f")
+	check(cc.body == "f" and cc.body_note.visible, "feminino avisa que o visual chega em breve")
+	cc.select_body("m")
+	check(not cc.body_note.visible, "masculino sem aviso")
+	cc._start()
+	await wait(0.1)
+	check(cc.finished and Game.char_class == "archer" and Game.body == "m" and Game.equipment.weapon == "short_bow",
+		"Começar: arqueiro com o arco equipado (%s, %s)" % [Game.char_class, Game.equipment.weapon])
+	cc.queue_free()
+	var notes: Array = []
+	var cb := func(t: String, _c: Color) -> void: notes.append(t)
+	Game.notify.connect(cb)
+	Econ.grant(5000, 0, {"azure_edge": 1}, "test", true)   # ouro: na loja, só a classe apaga a arma
+	Game.equip("azure_edge")
+	Game.notify.disconnect(cb)
+	check(Game.equipment.weapon == "short_bow" and "Gume Celeste é arma de Guerreiro." in notes,
+		"espada da mochila recusada com aviso (%s)" % [notes])
+	check(not Game.can_wield("azure_edge") and Game.can_wield("short_bow") and Game.can_wield("health_potion"),
+		"arqueiro só empunha arco")
+	check(ItemTooltip.build_text("azure_edge", "buy").contains("Arma de Guerreiro"), "dica da loja marca arma de outra classe")
+	world.open_shop()
+	await wait(0.2)
+	var sword_dim := false
+	var bow_dim := true
+	for sl in world.modal.buy_grid.get_children():
+		if sl.item_id == "azure_edge":
+			sword_dim = sl.dim
+		elif sl.item_id == "short_bow":
+			bow_dim = sl.dim
+	check(sword_dim and not bow_dim, "loja apaga a espada e deixa o arco")
+	world.modal._close()
+	await wait(0.1)
+	world._open_menu(0)
+	await wait(0.2)
+	var m = world.modal
+	for i in Game.inventory.size():
+		if Game.inventory[i].id == "azure_edge":
+			m.sel_index = i
+	m._refresh_selection()
+	check(m.use_btn.disabled and m.use_btn.text == "Equipar", "inventário desabilita Equipar para a espada")
+	m._close()
+	await wait(0.1)
+	check(Game.is_old_character(), "com equipamento conta como personagem antigo")
+	Econ.start_scratch_solo("user://smoketest_create.json", false)
+	Econ.grant(0, 0, {"iron_sword": 1}, "test", true)
+	var old = load(Game.CHAR_CREATE_SCENE).instantiate()
+	old.enter_world = false
+	get_tree().root.add_child(old)
+	await wait(0.2)
+	check(old.title_label.text == "Escolha sua classe" and old.old_note.visible, "personagem antigo: Escolha sua classe e aviso da arma")
+	old.queue_free()
 
 
 ## Escolhe cartas de nível enquanto houver; se check_weapon, confere que a arma escolhida subiu.
