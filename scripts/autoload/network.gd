@@ -659,6 +659,10 @@ func _request_ally_buff(ability_id: String) -> void:
 	var s := characters.load_or_create(account)
 	if s.char_class != "healer" or server_peer_dead(id):
 		return
+	# servidor em --test (allow_reclass): os personagens do net_test ficam no nível 1 e não há como subir; o gate
+	# em si é testado em test_heal_rules.gd
+	if not characters.allow_reclass and not HealRules.level_ok(s.level, int(ItemDB.ABILITIES[ability_id].level)):
+		return
 	var now := Time.get_ticks_msec() / 1000.0
 	var mine: Dictionary = _last_ally.get(id, {})
 	if not HealRules.interval_ok(mine.get(ability_id, -INF), now, ability_id):

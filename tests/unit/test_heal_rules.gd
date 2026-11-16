@@ -33,10 +33,10 @@ func test_interval() -> void:
 func test_interval_per_ability() -> void:
 	T.ok(is_equal_approx(HealRules.min_interval("heal"), 1.4), "Cura: 1,4 s")
 	T.ok(is_equal_approx(HealRules.min_interval("scepter_ward"), 22.0 * 0.4 - 0.2), "Escudo de Luz: recarga x 0,4 - 0,2")
-	T.ok(HealRules.min_interval("scepter_ult") == 0.0, "ultimate: sem intervalo (só a fúria)")
+	T.ok(HealRules.min_interval("scepter_ult") == 15.0, "ultimate: piso de 15 s no servidor")
 	T.ok(not HealRules.interval_ok(100.0, 105.0, "scepter_ward"), "Escudo a 5 s recusa")
 	T.ok(HealRules.interval_ok(100.0, 108.7, "scepter_ward"), "Escudo a 8,7 s vale")
-	T.ok(HealRules.interval_ok(100.0, 100.0, "scepter_ult"), "ultimate vale sempre")
+	T.ok(not HealRules.interval_ok(100.0, 110.0, "scepter_ult") and HealRules.interval_ok(100.0, 115.0, "scepter_ult"), "ultimate: recusa a 10 s, vale a 15 s")
 	T.ok(HealRules.ALLY_BUFFS.get("scepter_ult") == "scepter_feast" and not HealRules.ALLY_BUFFS.has("heal"), "mapa habilidade -> buff")
 
 
@@ -44,3 +44,9 @@ func test_targets_radius_bonus() -> void:
 	var pos := {1: Vector3.ZERO, 2: Vector3(9, 0, 0)}
 	T.ok(not (2 in HealRules.targets(1, [1, 2], pos)), "a 9 m fora do raio base")
 	T.ok(2 in HealRules.targets(1, [1, 2], pos, 2.0), "a 9 m dentro com bônus de 2 m")
+
+
+func test_level_ok() -> void:
+	T.ok(not HealRules.level_ok(2, 3), "nível 2 não usa o Escudo de Luz (nível 3)")
+	T.ok(HealRules.level_ok(3, 3) and HealRules.level_ok(8, 8), "nível exato vale")
+	T.ok(not HealRules.level_ok(7, 8), "nível 7 não usa o Banquete (nível 8)")

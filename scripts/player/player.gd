@@ -933,9 +933,10 @@ func cast(id: String) -> void:
 func receive_heal(amount: float) -> void:
 	if dead:   # caído não é curado (o servidor também pula, mas o estado dele pode estar atrasado)
 		return
+	var gained := minf(amount, Game.max_hp() - Game.hp)
 	Game.hp = min(Game.max_hp(), Game.hp + amount)
 	_heal_fx()
-	FX.damage_number(global_position + Vector3.UP * 2.2, "+%d" % amount, Color(0.4, 1.0, 0.5))
+	FX.damage_number(global_position + Vector3.UP * 2.2, "+%d" % maxf(gained, 0.0), Color(0.4, 1.0, 0.5))
 	Game.stats_changed.emit()
 
 
