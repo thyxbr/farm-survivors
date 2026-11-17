@@ -527,6 +527,8 @@ static func consume(s: CharState, bt: BalanceTables, id: String, now: float) -> 
 	if it.is_empty():
 		return _fail("item_invalido")
 	var t: String = it.get("type", "")
+	if t == "scroll":
+		return CraftRules.learn(s, bt, id)   # pergaminho de receita: usar = aprender
 	var edible := t == "food" or it.has("raw_hp") or it.has("raw_mp")
 	if t != "consumable" and not edible:
 		return _fail("nao_consumivel")
@@ -558,33 +560,34 @@ static func food_mult(s: CharState, bt: BalanceTables, stat: String, now: float)
 
 
 static func can_cook(s: CharState, bt: BalanceTables, recipe: String) -> int:
-	var ing: Dictionary = bt.get_table("recipes").get(recipe, {})
-	if ing.is_empty():
+	if str(CraftRules.recipe(bt, recipe).get("station", "")) != "kitchen":
 		return 0
-	var n := 999
-	for id in ing:
-		n = mini(n, count_item(s, id) / int(ing[id]))
-	return n
+	return int(CraftRules.can_craft(s, bt, recipe).n)
 
 
-## Cozinha até `times` vezes (o que os ingredientes deixarem). Resultado traz "n" = quantas.
+## Cozinha até `times` vezes (o que os ingredientes deixarem). Resultado traz "n" = quantas. É o craft da
+## estação "kitchen" (CraftRules.craft, que também dá XP de Culinária).
 static func cook(s: CharState, bt: BalanceTables, recipe: String, times = 1) -> Dictionary:
 	if not _valid_count(times):
 		return _fail("args")
-	var ing: Dictionary = bt.get_table("recipes").get(recipe, {})
-	if ing.is_empty():
+	if str(CraftRules.recipe(bt, recipe).get("station", "")) != "kitchen":
 		return _fail("receita_invalida")
-	var n: int = mini(times, can_cook(s, bt, recipe))
-	if n <= 0:
-		var r := _fail("faltam_ingredientes", [_notify("Faltam ingredientes.", Color(1, 0.6, 0.5))])
-		r["n"] = 0
-		return r
-	for id in ing:
-		remove_item(s, id, int(ing[id]) * n)
-	add_item(s, bt, recipe, n)
-	var res := _ok([{"t": "looted", "id": recipe, "qty": n}])
-	res["n"] = n
-	return res
+	return CraftRules.craft(s, bt, recipe, times)
+
+
+# ================================================================ coleta (veios e árvores)
+## Coleta de um nó (WorldHarvest.gather já conferiu distância e tempo de volta): pede o nível da profissão
+## de coleta do nó, dá os itens e a XP. `g` = {"items", "prof", "level", "xp"}.
+static func gather(s: CharState, bt: BalanceTables, g: Dictionary) -> Dictionary:
+	var prof := str(g.get("prof", ""))
+	var need := int(g.get("level", 1))
+	if prof != "" and CraftRules.level(s, prof) < need:
+		var pname := str(CraftRules.professions(bt).get(prof, {}).get("name", prof))
+		return _fail("nivel", [_notify("Precisa de %s nível %d." % [pname, need], C_BAD)])
+	var r := grant(s, bt, 0, 0, g.get("items", {}))
+	if r.ok and prof != "":
+		r.events.append_array(CraftRules.gain(s, bt, prof, int(g.get("xp", 0)), need))
+	return r
 
 
 # ================================================================ missões
@@ -971,6 +974,9 @@ static func _plant(s: CharState, bt: BalanceTables, i: int, crop: String, buy_mi
 	var st := plot_state(s, bt, i, now)
 	if st != "empty":
 		return _fail(_plot_err(st) if st != "growing" else "canteiro_ocupado")
+	var need := int(crops[crop].get("level", 1))
+	if CraftRules.level(s, "farming") < need:
+		return _fail("nivel", [_notify("%s pede Fazenda nível %d." % [str(crops[crop].get("name", crop)), need], C_BAD)])
 	var seed_id: String = crops[crop].seed
 	if count_item(s, seed_id) <= 0:
 		if not buy_missing:
@@ -1049,7 +1055,9 @@ static func _harvest(s: CharState, bt: BalanceTables, i: int, now: float, rng: R
 		txt = "Colheita farta! " + txt
 	if got_seed:
 		txt += " (+1 semente)"
-	var out := _ok([_notify(txt, Color(0.85, 1.0, 0.55)), {"t": "farm"}])
+	var ev: Array = [_notify(txt, Color(0.85, 1.0, 0.55)), {"t": "farm"}]
+	ev.append_array(CraftRules.gain(s, bt, "farming", int(c.get("xp", 0)), int(c.get("level", 1))))
+	var out := _ok(ev)
 	out["harvest"] = res
 	return out
 

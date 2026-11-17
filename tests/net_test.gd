@@ -296,8 +296,13 @@ func _ready() -> void:
 	w.player.set_ability_aura("escudo", true)
 	w.player.set_ability_aura("vento", true)
 	Econ.request_test_gold(50)
-	Econ.request_test_items({"iron_ore": 4, "frost_drop": 2})
+	Econ.request_test_items({"iron_ore": 4, "frost_drop": 2, "hide_t1": 2, "slime_gel": 1})
 	await wait(0.5)
+	# craft decidido pelo servidor: essência da alquimia gasta os materiais e dá XP de Alquimia
+	var ess0 := Game.count_item("essence_t1")
+	Game.craft("essence_t1", 1)
+	check(await _wait_until(func() -> bool: return Game.count_item("essence_t1") == ess0 + 1 and Game.prof_xp("alchemy") > 0, 5.0),
+		"servidor fabricou a essência e deu XP de Alquimia")
 	var wid: String = Game.equipment.weapon
 	Econ.request("enchant", ["gelo"])
 	check(await _wait_until(func() -> bool: return Game.weapon_enchant() == {"el": "gelo", "lv": 1}, 5.0),

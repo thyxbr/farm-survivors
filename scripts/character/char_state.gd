@@ -34,6 +34,11 @@ var char_class := ""
 var body := ""
 ## Talentos aprendidos: id -> nível (1..max). Os pontos livres são calculados (ver CharRules.talent_points).
 var talents := {}
+## Profissões: id -> {"lv": 1..50, "xp": int, "done": [receitas já feitas uma vez]} (ver CraftRules).
+## Sem entrada = nível 1 sem XP (save antigo também).
+var professions := {}
+## Receitas aprendidas por pergaminho (as de NPC todos conhecem).
+var recipes: Array = []
 ## Bônus de comida ativos: buff_id -> expira_em (relógio do serviço). Só da sessão: não vai ao save.
 var food_buffs := {}
 
@@ -65,6 +70,7 @@ func to_dict() -> Dictionary:
 		"ecos": ecos, "passives": passives.duplicate(true),
 		"enchants": enchants.duplicate(true),
 		"char_class": char_class, "body": body, "talents": talents.duplicate(true),
+		"professions": professions.duplicate(true), "recipes": recipes.duplicate(),
 	}
 
 
@@ -160,7 +166,36 @@ static func from_dict(d, bt: BalanceTables = null) -> CharState:
 	var bd = d.get("body")
 	s.body = bd if bd is String and bd in ["m", "f"] else ""
 	s.talents = _parse_talents(d.get("talents"), s, bt)
+	s.professions = _parse_professions(d.get("professions"), bt)
+	var rs = d.get("recipes")
+	if rs is Array:
+		var rt: Dictionary = bt.get_table("recipes") if bt != null else {}
+		for r in rs:
+			if r is String and not r in s.recipes and (bt == null or rt.has(r)):
+				s.recipes.append(r)
 	return s
+
+
+## Profissões vindas de save ou da rede: só ids da tabela (com `bt`), nível de 1 ao máximo, XP >= 0 e as
+## receitas já feitas sem repetição.
+static func _parse_professions(data, bt: BalanceTables) -> Dictionary:
+	var out := {}
+	if not (data is Dictionary):
+		return out
+	var pt: Dictionary = bt.get_table("professions") if bt != null else {}
+	var top := int(pt.get("max_level", 50)) if bt != null else 50
+	for id in data:
+		var e = data[id]
+		if not (id is String) or not (e is Dictionary) or (bt != null and not pt.get("professions", {}).has(id)):
+			continue
+		var done: Array = []
+		var dn = e.get("done")
+		if dn is Array:
+			for r in dn:
+				if r is String and not r in done and done.size() < 1000:
+					done.append(r)
+		out[id] = {"lv": clampi(_int(e.get("lv"), 1), 1, top), "xp": maxi(0, _int(e.get("xp"), 0)), "done": done}
+	return out
 
 
 ## Talentos vindos de save ou da rede: só ids da árvore da classe, nível de 1 ao máximo, e no total

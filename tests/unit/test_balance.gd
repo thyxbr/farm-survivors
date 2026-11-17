@@ -47,6 +47,11 @@ func test_roundtrip_matches_consts() -> void:
 			# rebaixadas de nível ganharam `named` (saem do sorteio de equipamento): sem ele onde o snapshot não tem
 			cur = cur.duplicate(true)
 			var snap_items: Dictionary = (BalanceTables.decode(snap[n]) as Dictionary).duplicate(true)
+			# parte 3 (craft): variantes de qualidade, materiais, pergaminhos e itens novos não existiam no
+			# snapshot; os de antes continuam iguais
+			for id in cur.keys():
+				if not snap_items.has(id):
+					cur.erase(id)
 			for id in cur:
 				(cur[id] as Dictionary).erase("level")
 				if snap_items.has(id) and not (snap_items[id] as Dictionary).has("named"):
@@ -70,6 +75,37 @@ func test_roundtrip_matches_consts() -> void:
 					(cur[id] as Dictionary).erase("objective")
 					(snap_quests[id] as Dictionary).erase("objective")
 			T.ok(cur == snap_quests, "tabela quests igual ao snapshot (sem level, reward_xp e region)")
+			continue
+		elif n == "recipes":
+			# o recipes.json passou a cobrir todas as estações (parte 3): a cozinha de antes é a visão
+			# {receita: ingredientes} das receitas da estação "kitchen"
+			var kitchen := {}
+			for rid in CraftRules.station_recipes(t, "kitchen"):
+				kitchen[rid] = CraftRules.ingredients(t, rid)
+			T.ok(kitchen == BalanceTables.decode(snap[n]), "receitas da cozinha iguais ao snapshot")
+			continue
+		elif n == "crops" or n == "world_nodes":
+			# parte 3: nível e XP de profissão nas culturas e nos nós; tipos de nó novos; coleta em 2-3 golpes
+			var snap_t: Dictionary = (BalanceTables.decode(snap[n]) as Dictionary).duplicate(true)
+			var cur_t: Dictionary = cur.duplicate(true)
+			var a: Dictionary = cur_t if n == "crops" else cur_t.get("kinds", {})
+			var b: Dictionary = snap_t if n == "crops" else snap_t.get("kinds", {})
+			for k in a.keys():
+				if not b.has(k):
+					a.erase(k)
+					continue
+				for f in ["level", "xp", "prof", "hits", "tint"]:
+					(a[k] as Dictionary).erase(f)
+					(b[k] as Dictionary).erase(f)
+			T.ok(a == b, "tabela %s igual ao snapshot (sem os campos de profissão)" % n)
+			continue
+		elif n == "shop":
+			# a loja foi cortada ao básico na parte 3 (decisão do usuário na revisão da progressão):
+			# o que sobrou estava na loja de antes ou é material/semente da camada 1
+			var old_stock: Array = (BalanceTables.decode(snap[n]) as Dictionary).get("stock", [])
+			for id in cur.get("stock", []):
+				T.ok(id in old_stock or id == "wooden_sword" or t.get_table("items").get(id, {}).get("type") in ["seed", "material"],
+					"loja: %s estava antes ou é semente/material" % id)
 			continue
 		elif n == "rules":
 			# a curva de XP foi para progression.json

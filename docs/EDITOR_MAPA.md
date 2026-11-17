@@ -39,7 +39,11 @@ Todos ficam em `scripts/map/` e aparecem no Inspector com as opções abaixo.
 - **NPC ou ponto de jogo (MapEntity)**: `kind` diz o que é (npc, story_point, hub_point, farm_plot, kitchen,
   portal, signpost, santa, xmas_gift, resource_node...), `ref` o id (NPC, ponto da história, ponto da praça,
   tipo do veio), `index` o número (canteiros 0..11, presentes 0..7).
-- **Nó de coleta**: MapEntity com `kind = resource_node`, `ref = iron` ou `crystal` e um `node_id` fixo. Para um
+- **Bancada de craft**: MapEntity com `kind = station` e `ref` = a estação (`leather` é a Bancada de Couraria da
+  vila). A forja e a alquimia abrem pelos serviços do Doran e da Pip.
+- **Nó de coleta**: MapEntity com `kind = resource_node`, `ref` = um tipo de `data/balance/world_nodes.json`
+  (cobre, ferro, cristal, prata, mithril, astralita; pinho, carvalho, bétula-prata, freixo-cinza, madeira-de-alma)
+  e um `node_id` fixo (hoje 0–70). Para um
   veio novo, duplique um e dê um `node_id` que nenhum outro usa. Não reaproveite o número de um veio apagado: o
   save dos jogadores guarda o número.
 - **Ponto de monstro (EnemySpawn)**, no grupo Monstros de cada mapa: `kind` (tipo do `enemies.json`), `count`

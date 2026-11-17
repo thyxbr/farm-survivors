@@ -636,8 +636,10 @@ func test_quest_materials_keep_rate() -> void:
 			ear += 1
 		if LootRules.roll(bt, "esqueleto", rng, "", 22).items.has("bone_shard"):
 			bone += 1
-	T.ok(ear / 4000.0 >= 0.66 and ear / 4000.0 <= 0.74, "goblin_ear ~0,70: %f" % (ear / 4000.0))
-	T.ok(bone / 4000.0 >= 0.66 and bone / 4000.0 <= 0.74, "bone_shard ~0,70: %f" % (bone / 4000.0))
+	# parte 3: o couro da camada entrou no loot; a orelha e o osso baixaram para 0,55 (meta de 0,5-0,8 item por
+	# morte), sem cair abaixo disso para as missões de coleta
+	T.ok(ear / 4000.0 >= 0.51 and ear / 4000.0 <= 0.59, "goblin_ear ~0,55: %f" % (ear / 4000.0))
+	T.ok(bone / 4000.0 >= 0.51 and bone / 4000.0 <= 0.59, "bone_shard ~0,55: %f" % (bone / 4000.0))
 
 
 func test_gear_drop_respects_level() -> void:

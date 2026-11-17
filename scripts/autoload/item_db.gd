@@ -183,7 +183,9 @@ func item_summary(id: String) -> String:
 		"consumable":
 			lines.append("Consumível")
 		"material":
-			lines.append("Material")
+			lines.append("Material de craft")
+		"scroll":
+			lines.append("Pergaminho de receita — use para aprender")
 		"seed":
 			var c: Dictionary = CROPS[it.crop]
 			lines.append("Semente — %ds para crescer (regada: %ds) · rende %d–%d" % [
@@ -204,6 +206,8 @@ func item_summary(id: String) -> String:
 			lines.append(format_stat(k, float(st[k])))
 	if it.has("fx"):
 		lines.append(FX_NAMES[it.fx])
+	if it.has("quality"):
+		lines.append("Qualidade: %s" % ItemQuality.NAMES.get(it.quality, it.quality))
 	lines.append(it.desc)
 	lines.append("Valor: %d ouro" % it.price)
 	return "\n".join(lines)

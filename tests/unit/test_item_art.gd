@@ -17,8 +17,9 @@ func test_every_non_gear_item_has_painted_art() -> void:
 	var items := _items()
 	T.ok(items.size() > 0, "items.json carregou")
 	for id in items:
-		if str(items[id].get("type", "")) in PAINTED:
-			T.ok(ResourceLoader.exists(ART % id), "arte pintada de %s em assets/ui/items" % id)
+		if str(items[id].get("type", "")) in PAINTED or items[id].has("art"):
+			var art := str(items[id].get("art", id))
+			T.ok(ResourceLoader.exists(ART % art), "arte pintada de %s em assets/ui/items (%s)" % [id, art])
 
 
 func test_every_seed_has_a_matching_crop_and_art() -> void:

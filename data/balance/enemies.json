@@ -27,7 +27,7 @@
 		"loot": [
 			[
 				"slime_gel",
-				0.6
+				0.4
 			],
 			[
 				"health_potion",
@@ -81,7 +81,7 @@
 		"loot": [
 			[
 				"slime_gel",
-				0.8
+				0.4
 			]
 		],
 		"ref_level": 2
@@ -163,7 +163,7 @@
 		"loot": [
 			[
 				"goblin_ear",
-				0.7
+				0.55
 			],
 			[
 				"health_potion",
@@ -501,7 +501,7 @@
 		"loot": [
 			[
 				"goblin_ear",
-				0.8
+				0.55
 			],
 			[
 				"health_potion",
@@ -566,6 +566,18 @@
 			[
 				"goblin_cleaver",
 				0.25
+			],
+			[
+				"scroll_wind_ring",
+				0.3
+			],
+			[
+				"scroll_bone_staff",
+				0.3
+			],
+			[
+				"scroll_reinforced_boots",
+				0.3
 			]
 		],
 		"ref_level": 12
@@ -603,7 +615,7 @@
 		"loot": [
 			[
 				"bone_shard",
-				0.7
+				0.55
 			],
 			[
 				"health_potion",
@@ -650,7 +662,7 @@
 		"loot": [
 			[
 				"bone_shard",
-				0.6
+				0.55
 			]
 		],
 		"ref_level": 2
@@ -690,7 +702,7 @@
 		"loot": [
 			[
 				"bone_shard",
-				0.6
+				0.55
 			],
 			[
 				"mana_potion",
@@ -740,6 +752,22 @@
 			[
 				"health_potion",
 				0.5
+			],
+			[
+				"knight_sigil",
+				0.04
+			],
+			[
+				"scroll_guard_surcoat",
+				0.04
+			],
+			[
+				"scroll_void_staff",
+				0.04
+			],
+			[
+				"scroll_pale_crescent",
+				0.04
 			]
 		],
 		"ref_level": 6
@@ -782,7 +810,7 @@
 			],
 			[
 				"goblin_ear",
-				0.5
+				0.55
 			]
 		],
 		"ref_level": 2
@@ -890,6 +918,22 @@
 			[
 				"sage_amulet",
 				0.1
+			],
+			[
+				"royal_jelly",
+				1.0
+			],
+			[
+				"scroll_rose_flame",
+				0.3
+			],
+			[
+				"scroll_mage_robe",
+				0.3
+			],
+			[
+				"scroll_storm_staff",
+				0.3
 			]
 		],
 		"elite": true,
@@ -954,6 +998,58 @@
 			[
 				"dragonfang",
 				0.04
+			],
+			[
+				"lich_phylactery",
+				1.0
+			],
+			[
+				"abyss_core",
+				0.25
+			],
+			[
+				"scroll_sc_halo_scepter",
+				0.25
+			],
+			[
+				"scroll_mithril_longbow",
+				0.25
+			],
+			[
+				"scroll_mithril_gauntlets",
+				0.25
+			],
+			[
+				"scroll_astral_gauntlets",
+				0.08
+			],
+			[
+				"scroll_astral_greaves",
+				0.08
+			],
+			[
+				"scroll_astral_helm",
+				0.08
+			],
+			[
+				"scroll_astral_blade",
+				0.08
+			],
+			[
+				"scroll_astral_bow",
+				0.08
+			],
+			[
+				"scroll_sc_astral_scepter",
+				0.08
+			],
+			[
+				"scroll_soulwood_staff",
+				0.08
+			],
+			[
+				"scroll_astral_plate",
+				0.08
 			]
 		],
 		"boss": true,
@@ -989,7 +1085,7 @@
 		"loot": [
 			[
 				"raptor_claw",
-				0.6
+				0.4
 			],
 			[
 				"health_potion",
@@ -1034,7 +1130,7 @@
 		"loot": [
 			[
 				"spider_silk",
-				0.6
+				0.45
 			],
 			[
 				"health_potion",
@@ -1133,7 +1229,7 @@
 		"loot": [
 			[
 				"frog_tongue",
-				0.6
+				0.45
 			],
 			[
 				"health_potion",
@@ -1175,7 +1271,7 @@
 		"loot": [
 			[
 				"bat_wing",
-				0.6
+				0.45
 			],
 			[
 				"mana_potion",

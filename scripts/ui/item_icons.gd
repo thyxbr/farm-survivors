@@ -63,7 +63,7 @@ static func _has_model(id: String) -> bool:
 	var item := ItemDB.get_item(id)
 	if item.is_empty():
 		return false
-	if ResourceLoader.exists("res://assets/ui/items/%s.png" % id):
+	if ResourceLoader.exists("res://assets/ui/items/%s.png" % str(item.get("art", id))):
 		return false    # tem arte pintada (ItemSlot.item_art): não precisa fotografar
 	return ItemIconModels.is_gear(item) or not _family(id).is_empty()
 

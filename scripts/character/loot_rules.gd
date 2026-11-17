@@ -29,6 +29,13 @@ static func roll(bt: BalanceTables, kind: String, rng: RandomNumberGenerator, ch
 		var id := _roll_gear(bt, level, elite, bool(t.get("boss", false)), rng)
 		if id != "":
 			out.items[id] = int(out.items.get(id, 0)) + 1
+		# couro da camada do nível (material da Couraria e das essências): progression.json "tier_drop"
+		var td: Dictionary = bt.get_table("progression").get("tier_drop", {})
+		if not td.is_empty() and rng.randf() < float(td.get("chance", 0.0)):
+			var hide := "hide_t%d" % ProgressionRules.tier_of(bt, level)
+			if bt.get_table("items").has(hide):
+				var q := int(td.get("boss_qty", 1)) if bool(t.get("boss", false)) else (int(td.get("elite_qty", 1)) if elite else 1)
+				out.items[hide] = int(out.items.get(hide, 0)) + maxi(q, 1)
 	if char_class != "":
 		var adapted := {}
 		for id in out.items:
@@ -36,6 +43,11 @@ static func roll(bt: BalanceTables, kind: String, rng: RandomNumberGenerator, ch
 			adapted[to] = int(adapted.get(to, 0)) + int(out.items[id])
 		out.items = adapted
 	return out
+
+
+## Equipamento que pode cair de monstro: nem nomeado (chefe), nem só de craft, nem variante de qualidade.
+static func droppable(item: Dictionary, id: String) -> bool:
+	return not item.get("named", false) and not item.get("craft", false) and ItemQuality.quality(id) == ""
 
 
 ## Equipamentos que um monstro de `level` pode deixar: equipáveis não nomeados com nível de item em
@@ -47,7 +59,7 @@ static func gear_pool(bt: BalanceTables, level: int) -> Array:
 	var items: Dictionary = bt.get_table("items")
 	var pool: Array = []
 	for id in items:
-		if CharRules.slot_of(bt, id) == "" or items[id].get("named", false):
+		if CharRules.slot_of(bt, id) == "" or not droppable(items[id], id):
 			continue
 		var lv := CharRules.item_level(bt, id)
 		if lv >= lo and lv <= hi:
@@ -114,7 +126,7 @@ static func adapt_weapon(bt: BalanceTables, id: String, char_class: String, rng:
 	var pool: Array = []
 	for cid in items:
 		var c: Dictionary = items[cid]
-		if c.get("type", "") == "weapon" and c.get("class", "sword") == want and not c.get("named", false) 				and c.get("rarity", "common") == it.get("rarity", "common") and (level <= 0 or cid in window):
+		if c.get("type", "") == "weapon" and c.get("class", "sword") == want and droppable(c, cid) 				and c.get("rarity", "common") == it.get("rarity", "common") and (level <= 0 or cid in window):
 			pool.append(cid)
 	if pool.is_empty():
 		return id

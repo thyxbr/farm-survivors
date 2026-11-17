@@ -71,6 +71,9 @@ var selected_food := ""
 var meta_mods := {}
 ## Talentos aprendidos {id: nível} (espelho do personagem; a aba Talentos lê daqui).
 var talents := {}
+## Profissões ({id: {"lv", "xp", "done"}}) e receitas aprendidas por pergaminho (espelho do CharState).
+var professions := {}
+var recipes: Array = []
 ## Bônus dos talentos da classe (CharRules.talent_mods), recalculados em apply_state e somados em mod().
 var talent_mods := {}
 ## Encantamentos por tipo de arma (espelho de CharState.enchants): id -> {"el", "lv"}.
@@ -301,7 +304,7 @@ func _setup_input() -> void:
 		"jump": [KEY_SPACE], "sprint": [KEY_SHIFT], "dodge": [KEY_CTRL, KEY_ALT],
 		"interact": [KEY_E], "spell_1": [KEY_1], "spell_2": [KEY_2], "spell_3": [KEY_3], "spell_4": [KEY_4],
 		"potion": [KEY_R], "mana_potion": [KEY_F], "inventory": [KEY_I, KEY_TAB], "character": [KEY_C],
-		"talents": [KEY_K], "quest_log": [KEY_J], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
+		"talents": [KEY_K], "quest_log": [KEY_J], "professions": [KEY_L], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
 		"eat": [KEY_Q], "food_next": [KEY_T], "world_map": [KEY_M], "party": [KEY_P], "friends": [KEY_O],
 		# emotes (acenar, comemorar, sentar): eram as teclas 1–3 da praça; na vila 1–4 são magias
 		"emote_1": [KEY_7], "emote_2": [KEY_8], "emote_3": [KEY_9],
@@ -825,6 +828,9 @@ func use_item(id: String) -> bool:
 			return eat(id)
 		"seed":
 			notify.emit("Plante na Horta, ao sul da vila.", Color(0.8, 1.0, 0.6))
+		"scroll":
+			Econ.request("consume", [id])   # aprende a receita (CraftRules.learn)
+			return true
 	return false
 
 
@@ -1025,6 +1031,35 @@ func cook(recipe: String, times := 1) -> void:
 	Econ.request("cook", [recipe, clampi(times, 1, CharRules.MAX_COUNT)])
 
 
+# ================================================================ profissões e craft
+func prof_level(prof: String) -> int:
+	return int(professions.get(prof, {}).get("lv", 1))
+
+
+func prof_xp(prof: String) -> int:
+	return int(professions.get(prof, {}).get("xp", 0))
+
+
+func prof_name(prof: String) -> String:
+	return str(CraftRules.professions(Balance.tables).get(prof, {}).get("name", prof))
+
+
+## Estado do personagem do jeito que as regras puras leem (para CraftRules.can_craft etc. na tela).
+func char_state() -> CharState:
+	var s := CharState.new()
+	s.gold = gold
+	s.level = level
+	s.inventory = inventory
+	s.professions = professions
+	s.recipes = recipes
+	return s
+
+
+## Fabrica até `times` vezes na estação (o servidor decide; a resposta traz os itens e a XP).
+func craft(recipe: String, times := 1) -> void:
+	Econ.request("craft", [recipe, clampi(times, 1, CharRules.MAX_COUNT)])
+
+
 # ================================================================ horta (o crescimento corre pelo relógio)
 ## Crescimento do canteiro agora (0..1).
 func plot_growth(i: int) -> float:
@@ -1139,6 +1174,8 @@ func apply_state(d: Dictionary, full := false) -> void:
 	meta_mods = CharRules.meta_mods(Balance.tables, passives)
 	talents = s.talents
 	talent_mods = CharRules.talent_mods(Balance.tables, s)
+	professions = s.professions
+	recipes = s.recipes
 	enchants = s.enchants
 	char_class = s.char_class
 	body = s.body

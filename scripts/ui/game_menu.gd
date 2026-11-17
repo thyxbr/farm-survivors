@@ -6,9 +6,9 @@ extends Control
 
 signal closed
 
-const TAB_KEYS := ["I", "C", "K", "J"]
-const TAB_NAMES := ["Inventário", "Personagem", "Talentos", "Missões"]
-const TAB_ACTIONS := ["inventory", "character", "talents", "quest_log"]
+const TAB_KEYS := ["I", "C", "K", "J", "L"]
+const TAB_NAMES := ["Inventário", "Personagem", "Talentos", "Missões", "Profissões"]
+const TAB_ACTIONS := ["inventory", "character", "talents", "quest_log", "professions"]
 const BAG_COLS := 8
 const BAG_MIN := 56
 const SLOT := 62.0
@@ -68,7 +68,7 @@ func _ready() -> void:
 	theme = UITheme.get_theme()
 	book = BookWindow.new()
 	add_child(book)
-	var builders := [_build_inventory, _build_character, _build_talents, _build_quests]
+	var builders := [_build_inventory, _build_character, _build_talents, _build_quests, _build_professions]
 	for i in builders.size():
 		var page: Control = builders[i].call()
 		pages.append(page)
@@ -379,7 +379,7 @@ func _refresh_selection() -> void:
 	sel_label.add_theme_color_override("font_color", ItemDB.rarity_color(id).darkened(0.55) if ItemDB.is_equippable(id) else UITheme.INK)
 	var t: String = it.type
 	use_btn.disabled = t == "material" or t == "seed" or (t == "crop" and not Game.is_edible(id)) or not Game.can_wield(id)
-	use_btn.text = "Equipar" if ItemDB.is_equippable(id) else ("Comer" if t in ["food", "crop"] else "Usar")
+	use_btn.text = "Equipar" if ItemDB.is_equippable(id) else ("Comer" if t in ["food", "crop"] else ("Aprender" if t == "scroll" else "Usar"))
 	drop_btn.disabled = false
 
 
@@ -711,6 +711,62 @@ func _select_quest(id: String) -> void:
 # ================================================================ geral
 ## Uma abertura do livro: duas páginas lado a lado com a lombada livre no meio.
 ## Devolve [abertura, página esquerda, página direita].
+# ================================================================ profissões
+## Página esquerda: as sete profissões com nível e XP; página direita: onde se usa cada uma e quantas receitas
+## você conhece (as de pergaminho contam só depois de aprendidas).
+var prof_left: VBoxContainer
+var prof_right: VBoxContainer
+const PROF_WHERE := {"mining": "Veios de minério nos mapas (cobre no Vale, prata na Mina, mithril no Pico).",
+	"woodcutting": "Árvores com a fita amarela (pinho no Vale, carvalho no Bosque...).",
+	"farming": "A horta da vila: plantar e colher. Sementes melhores pedem nível.",
+	"smithing": "Forja do Doran: espadas e peças de metal.",
+	"leatherwork": "Bancada de Couraria, a leste do empório: arcos e peças de couro.",
+	"alchemy": "Bancada da Pip, na botica: poções, essências, cajados e cetros.",
+	"cooking": "Caldeirão da Horta: comidas com bônus."}
+
+
+func _build_professions() -> Control:
+	var cols := _spread(6)
+	prof_left = cols[1]
+	prof_right = cols[2]
+	return cols[0]
+
+
+func _refresh_professions() -> void:
+	if prof_left == null:
+		return
+	_clear(prof_left)
+	_clear(prof_right)
+	var bt := Balance.tables
+	prof_left.add_child(_gap(4))
+	prof_left.add_child(UITheme.ink_section("Profissões", 20))
+	prof_right.add_child(_gap(4))
+	prof_right.add_child(UITheme.ink_section("Onde e o quê", 20))
+	var s := Game.char_state()
+	for prof in CraftRules.professions(bt):
+		var lv := Game.prof_level(prof)
+		var need := CraftRules.xp_to_next(bt, lv)
+		prof_left.add_child(UITheme.ink("%s  ·  nível %d" % [Game.prof_name(prof), lv], 17, UITheme.INK, true))
+		var bar := UITheme.ink_bar(UITheme.XP, 300, 6)
+		bar.max_value = maxi(need, 1)
+		bar.value = Game.prof_xp(prof) if need > 0 else 1
+		prof_left.add_child(bar)
+		prof_left.add_child(UITheme.ink("%d / %d XP" % [Game.prof_xp(prof), need] if need > 0 else "Nível máximo", 13, UITheme.INK_DIM))
+		var st := str(CraftRules.professions(bt)[prof].get("station", ""))
+		var line := str(PROF_WHERE.get(prof, ""))
+		if st != "":
+			var total := 0
+			var known := 0
+			for rid in CraftRules.station_recipes(bt, st):
+				total += 1
+				if CraftRules.knows(s, bt, rid):
+					known += 1
+			line += "  Receitas: %d de %d." % [known, total]
+		var l := UITheme.ink("%s: %s" % [Game.prof_name(prof), line], 14)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		prof_right.add_child(l)
+
+
 func _spread(separation: int) -> Array:
 	var spread := HBoxContainer.new()
 	spread.add_theme_constant_override("separation", int(BookLayout.SPINE))
@@ -745,6 +801,7 @@ func _refresh() -> void:
 	_refresh_character()
 	talent_panel.refresh()
 	_refresh_quests()
+	_refresh_professions()
 
 
 func _close() -> void:

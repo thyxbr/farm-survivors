@@ -1249,3 +1249,110 @@ kind = "esqueleto_mago"
 count = 2
 radius = 3.0
 respawn = 25.0
+
+[node name="Coleta" type="Node3D" parent="."]
+
+[node name="mithril 1" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -35, 0, 15)
+script = ExtResource("5_pw7pe")
+kind = "resource_node"
+ref = "mithril"
+node_id = 56
+
+[node name="mithril 2" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35, 0, 15)
+script = ExtResource("5_pw7pe")
+kind = "resource_node"
+ref = "mithril"
+node_id = 57
+
+[node name="mithril 3" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -45, 0, -15)
+script = ExtResource("5_pw7pe")
+kind = "resource_node"
+ref = "mithril"
+node_id = 58
+
+[node name="mithril 4" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 45, 0, -15)
+script = ExtResource("5_pw7pe")
+kind = "resource_node"
+ref = "mithril"
+node_id = 59
+
+[node name="mithril 5" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, -25)
+script = ExtResource("5_pw7pe")
+kind = "resource_node"
+ref = "mithril"
+node_id = 60
+
+[node name="mithril 6" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, -25)
+script = ExtResource("5_pw7pe")
+kind = "resource_node"
+ref = "mithril"
+node_id = 61
+
+[node name="ashwood 1" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -50, 0, 35)
+script = ExtResource("5_pw7pe")
+kind = "resource_node"
+ref = "ashwood"
+node_id = 62
+
+[node name="ashwood 2" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 45, 0, 27)
+script = ExtResource("5_pw7pe")
+kind = "resource_node"
+ref = "ashwood"
+node_id = 63
+
+[node name="ashwood 3" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -45, 0, -40)
+script = ExtResource("5_pw7pe")
+kind = "resource_node"
+ref = "ashwood"
+node_id = 64
+
+[node name="ashwood 4" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 45, 0, -40)
+script = ExtResource("5_pw7pe")
+kind = "resource_node"
+ref = "ashwood"
+node_id = 65
+
+[node name="astralite 1" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0, -40)
+script = ExtResource("5_pw7pe")
+kind = "resource_node"
+ref = "astralite"
+node_id = 66
+
+[node name="astralite 2" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, -40)
+script = ExtResource("5_pw7pe")
+kind = "resource_node"
+ref = "astralite"
+node_id = 67
+
+[node name="astralite 3" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -52)
+script = ExtResource("5_pw7pe")
+kind = "resource_node"
+ref = "astralite"
+node_id = 68
+
+[node name="soulwood 1" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9, 0, -48)
+script = ExtResource("5_pw7pe")
+kind = "resource_node"
+ref = "soulwood"
+node_id = 69
+
+[node name="soulwood 2" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 0, -48)
+script = ExtResource("5_pw7pe")
+kind = "resource_node"
+ref = "soulwood"
+node_id = 70

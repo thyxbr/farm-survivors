@@ -1860,3 +1860,89 @@ kind = "slime_gelo"
 count = 3
 radius = 3.0
 respawn = 25.0
+
+[node name="Coleta" type="Node3D" parent="."]
+
+[node name="oak 1" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -57, 0, 23)
+script = ExtResource("5_ltwnx")
+kind = "resource_node"
+ref = "oak"
+node_id = 34
+
+[node name="oak 2" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -50, 0, -25)
+script = ExtResource("5_ltwnx")
+kind = "resource_node"
+ref = "oak"
+node_id = 35
+
+[node name="oak 3" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 38, 0, 47)
+script = ExtResource("5_ltwnx")
+kind = "resource_node"
+ref = "oak"
+node_id = 36
+
+[node name="oak 4" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 58, 0, -40)
+script = ExtResource("5_ltwnx")
+kind = "resource_node"
+ref = "oak"
+node_id = 37
+
+[node name="oak 5" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 0, -60)
+script = ExtResource("5_ltwnx")
+kind = "resource_node"
+ref = "oak"
+node_id = 38
+
+[node name="oak 6" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, 45)
+script = ExtResource("5_ltwnx")
+kind = "resource_node"
+ref = "oak"
+node_id = 39
+
+[node name="oak 7" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 0, -50)
+script = ExtResource("5_ltwnx")
+kind = "resource_node"
+ref = "oak"
+node_id = 40
+
+[node name="oak 8" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -60, 0, 0)
+script = ExtResource("5_ltwnx")
+kind = "resource_node"
+ref = "oak"
+node_id = 41
+
+[node name="iron 1" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, -30)
+script = ExtResource("5_ltwnx")
+kind = "resource_node"
+ref = "iron"
+node_id = 42
+
+[node name="iron 2" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 0, 25)
+script = ExtResource("5_ltwnx")
+kind = "resource_node"
+ref = "iron"
+node_id = 43
+
+[node name="iron 3" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 50, 0, 20)
+script = ExtResource("5_ltwnx")
+kind = "resource_node"
+ref = "iron"
+node_id = 44
+
+[node name="iron 4" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0, -25)
+script = ExtResource("5_ltwnx")
+kind = "resource_node"
+ref = "iron"
+node_id = 45
