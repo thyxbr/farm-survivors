@@ -88,7 +88,7 @@ const MIN_STRIDE := 0.12          ## meio passo mínimo (m) usado no cálculo da
 ## então andando as articulações do ciclo seguem a pose este tanto mais rápido (veja follow_cycle).
 const CYCLE_FOLLOW := 8.0
 const CYCLE_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r", "foot_l", "foot_r", "body_y", "body_z", "twist",
-	"arm_l", "arm_r", "elbow_l", "elbow_r", "lift"]
+	"arm_l", "arm_r", "elbow_l", "elbow_r", "lift", "hip_twist", "leg_yaw", "head_y", "head_z"]
 
 # ------------------------------------------------------------------ ar e aterrissagem
 const AIR_KNEE_RISE := Vector2(0.95, 0.35)   ## joelhos (L, R) recolhidos subindo

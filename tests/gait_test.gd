@@ -28,6 +28,7 @@ func _ready() -> void:
 		_stance_foot_no_side_slip(d, tag)
 		_hand_crosses_in_front(d, tag)
 		_weight_over_stance_leg(d, c[0], c[1], tag)
+		_head_steady_with_smoothing(c[0], c[1], tag)
 	_still_pose_untouched()
 	_attack_resets_leg_yaw()
 	print("gait_test: ", "OK" if fails == 0 else "%d falhas" % fails)
@@ -161,3 +162,35 @@ func _attack_resets_leg_yaw() -> void:
 	model.queue_free()
 	check(walking > 0.01 and p.leg_yaw == 0.0, "attack_resets_leg_yaw",
 		"leg_yaw andando %.4f, no golpe %.4f" % [walking, p.leg_yaw])
+
+
+## Como no jogo: suavização de apply() (k = 1 - exp(-14 dt)) e follow_cycle. A cabeça tem de continuar estável
+## com o atraso da suavização, não só com k = 1. Mede 1,5 s depois de 1,5 s de aquecimento.
+func _head_steady_with_smoothing(move: float, run: float, tag: String) -> void:
+	var model := (load("res://assets/models/knight.glb") as PackedScene).instantiate() as Node3D
+	add_child(model)
+	var r := KnightAnim.rig(model)
+	var dt := 1.0 / 60.0
+	var speed := 7.5 if run > 0.5 else 5.2
+	var phase := 0.0
+	var h_lo := INF
+	var h_hi := -INF
+	var b_lo := INF
+	var b_hi := -INF
+	for i in 180:
+		phase += dt * KnightAnim.cadence(r, speed, move, run)
+		var p := KnightAnim.locomotion_pose(r, phase, move, run)
+		KnightAnim.follow_cycle(p, 1.0)
+		KnightAnim.apply(r, p, 1.0 - exp(-14.0 * dt))
+		if i >= 90:
+			var hy := _yaw(r.Head)
+			var by := _yaw(r.Body)
+			h_lo = minf(h_lo, hy)
+			h_hi = maxf(h_hi, hy)
+			b_lo = minf(b_lo, by)
+			b_hi = maxf(b_hi, by)
+	model.queue_free()
+	var ha := h_hi - h_lo
+	var ba := b_hi - b_lo
+	check(ba >= 0.01 and ha <= 0.3 * ba, "head_steady_with_smoothing" + tag,
+		"amplitude yaw cabeça %.4f corpo %.4f" % [ha, ba])
