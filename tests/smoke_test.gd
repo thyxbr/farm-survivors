@@ -167,6 +167,12 @@ func _ready() -> void:
 	check(Game.fury > 0.0 and Game.fury < 10.0, "fúria sobe com o dano do golpe do jogador (%.2f)" % Game.fury)
 	Game.fury = 0.0
 	check(slime.hp < hp0, "golpe de espada causa dano (%.0f -> %.0f)" % [hp0, slime.hp])
+	var w_fist: String = Game.equipment.weapon
+	Game.equipment.weapon = ""
+	check(player._unarmed() and player._attack_sound() == "punch" and is_equal_approx(player._swing_time(1), 0.3),
+		"sem arma o golpe é soco: som de soco e combo de boxe")
+	Game.equipment.weapon = w_fist
+	check(not player._unarmed() and player._attack_sound().begins_with("sword_swing"), "com a espada volta o som de lâmina")
 	slime.take_damage(9999, player.global_position, false)
 	check(Game.xp > xp0, "XP ganho ao matar slime")
 	check(Game.quests.slimes.progress == 1, "progresso da missão 1/5")

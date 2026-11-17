@@ -12,6 +12,9 @@ const FILES := {
 	"sword_hit": ["sword_hit_1", "sword_hit_2"],
 	"sword_hit_flesh": ["sword_hit_flesh_1", "sword_hit_flesh_2"],
 	"sword_hit_heavy": ["sword_hit_heavy_1", "sword_hit_heavy_2"],
+	# soco (sem arma): deslocamento de ar curto e seco no golpe, pancada abafada no acerto
+	"punch": ["swing_1", "swing_2", "swing_3"],
+	"punch_hit": ["hit_1", "hit_2"],
 	# coleta: golpe em árvore e em pedra/veio
 	"chop_wood": ["chop_wood_1", "chop_wood_2"],
 	"chop_stone": ["chop_stone_1"],
