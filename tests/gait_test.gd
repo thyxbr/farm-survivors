@@ -89,7 +89,7 @@ func _head_stays_forward(d: Array, tag: String) -> void:
 	var by := _range(d, "body_yaw")
 	var hr := _range(d, "head_roll")
 	var br := _range(d, "body_roll")
-	check(hy <= 0.3 * by and hr <= 0.3 * br, "head_stays_forward" + tag,
+	check(by >= 0.01 and hy <= 0.3 * by and hr <= 0.3 * br, "head_stays_forward" + tag,
 		"yaw cabeça %.4f corpo %.4f | roll cabeça %.4f corpo %.4f" % [hy, by, hr, br])
 
 
@@ -120,7 +120,7 @@ func _hand_crosses_in_front(d: Array, tag: String) -> void:
 			front = e
 		if e.hand_z < back.hand_z:
 			back = e
-	check(absf(front.hand_x) <= absf(back.hand_x) - 0.01, "hand_crosses_in_front" + tag,
+	check(absf(front.hand_x) <= absf(back.hand_x) - 0.055, "hand_crosses_in_front" + tag,
 		"|x| à frente %.4f atrás %.4f" % [absf(front.hand_x), absf(back.hand_x)])
 
 
