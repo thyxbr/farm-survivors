@@ -8,6 +8,8 @@ signal health_changed(enemy: Enemy)
 const PICKUP := preload("res://scripts/world/pickup.gd")
 const ENEMY_ARROW := preload("res://scripts/enemies/enemy_arrow.gd")
 const PROVOKE_TIME := 4.0   # ver `provoked`
+## Até onde (m) o monstro olha à frente antes de dar um passo: se o passo cai na zona da guarda, ele para.
+const WARD_LOOKAHEAD := 1.5
 ## Tipos de inimigo: vêm de data/balance/enemies.json (autoload Balance). "ai" muda o comportamento,
 ## "tint" recolore o modelo, "bld" multiplica o dano em construções, "gear" lista as peças opcionais do
 ## modelo que a variante usa (EnemyGear), "shot": "bolt" troca a flecha por um projétil mágico e "chill"
@@ -20,8 +22,31 @@ var horde := false
 var hp_mult := 1.0
 var dmg_mult := 1.0
 var speed_mult := 1.0
-## Desafio da Horda: versão de elite (maior, dourada, mais vida e dano; o servidor manda junto no spawn).
+## Versão de elite (maior, dourada, mais vida; o servidor manda junto no spawn). Na Horda, com os números da
+## horda; no mundo (com nível), os do "elite" de data/balance/progression.json.
 var elite := false
+## Nível do monstro (0 = sem nível: Horda e cidade, com os números de hoje). Com nível, vida, dano, XP e ouro
+## seguem as curvas de ProgressionRules, e o modelo ganha a tinta e a escala da camada.
+var level := 0
+## Região com nome onde o monstro nasceu ("" = fora de região; Regions.area_at). Missões com "region" só contam
+## abates de monstros daqui. O servidor e o solo põem a do ponto de nascimento; a réplica recebe no spawn.
+var area := ""
+## Dormindo: monstro do mundo parado (idle/wander, no chão) sem jogador a menos de `sleep_radius` não roda IA nem
+## física (com ~300 monstros nos mapas é isso que segura o servidor). Confere de novo a cada SLEEP_CHECK s;
+## levar dano acorda na hora. 0 no raio = nunca dorme. Raio em data/balance/rules.json, "enemy_sleep_radius".
+var asleep := false
+var sleep_radius := 0.0
+## Longe da câmera (ver _update_far): a réplica fica parada além de FAR_STILL e todo monstro em repouso some
+## além de FAR_HIDE; a margem evita ficar trocando na fronteira.
+const FAR_STILL := 60.0
+const FAR_HIDE := 110.0
+const FAR_MARGIN := 10.0
+var still := false
+var _far_t := 0.0
+var _sleep_t := 0.0
+const SLEEP_CHECK := 0.5
+## Tamanho do modelo além de data.scale (elite e camada de nível).
+var size_mult := 1.0
 ## Goblin Dourado que fugiu: some sem contar como abate.
 var escaped := false
 var born_t := 0.0
@@ -33,6 +58,8 @@ var hp := 1.0
 var radius := 0.5
 var dead := false
 var is_boss := false
+## Chefe de dungeon (EnemySpawn.chief): conta como chefe mesmo sendo de um tipo comum (a Slime Rainha).
+var chief := false
 var state := "idle"
 var state_timer := 0.0
 var attack_cd := 0.0
@@ -50,6 +77,8 @@ var stagger := 0.0
 ## Sem isso, um acerto de longe (ou, no servidor, antes de chegar a posição nova do jogador)
 ## fazia o inimigo desistir na hora, voltar para casa e curar a vida toda, apagando o dano.
 var provoked := 0.0
+## Segundos que o monstro está dentro da zona da guarda (VillageWard); passou de DOOM, a guarda abate.
+var ward_t := 0.0
 var home := Vector3.ZERO
 var wander_target := Vector3.ZERO
 var enraged := false
@@ -65,6 +94,12 @@ var name_tag: Label3D
 var quest_icon: Sprite3D
 static var _quest_tex: ImageTexture
 const NAME_RANGE := 30.0     # metros: mais longe que isso o nome some (menos poluição no campo aberto)
+## Cor da placa (nível do monstro − nível do jogador): até PLATE_LOW cinza, de PLATE_HIGH amarelo, de
+## ProgressionRules.danger_diff vermelho (e o monstro ganha dano e resistência contra esse jogador, ver vs());
+## no meio, branco.
+const PLATE_LOW := -5
+const PLATE_HIGH := 3
+const PLATE_DANGER_COLOR := Color(1.0, 0.35, 0.3)
 ## Camadas de piscar (acerto) e de lentidão: iguais para todos os inimigos, ninguém altera depois de criar.
 static var _overlay_hit: StandardMaterial3D
 static var _overlay_slow: StandardMaterial3D
@@ -87,17 +122,44 @@ var web_cd := 0.0
 ## Bocarrão: até onde a língua vai no ataque em curso (só para o desenho).
 var tongue_len := 0.0
 const SPIDER_PARTS := ["Abdomen", "Leg0L", "Leg1L", "Leg2L", "Leg3L", "Leg0R", "Leg1R", "Leg2R", "Leg3R"]
+## Goblin e esqueleto: "bow", "staff" ou "" (EnemyPose) e as medidas dos braços para o IK.
+var weapon := ""
+var _rig := {}
+static var _nock_mesh: Mesh
 
 
 func _ready() -> void:
 	data = TYPES[kind]
+	if not horde and not puppet:
+		sleep_radius = float(Balance.tables.get_table("rules").get("enemy_sleep_radius", 0.0))
+		_sleep_t = randf() * SLEEP_CHECK   # espalha as conferências pelos quadros
+	_far_t = randf() * SLEEP_CHECK
 	display_name = data.name
 	if elite:
 		display_name += " de Elite"
+	if level > 0:
+		display_name = "Nv %d %s" % [level, display_name]
+	var prog: Dictionary = Balance.tables.get_table("progression")
+	var m := ProgressionRules.enemy_mults(Balance.tables, kind, level)
+	hp_mult *= m.hp
+	dmg_mult *= m.dmg
+	var shade := Color.WHITE
+	size_mult = 1.3 if elite else 1.0
+	if level > 0:
+		var tier: Dictionary = prog.get("tiers", [{}])[ProgressionRules.tier_of(Balance.tables, level) - 1]
+		shade = tier.get("tint", Color.WHITE)
+		size_mult = float(tier.get("scale", 1.0))
+		var rank := ProgressionRules.rank_mults(Balance.tables, kind, chief)   # campeões e chefes
+		hp_mult *= rank.hp
+		dmg_mult *= rank.dmg
+		if elite and not horde:   # elite do mundo (a da Horda já vem com os números dela)
+			hp_mult *= float(prog.get("elite", {}).get("hp", 1.0))
+			dmg_mult *= float(prog.get("elite", {}).get("dmg", 1.0))
+			size_mult *= float(prog.get("elite", {}).get("scale", 1.0))
 	max_hp = data.hp * hp_mult
 	hp = max_hp
 	radius = data.radius * (1.2 if elite else 1.0)
-	is_boss = data.get("boss", false)
+	is_boss = data.get("boss", false) or chief
 	add_to_group("enemies")
 	collision_layer = 4
 	collision_mask = 1 | 2 | 4
@@ -109,8 +171,8 @@ func _ready() -> void:
 	col.position.y = cap.height / 2.0
 	add_child(col)
 
-	model = EnemyModel.instance(kind, data)     # tintura, toon e peças juntadas: montado uma vez por tipo
-	model.scale = Vector3.ONE * data.scale * (1.3 if elite else 1.0)
+	model = EnemyModel.instance(kind, data, shade)  # tintura, toon e peças juntadas: montado uma vez por tipo
+	model.scale = Vector3.ONE * data.scale * size_mult
 	add_child(model)
 	if elite:
 		_make_elite_glow()
@@ -121,6 +183,15 @@ func _ready() -> void:
 			parts[n] = model.find_child(n, true, false)
 	for n in ["Tongue", "VineL", "VineR", "WingL", "WingR"]:   # Bocarrão, Flor-faminta e Asa-couro
 		parts[n] = model.find_child(n, true, false)
+	if data.model in ["goblin", "skeleton"]:   # cotovelos, arco e cajado (EnemyPose)
+		for n in ["ElbowL", "ElbowR"]:
+			parts[n] = model.find_child(n, true, false)
+		parts["Bow"] = model.find_child("Opt_Bow", true, false)
+		parts["Staff"] = model.find_child("Opt_Staff", true, false)
+		weapon = EnemyPose.weapon_of(data.get("gear", []))
+		_rig = EnemyPose.rig(parts)
+		if weapon == "bow" and parts.Body and DisplayServer.get_name() != "headless":
+			parts["Nock"] = _make_nock(parts.Body)
 	for mi: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
 		if not mi.is_in_group(ToonLook.OUTLINE_GROUP):      # a casca de contorno não pisca nem tinge
 			meshes.append(mi)
@@ -188,6 +259,45 @@ func _make_elite_glow() -> void:
 	add_child(light)
 
 
+## Flecha encaixada no arco enquanto o arqueiro puxa a corda (EnemyPose posiciona; some ao soltar).
+## Haste ao longo do eixo y, com a ponta em +y.
+func _make_nock(body: Node3D) -> MeshInstance3D:
+	if _nock_mesh == null:
+		var shaft := CylinderMesh.new()
+		shaft.top_radius = 0.011
+		shaft.bottom_radius = 0.011
+		shaft.height = EnemyPose.ARROW_LEN
+		shaft.radial_segments = 5
+		shaft.rings = 1
+		var tip := CylinderMesh.new()
+		tip.top_radius = 0.0
+		tip.bottom_radius = 0.026
+		tip.height = 0.07
+		tip.radial_segments = 5
+		tip.rings = 1
+		var wood := StandardMaterial3D.new()
+		wood.albedo_color = Color(0.45, 0.3, 0.15)
+		var iron := StandardMaterial3D.new()
+		iron.albedo_color = Color(0.72, 0.72, 0.78)
+		var m := ArrayMesh.new()
+		var st := SurfaceTool.new()
+		st.append_from(shaft, 0, Transform3D.IDENTITY)
+		st.commit(m)
+		m.surface_set_material(0, wood)
+		st = SurfaceTool.new()
+		st.append_from(tip, 0, Transform3D(Basis(), Vector3(0, EnemyPose.ARROW_LEN * 0.5, 0)))
+		st.commit(m)
+		m.surface_set_material(1, iron)
+		_nock_mesh = m
+	var mi := MeshInstance3D.new()
+	mi.name = "Nock"
+	mi.mesh = _nock_mesh
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.visible = false
+	body.add_child(mi)
+	return mi
+
+
 func _exit_tree() -> void:
 	if net_id != 0:
 		Network.unregister_enemy(self)
@@ -218,7 +328,7 @@ func _horde_frozen() -> bool:
 
 func _make_health_bar() -> void:
 	bar_root = Node3D.new()
-	bar_root.position.y = data.height * data.scale + 0.45
+	bar_root.position.y = data.height * data.scale * (size_mult if level > 0 else 1.0) + 0.45
 	add_child(bar_root)
 	if _bar_meshes.is_empty():      # as duas malhas (e os materiais) servem para todas as barras
 		for spec in [[Vector2(1.0, 0.12), Color(0, 0, 0, 0.7), 0], [Vector2(0.96, 0.08), Color(0.85, 0.15, 0.1), 1]]:
@@ -236,7 +346,7 @@ func _make_health_bar() -> void:
 
 
 func _make_name_tag() -> void:
-	var top: float = data.height * data.scale * (1.3 if elite else 1.0)
+	var top: float = data.height * data.scale * size_mult
 	name_tag = Label3D.new()
 	name_tag.text = display_name
 	name_tag.font_size = 32
@@ -247,7 +357,10 @@ func _make_name_tag() -> void:
 	name_tag.no_depth_test = true
 	name_tag.render_priority = 2
 	name_tag.outline_render_priority = 1
-	name_tag.modulate = Color(1.0, 0.45, 0.25) if is_boss else (Color(1.0, 0.8, 0.35) if elite or data.get("elite", false) else Color(1.0, 0.92, 0.85))
+	name_tag.modulate = _own_plate_color()
+	if level > 0:
+		_update_plate_color()
+		Game.leveled_up.connect(_update_plate_color)
 	name_tag.position.y = top + (0.75 if not is_boss else 0.5)
 	name_tag.visibility_range_end = NAME_RANGE * (2.0 if is_boss else 1.0)
 	add_child(name_tag)
@@ -267,11 +380,38 @@ func _make_name_tag() -> void:
 	_update_quest_icon()
 
 
+## Cor própria da placa: chefe laranja, elite dourada, comum quase branca.
+func _own_plate_color() -> Color:
+	if is_boss:
+		return Color(1.0, 0.45, 0.25)
+	if elite or data.get("elite", false):
+		return Color(1.0, 0.8, 0.35)
+	return Color(1.0, 0.92, 0.85)
+
+
+## Cor da placa pela diferença de nível para o jogador local: bem abaixo cinza, perto branco, acima amarelo,
+## muito acima vermelho. Chefes e elites mantêm a cor própria, menos no vermelho (que avisa do bônus de vs()).
+func _update_plate_color(_new_level := 0) -> void:
+	if name_tag == null:
+		return
+	var diff := level - Game.level
+	if diff >= ProgressionRules.danger_diff(Balance.tables):
+		name_tag.modulate = PLATE_DANGER_COLOR
+	elif is_boss or elite or data.get("elite", false):
+		name_tag.modulate = _own_plate_color()
+	elif diff <= PLATE_LOW:
+		name_tag.modulate = Color(0.6, 0.6, 0.6)
+	elif diff >= PLATE_HIGH:
+		name_tag.modulate = Color(1.0, 0.85, 0.3)
+	else:
+		name_tag.modulate = Color(1.0, 1.0, 1.0)
+
+
 ## Ícone de missão: só aparece se uma missão ativa conta o abate deste tipo (some quando fica pronta).
 func _update_quest_icon() -> void:
 	if quest_icon == null or dead:
 		return
-	quest_icon.visible = CharRules.is_quest_target(Game.quests, ItemDB.QUESTS, kind)
+	quest_icon.visible = CharRules.is_quest_target(Game.quests, ItemDB.QUESTS, kind, area)
 
 
 ## Escudo dourado com "!" escuro, desenhado uma vez e usado por todos os inimigos.
@@ -314,8 +454,14 @@ static func _bar_mat(c: Color, priority: int) -> StandardMaterial3D:
 
 
 func _physics_process(delta: float) -> void:
+	if not horde and not is_boss:
+		_far_t -= delta
+		if _far_t <= 0.0:
+			_far_t = SLEEP_CHECK
+			_update_far()
 	if puppet:
-		_puppet_process(delta)
+		if not still:
+			_puppet_process(delta)
 		return
 	if not is_on_floor():
 		velocity.y -= 20.0 * delta
@@ -327,6 +473,13 @@ func _physics_process(delta: float) -> void:
 	if _horde_frozen():
 		velocity = Vector3.ZERO
 		return
+	if sleep_radius > 0.0:
+		_sleep_t -= delta
+		if _sleep_t <= 0.0:
+			_sleep_t = SLEEP_CHECK
+			asleep = should_sleep(state, is_on_floor(), is_boss, _player_within(sleep_radius))
+		if asleep:
+			return
 	born_t += delta
 	attack_cd = max(0.0, attack_cd - delta)
 	web_cd = maxf(0.0, web_cd - delta)
@@ -335,6 +488,8 @@ func _physics_process(delta: float) -> void:
 	stagger = max(0.0, stagger - delta)
 	provoked = maxf(0.0, provoked - delta)
 	_update_flash(delta)
+	if not horde and _ward_doom(delta):
+		return
 
 	var player := _nearest_player()
 	var to_player := Vector3.ZERO
@@ -343,6 +498,8 @@ func _physics_process(delta: float) -> void:
 		to_player = player.global_position - global_position
 		to_player.y = 0
 		dist = to_player.length()
+
+	_track_target(player, delta)
 
 	var spd: float = data.speed * speed_mult * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0)
 	var move := Vector3.ZERO
@@ -361,7 +518,7 @@ func _physics_process(delta: float) -> void:
 			to.y = 0
 			if dist < data.aggro:
 				_set_state("chase")
-			elif to.length() < 0.6 or state_timer > 6.0:
+			elif to.length() < 0.6 or state_timer > 6.0 or _stuck_t > 0.4:
 				state_timer = randf_range(2.0, 4.5)
 				state = "idle"
 			else:
@@ -382,9 +539,14 @@ func _physics_process(delta: float) -> void:
 					_begin_attack()
 				elif dist > data.reach * 0.8:
 					move = to_player.normalized() * spd
-			elif global_position.distance_to(home) > 45.0 \
+			elif global_position.distance_to(home) > 45.0 or dist == INF \
 					or (dist > data.aggro * 1.9 and provoked <= 0.0):
-				_set_state("return")
+				_set_state("return")   # sem alvo (morreu ou entrou na vila, sob a guarda) também volta
+			elif ai() == "ranged" or ai() == "caster":
+				# arqueiro e mago no mundo: guardam distância, rodeiam e só atiram com o caminho livre
+				var r := _ranged_move(to_player, dist, spd)
+				move = r[0]
+				face = r[1]
 			elif (dist <= data.reach or _web_ready(dist)) and attack_cd <= 0:
 				_begin_attack(dist)
 			elif dist > data.reach * 0.8:
@@ -393,7 +555,7 @@ func _physics_process(delta: float) -> void:
 				elif ai() == "flyer":
 					move = _fly_dir(to_player, dist) * spd
 				else:
-					move = to_player.normalized() * spd
+					move = _flank_dir(to_player, dist) * spd
 			if face == Vector3.ZERO:
 				face = to_player
 		"return":
@@ -411,25 +573,105 @@ func _physics_process(delta: float) -> void:
 			_update_attack(delta, player, to_player, dist)
 			if attack_kind == "lunge" and attack_timer > 0.35 and attack_timer < 0.6:
 				move = model_forward() * spd * (2.0 if ai() in ["pack", "weaver", "flyer"] else 3.2)
-			elif dist < INF and (attack_timer < 0.35 or ((attack_kind in ["shoot", "web", "tongue"])
+			elif dist < INF and (attack_timer < 0.35 or ((attack_kind in ["shoot", "web", "tongue", "cast"])
 					and attack_timer < _hit_time())):
-				face = to_player
+				face = _aim_dir(to_player, dist) if attack_kind == "shoot" else to_player
+			# golpe comum: dá um passo para dentro enquanto arma, para o golpe não sair no vazio
+			if attack_kind in ["swing", "slam"] and attack_timer < _hit_time() and dist > data.reach * 0.6 \
+					and dist < data.reach * 1.8 and ai() != "plant":
+				move = to_player.normalized() * spd * 0.45
 
 	if stagger > 0:
 		move = Vector3.ZERO
+	elif state in ["chase", "wander", "return"]:
+		move = _steer(move, delta)
+	# a guarda da vila: nenhum passo para dentro da zona protegida (o bando para na cerca)
+	if not horde and move.length() > 0.01 			and VillageWard.blocks_step(global_position, global_position + move.normalized() * WARD_LOOKAHEAD):
+		move = Vector3.ZERO
+		if state == "wander":
+			state_timer = 7.0   # desiste do passeio (vira idle no próximo quadro)
 	if face == Vector3.ZERO and move.length() > 0.1:
 		face = move
 	if face.length() > 0.01:
-		model.rotation.y = lerp_angle(model.rotation.y, atan2(face.x, face.z), 8.0 * delta)
+		var turn := 14.0 if state == "attack" and attack_kind == "shoot" else 9.0
+		model.rotation.y = lerp_angle(model.rotation.y, atan2(face.x, face.z), turn * delta)
 
 	var accel := 30.0
 	velocity.x = move_toward(velocity.x, move.x, accel * delta)
 	velocity.z = move_toward(velocity.z, move.z, accel * delta)
 	move_and_slide()
+	_check_stuck(move, delta)
 	_animate(delta, Vector2(velocity.x, velocity.z).length())
 	if bar_root and bar_root.visible:
 		bar_fg.scale.x = max(0.001, hp / max_hp)
 		bar_fg.position.x = 0.0
+
+
+## Longe da câmera o monstro do mundo some da tela, e a réplica do cliente para de seguir e de animar (os
+## snapshots continuam chegando; ao voltar ela pula para onde o servidor diz). Quem decide (solo) só some
+## dormindo. Sem câmera (servidor dedicado) não faz nada. Chefes e a Horda ficam de fora.
+func _update_far() -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null or dead:
+		return
+	var d := global_position.distance_to(cam.global_position)
+	if puppet:
+		var calm: bool = state in ["idle", "wander"] or d > FAR_HIDE + FAR_MARGIN
+		still = calm and d > (FAR_STILL if still else FAR_STILL + FAR_MARGIN)
+	var rest := still if puppet else asleep
+	var show := not rest or d < (FAR_HIDE if not visible else FAR_HIDE + FAR_MARGIN)
+	if show != visible:
+		visible = show
+		if show and puppet:
+			global_position = _net_pos
+			reset_physics_interpolation()
+
+
+## A guarda da vila (solo/servidor): monstro dentro da zona protegida leva a flecha de um guarda depois de
+## VillageWard.DOOM segundos. true = morreu agora (o quadro para aqui).
+func _ward_doom(delta: float) -> bool:
+	if not VillageWard.inside(global_position, VillageWard.KILL_MARGIN):
+		ward_t = 0.0
+		return false
+	ward_t += delta
+	if ward_t < VillageWard.DOOM:
+		return false
+	guard_kill()
+	return true
+
+
+## Abatido pela guarda da vila: morre sem dar XP, loot nem abate de missão a ninguém (nem a quem já tinha
+## acertado). No servidor as réplicas recebem a morte com o aviso da guarda.
+func guard_kill() -> void:
+	if dead or puppet:
+		return
+	contributors.clear()
+	last_hitter = 0
+	if Network.is_server():
+		Network.server_enemy_guard_killed(self)
+	die_visual()
+	guard_fx()
+
+
+## Aviso sobre o monstro abatido pela guarda (solo, servidor e réplicas).
+func guard_fx() -> void:
+	var top: Vector3 = global_position + Vector3.UP * (data.height * data.scale + 0.4)
+	FX.damage_number(top, "Abatido pela guarda", Color(0.75, 0.82, 0.95), 40)
+
+
+## Regra do sono (pura): parado ou passeando, no chão, sem chefe e sem jogador perto.
+static func should_sleep(st: String, on_floor: bool, boss: bool, player_near: bool) -> bool:
+	return not boss and on_floor and not player_near and st in ["idle", "wander"]
+
+
+## Algum jogador vivo do mesmo mundo a menos de `r` metros.
+func _player_within(r: float) -> bool:
+	var w := get_world_3d()
+	var r2 := r * r
+	for p in get_tree().get_nodes_in_group("players"):
+		if not p.dead and p.get_world_3d() == w and global_position.distance_squared_to(p.global_position) < r2:
+			return true
+	return false
 
 
 ## Jogador vivo mais próximo (no multiplayer, o servidor tem réplicas de todos).
@@ -442,6 +684,8 @@ func _nearest_player() -> Player:
 	for p in pool:
 		if p.dead or p.get_world_3d() != w:   # o servidor roda Valdoria e a cidade em mundos separados
 			continue
+		if not horde and VillageWard.inside(p.global_position):
+			continue   # quem está na vila (ou na Horta) está sob a proteção da guarda: o monstro não persegue
 		var d := global_position.distance_squared_to(p.global_position)
 		if d < best_d:
 			best_d = d
@@ -498,13 +742,19 @@ func _ranged_move(to_player: Vector3, dist: float, spd: float) -> Array:
 				move = (move.normalized() + to_c.normalized() * 1.6).normalized() * spd
 		return [move, move if move.length() > 0.1 else dir]
 	var keep: float = data.get("keep", 7.0)
+	# rodeia trocando de lado de tempos em tempos (cada um no seu ritmo), em vez de ficar parado na mira
+	if fmod(born_t + float(_uid() % 7), 7.0) > 4.0:
+		side = -side
+	var clear := ai() != "ranged" or _line_clear(dist)
 	if dist < keep * 0.7:
 		move = (-dir + side * 0.4).normalized() * spd * 0.9
 	elif dist > data.reach * 0.85:
 		move = dir * spd
+	elif not clear:
+		move = (side + dir * 0.3).normalized() * spd * 0.8   # árvore ou pedra no meio: anda de lado até abrir a linha
 	else:
 		move = side * spd * 0.35
-	if dist <= data.reach and attack_cd <= 0:
+	if dist <= data.reach and attack_cd <= 0 and clear:
 		_begin_attack()
 		move = Vector3.ZERO
 	return [move, dir]
@@ -528,6 +778,177 @@ func _fly_dir(to_player: Vector3, dist: float) -> Vector3:
 	var side := 1.0 if (net_id if net_id != 0 else get_instance_id()) % 2 == 0 else -1.0
 	var ang := side * 0.9 * clampf((dist - data.reach * 1.3) / 5.0, 0.0, 1.0)
 	return to_player.normalized().rotated(Vector3.UP, ang + sin(born_t * 1.3) * 0.25)
+
+
+func _uid() -> int:
+	return net_id if net_id != 0 else get_instance_id()
+
+
+## Corpo a corpo comum no mundo: de longe, cada um chega por um ângulo um pouco diferente (o grupo abre em
+## leque e cerca em vez de vir em fila, um atrás do outro); perto, vai reto.
+func _flank_dir(to_player: Vector3, dist: float) -> Vector3:
+	var dir := to_player.normalized()
+	if horde:
+		return dir
+	var ang: float = [0.0, 0.45, -0.45][_uid() % 3] * clampf((dist - data.reach * 2.0) / 6.0, 0.0, 1.0)
+	return dir.rotated(Vector3.UP, ang)
+
+
+# ------------------------------------------------------------ desvio de obstáculos
+## Antes o monstro andava em linha reta até o alvo e ficava empurrando o tronco da árvore (não existe malha de
+## navegação no mundo). Agora, a cada STEER_EVERY segundos, dois raios paralelos (largura do corpo) olham à
+## frente; com o caminho fechado, ele escolhe um lado e gira a direção até achar passagem, e mantém esse lado
+## enquanto contorna (sem ficar indo e voltando). Encostado no obstáculo, escorrega pela borda; se mesmo assim
+## não sai do lugar, troca de lado (_check_stuck).
+const STEER_EVERY := 0.15
+const STEER_ANGLES := [0.45, 0.85, 1.25, 1.7, 2.2]
+const STEER_HEIGHT := 0.45     # altura dos raios: acima dos degraus do chão, abaixo da copa das árvores
+var _steer_t := 0.0
+var _steer_ang := 0.0          # quanto a direção desejada gira (rad) até a próxima conferência
+var _detour := 0               # lado do contorno: 1 (esquerda), -1 (direita), 0 = caminho livre
+var _stuck_t := 0.0
+var _unstick_t := 0.0
+var _los_t := 0.0
+var _los_ok := true
+## Alvo atual e a velocidade estimada dele (para a flecha mirar adiante).
+var _tgt: Player = null
+var _tgt_prev := Vector3.ZERO
+var _tgt_vel := Vector3.ZERO
+
+
+func _steer(move: Vector3, delta: float) -> Vector3:
+	var spd := Vector2(move.x, move.z).length()
+	if spd < 0.05 or data.speed <= 0.0:
+		return move
+	var dir := Vector3(move.x, 0.0, move.z) / spd
+	_unstick_t = maxf(0.0, _unstick_t - delta)
+	_steer_t -= delta
+	if _steer_t <= 0.0:
+		_steer_t = STEER_EVERY * randf_range(0.8, 1.25)
+		_steer_ang = _pick_angle(dir, spd)
+	var out := dir.rotated(Vector3.UP, _steer_ang)
+	var n := _blocking_normal()
+	if n != Vector3.ZERO and out.dot(n) < 0.0:
+		# encostado: segue a borda do obstáculo para o lado do contorno
+		var along := out.slide(n)
+		if along.length() < 0.35:
+			if _detour == 0:
+				_detour = 1 if Vector3.UP.cross(dir).dot(n.cross(Vector3.UP)) >= 0.0 else -1
+			along = Vector3.UP.cross(dir) * float(_detour)
+			along = along.slide(n)
+		out = (along.normalized() + n * 0.2).normalized()
+	return Vector3(out.x * spd, move.y, out.z * spd)
+
+
+func _pick_angle(dir: Vector3, spd: float) -> float:
+	if _unstick_t > 0.0:
+		return _steer_ang
+	var look := clampf(radius + 0.9 + spd * 0.3, 1.4, 3.4)
+	if _free(dir, look) >= 0.999:
+		_detour = 0
+		return 0.0
+	if _detour == 0:
+		var l := _free(dir.rotated(Vector3.UP, 0.8), look)
+		var r := _free(dir.rotated(Vector3.UP, -0.8), look)
+		if absf(l - r) > 0.05:
+			_detour = 1 if l > r else -1
+		else:
+			_detour = 1 if _uid() % 2 == 0 else -1
+	for a: float in STEER_ANGLES:
+		if _free(dir.rotated(Vector3.UP, a * _detour), look * 0.8) >= 0.999:
+			return a * _detour
+	for a: float in STEER_ANGLES:
+		if _free(dir.rotated(Vector3.UP, -a * _detour), look * 0.8) >= 0.999:
+			_detour = -_detour
+			return a * _detour
+	return 2.2 * _detour
+
+
+## Fração livre (0..1) do caminho `dir` até `dist` metros, com dois raios na largura do corpo. Batidas no chão
+## (normal para cima: rampa, morro) não contam.
+func _free(dir: Vector3, dist: float) -> float:
+	var space := get_world_3d().direct_space_state
+	var side := Vector3.UP.cross(dir).normalized() * radius * 0.85
+	var best := 1.0
+	for off in [side, -side]:
+		var from: Vector3 = global_position + Vector3.UP * STEER_HEIGHT + off
+		var q := PhysicsRayQueryParameters3D.create(from, from + dir * dist, 1, [get_rid()])
+		var hit := space.intersect_ray(q)
+		if hit.is_empty() or (hit.normal as Vector3).y > 0.6:
+			continue
+		best = minf(best, from.distance_to(hit.position) / dist)
+	return best
+
+
+## Normal (horizontal) do que o monstro empurra agora: obstáculo do mapa ou outro monstro (não o jogador).
+func _blocking_normal() -> Vector3:
+	var sum := Vector3.ZERO
+	for i in get_slide_collision_count():
+		var c := get_slide_collision(i)
+		if c.get_collider() is Player:
+			continue
+		var n := c.get_normal()
+		if absf(n.y) < 0.5:
+			sum += Vector3(n.x, 0.0, n.z)
+	return sum.normalized() if sum.length() > 0.01 else Vector3.ZERO
+
+
+## Quer andar mas quase não sai do lugar por um tempo: troca o lado do contorno e força a volta por ele.
+func _check_stuck(move: Vector3, delta: float) -> void:
+	var want := Vector2(move.x, move.z).length()
+	var got := Vector2(get_real_velocity().x, get_real_velocity().z).length()
+	if state in ["chase", "wander", "return"] and stagger <= 0.0 and want > 0.8 and got < want * 0.3:
+		_stuck_t += delta
+	else:
+		_stuck_t = maxf(0.0, _stuck_t - delta * 2.0)
+	if _stuck_t > 0.6:
+		_stuck_t = 0.45 if state == "wander" else 0.0   # passeando: desiste do ponto (ver "wander")
+		_detour = -_detour if _detour != 0 else (1 if _uid() % 2 == 0 else -1)
+		_steer_ang = 1.5 * _detour
+		_unstick_t = 0.7
+		_steer_t = 0.7
+
+
+## Linha livre do arco (ou do cajado) até o alvo, sem árvore, pedra ou parede no meio (conferida a cada 0,25 s).
+func _line_clear(dist: float) -> bool:
+	if _tgt == null or not is_instance_valid(_tgt) or dist > data.reach * 1.2:
+		return true
+	_los_t -= get_physics_process_delta_time()
+	if _los_t > 0.0:
+		return _los_ok
+	_los_t = 0.25
+	var from := global_position + Vector3.UP * 1.0 * float(data.scale)
+	var q := PhysicsRayQueryParameters3D.create(from, _tgt.global_position + Vector3.UP * 1.0, 1, [get_rid()])
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	_los_ok = hit.is_empty() or (hit.normal as Vector3).y > 0.6
+	return _los_ok
+
+
+## Guarda o alvo e estima a velocidade dele pelo deslocamento (no servidor, o jogador é réplica e não tem
+## velocity confiável).
+func _track_target(player: Player, delta: float) -> void:
+	if player != _tgt:
+		_tgt = player
+		_tgt_vel = Vector3.ZERO
+		if player:
+			_tgt_prev = player.global_position
+		return
+	if player == null or delta <= 0.0:
+		return
+	var v := (player.global_position - _tgt_prev) / delta
+	v.y = 0.0
+	if v.length() > 15.0:     # teleporte ou correção de rede: não é velocidade
+		v = Vector3.ZERO
+	_tgt_vel = _tgt_vel.lerp(v, 0.12)
+	_tgt_prev = player.global_position
+
+
+## Direção da flecha: onde o alvo vai estar quando ela chegar (um pouco menos, para não ser perfeita).
+func _aim_dir(to_player: Vector3, dist: float) -> Vector3:
+	var lead := _tgt_vel * (dist / ENEMY_ARROW.SPEED) * 0.7
+	var aim := to_player + lead
+	aim.y = 0.0
+	return aim if aim.length() > 0.01 else to_player
 
 
 func _begin_attack(dist := 0.0) -> void:
@@ -642,13 +1063,13 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 			FX.ring(global_position, Color(0.8, 0.6, 0.3, 0.9), sr, 0.4)
 			FX.burst(global_position + Vector3.UP * 0.3, Color(0.5, 0.4, 0.3), 40, 7.0, 0.2, 0.8)
 			if player and dist <= sr:
-				player.take_damage(data.damage * dmg_mult * 1.4, global_position)
+				player.take_damage(vs(level, player, data.damage * dmg_mult * 1.4), global_position)
 			if player is Player:
 				player.add_shake(0.4)
 		elif player and dist <= data.reach * 1.3 + 0.3:
 			var facing_ok := model_forward().dot(to_player.normalized()) > 0.2 or dist < 1.0
 			if facing_ok:
-				player.take_damage(data.damage * dmg_mult * randf_range(0.9, 1.1), global_position)
+				player.take_damage(vs(level, player, data.damage * dmg_mult * randf_range(0.9, 1.1)), global_position)
 				if data.has("chill") and player.has_method("apply_chill"):
 					player.apply_chill(float(data.chill))
 		if attack_kind == "swing" or (attack_kind == "lunge" and data.model in ["raptor", "spider", "frog", "bat"]):
@@ -662,14 +1083,37 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 func _shoot(visual: bool) -> void:
 	var bolt: bool = data.get("shot", "") == "bolt"
 	Sfx.play_at("bow_shot", global_position, 0.1, -5.0)
-	var origin: Vector3 = global_position + Vector3.UP * 1.1 * float(data.scale) + model_forward() * 0.6
+	var origin := _muzzle()
+	var dir := model_forward()
+	if not visual and _tgt != null and is_instance_valid(_tgt) and not _tgt.dead:
+		# mira onde o alvo vai estar (e vira o corpo para lá, para a réplica no cliente atirar igual)
+		var to := _tgt.global_position - global_position
+		to.y = 0.0
+		dir = _aim_dir(to, to.length()).normalized()
+		model.rotation.y = atan2(dir.x, dir.z)
 	var arrow := ENEMY_ARROW.new()
-	arrow.direction = model_forward()
+	arrow.direction = dir
 	arrow.damage = 0.0 if visual else data.damage * dmg_mult
+	arrow.level = level
 	arrow.source = get_parent()
 	arrow.magic = bolt
 	get_parent().add_child(arrow)
 	arrow.global_position = origin
+
+
+## De onde sai a flecha ou o raio: o arco (na linha da mira) ou a gema do cajado, pela pose deste quadro.
+func _muzzle() -> Vector3:
+	var fallback: Vector3 = global_position + Vector3.UP * 1.1 * float(data.scale) + model_forward() * 0.6
+	if _rig.is_empty() or parts.get("Body") == null:
+		return fallback
+	var p := fallback
+	if weapon == "staff" and parts.get("Staff") != null:
+		p = (parts.Staff as Node3D).global_transform * (_rig.gem as Vector3)
+	elif weapon == "bow":
+		p = (parts.Body as Node3D).global_transform * (_rig.muzzle as Vector3)
+	# o projétil voa reto na altura em que sai: fica na faixa do peito do jogador para poder acertar
+	p.y = clampf(p.y, global_position.y + 0.7, global_position.y + 1.5)
+	return p
 
 
 ## Bocarrão: a língua acerta quem está na frente, até tongue_range, e puxa para perto da boca (o empurrão do
@@ -681,7 +1125,7 @@ func _lash_tongue(player, to_player: Vector3, dist: float) -> void:
 	if model_forward().dot(to_player.normalized()) < 0.75:
 		return   # saiu da frente: a língua passa vazia
 	var dir := to_player.normalized()
-	player.take_damage(data.damage * dmg_mult * 0.6, player.global_position + dir)
+	player.take_damage(vs(level, player, data.damage * dmg_mult * 0.6), player.global_position + dir)
 	attack_cd = 0.0
 
 
@@ -693,6 +1137,7 @@ func _shoot_web(visual: bool) -> void:
 	ball.web_secs = float(data.get("web_secs", 1.8))
 	ball.direction = model_forward()
 	ball.damage = 0.0 if visual else data.damage * dmg_mult * 0.5
+	ball.level = level
 	ball.source = get_parent()
 	get_parent().add_child(ball)
 	ball.global_position = global_position + Vector3.UP * 0.55 * float(data.scale) + model_forward() * 0.7
@@ -706,7 +1151,7 @@ func _cast_heal(visual: bool) -> void:
 	if visual:
 		return
 	for e in get_tree().get_nodes_in_group("enemies"):
-		if e == self or e.dead or not e.horde or e.is_boss:
+		if e == self or e.dead or e.horde != horde or e.is_boss:
 			continue
 		if e.global_position.distance_to(global_position) <= r and e.hp < e.max_hp:
 			e.hp = minf(e.max_hp, e.hp + e.max_hp * 0.25)
@@ -725,7 +1170,7 @@ func _explode(visual: bool) -> void:
 	var pool: Array = get_parent().targets() if get_parent().has_method("targets") else get_tree().get_nodes_in_group("players")
 	for p in pool:
 		if not p.dead and p.global_position.distance_to(global_position) <= r:
-			p.take_damage(data.damage * dmg_mult, global_position)
+			p.take_damage(vs(level, p, data.damage * dmg_mult), global_position)
 			p.add_shake(0.35)
 	_die()
 
@@ -734,6 +1179,8 @@ func _explode(visual: bool) -> void:
 func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun := 0.0, pull := 0.0) -> void:
 	if dead:
 		return
+	asleep = false
+	_sleep_t = SLEEP_CHECK
 	if puppet:
 		# o servidor decide; os números de dano chegam de volta em show_hit()
 		Network.client_hit_enemy(net_id, amount, from_pos, crit, slow, stun, pull)
@@ -776,7 +1223,7 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun
 		Game.notify.emit("%s está enfurecido!" % data.name, Color(1, 0.4, 0.3))
 		if not summoned:
 			summoned = true
-			get_parent().call_deferred("summon_minions", global_position, 2, str(data.get("summon", "goblin")))
+			get_parent().call_deferred("summon_minions", global_position, 2, str(data.get("summon", "goblin")), level)
 	if hp <= 0:
 		_die()
 	elif stun > 0.0:
@@ -796,9 +1243,33 @@ func apply_stun(t: float) -> void:
 		_set_state("chase")
 
 
-## Dano que este inimigo leva de um acerto de `amount` (maior se estiver com a marca tóxica).
+## Dano que este inimigo leva de um acerto de `amount` (maior se estiver com a marca tóxica, menor se estiver
+## bem acima do nível de quem bateu: placa vermelha).
 func incoming(amount: float) -> float:
-	return amount * (1.0 + venom_amp) if venom_timer > 0.0 else amount
+	var a := amount * (1.0 + venom_amp) if venom_timer > 0.0 else amount
+	if level > 0:
+		var foe := Game.level
+		if Network.is_server():
+			foe = Party._level(last_hitter) if last_hitter != 0 else 0
+		a *= float(ProgressionRules.danger_mults(Balance.tables, level, foe).taken)
+	return a
+
+
+## Nível de quem leva o golpe: o personagem do peer no servidor, o jogador local no solo. 0 = desconhecido.
+static func foe_level(p) -> int:
+	if not (p is Player):
+		return 0
+	if p.remote:
+		return Party._level(p.peer_id) if Network.is_server() else 0
+	return Game.level
+
+
+## Dano `amount` de um monstro de nível `enemy_level` no jogador `p`, com o bônus do monstro bem acima dele
+## (placa vermelha). Também usado pelos projéteis (EnemyArrow.level).
+static func vs(enemy_level: int, p, amount: float) -> float:
+	if enemy_level <= 0:
+		return amount
+	return amount * float(ProgressionRules.danger_mults(Balance.tables, enemy_level, foe_level(p)).dmg)
 
 
 ## Marca tóxica: por `secs` segundos, todo dano recebido vale (1 + amp). Não empilha: fica a mais forte.
@@ -845,9 +1316,14 @@ func _die() -> void:
 		Network.server_enemy_killed(self)
 	elif not horde:
 		# solo: XP, missão e o chefe derrotado (king_dead) ficam com as regras (Econ.kill)
-		Game.on_enemy_killed(kind, data.xp)
-		drop_loot(get_parent(), kind, global_position)
+		Game.on_enemy_killed(kind, xp_reward(), level, area)
+		drop_loot(get_parent(), kind, global_position, true, level, elite, is_boss)
 	die_visual()
+
+
+## XP do abate: a do tipo pela curva do nível (sem nível, a de hoje).
+func xp_reward() -> int:
+	return roundi(float(data.xp) * float(ProgressionRules.enemy_mults(Balance.tables, kind, level).xp))
 
 
 ## Morte sem regras de jogo (também usada pelas réplicas no cliente).
@@ -864,21 +1340,17 @@ func die_visual() -> void:
 		name_tag.visible = false
 		quest_icon.visible = false
 	Sfx.play_at("slime" if data.model == "slime" else "enemy_die", global_position, 0.1, -4.0 if horde else 0.0)
-	FX.burst(global_position + Vector3.UP * 0.6 * data.scale, data.color, 30 if not is_boss else 120, 5.0, 0.14, 0.9)
 	died.emit(self)
-	var tw := create_tween()
-	if data.model == "slime":
-		tw.tween_property(model, "scale", Vector3(1.6, 0.05, 1.6) * data.scale, 0.35).set_ease(Tween.EASE_IN)
-	else:
-		tw.tween_property(model, "rotation:x", -PI / 2, 0.5).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
-		tw.tween_interval(0.8)
-		tw.tween_property(model, "position:y", -1.5 * data.scale, 1.0)
-	tw.tween_callback(queue_free)
+	# acende azul e se desfaz em cacos (FXShatter); o nó sai assim que o modelo some
+	FXShatter.play(self, model, meshes, model.scale.x, is_boss, queue_free)
 
 
 ## Solo: sorteio do loot (LootRules, o mesmo do servidor) em pickups no chão.
-static func drop_loot(parent: Node, enemy_kind: String, pos: Vector3, with_gold := true) -> void:
-	var loot := LootRules.roll(Balance.tables, enemy_kind, _loot_rng())
+static func drop_loot(parent: Node, enemy_kind: String, pos: Vector3, with_gold := true, level := 0, elite := false,
+		boss := false) -> void:
+	boss = boss or TYPES.get(enemy_kind, {}).get("boss", false)
+	var extra := DungeonRules.extra_loot(Balance.tables, Regions.region_at(pos), boss)
+	var loot := LootRules.roll(Balance.tables, enemy_kind, _loot_rng(), Game.char_class, level, elite, extra)
 	_spawn_loot(parent, pos, int(loot.gold) if with_gold else 0, loot.items)
 
 
@@ -1021,33 +1493,11 @@ func _animate(delta: float, hspeed: float) -> void:
 		_animate_bat(hspeed, k)
 		return
 	var amp: float = clamp(hspeed / 4.0, 0.0, 1.0) * 0.8
-	parts.LegL.rotation.x = lerp(parts.LegL.rotation.x, s * amp, k)
-	parts.LegR.rotation.x = lerp(parts.LegR.rotation.x, -s * amp, k)
-	parts.ArmL.rotation.x = lerp(parts.ArmL.rotation.x, -s * amp * 0.6, k)
-	var arm := Vector3(s * amp * 0.5, 0, 0)
-	var body_x := 0.0
-	if state == "attack":
-		var ht := _hit_time()
-		var t := attack_timer
-		if attack_kind == "slam":
-			if t < ht:
-				arm = Vector3(-3.0, 0, 0)
-				body_x = -0.3
-				parts.ArmL.rotation.x = -3.0
-			else:
-				arm = Vector3(0.3, 0, 0)
-				body_x = 0.4
-				parts.ArmL.rotation.x = 0.3
-		else:
-			if t < ht:
-				arm = Vector3(-2.7, 0, -0.3)
-				body_x = -0.2
-			elif t < ht + 0.25:
-				arm = Vector3(0.6, 0, 0.2)
-				body_x = 0.3
-	var kk := k if not (state == "attack" and attack_timer >= _hit_time() and attack_timer < _hit_time() + 0.12) else 1.0 - exp(-40.0 * delta)
-	parts.ArmR.rotation = parts.ArmR.rotation.lerp(arm, kk)
-	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x, k)
+	var at := attack_timer
+	var ht := _hit_time()
+	var kk := k if not (state == "attack" and at >= ht and at < ht + 0.12) else 1.0 - exp(-40.0 * delta)
+	EnemyPose.humanoid(parts, _rig, {"state": state, "kind": attack_kind, "t": at, "ht": ht,
+		"dur": _attack_duration(), "amp": amp, "s": s, "weapon": weapon}, k, kk)
 
 
 ## Raptor: passada de ave (pernas longas, corpo balançando pouco), cauda que serpenteia e bote com a boca aberta.

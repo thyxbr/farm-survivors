@@ -10,10 +10,15 @@ signal double_clicked(slot: ItemSlot)
 var item_id := "":
 	set(v):
 		item_id = v
+		# carrega aqui, não no _draw: textura carregada no meio do desenho sai branca nesse quadro
+		_art = item_art(v)
 		queue_redraw()
 ## Ícone sem item (magias do HUD) e ícone "fantasma" de espaço vazio.
 var icon_kind := ""
 var icon_color := Color.WHITE
+## Arte pintada da habilidade (assets/ui/skills); quando existe, ocupa o espaço no lugar do icon_kind.
+var icon_tex: Texture2D
+var _art: Texture2D    # arte pintada de item_id (ItemSlot.item_art)
 var ghost_kind := ""
 var qty := 0
 var key_text := ""
@@ -42,11 +47,42 @@ var model_icon := false
 var _hover := false
 
 
+## Arte pintada da habilidade, ou null se ainda não há imagem para ela (fica o desenho do IconPainter).
+static func skill_art(ability_id: String) -> Texture2D:
+	var path := "res://assets/ui/skills/%s.png" % ability_id
+	return load(path) if ability_id != "" and ResourceLoader.exists(path) else null
+
+
+## Arte pintada do item (assets/ui/items, recortada das grades por tools/icons/slice_grid.py).
+## Vale em todo espaço e também sem janela; sem arte o item cai no ícone 3D ou no IconPainter.
+## Item com "art" usa a arte de outro id (os pergaminhos de receita usam "recipe_scroll").
+static func item_art(item_id: String) -> Texture2D:
+	var path := "res://assets/ui/items/%s.png" % str(ItemDB.get_item(item_id).get("art", item_id))
+	return load(path) if item_id != "" and ResourceLoader.exists(path) else null
+
+
 func _init(sz := 64.0) -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS   # arte de 256 px reduzida sem serrilhar
 	custom_minimum_size = Vector2(sz, sz)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	mouse_entered.connect(_on_enter)
 	mouse_exited.connect(_on_exit)
+
+
+## Ícone de um buff (buffs.json): o do prato, quando tem `icon`; senão um quadradinho na cor do buff
+## (buffs de habilidade).
+static func for_buff(buff_id: String, size: float) -> Control:
+	var row: Dictionary = ItemDB.BUFFS.get(buff_id, {})
+	var icon_id: String = row.get("icon", "")
+	if icon_id != "" and not ItemDB.get_item(icon_id).is_empty():
+		var slot := ItemSlot.new(size)
+		slot.item_id = icon_id
+		return slot
+	var sw := ColorRect.new()
+	sw.color = row.get("color", UITheme.GOLD)
+	sw.custom_minimum_size = Vector2(size, size) * 0.7
+	sw.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return sw
 
 
 func set_state(id: String, q := 0) -> void:
@@ -130,7 +166,7 @@ func _draw() -> void:
 	var bg := StyleBoxFlat.new()
 	bg.bg_color = Color(0.06, 0.055, 0.05, 0.92)
 	bg.set_corner_radius_all(4)
-	bg.border_color = rc.darkened(0.25) if has_item or icon_kind != "" else Color(0.3, 0.26, 0.2, 0.7)
+	bg.border_color = rc.darkened(0.25) if has_item or icon_kind != "" or icon_tex else Color(0.3, 0.26, 0.2, 0.7)
 	bg.set_border_width_all(1)
 	if selected:
 		bg.border_color = Color(1, 0.88, 0.5)
@@ -159,11 +195,15 @@ func _draw() -> void:
 	var inset := size.x * (0.17 if badges else 0.14)
 	var ir := r.grow(-inset)
 	if has_item:
-		var tex: Texture2D = ItemIcons.icon(item_id, queue_redraw) if paper or model_icon else null
+		var tex: Texture2D = _art
+		if tex == null and (paper or model_icon):
+			tex = ItemIcons.icon(item_id, queue_redraw)
 		if tex:
 			draw_texture_rect(tex, r.grow(-size.x * 0.03), false)
 		else:
 			IconPainter.draw(self, IconPainter.kind_for(item_id), IconPainter.color_for(item_id), ir)
+	elif icon_tex:
+		draw_texture_rect(icon_tex, r.grow(-2), false)
 	elif icon_kind != "":
 		IconPainter.draw(self, icon_kind, icon_color, ir)
 	elif ghost_kind != "":

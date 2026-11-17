@@ -68,7 +68,10 @@ const PLOT := preload("res://scripts/farm/farm_plot.gd")
 const KITCHEN := preload("res://scripts/farm/kitchen.gd")
 const PLANT_UI := preload("res://scripts/ui/plant_ui.gd")
 const COOKING_UI := preload("res://scripts/ui/cooking_ui.gd")
+const CRAFTING_STATION := preload("res://scripts/world/crafting_station.gd")
+const DUNGEON_DOOR := preload("res://scripts/world/dungeon_door.gd")
 const WORLD_MAP_UI := preload("res://scripts/ui/world_map_ui.gd")
+const WORLD_ATLAS_UI := preload("res://scripts/ui/world_atlas_ui.gd")
 
 ## Meia largura do vale (os testes conferem que a Arena fica fora dele).
 const MAP_HALF := 125.0
@@ -77,7 +80,7 @@ const MAP_HALF := 125.0
 ## abaixo só valem antes disso.
 var VILLAGE_SPAWN := Vector3(0, 0.3, 6)
 var RUINS := Vector3(0, 0, -100)
-var CAMP := Vector3(62, 0, 0)
+var CAMP := Vector3(86, 0, 0)
 ## Arena do Desafio da Horda: mapa próprio (scenes/maps/arena.tscn), longe ao norte, fora de Valdoria.
 var ARENA := Vector3(0, 0, -1000)
 ## Metade do lado do chão da arena (MapRoot.half da cena da Arena).
@@ -108,6 +111,8 @@ var region_spawns: Array = []
 var _boss_scan := 0.0
 var _travel_fade: ColorRect
 var spawns: Array = []
+## Sorteio do nível de quem nasce nos pontos (à parte do `rng` fixo do cenário).
+var _spawn_rng := RandomNumberGenerator.new()
 ## Pontos que vieram da praça (hub_point.gd): construções da base, Mestre Orin, mesa de guerra, recordes.
 var points: Array = []
 ## Lugares com nome dos mapas (MapLandmark): id -> posição (vale) e "mapa:id" -> posição (todos).
@@ -518,12 +523,19 @@ func _setup_enemies() -> void:
 		if s.get("night", false) and not night:
 			s.timer = 3.0   # bicho da noite: espera escurecer
 			continue
+		if s.has("dungeon") and int(s.slot) >= int(s.base):
+			s.timer = DUNGEON_RECHECK   # só nasce com mais jogadores dentro (DungeonRules.population)
+			continue
 		_spawn(s)
 
 
 func _spawn(entry: Dictionary) -> void:
 	var e := ENEMY.new()
 	e.kind = entry.kind
+	e.elite = entry.get("elite", false)
+	e.area = str(entry.get("area", ""))
+	e.chief = bool(entry.get("chief", false))
+	e.level = ProgressionRules.spawn_level(Balance.tables, entry.get("level", 0), entry.get("level_max", 0), e.elite, _spawn_rng)
 	e.position = entry.pos + Vector3.UP * 0.2
 	add_child(e)
 	entry.node = e
@@ -533,12 +545,36 @@ func _spawn(entry: Dictionary) -> void:
 func _on_spawn_died(_en: Enemy, entry: Dictionary) -> void:
 	entry.node = null
 	entry.timer = entry.respawn
+	if entry.has("dungeon"):
+		entry.timer = DungeonRules.respawn(Balance.tables, float(entry.respawn), _dungeon_players(str(entry.dungeon)),
+			bool(entry.get("boss", false)))
 
 
-func summon_minions(pos: Vector3, n: int, kind := "goblin") -> void:
+## Dungeons: quantos jogadores há dentro de cada uma (recontado a cada DUNGEON_RECHECK s).
+const DUNGEON_RECHECK := 2.0
+var _dungeon_count := {}
+var _dungeon_t := 0.0
+
+
+func _dungeon_players(dungeon: String) -> int:
+	return int(_dungeon_count.get(dungeon, 0))
+
+
+func _count_dungeon_players() -> void:
+	var pos: Array = []
+	for p in get_tree().get_nodes_in_group("players"):
+		pos.append((p as Node3D).global_position)
+	_dungeon_count = {}
+	for d in Regions.DUNGEONS:
+		_dungeon_count[d] = DungeonRules.players_in(d, pos)
+
+
+## Lacaios do chefe enfurecido (Rei Goblin, Lich): nascem no nível de quem invocou.
+func summon_minions(pos: Vector3, n: int, kind := "goblin", level := 0) -> void:
 	for i in n:
 		var e := ENEMY.new()
 		e.kind = kind
+		e.level = level
 		e.position = pos + Vector3(cos(i * PI) * 4.0, 0.3, sin(i * PI + 0.5) * 4.0)
 		add_child(e)
 		FX.burst(e.position + Vector3.UP, Color(0.3, 0.5, 0.15), 25, 5.0)
@@ -553,6 +589,7 @@ func _check_boss() -> void:
 		if boss == null or not is_instance_valid(boss):
 			boss = ENEMY.new()
 			boss.kind = "goblin_king"
+			boss.level = ProgressionRules.enemy_level(Balance.tables, "goblin_king", 0)
 			boss.position = RUINS + Vector3.UP * 0.3
 			add_child(boss)
 			hud.boss = boss
@@ -564,6 +601,7 @@ func server_spawn_boss() -> void:
 		return
 	boss = ENEMY.new()
 	boss.kind = "goblin_king"
+	boss.level = ProgressionRules.enemy_level(Balance.tables, "goblin_king", 0)
 	boss.position = RUINS + Vector3.UP * 0.3
 	add_child(boss)
 
@@ -580,6 +618,10 @@ func _process(delta: float) -> void:
 	if _night_scan <= 0.0:
 		_night_scan = 2.0
 		_is_night_now = is_night()
+	_dungeon_t -= delta
+	if _dungeon_t <= 0.0:
+		_dungeon_t = DUNGEON_RECHECK
+		_count_dungeon_players()
 	for s in spawns:
 		if s.get("night", false) and not _is_night_now:
 			_day_leave(s)
@@ -587,7 +629,10 @@ func _process(delta: float) -> void:
 		if s.node == null and s.timer > 0:
 			s.timer -= delta
 			if s.timer <= 0:
-				if _any_player_near(s.pos, 25.0):
+				if s.has("dungeon") and int(s.slot) >= DungeonRules.population(Balance.tables, int(s.base),
+						_dungeon_players(str(s.dungeon))):
+					s.timer = DUNGEON_RECHECK   # vaga extra: espera mais gente entrar
+				elif _any_player_near(s.pos, 25.0) and not bool(s.get("boss", false)):
 					s.timer = 5.0
 				else:
 					_spawn(s)
@@ -638,8 +683,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		_open_menu(0)
 	elif event.is_action_pressed("character"):
 		_open_menu(1)
-	elif event.is_action_pressed("quest_log"):
+	elif event.is_action_pressed("talents"):
 		_open_menu(2)
+	elif event.is_action_pressed("quest_log"):
+		_open_menu(3)
+	elif event.is_action_pressed("professions"):
+		_open_menu(4)
 	elif event.is_action_pressed("world_map") and survival == null:
 		open_world_map()
 	elif event.is_action_pressed("party"):
@@ -653,12 +702,17 @@ func _unhandled_input(event: InputEvent) -> void:
 				return
 
 
-## Livro do mapa e do grupo, aberto na aba `tab` (WORLD_MAP_UI.TAB_MAP ou TAB_PARTY).
+## TAB_MAP abre o mapa-mundi em tela cheia (WORLD_ATLAS_UI); TAB_PARTY e TAB_FRIENDS, o livro do social.
 func open_world_map(tab := 0) -> void:
+	if tab == WORLD_MAP_UI.TAB_MAP:
+		var a := WORLD_ATLAS_UI.new()
+		a.world = self
+		a.capture = map_capture
+		_open_modal(a)
+		return
 	var m := WORLD_MAP_UI.new()
 	m.start_tab = tab
 	m.world = self
-	m.capture = map_capture
 	_open_modal(m)
 
 
@@ -671,7 +725,7 @@ func _open_menu(tab: int) -> void:
 ## Narração de abertura da história (personagem novo, primeira vez no mundo). Não roda nos testes.
 func _play_intro() -> void:
 	var args := OS.get_cmdline_user_args()
-	if DisplayServer.get_name() == "headless" or "--smoketest" in args \
+	if DisplayServer.get_name() == "headless" or "--smoketest" in args or "--nointro" in args \
 			or Array(args).any(func(a: String) -> bool: return a.begins_with("--nettest")):
 		return
 	await get_tree().create_timer(1.5).timeout
@@ -793,6 +847,13 @@ func open_cooking(kitchen: Node = null) -> void:
 	_open_modal(ui)
 
 
+## Bancada de craft de uma estação ("forge", "leather", "alchemy"; ver CraftingUI).
+func open_crafting(station: String) -> void:
+	var ui := CraftingUI.new()
+	ui.station = station
+	_open_modal(ui)
+
+
 ## Painel de um ponto que veio da praça (hub_point.interact): Mestre Orin ou o quadro de recordes.
 func open_point_panel(point: Node) -> void:
 	var ui: Control = null
@@ -860,7 +921,9 @@ func _respawn() -> void:
 	Game.death_penalty()   # o ouro perdido e o aviso vêm das regras
 	modal = null
 	_set_paused(false)
-	player.revive(VILLAGE_SPAWN)
+	# morreu numa dungeon: volta na porta dela, no mapa de fora
+	var here := Regions.region_at(player.global_position)
+	player.revive(Regions.door_point(here) if Regions.is_dungeon(here) else VILLAGE_SPAWN)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if Network.is_online():
 		return   # no multiplayer o servidor cuida dos inimigos
@@ -900,8 +963,18 @@ func make_entity(e: MapEntity) -> Node3D:
 			n = plot
 		"kitchen":
 			n = KITCHEN.new()
+		"dungeon_door":
+			var door := DUNGEON_DOOR.new()
+			door.target = e.ref
+			n = door
+		"station":
+			var st := CRAFTING_STATION.new()
+			st.station = e.ref
+			n = st
 		"portal":
 			n = PORTAL.new()
+		"guard":
+			n = VillageGuard.new()
 		"santa":
 			santa = SANTA.new()
 			n = santa
@@ -925,9 +998,12 @@ func make_entity(e: MapEntity) -> Node3D:
 
 ## Bosque, Mina e Pico: cada um vem da cena dele (scenes/maps/<mapa>.tscn, MapLoader), na origem da região.
 func _build_regions() -> void:
-	for id in Regions.ORDER:
+	for id in Regions.ALL:   # Bosque, Mina, Pico e as dungeons
 		if id != "vila":
 			maps[id] = MapLoader.build(self, id)   # chão em region_grounds[id], monstros em region_spawns
+	# lê já (atrás da tela de carregamento) as regiões com nome de todos os mapas: o HUD, o mapa e as missões
+	# consultam Regions.area_at durante o jogo, e a primeira leitura instancia as cenas dos mapas
+	MapData.all_areas()
 
 
 ## O servidor dedicado e o solo criam os monstros; o cliente online recebe do servidor.
@@ -982,6 +1058,49 @@ func travel_to(region: String) -> void:
 	var tw := create_tween()
 	tw.tween_property(_travel_fade, "color:a", 1.0, 0.4)
 	tw.tween_callback(_arrive.bind(region))
+	tw.tween_interval(0.35)
+	tw.tween_property(_travel_fade, "color:a", 0.0, 0.5)
+	tw.tween_callback(func() -> void: player.input_locked = false)
+
+
+## Porta de dungeon: entra (`target` = id da dungeon; pede o rank dela) ou sai ("out": volta à porta de fora).
+func use_dungeon_door(target: String) -> void:
+	if player == null or player.dead:
+		return
+	if target == "out":
+		var here := Regions.region_at(player.global_position)
+		_teleport(Regions.door_point(here), Regions.display_name(Regions.parent_of(here)), "SAINDO DA DUNGEON")
+		return
+	if not Regions.is_dungeon(target):
+		return
+	if not Regions.unlocked(target, Game.rank()):
+		Game.notify.emit("%s exige Rank %s na guilda." % [Regions.display_name(target), Regions.DATA[target].rank],
+			Color(1, 0.6, 0.5))
+		return
+	_teleport(Regions.arrive_point(target), Regions.display_name(target), "DUNGEON")
+
+
+## Escurece a tela, leva o jogador a `to` e mostra o cartão com o nome do lugar.
+func _teleport(to: Vector3, title: String, kicker: String) -> void:
+	if _travel_fade == null:
+		var layer := CanvasLayer.new()
+		layer.layer = 30
+		layer.process_mode = Node.PROCESS_MODE_ALWAYS
+		add_child(layer)
+		_travel_fade = ColorRect.new()
+		_travel_fade.color = Color(0, 0, 0, 0)
+		_travel_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_travel_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		layer.add_child(_travel_fade)
+	player.input_locked = true
+	var tw := create_tween()
+	tw.tween_property(_travel_fade, "color:a", 1.0, 0.4)
+	tw.tween_callback(func() -> void:
+		player.global_position = to
+		player.velocity = Vector3.ZERO
+		Sfx.play("portal", -6.0)
+		if story_card:
+			story_card.enqueue(kicker, title))
 	tw.tween_interval(0.35)
 	tw.tween_property(_travel_fade, "color:a", 0.0, 0.5)
 	tw.tween_callback(func() -> void: player.input_locked = false)

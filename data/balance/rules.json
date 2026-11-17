@@ -1,10 +1,7 @@
 {
 	"sell_ratio": 0.5,
-	"xp_curve": {
-		"base": 60,
-		"exp": 1.55
-	},
 	"points_per_level": 3,
+	"enemy_sleep_radius": 60,
 	"farm": {
 		"plots": 12,
 		"start": 6,

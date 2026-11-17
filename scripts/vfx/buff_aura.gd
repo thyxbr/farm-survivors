@@ -13,28 +13,24 @@ const SH_GROUND := preload("res://shaders/aura_ground.gdshader")
 const SH_SHIELD := preload("res://shaders/aura_shield.gdshader")
 const SH_RIM := preload("res://shaders/aura_rim.gdshader")
 
-## Estilo de aura de cada buff (comida). Comida fora da lista usa o primeiro bônus (ver style_for).
-const FOOD_AURA := {
-	"bread": "cura", "carrot_stew": "escudo", "spicy_soup": "furia", "dragon_chili": "dragao",
-	"mint_tea": "vento", "garden_salad": "sorte", "pumpkin_pie": "escudo", "valdoria_feast": "heroi",
-}
-const STAT_AURA := {
-	"damage": "furia", "crit": "furia", "defense": "escudo", "max_hp_flat": "escudo",
-	"regen": "cura", "lifesteal": "cura", "speed": "vento", "cooldown": "vento",
-	"xp": "sorte", "magnet": "sorte", "gold": "sorte",
-}
 ## Cor principal de cada estilo (marca no chão e contorno do corpo).
 const COLORS := {
 	"cura": Color(0.35, 1.0, 0.45), "escudo": Color(0.35, 0.65, 1.0), "furia": Color(1.0, 0.22, 0.08),
 	"dragao": Color(1.0, 0.5, 0.08), "vento": Color(0.6, 0.95, 1.0), "sorte": Color(1.0, 0.85, 0.3),
-	"heroi": Color(1.0, 0.8, 0.3),
+	"heroi": Color(1.0, 0.8, 0.3), "luz": Color(0.55, 0.8, 1.0), "sagrado": Color(1.0, 0.87, 0.4),
 }
-const STYLES := ["cura", "escudo", "furia", "dragao", "vento", "sorte", "heroi"]
+const STYLES := ["cura", "escudo", "furia", "dragao", "vento", "sorte", "heroi", "luz", "sagrado"]
+## Estilos "desenhados" (os buffs do healer): mesmas formas das habilidades dele (HolyFX), em paleta de
+## três tons: selo de pincel no chão, feixes suaves em volta do corpo e brilhos de 4 pontas.
+const DRAWN := {"luz": HolyFX.PAL_WARD, "sagrado": HolyFX.PAL_GOLD}
+## Buffs do healer que usam os estilos desenhados no lugar do `aura` de buffs.json (que o teste de
+## balanceamento compara com o snapshot das tabelas antigas: fica como está).
+const DRAWN_BUFFS := {"scepter_ward": "luz", "scepter_feast": "sagrado"}
 ## Marca no chão de cada estilo: traços do anel, giro (voltas/s) e brilho do miolo.
 const GROUND := {
 	"cura": [0.0, 0.0, 0.3], "escudo": [16.0, 0.12, 0.15], "furia": [0.0, 0.0, 0.55],
 	"dragao": [10.0, 0.5, 0.6], "vento": [0.0, 0.0, 0.2], "sorte": [8.0, -0.2, 0.12],
-	"heroi": [14.0, 0.3, 0.45],
+	"heroi": [14.0, 0.3, 0.45], "luz": [0.0, 0.0, 0.0], "sagrado": [0.0, 0.0, 0.0],
 }
 const RING_RADIUS := 0.64      # anel da primeira aura
 const RING_STEP := 0.2         # cada aura a mais ganha um anel maior, por fora
@@ -52,17 +48,15 @@ var _y_smooth := 0.0
 var _first := true
 
 
-static func style_for(food_id: String) -> String:
-	if FOOD_AURA.has(food_id):
-		return FOOD_AURA[food_id]
-	var add: Dictionary = ItemDB.get_item(food_id).get("buff", {}).get("add", {})
-	for k in add:
-		if STAT_AURA.has(k):
-			return STAT_AURA[k]
-	return "cura"
+## Estilo de aura do buff `buff_id`: o campo `aura` de buffs.json ("cura" se faltar ou for desconhecido).
+static func style_for(buff_id: String) -> String:
+	if DRAWN_BUFFS.has(buff_id):
+		return DRAWN_BUFFS[buff_id]
+	var st: String = ItemDB.BUFFS.get(buff_id, {}).get("aura", "cura")
+	return st if st in STYLES else "cura"
 
 
-## ids: comidas com buff ativo (ex.: Game.food_buffs.keys()). Mais de uma comida = auras somadas.
+## ids: buffs ativos (ex.: Game.buffs.keys()). Mais de um buff = auras somadas.
 func set_buffs(ids: Array) -> void:
 	var want := {}
 	for id in ids:
@@ -111,6 +105,9 @@ func _layout_grounds() -> void:
 	var act := styles()
 	for i in act.size():
 		var g: Array = GROUND[act[i]]
+		if DRAWN.has(act[i]):
+			_ground_root.add_child(HolyFX.aura_seal(DRAWN[act[i]], (RING_RADIUS + RING_STEP * i) * 1.25))
+			continue
 		_ground_root.add_child(_ground(COLORS[act[i]], RING_RADIUS + RING_STEP * i, g[0], g[1],
 			g[2] if i == 0 else 0.0))
 
@@ -191,7 +188,7 @@ func _update_rim(key: String) -> void:
 
 func _set_overlay(n: Node, mat: Material) -> void:
 	for c in n.get_children():
-		if c == self or c.name == "WeaponHolder":
+		if c == self or c.name == "WeaponHolder" or str(c.name).begins_with("HealMark"):
 			continue
 		if c is MeshInstance3D:
 			c.material_overlay = mat
@@ -203,6 +200,10 @@ func _build(style: String) -> Node3D:
 	var root := Node3D.new()
 	root.name = style
 	var c: Color = COLORS[style]
+	if DRAWN.has(style):
+		root.add_child(HolyFX.aura_column(DRAWN[style]))
+		root.add_child(HolyFX.aura_stars(DRAWN[style]))
+		return root
 	match style:
 		"cura":     # verde calmo: fios de luz subindo devagar + poucas cruzinhas
 			root.add_child(_swirl(c, {"radius": 0.45, "height": 1.7, "streaks": 4.0, "twist": 1.0,

@@ -4,6 +4,9 @@ extends RefCounted
 ## (ability, ability_t, ability_data). Habilidades sem implementação: use() devolve false.
 
 # ------------------------------------------------------------------ Tiro Triplo (slot 1)
+## Habilidade de buff (slot 3): pose curta de braços erguidos; o efeito é o buff de mesmo id (Game.add_buff).
+const BUFF_TIME := 0.5
+const BUFF_COLOR := Color(0.5, 1.0, 0.45)
 const TRIPLE_DRAW := 0.12       ## puxa a corda (a esquiva cancela só até aqui)
 const TRIPLE_RECOVER := 0.25
 const TRIPLE_TIME := TRIPLE_DRAW + TRIPLE_RECOVER
@@ -47,6 +50,13 @@ static func use(player: Node, id: String) -> bool:
 			player.begin_ability(id, {})
 			Sfx.play("bow_draw", 0.05, -4.0)
 			return true
+		"bow_focus":
+			player.begin_ability(id, {})
+			Game.add_buff(id, Game.buff_duration(id))
+			Network.send_event(id, player.global_position, Vector3.ZERO)
+			FX.ring(player.global_position + Vector3.UP * 0.1, BUFF_COLOR, 2.2, 0.4)
+			Sfx.play("bow_draw", 0.05, -4.0)
+			return true
 		"bow_gale":
 			player.begin_ability(id, {"charge": 0.0, "fov0": player.camera.fov})
 			Network.send_event(id, player.global_position, Vector3.ZERO)
@@ -79,6 +89,9 @@ static func tick(player: Node, delta: float, _move_dir := Vector3.ZERO, _move_sp
 				if t0 < FROST_DRAW and player.ability_t >= FROST_DRAW:
 					_frost_fire(player)
 			if player.ability_t >= FROST_TIME - 0.0001:
+				player.end_ability()
+		"bow_focus":
+			if player.ability_t >= BUFF_TIME:
 				player.end_ability()
 		"bow_gale":
 			_gale_tick(player, t0, player.ability_t, delta)
@@ -113,6 +126,8 @@ static func pose(player: Node, p: Dictionary) -> void:
 				KnightAnim.bow_draw_pose(p, player.ability_t / FROST_DRAW)
 			else:
 				KnightAnim.bow_release_pose(p, clampf((player.ability_t - FROST_DRAW) / FROST_RECOVER, 0.0, 1.0), 0.0)
+		"bow_focus":
+			KnightAnim.play_track(p, KnightMoves.BUFF, clampf(player.ability_t / BUFF_TIME, 0.0, 1.0), 0.0)
 		"bow_gale":
 			var d: Dictionary = player.ability_data
 			var rec := -1.0
@@ -138,6 +153,10 @@ static func play_remote(player: Node, kind: String, a: Vector3, b: Vector3) -> v
 			_spawn_visual(player, a, b.normalized(), true)
 			_frost_fx(a, b)
 			Sfx.play_at("bow_shot", a, 0.08, -2.0)
+		"bow_focus":
+			player.begin_ability(kind, {})
+			FX.ring(a + Vector3.UP * 0.1, BUFF_COLOR, 2.2, 0.4)
+			Sfx.play_at("bow_draw", a, 0.05, -8.0)
 		"bow_gale":
 			# o dono começou a tensionar: pose e vento (o disparo chega em "bow_gale_fire")
 			player.begin_ability(kind, {"charge": 0.0})
@@ -397,7 +416,7 @@ static func _gale_hits(player: Node, d: Dictionary, front: float) -> void:
 	var hit: Dictionary = d.hit
 	var first := hit.is_empty()
 	var n := hit.size()
-	var dmg: float = Game.melee_damage() * lerpf(GALE_MULT_MIN, GALE_MULT_MAX, float(d.charge))
+	var dmg: float = Game.melee_damage() * lerpf(GALE_MULT_MIN, GALE_MULT_MAX, float(d.charge)) * Game.ability_dmg_mult("bow_gale")
 	var any := false
 	for e in player.get_tree().get_nodes_in_group("enemies"):
 		if e.dead or hit.has(e.get_instance_id()):

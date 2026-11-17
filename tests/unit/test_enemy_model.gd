@@ -109,21 +109,22 @@ func test_merged_copy_keeps_groups_and_special_pieces() -> void:
 	root.free()
 
 
-## O goblin de verdade: mais de cem peças no GLB, 8 malhas no modelo pronto (uma por grupo que o código
-## anima e uma por peça de equipamento da variante; as peças das outras variantes saem antes de juntar).
+## O goblin de verdade: mais de cem peças no GLB, 10 malhas no modelo pronto (uma por grupo que o código
+## anima, os antebraços inclusive, e uma por peça de equipamento da variante; as peças das outras variantes
+## saem antes de juntar).
 func test_goblin_instance_has_one_mesh_per_group() -> void:
 	var data := {"model": "goblin", "scale": 1.0, "gear": ["Club", "Crown"]}
 	var src: Node3D = EnemyModel.MODELS.goblin.instantiate()
 	EnemyGear.apply(src, data.gear)
 	var m := EnemyModel.instance("goblin_teste_rei", data)
 	T.eq(EnemyGear.names(m).size(), 2, "só o equipamento da variante fica no modelo pronto")
-	for n in ["Body", "Head", "ArmL", "ArmR", "LegL", "LegR", "Opt_Club", "Opt_Crown"]:
+	for n in ["Body", "Head", "ArmL", "ArmR", "ElbowL", "ElbowR", "LegL", "LegR", "Opt_Club", "Opt_Crown"]:
 		var g := m.find_child(n, true, false) as Node3D
 		var g0 := src.find_child(n, true, false) as Node3D
 		T.ok(g != null and g.get_node_or_null(EnemyModel.MERGED) is MeshInstance3D, "%s tem a malha juntada" % n)
 		T.ok(g != null and g.transform.is_equal_approx(g0.transform), "%s na posição do GLB" % n)
 	if not ToonLook.enabled():
-		T.eq(m.find_children("*", "MeshInstance3D", true, false).size(), 8, "oito malhas")
+		T.eq(m.find_children("*", "MeshInstance3D", true, false).size(), 10, "dez malhas")
 	T.eq(_tris(m), _tris(src), "os mesmos triângulos do GLB")
 	T.ok(EnemyModel.instance("goblin_teste_rei", data) != m, "cada chamada devolve uma cópia nova")
 	src.free()
@@ -143,3 +144,20 @@ func test_tint_shares_one_copy_per_material() -> void:
 		T.ok(cb.is_equal_approx(ca.lerp(Color(1, 0, 0), 0.5)), "cor puxada para a tintura")
 	plain.free()
 	red.free()
+
+
+## Tinta da camada de nível: multiplica a cor, peças com o mesmo material ficam com a mesma cópia e o
+## material original (compartilhado pelos outros monstros do tipo) não muda.
+func test_multiply_shades_copies() -> void:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.5, 0.5, 0.5)
+	var root := Node3D.new()
+	root.add_child(_piece(Vector3.ZERO, mat))
+	root.add_child(_piece(Vector3(1, 0, 0), mat))
+	EnemyModel.multiply(root, Color(1.2, 0.8, 1.0))
+	var a := (root.get_child(0) as MeshInstance3D).get_active_material(0) as StandardMaterial3D
+	var b := (root.get_child(1) as MeshInstance3D).get_active_material(0) as StandardMaterial3D
+	T.ok(a != mat and a == b, "uma cópia só, dividida pelas peças")
+	T.ok(a.albedo_color.is_equal_approx(Color(0.6, 0.4, 0.5)), "cor multiplicada")
+	T.ok(mat.albedo_color.is_equal_approx(Color(0.5, 0.5, 0.5)), "original intacto")
+	root.free()

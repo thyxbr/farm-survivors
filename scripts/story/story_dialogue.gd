@@ -22,6 +22,7 @@ const NAMES := {
 	"board": "Quadro de Contratos",
 	"zelia": "Dona Zélia",
 	"rufus": "Rufus, o Guarda",
+	"guarda": "Guarda da Vila",
 	"tonico": "Seu Tonico",
 	"ravi": "Ravi, o Caçador",
 	"osvaldo": "Sir Osvaldo",
@@ -49,6 +50,7 @@ const COLORS := {
 	"board": Color(0.8, 0.68, 0.5),
 	"zelia": Color(1.0, 0.7, 0.75),
 	"rufus": Color(0.7, 0.75, 0.85),
+	"guarda": Color(0.7, 0.75, 0.85),
 	"tonico": Color(0.75, 0.85, 0.35),
 	"ravi": Color(0.55, 0.75, 0.45),
 	"osvaldo": Color(0.85, 0.82, 0.7),
@@ -346,7 +348,22 @@ static func _lina_services() -> Array:
 		]})
 	elif StoryRules.state(Game.quests, "registro") == "done" and not nx.is_empty():
 		out.append({"text": "Quero ser promovido", "pages": [p(rank_block())]})
+	if Game.char_class != "":
+		out.append({"text": "Redistribuir talentos", "pages": _talent_reset_pages()})
 	return out
+
+
+## A Lina redistribui os talentos da classe: devolve todos os pontos por talent_reset_cost() de ouro.
+static func _talent_reset_pages() -> Array:
+	if Game.talents.is_empty():
+		return [p("Seus pontos de talento estão todos guardados. Quando gastar algum e se arrepender, é só voltar aqui!")]
+	var cost := Game.talent_reset_cost()
+	var spent := Game.level - 1 - Game.talent_points()
+	var price := "Até o nível 5 é de graça, cortesia da guilda!" if cost == 0 		else "A taxa da guilda é %d de ouro. Papelada não se carimba sozinha." % cost
+	var head := p("Redistribuir talentos? Eu apago a ficha e você recebe os %d pontos de volta para gastar de novo. %s" % [spent, price])
+	var label := "Redistribuir (grátis)" if cost == 0 else "Redistribuir (%d de ouro)" % cost
+	head["choices"] = [{"text": label, "action": Game.reset_talents}, {"text": "Melhor não", "action": Callable()}]
+	return [head]
 
 
 # ================================================================ carruagem
@@ -460,9 +477,9 @@ static func _services(id: String) -> Array:
 		"merchant":
 			return [{"text": "Ver mercadorias", "action": _open_shop}]
 		"alchemist":
-			return [{"text": "Ver poções", "action": _open_shop}]
+			return [{"text": "Ver poções", "action": _open_shop}, {"text": "Alquimia", "action": _open_crafting.bind("alchemy")}]
 		"blacksmith":
-			return [{"text": "Encantar arma", "action": _open_enchant}]
+			return [{"text": "Encantar arma", "action": _open_enchant}, {"text": "Forjar", "action": _open_crafting.bind("forge")}]
 	return []
 
 
@@ -470,6 +487,12 @@ static func _open_shop() -> void:
 	var w: Node = (Engine.get_main_loop() as SceneTree).current_scene
 	if w and w.has_method("open_shop"):
 		w.open_shop()
+
+
+static func _open_crafting(station: String) -> void:
+	var w: Node = (Engine.get_main_loop() as SceneTree).current_scene
+	if w and w.has_method("open_crafting"):
+		w.open_crafting(station)
 
 
 static func _open_enchant() -> void:

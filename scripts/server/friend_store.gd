@@ -15,9 +15,12 @@ func _init(db: Db) -> void:
 	_db = db
 
 
-## Pede amizade a `name` (nome da conta, sem diferenciar maiúsculas).
+## Pede amizade a `name`: o nome de um herói (o que aparece no jogo) ou o da conta, sem diferenciar
+## maiúsculas. A amizade é entre as contas.
 func request(from: int, name: String) -> Dictionary:
-	var rows := _db.query("SELECT id FROM accounts WHERE username = ?", [name.strip_edges()])
+	var rows := _db.query("SELECT account_id AS id FROM characters WHERE name = ? AND name != ''", [name.strip_edges()])
+	if rows.is_empty():
+		rows = _db.query("SELECT id FROM accounts WHERE username = ?", [name.strip_edges()])
 	if rows.is_empty():
 		return _fail("sem_conta")
 	var to := int(rows[0].id)
@@ -66,12 +69,14 @@ func state(me: int, other: int) -> String:
 	return str(rows[0].state) if not rows.is_empty() else ""
 
 
-## Amigos e pedidos de `me`: [{"id", "name", "state", "since", "last_login"}], por nome.
+## Amigos e pedidos de `me`: [{"id", "name", "state", "since", "last_login"}], por nome. O nome é o do
+## herói jogado por último pela conta amiga (sem herói com nome: o da conta).
 func list(me: int) -> Array:
 	var out: Array = []
-	for r in _db.query("SELECT f.friend_id AS id, a.username AS name, f.state AS state, f.since AS since, "
-			+ "COALESCE(a.last_login, 0) AS last_login FROM friends f JOIN accounts a ON a.id = f.friend_id "
-			+ "WHERE f.account_id = ? ORDER BY a.username COLLATE NOCASE", [me]):
+	for r in _db.query("SELECT f.friend_id AS id, COALESCE((SELECT c.name FROM characters c WHERE c.account_id = a.id "
+			+ "AND c.name != '' ORDER BY c.updated_at DESC, c.id DESC LIMIT 1), a.username) AS name, f.state AS state, "
+			+ "f.since AS since, COALESCE(a.last_login, 0) AS last_login FROM friends f JOIN accounts a ON a.id = f.friend_id "
+			+ "WHERE f.account_id = ? ORDER BY name COLLATE NOCASE", [me]):
 		out.append({"id": int(r.id), "name": str(r.name), "state": str(r.state), "since": int(r.since),
 			"last_login": int(r.last_login)})
 	return out

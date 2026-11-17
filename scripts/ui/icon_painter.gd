@@ -18,7 +18,7 @@ static func kind_for(id: String) -> String:
 	match it.type:
 		"weapon":
 			match ItemDB.weapon_class(id):
-				"staff":
+				"staff", "scepter":
 					return "staff"
 				"bow":
 					return "bow"
@@ -249,6 +249,40 @@ static func draw(ci: CanvasItem, kind: String, col: Color, r: Rect2, ghost := fa
 			_poly(ci, P, [Vector2(0.4, 0.15), Vector2(0.6, 0.15), Vector2(0.6, 0.4), Vector2(0.85, 0.4), Vector2(0.85, 0.6),
 				Vector2(0.6, 0.6), Vector2(0.6, 0.85), Vector2(0.4, 0.85), Vector2(0.4, 0.6), Vector2(0.15, 0.6),
 				Vector2(0.15, 0.4), Vector2(0.4, 0.4)], Color(0.35, 0.95, 0.45), ol, lw)
+		"holy_lance":   # lança de luz dourada na diagonal, com guarda e brilho na ponta
+			_poly(ci, P, [Vector2(0.86, 0.14), Vector2(0.62, 0.48), Vector2(0.52, 0.38)], Color(1.0, 0.95, 0.75), ol, lw)
+			_bar(ci, P, Vector2(0.58, 0.42), Vector2(0.16, 0.84), 0.07, Color(1.0, 0.82, 0.35), ol, lw)
+			_bar(ci, P, Vector2(0.46, 0.38), Vector2(0.62, 0.54), 0.06, Color(1.0, 0.75, 0.25), ol, lw)
+			if not ghost:
+				ci.draw_circle(P.call(0.84, 0.16), S * 0.07, Color(1, 1, 0.85, 0.9))
+		"ward":   # escudo de luz azul com a cruz
+			_poly(ci, P, [Vector2(0.5, 0.1), Vector2(0.84, 0.24), Vector2(0.8, 0.6), Vector2(0.5, 0.9),
+				Vector2(0.2, 0.6), Vector2(0.16, 0.24)], Color(0.5, 0.75, 1.0), ol, lw)
+			if not ghost:
+				_bar(ci, P, Vector2(0.5, 0.28), Vector2(0.5, 0.68), 0.09, Color(0.95, 0.98, 1.0), ol, lw * 0.5)
+				_bar(ci, P, Vector2(0.34, 0.44), Vector2(0.66, 0.44), 0.09, Color(0.95, 0.98, 1.0), ol, lw * 0.5)
+		"radiant":   # sol: disco dourado com raios
+			for i in 8:
+				var a := i * PI / 4.0
+				var d0 := Vector2(cos(a), sin(a))
+				ci.draw_line(P.call(0.5 + d0.x * 0.24, 0.5 + d0.y * 0.24), P.call(0.5 + d0.x * 0.42, 0.5 + d0.y * 0.42),
+					Color(1.0, 0.85, 0.35), maxf(2.0, S * 0.08), true)
+			_circle(ci, P.call(0.5, 0.5), S * 0.2, Color(1.0, 0.86, 0.4), ol, lw)
+			if not ghost:
+				ci.draw_circle(P.call(0.5, 0.5), S * 0.1, Color(1, 1, 0.85))
+		"fury":   # punho em chamas vermelhas
+			_poly(ci, P, [Vector2(0.2, 0.8), Vector2(0.28, 0.35), Vector2(0.42, 0.55), Vector2(0.5, 0.12),
+				Vector2(0.62, 0.5), Vector2(0.76, 0.3), Vector2(0.82, 0.8)], Color(0.95, 0.22, 0.1), ol, lw)
+			ci.draw_circle(P.call(0.5, 0.7), S * 0.12, Color(1, 0.8, 0.35))
+		"focus":   # olho de águia
+			_poly(ci, P, [Vector2(0.1, 0.5), Vector2(0.3, 0.32), Vector2(0.5, 0.26), Vector2(0.7, 0.32), Vector2(0.9, 0.5),
+				Vector2(0.7, 0.68), Vector2(0.5, 0.74), Vector2(0.3, 0.68)], Color(0.7, 1.0, 0.6), ol, lw)
+			_circle(ci, P.call(0.5, 0.5), S * 0.15, Color(0.15, 0.35, 0.12), ol, lw * 0.6)
+			ci.draw_circle(P.call(0.5, 0.5), S * 0.06, Color(1, 1, 0.8))
+		"ember":   # baforada de brasa
+			_circle(ci, P.call(0.4, 0.62), S * 0.24, Color(1, 0.4, 0.05), ol, lw)
+			_circle(ci, P.call(0.66, 0.42), S * 0.16, Color(1, 0.6, 0.12), ol, lw)
+			ci.draw_circle(P.call(0.4, 0.64), S * 0.11, Color(1, 0.9, 0.45))
 		"frost":
 			for i in 3:
 				var a := i * PI / 3.0

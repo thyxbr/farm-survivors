@@ -34,7 +34,7 @@ var _flash: ColorRect
 var _bars: Array[ColorRect] = []
 var _end_card := false
 var _end_kicker := ""
-var _box_style: StyleBoxFlat
+var _box_style: StyleBox
 var _plate_style: StyleBoxFlat
 
 
@@ -72,18 +72,10 @@ func _ready() -> void:
 		_bars.append(bar)
 	# caixa
 	box = PanelContainer.new()
-	_box_style = StyleBoxFlat.new()
-	_box_style.bg_color = Color(0.05, 0.045, 0.06, 0.9)
-	_box_style.border_color = UITheme.GOLD_DIM
-	_box_style.set_border_width_all(2)
-	_box_style.border_width_left = 6
-	_box_style.set_corner_radius_all(10)
-	_box_style.content_margin_left = 30
-	_box_style.content_margin_right = 30
+	# moldura do kit (madeira e ouro); a cor de quem fala vai na plaquinha do nome
+	_box_style = UITheme.kit_panel(30)
 	_box_style.content_margin_top = 26
 	_box_style.content_margin_bottom = 14
-	_box_style.shadow_color = Color(0, 0, 0, 0.5)
-	_box_style.shadow_size = 10
 	box.add_theme_stylebox_override("panel", _box_style)
 	box.anchor_left = 0.5
 	box.anchor_right = 0.5
@@ -189,7 +181,8 @@ func _show_page() -> void:
 	name_label.text = who
 	var col: Color = StoryDialogue.color_of(who) if who != "" else StoryDialogue.COLORS[""]
 	_plate_style.bg_color = col
-	_box_style.border_color = col.darkened(0.25) if who != "" else Color(0.45, 0.47, 0.52)
+	if _box_style is StyleBoxFlat:   # sem as texturas do kit: borda na cor de quem fala
+		(_box_style as StyleBoxFlat).border_color = col.darkened(0.25) if who != "" else Color(0.45, 0.47, 0.52)
 	var size_px := 22
 	var color := UITheme.TEXT
 	_speed = CPS

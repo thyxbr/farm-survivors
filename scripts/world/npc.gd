@@ -17,6 +17,14 @@ var head: Node3D
 var marker: Label3D
 var _t := 0.0
 var _base_yaw := 0.0
+## Longe da câmera (além de ANIM_DIST) o NPC para de animar e de virar para o jogador; além de HIDE_DIST o
+## modelo some (o marcador !/? continua). Ver _check_far.
+const ANIM_DIST := 45.0
+const HIDE_DIST := 120.0
+const FAR_MARGIN := 6.0
+const FAR_SCAN := 0.5
+var far := false
+var _far_scan := 0.0
 
 
 func _ready() -> void:
@@ -37,6 +45,7 @@ func _ready() -> void:
 	if ToonLook.enabled():
 		ToonLook.apply(model)
 	_base_yaw = model.rotation.y
+	_far_scan = randf() * FAR_SCAN
 	head = model.find_child("Head", true, false)
 	var tag := Label3D.new()
 	tag.text = npc_name
@@ -107,7 +116,31 @@ func turn_to(pos: Vector3) -> void:
 	model.rotation.y = atan2(to.x, to.z) - global_rotation.y
 
 
+## Confere a distância até a câmera (duas vezes por segundo) e diz se o NPC está longe demais para animar.
+## Os mapas ficam todos na mesma cena: sem isso os NPCs dos quatro animam o tempo todo (docs/desempenho/).
+func _check_far(delta: float) -> bool:
+	_far_scan -= delta
+	if _far_scan > 0.0:
+		return far
+	_far_scan = FAR_SCAN
+	var cam := get_viewport().get_camera_3d()
+	var d := global_position.distance_to(cam.global_position) if cam != null else 0.0
+	var now := d > (ANIM_DIST if far else ANIM_DIST + FAR_MARGIN)
+	model.visible = d < (HIDE_DIST if not model.visible else HIDE_DIST + FAR_MARGIN)
+	if now != far:
+		far = now
+		_on_far_changed()
+	return far
+
+
+## Chamado quando o NPC passa a estar longe (far) ou volta a estar perto. As subclasses param a animação.
+func _on_far_changed() -> void:
+	pass
+
+
 func _process(delta: float) -> void:
+	if _check_far(delta):
+		return
 	_t += delta
 	marker.position.y = 2.85 + sin(_t * 3.0) * 0.08
 	var player := get_tree().get_first_node_in_group("player") as Node3D

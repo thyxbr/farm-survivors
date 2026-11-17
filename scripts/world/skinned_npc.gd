@@ -38,6 +38,12 @@ func _ready() -> void:
 		set_process(false)
 
 
+## Longe da câmera o AnimationPlayer para (o esqueleto fica na pose em que estava).
+func _on_far_changed() -> void:
+	if anim != null and _animate:
+		anim.active = not far
+
+
 ## Nome do clipe a tocar: a versão do Mixamo, se a biblioteca "mixamo" existir e tiver o clipe.
 func clip(clip_name: String) -> String:
 	return _resolve(anim, clip_name)

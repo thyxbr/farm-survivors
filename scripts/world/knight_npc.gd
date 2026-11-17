@@ -59,6 +59,8 @@ func _start_emote(kind: String) -> void:
 func _process(delta: float) -> void:
 	if not get_tree().paused:
 		super._process(delta)
+	if far and not _talking:
+		return      # longe da câmera: fica na pose em que estava
 	_anim_t += delta
 	if _talking and get_tree().current_scene.get("modal") == null:
 		_talking = false

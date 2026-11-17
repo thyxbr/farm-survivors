@@ -23,6 +23,8 @@ var name_label: Label
 var gold_label: Label
 var class_label: Label
 var points_chip: PanelContainer
+## Pontos de talento livres ("+N talento [K]"), ao lado dos de atributo.
+var talent_chip: PanelContainer
 ## Rank da guilda ao lado do nome (some antes do registro).
 var rank_chip: PanelContainer
 var season_badge: SeasonBadge
@@ -32,7 +34,7 @@ var loot_box: VBoxContainer
 var prompt_box: HBoxContainer
 var prompt: Label
 var slots := {}
-var _slot_ids: Array[String] = ["", "", "", ""]   # id da habilidade em cada slot 1..4
+var _slot_ids: Array[String] = ["", "", "", "", ""]   # id da habilidade em cada slot 1..ItemDB.SLOT_COUNT
 var _kit_class := ""
 var boss_panel: VBoxContainer
 var boss_bar: GhostBar
@@ -60,7 +62,13 @@ const QUEST_W := 330.0
 var minimap: MapView
 ## Moldura e dica do minimapa: somem no Desafio da Horda (a arena é um mapa à parte, sem foto de cima).
 var _minimap_frame: Control
-var _minimap_hint: Control
+var _minimap_hint: Label
+## Região com nome onde o jogador está (Regions.area_at, a cada AREA_SCAN s) e a última anunciada no letreiro.
+var region_banner: RegionBanner
+var area_now := ""
+var _area_shown := ""
+var _area_scan := 0.0
+const AREA_SCAN := 0.5
 var party_frames: PartyFrames
 
 
@@ -101,6 +109,8 @@ func _ready() -> void:
 	_build_dock()
 	_build_boss()
 	_build_help()
+	region_banner = RegionBanner.new()
+	root.add_child(region_banner)
 	if Network.is_online():
 		party_frames = PartyFrames.new()
 		party_frames.player = player
@@ -110,6 +120,7 @@ func _ready() -> void:
 	Game.notify.connect(_on_notify)
 	Game.item_looted.connect(_on_loot)
 	Game.stats_changed.connect(_refresh_static)
+	Game.stats_changed.connect(_check_prog_notice)
 	Game.inventory_changed.connect(_refresh_static)
 	Game.kit_changed.connect(_refresh_kit)
 	Game.quests_changed.connect(_refresh_quests)
@@ -117,6 +128,7 @@ func _ready() -> void:
 	Game.inventory_changed.connect(_refresh_quests)   # coleta: o progresso vem da mochila
 	_refresh_static()
 	_refresh_quests()
+	_check_prog_notice()
 
 
 ## Minimapa no canto superior direito (Valdoria); a estação e as missões descem para baixo dele.
@@ -124,7 +136,10 @@ func add_minimap(world: Node, capture: MapCapture) -> void:
 	if minimap != null:
 		return
 	var frame := PanelContainer.new()
-	frame.add_theme_stylebox_override("panel", UITheme._box(Color(0.04, 0.035, 0.03, 0.9), UITheme.GOLD_DIM, 2, 6, 3, 3))
+	# redondo: o MapView desenha o disco e a moldura; o painel só posiciona
+	var round := StyleBoxEmpty.new()
+	round.set_content_margin_all(3)
+	frame.add_theme_stylebox_override("panel", round)
 	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_anchor(frame, 1, 0, -MINIMAP_SIZE - 22, 12, MINIMAP_SIZE + 6, MINIMAP_SIZE + 6)
 	root.add_child(frame)
@@ -137,7 +152,9 @@ func add_minimap(world: Node, capture: MapCapture) -> void:
 	_minimap_frame = frame
 	var hint := UITheme.outlined("[M] mapa", 12, Color(0.85, 0.8, 0.65, 0.85), 3)
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_anchor(hint, 1, 0, -MINIMAP_SIZE - 20, MINIMAP_SIZE + 20, 80, 16)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.clip_text = true
+	_anchor(hint, 1, 0, -MINIMAP_SIZE - 20, MINIMAP_SIZE + 20, MINIMAP_SIZE + 2, 16)
 	root.add_child(hint)
 	_minimap_hint = hint
 	var below := MINIMAP_SIZE + 22.0
@@ -145,6 +162,24 @@ func add_minimap(world: Node, capture: MapCapture) -> void:
 	season_badge.offset_bottom += below
 	quest_box.offset_top += below
 	quest_box.offset_bottom += below
+
+
+## Região com nome: o letreiro ao chegar numa região nova (MapRules.entered) e o nome sob o minimapa.
+func _update_area() -> void:
+	if player == null or Game.run_mods.active:
+		return
+	var table: Dictionary = Balance.tables.get_table("regions")
+	area_now = Regions.area_at(player.global_position)
+	if MapRules.entered(_area_shown, area_now):
+		var i := Regions.area_info(table, area_now)
+		var sub := "Nível %d a %d" % [i.level_min, i.level_max] if i.level_min > 0 else ""
+		if i.level_min > 0 and i.level_max == i.level_min:
+			sub = "Nível %d" % i.level_min
+		region_banner.show_area(i.name, sub)
+	if area_now != "":
+		_area_shown = area_now
+	if _minimap_hint != null:
+		_minimap_hint.text = ("%s  [M]" % Regions.area_label(table, area_now)) if area_now != "" else "[M] mapa"
 
 
 ## Destino da missão rastreada no mapa atual (ou a carruagem, se ele é em outro mapa); null = nenhum.
@@ -218,6 +253,11 @@ func _build_plate() -> void:
 	points_chip.add_child(UITheme.label("", 12, Color(0.12, 0.08, 0.02)))
 	points_chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	plate.add_child(points_chip)
+	talent_chip = PanelContainer.new()
+	talent_chip.add_theme_stylebox_override("panel", UITheme._box(Color(0.55, 0.8, 1.0, 0.9), Color(0.85, 0.95, 1.0), 1, 8, 6, 1))
+	talent_chip.add_child(UITheme.label("", 12, Color(0.03, 0.08, 0.16)))
+	talent_chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	plate.add_child(talent_chip)
 	_ignore_all(plate)
 
 
@@ -281,7 +321,7 @@ func _build_dock() -> void:
 	plate.add_child(bar)
 	slots["attack"] = _action(bar, "M1")
 	_gap(bar)
-	for n in range(1, 5):
+	for n in range(1, ItemDB.SLOT_COUNT + 1):
 		slots["slot_%d" % n] = _action(bar, str(n))
 	var ring := FuryRing.new()   # anel de fúria em volta do slot da ultimate, um pouco para fora do slot
 	ring.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -380,6 +420,9 @@ func _build_help() -> void:
 
 
 # ================================================================ atualização
+var _drawn := {}      # ItemSlot -> assinatura do que está desenhado (ver _redraw)
+
+
 func _process(delta: float) -> void:
 	_t += delta
 	hp_orb.set_values(Game.hp, Game.max_hp())
@@ -388,8 +431,10 @@ func _process(delta: float) -> void:
 	st_bar.value = Game.stamina
 	var st_full := Game.stamina >= Game.max_stamina() - 0.5
 	st_bar.modulate.a = move_toward(st_bar.modulate.a, 0.0 if st_full else 1.0, delta * 3.0)
-	xp_bar.max_value = Game.xp_to_next()
-	xp_bar.value = Game.xp
+	# no nível máximo (xp_to_next = 0) a barra fica cheia
+	var xp_need := Game.xp_to_next()
+	xp_bar.max_value = maxi(xp_need, 1)
+	xp_bar.value = Game.xp if xp_need > 0 else 1
 
 	# vinheta: pisca ao levar dano e pulsa com vida baixa
 	if _last_hp >= 0.0 and Game.hp < _last_hp - 0.5:
@@ -410,6 +455,10 @@ func _process(delta: float) -> void:
 			prompt.text = t.interact_prompt()
 	_update_food()
 	_update_compass()
+	_area_scan -= delta
+	if _area_scan <= 0.0:
+		_area_scan = AREA_SCAN
+		_update_area()
 
 	# Desafio da Horda: esconde as missões e desce a barra do chefe para não cobrir o HUD da horda
 	var horde: bool = Game.run_mods.active
@@ -438,10 +487,10 @@ func _update_actions() -> void:
 	a.cooldown_text = ""
 	if player.drawing:
 		a.cooldown = 1.0 - player.bow_charge()
-	a.queue_redraw()
+	_redraw(a)
 	if _kit_class != Game.weapon_class():   # carregar jogo troca a arma sem passar pelo equipar
 		_refresh_kit()
-	for n in range(1, 5):
+	for n in range(1, ItemDB.SLOT_COUNT + 1):
 		var s: ItemSlot = slots["slot_%d" % n]
 		var id: String = _slot_ids[n - 1]
 		if id == "":
@@ -459,19 +508,30 @@ func _update_actions() -> void:
 			s.cooldown = clampf(cd / maxf(sp.cooldown * Game.cooldown_mult(), 0.01), 0.0, 1.0)
 			s.cooldown_text = ("%.1f" % cd) if cd > 0.0 else ""
 			s.info_text = "" if cd > 0.0 or sp.cost <= 0 else "%d" % sp.cost
+		_redraw(s)
+
+
+## Redesenha o slot só quando o que ele mostra mudou (antes eram 6 slots redesenhados a cada quadro).
+func _redraw(s: ItemSlot) -> void:
+	var sig := hash([s.item_id, s.icon_kind, s.ghost_kind, s.qty, s.info_text, s.cooldown, s.cooldown_text, s.dim, s.border_override])
+	if _drawn.get(s) != sig:
+		_drawn[s] = sig
 		s.queue_redraw()
 
 
-## Monta os ícones dos slots 1-4 a partir do kit da arma equipada.
+## Monta os ícones dos slots a partir do kit da arma equipada. Os slots 1-4 aparecem sempre; os de
+## depois (o 5 do cetro) só quando o kit tem habilidade neles.
 func _refresh_kit() -> void:
 	_kit_class = Game.weapon_class()
-	_slot_ids = ["", "", "", ""]
+	_slot_ids = ["", "", "", "", ""]
 	for id in Game.ability_kit():
 		_slot_ids[ItemDB.ABILITIES[id].slot - 1] = id
-	for n in range(1, 5):
+	for n in range(1, ItemDB.SLOT_COUNT + 1):
 		var s: ItemSlot = slots["slot_%d" % n]
 		var id: String = _slot_ids[n - 1]
+		s.visible = n <= 4 or id != ""
 		s.icon_kind = ItemDB.ABILITIES[id].icon if id != "" else ""
+		s.icon_tex = ItemSlot.skill_art(id)
 		s.dim = id == ""
 		s.cooldown = 0.0
 		s.cooldown_text = ""
@@ -483,13 +543,15 @@ func _refresh_static() -> void:
 	level_label.text = str(Game.level)
 	var n: String = str(Game.settings.get("player_name", ""))
 	name_label.text = n if n != "" else "Cavaleiro"
-	var cls := Game.weapon_class()
-	class_label.text = ItemDB.CLASS_NAMES[cls]
+	class_label.text = Game.class_display_name()
 	gold_label.text = "◆ ∞  ADMIN" if Game.admin_mode() else "◆ %d" % Game.gold
 	rank_chip.visible = Game.quest_state("registro") == "done"
 	(rank_chip.get_child(0) as Label).text = "RANK %s" % Game.rank()
 	points_chip.visible = Game.stat_points > 0
 	(points_chip.get_child(0) as Label).text = "+%d [C]" % Game.stat_points
+	var tp := Game.talent_points() if Game.char_class != "" else 0
+	talent_chip.visible = tp > 0
+	(talent_chip.get_child(0) as Label).text = "+%d talento [K]" % tp
 	for id in ["health_potion", "mana_potion"]:
 		var c := Game.count_item(id)
 		var s: ItemSlot = slots[id]
@@ -516,30 +578,28 @@ func _update_food() -> void:
 		s.dim = false
 		s.cooldown = clampf(Game.eat_cooldown / Game.EAT_COOLDOWN, 0.0, 1.0)
 		s.cooldown_text = ("%.1f" % Game.eat_cooldown) if Game.eat_cooldown > 0.0 else ""
-	s.queue_redraw()
+	_redraw(s)
 	# chips de bônus: cria/remove só quando a lista muda, o texto atualiza todo quadro
 	for id in _buff_chips.keys():
-		if not Game.food_buffs.has(id):
+		if not Game.buffs.has(id):
 			_buff_chips[id].panel.queue_free()
 			_buff_chips.erase(id)
-	for id in Game.food_buffs:
-		var it := ItemDB.get_item(id)
-		var c: Color = it.get("color", UITheme.GOLD)
+	for id in Game.buffs:
+		var row: Dictionary = ItemDB.BUFFS.get(id, {})
+		var c: Color = row.get("color", UITheme.GOLD)
 		if not _buff_chips.has(id):
 			var p := PanelContainer.new()
 			p.add_theme_stylebox_override("panel", UITheme._box(Color(0.05, 0.04, 0.03, 0.7), c.darkened(0.3), 1, 9, 6, 1))
 			var hb := HBoxContainer.new()
 			hb.add_theme_constant_override("separation", 4)
-			var icon := ItemSlot.new(18)
-			icon.item_id = id
-			hb.add_child(icon)
+			hb.add_child(ItemSlot.for_buff(id, 18))
 			var l := UITheme.label("", 12, c.lightened(0.2))
 			hb.add_child(l)
 			p.add_child(hb)
 			_ignore_all(p)
 			buff_box.add_child(p)
 			_buff_chips[id] = {"panel": p, "label": l}
-		var t: float = Game.food_buffs[id]
+		var t: float = Game.buffs[id]
 		var chip: Dictionary = _buff_chips[id]
 		chip.label.text = "%ds" % int(ceil(t))
 		chip.panel.modulate.a = 0.45 + 0.55 * abs(sin(t * 6.0)) if t < 5.0 else 1.0
@@ -597,7 +657,7 @@ func _refresh_quests() -> void:
 		elif CharRules.quest_type(d) == "talk":
 			txt = str(d.get("objective", "Fale com %s" % d.get("turn_in", d.giver)))
 		else:
-			txt = "%s: %d/%d" % [d.get("objective", d.get("target", "")), prog[0], prog[1]]
+			txt = "%s: %d/%d" % [StoryRules.objective(d, Balance.tables.get_table("regions")), prog[0], prog[1]]
 		var l := UITheme.outlined(txt, 16, UITheme.TEXT, 4)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -647,7 +707,7 @@ func _track_pos():
 	var here := Regions.region_at(player.global_position)
 	if Regions.region_at(p) != here:
 		_compass_far = Regions.display_name(Regions.region_at(p))
-		return Regions.coach_point(here)
+		return Regions.exit_point(here)
 	_compass_far = ""
 	return p
 
@@ -684,9 +744,16 @@ func _update_compass() -> void:
 	_compass.angle = atan2(to.normalized().dot(right.normalized()), to.normalized().dot(fwd.normalized()))
 	_compass.near = dist < 4.0
 	if _compass_far != "":
-		_compass_label.text = "carruagem → %s · %d m" % [_compass_far, int(dist)]
+		var via := "saída" if Regions.is_dungeon(Regions.region_at(player.global_position)) else "carruagem"
+		_compass_label.text = "%s → %s · %d m" % [via, _compass_far, int(dist)]
 	else:
 		_compass_label.text = "aqui" if dist < 4.0 else "%d m" % int(dist)
+
+
+## Personagem migrado para a progressão por nível: avisa uma vez que os pontos voltaram.
+func _check_prog_notice() -> void:
+	if Game.take_prog_notice():
+		_on_notify("Seus pontos de atributo foram devolvidos: a progressão mudou. Distribua de novo na ficha (C).", Color(1.0, 0.85, 0.3))
 
 
 func _on_notify(text: String, color: Color) -> void:

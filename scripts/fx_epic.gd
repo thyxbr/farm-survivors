@@ -272,6 +272,7 @@ static func prewarm() -> void:
 	_ring_tex()
 	TrailNode.shared_mat()
 	FX.prewarm()
+	FXShatter.prewarm()
 
 
 ## Cria uma vez cada tipo de efeito, longe da vista: o primeiro nó de cada malha/material ainda custava

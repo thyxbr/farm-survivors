@@ -22,7 +22,7 @@ func _ready() -> void:
 	add_child(root)
 
 	_panel = PanelContainer.new()
-	_panel.add_theme_stylebox_override("panel", UITheme.frame_box(UITheme.BG, Color(0.6, 0.42, 0.9), 14))
+	_panel.add_theme_stylebox_override("panel", UITheme.kit_panel(14))
 	_panel.anchor_left = 1.0
 	_panel.anchor_right = 1.0
 	_panel.offset_left = -390

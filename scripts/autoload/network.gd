@@ -16,6 +16,8 @@ extends Node
 
 signal join_failed(reason: String)
 signal players_changed
+## Cliente: chegou a lista de personagens da conta (tela de seleção). `created` = id recém-criado (0 = nenhum).
+signal char_list_changed(list: Array, created: int, err: String)
 ## Cliente: a fila do Desafio da Horda mudou (convite novo, alguém aceitou, fila fechou).
 signal horde_changed
 ## Cliente: mensagem de chat (nome vazio = aviso do servidor).
@@ -52,10 +54,13 @@ enum Mode { OFFLINE, SERVER, CLIENT }
 
 var mode := Mode.OFFLINE
 var port := DEFAULT_PORT
-## peer_id -> {"name": String (nome da conta), "account": int, "admin": bool, "look": Dictionary (espaço -> item),
+## peer_id -> {"name": String (nome da conta), "account": int, "char": int (personagem), "admin": bool, "look": Dictionary (espaço -> item),
 ## "ready": bool, "zone": String}
 var players := {}
 var my_name := ""
+## Personagens por conta (tela de seleção; cabem em volta da fogueira).
+const MAX_CHARACTERS := 4
+const CHAR_SELECT_SCENE := "res://scenes/char_select.tscn"
 ## Cliente: token da sessão (do Auth.login) mandado no _register.
 var my_token := ""
 ## Mensagem mostrada no menu principal depois de uma desconexão.
@@ -65,6 +70,8 @@ var enemies := {}         # net_id -> Enemy (servidor: reais; cliente: réplicas
 var remote_players := {}  # peer_id -> Player (réplica)
 ## Servidor: última posição recebida de cada jogador na zona atual (coleta de pickups confere a distância).
 var last_pos := {}        # peer_id -> Vector3
+var _last_heal := {}      # peer_id -> instante (s) da última Cura de healer aceita
+var _last_ally := {}      # peer_id -> {id da habilidade: instante (s)} do último buff em aliados aceito
 
 ## Servidor: banco SQLite, contas e API HTTP de login (abertos em start_server).
 var db: Db = null
@@ -88,6 +95,16 @@ var _autosave_t := 120.0
 var _pending := {}        # servidor: peer_id -> segundos até expulsar quem não se registrou
 var _chat_log := {}       # servidor: peer_id -> [instantes das últimas mensagens]
 var _shut_down := false   # servidor: personagens já gravados na saída
+
+## Servidor: contas logadas que ainda estão na tela de seleção de personagem (fora de `players`).
+## peer_id -> {"name", "account", "admin"}
+var _selecting := {}
+## Cliente: personagens da conta (o último _char_list do servidor).
+var char_list: Array = []
+## Cliente: nome da conta logada (vem com a lista de personagens; no jogo aparece o nome do herói).
+var account_name := ""
+## Cliente: id do personagem que o servidor acabou de criar (a seleção abre com ele escolhido; 0 = nenhum).
+var char_created := 0
 
 ## Servidor: fila aberta {"leader": id, "members": {id: true}, "declined": {id: true}, "t": s} ou {}.
 var _lobby := {}
@@ -182,6 +199,7 @@ func start_server() -> void:
 		return
 	accounts = AccountStore.new(db, admin_users)
 	characters = CharacterService.new(SqliteCharStore.new(db), Balance.tables)
+	characters.allow_reclass = "--test" in OS.get_cmdline_user_args()
 	for n in accounts.missing_admins():
 		var msg := "[server] aviso: admin '%s' ainda não tem conta — crie a conta antes que outro jogador registre esse nome" % n
 		print(msg)
@@ -257,6 +275,7 @@ func _no_throttle(id: int) -> void:
 
 func _on_peer_disconnected(id: int) -> void:
 	_pending.erase(id)
+	_selecting.erase(id)
 	_chat_log.erase(id)
 	Econ.server_peer_gone(id)
 	if is_server() and players.has(id):
@@ -266,18 +285,20 @@ func _on_peer_disconnected(id: int) -> void:
 
 ## Servidor: tira o jogador do jogo (saiu ou foi substituído por uma conexão nova da mesma conta).
 func _drop_player(id: int) -> void:
-	var account := int(players[id].get("account", 0))
+	var char_id := int(players[id].get("char", 0))
 	players.erase(id)
 	last_pos.erase(id)
+	_last_heal.erase(id)
+	_last_ally.erase(id)
 	_remove_remote_player(id)
 	for pid in _all_peers():
 		_player_left.rpc_id(pid, id)
 	players_changed.emit()
 	_horde_peer_gone(id)
 	Party.server_peer_gone(id)
-	if characters != null and account > 0:
+	if characters != null and char_id > 0:
 		# por sessão: a queda tardia de uma conexão velha não descarrega a sessão nova
-		characters.unload(account, id)
+		characters.unload(char_id, id)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -289,7 +310,7 @@ func _register(token: String, client_version: String, _look = {}, _extra = "") -
 	if not is_server():
 		return
 	var id := multiplayer.get_remote_sender_id()
-	if players.has(id):
+	if players.has(id) or _selecting.has(id):
 		return
 	_pending.erase(id)
 	if client_version != version():
@@ -304,22 +325,80 @@ func _register(token: String, client_version: String, _look = {}, _extra = "") -
 		_kick_later(id)
 		return
 	var account := int(acc.id)
-	# uma sessão por conta: a conexão antiga cai antes de aceitar a nova
-	for old in players.keys():
-		if int(players[old].get("account", 0)) == account:
+	# uma sessão por conta: a conexão antiga (jogando ou ainda na seleção) cai antes de aceitar a nova
+	for old in players.keys() + _selecting.keys():
+		var info: Dictionary = players.get(old, _selecting.get(old, {}))
+		if int(info.get("account", 0)) == account:
 			print("[server] %s entrou de novo (peer %d): derrubando o peer %d" % [acc.name, id, old])
-			_drop_player(old)
+			if players.has(old):
+				_drop_player(old)
+			_selecting.erase(old)
 			_rejected.rpc_id(old, "Sua conta entrou no jogo em outro lugar. Esta conexão foi encerrada.")
 			_kick_later(old)
-	characters.set_session(account, id)
+	# a conta fica na tela de seleção (fora do jogo) até escolher um personagem (_char_req "enter")
+	_selecting[id] = {"name": str(acc.name), "account": account, "admin": bool(acc.get("is_admin", false))}
+	print("[server] %s na seleção de personagem (peer %d, conta %d)" % [acc.name, id, account])
+	Econ.server_send_balance(id)
+	_char_list.rpc_id(id, characters.list_characters(account), 0, "", str(acc.name))
+
+
+# ---------------------------------------------------------------- seleção de personagem
+## Pedido da tela de seleção: "create" [nome, classe, corpo], "delete" [id] ou "enter" [id]. Só para quem está
+## na seleção; o personagem precisa ser da conta. Responde com a lista nova (_char_list).
+@rpc("any_peer", "call_remote", "reliable")
+func _char_req(op: String, args: Array) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not is_server() or not _selecting.has(id) or characters == null:
+		return
+	var account := int(_selecting[id].account)
+	var acc_name := str(_selecting[id].name)
+	var list := characters.list_characters(account)
+	match op:
+		"create":
+			if args.size() != 3 or not (args[0] is String) or not (args[1] is String) or not (args[2] is String):
+				return
+			if list.size() >= MAX_CHARACTERS:
+				_char_list.rpc_id(id, list, 0, "Você já tem %d personagens. Exclua um para criar outro." % MAX_CHARACTERS,
+					acc_name)
+				return
+			var r := characters.create_character(account, args[0], args[1], args[2])
+			if r.ok:
+				print("[server] %s criou o personagem %d: %s (%s)" % [acc_name, r.id, characters.name_of(r.id), args[1]])
+			_char_list.rpc_id(id, characters.list_characters(account), int(r.id),
+				"" if r.ok else CharacterService.explain_create(str(r.err)), acc_name)
+		"delete":
+			if args.size() != 1 or not (args[0] is int):
+				return
+			var ok := characters.delete_character(account, args[0])
+			_char_list.rpc_id(id, characters.list_characters(account), 0,
+				"" if ok else "Não deu para excluir o personagem.", acc_name)
+		"enter":
+			if args.size() != 1 or not (args[0] is int):
+				return
+			if characters.owner_of(args[0]) != account or not list.any(func(e: Dictionary) -> bool: return int(e.id) == args[0]):
+				_char_list.rpc_id(id, list, 0, "Personagem não encontrado.", acc_name)
+				return
+			_enter_world(id, args[0])
+
+
+## Servidor: a conta da seleção entra no jogo com o personagem `char_id` (o que o _register fazia antes).
+func _enter_world(id: int, char_id: int) -> void:
+	var sel: Dictionary = _selecting[id]
+	_selecting.erase(id)
+	characters.set_session(char_id, id)
 	# o visual vem do personagem guardado no servidor (o `look` do cliente fica só pela assinatura estável)
-	var char_look: Dictionary = characters.load_or_create(account).equipment
+	var char_look: Dictionary = characters.load_or_create(char_id).equipment
+	# no jogo aparece o nome do herói (chat, nome em cima, grupo, Horda); sem nome, o da conta
+	var shown := characters.name_of(char_id)
+	if shown == "":
+		shown = str(sel.name)
 	# zona "loading" até o cliente terminar de carregar Valdoria (_client_ready); "ready" = já carregou
-	players[id] = {"name": str(acc.name), "account": account, "admin": bool(acc.get("is_admin", false)),
-		"look": _clean_look(char_look, account), "ready": false, "zone": "loading"}
-	print("[server] %s entrou (peer %d, conta %d, %d online)" % [acc.name, id, account, players.size()])
+	players[id] = {"name": shown, "account": int(sel.account), "char": char_id, "admin": bool(sel.admin),
+		"look": _clean_look(char_look, char_id), "ready": false, "zone": "loading"}
+	print("[server] %s entrou com %s (personagem %d, peer %d, conta %d, %d online)" % [sel.name, shown, char_id, id,
+		sel.account, players.size()])
 	# tabelas e personagem antes do _accepted (mesmo canal confiável: chegam antes da troca de cena)
-	Econ.server_send_initial(id, account)
+	Econ.server_send_initial(id, char_id)
 	Weather.server_send_clock(id)   # estação, hora do jogo e clima pelo relógio do servidor
 	_accepted.rpc_id(id, players)
 	for pid in _all_peers():
@@ -328,11 +407,70 @@ func _register(token: String, client_version: String, _look = {}, _extra = "") -
 	players_changed.emit()
 
 
+## Cliente: lista de personagens da conta (chega depois do login e a cada criar/excluir).
+## `created` = id do personagem que acabou de ser criado (0 = nenhum); `err` = aviso para a tela;
+## `account` = nome da conta (a seleção mostra).
+@rpc("authority", "call_remote", "reliable")
+func _char_list(list: Array, created: int, err: String, account: String) -> void:
+	_connect_t = 0.0
+	char_list = list
+	account_name = account
+	if is_client() and _auto_pick_character(list, created, err):
+		return
+	if created > 0:
+		char_created = created
+	char_list_changed.emit(list, created, err)
+	# fora da seleção (menu principal depois do login, tela de criação depois de criar): abre a seleção.
+	# Erro na tela de criação fica nela (a tela mostra o aviso).
+	var scene := get_tree().current_scene
+	if err == "" and (scene == null or scene.scene_file_path != CHAR_SELECT_SCENE):
+		Loading.go(CHAR_SELECT_SCENE)
+
+
+## Testes e demos (Game.harness_class): sem tela, entra no primeiro personagem ou cria um com a classe pedida.
+func _auto_pick_character(list: Array, created: int, err: String) -> bool:
+	if Game.skip_auto_class:
+		return false
+	var pick := Game.harness_class(OS.get_cmdline_user_args())
+	if pick[0] == "":
+		return false
+	if created > 0:
+		char_enter(created)
+	elif not list.is_empty():
+		char_enter(int(list[0].id))
+	elif err == "":
+		char_create(account_name, pick[0], pick[1])   # o herói dos testes leva o nome da conta
+	else:
+		_fail(err)
+	return true
+
+
+## Cliente: pedidos da tela de seleção.
+func char_create(name: String, cls: String, body: String) -> void:
+	if is_client():
+		_char_req.rpc_id(1, "create", [name, cls, body])
+
+
+func char_delete(char_id: int) -> void:
+	if is_client():
+		_char_req.rpc_id(1, "delete", [char_id])
+
+
+func char_enter(char_id: int) -> void:
+	if is_client():
+		_char_req.rpc_id(1, "enter", [char_id])
+
+
 ## O cliente terminou de carregar Valdoria (o mundo do RPG).
 @rpc("any_peer", "call_remote", "reliable")
 func _client_ready() -> void:
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id):
+		return
+	# personagem sem classe não entra em zona nenhuma: o cliente legítimo passa antes pela tela de criação
+	# (choose_class pelo Econ) e só carrega Valdoria depois; fica em "loading" até escolher
+	if not server_has_class(id):
+		_horde_notice.rpc_id(id, "Escolha sua classe antes de entrar no mundo.")
 		return
 	server_set_zone(id, "world")
 	# quem entrou enquanto este jogador carregava o mapa não foi anunciado para ele: manda todos agora
@@ -363,6 +501,20 @@ func server_set_zone(id: int, zone: String) -> void:
 	for pid in _all_peers():
 		_player_zone.rpc_id(pid, id, zone)
 	players_changed.emit()
+
+
+## Servidor: o personagem guardado da conta do peer já tem classe (sem classe não entra em modo nenhum).
+func server_has_class(id: int) -> bool:
+	if not players.has(id) or characters == null:
+		return false
+	var char_id := int(players[id].get("char", 0))
+	return char_id > 0 and characters.load_or_create(char_id).char_class != ""
+
+
+## Servidor: a réplica do jogador está caída (flag NF_DEAD do último estado que ele mandou).
+func server_peer_dead(id: int) -> bool:
+	var rp: Player = remote_players.get(id)
+	return rp != null and is_instance_valid(rp) and rp.dead
 
 
 func zone_of(id: int) -> String:
@@ -398,7 +550,8 @@ func send_zone_enemies(id: int) -> void:
 	for net_id in enemies:
 		var e: Enemy = enemies[net_id]
 		if is_instance_valid(e) and not e.dead:
-			_enemy_spawned.rpc_id(id, net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e))
+			_enemy_spawned.rpc_id(id, net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e), e.level,
+				e.area)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -441,8 +594,11 @@ func _physics_process(delta: float) -> void:
 				multiplayer.multiplayer_peer.disconnect_peer(id)
 		_stats_t += delta
 		if _stats_t >= (5.0 if "--netstats" in OS.get_cmdline_user_args() else 300.0):
-			print("[server] %d online, %d inimigos, %d fps, %d snapshots/s" % [players.size(), enemies.size(),
-				Engine.get_frames_per_second(), int(_snapshots_sent / _stats_t)])
+			# tempo de script por quadro (ms): o servidor trava em 60 fps, então o fps só cai quando já passou do limite
+			print("[server] %d online, %d inimigos, %d fps, %d snapshots/s, process %.2f ms, physics %.2f ms" % [
+				players.size(), enemies.size(), Engine.get_frames_per_second(), int(_snapshots_sent / _stats_t),
+				Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+				Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0])
 			_stats_t = 0.0
 			_snapshots_sent = 0
 		_snap_t -= delta
@@ -475,12 +631,13 @@ func server_register_enemy(e: Enemy) -> void:
 	_next_enemy_id += 1
 	enemies[e.net_id] = e
 	for pid in _enemy_peers(e):
-		_enemy_spawned.rpc_id(pid, e.net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e))
+		_enemy_spawned.rpc_id(pid, e.net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e), e.level,
+			e.area)
 
 
-## Bits do spawn: 1 = horda, 2 = elite da horda.
+## Bits do spawn: 1 = horda, 2 = elite (da horda ou do mundo).
 static func _enemy_flags(e: Enemy) -> int:
-	return (1 if e.horde else 0) | (2 if e.elite else 0)
+	return (1 if e.horde else 0) | (2 if e.elite else 0) | (4 if e.chief else 0)
 
 
 ## Quem vê os inimigos: os jogadores em Valdoria.
@@ -503,22 +660,39 @@ func server_enemy_killed(e: Enemy) -> void:
 		for pid in e.contributors:
 			if players.has(pid) and zone_of(pid) == "world":
 				hitters.append(pid)
-		var rewards := Party.server_kill_rewards(int(e.data.xp), hitters, pos, "world")
+		var rewards := Party.server_kill_rewards(e.xp_reward(), hitters, pos, "world")
+		# em grupo, a diferença de nível usa o maior nível entre quem recebe do mesmo grupo
+		# (um estranho de nível alto que só acertou o monstro não derruba o XP de ninguém)
+		var levels := {}
+		for pid in rewards:
+			levels[pid] = Party._level(pid)
+		var group_levels := PartyRules.group_levels(rewards.keys(), Party.book.teams(), levels)
 		for pid in rewards:
 			if not players.has(pid):
 				continue
 			var r: Dictionary = rewards[pid]
+			var group_level := int(group_levels.get(pid, 1))
 			if r.kill:
-				Econ.server_kill(pid, e.kind, int(r.xp))
+				Econ.server_kill(pid, e.kind, int(r.xp), e.level, group_level, e.area)
 			elif int(r.xp) > 0:
-				Econ.server_grant(pid, 0, int(r.xp), {}, "party_xp", 0, false,
-					[{"t": "notify", "text": "+%d XP do grupo (longe demais para contar na missão)" % int(r.xp),
+				# quem está longe também leva o ajuste de nível (o abate perto o aplica em CharRules.kill)
+				var far_xp := int(r.xp)
+				if e.level > 0:
+					far_xp = int(round(far_xp * ProgressionRules.xp_diff_mult(Balance.tables, e.level, group_level)))
+				Econ.server_grant(pid, 0, far_xp, {}, "party_xp", 0, false,
+					[{"t": "notify", "text": "+%d XP do grupo (longe demais para contar na missão)" % far_xp,
 						"color": Color(0.7, 0.85, 1.0)}])
 			if r.loot:
-				Econ.server_drop_loot(pid, e.kind, pos, "world")
+				Econ.server_drop_loot(pid, e.kind, pos, "world", e.level, e.elite, e.chief)
 				_kill_reward.rpc_id(pid, e.kind, int(r.xp), pos)
 	for pid in _enemy_peers(e):
 		_enemy_died.rpc_id(pid, e.net_id)
+
+
+## Monstro abatido pela guarda da vila (Enemy.guard_kill): ninguém ganha nada, as réplicas só veem a morte.
+func server_enemy_guard_killed(e: Enemy) -> void:
+	for pid in _enemy_peers(e):
+		_enemy_guarded.rpc_id(pid, e.net_id)
 
 
 ## Inimigo que some sem morrer (guarda de covil que voltou a dormir): sem recompensa, só sai das réplicas.
@@ -586,15 +760,76 @@ func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow:
 	if not HitGuard.accepts(amount, last_pos.get(id, Vector3.INF), e.global_position):
 		return
 	if amount > 0.0:
+		e.last_hitter = id   # antes do número: incoming() usa o nível de quem bateu (monstro bem acima resiste)
 		for pid in _enemy_peers(e):
 			_enemy_hit_fx.rpc_id(pid, net_id, e.incoming(amount), crit)   # o número já com a marca tóxica
-		e.last_hitter = id
 		e.take_damage(amount, from_pos, crit, 0.0, 0.0, clampf(pull, 0.0, 6.0))
 		e.last_hitter = 0
 	if slow > 0.0 and not e.dead:
 		e.apply_slow(minf(slow, 10.0))
 	if stun > 0.0 and not e.dead:
 		e.apply_stun(minf(stun, 3.0))
+
+
+## Servidor: só a conta de classe healer cura, no máximo uma vez a cada HealRules.MIN_INTERVAL. O valor vem do
+## personagem gravado no servidor (CharRules.heal_amount), nunca do cliente. Cura um jogador só: o aliado
+## `target_peer` mirado (mesma zona, a até HealRules.TARGET_RANGE m) ou, sem alvo válido, o próprio healer.
+@rpc("any_peer", "call_remote", "reliable")
+func _request_heal(target_peer: int) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not is_server() or not players.has(id) or characters == null:
+		return
+	var char_id := int(players[id].get("char", 0))
+	if char_id <= 0:
+		return
+	var s := characters.load_or_create(char_id)
+	if s.char_class != "healer" or server_peer_dead(id):
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	if not HealRules.interval_ok(_last_heal.get(id, -INF), now):
+		return
+	_last_heal[id] = now
+	var amount := CharRules.heal_amount(s, Balance.tables)
+	var radius_bonus := float(CharRules.talent_mods(Balance.tables, s).get("ally_radius", 0.0))
+	var pid := HealRules.heal_target(id, target_peer, zone_peers(zone_of(id)), last_pos, radius_bonus)
+	if not server_peer_dead(pid):   # caído não recebe cura
+		_you_were_healed.rpc_id(pid, amount, id)
+
+
+## Servidor: Escudo de Luz / Banquete do Herói. O cliente manda só o id da habilidade; o buff vem de
+## HealRules.ALLY_BUFFS. Mesmas regras da Cura (healer, vivo, intervalo por habilidade, mesma zona, 8 m).
+## O Banquete também cura por completo. Quem pede (o healer) está sempre entre os alvos.
+@rpc("any_peer", "call_remote", "reliable")
+func _request_ally_buff(ability_id: String) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not is_server() or not players.has(id) or characters == null or not HealRules.ALLY_BUFFS.has(ability_id):
+		return
+	var char_id := int(players[id].get("char", 0))
+	if char_id <= 0:
+		return
+	var s := characters.load_or_create(char_id)
+	if s.char_class != "healer" or server_peer_dead(id):
+		return
+	# servidor em --test (allow_reclass): os personagens do net_test ficam no nível 1 e não há como subir; o gate
+	# em si é testado em test_heal_rules.gd
+	if not characters.allow_reclass and not HealRules.level_ok(s.level, int(ItemDB.ABILITIES[ability_id].level)):
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	var mine: Dictionary = _last_ally.get(id, {})
+	if not HealRules.interval_ok(mine.get(ability_id, -INF), now, ability_id):
+		return
+	mine[ability_id] = now
+	_last_ally[id] = mine
+	var buff: String = HealRules.ALLY_BUFFS[ability_id]
+	var tm := CharRules.talent_mods(Balance.tables, s)
+	# a duração leva o talento do healer que conjurou (o servidor manda os segundos; o cliente só limita)
+	var secs := HealRules.ally_buff_seconds(float(ItemDB.BUFFS[buff].time), float(tm.get("ability_time:" + ability_id, 0.0)))
+	for pid in HealRules.targets(id, zone_peers(zone_of(id)), last_pos, float(tm.get("ally_radius", 0.0))):
+		if server_peer_dead(pid):
+			continue
+		_you_got_buff.rpc_id(pid, buff, secs)
+		if ability_id == "scepter_ult":
+			_you_were_healed.rpc_id(pid, HealRules.ULT_HEAL, id)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -642,7 +877,7 @@ func _player_look(look: Dictionary) -> void:
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id):
 		return
-	players[id].look = _clean_look(look, int(players[id].get("account", 0)))
+	players[id].look = _clean_look(look, int(players[id].get("char", 0)))
 	_relay_look(id)
 
 
@@ -659,12 +894,12 @@ func _relay_look(id: int) -> void:
 func server_refresh_look(peer: int) -> void:
 	if not is_server() or not players.has(peer) or characters == null:
 		return
-	var account := int(players[peer].get("account", 0))
-	if account <= 0:
+	var char_id := int(players[peer].get("char", 0))
+	if char_id <= 0:
 		return
-	var fresh: Dictionary = characters.load_or_create(account).equipment.duplicate()
+	var fresh: Dictionary = characters.load_or_create(char_id).equipment.duplicate()
 	fresh["fx"] = players[peer].look.get("fx", {})
-	fresh = _clean_look(fresh, account)
+	fresh = _clean_look(fresh, char_id)
 	if fresh == players[peer].look:
 		return
 	players[peer].look = fresh
@@ -672,26 +907,34 @@ func server_refresh_look(peer: int) -> void:
 
 
 ## Servidor: encanto ({"el", "lv"}) da arma que a conta tem equipada, lido do personagem gravado.
-func server_weapon_enchant(account: int) -> Dictionary:
-	if account <= 0 or characters == null:
+func server_weapon_enchant(char_id: int) -> Dictionary:
+	if char_id <= 0 or characters == null:
 		return {"el": "", "lv": 0}
-	var s := characters.load_or_create(account)
+	var s := characters.load_or_create(char_id)
 	return EnchantRules.of(s, s.equipment.get("weapon", ""))
 
 
 ## Só espaços e itens conhecidos (o dicionário vem do cliente). O encanto mostrado nunca vem do
-## cliente: é o da arma equipada do personagem `account` no servidor (conta 0 = sem encanto).
-func _clean_look(look: Dictionary, account := 0) -> Dictionary:
+## cliente: é o da arma equipada do personagem `char_id` no servidor (conta 0 = sem encanto).
+func _clean_look(look: Dictionary, char_id := 0) -> Dictionary:
 	var out := {}
 	for s in ItemDB.SLOTS:
 		var v := str(look.get(s, ""))
 		out[s] = v if ItemDB.ITEMS.has(v) else ""
 	var fx := _clean_fx(look.get("fx"))
-	var e := server_weapon_enchant(account)
+	var e := server_weapon_enchant(char_id)
 	fx.en = e.el
 	fx.lv = e.lv
 	out["fx"] = fx
+	out["body"] = server_body(char_id)   # o corpo (m/f) vem do personagem gravado, nunca do cliente
 	return out
+
+
+## Servidor: corpo escolhido pela conta ("m", "f" ou "" se ainda não escolheu), lido do personagem gravado.
+func server_body(char_id: int) -> String:
+	if char_id <= 0 or characters == null:
+		return ""
+	return characters.load_or_create(char_id).body
 
 
 ## Efeitos visuais do jogador (auras e encanto): só estilos e elementos conhecidos, sem repetir.
@@ -760,6 +1003,8 @@ func leave() -> void:
 	enemies.clear()
 	remote_players.clear()
 	horde_lobby = {}
+	char_list = []
+	account_name = ""
 	_connect_t = 0.0
 	Econ.client_reset()
 	Hub.client_reset()
@@ -828,7 +1073,7 @@ func _accepted(all_players: Dictionary) -> void:
 	# todo mundo entra direto em Valdoria, onde o personagem estava (Game.spawn_position veio do servidor)
 	if Game.hp <= 0.0:
 		Game.hp = Game.max_hp()
-	Loading.go(WORLD_SCENE)
+	Game.go_to_world()   # sem classe ainda: passa antes pela tela de criação
 
 
 ## Chamado pelo mundo quando terminou de montar a cena.
@@ -870,6 +1115,18 @@ func send_player_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, combo
 func send_look(look: Dictionary) -> void:
 	if is_client():
 		_player_look.rpc_id(1, look)
+
+
+## Healer (cliente): pede ao servidor a Cura no aliado `target_peer` (0 = em si mesmo). Sem valor: o servidor calcula.
+func request_heal(target_peer := 0) -> void:
+	if is_client():
+		_request_heal.rpc_id(1, target_peer)
+
+
+## Healer (cliente): pede o Escudo de Luz / Banquete do Herói para si e os aliados por perto.
+func request_ally_buff(ability_id: String) -> void:
+	if is_client():
+		_request_ally_buff.rpc_id(1, ability_id)
 
 
 func send_event(kind: String, a := Vector3.ZERO, b := Vector3.ZERO) -> void:
@@ -1005,6 +1262,19 @@ func _you_were_hit(amount: float, from_pos: Vector3) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
+func _you_were_healed(amount: float, _from_peer: int) -> void:
+	if world and world.player:
+		world.player.receive_heal(amount)
+
+
+## Buff de um healer aliado. O cliente só aplica ids que existem em buffs.json.
+@rpc("authority", "call_remote", "reliable")
+func _you_got_buff(buff_id: String, secs: float) -> void:
+	if world and world.player and ItemDB.BUFFS.has(buff_id) and secs > 0.0 and secs <= HealRules.MAX_BUFF_SECS:
+		Game.add_buff(buff_id, secs)
+
+
+@rpc("authority", "call_remote", "reliable")
 func _you_were_chilled(secs: float) -> void:
 	if world and world.player:
 		world.player.apply_chill(secs)
@@ -1023,7 +1293,8 @@ func _shake(amount: float) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _enemy_spawned(net_id: int, kind: String, pos: Vector3, yaw: float, max_hp: float, hp: float, flags: int) -> void:
+func _enemy_spawned(net_id: int, kind: String, pos: Vector3, yaw: float, max_hp: float, hp: float, flags: int,
+		level: int, area: String) -> void:
 	if world == null or enemies.has(net_id):
 		return
 	var horde := flags & 1 != 0
@@ -1032,6 +1303,9 @@ func _enemy_spawned(net_id: int, kind: String, pos: Vector3, yaw: float, max_hp:
 	e.puppet = true
 	e.horde = horde
 	e.elite = flags & 2 != 0
+	e.chief = flags & 4 != 0
+	e.level = level
+	e.area = area   # a região do ponto de nascimento (o servidor conta a missão por ela)
 	e.net_id = net_id
 	e.position = pos
 	# a cena pode escolher onde os monstros ficam (enemy_parent)
@@ -1092,6 +1366,15 @@ func _enemy_died(net_id: int) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
+func _enemy_guarded(net_id: int) -> void:
+	var e: Enemy = enemies.get(net_id)
+	enemies.erase(net_id)
+	if e and is_instance_valid(e) and not e.dead:
+		e.die_visual()
+		e.guard_fx()
+
+
+@rpc("authority", "call_remote", "reliable")
 func _kill_reward(_kind: String, _xp: int, _pos: Vector3) -> void:
 	# só o efeito no cliente: XP e abate chegam pelo Econ (estado do servidor) e o loot por _pickup_spawned
 	Game.kill_lifesteal()
@@ -1115,6 +1398,8 @@ func _apply_remote_state(id: int, pos: Vector3, yaw: float, vel: Vector3, flags:
 		rp.remote = true
 		rp.peer_id = id
 		rp.display_name = players[id].name if players.has(id) else "?"
+		# já nasce com o corpo do visual conhecido (sem montar o masculino para trocar em seguida)
+		rp.model_body = KnightLook.body_key(players[id].get("look", {}).get("body", "")) if players.has(id) else "m"
 		rp.position = pos
 		parent.add_child(rp)
 		remote_players[id] = rp
@@ -1143,6 +1428,9 @@ func _horde_msg(kind: String) -> void:
 	if not is_server() or not players.has(id) or not players[id].ready:
 		return
 	var run: Node = horde_run if horde_run != null and is_instance_valid(horde_run) else null
+	if kind in ["request", "accept"] and not server_has_class(id):
+		_horde_notice.rpc_id(id, "Escolha sua classe antes de entrar no Desafio da Horda.")
+		return
 	match kind:
 		"request":
 			_server_horde_request(id)
@@ -1269,7 +1557,7 @@ func _horde_launch() -> void:
 				return
 	var team := {}
 	for pid in _lobby.members:
-		if not players.has(pid) or not players[pid].ready:
+		if not players.has(pid) or not players[pid].ready or not server_has_class(pid):
 			continue
 		# a partida acontece em Valdoria: só entra quem está lá
 		if zone_of(pid) != "world":

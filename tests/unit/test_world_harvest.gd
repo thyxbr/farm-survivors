@@ -13,21 +13,25 @@ func _tables() -> BalanceTables:
 func test_table_shape() -> void:
 	var bt := _tables()
 	var items: Dictionary = bt.get_table("items")
-	T.eq(WorldHarvest.count(bt), 20, "dez nós no vale e dez na Mina de Cristal")
+	# 20 de antes (ferro e cristal no vale e na Mina) + 51 da parte 3 (minério e madeira de cada camada)
+	T.eq(WorldHarvest.count(bt), 71, "nós de coleta dos quatro mapas")
 	var kinds := {}
 	for i in WorldHarvest.count(bt):
 		var d := WorldHarvest.node_def(bt, i)
 		kinds[d.kind] = int(kinds.get(d.kind, 0)) + 1
 		T.ok(items.has(d.item), "item do nó %d existe" % i)
 		T.ok(d.amount >= 1 and d.hits >= 1 and d.respawn > 0, "números do nó %d" % i)
-	T.eq(kinds, {"iron": 10, "crystal": 10}, "10 de ferro e 10 de cristal")
+	T.eq(kinds, {"iron": 14, "crystal": 10, "copper": 6, "pine": 8, "oak": 8, "silver": 6, "silverbirch": 4,
+		"mithril": 6, "ashwood": 4, "astralite": 3, "soulwood": 2}, "nós por tipo")
 	for i in range(10, 20):
 		T.eq(Regions.region_at(WorldHarvest.node_def(bt, i).pos), "mina", "nó %d fica na Mina de Cristal" % i)
 	var iron := WorldHarvest.node_def(bt, 0)
 	T.eq(iron.item, "iron_ore", "nó 0 dá minério")
 	T.eq(iron.amount, 3, "3 por veio")
-	T.eq(iron.hits, 5, "5 golpes")
-	T.ok(iron.pos.distance_to(Vector3(62, 0, 0)) < 13.0, "ferro em volta do Acampamento Goblin")
+	T.eq(iron.hits, 3, "3 golpes (parte 3: coleta em 2-3 golpes)")
+	T.eq(iron.prof, "mining", "ferro é de Mineração")
+	T.ok(iron.level >= 1 and iron.xp > 0, "nível e XP do nó")
+	T.ok(iron.pos.distance_to(Vector3(86, 0, 0)) < 13.0, "ferro em volta do Acampamento Goblin")
 	var cr := WorldHarvest.node_def(bt, 6)
 	T.eq(cr.item, "arcane_crystal", "nó 6 dá cristal")
 	T.ok(cr.pos.distance_to(Vector3(0, 0, -100)) < 18.0, "cristal em volta das Ruínas")
@@ -81,7 +85,7 @@ func test_missing_table() -> void:
 func test_positions_come_from_scene() -> void:
 	var bt := _tables()
 	T.ok(not bt.get_table("world_nodes").has("nodes"), "a lista de posições saiu do world_nodes.json")
-	T.ok(WorldHarvest.node_def(bt, 0).pos.is_equal_approx(Vector3(71.6, 0, 8.0)), "nó 0 no lugar de sempre")
+	T.ok(WorldHarvest.node_def(bt, 0).pos.is_equal_approx(Vector3(95.6, 0, 8.0)), "nó 0 no lugar de sempre (na Toca, que foi para o leste)")
 	T.ok(WorldHarvest.node_def(bt, 6).pos.is_equal_approx(Vector3(14.7, 0, -91.5)), "nó 6 no lugar de sempre")
 
 

@@ -29,6 +29,18 @@ var ecos := 0
 var passives := {}
 ## Encantamentos por tipo de arma: id da arma -> {"el": elemento, "lv": nível >= 1} (ver EnchantRules).
 var enchants := {}
+## Classe fixa escolhida na criação (ver CharRules.CLASS_IDS) e corpo ("m" ou "f"); "" = save antigo, sem escolha.
+var char_class := ""
+var body := ""
+## Talentos aprendidos: id -> nível (1..max). Os pontos livres são calculados (ver CharRules.talent_points).
+var talents := {}
+## Profissões: id -> {"lv": 1..50, "xp": int, "done": [receitas já feitas uma vez]} (ver CraftRules).
+## Sem entrada = nível 1 sem XP (save antigo também).
+var professions := {}
+## Receitas aprendidas por pergaminho (as de NPC todos conhecem).
+var recipes: Array = []
+## Bônus de comida ativos: buff_id -> expira_em (relógio do serviço). Só da sessão: não vai ao save.
+var food_buffs := {}
 
 
 ## Personagem novo: sem equipamento, só consumíveis e sementes.
@@ -38,6 +50,7 @@ static func new_character(bt: BalanceTables) -> CharState:
 	# começa sem nenhum equipamento: o kit completo vem pelas missões
 	s.equipment = CharRules.empty_equipment()
 	s.farm = CharRules.default_farm(bt)
+	s.flags["prog_v"] = CharRules.PROG_VERSION   # já nasce na progressão por nível: nada a migrar
 	for e in [["health_potion", 3], ["mana_potion", 1], ["seed_carrot", 4], ["seed_wheat", 4], ["bread", 1]]:
 		CharRules.add_item(s, bt, e[0], e[1])
 	s.hp = CharRules.base_max_hp(s, bt)
@@ -56,6 +69,8 @@ func to_dict() -> Dictionary:
 		"world_yaw": world_yaw, "kills": kills, "fury": fury,
 		"ecos": ecos, "passives": passives.duplicate(true),
 		"enchants": enchants.duplicate(true),
+		"char_class": char_class, "body": body, "talents": talents.duplicate(true),
+		"professions": professions.duplicate(true), "recipes": recipes.duplicate(),
 	}
 
 
@@ -120,6 +135,8 @@ static func from_dict(d, bt: BalanceTables = null) -> CharState:
 				s.quests[id]["got"] = clean
 	var fl = d.get("flags")
 	s.flags = fl.duplicate(true) if fl is Dictionary else {}
+	if s.flags.has("prog_v"):
+		s.flags["prog_v"] = _int(s.flags["prog_v"], 0)   # vem do JSON como float
 	s.farm = _parse_farm(d.get("farm"), bt)
 	s.hp = maxf(0.0, _float(d.get("hp"), 0.0))
 	s.mp = maxf(0.0, _float(d.get("mp"), 0.0))
@@ -144,7 +161,67 @@ static func from_dict(d, bt: BalanceTables = null) -> CharState:
 					continue
 			s.passives[id] = lv
 	s.enchants = _parse_enchants(d.get("enchants"), bt)
+	var cc = d.get("char_class")
+	s.char_class = cc if cc is String and cc in CharRules.CLASS_IDS else ""
+	var bd = d.get("body")
+	s.body = bd if bd is String and bd in ["m", "f"] else ""
+	s.talents = _parse_talents(d.get("talents"), s, bt)
+	s.professions = _parse_professions(d.get("professions"), bt)
+	var rs = d.get("recipes")
+	if rs is Array:
+		var rt: Dictionary = bt.get_table("recipes") if bt != null else {}
+		for r in rs:
+			if r is String and not r in s.recipes and (bt == null or rt.has(r)):
+				s.recipes.append(r)
 	return s
+
+
+## Profissões vindas de save ou da rede: só ids da tabela (com `bt`), nível de 1 ao máximo, XP >= 0 e as
+## receitas já feitas sem repetição.
+static func _parse_professions(data, bt: BalanceTables) -> Dictionary:
+	var out := {}
+	if not (data is Dictionary):
+		return out
+	var pt: Dictionary = bt.get_table("professions") if bt != null else {}
+	var top := int(pt.get("max_level", 50)) if bt != null else 50
+	for id in data:
+		var e = data[id]
+		if not (id is String) or not (e is Dictionary) or (bt != null and not pt.get("professions", {}).has(id)):
+			continue
+		var done: Array = []
+		var dn = e.get("done")
+		if dn is Array:
+			for r in dn:
+				if r is String and not r in done and done.size() < 1000:
+					done.append(r)
+		out[id] = {"lv": clampi(_int(e.get("lv"), 1), 1, top), "xp": maxi(0, _int(e.get("xp"), 0)), "done": done}
+	return out
+
+
+## Talentos vindos de save ou da rede: só ids da árvore da classe, nível de 1 ao máximo, e no total
+## não mais que os pontos do nível (o que passar disso é descartado, na ordem da tabela).
+## Sem `bt`, só formato e nível >= 1 são conferidos.
+static func _parse_talents(data, s: CharState, bt: BalanceTables) -> Dictionary:
+	var out := {}
+	if not (data is Dictionary):
+		return out
+	if bt == null:
+		for id in data:
+			var lv := _int(data[id], 0)
+			if id is String and lv >= 1:
+				out[id] = lv
+		return out
+	var budget := maxi(0, s.level - 1)
+	for def in CharRules.talent_defs(bt, s.char_class):
+		var lv := mini(_int(data.get(def.id), 0), int(def.max))
+		if lv < 1:
+			continue
+		lv = mini(lv, budget)
+		if lv < 1:
+			break
+		budget -= lv
+		out[def.id] = lv
+	return out
 
 
 ## Encantos vindos de save ou da rede: só arma conhecida, elemento conhecido e nível de 1 ao máximo

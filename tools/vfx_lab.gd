@@ -147,10 +147,10 @@ func _show_page() -> void:
 				var l := base.duplicate()
 				l.weapon = "iron_sword"
 				var it := ItemDB.get_item(foods[i])
-				var r := _knight(i, foods.size(), l, "%s\n%s" % [it.name, it.buff.name])
+				var r := _knight(i, foods.size(), l, "%s\n%s" % [it.name, ItemDB.BUFFS[it.buff].name])
 				var aura := BuffAura.new()
 				r.model.add_child(aura)
-				aura.set_buffs([foods[i]])
+				aura.set_buffs([it.buff])
 		"perto1", "perto2":
 			# de perto: os três níveis mais altos de um elemento, depois três elementos no máximo
 			var near: Array = [["fogo", 3], ["fogo", 4], ["fogo", 5]]

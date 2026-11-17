@@ -12,7 +12,9 @@ extends RefCounted
 
 ## Espaços de equipamento (mesma ordem de ItemDB.SLOTS).
 const SLOTS := ["head", "amulet", "armor", "hands", "weapon", "offhand", "ring", "feet"]
-const CLASS_NAMES := {"sword": "Espada", "staff": "Cajado", "bow": "Arco"}
+const CLASS_NAMES := {"sword": "Espada", "staff": "Cajado", "bow": "Arco", "scepter": "Cetro"}
+## Classes de personagem fixas (tabela "classes"); a classe define a arma inicial e o tipo de arma.
+const CLASS_IDS := ["warrior", "archer", "mage", "healer"]
 
 const C_GOLD := Color(1, 0.85, 0.3)
 const C_BAD := Color(1, 0.5, 0.5)
@@ -77,6 +79,22 @@ static func weapon_class(bt: BalanceTables, id: String) -> String:
 	return _item(bt, id).get("class", "sword") if id != "" else "sword"
 
 
+## Tipo de arma de uma classe de personagem ("" se a classe não existe).
+static func class_weapon(bt: BalanceTables, cls: String) -> String:
+	var c: Dictionary = bt.get_table("classes").get(cls, {})
+	if c.is_empty():
+		return ""
+	return weapon_class(bt, str(c.get("starter_weapon", "")))
+
+
+## Nome da classe de personagem que usa um tipo de arma ("Arqueiro" para "bow"); sem classe, o nome da arma.
+static func class_of_weapon_name(bt: BalanceTables, wclass: String) -> String:
+	for cls in CLASS_IDS:
+		if class_weapon(bt, cls) == wclass:
+			return str(bt.get_table("classes")[cls].get("name", cls))
+	return str(CLASS_NAMES.get(wclass, wclass)).to_lower()
+
+
 static func rarity_of(bt: BalanceTables, id: String) -> String:
 	return _item(bt, id).get("rarity", "common")
 
@@ -102,6 +120,35 @@ static func base_max_hp(s: CharState, bt: BalanceTables) -> float:
 
 static func base_max_mp(s: CharState, bt: BalanceTables) -> float:
 	return 25.0 + (int(s.attributes.int) + int(gear(s, bt, "int"))) * 6.0 + (s.level - 1) * 3.0 + gear(s, bt, "mp")
+
+
+## Dano do ataque básico sem os modificadores (talentos, buffs, cartas): espada arma + FOR × 1,6; arco
+## arma + AGI × 1,5 + FOR × 0,3; cajado e cetro arma + INT × 1,4 + bônus "spell" × 0,5.
+## `attrs` são os atributos efetivos (pontos + equipamento). Game.melee_damage() multiplica por mod("damage").
+static func basic_damage(weapon_class: String, attrs: Dictionary, weapon_damage: float, spell_gear: float) -> float:
+	match weapon_class:
+		"staff", "scepter":
+			return weapon_damage + float(attrs.get("int", 0)) * 1.4 + spell_gear * 0.5
+		"bow":
+			return weapon_damage + float(attrs.get("agi", 0)) * 1.5 + float(attrs.get("str", 0)) * 0.3
+	return weapon_damage + float(attrs.get("str", 0)) * 1.6
+
+
+## Poder mágico: atributo INT + bônus "spell" do equipamento (mesma conta de Game.spell_power()).
+static func spell_power(s: CharState, bt: BalanceTables) -> float:
+	return float(s.attributes.int) + gear(s, bt, "spell")
+
+
+## Vida restaurada pela Cura: (30 + 4 x poder mágico) x (1 + bônus "heal" da arma equipada) x (1 + talentos "heal_power").
+static func heal_amount(s: CharState, bt: BalanceTables) -> float:
+	var power := float(talent_mods(bt, s).get("heal_power", 0.0))
+	return heal_for(spell_power(s, bt), bt, str(s.equipment.get("weapon", ""))) * (1.0 + power)
+
+
+## A mesma conta com o poder mágico já calculado (o cliente soma buffs e comida ao INT).
+static func heal_for(spell: float, bt: BalanceTables, weapon_id: String) -> float:
+	var bonus: float = float(_item(bt, weapon_id).get("heal", 0.0)) if weapon_id != "" else 0.0
+	return (30.0 + 4.0 * spell) * (1.0 + bonus)
 
 
 # ================================================================ inventário
@@ -174,31 +221,73 @@ static func _inv_less(bt: BalanceTables, a: Dictionary, b: Dictionary) -> bool:
 	return str(_item(bt, a.id).get("name", a.id)) < str(_item(bt, b.id).get("name", b.id))
 
 
+# ================================================================ migração da progressão
+## Versão da progressão por nível; vive em flags["prog_v"] (salvo no banco e no arquivo, sem coluna nova).
+const PROG_VERSION := 1
+
+
+## Personagem de antes da progressão por nível (sem prog_v): atributos voltam a 5 e os pontos gastos
+## voltam como livres, para redistribuir (fontes de ponto: níveis e promoções da guilda). XP em excesso é
+## cortado para não pular nível sozinho. Equipamento e talentos não mudam. Devolve true se mudou algo.
+## O aviso (prog_notice) só fica marcado se os pontos ou os atributos mudaram de fato.
+static func migrate_progression(s: CharState, bt: BalanceTables) -> bool:
+	if int(s.flags.get("prog_v", 0)) >= PROG_VERSION:
+		return false
+	var pts := int(_rules(bt).get("points_per_level", 3))
+	var total := (s.level - 1) * pts
+	var all_ranks := ranks(bt)
+	for i in mini(rank_index(bt, rank_of(s)), all_ranks.size() - 1) + 1:
+		total += int(all_ranks[i].get("stat_points", 0))
+	var refunded := total != s.stat_points
+	for k in s.attributes:
+		refunded = refunded or int(s.attributes[k]) != 5
+		s.attributes[k] = 5
+	s.stat_points = total
+	s.xp = mini(s.xp, maxi(0, xp_to_next(s.level, bt) - 1))
+	s.flags["prog_v"] = PROG_VERSION
+	if refunded:
+		s.flags["prog_notice"] = true
+	return true
+
+
+## O jogador viu o aviso da migração: tira a marca (o servidor grava).
+static func ack_prog_notice(s: CharState) -> Dictionary:
+	s.flags.erase("prog_notice")
+	return _ok()
+
+
 # ================================================================ XP e ouro
 static func xp_to_next(level: int, bt: BalanceTables) -> int:
-	var c: Dictionary = _rules(bt).get("xp_curve", {})
-	return int(float(c.base) * pow(level, float(c.exp)))
+	return ProgressionRules.xp_to_next(bt, level)
 
 
 ## Soma XP e sobe de nível quantas vezes der (eventos em `ev`).
 static func _add_xp(s: CharState, bt: BalanceTables, amount: int, ev: Array) -> void:
 	if amount <= 0:
 		return
+	# no nível máximo o XP não conta: zera o resto e não avisa
+	if s.level >= ProgressionRules.max_level(bt):
+		s.xp = 0
+		return
 	s.xp += amount
 	ev.append(_notify("+%d XP" % amount, Color(0.6, 0.85, 1.0)))
 	var pts := int(_rules(bt).get("points_per_level", 3))
 	var weapon_cls := weapon_class(bt, str(s.equipment.get("weapon", "")))
-	while s.xp >= xp_to_next(s.level, bt):
+	while s.level < ProgressionRules.max_level(bt) and s.xp >= xp_to_next(s.level, bt):
 		s.xp -= xp_to_next(s.level, bt)
 		s.level += 1
 		s.stat_points += pts
-		ev.append(_notify("Nível %d! +%d pontos de atributo (C)" % [s.level, pts], Color(1.0, 0.85, 0.3)))
+		# com classe também vem 1 ponto de talento (calculado: level - 1 - gastos), aberto na aba Talentos (K)
+		var talent_txt := " e 1 de talento (K)" if s.char_class != "" else ""
+		ev.append(_notify("Nível %d! +%d pontos de atributo (C)%s" % [s.level, pts, talent_txt], Color(1.0, 0.85, 0.3)))
 		# o kit em ItemDB.ABILITIES é a fonte do que libera em cada nível (só da classe da arma equipada e já pronta)
 		for id in ItemDB.ABILITIES:
 			var ab: Dictionary = ItemDB.ABILITIES[id]
 			if ab["class"] == weapon_cls and int(ab.level) == s.level and ab.ready:
 				ev.append(_notify("Nova habilidade: %s [%d]" % [ab.name, ab.slot], Color(0.75, 0.55, 1.0)))
 		ev.append({"t": "level_up", "level": s.level})
+	if s.level >= ProgressionRules.max_level(bt):
+		s.xp = 0
 
 
 ## Recompensa direta (coleta de loot, prêmio da Horda...): ouro, XP e itens.
@@ -220,10 +309,15 @@ static func grant(s: CharState, bt: BalanceTables, gold: int, xp: int, items: Di
 	return _ok(ev)
 
 
-## Abate: XP, contagem de abates e progresso de missão.
-static func kill(s: CharState, bt: BalanceTables, kind: String, xp: int) -> Dictionary:
+## Abate: XP, contagem de abates e progresso de missão. Com `enemy_level` > 0 o XP é ajustado pela diferença
+## para o maior nível entre o personagem e o grupo (`group_level`); sem nível, sem ajuste. `area` = região com
+## nome onde o monstro nasceu (missões com "region" só contam abates de lá).
+static func kill(s: CharState, bt: BalanceTables, kind: String, xp: int, enemy_level := 0, group_level := 0,
+		area := "") -> Dictionary:
 	if xp < 0:
 		return _fail("valor_invalido")
+	if enemy_level > 0:
+		xp = int(round(xp * ProgressionRules.xp_diff_mult(bt, enemy_level, maxi(s.level, group_level))))
 	var ev: Array = []
 	s.kills += 1
 	# chefe derrotado: o Rei Goblin deixa de nascer (king_dead, como fazia Enemy._die); os outros chefes
@@ -239,7 +333,7 @@ static func kill(s: CharState, bt: BalanceTables, kind: String, xp: int) -> Dict
 		if not qt.has(id):
 			continue
 		var q: Dictionary = qt[id]
-		if s.quests[id].state == "active" and quest_counts_kill(q, kind):
+		if s.quests[id].state == "active" and quest_counts_kill(q, kind, area):
 			s.quests[id].progress += 1
 			changed = true
 			if s.quests[id].progress >= int(q.count):
@@ -303,6 +397,7 @@ static func discard(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 ## Renascer na vila custa uma fração do ouro (rules.death_gold_loss, padrão 10%). Pedido pelo próprio
 ## cliente ao renascer: só tira dele, então não há o que forjar.
 static func death_penalty(s: CharState, bt: BalanceTables) -> Dictionary:
+	s.food_buffs.clear()   # o cliente zera a comida ao morrer; o servidor acompanha
 	var lost := int(s.gold * float(_rules(bt).get("death_gold_loss", 0.1)))
 	if lost <= 0:
 		return _ok()
@@ -323,6 +418,11 @@ static func sell(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 
 
 # ================================================================ equipamento
+## Nível exigido para equipar o item (campo `level` do items.json; sem campo = 1).
+static func item_level(bt: BalanceTables, id: String) -> int:
+	return maxi(1, int(_item(bt, id).get("level", 1)))
+
+
 static func equip(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	var slot_name := slot_of(bt, id)
 	if slot_name == "":
@@ -330,10 +430,16 @@ static func equip(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	if count_item(s, id) <= 0:
 		return _fail("sem_item")
 	var it := _item(bt, id)
+	# a arma é da classe do personagem (e sem classe escolhida não se equipa arma)
+	if slot_name == "weapon" and weapon_class(bt, id) != class_weapon(bt, s.char_class):
+		return _fail("exige_classe", [_notify("%s é arma de %s." % [it.name, class_of_weapon_name(bt, weapon_class(bt, id))],
+			Color(1, 0.6, 0.5))])
 	# mão secundária precisa combinar com a classe da arma (escudo-espada, orbe-cajado, aljava-arco)
 	if slot_name == "offhand" and it.has("needs") and it.needs != weapon_class(bt, s.equipment.weapon):
 		return _fail("exige_classe", [_notify("%s exige %s." % [it.name, str(CLASS_NAMES.get(it.needs, it.needs)).to_lower()],
 			Color(1, 0.6, 0.5))])
+	if s.level < item_level(bt, id):
+		return _fail("exige_nivel", [_notify("Requer nível %d." % item_level(bt, id), Color(1, 0.6, 0.5))])
 	var ev: Array = []
 	remove_item(s, id, 1)
 	if s.equipment[slot_name] != "":
@@ -351,6 +457,58 @@ static func equip(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	return _ok(ev)
 
 
+## Melhor arma de um tipo entre a mochila e a mão: maior raridade, desempate por dano. "" se não há.
+static func best_weapon_of(s: CharState, bt: BalanceTables, wclass: String) -> String:
+	var rar: Dictionary = bt.get_table("rarity")
+	var best := ""
+	var best_key := [-1, -1.0]
+	var cands: Array = []
+	for slot in s.inventory:
+		cands.append(slot.id)
+	if s.equipment.get("weapon", "") != "":
+		cands.append(s.equipment.weapon)
+	for id in cands:
+		var it := _item(bt, id)
+		if it.get("type", "") != "weapon" or weapon_class(bt, id) != wclass:
+			continue
+		var key := [int(rar.get(rarity_of(bt, id), {}).get("rank", 0)), float(it.get("damage", 0))]
+		if key[0] > best_key[0] or (key[0] == best_key[0] and key[1] > best_key[1]):
+			best = id
+			best_key = key
+	return best
+
+
+## Escolha única da classe e do corpo ("m"/"f") na criação. A arma passa a ser do tipo da classe:
+## fica a que já serve, senão a melhor que o personagem tem, senão a arma inicial da classe.
+static func choose_class(s: CharState, bt: BalanceTables, cls: String, body: String) -> Dictionary:
+	if s.char_class != "":
+		return _fail("ja_tem_classe")
+	var def: Dictionary = bt.get_table("classes").get(cls, {})
+	if not (cls in CLASS_IDS) or def.is_empty() or not (body in ["m", "f"]):
+		return _fail("classe_invalida")
+	s.char_class = cls
+	s.body = body
+	var wclass := class_weapon(bt, cls)
+	var cur: String = s.equipment.get("weapon", "")
+	if cur == "" or weapon_class(bt, cur) != wclass:
+		if cur != "":
+			add_item(s, bt, cur, 1)
+			s.equipment.weapon = ""
+		var pick := best_weapon_of(s, bt, wclass)
+		if pick == "":
+			pick = str(def.starter_weapon)
+			add_item(s, bt, pick, 1)
+		remove_item(s, pick, 1)
+		s.equipment.weapon = pick
+	# mão secundária incompatível com a nova arma volta para a mochila
+	var off: String = s.equipment.get("offhand", "")
+	if off != "" and _item(bt, off).has("needs") and _item(bt, off).needs != wclass:
+		add_item(s, bt, off, 1)
+		s.equipment.offhand = ""
+	return _ok([{"t": "class", "class": cls, "body": body},
+		_notify("Você agora é %s!" % def.name, def.get("color", Color.WHITE))])
+
+
 static func unequip(s: CharState, bt: BalanceTables, slot_name: String) -> Dictionary:
 	if not s.equipment.has(slot_name):
 		return _fail("slot_invalido")
@@ -364,11 +522,13 @@ static func unequip(s: CharState, bt: BalanceTables, slot_name: String) -> Dicti
 # ================================================================ consumo e caldeirão
 ## Tira 1 poção/comida/colheita da mochila. Cura, buff e recarga de comer ficam no cliente;
 ## o aviso de comida sai daqui para manter o texto num lugar só.
-static func consume(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
+static func consume(s: CharState, bt: BalanceTables, id: String, now: float) -> Dictionary:
 	var it := _item(bt, id)
 	if it.is_empty():
 		return _fail("item_invalido")
 	var t: String = it.get("type", "")
+	if t == "scroll":
+		return CraftRules.learn(s, bt, id)   # pergaminho de receita: usar = aprender
 	var edible := t == "food" or it.has("raw_hp") or it.has("raw_mp")
 	if t != "consumable" and not edible:
 		return _fail("nao_consumivel")
@@ -377,41 +537,57 @@ static func consume(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	remove_item(s, id, 1)
 	var ev: Array = []
 	if t != "consumable":
-		if it.has("buff"):
-			ev.append(_notify("%s: %s (%ds)" % [it.name, it.buff.name, int(it.buff.time)], it.get("color", Color(1, 0.85, 0.4))))
+		var b: Dictionary = bt.get_table("buffs").get(it.get("buff", ""), {})
+		if not b.is_empty():
+			s.food_buffs[str(it.buff)] = now + float(b.time)
+			ev.append(_notify("%s: %s (%ds)" % [it.name, b.name, int(b.time)], it.get("color", Color(1, 0.85, 0.4))))
 		else:
 			ev.append(_notify("Comeu %s" % it.name, Color(0.85, 1.0, 0.7)))
 	return _ok(ev)
 
 
+## Multiplicador de XP/ouro/ímã da comida ativa: 1 + soma de add[stat] dos buffs ainda válidos
+## (os vencidos saem de s.food_buffs). O servidor/solo usa isto na vila; a Horda aplica mod() no cliente.
+static func food_mult(s: CharState, bt: BalanceTables, stat: String, now: float) -> float:
+	var table := bt.get_table("buffs")
+	var m := 1.0
+	for id in s.food_buffs.keys():
+		if float(s.food_buffs[id]) <= now or not table.has(id):
+			s.food_buffs.erase(id)
+			continue
+		m += float(table[id].get("add", {}).get(stat, 0.0))
+	return m + float(talent_mods(bt, s).get(stat, 0.0))
+
+
 static func can_cook(s: CharState, bt: BalanceTables, recipe: String) -> int:
-	var ing: Dictionary = bt.get_table("recipes").get(recipe, {})
-	if ing.is_empty():
+	if str(CraftRules.recipe(bt, recipe).get("station", "")) != "kitchen":
 		return 0
-	var n := 999
-	for id in ing:
-		n = mini(n, count_item(s, id) / int(ing[id]))
-	return n
+	return int(CraftRules.can_craft(s, bt, recipe).n)
 
 
-## Cozinha até `times` vezes (o que os ingredientes deixarem). Resultado traz "n" = quantas.
+## Cozinha até `times` vezes (o que os ingredientes deixarem). Resultado traz "n" = quantas. É o craft da
+## estação "kitchen" (CraftRules.craft, que também dá XP de Culinária).
 static func cook(s: CharState, bt: BalanceTables, recipe: String, times = 1) -> Dictionary:
 	if not _valid_count(times):
 		return _fail("args")
-	var ing: Dictionary = bt.get_table("recipes").get(recipe, {})
-	if ing.is_empty():
+	if str(CraftRules.recipe(bt, recipe).get("station", "")) != "kitchen":
 		return _fail("receita_invalida")
-	var n: int = mini(times, can_cook(s, bt, recipe))
-	if n <= 0:
-		var r := _fail("faltam_ingredientes", [_notify("Faltam ingredientes.", Color(1, 0.6, 0.5))])
-		r["n"] = 0
-		return r
-	for id in ing:
-		remove_item(s, id, int(ing[id]) * n)
-	add_item(s, bt, recipe, n)
-	var res := _ok([{"t": "looted", "id": recipe, "qty": n}])
-	res["n"] = n
-	return res
+	return CraftRules.craft(s, bt, recipe, times)
+
+
+# ================================================================ coleta (veios e árvores)
+## Coleta de um nó (WorldHarvest.gather já conferiu distância e tempo de volta): pede o nível da profissão
+## de coleta do nó, dá os itens e a XP. `g` = {"items", "prof", "level", "xp"}.
+static func gather(s: CharState, bt: BalanceTables, g: Dictionary) -> Dictionary:
+	var prof := str(g.get("prof", ""))
+	var need := int(g.get("level", 1))
+	if prof != "" and CraftRules.level(s, prof) < need:
+		var pname := str(CraftRules.professions(bt).get(prof, {}).get("name", prof))
+		return _fail("nivel", [_notify("Precisa de %s nível %d." % [pname, need], C_BAD)])
+	var r := grant(s, bt, 0, 0, g.get("items", {}))
+	if r.ok and prof != "":
+		r.events.append_array(CraftRules.gain(s, bt, prof, int(g.get("xp", 0)), need))
+	return r
 
 
 # ================================================================ missões
@@ -427,9 +603,12 @@ static func quest_type(q: Dictionary) -> String:
 	return str(q.get("type", "kill"))
 
 
-## Se o abate de `kind` conta para a missão q (só missões de abate).
-static func quest_counts_kill(q: Dictionary, kind: String) -> bool:
+## Se o abate de `kind` conta para a missão q (só missões de abate). Missão com "region" só conta monstros
+## daquela região com nome (`area`, a região onde o monstro nasceu; Regions.area_at).
+static func quest_counts_kill(q: Dictionary, kind: String, area := "") -> bool:
 	if quest_type(q) != "kill":
+		return false
+	if q.has("region") and str(q.region) != area:
 		return false
 	if q.has("targets"):
 		return kind in q.targets
@@ -438,9 +617,9 @@ static func quest_counts_kill(q: Dictionary, kind: String) -> bool:
 
 ## Se algum abate de `kind` ainda conta para uma missão ativa (ícone de missão sobre o inimigo).
 ## `char_quests` é o mapa de missões do personagem (id -> {state, progress}); `qt`, a tabela quests.json.
-static func is_quest_target(char_quests: Dictionary, qt: Dictionary, kind: String) -> bool:
+static func is_quest_target(char_quests: Dictionary, qt: Dictionary, kind: String, area := "") -> bool:
 	for id in char_quests:
-		if char_quests[id].get("state", "") == "active" and qt.has(id) and quest_counts_kill(qt[id], kind):
+		if char_quests[id].get("state", "") == "active" and qt.has(id) and quest_counts_kill(qt[id], kind, area):
 			return true
 	return false
 
@@ -528,7 +707,7 @@ static func start_quest(s: CharState, bt: BalanceTables, id: String) -> Dictiona
 	return _ok(ev)
 
 
-static func complete_quest(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
+static func complete_quest(s: CharState, bt: BalanceTables, id: String, now := -1.0) -> Dictionary:
 	var qt := bt.get_table("quests")
 	if not qt.has(id):
 		return _fail("missao_invalida")
@@ -558,12 +737,18 @@ static func complete_quest(s: CharState, bt: BalanceTables, id: String) -> Dicti
 	s.quests[id].progress = int(q.count)
 	s.quests[id].state = "done"
 	ev.append(_notify("Missão concluída: %s" % q.name, C_QUEST))
-	s.gold += int(q.reward_gold)
-	ev.append(_notify("+%d ouro" % int(q.reward_gold), C_GOLD))
+	# comida (XP/ouro): só quando o serviço passa o relógio
+	var gold_r := int(q.reward_gold)
+	var xp_r := int(q.reward_xp)
+	if now >= 0.0:
+		gold_r = int(round(gold_r * food_mult(s, bt, "gold", now)))
+		xp_r = int(round(xp_r * food_mult(s, bt, "xp", now)))
+	s.gold += gold_r
+	ev.append(_notify("+%d ouro" % gold_r, C_GOLD))
 	for item in q.reward_items:
 		add_item(s, bt, item, int(q.reward_items[item]))
 		ev.append({"t": "looted", "id": item, "qty": int(q.reward_items[item])})
-	_add_xp(s, bt, int(q.reward_xp), ev)
+	_add_xp(s, bt, xp_r, ev)
 	# pontos de guilda (só depois do registro na guilda contam para o rank; antes ficam guardados)
 	var pts := quest_points(bt, q)
 	var registered := id == "registro" or quest_state(s, "registro") == "done" or not bt.get_table("quests").has("registro")
@@ -789,6 +974,9 @@ static func _plant(s: CharState, bt: BalanceTables, i: int, crop: String, buy_mi
 	var st := plot_state(s, bt, i, now)
 	if st != "empty":
 		return _fail(_plot_err(st) if st != "growing" else "canteiro_ocupado")
+	var need := int(crops[crop].get("level", 1))
+	if CraftRules.level(s, "farming") < need:
+		return _fail("nivel", [_notify("%s pede Fazenda nível %d." % [str(crops[crop].get("name", crop)), need], C_BAD)])
 	var seed_id: String = crops[crop].seed
 	if count_item(s, seed_id) <= 0:
 		if not buy_missing:
@@ -867,8 +1055,103 @@ static func _harvest(s: CharState, bt: BalanceTables, i: int, now: float, rng: R
 		txt = "Colheita farta! " + txt
 	if got_seed:
 		txt += " (+1 semente)"
-	var out := _ok([_notify(txt, Color(0.85, 1.0, 0.55)), {"t": "farm"}])
+	var ev: Array = [_notify(txt, Color(0.85, 1.0, 0.55)), {"t": "farm"}]
+	ev.append_array(CraftRules.gain(s, bt, "farming", int(c.get("xp", 0)), int(c.get("level", 1))))
+	var out := _ok(ev)
 	out["harvest"] = res
+	return out
+
+
+# ================================================================ talentos (árvore da classe)
+## Talentos da classe em ordem de tabela (ramo a ramo, linha 1 a 3): [{"id","name","row","max","add","desc","branch"}].
+static func talent_defs(bt: BalanceTables, char_class: String) -> Array:
+	var out: Array = []
+	var tree: Dictionary = bt.get_table("talents").get(char_class, {})
+	for b in tree.get("branches", []):
+		for t in b.get("talents", []):
+			var d: Dictionary = t.duplicate()
+			d["branch"] = b.id
+			out.append(d)
+	return out
+
+
+## Pontos de talento gastos (soma dos níveis aprendidos).
+static func talents_spent(s: CharState) -> int:
+	var n := 0
+	for id in s.talents:
+		n += int(s.talents[id])
+	return n
+
+
+## Pontos livres: 1 por nível a partir do 2, menos os gastos (calculado, não gravado).
+static func talent_points(s: CharState, _bt: BalanceTables) -> int:
+	return maxi(0, s.level - 1 - talents_spent(s))
+
+
+## Pontos gastos num ramo.
+static func branch_points(s: CharState, bt: BalanceTables, branch_id: String) -> int:
+	var n := 0
+	for d in talent_defs(bt, s.char_class):
+		if d.branch == branch_id:
+			n += int(s.talents.get(d.id, 0))
+	return n
+
+
+## Pontos que o ramo precisa ter para liberar a linha: 1 -> 0, 2 -> 3, 3 -> 6.
+static func row_requirement(row: int) -> int:
+	return maxi(0, (row - 1) * 3)
+
+
+## Aprende um nível do talento. Erros: talento_invalido (não existe na classe), talento_maximo,
+## talento_bloqueado (o ramo não tem pontos para a linha), sem_pontos. Só muta `s` se ok.
+static func learn_talent(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
+	var def := {}
+	for d in talent_defs(bt, s.char_class):
+		if d.id == id:
+			def = d
+			break
+	if def.is_empty():
+		return _fail("talento_invalido")
+	var level := int(s.talents.get(id, 0))
+	if level >= int(def.max):
+		return _fail("talento_maximo")
+	if branch_points(s, bt, def.branch) < row_requirement(int(def.row)):
+		return _fail("talento_bloqueado")
+	if talent_points(s, bt) < 1:
+		return _fail("sem_pontos")
+	s.talents[id] = level + 1
+	return _ok([{"t": "talent", "id": id, "level": level + 1}])
+
+
+## Custo em ouro de redistribuir: grátis até o nível 5, depois 50 x nível.
+static func reset_cost(s: CharState) -> int:
+	return 0 if s.level <= 5 else 50 * s.level
+
+
+## Devolve todos os pontos e cobra reset_cost. Erros: sem_talentos (nada a devolver), sem_ouro.
+static func reset_talents(s: CharState, _bt: BalanceTables) -> Dictionary:
+	if s.talents.is_empty():
+		return _fail("sem_talentos", [_notify("Nenhum ponto de talento para devolver.", C_BAD)])
+	var cost := reset_cost(s)
+	if s.gold < cost:
+		return _fail("sem_ouro", [_notify("Redistribuir custa %d de ouro." % cost, C_BAD)])
+	var back := talents_spent(s)
+	s.gold -= cost
+	s.talents = {}
+	var paid := "-%d de ouro" % cost if cost > 0 else "grátis até o nível 5"
+	var txt := "Talentos redistribuídos: %d %s de volta (%s)." % [back, "ponto" if back == 1 else "pontos", paid]
+	return _ok([_notify(txt, C_GUILD), {"t": "talents_reset", "cost": cost}])
+
+
+## Bônus dos talentos: chave de stat -> soma de (add x nível). Só conta talento da classe do personagem.
+static func talent_mods(bt: BalanceTables, s: CharState) -> Dictionary:
+	var out := {}
+	for d in talent_defs(bt, s.char_class):
+		var lv := mini(int(s.talents.get(d.id, 0)), int(d.max))
+		if lv < 1:
+			continue
+		for k in d.add:
+			out[k] = out.get(k, 0.0) + float(d.add[k]) * lv
 	return out
 
 

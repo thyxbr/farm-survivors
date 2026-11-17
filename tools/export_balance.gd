@@ -26,7 +26,7 @@ func _init() -> void:
 		"horde": {"weapons": UPG.WEAPONS, "passives": UPG.PASSIVES, "blessings": UPG.BLESSINGS, "combos": UPG.COMBOS},
 		"horde_events": {"events": EVT.EVENTS, "hunt": EVT.HUNT},
 		# números soltos que hoje vivem espalhados em game.gd
-		"rules": {"sell_ratio": 0.5, "xp_curve": {"base": 60, "exp": 1.55}, "points_per_level": 3,
+		"rules": {"sell_ratio": 0.5, "points_per_level": 3,
 			"farm": {"plots": 12, "start": 6, "unlock_base": 30, "unlock_step": 15, "fert_bonus": 0.4,
 				"water_mult": 2, "bonus_chance": 0.12, "seed_back": 0.35}},
 	}

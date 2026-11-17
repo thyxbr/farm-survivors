@@ -45,17 +45,33 @@ static func build(w: Node3D, map_id: String) -> MapRoot:
 		elif n is EnemySpawn:
 			if w.has_server_enemies() and not n.boss:
 				var list: Array = w.spawns if map_id == "vila" else w.region_spawns
-				var pts: Array[Vector3] = EnemySpawn.spread(n.global_position, n.count, n.radius)
+				# região com nome: nível 0 tira a faixa dela; a densidade multiplica a quantidade
+				var rt: Dictionary = Balance.tables.get_table("regions")
+				var area := Regions.area_at(n.global_position)
+				var lv := Regions.spawn_range(rt, area, n.level, n.level_max)
+				var count := Regions.spawn_count(rt, area, n.count)
+				# dungeon: o ponto tem entradas até o teto da população (DungeonRules); as acima da base só
+				# nascem com mais jogadores dentro. O chefe volta em minutos (progression.json "dungeons").
+				var dungeon := Regions.is_dungeon(map_id)
+				var base := count
+				if dungeon:
+					count = DungeonRules.max_population(Balance.tables, base)
+				var boss_kind: bool = Balance.tables.get_table("enemies").get(n.kind, {}).get("boss", false) or n.chief
+				var pts: Array[Vector3] = EnemySpawn.spread(n.global_position, count, n.radius)
 				if n.follow_ground and ground != null:
 					# cada um no chão de onde cai (o centro já foi assentado: a distância salva é y - chão)
 					var c: Vector3 = n.global_position - o
 					var h := Callable(ground, "height_at")
 					var off: float = c.y - MapPreview.ground_y(true, 0.0, h, c.x, c.z)
 					pts = []
-					for q in EnemySpawn.spread_on_ground(c, n.count, n.radius, off, h):
+					for q in EnemySpawn.spread_on_ground(c, count, n.radius, off, h):
 						pts.append(q + o)
-				for p in pts:
-					var entry := {"kind": n.kind, "pos": p, "node": null, "timer": 0.0, "respawn": n.respawn}
+				for i in pts.size():
+					var p: Vector3 = pts[i]
+					var entry := {"kind": n.kind, "pos": p, "node": null, "timer": 0.0, "respawn": n.respawn,
+							"level": lv.x, "level_max": lv.y, "elite": n.elite, "area": area}
+					if dungeon:
+						entry.merge({"dungeon": map_id, "slot": i, "base": base, "boss": boss_kind, "chief": n.chief})
 					if n.night_only:
 						entry["night"] = true   # bicho da noite (o mundo segura de dia)
 					list.append(entry)
@@ -96,6 +112,7 @@ static func _prop(w: Node3D, p: MapProp) -> void:
 	p.add_child(inst)
 	p.apply_tint(inst)
 	var s := p.scale.x
+	_set_range(p, inst, s)
 	var pos := p.global_position
 	if p.shape != 0 and p.no_grass:
 		w._no_grass.append([Vector2(pos.x, pos.z), p.footprint() + 0.15])
@@ -118,6 +135,40 @@ static func _prop(w: Node3D, p: MapProp) -> void:
 	body.add_child(cs)
 	p.add_child(body)
 	body.global_transform = Transform3D(Basis(Vector3.UP, p.global_rotation.y), pos)
+
+
+## Peça pequena some de longe: a distância vem do tamanho da peça inteira (RANGE_PER_M metros por metro do
+## lado maior, no mínimo RANGE_MIN), então flor e pedrinha somem cedo, árvore fica até longe e casa e torre
+## (alcance acima de RANGE_MAX) nunca somem. Todas as malhas da peça levam a mesma distância.
+const RANGE_PER_M := 50.0
+const RANGE_MIN := 60.0
+const RANGE_MAX := 250.0
+const RANGE_MARGIN := 8.0
+static var _model_size := {}      # modelo -> lado maior da peça, em metros, sem a escala
+
+
+static func _set_range(p: MapProp, inst: Node3D, s: float) -> void:
+	var meshes := inst.find_children("*", "MeshInstance3D", true, false)
+	if inst is MeshInstance3D:
+		meshes.append(inst)
+	if not _model_size.has(p.model):
+		var box := AABB()
+		var first := true
+		var inv := inst.global_transform.affine_inverse()
+		for mi: MeshInstance3D in meshes:
+			if mi.mesh == null:
+				continue
+			var b: AABB = (inv * mi.global_transform) * mi.get_aabb()
+			box = b if first else box.merge(b)
+			first = false
+		_model_size[p.model] = box.get_longest_axis_size()
+	var reach: float = maxf(RANGE_MIN, float(_model_size[p.model]) * s * RANGE_PER_M)
+	if reach >= RANGE_MAX:
+		return
+	for mi: MeshInstance3D in meshes:
+		if mi.visibility_range_end <= 0.0:
+			mi.visibility_range_end = reach
+			mi.visibility_range_end_margin = RANGE_MARGIN
 
 
 static func _light(w: Node3D, l: MapLight) -> void:

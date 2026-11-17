@@ -26,10 +26,13 @@ static var _scenes := {}        # tipo + estilo -> PackedScene do modelo pronto
 
 
 ## Uma cópia do modelo de `kind` (chave de Enemy.TYPES, com os dados dele), já com tintura, toon e contorno.
+## `shade` multiplica as cores (tinta da camada de nível); cada tinta é montada uma vez por tipo.
 ## Sem autoload aqui, para que as ferramentas de foto e os testes unitários usem o mesmo caminho do jogo.
-static func instance(kind: String, data: Dictionary) -> Node3D:
+static func instance(kind: String, data: Dictionary, shade := Color.WHITE) -> Node3D:
 	var toon := ToonLook.enabled()
 	var key := "%s|%d|%d" % [kind, int(toon), int(toon and ToonLook.outline_enabled())]
+	if shade != Color.WHITE:
+		key += "|" + shade.to_html()
 	var ps: PackedScene = _scenes.get(key)
 	if ps == null:
 		var src: Node3D = MODELS[data.model].instantiate()
@@ -37,7 +40,7 @@ static func instance(kind: String, data: Dictionary) -> Node3D:
 		var no_gear := EnemyGear.apply(src, data.get("gear", []))
 		if not no_gear.is_empty():
 			push_warning("%s: o modelo %s não tem as peças %s" % [kind, data.model, str(no_gear)])
-		_dress(src, kind, data)
+		_dress(src, kind, data, shade)
 		var out := merged_copy(src) as Node3D
 		src.free()
 		_own(out, out)
@@ -50,7 +53,7 @@ static func instance(kind: String, data: Dictionary) -> Node3D:
 
 ## Materiais do tipo: gelatina do slime, tintura das variantes do goblin e, por último, o toon (que lê as
 ## cores já tingidas e junta as cascas de contorno por grupo de peças).
-static func _dress(model: Node3D, kind: String, data: Dictionary) -> void:
+static func _dress(model: Node3D, kind: String, data: Dictionary, shade := Color.WHITE) -> void:
 	var toon := ToonLook.enabled()
 	if data.model == "slime" and toon:
 		ToonLook.apply_slime(model, data.get("goo", ToonLook.SLIME_GOO))
@@ -67,6 +70,8 @@ static func _dress(model: Node3D, kind: String, data: Dictionary) -> void:
 				m.material_override = goo
 	if data.has("tint"):
 		tint(model, data.tint[0], data.tint[1], kind == "goblin_dourado")
+	if shade != Color.WHITE:
+		multiply(model, shade)
 	if toon:
 		ToonLook.apply(model, true, true)
 
@@ -89,6 +94,24 @@ static func tint(model: Node, c: Color, amount: float, golden := false) -> void:
 				if golden:
 					m2.metallic = 0.7
 					m2.roughness = 0.3
+				done[mat] = m2
+			mi.set_surface_override_material(i, m2)
+
+
+## Multiplica a cor de cada material (tinta da camada de nível), antes do toon. Mesmo esquema de cópia de tint().
+static func multiply(model: Node, c: Color) -> void:
+	var done := {}      # material original -> cópia tingida
+	for mi: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null:
+			continue
+		for i in mi.mesh.get_surface_count():
+			var mat := mi.get_active_material(i) as StandardMaterial3D
+			if mat == null:
+				continue
+			var m2: StandardMaterial3D = done.get(mat)
+			if m2 == null:
+				m2 = mat.duplicate() as StandardMaterial3D
+				m2.albedo_color = mat.albedo_color * c
 				done[mat] = m2
 			mi.set_surface_override_material(i, m2)
 

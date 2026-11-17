@@ -100,7 +100,7 @@ var _meteor_t := 0.0
 var _meteors: Array = []      # {"pos": Vector3, "t": float, "node": Node3D}
 var _gold_spawns: Array = []  # instantes (_round_t) para soltar Goblins Dourados
 var _champ_spawns: Array = [] # instantes para soltar Campeões
-## Servidor: conta de cada jogador do grupo (quem cai da conexão sai da lista de jogadores antes do
+## Servidor: personagem de cada jogador do grupo (quem cai da conexão sai da lista de jogadores antes do
 ## prêmio ser gravado) e o que cada um ganhou na partida (resumo no fim). pid -> {"gold", "xp", "items"}
 var _accounts := {}
 var _gains := {}
@@ -132,13 +132,13 @@ func _ready() -> void:
 	if role == "server":
 		for pid in team:
 			team[pid].merge({"dmg": 0.0, "kills": 0, "falls": 0, "build": {}})
-			_accounts[pid] = Econ.account_of(pid)
+			_accounts[pid] = Econ.char_of(pid)   # personagem (a chave do CharacterService)
 			_gains[pid] = {"gold": 0, "xp": 0, "items": {}}
 		if Network.characters != null:
-			var accounts: Array = []
+			var accounts: Array = []   # o registro da partida é por conta
 			for pid in _accounts:
 				if int(_accounts[pid]) > 0:
-					accounts.append(int(_accounts[pid]))
+					accounts.append(Econ.account_of(pid))
 			run_id = Network.characters.start_run("horde", accounts)
 		print("[server] Desafio da Horda começou: %s" % ", ".join(_names()))
 		_start_round()
@@ -578,7 +578,7 @@ func _spawn_boss() -> void:
 
 
 ## Chamado pelo Rei Goblin enfurecido (get_parent().summon_minions).
-func summon_minions(pos: Vector3, n: int, _kind := "goblin") -> void:
+func summon_minions(pos: Vector3, n: int, _kind := "goblin", _level := 0) -> void:
 	if phase == "over":
 		return
 	for i in n + 1:
