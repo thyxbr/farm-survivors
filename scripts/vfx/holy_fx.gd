@@ -544,6 +544,17 @@ static func smite(pos: Vector3) -> void:
 	star(pos + Vector3.UP * 0.9, PAL_GOLD, 0.9, {"points": 7, "sharp": 2.2, "body": 0.3, "hold": 0.06, "fade": 0.2})
 
 
+## Escudo de Luz em `pos`: selo azul que abre até o raio dos aliados, feixes suaves e brilhos.
+static func ward(pos: Vector3, radius: float) -> void:
+	if FX._scene() == null:
+		return
+	seal(pos, PAL_WARD, 2.6, 0.9, {"ticks": 12})
+	seal(pos, PAL_WARD, radius, 0.8, {"inner": false, "thick": 0.04, "delay": 0.06})
+	pillar(pos, PAL_WARD, 0.8, 3.2, 0.8, {"alpha": 0.45, "core": 0.35})
+	sparkles(pos + Vector3.UP * 0.5, PAL_WARD, 6, 0.9, 2.4, 1.0, 0.3)
+	_flash(pos + Vector3.UP * 1.2, PAL_WARD.mid, 1.2, 5.0, 0.4)
+
+
 ## Banquete do Herói em `pos`: coluna dourada larga, selo com a cruz, anel até `radius` e brilhos.
 static func feast(pos: Vector3, radius: float) -> void:
 	if FX._scene() == null:

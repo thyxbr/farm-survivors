@@ -2,9 +2,9 @@ class_name ScepterAbilities
 extends RefCounted
 ## Habilidades da classe cetro (mesma API de StaffAbilities). Estático: o estado vive no Player
 ## (ability, ability_t, ability_data). A Cura segue em Player.cast() / confirm_heal() (mira no aliado).
-## Lança de Luz (slot 2): projétil de dano alto num alvo. Julgamento de Luz (slot 3, id scepter_ward): área
-## mirada no chão (Player.area_point) com dano e atordoamento, mais o buff Escudo de Luz nos aliados em
-## volta do healer. Banquete do Herói (slot 4): buff e cura total.
+## Lança de Luz (slot 2): projétil de dano alto num alvo. Escudo de Luz (slot 3): buff em aliados.
+## Banquete do Herói (slot 4): buff e cura total. Julgamento de Luz (slot 5): área mirada no chão
+## (Player.area_point) com dano e atordoamento.
 ## Os buffs em aliados o servidor distribui; o dano segue o caminho normal (take_damage → servidor).
 
 const PROJECTILE := preload("res://scripts/player/projectile.gd")
@@ -34,6 +34,13 @@ static func use(player: Node, id: String) -> bool:
 	if id == "scepter_lance":
 		player.begin_ability(id, {"fired": false})
 		return true
+	if id == "scepter_judgment":
+		var at: Vector3 = player.area_point
+		player.begin_ability(id, {})
+		Network.send_event(id, player.global_position, at)
+		_cast_fx(player.global_position, id, at)
+		_radiant_damage(player, at)
+		return true
 	if not HealRules.ALLY_BUFFS.has(id):
 		return false
 	# buffs: online o servidor decide quem recebe (o próprio incluído, pelo mesmo caminho da Cura);
@@ -45,21 +52,20 @@ static func use(player: Node, id: String) -> bool:
 		Game.add_buff(HealRules.ALLY_BUFFS[id], Game.buff_duration(HealRules.ALLY_BUFFS[id]))
 		if id == "scepter_ult":
 			player.receive_heal(HealRules.ULT_HEAL)
-	var at: Vector3 = player.area_point if id == "scepter_ward" else Vector3.ZERO
-	Network.send_event(id, player.global_position, at)
-	_cast_fx(player.global_position, id, at)
-	if id == "scepter_ward":
-		_radiant_damage(player, at)
+	Network.send_event(id, player.global_position, Vector3.ZERO)
+	_cast_fx(player.global_position, id)
 	return true
 
 
 ## Visual de conjuração (local e réplicas). `pos` = o healer; `at` = onde cai o Julgamento de Luz.
 static func _cast_fx(pos: Vector3, id: String, at := Vector3.ZERO) -> void:
-	if id == "scepter_ward":
+	if id == "scepter_judgment":
 		HolyFX.radiant_nova(at, NOVA_RADIUS)
-		HolyFX.seal(pos, HolyFX.PAL_WARD, 2.4, 0.7, {"ticks": 12})   # o escudo nasce em volta do healer
 		Sfx.play_at("arcane_cast", pos, 0.05, -2.0)
 		Sfx.play_at("explode", at, 0.1, -8.0)
+	elif id == "scepter_ward":
+		HolyFX.ward(pos, HealRules.RADIUS)
+		Sfx.play_at("arcane_cast", pos, 0.05, -4.0)
 	else:
 		HolyFX.feast(pos, FEAST_RADIUS)
 		Sfx.play_at("heal", pos, 0.0, -2.0)

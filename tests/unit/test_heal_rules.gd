@@ -32,10 +32,10 @@ func test_interval() -> void:
 
 func test_interval_per_ability() -> void:
 	T.ok(is_equal_approx(HealRules.min_interval("heal"), 1.4), "Cura: 1,4 s")
-	T.ok(is_equal_approx(HealRules.min_interval("scepter_ward"), 16.0 * 0.4 - 0.2), "Escudo de Luz: recarga x 0,4 - 0,2")
+	T.ok(is_equal_approx(HealRules.min_interval("scepter_ward"), 22.0 * 0.4 - 0.2), "Escudo de Luz: recarga x 0,4 - 0,2")
 	T.ok(HealRules.min_interval("scepter_ult") == 14.5, "ultimate: piso de 14,5 s no servidor")
 	T.ok(not HealRules.interval_ok(100.0, 105.0, "scepter_ward"), "Escudo a 5 s recusa")
-	T.ok(HealRules.interval_ok(100.0, 106.2, "scepter_ward"), "Escudo a 6,2 s vale")
+	T.ok(HealRules.interval_ok(100.0, 108.7, "scepter_ward"), "Escudo a 8,7 s vale")
 	T.ok(not HealRules.interval_ok(100.0, 114.0, "scepter_ult"), "ultimate: recusa a 14 s")
 	T.ok(HealRules.interval_ok(100.0, 114.5, "scepter_ult"), "ultimate: vale a 14,5 s")
 	T.ok(HealRules.interval_ok(100.0, 116.0, "scepter_ult"), "ultimate: vale a 16 s (recarga minima do cliente)")
@@ -49,7 +49,7 @@ func test_targets_radius_bonus() -> void:
 
 
 func test_level_ok() -> void:
-	T.ok(not HealRules.level_ok(4, 5), "nível 4 não usa o Escudo de Luz (nível 5)")
+	T.ok(not HealRules.level_ok(2, 3), "nível 2 não usa o Escudo de Luz (nível 3)")
 	T.ok(HealRules.level_ok(3, 3) and HealRules.level_ok(8, 8), "nível exato vale")
 	T.ok(not HealRules.level_ok(7, 8), "nível 7 não usa o Banquete (nível 8)")
 

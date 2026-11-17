@@ -108,7 +108,7 @@ var _cam_back_now := 0.0
 var ability := ""
 var ability_t := 0.0
 var ability_data := {}
-var ability_slot := 0   ## slot (1..4) da tecla que começou a habilidade em execução (0 = nenhum)
+var ability_slot := 0   ## slot (1..5) da tecla que começou a habilidade em execução (0 = nenhum)
 var cooldowns := _make_cooldowns()   # todas as habilidades: a recarga continua ao trocar de arma
 var interact_target: Node3D = null
 var spawn_point := Vector3(0, 0.5, 6)
@@ -440,7 +440,7 @@ func _local_process(delta: float) -> void:
 		_update_bow(delta)
 	elif Input.is_action_just_pressed("attack"):
 		_try_attack()
-	for i in 4:
+	for i in ItemDB.SLOT_COUNT:
 		if Input.is_action_just_pressed("spell_%d" % (i + 1)):
 			use_slot(i + 1)
 	# soltou a tecla da habilidade em execução (ex.: o arqueiro solta a flecha ao largar a tecla)
@@ -920,7 +920,7 @@ static func _make_cooldowns() -> Dictionary:
 	return d
 
 
-## Usa a habilidade do slot (1..4) do kit da arma equipada; slot sem habilidade não faz nada.
+## Usa a habilidade do slot (1..5) do kit da arma equipada; slot sem habilidade não faz nada.
 func use_slot(slot: int) -> void:
 	for id in Game.ability_kit():
 		if ItemDB.ABILITIES[id].slot == slot:

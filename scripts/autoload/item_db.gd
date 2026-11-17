@@ -16,7 +16,9 @@ const CROP_ORDER := ["carrot", "wheat", "tomato", "pepper", "mint", "pumpkin"]
 static var RECIPES: Dictionary = {}
 const RECIPE_ORDER := ["bread", "carrot_stew", "spicy_soup", "dragon_chili", "mint_tea", "garden_salad", "pumpkin_pie", "valdoria_feast"]
 
-## Habilidades de todas as armas. `slot` 1..4 (tecla 1..4); o slot 4 é a ultimate.
+## Habilidades de todas as armas. `slot` 1..SLOT_COUNT (tecla de mesmo número); o slot 4 é a ultimate.
+## O slot 5 é opcional: só o cetro usa (Julgamento de Luz), e a barra só o mostra para quem tem.
+const SLOT_COUNT := 5
 ## `ready` = a habilidade já está implementada (fonte única; senão "Em breve"). `cost` é mana (0 = só recarga). `icon` é o desenho do IconPainter.
 ## `aim: "ground"` = a tecla só prepara: mostra o círculo de raio `aim_radius` no chão, a até `aim_range` m, e o
 ## botão direito confirma (Player._arm_area / confirm_area).
@@ -29,9 +31,11 @@ const ABILITIES := {
 		"ready": true, "ultimate": false, "icon": "heal", "desc": "Prepara a cura: mire um aliado (ele ganha uma borda verde) e clique com o botão direito para curá-lo; sem aliado na mira, cura você. Restaura 30 + INT x 4 de vida (mais o bônus de cura do cetro)."},
 	"scepter_lance": {"name": "Lança de Luz", "class": "scepter", "slot": 2, "level": 2, "cooldown": 5.0, "cost": 15,
 		"ready": true, "ultimate": false, "icon": "holy_lance", "desc": "Arremessa uma lança de luz sagrada no alvo mirado. Dano = 35 + INT x 4,5."},
-	"scepter_ward": {"name": "Julgamento de Luz", "class": "scepter", "slot": 3, "level": 5, "cooldown": 16.0, "cost": 30,
+	"scepter_ward": {"name": "Escudo de Luz", "class": "scepter", "slot": 3, "level": 3, "cooldown": 22.0, "cost": 30,
+		"ready": true, "ultimate": false, "icon": "ward", "desc": "Por 12 s, em você e nos aliados a 8 m: +30 de vida máx., +4 de defesa e +3 de vida por segundo."},
+	"scepter_judgment": {"name": "Julgamento de Luz", "class": "scepter", "slot": 5, "level": 5, "cooldown": 10.0, "cost": 28,
 		"aim": "ground", "aim_range": 18.0, "aim_radius": 5.0,
-		"ready": true, "ultimate": false, "icon": "radiant", "desc": "Prepara a área: a tecla mostra o círculo no chão (até 18 m), o botão direito confirma. Uma coluna de luz cai ali: dano = 30 + INT x 3,5 e atordoa os inimigos a 5 m. Você e os aliados a 8 m de você ganham o Escudo de Luz por 12 s: +30 de vida máx., +4 de defesa e +3 de vida por segundo."},
+		"ready": true, "ultimate": false, "icon": "radiant", "desc": "Prepara a área: a tecla mostra o círculo no chão (até 18 m), o botão direito confirma. Uma coluna de luz cai ali: dano = 30 + INT x 3,5 e atordoa os inimigos a 5 m."},
 	"scepter_ult": {"name": "Banquete do Herói", "class": "scepter", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
 		"ready": true, "ultimate": true, "icon": "heal", "desc": "Ultimate: coluna de luz que cura por completo você e os aliados a 8 m e dá por 12 s +25% de dano, +12% de velocidade e -15% de recarga."},
 	"staff_ember": {"name": "Bafo de Dragão", "class": "staff", "slot": 3, "level": 5, "cooldown": 30.0, "cost": 25,

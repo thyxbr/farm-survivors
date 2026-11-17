@@ -255,6 +255,12 @@ static func draw(ci: CanvasItem, kind: String, col: Color, r: Rect2, ghost := fa
 			_bar(ci, P, Vector2(0.46, 0.38), Vector2(0.62, 0.54), 0.06, Color(1.0, 0.75, 0.25), ol, lw)
 			if not ghost:
 				ci.draw_circle(P.call(0.84, 0.16), S * 0.07, Color(1, 1, 0.85, 0.9))
+		"ward":   # escudo de luz azul com a cruz
+			_poly(ci, P, [Vector2(0.5, 0.1), Vector2(0.84, 0.24), Vector2(0.8, 0.6), Vector2(0.5, 0.9),
+				Vector2(0.2, 0.6), Vector2(0.16, 0.24)], Color(0.5, 0.75, 1.0), ol, lw)
+			if not ghost:
+				_bar(ci, P, Vector2(0.5, 0.28), Vector2(0.5, 0.68), 0.09, Color(0.95, 0.98, 1.0), ol, lw * 0.5)
+				_bar(ci, P, Vector2(0.34, 0.44), Vector2(0.66, 0.44), 0.09, Color(0.95, 0.98, 1.0), ol, lw * 0.5)
 		"radiant":   # sol: disco dourado com raios
 			for i in 8:
 				var a := i * PI / 4.0

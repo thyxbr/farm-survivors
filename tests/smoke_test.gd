@@ -22,7 +22,7 @@ func check(cond: bool, what: String) -> void:
 func hud_slot_ids() -> Array[String]:
 	var out: Array[String] = []
 	var hud = world.hud
-	for n in range(1, 5):
+	for n in range(1, ItemDB.SLOT_COUNT + 1):
 		var icon: String = hud.slots["slot_%d" % n].icon_kind
 		var found := ""
 		for id in ItemDB.ABILITIES:
@@ -3020,7 +3020,8 @@ func _test_gear() -> void:
 	equip_any("sc_novice_scepter")
 	await wait(0.05)
 	check(Game.char_class == "healer" and Game.weapon_class() == "scepter", "healer com cetro")
-	check(Game.ability_kit() == ["heal", "scepter_lance", "scepter_ward", "scepter_ult"], "kit do healer (%s)" % [Game.ability_kit()])
+	check(Game.ability_kit() == ["heal", "scepter_lance", "scepter_ward", "scepter_ult", "scepter_judgment"], "kit do healer (%s)" % [Game.ability_kit()])
+	check(world.hud.slots["slot_5"].visible, "a barra mostra a 5ª habilidade para o healer")
 	check(player.look["class"] == "staff" and player.look.holder != null, "cetro sem modelo próprio cai no cajado procedural")
 	Game.hp = Game.max_hp() * 0.3
 	Game.mp = Game.max_mp()
@@ -3070,25 +3071,33 @@ func _test_gear() -> void:
 	player.cooldowns.scepter_ward = 0.0
 	player.cast("scepter_ward")
 	check(not Game.has_buff("scepter_ward") and player.ability == "", "Escudo de Luz bloqueado no nível 2")
+	# Julgamento de Luz (slot 5, nível 5): a tecla prepara a área, a confirmação solta no ponto mirado
 	Game.level = 4
-	player.cast("scepter_ward")
-	check(not Game.has_buff("scepter_ward") and player.ability == "", "Escudo de Luz bloqueado no nível 4 (é do 5)")
+	player.cooldowns.scepter_judgment = 0.0
+	player.use_slot(5)
+	check(player.area_armed == "" and player.ability == "", "Julgamento de Luz bloqueado no nível 4")
 	Game.level = 8
-	var ward_mp := Game.mp
-	var maxhp0 := Game.max_hp()
-	player.cast("scepter_ward")
-	check(player.area_armed == "scepter_ward" and not Game.has_buff("scepter_ward") and is_equal_approx(Game.mp, ward_mp),
-		"Julgamento de Luz: a tecla só prepara a área (sem buff, sem mana)")
+	var jud_mp := Game.mp
+	player.use_slot(5)
+	check(player.area_armed == "scepter_judgment" and player.ability == "" and is_equal_approx(Game.mp, jud_mp),
+		"Julgamento de Luz: a tecla 5 só prepara a área (sem mana)")
 	await wait(0.1)
 	check(player._area_mark != null and player.global_position.distance_to(player.area_point) <= 18.5,
 		"círculo da área no chão, dentro do alcance (%.1f m)" % player.global_position.distance_to(player.area_point))
-	player.cast("scepter_ward")
-	check(player.area_armed == "" and player._area_mark == null and Game.mp >= ward_mp - 0.01, "a mesma tecla de novo desiste sem gastar")
-	player.cast("scepter_ward")
-	ward_mp = Game.mp
-	maxhp0 = Game.max_hp()
+	player.use_slot(5)
+	check(player.area_armed == "" and player._area_mark == null and Game.mp >= jud_mp - 0.01, "a mesma tecla de novo desiste sem gastar")
+	player.use_slot(5)
+	jud_mp = Game.mp
 	player.confirm_area()
-	check(player.area_armed == "", "confirmar desarma a área")
+	check(player.area_armed == "" and player.ability == "scepter_judgment", "confirmar solta o Julgamento de Luz")
+	check(is_equal_approx(jud_mp - Game.mp, 28.0) and player.cooldowns.scepter_judgment > 0.0, "Julgamento de Luz gasta 28 de mana e entra em recarga")
+	check(not Game.has_buff("scepter_ward"), "Julgamento de Luz não dá o Escudo de Luz")
+	await wait(0.7)
+	check(player.ability == "", "Julgamento de Luz termina a pose")
+	Game.mp = Game.max_mp()
+	var ward_mp := Game.mp
+	var maxhp0 := Game.max_hp()
+	player.cast("scepter_ward")
 	check(Game.has_buff("scepter_ward") and player.ability == "scepter_ward", "Escudo de Luz dá o buff e começa")
 	check(is_equal_approx(Game.max_hp() - maxhp0, 30.0), "Escudo de Luz sobe a vida máx. em 30 (%.0f)" % (Game.max_hp() - maxhp0))
 	check(is_equal_approx(ward_mp - Game.mp, 30.0) and player.cooldowns.scepter_ward > 0.0, "Escudo de Luz gasta 30 de mana e entra em recarga")
