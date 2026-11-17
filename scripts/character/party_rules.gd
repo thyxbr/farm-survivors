@@ -44,6 +44,25 @@ static func kill_rewards(xp: int, contributors: Array, teams: Dictionary, pos_of
 	return out
 
 
+## Nível de referência de cada quem recebe XP de um abate (para o ajuste por diferença de nível):
+## o maior nível entre os que recebem e são do mesmo grupo dele. Quem não tem grupo usa o próprio nível;
+## outro jogador que só acertou o mesmo monstro (sem grupo em comum) não conta.
+##   recipients  quem recebe (chaves de kill_rewards)
+##   teams       peer -> [membros do grupo dele, incluindo ele]
+##   level_of    peer -> nível (sem a chave = 1)
+static func group_levels(recipients: Array, teams: Dictionary, level_of: Dictionary) -> Dictionary:
+	var out := {}
+	for p in recipients:
+		var best := int(level_of.get(p, 1))
+		var team: Array = teams.get(p, [])
+		if p in team:
+			for m in team:
+				if m in recipients:
+					best = maxi(best, int(level_of.get(m, 1)))
+		out[p] = best
+	return out
+
+
 ## Buffs que um cliente declarou para o quadro do grupo ({id do buff: segundos restantes}), limpos:
 ## só ids da tabela `buffs` (comida e habilidades), segundos inteiros entre 1 e MAX_BUFF_SECS, no máximo MAX_BUFFS.
 ## É só visual (o efeito do buff roda no cliente), mas o dicionário vem da rede e vai para os outros jogadores.

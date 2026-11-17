@@ -1594,98 +1594,131 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, -2)
 script = ExtResource("7_pea20")
 kind = "slime_veloz"
 respawn = 40.0
+level = 12
+level_max = 20
 
 [node name="slime_veloz 2" type="Node3D" parent="Monstros" unique_id=647208278]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, 4)
 script = ExtResource("7_pea20")
 kind = "slime_veloz"
 respawn = 40.0
+level = 12
+level_max = 20
 
 [node name="slime_veloz 3" type="Node3D" parent="Monstros" unique_id=893685462]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, -6)
 script = ExtResource("7_pea20")
 kind = "slime_veloz"
 respawn = 40.0
+level = 12
+level_max = 20
 
 [node name="slime_veloz 4" type="Node3D" parent="Monstros" unique_id=2129578837]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, -14)
 script = ExtResource("7_pea20")
 kind = "slime_veloz"
 respawn = 40.0
+level = 12
+level_max = 20
 
 [node name="slime_veloz 5" type="Node3D" parent="Monstros" unique_id=815494497]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, 0)
 script = ExtResource("7_pea20")
 kind = "slime_veloz"
 respawn = 40.0
+level = 12
+level_max = 20
 
 [node name="slime_veloz 6" type="Node3D" parent="Monstros" unique_id=12378700]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, 12)
 script = ExtResource("7_pea20")
 kind = "slime_veloz"
 respawn = 40.0
+level = 12
+level_max = 20
 
 [node name="slime_gelo" type="Node3D" parent="Monstros" unique_id=73142]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, -18)
 script = ExtResource("7_pea20")
 kind = "slime_gelo"
 respawn = 60.0
+level = 12
+level_max = 20
 
 [node name="slime_gelo 2" type="Node3D" parent="Monstros" unique_id=886483843]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, -20)
 script = ExtResource("7_pea20")
 kind = "slime_gelo"
 respawn = 60.0
+level = 12
+level_max = 20
 
 [node name="slime_gelo 3" type="Node3D" parent="Monstros" unique_id=25638217]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, 6)
 script = ExtResource("7_pea20")
 kind = "slime_gelo"
 respawn = 60.0
+level = 12
+level_max = 20
 
 [node name="goblin_xama" type="Node3D" parent="Monstros" unique_id=306104404]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 0, 6)
 script = ExtResource("7_pea20")
 kind = "goblin_xama"
 respawn = 90.0
+level = 12
+level_max = 20
 
 [node name="goblin_xama 2" type="Node3D" parent="Monstros" unique_id=1204500778]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, 9)
 script = ExtResource("7_pea20")
 kind = "goblin_xama"
 respawn = 90.0
+level = 12
+level_max = 20
 
 [node name="goblin_xama 3" type="Node3D" parent="Monstros" unique_id=406188974]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 0, 11)
 script = ExtResource("7_pea20")
 kind = "goblin_xama"
 respawn = 90.0
+level = 12
+level_max = 20
 
 [node name="goblin_arqueiro" type="Node3D" parent="Monstros" unique_id=2054022755]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0, 2)
 script = ExtResource("7_pea20")
 kind = "goblin_arqueiro"
 respawn = 75.0
+level = 12
+level_max = 20
 
 [node name="goblin_arqueiro 2" type="Node3D" parent="Monstros" unique_id=935145600]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 0, 14)
 script = ExtResource("7_pea20")
 kind = "goblin_arqueiro"
 respawn = 75.0
+level = 12
+level_max = 20
 
 [node name="slime_rainha" type="Node3D" parent="Monstros" unique_id=1686805935]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, -36)
 script = ExtResource("7_pea20")
 kind = "slime_rainha"
 respawn = 240.0
+level = 20
 
 [node name="slime" type="Node3D" parent="Monstros" unique_id=23798379]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, 12)
 script = ExtResource("7_pea20")
+level = 12
+level_max = 20
 
 [node name="slime 2" type="Node3D" parent="Monstros" unique_id=2074614877]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 4)
 script = ExtResource("7_pea20")
+level = 12
+level_max = 20
 
 [node name="Lugares" type="Node3D" parent="." unique_id=1459334181]
 

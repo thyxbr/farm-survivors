@@ -122,6 +122,18 @@ static func base_max_mp(s: CharState, bt: BalanceTables) -> float:
 	return 25.0 + (int(s.attributes.int) + int(gear(s, bt, "int"))) * 6.0 + (s.level - 1) * 3.0 + gear(s, bt, "mp")
 
 
+## Dano do ataque básico sem os modificadores (talentos, buffs, cartas): espada arma + FOR × 1,6; arco
+## arma + AGI × 1,5 + FOR × 0,3; cajado e cetro arma + INT × 1,4 + bônus "spell" × 0,5.
+## `attrs` são os atributos efetivos (pontos + equipamento). Game.melee_damage() multiplica por mod("damage").
+static func basic_damage(weapon_class: String, attrs: Dictionary, weapon_damage: float, spell_gear: float) -> float:
+	match weapon_class:
+		"staff", "scepter":
+			return weapon_damage + float(attrs.get("int", 0)) * 1.4 + spell_gear * 0.5
+		"bow":
+			return weapon_damage + float(attrs.get("agi", 0)) * 1.5 + float(attrs.get("str", 0)) * 0.3
+	return weapon_damage + float(attrs.get("str", 0)) * 1.6
+
+
 ## Poder mágico: atributo INT + bônus "spell" do equipamento (mesma conta de Game.spell_power()).
 static func spell_power(s: CharState, bt: BalanceTables) -> float:
 	return float(s.attributes.int) + gear(s, bt, "spell")
@@ -209,21 +221,59 @@ static func _inv_less(bt: BalanceTables, a: Dictionary, b: Dictionary) -> bool:
 	return str(_item(bt, a.id).get("name", a.id)) < str(_item(bt, b.id).get("name", b.id))
 
 
+# ================================================================ migração da progressão
+## Versão da progressão por nível; vive em flags["prog_v"] (salvo no banco e no arquivo, sem coluna nova).
+const PROG_VERSION := 1
+
+
+## Personagem de antes da progressão por nível (sem prog_v): atributos voltam a 5 e os pontos gastos
+## voltam como livres, para redistribuir (fontes de ponto: níveis e promoções da guilda). XP em excesso é
+## cortado para não pular nível sozinho. Equipamento e talentos não mudam. Devolve true se mudou algo.
+## O aviso (prog_notice) só fica marcado se os pontos ou os atributos mudaram de fato.
+static func migrate_progression(s: CharState, bt: BalanceTables) -> bool:
+	if int(s.flags.get("prog_v", 0)) >= PROG_VERSION:
+		return false
+	var pts := int(_rules(bt).get("points_per_level", 3))
+	var total := (s.level - 1) * pts
+	var all_ranks := ranks(bt)
+	for i in mini(rank_index(bt, rank_of(s)), all_ranks.size() - 1) + 1:
+		total += int(all_ranks[i].get("stat_points", 0))
+	var refunded := total != s.stat_points
+	for k in s.attributes:
+		refunded = refunded or int(s.attributes[k]) != 5
+		s.attributes[k] = 5
+	s.stat_points = total
+	s.xp = mini(s.xp, maxi(0, xp_to_next(s.level, bt) - 1))
+	s.flags["prog_v"] = PROG_VERSION
+	if refunded:
+		s.flags["prog_notice"] = true
+	return true
+
+
+## O jogador viu o aviso da migração: tira a marca (o servidor grava).
+static func ack_prog_notice(s: CharState) -> Dictionary:
+	s.flags.erase("prog_notice")
+	return _ok()
+
+
 # ================================================================ XP e ouro
 static func xp_to_next(level: int, bt: BalanceTables) -> int:
-	var c: Dictionary = _rules(bt).get("xp_curve", {})
-	return int(float(c.base) * pow(level, float(c.exp)))
+	return ProgressionRules.xp_to_next(bt, level)
 
 
 ## Soma XP e sobe de nível quantas vezes der (eventos em `ev`).
 static func _add_xp(s: CharState, bt: BalanceTables, amount: int, ev: Array) -> void:
 	if amount <= 0:
 		return
+	# no nível máximo o XP não conta: zera o resto e não avisa
+	if s.level >= ProgressionRules.max_level(bt):
+		s.xp = 0
+		return
 	s.xp += amount
 	ev.append(_notify("+%d XP" % amount, Color(0.6, 0.85, 1.0)))
 	var pts := int(_rules(bt).get("points_per_level", 3))
 	var weapon_cls := weapon_class(bt, str(s.equipment.get("weapon", "")))
-	while s.xp >= xp_to_next(s.level, bt):
+	while s.level < ProgressionRules.max_level(bt) and s.xp >= xp_to_next(s.level, bt):
 		s.xp -= xp_to_next(s.level, bt)
 		s.level += 1
 		s.stat_points += pts
@@ -236,6 +286,8 @@ static func _add_xp(s: CharState, bt: BalanceTables, amount: int, ev: Array) -> 
 			if ab["class"] == weapon_cls and int(ab.level) == s.level and ab.ready:
 				ev.append(_notify("Nova habilidade: %s [%d]" % [ab.name, ab.slot], Color(0.75, 0.55, 1.0)))
 		ev.append({"t": "level_up", "level": s.level})
+	if s.level >= ProgressionRules.max_level(bt):
+		s.xp = 0
 
 
 ## Recompensa direta (coleta de loot, prêmio da Horda...): ouro, XP e itens.
@@ -257,10 +309,13 @@ static func grant(s: CharState, bt: BalanceTables, gold: int, xp: int, items: Di
 	return _ok(ev)
 
 
-## Abate: XP, contagem de abates e progresso de missão.
-static func kill(s: CharState, bt: BalanceTables, kind: String, xp: int) -> Dictionary:
+## Abate: XP, contagem de abates e progresso de missão. Com `enemy_level` > 0 o XP é ajustado pela diferença
+## para o maior nível entre o personagem e o grupo (`group_level`); sem nível, sem ajuste.
+static func kill(s: CharState, bt: BalanceTables, kind: String, xp: int, enemy_level := 0, group_level := 0) -> Dictionary:
 	if xp < 0:
 		return _fail("valor_invalido")
+	if enemy_level > 0:
+		xp = int(round(xp * ProgressionRules.xp_diff_mult(bt, enemy_level, maxi(s.level, group_level))))
 	var ev: Array = []
 	s.kills += 1
 	# chefe derrotado: o Rei Goblin deixa de nascer (king_dead, como fazia Enemy._die); os outros chefes
@@ -361,6 +416,11 @@ static func sell(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 
 
 # ================================================================ equipamento
+## Nível exigido para equipar o item (campo `level` do items.json; sem campo = 1).
+static func item_level(bt: BalanceTables, id: String) -> int:
+	return maxi(1, int(_item(bt, id).get("level", 1)))
+
+
 static func equip(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	var slot_name := slot_of(bt, id)
 	if slot_name == "":
@@ -376,6 +436,8 @@ static func equip(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	if slot_name == "offhand" and it.has("needs") and it.needs != weapon_class(bt, s.equipment.weapon):
 		return _fail("exige_classe", [_notify("%s exige %s." % [it.name, str(CLASS_NAMES.get(it.needs, it.needs)).to_lower()],
 			Color(1, 0.6, 0.5))])
+	if s.level < item_level(bt, id):
+		return _fail("exige_nivel", [_notify("Requer nível %d." % item_level(bt, id), Color(1, 0.6, 0.5))])
 	var ev: Array = []
 	remove_item(s, id, 1)
 	if s.equipment[slot_name] != "":

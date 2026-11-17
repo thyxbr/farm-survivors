@@ -112,6 +112,7 @@ func _ready() -> void:
 	Game.notify.connect(_on_notify)
 	Game.item_looted.connect(_on_loot)
 	Game.stats_changed.connect(_refresh_static)
+	Game.stats_changed.connect(_check_prog_notice)
 	Game.inventory_changed.connect(_refresh_static)
 	Game.kit_changed.connect(_refresh_kit)
 	Game.quests_changed.connect(_refresh_quests)
@@ -119,6 +120,7 @@ func _ready() -> void:
 	Game.inventory_changed.connect(_refresh_quests)   # coleta: o progresso vem da mochila
 	_refresh_static()
 	_refresh_quests()
+	_check_prog_notice()
 
 
 ## Minimapa no canto superior direito (Valdoria); a estação e as missões descem para baixo dele.
@@ -398,8 +400,10 @@ func _process(delta: float) -> void:
 	st_bar.value = Game.stamina
 	var st_full := Game.stamina >= Game.max_stamina() - 0.5
 	st_bar.modulate.a = move_toward(st_bar.modulate.a, 0.0 if st_full else 1.0, delta * 3.0)
-	xp_bar.max_value = Game.xp_to_next()
-	xp_bar.value = Game.xp
+	# no nível máximo (xp_to_next = 0) a barra fica cheia
+	var xp_need := Game.xp_to_next()
+	xp_bar.max_value = maxi(xp_need, 1)
+	xp_bar.value = Game.xp if xp_need > 0 else 1
 
 	# vinheta: pisca ao levar dano e pulsa com vida baixa
 	if _last_hp >= 0.0 and Game.hp < _last_hp - 0.5:
@@ -698,6 +702,12 @@ func _update_compass() -> void:
 		_compass_label.text = "carruagem → %s · %d m" % [_compass_far, int(dist)]
 	else:
 		_compass_label.text = "aqui" if dist < 4.0 else "%d m" % int(dist)
+
+
+## Personagem migrado para a progressão por nível: avisa uma vez que os pontos voltaram.
+func _check_prog_notice() -> void:
+	if Game.take_prog_notice():
+		_on_notify("Seus pontos de atributo foram devolvidos: a progressão mudou. Distribua de novo na ficha (C).", Color(1.0, 0.85, 0.3))
 
 
 func _on_notify(text: String, color: Color) -> void:

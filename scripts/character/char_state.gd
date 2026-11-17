@@ -45,6 +45,7 @@ static func new_character(bt: BalanceTables) -> CharState:
 	# começa sem nenhum equipamento: o kit completo vem pelas missões
 	s.equipment = CharRules.empty_equipment()
 	s.farm = CharRules.default_farm(bt)
+	s.flags["prog_v"] = CharRules.PROG_VERSION   # já nasce na progressão por nível: nada a migrar
 	for e in [["health_potion", 3], ["mana_potion", 1], ["seed_carrot", 4], ["seed_wheat", 4], ["bread", 1]]:
 		CharRules.add_item(s, bt, e[0], e[1])
 	s.hp = CharRules.base_max_hp(s, bt)
@@ -128,6 +129,8 @@ static func from_dict(d, bt: BalanceTables = null) -> CharState:
 				s.quests[id]["got"] = clean
 	var fl = d.get("flags")
 	s.flags = fl.duplicate(true) if fl is Dictionary else {}
+	if s.flags.has("prog_v"):
+		s.flags["prog_v"] = _int(s.flags["prog_v"], 0)   # vem do JSON como float
 	s.farm = _parse_farm(d.get("farm"), bt)
 	s.hp = maxf(0.0, _float(d.get("hp"), 0.0))
 	s.mp = maxf(0.0, _float(d.get("mp"), 0.0))

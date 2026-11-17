@@ -35,13 +35,20 @@ func hud_slot_ids() -> Array[String]:
 
 ## Equipa trocando antes a classe do personagem para a da arma (a classe é fixa no jogo de verdade;
 ## o teste precisa passar pelas quatro armas).
-func equip_any(id: String) -> void:
+func equip_any(id: String, use := false) -> void:
 	if CharRules.slot_of(Balance.tables, id) == "weapon":
 		var wc := CharRules.weapon_class(Balance.tables, id)
 		for cls in CharRules.CLASS_IDS:
 			if CharRules.class_weapon(Balance.tables, cls) == wc and Game.char_class != cls:
 				Econ.test_force_class(cls)
-	Game.equip(id)
+	# o item pede nível: sobe o personagem só para equipar e devolve (o item equipado fica)
+	var lv0 := Game.level
+	Econ.test_force_level(maxi(lv0, CharRules.item_level(Balance.tables, id)))
+	if use:
+		Game.use_item(id)
+	else:
+		Game.equip(id)
+	Econ.test_force_level(lv0)
 
 
 func wait(sec: float) -> void:
@@ -156,6 +163,7 @@ func _ready() -> void:
 	# --- combate corpo a corpo
 	var slime := _nearest("slime")
 	var xp0 := Game.xp
+	var lvl0 := Game.level
 	var gold0 := Game.gold
 	player.global_position = slime.global_position + Vector3(0, 0.3, 1.2)
 	player.model.rotation.y = PI
@@ -174,14 +182,14 @@ func _ready() -> void:
 	Game.equipment.weapon = w_fist
 	check(not player._unarmed() and player._attack_sound().begins_with("sword_swing"), "com a espada volta o som de lâmina")
 	slime.take_damage(9999, player.global_position, false)
-	check(Game.xp > xp0, "XP ganho ao matar slime")
+	check(Game.level > lvl0 or Game.xp > xp0, "XP ganho ao matar slime")
 	check(Game.quests.slimes.progress == 1, "progresso da missão 1/5")
 	player.global_position = slime.global_position + Vector3(0, 0.3, 0)
 	await wait(2.5)
 	check(Game.gold > gold0, "ouro coletado do chão (%d -> %d)" % [gold0, Game.gold])
 
 	# --- acerto de longe num slime parado em casa: ele persegue, não volta para casa curando o dano
-	var far_s := _nearest("slime")
+	var far_s := _today(_nearest("slime"))
 	far_s.global_position = far_s.home
 	far_s._set_state("idle")
 	player.global_position = far_s.home + Vector3(0, 0.3, far_s.data.aggro * 2.5)
@@ -194,7 +202,7 @@ func _ready() -> void:
 
 	# --- Investida (espada, slot 1): avança pela frente atravessando o slime
 	var pos_c := player.global_position
-	var ch_s := _nearest("slime")
+	var ch_s := _today(_nearest("slime"))
 	ch_s.global_position = ch_s.home
 	player.global_position = ch_s.global_position + Vector3(0, 0.3, 3.0)
 	player.model.rotation.y = PI   # olhando para -Z, para o slime
@@ -277,8 +285,8 @@ func _ready() -> void:
 			qk_b = e
 			break
 	var qk_base := pos_c + Vector3(0, 0.3, 0)   # chão firme da vila
-	qk_a.hp = qk_a.max_hp   # o mais próximo pode ser o ferido pela Investida
-	qk_b.hp = qk_b.max_hp
+	_today(qk_a)   # o mais próximo pode ser o ferido pela Investida
+	_today(qk_b)
 	player.global_position = qk_base
 	player.model.rotation.y = PI   # olhando para -Z
 	player.velocity = Vector3.ZERO
@@ -343,8 +351,7 @@ func _ready() -> void:
 	var spring_w: float = player.spring.spring_length
 	Game.level = 8
 	Game.fury = 100.0
-	var s1 := _nearest("slime")
-	s1.hp = s1.max_hp
+	var s1 := _today(_nearest("slime"))
 	player.global_position = s1.global_position + Vector3(2.5, 0.3, 0)
 	player.velocity = Vector3.ZERO
 	var h1: float = s1.hp
@@ -379,8 +386,7 @@ func _ready() -> void:
 	check(not player.dead and not get_tree().paused, "reviveu depois de morrer no Turbilhão")
 	check(absf(player.spring.spring_length - spring_w) < 0.05, "câmera volta ao normal (%.2f)" % player.spring.spring_length)
 	# puxão: o golpe com pull leva o inimigo em direção a quem bateu (em vez de empurrar)
-	var pl_s := _nearest("slime")
-	pl_s.hp = pl_s.max_hp
+	var pl_s := _today(_nearest("slime"))
 	pl_s.global_position = player.global_position + Vector3(3.0, 0.0, 0.0)
 	pl_s.velocity = Vector3.ZERO
 	pl_s.take_damage(0.5, player.global_position, false, 0.0, 0.0, SwordAbilities.WHIRL_PULL)
@@ -905,9 +911,9 @@ func _ready() -> void:
 	await wait(0.05)
 	var g := Game.gold
 	Game.buy("iron_sword")
-	check(Game.count_item("iron_sword") == 1 and Game.gold == g - 60, "comprou espada de ferro")
-	Game.use_item("iron_sword")
-	check(Game.equipment.weapon == "iron_sword" and Game.count_item("azure_edge") == 1, "equipou espada de ferro")
+	check(Game.count_item("iron_sword") == 1 and Game.gold == g - 60, "comprou espada de ferro (%d, ouro %d -> %d)" % [Game.count_item("iron_sword"), g, Game.gold])
+	equip_any("iron_sword", true)
+	check(Game.equipment.weapon == "iron_sword" and Game.count_item("azure_edge") == 1, "equipou espada de ferro (%s, gume %d)" % [Game.equipment.weapon, Game.count_item("azure_edge")])
 	Game.sell("azure_edge")
 	check(Game.count_item("azure_edge") == 0, "vendeu o gume celeste")
 	world.modal._close()
@@ -951,9 +957,16 @@ func _ready() -> void:
 	var boss: Enemy = world.boss
 	check(boss != null and is_instance_valid(boss), "chefe aparece ao aceitar a missão final")
 	var goblins_before := _count("goblin")
+	var enemies_before := get_tree().get_nodes_in_group("enemies")
 	boss.take_damage(boss.max_hp * 0.6, boss.global_position + Vector3.FORWARD, false)
 	await wait(0.2)
 	check(boss.enraged and _count("goblin") == goblins_before + 2, "chefe enfurece e invoca 2 goblins")
+	var minion_levels := []
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.kind == "goblin" and not (e in enemies_before):
+			minion_levels.append(e.level)
+	check(boss.level > 0 and minion_levels.count(boss.level) >= 2,
+		"goblins invocados no nível do chefe (%d): %s" % [boss.level, str(minion_levels)])
 	boss.take_damage(99999, boss.global_position + Vector3.FORWARD, false)
 	check(Game.quest_state("goblin_king") == "ready" and Game.flags.get("king_dead", false), "chefe derrotado")
 	await _test_guild_travel()
@@ -1059,6 +1072,7 @@ func _test_bow_gale() -> void:
 			if c is BowAbilities.GaleLine:
 				n += 1
 		return n
+	_calm_bystanders(gs, base, 40.0, 20.0)   # monstros com nível batem mais: nenhum outro chega no meio da tensão
 	place.call()
 	await wait(0.3)
 	place.call()
@@ -2920,6 +2934,7 @@ func _test_gear() -> void:
 	await wait(0.7)
 	check(player.ability == "", "Escudo de Luz termina a pose")
 	Game.clear_buffs(true)
+	_calm_bystanders([], player.global_position, 40.0, 6.0)   # com 5 de vida, qualquer golpe de fora derruba o teste
 	Game.fury = 0.0
 	player.cast("scepter_ult")
 	check(not Game.has_buff("scepter_feast") and player.ability == "", "Banquete do Herói exige a fúria cheia")
@@ -3172,14 +3187,14 @@ func _test_female_body() -> void:
 		if Game.count_item(id) == 0:
 			need[id] = 1
 	Econ.grant(0, 0, need, "test", true)
-	Game.equip("leather_cap")
-	Game.equip("guard_surcoat")
+	equip_any("leather_cap")
+	equip_any("guard_surcoat")
 	await wait(0.1)
 	check(player.model == m and KnightLook.body_of(player.model) == "f", "trocar armadura mantém o corpo feminino")
 	check(m.find_child("Gear_LashL", true, false) != null, "elmo aberto feminino (h_cap_f, com cílios)")
 	var tail := m.find_child("Ponytail", true, false) as Node3D
 	check(tail.visible, "rabo de cavalo aparece com o gorro")
-	Game.equip("ranger_hood")
+	equip_any("ranger_hood")
 	await wait(0.1)
 	check(not tail.visible, "capuz esconde o rabo de cavalo")
 	equip_any("short_bow")
@@ -3296,6 +3311,22 @@ func _pick_levelups(check_weapon: bool) -> void:
 			var after: int = sv.weapon_levels.get(ch.id, 0) if ch.type == "weapon" else sv.passive_levels.get(ch.id, 0)
 			check(after == before + 1, "carta escolhida aplicada (%s %d -> %d)" % [ch.id, before, after])
 		first = false
+
+
+## Alvo com a vida de hoje (data.hp, cheia): os monstros do vale nascem com nível sorteado na faixa do ponto,
+## e a vida muda com o nível. As checagens de dano contam com a vida do tipo, não com a do nível sorteado.
+## Atordoa (sem andar nem golpear por `t` s) os monstros a até `radius` de `center` que não são alvos do teste:
+## a checagem fica só com os próprios alvos, sem depender de quem passa por perto.
+func _calm_bystanders(keep: Array, center: Vector3, radius: float, t: float) -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not e.dead and not (e in keep) and e.global_position.distance_to(center) < radius:
+			e.apply_stun(t)
+
+
+func _today(e: Enemy) -> Enemy:
+	e.max_hp = float(e.data.hp)
+	e.hp = e.max_hp
+	return e
 
 
 func _nearest(kind: String) -> Enemy:

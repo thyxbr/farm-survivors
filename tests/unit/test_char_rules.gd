@@ -116,6 +116,7 @@ func test_equip_offhand_needs_class() -> void:
 	T.eq(s.equipment.offhand, "", "nada equipado")
 	T.eq(_count(s, "arcane_orb"), 1, "continua na mochila")
 	s.inventory.append({"id": "knight_shield", "qty": 1})
+	s.level = CharRules.item_level(bt, "knight_shield")
 	T.ok(CharRules.equip(s, bt, "knight_shield").ok, "escudo com espada")
 	T.eq(s.equipment.offhand, "knight_shield", "escudo equipado")
 
@@ -124,6 +125,7 @@ func test_equip_swaps_back_to_bag() -> void:
 	var bt := _tables()
 	var s := _blank()
 	CharRules.choose_class(s, bt, "warrior", "m")
+	s.level = CharRules.item_level(bt, "iron_sword")
 	s.inventory = [{"id": "iron_sword", "qty": 1}]
 	var r := CharRules.equip(s, bt, "iron_sword")
 	T.ok(r.ok, "equipa")
@@ -143,6 +145,7 @@ func test_weapon_change_returns_offhand() -> void:
 	var s := _blank()
 	CharRules.choose_class(s, bt, "warrior", "m")
 	s.inventory = [{"id": "knight_shield", "qty": 1}]
+	s.level = CharRules.item_level(bt, "knight_shield")
 	CharRules.equip(s, bt, "knight_shield")
 	T.eq(s.equipment.offhand, "knight_shield", "escudo equipado")
 	# a classe é fixa: o escudo só volta para a mochila na escolha da classe de um personagem que o tinha
@@ -214,14 +217,15 @@ func test_cook() -> void:
 func test_kill_levels_up() -> void:
 	var bt := _tables()
 	var s := _blank()
-	var r := CharRules.kill(s, bt, "slime", 60)
+	var need1 := CharRules.xp_to_next(1, bt)
+	var r := CharRules.kill(s, bt, "slime", need1)
 	T.ok(r.ok, "ok")
 	T.eq(s.level, 2, "nível 2")
 	T.eq(s.xp, 0, "xp zerado")
 	T.eq(s.stat_points, 3, "3 pontos")
 	T.eq(s.kills, 1, "abate contado")
 	T.ok(_has_event(r, "level_up"), "evento level_up")
-	T.eq(r.events[0].text, "+60 XP", "aviso de XP")
+	T.eq(r.events[0].text, "+%d XP" % need1, "aviso de XP")
 	T.eq(r.events[1].text, "Nível 2! +3 pontos de atributo (C)", "aviso de nível")
 	T.eq(r.events[2].t, "level_up", "sem habilidade nova da espada no nível 2")
 	# nível 3: o Golpe Sísmico da espada; o aviso vem do kit (ABILITIES), não da tabela de magias
@@ -236,6 +240,47 @@ func test_kill_levels_up() -> void:
 	sc.equipment["weapon"] = "apprentice_staff"
 	var rc := CharRules.kill(sc, bt, "slime", CharRules.xp_to_next(2, bt))
 	T.eq(rc.events[2].text, "Nova habilidade: Nova Gélida [2]", "kit do cajado")
+
+
+func test_kill_xp_scaled_by_level_diff() -> void:
+	var bt := _tables()
+	var s := _blank()
+	s.level = 12
+	CharRules.kill(s, bt, "slime", 100, 2)
+	T.eq(s.xp, 5, "monstro 10 níveis abaixo: 5%")
+	s.xp = 0
+	CharRules.kill(s, bt, "slime", 100, 12)
+	T.eq(s.xp, 100, "mesmo nível: 100%")
+	s.xp = 0
+	CharRules.kill(s, bt, "slime", 100, 0)
+	T.eq(s.xp, 100, "sem nível: sem ajuste")
+
+
+func test_kill_xp_uses_group_level() -> void:
+	var bt := _tables()
+	var s := _blank()
+	s.level = 5
+	CharRules.kill(s, bt, "goblin", 100, 7, 14)
+	T.eq(s.xp, 25, "grupo de nível 14 contra monstro 7: 25%")
+
+
+func test_level_cap_50() -> void:
+	var bt := _tables()
+	var s := _blank()
+	s.level = 49
+	CharRules.grant(s, bt, 0, 10_000_000, {})
+	T.eq(s.level, 50, "chegou ao 50")
+	T.eq(s.xp, 0, "excesso descartado")
+	var r := CharRules.grant(s, bt, 0, 1000, {})
+	T.eq(s.level, 50, "continua no 50")
+	T.eq(s.xp, 0, "sem XP no máximo")
+	T.ok(not _has_event(r, "notify"), "sem aviso de XP no máximo")
+
+
+func test_xp_to_next_delegates() -> void:
+	var bt := _tables()
+	T.eq(CharRules.xp_to_next(10, bt), ProgressionRules.xp_to_next(bt, 10), "delega")
+	T.eq(CharRules.xp_to_next(50, bt), 0, "0 no máximo")
 
 
 func test_spend_point() -> void:
@@ -295,8 +340,11 @@ func test_quest_flow() -> void:
 	T.eq(s.quests.slimes.state, "done", "concluída")
 	T.eq(s.gold, gold + int(q.reward_gold), "ouro da recompensa")
 	T.eq(_count(s, "health_potion"), 3, "itens da recompensa")
-	T.eq(s.level, 2, "120 XP: nível 2")
-	T.eq(s.xp, 60, "sobra 60")
+	# o XP da missão vem da tabela (fatia do nível): sobe para o nível 2 e sobra o resto
+	var need1 := ProgressionRules.xp_to_next(bt, 1)
+	T.ok(int(q.reward_xp) > need1, "a missão dá XP para subir do nível 1")
+	T.eq(s.level, 2, "XP da missão: nível 2")
+	T.eq(s.xp, int(q.reward_xp) - need1, "sobra o resto")
 	T.ok(CharRules.start_quest(s, bt, "gel").ok, "a próxima abre")
 
 
@@ -534,6 +582,97 @@ func test_loot_roll_deterministic() -> void:
 	T.eq(LootRules.roll(bt, "nao_existe", _rng(1)), {"gold": 0, "items": {}}, "tipo desconhecido")
 
 
+# ---------------------------------------------------------------- loot por nível
+## Cópia das tabelas com `gear_drop.chance` trocado (não mexe nas tabelas compartilhadas).
+func _tables_gear_chance(chance: float) -> BalanceTables:
+	var bt := BalanceTables.from_dict(_tables().to_dict())
+	var prog: Dictionary = bt.get_table("progression").duplicate(true)
+	prog["gear_drop"]["chance"] = chance
+	bt.set_table("progression", prog)
+	return bt
+
+
+func _is_gear(bt: BalanceTables, id: String) -> bool:
+	return CharRules.slot_of(bt, id) != ""
+
+
+func test_loot_has_no_gear_for_common() -> void:
+	var bt := _tables_gear_chance(0.0)
+	var rng := _rng(7)
+	for i in 2000:
+		var loot := LootRules.roll(bt, "goblin", rng, "", 6)
+		for id in loot.items:
+			T.ok(not _is_gear(bt, id), "goblin sem equipamento na tabela: " + id)
+
+
+func test_quest_materials_keep_rate() -> void:
+	var bt := _tables()
+	var rng := _rng(9)
+	var ear := 0
+	var bone := 0
+	for i in 4000:
+		if LootRules.roll(bt, "goblin", rng, "", 6).items.has("goblin_ear"):
+			ear += 1
+		if LootRules.roll(bt, "esqueleto", rng, "", 22).items.has("bone_shard"):
+			bone += 1
+	T.ok(ear / 4000.0 >= 0.66 and ear / 4000.0 <= 0.74, "goblin_ear ~0,70: %f" % (ear / 4000.0))
+	T.ok(bone / 4000.0 >= 0.66 and bone / 4000.0 <= 0.74, "bone_shard ~0,70: %f" % (bone / 4000.0))
+
+
+func test_gear_drop_respects_level() -> void:
+	var bt := _tables_gear_chance(1.0)
+	var rng := _rng(3)
+	var seen := 0
+	for i in 500:
+		var loot := LootRules.roll(bt, "goblin", rng, "", 20)
+		for id in loot.items:
+			if _is_gear(bt, id):
+				seen += 1
+				var lv := CharRules.item_level(bt, id)
+				T.ok(lv >= 17 and lv <= 21, "%s nível %d fora da janela 17..21" % [id, lv])
+	T.ok(seen >= 400, "com chance 1.0 quase todo sorteio dá equipamento: %d" % seen)
+
+
+func test_gold_scales_with_level() -> void:
+	var bt := _tables()
+	var rng := _rng(5)
+	var lo := 0
+	var hi := 0
+	for i in 1000:
+		lo += int(LootRules.roll(bt, "goblin", rng, "", 6).gold)
+		hi += int(LootRules.roll(bt, "goblin", rng, "", 30).gold)
+	# o ouro escala com o nível (design: "ouro escala com o nível"), sem explodir
+	T.ok(hi >= 1.5 * lo and hi <= 3 * lo, "ouro no nível 30 (%d) entre 1,5x e 3x o do nível 6 (%d)" % [hi, lo])
+
+
+func test_roll_without_level_unchanged() -> void:
+	var bt := _tables()
+	T.eq(LootRules.roll(bt, "slime", _rng(42)), LootRules.roll(bt, "slime", _rng(42), "", 0), "sem nível = nível 0")
+	T.eq(LootRules.roll(bt, "slime", _rng(42)), LootRules.roll(bt, "slime", _rng(42), "", 0, false), "elite sem nível não muda")
+
+
+func test_gear_pool_window_and_named() -> void:
+	var bt := _tables()
+	var pool := LootRules.gear_pool(bt, 20)
+	T.ok(not pool.is_empty(), "há equipamento perto do nível 20")
+	var sorted := pool.duplicate()
+	sorted.sort()
+	T.eq(pool, sorted, "ordenado")
+	for id in pool:
+		T.ok(not bt.get_table("items")[id].get("named", false), "sem nomeado: " + id)
+		T.ok(CharRules.item_level(bt, id) >= 17 and CharRules.item_level(bt, id) <= 21, "janela: " + id)
+
+
+func test_gear_roll_deterministic_and_adapted_in_window() -> void:
+	var bt := _tables_gear_chance(1.0)
+	T.eq(LootRules.roll(bt, "goblin", _rng(8), "mage", 20), LootRules.roll(bt, "goblin", _rng(8), "mage", 20), "mesma seed")
+	var rng := _rng(8)
+	for i in 300:
+		for id in LootRules.roll(bt, "goblin", rng, "mage", 20).items:
+			if _is_gear(bt, id):
+				T.ok(CharRules.item_level(bt, id) <= 21, "adaptada continua na janela: " + id)
+
+
 # ---------------------------------------------------------------- correções da revisão
 func test_counts_are_bounded() -> void:
 	var bt := _tables()
@@ -758,6 +897,43 @@ func test_equip_other_class_refused() -> void:
 	T.eq(r.err, "exige_classe", "erro")
 	T.eq(r.events[0].text, "Arco Curto é arma de Arqueiro.", "aviso diz a classe do personagem")
 	T.eq(s.equipment.weapon, "azure_edge", "arma intacta")
+
+
+func test_equip_refuses_below_level() -> void:
+	var s := _blank()
+	CharRules.choose_class(s, _tables(), "warrior", "m")
+	s.level = 3
+	CharRules.add_item(s, _tables(), "dragonfang", 1)
+	var before: String = s.equipment.weapon
+	var r := CharRules.equip(s, _tables(), "dragonfang")
+	T.ok(not r.ok, "nível baixo recusado")
+	T.eq(r.err, "exige_nivel", "erro")
+	T.eq(r.events[0].text, "Requer nível %d." % CharRules.item_level(_tables(), "dragonfang"), "aviso diz o nível")
+	T.eq(_count(s, "dragonfang"), 1, "item continua na mochila")
+	T.eq(s.equipment.weapon, before, "arma intacta")
+
+
+func test_equip_ok_at_level() -> void:
+	var s := _blank()
+	CharRules.choose_class(s, _tables(), "warrior", "m")
+	CharRules.add_item(s, _tables(), "dragonfang", 1)
+	s.level = CharRules.item_level(_tables(), "dragonfang")
+	T.ok(CharRules.equip(s, _tables(), "dragonfang").ok, "equipa no nível exigido")
+	T.eq(s.equipment.weapon, "dragonfang", "na mão")
+
+
+func test_item_level_defaults_to_one() -> void:
+	T.eq(CharRules.item_level(_tables(), "health_potion"), 1, "sem campo = 1")
+
+
+func test_all_equipables_have_level() -> void:
+	var items: Dictionary = _tables().get_table("items")
+	for id in items:
+		if CharRules.slot_of(_tables(), id) == "":
+			continue
+		T.ok(items[id].has("level"), "%s tem level" % id)
+		var lv := int(items[id].get("level", 0))
+		T.ok(lv >= 1 and lv <= 50, "%s: level %d entre 1 e 50" % [id, lv])
 
 
 func test_equip_weapon_without_class_refused() -> void:
@@ -1031,3 +1207,95 @@ func test_talent_ally_radius_and_ability_time() -> void:
 	var m := CharRules.talent_mods(bt, s)
 	T.eq(float(m.get("ally_radius", 0.0)), 2.0, "h_grace 2 = +2 m")
 	T.eq(float(m.get("ability_time:scepter_ward", 0.0)), 2.0, "h_ward 1 = +2 s")
+
+
+# ================================================================ migração da progressão
+## Personagem de antes da progressão por nível (sem prog_v).
+func _old_char(level: int, rank: String) -> CharState:
+	var s := _blank()
+	s.level = level
+	s.flags.erase("prog_v")
+	s.flags["rank"] = rank
+	return s
+
+
+func test_migrate_refunds_points() -> void:
+	var bt := _tables()
+	var s := _old_char(18, "C")
+	s.attributes = {"str": 56, "int": 5, "vit": 5, "agi": 5}
+	s.stat_points = 0
+	T.ok(CharRules.migrate_progression(s, bt), "mudou")
+	for k in ["str", "int", "vit", "agi"]:
+		T.eq(s.attributes[k], 5, "atributo %s volta a 5" % k)
+	var pts := int(bt.get_table("rules").get("points_per_level", 3))
+	var rank_pts := 0
+	var ranks := CharRules.ranks(bt)
+	for i in CharRules.rank_index(bt, "C") + 1:
+		rank_pts += int(ranks[i].get("stat_points", 0))
+	T.eq(s.stat_points, 17 * pts + rank_pts, "pontos de nível + rank")
+	T.eq(s.stat_points, 17 * 3 + 3, "17 níveis x 3 + 3 do Rank C")
+	T.ok(s.flags.get("prog_notice", false), "aviso marcado")
+	T.eq(int(s.flags.prog_v), CharRules.PROG_VERSION, "versão gravada")
+
+
+func test_migrate_clamps_xp() -> void:
+	var bt := _tables()
+	var s := _old_char(5, "D")
+	s.xp = 999999999
+	CharRules.migrate_progression(s, bt)
+	T.eq(s.xp, CharRules.xp_to_next(5, bt) - 1, "xp limitado ao que falta para subir")
+	var m := _old_char(ProgressionRules.max_level(bt), "D")
+	m.xp = 500
+	CharRules.migrate_progression(m, bt)
+	T.eq(m.xp, 0, "nível máximo: xp 0")
+
+
+func test_migrate_keeps_gear_above_level() -> void:
+	var bt := _tables()
+	var s := _old_char(3, "D")
+	s.equipment["weapon"] = "dragonfang"
+	CharRules.migrate_progression(s, bt)
+	T.eq(s.equipment["weapon"], "dragonfang", "continua equipado")
+	var s2 := CharState.from_dict(s.to_dict(), bt)
+	T.eq(s2.equipment["weapon"], "dragonfang", "continua equipado depois de salvar e ler")
+
+
+func test_migrate_runs_once() -> void:
+	var bt := _tables()
+	var s := _old_char(10, "D")
+	T.ok(CharRules.migrate_progression(s, bt), "primeira vez")
+	s.stat_points -= 1
+	s.attributes["str"] += 1
+	var left := s.stat_points
+	T.ok(not CharRules.migrate_progression(s, bt), "segunda vez não muda")
+	T.eq(s.stat_points, left, "ponto gasto continua gasto")
+	T.eq(s.attributes["str"], 6, "atributo continua")
+
+
+func test_new_character_needs_no_migration() -> void:
+	var bt := _tables()
+	var s := CharState.new_character(bt)
+	T.ok(not CharRules.migrate_progression(s, bt), "novo não migra")
+	T.ok(not s.flags.get("prog_notice", false), "sem aviso")
+
+
+func test_migrate_without_refund_has_no_notice() -> void:
+	var bt := _tables()
+	# nível 1 sem rank e sem pontos gastos: nada a devolver
+	var s := _old_char(1, "D")
+	s.stat_points = int(CharRules.ranks(bt)[0].get("stat_points", 0))
+	T.ok(CharRules.migrate_progression(s, bt), "grava a versão")
+	T.eq(int(s.flags.prog_v), CharRules.PROG_VERSION, "versão gravada")
+	T.ok(not s.flags.get("prog_notice", false), "sem pontos devolvidos: sem aviso")
+	# pontos livres já guardados, atributos intactos: também nada muda
+	var t := _old_char(10, "D")
+	t.stat_points = 9 * int(bt.get_table("rules").get("points_per_level", 3)) + int(CharRules.ranks(bt)[0].get("stat_points", 0))
+	CharRules.migrate_progression(t, bt)
+	T.ok(not t.flags.get("prog_notice", false), "pontos já livres: sem aviso")
+
+
+func test_ack_prog_notice() -> void:
+	var s := _blank()
+	s.flags["prog_notice"] = true
+	T.ok(CharRules.ack_prog_notice(s).ok, "limpa")
+	T.ok(not s.flags.has("prog_notice"), "aviso some")

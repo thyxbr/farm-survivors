@@ -29,13 +29,57 @@ func test_roundtrip_matches_consts() -> void:
 		T.ok(not t.get_table(n).is_empty(), "tabela %s carregou" % n)
 		# o snapshot tem 40.0 onde o JSON devolve 40 (decode troca float inteiro por int), então
 		# normaliza o snapshot com a mesma regra antes do == profundo (que distingue int de float)
-		T.ok(t.get_table(n) == BalanceTables.decode(snap[n]), "tabela %s igual ao snapshot das const" % n)
+		var cur: Dictionary = t.get_table(n)
+		if n == "enemies":
+			# campos de progressão (ref_level) nasceram depois do snapshot: compara sem eles
+			cur = cur.duplicate(true)
+			for kind in cur:
+				(cur[kind] as Dictionary).erase("ref_level")
+			# o loot foi enxugado (equipamento vem do sorteio por nível): compara o resto, dos dois lados
+			var snap_enemies: Dictionary = (BalanceTables.decode(snap[n]) as Dictionary).duplicate(true)
+			for kind in cur:
+				(cur[kind] as Dictionary).erase("loot")
+				(snap_enemies[kind] as Dictionary).erase("loot")
+			T.ok(cur == snap_enemies, "tabela enemies igual ao snapshot das const (sem loot)")
+			continue
+		elif n == "items":
+			# o nível de equipar (level) nasceu depois do snapshot: compara sem ele; recompensas de missão
+			# rebaixadas de nível ganharam `named` (saem do sorteio de equipamento): sem ele onde o snapshot não tem
+			cur = cur.duplicate(true)
+			var snap_items: Dictionary = (BalanceTables.decode(snap[n]) as Dictionary).duplicate(true)
+			for id in cur:
+				(cur[id] as Dictionary).erase("level")
+				if snap_items.has(id) and not (snap_items[id] as Dictionary).has("named"):
+					(cur[id] as Dictionary).erase("named")
+			# o Cutelo do Rei Goblin passou para o nível do chefe, com o dano das armas de lá: sem o dano dele
+			(cur["goblin_cleaver"] as Dictionary).erase("damage")
+			(snap_items["goblin_cleaver"] as Dictionary).erase("damage")
+			T.ok(cur == snap_items, "tabela items igual ao snapshot (sem level e o dano do Cutelo)")
+			continue
+		elif n == "quests":
+			# o nível da missão e o XP pela fatia do nível nasceram depois do snapshot: compara sem eles
+			cur = cur.duplicate(true)
+			var snap_quests: Dictionary = (BalanceTables.decode(snap[n]) as Dictionary).duplicate(true)
+			for id in cur:
+				(cur[id] as Dictionary).erase("level")
+				(cur[id] as Dictionary).erase("reward_xp")
+				(snap_quests[id] as Dictionary).erase("reward_xp")
+			T.ok(cur == snap_quests, "tabela quests igual ao snapshot (sem level e reward_xp)")
+			continue
+		elif n == "rules":
+			# a curva de XP foi para progression.json
+			cur = cur.duplicate(true)
+			var snap_rules: Dictionary = (BalanceTables.decode(snap[n]) as Dictionary).duplicate(true)
+			snap_rules.erase("xp_curve")
+			T.ok(cur == snap_rules, "tabela rules igual ao snapshot (sem xp_curve)")
+			continue
+		T.ok(cur == BalanceTables.decode(snap[n]), "tabela %s igual ao snapshot das const" % n)
 
 
 func test_ints_stay_int() -> void:
 	var t := BalanceTables.load_dir(DIR)
 	T.eq(typeof(t.get_table("items")["health_potion"].price), TYPE_INT, "price é int")
-	T.eq(typeof(t.get_table("rules")["xp_curve"]["base"]), TYPE_INT, "base da curva é int")
+	T.eq(typeof(t.get_table("progression")["xp_curve"]["base"]), TYPE_INT, "base da curva é int")
 	T.eq(typeof(t.get_table("rules")["sell_ratio"]), TYPE_FLOAT, "0.5 continua float")
 
 

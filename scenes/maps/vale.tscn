@@ -6150,252 +6150,342 @@ shape_size = Vector3(0.6, 0.8, 0)
 [node name="slime (Campos)" type="Node3D" parent="Monstros" unique_id=2004284801]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0, -30)
 script = ExtResource("9_5rons")
+level = 1
+level_max = 4
 
 [node name="slime (Campos) 2" type="Node3D" parent="Monstros" unique_id=1195179296]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, -32)
 script = ExtResource("9_5rons")
+level = 1
+level_max = 4
 
 [node name="slime (Campos) 3" type="Node3D" parent="Monstros" unique_id=1038340065]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, -42)
 script = ExtResource("9_5rons")
+level = 1
+level_max = 4
 
 [node name="slime (Campos) 4" type="Node3D" parent="Monstros" unique_id=171637040]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 0, -47)
 script = ExtResource("9_5rons")
+level = 1
+level_max = 4
 
 [node name="slime (Campos) 5" type="Node3D" parent="Monstros" unique_id=1474069136]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, -52)
 script = ExtResource("9_5rons")
+level = 1
+level_max = 4
 
 [node name="slime (Natureza)" type="Node3D" parent="Monstros" unique_id=794621675]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, -57)
 script = ExtResource("9_5rons")
+level = 1
+level_max = 4
 
 [node name="slime (Natureza) 2" type="Node3D" parent="Monstros" unique_id=1165345260]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, -62)
 script = ExtResource("9_5rons")
+level = 1
+level_max = 4
 
 [node name="slime (Natureza) 3" type="Node3D" parent="Monstros" unique_id=1254457502]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, -66)
 script = ExtResource("9_5rons")
+level = 1
+level_max = 4
 
 [node name="slime (Campos) 6" type="Node3D" parent="Monstros" unique_id=930946090]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, -34)
 script = ExtResource("9_5rons")
+level = 1
+level_max = 4
 
 [node name="slime (Campos) 7" type="Node3D" parent="Monstros" unique_id=1525559933]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, -36)
 script = ExtResource("9_5rons")
+level = 1
+level_max = 4
 
 [node name="goblin (Acampamento Goblin)" type="Node3D" parent="Monstros" unique_id=1555119874]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 56, 0, 3)
 script = ExtResource("9_5rons")
 kind = "goblin"
 respawn = 60.0
+level = 5
+level_max = 8
 
 [node name="goblin (Acampamento Goblin) 2" type="Node3D" parent="Monstros" unique_id=1642756503]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 66, 0, 2)
 script = ExtResource("9_5rons")
 kind = "goblin"
 respawn = 60.0
+level = 5
+level_max = 8
 
 [node name="goblin (Acampamento Goblin) 3" type="Node3D" parent="Monstros" unique_id=1194255717]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60, 0, -10)
 script = ExtResource("9_5rons")
 kind = "goblin"
 respawn = 60.0
+level = 5
+level_max = 8
 
 [node name="goblin (Acampamento Goblin) 4" type="Node3D" parent="Monstros" unique_id=160235148]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 70, 0, -3)
 script = ExtResource("9_5rons")
 kind = "goblin"
 respawn = 60.0
+level = 5
+level_max = 8
 
 [node name="goblin (Acampamento Goblin) 5" type="Node3D" parent="Monstros" unique_id=681195861]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 53, 0, -4)
 script = ExtResource("9_5rons")
 kind = "goblin"
 respawn = 60.0
+level = 5
+level_max = 8
 
 [node name="goblin (Acampamento Goblin) 6" type="Node3D" parent="Monstros" unique_id=712521978]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 68, 0, 9)
 script = ExtResource("9_5rons")
 kind = "goblin"
 respawn = 60.0
+level = 5
+level_max = 8
 
 [node name="goblin (Ruínas)" type="Node3D" parent="Monstros" unique_id=1353049841]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0, -86)
 script = ExtResource("9_5rons")
 kind = "goblin"
 respawn = 90.0
+level = 5
+level_max = 8
 
 [node name="goblin (Ruínas) 2" type="Node3D" parent="Monstros" unique_id=1194242818]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 0, -86)
 script = ExtResource("9_5rons")
 kind = "goblin"
 respawn = 90.0
+level = 5
+level_max = 8
 
 [node name="goblin_arqueiro (Acampamento Goblin)" type="Node3D" parent="Monstros" unique_id=223594375]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 51, 0, -8)
 script = ExtResource("9_5rons")
 kind = "goblin_arqueiro"
 respawn = 75.0
+level = 5
+level_max = 8
 
 [node name="goblin_arqueiro (Acampamento Goblin) 2" type="Node3D" parent="Monstros" unique_id=1775554027]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 72, 0, 7)
 script = ExtResource("9_5rons")
 kind = "goblin_arqueiro"
 respawn = 75.0
+level = 5
+level_max = 8
 
 [node name="goblin_xama (Acampamento Goblin)" type="Node3D" parent="Monstros" unique_id=1179380011]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 71, 0, -9)
 script = ExtResource("9_5rons")
 kind = "goblin_xama"
 respawn = 120.0
+level = 8
+level_max = 11
 
 [node name="goblin_campeao (Acampamento Goblin)" type="Node3D" parent="Monstros" unique_id=740658638]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 64, 0, -5)
 script = ExtResource("9_5rons")
 kind = "goblin_campeao"
 respawn = 300.0
+level = 8
+level_max = 11
 
 [node name="goblin_bruto (Ruínas)" type="Node3D" parent="Monstros" unique_id=842521108]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11, 0, -96)
 script = ExtResource("9_5rons")
 kind = "goblin_bruto"
 respawn = 150.0
+level = 8
+level_max = 11
 
 [node name="goblin_bruto (Ruínas) 2" type="Node3D" parent="Monstros" unique_id=250953076]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 0, -96)
 script = ExtResource("9_5rons")
 kind = "goblin_bruto"
 respawn = 150.0
+level = 8
+level_max = 11
 
 [node name="goblin_dourado (Natureza)" type="Node3D" parent="Monstros" unique_id=1371452649]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 0, 44)
 script = ExtResource("9_5rons")
 kind = "goblin_dourado"
 respawn = 240.0
+level = 8
+level_max = 11
 
 [node name="goblin_dourado (Natureza) 2" type="Node3D" parent="Monstros" unique_id=107579639]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 0, -72)
 script = ExtResource("9_5rons")
 kind = "goblin_dourado"
 respawn = 240.0
+level = 8
+level_max = 11
 
 [node name="esqueleto (Ruínas)" type="Node3D" parent="Monstros" unique_id=59549927]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, -76)
 script = ExtResource("9_5rons")
 kind = "esqueleto"
 respawn = 90.0
+level = 10
+level_max = 13
 
 [node name="esqueleto (Ruínas) 2" type="Node3D" parent="Monstros" unique_id=1165119073]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, -76)
 script = ExtResource("9_5rons")
 kind = "esqueleto"
 respawn = 90.0
+level = 10
+level_max = 13
 
 [node name="esqueleto (Ruínas) 3" type="Node3D" parent="Monstros" unique_id=1205125008]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -70)
 script = ExtResource("9_5rons")
 kind = "esqueleto"
 respawn = 90.0
+level = 10
+level_max = 13
 
 [node name="esqueleto_arqueiro (Ruínas)" type="Node3D" parent="Monstros" unique_id=559175156]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, -78)
 script = ExtResource("9_5rons")
 kind = "esqueleto_arqueiro"
 respawn = 100.0
+level = 10
+level_max = 13
 
 [node name="esqueleto_arqueiro (Ruínas) 2" type="Node3D" parent="Monstros" unique_id=166333743]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 0, -78)
 script = ExtResource("9_5rons")
 kind = "esqueleto_arqueiro"
 respawn = 100.0
+level = 10
+level_max = 13
 
 [node name="esqueleto_mago (Ruínas)" type="Node3D" parent="Monstros" unique_id=2084750359]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, -112)
 script = ExtResource("9_5rons")
 kind = "esqueleto_mago"
 respawn = 150.0
+level = 10
+level_max = 13
 
 [node name="esqueleto_cavaleiro (Ruínas)" type="Node3D" parent="Monstros" unique_id=1279897175]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 0, -112)
 script = ExtResource("9_5rons")
 kind = "esqueleto_cavaleiro"
 respawn = 300.0
+level = 10
+level_max = 13
 
 [node name="goblin_bombardeiro (Acampamento Goblin)" type="Node3D" parent="Monstros" unique_id=1961478049]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 49, 0, 6)
 script = ExtResource("9_5rons")
 kind = "goblin_bombardeiro"
 respawn = 90.0
+level = 5
+level_max = 8
 
 [node name="goblin_bombardeiro (Acampamento Goblin) 2" type="Node3D" parent="Monstros" unique_id=1026899556]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 74, 0, -10)
 script = ExtResource("9_5rons")
 kind = "goblin_bombardeiro"
 respawn = 90.0
+level = 5
+level_max = 8
 
 [node name="slime_gelo (Campos)" type="Node3D" parent="Monstros" unique_id=1752604012]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, -44)
 script = ExtResource("9_5rons")
 kind = "slime_gelo"
 respawn = 60.0
+level = 6
+level_max = 9
 
 [node name="slime_gelo (Natureza)" type="Node3D" parent="Monstros" unique_id=717323818]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, -54)
 script = ExtResource("9_5rons")
 kind = "slime_gelo"
 respawn = 60.0
+level = 6
+level_max = 9
 
 [node name="tecela (Natureza)" type="Node3D" parent="Monstros" unique_id=851524526]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 96, 0, 38)
 script = ExtResource("9_5rons")
 kind = "tecela"
 respawn = 80.0
+level = 4
+level_max = 9
 
 [node name="tecela (Natureza) 2" type="Node3D" parent="Monstros" unique_id=427185521]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 92, 0, -28)
 script = ExtResource("9_5rons")
 kind = "tecela"
 respawn = 80.0
+level = 4
+level_max = 9
 
 [node name="tecela (Natureza) 3" type="Node3D" parent="Monstros" unique_id=714103152]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 106, 0, 6)
 script = ExtResource("9_5rons")
 kind = "tecela"
 respawn = 80.0
+level = 4
+level_max = 9
 
 [node name="flor_faminta (Vila)" type="Node3D" parent="Monstros" unique_id=462298500]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 0, 6.5)
 script = ExtResource("9_5rons")
 kind = "flor_faminta"
 respawn = 70.0
+level = 4
+level_max = 9
 
 [node name="flor_faminta (Acampamento Goblin)" type="Node3D" parent="Monstros" unique_id=1761694721]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 48, 0, -6.5)
 script = ExtResource("9_5rons")
 kind = "flor_faminta"
 respawn = 70.0
+level = 4
+level_max = 9
 
 [node name="flor_faminta (Natureza)" type="Node3D" parent="Monstros" unique_id=1235151438]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, 52)
 script = ExtResource("9_5rons")
 kind = "flor_faminta"
 respawn = 70.0
+level = 4
+level_max = 9
 
 [node name="bocarrao (Lagoa)" type="Node3D" parent="Monstros" unique_id=309420673]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -83, 0, 13)
 script = ExtResource("9_5rons")
 kind = "bocarrao"
 respawn = 150.0
+level = 4
+level_max = 9
 
 [node name="bocarrao (Lagoa) 2" type="Node3D" parent="Monstros" unique_id=1475978032]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -77, 0, 17.5)
 script = ExtResource("9_5rons")
 kind = "bocarrao"
 respawn = 150.0
+level = 4
+level_max = 9
 
 [node name="asa_couro (Ruínas)" type="Node3D" parent="Monstros" unique_id=1308620200]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -27, 0, -92)
@@ -6403,6 +6493,8 @@ script = ExtResource("9_5rons")
 kind = "asa_couro"
 respawn = 60.0
 night_only = true
+level = 4
+level_max = 9
 
 [node name="asa_couro (Ruínas) 2" type="Node3D" parent="Monstros" unique_id=929952738]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, -92)
@@ -6410,6 +6502,8 @@ script = ExtResource("9_5rons")
 kind = "asa_couro"
 respawn = 60.0
 night_only = true
+level = 4
+level_max = 9
 
 [node name="asa_couro (Ruínas) 3" type="Node3D" parent="Monstros" unique_id=792858819]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.18076795, -128)
@@ -6417,90 +6511,120 @@ script = ExtResource("9_5rons")
 kind = "asa_couro"
 respawn = 60.0
 night_only = true
+level = 4
+level_max = 9
 
 [node name="raptor_capim (Natureza)" type="Node3D" parent="Monstros" unique_id=1406919438]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 62.5, 0, -55)
 script = ExtResource("9_5rons")
 kind = "raptor_capim"
 respawn = 75.0
+level = 4
+level_max = 9
 
 [node name="raptor_capim (Natureza) 2" type="Node3D" parent="Monstros" unique_id=483006095]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 58.75, 0, -52.834938)
 script = ExtResource("9_5rons")
 kind = "raptor_capim"
 respawn = 75.0
+level = 4
+level_max = 9
 
 [node name="raptor_capim (Natureza) 3" type="Node3D" parent="Monstros" unique_id=484864588]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 58.75, 0, -57.165062)
 script = ExtResource("9_5rons")
 kind = "raptor_capim"
 respawn = 75.0
+level = 4
+level_max = 9
 
 [node name="raptor_capim (Natureza) 4" type="Node3D" parent="Monstros" unique_id=337485297]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -59.5, 0, -38)
 script = ExtResource("9_5rons")
 kind = "raptor_capim"
 respawn = 75.0
+level = 4
+level_max = 9
 
 [node name="raptor_capim (Natureza) 5" type="Node3D" parent="Monstros" unique_id=460183497]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -63.25, 0, -35.834938)
 script = ExtResource("9_5rons")
 kind = "raptor_capim"
 respawn = 75.0
+level = 4
+level_max = 9
 
 [node name="raptor_capim (Natureza) 6" type="Node3D" parent="Monstros" unique_id=401036831]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -63.25, 0, -40.165062)
 script = ExtResource("9_5rons")
 kind = "raptor_capim"
 respawn = 75.0
+level = 4
+level_max = 9
 
 [node name="slime_mae (Ninho de Slimes)" type="Node3D" parent="Monstros" unique_id=8960842]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -36, 0, 36)
 script = ExtResource("9_5rons")
 kind = "slime_mae"
 respawn = 120.0
+level = 1
+level_max = 4
 
 [node name="slime_explosivo (Ninho de Slimes)" type="Node3D" parent="Monstros" unique_id=411195660]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -32.05088, 0, 38.157413)
 script = ExtResource("9_5rons")
 kind = "slime_explosivo"
 respawn = 60.0
+level = 1
+level_max = 4
 
 [node name="slime_explosivo (Ninho de Slimes) 2" type="Node3D" parent="Monstros" unique_id=980053805]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -39.842937, 0, 38.34133)
 script = ExtResource("9_5rons")
 kind = "slime_explosivo"
 respawn = 60.0
+level = 1
+level_max = 4
 
 [node name="slime_explosivo (Ninho de Slimes) 3" type="Node3D" parent="Monstros" unique_id=286565325]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -36.106186, 0, 31.501253)
 script = ExtResource("9_5rons")
 kind = "slime_explosivo"
 respawn = 60.0
+level = 1
+level_max = 4
 
 [node name="slime_veloz (Ninho de Slimes)" type="Node3D" parent="Monstros" unique_id=1544222870]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -27.5, 0, 36)
 script = ExtResource("9_5rons")
 kind = "slime_veloz"
 respawn = 45.0
+level = 1
+level_max = 4
 
 [node name="slime_veloz (Ninho de Slimes) 2" type="Node3D" parent="Monstros" unique_id=2038987681]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -36, 0, 44.5)
 script = ExtResource("9_5rons")
 kind = "slime_veloz"
 respawn = 45.0
+level = 1
+level_max = 4
 
 [node name="slime_veloz (Ninho de Slimes) 3" type="Node3D" parent="Monstros" unique_id=1307825766]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -44.5, 0, 36)
 script = ExtResource("9_5rons")
 kind = "slime_veloz"
 respawn = 45.0
+level = 1
+level_max = 4
 
 [node name="slime_veloz (Ninho de Slimes) 4" type="Node3D" parent="Monstros" unique_id=859429842]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -36, 0, 27.5)
 script = ExtResource("9_5rons")
 kind = "slime_veloz"
 respawn = 45.0
+level = 1
+level_max = 4
 
 [node name="Lugares" type="Node3D" parent="." unique_id=1481008198]
 

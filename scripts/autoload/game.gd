@@ -513,14 +513,12 @@ func max_stamina() -> float:
 	return 70.0 + attr("agi") * 5.0
 
 
-## Dano do ataque básico conforme a classe da arma (espada FOR, cajado INT, arco AGI).
+## Dano do ataque básico conforme a classe da arma (espada FOR, cajado INT, arco AGI): CharRules.basic_damage.
 func melee_damage() -> float:
-	match weapon_class():
-		"staff", "scepter":
-			return (weapon_damage() + attr("int") * 1.4 + gear("spell") * 0.5) * mod("damage")
-		"bow":
-			return (weapon_damage() + attr("agi") * 1.5 + attr("str") * 0.3) * mod("damage")
-	return (weapon_damage() + attr("str") * 1.6) * mod("damage")
+	var attrs := {}
+	for a in attributes:
+		attrs[a] = attr(a)
+	return CharRules.basic_damage(weapon_class(), attrs, weapon_damage(), gear("spell")) * mod("damage")
 
 
 func spell_power() -> float:
@@ -745,6 +743,16 @@ func reset_talents() -> void:
 	Econ.request("reset_talents")
 
 
+## Aviso único da migração da progressão (flags.prog_notice): devolve true uma vez e pede ao
+## servidor/solo que limpe a marca. O espelho limpa já, para não repetir antes da resposta.
+func take_prog_notice() -> bool:
+	if not flags.get("prog_notice", false):
+		return false
+	flags.erase("prog_notice")
+	Econ.request("ack_prog_notice")
+	return true
+
+
 ## Pontos de talento livres no espelho: 1 por nível a partir do 2, menos os gastos (CharRules.talent_points).
 func talent_points() -> int:
 	var spent := 0
@@ -768,9 +776,9 @@ func guild_points() -> int:
 
 
 ## Abate: a cura da comida (roubo de vida) é do combate, do cliente; XP e missão são do Econ.
-func on_enemy_killed(kind: String, xp_reward: int) -> void:
+func on_enemy_killed(kind: String, xp_reward: int, enemy_level := 0) -> void:
 	kill_lifesteal()
-	Econ.kill(kind, xp_reward)
+	Econ.kill(kind, xp_reward, enemy_level)
 
 
 ## Roubo de vida da comida ao abater (combate é do cliente; online o abate em si é do servidor).

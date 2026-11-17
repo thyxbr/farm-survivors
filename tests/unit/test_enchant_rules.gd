@@ -83,6 +83,7 @@ func test_enchant_follows_weapon_type() -> void:
 	s.enchants["azure_edge"] = {"el": "raio", "lv": 2}
 	T.eq(EnchantRules.mods(s, bt), {"damage": 0.10}, "arma equipada encantada")
 	CharRules.add_item(s, bt, "iron_sword", 1)
+	s.level = CharRules.item_level(bt, "iron_sword")
 	T.ok(CharRules.equip(s, bt, "iron_sword").ok, "troca para outra espada")
 	T.eq(EnchantRules.mods(s, bt), {}, "outra espada sem encanto: sem bônus")
 	T.ok(CharRules.sell(s, bt, "azure_edge").ok, "vende a espada")

@@ -139,12 +139,12 @@ func _ready() -> void:
 	check(Game.char_class == "warrior" and Game.equipment.weapon == "azure_edge"
 		and Game.equipment.values().filter(func(v) -> bool: return v != "").size() == 1,
 		"personagem novo começa só com a arma da classe (%s, %s)" % [Game.char_class, Game.equipment.weapon])
-	Econ.request_test_items({"azure_edge": 1, "apprentice_staff": 1, "short_bow": 1, "leather_cap": 1})
-	check(await _wait_until(func() -> bool: return Game.count_item("short_bow") == 1 and Game.count_item("leather_cap") == 1, 5.0),
+	Econ.request_test_items({"azure_edge": 1, "apprentice_staff": 1, "short_bow": 1, "leather_boots": 1})
+	check(await _wait_until(func() -> bool: return Game.count_item("short_bow") == 1 and Game.count_item("leather_boots") == 1, 5.0),
 		"kit de teste recebido do servidor")
-	# equipa arco e capuz logo ao entrar: os outros jogadores devem ver esse visual
+	# equipa arco e botas (nível 1: o capuz pede nível 2) logo ao entrar: os outros jogadores devem ver esse visual
 	await _pick_class("archer", "short_bow")
-	Game.equip("leather_cap")
+	Game.equip("leather_boots")
 	await wait(1.5)
 	var w: Node = Network.world
 	check(w.player.look["class"] == "bow", "arco equipado no personagem local")
@@ -175,8 +175,8 @@ func _ready() -> void:
 		check(Network.remote_players.size() == peers - 1, "vê os outros jogadores (%d)" % Network.remote_players.size())
 		await wait(1.0)
 		for rp in Network.remote_players.values():
-			check(rp.look["class"] == "bow" and rp._last_look.get("head", "") == "leather_cap",
-				"vê o arco e o capuz de %s" % rp.display_name)
+			check(rp.look["class"] == "bow" and rp._last_look.get("feet", "") == "leather_boots",
+				"vê o arco e as botas de %s" % rp.display_name)
 			# Ana joga com o corpo feminino (_pick_class); Beto com o masculino
 			var want_body := "f" if rp.display_name == "Ana" else "m"
 			check(rp._last_look.get("body", "") == want_body, "o corpo escolhido (%s) chega na réplica de %s" % [want_body, rp.display_name])
@@ -688,7 +688,6 @@ func _test_party(w: Node) -> void:
 	check(await _wait_until(func() -> bool: return Game.quest_state("espantalho") == "active", 4.0), "missão de slimes ativa")
 	await _sync("party_ready")
 
-	var slime_xp := int(Balance.tables.get_table("enemies").get("slime", {}).get("xp", 0))
 	for phase in ["near", "far"]:
 		await wait(Network.CHAT_WINDOW)   # as barreiras usam o chat: o anti-spam precisa esvaziar para o alvo passar
 		var kills0 := Game.kills
@@ -719,6 +718,8 @@ func _test_party(w: Node) -> void:
 		if tgt == null or not is_instance_valid(tgt):
 			check(false, "slime do grupo existe no cliente (%s)" % phase)
 			return
+		var tgt_reward := tgt.xp_reward()
+		var tgt_level := tgt.level
 		var at := tgt.global_position
 		if my_name == "Ana":
 			w.player.global_position = at + Vector3(0, 0.5, 3)
@@ -735,7 +736,11 @@ func _test_party(w: Node) -> void:
 		await wait(0.8)
 		var gained := Game.xp + Game.level * 100000 - xp0
 		if Game.level == lvl0:   # subir de nível zera o XP da barra: aí só confere que subiu
-			check(gained == ceili(slime_xp / 2.0), "metade do XP do slime (%d de %d, %s)" % [gained, slime_xp, phase])
+			# perto e longe o XP leva o ajuste de nível (slime tem nível e xp_reward)
+			var share := ceili(tgt_reward / 2.0)
+			# premissa: Ana e Beto têm o mesmo nível (contas novas), então o maior nível do grupo é lvl0
+			var expected := int(round(share * ProgressionRules.xp_diff_mult(Balance.tables, tgt_level, lvl0)))
+			check(gained == expected, "metade do XP do slime (%d de %d, %s)" % [gained, tgt_reward, phase])
 		var counted: bool = my_name == "Ana" or phase == "near"
 		check(Game.kills == kills0 + (1 if counted else 0),
 			"abate %s para %s (%s: %d → %d)" % ["conta" if counted else "não conta", my_name, phase, kills0, Game.kills])

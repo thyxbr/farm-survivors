@@ -406,11 +406,12 @@ func _refresh_character() -> void:
 	var xrow := HBoxContainer.new()
 	xrow.add_child(UITheme.ink("Experiência", 15, UITheme.INK_DIM))
 	xrow.add_child(UITheme.spacer())
-	xrow.add_child(UITheme.ink("%d / %d" % [Game.xp, Game.xp_to_next()], 15))
+	var xp_need := Game.xp_to_next()
+	xrow.add_child(UITheme.ink("MÁX" if xp_need <= 0 else "%d / %d" % [Game.xp, xp_need], 15))
 	lv.add_child(xrow)
 	var xpb := UITheme.ink_bar(UITheme.XP, 0, 14)
-	xpb.max_value = Game.xp_to_next()
-	xpb.value = Game.xp
+	xpb.max_value = maxi(xp_need, 1)
+	xpb.value = Game.xp if xp_need > 0 else 1
 	lv.add_child(xpb)
 	lv.add_child(_gap(6))
 	var pts := UITheme.ink_section("Atributos", 20)
