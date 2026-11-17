@@ -823,7 +823,7 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun
 		Game.notify.emit("%s está enfurecido!" % data.name, Color(1, 0.4, 0.3))
 		if not summoned:
 			summoned = true
-			get_parent().call_deferred("summon_minions", global_position, 2, str(data.get("summon", "goblin")))
+			get_parent().call_deferred("summon_minions", global_position, 2, str(data.get("summon", "goblin")), level)
 	if hp <= 0:
 		_die()
 	elif stun > 0.0:

@@ -540,10 +540,12 @@ func _on_spawn_died(_en: Enemy, entry: Dictionary) -> void:
 	entry.timer = entry.respawn
 
 
-func summon_minions(pos: Vector3, n: int, kind := "goblin") -> void:
+## Lacaios do chefe enfurecido (Rei Goblin, Lich): nascem no nível de quem invocou.
+func summon_minions(pos: Vector3, n: int, kind := "goblin", level := 0) -> void:
 	for i in n:
 		var e := ENEMY.new()
 		e.kind = kind
+		e.level = level
 		e.position = pos + Vector3(cos(i * PI) * 4.0, 0.3, sin(i * PI + 0.5) * 4.0)
 		add_child(e)
 		FX.burst(e.position + Vector3.UP, Color(0.3, 0.5, 0.15), 25, 5.0)

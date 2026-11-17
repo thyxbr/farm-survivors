@@ -951,9 +951,16 @@ func _ready() -> void:
 	var boss: Enemy = world.boss
 	check(boss != null and is_instance_valid(boss), "chefe aparece ao aceitar a missão final")
 	var goblins_before := _count("goblin")
+	var enemies_before := get_tree().get_nodes_in_group("enemies")
 	boss.take_damage(boss.max_hp * 0.6, boss.global_position + Vector3.FORWARD, false)
 	await wait(0.2)
 	check(boss.enraged and _count("goblin") == goblins_before + 2, "chefe enfurece e invoca 2 goblins")
+	var minion_levels := []
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.kind == "goblin" and not (e in enemies_before):
+			minion_levels.append(e.level)
+	check(boss.level > 0 and minion_levels.count(boss.level) >= 2,
+		"goblins invocados no nível do chefe (%d): %s" % [boss.level, str(minion_levels)])
 	boss.take_damage(99999, boss.global_position + Vector3.FORWARD, false)
 	check(Game.quest_state("goblin_king") == "ready" and Game.flags.get("king_dead", false), "chefe derrotado")
 	await _test_guild_travel()
