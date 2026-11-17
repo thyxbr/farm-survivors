@@ -219,6 +219,13 @@ func _debug_screenshot() -> void:
 					equip(id)
 		# `--talents=id,id,...` aprende um nível de cada (repetir o id = mais níveis), para capturas da aba Talentos
 		# (sobe o personagem da demo ao nível 6 de verdade, para ter os 5 pontos)
+		# `--level=N` sobe o personagem da demo ao nível N de verdade (com `--weapon=`: testar as habilidades
+		# de nível alto, ex.: `--weapon=sc_novice_scepter --level=8`)
+		elif a.begins_with("--level=") and demo:
+			var xp_lv := 0
+			for lv in range(1, clampi(int(a.substr(8)), 1, 60)):
+				xp_lv += CharRules.xp_to_next(lv, Balance.tables)
+			Econ.grant(0, xp_lv, {}, "demo", true)
 		elif a.begins_with("--talents="):
 			var xp_need := 0
 			for lv in range(1, 6):
@@ -302,7 +309,7 @@ func _setup_input() -> void:
 		"move_forward": [KEY_W, KEY_UP], "move_back": [KEY_S, KEY_DOWN],
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
 		"jump": [KEY_SPACE], "sprint": [KEY_SHIFT], "dodge": [KEY_CTRL, KEY_ALT],
-		"interact": [KEY_E], "spell_1": [KEY_1], "spell_2": [KEY_2], "spell_3": [KEY_3], "spell_4": [KEY_4],
+		"interact": [KEY_E], "spell_1": [KEY_1], "spell_2": [KEY_2], "spell_3": [KEY_3], "spell_4": [KEY_4], "spell_5": [KEY_5],
 		"potion": [KEY_R], "mana_potion": [KEY_F], "inventory": [KEY_I, KEY_TAB], "character": [KEY_C],
 		"talents": [KEY_K], "quest_log": [KEY_J], "professions": [KEY_L], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
 		"eat": [KEY_Q], "food_next": [KEY_T], "world_map": [KEY_M], "party": [KEY_P], "friends": [KEY_O],

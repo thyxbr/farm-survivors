@@ -60,6 +60,17 @@ func test_targets_talent_radius_bonus() -> void:
 	T.ok(2 in HealRules.targets(1, [1, 2], pos, 2.0), "9 m dentro com +2 m")
 
 
+func test_heal_target_aimed_ally() -> void:
+	var pos := {1: Vector3.ZERO, 2: Vector3(20, 0, 0), 3: Vector3(29, 0, 0), 4: Vector3(1, 0, 0)}
+	T.eq(HealRules.heal_target(1, 2, [1, 2, 3, 4], pos), 2, "aliado mirado a 20 m recebe")
+	T.eq(HealRules.heal_target(1, 0, [1, 2], pos), 1, "sem alvo: o próprio healer")
+	T.eq(HealRules.heal_target(1, 1, [1, 2], pos), 1, "alvo = ele mesmo")
+	T.eq(HealRules.heal_target(1, 3, [1, 2, 3], pos), 1, "a 29 m (fora do alcance): o próprio healer")
+	T.eq(HealRules.heal_target(1, 3, [1, 2, 3], pos, 2.0), 3, "a 29 m com +2 m de talento: recebe")
+	T.eq(HealRules.heal_target(1, 4, [1, 2], pos), 1, "alvo de outra zona: o próprio healer")
+	T.eq(HealRules.heal_target(1, 2, [1, 2], {1: Vector3.ZERO}), 1, "alvo sem posição: o próprio healer")
+
+
 func test_ally_buff_seconds() -> void:
 	T.eq(HealRules.ally_buff_seconds(12.0, 4.0), 16.0, "tempo base + bonus")
 	T.eq(HealRules.ally_buff_seconds(12.0, -5.0), 12.0, "bonus negativo ignorado")
