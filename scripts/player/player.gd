@@ -344,6 +344,7 @@ func _local_process(delta: float) -> void:
 	if input_locked or horde_frozen or chat_typing or loading:
 		end_ability()
 		_disarm_heal()
+		_disarm_area()
 	if input_locked or horde_frozen or chat_typing or loading:
 		aiming = false
 		velocity.x = move_toward(velocity.x, 0, 45 * delta)
@@ -422,6 +423,13 @@ func _local_process(delta: float) -> void:
 			confirm_heal(heal_target)
 		elif heal_armed and Input.is_action_just_pressed("dodge"):
 			_disarm_heal()     # esquiva pelo teclado desiste da Cura
+	if area_armed != "":
+		_update_area_aim(delta)
+		if area_armed != "" and Input.is_action_just_pressed("aim"):
+			aim_click = true   # o botão direito solta a habilidade na área: não esquiva
+			confirm_area()
+		elif area_armed != "" and Input.is_action_just_pressed("dodge"):
+			_disarm_area()
 	if Input.is_action_just_pressed("dodge") and not aim_click:
 		_dodge_pressed(dir)
 	if look["class"] != "bow" or busy:
@@ -928,6 +936,13 @@ func cast(id: String) -> void:
 	if id == "heal" and heal_armed:
 		_disarm_heal()   # a mesma tecla de novo desiste da Cura
 		return
+	if area_armed != "" and not _area_confirming:
+		var same := area_armed == id
+		_disarm_area()   # outra habilidade (ou a mesma tecla de novo) desiste da área preparada
+		if same:
+			return
+	if id != "heal":
+		_disarm_heal()
 	if not Game.knows_ability(id):
 		Game.notify.emit("%s exige nível %d" % [sp.name, sp.level], Color(1, 0.6, 0.6))
 		Sfx.play("error", 0.0, -6.0)
@@ -940,6 +955,9 @@ func cast(id: String) -> void:
 	if sp.cost > 0 and Game.mp < sp.cost:
 		Game.notify.emit("Mana insuficiente!", Color(0.6, 0.7, 1.0))
 		Sfx.play("error", 0.0, -6.0)
+		return
+	if sp.get("aim", "") == "ground" and not _area_confirming:
+		_arm_area(id)   # a mana e a recarga só saem na confirmação (confirm_area)
 		return
 	# habilidade de arma (espada, cajado, arco): o módulo da classe executa. Ainda sem implementação
 	# (ready == false): "Em breve", sem custo nem recarga. As magias antigas seguem no match abaixo.
@@ -1100,6 +1118,83 @@ func confirm_heal(target: Node3D = null) -> void:
 	else:
 		Network.send_event("heal", global_position, Vector3.ZERO)
 	Game.stats_changed.emit()
+
+
+# ------------------------------------------------------------ habilidade com mira no chão
+## Habilidades com `aim: "ground"` (ItemDB.ABILITIES): a tecla prepara e mostra o círculo no chão onde a
+## câmera aponta, limitado a `aim_range` m do jogador; o botão direito confirma e a habilidade cai ali
+## (o módulo da classe lê `area_point`). A tecla de novo, outra habilidade, a esquiva pelo teclado, a morte
+## ou AREA_ARM_TIME s sem confirmar desistem (sem gastar mana nem recarga).
+const AREA_ARM_TIME := 8.0
+var area_armed := ""             ## id da habilidade esperando o ponto ("" = nenhuma)
+var area_point := Vector3.ZERO   ## onde a habilidade cai (o último ponto mirado)
+var _area_arm_t := 0.0
+var _area_mark: Node3D
+var _area_confirming := false
+static var _area_hint_done := false
+
+
+func _arm_area(id: String) -> void:
+	_disarm_heal()
+	area_armed = id
+	_area_arm_t = AREA_ARM_TIME
+	area_point = _area_target(id)
+	_area_mark = HolyFX.area_marker(float(ItemDB.ABILITIES[id].aim_radius))
+	if _area_mark:
+		get_tree().current_scene.add_child(_area_mark)
+		_area_mark.global_position = area_point
+	Sfx.play("arcane_cast", 0.1, -12.0)
+	if not _area_hint_done:
+		_area_hint_done = true
+		Game.notify.emit("Escolha onde a habilidade cai e clique com o botão direito", Color(1.0, 0.87, 0.4))
+
+
+func _disarm_area() -> void:
+	if area_armed == "":
+		return
+	area_armed = ""
+	if _area_mark and is_instance_valid(_area_mark):
+		_area_mark.queue_free()
+	_area_mark = null
+
+
+## Um quadro com a área preparada: o círculo segue a mira; desiste quando não dá mais.
+func _update_area_aim(delta: float) -> void:
+	_area_arm_t -= delta
+	if _area_arm_t <= 0.0 or dead or ability != "" or not (area_armed in Game.ability_kit()):
+		_disarm_area()
+		return
+	area_point = _area_target(area_armed)
+	if _area_mark and is_instance_valid(_area_mark):
+		_area_mark.global_position = area_point
+
+
+## Ponto no chão onde a habilidade `id` cairia agora: onde a câmera aponta, limitado a `aim_range` m do
+## jogador no plano e baixado até o chão do cenário (sem chão por perto: a altura do jogador).
+func _area_target(id: String) -> Vector3:
+	var target := aim_point()
+	var origin := global_position
+	var flat := Vector3(target.x - origin.x, 0.0, target.z - origin.z)
+	var reach: float = ItemDB.ABILITIES[id].aim_range
+	if flat.length() > reach:
+		flat = flat.normalized() * reach
+	var p := origin + flat
+	var q := PhysicsRayQueryParameters3D.create(Vector3(p.x, maxf(origin.y, target.y) + 6.0, p.z),
+		Vector3(p.x, minf(origin.y, target.y) - 12.0, p.z), 1)
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	return hit.position if not hit.is_empty() else Vector3(p.x, origin.y, p.z)
+
+
+## Solta a habilidade preparada no ponto mirado (gasta mana e recarga como um uso normal).
+func confirm_area() -> void:
+	if area_armed == "":
+		return
+	var id := area_armed
+	area_point = _area_target(id)
+	_disarm_area()
+	_area_confirming = true
+	cast(id)
+	_area_confirming = false
 
 
 ## Liga/desliga a borda de alvo da Cura neste jogador (TargetHighlight sob o modelo).
@@ -1361,6 +1456,7 @@ func _die() -> void:
 	dead = true
 	end_ability()
 	_disarm_heal()
+	_disarm_area()
 	Game.hp = 0
 	Game.clear_buffs()
 	attacking = false

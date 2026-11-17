@@ -397,6 +397,20 @@ static func aura_seal(pal: Dictionary, radius: float) -> MeshInstance3D:
 	return l
 
 
+## Círculo da mira de uma habilidade em área (raio `radius`): selo dourado girando, solto no chão.
+static func area_marker(radius: float) -> Node3D:
+	if FX._scene() == null:
+		return null
+	var root := Node3D.new()
+	var ring := aura_seal(PAL_GOLD, radius)
+	ring.position.y = 0.08
+	ring.set_instance_shader_parameter("ticks", 16.0)
+	ring.set_instance_shader_parameter("thick", 0.06)
+	ring.set_instance_shader_parameter("glyph", 1.0)
+	root.add_child(ring)
+	return root
+
+
 ## Feixes de luz suaves em volta do corpo (origem nos pés): a coluna da habilidade, translúcida e vazada.
 static func aura_column(pal: Dictionary, radius := 0.55, height := 2.0) -> MeshInstance3D:
 	var l := _loop("column", tube_mesh(), pal, 0.38, 0.25, 0.32)

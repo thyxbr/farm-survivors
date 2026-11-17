@@ -3077,6 +3077,18 @@ func _test_gear() -> void:
 	var ward_mp := Game.mp
 	var maxhp0 := Game.max_hp()
 	player.cast("scepter_ward")
+	check(player.area_armed == "scepter_ward" and not Game.has_buff("scepter_ward") and is_equal_approx(Game.mp, ward_mp),
+		"Julgamento de Luz: a tecla só prepara a área (sem buff, sem mana)")
+	await wait(0.1)
+	check(player._area_mark != null and player.global_position.distance_to(player.area_point) <= 18.5,
+		"círculo da área no chão, dentro do alcance (%.1f m)" % player.global_position.distance_to(player.area_point))
+	player.cast("scepter_ward")
+	check(player.area_armed == "" and player._area_mark == null and Game.mp >= ward_mp - 0.01, "a mesma tecla de novo desiste sem gastar")
+	player.cast("scepter_ward")
+	ward_mp = Game.mp
+	maxhp0 = Game.max_hp()
+	player.confirm_area()
+	check(player.area_armed == "", "confirmar desarma a área")
 	check(Game.has_buff("scepter_ward") and player.ability == "scepter_ward", "Escudo de Luz dá o buff e começa")
 	check(is_equal_approx(Game.max_hp() - maxhp0, 30.0), "Escudo de Luz sobe a vida máx. em 30 (%.0f)" % (Game.max_hp() - maxhp0))
 	check(is_equal_approx(ward_mp - Game.mp, 30.0) and player.cooldowns.scepter_ward > 0.0, "Escudo de Luz gasta 30 de mana e entra em recarga")
