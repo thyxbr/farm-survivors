@@ -29,6 +29,7 @@ func _ready() -> void:
 		_hand_crosses_in_front(d, tag)
 		_weight_over_stance_leg(d, c[0], c[1], tag)
 	_still_pose_untouched()
+	_attack_resets_leg_yaw()
 	print("gait_test: ", "OK" if fails == 0 else "%d falhas" % fails)
 	get_tree().quit(0 if fails == 0 else 1)
 
@@ -146,3 +147,17 @@ func _still_pose_untouched() -> void:
 			worst = maxf(worst, absf(float(p.get(k, 0.0))))
 	model.queue_free()
 	check(worst == 0.0, "still_pose_untouched", "maior desvio %.5f" % worst)
+
+
+## Nos golpes o quadril gira com o giro do golpe: o desfazer das pernas da marcha (leg_yaw) tem de sumir.
+func _attack_resets_leg_yaw() -> void:
+	var model := (load("res://assets/models/knight.glb") as PackedScene).instantiate() as Node3D
+	add_child(model)
+	var r := KnightAnim.rig(model)
+	var p := KnightAnim.locomotion_pose(r, 0.7, 1.0, 0.0)
+	var walking := absf(float(p.leg_yaw))
+	KnightAnim.sword_pose(p, 1, 0.5, 1.0)
+	KnightAnim.hips_follow(p)
+	model.queue_free()
+	check(walking > 0.01 and p.leg_yaw == 0.0, "attack_resets_leg_yaw",
+		"leg_yaw andando %.4f, no golpe %.4f" % [walking, p.leg_yaw])

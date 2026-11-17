@@ -71,7 +71,11 @@ const BODY_BOUNCE_WALK := 0.012   ## o tronco amortece no meio de cada apoio (m)
 const BODY_BOUNCE_RUN := 0.022
 const TORSO_TWIST_WALK := 0.1     ## ombros giram contra o quadril (rad)
 const TORSO_TWIST_RUN := 0.15
-const HIP_DROP := 0.04            ## o quadril pende para o lado da perna de apoio (rad)
+const PELVIS_TWIST_WALK := 0.07   ## o quadril gira contra os ombros (rad); as pernas desfazem o giro (leg_yaw)
+const PELVIS_TWIST_RUN := 0.12
+const HEAD_STEADY := 0.85         ## quanto a cabeça desfaz do giro e da inclinação do tronco (0..1): olha para a frente
+const TORSO_LAG := 0.2            ## os ombros giram um pouco depois do quadril (rad de fase)
+const HIP_DROP := 0.04           ## o quadril pende para o lado da perna de apoio (rad)
 const LEAN_WALK := 0.08           ## inclinação do tronco para a frente andando (rad)
 const LEAN_RUN := 0.22            ## e correndo
 const LEAN_ACCEL := 0.01          ## por m/s² de aceleração para a frente
@@ -118,7 +122,7 @@ const ROLL_SPIN_END := 0.8
 const ROLL_TUCK := {
 	"body_x": 0.75, "head_x": 0.7, "leg_l": -1.75, "leg_r": -1.55, "knee_l": 2.3, "knee_r": 2.2,
 	"arm_l": Vector3(-0.9, 0.0, 0.25), "arm_r": Vector3(-0.7, 0.0, -0.25), "elbow_l": -1.7, "elbow_r": -1.4,
-	"twist": 0.0, "hip_twist": 0.0, "body_y": 0.0, "body_z": 0.0, "body_shift": 0.0,
+	"twist": 0.0, "hip_twist": 0.0, "leg_yaw": 0.0, "body_y": 0.0, "body_z": 0.0, "body_shift": 0.0,
 }
 ## Rolando, a arma aponta para trás e um pouco para cima (ângulo em torno do eixo X do modelo; 0 = para a
 ## frente, > 0 inclina para baixo): assim a lâmina, o cajado ou o arco não varrem o chão.
@@ -140,7 +144,7 @@ const DEATH_WEAPON_X := 1.5
 const ARM_IK_MAX_BEND := -2.5
 const LEG_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r", "foot_l", "foot_r"]
 const POSE_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r", "foot_l", "foot_r", "lift", "body_x", "body_y", "body_z", "body_shift",
-	"twist", "hip_twist", "roll", "head_x", "head_y", "arm_l", "arm_r", "elbow_l", "elbow_r", "wrist_l", "wrist_r", "ground"]
+	"twist", "hip_twist", "leg_yaw", "roll", "head_x", "head_y", "head_z", "arm_l", "arm_r", "elbow_l", "elbow_r", "wrist_l", "wrist_r", "ground"]
 
 
 ## Pivôs do modelo + medidas das pernas. Funciona com modelos antigos sem KneeX/ElbowX (ficam null).
@@ -282,7 +286,7 @@ static func leg_length(r: Dictionary) -> float:
 static func rest_pose() -> Dictionary:
 	return {"leg_l": 0.0, "leg_r": 0.0, "knee_l": 0.0, "knee_r": 0.0, "foot_l": 0.0, "foot_r": 0.0, "lift": 0.0,
 		"body_x": 0.0, "body_y": 0.0,
-		"body_z": 0.0, "body_shift": 0.0, "twist": 0.0, "hip_twist": 0.0, "roll": 0.0, "head_x": 0.0, "head_y": 0.0, "wrist_l": 0.0, "wrist_r": 0.0,
+		"body_z": 0.0, "body_shift": 0.0, "twist": 0.0, "hip_twist": 0.0, "leg_yaw": 0.0, "roll": 0.0, "head_x": 0.0, "head_y": 0.0, "head_z": 0.0, "wrist_l": 0.0, "wrist_r": 0.0,
 		"arm_l": Vector3(0, 0, IDLE_ARM_OUT), "arm_r": Vector3(IDLE_ARM_R_X, 0, -IDLE_ARM_OUT),
 		"elbow_l": IDLE_ELBOW, "elbow_r": IDLE_ELBOW, "ground": 1.0, "snap": [], "speed": {}}
 
@@ -384,9 +388,15 @@ static func locomotion_pose(r: Dictionary, phase: float, move: float, run: float
 	p.elbow_r = lerpf(IDLE_ELBOW, elbow + ELBOW_SWING * maxf(-sl, 0.0), move)
 	# o tronco amortece no meio de cada apoio (além do que a altura das pernas já dá)
 	p.body_y = -lerpf(BODY_BOUNCE_WALK, BODY_BOUNCE_RUN, run) * move * bounce
-	p.twist = lerpf(TORSO_TWIST_WALK, TORSO_TWIST_RUN, run) * move * cos(phase)
+	p.twist = lerpf(TORSO_TWIST_WALK, TORSO_TWIST_RUN, run) * move * cos(phase - TORSO_LAG)
+	# o quadril gira contra os ombros e as pernas desfazem esse giro (continuam balançando para a frente)
+	p.hip_twist = -lerpf(PELVIS_TWIST_WALK, PELVIS_TWIST_RUN, run) * move * cos(phase)
+	p.leg_yaw = -p.hip_twist
 	# o quadril pende um pouco sobre a perna de apoio
 	p.body_z = -HIP_DROP * move * sin(phase)
+	# a cabeça desfaz quase todo o giro e a inclinação do tronco: o olhar fica estável
+	p.head_y = -HEAD_STEADY * p.twist
+	p.head_z = -HEAD_STEADY * p.body_z
 	return p
 
 
@@ -907,6 +917,7 @@ static func hips_follow(p: Dictionary) -> void:
 	var spin: float = p.get("spin", 0.0)
 	var own := wrapf(p.twist - spin, -PI, PI)
 	p.hip_twist = wrapf(spin + own * float(p.get("hip_share", HIP_TWIST_SHARE)), -PI, PI)
+	p.leg_yaw = 0.0   # o giro da marcha acabou: as pernas giram com o quadril
 	if "twist" in p.snap and not ("hip_twist" in p.snap):
 		p.snap.append("hip_twist")
 
@@ -915,6 +926,8 @@ static func hips_follow(p: Dictionary) -> void:
 static func reset_twist(r: Dictionary) -> void:
 	r["twist"] = 0.0
 	r["hip_twist"] = 0.0
+	r.LegL.rotation.y = 0.0
+	r.LegR.rotation.y = 0.0
 	r.Body.rotation.y = 0.0
 	if r.get("Pelvis"):
 		r.Pelvis.rotation.y = 0.0
@@ -1076,6 +1089,11 @@ static func apply(r: Dictionary, p: Dictionary, k: float) -> void:
 	var aim_head: float = -float(r.get("aim_pitch", 0.0)) * 0.8 * float(p.get("bow", {}).get("w", 0.0))
 	r.Head.rotation.x = lerpf(r.Head.rotation.x, p.head_x + aim_head, f.call("head_x"))
 	r.Head.rotation.y = lerpf(r.Head.rotation.y, p.head_y, f.call("head_y"))
+	r.Head.rotation.z = lerpf(r.Head.rotation.z, float(p.get("head_z", 0.0)), f.call("head_z"))
+	# o quadril gira com a marcha e as pernas desfazem o giro, para os pés seguirem em frente
+	var leg_yaw := float(p.get("leg_yaw", 0.0))
+	r.LegL.rotation.y = lerpf(r.LegL.rotation.y, leg_yaw, f.call("leg_yaw"))
+	r.LegR.rotation.y = lerpf(r.LegR.rotation.y, leg_yaw, f.call("leg_yaw"))
 	# arco: com tronco e cabeça no lugar, as mãos vão por IK até o arco e a corda
 	_bow_ik(r, p, f.call("arm_l"))
 	r["two_hand"] = lerpf(float(r.get("two_hand", 0.0)), float(p.get("two_hand", 0.0)), f.call("arm_l"))
