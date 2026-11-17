@@ -89,3 +89,17 @@ func test_area_at_on_real_maps() -> void:
 	T.eq(Regions.area_at(Regions.at("bosque", Vector3(-26, 0, -36))), "ninho_rainha", "a Slime Rainha no ninho")
 	T.ok(Regions.area_center("toca_goblins").distance_to(Vector3(62, 0, 0)) < 1.0, "centro da toca")
 	T.eq(Regions.area_center("nao_existe"), Vector3.INF, "região sem nó")
+
+
+## Missão que cita região: o objetivo leva o nome dela e o rastreador aponta para o centro da região.
+func test_quest_objective_and_destination() -> void:
+	var t := _table()
+	var q := {"objective": "Batedores goblins derrotados", "region": "toca_goblins", "where": [0, 0]}
+	T.eq(StoryRules.objective(q, t), "Batedores goblins derrotados · Toca dos Goblins", "nome da região no objetivo")
+	T.eq(StoryRules.objective({"objective": "Ache o Kael"}, t), "Ache o Kael", "sem região: igual")
+	var qt := {"m": {"type": "kill", "target": "goblin", "count": 2, "giver_id": "elder", "region": "toca_goblins", "where": [0, 0]}}
+	var st := {"m": {"state": "active", "progress": 0}}
+	var d := StoryRules.destination(qt, st, "m", {})
+	T.ok(d.has("pos") and (d.pos as Vector2).distance_to(Vector2(62, 0)) < 1.0, "rastreador no centro da toca")
+	qt.m.region = "nao_existe"
+	T.eq(StoryRules.destination(qt, st, "m", {}).pos, Vector2(0, 0), "região sem nó: cai no where")

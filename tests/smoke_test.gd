@@ -2199,7 +2199,7 @@ func _test_guild_travel() -> void:
 	_story_to("bosque")
 	Game.start_quest("q_gelo")
 	for i in 3:
-		Econ.kill("slime_gelo", 0)
+		Econ.kill("slime_gelo", 0, 0, "campos_norte")
 	Game.complete_quest("q_gelo")
 	check(Game.guild_points() >= 100, "contrato do quadro dá pontos (%d)" % Game.guild_points())
 	# promoção pelo diálogo da Lina: a escolha de promoção está nos serviços dela
@@ -2262,7 +2262,7 @@ func _story_to(target: String) -> void:
 			"kill":
 				var kind: String = d.targets[0] if d.has("targets") else d.target
 				for i in maxi(0, int(d.count) - int(Game.quests[id].progress)):
-					Econ.kill(kind, 0)
+					Econ.kill(kind, 0, 0, str(d.get("region", "")))
 		Game.complete_quest(id)
 
 

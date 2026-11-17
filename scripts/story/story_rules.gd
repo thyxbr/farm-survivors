@@ -174,10 +174,23 @@ static func destination(qt: Dictionary, quests: Dictionary, id: String, counts: 
 		return {"npc": giver(qt, id)}
 	if turnable(qt, quests, id, counts) or CharRules.quest_type(q) == "talk":
 		return {"npc": turn_in(qt, id)}
+	if q.has("region"):
+		var c := Regions.area_center(str(q.region))
+		if c != Vector3.INF:
+			return {"pos": Vector2(c.x, c.z)}
 	if q.has("where"):
 		var w: Array = q.where
 		return {"pos": Vector2(float(w[0]), float(w[1]))}
 	return {}
+
+
+## Texto do objetivo da missão; com "region", leva o nome da região com nome ("Slimes derrotados · Campos do
+## Norte"). `regions` = tabela regions.json.
+static func objective(q: Dictionary, regions: Dictionary) -> String:
+	var base := str(q.get("objective", q.get("target", "")))
+	if not q.has("region"):
+		return base
+	return "%s · %s" % [base, Regions.area_info(regions, str(q.region)).name]
 
 
 ## Missões que estrearam um capítulo entre dois estados (para o cartão de título "Episódio N").

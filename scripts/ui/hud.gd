@@ -644,7 +644,7 @@ func _refresh_quests() -> void:
 		elif CharRules.quest_type(d) == "talk":
 			txt = str(d.get("objective", "Fale com %s" % d.get("turn_in", d.giver)))
 		else:
-			txt = "%s: %d/%d" % [d.get("objective", d.get("target", "")), prog[0], prog[1]]
+			txt = "%s: %d/%d" % [StoryRules.objective(d, Balance.tables.get_table("regions")), prog[0], prog[1]]
 		var l := UITheme.outlined(txt, 16, UITheme.TEXT, 4)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

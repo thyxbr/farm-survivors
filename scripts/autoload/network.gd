@@ -671,7 +671,7 @@ func server_enemy_killed(e: Enemy) -> void:
 			var r: Dictionary = rewards[pid]
 			var group_level := int(group_levels.get(pid, 1))
 			if r.kill:
-				Econ.server_kill(pid, e.kind, int(r.xp), e.level, group_level)
+				Econ.server_kill(pid, e.kind, int(r.xp), e.level, group_level, e.area)
 			elif int(r.xp) > 0:
 				# quem está longe também leva o ajuste de nível (o abate perto o aplica em CharRules.kill)
 				var far_xp := int(r.xp)

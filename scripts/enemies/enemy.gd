@@ -333,7 +333,7 @@ func _update_plate_color(_new_level := 0) -> void:
 func _update_quest_icon() -> void:
 	if quest_icon == null or dead:
 		return
-	quest_icon.visible = CharRules.is_quest_target(Game.quests, ItemDB.QUESTS, kind)
+	quest_icon.visible = CharRules.is_quest_target(Game.quests, ItemDB.QUESTS, kind, area)
 
 
 ## Escudo dourado com "!" escuro, desenhado uma vez e usado por todos os inimigos.
@@ -931,7 +931,7 @@ func _die() -> void:
 		Network.server_enemy_killed(self)
 	elif not horde:
 		# solo: XP, missão e o chefe derrotado (king_dead) ficam com as regras (Econ.kill)
-		Game.on_enemy_killed(kind, xp_reward(), level)
+		Game.on_enemy_killed(kind, xp_reward(), level, area)
 		drop_loot(get_parent(), kind, global_position, true, level, elite)
 	die_visual()
 
