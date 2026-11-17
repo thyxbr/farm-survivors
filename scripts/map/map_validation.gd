@@ -42,9 +42,26 @@ static func check(root: MapRoot) -> PackedStringArray:
 	var marks := {}
 	for m: MapLandmark in root.pieces(MapLandmark):
 		marks[m.id] = int(marks.get(m.id, 0)) + 1
-	for id in REQUIRED.get(root.map_id, REQUIRED_REGION):
+	var required: Array = REQUIRED.get(root.map_id, REQUIRED_REGION)
+	if Regions.is_dungeon(root.map_id):
+		required = ["arrive"]   # a saída é a porta "out" (abaixo); dungeon não tem carruagem
+	else:
+		for d in Regions.dungeons_of(root.map_id):
+			required = required + ["dg:" + d]   # onde fica a porta de cada dungeon deste mapa
+	for id in required:
 		if int(marks.get(id, 0)) != 1:
 			out.append("landmark '%s' aparece %d vez(es); precisa de exatamente 1" % [id, int(marks.get(id, 0))])
+	var doors := {}
+	for e: MapEntity in root.pieces(MapEntity):
+		if e.kind == "dungeon_door":
+			doors[e.ref] = int(doors.get(e.ref, 0)) + 1
+			if e.ref != "out" and not Regions.is_dungeon(e.ref):
+				out.append("%s: porta para '%s', que não é dungeon do Regions.DATA" % [root.get_path_to(e), e.ref])
+	if Regions.is_dungeon(root.map_id) and int(doors.get("out", 0)) != 1:
+		out.append("dungeon precisa de exatamente 1 porta de saída (dungeon_door ref \"out\")")
+	for d in Regions.dungeons_of(root.map_id):
+		if int(doors.get(d, 0)) != 1:
+			out.append("precisa de exatamente 1 porta para a dungeon '%s' (dungeon_door ref \"%s\")" % [d, d])
 	var veins: Dictionary = _vein_kinds()
 	var seen := {}
 	for e: MapEntity in root.pieces(MapEntity):

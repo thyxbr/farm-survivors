@@ -1642,3 +1642,17 @@ script = ExtResource("5_vkolw")
 kind = "resource_node"
 ref = "silverbirch"
 node_id = 55
+
+[node name="Dungeons" type="Node3D" parent="."]
+
+[node name="porta dg_mina" type="Node3D" parent="Dungeons"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 28, 0, -60)
+script = ExtResource("5_vkolw")
+kind = "dungeon_door"
+ref = "dg_mina"
+
+[node name="entrada dg_mina" type="Node3D" parent="Dungeons"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 28, 0.3, -57)
+script = ExtResource("8_uyrub")
+id = "dg:dg_mina"
+follow_ground = false

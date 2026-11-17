@@ -1356,3 +1356,29 @@ script = ExtResource("5_pw7pe")
 kind = "resource_node"
 ref = "soulwood"
 node_id = 70
+
+[node name="Dungeons" type="Node3D" parent="."]
+
+[node name="porta dg_pico" type="Node3D" parent="Dungeons"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, -52, 0, -30)
+script = ExtResource("5_pw7pe")
+kind = "dungeon_door"
+ref = "dg_pico"
+
+[node name="entrada dg_pico" type="Node3D" parent="Dungeons"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, -52, 0.3, -27)
+script = ExtResource("8_hgur3")
+id = "dg:dg_pico"
+follow_ground = false
+
+[node name="porta dg_final" type="Node3D" parent="Dungeons"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 14, 0, -58)
+script = ExtResource("5_pw7pe")
+kind = "dungeon_door"
+ref = "dg_final"
+
+[node name="entrada dg_final" type="Node3D" parent="Dungeons"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 14, 0.3, -55)
+script = ExtResource("8_hgur3")
+id = "dg:dg_final"
+follow_ground = false

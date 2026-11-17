@@ -19,6 +19,19 @@
 	"elite": {"level_bonus": 2, "hp": 2.0, "scale": 1.25, "gear_chance": 0.05},
 	"gear_drop": {"chance": 0.02, "boss_chance": 1.0, "window": [-3, 1],
 		"rarity_weight": {"common": 60, "uncommon": 28, "rare": 10, "epic": 2, "legendary": 0}},
+	"dungeons": {
+		"per_player": 0.5, "max_mult": 2.5, "respawn_per_player": 0.3, "boss_respawn": 10,
+		"loot": {
+			"dg_bosque": {"monster": [["hide_t2", 0.15], ["essence_t2", 0.05]],
+				"boss": [["royal_jelly", 1.0], ["oak_log", 1.0], ["scroll_rose_flame", 0.35], ["scroll_mage_robe", 0.35], ["scroll_storm_staff", 0.35]]},
+			"dg_mina": {"monster": [["hide_t3", 0.15], ["essence_t3", 0.05]],
+				"boss": [["knight_sigil", 1.0], ["silver_ore", 1.0], ["scroll_pale_crescent", 0.35], ["scroll_void_staff", 0.35], ["scroll_guard_surcoat", 0.35]]},
+			"dg_pico": {"monster": [["hide_t4", 0.15], ["essence_t4", 0.05]],
+				"boss": [["lich_phylactery", 1.0], ["mithril_ore", 1.0], ["scroll_mithril_gauntlets", 0.35], ["scroll_sc_halo_scepter", 0.35], ["scroll_mithril_longbow", 0.35]]},
+			"dg_final": {"monster": [["hide_t5", 0.2], ["essence_t5", 0.05], ["astralite_ore", 0.1]],
+				"boss": [["abyss_core", 1.0], ["soulwood_log", 1.0], ["scroll_astral_blade", 0.2], ["scroll_astral_bow", 0.2], ["scroll_soulwood_staff", 0.2], ["scroll_sc_astral_scepter", 0.2], ["scroll_astral_plate", 0.2], ["scroll_astral_helm", 0.2], ["scroll_astral_gauntlets", 0.2], ["scroll_astral_greaves", 0.2]]}
+		}
+	},
 	"quest_xp_share": 0.3,
 	"quality_chance": {"per_level": 0.02, "max": 0.4, "obra_share": 0.25},
 	"quality_mult": {"fina": 1.15, "obra": 1.3},

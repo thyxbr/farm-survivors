@@ -940,6 +940,28 @@ func _test_econ() -> void:
 	var f: Array = await _results_after(from, "grant")
 	check(not f.is_empty() and not f[0][0] and f[0][1] == "op_invalida" and Game.gold == g2,
 		"op forjada (grant) recusada com op_invalida (%s)" % str(f))
+	# dungeon compartilhada: entra, vê os monstros e o chefe que o servidor mantém lá dentro e sai
+	var w := get_tree().current_scene
+	var back: Vector3 = w.player.global_position
+	var rank0 := str(Game.flags.get("rank", "D"))
+	Game.flags["rank"] = "C"
+	w.use_dungeon_door("dg_bosque")
+	check(await _wait_until(func() -> bool: return Regions.region_at(w.player.global_position) == "dg_bosque", 4.0),
+		"entrou no Covil das Raízes")
+	check(await _wait_until(func() -> bool:
+		var n := 0
+		var chief := false
+		for e in Network.enemies.values():
+			if is_instance_valid(e) and Regions.region_at(e.global_position) == "dg_bosque":
+				n += 1
+				chief = chief or e.chief
+		return n >= 20 and chief, 5.0), "monstros e chefe da dungeon vêm do servidor")
+	w.use_dungeon_door("out")
+	check(await _wait_until(func() -> bool: return w.player.global_position.distance_to(Regions.door_point("dg_bosque")) < 3.0, 4.0),
+		"saiu pela porta")
+	Game.flags["rank"] = rank0
+	w.player.global_position = back
+	await wait(0.5)
 
 
 ## O servidor em --test deixa "choose_class" valer de novo (CharacterService.allow_reclass): é como o teste

@@ -39,6 +39,11 @@ Todos ficam em `scripts/map/` e aparecem no Inspector com as opções abaixo.
 - **NPC ou ponto de jogo (MapEntity)**: `kind` diz o que é (npc, story_point, hub_point, farm_plot, kitchen,
   portal, signpost, santa, xmas_gift, resource_node...), `ref` o id (NPC, ponto da história, ponto da praça,
   tipo do veio), `index` o número (canteiros 0..11, presentes 0..7).
+- **Porta de dungeon**: MapEntity com `kind = dungeon_door`. No mapa de fora, `ref` = o id da dungeon
+  (`dg_bosque`...) e um MapLandmark `id = "dg:<id>"` ao lado, onde o jogador aparece ao sair ou ao morrer lá
+  dentro. Dentro da dungeon, `ref = "out"` (exatamente uma) e o landmark `arrive` (onde se chega). A cena de cada
+  dungeon é `scenes/maps/dg_<id>.tscn` (no `MapData.SCENES` e no `Regions.DATA`, com `dungeon: true` e `parent`).
+  No ponto de monstro do chefe da dungeon, ligue `chief`.
 - **Bancada de craft**: MapEntity com `kind = station` e `ref` = a estação (`leather` é a Bancada de Couraria da
   vila). A forja e a alquimia abrem pelos serviços do Doran e da Pip.
 - **Nó de coleta**: MapEntity com `kind = resource_node`, `ref` = um tipo de `data/balance/world_nodes.json`

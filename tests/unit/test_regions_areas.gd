@@ -71,7 +71,7 @@ func test_spawn_count() -> void:
 
 func test_json_and_scenes_agree() -> void:
 	var t := _table()
-	T.eq(t.size(), 20, "20 regiões no regions.json")
+	T.eq(t.size(), 32, "20 regiões dos mapas + 12 salas das 4 dungeons no regions.json")
 	var seen := {}
 	for a in MapData.all_areas():
 		seen[a.id] = true
@@ -109,7 +109,7 @@ func test_quest_objective_and_destination() -> void:
 ## a não ser os encaixes de propósito: o Cume Maldito dentro das Ameias do Lich.
 func test_regions_do_not_overlap() -> void:
 	const NESTED := [["ameias_lich", "cume_maldito"]]
-	for map_id in Regions.ORDER:
+	for map_id in Regions.ALL:
 		var areas := MapData.areas(map_id)
 		var o: Vector3 = Regions.origin(map_id)
 		var h := float(Regions.DATA[map_id].half)

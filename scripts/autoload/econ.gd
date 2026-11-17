@@ -610,12 +610,15 @@ func server_spawn_pickup(peer: int, zone: String, pos: Vector3, gold: int, items
 
 
 ## Servidor: sorteio do loot de um inimigo (LootRules) para um jogador, em pickups (um sorteio por jogador).
-func server_drop_loot(peer: int, kind: String, pos: Vector3, zone := "world", level := 0, elite := false) -> void:
+func server_drop_loot(peer: int, kind: String, pos: Vector3, zone := "world", level := 0, elite := false,
+		chief := false) -> void:
 	var cls := ""
 	var char_id := char_of(peer)
 	if char_id > 0 and Network.characters != null:
 		cls = Network.characters.load_or_create(char_id).char_class
-	var loot := LootRules.roll(Balance.tables, kind, _loot_rng, cls, level, elite)
+	var boss: bool = Balance.tables.get_table("enemies").get(kind, {}).get("boss", false) or chief
+	var extra := DungeonRules.extra_loot(Balance.tables, Regions.region_at(pos), boss)
+	var loot := LootRules.roll(Balance.tables, kind, _loot_rng, cls, level, elite, extra)
 	if int(loot.gold) > 0:
 		server_spawn_pickup(peer, zone, pos, int(loot.gold), {})
 	for id in loot.items:

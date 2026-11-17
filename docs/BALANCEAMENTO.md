@@ -9,8 +9,8 @@ Depois de mexer em qualquer número, **rode o simulador** e os testes (seção "
 ## Metas que os números perseguem
 
 - **30 horas até o nível 50**: 1–10 ~2 h, 10–20 ~5 h, 20–35 ~10 h, 35–45 ~7 h, 45–50 ~6 h.
-  O conteúdo da parte 1 vai até o nível ~40–42 (Pico 30–42, Lich 42): as horas de 35–45 e 45–50 são um modelo
-  (caça de monstros acima da faixa do Pico) até as partes 2 e 4 trazerem áreas e missões desses níveis.
+  O mundo aberto vai até o nível ~45 (Pico 30–45, Cume Maldito 42–45); a faixa 45–50 é a dungeon final (Abismo
+  de Valdoria, 45–50) e as camadas 5 do craft.
 - **Monstro comum do mesmo nível morre em 3 a 5 golpes** do ataque básico (guerreiro, arqueiro, mago; healer até
   7), com todos os pontos no atributo da classe e a melhor arma que o nível deixa usar.
 - **0,5 a 0,8 item por monstro comum**, quase tudo material.
@@ -233,6 +233,27 @@ pede; sem ele os golpes não contam) e `xp`. Ferro e cristal pedem nível 1 (o e
 
 **Loja** (`shop.json`): só o básico — poções, sementes, material da camada 1 (cobre, pinho, couro cru) e
 equipamento comum de nível até 10. O resto do equipamento vem do craft e dos chefes.
+
+## Dungeons (`progression.json` `dungeons`, salas no `regions.json`)
+
+Quatro dungeons compartilhadas (todos que entram veem a mesma), com porta no mapa de fora e rank da guilda:
+Covil das Raízes (Bosque, Rank C, 16–20), Galerias Profundas (Mina, B, 26–30), Cripta de Cinzas (Pico, A, 36–40)
+e Abismo de Valdoria (Pico, no Cume Maldito, A, 45–50). Cada uma tem 3 salas (`dg_<id>_entrada`, `_galeria`,
+`_trono` no regions.json): a faixa de nível das salas é o "+3 a +5 acima da região de fora" do projeto. Morrer lá
+dentro devolve na porta de fora (com a penalidade de morte de sempre).
+
+| Botão | Hoje | O que faz | Faixa segura |
+|---|---|---|---|
+| `per_player` | 0,5 | cada jogador a mais dentro soma 50% dos monstros de cada ponto | 0,25–1 |
+| `max_mult` | 2,5 | teto da população (×base) | 1,5–3 (medir com `--netstats`) |
+| `respawn_per_player` | 0,3 | cada jogador a mais encurta a volta dos monstros (respawn ÷ (1 + 0,3 × (n − 1))) | 0–0,5 |
+| `boss_respawn` | 10 | minutos até o chefe voltar | 5–30 |
+| `loot.<id>.monster` / `.boss` | couro/essência; peça + pergaminhos | loot extra (`[item, chance]`) de quem morre na dungeon | peça do chefe 1.0 |
+
+A base de cada dungeon é para **um** jogador bem equipado da faixa; o `per_player` só aumenta monstros e ritmo.
+O chefe é o ponto com `chief` ligado no Inspector (barra de chefe, volta em `boss_respawn`, loot de chefe). O loot
+é sorteado para cada jogador que acertou o monstro. Com as dungeons o servidor tem ~400 monstros: os que não têm
+jogador perto dormem (`enemy_sleep_radius`), por isso o custo ficou como o de antes.
 
 ## Como conferir
 

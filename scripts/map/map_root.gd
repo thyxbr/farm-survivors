@@ -12,7 +12,7 @@ const GROUND := "res://scripts/world/ground.gd"
 const PLAN := "Planta"
 
 ## Mapa: vila (vale de Valdoria), bosque, mina ou pico.
-@export_enum("vila", "bosque", "mina", "pico", "arena") var map_id := "vila"
+@export_enum("vila", "bosque", "mina", "pico", "arena", "dg_bosque", "dg_mina", "dg_pico", "dg_final") var map_id := "vila"
 ## Usa o chão de Valdoria (ground.gd: relevo, serra, formas pintadas). A Arena não usa: o chão dela são
 ## discos e uma colisão de caixa da própria cena.
 @export var has_ground := true

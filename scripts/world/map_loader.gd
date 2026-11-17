@@ -50,6 +50,13 @@ static func build(w: Node3D, map_id: String) -> MapRoot:
 				var area := Regions.area_at(n.global_position)
 				var lv := Regions.spawn_range(rt, area, n.level, n.level_max)
 				var count := Regions.spawn_count(rt, area, n.count)
+				# dungeon: o ponto tem entradas até o teto da população (DungeonRules); as acima da base só
+				# nascem com mais jogadores dentro. O chefe volta em minutos (progression.json "dungeons").
+				var dungeon := Regions.is_dungeon(map_id)
+				var base := count
+				if dungeon:
+					count = DungeonRules.max_population(Balance.tables, base)
+				var boss_kind: bool = Balance.tables.get_table("enemies").get(n.kind, {}).get("boss", false) or n.chief
 				var pts: Array[Vector3] = EnemySpawn.spread(n.global_position, count, n.radius)
 				if n.follow_ground and ground != null:
 					# cada um no chão de onde cai (o centro já foi assentado: a distância salva é y - chão)
@@ -59,9 +66,12 @@ static func build(w: Node3D, map_id: String) -> MapRoot:
 					pts = []
 					for q in EnemySpawn.spread_on_ground(c, count, n.radius, off, h):
 						pts.append(q + o)
-				for p in pts:
+				for i in pts.size():
+					var p: Vector3 = pts[i]
 					var entry := {"kind": n.kind, "pos": p, "node": null, "timer": 0.0, "respawn": n.respawn,
 							"level": lv.x, "level_max": lv.y, "elite": n.elite, "area": area}
+					if dungeon:
+						entry.merge({"dungeon": map_id, "slot": i, "base": base, "boss": boss_kind, "chief": n.chief})
 					if n.night_only:
 						entry["night"] = true   # bicho da noite (o mundo segura de dia)
 					list.append(entry)

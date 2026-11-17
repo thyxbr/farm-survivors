@@ -58,6 +58,11 @@ static func places(region: String) -> Array:
 	var out: Array = []
 	for p in PLACES.get(region, []):
 		out.append([p[0], Regions.origin(region) if p[1] == "" else MapData.landmark(region, p[1])])
+	if Regions.is_dungeon(region):
+		out.append(["Saída", Regions.arrive_point(region)])
+		return out
+	for d in Regions.dungeons_of(region):
+		out.append(["Entrada: " + Regions.display_name(d), Regions.door_point(d)])
 	out.append(["Carruagem da Guilda", Regions.coach_point(region)])
 	return out
 
@@ -159,9 +164,13 @@ static func atlas_bounds() -> Rect2:
 	return r
 
 
-## Posição do mundo → ponto no atlas (pela região onde ela fica).
+## Posição do mundo → ponto no atlas (pela região onde ela fica). Dentro de uma dungeon (fora do atlas) = a
+## porta dela no mapa de fora.
 static func to_atlas(pos: Vector3) -> Vector2:
 	var reg := Regions.region_at(pos)
+	if Regions.is_dungeon(reg):
+		pos = Regions.door_point(reg)
+		reg = Regions.region_at(pos)
 	var o: Vector3 = Regions.origin(reg)
 	return atlas_center(reg) + Vector2(pos.x - o.x, pos.z - o.z)
 

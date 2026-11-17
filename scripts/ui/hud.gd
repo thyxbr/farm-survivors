@@ -694,7 +694,7 @@ func _track_pos():
 	var here := Regions.region_at(player.global_position)
 	if Regions.region_at(p) != here:
 		_compass_far = Regions.display_name(Regions.region_at(p))
-		return Regions.coach_point(here)
+		return Regions.exit_point(here)
 	_compass_far = ""
 	return p
 
