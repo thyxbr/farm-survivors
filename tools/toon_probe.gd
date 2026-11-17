@@ -74,6 +74,9 @@ var _xdone := false
 ## sem nada, com o clima e a hora fixos (`--weather=sol --hora=12 --season=verao`): sem isso os draw calls
 ## mudam de uma rodada para outra.
 ##   noshadow        sem a sombra do sol
+##   shadowoff:<script>  as malhas dos nós com esse script param de fazer sombra
+##   shadowdist:<m>  alcance da sombra do sol
+##   awake           conta os inimigos acordados
 ##   off:<script>    para o _process e o _physics_process de todo nó com esse script (ex.: off:hud)
 ##   hide:<script>   esconde todo nó com esse script
 ##   procs           lista quantos nós de cada script rodam por quadro
@@ -97,6 +100,22 @@ func _experiment() -> void:
 						n.set_physics_process(false)
 					elif n is Node3D or n is CanvasItem or n is CanvasLayer:
 						n.visible = false
+		elif k.begins_with("shadowoff:"):      # shadowoff:<script>: as malhas desses nós param de fazer sombra
+			for n in scripted:
+				if (n.get_script() as Script).resource_path.get_file() == k.get_slice(":", 1) + ".gd":
+					for g in n.find_children("*", "GeometryInstance3D", true, false):
+						g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		elif k.begins_with("shadowdist:"):     # shadowdist:<metros>: alcance da sombra do sol
+			for l in get_tree().current_scene.find_children("*", "DirectionalLight3D", true, false):
+				l.directional_shadow_max_distance = float(k.get_slice(":", 1))
+		elif k == "awake":
+			var aw := 0
+			var tot := 0
+			for e in get_tree().get_nodes_in_group("enemies"):
+				tot += 1
+				if not e.get("asleep"):
+					aw += 1
+			print("[toonprobe] ACORDADOS %d de %d inimigos" % [aw, tot])
 		elif k == "noshadow":
 			for l in get_tree().current_scene.find_children("*", "DirectionalLight3D", true, false):
 				l.shadow_enabled = false
