@@ -21,6 +21,7 @@ const LIFE := Color(0.36, 0.93, 0.5)          ## verde da cura
 ## escura e laranja lê como fogo, não como luz sagrada).
 const PAL_GOLD := {"core": Color(1.0, 1.0, 0.93), "mid": GOLD, "edge": Color(0.98, 0.64, 0.14)}
 const PAL_LIFE := {"core": Color(0.93, 1.0, 0.9), "mid": LIFE, "edge": Color(0.06, 0.45, 0.38)}
+const PAL_WARD := {"core": Color(0.95, 0.98, 1.0), "mid": Color(0.55, 0.8, 1.0), "edge": Color(0.22, 0.45, 0.88)}
 
 static var _mats := {}
 static var _tube: ArrayMesh
@@ -170,19 +171,25 @@ class Shape extends MeshInstance3D:
 
 # ------------------------------------------------------------------ peças
 ## Coluna de luz em `pos` (base no chão): feixes de pincel que sobem num estalo e se desfazem.
-## `dense` > 1 = feixes mais cheios. `delay` atrasa o começo (raios em sequência).
-static func pillar(pos: Vector3, pal: Dictionary, radius := 0.6, height := 3.5, time := 0.8, dense := 1.0, delay := 0.0) -> void:
+## `o`: dense (> 1 = feixes mais cheios), delay (atrasa o começo: raios em sequência), alpha (< 1 = coluna
+## translúcida, suave) e core (< 1 = menos branco no miolo).
+static func pillar(pos: Vector3, pal: Dictionary, radius := 0.6, height := 3.5, time := 0.8, o := {}) -> void:
+	var alpha: float = o.get("alpha", 1.0)
 	for layer in 2:
 		var shadow := layer == 0
 		var s := _shape("column", tube_mesh(), pal, shadow)
 		var r := radius * (1.2 if shadow else 1.0)
-		s.delay = delay + (0.03 if shadow else 0.0)
+		var mid: Color = (_shade(pal) if shadow else pal).mid
+		s.set_instance_shader_parameter("col_mid", Color(mid.r, mid.g, mid.b, alpha * (0.6 if shadow and alpha < 1.0 else 1.0)))
+		if not shadow:
+			s.set_instance_shader_parameter("core", float(o.get("core", 1.0)))
+		s.delay = float(o.get("delay", 0.0)) + (0.03 if shadow else 0.0)
 		s.grow_t = time * 0.2
 		s.hold = time * 0.3
 		s.fade = time * 0.5
 		s.scale0 = Vector3(r * 0.5, height * 0.6, r * 0.5)
 		s.scale1 = Vector3(r, height, r)
-		s.set_instance_shader_parameter("dense", dense)
+		s.set_instance_shader_parameter("dense", float(o.get("dense", 1.0)))
 		_put(s, pos)
 
 
@@ -271,11 +278,12 @@ static func _flash(pos: Vector3, color: Color, energy: float, range_m: float, ti
 static func heal_burst(pos: Vector3, big := false) -> void:
 	if FX._scene() == null:
 		return
-	pillar(pos, PAL_LIFE, 0.85 if big else 0.6, 4.6 if big else 3.2, 1.0 if big else 0.85)
+	# coluna suave: translúcida, pouco branco e mais vazada (opaca e cheia virava uma faixa de luz forte demais)
+	pillar(pos, PAL_LIFE, 0.8 if big else 0.52, 4.0 if big else 2.7, 0.9 if big else 0.75, {"alpha": 0.45, "core": 0.3, "dense": 0.8})
 	seal(pos, PAL_LIFE, 1.9 if big else 1.4, 1.0, {"glyph": true, "ticks": 12})
 	sparkles(pos + Vector3.UP * 0.4, PAL_LIFE, 8 if big else 6, 0.7, 2.6, 1.0, 0.32)
 	sparkles(pos + Vector3.UP * 0.9, PAL_GOLD, 3, 0.5, 2.0, 1.0, 0.24)
-	_flash(pos + Vector3.UP * 1.2, LIFE, 2.5, 5.0, 0.45)
+	_flash(pos + Vector3.UP * 1.2, LIFE, 1.0, 4.0, 0.4)
 
 
 ## Pincelada de luz em arco de `from` até `target`, com um brilho na ponta; a cura estoura ao chegar.
@@ -344,6 +352,79 @@ class Charge extends Node3D:
 		var off := Vector3(randf_range(-0.2, 0.2), randf_range(-0.1, 0.15), randf_range(-0.2, 0.2))
 		HolyFX.star(global_position + off, HolyFX.PAL_LIFE, randf_range(0.16, 0.3),
 			{"hold": 0.12, "fade": 0.25, "rise": Vector3(0, randf_range(0.6, 1.3), 0)})
+
+
+# ------------------------------------------------------------------ auras de buff (BuffAura)
+## Forma permanente de uma aura: só o ruído anda (12 quadros por segundo) e a peça gira devagar.
+class Loop extends MeshInstance3D:
+	var seed0 := 0.0
+	var spin := 0.0
+	var _t := 0.0
+
+	func _process(delta: float) -> void:
+		_t += delta
+		set_instance_shader_parameter("seed", seed0 + floorf(_t * 12.0) * 0.13)
+		if spin != 0.0:
+			rotation.y += spin * delta
+
+
+static func _loop(key: String, mesh: Mesh, pal: Dictionary, alpha: float, core: float, erode: float) -> Loop:
+	var l := Loop.new()
+	l.mesh = mesh
+	l.material_override = _mat(key)
+	l.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	l.seed0 = randf() * 20.0
+	var mid: Color = pal.mid
+	l.set_instance_shader_parameter("col_core", pal.core)
+	l.set_instance_shader_parameter("col_mid", Color(mid.r, mid.g, mid.b, alpha))
+	l.set_instance_shader_parameter("col_edge", pal.edge)
+	l.set_instance_shader_parameter("core", core)
+	l.set_instance_shader_parameter("head", 1.0)
+	l.set_instance_shader_parameter("erode", erode)
+	return l
+
+
+## Selo desenhado no chão de uma aura (raio `radius`), girando devagar.
+static func aura_seal(pal: Dictionary, radius: float) -> MeshInstance3D:
+	if _plane == null:
+		_plane = PlaneMesh.new()
+		_plane.size = Vector2(2, 2)
+	var l := _loop("seal", _plane, pal, 0.8, 0.6, 0.12)
+	l.spin = 0.5
+	l.scale = Vector3(radius, 1.0, radius)
+	l.set_instance_shader_parameter("thick", 0.09)
+	l.set_instance_shader_parameter("ticks", 12.0)
+	return l
+
+
+## Feixes de luz suaves em volta do corpo (origem nos pés): a coluna da habilidade, translúcida e vazada.
+static func aura_column(pal: Dictionary, radius := 0.55, height := 2.0) -> MeshInstance3D:
+	var l := _loop("column", tube_mesh(), pal, 0.38, 0.25, 0.32)
+	l.spin = 0.35
+	l.scale = Vector3(radius, height, radius)
+	l.set_instance_shader_parameter("dense", 0.75)
+	return l
+
+
+## Brilhos de 4 pontas nascendo em volta do corpo de tempos em tempos (filho do modelo).
+static func aura_stars(pal: Dictionary) -> Node3D:
+	var t := Twinkle.new()
+	t.pal = pal
+	return t
+
+
+class Twinkle extends Node3D:
+	var pal := {}
+	var _t := 0.0
+
+	func _process(delta: float) -> void:
+		_t -= delta
+		if _t > 0.0:
+			return
+		_t = randf_range(0.3, 0.5)
+		var a := randf() * TAU
+		var at := global_position + Vector3(cos(a) * 0.6, randf_range(0.3, 1.8), sin(a) * 0.6)
+		HolyFX.star(at, pal, randf_range(0.16, 0.28), {"hold": 0.15, "fade": 0.3, "rise": Vector3(0, 0.5, 0)})
 
 
 # ------------------------------------------------------------------ dano
@@ -432,11 +513,11 @@ static func radiant_nova(pos: Vector3, radius: float) -> void:
 		return
 	seal(pos, PAL_GOLD, radius, 0.9, {"ticks": 16, "thick": 0.1})
 	dome(pos, PAL_GOLD, radius, 0.6)
-	pillar(pos, PAL_GOLD, 1.0, 5.5, 0.85, 1.3)
+	pillar(pos, PAL_GOLD, 1.0, 5.5, 0.85, {"dense": 1.3})
 	star(pos + Vector3.UP * 1.3, PAL_GOLD, 2.6, {"points": 12, "sharp": 2.0, "body": 0.28, "hold": 0.08, "fade": 0.25, "shadow": true})
 	for i in 8:
 		var a := TAU * i / 8.0 + randf() * 0.3
-		pillar(pos + Vector3(cos(a), 0.0, sin(a)) * radius * 0.65, PAL_GOLD, 0.26, 3.4, 0.5, 1.0, 0.05 + 0.04 * i)
+		pillar(pos + Vector3(cos(a), 0.0, sin(a)) * radius * 0.65, PAL_GOLD, 0.26, 3.4, 0.5, {"delay": 0.05 + 0.04 * i})
 	sparkles(pos + Vector3.UP * 0.6, PAL_GOLD, 8, radius * 0.5, 4.0, 0.3, 0.36)
 	_flash(pos + Vector3.UP * 1.5, GOLD, 4.0, radius * 1.4, 0.45)
 
@@ -453,10 +534,10 @@ static func smite(pos: Vector3) -> void:
 static func feast(pos: Vector3, radius: float) -> void:
 	if FX._scene() == null:
 		return
-	pillar(pos, PAL_GOLD, 1.3, 7.5, 1.2, 1.4)
+	pillar(pos, PAL_GOLD, 1.1, 6.0, 1.1, {"alpha": 0.5, "core": 0.4})
 	seal(pos, PAL_GOLD, 3.2, 1.3, {"glyph": true, "ticks": 16})
 	seal(pos, PAL_LIFE, radius, 1.0, {"inner": false, "thick": 0.05, "delay": 0.08})
 	dome(pos, PAL_GOLD, radius, 0.8)
 	sparkles(pos + Vector3.UP * 0.5, PAL_GOLD, 10, 1.6, 3.4, 1.0, 0.4)
 	sparkles(pos + Vector3.UP * 0.8, PAL_LIFE, 6, 2.4, 2.6, 1.0, 0.32)
-	_flash(pos + Vector3.UP * 2.0, GOLD, 5.0, radius * 1.6, 0.7)
+	_flash(pos + Vector3.UP * 2.0, GOLD, 2.0, radius * 1.2, 0.6)

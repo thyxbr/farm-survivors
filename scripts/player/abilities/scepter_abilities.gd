@@ -20,7 +20,7 @@ const LANCE_BASE := 35.0
 const LANCE_SP := 4.5
 
 ## Explosão radiante do Escudo de Luz.
-const NOVA_RADIUS := 7.0
+const NOVA_RADIUS := 10.0
 const NOVA_BASE := 24.0
 const NOVA_SP := 3.0
 const NOVA_STUN := 0.8

@@ -82,6 +82,21 @@ func _ready() -> void:
 	HolyFX.feast(b.global_position, ScepterAbilities.FEAST_RADIUS)
 	await _wait(0.3)
 	await _snap()
+	await _wait(1.5)
+	# 6) auras dos buffs (Banquete e Escudo de Luz) e a cura em si mesmo, de perto
+	for pair in [[b, "sagrado"], [a, "luz"]]:
+		var au := BuffAura.new()
+		pair[0].model.add_child(au)
+		au.set_styles([pair[1]])
+	cam.position = Vector3(1.9, 1.7, 4.2)
+	cam.look_at(Vector3(1.9, 1.0, 0))
+	await _wait(0.6)
+	await _snap()
+	HolyFX.heal_burst(healer.global_position)
+	cam.position = Vector3(-2.2, 1.8, 4.5)
+	cam.look_at(Vector3(-2.2, 1.2, 0))
+	await _wait(0.2)
+	await _snap()
 	_save()
 
 

@@ -28,7 +28,7 @@ const ABILITIES := {
 	"scepter_lance": {"name": "Lança de Luz", "class": "scepter", "slot": 2, "level": 2, "cooldown": 5.0, "cost": 15,
 		"ready": true, "ultimate": false, "icon": "holy_lance", "desc": "Arremessa uma lança de luz sagrada no alvo mirado. Dano = 35 + INT x 4,5."},
 	"scepter_ward": {"name": "Escudo de Luz", "class": "scepter", "slot": 3, "level": 5, "cooldown": 16.0, "cost": 30,
-		"ready": true, "ultimate": false, "icon": "radiant", "desc": "Explosão de luz ao seu redor: dano = 24 + INT x 3 e atordoa os inimigos a 7 m. Por 12 s, em você e nos aliados a 8 m: +30 de vida máx., +4 de defesa e +3 de vida por segundo."},
+		"ready": true, "ultimate": false, "icon": "radiant", "desc": "Explosão de luz ao seu redor: dano = 24 + INT x 3 e atordoa os inimigos a 10 m. Por 12 s, em você e nos aliados a 8 m: +30 de vida máx., +4 de defesa e +3 de vida por segundo."},
 	"scepter_ult": {"name": "Banquete do Herói", "class": "scepter", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
 		"ready": true, "ultimate": true, "icon": "heal", "desc": "Ultimate: coluna de luz que cura por completo você e os aliados a 8 m e dá por 12 s +25% de dano, +12% de velocidade e -15% de recarga."},
 	"staff_ember": {"name": "Bafo de Dragão", "class": "staff", "slot": 3, "level": 5, "cooldown": 30.0, "cost": 25,
