@@ -229,6 +229,7 @@ const PROG_VERSION := 1
 ## Personagem de antes da progressão por nível (sem prog_v): atributos voltam a 5 e os pontos gastos
 ## voltam como livres, para redistribuir (fontes de ponto: níveis e promoções da guilda). XP em excesso é
 ## cortado para não pular nível sozinho. Equipamento e talentos não mudam. Devolve true se mudou algo.
+## O aviso (prog_notice) só fica marcado se os pontos ou os atributos mudaram de fato.
 static func migrate_progression(s: CharState, bt: BalanceTables) -> bool:
 	if int(s.flags.get("prog_v", 0)) >= PROG_VERSION:
 		return false
@@ -237,12 +238,15 @@ static func migrate_progression(s: CharState, bt: BalanceTables) -> bool:
 	var all_ranks := ranks(bt)
 	for i in mini(rank_index(bt, rank_of(s)), all_ranks.size() - 1) + 1:
 		total += int(all_ranks[i].get("stat_points", 0))
+	var refunded := total != s.stat_points
 	for k in s.attributes:
+		refunded = refunded or int(s.attributes[k]) != 5
 		s.attributes[k] = 5
 	s.stat_points = total
 	s.xp = mini(s.xp, maxi(0, xp_to_next(s.level, bt) - 1))
 	s.flags["prog_v"] = PROG_VERSION
-	s.flags["prog_notice"] = true
+	if refunded:
+		s.flags["prog_notice"] = true
 	return true
 
 

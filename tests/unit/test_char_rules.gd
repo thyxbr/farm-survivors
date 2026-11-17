@@ -1279,6 +1279,21 @@ func test_new_character_needs_no_migration() -> void:
 	T.ok(not s.flags.get("prog_notice", false), "sem aviso")
 
 
+func test_migrate_without_refund_has_no_notice() -> void:
+	var bt := _tables()
+	# nível 1 sem rank e sem pontos gastos: nada a devolver
+	var s := _old_char(1, "D")
+	s.stat_points = int(CharRules.ranks(bt)[0].get("stat_points", 0))
+	T.ok(CharRules.migrate_progression(s, bt), "grava a versão")
+	T.eq(int(s.flags.prog_v), CharRules.PROG_VERSION, "versão gravada")
+	T.ok(not s.flags.get("prog_notice", false), "sem pontos devolvidos: sem aviso")
+	# pontos livres já guardados, atributos intactos: também nada muda
+	var t := _old_char(10, "D")
+	t.stat_points = 9 * int(bt.get_table("rules").get("points_per_level", 3)) + int(CharRules.ranks(bt)[0].get("stat_points", 0))
+	CharRules.migrate_progression(t, bt)
+	T.ok(not t.flags.get("prog_notice", false), "pontos já livres: sem aviso")
+
+
 func test_ack_prog_notice() -> void:
 	var s := _blank()
 	s.flags["prog_notice"] = true
