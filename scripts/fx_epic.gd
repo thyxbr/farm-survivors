@@ -295,6 +295,8 @@ static func prewarm_instances(at: Node3D) -> void:
 	for kind in ["glow", "smoke"]:
 		stream(holder, kind, Color.WHITE, 1, 0.1)
 	trail(holder, Color.WHITE, 0.1, 0.05, 0.05)
+	for c in 3:    # as três malhas de arco do corte da espada e o shader delas
+		FXToon.sword_slash(holder, 0.0, c + 1, Color.WHITE)
 	holder.get_tree().create_timer(0.3).timeout.connect(holder.queue_free)
 
 

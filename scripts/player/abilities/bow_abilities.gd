@@ -36,13 +36,7 @@ const GALE_WALL_MASK := 1       ## só o cenário para o raio (inimigos, camada 
 const GALE_CAM_BACK := 0.7      ## a câmera recua (m) com a carga cheia
 const GALE_FOV := 7.0           ## o FOV fecha até 7 graus com a carga (foco) e abre 4 no disparo
 const GALE_RECOIL := 6.0        ## recuo do corpo no disparo (m/s, para trás, com a carga cheia)
-const GALE_SPIRAL := TAU / 9.0  ## giro do vento em espiral ao longo da linha (rad por m)
 const GALE_WIND := Color(0.78, 0.9, 1.0)
-const GALE_CORE := Color(0.93, 0.97, 1.0)
-const GALE_BEAM := Color(0.42, 0.8, 1.0)       ## núcleo da linha: ciano frio (a borda vai a GALE_BEAM_HOT)
-const GALE_BEAM_HOT := Color(0.85, 1.0, 1.0)
-const GALE_BEAM_GAIN := 1.5                      ## brilho HDR do núcleo (se destaca sobre areia ao sol)
-const GALE_DUST := Color(0.72, 0.68, 0.6, 0.45)
 const GALE_MARK := Color(0.4, 0.38, 0.34, 0.55)
 
 
@@ -198,7 +192,7 @@ static func _triple_fire(player: Node) -> void:
 
 ## Efeito contido: faíscas curtas na mão do arco e um clarão fraco.
 static func _triple_fx(_player: Node, origin: Vector3, dir: Vector3) -> void:
-	FXEpic.sparks(origin, dir + Vector3.UP * 0.3, TRIPLE_COLOR, 8, 5.0, 0.2)
+	FXToon.muzzle(origin, dir, FXToon.light_palette(TRIPLE_COLOR), 7)
 	FXEpic.flash(origin, TRIPLE_COLOR, 1.2, 3.0, 0.12)
 
 
@@ -218,14 +212,12 @@ static func _spawn_visual(player: Node, origin: Vector3, d: Vector3, frost := fa
 	p.life = 1.6
 	player.get_tree().current_scene.add_child(p)
 	p.global_position = origin
-	if frost:
-		FXEpic.trail(p, FROST_COLOR, 0.22, 0.5)
 
 
 # ------------------------------------------------------------------ Flecha Glacial
 ## Tensão: brilho azul-gelo na ponta da flecha.
 static func _frost_glow(tip: Vector3) -> void:
-	FXEpic.glow_burst(tip, FROST_COLOR, 14, 1.2, 0.14, FROST_DRAW, 0.0)
+	FXToon.frost_charge(tip, FROST_DRAW)
 
 
 ## Dispara a flecha única (só o dono): dano x1,4, velocidade 40, sem perfuração; o gelo é do projétil (fx "glacial").
@@ -237,7 +229,6 @@ static func _frost_fire(player: Node) -> void:
 	var dmg: float = Game.melee_damage() * FROST_MULT * (1.8 if crit else 1.0)
 	var p = player._spawn_projectile("arrow", origin, dir, dmg, crit, 0, FROST_SPEED, "glacial", FROST_COLOR)
 	p.vis_offset = launch[2]
-	FXEpic.trail(p, FROST_COLOR, 0.22, 0.5)
 	Network.send_event("bow_frost", origin, dir)
 	_frost_fx(origin, dir)
 	Sfx.play("bow_shot", 0.08, 0.0)
@@ -245,7 +236,7 @@ static func _frost_fire(player: Node) -> void:
 
 
 static func _frost_fx(origin: Vector3, dir: Vector3) -> void:
-	FXEpic.sparks(origin, dir + Vector3.UP * 0.3, FROST_COLOR, 8, 5.0, 0.2)
+	FXToon.muzzle(origin, dir, FXToon.ICE, 6)
 	FXEpic.flash(origin, FROST_COLOR, 1.4, 3.0, 0.12)
 
 
@@ -284,65 +275,11 @@ static func _gale_start(player: Node) -> void:
 	light.global_position = player.weapon_tip()
 	nodes.append(light)
 	d.light = light
-	# vento: fios de luz finos girando em volta do jogador e puxados para o centro (para a flecha)
-	var wind := FXEpic.stream(player, "glow", GALE_WIND, 90, 0.6, 0.08)
-	if wind:
-		wind.position = Vector3(0, GALE_HEIGHT, 0)
-		wind.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
-		wind.emission_ring_axis = Vector3.UP
-		wind.emission_ring_radius = 1.9
-		wind.emission_ring_inner_radius = 1.2
-		wind.emission_ring_height = 1.6
-		wind.direction = Vector3.UP
-		wind.spread = 30.0
-		wind.initial_velocity_min = 0.3
-		wind.initial_velocity_max = 0.8
-		wind.gravity = Vector3.ZERO
-		wind.radial_accel_min = -4.0
-		wind.radial_accel_max = -3.0
-		wind.tangential_accel_min = 6.0
-		wind.tangential_accel_max = 9.0
-		wind.scale_amount_min = 0.5
-		wind.scale_amount_max = 0.9
-		nodes.append(wind)
-		d.wind = wind
-	# poeira girando no chão em volta dos pés
-	var dust := FXEpic.stream(player, "smoke", GALE_DUST, 22, 1.0, 0.9)
-	if dust:
-		dust.position = Vector3(0, 0.15, 0)
-		dust.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
-		dust.emission_ring_axis = Vector3.UP
-		dust.emission_ring_radius = 2.3
-		dust.emission_ring_inner_radius = 1.2
-		dust.emission_ring_height = 0.05
-		dust.direction = Vector3.UP
-		dust.spread = 15.0
-		dust.initial_velocity_min = 0.2
-		dust.initial_velocity_max = 0.6
-		dust.gravity = Vector3(0, 0.3, 0)
-		dust.radial_accel_min = -1.5
-		dust.radial_accel_max = -0.5
-		dust.tangential_accel_min = 5.0
-		dust.tangential_accel_max = 8.0
-		dust.damping_min = 0.5
-		dust.damping_max = 1.0
-		nodes.append(dust)
-		d.dust = dust
-	# brilho na ponta da flecha (preso ao marcador da ponta da arma)
-	var tip = player.look.get("tip")
-	if is_instance_valid(tip):
-		var glow := FXEpic.stream(tip, "glow", GALE_CORE, 20, 0.22, 0.05)
-		if glow:
-			glow.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-			glow.emission_sphere_radius = 0.06
-			glow.direction = Vector3.UP
-			glow.spread = 180.0
-			glow.initial_velocity_min = 0.1
-			glow.initial_velocity_max = 0.4
-			glow.gravity = Vector3.ZERO
-			nodes.append(glow)
-			d.tip_glow = glow
-	FXEpic.glow_burst(player.global_position + Vector3.UP * 0.2, GALE_WIND, 10, 2.0, 0.08, 0.5, 2.0)
+	# vento desenhado girando em volta e fechando sobre o jogador, poeira no chão e a esfera na ponta da flecha
+	var fx := FXToon.gale_charge(player, player.look.get("tip"))
+	if fx:
+		nodes.append(fx)
+		d.gale_fx = fx
 
 
 static func _gale_tick(player: Node, t0: float, t: float, delta: float) -> void:
@@ -393,20 +330,14 @@ static func _gale_charge_fx(player: Node, d: Dictionary, t0: float, t: float, c:
 		light.global_position = tip
 		light.light_energy = 0.3 + 3.2 * c * c
 		light.omni_range = 2.5 + 3.0 * c
-	var wind = d.get("wind")
-	if is_instance_valid(wind):
-		wind.tangential_accel_min = 6.0 + 10.0 * c
-		wind.tangential_accel_max = 9.0 + 14.0 * c
-		wind.radial_accel_min = -(4.0 + 8.0 * c)
-		wind.radial_accel_max = -(3.0 + 6.0 * c)
-		wind.scale_amount_max = 0.9 + 0.8 * c
+	var fx = d.get("gale_fx")
+	if is_instance_valid(fx):
+		fx.charge = c
 	if FX._scene() == null:
 		return
-	if int(t0 / 0.3) != int(t / 0.3):
-		FXEpic.glow_burst(tip, GALE_CORE, 6 + int(8.0 * c), 0.6 + c, 0.05 + 0.06 * c, 0.3, 0.0)
 	var ready_t := GALE_MIN * GALE_CHARGE
 	if t0 < ready_t and t >= ready_t:
-		FX.ring(player.global_position, Color(GALE_WIND.r, GALE_WIND.g, GALE_WIND.b, 0.6), 2.2, 0.35)
+		FXToon.ring_wave(player.global_position + Vector3.UP * 0.07, 2.2, 0.14, FXToon.WIND, 0.16)
 
 
 ## Dispara (só o dono): direção da mira, avisa as réplicas e começa o raio; o dano corre no tick.
@@ -435,8 +366,11 @@ static func _gale_shoot(player: Node, origin: Vector3, dir: Vector3, c: float) -
 	d.dir = dir
 	d.len = _gale_length(player, origin, dir)
 	d.hit = {}
-	for key in ["wind", "dust", "tip_glow"]:
-		_stop_stream(d, key)
+	var charge_fx = d.get("gale_fx")
+	if is_instance_valid(charge_fx):
+		d.get("nodes", []).erase(charge_fx)
+		charge_fx.queue_free()
+	d.erase("gale_fx")
 	Sfx.play_at("bow_shot", origin, 0.05, 2.0)
 	Sfx.play_at("staff_wind", origin, 0.05, 0.0)
 	Sfx.play_at("slam", origin, 0.1, -6.0)
@@ -445,30 +379,14 @@ static func _gale_shoot(player: Node, origin: Vector3, dir: Vector3, c: float) -
 		return
 	var feet := origin - Vector3.UP * GALE_HEIGHT
 	var muzzle := origin + dir * 0.7
-	# onda de choque no disparo
-	FX.ring(feet, Color(0.85, 0.93, 1.0, 0.3), 2.5 + 2.0 * c, 0.4)
-	FXEpic.nova(feet + Vector3.UP * 0.25, GALE_WIND, 40, 8.0, 0.14, 0.45)
-	FXEpic.glow_burst(muzzle, Color.WHITE, 30, 7.0, 0.2, 0.45, 0.0)
+	FXToon.gale_fire(feet, origin, dir, c)
 	FXEpic.flash(muzzle, GALE_WIND, 5.0, 9.0, 0.3)
-	# linhas de velocidade saindo da corda e poeira levantada atrás do recuo
-	FXEpic.sparks(muzzle, dir, GALE_CORE, 24, 30.0, 0.25)
-	FXEpic.smoke(feet + Vector3.UP * 0.2 - dir * 0.6, GALE_DUST, 10, 1.0, 0.8)
 	var line := GaleLine.new()
 	line.origin = origin
 	line.dir = dir
 	line.length = d.len
 	line.charge = c
 	root.add_child(line)
-
-
-## Para um emissor de stream() guardado em d[key] deixando as partículas vivas terminarem.
-static func _stop_stream(d: Dictionary, key: String) -> void:
-	var p = d.get(key)
-	if not is_instance_valid(p):
-		return
-	d.erase(key)
-	d.get("nodes", []).erase(p)
-	FXEpic.stop_stream(p)
 
 
 ## Fere (uma vez) cada inimigo na linha até `front` m da origem; empurra para os lados da linha.
@@ -500,9 +418,9 @@ static func _gale_hits(player: Node, d: Dictionary, front: float) -> void:
 		any = true
 		if n < 6:   # faíscas para o lado em quem foi atravessado (numa multidão, só nos 6 primeiros)
 			var at: Vector3 = e.global_position + Vector3.UP * 0.6
-			FXEpic.sparks(at, dir + out * 0.4, GALE_WIND, 12, 14.0, 0.3)
+			FXToon.spark_hit(at, -(dir + out * 0.4).normalized(), FXToon.light_palette(FXToon.WIND.edge), 4, 0.9)
 			if n < 3:
-				FXEpic.glow_burst(at, GALE_CORE, 10, 4.0, 0.12, 0.3, 0.0)
+				FXToon.pop(at, FXToon.WIND, {"size0": 1.4, "size1": 0.0, "time": 0.14, "ease_in": true})
 		n += 1
 	if any:
 		Sfx.play("arrow_hit", 0.1)
@@ -510,53 +428,68 @@ static func _gale_hits(player: Node, d: Dictionary, front: float) -> void:
 			FXEpic.hit_stop(0.06)
 
 
-## O raio visual (dono e réplicas): a cabeça percorre a linha em GALE_TRAVEL (proporcional ao
-## comprimento) levando três fitas de vento em espiral e duas fitas do núcleo em cruz, com uma luz;
-## solta faíscas alinhadas pelo caminho e deixa marcas de vento no chão. Some sozinho.
+## A flecha do Vendaval (dono e réplicas): uma flecha grande corre a linha em GALE_TRAVEL (proporcional ao
+## comprimento, o mesmo tempo da frente do dano) abrindo o ar. Atrás dela fica só um risco fino e meio
+## transparente; o que se vê é o vento cortado: a cada 2,5 m duas meias-luas se abrem da linha para os lados
+## e para trás (a esteira), e entre elas duas menores enrolam em volta do caminho. Deixa marcas no chão e
+## some sozinha.
 class GaleLine extends Node3D:
 	var origin := Vector3.ZERO
 	var dir := Vector3.FORWARD
 	var length := 40.0
 	var charge := 1.0
 	var _t := 0.0
-	var _side := Vector3.RIGHT
-	var _spirals: Array = []
-	var _flat: Node3D
-	var _upright: Node3D
 	var _light: OmniLight3D
-	var _next_spark := 2.0
+	var _arrow: Node3D
+	var _next_wake := 1.5
+	var _wakes := 0
 	var _marks: Array = []
 	var _ended := false
-	var _core_w := 0.6
 
 	func _ready() -> void:
 		top_level = true
 		global_transform = Transform3D.IDENTITY
-		_side = dir.cross(Vector3.UP).normalized()
-		var travel := _travel()
-		for i in 3:
-			var m := Node3D.new()
-			add_child(m)
-			_spirals.append(m)
-		_flat = Node3D.new()
-		add_child(_flat)
-		_upright = Node3D.new()
-		add_child(_upright)
-		_core_w = 0.35 + 0.35 * charge
+		var travel := maxf(_travel(), 0.01)
+		# risco fino e meio transparente por onde a flecha passou (não um feixe de luz)
+		var faint := {"core": Color(1, 1, 1, 0.6), "mid": Color(0.86, 0.95, 1.0, 0.6), "edge": Color(0.6, 0.82, 1.0, 0.6)}
+		FXToon.streak(origin, origin + dir * length, 0.05 + 0.04 * charge, faint, {"billboard": true, "shadow": false,
+			"linear": true, "lead": 0.02, "sweep": travel, "hold": 0.12, "fade": 0.3, "blunt": 0.5, "peak": 0.9})
+		# a flecha: haste e ponta, maiores que as do tiro comum, viradas para onde voa
+		_arrow = Node3D.new()
+		add_child(_arrow)
+		var shaft := MeshInstance3D.new()
+		var cyl := CylinderMesh.new()
+		cyl.top_radius = 0.022
+		cyl.bottom_radius = 0.022
+		cyl.height = 1.5
+		cyl.radial_segments = 6
+		var wood := StandardMaterial3D.new()
+		wood.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		wood.albedo_color = Color(0.93, 0.97, 1.0)
+		cyl.material = wood
+		shaft.mesh = cyl
+		shaft.rotation.x = PI / 2
+		shaft.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_arrow.add_child(shaft)
+		var head := MeshInstance3D.new()
+		var cone := CylinderMesh.new()
+		cone.top_radius = 0.0
+		cone.bottom_radius = 0.075
+		cone.height = 0.3
+		cone.radial_segments = 6
+		cone.material = wood
+		head.mesh = cone
+		head.rotation.x = PI / 2
+		head.position.z = 0.9
+		head.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_arrow.add_child(head)
 		_light = OmniLight3D.new()
 		_light.light_color = BowAbilities.GALE_WIND
-		_light.light_energy = 4.0
-		_light.omni_range = 6.0
+		_light.light_energy = 2.0
+		_light.omni_range = 4.5
 		_light.shadow_enabled = false
 		add_child(_light)
 		_place(0.0)
-		# a fita segue a cabeça e fica parada no fim: a linha inteira continua no ar até os pontos
-		# envelhecerem (life), em vez de sumir toda junto quando o alvo para
-		for m in _spirals:
-			FXEpic.trail(m, BowAbilities.GALE_WIND, 0.22, travel + 0.4, 0.7, Color(0, 0, 0, 0), BowAbilities.GALE_BEAM_HOT, 1.4)
-		for m in [_flat, _upright]:
-			FXEpic.trail(m, BowAbilities.GALE_BEAM, _core_w, travel + 0.4, 0.8, Color(0, 0, 0, 0),
-				BowAbilities.GALE_BEAM_HOT, BowAbilities.GALE_BEAM_GAIN)
 		for f in [0.12, 0.37, 0.62, 0.87]:
 			if length * f >= 1.5:
 				_marks.append(length * f)
@@ -564,17 +497,11 @@ class GaleLine extends Node3D:
 	func _travel() -> float:
 		return BowAbilities.GALE_TRAVEL * length / BowAbilities.GALE_RANGE
 
-	## Põe a cabeça do raio a `s` m da origem.
+	## Põe a flecha a `s` m da origem, apontando para `dir`.
 	func _place(s: float) -> void:
 		var head := origin + dir * s
-		var r := 0.35 + 0.2 * charge
-		for i in _spirals.size():
-			var a := i * TAU / _spirals.size() + s * BowAbilities.GALE_SPIRAL
-			var radial := _side * cos(a) + Vector3.UP * sin(a)
-			# eixo Y para fora: a fita vai de r a r + largura, uma pá girando em volta da linha
-			(_spirals[i] as Node3D).global_transform = Transform3D(Basis(dir, radial, dir.cross(radial)), head + radial * r)
-		_flat.global_transform = Transform3D(Basis(dir, _side, dir.cross(_side)), head - _side * _core_w * 0.5)
-		_upright.global_transform = Transform3D(Basis(-_side, Vector3.UP, dir), head - Vector3.UP * _core_w * 0.5)
+		var up := Vector3.UP if absf(dir.y) < 0.98 else Vector3.RIGHT
+		_arrow.global_transform = Transform3D(Basis.looking_at(dir, up, true), head - dir * 0.9)
 		_light.global_position = head
 
 	func _process(delta: float) -> void:
@@ -582,17 +509,46 @@ class GaleLine extends Node3D:
 		var s := minf(_t / BowAbilities.GALE_TRAVEL * BowAbilities.GALE_RANGE, length)
 		if not _ended:
 			_place(s)
-			while _next_spark <= s:
-				FXEpic.sparks(origin + dir * _next_spark, dir + Vector3.UP * 0.05, BowAbilities.GALE_WIND, 6, 16.0, 0.3)
-				_next_spark += 3.5
+			while _next_wake <= s:
+				_wake(_next_wake)
+				_next_wake += 2.5
 			while not _marks.is_empty() and float(_marks[0]) <= s:
 				_mark(float(_marks.pop_front()))
 			if s >= length:
 				_ended = true
+				_arrow.visible = false
 				_impact()
-		_light.light_energy = 4.0 * clampf(1.0 - (_t - _travel()) / 0.3, 0.0, 1.0)
+		_light.light_energy = 2.0 * clampf(1.0 - (_t - _travel()) / 0.3, 0.0, 1.0)
 		if _t > _travel() + 1.5:
 			queue_free()
+
+	## A flecha passou pelo ponto `at` da linha e cortou o ar ali. Alterna entre a esteira (duas meias-luas
+	## deitadas que nascem na linha e abrem para os lados e para trás) e o enrolado (duas menores girando em
+	## volta do sentido do tiro); em todos, riscos de velocidade ao lado.
+	func _wake(at: float) -> void:
+		var p := origin + dir * at
+		var side := dir.cross(Vector3.UP).normalized()
+		var list := []
+		_wakes += 1
+		if _wakes % 2 == 1:
+			var r := 1.1 + 0.5 * charge
+			for k in [1.0, -1.0]:
+				# centro ao lado da linha; começa encostada na linha e gira para trás (eixo escolhido para isso)
+				list.append({"center": side * k * r, "from": -side * k, "axis": side.cross(dir) * k, "arc": 115.0,
+					"radius": r, "thick": 0.34, "sweep": 0.09, "hold": 0.04, "fade": 0.26, "shadow": false, "lead": 0.25})
+		else:
+			var a0 := randf() * TAU
+			var from := side * cos(a0) + Vector3.UP * sin(a0)
+			for v in [from, -from]:
+				list.append({"center": Vector3.ZERO, "from": v, "axis": dir, "arc": 150.0, "radius": 0.7 + 0.3 * charge,
+					"thick": 0.36, "sweep": 0.08, "hold": 0.03, "fade": 0.22, "shadow": false})
+		FXToon.slashes_at(p, Vector3.BACK, list, FXToon.WIND)
+		var white := FXToon.light_palette(FXToon.WIND.mid)
+		for k in 2:
+			var a := randf() * TAU
+			var off := (side * cos(a) + Vector3.UP * sin(a)) * randf_range(0.5, 1.1)
+			FXToon.streak(p + off - dir * 1.5, p + off + dir * 2.0, 0.035, white,
+				{"billboard": true, "shadow": false, "sweep": 0.06, "hold": 0.03, "fade": 0.2, "peak": 0.5})
 
 	## Marca de vento no chão sob o ponto `at` da linha, com poeira.
 	func _mark(at: float) -> void:
@@ -602,14 +558,10 @@ class GaleLine extends Node3D:
 		if hit.is_empty():
 			return
 		FXEpic.ground_mark(hit.position, BowAbilities.GALE_MARK, 1.3, 2.5, "scorch")
-		FXEpic.smoke(hit.position + Vector3.UP * 0.2, BowAbilities.GALE_DUST, 6, 0.7, 0.8)
+		FXToon.slashes_at(hit.position, dir, FXToon.CHARGE_KICK, FXToon.DUST)     # poeira varrida para os lados
 
 	## Fim da linha: estoura contra a parede (ou se dissipa no alcance máximo).
 	func _impact() -> void:
 		var p := origin + dir * length
 		if length < BowAbilities.GALE_RANGE - 0.01:
-			FXEpic.glow_burst(p, BowAbilities.GALE_CORE, 20, 5.0, 0.16, 0.4, 0.0)
-			FXEpic.sparks(p, -dir + Vector3.UP * 0.4, BowAbilities.GALE_WIND, 16, 10.0, 0.35)
-			FXEpic.smoke(p, BowAbilities.GALE_DUST, 8, 0.8, 0.9)
-		else:
-			FXEpic.glow_burst(p, BowAbilities.GALE_WIND, 10, 2.5, 0.1, 0.35, 0.0)
+			FXToon.energy_pop(p, dir, FXToon.WIND, 8, 1.6)

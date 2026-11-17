@@ -991,13 +991,12 @@ func _cast_frost_nova() -> void:
 
 
 func _frost_fx(radius: float) -> void:
-	FX.ring(global_position, Color(0.55, 0.85, 1.0, 0.9), radius, 0.5)
-	FX.burst(global_position + Vector3.UP * 0.5, Color(0.7, 0.9, 1.0), 50, 9.0, 0.14, 0.7, -2.0)
+	FXToon.frost_nova(global_position, radius)
 	Sfx.play_at("frost", global_position, 0.0)
 
 
 func _heal_fx() -> void:
-	FX.burst(global_position + Vector3.UP, Color(0.4, 1.0, 0.5), 30, 3.0, 0.1, 1.0, 2.0)
+	FXToon.heal(self)
 	Sfx.play_at("heal", global_position, 0.0)
 
 
@@ -1049,8 +1048,7 @@ func _food_fire_nova() -> void:
 ## Chá de Menta Gélida: congela (lentidão forte) e fere os inimigos próximos.
 func _food_frost_nova() -> void:
 	var radius := 8.0
-	FX.ring(global_position, Color(0.55, 0.9, 1.0, 0.95), radius, 0.6)
-	FX.burst(global_position + Vector3.UP * 0.5, Color(0.75, 0.95, 1.0), 60, 9.0, 0.14, 0.8, -2.0)
+	FXToon.frost_nova(global_position, radius)
 	Sfx.play("frost", 0.0)
 	add_shake(0.2)
 	for e in get_tree().get_nodes_in_group("enemies"):
@@ -1179,6 +1177,10 @@ func _find_interact_target() -> void:
 
 # ------------------------------------------------------------ visual
 var _last_look := {}
+var _slash_combo := 0       ## golpe do combo cujo corte já foi desenhado (ver _slash_fx)
+var _slash_t := 0.0
+var _slash_done := false
+var _slash_el := ""         ## elemento do encantamento da arma: dá a cor do corte
 
 
 func _update_equipment_visual() -> void:
@@ -1492,6 +1494,7 @@ func _animate(delta: float) -> void:
 		KnightAnim.staff_pose(p, combo, attack_timer / _swing_time(combo), _amp)
 	elif attacking and cls == "sword":
 		KnightAnim.sword_pose(p, combo, attack_timer / SWING_TIMES[clampi(combo, 1, 3) - 1], _amp)
+		_slash_fx()
 	elif _cast_t < KnightMoves.CAST_TIME:
 		KnightAnim.cast_pose(p, _cast_kind, _cast_t / KnightMoves.CAST_TIME, _amp, cls == "staff")
 	if ability != "" or drawing or attacking or _cast_t < KnightMoves.CAST_TIME:
@@ -1597,9 +1600,31 @@ func _look_gear(l: Dictionary) -> Dictionary:
 
 ## Mostra os efeitos `fx` neste personagem (local ou réplica). `rebuilt` = as peças do modelo
 ## acabaram de ser refeitas, então o contorno da aura precisa ser recolocado nelas.
+## Corte desenhado do golpe de espada em curso, uma vez por golpe. Chamado de _animate, por onde passam
+## o jogador local e as réplicas (que recebem combo e attack_timer pelo estado de rede).
+func _slash_fx() -> void:
+	var c := clampi(combo, 1, 3)
+	if c != _slash_combo or attack_timer < _slash_t - 0.1:   # outro golpe do combo, ou o relógio voltou
+		_slash_done = false
+	_slash_combo = c
+	_slash_t = attack_timer
+	if _slash_done or attack_timer / SWING_TIMES[c - 1] < FXToon.SWORD_COMBO[c - 1].at:
+		return
+	_slash_done = true
+	FXToon.sword_slash(self, model.rotation.y, c, slash_color())
+
+
+## Cor dos efeitos desenhados dos golpes: a do elemento do encantamento da arma ou, sem ele, a da arma.
+func slash_color() -> Color:
+	if EnchantFX.ELEMENTS.has(_slash_el):
+		return EnchantFX.ELEMENTS[_slash_el].color
+	return ItemDB.get_item(_weapon_id()).get("color", Color(0.75, 0.88, 1.0))
+
+
 func _vfx_apply(fx: Dictionary, rebuilt: bool) -> void:
 	if Network.is_server():
 		return   # servidor dedicado: ninguém vê
+	_slash_el = str(fx.get("en", "")) if int(fx.get("lv", 0)) > 0 else ""
 	var auras: Array = fx.get("auras", [])
 	if vfx_aura == null and not auras.is_empty():
 		vfx_aura = BuffAura.new()

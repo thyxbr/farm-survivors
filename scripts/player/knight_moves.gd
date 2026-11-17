@@ -196,11 +196,11 @@ const GALE_OVERDRAW := 0.1          ## Vendaval: a corda passa da âncora este t
 const BOW_TREMBLE := 0.004      ## tremor da mão do arco com a corda toda puxada (m)
 const BOW_RAISE_SPEED := 2.2    ## multiplica a suavização ao erguer o arco (mais rápido que andar)
 ## Flecha do Vendaval (KnightAnim.bow_gale_pose): agacha com a perna do arco à frente, tronco para trás.
-const GALE_KNEE := 0.9          ## dobra dos joelhos com a carga cheia (rad)
-const GALE_THIGH_L := -0.6      ## coxa da frente (perna do arco)
-const GALE_THIGH_R := -0.15     ## coxa de trás (com o joelho a 0,9 as duas pernas ficam com a mesma altura)
-const GALE_LEAN := -0.35        ## tronco inclinado para trás (rad; body_x > 0 é para a frente)
-const GALE_CROUCH_Y := -0.12    ## o quadril desce (m), além do que as pernas dobradas já baixam
+const GALE_KNEE := 1.15         ## dobra dos joelhos com a carga cheia (rad)
+const GALE_THIGH_L := -0.75     ## coxa da frente (perna do arco)
+const GALE_THIGH_R := -0.25     ## coxa de trás (com o joelho a 0,9 as duas pernas ficam com a mesma altura)
+const GALE_LEAN := -0.5         ## tronco inclinado para trás (rad; body_x > 0 é para a frente)
+const GALE_CROUCH_Y := -0.17    ## o quadril desce (m), além do que as pernas dobradas já baixam
 const GALE_TREMBLE := 0.022     ## tremor da mão do arco com a carga cheia do Vendaval (m)
 const GALE_RECOIL := -0.3       ## tranco extra do tronco para trás no disparo (rad)
 ## Chuva de Meteoros (KnightAnim.meteor_pose): o cajado erguido acima da cabeça com as duas mãos, o tronco
@@ -228,8 +228,13 @@ const CHARGE := [
 	[0.66, {"arm_r": Vector3(-1.4, 0.05, -0.05), "elbow_r": -0.05, "wrist_r": 1.6, "twist": 0.5,
 		"body_x": 0.48, "arm_l": Vector3(0.75, 0.0, 0.5), "elbow_l": -0.35,
 		"leg_l": -0.9, "knee_l": 0.6, "leg_r": 0.6, "knee_r": 0.4}, "lin"],
-	[0.8, {"arm_r": Vector3(-1.1, 0.4, 0.1), "elbow_r": -0.3, "wrist_r": 1.4, "twist": 0.3,
-		"body_x": 0.25, "leg_l": -0.55, "knee_l": 0.7, "leg_r": 0.3, "knee_r": 0.3}, "out"],
+	# chegada: a estocada vira um corte, da frente/esquerda para a direita (o efeito de FXToon.CHARGE_CUT
+	# segue este caminho: mexeu aqui, meça a lâmina de novo no vfx_lab)
+	[0.75, {"arm_r": Vector3(-1.4, -0.8, 0.0), "elbow_r": -0.1, "wrist_r": 1.45, "twist": -0.5,
+		"body_x": 0.3, "head_y": 0.25, "arm_l": Vector3(-0.6, 0.4, 0.35), "elbow_l": -1.1,
+		"leg_l": -0.55, "knee_l": 0.7, "leg_r": 0.3, "knee_r": 0.3}, "in"],
+	[0.9, {"arm_r": Vector3(-1.3, -1.1, 0.0), "elbow_r": -0.2, "wrist_r": 1.5, "twist": -0.62,
+		"body_x": 0.2}, "out"],
 ]
 
 ## Golpe Sísmico (SwordAbilities.QUAKE_TIME = 0,65 s): ergue a espada com as duas mãos até 0,5
