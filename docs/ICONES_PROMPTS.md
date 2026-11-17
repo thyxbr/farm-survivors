@@ -383,6 +383,38 @@ parts`. Com mais de 4 o Gemini costuma misturar as peças de um item no outro.
 | `shadow_fang` | Presa Sombria | A single dark grey-purple fang with a faint shadowy aura. |
 | `champion_badge` | Insígnia do Campeão | A gold medal badge with a star in the center and a red ribbon. |
 
+## F2. Materiais das profissões (23) — só texto
+
+Hoje com arte **provisória** gerada por `tools/icons/make_material_icons.py` (recolor das pinturas acima e desenho
+simples). Gere estes e substitua o PNG do mesmo nome em `assets/ui/items/`.
+
+| Arquivo | Item | Subject |
+|---|---|---|
+| `copper_ore` | Minério de Cobre | A dark rock chunk with bright copper-orange metal veins. |
+| `silver_ore` | Minério de Prata | A grey rock chunk with shiny white-silver metal veins. |
+| `mithril_ore` | Minério de Mithril | A dark rock chunk with glowing pale cyan mithril veins. |
+| `astralite_ore` | Minério de Astralita | A black rock chunk with glowing violet star-like metal veins and tiny sparkles. |
+| `pine_log` | Tora de Pinho | A short cut log of light brown pine wood with visible growth rings. |
+| `oak_log` | Tora de Carvalho | A short cut log of dark sturdy oak with thick bark and rings. |
+| `silverbirch_log` | Tora de Bétula-prata | A short cut log with white-silver birch bark with dark marks. |
+| `ashwood_log` | Tora de Freixo-cinza | A short cut log with ash-grey bark and pale grey wood. |
+| `soulwood_log` | Tora de Madeira-de-alma | A short cut log of purple wood with faintly glowing violet rings. |
+| `hide_t1` | Couro Cru | A rough untreated light brown animal hide, stretched shape. |
+| `hide_t2` | Couro Curtido | A tanned brown leather hide, smooth, with stitched edge. |
+| `hide_t3` | Couro Reforçado | A thick grey-brown leather hide with metal studs. |
+| `hide_t4` | Couro Sombrio | A dark purple-black leather hide with a cold sheen. |
+| `hide_t5` | Couro Astral | A blue-violet leather hide with tiny star sparkles. |
+| `essence_t1` | Essência Tênue | A round glass flask with pale green glowing essence. |
+| `essence_t2` | Essência Viva | A round glass flask with teal swirling essence. |
+| `essence_t3` | Essência Vibrante | A round glass flask with violet crackling essence. |
+| `essence_t4` | Essência Ancestral | A round glass flask with amber-gold ancient essence and runes. |
+| `essence_t5` | Essência Astral | A round glass flask with magenta-white starry essence. |
+| `royal_jelly` | Geleia Real | A wobbly blob of glowing golden royal jelly with a tiny crown shape. |
+| `knight_sigil` | Selo do Cavaleiro | A silver medal seal with a skull-and-sword emblem and a grey ribbon. |
+| `lich_phylactery` | Filactério do Lich | A sickly green crystal phylactery cluster with dark wisps. |
+| `abyss_core` | Núcleo do Abismo | A dark crimson crystal core pulsing with abyssal red light. |
+| `recipe_scroll` | Pergaminho de Receita | A rolled parchment recipe scroll with a red wax seal. |
+
 ## G. Sementes (6) — só texto
 
 Todas são o mesmo saquinho, muda só o desenho e a cor da etiqueta: assim dá para reconhecer o saco

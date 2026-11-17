@@ -187,6 +187,53 @@ lugar.
 mesmo custo de antes com ~100. Raio menor que o alcance de perseguição dos monstros faz eles "acordarem" tarde;
 0 desliga o sono. Depois de subir densidades, meça com `--netstats` no servidor (linha `process`/`physics` em ms).
 
+## Profissões e craft (`professions.json`, `recipes.json`, `world_nodes.json`, `crops.json`)
+
+Sete profissões, todas até o nível 50 por personagem (aba **Profissões** do livro, tecla L): Mineração, Lenhador e
+Fazenda (coleta); Ferraria, Couraria, Alquimia e Culinária (produção). Ferraria = espadas e peças de metal (forja do
+Doran, "Forjar"); Couraria = arcos, aljavas e peças de couro (Bancada de Couraria, a leste do empório); Alquimia =
+poções, essências, cajados, cetros, orbes e amuletos (Pip, "Alquimia"); Culinária = o caldeirão.
+
+**`professions.json`**
+
+| Botão | Hoje | O que faz | Faixa segura |
+|---|---|---|---|
+| `xp_curve.base`, `exp` | 20, 1,3 | XP para subir: `base × nível^exp` (nível 10 pede ~400; 49 pede ~3.200) | base 15–40, exp 1,2–1,5 |
+| `xp_diff` | ≤ −10: 10%; −9..−5: 50% | XP de receita/nó bem abaixo do nível da profissão (contra o trabalho braçal) | não dar 100% abaixo de −5 |
+| `first_craft_mult` | 3 | a primeira fabricação de cada receita rende 3× (premia variar) | 1–4 |
+
+**`recipes.json`** (uma receita por linha; gerado uma vez por `tools/balance/make_recipes.py`, depois à mão):
+`station` (kitchen, forge, leather, alchemy), `prof`, `level` (nível da profissão que pede), `ingredients`,
+`gold` (taxa da bancada), `out` e `qty` (o que sai), `xp`, `learn` (`npc` = todos sabem; `scroll` = precisa do
+pergaminho `scroll_<receita>`, que cai dos chefes). Regras do catálogo de hoje:
+
+- Materiais por camada (níveis 1–10, 11–20, 21–30, 31–40, 41–50): minério (cobre, ferro, prata, mithril,
+  astralita), tora (pinho, carvalho, bétula-prata, freixo-cinza, madeira-de-alma), couro (`hide_t1..5`, cai de
+  qualquer monstro do mundo da camada) e essência (`essence_t1..5`, só da Alquimia: 2 couros + 1 parte de monstro).
+  Todo equipamento pede a essência da camada.
+- A receita de maior nível de cada camada em cada profissão pede a **peça do chefe** (Coroa do Rei Goblin, Geleia
+  Real da Slime Rainha, Selo do Cavaleiro, Filactério do Lich, Núcleo do Abismo) e é por pergaminho; a camada 5
+  inteira também. Os pergaminhos e as peças estão no `loot` dos chefes no enemies.json.
+- O equipamento que já existia virou receita no próprio nível (os nomeados continuam só de chefe). Itens novos
+  (`"craft": true`, não caem de monstro): os buracos das camadas 3–5 (prata, mithril, astral, madeira-de-alma).
+
+**Qualidade** (`progression.json`): `quality_chance.per_level` (2% por nível da profissão acima da receita, até
+`max` 40%; `obra_share` 25% disso é obra-prima) e `quality_mult` (fina 1,15×, obra-prima 1,3× em dano, defesa,
+bônus e preço). O item sai com sufixo (`iron_sword@fina`); as variantes são geradas sozinhas a partir do item base
+(não edite `@` no items.json) e não caem de monstro. O encanto da arma vale para todas as qualidades dela.
+
+**Couro no loot** (`progression.json` `tier_drop`): `chance` 15% por monstro do mundo com nível (1 couro da camada;
+`elite_qty` 2, `boss_qty` 3). Para caber na meta de 0,5–0,8 item por morte, as partes comuns caíram: gosma e
+garra 40%, orelha e osso 55%, seda, língua e asa 45%.
+
+**Coleta** (`world_nodes.json`, um tipo de nó por linha): `item`, `amount`, `hits` (2–3 golpes), `respawn`
+(segundos), `model` (rocha `ore` na cor `tint`, `iron`, `crystal` ou árvore `tree_*`), `prof`, `level` (nível que
+pede; sem ele os golpes não contam) e `xp`. Ferro e cristal pedem nível 1 (o encantamento usa os dois cedo).
+**Fazenda** (`crops.json`): `level` da semente (pimenta 2, hortelã 3, abóbora 5) e `xp` da colheita.
+
+**Loja** (`shop.json`): só o básico — poções, sementes, material da camada 1 (cobre, pinho, couro cru) e
+equipamento comum de nível até 10. O resto do equipamento vem do craft e dos chefes.
+
 ## Como conferir
 
 Simulador (na raiz do projeto; `$GODOT` = o executável do Godot):
