@@ -2,8 +2,10 @@ class_name HealRules
 extends RefCounted
 ## Servidor: decisões da Cura do healer em aliados. Puro (sem autoload): recebe os dados já prontos.
 
-## Distância máxima, em metros, entre o healer e o aliado curado (posições recebidas pelo servidor).
+## Distância máxima, em metros, entre o healer e os aliados dos buffs em área (posições recebidas pelo servidor).
 const RADIUS := 8.0
+## Alcance da Cura mirada num aliado (o cliente mira até Player.HEAL_RANGE = 25 m; folga para o atraso da rede).
+const TARGET_RANGE := 28.0
 ## Tempo mínimo, em segundos, entre duas curas aceitas do mesmo jogador (a recarga de verdade é do cliente).
 ## A menor recarga legítima é 4,0 x 0,4 (cooldown_mult mínimo) = 1,6 s; 1,4 s deixa folga para o jitter da rede.
 const MIN_INTERVAL := 1.4
@@ -34,6 +36,18 @@ static func targets(caster: int, zone_peers: Array, positions: Dictionary, bonus
 	if not (caster in out):
 		out.append(caster)
 	return out
+
+
+## Quem recebe a Cura mirada do `caster`: o aliado `target` se ele está em `zone_peers` e a até TARGET_RANGE
+## + `bonus` m (posições conhecidas); senão (0, ele mesmo, longe, outra zona, sem posição) o próprio healer.
+static func heal_target(caster: int, target: int, zone_peers: Array, positions: Dictionary, bonus := 0.0) -> int:
+	if target <= 0 or target == caster or not (target in zone_peers):
+		return caster
+	var a: Vector3 = positions.get(caster, Vector3.INF)
+	var b: Vector3 = positions.get(target, Vector3.INF)
+	if not a.is_finite() or not b.is_finite() or a.distance_to(b) > TARGET_RANGE + bonus:
+		return caster
+	return target
 
 
 ## Duração, em segundos, de um buff em aliado: o tempo da tabela + o bônus de talento do healer (nunca negativo).

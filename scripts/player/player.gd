@@ -108,7 +108,7 @@ var _cam_back_now := 0.0
 var ability := ""
 var ability_t := 0.0
 var ability_data := {}
-var ability_slot := 0   ## slot (1..4) da tecla que começou a habilidade em execução (0 = nenhum)
+var ability_slot := 0   ## slot (1..5) da tecla que começou a habilidade em execução (0 = nenhum)
 var cooldowns := _make_cooldowns()   # todas as habilidades: a recarga continua ao trocar de arma
 var interact_target: Node3D = null
 var spawn_point := Vector3(0, 0.5, 6)
@@ -343,6 +343,8 @@ func _local_process(delta: float) -> void:
 	var loading: bool = Loading.covering   # tela de carregamento: sem controle até ela abrir
 	if input_locked or horde_frozen or chat_typing or loading:
 		end_ability()
+		_disarm_heal()
+		_disarm_area()
 	if input_locked or horde_frozen or chat_typing or loading:
 		aiming = false
 		velocity.x = move_toward(velocity.x, 0, 45 * delta)
@@ -414,6 +416,28 @@ func _local_process(delta: float) -> void:
 		velocity.y = JUMP_VELOCITY
 	# com arco o botão direito mira: o mesmo clique não esquiva (a esquiva fica no Ctrl/Alt)
 	var aim_click: bool = look["class"] == "bow" and Input.is_action_just_pressed("aim")
+	# habilidade preparada: o clique esquerdo confirma em vez de dar o ataque básico
+	var armed_click := false
+	if heal_armed:
+		_update_heal_aim(delta)
+		if heal_armed and Input.is_action_just_pressed("attack"):
+			armed_click = true   # esquerdo: cura quem está marcado (o aliado na mira; sem aliado, você)
+			confirm_heal(heal_target)
+		elif heal_armed and Input.is_action_just_pressed("aim"):
+			aim_click = true     # direito: cura em você mesmo (e não esquiva)
+			confirm_heal(null)
+		elif heal_armed and Input.is_action_just_pressed("dodge"):
+			_disarm_heal()       # esquiva pelo teclado desiste da Cura
+	if area_armed != "":
+		_update_area_aim(delta)
+		if area_armed != "" and Input.is_action_just_pressed("attack"):
+			armed_click = true   # esquerdo: solta a habilidade no círculo
+			confirm_area()
+		elif area_armed != "" and Input.is_action_just_pressed("aim"):
+			aim_click = true     # direito: desiste (e não esquiva)
+			_disarm_area()
+		elif area_armed != "" and Input.is_action_just_pressed("dodge"):
+			_disarm_area()
 	if Input.is_action_just_pressed("dodge") and not aim_click:
 		_dodge_pressed(dir)
 	if look["class"] != "bow" or busy:
@@ -422,9 +446,9 @@ func _local_process(delta: float) -> void:
 		pass   # habilidade em execução: sem ataque nem arco
 	elif look["class"] == "bow":
 		_update_bow(delta)
-	elif Input.is_action_just_pressed("attack"):
+	elif Input.is_action_just_pressed("attack") and not armed_click:
 		_try_attack()
-	for i in 4:
+	for i in ItemDB.SLOT_COUNT:
 		if Input.is_action_just_pressed("spell_%d" % (i + 1)):
 			use_slot(i + 1)
 	# soltou a tecla da habilidade em execução (ex.: o arqueiro solta a flecha ao largar a tecla)
@@ -886,6 +910,11 @@ func _spawn_projectile(kind: String, origin: Vector3, d: Vector3, dmg: float, cr
 		p.color = LIGHT_ORB_COLOR
 	p.speed = spd if kind == "arrow" else 26.0
 	p.life = 1.8 if kind == "arrow" else (LIGHT_ORB_RANGE / 26.0 if kind == "light_orb" else 1.2)
+	if kind == "holy_lance":   # Lança de Luz: rápida, longa e sem o efeito da arma (o dano já é dela)
+		p.fx = ""
+		p.color = HolyFX.GOLD
+		p.speed = ScepterAbilities.LANCE_SPEED
+		p.life = ScepterAbilities.LANCE_RANGE / ScepterAbilities.LANCE_SPEED
 	get_tree().current_scene.add_child(p)
 	p.global_position = origin
 	return p
@@ -899,7 +928,7 @@ static func _make_cooldowns() -> Dictionary:
 	return d
 
 
-## Usa a habilidade do slot (1..4) do kit da arma equipada; slot sem habilidade não faz nada.
+## Usa a habilidade do slot (1..5) do kit da arma equipada; slot sem habilidade não faz nada.
 func use_slot(slot: int) -> void:
 	for id in Game.ability_kit():
 		if ItemDB.ABILITIES[id].slot == slot:
@@ -912,6 +941,16 @@ func use_slot(slot: int) -> void:
 
 func cast(id: String) -> void:
 	var sp: Dictionary = ItemDB.ABILITIES[id]
+	if id == "heal" and heal_armed:
+		_disarm_heal()   # a mesma tecla de novo desiste da Cura
+		return
+	if area_armed != "" and not _area_confirming:
+		var same := area_armed == id
+		_disarm_area()   # outra habilidade (ou a mesma tecla de novo) desiste da área preparada
+		if same:
+			return
+	if id != "heal":
+		_disarm_heal()
 	if not Game.knows_ability(id):
 		Game.notify.emit("%s exige nível %d" % [sp.name, sp.level], Color(1, 0.6, 0.6))
 		Sfx.play("error", 0.0, -6.0)
@@ -924,6 +963,9 @@ func cast(id: String) -> void:
 	if sp.cost > 0 and Game.mp < sp.cost:
 		Game.notify.emit("Mana insuficiente!", Color(0.6, 0.7, 1.0))
 		Sfx.play("error", 0.0, -6.0)
+		return
+	if sp.get("aim", "") == "ground" and not _area_confirming:
+		_arm_area(id)   # a mana e a recarga só saem na confirmação (confirm_area)
 		return
 	# habilidade de arma (espada, cajado, arco): o módulo da classe executa. Ainda sem implementação
 	# (ready == false): "Em breve", sem custo nem recarga. As magias antigas seguem no match abaixo.
@@ -941,6 +983,9 @@ func cast(id: String) -> void:
 		Game.stats_changed.emit()
 		return
 	_cancel_draw()
+	if id == "heal":
+		_arm_heal()   # a mana e a recarga só saem na confirmação (confirm_heal)
+		return
 	if sp.cost > 0:
 		Game.mp -= sp.cost
 	cooldowns[id] = sp.cooldown * Game.cooldown_mult()
@@ -951,12 +996,6 @@ func cast(id: String) -> void:
 			# sai da gema do cajado (ou da mão) depois do movimento de apontar
 			_pending_spell = id
 			_pending_t = KnightMoves.CAST_RELEASE * KnightMoves.CAST_TIME
-		"heal":
-			if Network.is_client():
-				Network.request_heal()   # online: a cura (a minha também) volta do servidor em _you_were_healed
-			else:
-				receive_heal(Game.heal_amount())
-			Network.send_event("heal", global_position)
 		"frost_nova":
 			_cast_frost_nova()
 	Game.stats_changed.emit()
@@ -971,6 +1010,215 @@ func receive_heal(amount: float) -> void:
 	_heal_fx()
 	FX.damage_number(global_position + Vector3.UP * 2.2, "+%d" % maxf(gained, 0.0), Color(0.4, 1.0, 0.5))
 	Game.stats_changed.emit()
+
+
+# ------------------------------------------------------------ Cura com mira
+## A tecla da Cura prepara a magia (mãos brilhando); enquanto preparada, o aliado mais perto do centro da
+## mira (até HEAL_RANGE m, à vista) ganha a borda verde (TargetHighlight) — sem aliado na mira, a borda fica
+## em você. O clique esquerdo confirma: cura quem está marcado (não dá o ataque básico); o botão direito
+## cura sempre você mesmo. A tecla de novo, a esquiva pelo teclado,
+## uma habilidade, a morte ou HEAL_ARM_TIME s sem confirmar desistem (sem gastar mana nem recarga).
+const HEAL_RANGE := 25.0
+const HEAL_ARM_TIME := 8.0
+const HEAL_AIM_SCREEN := 0.09   ## quão longe do centro da tela (fração da altura) o aliado ainda conta como mirado
+var heal_armed := false
+var heal_target: Node3D = null
+var _heal_arm_t := 0.0
+var _heal_charge: Node3D
+static var _heal_hint_done := false
+
+
+func _arm_heal() -> void:
+	heal_armed = true
+	_heal_arm_t = HEAL_ARM_TIME
+	heal_target = null
+	var tip: Node3D = look.get("tip")
+	_heal_charge = HolyFX.charge_stream(tip if tip and is_instance_valid(tip) else model)
+	Sfx.play("arcane_cast", 0.1, -12.0)
+	if not _heal_hint_done:
+		_heal_hint_done = true
+		Game.notify.emit("Cura pronta: clique esquerdo cura o aliado na mira · botão direito cura você", Color(0.55, 1.0, 0.6))
+
+
+func _disarm_heal() -> void:
+	if not heal_armed:
+		return
+	heal_armed = false
+	_mark_heal_target(heal_target, false)
+	heal_target = null
+	if _heal_charge and is_instance_valid(_heal_charge):
+		_heal_charge.queue_free()
+	_heal_charge = null
+
+
+## Um quadro com a Cura preparada: troca a borda para quem está na mira e desiste quando não dá mais.
+func _update_heal_aim(delta: float) -> void:
+	_heal_arm_t -= delta
+	if heal_target != null and not is_instance_valid(heal_target):
+		heal_target = null   # o marcado saiu (trocou de zona, desconectou)
+	if _heal_arm_t <= 0.0 or dead or ability != "" or not _is_scepter():
+		_disarm_heal()
+		return
+	var t := _find_heal_target()
+	if t == null:
+		t = self
+	if t != heal_target:
+		_mark_heal_target(heal_target, false)
+		heal_target = t
+		_mark_heal_target(t, true)
+
+
+func _mark_heal_target(p: Node3D, on: bool) -> void:
+	if p != null and is_instance_valid(p) and p.has_method("set_heal_highlight"):
+		p.set_heal_highlight(on)
+
+
+## Aliado (réplica viva e à vista, até HEAL_RANGE m) mais perto do centro da mira, ou null.
+func _find_heal_target() -> Node3D:
+	if camera == null or not camera.is_inside_tree():
+		return null
+	var size := get_viewport().get_visible_rect().size
+	var center := size * 0.5
+	var best: Node3D = null
+	var best_d := size.y * HEAL_AIM_SCREEN
+	for p in get_tree().get_nodes_in_group("players"):
+		if p == self or not p.remote or p.dead or not p.is_visible_in_tree():
+			continue
+		var chest: Vector3 = p.global_position + Vector3.UP * 1.0
+		if chest.distance_to(global_position) > HEAL_RANGE or camera.is_position_behind(chest):
+			continue
+		# a silhueta toda conta: peito, cabeça e pés
+		var d := camera.unproject_position(chest).distance_to(center)
+		d = minf(d, camera.unproject_position(p.global_position + Vector3.UP * 1.9).distance_to(center))
+		d = minf(d, camera.unproject_position(p.global_position + Vector3.UP * 0.25).distance_to(center))
+		if d < best_d and _sees(p, chest):
+			best = p
+			best_d = d
+	return best
+
+
+## Nada do cenário entre a câmera e `at` (no corpo de `p`).
+func _sees(p: Node3D, at: Vector3) -> bool:
+	var q := PhysicsRayQueryParameters3D.create(camera.global_position, at, 1)
+	q.exclude = [get_rid(), (p as CollisionObject3D).get_rid()]
+	return get_world_3d().direct_space_state.intersect_ray(q).is_empty()
+
+
+## Solta a Cura preparada em `target` (outro jogador) ou, sem alvo (null ou você), em você.
+## Online o servidor decide e manda a vida (_you_were_healed); no solo cura direto.
+func confirm_heal(target: Node3D = null) -> void:
+	_disarm_heal()
+	var sp: Dictionary = ItemDB.ABILITIES.heal
+	if dead or cooldowns.heal > 0.0 or Game.mp < sp.cost:
+		return
+	var ally: Node3D = target if target != null and target != self and is_instance_valid(target) and target.get("remote") else null
+	Game.mp -= sp.cost
+	cooldowns.heal = sp.cooldown * Game.cooldown_mult()
+	cast_timer = 0.4
+	_start_cast_pose("heal")
+	if Network.is_client():
+		Network.request_heal(ally.peer_id if ally else 0)
+	else:
+		receive_heal(Game.heal_amount())
+	if ally:
+		HolyFX.heal_beam(spell_origin(), ally, true)
+		Sfx.play_at("heal", global_position, 0.05, -6.0)
+		Network.send_event("heal", global_position, ally.global_position)
+	else:
+		Network.send_event("heal", global_position, Vector3.ZERO)
+	Game.stats_changed.emit()
+
+
+# ------------------------------------------------------------ habilidade com mira no chão
+## Habilidades com `aim: "ground"` (ItemDB.ABILITIES): a tecla prepara e mostra o círculo no chão onde a
+## câmera aponta, limitado a `aim_range` m do jogador; o clique esquerdo confirma (em vez do ataque
+## básico) e a habilidade cai ali; o botão direito desiste
+## (o módulo da classe lê `area_point`). A tecla de novo, outra habilidade, a esquiva pelo teclado, a morte
+## ou AREA_ARM_TIME s sem confirmar desistem (sem gastar mana nem recarga).
+const AREA_ARM_TIME := 8.0
+var area_armed := ""             ## id da habilidade esperando o ponto ("" = nenhuma)
+var area_point := Vector3.ZERO   ## onde a habilidade cai (o último ponto mirado)
+var _area_arm_t := 0.0
+var _area_mark: Node3D
+var _area_confirming := false
+static var _area_hint_done := false
+
+
+func _arm_area(id: String) -> void:
+	_disarm_heal()
+	area_armed = id
+	_area_arm_t = AREA_ARM_TIME
+	area_point = _area_target(id)
+	_area_mark = HolyFX.area_marker(float(ItemDB.ABILITIES[id].aim_radius))
+	if _area_mark:
+		get_tree().current_scene.add_child(_area_mark)
+		_area_mark.global_position = area_point
+	Sfx.play("arcane_cast", 0.1, -12.0)
+	if not _area_hint_done:
+		_area_hint_done = true
+		Game.notify.emit("Escolha onde a habilidade cai: clique esquerdo confirma · botão direito cancela", Color(1.0, 0.87, 0.4))
+
+
+func _disarm_area() -> void:
+	if area_armed == "":
+		return
+	area_armed = ""
+	if _area_mark and is_instance_valid(_area_mark):
+		_area_mark.queue_free()
+	_area_mark = null
+
+
+## Um quadro com a área preparada: o círculo segue a mira; desiste quando não dá mais.
+func _update_area_aim(delta: float) -> void:
+	_area_arm_t -= delta
+	if _area_arm_t <= 0.0 or dead or ability != "" or not (area_armed in Game.ability_kit()):
+		_disarm_area()
+		return
+	area_point = _area_target(area_armed)
+	if _area_mark and is_instance_valid(_area_mark):
+		_area_mark.global_position = area_point
+
+
+## Ponto no chão onde a habilidade `id` cairia agora: onde a câmera aponta, limitado a `aim_range` m do
+## jogador no plano e baixado até o chão do cenário (sem chão por perto: a altura do jogador).
+func _area_target(id: String) -> Vector3:
+	var target := aim_point()
+	var origin := global_position
+	var flat := Vector3(target.x - origin.x, 0.0, target.z - origin.z)
+	var reach: float = ItemDB.ABILITIES[id].aim_range
+	if flat.length() > reach:
+		flat = flat.normalized() * reach
+	var p := origin + flat
+	var q := PhysicsRayQueryParameters3D.create(Vector3(p.x, maxf(origin.y, target.y) + 6.0, p.z),
+		Vector3(p.x, minf(origin.y, target.y) - 12.0, p.z), 1)
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	return hit.position if not hit.is_empty() else Vector3(p.x, origin.y, p.z)
+
+
+## Solta a habilidade preparada no ponto mirado (gasta mana e recarga como um uso normal).
+func confirm_area() -> void:
+	if area_armed == "":
+		return
+	var id := area_armed
+	area_point = _area_target(id)
+	_disarm_area()
+	_area_confirming = true
+	cast(id)
+	_area_confirming = false
+
+
+## Liga/desliga a borda de alvo da Cura neste jogador (TargetHighlight sob o modelo).
+func set_heal_highlight(on: bool) -> void:
+	if model == null:
+		return
+	var hl := model.get_node_or_null("HealMark")
+	if on and hl == null and not Network.is_server():
+		hl = TargetHighlight.new()
+		hl.name = "HealMark"
+		model.add_child(hl)
+	elif not on and hl:
+		hl.name = "HealMarkOld"   # o nome fica livre já: ligar de novo no mesmo quadro cria outro
+		hl.queue_free()
 
 
 ## Módulo da classe da arma dona da habilidade `id` (ou do `kind` de um evento remoto).
@@ -1072,7 +1320,7 @@ func _frost_fx(radius: float) -> void:
 
 
 func _heal_fx() -> void:
-	FX.burst(global_position + Vector3.UP, Color(0.4, 1.0, 0.5), 30, 3.0, 0.1, 1.0, 2.0)
+	HolyFX.heal_burst(global_position)
 	Sfx.play_at("heal", global_position, 0.0)
 
 
@@ -1217,6 +1465,8 @@ func _clear_flash() -> void:
 func _die() -> void:
 	dead = true
 	end_ability()
+	_disarm_heal()
+	_disarm_area()
 	Game.hp = 0
 	Game.clear_buffs()
 	attacking = false
@@ -1411,6 +1661,18 @@ func _start_cast_pose(kind: String) -> void:
 	_cast_t = 0.0
 
 
+## Jogador (este, réplica ou o local) mais perto de `pos`, a até 4 m; null se nenhum.
+func _player_near(pos: Vector3) -> Node3D:
+	var best: Node3D = null
+	var best_d := 4.0
+	for p in get_tree().get_nodes_in_group("players"):
+		var d: float = p.global_position.distance_to(pos)
+		if d < best_d:
+			best = p
+			best_d = d
+	return best
+
+
 ## Efeitos das ações de outro jogador (só visuais: o dano já foi enviado pelo dono).
 func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 	if _is_ability_kind(kind):
@@ -1431,7 +1693,13 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 			_frost_fx(6.5)
 		"heal":
 			_start_cast_pose(kind)
-			_heal_fx()
+			var tgt := _player_near(b) if b != Vector3.ZERO else null
+			if tgt:
+				# Cura num aliado: a esfera voa até ele (se for eu, o meu receive_heal já mostra a cura)
+				HolyFX.heal_beam(spell_origin(), tgt, tgt.remote)
+				Sfx.play_at("heal", a, 0.05, -8.0)
+			else:
+				_heal_fx()
 		"bolt", "arrow", "light_orb":
 			var p := PROJECTILE.new()
 			p.kind = kind

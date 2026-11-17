@@ -510,7 +510,7 @@ func _test_bow_staff(w: Node) -> void:
 
 # ---------------------------------------------------------------- cura do healer em aliados
 ## Ana vira healer, Beto (guerreiro) fica ferido perto dela. Beto pedindo a cura direto não faz nada (não é
-## healer); Ana conjura `heal` e a vida de Beto sobe (e a dela uma vez só: vem do servidor, não também do cliente).
+## healer); Ana mira a Cura no Beto e só a vida dele sobe; depois cura a si mesma (uma vez só: vem do servidor).
 func _test_heal(w: Node) -> void:
 	await _sync("heal_in")
 	var actor := horde_role != "join"
@@ -531,8 +531,23 @@ func _test_heal(w: Node) -> void:
 	await _sync("heal_denied")
 	if actor:
 		var expected := Game.heal_amount()
+		var beto: Node3D = null
+		for rp in Network.remote_players.values():
+			if is_instance_valid(rp):
+				beto = rp
+				break
+		check(beto != null, "Ana vê o Beto para mirar a cura")
 		Game.hp = 10.0
 		w.player.cast("heal")
+		check(w.player.heal_armed, "a tecla da Cura só prepara")
+		w.player.confirm_heal(beto)   # mirada no Beto: só ele recebe
+		await wait(1.2)
+		check(Game.hp < 10.0 + expected * 0.5, "a cura mirada no Beto não cura a Ana (%.0f)" % Game.hp)
+		await wait(0.5)   # passa o intervalo mínimo do servidor (1,4 s)
+		w.player.cooldowns.heal = 0.0
+		Game.hp = 10.0
+		w.player.cast("heal")
+		w.player.confirm_heal()   # sem alvo: em si mesma
 		check(await _wait_until(func() -> bool: return Game.hp > 10.5, 3.0), "Ana se cura pela cura do servidor (%.0f)" % Game.hp)
 		await wait(1.0)
 		check(Game.hp - 10.0 <= expected + 3.0, "a cura própria vem uma vez só (+%.0f, máximo %.0f)" % [Game.hp - 10.0, expected])

@@ -34,7 +34,7 @@ var loot_box: VBoxContainer
 var prompt_box: HBoxContainer
 var prompt: Label
 var slots := {}
-var _slot_ids: Array[String] = ["", "", "", ""]   # id da habilidade em cada slot 1..4
+var _slot_ids: Array[String] = ["", "", "", "", ""]   # id da habilidade em cada slot 1..ItemDB.SLOT_COUNT
 var _kit_class := ""
 var boss_panel: VBoxContainer
 var boss_bar: GhostBar
@@ -321,7 +321,7 @@ func _build_dock() -> void:
 	plate.add_child(bar)
 	slots["attack"] = _action(bar, "M1")
 	_gap(bar)
-	for n in range(1, 5):
+	for n in range(1, ItemDB.SLOT_COUNT + 1):
 		slots["slot_%d" % n] = _action(bar, str(n))
 	var ring := FuryRing.new()   # anel de fúria em volta do slot da ultimate, um pouco para fora do slot
 	ring.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -490,7 +490,7 @@ func _update_actions() -> void:
 	_redraw(a)
 	if _kit_class != Game.weapon_class():   # carregar jogo troca a arma sem passar pelo equipar
 		_refresh_kit()
-	for n in range(1, 5):
+	for n in range(1, ItemDB.SLOT_COUNT + 1):
 		var s: ItemSlot = slots["slot_%d" % n]
 		var id: String = _slot_ids[n - 1]
 		if id == "":
@@ -519,15 +519,17 @@ func _redraw(s: ItemSlot) -> void:
 		s.queue_redraw()
 
 
-## Monta os ícones dos slots 1-4 a partir do kit da arma equipada.
+## Monta os ícones dos slots a partir do kit da arma equipada. Os slots 1-4 aparecem sempre; os de
+## depois (o 5 do cetro) só quando o kit tem habilidade neles.
 func _refresh_kit() -> void:
 	_kit_class = Game.weapon_class()
-	_slot_ids = ["", "", "", ""]
+	_slot_ids = ["", "", "", "", ""]
 	for id in Game.ability_kit():
 		_slot_ids[ItemDB.ABILITIES[id].slot - 1] = id
-	for n in range(1, 5):
+	for n in range(1, ItemDB.SLOT_COUNT + 1):
 		var s: ItemSlot = slots["slot_%d" % n]
 		var id: String = _slot_ids[n - 1]
+		s.visible = n <= 4 or id != ""
 		s.icon_kind = ItemDB.ABILITIES[id].icon if id != "" else ""
 		s.icon_tex = ItemSlot.skill_art(id)
 		s.dim = id == ""
