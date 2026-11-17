@@ -637,7 +637,7 @@ func server_register_enemy(e: Enemy) -> void:
 
 ## Bits do spawn: 1 = horda, 2 = elite (da horda ou do mundo).
 static func _enemy_flags(e: Enemy) -> int:
-	return (1 if e.horde else 0) | (2 if e.elite else 0)
+	return (1 if e.horde else 0) | (2 if e.elite else 0) | (4 if e.chief else 0)
 
 
 ## Quem vê os inimigos: os jogadores em Valdoria.
@@ -683,7 +683,7 @@ func server_enemy_killed(e: Enemy) -> void:
 					[{"t": "notify", "text": "+%d XP do grupo (longe demais para contar na missão)" % far_xp,
 						"color": Color(0.7, 0.85, 1.0)}])
 			if r.loot:
-				Econ.server_drop_loot(pid, e.kind, pos, "world", e.level, e.elite)
+				Econ.server_drop_loot(pid, e.kind, pos, "world", e.level, e.elite, e.chief)
 				_kill_reward.rpc_id(pid, e.kind, int(r.xp), pos)
 	for pid in _enemy_peers(e):
 		_enemy_died.rpc_id(pid, e.net_id)
@@ -1297,6 +1297,7 @@ func _enemy_spawned(net_id: int, kind: String, pos: Vector3, yaw: float, max_hp:
 	e.puppet = true
 	e.horde = horde
 	e.elite = flags & 2 != 0
+	e.chief = flags & 4 != 0
 	e.level = level
 	e.area = area   # a região do ponto de nascimento (o servidor conta a missão por ela)
 	e.net_id = net_id

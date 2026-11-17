@@ -18,5 +18,17 @@
 	"encosta_cinzas": {"name": "Encosta de Cinzas", "level_min": 30, "level_max": 34, "density": 1.0, "show_on_map": true},
 	"passo_ossos": {"name": "Passo dos Ossos", "level_min": 33, "level_max": 37, "density": 1.0, "show_on_map": true},
 	"ameias_lich": {"name": "Ameias do Lich", "level_min": 37, "level_max": 41, "density": 1.0, "show_on_map": true},
-	"cume_maldito": {"name": "Cume Maldito", "level_min": 42, "level_max": 45, "density": 1.0, "show_on_map": true}
+	"cume_maldito": {"name": "Cume Maldito", "level_min": 42, "level_max": 45, "density": 1.0, "show_on_map": true},
+	"dg_bosque_entrada": {"name": "Raízes da Entrada", "level_min": 16, "level_max": 17, "density": 1.0, "show_on_map": true},
+	"dg_bosque_galeria": {"name": "Galeria Musgosa", "level_min": 17, "level_max": 19, "density": 1.0, "show_on_map": true},
+	"dg_bosque_trono": {"name": "Trono da Rainha", "level_min": 19, "level_max": 20, "density": 1.0, "show_on_map": true},
+	"dg_mina_entrada": {"name": "Poço Abandonado", "level_min": 26, "level_max": 27, "density": 1.0, "show_on_map": true},
+	"dg_mina_galeria": {"name": "Galeria dos Brutos", "level_min": 27, "level_max": 29, "density": 1.0, "show_on_map": true},
+	"dg_mina_trono": {"name": "Salão do Rei Caído", "level_min": 29, "level_max": 30, "density": 1.0, "show_on_map": true},
+	"dg_pico_entrada": {"name": "Átrio de Cinzas", "level_min": 36, "level_max": 37, "density": 1.0, "show_on_map": true},
+	"dg_pico_galeria": {"name": "Corredor dos Ossos", "level_min": 37, "level_max": 39, "density": 1.0, "show_on_map": true},
+	"dg_pico_trono": {"name": "Altar do Lich", "level_min": 39, "level_max": 40, "density": 1.0, "show_on_map": true},
+	"dg_final_entrada": {"name": "Borda do Abismo", "level_min": 45, "level_max": 46, "density": 1.0, "show_on_map": true},
+	"dg_final_galeria": {"name": "Ponte das Almas", "level_min": 46, "level_max": 48, "density": 1.0, "show_on_map": true},
+	"dg_final_trono": {"name": "Coração do Abismo", "level_min": 48, "level_max": 50, "density": 1.0, "show_on_map": true}
 }

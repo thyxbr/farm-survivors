@@ -1946,3 +1946,17 @@ script = ExtResource("5_ltwnx")
 kind = "resource_node"
 ref = "iron"
 node_id = 45
+
+[node name="Dungeons" type="Node3D" parent="."]
+
+[node name="porta dg_bosque" type="Node3D" parent="Dungeons"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 0, 0, -62)
+script = ExtResource("5_ltwnx")
+kind = "dungeon_door"
+ref = "dg_bosque"
+
+[node name="entrada dg_bosque" type="Node3D" parent="Dungeons"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 0, 0.3, -59)
+script = ExtResource("8_qljvo")
+id = "dg:dg_bosque"
+follow_ground = false

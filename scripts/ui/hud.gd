@@ -694,7 +694,7 @@ func _track_pos():
 	var here := Regions.region_at(player.global_position)
 	if Regions.region_at(p) != here:
 		_compass_far = Regions.display_name(Regions.region_at(p))
-		return Regions.coach_point(here)
+		return Regions.exit_point(here)
 	_compass_far = ""
 	return p
 
@@ -731,7 +731,8 @@ func _update_compass() -> void:
 	_compass.angle = atan2(to.normalized().dot(right.normalized()), to.normalized().dot(fwd.normalized()))
 	_compass.near = dist < 4.0
 	if _compass_far != "":
-		_compass_label.text = "carruagem → %s · %d m" % [_compass_far, int(dist)]
+		var via := "saída" if Regions.is_dungeon(Regions.region_at(player.global_position)) else "carruagem"
+		_compass_label.text = "%s → %s · %d m" % [via, _compass_far, int(dist)]
 	else:
 		_compass_label.text = "aqui" if dist < 4.0 else "%d m" % int(dist)
 

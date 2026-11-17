@@ -144,8 +144,8 @@ func _ready() -> void:
 	# mais o Papai Noel e os pontos da antiga praça (Orin e recordes, hub_point no vale.tscn); mapas: Sylvi, Tico e cocheiro no bosque; Bolgar, diário e cocheiro na mina; só o cocheiro no pico (o Kael
 	# de lá aparece no Arco 2)
 	var n_inter := get_tree().get_nodes_in_group("interactable").size()
-	check(n_inter == 7 + 9 + 7 + 1 + world.points.size() + Game.FARM_PLOTS + 1 + 1,
-		"interagíveis do vale, da guilda e dos mapas + %d canteiros + caldeirão + bancada de couraria (%d)" % [Game.FARM_PLOTS, n_inter])
+	check(n_inter == 7 + 9 + 7 + 1 + world.points.size() + Game.FARM_PLOTS + 1 + 1 + 8,
+		"interagíveis do vale, da guilda e dos mapas + %d canteiros + caldeirão + bancada de couraria + 8 portas de dungeon (%d)" % [Game.FARM_PLOTS, n_inter])
 	check(not ResourceLoader.exists("res://scenes/colony.tscn"), "sem a Defesa da Cidade")
 
 	# --- diálogo e missão
@@ -1008,6 +1008,7 @@ func _ready() -> void:
 	await _test_fx_epic()
 	await _test_farm()
 	await _test_gather()
+	await _test_dungeons()
 	await _test_enchant()
 	await _test_enchant_effects()
 	await _test_tecela_web()
@@ -1830,6 +1831,54 @@ func _test_blacksmith() -> void:
 				missing += 1
 	check(missing == 0, "martelar provisório cobre os ossos dos clipes do Mixamo (%d tracks faltando)" % missing)
 	player.global_position = back
+
+
+# ---------------------------------------------------------------- Dungeons
+func _test_dungeons() -> void:
+	var doors := {}
+	for n in get_tree().get_nodes_in_group("interactable"):
+		if n.get("npc_id") == "dungeon_door":
+			doors[str(n.target)] = int(doors.get(str(n.target), 0)) + 1
+	check(doors.get("out", 0) == 4 and doors.has("dg_bosque") and doors.has("dg_mina") and doors.has("dg_pico")
+		and doors.has("dg_final"), "portas das 4 dungeons e as 4 saídas (%s)" % str(doors))
+	var by_dg := {}
+	var bosses := {}
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var r := Regions.region_at(e.global_position)
+		if Regions.is_dungeon(r):
+			by_dg[r] = int(by_dg.get(r, 0)) + 1
+			if e.is_boss:
+				bosses[r] = true
+	for d in Regions.DUNGEONS:
+		check(int(by_dg.get(d, 0)) >= 20 and bosses.has(d), "%s com monstros (%d) e chefe" % [d, int(by_dg.get(d, 0))])
+	var lv_ok := true
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if Regions.region_at(e.global_position) == "dg_mina" and not e.is_boss and (e.level < 26 or e.level > 30):
+			lv_ok = false
+	check(lv_ok, "Galerias Profundas: monstros entre os níveis 26 e 30 (das salas)")
+	var back := player.global_position
+	var rank0 := str(Game.flags.get("rank", "D"))
+	Game.flags["rank"] = "D"
+	world.use_dungeon_door("dg_bosque")
+	await wait(1.2)
+	check(Regions.region_at(player.global_position) != "dg_bosque", "sem Rank C a porta do Covil recusa")
+	Game.flags["rank"] = "C"
+	world.use_dungeon_door("dg_bosque")
+	await wait(1.4)
+	check(Regions.region_at(player.global_position) == "dg_bosque", "com Rank C entra no Covil das Raízes")
+	check(Regions.exit_point("dg_bosque").distance_to(player.global_position) < 3.0, "chega na porta de saída")
+	world.use_dungeon_door("out")
+	await wait(1.4)
+	check(player.global_position.distance_to(Regions.door_point("dg_bosque")) < 3.0, "a saída leva de volta à porta no Bosque")
+	# morrer lá dentro: volta na porta de fora
+	player.global_position = Regions.arrive_point("dg_mina")
+	await wait(0.1)
+	world._respawn()
+	await wait(0.2)
+	check(player.global_position.distance_to(Regions.door_point("dg_mina")) < 3.0, "quem morre na dungeon volta na porta dela")
+	Game.flags["rank"] = rank0
+	player.global_position = back
+	await wait(0.2)
 
 
 # ---------------------------------------------------------------- Profissões e craft

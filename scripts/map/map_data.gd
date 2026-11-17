@@ -8,6 +8,10 @@ const SCENES := {
 	"bosque": "res://scenes/maps/bosque.tscn",
 	"mina": "res://scenes/maps/mina.tscn",
 	"pico": "res://scenes/maps/pico.tscn",
+	"dg_bosque": "res://scenes/maps/dg_bosque.tscn",
+	"dg_mina": "res://scenes/maps/dg_mina.tscn",
+	"dg_pico": "res://scenes/maps/dg_pico.tscn",
+	"dg_final": "res://scenes/maps/dg_final.tscn",
 	"arena": "res://scenes/maps/arena.tscn",
 }
 ## Centro dos mapas que não são regiões de viagem (Regions): a Arena da Horda, longe ao norte de Valdoria.
@@ -120,10 +124,10 @@ static func areas(map_id: String) -> Array:
 	return _areas[map_id]
 
 
-## As regiões de todos os mapas de viagem (Regions.ORDER).
+## As regiões de todos os mapas (Regions.ALL: os de viagem e as dungeons).
 static func all_areas() -> Array:
 	var out: Array = []
-	for id in Regions.ORDER:
+	for id in Regions.ALL:
 		out.append_array(areas(id))
 	return out
 

@@ -12,8 +12,9 @@ extends RefCounted
 ## sequência do RNG é a de sempre.
 ## Com `char_class`, cada arma sorteada vira uma da classe (adapt_weapon), sorteada DEPOIS de todo o resto
 ## para não mudar a sequência do RNG de quem não passa classe.
+## `extra`: linhas [item, chance] a mais (loot de dungeon: DungeonRules.extra_loot), sorteadas depois do resto.
 static func roll(bt: BalanceTables, kind: String, rng: RandomNumberGenerator, char_class := "",
-		level := 0, elite := false) -> Dictionary:
+		level := 0, elite := false, extra: Array = []) -> Dictionary:
 	var out := {"gold": 0, "items": {}}
 	var t: Dictionary = bt.get_table("enemies").get(kind, {})
 	if t.is_empty():
@@ -36,6 +37,9 @@ static func roll(bt: BalanceTables, kind: String, rng: RandomNumberGenerator, ch
 			if bt.get_table("items").has(hide):
 				var q := int(td.get("boss_qty", 1)) if bool(t.get("boss", false)) else (int(td.get("elite_qty", 1)) if elite else 1)
 				out.items[hide] = int(out.items.get(hide, 0)) + maxi(q, 1)
+	for entry in extra:
+		if rng.randf() < float(entry[1]):
+			out.items[entry[0]] = int(out.items.get(entry[0], 0)) + 1
 	if char_class != "":
 		var adapted := {}
 		for id in out.items:

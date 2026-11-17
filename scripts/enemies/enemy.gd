@@ -49,6 +49,8 @@ var hp := 1.0
 var radius := 0.5
 var dead := false
 var is_boss := false
+## Chefe de dungeon (EnemySpawn.chief): conta como chefe mesmo sendo de um tipo comum (a Slime Rainha).
+var chief := false
 var state := "idle"
 var state_timer := 0.0
 var attack_cd := 0.0
@@ -140,7 +142,7 @@ func _ready() -> void:
 	max_hp = data.hp * hp_mult
 	hp = max_hp
 	radius = data.radius * (1.2 if elite else 1.0)
-	is_boss = data.get("boss", false)
+	is_boss = data.get("boss", false) or chief
 	add_to_group("enemies")
 	collision_layer = 4
 	collision_mask = 1 | 2 | 4
@@ -1196,7 +1198,7 @@ func _die() -> void:
 	elif not horde:
 		# solo: XP, missão e o chefe derrotado (king_dead) ficam com as regras (Econ.kill)
 		Game.on_enemy_killed(kind, xp_reward(), level, area)
-		drop_loot(get_parent(), kind, global_position, true, level, elite)
+		drop_loot(get_parent(), kind, global_position, true, level, elite, is_boss)
 	die_visual()
 
 
@@ -1225,8 +1227,11 @@ func die_visual() -> void:
 
 
 ## Solo: sorteio do loot (LootRules, o mesmo do servidor) em pickups no chão.
-static func drop_loot(parent: Node, enemy_kind: String, pos: Vector3, with_gold := true, level := 0, elite := false) -> void:
-	var loot := LootRules.roll(Balance.tables, enemy_kind, _loot_rng(), Game.char_class, level, elite)
+static func drop_loot(parent: Node, enemy_kind: String, pos: Vector3, with_gold := true, level := 0, elite := false,
+		boss := false) -> void:
+	boss = boss or TYPES.get(enemy_kind, {}).get("boss", false)
+	var extra := DungeonRules.extra_loot(Balance.tables, Regions.region_at(pos), boss)
+	var loot := LootRules.roll(Balance.tables, enemy_kind, _loot_rng(), Game.char_class, level, elite, extra)
 	_spawn_loot(parent, pos, int(loot.gold) if with_gold else 0, loot.items)
 
 

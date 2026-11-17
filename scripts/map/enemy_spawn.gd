@@ -43,6 +43,8 @@ extends Node3D
 @export_range(0, 60) var level_max := 0
 ## Elite: alguns níveis a mais, mais vida e maior (data/balance/progression.json, "elite").
 @export var elite := false
+## Chefe da dungeon: barra de chefe, volta em minutos e o loot de chefe da dungeon (progression.json "dungeons").
+@export var chief := false
 
 const GOLDEN := 2.399963229728653   # ângulo áureo (rad)
 

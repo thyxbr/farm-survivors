@@ -11,8 +11,23 @@ const DATA := {
 	"bosque": {"name": "Bosque Sussurrante", "origin": Vector3(0, 0, 800), "half": 70.0, "rank": "C"},
 	"mina": {"name": "Mina de Cristal", "origin": Vector3(800, 0, 0), "half": 70.0, "rank": "B"},
 	"pico": {"name": "Pico das Cinzas", "origin": Vector3(800, 0, 800), "half": 62.0, "rank": "A"},
+	# dungeons (parte 4): áreas compartilhadas com entrada por uma porta no mapa de fora (`parent`). Não estão
+	# na carruagem nem no atlas; o rank é o da porta. A faixa de nível das salas fica no regions.json.
+	"dg_bosque": {"name": "Covil das Raízes", "origin": Vector3(-800, 0, 800), "half": 45.0, "rank": "C",
+		"dungeon": true, "parent": "bosque"},
+	"dg_mina": {"name": "Galerias Profundas", "origin": Vector3(-800, 0, 0), "half": 45.0, "rank": "B",
+		"dungeon": true, "parent": "mina"},
+	"dg_pico": {"name": "Cripta de Cinzas", "origin": Vector3(-800, 0, -800), "half": 45.0, "rank": "A",
+		"dungeon": true, "parent": "pico"},
+	"dg_final": {"name": "Abismo de Valdoria", "origin": Vector3(800, 0, -800), "half": 45.0, "rank": "A",
+		"dungeon": true, "parent": "pico"},
 }
+## Mapas de viagem (carruagem e atlas), na ordem.
 const ORDER := ["vila", "bosque", "mina", "pico"]
+## Dungeons, na ordem de nível.
+const DUNGEONS := ["dg_bosque", "dg_mina", "dg_pico", "dg_final"]
+## Todos os mapas montados no mundo.
+const ALL := ["vila", "bosque", "mina", "pico", "dg_bosque", "dg_mina", "dg_pico", "dg_final"]
 
 
 static func origin(id: String) -> Vector3:
@@ -32,13 +47,37 @@ static func coach_point(id: String) -> Vector3:
 	return MapData.landmark(id, "coach")
 
 
+static func is_dungeon(id: String) -> bool:
+	return bool(DATA.get(id, {}).get("dungeon", false))
+
+
+## Mapa de fora da dungeon (o próprio id para quem não é dungeon).
+static func parent_of(id: String) -> String:
+	return str(DATA.get(id, {}).get("parent", id))
+
+
+## Onde fica a porta da dungeon no mapa de fora (landmark "dg:<id>" da cena do mapa de fora).
+static func door_point(dungeon: String) -> Vector3:
+	return MapData.landmark(parent_of(dungeon), "dg:" + dungeon)
+
+
+## Para onde se volta para sair do mapa: a carruagem nos mapas, a porta de saída (a chegada) nas dungeons.
+static func exit_point(id: String) -> Vector3:
+	return arrive_point(id) if is_dungeon(id) else coach_point(id)
+
+
+## Dungeons cuja porta fica no mapa `map_id`.
+static func dungeons_of(map_id: String) -> Array:
+	return DUNGEONS.filter(func(d: String) -> bool: return parent_of(d) == map_id)
+
+
 static func display_name(id: String) -> String:
 	return str(DATA.get(id, {}).get("name", id))
 
 
 ## Em que mapa fica a posição (fora de todas as regiões = o vale).
 static func region_at(pos: Vector3) -> String:
-	for id in ORDER:
+	for id in ALL:
 		if id == "vila":
 			continue
 		var o: Vector3 = DATA[id].origin
