@@ -51,23 +51,15 @@ func _ready() -> void:
 
 
 func _build_bolt() -> void:
-	var mi := MeshInstance3D.new()
-	var sm := SphereMesh.new()
-	sm.radius = 0.14
-	sm.height = 0.28
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.albedo_color = color.lightened(0.4)
-	sm.material = m
-	mi.mesh = sm
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_vis.add_child(mi)
+	# faísca desenhada: esfera de energia na cor da arma, com um rastro fino para trás (lê `direction`)
+	var pal := FXToon.palette(color)
+	FXToon.comet(self, pal, 1.7, 0.13, false, _vis)
+	FXToon.orb(_vis, pal, 0.62)
 	var light := OmniLight3D.new()
 	light.light_color = color
 	light.light_energy = 2.0
 	light.omni_range = 3.5
 	add_child(light)
-	add_child(_trail(color, 0.07, 30, 0.3))
 
 
 func _build_arrow() -> void:
@@ -99,31 +91,12 @@ func _build_arrow() -> void:
 	head.rotation.x = PI / 2
 	head.position.z = 0.44
 	_vis.add_child(head)
-	add_child(_trail(color, 0.04, 16, 0.18))
-
-
-func _trail(c: Color, size: float, amount: int, lifetime: float) -> CPUParticles3D:
-	var trail := CPUParticles3D.new()
-	var tm := SphereMesh.new()
-	tm.radius = size
-	tm.height = size * 2.0
-	var tmat := StandardMaterial3D.new()
-	tmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	tmat.vertex_color_use_as_albedo = true
-	tmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	tm.material = tmat
-	trail.mesh = tm
-	trail.amount = amount
-	trail.lifetime = lifetime
-	trail.local_coords = false
-	trail.gravity = Vector3.ZERO
-	trail.spread = 15
-	trail.initial_velocity_max = 0.3
-	var g := Gradient.new()
-	g.set_color(0, Color(c.r, c.g, c.b, 0.9))
-	g.set_color(1, Color(c.r, c.g, c.b, 0.0))
-	trail.color_ramp = g
-	return trail
+	# rastro desenhado atrás da flecha (lê `direction`, que acompanha a queda): fino e claro; a Flecha
+	# Glacial leva um rastro de gelo mais gordo
+	if fx == "glacial":
+		FXToon.comet(self, FXToon.ICE, 2.6, 0.17, false, _vis)
+	else:
+		FXToon.comet(self, FXToon.light_palette(color), 1.7, 0.05, false, _vis)
 
 
 func _orient() -> void:
@@ -137,6 +110,7 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "arrow":
 		_vel.y -= ARROW_DROP * delta
+		direction = _vel.normalized()      # o rastro desenhado segue a queda
 	global_position += _vel * delta
 	_age += delta
 	if vis_offset != Vector3.ZERO:
@@ -166,7 +140,10 @@ func _on_body(body: Node) -> void:
 		elif pierce > 0:
 			pierce -= 1
 			damage *= 0.85
-			FX.burst(global_position, color, 8, 3.0, 0.06, 0.25)
+			if kind == "bolt":
+				FXToon.energy_pop(global_position, _vel.normalized(), FXToon.palette(color), 3, 0.7)
+			else:
+				FXToon.spark_hit(global_position, _vel.normalized(), FXToon.light_palette(color), 2, 0.5)
 		else:
 			_finish(true)
 		return
@@ -192,14 +169,10 @@ func _damage(e: Node, amount: float) -> void:
 	EnchantHit.on_hit(e, dmg)   # efeito do elemento da arma encantada
 
 
-## Cristais de gelo no alvo: estilhaços opacos, brilho frio e anel azul no chão.
+## Gelo no alvo: cristais fecham em volta dele enquanto fica preso (FXToon.frost_hit).
 func _ice_fx(e: Node) -> void:
-	var at: Vector3 = e.global_position + Vector3.UP * 0.6
-	var ice := Color(0.7, 0.92, 1.0)
-	FX.burst(at, ice, 18, 3.5, 0.09, 0.6, -4.0)
-	FXEpic.glow_burst(at, Color(0.45, 0.8, 1.0), 16, 2.5, 0.2, 0.5, 0.0)
-	FXEpic.ground_mark(e.global_position, Color(0.5, 0.85, 1.0), 1.1, 1.5, "ring")
-	Sfx.play_at("frost_hit", at, 0.1, -4.0)
+	FXToon.frost_hit(e.global_position, 1.3, maxf(1.0, float(e.radius) + 0.6))
+	Sfx.play_at("frost_hit", e.global_position + Vector3.UP * 0.6, 0.1, -4.0)
 
 
 func _finish(impact: bool) -> void:
@@ -208,8 +181,12 @@ func _finish(impact: bool) -> void:
 	_done = true
 	set_deferred("monitoring", false)
 	if fx == "splash" and impact:
-		FX.burst(global_position, color, 30, 6.0, 0.12, 0.45, -3.0)
-		FX.ring(global_position - Vector3.UP * 0.4, Color(color.r, color.g, color.b, 0.8), 2.4, 0.3)
+		if kind == "bolt" and element == "fire":
+			FXToon.fire_burst(global_position, 0.85)
+		elif kind == "bolt":
+			FXToon.energy_burst(global_position, FXToon.palette(color))
+		else:
+			FXToon.energy_burst(global_position, FXToon.palette(color))
 		Sfx.play_at("explode", global_position, 0.1, -6.0)
 		if not visual_only:
 			for e in get_tree().get_nodes_in_group("enemies"):
@@ -217,10 +194,14 @@ func _finish(impact: bool) -> void:
 					continue
 				if e.global_position.distance_to(global_position) <= 2.4 + e.radius:
 					_damage(e, damage * 0.6)
+	elif kind == "bolt":
+		FXToon.energy_pop(global_position, _vel.normalized(), FXToon.palette(color))
 	elif kind == "holy_lance":
 		HolyFX.lance_impact(global_position, _vel.normalized())
 		if impact:
 			Sfx.play_at("explode", global_position, 0.1, -12.0)
+	elif kind == "arrow":
+		FXToon.spark_hit(global_position, _vel.normalized(), FXToon.light_palette(color), 4, 0.6)
 	else:
-		FX.burst(global_position, color, 6 if kind == "arrow" else 10, 3.0, 0.07, 0.3)
+		FX.burst(global_position, color, 10, 3.0, 0.07, 0.3)
 	queue_free()

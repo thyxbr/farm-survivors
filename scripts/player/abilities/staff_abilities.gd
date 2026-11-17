@@ -39,7 +39,6 @@ const METEOR_FIRE := Color(1.0, 0.45, 0.1)
 const METEOR_HOT := Color(1.0, 0.8, 0.35)
 const METEOR_EMBER := Color(1.0, 0.35, 0.05)
 const METEOR_SCORCH := Color(0.06, 0.04, 0.03, 0.85)
-const METEOR_RING := Color(1.0, 0.15, 0.05, 0.6)
 
 ## Recursos compartilhados (um de cada, criados uma vez e aquecidos em prewarm): material novo por
 ## meteoro recompilaria shader no meio da chuva (quadros de 60-90 ms).
@@ -48,10 +47,6 @@ static var _halo_mesh: QuadMesh
 static var _sky_mesh: PlaneMesh
 static var _sky_glow_mesh: PlaneMesh
 static var _dark_tex: ImageTexture
-static var _tail_mesh: ArrayMesh
-static var _fire_mesh: QuadMesh
-static var _fire_curve: Curve
-static var _fire_ramp: Gradient
 
 
 ## Executa a habilidade `id` para `player`. Devolve true só se ela começou.
@@ -150,8 +145,6 @@ static func prewarm() -> void:
 	_sky(false)
 	_sky(true)
 	_dark()
-	_tail()
-	_fireball_res()
 
 
 ## Um meteoro e um céu longe da vista: prepara os pipelines de desenho de cada malha/material (como
@@ -270,8 +263,8 @@ static func _meteor_start(player: Node) -> void:
 			nodes.append(gem)
 			d.gem = gem
 	# círculo de runas no chão em volta do mago
-	FXEpic.ground_mark(player.global_position, Color(1.0, 0.4, 0.08, 0.8), 2.2, METEOR_WINDUP + 0.6, "ring")
-	FXEpic.glow_burst(player.weapon_tip(), METEOR_HOT, 10, 1.5, 0.12, 0.4, 0.0)
+	FXToon.rune_circle(player.global_position, 2.2, 0.25, METEOR_WINDUP + 0.6)
+	FXToon.puff(player.weapon_tip(), 0.8, FXToon.FLASH, {"grow": 0.08, "hold": 0.05, "fade": 0.25})
 
 
 static func _meteor_tick(player: Node, t0: float, t: float, delta: float) -> void:
@@ -291,9 +284,6 @@ static func _meteor_tick(player: Node, t0: float, t: float, delta: float) -> voi
 	if t0 < METEOR_WINDUP and t >= METEOR_WINDUP:
 		_meteor_channel_start(player, d)
 	if t >= METEOR_WINDUP:
-		# anel vermelho pulsando na área
-		if FX._scene() != null and (t0 < METEOR_WINDUP or int((t0 - METEOR_WINDUP) / 0.6) != int((t - METEOR_WINDUP) / 0.6)):
-			FXEpic.ground_mark(d.center, METEOR_RING, METEOR_AREA, 0.75, "ring")
 		_sky_tick(d, t)
 		while float(d.next_t) <= t and float(d.next_t) < end_t - 0.0001:
 			_spawn_meteor(player, d)
@@ -315,9 +305,14 @@ static func _meteor_channel_start(player: Node, d: Dictionary) -> void:
 		d.erase("embers")
 		FXEpic.stop_stream(embers)
 	var tip: Vector3 = player.weapon_tip()
-	FXEpic.sparks(tip, Vector3.UP, METEOR_HOT, 18, 22.0, 0.45)
-	FXEpic.glow_burst(tip, METEOR_FIRE, 16, 3.0, 0.16, 0.45, 2.0)
+	FXToon.impact_sparks(tip, player.facing(), 8, 180.0)
+	FXToon.puff(tip, 1.1, FXToon.FIRE, {"vel": Vector3.UP * 2.5, "grow": 0.1, "hold": 0.06, "fade": 0.3})
 	FXEpic.flash(tip, METEOR_FIRE, 4.0, 7.0, 0.35)
+	# o círculo de runas marca a área enquanto a chuva dura
+	var sigil := FXToon.rune_circle(d.center, METEOR_AREA)
+	if sigil:
+		d.nodes.append(sigil)
+		d.sigil = sigil
 	var sky := Node3D.new()
 	root.add_child(sky)
 	sky.global_position = d.center
@@ -453,6 +448,10 @@ static func _meteor_soft_end(player: Node) -> void:
 	if is_instance_valid(sky):
 		nodes.erase(sky)
 		_sky_fade(sky)
+	var sigil = d.get("sigil")
+	if is_instance_valid(sigil):
+		nodes.erase(sigil)
+		sigil.release()
 	for key in ["embers", "gem"]:
 		var p = d.get(key)
 		if is_instance_valid(p):
@@ -510,8 +509,7 @@ static func _meteor_impact_fx(pos: Vector3, size: float, boom: OmniLight3D = nul
 	if FX._scene() == null:
 		return
 	var up := Vector3.UP
-	_fireball(pos + up * 0.9, size)
-	FXEpic.sparks(pos + up * 0.2, up, METEOR_HOT, 6, 15.0, 0.45)   # estilhaços e brasas para cima
+	FXToon.meteor_burst(pos, size)
 	if boom and is_instance_valid(boom) and boom.is_inside_tree():
 		boom.global_position = pos + up * 1.2
 		boom.light_energy = 7.0
@@ -608,111 +606,6 @@ static func _sky(glow: bool) -> PlaneMesh:
 	return p
 
 
-## Bola de fogo do impacto: bolas de brilho com mistura alfa (sRGB) do FXEpic, crescendo e subindo. O brilho
-## aditivo (glow_burst) lava para creme sobre a grama ao sol; com mistura alfa o laranja fica saturado.
-## Malha, curva e rampa compartilhadas: nenhum recurso novo por explosão.
-static func _fireball(pos: Vector3, size: float) -> void:
-	var root := FX._scene()
-	if root == null:
-		return
-	_fireball_res()
-	var amount := FXEpic._reserve(8)
-	var p := CPUParticles3D.new()
-	p.mesh = _fire_mesh
-	p.amount = amount
-	p.lifetime = 0.75
-	p.explosiveness = 0.95
-	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	p.emission_sphere_radius = 0.5 * size
-	p.direction = Vector3.UP
-	p.spread = 70.0
-	p.initial_velocity_min = 2.0 * size
-	p.initial_velocity_max = 5.5 * size
-	p.damping_min = 5.0
-	p.damping_max = 8.0
-	p.gravity = Vector3(0, 2.5, 0)
-	p.angle_min = -180.0
-	p.angle_max = 180.0
-	p.scale_amount_min = 0.8 * size
-	p.scale_amount_max = 1.5 * size
-	p.scale_amount_curve = _fire_curve
-	p.color_ramp = _fire_ramp
-	FXEpic._launch(root, p, pos, amount)
-
-
-static func _fireball_res() -> void:
-	if _fire_mesh != null:
-		return
-	_fire_mesh = QuadMesh.new()
-	_fire_mesh.size = Vector2.ONE * 1.8
-	_fire_mesh.material = FXEpic._particle_mat(FXEpic._glow_tex(), false, true)
-	_fire_curve = Curve.new()
-	_fire_curve.add_point(Vector2(0, 0.55))
-	_fire_curve.add_point(Vector2(0.25, 1.0))
-	_fire_curve.add_point(Vector2(1, 0.35))
-	_fire_ramp = Gradient.new()
-	# fogo que vira um fiapo de fumaça no fim (sem emissor de fumaça à parte); acima de 1: brilho HDR sem ir ao branco
-	_fire_ramp.offsets = PackedFloat32Array([0.0, 0.25, 0.55, 0.8, 1.0])
-	_fire_ramp.colors = PackedColorArray([Color(1.6, 1.35, 0.8, 1.0), Color(1.5, 0.75, 0.12, 1.0),
-		Color(1.2, 0.38, 0.06, 0.75), Color(0.2, 0.15, 0.13, 0.4), Color(0.18, 0.16, 0.15, 0.0)])
-
-
-## Cauda do meteoro: dois planos em cruz ao longo de +Z (de -0,4 a TAIL m), mais largos na cabeça, com a
-## cor por vértice indo de amarelo quente no eixo a vermelho transparente nas bordas e na ponta. Mistura
-## alfa (a cor fica saturada sobre a grama ao sol; o brilho vem do halo aditivo).
-static func _tail() -> ArrayMesh:
-	if _tail_mesh != null:
-		return _tail_mesh
-	const L := 4.2
-	var fire := [   # [z, meia largura, cor do eixo]
-		[-0.4, 0.42, Color(1.0, 0.85, 0.45, 0.95)],
-		[0.6, 0.36, Color(1.0, 0.55, 0.12, 0.9)],
-		[L * 0.55, 0.22, Color(0.95, 0.25, 0.05, 0.5)],
-		[L, 0.06, Color(0.5, 0.1, 0.03, 0.0)],
-	]
-	# rastro de fumaça atrás do fogo, alargando (antes: um emissor de partículas por meteoro)
-	var smoke := [
-		[1.6, 0.25, Color(0.16, 0.12, 0.1, 0.0)],
-		[3.2, 0.5, Color(0.15, 0.12, 0.1, 0.5)],
-		[6.0, 0.85, Color(0.18, 0.16, 0.15, 0.3)],
-		[9.0, 1.1, Color(0.22, 0.2, 0.19, 0.0)],
-	]
-	var verts := PackedVector3Array()
-	var cols := PackedColorArray()
-	var idx := PackedInt32Array()
-	for strip in 4:   # fumaça primeiro (fica atrás do fogo na mesma superfície), fogo depois; dois planos em cruz cada
-		var rows: Array = smoke if strip < 2 else fire
-		var across := Vector3.RIGHT if strip % 2 == 0 else Vector3.UP
-		var base := verts.size()
-		for r in rows:
-			var c: Color = r[2]
-			var edge := Color(c.r, c.g * 0.6, c.b * 0.5, 0.0)
-			for k in [-1.0, 0.0, 1.0]:
-				verts.append(Vector3(0, 0, float(r[0])) + across * float(r[1]) * k)
-				cols.append(c if k == 0.0 else edge)
-		for i in rows.size() - 1:
-			for k in 2:
-				var a := base + i * 3 + k
-				var b := a + 3
-				idx.append_array(PackedInt32Array([a, b, a + 1, a + 1, b, b + 1]))
-	var arr := []
-	arr.resize(Mesh.ARRAY_MAX)
-	arr[Mesh.ARRAY_VERTEX] = verts
-	arr[Mesh.ARRAY_COLOR] = cols
-	arr[Mesh.ARRAY_INDEX] = idx
-	var m := ArrayMesh.new()
-	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.vertex_color_use_as_albedo = true
-	mat.vertex_color_is_srgb = true
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	m.surface_set_material(0, mat)
-	_tail_mesh = m
-	return m
-
-
 ## Sombra suave no chão (decal): disco cheio com borda que some devagar.
 static func _dark() -> ImageTexture:
 	if _dark_tex == null:
@@ -733,8 +626,8 @@ class MeteorStrike extends Node3D:
 	var harm := false
 	var landed := false
 	var _t := 0.0
+	var direction := Vector3.DOWN   ## sentido da queda: a cauda de cometa (FXToon.comet) lê daqui
 	var _rock: MeshInstance3D
-	var _tail: MeshInstance3D
 	var _halos: Array = []
 	var _spin_axis := Vector3.UP
 	var _spin_rate := 8.0
@@ -762,13 +655,9 @@ class MeteorStrike extends Node3D:
 		h.scale = Vector3.ONE * size
 		add_child(h)
 		_halos.append(h)
-		# cauda de fogo: malha fixa apontando para trás da queda (a queda é reta). Sem rastro de fita: a fita
-		# refaz a malha todo quadro e, com ~40 meteoros no ar em 4 chuvas, era o maior custo de CPU
-		_tail = MeshInstance3D.new()
-		_tail.mesh = StaffAbilities._tail()
-		_tail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		_tail.basis = Basis.looking_at(dir, Vector3.UP if absf(dir.y) < 0.99 else Vector3.RIGHT).scaled(Vector3.ONE * size)
-		add_child(_tail)
+		# cauda de cometa desenhada, para trás da queda (lê `direction`); sem brasas: são ~40 meteoros no ar
+		direction = dir
+		FXToon.comet(self, FXToon.FIRE, 3.6 * size, 0.55 * size, false)
 
 	func _process(delta: float) -> void:
 		if is_queued_for_deletion():
@@ -792,8 +681,9 @@ class MeteorStrike extends Node3D:
 		global_position = target
 		if _rock:
 			_rock.visible = false
-		if _tail:
-			_tail.visible = false
+		for c in get_children():
+			if c is FXToon.CometNode:
+				c.queue_free()
 		for h in _halos:
 			h.visible = false
 		if harm and is_instance_valid(caster) and caster.is_inside_tree():
