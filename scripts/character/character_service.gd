@@ -9,7 +9,7 @@ extends RefCounted
 var allow_reclass := false
 
 ## Operações que o cliente pode pedir. Conceder ouro/xp/itens e abates é só do servidor/solo.
-const CLIENT_OPS := ["buy", "sell", "equip", "unequip", "consume", "cook", "spend_point", "start_quest",
+const CLIENT_OPS := ["buy", "sell", "equip", "unequip", "consume", "cook", "craft", "spend_point", "start_quest",
 	"complete_quest", "sort_inventory", "unlock_plot", "plant", "water", "fertilize", "harvest", "discard",
 	"death_penalty", "buy_passive", "enchant", "rank_up", "quest_mark", "choose_class",
 	"learn_talent", "reset_talents", "ack_prog_notice"]
@@ -23,6 +23,7 @@ const ARGS := {
 	"unequip": {"types": [TYPE_STRING], "optional": 0},
 	"consume": {"types": [TYPE_STRING], "optional": 0},
 	"cook": {"types": [TYPE_STRING, TYPE_INT], "optional": 1},
+	"craft": {"types": [TYPE_STRING, TYPE_INT], "optional": 1},
 	"spend_point": {"types": [TYPE_STRING], "optional": 0},
 	"start_quest": {"types": [TYPE_STRING], "optional": 0},
 	"complete_quest": {"types": [TYPE_STRING], "optional": 0},
@@ -452,6 +453,7 @@ func _dispatch(s: CharState, op: String, a: Array) -> Dictionary:
 		"unequip": return CharRules.unequip(s, _bt, a[0])
 		"consume": return CharRules.consume(s, _bt, a[0], _now())
 		"cook": return CharRules.cook(s, _bt, a[0], a[1] if a.size() > 1 else 1)
+		"craft": return CraftRules.craft(s, _bt, a[0], a[1] if a.size() > 1 else 1, _rng)
 		"spend_point": return CharRules.spend_point(s, _bt, a[0])
 		"start_quest": return CharRules.start_quest(s, _bt, a[0])
 		"complete_quest": return CharRules.complete_quest(s, _bt, a[0], _now())

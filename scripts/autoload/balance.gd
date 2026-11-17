@@ -46,7 +46,11 @@ func _populate() -> void:
 	var t := tables
 	_ITEM_DB.ITEMS = t.get_table("items")
 	_ITEM_DB.CROPS = t.get_table("crops")
-	_ITEM_DB.RECIPES = t.get_table("recipes")
+	# visão da cozinha (o caldeirão, a horta e a ficha dos itens leem {receita: ingredientes})
+	var kitchen := {}
+	for rid in CraftRules.station_recipes(t, "kitchen"):
+		kitchen[rid] = CraftRules.ingredients(t, rid)
+	_ITEM_DB.RECIPES = kitchen
 	_ITEM_DB.SPELLS = t.get_table("spells")
 	_ITEM_DB.QUESTS = t.get_table("quests")
 	_ITEM_DB.SHOP_STOCK = t.get_table("shop").get("stock", [])

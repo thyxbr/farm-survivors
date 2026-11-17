@@ -527,6 +527,8 @@ static func consume(s: CharState, bt: BalanceTables, id: String, now: float) -> 
 	if it.is_empty():
 		return _fail("item_invalido")
 	var t: String = it.get("type", "")
+	if t == "scroll":
+		return CraftRules.learn(s, bt, id)   # pergaminho de receita: usar = aprender
 	var edible := t == "food" or it.has("raw_hp") or it.has("raw_mp")
 	if t != "consumable" and not edible:
 		return _fail("nao_consumivel")
@@ -558,33 +560,19 @@ static func food_mult(s: CharState, bt: BalanceTables, stat: String, now: float)
 
 
 static func can_cook(s: CharState, bt: BalanceTables, recipe: String) -> int:
-	var ing: Dictionary = bt.get_table("recipes").get(recipe, {})
-	if ing.is_empty():
+	if str(CraftRules.recipe(bt, recipe).get("station", "")) != "kitchen":
 		return 0
-	var n := 999
-	for id in ing:
-		n = mini(n, count_item(s, id) / int(ing[id]))
-	return n
+	return int(CraftRules.can_craft(s, bt, recipe).n)
 
 
-## Cozinha até `times` vezes (o que os ingredientes deixarem). Resultado traz "n" = quantas.
+## Cozinha até `times` vezes (o que os ingredientes deixarem). Resultado traz "n" = quantas. É o craft da
+## estação "kitchen" (CraftRules.craft, que também dá XP de Culinária).
 static func cook(s: CharState, bt: BalanceTables, recipe: String, times = 1) -> Dictionary:
 	if not _valid_count(times):
 		return _fail("args")
-	var ing: Dictionary = bt.get_table("recipes").get(recipe, {})
-	if ing.is_empty():
+	if str(CraftRules.recipe(bt, recipe).get("station", "")) != "kitchen":
 		return _fail("receita_invalida")
-	var n: int = mini(times, can_cook(s, bt, recipe))
-	if n <= 0:
-		var r := _fail("faltam_ingredientes", [_notify("Faltam ingredientes.", Color(1, 0.6, 0.5))])
-		r["n"] = 0
-		return r
-	for id in ing:
-		remove_item(s, id, int(ing[id]) * n)
-	add_item(s, bt, recipe, n)
-	var res := _ok([{"t": "looted", "id": recipe, "qty": n}])
-	res["n"] = n
-	return res
+	return CraftRules.craft(s, bt, recipe, times)
 
 
 # ================================================================ missões

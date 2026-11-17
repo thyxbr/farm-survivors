@@ -10,7 +10,7 @@ extends RefCounted
 ## Nome de cada tabela = nome do arquivo em data/balance/<nome>.json.
 const NAMES := ["items", "crops", "recipes", "spells", "quests", "shop", "rarity", "enemies",
 	"horde", "horde_events", "rules", "rewards", "meta_passives", "enchant",
-	"world_nodes", "guild", "classes", "buffs", "talents", "progression", "regions"]
+	"world_nodes", "guild", "classes", "buffs", "talents", "progression", "regions", "professions"]
 
 ## Tag -> quantidade de componentes numéricos esperada ([min, max]).
 const _TAGS := {"$c": [3, 4], "$v2": [2, 2], "$v3": [3, 3]}
@@ -37,7 +37,15 @@ static func load_dir(path: String) -> BalanceTables:
 		else:
 			push_error("Balance: JSON inválido em %s" % file)
 			bt._tables[n] = {}
+	bt._expand()
 	return bt
+
+
+## Itens de qualidade (fina, obra-prima) do equipamento fabricável viram entradas da tabela de itens
+## (ItemQuality.expand; idempotente). Roda ao carregar e ao receber tabelas.
+func _expand() -> void:
+	if _tables.has("items") and _tables.has("recipes"):
+		_tables["items"] = ItemQuality.expand(_tables["items"], _tables["recipes"], _tables.get("progression", {}))
 
 
 ## Recebe tabelas já decodificadas (ver nota acima) ({nome: Dictionary}); copia fundo para não compartilhar estado.
@@ -45,6 +53,7 @@ static func from_dict(d: Dictionary) -> BalanceTables:
 	var bt := BalanceTables.new()
 	for n in d:
 		bt._tables[n] = (d[n] as Dictionary).duplicate(true)
+	bt._expand()
 	return bt
 
 

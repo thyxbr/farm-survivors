@@ -46,6 +46,10 @@ func test_roundtrip_matches_consts() -> void:
 			# o nível de equipar (level) nasceu depois do snapshot: compara sem ele; recompensas de missão
 			# rebaixadas de nível ganharam `named` (saem do sorteio de equipamento): sem ele onde o snapshot não tem
 			cur = cur.duplicate(true)
+			# variantes de qualidade do craft (parte 3) são geradas do item base: ficam de fora
+			for id in cur.keys():
+				if ItemQuality.quality(id) != "":
+					cur.erase(id)
 			var snap_items: Dictionary = (BalanceTables.decode(snap[n]) as Dictionary).duplicate(true)
 			for id in cur:
 				(cur[id] as Dictionary).erase("level")
@@ -70,6 +74,14 @@ func test_roundtrip_matches_consts() -> void:
 					(cur[id] as Dictionary).erase("objective")
 					(snap_quests[id] as Dictionary).erase("objective")
 			T.ok(cur == snap_quests, "tabela quests igual ao snapshot (sem level, reward_xp e region)")
+			continue
+		elif n == "recipes":
+			# o recipes.json passou a cobrir todas as estações (parte 3): a cozinha de antes é a visão
+			# {receita: ingredientes} das receitas da estação "kitchen"
+			var kitchen := {}
+			for rid in CraftRules.station_recipes(t, "kitchen"):
+				kitchen[rid] = CraftRules.ingredients(t, rid)
+			T.ok(kitchen == BalanceTables.decode(snap[n]), "receitas da cozinha iguais ao snapshot")
 			continue
 		elif n == "rules":
 			# a curva de XP foi para progression.json
