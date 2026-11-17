@@ -141,10 +141,37 @@ static func sim_hits(bt: BalanceTables, char_class: String, level: int) -> int:
 	return maxi(1, ceili(sim_enemy_hp(bt, level) / dmg - 0.000001))
 
 
-## Minutos para sair de `level` caçando o monstro de referência do mesmo nível: a parte da XP que não vem de
-## missão (1 − quest_xp_share), em abates de sim.ref_class (golpes × attack_interval + downtime_per_kill).
+static func _sim_bands(bt: BalanceTables) -> Array:
+	return _sim(bt).get("bands", [[1, 10], [10, 20], [20, 35], [35, 45], [45, 50]])
+
+
+## Fração da XP da faixa de `level` (sim.bands) que as missões de verdade dão: soma do reward_xp das missões
+## (quests.json) com nível na faixa ÷ XP para atravessar a faixa, no máximo quest_xp_share.
+## Nível fora das faixas: quest_xp_share.
+static func sim_quest_share(bt: BalanceTables, level: int) -> float:
+	var cap := float(_prog(bt).get("quest_xp_share", 0.0))
+	for band in _sim_bands(bt):
+		var lo := int(band[0])
+		var hi := int(band[1])
+		if level < lo or level >= hi:
+			continue
+		var need := 0
+		for l in range(lo, hi):
+			need += xp_to_next(bt, l)
+		var got := 0
+		var quests: Dictionary = bt.get_table("quests")
+		for id in quests:
+			var ql := int(quests[id].get("level", 1))
+			if ql >= lo and ql < hi:
+				got += int(quests[id].get("reward_xp", 0))
+		return minf(float(got) / float(maxi(need, 1)), cap)
+	return cap
+
+
+## Minutos para sair de `level` caçando o monstro de referência do mesmo nível: a parte da XP que as missões da
+## faixa não dão (1 − sim_quest_share), em abates de sim.ref_class (golpes × attack_interval + downtime_per_kill).
 static func sim_minutes(bt: BalanceTables, level: int) -> float:
-	var need := float(xp_to_next(bt, level)) * (1.0 - float(_prog(bt).get("quest_xp_share", 0.0)))
+	var need := float(xp_to_next(bt, level)) * (1.0 - sim_quest_share(bt, level))
 	var xp := maxi(sim_enemy_xp(bt, level), 1)
 	var s := _sim(bt)
 	var per_kill := float(sim_hits(bt, str(s.get("ref_class", "warrior")), level)) * float(s.get("attack_interval", 1.0)) \
@@ -155,7 +182,7 @@ static func sim_minutes(bt: BalanceTables, level: int) -> float:
 ## Horas por faixa de nível {"1-10": h, ...} (sim.bands: [de, até], soma os níveis de..até-1).
 static func sim_hours(bt: BalanceTables) -> Dictionary:
 	var out := {}
-	for band in _sim(bt).get("bands", [[1, 10], [10, 20], [20, 35], [35, 45], [45, 50]]):
+	for band in _sim_bands(bt):
 		var total := 0.0
 		for l in range(int(band[0]), int(band[1])):
 			total += sim_minutes(bt, l)

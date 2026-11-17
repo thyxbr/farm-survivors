@@ -3,7 +3,8 @@ extends SceneTree
 ##   - por nível: XP para o próximo, vida e XP do monstro de referência (sim.ref_enemy) no mesmo nível,
 ##     dano do ataque básico e golpes para matar de cada classe (build focada, melhor arma de nível <= L),
 ##     e os minutos estimados no nível;
-##   - por faixa: horas estimadas x alvo, e quanto da XP da faixa as missões dão;
+##   - por faixa: horas estimadas x alvo, e quanto da XP da faixa as missões do quests.json dão (o simulador
+##     desconta da caça essa fração, no máximo quest_xp_share);
 ##   - golpes do guerreiro em cada monstro do enemies.json em alguns níveis;
 ##   - itens por morte dos monstros comuns (meta 0,5-0,8).
 ## Uso (na raiz do projeto):
@@ -50,7 +51,7 @@ func _init() -> void:
 	var targets: Dictionary = sim.get("target_hours", {})
 	var quest_xp := _quest_xp_by_level(bt)
 	var total := 0.0
-	print("%8s %8s %8s %8s %14s" % ["faixa", "horas", "alvo", "desvio", "XP de missão"])
+	print("%8s %8s %8s %8s %14s %10s" % ["faixa", "horas", "alvo", "desvio", "XP de missão", "usada"])
 	for band in sim.get("bands", []):
 		var key := "%d-%d" % [int(band[0]), int(band[1])]
 		var h := float(hours.get(key, 0.0))
@@ -62,10 +63,11 @@ func _init() -> void:
 		for l in range(int(band[0]), int(band[1])):
 			need += ProgressionRules.xp_to_next(bt, l)
 			got += int(quest_xp.get(l, 0))
-		print("%8s %8.2f %8.1f %8s %13.0f%%" % [key, h, t, dev, 100.0 * float(got) / float(maxi(need, 1))])
+		print("%8s %8.2f %8.1f %8s %13.0f%% %9.0f%%" % [key, h, t, dev, 100.0 * float(got) / float(maxi(need, 1)),
+			100.0 * ProgressionRules.sim_quest_share(bt, int(band[0]))])
 	print("%8s %8.2f" % ["total", total])
 	print("(XP de missão: soma do reward_xp das missões com nível na faixa / XP para atravessar a faixa;")
-	print(" o simulador conta quest_xp_share = %.0f%% em todo nível.)" % (100.0 * float(prog.get("quest_xp_share", 0.0))))
+	print(" usada: o que o simulador desconta da caça, no máximo quest_xp_share = %.0f%%.)" % (100.0 * float(prog.get("quest_xp_share", 0.0))))
 
 	print("\n== Golpes do guerreiro (build focada) em cada monstro no mesmo nível ==")
 	var line := "%-20s %4s" % ["monstro", "ref"]

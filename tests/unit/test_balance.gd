@@ -43,10 +43,14 @@ func test_roundtrip_matches_consts() -> void:
 			T.ok(cur == snap_enemies, "tabela enemies igual ao snapshot das const (sem loot)")
 			continue
 		elif n == "items":
-			# o nível de equipar (level) nasceu depois do snapshot: compara sem ele
+			# o nível de equipar (level) nasceu depois do snapshot: compara sem ele; recompensas de missão
+			# rebaixadas de nível ganharam `named` (saem do sorteio de equipamento): sem ele onde o snapshot não tem
 			cur = cur.duplicate(true)
+			var snap_items: Dictionary = BalanceTables.decode(snap[n])
 			for id in cur:
 				(cur[id] as Dictionary).erase("level")
+				if snap_items.has(id) and not (snap_items[id] as Dictionary).has("named"):
+					(cur[id] as Dictionary).erase("named")
 		elif n == "quests":
 			# o nível da missão e o XP pela fatia do nível nasceram depois do snapshot: compara sem eles
 			cur = cur.duplicate(true)

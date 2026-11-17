@@ -4,8 +4,6 @@ extends RefCounted
 ## Se algum destes falhar depois de mexer em números, rode o simulador para ver onde:
 ##   godot --headless --path . -s tools/progression_sim.gd
 
-const HOURS_TARGET := {"1-10": 2.0, "10-20": 5.0, "20-35": 10.0, "35-45": 7.0, "45-50": 6.0}
-
 var _bt: BalanceTables
 
 
@@ -26,11 +24,14 @@ func test_hits_same_level() -> void:
 
 
 func test_hours_per_band() -> void:
-	var hours := ProgressionRules.sim_hours(_tables())
-	for band in HOURS_TARGET:
+	var bt := _tables()
+	var hours := ProgressionRules.sim_hours(bt)
+	var targets: Dictionary = bt.get_table("progression").sim.target_hours
+	T.eq(targets.size(), 5, "sim.target_hours tem as 5 faixas do design")
+	for band in targets:
 		T.ok(hours.has(band), "faixa %s no resultado" % band)
 		var h := float(hours.get(band, 0.0))
-		var t: float = HOURS_TARGET[band]
+		var t := float(targets[band])
 		T.ok(h >= t * 0.8 and h <= t * 1.2, "faixa %s: %.2f h (alvo %.0f h ±20%%)" % [band, h, t])
 
 

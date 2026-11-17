@@ -889,6 +889,7 @@
 		"type": "armor",
 		"rarity": "epic",
 		"level": 14,
+		"named": true,
 		"defense": 12,
 		"price": 300,
 		"color": {
@@ -1043,6 +1044,7 @@
 		"slot": "head",
 		"rarity": "epic",
 		"level": 14,
+		"named": true,
 		"defense": 5,
 		"price": 320,
 		"color": {
@@ -1129,6 +1131,7 @@
 		"slot": "hands",
 		"rarity": "uncommon",
 		"level": 3,
+		"named": true,
 		"defense": 2,
 		"price": 80,
 		"color": {
@@ -1346,6 +1349,7 @@
 		"slot": "amulet",
 		"rarity": "rare",
 		"level": 3,
+		"named": true,
 		"price": 220,
 		"color": {
 			"$c": [0.4, 0.6, 1.0, 1.0]

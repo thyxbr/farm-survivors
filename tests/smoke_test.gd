@@ -1057,6 +1057,7 @@ func _test_bow_gale() -> void:
 			if c is BowAbilities.GaleLine:
 				n += 1
 		return n
+	_calm_bystanders(gs, base, 40.0, 12.0)   # monstros com nível batem mais: nenhum outro chega no meio da tensão
 	place.call()
 	await wait(0.3)
 	place.call()
@@ -2818,6 +2819,7 @@ func _test_gear() -> void:
 	await wait(0.7)
 	check(player.ability == "", "Escudo de Luz termina a pose")
 	Game.clear_buffs(true)
+	_calm_bystanders([], player.global_position, 40.0, 6.0)   # com 5 de vida, qualquer golpe de fora derruba o teste
 	Game.fury = 0.0
 	player.cast("scepter_ult")
 	check(not Game.has_buff("scepter_feast") and player.ability == "", "Banquete do Herói exige a fúria cheia")
@@ -3196,6 +3198,14 @@ func _pick_levelups(check_weapon: bool) -> void:
 
 ## Alvo com a vida de hoje (data.hp, cheia): os monstros do vale nascem com nível sorteado na faixa do ponto,
 ## e a vida muda com o nível. As checagens de dano contam com a vida do tipo, não com a do nível sorteado.
+## Atordoa (sem andar nem golpear por `t` s) os monstros a até `radius` de `center` que não são alvos do teste:
+## a checagem fica só com os próprios alvos, sem depender de quem passa por perto.
+func _calm_bystanders(keep: Array, center: Vector3, radius: float, t: float) -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not e.dead and not (e in keep) and e.global_position.distance_to(center) < radius:
+			e.apply_stun(t)
+
+
 func _today(e: Enemy) -> Enemy:
 	e.max_hp = float(e.data.hp)
 	e.hp = e.max_hp

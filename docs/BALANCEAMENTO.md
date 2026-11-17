@@ -26,9 +26,9 @@ Nível máximo (50). No máximo a XP para de contar. Subir exige estender `xp_cu
 
 | Botão | Hoje | O que faz | Faixa segura |
 |---|---|---|---|
-| `base` | 240 | escala a curva toda (todas as faixas juntas). Tem de ser número inteiro | 150–400 |
-| `exp` | 2.1 | quanto os níveis altos custam a mais que os baixos | 1.8–2.4, **sempre perto de `enemy_curves.xp.exp`** |
-| `late` | 45: 1.4 … 49: 1.85 | multiplicador só desses níveis: a "parede" do fim | 1.0–2.5 cada |
+| `base` | 250 | escala a curva toda (todas as faixas juntas). Tem de ser número inteiro | 150–400 |
+| `exp` | 2.4 | quanto os níveis altos custam a mais que os baixos | 2.0–2.6, **sempre perto de `enemy_curves.xp.exp`** |
+| `late` | 45: 1.2 … 49: 1.6 | multiplicador só desses níveis: a "parede" do fim | 1.0–2.5 cada |
 
 `exp` e a curva de XP dos monstros andam juntos: o tempo num nível é "XP do nível ÷ XP do monstro". Se você sobe
 um e não o outro, o fim do jogo fica muito mais longo (ou curto) que o começo. Para deixar tudo mais longo ou
@@ -51,8 +51,8 @@ Para cada atributo, `curva(L) = (1 + rate × (L − 1))^exp`, e o monstro no ní
 |---|---|---|---|
 | `hp` | 0.24, 1.05 | colunas `g.*` (golpes): têm de ficar entre 3 e 5 | rate 0.20–0.30, exp 1.0–1.1 |
 | `dmg` | 0.08, 1.0 | (o simulador não mede) quantos golpes o jogador aguenta; hoje ~8 de um goblin do mesmo nível em qualquer nível, sem pontos em VIT | rate 0.05–0.12 |
-| `xp` | 0.18, 2.1 | coluna `xp mob` e as horas por faixa | exp perto de `xp_curve.exp` |
-| `gold` | 0.10, 1.0 | ouro por abate (não entra no simulador) | rate 0.05–0.15 |
+| `xp` | 0.28, 2.4 | coluna `xp mob` e as horas por faixa | exp perto de `xp_curve.exp` |
+| `gold` | 0.005, 1.0 | ouro por abate (não entra no simulador). Quase plano de propósito: no mesmo nível o abate dá o ouro de hoje (goblin nv 6 ~7,6; esqueleto nv 25 ~7,8); como cada abate leva mais golpes, o ouro por hora cai um pouco | rate 0–0.03 |
 
 O dano do jogador cresce quase em linha reta com o nível (3 pontos por nível × 1,4–1,6 de dano por ponto), por
 isso a vida usa expoente perto de 1. Vida subindo mais rápido que isso faz os golpes passarem de 5 no fim.
@@ -76,9 +76,15 @@ Vale para pontos com `elite` ligado no Inspector: `level_bonus` (níveis a mais,
 Itens com `named: true` nunca caem por aqui (só da lista do chefe ou de missão).
 
 ### `quest_xp_share`
-Que fração da XP de cada nível vem das missões (hoje 0.3 = 30%). O simulador desconta essa fração da XP que
-sai de monstros. O teste das missões exige que as missões até o nível 10 deem 20%–45% da XP dos níveis 1–9.
-Se mudar, rode o `set_quest_levels.py --write`.
+Que fração da XP de cada nível as missões devem dar (hoje 0.3 = 30%): entra no `reward_xp` que o
+`set_quest_levels.py` calcula. O simulador desconta da caça a XP que as missões **de verdade** dão em cada faixa
+(soma do `reward_xp` das missões com nível na faixa), no máximo `quest_xp_share`. Hoje: 1–10 30%, 10–20 28%,
+20–35 13%, 35–45 14%, 45–50 0% (quase não há missões acima do 20). O teste das missões exige que as missões até o
+nível 10 deem 20%–45% da XP dos níveis 1–9. Se mudar, rode o `set_quest_levels.py --write`.
+
+**Quando as partes 2–4 trouxerem missões novas (principalmente acima do nível 35)**, rode o
+`set_quest_levels.py --write`, depois o simulador: com mais XP de missão as faixas encurtam, e a curva
+(`xp_curve.base`) tem de ser recalibrada para voltar às horas alvo.
 
 ### `sim` — só o simulador (não muda o jogo)
 | Botão | Hoje | O que é |
@@ -89,7 +95,7 @@ Se mudar, rode o `set_quest_levels.py --write`.
 | `ref_enemy` | goblin | o monstro comum de referência |
 | `ref_class` | warrior | a classe que "caça" na conta das horas |
 | `bands` | [1,10] … [45,50] | as faixas somadas (de, até: soma os níveis de..até−1) |
-| `target_hours` | 2, 5, 10, 7, 6 | alvo que o simulador mostra ao lado (o teste usa os mesmos números) |
+| `target_hours` | 2, 5, 10, 7, 6 | horas alvo por faixa: o simulador mostra ao lado e o teste cobra ±20% |
 
 O simulador não conta os pontos de atributo dos ranks da guilda, comida, buffs, críticos nem as habilidades: é a
 build pura com o ataque básico. Por isso o jogo de verdade é um pouco mais rápido que a tabela.
@@ -98,9 +104,11 @@ build pura com o ataque básico. Por isso o jogo de verdade é um pouco mais rá
 
 - `hp`, `damage`, `xp`, `gold`: o monstro no seu `ref_level`. São também os números da **Horda** e da **Defesa
   da Cidade** (que criam monstros sem nível): mudar aqui muda lá.
-- `ref_level`: o nível em que os números acima valem. Hoje **2 para todos**, menos o Rei Goblin (12). Como todos
-  usam o mesmo, no mesmo nível a proporção entre os monstros é a do arquivo: o esqueleto (95 de vida) tem ~1,2× a
-  vida do goblin (80) em qualquer nível, o slime metade. Subir o `ref_level` de um tipo deixa ele **mais fraco**
+- `ref_level`: o nível em que os números acima valem. Hoje **2 para os monstros comuns**: como usam o mesmo, no
+  mesmo nível a proporção entre eles é a do arquivo (o esqueleto, 95 de vida, tem ~1,2× a vida do goblin, 80, em
+  qualquer nível; o slime metade). Chefes e elites têm o próprio: Goblin Dourado 4, Campeão Goblin 6, Cavaleiro
+  Esqueleto 6, Slime Rainha 6, Lich 10, Rei Goblin 12. Com eles, um personagem bem equipado do nível do ponto
+  leva ~10–35 golpes (Campeão ~10, Cavaleiro ~12, Rainha ~16, Lich ~33) e aguenta ~5–7 golpes deles. Subir o `ref_level` de um tipo deixa ele **mais fraco**
   em todos os níveis (o número do arquivo passa a valer num nível mais alto).
   O Rei Goblin nasce no próprio `ref_level` (ele não tem ponto no mapa); mudar esse número muda o nível dele.
 - `loot`: `[item, chance]`, cada linha sorteada à parte. Material da família (orelha, gosma, osso...) é o
@@ -118,7 +126,9 @@ missão, kit básico).
 - **Armas** decidem os golpes: o simulador escolhe a melhor arma não nomeada de nível ≤ L. Se uma classe pular de
   uma arma fraca para uma muito forte, os golpes caem para 3 ou menos naquele nível; espaçar o `level` das armas
   resolve. A última coluna do simulador mostra a arma escolhida por nível.
-- **Recompensa de missão** equipável: `level` ≤ nível da missão + 2, para dar para usar ao receber.
+- **Recompensa de missão** equipável: `level` ≤ nível da missão + 2, para dar para usar ao receber. Se isso põe o
+  item abaixo da faixa da raridade dele, marque `"named": true` para ele não cair de monstro (hoje: royal_plate,
+  knight_helm, sage_amulet, iron_gauntlets).
 - O `level` também decide em que monstros o item pode cair (`gear_drop.window`).
 
 ## `data/balance/quests.json` — `level` e `reward_xp` das missões
@@ -169,7 +179,7 @@ Depois rode os testes unitários:
 
 Receitas rápidas:
 
-- *Tudo está rápido demais (ou lento)*: `xp_curve.base` (ex.: 240 → 280 deixa todas as faixas ~17% mais longas).
+- *Tudo está rápido demais (ou lento)*: `xp_curve.base` (ex.: 250 → 290 deixa todas as faixas ~16% mais longas).
 - *O fim (45–50) está curto*: suba os `late`.
 - *Monstros morrem em 2–3 golpes*: suba `enemy_curves.hp.rate` (0.24 → 0.28). Em 6 ou mais: desça.
 - *Só uma classe destoa*: confira a arma escolhida na última coluna e o `level` das armas daquela classe.

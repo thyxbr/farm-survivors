@@ -641,7 +641,10 @@ func test_gold_scales_with_level() -> void:
 	for i in 1000:
 		lo += int(LootRules.roll(bt, "goblin", rng, "", 6).gold)
 		hi += int(LootRules.roll(bt, "goblin", rng, "", 30).gold)
-	T.ok(hi > 2 * lo, "ouro no nível 30 (%d) > 2x o do nível 6 (%d)" % [hi, lo])
+	# a razão segue a curva de ouro da tabela (a calibração mexe na taxa): ±10% do sorteio
+	var want := float(ProgressionRules.enemy_mults(bt, "goblin", 30).gold) / float(ProgressionRules.enemy_mults(bt, "goblin", 6).gold)
+	T.ok(hi > lo and absf(float(hi) / float(lo) - want) < want * 0.1,
+		"ouro no nível 30 (%d) / nível 6 (%d) segue a curva (%.2fx)" % [hi, lo, want])
 
 
 func test_roll_without_level_unchanged() -> void:

@@ -415,7 +415,7 @@
 				1.0
 			]
 		],
-		"ref_level": 2
+		"ref_level": 4
 	},
 	"goblin_campeao": {
 		"name": "Campeão Goblin",
@@ -466,7 +466,7 @@
 				1.0
 			]
 		],
-		"ref_level": 2
+		"ref_level": 6
 	},
 	"goblin_bruto": {
 		"name": "Goblin Bruto",
@@ -750,7 +750,7 @@
 				0.5
 			]
 		],
-		"ref_level": 2
+		"ref_level": 6
 	},
 	"goblin_bombardeiro": {
 		"name": "Goblin Bombardeiro",
@@ -902,7 +902,7 @@
 		],
 		"elite": true,
 		"slam_every": 3,
-		"ref_level": 2
+		"ref_level": 6
 	},
 	"lich": {
 		"name": "Morgrath, o Lich",
@@ -962,7 +962,7 @@
 		],
 		"boss": true,
 		"summon": "esqueleto",
-		"ref_level": 2
+		"ref_level": 10
 	},
 	"raptor_capim": {
 		"name": "Raptor-capim",
