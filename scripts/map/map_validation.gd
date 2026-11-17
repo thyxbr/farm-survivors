@@ -26,6 +26,10 @@ static func check(root: MapRoot) -> PackedStringArray:
 			out.append("%s: quantidade e raio não podem ser negativos" % at)
 		if s.respawn <= 0.0:
 			out.append("%s: respawn precisa ser maior que 0 (veio %.1f)" % [at, s.respawn])
+		# o vale: nenhum bando nasce colado na vila (a guarda abateria tudo e ninguém ganharia nada)
+		var gap := VillageWard.distance(s.position) - s.radius
+		if root.map_id == "vila" and not s.boss and gap < VillageWard.SPAWN_CLEARANCE:
+			out.append("%s: nasce a %.1f m da zona da guarda da vila (mínimo %.0f m)" % [at, gap, VillageWard.SPAWN_CLEARANCE])
 	var regions = JSON.parse_string(FileAccess.get_file_as_string(REGIONS))
 	for r: MapRegion in root.pieces(MapRegion):
 		var at := str(root.get_path_to(r))

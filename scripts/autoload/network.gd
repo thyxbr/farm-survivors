@@ -689,6 +689,12 @@ func server_enemy_killed(e: Enemy) -> void:
 		_enemy_died.rpc_id(pid, e.net_id)
 
 
+## Monstro abatido pela guarda da vila (Enemy.guard_kill): ninguém ganha nada, as réplicas só veem a morte.
+func server_enemy_guard_killed(e: Enemy) -> void:
+	for pid in _enemy_peers(e):
+		_enemy_guarded.rpc_id(pid, e.net_id)
+
+
 ## Inimigo que some sem morrer (guarda de covil que voltou a dormir): sem recompensa, só sai das réplicas.
 func server_enemy_despawn(e: Enemy) -> void:
 	if e.net_id == 0:
@@ -1357,6 +1363,15 @@ func _enemy_died(net_id: int) -> void:
 	enemies.erase(net_id)
 	if e and is_instance_valid(e) and not e.dead:
 		e.die_visual()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _enemy_guarded(net_id: int) -> void:
+	var e: Enemy = enemies.get(net_id)
+	enemies.erase(net_id)
+	if e and is_instance_valid(e) and not e.dead:
+		e.die_visual()
+		e.guard_fx()
 
 
 @rpc("authority", "call_remote", "reliable")
