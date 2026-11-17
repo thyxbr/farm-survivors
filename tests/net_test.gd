@@ -696,11 +696,21 @@ func _test_party(w: Node) -> void:
 		var lvl0 := Game.level
 		var target: Enemy = null
 		if my_name == "Ana":
-			# o slime vivo mais perto da chegada da vila (o dos campos, longe dos outros monstros); não depende da
-			# ordem em que os pontos estão na cena do mapa
+			# o slime vivo mais perto da chegada da vila (o dos campos); não depende da ordem em que os pontos estão
+			# na cena do mapa. Só slime de vida cheia e a mais de 10 m de Beto: com os bandos dos campos, um golpe
+			# de Beto no slime vizinho (ele espera ao lado do alvo da fase "near") o faria receber o abate de longe
 			var best := INF
+			var others: Array = []
+			for rp in Network.remote_players.values():
+				if is_instance_valid(rp):
+					others.append((rp as Node3D).global_position)
 			for e in Network.enemies.values():
-				if is_instance_valid(e) and e.kind == "slime" and not e.dead:
+				if not (is_instance_valid(e) and e.kind == "slime" and not e.dead and e.hp >= e.max_hp):
+					continue
+				var clear := true
+				for o in others:
+					clear = clear and (o as Vector3).distance_to(e.global_position) > 10.0
+				if clear:
 					var d: float = e.global_position.distance_to(Vector3(0, 0, 6))
 					if d < best:
 						best = d
