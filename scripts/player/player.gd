@@ -416,18 +416,26 @@ func _local_process(delta: float) -> void:
 		velocity.y = JUMP_VELOCITY
 	# com arco o botão direito mira: o mesmo clique não esquiva (a esquiva fica no Ctrl/Alt)
 	var aim_click: bool = look["class"] == "bow" and Input.is_action_just_pressed("aim")
+	# habilidade preparada: o clique esquerdo confirma em vez de dar o ataque básico
+	var armed_click := false
 	if heal_armed:
 		_update_heal_aim(delta)
-		if heal_armed and Input.is_action_just_pressed("aim"):
-			aim_click = true   # o botão direito confirma a Cura preparada: não esquiva
+		if heal_armed and Input.is_action_just_pressed("attack"):
+			armed_click = true   # esquerdo: cura quem está marcado (o aliado na mira; sem aliado, você)
 			confirm_heal(heal_target)
+		elif heal_armed and Input.is_action_just_pressed("aim"):
+			aim_click = true     # direito: cura em você mesmo (e não esquiva)
+			confirm_heal(null)
 		elif heal_armed and Input.is_action_just_pressed("dodge"):
-			_disarm_heal()     # esquiva pelo teclado desiste da Cura
+			_disarm_heal()       # esquiva pelo teclado desiste da Cura
 	if area_armed != "":
 		_update_area_aim(delta)
-		if area_armed != "" and Input.is_action_just_pressed("aim"):
-			aim_click = true   # o botão direito solta a habilidade na área: não esquiva
+		if area_armed != "" and Input.is_action_just_pressed("attack"):
+			armed_click = true   # esquerdo: solta a habilidade no círculo
 			confirm_area()
+		elif area_armed != "" and Input.is_action_just_pressed("aim"):
+			aim_click = true     # direito: desiste (e não esquiva)
+			_disarm_area()
 		elif area_armed != "" and Input.is_action_just_pressed("dodge"):
 			_disarm_area()
 	if Input.is_action_just_pressed("dodge") and not aim_click:
@@ -438,7 +446,7 @@ func _local_process(delta: float) -> void:
 		pass   # habilidade em execução: sem ataque nem arco
 	elif look["class"] == "bow":
 		_update_bow(delta)
-	elif Input.is_action_just_pressed("attack"):
+	elif Input.is_action_just_pressed("attack") and not armed_click:
 		_try_attack()
 	for i in ItemDB.SLOT_COUNT:
 		if Input.is_action_just_pressed("spell_%d" % (i + 1)):
@@ -1007,7 +1015,8 @@ func receive_heal(amount: float) -> void:
 # ------------------------------------------------------------ Cura com mira
 ## A tecla da Cura prepara a magia (mãos brilhando); enquanto preparada, o aliado mais perto do centro da
 ## mira (até HEAL_RANGE m, à vista) ganha a borda verde (TargetHighlight) — sem aliado na mira, a borda fica
-## em você. O botão direito confirma: cura quem está marcado. A tecla de novo, a esquiva pelo teclado,
+## em você. O clique esquerdo confirma: cura quem está marcado (não dá o ataque básico); o botão direito
+## cura sempre você mesmo. A tecla de novo, a esquiva pelo teclado,
 ## uma habilidade, a morte ou HEAL_ARM_TIME s sem confirmar desistem (sem gastar mana nem recarga).
 const HEAL_RANGE := 25.0
 const HEAL_ARM_TIME := 8.0
@@ -1028,7 +1037,7 @@ func _arm_heal() -> void:
 	Sfx.play("arcane_cast", 0.1, -12.0)
 	if not _heal_hint_done:
 		_heal_hint_done = true
-		Game.notify.emit("Cura pronta: mire num aliado e clique com o botão direito (sem aliado, cura você)", Color(0.55, 1.0, 0.6))
+		Game.notify.emit("Cura pronta: clique esquerdo cura o aliado na mira · botão direito cura você", Color(0.55, 1.0, 0.6))
 
 
 func _disarm_heal() -> void:
@@ -1122,7 +1131,8 @@ func confirm_heal(target: Node3D = null) -> void:
 
 # ------------------------------------------------------------ habilidade com mira no chão
 ## Habilidades com `aim: "ground"` (ItemDB.ABILITIES): a tecla prepara e mostra o círculo no chão onde a
-## câmera aponta, limitado a `aim_range` m do jogador; o botão direito confirma e a habilidade cai ali
+## câmera aponta, limitado a `aim_range` m do jogador; o clique esquerdo confirma (em vez do ataque
+## básico) e a habilidade cai ali; o botão direito desiste
 ## (o módulo da classe lê `area_point`). A tecla de novo, outra habilidade, a esquiva pelo teclado, a morte
 ## ou AREA_ARM_TIME s sem confirmar desistem (sem gastar mana nem recarga).
 const AREA_ARM_TIME := 8.0
@@ -1146,7 +1156,7 @@ func _arm_area(id: String) -> void:
 	Sfx.play("arcane_cast", 0.1, -12.0)
 	if not _area_hint_done:
 		_area_hint_done = true
-		Game.notify.emit("Escolha onde a habilidade cai e clique com o botão direito", Color(1.0, 0.87, 0.4))
+		Game.notify.emit("Escolha onde a habilidade cai: clique esquerdo confirma · botão direito cancela", Color(1.0, 0.87, 0.4))
 
 
 func _disarm_area() -> void:

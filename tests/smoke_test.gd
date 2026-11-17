@@ -3088,9 +3088,13 @@ func _test_gear() -> void:
 	check(player.area_armed == "" and player._area_mark == null and Game.mp >= jud_mp - 0.01, "a mesma tecla de novo desiste sem gastar")
 	player.use_slot(5)
 	jud_mp = Game.mp
-	player.confirm_area()
-	check(player.area_armed == "" and player.ability == "scepter_judgment", "confirmar solta o Julgamento de Luz")
-	check(is_equal_approx(jud_mp - Game.mp, 28.0) and player.cooldowns.scepter_judgment > 0.0, "Julgamento de Luz gasta 28 de mana e entra em recarga")
+	player.attacking = false
+	Input.action_press("attack")   # clique esquerdo com a área preparada: confirma, não dá o ataque básico
+	await wait_until(func(): return player.area_armed == "", 1.0)
+	Input.action_release("attack")
+	check(player.area_armed == "" and player.ability == "scepter_judgment", "clique esquerdo solta o Julgamento de Luz")
+	check(not player.attacking, "o clique que confirma não dá o ataque básico")
+	check(absf(jud_mp - Game.mp - 28.0) < 1.5 and player.cooldowns.scepter_judgment > 0.0, "Julgamento de Luz gasta 28 de mana e entra em recarga")
 	check(not Game.has_buff("scepter_ward"), "Julgamento de Luz não dá o Escudo de Luz")
 	await wait(0.7)
 	check(player.ability == "", "Julgamento de Luz termina a pose")
