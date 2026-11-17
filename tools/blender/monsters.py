@@ -2,7 +2,8 @@
 # Executado por exec() dentro de build_assets.py, depois de characters.py (usa mat, empty, export, tbox, limb,
 # shell, ring, cloth, pouch, strap, hexc, human_head, hair_locks, sec, loft, span, grow, dome, PI).
 #
-# Pivôs animados por scripts/enemies/enemy.gd: LegL, LegR, Body, Head, ArmL, ArmR.
+# Pivôs animados por scripts/enemies/enemy.gd: LegL, LegR, Body, Head, ArmL, ArmR e, dentro dos braços, ElbowL e
+# ElbowR (antebraço, mão e a arma da mão).
 # Peças opcionais: todo nó "Opt_<Nome>" é equipamento de variante. data/balance/enemies.json diz em "gear"
 # quais ficam (nomes sem o prefixo) e EnemyGear.apply remove o resto ao instanciar. Uma variante nova que só
 # troca equipamento é só uma linha no JSON.
@@ -191,21 +192,25 @@ def build_goblin():
                     sec(elbow, 0.04, 0.042),
                     sec((sx + s * 0.062, 0.005, 0.64), 0.052, 0.054),
                     sec((sx + s * 0.06, -0.03, 0.53), 0.034, 0.037)]
-        loft(side + "_Arm", arm_secs, gskin, arm, sides=6, chamfer=(0.014, 0.0))
+        # cotovelo (ElbowL/ElbowR): o antebraço, a mão e o que ela segura dobram juntos (IK do arco e do cajado)
+        fore = empty("Elbow" + side[-1], tuple(elbow), arm)
+        loft(side + "_Arm", arm_secs[:3], gskin, arm, sides=6, chamfer=(0.014, 0.0))
+        loft(side + "_Forearm", [sec(elbow, 0.043, 0.045)] + arm_secs[3:], gskin, fore, sides=6, chamfer=(0.0, 0.0))
+        tbox(side + "_ElbowCap", tuple(elbow), (0.07, 0.07, 0.07), gskin, bevel=0.02, parent=fore)
         tbox(side + "_Elbow", (elbow.x, elbow.y + 0.034, elbow.z), (0.05, 0.03, 0.055), gskin_l, bevel=0.01, parent=arm)
-        loft(side + "_Wrap", grow(span(arm_secs, 0.7, 0.93), add=0.007), cloth_m, arm, sides=6)
-        loft(side + "_WrapTrim", grow(span(arm_secs, 0.69, 0.73), add=0.012), cloth_d, arm, sides=6)
+        loft(side + "_Wrap", grow(span(arm_secs, 0.7, 0.93), add=0.007), cloth_m, fore, sides=6)
+        loft(side + "_WrapTrim", grow(span(arm_secs, 0.69, 0.73), add=0.012), cloth_d, fore, sides=6)
         hx, hy, hz = sx + s * 0.06, -0.04, 0.475
-        hands[side] = (arm, hx, hy, hz, s)
-        tbox(side + "_Hand", (hx, hy, hz), (0.06, 0.095, 0.085), gskin, bottom=(0.9, 0.85), bevel=0.014, parent=arm)
+        hands[side] = (fore, hx, hy, hz, s)
+        tbox(side + "_Hand", (hx, hy, hz), (0.06, 0.095, 0.085), gskin, bottom=(0.9, 0.85), bevel=0.014, parent=fore)
         tbox(side + "_Thumb", (hx - s * 0.036, hy - 0.03, hz + 0.005), (0.024, 0.03, 0.05), gskin, bevel=0.008,
-             rot=(0.3, 0, 0), parent=arm)
+             rot=(0.3, 0, 0), parent=fore)
         for k in range(3):
             y = hy - 0.034 + k * 0.034
             limb(side + "_Finger%d" % k, (hx, y, hz - 0.035), (hx - s * 0.006, y - 0.004, hz - 0.075), 0.017, 0.013, gskin,
-                 sides=4, parent=arm)
+                 sides=4, parent=fore)
             limb(side + "_Claw%d" % k, (hx - s * 0.006, y - 0.004, hz - 0.07), (hx - s * 0.02, y - 0.012, hz - 0.115),
-                 0.011, 0.002, bone, sides=4, parent=arm)
+                 0.011, 0.002, bone, sides=4, parent=fore)
 
     arm_r, hx, hy, hz, _ = hands["ArmR"]
     arm_l, lx, ly, lz, _ = hands["ArmL"]
@@ -493,21 +498,22 @@ def build_skeleton():
         elbow = Vector((sx + s * 0.03, 0.025, 1.09))
         wrist = Vector((sx + s * 0.04, -0.035, 0.85))
         limb(side + "_Humerus", (sx, 0, SH), elbow, 0.024, 0.019, bone, sides=6, parent=arm)
-        knob(side + "_Elbow", elbow, 0.03, arm)
+        fore = empty("Elbow" + side[-1], tuple(elbow), arm)  # cotovelo: antebraço e mão dobram juntos
+        knob(side + "_Elbow", elbow, 0.03, fore)
         limb(side + "_Radius", elbow + Vector((s * 0.012, 0, 0)), wrist + Vector((s * 0.014, 0, 0)), 0.014, 0.012, bone,
-             sides=5, parent=arm)
+             sides=5, parent=fore)
         limb(side + "_Ulna", elbow + Vector((-s * 0.012, 0.006, 0)), wrist + Vector((-s * 0.012, 0.004, 0)), 0.012, 0.01,
-             bone_d, sides=4, parent=arm)
-        knob(side + "_Wrist", wrist, 0.024, arm)
+             bone_d, sides=4, parent=fore)
+        knob(side + "_Wrist", wrist, 0.024, fore)
         hx, hy, hz = wrist.x, wrist.y - 0.008, wrist.z - 0.055
-        hands[side] = (arm, hx, hy, hz, s)
-        tbox(side + "_Palm", (hx, hy, hz + 0.01), (0.03, 0.075, 0.06), bone, bevel=0.008, parent=arm)
+        hands[side] = (fore, hx, hy, hz, s)
+        tbox(side + "_Palm", (hx, hy, hz + 0.01), (0.03, 0.075, 0.06), bone, bevel=0.008, parent=fore)
         limb(side + "_Thumb", (hx - s * 0.012, hy - 0.035, hz + 0.02), (hx - s * 0.034, hy - 0.055, hz - 0.02), 0.01, 0.006,
-             bone_l, sides=4, parent=arm)
+             bone_l, sides=4, parent=fore)
         for k in range(4):
             y = hy - 0.03 + k * 0.02
             limb(side + "_Finger%d" % k, (hx, y, hz - 0.02), (hx - s * 0.014, y - 0.004, hz - 0.085), 0.009, 0.005, bone_l,
-                 sides=4, parent=arm)
+                 sides=4, parent=fore)
 
     arm_r, hx, hy, hz, _ = hands["ArmR"]
     arm_l, lx, ly, lz, _ = hands["ArmL"]

@@ -1013,6 +1013,8 @@ func _ready() -> void:
 	await _test_tecela_web()
 	await _test_bocarrao_tongue()
 	await _test_flor_rooted()
+	await _test_enemy_detour()
+	await _test_archer_pose()
 	await _test_survival()
 	await _test_update()
 	await _test_char_create()   # por último: troca o personagem solo por um novo, sem classe
@@ -1986,6 +1988,106 @@ func _test_bocarrao_tongue() -> void:
 	var d1: float = Vector2(player.global_position.x - e.global_position.x, player.global_position.z - e.global_position.z).length()
 	check(d1 < d0 - 0.4, "Bocarrão: a língua puxa o jogador para perto (%.1f m -> %.1f m)" % [d0, d1])
 	e.queue_free()
+	Game.hp = Game.max_hp()
+	player.global_position = back
+	await wait(0.1)
+
+
+## Obstáculo de teste (como as árvores e pedras do mapa: StaticBody na camada 1). shape "cyl" = tronco.
+func _obstacle(at: Vector3, shape: String, size: Vector3) -> StaticBody3D:
+	var body := StaticBody3D.new()
+	body.collision_mask = 0
+	var cs := CollisionShape3D.new()
+	if shape == "cyl":
+		var c := CylinderShape3D.new()
+		c.radius = size.x
+		c.height = size.y
+		cs.shape = c
+	else:
+		var b := BoxShape3D.new()
+		b.size = size
+		cs.shape = b
+	cs.position.y = size.y / 2.0
+	body.add_child(cs)
+	world.add_child(body)
+	body.global_position = at
+	return body
+
+
+## Monstro com um tronco ou um muro bem no meio do caminho: contorna e chega no jogador (antes ficava
+## empurrando o obstáculo para sempre).
+func _test_enemy_detour() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 80)
+	player.global_position = spot
+	player.invuln = 99.0
+	for case in [["cyl", Vector3(0.6, 3.0, 0.6)], ["box", Vector3(4.0, 2.5, 0.8)]]:
+		var wall := _obstacle(spot + Vector3(0, -0.3, -3.6), case[0], case[1])
+		var e := Enemy.new()
+		e.kind = "goblin"
+		world.add_child(e)
+		e.global_position = spot + Vector3(0, 0, -7.5)
+		e.home = e.global_position
+		await wait(0.1)
+		e._set_state("chase")
+		var reached := await _until(func() -> bool:
+			return Vector2(e.global_position.x - spot.x, e.global_position.z - spot.z).length() < e.data.reach + 0.3, 7.0)
+		check(reached, "goblin contorna o %s no caminho (ficou a %.1f m)" % ["tronco" if case[0] == "cyl" else "muro",
+			Vector2(e.global_position.x - spot.x, e.global_position.z - spot.z).length()])
+		e.queue_free()
+		wall.queue_free()
+		await wait(0.1)
+	player.invuln = 0.0
+	Game.hp = Game.max_hp()
+	player.global_position = back
+	await wait(0.1)
+
+
+## Arqueiro: o arco fica em pé na mão esquerda esticada para o alvo e a flecha encaixada aparece puxando; com
+## um muro no meio não atira (anda de lado até abrir a linha) e, livre, atira e acerta.
+func _test_archer_pose() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 100)
+	player.global_position = spot
+	player.invuln = 99.0
+	var arrows := preload("res://scripts/enemies/enemy_arrow.gd")
+	var e := Enemy.new()
+	e.kind = "goblin_arqueiro"
+	world.add_child(e)
+	e.global_position = spot + Vector3(0, 0, -9)
+	e.home = e.global_position
+	await wait(0.2)
+	check(e.weapon == "bow" and e.parts.get("ElbowL") != null and not e._rig.is_empty(), "arqueiro: cotovelos e arco no modelo")
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack" and e.attack_timer > 0.5, 4.0)
+	var bow: Node3D = e.parts.Bow
+	var upright: float = bow.global_basis.y.normalized().dot(Vector3.UP)
+	var to_p := (player.global_position - bow.global_position) * Vector3(1, 0, 1)
+	var arm_out: float = (bow.global_position - (e.parts.ArmL as Node3D).global_position).normalized().dot(to_p.normalized())
+	check(upright > 0.85, "arqueiro: arco em pé ao puxar (%.2f)" % upright)
+	check(arm_out > 0.7, "arqueiro: braço do arco esticado para o alvo (%.2f)" % arm_out)
+	if e.parts.get("Nock") != null:
+		check(e.parts.Nock.visible, "arqueiro: flecha encaixada enquanto puxa a corda")
+	# muro entre os dois: não atira até sair de trás dele
+	await wait(1.0)
+	var wall := _obstacle(spot + Vector3(0, -0.3, -4.5), "box", Vector3(3.0, 3.0, 0.6))
+	for c in world.get_children():
+		if c.get_script() == arrows:
+			c.queue_free()
+	await wait(0.05)
+	e.global_position = spot + Vector3(0, 0, -9)
+	e.attack_cd = 0.0
+	e._los_t = 0.0
+	e._set_state("chase")
+	var hidden_shot := await _until(func() -> bool:
+		return _count_script(world, arrows) > 0 and absf(e.global_position.x - spot.x) < 1.2, 1.5)
+	check(not hidden_shot, "arqueiro não atira com um muro na frente")
+	var free := await _until(func() -> bool: return _count_script(world, arrows) > 0, 8.0)
+	check(free, "arqueiro anda de lado, abre a linha e atira (x = %.1f)" % (e.global_position.x - spot.x))
+	wall.queue_free()
+	e.queue_free()
+	player.invuln = 0.0
 	Game.hp = Game.max_hp()
 	player.global_position = back
 	await wait(0.1)

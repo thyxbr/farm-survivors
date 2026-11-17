@@ -108,6 +108,10 @@ var web_cd := 0.0
 ## Bocarrão: até onde a língua vai no ataque em curso (só para o desenho).
 var tongue_len := 0.0
 const SPIDER_PARTS := ["Abdomen", "Leg0L", "Leg1L", "Leg2L", "Leg3L", "Leg0R", "Leg1R", "Leg2R", "Leg3R"]
+## Goblin e esqueleto: "bow", "staff" ou "" (EnemyPose) e as medidas dos braços para o IK.
+var weapon := ""
+var _rig := {}
+static var _nock_mesh: Mesh
 
 
 func _ready() -> void:
@@ -160,6 +164,15 @@ func _ready() -> void:
 			parts[n] = model.find_child(n, true, false)
 	for n in ["Tongue", "VineL", "VineR", "WingL", "WingR"]:   # Bocarrão, Flor-faminta e Asa-couro
 		parts[n] = model.find_child(n, true, false)
+	if data.model in ["goblin", "skeleton"]:   # cotovelos, arco e cajado (EnemyPose)
+		for n in ["ElbowL", "ElbowR"]:
+			parts[n] = model.find_child(n, true, false)
+		parts["Bow"] = model.find_child("Opt_Bow", true, false)
+		parts["Staff"] = model.find_child("Opt_Staff", true, false)
+		weapon = EnemyPose.weapon_of(data.get("gear", []))
+		_rig = EnemyPose.rig(parts)
+		if weapon == "bow" and parts.Body and DisplayServer.get_name() != "headless":
+			parts["Nock"] = _make_nock(parts.Body)
 	for mi: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
 		if not mi.is_in_group(ToonLook.OUTLINE_GROUP):      # a casca de contorno não pisca nem tinge
 			meshes.append(mi)
@@ -225,6 +238,45 @@ func _make_elite_glow() -> void:
 	light.omni_range = 3.5
 	light.position.y = 1.0
 	add_child(light)
+
+
+## Flecha encaixada no arco enquanto o arqueiro puxa a corda (EnemyPose posiciona; some ao soltar).
+## Haste ao longo do eixo y, com a ponta em +y.
+func _make_nock(body: Node3D) -> MeshInstance3D:
+	if _nock_mesh == null:
+		var shaft := CylinderMesh.new()
+		shaft.top_radius = 0.011
+		shaft.bottom_radius = 0.011
+		shaft.height = EnemyPose.ARROW_LEN
+		shaft.radial_segments = 5
+		shaft.rings = 1
+		var tip := CylinderMesh.new()
+		tip.top_radius = 0.0
+		tip.bottom_radius = 0.026
+		tip.height = 0.07
+		tip.radial_segments = 5
+		tip.rings = 1
+		var wood := StandardMaterial3D.new()
+		wood.albedo_color = Color(0.45, 0.3, 0.15)
+		var iron := StandardMaterial3D.new()
+		iron.albedo_color = Color(0.72, 0.72, 0.78)
+		var m := ArrayMesh.new()
+		var st := SurfaceTool.new()
+		st.append_from(shaft, 0, Transform3D.IDENTITY)
+		st.commit(m)
+		m.surface_set_material(0, wood)
+		st = SurfaceTool.new()
+		st.append_from(tip, 0, Transform3D(Basis(), Vector3(0, EnemyPose.ARROW_LEN * 0.5, 0)))
+		st.commit(m)
+		m.surface_set_material(1, iron)
+		_nock_mesh = m
+	var mi := MeshInstance3D.new()
+	mi.name = "Nock"
+	mi.mesh = _nock_mesh
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.visible = false
+	body.add_child(mi)
+	return mi
 
 
 func _exit_tree() -> void:
@@ -411,6 +463,8 @@ func _physics_process(delta: float) -> void:
 		to_player.y = 0
 		dist = to_player.length()
 
+	_track_target(player, delta)
+
 	var spd: float = data.speed * speed_mult * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0)
 	var move := Vector3.ZERO
 	var face := Vector3.ZERO
@@ -428,7 +482,7 @@ func _physics_process(delta: float) -> void:
 			to.y = 0
 			if dist < data.aggro:
 				_set_state("chase")
-			elif to.length() < 0.6 or state_timer > 6.0:
+			elif to.length() < 0.6 or state_timer > 6.0 or _stuck_t > 0.4:
 				state_timer = randf_range(2.0, 4.5)
 				state = "idle"
 			else:
@@ -452,6 +506,11 @@ func _physics_process(delta: float) -> void:
 			elif global_position.distance_to(home) > 45.0 \
 					or (dist > data.aggro * 1.9 and provoked <= 0.0):
 				_set_state("return")
+			elif ai() == "ranged" or ai() == "caster":
+				# arqueiro e mago no mundo: guardam distância, rodeiam e só atiram com o caminho livre
+				var r := _ranged_move(to_player, dist, spd)
+				move = r[0]
+				face = r[1]
 			elif (dist <= data.reach or _web_ready(dist)) and attack_cd <= 0:
 				_begin_attack(dist)
 			elif dist > data.reach * 0.8:
@@ -460,7 +519,7 @@ func _physics_process(delta: float) -> void:
 				elif ai() == "flyer":
 					move = _fly_dir(to_player, dist) * spd
 				else:
-					move = to_player.normalized() * spd
+					move = _flank_dir(to_player, dist) * spd
 			if face == Vector3.ZERO:
 				face = to_player
 		"return":
@@ -478,21 +537,29 @@ func _physics_process(delta: float) -> void:
 			_update_attack(delta, player, to_player, dist)
 			if attack_kind == "lunge" and attack_timer > 0.35 and attack_timer < 0.6:
 				move = model_forward() * spd * (2.0 if ai() in ["pack", "weaver", "flyer"] else 3.2)
-			elif dist < INF and (attack_timer < 0.35 or ((attack_kind in ["shoot", "web", "tongue"])
+			elif dist < INF and (attack_timer < 0.35 or ((attack_kind in ["shoot", "web", "tongue", "cast"])
 					and attack_timer < _hit_time())):
-				face = to_player
+				face = _aim_dir(to_player, dist) if attack_kind == "shoot" else to_player
+			# golpe comum: dá um passo para dentro enquanto arma, para o golpe não sair no vazio
+			if attack_kind in ["swing", "slam"] and attack_timer < _hit_time() and dist > data.reach * 0.6 \
+					and dist < data.reach * 1.8 and ai() != "plant":
+				move = to_player.normalized() * spd * 0.45
 
 	if stagger > 0:
 		move = Vector3.ZERO
+	elif state in ["chase", "wander", "return"]:
+		move = _steer(move, delta)
 	if face == Vector3.ZERO and move.length() > 0.1:
 		face = move
 	if face.length() > 0.01:
-		model.rotation.y = lerp_angle(model.rotation.y, atan2(face.x, face.z), 8.0 * delta)
+		var turn := 14.0 if state == "attack" and attack_kind == "shoot" else 9.0
+		model.rotation.y = lerp_angle(model.rotation.y, atan2(face.x, face.z), turn * delta)
 
 	var accel := 30.0
 	velocity.x = move_toward(velocity.x, move.x, accel * delta)
 	velocity.z = move_toward(velocity.z, move.z, accel * delta)
 	move_and_slide()
+	_check_stuck(move, delta)
 	_animate(delta, Vector2(velocity.x, velocity.z).length())
 	if bar_root and bar_root.visible:
 		bar_fg.scale.x = max(0.001, hp / max_hp)
@@ -580,13 +647,19 @@ func _ranged_move(to_player: Vector3, dist: float, spd: float) -> Array:
 				move = (move.normalized() + to_c.normalized() * 1.6).normalized() * spd
 		return [move, move if move.length() > 0.1 else dir]
 	var keep: float = data.get("keep", 7.0)
+	# rodeia trocando de lado de tempos em tempos (cada um no seu ritmo), em vez de ficar parado na mira
+	if fmod(born_t + float(_uid() % 7), 7.0) > 4.0:
+		side = -side
+	var clear := ai() != "ranged" or _line_clear(dist)
 	if dist < keep * 0.7:
 		move = (-dir + side * 0.4).normalized() * spd * 0.9
 	elif dist > data.reach * 0.85:
 		move = dir * spd
+	elif not clear:
+		move = (side + dir * 0.3).normalized() * spd * 0.8   # árvore ou pedra no meio: anda de lado até abrir a linha
 	else:
 		move = side * spd * 0.35
-	if dist <= data.reach and attack_cd <= 0:
+	if dist <= data.reach and attack_cd <= 0 and clear:
 		_begin_attack()
 		move = Vector3.ZERO
 	return [move, dir]
@@ -610,6 +683,177 @@ func _fly_dir(to_player: Vector3, dist: float) -> Vector3:
 	var side := 1.0 if (net_id if net_id != 0 else get_instance_id()) % 2 == 0 else -1.0
 	var ang := side * 0.9 * clampf((dist - data.reach * 1.3) / 5.0, 0.0, 1.0)
 	return to_player.normalized().rotated(Vector3.UP, ang + sin(born_t * 1.3) * 0.25)
+
+
+func _uid() -> int:
+	return net_id if net_id != 0 else get_instance_id()
+
+
+## Corpo a corpo comum no mundo: de longe, cada um chega por um ângulo um pouco diferente (o grupo abre em
+## leque e cerca em vez de vir em fila, um atrás do outro); perto, vai reto.
+func _flank_dir(to_player: Vector3, dist: float) -> Vector3:
+	var dir := to_player.normalized()
+	if horde:
+		return dir
+	var ang: float = [0.0, 0.45, -0.45][_uid() % 3] * clampf((dist - data.reach * 2.0) / 6.0, 0.0, 1.0)
+	return dir.rotated(Vector3.UP, ang)
+
+
+# ------------------------------------------------------------ desvio de obstáculos
+## Antes o monstro andava em linha reta até o alvo e ficava empurrando o tronco da árvore (não existe malha de
+## navegação no mundo). Agora, a cada STEER_EVERY segundos, dois raios paralelos (largura do corpo) olham à
+## frente; com o caminho fechado, ele escolhe um lado e gira a direção até achar passagem, e mantém esse lado
+## enquanto contorna (sem ficar indo e voltando). Encostado no obstáculo, escorrega pela borda; se mesmo assim
+## não sai do lugar, troca de lado (_check_stuck).
+const STEER_EVERY := 0.15
+const STEER_ANGLES := [0.45, 0.85, 1.25, 1.7, 2.2]
+const STEER_HEIGHT := 0.45     # altura dos raios: acima dos degraus do chão, abaixo da copa das árvores
+var _steer_t := 0.0
+var _steer_ang := 0.0          # quanto a direção desejada gira (rad) até a próxima conferência
+var _detour := 0               # lado do contorno: 1 (esquerda), -1 (direita), 0 = caminho livre
+var _stuck_t := 0.0
+var _unstick_t := 0.0
+var _los_t := 0.0
+var _los_ok := true
+## Alvo atual e a velocidade estimada dele (para a flecha mirar adiante).
+var _tgt: Player = null
+var _tgt_prev := Vector3.ZERO
+var _tgt_vel := Vector3.ZERO
+
+
+func _steer(move: Vector3, delta: float) -> Vector3:
+	var spd := Vector2(move.x, move.z).length()
+	if spd < 0.05 or data.speed <= 0.0:
+		return move
+	var dir := Vector3(move.x, 0.0, move.z) / spd
+	_unstick_t = maxf(0.0, _unstick_t - delta)
+	_steer_t -= delta
+	if _steer_t <= 0.0:
+		_steer_t = STEER_EVERY * randf_range(0.8, 1.25)
+		_steer_ang = _pick_angle(dir, spd)
+	var out := dir.rotated(Vector3.UP, _steer_ang)
+	var n := _blocking_normal()
+	if n != Vector3.ZERO and out.dot(n) < 0.0:
+		# encostado: segue a borda do obstáculo para o lado do contorno
+		var along := out.slide(n)
+		if along.length() < 0.35:
+			if _detour == 0:
+				_detour = 1 if Vector3.UP.cross(dir).dot(n.cross(Vector3.UP)) >= 0.0 else -1
+			along = Vector3.UP.cross(dir) * float(_detour)
+			along = along.slide(n)
+		out = (along.normalized() + n * 0.2).normalized()
+	return Vector3(out.x * spd, move.y, out.z * spd)
+
+
+func _pick_angle(dir: Vector3, spd: float) -> float:
+	if _unstick_t > 0.0:
+		return _steer_ang
+	var look := clampf(radius + 0.9 + spd * 0.3, 1.4, 3.4)
+	if _free(dir, look) >= 0.999:
+		_detour = 0
+		return 0.0
+	if _detour == 0:
+		var l := _free(dir.rotated(Vector3.UP, 0.8), look)
+		var r := _free(dir.rotated(Vector3.UP, -0.8), look)
+		if absf(l - r) > 0.05:
+			_detour = 1 if l > r else -1
+		else:
+			_detour = 1 if _uid() % 2 == 0 else -1
+	for a: float in STEER_ANGLES:
+		if _free(dir.rotated(Vector3.UP, a * _detour), look * 0.8) >= 0.999:
+			return a * _detour
+	for a: float in STEER_ANGLES:
+		if _free(dir.rotated(Vector3.UP, -a * _detour), look * 0.8) >= 0.999:
+			_detour = -_detour
+			return a * _detour
+	return 2.2 * _detour
+
+
+## Fração livre (0..1) do caminho `dir` até `dist` metros, com dois raios na largura do corpo. Batidas no chão
+## (normal para cima: rampa, morro) não contam.
+func _free(dir: Vector3, dist: float) -> float:
+	var space := get_world_3d().direct_space_state
+	var side := Vector3.UP.cross(dir).normalized() * radius * 0.85
+	var best := 1.0
+	for off in [side, -side]:
+		var from: Vector3 = global_position + Vector3.UP * STEER_HEIGHT + off
+		var q := PhysicsRayQueryParameters3D.create(from, from + dir * dist, 1, [get_rid()])
+		var hit := space.intersect_ray(q)
+		if hit.is_empty() or (hit.normal as Vector3).y > 0.6:
+			continue
+		best = minf(best, from.distance_to(hit.position) / dist)
+	return best
+
+
+## Normal (horizontal) do que o monstro empurra agora: obstáculo do mapa ou outro monstro (não o jogador).
+func _blocking_normal() -> Vector3:
+	var sum := Vector3.ZERO
+	for i in get_slide_collision_count():
+		var c := get_slide_collision(i)
+		if c.get_collider() is Player:
+			continue
+		var n := c.get_normal()
+		if absf(n.y) < 0.5:
+			sum += Vector3(n.x, 0.0, n.z)
+	return sum.normalized() if sum.length() > 0.01 else Vector3.ZERO
+
+
+## Quer andar mas quase não sai do lugar por um tempo: troca o lado do contorno e força a volta por ele.
+func _check_stuck(move: Vector3, delta: float) -> void:
+	var want := Vector2(move.x, move.z).length()
+	var got := Vector2(get_real_velocity().x, get_real_velocity().z).length()
+	if state in ["chase", "wander", "return"] and stagger <= 0.0 and want > 0.8 and got < want * 0.3:
+		_stuck_t += delta
+	else:
+		_stuck_t = maxf(0.0, _stuck_t - delta * 2.0)
+	if _stuck_t > 0.6:
+		_stuck_t = 0.45 if state == "wander" else 0.0   # passeando: desiste do ponto (ver "wander")
+		_detour = -_detour if _detour != 0 else (1 if _uid() % 2 == 0 else -1)
+		_steer_ang = 1.5 * _detour
+		_unstick_t = 0.7
+		_steer_t = 0.7
+
+
+## Linha livre do arco (ou do cajado) até o alvo, sem árvore, pedra ou parede no meio (conferida a cada 0,25 s).
+func _line_clear(dist: float) -> bool:
+	if _tgt == null or not is_instance_valid(_tgt) or dist > data.reach * 1.2:
+		return true
+	_los_t -= get_physics_process_delta_time()
+	if _los_t > 0.0:
+		return _los_ok
+	_los_t = 0.25
+	var from := global_position + Vector3.UP * 1.0 * float(data.scale)
+	var q := PhysicsRayQueryParameters3D.create(from, _tgt.global_position + Vector3.UP * 1.0, 1, [get_rid()])
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	_los_ok = hit.is_empty() or (hit.normal as Vector3).y > 0.6
+	return _los_ok
+
+
+## Guarda o alvo e estima a velocidade dele pelo deslocamento (no servidor, o jogador é réplica e não tem
+## velocity confiável).
+func _track_target(player: Player, delta: float) -> void:
+	if player != _tgt:
+		_tgt = player
+		_tgt_vel = Vector3.ZERO
+		if player:
+			_tgt_prev = player.global_position
+		return
+	if player == null or delta <= 0.0:
+		return
+	var v := (player.global_position - _tgt_prev) / delta
+	v.y = 0.0
+	if v.length() > 15.0:     # teleporte ou correção de rede: não é velocidade
+		v = Vector3.ZERO
+	_tgt_vel = _tgt_vel.lerp(v, 0.12)
+	_tgt_prev = player.global_position
+
+
+## Direção da flecha: onde o alvo vai estar quando ela chegar (um pouco menos, para não ser perfeita).
+func _aim_dir(to_player: Vector3, dist: float) -> Vector3:
+	var lead := _tgt_vel * (dist / ENEMY_ARROW.SPEED) * 0.7
+	var aim := to_player + lead
+	aim.y = 0.0
+	return aim if aim.length() > 0.01 else to_player
 
 
 func _begin_attack(dist := 0.0) -> void:
@@ -744,14 +988,36 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 func _shoot(visual: bool) -> void:
 	var bolt: bool = data.get("shot", "") == "bolt"
 	Sfx.play_at("bow_shot", global_position, 0.1, -5.0)
-	var origin: Vector3 = global_position + Vector3.UP * 1.1 * float(data.scale) + model_forward() * 0.6
+	var origin := _muzzle()
+	var dir := model_forward()
+	if not visual and _tgt != null and is_instance_valid(_tgt) and not _tgt.dead:
+		# mira onde o alvo vai estar (e vira o corpo para lá, para a réplica no cliente atirar igual)
+		var to := _tgt.global_position - global_position
+		to.y = 0.0
+		dir = _aim_dir(to, to.length()).normalized()
+		model.rotation.y = atan2(dir.x, dir.z)
 	var arrow := ENEMY_ARROW.new()
-	arrow.direction = model_forward()
+	arrow.direction = dir
 	arrow.damage = 0.0 if visual else data.damage * dmg_mult
 	arrow.source = get_parent()
 	arrow.magic = bolt
 	get_parent().add_child(arrow)
 	arrow.global_position = origin
+
+
+## De onde sai a flecha ou o raio: o arco (na linha da mira) ou a gema do cajado, pela pose deste quadro.
+func _muzzle() -> Vector3:
+	var fallback: Vector3 = global_position + Vector3.UP * 1.1 * float(data.scale) + model_forward() * 0.6
+	if _rig.is_empty() or parts.get("Body") == null:
+		return fallback
+	var p := fallback
+	if weapon == "staff" and parts.get("Staff") != null:
+		p = (parts.Staff as Node3D).global_transform * (_rig.gem as Vector3)
+	elif weapon == "bow":
+		p = (parts.Body as Node3D).global_transform * (_rig.muzzle as Vector3)
+	# o projétil voa reto na altura em que sai: fica na faixa do peito do jogador para poder acertar
+	p.y = clampf(p.y, global_position.y + 0.7, global_position.y + 1.5)
+	return p
 
 
 ## Bocarrão: a língua acerta quem está na frente, até tongue_range, e puxa para perto da boca (o empurrão do
@@ -788,7 +1054,7 @@ func _cast_heal(visual: bool) -> void:
 	if visual:
 		return
 	for e in get_tree().get_nodes_in_group("enemies"):
-		if e == self or e.dead or not e.horde or e.is_boss:
+		if e == self or e.dead or e.horde != horde or e.is_boss:
 			continue
 		if e.global_position.distance_to(global_position) <= r and e.hp < e.max_hp:
 			e.hp = minf(e.max_hp, e.hp + e.max_hp * 0.25)
@@ -1103,33 +1369,11 @@ func _animate(delta: float, hspeed: float) -> void:
 		_animate_bat(hspeed, k)
 		return
 	var amp: float = clamp(hspeed / 4.0, 0.0, 1.0) * 0.8
-	parts.LegL.rotation.x = lerp(parts.LegL.rotation.x, s * amp, k)
-	parts.LegR.rotation.x = lerp(parts.LegR.rotation.x, -s * amp, k)
-	parts.ArmL.rotation.x = lerp(parts.ArmL.rotation.x, -s * amp * 0.6, k)
-	var arm := Vector3(s * amp * 0.5, 0, 0)
-	var body_x := 0.0
-	if state == "attack":
-		var ht := _hit_time()
-		var t := attack_timer
-		if attack_kind == "slam":
-			if t < ht:
-				arm = Vector3(-3.0, 0, 0)
-				body_x = -0.3
-				parts.ArmL.rotation.x = -3.0
-			else:
-				arm = Vector3(0.3, 0, 0)
-				body_x = 0.4
-				parts.ArmL.rotation.x = 0.3
-		else:
-			if t < ht:
-				arm = Vector3(-2.7, 0, -0.3)
-				body_x = -0.2
-			elif t < ht + 0.25:
-				arm = Vector3(0.6, 0, 0.2)
-				body_x = 0.3
-	var kk := k if not (state == "attack" and attack_timer >= _hit_time() and attack_timer < _hit_time() + 0.12) else 1.0 - exp(-40.0 * delta)
-	parts.ArmR.rotation = parts.ArmR.rotation.lerp(arm, kk)
-	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x, k)
+	var at := attack_timer
+	var ht := _hit_time()
+	var kk := k if not (state == "attack" and at >= ht and at < ht + 0.12) else 1.0 - exp(-40.0 * delta)
+	EnemyPose.humanoid(parts, _rig, {"state": state, "kind": attack_kind, "t": at, "ht": ht,
+		"dur": _attack_duration(), "amp": amp, "s": s, "weapon": weapon}, k, kk)
 
 
 ## Raptor: passada de ave (pernas longas, corpo balançando pouco), cauda que serpenteia e bote com a boca aberta.
