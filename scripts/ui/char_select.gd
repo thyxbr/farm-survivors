@@ -333,7 +333,7 @@ func _unhandled_input(event: InputEvent) -> void:
 # ================================================================ painel da direita
 func _build_panel() -> void:
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", UITheme.frame_box(UITheme.BG, UITheme.GOLD_DIM, 26))
+	panel.add_theme_stylebox_override("panel", UITheme.kit_panel(26))
 	panel.anchor_left = VIEW_FRACTION
 	panel.anchor_right = 1.0
 	panel.anchor_bottom = 1.0

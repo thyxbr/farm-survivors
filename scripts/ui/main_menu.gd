@@ -1,11 +1,15 @@
 extends Control
-## Menu principal com uma pequena cena 3D girando ao fundo.
+## Menu principal com cenas 3D do mundo se revezando ao fundo (MenuBackdrop).
 
 const OPTIONS := preload("res://scripts/ui/options_panel.gd")
 const CREDITS := preload("res://scripts/ui/credits_panel.gd")
 const UPDATE_PANEL := preload("res://scripts/ui/update_panel.gd")
+const BACKDROP := preload("res://scripts/ui/menu_backdrop.gd")
+## Logo do jogo; sem o arquivo o menu mostra o título em texto.
+const LOGO_PATH := "res://assets/ui/logo.png"
 
-var pivot: Node3D
+var backdrop: Control
+var scene_caption: Label
 var menu_box: VBoxContainer
 var mp_box: VBoxContainer
 var mp_name: LineEdit
@@ -25,7 +29,10 @@ func _ready() -> void:
 	theme = UITheme.get_theme()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	get_tree().paused = false
-	_build_backdrop()
+	backdrop = BACKDROP.new()
+	add_child(backdrop)
+	add_child(_vignette())
+	add_child(_motes())
 
 	var g := Gradient.new()
 	g.set_color(0, Color(0, 0, 0, 0.85))
@@ -50,11 +57,10 @@ func _ready() -> void:
 	menu_box.offset_bottom = 300
 	menu_box.add_theme_constant_override("separation", 10)
 	add_child(menu_box)
-	var title := UITheme.label("Ecos de Valdoria", 64, UITheme.GOLD)
-	title.add_theme_constant_override("outline_size", 10)
-	title.add_theme_color_override("font_outline_color", Color(0.1, 0.05, 0.0))
-	menu_box.add_child(title)
-	menu_box.add_child(UITheme.label("Um RPG de ação — protótipo", 20, UITheme.DIM))
+	menu_box.add_child(_title())
+	var sub := UITheme.label("Um RPG de ação — protótipo", 18, UITheme.DIM)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	menu_box.add_child(sub)
 	var sp := Control.new()
 	sp.custom_minimum_size.y = 24
 	menu_box.add_child(sp)
@@ -65,7 +71,9 @@ func _ready() -> void:
 	cont.disabled = not has_solo
 	menu_box.add_child(cont)
 	if has_solo:
-		menu_box.add_child(UITheme.label("   " + Econ.solo_info(), 15, UITheme.DIM))
+		var info := UITheme.label(Econ.solo_info(), 15, UITheme.DIM)
+		info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		menu_box.add_child(info)
 	menu_box.add_child(UITheme.button("Jogar online", _open_multiplayer, 320))
 	menu_box.add_child(UITheme.button("Opções", _options, 320))
 	menu_box.add_child(UITheme.button("Créditos", _credits, 320))
@@ -79,6 +87,9 @@ func _ready() -> void:
 		Network.last_error = ""
 
 	_build_update_banner()
+	_style_buttons(menu_box)
+	_style_buttons(mp_box)
+	_intro()
 
 	var credit := UITheme.label("Feito com Godot 4 · modelos low-poly criados no Blender", 14, UITheme.DIM)
 	credit.anchor_top = 1.0
@@ -99,6 +110,145 @@ func _ready() -> void:
 	ver.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	ver.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(ver)
+
+	# nome da cena do fundo, aparece a cada troca
+	scene_caption = UITheme.label("", 18, UITheme.GOLD)
+	scene_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	scene_caption.anchor_left = 1.0
+	scene_caption.anchor_right = 1.0
+	scene_caption.anchor_top = 1.0
+	scene_caption.anchor_bottom = 1.0
+	scene_caption.offset_left = -524
+	scene_caption.offset_right = -24
+	scene_caption.offset_top = -64
+	scene_caption.offset_bottom = -40
+	scene_caption.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	scene_caption.add_theme_constant_override("outline_size", 6)
+	scene_caption.add_theme_color_override("font_outline_color", Color(0.08, 0.04, 0.0))
+	scene_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(scene_caption)
+	backdrop.scene_changed.connect(_show_caption)
+	_show_caption(backdrop.current_title())
+
+
+## Logo (assets/ui/logo.png) ou, sem ela, o nome do jogo em texto dourado. Respira devagar.
+func _title() -> Control:
+	var node: Control
+	if ResourceLoader.exists(LOGO_PATH):
+		var logo := TextureRect.new()
+		logo.texture = load(LOGO_PATH)
+		logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		logo.custom_minimum_size = Vector2(380, 325)
+		node = logo
+		menu_box.offset_top = -410   # a logo é mais alta que o título em texto
+		menu_box.offset_right = 470  # coluna da largura da logo
+	else:
+		var title := UITheme.label("Ecos de Valdoria", 64, UITheme.GOLD)
+		title.add_theme_constant_override("outline_size", 10)
+		title.add_theme_color_override("font_outline_color", Color(0.1, 0.05, 0.0))
+		node = title
+	node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tw := node.create_tween().set_loops()
+	tw.tween_property(node, "modulate", Color(1.12, 1.08, 0.95), 2.2).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(node, "modulate", Color.WHITE, 2.2).set_trans(Tween.TRANS_SINE)
+	return node
+
+
+## Botões do menu com a fonte serifada da logo (Cinzel), um pouco mais altos.
+func _style_buttons(box: Control) -> void:
+	for b in box.find_children("*", "Button", true, false):
+		b.add_theme_font_override("font", UITheme.serif())
+		b.add_theme_font_size_override("font_size", 20)
+		b.custom_minimum_size.y = 46
+
+
+## Os itens do menu entram deslizando da esquerda, um depois do outro.
+func _intro() -> void:
+	var i := 0
+	for c in menu_box.get_children():
+		var ci := c as CanvasItem
+		if ci == null:
+			continue
+		ci.modulate.a = 0.0
+		var tw := create_tween()
+		tw.tween_interval(0.25 + i * 0.07)
+		tw.tween_property(ci, "modulate:a", 1.0, 0.45)
+		i += 1
+	# a coluna inteira começa 40 px à esquerda e desliza para o lugar
+	var right := menu_box.offset_right
+	menu_box.offset_left = 50
+	menu_box.offset_right = right - 40
+	for prop in [["offset_left", 90.0], ["offset_right", right]]:
+		create_tween().tween_property(menu_box, prop[0], prop[1], 0.8) \
+			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+
+func _show_caption(t: String) -> void:
+	if scene_caption == null:
+		return
+	scene_caption.text = t
+	scene_caption.modulate.a = 0.0
+	var tw := scene_caption.create_tween()
+	tw.tween_interval(0.4)
+	tw.tween_property(scene_caption, "modulate:a", 0.9, 1.0)
+	tw.tween_interval(4.0)
+	tw.tween_property(scene_caption, "modulate:a", 0.0, 1.5)
+
+
+## Escurece as bordas da tela (vinheta) para o menu e o centro da cena se destacarem.
+func _vignette() -> TextureRect:
+	var g := Gradient.new()
+	g.set_color(0, Color(0, 0, 0, 0))
+	g.add_point(0.6, Color(0, 0, 0, 0.08))
+	g.set_color(g.get_point_count() - 1, Color(0, 0, 0, 0.6))
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(1.05, 1.05)
+	var v := TextureRect.new()
+	v.texture = gt
+	v.stretch_mode = TextureRect.STRETCH_SCALE
+	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return v
+
+
+## Poeira dourada subindo devagar pela tela inteira, por cima de todas as cenas.
+func _motes() -> Control:
+	var host := Control.new()
+	host.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	host.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var p := CPUParticles2D.new()
+	p.amount = 46
+	p.lifetime = 9.0
+	p.preprocess = 9.0
+	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	p.direction = Vector2(0.2, -1)
+	p.spread = 25
+	p.gravity = Vector2.ZERO
+	p.initial_velocity_min = 12.0
+	p.initial_velocity_max = 34.0
+	p.scale_amount_min = 1.5
+	p.scale_amount_max = 4.0
+	p.color = Color(1.0, 0.85, 0.5, 0.55)
+	var g := Gradient.new()
+	g.set_color(0, Color(1, 1, 1, 0))
+	g.add_point(0.25, Color(1, 1, 1, 1))
+	g.set_color(g.get_point_count() - 1, Color(1, 1, 1, 0))
+	p.color_ramp = g
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	p.material = mat
+	host.add_child(p)
+	# a área de emissão acompanha o tamanho da janela
+	var fit := func() -> void:
+		p.position = Vector2(host.size.x * 0.5, host.size.y * 0.75)
+		p.emission_rect_extents = Vector2(host.size.x * 0.5, host.size.y * 0.3)
+	host.resized.connect(fit)
+	fit.call_deferred()
+	return host
 
 
 func _new_game() -> void:
@@ -126,11 +276,23 @@ func _build_multiplayer() -> void:
 	mp_box.offset_left = 90
 	mp_box.offset_top = -300
 	mp_box.offset_right = 560
-	mp_box.offset_bottom = 300
+	mp_box.offset_bottom = -300   # a altura vem do conteúdo (o painel atrás acompanha)
 	mp_box.add_theme_constant_override("separation", 10)
 	mp_box.visible = false
+	# moldura do kit atrás do formulário, do tamanho dele
+	var back := Panel.new()
+	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	back.visible = false
+	add_child(back)
 	add_child(mp_box)
-	mp_box.add_child(UITheme.label("Jogar online", 48, UITheme.GOLD))
+	var fit := func() -> void:
+		back.position = mp_box.position - Vector2(30, 26)
+		back.size = mp_box.size + Vector2(60, 52)
+		back.visible = mp_box.visible
+	mp_box.resized.connect(fit)
+	mp_box.visibility_changed.connect(fit)
+	var head := UITheme.heading("Jogar online", 40)
+	mp_box.add_child(head)
 	mp_box.add_child(UITheme.label("Entre com a sua conta e jogue com seus amigos.", 18, UITheme.DIM))
 	mp_box.add_child(UITheme.label("Usuário", 16))
 	mp_name = LineEdit.new()
@@ -298,108 +460,3 @@ func _credits() -> void:
 	var c := CREDITS.new()
 	add_child(c)
 	c.closed.connect(func() -> void: menu_box.visible = true)
-
-
-func _process(delta: float) -> void:
-	if pivot:
-		pivot.rotation.y += delta * 0.12
-
-
-func _build_backdrop() -> void:
-	var svc := SubViewportContainer.new()
-	svc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	svc.stretch = true
-	svc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(svc)
-	var vp := SubViewport.new()
-	vp.own_world_3d = true
-	vp.msaa_3d = Viewport.MSAA_2X
-	svc.add_child(vp)
-	var root := Node3D.new()
-	vp.add_child(root)
-
-	var env := Environment.new()
-	env.background_mode = Environment.BG_SKY
-	var sky := Sky.new()
-	var sm := ProceduralSkyMaterial.new()
-	sm.sky_top_color = Color(0.12, 0.15, 0.35)
-	sm.sky_horizon_color = Color(0.85, 0.5, 0.35)
-	sm.ground_horizon_color = Color(0.85, 0.5, 0.35)
-	sm.ground_bottom_color = Color(0.1, 0.1, 0.1)
-	sky.sky_material = sm
-	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.glow_enabled = true
-	env.fog_enabled = true
-	env.fog_light_color = Color(0.8, 0.5, 0.4)
-	env.fog_density = 0.02
-	var we := WorldEnvironment.new()
-	we.environment = env
-	root.add_child(we)
-	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-20, 60, 0)
-	sun.light_color = Color(1, 0.7, 0.5)
-	sun.light_energy = 1.4
-	sun.shadow_enabled = true
-	root.add_child(sun)
-
-	var ground := MeshInstance3D.new()
-	var disc := CylinderMesh.new()
-	disc.top_radius = 30
-	disc.bottom_radius = 30
-	disc.height = 0.1
-	var gm := StandardMaterial3D.new()
-	gm.albedo_color = Color(0.25, 0.4, 0.15)
-	disc.material = gm
-	ground.mesh = disc
-	ground.position.y = -0.05
-	root.add_child(ground)
-
-	pivot = Node3D.new()
-	root.add_child(pivot)
-	var knight: Node3D = load("res://assets/models/knight.glb").instantiate()
-	knight.rotation.y = 0.5
-	pivot.add_child(knight)
-	var arm := knight.find_child("ArmR", true, false) as Node3D
-	if arm:
-		arm.rotation.x = -1.2
-	var gob: Node3D = load("res://assets/models/goblin.glb").instantiate()
-	EnemyGear.apply(gob, ["Club"])
-	gob.position = Vector3(2.5, 0, 2.0)
-	gob.rotation.y = -2.4
-	gob.scale = Vector3.ONE * 1.6
-	pivot.add_child(gob)
-	if ToonLook.enabled():
-		ToonLook.apply(knight)
-		ToonLook.apply(gob)
-	var slime: Node3D = load("res://assets/models/slime.glb").instantiate()
-	slime.position = Vector3(-1.2, 0, -2.2)
-	slime.rotation.y = 2.5
-	pivot.add_child(slime)
-	if ToonLook.enabled():
-		ToonLook.apply_slime(slime)
-		ToonLook.apply(slime)
-	var fire: Node3D = load("res://assets/models/campfire.glb").instantiate()
-	fire.position = Vector3(0.8, 0, -1.5)
-	pivot.add_child(fire)
-	var fl := OmniLight3D.new()
-	fl.position = Vector3(0.8, 1.0, -1.5)
-	fl.light_color = Color(1, 0.55, 0.2)
-	fl.light_energy = 2.5
-	fl.omni_range = 8
-	pivot.add_child(fl)
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 5
-	for i in 26:
-		var a := rng.randf() * TAU
-		var d := rng.randf_range(8, 22)
-		var t: Node3D = load("res://assets/models/tree_pine.glb" if rng.randf() < 0.6 else "res://assets/models/tree_oak.glb").instantiate()
-		t.position = Vector3(cos(a) * d, 0, sin(a) * d)
-		t.scale = Vector3.ONE * rng.randf_range(0.9, 1.6)
-		pivot.add_child(t)
-	var cam := Camera3D.new()
-	cam.position = Vector3(-3.2, 1.9, 6.0)
-	cam.fov = 50
-	root.add_child(cam)
-	cam.look_at(Vector3(1.0, 1.1, 0), Vector3.UP)

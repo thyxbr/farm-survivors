@@ -95,7 +95,7 @@ func _ready() -> void:
 
 func _inset() -> PanelContainer:
 	var p := PanelContainer.new()
-	p.add_theme_stylebox_override("panel", UITheme.inset_box(14))
+	p.add_theme_stylebox_override("panel", UITheme.kit_inset(14))
 	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	return p
 
