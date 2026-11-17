@@ -106,9 +106,9 @@ func test_areas_on_map() -> void:
 	for a in MapRules.areas("vila", t):
 		at[a[0]] = a
 	T.ok(at.has("Toca dos Goblins · Nv 5–9"), "a toca no mapa do vale com a faixa")
-	T.ok((at["Toca dos Goblins · Nv 5–9"][1] as Vector3).distance_to(Vector3(62, 0, 0)) < 1.0, "no acampamento")
+	T.ok((at["Toca dos Goblins · Nv 5–9"][1] as Vector3).distance_to(Vector3(86, 0, 0)) < 1.0, "no acampamento")
 	T.eq((at["Capinzal dos Raptores · Nv 6–9"][2] as Array).size(), 4, "o capinzal tem 4 manchas e um rótulo só")
-	T.eq(at.size(), 8, "8 regiões no vale")
+	T.eq(at.size(), 9, "9 regiões no vale (com o Forte dos Brutos)")
 	t.toca_goblins.show_on_map = false
 	var names: Array = MapRules.areas("vila", t).map(func(a: Array) -> String: return a[0])
 	T.ok(not "Toca dos Goblins · Nv 5–9" in names, "show_on_map: false some do mapa")

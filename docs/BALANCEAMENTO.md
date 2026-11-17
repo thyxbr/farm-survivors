@@ -65,7 +65,23 @@ A camada também é usada pelo loot. Seguro: `scale` 1.0–1.3.
 
 ### `elite` — monstro de elite
 Vale para pontos com `elite` ligado no Inspector: `level_bonus` (níveis a mais, hoje 2), `hp` (vida × 2),
-`scale` (tamanho × 1,25), `gear_chance` (chance de equipamento, 5%).
+`dmg` (dano × 1,3), `scale` (tamanho × 1,25), `gear_chance` (chance de equipamento, 5%).
+
+### `rank` — campeões e chefes mais fortes que os comuns
+Multiplica vida e dano dos monstros **com nível** por categoria, por cima da curva: `elite` (tipos com
+`elite: true` no enemies.json: Campeão Goblin, Cavaleiro Esqueleto, Slime Rainha) hoje vida × 2 e dano × 1,5;
+`boss` (tipos com `boss: true` **e** chefes de dungeon, mesmo de um tipo elite) hoje vida × 3 e dano × 2,1.
+Existe porque a curva divide pelo `ref_level`: sem isto, um chefe de ref 12 no nível 21 ganhava menos por nível
+que um comum de ref 2 (o Goblin Bruto comum batia mais que o Campeão, e o Rei Goblin menos que o Cavaleiro).
+O teste `test_rank_order_at_same_level` cobra, nos níveis 8, 21 e 40: todo campeão com mais vida e dano que
+qualquer comum (fora os que explodem) e todo chefe mais que qualquer campeão. A Horda não tem nível: não muda.
+
+### `danger` — monstro de placa vermelha
+Quando o monstro está `diff` (hoje 5) ou mais níveis acima de quem ele enfrenta, a placa fica vermelha (também
+nos chefes e elites) e ele ganha contra esse jogador: dano × `dmg` (1,3) e dano recebido × `taken` (0,75). Cada
+nível a mais soma `dmg_per_level` (0,05) e tira `taken_per_level` (0,03), até `dmg_max` (2,0) e `taken_min`
+(0,5). Ex.: nível 21 contra jogador 11 = dano × 1,55 e leva × 0,6. No servidor conta o nível de cada jogador
+(o de quem bateu, o de quem levou o golpe), então no grupo cada um vê o próprio bônus.
 
 ### `gear_drop` — equipamento que cai
 | Botão | Hoje | O que faz |
@@ -109,15 +125,16 @@ build pura com o ataque básico. Por isso o jogo de verdade é um pouco mais rá
 - `ref_level`: o nível em que os números acima valem. Hoje **2 para os monstros comuns**: como usam o mesmo, no
   mesmo nível a proporção entre eles é a do arquivo (o esqueleto, 95 de vida, tem ~1,2× a vida do goblin, 80, em
   qualquer nível; o slime metade). Chefes e elites têm o próprio: Goblin Dourado 4, Campeão Goblin 6, Cavaleiro
-  Esqueleto 6, Slime Rainha 6, Lich 10, Rei Goblin 12. Com eles, um personagem bem equipado do nível do ponto
-  leva ~10–35 golpes (Campeão ~10, Cavaleiro ~12, Rainha ~16, Lich ~33) e aguenta ~5–7 golpes deles. Subir o `ref_level` de um tipo deixa ele **mais fraco**
+  Esqueleto 6, Slime Rainha 6, Lich 10, Rei Goblin 12. Com eles e o `rank` do progression.json (vida × 2 nos
+  campeões, × 3 nos chefes), um guerreiro nível 21 com a melhor arma da faixa (golpe ~136) leva, contra
+  monstros também nível 21, ~17 golpes no Campeão, ~43 na Rainha como chefe de dungeon e ~92 no Lich. Subir o `ref_level` de um tipo deixa ele **mais fraco**
   em todos os níveis (o número do arquivo passa a valer num nível mais alto).
   O Rei Goblin nasce no próprio `ref_level` (ele não tem ponto no mapa); mudar esse número muda o nível dele.
 - `loot`: `[item, chance]`, cada linha sorteada à parte. Material da família (orelha, gosma, osso...) é o
   principal; poção e semente ficam baixas (1%–10%) para a média ficar em 0,5–0,8 item por morte. A coluna "Itens
   por morte" do simulador mostra a média de cada tipo.
-- `boss: true` usa `gear_drop.boss_chance`; `elite: true` é só o nome e o visual (a elite de verdade vem do
-  ponto no mapa).
+- `boss: true` usa `gear_drop.boss_chance` e o bloco `rank.boss`; `elite: true` dá o nome, o visual e o bloco
+  `rank.elite` (a elite do ponto no mapa é outra coisa: bloco `elite`).
 - **Chefes**: 1 material raro garantido (coroa, cristal...) + o equipamento da janela de nível
   (`boss_chance` 1.0) + uma **chance pequena** de item nomeado, somando 0,2–0,35 por abate entre todos os
   nomeados da lista (Rei Goblin: Cutelo 25%; Lich: Montante 12%, Cajado do Arquimago 8%, Arco da Tempestade 6%,

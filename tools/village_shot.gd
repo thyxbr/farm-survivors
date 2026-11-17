@@ -28,6 +28,8 @@ const VIEWS := {
 	"northgate": [Vector3(-2, 7, -6), Vector3(-6, 0.5, -18)],
 	"largo": [Vector3(21, 5.5, 0.5), Vector3(21, 1.2, 9)],
 	"street": [Vector3(-34, 2.2, -15), Vector3(10, 1.5, -15)],
+	# guarda do portão leste atirando num goblin que passou da cerca (o goblin é posto lá pela foto)
+	"guard": [Vector3(31, 3.2, -9), Vector3(39.5, 1.4, -1)],
 }
 
 var _out := ""
@@ -76,3 +78,9 @@ func _next() -> void:
 		_cam.position = v[0]
 		_cam.look_at(v[1])
 		_cam.current = true
+		if _views[_i] == "guard":
+			for e in root.get_tree().get_nodes_in_group("enemies"):
+				if e.kind == "goblin" and not e.dead:
+					e.global_position = Vector3(41.0, 0.5, 0.5)
+					e.asleep = false
+					break

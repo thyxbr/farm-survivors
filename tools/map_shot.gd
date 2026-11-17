@@ -15,13 +15,15 @@ const VIEWS := {
 	"westside": [Vector3(-10, 9, -8), Vector3(-27, 1, 3)],
 	"eastside": [Vector3(10, 9, -8), Vector3(28, 1, 3)],
 	"largo": [Vector3(21, 5.5, 0.5), Vector3(21, 1.2, 9)],
-	"camp": [Vector3(40, 18, 18), Vector3(62, 0, 0)],
+	"camp": [Vector3(64, 18, 18), Vector3(86, 0, 0)],
 	"ruins": [Vector3(0, 24, -66), Vector3(0, 0, -100)],
 	"arena": [Vector3(-40, 30, 10), Vector3(-72, 0, -10)],
 	"fields": [Vector3(0, 22, -8), Vector3(0, 0, -36)],
 	"nest": [Vector3(-20, 14, 20), Vector3(-36, 0, 36)],
 	"region_wide": [Vector3(0, 90, 95), Vector3(0, 0, 0)],
 	"region_center": [Vector3(0, 14, 40), Vector3(0, 0, 0)],
+	# de cima, o mapa inteiro (norte = em cima): para conferir onde cada bando nasce
+	"top": [Vector3(0, 200, 0.01), Vector3(0, 0, 0)],
 }
 
 var _out := ""

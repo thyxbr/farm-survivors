@@ -120,7 +120,7 @@ func _ready() -> void:
 	check(nest_ok, "Ninho de Slimes: a mãe e as crias perto do ninho")
 	check(vale_total >= 110, "vale cheio: %d monstros (alvo ~120)" % vale_total)
 	for id in ["campos_norte", "ninho_slimes", "margem_lagoa", "toca_goblins", "capinzal_raptores", "teia_tecelas",
-			"cemiterio_velho", "ruinas_valdoria"]:
+			"cemiterio_velho", "ruinas_valdoria", "forte_brutos"]:
 		area_ok = area_ok and int(by_area.get(id, 0)) >= 5
 	check(area_ok, "cada região do vale com um bando (≥ 5): %s" % str(by_area))
 	var lv_ok := true
@@ -128,6 +128,13 @@ func _ready() -> void:
 		if en.area != "" and en.level <= 0:
 			lv_ok = false
 	check(lv_ok, "todo monstro de região tem nível (o ponto ou a faixa da região)")
+	# cada tipo na sua área: nenhum goblin nas Ruínas nem no Cemitério, nenhum esqueleto fora deles
+	var mixed: Array = []
+	for en in get_tree().get_nodes_in_group("enemies"):
+		var undead_area: bool = en.area in ["cemiterio_velho", "ruinas_valdoria"]
+		if (en.kind.begins_with("goblin") and en.kind != "goblin_king" and undead_area) 				or (en.kind.begins_with("esqueleto") and not undead_area and Regions.region_at(en.global_position) == "vila"):
+			mixed.append("%s@%s" % [en.kind, en.area])
+	check(mixed.is_empty(), "goblins e esqueletos em áreas separadas %s" % str(mixed))
 	var asas_want := 3 if world.is_night() else 0
 	check(by_kind.get("asa_couro", 0) == asas_want, "Asas-couro nas Ruínas só de noite (%d, esperado %d)"
 		% [by_kind.get("asa_couro", 0), asas_want])
@@ -143,9 +150,11 @@ func _ready() -> void:
 	# vale: 5 NPCs + bilhete + portal + guilda (Lina, quadro, cocheiro) + Rufus, Zélia, Tonico, Ravi, Osvaldo, gato;
 	# mais o Papai Noel e os pontos da antiga praça (Orin e recordes, hub_point no vale.tscn); mapas: Sylvi, Tico e cocheiro no bosque; Bolgar, diário e cocheiro na mina; só o cocheiro no pico (o Kael
 	# de lá aparece no Arco 2)
+	# + os guardas da vila (VillageGuard, também conversam)
 	var n_inter := get_tree().get_nodes_in_group("interactable").size()
-	check(n_inter == 7 + 9 + 7 + 1 + world.points.size() + Game.FARM_PLOTS + 1 + 1 + 8,
-		"interagíveis do vale, da guilda e dos mapas + %d canteiros + caldeirão + bancada de couraria + 8 portas de dungeon (%d)" % [Game.FARM_PLOTS, n_inter])
+	var n_guards := get_tree().get_nodes_in_group("npc").filter(func(n: Node) -> bool: return n is VillageGuard).size()
+	check(n_inter == 7 + 9 + 7 + 1 + world.points.size() + Game.FARM_PLOTS + 1 + 1 + 8 + n_guards,
+		"interagíveis do vale, da guilda e dos mapas + %d canteiros + caldeirão + bancada de couraria + 8 portas de dungeon + %d guardas (%d)" % [Game.FARM_PLOTS, n_guards, n_inter])
 	check(not ResourceLoader.exists("res://scenes/colony.tscn"), "sem a Defesa da Cidade")
 
 	# --- diálogo e missão
@@ -207,13 +216,15 @@ func _ready() -> void:
 	var far_s := _today(_nearest("slime"))
 	far_s.global_position = far_s.home
 	far_s._set_state("idle")
-	player.global_position = far_s.home + Vector3(0, 0.3, far_s.data.aggro * 2.5)
+	# para o norte, longe da vila (do lado da cerca o jogador estaria sob a guarda e o slime não perseguiria)
+	player.global_position = far_s.home + Vector3(0, 0.3, -far_s.data.aggro * 2.5)
 	await wait(0.1)
 	var far_hp: float = far_s.hp
 	far_s.take_damage(10.0, player.global_position, false)
 	await wait(0.4)
 	check(far_s.hp < far_hp and far_s.state == "chase",
 		"acerto de longe não é curado na hora (%.0f -> %.0f, %s)" % [far_hp, far_s.hp, far_s.state])
+	await _test_village_guard()
 
 	# --- Investida (espada, slot 1): avança pela frente atravessando o slime
 	var pos_c := player.global_position
@@ -237,7 +248,7 @@ func _ready() -> void:
 	# o dano é fixo (melee_damage x1,6, sem crítico): a perda de vida igual a um golpe prova acerto único
 	check(is_equal_approx(ch_hp - ch_s.hp, Game.melee_damage() * SwordAbilities.CHARGE_MULT),
 		"Investida acerta cada inimigo uma vez só (perdeu %.1f, golpe %.1f)" % [ch_hp - ch_s.hp, Game.melee_damage() * SwordAbilities.CHARGE_MULT])
-	check(ch_d >= 3.0 and ch_d <= 5.5, "Investida avança entre 3 e 5,5 m (%.2f)" % ch_d)
+	check(ch_d >= 3.0 and ch_d <= 5.5, "Investida avança entre 3 e 5,5 m (%.2f, de %s, slime %s)" % [ch_d, ch_from, ch_s.home])
 	check(player.ability == "" and player.cooldowns.sword_charge > 0.0, "Investida termina e entra em recarga (%s, %.2f)" % [player.ability, player.cooldowns.sword_charge])
 	check(player.collision_mask == mask_c, "Investida devolve a colisão com inimigos ao terminar")
 	# as próximas investidas vão para longe do slime (+Z)
@@ -299,7 +310,7 @@ func _ready() -> void:
 		if e != qk_a and e.kind == "slime" and not e.dead:
 			qk_b = e
 			break
-	var qk_base := pos_c + Vector3(0, 0.3, 0)   # chão firme da vila
+	var qk_base := pos_c + Vector3(0, 0.3, 0)   # chão firme dos campos (fora da zona da guarda da vila)
 	_today(qk_a)   # o mais próximo pode ser o ferido pela Investida
 	_today(qk_b)
 	player.global_position = qk_base
@@ -3505,6 +3516,53 @@ func _today(e: Enemy) -> Enemy:
 
 ## O monstro vivo de `kind` mais perto do jogador; com `area`, só os que nasceram naquela região com nome (as
 ## missões com "region" só contam esses).
+## Guarda da vila: nenhum ponto de monstro perto da cerca, guardas nos postos, e o monstro que entra é abatido
+## pela guarda sem dar XP, ouro, loot nem missão (nem a quem já tinha acertado nele).
+func _test_village_guard() -> void:
+	var near_gate: Array = []
+	for en in get_tree().get_nodes_in_group("enemies"):
+		if VillageWard.distance(en.home) < VillageWard.SPAWN_CLEARANCE - 6.0:
+			near_gate.append("%s %s" % [en.kind, en.home])
+	check(near_gate.is_empty(), "nenhum monstro mora colado na vila %s" % str(near_gate))
+	var back := player.global_position
+	var guards := get_tree().get_nodes_in_group("npc").filter(func(n: Node) -> bool: return n is VillageGuard)
+	check(guards.size() >= 8, "guardas nos portões e cantos da vila (%d)" % guards.size())
+	var intruder := _nearest("goblin")
+	var xp0 := Game.xp
+	var lvl0 := Game.level
+	var gold0 := Game.gold
+	var prog0 := JSON.stringify(Game.quests)
+	var pickups0 := _count_pickups()
+	player.global_position = Vector3(2, 0.3, 6)
+	intruder.take_damage(1.0, player.global_position, false)   # o jogador acertou antes: mesmo assim não leva nada
+	intruder.global_position = Vector3(4, 0.5, 4)
+	await wait_until(func() -> bool: return intruder.dead, VillageWard.DOOM + 2.0)
+	check(intruder.dead, "goblin que entra na vila é abatido pela guarda")
+	await wait(0.3)
+	check(Game.xp == xp0 and Game.level == lvl0, "abate da guarda não dá XP")
+	check(Game.gold == gold0 and _count_pickups() == pickups0, "abate da guarda não dá ouro nem saque")
+	check(JSON.stringify(Game.quests) == prog0, "abate da guarda não conta em missão")
+	# monstro do lado de fora não entra atrás do jogador: para na cerca
+	var chaser := _today(_nearest("slime"))
+	player.global_position = Vector3(0, 0.3, -12)
+	chaser.global_position = Vector3(0, 0.5, -27)
+	chaser._set_state("chase")
+	await wait(2.0)
+	check(not chaser.dead and not VillageWard.inside(chaser.global_position, VillageWard.KILL_MARGIN),
+		"slime para na cerca e não entra atrás do jogador (z %.1f)" % chaser.global_position.z)
+	player.global_position = back   # os testes seguintes trazem monstros para perto do jogador: fora da vila
+	player.velocity = Vector3.ZERO
+	await wait(0.1)
+
+
+func _count_pickups() -> int:
+	var n := 0
+	for c in world.get_children():
+		if c.get_script() == Enemy.PICKUP:
+			n += 1
+	return n
+
+
 func _nearest(kind: String, area := "") -> Enemy:
 	var best: Enemy = null
 	var bd := INF

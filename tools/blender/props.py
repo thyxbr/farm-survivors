@@ -1361,3 +1361,239 @@ PROP_BUILDERS = {
     "anvil": build_anvil, "forge": build_forge, "signpost": build_signpost, "notice_board": build_notice_board,
     "bush": build_bush, "bush_berry": build_bush_berry, "fern": build_fern,
 }
+
+
+# armory.py (executado depois deste arquivo) redefine lathe() com outra assinatura; as peças abaixo usam a
+# versão daqui, presa agora.
+_prop_lathe = lathe
+
+
+# ======================================================== LÁPIDE (Cemitério Velho)
+def build_tombstone():
+    # Lápide de pedra de ~1 m: laje com topo em arco facetado, um pouco torta, sobre uma sapata; cruz rasa
+    # entalhada na frente (-Y), lascas no canto, musgo no pé e um montinho de terra na frente (a cova).
+    rnd = random.Random(31)
+    bag = Bag()
+    a = bag.add
+    W, T, H = 0.62, 0.16, 0.78
+    lean = (-0.06, 0.0, 0.04)
+    # laje: contorno com arco no topo, extrudado em Y
+    prof = [(-W / 2, 0.0), (W / 2, 0.0), (W / 2, H)]
+    for k in range(1, 6):
+        ang = k / 6 * PI
+        prof.append((math.cos(ang) * W / 2, H + math.sin(ang) * W * 0.32))
+    prof.append((-W / 2, H))
+    pts = []
+    for x, z in prof:
+        for y in (-T / 2, T / 2):
+            pts.append((x, y, z + 0.1))
+    slab = a(hull("Slab", pts, p_stone_lt))
+    slab.rotation_euler = lean
+    # cruz entalhada (em relevo baixo, pedra escura) na frente
+    for loc, size in (((0, -T / 2 - 0.005, 0.62), (0.07, 0.03, 0.42)), ((0, -T / 2 - 0.005, 0.72), (0.26, 0.03, 0.07))):
+        c = a(bx(bag.nm("Cross"), loc, size, p_stone_dk, bev=0.008))
+        c.rotation_euler = lean
+    # sapata
+    a(bx("Base", (0, 0, 0.06), (W + 0.16, T + 0.22, 0.14), p_stone, bev=0.025))
+    # lascas e musgo
+    for i in range(3):
+        ang = rnd.uniform(0, 2 * PI)
+        a(boulder(bag.nm("Chip"), (math.cos(ang) * 0.45, math.sin(ang) * 0.3, 0), (0.12, 0.1, 0.07),
+                  (p_stone, p_stone_dk, p_stone_lt)[i], n=8, seed=33 + i))
+    a(boulder("MossFoot", (0.18, -0.12, 0.05), (0.45, 0.22, 0.14), p_moss, n=10, seed=37))
+    a(boulder("MossTop", (-0.18, 0.0, 0.98), (0.22, 0.2, 0.08), p_moss_lt, n=9, seed=38, flat_bottom=False))
+    # montinho de terra da cova, na frente
+    a(boulder("Grave", (0.0, -0.95, 0.0), (0.75, 1.35, 0.18), p_wood_dk, n=14, seed=39))
+    for k in range(5):
+        yaw = k * 2 * PI / 5 + 0.3
+        a(leaf(bag.nm("Grass"), (math.cos(yaw) * 0.38, math.sin(yaw) * 0.14, 0.0), yaw - PI / 2, 1.05,
+               rnd.uniform(0.16, 0.26), 0.05, (p_moss_lt, p_moss)[k % 2], droop=0.25))
+    join(bag.items, "Tombstone")
+    export("tombstone")
+
+
+# ======================================================== CRIPTA (Cemitério Velho)
+def build_crypt():
+    # Mausoléu de pedra ~3,6 x 4,4 m, 3,6 m de altura: degraus, base, paredes em fiadas, telhado de duas
+    # águas em laje, frontão com friso, duas colunas na porta (-Y) e a porta escura com grade de ferro.
+    rnd = random.Random(41)
+    bag = Bag()
+    a = bag.add
+    Wd, Dp, Hw = 3.4, 4.0, 2.5
+    a(bx("Plinth", (0, 0.1, 0.15), (Wd + 0.5, Dp + 0.6, 0.3), p_stone_dk, bev=0.04))
+    for k in range(2):   # degraus na frente
+        a(bx(bag.nm("Step"), (0, -Dp / 2 - 0.35 - k * 0.3, 0.1 - k * 0.07), (1.8, 0.4, 0.2 - k * 0.06), p_stone, bev=0.03))
+    a(bx("Core", (0, 0.1, 0.3 + Hw / 2), (Wd - 0.1, Dp - 0.1, Hw), p_stone_dk, bev=0))
+    # fiadas de blocos nas quatro faces
+    z = 0.3
+    row = 0
+    while z < 0.3 + Hw - 0.05:
+        hgt = min(rnd.uniform(0.38, 0.5), 0.3 + Hw - z)
+        for face in range(4):
+            along = Wd if face in (0, 2) else Dp
+            x = -along / 2 - (0.0 if row % 2 == 0 else 0.3)
+            while x < along / 2 - 0.05:
+                w = rnd.uniform(0.55, 1.0)
+                x0, x1 = max(x, -along / 2), min(x + w, along / 2)
+                if x1 - x0 > 0.2:
+                    c = (x0 + x1) / 2
+                    if face == 0:   # frente: deixa o vão da porta
+                        if abs(c) < 0.75 and z < 2.0:
+                            x += w
+                            continue
+                        loc, size = (c, -Dp / 2 + 0.05 + 0.1, z + hgt / 2), (x1 - x0 - 0.04, 0.22, hgt - 0.03)
+                    elif face == 2:
+                        loc, size = (c, Dp / 2 + 0.05 + 0.1 - 0.2, z + hgt / 2), (x1 - x0 - 0.04, 0.22, hgt - 0.03)
+                    elif face == 1:
+                        loc, size = (Wd / 2 - 0.06, c + 0.1, z + hgt / 2), (0.22, x1 - x0 - 0.04, hgt - 0.03)
+                    else:
+                        loc, size = (-Wd / 2 + 0.06, c + 0.1, z + hgt / 2), (0.22, x1 - x0 - 0.04, hgt - 0.03)
+                    a(bx(bag.nm("Block"), loc, size, _stone_pick(rnd), bev=0.04,
+                         rot=(rnd.uniform(-0.02, 0.02), 0, rnd.uniform(-0.02, 0.02))))
+                x += w
+        z += hgt
+        row += 1
+    # porta: vão escuro, verga e grade de ferro
+    a(bx("DoorDark", (0, -Dp / 2 + 0.2, 1.15), (1.4, 0.1, 1.8), p_ash, bev=0))
+    a(bx("Lintel", (0, -Dp / 2 - 0.02, 2.15), (1.9, 0.4, 0.3), p_stone_lt, bev=0.04))
+    for i in range(5):
+        x = -0.5 + i * 0.25
+        a(beam(bag.nm("Bar"), (x, -Dp / 2 + 0.05, 0.3), (x, -Dp / 2 + 0.05, 2.0), 0.025, p_iron, seg=5))
+    for zz in (0.75, 1.55):
+        a(bx(bag.nm("Rail"), (0, -Dp / 2 + 0.05, zz), (1.2, 0.05, 0.06), p_iron, bev=0.01))
+    # colunas da frente
+    for x in (-1.25, 1.25):
+        a(_prop_lathe(bag.nm("Col"), [(0.24, 0.3), (0.24, 0.42), (0.18, 0.5), (0.17, 2.45), (0.24, 2.55), (0.24, 2.8)],
+                p_stone_lt, seg=8, loc=(x, -Dp / 2 - 0.25, 0)))
+    # cornija e telhado de duas águas em laje
+    a(bx("Cornice", (0, 0.05, 2.9), (Wd + 0.5, Dp + 0.9, 0.2), p_stone, bev=0.04))
+    ridge, eave = 3.75, 2.98
+    for sx in (-1, 1):
+        pts = []
+        for y in (-Dp / 2 - 0.5, Dp / 2 + 0.6):
+            for (x, zz) in ((0.0, ridge), (sx * (Wd / 2 + 0.35), eave)):
+                for dz in (0.0, 0.16):
+                    pts.append((x, y, zz + dz))
+        a(hull(bag.nm("Roof"), pts, p_stone_dk))
+    # frontão (triângulo) na frente, com uma rosácea escura
+    a(hull("Pediment", [(-Wd / 2 - 0.2, -Dp / 2 - 0.4, eave), (Wd / 2 + 0.2, -Dp / 2 - 0.4, eave), (0, -Dp / 2 - 0.4, ridge - 0.05),
+                         (-Wd / 2 - 0.2, -Dp / 2 - 0.15, eave), (Wd / 2 + 0.2, -Dp / 2 - 0.15, eave), (0, -Dp / 2 - 0.15, ridge - 0.05)],
+               p_stone_lt))
+    a(_prop_lathe("Rose", [(0.0, 0.0), (0.22, 0.0), (0.22, 0.06), (0.0, 0.06)], p_ash, seg=8,
+            loc=(0, -Dp / 2 - 0.41, 3.28), rot=(PI / 2, 0, 0)))
+    a(bx("RidgeCap", (0, 0.05, ridge + 0.12), (0.25, Dp + 1.1, 0.16), p_stone, bev=0.03))
+    # musgo e escombros
+    a(boulder("MossA", (-1.4, -Dp / 2 - 0.1, 0.3), (0.9, 0.5, 0.35), p_moss, n=12, seed=43))
+    a(boulder("MossB", (1.6, 1.0, 0.3), (0.5, 1.2, 0.3), p_moss_lt, n=10, seed=44))
+    a(boulder("MossRoof", (0.9, 0.6, 3.25), (0.9, 1.2, 0.2), p_moss, n=10, seed=45, flat_bottom=False))
+    for i, (px, py) in enumerate(((2.1, -1.8), (-2.2, 1.4), (1.9, 2.4))):
+        a(boulder(bag.nm("Rubble"), (px, py, 0), (0.45, 0.4, 0.3), _stone_pick(rnd), n=9, seed=46 + i))
+    join(bag.items, "Crypt")
+    export("crypt")
+
+
+# ======================================================== PALIÇADA (Toca dos Goblins)
+def build_palisade():
+    # Trecho de 2 m de paliçada goblin: 7 toras apontadas de alturas desencontradas (~2,2 a 2,7 m), duas
+    # travessas atrás amarradas com corda, uma escora inclinada atrás e pedras no pé. Frente = -Y.
+    rnd = random.Random(51)
+    bag = Bag()
+    a = bag.add
+    n = 7
+    for i in range(n):
+        x = -1.0 + (i + 0.5) * 2.0 / n
+        r = rnd.uniform(0.13, 0.16)
+        h = rnd.uniform(2.15, 2.65)
+        top = (x + rnd.uniform(-0.04, 0.04), rnd.uniform(-0.03, 0.03), h)
+        a(beam(bag.nm("Log"), (x, 0, -0.1), top, r, (p_wood, p_wood_dk, p_wood_lt)[i % 3], seg=6, r2=r * 0.92))
+        a(_prop_lathe(bag.nm("Tip"), [(r * 0.92, 0.0), (0.0, 0.42)], p_wood_end, seg=6, loc=top))
+        if i % 2 == 0:
+            a(_prop_lathe(bag.nm("Ring"), [(r + 0.012, 0.0), (r + 0.012, 0.05)], p_wood_dk, seg=6,
+                    loc=(top[0], top[1], rnd.uniform(0.6, 1.4))))
+    for z in (0.7, 1.75):   # travessas atrás
+        a(beam(bag.nm("Rail"), (-1.08, 0.17, z), (1.08, 0.17, z + rnd.uniform(-0.05, 0.05)), 0.07, p_wood_lt, seg=5,
+               end_mat=p_wood_end))
+        for i in range(0, n, 2):
+            x = -1.0 + (i + 0.5) * 2.0 / n
+            a(bx(bag.nm("Lash"), (x, 0.12, z), (0.06, 0.16, 0.16), p_rope, bev=0.01))
+    a(beam("Brace", (0.2, 0.2, 1.6), (0.5, 1.15, -0.05), 0.07, p_wood_dk, seg=5, end_mat=p_wood_end))
+    for i in range(4):
+        a(boulder(bag.nm("Stone"), (rnd.uniform(-0.95, 0.95), rnd.uniform(-0.22, -0.12), 0), (0.28, 0.22, 0.17),
+                  _stone_pick(rnd), n=8, seed=55 + i))
+    join(bag.items, "Palisade")
+    export("palisade")
+
+
+# ======================================================== TORRE DE VIGIA (Toca dos Goblins)
+def build_watchtower():
+    # Torre goblin de ~5,5 m: quatro pernas de tora abertas, escoras em X, plataforma de tábuas a 3,2 m,
+    # parapeito torto de estacas, cobertura de couro remendado em quatro águas, escada na frente (-Y) e um
+    # estandarte de pano com a marca dos goblins pendurado no parapeito.
+    rnd = random.Random(61)
+    bag = Bag()
+    a = bag.add
+    P = 3.2
+    base, top = 1.35, 0.95
+    corners = [(-1, -1), (1, -1), (1, 1), (-1, 1)]
+    for i, (sx, sy) in enumerate(corners):
+        a(beam(bag.nm("Leg"), (sx * base, sy * base, -0.1), (sx * top, sy * top, P + 1.25), 0.13,
+               (p_wood, p_wood_dk)[i % 2], seg=6, r2=0.11, end_mat=p_wood_end))
+    # escoras em X entre as pernas (na altura de 1 a 2,6 m)
+    for i in range(4):
+        (ax, ay), (bx_, by) = corners[i], corners[(i + 1) % 4]
+        za, zb = 0.6, 2.5
+        fa, fb = base + (top - base) * za / (P + 1.35), base + (top - base) * zb / (P + 1.35)
+        a(beam(bag.nm("BraceA"), (ax * fa, ay * fa, za), (bx_ * fb, by * fb, zb), 0.055, p_wood_lt, seg=5))
+        a(beam(bag.nm("BraceB"), (bx_ * fa, by * fa, za), (ax * fb, ay * fb, zb), 0.055, p_wood_lt, seg=5))
+    # plataforma: vigas e tábuas
+    fp = base + (top - base) * P / (P + 1.35)
+    for y in (-fp, fp):
+        a(beam(bag.nm("Joist"), (-fp - 0.15, y, P - 0.12), (fp + 0.15, y, P - 0.12), 0.09, p_wood_dk, seg=5, end_mat=p_wood_end))
+    nb = 9
+    for i in range(nb):
+        y = -fp - 0.15 + (i + 0.5) * (2 * fp + 0.3) / nb
+        a(bx(bag.nm("Plank"), (rnd.uniform(-0.03, 0.03), y, P), (2 * fp + 0.45, (2 * fp + 0.3) / nb - 0.03, 0.08),
+             (p_wood, p_wood_lt)[i % 2], bev=0.012, rot=(0, rnd.uniform(-0.02, 0.02), 0)))
+    # parapeito: estacas em volta e um corrimão
+    rail_z = P + 1.0
+    for i in range(4):
+        (ax, ay), (bx_, by) = corners[i], corners[(i + 1) % 4]
+        A = Vector((ax * fp, ay * fp, 0))
+        B = Vector((bx_ * fp, by * fp, 0))
+        for k in range(1, 5):
+            if i == 0 and k in (2, 3):
+                continue   # vão da escada
+            p = A.lerp(B, k / 5)
+            a(beam(bag.nm("Picket"), (p.x, p.y, P), (p.x, p.y, rail_z + rnd.uniform(0.05, 0.25)), 0.045, p_wood_dk, seg=5,
+                   end_mat=p_wood_end))
+        a(beam(bag.nm("Handrail"), (A.x, A.y, rail_z), (B.x, B.y, rail_z + rnd.uniform(-0.06, 0.06)), 0.055, p_wood,
+               seg=5))
+    # cobertura de couro em quatro águas sobre as pontas das pernas
+    tz = P + 1.25
+    roof_pts = [(sx * (top + 0.45), sy * (top + 0.45), tz) for sx, sy in corners] + [(0, 0, tz + 1.0)]
+    roof_pts += [(sx * (top + 0.45), sy * (top + 0.45), tz + 0.08) for sx, sy in corners]
+    a(hull("Roof", roof_pts, p_canvas_dk))
+    a(bx("RoofPatch", (0.45, -0.45, tz + 0.45), (0.4, 0.05, 0.35), p_patch, rot=(0.75, 0, 0.6), bev=0.005))
+    a(beam("Spike", (0, 0, tz + 0.9), (0, 0, tz + 1.6), 0.05, p_wood_dk, seg=5, r2=0.005))
+    # escada na frente
+    lx = 0.38
+    y0, y1 = -base - 0.7, -fp - 0.05
+    for sx in (-1, 1):
+        a(beam(bag.nm("LadderSide"), (sx * lx, y0, -0.05), (sx * lx, y1, P + 0.05), 0.05, p_wood_lt, seg=5, end_mat=p_wood_end))
+    for k in range(8):
+        t = (k + 0.7) / 8.6
+        y, z = y0 + (y1 - y0) * t, P * t
+        a(beam(bag.nm("Rung"), (-lx - 0.04, y, z), (lx + 0.04, y, z), 0.035, p_wood, seg=5))
+    # estandarte pendurado na frente do parapeito: pano vermelho-sujo com um X escuro
+    a(bx("Banner", (fp - 0.15, -fp - 0.08, P - 0.45), (0.55, 0.04, 0.95), p_patch, bev=0.005))
+    a(bx("BannerX1", (fp - 0.15, -fp - 0.11, P - 0.45), (0.08, 0.03, 0.75), p_wood_dk, rot=(0, 0.55, 0), bev=0.004))
+    a(bx("BannerX2", (fp - 0.15, -fp - 0.11, P - 0.45), (0.08, 0.03, 0.75), p_wood_dk, rot=(0, -0.55, 0), bev=0.004))
+    for i, (sx, sy) in enumerate(corners):
+        a(boulder(bag.nm("FootStone"), (sx * (base + 0.12), sy * (base + 0.12), 0), (0.4, 0.35, 0.25), _stone_pick(rnd),
+                  n=9, seed=65 + i))
+    join(bag.items, "Watchtower")
+    export("watchtower")
+
+
+PROP_BUILDERS.update({"tombstone": build_tombstone, "crypt": build_crypt, "palisade": build_palisade,
+                      "watchtower": build_watchtower})

@@ -689,6 +689,12 @@ func server_enemy_killed(e: Enemy) -> void:
 		_enemy_died.rpc_id(pid, e.net_id)
 
 
+## Monstro abatido pela guarda da vila (Enemy.guard_kill): ninguém ganha nada, as réplicas só veem a morte.
+func server_enemy_guard_killed(e: Enemy) -> void:
+	for pid in _enemy_peers(e):
+		_enemy_guarded.rpc_id(pid, e.net_id)
+
+
 ## Inimigo que some sem morrer (guarda de covil que voltou a dormir): sem recompensa, só sai das réplicas.
 func server_enemy_despawn(e: Enemy) -> void:
 	if e.net_id == 0:
@@ -754,9 +760,9 @@ func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow:
 	if not HitGuard.accepts(amount, last_pos.get(id, Vector3.INF), e.global_position):
 		return
 	if amount > 0.0:
+		e.last_hitter = id   # antes do número: incoming() usa o nível de quem bateu (monstro bem acima resiste)
 		for pid in _enemy_peers(e):
 			_enemy_hit_fx.rpc_id(pid, net_id, e.incoming(amount), crit)   # o número já com a marca tóxica
-		e.last_hitter = id
 		e.take_damage(amount, from_pos, crit, 0.0, 0.0, clampf(pull, 0.0, 6.0))
 		e.last_hitter = 0
 	if slow > 0.0 and not e.dead:
@@ -1357,6 +1363,15 @@ func _enemy_died(net_id: int) -> void:
 	enemies.erase(net_id)
 	if e and is_instance_valid(e) and not e.dead:
 		e.die_visual()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _enemy_guarded(net_id: int) -> void:
+	var e: Enemy = enemies.get(net_id)
+	enemies.erase(net_id)
+	if e and is_instance_valid(e) and not e.dead:
+		e.die_visual()
+		e.guard_fx()
 
 
 @rpc("authority", "call_remote", "reliable")
