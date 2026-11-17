@@ -19,8 +19,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BAL = ROOT / "data" / "balance"
 W_MAIN, W_SIDE, W_BOARD = 1.5, 1.0, 0.6
-# Nível escolhido à mão (vence a regra): kael_sumiu herdava o 25 da Mina, mas acontece no Pico (30–42).
-OVERRIDES = {"kael_sumiu": 30}
+# Nível escolhido à mão (vence a regra):
+# - kael_sumiu herdava o 25 da Mina, mas acontece no Pico (30–42);
+# - festa, registro e quadro (só conversa) vêm logo depois do Rei Goblin (12): o jogador está no ~11;
+# - as do Natal (sazonais, a qualquer momento do ano de jogo) ficam no nível do acampamento goblin (6),
+#   como a natal_ladroes; sazonais não entram no ritmo (simulador e teste das missões as ignoram).
+OVERRIDES = {"kael_sumiu": 30, "festa": 11, "registro": 11, "quadro": 11,
+             "natal_presentes": 6, "natal_ceia": 6, "natal_entregas": 6}
 
 _spec = importlib.util.spec_from_file_location("set_spawn_levels", Path(__file__).with_name("set_spawn_levels.py"))
 spawn = importlib.util.module_from_spec(_spec)

@@ -146,8 +146,8 @@ static func _sim_bands(bt: BalanceTables) -> Array:
 
 
 ## Fração da XP da faixa de `level` (sim.bands) que as missões de verdade dão: soma do reward_xp das missões
-## (quests.json) com nível na faixa ÷ XP para atravessar a faixa, no máximo quest_xp_share.
-## Nível fora das faixas: quest_xp_share.
+## (quests.json) com nível na faixa ÷ XP para atravessar a faixa, no máximo quest_xp_share. Missões de evento
+## sazonal (`event`, ex.: Natal) não contam: só existem parte do ano. Nível fora das faixas: quest_xp_share.
 static func sim_quest_share(bt: BalanceTables, level: int) -> float:
 	var cap := float(_prog(bt).get("quest_xp_share", 0.0))
 	for band in _sim_bands(bt):
@@ -161,6 +161,8 @@ static func sim_quest_share(bt: BalanceTables, level: int) -> float:
 		var got := 0
 		var quests: Dictionary = bt.get_table("quests")
 		for id in quests:
+			if quests[id].has("event"):
+				continue
 			var ql := int(quests[id].get("level", 1))
 			if ql >= lo and ql < hi:
 				got += int(quests[id].get("reward_xp", 0))

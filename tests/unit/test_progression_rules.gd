@@ -90,7 +90,7 @@ func test_quests_have_level_and_xp() -> void:
 		var l := int(qt[id].get("level", 0))
 		T.ok(l >= 1 and l <= maxl, "%s: nível %d dentro de 1..máx" % [id, l])
 		T.ok(int(qt[id].get("reward_xp", 0)) > 0, "%s: reward_xp > 0" % id)
-		if l <= 10:
+		if l <= 10 and not qt[id].has("event"):   # sazonal (Natal) fica fora do ritmo
 			early += int(qt[id].reward_xp)
 	var band := 0
 	for l in range(1, 10):

@@ -244,8 +244,8 @@
 		},
 		"desc": "A vila está em festa! Mas o Kael está parado no portão leste com cara de quem ensaiou um discurso. Vá ouvir.",
 		"objective": "Fale com o Kael no portão leste",
-		"reward_xp": 43771,
-		"level": 12,
+		"reward_xp": 35522,
+		"level": 11,
 		"reward_gold": 150,
 		"reward_items": {
 			"wind_ring": 1
@@ -301,8 +301,8 @@
 		},
 		"desc": "Uma filial da Guilda dos Aventureiros abriu em Valdoria, ao lado do quadro de avisos. O Bram quer que o herói da vila se registre oficialmente.",
 		"objective": "Registre-se com a Lina, na Guilda (ao lado do quadro de avisos)",
-		"reward_xp": 43771,
-		"level": 12,
+		"reward_xp": 35522,
+		"level": 11,
 		"reward_gold": 30,
 		"reward_items": {
 			"health_potion": 2
@@ -334,8 +334,8 @@
 		},
 		"desc": "Lina pediu que você conheça o Quadro de Contratos da Guilda, onde ficam os pedidos dos moradores.",
 		"objective": "Leia o Quadro de Contratos, ao lado da Lina",
-		"reward_xp": 43771,
-		"level": 12,
+		"reward_xp": 35522,
+		"level": 11,
 		"reward_gold": 10,
 		"reward_items": {}
 	},
@@ -391,8 +391,8 @@
 		},
 		"desc": "Um pedido urgente chegou do Bosque Sussurrante: um menino da vila sumiu por lá. Pegue a carruagem da guilda e procure a patrulheira Sylvi.",
 		"objective": "Viaje ao Bosque Sussurrante (carruagem, portão norte) e fale com a Sylvi",
-		"reward_xp": 43771,
-		"level": 12,
+		"reward_xp": 35522,
+		"level": 11,
 		"reward_gold": 20,
 		"reward_items": {}
 	},
@@ -441,8 +441,8 @@
 		},
 		"desc": "Sylvi viu pegadas pequenas indo para o nordeste do bosque. Encontre o Tico.",
 		"objective": "Encontre o Tico no nordeste do Bosque Sussurrante",
-		"reward_xp": 43771,
-		"level": 12,
+		"reward_xp": 35522,
+		"level": 11,
 		"reward_gold": 20,
 		"reward_items": {}
 	},
@@ -1445,8 +1445,8 @@
 		"type": "gather",
 		"desc": "Uma rena se assustou e os presentes caíram do trenó por todo o vale. Encontre os 8 presentes e traga de volta.",
 		"count": 8,
-		"reward_xp": 75,
-		"level": 1,
+		"reward_xp": 5529,
+		"level": 6,
 		"reward_gold": 150,
 		"reward_items": {
 			"health_potion": 3,
@@ -1531,8 +1531,8 @@
 			"carrot_stew": 1
 		},
 		"count": 1,
-		"reward_xp": 75,
-		"level": 1,
+		"reward_xp": 5529,
+		"level": 6,
 		"reward_gold": 160,
 		"reward_items": {
 			"valdoria_feast": 2
@@ -1564,8 +1564,8 @@
 		"type": "visit",
 		"desc": "Ajude o Noel a deixar presentes nas 6 casas marcadas com uma estrela pelas ruas de Valdoria.",
 		"count": 6,
-		"reward_xp": 75,
-		"level": 1,
+		"reward_xp": 5529,
+		"level": 6,
 		"reward_gold": 180,
 		"reward_items": {
 			"sage_amulet": 1

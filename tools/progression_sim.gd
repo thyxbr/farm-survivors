@@ -94,11 +94,14 @@ func _init() -> void:
 	quit(0)
 
 
-## {nível: soma do reward_xp das missões desse nível} (quests.json).
+## {nível: soma do reward_xp das missões desse nível} (quests.json; sem as de evento sazonal, como o
+## ProgressionRules.sim_quest_share).
 func _quest_xp_by_level(bt: BalanceTables) -> Dictionary:
 	var out := {}
 	var quests: Dictionary = bt.get_table("quests")
 	for id in quests:
+		if quests[id].has("event"):
+			continue
 		var l := int(quests[id].get("level", 1))
 		out[l] = int(out.get(l, 0)) + int(quests[id].get("reward_xp", 0))
 	return out
