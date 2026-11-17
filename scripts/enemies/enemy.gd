@@ -916,16 +916,9 @@ func die_visual() -> void:
 		name_tag.visible = false
 		quest_icon.visible = false
 	Sfx.play_at("slime" if data.model == "slime" else "enemy_die", global_position, 0.1, -4.0 if horde else 0.0)
-	FX.burst(global_position + Vector3.UP * 0.6 * data.scale, data.color, 30 if not is_boss else 120, 5.0, 0.14, 0.9)
 	died.emit(self)
-	var tw := create_tween()
-	if data.model == "slime":
-		tw.tween_property(model, "scale", Vector3(1.6, 0.05, 1.6) * data.scale, 0.35).set_ease(Tween.EASE_IN)
-	else:
-		tw.tween_property(model, "rotation:x", -PI / 2, 0.5).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
-		tw.tween_interval(0.8)
-		tw.tween_property(model, "position:y", -1.5 * data.scale, 1.0)
-	tw.tween_callback(queue_free)
+	# acende azul e se desfaz em cacos (FXShatter); o nó sai assim que o modelo some
+	FXShatter.play(self, model, meshes, model.scale.x, is_boss, queue_free)
 
 
 ## Solo: sorteio do loot (LootRules, o mesmo do servidor) em pickups no chão.

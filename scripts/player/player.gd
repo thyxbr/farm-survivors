@@ -20,6 +20,7 @@ const DODGE_SPEED := 13.0
 const DODGE_TIME := 0.36
 const SWING_TIMES := [0.42, 0.42, 0.6]
 const SWING_MULT := [1.0, 1.1, 1.6]
+const PUNCH_TIMES := [0.3, 0.32, 0.5]   # sem arma: jab, direto e uppercut, mais rápidos que a espada
 const STAFF_TIMES := [0.4, 0.4, 0.6]
 const BOW_FULL := 0.85        # segundos para tensionar o arco por completo
 const BOW_RECOVER := 0.35     # soltou: a mão da corda escapa e o arco baixa (ou encaixa a próxima, mirando)
@@ -565,9 +566,10 @@ func _start_swing() -> void:
 		return
 	if is_on_floor():
 		var f := facing()
-		velocity.x += f.x * 3.0
-		velocity.z += f.z * 3.0
-	Sfx.play("sword_swing_heavy" if Sfx.heavy_sword(_weapon_id()) else "sword_swing", 0.1)
+		var push := 1.5 if _unarmed() else 3.0   # o soco é um passo curto, não uma estocada
+		velocity.x += f.x * push
+		velocity.z += f.z * push
+	Sfx.play(_attack_sound(), 0.1, -3.0 if _unarmed() else 0.0)
 
 
 func _update_attack(delta: float) -> void:
@@ -601,7 +603,8 @@ func _update_attack(delta: float) -> void:
 
 func _do_hit() -> void:
 	var mult: float = SWING_MULT[combo - 1]
-	var reach := 2.4 if combo < 3 else 2.9
+	var fist := _unarmed()
+	var reach := (2.0 if combo < 3 else 2.2) if fist else (2.4 if combo < 3 else 2.9)
 	var hit_any := false
 	var flesh := false   # acertou algo que não é slime: lâmina em carne; só slime: só a lâmina
 	var hit_enemy := false
@@ -614,7 +617,7 @@ func _do_hit() -> void:
 		var dist := to.length()
 		if dist > reach + e.radius:
 			continue
-		if combo < 3 and dist > 0.6 and f.dot(to.normalized()) < 0.3:
+		if (combo < 3 or fist) and dist > 0.6 and f.dot(to.normalized()) < 0.3:
 			continue
 		var crit: bool = randf() < Game.crit_chance()
 		var dmg: float = EnchantHit.scale(e, Game.melee_damage() * mult * randf_range(0.9, 1.1) * (1.8 if crit else 1.0))
@@ -633,11 +636,13 @@ func _do_hit() -> void:
 		var dist := to.length()
 		if dist > reach + n.radius:
 			continue
-		if combo < 3 and dist > 0.6 and f.dot(to.normalized()) < 0.3:
+		if (combo < 3 or fist) and dist > 0.6 and f.dot(to.normalized()) < 0.3:
 			continue
 		n.hit(global_position)
 		hit_any = true
-	if hit_enemy:   # o nó de recurso toca o próprio som (madeira, pedra) em hit()
+	if hit_enemy and fist:
+		Sfx.play("punch_hit", 0.12)
+	elif hit_enemy:   # o nó de recurso toca o próprio som (madeira, pedra) em hit()
 		Sfx.play(Sfx.sword_hit(flesh, Sfx.heavy_sword(_weapon_id())), 0.1)
 	if hit_any:
 		add_shake(0.12 if combo < 3 else 0.22)
@@ -649,7 +654,7 @@ func _swing_time(c: int) -> float:
 			return STAFF_TIMES[clampi(c, 1, 3) - 1]
 		"bow":
 			return BOW_RECOVER
-	return SWING_TIMES[clampi(c, 1, 3) - 1]
+	return (PUNCH_TIMES if _unarmed() else SWING_TIMES)[clampi(c, 1, 3) - 1]
 
 
 ## Arma equipada: a do jogo local ou, numa réplica de outro jogador, a do último visual recebido.
@@ -657,13 +662,20 @@ func _weapon_id() -> String:
 	return str(_last_look.get("weapon", "")) if remote else str(Game.equipment.weapon)
 
 
-## Som do golpe de uma réplica, pela classe da arma que ela carrega.
+## Sem arma na mão (a classe cai em "sword", mas o golpe é o soco).
+func _unarmed() -> bool:
+	return look["class"] == "sword" and _weapon_id() == ""
+
+
+## Som do golpe (do jogador local e das réplicas), pela classe da arma que ele carrega.
 func _attack_sound() -> String:
 	match look["class"]:
 		"staff":
 			return "staff_wind"
 		"bow":
 			return "bow_shot"
+	if _unarmed():
+		return "punch"
 	return "sword_swing_heavy" if Sfx.heavy_sword(_weapon_id()) else "sword_swing"
 
 
@@ -1557,8 +1569,10 @@ func _animate(delta: float) -> void:
 		KnightAnim.bow_release_pose(p, attack_timer / BOW_RECOVER, _amp, aiming)
 	elif attacking and cls == "staff":
 		KnightAnim.staff_pose(p, combo, attack_timer / _swing_time(combo), _amp)
+	elif attacking and cls == "sword" and _unarmed():
+		KnightAnim.punch_pose(p, combo, attack_timer / _swing_time(combo), _amp)
 	elif attacking and cls == "sword":
-		KnightAnim.sword_pose(p, combo, attack_timer / SWING_TIMES[clampi(combo, 1, 3) - 1], _amp)
+		KnightAnim.sword_pose(p, combo, attack_timer / _swing_time(combo), _amp)
 	elif _cast_t < KnightMoves.CAST_TIME:
 		KnightAnim.cast_pose(p, _cast_kind, _cast_t / KnightMoves.CAST_TIME, _amp, cls == "staff")
 	if ability != "" or drawing or attacking or _cast_t < KnightMoves.CAST_TIME:

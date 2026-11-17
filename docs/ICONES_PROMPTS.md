@@ -133,6 +133,9 @@ Cada combo junta os elementos das duas armas.
 3. **Consumíveis, materiais, sementes, colheita e comida (seções F a I):** sem anexo, só o texto:
    `Same style as the previous icons. Subject:` + o texto da tabela.
 4. Salve como `assets/ui/items/raw/<arquivo>.png`. O nome do arquivo é o id do item.
+   Para recortar e tirar o fundo: `python -X utf8 tools/icons/slice_grid.py <imagem> <id1,id2,...>`
+   (um id `-` pula um objeto repetido). A saída vai para `assets/ui/items/<id>.png` (256 px); rode
+   o `--import` do Godot e troque `mipmaps/generate=false` para `true` no `.import` novo.
 5. Se sair com sombra no chão, fundo que não é branco liso ou peças inventadas, peça:
    `Keep only the object on a pure flat white background, no shadow, no extra parts.`
 
@@ -153,6 +156,10 @@ bottom-left (handle) to top-right (tip).
 ```
 
 ## Modo em grade: vários itens numa imagem só
+
+> **Situação:** as 4 grades estão prontas (0.29.1) e os 39 itens das seções F a I já usam arte
+> pintada. As grades originais ficam em `assets/ui/items/raw/`. Os equipamentos (A a E) ainda
+> usam o render 3D.
 
 Para não rodar um prompt por item, as seções F a I podem sair em **4 imagens em grade**. Eu recorto
 cada objeto sozinho: acho as manchas que não são brancas, então a grade não precisa sair perfeita,
@@ -389,6 +396,24 @@ de sementes de longe e a cultura de perto.
 | `seed_pepper` | Semente de Pimenta-de-Fogo | The same burlap seed pouch with a fiery red label showing a chili pepper, a few seeds spilling out. |
 | `seed_mint` | Semente de Menta Gélida | The same burlap seed pouch with a pale cyan label showing a mint leaf, a few seeds spilling out. |
 | `seed_pumpkin` | Semente de Abóbora | The same burlap seed pouch with an orange-brown label showing a pumpkin, a few seeds spilling out. |
+
+### Semente nova (para sementes que entrarem depois)
+
+Para o saquinho sair igual aos 6 que já existem, **não gere do zero**: anexe
+`assets/ui/items/seed_carrot.png` e `assets/ui/items/<cultura>.png` (o ícone da colheita nova, que
+já deve existir) e mande, na conversa do prompt de estilo de itens:
+
+```
+Redraw the first attached image (a burlap seed pouch) EXACTLY the same: same pouch shape, same
+burlap color and stitching, same rope tie, same size and angle, same square label in the same
+place, same few seeds spilling at the bottom right. Change ONLY the label: color it <cor da
+etiqueta> and draw on it a tiny simple version of the second attached image (<cultura>).
+Pure flat white background, no shadow, no text.
+```
+
+Depois recorte com `slice_grid.py` passando só o id (`seed_<cultura>`). O teste
+`tests/unit/test_item_art.gd` falha se uma semente (ou qualquer item que não é equipamento) entrar
+em `data/balance/items.json` sem arte em `assets/ui/items/`.
 
 ## H. Colheita (6) — só texto
 

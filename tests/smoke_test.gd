@@ -175,6 +175,12 @@ func _ready() -> void:
 	check(Game.fury > 0.0 and Game.fury < 10.0, "fúria sobe com o dano do golpe do jogador (%.2f)" % Game.fury)
 	Game.fury = 0.0
 	check(slime.hp < hp0, "golpe de espada causa dano (%.0f -> %.0f)" % [hp0, slime.hp])
+	var w_fist: String = Game.equipment.weapon
+	Game.equipment.weapon = ""
+	check(player._unarmed() and player._attack_sound() == "punch" and is_equal_approx(player._swing_time(1), 0.3),
+		"sem arma o golpe é soco: som de soco e combo de boxe")
+	Game.equipment.weapon = w_fist
+	check(not player._unarmed() and player._attack_sound().begins_with("sword_swing"), "com a espada volta o som de lâmina")
 	slime.take_damage(9999, player.global_position, false)
 	check(Game.level > lvl0 or Game.xp > xp0, "XP ganho ao matar slime")
 	check(Game.quests.slimes.progress == 1, "progresso da missão 1/5")
@@ -2976,9 +2982,11 @@ func _test_gear() -> void:
 	check(ItemIcons.icon("health_potion", Callable()) == null, "sem janela, item de família também cai no ícone pintado")
 	var no_icon: Array[String] = []
 	for id: String in ItemDB.ITEMS:
-		if not ItemIcons._has_model(id):
+		if not ItemIcons._has_model(id) and ItemSlot.item_art(id) == null:
 			no_icon.append(id)
-	check(no_icon.is_empty(), "todo item tem modelo para o ícone 3D (sem: %s)" % ", ".join(no_icon))
+	check(no_icon.is_empty(), "todo item tem arte pintada ou modelo para o ícone 3D (sem: %s)" % ", ".join(no_icon))
+	check(ItemSlot.item_art("health_potion") != null and not ItemIcons._has_model("health_potion"),
+		"item com arte pintada usa a arte e não é fotografado em 3D")
 	m._close()
 	await wait(0.05)
 	world.open_shop()
