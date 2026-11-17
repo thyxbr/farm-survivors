@@ -92,7 +92,7 @@ func _row(id: String, def: Dictionary) -> void:
 	var maxed := level >= costs.size()
 	var add: Dictionary = def.get("add", {})
 	var box := PanelContainer.new()
-	box.add_theme_stylebox_override("panel", UITheme.inset_box(8))
+	box.add_theme_stylebox_override("panel", UITheme.kit_inset(8))
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 14)
 	box.add_child(h)

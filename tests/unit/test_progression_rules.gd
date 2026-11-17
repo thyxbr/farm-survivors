@@ -81,6 +81,61 @@ func test_elite_adds_levels() -> void:
 	T.eq(ProgressionRules.spawn_level(bt, 0, 0, true, rng), 0, "elite sem nível não ganha nível")
 
 
+## Vida e dano de um tipo no nível `level` como o Enemy calcula (curva de nível × categoria).
+func _at(bt: BalanceTables, kind: String, level: int, chief := false) -> Dictionary:
+	var t: Dictionary = bt.get_table("enemies")[kind]
+	var m := ProgressionRules.enemy_mults(bt, kind, level)
+	var r := ProgressionRules.rank_mults(bt, kind, chief)
+	return {"hp": float(t.hp) * float(m.hp) * float(r.hp), "dmg": float(t.damage) * float(m.dmg) * float(r.dmg)}
+
+
+## No mesmo nível: todo campeão (elite) tem mais vida e bate mais que qualquer comum, e todo chefe mais que
+## qualquer campeão. Ficam de fora o Goblin Dourado (foge, dano 0) e os que explodem (dano de um golpe só).
+func test_rank_order_at_same_level() -> void:
+	var bt := _tables()
+	var en: Dictionary = bt.get_table("enemies")
+	var groups := {"normal": [], "elite": [], "boss": []}
+	for k in en:
+		if int(en[k].damage) <= 0 or en[k].get("ai", "") == "bomber" or en[k].has("blast"):
+			continue
+		groups["boss" if en[k].get("boss", false) else ("elite" if en[k].get("elite", false) else "normal")].append(k)
+	T.ok(groups.elite.size() > 0 and groups.boss.size() > 0, "há campeões e chefes")
+	for level in [8, 21, 40]:
+		for pair in [["normal", "elite"], ["elite", "boss"]]:
+			for weak in groups[pair[0]]:
+				for strong in groups[pair[1]]:
+					var a := _at(bt, weak, level)
+					var b := _at(bt, strong, level)
+					T.ok(b.hp > a.hp, "Nv %d: vida de %s > %s" % [level, strong, weak])
+					T.ok(b.dmg > a.dmg, "Nv %d: dano de %s > %s" % [level, strong, weak])
+	T.eq(ProgressionRules.rank_mults(bt, "goblin", false), {"hp": 1.0, "dmg": 1.0}, "comum sem bônus de categoria")
+
+
+func test_chief_uses_boss_rank() -> void:
+	var bt := _tables()
+	var chief := _at(bt, "slime_rainha", 21, true)
+	var queen := _at(bt, "slime_rainha", 21)
+	T.ok(chief.hp > queen.hp and chief.dmg > queen.dmg, "chefe de dungeon mais forte que a mesma elite no mundo")
+	T.eq(ProgressionRules.rank_mults(bt, "slime_rainha", true), ProgressionRules.rank_mults(bt, "goblin_king"),
+		"chefe de dungeon usa o bloco do chefe")
+
+
+func test_danger_bonus() -> void:
+	var bt := _tables()
+	var diff := ProgressionRules.danger_diff(bt)
+	var none := {"dmg": 1.0, "taken": 1.0}
+	T.eq(ProgressionRules.danger_mults(bt, 10 + diff - 1, 10), none, "abaixo do vermelho: sem bônus")
+	var red: Dictionary = ProgressionRules.danger_mults(bt, 10 + diff, 10)
+	T.ok(float(red.dmg) > 1.0 and float(red.taken) < 1.0, "no vermelho: bate mais e leva menos")
+	var far: Dictionary = ProgressionRules.danger_mults(bt, 10 + diff + 5, 10)
+	T.ok(float(far.dmg) > float(red.dmg) and float(far.taken) < float(red.taken), "cresce com a diferença")
+	var huge: Dictionary = ProgressionRules.danger_mults(bt, 50, 1)
+	var d: Dictionary = bt.get_table("progression").danger
+	T.ok(absf(float(huge.dmg) - float(d.dmg_max)) < 0.0001 and absf(float(huge.taken) - float(d.taken_min)) < 0.0001, "tem teto")
+	T.eq(ProgressionRules.danger_mults(bt, 0, 1), none, "monstro sem nível (Horda) sem bônus")
+	T.eq(ProgressionRules.danger_mults(bt, 30, 0), none, "jogador desconhecido sem bônus")
+
+
 func test_quests_have_level_and_xp() -> void:
 	var bt := _tables()
 	var qt: Dictionary = bt.get_table("quests")
