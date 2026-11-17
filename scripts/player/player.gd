@@ -997,7 +997,7 @@ const HEAL_AIM_SCREEN := 0.09   ## quão longe do centro da tela (fração da al
 var heal_armed := false
 var heal_target: Node3D = null
 var _heal_arm_t := 0.0
-var _heal_charge: CPUParticles3D
+var _heal_charge: Node3D
 static var _heal_hint_done := false
 
 
@@ -1020,7 +1020,7 @@ func _disarm_heal() -> void:
 	_mark_heal_target(heal_target, false)
 	heal_target = null
 	if _heal_charge and is_instance_valid(_heal_charge):
-		FXEpic.stop_stream(_heal_charge)
+		_heal_charge.queue_free()
 	_heal_charge = null
 
 

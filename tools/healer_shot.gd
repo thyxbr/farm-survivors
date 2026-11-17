@@ -46,9 +46,9 @@ func _ready() -> void:
 	await _snap()
 	# 2) a cura voa em arco do healer até o aliado e explode em luz
 	HolyFX.heal_beam(healer.global_position + Vector3.UP * 1.4, a, true)
-	await _wait(0.3)
+	await _wait(0.13)
 	await _snap()
-	await _wait(0.25)
+	await _wait(0.3)
 	await _snap()
 	a.set_heal_highlight(false)
 	await _wait(1.0)
