@@ -1057,7 +1057,7 @@ func _test_bow_gale() -> void:
 			if c is BowAbilities.GaleLine:
 				n += 1
 		return n
-	_calm_bystanders(gs, base, 40.0, 12.0)   # monstros com nível batem mais: nenhum outro chega no meio da tensão
+	_calm_bystanders(gs, base, 40.0, 20.0)   # monstros com nível batem mais: nenhum outro chega no meio da tensão
 	place.call()
 	await wait(0.3)
 	place.call()

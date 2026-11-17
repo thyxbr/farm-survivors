@@ -6,7 +6,7 @@
 		"hp":   {"rate": 0.24, "exp": 1.05},
 		"dmg":  {"rate": 0.08, "exp": 1.0},
 		"xp":   {"rate": 0.28, "exp": 2.4},
-		"gold": {"rate": 0.005, "exp": 1.0}
+		"gold": {"rate": 0.04, "exp": 1.0}
 	},
 	"tier_size": 10,
 	"tiers": [

@@ -52,7 +52,7 @@ Para cada atributo, `curva(L) = (1 + rate × (L − 1))^exp`, e o monstro no ní
 | `hp` | 0.24, 1.05 | colunas `g.*` (golpes): têm de ficar entre 3 e 5 | rate 0.20–0.30, exp 1.0–1.1 |
 | `dmg` | 0.08, 1.0 | (o simulador não mede) quantos golpes o jogador aguenta; hoje ~8 de um goblin do mesmo nível em qualquer nível, sem pontos em VIT | rate 0.05–0.12 |
 | `xp` | 0.28, 2.4 | coluna `xp mob` e as horas por faixa | exp perto de `xp_curve.exp` |
-| `gold` | 0.005, 1.0 | ouro por abate (não entra no simulador). Quase plano de propósito: no mesmo nível o abate dá o ouro de hoje (goblin nv 6 ~7,6; esqueleto nv 25 ~7,8); como cada abate leva mais golpes, o ouro por hora cai um pouco | rate 0–0.03 |
+| `gold` | 0.04, 1.0 | ouro por abate (não entra no simulador). Cresce com o nível: goblin nv 6 ~8,7 (hoje ~7,5), goblin nv 30 ~15,6, esqueleto nv 25 ~13, Lich nv 42 ~580. Como cada abate leva mais golpes que hoje, o ouro por hora cai um pouco | rate 0.03–0.05 |
 
 O dano do jogador cresce quase em linha reta com o nível (3 pontos por nível × 1,4–1,6 de dano por ponto), por
 isso a vida usa expoente perto de 1. Vida subindo mais rápido que isso faz os golpes passarem de 5 no fim.
