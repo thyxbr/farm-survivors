@@ -1060,8 +1060,7 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 		elif attack_kind == "slam":
 			var sr := _slam_radius()
 			Sfx.play_at("slam", global_position, 0.0)
-			FX.ring(global_position, Color(0.8, 0.6, 0.3, 0.9), sr, 0.4)
-			FX.burst(global_position + Vector3.UP * 0.3, Color(0.5, 0.4, 0.3), 40, 7.0, 0.2, 0.8)
+			FXToon.slam(global_position, sr)
 			if player and dist <= sr:
 				player.take_damage(vs(level, player, data.damage * dmg_mult * 1.4), global_position)
 			if player is Player:
@@ -1145,8 +1144,7 @@ func _shoot_web(visual: bool) -> void:
 
 func _cast_heal(visual: bool) -> void:
 	var r: float = data.heal_radius
-	FX.ring(global_position, Color(0.5, 1.0, 0.4, 0.9), r, 0.6)
-	FX.burst(global_position + Vector3.UP * 1.6, Color(0.6, 1.0, 0.4), 24, 3.0, 0.1, 0.8, 2.0)
+	FXToon.heal_pulse(global_position, r)
 	Sfx.play_at("heal", global_position, 0.1, -6.0)
 	if visual:
 		return
@@ -1156,15 +1154,13 @@ func _cast_heal(visual: bool) -> void:
 		if e.global_position.distance_to(global_position) <= r and e.hp < e.max_hp:
 			e.hp = minf(e.max_hp, e.hp + e.max_hp * 0.25)
 			e.health_changed.emit(e)
-			FX.burst(e.global_position + Vector3.UP * 1.0, Color(0.5, 1.0, 0.4), 6, 2.0, 0.08, 0.5, 2.0)
+			FXToon.heal_touch(e.global_position)
 
 
 func _explode(visual: bool) -> void:
 	var r: float = data.blast
 	Sfx.play_at("explode", global_position, 0.1, -2.0)
-	FX.ring(global_position, Color(1.0, 0.6, 0.15, 0.95), r, 0.35)
-	FX.burst(global_position + Vector3.UP * 0.5, Color(1.0, 0.5, 0.1), 50, 7.0, 0.16, 0.7)
-	FX.burst(global_position + Vector3.UP * 0.5, Color(0.25, 0.2, 0.18), 20, 3.0, 0.25, 1.0, 1.0)
+	FXToon.blast(global_position, r)
 	if visual:
 		return
 	var pool: Array = get_parent().targets() if get_parent().has_method("targets") else get_tree().get_nodes_in_group("players")
@@ -1198,7 +1194,7 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun
 	var top: Vector3 = global_position + Vector3.UP * (data.height * data.scale + 0.2)
 	FX.damage_number(top, ("%d!" if crit else "%d") % int(round(amount)),
 		Color(1, 0.85, 0.2) if crit else Color.WHITE, 64 if crit else 48)
-	FX.burst(global_position + Vector3.UP * data.height * data.scale * 0.5, data.color, 5 if horde else 10, 3.5, 0.1, 0.5)
+	FXToon.hit_splat(global_position + Vector3.UP * data.height * data.scale * 0.5, data.color, 3 if horde else 5)
 	_flash_t = 0.1
 	provoked = PROVOKE_TIME
 	if state in ["idle", "wander", "return"]:
@@ -1415,7 +1411,7 @@ func show_hit(amount: float, crit: bool) -> void:
 	var top: Vector3 = global_position + Vector3.UP * (data.height * data.scale + 0.2)
 	FX.damage_number(top, ("%d!" if crit else "%d") % int(round(amount)),
 		Color(1, 0.85, 0.2) if crit else Color.WHITE, 64 if crit else 48)
-	FX.burst(global_position + Vector3.UP * data.height * data.scale * 0.5, data.color, 10, 3.5, 0.1, 0.5)
+	FXToon.hit_splat(global_position + Vector3.UP * data.height * data.scale * 0.5, data.color, 5)
 	_flash_t = 0.1
 	if bar_root:
 		bar_root.visible = true
@@ -1440,8 +1436,7 @@ func _puppet_process(delta: float) -> void:
 			hit_done = true
 			if attack_kind == "slam":
 				Sfx.play_at("slam", global_position, 0.0)
-				FX.ring(global_position, Color(0.8, 0.6, 0.3, 0.9), _slam_radius(), 0.4)
-				FX.burst(global_position + Vector3.UP * 0.3, Color(0.5, 0.4, 0.3), 40, 7.0, 0.2, 0.8)
+				FXToon.slam(global_position, _slam_radius())
 			elif attack_kind == "shoot":
 				_shoot(true)
 			elif attack_kind == "web":

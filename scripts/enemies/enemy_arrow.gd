@@ -27,6 +27,8 @@ func _ready() -> void:
 	direction = direction.normalized() if direction.length() > 0.01 else Vector3.FORWARD
 	if magic:
 		_build_orb()
+		# rastro desenhado atrás do orbe (lê `direction`)
+		FXToon.comet(self, FXToon.MENACE, 1.6, 0.16, false)      # miolo escuro, borda acesa: o traço dos monstros
 		return
 	if web:
 		_build_web()
@@ -60,6 +62,7 @@ func _ready() -> void:
 	tip.position.z = 0.5
 	add_child(tip)
 	look_at(global_position + direction, Vector3.UP)
+	FXToon.comet(self, FXToon.THORN, 1.3, 0.05, false)      # risco escuro atrás da flecha
 	rotate_object_local(Vector3.UP, PI)   # o +Z local (ponta) aponta para a frente
 
 
@@ -100,10 +103,7 @@ func _build_orb() -> void:
 	orb.rings = 4
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.albedo_color = Color(0.75, 0.45, 1.0)
-	m.emission_enabled = true
-	m.emission = Color(0.6, 0.25, 1.0)
-	m.emission_energy_multiplier = 2.5
+	m.albedo_color = Color(0.12, 0.03, 0.14)      # miolo quase preto; a borda acesa vem do rastro e da luz
 	orb.material = m
 	mi.mesh = orb
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -142,8 +142,6 @@ func _physics_process(delta: float) -> void:
 	global_position += direction * SPEED * delta
 	if web:
 		rotate_y(9.0 * delta)
-	if magic and Engine.get_physics_frames() % 3 == 0:
-		FX.burst(global_position, Color(0.7, 0.4, 1.0), 2, 0.8, 0.07, 0.35)
 	if damage <= 0.0 or source == null or not is_instance_valid(source):
 		return
 	for p in _targets():
@@ -154,7 +152,11 @@ func _physics_process(delta: float) -> void:
 			p.take_damage(Enemy.vs(level, p, damage), global_position - direction)
 			if web and p.has_method("apply_web"):
 				p.apply_web(web_secs)
-			FX.burst(global_position, Color(0.93, 0.93, 0.97) if web else Color(0.7, 0.4, 1.0) if magic
-				else Color(0.7, 0.5, 0.3), 8, 2.5, 0.08, 0.4)
+			if magic:
+				FXToon.spark_hit(global_position, direction, FXToon.MENACE, 6, 1.1)
+			elif web:
+				FXToon.hit_splat(global_position, Color(0.93, 0.93, 0.97), 6)
+			else:
+				FXToon.spark_hit(global_position, direction, FXToon.THORN, 4, 0.6)
 			queue_free()
 			return
