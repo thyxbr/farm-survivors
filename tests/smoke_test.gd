@@ -2,6 +2,8 @@ extends Node
 ## Teste de fumaça do gameplay. Rode com:
 ##   godot --headless --path . res://scenes/world.tscn -- --smoketest
 ## Imprime PASS/FAIL para cada verificação e encerra com código 0 (ok) ou 1 (falhas).
+## No CI roda em duas partes, em paralelo (cada uma num job): `--smoke-part=mundo` (tudo menos a Horda) e
+## `--smoke-part=horda` (só o Desafio da Horda). Sem o argumento roda tudo, como antes.
 
 const UPG := preload("res://scripts/survival/upgrades.gd")
 
@@ -116,6 +118,12 @@ func _ready() -> void:
 	# o kit das três armas, dado como concessão, para os testes de combate de cada classe de arma
 	Econ.grant(0, 0, {"apprentice_staff": 1, "short_bow": 1, "leather_cap": 1}, "test", true)
 	check(Game.count_item("apprentice_staff") == 1 and Game.count_item("short_bow") == 1, "kit de teste tem cajado e arco")
+	if _part() == "horda":
+		# o chili do dragão comido na rodada vem do teste da horta, que esta parte não roda
+		Econ.grant(0, 0, {"dragon_chili": 1}, "test", true)
+		await _test_survival()
+		_finish()
+		return
 
 	# --- som posicional: combate longe do jogador não deve ser ouvido
 	check(Sfx.distance_gain(0.0) == 1.0 and Sfx.distance_gain(15.0) < 0.5 and Sfx.distance_gain(Sfx.FAR_DIST + 1.0) == 0.0,
@@ -1076,10 +1084,22 @@ func _ready() -> void:
 	await _test_flor_rooted()
 	await _test_enemy_detour()
 	await _test_archer_pose()
-	await _test_survival()
+	if _part() != "mundo":
+		await _test_survival()
 	await _test_update()
 	await _test_char_create()   # por último: troca o personagem solo por um novo, sem classe
+	_finish()
 
+
+## Parte pedida com --smoke-part=<mundo|horda>; "" = o teste inteiro.
+func _part() -> String:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--smoke-part="):
+			return a.trim_prefix("--smoke-part=")
+	return ""
+
+
+func _finish() -> void:
 	print("\n==== %s (%d falhas) ====" % ["OK" if fails == 0 else "FALHOU", fails])
 	get_tree().quit(1 if fails > 0 else 0)
 
