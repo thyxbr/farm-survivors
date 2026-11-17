@@ -4,10 +4,10 @@ extends RefCounted
 ## nomes dos lugares e quem aparece no mapa. O norte (-Z) fica para cima.
 
 ## Lugares com nome no mapa: região -> [[nome, posição local (relativa ao centro da região)]].
-## Nome no mapa -> landmark da cena do mapa (MapData.landmark); "" = o centro do mapa.
+## Nome no mapa -> landmark da cena do mapa (MapData.landmark); "" = o centro do mapa. As regiões de monstros
+## (Toca dos Goblins, Ruínas de Valdoria, Ninho de Slimes...) vêm à parte, de areas().
 const PLACES := {
-	"vila": [["Vila de Valdoria", ""], ["Horta", "farm"], ["Pomar", "orchard"], ["Acampamento Goblin", "camp"],
-		["Ruínas", "ruins"], ["Portal da Horda", "portal"], ["Ninho de Slimes", "nest"]],
+	"vila": [["Vila de Valdoria", ""], ["Horta", "farm"], ["Pomar", "orchard"], ["Portal da Horda", "portal"]],
 	"bosque": [["Bosque Sussurrante", ""]],
 	"mina": [["Mina de Cristal", ""]],
 	"pico": [["Pico das Cinzas", ""]],
@@ -60,6 +60,41 @@ static func places(region: String) -> Array:
 		out.append([p[0], Regions.origin(region) if p[1] == "" else MapData.landmark(region, p[1])])
 	out.append(["Carruagem da Guilda", Regions.coach_point(region)])
 	return out
+
+
+## Regiões de monstros do mapa que aparecem no mapa (show_on_map no regions.json): [[rótulo "Nome · Nv a–b",
+## centro (Vector3), formas (Array de áreas do MapData, uma por nó)]], um item por região.
+static func areas(region: String, table: Dictionary) -> Array:
+	var out: Array = []
+	var by_id := {}
+	for a in MapData.areas(region):
+		if not Regions.area_info(table, a.id).show_on_map:
+			continue
+		if not by_id.has(a.id):
+			by_id[a.id] = [Regions.area_label(table, a.id), a.center, []]
+			out.append(by_id[a.id])
+		by_id[a.id][2].append(a)
+	return out
+
+
+## Contorno de uma área no plano XZ (x, z do mundo): os 4 cantos do retângulo (girado) ou `segs` pontos do disco.
+static func area_outline(a: Dictionary, segs := 32) -> PackedVector2Array:
+	var c := Vector2(a.center.x, a.center.z)
+	var out := PackedVector2Array()
+	if int(a.shape) == MapRegion.DISC:
+		for i in segs:
+			out.append(c + Vector2.from_angle(TAU * i / segs) * float(a.radius))
+		return out
+	var h: Vector2 = a.size / 2.0
+	for k in [Vector2(-h.x, -h.y), Vector2(h.x, -h.y), Vector2(h.x, h.y), Vector2(-h.x, h.y)]:
+		out.append(c + k.rotated(-float(a.rot)))
+	return out
+
+
+## Aviso de entrada: mostra quando chega numa região diferente da última mostrada (`prev`). Sair para fora de
+## toda região não conta, então andar pela borda não repete o letreiro; quem chama só guarda `now` se não for "".
+static func entered(prev: String, now: String) -> bool:
+	return now != "" and now != prev
 
 
 ## ---- Atlas (mapa-mundi): as regiões ficam a centenas de metros umas das outras na cena; no atlas elas

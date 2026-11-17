@@ -11,6 +11,8 @@ const C_PLAYER := Color(1.0, 0.95, 0.7)
 const C_PARTY := Color(0.4, 1.0, 0.55)
 const C_NPC := Color(1.0, 0.82, 0.3)
 const C_QUEST := Color(1.0, 0.6, 0.15)
+## Regiões de monstros (Toca dos Goblins...): mancha e contorno no mapa grande e no atlas.
+const C_AREA := Color(1.0, 0.45, 0.25)
 
 var mode := "mini"
 ## Região mostrada no modo "full" ("" = a do jogador).
@@ -85,6 +87,8 @@ func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), C_BG)
 		_draw_terrain(reg)
 	var full := mode == "full"
+	if full:
+		_draw_areas(reg)
 	_draw_npcs(reg, full)
 	if full:
 		var font := UITheme.body()
@@ -104,6 +108,23 @@ func _draw() -> void:
 		draw_arc(size / 2.0, size.x / 2.0 - 1.5, 0, TAU, 96, UITheme.GOLD_DIM, 2.0, true)
 		draw_string_outline(font, Vector2(size.x / 2.0 - 5, 17), "N", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0, 0.9))
 		draw_string(font, Vector2(size.x / 2.0 - 5, 17), "N", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 0.9, 0.6))
+
+
+## Regiões de monstros: a forma translúcida com contorno e o nome com a faixa de nível no meio.
+func _draw_areas(reg: String) -> void:
+	var font := UITheme.body()
+	for item in MapRules.areas(reg, Balance.tables.get_table("regions")):
+		for a in item[2]:
+			var pts := PackedVector2Array()
+			for p in MapRules.area_outline(a):
+				pts.append(world_to_local(Vector3(p.x, 0, p.y)))
+			draw_colored_polygon(pts, Color(C_AREA, 0.13))
+			pts.append(pts[0])
+			draw_polyline(pts, Color(C_AREA, 0.7), 1.5, true)
+		var at := world_to_local(item[1])
+		var w := font.get_string_size(item[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
+		draw_string_outline(font, at + Vector2(-w / 2.0, 5), item[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 4, Color(0, 0, 0, 0.85))
+		draw_string(font, at + Vector2(-w / 2.0, 5), item[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1.0, 0.8, 0.65))
 
 
 ## Minimapa: o disco da foto em volta do jogador (a foto cobre o raio inteiro até na borda do mapa).
