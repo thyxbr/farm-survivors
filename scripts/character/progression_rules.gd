@@ -75,6 +75,42 @@ static func spawn_level(bt: BalanceTables, level: int, level_max: int, elite: bo
 	return l
 
 
+## Força extra da categoria para monstros com nível: tipos "elite" do enemies.json (campeões) e chefes
+## ("boss" ou chefe de dungeon, que usa o bloco do chefe mesmo sendo de um tipo elite). A curva de nível
+## divide pelo ref_level do tipo, então sem isto um chefe de ref 12 no nível 21 ficava com vida e dano
+## por nível iguais aos de um monstro comum. {"hp","dmg"}; comuns = 1.0.
+static func rank_mults(bt: BalanceTables, kind: String, chief := false) -> Dictionary:
+	var t: Dictionary = bt.get_table("enemies").get(kind, {})
+	var key := ""
+	if bool(t.get("boss", false)) or chief:
+		key = "boss"
+	elif bool(t.get("elite", false)):
+		key = "elite"
+	var m: Dictionary = _prog(bt).get("rank", {}).get(key, {}) if key != "" else {}
+	return {"hp": float(m.get("hp", 1.0)), "dmg": float(m.get("dmg", 1.0))}
+
+
+## Diferença de nível (monstro − jogador) a partir da qual a placa fica vermelha e o monstro ganha o bônus.
+static func danger_diff(bt: BalanceTables) -> int:
+	return int(_prog(bt).get("danger", {}).get("diff", 5))
+
+
+## Monstro bem acima de quem enfrenta (placa vermelha): {"dmg": multiplica o dano que ele causa, "taken":
+## multiplica o dano que ele recebe}. Começa em danger.dmg/taken na diferença danger.diff e piora a cada
+## nível a mais, até dmg_max/taken_min. Monstro sem nível ou jogador desconhecido (< 1): tudo 1.0.
+static func danger_mults(bt: BalanceTables, enemy_level: int, player_level: int) -> Dictionary:
+	var out := {"dmg": 1.0, "taken": 1.0}
+	var d: Dictionary = _prog(bt).get("danger", {})
+	if enemy_level <= 0 or player_level < 1 or d.is_empty():
+		return out
+	var extra := enemy_level - player_level - danger_diff(bt)
+	if extra < 0:
+		return out
+	out.dmg = minf(float(d.get("dmg", 1.0)) + float(d.get("dmg_per_level", 0.0)) * extra, float(d.get("dmg_max", 99.0)))
+	out.taken = maxf(float(d.get("taken", 1.0)) - float(d.get("taken_per_level", 0.0)) * extra, float(d.get("taken_min", 0.0)))
+	return out
+
+
 # ================================================================ simulador de ritmo
 # Contas do tools/progression_sim.gd e do tests/unit/test_progression_pacing.gd. Os números do jogador
 # (atributos iniciais, pontos por nível, armas) vêm das tabelas; os do simulador do bloco `sim` do progression.json.
