@@ -4,6 +4,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "common",
+		"level": 1,
 		"damage": 6,
 		"price": 10,
 		"color": {
@@ -18,6 +19,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "common",
+		"level": 8,
 		"damage": 12,
 		"price": 60,
 		"color": {
@@ -31,6 +33,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "uncommon",
+		"level": 14,
 		"damage": 16,
 		"price": 110,
 		"color": {
@@ -49,6 +52,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "rare",
+		"level": 17,
 		"damage": 20,
 		"price": 150,
 		"color": {
@@ -67,6 +71,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "rare",
+		"level": 23,
 		"damage": 23,
 		"price": 240,
 		"color": {
@@ -86,8 +91,9 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "epic",
+		"level": 14,
 		"named": true,
-		"damage": 30,
+		"damage": 18,
 		"price": 220,
 		"color": {
 			"$c": [0.9, 0.35, 0.15, 1.0]
@@ -106,6 +112,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "epic",
+		"level": 35,
 		"named": true,
 		"damage": 34,
 		"price": 420,
@@ -127,6 +134,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "legendary",
+		"level": 44,
 		"named": true,
 		"damage": 42,
 		"price": 900,
@@ -148,6 +156,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "common",
+		"level": 1,
 		"damage": 8,
 		"price": 20,
 		"color": {
@@ -161,6 +170,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "common",
+		"level": 6,
 		"damage": 11,
 		"price": 55,
 		"color": {
@@ -177,6 +187,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "uncommon",
+		"level": 13,
 		"damage": 15,
 		"price": 100,
 		"color": {
@@ -193,6 +204,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "uncommon",
+		"level": 12,
 		"damage": 15,
 		"price": 120,
 		"color": {
@@ -211,6 +223,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "uncommon",
+		"level": 15,
 		"damage": 17,
 		"price": 130,
 		"color": {
@@ -229,6 +242,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "rare",
+		"level": 19,
 		"damage": 21,
 		"price": 190,
 		"color": {
@@ -247,6 +261,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "rare",
+		"level": 21,
 		"damage": 22,
 		"price": 230,
 		"color": {
@@ -266,6 +281,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "rare",
+		"level": 22,
 		"damage": 22,
 		"price": 220,
 		"color": {
@@ -284,6 +300,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "rare",
+		"level": 24,
 		"damage": 24,
 		"price": 260,
 		"color": {
@@ -302,6 +319,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "epic",
+		"level": 29,
 		"damage": 30,
 		"price": 360,
 		"color": {
@@ -320,6 +338,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "epic",
+		"level": 31,
 		"damage": 31,
 		"price": 380,
 		"color": {
@@ -338,6 +357,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "epic",
+		"level": 33,
 		"damage": 32,
 		"price": 410,
 		"color": {
@@ -357,6 +377,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "epic",
+		"level": 35,
 		"damage": 33,
 		"price": 400,
 		"color": {
@@ -375,6 +396,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "legendary",
+		"level": 45,
 		"named": true,
 		"damage": 44,
 		"price": 950,
@@ -396,6 +418,7 @@
 		"type": "weapon",
 		"class": "sword",
 		"rarity": "legendary",
+		"level": 45,
 		"named": true,
 		"damage": 46,
 		"price": 1000,
@@ -417,6 +440,7 @@
 		"type": "weapon",
 		"class": "staff",
 		"rarity": "common",
+		"level": 1,
 		"damage": 8,
 		"price": 30,
 		"color": {
@@ -437,6 +461,7 @@
 		"type": "weapon",
 		"class": "staff",
 		"rarity": "uncommon",
+		"level": 8,
 		"damage": 13,
 		"price": 100,
 		"color": {
@@ -457,6 +482,7 @@
 		"type": "weapon",
 		"class": "staff",
 		"rarity": "rare",
+		"level": 15,
 		"damage": 18,
 		"price": 220,
 		"color": {
@@ -478,6 +504,7 @@
 		"type": "weapon",
 		"class": "staff",
 		"rarity": "rare",
+		"level": 14,
 		"damage": 17,
 		"price": 220,
 		"color": {
@@ -500,6 +527,7 @@
 		"type": "weapon",
 		"class": "staff",
 		"rarity": "legendary",
+		"level": 44,
 		"named": true,
 		"damage": 30,
 		"price": 950,
@@ -524,6 +552,7 @@
 		"type": "weapon",
 		"class": "staff",
 		"rarity": "common",
+		"level": 3,
 		"damage": 10,
 		"price": 50,
 		"color": {
@@ -541,6 +570,7 @@
 		"type": "weapon",
 		"class": "staff",
 		"rarity": "uncommon",
+		"level": 10,
 		"damage": 14,
 		"price": 120,
 		"color": {
@@ -559,6 +589,7 @@
 		"type": "weapon",
 		"class": "staff",
 		"rarity": "uncommon",
+		"level": 11,
 		"damage": 14,
 		"price": 140,
 		"color": {
@@ -578,6 +609,7 @@
 		"type": "weapon",
 		"class": "staff",
 		"rarity": "rare",
+		"level": 18,
 		"damage": 20,
 		"price": 260,
 		"color": {
@@ -596,6 +628,7 @@
 		"type": "weapon",
 		"class": "staff",
 		"rarity": "rare",
+		"level": 20,
 		"damage": 21,
 		"price": 280,
 		"color": {
@@ -615,6 +648,7 @@
 		"type": "weapon",
 		"class": "staff",
 		"rarity": "epic",
+		"level": 26,
 		"damage": 27,
 		"price": 400,
 		"color": {
@@ -633,6 +667,7 @@
 		"type": "weapon",
 		"class": "staff",
 		"rarity": "epic",
+		"level": 28,
 		"damage": 28,
 		"price": 430,
 		"color": {
@@ -653,6 +688,7 @@
 		"type": "weapon",
 		"class": "staff",
 		"rarity": "legendary",
+		"level": 45,
 		"named": true,
 		"damage": 32,
 		"price": 1000,
@@ -675,6 +711,7 @@
 		"type": "weapon",
 		"class": "bow",
 		"rarity": "common",
+		"level": 1,
 		"damage": 9,
 		"price": 30,
 		"color": {
@@ -688,6 +725,7 @@
 		"type": "weapon",
 		"class": "bow",
 		"rarity": "uncommon",
+		"level": 12,
 		"damage": 15,
 		"price": 100,
 		"color": {
@@ -704,6 +742,7 @@
 		"type": "weapon",
 		"class": "bow",
 		"rarity": "rare",
+		"level": 18,
 		"named": true,
 		"damage": 21,
 		"price": 240,
@@ -723,6 +762,7 @@
 		"type": "weapon",
 		"class": "bow",
 		"rarity": "epic",
+		"level": 22,
 		"damage": 27,
 		"price": 380,
 		"color": {
@@ -742,6 +782,7 @@
 		"type": "weapon",
 		"class": "bow",
 		"rarity": "legendary",
+		"level": 44,
 		"named": true,
 		"damage": 34,
 		"price": 950,
@@ -762,6 +803,7 @@
 		"name": "Armadura de Couro",
 		"type": "armor",
 		"rarity": "common",
+		"level": 3,
 		"defense": 3,
 		"price": 40,
 		"color": {
@@ -780,6 +822,7 @@
 		"name": "Cota de Malha",
 		"type": "armor",
 		"rarity": "uncommon",
+		"level": 8,
 		"defense": 7,
 		"price": 120,
 		"color": {
@@ -799,6 +842,7 @@
 		"name": "Manto Arcano",
 		"type": "armor",
 		"rarity": "rare",
+		"level": 20,
 		"defense": 3,
 		"price": 200,
 		"color": {
@@ -821,6 +865,7 @@
 		"name": "Gibão do Patrulheiro",
 		"type": "armor",
 		"rarity": "rare",
+		"level": 23,
 		"defense": 6,
 		"price": 200,
 		"color": {
@@ -843,6 +888,8 @@
 		"name": "Placas Reais",
 		"type": "armor",
 		"rarity": "epic",
+		"level": 14,
+		"named": true,
 		"defense": 12,
 		"price": 300,
 		"color": {
@@ -859,6 +906,7 @@
 		"name": "Túnica de Viajante",
 		"type": "armor",
 		"rarity": "common",
+		"level": 4,
 		"defense": 2,
 		"price": 30,
 		"color": {
@@ -880,6 +928,7 @@
 		"name": "Sobreveste da Guarda",
 		"type": "armor",
 		"rarity": "rare",
+		"level": 24,
 		"defense": 9,
 		"price": 260,
 		"color": {
@@ -903,6 +952,7 @@
 		"name": "Couraça de Escamas de Dragão",
 		"type": "armor",
 		"rarity": "legendary",
+		"level": 35,
 		"defense": 17,
 		"price": 1000,
 		"color": {
@@ -922,6 +972,7 @@
 		"type": "gear",
 		"slot": "head",
 		"rarity": "common",
+		"level": 2,
 		"defense": 1,
 		"price": 25,
 		"color": {
@@ -935,6 +986,7 @@
 		"type": "gear",
 		"slot": "head",
 		"rarity": "uncommon",
+		"level": 13,
 		"defense": 3,
 		"price": 90,
 		"color": {
@@ -952,6 +1004,7 @@
 		"type": "gear",
 		"slot": "head",
 		"rarity": "rare",
+		"level": 17,
 		"defense": 1,
 		"price": 180,
 		"color": {
@@ -972,6 +1025,7 @@
 		"type": "gear",
 		"slot": "head",
 		"rarity": "rare",
+		"level": 18,
 		"defense": 2,
 		"price": 180,
 		"color": {
@@ -989,6 +1043,8 @@
 		"type": "gear",
 		"slot": "head",
 		"rarity": "epic",
+		"level": 14,
+		"named": true,
 		"defense": 5,
 		"price": 320,
 		"color": {
@@ -1006,6 +1062,7 @@
 		"type": "gear",
 		"slot": "head",
 		"rarity": "common",
+		"level": 5,
 		"defense": 1,
 		"price": 20,
 		"color": {
@@ -1019,6 +1076,7 @@
 		"type": "gear",
 		"slot": "head",
 		"rarity": "uncommon",
+		"level": 14,
 		"defense": 3,
 		"price": 85,
 		"color": {
@@ -1036,6 +1094,7 @@
 		"type": "gear",
 		"slot": "head",
 		"rarity": "epic",
+		"level": 28,
 		"defense": 6,
 		"price": 340,
 		"color": {
@@ -1057,6 +1116,7 @@
 		"type": "gear",
 		"slot": "hands",
 		"rarity": "common",
+		"level": 3,
 		"defense": 1,
 		"price": 20,
 		"color": {
@@ -1070,6 +1130,8 @@
 		"type": "gear",
 		"slot": "hands",
 		"rarity": "uncommon",
+		"level": 3,
+		"named": true,
 		"defense": 2,
 		"price": 80,
 		"color": {
@@ -1086,6 +1148,7 @@
 		"type": "gear",
 		"slot": "hands",
 		"rarity": "uncommon",
+		"level": 8,
 		"defense": 1,
 		"price": 80,
 		"color": {
@@ -1106,6 +1169,7 @@
 		"type": "gear",
 		"slot": "hands",
 		"rarity": "rare",
+		"level": 14,
 		"defense": 1,
 		"price": 170,
 		"color": {
@@ -1126,6 +1190,7 @@
 		"type": "gear",
 		"slot": "feet",
 		"rarity": "common",
+		"level": 1,
 		"defense": 1,
 		"price": 25,
 		"color": {
@@ -1142,6 +1207,7 @@
 		"type": "gear",
 		"slot": "feet",
 		"rarity": "uncommon",
+		"level": 12,
 		"defense": 3,
 		"price": 90,
 		"color": {
@@ -1158,6 +1224,7 @@
 		"type": "gear",
 		"slot": "feet",
 		"rarity": "rare",
+		"level": 15,
 		"defense": 1,
 		"price": 200,
 		"color": {
@@ -1179,6 +1246,7 @@
 		"type": "gear",
 		"slot": "feet",
 		"rarity": "uncommon",
+		"level": 10,
 		"defense": 2,
 		"price": 70,
 		"color": {
@@ -1199,6 +1267,7 @@
 		"slot": "offhand",
 		"needs": "sword",
 		"rarity": "common",
+		"level": 1,
 		"defense": 2,
 		"price": 30,
 		"color": {
@@ -1212,6 +1281,7 @@
 		"slot": "offhand",
 		"needs": "sword",
 		"rarity": "rare",
+		"level": 21,
 		"defense": 5,
 		"price": 190,
 		"color": {
@@ -1228,6 +1298,7 @@
 		"slot": "offhand",
 		"needs": "staff",
 		"rarity": "uncommon",
+		"level": 8,
 		"price": 110,
 		"color": {
 			"$c": [0.6, 0.45, 1.0, 1.0]
@@ -1245,6 +1316,7 @@
 		"slot": "offhand",
 		"needs": "bow",
 		"rarity": "uncommon",
+		"level": 8,
 		"price": 110,
 		"color": {
 			"$c": [0.45, 0.28, 0.12, 1.0]
@@ -1260,6 +1332,7 @@
 		"type": "gear",
 		"slot": "amulet",
 		"rarity": "uncommon",
+		"level": 8,
 		"price": 120,
 		"color": {
 			"$c": [1.0, 0.35, 0.35, 1.0]
@@ -1275,6 +1348,8 @@
 		"type": "gear",
 		"slot": "amulet",
 		"rarity": "rare",
+		"level": 3,
+		"named": true,
 		"price": 220,
 		"color": {
 			"$c": [0.4, 0.6, 1.0, 1.0]
@@ -1291,6 +1366,7 @@
 		"type": "gear",
 		"slot": "ring",
 		"rarity": "uncommon",
+		"level": 12,
 		"price": 110,
 		"color": {
 			"$c": [1.0, 0.55, 0.3, 1.0]
@@ -1305,6 +1381,7 @@
 		"type": "gear",
 		"slot": "ring",
 		"rarity": "uncommon",
+		"level": 8,
 		"price": 110,
 		"color": {
 			"$c": [0.6, 1.0, 0.8, 1.0]
@@ -1320,6 +1397,7 @@
 		"type": "gear",
 		"slot": "ring",
 		"rarity": "epic",
+		"level": 22,
 		"price": 400,
 		"color": {
 			"$c": [0.75, 0.05, 0.15, 1.0]
@@ -1670,6 +1748,7 @@
 		"type": "weapon",
 		"class": "scepter",
 		"rarity": "common",
+		"level": 1,
 		"damage": 9,
 		"price": 40,
 		"color": {
@@ -1701,6 +1780,7 @@
 		"type": "weapon",
 		"class": "scepter",
 		"rarity": "uncommon",
+		"level": 9,
 		"damage": 13,
 		"price": 110,
 		"color": {
@@ -1733,6 +1813,7 @@
 		"type": "weapon",
 		"class": "scepter",
 		"rarity": "rare",
+		"level": 16,
 		"damage": 18,
 		"price": 230,
 		"color": {
@@ -1765,6 +1846,7 @@
 		"type": "weapon",
 		"class": "scepter",
 		"rarity": "epic",
+		"level": 24,
 		"damage": 27,
 		"price": 420,
 		"color": {
@@ -1797,6 +1879,7 @@
 		"type": "weapon",
 		"class": "scepter",
 		"rarity": "legendary",
+		"level": 35,
 		"damage": 31,
 		"price": 980,
 		"color": {

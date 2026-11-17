@@ -1006,72 +1006,95 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, 6)
 script = ExtResource("7_3545x")
 kind = "esqueleto"
 respawn = 60.0
+level = 30
+level_max = 40
 
 [node name="esqueleto 2" type="Node3D" parent="Monstros" unique_id=1544924828]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 2)
 script = ExtResource("7_3545x")
 kind = "esqueleto"
 respawn = 60.0
+level = 30
+level_max = 40
 
 [node name="esqueleto 3" type="Node3D" parent="Monstros" unique_id=498376956]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0, -10)
 script = ExtResource("7_3545x")
 kind = "esqueleto"
 respawn = 60.0
+level = 30
+level_max = 40
 
 [node name="esqueleto 4" type="Node3D" parent="Monstros" unique_id=1943711097]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, -14)
 script = ExtResource("7_3545x")
 kind = "esqueleto"
 respawn = 60.0
+level = 30
+level_max = 40
 
 [node name="esqueleto 5" type="Node3D" parent="Monstros" unique_id=109416186]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, -20)
 script = ExtResource("7_3545x")
 kind = "esqueleto"
 respawn = 60.0
+level = 30
+level_max = 40
 
 [node name="esqueleto 6" type="Node3D" parent="Monstros" unique_id=409943360]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 0, -22)
 script = ExtResource("7_3545x")
 kind = "esqueleto"
 respawn = 60.0
+level = 30
+level_max = 40
 
 [node name="esqueleto_arqueiro" type="Node3D" parent="Monstros" unique_id=1684416052]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0, 14)
 script = ExtResource("7_3545x")
 kind = "esqueleto_arqueiro"
 respawn = 80.0
+level = 30
+level_max = 40
 
 [node name="esqueleto_arqueiro 2" type="Node3D" parent="Monstros" unique_id=527059721]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 12)
 script = ExtResource("7_3545x")
 kind = "esqueleto_arqueiro"
 respawn = 80.0
+level = 30
+level_max = 40
 
 [node name="esqueleto_mago" type="Node3D" parent="Monstros" unique_id=1687841900]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22, 0, -30)
 script = ExtResource("7_3545x")
 kind = "esqueleto_mago"
 respawn = 100.0
+level = 30
+level_max = 40
 
 [node name="esqueleto_cavaleiro" type="Node3D" parent="Monstros" unique_id=781898487]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, -6)
 script = ExtResource("7_3545x")
 kind = "esqueleto_cavaleiro"
 respawn = 180.0
+level = 30
+level_max = 40
 
 [node name="esqueleto_cavaleiro 2" type="Node3D" parent="Monstros" unique_id=851737838]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 0, -6)
 script = ExtResource("7_3545x")
 kind = "esqueleto_cavaleiro"
 respawn = 180.0
+level = 30
+level_max = 40
 
 [node name="lich" type="Node3D" parent="Monstros" unique_id=467507388]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -36)
 script = ExtResource("7_3545x")
 kind = "lich"
 respawn = 300.0
+level = 42
 
 [node name="Lugares" type="Node3D" parent="." unique_id=1665983898]
 

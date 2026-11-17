@@ -45,7 +45,9 @@ Todos ficam em `scripts/map/` e aparecem no Inspector com as opções abaixo.
 - **Ponto de monstro (EnemySpawn)**, no grupo Monstros de cada mapa: `kind` (tipo do `enemies.json`), `count`
   (quantos), `radius` (onde nascem em volta), `respawn` (segundos para voltar) e `night_only` (só aparece de
   noite e vai embora de dia, como as Asas-de-couro). Vida, dano e loot de cada tipo
-  continuam no `data/balance/enemies.json`.
+  continuam no `data/balance/enemies.json`. `level`/`level_max` dão a faixa de nível dos monstros (cada um sorteia
+  o seu ao nascer; `level` 0 = sem nível, números de hoje) e `elite` os faz de elite (mais níveis, vida e
+  tamanho); o que cada nível muda está em `docs/BALANCEAMENTO.md`.
 - **Lugar com nome (MapLandmark)**: acampamento, ruínas, Horta, ninho, pomar, lagoa (`pond`), portal da Horda,
   onde o jogador volta da Horda (`horde_return`), onde nasce (`village_spawn`), carruagem (`coach`) e chegada da
   viagem (`arrive`). O minimapa, a viagem, o chefe e a Horda usam estes pontos.

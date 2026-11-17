@@ -12,7 +12,7 @@ var allow_reclass := false
 const CLIENT_OPS := ["buy", "sell", "equip", "unequip", "consume", "cook", "spend_point", "start_quest",
 	"complete_quest", "sort_inventory", "unlock_plot", "plant", "water", "fertilize", "harvest", "discard",
 	"death_penalty", "buy_passive", "enchant", "rank_up", "quest_mark", "choose_class",
-	"learn_talent", "reset_talents"]
+	"learn_talent", "reset_talents", "ack_prog_notice"]
 
 ## Assinatura posicional de cada op: tipos aceitos (TYPE_*) e quantos são opcionais no fim.
 ## `now` e o gerador de sorteio nunca vêm do cliente.
@@ -41,6 +41,7 @@ const ARGS := {
 	"choose_class": {"types": [TYPE_STRING, TYPE_STRING], "optional": 0},
 	"learn_talent": {"types": [TYPE_STRING], "optional": 0},
 	"reset_talents": {"types": [], "optional": 0},
+	"ack_prog_notice": {"types": [], "optional": 0},
 }
 
 ## Concessões dessas origens acontecem a cada coleta durante a partida: o registro é um só, no fim
@@ -91,6 +92,11 @@ func load_or_create(char_id: int) -> CharState:
 		if not _save(char_id, s):
 			push_error("CharacterService: não gravou personagem novo de %d: %s" % [char_id, _store.last_error])
 			return s   # sem cache: a próxima chamada tenta de novo
+	elif CharRules.migrate_progression(s, _bt):
+		# personagem de antes da progressão por nível: pontos devolvidos e gravados já na carga
+		if not _save(char_id, s):
+			push_error("CharacterService: não gravou a migração de %d: %s" % [char_id, _store.last_error])
+			return s   # sem cache: a próxima carga migra de novo
 	_cache[char_id] = s
 	return s
 
@@ -212,7 +218,7 @@ func apply(char_id: int, op: String, args: Array) -> Dictionary:
 	if allow_reclass and op == "choose_class":
 		s.char_class = ""
 		s.body = ""
-	if s.char_class == "" and op != "choose_class":
+	if s.char_class == "" and op != "choose_class" and op != "ack_prog_notice":
 		return _result(char_id, {"ok": false, "err": "sem_classe", "events": []})
 	# modo admin: recursos no teto antes de cada pedido (a reposição não entra no registro da economia)
 	AdminRules.top_up(s, _bt)
@@ -248,11 +254,11 @@ func grant(char_id: int, gold: int, xp: int, items: Dictionary, source: String) 
 	return _result(char_id, r)
 
 
-func kill(char_id: int, kind: String, xp: int) -> Dictionary:
+func kill(char_id: int, kind: String, xp: int, enemy_level := 0, group_level := 0) -> Dictionary:
 	var s := load_or_create(char_id)
 	if xp >= 0:
 		xp = int(round(xp * CharRules.food_mult(s, _bt, "xp", _now())))
-	var r := CharRules.kill(s, _bt, kind, xp)
+	var r := CharRules.kill(s, _bt, kind, xp, enemy_level, group_level)
 	if r.ok:
 		r = _persist(char_id, s, {}, "kill", "kill", r)
 	return _result(char_id, r)
@@ -463,6 +469,7 @@ func _dispatch(s: CharState, op: String, a: Array) -> Dictionary:
 		"buy_passive": return CharRules.buy_passive(s, _bt, a[0])
 		"learn_talent": return CharRules.learn_talent(s, _bt, a[0])
 		"reset_talents": return CharRules.reset_talents(s, _bt)
+		"ack_prog_notice": return CharRules.ack_prog_notice(s)
 		"enchant": return EnchantRules.enchant(s, _bt, a[0])
 	return {"ok": false, "err": "op_invalida", "events": []}
 

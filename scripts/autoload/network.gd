@@ -550,7 +550,7 @@ func send_zone_enemies(id: int) -> void:
 	for net_id in enemies:
 		var e: Enemy = enemies[net_id]
 		if is_instance_valid(e) and not e.dead:
-			_enemy_spawned.rpc_id(id, net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e))
+			_enemy_spawned.rpc_id(id, net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e), e.level)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -627,10 +627,10 @@ func server_register_enemy(e: Enemy) -> void:
 	_next_enemy_id += 1
 	enemies[e.net_id] = e
 	for pid in _enemy_peers(e):
-		_enemy_spawned.rpc_id(pid, e.net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e))
+		_enemy_spawned.rpc_id(pid, e.net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e), e.level)
 
 
-## Bits do spawn: 1 = horda, 2 = elite da horda.
+## Bits do spawn: 1 = horda, 2 = elite (da horda ou do mundo).
 static func _enemy_flags(e: Enemy) -> int:
 	return (1 if e.horde else 0) | (2 if e.elite else 0)
 
@@ -655,19 +655,30 @@ func server_enemy_killed(e: Enemy) -> void:
 		for pid in e.contributors:
 			if players.has(pid) and zone_of(pid) == "world":
 				hitters.append(pid)
-		var rewards := Party.server_kill_rewards(int(e.data.xp), hitters, pos, "world")
+		var rewards := Party.server_kill_rewards(e.xp_reward(), hitters, pos, "world")
+		# em grupo, a diferença de nível usa o maior nível entre quem recebe do mesmo grupo
+		# (um estranho de nível alto que só acertou o monstro não derruba o XP de ninguém)
+		var levels := {}
+		for pid in rewards:
+			levels[pid] = Party._level(pid)
+		var group_levels := PartyRules.group_levels(rewards.keys(), Party.book.teams(), levels)
 		for pid in rewards:
 			if not players.has(pid):
 				continue
 			var r: Dictionary = rewards[pid]
+			var group_level := int(group_levels.get(pid, 1))
 			if r.kill:
-				Econ.server_kill(pid, e.kind, int(r.xp))
+				Econ.server_kill(pid, e.kind, int(r.xp), e.level, group_level)
 			elif int(r.xp) > 0:
-				Econ.server_grant(pid, 0, int(r.xp), {}, "party_xp", 0, false,
-					[{"t": "notify", "text": "+%d XP do grupo (longe demais para contar na missão)" % int(r.xp),
+				# quem está longe também leva o ajuste de nível (o abate perto o aplica em CharRules.kill)
+				var far_xp := int(r.xp)
+				if e.level > 0:
+					far_xp = int(round(far_xp * ProgressionRules.xp_diff_mult(Balance.tables, e.level, group_level)))
+				Econ.server_grant(pid, 0, far_xp, {}, "party_xp", 0, false,
+					[{"t": "notify", "text": "+%d XP do grupo (longe demais para contar na missão)" % far_xp,
 						"color": Color(0.7, 0.85, 1.0)}])
 			if r.loot:
-				Econ.server_drop_loot(pid, e.kind, pos, "world")
+				Econ.server_drop_loot(pid, e.kind, pos, "world", e.level, e.elite)
 				_kill_reward.rpc_id(pid, e.kind, int(r.xp), pos)
 	for pid in _enemy_peers(e):
 		_enemy_died.rpc_id(pid, e.net_id)
@@ -1271,7 +1282,8 @@ func _shake(amount: float) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _enemy_spawned(net_id: int, kind: String, pos: Vector3, yaw: float, max_hp: float, hp: float, flags: int) -> void:
+func _enemy_spawned(net_id: int, kind: String, pos: Vector3, yaw: float, max_hp: float, hp: float, flags: int,
+		level: int) -> void:
 	if world == null or enemies.has(net_id):
 		return
 	var horde := flags & 1 != 0
@@ -1280,6 +1292,7 @@ func _enemy_spawned(net_id: int, kind: String, pos: Vector3, yaw: float, max_hp:
 	e.puppet = true
 	e.horde = horde
 	e.elite = flags & 2 != 0
+	e.level = level
 	e.net_id = net_id
 	e.position = pos
 	# a cena pode escolher onde os monstros ficam (enemy_parent)

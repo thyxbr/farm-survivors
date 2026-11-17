@@ -138,6 +138,15 @@ func test_force_class(cls: String) -> void:
 	Game.char_class = cls
 
 
+## Só testes (solo): troca o nível gravado, para o smoke test equipar itens acima do nível do personagem.
+func test_force_level(lv: int) -> void:
+	if Network.is_online() or not ensure_solo():
+		return
+	_svc.load_or_create(SOLO_ACCOUNT).level = lv
+	_svc.save(SOLO_ACCOUNT)
+	Game.level = lv
+
+
 ## Só testes (solo): troca o corpo gravado ("m"/"f"), como test_force_class troca a classe.
 func test_force_body(body: String) -> void:
 	if Network.is_online() or not ensure_solo():
@@ -221,14 +230,14 @@ func grant(gold: int, xp: int, items: Dictionary, source: String, silent := fals
 
 
 ## Abate (XP, contagem, progresso de missão, chefe). Só offline, como grant().
-func kill(kind: String, xp: int) -> void:
+func kill(kind: String, xp: int, enemy_level := 0) -> void:
 	if Network.is_online():
 		client_grant_errors += 1
 		push_error("concessão no cliente online: abate de %s (xp %d)" % [kind, xp])
 		return
 	if not ensure_solo():
 		return
-	_deliver("kill", [kind, xp], _svc.kill(SOLO_ACCOUNT, kind, xp))
+	_deliver("kill", [kind, xp], _svc.kill(SOLO_ACCOUNT, kind, xp, enemy_level))
 
 
 ## Começo de uma partida no solo: abre o registro (runs) e devolve o run_id. Online não faz nada (0): quem
@@ -570,11 +579,11 @@ func server_grant(peer: int, gold: int, xp: int, items: Dictionary, source: Stri
 
 
 ## Servidor: abate (XP, contagem, missões, chefe) no personagem do peer.
-func server_kill(peer: int, kind: String, xp: int) -> Dictionary:
+func server_kill(peer: int, kind: String, xp: int, enemy_level := 0, group_level := 0) -> Dictionary:
 	var char_id := char_of(peer)
 	if char_id <= 0 or Network.characters == null:
 		return {"ok": false, "err": "sem_sessao", "events": [], "state": {}}
-	var r := Network.characters.kill(char_id, kind, xp)
+	var r := Network.characters.kill(char_id, kind, xp, enemy_level, group_level)
 	server_push(peer, r)
 	return r
 
@@ -601,12 +610,12 @@ func server_spawn_pickup(peer: int, zone: String, pos: Vector3, gold: int, items
 
 
 ## Servidor: sorteio do loot de um inimigo (LootRules) para um jogador, em pickups (um sorteio por jogador).
-func server_drop_loot(peer: int, kind: String, pos: Vector3, zone := "world") -> void:
+func server_drop_loot(peer: int, kind: String, pos: Vector3, zone := "world", level := 0, elite := false) -> void:
 	var cls := ""
 	var char_id := char_of(peer)
 	if char_id > 0 and Network.characters != null:
 		cls = Network.characters.load_or_create(char_id).char_class
-	var loot := LootRules.roll(Balance.tables, kind, _loot_rng, cls)
+	var loot := LootRules.roll(Balance.tables, kind, _loot_rng, cls, level, elite)
 	if int(loot.gold) > 0:
 		server_spawn_pickup(peer, zone, pos, int(loot.gold), {})
 	for id in loot.items:

@@ -125,6 +125,8 @@ static func build_text(id: String, context := "bag", paper := false) -> String:
 	if slot != "":
 		var kind: String = ItemDB.CLASS_NAMES[ItemDB.weapon_class(id)] if slot == "weapon" else ItemDB.SLOT_NAMES[slot]
 		t += "[color=#%s]%s · %s[/color]\n" % [rc, rar.name, kind]
+		var need := int(it.get("level", 1))
+		t += "[color=#%s]Nível %d[/color]\n" % [good if Game.level >= need else bad, need]
 		if it.has("damage"):
 			t += "[font_size=26]%d[/font_size] [color=#%s]Dano[/color]\n" % [it.damage, dim]
 			t += "[color=#%s]%s[/color]\n" % [dim, ItemDB.CLASS_HINT[ItemDB.weapon_class(id)]]
