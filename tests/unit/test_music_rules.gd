@@ -15,7 +15,7 @@ func test_world_areas() -> void:
 	T.eq(MusicRules.track({"scene": "world", "pos": Vector3(-35, 0, 4)}), "village", "canto oeste da cerca é vila")
 	T.eq(MusicRules.track({"scene": "world", "pos": Vector3(-12, 0, -30)}), "wild", "campos das slimes já são mata")
 	T.eq(MusicRules.track({"scene": "world", "pos": Vector3(-36, 0, 36)}), "wild", "Ninho de Slimes é mata")
-	T.eq(MusicRules.track({"scene": "world", "pos": Vector3(62, 0, 0)}), "wild", "acampamento goblin é mata")
+	T.eq(MusicRules.track({"scene": "world", "pos": Vector3(86, 0, 0)}), "wild", "acampamento goblin é mata")
 	T.eq(MusicRules.track({"scene": "world", "pos": Vector3(0, 0, -100)}), "ruins", "ruínas do Rei Goblin")
 	T.eq(MusicRules.ambience({"scene": "world"}), "day", "mundo aberto com pássaros e vento")
 

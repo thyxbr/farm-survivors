@@ -31,7 +31,7 @@ func test_table_shape() -> void:
 	T.eq(iron.hits, 3, "3 golpes (parte 3: coleta em 2-3 golpes)")
 	T.eq(iron.prof, "mining", "ferro é de Mineração")
 	T.ok(iron.level >= 1 and iron.xp > 0, "nível e XP do nó")
-	T.ok(iron.pos.distance_to(Vector3(62, 0, 0)) < 13.0, "ferro em volta do Acampamento Goblin")
+	T.ok(iron.pos.distance_to(Vector3(86, 0, 0)) < 13.0, "ferro em volta do Acampamento Goblin")
 	var cr := WorldHarvest.node_def(bt, 6)
 	T.eq(cr.item, "arcane_crystal", "nó 6 dá cristal")
 	T.ok(cr.pos.distance_to(Vector3(0, 0, -100)) < 18.0, "cristal em volta das Ruínas")
@@ -85,7 +85,7 @@ func test_missing_table() -> void:
 func test_positions_come_from_scene() -> void:
 	var bt := _tables()
 	T.ok(not bt.get_table("world_nodes").has("nodes"), "a lista de posições saiu do world_nodes.json")
-	T.ok(WorldHarvest.node_def(bt, 0).pos.is_equal_approx(Vector3(71.6, 0, 8.0)), "nó 0 no lugar de sempre")
+	T.ok(WorldHarvest.node_def(bt, 0).pos.is_equal_approx(Vector3(95.6, 0, 8.0)), "nó 0 no lugar de sempre (na Toca, que foi para o leste)")
 	T.ok(WorldHarvest.node_def(bt, 6).pos.is_equal_approx(Vector3(14.7, 0, -91.5)), "nó 6 no lugar de sempre")
 
 
