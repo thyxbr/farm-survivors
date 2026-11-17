@@ -1,5 +1,6 @@
 extends Area3D
 ## Projétil do ataque básico: "bolt" (cajado, faísca arcana), "light_orb" (cetro, esfera de luz curta) ou "arrow" (arco, com leve queda).
+## "holy_lance" = Lança de Luz do cetro (ScepterAbilities; visual em HolyFX).
 ## fx: "slow" deixa o alvo lento, "splash" explode em área, "pierce" atravessa inimigos.
 
 var kind := "bolt"
@@ -33,7 +34,7 @@ func _ready() -> void:
 	collision_mask = 1 | 4
 	var col := CollisionShape3D.new()
 	var sh := SphereShape3D.new()
-	sh.radius = 0.16 if kind == "arrow" else 0.22
+	sh.radius = 0.16 if kind == "arrow" else (0.32 if kind == "holy_lance" else 0.22)
 	col.shape = sh
 	add_child(col)
 	_vel = direction.normalized() * speed
@@ -41,6 +42,8 @@ func _ready() -> void:
 	add_child(_vis)
 	if kind == "arrow":
 		_build_arrow()
+	elif kind == "holy_lance":
+		HolyFX.build_lance(_vis, self, life)
 	else:
 		_build_bolt()
 	body_entered.connect(_on_body)
@@ -214,6 +217,10 @@ func _finish(impact: bool) -> void:
 					continue
 				if e.global_position.distance_to(global_position) <= 2.4 + e.radius:
 					_damage(e, damage * 0.6)
+	elif kind == "holy_lance":
+		HolyFX.lance_impact(global_position, _vel.normalized())
+		if impact:
+			Sfx.play_at("explode", global_position, 0.1, -12.0)
 	else:
 		FX.burst(global_position, color, 6 if kind == "arrow" else 10, 3.0, 0.07, 0.3)
 	queue_free()

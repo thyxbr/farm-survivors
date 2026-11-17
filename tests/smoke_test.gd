@@ -3020,7 +3020,7 @@ func _test_gear() -> void:
 	equip_any("sc_novice_scepter")
 	await wait(0.05)
 	check(Game.char_class == "healer" and Game.weapon_class() == "scepter", "healer com cetro")
-	check(Game.ability_kit() == ["heal", "scepter_ward", "scepter_ult"], "kit do healer (%s)" % [Game.ability_kit()])
+	check(Game.ability_kit() == ["heal", "scepter_lance", "scepter_ward", "scepter_ult"], "kit do healer (%s)" % [Game.ability_kit()])
 	check(player.look["class"] == "staff" and player.look.holder != null, "cetro sem modelo próprio cai no cajado procedural")
 	Game.hp = Game.max_hp() * 0.3
 	Game.mp = Game.max_mp()
@@ -3030,8 +3030,38 @@ func _test_gear() -> void:
 	var hp_h := Game.hp
 	var mp_h := Game.mp
 	player.cast("heal")
-	check(Game.hp > hp_h and absf((Game.hp - hp_h) - minf(Game.heal_amount(), Game.max_hp() - hp_h)) < 0.01, "Cura sobe a vida (%.1f -> %.1f)" % [hp_h, Game.hp])
+	check(player.heal_armed and is_equal_approx(Game.hp, hp_h) and is_equal_approx(Game.mp, mp_h), "Cura: a tecla só prepara (sem cura, sem mana)")
+	await wait(0.1)
+	check(player.heal_target == player and player.model.get_node_or_null("HealMark") != null, "Cura preparada sem aliado na mira marca você")
+	player.cast("heal")
+	check(not player.heal_armed and player.model.get_node_or_null("HealMark") == null and is_equal_approx(Game.mp, mp_h), "a mesma tecla de novo desiste sem gastar")
+	player.cast("heal")
+	hp_h = Game.hp   # a vida regenerou nas esperas acima
+	mp_h = Game.mp
+	player.confirm_heal(player.heal_target)
+	check(Game.hp > hp_h and absf((Game.hp - hp_h) - minf(Game.heal_amount(), Game.max_hp() - hp_h)) < 0.01, "Cura confirmada sobe a vida (%.1f -> %.1f)" % [hp_h, Game.hp])
 	check(Game.mp < mp_h and player.cooldowns.heal > 0.0, "Cura gasta mana e entra em recarga")
+	check(not player.heal_armed, "confirmar desarma a Cura")
+	await wait(0.1)
+	check(player.model.get_node_or_null("HealMark") == null, "a borda some depois da Cura")
+	# Lança de Luz (nível 2): projétil de luz que causa dano
+	player.ability = ""
+	player.cast_timer = 0.0
+	Game.mp = Game.max_mp()
+	var lvl_lance := Game.level
+	Game.level = maxi(Game.level, 2)
+	var lance_watch := _watch_spawns()
+	player.cooldowns.scepter_lance = 0.0
+	var lance_mp := Game.mp
+	player.cast("scepter_lance")
+	check(player.ability == "scepter_lance", "Lança de Luz começa")
+	check(is_equal_approx(lance_mp - Game.mp, 15.0) and player.cooldowns.scepter_lance > 0.0, "Lança de Luz gasta 15 de mana e entra em recarga")
+	await wait_until(func(): return "holy_lance" in lance_watch[0], 1.0)
+	_stop_spawn_watch(lance_watch)
+	check("holy_lance" in lance_watch[0], "Lança de Luz dispara o projétil")
+	await wait(0.5)
+	check(player.ability == "", "Lança de Luz termina a pose")
+	Game.level = lvl_lance
 	# Escudo de Luz (nível 3) e Banquete do Herói (ultimate, nível 8) no solo: buff em si, mana, recarga, fúria
 	var lvl_hz := Game.level
 	Game.clear_buffs(true)
@@ -3040,6 +3070,9 @@ func _test_gear() -> void:
 	player.cooldowns.scepter_ward = 0.0
 	player.cast("scepter_ward")
 	check(not Game.has_buff("scepter_ward") and player.ability == "", "Escudo de Luz bloqueado no nível 2")
+	Game.level = 4
+	player.cast("scepter_ward")
+	check(not Game.has_buff("scepter_ward") and player.ability == "", "Escudo de Luz bloqueado no nível 4 (é do 5)")
 	Game.level = 8
 	var ward_mp := Game.mp
 	var maxhp0 := Game.max_hp()

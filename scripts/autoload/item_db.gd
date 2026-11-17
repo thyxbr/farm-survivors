@@ -24,11 +24,13 @@ const ABILITIES := {
 	"frost_nova": {"name": "Nova Gélida", "class": "staff", "slot": 2, "level": 3, "cooldown": 7.0, "cost": 28,
 		"ready": true, "ultimate": false, "icon": "frost", "desc": "Explosão de gelo ao redor: dano e lentidão."},
 	"heal": {"name": "Cura", "class": "scepter", "slot": 1, "level": 1, "cooldown": 4.0, "cost": 20,
-		"ready": true, "ultimate": false, "icon": "heal", "desc": "Restaura 30 + INT x 4 de vida (mais o bônus de cura do cetro)."},
-	"scepter_ward": {"name": "Escudo de Luz", "class": "scepter", "slot": 2, "level": 3, "cooldown": 22.0, "cost": 30,
-		"ready": true, "ultimate": false, "icon": "heal", "desc": "Por 12 s, em você e nos aliados a 8 m: +30 de vida máx., +4 de defesa e +3 de vida por segundo."},
+		"ready": true, "ultimate": false, "icon": "heal", "desc": "Prepara a cura: mire um aliado (ele ganha uma borda verde) e clique com o botão direito para curá-lo; sem aliado na mira, cura você. Restaura 30 + INT x 4 de vida (mais o bônus de cura do cetro)."},
+	"scepter_lance": {"name": "Lança de Luz", "class": "scepter", "slot": 2, "level": 2, "cooldown": 5.0, "cost": 15,
+		"ready": true, "ultimate": false, "icon": "holy_lance", "desc": "Arremessa uma lança de luz sagrada no alvo mirado. Dano = 35 + INT x 4,5."},
+	"scepter_ward": {"name": "Escudo de Luz", "class": "scepter", "slot": 3, "level": 5, "cooldown": 16.0, "cost": 30,
+		"ready": true, "ultimate": false, "icon": "radiant", "desc": "Explosão de luz ao seu redor: dano = 24 + INT x 3 e atordoa os inimigos a 7 m. Por 12 s, em você e nos aliados a 8 m: +30 de vida máx., +4 de defesa e +3 de vida por segundo."},
 	"scepter_ult": {"name": "Banquete do Herói", "class": "scepter", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
-		"ready": true, "ultimate": true, "icon": "heal", "desc": "Ultimate: cura por completo você e os aliados a 8 m e dá por 12 s +25% de dano, +12% de velocidade e -15% de recarga."},
+		"ready": true, "ultimate": true, "icon": "heal", "desc": "Ultimate: coluna de luz que cura por completo você e os aliados a 8 m e dá por 12 s +25% de dano, +12% de velocidade e -15% de recarga."},
 	"staff_ember": {"name": "Bafo de Dragão", "class": "staff", "slot": 3, "level": 5, "cooldown": 30.0, "cost": 25,
 		"ready": true, "ultimate": false, "icon": "ember", "desc": "Por 10 s: +20% de dano, +10% de crítico e -20% de recarga."},
 	"meteor_rain": {"name": "Chuva de Meteoros", "class": "staff", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
@@ -77,7 +79,7 @@ const CLASS_NAMES := {"sword": "Espada", "staff": "Cajado", "bow": "Arco", "scep
 const CLASS_HINT := {"sword": "Combo de 3 golpes · escala com Força",
 	"staff": "Projéteis arcanos · escala com Inteligência",
 	"bow": "Segure para tensionar, solte para atirar · escala com Agilidade",
-	"scepter": "Cura aliados com luz sagrada · escala com Inteligência"}
+	"scepter": "Cura aliados e castiga inimigos com luz sagrada · escala com Inteligência"}
 const FX_NAMES := {"slow": "Golpes deixam o alvo lento", "splash": "Projéteis explodem em área",
 	"pierce": "Flechas perfuram inimigos", "multishot": "Disparo tensionado: 3 flechas"}
 

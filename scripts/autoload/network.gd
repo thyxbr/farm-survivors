@@ -766,10 +766,10 @@ func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow:
 
 
 ## Servidor: só a conta de classe healer cura, no máximo uma vez a cada HealRules.MIN_INTERVAL. O valor vem do
-## personagem gravado no servidor (CharRules.heal_amount), nunca do cliente. Atinge quem está na mesma zona
-## a até HealRules.RADIUS m da última posição conhecida (o healer sempre se cura).
+## personagem gravado no servidor (CharRules.heal_amount), nunca do cliente. Cura um jogador só: o aliado
+## `target_peer` mirado (mesma zona, a até HealRules.TARGET_RANGE m) ou, sem alvo válido, o próprio healer.
 @rpc("any_peer", "call_remote", "reliable")
-func _request_heal() -> void:
+func _request_heal(target_peer: int) -> void:
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id) or characters == null:
 		return
@@ -785,9 +785,9 @@ func _request_heal() -> void:
 	_last_heal[id] = now
 	var amount := CharRules.heal_amount(s, Balance.tables)
 	var radius_bonus := float(CharRules.talent_mods(Balance.tables, s).get("ally_radius", 0.0))
-	for pid in HealRules.targets(id, zone_peers(zone_of(id)), last_pos, radius_bonus):
-		if not server_peer_dead(pid):   # caído não recebe cura
-			_you_were_healed.rpc_id(pid, amount, id)
+	var pid := HealRules.heal_target(id, target_peer, zone_peers(zone_of(id)), last_pos, radius_bonus)
+	if not server_peer_dead(pid):   # caído não recebe cura
+		_you_were_healed.rpc_id(pid, amount, id)
 
 
 ## Servidor: Escudo de Luz / Banquete do Herói. O cliente manda só o id da habilidade; o buff vem de
@@ -1111,10 +1111,10 @@ func send_look(look: Dictionary) -> void:
 		_player_look.rpc_id(1, look)
 
 
-## Healer (cliente): pede ao servidor a Cura nos aliados por perto (o próprio incluído). Sem valor: o servidor calcula.
-func request_heal() -> void:
+## Healer (cliente): pede ao servidor a Cura no aliado `target_peer` (0 = em si mesmo). Sem valor: o servidor calcula.
+func request_heal(target_peer := 0) -> void:
 	if is_client():
-		_request_heal.rpc_id(1)
+		_request_heal.rpc_id(1, target_peer)
 
 
 ## Healer (cliente): pede o Escudo de Luz / Banquete do Herói para si e os aliados por perto.

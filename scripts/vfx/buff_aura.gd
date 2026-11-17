@@ -177,7 +177,7 @@ func _update_rim(key: String) -> void:
 
 func _set_overlay(n: Node, mat: Material) -> void:
 	for c in n.get_children():
-		if c == self or c.name == "WeaponHolder":
+		if c == self or c.name == "WeaponHolder" or str(c.name).begins_with("HealMark"):
 			continue
 		if c is MeshInstance3D:
 			c.material_overlay = mat
