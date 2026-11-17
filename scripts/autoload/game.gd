@@ -304,7 +304,7 @@ func _setup_input() -> void:
 		"jump": [KEY_SPACE], "sprint": [KEY_SHIFT], "dodge": [KEY_CTRL, KEY_ALT],
 		"interact": [KEY_E], "spell_1": [KEY_1], "spell_2": [KEY_2], "spell_3": [KEY_3], "spell_4": [KEY_4],
 		"potion": [KEY_R], "mana_potion": [KEY_F], "inventory": [KEY_I, KEY_TAB], "character": [KEY_C],
-		"talents": [KEY_K], "quest_log": [KEY_J], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
+		"talents": [KEY_K], "quest_log": [KEY_J], "professions": [KEY_L], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
 		"eat": [KEY_Q], "food_next": [KEY_T], "world_map": [KEY_M], "party": [KEY_P], "friends": [KEY_O],
 		# emotes (acenar, comemorar, sentar): eram as teclas 1–3 da praça; na vila 1–4 são magias
 		"emote_1": [KEY_7], "emote_2": [KEY_8], "emote_3": [KEY_9],
@@ -828,6 +828,9 @@ func use_item(id: String) -> bool:
 			return eat(id)
 		"seed":
 			notify.emit("Plante na Horta, ao sul da vila.", Color(0.8, 1.0, 0.6))
+		"scroll":
+			Econ.request("consume", [id])   # aprende a receita (CraftRules.learn)
+			return true
 	return false
 
 

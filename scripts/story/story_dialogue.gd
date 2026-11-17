@@ -475,9 +475,9 @@ static func _services(id: String) -> Array:
 		"merchant":
 			return [{"text": "Ver mercadorias", "action": _open_shop}]
 		"alchemist":
-			return [{"text": "Ver poções", "action": _open_shop}]
+			return [{"text": "Ver poções", "action": _open_shop}, {"text": "Alquimia", "action": _open_crafting.bind("alchemy")}]
 		"blacksmith":
-			return [{"text": "Encantar arma", "action": _open_enchant}]
+			return [{"text": "Encantar arma", "action": _open_enchant}, {"text": "Forjar", "action": _open_crafting.bind("forge")}]
 	return []
 
 
@@ -485,6 +485,12 @@ static func _open_shop() -> void:
 	var w: Node = (Engine.get_main_loop() as SceneTree).current_scene
 	if w and w.has_method("open_shop"):
 		w.open_shop()
+
+
+static func _open_crafting(station: String) -> void:
+	var w: Node = (Engine.get_main_loop() as SceneTree).current_scene
+	if w and w.has_method("open_crafting"):
+		w.open_crafting(station)
 
 
 static func _open_enchant() -> void:

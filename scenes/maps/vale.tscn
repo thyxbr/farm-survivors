@@ -7453,3 +7453,9 @@ script = ExtResource("7_iymgv")
 kind = "resource_node"
 ref = "pine"
 node_id = 33
+
+[node name="Bancada de Couraria" type="Node3D" parent="Vila/NPCs e pontos"]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 29, 0, 2)
+script = ExtResource("7_iymgv")
+kind = "station"
+ref = "leather"

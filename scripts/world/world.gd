@@ -68,6 +68,7 @@ const PLOT := preload("res://scripts/farm/farm_plot.gd")
 const KITCHEN := preload("res://scripts/farm/kitchen.gd")
 const PLANT_UI := preload("res://scripts/ui/plant_ui.gd")
 const COOKING_UI := preload("res://scripts/ui/cooking_ui.gd")
+const CRAFTING_STATION := preload("res://scripts/world/crafting_station.gd")
 const WORLD_MAP_UI := preload("res://scripts/ui/world_map_ui.gd")
 const WORLD_ATLAS_UI := preload("res://scripts/ui/world_atlas_ui.gd")
 
@@ -652,6 +653,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_open_menu(2)
 	elif event.is_action_pressed("quest_log"):
 		_open_menu(3)
+	elif event.is_action_pressed("professions"):
+		_open_menu(4)
 	elif event.is_action_pressed("world_map") and survival == null:
 		open_world_map()
 	elif event.is_action_pressed("party"):
@@ -810,6 +813,13 @@ func open_cooking(kitchen: Node = null) -> void:
 	_open_modal(ui)
 
 
+## Bancada de craft de uma estação ("forge", "leather", "alchemy"; ver CraftingUI).
+func open_crafting(station: String) -> void:
+	var ui := CraftingUI.new()
+	ui.station = station
+	_open_modal(ui)
+
+
 ## Painel de um ponto que veio da praça (hub_point.interact): Mestre Orin ou o quadro de recordes.
 func open_point_panel(point: Node) -> void:
 	var ui: Control = null
@@ -917,6 +927,10 @@ func make_entity(e: MapEntity) -> Node3D:
 			n = plot
 		"kitchen":
 			n = KITCHEN.new()
+		"station":
+			var st := CRAFTING_STATION.new()
+			st.station = e.ref
+			n = st
 		"portal":
 			n = PORTAL.new()
 		"santa":

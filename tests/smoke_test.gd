@@ -144,8 +144,8 @@ func _ready() -> void:
 	# mais o Papai Noel e os pontos da antiga praça (Orin e recordes, hub_point no vale.tscn); mapas: Sylvi, Tico e cocheiro no bosque; Bolgar, diário e cocheiro na mina; só o cocheiro no pico (o Kael
 	# de lá aparece no Arco 2)
 	var n_inter := get_tree().get_nodes_in_group("interactable").size()
-	check(n_inter == 7 + 9 + 7 + 1 + world.points.size() + Game.FARM_PLOTS + 1,
-		"interagíveis do vale, da guilda e dos mapas + %d canteiros + caldeirão (%d)" % [Game.FARM_PLOTS, n_inter])
+	check(n_inter == 7 + 9 + 7 + 1 + world.points.size() + Game.FARM_PLOTS + 1 + 1,
+		"interagíveis do vale, da guilda e dos mapas + %d canteiros + caldeirão + bancada de couraria (%d)" % [Game.FARM_PLOTS, n_inter])
 	check(not ResourceLoader.exists("res://scenes/colony.tscn"), "sem a Defesa da Cidade")
 
 	# --- diálogo e missão
@@ -1832,9 +1832,45 @@ func _test_blacksmith() -> void:
 	player.global_position = back
 
 
+# ---------------------------------------------------------------- Profissões e craft
+func _test_crafting() -> void:
+	for st in ["forge", "leather", "alchemy"]:
+		world.open_crafting(st)
+		await wait(0.1)
+		check(world.modal is CraftingUI and (world.modal as CraftingUI).list.item_count > 5, "bancada %s abre com receitas" % st)
+		world.modal._close()
+		await wait(0.05)
+	check(world.modal == null, "bancadas fechadas")
+	var station_ok := false
+	for n in get_tree().get_nodes_in_group("interactable"):
+		if n.get("npc_id") == "station" and n.get("station") == "leather":
+			station_ok = true
+	check(station_ok, "Bancada de Couraria na vila")
+	# essência (alquimia nível 1) e arco curto (couraria nível 1) com os materiais dados
+	Econ.grant(100, 0, {"hide_t1": 10, "slime_gel": 2, "pine_log": 2}, "teste", true)   # 4 para as essências, 4 para o arco
+	var axp0 := Game.prof_xp("alchemy")
+	Game.craft("essence_t1", 2)
+	await wait(0.1)
+	check(Game.count_item("essence_t1") >= 2 and Game.prof_xp("alchemy") > axp0, "alquimia faz essência e dá XP")
+	var bows0 := Game.count_item("short_bow") + Game.count_item("short_bow@fina") + Game.count_item("short_bow@obra")
+	Game.craft("short_bow", 1)
+	await wait(0.1)
+	var bows1 := Game.count_item("short_bow") + Game.count_item("short_bow@fina") + Game.count_item("short_bow@obra")
+	check(bows1 == bows0 + 1 and Game.prof_xp("leatherwork") > 0, "couraria faz o arco curto e dá XP")
+	Game.craft("astral_blade", 1)
+	await wait(0.1)
+	check(Game.count_item("astral_blade") == 0, "receita de pergaminho e nível alto é recusada")
+	world._open_menu(4)
+	await wait(0.1)
+	check(world.modal != null, "aba Profissões abre")
+	if world.modal != null:
+		world.modal._close()
+	await wait(0.05)
+
+
 # ---------------------------------------------------------------- Coleta de ferro e cristal
 func _test_gather() -> void:
-	check(world.resource_nodes.size() == 20, "10 veios e cristais no vale e 10 na mina (%d)" % world.resource_nodes.size())
+	check(world.resource_nodes.size() == 71, "veios, cristais e árvores de coleta dos quatro mapas (%d)" % world.resource_nodes.size())
 	if world.resource_nodes.size() < 10:
 		return
 	var back := player.global_position
@@ -1843,12 +1879,14 @@ func _test_gather() -> void:
 	player.global_position = node.global_position + Vector3(1.5, 0.3, 0)
 	await wait(0.2)
 	var iron0 := Game.count_item("iron_ore")
-	for i in 4:
+	var mxp0 := Game.prof_xp("mining") + Game.prof_level("mining") * 100000
+	for i in 2:
 		node.hit(player.global_position)
-	check(node.alive and Game.count_item("iron_ore") == iron0, "4 golpes: veio de pé e nada ganho ainda")
+	check(node.alive and Game.count_item("iron_ore") == iron0, "2 golpes: veio de pé e nada ganho ainda")
 	node.hit(player.global_position)
 	await wait(0.2)
-	check(not node.alive, "5º golpe quebra o veio")
+	check(not node.alive, "3º golpe quebra o veio")
+	check(Game.prof_xp("mining") + Game.prof_level("mining") * 100000 > mxp0, "coleta dá XP de Mineração")
 	check(Game.count_item("iron_ore") == iron0 + 3, "veio de ferro dá 3 minérios (%d → %d)" % [iron0, Game.count_item("iron_ore")])
 	Econ.gather_node(0, player.global_position)
 	await wait(0.1)
@@ -1863,10 +1901,24 @@ func _test_gather() -> void:
 	player.global_position = crystal.global_position + Vector3(1.5, 0.3, 0)
 	await wait(0.2)
 	var cr0 := Game.count_item("arcane_crystal")
-	for i in 6:
+	for i in 3:
 		crystal.hit(player.global_position)
 	await wait(0.2)
-	check(Game.count_item("arcane_crystal") == cr0 + 1, "cristal das Ruínas dá 1 cristal arcano em 6 golpes")
+	check(Game.count_item("arcane_crystal") == cr0 + 1, "cristal das Ruínas dá 1 cristal arcano em 3 golpes")
+	# veio de camada alta: sem o nível de Mineração os golpes não contam
+	var silver = null
+	for n in world.resource_nodes:
+		if n.prof == "mining" and n.level > Game.prof_level("mining"):
+			silver = n
+			break
+	check(silver != null, "há veio que pede mais Mineração")
+	if silver != null:
+		player.global_position = silver.global_position + Vector3(1.5, 0.3, 0)
+		await wait(0.2)
+		for i in 4:
+			silver.hit(player.global_position)
+		check(silver.alive, "veio acima do nível não quebra")
+	await _test_crafting()
 	player.global_position = back
 	await wait(0.2)
 
