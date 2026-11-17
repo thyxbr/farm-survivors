@@ -7,6 +7,7 @@ const COR := Color(1.0, 0.42, 0.12)
 const COR_CHEIO := Color(1.0, 0.7, 0.25)
 
 var _t := 0.0
+var _drawn_fury := -1.0
 
 
 func _ready() -> void:
@@ -15,7 +16,10 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
-	queue_redraw()
+	# só redesenha quando a fúria muda ou enquanto pulsa cheia
+	if Game.fury != _drawn_fury or Game.fury_full():
+		_drawn_fury = Game.fury
+		queue_redraw()
 
 
 func _draw() -> void:

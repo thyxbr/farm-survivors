@@ -96,6 +96,7 @@ static func _prop(w: Node3D, p: MapProp) -> void:
 	p.add_child(inst)
 	p.apply_tint(inst)
 	var s := p.scale.x
+	_set_range(p, inst, s)
 	var pos := p.global_position
 	if p.shape != 0 and p.no_grass:
 		w._no_grass.append([Vector2(pos.x, pos.z), p.footprint() + 0.15])
@@ -118,6 +119,40 @@ static func _prop(w: Node3D, p: MapProp) -> void:
 	body.add_child(cs)
 	p.add_child(body)
 	body.global_transform = Transform3D(Basis(Vector3.UP, p.global_rotation.y), pos)
+
+
+## Peça pequena some de longe: a distância vem do tamanho da peça inteira (RANGE_PER_M metros por metro do
+## lado maior, no mínimo RANGE_MIN), então flor e pedrinha somem cedo, árvore fica até longe e casa e torre
+## (alcance acima de RANGE_MAX) nunca somem. Todas as malhas da peça levam a mesma distância.
+const RANGE_PER_M := 50.0
+const RANGE_MIN := 60.0
+const RANGE_MAX := 250.0
+const RANGE_MARGIN := 8.0
+static var _model_size := {}      # modelo -> lado maior da peça, em metros, sem a escala
+
+
+static func _set_range(p: MapProp, inst: Node3D, s: float) -> void:
+	var meshes := inst.find_children("*", "MeshInstance3D", true, false)
+	if inst is MeshInstance3D:
+		meshes.append(inst)
+	if not _model_size.has(p.model):
+		var box := AABB()
+		var first := true
+		var inv := inst.global_transform.affine_inverse()
+		for mi: MeshInstance3D in meshes:
+			if mi.mesh == null:
+				continue
+			var b: AABB = (inv * mi.global_transform) * mi.get_aabb()
+			box = b if first else box.merge(b)
+			first = false
+		_model_size[p.model] = box.get_longest_axis_size()
+	var reach: float = maxf(RANGE_MIN, float(_model_size[p.model]) * s * RANGE_PER_M)
+	if reach >= RANGE_MAX:
+		return
+	for mi: MeshInstance3D in meshes:
+		if mi.visibility_range_end <= 0.0:
+			mi.visibility_range_end = reach
+			mi.visibility_range_end_margin = RANGE_MARGIN
 
 
 static func _light(w: Node3D, l: MapLight) -> void:

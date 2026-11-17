@@ -77,6 +77,14 @@ var _flash_t := 0.0
 var net_id := 0
 ## Cliente: réplica de um inimigo do servidor (sem IA; segue os snapshots).
 var puppet := false
+## Dormindo (longe de todo mundo): ver _update_sleep. Dorme além de SLEEP_DIST + margem e acorda dentro de
+## SLEEP_DIST; some além de HIDE_DIST + margem. A maior distância de provocação (aggro) da tabela é 30 m.
+const SLEEP_DIST := 60.0
+const HIDE_DIST := 110.0
+const SLEEP_MARGIN := 10.0
+const SLEEP_SCAN := 0.5
+var asleep := false
+var _sleep_scan := 0.0
 ## Servidor: peers que acertaram este inimigo (todos ganham XP e loot ao matar).
 var contributors := {}
 var last_hitter := 0
@@ -152,6 +160,7 @@ func _ready() -> void:
 	home = global_position
 	wander_target = home
 	state_timer = randf_range(1.0, 3.0)
+	_sleep_scan = randf() * SLEEP_SCAN      # cada um confere num quadro diferente
 	model.rotation.y = randf() * TAU
 	if horde:
 		state = "chase"
@@ -314,6 +323,13 @@ static func _bar_mat(c: Color, priority: int) -> StandardMaterial3D:
 
 
 func _physics_process(delta: float) -> void:
+	if not horde and not is_boss:
+		_sleep_scan -= delta
+		if _sleep_scan <= 0.0:
+			_sleep_scan = SLEEP_SCAN
+			_update_sleep()
+		if asleep:
+			return
 	if puppet:
 		_puppet_process(delta)
 		return
@@ -430,6 +446,40 @@ func _physics_process(delta: float) -> void:
 	if bar_root and bar_root.visible:
 		bar_fg.scale.x = max(0.001, hp / max_hp)
 		bar_fg.position.x = 0.0
+
+
+## Bicho do mapa longe de todo mundo dorme: sem física, sem IA e sem animação, e mais longe ainda some da
+## tela. Os mapas ficam todos na mesma cena, então sem isso os monstros dos quatro rodam o tempo todo
+## (docs/desempenho/). Quem decide (solo e servidor) mede até o jogador mais próximo e só dorme parado ou
+## passeando; a réplica do cliente mede até a câmera. Chefes e a horda nunca dormem.
+func _update_sleep() -> void:
+	if dead:
+		asleep = false
+		return
+	var d := _viewer_dist()
+	var calm: bool = state in ["idle", "wander"] and (puppet or born_t > 1.0)
+	if puppet and d > HIDE_DIST + SLEEP_MARGIN:
+		calm = true      # réplica brigando com outro jogador, longe demais para ver
+	asleep = calm and d > (SLEEP_DIST if asleep else SLEEP_DIST + SLEEP_MARGIN)
+	var show := not asleep or d < (HIDE_DIST if not visible else HIDE_DIST + SLEEP_MARGIN)
+	if show != visible:
+		visible = show
+		if show and puppet:
+			global_position = _net_pos   # acordou: vai direto para onde o servidor diz
+			reset_physics_interpolation()
+
+
+## Distância até quem pode ver ou provocar o bicho: a câmera (réplica) ou o jogador mais próximo, vivo ou não.
+func _viewer_dist() -> float:
+	if puppet:
+		var cam := get_viewport().get_camera_3d()
+		return global_position.distance_to(cam.global_position) if cam != null else 0.0
+	var best := INF
+	var w := get_world_3d()
+	for p in get_tree().get_nodes_in_group("players"):
+		if p.get_world_3d() == w:
+			best = minf(best, global_position.distance_squared_to(p.global_position))
+	return sqrt(best)
 
 
 ## Jogador vivo mais próximo (no multiplayer, o servidor tem réplicas de todos).
@@ -754,6 +804,7 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun
 	FX.burst(global_position + Vector3.UP * data.height * data.scale * 0.5, data.color, 5 if horde else 10, 3.5, 0.1, 0.5)
 	_flash_t = 0.1
 	provoked = PROVOKE_TIME
+	_sleep_scan = 0.0      # acorda no próximo passo, se estava dormindo
 	if state in ["idle", "wander", "return"]:
 		_set_state("chase")
 	if bar_root:

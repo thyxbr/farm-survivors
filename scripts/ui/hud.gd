@@ -380,6 +380,9 @@ func _build_help() -> void:
 
 
 # ================================================================ atualização
+var _drawn := {}      # ItemSlot -> assinatura do que está desenhado (ver _redraw)
+
+
 func _process(delta: float) -> void:
 	_t += delta
 	hp_orb.set_values(Game.hp, Game.max_hp())
@@ -438,7 +441,7 @@ func _update_actions() -> void:
 	a.cooldown_text = ""
 	if player.drawing:
 		a.cooldown = 1.0 - player.bow_charge()
-	a.queue_redraw()
+	_redraw(a)
 	if _kit_class != Game.weapon_class():   # carregar jogo troca a arma sem passar pelo equipar
 		_refresh_kit()
 	for n in range(1, 5):
@@ -459,6 +462,14 @@ func _update_actions() -> void:
 			s.cooldown = clampf(cd / maxf(sp.cooldown * Game.cooldown_mult(), 0.01), 0.0, 1.0)
 			s.cooldown_text = ("%.1f" % cd) if cd > 0.0 else ""
 			s.info_text = "" if cd > 0.0 or sp.cost <= 0 else "%d" % sp.cost
+		_redraw(s)
+
+
+## Redesenha o slot só quando o que ele mostra mudou (antes eram 6 slots redesenhados a cada quadro).
+func _redraw(s: ItemSlot) -> void:
+	var sig := hash([s.item_id, s.icon_kind, s.ghost_kind, s.qty, s.info_text, s.cooldown, s.cooldown_text, s.dim, s.border_override])
+	if _drawn.get(s) != sig:
+		_drawn[s] = sig
 		s.queue_redraw()
 
 
@@ -516,7 +527,7 @@ func _update_food() -> void:
 		s.dim = false
 		s.cooldown = clampf(Game.eat_cooldown / Game.EAT_COOLDOWN, 0.0, 1.0)
 		s.cooldown_text = ("%.1f" % Game.eat_cooldown) if Game.eat_cooldown > 0.0 else ""
-	s.queue_redraw()
+	_redraw(s)
 	# chips de bônus: cria/remove só quando a lista muda, o texto atualiza todo quadro
 	for id in _buff_chips.keys():
 		if not Game.food_buffs.has(id):
