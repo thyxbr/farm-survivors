@@ -9,6 +9,8 @@ Depois de mexer em qualquer número, **rode o simulador** e os testes (seção "
 ## Metas que os números perseguem
 
 - **30 horas até o nível 50**: 1–10 ~2 h, 10–20 ~5 h, 20–35 ~10 h, 35–45 ~7 h, 45–50 ~6 h.
+  O conteúdo da parte 1 vai até o nível ~40–42 (Pico 30–42, Lich 42): as horas de 35–45 e 45–50 são um modelo
+  (caça de monstros acima da faixa do Pico) até as partes 2 e 4 trazerem áreas e missões desses níveis.
 - **Monstro comum do mesmo nível morre em 3 a 5 golpes** do ataque básico (guerreiro, arqueiro, mago; healer até
   7), com todos os pontos no atributo da classe e a melhor arma que o nível deixa usar.
 - **0,5 a 0,8 item por monstro comum**, quase tudo material.
@@ -78,7 +80,7 @@ Itens com `named: true` nunca caem por aqui (só da lista do chefe ou de missão
 ### `quest_xp_share`
 Que fração da XP de cada nível as missões devem dar (hoje 0.3 = 30%): entra no `reward_xp` que o
 `set_quest_levels.py` calcula. O simulador desconta da caça a XP que as missões **de verdade** dão em cada faixa
-(soma do `reward_xp` das missões com nível na faixa), no máximo `quest_xp_share`. Hoje: 1–10 30%, 10–20 28%,
+(soma do `reward_xp` das missões com nível na faixa), no máximo `quest_xp_share`. Hoje: 1–10 28%, 10–20 25%,
 20–35 13%, 35–45 14%, 45–50 0% (quase não há missões acima do 20). O teste das missões exige que as missões até o
 nível 10 deem 20%–45% da XP dos níveis 1–9. Se mudar, rode o `set_quest_levels.py --write`.
 
@@ -102,8 +104,8 @@ build pura com o ataque básico. Por isso o jogo de verdade é um pouco mais rá
 
 ## `data/balance/enemies.json`
 
-- `hp`, `damage`, `xp`, `gold`: o monstro no seu `ref_level`. São também os números da **Horda** e da **Defesa
-  da Cidade** (que criam monstros sem nível): mudar aqui muda lá.
+- `hp`, `damage`, `xp`, `gold`: o monstro no seu `ref_level`. São também os números da **Horda** (que cria
+  monstros sem nível): mudar aqui muda lá.
 - `ref_level`: o nível em que os números acima valem. Hoje **2 para os monstros comuns**: como usam o mesmo, no
   mesmo nível a proporção entre eles é a do arquivo (o esqueleto, 95 de vida, tem ~1,2× a vida do goblin, 80, em
   qualquer nível; o slime metade). Chefes e elites têm o próprio: Goblin Dourado 4, Campeão Goblin 6, Cavaleiro
@@ -143,7 +145,9 @@ missão, kit básico).
 `quest_xp_share × XP do nível × peso` (1,5 principal, 1,0 secundária, 0,6 contrato do quadro).
 O script `python tools/balance/set_quest_levels.py` mostra a tabela e, com `--write`, grava os dois campos de
 todas as missões, apagando ajustes feitos à mão. Para fixar o nível de uma missão, ponha no dicionário
-`OVERRIDES` do script (hoje `kael_sumiu: 30`). Só para mudar o XP de uma missão, edite `reward_xp` no JSON e
+`OVERRIDES` do script (hoje `kael_sumiu: 30`; `festa`, `registro`, `quadro`: 11, o nível de quem acabou de
+vencer o Rei Goblin, e que `bosque` e `tico` herdam pela corrente; as do Natal: 6). Missões de evento
+sazonal (`"event"`, ex.: Natal) não entram na conta do ritmo: o simulador e o teste das missões as ignoram. Só para mudar o XP de uma missão, edite `reward_xp` no JSON e
 não rode o script de novo.
 
 ## Ponto de monstro (EnemySpawn) no Inspector
@@ -151,7 +155,7 @@ não rode o script de novo.
 Nos mapas (`scenes/maps/*.tscn`, grupo Monstros), cada ponto tem:
 
 - `level`: nível dos monstros. **0 = sem nível**: usa os números do enemies.json direto, sem placa "Nv" e sem
-  ajuste de XP (é o que Horda e cidade usam). No mundo, sempre ponha um nível.
+  ajuste de XP (é o que a Horda usa). No mundo, sempre ponha um nível.
 - `level_max`: fim da faixa. Cada monstro sorteia um nível entre `level` e `level_max` ao nascer (0 = sempre
   `level`). Faixas de hoje: Vale 1–13, Bosque 12–20, Mina 20–30, Pico 30–42.
 - `elite`: monstros de elite (bloco `elite` do progression.json): +2 níveis, vida × 2, 25% maiores, 5% de chance

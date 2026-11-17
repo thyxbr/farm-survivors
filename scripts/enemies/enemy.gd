@@ -902,11 +902,6 @@ func xp_reward() -> int:
 	return roundi(float(data.xp) * float(ProgressionRules.enemy_mults(Balance.tables, kind, level).xp))
 
 
-## Multiplicador do ouro do abate pela curva do nível (sem nível, 1).
-func gold_mult() -> float:
-	return float(ProgressionRules.enemy_mults(Balance.tables, kind, level).gold)
-
-
 ## Morte sem regras de jogo (também usada pelas réplicas no cliente).
 func die_visual() -> void:
 	dead = true
