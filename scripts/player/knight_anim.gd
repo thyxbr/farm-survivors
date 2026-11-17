@@ -627,6 +627,11 @@ static func ease_curve(x: float, kind: String) -> float:
 	return x * x * (3.0 - 2.0 * x)
 
 
+## Sem arma: combo de boxe (KnightMoves.PUNCH).
+static func punch_pose(p: Dictionary, combo: int, t: float, move: float) -> void:
+	play_track(p, KnightMoves.PUNCH[clampi(combo, 1, 3) - 1], t, move)
+
+
 static func sword_pose(p: Dictionary, combo: int, t: float, move: float) -> void:
 	play_track(p, KnightMoves.SWORD[clampi(combo, 1, 3) - 1], t, move)
 	if combo == 3:
