@@ -565,6 +565,7 @@ func _physics_process(delta: float) -> void:
 				_set_state("chase")
 			elif to.length() < 1.0:
 				hp = max_hp
+				contributors.clear()   # curou tudo em casa: quem tinha acertado antes não leva XP, loot nem abate depois
 				health_changed.emit(self)
 				_set_state("idle")
 			else:
