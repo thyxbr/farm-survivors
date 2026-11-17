@@ -219,6 +219,13 @@ func _debug_screenshot() -> void:
 					equip(id)
 		# `--talents=id,id,...` aprende um nível de cada (repetir o id = mais níveis), para capturas da aba Talentos
 		# (sobe o personagem da demo ao nível 6 de verdade, para ter os 5 pontos)
+		# `--level=N` sobe o personagem da demo ao nível N de verdade (com `--weapon=`: testar as habilidades
+		# de nível alto, ex.: `--weapon=sc_novice_scepter --level=8`)
+		elif a.begins_with("--level=") and demo:
+			var xp_lv := 0
+			for lv in range(1, clampi(int(a.substr(8)), 1, 60)):
+				xp_lv += CharRules.xp_to_next(lv, Balance.tables)
+			Econ.grant(0, xp_lv, {}, "demo", true)
 		elif a.begins_with("--talents="):
 			var xp_need := 0
 			for lv in range(1, 6):
