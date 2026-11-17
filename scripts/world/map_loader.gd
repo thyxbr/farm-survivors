@@ -45,18 +45,23 @@ static func build(w: Node3D, map_id: String) -> MapRoot:
 		elif n is EnemySpawn:
 			if w.has_server_enemies() and not n.boss:
 				var list: Array = w.spawns if map_id == "vila" else w.region_spawns
-				var pts: Array[Vector3] = EnemySpawn.spread(n.global_position, n.count, n.radius)
+				# região com nome: nível 0 tira a faixa dela; a densidade multiplica a quantidade
+				var rt: Dictionary = Balance.tables.get_table("regions")
+				var area := Regions.area_at(n.global_position)
+				var lv := Regions.spawn_range(rt, area, n.level, n.level_max)
+				var count := Regions.spawn_count(rt, area, n.count)
+				var pts: Array[Vector3] = EnemySpawn.spread(n.global_position, count, n.radius)
 				if n.follow_ground and ground != null:
 					# cada um no chão de onde cai (o centro já foi assentado: a distância salva é y - chão)
 					var c: Vector3 = n.global_position - o
 					var h := Callable(ground, "height_at")
 					var off: float = c.y - MapPreview.ground_y(true, 0.0, h, c.x, c.z)
 					pts = []
-					for q in EnemySpawn.spread_on_ground(c, n.count, n.radius, off, h):
+					for q in EnemySpawn.spread_on_ground(c, count, n.radius, off, h):
 						pts.append(q + o)
 				for p in pts:
 					var entry := {"kind": n.kind, "pos": p, "node": null, "timer": 0.0, "respawn": n.respawn,
-							"level": n.level, "level_max": n.level_max, "elite": n.elite}
+							"level": lv.x, "level_max": lv.y, "elite": n.elite, "area": area}
 					if n.night_only:
 						entry["night"] = true   # bicho da noite (o mundo segura de dia)
 					list.append(entry)

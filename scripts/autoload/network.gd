@@ -593,8 +593,11 @@ func _physics_process(delta: float) -> void:
 				multiplayer.multiplayer_peer.disconnect_peer(id)
 		_stats_t += delta
 		if _stats_t >= (5.0 if "--netstats" in OS.get_cmdline_user_args() else 300.0):
-			print("[server] %d online, %d inimigos, %d fps, %d snapshots/s" % [players.size(), enemies.size(),
-				Engine.get_frames_per_second(), int(_snapshots_sent / _stats_t)])
+			# tempo de script por quadro (ms): o servidor trava em 60 fps, então o fps só cai quando já passou do limite
+			print("[server] %d online, %d inimigos, %d fps, %d snapshots/s, process %.2f ms, physics %.2f ms" % [
+				players.size(), enemies.size(), Engine.get_frames_per_second(), int(_snapshots_sent / _stats_t),
+				Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+				Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0])
 			_stats_t = 0.0
 			_snapshots_sent = 0
 		_snap_t -= delta

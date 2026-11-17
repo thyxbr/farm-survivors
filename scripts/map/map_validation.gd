@@ -6,6 +6,7 @@ extends RefCounted
 const MAX_PAINTS := 40
 const MARGIN := 30.0   # além da meia largura (a serra e a floresta da borda ficam um pouco para fora)
 const WORLD_NODES := "res://data/balance/world_nodes.json"
+const REGIONS := "res://data/balance/regions.json"
 ## Landmarks que cada mapa precisa ter uma vez.
 const REQUIRED := {"vila": ["camp", "ruins", "farm", "nest", "orchard", "village_spawn", "portal", "horde_return",
 	"pond", "coach", "arrive"], "arena": []}
@@ -25,6 +26,13 @@ static func check(root: MapRoot) -> PackedStringArray:
 			out.append("%s: quantidade e raio não podem ser negativos" % at)
 		if s.respawn <= 0.0:
 			out.append("%s: respawn precisa ser maior que 0 (veio %.1f)" % [at, s.respawn])
+	var regions = JSON.parse_string(FileAccess.get_file_as_string(REGIONS))
+	for r: MapRegion in root.pieces(MapRegion):
+		var at := str(root.get_path_to(r))
+		if not (regions is Dictionary and regions.has(r.region_id)):
+			out.append("%s: região '%s' não existe no regions.json" % [at, r.region_id])
+		if (r.shape == MapRegion.DISC and r.radius <= 0.0) or (r.shape == MapRegion.RECT and (r.size.x <= 0.0 or r.size.y <= 0.0)):
+			out.append("%s: tamanho da região precisa ser maior que 0" % at)
 	if Regions.DATA.has(root.map_id) and not is_equal_approx(root.half, float(Regions.DATA[root.map_id].half)):
 		out.append("half %.0f diferente do Regions.DATA (%.0f): o minimapa e a detecção de região usam o do Regions"
 			% [root.half, float(Regions.DATA[root.map_id].half)])

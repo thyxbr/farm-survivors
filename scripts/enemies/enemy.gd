@@ -26,6 +26,16 @@ var elite := false
 ## Nível do monstro (0 = sem nível: Horda e cidade, com os números de hoje). Com nível, vida, dano, XP e ouro
 ## seguem as curvas de ProgressionRules, e o modelo ganha a tinta e a escala da camada.
 var level := 0
+## Região com nome onde o monstro nasceu ("" = fora de região; Regions.area_at). Missões com "region" só contam
+## abates de monstros daqui. O servidor e o solo põem a do ponto de nascimento; a réplica calcula ao nascer.
+var area := ""
+## Dormindo: monstro do mundo parado (idle/wander, no chão) sem jogador a menos de `sleep_radius` não roda IA nem
+## física (com ~300 monstros nos mapas é isso que segura o servidor). Confere de novo a cada SLEEP_CHECK s;
+## levar dano acorda na hora. 0 no raio = nunca dorme. Raio em data/balance/rules.json, "enemy_sleep_radius".
+var asleep := false
+var sleep_radius := 0.0
+var _sleep_t := 0.0
+const SLEEP_CHECK := 0.5
 ## Tamanho do modelo além de data.scale (elite e camada de nível).
 var size_mult := 1.0
 ## Goblin Dourado que fugiu: some sem contar como abate.
@@ -102,6 +112,11 @@ const SPIDER_PARTS := ["Abdomen", "Leg0L", "Leg1L", "Leg2L", "Leg3L", "Leg0R", "
 
 func _ready() -> void:
 	data = TYPES[kind]
+	if area == "" and puppet and not horde:
+		area = Regions.area_at(position)
+	if not horde and not puppet:
+		sleep_radius = float(Balance.tables.get_table("rules").get("enemy_sleep_radius", 0.0))
+		_sleep_t = randf() * SLEEP_CHECK   # espalha as conferências pelos quadros
 	display_name = data.name
 	if elite:
 		display_name += " de Elite"
@@ -374,6 +389,13 @@ func _physics_process(delta: float) -> void:
 	if _horde_frozen():
 		velocity = Vector3.ZERO
 		return
+	if sleep_radius > 0.0:
+		_sleep_t -= delta
+		if _sleep_t <= 0.0:
+			_sleep_t = SLEEP_CHECK
+			asleep = should_sleep(state, is_on_floor(), is_boss, _player_within(sleep_radius))
+		if asleep:
+			return
 	born_t += delta
 	attack_cd = max(0.0, attack_cd - delta)
 	web_cd = maxf(0.0, web_cd - delta)
@@ -481,6 +503,21 @@ func _physics_process(delta: float) -> void:
 
 ## Jogador vivo mais próximo (no multiplayer, o servidor tem réplicas de todos).
 ## A horda só persegue quem está no desafio (get_parent() é o modo sobrevivência).
+## Regra do sono (pura): parado ou passeando, no chão, sem chefe e sem jogador perto.
+static func should_sleep(st: String, on_floor: bool, boss: bool, player_near: bool) -> bool:
+	return not boss and on_floor and not player_near and st in ["idle", "wander"]
+
+
+## Algum jogador vivo do mesmo mundo a menos de `r` metros.
+func _player_within(r: float) -> bool:
+	var w := get_world_3d()
+	var r2 := r * r
+	for p in get_tree().get_nodes_in_group("players"):
+		if not p.dead and p.get_world_3d() == w and global_position.distance_squared_to(p.global_position) < r2:
+			return true
+	return false
+
+
 func _nearest_player() -> Player:
 	var best: Player = null
 	var best_d := INF
@@ -781,6 +818,8 @@ func _explode(visual: bool) -> void:
 func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun := 0.0, pull := 0.0) -> void:
 	if dead:
 		return
+	asleep = false
+	_sleep_t = SLEEP_CHECK
 	if puppet:
 		# o servidor decide; os números de dano chegam de volta em show_hit()
 		Network.client_hit_enemy(net_id, amount, from_pos, crit, slow, stun, pull)

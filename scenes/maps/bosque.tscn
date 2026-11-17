@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://scripts/map/map_light.gd" id="4_dxw1q"]
 [ext_resource type="Script" path="res://scripts/map/map_entity.gd" id="5_ltwnx"]
 [ext_resource type="Script" path="res://scripts/map/map_decor.gd" id="6_1bvc8"]
+[ext_resource type="Script" path="res://scripts/map/map_region.gd" id="90_regiao"]
 [ext_resource type="Script" path="res://scripts/map/enemy_spawn.gd" id="7_pea20"]
 [ext_resource type="Script" path="res://scripts/map/map_landmark.gd" id="8_qljvo"]
 
@@ -1733,3 +1734,129 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 52)
 script = ExtResource("8_qljvo")
 id = "arrive"
 follow_ground = false
+
+[node name="Regiões" type="Node3D" parent="."]
+
+[node name="clareira_saltitante" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15)
+script = ExtResource("90_regiao")
+region_id = "clareira_saltitante"
+shape = 1
+radius = 22.0
+
+[node name="charco_gelado" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40, 0, -10)
+script = ExtResource("90_regiao")
+region_id = "charco_gelado"
+shape = 1
+radius = 18.0
+
+[node name="circulo_xamas" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35, 0, 10)
+script = ExtResource("90_regiao")
+region_id = "circulo_xamas"
+shape = 1
+radius = 20.0
+
+[node name="ninho_rainha" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28, 0, -40)
+script = ExtResource("90_regiao")
+region_id = "ninho_rainha"
+shape = 1
+radius = 18.0
+
+[node name="bando slime 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, 25)
+script = ExtResource("7_pea20")
+kind = "slime"
+count = 4
+radius = 4.0
+respawn = 25.0
+
+[node name="bando slime_veloz 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 28)
+script = ExtResource("7_pea20")
+kind = "slime_veloz"
+count = 4
+radius = 4.0
+respawn = 25.0
+
+[node name="bando slime 2" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0, 8)
+script = ExtResource("7_pea20")
+kind = "slime"
+count = 4
+radius = 4.0
+respawn = 25.0
+
+[node name="bando slime_gelo 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -45, 0, -15)
+script = ExtResource("7_pea20")
+kind = "slime_gelo"
+count = 4
+radius = 5.0
+respawn = 25.0
+
+[node name="bando slime_gelo 2" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 0, -2)
+script = ExtResource("7_pea20")
+kind = "slime_gelo"
+count = 4
+radius = 4.0
+respawn = 25.0
+
+[node name="bando slime_gelo 3" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -48, 0, 0)
+script = ExtResource("7_pea20")
+kind = "slime_gelo"
+count = 3
+radius = 4.0
+respawn = 25.0
+
+[node name="bando goblin_xama 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 45, 0, 0)
+script = ExtResource("7_pea20")
+kind = "goblin_xama"
+count = 3
+radius = 4.0
+respawn = 25.0
+
+[node name="bando goblin_arqueiro 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 42, 0, 22)
+script = ExtResource("7_pea20")
+kind = "goblin_arqueiro"
+count = 4
+radius = 5.0
+respawn = 25.0
+
+[node name="bando goblin 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 0, -5)
+script = ExtResource("7_pea20")
+kind = "goblin"
+count = 4
+radius = 4.0
+respawn = 25.0
+
+[node name="bando slime_explosivo 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40, 0, -48)
+script = ExtResource("7_pea20")
+kind = "slime_explosivo"
+count = 4
+radius = 4.0
+respawn = 25.0
+
+[node name="bando slime_veloz 2" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0, -50)
+script = ExtResource("7_pea20")
+kind = "slime_veloz"
+count = 4
+radius = 4.0
+respawn = 25.0
+
+[node name="bando slime_gelo 4" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -38, 0, -28)
+script = ExtResource("7_pea20")
+kind = "slime_gelo"
+count = 3
+radius = 4.0
+respawn = 25.0

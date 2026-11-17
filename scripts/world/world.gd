@@ -528,6 +528,7 @@ func _spawn(entry: Dictionary) -> void:
 	var e := ENEMY.new()
 	e.kind = entry.kind
 	e.elite = entry.get("elite", false)
+	e.area = str(entry.get("area", ""))
 	e.level = ProgressionRules.spawn_level(Balance.tables, entry.get("level", 0), entry.get("level_max", 0), e.elite, _spawn_rng)
 	e.position = entry.pos + Vector3.UP * 0.2
 	add_child(e)

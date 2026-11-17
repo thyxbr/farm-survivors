@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://scripts/map/map_light.gd" id="4_kn8pn"]
 [ext_resource type="Script" path="res://scripts/map/map_entity.gd" id="5_vkolw"]
 [ext_resource type="Script" path="res://scripts/map/map_decor.gd" id="6_omx4r"]
+[ext_resource type="Script" path="res://scripts/map/map_region.gd" id="90_regiao"]
 [ext_resource type="Script" path="res://scripts/map/enemy_spawn.gd" id="7_5aw42"]
 [ext_resource type="Script" path="res://scripts/map/map_landmark.gd" id="8_uyrub"]
 
@@ -1427,3 +1428,147 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 52)
 script = ExtResource("8_uyrub")
 id = "arrive"
 follow_ground = false
+
+[node name="Regiões" type="Node3D" parent="."]
+
+[node name="galeria_entrada" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 20)
+script = ExtResource("90_regiao")
+region_id = "galeria_entrada"
+size = Vector2(90, 30)
+
+[node name="veio_cristal" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -10)
+script = ExtResource("90_regiao")
+region_id = "veio_cristal"
+size = Vector2(90, 30)
+
+[node name="fosso_brutos" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -45, 0, -40)
+script = ExtResource("90_regiao")
+region_id = "fosso_brutos"
+size = Vector2(40, 30)
+
+[node name="fosso_brutos 2" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 45, 0, -40)
+script = ExtResource("90_regiao")
+region_id = "fosso_brutos"
+size = Vector2(40, 30)
+
+[node name="salao_cavaleiro" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -45)
+script = ExtResource("90_regiao")
+region_id = "salao_cavaleiro"
+size = Vector2(40, 24)
+
+[node name="bando esqueleto 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, 20)
+script = ExtResource("7_5aw42")
+kind = "esqueleto"
+count = 4
+radius = 5.0
+respawn = 25.0
+
+[node name="bando esqueleto 2" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, 20)
+script = ExtResource("7_5aw42")
+kind = "esqueleto"
+count = 4
+radius = 5.0
+respawn = 25.0
+
+[node name="bando goblin_bruto 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35, 0, 28)
+script = ExtResource("7_5aw42")
+kind = "goblin_bruto"
+count = 3
+radius = 4.0
+respawn = 25.0
+
+[node name="bando goblin_bruto 2" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40, 0, 28)
+script = ExtResource("7_5aw42")
+kind = "goblin_bruto"
+count = 3
+radius = 4.0
+respawn = 25.0
+
+[node name="bando esqueleto_arqueiro 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40, 0, -15)
+script = ExtResource("7_5aw42")
+kind = "esqueleto_arqueiro"
+count = 3
+radius = 4.0
+respawn = 25.0
+
+[node name="bando esqueleto 3" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 0, -15)
+script = ExtResource("7_5aw42")
+kind = "esqueleto"
+count = 4
+radius = 4.0
+respawn = 25.0
+
+[node name="bando esqueleto_mago 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0, -18)
+script = ExtResource("7_5aw42")
+kind = "esqueleto_mago"
+count = 3
+radius = 3.0
+respawn = 25.0
+
+[node name="bando goblin_bruto 3" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -45, 0, -40)
+script = ExtResource("7_5aw42")
+kind = "goblin_bruto"
+count = 4
+radius = 5.0
+respawn = 25.0
+
+[node name="bando goblin_bruto 4" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -35, 0, -30)
+script = ExtResource("7_5aw42")
+kind = "goblin_bruto"
+count = 3
+radius = 4.0
+respawn = 25.0
+
+[node name="bando esqueleto 4" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -55, 0, -48)
+script = ExtResource("7_5aw42")
+kind = "esqueleto"
+count = 4
+radius = 4.0
+respawn = 25.0
+
+[node name="bando goblin_bruto 5" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 45, 0, -40)
+script = ExtResource("7_5aw42")
+kind = "goblin_bruto"
+count = 4
+radius = 5.0
+respawn = 25.0
+
+[node name="bando esqueleto_arqueiro 2" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 50, 0, -30)
+script = ExtResource("7_5aw42")
+kind = "esqueleto_arqueiro"
+count = 4
+radius = 4.0
+respawn = 25.0
+
+[node name="bando esqueleto_cavaleiro 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, -43)
+script = ExtResource("7_5aw42")
+kind = "esqueleto_cavaleiro"
+count = 3
+radius = 3.0
+respawn = 25.0
+
+[node name="bando esqueleto_mago 2" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13, 0, -45)
+script = ExtResource("7_5aw42")
+kind = "esqueleto_mago"
+count = 3
+radius = 4.0
+respawn = 25.0

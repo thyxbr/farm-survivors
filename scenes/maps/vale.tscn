@@ -8,6 +8,7 @@
 [ext_resource type="Script" path="res://scripts/map/map_decor.gd" id="6_l6sia"]
 [ext_resource type="Script" path="res://scripts/map/map_entity.gd" id="7_iymgv"]
 [ext_resource type="Script" path="res://scripts/world/village_building.gd" id="8_dfddp"]
+[ext_resource type="Script" path="res://scripts/map/map_region.gd" id="90_regiao"]
 [ext_resource type="Script" path="res://scripts/map/enemy_spawn.gd" id="9_5rons"]
 [ext_resource type="Script" path="res://scripts/map/map_landmark.gd" id="10_jeidb"]
 [ext_resource type="Script" path="res://scripts/map/map_grass_area.gd" id="11_hmt17"]
@@ -2265,11 +2266,6 @@ transform = Transform3D(-1.475828, 0, -0.379603, 0, 1.5238658, 0, 0.379603, 0, -
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 
-[node name="tree_pine 73" type="Node3D" parent="Natureza/Árvores" unique_id=1765631057]
-transform = Transform3D(-1.2433356, 0, 0.9836292, 0, 1.5853738, 0, -0.9836292, 0, -1.2433356, -30.019188, 0, -123.51201)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-
 [node name="tree_pine 74" type="Node3D" parent="Natureza/Árvores" unique_id=1857749564]
 transform = Transform3D(-1.110116, 0, 1.2821741, 0, 1.695974, 0, -1.2821741, 0, -1.110116, -30.019188, 0, 118.57403)
 script = ExtResource("4_gxwoc")
@@ -2432,11 +2428,6 @@ model = "tree_pine"
 
 [node name="tree_pine 106" type="Node3D" parent="Natureza/Árvores" unique_id=1157631089]
 transform = Transform3D(-1.4207857, 0, -0.9902332, 0, 1.731818, 0, 0.9902332, 0, -1.4207857, -120.83706, 0, 23.969181)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-
-[node name="tree_pine 107" type="Node3D" parent="Natureza/Árvores" unique_id=2132012320]
-transform = Transform3D(-1.1250032, 0, -0.0043737427, 0, 1.1250117, 0, 0.0043737427, 0, -1.1250032, 28.10373, 0, -121.84906)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 
@@ -2822,22 +2813,8 @@ model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_pine 184" type="Node3D" parent="Natureza/Árvores" unique_id=683949813]
-transform = Transform3D(-1.0336276, 0, 0.5069779, 0, 1.1512656, 0, -0.5069779, 0, -1.0336276, 111.19774, 0, -14.736176)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
 [node name="tree_pine 185" type="Node3D" parent="Natureza/Árvores" unique_id=806252030]
 transform = Transform3D(-0.18216436, 0, -0.98516786, 0, 1.001868, 0, 0.98516786, 0, -0.18216436, 84.98488, 0, 36.32257)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
-[node name="tree_pine 186" type="Node3D" parent="Natureza/Árvores" unique_id=1042765120]
-transform = Transform3D(-0.9376303, 0, -1.0097041, 0, 1.3779162, 0, 1.0097041, 0, -0.9376303, 96.97615, 0, -11.995003)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
@@ -2849,20 +2826,6 @@ script = ExtResource("4_gxwoc")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
-
-[node name="tree_fir 2" type="Node3D" parent="Natureza/Árvores" unique_id=408654392]
-transform = Transform3D(0.3812691, 0, -1.1936108, 0, 1.2530255, 0, 1.1936108, 0, 0.3812691, 107.82784, 0, -27.683998)
-script = ExtResource("4_gxwoc")
-model = "tree_fir"
-shape = 2
-shape_size = Vector3(0.32, 3, 0)
-
-[node name="tree_pine 187" type="Node3D" parent="Natureza/Árvores" unique_id=554231133]
-transform = Transform3D(-0.92342305, 0, 0.29687122, 0, 0.96997046, 0, -0.29687122, 0, -0.92342305, 100.98616, 0, -5.195114)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
 
 [node name="tree_fir 3" type="Node3D" parent="Natureza/Árvores" unique_id=1832722290]
 transform = Transform3D(-0.6090887, 0, 1.0257778, 0, 1.1929833, 0, -1.0257778, 0, -0.6090887, 76.38526, 0, -48.190563)
@@ -2878,13 +2841,6 @@ model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_pine 189" type="Node3D" parent="Natureza/Árvores" unique_id=1416003982]
-transform = Transform3D(0.92337054, 0, -1.0671595, 0, 1.4111848, 0, 1.0671595, 0, 0.92337054, 98.661766, 0, 42.261765)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
 [node name="tree_pine 190" type="Node3D" parent="Natureza/Árvores" unique_id=166793524]
 transform = Transform3D(-1.2625719, 0, 0.4687216, 0, 1.3467695, 0, -0.4687216, 0, -1.2625719, 74.95459, 0, 69.17143)
 script = ExtResource("4_gxwoc")
@@ -2894,13 +2850,6 @@ shape_size = Vector3(0.35, 3, 0)
 
 [node name="tree_birch" type="Node3D" parent="Natureza/Árvores" unique_id=1346536835]
 transform = Transform3D(-1.1145386, 0, -0.78643423, 0, 1.3640656, 0, 0.78643423, 0, -1.1145386, 65.4857, 0, -25.264973)
-script = ExtResource("4_gxwoc")
-model = "tree_birch"
-shape = 2
-shape_size = Vector3(0.25, 3, 0)
-
-[node name="tree_birch 2" type="Node3D" parent="Natureza/Árvores" unique_id=2118623758]
-transform = Transform3D(-1.173791, 0, 0.48514587, 0, 1.2700992, 0, -0.48514587, 0, -1.173791, 56.57807, 0, -51.313625)
 script = ExtResource("4_gxwoc")
 model = "tree_birch"
 shape = 2
@@ -2922,13 +2871,6 @@ shape_size = Vector3(0.32, 3, 0)
 
 [node name="tree_pine 191" type="Node3D" parent="Natureza/Árvores" unique_id=1809141856]
 transform = Transform3D(0.23628125, 0, -0.92520326, 0, 0.9548978, 0, 0.92520326, 0, 0.23628125, 73.213715, 0, -29.455341)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
-[node name="tree_pine 192" type="Node3D" parent="Natureza/Árvores" unique_id=1629395513]
-transform = Transform3D(0.98656625, 0, 0.44615284, 0, 1.0827582, 0, -0.44615284, 0, 0.98656625, 99.61005, 0, 28.772736)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
@@ -2962,13 +2904,6 @@ model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_fir 6" type="Node3D" parent="Natureza/Árvores" unique_id=1875276663]
-transform = Transform3D(-0.20640214, 0, -1.4656187, 0, 1.4800811, 0, 1.4656187, 0, -0.20640214, 94.60447, 0, -29.301067)
-script = ExtResource("4_gxwoc")
-model = "tree_fir"
-shape = 2
-shape_size = Vector3(0.32, 3, 0)
-
 [node name="tree_pine 196" type="Node3D" parent="Natureza/Árvores" unique_id=98580868]
 transform = Transform3D(-0.4059635, 0, -1.0640893, 0, 1.1388997, 0, 1.0640893, 0, -0.4059635, 30.680876, 0, 58.700104)
 script = ExtResource("4_gxwoc")
@@ -2989,13 +2924,6 @@ script = ExtResource("4_gxwoc")
 model = "tree_birch"
 shape = 2
 shape_size = Vector3(0.25, 2.9999998, 0)
-
-[node name="tree_fir 8" type="Node3D" parent="Natureza/Árvores" unique_id=1635220580]
-transform = Transform3D(-0.3105835, 0, -0.789043, 0, 0.8479687, 0, 0.789043, 0, -0.3105835, 111.40408, 0, -6.845169)
-script = ExtResource("4_gxwoc")
-model = "tree_fir"
-shape = 2
-shape_size = Vector3(0.32, 3.0000002, 0)
 
 [node name="tree_birch 5" type="Node3D" parent="Natureza/Árvores" unique_id=192071605]
 transform = Transform3D(-1.2467896, 0, 0.44056737, 0, 1.3223403, 0, -0.44056737, 0, -1.2467896, 77.34405, 0, -65.68695)
@@ -3067,13 +2995,6 @@ model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_pine 201" type="Node3D" parent="Natureza/Árvores" unique_id=885855524]
-transform = Transform3D(-0.5107093, 0, 1.0824002, 0, 1.196835, 0, -1.0824002, 0, -0.5107093, 90.803894, 0, 32.412994)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
 [node name="tree_pine 202" type="Node3D" parent="Natureza/Árvores" unique_id=97322922]
 transform = Transform3D(0.9382357, 0, 1.0078961, 0, 1.3770043, 0, -1.0078961, 0, 0.9382357, 40.03734, 0, -67.85162)
 script = ExtResource("4_gxwoc")
@@ -3087,13 +3008,6 @@ script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
-
-[node name="tree_fir 12" type="Node3D" parent="Natureza/Árvores" unique_id=2055816545]
-transform = Transform3D(-1.0745211, 0, -0.6407536, 0, 1.2510638, 0, 0.6407536, 0, -1.0745211, 89.12926, 0, 34.983322)
-script = ExtResource("4_gxwoc")
-model = "tree_fir"
-shape = 2
-shape_size = Vector3(0.32, 3, 0)
 
 [node name="tree_pine 204" type="Node3D" parent="Natureza/Árvores" unique_id=201515664]
 transform = Transform3D(-0.492497, 0, 0.9966095, 0, 1.1116581, 0, -0.9966095, 0, -0.492497, 54.224392, 0, -20.549767)
@@ -3109,36 +3023,8 @@ model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3.0000002, 0)
 
-[node name="tree_pine 205" type="Node3D" parent="Natureza/Árvores" unique_id=237535032]
-transform = Transform3D(0.21435277, 0, 1.2047158, 0, 1.223637, 0, -1.2047158, 0, 0.21435277, 111.432304, 0, 0.11659241)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
-[node name="tree_pine 206" type="Node3D" parent="Natureza/Árvores" unique_id=1164740733]
-transform = Transform3D(-1.2749572, 0, -0.57325906, 0, 1.3979062, 0, 0.57325906, 0, -1.2749572, 57.58755, 0, -46.764694)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
 [node name="tree_pine 207" type="Node3D" parent="Natureza/Árvores" unique_id=362354452]
 transform = Transform3D(0.7277283, 0, -1.1323868, 0, 1.3460641, 0, 1.1323868, 0, 0.7277283, 112.4844, 0, 34.28061)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
-[node name="tree_fir 14" type="Node3D" parent="Natureza/Árvores" unique_id=1823481576]
-transform = Transform3D(0.861013, 0, 1.1706054, 0, 1.4531553, 0, -1.1706054, 0, 0.861013, 71.79283, 0, -62.95493)
-script = ExtResource("4_gxwoc")
-model = "tree_fir"
-shape = 2
-shape_size = Vector3(0.32, 2.9999998, 0)
-
-[node name="tree_pine 208" type="Node3D" parent="Natureza/Árvores" unique_id=1582605991]
-transform = Transform3D(0.5103721, 0, 0.7660478, 0, 0.92049384, 0, -0.7660478, 0, 0.5103721, 111.45857, 0, -2.8197098)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
@@ -3207,27 +3093,6 @@ model = "tree_birch"
 shape = 2
 shape_size = Vector3(0.25, 3, 0)
 
-[node name="tree_fir 18" type="Node3D" parent="Natureza/Árvores" unique_id=1872298634]
-transform = Transform3D(-0.2231683, 0, 1.1054605, 0, 1.127762, 0, -1.1054605, 0, -0.2231683, 110.988365, 0, 9.204605)
-script = ExtResource("4_gxwoc")
-model = "tree_fir"
-shape = 2
-shape_size = Vector3(0.32, 3, 0)
-
-[node name="tree_pine 213" type="Node3D" parent="Natureza/Árvores" unique_id=1407663125]
-transform = Transform3D(-0.88224316, 0, 0.08762143, 0, 0.88658357, 0, -0.08762143, 0, -0.88224316, 93.1882, 0, -11.506752)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
-[node name="tree_pine 214" type="Node3D" parent="Natureza/Árvores" unique_id=682492811]
-transform = Transform3D(-0.46224663, 0, -1.2950672, 0, 1.3750894, 0, 1.2950672, 0, -0.46224663, 98.39614, 0, 0.46190643)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 2.9999998, 0)
-
 [node name="tree_pine 215" type="Node3D" parent="Natureza/Árvores" unique_id=1990153994]
 transform = Transform3D(-0.34254855, 0, 0.8473607, 0, 0.9139801, 0, -0.8473607, 0, -0.34254855, 77.689285, 0, 45.155556)
 script = ExtResource("4_gxwoc")
@@ -3241,13 +3106,6 @@ script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
-
-[node name="tree_fir 19" type="Node3D" parent="Natureza/Árvores" unique_id=1675920859]
-transform = Transform3D(-0.8416277, 0, -0.4409117, 0, 0.9501265, 0, 0.4409117, 0, -0.8416277, 102.78068, 0, 10.388748)
-script = ExtResource("4_gxwoc")
-model = "tree_fir"
-shape = 2
-shape_size = Vector3(0.32, 2.9999998, 0)
 
 [node name="tree_pine 217" type="Node3D" parent="Natureza/Árvores" unique_id=1700943218]
 transform = Transform3D(-1.115356, 0, -0.27008814, 0, 1.1475916, 0, 0.27008814, 0, -1.115356, 48.2029, 0, -24.902538)
@@ -3270,13 +3128,6 @@ model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_pine 219" type="Node3D" parent="Natureza/Árvores" unique_id=1080670406]
-transform = Transform3D(1.084192, 0, -0.19478774, 0, 1.101551, 0, 0.19478774, 0, 1.084192, 107.88479, 0, -25.090115)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
 [node name="tree_pine 220" type="Node3D" parent="Natureza/Árvores" unique_id=1266585206]
 transform = Transform3D(0.78967655, 0, 1.2731167, 0, 1.4981372, 0, -1.2731167, 0, 0.78967655, 55.36434, 0, 21.835686)
 script = ExtResource("4_gxwoc")
@@ -3290,20 +3141,6 @@ script = ExtResource("4_gxwoc")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
-
-[node name="tree_pine 221" type="Node3D" parent="Natureza/Árvores" unique_id=1028484980]
-transform = Transform3D(0.95674634, 0, 0.63994503, 0, 1.1510401, 0, -0.63994503, 0, 0.95674634, 109.001045, 0, -34.990223)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
-[node name="tree_pine 222" type="Node3D" parent="Natureza/Árvores" unique_id=1082364437]
-transform = Transform3D(-0.93747485, 0, -0.8756892, 0, 1.2828448, 0, 0.8756892, 0, -0.93747485, 28.080128, 0, -34.504498)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
 
 [node name="tree_birch 10" type="Node3D" parent="Natureza/Árvores" unique_id=1664839095]
 transform = Transform3D(0.6482202, 0, -0.67139906, 0, 0.9332557, 0, 0.67139906, 0, 0.6482202, 42.746086, 0, 13.751961)
@@ -3319,26 +3156,12 @@ model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_fir 22" type="Node3D" parent="Natureza/Árvores" unique_id=2074396002]
-transform = Transform3D(-1.1177752, 0, -0.08924745, 0, 1.1213324, 0, 0.08924745, 0, -1.1177752, 91.141266, 0, -9.093502)
-script = ExtResource("4_gxwoc")
-model = "tree_fir"
-shape = 2
-shape_size = Vector3(0.32, 3, 0)
-
 [node name="tree_pine 224" type="Node3D" parent="Natureza/Árvores" unique_id=1725351851]
 transform = Transform3D(0.95942885, 0, -0.18288942, 0, 0.9767048, 0, 0.18288942, 0, 0.95942885, 84.562454, 0, -25.090618)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
-
-[node name="tree_pine 225" type="Node3D" parent="Natureza/Árvores" unique_id=848908025]
-transform = Transform3D(0.7126504, 0, -0.49163273, 0, 0.86577904, 0, 0.49163273, 0, 0.7126504, 57.60492, 0, -52.105446)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3.0000002, 0)
 
 [node name="tree_pine 226" type="Node3D" parent="Natureza/Árvores" unique_id=1899722649]
 transform = Transform3D(-0.8520332, 0, 0.8193001, 0, 1.1820377, 0, -0.8193001, 0, -0.8520332, 44.82176, 0, 46.769653)
@@ -3395,20 +3218,6 @@ script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
-
-[node name="tree_pine 231" type="Node3D" parent="Natureza/Árvores" unique_id=1038318597]
-transform = Transform3D(-0.07004678, 0, -0.8586504, 0, 0.8615028, 0, 0.8586504, 0, -0.07004678, 90.06198, 0, 0.6351547)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
-[node name="tree_fir 25" type="Node3D" parent="Natureza/Árvores" unique_id=759069446]
-transform = Transform3D(-0.5114282, 0, -0.9715178, 0, 1.0979097, 0, 0.9715178, 0, -0.5114282, 88.22879, 0, -8.484871)
-script = ExtResource("4_gxwoc")
-model = "tree_fir"
-shape = 2
-shape_size = Vector3(0.32, 3, 0)
 
 [node name="tree_pine 232" type="Node3D" parent="Natureza/Árvores" unique_id=1508362111]
 transform = Transform3D(-0.4942175, 0, -0.8210915, 0, 0.9583539, 0, 0.8210915, 0, -0.4942175, 78.220795, 0, 21.57853)
@@ -3557,13 +3366,6 @@ model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_fir 32" type="Node3D" parent="Natureza/Árvores" unique_id=1034899459]
-transform = Transform3D(-0.9563009, 0, -0.8725604, 0, 1.2945552, 0, 0.8725604, 0, -0.9563009, 107.04355, 0, -33.64629)
-script = ExtResource("4_gxwoc")
-model = "tree_fir"
-shape = 2
-shape_size = Vector3(0.32, 3, 0)
-
 [node name="tree_pine 243" type="Node3D" parent="Natureza/Árvores" unique_id=337027405]
 transform = Transform3D(0.93049955, 0, 0.8455276, 0, 1.2572774, 0, -0.8455276, 0, 0.93049955, 77.44243, 0, -25.208172)
 script = ExtResource("4_gxwoc")
@@ -3613,13 +3415,6 @@ model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_fir 36" type="Node3D" parent="Natureza/Árvores" unique_id=405989564]
-transform = Transform3D(-0.17420484, 0, -1.0666839, 0, 1.0808153, 0, 1.0666839, 0, -0.17420484, 108.54627, 0, 11.370995)
-script = ExtResource("4_gxwoc")
-model = "tree_fir"
-shape = 2
-shape_size = Vector3(0.32, 3, 0)
-
 [node name="tree_pine 247" type="Node3D" parent="Natureza/Árvores" unique_id=734060183]
 transform = Transform3D(1.2588302, 0, 0.5348999, 0, 1.3677615, 0, -0.5348999, 0, 1.2588302, 63.514416, 0, 37.51828)
 script = ExtResource("4_gxwoc")
@@ -3650,13 +3445,6 @@ shape_size = Vector3(0.35, 3, 0)
 
 [node name="tree_pine 251" type="Node3D" parent="Natureza/Árvores" unique_id=294287035]
 transform = Transform3D(-0.4876256, 0, 1.2273337, 0, 1.3206539, 0, -1.2273337, 0, -0.4876256, 87.19032, 0, -2.763153)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
-[node name="tree_pine 252" type="Node3D" parent="Natureza/Árvores" unique_id=816607101]
-transform = Transform3D(-1.3256133, 0, -0.6406107, 0, 1.4722883, 0, 0.6406107, 0, -1.3256133, 102.87419, 0, -21.355095)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
@@ -3710,13 +3498,6 @@ script = ExtResource("4_gxwoc")
 model = "tree_birch"
 shape = 2
 shape_size = Vector3(0.25, 3, 0)
-
-[node name="tree_fir 39" type="Node3D" parent="Natureza/Árvores" unique_id=937324830]
-transform = Transform3D(0.41753983, 0, 0.687867, 0, 0.80467415, 0, -0.687867, 0, 0.41753983, 98.822105, 0, 44.134827)
-script = ExtResource("4_gxwoc")
-model = "tree_fir"
-shape = 2
-shape_size = Vector3(0.32, 3, 0)
 
 [node name="tree_pine 256" type="Node3D" parent="Natureza/Árvores" unique_id=1343630432]
 transform = Transform3D(-1.3908217, 0, 0.033333488, 0, 1.391221, 0, -0.033333488, 0, -1.3908217, 72.74413, 0, -65.90664)
@@ -3795,26 +3576,12 @@ model = "tree_maple"
 shape = 2
 shape_size = Vector3(0.4, 3.0000002, 0)
 
-[node name="tree_pine 260" type="Node3D" parent="Natureza/Árvores" unique_id=603857272]
-transform = Transform3D(-0.8329329, 0, -0.22091782, 0, 0.8617319, 0, 0.22091782, 0, -0.8329329, 19.505035, 0, -61.38649)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 2.9999998, 0)
-
 [node name="tree_orange" type="Node3D" parent="Natureza/Árvores" unique_id=1844527740]
 transform = Transform3D(0.6526789, 0, 1.0979922, 0, 1.2773318, 0, -1.0979922, 0, 0.6526789, 14.083511, 0, -62.78466)
 script = ExtResource("4_gxwoc")
 model = "tree_orange"
 shape = 2
 shape_size = Vector3(0.3, 3, 0)
-
-[node name="tree_oak 3" type="Node3D" parent="Natureza/Árvores" unique_id=1831415921]
-transform = Transform3D(-0.009066972, 0, 1.0996797, 0, 1.099717, 0, -1.0996797, 0, -0.009066972, -59.54755, -0.34999993, 79.19722)
-script = ExtResource("4_gxwoc")
-model = "tree_oak"
-shape = 2
-shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 4" type="Node3D" parent="Natureza/Árvores" unique_id=1397847380]
 transform = Transform3D(-0.3924341, 0, -0.8726405, 0, 0.9568208, 0, 0.8726405, 0, -0.3924341, -100.367676, -0.35000008, 68.80702)
@@ -3916,13 +3683,6 @@ shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 9" type="Node3D" parent="Natureza/Árvores" unique_id=591716595]
 transform = Transform3D(0.72731876, 0, 0.98008275, 0, 1.2204732, 0, -0.98008275, 0, 0.72731876, -81.71663, 0, -44.849205)
-script = ExtResource("4_gxwoc")
-model = "tree_oak"
-shape = 2
-shape_size = Vector3(0.4, 3, 0)
-
-[node name="tree_oak 10" type="Node3D" parent="Natureza/Árvores" unique_id=1544528238]
-transform = Transform3D(-0.9810661, 0, 0.4059019, 0, 1.061719, 0, -0.4059019, 0, -0.9810661, 13.190033, 0, -53.2907)
 script = ExtResource("4_gxwoc")
 model = "tree_oak"
 shape = 2
@@ -4054,13 +3814,6 @@ model = "tree_apple"
 shape = 2
 shape_size = Vector3(0.3, 3, 0)
 
-[node name="tree_oak 19" type="Node3D" parent="Natureza/Árvores" unique_id=1975148718]
-transform = Transform3D(-0.422196, 0, 0.9935569, 0, 1.0795392, 0, -0.9935569, 0, -0.422196, 21.98944, 0, -70.68649)
-script = ExtResource("4_gxwoc")
-model = "tree_oak"
-shape = 2
-shape_size = Vector3(0.4, 3, 0)
-
 [node name="tree_oak 20" type="Node3D" parent="Natureza/Árvores" unique_id=2029265374]
 transform = Transform3D(-0.9851327, 0, 0.19243586, 0, 1.003752, 0, -0.19243586, 0, -0.9851327, -52.293213, 0, 22.27388)
 script = ExtResource("4_gxwoc")
@@ -4187,13 +3940,6 @@ model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_pine 272" type="Node3D" parent="Natureza/Árvores" unique_id=390779774]
-transform = Transform3D(0.29989293, 0, 0.8977572, 0, 0.94652194, 0, -0.8977572, 0, 0.29989293, 22.44899, 0, -58.206306)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
 [node name="tree_birch 23" type="Node3D" parent="Natureza/Árvores" unique_id=195828489]
 transform = Transform3D(-0.07903669, 0, 1.1012967, 0, 1.1041291, 0, -1.1012967, 0, -0.07903669, -73.90877, -0.34999976, 110.83948)
 script = ExtResource("4_gxwoc")
@@ -4270,13 +4016,6 @@ script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
-
-[node name="tree_apple 3" type="Node3D" parent="Natureza/Árvores" unique_id=387069782]
-transform = Transform3D(-1.0626125, 0, 0.4378225, 0, 1.1492754, 0, -0.4378225, 0, -1.0626125, -73.28722, 0, -44.31115)
-script = ExtResource("4_gxwoc")
-model = "tree_apple"
-shape = 2
-shape_size = Vector3(0.3, 3, 0)
 
 [node name="tree_birch 24" type="Node3D" parent="Natureza/Árvores" unique_id=1240785207]
 transform = Transform3D(0.38217795, 0, -1.22464, 0, 1.2828887, 0, 1.22464, 0, 0.38217795, 27.108444, 0, 57.272858)
@@ -4369,13 +4108,6 @@ model = "tree_birch"
 shape = 2
 shape_size = Vector3(0.25, 2.9999998, 0)
 
-[node name="tree_pine 281" type="Node3D" parent="Natureza/Árvores" unique_id=14921882]
-transform = Transform3D(0.87752104, 0, 0.3986338, 0, 0.96382165, 0, -0.3986338, 0, 0.87752104, -54.923733, -0.35000002, 73.15091)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
 [node name="tree_fir 51" type="Node3D" parent="Natureza/Árvores" unique_id=1725988614]
 transform = Transform3D(0.5724422, 0, 0.6418261, 0, 0.8600179, 0, -0.6418261, 0, 0.5724422, -84.850464, -0.35000002, 66.42535)
 script = ExtResource("4_gxwoc")
@@ -4445,13 +4177,6 @@ script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35000002, 3, 0)
-
-[node name="tree_fir 56" type="Node3D" parent="Natureza/Árvores" unique_id=1810741550]
-transform = Transform3D(0.17688099, 0, 0.8053792, 0, 0.8245742, 0, -0.8053792, 0, 0.17688099, -55.51319, -0.3499998, 85.29568)
-script = ExtResource("4_gxwoc")
-model = "tree_fir"
-shape = 2
-shape_size = Vector3(0.32000002, 3, 0)
 
 [node name="tree_pine 287" type="Node3D" parent="Natureza/Árvores" unique_id=357290621]
 transform = Transform3D(1.0670685, 0, -0.42958385, 0, 1.1502945, 0, 0.42958385, 0, 1.0670685, -75.99285, -0.35000017, 112.51505)
@@ -7409,3 +7134,222 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, 4)
 script = ExtResource("11_hmt17")
 sparse = true
 radius = 15.0
+
+[node name="Regiões" type="Node3D" parent="."]
+
+[node name="campos_norte" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -45)
+script = ExtResource("90_regiao")
+region_id = "campos_norte"
+size = Vector2(64, 40)
+
+[node name="ninho_slimes" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -38, 0, 38)
+script = ExtResource("90_regiao")
+region_id = "ninho_slimes"
+shape = 1
+radius = 14.0
+
+[node name="margem_lagoa" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -80, 0, 15)
+script = ExtResource("90_regiao")
+region_id = "margem_lagoa"
+shape = 1
+radius = 20.0
+
+[node name="toca_goblins" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 62, 0, 0)
+script = ExtResource("90_regiao")
+region_id = "toca_goblins"
+shape = 1
+radius = 20.0
+
+[node name="capinzal_raptores" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60, 0, -58)
+script = ExtResource("90_regiao")
+region_id = "capinzal_raptores"
+shape = 1
+radius = 16.0
+
+[node name="capinzal_raptores 2" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -62, 0, -40)
+script = ExtResource("90_regiao")
+region_id = "capinzal_raptores"
+shape = 1
+radius = 16.0
+
+[node name="capinzal_raptores 3" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 50, 0, 78)
+script = ExtResource("90_regiao")
+region_id = "capinzal_raptores"
+shape = 1
+radius = 16.0
+
+[node name="capinzal_raptores 4" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -50, 0, 80)
+script = ExtResource("90_regiao")
+region_id = "capinzal_raptores"
+shape = 1
+radius = 16.0
+
+[node name="teia_tecelas" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 100, 0, 5)
+script = ExtResource("90_regiao")
+region_id = "teia_tecelas"
+size = Vector2(30, 90)
+
+[node name="cemiterio_velho" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -74)
+script = ExtResource("90_regiao")
+region_id = "cemiterio_velho"
+size = Vector2(50, 18)
+
+[node name="ruinas_valdoria" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -106)
+script = ExtResource("90_regiao")
+region_id = "ruinas_valdoria"
+size = Vector2(70, 46)
+
+[node name="bando slime 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28, 0, -40)
+script = ExtResource("9_5rons")
+kind = "slime"
+count = 4
+radius = 5.0
+respawn = 25.0
+
+[node name="bando slime 2" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0, -56)
+script = ExtResource("9_5rons")
+kind = "slime"
+count = 4
+radius = 5.0
+respawn = 25.0
+
+[node name="bando slime 3" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, -50)
+script = ExtResource("9_5rons")
+kind = "slime"
+count = 4
+radius = 4.0
+respawn = 25.0
+
+[node name="bando slime_veloz 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -48, 0, 46)
+script = ExtResource("9_5rons")
+kind = "slime_veloz"
+count = 3
+radius = 4.0
+respawn = 25.0
+
+[node name="bando bocarrao 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -88, 0, 0)
+script = ExtResource("9_5rons")
+kind = "bocarrao"
+count = 3
+radius = 5.0
+respawn = 25.0
+
+[node name="bando flor_faminta 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -72, 0, 32)
+script = ExtResource("9_5rons")
+kind = "flor_faminta"
+count = 3
+radius = 4.0
+respawn = 25.0
+
+[node name="bando goblin 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60, 0, 16)
+script = ExtResource("9_5rons")
+kind = "goblin"
+count = 4
+radius = 5.0
+respawn = 25.0
+
+[node name="bando goblin_arqueiro 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 70, 0, -17)
+script = ExtResource("9_5rons")
+kind = "goblin_arqueiro"
+count = 3
+radius = 3.0
+respawn = 25.0
+
+[node name="bando raptor_capim 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 68, 0, -66)
+script = ExtResource("9_5rons")
+kind = "raptor_capim"
+count = 3
+radius = 4.0
+respawn = 25.0
+
+[node name="bando raptor_capim 2" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -70, 0, -50)
+script = ExtResource("9_5rons")
+kind = "raptor_capim"
+count = 3
+radius = 4.0
+respawn = 25.0
+
+[node name="bando raptor_capim 3" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 50, 0, 78)
+script = ExtResource("9_5rons")
+kind = "raptor_capim"
+count = 4
+radius = 5.0
+respawn = 25.0
+
+[node name="bando raptor_capim 4" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -50, 0, 80)
+script = ExtResource("9_5rons")
+kind = "raptor_capim"
+count = 4
+radius = 5.0
+respawn = 25.0
+
+[node name="bando tecela 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 100, 0, -22)
+script = ExtResource("9_5rons")
+kind = "tecela"
+count = 3
+radius = 5.0
+respawn = 25.0
+
+[node name="bando tecela 2" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 104, 0, 30)
+script = ExtResource("9_5rons")
+kind = "tecela"
+count = 3
+radius = 5.0
+respawn = 25.0
+
+[node name="bando esqueleto 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, -74)
+script = ExtResource("9_5rons")
+kind = "esqueleto"
+count = 4
+radius = 4.0
+respawn = 25.0
+
+[node name="bando esqueleto 2" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 0, -72)
+script = ExtResource("9_5rons")
+kind = "esqueleto"
+count = 3
+radius = 4.0
+respawn = 25.0
+
+[node name="bando esqueleto_arqueiro 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, -118)
+script = ExtResource("9_5rons")
+kind = "esqueleto_arqueiro"
+count = 3
+radius = 4.0
+respawn = 25.0
+
+[node name="bando goblin_bruto 1" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, -120)
+script = ExtResource("9_5rons")
+kind = "goblin_bruto"
+count = 3
+radius = 4.0
+respawn = 25.0
