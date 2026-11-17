@@ -1738,11 +1738,11 @@ follow_ground = false
 [node name="Regiões" type="Node3D" parent="."]
 
 [node name="clareira_saltitante" type="Node3D" parent="Regiões"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, 16)
 script = ExtResource("90_regiao")
 region_id = "clareira_saltitante"
 shape = 1
-radius = 22.0
+radius = 18.0
 
 [node name="charco_gelado" type="Node3D" parent="Regiões"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40, 0, -10)
@@ -1759,11 +1759,11 @@ shape = 1
 radius = 20.0
 
 [node name="ninho_rainha" type="Node3D" parent="Regiões"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28, 0, -40)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, -45)
 script = ExtResource("90_regiao")
 region_id = "ninho_rainha"
 shape = 1
-radius = 18.0
+radius = 16.0
 
 [node name="bando slime 1" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, 25)
@@ -1774,7 +1774,7 @@ radius = 4.0
 respawn = 25.0
 
 [node name="bando slime_veloz 1" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 28)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, 26)
 script = ExtResource("7_pea20")
 kind = "slime_veloz"
 count = 4
@@ -1838,11 +1838,11 @@ radius = 4.0
 respawn = 25.0
 
 [node name="bando slime_explosivo 1" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40, 0, -48)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -36, 0, -50)
 script = ExtResource("7_pea20")
 kind = "slime_explosivo"
 count = 4
-radius = 4.0
+radius = 3.0
 respawn = 25.0
 
 [node name="bando slime_veloz 2" type="Node3D" parent="Monstros"]
@@ -1854,9 +1854,9 @@ radius = 4.0
 respawn = 25.0
 
 [node name="bando slime_gelo 4" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -38, 0, -28)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, -32)
 script = ExtResource("7_pea20")
 kind = "slime_gelo"
 count = 3
-radius = 4.0
+radius = 3.0
 respawn = 25.0

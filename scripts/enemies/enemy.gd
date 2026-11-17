@@ -27,7 +27,7 @@ var elite := false
 ## seguem as curvas de ProgressionRules, e o modelo ganha a tinta e a escala da camada.
 var level := 0
 ## Região com nome onde o monstro nasceu ("" = fora de região; Regions.area_at). Missões com "region" só contam
-## abates de monstros daqui. O servidor e o solo põem a do ponto de nascimento; a réplica calcula ao nascer.
+## abates de monstros daqui. O servidor e o solo põem a do ponto de nascimento; a réplica recebe no spawn.
 var area := ""
 ## Dormindo: monstro do mundo parado (idle/wander, no chão) sem jogador a menos de `sleep_radius` não roda IA nem
 ## física (com ~300 monstros nos mapas é isso que segura o servidor). Confere de novo a cada SLEEP_CHECK s;
@@ -112,8 +112,6 @@ const SPIDER_PARTS := ["Abdomen", "Leg0L", "Leg1L", "Leg2L", "Leg3L", "Leg0R", "
 
 func _ready() -> void:
 	data = TYPES[kind]
-	if area == "" and puppet and not horde:
-		area = Regions.area_at(position)
 	if not horde and not puppet:
 		sleep_radius = float(Balance.tables.get_table("rules").get("enemy_sleep_radius", 0.0))
 		_sleep_t = randf() * SLEEP_CHECK   # espalha as conferências pelos quadros
@@ -501,8 +499,6 @@ func _physics_process(delta: float) -> void:
 		bar_fg.position.x = 0.0
 
 
-## Jogador vivo mais próximo (no multiplayer, o servidor tem réplicas de todos).
-## A horda só persegue quem está no desafio (get_parent() é o modo sobrevivência).
 ## Regra do sono (pura): parado ou passeando, no chão, sem chefe e sem jogador perto.
 static func should_sleep(st: String, on_floor: bool, boss: bool, player_near: bool) -> bool:
 	return not boss and on_floor and not player_near and st in ["idle", "wander"]
@@ -518,6 +514,8 @@ func _player_within(r: float) -> bool:
 	return false
 
 
+## Jogador vivo mais próximo (no multiplayer, o servidor tem réplicas de todos).
+## A horda só persegue quem está no desafio (get_parent() é o modo sobrevivência).
 func _nearest_player() -> Player:
 	var best: Player = null
 	var best_d := INF

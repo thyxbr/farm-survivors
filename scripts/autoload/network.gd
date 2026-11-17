@@ -550,7 +550,8 @@ func send_zone_enemies(id: int) -> void:
 	for net_id in enemies:
 		var e: Enemy = enemies[net_id]
 		if is_instance_valid(e) and not e.dead:
-			_enemy_spawned.rpc_id(id, net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e), e.level)
+			_enemy_spawned.rpc_id(id, net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e), e.level,
+				e.area)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -630,7 +631,8 @@ func server_register_enemy(e: Enemy) -> void:
 	_next_enemy_id += 1
 	enemies[e.net_id] = e
 	for pid in _enemy_peers(e):
-		_enemy_spawned.rpc_id(pid, e.net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e), e.level)
+		_enemy_spawned.rpc_id(pid, e.net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e), e.level,
+			e.area)
 
 
 ## Bits do spawn: 1 = horda, 2 = elite (da horda ou do mundo).
@@ -1286,7 +1288,7 @@ func _shake(amount: float) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func _enemy_spawned(net_id: int, kind: String, pos: Vector3, yaw: float, max_hp: float, hp: float, flags: int,
-		level: int) -> void:
+		level: int, area: String) -> void:
 	if world == null or enemies.has(net_id):
 		return
 	var horde := flags & 1 != 0
@@ -1296,6 +1298,7 @@ func _enemy_spawned(net_id: int, kind: String, pos: Vector3, yaw: float, max_hp:
 	e.horde = horde
 	e.elite = flags & 2 != 0
 	e.level = level
+	e.area = area   # a região do ponto de nascimento (o servidor conta a missão por ela)
 	e.net_id = net_id
 	e.position = pos
 	# a cena pode escolher onde os monstros ficam (enemy_parent)

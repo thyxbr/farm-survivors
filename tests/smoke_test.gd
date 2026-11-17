@@ -107,7 +107,7 @@ func _ready() -> void:
 		if en.area != "":
 			by_area[en.area] = int(by_area.get(en.area, 0)) + 1
 		if en.kind == "slime_mae" or (en.kind in ["slime_veloz", "slime_explosivo"] and en.area == "ninho_slimes"):
-			nest_ok = nest_ok and en.global_position.distance_to(world.NEST) < 16.0
+			nest_ok = nest_ok and en.global_position.distance_to(world.NEST) < 24.0   # o disco do ninho (r14) e o bando da borda
 	var before := {"slime_veloz": 4, "slime_explosivo": 3, "slime_mae": 1, "goblin_arqueiro": 2, "goblin_xama": 1,
 		"goblin_campeao": 1, "goblin_bruto": 2, "goblin_dourado": 2, "esqueleto": 3, "esqueleto_arqueiro": 2,
 		"esqueleto_mago": 1, "esqueleto_cavaleiro": 1, "goblin_bombardeiro": 2, "slime_gelo": 2, "raptor_capim": 6,
@@ -905,7 +905,7 @@ func _ready() -> void:
 
 	# --- completar missão e subir de nível
 	for i in 4:
-		var s := _nearest("slime")
+		var s := _nearest("slime", "campos_norte")
 		s.take_damage(9999, player.global_position, false)
 	check(Game.quest_state("slimes") == "ready", "missão pronta após 5 slimes")
 	var xp_before := Game.xp + Game.level * 100000
@@ -963,7 +963,7 @@ func _ready() -> void:
 	_story_to("goblins")
 	Game.start_quest("goblins")
 	for i in 4:
-		_nearest("goblin").take_damage(9999, player.global_position, false)
+		_nearest("goblin", "toca_goblins").take_damage(9999, player.global_position, false)
 	Game.complete_quest("goblins")
 	check(Game.count_item("chain_mail") == 1, "cota de malha recebida")
 	_story_to("goblin_king")
@@ -3242,11 +3242,13 @@ func _today(e: Enemy) -> Enemy:
 	return e
 
 
-func _nearest(kind: String) -> Enemy:
+## O monstro vivo de `kind` mais perto do jogador; com `area`, só os que nasceram naquela região com nome (as
+## missões com "region" só contam esses).
+func _nearest(kind: String, area := "") -> Enemy:
 	var best: Enemy = null
 	var bd := INF
 	for e in get_tree().get_nodes_in_group("enemies"):
-		if e.kind == kind and not e.dead:
+		if e.kind == kind and not e.dead and (area == "" or e.area == area):
 			var d: float = e.global_position.distance_to(player.global_position)
 			if d < bd:
 				bd = d

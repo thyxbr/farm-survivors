@@ -103,3 +103,25 @@ func test_quest_objective_and_destination() -> void:
 	T.ok(d.has("pos") and (d.pos as Vector2).distance_to(Vector2(62, 0)) < 1.0, "rastreador no centro da toca")
 	qt.m.region = "nao_existe"
 	T.eq(StoryRules.destination(qt, st, "m", {}).pos, Vector2(0, 0), "região sem nó: cai no where")
+
+
+## Regiões não se sobrepõem (um monstro na borda ficaria com a região "errada" e a missão dela não contaria),
+## a não ser os encaixes de propósito: o Cume Maldito dentro das Ameias do Lich.
+func test_regions_do_not_overlap() -> void:
+	const NESTED := [["ameias_lich", "cume_maldito"]]
+	for map_id in Regions.ORDER:
+		var areas := MapData.areas(map_id)
+		var o: Vector3 = Regions.origin(map_id)
+		var h := float(Regions.DATA[map_id].half)
+		var bad := {}
+		for x in range(int(-h), int(h) + 1, 2):
+			for z in range(int(-h), int(h) + 1, 2):
+				var p := o + Vector3(x + 0.5, 0, z + 0.5)   # fora das bordas exatas (retângulos vizinhos dividem a borda)
+				var ids: Array = []
+				for a in areas:
+					if Regions.area_has(a, p) and not a.id in ids:
+						ids.append(a.id)
+				ids.sort()
+				if ids.size() > 1 and not ids in NESTED:
+					bad[str(ids)] = true
+		T.ok(bad.is_empty(), "%s: regiões que se sobrepõem %s" % [map_id, str(bad.keys())])
