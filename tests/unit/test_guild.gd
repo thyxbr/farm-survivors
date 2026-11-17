@@ -93,7 +93,7 @@ func test_side_quests_repeat_and_skip_chain() -> void:
 	# secundária de Rank D não depende da cadeia da história
 	T.ok(CharRules.start_quest(s, bt, "q_gelo").ok, "contrato sem história")
 	for i in 3:
-		CharRules.kill(s, bt, "slime_gelo", 0)
+		CharRules.kill(s, bt, "slime_gelo", 0, 0, 0, "campos_norte")
 	T.eq(s.quests.q_gelo.state, "ready", "pronto com 3 slimes de gelo")
 	T.ok(CharRules.complete_quest(s, bt, "q_gelo").ok, "entregue")
 	T.ok(CharRules.start_quest(s, bt, "q_gelo").ok, "repetível: começa de novo")

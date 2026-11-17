@@ -64,14 +64,21 @@ func test_roundtrip_matches_consts() -> void:
 				(cur[id] as Dictionary).erase("level")
 				(cur[id] as Dictionary).erase("reward_xp")
 				(snap_quests[id] as Dictionary).erase("reward_xp")
-			T.ok(cur == snap_quests, "tabela quests igual ao snapshot (sem level e reward_xp)")
+				# regiões com nome (parte 2): a missão cita a região e o objetivo perdeu o "onde"
+				if (cur[id] as Dictionary).has("region"):
+					(cur[id] as Dictionary).erase("region")
+					(cur[id] as Dictionary).erase("objective")
+					(snap_quests[id] as Dictionary).erase("objective")
+			T.ok(cur == snap_quests, "tabela quests igual ao snapshot (sem level, reward_xp e region)")
 			continue
 		elif n == "rules":
 			# a curva de XP foi para progression.json
 			cur = cur.duplicate(true)
 			var snap_rules: Dictionary = (BalanceTables.decode(snap[n]) as Dictionary).duplicate(true)
 			snap_rules.erase("xp_curve")
-			T.ok(cur == snap_rules, "tabela rules igual ao snapshot (sem xp_curve)")
+			# o raio do sono dos monstros (regiões cheias, parte 2) nasceu depois do snapshot
+			cur.erase("enemy_sleep_radius")
+			T.ok(cur == snap_rules, "tabela rules igual ao snapshot (sem xp_curve e enemy_sleep_radius)")
 			continue
 		T.ok(cur == BalanceTables.decode(snap[n]), "tabela %s igual ao snapshot das const" % n)
 

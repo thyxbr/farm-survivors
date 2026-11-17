@@ -310,8 +310,10 @@ static func grant(s: CharState, bt: BalanceTables, gold: int, xp: int, items: Di
 
 
 ## Abate: XP, contagem de abates e progresso de missão. Com `enemy_level` > 0 o XP é ajustado pela diferença
-## para o maior nível entre o personagem e o grupo (`group_level`); sem nível, sem ajuste.
-static func kill(s: CharState, bt: BalanceTables, kind: String, xp: int, enemy_level := 0, group_level := 0) -> Dictionary:
+## para o maior nível entre o personagem e o grupo (`group_level`); sem nível, sem ajuste. `area` = região com
+## nome onde o monstro nasceu (missões com "region" só contam abates de lá).
+static func kill(s: CharState, bt: BalanceTables, kind: String, xp: int, enemy_level := 0, group_level := 0,
+		area := "") -> Dictionary:
 	if xp < 0:
 		return _fail("valor_invalido")
 	if enemy_level > 0:
@@ -331,7 +333,7 @@ static func kill(s: CharState, bt: BalanceTables, kind: String, xp: int, enemy_l
 		if not qt.has(id):
 			continue
 		var q: Dictionary = qt[id]
-		if s.quests[id].state == "active" and quest_counts_kill(q, kind):
+		if s.quests[id].state == "active" and quest_counts_kill(q, kind, area):
 			s.quests[id].progress += 1
 			changed = true
 			if s.quests[id].progress >= int(q.count):
@@ -598,9 +600,12 @@ static func quest_type(q: Dictionary) -> String:
 	return str(q.get("type", "kill"))
 
 
-## Se o abate de `kind` conta para a missão q (só missões de abate).
-static func quest_counts_kill(q: Dictionary, kind: String) -> bool:
+## Se o abate de `kind` conta para a missão q (só missões de abate). Missão com "region" só conta monstros
+## daquela região com nome (`area`, a região onde o monstro nasceu; Regions.area_at).
+static func quest_counts_kill(q: Dictionary, kind: String, area := "") -> bool:
 	if quest_type(q) != "kill":
+		return false
+	if q.has("region") and str(q.region) != area:
 		return false
 	if q.has("targets"):
 		return kind in q.targets
@@ -609,9 +614,9 @@ static func quest_counts_kill(q: Dictionary, kind: String) -> bool:
 
 ## Se algum abate de `kind` ainda conta para uma missão ativa (ícone de missão sobre o inimigo).
 ## `char_quests` é o mapa de missões do personagem (id -> {state, progress}); `qt`, a tabela quests.json.
-static func is_quest_target(char_quests: Dictionary, qt: Dictionary, kind: String) -> bool:
+static func is_quest_target(char_quests: Dictionary, qt: Dictionary, kind: String, area := "") -> bool:
 	for id in char_quests:
-		if char_quests[id].get("state", "") == "active" and qt.has(id) and quest_counts_kill(qt[id], kind):
+		if char_quests[id].get("state", "") == "active" and qt.has(id) and quest_counts_kill(qt[id], kind, area):
 			return true
 	return false
 

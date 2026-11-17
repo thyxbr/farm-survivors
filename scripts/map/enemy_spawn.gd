@@ -35,8 +35,9 @@ extends Node3D
 			build_preview(_height)
 ## Assenta no relevo (a altura do nó vira distância até o chão).
 @export var follow_ground := true
-## Nível dos monstros (0 = número de hoje, como na Horda). Com `level_max` > `level`, cada um sorteia
-## o nível na faixa ao nascer.
+## Nível dos monstros. 0 = a faixa da região com nome (MapRegion + data/balance/regions.json) onde o ponto
+## fica; fora de região, o nível de referência do monstro (números de hoje, como na Horda). Com `level_max` >
+## `level`, cada um sorteia o nível na faixa ao nascer.
 @export_range(0, 60) var level := 0
 ## Fim da faixa de nível (0 = nível fixo em `level`).
 @export_range(0, 60) var level_max := 0

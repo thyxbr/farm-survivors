@@ -46,8 +46,15 @@ Todos ficam em `scripts/map/` e aparecem no Inspector com as opções abaixo.
   (quantos), `radius` (onde nascem em volta), `respawn` (segundos para voltar) e `night_only` (só aparece de
   noite e vai embora de dia, como as Asas-de-couro). Vida, dano e loot de cada tipo
   continuam no `data/balance/enemies.json`. `level`/`level_max` dão a faixa de nível dos monstros (cada um sorteia
-  o seu ao nascer; `level` 0 = sem nível, números de hoje) e `elite` os faz de elite (mais níveis, vida e
-  tamanho); o que cada nível muda está em `docs/BALANCEAMENTO.md`.
+  o seu ao nascer; `level` 0 = a faixa da região com nome onde o ponto fica, ou sem nível fora de região) e
+  `elite` os faz de elite (mais níveis, vida e tamanho); o que cada nível muda está em `docs/BALANCEAMENTO.md`.
+- **Região com nome (MapRegion)**, no grupo Regiões de cada mapa: `region_id` (chave no
+  `data/balance/regions.json`, que guarda nome, faixa de nível, densidade e se aparece no mapa), `shape`
+  (Retângulo, que gira com o nó, ou Disco), `size` (largura × profundidade do retângulo) ou `radius` (disco). A
+  prévia mostra a mancha laranja e "Nome · Nv a–b". Vários nós com o mesmo `region_id` são uma região só (o
+  Capinzal dos Raptores tem 4 manchas). Regiões que se sobrepõem: vale a menor (o Cume Maldito dentro das Ameias
+  do Lich). Para criar uma região nova, ponha a chave no regions.json **e** um nó na cena; o teste
+  `test_regions_areas` confere que os dois lados batem.
 - **Lugar com nome (MapLandmark)**: acampamento, ruínas, Horta, ninho, pomar, lagoa (`pond`), portal da Horda,
   onde o jogador volta da Horda (`horde_return`), onde nasce (`village_spawn`), carruagem (`coach`) e chegada da
   viagem (`arrive`). O minimapa, a viagem, o chefe e a Horda usam estes pontos.

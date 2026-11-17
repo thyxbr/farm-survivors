@@ -207,6 +207,8 @@ func _draw() -> void:
 	_draw_routes(rank)
 	var places_a := clampf((zoom - PLACES_AT) / 0.8, 0.0, 1.0)
 	for id in Regions.ORDER:
+		_draw_areas(id, places_a)
+	for id in Regions.ORDER:
 		_draw_places(id, places_a, rank)
 	_draw_npcs()
 	_draw_quest()
@@ -345,6 +347,32 @@ func _draw_places(id: String, alpha: float, rank: String) -> void:
 			draw_circle(at, 3.5, Color(0, 0, 0, 0.7 * alpha))
 			draw_circle(at, 2.5, Color(C_LABEL, alpha))
 		_text(at + Vector2(0, -10 if not coach else -18), pl[0], 15 if not coach else 12, Color(C_LABEL, alpha), font)
+
+
+## Regiões de monstros do mapa `id`: mancha com contorno e "Nome · Nv a–b" (aparecem com o zoom, como os
+## lugares); a ficha mostra a faixa.
+func _draw_areas(id: String, alpha: float) -> void:
+	var font := UITheme.body()
+	var table: Dictionary = Balance.tables.get_table("regions")
+	for item in MapRules.areas(id, table):
+		var at := to_screen(MapRules.to_atlas(item[1]))
+		if not _inside(at, 300.0):
+			continue
+		var info := Regions.area_info(table, item[2][0].id)
+		var lines: Array = [[Regions.display_name(id), UITheme.DIM]]
+		if info.level_min > 0:
+			lines.push_front(["Monstros de nível %d a %d" % [info.level_min, info.level_max], UITheme.TEXT])
+		_hits.append({"at": at, "r": 12.0, "title": info.name, "lines": lines, "color": MapView.C_AREA})
+		if alpha <= 0.0:
+			continue
+		for a in item[2]:
+			var pts := PackedVector2Array()
+			for p in MapRules.area_outline(a):
+				pts.append(to_screen(MapRules.to_atlas(Vector3(p.x, 0, p.y))))
+			draw_colored_polygon(pts, Color(MapView.C_AREA, 0.12 * alpha))
+			pts.append(pts[0])
+			draw_polyline(pts, Color(MapView.C_AREA, 0.6 * alpha), 1.5, true)
+		_text(at + Vector2(0, 5), item[0], 13, Color(1.0, 0.8, 0.65, alpha), font)
 
 
 ## Carruagem: um selo dourado com rodinhas.

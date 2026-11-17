@@ -62,7 +62,13 @@ const QUEST_W := 330.0
 var minimap: MapView
 ## Moldura e dica do minimapa: somem no Desafio da Horda (a arena é um mapa à parte, sem foto de cima).
 var _minimap_frame: Control
-var _minimap_hint: Control
+var _minimap_hint: Label
+## Região com nome onde o jogador está (Regions.area_at, a cada AREA_SCAN s) e a última anunciada no letreiro.
+var region_banner: RegionBanner
+var area_now := ""
+var _area_shown := ""
+var _area_scan := 0.0
+const AREA_SCAN := 0.5
 var party_frames: PartyFrames
 
 
@@ -103,6 +109,8 @@ func _ready() -> void:
 	_build_dock()
 	_build_boss()
 	_build_help()
+	region_banner = RegionBanner.new()
+	root.add_child(region_banner)
 	if Network.is_online():
 		party_frames = PartyFrames.new()
 		party_frames.player = player
@@ -144,7 +152,9 @@ func add_minimap(world: Node, capture: MapCapture) -> void:
 	_minimap_frame = frame
 	var hint := UITheme.outlined("[M] mapa", 12, Color(0.85, 0.8, 0.65, 0.85), 3)
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_anchor(hint, 1, 0, -MINIMAP_SIZE - 20, MINIMAP_SIZE + 20, 80, 16)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.clip_text = true
+	_anchor(hint, 1, 0, -MINIMAP_SIZE - 20, MINIMAP_SIZE + 20, MINIMAP_SIZE + 2, 16)
 	root.add_child(hint)
 	_minimap_hint = hint
 	var below := MINIMAP_SIZE + 22.0
@@ -152,6 +162,24 @@ func add_minimap(world: Node, capture: MapCapture) -> void:
 	season_badge.offset_bottom += below
 	quest_box.offset_top += below
 	quest_box.offset_bottom += below
+
+
+## Região com nome: o letreiro ao chegar numa região nova (MapRules.entered) e o nome sob o minimapa.
+func _update_area() -> void:
+	if player == null or Game.run_mods.active:
+		return
+	var table: Dictionary = Balance.tables.get_table("regions")
+	area_now = Regions.area_at(player.global_position)
+	if MapRules.entered(_area_shown, area_now):
+		var i := Regions.area_info(table, area_now)
+		var sub := "Nível %d a %d" % [i.level_min, i.level_max] if i.level_min > 0 else ""
+		if i.level_min > 0 and i.level_max == i.level_min:
+			sub = "Nível %d" % i.level_min
+		region_banner.show_area(i.name, sub)
+	if area_now != "":
+		_area_shown = area_now
+	if _minimap_hint != null:
+		_minimap_hint.text = ("%s  [M]" % Regions.area_label(table, area_now)) if area_now != "" else "[M] mapa"
 
 
 ## Destino da missão rastreada no mapa atual (ou a carruagem, se ele é em outro mapa); null = nenhum.
@@ -424,6 +452,10 @@ func _process(delta: float) -> void:
 			prompt.text = t.interact_prompt()
 	_update_food()
 	_update_compass()
+	_area_scan -= delta
+	if _area_scan <= 0.0:
+		_area_scan = AREA_SCAN
+		_update_area()
 
 	# Desafio da Horda: esconde as missões e desce a barra do chefe para não cobrir o HUD da horda
 	var horde: bool = Game.run_mods.active
@@ -612,7 +644,7 @@ func _refresh_quests() -> void:
 		elif CharRules.quest_type(d) == "talk":
 			txt = str(d.get("objective", "Fale com %s" % d.get("turn_in", d.giver)))
 		else:
-			txt = "%s: %d/%d" % [d.get("objective", d.get("target", "")), prog[0], prog[1]]
+			txt = "%s: %d/%d" % [StoryRules.objective(d, Balance.tables.get_table("regions")), prog[0], prog[1]]
 		var l := UITheme.outlined(txt, 16, UITheme.TEXT, 4)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

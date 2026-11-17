@@ -652,7 +652,7 @@ func _refresh_quests() -> void:
 		counts[item] = Game.count_item(item)
 	var pr := StoryRules.progress(ItemDB.QUESTS, Game.quests, quest_sel, counts)
 	var turn := StoryRules.turnable(ItemDB.QUESTS, Game.quests, quest_sel, counts)
-	var obj := UITheme.ink(str(d.get("objective", d.desc)), 16)
+	var obj := UITheme.ink(StoryRules.objective(d, Balance.tables.get_table("regions")) if d.has("objective") else str(d.desc), 16)
 	obj.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	rv.add_child(obj)
 	if CharRules.quest_type(d) != "talk":

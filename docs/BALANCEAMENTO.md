@@ -154,15 +154,38 @@ não rode o script de novo.
 
 Nos mapas (`scenes/maps/*.tscn`, grupo Monstros), cada ponto tem:
 
-- `level`: nível dos monstros. **0 = sem nível**: usa os números do enemies.json direto, sem placa "Nv" e sem
-  ajuste de XP (é o que a Horda usa). No mundo, sempre ponha um nível.
+- `level`: nível dos monstros. **0 = a faixa da região com nome** onde o ponto fica (seção abaixo); fora de
+  região, sem nível (números do enemies.json direto, sem placa "Nv" e sem ajuste de XP, como na Horda). Um
+  `level` maior que 0 manda sobre a região (os pontos da parte 1 continuam com o nível deles).
 - `level_max`: fim da faixa. Cada monstro sorteia um nível entre `level` e `level_max` ao nascer (0 = sempre
-  `level`). Faixas de hoje: Vale 1–13, Bosque 12–20, Mina 20–30, Pico 30–42.
+  `level`). Faixas dos mapas: Vale 1–13, Bosque 12–20, Mina 20–30, Pico 30–45.
 - `elite`: monstros de elite (bloco `elite` do progression.json): +2 níveis, vida × 2, 25% maiores, 5% de chance
   de equipamento.
 
 Um monstro do mesmo nível do jogador morre em ~4 golpes; 5 níveis acima já pede ~5–6 e dá 125% de XP; 8 abaixo dá
 5% de XP. Para uma área mais difícil, suba a faixa, não a vida no enemies.json.
+
+## `data/balance/regions.json` — regiões com nome
+
+Cada mapa tem regiões de monstros (Campos do Norte, Toca dos Goblins, Cume Maldito...). A **forma e o lugar** são
+nós `MapRegion` nas cenas (grupo Regiões; ver `docs/EDITOR_MAPA.md`); os **números** ficam aqui, na chave
+`region_id` do nó:
+
+| Campo | O que faz | Valor seguro |
+|---|---|---|
+| `name` | nome no mapa, no atlas, sob o minimapa, no letreiro de entrada e no objetivo das missões | curto (cabe sob o minimapa) |
+| `level_min`, `level_max` | faixa de nível dos pontos de monstro com `level` 0 dentro da região; aparece como "Nv a–b" | sem buraco entre regiões vizinhas do mesmo mapa |
+| `density` | multiplica o `count` dos pontos dentro da região (1,5 = 50% mais monstros; 0 esvazia) | 0,5–2 (medir o servidor acima de 1,5) |
+| `show_on_map` | false esconde a região do mapa e do atlas (o letreiro e as missões continuam) | true |
+
+Missões citam uma região com `"region": "<id>"` no quests.json: o objetivo ganha o nome da região, o rastreador
+aponta para o centro dela, e só contam abates de monstros que nasceram lá dentro. Sem `region`, conta em qualquer
+lugar.
+
+**Desempenho:** monstro do mundo parado e sem jogador a menos de `enemy_sleep_radius` metros
+(`data/balance/rules.json`, hoje 60) dorme: sem IA nem física. É o que deixa o servidor com ~300 monstros no
+mesmo custo de antes com ~100. Raio menor que o alcance de perseguição dos monstros faz eles "acordarem" tarde;
+0 desliga o sono. Depois de subir densidades, meça com `--netstats` no servidor (linha `process`/`physics` em ms).
 
 ## Como conferir
 

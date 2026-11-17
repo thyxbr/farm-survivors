@@ -528,6 +528,7 @@ func _spawn(entry: Dictionary) -> void:
 	var e := ENEMY.new()
 	e.kind = entry.kind
 	e.elite = entry.get("elite", false)
+	e.area = str(entry.get("area", ""))
 	e.level = ProgressionRules.spawn_level(Balance.tables, entry.get("level", 0), entry.get("level_max", 0), e.elite, _spawn_rng)
 	e.position = entry.pos + Vector3.UP * 0.2
 	add_child(e)
@@ -944,6 +945,9 @@ func _build_regions() -> void:
 	for id in Regions.ORDER:
 		if id != "vila":
 			maps[id] = MapLoader.build(self, id)   # chão em region_grounds[id], monstros em region_spawns
+	# lê já (atrás da tela de carregamento) as regiões com nome de todos os mapas: o HUD, o mapa e as missões
+	# consultam Regions.area_at durante o jogo, e a primeira leitura instancia as cenas dos mapas
+	MapData.all_areas()
 
 
 ## O servidor dedicado e o solo criam os monstros; o cliente online recebe do servidor.

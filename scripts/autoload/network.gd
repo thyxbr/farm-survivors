@@ -550,7 +550,8 @@ func send_zone_enemies(id: int) -> void:
 	for net_id in enemies:
 		var e: Enemy = enemies[net_id]
 		if is_instance_valid(e) and not e.dead:
-			_enemy_spawned.rpc_id(id, net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e), e.level)
+			_enemy_spawned.rpc_id(id, net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e), e.level,
+				e.area)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -593,8 +594,11 @@ func _physics_process(delta: float) -> void:
 				multiplayer.multiplayer_peer.disconnect_peer(id)
 		_stats_t += delta
 		if _stats_t >= (5.0 if "--netstats" in OS.get_cmdline_user_args() else 300.0):
-			print("[server] %d online, %d inimigos, %d fps, %d snapshots/s" % [players.size(), enemies.size(),
-				Engine.get_frames_per_second(), int(_snapshots_sent / _stats_t)])
+			# tempo de script por quadro (ms): o servidor trava em 60 fps, então o fps só cai quando já passou do limite
+			print("[server] %d online, %d inimigos, %d fps, %d snapshots/s, process %.2f ms, physics %.2f ms" % [
+				players.size(), enemies.size(), Engine.get_frames_per_second(), int(_snapshots_sent / _stats_t),
+				Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+				Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0])
 			_stats_t = 0.0
 			_snapshots_sent = 0
 		_snap_t -= delta
@@ -627,7 +631,8 @@ func server_register_enemy(e: Enemy) -> void:
 	_next_enemy_id += 1
 	enemies[e.net_id] = e
 	for pid in _enemy_peers(e):
-		_enemy_spawned.rpc_id(pid, e.net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e), e.level)
+		_enemy_spawned.rpc_id(pid, e.net_id, e.kind, e.global_position, e.model.rotation.y, e.max_hp, e.hp, _enemy_flags(e), e.level,
+			e.area)
 
 
 ## Bits do spawn: 1 = horda, 2 = elite (da horda ou do mundo).
@@ -668,7 +673,7 @@ func server_enemy_killed(e: Enemy) -> void:
 			var r: Dictionary = rewards[pid]
 			var group_level := int(group_levels.get(pid, 1))
 			if r.kill:
-				Econ.server_kill(pid, e.kind, int(r.xp), e.level, group_level)
+				Econ.server_kill(pid, e.kind, int(r.xp), e.level, group_level, e.area)
 			elif int(r.xp) > 0:
 				# quem está longe também leva o ajuste de nível (o abate perto o aplica em CharRules.kill)
 				var far_xp := int(r.xp)
@@ -1283,7 +1288,7 @@ func _shake(amount: float) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func _enemy_spawned(net_id: int, kind: String, pos: Vector3, yaw: float, max_hp: float, hp: float, flags: int,
-		level: int) -> void:
+		level: int, area: String) -> void:
 	if world == null or enemies.has(net_id):
 		return
 	var horde := flags & 1 != 0
@@ -1293,6 +1298,7 @@ func _enemy_spawned(net_id: int, kind: String, pos: Vector3, yaw: float, max_hp:
 	e.horde = horde
 	e.elite = flags & 2 != 0
 	e.level = level
+	e.area = area   # a região do ponto de nascimento (o servidor conta a missão por ela)
 	e.net_id = net_id
 	e.position = pos
 	# a cena pode escolher onde os monstros ficam (enemy_parent)

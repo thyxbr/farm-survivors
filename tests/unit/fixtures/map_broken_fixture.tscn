@@ -5,6 +5,7 @@
 [ext_resource type="Script" path="res://scripts/map/map_ground_paint.gd" id="3"]
 [ext_resource type="Script" path="res://scripts/map/map_entity.gd" id="4"]
 [ext_resource type="Script" path="res://scripts/map/map_prop.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/map/map_region.gd" id="6"]
 
 [node name="Quebrado" type="Node3D"]
 script = ExtResource("1")
@@ -151,3 +152,13 @@ script = ExtResource("3")
 
 [node name="Area 40" type="Node3D" parent="."]
 script = ExtResource("3")
+
+[node name="RegiaoFantasma" type="Node3D" parent="."]
+script = ExtResource("6")
+region_id = "terra_do_nunca"
+
+[node name="RegiaoVazia" type="Node3D" parent="."]
+script = ExtResource("6")
+region_id = "campos_norte"
+shape = 1
+radius = 0.0

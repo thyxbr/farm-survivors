@@ -328,10 +328,10 @@ func test_quest_flow() -> void:
 	T.eq(CharRules.start_quest(s, bt, "slimes").err, "missao_indisponivel", "não repete")
 	var q: Dictionary = bt.get_table("quests")["slimes"]
 	for i in q.count - 1:
-		CharRules.kill(s, bt, "slime", 0)
+		CharRules.kill(s, bt, "slime", 0, 0, 0, "campos_norte")
 	T.eq(s.quests.slimes.state, "active", "ainda ativa")
 	T.eq(CharRules.complete_quest(s, bt, "slimes").err, "missao_nao_pronta", "antes de pronta")
-	r = CharRules.kill(s, bt, "slime", 0)
+	r = CharRules.kill(s, bt, "slime", 0, 0, 0, "campos_norte")
 	T.eq(s.quests.slimes.state, "ready", "pronta")
 	T.ok(_has_event(r, "quest"), "evento quest")
 	var gold := s.gold
@@ -367,9 +367,9 @@ func test_collect_and_multi_target_quests() -> void:
 	T.ok(_has_event(r, "looted"), "aviso das sementes")
 	s.quests["torta"] = {"state": "done", "progress": 1}
 	T.ok(CharRules.start_quest(s, bt, "ossos").ok, "ossos começa")
-	CharRules.kill(s, bt, "slime", 0)
-	CharRules.kill(s, bt, "esqueleto_arqueiro", 0)
-	CharRules.kill(s, bt, "esqueleto", 0)
+	CharRules.kill(s, bt, "slime", 0, 0, 0, "cemiterio_velho")
+	CharRules.kill(s, bt, "esqueleto_arqueiro", 0, 0, 0, "cemiterio_velho")
+	CharRules.kill(s, bt, "esqueleto", 0, 0, 0, "cemiterio_velho")
 	T.eq(s.quests.ossos.progress, 2, "qualquer esqueleto conta, slime não")
 
 
@@ -454,6 +454,27 @@ func test_christmas_kill_any_goblin() -> void:
 	var q: Dictionary = bt.get_table("quests")["natal_ladroes"]
 	T.ok(CharRules.quest_counts_kill(q, "goblin_bruto"), "qualquer goblin da lista conta")
 	T.ok(not CharRules.quest_counts_kill(q, "esqueleto"), "esqueleto não conta")
+
+
+## Missão com "region" só conta abates de monstros daquela região (a área onde o monstro nasceu).
+func test_quest_region_kills() -> void:
+	var bt := _tables()
+	var q := {"type": "kill", "target": "goblin", "count": 3, "region": "toca_goblins"}
+	T.ok(CharRules.quest_counts_kill(q, "goblin", "toca_goblins"), "goblin da toca conta")
+	T.ok(not CharRules.quest_counts_kill(q, "goblin", "ruinas_valdoria"), "goblin de outra região não conta")
+	T.ok(not CharRules.quest_counts_kill(q, "goblin"), "goblin fora de região não conta")
+	T.ok(not CharRules.quest_counts_kill(q, "slime", "toca_goblins"), "outro tipo na região não conta")
+	q.erase("region")
+	T.ok(CharRules.quest_counts_kill(q, "goblin", "ruinas_valdoria"), "sem region: conta em qualquer lugar")
+	var s := _blank()
+	s.quests["goblins"] = {"state": "active", "progress": 0}
+	T.eq(str(bt.get_table("quests").goblins.get("region", "")), "toca_goblins", "a missão dos batedores cita a toca")
+	CharRules.kill(s, bt, "goblin", 0, 0, 0, "ruinas_valdoria")
+	T.eq(s.quests.goblins.progress, 0, "batedor das ruínas não avança a missão da toca")
+	CharRules.kill(s, bt, "goblin", 0, 0, 0, "toca_goblins")
+	T.eq(s.quests.goblins.progress, 1, "batedor da toca avança")
+	T.ok(CharRules.is_quest_target(s.quests, bt.get_table("quests"), "goblin", "toca_goblins"), "ícone na toca")
+	T.ok(not CharRules.is_quest_target(s.quests, bt.get_table("quests"), "goblin", "ruinas_valdoria"), "sem ícone nas ruínas")
 
 
 func test_quest_target_icon() -> void:

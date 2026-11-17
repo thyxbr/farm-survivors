@@ -40,12 +40,10 @@ func test_places_come_from_landmarks() -> void:
 	var at := {}
 	for p in MapRules.places("vila"):
 		at[p[0]] = p[1]
-	T.eq(at.get("Acampamento Goblin"), MapData.landmark("vila", "camp"), "acampamento pelo landmark camp")
-	T.eq(at.get("Acampamento Goblin"), Vector3(62, 0, 0), "acampamento no lugar de sempre")
-	T.eq(at.get("Ruínas"), Vector3(0, 0, -100), "ruínas")
 	T.eq(at.get("Horta"), Vector3(0, 0, 33), "Horta")
 	T.eq(at.get("Pomar"), Vector3(20, 0, 33), "pomar")
-	T.eq(at.get("Ninho de Slimes"), Vector3(-36, 0, 36), "ninho")
+	T.ok(not at.has("Acampamento Goblin") and not at.has("Ruínas") and not at.has("Ninho de Slimes"),
+		"acampamento, ruínas e ninho viraram regiões (MapRules.areas)")
 	T.eq(at.get("Portal da Horda"), MapData.landmark("vila", "portal"), "o portal da Horda pelo landmark portal")
 	T.eq(at.get("Portal da Horda"), Vector3(-8, 0, -9.5), "portal da Horda na frente da vila")
 
@@ -99,3 +97,39 @@ func test_clamp_to_land() -> void:
 	T.ok(absf(far.length() - MapRules.radius("vila")) < 0.1, "na borda do círculo")
 	T.eq(MapRules.atlas_region_at(Vector2(2000, 2000).lerp(Vector2.ZERO, 0.0)), "", "longe é mar")
 	T.eq(MapRules.atlas_region_at(MapRules.clamp_to_land(Vector2(2000, 2000))), "pico", "a sudeste volta para o Pico")
+
+
+## Regiões de monstros no mapa: rótulo com a faixa, perto do lugar de antes; show_on_map: false esconde.
+func test_areas_on_map() -> void:
+	var t: Dictionary = BalanceTables.decode(JSON.parse_string(FileAccess.get_file_as_string("res://data/balance/regions.json")))
+	var at := {}
+	for a in MapRules.areas("vila", t):
+		at[a[0]] = a
+	T.ok(at.has("Toca dos Goblins · Nv 5–9"), "a toca no mapa do vale com a faixa")
+	T.ok((at["Toca dos Goblins · Nv 5–9"][1] as Vector3).distance_to(Vector3(62, 0, 0)) < 1.0, "no acampamento")
+	T.eq((at["Capinzal dos Raptores · Nv 6–9"][2] as Array).size(), 4, "o capinzal tem 4 manchas e um rótulo só")
+	T.eq(at.size(), 8, "8 regiões no vale")
+	t.toca_goblins.show_on_map = false
+	var names: Array = MapRules.areas("vila", t).map(func(a: Array) -> String: return a[0])
+	T.ok(not "Toca dos Goblins · Nv 5–9" in names, "show_on_map: false some do mapa")
+	T.eq(MapRules.areas("bosque", t).size(), 4, "4 regiões no bosque")
+
+
+func test_area_outline() -> void:
+	var r := {"center": Vector3(10, 0, 0), "shape": MapRegion.RECT, "size": Vector2(4, 2), "radius": 0.0, "rot": 0.0}
+	var o := MapRules.area_outline(r)
+	T.eq(o.size(), 4, "retângulo: 4 cantos")
+	T.ok(o[0].is_equal_approx(Vector2(8, -1)) and o[2].is_equal_approx(Vector2(12, 1)), "cantos do retângulo")
+	r.rot = PI / 2.0
+	for p in MapRules.area_outline(r):
+		T.ok(Regions.area_has(r, Vector3(p.x * 0.999 + 10 * 0.001, 0, p.y * 0.999)), "canto girado ainda dentro da área")
+	var d := {"center": Vector3(0, 0, 5), "shape": MapRegion.DISC, "size": Vector2.ZERO, "radius": 3.0, "rot": 0.0}
+	T.eq(MapRules.area_outline(d, 16).size(), 16, "disco: segs pontos")
+	T.ok(absf(MapRules.area_outline(d)[0].distance_to(Vector2(0, 5)) - 3.0) < 0.001, "no raio")
+
+
+func test_entered_rule() -> void:
+	T.ok(MapRules.entered("", "toca_goblins"), "chegar numa região mostra")
+	T.ok(not MapRules.entered("toca_goblins", "toca_goblins"), "andar dentro dela não repete")
+	T.ok(not MapRules.entered("toca_goblins", ""), "sair para fora de região não mostra")
+	T.ok(MapRules.entered("toca_goblins", "campos_norte"), "outra região mostra")

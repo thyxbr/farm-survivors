@@ -92,27 +92,42 @@ func _ready() -> void:
 	Sfx.play_at("anvil", player.global_position + Vector3(2, 0, 0))
 	check(Sfx._next_3d != slot_anvil, "som da bigorna toca perto do jogador")
 	check(get_tree().get_nodes_in_group("enemies").size() >= 15, "inimigos spawnados (%d)" % get_tree().get_nodes_in_group("enemies").size())
-	# monstros da Defesa reaproveitados em Valdoria: Ninho de Slimes e reforços do Acampamento Goblin
+	# monstros do vale: os pontos de antes continuam (cada tipo com pelo menos o que tinha) e os bandos das
+	# regiões com nome (MapRegion + regions.json) enchem o mapa: ~120 no total, cada região com o bando dela
 	var by_kind := {}
+	var by_area := {}
+	var vale_total := 0
 	var nest_ok := true
+	var area_ok := true
 	for en in get_tree().get_nodes_in_group("enemies"):
 		if Regions.region_at(en.global_position) != "vila":
 			continue   # os mapas da guilda (bosque, mina, pico) têm os monstros deles; aqui conta só o vale
+		vale_total += 1
 		by_kind[en.kind] = int(by_kind.get(en.kind, 0)) + 1
-		if en.kind in ["slime_veloz", "slime_explosivo", "slime_mae"]:
-			nest_ok = nest_ok and en.global_position.distance_to(world.NEST) < 12.0
-	check(by_kind.get("slime_veloz", 0) == 4 and by_kind.get("slime_explosivo", 0) == 3 and by_kind.get("slime_mae", 0) == 1 and nest_ok,
-		"Ninho de Slimes: 4 velozes, 3 explosivos e 1 mãe")
-	check(by_kind.get("goblin_arqueiro", 0) == 2 and by_kind.get("goblin_xama", 0) == 1, "Acampamento: 2 arqueiros e 1 xamã")
-	check(by_kind.get("goblin_campeao", 0) == 1 and by_kind.get("goblin_bruto", 0) == 2 and by_kind.get("goblin_dourado", 0) == 2,
-		"fontes de +4 e +5: 1 Campeão no Acampamento, 2 Brutos nas Ruínas, 2 Goblins Dourados pelo mapa")
-	check(by_kind.get("esqueleto", 0) == 3 and by_kind.get("esqueleto_arqueiro", 0) == 2 and by_kind.get("esqueleto_mago", 0) == 1
-		and by_kind.get("esqueleto_cavaleiro", 0) == 1, "Ruínas: 3 esqueletos guerreiros, 2 arqueiros, 1 mago e 1 Cavaleiro")
-	check(by_kind.get("goblin_bombardeiro", 0) == 2 and by_kind.get("slime_gelo", 0) == 2, "2 bombardeiros no Acampamento e 2 slimes de gelo nos campos")
-	check(by_kind.get("raptor_capim", 0) == 6, "2 bandos de 3 Raptores-capim nos campos (%d)" % by_kind.get("raptor_capim", 0))
-	check(by_kind.get("tecela", 0) == 3, "3 Tecelãs na floresta do leste (%d)" % by_kind.get("tecela", 0))
-	check(by_kind.get("flor_faminta", 0) == 3, "3 Flores-famintas na beira das trilhas (%d)" % by_kind.get("flor_faminta", 0))
-	check(by_kind.get("bocarrao", 0) == 2, "2 Bocarrões na lagoa do oeste (%d)" % by_kind.get("bocarrao", 0))
+		if en.area != "":
+			by_area[en.area] = int(by_area.get(en.area, 0)) + 1
+		if en.kind == "slime_mae" or (en.kind in ["slime_veloz", "slime_explosivo"] and en.area == "ninho_slimes"):
+			nest_ok = nest_ok and en.global_position.distance_to(world.NEST) < 24.0   # o disco do ninho (r14) e o bando da borda
+	var before := {"slime_veloz": 4, "slime_explosivo": 3, "slime_mae": 1, "goblin_arqueiro": 2, "goblin_xama": 1,
+		"goblin_campeao": 1, "goblin_bruto": 2, "goblin_dourado": 2, "esqueleto": 3, "esqueleto_arqueiro": 2,
+		"esqueleto_mago": 1, "esqueleto_cavaleiro": 1, "goblin_bombardeiro": 2, "slime_gelo": 2, "raptor_capim": 6,
+		"tecela": 3, "flor_faminta": 3, "bocarrao": 2}
+	var missing: Array = []
+	for k in before:
+		if int(by_kind.get(k, 0)) < before[k]:
+			missing.append("%s %d/%d" % [k, int(by_kind.get(k, 0)), before[k]])
+	check(missing.is_empty(), "vale: cada tipo com pelo menos os monstros de antes %s" % str(missing))
+	check(nest_ok, "Ninho de Slimes: a mãe e as crias perto do ninho")
+	check(vale_total >= 110, "vale cheio: %d monstros (alvo ~120)" % vale_total)
+	for id in ["campos_norte", "ninho_slimes", "margem_lagoa", "toca_goblins", "capinzal_raptores", "teia_tecelas",
+			"cemiterio_velho", "ruinas_valdoria"]:
+		area_ok = area_ok and int(by_area.get(id, 0)) >= 5
+	check(area_ok, "cada região do vale com um bando (≥ 5): %s" % str(by_area))
+	var lv_ok := true
+	for en in get_tree().get_nodes_in_group("enemies"):
+		if en.area != "" and en.level <= 0:
+			lv_ok = false
+	check(lv_ok, "todo monstro de região tem nível (o ponto ou a faixa da região)")
 	var asas_want := 3 if world.is_night() else 0
 	check(by_kind.get("asa_couro", 0) == asas_want, "Asas-couro nas Ruínas só de noite (%d, esperado %d)"
 		% [by_kind.get("asa_couro", 0), asas_want])
@@ -890,7 +905,7 @@ func _ready() -> void:
 
 	# --- completar missão e subir de nível
 	for i in 4:
-		var s := _nearest("slime")
+		var s := _nearest("slime", "campos_norte")
 		s.take_damage(9999, player.global_position, false)
 	check(Game.quest_state("slimes") == "ready", "missão pronta após 5 slimes")
 	var xp_before := Game.xp + Game.level * 100000
@@ -948,7 +963,7 @@ func _ready() -> void:
 	_story_to("goblins")
 	Game.start_quest("goblins")
 	for i in 4:
-		_nearest("goblin").take_damage(9999, player.global_position, false)
+		_nearest("goblin", "toca_goblins").take_damage(9999, player.global_position, false)
 	Game.complete_quest("goblins")
 	check(Game.count_item("chain_mail") == 1, "cota de malha recebida")
 	_story_to("goblin_king")
@@ -2286,7 +2301,7 @@ func _test_guild_travel() -> void:
 	_story_to("bosque")
 	Game.start_quest("q_gelo")
 	for i in 3:
-		Econ.kill("slime_gelo", 0)
+		Econ.kill("slime_gelo", 0, 0, "campos_norte")
 	Game.complete_quest("q_gelo")
 	check(Game.guild_points() >= 100, "contrato do quadro dá pontos (%d)" % Game.guild_points())
 	# promoção pelo diálogo da Lina: a escolha de promoção está nos serviços dela
@@ -2349,7 +2364,7 @@ func _story_to(target: String) -> void:
 			"kill":
 				var kind: String = d.targets[0] if d.has("targets") else d.target
 				for i in maxi(0, int(d.count) - int(Game.quests[id].progress)):
-					Econ.kill(kind, 0)
+					Econ.kill(kind, 0, 0, str(d.get("region", "")))
 		Game.complete_quest(id)
 
 
@@ -3329,11 +3344,13 @@ func _today(e: Enemy) -> Enemy:
 	return e
 
 
-func _nearest(kind: String) -> Enemy:
+## O monstro vivo de `kind` mais perto do jogador; com `area`, só os que nasceram naquela região com nome (as
+## missões com "region" só contam esses).
+func _nearest(kind: String, area := "") -> Enemy:
 	var best: Enemy = null
 	var bd := INF
 	for e in get_tree().get_nodes_in_group("enemies"):
-		if e.kind == kind and not e.dead:
+		if e.kind == kind and not e.dead and (area == "" or e.area == area):
 			var d: float = e.global_position.distance_to(player.global_position)
 			if d < bd:
 				bd = d
