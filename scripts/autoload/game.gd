@@ -71,6 +71,9 @@ var selected_food := ""
 var meta_mods := {}
 ## Talentos aprendidos {id: nível} (espelho do personagem; a aba Talentos lê daqui).
 var talents := {}
+## Profissões ({id: {"lv", "xp", "done"}}) e receitas aprendidas por pergaminho (espelho do CharState).
+var professions := {}
+var recipes: Array = []
 ## Bônus dos talentos da classe (CharRules.talent_mods), recalculados em apply_state e somados em mod().
 var talent_mods := {}
 ## Encantamentos por tipo de arma (espelho de CharState.enchants): id -> {"el", "lv"}.
@@ -1025,6 +1028,35 @@ func cook(recipe: String, times := 1) -> void:
 	Econ.request("cook", [recipe, clampi(times, 1, CharRules.MAX_COUNT)])
 
 
+# ================================================================ profissões e craft
+func prof_level(prof: String) -> int:
+	return int(professions.get(prof, {}).get("lv", 1))
+
+
+func prof_xp(prof: String) -> int:
+	return int(professions.get(prof, {}).get("xp", 0))
+
+
+func prof_name(prof: String) -> String:
+	return str(CraftRules.professions(Balance.tables).get(prof, {}).get("name", prof))
+
+
+## Estado do personagem do jeito que as regras puras leem (para CraftRules.can_craft etc. na tela).
+func char_state() -> CharState:
+	var s := CharState.new()
+	s.gold = gold
+	s.level = level
+	s.inventory = inventory
+	s.professions = professions
+	s.recipes = recipes
+	return s
+
+
+## Fabrica até `times` vezes na estação (o servidor decide; a resposta traz os itens e a XP).
+func craft(recipe: String, times := 1) -> void:
+	Econ.request("craft", [recipe, clampi(times, 1, CharRules.MAX_COUNT)])
+
+
 # ================================================================ horta (o crescimento corre pelo relógio)
 ## Crescimento do canteiro agora (0..1).
 func plot_growth(i: int) -> float:
@@ -1139,6 +1171,8 @@ func apply_state(d: Dictionary, full := false) -> void:
 	meta_mods = CharRules.meta_mods(Balance.tables, passives)
 	talents = s.talents
 	talent_mods = CharRules.talent_mods(Balance.tables, s)
+	professions = s.professions
+	recipes = s.recipes
 	enchants = s.enchants
 	char_class = s.char_class
 	body = s.body

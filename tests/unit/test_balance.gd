@@ -84,6 +84,21 @@ func test_roundtrip_matches_consts() -> void:
 				kitchen[rid] = CraftRules.ingredients(t, rid)
 			T.ok(kitchen == BalanceTables.decode(snap[n]), "receitas da cozinha iguais ao snapshot")
 			continue
+		elif n == "crops" or n == "world_nodes":
+			# parte 3: nível e XP de profissão nas culturas e nos nós; tipos de nó novos; coleta em 2-3 golpes
+			var snap_t: Dictionary = (BalanceTables.decode(snap[n]) as Dictionary).duplicate(true)
+			var cur_t: Dictionary = cur.duplicate(true)
+			var a: Dictionary = cur_t if n == "crops" else cur_t.get("kinds", {})
+			var b: Dictionary = snap_t if n == "crops" else snap_t.get("kinds", {})
+			for k in a.keys():
+				if not b.has(k):
+					a.erase(k)
+					continue
+				for f in ["level", "xp", "prof", "hits", "tint"]:
+					(a[k] as Dictionary).erase(f)
+					(b[k] as Dictionary).erase(f)
+			T.ok(a == b, "tabela %s igual ao snapshot (sem os campos de profissão)" % n)
+			continue
 		elif n == "shop":
 			# a loja foi cortada ao básico na parte 3 (decisão do usuário na revisão da progressão):
 			# o que sobrou estava na loja de antes ou é material/semente da camada 1

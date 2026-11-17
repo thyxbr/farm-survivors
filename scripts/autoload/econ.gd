@@ -199,7 +199,7 @@ func gather_node(id: int, from: Vector3) -> void:
 	if not g.ok:
 		_deliver("gather", [id], {"ok": false, "err": g.err, "events": _gather_refusal(g.err), "state": {}})
 		return
-	var r := _svc.grant(SOLO_ACCOUNT, 0, 0, g.items, "gather")
+	var r := _svc.gather(SOLO_ACCOUNT, g)
 	if not r.ok:
 		_gather.undo(SOLO_ACCOUNT, id)
 	_deliver("gather", [id], r)
@@ -208,7 +208,7 @@ func gather_node(id: int, from: Vector3) -> void:
 ## Aviso de coleta recusada (só o caso que o jogador honesto encontra: o veio dele ainda não voltou).
 func _gather_refusal(err: String) -> Array:
 	if err == "esgotado":
-		return [CharRules._notify("Este veio ainda não se recuperou.", CharRules.C_BAD)]
+		return [CharRules._notify("Este ponto de coleta ainda não se recuperou.", CharRules.C_BAD)]
 	return []
 
 
@@ -767,7 +767,7 @@ func _gather_node(seq: int, id: int) -> void:
 	if not g.ok:
 		_econ_res.rpc_id(peer, seq, false, str(g.err), _gather_refusal(g.err), {})
 		return
-	var r := Network.characters.grant(char_id, 0, 0, g.items, "gather")
+	var r := Network.characters.gather(char_id, g)
 	if not r.ok:
 		_gather.undo(char_id, id)
 	_econ_res.rpc_id(peer, seq, r.ok, r.err, events_of(r), r.state)

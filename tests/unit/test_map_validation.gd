@@ -35,7 +35,7 @@ func test_broken_map_is_reported() -> void:
 	T.ok("formas pintadas" in text, "mais de 40 formas pintadas no chão")
 	T.ok("landmark" in text and "camp" in text, "landmark obrigatório faltando")
 	T.ok("fora do mapa" in text, "peça fora do mapa")
-	T.ok("mithril" in text, "veio de tipo que não existe")
+	T.ok("adamantio" in text, "veio de tipo que não existe")
 	T.ok("terra_do_nunca" in text, "região que não existe no regions.json")
 	T.ok("tamanho da região" in text, "região de raio 0")
 	T.ok("half" in text, "meia largura diferente da do Regions (o minimapa e as regiões usam a do Regions)")

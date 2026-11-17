@@ -23,7 +23,7 @@ respawn = 0.0
 [node name="Veio" type="Node3D" parent="."]
 script = ExtResource("4")
 kind = "resource_node"
-ref = "mithril"
+ref = "adamantio"
 node_id = 7
 
 [node name="Pedra" type="Node3D" parent="."]

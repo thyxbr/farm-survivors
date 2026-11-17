@@ -255,6 +255,16 @@ func grant(char_id: int, gold: int, xp: int, items: Dictionary, source: String) 
 	return _result(char_id, r)
 
 
+## Coleta de um veio ou árvore (`g` vem de WorldHarvest.gather): itens + XP da profissão de coleta.
+func gather(char_id: int, g: Dictionary) -> Dictionary:
+	var s := load_or_create(char_id)
+	var before := _holdings(s)
+	var r := CharRules.gather(s, _bt, g)
+	if r.ok:
+		r = _persist(char_id, s, before, "grant", "gather", r, 0)
+	return _result(char_id, r)
+
+
 func kill(char_id: int, kind: String, xp: int, enemy_level := 0, group_level := 0, area := "") -> Dictionary:
 	var s := load_or_create(char_id)
 	if xp >= 0:

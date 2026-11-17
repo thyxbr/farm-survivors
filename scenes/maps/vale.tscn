@@ -7353,3 +7353,103 @@ kind = "goblin_bruto"
 count = 3
 radius = 4.0
 respawn = 25.0
+
+[node name="Coleta" type="Node3D" parent="."]
+
+[node name="copper 1" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40, 0, -28)
+script = ExtResource("7_iymgv")
+kind = "resource_node"
+ref = "copper"
+node_id = 20
+
+[node name="copper 2" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 34, 0, -26)
+script = ExtResource("7_iymgv")
+kind = "resource_node"
+ref = "copper"
+node_id = 21
+
+[node name="copper 3" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -55, 0, -55)
+script = ExtResource("7_iymgv")
+kind = "resource_node"
+ref = "copper"
+node_id = 22
+
+[node name="copper 4" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 70, 0, -45)
+script = ExtResource("7_iymgv")
+kind = "resource_node"
+ref = "copper"
+node_id = 23
+
+[node name="copper 5" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -66, 0, 17)
+script = ExtResource("7_iymgv")
+kind = "resource_node"
+ref = "copper"
+node_id = 24
+
+[node name="copper 6" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 45, 0, -70)
+script = ExtResource("7_iymgv")
+kind = "resource_node"
+ref = "copper"
+node_id = 25
+
+[node name="pine 1" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -95, 0, -60)
+script = ExtResource("7_iymgv")
+kind = "resource_node"
+ref = "pine"
+node_id = 26
+
+[node name="pine 2" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -100, 0, 31)
+script = ExtResource("7_iymgv")
+kind = "resource_node"
+ref = "pine"
+node_id = 27
+
+[node name="pine 3" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 95, 0, 60)
+script = ExtResource("7_iymgv")
+kind = "resource_node"
+ref = "pine"
+node_id = 28
+
+[node name="pine 4" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -60, 0, 95)
+script = ExtResource("7_iymgv")
+kind = "resource_node"
+ref = "pine"
+node_id = 29
+
+[node name="pine 5" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60, 0, 100)
+script = ExtResource("7_iymgv")
+kind = "resource_node"
+ref = "pine"
+node_id = 30
+
+[node name="pine 6" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0, 110)
+script = ExtResource("7_iymgv")
+kind = "resource_node"
+ref = "pine"
+node_id = 31
+
+[node name="pine 7" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -110, 0, -20)
+script = ExtResource("7_iymgv")
+kind = "resource_node"
+ref = "pine"
+node_id = 32
+
+[node name="pine 8" type="Node3D" parent="Coleta"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 105, 0, -60)
+script = ExtResource("7_iymgv")
+kind = "resource_node"
+ref = "pine"
+node_id = 33

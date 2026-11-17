@@ -9,8 +9,12 @@ const ROCK := preload("res://assets/models/rock.glb")
 
 ## Id do nó (node_id fixo da MapEntity "resource_node" na cena do mapa; ver WorldHarvest).
 var node_id := 0
-## "iron" ou "crystal": escolhe o visual.
+## Visual: "iron" (rocha com veios), "ore" (rocha na cor `tint`), "crystal" ou um modelo de árvore ("tree_pine"...).
 var kind := "iron"
+var tint := Color(0.55, 0.3, 0.2)
+## Profissão de coleta e o nível dela que o nó pede (sem nível, os golpes não contam e avisa).
+var prof := ""
+var level := 1
 var yaw := 0.0
 var size := 1.1
 ## Raio da colisão (já com a escala); o golpe do jogador usa o mesmo raio.
@@ -31,6 +35,9 @@ static func from_def(def: Dictionary) -> WorldResourceNode:
 	var n := WorldResourceNode.new()
 	n.node_id = int(def.id)
 	n.kind = str(def.model)
+	n.tint = def.get("tint", n.tint)
+	n.prof = str(def.get("prof", ""))
+	n.level = int(def.get("level", 1))
 	n.yaw = float(def.id) * 1.7
 	n.hits = int(def.hits)
 	n.respawn = float(def.respawn)
@@ -57,6 +64,10 @@ func _ready() -> void:
 
 func hit(from: Vector3) -> void:
 	if not alive:
+		return
+	if prof != "" and Game.prof_level(prof) < level:
+		_shake(from)
+		Game.notify.emit("Precisa de %s nível %d." % [Game.prof_name(prof), level], CharRules.C_BAD)
 		return
 	hits_left -= 1
 	_shake(from)
@@ -102,7 +113,7 @@ func set_alive(on: bool) -> void:
 func _shake(from: Vector3) -> void:
 	if _visual == null:
 		return
-	Sfx.play_at("chop_stone", global_position, 0.15, -4.0)
+	Sfx.play_at("chop_wood" if kind.begins_with("tree_") else "chop_stone", global_position, 0.15, -4.0)
 	FX.burst(global_position + Vector3.UP * 1.0, _burst_color(), 8, 3.0, 0.08, 0.4)
 	if _tween and _tween.is_valid():
 		return
@@ -115,11 +126,33 @@ func _shake(from: Vector3) -> void:
 
 
 func _burst_color() -> Color:
-	return Color(0.55, 0.45, 1.0) if kind == "crystal" else Color(0.55, 0.3, 0.2)
+	if kind == "crystal":
+		return Color(0.55, 0.45, 1.0)
+	if kind.begins_with("tree_"):
+		return Color(0.45, 0.3, 0.15)
+	return tint
 
 
 # ================================================================ visual (fora do headless)
 func _build_visual() -> void:
+	if kind.begins_with("tree_"):
+		_visual = (load(MapProp.model_path(kind)) as PackedScene).instantiate()
+		_visual.rotation.y = yaw
+		_visual.scale = Vector3.ONE * size
+		add_child(_visual)
+		if tint != Color(0.55, 0.3, 0.2):
+			_tint(_visual, tint)
+		# fita amarela no tronco: árvore que dá para cortar (as de enfeite não têm)
+		var band := MeshInstance3D.new()
+		var cyl := CylinderMesh.new()
+		cyl.top_radius = 0.3
+		cyl.bottom_radius = 0.3
+		cyl.height = 0.18
+		band.mesh = cyl
+		band.position.y = 1.1
+		band.material_override = _mat(Color(1.0, 0.8, 0.2), 0.3)
+		_visual.add_child(band)
+		return
 	_visual = Node3D.new() if kind == "crystal" else ROCK.instantiate()
 	_visual.rotation.y = yaw
 	_visual.scale = Vector3.ONE * size
@@ -129,12 +162,12 @@ func _build_visual() -> void:
 	if kind == "crystal":
 		_build_crystal(r)
 		return
-	_tint(_visual, Color(0.55, 0.3, 0.2))
+	_tint(_visual, Color(0.55, 0.3, 0.2) if kind == "iron" else Color(0.42, 0.4, 0.38))
 	for i in 6:
 		var a := r.randf() * TAU
 		var mi := MeshInstance3D.new()
 		mi.mesh = SphereMesh.new()
-		mi.material_override = _mat(Color(0.12, 0.1, 0.1), 0.0)
+		mi.material_override = _mat(Color(0.12, 0.1, 0.1), 0.0) if kind == "iron" else _mat(tint, 0.4)
 		mi.position = Vector3(cos(a) * 0.45, r.randf_range(0.25, 0.65), sin(a) * 0.45)
 		mi.rotation = Vector3(r.randf_range(-0.6, 0.6), r.randf() * TAU, r.randf_range(-0.6, 0.6))
 		mi.scale = Vector3.ONE * 0.12 * r.randf_range(0.8, 1.3)

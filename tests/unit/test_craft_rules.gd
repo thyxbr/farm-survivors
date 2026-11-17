@@ -211,3 +211,32 @@ func test_recipe_catalog() -> void:
 	# variante de qualidade e item só de craft não caem de monstro
 	for id in LootRules.gear_pool(bt, 46):
 		T.ok(LootRules.droppable(items[id], id), "%s pode cair" % id)
+
+
+## Coleta: pede o nível da profissão do nó, dá os itens e a XP; a horta pede nível de Fazenda e dá XP.
+func test_gathering_and_farming_xp() -> void:
+	var bt := BalanceTables.load_dir("res://data/balance")
+	var s := CharState.new_character(bt)
+	var g := {"items": {"silver_ore": 3}, "prof": "mining", "level": 20, "xp": 45}
+	var r := CharRules.gather(s, bt, g)
+	T.eq(r.err, "nivel", "prata pede Mineração 20")
+	T.eq(CharRules.count_item(s, "silver_ore"), 0, "recusa não dá minério")
+	r = CharRules.gather(s, bt, {"items": {"copper_ore": 3}, "prof": "mining", "level": 1, "xp": 12})
+	T.ok(r.ok and CharRules.count_item(s, "copper_ore") == 3, "cobre no nível 1")
+	T.eq(CraftRules.xp(s, "mining"), 12, "XP de Mineração")
+	# nós por camada nas cenas: cada tipo da tabela tem pelo menos um nó
+	var kinds := {}
+	for id in WorldHarvest.ids(bt):
+		kinds[WorldHarvest.node_def(bt, id).kind] = true
+	for k in bt.get_table("world_nodes").kinds:
+		T.ok(kinds.has(k), "nó de %s em algum mapa" % k)
+	# horta
+	var crops := bt.get_table("crops")
+	T.ok(int(crops.pumpkin.level) > 1, "abóbora pede nível de Fazenda")
+	CharRules.add_item(s, bt, "seed_pumpkin", 1)
+	T.eq(CharRules.plant(s, bt, 0, "pumpkin", false, 0.0).err, "nivel", "sem nível não planta abóbora")
+	T.ok(CharRules.plant(s, bt, 0, "carrot", true, 0.0).ok, "cenoura no nível 1")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	var h := CharRules.harvest(s, bt, 0, 99999.0, rng)
+	T.ok(h.ok and CraftRules.xp(s, "farming") > 0, "colher dá XP de Fazenda")
