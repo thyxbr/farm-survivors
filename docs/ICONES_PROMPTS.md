@@ -39,8 +39,8 @@ Depois disso, cada ícone é: `Subject: ... Background color: ...`
 
 ## Situação
 
-- **Prontas e no jogo** (`assets/ui/skills/`): as 15 habilidades de classe, incluindo as 5 da
-  tabela 0 abaixo. A Cura do Cetro usa a mesma `heal`.
+- **Prontas e no jogo** (`assets/ui/skills/`): as 17 habilidades de classe, incluindo as 5 da
+  tabela 0 e as 2 da 0b abaixo. A Cura do Cetro usa a mesma `heal`.
 - **Horda (seções 2 a 5): adiada.** `potion_heal` e `h_fogo` já gerados ficaram guardados em
   `docs/icones_ref/horda/`.
 
@@ -53,6 +53,16 @@ Depois disso, cada ícone é: `Subject: ... Background color: ...`
 | `bow_focus` | Olhos de Águia (Arco, 10 s de +crítico e +velocidade) | Subject: the head of a golden eagle in profile with a sharp glowing yellow eye, a thin crosshair ring shining in the eye. Background color: dark forest green. |
 | `scepter_ward` | Escudo de Luz (Cetro, escudo em você e nos aliados) | Subject: a dome-shaped shield of golden holy light with a radiant cross symbol in the center, soft light beams and sparkles. Background color: dark royal blue. |
 | `scepter_ult` | Banquete do Herói (Cetro, ultimate: cura total e bônus ao grupo) | Subject: a golden goblet raised in a toast above a festive roast and bread, glowing with warm golden holy light and sparkles. Epic, celebratory. Background color: dark amber. |
+
+## 0b. Habilidades novas do Cetro (2, prontas)
+
+Na mesma conversa das outras (ou cole de novo o prompt de estilo antes da primeira). O Escudo de Luz
+continua com a `scepter_ward` que já existe.
+
+| Arquivo | Habilidade | Prompt (Subject + Background) |
+|---|---|---|
+| `scepter_lance` | Lança de Luz (Cetro, dano alto num alvo) | Subject: a radiant spear made of golden holy light flying diagonally toward the top-right, sharp white-gold spearhead, a small four-pointed star glint at the base of the spearhead, a short brushstroke trail of light behind it. Background color: dark indigo purple. |
+| `scepter_judgment` | Julgamento de Luz (Cetro, área mirada no chão) | Subject: a wide pillar of golden holy light crashing down from the sky onto a glowing circular seal on the ground with a cross in its center, seen from a slight top-down angle, light rays and four-pointed sparkles bursting outward from the impact. Epic, powerful. Background color: dark slate teal. |
 
 ## 1. Habilidades de classe (barra de atalhos, 11)
 
