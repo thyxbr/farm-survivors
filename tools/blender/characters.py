@@ -254,6 +254,9 @@ def band(name, s, axis, w, material, parent, sides=10, phase=0.5, arc=None, fwd=
                 thick=thick, caps=(False, False))
 
 
+_knight_band = band   # armory.py redefine band() depois; o cavaleiro usa esta
+
+
 def wing(name, c, w, h, t, material, parent):
     """Asa lateral de joelheira/cotoveleira: losango vertical fino (largura w em Y, altura h, espessura t)."""
     c = Vector(c)
@@ -281,7 +284,10 @@ def anime_mats(pre, skin_c, iris_c, brow_c, lash_c, mouth_c):
         "mouth": mat(pre + "_mouth_flat", mouth_c, 0.5), "line": mat(pre + "_line_flat", sc(skin_c, 0.62), 0.5)}
 
 
-def build_knight():
+def build_knight(female=False):
+    """female=True: o mesmo cavaleiro deformado para o corpo feminino, com rabo de cavalo (female.py) ->
+    knight_f.glb, com os mesmos nós e pivôs."""
+    band = _knight_band
     steel = mat("k_steel", hexc("#A9B1BE"), 0.35, 0.85)
     steel_d = mat("k_steel_dark", hexc("#5D6573"), 0.45, 0.85)
     chain = mat("k_chain", hexc("#4A4F59"), 0.6, 0.7)
@@ -525,12 +531,21 @@ def build_knight():
            tbox("ShieldCrossH", (sxp + 0.024, 0, sz + 0.1), (0.01, 0.26, 0.045), trim, parent=el_l),
            shell("ShieldBoss", (sxp + 0.03, 0, sz + 0.1), (0.07, 0.07, 0.07), trim, cut=-0.2, rot=(0, PI / 2, 0),
                  parent=el_l)]
+    if female:   # alças de couro (enarmes) do antebraço ao escudo: o braço fino deixaria o escudo solto
+        E, Wl = mirror(P["elbow"], 1), mirror(P["wrist"], 1)
+        for k, z in enumerate((sz - 0.04, sz + 0.06)):
+            f = E.lerp(Wl, (E.z - z) / (E.z - Wl.z))
+            x0, x1 = f.x + 0.02, sxp + 0.004
+            rim.append(tbox("ShieldStrap%d" % k, ((x0 + x1) / 2, f.y, z), (x1 - x0, 0.034, 0.014), lea, bevel=0.003,
+                            parent=el_l))
     join_objs("ShieldRim", rim)
     tbox("Shield", (sxp + 0.008, 0, sz + 0.005), (0.026, 0.38, 0.48), red_c, bottom=(1, 0.2), bevel=0.008,
          parent=el_l)
     # sombra assada nas dobras (gear.py): mesma leitura das roupas modulares
+    if female:
+        knight_f_finish(R)
     bake_ao([o for o in scn.objects if o.type == 'MESH'], [])
-    export("knight", export_vertex_color='ACTIVE')
+    export("knight_f" if female else "knight", export_vertex_color='ACTIVE')
 
 
 # ================================================================== ANCIÃO (NPC)

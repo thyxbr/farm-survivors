@@ -14,6 +14,9 @@ extends RefCounted
 ## chama um meteoro já liberado.
 
 # ------------------------------------------------------------------ Chuva de Meteoros (ultimate, slot 4)
+## Habilidade de buff (slot 3): pose curta de braços erguidos; o efeito é o buff de mesmo id (Game.add_buff).
+const BUFF_TIME := 0.5
+const BUFF_COLOR := Color(1.0, 0.4, 0.05)
 const METEOR_WINDUP := 0.5        ## preparo (s): cajado erguido; a esquiva não cancela
 const METEOR_CHANNEL := 4.0       ## canalização máxima depois do preparo (s)
 const METEOR_TAP_MIN := 0.8       ## soltar no preparo não desperdiça a ultimate: a chuva abre e dura ao menos isto (s)
@@ -54,6 +57,13 @@ static var _fire_ramp: Gradient
 ## Executa a habilidade `id` para `player`. Devolve true só se ela começou.
 static func use(player: Node, id: String) -> bool:
 	match id:
+		"staff_ember":
+			player.begin_ability(id, {})
+			Game.add_buff(id, Game.buff_duration(id))
+			Network.send_event(id, player.global_position, Vector3.ZERO)
+			FX.ring(player.global_position + Vector3.UP * 0.1, BUFF_COLOR, 2.2, 0.4)
+			Sfx.play("levelup", 0.1, -10.0)
+			return true
 		"meteor_rain":
 			var center := _meteor_center(player)
 			var rng_seed := randi() % 16777216   # cabe exato no float do Vector3 do evento
@@ -72,6 +82,9 @@ static func tick(player: Node, delta: float, _move_dir := Vector3.ZERO, _move_sp
 	var t0: float = player.ability_t
 	player.ability_t += delta
 	match player.ability:
+		"staff_ember":
+			if player.ability_t >= BUFF_TIME:
+				player.end_ability()
 		"meteor_rain":
 			_meteor_tick(player, t0, player.ability_t, delta)
 		_:
@@ -94,6 +107,8 @@ static func dodge_cancel(player: Node) -> void:
 ## Pose da habilidade por cima da locomoção (de _animate).
 static func pose(player: Node, p: Dictionary) -> void:
 	match player.ability:
+		"staff_ember":
+			KnightAnim.play_track(p, KnightMoves.BUFF, clampf(player.ability_t / BUFF_TIME, 0.0, 1.0), 0.0)
 		"meteor_rain":
 			var t: float = player.ability_t
 			KnightAnim.meteor_pose(p, clampf(t / METEOR_WINDUP, 0.0, 1.0), smoothstep(METEOR_WINDUP * 0.6, METEOR_WINDUP + 0.3, t))
@@ -102,6 +117,9 @@ static func pose(player: Node, p: Dictionary) -> void:
 ## Réplica: começa a habilidade de outro jogador pelo evento de rede (só visual).
 static func play_remote(player: Node, kind: String, a: Vector3, b: Vector3) -> void:
 	match kind:
+		"staff_ember":
+			player.begin_ability(kind, {})
+			FX.ring(a + Vector3.UP * 0.1, BUFF_COLOR, 2.2, 0.4)
 		"meteor_rain":
 			# a = centro da área; b.x = semente: os mesmos pontos de impacto do dono, sem dano
 			player.begin_ability(kind, {"center": a, "seed": int(b.x)})
@@ -468,7 +486,7 @@ static func _sky_fade(sky: Node3D) -> void:
 
 ## Explosão de um meteoro (só o dono): dano em METEOR_HIT_RADIUS com empurrão para fora, sem encher a fúria.
 static func _meteor_damage(caster: Node, pos: Vector3) -> void:
-	var dmg := (14.0 + Game.spell_power() * 1.6) * Game.damage_mult()
+	var dmg := (14.0 + Game.spell_power() * 1.6) * Game.damage_mult() * Game.ability_dmg_mult("meteor_rain")
 	var any := false
 	for e in caster.get_tree().get_nodes_in_group("enemies"):
 		if e.dead:

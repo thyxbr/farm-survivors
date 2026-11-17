@@ -2,8 +2,6 @@ class_name CharPreview
 extends SubViewportContainer
 ## Prévia 3D do cavaleiro com o equipamento atual (atualiza ao equipar). Arraste para girar.
 
-const KNIGHT := preload("res://assets/models/knight.glb")
-
 var vp: SubViewport
 var pivot: Node3D
 var model: Node3D
@@ -16,6 +14,10 @@ var _look := {}
 ## Encanto mostrado na arma da prévia (painel do ferreiro): elemento e nível; nível 0 = o do personagem.
 var _ench_el := ""
 var _ench_lv := -1
+## Arma mostrada no lugar da equipada (tela de criação: a arma inicial da classe, sem equipar). "" = a equipada.
+var weapon_override := ""
+## Corpo mostrado ("m"/"f") no lugar do do personagem (tela de criação: o sexo escolhido). "" = Game.body.
+var body_override := ""
 
 
 func _init(sz := Vector2(260, 340)) -> void:
@@ -71,20 +73,33 @@ func _ready() -> void:
 	vp.add_child(disc)
 	pivot = Node3D.new()
 	vp.add_child(pivot)
-	model = KNIGHT.instantiate()
-	pivot.add_child(model)
 	pivot.rotation.y = _base
-	_rig = KnightAnim.rig(model)
 	refresh()
 	Game.inventory_changed.connect(refresh)
 
 
 func refresh() -> void:
+	if pivot == null:
+		return
+	var b := KnightLook.body_key(body_override if body_override != "" else Game.body)
+	if model == null or KnightLook.body_of(model) != b:
+		if model:
+			model.queue_free()
+		model = KnightLook.instance(b)
+		pivot.add_child(model)
+		_rig = KnightAnim.rig(model)
 	if model:
-		_look = KnightLook.apply(model, Game.equipment)
+		var eq: Dictionary = Game.equipment
+		if weapon_override != "":
+			eq = eq.duplicate()
+			eq["weapon"] = weapon_override
+			eq["offhand"] = ""   # a mão secundária equipada pode não combinar com a arma mostrada
+		_look = KnightLook.apply(model, eq)
 		var e := Game.weapon_enchant()
 		if _ench_lv >= 0:
 			EnchantFX.apply(_look, _ench_el, _ench_lv)
+		elif weapon_override != "" and weapon_override != Game.equipment.weapon:
+			EnchantFX.apply(_look, "", 0)   # o encanto é da arma equipada, não da mostrada
 		else:
 			EnchantFX.apply(_look, e.el, e.lv)
 
@@ -93,6 +108,18 @@ func refresh() -> void:
 func show_enchant(element: String, level: int) -> void:
 	_ench_el = element
 	_ench_lv = level
+	refresh()
+
+
+## Mostra o corpo `b` ("m"/"f") sem gravar (tela de criação). "" volta para o do personagem.
+func show_body(b: String) -> void:
+	body_override = b
+	refresh()
+
+
+## Mostra uma arma sem equipá-la (a arma inicial da classe na tela de criação). "" volta para a equipada.
+func show_weapon(id: String) -> void:
+	weapon_override = id
 	refresh()
 
 
@@ -105,6 +132,7 @@ func _process(delta: float) -> void:
 	if not _rig.is_empty():
 		KnightAnim.apply(_rig, KnightAnim.idle_pose(_idle), 1.0 - exp(-14.0 * delta))
 		KnightAnim.hold_weapon_upright(_look, _rig)
+		KnightAnim.sway_ponytail(_rig, delta)
 
 
 func _gui_input(event: InputEvent) -> void:

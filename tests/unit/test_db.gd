@@ -25,8 +25,8 @@ func test_migrate_fresh() -> void:
 	db.close()
 
 
-## Banco do servidor na v5 com doações: a v6 apaga a base sem mexer nos personagens.
-func test_v6_drops_base_keeps_characters() -> void:
+## Banco do servidor na v5 com doações: a v6 apaga a base; a v10 apaga os personagens antigos.
+func test_v6_drops_base_then_v10_wipes_characters() -> void:
 	var db := _fresh()
 	var v5 := Migrations.MIGRATIONS.slice(0, 5)
 	T.ok(db.exec("CREATE TABLE schema_version (version INTEGER NOT NULL, applied_at INTEGER NOT NULL)"), "schema_version")
@@ -41,7 +41,24 @@ func test_v6_drops_base_keeps_characters() -> void:
 	T.ok(Migrations.ensure_latest(db), "migrou até a mais nova")
 	T.eq(db.query("SELECT COUNT(*) AS n FROM sqlite_master WHERE name IN ('base_buildings', 'base_donations')")[0]["n"],
 		0, "tabelas da base apagadas")
-	T.eq(db.query("SELECT ecos FROM characters WHERE account_id = 1")[0]["ecos"], 42, "personagem intacto")
+	# a v10 (vários personagens por conta) apaga os personagens antigos de propósito
+	T.eq(db.query("SELECT COUNT(*) AS n FROM characters")[0]["n"], 0, "v10 apagou os personagens antigos")
+	T.eq(db.query("SELECT COUNT(*) AS n FROM accounts")[0]["n"], 1, "a conta continua")
+	db.close()
+
+
+## v10: a conta tem vários personagens; mochila e passivas são do personagem e somem com ele.
+func test_v10_characters_per_account() -> void:
+	var db := _fresh()
+	T.ok(Migrations.ensure_latest(db), "migrou")
+	db.exec("INSERT INTO accounts(id, username, pass_hash, pass_salt, created_at) VALUES(5, 'ana', 'h', 's', 0)")
+	T.ok(db.exec("INSERT INTO characters(account_id, level) VALUES(5, 3)"), "primeiro personagem")
+	T.ok(db.exec("INSERT INTO characters(account_id, level) VALUES(5, 7)"), "segundo personagem da mesma conta")
+	var ids := db.query("SELECT id FROM characters WHERE account_id = 5 ORDER BY id")
+	T.eq(ids.size(), 2, "dois personagens")
+	db.exec("INSERT INTO inventory(char_id, slot_index, item_id, qty) VALUES(?, 0, 'bread', 2)", [ids[0]["id"]])
+	db.exec("DELETE FROM characters WHERE id = ?", [ids[0]["id"]])
+	T.eq(db.query("SELECT COUNT(*) AS n FROM inventory")[0]["n"], 0, "mochila sai junto com o personagem")
 	db.close()
 
 

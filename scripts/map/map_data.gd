@@ -8,6 +8,10 @@ const SCENES := {
 	"bosque": "res://scenes/maps/bosque.tscn",
 	"mina": "res://scenes/maps/mina.tscn",
 	"pico": "res://scenes/maps/pico.tscn",
+	"dg_bosque": "res://scenes/maps/dg_bosque.tscn",
+	"dg_mina": "res://scenes/maps/dg_mina.tscn",
+	"dg_pico": "res://scenes/maps/dg_pico.tscn",
+	"dg_final": "res://scenes/maps/dg_final.tscn",
 	"arena": "res://scenes/maps/arena.tscn",
 }
 ## Centro dos mapas que não são regiões de viagem (Regions): a Arena da Horda, longe ao norte de Valdoria.
@@ -17,12 +21,14 @@ const ENEMIES_JSON := "res://data/balance/enemies.json"
 ## Troca a cena de um mapa (map_id -> caminho); só para testes.
 static var scene_override := {}
 static var _landmarks := {}        # map_id -> {id: Vector3 local}
+static var _areas := {}            # map_id -> [área] (ver areas())
 static var _resource_nodes = null  # node_id -> {"kind", "pos"} (global)
 static var _enemy_kinds := PackedStringArray()
 
 
 static func clear_cache() -> void:
 	_landmarks = {}
+	_areas = {}
 	_resource_nodes = null
 
 
@@ -78,23 +84,52 @@ static func ground_of(root: Node) -> Node3D:
 	return null
 
 
+## Lê da cena (uma vez por mapa) os landmarks e as regiões com nome.
+static func _scan(map_id: String) -> void:
+	if _landmarks.has(map_id):
+		return
+	var found := {}
+	var areas: Array = []
+	var root := load_root(map_id)
+	if root != null:
+		var g := ground_of(root)
+		for n in root.find_children("*", "Node3D", true, false):
+			if n is MapLandmark:
+				found[n.id] = settled(root, n, g)
+			elif n is MapRegion:
+				var xf := local_xform(root, n)
+				var c := xf.origin
+				c.y = 0.0
+				areas.append({"id": n.region_id, "map": map_id, "center": origin(map_id) + c, "shape": n.shape,
+					"size": n.size, "radius": n.radius, "rot": xf.basis.get_euler().y})
+		if g != null:
+			g.free()
+		root.free()
+	_landmarks[map_id] = found
+	_areas[map_id] = areas
+
+
 ## Posição global de um landmark (origem da região + posição na cena, assentada no relevo); zero se não existe.
 static func landmark(map_id: String, id: String) -> Vector3:
-	if not _landmarks.has(map_id):
-		var found := {}
-		var root := load_root(map_id)
-		if root != null:
-			var g := ground_of(root)
-			for n in root.find_children("*", "Node3D", true, false):
-				if n is MapLandmark:
-					found[n.id] = settled(root, n, g)
-			if g != null:
-				g.free()
-			root.free()
-		_landmarks[map_id] = found
+	_scan(map_id)
 	if not _landmarks[map_id].has(id):
 		return Vector3.ZERO
 	return origin(map_id) + _landmarks[map_id][id]
+
+
+## Regiões com nome do mapa (nós MapRegion), em posição global: [{"id", "map", "center" (y = 0), "shape"
+## (MapRegion.RECT/DISC), "size" (largura X × profundidade Z), "radius", "rot" (giro em Y, rad)}].
+static func areas(map_id: String) -> Array:
+	_scan(map_id)
+	return _areas[map_id]
+
+
+## As regiões de todos os mapas (Regions.ALL: os de viagem e as dungeons).
+static func all_areas() -> Array:
+	var out: Array = []
+	for id in Regions.ALL:
+		out.append_array(areas(id))
+	return out
 
 
 ## Nós de coleta de todos os mapas: node_id -> {"kind": tipo do veio, "pos": posição global (no relevo)}.

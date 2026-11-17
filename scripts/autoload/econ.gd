@@ -128,6 +128,35 @@ func request(op: String, args: Array = []) -> void:
 	_deliver(op, args, r)
 
 
+## Só para testes (solo): troca a classe do personagem sem passar pelas regras, para o smoke test poder
+## experimentar as quatro armas. A escolha de verdade é a op "choose_class" (uma vez só).
+func test_force_class(cls: String) -> void:
+	if Network.is_online() or not ensure_solo():
+		return
+	_svc.load_or_create(SOLO_ACCOUNT).char_class = cls
+	_svc.save(SOLO_ACCOUNT)
+	Game.char_class = cls
+
+
+## Só testes (solo): troca o nível gravado, para o smoke test equipar itens acima do nível do personagem.
+func test_force_level(lv: int) -> void:
+	if Network.is_online() or not ensure_solo():
+		return
+	_svc.load_or_create(SOLO_ACCOUNT).level = lv
+	_svc.save(SOLO_ACCOUNT)
+	Game.level = lv
+
+
+## Só testes (solo): troca o corpo gravado ("m"/"f"), como test_force_class troca a classe.
+func test_force_body(body: String) -> void:
+	if Network.is_online() or not ensure_solo():
+		return
+	_svc.load_or_create(SOLO_ACCOUNT).body = body
+	_svc.save(SOLO_ACCOUNT)
+	Game.body = body
+	Game.inventory_changed.emit()
+
+
 ## Liga/desliga o modo admin (resposta como op "admin"). Solo: sempre pode. Online: o servidor decide
 ## (AdminRules.OPEN_TO_ALL ou conta em ADMIN_USERS).
 func set_admin(on: bool) -> void:
@@ -170,7 +199,7 @@ func gather_node(id: int, from: Vector3) -> void:
 	if not g.ok:
 		_deliver("gather", [id], {"ok": false, "err": g.err, "events": _gather_refusal(g.err), "state": {}})
 		return
-	var r := _svc.grant(SOLO_ACCOUNT, 0, 0, g.items, "gather")
+	var r := _svc.gather(SOLO_ACCOUNT, g)
 	if not r.ok:
 		_gather.undo(SOLO_ACCOUNT, id)
 	_deliver("gather", [id], r)
@@ -179,7 +208,7 @@ func gather_node(id: int, from: Vector3) -> void:
 ## Aviso de coleta recusada (só o caso que o jogador honesto encontra: o veio dele ainda não voltou).
 func _gather_refusal(err: String) -> Array:
 	if err == "esgotado":
-		return [CharRules._notify("Este veio ainda não se recuperou.", CharRules.C_BAD)]
+		return [CharRules._notify("Este ponto de coleta ainda não se recuperou.", CharRules.C_BAD)]
 	return []
 
 
@@ -201,14 +230,14 @@ func grant(gold: int, xp: int, items: Dictionary, source: String, silent := fals
 
 
 ## Abate (XP, contagem, progresso de missão, chefe). Só offline, como grant().
-func kill(kind: String, xp: int) -> void:
+func kill(kind: String, xp: int, enemy_level := 0, area := "") -> void:
 	if Network.is_online():
 		client_grant_errors += 1
 		push_error("concessão no cliente online: abate de %s (xp %d)" % [kind, xp])
 		return
 	if not ensure_solo():
 		return
-	_deliver("kill", [kind, xp], _svc.kill(SOLO_ACCOUNT, kind, xp))
+	_deliver("kill", [kind, xp], _svc.kill(SOLO_ACCOUNT, kind, xp, enemy_level, 0, area))
 
 
 ## Começo de uma partida no solo: abre o registro (runs) e devolve o run_id. Online não faz nada (0): quem
@@ -378,7 +407,7 @@ func ensure_solo() -> bool:
 
 
 ## Abre o save solo e aplica o personagem salvo (vida, mana e posição inclusive).
-func start_solo() -> bool:
+func start_solo(choose_class := true) -> bool:
 	if not _open_store():
 		return false
 	if Balance.from_server:
@@ -390,6 +419,8 @@ func start_solo() -> bool:
 	var s := _svc.load_or_create(SOLO_ACCOUNT)
 	_solo_loaded = true
 	Game.apply_state(s.to_dict(), true)
+	if choose_class:
+		Game.auto_choose_class()
 	return true
 
 
@@ -450,7 +481,7 @@ func _open_store() -> bool:
 
 ## Demos de screenshot (`--farmdemo`/`--geardemo`/`--weapon=`): personagem novo num arquivo à parte,
 ## apagado a cada vez (não mexe no save solo). Chamado pelo Game antes do _ready deste autoload.
-func start_scratch_solo(path: String) -> bool:
+func start_scratch_solo(path: String, choose_class := true) -> bool:
 	if _store != null:
 		_store.close()
 		_store = null
@@ -458,7 +489,7 @@ func start_scratch_solo(path: String) -> bool:
 	_solo_loaded = false
 	solo_save_path = path
 	_wipe_on_open = true
-	return start_solo()
+	return start_solo(choose_class)
 
 
 # ================================================================ entrega do resultado
@@ -486,10 +517,15 @@ func _finish(op: String, args: Array, ok: bool, err: String, events: Array, stat
 
 
 # ================================================================ servidor
-## Logo antes do _accepted: tabelas e estado inicial (o cliente aplica antes de trocar de cena).
-func server_send_initial(peer: int, account: int) -> void:
+## Tabelas de balanceamento (a tela de seleção mostra classes antes de existir personagem).
+func server_send_balance(peer: int) -> void:
 	_balance.rpc_id(peer, BalanceTables.encode(Balance.tables.to_dict()))
-	var s := Network.characters.load_or_create(account)
+
+
+## Logo antes do _accepted: tabelas e estado inicial (o cliente aplica antes de trocar de cena).
+func server_send_initial(peer: int, char_id: int) -> void:
+	_balance.rpc_id(peer, BalanceTables.encode(Balance.tables.to_dict()))
+	var s := Network.characters.load_or_create(char_id)
 	_econ_res.rpc_id(peer, 0, true, "", [], s.to_dict())
 
 
@@ -514,6 +550,11 @@ func account_of(peer: int) -> int:
 	return int(Network.players[peer].get("account", 0)) if Network.players.has(peer) else 0
 
 
+## Personagem com que o peer está jogando (0 se não está no jogo). É a chave do CharacterService.
+func char_of(peer: int) -> int:
+	return int(Network.players[peer].get("char", 0)) if Network.players.has(peer) else 0
+
+
 ## Servidor: manda ao peer o estado e os eventos de uma concessão (resposta sem pedido, seq PUSH_SEQ).
 func server_push(peer: int, r: Dictionary, extra_events: Array = []) -> void:
 	if not Network.is_server() or not Network.players.has(peer):
@@ -524,13 +565,13 @@ func server_push(peer: int, r: Dictionary, extra_events: Array = []) -> void:
 
 ## Servidor: concede ao personagem do peer e avisa o cliente. `account` > 0 serve para quem já saiu da
 ## lista de jogadores (desconexão no meio da partida): aí só grava. `silent` tira os avisos de item.
-func server_grant(peer: int, gold: int, xp: int, items: Dictionary, source: String, account := 0,
+func server_grant(peer: int, gold: int, xp: int, items: Dictionary, source: String, char_id := 0,
 		silent := false, extra_events: Array = []) -> Dictionary:
-	if account <= 0:
-		account = account_of(peer)
-	if account <= 0 or Network.characters == null:
+	if char_id <= 0:
+		char_id = char_of(peer)
+	if char_id <= 0 or Network.characters == null:
 		return {"ok": false, "err": "sem_sessao", "events": [], "state": {}}
-	var r := Network.characters.grant(account, gold, xp, items, source)
+	var r := Network.characters.grant(char_id, gold, xp, items, source)
 	if silent:
 		r.events = r.events.filter(func(e: Dictionary) -> bool: return e.get("t") != "looted")
 	server_push(peer, r, extra_events)
@@ -538,22 +579,22 @@ func server_grant(peer: int, gold: int, xp: int, items: Dictionary, source: Stri
 
 
 ## Servidor: abate (XP, contagem, missões, chefe) no personagem do peer.
-func server_kill(peer: int, kind: String, xp: int) -> Dictionary:
-	var account := account_of(peer)
-	if account <= 0 or Network.characters == null:
+func server_kill(peer: int, kind: String, xp: int, enemy_level := 0, group_level := 0, area := "") -> Dictionary:
+	var char_id := char_of(peer)
+	if char_id <= 0 or Network.characters == null:
 		return {"ok": false, "err": "sem_sessao", "events": [], "state": {}}
-	var r := Network.characters.kill(account, kind, xp)
+	var r := Network.characters.kill(char_id, kind, xp, enemy_level, group_level, area)
 	server_push(peer, r)
 	return r
 
 
 ## Servidor: recorde de partida no personagem (só sobe) e avisa o cliente.
-func server_record(peer: int, key: String, value, account := 0) -> void:
-	if account <= 0:
-		account = account_of(peer)
-	if account <= 0 or Network.characters == null:
+func server_record(peer: int, key: String, value, char_id := 0) -> void:
+	if char_id <= 0:
+		char_id = char_of(peer)
+	if char_id <= 0 or Network.characters == null:
 		return
-	var r := Network.characters.set_record(account, key, value)
+	var r := Network.characters.set_record(char_id, key, value)
 	if r.ok:
 		server_push(peer, r)
 
@@ -569,19 +610,26 @@ func server_spawn_pickup(peer: int, zone: String, pos: Vector3, gold: int, items
 
 
 ## Servidor: sorteio do loot de um inimigo (LootRules) para um jogador, em pickups (um sorteio por jogador).
-func server_drop_loot(peer: int, kind: String, pos: Vector3, zone := "world") -> void:
-	var loot := LootRules.roll(Balance.tables, kind, _loot_rng)
+func server_drop_loot(peer: int, kind: String, pos: Vector3, zone := "world", level := 0, elite := false,
+		chief := false) -> void:
+	var cls := ""
+	var char_id := char_of(peer)
+	if char_id > 0 and Network.characters != null:
+		cls = Network.characters.load_or_create(char_id).char_class
+	var boss: bool = Balance.tables.get_table("enemies").get(kind, {}).get("boss", false) or chief
+	var extra := DungeonRules.extra_loot(Balance.tables, Regions.region_at(pos), boss)
+	var loot := LootRules.roll(Balance.tables, kind, _loot_rng, cls, level, elite, extra)
 	if int(loot.gold) > 0:
 		server_spawn_pickup(peer, zone, pos, int(loot.gold), {})
 	for id in loot.items:
 		server_spawn_pickup(peer, zone, pos, 0, {id: int(loot.items[id])})
 
 
-func _sender_account() -> int:
+func _sender_char() -> int:
 	if not Network.is_server() or Network.characters == null:
 		return 0
 	var id := multiplayer.get_remote_sender_id()
-	return int(Network.players[id].get("account", 0)) if Network.players.has(id) else 0
+	return int(Network.players[id].get("char", 0)) if Network.players.has(id) else 0
 
 
 ## Pedido sem sessão (ainda não aceito, já derrubado): responde a falha para o cliente não ficar esperando.
@@ -592,17 +640,17 @@ func _reply_no_session(seq: int) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _econ_req(seq: int, op: String, args: Array) -> void:
-	var account := _sender_account()
-	if account <= 0:
+	var char_id := _sender_char()
+	if char_id <= 0:
 		_reply_no_session(seq)
 		return
 	var peer := multiplayer.get_remote_sender_id()
 	if not _req_limit.allow(peer, Time.get_ticks_msec() / 1000.0):
 		_econ_res.rpc_id(peer, seq, false, "devagar", [], {})
 		return
-	var r := Network.characters.apply(account, op, args)
+	var r := Network.characters.apply(char_id, op, args)
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
-	if r.ok and op in ["enchant", "equip", "unequip"]:
+	if r.ok and op in ["enchant", "equip", "unequip", "choose_class"]:
 		Network.server_refresh_look(peer)   # o brilho que os outros veem acompanha o que foi gravado
 
 
@@ -610,47 +658,47 @@ func _econ_req(seq: int, op: String, args: Array) -> void:
 ## Um relatório por segundo por peer, no máximo (os legítimos vêm a cada autosave ou troca de zona).
 @rpc("any_peer", "call_remote", "reliable")
 func _econ_report(hp: float, mp: float, pos: Vector3, yaw: float, fury: float) -> void:
-	var account := _sender_account()
-	if account <= 0:
+	var char_id := _sender_char()
+	if char_id <= 0:
 		return
 	var peer := multiplayer.get_remote_sender_id()
 	var now_ms := Time.get_ticks_msec()
 	if _last_report.has(peer) and now_ms - int(_last_report[peer]) < REPORT_MIN_MS:
 		return
 	_last_report[peer] = now_ms
-	Network.characters.report(account, peer, hp, mp, pos, yaw, fury)
+	Network.characters.report(char_id, peer, hp, mp, pos, yaw, fury)
 
 
 ## Só com o servidor em --test (net_test): ouro para os testes de compra.
 @rpc("any_peer", "call_remote", "reliable")
 func _grant_test_gold(seq: int, amount: int) -> void:
-	var account := _sender_account()
-	if account <= 0:
+	var char_id := _sender_char()
+	if char_id <= 0:
 		_reply_no_session(seq)
 		return
-	var r := Network.characters.grant_test_gold(account, amount, _test_server)
+	var r := Network.characters.grant_test_gold(char_id, amount, _test_server)
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
 
 
 ## Só com o servidor em --test (net_test): Ecos para os testes de passiva e doação.
 @rpc("any_peer", "call_remote", "reliable")
 func _grant_test_ecos(seq: int, amount: int) -> void:
-	var account := _sender_account()
-	if account <= 0:
+	var char_id := _sender_char()
+	if char_id <= 0:
 		_reply_no_session(seq)
 		return
-	var r := Network.characters.grant_test_ecos(account, amount, _test_server)
+	var r := Network.characters.grant_test_ecos(char_id, amount, _test_server)
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
 
 
 ## Só com o servidor em --test (net_test): materiais para o teste de encantamento.
 @rpc("any_peer", "call_remote", "reliable")
 func _grant_test_items(seq: int, items: Dictionary) -> void:
-	var account := _sender_account()
-	if account <= 0:
+	var char_id := _sender_char()
+	if char_id <= 0:
 		_reply_no_session(seq)
 		return
-	var r := Network.characters.grant_test_items(account, items, _test_server)
+	var r := Network.characters.grant_test_items(char_id, items, _test_server)
 	_econ_res.rpc_id(multiplayer.get_remote_sender_id(), seq, r.ok, r.err, events_of(r), r.state)
 
 
@@ -658,15 +706,15 @@ func _grant_test_items(seq: int, items: Dictionary) -> void:
 ## (Network.players[peer].admin, vindo do AccountStore).
 @rpc("any_peer", "call_remote", "reliable")
 func _admin_req(seq: int, on: bool) -> void:
-	var account := _sender_account()
-	if account <= 0:
+	var char_id := _sender_char()
+	if char_id <= 0:
 		_reply_no_session(seq)
 		return
 	var peer := multiplayer.get_remote_sender_id()
 	var allowed := AdminRules.OPEN_TO_ALL or bool(Network.players.get(peer, {}).get("admin", false))
 	if allowed:
 		print("[server] modo admin %s: %s" % ["ligado" if on else "desligado", Network.players[peer].get("name", "?")])
-	var r := Network.characters.set_admin(account, on, allowed)
+	var r := Network.characters.set_admin(char_id, on, allowed)
 	_econ_res.rpc_id(peer, seq, r.ok, r.err, events_of(r), r.state)
 
 
@@ -674,8 +722,8 @@ func _admin_req(seq: int, on: bool) -> void:
 ## recebida do jogador, na mesma zona) e concede. Loot da Horda conta para o resumo da partida.
 @rpc("any_peer", "call_remote", "reliable")
 func _claim_pickup(seq: int, net_id: int) -> void:
-	var account := _sender_account()
-	if account <= 0:
+	var char_id := _sender_char()
+	if char_id <= 0:
 		_reply_no_session(seq)
 		return
 	var peer := multiplayer.get_remote_sender_id()
@@ -692,7 +740,7 @@ func _claim_pickup(seq: int, net_id: int) -> void:
 		_econ_res.rpc_id(peer, seq, false, str(c.err), [], {})
 		return
 	var horde := zone == "horde"
-	var r := Network.characters.grant(account, int(c.gold), 0, c.items, "horde_run" if horde else "loot")
+	var r := Network.characters.grant(char_id, int(c.gold), 0, c.items, "horde_run" if horde else "loot")
 	if not r.ok:
 		# não concedeu (erro no banco): o pickup volta ao chão, o cliente pode tentar de novo
 		pickups.restore(net_id, c.entry)
@@ -707,8 +755,8 @@ func _claim_pickup(seq: int, net_id: int) -> void:
 ## de volta do veio para aquela conta, e concede o material.
 @rpc("any_peer", "call_remote", "reliable")
 func _gather_node(seq: int, id: int) -> void:
-	var account := _sender_account()
-	if account <= 0:
+	var char_id := _sender_char()
+	if char_id <= 0:
 		_reply_no_session(seq)
 		return
 	var peer := multiplayer.get_remote_sender_id()
@@ -718,13 +766,13 @@ func _gather_node(seq: int, id: int) -> void:
 	var pos: Vector3 = Network.last_pos.get(peer, Vector3.INF)
 	if Network.zone_of(peer) != "world":
 		pos = Vector3.INF   # fora de Valdoria não há veios
-	var g := _gather.gather(Balance.tables, account, id, pos, now())
+	var g := _gather.gather(Balance.tables, char_id, id, pos, now())
 	if not g.ok:
 		_econ_res.rpc_id(peer, seq, false, str(g.err), _gather_refusal(g.err), {})
 		return
-	var r := Network.characters.grant(account, 0, 0, g.items, "gather")
+	var r := Network.characters.gather(char_id, g)
 	if not r.ok:
-		_gather.undo(account, id)
+		_gather.undo(char_id, id)
 	_econ_res.rpc_id(peer, seq, r.ok, r.err, events_of(r), r.state)
 
 
@@ -739,6 +787,7 @@ func _balance(tables: Dictionary) -> void:
 func _econ_res(seq: int, ok: bool, err: String, events: Array, state: Dictionary) -> void:
 	if seq == 0:
 		Game.apply_state(state, true)
+		Game.auto_choose_class()
 		return
 	if seq == PUSH_SEQ:
 		# concessão do servidor (abate, loot, prêmio): estado novo + eventos, sem pedido pendente

@@ -56,7 +56,8 @@ const BY_SLOT := {"ring": "ring", "amulet": "amulet"}
 ## Mão secundária: depende da arma que o item exige (o escudo, de espada, é peça do cavaleiro).
 const BY_NEEDS := {"staff": "orb", "bow": "quiver"}
 ## Modelo por tipo, para o que não está em BY_ID (item novo ganha ícone sem mexer aqui).
-const BY_TYPE := {"consumable": "potion", "food": "bowl", "seed": "seed_bag", "crop": "tomato", "material": "gel"}
+const BY_TYPE := {"consumable": "potion", "food": "bowl", "seed": "seed_bag", "crop": "tomato", "material": "gel",
+	"scroll": "seed_bag"}
 
 
 ## De onde a câmera olha a peça (o ItemIcons enquadra pelos vértices, então nada corta nem some).

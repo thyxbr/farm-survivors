@@ -13,16 +13,6 @@ const SH_GROUND := preload("res://shaders/aura_ground.gdshader")
 const SH_SHIELD := preload("res://shaders/aura_shield.gdshader")
 const SH_RIM := preload("res://shaders/aura_rim.gdshader")
 
-## Estilo de aura de cada buff (comida). Comida fora da lista usa o primeiro bônus (ver style_for).
-const FOOD_AURA := {
-	"bread": "cura", "carrot_stew": "escudo", "spicy_soup": "furia", "dragon_chili": "dragao",
-	"mint_tea": "vento", "garden_salad": "sorte", "pumpkin_pie": "escudo", "valdoria_feast": "heroi",
-}
-const STAT_AURA := {
-	"damage": "furia", "crit": "furia", "defense": "escudo", "max_hp_flat": "escudo",
-	"regen": "cura", "lifesteal": "cura", "speed": "vento", "cooldown": "vento",
-	"xp": "sorte", "magnet": "sorte", "gold": "sorte",
-}
 ## Cor principal de cada estilo (marca no chão e contorno do corpo).
 const COLORS := {
 	"cura": Color(0.35, 1.0, 0.45), "escudo": Color(0.35, 0.65, 1.0), "furia": Color(1.0, 0.22, 0.08),
@@ -52,17 +42,13 @@ var _y_smooth := 0.0
 var _first := true
 
 
-static func style_for(food_id: String) -> String:
-	if FOOD_AURA.has(food_id):
-		return FOOD_AURA[food_id]
-	var add: Dictionary = ItemDB.get_item(food_id).get("buff", {}).get("add", {})
-	for k in add:
-		if STAT_AURA.has(k):
-			return STAT_AURA[k]
-	return "cura"
+## Estilo de aura do buff `buff_id`: o campo `aura` de buffs.json ("cura" se faltar ou for desconhecido).
+static func style_for(buff_id: String) -> String:
+	var st: String = ItemDB.BUFFS.get(buff_id, {}).get("aura", "cura")
+	return st if st in STYLES else "cura"
 
 
-## ids: comidas com buff ativo (ex.: Game.food_buffs.keys()). Mais de uma comida = auras somadas.
+## ids: buffs ativos (ex.: Game.buffs.keys()). Mais de um buff = auras somadas.
 func set_buffs(ids: Array) -> void:
 	var want := {}
 	for id in ids:

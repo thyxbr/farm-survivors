@@ -207,6 +207,8 @@ func _server_push_all() -> void:
 			var peer := int(now_online.get(f.id, 0))
 			var e: Dictionary = f.duplicate()
 			e["online"] = peer != 0
+			if peer != 0:
+				e["name"] = str(Network.players[peer].name)   # o herói com que está jogando agora
 			e["peer"] = peer
 			e["zone"] = Network.zone_of(peer) if peer != 0 else ""
 			e["region"] = ""
@@ -216,7 +218,7 @@ func _server_push_all() -> void:
 				if pos is Vector3 and e.zone == "world":
 					e.region = Regions.display_name(Regions.region_at(pos))
 				if Network.characters != null:
-					e.level = Network.characters.load_or_create(int(f.id)).level
+					e.level = Network.characters.load_or_create(Econ.char_of(peer)).level
 			list.append(e)
 		_friends.rpc_id(int(now_online[acc]), list)
 
@@ -239,8 +241,11 @@ func _name_of_account(account: int) -> String:
 	var peer := _peer_of(account)
 	if peer != 0:
 		return str(Network.players[peer].name)
-	var rows := Network.db.query("SELECT username FROM accounts WHERE id = ?", [account]) if Network.db else []
-	return str(rows[0].username) if not rows.is_empty() else "?"
+	# fora do jogo: o herói jogado por último (sem herói com nome: o nome da conta)
+	var rows := Network.db.query("SELECT COALESCE((SELECT name FROM characters WHERE account_id = a.id AND name != '' "
+		+ "ORDER BY updated_at DESC, id DESC LIMIT 1), a.username) AS name FROM accounts a WHERE a.id = ?", [account]) \
+		if Network.db else []
+	return str(rows[0].name) if not rows.is_empty() else "?"
 
 
 func _msg(peer: int, text: String) -> void:

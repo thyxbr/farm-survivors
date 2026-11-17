@@ -63,6 +63,8 @@ static func _has_model(id: String) -> bool:
 	var item := ItemDB.get_item(id)
 	if item.is_empty():
 		return false
+	if ResourceLoader.exists("res://assets/ui/items/%s.png" % str(item.get("art", id))):
+		return false    # tem arte pintada (ItemSlot.item_art): não precisa fotografar
 	return ItemIconModels.is_gear(item) or not _family(id).is_empty()
 
 
@@ -132,7 +134,7 @@ func _render(id: String) -> Texture2D:
 		var tip := Marker3D.new()
 		holder.add_child(tip)
 		match ItemDB.weapon_class(id):
-			"staff":
+			"staff", "scepter":
 				KnightLook._build_staff(holder, tip, id)
 			"bow":
 				KnightLook._build_bow(holder, tip, id)

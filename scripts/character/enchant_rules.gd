@@ -12,8 +12,9 @@ static func _table(bt: BalanceTables) -> Dictionary:
 
 
 ## Encanto de uma arma: {"el", "lv"}; sem encanto = {"el": "", "lv": 0}.
+## A qualidade de craft não conta: "iron_sword@fina" usa o encanto de "iron_sword".
 static func of(s: CharState, weapon_id: String) -> Dictionary:
-	var e = s.enchants.get(weapon_id)
+	var e = s.enchants.get(ItemQuality.base(weapon_id))
 	if e is Dictionary and int(e.get("lv", 0)) > 0:
 		return {"el": str(e.get("el", "")), "lv": int(e.lv)}
 	return {"el": "", "lv": 0}
@@ -84,7 +85,7 @@ static func enchant(s: CharState, bt: BalanceTables, element: String) -> Diction
 	for id in c.items:
 		CharRules.remove_item(s, id, int(c.items[id]))
 	var wid: String = s.equipment.weapon
-	s.enchants[wid] = {"el": element, "lv": int(c.to)}
+	s.enchants[ItemQuality.base(wid)] = {"el": element, "lv": int(c.to)}
 	var wname: String = CharRules._item(bt, wid).get("name", wid)
 	var ename: String = _table(bt).elements[element].get("name", element)
 	return CharRules._ok([

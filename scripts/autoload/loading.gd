@@ -19,6 +19,8 @@ const GRACE := 2.0         # imunidade depois que a tela abre
 const NAMES := {
 	"res://scenes/world.tscn": "Viajando para Valdoria…",
 	"res://scenes/main_menu.tscn": "Voltando ao menu…",
+	"res://scenes/char_create.tscn": "Preparando a criação do herói…",
+	"res://scenes/char_select.tscn": "Acendendo a fogueira…",
 }
 const TIPS := [
 	"Esquivar (Ctrl) deixa você imune por um instante.",
@@ -43,6 +45,11 @@ var _seq := 0
 var _root: Control
 var _dest: Label
 var _tip: Label
+var _art: TextureRect
+var _story_title: Label
+var _story: Label
+var _scene_idx := -1   # última ilustração mostrada (LoadingArt.SCENES), para não repetir seguido
+var _shown := 0.0      # segundos desde que a ilustração atual apareceu (zoom lento)
 var _spinner: Control
 var _spin := 0.0
 var _fade: Tween
@@ -65,7 +72,8 @@ func go(path: String) -> void:
 	_seq += 1
 	var seq := _seq
 	_dest.text = NAMES.get(path, "Carregando…")
-	_tip.text = TIPS[randi() % TIPS.size()]
+	_tip.text = "Dica: " + TIPS[randi() % TIPS.size()]
+	_show_art()
 	progress = -1.0
 	covering = true
 	_root.visible = true
@@ -167,7 +175,19 @@ func _process(delta: float) -> void:
 	if not _root.visible:
 		return
 	_spin += delta
+	_shown += delta
+	_art.scale = Vector2.ONE * (1.0 + minf(_shown, 12.0) * 0.004)   # zoom lento, até 5%
 	_spinner.queue_redraw()
+
+
+## Sorteia a próxima ilustração (nunca a mesma da vez anterior) com o seu trecho de história.
+func _show_art() -> void:
+	_scene_idx = LoadingArt.pick(_scene_idx, randi())
+	var scene: Dictionary = LoadingArt.SCENES[_scene_idx]
+	_art.texture = load(LoadingArt.image_path(scene)) as Texture2D
+	_story_title.text = str(scene["title"])
+	_story.text = str(scene["text"])
+	_shown = 0.0
 
 
 # ---------------------------------------------------------------- visual
@@ -183,43 +203,103 @@ func _build() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(bg)
 
-	var center := VBoxContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	center.alignment = BoxContainer.ALIGNMENT_CENTER
-	center.add_theme_constant_override("separation", 14)
-	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(center)
+	# ilustração cobrindo a tela inteira (corta as sobras em vez de deixar faixa preta)
+	_art = TextureRect.new()
+	_art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_art.resized.connect(func() -> void: _art.pivot_offset = _art.size * 0.5)
+	_root.add_child(_art)
 
-	var title := Label.new()
-	title.text = "Ecos de Valdoria"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_override("font", UITheme.serif())
-	title.add_theme_font_size_override("font_size", 64)
-	title.add_theme_color_override("font_color", UITheme.GOLD)
-	center.add_child(title)
+	# escurece em cima (título) e embaixo (história, dica e anel) para o texto ler bem
+	_root.add_child(_shade(0.0, 0.24, 0.65, 0.0))
+	_root.add_child(_shade(0.5, 1.0, 0.0, 0.88))
 
-	_dest = Label.new()
-	_dest.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_dest.add_theme_font_size_override("font_size", 26)
-	_dest.add_theme_color_override("font_color", UITheme.TEXT)
-	center.add_child(_dest)
+	var header := VBoxContainer.new()
+	header.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	header.position = Vector2(48, 32)
+	header.add_theme_constant_override("separation", 2)
+	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(header)
+	header.add_child(_label("Ecos de Valdoria", 46, UITheme.GOLD, true))
+	_dest = _label("", 22, UITheme.TEXT)
+	header.add_child(_dest)
+
+	var story := VBoxContainer.new()
+	story.anchor_left = 0.0
+	story.anchor_right = 0.62
+	story.anchor_top = 1.0
+	story.anchor_bottom = 1.0
+	story.offset_left = 48.0
+	story.offset_top = -290.0
+	story.offset_bottom = -40.0
+	story.alignment = BoxContainer.ALIGNMENT_END
+	story.add_theme_constant_override("separation", 8)
+	story.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(story)
+	_story_title = _label("", 32, UITheme.GOLD, true)
+	story.add_child(_story_title)
+	_story = _label("", 21, UITheme.TEXT)
+	_story.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	story.add_child(_story)
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(0, 10)
+	story.add_child(gap)
+	_tip = _label("", 18, UITheme.DIM)
+	_tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	story.add_child(_tip)
 
 	_spinner = Control.new()
-	_spinner.custom_minimum_size = Vector2(0, 110)
+	_spinner.anchor_left = 1.0
+	_spinner.anchor_right = 1.0
+	_spinner.anchor_top = 1.0
+	_spinner.anchor_bottom = 1.0
+	_spinner.offset_left = -400.0
+	_spinner.offset_right = -40.0
+	_spinner.offset_top = -150.0
+	_spinner.offset_bottom = -40.0
 	_spinner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_spinner.draw.connect(_draw_spinner)
-	center.add_child(_spinner)
+	_root.add_child(_spinner)
 
-	_tip = Label.new()
-	_tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_tip.add_theme_font_size_override("font_size", 20)
-	_tip.add_theme_color_override("font_color", UITheme.DIM)
-	_tip.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	_tip.offset_top = -90.0
-	_tip.offset_bottom = -50.0
-	_tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(_tip)
+
+func _label(text: String, size: int, color: Color, serif := false) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
+	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
+	l.add_theme_constant_override("shadow_offset_x", 2)
+	l.add_theme_constant_override("shadow_offset_y", 2)
+	l.add_theme_constant_override("shadow_outline_size", 4)
+	if serif:
+		l.add_theme_font_override("font", UITheme.serif())
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return l
+
+
+## Faixa de preto em degradê vertical, de `top` a `bottom` (fração da tela), com alfa `a0` → `a1`.
+func _shade(top: float, bottom: float, a0: float, a1: float) -> TextureRect:
+	var g := Gradient.new()
+	g.set_color(0, Color(0, 0, 0, a0))
+	g.set_color(1, Color(0, 0, 0, a1))
+	var tex := GradientTexture2D.new()
+	tex.gradient = g
+	tex.width = 4
+	tex.height = 128
+	tex.fill_from = Vector2(0, 0)
+	tex.fill_to = Vector2(0, 1)
+	var r := TextureRect.new()
+	r.texture = tex
+	r.anchor_left = 0.0
+	r.anchor_right = 1.0
+	r.anchor_top = top
+	r.anchor_bottom = bottom
+	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	r.stretch_mode = TextureRect.STRETCH_SCALE
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return r
 
 
 ## Anel dourado girando: um arco claro correndo sobre um aro apagado.

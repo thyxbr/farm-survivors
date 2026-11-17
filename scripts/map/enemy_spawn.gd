@@ -35,6 +35,16 @@ extends Node3D
 			build_preview(_height)
 ## Assenta no relevo (a altura do nó vira distância até o chão).
 @export var follow_ground := true
+## Nível dos monstros. 0 = a faixa da região com nome (MapRegion + data/balance/regions.json) onde o ponto
+## fica; fora de região, o nível de referência do monstro (números de hoje, como na Horda). Com `level_max` >
+## `level`, cada um sorteia o nível na faixa ao nascer.
+@export_range(0, 60) var level := 0
+## Fim da faixa de nível (0 = nível fixo em `level`).
+@export_range(0, 60) var level_max := 0
+## Elite: alguns níveis a mais, mais vida e maior (data/balance/progression.json, "elite").
+@export var elite := false
+## Chefe da dungeon: barra de chefe, volta em minutos e o loot de chefe da dungeon (progression.json "dungeons").
+@export var chief := false
 
 const GOLDEN := 2.399963229728653   # ângulo áureo (rad)
 

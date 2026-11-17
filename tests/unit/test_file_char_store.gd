@@ -106,6 +106,8 @@ func test_economy_rows() -> void:
 func test_character_service_on_files() -> void:
 	var st := _fresh()
 	var svc := CharacterService.new(st, _tables())
+	svc.load_or_create(1)
+	svc.apply(1, "choose_class", ["warrior", "m"])
 	var s := svc.load_or_create(1)
 	var ouro := s.gold
 	T.ok(FileAccess.file_exists(PATH), "personagem novo gravado")
@@ -128,7 +130,8 @@ func test_character_service_on_files() -> void:
 func test_enchants_round_trip() -> void:
 	var st := _fresh()
 	var svc := CharacterService.new(st, _tables())
-	svc.load_or_create(1).equipment.weapon = "azure_edge"
+	svc.load_or_create(1)
+	svc.apply(1, "choose_class", ["warrior", "m"])
 	svc.grant(1, 50, 0, {"iron_ore": 4, "frost_drop": 2}, "test")
 	T.ok(svc.apply(1, "enchant", ["gelo"]).ok, "encantou no solo")
 	var s2 := CharacterService.new(FileCharStore.new(PATH), _tables()).load_or_create(1)

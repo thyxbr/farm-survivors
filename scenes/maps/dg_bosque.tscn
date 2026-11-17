@@ -1,0 +1,786 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/map/map_root.gd" id="1_dg"]
+[ext_resource type="Script" path="res://scripts/map/map_ground_paint.gd" id="2_dg"]
+[ext_resource type="Script" path="res://scripts/map/map_prop.gd" id="3_dg"]
+[ext_resource type="Script" path="res://scripts/map/map_light.gd" id="4_dg"]
+[ext_resource type="Script" path="res://scripts/map/map_entity.gd" id="5_dg"]
+[ext_resource type="Script" path="res://scripts/map/map_region.gd" id="6_dg"]
+[ext_resource type="Script" path="res://scripts/map/enemy_spawn.gd" id="7_dg"]
+[ext_resource type="Script" path="res://scripts/map/map_landmark.gd" id="8_dg"]
+
+[sub_resource type="BoxShape3D" id="Box_0"]
+size = Vector3(94, 20, 2)
+
+[sub_resource type="BoxShape3D" id="Box_1"]
+size = Vector3(94, 20, 2)
+
+[sub_resource type="BoxShape3D" id="Box_2"]
+size = Vector3(2, 20, 94)
+
+[sub_resource type="BoxShape3D" id="Box_3"]
+size = Vector3(2, 20, 94)
+
+[node name="CovilRaizes" type="Node3D"]
+script = ExtResource("1_dg")
+map_id = "dg_bosque"
+half = 45
+border_height = 46.0
+grass_density = 0.0
+grass_plants = 0.0
+
+[node name="Chão" type="Node3D" parent="."]
+
+[node name="Área" type="Node3D" parent="Chão"]
+script = ExtResource("2_dg")
+size = Vector2(84, 84)
+color = Color(0.16, 0.2, 0.13, 1)
+soft = 4.0
+
+[node name="Colisões" type="Node3D" parent="."]
+
+[node name="Colisão" type="StaticBody3D" parent="Colisões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, -46)
+
+[node name="Forma" type="CollisionShape3D" parent="Colisões/Colisão"]
+shape = SubResource("Box_0")
+
+[node name="Colisão 2" type="StaticBody3D" parent="Colisões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, 46)
+
+[node name="Forma" type="CollisionShape3D" parent="Colisões/Colisão 2"]
+shape = SubResource("Box_1")
+
+[node name="Colisão 3" type="StaticBody3D" parent="Colisões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 46, 10, 0)
+
+[node name="Forma" type="CollisionShape3D" parent="Colisões/Colisão 3"]
+shape = SubResource("Box_2")
+
+[node name="Colisão 4" type="StaticBody3D" parent="Colisões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -46, 10, 0)
+
+[node name="Forma" type="CollisionShape3D" parent="Colisões/Colisão 4"]
+shape = SubResource("Box_3")
+
+[node name="Objetos" type="Node3D" parent="."]
+
+[node name="parede 1" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999628, 0, -0.0272879, 0, 1, 0, 0.0272879, 0, 0.999628, -6.2, 0, 17.9109)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 2" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999999, 0, -0.0011826, 0, 1, 0, 0.0011826, 0, 0.999999, 6.2, 0, 18.0335)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 3" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999233, 0, -0.0391652, 0, 1, 0, 0.0391652, 0, 0.999233, -10.3, 0, 18.2117)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 4" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999923, 0, 0.0123743, 0, 1, 0, -0.0123743, 0, 0.999923, 10.3, 0, 17.7169)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 5" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999664, 0, 0.0259024, 0, 1, 0, -0.0259024, 0, 0.999664, -14.4, 0, 17.9591)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 6" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999378, 0, 0.0352723, 0, 1, 0, -0.0352723, 0, 0.999378, 14.4, 0, 18.2949)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 7" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999077, 0, -0.0429519, 0, 1, 0, 0.0429519, 0, 0.999077, -18.5, 0, 17.7902)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 8" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999736, 0, -0.0229808, 0, 1, 0, 0.0229808, 0, 0.999736, 18.5, 0, 17.9112)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 9" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.99884, 0, 0.0481503, 0, 1, 0, -0.0481503, 0, 0.99884, -22.6, 0, 18.277)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 10" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999388, 0, 0.0349737, 0, 1, 0, -0.0349737, 0, 0.999388, 22.6, 0, 18.0896)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 11" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.99982, 0, 0.0189535, 0, 1, 0, -0.0189535, 0, 0.99982, -26.7, 0, 17.7183)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 12" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999857, 0, 0.0169034, 0, 1, 0, -0.0169034, 0, 0.999857, 26.7, 0, 17.8748)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 13" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999839, 0, 0.0179193, 0, 1, 0, -0.0179193, 0, 0.999839, -30.8, 0, 18.0464)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 14" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999671, 0, 0.0256391, 0, 1, 0, -0.0256391, 0, 0.999671, 30.8, 0, 17.8705)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 15" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.99969, 0, 0.0248843, 0, 1, 0, -0.0248843, 0, 0.99969, -34.9, 0, 18.0555)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 16" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999804, 0, 0.0198156, 0, 1, 0, -0.0198156, 0, 0.999804, 34.9, 0, 18.2268)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 17" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999038, 0, -0.0438603, 0, 1, 0, 0.0438603, 0, 0.999038, -39, 0, 17.9301)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 18" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999991, 0, 0.00418166, 0, 1, 0, -0.00418166, 0, 0.999991, 39, 0, 18.1228)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 19" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999042, 0, 0.0437623, 0, 1, 0, -0.0437623, 0, 0.999042, -43.1, 0, 18.2561)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 20" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999858, 0, 0.0168373, 0, 1, 0, -0.0168373, 0, 0.999858, 43.1, 0, 18.0701)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="pilar 21" type="Node3D" parent="Objetos"]
+transform = Transform3D(1.3, 0, -0, 0, 1.3, 0, 0, 0, 1.3, -4, 0, 18)
+script = ExtResource("3_dg")
+model = "ruin_pillar"
+shape = 2
+shape_size = Vector3(0.6, 3, 0)
+
+[node name="pilar 22" type="Node3D" parent="Objetos"]
+transform = Transform3D(1.3, 0, -0, 0, 1.3, 0, 0, 0, 1.3, 4, 0, 18)
+script = ExtResource("3_dg")
+model = "ruin_pillar"
+shape = 2
+shape_size = Vector3(0.6, 3, 0)
+
+[node name="parede 23" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.99891, 0, -0.0466787, 0, 1, 0, 0.0466787, 0, 0.99891, -6.2, 0, -12.0716)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 24" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999896, 0, 0.0143988, 0, 1, 0, -0.0143988, 0, 0.999896, 6.2, 0, -12.0355)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 25" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999823, 0, -0.018831, 0, 1, 0, 0.018831, 0, 0.999823, -10.3, 0, -12.2553)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 26" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999807, 0, -0.0196257, 0, 1, 0, 0.0196257, 0, 0.999807, 10.3, 0, -12.2242)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 27" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999307, 0, -0.0372331, 0, 1, 0, 0.0372331, 0, 0.999307, -14.4, 0, -11.8251)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 28" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999205, 0, 0.0398599, 0, 1, 0, -0.0398599, 0, 0.999205, 14.4, 0, -11.7404)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 29" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.998789, 0, 0.0492048, 0, 1, 0, -0.0492048, 0, 0.998789, -18.5, 0, -12.1669)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 30" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999301, 0, -0.0373868, 0, 1, 0, 0.0373868, 0, 0.999301, 18.5, 0, -12.1989)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 31" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999926, 0, 0.0121568, 0, 1, 0, -0.0121568, 0, 0.999926, -22.6, 0, -11.7262)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 32" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999959, 0, 0.00904793, 0, 1, 0, -0.00904793, 0, 0.999959, 22.6, 0, -11.715)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 33" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999889, 0, -0.0149323, 0, 1, 0, 0.0149323, 0, 0.999889, -26.7, 0, -11.9405)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 34" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999275, 0, -0.0380736, 0, 1, 0, 0.0380736, 0, 0.999275, 26.7, 0, -11.8893)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 35" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999907, 0, -0.0136454, 0, 1, 0, 0.0136454, 0, 0.999907, -30.8, 0, -11.864)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 36" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999879, 0, -0.0155546, 0, 1, 0, 0.0155546, 0, 0.999879, 30.8, 0, -12.0603)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 37" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999888, 0, 0.0149667, 0, 1, 0, -0.0149667, 0, 0.999888, -34.9, 0, -11.7911)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 38" type="Node3D" parent="Objetos"]
+transform = Transform3D(1, 0, -0.000102327, 0, 1, 0, 0.000102327, 0, 1, 34.9, 0, -12.1208)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 39" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999342, 0, -0.036257, 0, 1, 0, 0.036257, 0, 0.999342, -39, 0, -12.2954)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 40" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999442, 0, 0.0333988, 0, 1, 0, -0.0333988, 0, 0.999442, 39, 0, -11.9672)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 41" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999516, 0, 0.0311056, 0, 1, 0, -0.0311056, 0, 0.999516, -43.1, 0, -11.9404)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="parede 42" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.999006, 0, -0.0445778, 0, 1, 0, 0.0445778, 0, 0.999006, 43.1, 0, -12.1394)
+script = ExtResource("3_dg")
+model = "ruin_wall"
+shape = 1
+shape_size = Vector3(4.2, 2, 0.9)
+
+[node name="pilar 43" type="Node3D" parent="Objetos"]
+transform = Transform3D(1.3, 0, -0, 0, 1.3, 0, 0, 0, 1.3, -4, 0, -12)
+script = ExtResource("3_dg")
+model = "ruin_pillar"
+shape = 2
+shape_size = Vector3(0.6, 3, 0)
+
+[node name="pilar 44" type="Node3D" parent="Objetos"]
+transform = Transform3D(1.3, 0, -0, 0, 1.3, 0, 0, 0, 1.3, 4, 0, -12)
+script = ExtResource("3_dg")
+model = "ruin_pillar"
+shape = 2
+shape_size = Vector3(0.6, 3, 0)
+
+[node name="pilar 45" type="Node3D" parent="Objetos"]
+transform = Transform3D(-0.346759, 0, -1.14881, 0, 1.2, 0, 1.14881, 0, -0.346759, -12, 0, 10)
+script = ExtResource("3_dg")
+model = "ruin_pillar"
+shape = 2
+shape_size = Vector3(0.6, 3, 0)
+
+[node name="pilar 46" type="Node3D" parent="Objetos"]
+transform = Transform3D(-0.774948, 0, -0.916218, 0, 1.2, 0, 0.916218, 0, -0.774948, 12, 0, 10)
+script = ExtResource("3_dg")
+model = "ruin_pillar"
+shape = 2
+shape_size = Vector3(0.6, 3, 0)
+
+[node name="pilar 47" type="Node3D" parent="Objetos"]
+transform = Transform3D(-0.725751, 0, 0.95566, 0, 1.2, 0, -0.95566, 0, -0.725751, -12, 0, -4)
+script = ExtResource("3_dg")
+model = "ruin_pillar"
+shape = 2
+shape_size = Vector3(0.6, 3, 0)
+
+[node name="pilar 48" type="Node3D" parent="Objetos"]
+transform = Transform3D(1.15836, 0, 0.313362, 0, 1.2, 0, -0.313362, 0, 1.15836, 12, 0, -4)
+script = ExtResource("3_dg")
+model = "ruin_pillar"
+shape = 2
+shape_size = Vector3(0.6, 3, 0)
+
+[node name="pilar 49" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.402448, 0, 1.1305, 0, 1.2, 0, -1.1305, 0, 0.402448, -14, 0, -34)
+script = ExtResource("3_dg")
+model = "ruin_pillar"
+shape = 2
+shape_size = Vector3(0.6, 3, 0)
+
+[node name="pilar 50" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.761098, 0, 0.927756, 0, 1.2, 0, -0.927756, 0, 0.761098, 14, 0, -34)
+script = ExtResource("3_dg")
+model = "ruin_pillar"
+shape = 2
+shape_size = Vector3(0.6, 3, 0)
+
+[node name="pilar 51" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.700726, 0, -0.974158, 0, 1.2, 0, 0.974158, 0, 0.700726, -14, 0, -20)
+script = ExtResource("3_dg")
+model = "ruin_pillar"
+shape = 2
+shape_size = Vector3(0.6, 3, 0)
+
+[node name="pilar 52" type="Node3D" parent="Objetos"]
+transform = Transform3D(1.19927, 0, 0.0417237, 0, 1.2, 0, -0.0417237, 0, 1.19927, 14, 0, -20)
+script = ExtResource("3_dg")
+model = "ruin_pillar"
+shape = 2
+shape_size = Vector3(0.6, 3, 0)
+
+[node name="pedra 53" type="Node3D" parent="Objetos"]
+transform = Transform3D(-1.6172, 0, 0.0729711, 0, 1.61884, 0, -0.0729711, 0, -1.6172, -36.0557, 0, 14.6074)
+script = ExtResource("3_dg")
+model = "rock"
+shape = 2
+shape_size = Vector3(0.9, 1.5, 0)
+
+[node name="pedra 54" type="Node3D" parent="Objetos"]
+transform = Transform3D(-1.43098, 0, -1.10624, 0, 1.80872, 0, 1.10624, 0, -1.43098, 38.0095, 0, 24.1023)
+script = ExtResource("3_dg")
+model = "rock"
+shape = 2
+shape_size = Vector3(0.9, 1.5, 0)
+
+[node name="pedra 55" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.547431, 0, -1.74822, 0, 1.83192, 0, 1.74822, 0, 0.547431, -41.1071, 0, 32.1267)
+script = ExtResource("3_dg")
+model = "rock"
+shape = 2
+shape_size = Vector3(0.9, 1.5, 0)
+
+[node name="pedra 56" type="Node3D" parent="Objetos"]
+transform = Transform3D(-0.276543, 0, 1.2517, 0, 1.28189, 0, -1.2517, 0, -0.276543, 40.4935, 0, 0.963975)
+script = ExtResource("3_dg")
+model = "rock"
+shape = 2
+shape_size = Vector3(0.9, 1.5, 0)
+
+[node name="pedra 57" type="Node3D" parent="Objetos"]
+transform = Transform3D(-0.208625, 0, -1.44884, 0, 1.46379, 0, 1.44884, 0, -0.208625, -41.3376, 0, -28.9749)
+script = ExtResource("3_dg")
+model = "rock"
+shape = 2
+shape_size = Vector3(0.9, 1.5, 0)
+
+[node name="pedra 58" type="Node3D" parent="Objetos"]
+transform = Transform3D(1.73135, 0, -0.703245, 0, 1.86873, 0, 0.703245, 0, 1.73135, 38.2061, 0, -35.8621)
+script = ExtResource("3_dg")
+model = "rock"
+shape = 2
+shape_size = Vector3(0.9, 1.5, 0)
+
+[node name="pedra 59" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.855222, 0, 1.27249, 0, 1.53317, 0, -1.27249, 0, 0.855222, -38.9884, 0, -30.8569)
+script = ExtResource("3_dg")
+model = "rock"
+shape = 2
+shape_size = Vector3(0.9, 1.5, 0)
+
+[node name="pedra 60" type="Node3D" parent="Objetos"]
+transform = Transform3D(1.34121, 0, -0.888254, 0, 1.60868, 0, 0.888254, 0, 1.34121, 39.6073, 0, 35.8558)
+script = ExtResource("3_dg")
+model = "rock"
+shape = 2
+shape_size = Vector3(0.9, 1.5, 0)
+
+[node name="pedra 61" type="Node3D" parent="Objetos"]
+transform = Transform3D(-0.995702, 0, 1.02748, 0, 1.43078, 0, -1.02748, 0, -0.995702, -39.1016, 0, 33.7499)
+script = ExtResource("3_dg")
+model = "rock"
+shape = 2
+shape_size = Vector3(0.9, 1.5, 0)
+
+[node name="pedra 62" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.125337, 0, -1.37609, 0, 1.38178, 0, 1.37609, 0, 0.125337, 38.2442, 0, -17.9646)
+script = ExtResource("3_dg")
+model = "rock"
+shape = 2
+shape_size = Vector3(0.9, 1.5, 0)
+
+[node name="pedra 63" type="Node3D" parent="Objetos"]
+transform = Transform3D(-0.803983, 0, 1.69102, 0, 1.87242, 0, -1.69102, 0, -0.803983, -40.4078, 0, 12.3466)
+script = ExtResource("3_dg")
+model = "rock"
+shape = 2
+shape_size = Vector3(0.9, 1.5, 0)
+
+[node name="pedra 64" type="Node3D" parent="Objetos"]
+transform = Transform3D(1.12214, 0, -1.15305, 0, 1.60895, 0, 1.15305, 0, 1.12214, 37.4304, 0, -36.7669)
+script = ExtResource("3_dg")
+model = "rock"
+shape = 2
+shape_size = Vector3(0.9, 1.5, 0)
+
+[node name="pedra 65" type="Node3D" parent="Objetos"]
+transform = Transform3D(-0.795456, 0, 1.51444, 0, 1.71064, 0, -1.51444, 0, -0.795456, -36.6467, 0, 26.0843)
+script = ExtResource("3_dg")
+model = "rock"
+shape = 2
+shape_size = Vector3(0.9, 1.5, 0)
+
+[node name="pedra 66" type="Node3D" parent="Objetos"]
+transform = Transform3D(-1.34606, 0, -0.678047, 0, 1.50719, 0, 0.678047, 0, -1.34606, 38.9381, 0, -0.4289)
+script = ExtResource("3_dg")
+model = "rock"
+shape = 2
+shape_size = Vector3(0.9, 1.5, 0)
+
+[node name="pedra 67" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.599899, 0, -1.65313, 0, 1.75861, 0, 1.65313, 0, 0.599899, -37.0719, 0, 27.7567)
+script = ExtResource("3_dg")
+model = "rock"
+shape = 2
+shape_size = Vector3(0.9, 1.5, 0)
+
+[node name="pedra 68" type="Node3D" parent="Objetos"]
+transform = Transform3D(0.725078, 0, -1.83618, 0, 1.97416, 0, 1.83618, 0, 0.725078, 39.838, 0, 15.6265)
+script = ExtResource("3_dg")
+model = "rock"
+shape = 2
+shape_size = Vector3(0.9, 1.5, 0)
+
+[node name="pedra 69" type="Node3D" parent="Objetos"]
+transform = Transform3D(1.55532, 0, 1.05588, 0, 1.87987, 0, -1.05588, 0, 1.55532, -38.2739, 0, -21.7756)
+script = ExtResource("3_dg")
+model = "rock"
+shape = 2
+shape_size = Vector3(0.9, 1.5, 0)
+
+[node name="pedra 70" type="Node3D" parent="Objetos"]
+transform = Transform3D(-1.2329, 0, -0.283719, 0, 1.26512, 0, 0.283719, 0, -1.2329, 39.6678, 0, 24.4752)
+script = ExtResource("3_dg")
+model = "rock"
+shape = 2
+shape_size = Vector3(0.9, 1.5, 0)
+
+[node name="fogueira 71" type="Node3D" parent="Objetos"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, -8, 0, 36)
+script = ExtResource("3_dg")
+model = "campfire"
+
+[node name="fogueira 72" type="Node3D" parent="Objetos"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 8, 0, 36)
+script = ExtResource("3_dg")
+model = "campfire"
+
+[node name="fogueira 73" type="Node3D" parent="Objetos"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, -30, 0, 3)
+script = ExtResource("3_dg")
+model = "campfire"
+
+[node name="fogueira 74" type="Node3D" parent="Objetos"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 30, 0, 3)
+script = ExtResource("3_dg")
+model = "campfire"
+
+[node name="fogueira 75" type="Node3D" parent="Objetos"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, -8, 0, -38)
+script = ExtResource("3_dg")
+model = "campfire"
+
+[node name="fogueira 76" type="Node3D" parent="Objetos"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 8, 0, -38)
+script = ExtResource("3_dg")
+model = "campfire"
+
+[node name="Luzes" type="Node3D" parent="."]
+
+[node name="Luz 1" type="OmniLight3D" parent="Luzes"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 2.2, 36)
+light_color = Color(0.5, 1, 0.5, 1)
+light_energy = 1.8
+omni_range = 13.0
+script = ExtResource("4_dg")
+mode = 2
+
+[node name="Luz 2" type="OmniLight3D" parent="Luzes"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 2.2, 36)
+light_color = Color(0.5, 1, 0.5, 1)
+light_energy = 1.8
+omni_range = 13.0
+script = ExtResource("4_dg")
+mode = 2
+
+[node name="Luz 3" type="OmniLight3D" parent="Luzes"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 2.2, 3)
+light_color = Color(0.5, 1, 0.5, 1)
+light_energy = 1.8
+omni_range = 13.0
+script = ExtResource("4_dg")
+mode = 2
+
+[node name="Luz 4" type="OmniLight3D" parent="Luzes"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 2.2, 3)
+light_color = Color(0.5, 1, 0.5, 1)
+light_energy = 1.8
+omni_range = 13.0
+script = ExtResource("4_dg")
+mode = 2
+
+[node name="Luz 5" type="OmniLight3D" parent="Luzes"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, 10)
+light_color = Color(0.5, 1, 0.5, 1)
+light_energy = 1.8
+omni_range = 13.0
+script = ExtResource("4_dg")
+mode = 2
+
+[node name="Luz 6" type="OmniLight3D" parent="Luzes"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 2.2, -38)
+light_color = Color(0.5, 1, 0.5, 1)
+light_energy = 1.8
+omni_range = 13.0
+script = ExtResource("4_dg")
+mode = 2
+
+[node name="Luz 7" type="OmniLight3D" parent="Luzes"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 2.2, -38)
+light_color = Color(0.5, 1, 0.5, 1)
+light_energy = 1.8
+omni_range = 13.0
+script = ExtResource("4_dg")
+mode = 2
+
+[node name="Luz 8" type="OmniLight3D" parent="Luzes"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, -27)
+light_color = Color(0.5, 1, 0.5, 1)
+light_energy = 1.8
+omni_range = 13.0
+script = ExtResource("4_dg")
+mode = 2
+
+[node name="Luz 9" type="OmniLight3D" parent="Luzes"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 2.2, -27)
+light_color = Color(0.5, 1, 0.5, 1)
+light_energy = 1.8
+omni_range = 13.0
+script = ExtResource("4_dg")
+mode = 2
+
+[node name="Luz 10" type="OmniLight3D" parent="Luzes"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 2.2, -27)
+light_color = Color(0.5, 1, 0.5, 1)
+light_energy = 1.8
+omni_range = 13.0
+script = ExtResource("4_dg")
+mode = 2
+
+[node name="Luz 11" type="OmniLight3D" parent="Luzes"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 2.2, 29)
+light_color = Color(0.5, 1, 0.5, 1)
+light_energy = 1.8
+omni_range = 13.0
+script = ExtResource("4_dg")
+mode = 2
+
+[node name="Luz 12" type="OmniLight3D" parent="Luzes"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 2.2, 29)
+light_color = Color(0.5, 1, 0.5, 1)
+light_energy = 1.8
+omni_range = 13.0
+script = ExtResource("4_dg")
+mode = 2
+
+[node name="Lugares" type="Node3D" parent="."]
+
+[node name="arrive" type="Node3D" parent="Lugares"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 0, 0.3, 35)
+script = ExtResource("8_dg")
+id = "arrive"
+follow_ground = false
+
+[node name="NPCs e pontos" type="Node3D" parent="."]
+
+[node name="saída" type="Node3D" parent="NPCs e pontos"]
+transform = Transform3D(-1, 0, -1.22465e-16, 0, 1, 0, 1.22465e-16, 0, -1, 0, 0, 40.5)
+script = ExtResource("5_dg")
+kind = "dungeon_door"
+ref = "out"
+
+[node name="Regiões" type="Node3D" parent="."]
+
+[node name="dg_bosque_entrada" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 0, 0, 29)
+script = ExtResource("6_dg")
+region_id = "dg_bosque_entrada"
+size = Vector2(88, 22)
+
+[node name="dg_bosque_galeria" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 0, 0, 3)
+script = ExtResource("6_dg")
+region_id = "dg_bosque_galeria"
+size = Vector2(88, 30)
+
+[node name="dg_bosque_trono" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 0, 0, -27)
+script = ExtResource("6_dg")
+region_id = "dg_bosque_trono"
+size = Vector2(88, 30)
+
+[node name="Monstros" type="Node3D" parent="."]
+
+[node name="bando 1 slime_veloz" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, -18, 0, 28)
+script = ExtResource("7_dg")
+kind = "slime_veloz"
+count = 4
+radius = 4.0
+respawn = 40.0
+
+[node name="bando 2 slime_gelo" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 18, 0, 28)
+script = ExtResource("7_dg")
+kind = "slime_gelo"
+count = 4
+radius = 4.0
+respawn = 40.0
+
+[node name="bando 3 goblin_xama" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, -26, 0, 6)
+script = ExtResource("7_dg")
+kind = "goblin_xama"
+count = 3
+radius = 4.0
+respawn = 40.0
+
+[node name="bando 4 goblin_arqueiro" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 26, 0, 6)
+script = ExtResource("7_dg")
+kind = "goblin_arqueiro"
+count = 4
+radius = 4.0
+respawn = 40.0
+
+[node name="bando 5 slime_explosivo" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 0, 0, -2)
+script = ExtResource("7_dg")
+kind = "slime_explosivo"
+count = 4
+radius = 4.0
+respawn = 40.0
+
+[node name="bando 6 slime_gelo" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, -24, 0, -24)
+script = ExtResource("7_dg")
+kind = "slime_gelo"
+count = 3
+radius = 4.0
+respawn = 40.0
+
+[node name="bando 7 slime_veloz" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 24, 0, -24)
+script = ExtResource("7_dg")
+kind = "slime_veloz"
+count = 3
+radius = 4.0
+respawn = 40.0
+
+[node name="chefe slime_rainha" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 0, 0, -32)
+script = ExtResource("7_dg")
+kind = "slime_rainha"
+respawn = 600.0
+elite = true
+chief = true

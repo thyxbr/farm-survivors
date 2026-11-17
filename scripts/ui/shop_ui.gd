@@ -95,7 +95,7 @@ func _ready() -> void:
 
 func _inset() -> PanelContainer:
 	var p := PanelContainer.new()
-	p.add_theme_stylebox_override("panel", UITheme.inset_box(14))
+	p.add_theme_stylebox_override("panel", UITheme.kit_inset(14))
 	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	return p
 
@@ -147,7 +147,8 @@ func _refresh() -> void:
 		var s := _slot("buy", id, 0)
 		var price: int = ItemDB.get_item(id).price
 		s.info_text = "%d◆" % price
-		s.dim = price > Game.gold
+		# arma de outra classe continua à venda (dá para revender), mas apagada: a dica diz de quem ela é
+		s.dim = price > Game.gold or not Game.can_wield(id)
 		buy_grid.add_child(s)
 	var n := 0
 	for slot in Game.inventory:

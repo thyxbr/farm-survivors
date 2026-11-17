@@ -27,7 +27,8 @@ static func ids(bt: BalanceTables) -> Array:
 	return out
 
 
-## Dados de um nó: {"id", "kind", "pos", "item", "amount", "hits", "respawn", "model"}.
+## Dados de um nó: {"id", "kind", "pos", "item", "amount", "hits", "respawn", "model", "tint", "prof", "level", "xp"}
+## (prof/level/xp: a profissão de coleta, o nível dela que o nó pede e a XP de cada coleta).
 ## Id que não é um inteiro ou não existe nas cenas (vem do cliente) devolve {}.
 static func node_def(bt: BalanceTables, id) -> Dictionary:
 	if typeof(id) != TYPE_INT:
@@ -40,7 +41,9 @@ static func node_def(bt: BalanceTables, id) -> Dictionary:
 		return {}
 	return {"id": id, "kind": str(n.kind), "pos": n.pos,
 		"item": str(k.get("item", "")), "amount": int(k.get("amount", 1)), "hits": int(k.get("hits", 1)),
-		"respawn": float(k.get("respawn", 60.0)), "model": str(k.get("model", n.kind))}
+		"respawn": float(k.get("respawn", 60.0)), "model": str(k.get("model", n.kind)),
+		"tint": k.get("tint", Color(0.55, 0.3, 0.2)), "prof": str(k.get("prof", "")), "level": int(k.get("level", 1)),
+		"xp": int(k.get("xp", 0))}
 
 
 func _key(account: int, id: int) -> String:
@@ -63,7 +66,7 @@ func gather(bt: BalanceTables, account: int, id, from: Vector3, now: float) -> D
 	if ready_in(account, id, now) > 0.0:
 		return {"ok": false, "err": "esgotado", "items": {}}
 	_ready_at[_key(account, id)] = now + float(d.respawn)
-	return {"ok": true, "err": "", "items": {d.item: int(d.amount)}}
+	return {"ok": true, "err": "", "items": {d.item: int(d.amount)}, "prof": d.prof, "level": d.level, "xp": d.xp}
 
 
 ## Desfaz a marca de coletado (a concessão falhou depois do gather).

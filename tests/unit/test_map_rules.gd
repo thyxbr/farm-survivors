@@ -40,12 +40,10 @@ func test_places_come_from_landmarks() -> void:
 	var at := {}
 	for p in MapRules.places("vila"):
 		at[p[0]] = p[1]
-	T.eq(at.get("Acampamento Goblin"), MapData.landmark("vila", "camp"), "acampamento pelo landmark camp")
-	T.eq(at.get("Acampamento Goblin"), Vector3(62, 0, 0), "acampamento no lugar de sempre")
-	T.eq(at.get("Ruínas"), Vector3(0, 0, -100), "ruínas")
 	T.eq(at.get("Horta"), Vector3(0, 0, 33), "Horta")
 	T.eq(at.get("Pomar"), Vector3(20, 0, 33), "pomar")
-	T.eq(at.get("Ninho de Slimes"), Vector3(-36, 0, 36), "ninho")
+	T.ok(not at.has("Acampamento Goblin") and not at.has("Ruínas") and not at.has("Ninho de Slimes"),
+		"acampamento, ruínas e ninho viraram regiões (MapRules.areas)")
 	T.eq(at.get("Portal da Horda"), MapData.landmark("vila", "portal"), "o portal da Horda pelo landmark portal")
 	T.eq(at.get("Portal da Horda"), Vector3(-8, 0, -9.5), "portal da Horda na frente da vila")
 
@@ -56,3 +54,82 @@ func test_coach_and_arrive_from_landmarks() -> void:
 	T.eq(Regions.arrive_point("mina"), Vector3(800, 0.3, 52.0), "chegada na Mina no lugar de sempre")
 	T.ok(not Regions.DATA.vila.has("coach") and not Regions.DATA.mina.has("arrive"),
 		"carruagem e chegada saíram do Regions.DATA (só a cena manda)")
+
+
+## Atlas do mapa-mundi: o vale no meio, as outras regiões a leste/sul, sem sobrepor, e cada ponto do mundo
+## cai dentro do retângulo da região dele.
+func test_atlas_layout() -> void:
+	T.eq(MapRules.atlas_center("vila"), Vector2.ZERO, "vale no centro do atlas")
+	T.ok(MapRules.atlas_center("bosque").y > 0.0 and absf(MapRules.atlas_center("bosque").x) < 0.01, "bosque ao sul")
+	T.ok(MapRules.atlas_center("mina").x > 0.0 and absf(MapRules.atlas_center("mina").y) < 0.01, "mina a leste")
+	for a in Regions.ORDER:
+		T.ok(MapRules.atlas_bounds().encloses(MapRules.atlas_rect(a)), "%s dentro do atlas" % a)
+		for b in Regions.ORDER:
+			if a < b:
+				T.ok(MapRules.atlas_center(a).distance_to(MapRules.atlas_center(b)) > MapRules.radius(a) + MapRules.radius(b),
+					"%s e %s não se sobrepõem" % [a, b])
+		T.eq(MapRules.atlas_region_at(MapRules.to_atlas(Regions.coach_point(a))), a, "carruagem de %s no círculo dela" % a)
+		var h: float = Regions.DATA[a].half
+		T.eq(MapRules.atlas_region_at(MapRules.to_atlas(Regions.at(a, Vector3(h, 0, -h)))), a, "canto de %s dentro do círculo" % a)
+		T.ok(MapRules.capture_rect(a).encloses(MapRules.rect(a).grow(MapRules.MINI_RADIUS)), "a foto de %s cobre o minimapa na borda" % a)
+	T.eq(MapRules.to_atlas(Regions.at("mina", Vector3(5, 3, -7))), MapRules.atlas_center("mina") + Vector2(5, -7), "ponto da mina")
+
+
+func test_coach_exits_follow_rank() -> void:
+	var ex := MapRules.exits("vila", "C")
+	T.eq(ex.map(func(e: Array) -> String: return e[0]), ["bosque", "mina", "pico"], "saídas do vale")
+	T.eq(ex.map(func(e: Array) -> bool: return e[1]), [true, false, false], "rank C só libera o bosque")
+	T.ok(not ("mina" in MapRules.exits("mina", "S").map(func(e: Array) -> String: return e[0])), "sem saída para si mesma")
+
+
+func test_zoom_keeps_point_under_mouse() -> void:
+	var anchor := Vector2(30, -12)
+	var off := Vector2(200, -50)
+	var c := MapRules.zoom_center(anchor, off, 4.0)
+	T.ok((c + off / 4.0).distance_to(anchor) < 0.001, "o ponto fica embaixo do mouse")
+
+
+## Arrastar o atlas não leva para o mar: o ponto volta para o mapa mais perto.
+func test_clamp_to_land() -> void:
+	T.eq(MapRules.clamp_to_land(Vector2(10, -20)), Vector2(10, -20), "dentro do vale fica")
+	var far := MapRules.clamp_to_land(Vector2(-900, 0))
+	T.eq(MapRules.atlas_region_at(far), "vila", "a oeste de tudo volta para o vale")
+	T.ok(absf(far.length() - MapRules.radius("vila")) < 0.1, "na borda do círculo")
+	T.eq(MapRules.atlas_region_at(Vector2(2000, 2000).lerp(Vector2.ZERO, 0.0)), "", "longe é mar")
+	T.eq(MapRules.atlas_region_at(MapRules.clamp_to_land(Vector2(2000, 2000))), "pico", "a sudeste volta para o Pico")
+
+
+## Regiões de monstros no mapa: rótulo com a faixa, perto do lugar de antes; show_on_map: false esconde.
+func test_areas_on_map() -> void:
+	var t: Dictionary = BalanceTables.decode(JSON.parse_string(FileAccess.get_file_as_string("res://data/balance/regions.json")))
+	var at := {}
+	for a in MapRules.areas("vila", t):
+		at[a[0]] = a
+	T.ok(at.has("Toca dos Goblins · Nv 5–9"), "a toca no mapa do vale com a faixa")
+	T.ok((at["Toca dos Goblins · Nv 5–9"][1] as Vector3).distance_to(Vector3(62, 0, 0)) < 1.0, "no acampamento")
+	T.eq((at["Capinzal dos Raptores · Nv 6–9"][2] as Array).size(), 4, "o capinzal tem 4 manchas e um rótulo só")
+	T.eq(at.size(), 8, "8 regiões no vale")
+	t.toca_goblins.show_on_map = false
+	var names: Array = MapRules.areas("vila", t).map(func(a: Array) -> String: return a[0])
+	T.ok(not "Toca dos Goblins · Nv 5–9" in names, "show_on_map: false some do mapa")
+	T.eq(MapRules.areas("bosque", t).size(), 4, "4 regiões no bosque")
+
+
+func test_area_outline() -> void:
+	var r := {"center": Vector3(10, 0, 0), "shape": MapRegion.RECT, "size": Vector2(4, 2), "radius": 0.0, "rot": 0.0}
+	var o := MapRules.area_outline(r)
+	T.eq(o.size(), 4, "retângulo: 4 cantos")
+	T.ok(o[0].is_equal_approx(Vector2(8, -1)) and o[2].is_equal_approx(Vector2(12, 1)), "cantos do retângulo")
+	r.rot = PI / 2.0
+	for p in MapRules.area_outline(r):
+		T.ok(Regions.area_has(r, Vector3(p.x * 0.999 + 10 * 0.001, 0, p.y * 0.999)), "canto girado ainda dentro da área")
+	var d := {"center": Vector3(0, 0, 5), "shape": MapRegion.DISC, "size": Vector2.ZERO, "radius": 3.0, "rot": 0.0}
+	T.eq(MapRules.area_outline(d, 16).size(), 16, "disco: segs pontos")
+	T.ok(absf(MapRules.area_outline(d)[0].distance_to(Vector2(0, 5)) - 3.0) < 0.001, "no raio")
+
+
+func test_entered_rule() -> void:
+	T.ok(MapRules.entered("", "toca_goblins"), "chegar numa região mostra")
+	T.ok(not MapRules.entered("toca_goblins", "toca_goblins"), "andar dentro dela não repete")
+	T.ok(not MapRules.entered("toca_goblins", ""), "sair para fora de região não mostra")
+	T.ok(MapRules.entered("toca_goblins", "campos_norte"), "outra região mostra")

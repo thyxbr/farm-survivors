@@ -21,7 +21,7 @@ extends Node3D
 @export var follow_ground := true
 
 const LABELS := {"elder": "Ancião Bram", "merchant": "Mira", "alchemist": "Pip", "blacksmith": "Ferreiro",
-	"rival": "Kael", "santa": "Papai Noel", "kitchen": "Cozinha", "portal": "Portal da Horda"}
+	"rival": "Kael", "santa": "Papai Noel", "kitchen": "Cozinha", "portal": "Portal da Horda", "station": "Bancada"}
 const COLORS := {"npc": Color(1.0, 0.85, 0.3), "hub_point": Color(0.85, 0.3, 0.9), "story_point": Color(0.4, 0.8, 1.0),
 	"resource_node": Color(0.6, 0.65, 0.7), "xmas_gift": Color(0.9, 0.2, 0.2), "xmas_door": Color(0.9, 0.2, 0.2),
 	"farm_plot": Color(0.4, 0.27, 0.15)}

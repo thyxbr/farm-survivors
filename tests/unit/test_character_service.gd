@@ -28,6 +28,7 @@ func test_persists_across_instances() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	var antes := svc.load_or_create(2)
+	svc.apply(2, "choose_class", ["warrior", "m"])
 	var ouro := antes.gold
 	var pocoes := _count(antes, "health_potion")
 	var r := svc.apply(2, "buy", ["health_potion", 1])
@@ -80,6 +81,7 @@ func test_economy_log_rows() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	svc.load_or_create(2)
+	svc.apply(2, "choose_class", ["warrior", "m"])
 	var r := svc.apply(2, "buy", ["health_potion", 1])
 	T.ok(r.ok, "comprou")
 	var itens := db.query("SELECT * FROM economy_log WHERE item_id = 'health_potion'")
@@ -178,6 +180,7 @@ func test_discard_and_death_are_client_ops() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	var s := svc.load_or_create(2)
+	svc.apply(2, "choose_class", ["warrior", "m"])
 	var pocoes := _count(s, "health_potion")
 	T.ok(svc.apply(2, "discard", ["health_potion"]).ok, "jogar fora")
 	T.eq(_count(svc.load_or_create(2), "health_potion"), pocoes - 1, "uma poção a menos")
@@ -265,7 +268,8 @@ func test_set_record() -> void:
 func test_enchant_persists_and_logs() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
-	svc.load_or_create(2).equipment.weapon = "azure_edge"
+	svc.load_or_create(2)
+	svc.apply(2, "choose_class", ["warrior", "m"])
 	svc.grant(2, 50, 0, {"iron_ore": 4, "ember_core": 2}, "test")
 	var r := svc.apply(2, "enchant", ["fogo"])
 	T.ok(r.ok, "encantou pelo serviço: %s" % r.err)
@@ -282,10 +286,27 @@ func test_enchant_persists_and_logs() -> void:
 	db2.close()
 
 
+## Classe e corpo vão para o SQLite (colunas char_class e body): sem isso, todo login online voltava sem classe.
+func test_class_and_body_persist_in_sqlite() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	svc.load_or_create(2)
+	T.ok(svc.apply(2, "choose_class", ["archer", "f"]).ok, "escolheu")
+	svc.unload(2)
+	db.close()
+	var db2 := Db.open(PATH)
+	var s := CharacterService.new(SqliteCharStore.new(db2), _tables()).load_or_create(2)
+	T.eq(s.char_class, "archer", "classe sobrevive a reabrir o banco")
+	T.eq(s.body, "f", "corpo sobrevive a reabrir o banco")
+	T.eq(s.equipment.weapon, "short_bow", "arco da classe")
+	db2.close()
+
+
 func test_enchant_bad_args_and_refusal() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
-	svc.load_or_create(2).equipment.weapon = "azure_edge"
+	svc.load_or_create(2)
+	svc.apply(2, "choose_class", ["warrior", "m"])
 	T.eq(svc.apply(2, "enchant", []).err, "args", "sem argumento")
 	T.eq(svc.apply(2, "enchant", [3]).err, "args", "tipo errado")
 	T.eq(svc.apply(2, "enchant", ["luz"]).err, "elemento_invalido", "elemento desconhecido")
@@ -299,7 +320,7 @@ func test_enchant_ecos_logged() -> void:
 	var db := _fresh()
 	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
 	var s := svc.load_or_create(2)
-	s.equipment.weapon = "azure_edge"
+	svc.apply(2, "choose_class", ["warrior", "m"])
 	s.enchants["azure_edge"] = {"el": "sombra", "lv": 4}
 	s.ecos = 40
 	svc.grant(2, 1000, 0, {"iron_ore": 20, "arcane_crystal": 12, "shadow_fang": 10}, "test")
@@ -322,4 +343,154 @@ func test_grant_test_items_gate() -> void:
 	var r := svc.grant_test_items(2, {"iron_ore": 4, "frost_drop": 2}, true)
 	T.ok(r.ok, "com --test concede")
 	T.eq(_count(svc.load_or_create(2), "iron_ore"), 4, "ferro na mochila")
+	db.close()
+
+
+func test_op_blocked_without_class() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	svc.load_or_create(2)
+	var r := svc.apply(2, "buy", ["health_potion", 1])
+	T.ok(not r.ok, "bloqueado")
+	T.eq(r.err, "sem_classe", "erro")
+	T.eq(svc.apply(2, "choose_class", ["archer"]).err, "args", "faltou o corpo")
+	var c := svc.apply(2, "choose_class", ["archer", "m"])
+	T.ok(c.ok, "escolheu")
+	T.eq(svc.load_or_create(2).equipment.weapon, "short_bow", "arco inicial")
+	T.ok(svc.apply(2, "buy", ["health_potion", 1]).ok, "depois da escolha compra")
+	db.close()
+
+
+func test_food_bonus_xp_gold_in_town() -> void:
+	var db := _fresh()
+	var t := [1000.0]
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables(), func() -> float: return t[0])
+	svc.apply(2, "choose_class", ["warrior", "m"])
+	var s := svc.load_or_create(2)
+	var xp0 := s.xp
+	s.inventory.append({"id": "garden_salad", "qty": 1})
+	T.ok(svc.apply(2, "consume", ["garden_salad"]).ok, "comeu")
+	svc.kill(2, "slime", 10)
+	T.eq(s.xp - xp0, 11, "kill de 10 XP vira 11 (+10%)")
+	xp0 = s.xp
+	svc.grant(2, 0, 10, {}, "party_xp")
+	T.eq(s.xp - xp0, 11, "XP do grupo também")
+	xp0 = s.xp
+	svc.grant(2, 0, 10, {}, "horde_run")
+	T.eq(s.xp - xp0, 10, "horde_run não multiplica")
+	svc.grant(2, 0, 10, {}, "admin")
+	T.eq(s.xp - xp0, 20, "outras fontes não multiplicam")
+	xp0 = s.xp
+	t[0] += 1000.0   # passou do tempo do buff
+	svc.kill(2, "slime", 10)
+	T.eq(s.xp - xp0, 10, "depois de expirar volta ao normal")
+	db.close()
+
+
+func test_talents_ops_and_sqlite_roundtrip() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	var s := svc.load_or_create(2)
+	T.eq(svc.apply(2, "learn_talent", ["w_edge"]).err, "sem_classe", "sem classe o servidor recusa")
+	svc.apply(2, "choose_class", ["warrior", "m"])
+	s.level = 5
+	T.eq(svc.apply(2, "learn_talent", []).err, "args", "sem argumento")
+	T.eq(svc.apply(2, "learn_talent", [3]).err, "args", "tipo errado")
+	T.eq(svc.apply(2, "learn_talent", ["a_aim"]).err, "talento_invalido", "outra classe")
+	var r := svc.apply(2, "learn_talent", ["w_edge"])
+	T.ok(r.ok, "aprendeu: %s" % r.err)
+	T.eq(r.state.talents, {"w_edge": 1}, "estado devolvido")
+	svc.unload(2)
+	db.close()
+	var db2 := Db.open(PATH)
+	var svc2 := CharacterService.new(SqliteCharStore.new(db2), _tables())
+	var s2 := svc2.load_or_create(2)
+	T.eq(s2.talents, {"w_edge": 1}, "talentos sobrevivem a reabrir o banco")
+	T.ok(svc2.apply(2, "reset_talents", []).ok, "redistribui (nível baixo, grátis)")
+	svc2.unload(2)
+	db2.close()
+	var db3 := Db.open(PATH)
+	T.eq(CharacterService.new(SqliteCharStore.new(db3), _tables()).load_or_create(2).talents, {}, "reset persistiu")
+	db3.close()
+
+
+## Seleção de personagem: a conta cria vários (já com classe), lista e exclui só os dela.
+func test_many_characters_per_account() -> void:
+	var db := _fresh()
+	db.exec("INSERT INTO accounts(id, username, pass_hash, pass_salt, created_at) VALUES(3, 'bia', 'h', 's', 1)")
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	T.eq(svc.list_characters(2).size(), 0, "conta nova sem personagens")
+	var a := svc.create_character(2, "Aldric", "warrior", "m")
+	var b := svc.create_character(2, "Lyra", "mage", "f")
+	T.ok(a.ok and b.ok and a.id != b.id, "criou dois personagens (%s, %s)" % [a, b])
+	T.ok(not svc.create_character(2, "Pirata", "pirata", "m").ok, "classe inválida recusada")
+	var list := svc.list_characters(2)
+	T.eq(list.size(), 2, "lista tem os dois")
+	T.eq(list[0].char_class, "warrior", "primeiro é o guerreiro")
+	T.eq(list[1].body, "f", "segunda é mulher")
+	T.eq(list[0].level, 1, "nível 1")
+	T.eq(list[0].name, "Aldric", "lista traz o nome")
+	T.eq(svc.name_of(b.id), "Lyra", "name_of")
+	T.ok(str(list[1].equipment.get("weapon", "")) != "", "já empunha a arma da classe")
+	# cada personagem tem a sua mochila e o seu ouro
+	svc.grant(a.id, 50, 0, {}, "test")
+	T.eq(svc.load_or_create(b.id).gold, svc.load_or_create(a.id).gold - 50, "ouro é por personagem")
+	T.eq(svc.owner_of(b.id), 2, "dono é a conta 2")
+	# economia registra conta e personagem
+	var row := db.query("SELECT account_id, char_id FROM economy_log WHERE source = 'test'")
+	T.ok(not row.is_empty() and int(row[0]["account_id"]) == 2 and int(row[0]["char_id"]) == a.id, "linha com conta e personagem")
+	# outra conta não exclui
+	T.ok(not svc.delete_character(3, a.id), "conta 3 não exclui personagem da 2")
+	T.ok(svc.delete_character(2, a.id), "dona exclui")
+	T.eq(svc.list_characters(2).size(), 1, "sobrou um")
+	T.eq(db.query("SELECT COUNT(*) AS n FROM inventory WHERE char_id = ?", [a.id])[0]["n"], 0, "mochila apagada")
+	db.close()
+
+
+## Nome do herói: regra (3 a 16 letras/números, começa por letra, sem espaço) e único entre todas as
+## contas, sem diferenciar maiúsculas. Excluir libera o nome.
+func test_character_names() -> void:
+	T.eq(CharacterService.clean_name("  Élise  "), "Élise", "acento vale e as pontas são cortadas")
+	T.eq(CharacterService.clean_name("Ana2"), "Ana2", "número depois da letra vale")
+	for bad in ["Al", "2Ana", "Ana Maria", "Ana_", "Abcdefghijklmnopq", ""]:
+		T.eq(CharacterService.clean_name(bad), "", "nome inválido: '%s'" % bad)
+	var db := _fresh()
+	db.exec("INSERT INTO accounts(id, username, pass_hash, pass_salt, created_at) VALUES(3, 'bia', 'h', 's', 1)")
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	var a := svc.create_character(2, "Aldric", "warrior", "m")
+	T.ok(a.ok, "criou Aldric")
+	var dup := svc.create_character(3, "ALDRIC", "mage", "f")
+	T.ok(not dup.ok and dup.err == "nome_em_uso", "outro jogador não usa o mesmo nome (%s)" % dup.err)
+	T.eq(svc.create_character(2, "A b", "mage", "f").err, "nome_invalido", "nome inválido recusado no servidor")
+	T.ok(svc.delete_character(2, a.id), "excluiu")
+	T.ok(svc.create_character(3, "Aldric", "mage", "f").ok, "nome livre de novo depois de excluir")
+	db.close()
+
+
+func test_load_migrates_and_saves() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	var s := svc.load_or_create(2)
+	T.eq(int(s.flags.get("prog_v", 0)), 1, "personagem novo já nasce na versão")
+	# vira um save antigo: sem prog_v, nível 18 e atributos gastos
+	s.level = 18
+	s.flags.erase("prog_v")
+	s.flags["rank"] = "C"
+	s.attributes = {"str": 56, "int": 5, "vit": 5, "agi": 5}
+	s.stat_points = 0
+	T.ok(svc.save(2), "gravou o save antigo")
+	var svc2 := CharacterService.new(SqliteCharStore.new(db), _tables())
+	var m := svc2.load_or_create(2)
+	T.eq(m.attributes["str"], 5, "migrado ao carregar")
+	T.eq(m.stat_points, 17 * 3 + 3, "pontos devolvidos")
+	T.ok(m.flags.get("prog_notice", false), "aviso pendente")
+	var svc3 := CharacterService.new(SqliteCharStore.new(db), _tables())
+	var again := svc3.load_or_create(2)
+	T.eq(again.attributes["str"], 5, "o banco também está migrado")
+	T.eq(again.stat_points, 17 * 3 + 3, "pontos gravados")
+	# o cliente confirma o aviso (mesmo sem classe escolhida) e o servidor grava
+	T.ok(svc3.apply(2, "ack_prog_notice", []).ok, "confirma o aviso")
+	var svc4 := CharacterService.new(SqliteCharStore.new(db), _tables())
+	T.ok(not svc4.load_or_create(2).flags.has("prog_notice"), "aviso limpo no banco")
+	T.ok(not svc4.apply(2, "ack_prog_notice", [1]).ok, "argumentos de fora são recusados")
 	db.close()

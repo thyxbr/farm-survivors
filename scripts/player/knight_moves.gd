@@ -56,6 +56,41 @@ const SWORD := [
 const SPIN_START := 0.24        ## o giro começa logo depois da antecipação
 const SPIN_END := 0.78          ## e termina aqui (uma volta inteira)
 
+# ------------------------------------------------------------------ soco, sem arma (0,3 s / 0,32 s / 0,5 s)
+## Combo de boxe: jab de esquerda, direto de direita e uppercut de direita. Entre um e outro as mãos voltam
+## à guarda, os punhos na frente do queixo. O acerto é em 0,42, como na espada.
+const PUNCH_GUARD := {"arm_l": Vector3(-0.8, 0.3, 0.08), "elbow_l": -2.15, "arm_r": Vector3(-0.7, -0.3, -0.08),
+	"elbow_r": -2.2, "wrist_l": 0.0, "wrist_r": 0.0}
+const PUNCH_STANCE := {"leg_l": -0.2, "knee_l": 0.3, "leg_r": 0.18, "knee_r": 0.35}
+const PUNCH := [
+	[  # 1: jab de esquerda, rápido e reto, o ombro esquerdo vai à frente
+		[0.2, [PUNCH_GUARD, PUNCH_STANCE, {"twist": 0.12, "body_x": 0.05}]],
+		[0.42, [PUNCH_GUARD, {"arm_l": Vector3(-1.6, 0.35, 0.02), "elbow_l": -0.05, "twist": -0.4,
+			"body_x": 0.14, "head_y": 0.2, "leg_l": -0.35, "knee_l": 0.4, "leg_r": 0.25, "knee_r": 0.3}], "in"],
+		[0.56, [PUNCH_GUARD, {"arm_l": Vector3(-1.55, 0.35, 0.02), "elbow_l": -0.12, "twist": -0.38}], "out"],
+		[0.85, [PUNCH_GUARD, PUNCH_STANCE, {"twist": 0.0}], "io"],
+	],
+	[  # 2: direto de direita, o quadril gira e o pé de trás empurra
+		[0.2, [PUNCH_GUARD, PUNCH_STANCE, {"twist": -0.3, "body_x": 0.02, "head_y": 0.15}]],
+		[0.42, [PUNCH_GUARD, {"arm_r": Vector3(-1.62, -0.3, -0.02), "elbow_r": -0.05, "twist": 0.65,
+			"body_x": 0.2, "head_y": -0.25, "leg_l": -0.4, "knee_l": 0.45, "leg_r": 0.32, "knee_r": 0.2}], "in"],
+		[0.56, [PUNCH_GUARD, {"arm_r": Vector3(-1.58, -0.3, -0.02), "elbow_r": -0.12, "twist": 0.62,
+			"body_x": 0.2}], "out"],
+		[0.85, [PUNCH_GUARD, PUNCH_STANCE, {"twist": 0.0, "body_x": 0.05}], "io"],
+	],
+	[  # 3: uppercut de direita: agacha com o punho baixo e sobe esticando as pernas
+		[0.24, [PUNCH_GUARD, {"arm_r": Vector3(-0.35, -0.1, -0.2), "elbow_r": -1.55, "twist": -0.4,
+			"body_x": 0.3, "body_y": -0.07, "head_y": 0.2,
+			"leg_l": -0.45, "knee_l": 0.85, "leg_r": 0.1, "knee_r": 0.8}]],
+		[0.42, [PUNCH_GUARD, {"arm_r": Vector3(-1.4, -0.45, -0.05), "elbow_r": -1.75, "twist": 0.55,
+			"body_x": -0.1, "body_y": 0.02, "head_x": -0.12, "head_y": -0.2,
+			"leg_l": -0.3, "knee_l": 0.2, "leg_r": 0.25, "knee_r": 0.1}], "in"],
+		[0.62, [PUNCH_GUARD, {"arm_r": Vector3(-1.45, -0.45, -0.05), "elbow_r": -1.8, "twist": 0.5,
+			"body_x": -0.08}], "out"],
+		[0.88, [PUNCH_GUARD, PUNCH_STANCE, {"twist": 0.0}], "io"],
+	],
+]
+
 # ------------------------------------------------------------------ cajado (0,4 s / 0,4 s / 0,6 s)
 ## Inclinação do cajado: o suporte desfaz 3/4 do giro do braço (KnightLook.COUNTER), então o cajado tomba
 ## 0,25 * (arm_r.x + elbow_r) + wrist_r para a frente (0 = de pé, > 0 = gema à frente, ~1,57 = deitado).
@@ -246,6 +281,14 @@ const QUAKE := [
 	[0.8, {"arm_r": Vector3(-0.9, 0.05, -0.1), "elbow_r": -0.1, "wrist_r": 1.75, "twist": 0.3,
 		"body_x": 0.5, "arm_l": Vector3(-0.8, -0.1, 0.25), "elbow_l": -0.2,
 		"leg_l": -0.55, "knee_l": 0.75, "leg_r": 0.35, "knee_r": 0.55}, "lin"],
+]
+
+## Pose curta das habilidades de buff (0,5 s): braços erguidos e volta.
+const BUFF := [
+	[0.35, {"arm_r": Vector3(-2.5, 0.0, -0.3), "elbow_r": -0.5, "arm_l": Vector3(-2.3, 0.0, 0.3), "elbow_l": -0.5,
+		"body_x": -0.15, "head_x": -0.2}, "out"],
+	[0.7, {"arm_r": Vector3(-2.5, 0.0, -0.3), "elbow_r": -0.5, "arm_l": Vector3(-2.3, 0.0, 0.3), "elbow_l": -0.5,
+		"body_x": -0.15, "head_x": -0.2}, "lin"],
 ]
 
 ## Turbilhão (SwordAbilities.WHIRL_TIME = 2,1 s): preparo até 0,19 (agacha, espada para trás com as

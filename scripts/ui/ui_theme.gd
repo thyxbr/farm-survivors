@@ -63,31 +63,50 @@ static func get_theme() -> Theme:
 		return _theme
 	var t := Theme.new()
 	t.default_font_size = 18
-	var panel := frame_box()
+	var panel := kit_panel()
 	t.set_stylebox("panel", "PanelContainer", panel)
 	t.set_stylebox("panel", "Panel", panel)
-	t.set_stylebox("normal", "Button", _box(Color(0.15, 0.12, 0.1), GOLD_DIM, 1, 4, 12, 6))
-	t.set_stylebox("hover", "Button", _box(Color(0.26, 0.2, 0.12), GOLD, 1, 4, 12, 6))
-	t.set_stylebox("pressed", "Button", _box(Color(0.38, 0.28, 0.13), GOLD.lightened(0.2), 1, 4, 12, 6))
-	t.set_stylebox("hover_pressed", "Button", _box(Color(0.38, 0.28, 0.13), GOLD.lightened(0.3), 1, 4, 12, 6))
-	t.set_stylebox("focus", "Button", _box(Color(0, 0, 0, 0), GOLD.lightened(0.2), 1, 4, 12, 6))
-	t.set_stylebox("disabled", "Button", _box(Color(0.09, 0.09, 0.09), Color(0.22, 0.21, 0.2), 1, 4, 12, 6))
+	# botões do kit (madeira com moldura dourada); sem as texturas, as caixas lisas de antes
+	t.set_stylebox("normal", "Button", _kit_button("normal", _box(Color(0.15, 0.12, 0.1), GOLD_DIM, 1, 4, 12, 6)))
+	t.set_stylebox("hover", "Button", _kit_button("hover", _box(Color(0.26, 0.2, 0.12), GOLD, 1, 4, 12, 6)))
+	t.set_stylebox("pressed", "Button", _kit_button("pressed", _box(Color(0.38, 0.28, 0.13), GOLD.lightened(0.2), 1, 4, 12, 6)))
+	t.set_stylebox("hover_pressed", "Button", _kit_button("pressed", _box(Color(0.38, 0.28, 0.13), GOLD.lightened(0.3), 1, 4, 12, 6)))
+	t.set_stylebox("focus", "Button", _kit("focus", 14, 0, 12, 6, _box(Color(0, 0, 0, 0), GOLD.lightened(0.2), 1, 4, 12, 6)))
+	t.set_stylebox("disabled", "Button", _kit_button("disabled", _box(Color(0.09, 0.09, 0.09), Color(0.22, 0.21, 0.2), 1, 4, 12, 6)))
+	# caixa de marcar herdaria a madeira do botão: fica só com o texto e a marca
+	for st in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
+		t.set_stylebox(st, "CheckBox", _box(Color(0, 0, 0, 0), Color(0, 0, 0, 0), 0, 4, 6, 4))
+	t.set_stylebox("hover", "CheckBox", _box(Color(1, 0.85, 0.5, 0.06), Color(0, 0, 0, 0), 0, 4, 6, 4))
+	for pair in [["checked", "check_on"], ["unchecked", "check_off"], ["checked_disabled", "check_on_disabled"],
+			["unchecked_disabled", "check_off_disabled"]]:
+		_kit_icon(t, pair[0], "CheckBox", pair[1])
+	_kit_icon(t, "grabber", "HSlider", "knob")
+	_kit_icon(t, "grabber_highlight", "HSlider", "knob_hover")
+	# campo de texto afundado com aro dourado
+	t.set_stylebox("normal", "LineEdit", _kit("field", 10, 0, 12, 6, _box(Color(0.04, 0.035, 0.03), GOLD_DIM, 1, 4, 12, 6)))
+	t.set_stylebox("focus", "LineEdit", _kit("field_focus", 10, 0, 12, 6, _box(Color(0, 0, 0, 0), GOLD, 1, 4, 12, 6)))
+	t.set_stylebox("read_only", "LineEdit", _kit("field", 10, 0, 12, 6, _box(Color(0.04, 0.035, 0.03), GOLD_DIM, 1, 4, 12, 6)))
+	t.set_color("font_color", "LineEdit", TEXT)
+	t.set_color("font_placeholder_color", "LineEdit", Color(DIM.r, DIM.g, DIM.b, 0.7))
+	t.set_color("caret_color", "LineEdit", GOLD)
+	t.set_color("selection_color", "LineEdit", Color(GOLD.r, GOLD.g, GOLD.b, 0.35))
 	t.set_color("font_color", "Button", TEXT)
 	t.set_color("font_hover_color", "Button", Color(1, 0.95, 0.75))
 	t.set_color("font_pressed_color", "Button", Color(1, 0.92, 0.6))
 	t.set_color("font_hover_pressed_color", "Button", Color(1, 0.92, 0.6))
 	t.set_color("font_disabled_color", "Button", Color(0.42, 0.41, 0.4))
 	t.set_color("font_color", "Label", TEXT)
-	t.set_stylebox("panel", "ItemList", _box(Color(0.035, 0.032, 0.03, 0.85), Color(0.25, 0.21, 0.15), 1, 4, 6, 6))
+	t.set_stylebox("panel", "ItemList", _kit("panel_inset", 14, 6, 8, 8, _box(Color(0.035, 0.032, 0.03, 0.85), Color(0.25, 0.21, 0.15), 1, 4, 6, 6)))
+	t.set_stylebox("focus", "ItemList", StyleBoxEmpty.new())   # a borda branca padrão do Godot destoava do kit
 	t.set_stylebox("selected", "ItemList", _box(Color(0.35, 0.27, 0.12), GOLD, 1, 3))
 	t.set_stylebox("selected_focus", "ItemList", _box(Color(0.35, 0.27, 0.12), GOLD, 1, 3))
 	t.set_stylebox("hovered", "ItemList", _box(Color(0.2, 0.17, 0.12), Color(0, 0, 0, 0), 0, 3))
 	t.set_color("font_color", "ItemList", TEXT)
 	t.set_constant("v_separation", "ItemList", 6)
-	t.set_stylebox("panel", "TabContainer", frame_box())
-	t.set_stylebox("tab_selected", "TabContainer", _box(Color(0.3, 0.23, 0.12), GOLD, 1, 4, 14, 6))
-	t.set_stylebox("tab_unselected", "TabContainer", _box(Color(0.12, 0.11, 0.1), Color(0.3, 0.27, 0.2), 1, 4, 14, 6))
-	t.set_stylebox("tab_hovered", "TabContainer", _box(Color(0.2, 0.17, 0.12), GOLD.darkened(0.3), 1, 4, 14, 6))
+	t.set_stylebox("panel", "TabContainer", kit_panel())
+	t.set_stylebox("tab_selected", "TabContainer", _kit_tab("tab_selected", _box(Color(0.3, 0.23, 0.12), GOLD, 1, 4, 14, 6)))
+	t.set_stylebox("tab_unselected", "TabContainer", _kit_tab("tab_unselected", _box(Color(0.12, 0.11, 0.1), Color(0.3, 0.27, 0.2), 1, 4, 14, 6)))
+	t.set_stylebox("tab_hovered", "TabContainer", _kit_tab("tab_hover", _box(Color(0.2, 0.17, 0.12), GOLD.darkened(0.3), 1, 4, 14, 6)))
 	t.set_stylebox("background", "ProgressBar", _box(Color(0.03, 0.03, 0.035, 0.9), Color(0, 0, 0, 0.9), 1, 2))
 	t.set_stylebox("grabber_area", "HSlider", _box(GOLD.darkened(0.2), Color(0, 0, 0, 0), 0, 3, 0, 3))
 	t.set_stylebox("slider", "HSlider", _box(Color(0.15, 0.15, 0.15), Color(0, 0, 0, 0), 0, 3, 0, 3))
@@ -101,6 +120,62 @@ static func get_theme() -> Theme:
 	t.set_color("default_color", "RichTextLabel", TEXT)
 	_theme = t
 	return t
+
+
+# ------------------------------------------------------------------ kit de UI (assets/ui/kit)
+## Texturas 9-slice geradas por tools/ui_kit/make_ui_kit.py: madeira escura e moldura dourada com rebites,
+## no estilo da logo. Cada peça tem uma borda transparente (`pad`: brilho ou sombra) que fica para fora do
+## controle (expand_margin), então o retângulo do controle é a moldura em si.
+const KIT := "res://assets/ui/kit/"
+
+
+## Caixa com a textura `name` do kit (cantos de `margin` px não esticam). Sem o arquivo, devolve `fallback`.
+static func _kit(name: String, margin: int, pad: int, mx: int, my: int, fallback: StyleBox) -> StyleBox:
+	var path := KIT + name + ".png"
+	if not ResourceLoader.exists(path):
+		return fallback
+	var s := StyleBoxTexture.new()
+	s.texture = load(path)
+	s.set_texture_margin_all(margin + pad)
+	s.set_expand_margin_all(pad)
+	s.content_margin_left = mx
+	s.content_margin_right = mx
+	s.content_margin_top = my
+	s.content_margin_bottom = my
+	return s
+
+
+## Ícone `icon` do tipo `type` com a textura `name` do kit (sem o arquivo, fica o ícone padrão).
+static func _kit_icon(t: Theme, icon: String, type: String, name: String) -> void:
+	var path := KIT + name + ".png"
+	if ResourceLoader.exists(path):
+		t.set_icon(icon, type, load(path))
+
+
+static func _kit_button(state: String, fallback: StyleBox) -> StyleBox:
+	return _kit("button_" + state, 13, 3, 16, 6, fallback)
+
+
+static func _kit_tab(name: String, fallback: StyleBox) -> StyleBox:
+	var s := _kit(name, 11, 0, 16, 6, fallback)
+	if s is StyleBoxTexture:
+		(s as StyleBoxTexture).texture_margin_bottom = 4
+	return s
+
+
+## Janela principal do kit: madeira escura, moldura dourada dupla e rebites nos cantos.
+static func kit_panel(margin := 22) -> StyleBox:
+	return _kit("panel", 20, 6, margin, margin - 4, frame_box(BG, GOLD_DIM, margin))
+
+
+## Seção interna do kit (painel menor, moldura simples).
+static func kit_inset(margin := 12) -> StyleBox:
+	return _kit("panel_inset", 14, 6, margin, margin - 2, inset_box(margin))
+
+
+## Moldura de espaço de item/ícone.
+static func kit_slot() -> StyleBox:
+	return _kit("slot", 8, 0, 4, 4, _box(Color(0.06, 0.05, 0.045), GOLD_DIM, 1, 4, 4, 4))
 
 
 ## Painel principal: fundo escuro, borda dourada e sombra (aparência de moldura).

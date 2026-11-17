@@ -39,13 +39,31 @@ Todos ficam em `scripts/map/` e aparecem no Inspector com as opções abaixo.
 - **NPC ou ponto de jogo (MapEntity)**: `kind` diz o que é (npc, story_point, hub_point, farm_plot, kitchen,
   portal, signpost, santa, xmas_gift, resource_node...), `ref` o id (NPC, ponto da história, ponto da praça,
   tipo do veio), `index` o número (canteiros 0..11, presentes 0..7).
-- **Nó de coleta**: MapEntity com `kind = resource_node`, `ref = iron` ou `crystal` e um `node_id` fixo. Para um
+- **Porta de dungeon**: MapEntity com `kind = dungeon_door`. No mapa de fora, `ref` = o id da dungeon
+  (`dg_bosque`...) e um MapLandmark `id = "dg:<id>"` ao lado, onde o jogador aparece ao sair ou ao morrer lá
+  dentro. Dentro da dungeon, `ref = "out"` (exatamente uma) e o landmark `arrive` (onde se chega). A cena de cada
+  dungeon é `scenes/maps/dg_<id>.tscn` (no `MapData.SCENES` e no `Regions.DATA`, com `dungeon: true` e `parent`).
+  No ponto de monstro do chefe da dungeon, ligue `chief`.
+- **Bancada de craft**: MapEntity com `kind = station` e `ref` = a estação (`leather` é a Bancada de Couraria da
+  vila). A forja e a alquimia abrem pelos serviços do Doran e da Pip.
+- **Nó de coleta**: MapEntity com `kind = resource_node`, `ref` = um tipo de `data/balance/world_nodes.json`
+  (cobre, ferro, cristal, prata, mithril, astralita; pinho, carvalho, bétula-prata, freixo-cinza, madeira-de-alma)
+  e um `node_id` fixo (hoje 0–70). Para um
   veio novo, duplique um e dê um `node_id` que nenhum outro usa. Não reaproveite o número de um veio apagado: o
   save dos jogadores guarda o número.
 - **Ponto de monstro (EnemySpawn)**, no grupo Monstros de cada mapa: `kind` (tipo do `enemies.json`), `count`
   (quantos), `radius` (onde nascem em volta), `respawn` (segundos para voltar) e `night_only` (só aparece de
   noite e vai embora de dia, como as Asas-de-couro). Vida, dano e loot de cada tipo
-  continuam no `data/balance/enemies.json`.
+  continuam no `data/balance/enemies.json`. `level`/`level_max` dão a faixa de nível dos monstros (cada um sorteia
+  o seu ao nascer; `level` 0 = a faixa da região com nome onde o ponto fica, ou sem nível fora de região) e
+  `elite` os faz de elite (mais níveis, vida e tamanho); o que cada nível muda está em `docs/BALANCEAMENTO.md`.
+- **Região com nome (MapRegion)**, no grupo Regiões de cada mapa: `region_id` (chave no
+  `data/balance/regions.json`, que guarda nome, faixa de nível, densidade e se aparece no mapa), `shape`
+  (Retângulo, que gira com o nó, ou Disco), `size` (largura × profundidade do retângulo) ou `radius` (disco). A
+  prévia mostra a mancha laranja e "Nome · Nv a–b". Vários nós com o mesmo `region_id` são uma região só (o
+  Capinzal dos Raptores tem 4 manchas). Regiões que se sobrepõem: vale a menor (o Cume Maldito dentro das Ameias
+  do Lich). Para criar uma região nova, ponha a chave no regions.json **e** um nó na cena; o teste
+  `test_regions_areas` confere que os dois lados batem.
 - **Lugar com nome (MapLandmark)**: acampamento, ruínas, Horta, ninho, pomar, lagoa (`pond`), portal da Horda,
   onde o jogador volta da Horda (`horde_return`), onde nasce (`village_spawn`), carruagem (`coach`) e chegada da
   viagem (`arrive`). O minimapa, a viagem, o chefe e a Horda usam estes pontos.

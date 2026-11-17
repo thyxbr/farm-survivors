@@ -1,14 +1,14 @@
 extends Control
 ## Menu do herói, num livro aberto (BookWindow): Inventário (herói com o equipamento + mochila em grade),
-## Personagem (atributos, estatísticas, magias) e Missões (lista + detalhes).
+## Personagem (atributos, estatísticas, magias), Talentos (árvore da classe, TalentPanel) e Missões (lista + detalhes).
 ## Referências: boneco e grade de Diablo/Path of Exile, dicas com comparação calculada,
 ## filtros por categoria, atalhos visíveis nas abas.
 
 signal closed
 
-const TAB_KEYS := ["I", "C", "J"]
-const TAB_NAMES := ["Inventário", "Personagem", "Missões"]
-const TAB_ACTIONS := ["inventory", "character", "quest_log"]
+const TAB_KEYS := ["I", "C", "K", "J", "L"]
+const TAB_NAMES := ["Inventário", "Personagem", "Talentos", "Missões", "Profissões"]
+const TAB_ACTIONS := ["inventory", "character", "talents", "quest_log", "professions"]
 const BAG_COLS := 8
 const BAG_MIN := 56
 const SLOT := 62.0
@@ -47,6 +47,9 @@ var char_right: VBoxContainer
 var attr_buttons := {}      # atributo -> botão "+"
 var attr_values := {}       # atributo -> rótulo do valor
 
+# talentos
+var talent_panel: TalentPanel
+
 # missões
 ## estado -> título do grupo no diário, marca, cor da tinta, texto do estado nos detalhes (na ordem do diário)
 const QUEST_STATES := {"ready": ["Prontas para entregar", "★", INK_GOOD, "Pronta para entregar"],
@@ -65,7 +68,7 @@ func _ready() -> void:
 	theme = UITheme.get_theme()
 	book = BookWindow.new()
 	add_child(book)
-	var builders := [_build_inventory, _build_character, _build_quests]
+	var builders := [_build_inventory, _build_character, _build_talents, _build_quests, _build_professions]
 	for i in builders.size():
 		var page: Control = builders[i].call()
 		pages.append(page)
@@ -296,7 +299,7 @@ func _drop_on_bag(_target: ItemSlot, data: Dictionary, apply: bool) -> bool:
 
 ## Soltar num espaço do boneco: equipa se o item couber naquele espaço.
 func _drop_on_equip(target: ItemSlot, data: Dictionary, apply: bool) -> bool:
-	if data.source != "bag" or ItemDB.slot_of(data.id) != target.slot_name:
+	if data.source != "bag" or ItemDB.slot_of(data.id) != target.slot_name or not Game.can_wield(data.id):
 		return false
 	if apply:
 		Game.equip(data.id)
@@ -324,9 +327,11 @@ func _refresh_inventory() -> void:
 			var i: int = shown[j]
 			s.index = i
 			s.set_state(Game.inventory[i].id, Game.inventory[i].qty)
+			s.dim = not Game.can_wield(s.item_id)   # arma de outra classe: só para vender
 		else:
 			s.index = -1
 			s.set_state("")
+			s.dim = false
 	bag_count.text = "%d itens" % Game.inventory.size()
 	hero_label.text = "%s · Nível %d" % [_hero_name(), Game.level]
 	if sel_index >= Game.inventory.size():
@@ -334,7 +339,7 @@ func _refresh_inventory() -> void:
 	_refresh_selection()
 	# resumo de estatísticas
 	var cls := Game.weapon_class()
-	class_label.text = "Ataque: %s — %s" % [ItemDB.CLASS_NAMES[cls], ItemDB.CLASS_HINT[cls]]
+	class_label.text = "%s · Ataque: %s — %s" % [Game.class_display_name(), ItemDB.CLASS_NAMES[cls], ItemDB.CLASS_HINT[cls]]
 	for c in stats_box.get_children():
 		c.queue_free()
 	var st := Game.stat_snapshot()
@@ -373,8 +378,8 @@ func _refresh_selection() -> void:
 	sel_label.text = it.name + ("  x%d" % Game.inventory[sel_index].qty if Game.inventory[sel_index].qty > 1 else "")
 	sel_label.add_theme_color_override("font_color", ItemDB.rarity_color(id).darkened(0.55) if ItemDB.is_equippable(id) else UITheme.INK)
 	var t: String = it.type
-	use_btn.disabled = t == "material" or t == "seed" or (t == "crop" and not Game.is_edible(id))
-	use_btn.text = "Equipar" if ItemDB.is_equippable(id) else ("Comer" if t in ["food", "crop"] else "Usar")
+	use_btn.disabled = t == "material" or t == "seed" or (t == "crop" and not Game.is_edible(id)) or not Game.can_wield(id)
+	use_btn.text = "Equipar" if ItemDB.is_equippable(id) else ("Comer" if t in ["food", "crop"] else ("Aprender" if t == "scroll" else "Usar"))
 	drop_btn.disabled = false
 
 
@@ -401,11 +406,12 @@ func _refresh_character() -> void:
 	var xrow := HBoxContainer.new()
 	xrow.add_child(UITheme.ink("Experiência", 15, UITheme.INK_DIM))
 	xrow.add_child(UITheme.spacer())
-	xrow.add_child(UITheme.ink("%d / %d" % [Game.xp, Game.xp_to_next()], 15))
+	var xp_need := Game.xp_to_next()
+	xrow.add_child(UITheme.ink("MÁX" if xp_need <= 0 else "%d / %d" % [Game.xp, xp_need], 15))
 	lv.add_child(xrow)
 	var xpb := UITheme.ink_bar(UITheme.XP, 0, 14)
-	xpb.max_value = Game.xp_to_next()
-	xpb.value = Game.xp
+	xpb.max_value = maxi(xp_need, 1)
+	xpb.value = Game.xp if xp_need > 0 else 1
 	lv.add_child(xpb)
 	lv.add_child(_gap(6))
 	var pts := UITheme.ink_section("Atributos", 20)
@@ -469,7 +475,7 @@ func _refresh_character() -> void:
 	rv.add_child(g)
 	var st := Game.stat_snapshot()
 	var red := 1.0 - 50.0 / (50.0 + Game.defense() * 4.0)
-	var rows := [["Arma", ItemDB.CLASS_NAMES[Game.weapon_class()]], ["Dano do ataque", "%.0f" % st.dmg],
+	var rows := [["Classe", Game.class_display_name()], ["Arma", ItemDB.CLASS_NAMES[Game.weapon_class()]], ["Dano do ataque", "%.0f" % st.dmg],
 		["Defesa", "%.1f" % st.def], ["Redução de dano", "%d%%" % int(round(red * 100))],
 		["Vida máxima", "%d" % st.hp], ["Mana máxima", "%d" % st.mp], ["Vigor máximo", "%d" % Game.max_stamina()],
 		["Poder mágico", "%.0f" % st.spell], ["Crítico", "%d%%" % int(round(st.crit * 100))],
@@ -496,6 +502,7 @@ func _refresh_character() -> void:
 		var s := ItemSlot.new(50)
 		s.paper = true
 		s.icon_kind = sp.icon
+		s.icon_tex = ItemSlot.skill_art(id)
 		s.key_text = str(sp.slot)
 		s.dim = not known
 		s.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -519,6 +526,12 @@ func _refresh_character() -> void:
 			tv.add_child(UITheme.ink("Aprende no nível %d" % sp.level, 13, UITheme.INK_RED))
 		row.add_child(tv)
 		rv.add_child(row)
+
+
+# ================================================================ talentos
+func _build_talents() -> Control:
+	talent_panel = TalentPanel.new()
+	return talent_panel
 
 
 func _hero_name() -> String:
@@ -639,7 +652,7 @@ func _refresh_quests() -> void:
 		counts[item] = Game.count_item(item)
 	var pr := StoryRules.progress(ItemDB.QUESTS, Game.quests, quest_sel, counts)
 	var turn := StoryRules.turnable(ItemDB.QUESTS, Game.quests, quest_sel, counts)
-	var obj := UITheme.ink(str(d.get("objective", d.desc)), 16)
+	var obj := UITheme.ink(StoryRules.objective(d, Balance.tables.get_table("regions")) if d.has("objective") else str(d.desc), 16)
 	obj.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	rv.add_child(obj)
 	if CharRules.quest_type(d) != "talk":
@@ -698,6 +711,62 @@ func _select_quest(id: String) -> void:
 # ================================================================ geral
 ## Uma abertura do livro: duas páginas lado a lado com a lombada livre no meio.
 ## Devolve [abertura, página esquerda, página direita].
+# ================================================================ profissões
+## Página esquerda: as sete profissões com nível e XP; página direita: onde se usa cada uma e quantas receitas
+## você conhece (as de pergaminho contam só depois de aprendidas).
+var prof_left: VBoxContainer
+var prof_right: VBoxContainer
+const PROF_WHERE := {"mining": "Veios de minério nos mapas (cobre no Vale, prata na Mina, mithril no Pico).",
+	"woodcutting": "Árvores com a fita amarela (pinho no Vale, carvalho no Bosque...).",
+	"farming": "A horta da vila: plantar e colher. Sementes melhores pedem nível.",
+	"smithing": "Forja do Doran: espadas e peças de metal.",
+	"leatherwork": "Bancada de Couraria, a leste do empório: arcos e peças de couro.",
+	"alchemy": "Bancada da Pip, na botica: poções, essências, cajados e cetros.",
+	"cooking": "Caldeirão da Horta: comidas com bônus."}
+
+
+func _build_professions() -> Control:
+	var cols := _spread(6)
+	prof_left = cols[1]
+	prof_right = cols[2]
+	return cols[0]
+
+
+func _refresh_professions() -> void:
+	if prof_left == null:
+		return
+	_clear(prof_left)
+	_clear(prof_right)
+	var bt := Balance.tables
+	prof_left.add_child(_gap(4))
+	prof_left.add_child(UITheme.ink_section("Profissões", 20))
+	prof_right.add_child(_gap(4))
+	prof_right.add_child(UITheme.ink_section("Onde e o quê", 20))
+	var s := Game.char_state()
+	for prof in CraftRules.professions(bt):
+		var lv := Game.prof_level(prof)
+		var need := CraftRules.xp_to_next(bt, lv)
+		prof_left.add_child(UITheme.ink("%s  ·  nível %d" % [Game.prof_name(prof), lv], 17, UITheme.INK, true))
+		var bar := UITheme.ink_bar(UITheme.XP, 300, 6)
+		bar.max_value = maxi(need, 1)
+		bar.value = Game.prof_xp(prof) if need > 0 else 1
+		prof_left.add_child(bar)
+		prof_left.add_child(UITheme.ink("%d / %d XP" % [Game.prof_xp(prof), need] if need > 0 else "Nível máximo", 13, UITheme.INK_DIM))
+		var st := str(CraftRules.professions(bt)[prof].get("station", ""))
+		var line := str(PROF_WHERE.get(prof, ""))
+		if st != "":
+			var total := 0
+			var known := 0
+			for rid in CraftRules.station_recipes(bt, st):
+				total += 1
+				if CraftRules.knows(s, bt, rid):
+					known += 1
+			line += "  Receitas: %d de %d." % [known, total]
+		var l := UITheme.ink("%s: %s" % [Game.prof_name(prof), line], 14)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		prof_right.add_child(l)
+
+
 func _spread(separation: int) -> Array:
 	var spread := HBoxContainer.new()
 	spread.add_theme_constant_override("separation", int(BookLayout.SPINE))
@@ -730,7 +799,9 @@ func _refresh() -> void:
 		return
 	_refresh_inventory()
 	_refresh_character()
+	talent_panel.refresh()
 	_refresh_quests()
+	_refresh_professions()
 
 
 func _close() -> void:

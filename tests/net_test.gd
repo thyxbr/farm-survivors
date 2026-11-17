@@ -90,6 +90,8 @@ func _ready() -> void:
 		token = log_r.token
 		if relogin:
 			await _test_bad_token()
+		if horde_role == "lead":
+			await _test_character_select()
 	Network.join(address, token)
 
 	# todo mundo chega direto na vila
@@ -102,7 +104,8 @@ func _ready() -> void:
 	if not _in_village():
 		_finish()
 		return
-	check(Network.my_name == my_name, "nome no servidor é o da conta (%s)" % Network.my_name)
+	# o herói criado sozinho pelo teste leva o nome da conta
+	check(Network.my_name == my_name, "nome no jogo é o do herói (%s)" % Network.my_name)
 	# estação, hora do jogo e clima seguem o relógio do servidor (o servidor pode rodar com
 	# --clock-offset=N para simular um relógio diferente; o cliente recebe --expect-clock-offset=N)
 	check(Weather.synced, "recebeu o relógio do servidor")
@@ -131,17 +134,21 @@ func _ready() -> void:
 	if Network.world == null:
 		_finish()
 		return
-	# personagem novo não tem equipamento: pede ao servidor (--test) o kit das três classes de arma
-	check(Game.equipment.weapon == "", "personagem novo começa sem arma")
-	Econ.request_test_items({"azure_edge": 1, "apprentice_staff": 1, "short_bow": 1, "leather_cap": 1})
-	check(await _wait_until(func() -> bool: return Game.count_item("short_bow") == 1 and Game.count_item("leather_cap") == 1, 5.0),
+	# personagem novo não tem equipamento: só a arma da classe que o --nettest escolheu (guerreiro);
+	# pede ao servidor (--test) o kit das três classes de arma
+	check(Game.char_class == "warrior" and Game.equipment.weapon == "azure_edge"
+		and Game.equipment.values().filter(func(v) -> bool: return v != "").size() == 1,
+		"personagem novo começa só com a arma da classe (%s, %s)" % [Game.char_class, Game.equipment.weapon])
+	Econ.request_test_items({"azure_edge": 1, "apprentice_staff": 1, "short_bow": 1, "leather_boots": 1})
+	check(await _wait_until(func() -> bool: return Game.count_item("short_bow") == 1 and Game.count_item("leather_boots") == 1, 5.0),
 		"kit de teste recebido do servidor")
-	# equipa arco e capuz logo ao entrar: os outros jogadores devem ver esse visual
-	Game.equip("short_bow")
-	Game.equip("leather_cap")
+	# equipa arco e botas (nível 1: o capuz pede nível 2) logo ao entrar: os outros jogadores devem ver esse visual
+	await _pick_class("archer", "short_bow")
+	Game.equip("leather_boots")
 	await wait(1.5)
 	var w: Node = Network.world
 	check(w.player.look["class"] == "bow", "arco equipado no personagem local")
+	check(Game.body == my_body() and KnightLook.body_of(w.player.model) == my_body(), "corpo local %s com o modelo dele" % my_body())
 	check(Network.enemies.size() >= 15, "inimigos replicados do servidor (%d)" % Network.enemies.size())
 	var e0: Enemy = Network.enemies.values()[0]
 	check(e0.puppet, "inimigos no cliente são réplicas")
@@ -168,8 +175,14 @@ func _ready() -> void:
 		check(Network.remote_players.size() == peers - 1, "vê os outros jogadores (%d)" % Network.remote_players.size())
 		await wait(1.0)
 		for rp in Network.remote_players.values():
-			check(rp.look["class"] == "bow" and rp._last_look.get("head", "") == "leather_cap",
-				"vê o arco e o capuz de %s" % rp.display_name)
+			check(rp.look["class"] == "bow" and rp._last_look.get("feet", "") == "leather_boots",
+				"vê o arco e as botas de %s" % rp.display_name)
+			# Ana joga com o corpo feminino (_pick_class); Beto com o masculino
+			var want_body := "f" if rp.display_name == "Ana" else "m"
+			check(rp._last_look.get("body", "") == want_body, "o corpo escolhido (%s) chega na réplica de %s" % [want_body, rp.display_name])
+			check(KnightLook.body_of(rp.model) == want_body
+				and (rp.model.find_child("Ponytail", true, false) != null) == (want_body == "f"),
+				"réplica de %s com o modelo do corpo %s" % [rp.display_name, want_body])
 			var holder: Node3D = rp.look.get("holder")
 			check(holder != null and is_instance_valid(holder), "modelo do arco montado na réplica de %s" % rp.display_name)
 
@@ -266,7 +279,7 @@ func _ready() -> void:
 		await wait(0.8)
 		check(not is_instance_valid(tgt) or tgt.hp < hp1, "flecha causa dano pelo servidor (%.0f → %.0f)" % [hp1, tgt.hp if is_instance_valid(tgt) else 0.0])
 	# cajado (o do kit de teste: o cliente online não se dá itens): troca pedida ao servidor
-	Game.equip("apprentice_staff")
+	await _pick_class("mage", "apprentice_staff")
 	check(await _wait_until(func() -> bool: return Game.equipment.weapon == "apprentice_staff", 3.0)
 		and w.player.look["class"] == "staff", "trocou para o cajado")
 	await wait(0.6)
@@ -275,13 +288,21 @@ func _ready() -> void:
 		for rp in Network.remote_players.values():
 			check(await _wait_until(func() -> bool: return rp.look["class"] == "staff", 10.0),
 				"vê %s trocar para cajado" % rp.display_name)
+			var keep := "f" if rp.display_name == "Ana" else "m"
+			check(KnightLook.body_of(rp.model) == keep and rp._last_look.get("body", "") == keep,
+				"trocar a arma não muda o corpo da réplica de %s (%s)" % [rp.display_name, keep])
 	# efeitos visuais: auras de habilidade (declaradas pelo cliente) e encanto (decidido pelo servidor).
 	# Ficam ligados até o fim: o colega chega a este ponto no ritmo dele e precisa encontrá-los.
 	w.player.set_ability_aura("escudo", true)
 	w.player.set_ability_aura("vento", true)
 	Econ.request_test_gold(50)
-	Econ.request_test_items({"iron_ore": 4, "frost_drop": 2})
+	Econ.request_test_items({"iron_ore": 4, "frost_drop": 2, "hide_t1": 2, "slime_gel": 1})
 	await wait(0.5)
+	# craft decidido pelo servidor: essência da alquimia gasta os materiais e dá XP de Alquimia
+	var ess0 := Game.count_item("essence_t1")
+	Game.craft("essence_t1", 1)
+	check(await _wait_until(func() -> bool: return Game.count_item("essence_t1") == ess0 + 1 and Game.prof_xp("alchemy") > 0, 5.0),
+		"servidor fabricou a essência e deu XP de Alquimia")
 	var wid: String = Game.equipment.weapon
 	Econ.request("enchant", ["gelo"])
 	check(await _wait_until(func() -> bool: return Game.weapon_enchant() == {"el": "gelo", "lv": 1}, 5.0),
@@ -364,6 +385,7 @@ func _ready() -> void:
 	if peers > 1:
 		await _test_sword(w)
 		await _test_bow_staff(w)
+		await _test_heal(w)
 		await _test_party(w)
 		await _test_social(w)
 
@@ -385,7 +407,7 @@ func _ready() -> void:
 ## isso é conferido no smoke test (FX._scene() nulo com Network.mode == SERVER).
 func _test_sword(w: Node) -> void:
 	# a espada inicial voltou para a mochila quando o cajado foi equipado (o cliente online não se dá itens)
-	Game.equip("azure_edge")
+	await _pick_class("warrior", "azure_edge")
 	await _wait_until(func() -> bool: return Game.equipment.weapon == "azure_edge", 3.0)
 	await wait(1.0)
 	await wait(Network.CHAT_WINDOW)   # o anti-spam do chat (teste anterior) precisa esvaziar para os avisos de sincronia passarem
@@ -435,7 +457,7 @@ func _test_bow_staff(w: Node) -> void:
 	var actor := horde_role != "join"
 	var lvl0 := Game.level
 	if actor:
-		Game.equip("short_bow")
+		await _pick_class("archer", "short_bow")
 		check(await _wait_until(func() -> bool: return Game.equipment.weapon == "short_bow", 3.0)
 			and w.player.look["class"] == "bow", "Ana trocou para o arco")
 		Game.level = 8
@@ -452,7 +474,7 @@ func _test_bow_staff(w: Node) -> void:
 			await wait(0.3)
 			check(await _wait_until(func() -> bool: return w.player.ability == "", 4.0), "habilidade do slot %d termina" % slot)
 			await wait(0.4)
-		Game.equip("apprentice_staff")
+		await _pick_class("mage", "apprentice_staff")
 		check(await _wait_until(func() -> bool: return Game.equipment.weapon == "apprentice_staff", 3.0)
 			and w.player.look["class"] == "staff", "Ana voltou para o cajado")
 		await wait(0.6)
@@ -483,7 +505,69 @@ func _test_bow_staff(w: Node) -> void:
 	if actor:
 		Game.level = lvl0
 		Game.fury = 0.0
-		Game.equip("apprentice_staff")
+		await _pick_class("mage", "apprentice_staff")
+
+
+# ---------------------------------------------------------------- cura do healer em aliados
+## Ana vira healer, Beto (guerreiro) fica ferido perto dela. Beto pedindo a cura direto não faz nada (não é
+## healer); Ana conjura `heal` e a vida de Beto sobe (e a dela uma vez só: vem do servidor, não também do cliente).
+func _test_heal(w: Node) -> void:
+	await _sync("heal_in")
+	var actor := horde_role != "join"
+	if actor:
+		await _pick_class("healer", "sc_novice_scepter")
+		check(Game.char_class == "healer", "Ana virou healer")
+	w.player.global_position = w.VILLAGE_SPAWN + Vector3(2.0 if actor else -2.0, 0, 0)
+	await wait(0.6)
+	Game.hp = 10.0
+	Game.mp = Game.max_mp()
+	await wait(1.2)   # o servidor recebe a posição e a vida baixa fica registrada
+	await _sync("heal_ready")
+	var hp0 := Game.hp
+	if not actor:
+		Network.request_heal()   # guerreiro: o servidor recusa
+	await wait(1.2)
+	check(Game.hp <= hp0 + 3.0, "pedido de cura de quem não é healer não faz nada (%.0f → %.0f)" % [hp0, Game.hp])
+	await _sync("heal_denied")
+	if actor:
+		var expected := Game.heal_amount()
+		Game.hp = 10.0
+		w.player.cast("heal")
+		check(await _wait_until(func() -> bool: return Game.hp > 10.5, 3.0), "Ana se cura pela cura do servidor (%.0f)" % Game.hp)
+		await wait(1.0)
+		check(Game.hp - 10.0 <= expected + 3.0, "a cura própria vem uma vez só (+%.0f, máximo %.0f)" % [Game.hp - 10.0, expected])
+	else:
+		check(await _wait_until(func() -> bool: return Game.hp > hp0 + 10.0, 3.0), "Beto recebe a cura de Ana (%.0f → %.0f)" % [hp0, Game.hp])
+	await _sync("heal_out")
+	# Escudo de Luz e Banquete do Herói: Ana pede, Beto (perto) recebe o buff; Beto pedindo não faz nada
+	Game.clear_buffs(true)
+	Game.hp = 10.0
+	await _sync("ally_ready")
+	if not actor:
+		Network.request_ally_buff("scepter_ward")   # guerreiro: o servidor recusa
+		await wait(1.2)
+		check(not Game.has_buff("scepter_ward"), "pedido de buff de quem não é healer não faz nada")
+	await _sync("ally_denied")
+	if actor:
+		Network.request_ally_buff("scepter_ward")
+		check(await _wait_until(func() -> bool: return Game.has_buff("scepter_ward"), 3.0), "Ana recebe o próprio Escudo de Luz")
+		Network.request_ally_buff("scepter_ward")   # de novo: o intervalo mínimo recusa
+		Network.request_ally_buff("buff_inexistente")
+	else:
+		check(await _wait_until(func() -> bool: return Game.has_buff("scepter_ward"), 3.0), "Beto recebe o Escudo de Luz de Ana")
+		check(not Game.has_buff("scepter_feast"), "o escudo não traz o Banquete")
+	await _sync("ally_ward")
+	if actor:
+		Network.request_ally_buff("scepter_ult")
+		check(await _wait_until(func() -> bool: return Game.has_buff("scepter_feast"), 3.0), "Ana recebe o Banquete do Herói")
+	else:
+		check(await _wait_until(func() -> bool: return Game.has_buff("scepter_feast"), 3.0), "Beto recebe o Banquete do Herói")
+		check(await _wait_until(func() -> bool: return Game.hp >= Game.max_hp() - 0.5, 3.0), "o Banquete cura Beto ao máximo (%.0f/%.0f)" % [Game.hp, Game.max_hp()])
+	await _sync("ally_out")
+	Game.clear_buffs(true)
+	if actor:
+		await _pick_class("mage", "apprentice_staff")
+	Game.hp = Game.max_hp()
 
 
 # ---------------------------------------------------------------- vila
@@ -521,7 +605,7 @@ func _test_social(w: Node) -> void:
 		if a.begins_with("--shot-social=") and bk != null and DisplayServer.get_name() != "headless":
 			await wait(1.0)
 			get_viewport().get_texture().get_image().save_png(a.substr(14))
-			bk.book.show_page(1)
+			bk.book.show_page(0)
 			await wait(1.0)
 			get_viewport().get_texture().get_image().save_png(a.substr(14).replace(".png", "_grupo.png"))
 	if bk != null:
@@ -579,32 +663,36 @@ func _test_party(w: Node) -> void:
 		return w.hud.party_frames != null and w.hud.party_frames._bars.has(other), 3.0), "quadro do colega na HUD")
 	# vida, mana e buffs: Beto toma uma sopa apimentada; Ana vê o buff no quadro dele, com o tempo
 	if my_name == "Beto":
-		Game.food_buffs["spicy_soup"] = 300.0
+		Game.add_buff("food_warm", 300.0)
 	else:
 		check(await _wait_until(func() -> bool:
 			for m in Party.members:
 				if int(m.peer) == other:
-					return float(m.get("mp", -1.0)) > 0.0 and Party.buff_left(m, "spicy_soup") > 200.0
+					return float(m.get("mp", -1.0)) > 0.0 and Party.buff_left(m, "food_warm") > 200.0
 			return false, 8.0), "o servidor repassa a mana e o buff do colega (%s)" % str(Party.members))
-		check(await _wait_until(func() -> bool: return w.hud.party_frames._bars[other].chips.has("spicy_soup"), 3.0),
+		check(await _wait_until(func() -> bool: return w.hud.party_frames._bars[other].chips.has("food_warm"), 3.0),
 			"ícone do buff do colega no quadro do grupo")
 	await _shot_hud(w, "buff")
-	# livro do mapa e do grupo (P): o colega aparece com a vida e as duas abas cabem nas páginas
+	# livro do grupo (P): o colega aparece com a vida e a aba cabe nas páginas
 	w.open_world_map(1)
 	var bk: Node = w.modal
 	check(bk != null and bk._hp_bars.has(other), "livro do grupo lista o colega")
 	await wait(0.3)
 	if bk != null:
-		bk.book.show_page(0)
-		await wait(0.3)
-		check(bk.book.overflow_warnings == 0, "abas Mapa e Grupo cabem no livro")
+		check(bk.book.overflow_warnings == 0, "aba Grupo cabe no livro")
 		bk.book.close()
+	# mapa-mundi (M): o colega do grupo aparece no atlas
+	w.open_world_map(0)
+	var atlas_ui: Node = w.modal
+	await wait(0.3)
+	check(atlas_ui != null and atlas_ui.get("view") is AtlasView, "M abre o mapa-mundi em tela cheia")
+	if atlas_ui != null:
+		atlas_ui._close()
 	check(w.modal == null, "livro fechado")
 	Econ.request("start_quest", ["espantalho"])
 	check(await _wait_until(func() -> bool: return Game.quest_state("espantalho") == "active", 4.0), "missão de slimes ativa")
 	await _sync("party_ready")
 
-	var slime_xp := int(Balance.tables.get_table("enemies").get("slime", {}).get("xp", 0))
 	for phase in ["near", "far"]:
 		await wait(Network.CHAT_WINDOW)   # as barreiras usam o chat: o anti-spam precisa esvaziar para o alvo passar
 		var kills0 := Game.kills
@@ -613,11 +701,21 @@ func _test_party(w: Node) -> void:
 		var lvl0 := Game.level
 		var target: Enemy = null
 		if my_name == "Ana":
-			# o slime vivo mais perto da chegada da vila (o dos campos, longe dos outros monstros); não depende da
-			# ordem em que os pontos estão na cena do mapa
+			# o slime vivo mais perto da chegada da vila (o dos campos); não depende da ordem em que os pontos estão
+			# na cena do mapa. Só slime de vida cheia e a mais de 10 m de Beto: com os bandos dos campos, um golpe
+			# de Beto no slime vizinho (ele espera ao lado do alvo da fase "near") o faria receber o abate de longe
 			var best := INF
+			var others: Array = []
+			for rp in Network.remote_players.values():
+				if is_instance_valid(rp):
+					others.append((rp as Node3D).global_position)
 			for e in Network.enemies.values():
-				if is_instance_valid(e) and e.kind == "slime" and not e.dead:
+				if not (is_instance_valid(e) and e.kind == "slime" and not e.dead and e.hp >= e.max_hp):
+					continue
+				var clear := true
+				for o in others:
+					clear = clear and (o as Vector3).distance_to(e.global_position) > 10.0
+				if clear:
 					var d: float = e.global_position.distance_to(Vector3(0, 0, 6))
 					if d < best:
 						best = d
@@ -635,6 +733,8 @@ func _test_party(w: Node) -> void:
 		if tgt == null or not is_instance_valid(tgt):
 			check(false, "slime do grupo existe no cliente (%s)" % phase)
 			return
+		var tgt_reward := tgt.xp_reward()
+		var tgt_level := tgt.level
 		var at := tgt.global_position
 		if my_name == "Ana":
 			w.player.global_position = at + Vector3(0, 0.5, 3)
@@ -651,7 +751,11 @@ func _test_party(w: Node) -> void:
 		await wait(0.8)
 		var gained := Game.xp + Game.level * 100000 - xp0
 		if Game.level == lvl0:   # subir de nível zera o XP da barra: aí só confere que subiu
-			check(gained == ceili(slime_xp / 2.0), "metade do XP do slime (%d de %d, %s)" % [gained, slime_xp, phase])
+			# perto e longe o XP leva o ajuste de nível (slime tem nível e xp_reward)
+			var share := ceili(tgt_reward / 2.0)
+			# premissa: Ana e Beto têm o mesmo nível (contas novas), então o maior nível do grupo é lvl0
+			var expected := int(round(share * ProgressionRules.xp_diff_mult(Balance.tables, tgt_level, lvl0)))
+			check(gained == expected, "metade do XP do slime (%d de %d, %s)" % [gained, tgt_reward, phase])
 		var counted: bool = my_name == "Ana" or phase == "near"
 		check(Game.kills == kills0 + (1 if counted else 0),
 			"abate %s para %s (%s: %d → %d)" % ["conta" if counted else "não conta", my_name, phase, kills0, Game.kills])
@@ -836,6 +940,49 @@ func _test_econ() -> void:
 	var f: Array = await _results_after(from, "grant")
 	check(not f.is_empty() and not f[0][0] and f[0][1] == "op_invalida" and Game.gold == g2,
 		"op forjada (grant) recusada com op_invalida (%s)" % str(f))
+	# dungeon compartilhada: entra, vê os monstros e o chefe que o servidor mantém lá dentro e sai
+	var w := get_tree().current_scene
+	var back: Vector3 = w.player.global_position
+	var rank0 := str(Game.flags.get("rank", "D"))
+	Game.flags["rank"] = "C"
+	w.use_dungeon_door("dg_bosque")
+	check(await _wait_until(func() -> bool: return Regions.region_at(w.player.global_position) == "dg_bosque", 4.0),
+		"entrou no Covil das Raízes")
+	check(await _wait_until(func() -> bool:
+		var n := 0
+		var chief := false
+		for e in Network.enemies.values():
+			if is_instance_valid(e) and Regions.region_at(e.global_position) == "dg_bosque":
+				n += 1
+				chief = chief or e.chief
+		return n >= 20 and chief, 5.0), "monstros e chefe da dungeon vêm do servidor")
+	w.use_dungeon_door("out")
+	check(await _wait_until(func() -> bool: return w.player.global_position.distance_to(Regions.door_point("dg_bosque")) < 3.0, 4.0),
+		"saiu pela porta")
+	Game.flags["rank"] = rank0
+	w.player.global_position = back
+	await wait(0.5)
+
+
+## O servidor em --test deixa "choose_class" valer de novo (CharacterService.allow_reclass): é como o teste
+## passa pelas quatro armas, já que a classe é fixa no jogo de verdade.
+## Depois equipa a arma `weapon` (a escolha da classe equipa a melhor que o personagem tem, e um saque
+## melhor do que o inicial mudaria o id): se faltar na mochila, o servidor em --test dá uma.
+## Corpo do personagem do teste: Ana é mulher (o colega confere a réplica feminina), os outros homens.
+func my_body() -> String:
+	return "f" if my_name == "Ana" else "m"
+
+
+func _pick_class(cls: String, weapon: String) -> void:
+	Econ.request("choose_class", [cls, my_body()])
+	await _wait_until(func() -> bool: return Game.char_class == cls and Game.equipment.weapon != "", 3.0)
+	if Game.equipment.weapon == weapon:
+		return
+	if Game.count_item(weapon) == 0:
+		Econ.request_test_items({weapon: 1})
+		await _wait_until(func() -> bool: return Game.count_item(weapon) > 0, 3.0)
+	Game.equip(weapon)
+	await _wait_until(func() -> bool: return Game.equipment.weapon == weapon, 3.0)
 
 
 ## Sai do servidor e entra de novo (mesmo token): o personagem volta igual, vindo do banco do servidor.
@@ -925,6 +1072,65 @@ func _test_bad_token() -> void:
 	await _wait_until(func() -> bool: return join_error != "", 8.0)
 	check(join_error.begins_with("Sessão expirada"), "token inválido é recusado (%s)" % join_error)
 	Network.leave()
+	join_error = ""
+
+
+## Seleção de personagem: a conta logada fica fora do jogo até escolher; cria dois heróis (já com classe),
+## a lista traz classe e nível, exclui um, pedido de personagem alheio é recusado e "enter" põe no jogo.
+func _test_character_select() -> void:
+	var sel_name := my_name + "Sel"
+	var reg: Dictionary = await Auth.register(address, sel_name, TEST_PASS)
+	var log_r: Dictionary = await Auth.login(address, sel_name, TEST_PASS)
+	check((reg.ok or reg.err == "nome_em_uso") and log_r.ok, "conta da seleção (%s)" % log_r.get("err", "ok"))
+	if not log_r.ok:
+		return
+	var lists: Array = []   # [lista, criado, erro]
+	var on_list := func(list: Array, created: int, err: String) -> void: lists.append([list, created, err])
+	Network.char_list_changed.connect(on_list)
+	Game.skip_auto_class = true
+	join_error = ""
+	Network.join(address, str(log_r.token))
+	var got: bool = await _wait_until(func() -> bool: return not lists.is_empty(), 10.0)
+	check(got, "servidor mandou a lista de personagens depois do login")
+	if got:
+		var me := multiplayer.get_unique_id()
+		check(not Network.players.has(me), "na seleção a conta ainda não está no jogo")
+		# reaproveita a conta entre execuções: começa sem personagens
+		for e in lists[-1][0]:
+			Network.char_delete(int(e.id))
+			await _wait_until(func() -> bool: return lists[-1][0].all(func(x: Dictionary) -> bool: return int(x.id) != int(e.id)), 5.0)
+		lists.clear()
+		Network.char_create(sel_name + "Mag", "mage", "f")
+		await _wait_until(func() -> bool: return not lists.is_empty(), 5.0)
+		Network.char_create(sel_name + "Arq", "archer", "m")
+		await _wait_until(func() -> bool: return lists.size() >= 2, 5.0)
+		Network.char_create(sel_name + "ARQ", "warrior", "m")   # mesmo nome, outra caixa
+		await _wait_until(func() -> bool: return lists.size() >= 3, 5.0)
+		check(lists.size() >= 3 and lists[-1][2].begins_with("Já existe"), "nome repetido recusado (%s)"
+			% (lists[-1][2] if lists.size() >= 3 else "sem resposta"))
+		var list: Array = lists[-1][0] if not lists.is_empty() else []
+		check(list.size() == 2, "criou dois heróis na mesma conta (%d)" % list.size())
+		check(lists.size() >= 2 and int(lists[1][1]) > 0 and lists[1][2] == "", "criação devolve o id do herói novo")
+		if list.size() == 2:
+			check(list[0].char_class == "mage" and list[1].char_class == "archer", "lista traz a classe de cada um")
+			check(int(list[0].level) == 1 and list[0].body == "f", "lista traz nível e corpo")
+			check(list[1].name == sel_name + "Arq", "lista traz o nome do herói (%s)" % list[1].name)
+			Network.char_delete(int(list[0].id))
+			await _wait_until(func() -> bool: return lists[-1][0].size() == 1, 5.0)
+			check(lists[-1][0].size() == 1, "excluiu um herói (%d sobrou)" % lists[-1][0].size())
+			Network.char_enter(999999)
+			await _wait_until(func() -> bool: return lists[-1][2] != "", 5.0)
+			check(lists[-1][2] != "" and not Network.players.has(me), "entrar com personagem alheio é recusado (%s)" % lists[-1][2])
+			var keep := int(list[1].id)
+			Network.char_enter(keep)
+			var entered: bool = await _wait_until(func() -> bool: return Network.players.has(me), 8.0)
+			check(entered and Game.char_class == "archer", "entrou no jogo com o herói escolhido (%s)" % Game.char_class)
+			check(int(Network.players.get(me, {}).get("char", 0)) == keep, "servidor associou o personagem ao jogador")
+			check(Network.my_name == sel_name + "Arq", "no jogo aparece o nome do herói, não o da conta (%s)" % Network.my_name)
+	Network.char_list_changed.disconnect(on_list)
+	Game.skip_auto_class = false
+	Game.go_to_menu()   # sai do servidor e fecha o mundo dessa conta antes da conta principal entrar
+	await wait(1.0)
 	join_error = ""
 
 

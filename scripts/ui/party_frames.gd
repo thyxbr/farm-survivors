@@ -146,17 +146,15 @@ func _update_buffs() -> void:
 
 ## Ícone da comida (o mesmo da barra de ações) com o tempo ao lado, na cor da comida.
 func _chip(id: String) -> Array:
-	var it := ItemDB.get_item(id)
-	var c: Color = it.get("color", UITheme.GOLD)
+	var row: Dictionary = ItemDB.BUFFS.get(id, {})
+	var c: Color = row.get("color", UITheme.GOLD)
 	var p := PanelContainer.new()
 	p.add_theme_stylebox_override("panel", UITheme._box(Color(0.05, 0.04, 0.03, 0.7), c.darkened(0.3), 1, 7, 3, 0))
-	p.tooltip_text = str(it.get("name", id))
+	p.tooltip_text = str(row.get("name", id))
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 2)
 	p.add_child(hb)
-	var icon := ItemSlot.new(BUFF_ICON)
-	icon.item_id = id
-	hb.add_child(icon)
+	hb.add_child(ItemSlot.for_buff(id, BUFF_ICON))
 	var l := UITheme.outlined("", 11, c.lightened(0.25), 3)
 	hb.add_child(l)
 	_ignore_all(p)

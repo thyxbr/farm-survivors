@@ -1,6 +1,7 @@
 class_name MapCapture
 extends Node
-## Imagem de cima de cada mapa (para o minimapa e o mapa-mundi): uma câmera ortográfica olhando para baixo
+## Imagem de cima de cada mapa (para o minimapa e o mapa-mundi), cobrindo MapRules.capture_rect (o círculo
+## do mapa, com a serra da borda): uma câmera ortográfica olhando para baixo
 ## renderiza a região uma vez num SubViewport do mesmo mundo 3D e guarda a textura. Uma região por vez,
 ## só quando alguém pede (`texture`). Sem tela (headless/servidor) não renderiza: o mapa fica com o fundo liso.
 ## O clima não entra na foto: durante a captura a neve, a chuva e as poças ficam em 0 (depois do WeatherFX
@@ -8,8 +9,8 @@ extends Node
 
 signal captured(region: String)
 
-const RES := {"vila": 1024}
-const RES_DEFAULT := 640
+const RES := {"vila": 1536}
+const RES_DEFAULT := 900
 
 var _tex := {}       # região -> Texture2D
 var _queue: Array = []
@@ -62,7 +63,7 @@ func _next() -> void:
 
 func _render(region: String) -> Texture2D:
 	var res := int(RES.get(region, RES_DEFAULT))
-	var r := MapRules.rect(region)
+	var r := MapRules.capture_rect(region)
 	var vp := SubViewport.new()
 	vp.size = Vector2i(res, res)
 	vp.world_3d = get_viewport().world_3d
