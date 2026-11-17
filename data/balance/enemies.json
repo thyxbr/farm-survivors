@@ -565,15 +565,7 @@
 			],
 			[
 				"goblin_cleaver",
-				0.763
-			],
-			[
-				"guardian_greatsword",
-				0.191
-			],
-			[
-				"dragonfang",
-				0.046
+				0.25
 			]
 		],
 		"ref_level": 12
@@ -949,15 +941,19 @@
 			],
 			[
 				"guardian_greatsword",
-				0.3
+				0.12
 			],
 			[
 				"archmage_staff",
-				0.2
+				0.08
 			],
 			[
 				"storm_bow",
-				0.1
+				0.06
+			],
+			[
+				"dragonfang",
+				0.04
 			]
 		],
 		"boss": true,

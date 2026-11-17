@@ -116,6 +116,12 @@ build pura com o ataque básico. Por isso o jogo de verdade é um pouco mais rá
   por morte" do simulador mostra a média de cada tipo.
 - `boss: true` usa `gear_drop.boss_chance`; `elite: true` é só o nome e o visual (a elite de verdade vem do
   ponto no mapa).
+- **Chefes**: 1 material raro garantido (coroa, cristal...) + o equipamento da janela de nível
+  (`boss_chance` 1.0) + uma **chance pequena** de item nomeado, somando 0,2–0,35 por abate entre todos os
+  nomeados da lista (Rei Goblin: Cutelo 25%; Lich: Montante 12%, Cajado do Arquimago 8%, Arco da Tempestade 6%,
+  Presa do Dragão 4%). Resultado: 1–2 equipamentos por abate. O nomeado da lista tem `level` até o nível do
+  chefe + 2 (Rei 12 → Cutelo 14; Lich 42 → até 44). Se o item também é recompensa de missão ou vendido na
+  loja, não mude o `level` dele: baixe a chance na lista. O teste `test_boss_drops` cobra essas três regras.
 
 ## `data/balance/items.json` — `level` dos itens
 

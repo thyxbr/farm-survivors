@@ -28,6 +28,11 @@ func test_hours_per_band() -> void:
 	var hours := ProgressionRules.sim_hours(bt)
 	var targets: Dictionary = bt.get_table("progression").sim.target_hours
 	T.eq(targets.size(), 5, "sim.target_hours tem as 5 faixas do design")
+	# o alvo é o do design: mexer nele não pode fazer o teste passar
+	var design := {"1-10": 2.0, "10-20": 5.0, "20-35": 10.0, "35-45": 7.0, "45-50": 6.0}
+	for band in design:
+		T.ok(targets.has(band) and is_equal_approx(float(targets[band]), design[band]),
+			"alvo da faixa %s = %.0f h (design)" % [band, design[band]])
 	for band in targets:
 		T.ok(hours.has(band), "faixa %s no resultado" % band)
 		var h := float(hours.get(band, 0.0))
@@ -51,3 +56,26 @@ func test_items_per_kill() -> void:
 	for kind in ["slime", "goblin", "esqueleto", "raptor_capim"]:
 		var avg := ProgressionRules.sim_items_per_kill(bt, kind, 4000, 1234)
 		T.ok(avg >= 0.5 and avg <= 0.8, "%s: %.2f itens por morte (meta 0,5-0,8)" % [kind, avg])
+
+
+## Chefe: 1 material raro garantido + chance pequena de item nomeado. Equipamento por abate ~1-2
+## (o sorteio da janela de nível com gear_drop.boss_chance + os itens da lista), e o item nomeado da
+## lista usável perto do nível do chefe (até +2).
+func test_boss_drops() -> void:
+	var bt := _tables()
+	var enemies: Dictionary = bt.get_table("enemies")
+	var boss_chance := float(bt.get_table("progression").gear_drop.get("boss_chance", 0.0))
+	# Rei Goblin nasce no ref_level; o Lich no nível do ponto dele (scenes/maps/pico.tscn)
+	var spawn := {"goblin_king": ProgressionRules.enemy_level(bt, "goblin_king", 0), "lich": 42}
+	for kind in spawn:
+		T.ok(enemies[kind].get("boss", false), "%s é chefe" % kind)
+		var gear := 0.0
+		for row in enemies[kind].loot:
+			if CharRules.slot_of(bt, str(row[0])) == "":
+				continue
+			gear += float(row[1])
+			var lvl := CharRules.item_level(bt, str(row[0]))
+			T.ok(lvl <= spawn[kind] + 2, "%s: %s nível %d (chefe nível %d, até +2)" % [kind, row[0], lvl, spawn[kind]])
+		T.ok(gear >= 0.2 and gear <= 0.35, "%s: %.2f item nomeado por abate (chance pequena)" % [kind, gear])
+		var total := gear + boss_chance
+		T.ok(total >= 1.0 and total <= 2.0, "%s: %.2f equipamentos por abate (meta 1-2)" % [kind, total])
