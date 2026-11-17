@@ -8,6 +8,8 @@ signal health_changed(enemy: Enemy)
 const PICKUP := preload("res://scripts/world/pickup.gd")
 const ENEMY_ARROW := preload("res://scripts/enemies/enemy_arrow.gd")
 const PROVOKE_TIME := 4.0   # ver `provoked`
+## Até onde (m) o monstro olha à frente antes de dar um passo: se o passo cai na zona da guarda, ele para.
+const WARD_LOOKAHEAD := 1.5
 ## Tipos de inimigo: vêm de data/balance/enemies.json (autoload Balance). "ai" muda o comportamento,
 ## "tint" recolore o modelo, "bld" multiplica o dano em construções, "gear" lista as peças opcionais do
 ## modelo que a variante usa (EnemyGear), "shot": "bolt" troca a flecha por um projétil mágico e "chill"
@@ -68,6 +70,8 @@ var stagger := 0.0
 ## Sem isso, um acerto de longe (ou, no servidor, antes de chegar a posição nova do jogador)
 ## fazia o inimigo desistir na hora, voltar para casa e curar a vida toda, apagando o dano.
 var provoked := 0.0
+## Segundos que o monstro está dentro da zona da guarda (VillageWard); passou de DOOM, a guarda abate.
+var ward_t := 0.0
 var home := Vector3.ZERO
 var wander_target := Vector3.ZERO
 var enraged := false
@@ -470,6 +474,8 @@ func _physics_process(delta: float) -> void:
 	stagger = max(0.0, stagger - delta)
 	provoked = maxf(0.0, provoked - delta)
 	_update_flash(delta)
+	if not horde and _ward_doom(delta):
+		return
 
 	var player := _nearest_player()
 	var to_player := Vector3.ZERO
@@ -519,9 +525,9 @@ func _physics_process(delta: float) -> void:
 					_begin_attack()
 				elif dist > data.reach * 0.8:
 					move = to_player.normalized() * spd
-			elif global_position.distance_to(home) > 45.0 \
+			elif global_position.distance_to(home) > 45.0 or dist == INF \
 					or (dist > data.aggro * 1.9 and provoked <= 0.0):
-				_set_state("return")
+				_set_state("return")   # sem alvo (morreu ou entrou na vila, sob a guarda) também volta
 			elif ai() == "ranged" or ai() == "caster":
 				# arqueiro e mago no mundo: guardam distância, rodeiam e só atiram com o caminho livre
 				var r := _ranged_move(to_player, dist, spd)
@@ -565,6 +571,11 @@ func _physics_process(delta: float) -> void:
 		move = Vector3.ZERO
 	elif state in ["chase", "wander", "return"]:
 		move = _steer(move, delta)
+	# a guarda da vila: nenhum passo para dentro da zona protegida (o bando para na cerca)
+	if not horde and move.length() > 0.01 			and VillageWard.blocks_step(global_position, global_position + move.normalized() * WARD_LOOKAHEAD):
+		move = Vector3.ZERO
+		if state == "wander":
+			state_timer = 7.0   # desiste do passeio (vira idle no próximo quadro)
 	if face == Vector3.ZERO and move.length() > 0.1:
 		face = move
 	if face.length() > 0.01:
@@ -580,6 +591,38 @@ func _physics_process(delta: float) -> void:
 	if bar_root and bar_root.visible:
 		bar_fg.scale.x = max(0.001, hp / max_hp)
 		bar_fg.position.x = 0.0
+
+
+## A guarda da vila (solo/servidor): monstro dentro da zona protegida leva a flecha de um guarda depois de
+## VillageWard.DOOM segundos. true = morreu agora (o quadro para aqui).
+func _ward_doom(delta: float) -> bool:
+	if not VillageWard.inside(global_position, VillageWard.KILL_MARGIN):
+		ward_t = 0.0
+		return false
+	ward_t += delta
+	if ward_t < VillageWard.DOOM:
+		return false
+	guard_kill()
+	return true
+
+
+## Abatido pela guarda da vila: morre sem dar XP, loot nem abate de missão a ninguém (nem a quem já tinha
+## acertado). No servidor as réplicas recebem a morte com o aviso da guarda.
+func guard_kill() -> void:
+	if dead or puppet:
+		return
+	contributors.clear()
+	last_hitter = 0
+	if Network.is_server():
+		Network.server_enemy_guard_killed(self)
+	die_visual()
+	guard_fx()
+
+
+## Aviso sobre o monstro abatido pela guarda (solo, servidor e réplicas).
+func guard_fx() -> void:
+	var top: Vector3 = global_position + Vector3.UP * (data.height * data.scale + 0.4)
+	FX.damage_number(top, "Abatido pela guarda", Color(0.75, 0.82, 0.95), 40)
 
 
 ## Regra do sono (pura): parado ou passeando, no chão, sem chefe e sem jogador perto.
@@ -607,6 +650,8 @@ func _nearest_player() -> Player:
 	for p in pool:
 		if p.dead or p.get_world_3d() != w:   # o servidor roda Valdoria e a cidade em mundos separados
 			continue
+		if not horde and VillageWard.inside(p.global_position):
+			continue   # quem está na vila (ou na Horta) está sob a proteção da guarda: o monstro não persegue
 		var d := global_position.distance_squared_to(p.global_position)
 		if d < best_d:
 			best_d = d

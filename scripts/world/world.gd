@@ -80,7 +80,7 @@ const MAP_HALF := 125.0
 ## abaixo só valem antes disso.
 var VILLAGE_SPAWN := Vector3(0, 0.3, 6)
 var RUINS := Vector3(0, 0, -100)
-var CAMP := Vector3(62, 0, 0)
+var CAMP := Vector3(86, 0, 0)
 ## Arena do Desafio da Horda: mapa próprio (scenes/maps/arena.tscn), longe ao norte, fora de Valdoria.
 var ARENA := Vector3(0, 0, -1000)
 ## Metade do lado do chão da arena (MapRoot.half da cena da Arena).
@@ -973,6 +973,8 @@ func make_entity(e: MapEntity) -> Node3D:
 			n = st
 		"portal":
 			n = PORTAL.new()
+		"guard":
+			n = VillageGuard.new()
 		"santa":
 			santa = SANTA.new()
 			n = santa

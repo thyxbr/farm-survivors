@@ -7,6 +7,7 @@
 	"teia_tecelas": {"name": "Teia das Tecelãs", "level_min": 7, "level_max": 10, "density": 1.0, "show_on_map": true},
 	"cemiterio_velho": {"name": "Cemitério Velho", "level_min": 9, "level_max": 12, "density": 1.0, "show_on_map": true},
 	"ruinas_valdoria": {"name": "Ruínas de Valdoria", "level_min": 11, "level_max": 13, "density": 1.0, "show_on_map": true},
+	"forte_brutos": {"name": "Forte dos Brutos", "level_min": 10, "level_max": 13, "density": 1.0, "show_on_map": true},
 	"clareira_saltitante": {"name": "Clareira Saltitante", "level_min": 12, "level_max": 14, "density": 1.0, "show_on_map": true},
 	"charco_gelado": {"name": "Charco Gelado", "level_min": 14, "level_max": 17, "density": 1.0, "show_on_map": true},
 	"circulo_xamas": {"name": "Círculo dos Xamãs", "level_min": 16, "level_max": 19, "density": 1.0, "show_on_map": true},

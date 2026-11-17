@@ -41,9 +41,9 @@ script = ExtResource("2_3yltp")
 size = Vector2(4.5, 80)
 
 [node name="Área 2" type="Node3D" parent="Chão" unique_id=1434234889]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 38, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 44, 0, 0)
 script = ExtResource("2_3yltp")
-size = Vector2(52, 4.5)
+size = Vector2(64, 4.5)
 
 [node name="Disco" type="Node3D" parent="Chão" unique_id=2146157006]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1)
@@ -124,7 +124,7 @@ color = Color(0.42, 0.42, 0.4, 1)
 soft = 0.9
 
 [node name="Disco 4" type="Node3D" parent="Chão" unique_id=340337333]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 62, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 86, 0, 0)
 script = ExtResource("2_3yltp")
 disc = true
 radius = 13.0
@@ -1585,28 +1585,28 @@ no_grass = false
 [node name="Árvores" type="Node3D" parent="Ninho de Slimes" unique_id=1574537720]
 
 [node name="tree_pine" type="Node3D" parent="Ninho de Slimes/Árvores" unique_id=876633841]
-transform = Transform3D(-1.0444292, 0, -0.62667364, 0, 1.2180115, 0, 0.62667364, 0, -1.0444292, -24.296616, 0, 37.815063)
+transform = Transform3D(-1.0444292, 0, -0.62667364, 0, 1.2180115, 0, 0.62667364, 0, -1.0444292, -48.296616, 0, 47.815063)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
 [node name="tree_oak" type="Node3D" parent="Ninho de Slimes/Árvores" unique_id=216287569]
-transform = Transform3D(0.247009, 0, 0.961695, 0, 0.99291027, 0, -0.961695, 0, 0.247009, -41.06436, 0, 40.804184)
+transform = Transform3D(0.247009, 0, 0.961695, 0, 0.99291027, 0, -0.961695, 0, 0.247009, -65.06436, 0, 50.804184)
 script = ExtResource("4_gxwoc")
 model = "tree_oak"
 shape = 2
 shape_size = Vector3(0.4, 2.9999998, 0)
 
 [node name="tree_maple" type="Node3D" parent="Ninho de Slimes/Árvores" unique_id=2111898744]
-transform = Transform3D(-0.292124, 0, 0.89222294, 0, 0.9388281, 0, -0.89222294, 0, -0.292124, -25.416428, 0, 34.766403)
+transform = Transform3D(-0.292124, 0, 0.89222294, 0, 0.9388281, 0, -0.89222294, 0, -0.292124, -49.416428, 0, 44.766403)
 script = ExtResource("4_gxwoc")
 model = "tree_maple"
 shape = 2
 shape_size = Vector3(0.4, 3.0000002, 0)
 
 [node name="tree_orange" type="Node3D" parent="Ninho de Slimes/Árvores" unique_id=1486561228]
-transform = Transform3D(0.6218089, 0, 0.7847215, 0, 1.0012163, 0, -0.7847215, 0, 0.6218089, -32.257042, 0, 28.891815)
+transform = Transform3D(0.6218089, 0, 0.7847215, 0, 1.0012163, 0, -0.7847215, 0, 0.6218089, -56.257042, 0, 38.891815)
 script = ExtResource("4_gxwoc")
 model = "tree_orange"
 shape = 2
@@ -1615,7 +1615,7 @@ shape_size = Vector3(0.3, 3, 0)
 [node name="Pedras" type="Node3D" parent="Ninho de Slimes" unique_id=67196729]
 
 [node name="rock" type="Node3D" parent="Ninho de Slimes/Pedras" unique_id=1066522510]
-transform = Transform3D(-1.1161671, 0, 0.5645698, 0, 1.250827, 0, -0.5645698, 0, -1.1161671, -37.49762, 0, 32.13951)
+transform = Transform3D(-1.1161671, 0, 0.5645698, 0, 1.250827, 0, -0.5645698, 0, -1.1161671, -61.49762, 0, 42.13951)
 script = ExtResource("4_gxwoc")
 shape = 2
 shape_size = Vector3(0.65, 0.9, 0)
@@ -3241,7 +3241,7 @@ shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
 [node name="tree_birch 12" type="Node3D" parent="Natureza/Árvores" unique_id=1483421497]
-transform = Transform3D(0.85478944, 0, -0.16503794, 0, 0.87057596, 0, 0.16503794, 0, 0.85478944, 87.68536, 0, 6.857277)
+transform = Transform3D(0.85478944, 0, -0.16503794, 0, 0.87057596, 0, 0.16503794, 0, 0.85478944, 63.68536, 0, 6.857277)
 script = ExtResource("4_gxwoc")
 model = "tree_birch"
 shape = 2
@@ -3332,7 +3332,7 @@ shape = 2
 shape_size = Vector3(0.25, 3, 0)
 
 [node name="tree_birch 15" type="Node3D" parent="Natureza/Árvores" unique_id=2039777211]
-transform = Transform3D(0.21196708, 0, 1.4056368, 0, 1.421529, 0, -1.4056368, 0, 0.21196708, 81.50313, 0, -15.78643)
+transform = Transform3D(0.21196708, 0, 1.4056368, 0, 1.421529, 0, -1.4056368, 0, 0.21196708, 57.50313, 0, -15.78643)
 script = ExtResource("4_gxwoc")
 model = "tree_birch"
 shape = 2
@@ -3388,7 +3388,7 @@ shape = 2
 shape_size = Vector3(0.31999996, 3, 0)
 
 [node name="tree_pine 244" type="Node3D" parent="Natureza/Árvores" unique_id=384542244]
-transform = Transform3D(0.97816026, 0, -0.07058217, 0, 0.9807035, 0, 0.07058217, 0, 0.97816026, 80.4854, 0, 16.304237)
+transform = Transform3D(0.97816026, 0, -0.07058217, 0, 0.9807035, 0, 0.07058217, 0, 0.97816026, 56.4854, 0, 16.304237)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
@@ -3443,13 +3443,6 @@ model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_pine 251" type="Node3D" parent="Natureza/Árvores" unique_id=294287035]
-transform = Transform3D(-0.4876256, 0, 1.2273337, 0, 1.3206539, 0, -1.2273337, 0, -0.4876256, 87.19032, 0, -2.763153)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
 [node name="tree_pine 253" type="Node3D" parent="Natureza/Árvores" unique_id=526026830]
 transform = Transform3D(0.41574118, 0, 0.7833115, 0, 0.8868019, 0, -0.7833115, 0, 0.41574118, 51.146435, 0, -48.471474)
 script = ExtResource("4_gxwoc")
@@ -3493,7 +3486,7 @@ shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
 [node name="tree_birch 17" type="Node3D" parent="Natureza/Árvores" unique_id=1699793695]
-transform = Transform3D(-0.7641924, 0, 0.7897958, 0, 1.0989847, 0, -0.7897958, 0, -0.7641924, 84.36212, 0, 6.678993)
+transform = Transform3D(-0.7641924, 0, 0.7897958, 0, 1.0989847, 0, -0.7897958, 0, -0.7641924, 60.36212, 0, 6.678993)
 script = ExtResource("4_gxwoc")
 model = "tree_birch"
 shape = 2
@@ -5041,12 +5034,12 @@ params = {
 [node name="NPCs e pontos" type="Node3D" parent="Acampamento Goblin" unique_id=1701506577]
 
 [node name="ravi" type="Node3D" parent="Acampamento Goblin/NPCs e pontos" unique_id=1318831190]
-transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 44, 0, 3.6)
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 68, 0, 3.6)
 script = ExtResource("7_iymgv")
 ref = "ravi"
 
 [node name="camp_note" type="Node3D" parent="Acampamento Goblin/NPCs e pontos" unique_id=1390532271]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 55, 0.82, 2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 79, 0.82, 2)
 script = ExtResource("7_iymgv")
 kind = "story_point"
 ref = "camp_note"
@@ -5054,28 +5047,28 @@ ref = "camp_note"
 [node name="Objetos" type="Node3D" parent="Acampamento Goblin" unique_id=1517101554]
 
 [node name="tent" type="Node3D" parent="Acampamento Goblin/Objetos" unique_id=2143733954]
-transform = Transform3D(0.921061, 0, 0.38941833, 0, 1, 0, -0.38941833, 0, 0.921061, 57, 0, -7)
+transform = Transform3D(0.921061, 0, 0.38941833, 0, 1, 0, -0.38941833, 0, 0.921061, 81, 0, -7)
 script = ExtResource("4_gxwoc")
 model = "tent"
 shape = 1
 shape_size = Vector3(2, 2.2, 2)
 
 [node name="tent 2" type="Node3D" parent="Acampamento Goblin/Objetos" unique_id=1146639238]
-transform = Transform3D(0.9553365, 0, -0.29552022, 0, 1, 0, 0.29552022, 0, 0.9553365, 67, 0, -6)
+transform = Transform3D(0.9553365, 0, -0.29552022, 0, 1, 0, 0.29552022, 0, 0.9553365, 91, 0, -6)
 script = ExtResource("4_gxwoc")
 model = "tent"
 shape = 1
 shape_size = Vector3(2, 2.2, 2)
 
 [node name="tent 3" type="Node3D" parent="Acampamento Goblin/Objetos" unique_id=355113083]
-transform = Transform3D(-1.1306669, 0, 0.40198585, 0, 1.2, 0, -0.40198585, 0, -1.1306669, 64, 0, 8)
+transform = Transform3D(-1.1306669, 0, 0.40198585, 0, 1.2, 0, -0.40198585, 0, -1.1306669, 88, 0, 8)
 script = ExtResource("4_gxwoc")
 model = "tent"
 shape = 1
 shape_size = Vector3(2, 2.2, 2)
 
 [node name="campfire" type="Node3D" parent="Acampamento Goblin/Objetos" unique_id=1145044557]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 62, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 86, 0, 0)
 script = ExtResource("4_gxwoc")
 model = "campfire"
 shape = 2
@@ -5090,63 +5083,63 @@ script = ExtResource("5_jcb2b")
 mode = 2
 
 [node name="crate" type="Node3D" parent="Acampamento Goblin/Objetos" unique_id=956098638]
-transform = Transform3D(0.9553365, 0, 0.29552022, 0, 1, 0, -0.29552022, 0, 0.9553365, 55, 0, 2)
+transform = Transform3D(0.9553365, 0, 0.29552022, 0, 1, 0, -0.29552022, 0, 0.9553365, 79, 0, 2)
 script = ExtResource("4_gxwoc")
 model = "crate"
 shape = 1
 shape_size = Vector3(0.8, 0.8, 0.8)
 
 [node name="barrel" type="Node3D" parent="Acampamento Goblin/Objetos" unique_id=135254360]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 54.5, 0, 3.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 78.5, 0, 3.2)
 script = ExtResource("4_gxwoc")
 model = "barrel"
 shape = 2
 shape_size = Vector3(0.38, 1, 0)
 
 [node name="chest" type="Node3D" parent="Acampamento Goblin/Objetos" unique_id=851671602]
-transform = Transform3D(0.3623577, 0, -0.9320391, 0, 1, 0, 0.9320391, 0, 0.3623577, 70, 0, 3)
+transform = Transform3D(0.3623577, 0, -0.9320391, 0, 1, 0, 0.9320391, 0, 0.3623577, 94, 0, 3)
 script = ExtResource("4_gxwoc")
 model = "chest"
 shape = 1
 shape_size = Vector3(0.9, 0.7, 0.6)
 
 [node name="ruin_wall" type="Node3D" parent="Acampamento Goblin/Objetos" unique_id=1877811362]
-transform = Transform3D(0.31153473, 0, 0.7368488, 0, 0.8, 0, -0.7368488, 0, 0.31153473, 73.97379, 0, 5.0624385)
+transform = Transform3D(0.31153473, 0, 0.7368488, 0, 0.8, 0, -0.7368488, 0, 0.31153473, 97.97379, 0, 5.062438)
 script = ExtResource("4_gxwoc")
 model = "ruin_wall"
 shape = 1
 shape_size = Vector3(4.2, 2, 0.9)
 
 [node name="ruin_wall 2" type="Node3D" parent="Acampamento Goblin/Objetos" unique_id=1883851326]
-transform = Transform3D(0.7456313, 0, 0.2898862, 0, 0.8, 0, -0.2898862, 0, 0.7456313, 66.71065, 0, 12.1165085)
+transform = Transform3D(0.7456313, 0, 0.2898862, 0, 0.8, 0, -0.2898862, 0, 0.7456313, 90.71065, 0, 12.116509)
 script = ExtResource("4_gxwoc")
 model = "ruin_wall"
 shape = 1
 shape_size = Vector3(4.2, 2, 0.9)
 
 [node name="ruin_wall 3" type="Node3D" parent="Acampamento Goblin/Objetos" unique_id=956448286]
-transform = Transform3D(0.6467971, 0, -0.47080088, 0, 0.8, 0, 0.47080088, 0, 0.6467971, 54.349487, 0, 10.510453)
+transform = Transform3D(0.6467971, 0, -0.47080088, 0, 0.8, 0, 0.47080088, 0, 0.6467971, 78.349487, 0, 10.510453)
 script = ExtResource("4_gxwoc")
 model = "ruin_wall"
 shape = 1
 shape_size = Vector3(4.2, 2, 0.9)
 
 [node name="ruin_wall 4" type="Node3D" parent="Acampamento Goblin/Objetos" unique_id=399962140]
-transform = Transform3D(-0.35401636, 0, -0.71740675, 0, 0.8, 0, 0.71740675, 0, -0.35401636, 50.34214, 0, -5.7527657)
+transform = Transform3D(-0.35401636, 0, -0.71740675, 0, 0.8, 0, 0.71740675, 0, -0.35401636, 74.34214, 0, -5.752766)
 script = ExtResource("4_gxwoc")
 model = "ruin_wall"
 shape = 1
 shape_size = Vector3(4.2, 2, 0.9)
 
 [node name="ruin_wall 5" type="Node3D" parent="Acampamento Goblin/Objetos" unique_id=1478766067]
-transform = Transform3D(-0.76128167, 0, -0.24586634, 0, 0.8, 0, 0.24586634, 0, -0.76128167, 58.004673, 0, -12.370828)
+transform = Transform3D(-0.76128167, 0, -0.24586634, 0, 0.8, 0, 0.24586634, 0, -0.76128167, 82.004673, 0, -12.370828)
 script = ExtResource("4_gxwoc")
 model = "ruin_wall"
 shape = 1
 shape_size = Vector3(4.2, 2, 0.9)
 
 [node name="ruin_wall 6" type="Node3D" parent="Acampamento Goblin/Objetos" unique_id=1920256824]
-transform = Transform3D(-0.6182116, 0, 0.50775427, 0, 0.8, 0, -0.50775427, 0, -0.6182116, 70.25101, 0, -10.0459385)
+transform = Transform3D(-0.6182116, 0, 0.50775427, 0, 0.8, 0, -0.50775427, 0, -0.6182116, 94.25101, 0, -10.045939)
 script = ExtResource("4_gxwoc")
 model = "ruin_wall"
 shape = 1
@@ -5155,7 +5148,7 @@ shape_size = Vector3(4.2, 2, 0.9)
 [node name="Árvores" type="Node3D" parent="Acampamento Goblin" unique_id=1249889266]
 
 [node name="tree_pine" type="Node3D" parent="Acampamento Goblin/Árvores" unique_id=450232450]
-transform = Transform3D(-0.8713085, 0, -0.11100242, 0, 0.8783508, 0, 0.11100242, 0, -0.8713085, 58.317406, 0, -15.808144)
+transform = Transform3D(-0.8713085, 0, -0.11100242, 0, 0.8783508, 0, 0.11100242, 0, -0.8713085, 82.317406, 0, -15.808144)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
@@ -5164,42 +5157,42 @@ shape_size = Vector3(0.35000002, 3, 0)
 [node name="Coleta" type="Node3D" parent="Acampamento Goblin" unique_id=429101020]
 
 [node name="iron" type="Node3D" parent="Acampamento Goblin/Coleta" unique_id=1537893650]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 71.6, 0, 8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 95.6, 0, 8)
 script = ExtResource("7_iymgv")
 kind = "resource_node"
 ref = "iron"
 node_id = 0
 
 [node name="iron 2" type="Node3D" parent="Acampamento Goblin/Coleta" unique_id=1855243383]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 62, 0, 12.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 86, 0, 12.5)
 script = ExtResource("7_iymgv")
 kind = "resource_node"
 ref = "iron"
 node_id = 1
 
 [node name="iron 3" type="Node3D" parent="Acampamento Goblin/Coleta" unique_id=1187313343]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 52.4, 0, 8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 76.4, 0, 8)
 script = ExtResource("7_iymgv")
 kind = "resource_node"
 ref = "iron"
 node_id = 2
 
 [node name="iron 4" type="Node3D" parent="Acampamento Goblin/Coleta" unique_id=959525626]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 52.4, 0, -8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 76.4, 0, -8)
 script = ExtResource("7_iymgv")
 kind = "resource_node"
 ref = "iron"
 node_id = 3
 
 [node name="iron 5" type="Node3D" parent="Acampamento Goblin/Coleta" unique_id=2124686986]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 62, 0, -12.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 86, 0, -12.5)
 script = ExtResource("7_iymgv")
 kind = "resource_node"
 ref = "iron"
 node_id = 4
 
 [node name="iron 6" type="Node3D" parent="Acampamento Goblin/Coleta" unique_id=91892893]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 71.6, 0, -8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 95.6, 0, -8)
 script = ExtResource("7_iymgv")
 kind = "resource_node"
 ref = "iron"
@@ -5873,13 +5866,13 @@ shape_size = Vector3(0.6, 0.8, 0)
 [node name="Monstros" type="Node3D" parent="." unique_id=348328739]
 
 [node name="slime (Campos)" type="Node3D" parent="Monstros" unique_id=2004284801]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0, -30)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0, -34)
 script = ExtResource("9_5rons")
 level = 1
 level_max = 4
 
 [node name="slime (Campos) 2" type="Node3D" parent="Monstros" unique_id=1195179296]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, -32)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, -35)
 script = ExtResource("9_5rons")
 level = 1
 level_max = 4
@@ -5891,7 +5884,7 @@ level = 1
 level_max = 4
 
 [node name="slime (Campos) 4" type="Node3D" parent="Monstros" unique_id=171637040]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 0, -47)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -45)
 script = ExtResource("9_5rons")
 level = 1
 level_max = 4
@@ -5903,19 +5896,19 @@ level = 1
 level_max = 4
 
 [node name="slime (Natureza)" type="Node3D" parent="Monstros" unique_id=794621675]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, -57)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, -54)
 script = ExtResource("9_5rons")
 level = 1
 level_max = 4
 
 [node name="slime (Natureza) 2" type="Node3D" parent="Monstros" unique_id=1165345260]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, -62)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 0, -46)
 script = ExtResource("9_5rons")
 level = 1
 level_max = 4
 
 [node name="slime (Natureza) 3" type="Node3D" parent="Monstros" unique_id=1254457502]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, -66)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, -50)
 script = ExtResource("9_5rons")
 level = 1
 level_max = 4
@@ -5933,7 +5926,7 @@ level = 1
 level_max = 4
 
 [node name="goblin (Acampamento Goblin)" type="Node3D" parent="Monstros" unique_id=1555119874]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 56, 0, 3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 84, 0, 5)
 script = ExtResource("9_5rons")
 kind = "goblin"
 respawn = 60.0
@@ -5941,7 +5934,7 @@ level = 5
 level_max = 8
 
 [node name="goblin (Acampamento Goblin) 2" type="Node3D" parent="Monstros" unique_id=1642756503]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 66, 0, 2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 90, 0, 2)
 script = ExtResource("9_5rons")
 kind = "goblin"
 respawn = 60.0
@@ -5949,7 +5942,7 @@ level = 5
 level_max = 8
 
 [node name="goblin (Acampamento Goblin) 3" type="Node3D" parent="Monstros" unique_id=1194255717]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60, 0, -10)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 84, 0, -10)
 script = ExtResource("9_5rons")
 kind = "goblin"
 respawn = 60.0
@@ -5957,7 +5950,7 @@ level = 5
 level_max = 8
 
 [node name="goblin (Acampamento Goblin) 4" type="Node3D" parent="Monstros" unique_id=160235148]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 70, 0, -3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 94, 0, -3)
 script = ExtResource("9_5rons")
 kind = "goblin"
 respawn = 60.0
@@ -5965,7 +5958,7 @@ level = 5
 level_max = 8
 
 [node name="goblin (Acampamento Goblin) 5" type="Node3D" parent="Monstros" unique_id=681195861]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 53, 0, -4)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 82, 0, -6)
 script = ExtResource("9_5rons")
 kind = "goblin"
 respawn = 60.0
@@ -5973,23 +5966,23 @@ level = 5
 level_max = 8
 
 [node name="goblin (Acampamento Goblin) 6" type="Node3D" parent="Monstros" unique_id=712521978]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 68, 0, 9)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 92, 0, 9)
 script = ExtResource("9_5rons")
 kind = "goblin"
 respawn = 60.0
 level = 5
 level_max = 8
 
-[node name="goblin (Ruínas)" type="Node3D" parent="Monstros" unique_id=1353049841]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0, -86)
+[node name="goblin (Forte dos Brutos)" type="Node3D" parent="Monstros" unique_id=1353049841]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 99)
 script = ExtResource("9_5rons")
 kind = "goblin"
 respawn = 90.0
 level = 5
 level_max = 8
 
-[node name="goblin (Ruínas) 2" type="Node3D" parent="Monstros" unique_id=1194242818]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 0, -86)
+[node name="goblin (Forte dos Brutos) 2" type="Node3D" parent="Monstros" unique_id=1194242818]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 0, 99)
 script = ExtResource("9_5rons")
 kind = "goblin"
 respawn = 90.0
@@ -5997,7 +5990,7 @@ level = 5
 level_max = 8
 
 [node name="goblin_arqueiro (Acampamento Goblin)" type="Node3D" parent="Monstros" unique_id=223594375]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 51, 0, -8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 81, 0, -12)
 script = ExtResource("9_5rons")
 kind = "goblin_arqueiro"
 respawn = 75.0
@@ -6005,7 +5998,7 @@ level = 5
 level_max = 8
 
 [node name="goblin_arqueiro (Acampamento Goblin) 2" type="Node3D" parent="Monstros" unique_id=1775554027]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 72, 0, 7)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 96, 0, 7)
 script = ExtResource("9_5rons")
 kind = "goblin_arqueiro"
 respawn = 75.0
@@ -6013,7 +6006,7 @@ level = 5
 level_max = 8
 
 [node name="goblin_xama (Acampamento Goblin)" type="Node3D" parent="Monstros" unique_id=1179380011]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 71, 0, -9)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 95, 0, -9)
 script = ExtResource("9_5rons")
 kind = "goblin_xama"
 respawn = 120.0
@@ -6021,79 +6014,79 @@ level = 8
 level_max = 11
 
 [node name="goblin_campeao (Acampamento Goblin)" type="Node3D" parent="Monstros" unique_id=740658638]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 64, 0, -5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 88, 0, -5)
 script = ExtResource("9_5rons")
 kind = "goblin_campeao"
 respawn = 300.0
 level = 8
 level_max = 11
 
-[node name="goblin_bruto (Ruínas)" type="Node3D" parent="Monstros" unique_id=842521108]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11, 0, -96)
+[node name="goblin_bruto (Forte dos Brutos)" type="Node3D" parent="Monstros" unique_id=842521108]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, 91)
 script = ExtResource("9_5rons")
 kind = "goblin_bruto"
 respawn = 150.0
 level = 8
 level_max = 11
 
-[node name="goblin_bruto (Ruínas) 2" type="Node3D" parent="Monstros" unique_id=250953076]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 0, -96)
+[node name="goblin_bruto (Forte dos Brutos) 2" type="Node3D" parent="Monstros" unique_id=250953076]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 91)
 script = ExtResource("9_5rons")
 kind = "goblin_bruto"
 respawn = 150.0
 level = 8
 level_max = 11
 
-[node name="goblin_dourado (Natureza)" type="Node3D" parent="Monstros" unique_id=1371452649]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 0, 44)
+[node name="goblin_dourado (Forte dos Brutos)" type="Node3D" parent="Monstros" unique_id=1371452649]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 104)
 script = ExtResource("9_5rons")
 kind = "goblin_dourado"
 respawn = 240.0
 level = 8
 level_max = 11
 
-[node name="goblin_dourado (Natureza) 2" type="Node3D" parent="Monstros" unique_id=107579639]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 0, -72)
+[node name="goblin_dourado (Acampamento Goblin)" type="Node3D" parent="Monstros" unique_id=107579639]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 96, 0, -10)
 script = ExtResource("9_5rons")
 kind = "goblin_dourado"
 respawn = 240.0
 level = 8
 level_max = 11
 
-[node name="esqueleto (Ruínas)" type="Node3D" parent="Monstros" unique_id=59549927]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, -76)
+[node name="esqueleto (Cemitério)" type="Node3D" parent="Monstros" unique_id=59549927]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0, -80)
 script = ExtResource("9_5rons")
 kind = "esqueleto"
 respawn = 90.0
 level = 10
 level_max = 13
 
-[node name="esqueleto (Ruínas) 2" type="Node3D" parent="Monstros" unique_id=1165119073]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, -76)
+[node name="esqueleto (Cemitério) 2" type="Node3D" parent="Monstros" unique_id=1165119073]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, -81)
 script = ExtResource("9_5rons")
 kind = "esqueleto"
 respawn = 90.0
 level = 10
 level_max = 13
 
-[node name="esqueleto (Ruínas) 3" type="Node3D" parent="Monstros" unique_id=1205125008]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -70)
+[node name="esqueleto (Cemitério) 3" type="Node3D" parent="Monstros" unique_id=1205125008]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -77)
 script = ExtResource("9_5rons")
 kind = "esqueleto"
 respawn = 90.0
 level = 10
 level_max = 13
 
-[node name="esqueleto_arqueiro (Ruínas)" type="Node3D" parent="Monstros" unique_id=559175156]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, -78)
+[node name="esqueleto_arqueiro (Cemitério)" type="Node3D" parent="Monstros" unique_id=559175156]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, -85)
 script = ExtResource("9_5rons")
 kind = "esqueleto_arqueiro"
 respawn = 100.0
 level = 10
 level_max = 13
 
-[node name="esqueleto_arqueiro (Ruínas) 2" type="Node3D" parent="Monstros" unique_id=166333743]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 0, -78)
+[node name="esqueleto_arqueiro (Cemitério) 2" type="Node3D" parent="Monstros" unique_id=166333743]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, -85)
 script = ExtResource("9_5rons")
 kind = "esqueleto_arqueiro"
 respawn = 100.0
@@ -6117,7 +6110,7 @@ level = 10
 level_max = 13
 
 [node name="goblin_bombardeiro (Acampamento Goblin)" type="Node3D" parent="Monstros" unique_id=1961478049]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 49, 0, 6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 82, 0, 12)
 script = ExtResource("9_5rons")
 kind = "goblin_bombardeiro"
 respawn = 90.0
@@ -6125,7 +6118,7 @@ level = 5
 level_max = 8
 
 [node name="goblin_bombardeiro (Acampamento Goblin) 2" type="Node3D" parent="Monstros" unique_id=1026899556]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 74, 0, -10)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 98, 0, -10)
 script = ExtResource("9_5rons")
 kind = "goblin_bombardeiro"
 respawn = 90.0
@@ -6149,7 +6142,7 @@ level = 6
 level_max = 9
 
 [node name="tecela (Natureza)" type="Node3D" parent="Monstros" unique_id=851524526]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 96, 0, 38)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 106, 0, 44)
 script = ExtResource("9_5rons")
 kind = "tecela"
 respawn = 80.0
@@ -6157,7 +6150,7 @@ level = 4
 level_max = 9
 
 [node name="tecela (Natureza) 2" type="Node3D" parent="Monstros" unique_id=427185521]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 92, 0, -28)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 108, 0, -36)
 script = ExtResource("9_5rons")
 kind = "tecela"
 respawn = 80.0
@@ -6165,23 +6158,23 @@ level = 4
 level_max = 9
 
 [node name="tecela (Natureza) 3" type="Node3D" parent="Monstros" unique_id=714103152]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 106, 0, 6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 106, 0, -44)
 script = ExtResource("9_5rons")
 kind = "tecela"
 respawn = 80.0
 level = 4
 level_max = 9
 
-[node name="flor_faminta (Vila)" type="Node3D" parent="Monstros" unique_id=462298500]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 0, 6.5)
+[node name="flor_faminta (Natureza) 2" type="Node3D" parent="Monstros" unique_id=462298500]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 0, 60)
 script = ExtResource("9_5rons")
 kind = "flor_faminta"
 respawn = 70.0
 level = 4
 level_max = 9
 
-[node name="flor_faminta (Acampamento Goblin)" type="Node3D" parent="Monstros" unique_id=1761694721]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 48, 0, -6.5)
+[node name="flor_faminta (Lagoa)" type="Node3D" parent="Monstros" unique_id=1761694721]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -100, 0, 4)
 script = ExtResource("9_5rons")
 kind = "flor_faminta"
 respawn = 70.0
@@ -6189,7 +6182,7 @@ level = 4
 level_max = 9
 
 [node name="flor_faminta (Natureza)" type="Node3D" parent="Monstros" unique_id=1235151438]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, 52)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28, 0, 66)
 script = ExtResource("9_5rons")
 kind = "flor_faminta"
 respawn = 70.0
@@ -6213,7 +6206,7 @@ level = 4
 level_max = 9
 
 [node name="asa_couro (Ruínas)" type="Node3D" parent="Monstros" unique_id=1308620200]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -27, 0, -92)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -27, 0, -100)
 script = ExtResource("9_5rons")
 kind = "asa_couro"
 respawn = 60.0
@@ -6222,7 +6215,7 @@ level = 4
 level_max = 9
 
 [node name="asa_couro (Ruínas) 2" type="Node3D" parent="Monstros" unique_id=929952738]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, -92)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, -100)
 script = ExtResource("9_5rons")
 kind = "asa_couro"
 respawn = 60.0
@@ -6231,7 +6224,7 @@ level = 4
 level_max = 9
 
 [node name="asa_couro (Ruínas) 3" type="Node3D" parent="Monstros" unique_id=792858819]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.18076795, -128)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.18076795, -122)
 script = ExtResource("9_5rons")
 kind = "asa_couro"
 respawn = 60.0
@@ -6288,7 +6281,7 @@ level = 4
 level_max = 9
 
 [node name="slime_mae (Ninho de Slimes)" type="Node3D" parent="Monstros" unique_id=8960842]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -36, 0, 36)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -60, 0, 46)
 script = ExtResource("9_5rons")
 kind = "slime_mae"
 respawn = 120.0
@@ -6296,7 +6289,7 @@ level = 1
 level_max = 4
 
 [node name="slime_explosivo (Ninho de Slimes)" type="Node3D" parent="Monstros" unique_id=411195660]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -32.05088, 0, 38.157413)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -56.05088, 0, 48.157413)
 script = ExtResource("9_5rons")
 kind = "slime_explosivo"
 respawn = 60.0
@@ -6304,7 +6297,7 @@ level = 1
 level_max = 4
 
 [node name="slime_explosivo (Ninho de Slimes) 2" type="Node3D" parent="Monstros" unique_id=980053805]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -39.842937, 0, 38.34133)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -63.842937, 0, 48.34133)
 script = ExtResource("9_5rons")
 kind = "slime_explosivo"
 respawn = 60.0
@@ -6312,7 +6305,7 @@ level = 1
 level_max = 4
 
 [node name="slime_explosivo (Ninho de Slimes) 3" type="Node3D" parent="Monstros" unique_id=286565325]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -36.106186, 0, 31.501253)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -60.106186, 0, 41.501253)
 script = ExtResource("9_5rons")
 kind = "slime_explosivo"
 respawn = 60.0
@@ -6320,7 +6313,7 @@ level = 1
 level_max = 4
 
 [node name="slime_veloz (Ninho de Slimes)" type="Node3D" parent="Monstros" unique_id=1544222870]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -27.5, 0, 36)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -51.5, 0, 46)
 script = ExtResource("9_5rons")
 kind = "slime_veloz"
 respawn = 45.0
@@ -6328,7 +6321,7 @@ level = 1
 level_max = 4
 
 [node name="slime_veloz (Ninho de Slimes) 2" type="Node3D" parent="Monstros" unique_id=2038987681]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -36, 0, 44.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -60, 0, 54.5)
 script = ExtResource("9_5rons")
 kind = "slime_veloz"
 respawn = 45.0
@@ -6336,7 +6329,7 @@ level = 1
 level_max = 4
 
 [node name="slime_veloz (Ninho de Slimes) 3" type="Node3D" parent="Monstros" unique_id=1307825766]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -44.5, 0, 36)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -68.5, 0, 46)
 script = ExtResource("9_5rons")
 kind = "slime_veloz"
 respawn = 45.0
@@ -6344,7 +6337,7 @@ level = 1
 level_max = 4
 
 [node name="slime_veloz (Ninho de Slimes) 4" type="Node3D" parent="Monstros" unique_id=859429842]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -36, 0, 27.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -60, 0, 37.5)
 script = ExtResource("9_5rons")
 kind = "slime_veloz"
 respawn = 45.0
@@ -6366,7 +6359,7 @@ id = "arrive"
 follow_ground = false
 
 [node name="camp" type="Node3D" parent="Lugares" unique_id=715701033]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 62, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 86, 0, 0)
 script = ExtResource("10_jeidb")
 id = "camp"
 follow_ground = false
@@ -6384,7 +6377,7 @@ id = "farm"
 follow_ground = false
 
 [node name="nest" type="Node3D" parent="Lugares" unique_id=985275558]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -36, 0, 36)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -60, 0, 46)
 script = ExtResource("10_jeidb")
 id = "nest"
 follow_ground = false
@@ -7138,17 +7131,17 @@ radius = 15.0
 [node name="Regiões" type="Node3D" parent="."]
 
 [node name="campos_norte" type="Node3D" parent="Regiões"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -45)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -46)
 script = ExtResource("90_regiao")
 region_id = "campos_norte"
-size = Vector2(64, 40)
+size = Vector2(64, 28)
 
 [node name="ninho_slimes" type="Node3D" parent="Regiões"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -38, 0, 38)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -62, 0, 48)
 script = ExtResource("90_regiao")
 region_id = "ninho_slimes"
 shape = 1
-radius = 14.0
+radius = 13.0
 
 [node name="margem_lagoa" type="Node3D" parent="Regiões"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -80, 0, 15)
@@ -7158,7 +7151,7 @@ shape = 1
 radius = 20.0
 
 [node name="toca_goblins" type="Node3D" parent="Regiões"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 62, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 86, 0, 0)
 script = ExtResource("90_regiao")
 region_id = "toca_goblins"
 shape = 1
@@ -7193,22 +7186,28 @@ shape = 1
 radius = 16.0
 
 [node name="teia_tecelas" type="Node3D" parent="Regiões"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 100, 0, 5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 104, 0, -46)
 script = ExtResource("90_regiao")
 region_id = "teia_tecelas"
-size = Vector2(30, 90)
+size = Vector2(22, 30)
+
+[node name="teia_tecelas 2" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 104, 0, 48)
+script = ExtResource("90_regiao")
+region_id = "teia_tecelas"
+size = Vector2(22, 30)
 
 [node name="cemiterio_velho" type="Node3D" parent="Regiões"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -74)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -80)
 script = ExtResource("90_regiao")
 region_id = "cemiterio_velho"
-size = Vector2(50, 18)
+size = Vector2(56, 16)
 
 [node name="ruinas_valdoria" type="Node3D" parent="Regiões"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -106)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -110)
 script = ExtResource("90_regiao")
 region_id = "ruinas_valdoria"
-size = Vector2(70, 46)
+size = Vector2(70, 36)
 
 [node name="bando slime 1" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28, 0, -40)
@@ -7227,7 +7226,7 @@ radius = 5.0
 respawn = 25.0
 
 [node name="bando slime 3" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, -50)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, -54)
 script = ExtResource("9_5rons")
 kind = "slime"
 count = 4
@@ -7235,7 +7234,7 @@ radius = 4.0
 respawn = 25.0
 
 [node name="bando slime_veloz 1" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -48, 0, 46)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -72, 0, 56)
 script = ExtResource("9_5rons")
 kind = "slime_veloz"
 count = 3
@@ -7251,7 +7250,7 @@ radius = 5.0
 respawn = 25.0
 
 [node name="bando flor_faminta 1" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -72, 0, 32)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -104, 0, 26)
 script = ExtResource("9_5rons")
 kind = "flor_faminta"
 count = 3
@@ -7259,7 +7258,7 @@ radius = 4.0
 respawn = 25.0
 
 [node name="bando goblin 1" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60, 0, 16)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 84, 0, 16)
 script = ExtResource("9_5rons")
 kind = "goblin"
 count = 4
@@ -7267,7 +7266,7 @@ radius = 5.0
 respawn = 25.0
 
 [node name="bando goblin_arqueiro 1" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 70, 0, -17)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 94, 0, -17)
 script = ExtResource("9_5rons")
 kind = "goblin_arqueiro"
 count = 3
@@ -7307,7 +7306,7 @@ radius = 5.0
 respawn = 25.0
 
 [node name="bando tecela 1" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 100, 0, -22)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 102, 0, -50)
 script = ExtResource("9_5rons")
 kind = "tecela"
 count = 3
@@ -7315,7 +7314,7 @@ radius = 5.0
 respawn = 25.0
 
 [node name="bando tecela 2" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 104, 0, 30)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 100, 0, 52)
 script = ExtResource("9_5rons")
 kind = "tecela"
 count = 3
@@ -7323,7 +7322,7 @@ radius = 5.0
 respawn = 25.0
 
 [node name="bando esqueleto 1" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, -74)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, -79)
 script = ExtResource("9_5rons")
 kind = "esqueleto"
 count = 4
@@ -7331,7 +7330,7 @@ radius = 4.0
 respawn = 25.0
 
 [node name="bando esqueleto 2" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 0, -72)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, -80)
 script = ExtResource("9_5rons")
 kind = "esqueleto"
 count = 3
@@ -7346,13 +7345,13 @@ count = 3
 radius = 4.0
 respawn = 25.0
 
-[node name="bando goblin_bruto 1" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, -120)
+[node name="bando bruto (Forte dos Brutos)" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 95)
 script = ExtResource("9_5rons")
 kind = "goblin_bruto"
-count = 3
-radius = 4.0
 respawn = 25.0
+count = 2
+radius = 3.0
 
 [node name="Coleta" type="Node3D" parent="."]
 
@@ -7459,3 +7458,808 @@ transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 29, 
 script = ExtResource("7_iymgv")
 kind = "station"
 ref = "leather"
+
+[node name="bando esqueleto (Ruínas)" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, -118)
+script = ExtResource("9_5rons")
+kind = "esqueleto"
+count = 3
+radius = 4.0
+respawn = 90.0
+
+[node name="forte_brutos" type="Node3D" parent="Regiões"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 96)
+script = ExtResource("90_regiao")
+region_id = "forte_brutos"
+shape = 1
+radius = 16.0
+
+[node name="Guarda" type="Node3D" parent="."]
+
+[node name="guarda" type="Node3D" parent="Guarda"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -3.5, 0, -16.3)
+script = ExtResource("7_iymgv")
+kind = "guard"
+
+[node name="guarda 2" type="Node3D" parent="Guarda"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 37.3, 0, -3.2)
+script = ExtResource("7_iymgv")
+kind = "guard"
+
+[node name="guarda 3" type="Node3D" parent="Guarda"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 37.3, 0, 3.2)
+script = ExtResource("7_iymgv")
+kind = "guard"
+
+[node name="guarda 4" type="Node3D" parent="Guarda"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -34.2, 0, 0.3)
+script = ExtResource("7_iymgv")
+kind = "guard"
+
+[node name="guarda 5" type="Node3D" parent="Guarda"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -34.2, 0, 5.7)
+script = ExtResource("7_iymgv")
+kind = "guard"
+
+[node name="guarda 6" type="Node3D" parent="Guarda"]
+transform = Transform3D(-0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, -0.707107, -34.3, 0, -16.3)
+script = ExtResource("7_iymgv")
+kind = "guard"
+
+[node name="guarda 7" type="Node3D" parent="Guarda"]
+transform = Transform3D(-0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, -0.707107, 37.3, 0, -16.3)
+script = ExtResource("7_iymgv")
+kind = "guard"
+
+[node name="guarda 8" type="Node3D" parent="Guarda"]
+transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, -34.3, 0, 25.3)
+script = ExtResource("7_iymgv")
+kind = "guard"
+
+[node name="guarda 9" type="Node3D" parent="Guarda"]
+transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 37.3, 0, 25.3)
+script = ExtResource("7_iymgv")
+kind = "guard"
+
+[node name="guarda 10" type="Node3D" parent="Guarda"]
+transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, -13, 0, 41.5)
+script = ExtResource("7_iymgv")
+kind = "guard"
+
+[node name="guarda 11" type="Node3D" parent="Guarda"]
+transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 31.5, 0, 41.5)
+script = ExtResource("7_iymgv")
+kind = "guard"
+
+[node name="Cemitério" type="Node3D" parent="."]
+
+[node name="Objetos" type="Node3D" parent="Cemitério"]
+
+[node name="crypt" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -24, 0, -83)
+script = ExtResource("4_gxwoc")
+model = "crypt"
+shape = 1
+shape_size = Vector3(4, 3.6, 4.8)
+
+[node name="tombstone" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.995953, 0, 0.089879, 0, 1, 0, -0.089879, 0, 0.995953, -18.85, 0, -74.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 2" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.998201, 0, 0.059964, 0, 1, 0, -0.059964, 0, 0.998201, -15.65, 0, -74.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 3" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.99955, 0, 0.029996, 0, 1, 0, -0.029996, 0, 0.99955, -11.7, 0, -74.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 4" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, -74.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 5" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.99955, 0, -0.029996, 0, 1, 0, 0.029996, 0, 0.99955, 3.7, 0, -74.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 6" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.998201, 0, -0.059964, 0, 1, 0, 0.059964, 0, 0.998201, 8.65, 0, -74.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 7" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.995953, 0, -0.089879, 0, 1, 0, 0.089879, 0, 0.995953, 11.85, 0, -74.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 8" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.992809, 0, -0.119712, 0, 1, 0, 0.119712, 0, 0.992809, 15.8, 0, -74.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 9" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.992809, 0, 0.119712, 0, 1, 0, -0.119712, 0, 0.992809, 19, 0, -74.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 10" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.995953, 0, 0.089879, 0, 1, 0, -0.089879, 0, 0.995953, 22.2, 0, -74.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 11" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.998201, 0, 0.059964, 0, 1, 0, -0.059964, 0, 0.998201, -18.85, 0, -79)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 12" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.99955, 0, 0.029996, 0, 1, 0, -0.029996, 0, 0.99955, -4.15, 0, -79)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 13" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.3, 0, -79)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 14" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.99955, 0, -0.029996, 0, 1, 0, 0.029996, 0, 0.99955, 8.5, 0, -79)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 15" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.998201, 0, -0.059964, 0, 1, 0, 0.059964, 0, 0.998201, 18.7, 0, -79)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 16" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.995953, 0, -0.089879, 0, 1, 0, 0.089879, 0, 0.995953, -18.85, 0, -83.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 17" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.992809, 0, -0.119712, 0, 1, 0, 0.119712, 0, 0.992809, -15.65, 0, -83.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 18" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.992809, 0, 0.119712, 0, 1, 0, -0.119712, 0, 0.992809, -11.7, 0, -83.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 19" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.995953, 0, 0.089879, 0, 1, 0, -0.089879, 0, 0.995953, -4, 0, -83.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 20" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.998201, 0, 0.059964, 0, 1, 0, -0.059964, 0, 0.998201, 3.7, 0, -83.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 21" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.99955, 0, 0.029996, 0, 1, 0, -0.029996, 0, 0.99955, 8.65, 0, -83.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 22" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15.35, 0, -83.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 23" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.99955, 0, -0.029996, 0, 1, 0, 0.029996, 0, 0.99955, 19.3, 0, -83.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 24" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.998201, 0, -0.059964, 0, 1, 0, 0.059964, 0, 0.998201, 22.5, 0, -83.5)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 25" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.995953, 0, -0.089879, 0, 1, 0, 0.089879, 0, 0.995953, -19.3, 0, -87)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 26" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.992809, 0, -0.119712, 0, 1, 0, 0.119712, 0, 0.992809, -15.35, 0, -87)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 27" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.992809, 0, 0.119712, 0, 1, 0, -0.119712, 0, 0.992809, -12.15, 0, -87)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 28" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.995953, 0, 0.089879, 0, 1, 0, -0.089879, 0, 0.995953, -8.2, 0, -87)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 29" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.998201, 0, 0.059964, 0, 1, 0, -0.059964, 0, 0.998201, 8.5, 0, -87)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 30" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.99955, 0, 0.029996, 0, 1, 0, -0.029996, 0, 0.99955, 15.2, 0, -87)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 31" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19.15, 0, -87)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="tombstone 32" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.99955, 0, -0.029996, 0, 1, 0, 0.029996, 0, 0.99955, 22.35, 0, -87)
+script = ExtResource("4_gxwoc")
+model = "tombstone"
+shape = 1
+shape_size = Vector3(0.8, 1.1, 0.35)
+
+[node name="fence" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26.5, 0, -73)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+
+[node name="fence 2" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.996802, 0, -0.079915, 0, 1, 0, 0.079915, 0, 0.996802, -24.5, 0, -73)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+
+[node name="fence 3" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -28, 0, -74.6)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+
+[node name="fence 4" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0.998201, 0, 0.059964, 0, 1, 0, -0.059964, 0, 0.998201, 24.5, 0, -73)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+
+[node name="fence 5" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26.5, 0, -73.2)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+
+[node name="fence 6" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 28, 0, -75)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+
+[node name="fence 7" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 28, 0, -85)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+
+[node name="fence 8" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -28, 0, -86.5)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+
+[node name="lamp" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 0, -73.5)
+script = ExtResource("4_gxwoc")
+model = "lamp"
+shape = 2
+shape_size = Vector3(0.12, 3.7, 0)
+
+[node name="lamp 2" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 0, -73.5)
+script = ExtResource("4_gxwoc")
+model = "lamp"
+shape = 2
+shape_size = Vector3(0.12, 3.7, 0)
+
+[node name="chão do cemitério" type="Node3D" parent="Cemitério/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -80)
+script = ExtResource("2_3yltp")
+size = Vector2(52, 16)
+color = Color(0.36, 0.33, 0.24, 0.55)
+soft = 0.6
+
+[node name="Toca dos Goblins" type="Node3D" parent="."]
+
+[node name="Objetos" type="Node3D" parent="Toca dos Goblins"]
+
+[node name="palisade" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 72, 0, -15)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 2" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 72, 0, -13)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 3" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 72, 0, -11)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 4" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 72, 0, -9)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 5" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 72, 0, -7)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 6" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 72, 0, -5)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 7" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 72, 0, -3)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 8" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 72, 0, 3)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 9" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 72, 0, 5)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 10" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 72, 0, 7)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 11" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 72, 0, 9)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 12" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 72, 0, 11)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 13" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 72, 0, 13)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 14" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 72, 0, 15)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 15" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 73.3, 0, -16.3)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 16" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 75.3, 0, -16.3)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 17" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 73.3, 0, 16.3)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 18" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 75.3, 0, 16.3)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="watchtower" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 76.5, 0, -11.5)
+script = ExtResource("4_gxwoc")
+model = "watchtower"
+shape = 1
+shape_size = Vector3(2.8, 4, 2.8)
+
+[node name="watchtower 2" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 75, 0, 4)
+script = ExtResource("4_gxwoc")
+model = "watchtower"
+shape = 1
+shape_size = Vector3(2.8, 4, 2.8)
+
+[node name="watchtower 3" type="Node3D" parent="Toca dos Goblins/Objetos"]
+transform = Transform3D(-0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, -0.707107, 103, 0, -16)
+script = ExtResource("4_gxwoc")
+model = "watchtower"
+shape = 1
+shape_size = Vector3(2.8, 4, 2.8)
+
+[node name="Forte dos Brutos" type="Node3D" parent="."]
+
+[node name="Objetos" type="Node3D" parent="Forte dos Brutos"]
+
+[node name="palisade" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -11, 0, 83)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 2" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -9, 0, 83)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 3" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -7, 0, 83)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 4" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -5, 0, 83)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 5" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -3, 0, 83)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 6" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 11, 0, 83)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 7" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 13, 0, 83)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 8" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 15, 0, 83)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 9" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 17, 0, 83)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 10" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 19, 0, 83)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 11" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -12.3, 0, 85)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 12" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 20.3, 0, 85)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 13" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -12.3, 0, 87)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 14" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 20.3, 0, 87)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 15" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -12.3, 0, 89)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 16" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 20.3, 0, 89)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 17" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -12.3, 0, 91)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 18" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 20.3, 0, 91)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 19" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -12.3, 0, 93)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 20" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 20.3, 0, 93)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 21" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -12.3, 0, 95)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 22" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 20.3, 0, 95)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 23" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -12.3, 0, 97)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 24" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 20.3, 0, 97)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 25" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -12.3, 0, 99)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="palisade 26" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 20.3, 0, 99)
+script = ExtResource("4_gxwoc")
+model = "palisade"
+shape = 1
+shape_size = Vector3(2.1, 2.6, 0.4)
+
+[node name="watchtower" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -1, 0, 85)
+script = ExtResource("4_gxwoc")
+model = "watchtower"
+shape = 1
+shape_size = Vector3(2.8, 4, 2.8)
+
+[node name="watchtower 2" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 9, 0, 85)
+script = ExtResource("4_gxwoc")
+model = "watchtower"
+shape = 1
+shape_size = Vector3(2.8, 4, 2.8)
+
+[node name="tent" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(1.013167, 0, -0.42836, 0, 1.1, 0, 0.42836, 0, 1.013167, -7, 0, 104)
+script = ExtResource("4_gxwoc")
+model = "tent"
+shape = 1
+shape_size = Vector3(2, 2.2, 2)
+
+[node name="tent 2" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(1.1, 0, 0, 0, 1.1, 0, 0, 0, 1.1, 4, 0, 109)
+script = ExtResource("4_gxwoc")
+model = "tent"
+shape = 1
+shape_size = Vector3(2, 2.2, 2)
+
+[node name="tent 3" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(1.013167, 0, 0.42836, 0, 1.1, 0, -0.42836, 0, 1.013167, 15, 0, 104)
+script = ExtResource("4_gxwoc")
+model = "tent"
+shape = 1
+shape_size = Vector3(2, 2.2, 2)
+
+[node name="campfire" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 97)
+script = ExtResource("4_gxwoc")
+model = "campfire"
+shape = 2
+shape_size = Vector3(0.6, 0.4, 0)
+
+[node name="crate" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0.955336, 0, -0.29552, 0, 1, 0, 0.29552, 0, 0.955336, -9, 0, 95)
+script = ExtResource("4_gxwoc")
+model = "crate"
+shape = 1
+shape_size = Vector3(0.8, 0.8, 0.8)
+
+[node name="barrel" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0.955336, 0, -0.29552, 0, 1, 0, 0.29552, 0, 0.955336, -8.2, 0, 96.1)
+script = ExtResource("4_gxwoc")
+model = "barrel"
+shape = 2
+shape_size = Vector3(0.38, 1, 0)
+
+[node name="crate 2" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0.955336, 0, -0.29552, 0, 1, 0, 0.29552, 0, 0.955336, 17, 0, 95)
+script = ExtResource("4_gxwoc")
+model = "crate"
+shape = 1
+shape_size = Vector3(0.8, 0.8, 0.8)
+
+[node name="crate 3" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0.955336, 0, -0.29552, 0, 1, 0, 0.29552, 0, 0.955336, 17.6, 0, 93.9)
+script = ExtResource("4_gxwoc")
+model = "crate"
+shape = 1
+shape_size = Vector3(0.8, 0.8, 0.8)
+
+[node name="barrel 2" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(0.955336, 0, -0.29552, 0, 1, 0, 0.29552, 0, 0.955336, 16.5, 0, 98)
+script = ExtResource("4_gxwoc")
+model = "barrel"
+shape = 2
+shape_size = Vector3(0.38, 1, 0)
+
+[node name="chão do forte" type="Node3D" parent="Forte dos Brutos/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 96)
+script = ExtResource("2_3yltp")
+size = Vector2(32, 20)
+color = Color(0.42, 0.33, 0.22, 0.6)
+soft = 0.6

@@ -9,7 +9,7 @@ const MODELS := ["tree_oak", "tree_pine", "tree_fir", "tree_birch", "tree_maple"
 	"tree_orange", "tree_pear", "rock", "fence", "crate", "barrel", "chest", "tent", "campfire", "lamp", "well",
 	"notice_board", "signpost", "ruin_pillar", "ruin_wall", "anvil", "forge", "flower_sunflower",
 	"flower_lavender", "flower_tulips", "fern", "house", "house_b", "house_c", "house_d", "house_e", "house_f",
-	"shop_smithy", "shop_alchemist", "shop_merchant"]
+	"shop_smithy", "shop_alchemist", "shop_merchant", "tombstone", "crypt", "palisade", "watchtower"]
 
 ## Colisão padrão de cada modelo: [forma (1 caixa, 2 cilindro), tamanho]. Caixa: largura, altura, profundidade;
 ## cilindro: x = raio, y = altura. Valores tirados do world.gd antigo.
@@ -24,6 +24,8 @@ const DEFAULT_SHAPE := {
 	"well": [2, Vector3(0.95, 1.2, 0)], "notice_board": [1, Vector3(2.7, 2.8, 0.3)],
 	"signpost": [2, Vector3(0.25, 2.6, 0)], "ruin_pillar": [2, Vector3(0.5, 4.0, 0)],
 	"ruin_wall": [1, Vector3(4.2, 2.0, 0.9)], "anvil": [2, Vector3(0.3, 0.8, 0)], "forge": [1, Vector3(0.9, 1.0, 0.8)],
+	"tombstone": [1, Vector3(0.8, 1.1, 0.35)], "crypt": [1, Vector3(4.0, 3.6, 4.8)],
+	"palisade": [1, Vector3(2.1, 2.6, 0.4)], "watchtower": [1, Vector3(2.8, 4.0, 2.8)],
 }
 const COLLIDER_COLOR := Color(0.2, 0.6, 1.0, 0.25)
 
@@ -32,7 +34,7 @@ const COLLIDER_COLOR := Color(0.2, 0.6, 1.0, 0.25)
 	"tree_orange", "tree_pear", "rock", "fence", "crate", "barrel", "chest", "tent", "campfire", "lamp", "well",
 	"notice_board", "signpost", "ruin_pillar", "ruin_wall", "anvil", "forge", "flower_sunflower",
 	"flower_lavender", "flower_tulips", "fern", "house", "house_b", "house_c", "house_d", "house_e", "house_f",
-	"shop_smithy", "shop_alchemist", "shop_merchant") var model := "rock":
+	"shop_smithy", "shop_alchemist", "shop_merchant", "tombstone", "crypt", "palisade", "watchtower") var model := "rock":
 	set(v):
 		var changed := v != model
 		model = v
