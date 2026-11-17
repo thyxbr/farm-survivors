@@ -656,14 +656,17 @@ func server_enemy_killed(e: Enemy) -> void:
 			if players.has(pid) and zone_of(pid) == "world":
 				hitters.append(pid)
 		var rewards := Party.server_kill_rewards(e.xp_reward(), hitters, pos, "world")
-		# em grupo, a diferença de nível usa o maior nível entre quem recebe
-		var group_level := 0
+		# em grupo, a diferença de nível usa o maior nível entre quem recebe do mesmo grupo
+		# (um estranho de nível alto que só acertou o monstro não derruba o XP de ninguém)
+		var levels := {}
 		for pid in rewards:
-			group_level = maxi(group_level, Party._level(pid))
+			levels[pid] = Party._level(pid)
+		var group_levels := PartyRules.group_levels(rewards.keys(), Party.book.teams(), levels)
 		for pid in rewards:
 			if not players.has(pid):
 				continue
 			var r: Dictionary = rewards[pid]
+			var group_level := int(group_levels.get(pid, 1))
 			if r.kill:
 				Econ.server_kill(pid, e.kind, int(r.xp), e.level, group_level)
 			elif int(r.xp) > 0:
