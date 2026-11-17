@@ -1752,20 +1752,10 @@
 		"damage": 9,
 		"price": 40,
 		"color": {
-			"$c": [
-				0.95,
-				0.95,
-				0.7,
-				1.0
-			]
+			"$c": [0.95, 0.95, 0.7, 1.0]
 		},
 		"wood": {
-			"$c": [
-				0.6,
-				0.45,
-				0.25,
-				1.0
-			]
+			"$c": [0.6, 0.45, 0.25, 1.0]
 		},
 		"stats": {
 			"spell": 3,
@@ -1784,20 +1774,10 @@
 		"damage": 13,
 		"price": 110,
 		"color": {
-			"$c": [
-				1.0,
-				0.85,
-				0.5,
-				1.0
-			]
+			"$c": [1.0, 0.85, 0.5, 1.0]
 		},
 		"wood": {
-			"$c": [
-				0.7,
-				0.55,
-				0.3,
-				1.0
-			]
+			"$c": [0.7, 0.55, 0.3, 1.0]
 		},
 		"stats": {
 			"int": 2,
@@ -1817,20 +1797,10 @@
 		"damage": 18,
 		"price": 230,
 		"color": {
-			"$c": [
-				1.0,
-				0.95,
-				0.75,
-				1.0
-			]
+			"$c": [1.0, 0.95, 0.75, 1.0]
 		},
 		"wood": {
-			"$c": [
-				0.85,
-				0.75,
-				0.5,
-				1.0
-			]
+			"$c": [0.85, 0.75, 0.5, 1.0]
 		},
 		"stats": {
 			"int": 3,
@@ -1850,20 +1820,10 @@
 		"damage": 27,
 		"price": 420,
 		"color": {
-			"$c": [
-				1.0,
-				1.0,
-				0.9,
-				1.0
-			]
+			"$c": [1.0, 1.0, 0.9, 1.0]
 		},
 		"wood": {
-			"$c": [
-				0.9,
-				0.85,
-				0.7,
-				1.0
-			]
+			"$c": [0.9, 0.85, 0.7, 1.0]
 		},
 		"stats": {
 			"int": 4,
@@ -1883,20 +1843,10 @@
 		"damage": 31,
 		"price": 980,
 		"color": {
-			"$c": [
-				1.0,
-				0.95,
-				0.6,
-				1.0
-			]
+			"$c": [1.0, 0.95, 0.6, 1.0]
 		},
 		"wood": {
-			"$c": [
-				0.95,
-				0.88,
-				0.55,
-				1.0
-			]
+			"$c": [0.95, 0.88, 0.55, 1.0]
 		},
 		"stats": {
 			"int": 6,
@@ -1907,5 +1857,698 @@
 		"heal": 0.25,
 		"desc": "Quem o empunha jamais caminha sozinho na escuridão.",
 		"model": "sc_halo_scepter"
+	},
+	"copper_ore": {
+		"name": "Minério de Cobre",
+		"type": "material",
+		"rarity": "common",
+		"price": 4,
+		"stack": true,
+		"desc": "Avermelhado e macio. O primeiro metal de todo ferreiro."
+	},
+	"silver_ore": {
+		"name": "Minério de Prata",
+		"type": "material",
+		"rarity": "uncommon",
+		"price": 14,
+		"stack": true,
+		"desc": "Brilha mesmo no escuro das galerias da Mina."
+	},
+	"mithril_ore": {
+		"name": "Minério de Mithril",
+		"type": "material",
+		"rarity": "rare",
+		"price": 24,
+		"stack": true,
+		"desc": "Leve como pena e duro como diamante. Só no Pico."
+	},
+	"astralite_ore": {
+		"name": "Minério de Astralita",
+		"type": "material",
+		"rarity": "epic",
+		"price": 40,
+		"stack": true,
+		"desc": "Cai do céu, dizem. Pulsa num violeta frio."
+	},
+	"pine_log": {
+		"name": "Tora de Pinho",
+		"type": "material",
+		"rarity": "common",
+		"price": 3,
+		"stack": true,
+		"desc": "Madeira macia e cheirosa dos bosques do Vale."
+	},
+	"oak_log": {
+		"name": "Tora de Carvalho",
+		"type": "material",
+		"rarity": "common",
+		"price": 7,
+		"stack": true,
+		"desc": "Firme e pesada. Boa para arcos e cabos."
+	},
+	"silverbirch_log": {
+		"name": "Tora de Bétula-prata",
+		"type": "material",
+		"rarity": "uncommon",
+		"price": 13,
+		"stack": true,
+		"desc": "Casca prateada, fibra que não racha."
+	},
+	"ashwood_log": {
+		"name": "Tora de Freixo-cinza",
+		"type": "material",
+		"rarity": "rare",
+		"price": 22,
+		"stack": true,
+		"desc": "Cresce entre as cinzas do Pico. Quase não queima."
+	},
+	"soulwood_log": {
+		"name": "Tora de Madeira-de-alma",
+		"type": "material",
+		"rarity": "epic",
+		"price": 38,
+		"stack": true,
+		"desc": "Sussurra quando a lâmina corta."
+	},
+	"hide_t1": {
+		"name": "Couro Cru",
+		"type": "material",
+		"rarity": "common",
+		"price": 3,
+		"stack": true,
+		"desc": "Couro grosso de monstro do Vale. Precisa de curtume."
+	},
+	"hide_t2": {
+		"name": "Couro Curtido",
+		"type": "material",
+		"rarity": "common",
+		"price": 7,
+		"stack": true,
+		"desc": "Couro dos monstros do Bosque, firme e flexível."
+	},
+	"hide_t3": {
+		"name": "Couro Reforçado",
+		"type": "material",
+		"rarity": "uncommon",
+		"price": 13,
+		"stack": true,
+		"desc": "Couro dos monstros da Mina, duro como sola."
+	},
+	"hide_t4": {
+		"name": "Couro Sombrio",
+		"type": "material",
+		"rarity": "rare",
+		"price": 22,
+		"stack": true,
+		"desc": "Couro dos monstros do Pico. Frio ao toque."
+	},
+	"hide_t5": {
+		"name": "Couro Astral",
+		"type": "material",
+		"rarity": "epic",
+		"price": 38,
+		"stack": true,
+		"desc": "Couro dos monstros mais fortes do mundo."
+	},
+	"essence_t1": {
+		"name": "Essência Tênue",
+		"type": "material",
+		"rarity": "common",
+		"price": 8,
+		"stack": true,
+		"desc": "Base de todo equipamento da camada 1. Feita na alquimia."
+	},
+	"essence_t2": {
+		"name": "Essência Viva",
+		"type": "material",
+		"rarity": "common",
+		"price": 16,
+		"stack": true,
+		"desc": "Base de todo equipamento da camada 2. Feita na alquimia."
+	},
+	"essence_t3": {
+		"name": "Essência Vibrante",
+		"type": "material",
+		"rarity": "uncommon",
+		"price": 28,
+		"stack": true,
+		"desc": "Base de todo equipamento da camada 3. Feita na alquimia."
+	},
+	"essence_t4": {
+		"name": "Essência Ancestral",
+		"type": "material",
+		"rarity": "rare",
+		"price": 45,
+		"stack": true,
+		"desc": "Base de todo equipamento da camada 4. Feita na alquimia."
+	},
+	"essence_t5": {
+		"name": "Essência Astral",
+		"type": "material",
+		"rarity": "epic",
+		"price": 70,
+		"stack": true,
+		"desc": "Base de todo equipamento da camada 5. Feita na alquimia."
+	},
+	"royal_jelly": {
+		"name": "Geleia Real",
+		"type": "material",
+		"rarity": "epic",
+		"price": 120,
+		"stack": true,
+		"desc": "Da Slime Rainha. A ponta das receitas da camada 2 pede uma."
+	},
+	"knight_sigil": {
+		"name": "Selo do Cavaleiro",
+		"type": "material",
+		"rarity": "epic",
+		"price": 150,
+		"stack": true,
+		"desc": "De um Cavaleiro Esqueleto. A ponta da camada 3 pede um."
+	},
+	"lich_phylactery": {
+		"name": "Filactério do Lich",
+		"type": "material",
+		"rarity": "legendary",
+		"price": 300,
+		"stack": true,
+		"desc": "A alma de Morgrath. A ponta da camada 4 pede um."
+	},
+	"abyss_core": {
+		"name": "Núcleo do Abismo",
+		"type": "material",
+		"rarity": "legendary",
+		"price": 400,
+		"stack": true,
+		"desc": "Das profundezas. A ponta da camada 5 pede um."
+	},
+	"silver_gauntlets": {
+		"name": "Manoplas de Prata",
+		"type": "gear",
+		"slot": "hands",
+		"rarity": "rare",
+		"level": 27,
+		"defense": 1,
+		"price": 195,
+		"color": {
+			"$c": [0.8, 0.82, 0.9, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"str": 4
+		},
+		"desc": "Prata batida sobre couro reforçado.",
+		"craft": true
+	},
+	"silver_greaves": {
+		"name": "Grevas de Prata",
+		"type": "gear",
+		"slot": "feet",
+		"rarity": "rare",
+		"level": 26,
+		"defense": 3,
+		"price": 166,
+		"color": {
+			"$c": [0.8, 0.82, 0.9, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"vit": 2
+		},
+		"desc": "Leves e firmes nas galerias.",
+		"craft": true
+	},
+	"mithril_longbow": {
+		"name": "Arco Longo de Mithril",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "epic",
+		"level": 36,
+		"damage": 38,
+		"price": 699,
+		"color": {
+			"$c": [0.6, 0.85, 0.9, 1.0]
+		},
+		"fx": "pierce",
+		"stats": {
+			"str": 3,
+			"agi": 5,
+			"crit": 0.062
+		},
+		"desc": "A corda canta como sino.",
+		"model": "bw_goblin_warbow",
+		"craft": true
+	},
+	"ashwood_staff": {
+		"name": "Cajado de Freixo-cinza",
+		"type": "weapon",
+		"class": "staff",
+		"rarity": "epic",
+		"level": 34,
+		"damage": 32,
+		"price": 585,
+		"color": {
+			"$c": [1.0, 0.55, 0.3, 1.0]
+		},
+		"glow": 0.5,
+		"fx": "splash",
+		"stats": {
+			"int": 6,
+			"spell": 19,
+			"crit": 0.062
+		},
+		"desc": "Cinza que nunca esfria.",
+		"model": "st_void_staff",
+		"craft": true
+	},
+	"mithril_helm": {
+		"name": "Elmo de Mithril",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "epic",
+		"level": 33,
+		"defense": 6,
+		"price": 442,
+		"color": {
+			"$c": [0.6, 0.85, 0.9, 1.0]
+		},
+		"color2": {
+			"$c": [0.95, 0.75, 0.3, 1.0]
+		},
+		"metal": true,
+		"style": "h_great",
+		"stats": {
+			"vit": 4,
+			"hp": 18
+		},
+		"desc": "Pesa quase nada; aguenta quase tudo.",
+		"craft": true
+	},
+	"mithril_gauntlets": {
+		"name": "Manoplas de Mithril",
+		"type": "gear",
+		"slot": "hands",
+		"rarity": "epic",
+		"level": 37,
+		"defense": 1,
+		"price": 243,
+		"color": {
+			"$c": [0.6, 0.85, 0.9, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"str": 5
+		},
+		"desc": "Os dedos se movem sem barulho.",
+		"craft": true
+	},
+	"mithril_greaves": {
+		"name": "Grevas de Mithril",
+		"type": "gear",
+		"slot": "feet",
+		"rarity": "epic",
+		"level": 36,
+		"defense": 4,
+		"price": 220,
+		"color": {
+			"$c": [0.6, 0.85, 0.9, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"vit": 2
+		},
+		"desc": "Passos firmes nas encostas do Pico.",
+		"craft": true
+	},
+	"astral_blade": {
+		"name": "Lâmina Astral",
+		"type": "weapon",
+		"class": "sword",
+		"rarity": "legendary",
+		"level": 46,
+		"damage": 42,
+		"price": 664,
+		"color": {
+			"$c": [0.75, 0.6, 1.0, 1.0]
+		},
+		"shape": "cleaver",
+		"model": "w_titan_cleaver",
+		"stats": {
+			"str": 6,
+			"hp": 43
+		},
+		"desc": "Corta o ar e deixa estrelas no rastro.",
+		"craft": true
+	},
+	"astral_bow": {
+		"name": "Arco Astral",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "legendary",
+		"level": 46,
+		"damage": 47,
+		"price": 1064,
+		"color": {
+			"$c": [0.75, 0.6, 1.0, 1.0]
+		},
+		"glow": 1.6,
+		"fx": "multishot",
+		"stats": {
+			"agi": 6,
+			"crit": 0.108,
+			"speed": 0.054
+		},
+		"desc": "Cada flecha leva um pedaço do céu.",
+		"model": "bw_storm_bow",
+		"craft": true
+	},
+	"soulwood_staff": {
+		"name": "Cajado de Madeira-de-alma",
+		"type": "weapon",
+		"class": "staff",
+		"rarity": "legendary",
+		"level": 46,
+		"damage": 41,
+		"price": 1064,
+		"color": {
+			"$c": [0.7, 0.55, 1.0, 1.0]
+		},
+		"wood": {
+			"$c": [0.15, 0.1, 0.2, 1.0]
+		},
+		"fx": "splash",
+		"stats": {
+			"int": 6,
+			"spell": 22,
+			"mp": 43,
+			"cdr": 0.162
+		},
+		"desc": "As vozes da madeira ajudam a mirar.",
+		"model": "st_archmage_staff",
+		"craft": true
+	},
+	"sc_astral_scepter": {
+		"name": "Cetro Astral",
+		"type": "weapon",
+		"class": "scepter",
+		"rarity": "legendary",
+		"level": 46,
+		"damage": 40,
+		"price": 1627,
+		"color": {
+			"$c": [0.85, 0.75, 1.0, 1.0]
+		},
+		"wood": {
+			"$c": [0.95, 0.88, 0.55, 1.0]
+		},
+		"stats": {
+			"int": 9,
+			"spell": 29,
+			"mp": 58,
+			"cdr": 0.144
+		},
+		"heal": 0.25,
+		"desc": "Cura com a luz de outra estrela.",
+		"model": "sc_halo_scepter",
+		"craft": true
+	},
+	"astral_plate": {
+		"name": "Placas Astrais",
+		"type": "armor",
+		"rarity": "legendary",
+		"level": 47,
+		"defense": 17,
+		"price": 1720,
+		"color": {
+			"$c": [0.75, 0.6, 1.0, 1.0]
+		},
+		"metal": true,
+		"glow": 0.4,
+		"stats": {
+			"vit": 7,
+			"str": 3,
+			"hp": 59
+		},
+		"desc": "Forjada com o metal que caiu do céu.",
+		"craft": true
+	},
+	"astral_helm": {
+		"name": "Elmo Astral",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "legendary",
+		"level": 45,
+		"defense": 8,
+		"price": 687,
+		"color": {
+			"$c": [0.75, 0.6, 1.0, 1.0]
+		},
+		"color2": {
+			"$c": [0.95, 0.75, 0.3, 1.0]
+		},
+		"metal": true,
+		"style": "h_great",
+		"stats": {
+			"vit": 5,
+			"hp": 25
+		},
+		"desc": "O visor brilha num violeta frio.",
+		"craft": true
+	},
+	"astral_gauntlets": {
+		"name": "Manoplas Astrais",
+		"type": "gear",
+		"slot": "hands",
+		"rarity": "legendary",
+		"level": 45,
+		"defense": 1,
+		"price": 282,
+		"color": {
+			"$c": [0.75, 0.6, 1.0, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"str": 5
+		},
+		"desc": "Seguram até o que não tem peso.",
+		"craft": true
+	},
+	"astral_greaves": {
+		"name": "Grevas Astrais",
+		"type": "gear",
+		"slot": "feet",
+		"rarity": "legendary",
+		"level": 45,
+		"defense": 5,
+		"price": 268,
+		"color": {
+			"$c": [0.75, 0.6, 1.0, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"vit": 2
+		},
+		"desc": "Não deixam pegadas.",
+		"craft": true
+	},
+	"scroll_wind_ring": {
+		"name": "Pergaminho: Anel do Vento",
+		"type": "scroll",
+		"rarity": "uncommon",
+		"price": 52,
+		"stack": true,
+		"recipe": "wind_ring",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Anel do Vento."
+	},
+	"scroll_bone_staff": {
+		"name": "Pergaminho: Cajado de Ossos",
+		"type": "scroll",
+		"rarity": "uncommon",
+		"price": 60,
+		"stack": true,
+		"recipe": "bone_staff",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Cajado de Ossos."
+	},
+	"scroll_reinforced_boots": {
+		"name": "Pergaminho: Botas Reforçadas",
+		"type": "scroll",
+		"rarity": "uncommon",
+		"price": 60,
+		"stack": true,
+		"recipe": "reinforced_boots",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Botas Reforçadas."
+	},
+	"scroll_rose_flame": {
+		"name": "Pergaminho: Chama Rosada",
+		"type": "scroll",
+		"rarity": "rare",
+		"price": 96,
+		"stack": true,
+		"recipe": "rose_flame",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Chama Rosada."
+	},
+	"scroll_mage_robe": {
+		"name": "Pergaminho: Manto Arcano",
+		"type": "scroll",
+		"rarity": "rare",
+		"price": 100,
+		"stack": true,
+		"recipe": "mage_robe",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Manto Arcano."
+	},
+	"scroll_storm_staff": {
+		"name": "Pergaminho: Cajado da Tempestade",
+		"type": "scroll",
+		"rarity": "rare",
+		"price": 100,
+		"stack": true,
+		"recipe": "storm_staff",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Cajado da Tempestade."
+	},
+	"scroll_guard_surcoat": {
+		"name": "Pergaminho: Sobreveste da Guarda",
+		"type": "scroll",
+		"rarity": "rare",
+		"price": 116,
+		"stack": true,
+		"recipe": "guard_surcoat",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Sobreveste da Guarda."
+	},
+	"scroll_void_staff": {
+		"name": "Pergaminho: Cajado do Vazio",
+		"type": "scroll",
+		"rarity": "epic",
+		"price": 132,
+		"stack": true,
+		"recipe": "void_staff",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Cajado do Vazio."
+	},
+	"scroll_pale_crescent": {
+		"name": "Pergaminho: Foice Pálida",
+		"type": "scroll",
+		"rarity": "epic",
+		"price": 136,
+		"stack": true,
+		"recipe": "pale_crescent",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Foice Pálida."
+	},
+	"scroll_sc_halo_scepter": {
+		"name": "Pergaminho: Cetro do Halo Eterno",
+		"type": "scroll",
+		"rarity": "legendary",
+		"price": 160,
+		"stack": true,
+		"recipe": "sc_halo_scepter",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Cetro do Halo Eterno."
+	},
+	"scroll_mithril_longbow": {
+		"name": "Pergaminho: Arco Longo de Mithril",
+		"type": "scroll",
+		"rarity": "epic",
+		"price": 164,
+		"stack": true,
+		"recipe": "mithril_longbow",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Arco Longo de Mithril."
+	},
+	"scroll_mithril_gauntlets": {
+		"name": "Pergaminho: Manoplas de Mithril",
+		"type": "scroll",
+		"rarity": "epic",
+		"price": 168,
+		"stack": true,
+		"recipe": "mithril_gauntlets",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Manoplas de Mithril."
+	},
+	"scroll_astral_gauntlets": {
+		"name": "Pergaminho: Manoplas Astrais",
+		"type": "scroll",
+		"rarity": "legendary",
+		"price": 200,
+		"stack": true,
+		"recipe": "astral_gauntlets",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Manoplas Astrais."
+	},
+	"scroll_astral_greaves": {
+		"name": "Pergaminho: Grevas Astrais",
+		"type": "scroll",
+		"rarity": "legendary",
+		"price": 200,
+		"stack": true,
+		"recipe": "astral_greaves",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Grevas Astrais."
+	},
+	"scroll_astral_helm": {
+		"name": "Pergaminho: Elmo Astral",
+		"type": "scroll",
+		"rarity": "legendary",
+		"price": 200,
+		"stack": true,
+		"recipe": "astral_helm",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Elmo Astral."
+	},
+	"scroll_astral_blade": {
+		"name": "Pergaminho: Lâmina Astral",
+		"type": "scroll",
+		"rarity": "legendary",
+		"price": 204,
+		"stack": true,
+		"recipe": "astral_blade",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Lâmina Astral."
+	},
+	"scroll_astral_bow": {
+		"name": "Pergaminho: Arco Astral",
+		"type": "scroll",
+		"rarity": "legendary",
+		"price": 204,
+		"stack": true,
+		"recipe": "astral_bow",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Arco Astral."
+	},
+	"scroll_sc_astral_scepter": {
+		"name": "Pergaminho: Cetro Astral",
+		"type": "scroll",
+		"rarity": "legendary",
+		"price": 204,
+		"stack": true,
+		"recipe": "sc_astral_scepter",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Cetro Astral."
+	},
+	"scroll_soulwood_staff": {
+		"name": "Pergaminho: Cajado de Madeira-de-alma",
+		"type": "scroll",
+		"rarity": "legendary",
+		"price": 204,
+		"stack": true,
+		"recipe": "soulwood_staff",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Cajado de Madeira-de-alma."
+	},
+	"scroll_astral_plate": {
+		"name": "Pergaminho: Placas Astrais",
+		"type": "scroll",
+		"rarity": "legendary",
+		"price": 208,
+		"stack": true,
+		"recipe": "astral_plate",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Placas Astrais."
 	}
 }

@@ -72,5 +72,5 @@ static func _mul(x, m: float):
 	if typeof(x) == TYPE_INT:
 		return maxi(x, roundi(x * m)) if x > 0 else x
 	if typeof(x) == TYPE_FLOAT:
-		return snappedf(x * m, 0.001)
+		return float("%.3f" % (x * m))   # pelo texto: o mesmo double que volta do JSON da rede
 	return x

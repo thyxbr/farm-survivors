@@ -46,11 +46,12 @@ func test_roundtrip_matches_consts() -> void:
 			# o nível de equipar (level) nasceu depois do snapshot: compara sem ele; recompensas de missão
 			# rebaixadas de nível ganharam `named` (saem do sorteio de equipamento): sem ele onde o snapshot não tem
 			cur = cur.duplicate(true)
-			# variantes de qualidade do craft (parte 3) são geradas do item base: ficam de fora
-			for id in cur.keys():
-				if ItemQuality.quality(id) != "":
-					cur.erase(id)
 			var snap_items: Dictionary = (BalanceTables.decode(snap[n]) as Dictionary).duplicate(true)
+			# parte 3 (craft): variantes de qualidade, materiais, pergaminhos e itens novos não existiam no
+			# snapshot; os de antes continuam iguais
+			for id in cur.keys():
+				if not snap_items.has(id):
+					cur.erase(id)
 			for id in cur:
 				(cur[id] as Dictionary).erase("level")
 				if snap_items.has(id) and not (snap_items[id] as Dictionary).has("named"):
@@ -82,6 +83,14 @@ func test_roundtrip_matches_consts() -> void:
 			for rid in CraftRules.station_recipes(t, "kitchen"):
 				kitchen[rid] = CraftRules.ingredients(t, rid)
 			T.ok(kitchen == BalanceTables.decode(snap[n]), "receitas da cozinha iguais ao snapshot")
+			continue
+		elif n == "shop":
+			# a loja foi cortada ao básico na parte 3 (decisão do usuário na revisão da progressão):
+			# o que sobrou estava na loja de antes ou é material/semente da camada 1
+			var old_stock: Array = (BalanceTables.decode(snap[n]) as Dictionary).get("stock", [])
+			for id in cur.get("stock", []):
+				T.ok(id in old_stock or id == "wooden_sword" or t.get_table("items").get(id, {}).get("type") in ["seed", "material"],
+					"loja: %s estava antes ou é semente/material" % id)
 			continue
 		elif n == "rules":
 			# a curva de XP foi para progression.json

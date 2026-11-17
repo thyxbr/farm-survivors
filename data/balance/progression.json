@@ -22,7 +22,7 @@
 	"quest_xp_share": 0.3,
 	"quality_chance": {"per_level": 0.02, "max": 0.4, "obra_share": 0.25},
 	"quality_mult": {"fina": 1.15, "obra": 1.3},
-	"tier_drop": {"chance": 0.3, "elite_qty": 2, "boss_qty": 3},
+	"tier_drop": {"chance": 0.15, "elite_qty": 2, "boss_qty": 3},
 	"sim": {"attack_interval": 0.9, "downtime_per_kill": 12.0, "talent_damage": 0.0,
 		"ref_enemy": "goblin", "ref_class": "warrior",
 		"bands": [[1, 10], [10, 20], [20, 35], [35, 45], [45, 50]],

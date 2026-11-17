@@ -157,3 +157,57 @@ func test_cook_is_kitchen_craft() -> void:
 	T.ok(r.ok and r.n == 2, "cozinhou dois pães")
 	T.ok(CraftRules.xp(s, "cooking") > 0, "cozinhar dá XP de Culinária")
 	T.eq(CharRules.cook(s, bt, "t_sword", 1).err, "receita_invalida", "cook não fabrica receita de forja")
+
+
+## Catálogo do craft (recipes.json): cada camada tem arma de cada classe e peça de cada espaço de armadura;
+## receitas apontam para itens que existem; a ponta de cada camada pede a peça do chefe e é por pergaminho.
+func test_recipe_catalog() -> void:
+	var bt := BalanceTables.load_dir("res://data/balance")
+	var items := bt.get_table("items")
+	var rt := bt.get_table("recipes")
+	var tiers := [[1, 10], [11, 20], [21, 30], [31, 40], [41, 50]]
+	var pieces := ["goblin_crown", "royal_jelly", "knight_sigil", "lich_phylactery", "abyss_core"]
+	for t in tiers.size():
+		var got := {}
+		for rid in rt:
+			var r: Dictionary = rt[rid]
+			if int(r.level) < tiers[t][0] or int(r.level) > tiers[t][1] or r.station == "kitchen":
+				continue
+			var it: Dictionary = items.get(str(r.out), {})
+			if it.get("type") == "weapon":
+				got["w_" + str(it["class"])] = true
+			elif it.get("type") == "armor":
+				got["armor"] = true
+			elif it.get("type") == "gear":
+				got[str(it.get("slot", ""))] = true
+		for need in ["w_sword", "w_bow", "w_staff", "w_scepter", "armor", "head", "hands", "feet"]:
+			T.ok(got.has(need), "camada %d tem %s fabricável" % [t + 1, need])
+	var scrolls := {}
+	for id in items:
+		if items[id].get("type") == "scroll":
+			scrolls[str(items[id].recipe)] = id
+	for rid in rt:
+		var r: Dictionary = rt[rid]
+		T.ok(items.has(str(r.out)), "%s fabrica um item que existe" % rid)
+		for i in r.ingredients:
+			T.ok(items.has(i), "%s: ingrediente %s existe" % [rid, i])
+		T.ok(bt.get_table("professions").professions.has(str(r.prof)), "%s: profissão existe" % rid)
+		if r.learn == "scroll":
+			T.ok(scrolls.has(rid), "%s tem pergaminho" % rid)
+		for t in pieces.size():
+			if r.ingredients.has(pieces[t]):
+				T.eq(r.learn, "scroll", "%s (com peça de chefe) é por pergaminho" % rid)
+	for t in pieces.size():
+		var used := false
+		for rid in rt:
+			used = used or (rt[rid].ingredients as Dictionary).has(pieces[t])
+		T.ok(used, "a peça %s é pedida por alguma receita de ponta" % pieces[t])
+	# loja só com o básico
+	for id in bt.get_table("shop").stock:
+		var it: Dictionary = items[id]
+		var ok_item: bool = it.type in ["consumable", "seed"] or id in ["copper_ore", "pine_log", "hide_t1"] \
+			or (it.type in ["weapon", "armor", "gear"] and it.get("rarity") == "common" and int(it.get("level", 1)) <= 10)
+		T.ok(ok_item, "loja só com o básico (%s)" % id)
+	# variante de qualidade e item só de craft não caem de monstro
+	for id in LootRules.gear_pool(bt, 46):
+		T.ok(LootRules.droppable(items[id], id), "%s pode cair" % id)

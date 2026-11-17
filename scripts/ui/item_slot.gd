@@ -55,8 +55,9 @@ static func skill_art(ability_id: String) -> Texture2D:
 
 ## Arte pintada do item (assets/ui/items, recortada das grades por tools/icons/slice_grid.py).
 ## Vale em todo espaço e também sem janela; sem arte o item cai no ícone 3D ou no IconPainter.
+## Item com "art" usa a arte de outro id (os pergaminhos de receita usam "recipe_scroll").
 static func item_art(item_id: String) -> Texture2D:
-	var path := "res://assets/ui/items/%s.png" % item_id
+	var path := "res://assets/ui/items/%s.png" % str(ItemDB.get_item(item_id).get("art", item_id))
 	return load(path) if item_id != "" and ResourceLoader.exists(path) else null
 
 
