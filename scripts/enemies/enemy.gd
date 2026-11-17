@@ -84,10 +84,11 @@ var quest_icon: Sprite3D
 static var _quest_tex: ImageTexture
 const NAME_RANGE := 30.0     # metros: mais longe que isso o nome some (menos poluição no campo aberto)
 ## Cor da placa (nível do monstro − nível do jogador): até PLATE_LOW cinza, de PLATE_HIGH amarelo, de
-## PLATE_DANGER vermelho; no meio, branco.
+## ProgressionRules.danger_diff vermelho (e o monstro ganha dano e resistência contra esse jogador, ver vs());
+## no meio, branco.
 const PLATE_LOW := -5
 const PLATE_HIGH := 3
-const PLATE_DANGER := 5
+const PLATE_DANGER_COLOR := Color(1.0, 0.35, 0.3)
 ## Camadas de piscar (acerto) e de lentidão: iguais para todos os inimigos, ninguém altera depois de criar.
 static var _overlay_hit: StandardMaterial3D
 static var _overlay_slow: StandardMaterial3D
@@ -136,8 +137,12 @@ func _ready() -> void:
 		var tier: Dictionary = prog.get("tiers", [{}])[ProgressionRules.tier_of(Balance.tables, level) - 1]
 		shade = tier.get("tint", Color.WHITE)
 		size_mult = float(tier.get("scale", 1.0))
+		var rank := ProgressionRules.rank_mults(Balance.tables, kind, chief)   # campeões e chefes
+		hp_mult *= rank.hp
+		dmg_mult *= rank.dmg
 		if elite and not horde:   # elite do mundo (a da Horda já vem com os números dela)
 			hp_mult *= float(prog.get("elite", {}).get("hp", 1.0))
+			dmg_mult *= float(prog.get("elite", {}).get("dmg", 1.0))
 			size_mult *= float(prog.get("elite", {}).get("scale", 1.0))
 	max_hp = data.hp * hp_mult
 	hp = max_hp
@@ -340,9 +345,8 @@ func _make_name_tag() -> void:
 	name_tag.no_depth_test = true
 	name_tag.render_priority = 2
 	name_tag.outline_render_priority = 1
-	name_tag.modulate = Color(1.0, 0.45, 0.25) if is_boss else (Color(1.0, 0.8, 0.35) if elite or data.get("elite", false) else Color(1.0, 0.92, 0.85))
-	if level > 0 and not is_boss and not elite and not data.get("elite", false):
-		# só os comuns: chefes e elites ficam com a cor deles (o "Nv X" aparece igual)
+	name_tag.modulate = _own_plate_color()
+	if level > 0:
 		_update_plate_color()
 		Game.leveled_up.connect(_update_plate_color)
 	name_tag.position.y = top + (0.75 if not is_boss else 0.5)
@@ -364,17 +368,27 @@ func _make_name_tag() -> void:
 	_update_quest_icon()
 
 
+## Cor própria da placa: chefe laranja, elite dourada, comum quase branca.
+func _own_plate_color() -> Color:
+	if is_boss:
+		return Color(1.0, 0.45, 0.25)
+	if elite or data.get("elite", false):
+		return Color(1.0, 0.8, 0.35)
+	return Color(1.0, 0.92, 0.85)
+
+
 ## Cor da placa pela diferença de nível para o jogador local: bem abaixo cinza, perto branco, acima amarelo,
-## muito acima vermelho.
-## Só monstros comuns (chefes e elites mantêm a cor própria).
+## muito acima vermelho. Chefes e elites mantêm a cor própria, menos no vermelho (que avisa do bônus de vs()).
 func _update_plate_color(_new_level := 0) -> void:
 	if name_tag == null:
 		return
 	var diff := level - Game.level
-	if diff <= PLATE_LOW:
+	if diff >= ProgressionRules.danger_diff(Balance.tables):
+		name_tag.modulate = PLATE_DANGER_COLOR
+	elif is_boss or elite or data.get("elite", false):
+		name_tag.modulate = _own_plate_color()
+	elif diff <= PLATE_LOW:
 		name_tag.modulate = Color(0.6, 0.6, 0.6)
-	elif diff >= PLATE_DANGER:
-		name_tag.modulate = Color(1.0, 0.35, 0.3)
 	elif diff >= PLATE_HIGH:
 		name_tag.modulate = Color(1.0, 0.85, 0.3)
 	else:
@@ -970,13 +984,13 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 			FX.ring(global_position, Color(0.8, 0.6, 0.3, 0.9), sr, 0.4)
 			FX.burst(global_position + Vector3.UP * 0.3, Color(0.5, 0.4, 0.3), 40, 7.0, 0.2, 0.8)
 			if player and dist <= sr:
-				player.take_damage(data.damage * dmg_mult * 1.4, global_position)
+				player.take_damage(vs(level, player, data.damage * dmg_mult * 1.4), global_position)
 			if player is Player:
 				player.add_shake(0.4)
 		elif player and dist <= data.reach * 1.3 + 0.3:
 			var facing_ok := model_forward().dot(to_player.normalized()) > 0.2 or dist < 1.0
 			if facing_ok:
-				player.take_damage(data.damage * dmg_mult * randf_range(0.9, 1.1), global_position)
+				player.take_damage(vs(level, player, data.damage * dmg_mult * randf_range(0.9, 1.1)), global_position)
 				if data.has("chill") and player.has_method("apply_chill"):
 					player.apply_chill(float(data.chill))
 		if attack_kind == "swing" or (attack_kind == "lunge" and data.model in ["raptor", "spider", "frog", "bat"]):
@@ -1001,6 +1015,7 @@ func _shoot(visual: bool) -> void:
 	var arrow := ENEMY_ARROW.new()
 	arrow.direction = dir
 	arrow.damage = 0.0 if visual else data.damage * dmg_mult
+	arrow.level = level
 	arrow.source = get_parent()
 	arrow.magic = bolt
 	get_parent().add_child(arrow)
@@ -1031,7 +1046,7 @@ func _lash_tongue(player, to_player: Vector3, dist: float) -> void:
 	if model_forward().dot(to_player.normalized()) < 0.75:
 		return   # saiu da frente: a língua passa vazia
 	var dir := to_player.normalized()
-	player.take_damage(data.damage * dmg_mult * 0.6, player.global_position + dir)
+	player.take_damage(vs(level, player, data.damage * dmg_mult * 0.6), player.global_position + dir)
 	attack_cd = 0.0
 
 
@@ -1043,6 +1058,7 @@ func _shoot_web(visual: bool) -> void:
 	ball.web_secs = float(data.get("web_secs", 1.8))
 	ball.direction = model_forward()
 	ball.damage = 0.0 if visual else data.damage * dmg_mult * 0.5
+	ball.level = level
 	ball.source = get_parent()
 	get_parent().add_child(ball)
 	ball.global_position = global_position + Vector3.UP * 0.55 * float(data.scale) + model_forward() * 0.7
@@ -1075,7 +1091,7 @@ func _explode(visual: bool) -> void:
 	var pool: Array = get_parent().targets() if get_parent().has_method("targets") else get_tree().get_nodes_in_group("players")
 	for p in pool:
 		if not p.dead and p.global_position.distance_to(global_position) <= r:
-			p.take_damage(data.damage * dmg_mult, global_position)
+			p.take_damage(vs(level, p, data.damage * dmg_mult), global_position)
 			p.add_shake(0.35)
 	_die()
 
@@ -1148,9 +1164,33 @@ func apply_stun(t: float) -> void:
 		_set_state("chase")
 
 
-## Dano que este inimigo leva de um acerto de `amount` (maior se estiver com a marca tóxica).
+## Dano que este inimigo leva de um acerto de `amount` (maior se estiver com a marca tóxica, menor se estiver
+## bem acima do nível de quem bateu: placa vermelha).
 func incoming(amount: float) -> float:
-	return amount * (1.0 + venom_amp) if venom_timer > 0.0 else amount
+	var a := amount * (1.0 + venom_amp) if venom_timer > 0.0 else amount
+	if level > 0:
+		var foe := Game.level
+		if Network.is_server():
+			foe = Party._level(last_hitter) if last_hitter != 0 else 0
+		a *= float(ProgressionRules.danger_mults(Balance.tables, level, foe).taken)
+	return a
+
+
+## Nível de quem leva o golpe: o personagem do peer no servidor, o jogador local no solo. 0 = desconhecido.
+static func foe_level(p) -> int:
+	if not (p is Player):
+		return 0
+	if p.remote:
+		return Party._level(p.peer_id) if Network.is_server() else 0
+	return Game.level
+
+
+## Dano `amount` de um monstro de nível `enemy_level` no jogador `p`, com o bônus do monstro bem acima dele
+## (placa vermelha). Também usado pelos projéteis (EnemyArrow.level).
+static func vs(enemy_level: int, p, amount: float) -> float:
+	if enemy_level <= 0:
+		return amount
+	return amount * float(ProgressionRules.danger_mults(Balance.tables, enemy_level, foe_level(p)).dmg)
 
 
 ## Marca tóxica: por `secs` segundos, todo dano recebido vale (1 + amp). Não empilha: fica a mais forte.

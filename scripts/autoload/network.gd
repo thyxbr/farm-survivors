@@ -754,9 +754,9 @@ func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow:
 	if not HitGuard.accepts(amount, last_pos.get(id, Vector3.INF), e.global_position):
 		return
 	if amount > 0.0:
+		e.last_hitter = id   # antes do número: incoming() usa o nível de quem bateu (monstro bem acima resiste)
 		for pid in _enemy_peers(e):
 			_enemy_hit_fx.rpc_id(pid, net_id, e.incoming(amount), crit)   # o número já com a marca tóxica
-		e.last_hitter = id
 		e.take_damage(amount, from_pos, crit, 0.0, 0.0, clampf(pull, 0.0, 6.0))
 		e.last_hitter = 0
 	if slow > 0.0 and not e.dead:
