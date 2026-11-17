@@ -149,26 +149,7 @@ static func ring(pos: Vector3, color: Color, radius: float, duration := 0.5) -> 
 	tw.chain().tween_callback(mi.queue_free)
 
 
-## Círculo vermelho no chão usado como aviso de ataque em área.
+## Aviso de ataque em área no chão (desenhado: FXToon.telegraph): o anel marca o raio e o miolo enche até o
+## golpe cair.
 static func telegraph(pos: Vector3, radius: float, duration: float) -> void:
-	var root := _scene()
-	if root == null:
-		return
-	var mi := MeshInstance3D.new()
-	var disc := CylinderMesh.new()
-	disc.top_radius = radius
-	disc.bottom_radius = radius
-	disc.height = 0.04
-	disc.radial_segments = 40
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.albedo_color = Color(1, 0.1, 0.05, 0.15)
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	disc.material = m
-	mi.mesh = disc
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	root.add_child(mi)
-	mi.global_position = pos + Vector3(0, 0.06, 0)
-	var tw := mi.create_tween()
-	tw.tween_property(m, "albedo_color:a", 0.55, duration)
-	tw.tween_callback(mi.queue_free)
+	FXToon.telegraph(pos, radius, duration)

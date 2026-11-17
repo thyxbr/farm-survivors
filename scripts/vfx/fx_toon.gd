@@ -11,6 +11,7 @@ const CRYSTAL_SHADER := preload("res://shaders/fx_crystal.gdshader")
 const GUST_SHADER := preload("res://shaders/fx_ground_gust.gdshader")
 const RUNE_SHADER := preload("res://shaders/fx_rune_circle.gdshader")
 const ORB_SHADER := preload("res://shaders/fx_orb.gdshader")
+const TELEGRAPH_SHADER := preload("res://shaders/fx_telegraph.gdshader")
 
 ## Golpes do combo da espada, no espaço do personagem (x = esquerda dele, y = cima, z = frente).
 ## A pincelada gira em torno de `center`, de `from` até `to` (direções a partir do centro), pelo caminho
@@ -83,6 +84,13 @@ const RING_WAVE := [
 		"hold": 0.08, "fade": 0.35, "lead": 0.3},
 ]
 
+## Monstros: a identidade é o contrário da do jogador. Os efeitos do jogador têm o miolo claro e a borda
+## escura; os dos monstros têm o miolo quase preto e a borda acesa em carmim, com formas de espinho.
+const MENACE := {"core": Color(0.07, 0.02, 0.07), "mid": Color(0.55, 0.04, 0.22), "edge": Color(1.0, 0.22, 0.34)}
+const THORN := {"core": Color(0.78, 0.1, 0.36), "mid": Color(0.3, 0.03, 0.17), "edge": Color(0.06, 0.01, 0.05)}
+const HELLFIRE := {"core": Color(1.0, 0.3, 0.22), "mid": Color(0.62, 0.04, 0.16), "edge": Color(0.13, 0.01, 0.07)}
+const SOOT := {"core": Color(0.3, 0.25, 0.3), "mid": Color(0.16, 0.12, 0.17), "edge": Color(0.05, 0.03, 0.06)}
+const BLIGHT := {"core": Color(0.78, 1.0, 0.4), "mid": Color(0.3, 0.68, 0.2), "edge": Color(0.24, 0.05, 0.34)}
 ## Vento da Flecha do Vendaval.
 const WIND := {"core": Color(1.0, 1.0, 1.0), "mid": Color(0.78, 0.9, 1.0), "edge": Color(0.36, 0.7, 0.98)}
 ## Fogo do Turbilhão.
@@ -112,6 +120,7 @@ static var _crystal_mesh: ArrayMesh
 static var _gust_mesh: PlaneMesh
 static var _rune_mesh: PlaneMesh
 static var _orb_mesh: QuadMesh
+static var _telegraph_mesh: PlaneMesh
 static var _arcs := {}
 
 
@@ -356,13 +365,17 @@ static func _ground_drawing(mesh: PlaneMesh, pos: Vector3, radius: float, line: 
 static func rune_circle(pos: Vector3, radius: float, sweep := 0.3, hold := -1.0) -> SigilNode:
 	if FX._scene() == null:
 		return null
+	return _ground_drawing(_rune_quad(), pos, radius, EMBER.mid, FIRE.edge, sweep, hold, 0.35)
+
+
+static func _rune_quad() -> PlaneMesh:
 	if _rune_mesh == null:
 		_rune_mesh = PlaneMesh.new()
 		_rune_mesh.size = Vector2(2, 2)
 		var m := ShaderMaterial.new()
 		m.shader = RUNE_SHADER
 		_rune_mesh.material = m
-	return _ground_drawing(_rune_mesh, pos, radius, EMBER.mid, FIRE.edge, sweep, hold, 0.35)
+	return _rune_mesh
 
 
 ## Explosão de um meteoro em `pos` (no chão): como fire_burst, mas enxuta (caem uns cinco por segundo por
@@ -627,24 +640,119 @@ static func gale_fire(feet: Vector3, origin: Vector3, dir: Vector3, c: float) ->
 	slashes_at(feet, dir, CHARGE_KICK, DUST)
 
 
+## Aviso de ataque em área no chão, centrado em `pos`, com `radius` metros: o anel marca o raio desde o
+## começo e o miolo enche do centro para fora durante `duration` segundos (cheio = o golpe cai). Deita no terreno.
+static func telegraph(pos: Vector3, radius: float, duration: float) -> void:
+	if FX._scene() == null:
+		return
+	if _telegraph_mesh == null:
+		_telegraph_mesh = PlaneMesh.new()
+		_telegraph_mesh.size = Vector2(2, 2)
+		var m := ShaderMaterial.new()
+		m.shader = TELEGRAPH_SHADER
+		_telegraph_mesh.material = m
+	var n := _ground_drawing(_telegraph_mesh, pos, radius / 0.95, Color(1.0, 0.3, 0.14), Color(0.92, 0.1, 0.05),
+		maxf(duration, 0.05), 0.0, 0.5)
+	if n:
+		n.linear = true
+		n.fade = 0.12
+
+
+## Respingo de quem levou um golpe, em `pos`, na cor `color` (a do monstro): `n` riscos curtos para todo
+## lado. Leve de propósito: na Horda saem dezenas por segundo.
+static func hit_splat(pos: Vector3, color: Color, n := 4) -> void:
+	if FX._scene() == null:
+		return
+	var pal := {"core": color.lightened(0.6), "mid": color, "edge": color.darkened(0.45)}
+	for i in n:
+		var v := _burst_dir()
+		streak(pos + v * 0.1, pos + v * randf_range(0.4, 0.8), randf_range(0.05, 0.08), pal,
+			{"billboard": true, "shadow": false, "sweep": 0.05, "hold": 0.02, "fade": 0.14, "peak": 0.55})
+
+
+## Espinhos escuros brotando em roda de `at` (com a base `tilt` do chão), entre `r0` e `r1` metros: o traço
+## dos monstros. Tombam para fora; `n` espinhos de altura em torno de `height`.
+static func thorns(at: Vector3, tilt: Basis, r0: float, r1: float, n: int, height: float, hold := 0.16) -> void:
+	for i in n:
+		var out := tilt * Vector3.BACK.rotated(Vector3.UP, TAU * (i + randf_range(-0.3, 0.3)) / n)
+		var dist := randf_range(r0, r1)
+		var foot := at + out * dist
+		var h := height * randf_range(0.7, 1.3)
+		streak(foot, foot + (tilt.y + out * randf_range(0.5, 1.0)).normalized() * h, h * randf_range(0.13, 0.19), THORN,
+			{"billboard": true, "delay": dist * 0.03, "sweep": 0.06, "hold": hold, "fade": 0.3, "blunt": 1.0,
+			"peak": 0.05, "lead": 0.3})
+
+
+## Pancada no chão de um monstro em `pos`, com `radius` metros: uma onda escura de borda carmim até o raio,
+## espinhos pretos brotando em roda e três garras rasgando o chão a partir do centro. Deita no terreno.
+static func slam(pos: Vector3, radius: float) -> void:
+	if FX._scene() == null:
+		return
+	var gf := ground_frame(pos, radius * 0.6)
+	var tilt := gf.basis
+	var at := gf.origin
+	ring_wave(at + tilt.y * 0.07, radius, clampf(1.1 / radius, 0.12, 0.34), MENACE, 0.14, 0.0, null, tilt)
+	thorns(at, tilt, radius * 0.45, radius * 0.9, clampi(int(radius * 3.0), 7, 14), 0.9 + radius * 0.08)
+	# garras: três rasgos escuros, quase paralelos, numa direção sorteada
+	var a0 := randf() * TAU
+	for k in [-1.0, 0.0, 1.0]:
+		var d := tilt * Vector3.BACK.rotated(Vector3.UP, a0 + k * 0.32)
+		var from := at + tilt.y * 0.05 - d * radius * 0.25
+		streak(from, from + d * radius * (0.95 if k == 0.0 else 0.8), 0.17, MENACE,
+			{"shadow": false, "linear": true, "lead": 0.1, "sweep": 0.09, "hold": 0.55, "fade": 0.5, "peak": 0.45})
+
+
+## Explosão de um monstro-bomba em `pos`, com `radius` metros de alcance: fogo carmim com fuligem preta (não
+## o fogo laranja do jogador), um anel escuro até o raio do dano e espinhos em volta.
+static func blast(pos: Vector3, radius: float) -> void:
+	if FX._scene() == null:
+		return
+	fire_burst(pos + Vector3.UP * 0.6, clampf(radius / 2.6, 0.8, 1.8), HELLFIRE, SOOT, HELLFIRE, MENACE)
+	var gf := ground_frame(pos, radius * 0.6)
+	ring_wave(gf.origin + gf.basis.y * 0.07, radius, clampf(1.0 / radius, 0.12, 0.32), MENACE, 0.14, 0.0, null, gf.basis)
+	thorns(gf.origin, gf.basis, radius * 0.3, radius * 0.75, 8, 0.8)
+
+
+## Cura de um xamã em `pos`, com `radius` metros: um círculo de ritual no chão (verde doentio sobre roxo
+## escuro), que gira e some, e fios de praga subindo do xamã. Nada do anel limpo da cura do jogador.
+static func heal_pulse(pos: Vector3, radius: float) -> void:
+	if FX._scene() == null:
+		return
+	_ground_drawing(_rune_quad(), pos, radius, BLIGHT.core, BLIGHT.edge, 0.25, 0.45, -0.9)
+	heal_touch(pos, 8, 0.9)
+
+
+## Quem foi curado pelo xamã, em `pos` (pés): fios de praga (verde com contorno roxo) subindo em volta.
+static func heal_touch(pos: Vector3, n := 4, spread := 0.5) -> void:
+	if FX._scene() == null:
+		return
+	for i in n:
+		var a2 := TAU * (i + randf_range(-0.3, 0.3)) / n
+		var foot := pos + Vector3(sin(a2), 0, cos(a2)) * randf_range(0.3, 1.0) * spread
+		streak(foot + Vector3.UP * randf_range(0.2, 0.8), foot + Vector3.UP * randf_range(1.5, 2.2), randf_range(0.07, 0.1), BLIGHT,
+			{"billboard": true, "linear": true, "delay": randf_range(0.0, 0.2), "sweep": 0.3, "hold": 0.05, "fade": 0.3,
+			"peak": 0.7})
+
+
 ## Explosão de fogo em `pos` (Bola de Fogo): clarão, bolas de fogo que estufam para fora, faíscas, anel e
 ## a fumaça que sobe e demora a sumir.
-static func fire_burst(pos: Vector3, size := 1.0) -> void:
+static func fire_burst(pos: Vector3, size := 1.0, fire: Dictionary = FIRE, smoke: Dictionary = SMOKE,
+		flash: Dictionary = FLASH, sparks: Dictionary = EMBER) -> void:
 	if FX._scene() == null:
 		return
 	# fumaça primeiro (fica atrás do fogo) e por último a sumir
 	for i in 7:
 		var v := (_burst_dir() * 0.8 + Vector3.UP * 0.5).normalized()
-		puff(pos + v * 0.5 * size, randf_range(1.3, 1.9) * size, SMOKE,
+		puff(pos + v * 0.5 * size, randf_range(1.3, 1.9) * size, smoke,
 			{"vel": v * randf_range(2.0, 3.4) * size + Vector3.UP * 0.9, "delay": 0.15 + randf() * 0.08,
 			"grow": 0.3, "hold": 0.3, "fade": 0.65, "sort": -0.2})
 	for i in 6:
 		var v := _burst_dir()
-		puff(pos + v * 0.3 * size, randf_range(1.2, 1.7) * size, FIRE,
+		puff(pos + v * 0.3 * size, randf_range(1.2, 1.7) * size, fire,
 			{"vel": v * randf_range(4.0, 6.5) * size, "grow": 0.1, "hold": 0.07, "fade": 0.3})
-	puff(pos, 1.9 * size, FLASH, {"grow": 0.06, "hold": 0.05, "fade": 0.22, "sort": 0.2})
-	impact_sparks(pos, Vector3.BACK, 8, 180.0)
-	ring_wave(pos - Vector3.UP * 0.3, 2.3 * size, 0.2, FIRE, 0.1)
+	puff(pos, 1.9 * size, flash, {"grow": 0.06, "hold": 0.05, "fade": 0.22, "sort": 0.2})
+	impact_sparks(pos, Vector3.BACK, 8, 180.0, sparks)
+	ring_wave(pos - Vector3.UP * 0.3, 2.3 * size, 0.2, fire, 0.1)
 
 
 ## Desenho de gelo no chão, centrado em `pos`, até `radius`: aparece do centro para fora em `sweep`
@@ -795,11 +903,11 @@ static func heal(parent: Node3D) -> void:
 
 
 ## Faíscas de impacto: `n` riscos curtos saindo de `at`, para cima e abertos até `half_angle` graus de `dir`.
-static func impact_sparks(at: Vector3, dir: Vector3, n: int, half_angle: float) -> void:
+static func impact_sparks(at: Vector3, dir: Vector3, n: int, half_angle: float, pal: Dictionary = EMBER) -> void:
 	for i in n:
 		var ang := deg_to_rad(randf_range(-half_angle, half_angle))
 		var out := (dir.rotated(Vector3.UP, ang) * randf_range(0.5, 1.0) + Vector3.UP * randf_range(0.5, 1.2)).normalized()
-		streak(at + out * 0.15, at + out * randf_range(0.9, 1.7), randf_range(0.05, 0.09), EMBER,
+		streak(at + out * 0.15, at + out * randf_range(0.9, 1.7), randf_range(0.05, 0.09), pal,
 			{"billboard": true, "shadow": false, "sweep": 0.05, "hold": 0.03, "fade": 0.16, "peak": 0.6})
 
 
@@ -1354,7 +1462,8 @@ class SigilNode extends MeshInstance3D:
 	var sweep := 0.22
 	var hold := 1.1           ## < 0: fica até release()
 	var fade := 0.6
-	var spin_rate := 0.0      ## rad/s do giro do desenho (só o de runas gira)
+	var spin_rate := 0.0      ## rad/s do giro do desenho (o de runas e o aviso giram)
+	var linear := false       ## o desenho enche em velocidade constante até 1 (aviso: cheio = o golpe cai)
 	var _age := 0.0
 
 	## Começa a sumir agora (para os de `hold` negativo).
@@ -1367,7 +1476,7 @@ class SigilNode extends MeshInstance3D:
 		if hold >= 0.0 and _age >= sweep + hold + fade:
 			queue_free()
 			return
-		set_instance_shader_parameter("reveal", 1.1 * clampf(_age / sweep, 0.0, 1.0))
+		set_instance_shader_parameter("reveal", (1.0 if linear else 1.1) * clampf(_age / sweep, 0.0, 1.0))
 		set_instance_shader_parameter("erode", clampf((_age - sweep - hold) / fade, 0.0, 1.0) if hold >= 0.0 else 0.0)
 		if spin_rate != 0.0:
 			set_instance_shader_parameter("spin", _age * spin_rate)

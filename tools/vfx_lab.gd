@@ -6,7 +6,7 @@ extends Node3D
 const KNIGHT := preload("res://assets/models/knight.glb")
 var SPACING := 1.45
 
-var pages := ["niveis", "elementos", "armas", "auras1", "auras2", "juntas", "rampa", "perto1", "perto2", "corte", "investida", "sismico", "turbilhao", "magias", "meteoros", "faisca", "arco", "vendaval"]
+var pages := ["niveis", "elementos", "armas", "auras1", "auras2", "juntas", "rampa", "perto1", "perto2", "corte", "investida", "sismico", "turbilhao", "magias", "meteoros", "faisca", "arco", "vendaval", "monstros"]
 var page := 0
 var element_i := 0
 var _knights: Array = []     # [{"model", "rig", "look", "pivot"}]
@@ -238,6 +238,13 @@ func _show_page() -> void:
 			r["gale"] = {"yaw": PI * 0.5, "phase": 0, "fx": null}
 			r.pivot.rotation.y = r.gale.yaw
 			r.pivot.position = Vector3(-6.5, 0, 0.5)
+		"monstros":
+			_title.text = "Monstros: aviso e pancada, bomba, cura do xamã, projéteis e respingo de dano"
+			var l := base.duplicate()
+			l.weapon = "iron_sword"
+			var r := _knight(0, 1, l, "")
+			r["mobs"] = {"step": 0}
+			r.pivot.position = Vector3(0, 0, 3.5)
 		"juntas":
 			_title.text = "Auras juntas (habilidades + comida): cada uma ganha seu anel"
 			var sets := [["escudo", "furia"], ["cura", "vento"], ["escudo", "vento", "heroi"], ["cura", "escudo", "dragao", "sorte"]]
@@ -280,7 +287,10 @@ func _show_page() -> void:
 				aura.set_styles(sets2[i])
 	var n := _knights.size()
 	var w := n * SPACING
-	if pages[page] == "vendaval":
+	if pages[page] == "monstros":
+		_cam.position = Vector3(0, 8.0, 14.0)
+		_cam.look_at(Vector3(0, 0.8, 0.0))
+	elif pages[page] == "vendaval":
 		_cam.position = Vector3(0, 7.0, 13.0)
 		_cam.look_at(Vector3(0, 1.0, 0.0))
 	elif pages[page] == "faisca" or pages[page] == "arco":
@@ -344,6 +354,9 @@ func _process(delta: float) -> void:
 			continue
 		if k.has("gale"):
 			_gale(k, delta)
+			continue
+		if k.has("mobs"):
+			_mobs(k, delta)
 			continue
 		k.pivot.rotation.y = _turn + sin(_t * 0.6) * 0.35
 		KnightAnim.apply(k.rig, KnightAnim.idle_pose(_t), 1.0 - exp(-14.0 * delta))
@@ -646,13 +659,50 @@ func _gale(k: Dictionary, delta: float) -> void:
 			add_child(line)
 
 
+## Página "monstros": a cada 6 s mostra, com as chamadas de enemy.gd: aviso (0,2 s) e pancada (1,1 s) à
+## esquerda; bomba (1,9 s) no meio; cura do xamã (2,8 s) à direita; orbe e flecha de inimigo (3,6 s); e
+## respingos de dano (4,4 s) em três cores.
+func _mobs(k: Dictionary, delta: float) -> void:
+	var m: Dictionary = k.mobs
+	var t := fmod(_t, 6.0)
+	KnightAnim.apply(k.rig, KnightAnim.idle_pose(_t), 1.0 - exp(-14.0 * delta))
+	KnightAnim.hold_weapon_upright(k.look, k.rig)
+	if t < 0.1:
+		m.step = 0
+	var times := [0.2, 1.1, 1.9, 2.8, 3.6, 4.4]
+	if m.step < times.size() and t >= float(times[m.step]):
+		match int(m.step):
+			0:
+				FX.telegraph(Vector3(-6, 0, -1), 3.2, 0.9)
+			1:
+				FXToon.slam(Vector3(-6, 0, -1), 3.2)
+			2:
+				FXToon.blast(Vector3(0, 0, -2), 3.5)
+			3:
+				FXToon.heal_pulse(Vector3(6, 0, -1), 4.0)
+				for off in [Vector3(1.8, 0, 0.6), Vector3(-1.5, 0, 1.2), Vector3(0.4, 0, -2.2)]:
+					FXToon.heal_touch(Vector3(6, 0, -1) + off)
+			4:
+				for magic in [true, false]:
+					var pr: Node3D = preload("res://scripts/enemies/enemy_arrow.gd").new()
+					pr.direction = Vector3(1, 0, 0)
+					pr.magic = magic
+					add_child(pr)
+					pr.global_position = Vector3(-7, 1.2, 2.0 if magic else 3.0)
+			5:
+				for i in 3:
+					for rep_i in 2:
+						FXToon.hit_splat(Vector3(-3 + i * 3, 1.0 + rep_i * 0.4, 1.5), [Color(0.4, 0.85, 0.35), Color(0.85, 0.3, 0.25), Color(0.5, 0.6, 0.95)][i], 5)
+		m.step += 1
+
+
 func _take_seq() -> void:
 	DirAccess.make_dir_recursive_absolute(_seq_dir)
 	await get_tree().create_timer(0.5).timeout
-	var loop: float = {"investida": 1.5, "sismico": 2.0, "turbilhao": 3.4, "magias": 4.6, "meteoros": 4.5, "faisca": 3.0, "arco": 3.6, "vendaval": 3.4}.get(pages[page], 1.2)
+	var loop: float = {"investida": 1.5, "sismico": 2.0, "turbilhao": 3.4, "magias": 4.6, "meteoros": 4.5, "faisca": 3.0, "arco": 3.6, "vendaval": 3.4, "monstros": 6.0}.get(pages[page], 1.2)
 	while fmod(_t, loop) > 0.05:      # espera o começo de um golpe
 		await get_tree().process_frame
-	for i in int({"sismico": 90, "turbilhao": 170, "magias": 260, "meteoros": 230, "faisca": 150, "arco": 200, "vendaval": 150}.get(pages[page], 50)):
+	for i in int({"sismico": 90, "turbilhao": 170, "magias": 260, "meteoros": 230, "faisca": 150, "arco": 200, "vendaval": 150, "monstros": 300}.get(pages[page], 50)):
 		await RenderingServer.frame_post_draw
 		get_viewport().get_texture().get_image().save_png("%s/%03d.png" % [_seq_dir, i])
 	get_tree().quit()
