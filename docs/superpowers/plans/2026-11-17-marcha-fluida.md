@@ -49,7 +49,7 @@ Ajudante em `tests/gait_test.gd`, `_cycle(move, run) -> Array`: instancia `res:/
   - `head_stays_forward`: amplitude (máx - mín) do yaw da cabeça <= 0.3 x amplitude do yaw do `Body`; idem para o roll.
   - `pelvis_counters_shoulders`: na fase 0, yaw da `Pelvis` < -0.03 e yaw do `Body` > 0.03; na fase PI, sinais trocados.
   - `stance_foot_no_side_slip`: x do `AnkleL` durante o apoio varia <= 0.012 m.
-  - `hand_crosses_in_front`: |x| da mão esquerda na fase em que ela está mais à frente (maior z) é pelo menos 0.01 m menor que na fase em que está mais atrás.
+  - `hand_crosses_in_front`: |x| da mão esquerda na fase em que ela está mais à frente (maior z) é pelo menos 0.055 m menor (a marcha antiga dá 0.035 m) que na fase em que está mais atrás.
   - `weight_over_stance_leg`: no meio do apoio esquerdo, `Body.position.x` > `r.body_x0`; no do direito, menor.
   - `still_pose_untouched`: `locomotion_pose(r, ph, 0.0, 0.0)` tem `hip_twist`, `leg_yaw`, `head_y`, `head_z`, `body_shift` == 0 para toda fase.
 - [ ] Rodar `godot --headless --path . res://tests/gait_test.tscn`: roda até o fim, código de saída 1. Esperado nesta tarefa: FAIL em `head_stays_forward`, `pelvis_counters_shoulders`, `hand_crosses_in_front`, `weight_over_stance_leg`; PASS em `stance_foot_no_side_slip` e `still_pose_untouched`. Qualquer outro resultado: relatar.
