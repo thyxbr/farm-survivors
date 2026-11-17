@@ -513,14 +513,12 @@ func max_stamina() -> float:
 	return 70.0 + attr("agi") * 5.0
 
 
-## Dano do ataque básico conforme a classe da arma (espada FOR, cajado INT, arco AGI).
+## Dano do ataque básico conforme a classe da arma (espada FOR, cajado INT, arco AGI): CharRules.basic_damage.
 func melee_damage() -> float:
-	match weapon_class():
-		"staff", "scepter":
-			return (weapon_damage() + attr("int") * 1.4 + gear("spell") * 0.5) * mod("damage")
-		"bow":
-			return (weapon_damage() + attr("agi") * 1.5 + attr("str") * 0.3) * mod("damage")
-	return (weapon_damage() + attr("str") * 1.6) * mod("damage")
+	var attrs := {}
+	for a in attributes:
+		attrs[a] = attr(a)
+	return CharRules.basic_damage(weapon_class(), attrs, weapon_damage(), gear("spell")) * mod("damage")
 
 
 func spell_power() -> float:

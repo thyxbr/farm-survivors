@@ -122,6 +122,18 @@ static func base_max_mp(s: CharState, bt: BalanceTables) -> float:
 	return 25.0 + (int(s.attributes.int) + int(gear(s, bt, "int"))) * 6.0 + (s.level - 1) * 3.0 + gear(s, bt, "mp")
 
 
+## Dano do ataque básico sem os modificadores (talentos, buffs, cartas): espada arma + FOR × 1,6; arco
+## arma + AGI × 1,5 + FOR × 0,3; cajado e cetro arma + INT × 1,4 + bônus "spell" × 0,5.
+## `attrs` são os atributos efetivos (pontos + equipamento). Game.melee_damage() multiplica por mod("damage").
+static func basic_damage(weapon_class: String, attrs: Dictionary, weapon_damage: float, spell_gear: float) -> float:
+	match weapon_class:
+		"staff", "scepter":
+			return weapon_damage + float(attrs.get("int", 0)) * 1.4 + spell_gear * 0.5
+		"bow":
+			return weapon_damage + float(attrs.get("agi", 0)) * 1.5 + float(attrs.get("str", 0)) * 0.3
+	return weapon_damage + float(attrs.get("str", 0)) * 1.6
+
+
 ## Poder mágico: atributo INT + bônus "spell" do equipamento (mesma conta de Game.spell_power()).
 static func spell_power(s: CharState, bt: BalanceTables) -> float:
 	return float(s.attributes.int) + gear(s, bt, "spell")

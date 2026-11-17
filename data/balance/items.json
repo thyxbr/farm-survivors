@@ -527,7 +527,7 @@
 		"type": "weapon",
 		"class": "staff",
 		"rarity": "legendary",
-		"level": 45,
+		"level": 44,
 		"named": true,
 		"damage": 30,
 		"price": 950,
@@ -742,7 +742,7 @@
 		"type": "weapon",
 		"class": "bow",
 		"rarity": "rare",
-		"level": 24,
+		"level": 18,
 		"named": true,
 		"damage": 21,
 		"price": 240,
@@ -803,7 +803,7 @@
 		"name": "Armadura de Couro",
 		"type": "armor",
 		"rarity": "common",
-		"level": 8,
+		"level": 3,
 		"defense": 3,
 		"price": 40,
 		"color": {
@@ -822,7 +822,7 @@
 		"name": "Cota de Malha",
 		"type": "armor",
 		"rarity": "uncommon",
-		"level": 15,
+		"level": 8,
 		"defense": 7,
 		"price": 120,
 		"color": {
@@ -888,7 +888,7 @@
 		"name": "Placas Reais",
 		"type": "armor",
 		"rarity": "epic",
-		"level": 35,
+		"level": 14,
 		"defense": 12,
 		"price": 300,
 		"color": {
@@ -905,7 +905,7 @@
 		"name": "Túnica de Viajante",
 		"type": "armor",
 		"rarity": "common",
-		"level": 6,
+		"level": 4,
 		"defense": 2,
 		"price": 30,
 		"color": {
@@ -1042,7 +1042,7 @@
 		"type": "gear",
 		"slot": "head",
 		"rarity": "epic",
-		"level": 22,
+		"level": 14,
 		"defense": 5,
 		"price": 320,
 		"color": {
@@ -1128,7 +1128,7 @@
 		"type": "gear",
 		"slot": "hands",
 		"rarity": "uncommon",
-		"level": 9,
+		"level": 3,
 		"defense": 2,
 		"price": 80,
 		"color": {
@@ -1264,7 +1264,7 @@
 		"slot": "offhand",
 		"needs": "sword",
 		"rarity": "common",
-		"level": 7,
+		"level": 1,
 		"defense": 2,
 		"price": 30,
 		"color": {
@@ -1313,7 +1313,7 @@
 		"slot": "offhand",
 		"needs": "bow",
 		"rarity": "uncommon",
-		"level": 10,
+		"level": 8,
 		"price": 110,
 		"color": {
 			"$c": [0.45, 0.28, 0.12, 1.0]
@@ -1329,7 +1329,7 @@
 		"type": "gear",
 		"slot": "amulet",
 		"rarity": "uncommon",
-		"level": 15,
+		"level": 8,
 		"price": 120,
 		"color": {
 			"$c": [1.0, 0.35, 0.35, 1.0]
@@ -1345,7 +1345,7 @@
 		"type": "gear",
 		"slot": "amulet",
 		"rarity": "rare",
-		"level": 14,
+		"level": 3,
 		"price": 220,
 		"color": {
 			"$c": [0.4, 0.6, 1.0, 1.0]
@@ -1377,7 +1377,7 @@
 		"type": "gear",
 		"slot": "ring",
 		"rarity": "uncommon",
-		"level": 13,
+		"level": 8,
 		"price": 110,
 		"color": {
 			"$c": [0.6, 1.0, 0.8, 1.0]

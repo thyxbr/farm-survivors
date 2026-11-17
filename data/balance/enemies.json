@@ -31,15 +31,15 @@
 			],
 			[
 				"health_potion",
-				0.08
+				0.04
 			],
 			[
 				"mana_potion",
-				0.06
+				0.03
 			],
 			[
 				"seed_tomato",
-				0.12
+				0.05
 			]
 		],
 		"ref_level": 2
@@ -129,7 +129,7 @@
 				0.5
 			]
 		],
-		"ref_level": 12
+		"ref_level": 2
 	},
 	"goblin": {
 		"name": "Goblin Batedor",
@@ -167,22 +167,22 @@
 			],
 			[
 				"health_potion",
-				0.18
+				0.02
 			],
 			[
 				"mana_potion",
-				0.15
+				0.01
 			],
 			[
 				"seed_pepper",
-				0.15
+				0.01
 			],
 			[
 				"seed_mint",
-				0.1
+				0.01
 			]
 		],
-		"ref_level": 6
+		"ref_level": 2
 	},
 	"slime_explosivo": {
 		"name": "Slime Explosivo",
@@ -315,7 +315,7 @@
 		],
 		"ai": "ranged",
 		"loot": [],
-		"ref_level": 6
+		"ref_level": 2
 	},
 	"goblin_xama": {
 		"name": "Goblin Xamã",
@@ -366,7 +366,7 @@
 				0.7
 			]
 		],
-		"ref_level": 14
+		"ref_level": 2
 	},
 	"goblin_dourado": {
 		"name": "Goblin Dourado",
@@ -415,7 +415,7 @@
 				1.0
 			]
 		],
-		"ref_level": 10
+		"ref_level": 2
 	},
 	"goblin_campeao": {
 		"name": "Campeão Goblin",
@@ -466,7 +466,7 @@
 				1.0
 			]
 		],
-		"ref_level": 10
+		"ref_level": 2
 	},
 	"goblin_bruto": {
 		"name": "Goblin Bruto",
@@ -505,14 +505,14 @@
 			],
 			[
 				"health_potion",
-				0.12
+				0.04
 			],
 			[
 				"shadow_fang",
 				0.8
 			]
 		],
-		"ref_level": 9
+		"ref_level": 2
 	},
 	"goblin_king": {
 		"name": "Rei Goblin",
@@ -615,14 +615,14 @@
 			],
 			[
 				"health_potion",
-				0.15
+				0.03
 			],
 			[
 				"mana_potion",
-				0.12
+				0.02
 			]
 		],
-		"ref_level": 22
+		"ref_level": 2
 	},
 	"esqueleto_arqueiro": {
 		"name": "Esqueleto Arqueiro",
@@ -661,7 +661,7 @@
 				0.6
 			]
 		],
-		"ref_level": 22
+		"ref_level": 2
 	},
 	"esqueleto_mago": {
 		"name": "Esqueleto Mago",
@@ -702,10 +702,10 @@
 			],
 			[
 				"mana_potion",
-				0.25
+				0.08
 			]
 		],
-		"ref_level": 22
+		"ref_level": 2
 	},
 	"esqueleto_cavaleiro": {
 		"name": "Cavaleiro Esqueleto",
@@ -750,7 +750,7 @@
 				0.5
 			]
 		],
-		"ref_level": 25
+		"ref_level": 2
 	},
 	"goblin_bombardeiro": {
 		"name": "Goblin Bombardeiro",
@@ -793,7 +793,7 @@
 				0.5
 			]
 		],
-		"ref_level": 6
+		"ref_level": 2
 	},
 	"slime_gelo": {
 		"name": "Slime de Gelo",
@@ -839,7 +839,7 @@
 				0.4
 			]
 		],
-		"ref_level": 12
+		"ref_level": 2
 	},
 	"slime_rainha": {
 		"name": "Slime Rainha",
@@ -902,7 +902,7 @@
 		],
 		"elite": true,
 		"slam_every": 3,
-		"ref_level": 20
+		"ref_level": 2
 	},
 	"lich": {
 		"name": "Morgrath, o Lich",
@@ -962,7 +962,7 @@
 		],
 		"boss": true,
 		"summon": "esqueleto",
-		"ref_level": 40
+		"ref_level": 2
 	},
 	"raptor_capim": {
 		"name": "Raptor-capim",
@@ -997,14 +997,14 @@
 			],
 			[
 				"health_potion",
-				0.15
+				0.05
 			],
 			[
 				"seed_pepper",
-				0.1
+				0.04
 			]
 		],
-		"ref_level": 7
+		"ref_level": 2
 	},
 	"tecela": {
 		"name": "Tecelã",
@@ -1042,18 +1042,18 @@
 			],
 			[
 				"health_potion",
-				0.15
+				0.04
 			],
 			[
 				"mana_potion",
-				0.12
+				0.03
 			],
 			[
 				"seed_mint",
-				0.1
+				0.03
 			]
 		],
-		"ref_level": 7
+		"ref_level": 2
 	},
 	"flor_faminta": {
 		"name": "Flor-faminta",
@@ -1085,26 +1085,26 @@
 		"loot": [
 			[
 				"seed_pepper",
-				0.25
+				0.1
 			],
 			[
 				"seed_mint",
-				0.25
+				0.1
 			],
 			[
 				"seed_carrot",
-				0.2
+				0.08
 			],
 			[
 				"health_potion",
-				0.12
+				0.04
 			],
 			[
 				"mint",
 				0.2
 			]
 		],
-		"ref_level": 7
+		"ref_level": 2
 	},
 	"bocarrao": {
 		"name": "Bocarrão",
@@ -1141,14 +1141,14 @@
 			],
 			[
 				"health_potion",
-				0.25
+				0.06
 			],
 			[
 				"mana_potion",
-				0.15
+				0.04
 			]
 		],
-		"ref_level": 7
+		"ref_level": 2
 	},
 	"asa_couro": {
 		"name": "Asa-couro",
@@ -1183,13 +1183,13 @@
 			],
 			[
 				"mana_potion",
-				0.15
+				0.05
 			],
 			[
 				"health_potion",
-				0.1
+				0.03
 			]
 		],
-		"ref_level": 7
+		"ref_level": 2
 	}
 }

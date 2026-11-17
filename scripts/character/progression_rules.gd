@@ -73,3 +73,105 @@ static func spawn_level(bt: BalanceTables, level: int, level_max: int, elite: bo
 	if elite:
 		l += int(_prog(bt).get("elite", {}).get("level_bonus", 0))
 	return l
+
+
+# ================================================================ simulador de ritmo
+# Contas do tools/progression_sim.gd e do tests/unit/test_progression_pacing.gd. Os números do jogador
+# (atributos iniciais, pontos por nível, armas) vêm das tabelas; os do simulador do bloco `sim` do progression.json.
+
+static func _sim(bt: BalanceTables) -> Dictionary:
+	return _prog(bt).get("sim", {})
+
+
+## Vida do monstro comum de referência (sim.ref_enemy, padrão goblin) no nível `level`.
+static func sim_enemy_hp(bt: BalanceTables, level: int) -> float:
+	var kind := str(_sim(bt).get("ref_enemy", "goblin"))
+	var t: Dictionary = bt.get_table("enemies").get(kind, {})
+	return float(t.get("hp", 0.0)) * float(enemy_mults(bt, kind, level).hp)
+
+
+## XP que o monstro de referência dá no nível `level` (mesma conta de Enemy.xp_reward).
+static func sim_enemy_xp(bt: BalanceTables, level: int) -> int:
+	var kind := str(_sim(bt).get("ref_enemy", "goblin"))
+	var t: Dictionary = bt.get_table("enemies").get(kind, {})
+	return roundi(float(t.get("xp", 0)) * float(enemy_mults(bt, kind, level).xp))
+
+
+## Atributos de uma build focada no nível `level`: os iniciais do CharState e todos os pontos
+## (rules.points_per_level por nível) no atributo da classe.
+static func sim_attrs(bt: BalanceTables, char_class: String, level: int) -> Dictionary:
+	var attrs: Dictionary = CharState.new().attributes.duplicate()
+	var main := str(bt.get_table("classes").get(char_class, {}).get("attr", "str"))
+	var pts := int(bt.get_table("rules").get("points_per_level", 3))
+	attrs[main] = int(attrs.get(main, 0)) + (maxi(level, 1) - 1) * pts
+	return attrs
+
+
+## {"id", "damage"}: a arma da classe (não nomeada, nível de item <= `level`) que dá o maior ataque básico,
+## com os bônus de atributo e de magia da própria arma e o sim.talent_damage. Sem arma: id "".
+static func sim_best_weapon(bt: BalanceTables, char_class: String, level: int) -> Dictionary:
+	var wclass := CharRules.class_weapon(bt, char_class)
+	var base := sim_attrs(bt, char_class, level)
+	var talent := 1.0 + float(_sim(bt).get("talent_damage", 0.0))
+	var best := {"id": "", "damage": 0.0}
+	var items: Dictionary = bt.get_table("items")
+	var ids := items.keys()
+	ids.sort()  # empate: sempre o mesmo id
+	for id in ids:
+		var it: Dictionary = items[id]
+		if it.get("type", "") != "weapon" or it.get("named", false) or CharRules.weapon_class(bt, id) != wclass:
+			continue
+		if CharRules.item_level(bt, id) > level:
+			continue
+		var st: Dictionary = it.get("stats", {})
+		var attrs := base.duplicate()
+		for a in attrs:
+			attrs[a] = int(attrs[a]) + int(st.get(a, 0))
+		var dmg := CharRules.basic_damage(wclass, attrs, float(it.get("damage", 0)), float(st.get("spell", 0.0))) * talent
+		if dmg > float(best.damage):
+			best = {"id": id, "damage": dmg}
+	return best
+
+
+## Golpes de ataque básico para a build focada da classe matar o monstro comum de referência do mesmo nível.
+static func sim_hits(bt: BalanceTables, char_class: String, level: int) -> int:
+	var dmg := float(sim_best_weapon(bt, char_class, level).damage)
+	if dmg <= 0.0:
+		return 999
+	return maxi(1, ceili(sim_enemy_hp(bt, level) / dmg - 0.000001))
+
+
+## Minutos para sair de `level` caçando o monstro de referência do mesmo nível: a parte da XP que não vem de
+## missão (1 − quest_xp_share), em abates de sim.ref_class (golpes × attack_interval + downtime_per_kill).
+static func sim_minutes(bt: BalanceTables, level: int) -> float:
+	var need := float(xp_to_next(bt, level)) * (1.0 - float(_prog(bt).get("quest_xp_share", 0.0)))
+	var xp := maxi(sim_enemy_xp(bt, level), 1)
+	var s := _sim(bt)
+	var per_kill := float(sim_hits(bt, str(s.get("ref_class", "warrior")), level)) * float(s.get("attack_interval", 1.0)) \
+		+ float(s.get("downtime_per_kill", 0.0))
+	return need / float(xp) * per_kill / 60.0
+
+
+## Horas por faixa de nível {"1-10": h, ...} (sim.bands: [de, até], soma os níveis de..até-1).
+static func sim_hours(bt: BalanceTables) -> Dictionary:
+	var out := {}
+	for band in _sim(bt).get("bands", [[1, 10], [10, 20], [20, 35], [35, 45], [45, 50]]):
+		var total := 0.0
+		for l in range(int(band[0]), int(band[1])):
+			total += sim_minutes(bt, l)
+		out["%d-%d" % [int(band[0]), int(band[1])]] = total / 60.0
+	return out
+
+
+## Média de itens por morte de `kind` no ref_level (LootRules.roll com nível, equipamento incluído),
+## em `n` sorteios com a semente `seed_value` (sempre o mesmo resultado).
+static func sim_items_per_kill(bt: BalanceTables, kind: String, n: int, seed_value: int) -> float:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	var level := enemy_level(bt, kind, 0)
+	var total := 0
+	for i in n:
+		var items: Dictionary = LootRules.roll(bt, kind, rng, "", level).items
+		for id in items:
+			total += int(items[id])
+	return float(total) / float(maxi(n, 1))

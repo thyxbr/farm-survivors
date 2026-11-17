@@ -5,7 +5,7 @@ Nível da missão:
     alvo fora da tabela, como o Rei Goblin, usa o `ref_level` de enemies.json; sem alvo = goblin);
   - outros tipos da corrente principal: nível da missão anterior da corrente (começa em 1);
   - outros tipos secundários: nível mais baixo do mapa de `where` (sem `where` = 1).
-O nível fica editável no JSON; rodar de novo sobrescreve.
+O nível fica editável no JSON; rodar de novo sobrescreve (menos os de OVERRIDES, que o script mantém).
 XP: reward_xp = round(quest_xp_share × xp_to_next(level) × peso), peso 1,5 principal / 1,0 secundária /
 0,6 contrato do quadro (giver_id "board"). xp_to_next espelha ProgressionRules.xp_to_next.
 
@@ -19,6 +19,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BAL = ROOT / "data" / "balance"
 W_MAIN, W_SIDE, W_BOARD = 1.5, 1.0, 0.6
+# Nível escolhido à mão (vence a regra): kael_sumiu herdava o 25 da Mina, mas acontece no Pico (30–42).
+OVERRIDES = {"kael_sumiu": 30}
 
 _spec = importlib.util.spec_from_file_location("set_spawn_levels", Path(__file__).with_name("set_spawn_levels.py"))
 spawn = importlib.util.module_from_spec(_spec)
@@ -66,6 +68,7 @@ def main() -> None:
             level = spawn.level_range(map_id, "")[0] if map_id != "vale" else 1
         else:
             level = chain_level
+        level = OVERRIDES.get(qid, level)
         if not side:
             chain_level = level
         level = max(1, min(int(prog["max_level"]), level))
