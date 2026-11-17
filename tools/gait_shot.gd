@@ -1,8 +1,8 @@
-extends SceneTree
+extends Node3D
 ## Folha de contato da passada do cavaleiro: N cópias vistas de lado, cada uma numa fase do ciclo, com a
 ## luz do jogo. Também mede o ciclo inteiro (pé de apoio deslizando, pé afundando no chão, joelho máximo).
 ## Precisa de janela (não use --headless) e do --import feito antes:
-##   godot --path . --resolution 2000x520 --script res://tools/gait_shot.gd -- <saida.png> [vel] [corre 0..1]
+##   godot --path . --resolution 2000x520 res://tools/gait_shot.tscn -- <saida.png> [vel] [corre 0..1]
 ## vel em m/s (padrão 5,2 = WALK_SPEED); corre = KnightAnim run (0 andar normal, 1 correndo).
 ## Com "roupa" no fim, calça os sapatos padrão (assets/models/gear/f_shoes.glb) em vez das placas.
 
@@ -12,21 +12,21 @@ var _frames := 0
 var _out := ""
 
 
-func _initialize() -> void:
+func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	_out = args[0]
 	var speed := float(args[1]) if args.size() > 1 else 5.2
 	var run := float(args[2]) if args.size() > 2 else 0.0
 	var move := clampf(speed / 5.2, 0.0, 1.0)
-	WorldLighting.build(root)
+	WorldLighting.build(self)
 	var scene := load("res://assets/models/knight.glb") as PackedScene
 
 	_probe = scene.instantiate() as Node3D
-	root.add_child(_probe)
+	add_child(_probe)
 	_args = [speed, move, run]
 	for i in N:
 		var m := scene.instantiate() as Node3D
-		root.add_child(m)
+		add_child(m)
 		m.position.z = i * 1.25
 		if "roupa" in args:
 			_wear(m, "f_shoes", ["LegL_Sabaton", "LegR_Sabaton", "LegL_Knee", "LegR_Knee", "LegL_Foot", "LegR_Foot"])
@@ -40,11 +40,10 @@ func _initialize() -> void:
 	bm.size = Vector3(2, 0.02, N * 1.25 + 1.0)
 	g.mesh = bm
 	g.position = Vector3(0, -0.01, (N - 1) * 1.25 / 2.0)
-	root.add_child(g)
+	add_child(g)
 
 
 ## Como KnightLook._attach_gear (sem tingir): cada malha do GLB vai para o pivô de mesmo nome.
-## KnightLook não é usado aqui porque depende do autoload ItemDB, que não existe com --script.
 func _wear(m: Node3D, style: String, hide: Array) -> void:
 	for pn in hide:
 		var n := m.find_child(pn, true, false) as Node3D
@@ -122,7 +121,7 @@ func _lowest(ankle: Node3D) -> Vector3:
 	return best
 
 
-func _process(_delta: float) -> bool:
+func _process(_delta: float) -> void:
 	_frames += 1
 	if _frames == 1:
 		_probe.position.x = 50.0
@@ -134,10 +133,10 @@ func _process(_delta: float) -> bool:
 		cam.position = Vector3(6.0, 1.0, (N - 1) * 1.25 / 2.0)
 		cam.rotation_degrees.y = 90.0
 		cam.keep_aspect = Camera3D.KEEP_HEIGHT
-		root.add_child(cam)
+		add_child(cam)
 		cam.current = true
 	if _frames < 12:
-		return false
-	root.get_texture().get_image().save_png(_out)
+		return
+	get_viewport().get_texture().get_image().save_png(_out)
 	print("SHOT ", _out)
-	return true
+	get_tree().quit()
