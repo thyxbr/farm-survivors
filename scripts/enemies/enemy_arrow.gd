@@ -10,6 +10,8 @@ const HIT_RADIUS := 0.85
 
 var direction := Vector3.FORWARD
 var damage := 0.0
+## Nível de quem atirou (0 = sem nível): ao acertar, aplica o bônus do monstro bem acima do alvo (Enemy.vs).
+var level := 0
 ## survival_mode (solo/servidor) ou o mundo (réplica no cliente).
 var source: Node
 ## Orbe roxo no lugar da flecha.
@@ -149,7 +151,7 @@ func _physics_process(delta: float) -> void:
 			continue
 		var c: Vector3 = p.global_position + Vector3.UP * 1.0
 		if c.distance_to(global_position) <= HIT_RADIUS:
-			p.take_damage(damage, global_position - direction)
+			p.take_damage(Enemy.vs(level, p, damage), global_position - direction)
 			if web and p.has_method("apply_web"):
 				p.apply_web(web_secs)
 			FX.burst(global_position, Color(0.93, 0.93, 0.97) if web else Color(0.7, 0.4, 1.0) if magic
