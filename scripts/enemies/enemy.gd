@@ -36,6 +36,13 @@ var area := ""
 ## levar dano acorda na hora. 0 no raio = nunca dorme. Raio em data/balance/rules.json, "enemy_sleep_radius".
 var asleep := false
 var sleep_radius := 0.0
+## Longe da câmera (ver _update_far): a réplica fica parada além de FAR_STILL e todo monstro em repouso some
+## além de FAR_HIDE; a margem evita ficar trocando na fronteira.
+const FAR_STILL := 60.0
+const FAR_HIDE := 110.0
+const FAR_MARGIN := 10.0
+var still := false
+var _far_t := 0.0
 var _sleep_t := 0.0
 const SLEEP_CHECK := 0.5
 ## Tamanho do modelo além de data.scale (elite e camada de nível).
@@ -126,6 +133,7 @@ func _ready() -> void:
 	if not horde and not puppet:
 		sleep_radius = float(Balance.tables.get_table("rules").get("enemy_sleep_radius", 0.0))
 		_sleep_t = randf() * SLEEP_CHECK   # espalha as conferências pelos quadros
+	_far_t = randf() * SLEEP_CHECK
 	display_name = data.name
 	if elite:
 		display_name += " de Elite"
@@ -446,8 +454,14 @@ static func _bar_mat(c: Color, priority: int) -> StandardMaterial3D:
 
 
 func _physics_process(delta: float) -> void:
+	if not horde and not is_boss:
+		_far_t -= delta
+		if _far_t <= 0.0:
+			_far_t = SLEEP_CHECK
+			_update_far()
 	if puppet:
-		_puppet_process(delta)
+		if not still:
+			_puppet_process(delta)
 		return
 	if not is_on_floor():
 		velocity.y -= 20.0 * delta
@@ -591,6 +605,26 @@ func _physics_process(delta: float) -> void:
 	if bar_root and bar_root.visible:
 		bar_fg.scale.x = max(0.001, hp / max_hp)
 		bar_fg.position.x = 0.0
+
+
+## Longe da câmera o monstro do mundo some da tela, e a réplica do cliente para de seguir e de animar (os
+## snapshots continuam chegando; ao voltar ela pula para onde o servidor diz). Quem decide (solo) só some
+## dormindo. Sem câmera (servidor dedicado) não faz nada. Chefes e a Horda ficam de fora.
+func _update_far() -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null or dead:
+		return
+	var d := global_position.distance_to(cam.global_position)
+	if puppet:
+		var calm: bool = state in ["idle", "wander"] or d > FAR_HIDE + FAR_MARGIN
+		still = calm and d > (FAR_STILL if still else FAR_STILL + FAR_MARGIN)
+	var rest := still if puppet else asleep
+	var show := not rest or d < (FAR_HIDE if not visible else FAR_HIDE + FAR_MARGIN)
+	if show != visible:
+		visible = show
+		if show and puppet:
+			global_position = _net_pos
+			reset_physics_interpolation()
 
 
 ## A guarda da vila (solo/servidor): monstro dentro da zona protegida leva a flecha de um guarda depois de

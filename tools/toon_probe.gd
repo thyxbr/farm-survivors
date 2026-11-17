@@ -9,6 +9,8 @@ extends Node
 ## motor; os monitores TIME_PROCESS/TIME_PHYSICS_PROCESS da linha `PARTES` são o pico de um passo, não a
 ## soma) e conta os passos de física por quadro: perto de 8, o teto do motor, o jogo está em espiral
 ## (cada quadro lento pede mais passos, que deixam o próximo mais lento). Números em docs/desempenho/.
+## O resumo traz um CENSO da cena (malhas, superfícies e triângulos por grupo e por distância da câmera) e
+## `--probex=` desliga partes do jogo para medir quanto custam (ver _experiment).
 ## Com `--notoon` mede a mesma coisa sem o estilo. Números em docs/ESTILO_TOON.md.
 
 const WARMUP := 10.0                      # carga da cena e compilação de shaders ficam fora do resumo
@@ -65,6 +67,75 @@ func _ready() -> void:
 	RenderingServer.frame_post_draw.connect(_on_post_draw)
 
 
+var _xdone := false
+
+
+## Experimentos (`--probex=a,b`): desliga uma coisa para medir quanto ela custa. Compare sempre com uma rodada
+## sem nada, com o clima e a hora fixos (`--weather=sol --hora=12 --season=verao`): sem isso os draw calls
+## mudam de uma rodada para outra.
+##   noshadow        sem a sombra do sol
+##   shadowoff:<script>  as malhas dos nós com esse script param de fazer sombra
+##   shadowdist:<m>  alcance da sombra do sol
+##   awake           conta os inimigos acordados
+##   off:<script>    para o _process e o _physics_process de todo nó com esse script (ex.: off:hud)
+##   hide:<script>   esconde todo nó com esse script
+##   procs           lista quantos nós de cada script rodam por quadro
+func _experiment() -> void:
+	var x := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--probex="):
+			x = a.get_slice("=", 1)
+	if x == "":
+		return
+	var scripted: Array = []
+	for n in get_tree().root.find_children("*", "", true, false):
+		if n.get_script() != null:
+			scripted.append(n)
+	for k in x.split(",", false):
+		if k.begins_with("off:") or k.begins_with("hide:"):
+			for n in scripted:
+				if (n.get_script() as Script).resource_path.get_file() == k.get_slice(":", 1) + ".gd":
+					if k.begins_with("off:"):
+						n.set_process(false)
+						n.set_physics_process(false)
+					elif n is Node3D or n is CanvasItem or n is CanvasLayer:
+						n.visible = false
+		elif k.begins_with("shadowoff:"):      # shadowoff:<script>: as malhas desses nós param de fazer sombra
+			for n in scripted:
+				if (n.get_script() as Script).resource_path.get_file() == k.get_slice(":", 1) + ".gd":
+					for g in n.find_children("*", "GeometryInstance3D", true, false):
+						g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		elif k.begins_with("shadowdist:"):     # shadowdist:<metros>: alcance da sombra do sol
+			for l in get_tree().current_scene.find_children("*", "DirectionalLight3D", true, false):
+				l.directional_shadow_max_distance = float(k.get_slice(":", 1))
+		elif k == "awake":
+			var aw := 0
+			var tot := 0
+			for e in get_tree().get_nodes_in_group("enemies"):
+				tot += 1
+				if not e.get("asleep"):
+					aw += 1
+			print("[toonprobe] ACORDADOS %d de %d inimigos" % [aw, tot])
+		elif k == "noshadow":
+			for l in get_tree().current_scene.find_children("*", "DirectionalLight3D", true, false):
+				l.shadow_enabled = false
+		elif k == "procs":
+			var cnt := {}
+			for n in scripted:
+				var f: String = (n.get_script() as Script).resource_path.get_file()
+				var e: Array = cnt.get(f, [0, 0, 0])
+				e[0] += 1
+				if n.is_processing():
+					e[1] += 1
+				if n.is_physics_processing():
+					e[2] += 1
+				cnt[f] = e
+			for f in cnt:
+				if cnt[f][1] + cnt[f][2] > 0:
+					print("[toonprobe] PROC %-28s nós=%4d process=%4d physics=%4d" % [f, cnt[f][0], cnt[f][1], cnt[f][2]])
+	print("[toonprobe] EXPERIMENTO ", x)
+
+
 func _on_physics_frame() -> void:
 	if _mark_phys == 0:
 		_mark_phys = Time.get_ticks_usec()
@@ -108,6 +179,9 @@ func _process(delta: float) -> void:
 	_last = now
 	_t += delta
 	_hold_horde()
+	if _t > 6.0 and not _xdone:
+		_xdone = true
+		_experiment()
 	_frames.append(ms)
 	if _t >= WARMUP:
 		if _warm.is_empty():
@@ -192,7 +266,93 @@ func _line() -> void:
 	_frames.clear()
 
 
+## Censo do que está na cena: por grupo (o segundo nível abaixo da cena e o tipo do dono), quantas malhas
+## visíveis, quantas superfícies (cada uma é ao menos um draw call por passada), triângulos e quantas não
+## têm distância de sumiço (`visibility_range_end`). Também separa por distância da câmera.
+func _census() -> void:
+	var scene := get_tree().current_scene
+	var cam := get_viewport().get_camera_3d()
+	if scene == null or cam == null:
+		return
+	var groups := {}
+	var rings := {}
+	var total := [0, 0, 0]
+	for n in scene.find_children("*", "GeometryInstance3D", true, false):
+		var g := n as GeometryInstance3D
+		if not g.is_visible_in_tree():
+			continue
+		var surf := 0
+		var tris := 0
+		var mesh: Mesh = null
+		var mult := 1
+		if g is MeshInstance3D:
+			mesh = g.mesh
+		elif g is MultiMeshInstance3D and g.multimesh != null:
+			mesh = g.multimesh.mesh
+			mult = g.multimesh.visible_instance_count if g.multimesh.visible_instance_count >= 0 else g.multimesh.instance_count
+		if mesh == null:
+			continue
+		surf = mesh.get_surface_count()
+		for i in surf:
+			var arr_len := 0
+			if mesh is ArrayMesh:
+				arr_len = mesh.surface_get_array_index_len(i)
+				if arr_len == 0:
+					arr_len = mesh.surface_get_array_len(i)
+			else:
+				var a := mesh.surface_get_arrays(i)
+				arr_len = (a[Mesh.ARRAY_INDEX] as PackedInt32Array).size() if a[Mesh.ARRAY_INDEX] != null else (a[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+			tris += arr_len / 3 * mult
+		var key := _census_key(scene, g)
+		var e: Array = groups.get(key, [0, 0, 0, 0])
+		e[0] += 1
+		e[1] += surf
+		e[2] += tris
+		if g.visibility_range_end <= 0.0:
+			e[3] += 1
+		groups[key] = e
+		var d := cam.global_position.distance_to(g.global_position)
+		var ring := "0-40 m" if d < 40.0 else ("40-80 m" if d < 80.0 else ("80-150 m" if d < 150.0 else "150+ m"))
+		var r: Array = rings.get(ring, [0, 0, 0])
+		r[0] += 1
+		r[1] += surf
+		r[2] += tris
+		rings[ring] = r
+		total[0] += 1
+		total[1] += surf
+		total[2] += tris
+	print("[toonprobe] CENSO total: %d malhas visíveis, %d superfícies, %d triângulos" % total)
+	for k in ["0-40 m", "40-80 m", "80-150 m", "150+ m"]:
+		var r: Array = rings.get(k, [0, 0, 0])
+		print("[toonprobe] CENSO distância %s: %d malhas, %d superfícies, %d triângulos" % [k, r[0], r[1], r[2]])
+	var keys := groups.keys()
+	keys.sort_custom(func(a, b): return groups[a][1] > groups[b][1])
+	for k in keys.slice(0, 40):
+		var e: Array = groups[k]
+		print("[toonprobe] CENSO %-46s malhas=%5d superfícies=%5d tris=%8d sem_sumiço=%5d" % [k, e[0], e[1], e[2], e[3]])
+
+
+func _census_key(scene: Node, g: Node) -> String:
+	var owner_kind := ""
+	var top := g
+	var n: Node = g
+	while n != null and n != scene:
+		if owner_kind == "" and n.get_script() != null and n != g:
+			owner_kind = (n.get_script() as Script).resource_path.get_file().get_basename()
+		top = n
+		n = n.get_parent()
+	var second := top
+	n = g
+	while n != null and n.get_parent() != top and n != top:
+		n = n.get_parent()
+	if n != null and n != top:
+		second = n
+	var nm := String(second.name).rstrip("0123456789@_")
+	return "%s/%s [%s]" % [String(top.name).rstrip("0123456789@_"), nm, owner_kind]
+
+
 func _summary() -> void:
+	_census()
 	var sum := 0.0
 	for x in _all:
 		sum += x
