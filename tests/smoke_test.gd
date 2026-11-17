@@ -63,6 +63,46 @@ func wait_until(cond: Callable, timeout := 3.0) -> void:
 		t += 0.05
 
 
+## Alvos do teste: os monstros do mundo que alguma checagem escolheu (_nearest, _today, _targets). Só eles
+## podem andar e bater perto do jogador; os outros monstros dos pontos do mapa ficam atordoados (ver
+## _physics_process). Os que o teste cria (Enemy.new, Horda, invocados do chefe) não são dos pontos: ficam livres.
+var _target_ids := {}
+var _calm_t := 0.0
+const CALM_RADIUS := 30.0   ## maior que o alcance de perseguição e de tiro dos monstros do mapa
+const CALM_EVERY := 0.25
+const CALM_STUN := 0.6      ## cobre com folga o intervalo entre duas passadas
+
+
+func _target(e: Enemy) -> Enemy:
+	if e != null:
+		_target_ids[e.get_instance_id()] = true
+	return e
+
+
+func _targets(list: Array) -> void:
+	for e in list:
+		_target(e)
+
+
+## Monstros de fora: o vale nasce cheio, em bandos de 3 a 5 com nível (slimes de gelo nv 9 e esqueletos nv 11
+## ao lado dos slimes do teste). Quem não é alvo vinha atrás do jogador, empurrava no meio de uma habilidade,
+## enchia a fúria e às vezes matava (a tela de morte pausa o jogo e derruba tudo o que vem depois). A cada
+## CALM_EVERY s, os monstros dos pontos do mapa que não são alvo e estão a até CALM_RADIUS do jogador levam um
+## atordoamento curto: nem andam nem golpeiam.
+func _physics_process(delta: float) -> void:
+	_calm_t -= delta
+	if _calm_t > 0.0 or player == null or world == null:
+		return
+	_calm_t = CALM_EVERY
+	var at := player.global_position
+	for s in world.spawns:
+		var e = s.get("node")
+		if e == null or not is_instance_valid(e) or e.dead or _target_ids.has(e.get_instance_id()):
+			continue
+		if e.global_position.distance_to(at) < CALM_RADIUS:
+			e.apply_stun(CALM_STUN)
+
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	await wait(0.5)
@@ -194,9 +234,11 @@ func _ready() -> void:
 	await wait(0.2)
 	var hp0: float = slime.hp
 	Game.fury = 0.0
+	player.invuln = 3.0   # apanhar do slime também enche a fúria: aqui conta só o golpe do jogador
 	player._start_swing()
 	await wait(0.5)
 	check(Game.fury > 0.0 and Game.fury < 10.0, "fúria sobe com o dano do golpe do jogador (%.2f)" % Game.fury)
+	player.invuln = 0.0
 	Game.fury = 0.0
 	check(slime.hp < hp0, "golpe de espada causa dano (%.0f -> %.0f)" % [hp0, slime.hp])
 	var w_fist: String = Game.equipment.weapon
@@ -228,7 +270,7 @@ func _ready() -> void:
 
 	# --- Investida (espada, slot 1): avança pela frente atravessando o slime
 	var pos_c := player.global_position
-	var ch_s := _today(_nearest("slime"))
+	var ch_s := _today(_nearest_clear_lane("slime"))
 	ch_s.global_position = ch_s.home
 	player.global_position = ch_s.global_position + Vector3(0, 0.3, 3.0)
 	player.model.rotation.y = PI   # olhando para -Z, para o slime
@@ -548,6 +590,7 @@ func _ready() -> void:
 		player.velocity = Vector3.ZERO
 		await wait_until(tt_grounded)
 		player.global_position = tt_s.global_position + Vector3(0, 0.3, 6.0)
+		_on_aim_line(tt_s)
 		player.cooldowns.bow_triple = 0.0
 		tt_s.hp = tt_s.max_hp
 		var tt_hp: float = tt_s.hp
@@ -646,6 +689,7 @@ func _ready() -> void:
 	player.velocity = Vector3.ZERO
 	await wait_until(tt_grounded)
 	player.global_position = tt_s.global_position + Vector3(0, 0.3, 6.0)
+	_on_aim_line(tt_s)
 	for c in tt_fire.call():
 		c.queue_free()
 	tt_s.stagger = 0.0
@@ -678,6 +722,7 @@ func _ready() -> void:
 	player.velocity = Vector3.ZERO
 	await wait_until(tt_grounded)
 	player.global_position = tt_s.global_position + Vector3(0, 0.3, 6.0)
+	_on_aim_line(tt_s)
 	player.cooldowns.bow_frost = 0.0
 	fg_hp = tt_s.hp
 	Game.level = 3
@@ -745,9 +790,13 @@ func _ready() -> void:
 	var nova_s := _nearest("slime")
 	player.global_position = nova_s.global_position + Vector3(0, 0.3, 1.5)
 	await wait(0.1)
+	# a magia só sai com o jogador livre (cast() recusa no meio de golpe, esquiva ou habilidade)
+	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking and player.ability == "")
 	Game.fury = 0.0
 	player.cast("frost_nova")
-	check(Game.fury > 0.0, "magia do cajado enche a fúria (%.2f)" % Game.fury)
+	check(Game.fury > 0.0, "magia do cajado enche a fúria (%.2f; recarga %.2f, golpe %s, esquiva %.2f, habilidade '%s', mana %.0f, slime a %.1f m)"
+		% [Game.fury, player.cooldowns.frost_nova, player.attacking, player.dodge_timer, player.ability, Game.mp,
+			nova_s.global_position.distance_to(player.global_position)])
 	# magias não roubam vida (o roubo é só do corpo a corpo)
 	var weapon_n: String = Game.equipment.weapon
 	var hp_n := Game.hp
@@ -1055,6 +1104,7 @@ func _test_bow_gale() -> void:
 			gs.append(e)
 	gs.sort_custom(func(a, b): return a.global_position.distance_to(player.global_position) < b.global_position.distance_to(player.global_position))
 	gs = gs.slice(0, 4)
+	_targets(gs)
 	check(gs.size() == 4, "Vendaval: 4 slimes para o teste (%d)" % gs.size())
 	if gs.size() < 4:
 		return
@@ -1287,6 +1337,7 @@ func _test_meteor_rain() -> void:
 			gs.append(e)
 	gs.sort_custom(func(a, b): return a.global_position.distance_to(player.global_position) < b.global_position.distance_to(player.global_position))
 	gs = gs.slice(0, 4)
+	_targets(gs)
 	check(gs.size() == 4, "Meteoros: 4 slimes para o teste (%d)" % gs.size())
 	if gs.size() < 4:
 		return
@@ -2681,11 +2732,18 @@ func _test_survival() -> void:
 	var elite: Enemy = sv._spawn_enemy("slime", player.global_position + Vector3(-5, 0.2, 2), -1.0, -1.0, true)
 	await wait(0.1)
 	check(elite.elite and elite.max_hp > plain.max_hp * 3.0, "elite tem 3x+ a vida de um comum")
-	var gems0 := get_tree().get_nodes_in_group("xp_gems").size()
+	# conta as gemas novas, não o total: uma gema antiga recolhida pelo jogador nesse meio tempo baixava o total
+	var gems_old := {}
+	for g in get_tree().get_nodes_in_group("xp_gems"):
+		gems_old[g.get_instance_id()] = true
 	elite.take_damage(99999, player.global_position, false)
 	plain.take_damage(99999, player.global_position, false)
 	await wait(0.1)
-	check(get_tree().get_nodes_in_group("xp_gems").size() >= gems0 + 4, "elite solta várias gemas")
+	var gems_new := 0
+	for g in get_tree().get_nodes_in_group("xp_gems"):
+		if not gems_old.has(g.get_instance_id()):
+			gems_new += 1
+	check(gems_new >= 4, "elite solta várias gemas (%d novas)" % gems_new)
 	for g in get_tree().get_nodes_in_group("xp_gems"):
 		g.queue_free()   # não deixa XP extra no chão para os testes seguintes
 
@@ -2793,6 +2851,7 @@ func _test_horde_extras(sv) -> void:
 	check(_count_alive("slime_veloz") == veloz0 + 3, "Slime Mãe se divide em 3 (%d)" % (_count_alive("slime_veloz") - veloz0))
 	_kill_horde()
 	await wait(0.2)
+	await _settle_horde()
 
 	# Goblin Arqueiro mantém distância e atira flechas
 	var archer: Enemy = sv._spawn_enemy("goblin_arqueiro", base + Vector3(0, 0.2, 9.0))
@@ -2806,6 +2865,7 @@ func _test_horde_extras(sv) -> void:
 	_kill_horde()
 	Game.hp = Game.max_hp()
 	await wait(0.2)
+	await _settle_horde()
 
 	# Goblin Xamã cura os aliados em volta
 	var shaman: Enemy = sv._spawn_enemy("goblin_xama", base + Vector3(8.0, 0.2, 0))
@@ -2818,6 +2878,7 @@ func _test_horde_extras(sv) -> void:
 	_kill_horde()
 	Game.hp = Game.max_hp()
 	await wait(0.2)
+	await _settle_horde()
 
 	# Goblin Dourado: foge e some sem contar abate; abatido, solta ouro
 	var gold_g: Enemy = sv._spawn_enemy("goblin_dourado", base + Vector3(5, 0.2, 0))
@@ -2927,6 +2988,14 @@ func _clear_gems() -> void:
 	for g in get_tree().get_nodes_in_group("xp_gems"):
 		g.remove_from_group("xp_gems")
 		g.queue_free()
+
+
+## Depois de abater a horda de um bloco: tira as gemas do chão e escolhe as cartas de nível pendentes. Uma gema
+## recolhida por acaso sobe o nível, e a horda fica congelada enquanto a carta espera (survival_mode.frozen):
+## o arqueiro, o xamã e o Goblin Dourado do bloco seguinte ficavam parados até o tempo da checagem acabar.
+func _settle_horde() -> void:
+	_clear_gems()
+	await _pick_levelups(false)
 
 
 func _kill_horde() -> void:
@@ -3511,7 +3580,7 @@ func _calm_bystanders(keep: Array, center: Vector3, radius: float, t: float) -> 
 func _today(e: Enemy) -> Enemy:
 	e.max_hp = float(e.data.hp)
 	e.hp = e.max_hp
-	return e
+	return _target(e)
 
 
 ## O monstro vivo de `kind` mais perto do jogador; com `area`, só os que nasceram naquela região com nome (as
@@ -3563,6 +3632,48 @@ func _count_pickups() -> int:
 	return n
 
 
+## Põe o monstro onde a linha da mira passa a meia altura dele. As flechas voam na linha da câmera, que fica
+## sobre o ombro direito (uns 45 cm ao lado do jogador) e olha para baixo: a linha chega ao chão uns 5,4 m à
+## frente. Com o alvo 6 m bem na frente do jogador a flecha passava na beira dele (raio 0,5 m) ou caía no chão
+## pouco antes, e só acertava se ele andasse para o lado certo.
+## Usa a posição da câmera em relação ao jogador, que não depende de a câmera já ter seguido um teleporte.
+func _on_aim_line(e: Enemy) -> void:
+	var f: Vector3 = -player.camera.global_basis.z
+	var ground: float = e.home.y - 0.2   # os monstros nascem 0,2 m acima do chão; o jogador é posto no ar e assenta
+	var feet := Vector3(player.global_position.x, ground, player.global_position.z)
+	var cam: Vector3 = feet + Vector3.UP * 1.55 + (player.camera.global_position - player.cam_yaw.global_position)
+	var mid: float = ground + 0.5   # meia altura do corpo
+	var t: float = (cam.y - mid) / maxf(-f.y, 0.05)
+	var at: Vector3 = cam + f * t
+	e.global_position = Vector3(at.x, e.home.y, at.z)
+
+
+## Corredor da Investida livre de cenário (camadas 1 e 8, as que param o jogador além dos monstros): de 9 m ao sul a 3 m ao norte do ponto do monstro (o teste investe
+## de +3 m para -Z atravessando o monstro e depois de +3 m para +Z), na largura do jogador.
+func _lane_clear(e: Enemy) -> bool:
+	var space := player.get_world_3d().direct_space_state
+	for dx in [-0.6, 0.0, 0.6]:
+		var a: Vector3 = e.home + Vector3(dx, 0.6, 9.0)
+		var b: Vector3 = e.home + Vector3(dx, 0.6, -3.0)
+		if not space.intersect_ray(PhysicsRayQueryParameters3D.create(a, b, 1 | 8)).is_empty():
+			return false
+	return true
+
+
+## Como _nearest, mas só entre os monstros com o corredor da Investida livre: o "slime (Campos) 5" tem um
+## carvalho 1,5 m ao sul do ponto dele, e a Investida parava na árvore quando ele era o mais perto.
+func _nearest_clear_lane(kind: String) -> Enemy:
+	var best: Enemy = null
+	var bd := INF
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.kind == kind and not e.dead and _lane_clear(e):
+			var d: float = e.global_position.distance_to(player.global_position)
+			if d < bd:
+				bd = d
+				best = e
+	return _target(best) if best != null else _nearest(kind)
+
+
 func _nearest(kind: String, area := "") -> Enemy:
 	var best: Enemy = null
 	var bd := INF
@@ -3572,7 +3683,7 @@ func _nearest(kind: String, area := "") -> Enemy:
 			if d < bd:
 				bd = d
 				best = e
-	return best
+	return _target(best)
 
 
 func _count(kind: String) -> int:
