@@ -46,7 +46,7 @@ func _top_bar() -> Control:
 
 func _bottom_bar() -> Control:
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", UITheme._box(Color(0, 0, 0, 0.55), Color(UITheme.GOLD_DIM, 0.6), 1, 6, 14, 8))
+	panel.add_theme_stylebox_override("panel", UITheme.kit_inset(14))
 	panel.anchor_left = 0.0
 	panel.anchor_top = 1.0
 	panel.anchor_bottom = 1.0

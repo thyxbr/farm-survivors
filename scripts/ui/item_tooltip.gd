@@ -20,10 +20,11 @@ func _ready() -> void:
 	visible = false
 	z_index = 100
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var sb := UITheme.frame_box(Color(0.04, 0.035, 0.035, 0.97), UITheme.GOLD_DIM, 14)
+	var sb: StyleBox = UITheme.kit_panel(14)
 	if paper:
-		sb = UITheme.frame_box(UITheme.PAGE, UITheme.INK, 14)
-		sb.shadow_color = Color(0, 0, 0, 0.4)
+		var page := UITheme.frame_box(UITheme.PAGE, UITheme.INK, 14)
+		page.shadow_color = Color(0, 0, 0, 0.4)
+		sb = page
 	add_theme_stylebox_override("panel", sb)
 	_text = RichTextLabel.new()
 	_text.bbcode_enabled = true

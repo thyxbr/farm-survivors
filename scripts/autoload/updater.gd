@@ -316,7 +316,7 @@ func _show_toast(text: String) -> void:
 		root.theme = UITheme.get_theme()
 		_toast.add_child(root)
 		var box := PanelContainer.new()
-		box.add_theme_stylebox_override("panel", UITheme.frame_box(UITheme.BG, UITheme.GOLD, 14))
+		box.add_theme_stylebox_override("panel", UITheme.kit_panel(14))
 		box.anchor_left = 0.5
 		box.anchor_right = 0.5
 		box.offset_top = 18
