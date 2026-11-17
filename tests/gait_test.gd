@@ -31,6 +31,7 @@ func _ready() -> void:
 		_head_steady_with_smoothing(c[0], c[1], tag)
 	_still_pose_untouched()
 	_attack_resets_leg_yaw()
+	_attack_keeps_own_head()
 	print("gait_test: ", "OK" if fails == 0 else "%d falhas" % fails)
 	get_tree().quit(0 if fails == 0 else 1)
 
@@ -194,3 +195,36 @@ func _head_steady_with_smoothing(move: float, run: float, tag: String) -> void:
 	var ba := b_hi - b_lo
 	check(ba >= 0.01 and ha <= 0.3 * ba, "head_steady_with_smoothing" + tag,
 		"amplitude yaw cabeça %.4f corpo %.4f" % [ha, ba])
+
+
+## Os golpes não herdam a compensação da marcha: head_y, head_z e leg_yaw saem iguais com a pose de
+## locomoção como veio e com esses três zerados antes do ataque (como era antes da marcha ter compensação).
+func _attack_keeps_own_head() -> void:
+	var model := (load("res://assets/models/knight.glb") as PackedScene).instantiate() as Node3D
+	add_child(model)
+	var r := KnightAnim.rig(model)
+	var base := KnightAnim.locomotion_pose(r, 0.2, 1.0, 0.0)
+	var walk_head := absf(float(base.head_y))
+	var worst := 0.0
+	for kind in ["sword", "bow_draw", "bow_release", "cast"]:
+		var a := base.duplicate(true)
+		var b := base.duplicate(true)
+		b.head_y = 0.0
+		b.head_z = 0.0
+		b.leg_yaw = 0.0
+		for p in [a, b]:
+			match kind:
+				"sword":
+					KnightAnim.sword_pose(p, 1, 0.5, 1.0)
+				"bow_draw":
+					KnightAnim.bow_draw_pose(p, 0.6, 1.0)
+				"bow_release":
+					KnightAnim.bow_release_pose(p, 0.3, 1.0)
+				"cast":
+					KnightAnim.cast_pose(p, "fireball", 0.5, 1.0)
+			KnightAnim.hips_follow(p)
+		for k in ["head_y", "head_z", "leg_yaw"]:
+			worst = maxf(worst, absf(float(a[k]) - float(b[k])))
+	model.queue_free()
+	check(walk_head >= 0.02 and worst <= 1e-6, "attack_keeps_own_head",
+		"head_y andando %.4f, maior diferença %.7f" % [walk_head, worst])
