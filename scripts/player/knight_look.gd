@@ -212,6 +212,11 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 				res.arrow = _build_bow(holder, tip, wid)
 			_:
 				_build_sword(holder, tip, wid)
+	# ---- mãos: os GLBs de mão trazem a fechada (segura o cabo) e a aberta; fica só a que serve.
+	# Direita: fechada com qualquer arma. Esquerda: fechada com escudo, arco (segura o arco) e cajado (pega a vara
+	# nos golpes de duas mãos).
+	_pick_hand(model, "R", wid == "")
+	_pick_hand(model, "L", not (shield_on or (wid != "" and cls in ["bow", "staff"])))
 	model.set_meta("look_nodes", made)
 	var chest := KnightAnim.ensure_chest(model)   # peças novas da parte de cima do tronco vão para o pivô do peito
 	_attach_back(model, look.get("back", ""), chest)
@@ -223,6 +228,18 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 	if cape:
 		_sync_skinned_outline(cape)
 	return res
+
+
+## Deixa no modelo só uma das duas mãos do equipamento no lado `side` ("L"/"R"): a aberta (`Gear_ArmX_HandOpen`)
+## se `open`, senão a fechada (`Gear_ArmX_Hand`). Equipamento sem mão aberta fica como está.
+static func _pick_hand(model: Node3D, side: String, open: bool) -> void:
+	var grip := model.find_child("Gear_Arm%s_Hand" % side, true, false)
+	var relaxed := model.find_child("Gear_Arm%s_HandOpen" % side, true, false)
+	if grip == null or relaxed == null:
+		return
+	var drop := grip if open else relaxed
+	drop.get_parent().remove_child(drop)
+	drop.free()
 
 
 ## A capa tem esqueleto (CapeRig): o contorno toon dela fica ao lado (não é filho) e não some junto ao

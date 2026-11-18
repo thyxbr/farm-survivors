@@ -19,6 +19,10 @@ from mathutils import Vector
 
 GEAR_P = dict(height=1.84, heads=7.5, shoulders=1.08, waist=0.92, limbs=1.06, hands=1.15, feet=1.1)
 HEAD_CHIN, HEAD_H = 1.555, 0.262        # cabeça humana sob os elmos (olhos ~1,68, na fenda do elmo do cavaleiro)
+# Com o queixo fino da cabeça lisa (anime.py) o pescoço ficava comprido: tudo o que é da cabeça (rosto, cabelo,
+# chapéus, elmos e capuzes: os estilos h_*) desce HEAD_DROP na exportação. As peças continuam modeladas nas
+# alturas de sempre (muitas usam z absoluto), e descem juntas.
+HEAD_DROP = 0.022
 ZUP = (0, 0, 1)
 
 
@@ -52,7 +56,7 @@ def _occluders(style, P, R, M):
         parts_a_shirt(P, R, M)
     if kind != "g":
         for n, s in (("L", 1), ("R", -1)):
-            fist("Occ" + n, P, s, M["skin"], R["Elbow" + n])
+            soft_fist("Occ" + n, P, s, M["skin"], R["Elbow" + n])
     if kind != "f":
         parts_f_shoes(P, R, M)
     return [o for o in scn.objects if o not in before]
@@ -78,10 +82,20 @@ def bake_ao(targets, occ):
                                    selected_objects=targets, selected_editable_objects=targets):
         bpy.ops.object.bake(type='AO', target='VERTEX_COLORS')
     for o in targets:
-        for d in o.data.color_attributes["Col"].data:
-            v = max(0.0, min(1.0, d.color[0])) ** AO_GAMMA
+        me = o.data
+        col = me.color_attributes["Col"].data
+        # a sombra assada sai por canto de face; com o sombreado liso cada face ficava com um tom (xadrez).
+        # Vira uma média por vértice, e a sombra passa a ser um degradê contínuo
+        acc = [[0.0, 0] for _ in me.vertices]
+        for lp in me.loops:
+            a = acc[lp.vertex_index]
+            a[0] += col[lp.index].color[0]
+            a[1] += 1
+        for lp in me.loops:
+            a = acc[lp.vertex_index]
+            v = max(0.0, min(1.0, a[0] / a[1])) ** AO_GAMMA
             c = AO_FLOOR + (1 - AO_FLOOR) * v
-            d.color = (c, c, c, 1.0)
+            col[lp.index].color = (c, c, c, 1.0)
     for o in occ:
         bpy.data.objects.remove(o, do_unlink=True)
 
@@ -89,11 +103,31 @@ def bake_ao(targets, occ):
 def g_export(style, P=None, R=None):
     os.makedirs(OUT + "gear", exist_ok=True)
     targets = [o for o in scn.objects if o.type == 'MESH']
+    drop_head(style, targets)
+    g_smooth(targets)
     if P is not None and targets:
         occ = _occluders(style, P, R, g_mats())
         bake_ao(targets, occ)
     export("gear/" + style, export_vertex_color='ACTIVE')
 
+
+def g_smooth(objs, angle=48.0):
+    """Corpo e roupas lisos, como o rosto: sombreado liso em tudo, com aresta viva só onde as faces vizinhas
+    dobram mais que angle graus (bordas de placas, barras, fivelas). Peças que já são lisas ficam como estão."""
+    for o in objs:
+        me = o.data
+        if me.polygons and not all(p.use_smooth for p in me.polygons):
+            for p in me.polygons:
+                p.use_smooth = True
+            me.set_sharp_from_angle(angle=math.radians(angle))
+
+
+def drop_head(style, objs):
+    """Desce as malhas dos estilos de cabeça (h_*) em HEAD_DROP (ver a constante)."""
+    if style.startswith("h_"):
+        for me in set(o.data for o in objs):
+            me.transform(Matrix.Translation((0, 0, -HEAD_DROP)))
+            me.update()
 
 
 # ------------------------------------------------------------------ UV da galáxia (Ceifador do Vazio)
@@ -413,25 +447,26 @@ def sleeves(P, R, material, skin, upto=1.0, k=1.04, add=0.006, cap=True, cuff=No
         join_objs("Arm%s_Fore" % n, fo)
 
 
+# rosto masculino sobre a cabeça lisa (anime.py): olho mais fechado, sobrancelha grossa e baixa com cenho,
+# mandíbula larga e queixo mais quadrado
+MALE_FACE = {"eye_w": 0.98, "eye_h": 0.74, "lash": 0.8, "brow": 1.55, "brow_dz": -0.3, "brow_tilt": 0.14,
+             "nose": 1.15, "jaw": 1.07, "chin": 0.5, "mouth_w": 1.1}
+# cabelo curto: franja repartida de lado com a testa à mostra, lados acima da orelha, nuca curta
+MALE_HAIR_STYLE = {"fringe": 12, "side": 2, "back": -27, "part": -24, "sweep": 1, "top": 10, "w": 1.25,
+                   "lift": 1.5, "seed": 11,
+                   "hairline": [(0, 37), (35, 35), (60, 27), (78, 18), (97, 15), (112, 5), (135, -22), (180, -31)]}
+
+
 def plain_head(R, M, beard=False, hair=True):
+    """Cabeça do herói: rosto liso desenhado (anime.py), cabelo curto em mechas e, com beard, barba curta."""
     head = R["Head"]
-    face_mats = {"skin": M["skin"], "pupil": M["eye"], "sclera": M["sclera"], "brow": M["hair"], "lip": M["lip"]}
-    H = human_head("", HEAD_CHIN, HEAD_H, head, face_mats, {"jaw": 1.08, "chin": 1.1, "brow": 1.2, "nose": 1.05})
+    am = anime_mats("hm", hexc("#D29A74"), hexc("#4E6A8A"), hexc("#3A2213"), hexc("#1E120A"), hexc("#9A5648"))
+    H = anime_head("", HEAD_CHIN, HEAD_H, head, am, MALE_FACE)
+    hm = {"hair": M["hair"], "mid": gm("g_hair_mid", "#6E4428", 0.9), "under": gm("g_hair_under", "#2B190C", 0.9)}
     if hair:
-        f = HEAD_H / 0.245                                   # calotas medidas para a cabeça de 0,245 m
-        shell("HairBase", (0, 0.006 * f, HEAD_CHIN + 0.165 * f), (0.156 * f, 0.208 * f, 0.2 * f), M["hair"], cut=0.25,
-              seg=10, rings=6, rot=(-0.2, 0, 0), thick=0.008, parent=head)
-        shell("HairBaseBack", (0, 0.006 * f, HEAD_CHIN + 0.14 * f), (0.162 * f, 0.27 * f, 0.2 * f), M["hair"], cut=0.1,
-              seg=10, rings=6, rot=(-math.pi / 2, 0, 0), thick=0.008, parent=head)
-        locks = []
-        for phi in (-48, -24, 0, 24, 48):                      # franja curta penteada para o lado
-            locks.append(dict(a=(phi * 0.6 + 150, 75), b=(phi - 15, 22), w=0.055, t=0.011, bulge=0.004, n=5))
-        for phi in (75, 105, 135, 165, -165, -135, -105, -75):  # laterais e nuca curtas
-            locks.append(dict(a=(phi, 45), b=(phi, 2), drop=0.025, w=0.058, t=0.012, bulge=0.006, n=4))
-        hair_locks("Hair", H, locks, M["hair"], head)
+        anime_hair("", H, hm, head, MALE_HAIR_STYLE)
     if beard:
-        limb("Beard", (0, -0.04, H["mouth_z"] - 0.002), (0, -0.075, HEAD_CHIN - 0.03), 0.07, 0.03, M["hair"],
-             sides=7, flat=0.75, twist=math.pi / 7, parent=head)
+        anime_beard("", H, hm, head, {"length": 3.2, "full": 0.8})
     return H
 
 
@@ -3568,7 +3603,7 @@ def build_g_bare():
     P, R = g_rig("g_bare")
     M = g_mats()
     for n, s in (("L", 1), ("R", -1)):
-        fist("Arm" + n, P, s, M["skin"], R["Elbow" + n])
+        soft_fist("Arm" + n, P, s, M["skin"], R["Elbow" + n])
     g_export("g_bare", P, R)
 
 
@@ -3580,22 +3615,15 @@ def build_g_gloves():
     for n, s in (("L", 1), ("R", -1)):
         S = limb_sections(P, s)
         elbow = R["Elbow" + n]
-        h = fist("Arm" + n, P, s, gl, elbow)
+        h = soft_fist("Arm" + n, P, s, gl, elbow)
         F = S["fore"]
         fd = F[-1]["c"] - F[0]["c"]
         c0 = grow([sample(F, 0.72)], 1.22, 0.014)[0]
         cuff = loft("Arm%s_GloveCuff" % n, [c0, grow([sample(F, 1.0)], 1.06, 0.006)[0]], gl2, elbow, sides=8,
                     chamfer=(0.006, 0.0))
         rim = band("Arm%s_CuffRim" % n, c0, fd, 0.014, gl, elbow, sides=8, out=0.003)
-        # placa dos nós dos dedos e costura no dorso
-        W = mirror(P["wrist"], s)
-        hd = P["hd"]
-        G = W + Vector((-s * 0.004, 0, -0.064 * hd))
-        kn = tbox("Arm%s_KnucklePad" % n, G + Vector((s * 0.034 * hd, -0.0005, 0.03 * hd)), (0.012, 0.09 * hd, 0.026 * hd),
-                  gl2, bevel=0.004, rot=(0, -s * 0.5, 0), parent=elbow)
-        seam = tbox("Arm%s_GloveSeam" % n, W + Vector((s * 0.04 * hd, 0.0, -0.02 * hd)), (0.006, 0.05 * hd, 0.006),
-                    gl2, parent=elbow)
-        join_objs("Arm%s_Hand" % n, [h, cuff, rim, kn, seam])
+        relaxed_hand("Arm" + n, P, s, gl, elbow)       # mão aberta (vazia): o jogo fica com uma das duas
+        join_objs("Arm%s_GloveCuff" % n, [cuff, rim])
     g_export("g_gloves", P, R)
 
 
@@ -3609,13 +3637,14 @@ def build_g_bracers():
         S = limb_sections(P, s)
         elbow = R["Elbow" + n]
         F = S["fore"]
-        h = fist("Arm" + n, P, s, br2, elbow)
-        parts = [h, loft("Arm%s_Bracer" % n, grow(span(F, 0.25, 0.95), 1.18, 0.01), br, elbow, chamfer=(0.006, 0.006))]
+        h = soft_fist("Arm" + n, P, s, br2, elbow)
+        relaxed_hand("Arm" + n, P, s, br2, elbow)      # mão aberta (vazia): o jogo fica com uma das duas
+        parts = [loft("Arm%s_Bracer" % n, grow(span(F, 0.25, 0.95), 1.18, 0.01), br, elbow, chamfer=(0.006, 0.006))]
         fdown = (F[-1]["c"] - F[0]["c"]).normalized()
         for k, t in enumerate((0.42, 0.72)):
             parts.append(band("Arm%s_BracerStrap%d" % (n, k), grow([sample(F, t)], 1.18, 0.012)[0], fdown, 0.018, br2,
                               elbow, sides=8, out=0.004))
-        join_objs("Arm%s_Hand" % n, parts)
+        join_objs("Arm%s_Bracer" % n, parts)
     g_export("g_bracers", P, R)
 
 

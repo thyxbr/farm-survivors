@@ -252,6 +252,38 @@ cópia de teste do Doran, em capturas lado a lado.
 Capturas (antes à esquerda, depois à direita; frente, três quartos, perfil e costas):
 `docs/screenshots/npc_cabelo_doran.jpg`, `npc_cabelo_bram.jpg` e `npc_cabelo_mira.jpg`.
 
+### Do rosto, pescoço, mãos e corpo liso do herói (0.48.0)
+
+Rodada feita a partir de bustos e mãos de referência enviados pelo usuário. Vale para o herói (m/f), os
+aldeões e os NPCs de cabeça lisa.
+
+- **O "rosto de bolacha" era a distribuição das feições, não a silhueta.** A cabeça lisa antiga tinha os
+  olhos a 0,47 da altura e a largura quase constante da bochecha à testa. Em `anime_head` os olhos desceram
+  para 0,42 (`EYE_Z`), a bochecha fica cheia até a boca e vira seca para o queixo fino, e o perfil ganhou
+  relevos pequenos (testa que avança, órbita que recua, maçã, lábios, queixo). O crânio do anel 17,6 para
+  cima é o mesmo de antes, para chapéus e elmos continuarem encaixando.
+- **Uma cabeça só para todo mundo.** O herói masculino e os aldeões saíram de `human_head` (facetada) e usam
+  `anime_head` com um conjunto de parâmetros (`MALE_FACE` em `gear.py`, `FEM_FACE` em `female.py`). `jaw`
+  agora entra aos poucos da altura do olho até a boca (antes era um degrau) e `chin` alarga só o queixo.
+- **Franja com `sweep = 1` pede `part` negativo**, senão a franja cobre um lado só e a têmpora do outro fica
+  na calota. Com os olhos mais baixos a testa cresce: a franja desce (`fringe` 12 a 14).
+- **Tira afastada da pele conta como peça solta** (`LOOSE`): o cílio fica a 5,5 mm. A primeira ponta da tira
+  entra na pele (`_ribbon(..., tuck=True)`).
+- **Pescoço.** Queixo fino pede pescoço fino e recuado (~10 cm de largura), largo só na base (trapézio). Para
+  encurtar, tudo o que é da cabeça desce `HEAD_DROP` (2,2 cm) **na exportação** (`drop_head`, estilos `h_*`):
+  mexer em `HEAD_CHIN` solta as peças que usam z absoluto (capuzes, grande elmo). O elmo de placas do
+  `knight.glb` não desce.
+- **Mãos em pele contínua.** Palma, falanges e polegar nascem de tubos e são fundidos por remalha de voxels,
+  alisados e reduzidos (`skin_union`, ~760 triângulos). Tubos soltos, por mais arredondados, leem como peças
+  encaixadas. Os dedos precisam de ~3 mm de vão antes da remalha, senão viram luva.
+- **Duas mãos por equipamento.** `ArmX_Hand` (fechada em volta do eixo do cabo, o mesmo de `fist`) e
+  `ArmX_HandOpen` (aberta e relaxada). `KnightLook._pick_hand` deixa uma só: direita fechada com arma,
+  esquerda fechada com escudo, arco ou cajado. A peça que sobra é removida (não escondida), para o contorno
+  das malhas com esqueleto não ficar para trás.
+- **Corpo e roupas lisos.** `g_smooth` liga o sombreado liso em tudo na exportação, com aresta viva acima de
+  48°. A sombra assada saía por canto de face e formava um xadrez: `bake_ao` agora faz a média por vértice.
+  Cavaleiro de placas e NPCs passam pelo mesmo `g_smooth`. Monstros não.
+
 ### Do corpo liso (Doran)
 Com rosto, cabelo e barba lisos, o corpo do Doran (tronco, quadril, cinto e avental em caixas; membros em
 loft facetado) passou a destoar. O corpo novo está em `tools/blender/anime_body.py` (`doran_legs`,

@@ -9,15 +9,39 @@ import bmesh, math, random
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 
-# (z, meia-largura, y frontal, y traseiro): queixo fino, bochecha larga e baixa, crânio igual ao de head.py
+# (z, meia-largura, y frontal, y traseiro). Medido em bustos de anime de referência: crânio redondo e largo,
+# bochecha cheia até a altura da boca e dali uma virada seca para o queixo fino; de perfil a testa avança,
+# o plano dos olhos recua e a linha da mandíbula sobe reta do queixo até embaixo da orelha.
+# Do anel 17,6 para cima o crânio é o de head.py (chapéus e elmos continuam encaixando).
 ANIME_RINGS = [
-    (0.0, 1.3, -6.9, -3.6), (1.4, 3.1, -8.1, -1.0), (3.0, 4.5, -8.7, 2.2), (4.6, 5.6, -8.95, 4.6),
-    (6.2, 6.35, -9.05, 6.3), (7.3, 6.7, -9.1, 7.2), (8.6, 7.05, -9.1, 8.0), (10.6, 7.2, -9.0, 9.0),
-    (12.6, 7.2, -9.05, 9.5), (14.6, 7.2, -9.0, 9.7), (17.2, 7.2, -8.6, 9.5), (19.6, 6.4, -6.9, 8.3),
-    (21.6, 4.2, -3.9, 5.2),
+    (0.0, 0.9, -7.2, -4.6), (0.6, 2.1, -8.0, -2.9), (1.4, 3.25, -8.4, -1.0), (2.4, 4.25, -8.55, 1.2),
+    (3.4, 5.05, -8.7, 3.0), (4.4, 5.75, -8.85, 4.6), (5.4, 6.25, -8.95, 5.9), (6.4, 6.6, -9.0, 6.9),
+    (7.4, 6.85, -8.95, 7.6), (8.6, 7.0, -8.85, 8.2), (9.8, 7.1, -8.8, 8.8), (11.0, 7.18, -8.9, 9.2),
+    (12.4, 7.2, -9.1, 9.5), (14.0, 7.2, -9.25, 9.7), (15.8, 7.2, -9.1, 9.65), (17.6, 7.15, -8.5, 9.4),
+    (19.6, 6.4, -6.9, 8.3), (21.3, 4.6, -4.4, 5.8), (22.5, 2.5, -1.9, 3.3),
 ]
 ANIME_TOP = 23.0
-ANIME_COLS = [0, 9, 20, 33, 48, 66, 88, 112, 136, 159, 180, -159, -136, -112, -88, -66, -48, -33, -20, -9]
+ANIME_COLS = [0, 4, 9, 20, 33, 48, 66, 88, 112, 136, 159, 180, -159, -136, -112, -88, -66, -48, -33, -20, -9, -4]
+ANIME_NF = (2.6, 2.2)        # expoente da seção: frente (rosto mais chato) e nuca
+EYE_Z, MOUTH_Z, NOSE_Z = 9.6, 3.75, 6.3
+
+
+def _jawk(jaw, z):
+    """Fator de largura da mandíbula: cheio até a boca, some na altura do olho (sem degrau)."""
+    k = min(1.0, max(0.0, (9.0 - z) / 4.5))
+    return 1.0 + (jaw - 1.0) * k * k * (3 - 2 * k)
+
+
+def _head_w(W, z, width, jaw, chin):
+    return W * width * _jawk(jaw, z) + chin * max(0.0, 1.0 - z / 3.0)
+
+
+def _head_xy(deg, z, W, fy, by):
+    cy, D = (fy + by) / 2, (by - fy) / 2
+    th = math.radians(deg)
+    sn, cs = math.sin(th), math.cos(th)
+    nf = ANIME_NF[0] if cs > 0 else ANIME_NF[1]
+    return (W * math.copysign(abs(sn) ** (2 / nf), sn), cy - D * math.copysign(abs(cs) ** (2 / nf), cs))
 
 
 def _tab(T, x):
@@ -42,14 +66,16 @@ def _fan(bm, pts, bvh, d, eps, rings=2):
                 bm.faces.new((r0[i], r0[(i + 1) % n], r1[(i + 1) % n], r1[i]))
 
 
-def _ribbon(bm, pts, widths, bvh, d, eps):
-    """Tira ao longo de pts com meia-largura por ponto, projetada na superfície."""
+def _ribbon(bm, pts, widths, bvh, d, eps, tuck=False):
+    """Tira ao longo de pts com meia-largura por ponto, projetada na superfície. tuck = a primeira ponta entra
+    na pele (a tira afastada da superfície fica presa à cabeça, não solta no ar)."""
     L, R = [], []
     for i, p in enumerate(pts):
         a, b = pts[max(i - 1, 0)], pts[min(i + 1, len(pts) - 1)]
         side = (b - a).cross(-d).normalized()
-        L.append(bm.verts.new(_proj(bvh, p + side * widths[i], d, eps)))
-        R.append(bm.verts.new(_proj(bvh, p - side * widths[i], d, eps)))
+        e = -0.0006 if tuck and i == 0 else eps
+        L.append(bm.verts.new(_proj(bvh, p + side * widths[i], d, e)))
+        R.append(bm.verts.new(_proj(bvh, p - side * widths[i], d, e)))
     for i in range(len(pts) - 1):
         bm.faces.new((L[i], L[i + 1], R[i + 1], R[i]))
 
@@ -75,29 +101,31 @@ def anime_head(prefix, chin_z, height, parent, mats, params=None, y0=0.0):
     """Cabeça lisa com feições desenhadas. mats: skin (ideal: nome terminado em _flat), white, iris, iris_dark,
     iris_light, pupil, lash, brow, mouth, line. Devolve os mesmos marcos de human_head (para hair_locks)."""
     p = {"eye_w": 1.0, "eye_h": 1.0, "eye_x": 1.0, "nose": 1.0, "mouth_w": 1.0, "lash": 1.0, "brow": 1.0,
-         "width": 1.0, "jaw": 1.0, "brow_dz": 0.0, "brow_tilt": 0.0}
+         "width": 1.0, "jaw": 1.0, "chin": 0.0, "brow_dz": 0.0, "brow_tilt": 0.0, "eye_dz": 0.0}
     p.update(params or {})
     s = height / 23.0
 
     def m(x, y, z):
         return Vector((x * s, y0 + y * s, chin_z + z * s))
 
-    # ---- cabeça: grade lisa (anéis x colunas), nariz como um pequeno relevo na coluna central
+    def g(x, ax, z, z0, az):
+        return math.exp(-(x / ax) ** 2 - ((z - z0) / az) ** 2)
+
+    # ---- cabeça: grade lisa (anéis x colunas); nariz, órbitas, maçãs, lábios e queixo são relevos pequenos
     n = len(ANIME_COLS)
     verts, faces = [], []
     for z, W, fy, by in ANIME_RINGS:
-        cy, D = (fy + by) / 2, (by - fy) / 2
+        Wm = _head_w(W, z, p["width"], p["jaw"], p["chin"])
         for deg in ANIME_COLS:
-            th = math.radians(deg)
-            sn, cs = math.sin(th), math.cos(th)
-            nf = 2.9 if cs > 0 else 2.2
-            Wm = W * p["width"] * (p["jaw"] if z <= 6.2 else 1.0)       # jaw alarga só do nariz para baixo
-            x = Wm * math.copysign(abs(sn) ** (2 / nf), sn)
-            y = cy - D * math.copysign(abs(cs) ** (2 / nf), cs)
-            if cs > 0:
-                y -= 1.5 * p["nose"] * math.exp(-(x / 0.75) ** 2 - ((z - 7.2) / 1.05) ** 2)     # ponta do nariz
-                y -= 0.30 * math.exp(-(x / 1.0) ** 2 - ((z - 9.6) / 2.2) ** 2)                 # dorso
-                y -= 0.20 * math.exp(-(x / 1.8) ** 2 - ((z - 3.9) / 0.9) ** 2)                 # lábios
+            x, y = _head_xy(deg, z, Wm, fy, by)
+            if math.cos(math.radians(deg)) > 0:
+                ax = abs(x)
+                y -= 1.25 * p["nose"] * g(x, 0.8, z, NOSE_Z, 0.9)                  # ponta do nariz
+                y -= 0.40 * p["nose"] * g(x, 0.9, z, NOSE_Z + 1.8, 1.8)             # dorso
+                y += 0.35 * g(ax - 3.3 * p["eye_x"], 1.9, z, EYE_Z + p["eye_dz"], 1.7)            # órbita
+                y -= 0.22 * g(ax - 3.7, 2.0, z, 5.4, 1.6)                           # maçã do rosto
+                y -= 0.20 * g(x, 1.7, z, MOUTH_Z, 0.8)                              # lábios
+                y -= 0.22 * g(x, 1.6, z, 1.3, 0.9)                                  # queixo
             verts.append(m(x, y, z))
     rows = len(ANIME_RINGS)
     for i in range(rows - 1):
@@ -109,7 +137,7 @@ def anime_head(prefix, chin_z, height, parent, mats, params=None, y0=0.0):
     last = (rows - 1) * n
     faces += [(last + j, last + (j + 1) % n, top) for j in range(n)]
     bot = len(verts)
-    verts.append(m(0, -3.4, 0.2))
+    verts.append(m(0, -3.8, 0.15))
     faces += [((j + 1) % n, j, bot) for j in range(n)]
     hb = bmesh.new()
     hv = [hb.verts.new(v) for v in verts]
@@ -125,7 +153,7 @@ def anime_head(prefix, chin_z, height, parent, mats, params=None, y0=0.0):
     mm = 0.001          # as camadas ficam a 1 mm uma da outra: abaixo disso brigam de longe no jogo
 
     # ---- olhos em camadas
-    ez = 10.7
+    ez = EYE_Z + p["eye_dz"]
     ex = 3.25 * p["eye_x"] * p["width"]
     hw, ht, hbm, e = 1.95 * p["eye_w"], 1.30 * p["eye_h"], 1.50 * p["eye_h"], 2.3
     for sg, nm in ((1, "L"), (-1, "R")):
@@ -173,9 +201,11 @@ def anime_head(prefix, chin_z, height, parent, mats, params=None, y0=0.0):
         wd = [(0.14 + 0.26 * math.sin(math.pi * min(1.0, i / (len(up) - 1) * 1.1) * 0.5)) * p["lash"] * s for i in range(len(up))]
         up.append(P(hw + 0.42, 0.18))
         wd.append(0.04 * s)
-        _ribbon(b, up, wd, bvh, d, 5.5 * mm)
+        up.insert(0, P(-hw - 0.3, -0.05))
+        wd.insert(0, 0.05 * s)
+        _ribbon(b, up, wd, bvh, d, 5.5 * mm, tuck=True)
         lo = [P(*outl(a)) for a in range(-40, -141, -20)]
-        _ribbon(b, lo, [0.06 * s] * len(lo), bvh, d, 5.5 * mm)
+        _ribbon(b, lo, [0.06 * s] * len(lo), bvh, d, 5.5 * mm, tuck=True)
         _decal(prefix + "Lash" + nm, b, mats["lash"], parent)
         b = bmesh.new()
         cr = [P(outl(a)[0] * 0.9, outl(a)[1] + 0.50) for a in range(150, 29, -20)]
@@ -187,34 +217,38 @@ def anime_head(prefix, chin_z, height, parent, mats, params=None, y0=0.0):
         _ribbon(b, br, [k_ * p["brow"] * s for k_ in (0.10, 0.22, 0.20, 0.07)], bvh, d, 1.5 * mm)
         _decal(prefix + "Brow" + nm, b, mats["brow"], parent)
 
-        # orelha lisa, mais larga em cima, levemente virada para trás
-        eb = bmesh.new()
-        bmesh.ops.create_uvsphere(eb, u_segments=8, v_segments=6, radius=1.0)
-        for v in eb.verts:
-            k = 1.0 + 0.22 * v.co.z
-            v.co = m(sg * 7.15 * p["width"] + v.co.x * 0.85, 1.2 + v.co.y * 1.5 * k + 0.35 * v.co.z, 9.9 + v.co.z * 2.6)
-        bmesh.ops.triangulate(eb, faces=eb.faces[:])
-        _place(eb, (0, 0, 0), parent)
-        _finish(prefix + "Ear" + nm, eb, mats["skin"], parent, smooth=True)
+        # orelha: concha achatada, mais larga em cima, com a borda de trás aberta para fora, e o miolo num tom
+        # abaixo (sem ele, com a pele chapada, a orelha some)
+        ca, sa = math.cos(0.5), math.sin(0.5)
+        for nm2, kx, ky, kz, off, mt in (("Ear", 0.5, 1.6, 2.5, 0.0, mats["skin"]), ("EarIn", 0.2, 0.85, 1.5, 0.38, mats["line"])):
+            eb = bmesh.new()
+            bmesh.ops.create_uvsphere(eb, u_segments=8, v_segments=6, radius=1.0)
+            for v in eb.verts:
+                k = 1.0 + 0.25 * v.co.z
+                lx, ly, lz = v.co.x * kx + off, v.co.y * ky * k + 0.3 * v.co.z + (0.25 if off else 0.0), v.co.z * kz
+                v.co = m(sg * (6.75 * p["width"] + lx * ca + (ly + 1.0) * sa), 1.5 + ly * ca - lx * sa, EYE_Z - 0.9 + lz)
+            bmesh.ops.triangulate(eb, faces=eb.faces[:])
+            _place(eb, (0, 0, 0), parent)
+            _finish(prefix + nm2 + nm, eb, mt, parent, smooth=True)
 
     # ---- boca: traço curto levemente curvo + sombra do lábio de baixo; nariz: um tracinho de sombra
-    mz, mw = 4.35, 1.15 * p["mouth_w"]
+    mz, mw = MOUTH_Z, 1.15 * p["mouth_w"]
     b = bmesh.new()
     _ribbon(b, [m(-mw, -20, mz + 0.10), m(-mw * 0.4, -20, mz), m(mw * 0.4, -20, mz), m(mw, -20, mz + 0.10)],
             [0.06 * s, 0.13 * s, 0.13 * s, 0.06 * s], bvh, d, 1.5 * mm)
     _decal(prefix + "Mouth", b, mats["mouth"], parent)
     b = bmesh.new()
     _ribbon(b, [m(-0.6, -20, mz - 0.80), m(0.6, -20, mz - 0.80)], [0.06 * s, 0.06 * s], bvh, d, 1.5 * mm)
-    _ribbon(b, [m(0.20, -20, 7.25), m(0.45, -20, 6.5)], [0.05 * s, 0.10 * s], bvh, d, 1.5 * mm)
+    _ribbon(b, [m(0.22, -20, NOSE_Z + 0.25), m(0.5, -20, NOSE_Z - 0.55)], [0.05 * s, 0.10 * s], bvh, d, 1.5 * mm)
     _decal(prefix + "FaceLines", b, mats["line"], parent)
 
     return {
         "s": s, "chin": chin_z, "top": chin_z + ANIME_TOP * s, "eye_z": chin_z + ez * s,
-        "mouth_z": chin_z + mz * s, "nose_base_z": chin_z + 6.4 * s, "brow_z": chin_z + 13.4 * s,
+        "mouth_z": chin_z + mz * s, "nose_base_z": chin_z + (NOSE_Z - 0.8) * s, "brow_z": chin_z + 13.4 * s,
         "front_y": y0 - 9.1 * s, "mouth_y": y0 - 8.9 * s, "chin_y": y0 - 8.1 * s,
         "half_w": 7.2 * p["width"] * s, "back_y": y0 + 9.7 * s, "cy": y0 + 0.45 * s,
         "eye_x": ex * s, "eye_y": y0 - 9.0 * s,
-        "y0": y0, "width": p["width"], "jaw": p["jaw"],        # para anime_hair / anime_beard seguirem a cabeça
+        "y0": y0, "width": p["width"], "jaw": p["jaw"], "chin_w": p["chin"],        # para anime_hair / anime_beard seguirem a cabeça
     }
 
 
@@ -281,6 +315,159 @@ def open_hand(prefix, wrist, s, material, parent, k=1.12):
     return _finish(prefix + "_Hand", bm, material, parent, smooth=True)
 
 
+# ------------------------------------------------------------------ mãos do herói (pele contínua)
+# As duas mãos nascem de tubos (palma, falanges, polegar) e depois viram UMA pele: os tubos são fundidos por
+# remalha de voxels, alisados e reduzidos (skin_union). Some o aspecto de peças encaixadas: entre os dedos e
+# na base do polegar fica pele, como numa mão de verdade.
+# Coordenadas locais em m: x = para o dorso da mão, y = para trás, z = para cima; origem no pulso.
+def skin_union(ob, voxel=0.0019, smooth=3, tris=760):
+    """Funde as partes sobrepostas de ob numa pele só (remalha de voxels), alisa e reduz para ~tris."""
+    mats = list(ob.data.materials)
+    md = ob.modifiers.new("Remesh", 'REMESH')
+    md.mode = 'VOXEL'
+    md.voxel_size = voxel
+    sm = ob.modifiers.new("Smooth", 'SMOOTH')
+    sm.factor = 0.5
+    sm.iterations = smooth
+    dg = bpy.context.evaluated_depsgraph_get()
+    ev = ob.evaluated_get(dg).data
+    n = sum(len(pl.vertices) - 2 for pl in ev.polygons)
+    dc = ob.modifiers.new("Decimate", 'DECIMATE')
+    dc.ratio = min(1.0, tris / max(1, n))
+    dg = bpy.context.evaluated_depsgraph_get()
+    me = bpy.data.meshes.new_from_object(ob.evaluated_get(dg))
+    for m_ in list(ob.modifiers):
+        ob.modifiers.remove(m_)
+    old = ob.data
+    name = old.name
+    ob.data = me
+    bpy.data.meshes.remove(old)
+    me.name = name
+    if not me.materials:
+        for m_ in mats:
+            me.materials.append(m_)
+    for pl in me.polygons:
+        pl.use_smooth = True
+        pl.material_index = 0
+    return ob
+
+
+def _hand_frame(P, s):
+    hd = P["hd"]
+    W = mirror(P["wrist"], s)
+    o, ay, up = Vector((s, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))
+
+    def pt(x, y, z):
+        return W + (o * x + ay * y + up * z) * hd
+    return hd, o, ay, up, pt
+
+
+def _hand_chain(bm, pt, hd, pts, radii, u, sides=8):
+    """Tubo pelos pontos (locais), com tangente média em cada junta. radii = raio ou (rx, ry) por ponto."""
+    P3 = [pt(*q) for q in pts]
+    secs = []
+    for i, q in enumerate(P3):
+        t = (P3[min(i + 1, len(P3) - 1)] - P3[max(i - 1, 0)]).normalized()
+        r = radii[i]
+        r = r if isinstance(r, tuple) else (r, r)
+        secs.append((q, r[0] * hd, r[1] * hd, t, u))
+    _tube(bm, secs, sides=sides)
+
+
+_FINGER_RAD = (0.0096, 0.0110, 0.0095, 0.0102, 0.0089, 0.0094, 0.0084, 0.0074, 0.0040)
+
+
+def _hand_finish(name, bm, material, parent):
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bmesh.ops.triangulate(bm, faces=bm.faces[:], quad_method='BEAUTY')
+    _place(bm, (0, 0, 0), parent)
+    return skin_union(_finish(name, bm, material, parent, smooth=True))
+
+
+def soft_fist(prefix, P, s, material, parent):
+    """Mão fechada em volta de um cabo, com a mesma pegada de fist() (body.py): o cabo passa pelo eixo G, ao
+    longo de Y. Palma chata que alarga do pulso até a fileira dos nós (8,5 cm) e se inclina para fora, deixando
+    o cabo encostar na palma; quatro dedos em três falanges (4,2 / 2,7 / 2,4 cm) de comprimentos diferentes,
+    dobrando por baixo do cabo e subindo por dentro; polegar com a base gorda (tenar) saindo da borda da frente
+    da palma e descendo por cima do indicador. Devolve <prefix>_Hand (uma pele, um material)."""
+    hd, o, ay, up, pt = _hand_frame(P, s)
+    gx, gz = -0.004, -0.064                     # eixo do cabo (G)
+    bm = bmesh.new()
+    # palma: (x, z, meia-espessura, meia-largura); a linha do centro sai do pulso e se afasta do cabo
+    palm = [(0.0, 0.010, 0.0225, 0.0285), (0.002, -0.006, 0.021, 0.031), (0.008, -0.026, 0.0185, 0.037),
+            (0.016, -0.048, 0.0165, 0.0415), (0.023, -0.068, 0.0155, 0.043), (0.027, -0.083, 0.0135, 0.042),
+            (0.027, -0.090, 0.008, 0.038)]
+    _hand_chain(bm, pt, hd, [(x, -0.002, z) for x, z, _, _ in palm], [(rx, ry) for _, _, rx, ry in palm], o, sides=10)
+    # miolo: fecha o vão dos dedos quando a mão está vazia
+    _hand_chain(bm, pt, hd, [(gx, y, gz) for y in (-0.044, -0.04, 0.038, 0.042)], [0.009, 0.0165, 0.016, 0.009], up,
+                sides=10)
+
+    def ring(a, r):
+        t = math.radians(a)
+        return (gx + r * math.cos(t), gz + r * math.sin(t))
+
+    def mid(A, Bq):
+        return ((A[0] + Bq[0]) / 2, (A[1] + Bq[1]) / 2)
+
+    # dedos: (y, z do nó, raio da volta, grossura); indicador na frente (-y), mindinho atrás
+    for y, zk, g, w in ((-0.033, -0.083, 1.0, 1.0), (-0.011, -0.086, 1.05, 1.04), (0.011, -0.084, 1.0, 0.98),
+                        (0.032, -0.078, 0.9, 0.86)):
+        K = (0.028 - 0.04 * (1.0 - g), zk)
+        P1, P2, T = ring(-108, 0.029 * g), ring(-166, 0.0305 * g), ring(-214, 0.0275 * g)
+        back = (K[0] - 0.004, K[1] + 0.012)
+        tip = (T[0] + (T[0] - P2[0]) * 0.18, T[1] + (T[1] - P2[1]) * 0.18)
+        path = [back, K, mid(K, P1), P1, mid(P1, P2), P2, mid(P2, T), T, tip]
+        _hand_chain(bm, pt, hd, [(x, y, z) for x, z in path], [r * w for r in _FINGER_RAD], ay)
+    # polegar: tenar na borda da frente da palma, duas falanges descendo por cima do indicador
+    _hand_chain(bm, pt, hd, [(0.010, -0.020, -0.012), (0.006, -0.031, -0.028), (-0.003, -0.043, -0.046),
+                             (-0.014, -0.051, -0.060), (-0.023, -0.054, -0.073), (-0.027, -0.053, -0.080)],
+                [0.012, 0.0165, 0.0138, 0.0118, 0.0102, 0.0050], o)
+    return _hand_finish(prefix + "_Hand", bm, material, parent)
+
+
+def relaxed_hand(prefix, P, s, material, parent):
+    """Mão aberta e relaxada, caída ao lado do corpo (para a mão que não segura nada): palma chata voltada para
+    a coxa, dedos levemente separados e curvados em três falanges, de comprimentos diferentes, e polegar
+    afastado para a frente. Mesmas medidas de soft_fist. Devolve <prefix>_HandOpen."""
+    hd, o, ay, up, pt = _hand_frame(P, s)
+    bm = bmesh.new()
+    palm = [(0.0, 0.010, 0.0225, 0.0285), (0.0, -0.006, 0.0205, 0.031), (-0.001, -0.028, 0.0165, 0.038),
+            (-0.002, -0.052, 0.0145, 0.0425), (-0.004, -0.074, 0.013, 0.043), (-0.006, -0.088, 0.0105, 0.041),
+            (-0.007, -0.094, 0.006, 0.037)]
+    _hand_chain(bm, pt, hd, [(x, -0.002, z) for x, z, _, _ in palm], [(rx, ry) for _, _, rx, ry in palm], o, sides=10)
+    # dedos: (y da base, abertura em y na ponta, z da base, comprimento, grossura, dobra extra em graus)
+    for y, sp, zb, f, w, cu in ((-0.0325, -0.007, -0.086, 0.95, 1.0, 0), (-0.0108, -0.002, -0.089, 1.0, 1.04, 4),
+                                (0.0108, 0.003, -0.087, 0.93, 0.98, 9), (0.0315, 0.008, -0.081, 0.76, 0.86, 14)):
+        cur = (-0.006, zb)
+        pts = [(cur[0] + 0.001, y, zb + 0.012), (cur[0], y, zb)]
+        tot = 0.042 + 0.027 + 0.023
+        run = 0.0
+        for L, a in ((0.042, 14 + cu), (0.027, 36 + cu * 1.5), (0.023, 54 + cu * 2)):
+            t = math.radians(a)
+            d = (-math.sin(t), -math.cos(t))
+            for k in (0.5, 1.0):
+                q = (cur[0] + d[0] * L * f * k, cur[1] + d[1] * L * f * k)
+                pts.append((q[0], y + sp * (run + L * k) / tot, q[1]))
+            cur = q
+            run += L
+        pts.append((cur[0] + d[0] * 0.004, y + sp, cur[1] + d[1] * 0.004))
+        _hand_chain(bm, pt, hd, pts, [r * w for r in _FINGER_RAD], ay)
+    _hand_chain(bm, pt, hd, [(0.002, -0.020, -0.012), (0.0, -0.034, -0.030), (-0.005, -0.048, -0.050),
+                             (-0.010, -0.057, -0.068), (-0.015, -0.062, -0.084), (-0.017, -0.063, -0.091)],
+                [0.012, 0.0165, 0.0135, 0.0116, 0.0100, 0.0050], o)
+    return _hand_finish(prefix + "_HandOpen", bm, material, parent)
+
+
+def npc_hand(prefix, wrist, s, material, parent, k=1.0):
+    """Mão aberta de pele contínua (relaxed_hand) para os NPCs: wrist = ponto do pulso (mundo, m), s = +1
+    esquerda do personagem, -1 direita. Devolve <prefix>_Hand."""
+    w = Vector(wrist)
+    ob = relaxed_hand(prefix, {"hd": k, "wrist": Vector((abs(w.x), w.y, w.z))}, s, material, parent)
+    ob.name = prefix + "_Hand"
+    ob.data.name = ob.name
+    return ob
+
+
 # ------------------------------------------------------------------ cabelo e barba desenhados
 # Mechas largas, chatas e lisas, em loft ao longo de uma spline que corre sobre a cabeça e termina em
 # ponta (docs/ESTUDO_PERSONAGEM_ANIME.md, "Cabelo"). Tudo parte dos marcos de anime_head, então serve a
@@ -288,7 +475,7 @@ def open_hand(prefix, wrist, s, material, parent, k=1.12):
 # Ângulos: th = 0 na frente do rosto, +90 à esquerda do personagem (+X), 180 atrás; ph = elevação a partir
 # do centro do crânio (90 = topo, 0 = altura do olho/orelha, negativo = nuca).
 def _ring_at(z):
-    R = ANIME_RINGS + [(22.6, 2.2, -1.5, 3.0), (ANIME_TOP, 0.05, 0.5, 0.7)]
+    R = ANIME_RINGS + [(ANIME_TOP, 0.05, 0.5, 0.7)]
     if z <= R[0][0]:
         return R[0][1:]
     for a, b in zip(R, R[1:]):
@@ -302,20 +489,14 @@ def _hp(H, deg, z):
     """Ponto da superfície da cabeça (m) na coluna deg e altura z (cm acima do queixo)."""
     s = H["s"]
     W, fy, by = _ring_at(z)
-    W *= H.get("width", 1.0) * (H.get("jaw", 1.0) if z <= 6.2 else 1.0)
-    cy, D = (fy + by) / 2, (by - fy) / 2
-    th = math.radians(deg)
-    sn, cs = math.sin(th), math.cos(th)
-    nf = 2.9 if cs > 0 else 2.2
-    x = W * math.copysign(abs(sn) ** (2 / nf), sn)
-    y = cy - D * math.copysign(abs(cs) ** (2 / nf), cs)
+    x, y = _head_xy(deg, z, _head_w(W, z, H.get("width", 1.0), H.get("jaw", 1.0), H.get("chin_w", 0.0)), fy, by)
     return Vector((x * s, H.get("y0", 0.0) + y * s, H["chin"] + z * s))
 
 
 def _face_pt(H, x, z):
     """Ponto da frente do rosto (m) na posição lateral x e altura z (cm)."""
-    W = _ring_at(z)[0] * H.get("width", 1.0) * (H.get("jaw", 1.0) if z <= 6.2 else 1.0)
-    sn = min(1.0, abs(x) / W) ** (2.9 / 2)
+    W = _head_w(_ring_at(z)[0], z, H.get("width", 1.0), H.get("jaw", 1.0), H.get("chin_w", 0.0))
+    sn = min(1.0, abs(x) / W) ** (ANIME_NF[0] / 2)
     return _hp(H, math.copysign(math.degrees(math.asin(sn)), x), z)
 
 
@@ -516,7 +697,7 @@ BEARD_STYLE = {
 # colunas da cabeça (o ângulo é o parâmetro da grade de anime_head, não o geométrico: 84 fica logo à frente da
 # orelha e 98 embaixo dela)
 _BEARD_DEG = [0, 4, 9, 16, 26, 38, 52, 68, 84, 98]
-_BEARD_TOP = [3.1, 3.1, 3.5, 5.0, 6.0, 6.6, 7.4, 8.8, 14.6, 6.8]  # linha de cima (cm): sob o lábio, bochecha, costeleta
+_BEARD_TOP = [2.55, 2.55, 2.95, 4.5, 5.5, 6.2, 7.1, 8.5, 13.6, 6.4]  # linha de cima (cm): sob o lábio, bochecha, costeleta
 # borda de baixo: em fração do comprimento abaixo do queixo (pontas e reentrâncias alternadas); atrás da
 # mandíbula (valores positivos, em cm) a borda sobe até a orelha
 _BEARD_BOT = [-1.0, -0.88, -0.56, -0.80, -0.50, -0.62, -0.22, -0.42, 0.3, 1.8]
@@ -593,7 +774,7 @@ def anime_beard(prefix, H, mats, parent, style=None):
 
         for sg in (1, -1):
             ctrl = []
-            for x, z, lf in ((0.15, 6.0, 0.45), (1.5, 5.45, 0.6), (2.9, 4.4, 0.55), (3.7, 2.7, 0.45)):
+            for x, z, lf in ((0.15, 5.3, 0.45), (1.5, 4.8, 0.6), (2.9, 3.8, 0.55), (3.7, 2.2, 0.45)):
                 p = _face_pt(H, sg * x, z)
                 ctrl.append(p + mn(p) * lf * s)
             _lock(mb, ctrl, 1.15 * s, mn, th_k=0.5, root=0.75)
