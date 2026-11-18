@@ -19,6 +19,11 @@ var weapon_override := ""
 ## Corpo mostrado ("m"/"f") no lugar do do personagem (tela de criação: o sexo escolhido). "" = Game.body.
 var body_override := ""
 var hair_override := ""     ## penteado mostrado com body_override (tela de criação)
+var cam: Camera3D
+## Modo retrato (miniaturas de penteado): câmera fechada no rosto, sem balançar.
+var _face := false
+## Quadros que ainda renderiza antes de congelar (freeze_after); -1 = renderiza sempre.
+var _frames_left := -1
 
 
 func _init(sz := Vector2(260, 340)) -> void:
@@ -54,7 +59,7 @@ func _ready() -> void:
 	rim.light_energy = 0.9
 	rim.light_color = Color(0.6, 0.7, 1.0)
 	vp.add_child(rim)
-	var cam := Camera3D.new()
+	cam = Camera3D.new()
 	cam.fov = 30.0
 	cam.position = Vector3(0, 1.15, 4.4)
 	vp.add_child(cam)
@@ -77,6 +82,8 @@ func _ready() -> void:
 	pivot.rotation.y = _base
 	refresh()
 	Game.inventory_changed.connect(refresh)
+	if _face:
+		frame_face()
 
 
 func refresh() -> void:
@@ -130,7 +137,29 @@ func show_weapon(id: String) -> void:
 	refresh()
 
 
+## Câmera fechada no rosto, virado ~45° para mostrar rabo de cavalo e marias (miniaturas de penteado).
+func frame_face() -> void:
+	_face = true
+	_user_turned = true
+	if cam == null:
+		return   # ainda fora da árvore: _ready aplica
+	cam.position = Vector3(0, 1.7, 1.3)
+	cam.look_at(Vector3(0, 1.64, 0))
+	pivot.rotation.y = -0.75
+
+
+## Renderiza mais `frames` quadros e congela a imagem (o viewport para de atualizar e de animar).
+func freeze_after(frames: int) -> void:
+	_frames_left = frames
+
+
 func _process(delta: float) -> void:
+	if _frames_left == 0:
+		return
+	if _frames_left > 0:
+		_frames_left -= 1
+		if _frames_left == 0 and vp:
+			vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	_idle += delta
 	# balança em volta de uma vista 3/4 de frente (melhor para ver arma e armadura)
 	if not _drag and not _user_turned and pivot:
