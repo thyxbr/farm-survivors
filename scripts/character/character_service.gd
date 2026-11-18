@@ -93,9 +93,12 @@ func load_or_create(char_id: int) -> CharState:
 		if not _save(char_id, s):
 			push_error("CharacterService: não gravou personagem novo de %d: %s" % [char_id, _store.last_error])
 			return s   # sem cache: a próxima chamada tenta de novo
-	elif CharRules.migrate_progression(s, _bt):
-		# personagem de antes da progressão por nível: pontos devolvidos e gravados já na carga
-		if not _save(char_id, s):
+	else:
+		# personagem de antes da progressão por nível (pontos devolvidos) ou da coleta com ferramenta (ganha as
+		# de pedra): gravado já na carga
+		var migrated := CharRules.migrate_progression(s, _bt)
+		migrated = CharRules.migrate_tools(s, _bt) or migrated
+		if migrated and not _save(char_id, s):
 			push_error("CharacterService: não gravou a migração de %d: %s" % [char_id, _store.last_error])
 			return s   # sem cache: a próxima carga migra de novo
 	_cache[char_id] = s

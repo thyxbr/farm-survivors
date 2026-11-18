@@ -20,7 +20,7 @@ func test_table_shape() -> void:
 		var d := WorldHarvest.node_def(bt, i)
 		kinds[d.kind] = int(kinds.get(d.kind, 0)) + 1
 		T.ok(items.has(d.item), "item do nó %d existe" % i)
-		T.ok(d.amount >= 1 and d.hits >= 1 and d.respawn > 0, "números do nó %d" % i)
+		T.ok(d.amount >= 1 and d.tough > 0.0 and d.tier >= 1 and d.respawn > 0, "números do nó %d" % i)
 	T.eq(kinds, {"iron": 14, "crystal": 10, "copper": 6, "pine": 8, "oak": 8, "silver": 6, "silverbirch": 4,
 		"mithril": 6, "ashwood": 4, "astralite": 3, "soulwood": 2}, "nós por tipo")
 	for i in range(10, 20):
@@ -28,7 +28,8 @@ func test_table_shape() -> void:
 	var iron := WorldHarvest.node_def(bt, 0)
 	T.eq(iron.item, "iron_ore", "nó 0 dá minério")
 	T.eq(iron.amount, 3, "3 por veio")
-	T.eq(iron.hits, 3, "3 golpes (parte 3: coleta em 2-3 golpes)")
+	T.eq(iron.tough, 8.0, "resistência do ferro")
+	T.eq(iron.tier, 1, "ferro sai com picareta de pedra")
 	T.eq(iron.prof, "mining", "ferro é de Mineração")
 	T.ok(iron.level >= 1 and iron.xp > 0, "nível e XP do nó")
 	T.ok(iron.pos.distance_to(Vector3(86, 0, 0)) < 13.0, "ferro em volta do Acampamento Goblin")

@@ -90,7 +90,8 @@ func test_roundtrip_matches_consts() -> void:
 			T.ok(kitchen == BalanceTables.decode(snap[n]), "receitas da cozinha iguais ao snapshot")
 			continue
 		elif n == "crops" or n == "world_nodes":
-			# parte 3: nível e XP de profissão nas culturas e nos nós; tipos de nó novos; coleta em 2-3 golpes
+			# parte 3: nível e XP de profissão nas culturas e nos nós; tipos de nó novos; coleta em 2-3 golpes.
+			# Coleta com ferramenta: os golpes viraram resistência (tough) e nível mínimo de ferramenta (tier)
 			var snap_t: Dictionary = (BalanceTables.decode(snap[n]) as Dictionary).duplicate(true)
 			var cur_t: Dictionary = cur.duplicate(true)
 			var a: Dictionary = cur_t if n == "crops" else cur_t.get("kinds", {})
@@ -99,7 +100,7 @@ func test_roundtrip_matches_consts() -> void:
 				if not b.has(k):
 					a.erase(k)
 					continue
-				for f in ["level", "xp", "prof", "hits", "tint"]:
+				for f in ["level", "xp", "prof", "hits", "tint", "tough", "tier"]:
 					(a[k] as Dictionary).erase(f)
 					(b[k] as Dictionary).erase(f)
 			T.ok(a == b, "tabela %s igual ao snapshot (sem os campos de profissão)" % n)
@@ -109,8 +110,9 @@ func test_roundtrip_matches_consts() -> void:
 			# o que sobrou estava na loja de antes ou é material/semente da camada 1
 			var old_stock: Array = (BalanceTables.decode(snap[n]) as Dictionary).get("stock", [])
 			for id in cur.get("stock", []):
-				T.ok(id in old_stock or id == "wooden_sword" or t.get_table("items").get(id, {}).get("type") in ["seed", "material"],
-					"loja: %s estava antes ou é semente/material" % id)
+				T.ok(id in old_stock or id == "wooden_sword" or t.get_table("items").get(id, {}).get("type") in ["seed", "material"]
+					or id in ["pickaxe_stone", "axe_stone"],
+					"loja: %s estava antes, é semente/material ou ferramenta de pedra" % id)
 			continue
 		elif n == "rules":
 			# a curva de XP foi para progression.json

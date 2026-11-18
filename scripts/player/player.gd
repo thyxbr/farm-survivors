@@ -113,6 +113,10 @@ var ability_data := {}
 var ability_slot := 0   ## slot (1..5) da tecla que começou a habilidade em execução (0 = nenhum)
 var cooldowns := _make_cooldowns()   # todas as habilidades: a recarga continua ao trocar de arma
 var interact_target: Node3D = null
+## Veio ou árvore ao alcance de F (GatherAction.nearest; null coletando ou sem nada perto).
+var gather_target: Node3D = null
+## Ferramenta na mão durante a coleta (vira a arma do visual; "" = a arma equipada de sempre).
+var gather_tool := ""
 var spawn_point := Vector3(0, 0.5, 6)
 var _footstep := 0.0
 
@@ -466,7 +470,17 @@ func _local_process(delta: float) -> void:
 		_ab_module(ability).release(self)
 	if Input.is_action_just_pressed("potion"):
 		_quick_potion("health_potion")
-	if Input.is_action_just_pressed("mana_potion"):
+	# F divide a tecla: perto de um veio/árvore coleta (ou para de coletar); longe, toma a poção de mana
+	gather_target = GatherAction.nearest(self) if ability == "" else null
+	var gather_key := Input.is_action_just_pressed("gather")
+	var gathered := false
+	if gather_key and ability == GatherAction.ID:
+		end_ability()
+		gathered = true
+	elif gather_key and gather_target and ability == "":
+		start_gather(gather_target)
+		gathered = true
+	if Input.is_action_just_pressed("mana_potion") and not gathered:
 		_quick_potion("mana_potion")
 	if Input.is_action_just_pressed("eat"):
 		Game.eat_selected()
@@ -666,22 +680,9 @@ func _do_hit() -> void:
 		hit_any = true
 		hit_enemy = true
 		flesh = flesh or str(e.data.get("model", "")) != "slime"
-	# veios de ferro e cristal de Valdoria: mesmo alcance e mesmo cone
-	for n in get_tree().get_nodes_in_group("harvest"):
-		if not n.alive:
-			continue
-		var to: Vector3 = n.global_position - global_position
-		to.y = 0
-		var dist := to.length()
-		if dist > reach + n.radius:
-			continue
-		if (combo < 3 or fist) and dist > 0.6 and f.dot(to.normalized()) < 0.3:
-			continue
-		n.hit(global_position)
-		hit_any = true
 	if hit_enemy and fist:
 		Sfx.play("punch_hit", 0.12)
-	elif hit_enemy:   # o nó de recurso toca o próprio som (madeira, pedra) em hit()
+	elif hit_enemy:
 		Sfx.play(Sfx.sword_hit(flesh, Sfx.heavy_sword(_weapon_id())), 0.1)
 	if hit_any:
 		add_shake(0.12 if combo < 3 else 0.22)
@@ -1239,6 +1240,8 @@ func set_heal_highlight(on: bool) -> void:
 ## Módulo da classe da arma dona da habilidade `id` (ou do `kind` de um evento remoto).
 ## Um id de ABILITIES usa a `class`; um kind que não é id (ex.: "bow_gale_fire", "meteor_rain_end") cai no prefixo.
 func _ab_module(id: String) -> Object:
+	if id == GatherAction.ID:
+		return GatherAction
 	var cls := ""
 	if ItemDB.ABILITIES.has(id):
 		cls = ItemDB.ABILITIES[id]["class"]
@@ -1264,7 +1267,7 @@ func _ab_module(id: String) -> Object:
 func _is_ability_kind(kind: String) -> bool:
 	var weapon_ability: bool = ItemDB.ABILITIES.has(kind) and not (kind in ["fireball", "heal", "frost_nova"])
 	var by_prefix: bool = kind.begins_with("sword_") or kind.begins_with("bow_") or kind.begins_with("meteor") or kind.begins_with("scepter_")
-	return weapon_ability or by_prefix
+	return weapon_ability or by_prefix or kind == GatherAction.ID
 
 
 ## Começa a habilidade de arma `id` (use do módulo e, nas réplicas, play_remote).
@@ -1283,6 +1286,9 @@ func begin_ability(id: String, data := {}) -> void:
 func end_ability() -> void:
 	if ability == "":
 		return
+	if ability == GatherAction.ID and gather_tool != "":
+		gather_tool = ""   # guarda a ferramenta: a arma equipada volta para a mão
+		refresh_look.call_deferred()
 	for n in ability_data.get("nodes", []):
 		if is_instance_valid(n):
 			n.queue_free()
@@ -1441,6 +1447,8 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 	Game.hp -= final_dmg
 	Game.add_fury(final_dmg / Game.max_hp() * 25.0)
 	invuln = 0.45
+	if ability == GatherAction.ID:
+		end_ability()   # apanhou: larga a coleta (o progresso fica no nó)
 	if ability != "sword_whirl":   # o Turbilhão é imune a empurrão
 		var kb := global_position - from_pos
 		kb.y = 0
@@ -1518,6 +1526,26 @@ func revive(pos: Vector3) -> void:
 	Game.stats_changed.emit()
 
 
+# ------------------------------------------------------------ coleta (F)
+## F perto de um veio/árvore: confere profissão e ferramenta e começa a bater (GatherAction); senão avisa o motivo.
+func start_gather(node: Node3D) -> void:
+	if dead or remote or attacking or dodge_timer > 0 or ability != "" or not is_on_floor():
+		return
+	var plan: Dictionary = node.gather_plan()
+	if not plan.ok:
+		Game.notify.emit(plan.msg, CharRules.C_BAD)
+		return
+	_cancel_draw()
+	aiming = false
+	GatherAction.start(self, node, plan)
+
+
+## Refaz o visual do equipamento agora (a ferramenta da coleta entrou ou saiu da mão).
+func refresh_look() -> void:
+	if not remote and is_inside_tree():
+		_update_equipment_visual()
+
+
 # ------------------------------------------------------------ interação
 func _find_interact_target() -> void:
 	var best: Node3D = null
@@ -1542,6 +1570,8 @@ var _slash_el := ""         ## elemento do encantamento da arma: dá a cor do co
 
 func _update_equipment_visual() -> void:
 	var l: Dictionary = Game.equipment.duplicate()
+	if gather_tool != "":
+		l["weapon"] = gather_tool   # coletando: a picareta/machado no lugar da arma (as réplicas veem pelo look)
 	l["body"] = Game.body   # o servidor troca pelo corpo gravado; aqui troca o modelo local na hora
 	l["fx"] = _vfx_state()   # auras e encanto vão junto com o visual (os outros jogadores veem)
 	if l == _last_look:
@@ -2010,7 +2040,7 @@ func _vfx_state() -> Dictionary:
 	for st in BuffAura.STYLES:     # ordem fixa: o mesmo conjunto dá sempre o mesmo dicionário
 		if want.has(st):
 			auras.append(st)
-	var e := Game.weapon_enchant()
+	var e := Game.weapon_enchant() if gather_tool == "" else {"el": "", "lv": 0}   # ferramenta não brilha
 	return {"auras": auras, "en": e.el, "lv": e.lv}
 
 

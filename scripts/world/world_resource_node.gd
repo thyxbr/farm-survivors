@@ -1,9 +1,10 @@
 class_name WorldResourceNode
 extends Node3D
-## Veio de ferro ou cristal arcano de Valdoria (materiais do encantamento). Cada jogador tem os seus veios,
-## como o saque pessoal. O ataque normal do jogador acerta os nós do grupo `harvest` (nunca `enemies`).
-## Os golpes são contados aqui; no último o nó some e pede a coleta ao Econ (solo: concede na hora;
-## online: o servidor confere distância e tempo de volta, ver WorldHarvest).
+## Veio de minério/cristal ou árvore de coleta de Valdoria. Cada jogador tem os seus nós, como o saque pessoal.
+## O jogador chega perto e aperta F (GatherAction): saca a picareta ou o machado e bate sozinho até o nó ceder.
+## Cada golpe soma a força da ferramenta × maestria (GatherRules) até passar a resistência `tough`; aí o nó some
+## e pede a coleta ao Econ (solo: concede na hora; online: o servidor confere distância, tempo de volta e a
+## ferramenta na mochila, ver WorldHarvest e CharRules.gather).
 
 const ROCK := preload("res://assets/models/rock.glb")
 
@@ -12,17 +13,21 @@ var node_id := 0
 ## Visual: "iron" (rocha com veios), "ore" (rocha na cor `tint`), "crystal" ou um modelo de árvore ("tree_pine"...).
 var kind := "iron"
 var tint := Color(0.55, 0.3, 0.2)
-## Profissão de coleta e o nível dela que o nó pede (sem nível, os golpes não contam e avisa).
+## Item que o nó dá (o nome aparece no aviso de F).
+var item := ""
+## Profissão de coleta e o nível dela que o nó pede (sem nível, F só avisa).
 var prof := ""
 var level := 1
 var yaw := 0.0
 var size := 1.1
-## Raio da colisão (já com a escala); o golpe do jogador usa o mesmo raio.
+## Raio da colisão (já com a escala); F alcança a partir dessa borda.
 var radius := 0.75
-## Golpes para quebrar e segundos para voltar (da tabela).
-var hits := 5
+## Resistência aos golpes, nível mínimo de ferramenta e segundos para voltar (da tabela).
+var tough := 6.0
+var tier := 1
 var respawn := 180.0
-var hits_left := 0
+## Força já somada dos golpes (0..tough). Fica guardada se o jogador parar no meio; zera quando o nó volta.
+var progress := 0.0
 var alive := true
 
 var _shape: CollisionShape3D
@@ -36,18 +41,21 @@ static func from_def(def: Dictionary) -> WorldResourceNode:
 	n.node_id = int(def.id)
 	n.kind = str(def.model)
 	n.tint = def.get("tint", n.tint)
+	n.item = str(def.get("item", ""))
 	n.prof = str(def.get("prof", ""))
 	n.level = int(def.get("level", 1))
 	n.yaw = float(def.id) * 1.7
-	n.hits = int(def.hits)
+	n.tough = float(def.get("tough", 6.0))
+	n.tier = int(def.get("tier", 1))
 	n.respawn = float(def.respawn)
 	n.position = def.pos
+	if n.is_tree():
+		n.radius = 0.45   # só o tronco bloqueia: o machado alcança de perto
 	return n
 
 
 func _ready() -> void:
 	add_to_group("harvest")
-	hits_left = hits
 	var body := StaticBody3D.new()
 	body.collision_mask = 0
 	_shape = CollisionShape3D.new()
@@ -62,20 +70,80 @@ func _ready() -> void:
 		_build_visual()
 
 
-func hit(from: Vector3) -> void:
-	if not alive:
-		return
+func is_tree() -> bool:
+	return kind.begins_with("tree_")
+
+
+## Raio do tronco de cada modelo de árvore (m, sem a escala; medido nos GLBs na altura do golpe). Pinheiro e abeto
+## têm galhos até o chão: o tronco por dentro tem uns 0,22.
+const TRUNK := {"tree_pine": 0.22, "tree_fir": 0.22, "tree_oak": 0.3, "tree_birch": 0.16, "tree_maple": 0.28}
+
+
+## Distância do centro do nó em que o jogador para para bater: árvore = a ponta do machado no impacto
+## (GatherAction.CHOP_REACH) encostando na casca; pedra = STAND da borda da colisão.
+func stand_distance() -> float:
+	if is_tree():
+		return GatherAction.chop_target(float(TRUNK.get(kind, 0.24)) * size).length()
+	return radius + GatherAction.STAND
+
+
+## Verbo do aviso de F: "Cortar" árvore, "Minerar" o resto.
+func verb() -> String:
+	return "Cortar" if is_tree() else "Minerar"
+
+
+## Nome do que sai do nó ("Minério de Ferro").
+func item_name() -> String:
+	return str(ItemDB.get_item(item).get("name", item))
+
+
+## Distância do jogador até a borda do nó (o aviso de F e o alcance usam a mesma medida).
+func edge_distance(from: Vector3) -> float:
+	var to := global_position - from
+	to.y = 0.0
+	return maxf(0.0, to.length() - radius)
+
+
+## Pode coletar agora? Confere profissão e ferramenta do jogador local (o servidor confere de novo).
+## {"ok", "msg", "tool", "power", "swing", "strikes"}: a melhor ferramenta do tipo, a força de cada golpe com a
+## maestria, os segundos de cada golpe e quantos golpes ainda faltam.
+func gather_plan() -> Dictionary:
+	var out := {"ok": false, "msg": "", "tool": "", "power": 0.0, "swing": 1.0, "strikes": 0}
 	if prof != "" and Game.prof_level(prof) < level:
-		_shake(from)
-		Game.notify.emit("Precisa de %s nível %d." % [Game.prof_name(prof), level], CharRules.C_BAD)
-		return
-	hits_left -= 1
+		out.msg = "Precisa de %s nível %d." % [Game.prof_name(prof), level]
+		return out
+	var kind_t := GatherRules.tool_kind(prof)
+	var tool := GatherRules.best_tool(ItemDB.ITEMS, Game.inventory, kind_t)
+	var ok := GatherRules.check(ItemDB.ITEMS, tool, kind_t, tier)
+	if not ok.ok:
+		out.msg = GatherRules.refusal_text(ItemDB.ITEMS, ok.err, kind_t, tier)
+		return out
+	var mastery := Game.prof_level(prof) if prof != "" else 1
+	out.ok = true
+	out.tool = tool
+	out.power = GatherRules.hit_power(ItemDB.ITEMS, tool, mastery)
+	out.swing = GatherRules.swing_time(GatherRules.tier(ItemDB.ITEMS, tool), mastery)
+	out.strikes = GatherRules.strikes(tough - progress, out.power)
+	return out
+
+
+## Fração da resistência já vencida (0..1), para a barra de progresso.
+func ratio() -> float:
+	return clampf(progress / maxf(tough, 0.001), 0.0, 1.0)
+
+
+## Um golpe de ferramenta com força `power` vindo de `from`. Devolve true quando o nó cedeu (e pediu a coleta).
+func strike(from: Vector3, power: float) -> bool:
+	if not alive or power <= 0.0:
+		return false
+	progress = minf(tough, progress + power)
 	_shake(from)
-	if hits_left > 0:
-		return
+	if progress < tough - 0.0001:
+		return false
 	set_alive(false)
 	Econ.gather_node(node_id, from)
 	get_tree().create_timer(respawn).timeout.connect(_restore)
+	return true
 
 
 func _restore() -> void:
@@ -91,7 +159,7 @@ func set_alive(on: bool) -> void:
 	if _shape:
 		_shape.set_deferred("disabled", not on)
 	if on:
-		hits_left = hits
+		progress = 0.0
 	if _visual == null:
 		return
 	if _tween and _tween.is_valid():
@@ -113,7 +181,7 @@ func set_alive(on: bool) -> void:
 func _shake(from: Vector3) -> void:
 	if _visual == null:
 		return
-	Sfx.play_at("chop_wood" if kind.begins_with("tree_") else "chop_stone", global_position, 0.15, -4.0)
+	Sfx.play_at("chop_wood" if is_tree() else "chop_stone", global_position, 0.15, -4.0)
 	FX.burst(global_position + Vector3.UP * 1.0, _burst_color(), 8, 3.0, 0.08, 0.4)
 	if _tween and _tween.is_valid():
 		return
