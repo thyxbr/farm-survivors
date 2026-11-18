@@ -239,6 +239,18 @@ pergaminho `scroll_<receita>`, que cai dos chefes). Regras do catálogo de hoje:
 bônus e preço). O item sai com sufixo (`iron_sword@fina`); as variantes são geradas sozinhas a partir do item base
 (não edite `@` no items.json) e não caem de monstro. O encanto da arma vale para todas as qualidades dela.
 
+**Bônus de ofício** (`progression.json` `craft_affix`): equipamento fabricado das raridades em `rarities` (raro,
+épico, lendário) sai sempre com um bônus sorteado por igual entre os `affixes`. Valor = `base + per_level × nível da
+receita` (atributos: 1 + 0,06/nível, ou seja +2 no 17 e +3 no 35; crítico e velocidade 2% + 0,05%/nível; vida
+10 + 1/nível; roubo de vida 1% + 0,03%/nível); a qualidade multiplica o bônus junto com o resto e o preço sobe
+`price_mult` (1,25×). O bônus vai no id depois da qualidade (`knight_blade@fina~urso`) e as variantes são geradas
+sozinhas. Faixa segura: bônus de atributo até metade do maior atributo do item base.
+
+**Falha** (`progression.json` `craft_fail`): só equipamento falha. `chance` por raridade (comum 0, incomum 5%,
+raro 15%, épico 25%, lendário 35%), menos `per_level` (1 ponto) por nível da profissão acima da receita, nunca
+abaixo de `floor` (40%) da chance da raridade. Na falha o ouro é gasto, volta `refund` (metade) de cada material
+(a unidade ímpar volta em metade das vezes) e a XP vale `xp_mult` (0,5), sem bônus de primeira vez.
+
 **Couro no loot** (`progression.json` `tier_drop`): `chance` 15% por monstro do mundo com nível (1 couro da camada;
 `elite_qty` 2, `boss_qty` 3). Para caber na meta de 0,5–0,8 item por morte, as partes comuns caíram: gosma e
 garra 40%, orelha e osso 55%, seda, língua e asa 45%.
