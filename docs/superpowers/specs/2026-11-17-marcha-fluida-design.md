@@ -39,3 +39,12 @@ Ataques, parado, esquiva, dividir o tronco em coluna/pescoço, pele contínua no
 - Teste unitário novo mede: giro da cabeça no mundo, sentido do quadril, escorregão lateral do pé de apoio,
   mão cruzando, e pose intacta com `move = 0`.
 - Testes do projeto; por fim o Henrique julga no jogo, um ajuste por rodada.
+
+## Segunda rodada (17/11): inclinação do corpo inteiro
+O Henrique testou e achou que ele ainda corre "com a coluna reta e mal inclina". Causa: 4,6° de inclinação na
+velocidade normal, aplicada só na cintura. Feito nesta rodada (caminho A, só código): inclinação de ~11° no
+andar normal e ~17° correndo, vinda de `KnightAnim.locomotion_pose` (a ferramenta de passada passa a mostrá-la);
+o apoio recua em relação ao quadril (`STANCE_BACK`: o pé pousa mais embaixo do corpo e empurra atrás); o tronco
+mergulha um pouco a cada apoio (`LEAN_PULSE`); a cabeça desfaz 60% (`HEAD_LEAN`). `player.gd` fica só com a
+parte da aceleração. Fica para depois (caminho B): dividir o tronco em quadril/peito/pescoço nos modelos, com a
+inclinação repartida pela coluna; é o que resolve a "coluna reta".

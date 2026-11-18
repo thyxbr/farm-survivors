@@ -81,11 +81,16 @@ const WEIGHT_SHIFT_RUN := 0.006
 const FOREARM_LAG := 0.35         ## o antebraço chega depois do braço (rad de fase)
 const ARM_CROSS_WALK := 0.08      ## o braço que vai à frente fecha para dentro do corpo (rad)
 const ARM_CROSS_RUN := 0.14
-const LEAN_WALK := 0.08           ## inclinação do tronco para a frente andando (rad)
-const LEAN_RUN := 0.22            ## e correndo
-const LEAN_ACCEL := 0.01          ## por m/s² de aceleração para a frente
-const LEAN_MIN := -0.12
-const LEAN_MAX := 0.3
+const LEAN_WALK := 0.19           ## inclinação do corpo para a frente na velocidade normal (rad, ~11°)
+const LEAN_RUN := 0.3             ## e correndo (~17°)
+const LEAN_PULSE := 0.04          ## a cada passada o tronco mergulha este tanto ao amortecer e volta no impulso (rad)
+const HEAD_LEAN := 0.6            ## quanto da inclinação a cabeça desfaz (continua olhando para a frente)
+## Inclinado, o corpo vai à frente dos pés: o apoio inteiro recua esta fração de perna * sen(inclinação). O pé
+## pousa mais embaixo do corpo e empurra mais atrás, como numa corrida, em vez de bater lá na frente.
+const STANCE_BACK := 0.3
+const LEAN_ACCEL := 0.01          ## inclinação extra por m/s² de aceleração para a frente (soma em player.gd)
+const LEAN_MIN := -0.12           ## limites dessa parte da aceleração (freando / arrancando)
+const LEAN_ACCEL_MAX := 0.1
 const MAX_CADENCE := 26.0         ## limite da fase (rad/s), só para velocidades fora do normal
 const MIN_STRIDE := 0.12          ## meio passo mínimo (m) usado no cálculo da cadência
 ## A pose do ciclo já é suave: a suavização de apply() só serve para as trocas de pose. Aplicada a um
@@ -359,6 +364,9 @@ static func locomotion_pose(r: Dictionary, phase: float, move: float, run: float
 	# o quadril gira (hip_twist) em torno do pivô Pelvis: cada articulação da coxa vai um pouco para a frente
 	# ou para trás (dz). O tornozelo tem de ficar `d` atrás do quadril no chão, então `d` leva esse deslocamento.
 	var ht := -lerpf(PELVIS_TWIST_WALK, PELVIS_TWIST_RUN, run) * move * cos(phase)
+	# inclinado para a frente, o apoio inteiro fica mais atrás do quadril (veja STANCE_BACK)
+	var lean := speed_lean(move, run)
+	var back := STANCE_BACK * leg_length(r) * sin(lean) * amt
 	for side in [["l", 0.0], ["r", PI]]:
 		var u := fposmod(phase + float(side[1]), TAU) / TAU
 		var hip: Vector3 = r["Leg" + String(side[0]).to_upper()].position
@@ -381,7 +389,7 @@ static func locomotion_pose(r: Dictionary, phase: float, move: float, run: float
 			var free := shin + lerpf(ANKLE_WALK_SWING, ANKLE_RUN_SWING, st)
 			foot = lerpf(foot_off, free, smoothstep(0.0, FOOT_RELEASE, w))
 			foot = lerpf(foot, foot_on, smoothstep(FOOT_PREPARE, 1.0, w))
-		d += hip_dz
+		d += hip_dz + back
 		p["knee_" + side[0]] = knee
 		p["leg_" + side[0]] = thigh_for(r, d, knee)
 		p["foot_" + side[0]] = foot if u < duty else foot * amt
@@ -414,10 +422,20 @@ static func locomotion_pose(r: Dictionary, phase: float, move: float, run: float
 	p.body_z = -HIP_DROP * move * sin(phase)
 	# e a pelve passa para o lado dessa perna
 	p.body_shift = lerpf(WEIGHT_SHIFT_WALK, WEIGHT_SHIFT_RUN, run) * move * sin(phase)
+	# o corpo cai para a frente com a velocidade e mergulha um pouco mais a cada apoio
+	p.body_x = lean + LEAN_PULSE * move * bounce
+	p.head_x = -HEAD_LEAN * p.body_x
 	# a cabeça desfaz quase todo o giro e a inclinação do tronco: o olhar fica estável
 	p.head_y = -HEAD_STEADY * p.twist
-	p.head_z = -HEAD_STEADY * p.body_z
+	# com o tronco inclinado, o giro da cabeça é em torno de um eixo deitado e a tombaria de lado: o termo
+	# com sin() desfaz esse tombo
+	p.head_z = -HEAD_STEADY * p.body_z - p.head_y * sin(p.body_x)
 	return p
+
+
+## Inclinação do corpo para a frente (rad) pela velocidade: `move` 0..1 do andar normal, `run` 0..1 correndo.
+static func speed_lean(move: float, run: float) -> float:
+	return lerpf(LEAN_WALK, LEAN_RUN, run) * clampf(move, 0.0, 1.0)
 
 
 ## Inclinação do pé de apoio no ponto u do ciclo. g = [r, duty, estilo, meio passo, amt, chaves do pé].

@@ -1765,7 +1765,8 @@ func _animate(delta: float) -> void:
 	# a fase avança pela distância percorrida: meia volta = uma passada, então o pé não desliza
 	anim_t += delta * KnightAnim.cadence(parts, hspeed, _amp, _run)
 
-	# inclinação para a frente com a velocidade e a aceleração; para o lado nas curvas
+	# inclinação extra para a frente ao arrancar (e para trás ao frear); a da velocidade vem de
+	# KnightAnim.locomotion_pose. Para o lado nas curvas.
 	var fwd := Vector3(sin(model.rotation.y), 0, cos(model.rotation.y))
 	var accel := (hvel - _prev_hvel) / maxf(delta, 0.001)
 	_prev_hvel = hvel
@@ -1773,8 +1774,7 @@ func _animate(delta: float) -> void:
 		accel = Vector3.ZERO   # a velocidade da réplica muda aos saltos (pacotes): só a local dá aceleração confiável
 	var lean_t := 0.0
 	if on_floor:
-		lean_t = clampf(lerpf(KnightAnim.LEAN_WALK, KnightAnim.LEAN_RUN, _run) * clampf(hspeed / WALK_SPEED, 0.0, 1.0)
-			+ accel.dot(fwd) * KnightAnim.LEAN_ACCEL, KnightAnim.LEAN_MIN, KnightAnim.LEAN_MAX)
+		lean_t = clampf(accel.dot(fwd) * KnightAnim.LEAN_ACCEL, KnightAnim.LEAN_MIN, KnightAnim.LEAN_ACCEL_MAX)
 	_lean = lerpf(_lean, lean_t, 1.0 - exp(-8.0 * delta))
 	var yaw_rate := wrapf(model.rotation.y - _prev_yaw, -PI, PI) / maxf(delta, 0.001)
 	_prev_yaw = model.rotation.y

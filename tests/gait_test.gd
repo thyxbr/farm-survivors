@@ -36,6 +36,10 @@ func _ready() -> void:
 	_stance_foot_no_back_slip(2.5, 0.0)
 	_stance_foot_no_back_slip(7.5, 1.0)
 	_bow_draw_eases_hips()
+	_leans_with_speed(1.0, 0.0, 0.15)
+	_leans_with_speed(1.0, 1.0, 0.25)
+	_foot_lands_under_body(1.0, 0.0)
+	_foot_lands_under_body(1.0, 1.0)
 	print("gait_test: ", "OK" if fails == 0 else "%d falhas" % fails)
 	get_tree().quit(0 if fails == 0 else 1)
 
@@ -299,3 +303,51 @@ func _bow_draw_eases_hips() -> void:
 	check(absf(first - before) < 0.12 and absf(after - before) >= 0.15, "bow_draw_eases_hips",
 		"salto no 1o quadro %.4f rad (limite 0.12), total em 0,5 s %.4f rad (mínimo 0.15)" % [
 			absf(first - before), absf(after - before)])
+
+
+func _pitch(n: Node3D) -> float:
+	return n.global_basis.get_euler(EULER_ORDER_YXZ).x
+
+
+## O tronco cai para a frente com a velocidade (média do ciclo >= `least` rad), mergulha e volta a cada
+## passada, e a cabeça desfaz pelo menos metade disso (continua olhando para a frente).
+func _leans_with_speed(move: float, run: float, least: float) -> void:
+	var model := (load("res://assets/models/knight.glb") as PackedScene).instantiate() as Node3D
+	add_child(model)
+	var r := KnightAnim.rig(model)
+	var body := 0.0
+	var head := 0.0
+	var lo := INF
+	var hi := -INF
+	for i in N:
+		var p := KnightAnim.locomotion_pose(r, TAU * i / N, move, run)
+		KnightAnim.apply(r, p, 1.0)
+		KnightAnim.apply(r, p, 1.0)
+		var b := _pitch(r.Body)
+		body += b / N
+		head += _pitch(r.Head) / N
+		lo = minf(lo, b)
+		hi = maxf(hi, b)
+	model.queue_free()
+	check(body >= least and head <= 0.5 * body and hi - lo >= 0.02, "leans_with_speed (move %.1f run %.1f)" % [move, run],
+		"tronco %.3f rad (mín. %.2f), cabeça %.3f, pulso %.3f" % [body, least, head, hi - lo])
+
+
+## Inclinado, o pé pousa mais perto de baixo do quadril do que sai: a distância à frente no contato é pelo
+## menos 0,04 m menor que a distância atrás na saída.
+func _foot_lands_under_body(move: float, run: float) -> void:
+	var model := (load("res://assets/models/knight.glb") as PackedScene).instantiate() as Node3D
+	add_child(model)
+	var r := KnightAnim.rig(model)
+	var duty := KnightAnim.gait_duty(move, run)
+	var z: Array = []
+	for u in [0.0, duty - 0.001]:
+		var p := KnightAnim.locomotion_pose(r, TAU * u, move, run)
+		KnightAnim.apply(r, p, 1.0)
+		KnightAnim.apply(r, p, 1.0)
+		z.append(r.AnkleL.global_position.z - r.LegL.global_position.z)
+	model.queue_free()
+	var front: float = z[0]      # > 0: tornozelo à frente do quadril no contato
+	var behind: float = -z[1]    # > 0: atrás na saída
+	check(front > 0.0 and behind - front >= 0.04, "foot_lands_under_body (move %.1f run %.1f)" % [move, run],
+		"à frente %.3f m, atrás %.3f m" % [front, behind])
