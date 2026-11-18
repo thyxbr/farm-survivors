@@ -284,7 +284,7 @@ aldeões e os NPCs de cabeça lisa.
   48°. A sombra assada saía por canto de face e formava um xadrez: `bake_ao` agora faz a média por vértice.
   Cavaleiro de placas e NPCs passam pelo mesmo `g_smooth`. Monstros não.
 
-### Dos penteados do herói (0.49.0)
+### Dos penteados do herói (0.50.0)
 
 - **O cabelo é um equipamento à parte.** Os estilos de cabeça (`h_*`) saem sem cabelo; cada penteado
   (`HairStyles`, 4 por corpo, escolhido na criação) é `gear/hair_<id>.glb`, vestido por `KnightLook.apply`.
