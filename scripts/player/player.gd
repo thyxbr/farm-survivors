@@ -1456,20 +1456,37 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 		_die()
 
 
+## Camada que cada peça tinha antes do clarão de dano (brilho do encantamento, contorno da aura, neve):
+## o clarão devolve a mesma camada ao acabar em vez de apagar tudo.
+var _flash_prev := {}       # MeshInstance3D -> Material (ou null)
+var _flash_over: Material
+
+
 func _flash() -> void:
 	var over := StandardMaterial3D.new()
 	over.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	over.albedo_color = Color(1, 0.2, 0.2, 0.5)
 	over.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_clear_flash()
+	_flash_over = over
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		if mi.has_meta("enchant_skip_overlay"):
+			continue
+		_flash_prev[mi] = mi.material_overlay
 		mi.material_overlay = over
-	get_tree().create_timer(0.12).timeout.connect(_clear_flash)
+	get_tree().create_timer(0.12).timeout.connect(_clear_flash.bind(over))
 
 
-func _clear_flash() -> void:
-	if is_instance_valid(model):
-		for mi in model.find_children("*", "MeshInstance3D", true, false):
-			mi.material_overlay = null
+## `of` = o clarão que marcou este fim (um clarão mais novo não é desfeito pelo relógio do anterior).
+func _clear_flash(of: Material = null) -> void:
+	if of != null and of != _flash_over:
+		return
+	for mi in _flash_prev:
+		# só devolve se a peça ainda está com o clarão: quem trocou a camada no meio (encanto novo) fica
+		if is_instance_valid(mi) and mi.material_overlay == _flash_over:
+			mi.material_overlay = _flash_prev[mi]
+	_flash_prev.clear()
+	_flash_over = null
 
 
 func _die() -> void:
