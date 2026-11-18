@@ -1026,8 +1026,7 @@
 		"pants": {
 			"$c": [0.22, 0.2, 0.2, 1.0]
 		},
-		"style": "a_surcoat",
-		"cape": true,
+		"style": "a_whiteknight",
 		"stats": {
 			"vit": 2,
 			"str": 2
