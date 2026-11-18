@@ -20,6 +20,8 @@ var weapon_override := ""
 var body_override := ""
 var hair_override := ""     ## penteado mostrado com body_override (tela de criação)
 var cam: Camera3D
+## Sem o equipamento do personagem (miniaturas de penteado: elmo e capuz esconderiam o cabelo).
+var bare := false
 ## Modo retrato (miniaturas de penteado): câmera fechada no rosto, sem balançar.
 var _face := false
 ## Quadros que ainda renderiza antes de congelar (freeze_after); -1 = renderiza sempre.
@@ -98,6 +100,9 @@ func refresh() -> void:
 		_rig = KnightAnim.rig(model)
 	if model:
 		var eq: Dictionary = Game.equipment.duplicate()
+		if bare:
+			for k in eq:
+				eq[k] = ""
 		eq["hair"] = hair_override if body_override != "" else Game.hair
 		if weapon_override != "":
 			eq["weapon"] = weapon_override

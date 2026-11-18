@@ -203,7 +203,7 @@ func _build_stage() -> Control:
 	look.add_child(sex)
 	var bg := ButtonGroup.new()
 	for b in [["m", "Masculino"], ["f", "Feminino"]]:
-		var btn := UITheme.button(b[1], select_body.bind(b[0]))
+		var btn := UITheme.button(b[1], _on_body_button.bind(b[0]))
 		btn.toggle_mode = true
 		btn.button_group = bg
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -449,6 +449,12 @@ func select_body(b: String) -> void:
 	if preview:
 		preview.show_body(b)   # a prévia troca para o corpo escolhido na hora
 	select_hair(HairStyles.default_for(b))   # trocar o corpo volta ao penteado padrão dele
+
+
+## Clique no sexo: o já escolhido não refaz nada (o grupo emite pressed de novo e perderia o penteado).
+func _on_body_button(b: String) -> void:
+	if b != body:
+		select_body(b)
 
 
 func select_hair(h: String) -> void:

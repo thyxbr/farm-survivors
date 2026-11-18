@@ -3634,6 +3634,17 @@ func _test_char_create() -> void:
 		and cc.hair_picker.buttons[cc.hair].button_pressed, "Feminino: miniaturas do corpo feminino, padrão marcado (%s)" % [f_ids])
 	cc.hair_picker.buttons["f_marias"].emit_signal("pressed")
 	check(cc.hair == "f_marias" and cc.preview.hair_override == "f_marias", "miniatura troca o cabelo do herói")
+	cc.body_buttons["f"].emit_signal("pressed")   # clicar de novo no sexo já escolhido
+	check(cc.hair == "f_marias", "clicar no sexo já escolhido não perde o penteado (%s)" % cc.hair)
+	var head_before: String = Game.equipment.get("head", "")
+	Game.equipment["head"] = "guard_greathelm"   # elmo fechado esconde o cabelo no jogo
+	cc.select_body("m")
+	cc.select_body("f")
+	await wait(0.1)
+	var thumb: CharPreview = cc.hair_picker.buttons["f_longo"].find_children("*", "CharPreview", true, false)[0]
+	check(thumb.model.find_child("Gear_HairLong", true, false) != null,
+		"miniatura mostra o penteado sem o elmo equipado")
+	Game.equipment["head"] = head_before
 	for i in 3:   # trocar de corpo várias vezes não deixa miniatura sobrando
 		cc.select_body("m")
 		cc.select_body("f")

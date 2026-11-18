@@ -43,6 +43,7 @@ func set_body(body: String) -> void:
 		b.add_child(v)
 		var p := CharPreview.new(Vector2(THUMB, THUMB))
 		p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		p.bare = true
 		p.show_body(body)
 		p.show_hair(id)
 		p.frame_face()
