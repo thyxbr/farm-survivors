@@ -2,7 +2,7 @@ extends Node3D
 ## Foto de vários cavaleiros lado a lado, cada um vestido com um conjunto de equipamento (KnightLook),
 ## com a luz do jogo. Serve para conferir roupas e armaduras (assets/models/gear/*.glb) sem abrir o jogo.
 ## Precisa de janela (sem --headless) e do --import feito antes:
-##   godot --path . --resolution 1800x900 res://tools/look_shot.tscn -- <saida.png> [conjunto] [3q|back|close|torso|legs|hands] [run]
+##   godot --path . --resolution 1800x900 res://tools/look_shot.tscn -- <saida.png> [conjunto] [3q|back|side|close|head|bust|waist|torso|legs|hands] [run|arms]
 ## run = pose de corrida no meio da passada.
 ## conjunto: "leves", "pesados", "todos" (padrão) ou ids separados por vírgula num só personagem;
 ## "cada:id1,id2,..." põe um personagem por id (para comparar armas lado a lado).
@@ -55,12 +55,19 @@ func _ready() -> void:
 		yaw = -35.0
 	elif "back" in args:
 		yaw = 180.0
+	elif "side" in args:
+		yaw = -90.0
 	for i in looks.size():
 		var m := KNIGHT.instantiate() as Node3D
 		add_child(m)
 		m.position = Vector3((i - (looks.size() - 1) / 2.0) * 0.95, 0, 0)
 		m.rotation_degrees.y = yaw
 		KnightLook.apply(m, looks[i])
+		if "arms" in args:     # braços abertos e levantados: confere ombros e mangas
+			for side in [["ArmL", -1.0], ["ArmR", 1.0]]:
+				var arm := m.find_child(side[0], true, false) as Node3D
+				if arm:
+					arm.rotation_degrees.z = 75.0 * side[1]
 		if "run" in args:      # meio da passada de corrida: confere saias e mangas com as pernas abertas
 			var r := KnightAnim.rig(m)
 			KnightAnim.apply(r, KnightAnim.locomotion_pose(r, 0.25, 1.0, 1.0), 1.0)
@@ -78,6 +85,15 @@ func _ready() -> void:
 	elif "torso" in args:
 		cam.size = 1.25
 		cam.position = Vector3(0, 1.08, 4.0)
+	elif "head" in args:      # chapéu ou elmo inteiro, com aba, ponta e pingentes
+		cam.size = 1.0
+		cam.position = Vector3(0, 1.8, 4.0)
+	elif "bust" in args:      # do chapéu à cintura: gola, ombros e peito
+		cam.size = 1.25
+		cam.position = Vector3(0, 1.55, 4.0)
+	elif "waist" in args:     # do peito ao joelho: tronco, faixa e o que pende dela
+		cam.size = 1.0
+		cam.position = Vector3(0, 0.95, 4.0)
 	elif "close" in args:
 		cam.size = 0.75
 		cam.position = Vector3(0, 1.5, 4.0)
