@@ -27,7 +27,7 @@ const CHAR_CREATE_SCENE := "res://scenes/char_create.tscn"
 
 var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "music_volume": 0.45, "sfx_volume": 0.9,
 	"ambience_volume": 0.7, "fullscreen": false, "invert_y": false,
-	"player_name": "", "server_address": "", "toon": true, "toon_outline": true}
+	"player_name": "", "server_address": "", "keep_logged": true, "toon": true, "toon_outline": true}
 
 # ---- espelho do personagem (escrito só por apply_state)
 var level := 1
@@ -409,6 +409,25 @@ func go_to_menu() -> void:
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	Loading.go(MENU_SCENE)
+
+
+## Online: volta à seleção de personagem sem passar pelo menu nem pelo login (salva, reconecta com o
+## mesmo token e a fogueira abre com a lista que o servidor mandar). Fora do online vai ao menu.
+func go_to_char_select() -> void:
+	if not Network.is_client():
+		go_to_menu()
+		return
+	Network.autosave()
+	reset_run_mods()
+	get_tree().paused = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if not Network.rejoin():
+		Network.last_error = "Não deu para voltar à seleção de personagem. Entre de novo."
+		Loading.go(MENU_SCENE)
+		return
+	# a seleção abre vazia sob a tela de carregamento; a lista chega em seguida (char_list_changed).
+	# Se a conexão falhar, a própria seleção volta ao menu com o aviso (char_select._on_lost).
+	Loading.go(Network.CHAR_SELECT_SCENE)
 
 
 # ---------------------------------------------------------------- bônus da horda
