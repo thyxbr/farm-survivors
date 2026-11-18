@@ -59,24 +59,47 @@ const ANKLE_WALK_SWING := -0.28
 const ANKLE_RUN_SWING := 0.35
 const FOOT_RELEASE := 0.35        ## fração do balanço em que o pé passa da saída para a pose solta
 const FOOT_PREPARE := 0.6         ## a partir daqui se prepara para tocar o chão
-const FLIGHT_LIFT_JOG := 0.035    ## quanto o corpo sobe na fase de voo (m)
-const FLIGHT_LIFT_RUN := 0.07
+const FLIGHT_LIFT_JOG := 0.05     ## quanto o corpo sobe na fase de voo (m)
+const FLIGHT_LIFT_RUN := 0.09
 const ARM_SWING_WALK := 0.5       ## balanço dos braços (rad)
 const ARM_SWING_RUN := 0.85
 const ARM_LAG := 0.25             ## os braços vêm um pouco depois das pernas (rad de fase)
 const ELBOW_WALK := -0.55         ## cotovelo médio no andar normal (trote)
 const ELBOW_RUN := -1.25          ## e correndo (braço de corredor)
 const ELBOW_SWING := -0.35        ## dobra extra quando o braço vai à frente
-const BODY_BOUNCE_WALK := 0.012   ## o tronco amortece no meio de cada apoio (m), além do que as pernas dão
-const BODY_BOUNCE_RUN := 0.022
-const TORSO_TWIST_WALK := 0.1     ## ombros giram contra o quadril (rad)
-const TORSO_TWIST_RUN := 0.15
-const HIP_DROP := 0.04            ## o quadril pende para o lado da perna de apoio (rad)
-const LEAN_WALK := 0.08           ## inclinação do tronco para a frente andando (rad)
-const LEAN_RUN := 0.22            ## e correndo
-const LEAN_ACCEL := 0.01          ## por m/s² de aceleração para a frente
-const LEAN_MIN := -0.12
-const LEAN_MAX := 0.3
+const BODY_BOUNCE_WALK := 0.025   ## o tronco amortece no meio de cada apoio (m), além do que as pernas dão
+const BODY_BOUNCE_RUN := 0.04
+const TORSO_TWIST_WALK := 0.22    ## ombros giram contra o quadril (rad)
+const TORSO_TWIST_RUN := 0.3
+const PELVIS_TWIST_WALK := 0.13   ## o quadril gira contra os ombros (rad); as pernas desfazem o giro (leg_yaw)
+const PELVIS_TWIST_RUN := 0.18
+const HEAD_STEADY := 0.85         ## quanto a cabeça desfaz do giro e da inclinação do tronco (0..1): olha para a frente
+const TORSO_LAG := 0.2            ## os ombros giram um pouco depois do quadril (rad de fase)
+const HIP_DROP := 0.07            ## o quadril pende para o lado da perna de apoio (rad)
+const WEIGHT_SHIFT_WALK := 0.035  ## a pelve vai para o lado da perna de apoio (m)
+const WEIGHT_SHIFT_RUN := 0.022
+const FOREARM_LAG := 0.35         ## o antebraço chega depois do braço (rad de fase)
+const ARM_CROSS_WALK := 0.08      ## o braço que vai à frente fecha para dentro do corpo (rad)
+const ARM_CROSS_RUN := 0.14
+const ARM_OUT_MOVE := 0.1         ## andando os braços se afastam do corpo este tanto (rad): cotovelos visíveis de trás
+const LEAN_WALK := 0.19           ## inclinação do corpo para a frente na velocidade normal (rad, ~11°)
+const LEAN_RUN := 0.3             ## e correndo (~17°)
+const LEAN_PULSE := 0.04          ## a cada passada o tronco mergulha este tanto ao amortecer e volta no impulso (rad)
+const HEAD_LEAN := 0.6            ## quanto da inclinação a cabeça desfaz (continua olhando para a frente)
+## Inclinado, o corpo vai à frente dos pés: o apoio inteiro recua esta fração de perna * sen(inclinação). O pé
+## pousa mais embaixo do corpo e empurra mais atrás, como numa corrida, em vez de bater lá na frente.
+const STANCE_BACK := 0.3
+## Coluna: o tronco tem dois pivôs, Body (quadril, cinto, saiote) e Chest (peito, ombros, braços e cabeça),
+## criado em ensure_chest(). A inclinação da corrida se reparte entre os dois (o peito cai mais que o quadril e
+## a cabeça volta: a coluna faz uma curva), os ombros giram no peito contra o quadril e ficam nivelados
+## enquanto o quadril pende sobre a perna de apoio.
+const CHEST_LEAN := 0.45          ## fração da inclinação que o peito faz (o resto é do quadril)
+const CHEST_LEVEL := 0.7          ## quanto o peito desfaz do pender do quadril (ombros nivelados)
+const CHEST_MIN_TOP := 0.12       ## peça rígida do tronco vai para o peito se sobe isto acima da cintura (m)
+const CHEST_DEFAULT_Y := 0.12     ## altura da cintura acima do pivô Body em modelos sem a malha Torso (m)
+const LEAN_ACCEL := 0.01          ## inclinação extra por m/s² de aceleração para a frente (soma em player.gd)
+const LEAN_MIN := -0.12           ## limites dessa parte da aceleração (freando / arrancando)
+const LEAN_ACCEL_MAX := 0.1
 const MAX_CADENCE := 26.0         ## limite da fase (rad/s), só para velocidades fora do normal
 const MIN_STRIDE := 0.12          ## meio passo mínimo (m) usado no cálculo da cadência
 ## A pose do ciclo já é suave: a suavização de apply() só serve para as trocas de pose. Aplicada a um
@@ -84,7 +107,7 @@ const MIN_STRIDE := 0.12          ## meio passo mínimo (m) usado no cálculo da
 ## então andando as articulações do ciclo seguem a pose este tanto mais rápido (veja follow_cycle).
 const CYCLE_FOLLOW := 8.0
 const CYCLE_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r", "foot_l", "foot_r", "body_y", "body_z", "twist",
-	"arm_l", "arm_r", "elbow_l", "elbow_r", "lift"]
+	"arm_l", "arm_r", "elbow_l", "elbow_r", "lift", "hip_twist", "leg_yaw", "head_y", "head_z", "body_shift"]
 
 # ------------------------------------------------------------------ ar e aterrissagem
 const AIR_KNEE_RISE := Vector2(0.95, 0.35)   ## joelhos (L, R) recolhidos subindo
@@ -118,7 +141,9 @@ const ROLL_SPIN_END := 0.8
 const ROLL_TUCK := {
 	"body_x": 0.75, "head_x": 0.7, "leg_l": -1.75, "leg_r": -1.55, "knee_l": 2.3, "knee_r": 2.2,
 	"arm_l": Vector3(-0.9, 0.0, 0.25), "arm_r": Vector3(-0.7, 0.0, -0.25), "elbow_l": -1.7, "elbow_r": -1.4,
-	"twist": 0.0, "hip_twist": 0.0, "body_y": 0.0, "body_z": 0.0, "body_shift": 0.0,
+	"twist": 0.0, "hip_twist": 0.0, "leg_yaw": 0.0, "body_y": 0.0, "body_z": 0.0, "body_shift": 0.0,
+	"chest_x": 0.0, "chest_y": 0.0, "chest_z": 0.0,
+	"head_y": 0.0, "head_z": 0.0,
 }
 ## Rolando, a arma aponta para trás e um pouco para cima (ângulo em torno do eixo X do modelo; 0 = para a
 ## frente, > 0 inclina para baixo): assim a lâmina, o cajado ou o arco não varrem o chão.
@@ -140,7 +165,7 @@ const DEATH_WEAPON_X := 1.5
 const ARM_IK_MAX_BEND := -2.5
 const LEG_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r", "foot_l", "foot_r"]
 const POSE_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r", "foot_l", "foot_r", "lift", "body_x", "body_y", "body_z", "body_shift",
-	"twist", "hip_twist", "roll", "head_x", "head_y", "arm_l", "arm_r", "elbow_l", "elbow_r", "wrist_l", "wrist_r", "ground"]
+	"twist", "hip_twist", "leg_yaw", "roll", "chest_x", "chest_y", "chest_z", "head_x", "head_y", "head_z", "arm_l", "arm_r", "elbow_l", "elbow_r", "wrist_l", "wrist_r", "ground"]
 
 
 ## Pivôs do modelo + medidas das pernas. Funciona com modelos antigos sem KneeX/ElbowX (ficam null).
@@ -149,6 +174,7 @@ static func rig(model: Node3D) -> Dictionary:
 	for n in ["LegL", "LegR", "KneeL", "KneeR", "AnkleL", "AnkleR", "ArmL", "ArmR", "ElbowL", "ElbowR", "Body", "Head"]:
 		r[n] = model.find_child(n, true, false)
 	r["Pelvis"] = _ensure_pelvis(r)
+	r["Chest"] = ensure_chest(model)
 	r["body_y"] = r.Body.position.y
 	r["body_x0"] = r.Body.position.x
 	r["twist"] = 0.0
@@ -273,6 +299,50 @@ static func _ensure_pelvis(r: Dictionary) -> Node3D:
 	return pelvis
 
 
+## Pivô do peito (Chest), filho de Body na altura da cintura: cabeça, braços, capa e as peças rígidas da parte
+## de cima do tronco passam para ele; quadril, cinto e saiote ficam em Body. Com ele a coluna dobra na cintura
+## (veja CHEST_LEAN). Criado aqui (e não no GLB) para valer em todo modelo e armadura; pode ser chamado de novo
+## depois de trocar as roupas (KnightLook.apply), para separar as peças novas. Devolve null sem o pivô Body.
+static func ensure_chest(model: Node3D) -> Node3D:
+	var body := model.find_child("Body", true, false) as Node3D
+	if body == null:
+		return null
+	var chest := body.get_node_or_null("Chest") as Node3D
+	if chest == null:
+		chest = Node3D.new()
+		chest.name = "Chest"
+		var y := CHEST_DEFAULT_Y
+		var torso := body.get_node_or_null("Torso") as MeshInstance3D
+		if torso and torso.mesh:
+			y = (torso.transform * torso.get_aabb()).position.y + 0.03   # um pouco acima da borda de baixo do tronco
+		chest.position = Vector3(0.0, y, 0.0)
+		body.add_child(chest)
+		chest.owner = body.owner
+	var inv := chest.transform.affine_inverse()
+	for c in body.get_children():
+		var n := c as Node3D
+		if n == null or n == chest:
+			continue
+		var up := false
+		if n is MeshInstance3D:
+			var mi := n as MeshInstance3D
+			up = mi.mesh != null and (mi.transform * mi.get_aabb()).end.y > chest.position.y + CHEST_MIN_TOP
+		else:
+			# pivôs (cabeça, braços), esqueleto da capa e suportes presos às costas
+			var named: bool = n.name in ["Head", "ArmL", "ArmR"] or String(n.name).begins_with("Cape")
+			up = named or n.position.y > chest.position.y + CHEST_MIN_TOP
+		if not up:
+			continue
+		var xf := inv * n.transform
+		var own := n.owner
+		n.owner = null
+		body.remove_child(n)
+		chest.add_child(n)
+		n.owner = own
+		n.transform = xf
+	return chest
+
+
 ## Comprimento da perna esticada (quadril ao tornozelo).
 static func leg_length(r: Dictionary) -> float:
 	return r.thigh + r.shin
@@ -282,7 +352,8 @@ static func leg_length(r: Dictionary) -> float:
 static func rest_pose() -> Dictionary:
 	return {"leg_l": 0.0, "leg_r": 0.0, "knee_l": 0.0, "knee_r": 0.0, "foot_l": 0.0, "foot_r": 0.0, "lift": 0.0,
 		"body_x": 0.0, "body_y": 0.0,
-		"body_z": 0.0, "body_shift": 0.0, "twist": 0.0, "hip_twist": 0.0, "roll": 0.0, "head_x": 0.0, "head_y": 0.0, "wrist_l": 0.0, "wrist_r": 0.0,
+		"body_z": 0.0, "body_shift": 0.0, "twist": 0.0, "hip_twist": 0.0, "leg_yaw": 0.0, "roll": 0.0, "chest_x": 0.0, "chest_y": 0.0, "chest_z": 0.0,
+		"head_x": 0.0, "head_y": 0.0, "head_z": 0.0, "wrist_l": 0.0, "wrist_r": 0.0,
 		"arm_l": Vector3(0, 0, IDLE_ARM_OUT), "arm_r": Vector3(IDLE_ARM_R_X, 0, -IDLE_ARM_OUT),
 		"elbow_l": IDLE_ELBOW, "elbow_r": IDLE_ELBOW, "ground": 1.0, "snap": [], "speed": {}}
 
@@ -346,8 +417,16 @@ static func locomotion_pose(r: Dictionary, phase: float, move: float, run: float
 	var foot_off := _stance_foot(g, duty - 0.0001)   # como o pé sai do chão (com a ponta rolando)
 	var foot_on := _curve(foot_keys, 0.0)
 	var bounce := 0.0
+	# o quadril gira (hip_twist) em torno do pivô Pelvis: cada articulação da coxa vai um pouco para a frente
+	# ou para trás (dz). O tornozelo tem de ficar `d` atrás do quadril no chão, então `d` leva esse deslocamento.
+	var ht := -lerpf(PELVIS_TWIST_WALK, PELVIS_TWIST_RUN, run) * move * cos(phase)
+	# inclinado para a frente, o apoio inteiro fica mais atrás do quadril (veja STANCE_BACK)
+	var lean := speed_lean(move, run)
+	var back := STANCE_BACK * leg_length(r) * sin(lean) * amt
 	for side in [["l", 0.0], ["r", PI]]:
 		var u := fposmod(phase + float(side[1]), TAU) / TAU
+		var hip: Vector3 = r["Leg" + String(side[0]).to_upper()].position
+		var hip_dz := -hip.x * sin(ht) + hip.z * (cos(ht) - 1.0)
 		var d: float      # tornozelo atrás do quadril (m); negativo = à frente
 		var knee := gait_knee(u, duty, st) * amt
 		var foot: float
@@ -366,6 +445,7 @@ static func locomotion_pose(r: Dictionary, phase: float, move: float, run: float
 			var free := shin + lerpf(ANKLE_WALK_SWING, ANKLE_RUN_SWING, st)
 			foot = lerpf(foot_off, free, smoothstep(0.0, FOOT_RELEASE, w))
 			foot = lerpf(foot, foot_on, smoothstep(FOOT_PREPARE, 1.0, w))
+		d += hip_dz + back
 		p["knee_" + side[0]] = knee
 		p["leg_" + side[0]] = thigh_for(r, d, knee)
 		p["foot_" + side[0]] = foot if u < duty else foot * amt
@@ -377,17 +457,50 @@ static func locomotion_pose(r: Dictionary, phase: float, move: float, run: float
 	var arm_amp := lerpf(ARM_SWING_WALK, ARM_SWING_RUN, run) * move
 	var elbow := lerpf(lerpf(-0.3, ELBOW_WALK, minf(st / JOG_STYLE, 1.0)), ELBOW_RUN, run)
 	var sl := -cos(phase - ARM_LAG)
-	p.arm_l = Vector3(-sl * arm_amp, 0, IDLE_ARM_OUT + 0.05 * run * move)
-	p.arm_r = Vector3(IDLE_ARM_R_X * (1.0 - move) + sl * arm_amp * 0.8, 0, -IDLE_ARM_OUT - 0.05 * run * move)
+	p.arm_l = Vector3(-sl * arm_amp, 0, IDLE_ARM_OUT + (ARM_OUT_MOVE + 0.05 * run) * move)
+	p.arm_r = Vector3(IDLE_ARM_R_X * (1.0 - move) + sl * arm_amp * 0.8, 0, -IDLE_ARM_OUT - (ARM_OUT_MOVE + 0.05 * run) * move)
 	# cotovelo dobra mais quando o braço vai à frente
-	p.elbow_l = lerpf(IDLE_ELBOW, elbow + ELBOW_SWING * maxf(sl, 0.0), move)
-	p.elbow_r = lerpf(IDLE_ELBOW, elbow + ELBOW_SWING * maxf(-sl, 0.0), move)
+	# o antebraço vem um pouco depois do braço
+	var sf := -cos(phase - ARM_LAG - FOREARM_LAG)
+	p.elbow_l = lerpf(IDLE_ELBOW, elbow + ELBOW_SWING * maxf(sf, 0.0), move)
+	p.elbow_r = lerpf(IDLE_ELBOW, elbow + ELBOW_SWING * maxf(-sf, 0.0), move)
+	# o braço que vai à frente fecha para dentro, cruzando o corpo
+	var cross := lerpf(ARM_CROSS_WALK, ARM_CROSS_RUN, run) * move
+	p.arm_l.z -= cross * maxf(sl, 0.0)
+	p.arm_r.z += cross * maxf(-sl, 0.0)
 	# o tronco amortece no meio de cada apoio (além do que a altura das pernas já dá)
 	p.body_y = -lerpf(BODY_BOUNCE_WALK, BODY_BOUNCE_RUN, run) * move * bounce
-	p.twist = lerpf(TORSO_TWIST_WALK, TORSO_TWIST_RUN, run) * move * cos(phase)
+	var shoulders := lerpf(TORSO_TWIST_WALK, TORSO_TWIST_RUN, run) * move * cos(phase - TORSO_LAG)   # giro dos ombros
+	# o quadril gira contra os ombros e as pernas desfazem esse giro (continuam balançando para a frente)
+	p.hip_twist = -lerpf(PELVIS_TWIST_WALK, PELVIS_TWIST_RUN, run) * move * cos(phase)
+	p.leg_yaw = -p.hip_twist
+	# com o pivô do peito, o cinto e o saiote (Body) giram com o quadril e os ombros giram no peito, contra ele
+	var spine: bool = r.get("Chest") != null
+	p.twist = p.hip_twist if spine else shoulders
+	p.chest_y = shoulders - p.twist
 	# o quadril pende um pouco sobre a perna de apoio
 	p.body_z = -HIP_DROP * move * sin(phase)
+	# e a pelve passa para o lado dessa perna
+	p.body_shift = lerpf(WEIGHT_SHIFT_WALK, WEIGHT_SHIFT_RUN, run) * move * sin(phase)
+	# o corpo cai para a frente com a velocidade e mergulha um pouco mais a cada apoio
+	var pitch := lean + LEAN_PULSE * move * bounce
+	p.chest_x = pitch * CHEST_LEAN if spine else 0.0   # o peito cai mais que o quadril: a coluna curva
+	p.body_x = pitch - p.chest_x
+	p.head_x = -HEAD_LEAN * pitch
+	# os ombros ficam quase nivelados enquanto o quadril pende
+	p.chest_z = -CHEST_LEVEL * p.body_z if spine else 0.0
+	# a cabeça desfaz quase todo o giro e a inclinação do tronco: o olhar fica estável
+	p.head_y = -HEAD_STEADY * shoulders
+	# com o tronco inclinado, o giro da cabeça é em torno de um eixo deitado e a tombaria de lado: o termo
+	# com sin() desfaz esse tombo
+	# o mesmo vale para o giro do peito sobre o quadril inclinado
+	p.head_z = -HEAD_STEADY * (p.body_z + p.chest_z) - p.head_y * sin(pitch) - p.chest_y * sin(p.body_x)
 	return p
+
+
+## Inclinação do corpo para a frente (rad) pela velocidade: `move` 0..1 do andar normal, `run` 0..1 correndo.
+static func speed_lean(move: float, run: float) -> float:
+	return lerpf(LEAN_WALK, LEAN_RUN, run) * clampf(move, 0.0, 1.0)
 
 
 ## Inclinação do pé de apoio no ponto u do ciclo. g = [r, duty, estilo, meio passo, amt, chaves do pé].
@@ -561,6 +674,30 @@ static func blend(a: Dictionary, b: Dictionary, w: float) -> Dictionary:
 	return p
 
 
+## A cabeça e as pernas da marcha compensam o giro e a inclinação do tronco da marcha (head_y, head_z,
+## leg_yaw). Quando um golpe, arco ou magia assume o tronco (play_track, bow_draw_pose, bow_release_pose e as
+## poses de magia), essa compensação sai da pose antes de ele escrever os seus valores: quem define head_y
+## manda, quem não define fica com 0. A esquiva não passa por aqui: ela vai direto ao alvo (snap de todas as
+## chaves) e as chaves ROLL_TUCK a cobrem. head_y e head_z também perdem a velocidade x8 do follow_cycle
+## (o ataque define as suas, se quiser), para a cabeça assentar suave em vez de saltar.
+static func drop_gait_comp(p: Dictionary) -> void:
+	p.head_y = 0.0
+	p.head_z = 0.0
+	p.leg_yaw = 0.0
+	# o que a marcha pôs no peito volta para o tronco inteiro (Body): o golpe parte da mesma pose de tronco de
+	# sempre e manda nele sozinho. apply() leva o peito com a mesma velocidade do tronco, então não há tranco.
+	p.twist += float(p.get("chest_y", 0.0))
+	p.body_x += float(p.get("chest_x", 0.0))
+	p.body_z += float(p.get("chest_z", 0.0))
+	p.chest_x = 0.0
+	p.chest_y = 0.0
+	p.chest_z = 0.0
+	var spd: Dictionary = p.speed.duplicate()   # p.speed pode ser compartilhado com outra pose
+	spd.erase("head_y")
+	spd.erase("head_z")
+	p.speed = spd
+
+
 ## Toca uma trilha de golpe sobre a pose de locomoção `p`.
 ## Trilha = [[t, {pose parcial}, curva], ...] com t crescente em 0..1. O começo (t=0) e o fim (t=1)
 ## são a própria pose de locomoção; uma chave sem certa articulação é atravessada por ela.
@@ -569,6 +706,7 @@ static func blend(a: Dictionary, b: Dictionary, w: float) -> Dictionary:
 ## Braço e tronco vão direto ao alvo (a trilha já é suave); as pernas só fazem o passo de ataque
 ## inteiro com o jogador parado.
 static func play_track(p: Dictionary, track: Array, t: float, move: float) -> void:
+	drop_gait_comp(p)
 	var legs_w := lerpf(1.0, ATK_LEGS_WHILE_MOVING, move)
 	var snap: Array = p.snap
 	var joints: Array = []
@@ -665,6 +803,7 @@ static func cast_pose(p: Dictionary, kind: String, t: float, move: float, staff 
 ## do queixo, com o cotovelo alto atrás, na linha da flecha. As mãos vão a pontos exatos por IK (veja
 ## _bow_ik em apply): a mão da corda fica sempre na corda e a flecha passa rente ao queixo.
 static func bow_draw_pose(p: Dictionary, c: float, move := 0.0) -> void:
+	drop_gait_comp(p)
 	var a: Dictionary = KnightMoves.BOW_NOCK
 	var b: Dictionary = KnightMoves.BOW_FULL
 	var e := 1.0 - pow(1.0 - clampf(c, 0.0, 1.0), 2.0)   # puxa rápido no começo e assenta perto do fim
@@ -685,6 +824,7 @@ static func bow_draw_pose(p: Dictionary, c: float, move := 0.0) -> void:
 ## `keep` = continua mirando (botão direito ainda segurado): o arco fica erguido e a mão volta para a corda,
 ## pronta para encaixar a próxima flecha.
 static func bow_release_pose(p: Dictionary, t: float, move: float, keep := false) -> void:
+	drop_gait_comp(p)
 	var hold := 1.0 if keep else 1.0 - smoothstep(KnightMoves.BOW_RELEASE_HOLD, 1.0, t)
 	for j in KnightMoves.BOW_FULL:
 		p[j] = lerp(p[j], KnightMoves.BOW_FULL[j], hold)
@@ -879,6 +1019,7 @@ static func bow_string(look: Dictionary, r: Dictionary) -> void:
 ## Chuva de Meteoros: `u` 0..1 = preparo (ergue o cajado com as duas mãos acima da cabeça); `shake` 0..1 =
 ## o tremor da canalização (braços, pulso e tronco tremem como quem segura um peso enorme no céu).
 static func meteor_pose(p: Dictionary, u: float, shake: float) -> void:
+	drop_gait_comp(p)
 	var a: Dictionary = KnightMoves.METEOR_RAISE
 	var e := smoothstep(0.0, 1.0, u)
 	for j in a:
@@ -907,17 +1048,28 @@ static func hips_follow(p: Dictionary) -> void:
 	var spin: float = p.get("spin", 0.0)
 	var own := wrapf(p.twist - spin, -PI, PI)
 	p.hip_twist = wrapf(spin + own * float(p.get("hip_share", HIP_TWIST_SHARE)), -PI, PI)
+	p.leg_yaw = 0.0   # o giro da marcha acabou: as pernas giram com o quadril
+	# hip_twist e leg_yaw assentam com a suavização normal (sem o x8 do follow_cycle), senão o quadril salta
+	var spd: Dictionary = p.speed.duplicate()
+	spd.erase("hip_twist")
+	spd.erase("leg_yaw")
+	p.speed = spd
 	if "twist" in p.snap and not ("hip_twist" in p.snap):
 		p.snap.append("hip_twist")
+		p.snap.append("leg_yaw")
 
 
 ## Zera o giro de tronco e quadril na hora (fim do golpe: o giro do golpe 3 não "desgira").
 static func reset_twist(r: Dictionary) -> void:
 	r["twist"] = 0.0
 	r["hip_twist"] = 0.0
+	r.LegL.rotation.y = 0.0
+	r.LegR.rotation.y = 0.0
 	r.Body.rotation.y = 0.0
 	if r.get("Pelvis"):
 		r.Pelvis.rotation.y = 0.0
+	if r.get("Chest"):
+		r.Chest.rotation = Vector3.ZERO
 
 
 ## Esquiva (rolamento para a frente) no instante `u` (0..1 da esquiva): mergulha encolhendo o corpo, o
@@ -1070,12 +1222,23 @@ static func apply(r: Dictionary, p: Dictionary, k: float) -> void:
 		body.rotation.y = wrapf(r.twist - r.hip_twist, -PI, PI)
 	else:
 		body.rotation.y = r.twist
+	# peito: segue com a velocidade da chave de tronco do mesmo eixo, para os dois mudarem juntos
+	var chest: Node3D = r.get("Chest")
+	if chest:
+		chest.rotation.x = lerpf(chest.rotation.x, float(p.get("chest_x", 0.0)), f.call("body_x"))
+		chest.rotation.y = lerpf(chest.rotation.y, float(p.get("chest_y", 0.0)), f.call("twist"))
+		chest.rotation.z = lerpf(chest.rotation.z, float(p.get("chest_z", 0.0)), f.call("body_z"))
 	body.position.y = lerpf(body.position.y, r.body_y + p.body_y, f.call("body_y"))
 	body.position.x = lerpf(body.position.x, r.body_x0 + p.body_shift, f.call("body_shift"))
 	# mirando com o arco a cabeça acompanha a inclinação da mira
 	var aim_head: float = -float(r.get("aim_pitch", 0.0)) * 0.8 * float(p.get("bow", {}).get("w", 0.0))
 	r.Head.rotation.x = lerpf(r.Head.rotation.x, p.head_x + aim_head, f.call("head_x"))
 	r.Head.rotation.y = lerpf(r.Head.rotation.y, p.head_y, f.call("head_y"))
+	r.Head.rotation.z = lerpf(r.Head.rotation.z, float(p.get("head_z", 0.0)), f.call("head_z"))
+	# o quadril gira com a marcha e as pernas desfazem o giro, para os pés seguirem em frente
+	var leg_yaw := float(p.get("leg_yaw", 0.0))
+	r.LegL.rotation.y = lerpf(r.LegL.rotation.y, leg_yaw, f.call("leg_yaw"))
+	r.LegR.rotation.y = lerpf(r.LegR.rotation.y, leg_yaw, f.call("leg_yaw"))
 	# arco: com tronco e cabeça no lugar, as mãos vão por IK até o arco e a corda
 	_bow_ik(r, p, f.call("arm_l"))
 	r["two_hand"] = lerpf(float(r.get("two_hand", 0.0)), float(p.get("two_hand", 0.0)), f.call("arm_l"))

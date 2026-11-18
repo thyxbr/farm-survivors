@@ -101,6 +101,10 @@ jobs:
         if: matrix.suite == 'rapidos'
         run: timeout 120 godot --headless --path . --script res://tests/npc_asset_test.gd
 
+      - name: Teste da marcha do cavaleiro (cabeça, quadril, pé de apoio, mão, peso)
+        if: matrix.suite == 'rapidos'
+        run: timeout 120 godot --headless --path . res://tests/gait_test.tscn
+
       # a vila no solo: bairros, Mestre Orin e quadro de recordes, Ecos, passiva, Papai Noel e os quatro
       # eventos de Natal, Horda pelo portal da vila e a tela de carregamento
       - name: Teste da vila (solo)

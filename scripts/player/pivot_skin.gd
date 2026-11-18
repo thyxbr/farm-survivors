@@ -34,14 +34,21 @@ func refresh() -> void:
 	if model == null:
 		return
 	for skel: Skeleton3D in model.find_children("*", "Skeleton3D", true, false):
-		var e := {"skel": skel, "order": [], "pivot": {}, "rest": {}, "parent": {}}
+		var e := {"skel": skel, "order": [], "pivot": {}, "rest": {}, "parent": {}, "shift": {}}
 		var depth := {}
 		for i in skel.get_bone_count():
-			var piv := _pivot(skel.get_bone_name(i))
+			var bone := skel.get_bone_name(i)
+			var piv := _pivot(bone)
 			if piv == null:
 				continue
-			e.pivot[i] = piv
 			e.rest[i] = skel.get_bone_global_rest(i)
+			# o tronco das roupas tem um osso só (Body): ele acompanha o peito (ombros e braços ficam nele), que
+			# repousa mais acima que o osso. `shift` = do osso até o pivô em repouso, no espaço do modelo.
+			var chest: Node3D = piv.get_node_or_null("Chest") if bone == "Body" else null
+			if chest:
+				e.shift[i] = chest.position
+				piv = chest
+			e.pivot[i] = piv
 			e.parent[i] = skel.get_bone_parent(i)
 			var d := 0
 			var p := skel.get_bone_parent(i)
@@ -90,7 +97,7 @@ func update() -> void:
 			var piv: Node3D = e.pivot[i]
 			var rest: Transform3D = e.rest[i]
 			var p_now := to_skel * piv.global_transform
-			var p_rest := Transform3D(rest_basis, rest.origin)
+			var p_rest := Transform3D(rest_basis, rest.origin + rest_basis * (e.shift.get(i, Vector3.ZERO) as Vector3))
 			var g: Transform3D = p_now * p_rest.affine_inverse() * rest
 			glob[i] = g
 			var par: int = e.parent[i]

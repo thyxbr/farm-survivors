@@ -202,6 +202,7 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 			_:
 				_build_sword(holder, tip, wid)
 	model.set_meta("look_nodes", made)
+	KnightAnim.ensure_chest(model)   # peças novas da parte de cima do tronco vão para o pivô do peito
 	PivotSkin.ensure(model)    # ossos das roupas com pele contínua seguem os pivôs
 	if ToonLook.enabled():
 		ToonLook.apply(model)
