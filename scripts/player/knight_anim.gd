@@ -592,12 +592,19 @@ static func blend(a: Dictionary, b: Dictionary, w: float) -> Dictionary:
 
 
 ## A cabeça e as pernas da marcha compensam o giro e a inclinação do tronco da marcha (head_y, head_z,
-## leg_yaw). Quando um golpe, arco, magia ou esquiva assume o tronco, essa compensação sai da pose antes de
-## ele escrever os seus valores: quem define head_y manda, quem não define fica com 0.
+## leg_yaw). Quando um golpe, arco ou magia assume o tronco (play_track, bow_draw_pose, bow_release_pose e as
+## poses de magia), essa compensação sai da pose antes de ele escrever os seus valores: quem define head_y
+## manda, quem não define fica com 0. A esquiva não passa por aqui: ela vai direto ao alvo (snap de todas as
+## chaves) e as chaves ROLL_TUCK a cobrem. head_y e head_z também perdem a velocidade x8 do follow_cycle
+## (o ataque define as suas, se quiser), para a cabeça assentar suave em vez de saltar.
 static func drop_gait_comp(p: Dictionary) -> void:
 	p.head_y = 0.0
 	p.head_z = 0.0
 	p.leg_yaw = 0.0
+	var spd: Dictionary = p.speed.duplicate()   # p.speed pode ser compartilhado com outra pose
+	spd.erase("head_y")
+	spd.erase("head_z")
+	p.speed = spd
 
 
 ## Toca uma trilha de golpe sobre a pose de locomoção `p`.
@@ -951,6 +958,11 @@ static func hips_follow(p: Dictionary) -> void:
 	var own := wrapf(p.twist - spin, -PI, PI)
 	p.hip_twist = wrapf(spin + own * float(p.get("hip_share", HIP_TWIST_SHARE)), -PI, PI)
 	p.leg_yaw = 0.0   # o giro da marcha acabou: as pernas giram com o quadril
+	# hip_twist e leg_yaw assentam com a suavização normal (sem o x8 do follow_cycle), senão o quadril salta
+	var spd: Dictionary = p.speed.duplicate()
+	spd.erase("hip_twist")
+	spd.erase("leg_yaw")
+	p.speed = spd
 	if "twist" in p.snap and not ("hip_twist" in p.snap):
 		p.snap.append("hip_twist")
 		p.snap.append("leg_yaw")

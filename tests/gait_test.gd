@@ -33,7 +33,9 @@ func _ready() -> void:
 	_attack_resets_leg_yaw()
 	_attack_keeps_own_head()
 	_stance_foot_no_back_slip(5.2, 0.0)
+	_stance_foot_no_back_slip(2.5, 0.0)
 	_stance_foot_no_back_slip(7.5, 1.0)
+	_bow_draw_eases_hips()
 	print("gait_test: ", "OK" if fails == 0 else "%d falhas" % fails)
 	get_tree().quit(0 if fails == 0 else 1)
 
@@ -94,7 +96,7 @@ func _head_stays_forward(d: Array, tag: String) -> void:
 	var by := _range(d, "body_yaw")
 	var hr := _range(d, "head_roll")
 	var br := _range(d, "body_roll")
-	check(by >= 0.01 and hy <= 0.3 * by and hr <= 0.3 * br, "head_stays_forward" + tag,
+	check(by >= 0.01 and br >= 0.01 and hy <= 0.3 * by and hr <= 0.3 * br, "head_stays_forward" + tag,
 		"yaw cabeça %.4f corpo %.4f | roll cabeça %.4f corpo %.4f" % [hy, by, hr, br])
 
 
@@ -114,7 +116,7 @@ func _stance_foot_no_side_slip(d: Array, tag: String) -> void:
 		if e.stance_l:
 			lo = minf(lo, e.ankle_x)
 			hi = maxf(hi, e.ankle_x)
-	check(hi - lo <= 0.012, "stance_foot_no_side_slip" + tag, "desliza %.4f m" % (hi - lo))
+	check(hi - lo <= 0.002, "stance_foot_no_side_slip" + tag, "desliza %.4f m" % (hi - lo))
 
 
 func _hand_crosses_in_front(d: Array, tag: String) -> void:
@@ -144,13 +146,22 @@ func _still_pose_untouched() -> void:
 	var model := (load("res://assets/models/knight.glb") as PackedScene).instantiate() as Node3D
 	add_child(model)
 	var r := KnightAnim.rig(model)
+	var rest := KnightAnim.rest_pose()
 	var worst := 0.0
+	var worst_key := ""
 	for i in N:
 		var p := KnightAnim.locomotion_pose(r, TAU * i / N, 0.0, 0.0)
-		for k in ["hip_twist", "leg_yaw", "head_y", "head_z", "body_shift"]:
-			worst = maxf(worst, absf(float(p.get(k, 0.0))))
+		for k in KnightAnim.POSE_KEYS:
+			var dev := 0.0
+			if p[k] is Vector3:
+				dev = (p[k] - rest[k]).length()
+			else:
+				dev = absf(float(p[k]) - float(rest[k]))
+			if dev > worst:
+				worst = dev
+				worst_key = k
 	model.queue_free()
-	check(worst == 0.0, "still_pose_untouched", "maior desvio %.5f" % worst)
+	check(worst <= 1e-6, "still_pose_untouched", "maior desvio %.7f em %s" % [worst, worst_key])
 
 
 ## Nos golpes o quadril gira com o giro do golpe: o desfazer das pernas da marcha (leg_yaw) tem de sumir.
@@ -256,3 +267,35 @@ func _stance_foot_no_back_slip(speed: float, run: float) -> void:
 			hi = maxf(hi, z)
 	model.queue_free()
 	check(hi - lo <= 0.002, "stance_foot_no_back_slip (%.1f m/s run %.1f)" % [speed, run], "desliza %.4f m" % (hi - lo))
+
+
+## Como o jogo (player.gd _animate): locomoção, follow_cycle, pose do arco, hips_follow, apply, a 60 fps.
+## Andando e começando a puxar o arco, o quadril não pode dar um salto: o giro tem de assentar aos poucos.
+func _bow_draw_eases_hips() -> void:
+	var model := (load("res://assets/models/knight.glb") as PackedScene).instantiate() as Node3D
+	add_child(model)
+	var r := KnightAnim.rig(model)
+	var dt := 1.0 / 60.0
+	var k := 1.0 - exp(-14.0 * dt)
+	var phase := 0.0
+	var before := 0.0
+	var first := 0.0
+	var after := 0.0
+	for i in 60 + 30:
+		phase += dt * KnightAnim.cadence(r, 5.2, 1.0, 0.0)
+		var p := KnightAnim.locomotion_pose(r, phase, 1.0, 0.0)
+		KnightAnim.follow_cycle(p, 1.0)
+		if i >= 60:
+			KnightAnim.bow_draw_pose(p, minf(1.0, float(i - 60) * dt / 0.8), 1.0)
+			KnightAnim.hips_follow(p)
+		KnightAnim.apply(r, p, k)
+		if i == 59:
+			before = _yaw(r.Pelvis)
+		elif i == 60:
+			first = _yaw(r.Pelvis)
+		elif i == 89:
+			after = _yaw(r.Pelvis)
+	model.queue_free()
+	check(absf(first - before) < 0.12 and absf(after - before) >= 0.15, "bow_draw_eases_hips",
+		"salto no 1o quadro %.4f rad (limite 0.12), total em 0,5 s %.4f rad (mínimo 0.15)" % [
+			absf(first - before), absf(after - before)])
