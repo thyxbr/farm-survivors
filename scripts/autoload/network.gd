@@ -442,7 +442,7 @@ func _auto_pick_character(list: Array, created: int, err: String) -> bool:
 	elif not list.is_empty():
 		char_enter(int(list[0].id))
 	elif err == "":
-		char_create(account_name, pick[0], pick[1])   # o herói dos testes leva o nome da conta
+		char_create(account_name, pick[0], pick[1], pick[2])   # o herói dos testes leva o nome da conta
 	else:
 		_fail(err)
 	return true

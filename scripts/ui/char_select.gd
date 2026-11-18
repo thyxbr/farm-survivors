@@ -554,6 +554,7 @@ func _build_seats() -> void:
 		if src is Dictionary:
 			for k in src:
 				eq[k] = str(src[k])
+		eq["hair"] = str(e.get("hair", ""))
 		var look := KnightLook.apply(model, eq)
 		var glow := _add_glow(model)
 		# o assento: o quadril sentado fica na altura do joelho

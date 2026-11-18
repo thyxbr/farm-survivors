@@ -23,13 +23,17 @@ const REGION := {
 const DEFAULT_STYLE := {"head": "h_bare", "armor": "a_shirt", "hands": "g_bare", "feet": "f_shoes"}
 ## Estilo que usa as próprias peças de placas do knight.glb (tingidas por PARTS).
 const PLATE := "plate"
-## Modelo do herói por corpo ("m"/"f"): o feminino tem os mesmos pivôs e nomes, mais o nó "Ponytail" (rabo de
-## cavalo, filho de Head). As roupas e cabeças de equipamento também têm versão feminina: gear/<estilo>_f.glb.
+## Modelo do herói por corpo ("m"/"f"): o feminino tem os mesmos pivôs e nomes. As roupas, cabeças e penteados
+## de equipamento também têm versão feminina: gear/<estilo>_f.glb.
 const KNIGHT_SCENE := {"m": "res://assets/models/knight.glb", "f": "res://assets/models/knight_f.glb"}
-## Estilos de cabeça que cobrem a nuca (capuz, coifas de malha e o chapéu de mago, que já traz o cabelo solto):
-## o rabo de cavalo atravessaria, então some.
-const HIDE_PONYTAIL := ["h_hood", "h_nasal", "h_kettle", "h_wizard", "h_archmage", "h_sage", "h_void", "h_oracle", "h_ember",
-		"h_lich", "h_hierophant", "h_reaper", "h_raven", "h_dragon", "h_astral"]
+## Como o penteado (gear/hair_<id>.glb, HairStyles) entra com cada estilo de cabeça: "tight" = a variante rente
+## ao crânio (hair_<id>_tight.glb), que cabe sob capuz e chapéu; "none" = sem cabelo (elmo fechado, gorro e
+## coifas justos, que o cabelo atravessaria). Estilo fora da tabela (cabeça nua, coroas, tiaras) = inteiro.
+const HEAD_HAIR := {
+	"h_hood": "tight", "h_wizard": "tight", "h_archmage": "tight", "h_sage": "tight", "h_void": "tight",
+	"h_oracle": "tight", "h_ember": "tight", "h_lich": "tight", "h_reaper": "tight", "h_raven": "tight",
+	"h_cap": "none", "h_kettle": "none", "h_nasal": "none", "h_great": "none", "h_dragon": "none", PLATE: "none",
+}
 ## Materiais copiados e tingidos, por material de origem + cor (evita duplicar a cada troca de equipamento).
 static var _tint_cache := {}
 const SWORD_PARTS := ["Grip", "Blade"]
@@ -112,10 +116,18 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 					mi.material_override = mat
 		else:
 			_attach_gear(model, style, id, pants, made, body_of(model))
-	# rabo de cavalo (corpo feminino): some sob o capuz e as coifas de malha, que cobrem a nuca
-	var tail := model.find_child("Ponytail", true, false) as Node3D
-	if tail:
-		tail.visible = not (gear_style("head", look.get("head", "")) in HIDE_PONYTAIL)
+	# penteado: escolhido na criação, na variante que o estilo de cabeça pede
+	var tail: Node3D = null
+	var hair_mode: String = HEAD_HAIR.get(gear_style("head", look.get("head", "")), "full")
+	if hair_mode != "none":
+		var body_k := body_of(model)
+		var hair_style := "hair_" + HairStyles.resolve(body_k, str(look.get("hair", ""))) + ("_tight" if hair_mode == "tight" else "")
+		var n0 := made.size()
+		_attach_gear(model, hair_style, "", Color(0, 0, 0, 0), made, body_k)
+		for i in range(n0, made.size()):
+			if str(made[i].name) == "Gear_Ponytail":
+				tail = made[i]
+	model.set_meta("ponytail", tail)   # KnightAnim.sway_ponytail balança o rabo de cavalo do penteado
 	# capa: a do espaço das costas (tingida com a cor do item) ou, com ele vazio, a da armadura de placas
 	# ou da peça que a pede ("cape": true). Asas nas costas escondem a capa.
 	var cape := model.find_child("Cape", true, false) as Node3D
