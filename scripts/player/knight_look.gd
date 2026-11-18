@@ -218,6 +218,8 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 	PivotSkin.ensure(model)    # ossos das roupas com pele contínua seguem os pivôs
 	if ToonLook.enabled():
 		ToonLook.apply(model)
+	# texturas animadas e partículas dos conjuntos de fim de jogo (depois do toon: vence a conversão comum)
+	made.append_array(GearFx.apply(model, [gear_style("head", look.get("head", "")), gear_style("armor", armor_id)]))
 	if cape:
 		_sync_skinned_outline(cape)
 	return res
