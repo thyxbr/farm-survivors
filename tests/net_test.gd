@@ -365,8 +365,14 @@ func _ready() -> void:
 			vt = en
 			break
 	check(vt != null, "achou um %s para a marca de veneno" % mark_kind)
+	# Daqui até a cura na vila os dois ficam no campo, parados, vendo um ao outro (marca, espada, arco e
+	# cajado): os monstros de lá têm nível e batem forte, e o Beto chegava morto ao teste da cura (o servidor
+	# não cura caído, e a tela de morte ficava no lugar do livro do grupo). Nenhuma checagem do trecho usa a
+	# vida do jogador; _test_heal tira a imunidade ao chegar na vila.
+	w.player.invuln = 600.0
 	if vt != null:
 		var before_mark: Vector3 = w.player.global_position
+		var mark_level: int = vt.level
 		w.player.global_position = vt.global_position + Vector3(4, 0.4, 0)
 		await wait(0.8)   # a posição nova chega ao servidor
 		Network.client_mark_enemy(vt.net_id, 5.0, 99.0)
@@ -375,7 +381,11 @@ func _ready() -> void:
 		vt.take_damage(10.0, w.player.global_position, false)
 		await _wait_until(func() -> bool: return not is_instance_valid(vt) or vt.hp < vh, 4.0)
 		var drop: float = vh - vt.hp if is_instance_valid(vt) else 0.0
-		check(drop > 10.5 and drop < 12.5, "marca de veneno adulterada é limitada a 12%% (10 de dano tirou %.1f)" % drop)
+		# monstro bem acima do nível de quem bate leva menos (placa vermelha, ProgressionRules.danger_mults):
+		# os 12% da marca valem sobre o dano já reduzido
+		var taken := float(ProgressionRules.danger_mults(Balance.tables, mark_level, Game.level).taken)
+		check(drop > 10.5 * taken and drop < 12.5 * taken,
+			"marca de veneno adulterada é limitada a 12%% (10 de dano tirou %.1f; nível %d contra %d leva x%.2f)" % [drop, mark_level, Game.level, taken])
 		w.player.global_position = before_mark
 		await wait(0.3)
 
@@ -518,6 +528,7 @@ func _test_heal(w: Node) -> void:
 		await _pick_class("healer", "sc_novice_scepter")
 		check(Game.char_class == "healer", "Ana virou healer")
 	w.player.global_position = w.VILLAGE_SPAWN + Vector3(2.0 if actor else -2.0, 0, 0)
+	w.player.invuln = 0.0   # na vila (zona da guarda) não há monstro; a imunidade vinha do trecho do campo
 	await wait(0.6)
 	Game.hp = 10.0
 	Game.mp = Game.max_mp()
