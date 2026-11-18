@@ -26,6 +26,7 @@ func load_char(char_id: int) -> Variant:
 		"updated_at": r["updated_at"]}
 	d["char_class"] = str(r["char_class"])
 	d["body"] = str(r["body"])
+	d["hair"] = str(r["hair"])
 	for k in ["attributes", "equipment", "quests", "flags", "farm", "world_pos", "enchants", "talents"]:
 		d[k] = JSON.parse_string(str(r[k]))   # world_pos nulo volta como null
 	var inv := []
@@ -61,11 +62,11 @@ func create_char(account_id: int, name: String, state: Dictionary, at: int) -> i
 
 func list_chars(account_id: int) -> Array:
 	var out := []
-	for r in db.query("SELECT id, name, level, char_class, body, equipment, updated_at FROM characters
+	for r in db.query("SELECT id, name, level, char_class, body, hair, equipment, updated_at FROM characters
 			WHERE account_id = ? ORDER BY id", [account_id]):
 		var eq = JSON.parse_string(str(r["equipment"]))
 		out.append({"id": int(r["id"]), "name": str(r["name"]), "level": int(r["level"]), "char_class": str(r["char_class"]),
-			"body": str(r["body"]), "equipment": eq if eq is Dictionary else {}, "updated_at": int(r["updated_at"])})
+			"body": str(r["body"]), "hair": str(r["hair"]), "equipment": eq if eq is Dictionary else {}, "updated_at": int(r["updated_at"])})
 	return out
 
 
@@ -168,11 +169,11 @@ func _write(char_id: int, d: Dictionary, at: int) -> bool:
 			return false
 	var ok := db.exec("UPDATE characters SET level=?, xp=?, gold=?, ecos=?, stat_points=?, attributes=?, hp=?, mp=?,
 		equipment=?, quests=?, flags=?, farm=?, world_pos=?, world_yaw=?, kills=?, enchants=?, char_class=?, body=?,
-		talents=?, updated_at=? WHERE id = ?",
+		hair=?, talents=?, updated_at=? WHERE id = ?",
 		[d["level"], d["xp"], d["gold"], int(d.get("ecos", 0)), d["stat_points"], JSON.stringify(d["attributes"]), d["hp"], d["mp"],
 		JSON.stringify(d["equipment"]), JSON.stringify(d["quests"]), JSON.stringify(d["flags"]),
 		JSON.stringify(d["farm"]), JSON.stringify(d["world_pos"]), d["world_yaw"], d["kills"],
-		JSON.stringify(d.get("enchants", {})), str(d.get("char_class", "")), str(d.get("body", "")),
+		JSON.stringify(d.get("enchants", {})), str(d.get("char_class", "")), str(d.get("body", "")), str(d.get("hair", "")),
 		JSON.stringify(d.get("talents", {})), at, char_id])
 	if not ok or not db.exec("DELETE FROM inventory WHERE char_id = ?", [char_id]):
 		return false

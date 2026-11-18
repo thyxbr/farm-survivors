@@ -81,6 +81,7 @@ var enchants := {}
 ## Classe fixa e corpo do personagem (espelho de CharState; "" = save antigo).
 var char_class := ""
 var body := ""
+var hair := ""           ## penteado (HairStyles; "" = padrão do corpo)
 ## Escolha automática de classe (testes e demos) mandada e ainda sem resposta (online ela é assíncrona).
 var _auto_class_pending := false
 ## Só o net_test: não escolhe a classe sozinho (testa a recusa do servidor a personagem sem classe).
@@ -1253,6 +1254,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 	enchants = s.enchants
 	char_class = s.char_class
 	body = s.body
+	hair = s.hair
 	if full:
 		reset_run_mods()
 		clear_buffs(true)

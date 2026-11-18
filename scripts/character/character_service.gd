@@ -39,7 +39,7 @@ const ARGS := {
 	"enchant": {"types": [TYPE_STRING], "optional": 0},
 	"rank_up": {"types": [], "optional": 0},
 	"quest_mark": {"types": [TYPE_STRING, TYPE_INT], "optional": 0},
-	"choose_class": {"types": [TYPE_STRING, TYPE_STRING], "optional": 0},
+	"choose_class": {"types": [TYPE_STRING, TYPE_STRING, TYPE_STRING], "optional": 1},
 	"learn_talent": {"types": [TYPE_STRING], "optional": 0},
 	"reset_talents": {"types": [], "optional": 0},
 	"ack_prog_notice": {"types": [], "optional": 0},
@@ -121,6 +121,7 @@ func list_characters(account_id: int) -> Array:
 			e.level = s.level
 			e.char_class = s.char_class
 			e.body = s.body
+			e.hair = s.hair
 			e.equipment = s.equipment.duplicate()
 	return out
 
@@ -140,16 +141,16 @@ static func clean_name(name: String) -> String:
 	return n if re.search(n) != null else ""
 
 
-## Cria um personagem da conta com nome, classe e corpo (a mesma regra de "choose_class").
+## Cria um personagem da conta com nome, classe, corpo e penteado (a mesma regra de "choose_class").
 ## Devolve {"ok", "err", "id"}; err "nome_invalido" ou "nome_em_uso" quando o nome não serve.
-func create_character(account_id: int, name: String, cls: String, body: String) -> Dictionary:
+func create_character(account_id: int, name: String, cls: String, body: String, hair := "") -> Dictionary:
 	var clean := clean_name(name)
 	if clean == "":
 		return {"ok": false, "err": "nome_invalido", "id": 0}
 	if _store.name_taken(clean):
 		return {"ok": false, "err": "nome_em_uso", "id": 0}
 	var s := CharState.new_character(_bt)
-	var r := _dispatch(s, "choose_class", [cls, body])
+	var r := _dispatch(s, "choose_class", [cls, body, hair])
 	if not r.ok:
 		return {"ok": false, "err": str(r.err), "id": 0}
 	var id := _store.create_char(account_id, clean, s.to_dict(), int(_now()))
@@ -174,6 +175,8 @@ static func explain_create(err: String) -> String:
 			return "Nome inválido: de %d a %d letras ou números, começando por letra, sem espaços." % [NAME_MIN, NAME_MAX]
 		"nome_em_uso":
 			return "Já existe um herói com esse nome. Escolha outro."
+		"penteado_invalido":
+			return "Esse penteado não existe para esse corpo."
 	return "Não deu para criar o herói (%s)." % err
 
 
@@ -479,7 +482,7 @@ func _dispatch(s: CharState, op: String, a: Array) -> Dictionary:
 		"start_quest": return CharRules.start_quest(s, _bt, a[0])
 		"complete_quest": return CharRules.complete_quest(s, _bt, a[0], _now())
 		"rank_up": return CharRules.rank_up(s, _bt)
-		"choose_class": return CharRules.choose_class(s, _bt, a[0], a[1])
+		"choose_class": return CharRules.choose_class(s, _bt, a[0], a[1], a[2] if a.size() > 2 else "")
 		"quest_mark": return CharRules.quest_mark(s, _bt, a[0], a[1])
 		"sort_inventory": return CharRules.sort_inventory(s, _bt)
 		"unlock_plot": return CharRules.unlock_plot(s, _bt)
