@@ -131,7 +131,12 @@ func _build_inventory() -> Control:
 		c.add_theme_constant_override("separation", 10)
 		c.alignment = BoxContainer.ALIGNMENT_CENTER
 	doll.add_child(col_l)
-	doll.add_child(CharPreview.new(Vector2(250, 330)))
+	# meio: o boneco e, embaixo dele, o espaço das costas (capa ou asas)
+	var col_m := VBoxContainer.new()
+	col_m.add_theme_constant_override("separation", 6)
+	col_m.alignment = BoxContainer.ALIGNMENT_CENTER
+	doll.add_child(col_m)
+	col_m.add_child(CharPreview.new(Vector2(250, 300)))
 	doll.add_child(col_r)
 	for i in ItemDB.SLOTS.size():
 		var sname: String = ItemDB.SLOTS[i]
@@ -145,7 +150,11 @@ func _build_inventory() -> Control:
 		s.drop_handler = _drop_on_equip
 		s.right_clicked.connect(func(sl: ItemSlot) -> void: _unequip(sl.slot_name))
 		s.double_clicked.connect(func(sl: ItemSlot) -> void: _unequip(sl.slot_name))
-		(col_l if i < 4 else col_r).add_child(s)
+		if sname == "back":
+			s.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			col_m.add_child(s)
+		else:
+			(col_l if i < 4 else col_r).add_child(s)
 		equip_slots[sname] = s
 	lv.add_child(HSeparator.new())
 	stats_box = HBoxContainer.new()

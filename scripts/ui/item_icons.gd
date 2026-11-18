@@ -304,6 +304,22 @@ func _gear_only(slot: String, id: String) -> Node3D:
 				if pn == "Shield" and id != "knight_shield":
 					mi.material_override = KnightLook._item_mat(id)
 		return model
+	if slot == "back" and ItemDB.get_item(id).has("style"):
+		# asas e capas com modelo próprio: a peça sozinha, sem o cavaleiro
+		var path := "res://assets/models/back/%s.glb" % ItemDB.get_item(id).get("style", "")
+		if ResourceLoader.exists(path):
+			model.free()
+			var wings := (load(path) as PackedScene).instantiate() as Node3D
+			WeaponModel.use_vertex_color(wings)
+			BackFx.apply_anim(wings)
+			return wings
+	if slot == "back":
+		# capa: a malha de capa do cavaleiro com a cor do item
+		var cape := model.find_child("Cape", true, false) as MeshInstance3D
+		if cape:
+			cape.visible = true
+			cape.material_override = KnightLook._item_mat(id)
+		return model
 	var style := KnightLook.gear_style(slot, id)
 	if style == KnightLook.PLATE:
 		for pn in KnightLook.REGION[slot]:
