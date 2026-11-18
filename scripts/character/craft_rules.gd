@@ -100,7 +100,8 @@ static func knows(s: CharState, bt: BalanceTables, rid: String) -> bool:
 	var r := recipe(bt, rid)
 	if r.is_empty():
 		return false
-	return str(r.get("learn", "npc")) != "scroll" or rid in s.recipes
+	# modo admin: conhece todas (não grava nada; ao desligar volta a valer só o que aprendeu)
+	return str(r.get("learn", "npc")) != "scroll" or rid in s.recipes or AdminRules.is_on(s)
 
 
 ## Quantas vezes dá para fabricar agora e, se nenhuma, por quê:

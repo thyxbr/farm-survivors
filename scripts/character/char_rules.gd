@@ -786,7 +786,8 @@ static func rank_index(bt: BalanceTables, id: String) -> int:
 
 
 static func rank_at_least(s: CharState, bt: BalanceTables, id: String) -> bool:
-	return rank_index(bt, rank_of(s)) >= rank_index(bt, id)
+	# modo admin: qualquer rank serve (o rank de verdade não muda)
+	return AdminRules.is_on(s) or rank_index(bt, rank_of(s)) >= rank_index(bt, id)
 
 
 ## Pontos de guilda que a missão dá: "guild_pts" ou o padrão do tipo (guild.json, "default_pts").
