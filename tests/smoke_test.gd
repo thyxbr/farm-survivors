@@ -2371,6 +2371,19 @@ func _test_enchant_effects() -> void:
 	await wait(0.2)
 	var lv: int = Game.weapon_enchant().lv
 	check(Game.weapon_enchant().el == "fogo" and lv == 2, "efeitos: a arma chega em fogo +2")
+	# o clarão vermelho de dano não pode apagar o brilho do encanto (só acontecia no jogador local)
+	var glowing := func() -> int:
+		var n := 0
+		for mi in (player.look["holder"] as Node).find_children("*", "MeshInstance3D", true, false):
+			if mi.material_overlay is ShaderMaterial and mi.material_overlay.shader == EnchantFX.SHADER:
+				n += 1
+		return n
+	var glow0: int = glowing.call()
+	check(glow0 > 0, "arma encantada tem o brilho do encanto")
+	player._flash()
+	check(glowing.call() == 0, "clarão de dano cobre a arma")
+	await wait(0.3)
+	check(glowing.call() == glow0, "depois do clarão de dano o brilho do encanto volta")
 	Econ.grant(600, 0, {"frost_drop": 3, "thunder_totem": 3, "toxic_gland": 3, "golden_dust": 3, "shadow_fang": 3}, "teste", true)
 	var a := _fx_dummy(spot + Vector3(3, 0, 0))
 	await wait(0.1)
