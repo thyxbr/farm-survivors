@@ -7,6 +7,7 @@ extends RefCounted
 
 const GALAXY := preload("res://assets/shaders/gear_galaxy.gdshader")
 const GLOW := preload("res://assets/shaders/gear_glow.gdshader")
+const SHEEN := preload("res://assets/shaders/gear_sheen.gdshader")
 
 ## nome do material no GLB -> {"shader", "params"}. Em "params", cores como Color e o resto como no shader.
 const SURFACES := {
@@ -18,12 +19,62 @@ const SURFACES := {
 	"eg_reaper_glow_gem_flat": {"shader": GLOW, "params": {
 		"flow_freq": 3.2, "flow_speed": 2.6, "flow_sharp": 4.0, "low": 0.5, "hot": Color(1.0, 0.92, 1.0)}},
 	"rb_reaper_gem_flat": {"shader": GLOW, "params": {"pulse": 0.35, "pulse_speed": 1.8, "hot": Color(1.0, 0.92, 1.0)}},
+	# ---- Lich Soberano: fogo-fátuo verde tremulando em olhos e gemas, reflexo espectral varrendo os ossos
+	"eg_lich_glow_gem_flat": {"shader": GLOW, "params": {"flicker": 1.0, "hot": Color(0.9, 1.0, 0.85)}},
+	"rb_lich_gem_flat": {"shader": GLOW, "params": {"flicker": 0.8, "pulse": 0.25, "hot": Color(0.9, 1.0, 0.85)}},
+	"eg_lich_bone": {"shader": SHEEN, "lit": true, "params": {
+		"sheen_col": Color(0.36, 1.0, 0.48), "sheen_power": 0.55, "sheen_dir": Vector3(0.2, 1.0, 0.0), "sheen_speed": 0.22}},
+	# ---- Hierofante Solar: gemas pulsando como sol, brilho correndo no ouro
+	"eg_hiero_glow_gem_flat": {"shader": GLOW, "params": {"pulse": 0.4, "pulse_speed": 1.3, "hot": Color(1.0, 1.0, 0.9)}},
+	"rb_hierophant_gem_flat": {"shader": GLOW, "params": {"pulse": 0.4, "pulse_speed": 1.3, "hot": Color(1.0, 1.0, 0.9)}},
+	"eg_hiero_gold": {"shader": SHEEN, "lit": true, "params": {
+		"sheen_col": Color(1.0, 0.93, 0.62), "sheen_power": 1.1, "sheen_dir": Vector3(0.6, 1.0, 0.0), "sheen_speed": 0.34}},
+	"rb_hierophant_trim": {"shader": SHEEN, "lit": true, "params": {
+		"sheen_col": Color(1.0, 0.93, 0.62), "sheen_power": 1.1, "sheen_dir": Vector3(0.6, 1.0, 0.0), "sheen_speed": 0.34}},
+	# ---- Senhor dos Corvos: reflexo azul-violeta varrendo as penas, olhos pulsando
+	"eg_raven_feather": {"shader": SHEEN, "lit": true, "params": {
+		"sheen_col": Color(0.3, 0.42, 1.0), "sheen_power": 0.6, "sheen_dir": Vector3(1.0, 0.5, 0.0), "sheen_freq": 0.7,
+		"sheen_speed": 0.28, "sheen_width": 0.07}},
+	"eg_raven_sheen": {"shader": SHEEN, "lit": true, "params": {
+		"sheen_col": Color(0.62, 0.38, 1.0), "sheen_power": 0.75, "sheen_dir": Vector3(1.0, 0.5, 0.0), "sheen_freq": 0.7,
+		"sheen_speed": 0.28, "sheen_width": 0.07}},
+	"eg_raven_glow_gem_flat": {"shader": GLOW, "params": {"pulse": 0.6, "pulse_speed": 2.2, "hot": Color(1.0, 0.9, 1.0)}},
+	"rb_raven_gem_flat": {"shader": GLOW, "params": {"pulse": 0.6, "pulse_speed": 2.2, "hot": Color(1.0, 0.9, 1.0)}},
+	# ---- Mago Dracônico: brasa respirando entre as escamas, gemas em chama
+	"eg_dragon_scale": {"shader": SHEEN, "lit": true, "params": {
+		"sheen_power": 0.0, "ember": 2.0, "ember_col": Color(1.0, 0.42, 0.08)}},
+	"eg_dragon_plate": {"shader": SHEEN, "lit": true, "params": {
+		"sheen_power": 0.0, "ember": 2.0, "ember_col": Color(1.0, 0.42, 0.08)}},
+	"eg_dragon_glow_gem_flat": {"shader": GLOW, "params": {"flicker": 0.9, "hot": Color(1.0, 0.95, 0.7)}},
+	"rb_dragon_gem_flat": {"shader": GLOW, "params": {"flicker": 0.9, "hot": Color(1.0, 0.95, 0.7)}},
+	# ---- Astrônomo Celeste: constelações cintilando conta a conta, brilho correndo no ouro
+	"eg_astral_glow_gem_flat": {"shader": GLOW, "params": {"twinkle": 1.0, "twinkle_cell": 0.035, "hot": Color(1.0, 1.0, 1.0)}},
+	"rb_astral_gem_flat": {"shader": GLOW, "params": {"twinkle": 1.0, "twinkle_cell": 0.035, "hot": Color(1.0, 1.0, 1.0)}},
+	"eg_astral_gold": {"shader": SHEEN, "lit": true, "params": {
+		"sheen_col": Color(0.85, 0.95, 1.0), "sheen_power": 0.9, "sheen_dir": Vector3(-0.5, 1.0, 0.0), "sheen_speed": 0.3}},
+	# ---- Soberano do Gelo: brilho interno correndo nos cristais e cintilação
+	"eg_frost_ice_gem_flat": {"shader": GLOW, "params": {
+		"flow_freq": 3.0, "flow_speed": 1.6, "flow_sharp": 8.0, "low": 0.75, "flow_dir": Vector3(0.45, 1.0, 0.2),
+		"hot": Color(1.0, 1.0, 1.0), "energy": 1.3}},
+	"eg_frost_deep_gem_flat": {"shader": GLOW, "params": {"pulse": 0.4, "pulse_speed": 1.0, "hot": Color(1.0, 1.0, 1.0)}},
 }
 
 ## estilo do equipamento -> partículas (ver _particles)
 const PARTICLES := {
 	"a_reaper": {"color": Color(0.66, 0.36, 1.0), "amount": 14, "life": 2.4, "height": 0.3, "ring": 0.3, "rise": 0.32,
 		"size": 0.034, "spread": 12.0},
+	"a_lich": {"color": Color(0.36, 1.0, 0.48), "amount": 12, "life": 2.8, "height": 0.5, "ring": 0.34, "rise": 0.42,
+		"size": 0.042, "spread": 8.0, "band": 0.6},
+	"a_hierophant": {"color": Color(1.0, 0.82, 0.4), "amount": 14, "life": 3.2, "height": 0.9, "ring": 0.42, "rise": 0.16,
+		"size": 0.026, "spread": 30.0, "band": 1.2},
+	"a_raven": {"color": Color(0.08, 0.09, 0.16), "amount": 5, "life": 3.0, "height": 1.3, "ring": 0.36, "rise": -0.3,
+		"size": 0.06, "spread": 25.0, "band": 0.3, "dark": true},
+	"a_dragon": {"color": Color(1.0, 0.5, 0.12), "amount": 16, "life": 1.6, "height": 0.6, "ring": 0.32, "rise": 0.75,
+		"size": 0.022, "spread": 18.0, "band": 0.8},
+	"a_astral": {"color": Color(0.62, 0.82, 1.0), "amount": 16, "life": 3.4, "height": 1.0, "ring": 0.46, "rise": 0.1,
+		"size": 0.024, "spread": 60.0, "band": 1.4},
+	"a_frost": {"color": Color(0.8, 0.93, 1.0), "amount": 14, "life": 2.6, "height": 1.2, "ring": 0.38, "rise": -0.26,
+		"size": 0.03, "spread": 14.0, "band": 0.7},
 }
 
 static var _mats := {}       # nome do material + cor por vértice -> ShaderMaterial
@@ -67,6 +118,9 @@ static func material_for(src: Material, vertex_color := false) -> ShaderMaterial
 			m.set_shader_parameter("emission", base.emission)
 			m.set_shader_parameter("hot", base.emission.lightened(0.6))
 			m.set_shader_parameter("energy", base.emission_energy_multiplier)
+	if fx.shader == SHEEN and base != null:      # metal escurecido e com brilho em faixa, como em ToonLook._fill
+		m.set_shader_parameter("albedo", base.albedo_color.darkened(0.35 * clampf(base.metallic, 0.0, 1.0)))
+		m.set_shader_parameter("gloss", 0.9 if base.metallic > 0.55 else 0.0)
 	if fx.get("lit", false):
 		m.set_shader_parameter("toon", ToonLook.enabled())
 		m.set_shader_parameter("use_vertex_color", vertex_color)
@@ -106,20 +160,21 @@ static func _particles(d: Dictionary) -> CPUParticles3D:
 	p.scale_amount_curve = curve
 	var q := QuadMesh.new()
 	q.size = Vector2.ONE * float(d.size)
-	q.material = _particle_mat(d.color)
+	q.material = _particle_mat(d.color, d.get("dark", false))
 	p.mesh = q
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return p
 
 
-static func _particle_mat(c: Color) -> StandardMaterial3D:
-	var key := c.to_html()
+static func _particle_mat(c: Color, dark := false) -> StandardMaterial3D:
+	var key := c.to_html() + str(dark)
 	if _part_mats.has(key):
 		return _part_mats[key]
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	m.billboard_keep_scale = true
-	m.albedo_color = Color(c.r * 2.2, c.g * 2.2, c.b * 2.2)       # acima de 1: acende o brilho da tela
+	# acima de 1 acende o brilho da tela; "dark" (penas do corvo) fica na cor, sem acender
+	m.albedo_color = c if dark else Color(c.r * 2.2, c.g * 2.2, c.b * 2.2)
 	_part_mats[key] = m
 	return m
