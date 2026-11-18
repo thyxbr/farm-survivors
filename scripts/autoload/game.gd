@@ -81,6 +81,7 @@ var enchants := {}
 ## Classe fixa e corpo do personagem (espelho de CharState; "" = save antigo).
 var char_class := ""
 var body := ""
+var hair := ""           ## penteado (HairStyles; "" = padrão do corpo)
 ## Escolha automática de classe (testes e demos) mandada e ainda sem resposta (online ela é assíncrona).
 var _auto_class_pending := false
 ## Só o net_test: não escolhe a classe sozinho (testa a recusa do servidor a personagem sem classe).
@@ -1163,10 +1164,11 @@ func auto_choose_class() -> void:
 		Econ.request("choose_class", pick)
 
 
-## [classe, corpo] que os argumentos de teste pedem (classe "" = nenhuma: mostra a tela de criação).
+## [classe, corpo, penteado] que os argumentos de teste pedem (classe "" = nenhuma: mostra a tela de criação).
 static func harness_class(args: PackedStringArray) -> Array:
 	var cls := ""
 	var bd := "m"
+	var hr := ""
 	var harness := false
 	var weapon := ""
 	for a in args:
@@ -1174,6 +1176,8 @@ static func harness_class(args: PackedStringArray) -> Array:
 			cls = a.substr(8)
 		elif a.begins_with("--body="):
 			bd = a.substr(7)
+		elif a.begins_with("--hair="):   # penteado (capturas): `--body=f --hair=f_marias`
+			hr = a.substr(7)
 		elif a.begins_with("--weapon="):
 			weapon = a.substr(9)
 			harness = true
@@ -1186,7 +1190,7 @@ static func harness_class(args: PackedStringArray) -> Array:
 				cls = id
 	if cls == "" and harness:
 		cls = "warrior"
-	return [cls, bd]
+	return [cls, bd, hr if HairStyles.valid(bd, hr) else ""]
 
 
 ## `--ui=craft[:forge|leather|alchemy]` abre a bancada com materiais e a profissão no nível de `--prof=N`
@@ -1253,6 +1257,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 	enchants = s.enchants
 	char_class = s.char_class
 	body = s.body
+	hair = s.hair
 	if full:
 		reset_run_mods()
 		clear_buffs(true)

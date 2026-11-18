@@ -181,7 +181,7 @@ func _ready() -> void:
 			var want_body := "f" if rp.display_name == "Ana" else "m"
 			check(rp._last_look.get("body", "") == want_body, "o corpo escolhido (%s) chega na réplica de %s" % [want_body, rp.display_name])
 			check(KnightLook.body_of(rp.model) == want_body
-				and (rp.model.find_child("Ponytail", true, false) != null) == (want_body == "f"),
+				and (rp.model.get_meta("ponytail", null) != null) == (want_body == "f"),   # rabo de cavalo do penteado padrão f_longo
 				"réplica de %s com o modelo do corpo %s" % [rp.display_name, want_body])
 			var holder: Node3D = rp.look.get("holder")
 			check(holder != null and is_instance_valid(holder), "modelo do arco montado na réplica de %s" % rp.display_name)

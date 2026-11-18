@@ -209,6 +209,10 @@ const MIGRATIONS := [
 		"ALTER TABLE economy_log ADD COLUMN char_id INTEGER",
 		"ALTER TABLE run_players ADD COLUMN char_name TEXT",
 	],
+	# v11: penteado escolhido na criação (HairStyles); "" = padrão do corpo
+	[
+		"ALTER TABLE characters ADD COLUMN hair TEXT NOT NULL DEFAULT ''",
+	],
 ]
 
 

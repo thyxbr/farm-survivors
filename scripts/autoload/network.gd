@@ -357,13 +357,14 @@ func _char_req(op: String, args: Array) -> void:
 	var list := characters.list_characters(account)
 	match op:
 		"create":
-			if args.size() != 3 or not (args[0] is String) or not (args[1] is String) or not (args[2] is String):
+			# [nome, classe, corpo] ou [nome, classe, corpo, penteado] (cliente sem a escolha de penteado)
+			if not (args.size() in [3, 4]) or args.any(func(a) -> bool: return not (a is String)):
 				return
 			if list.size() >= MAX_CHARACTERS:
 				_char_list.rpc_id(id, list, 0, "Você já tem %d personagens. Exclua um para criar outro." % MAX_CHARACTERS,
 					acc_name)
 				return
-			var r := characters.create_character(account, args[0], args[1], args[2])
+			var r := characters.create_character(account, args[0], args[1], args[2], args[3] if args.size() > 3 else "")
 			if r.ok:
 				print("[server] %s criou o personagem %d: %s (%s)" % [acc_name, r.id, characters.name_of(r.id), args[1]])
 			_char_list.rpc_id(id, characters.list_characters(account), int(r.id),
@@ -441,16 +442,16 @@ func _auto_pick_character(list: Array, created: int, err: String) -> bool:
 	elif not list.is_empty():
 		char_enter(int(list[0].id))
 	elif err == "":
-		char_create(account_name, pick[0], pick[1])   # o herói dos testes leva o nome da conta
+		char_create(account_name, pick[0], pick[1], pick[2])   # o herói dos testes leva o nome da conta
 	else:
 		_fail(err)
 	return true
 
 
 ## Cliente: pedidos da tela de seleção.
-func char_create(name: String, cls: String, body: String) -> void:
+func char_create(name: String, cls: String, body: String, hair := "") -> void:
 	if is_client():
-		_char_req.rpc_id(1, "create", [name, cls, body])
+		_char_req.rpc_id(1, "create", [name, cls, body, hair])
 
 
 func char_delete(char_id: int) -> void:
@@ -929,6 +930,7 @@ func _clean_look(look: Dictionary, char_id := 0) -> Dictionary:
 	fx.lv = e.lv
 	out["fx"] = fx
 	out["body"] = server_body(char_id)   # o corpo (m/f) vem do personagem gravado, nunca do cliente
+	out["hair"] = server_hair(char_id)   # o penteado também
 	return out
 
 
@@ -937,6 +939,13 @@ func server_body(char_id: int) -> String:
 	if char_id <= 0 or characters == null:
 		return ""
 	return characters.load_or_create(char_id).body
+
+
+## Servidor: penteado gravado do personagem ("" = padrão do corpo).
+func server_hair(char_id: int) -> String:
+	if char_id <= 0 or characters == null:
+		return ""
+	return characters.load_or_create(char_id).hair
 
 
 ## Efeitos visuais do jogador (auras e encanto): só estilos e elementos conhecidos, sem repetir.

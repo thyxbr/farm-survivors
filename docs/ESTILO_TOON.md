@@ -284,6 +284,21 @@ aldeões e os NPCs de cabeça lisa.
   48°. A sombra assada saía por canto de face e formava um xadrez: `bake_ao` agora faz a média por vértice.
   Cavaleiro de placas e NPCs passam pelo mesmo `g_smooth`. Monstros não.
 
+### Dos penteados do herói (0.50.0)
+
+- **O cabelo é um equipamento à parte.** Os estilos de cabeça (`h_*`) saem sem cabelo; cada penteado
+  (`HairStyles`, 4 por corpo, escolhido na criação) é `gear/hair_<id>.glb`, vestido por `KnightLook.apply`.
+  Antes o cabelo vinha dentro de cada `h_*`, e os capuzes e chapéus que não o desenhavam ficavam carecas.
+- **Duas variantes por penteado.** `hair_<id>_tight` tem o mesmo desenho com as mechas rentes ao crânio
+  (`lift` 0,45) para caber sob capuz e chapéu; franja, nuca e o que cai abaixo da orelha (rabo de cavalo,
+  cabelo comprido, marias-chiquinhas) ficam iguais e saem por fora. `KnightLook.HEAD_HAIR` diz o modo de cada
+  estilo: `tight` (capuzes, chapéus de aba), `none` (gorro de couro, coifas de malha, elmos fechados: o cabelo
+  atravessaria o topo justo) e inteiro para o resto (cabeça nua, coroas, tiaras).
+- **O rabo de cavalo mora no penteado `f_longo`**, não mais no `knight_f.glb`. No jogo o nó vira
+  `Gear_Ponytail`, refeito a cada troca de visual: `KnightLook` grava o nó em `model.get_meta("ponytail")` e
+  `KnightAnim.sway_ponytail` segue a meta (variável sem tipo: o nó antigo já foi liberado).
+- **A cabeça entra só como sombra.** `build_hair` monta o rosto para assar a oclusão e não o exporta.
+
 ### Do corpo liso (Doran)
 Com rosto, cabelo e barba lisos, o corpo do Doran (tronco, quadril, cinto e avental em caixas; membros em
 loft facetado) passou a destoar. O corpo novo está em `tools/blender/anime_body.py` (`doran_legs`,

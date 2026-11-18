@@ -18,6 +18,7 @@ var _ench_lv := -1
 var weapon_override := ""
 ## Corpo mostrado ("m"/"f") no lugar do do personagem (tela de criação: o sexo escolhido). "" = Game.body.
 var body_override := ""
+var hair_override := ""     ## penteado mostrado com body_override (tela de criação)
 
 
 func _init(sz := Vector2(260, 340)) -> void:
@@ -89,9 +90,9 @@ func refresh() -> void:
 		pivot.add_child(model)
 		_rig = KnightAnim.rig(model)
 	if model:
-		var eq: Dictionary = Game.equipment
+		var eq: Dictionary = Game.equipment.duplicate()
+		eq["hair"] = hair_override if body_override != "" else Game.hair
 		if weapon_override != "":
-			eq = eq.duplicate()
 			eq["weapon"] = weapon_override
 			eq["offhand"] = ""   # a mão secundária equipada pode não combinar com a arma mostrada
 		_look = KnightLook.apply(model, eq)
@@ -114,6 +115,12 @@ func show_enchant(element: String, level: int) -> void:
 ## Mostra o corpo `b` ("m"/"f") sem gravar (tela de criação). "" volta para o do personagem.
 func show_body(b: String) -> void:
 	body_override = b
+	refresh()
+
+
+## Mostra o penteado `h` (HairStyles) sem gravar (tela de criação); vale junto com show_body.
+func show_hair(h: String) -> void:
+	hair_override = h
 	refresh()
 
 

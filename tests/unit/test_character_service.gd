@@ -494,3 +494,19 @@ func test_load_migrates_and_saves() -> void:
 	T.ok(not svc4.load_or_create(2).flags.has("prog_notice"), "aviso limpo no banco")
 	T.ok(not svc4.apply(2, "ack_prog_notice", [1]).ok, "argumentos de fora são recusados")
 	db.close()
+
+
+func test_hair_persists_and_lists() -> void:
+	var db := _fresh()
+	var svc := CharacterService.new(SqliteCharStore.new(db), _tables())
+	var r := svc.create_character(2, "Lyra", "mage", "f", "f_marias")
+	T.ok(r.ok, "criou: %s" % r.err)
+	T.eq(str(svc.create_character(2, "Bia", "mage", "f", "m_franja").err), "penteado_invalido", "penteado do outro corpo")
+	var e: Array = svc.list_characters(2).filter(func(x: Dictionary) -> bool: return int(x.id) == int(r.id))
+	T.eq(e[0].get("hair", ""), "f_marias", "lista traz o penteado")
+	svc.unload(int(r.id))
+	db.close()
+	var db2 := Db.open(PATH)
+	var s := CharacterService.new(SqliteCharStore.new(db2), _tables()).load_or_create(int(r.id))
+	T.eq(s.hair, "f_marias", "penteado sobrevive a reabrir o banco")
+	db2.close()

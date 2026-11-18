@@ -1543,6 +1543,7 @@ var _slash_el := ""         ## elemento do encantamento da arma: dá a cor do co
 func _update_equipment_visual() -> void:
 	var l: Dictionary = Game.equipment.duplicate()
 	l["body"] = Game.body   # o servidor troca pelo corpo gravado; aqui troca o modelo local na hora
+	l["hair"] = Game.hair   # penteado: idem
 	l["fx"] = _vfx_state()   # auras e encanto vão junto com o visual (os outros jogadores veem)
 	if l == _last_look:
 		return

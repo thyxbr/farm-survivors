@@ -457,8 +457,10 @@ MALE_HAIR_STYLE = {"fringe": 12, "side": 2, "back": -27, "part": -24, "sweep": 1
                    "hairline": [(0, 37), (35, 35), (60, 27), (78, 18), (97, 15), (112, 5), (135, -22), (180, -31)]}
 
 
-def plain_head(R, M, beard=False, hair=True):
-    """Cabeça do herói: rosto liso desenhado (anime.py), cabelo curto em mechas e, com beard, barba curta."""
+def plain_head(R, M, beard=False, hair=False):
+    """Cabeça do herói: rosto liso desenhado (anime.py) e, com beard, barba curta. O cabelo é um equipamento à
+    parte (hair.py, penteado escolhido na criação): os estilos h_* saem sem cabelo e `hair` só serve para as
+    prévias de rosto."""
     head = R["Head"]
     am = anime_mats("hm", hexc("#D29A74"), hexc("#4E6A8A"), hexc("#3A2213"), hexc("#1E120A"), hexc("#9A5648"))
     H = anime_head("", HEAD_CHIN, HEAD_H, head, am, MALE_FACE)

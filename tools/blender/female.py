@@ -432,10 +432,10 @@ FEM_FACE = {"eye_w": 1.14, "eye_h": 1.2, "eye_dz": -0.45, "lash": 1.0, "brow": 0
             "jaw": 0.95, "mouth_w": 0.8}
 
 
-def fem_plain_head(R, M, beard=False, hair=True):
+def fem_plain_head(R, M, beard=False, hair=False):
     """plain_head do corpo feminino (barba nunca): rosto anime liso (anime.py) com olhos grandes e brilho,
-    cílios marcados, sobrancelha fina e alta, nariz pequeno, queixo fino e boca rosada; cabelo comprido sem o
-    rabo de cavalo (que mora no knight_f.glb)."""
+    cílios marcados, sobrancelha fina e alta, nariz pequeno, queixo fino e boca rosada. Sem cabelo, como
+    plain_head: o penteado é um equipamento à parte (hair.py)."""
     head = R["Head"]
     am = anime_mats("hf", hexc("#D29A74"), hexc("#9A5F2C"), hexc("#3A2213"), hexc("#1E120A"), hexc("#C25D68"))
     H = anime_head("", HEAD_CHIN, HEAD_H, head, am, FEM_FACE)
@@ -452,9 +452,12 @@ def fem_head_marks():
 
 # ------------------------------------------------------------------ montagem
 def knight_f_finish(R):
-    """Chamado por build_knight(female=True) antes de assar e exportar: deforma o cavaleiro e põe o rabo de
-    cavalo, afastado da armadura e da capa."""
+    """Chamado por build_knight(female=True) antes de assar e exportar: deforma o cavaleiro. O rabo de cavalo
+    saiu daqui: agora é parte do penteado f_longo (hair.py)."""
     W = fem_warp()
+    loose_world("knight_f")
+    return
+    # (abaixo: o rabo de cavalo antigo, afastado da armadura e da capa; fica como referência do empurrão)
     H = fem_head_marks()
     # a capa fica de fora: o rabo deita por cima dela (e sem capa ficaria solto no ar, longe das costas)
     body_objs = [o for o in coll.all_objects if o.type == 'MESH' and _pivot_region(W, o) == "body"

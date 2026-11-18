@@ -479,16 +479,20 @@ static func best_weapon_of(s: CharState, bt: BalanceTables, wclass: String) -> S
 	return best
 
 
-## Escolha única da classe e do corpo ("m"/"f") na criação. A arma passa a ser do tipo da classe:
-## fica a que já serve, senão a melhor que o personagem tem, senão a arma inicial da classe.
-static func choose_class(s: CharState, bt: BalanceTables, cls: String, body: String) -> Dictionary:
+## Escolha única da classe, do corpo ("m"/"f") e do penteado (HairStyles; "" = padrão do corpo) na criação.
+## A arma passa a ser do tipo da classe: fica a que já serve, senão a melhor que o personagem tem, senão a arma
+## inicial da classe.
+static func choose_class(s: CharState, bt: BalanceTables, cls: String, body: String, hair := "") -> Dictionary:
 	if s.char_class != "":
 		return _fail("ja_tem_classe")
 	var def: Dictionary = bt.get_table("classes").get(cls, {})
 	if not (cls in CLASS_IDS) or def.is_empty() or not (body in ["m", "f"]):
 		return _fail("classe_invalida")
+	if hair != "" and not HairStyles.valid(body, hair):
+		return _fail("penteado_invalido")
 	s.char_class = cls
 	s.body = body
+	s.hair = hair if hair != "" else HairStyles.default_for(body)
 	var wclass := class_weapon(bt, cls)
 	var cur: String = s.equipment.get("weapon", "")
 	if cur == "" or weapon_class(bt, cur) != wclass:
@@ -506,7 +510,7 @@ static func choose_class(s: CharState, bt: BalanceTables, cls: String, body: Str
 	if off != "" and _item(bt, off).has("needs") and _item(bt, off).needs != wclass:
 		add_item(s, bt, off, 1)
 		s.equipment.offhand = ""
-	return _ok([{"t": "class", "class": cls, "body": body},
+	return _ok([{"t": "class", "class": cls, "body": body, "hair": s.hair},
 		_notify("Você agora é %s!" % def.name, def.get("color", Color.WHITE))])
 
 

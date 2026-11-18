@@ -1343,3 +1343,43 @@ func test_ack_prog_notice() -> void:
 	s.flags["prog_notice"] = true
 	T.ok(CharRules.ack_prog_notice(s).ok, "limpa")
 	T.ok(not s.flags.has("prog_notice"), "aviso some")
+
+
+# ---------------------------------------------------------------- penteado (criação)
+func test_choose_class_hair_default() -> void:
+	var s := _blank()
+	T.ok(CharRules.choose_class(s, _tables(), "warrior", "m").ok, "escolheu sem penteado")
+	T.eq(s.hair, "m_curto", "penteado padrão do corpo masculino")
+
+
+func test_choose_class_hair_valid() -> void:
+	var s := _blank()
+	var r := CharRules.choose_class(s, _tables(), "mage", "f", "f_chanel")
+	T.ok(r.ok, "escolheu com penteado: %s" % r.get("err", ""))
+	T.eq(s.hair, "f_chanel", "penteado gravado")
+
+
+func test_choose_class_hair_wrong_body() -> void:
+	var s := _blank()
+	var r := CharRules.choose_class(s, _tables(), "mage", "f", "m_franja")
+	T.ok(not r.ok, "penteado do outro corpo recusado")
+	T.eq(r.err, "penteado_invalido", "erro do penteado")
+	T.eq(s.char_class, "", "classe não muda quando o penteado é recusado")
+
+
+func test_state_hair_roundtrip() -> void:
+	var s := _blank()
+	CharRules.choose_class(s, _tables(), "archer", "m", "m_raspado")
+	var b := CharState.from_dict(JSON.parse_string(JSON.stringify(s.to_dict())), _tables())
+	T.eq(b.hair, "m_raspado", "penteado volta do JSON")
+
+
+func test_state_old_save_no_hair() -> void:
+	var d := _blank().to_dict()
+	d.erase("hair")
+	d["body"] = "f"
+	var b := CharState.from_dict(d, _tables())
+	T.eq(b.hair, "", "save antigo sem penteado")
+	T.eq(HairStyles.resolve(b.body, b.hair), "f_longo", "cai no padrão do corpo")
+	T.eq(HairStyles.resolve("m", "f_marias"), "m_curto", "penteado de outro corpo cai no padrão")
+	T.eq(HairStyles.resolve("", ""), "m_curto", "sem corpo = masculino")

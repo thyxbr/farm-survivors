@@ -19,6 +19,9 @@ var title_label: Label
 var old_note: Label
 var cards := {}
 var body_buttons := {}
+var hair := ""
+var hair_row: HBoxContainer   ## botões dos penteados do corpo escolhido (refeitos ao trocar o corpo)
+var hair_buttons := {}
 var preview: CharPreview
 var class_name_label: Label
 var weapon_label: Label
@@ -78,6 +81,9 @@ func _ready() -> void:
 		btn.button_group = bg
 		srow.add_child(btn)
 		body_buttons[b[0]] = btn
+	hair_row = HBoxContainer.new()
+	hair_row.add_theme_constant_override("separation", 8)
+	sex.add_child(hair_row)
 
 	old_note = UITheme.label("Seu herói já tem história: escolha a classe dele. Se a arma equipada não for da classe, "
 		+ "ela vai para a mochila (nada se perde) e ele empunha a melhor arma da classe que tiver.", 15, Color(1, 0.8, 0.55))
@@ -201,7 +207,13 @@ func _ready() -> void:
 			start_cls = a.substr(8)
 		elif a.begins_with("--body=") and a.substr(7) in ["m", "f"]:
 			start_body = a.substr(7)
+	var start_hair := ""
+	for a in OS.get_cmdline_user_args():   # `--hair=f_marias` (capturas)
+		if a.begins_with("--hair=") and HairStyles.valid(start_body, a.substr(7)):
+			start_hair = a.substr(7)
 	select_body(start_body)
+	if start_hair != "":
+		select_hair(start_hair)
 	select_class(start_cls)
 	(name_edit if name_edit else start_btn).grab_focus.call_deferred()
 
@@ -230,8 +242,36 @@ func select_body(b: String) -> void:
 	body = b
 	if body_buttons.has(b):
 		body_buttons[b].set_pressed_no_signal(true)
+	_fill_hair_row()
+	select_hair(HairStyles.default_for(b))   # trocar o corpo volta ao penteado padrão dele
 	if preview:
 		preview.show_body(b)   # a prévia troca para o corpo escolhido na hora
+
+
+func _fill_hair_row() -> void:
+	if hair_row == null:
+		return
+	for c in hair_row.get_children():
+		c.queue_free()
+	hair_buttons.clear()
+	var hl := UITheme.label("Cabelo", 18, UITheme.TEXT)
+	hl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	hair_row.add_child(hl)
+	var bg := ButtonGroup.new()
+	for id in HairStyles.STYLES[body]:
+		var btn := UITheme.button(str(HairStyles.NAMES.get(id, id)), select_hair.bind(id), 120)
+		btn.toggle_mode = true
+		btn.button_group = bg
+		hair_row.add_child(btn)
+		hair_buttons[id] = btn
+
+
+func select_hair(h: String) -> void:
+	hair = h
+	if hair_buttons.has(h):
+		hair_buttons[h].set_pressed_no_signal(true)
+	if preview:
+		preview.show_hair(h)
 
 
 ## Nomes das habilidades do kit mostrado (na ordem da barra).
@@ -285,9 +325,9 @@ func _start() -> void:
 	start_btn.disabled = true
 	_set_status("Criando o herói...", UITheme.TEXT)
 	if Network.is_client():
-		Network.char_create(hero_name, cls, body)   # a resposta é a lista nova (_on_char_list)
+		Network.char_create(hero_name, cls, body, hair)   # a resposta é a lista nova (_on_char_list)
 		return
-	Econ.request("choose_class", [cls, body])
+	Econ.request("choose_class", [cls, body, hair])
 
 
 ## Online: o servidor respondeu à criação. Deu certo: Network já abre a seleção com o herói novo.
