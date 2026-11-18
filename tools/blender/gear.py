@@ -721,13 +721,20 @@ def g_curved_tube(path, radii, sides=24, wob=None, side0=(1, 0, 0)):
 
 
 def g_plate(name, outline, origin, u, v, thick, material, parent):
-    """Chapa recortada (lua, estrela): contorno 2D [(x, y)] no plano u/v em origin, com espessura."""
+    """Chapa recortada (estrela, losango, runa): contorno 2D [(x, y)] no plano u/v em origin, com espessura
+    para os dois lados do plano. É um prisma montado à mão: engrossar por solidify estoura os vértices nos
+    contornos côncavos (as runas viravam barras de metros no jogo)."""
     u, v = Vector(u).normalized(), Vector(v).normalized()
+    n = u.cross(v).normalized() * thick * 0.75
     bm = bmesh.new()
-    f = bm.faces.new([bm.verts.new(Vector(origin) + u * x + v * y) for x, y in outline])
-    bmesh.ops.triangulate(bm, faces=[f])
+    top = [bm.verts.new(Vector(origin) + u * x + v * y + n) for x, y in outline]
+    bot = [bm.verts.new(Vector(origin) + u * x + v * y - n) for x, y in outline]
+    m = len(outline)
+    caps = [bm.faces.new(top), bm.faces.new(bot[::-1])]
+    for k in range(m):
+        bm.faces.new((top[k], bot[k], bot[(k + 1) % m], top[(k + 1) % m]))
+    bmesh.ops.triangulate(bm, faces=caps)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    bmesh.ops.solidify(bm, geom=bm.faces[:], thickness=thick)
     bmesh.ops.translate(bm, vec=-_wloc(parent), verts=bm.verts)
     print("PART", name, "plate", flush=True)
     return _finish(name, bm, material, parent)
@@ -772,15 +779,14 @@ def archmage_hat_mats():
     )
 
 
-def build_h_archmage():
-    """Chapéu do Arquimago (referências: chapéu de bruxa de aba larga ondulada com lua, e chapéu de feltro mole
+def build_hat(style, A, o):
+    """Chapéu de mago (referências: chapéu de bruxa de aba larga ondulada com lua, e chapéu de feltro mole
     de ponta caída). Malha lisa: aba larga que cai nos lados e levanta na frente e atrás, com forro lilás por
     baixo; copa mole que sobe, tomba para trás e para o lado em dobras e termina em ponta enrolada; faixa
     dourada com medalhão e gema; lua crescente dourada presa na copa; pingente de estrela com borla pendurado
     na aba. Cores fixas (não tinge pelo item)."""
-    P, R = g_rig("h_archmage")
+    P, R = g_rig(style)
     M = g_mats()
-    A = archmage_hat_mats()
     head = R["Head"]
     plain_head(R, M)
     z0, cy = HEAD_CHIN + 0.2, 0.01
@@ -808,8 +814,8 @@ def build_h_archmage():
 
     # ---- aba: anel largo e ondulado, com espessura; por baixo, forro
     def brim_pt(a, u, dz=0.0):
-        r_x = 0.123 + (0.335 - 0.123) * u
-        r_y = 0.135 + (0.32 - 0.135) * u
+        r_x = 0.123 + (0.335 * o.get("brim", 1.0) - 0.123) * u
+        r_y = 0.135 + (0.32 * o.get("brim", 1.0) - 0.135) * u
         z = (z0 + 0.004 - 0.06 * max(u, 0.0) ** 1.4 + u ** 2 * (0.065 * math.cos(2 * a) - 0.035 * math.cos(a) + 0.016 * math.sin(3 * a + 1.0))
              + 0.028 * u ** 3 * math.cos(5 * a + 0.6))
         return Vector((math.sin(a) * r_x, cy - math.cos(a) * r_y, z + dz))
@@ -848,29 +854,41 @@ def build_h_archmage():
     rot = 0.55
     u_ax = sidev * math.cos(rot) + up * math.sin(rot)
     v_ax = -sidev * math.sin(rot) + up * math.cos(rot)
-    parts.append(g_crescent("ArchMoon", q + out * 0.01 + up * 0.01, u_ax, v_ax, 0.016, A["gold"], head,
-                            r=0.06, r_in=0.05, d=0.026))
+    if o.get("emblem", "moon") == "moon":
+        parts.append(g_crescent("ArchMoon", q + out * 0.01 + up * 0.01, u_ax, v_ax, 0.016, A["gold"], head,
+                                r=0.06, r_in=0.05, d=0.026))
+    elif o.get("emblem") == "sun":
+        parts.append(g_cap("HatSun", q + out * 0.004, out, sidev, 0.032, 0.032, 0.012, A["gold"], head, sides=16))
+        for i in range(8):
+            rd = sidev * math.cos(2 * math.pi * i / 8) + up * math.sin(2 * math.pi * i / 8)
+            parts.append(g_plate("HatRay%d" % i, [(x * 0.009, y * 0.02) for x, y in G_DIAMOND],
+                                 q + out * 0.004 + rd * 0.046, rd.cross(out), rd, 0.012, A["gold"], head))
 
-    # ---- pingente: cordão na beira da aba, conta, estrela e borla
-    e = brim_pt(1.05, 0.97)
-    dn = Vector((0, 0, -1))
-    parts.append(loft("ArchCord", [sec(e + Vector((0, 0, 0.004)), 0.0035, 0.0035), sec(e + dn * 0.03, 0.0035, 0.0035)],
-                      A["gold"], head, sides=6))
-    bead = [[e + dn * (0.03 + 0.011 - 0.011 * math.cos(math.pi * i / 6))
-             + Vector((math.sin(2 * math.pi * j / 12), -math.cos(2 * math.pi * j / 12), 0)) * 0.011
-             * max(math.sin(math.pi * i / 6), 0.05) for j in range(12)] for i in range(7)]
-    parts.append(g_smooth_mesh("ArchBead", bead, A["gem"], head))
-    parts.append(g_plate("ArchStar", g_star4(0.03, 0.01), e + dn * 0.083 + Vector((0, 0.005, 0)), (1, 0, 0), (0, 0, 1),
-                       0.01, A["gold"], head))
-    t0 = e + dn * 0.115
-    tas = g_curved_tube([t0 + dn * x for x in (0.0, 0.01, 0.024, 0.044, 0.054)],
-                      [(0.005, 0.005), (0.011, 0.011), (0.01, 0.01), (0.013, 0.013), (0.011, 0.011)], sides=12)
-    parts.append(g_smooth_mesh("ArchTassel", tas, A["tassel"], head))
+    if o.get("pendant", True):
+        # ---- pingente: cordão na beira da aba, conta, estrela e borla
+        e = brim_pt(1.05, 0.97)
+        dn = Vector((0, 0, -1))
+        parts.append(loft("ArchCord", [sec(e + Vector((0, 0, 0.004)), 0.0035, 0.0035), sec(e + dn * 0.03, 0.0035, 0.0035)],
+                          A["gold"], head, sides=6))
+        bead = [[e + dn * (0.03 + 0.011 - 0.011 * math.cos(math.pi * i / 6))
+                 + Vector((math.sin(2 * math.pi * j / 12), -math.cos(2 * math.pi * j / 12), 0)) * 0.011
+                 * max(math.sin(math.pi * i / 6), 0.05) for j in range(12)] for i in range(7)]
+        parts.append(g_smooth_mesh("ArchBead", bead, A["gem"], head))
+        parts.append(g_plate("ArchStar", g_star4(0.03, 0.01), e + dn * 0.083 + Vector((0, 0.005, 0)), (1, 0, 0), (0, 0, 1),
+                           0.01, A["gold"], head))
+        t0 = e + dn * 0.115
+        tas = g_curved_tube([t0 + dn * x for x in (0.0, 0.01, 0.024, 0.044, 0.054)],
+                          [(0.005, 0.005), (0.011, 0.011), (0.01, 0.01), (0.013, 0.013), (0.011, 0.011)], sides=12)
+        parts.append(g_smooth_mesh("ArchTassel", tas, A["tassel"], head))
 
     if "loose_parts" in globals():
-        loose_parts("h_archmage")
+        loose_parts(style)
     join_objs("ArchHat", parts)
-    g_export("h_archmage", P, R)
+    g_export(style, P, R)
+
+
+def build_h_archmage():
+    build_hat("h_archmage", archmage_hat_mats(), {})
 
 
 # ================================================================== PEITO
@@ -1308,6 +1326,8 @@ def archmage_mantle(P, R, A, body):
     gema em gota, e duas voltas de corrente de elos até as ombreiras.
     Devolve (pano, enfeites): o pano dobra com o braço, os enfeites vão inteiros junto do ponto onde estão."""
     cloth, lining, gold, jewel = A["cloth"], A["lining"], A["gold2"], A["gem"]
+    o = A.get("o", {})
+    mot = A.get("motif", gold)
     cy = 0.008
     T = 200
     prof = [g_spline(col, T) for col in ((0.06, 0.145, 0.225, 0.262, 0.272), (0.056, 0.1, 0.128, 0.165, 0.182),
@@ -1318,9 +1338,9 @@ def archmage_mantle(P, R, A, body):
         rx, ry, z = prof[0][k], prof[1][k], prof[2][k]
         c2 = math.cos(2 * a)
         wing, vee = max(0.0, -c2) ** 2, max(0.0, c2) ** 2
-        z -= 0.055 * u * math.cos(a) ** 2 + 0.11 * vee * u ** 3 + drop * u
+        z -= 0.055 * u * math.cos(a) ** 2 + o.get("vee", 0.11) * vee * u ** 3 + drop * u
         z += 0.03 * wing * u ** 4
-        rx += 0.03 * wing * u ** 3 + grow + 0.006 * u ** 2 * math.sin(6 * a)
+        rx += o.get("wing", 0.03) * wing * u ** 3 + grow + 0.006 * u ** 2 * math.sin(6 * a)
         ry += grow + 0.006 * u ** 2 * math.sin(6 * a)
         sx, cx = math.sin(a), math.cos(a)
         e = 2 / 2.5
@@ -1341,11 +1361,15 @@ def archmage_mantle(P, R, A, body):
         c, n, side, up = frame(a, u)
         us = side * math.cos(rot) + up * math.sin(rot)
         vs = -side * math.sin(rot) + up * math.cos(rot)
-        return g_plate(name, [(x * size, y * size) for x, y in outline], c + n * 0.0045, us, vs, thick, gold, body)
+        return g_plate(name, [(x * size, y * size) for x, y in outline], c + n * 0.0045, us, vs, thick, mot, body)
 
     N, rows = 48, 14
     soft, orn = [], []
-    for nm, mt, grow, drop, r_pipe in (("MantleUnder", lining, -0.004, 0.075, 0.006), ("Mantle", cloth, 0.0, 0.0, 0.0075)):
+    ud = o.get("under_drop", 0.075)
+    layers = [("MantleUnder", lining, -0.004, ud, 0.006), ("Mantle", cloth, 0.0, 0.0, 0.0075)]
+    if o.get("layers", 2) >= 3:          # terceira camada, mais comprida, por baixo das outras
+        layers.insert(0, ("MantleUnder2", A.get("lining2", cloth), -0.008, ud * 2.0, 0.006))
+    for nm, mt, grow, drop, r_pipe in layers:
         rings = [[M(2 * math.pi * j / N, i / rows, grow, drop) for j in range(N)] for i in range(rows + 1)]
         soft.append(g_smooth_mesh(nm, rings, mt, body, cap_end=False, thick=0.01))
         soft.append(g_pipe(nm + "Piping", rings[-1], r_pipe, gold, body, loop=True))
@@ -1353,22 +1377,34 @@ def archmage_mantle(P, R, A, body):
     # ---- bordado: fio dourado acima da barra, losangos entre o fio e a barra, estrelas, lua nas costas
     soft.append(g_pipe("MantleThread", [M(2 * math.pi * j / 96, 0.87) + normal(2 * math.pi * j / 96, 0.87) * 0.003
                                         for j in range(96)], 0.0032, gold, body, sides=6, loop=True))
-    for j in range(32):
+    for j in (range(32) if o.get("hem_diamonds", True) else ()):
         a = 2 * math.pi * (j + 0.5) / 32
         aw = (a + math.pi) % (2 * math.pi) - math.pi
-        if abs(abs(aw) - math.pi / 2) < 0.62 or abs(aw) < 0.24:      # sob as ombreiras e sob a gema em gota
+        if (o.get("pauldron", True) and abs(abs(aw) - math.pi / 2) < 0.62) or abs(aw) < 0.24:      # sob as ombreiras e sob a gema em gota
             continue
-        orn.append(motif("HemDiamond%d" % j, G_DIAMOND, a, 0.935, 0.0115, thick=0.005))
+        orn.append(motif("HemDiamond%d" % j, g_shape(o, j, G_DIAMOND), a, 0.935, 0.0115, thick=0.005))
     for k, (a, u, sz) in enumerate(((0.78, 0.55, 0.02), (-0.78, 0.55, 0.02), (2.2, 0.6, 0.022), (-2.2, 0.6, 0.022),
-                                    (2.75, 0.34, 0.015), (-2.75, 0.34, 0.015))):
-        orn.append(motif("Star%d" % k, g_star4(1.0, 0.32), a, u, sz))
+                                    (2.75, 0.34, 0.015), (-2.75, 0.34, 0.015)) if o.get("stars", True) else ()):
+        orn.append(motif("Star%d" % k, g_shape(o, k, g_star4(1.0, 0.32)), a, u, sz))
+    back = o.get("back", "moon")
     c, n, side, up = frame(math.pi, 0.62)
-    orn.append(g_crescent("BackMoon", c + n * 0.0045 - up * 0.004, side * 0.5 + up * 0.87, -side * 0.87 + up * 0.5, 0.007,
-                          gold, body, r=0.052, r_in=0.043, d=0.022))
-    orn.append(motif("BackStar", g_star4(1.0, 0.3), math.pi, 0.6, 0.017))
+    if back == "moon":
+        orn.append(g_crescent("BackMoon", c + n * 0.0045 - up * 0.004, side * 0.5 + up * 0.87, -side * 0.87 + up * 0.5,
+                              0.007, mot, body, r=0.052, r_in=0.043, d=0.022))
+        orn.append(motif("BackStar", g_star4(1.0, 0.3), math.pi, 0.6, 0.017))
+    elif back == "sun":
+        orn.append(g_cap("BackSun", c + n * 0.002, n, side, 0.03, 0.03, 0.01, mot, body, sides=16))
+        for i in range(8):
+            rd = side * math.cos(2 * math.pi * i / 8) + up * math.sin(2 * math.pi * i / 8)
+            orn.append(g_plate("BackRay%d" % i, [(x * 0.009, y * 0.02) for x, y in G_DIAMOND],
+                               c + n * 0.0045 + rd * 0.044, rd.cross(n), rd, 0.006, mot, body))
+    elif back == "rune":
+        orn.append(motif("BackRune", G_RUNES[2], math.pi, 0.6, 0.05))
+        for k, da in enumerate((-0.42, 0.42)):
+            orn.append(motif("BackRune%d" % k, G_RUNES[k], math.pi + da, 0.62, 0.026))
 
     # ---- ombreiras: duas placas douradas; aro, nervuras e pérolas em relevo; gema em cima; franja de gotas
-    for sn, s in (("L", 1), ("R", -1)):
+    for sn, s in ((("L", 1), ("R", -1)) if o.get("pauldron", True) else ()):
         a = s * math.pi / 2
         for k, (u, r1, r2, h) in enumerate(((0.84, 0.11, 0.07, 0.024), (0.56, 0.08, 0.062, 0.04))):
             c, n = M(a, u), normal(a, u)
@@ -1393,7 +1429,7 @@ def archmage_mantle(P, R, A, body):
                                   body, loop=True))
                 orn.append(g_cap("PauldronGem%s" % sn, c + n * (h - 0.004), n, (0, -1, 0), 0.03, 0.024, 0.016,
                                  jewel, body, rings=5, sides=16))
-        for k in range(5):
+        for k in (range(5) if o.get("fringe", True) else ()):
             aa = a + s * (k - 2) * 0.2
             q = M(aa, 0.97) + Vector((0, 0, -0.004))
             drop = g_curved_tube([q + Vector((0, 0, -x)) for x in (0.0, 0.012, 0.03, 0.046, 0.054)],
@@ -1404,7 +1440,7 @@ def archmage_mantle(P, R, A, body):
     # ---- peito: V dourado da gola ao broche, losangos no meio, broche com pérolas, asas e gema em gota
     ub = 0.8
     bc, bn, bside, bup = frame(0.0, ub)
-    for sn, s in (("L", 1), ("R", -1)):
+    for sn, s in ((("L", 1), ("R", -1)) if o.get("lapel", True) else ()):
         pts = []
         for i in range(13):
             t = i / 12
@@ -1433,7 +1469,7 @@ def archmage_mantle(P, R, A, body):
                      sides=14))
 
     # ---- duas voltas de corrente de elos, do broche a cada ombreira
-    for sn, s in (("L", 1), ("R", -1)):
+    for sn, s in ((("L", 1), ("R", -1)) if o.get("chains", True) else ()):
         for k, (sag, u1) in enumerate(((0.07, 0.6), (0.2, 0.66))):
             pts, nr = [], []
             for i in range(33):
@@ -1450,7 +1486,7 @@ def archmage_mantle(P, R, A, body):
 
     def C(a, v, inset=0.0):
         e = min(1.0, min(a - a0, 2 * math.pi - a0 - a) / 0.75)
-        hh = (0.07 + 0.085 * ((1 - math.cos(a)) / 2) ** 1.2) * (0.3 + 0.7 * e ** 0.6)
+        hh = (0.07 + 0.085 * ((1 - math.cos(a)) / 2) ** 1.2) * (0.3 + 0.7 * e ** 0.6) * o.get("collar", 1.0)
         r = 0.012 * v + 0.05 * v ** 2 - inset
         return Vector((math.sin(a) * (0.078 + r), cy + 0.004 + 0.016 * v - math.cos(a) * (0.072 + r), 1.508 + hh * v))
     rings = []
@@ -1467,7 +1503,7 @@ def archmage_mantle(P, R, A, body):
             pl.material_index = 1
     rim = [C(angs[0], 0.0)] + [(C(a, 1.0) + C(a, 1.0, 0.009)) / 2 for a in angs] + [C(angs[-1], 0.0)]
     cparts = [col, g_pipe("CollarPiping", rim, 0.0065, gold, body)]
-    for k, a in enumerate((math.pi - 0.9, math.pi, math.pi + 0.9)):          # losangos bordados na nuca
+    for k, a in enumerate((math.pi - 0.9, math.pi, math.pi + 0.9) if o.get("collar", 1.0) > 0.8 else ()):          # losangos bordados na nuca
         q, q2 = C(a, 0.55), C(a, 0.75)
         out = Vector((q.x, q.y - cy, 0)).normalized()
         upv = (q2 - q).normalized()
@@ -1475,6 +1511,57 @@ def archmage_mantle(P, R, A, body):
                               upv.cross(out), upv, 0.005, gold, body))
     join_objs("Collar", cparts)
     return soft, orn
+
+
+def g_skin_finish(M, soft, orn, keep=("Body", "ArmL", "ArmR")):
+    """Passa a roupa inteira para o esqueleto (roupa com pele, ver body_mesh.py): cada peça rígida fica 100% no
+    osso do pivô em que estava; o pano de `soft` herda, vértice a vértice, os pesos do corpo logo abaixo (dobra
+    com o braço); cada enfeite de `orn` herda os pesos do ponto onde está (vai inteiro, sem deformar)."""
+    from mathutils.kdtree import KDTree
+    bpy.context.view_layer.update()
+    meshes = [o for o in scn.objects if o.type == 'MESH']
+    bone_of = {o.name: (o.parent.name if o.parent else "Body") for o in meshes}
+    world = {o.name: o.matrix_world.copy() for o in meshes}
+    empties = [o for o in scn.objects if o.type == 'EMPTY']
+    rig, src = _cb_start(M)
+    kd = KDTree(len(src.data.vertices))
+    for v in src.data.vertices:
+        kd.insert(v.co, v.index)
+    kd.balance()
+    gname = {g.index: g.name for g in src.vertex_groups}
+
+    def weights(p):
+        acc = {}
+        for co, idx, dist in kd.find_n(p, 10):
+            w = 1.0 / (dist + 0.02) ** 2
+            for ge in src.data.vertices[idx].groups:
+                b = gname[ge.group]
+                if b in keep:
+                    acc[b] = acc.get(b, 0.0) + ge.weight * w
+        tot = sum(acc.values())
+        return {b: w / tot for b, w in acc.items()} if tot > 0 else {"Body": 1.0}
+
+    def put(o, idx, W):
+        for b, w in W.items():
+            g = o.vertex_groups.get(b) or o.vertex_groups.new(name=b)
+            g.add(idx, w, 'REPLACE')
+    for o in meshes:
+        mw = world[o.name]
+        if o in soft:
+            for v in o.data.vertices:
+                put(o, [v.index], weights(mw @ v.co))
+        elif o in orn:
+            cen = sum((mw @ v.co for v in o.data.vertices), Vector()) / len(o.data.vertices)
+            put(o, [v.index for v in o.data.vertices], weights(cen))
+        else:
+            put(o, [v.index for v in o.data.vertices], {bone_of[o.name]: 1.0})
+        o.parent = rig
+        o.matrix_world = mw
+        o.modifiers.new("Armature", 'ARMATURE').object = rig
+    for e in empties:
+        bpy.data.objects.remove(e, do_unlink=True)
+    bpy.data.objects.remove(src, do_unlink=True)
+    join_objs("Mantle", list(soft) + list(orn))
 
 
 def g_skin_finish(rig, src, groups):
@@ -1586,6 +1673,8 @@ def archmage_torso(A, src, body):
     Devolve (casaco, pontas): o casaco já vem com os pesos do corpo; as pontas dobram com a perna."""
     from mathutils.bvhtree import BVHTree
     cloth, cream, wine, gold, jewel = A["cloth"], A["cream2"], A["wine2"], A["gold2"], A["gem"]
+    o = A.get("o", {})
+    nw = o.get("wraps", 3)
 
     def is_torso(c, b, n):
         return not (b.startswith("Arm") or b.startswith("Elbow") or b.startswith("Knee")) and 0.86 <= c.z < 1.51
@@ -1627,10 +1716,10 @@ def archmage_torso(A, src, body):
     def wrap_pt(k, a, t):
         zc, hh, tilt, ph = wraps[k]
         return hit_a(a, zc + hh * t + tilt * math.sin(a + ph), 0.011 + 0.004 * k + 0.013 * (1 - t * t))
-    for k in range(3):
+    for k in range(nw):
         rows = [[wrap_pt(k, 2 * math.pi * j / N, t) for j in range(N)] for t in (-1.0, -0.6, 0.0, 0.6, 1.0)]
         parts.append(g_smooth_mesh("Sash%d" % k, rows, wine, body, cap_end=False, outward=True))
-    for nm, k, t in (("SashPipeLo", 0, -1.0), ("SashPipeHi", 2, 1.0)):
+    for nm, k, t in (("SashPipeLo", 0, -1.0), ("SashPipeHi", nw - 1, 1.0)):
         parts.append(g_pipe(nm, [wrap_pt(k, 2 * math.pi * j / N, t) + rad(2 * math.pi * j / N) * 0.003 for j in range(N)],
                             0.0058, gold, body, loop=True))
 
@@ -1639,9 +1728,10 @@ def archmage_torso(A, src, body):
     bc = hit_a(0.0, 1.008, 0.034)
     fang = [(-0.078, 0.02), (-0.046, 0.03), (-0.024, 0.002), (0, -0.01), (0.024, 0.002), (0.046, 0.03), (0.078, 0.02),
             (0.05, -0.014), (0.02, -0.05), (0, -0.14), (-0.02, -0.05), (-0.05, -0.014)]
-    parts.append(g_plate("BuckleFang", fang, bc + Vector((0, 0.012, -0.01)), (1, 0, 0), (0, 0, 1), 0.012, gold, body))
-    parts.append(g_cap("FangGem", bc + Vector((0, 0.0, -0.085)), fwd, (1, 0, 0), 0.011, 0.02, 0.009, jewel, body, rings=4,
-                       sides=12))
+    if o.get("fang", True):
+        parts.append(g_plate("BuckleFang", fang, bc + Vector((0, 0.012, -0.01)), (1, 0, 0), (0, 0, 1), 0.012, gold, body))
+        parts.append(g_cap("FangGem", bc + Vector((0, 0.0, -0.085)), fwd, (1, 0, 0), 0.011, 0.02, 0.009, jewel, body, rings=4,
+                           sides=12))
     parts.append(g_cap("Buckle", bc, fwd, (1, 0, 0), 0.058, 0.058, 0.018, gold, body, sides=24))
     cp = lambda th, ph, lift=0.0: g_cap_pt(bc, fwd, (1, 0, 0), 0.058, 0.058, 0.018, th, ph, lift)
     parts.append(g_pipe("BuckleRim", [cp(2 * math.pi * j / 24, 0.1, 0.002) for j in range(24)], 0.0055, gold, body,
@@ -1658,8 +1748,8 @@ def archmage_torso(A, src, body):
         return q + rad(a) * max(0.0, 0.9 - z) * 0.3
 
     # ---- correntes de elos graúdos da fivela aos quadris, em duas voltas (a de baixo mais funda)
-    for sn, s in (("L", 1), ("R", -1)):
-        for k, (sag, a1) in enumerate(((0.07, 1.15), (0.17, 1.3))):
+    for sn, s in ((("L", 1), ("R", -1)) if o.get("belt_chains", True) else ()):
+        for k, (sag, a1) in enumerate(((0.07, 1.15), (0.17, 1.3))[:o.get("belt_swags", 2)]):
             pts, nr = [], []
             for i in range(25):
                 t = i / 24
@@ -1670,7 +1760,7 @@ def archmage_torso(A, src, body):
                              r=0.0036)
 
     # ---- dois cordões grossos no quadril esquerdo: conta, arremate dourado e borla comprida
-    for k, (a, ln) in enumerate(((0.92, 0.2), (1.14, 0.29))):
+    for k, (a, ln) in enumerate(((0.92, 0.2), (1.14, 0.29)) if o.get("cords", True) else ()):
         pts = [below(a + 0.03 * math.sin(q * 0.9 + k), 0.945 - ln * q / 8, 0.054) for q in range(9)]
         parts.append(g_pipe("Cord%d" % k, pts, 0.0058, gold, body, sides=8))
         end = pts[-1]
@@ -1683,8 +1773,9 @@ def archmage_torso(A, src, body):
     ak = -0.9
     kc = hit_a(ak, 1.005, 0.03)
     tang = Vector((math.cos(ak), math.sin(ak), 0))
-    parts.append(g_cap("SashKnot", kc, rad(ak), (0, 0, 1), 0.036, 0.034, 0.034, wine, body, sides=16))
-    for k, sg in enumerate((1, -1)):                      # alças do laço, uma para cada lado do nó
+    if o.get("knot", True):
+        parts.append(g_cap("SashKnot", kc, rad(ak), (0, 0, 1), 0.036, 0.034, 0.034, wine, body, sides=16))
+    for k, sg in enumerate((1, -1) if o.get("knot", True) else ()):                      # alças do laço, uma para cada lado do nó
         loop = [kc + rad(ak) * (0.012 + 0.012 * math.sin(math.pi * q / 8))
                 + tang * sg * (0.07 * math.sin(math.pi * q / 8) ** 0.8 + 0.006)
                 + Vector((0, 0, 0.03 * math.cos(math.pi * q / 8) + 0.012)) for q in range(9)]
@@ -1692,7 +1783,7 @@ def archmage_torso(A, src, body):
                                                                         for q in range(9)], sides=10,
                                                                  side0=rad(ak)), wine, body))
     tails = []
-    for k, (da, ln) in enumerate(((0.16, 0.43), (-0.2, 0.33))):
+    for k, (da, ln) in enumerate(((0.16, 0.43), (-0.2, 0.33)) if o.get("knot", True) else ()):
         path, radii = [], []
         for q in range(15):
             t = q / 14
@@ -1720,6 +1811,9 @@ def archmage_sleeves(A, src, R):
     dourado roliço na boca, fio bordado e losangos perto da barra; por baixo, punho creme justo com bracelete.
     Devolve [(sino, pesos)]: o sino dobra no cotovelo (pesos pela posição ao longo do braço)."""
     cloth, lining, cream, gold = A["cloth"], A["lining"], A["cream2"], A["gold2"]
+    o = A.get("o", {})
+    mot = A.get("motif", gold)
+    bl = o.get("bell", 1.0)      # quanto o sino abre
 
     def upper(c, b, n):
         return b.startswith("Arm") or (b.startswith("Elbow") and _cb_fore_t(c) < 0.3)
@@ -1738,17 +1832,17 @@ def archmage_sleeves(A, src, R):
         d = (wr - el).normalized()
         out = Vector((s, 0, 0))
         ctrl = [sh.lerp(el, 0.5), el + out * 0.004, el.lerp(wr, 0.45) + out * 0.01, el.lerp(wr, 0.78) + out * 0.02,
-                wr - d * 0.02 + out * 0.026]
+                wr + d * o.get("bell_len", -0.02) + out * 0.026]
         path = g_spline(ctrl, n)
-        rx = g_spline([0.073, 0.08, 0.087, 0.09, 0.09], n)       # para os lados
-        ry = g_spline([0.075, 0.084, 0.098, 0.114, 0.12], n)     # para a frente e para trás
+        rx = g_spline([0.073, 0.08, 0.08 + 0.007 * bl, 0.08 + 0.01 * bl, 0.08 + 0.01 * bl], n)       # para os lados
+        ry = g_spline([0.075, 0.084, 0.084 + 0.014 * bl, 0.084 + 0.03 * bl, 0.084 + 0.036 * bl], n)     # para a frente e para trás
         rings = g_curved_tube(path, list(zip(rx, ry)), sides=S, side0=(1, 0, 0))
         for i, ring in enumerate(rings):                         # boca em diagonal: atrás cai mais, em ponta
             k = max(0.0, (i / n - 0.4) / 0.6) ** 2
             for j in range(S):
                 a = 2 * math.pi * j / S
                 back = ((1 - math.cos(a)) / 2)
-                ring[j] = ring[j] + d * (0.15 * k * back ** 2.2 - 0.045 * k * (1 - back))
+                ring[j] = ring[j] + d * (o.get("droop", 0.15) * k * back ** 2.2 - 0.045 * k * (1 - back))
         cen = [sum(r, Vector()) / S for r in rings]
         i0 = 6
         inner = [[cen[i] + (q - cen[i]) * (1 - 0.009 / max((q - cen[i]).length, 1e-4)) for q in rings[i]]
@@ -1767,13 +1861,13 @@ def archmage_sleeves(A, src, R):
         parts = [g_pipe("BellPiping" + sn, rings[n], 0.0075, gold, elbow, sides=8, loop=True),
                  g_pipe("BellThread" + sn, [q + (q - cen[n - 3]).normalized() * 0.003 for q in rings[n - 3]], 0.0034,
                         gold, elbow, sides=6, loop=True)]
-        for j in range(0, S, 2):
+        for j in (range(0, S, 2) if o.get("bell_diamonds", True) else ()):
             q = (rings[n - 1][j] + rings[n - 2][j]) / 2
             c = (cen[n - 1] + cen[n - 2]) / 2
             nr = (q - c).normalized()
             up = (rings[n - 2][j] - rings[n - 1][j]).normalized()
-            parts.append(g_plate("BellDiamond%s%d" % (sn, j), [(x * 0.011, y * 0.011) for x, y in G_DIAMOND],
-                                 q + nr * 0.004, up.cross(nr), up, 0.005, gold, elbow))
+            parts.append(g_plate("BellDiamond%s%d" % (sn, j), [(x * 0.011, y * 0.011) for x, y in g_shape(o, j // 2, G_DIAMOND)],
+                                 q + nr * 0.004, up.cross(nr), up, 0.005, mot, elbow))
         side = d.cross(Vector((0, -1, 0))).normalized()
         fw = side.cross(d).normalized()
         for k, (off, r) in enumerate(((-0.012, 0.047), (0.004, 0.045))):
@@ -1797,6 +1891,8 @@ def archmage_skirt(A, body):
     Devolve (panos, enfeites, pesos): o pano acompanha a coxa e a canela do lado em que está (metade do caminho
     no meio, onde as duas pernas se equilibram); os enfeites usam os pesos do ponto onde estão."""
     cloth, lining, cream, gold, jewel = A["cloth"], A["lining"], A["cream2"], A["gold2"], A["gem"]
+    o = A.get("o", {})
+    mot = A.get("motif", gold)
     knee_z = CB_J["knee"].z
 
     def W(p):
@@ -1842,10 +1938,11 @@ def archmage_skirt(A, body):
     H = NC // 2
 
     def hem(a):
-        return 0.2 - 0.07 * max(0.0, math.cos(3 * (a - math.pi))) ** 2 - 0.07 * ((1 - math.cos(a)) / 2) ** 2
+        return (0.2 - o.get("hem_depth", 0.07) * max(0.0, math.cos(o.get("hem_pts", 3) * (a - math.pi))) ** 2
+                - 0.07 * ((1 - math.cos(a)) / 2) ** 2)
 
     def cpt(j, t, inset=0.0, half=0):
-        a0, g = 0.42 + 0.22 * t, slit(t)
+        a0, g = o.get("open", 0.42) + 0.22 * t, slit(t)
         if half == 0:
             a = a0 + (math.pi - g - a0) * j / H
         else:
@@ -1869,82 +1966,103 @@ def archmage_skirt(A, body):
     def motif(name, outline, q, q_up, size, thick=0.005):
         nr = Vector((q.x, q.y, 0)).normalized()
         up = (q_up - q).normalized()
-        return g_plate(name, [(x * size, y * size) for x, y in outline], q + nr * 0.004, up.cross(nr), up, thick, gold,
+        return g_plate(name, [(x * size, y * size) for x, y in outline], q + nr * 0.004, up.cross(nr), up, thick, mot,
                        body)
-    for j in range(3, NC - 2, 3):
-        orn.append(motif("CoatDiamond%d" % j, G_DIAMOND, (outer[rows - 1][j] + outer[rows][j]) / 2, outer[rows - 1][j],
+    for j in (range(3, NC - 2, 3) if o.get("coat_diamonds", True) else ()):
+        orn.append(motif("CoatDiamond%d" % j, g_shape(o, j, G_DIAMOND), (outer[rows - 1][j] + outer[rows][j]) / 2, outer[rows - 1][j],
                          0.013))
-    for k, (j, i) in enumerate(((7, 8), (16, 6), (25, 9), (32, 5), (39, 9), (48, 6), (57, 8))):
-        orn.append(motif("CoatStar%d" % k, g_star4(1.0, 0.32), outer[i][j], outer[i - 1][j], 0.024 if k % 2 else 0.017))
+    for k, (j, i) in enumerate(((7, 8), (16, 6), (25, 9), (32, 5), (39, 9), (48, 6), (57, 8)) if o.get("coat_stars", True) else ()):
+        orn.append(motif("CoatStar%d" % k, g_shape(o, k, g_star4(1.0, 0.32)), outer[i][j], outer[i - 1][j], 0.024 if k % 2 else 0.017))
 
-    # ---- painel da frente: cai da fivela, por fora da veste, até a canela; termina em ponta
-    n = 14
-    path, radii = [], []
-    for q in range(n + 1):
-        u = q / n
-        z = 0.955 - 0.66 * u
-        t = (1.0 - z) / 0.9
-        path.append(Vector((0, 0.005 - (0.14 + 0.13 * t ** 0.8 + 0.03 + 0.012 * math.sin(math.pi * u)), z)))
-        w = 0.07 - 0.012 * u
-        if u > 0.84:
-            w *= max(0.06, (1 - u) / 0.16)
-        radii.append((w, 0.006))
-    S = 16
-    rings = g_curved_tube(path, radii, sides=S, side0=(1, 0, 0))
-    soft.append(g_smooth_mesh("Tabard", rings, cloth, body))
-    border = [rings[i][S // 4] for i in range(n + 1)] + [rings[i][3 * S // 4] for i in range(n, -1, -1)]
-    soft.append(g_pipe("TabardPiping", border, 0.0058, gold, body, loop=True))
+    # ---- painel da frente (opcional)
+    if o.get("tabard", True):
+        # ---- painel da frente: cai da fivela, por fora da veste, até a canela; termina em ponta
+        n = 14
+        path, radii = [], []
+        for q in range(n + 1):
+            u = q / n
+            z = 0.955 - 0.66 * u
+            t = (1.0 - z) / 0.9
+            path.append(Vector((0, 0.005 - (0.14 + 0.13 * t ** 0.8 + 0.03 + 0.012 * math.sin(math.pi * u)), z)))
+            w = 0.07 - 0.012 * u
+            if u > 0.84:
+                w *= max(0.06, (1 - u) / 0.16)
+            radii.append((w, 0.006))
+        S = 16
+        rings = g_curved_tube(path, radii, sides=S, side0=(1, 0, 0))
+        soft.append(g_smooth_mesh("Tabard", rings, cloth, body))
+        border = [rings[i][S // 4] for i in range(n + 1)] + [rings[i][3 * S // 4] for i in range(n, -1, -1)]
+        soft.append(g_pipe("TabardPiping", border, 0.0058, gold, body, loop=True))
 
-    def on_tab(i):
-        fw = (rings[i][0] - path[i]).normalized()
-        up = (path[max(i - 1, 0)] - path[min(i + 1, n)]).normalized()
-        return path[i] + fw * 0.0095, fw, up.cross(fw).normalized(), up
-    c, fw, side, up = on_tab(2)
-    orn.append(g_cap("TabardSeat", c - fw * 0.004, fw, side, 0.03, 0.036, 0.012, gold, body, sides=16))
-    orn.append(g_cap("TabardGem", c + fw * 0.004, fw, side, 0.018, 0.024, 0.012, jewel, body, rings=5, sides=14))
-    for k, (i, shape, size) in enumerate(((5, g_star4(1.0, 0.3), 0.034), (7, G_DIAMOND, 0.013), (8, G_DIAMOND, 0.018),
-                                          (10, g_star4(1.0, 0.3), 0.018))):
-        c, fw, side, up = on_tab(i)
-        orn.append(g_plate("TabardMotif%d" % k, [(x * size, y * size) for x, y in shape], c, side, up, 0.006, gold, body))
-    c, fw, side, up = on_tab(11)
-    orn.append(g_crescent("TabardMoon", c - up * 0.012, up, -side, 0.007, gold, body, r=0.036, r_in=0.03, d=0.016))
+        def on_tab(i):
+            fw = (rings[i][0] - path[i]).normalized()
+            up = (path[max(i - 1, 0)] - path[min(i + 1, n)]).normalized()
+            return path[i] + fw * 0.0095, fw, up.cross(fw).normalized(), up
+        c, fw, side, up = on_tab(2)
+        orn.append(g_cap("TabardSeat", c - fw * 0.004, fw, side, 0.03, 0.036, 0.012, gold, body, sides=16))
+        orn.append(g_cap("TabardGem", c + fw * 0.004, fw, side, 0.018, 0.024, 0.012, jewel, body, rings=5, sides=14))
+        for k, (i, shape, size) in enumerate(((5, g_star4(1.0, 0.3), 0.034), (7, G_DIAMOND, 0.013), (8, G_DIAMOND, 0.018),
+                                              (10, g_star4(1.0, 0.3), 0.018))):
+            c, fw, side, up = on_tab(i)
+            orn.append(g_plate("TabardMotif%d" % k, [(x * size, y * size) for x, y in shape], c, side, up, 0.006, mot, body))
+        c, fw, side, up = on_tab(11)
+        orn.append(g_crescent("TabardMoon", c - up * 0.012, up, -side, 0.007, mot, body, r=0.036, r_in=0.03, d=0.016))
     return soft, orn, W
 
 
-def build_a_archmage():
-    """Manto do Arquimago (desenho próprio, sobre referências de magos de anime), em malha lisa e com esqueleto
-    (roupa com pele, ver body_mesh.py): gola e ombros (archmage_mantle), tronco e faixa (archmage_torso), mangas
-    (archmage_sleeves) e saia (archmage_skirt). Pescoço, quadril e coxas por baixo continuam peças simples.
-    Cores fixas (não tinge pelo item)."""
-    P, R = g_rig("a_archmage")
+# ------------------------------------------------------------------ mantos de mago: molde com opções
+# As quatro peças do manto (archmage_mantle, _torso, _sleeves, _skirt), o chapéu (build_hat) e o capuz
+# (build_hood) leem as cores de A e as opções de A["o"]; sem opções, sai o Manto do Arquimago. Cada conjunto de
+# ROBES vira dois estilos: a_<nome> (manto) e h_<nome> (chapéu ou capuz).
+G_RUNES = [
+    [(-0.5, 1), (0.5, 0), (-0.5, -1), (-0.12, -1), (0.88, 0), (-0.12, 1)],                    # ângulo
+    [(-0.2, 1), (0.2, 1), (0.2, -1), (-0.2, -1)],                                             # traço
+    [(-0.6, 1), (0, 0.28), (0.6, 1), (0.6, -1), (0, -0.28), (-0.6, -1)],                      # ampulheta
+    [(0, 1), (0.7, 0.16), (0.24, 0.02), (0.24, -1), (-0.24, -1), (-0.24, 0.02), (-0.7, 0.16)],    # seta
+]
+
+
+def g_shape(o, k, default):
+    """Contorno do bordado: o padrão da peça ou, nos mantos rúnicos, uma das runas."""
+    return G_RUNES[k % len(G_RUNES)] if o.get("motif") == "rune" else default
+
+
+def robe_mats(pre, sp):
+    c = sp["colors"]
+    trim = gm(pre + "_trim", c["trim"], 0.45, c.get("metal", 0.3))
+    jewel = mat(pre + "_gem_flat", hexc(c["gem"]), 0.3, 0.0, emit=hexc(c["glow"]), strength=c.get("glow_k", 1.2))
+    return dict(
+        coat=gm(pre + "_hip", c["cloth"], 0.95), cloth=gm(pre + "_cloth", c["cloth"], 0.95),
+        lining=gm(pre + "_lining", c["lining"], 0.9), lining2=gm(pre + "_lining2", c.get("lining2", c["cloth"]), 0.9),
+        gold2=trim, cream2=gm(pre + "_under", c["under"], 0.9), wine2=gm(pre + "_sash", c["sash"], 0.9),
+        tassel=gm(pre + "_tassel", c["tassel"], 0.9), gem=jewel,
+        motif=jewel if sp["o"].get("glow_motif") else trim, o=sp["o"],
+        felt=gm(pre + "_felt", c.get("felt", c["cloth"]), 0.95), hatlining=gm(pre + "_hatlining", c.get("hatlining", c["lining"]), 0.9),
+    )
+
+
+def build_robe(style, A):
+    """Manto em malha lisa e com esqueleto (roupa com pele, ver body_mesh.py): gola e ombros (archmage_mantle),
+    tronco e faixa (archmage_torso), mangas (archmage_sleeves) e saia (archmage_skirt). Pescoço, quadril e coxas
+    por baixo continuam peças simples. Cores fixas (não tinge pelo item)."""
+    P, R = g_rig(style)
     M = g_mats()
-    A = archmage_mats()
     body = R["Body"]
-    coat, dark, cream, gold = A["coat"], A["dark"], A["cream"], A["gold"]
     rig, src = _cb_start(M)          # esqueleto + corpo com pesos: fonte das cascas e dos pesos do pano
     neck(R, M["skin"])
-    hips(R, coat)
+    hips(R, A["coat"])
     thighs(P, R, M["pants"])
-
-    # ---- gola e ombros em malha lisa
     soft, orn = archmage_mantle(P, R, A, body)
-
-    # ---- tronco e faixa em malha lisa
     coat_ob, sash_tails = archmage_torso(A, src, body)
-
-    # ---- mangas em malha lisa
     bells = archmage_sleeves(A, src, R)
-
-    # ---- saia em pano com esqueleto
     sk_soft, sk_orn, sk_w = archmage_skirt(A, body)
-
     if "loose_parts" in globals():
-        loose_parts("a_archmage")
-    # sombra assada só como guia da pintura (dobras fundas caem um tom); a pintura substitui o degradê
+        loose_parts(style)
+    # sombra assada na cor por vértice; as peças antigas (_flat) ainda recebem a pintura por face
     os.makedirs(OUT + "gear", exist_ok=True)
     targets = [o for o in scn.objects if o.type == 'MESH']
-    bake_ao(targets, _occluders("a_archmage", P, R, M))
-    cel_paint(targets, skip=("g_skin", "am_gem_flat", "am_cloth", "am_lining", "am_gold"))
+    bake_ao(targets, _occluders(style, P, R, M))
+    cel_paint(targets, skip=("g_skin", A["gem"].name))
     arms = ("Body", "ArmL", "ArmR")
     g_skin_finish(rig, src, [(soft, "vert", arms, 0.5), (orn, "island", arms, 0.5),
                              (sash_tails, "vert", ("Body", "LegR"), 0.7)]
@@ -1952,7 +2070,134 @@ def build_a_archmage():
                   + [(sk_soft, "fn", sk_w, 1.0), (sk_orn, "fn_island", sk_w, 1.0)])
     join_objs("Skirt", list(sk_soft) + list(sk_orn))
     join_objs("Mantle", list(soft) + list(orn))
-    export("gear/a_archmage", export_vertex_color='ACTIVE')
+    export("gear/" + style, export_vertex_color='ACTIVE')
+
+
+def build_a_archmage():
+    build_robe("a_archmage", archmage_mats())
+
+
+def build_hood(style, A, o):
+    """Capuz liso: casca dupla em volta da cabeça (pano por fora, forro por dentro), aberta na frente para o
+    rosto, com a borda da abertura avançada, ponta caída para trás e gola larga que assenta nos ombros; debrum
+    roliço na abertura e na barra, e um enfeite na testa (gema, lua ou runa)."""
+    P, R = g_rig(style)
+    M = g_mats()
+    head = R["Head"]
+    plain_head(R, M, hair=False)
+    cloth, lining, trim, jewel, mot = A["felt"], A["hatlining"], A["gold2"], A["gem"], A["motif"]
+    hc = Vector((0, 0.018, 1.688))
+    ax, ay, az = 0.142, 0.162, 0.168
+    PB = -0.45
+
+    def open_half(ph):
+        if ph > -0.1:
+            return 0.98 * math.sqrt(max(0.0, 1 - ((ph + 0.1) / 1.08) ** 2))
+        return 0.98 - 0.4 * min(1.0, (-0.1 - ph) / 0.8)
+
+    def hp(th, ph, inset=0.0):
+        if ph >= PB:
+            rr, z = math.cos(ph), hc.z + math.sin(ph) * (az - inset)
+        else:
+            k = PB - ph
+            rr, z = math.cos(PB) * (1 + 0.95 * k), hc.z + math.sin(PB) * az - 0.24 * k
+        p = Vector((math.sin(th) * rr * (ax - inset), hc.y - math.cos(th) * rr * (ay - inset), z))
+        w = max(0.0, -math.cos(th)) ** 3 * math.exp(-((ph - 0.75) / 0.42) ** 2) * o.get("tail", 1.0)
+        return p + Vector((0, 0.15, -0.045)) * w
+
+    na, rows = 30, 20
+    rings, edge_l, edge_r, top_i = [], [], [], rows
+    for i in range(rows + 1):
+        ph = -0.9 + 2.4 * i / rows
+        t0 = open_half(ph)
+        angs = [t0 + (2 * math.pi - 2 * t0) * j / na for j in range(na + 1)]
+
+        def lip(th, t0=t0):          # a borda da abertura avança sobre o rosto
+            if t0 < 0.05:
+                return Vector()
+            return Vector((0, -0.035 * math.exp(-min(th - t0, 2 * math.pi - t0 - th) / 0.28), 0))
+        rings.append([hp(a, ph) + lip(a) for a in angs] + [hp(a, ph, 0.012) + lip(a) for a in reversed(angs)])
+        if t0 >= 0.05:
+            edge_l.append(rings[-1][0])
+            edge_r.append(rings[-1][na])
+        else:
+            top_i = min(top_i, i)
+    hood = g_smooth_mesh("Hood", rings, cloth, head)
+    hood.data.materials.append(lining)
+    per = 2 * (na + 1)
+    for pl in hood.data.polygons[:rows * per]:
+        if na < pl.index % per < per - 1:
+            pl.material_index = 1
+    parts = [hood, g_pipe("HoodPiping", edge_l + [rings[top_i][0]] + edge_r[::-1], 0.007, trim, head),
+             g_pipe("HoodHem", rings[0][:na + 1], 0.006, trim, head),
+             # apoio escondido por dentro: o capuz assenta no alto da cabeça
+             g_cap("HoodPad", (0, hc.y, 1.795), (0, 0, 1), (1, 0, 0), 0.07, 0.08, 0.05, lining, head, rings=4, sides=12)]
+    c = rings[top_i][0] + Vector((0, -0.004, -0.012))
+    n, side = Vector((0, -1, 0.35)).normalized(), Vector((1, 0, 0))
+    crest = o.get("crest", "gem")
+    if crest == "gem":
+        parts.append(g_cap("HoodSeat", c, n, side, 0.026, 0.032, 0.012, trim, head, sides=16))
+        parts.append(g_cap("HoodGem", c + n * 0.008, n, side, 0.015, 0.021, 0.012, jewel, head, rings=5, sides=14))
+    elif crest == "moon":
+        up = n.cross(side)
+        parts.append(g_crescent("HoodMoon", c - n * 0.004, -up, side, 0.012, mot, head, r=0.036, r_in=0.03, d=0.016))
+    elif crest == "rune":
+        up = n.cross(side)
+        parts.append(g_plate("HoodRune", [(x * 0.02, y * 0.02) for x, y in G_RUNES[3]], c - n * 0.004, side, -up, 0.012,
+                             mot, head))
+    if "loose_parts" in globals():
+        loose_parts(style)
+    join_objs("Hood", parts)
+    g_export(style, P, R)
+
+
+# Conjuntos: cores (pano, forro, friso, veste de baixo, faixa, borla, gema e brilho) e opções de forma.
+ROBES = {
+    # referência 2: sábio de branco e ouro sobre azul-marinho, mangas amplas, ombreiras e correntes
+    "sage": dict(head="hat", colors=dict(cloth="#D8D4CA", lining="#27306A", trim="#D6A63A", under="#232A5E",
+                                         sash="#5E4334", tassel="#A8482F", gem="#FFE2A0", glow="#F2B84A",
+                                         felt="#20244C", hatlining="#5C1A34"),
+                 o=dict(vee=0.07, wing=0.05, back="sun", stars=False, open=0.52, hem_pts=2, bell=2.3, bell_len=0.03,
+                        droop=0.2, emblem="sun", brim=0.92)),
+    # referência 3: arcanista de negro com linhas douradas e runas azuis que brilham, encapuzado
+    "void": dict(head="hood", colors=dict(cloth="#15161F", lining="#1F4FA6", trim="#B08A36", under="#0F1018",
+                                          sash="#1B2A55", tassel="#3FA8E8", gem="#9FE6FF", glow="#3FB8FF", glow_k=2.0),
+                 o=dict(glow_motif=True, motif="rune", pauldron=False, fringe=False, chains=False, vee=0.14,
+                        back="rune", collar=0.35, cords=False, belt_swags=1, open=0.2, hem_pts=4, bell=2.0,
+                        droop=0.22, crest="moon")),
+    # referência 4: oráculo de cinza-violeta com frisos de prata, murça em três camadas, encapuzado
+    "oracle": dict(head="hood", colors=dict(cloth="#4A4460", lining="#2C5A64", lining2="#C4C8D4", trim="#C9CCD6",
+                                            metal=0.5, under="#1B1925", sash="#35304A", tassel="#C9CCD6",
+                                            gem="#E6DAFF", glow="#B79CFF"),
+                   o=dict(pauldron=False, fringe=False, chains=False, layers=3, vee=0.09, wing=0.06, stars=False,
+                          collar=0.35, fang=False, cords=False, knot=False, belt_swags=1, open=0.3, hem_pts=0,
+                          tabard=False, bell=1.6, droop=0.1, crest="gem")),
+    # referência 5: manto de carvão com runas de brasa, ombros em asas pontudas, mangas enormes, encapuzado
+    "ember": dict(head="hood", colors=dict(cloth="#2A2B33", lining="#5A2A1E", lining2="#3B3C47", trim="#9C6B3A",
+                                           under="#19191F", sash="#3A2E2A", tassel="#D9622B", gem="#FFC08A",
+                                           glow="#FF7A2A", glow_k=2.0),
+                  o=dict(glow_motif=True, motif="rune", pauldron=False, fringe=False, layers=3, wing=0.09, vee=0.12,
+                         back="rune", collar=0.35, cords=False, knot=False, belt_chains=False, open=0.12, hem_pts=2,
+                         hem_depth=0.12, tabard=False, bell=2.6, bell_len=0.05, droop=0.25, crest="rune", tail=1.3)),
+}
+
+
+def _robe_builders():
+    for key, sp in ROBES.items():
+        pre = "rb_" + key
+        globals()["build_a_" + key] = lambda sp=sp, key=key, pre=pre: build_robe("a_" + key, robe_mats(pre, sp))
+        if sp["head"] == "hat":
+            def hat(sp=sp, key=key, pre=pre):
+                A = robe_mats(pre, sp)
+                build_hat("h_" + key, dict(felt=A["felt"], lining=A["hatlining"], gold=A["gold2"], gem=A["gem"],
+                                           tassel=A["tassel"]), sp["o"])
+            globals()["build_h_" + key] = hat
+        else:
+            globals()["build_h_" + key] = lambda sp=sp, key=key, pre=pre: build_hood("h_" + key, robe_mats(pre, sp),
+                                                                                    sp["o"])
+
+
+_robe_builders()
 
 
 # ================================================================== MÃOS
@@ -2137,7 +2382,7 @@ def _gear_builder(fn):
 
 
 GEAR = [(n, _gear_builder(globals()["build_" + n])) for n in (
-    "h_bare", "h_hood", "h_cap", "h_kettle", "h_nasal", "h_great", "h_wizard", "h_archmage",
-    "a_shirt", "a_tunic", "a_leather", "a_mail", "a_surcoat", "a_robe", "a_archmage",
+    "h_bare", "h_hood", "h_cap", "h_kettle", "h_nasal", "h_great", "h_wizard", "h_archmage", "h_sage", "h_void", "h_oracle", "h_ember",
+    "a_shirt", "a_tunic", "a_leather", "a_mail", "a_surcoat", "a_robe", "a_archmage", "a_sage", "a_void", "a_oracle", "a_ember",
     "g_bare", "g_gloves", "g_bracers",
     "f_shoes", "f_boots", "f_plated")]
