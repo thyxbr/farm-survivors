@@ -78,10 +78,11 @@ static var QUESTS: Dictionary = {}
 static var SHOP_STOCK: Array = []
 
 # ---------------------------------------------------------------- equipamento
-## Espaços de equipamento na ordem do "boneco" (esquerda de cima para baixo, depois direita).
-const SLOTS := ["head", "amulet", "armor", "hands", "weapon", "offhand", "ring", "feet"]
+## Espaços de equipamento na ordem do "boneco" (esquerda de cima para baixo, depois direita; "back",
+## capas e asas, fica sob o boneco).
+const SLOTS := ["head", "amulet", "armor", "hands", "weapon", "offhand", "ring", "feet", "back"]
 const SLOT_NAMES := {"weapon": "Arma", "offhand": "Mão secundária", "head": "Cabeça", "armor": "Peito",
-	"hands": "Mãos", "feet": "Pés", "amulet": "Amuleto", "ring": "Anel"}
+	"hands": "Mãos", "feet": "Pés", "amulet": "Amuleto", "ring": "Anel", "back": "Costas"}
 const CLASS_NAMES := {"sword": "Espada", "staff": "Cajado", "bow": "Arco", "scepter": "Cetro"}
 const CLASS_HINT := {"sword": "Combo de 3 golpes · escala com Força",
 	"staff": "Projéteis arcanos · escala com Inteligência",

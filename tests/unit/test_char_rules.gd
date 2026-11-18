@@ -121,6 +121,27 @@ func test_equip_offhand_needs_class() -> void:
 	T.eq(s.equipment.offhand, "knight_shield", "escudo equipado")
 
 
+func test_back_slot_takes_cape() -> void:
+	var bt := _tables()
+	var s := _blank()
+	T.ok(s.equipment.has("back"), "personagem novo tem o espaço das costas")
+	T.eq(CharRules.slot_of(bt, "traveler_cape"), "back", "capa vai nas costas")
+	CharRules.add_item(s, bt, "traveler_cape", 1)
+	T.ok(CharRules.equip(s, bt, "traveler_cape").ok, "equipa a capa")
+	T.eq(s.equipment.back, "traveler_cape", "capa nas costas")
+	T.eq(_count(s, "traveler_cape"), 0, "saiu da mochila")
+	T.ok(CharRules.unequip(s, bt, "back").ok, "tira a capa")
+	T.eq(_count(s, "traveler_cape"), 1, "voltou para a mochila")
+
+
+func test_old_save_gets_empty_back_slot() -> void:
+	var bt := _tables()
+	var d: Dictionary = _blank().to_dict()
+	d.equipment.erase("back")
+	var s := CharState.from_dict(d, bt)
+	T.eq(s.equipment.get("back", "x"), "", "save antigo ganha o espaço das costas vazio")
+
+
 func test_equip_swaps_back_to_bag() -> void:
 	var bt := _tables()
 	var s := _blank()
