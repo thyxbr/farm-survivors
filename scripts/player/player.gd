@@ -835,10 +835,10 @@ func _update_bow(delta: float) -> void:
 
 
 ## Inclinação da mira do arco a partir do ombro (o braço e a flecha apontam para onde a câmera mira).
-## Réplicas não têm a câmera do dono: miram na horizontal.
+## Réplicas não têm a câmera do dono: miram na horizontal (e a Flecha do Vendaval, que voa na horizontal).
 func _update_aim_pitch() -> void:
 	var pitch := 0.0
-	if not remote and camera:
+	if not remote and camera and ability != "bow_gale":   # o Vendaval sai na horizontal: o braço também
 		var shoulder := global_position + Vector3.UP * 1.42
 		pitch = clampf(asin(clampf(aim_dir(shoulder).y, -1.0, 1.0)), -0.9, 0.9)
 	parts["aim_pitch"] = lerpf(float(parts.get("aim_pitch", 0.0)), pitch, 0.35)

@@ -855,8 +855,13 @@ static func bow_gale_pose(p: Dictionary, c: float, recoil := -1.0) -> void:
 		var kick := pow(1.0 - recoil, 2.0)
 		lean = lean * (1.0 - up) + kick * KnightMoves.GALE_RECOIL / KnightMoves.GALE_LEAN
 		p.bow["kick"] = kick
-	p.body_x += KnightMoves.GALE_LEAN * lean
-	p.head_x -= KnightMoves.GALE_LEAN * lean * 0.6   # a cabeça compensa: continua olhando a mira
+	# a inclinação é para trás em relação à MIRA (para longe do alvo), no espaço do modelo. body_x/body_z giram
+	# o tronco já torcido de lado (twist ~ -1,3), então um body_x puro aqui tombava o arqueiro para o lado:
+	# decompõe o eixo X do modelo no referencial do tronco girado
+	var tilt: float = KnightMoves.GALE_LEAN * lean
+	p.body_x += tilt * cos(p.twist)
+	p.body_z += tilt * sin(p.twist)
+	p.head_x -= tilt * 0.6   # a cabeça compensa: continua olhando a mira
 	p.body_y += KnightMoves.GALE_CROUCH_Y * crouch
 	p.leg_l = lerpf(p.leg_l, KnightMoves.GALE_THIGH_L, crouch)
 	p.leg_r = lerpf(p.leg_r, KnightMoves.GALE_THIGH_R, crouch)

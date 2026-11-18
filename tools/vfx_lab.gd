@@ -290,6 +290,10 @@ func _show_page() -> void:
 	if pages[page] == "monstros":
 		_cam.position = Vector3(0, 8.0, 14.0)
 		_cam.look_at(Vector3(0, 0.8, 0.0))
+	elif pages[page] == "vendaval" and "--vfxbehind" in OS.get_cmdline_user_args():
+		# atrás do arqueiro, sobre o ombro, como a câmera do jogo (ele mira para +X)
+		_cam.position = Vector3(-10.5, 2.4, 1.3)
+		_cam.look_at(Vector3(-4.0, 1.2, 0.3))
 	elif pages[page] == "vendaval":
 		_cam.position = Vector3(0, 7.0, 13.0)
 		_cam.look_at(Vector3(0, 1.0, 0.0))
@@ -649,7 +653,7 @@ func _gale(k: Dictionary, delta: float) -> void:
 			g.phase = 2
 			if is_instance_valid(g.fx):
 				g.fx.queue_free()
-			var origin: Vector3 = k.pivot.position + Vector3.UP * BowAbilities.GALE_HEIGHT
+			var origin: Vector3 = k.look.tip.global_position   # como no jogo: da ponta da flecha
 			FXToon.gale_fire(k.pivot.position, origin, dir, 1.0)
 			var line := BowAbilities.GaleLine.new()
 			line.origin = origin

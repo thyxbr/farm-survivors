@@ -234,10 +234,10 @@ const BOW_RAISE_SPEED := 2.2    ## multiplica a suavização ao erguer o arco (m
 const GALE_KNEE := 1.15         ## dobra dos joelhos com a carga cheia (rad)
 const GALE_THIGH_L := -0.75     ## coxa da frente (perna do arco)
 const GALE_THIGH_R := -0.25     ## coxa de trás (com o joelho a 0,9 as duas pernas ficam com a mesma altura)
-const GALE_LEAN := -0.5         ## tronco inclinado para trás (rad; body_x > 0 é para a frente)
+const GALE_LEAN := -0.2         ## tronco inclinado para trás, para longe do alvo (rad, no espaço do modelo)
 const GALE_CROUCH_Y := -0.17    ## o quadril desce (m), além do que as pernas dobradas já baixam
 const GALE_TREMBLE := 0.022     ## tremor da mão do arco com a carga cheia do Vendaval (m)
-const GALE_RECOIL := -0.3       ## tranco extra do tronco para trás no disparo (rad)
+const GALE_RECOIL := -0.18      ## tranco extra do tronco para trás no disparo (rad)
 ## Chuva de Meteoros (KnightAnim.meteor_pose): o cajado erguido acima da cabeça com as duas mãos, o tronco
 ## arqueado para trás, o olhar no céu e as pernas abertas firmando o corpo.
 const METEOR_RAISE := {
