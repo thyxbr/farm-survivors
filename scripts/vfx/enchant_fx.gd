@@ -50,7 +50,7 @@ static func apply(look: Dictionary, element: String, level: int) -> void:
 	var tip_pos := tip.position if tip else Vector3(0, 0, 1)
 	# sem luz de verdade: ela tingia a armadura inteira. O brilho (bloom) do ambiente já dá o halo.
 	# efeito desenhado do elemento em volta da lâmina, maior a cada nível (ver EnchantBlade)
-	var blade := EnchantBlade.make(element, e, tip_pos, level)
+	var blade := EnchantBlade.make(element, e, tip_pos, level, holder, meshes)
 	blade.set_meta("enchant_fx", true)
 	holder.add_child(blade)
 
