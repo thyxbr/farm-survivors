@@ -6,6 +6,7 @@ signal respawn_requested
 
 const OPTIONS := preload("res://scripts/ui/options_panel.gd")
 const UPDATE_PANEL := preload("res://scripts/ui/update_panel.gd")
+const ADMIN_ITEMS := preload("res://scripts/ui/admin_items_panel.gd")
 
 var mode := "pause"
 var player_pos := Vector3.ZERO
@@ -37,6 +38,8 @@ func _ready() -> void:
 		v.add_child(UITheme.button("Opções", _options))
 		if Game.can_admin():
 			v.add_child(UITheme.button("Desligar modo admin" if Game.admin_mode() else "Ligar modo admin", _toggle_admin))
+			if Game.admin_mode():
+				v.add_child(UITheme.button("Adicionar item (admin)", _admin_items))
 		v.add_child(UITheme.button("Menu principal", func() -> void: Game.go_to_menu()))
 		v.add_child(UITheme.button("Sair do jogo", _quit))
 	else:
@@ -94,6 +97,13 @@ func _quit() -> void:
 	get_tree().quit()
 
 
+func _admin_items() -> void:
+	_panel.visible = false
+	var a := ADMIN_ITEMS.new()
+	add_child(a)
+	a.closed.connect(func() -> void: _panel.visible = true)
+
+
 func _options() -> void:
 	_panel.visible = false
 	var o := OPTIONS.new()
@@ -119,6 +129,6 @@ func _close() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if mode == "pause" and event.is_action_pressed("pause"):
+	if mode == "pause" and _panel.visible and event.is_action_pressed("pause"):
 		get_viewport().set_input_as_handled()
 		_close()
