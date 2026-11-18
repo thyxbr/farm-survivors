@@ -14,6 +14,8 @@ const LIGHT_ORB_COLOR := Color(1.0, 0.92, 0.6)
 
 const WALK_SPEED := 5.2
 const SPRINT_SPEED := 8.6
+const SWING_STAMINA_MIN := 5.0   ## fôlego mínimo para começar um golpe básico
+const ARROW_STAMINA := 3.0       ## fôlego de cada flecha
 const JUMP_VELOCITY := 7.0
 const GRAVITY := 20.0
 const DODGE_SPEED := 13.0
@@ -579,8 +581,13 @@ func _try_attack() -> void:
 	_start_swing()
 
 
+## Fôlego de um golpe básico (o combo 1-2-3 custa um pouco mais a cada golpe): espada 5/6/7, cajado 2,5/3/3,5.
+static func swing_stamina(staff: bool, hit: int) -> float:
+	return (2.0 + hit * 0.5) if staff else (4.0 + hit * 1.0)
+
+
 func _start_swing() -> void:
-	if Game.stamina < 8.0:
+	if Game.stamina < SWING_STAMINA_MIN:
 		Game.notify.emit("Sem fôlego!", Color(1, 0.8, 0.5))
 		return
 	combo = (combo % 3) + 1 if combo_window > 0 else 1
@@ -588,8 +595,8 @@ func _start_swing() -> void:
 	attack_timer = 0.0
 	hit_done = false
 	var staff: bool = look["class"] == "staff"
-	Game.stamina -= (4.0 + combo * 1.5) if staff else (8.0 + combo * 2.0)
-	stamina_delay = 0.6
+	Game.stamina = maxf(0.0, Game.stamina - swing_stamina(staff, combo))
+	stamina_delay = 0.4
 	if staff:
 		Sfx.play("staff_wind", 0.15, -8.0)
 		return
@@ -788,7 +795,7 @@ func _update_bow(delta: float) -> void:
 	if attacking and aiming and shoot:
 		_shot_queued = true   # clicou ainda na recuperação: atira assim que a próxima flecha estiver puxada
 	if not drawing and not attacking and dodge_timer <= 0 and (aiming or shoot):
-		if Game.stamina < 5.0:
+		if Game.stamina < ARROW_STAMINA:
 			if shoot or Input.is_action_just_pressed("aim"):
 				Game.notify.emit("Sem fôlego!", Color(1, 0.8, 0.5))
 			_shot_queued = false
@@ -860,7 +867,7 @@ func release_arrow() -> void:
 	var charge := bow_charge()
 	drawing = false
 	draw_t = 0.0
-	Game.stamina = max(0.0, Game.stamina - 5.0)
+	Game.stamina = max(0.0, Game.stamina - ARROW_STAMINA)
 	var spd := lerpf(22.0, 42.0, charge)
 	var launch := arrow_launch(spd)
 	var origin: Vector3 = launch[0]
@@ -1763,7 +1770,10 @@ func _animate(delta: float) -> void:
 	# quanto anda (0..1) e quanto corre (0..1), suavizados: as transições parado/andar/correr misturam
 	# as poses em vez de trocar de uma vez (parar é um pouco mais lento que arrancar)
 	var move_t := clampf(hspeed / WALK_SPEED, 0.0, 1.0) if on_floor else 0.0
-	var run_t := clampf((hspeed - WALK_SPEED) / (SPRINT_SPEED - WALK_SPEED), 0.0, 1.0)
+	# a pose de corrida mede a passada sem o bônus de velocidade (agilidade, botas, buffs): com bônus, andar
+	# passava de WALK_SPEED e o corpo seguia na pose de corrida mesmo sem o Shift
+	var gait := hspeed if remote else hspeed / maxf(Game.speed_multiplier(), 0.01)
+	var run_t := clampf((gait - WALK_SPEED) / (SPRINT_SPEED - WALK_SPEED), 0.0, 1.0)
 	_amp = lerpf(_amp, move_t, 1.0 - exp(-(10.0 if move_t > _amp else 6.0) * delta))
 	_run = lerpf(_run, run_t, 1.0 - exp(-6.0 * delta))
 	_air = lerpf(_air, 0.0 if on_floor else 1.0, 1.0 - exp(-12.0 * delta))
