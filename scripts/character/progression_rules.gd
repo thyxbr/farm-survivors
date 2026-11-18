@@ -87,6 +87,10 @@ static func rank_mults(bt: BalanceTables, kind: String, chief := false) -> Dicti
 	elif bool(t.get("elite", false)):
 		key = "elite"
 	var m: Dictionary = _prog(bt).get("rank", {}).get(key, {}) if key != "" else {}
+	# tipo com "rank" próprio no enemies.json (Rei Goblin da missão, no mundo): vale quando ele não é
+	# o chefe de uma dungeon, que continua com o bloco do chefe
+	if not chief and t.get("rank") is Dictionary:
+		m = t.rank
 	return {"hp": float(m.get("hp", 1.0)), "dmg": float(m.get("dmg", 1.0))}
 
 

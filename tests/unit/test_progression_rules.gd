@@ -105,10 +105,21 @@ func test_rank_order_at_same_level() -> void:
 			for weak in groups[pair[0]]:
 				for strong in groups[pair[1]]:
 					var a := _at(bt, weak, level)
-					var b := _at(bt, strong, level)
+					# chefe com "rank" próprio (Rei Goblin da missão) é comparado no posto de chefe de dungeon
+					var b := _at(bt, strong, level, en[strong].has("rank"))
 					T.ok(b.hp > a.hp, "Nv %d: vida de %s > %s" % [level, strong, weak])
 					T.ok(b.dmg > a.dmg, "Nv %d: dano de %s > %s" % [level, strong, weak])
 	T.eq(ProgressionRules.rank_mults(bt, "goblin", false), {"hp": 1.0, "dmg": 1.0}, "comum sem bônus de categoria")
+
+
+## O Rei Goblin da missão (no mundo, no ref_level) é o primeiro chefe: mais forte que um comum, mas abaixo
+## do bloco dos chefes, que ele só usa como chefe de dungeon.
+func test_story_king_is_softer() -> void:
+	var bt := _tables()
+	var own := ProgressionRules.rank_mults(bt, "goblin_king")
+	var full := ProgressionRules.rank_mults(bt, "goblin_king", true)
+	T.ok(own.hp > 1.0 and own.hp < full.hp, "vida: entre o comum e o chefe de dungeon")
+	T.ok(own.dmg > 1.0 and own.dmg < full.dmg, "dano: entre o comum e o chefe de dungeon")
 
 
 func test_chief_uses_boss_rank() -> void:
@@ -116,7 +127,7 @@ func test_chief_uses_boss_rank() -> void:
 	var chief := _at(bt, "slime_rainha", 21, true)
 	var queen := _at(bt, "slime_rainha", 21)
 	T.ok(chief.hp > queen.hp and chief.dmg > queen.dmg, "chefe de dungeon mais forte que a mesma elite no mundo")
-	T.eq(ProgressionRules.rank_mults(bt, "slime_rainha", true), ProgressionRules.rank_mults(bt, "goblin_king"),
+	T.eq(ProgressionRules.rank_mults(bt, "slime_rainha", true), ProgressionRules.rank_mults(bt, "goblin_king", true),
 		"chefe de dungeon usa o bloco do chefe")
 
 
