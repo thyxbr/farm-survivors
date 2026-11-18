@@ -1088,6 +1088,7 @@ func _ready() -> void:
 	await _test_flor_rooted()
 	await _test_enemy_detour()
 	await _test_archer_pose()
+	await _test_gold_goblin_world()
 	if _part() != "mundo":
 		await _test_survival()
 	await _test_update()
@@ -2276,6 +2277,36 @@ func _test_archer_pose() -> void:
 	e.queue_free()
 	player.invuln = 0.0
 	Game.hp = Game.max_hp()
+	player.global_position = back
+	await wait(0.1)
+
+
+## Goblin Dourado no mundo aberto: foge do jogador (antes corria para cima e só empurrava) e, longe demais
+## do ponto dele, volta rodeando em vez de sumir no mapa.
+func _test_gold_goblin_world() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 100)
+	player.global_position = spot
+	player.invuln = 99.0
+	var e := Enemy.new()
+	e.kind = "goblin_dourado"
+	e.level = 8
+	world.add_child(e)
+	e.global_position = spot + Vector3(0, 0, -5)
+	e.home = e.global_position
+	await wait(0.2)
+	e._set_state("chase")
+	await wait(1.5)
+	var d := e.global_position.distance_to(player.global_position)
+	check(d > 8.0, "Goblin Dourado foge do jogador no mundo (%.1f m)" % d)
+	e.global_position = e.home + Vector3(0, 0, -(Enemy.FLEE_LEASH + 8.0))
+	e.provoked = Enemy.PROVOKE_TIME
+	e._set_state("chase")
+	await wait(1.5)
+	var from_home := e.global_position.distance_to(e.home)
+	check(from_home < Enemy.FLEE_LEASH + 6.5, "Goblin Dourado volta para perto do ponto dele (%.1f m)" % from_home)
+	e.queue_free()
+	player.invuln = 0.0
 	player.global_position = back
 	await wait(0.1)
 

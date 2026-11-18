@@ -6017,7 +6017,7 @@ level_max = 11
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 88, 0, -5)
 script = ExtResource("9_5rons")
 kind = "goblin_campeao"
-respawn = 300.0
+respawn = 120.0
 level = 8
 level_max = 11
 
@@ -6041,7 +6041,7 @@ level_max = 11
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 104)
 script = ExtResource("9_5rons")
 kind = "goblin_dourado"
-respawn = 240.0
+respawn = 120.0
 level = 8
 level_max = 11
 
@@ -6049,7 +6049,7 @@ level_max = 11
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 96, 0, -10)
 script = ExtResource("9_5rons")
 kind = "goblin_dourado"
-respawn = 240.0
+respawn = 120.0
 level = 8
 level_max = 11
 
@@ -6105,7 +6105,7 @@ level_max = 13
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 0, -112)
 script = ExtResource("9_5rons")
 kind = "esqueleto_cavaleiro"
-respawn = 300.0
+respawn = 120.0
 level = 10
 level_max = 13
 

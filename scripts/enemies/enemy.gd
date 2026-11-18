@@ -47,6 +47,8 @@ var _sleep_t := 0.0
 const SLEEP_CHECK := 0.5
 ## Tamanho do modelo além de data.scale (elite e camada de nível).
 var size_mult := 1.0
+## Goblin Dourado no mundo: foge até esta distância (m) do ponto onde nasceu e volta rodeando.
+const FLEE_LEASH := 18.0
 ## Goblin Dourado que fugiu: some sem contar como abate.
 var escaped := false
 var born_t := 0.0
@@ -542,8 +544,9 @@ func _physics_process(delta: float) -> void:
 			elif global_position.distance_to(home) > 45.0 or dist == INF \
 					or (dist > data.aggro * 1.9 and provoked <= 0.0):
 				_set_state("return")   # sem alvo (morreu ou entrou na vila, sob a guarda) também volta
-			elif ai() == "ranged" or ai() == "caster":
-				# arqueiro e mago no mundo: guardam distância, rodeiam e só atiram com o caminho livre
+			elif ai() == "ranged" or ai() == "caster" or ai() == "flee":
+				# arqueiro e mago no mundo: guardam distância, rodeiam e só atiram com o caminho livre;
+				# o Goblin Dourado foge (antes caía no corpo a corpo: corria para cima e só empurrava)
 				var r := _ranged_move(to_player, dist, spd)
 				move = r[0]
 				face = r[1]
@@ -741,6 +744,12 @@ func _ranged_move(to_player: Vector3, dist: float, spd: float) -> Array:
 			to_c.y = 0
 			if to_c.length() > sv.ARENA_RADIUS - 4.0:
 				move = (move.normalized() + to_c.normalized() * 1.6).normalized() * spd
+		elif not horde:
+			# no mundo: corre em volta do ponto dele em vez de sumir no mapa (dá para encurralar)
+			var to_h := home - global_position
+			to_h.y = 0
+			if to_h.length() > FLEE_LEASH:
+				move = (move.normalized() + to_h.normalized() * 1.6).normalized() * spd
 		return [move, move if move.length() > 0.1 else dir]
 	var keep: float = data.get("keep", 7.0)
 	# rodeia trocando de lado de tempos em tempos (cada um no seu ritmo), em vez de ficar parado na mira
