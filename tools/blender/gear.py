@@ -2162,6 +2162,723 @@ def build_a_archmage():
     build_robe("a_archmage", archmage_mats())
 
 
+# ------------------------------------------------------------------ Gibão acolchoado (tier I, malha lisa)
+# Referência: "Light leather armor", Graeme Hughes (artstation.com/artwork/xNDv4). Mesmo princípio do manto:
+# o pano sai da malha do corpo (cb_piece) e dobra com ele; enfeites rígidos ficam no osso Body.
+def gambeson_mats():
+    return dict(
+        cloth=gm("gb_cloth", "#77736B", 0.95), cloth_d=gm("gb_cloth_d", "#5A5751", 0.95),
+        quilt=gm("gb_quilt", "#504F53", 0.9), seam=gm("gb_seam", "#3B3A3F", 0.9),
+        lea=gm("gb_leather", "#2F2D33", 0.8), band=gm("gb_band", "#A88B4C", 0.95),
+        band_d=gm("gb_band_d", "#7A6334", 0.95), cord=gm("gb_cord", "#6E6A66", 0.9),
+        metal=gm("gb_metal", "#A8AEB4", 0.45, 0.6),
+    )
+
+
+def _g_ray_tools(ob):
+    """Funções que acham a superfície de ob por raios horizontais (ver archmage_torso)."""
+    from mathutils.bvhtree import BVHTree
+    me = ob.data
+    bvh = BVHTree.FromPolygons([v.co.copy() for v in me.vertices], [tuple(p.vertices) for p in me.polygons])
+
+    def rad(a):
+        return Vector((math.sin(a), -math.cos(a), 0))
+
+    def hit_a(a, z, out=0.0, strict=False):
+        r = rad(a)
+        loc = bvh.ray_cast(Vector((0, 0, z)) + r * 0.8, -r)[0]
+        if loc is None:
+            if strict:
+                return None
+            loc = Vector((0, 0, z)) + r * 0.13
+        return loc + r * out
+    return rad, hit_a
+
+
+def g_loose_world(asset, tol=0.002):
+    """Como loose_parts (armory.py), mas em coordenadas do mundo: as cascas tiradas do corpo ficam no espaço do
+    esqueleto e as peças g_* no do pivô, então comparar vértices locais acusa peças que encostam."""
+    from mathutils.bvhtree import BVHTree
+    bpy.context.view_layer.update()
+    objs = [o for o in scn.objects if o.type == 'MESH' and o.name != "BodySrc"]
+    pts = {o.name: [o.matrix_world @ v.co for v in o.data.vertices] for o in objs}
+    trees = {o.name: BVHTree.FromPolygons(pts[o.name], [tuple(p.vertices) for p in o.data.polygons]) for o in objs}
+    group = {o.name: i for i, o in enumerate(objs)}
+
+    def touch(a, b):
+        if trees[a].overlap(trees[b]):
+            return True
+        return any(trees[b].find_nearest(p, tol)[0] is not None for p in pts[a]) or \
+            any(trees[a].find_nearest(p, tol)[0] is not None for p in pts[b])
+    for i, a in enumerate(objs):
+        for b in objs[i + 1:]:
+            if group[a.name] != group[b.name] and touch(a.name, b.name):
+                old, new = group[b.name], group[a.name]
+                for k in group:
+                    if group[k] == old:
+                        group[k] = new
+    comps = {}
+    for k, g in group.items():
+        comps.setdefault(g, []).append(k)
+    comps = sorted(comps.values(), key=len, reverse=True)
+    print(("LOOSE %s: %s" % (asset, " | ".join(", ".join(sorted(c)) for c in comps[1:]))) if len(comps) > 1
+          else "CONNECTED %s" % asset, flush=True)
+
+
+def g_border_pipes(ob, name, r, material, parent, smooth=4, step=0.012):
+    """Debrum nas bordas abertas de uma casca: acha cada laço de arestas de borda, alisa o contorno (a casca
+    tirada do corpo tem borda em degraus, face a face) e passa um cordão por ele."""
+    me = ob.data
+    nb = {}
+    count = {}
+    for p in me.polygons:
+        for k in p.edge_keys:
+            count[k] = count.get(k, 0) + 1
+    for (a, b), c in count.items():
+        if c == 1:
+            nb.setdefault(a, []).append(b)
+            nb.setdefault(b, []).append(a)
+    seen, out = set(), []
+    for start in list(nb):
+        if start in seen:
+            continue
+        loop, prev, cur = [start], None, start
+        seen.add(start)
+        while True:
+            nxt = [v for v in nb[cur] if v != prev and v not in seen]
+            if not nxt:
+                break
+            prev, cur = cur, nxt[0]
+            seen.add(cur)
+            loop.append(cur)
+        if len(loop) < 6:
+            continue
+        pts = [me.vertices[i].co.copy() for i in loop]
+        for _ in range(smooth):                 # alisa sem encolher demais (média com os vizinhos)
+            pts = [(pts[i - 1] + pts[i] * 2 + pts[(i + 1) % len(pts)]) / 4 for i in range(len(pts))]
+        res, acc = [pts[0]], 0.0                # reamostra em passos regulares
+        for i in range(1, len(pts)):
+            acc += (pts[i] - pts[i - 1]).length
+            if acc >= step:
+                res.append(pts[i])
+                acc = 0.0
+        if len(res) >= 4:
+            out.append(g_pipe("%s%d" % (name, len(out)), res, r, material, parent, sides=8, loop=True))
+    return out
+
+
+def _g_quilt(ob, fn, depth):
+    """Estofa a casca: cada vértice sai pela normal depth * fn(posição) (0 = costura, 1 = gomo cheio)."""
+    me = ob.data
+    nr = [v.normal.copy() for v in me.vertices]
+    for v, n in zip(me.vertices, nr):
+        v.co += n * depth * fn(v.co)
+
+
+def _g_shoulder_dome(src, s, lames, phis=28, rows=8, pull=0.55):
+    """Grades curvas em volta do ombro do lado s: direção (θ, φ) a partir da articulação, θ = 0 subindo pelo eixo
+    do braço (topo do ombro), φ = 0 para fora. O raio vem do corpo (raio de fora para dentro), alisado por cima
+    (envelope) e puxado para o máximo da fileira, o que arredonda a quina do ombro.
+    lames = [(θa, θb, φmax, folga, aba)] -> [(anéis, direções, centro)] por lâmina."""
+    from mathutils.bvhtree import BVHTree
+    mw = src.matrix_world
+    bvh = BVHTree.FromPolygons([mw @ v.co for v in src.data.vertices], [tuple(p.vertices) for p in src.data.polygons])
+    sh, el = cb_mirror(CB_J["shoulder"], s), cb_mirror(CB_J["elbow"], s)
+    ax = (el - sh).normalized()
+    o = Vector((s, 0, 0))
+    o = (o - ax * o.dot(ax)).normalized()
+    f = ax.cross(o).normalized()
+    C = sh + o * -0.012
+
+    HL = 0.075                         # passado de θ = π/2 vira cilindro: desce HL metros por radiano no braço
+
+    def base(t):
+        return C + ax * max(0.0, t - math.pi / 2) * HL
+
+    def dirv(t, ph):
+        t = min(t, math.pi / 2)
+        return -ax * math.cos(t) + (o * math.cos(ph) + f * math.sin(ph)) * math.sin(t)
+
+    def body_r(t, ph):
+        d = dirv(t, ph)
+        h = bvh.ray_cast(base(t) + d * 0.45, -d)
+        return 0.45 - h[3] if h[0] is not None else 0.06
+    out = []
+    for ta, tb, pm, off, flare in lames:
+        grid = []
+        for i in range(rows + 1):
+            row = []
+            for j in range(phis + 1):
+                u = -1 + 2 * j / phis
+                ph = u * pm
+                tbe = ta + (tb - ta) * (1 - abs(u) ** 4) ** 0.35        # pontas arredondadas
+                t = ta + (tbe - ta) * i / rows
+                row.append((t, ph, i / rows))
+            grid.append(row)
+        R = [[body_r(t, ph) for t, ph, _ in row] for row in grid]
+        for _ in range(6):             # envelope alisado: nunca entra no corpo, perde os degraus
+            S = [[(R[i][max(j - 1, 0)] + 2 * R[i][j] + R[i][min(j + 1, phis)] +
+                   R[max(i - 1, 0)][j] + R[min(i + 1, rows)][j]) / 6 for j in range(phis + 1)] for i in range(rows + 1)]
+            R = [[max(R[i][j], S[i][j]) for j in range(phis + 1)] for i in range(rows + 1)]
+        for i in range(rows + 1):      # puxa cada fileira para o seu máximo: arco redondo de frente
+            m = max(R[i])
+            R[i] = [r + (m - r) * pull for r in R[i]]
+        rings = [[base(t) + dirv(t, ph) * (R[i][j] + off + flare * w ** 2.5) for j, (t, ph, w) in enumerate(row)]
+                 for i, row in enumerate(grid)]
+        out.append((rings, [[dirv(t, ph) for t, ph, _ in row] for row in grid], C))
+    return out
+
+
+def gambeson_pauldron(G, src, body, s, hit_y):
+    """Ombreira do gibão: copa acolchoada e três lâminas que descem pelo braço, cada uma por cima da de baixo,
+    com debrum de couro, costura no meio, rebites na barra, emblema de couro e metal na copa e alça diagonal."""
+    sn = "L" if s > 0 else "R"
+    lames = [(0.05, 1.3, 1.6, 0.034, 0.008), (1.15, 2.05, 1.85, 0.03, 0.012),
+             (1.9, 2.75, 1.9, 0.026, 0.012), (2.6, 3.45, 1.9, 0.022, 0.012)]
+    parts = []
+    for k, (rings, dirs, C) in enumerate(_g_shoulder_dome(src, s, lames)):
+        parts.append(g_smooth_mesh("Pauldron%s%d" % (sn, k), rings, G["quilt"], body, cap_end=False, closed=False,
+                                   thick=0.006, outward=True))
+        n = len(rings[0])
+        low = [rings[-1][j] + dirs[-1][j] * 0.003 for j in range(n)]
+        parts.append(g_pipe("PauldronHem%s%d" % (sn, k), low, 0.0055, G["lea"], body, sides=8))
+        mid = len(rings) // 2
+        parts.append(g_pipe("PauldronSeam%s%d" % (sn, k), [rings[mid][j] + dirs[mid][j] * 0.001 for j in range(2, n - 2)],
+                            0.0018, G["seam"], body, sides=6))
+        for side in (0, n - 1):        # debrum nas pontas da lâmina
+            parts.append(g_pipe("PauldronEnd%s%d_%d" % (sn, k, side), [r[side] + d[side] * 0.003 for r, d in
+                                                                        zip(rings, dirs)], 0.005, G["lea"], body,
+                                sides=8))
+        if k > 0:
+            for j in range(3, n - 2, 4):
+                q = rings[-2][j] + dirs[-2][j] * 0.004
+                parts.append(g_bead("PauldronRivet%s%d_%d" % (sn, k, j), q, 0.0055, G["metal"], body))
+        else:                           # emblema da copa: placa de couro em losango, aro e botão de metal
+            i0, j0 = len(rings) // 2, n // 2
+            q, dn = rings[i0][j0], dirs[i0][j0]
+            up = (rings[i0 - 2][j0] - rings[i0 + 2][j0]).normalized()
+            side = up.cross(dn).normalized()
+            up = dn.cross(side).normalized()
+            parts.append(g_plate("PauldronBadge" + sn, [(x * 0.034, y * 0.05) for x, y in G_DIAMOND],
+                                 q + dn * 0.004, side, up, 0.006, G["lea"], body))
+            parts.append(g_pipe("PauldronBadgeRim" + sn, [q + dn * 0.009 + side * x * 0.026 + up * y * 0.04
+                                                          for x, y in G_DIAMOND], 0.0028, G["metal"], body, sides=6,
+                                loop=True))
+            parts.append(g_bead("PauldronBoss" + sn, q + dn * 0.009, 0.011, G["metal"], body))
+            for m, (x, y) in enumerate(G_DIAMOND):
+                parts.append(g_bead("PauldronBadgeRivet%s%d" % (sn, m),
+                                    q + dn * 0.008 + side * x * 0.034 * 0.7 + up * y * 0.05 * 0.7, 0.004,
+                                    G["metal"], body))
+    # alça diagonal: da frente e de trás da ombreira até debaixo do braço oposto, fivela no peito
+    for nm, a0, a1 in (("Front", 0.95, -1.35), ("Back", math.pi - 0.95, 2 * math.pi - 1.35)):
+        a0, a1 = a0 * s, a1 * s
+        path = [hit_y(a0 + (a1 - a0) * i / 10, 1.41 - 0.14 * i / 10, 0.011) for i in range(11)]
+        parts.append(g_smooth_mesh("Strap%s%s" % (sn, nm), g_curved_tube(path, [(0.016, 0.003)] * 11, sides=10,
+                                                                         side0=(0, 0, 1)), G["lea"], body))
+        if nm == "Front":
+            bc = path[4]
+            nn = Vector((bc.x, bc.y, 0)).normalized()
+            t = (path[5] - path[3]).normalized()
+            w = nn.cross(t).normalized()
+            rim = [bc + nn * 0.005 + t * x + w * y for x, y in ((-0.016, 0.02), (0.016, 0.02), (0.018, 0),
+                                                                 (0.016, -0.02), (-0.016, -0.02), (-0.018, 0))]
+            parts.append(g_pipe("StrapBuckle" + sn, rim, 0.0035, G["metal"], body, sides=6, loop=True))
+            parts.append(g_pipe("StrapPin" + sn, [bc + nn * 0.006 - t * 0.016, bc + nn * 0.007 + t * 0.016], 0.0022,
+                                G["metal"], body, sides=6))
+    return parts
+
+
+def gambeson_cap(G, src, body, s):
+    """Capa redonda do outro ombro: cúpula de gomos verticais, costuras entre os gomos e debrum na barra."""
+    sn = "L" if s > 0 else "R"
+    (rings, dirs, C), = _g_shoulder_dome(src, s, [(0.3, 2.7, 1.9, 0.028, 0.004)], phis=36, rows=12,
+                                          pull=0.2)
+    n = len(rings[0])
+    NR = 6
+    for i, row in enumerate(rings):    # gomos: estofa entre as costuras ao longo de φ
+        for j in range(n):
+            u = j / (n - 1)
+            row[j] = row[j] + dirs[i][j] * 0.007 * abs(math.sin(math.pi * u * NR)) ** 0.5
+    parts = [g_smooth_mesh("Cap" + sn, rings, G["quilt"], body, cap_end=False, closed=False, thick=0.006,
+                           outward=True)]
+    for k in range(1, NR):
+        j = round(k * (n - 1) / NR)
+        parts.append(g_pipe("CapSeam%s%d" % (sn, k), [r[j] + d[j] * 0.001 for r, d in zip(rings[1:], dirs[1:])],
+                            0.002, G["seam"], body, sides=6))
+    parts.append(g_pipe("CapHem" + sn, [rings[-1][j] + dirs[-1][j] * 0.003 for j in range(n)], 0.006, G["lea"],
+                        body, sides=8))
+    for side in (0, n - 1):
+        parts.append(g_pipe("CapEnd%s%d" % (sn, side), [r[side] + d[side] * 0.003 for r, d in zip(rings, dirs)],
+                            0.0055, G["lea"], body, sides=8))
+    return parts
+
+
+def gambeson_torso(G, src, body):
+    """Tronco: gibão de gomos verticais (casca do corpo), placa do peito em losangos acolchoados com debrum,
+    gola alta acolchoada que cobre o pescoço, cinto largo de couro com fivela e passadeira, sobre uma cinta de pano.
+    Devolve (casca do gibão, peças rígidas)."""
+    def is_torso(c, b, n):
+        return not (b.startswith("Arm") or b.startswith("Elbow") or b.startswith("Knee")) and 0.86 <= c.z < 1.51
+
+    coat = cb_piece(src, "Coat", is_torso, 0.014, G["cloth"])
+    g_subdiv(coat, 2)
+
+    NG = 9                                 # gomos verticais largos: costura a cada 2π/18 em volta do tronco
+
+    def channels(p):
+        a = math.atan2(p.x, -p.y)
+        return abs(math.sin(a * NG)) ** 0.4
+    _g_quilt(coat, channels, 0.008)
+    rad, hit_a = _g_ray_tools(coat)
+    parts = []
+    for k in range(2 * NG):                # costuras dos gomos, de baixo da pala até a barra
+        a = math.pi * k / NG
+        parts.append(g_pipe("Seam%d" % k, [hit_a(a, 0.96 + 0.02 * i, 0.0005) for i in range(16)], 0.002,
+                            G["cloth_d"], body, sides=6))
+
+    # ---- pala acolchoada: casca do corpo do peito para cima (peito, ombros e costas), losangos estofados e
+    #      costurados em tom próximo ao do pano, debrum de couro em todas as bordas
+    YZ, RS, D = 1.255, 0.15, 0.04          # borda de baixo, raio médio (ângulo -> arco) e passo do losango
+
+    def yoke_keep(c, b, n):
+        return is_torso(c, b, n) and c.z >= YZ
+
+    def diamond(p):
+        s, v = math.atan2(p.x, -p.y) * RS / D, (p.z - YZ) / D
+        return (abs(math.sin(math.pi * (s + v))) * abs(math.sin(math.pi * (s - v)))) ** 0.5
+    yoke = cb_piece(src, "Yoke", yoke_keep, 0.026, G["quilt"])
+    g_subdiv(yoke, 2)
+    _g_quilt(yoke, diamond, 0.005)
+    _, hit_y = _g_ray_tools(yoke)
+    for fam in (1, -1):
+        for k in range(int(2 * math.pi * RS / D) + 1):
+            segs, cur = [], []
+            for i in range(18):
+                z = YZ + 0.004 + 0.014 * i
+                a = (k * D + fam * (z - YZ)) / RS
+                q = hit_y(a, z, 0.0, strict=True)
+                if q is None:              # cava do braço: a costura para e recomeça do outro lado
+                    segs.append(cur)
+                    cur = []
+                else:
+                    cur.append(q)
+            segs.append(cur)
+            for m, sg in enumerate(s for s in segs if len(s) >= 2):
+                parts.append(g_pipe("YokeSeam%d_%d_%d" % (fam + 1, k, m), sg, 0.0018, G["seam"], body, sides=6))
+    parts += g_border_pipes(yoke, "YokeEdge", 0.0065, G["lea"], body)
+
+    # ---- ombros: cúpulas curvas em volta da articulação (não a casca do braço, que fazia quina). Esquerdo:
+    #      ombreira de lâminas sobrepostas com rebites e emblema na copa, presa por uma alça diagonal no peito;
+    #      direito: capa redonda de gomos verticais.
+    shoulder = []
+    shoulder += gambeson_pauldron(G, src, body, 1, hit_y)
+    shoulder += gambeson_cap(G, src, body, -1)
+
+    # ---- gola alta acolchoada: do material da pala, abre um pouco em cima, com costuras verticais;
+    def ring(z, rx, ry, y0=0.012, n=32):
+        return [Vector((math.sin(2 * math.pi * j / n) * rx, y0 - math.cos(2 * math.pi * j / n) * ry, z))
+                for j in range(n)]
+    col = [ring(1.45, 0.118, 0.106), ring(1.49, 0.1, 0.09), ring(1.53, 0.097, 0.088), ring(1.56, 0.104, 0.094)]
+    parts.append(g_smooth_mesh("Collar", col, G["quilt"], body, cap_end=False, thick=0.009, outward=True))
+    parts.append(g_pipe("CollarRoll", ring(1.562, 0.106, 0.096), 0.005, G["lea"], body, sides=8, loop=True))
+    for j in range(10):
+        a = 2 * math.pi * j / 10
+        parts.append(g_pipe("CollarSeam%d" % j, [Vector((math.sin(a) * rx, 0.012 - math.cos(a) * ry, z))
+                                                 for z, rx, ry in ((1.495, 0.104, 0.094), (1.525, 0.102, 0.093),
+                                                                   (1.555, 0.108, 0.098))], 0.0018, G["seam"], body,
+                            sides=6))
+
+    # ---- cinta mostarda e cinto largo de couro com tachas, fivela de aro e passadeira
+    N = 48
+    belt_rows = [[hit_a(2 * math.pi * j / N, z, out) for j in range(N)]
+                 for z, out in ((0.985, 0.014), (0.99, 0.021), (1.06, 0.021), (1.065, 0.014))]
+    parts.append(g_smooth_mesh("Belt", belt_rows, G["lea"], body, cap_end=False, outward=True))
+    for nm, z in (("BeltPipeLo", 0.991), ("BeltPipeHi", 1.059)):
+        parts.append(g_pipe(nm, [hit_a(2 * math.pi * j / N, z, 0.022) for j in range(N)], 0.0025, G["seam"], body,
+                            loop=True))
+    for k in range(16):                    # tachas em volta do cinto (menos na fivela)
+        a = 0.45 + (2 * math.pi - 0.9) * k / 15
+        parts.append(g_bead("Stud%d" % k, hit_a(a, 1.025, 0.022), 0.0065, G["metal"], body))
+    bc = hit_a(0.0, 1.025, 0.026)
+    W, H = 0.04, 0.042
+    rim = [bc + Vector((x, -0.002, z)) for x, z in ((-W, H), (0, H + 0.004), (W, H), (W + 0.004, 0), (W, -H),
+                                                    (0, -H - 0.004), (-W, -H), (-W - 0.004, 0))]
+    parts.append(g_pipe("Buckle", rim, 0.006, G["metal"], body, sides=8, loop=True))
+    parts.append(g_pipe("BuckleBar", [bc + Vector((-0.004, -0.004, H)), bc + Vector((-0.004, -0.008, 0)),
+                                      bc + Vector((-0.004, -0.004, -H))], 0.0045, G["metal"], body, sides=8))
+    parts.append(g_pipe("BucklePin", [bc + Vector((-0.004, -0.008, 0)), bc + Vector((W * 0.9, -0.01, 0))], 0.003,
+                        G["metal"], body, sides=6))
+    tip = [hit_a(a, 1.025, 0.027) for a in (0.0, 0.1, 0.2, 0.3)]           # ponta do cinto saindo da fivela
+    parts.append(g_smooth_mesh("BeltTip", g_curved_tube(tip, [(0.03, 0.004)] * 4, sides=10, side0=(0, 0, 1)),
+                               G["lea"], body))
+    keep = hit_a(0.38, 1.025, 0.026)
+    parts.append(g_plate("BeltKeeper", [(-0.008, 0.038), (0.008, 0.038), (0.008, -0.038), (-0.008, -0.038)], keep,
+                         Vector((math.cos(0.38), math.sin(0.38), 0)), (0, 0, 1), 0.005, G["lea"], body))
+    return coat, parts, shoulder
+
+
+GB_SKIRT_Z1 = 0.4            # barra da saia (meia canela)
+GB_SLIT_Z = 0.78             # a fenda de trás começa aqui; abaixo, cada metade é de uma perna
+
+
+def _gb_skirt_w(p):
+    """Pesos da saia do gibão: no alto vai com o tronco, descendo passa para a coxa e a canela do lado em que está
+    (no meio da frente e de trás as duas pernas dividem, até a fenda)."""
+    knee_z = CB_J["knee"].z
+    leg = max(0.0, min(1.0, (0.97 - p.z) / 0.24)) * 0.9
+    left = max(0.0, min(1.0, 0.5 + p.x / 0.12))
+    cut = max(0.0, min(1.0, (GB_SLIT_Z - p.z) / 0.08))
+    left = left * (1 - cut) + (1.0 if p.x > 0 else 0.0) * cut
+    kn = max(0.0, min(1.0, (knee_z + 0.06 - p.z) / 0.2)) * 0.75
+    fa = math.atan2(abs(p.x), -p.y)        # meio da frente (barriga da faixa): sem joelho
+    if fa < 0.56:
+        k = max(0.0, min(1.0, (fa - 0.46) / 0.1))
+        kn *= k
+    w = {"Body": 1.0 - leg}
+    for n, sh in (("L", left), ("R", 1.0 - left)):
+        w["Leg" + n] = leg * sh * (1 - kn)
+        w["Knee" + n] = leg * sh * kn
+    return {b: v for b, v in w.items() if v > 1e-4}
+
+
+def gambeson_skirt(G, body, coat):
+    """Saia longa do gibão: tiras verticais acolchoadas do cinto até a canela, aberta na frente (aparece a calça)
+    e fendida atrás; no lado direito, um painel
+    acolchoado em losangos até o joelho, preso ao cinto por uma alça. Debrum de couro em todas as barras.
+    Devolve as peças (pesos por _gb_skirt_w)."""
+    _, hit_a = _g_ray_tools(coat)
+    Z0, Z1 = 0.985, GB_SKIRT_Z1
+    NS = 13                                # tiras por meia volta
+
+    r0_cache = {}
+
+    def r0(a):                             # raio do pano no alto: por fora do gibão (e do glúteo) na cintura
+        k = round(a, 4)
+        if k not in r0_cache:
+            r0_cache[k] = max(Vector((q.x, q.y)).length for q in (hit_a(a, 0.99), hit_a(a, 0.93), hit_a(a, 0.88)))
+        return r0_cache[k]
+
+    def pt(a, t, out=0.0):
+        r = r0(a) + 0.014 + 0.07 * t ** 0.9 + out
+        r += 0.006 * abs(math.sin(NS * a)) ** 0.4 * min(1.0, t * 8)       # gomo de cada tira
+        return Vector((math.sin(a) * r, -math.cos(a) * r, Z0 - t * (Z0 - Z1)))
+
+    def fo(t):                             # meia abertura da frente (rad)
+        return 0.3 + 0.16 * t
+
+    def tslit(t):                          # meia abertura da fenda de trás
+        tz = (Z0 - GB_SLIT_Z) / (Z0 - Z1)
+        return 0.09 * max(0.0, (t - tz) / (1 - tz)) ** 0.8
+
+    parts = []
+    rows, NC = 18, 30
+    for sn, s in (("L", 1), ("R", -1)):
+        grid = []
+        for i in range(rows + 1):
+            t = i / rows
+            a0, a1 = fo(t), math.pi - tslit(t)
+            grid.append([pt((a0 + (a1 - a0) * j / NC) * s, t) for j in range(NC + 1)])
+        parts.append(g_smooth_mesh("Skirt" + sn, grid, G["cloth"], body, cap_end=False, closed=False,
+                                   thick=0.006, outward=True))
+        for k in range(1, NS + 1):         # costura entre as tiras: só onde o pano existe
+            a = math.pi * (k - 0.5) / NS
+            seg = []
+            for i in range(1, rows + 1):
+                t = i / rows
+                if fo(t) + 0.02 < a < math.pi - tslit(t) - 0.02:
+                    seg.append(pt(a * s, t, 0.0005))
+            if len(seg) >= 2:
+                parts.append(g_pipe("SkirtSeam%s%d" % (sn, k), seg, 0.0018, G["cloth_d"], body, sides=6))
+        parts.append(g_pipe("SkirtHem" + sn, [pt((fo(1) + (math.pi - tslit(1) - fo(1)) * j / NC) * s, 1.0, 0.002)
+                                               for j in range(NC + 1)], 0.0055, G["lea"], body, sides=8))
+        parts.append(g_pipe("SkirtFront" + sn, [pt(fo(i / rows) * s, i / rows, 0.002) for i in range(4, rows + 1)],
+                            0.005, G["lea"], body, sides=8))
+        sl = [pt((math.pi - tslit(i / rows)) * s, i / rows, 0.002) for i in range(rows + 1)
+              if tslit(i / rows) > 0.004]
+        if len(sl) >= 2:
+            parts.append(g_pipe("SkirtSlit" + sn, sl, 0.005, G["lea"], body, sides=8))
+
+    # ---- painel acolchoado do lado direito: losangos estofados, costura em losango, debrum, alça no cinto
+    TA0, TA1, TT, rows_t, NT = -1.6, -0.5, 0.7, 14, 18
+    RS, D = 0.24, 0.045
+
+    def tasset_t(u):
+        return TT - 0.06 * abs(u) ** 3
+
+    def tp(u, v, out=0.0):                 # u em -1..1 pela largura, v em 0..1 descendo
+        a = TA0 + (TA1 - TA0) * (u + 1) / 2
+        t = tasset_t(u) * v
+        q = pt(a, t, 0.042 + 0.006 * v + out)
+        dz = (Z0 - q.z) / D
+        da = a * RS / D
+        bump = (abs(math.sin(math.pi * (da + dz))) * abs(math.sin(math.pi * (da - dz)))) ** 0.5
+        return q + Vector((math.sin(a), -math.cos(a), 0)) * 0.006 * bump * min(1.0, v * 10)
+    tgrid = [[tp(-1 + 2 * j / NT, i / rows_t) for j in range(NT + 1)] for i in range(rows_t + 1)]
+    parts.append(g_smooth_mesh("Tasset", tgrid, G["quilt"], body, cap_end=False, closed=False, thick=0.006,
+                               outward=True))
+    # costuras diagonais: seguem a*RS/D ± dz = inteiro dentro do painel
+    for fam in (1, -1):
+        for k in range(-30, 30):
+            seg = []
+            for i in range(1, 60):
+                v = i / 60
+                # resolve u na linha: da = k - fam*dz  ->  a = (k - fam*dz) * D / RS
+                zq = Z0 - tasset_t(0) * v * (Z0 - Z1)
+                dz = (Z0 - zq) / D
+                a = (k - fam * dz) * D / RS
+                u = (a - TA0) / (TA1 - TA0) * 2 - 1
+                if -0.93 < u < 0.93 and v * tasset_t(0) < tasset_t(u) - 0.01:
+                    seg.append(tp(u, v * tasset_t(0) / tasset_t(u), 0.0015))
+                elif len(seg) >= 2:
+                    break
+            if len(seg) >= 2:
+                parts.append(g_pipe("TassetSeam%d_%d" % (fam + 1, k + 30), seg, 0.0018, G["seam"], body, sides=6))
+    tedge = [r[0] for r in tgrid][1:] + tgrid[-1][1:-1] + [r[-1] for r in tgrid][::-1][:-1]
+    parts.append(g_pipe("TassetEdge", tedge, 0.0055, G["lea"], body, sides=8))
+    for k in range(0, NT + 1, 3):
+        q = tgrid[-2][k]
+        parts.append(g_bead("TassetRivet%d" % k, q + Vector((q.x, q.y, 0)).normalized() * 0.004,
+                            0.0045, G["metal"], body))
+    am = (TA0 + TA1) / 2
+    strap = [hit_a(am, 1.03, 0.026), pt(am, 0.0, 0.045), pt(am, 0.06, 0.05)]
+    parts.append(g_smooth_mesh("TassetStrap", g_curved_tube(strap, [(0.017, 0.003)] * 3, sides=10, side0=(math.cos(am), math.sin(am), 0)),
+                               G["lea"], body))
+    parts.append(g_bead("TassetStrapRivet", pt(am, 0.05, 0.055), 0.006, G["metal"], body))
+
+    # ---- faixa mostarda: enrolada sob o cinto e caída na frente em barriga (mais baixa um pouco à esquerda),
+    #      com dobras que seguem a barriga; a ponta desce pela borda da frente da saia até a barra; um cordão
+    #      pende do cinto do lado direito
+    NB, rows_b = 64, 10
+
+    def sag(a):                            # quanto a barra da faixa cai (0 atrás, 1 no ponto mais baixo)
+        return max(0.0, math.cos(a - 0.25)) ** 1.6
+
+    def sash_pt(a, v, out=0.0):
+        z = 1.0 - v * (0.07 + 0.1 * sag(a))
+        t = max(0.0, (Z0 - z) / (Z0 - Z1))
+        fold = 0.005 * math.sin(2 * math.pi * (v * 2.5 + 0.15 * math.cos(a))) * v * sag(a)
+        q = pt(a, t, 0.009 + v ** 0.8 * (0.012 + 0.036 * sag(a)) + fold + out)
+        return Vector((q.x, q.y, z))
+    sgrid = [[sash_pt(-math.pi + 2 * math.pi * j / NB, i / rows_b) for j in range(NB)] for i in range(rows_b + 1)]
+    parts.append(g_smooth_mesh("Sash", sgrid, G["band"], body, cap_end=False, thick=0.006, outward=True))
+    for k, v in enumerate((0.35, 0.6, 0.82)):      # vincos das dobras: só na barriga da frente
+        seg = [sash_pt(a, v, 0.001) for a in (0.25 + 1.5 * (-1 + 2 * j / 24) for j in range(25))
+               if sag(a) > 0.15]
+        parts.append(g_pipe("SashFold%d" % k, seg, 0.0022, G["band_d"], body, sides=6))
+    parts.append(g_pipe("SashHem", [sash_pt(-math.pi + 2 * math.pi * j / NB, 1.0, 0.002) for j in range(NB)], 0.003,
+                        G["band_d"], body, sides=6, loop=True))
+    ta = fo(0.25) + 0.07                   # ponta: desce pela borda da frente da saia esquerda
+    tail = [sash_pt(ta, 0.9, 0.004)] + [pt(fo(t) + 0.07, t, 0.012 + 0.004 * math.sin(9 * t))
+                                         for t in (0.3, 0.42, 0.54, 0.66, 0.78, 0.9, 0.98)]
+    tw = [(0.03, 0.004)] + [(0.026 - 0.004 * k / 6, 0.004) for k in range(7)]
+    parts.append(g_smooth_mesh("SashTail", g_curved_tube(tail, tw, sides=10, side0=(math.cos(ta), math.sin(ta), 0)),
+                               G["band"], body))
+    c0, c1 = hit_a(-0.55, 0.99, 0.024), hit_a(-0.95, 0.99, 0.024)          # cordão em laço
+    mid = (c0 + c1) / 2
+    mid = Vector((mid.x, mid.y, 0)).normalized() * (Vector((mid.x, mid.y)).length + 0.06) + Vector((0, 0, 0.89))
+    parts.append(g_pipe("Cord", g_spline([c0, (c0 + mid) / 2 + Vector((0, 0, -0.01)), mid,
+                                           (c1 + mid) / 2 + Vector((0, 0, -0.01)), c1], 16)
+                        , 0.0035, G["cord"], body, sides=6))
+    return parts
+
+
+def _gb_arm_frame(s):
+    """Eixo do braço do lado s no repouso: ombro -> cotovelo -> pulso, com comprimento corrido u (m)."""
+    sh, el, wr = (cb_mirror(CB_J[k], s) for k in ("shoulder", "elbow", "wrist"))
+    L1, L2 = (el - sh).length, (wr - el).length
+
+    def at(u):                          # ponto do eixo e direção do eixo no comprimento u
+        if u <= L1:
+            return sh + (el - sh) * (u / L1), (el - sh).normalized()
+        return el + (wr - el) * min(1.0, (u - L1) / L2), (wr - el).normalized()
+
+    def frame(ax):
+        o = Vector((s, 0, 0))
+        o = (o - ax * o.dot(ax)).normalized()
+        return o, ax.cross(o).normalized()
+
+    def coords(p):                      # (u, φ) do ponto p: φ = 0 para fora, cresce para a frente
+        t1 = _cb_t(p, sh, el)
+        u = t1 * L1 if t1 <= 1.0 else L1 + _cb_t(p, el, wr) * L2
+        c, ax = at(u)
+        o, f = frame(ax)
+        d = p - c
+        return u, math.atan2(d.dot(f), d.dot(o))
+
+    def ring(ob_bvh, u, out=0.0, n=28, phis=None):
+        c, ax = at(u)
+        o, f = frame(ax)
+        pts = []
+        for ph in (phis if phis is not None else [2 * math.pi * j / n for j in range(n)]):
+            d = o * math.cos(ph) + f * math.sin(ph)
+            h = ob_bvh.ray_cast(c + d * 0.25, -d)[0]
+            pts.append(None if h is None else h + d * out)
+        return pts
+    return L1, L2, at, coords, ring
+
+
+def gambeson_sleeves(G, src, body):
+    """Mangas inteiras: no alto do braço (sob a capa e a ombreira) o pano de gomos do gibão, uma faixa mostarda
+    no bíceps e, dali ao pulso, manga escura acolchoada em losangos com costura em losango; no braço da ombreira
+    uma braçadeira de couro do cotovelo ao pulso, aberta em cima, com três correias de fivela e rebites.
+    Devolve (cascas tiradas do corpo, enfeites)."""
+    from mathutils.bvhtree import BVHTree
+    shells, orn = [], []
+    TS, TB0, TB1 = 0.5, 0.57, 0.63      # fim do pano de gomos e faixa mostarda: fração do braço (ombro -> cotovelo)
+    RA, D = 0.045, 0.034                # raio médio do braço e passo do losango
+    for sn, s in (("L", 1), ("R", -1)):
+        sh, el = cb_mirror(CB_J["shoulder"], s), cb_mirror(CB_J["elbow"], s)
+        L1, L2, at, coords, ring = _gb_arm_frame(s)
+
+        def arm(b, c, s=s):
+            return (b.startswith("Arm") or b.startswith("Elbow")) and c.x * s > 0 and \
+                (not b.startswith("Elbow") or _cb_fore_t(c) < 0.86)
+
+        def t_of(c, sh=sh, el=el):
+            return _cb_t(c, sh, el)
+        upper = cb_piece(src, "SleeveUp" + sn, lambda c, b, n: arm(b, c) and b.startswith("Arm") and t_of(c) < TS,
+                         0.012, G["cloth"])
+        g_subdiv(upper, 2)
+        _g_quilt(upper, lambda p, coords=coords: abs(math.sin(4 * coords(p)[1])) ** 0.4, 0.005)
+        lower = cb_piece(src, "SleeveLow" + sn, lambda c, b, n: arm(b, c) and
+                         (not b.startswith("Arm") or t_of(c) >= TS), 0.012, G["quilt"])
+        g_subdiv(lower, 2)
+
+        def dia(p, coords=coords):
+            u, ph = coords(p)
+            a, v = ph * RA / D, u / D
+            return (abs(math.sin(math.pi * (a + v))) * abs(math.sin(math.pi * (a - v)))) ** 0.5
+        _g_quilt(lower, dia, 0.005)
+        shells += [upper, lower]
+        lb = BVHTree.FromPolygons([v.co.copy() for v in lower.data.vertices],
+                                  [tuple(p.vertices) for p in lower.data.polygons])
+        ub = BVHTree.FromPolygons([v.co.copy() for v in upper.data.vertices],
+                                  [tuple(p.vertices) for p in upper.data.polygons])
+        # costuras em losango: hélices nos dois sentidos, achadas por raios contra a manga
+        u0, u1 = TS * L1 + 0.006, L1 + 0.84 * L2
+        if s > 0:
+            u1 = L1 + 0.1 * L2          # sob a braçadeira não precisa
+        for fam in (1, -1):
+            for k in range(int(2 * math.pi * RA / D) + 1):
+                seg, steps = [], 40
+                for i in range(steps + 1):
+                    u = u0 + (u1 - u0) * i / steps
+                    ph = (k * D + fam * u) / RA
+                    q = ring(lb, u, 0.0005, phis=[ph])[0]
+                    if q is None:
+                        if len(seg) >= 2:
+                            orn.append(g_pipe("SleeveSeam%s%d_%d_%d" % (sn, fam + 1, k, i), seg, 0.0016, G["seam"],
+                                              body, sides=6))
+                        seg = []
+                    else:
+                        seg.append(q)
+                if len(seg) >= 2:
+                    orn.append(g_pipe("SleeveSeam%s%d_%d" % (sn, fam + 1, k), seg, 0.0016, G["seam"], body, sides=6))
+        for j in range(8):              # costura dos gomos do alto do braço
+            ph = (j + 0.5) * math.pi / 4
+            seg = [q for q in (ring(ub, u, 0.0005, phis=[ph])[0] for u in
+                               [TS * L1 * i / 10 for i in range(3, 10)]) if q is not None]
+            if len(seg) >= 2:
+                orn.append(g_pipe("SleeveRib%s%d" % (sn, j), seg, 0.0016, G["cloth_d"], body, sides=6))
+        # faixa mostarda: anéis por cima da manga (raios contra ela), bojuda no meio, debrum escuro nas bordas
+        brs = []
+        for i in range(7):
+            v = i / 6
+            pts = ring(lb, (TB0 + (TB1 - TB0) * v) * L1, 0.004 + 0.005 * math.sin(math.pi * v), n=32)
+            if None in pts:
+                break
+            brs.append(pts)
+        if len(brs) == 7:
+            orn.append(g_smooth_mesh("SleeveBand" + sn, brs, G["band"], body, cap_end=False, outward=True,
+                                     thick=0.004))
+            for nm, r in (("Hi", brs[0]), ("Lo", brs[-1])):
+                orn.append(g_pipe("SleeveBandEdge%s%s" % (sn, nm), r, 0.003, G["band_d"], body, sides=6, loop=True))
+        cuff = ring(lb, L1 + 0.82 * L2, 0.002)
+        if None not in cuff and s < 0:
+            orn.append(g_pipe("SleeveCuff" + sn, cuff, 0.006, G["lea"], body, sides=8, loop=True))
+
+        if s > 0:                        # ---- braçadeira de couro
+            FV0, FV1 = 0.1, 0.84
+
+            def vk(c, b, n):
+                return arm(b, c) and b.startswith("Elbow") and FV0 <= _cb_fore_t(c) <= FV1
+            vb = cb_piece(src, "Vambrace" + sn, vk, 0.026, G["lea"])
+            g_subdiv(vb, 2)
+            me = vb.data
+            for v in me.vertices:        # boca larga no cotovelo, aperta no pulso
+                ft = _cb_fore_t(v.co)
+                v.co += v.normal * (0.014 * max(0.0, 1 - (ft - FV0) / 0.3) ** 2 - 0.004 * max(0.0, ft - 0.6))
+            shells.append(vb)
+            orn += g_border_pipes(vb, "VambraceEdge" + sn, 0.005, G["lea"], body)
+            vbv = BVHTree.FromPolygons([v.co.copy() for v in me.vertices], [tuple(p.vertices) for p in me.polygons])
+            for k, ft in enumerate((0.3, 0.52, 0.74)):
+                u = L1 + ft * L2
+                pts = ring(vbv, u, 0.004, n=32)
+                if None in pts:
+                    continue
+                orn.append(g_smooth_mesh("VambraceStrap%s%d" % (sn, k),
+                                         g_curved_tube(pts + pts[:2], [(0.0095, 0.0025)] * (len(pts) + 2), sides=8,
+                                                       side0=tuple(at(u)[1])), G["lea"], body, cap_end=False))
+                c, ax = at(u)
+                q = pts[len(pts) // 4]   # fivela no lado de fora-frente
+                nn = (q - c - ax * (q - c).dot(ax)).normalized()
+                w = ax.cross(nn).normalized()
+                rim = [q + nn * 0.004 + ax * y + w * x for x, y in ((-0.01, 0.012), (0.01, 0.012), (0.012, 0),
+                                                                     (0.01, -0.012), (-0.01, -0.012), (-0.012, 0))]
+                orn.append(g_pipe("VambraceBuckle%s%d" % (sn, k), rim, 0.0026, G["metal"], body, sides=6, loop=True))
+                orn.append(g_pipe("VambraceTip%s%d" % (sn, k), [q + nn * 0.004 + w * 0.012, q + nn * 0.005 + w * 0.03],
+                                  0.003, G["lea"], body, sides=6))
+            for k in range(6):           # rebites na boca do cotovelo
+                q = ring(vbv, L1 + 0.16 * L2, 0.003, phis=[-1.3 + 2.6 * k / 5])[0]
+                if q is not None:
+                    orn.append(g_bead("VambraceRivet%s%d" % (sn, k), q, 0.0045, G["metal"], body))
+    return shells, orn
+
+
+def build_a_gambeson():
+    """Gibão acolchoado (tier I). Rodada 1: tronco (gibão, placa do peito, gola e cinto); mangas são a casca
+    lisa do braço e as pernas usam a calça simples até as próximas peças."""
+    style = "a_gambeson"
+    P, R = g_rig(style)
+    M = g_mats()
+    G = gambeson_mats()
+    body = R["Body"]
+    rig, src = _cb_start(M)
+    neck(R, M["skin"])
+    hips(R, G["cloth"])
+    pants = cb_piece(src, "Pants", lambda c, b, n: b.startswith("Leg") and c.z < 0.97, 0.006, M["pants"])
+    g_subdiv(pants)                    # coxa com pele: não fura a faixa quando a perna sobe (a loft rígida furava)
+    gi = {g.name: g.index for g in pants.vertex_groups}
+    gb = pants.vertex_groups.get("Body") or pants.vertex_groups.new(name="Body")
+    for v in pants.data.vertices:      # alto da coxa fica mais com o tronco: na passada não sai pela frente
+        f = max(0.0, min(1.0, (v.co.z - 0.78) / 0.16)) * 0.7
+        if f <= 0:
+            continue
+        moved = 0.0
+        for ge in v.groups:
+            if ge.group != gb.index and pants.vertex_groups[ge.group].name.startswith("Leg"):
+                moved += ge.weight * f
+                ge.weight *= 1 - f
+        if moved:
+            gb.add([v.index], moved + sum(ge.weight for ge in v.groups if ge.group == gb.index), 'REPLACE')
+    coat, parts, shoulder = gambeson_torso(G, src, body)
+    skirt = gambeson_skirt(G, body, coat)
+    sl_shells, sl_orn = gambeson_sleeves(G, src, body)
+    g_loose_world(style)
+    os.makedirs(OUT + "gear", exist_ok=True)
+    targets = [o for o in scn.objects if o.type == 'MESH']
+    bake_ao(targets, _occluders(style, P, R, M))
+    cel_paint(targets, skip=("g_skin",))
+    g_skin_finish(rig, src, [(shoulder, "vert", ("Body", "ArmL", "ArmR"), 0.7), (skirt, "fn", _gb_skirt_w, 1.0),
+                             (sl_orn, "vert", ("Body", "ArmL", "ArmR", "ElbowL", "ElbowR"), 1.0)])
+    join_objs("Gambeson", parts + shoulder + skirt + sl_orn)
+    if globals().get("g_export") is globals().get("_g_export_f", 0):   # rodando como a_gambeson_f (female.py)
+        fem_warp()                     # cascas, enfeites e ossos vão para o corpo feminino pelos pesos
+        export("gear/" + style + "_f", export_vertex_color='ACTIVE')
+        return
+    export("gear/" + style, export_vertex_color='ACTIVE')
+
+
 def build_hood(style, A, o, extra=None):
     """Capuz liso: casca dupla em volta da cabeça (pano por fora, forro por dentro), aberta na frente para o
     rosto, com a borda da abertura avançada, ponta caída para trás e gola larga que assenta nos ombros; debrum
@@ -3778,7 +4495,7 @@ def _gear_builder(fn):
 GEAR = [(n, _gear_builder(globals()["build_" + n])) for n in (
     "h_bare", "h_hood", "h_cap", "h_kettle", "h_nasal", "h_great", "h_wizard", "h_archmage", "h_sage", "h_void", "h_oracle", "h_ember",
     "h_lich", "h_hierophant", "h_reaper", "h_raven", "h_dragon", "h_astral", "h_frost",
-    "a_shirt", "a_tunic", "a_leather", "a_mail", "a_surcoat", "a_robe", "a_archmage", "a_sage", "a_void", "a_oracle", "a_ember",
+    "a_shirt", "a_tunic", "a_leather", "a_gambeson", "a_mail", "a_surcoat", "a_robe", "a_archmage", "a_sage", "a_void", "a_oracle", "a_ember",
     "a_lich", "a_hierophant", "a_reaper", "a_raven", "a_dragon", "a_astral", "a_frost",
     "g_bare", "g_gloves", "g_bracers",
     "f_shoes", "f_boots", "f_plated")]
