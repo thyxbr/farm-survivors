@@ -244,12 +244,27 @@ const TAIL_SIDE := 0.35       ## limite para cada lado (rad)
 ## Balança o rabo de cavalo como um pêndulo amortecido: a ponta (estimada abaixo e atrás do prendedor) fica
 ## para trás quando a cabeça anda, gira ou desce. Sem rabo (corpo masculino) não faz nada.
 static func sway_ponytail(r: Dictionary, delta: float) -> void:
-	var tail: Node3D = r.get("Ponytail")
-	if tail == null or delta <= 0.0 or not tail.is_inside_tree():
+	var tail = r.get("Ponytail")   # sem tipo: o rabo anterior pode ter sido liberado (troca de visual)
+	tail = tail if is_instance_valid(tail) else null
+	# o rabo de cavalo vem do penteado (KnightLook.apply) e é refeito a cada troca de equipamento
+	var model = r.get("model")
+	if is_instance_valid(model) and model is Node3D:
+		var cur = (model as Node3D).get_meta("ponytail", null)
+		cur = cur if is_instance_valid(cur) else null
+		if cur != tail:
+			tail = cur
+			r["Ponytail"] = tail
+			if tail:
+				r["tail_basis"] = tail.basis
+				r["tail_ang"] = Vector2.ZERO
+				r["tail_vel"] = Vector2.ZERO
+				r["tail_prev"] = null
+	if tail == null or delta <= 0.0 or not (tail as Node3D).is_inside_tree():
 		return
-	var head := tail.get_parent() as Node3D
+	var t3 := tail as Node3D
+	var head := t3.get_parent() as Node3D
 	var hx := head.global_transform
-	var tip := hx * (tail.position + Vector3(0.0, -0.2, -0.08))
+	var tip := hx * (t3.position + Vector3(0.0, -0.2, -0.08))
 	var prev = r.tail_prev
 	r.tail_prev = tip
 	var target := Vector2.ZERO
@@ -266,7 +281,7 @@ static func sway_ponytail(r: Dictionary, delta: float) -> void:
 	ang = Vector2(clampf(ang.x, TAIL_BACK.x, TAIL_BACK.y), clampf(ang.y, -TAIL_SIDE, TAIL_SIDE))
 	r.tail_ang = ang
 	r.tail_vel = vel
-	tail.basis = Basis.from_euler(Vector3(ang.x, 0.0, ang.y)) * (r.tail_basis as Basis)
+	t3.basis = Basis.from_euler(Vector3(ang.x, 0.0, ang.y)) * (r.tail_basis as Basis)
 
 
 ## O knight.glb tem pernas e tronco (Body) como irmãos: girar ou deitar o Body mexia só a parte de cima

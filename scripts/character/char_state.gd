@@ -32,6 +32,7 @@ var enchants := {}
 ## Classe fixa escolhida na criação (ver CharRules.CLASS_IDS) e corpo ("m" ou "f"); "" = save antigo, sem escolha.
 var char_class := ""
 var body := ""
+var hair := ""          ## penteado (HairStyles); "" = padrão do corpo (personagens antigos)
 ## Talentos aprendidos: id -> nível (1..max). Os pontos livres são calculados (ver CharRules.talent_points).
 var talents := {}
 ## Profissões: id -> {"lv": 1..50, "xp": int, "done": [receitas já feitas uma vez]} (ver CraftRules).
@@ -71,7 +72,7 @@ func to_dict() -> Dictionary:
 		"world_yaw": world_yaw, "kills": kills, "fury": fury,
 		"ecos": ecos, "passives": passives.duplicate(true),
 		"enchants": enchants.duplicate(true),
-		"char_class": char_class, "body": body, "talents": talents.duplicate(true),
+		"char_class": char_class, "body": body, "hair": hair, "talents": talents.duplicate(true),
 		"professions": professions.duplicate(true), "recipes": recipes.duplicate(),
 	}
 
@@ -167,6 +168,8 @@ static func from_dict(d, bt: BalanceTables = null) -> CharState:
 	s.char_class = cc if cc is String and cc in CharRules.CLASS_IDS else ""
 	var bd = d.get("body")
 	s.body = bd if bd is String and bd in ["m", "f"] else ""
+	var hr = d.get("hair")
+	s.hair = hr if hr is String and HairStyles.valid(s.body, hr) else ""
 	s.talents = _parse_talents(d.get("talents"), s, bt)
 	s.professions = _parse_professions(d.get("professions"), bt)
 	var rs = d.get("recipes")

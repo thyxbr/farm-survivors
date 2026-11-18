@@ -3534,7 +3534,7 @@ func _light_text(node: Node) -> String:
 
 
 ## Corpo feminino: o modelo do jogador segue Game.body (knight_f.glb + roupas _f); trocar arma e armadura
-## mantém o corpo; capuz e coifas de malha escondem o rabo de cavalo.
+## mantém o corpo. O penteado (padrão f_longo, com rabo de cavalo) some sob o gorro e vem rente sob o capuz.
 func _test_female_body() -> void:
 	var body0 := Game.body
 	var eq0: Dictionary = Game.equipment.duplicate()
@@ -3546,9 +3546,9 @@ func _test_female_body() -> void:
 	Econ.test_force_body("f")
 	await wait(0.1)
 	var m: Node3D = player.model
-	check(KnightLook.body_of(m) == "f" and m.find_child("Ponytail", true, false) != null, "corpo feminino carrega o knight_f.glb")
+	check(KnightLook.body_of(m) == "f" and m.find_child("Gear_Ponytail", true, false) != null, "corpo feminino carrega o knight_f.glb")
 	check(m.find_child("Gear_HairLong", true, false) != null and m.find_child("Gear_HairLock00", true, false) == null,
-		"sem armadura: cabeça e roupas femininas (h_bare_f)")
+		"sem armadura: cabeça e roupas femininas (h_bare_f) com o penteado padrão")
 	check(player.parts.Head != null and player.parts.Head.is_inside_tree() and player.cape != null, "esqueleto e capa refeitos no corpo novo")
 	var need := {}
 	for id in ["leather_cap", "ranger_hood", "guard_surcoat", "short_bow"]:
@@ -3560,11 +3560,12 @@ func _test_female_body() -> void:
 	await wait(0.1)
 	check(player.model == m and KnightLook.body_of(player.model) == "f", "trocar armadura mantém o corpo feminino")
 	check(m.find_child("Gear_LashL", true, false) != null, "elmo aberto feminino (h_cap_f, com cílios)")
-	var tail := m.find_child("Ponytail", true, false) as Node3D
-	check(tail.visible, "rabo de cavalo aparece com o gorro")
+	check(m.find_child("Gear_Ponytail", true, false) == null and m.find_child("Gear_HairLong", true, false) == null,
+		"gorro justo sem cabelo (o cabelo atravessaria)")
 	equip_any("ranger_hood")
 	await wait(0.1)
-	check(not tail.visible, "capuz esconde o rabo de cavalo")
+	check(m.find_child("Gear_Ponytail", true, false) != null and m.find_child("Gear_HairLong", true, false) != null,
+		"capuz com o penteado inteiro, rente (rabo de cavalo por fora)")
 	equip_any("short_bow")
 	await wait(0.1)
 	check(player.model == m and KnightLook.body_of(player.model) == "f" and player.look["class"] == "bow"
@@ -3576,17 +3577,20 @@ func _test_female_body() -> void:
 			equip_any(eq0[sl])
 	Econ.test_force_body(body0)
 	await wait(0.1)
-	check(KnightLook.body_of(player.model) == want0 and (want0 == "f") == (player.model.find_child("Ponytail", true, false) != null),
+	check(KnightLook.body_of(player.model) == want0 and (want0 == "f") == (player.model.find_child("Gear_Ponytail", true, false) != null),
 		"corpo de volta ao escolhido (%s)" % want0)
 
 
 ## Tela de criação: personagem sem classe passa por ela; escolher arqueiro dá o arco e trava a espada.
 func _test_char_create() -> void:
-	check(Game.harness_class(PackedStringArray(["--smoketest", "--class=archer"])) == ["archer", "m"]
-		and Game.harness_class(PackedStringArray(["--body=f", "--class=healer"])) == ["healer", "f"],
+	check(Game.harness_class(PackedStringArray(["--smoketest", "--class=archer"])) == ["archer", "m", ""]
+		and Game.harness_class(PackedStringArray(["--body=f", "--class=healer"])) == ["healer", "f", ""],
 		"--class= e --body= pedem a classe e o corpo")
-	check(Game.harness_class(PackedStringArray(["--smoketest"])) == ["warrior", "m"]
-		and Game.harness_class(PackedStringArray([])) == ["", "m"], "testes sem --class= são guerreiros; o jogo normal mostra a tela")
+	check(Game.harness_class(PackedStringArray(["--body=f", "--class=mage", "--hair=f_chanel"])) == ["mage", "f", "f_chanel"]
+		and Game.harness_class(PackedStringArray(["--class=mage", "--hair=f_chanel"])) == ["mage", "m", ""],
+		"--hair= pede o penteado, só se for do corpo")
+	check(Game.harness_class(PackedStringArray(["--smoketest"])) == ["warrior", "m", ""]
+		and Game.harness_class(PackedStringArray([])) == ["", "m", ""], "testes sem --class= são guerreiros; o jogo normal mostra a tela")
 	check(Game.entry_scene() == Game.WORLD_SCENE, "personagem com classe entra direto no mundo")
 	Econ.start_scratch_solo("user://smoketest_create.json", false)
 	check(Game.char_class == "" and Game.equipment.weapon == "", "personagem novo começa sem classe e sem arma")
@@ -3606,11 +3610,11 @@ func _test_char_create() -> void:
 	check(kit_ok and cc.class_name_label.text == "Arqueiro", "detalhe do arqueiro lista as habilidades do kit")
 	cc.select_body("f")
 	check(cc.body == "f" and KnightLook.body_of(cc.preview.model) == "f"
-		and cc.preview.model.find_child("Ponytail", true, false) != null, "Feminino troca a prévia para o corpo feminino")
+		and cc.preview.model.find_child("Gear_Ponytail", true, false) != null, "Feminino troca a prévia para o corpo feminino")
 	check(cc.preview.model.find_child("Gear_HairLong", true, false) != null, "prévia feminina com o cabelo comprido")
 	cc.select_body("m")
 	check(cc.body == "m" and KnightLook.body_of(cc.preview.model) == "m"
-		and cc.preview.model.find_child("Ponytail", true, false) == null, "Masculino volta a prévia para o corpo masculino")
+		and cc.preview.model.find_child("Gear_Ponytail", true, false) == null, "Masculino volta a prévia para o corpo masculino")
 	cc._start()
 	await wait(0.1)
 	check(cc.finished and Game.char_class == "archer" and Game.body == "m" and Game.equipment.weapon == "short_bow",
