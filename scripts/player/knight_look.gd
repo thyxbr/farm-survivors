@@ -28,7 +28,7 @@ const PLATE := "plate"
 const KNIGHT_SCENE := {"m": "res://assets/models/knight.glb", "f": "res://assets/models/knight_f.glb"}
 ## Estilos de cabeça que cobrem a nuca (capuz, coifas de malha e o chapéu de mago, que já traz o cabelo solto):
 ## o rabo de cavalo atravessaria, então some.
-const HIDE_PONYTAIL := ["h_hood", "h_nasal", "h_kettle", "h_wizard"]
+const HIDE_PONYTAIL := ["h_hood", "h_nasal", "h_kettle", "h_wizard", "h_archmage"]
 ## Materiais copiados e tingidos, por material de origem + cor (evita duplicar a cada troca de equipamento).
 static var _tint_cache := {}
 const SWORD_PARTS := ["Grip", "Blade"]
