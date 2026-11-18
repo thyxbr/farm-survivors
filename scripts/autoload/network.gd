@@ -63,6 +63,8 @@ const MAX_CHARACTERS := 4
 const CHAR_SELECT_SCENE := "res://scenes/char_select.tscn"
 ## Cliente: token da sessão (do Auth.login) mandado no _register.
 var my_token := ""
+## Cliente: endereço da última conexão (join), para voltar à seleção de personagem (rejoin).
+var my_address := ""
 ## Mensagem mostrada no menu principal depois de uma desconexão.
 var last_error := ""
 var world: Node = null
@@ -985,10 +987,20 @@ func join(address: String, token: String) -> void:
 	multiplayer.multiplayer_peer = peer
 	mode = Mode.CLIENT
 	my_token = token
+	my_address = address
 	my_name = ""
 	last_error = ""
 	_connect_t = CONNECT_TIMEOUT
 	_autosave_t = autosave_interval
+
+
+## "Trocar de personagem": fecha a conexão e entra de novo com o mesmo token. O servidor tira o herói do
+## jogo e responde com a lista da conta (_char_list), como depois do login. false = sem sessão para reusar.
+func rejoin() -> bool:
+	if my_token == "" or my_address == "":
+		return false
+	join(my_address, my_token)
+	return is_client()
 
 
 func leave() -> void:

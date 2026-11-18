@@ -18,6 +18,15 @@ var mp_address: LineEdit
 var mp_status: Label
 var mp_join: Button
 var mp_create: Button
+## "Manter conectado": com uma sessão guardada (SavedSession) o painel mostra `mp_saved` (entrar sem
+## senha) no lugar do formulário `mp_form`.
+var mp_form: VBoxContainer
+var mp_saved: VBoxContainer
+var mp_saved_label: Label
+var mp_resume: Button
+var mp_forget: Button
+var mp_keep: CheckBox
+var _saved := {}
 ## Sobe a cada tentativa e ao Voltar: um login que termina depois disso é descartado (não conecta).
 var _attempt := 0
 var upd_box: PanelContainer
@@ -294,38 +303,58 @@ func _build_multiplayer() -> void:
 	var head := UITheme.heading("Jogar online", 40)
 	mp_box.add_child(head)
 	mp_box.add_child(UITheme.label("Entre com a sua conta e jogue com seus amigos.", 18, UITheme.DIM))
-	mp_box.add_child(UITheme.label("Usuário", 16))
+	mp_saved = VBoxContainer.new()
+	mp_saved.add_theme_constant_override("separation", 10)
+	mp_box.add_child(mp_saved)
+	mp_saved_label = UITheme.label("", 18)
+	mp_saved_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	mp_saved_label.custom_minimum_size.x = 420
+	mp_saved.add_child(mp_saved_label)
+	mp_resume = UITheme.button("Entrar", _resume, 320)
+	mp_saved.add_child(mp_resume)
+	mp_forget = UITheme.button("Sair da conta", _forget, 320)
+	mp_saved.add_child(mp_forget)
+	mp_form = VBoxContainer.new()
+	mp_form.add_theme_constant_override("separation", 10)
+	mp_box.add_child(mp_form)
+	mp_form.add_child(UITheme.label("Usuário", 16))
 	mp_name = LineEdit.new()
 	mp_name.max_length = 16
 	mp_name.placeholder_text = "3 a 16 letras, números ou _"
-	# o nome salvo é o usuário do último login (a senha nunca é salva)
+	# o nome salvo é o usuário do último login (a senha nunca é salva; ver SavedSession)
 	mp_name.text = str(Game.settings.player_name)
 	mp_name.custom_minimum_size = Vector2(320, 40)
 	mp_name.text_submitted.connect(func(_t: String) -> void: mp_pass.grab_focus())
-	mp_box.add_child(mp_name)
-	mp_box.add_child(UITheme.label("Senha", 16))
+	mp_form.add_child(mp_name)
+	mp_form.add_child(UITheme.label("Senha", 16))
 	mp_pass = LineEdit.new()
 	mp_pass.secret = true
 	mp_pass.max_length = 128
 	mp_pass.placeholder_text = "pelo menos 8 caracteres"
 	mp_pass.custom_minimum_size = Vector2(320, 40)
 	mp_pass.text_submitted.connect(func(_t: String) -> void: _join())
-	mp_box.add_child(mp_pass)
-	mp_box.add_child(UITheme.label("Servidor (endereço ou endereço:porta)", 16))
+	mp_form.add_child(mp_pass)
+	mp_form.add_child(UITheme.label("Servidor (endereço ou endereço:porta)", 16))
 	mp_address = LineEdit.new()
 	mp_address.placeholder_text = Network.DEFAULT_ADDRESS
 	var saved := str(Game.settings.server_address)
 	mp_address.text = saved if saved != "" else Network.DEFAULT_ADDRESS
 	mp_address.custom_minimum_size = Vector2(320, 40)
 	mp_address.text_submitted.connect(func(_t: String) -> void: _join())
-	mp_box.add_child(mp_address)
+	mp_form.add_child(mp_address)
 	var note := UITheme.label("Seus heróis online ficam na conta, no servidor (separados do solo). Depois de entrar você escolhe com quem jogar.", 15, UITheme.DIM)
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.custom_minimum_size.x = 420
-	mp_box.add_child(note)
+	mp_form.add_child(note)
+	mp_keep = CheckBox.new()
+	mp_keep.text = "Manter conectado neste computador"
+	mp_keep.tooltip_text = "O jogo guarda a sessão (não a senha) por 30 dias e entra sem pedir a senha."
+	mp_keep.button_pressed = bool(Game.settings.keep_logged)
+	mp_keep.add_theme_font_size_override("font_size", 16)
+	mp_form.add_child(mp_keep)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
-	mp_box.add_child(row)
+	mp_form.add_child(row)
 	mp_join = UITheme.button("Entrar", _join, 155)
 	row.add_child(mp_join)
 	mp_create = UITheme.button("Criar conta", _create_account, 155)
@@ -335,6 +364,51 @@ func _build_multiplayer() -> void:
 	mp_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	mp_status.custom_minimum_size.x = 420
 	mp_box.add_child(mp_status)
+	_refresh_saved()
+
+
+## Lê a sessão guardada e mostra "Entrar como ..." ou o formulário de usuário e senha.
+func _refresh_saved() -> void:
+	_saved = SavedSession.load_from()
+	var has := not _saved.is_empty()
+	mp_saved.visible = has
+	mp_form.visible = not has
+	if has:
+		mp_saved_label.text = "Conectado como %s em %s." % [_saved.name, _saved.address]
+		mp_resume.text = "Entrar como %s" % _saved.name
+
+
+## Entra com a sessão guardada, sem senha. O servidor confere o token na conexão (Network._register).
+func _resume() -> void:
+	if mp_resume.disabled or _saved.is_empty():
+		return
+	Sfx.play("click", 0.0)
+	_set_busy(true)
+	_attempt += 1
+	Auth.resume(_saved)
+	_set_status("Conectando a %s como %s..." % [_saved.address, _saved.name], UITheme.TEXT)
+	Network.join(str(_saved.address), str(_saved.token))
+
+
+## "Sair da conta": esquece a sessão aqui e pede ao servidor que apague as sessões da conta.
+func _forget() -> void:
+	if _saved.is_empty():
+		return
+	Sfx.play("click", 0.0)
+	_attempt += 1
+	Network.leave()
+	var old := _saved
+	SavedSession.clear()
+	Auth.logout()
+	_refresh_saved()
+	_set_busy(false)
+	mp_pass.grab_focus.call_deferred()
+	_set_status("Você saiu da conta %s." % old.name, UITheme.DIM)
+	var my_attempt := _attempt
+	var r: Dictionary = await Auth.revoke(str(old.address), str(old.token))
+	if not r.ok and my_attempt == _attempt and is_instance_valid(mp_box) and mp_box.visible:
+		_set_status("Você saiu da conta %s neste computador. O servidor não respondeu para encerrar a sessão lá." % old.name,
+			Color(1, 0.6, 0.5))
 
 
 func _open_multiplayer() -> void:
@@ -342,7 +416,10 @@ func _open_multiplayer() -> void:
 	menu_box.visible = false
 	mp_box.visible = true
 	_set_status("v" + Network.version(), UITheme.DIM)
-	(mp_name if mp_name.text == "" else mp_pass).grab_focus.call_deferred()
+	if mp_saved.visible:
+		mp_resume.grab_focus.call_deferred()
+	else:
+		(mp_name if mp_name.text == "" else mp_pass).grab_focus.call_deferred()
 
 
 func _close_multiplayer() -> void:
@@ -357,9 +434,11 @@ func _close_multiplayer() -> void:
 func _set_busy(busy: bool) -> void:
 	mp_join.disabled = busy
 	mp_create.disabled = busy
+	mp_resume.disabled = busy
+	mp_forget.disabled = busy
 
 
-## Confere os campos, lembra usuário e endereço (nunca a senha). Devolve false se falta algo.
+## Confere os campos, lembra usuário, endereço e a opção "Manter conectado" (nunca a senha). Devolve false se falta algo.
 func _read_form() -> bool:
 	if mp_name.text.strip_edges() == "" or mp_pass.text == "":
 		_set_status("Digite o usuário e a senha.", Color(1, 0.6, 0.5))
@@ -369,6 +448,7 @@ func _read_form() -> bool:
 		return false
 	Game.settings.player_name = mp_name.text.strip_edges()
 	Game.settings.server_address = mp_address.text.strip_edges()
+	Game.settings.keep_logged = mp_keep.button_pressed
 	Game.save_settings()
 	return true
 
@@ -403,13 +483,18 @@ func _create_account() -> void:
 func _login_and_connect(my_attempt: int) -> void:
 	var address := mp_address.text.strip_edges()
 	_set_status("Entrando...", UITheme.TEXT)
-	var r: Dictionary = await Auth.login(address, mp_name.text.strip_edges(), mp_pass.text)
+	var keep := mp_keep.button_pressed
+	var r: Dictionary = await Auth.login(address, mp_name.text.strip_edges(), mp_pass.text, keep)
 	if my_attempt != _attempt or not is_instance_valid(mp_box) or not mp_box.visible:
 		return   # cancelado (Voltar) enquanto o login estava no ar
 	if not r.ok:
 		_on_join_failed(r.msg)
 		return
 	mp_pass.text = ""
+	if keep:
+		SavedSession.save(address, r)   # o token, nunca a senha
+	else:
+		SavedSession.clear()
 	# o servidor responde com a lista de personagens da conta e a tela de seleção abre (Network._char_list)
 	_set_status("Conectando a %s como %s..." % [address, r.get("name", "")], UITheme.TEXT)
 	Network.join(address, str(r.token))
@@ -419,6 +504,11 @@ func _on_join_failed(reason: String) -> void:
 	if mp_join:
 		_set_busy(false)
 	_set_status(reason, Color(1, 0.6, 0.5))
+	# a sessão guardada venceu ou foi encerrada ("Sair da conta" em outro computador): pede a senha de novo
+	if reason.begins_with("Sessão expirada") and not _saved.is_empty():
+		SavedSession.clear()
+		_refresh_saved()
+		mp_pass.grab_focus.call_deferred()
 	# servidor com outra versão: procura de novo (a release nova pode ter acabado de sair)
 	if reason.begins_with("Versão diferente") and not Updater.can_install():
 		Updater.check()

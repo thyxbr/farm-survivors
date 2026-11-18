@@ -1088,6 +1088,7 @@ func _ready() -> void:
 	await _test_flor_rooted()
 	await _test_enemy_detour()
 	await _test_archer_pose()
+	await _test_gold_goblin_world()
 	if _part() != "mundo":
 		await _test_survival()
 	await _test_update()
@@ -1972,7 +1973,7 @@ func _test_crafting() -> void:
 	for st in ["forge", "leather", "alchemy"]:
 		world.open_crafting(st)
 		await wait(0.1)
-		check(world.modal is CraftingUI and (world.modal as CraftingUI).list.item_count > 5, "bancada %s abre com receitas" % st)
+		check(world.modal is CraftingUI and (world.modal as CraftingUI).recipe_count() > 5, "bancada %s abre com receitas" % st)
 		world.modal._close()
 		await wait(0.05)
 	check(world.modal == null, "bancadas fechadas")
@@ -1995,6 +1996,22 @@ func _test_crafting() -> void:
 	Game.craft("astral_blade", 1)
 	await wait(0.1)
 	check(Game.count_item("astral_blade") == 0, "receita de pergaminho e nível alto é recusada")
+	# pela tela: a animação roda, espera a resposta e mostra o desfecho; clique fecha
+	Econ.grant(20, 0, {"hide_t1": 2, "essence_t1": 1}, "teste", true)
+	world.open_crafting("leather")
+	await wait(0.1)
+	var cui := world.modal as CraftingUI
+	cui._select("leather_boots")
+	var boots0 := Game.count_item("leather_boots") + Game.count_item("leather_boots@fina") + Game.count_item("leather_boots@obra")
+	cui._craft(1)
+	check(cui.anim.active() and cui.anim.phase == CraftAnim.WORK, "animação de craft começa trabalhando")
+	await wait(CraftAnim.WORK_TIME + 0.6)
+	var boots1 := Game.count_item("leather_boots") + Game.count_item("leather_boots@fina") + Game.count_item("leather_boots@obra")
+	check(cui.anim.phase == CraftAnim.RESULT and boots1 == boots0 + 1, "animação mostra o desfecho e o item chegou")
+	cui.anim.skip()
+	check(not cui.anim.active(), "desfecho fecha no clique")
+	cui._close()
+	await wait(0.05)
 	world._open_menu(4)
 	await wait(0.1)
 	check(world.modal != null, "aba Profissões abre")
@@ -2280,6 +2297,36 @@ func _test_archer_pose() -> void:
 	await wait(0.1)
 
 
+## Goblin Dourado no mundo aberto: foge do jogador (antes corria para cima e só empurrava) e, longe demais
+## do ponto dele, volta rodeando em vez de sumir no mapa.
+func _test_gold_goblin_world() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 100)
+	player.global_position = spot
+	player.invuln = 99.0
+	var e := Enemy.new()
+	e.kind = "goblin_dourado"
+	e.level = 8
+	world.add_child(e)
+	e.global_position = spot + Vector3(0, 0, -5)
+	e.home = e.global_position
+	await wait(0.2)
+	e._set_state("chase")
+	await wait(1.5)
+	var d := e.global_position.distance_to(player.global_position)
+	check(d > 8.0, "Goblin Dourado foge do jogador no mundo (%.1f m)" % d)
+	e.global_position = e.home + Vector3(0, 0, -(Enemy.FLEE_LEASH + 8.0))
+	e.provoked = Enemy.PROVOKE_TIME
+	e._set_state("chase")
+	await wait(1.5)
+	var from_home := e.global_position.distance_to(e.home)
+	check(from_home < Enemy.FLEE_LEASH + 6.5, "Goblin Dourado volta para perto do ponto dele (%.1f m)" % from_home)
+	e.queue_free()
+	player.invuln = 0.0
+	player.global_position = back
+	await wait(0.1)
+
+
 ## A Flor-faminta não sai do lugar, nem apanhando.
 func _test_flor_rooted() -> void:
 	var back := player.global_position
@@ -2355,6 +2402,19 @@ func _test_enchant_effects() -> void:
 	await wait(0.2)
 	var lv: int = Game.weapon_enchant().lv
 	check(Game.weapon_enchant().el == "fogo" and lv == 2, "efeitos: a arma chega em fogo +2")
+	# o clarão vermelho de dano não pode apagar o brilho do encanto (só acontecia no jogador local)
+	var glowing := func() -> int:
+		var n := 0
+		for mi in (player.look["holder"] as Node).find_children("*", "MeshInstance3D", true, false):
+			if mi.material_overlay is ShaderMaterial and mi.material_overlay.shader == EnchantFX.SHADER:
+				n += 1
+		return n
+	var glow0: int = glowing.call()
+	check(glow0 > 0, "arma encantada tem o brilho do encanto")
+	player._flash()
+	check(glowing.call() == 0, "clarão de dano cobre a arma")
+	await wait(0.3)
+	check(glowing.call() == glow0, "depois do clarão de dano o brilho do encanto volta")
 	Econ.grant(600, 0, {"frost_drop": 3, "thunder_totem": 3, "toxic_gland": 3, "golden_dust": 3, "shadow_fang": 3}, "teste", true)
 	var a := _fx_dummy(spot + Vector3(3, 0, 0))
 	await wait(0.1)

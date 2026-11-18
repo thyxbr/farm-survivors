@@ -117,6 +117,35 @@ func test_expired_token() -> void:
 	T.ok(s.resolve_token(l["token"]).is_empty(), "expirado devolve {}")
 
 
+func test_remember_session_lasts_longer() -> void:
+	var s := _store()
+	s.register("Ana", "senha1234")
+	var short := s.login("Ana", "senha1234", "ip")
+	var long := s.login("Ana", "senha1234", "ip", true)
+	T.eq(int(short["expires"]), int(_now) + AccountStore.SESSION_SECS, "sem manter conectado: 24 h")
+	T.eq(int(long["expires"]), int(_now) + AccountStore.REMEMBER_SECS, "manter conectado: 30 dias")
+	_now += AccountStore.SESSION_SECS + 1
+	T.ok(s.resolve_token(short["token"]).is_empty(), "a sessão curta venceu")
+	T.ok(not s.resolve_token(long["token"]).is_empty(), "a longa continua valendo")
+	_now += AccountStore.REMEMBER_SECS
+	T.ok(s.resolve_token(long["token"]).is_empty(), "a longa vence depois de 30 dias")
+
+
+func test_logout_revokes_all_sessions_of_the_account() -> void:
+	var s := _store()
+	s.register("Ana", "senha1234")
+	s.register("Bia", "senha1234")
+	var a1 := s.login("Ana", "senha1234", "ip", true)
+	var a2 := s.login("Ana", "senha1234", "ip", true)
+	var b := s.login("Bia", "senha1234", "ip", true)
+	T.ok(not s.logout("token-que-nao-existe"), "token inválido não sai de nada")
+	T.ok(s.logout(a1["token"]), "sair da conta")
+	T.ok(s.resolve_token(a1["token"]).is_empty(), "o token usado para sair caiu")
+	T.ok(s.resolve_token(a2["token"]).is_empty(), "a sessão do outro computador caiu junto")
+	T.ok(not s.resolve_token(b["token"]).is_empty(), "a conta de outra pessoa continua logada")
+	T.ok(not s.logout(a1["token"]), "sair de novo com o token caído não faz nada")
+
+
 func test_password_provider() -> void:
 	var s := _store()
 	s.register("Ana", "senha1234")

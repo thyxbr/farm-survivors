@@ -125,6 +125,13 @@ func _handle(peer: StreamPeerTCP, req: Dictionary) -> void:
 		_reply(peer, 200, {"version": Network.version()})
 	elif method == "POST" and path == "/auth/steam":
 		_reply(peer, 501, {"err": "nao_implementado"})
+	elif method == "POST" and path == "/auth/logout":
+		var data = JSON.parse_string(req["body"])
+		if typeof(data) != TYPE_DICTIONARY or typeof(data.get("token")) != TYPE_STRING:
+			_reply(peer, 400, {"err": "json_invalido"})
+			return
+		accounts.logout(data["token"])
+		_reply(peer, 200, {})   # token já vencido também responde ok: o cliente só quer esquecer a sessão
 	elif method == "POST" and (path == "/auth/register" or path == "/auth/login"):
 		var data = JSON.parse_string(req["body"])
 		if typeof(data) != TYPE_DICTIONARY or typeof(data.get("user")) != TYPE_STRING or typeof(data.get("pass")) != TYPE_STRING:
@@ -136,7 +143,7 @@ func _handle(peer: StreamPeerTCP, req: Dictionary) -> void:
 		if reg:
 			p = accounts.prepare_register(data["user"], data["pass"], ip)
 		else:
-			p = accounts.prepare_login(data["user"], data["pass"], ip)
+			p = accounts.prepare_login(data["user"], data["pass"], ip, data.get("remember") == true)
 		var status := 201 if reg else 200
 		if p.has("done"):
 			_reply_result(peer, p["done"], status)

@@ -40,6 +40,8 @@ func _ready() -> void:
 			v.add_child(UITheme.button("Desligar modo admin" if Game.admin_mode() else "Ligar modo admin", _toggle_admin))
 			if Game.admin_mode():
 				v.add_child(UITheme.button("Adicionar item (admin)", _admin_items))
+		if Network.is_client():
+			v.add_child(UITheme.button("Trocar de personagem", func() -> void: Game.go_to_char_select()))
 		v.add_child(UITheme.button("Menu principal", func() -> void: Game.go_to_menu()))
 		v.add_child(UITheme.button("Sair do jogo", _quit))
 	else:
@@ -49,6 +51,8 @@ func _ready() -> void:
 		var lb := UITheme.button("Carregar último save", func() -> void: Econ.quick_load())
 		lb.disabled = Network.is_online() or not Econ.has_solo()
 		v.add_child(lb)
+		if Network.is_client():
+			v.add_child(UITheme.button("Trocar de personagem", func() -> void: Game.go_to_char_select()))
 		v.add_child(UITheme.button("Menu principal", func() -> void: Game.go_to_menu()))
 	_status = UITheme.label("", 15, Color(0.7, 1, 0.7))
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

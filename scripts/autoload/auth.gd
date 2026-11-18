@@ -5,7 +5,8 @@ extends Node
 ## Endereço da API: `--auth-url=` tem prioridade; IP literal ou `localhost` → http://host:8080 (servidor
 ## local, sem HTTPS); domínio → https://host (proxy HTTPS do Easypanel). A porta digitada no endereço é a
 ## do UDP do jogo e não vale para o HTTP.
-## A senha nunca é guardada: só o token fica na memória enquanto o jogo está aberto.
+## A senha nunca é guardada. Com "Manter conectado" o token (30 dias) fica em SavedSession, cifrado no
+## disco, e o jogo entra com ele sem pedir a senha; sem a opção o token só vive na memória (24 h).
 
 const LOCAL_HTTP_PORT := 8080
 const TIMEOUT := 10.0
@@ -65,8 +66,10 @@ func register(address: String, user: String, password: String) -> Dictionary:
 
 
 ## Entra na conta e guarda o token. {ok: true, token, expires, name, is_admin} ou {ok: false, err, msg}.
-func login(address: String, user: String, password: String) -> Dictionary:
-	var r := await _request(base_url(address) + "/auth/login", HTTPClient.METHOD_POST, {"user": user, "pass": password})
+## `remember` pede a sessão longa ("Manter conectado").
+func login(address: String, user: String, password: String, remember := false) -> Dictionary:
+	var r := await _request(base_url(address) + "/auth/login", HTTPClient.METHOD_POST,
+		{"user": user, "pass": password, "remember": remember})
 	if r.ok:
 		if str(r.get("token", "")) == "":
 			return _error("resposta_invalida")
@@ -80,6 +83,19 @@ func login(address: String, user: String, password: String) -> Dictionary:
 ## Versão do servidor (GET /health). {ok: true, version} ou {ok: false, err, msg}.
 func health(address: String) -> Dictionary:
 	return await _request(base_url(address) + "/health", HTTPClient.METHOD_GET, {})
+
+
+## Volta a uma sessão guardada (SavedSession.load_from): o servidor confere o token na conexão do jogo.
+func resume(saved: Dictionary) -> void:
+	token = str(saved.get("token", ""))
+	account_name = str(saved.get("name", ""))
+	is_admin = bool(saved.get("is_admin", false))   # só liga os botões; quem manda é o servidor
+	expires = int(saved.get("expires", 0))
+
+
+## "Sair da conta": o servidor apaga as sessões da conta (as de outros computadores também).
+func revoke(address: String, session_token: String) -> Dictionary:
+	return await _request(base_url(address) + "/auth/logout", HTTPClient.METHOD_POST, {"token": session_token})
 
 
 func logout() -> void:
