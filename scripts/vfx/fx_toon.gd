@@ -628,7 +628,7 @@ static func gale_charge(parent: Node3D, tip: Node3D) -> GaleCharge:
 static func gale_fire(feet: Vector3, origin: Vector3, dir: Vector3, c: float) -> void:
 	if FX._scene() == null:
 		return
-	var at := origin + dir * 0.7
+	var at := origin + dir * 0.3   # origin = ponta da flecha: o estouro fica logo à frente do arco
 	pop(at, WIND, {"size0": 1.1 + 0.5 * c, "size1": 0.0, "time": 0.14, "ease_in": true, "sort": 0.1})
 	muzzle(at, dir, light_palette(WIND.edge), 8, 1.3 + 0.6 * c)
 	ring_wave(feet + Vector3.UP * 0.07, 2.5 + 2.0 * c, 0.14, WIND, 0.14)

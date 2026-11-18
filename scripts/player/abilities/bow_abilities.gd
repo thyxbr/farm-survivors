@@ -32,7 +32,7 @@ const GALE_TRAVEL := 0.25       ## o raio percorre GALE_RANGE neste tempo (s)
 const GALE_RECOVER := 0.4
 const GALE_MULT_MIN := 3.0      ## dano = Game.melee_damage() * lerp(GALE_MULT_MIN, GALE_MULT_MAX, carga)
 const GALE_MULT_MAX := 6.0
-const GALE_HEIGHT := 1.1        ## altura do raio acima dos pés (m)
+const GALE_HEIGHT := 1.1        ## altura do raio acima dos pés quando a ponta da flecha não existe (m)
 const GALE_RADIUS := 1.1        ## meia largura da linha (m), somada ao raio do inimigo
 const GALE_VERT := 2.5          ## diferença de altura máxima entre os pés do inimigo e os do jogador (m)
 const GALE_WALL_MASK := 1       ## só o cenário para o raio (inimigos, camada 4, são atravessados)
@@ -360,9 +360,11 @@ static func _gale_charge_fx(player: Node, d: Dictionary, t0: float, t: float, c:
 
 
 ## Dispara (só o dono): direção da mira, avisa as réplicas e começa o raio; o dano corre no tick.
+## O raio nasce na ponta da flecha encaixada no arco (não no meio do corpo: quem olha de lado via a flecha
+## sair de dentro do arqueiro), na horizontal.
 static func _gale_fire(player: Node, d: Dictionary) -> void:
 	var dir := _gale_dir(player)
-	var origin: Vector3 = player.global_position + Vector3.UP * GALE_HEIGHT
+	var origin := _gale_origin(player)
 	var c: float = maxf(float(d.get("charge", 0.0)), GALE_MIN)
 	player.model.rotation.y = atan2(dir.x, dir.z)
 	Network.send_event("bow_gale_fire", origin, dir * c)
@@ -375,6 +377,14 @@ static func _gale_fire(player: Node, d: Dictionary) -> void:
 		player.camera.fov = float(d.fov0) + 4.0 * c
 
 
+## Ponta da flecha encaixada (o arco já está na linha da mira horizontal, veja _update_aim_pitch).
+static func _gale_origin(player: Node) -> Vector3:
+	var tip: Node3D = player.look.get("tip")
+	if tip and is_instance_valid(tip) and tip.is_inside_tree():
+		return tip.global_position
+	return player.global_position + Vector3.UP * GALE_HEIGHT + player.facing() * 0.6
+
+
 ## Disparo (dono e réplicas): guarda a linha, para o vento da tensão e cria os efeitos do tiro.
 static func _gale_shoot(player: Node, origin: Vector3, dir: Vector3, c: float) -> void:
 	var d: Dictionary = player.ability_data
@@ -382,6 +392,7 @@ static func _gale_shoot(player: Node, origin: Vector3, dir: Vector3, c: float) -
 	d.fire_t = player.ability_t
 	d.charge = c
 	d.origin = origin
+	d.feet_y = player.global_position.y
 	d.dir = dir
 	d.len = _gale_length(player, origin, dir)
 	d.hit = {}
@@ -396,8 +407,8 @@ static func _gale_shoot(player: Node, origin: Vector3, dir: Vector3, c: float) -
 	var root := FX._scene()
 	if root == null:
 		return
-	var feet := origin - Vector3.UP * GALE_HEIGHT
-	var muzzle := origin + dir * 0.7
+	var feet: Vector3 = player.global_position   # o anel e a poeira do tranco ficam sob o arqueiro
+	var muzzle := origin + dir * 0.3
 	FXToon.gale_fire(feet, origin, dir, c)
 	FXEpic.flash(muzzle, GALE_WIND, 5.0, 9.0, 0.3)
 	var line := GaleLine.new()
@@ -412,7 +423,7 @@ static func _gale_shoot(player: Node, origin: Vector3, dir: Vector3, c: float) -
 static func _gale_hits(player: Node, d: Dictionary, front: float) -> void:
 	var origin: Vector3 = d.origin
 	var dir: Vector3 = d.dir
-	var feet_y := origin.y - GALE_HEIGHT
+	var feet_y: float = d.get("feet_y", origin.y - GALE_HEIGHT)
 	var hit: Dictionary = d.hit
 	var first := hit.is_empty()
 	var n := hit.size()
