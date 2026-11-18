@@ -544,6 +544,7 @@ def build_knight(female=False):
     # sombra assada nas dobras (gear.py): mesma leitura das roupas modulares
     if female:
         knight_f_finish(R)
+    g_smooth([o for o in scn.objects if o.type == 'MESH'])       # placas lisas, como o corpo e as roupas (gear.py)
     bake_ao([o for o in scn.objects if o.type == 'MESH'], [])
     export("knight_f" if female else "knight", export_vertex_color='ACTIVE')
 
@@ -675,7 +676,7 @@ def build_elder(santa=False):
              x=sx + s * 0.045, y=-0.01)
         limb(side + "_Wrist", (sx + s * 0.045, -0.01, 0.98), (sx + s * 0.045, -0.01, 0.9), 0.035, 0.032, skin, sides=6)
         fore = take()
-        open_hand(side, (sx + s * 0.045, -0.01, 0.905), s, skin, None)
+        npc_hand(side, (sx + s * 0.045, -0.01, 0.905), s, skin, None)
         palm = take()
         tx = Vector((s, 0, 0))
         r_up = (el - sh).normalized().rotation_difference(tx)
@@ -785,6 +786,7 @@ def build_elder(santa=False):
     up = ((-0.45, -0.2, 0.87), 15, 4, 10)                            # punho no alto, cotovelo quase esticado
     bake_clip(arm, "excited", [(0, hold), (7, cheer(*pump)), (13, cheer(*up)), (19, cheer(*pump)), (25, cheer(*up)),
                                (32, cheer(*pump)), (45, hold)])
+    g_smooth([o for o in scn.objects if o.type == 'MESH'])
     export("santa" if santa else "elder", export_animations=True, export_skins=True, export_animation_mode='NLA_TRACKS')
     scn.render.fps = fps
 
@@ -917,7 +919,7 @@ def build_merchant():
         limb(side + "_Bracer", (sx + s * 0.034, 0.005, 1.06), (wx, 0, 0.94), 0.055, 0.047, lea, sides=7, parent=pv)
         ring(side + "_BracerTop", 1.058, 0.059, 0.022, lea_d, parent=pv, sides=7, x=sx + s * 0.034, y=0.005)
         ring(side + "_BracerBot", 0.947, 0.051, 0.02, lea_d, parent=pv, sides=7, x=wx)
-        open_hand(side, (wx, 0, 0.935), s, skin, pv)
+        npc_hand(side, (wx, 0, 0.935), s, skin, pv)
 
     # ---------------- tudo em coordenadas de mundo, agrupado pelo pivô em que foi montado
     scn.view_layers[0].update()
@@ -1031,6 +1033,7 @@ def build_merchant():
     out_, in_ = (stand - 22, -12), (stand + 14, 14)          # (cotovelo, punho) para fora / para dentro
     bake_clip(arm, "call", [(0, down), (9, wave(stand, 0, 4, 5)), (15, wave(*out_, 5, 6)), (21, wave(*in_, 5, 6)),
                             (27, wave(*out_, 5, 6)), (33, wave(*in_, 5, 6)), (37, wave(stand, 0, 4, 5)), (45, down)])
+    g_smooth([o for o in scn.objects if o.type == 'MESH'])
     export("merchant", export_animations=True, export_skins=True, export_animation_mode='NLA_TRACKS')
     scn.render.fps = fps
 
@@ -1204,34 +1207,28 @@ def build_villager(n=1):
 
     # ---------------- cabeça
     head = empty("Head", (0, 0, 1.45), body)
-    limb("Neck", (0, 0.008, 1.4), (0, 0.014, 1.6), 0.046, 0.043, skin, sides=7, parent=head)
-    face_mats = {"skin": skin, "lip": lips, "sclera": mat("v_sclera", hexc("#EFE8DE"), 0.4),
-                 "iris": mat("v_iris", hexc("#5A3A1E"), 0.3), "pupil": mat("v_pupil", hexc("#2A1810"), 0.6),
-                 "mouth": mat("v_mouth", hexc("#A0594A"), 0.8), "brow": hair, "lash": eye}
+    # pescoço: largo na base (entra na gola), afinando até a cabeça
+    limb("Neck", (0, 0.01, 1.4), (0, 0.014, 1.6), 0.056, 0.044, skin, sides=10, parent=head)
+    # rosto liso desenhado, cabelo em mechas e mãos de pele contínua (anime.py), como o herói
     HH = 0.232
     fem = L["fem"]
-    H = human_head("", 1.52, HH, head, face_mats,
-                   {"fem": fem, "nose": 0.8 if fem else 1.0, "nose_w": 0.9 if fem else 1.05, "brow": 0.6 if fem else 1.0,
-                    "jaw": 0.95 if fem else 1.05, "chin": 0.8 if fem else 1.0, "eye_size": 1.1 if fem else 1.0,
-                    "width": 1.0, "lips": 1.1 if fem else 0.9})
-    hair_d = mat(px + "hair_d", tuple(c * 0.55 for c in hexc(L["hair"])), 0.9)
-    shell("HairBase", (0, 0.006, 1.62), (0.152, 0.25, 0.2), hair_d, cut=0.15, seg=10, rings=6, rot=(-PI / 2, 0, 0),
-          thick=0.008, parent=head)
-    locks = []
-    for phi in (110, 135, 158, 180, -158, -135, -110):
-        sg = 1 if phi > 0 else -1
-        pb = 180 if phi == 180 else sg * (180 - (180 - abs(phi)) * 0.3)
-        locks.append(dict(a=(phi, 27), b=(pb, -35 if fem else -18), w=0.042, t=0.011, bulge=0.007, n=4))
-    for sg in (1, -1):
-        locks.append(dict(a=(sg * 68, 25), b=(sg * 92, -10 if fem else 2), drop=0.02 if fem else 0.0, w=0.03, t=0.009,
-                          bulge=0.004, n=4))
-    if L["head"] == "":   # cabeça descoberta: mechas também no topo e na testa
-        for phi in (0, 35, -35, 75, -75, 120, -120, 165, -165):
-            locks.append(dict(a=(phi * 0.6, 78), b=(phi, 30), w=0.05, t=0.012, bulge=0.008, n=4))
-    hair_locks("Hair", H, locks, hair, head)
+    am = anime_mats(px, hexc(L["skin"]), hexc("#6A4526"), tuple(c * 0.75 for c in hexc(L["hair"])),
+                    tuple(c * 0.35 for c in hexc(L["hair"])), hexc("#B4606A") if fem else hexc("#9A5648"))
+    face = ({"eye_w": 1.08, "eye_h": 1.1, "eye_dz": -0.3, "lash": 1.0, "brow": 0.9, "brow_dz": 0.3, "nose": 0.6,
+             "jaw": 0.95, "mouth_w": 0.85} if fem else
+            {"eye_w": 0.95, "eye_h": 0.7, "lash": 0.8, "brow": 1.4, "brow_dz": -0.3, "nose": 1.1, "jaw": 1.06,
+             "chin": 0.4, "mouth_w": 1.05})
+    H = anime_head("", 1.52, HH, head, am, face)
+    hm = {"hair": hair, "mid": mat(px + "hair_m", tuple(c * 0.78 for c in hexc(L["hair"])), 0.9),
+          "under": mat(px + "hair_d", tuple(c * 0.55 for c in hexc(L["hair"])), 0.9)}
+    if L["head"] == "":       # cabeça descoberta: cabelo curto com franja de lado
+        anime_hair("", H, hm, head, {"fringe": 14, "side": 3, "back": -26, "part": -22, "sweep": 1, "top": 9,
+                                     "w": 1.2, "lift": 1.4, "seed": 5 + n})
+    else:                     # sob o chapéu ou o lenço: só a calota, os lados e a nuca
+        anime_hair("", H, hm, head, {"top": 0, "bangs": False, "frame": False, "side": 2, "back": -32 if fem else -24,
+                                     "seed": 5 + n})
     if fem:
-        shell("HairBun", (0, 0.105, 1.56), (0.085, 0.07, 0.075), hair, cut=-1.0, thick=0, seg=8, rings=6, jitter=0.003,
-              seed=14, parent=head)
+        anime_bun("HairBun", (0, 0.105, 1.56), (0.085, 0.07, 0.075), hair, head)
     if L["head"] == "straw":   # chapéu de palha: aba larga caída e copa baixa com fita
         limb("HatBrim", (0, 0.004, 1.69), (0, 0.004, 1.715), 0.2, 0.125, straw, sides=12, flat=1.1, parent=head)
         limb("HatBrimEdge", (0, 0.004, 1.683), (0, 0.004, 1.693), 0.203, 0.203, straw_d, sides=12, flat=1.1, parent=head)
@@ -1245,6 +1242,9 @@ def build_villager(n=1):
             tbox("KerchiefTail" + nm, (s * 0.025, 0.11, 1.65), (0.045, 0.016, 0.11), red, bottom=(0.6, 1),
                  rot=(0.25, 0, s * 0.3), bevel=0.004, parent=head)
     scale_group(head, (0, 0.01, 1.52), 1.1)
+    for o in head.children:      # cabeça, cabelo e chapéu 2 cm mais baixos: o pescoço ficava comprido
+        if o.type == 'MESH' and o.name != "Neck":
+            o.data.transform(Matrix.Translation((0, 0, -0.02)))
 
     # ---------------- braços: manga arregaçada até o cotovelo, antebraço à mostra
     SH_Z, EL_Z, WR_Z = 1.38, 1.12, 0.87
@@ -1256,7 +1256,7 @@ def build_villager(n=1):
         limb(side + "_Upper", (sx, 0, SH_Z - 0.01), (ex, 0.01, EL_Z), 0.048, 0.06, tunic, sides=7, parent=pv)
         ring(side + "_SleeveRoll", EL_Z + 0.012, 0.066, 0.04, tunic_l, parent=pv, sides=7, x=ex, y=0.01)
         limb(side + "_Fore", (ex, 0.01, EL_Z + 0.01), (wx, 0, WR_Z), 0.046, 0.036, skin, sides=6, parent=pv)
-        hand(side, wx, WR_Z - 0.055, skin, pv)
+        npc_hand(side, (wx, 0, WR_Z), s, skin, pv)
 
     # ---------------- tudo em coordenadas de mundo, agrupado pelo pivô em que foi montado
     scn.view_layers[0].update()
@@ -1291,7 +1291,7 @@ def build_villager(n=1):
         parts = {o.name[len(side):]: o for o in groups[side]}
         upper = [parts["_Upper"]]
         fore = [parts[k] for k in ("_SleeveRoll", "_Fore")]
-        palm = [parts[k] for k in ("_Hand", "_Thumb")]
+        palm = [parts["_Hand"]]              # mão aberta de pele contínua (npc_hand)
         assert len(upper) + len(fore) + len(palm) == len(groups[side])
         tx = Vector((s, 0, 0))
         r_up = (el - sh).normalized().rotation_difference(tx)
@@ -1326,6 +1326,7 @@ def build_villager(n=1):
     # provisórios: o build_npc_mixamo.gd troca pelos do Mixamo quando houver villager_hoe.fbx / villager_chop.fbx
     bake_clip(arm, "hoe", two_hand_cycle(arm, P, joints, VILLAGER_HOE, VILLAGER_HOE_POLE))
     bake_clip(arm, "chop", two_hand_cycle(arm, P, joints, VILLAGER_CHOP, VILLAGER_CHOP_POLE))
+    g_smooth([o for o in scn.objects if o.type == 'MESH'])
     export("villager_%d" % n, export_animations=True, export_skins=True, export_animation_mode='NLA_TRACKS')
     scn.render.fps = fps
 
@@ -1592,5 +1593,6 @@ def build_blacksmith():
     bake_clip(arm, "work_pause", [(0, down), (18, brow), (38, wipe), (55, brow), (75, down)])
     bake_clip(arm, "idle", [(0, down), (45, breathe), (90, down)])
     bake_clip(arm, "talk", [(0, down), (20, gest_a), (45, gest_b), (70, gest_c), (90, down)])
+    g_smooth([o for o in scn.objects if o.type == 'MESH'])
     export("blacksmith", export_animations=True, export_skins=True, export_animation_mode='NLA_TRACKS')
     scn.render.fps = fps

@@ -23,7 +23,7 @@ FEM_Z = 0.95                       # altura
 FEM_ARM = (0.95, 0.88)             # braço: ao longo do eixo, na seção
 FEM_LEG = (0.95, 0.92)             # perna: ao longo do eixo, na seção (pé mais curto junto)
 FEM_ABDUCT = math.radians(4.5)     # braço um pouco mais aberto (o quadril mais largo passa perto da mão)
-FEM_NECK = 0.86                    # pescoço mais fino
+FEM_NECK = 0.9                    # pescoço mais fino
 # largura (x) e profundidade (y) do tronco por altura (z do corpo masculino)
 FEM_SX = [(0.0, 1.1), (0.95, 1.1), (1.09, 0.77), (1.18, 0.8), (1.29, 0.88), (1.40, 0.86), (1.47, 0.85),
           (3.0, 0.85)]
@@ -324,7 +324,7 @@ BACK_LOCKS = [(100, 1.43), (122, 1.385), (146, 1.345), (169, 1.32), (191, 1.32),
 HAIR_CLEAR = 0.04            # distância do cabelo solto às costas (pele); cobre camisa e couro
 # cabelo de cima no estilo dos NPCs (anime.py): franja larga repartida caindo para um lado com a testa e os
 # olhos à mostra, camada de cima com volume, mechas pontudas
-FEM_HAIR_STYLE = {"fringe": 24, "side": 4, "back": -30, "part": 30, "sweep": -1, "top": 9, "w": 1.3,
+FEM_HAIR_STYLE = {"fringe": 13, "side": 2, "back": -30, "part": 30, "sweep": -1, "top": 9, "w": 1.3,
                   "lift": 1.7, "seed": 7}
 
 
@@ -428,8 +428,8 @@ def build_ponytail(root, tie, path, head, HM):
 
 
 # ------------------------------------------------------------------ rosto feminino
-FEM_FACE = {"eye_w": 1.12, "eye_h": 1.15, "lash": 1.5, "brow": 0.7, "brow_dz": 0.4, "nose": 0.55, "jaw": 0.86,
-            "mouth_w": 0.85}
+FEM_FACE = {"eye_w": 1.14, "eye_h": 1.2, "eye_dz": -0.45, "lash": 1.0, "brow": 0.9, "brow_dz": 0.35, "nose": 0.6,
+            "jaw": 0.95, "mouth_w": 0.8}
 
 
 def fem_plain_head(R, M, beard=False, hair=True):
@@ -437,7 +437,7 @@ def fem_plain_head(R, M, beard=False, hair=True):
     cílios marcados, sobrancelha fina e alta, nariz pequeno, queixo fino e boca rosada; cabelo comprido sem o
     rabo de cavalo (que mora no knight_f.glb)."""
     head = R["Head"]
-    am = anime_mats("hf", hexc("#D29A74"), hexc("#5B3A22"), hexc("#3A2213"), hexc("#1E120A"), hexc("#C25D68"))
+    am = anime_mats("hf", hexc("#D29A74"), hexc("#9A5F2C"), hexc("#3A2213"), hexc("#1E120A"), hexc("#C25D68"))
     H = anime_head("", HEAD_CHIN, HEAD_H, head, am, FEM_FACE)
     if hair:
         fem_hair(H, head, fem_hair_mats(M), back=True)
@@ -447,7 +447,7 @@ def fem_plain_head(R, M, beard=False, hair=True):
 def fem_head_marks():
     """Marcos da cabeça (sem criar nada), para o rabo de cavalo."""
     s = HEAD_H / 23.0
-    return {"s": s, "chin": HEAD_CHIN, "cy": 0.45 * s}
+    return {"s": s, "chin": HEAD_CHIN - HEAD_DROP, "cy": 0.45 * s}
 
 
 # ------------------------------------------------------------------ montagem
@@ -496,6 +496,8 @@ def _g_export_f(style, P=None, R=None):
     if P is not None and targets:
         occ = _occluders(style, P, R, g_mats())
     fem_warp()
+    drop_head(style, targets)
+    g_smooth(targets)
     if P is not None and targets:
         bake_ao(targets, occ)
     export("gear/" + style + "_f", export_vertex_color='ACTIVE')

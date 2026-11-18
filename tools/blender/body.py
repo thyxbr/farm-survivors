@@ -379,12 +379,14 @@ def fist(prefix, P, s, material, parent):
 
 # ------------------------------------------------------------------ pescoço
 def neck_mesh(P, material, parent, k=1.0):
-    """Pescoço curto e grosso (~70% da largura da cabeça), levemente inclinado para a frente: nasce dentro do
-    trapézio e entra por baixo do queixo."""
+    """Pescoço fino (~60% da largura da cabeça) e recuado: largo na base (trapézio), mais estreito em cima,
+    entra por trás do queixo, sob a mandíbula da cabeça lisa (anime.py)."""
     z, kk = P["z"], P["k"] * k
-    return loft("Neck", [sec((0, 0.014 * kk, z(1.58)), 0.07 * kk, 0.066 * kk),
-                         sec((0, 0.006 * kk, z(1.3)), 0.06 * kk, 0.058 * kk),
-                         sec((0, -0.002 * kk, z(0.95)), 0.054 * kk, 0.052 * kk)], material, parent, sides=8)
+    # de baixo para cima: dentro do tronco, alargando no trapézio, e afinando até entrar na cabeça
+    return loft("Neck", [sec((0, 0.010 * kk, z(1.58)), 0.074 * kk, 0.066 * kk),
+                         sec((0, 0.012 * kk, z(1.42)), 0.064 * kk, 0.06 * kk),
+                         sec((0, 0.014 * kk, z(1.3)), 0.053 * kk, 0.053 * kk),
+                         sec((0, 0.013 * kk, z(0.95)), 0.046 * kk, 0.048 * kk)], material, parent, sides=10)
 
 
 # ------------------------------------------------------------------ corpo-base completo

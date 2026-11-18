@@ -33,10 +33,12 @@ CB_TORSO = [
     (1.35, 0.172, 0.113, dict(fr=1.14, bk=1.14)),    # 7 axila (base do furo do braço)
     (1.405, 0.168, 0.102, dict(fr=1.05, bk=1.12)),   # 8 meio do furo
     (1.46, 0.145, 0.086, dict(bk=1.05)),             # 9 topo do ombro
-    (1.5, 0.108, 0.072, dict()),                     # 10 rampa do trapézio
-    (1.525, 0.072, 0.066, dict(y=0.01)),             # 11 base do pescoço
-    (1.57, 0.064, 0.06, dict(y=0.004)),              # 12
-    (1.63, 0.056, 0.054, dict(y=-0.008)),            # 13 (dentro da cabeça)
+    (1.5, 0.112, 0.073, dict()),                     # 10 rampa do trapézio
+    (1.522, 0.074, 0.064, dict(y=0.012)),            # 11 base do pescoço (alarga para o trapézio)
+    # pescoço fino e recuado: entra por trás do queixo, sob a mandíbula (a cabeça lisa de anime.py tem o
+    # queixo estreito; pescoço da largura antiga sobrava dos dois lados do rosto)
+    (1.558, 0.053, 0.052, dict(y=0.014)),            # 12
+    (1.63, 0.046, 0.048, dict(y=0.012)),             # 13 (dentro da cabeça)
 ]
 CB_ARM_ROWS = (7, 8, 9)
 CB_ARM_COLS = (3, 4, 5)                          # lado esquerdo; o direito usa 16 - j
@@ -281,7 +283,7 @@ def cb_character(M=None):
     P = body_proportions(**GEAR_P)
     hands = []
     for s, n in ((1, "L"), (-1, "R")):
-        hands.append((fist("Arm" + n, P, s, M["skin"], root), "Elbow" + n))
+        hands.append((soft_fist("Arm" + n, P, s, M["skin"], root), "Elbow" + n))
     for o in heads + [h for h, _ in hands]:
         o.parent = None
     bpy.data.objects.remove(root)
@@ -394,12 +396,15 @@ def build_h_bare():
 
 
 def build_g_bare():
-    """Mãos fechadas (pele), presas aos ossos ElbowL/ElbowR."""
+    """Mãos de pele, presas aos ossos ElbowL/ElbowR: ArmX_Hand (fechada) e ArmX_HandOpen (aberta)."""
     M = g_mats()
     rig = cb_rig("Rig")
     root = empty("CBTmp", (0, 0, 0))
     P = body_proportions(**GEAR_P)
-    hands = [(fist("Arm" + n, P, s, M["skin"], root), "Elbow" + n) for n, s in (("L", 1), ("R", -1))]
+    hands = []
+    for n, s in (("L", 1), ("R", -1)):      # fechada (segura a arma) e aberta (mão vazia): o jogo fica com uma
+        hands.append((soft_fist("Arm" + n, P, s, M["skin"], root), "Elbow" + n))
+        hands.append((relaxed_hand("Arm" + n, P, s, M["skin"], root), "Elbow" + n))
     for o, _ in hands:
         o.parent = None
     bpy.data.objects.remove(root)
