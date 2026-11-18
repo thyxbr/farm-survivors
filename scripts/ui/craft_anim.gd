@@ -91,15 +91,17 @@ func _gui_input(event: InputEvent) -> void:
 		skip()
 
 
+## Ícone do item base: a variante de qualidade/bônus tem o mesmo desenho, e o do base já está pronto.
 func _icon(id: String) -> Texture2D:
-	var tex := ItemSlot.item_art(id)
-	return tex if tex != null else ItemIcons.icon(id, _icon_ready.bind(id))
+	var bid := ItemQuality.base(id)
+	var tex := ItemSlot.item_art(bid)
+	return tex if tex != null else ItemIcons.icon(bid, _icon_ready.bind(bid))
 
 
 ## O ícone 3D (itens sem arte pintada) ficou pronto no cache.
-func _icon_ready(id: String) -> void:
-	if id == _item and _tex == null:
-		_tex = ItemIcons.icon(id, Callable())
+func _icon_ready(bid: String) -> void:
+	if bid == ItemQuality.base(_item) and _tex == null:
+		_tex = ItemIcons.icon(bid, Callable())
 
 
 func _process(delta: float) -> void:
@@ -231,8 +233,10 @@ func _draw_success(c: Vector2) -> void:
 		var a := _t * 0.5 + TAU * i / n
 		var w := 0.05 if i % 2 == 0 else 0.03
 		var len := ICON * ((1.7 if i % 2 == 0 else 1.25) + 0.2 * sin(_t * 3.0 + i)) * inn
-		draw_colored_polygon(PackedVector2Array([c, c + Vector2(cos(a - w), sin(a - w)) * len, c + Vector2(cos(a + w), sin(a + w)) * len]),
-			Color(rc.r, rc.g, rc.b, 0.13))
+		# draw_primitive não triangula: o raio de tamanho zero do primeiro quadro não dá erro
+		var ray := Color(rc.r, rc.g, rc.b, 0.13)
+		draw_primitive(PackedVector2Array([c, c + Vector2(cos(a - w), sin(a - w)) * len, c + Vector2(cos(a + w), sin(a + w)) * len]),
+			PackedColorArray([ray, ray, ray]), PackedVector2Array())
 	for i in 5:
 		draw_circle(c, ICON * (0.4 + i * 0.14), Color(rc.r, rc.g, rc.b, 0.09 * (1.0 - i / 5.0) + 0.02))
 	# onda de choque
