@@ -240,3 +240,121 @@ func test_gathering_and_farming_xp() -> void:
 	rng.seed = 3
 	var h := CharRules.harvest(s, bt, 0, 99999.0, rng)
 	T.ok(h.ok and CraftRules.xp(s, "farming") > 0, "colher dá XP de Fazenda")
+
+
+## Receitas de teste: lâmina rara (nível 17) e uma peça lendária, as duas de forja.
+func _gear_tables() -> BalanceTables:
+	var d := _tables().to_dict()
+	d.recipes["t_rare"] = {"station": "forge", "prof": "smithing", "level": 17, "ingredients": {"iron_ore": 4, "oak_log": 1},
+		"gold": 10, "out": "knight_blade", "qty": 1, "xp": 20, "learn": "npc"}
+	d.recipes["t_legend"] = {"station": "forge", "prof": "smithing", "level": 35, "ingredients": {"mithril_ore": 6},
+		"gold": 5, "out": "dragon_plate", "qty": 1, "xp": 40, "learn": "npc"}
+	return BalanceTables.from_dict(d)
+
+
+func test_id_parts() -> void:
+	T.eq(ItemQuality.base("knight_blade@fina~urso"), "knight_blade", "base com tudo")
+	T.eq(ItemQuality.base("knight_blade~urso"), "knight_blade", "base só com afixo")
+	T.eq(ItemQuality.quality("knight_blade@obra~aguia"), "obra", "qualidade com afixo")
+	T.eq(ItemQuality.quality("knight_blade~aguia"), "", "sem qualidade")
+	T.eq(ItemQuality.affix("knight_blade@obra~aguia"), "aguia", "afixo")
+	T.eq(ItemQuality.affix("knight_blade@obra"), "", "sem afixo")
+	T.eq(ItemQuality.make("knight_blade", "fina", "urso"), "knight_blade@fina~urso", "monta")
+	T.eq(ItemQuality.variant("knight_blade~urso", "obra"), "knight_blade@obra~urso", "variante mantém o afixo")
+
+
+func test_affix_variants() -> void:
+	var bt := _gear_tables()
+	var items: Dictionary = bt.get_table("items")
+	var base: Dictionary = items["knight_blade"]
+	T.eq(str(items["iron_sword@fina"].get("art", "")), "iron_sword", "qualidade usa a arte do base")
+	T.ok(not items.has("iron_sword~urso"), "comum não tem afixo")
+	for a in ["urso", "touro", "coruja", "raposa", "aguia", "lebre", "tartaruga", "morcego"]:
+		for q in ["", "fina", "obra"]:
+			T.ok(items.has(ItemQuality.make("knight_blade", q, a)), "existe %s %s" % [q, a])
+	var urso: Dictionary = items["knight_blade~urso"]
+	T.eq(int(urso.stats.vit), int(base.stats.vit) + 2, "Urso no nível 17: +2 de vitalidade")
+	T.eq(int(urso.affix_value), 2, "valor do bônus guardado")
+	T.eq(str(urso.name), "%s do Urso" % base.name, "nome com o afixo")
+	T.eq(str(items["knight_blade@fina~urso"].name), "%s Fina do Urso" % base.name, "qualidade antes do afixo")
+	T.ok(int(items["knight_blade@obra~urso"].stats.vit) > int(urso.stats.vit), "a qualidade multiplica o bônus")
+	T.ok(int(urso.price) > int(base.price), "vale mais")
+	T.ok(not items["knight_blade~aguia"].stats.has("vit") or int(items["knight_blade~aguia"].stats.vit) == int(base.stats.vit), "Águia não mexe na vitalidade")
+	T.ok(float(items["knight_blade~aguia"].stats.crit) > 0.02, "Águia dá crítico")
+	T.ok(not LootRules.droppable(urso, "knight_blade~urso"), "item com afixo não cai de monstro")
+	# idempotente: expandir de novo não muda nada
+	T.eq(BalanceTables.from_dict(bt.to_dict()).get_table("items").size(), items.size(), "expand idempotente")
+	# save com item de afixo e de qualidade antiga continua valendo
+	var s := _char(bt)
+	CharRules.add_item(s, bt, "knight_blade@fina~urso", 1)
+	CharRules.add_item(s, bt, "iron_sword@fina", 1)
+	var s2 := CharState.from_dict(s.to_dict(), bt)
+	T.eq(CharRules.count_item(s2, "knight_blade@fina~urso"), 1, "afixo sobrevive ao save")
+	T.eq(CharRules.count_item(s2, "iron_sword@fina"), 1, "id antigo de qualidade continua valendo")
+
+
+func test_fail_chance() -> void:
+	var bt := _gear_tables()
+	T.eq(CraftRules.fail_chance(bt, "t_sword", 5), 0.0, "comum não falha")
+	T.eq(CraftRules.fail_chance(bt, "essence_t4", 31), 0.0, "material não falha")
+	T.ok(absf(CraftRules.fail_chance(bt, "t_rare", 17) - 0.15) < 0.0001, "raro no nível da receita: 15%")
+	T.ok(absf(CraftRules.fail_chance(bt, "t_rare", 22) - 0.10) < 0.0001, "5 níveis acima: 10%")
+	T.ok(absf(CraftRules.fail_chance(bt, "t_rare", 50) - 0.06) < 0.0001, "piso de 40% da chance")
+	T.ok(absf(CraftRules.fail_chance(bt, "t_legend", 35) - 0.35) < 0.0001, "lendário: 35%")
+	T.ok(CraftRules.has_affix(bt, "t_rare") and not CraftRules.has_affix(bt, "t_sword"), "só raro+ tem bônus")
+
+
+func test_craft_can_fail_and_refunds_half() -> void:
+	var bt := _gear_tables()
+	var s := _char(bt)
+	s.professions["smithing"] = {"lv": 35, "xp": 0, "done": []}
+	CharRules.add_item(s, bt, "mithril_ore", 360)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	var r := CraftRules.craft(s, bt, "t_legend", 60, rng)
+	T.ok(r.ok, "o pedido vale mesmo com falhas")
+	T.eq(int(r.n) + int(r.fail), 60, "sucessos + falhas = tentativas")
+	T.ok(int(r.fail) >= 10 and int(r.fail) <= 32, "perto de 35%% de falha (%d)" % int(r.fail))
+	T.eq(s.gold, 1000 - 300, "o ouro é gasto também na falha")
+	T.eq(CharRules.count_item(s, "mithril_ore"), int(r.fail) * 3, "metade do material de cada falha volta")
+	var plates := 0
+	var with_affix := 0
+	for slot in s.inventory:
+		if ItemQuality.base(str(slot.id)) == "dragon_plate":
+			plates += int(slot.qty)
+			with_affix += int(slot.qty) if ItemQuality.affix(str(slot.id)) != "" else 0
+	T.eq(plates, int(r.n), "uma peça por sucesso")
+	T.eq(with_affix, plates, "todo lendário sai com bônus")
+	var fe: Array = (r.events as Array).filter(func(e: Dictionary) -> bool: return e.get("t") == "craft_fail")
+	T.ok(fe.size() == 1 and int(fe[0].n) == int(r.fail) and int(fe[0].back.get("mithril_ore", 0)) == int(r.fail) * 3, "evento de falha com o que voltou")
+	# quantidade ímpar: a unidade que sobra volta às vezes
+	var s2 := _char(bt)
+	s2.professions["smithing"] = {"lv": 17, "xp": 0, "done": []}
+	CharRules.add_item(s2, bt, "iron_ore", 400)
+	CharRules.add_item(s2, bt, "oak_log", 99)
+	var r2 := CraftRules.craft(s2, bt, "t_rare", 99, rng)
+	var logs := CharRules.count_item(s2, "oak_log")
+	T.ok(int(r2.fail) > 3 and logs > 0 and logs < int(r2.fail), "sobra ímpar volta em parte (%d de %d)" % [logs, int(r2.fail)])
+	T.eq(CharRules.count_item(s2, "iron_ore"), 400 - 99 * 4 + int(r2.fail) * 2, "metade exata do par")
+
+
+func test_all_fail_and_no_rng() -> void:
+	var d := _gear_tables().to_dict()
+	d.progression["craft_fail"]["chance"]["legendary"] = 1.0
+	d.progression["craft_fail"]["floor"] = 1.0
+	var bt := BalanceTables.from_dict(d)
+	var s := _char(bt)
+	s.professions["smithing"] = {"lv": 35, "xp": 0, "done": []}
+	CharRules.add_item(s, bt, "mithril_ore", 12)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 2
+	var r := CraftRules.craft(s, bt, "t_legend", 2, rng)
+	T.ok(r.ok and int(r.n) == 0 and int(r.fail) == 2, "tudo falhou: ok com n = 0")
+	T.eq(CharRules.count_item(s, "mithril_ore"), 6, "metade voltou")
+	T.eq(CharRules.count_item(s, "dragon_plate"), 0, "nada saiu")
+	T.eq(CraftRules.xp(s, "smithing"), 40, "XP pela metade e sem bônus de primeira vez")
+	T.ok(not "t_legend" in (s.professions.smithing.done as Array), "falha não conta como primeira vez")
+	# sem rng: nunca falha, sem bônus
+	var r2 := CraftRules.craft(s, bt, "t_legend", 1, null)
+	T.ok(r2.ok and int(r2.n) == 1 and int(r2.fail) == 0, "sem rng não falha")
+	T.eq(CharRules.count_item(s, "dragon_plate"), 1, "sem rng sai o item base")

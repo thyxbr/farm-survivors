@@ -259,6 +259,8 @@ func _debug_screenshot() -> void:
 						for n in get_tree().get_nodes_in_group("interactable"):
 							if n.get("npc_id") == "blacksmith":
 								w.open_enchant(n)
+					"craft", "craft:forge", "craft:leather", "craft:alchemy":
+						_craft_demo(w, a.substr(5).get_slice(":", 1) if ":" in a else "forge", args)
 				# `--tip=<n>` (com --ui=inv): abre a dica do espaço n da mochila, presa ao lado dele, para a captura
 				for t in args:
 					if t.begins_with("--tip=") and w.modal and w.modal.get("bag_slots") != null:
@@ -1152,6 +1154,38 @@ static func harness_class(args: PackedStringArray) -> Array:
 	if cls == "" and harness:
 		cls = "warrior"
 	return [cls, bd]
+
+
+## `--ui=craft[:forge|leather|alchemy]` abre a bancada com materiais e a profissão no nível de `--prof=N`
+## (só o espelho: serve para capturas da tela). `--recipe=<id>` escolhe a receita; `--craftanim=work|ok|fail`
+## mostra a animação nessa fase, com um desfecho de mentira.
+func _craft_demo(w: Node, station: String, args: PackedStringArray) -> void:
+	Econ.grant(900, 0, {"iron_ore": 14, "oak_log": 3, "essence_t2": 5, "copper_ore": 9, "pine_log": 4, "essence_t1": 6,
+		"silver_ore": 6, "silverbirch_log": 1, "essence_t3": 2, "hide_t1": 8, "hide_t2": 5, "mint": 3, "slime_gel": 4}, "demo", true)
+	var prof := str(Balance.tables.get_table("professions").get("stations", {}).get(station, {}).get("prof", ""))
+	var rid := ""
+	var fx := ""
+	for a in args:
+		if a.begins_with("--prof="):
+			professions[prof] = {"lv": int(a.substr(7)), "xp": 40, "done": []}
+		elif a.begins_with("--recipe="):
+			rid = a.substr(9)
+		elif a.begins_with("--craftanim="):
+			fx = a.substr(12)
+	w.open_crafting(station)
+	var ui := w.modal as CraftingUI
+	if ui == null:
+		return
+	if rid != "":
+		ui._select(rid)
+		ui._scroll_to_selected.call_deferred()
+	if fx != "":
+		var out: String = ui._out(ui._sel)
+		ui.anim.start(out, station)
+		if fx == "ok":
+			ui.anim.resolve([[ItemQuality.make(out, "fina", "aguia" if CraftRules.has_affix(Balance.tables, ui._sel) else ""), 1]], 0, {})
+		elif fx == "fail":
+			ui.anim.resolve([], 1, {"iron_ore": 3, "essence_t2": 1})
 
 
 # ================================================================ espelho
