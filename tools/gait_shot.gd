@@ -4,6 +4,8 @@ extends Node3D
 ## Precisa de janela (não use --headless) e do --import feito antes:
 ##   godot --path . --resolution 2000x520 res://tools/gait_shot.tscn -- <saida.png> [vel] [corre 0..1]
 ## vel em m/s (padrão 5,2 = WALK_SPEED); corre = KnightAnim run (0 andar normal, 1 correndo).
+## Com "frente" no fim (em qualquer ordem com "roupa"), a fileira é vista de frente, em 3/4 (câmera à frente
+## dos cavaleiros, uns 30° para o lado): mostra giro, troca de peso e braço cruzando, que de lado não aparecem.
 ## Com "roupa" no fim, calça os sapatos padrão (assets/models/gear/f_shoes.glb) em vez das placas.
 
 const N := 8
@@ -130,8 +132,13 @@ func _process(_delta: float) -> void:
 		var cam := Camera3D.new()
 		cam.projection = Camera3D.PROJECTION_ORTHOGONAL
 		cam.size = 2.3
-		cam.position = Vector3(6.0, 1.0, (N - 1) * 1.25 / 2.0)
-		cam.rotation_degrees.y = 90.0
+		var mid := (N - 1) * 1.25 / 2.0
+		if "frente" in OS.get_cmdline_user_args():
+			cam.position = Vector3(6.0 * sin(deg_to_rad(30.0)), 1.0, mid + 6.0 * cos(deg_to_rad(30.0)))
+			cam.rotation_degrees.y = 30.0
+		else:
+			cam.position = Vector3(6.0, 1.0, mid)
+			cam.rotation_degrees.y = 90.0
 		cam.keep_aspect = Camera3D.KEEP_HEIGHT
 		add_child(cam)
 		cam.current = true

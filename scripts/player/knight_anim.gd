@@ -356,8 +356,13 @@ static func locomotion_pose(r: Dictionary, phase: float, move: float, run: float
 	var foot_off := _stance_foot(g, duty - 0.0001)   # como o pé sai do chão (com a ponta rolando)
 	var foot_on := _curve(foot_keys, 0.0)
 	var bounce := 0.0
+	# o quadril gira (hip_twist) em torno do pivô Pelvis: cada articulação da coxa vai um pouco para a frente
+	# ou para trás (dz). O tornozelo tem de ficar `d` atrás do quadril no chão, então `d` leva esse deslocamento.
+	var ht := -lerpf(PELVIS_TWIST_WALK, PELVIS_TWIST_RUN, run) * move * cos(phase)
 	for side in [["l", 0.0], ["r", PI]]:
 		var u := fposmod(phase + float(side[1]), TAU) / TAU
+		var hip: Vector3 = r["Leg" + String(side[0]).to_upper()].position
+		var hip_dz := -hip.x * sin(ht) + hip.z * (cos(ht) - 1.0)
 		var d: float      # tornozelo atrás do quadril (m); negativo = à frente
 		var knee := gait_knee(u, duty, st) * amt
 		var foot: float
@@ -376,6 +381,7 @@ static func locomotion_pose(r: Dictionary, phase: float, move: float, run: float
 			var free := shin + lerpf(ANKLE_WALK_SWING, ANKLE_RUN_SWING, st)
 			foot = lerpf(foot_off, free, smoothstep(0.0, FOOT_RELEASE, w))
 			foot = lerpf(foot, foot_on, smoothstep(FOOT_PREPARE, 1.0, w))
+		d += hip_dz
 		p["knee_" + side[0]] = knee
 		p["leg_" + side[0]] = thigh_for(r, d, knee)
 		p["foot_" + side[0]] = foot if u < duty else foot * amt

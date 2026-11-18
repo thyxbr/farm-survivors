@@ -32,6 +32,8 @@ func _ready() -> void:
 	_still_pose_untouched()
 	_attack_resets_leg_yaw()
 	_attack_keeps_own_head()
+	_stance_foot_no_back_slip(5.2, 0.0)
+	_stance_foot_no_back_slip(7.5, 1.0)
 	print("gait_test: ", "OK" if fails == 0 else "%d falhas" % fails)
 	get_tree().quit(0 if fails == 0 else 1)
 
@@ -228,3 +230,29 @@ func _attack_keeps_own_head() -> void:
 	model.queue_free()
 	check(walk_head >= 0.02 and worst <= 1e-6, "attack_keeps_own_head",
 		"head_y andando %.4f, maior diferença %.7f" % [walk_head, worst])
+
+
+## Como tools/gait_shot.gd ("apoio: tornozelo desliza"): anda o ciclo com o corpo avançando `speed` e mede
+## quanto o tornozelo esquerdo, no apoio, se mexe para frente/trás no mundo.
+func _stance_foot_no_back_slip(speed: float, run: float) -> void:
+	var move := clampf(speed / 5.2, 0.0, 1.0)
+	var model := (load("res://assets/models/knight.glb") as PackedScene).instantiate() as Node3D
+	add_child(model)
+	var r := KnightAnim.rig(model)
+	var w := KnightAnim.cadence(r, speed, move, run)
+	var duty := KnightAnim.gait_duty(move, run)
+	var steps := 400
+	var dt := TAU / w / steps
+	var lo := INF
+	var hi := -INF
+	for i in steps:
+		var p := KnightAnim.locomotion_pose(r, TAU * i / steps, move, run)
+		KnightAnim.apply(r, p, 1.0)
+		KnightAnim.apply(r, p, 1.0)
+		var u := float(i) / steps
+		if u > 0.15 * duty and u < 0.55 * duty:
+			var z: float = r.AnkleL.global_position.z + speed * dt * i - model.global_position.z
+			lo = minf(lo, z)
+			hi = maxf(hi, z)
+	model.queue_free()
+	check(hi - lo <= 0.002, "stance_foot_no_back_slip (%.1f m/s run %.1f)" % [speed, run], "desliza %.4f m" % (hi - lo))
