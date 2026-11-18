@@ -96,6 +96,30 @@ def g_export(style, P=None, R=None):
 
 
 
+# ------------------------------------------------------------------ UV da galáxia (Ceifador do Vazio)
+# O shader da galáxia (assets/shaders/gear_galaxy.gdshader) desenha a partir da posição de repouso, vista por
+# trás: u = x + 0,5 e v = z / 2 (metros, cabem em 0..1). Vai no UV porque a roupa tem esqueleto e a posição do
+# vértice muda com a pose. Faces de outro material, ou viradas para a frente, ficam em (0, 0) = sem galáxia.
+GALAXY_UV = {"a_reaper": (("rb_reaper_cloth",), 0.3), "h_reaper": (("eg_reaper_space_gem_flat",), None)}
+
+
+def g_galaxy_uv(style):
+    if style not in GALAXY_UV:
+        return
+    names, facing = GALAXY_UV[style]
+    for ob in [o for o in scn.objects if o.type == 'MESH']:
+        me = ob.data
+        uv = (me.uv_layers.get("UVMap") or me.uv_layers.new(name="UVMap")).data
+        mw = ob.matrix_world
+        rot = mw.to_3x3()
+        mats = [m.name if m else "" for m in me.materials]
+        for pl in me.polygons:
+            ok = mats[pl.material_index] in names and (facing is None or (rot @ pl.normal).normalized().y > facing)
+            for li in pl.loop_indices:
+                w = mw @ me.vertices[me.loops[li].vertex_index].co
+                uv[li].uv = (w.x + 0.5, w.z / 2) if ok else (0.0, 0.0)
+
+
 # ------------------------------------------------------------------ materiais comuns
 def g_mats():
     return dict(
@@ -1976,6 +2000,8 @@ def archmage_skirt(A, body):
             pl.material_index = 1
         soft.append(coat)
         edge = [out_h[i][0] for i in range(rows + 1)] + out_h[-1][1:-1] + [out_h[i][-1] for i in range(rows, -1, -1)]
+        if not o.get("back_seam", True):       # sem debrum na fenda de trás (as costas ficam lisas: galáxia do Ceifador)
+            edge = edge[:rows + H + 1] if half == 0 else edge[rows:]
         soft.append(g_pipe("CoatPiping%d" % half, edge, 0.0075, gold, body))
         soft.append(g_pipe("CoatThread%d" % half, [q + Vector((q.x, q.y, 0)).normalized() * 0.003
                                                    for q in out_h[rows - 2]], 0.0034, gold, body, sides=6))
@@ -2091,6 +2117,7 @@ def build_robe(style, A):
                   + [(sk_soft, "fn", sk_w, 1.0), (sk_orn, "fn_island", sk_w, 1.0)])
     join_objs("Skirt", list(sk_soft) + list(sk_orn))
     join_objs("Mantle", list(soft) + list(orn))
+    g_galaxy_uv(style)
     export("gear/" + style, export_vertex_color='ACTIVE')
 
 
@@ -2171,6 +2198,7 @@ def build_hood(style, A, o, extra=None):
     if "loose_parts" in globals():
         loose_parts(style)
     join_objs("Hood", parts)
+    g_galaxy_uv(style)
     g_export(style, P, R)
 
 
@@ -2981,7 +3009,7 @@ for _k, _fn, _o in (("lich", kx_lich, dict(coat_tatter=0.08, coat_tatter_n=9, co
                                            coat_diamonds=False)),
                     ("hierophant", kx_hiero, dict(open=0.3, hem_pts=0, coat_stars=False, coat_diamonds=False)),
                     ("reaper", kx_reaper, dict(coat_tatter=0.11, coat_tatter_n=12, coat_n=128, coat_stars=False,
-                                               coat_diamonds=False)),
+                                               coat_diamonds=False, back_seam=False)),
                     ("raven", kx_raven, dict(tabard=False, coat_stars=False, coat_diamonds=False, hem_pts=0)),
                     ("dragon", kx_dragon, dict(coat_hem=0.3, hem_pts=2, coat_stars=False, coat_diamonds=False)),
                     ("astral", kx_astral, dict(hem_pts=5)),
@@ -3209,10 +3237,9 @@ def build_h_hierophant():
 # ------------------------------------------------------------------ 3. Ceifador do Vazio
 def build_h_reaper():
     """Capuz fundo com máscara de caveira de olhos acesos, lâmina em cruz no alto da testa e, atrás da cabeça,
-    três foices em arco de cada lado em volta de um disco roxo."""
+    três foices em arco de cada lado em volta de um disco com uma galáxia (animada no jogo)."""
     A = eg_mats("eg_reaper", cloth="#16141C", lining="#2A1F40", bone="#D6D0C4", steel="#8E93A3", iron="#24222C",
-                glow=("#E0B8FF", "#A050FF", 2.2), space=("#120A30", "#22145C", 0.7), haze=("#3A1E80", "#4A28A8", 1.0),
-                arm=("#8A4AE8", "#8A4AE8", 1.5), hot=("#F0A0F0", "#F090F0", 1.9))
+                glow=("#E0B8FF", "#A050FF", 2.2), space=("#120A30", "#22145C", 0.7))
     HA = dict(felt=A["cloth"], hatlining=A["lining"], gold2=A["steel"], gem=A["glow"], motif=A["glow"])
 
     def extra(head, hp, hc):
@@ -3259,7 +3286,8 @@ def build_h_reaper():
         # atrás da cabeça: disco, aro, raios e três foices em arco de cada lado
         C = Vector((0, hc.y + 0.2, 1.765))
         rv = 0.172
-        # galáxia dos dois lados do disco, em camadas que acendem: fundo, névoa, braços em espiral, miolo e estrelas
+        # disco liso dos dois lados: a galáxia (névoa, braços em espiral, miolo e estrelas) é desenhada e animada
+        # no jogo por assets/shaders/gear_galaxy.gdshader, a partir do UV gravado por g_galaxy_uv
         bm = bmesh.new()
         for sy in (-1, 1):          # fundo em grade fina (as estrelas encostam em vértices), uma face para cada lado
             grid = [[bm.verts.new(C + Vector((math.cos(2 * math.pi * j / 48) * rv * i / 14, sy * 0.003,
@@ -3274,38 +3302,6 @@ def build_h_reaper():
         bmesh.ops.translate(bm, vec=-_wloc(head), verts=bm.verts)
         parts.append(_finish("ReaperSpace", bm, A["space"], head))
 
-        def arm(name, phi0, w0, lift, material, turns=1.15, r1=0.14):
-            n = 44
-            bm = bmesh.new()
-            for sy in (-1, 1):
-                row = []
-                for i in range(n + 1):
-                    t = i / n
-                    ph = phi0 + 2 * math.pi * turns * t
-                    rd = Vector((math.cos(ph), 0, math.sin(ph)))
-                    w = w0 * (1 - t) ** 0.7 + 0.0015
-                    cen = C + rd * (0.02 + r1 * t) + Vector((0, sy * lift, 0))
-                    row.append((bm.verts.new(cen - rd * w), bm.verts.new(cen + rd * w)))
-                for a, b2 in zip(row, row[1:]):
-                    bm.faces.new((a[0], a[1], b2[1], b2[0]) if sy < 0 else (a[0], b2[0], b2[1], a[1]))
-            bmesh.ops.translate(bm, vec=-_wloc(head), verts=bm.verts)
-            return _finish(name, bm, material, head)
-        for k in range(2):
-            p0 = 0.6 + math.pi * k
-            parts.append(arm("GalaxyHaze%d" % k, p0 + 0.5, 0.034, 0.0042, A["haze"]))
-            parts.append(arm("GalaxyArm%d" % k, p0, 0.02, 0.0054, A["arm"]))
-            parts.append(arm("GalaxyHot%d" % k, p0 - 0.12, 0.008, 0.0066, A["hot"], r1=0.125))
-        rnd = random.Random(11)
-        for sy in (-1, 1):
-            parts.append(g_plate("GalaxyCore%d" % (sy + 1), [(math.cos(2 * math.pi * i / 20) * 0.03,
-                                                             math.sin(2 * math.pi * i / 20) * 0.03) for i in range(20)],
-                                 C + Vector((0, sy * 0.0075, 0)), (1, 0, 0), (0, 0, 1), 0.002, A["glow"], head))
-            for i in range(16):
-                rr, an = rv * rnd.randint(4, 13) / 14, 2 * math.pi * rnd.randint(0, 47) / 48      # sobre um vértice do fundo
-                sz = 0.005 + 0.007 * rnd.random()
-                parts.append(g_plate("GalaxyStar%d_%d" % (sy + 1, i), g_star4(sz, sz * 0.3),
-                                     C + Vector((math.cos(an) * rr, sy * 0.0055, math.sin(an) * rr)), (1, 0, 0), (0, 0, 1),
-                                     0.0035, A["glow"], head))
         parts.append(g_pipe("ReaperRing", g_circle(C, (1, 0, 0), (0, 0, 1), rv + 0.006, 44), 0.009, A["iron"], head,
                             loop=True))
         parts.append(g_pipe("ReaperGlowRing", g_circle(C, (1, 0, 0), (0, 0, 1), rv + 0.02, 44), 0.0045, A["glow"], head,
