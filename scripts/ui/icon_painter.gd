@@ -46,6 +46,8 @@ static func kind_for(id: String) -> String:
 					return "amulet"
 				"ring":
 					return "ring"
+				"back":
+					return "wings" if it.get("back", "cape") == "wings" else "cape"
 		"consumable":
 			return "potion"
 		"food":
@@ -80,7 +82,7 @@ static func color_for(id: String) -> Color:
 ## Ícone padrão de um espaço de equipamento vazio.
 static func slot_kind(slot: String) -> String:
 	return {"weapon": "sword", "offhand": "shield", "head": "helm", "armor": "chest", "hands": "glove",
-		"feet": "boot", "amulet": "amulet", "ring": "ring"}.get(slot, "")
+		"feet": "boot", "amulet": "amulet", "ring": "ring", "back": "cape"}.get(slot, "")
 
 
 static func draw(ci: CanvasItem, kind: String, col: Color, r: Rect2, ghost := false) -> void:
@@ -146,6 +148,18 @@ static func draw(ci: CanvasItem, kind: String, col: Color, r: Rect2, ghost := fa
 			if not ghost:
 				_bar(ci, P, Vector2(0.5, 0.3), Vector2(0.5, 0.8), 0.04, col.lightened(0.3), Color(0, 0, 0, 0), 0)
 				_bar(ci, P, Vector2(0.3, 0.66), Vector2(0.7, 0.66), 0.05, col.darkened(0.35), Color(0, 0, 0, 0), 0)
+		"cape":
+			_poly(ci, P, [Vector2(0.34, 0.16), Vector2(0.66, 0.16), Vector2(0.86, 0.8), Vector2(0.72, 0.86), Vector2(0.6, 0.8),
+				Vector2(0.5, 0.88), Vector2(0.4, 0.8), Vector2(0.28, 0.86), Vector2(0.14, 0.8)], col, ol, lw)
+			if not ghost:
+				_bar(ci, P, Vector2(0.3, 0.2), Vector2(0.7, 0.2), 0.07, gold, ol, lw)
+				_bar(ci, P, Vector2(0.42, 0.3), Vector2(0.36, 0.74), 0.025, col.darkened(0.3), Color(0, 0, 0, 0), 0)
+				_bar(ci, P, Vector2(0.58, 0.3), Vector2(0.64, 0.74), 0.025, col.darkened(0.3), Color(0, 0, 0, 0), 0)
+		"wings":
+			for sx in [-1.0, 1.0]:
+				_poly(ci, P, [Vector2(0.5 + sx * 0.04, 0.4), Vector2(0.5 + sx * 0.2, 0.16), Vector2(0.5 + sx * 0.42, 0.12),
+					Vector2(0.5 + sx * 0.38, 0.4), Vector2(0.5 + sx * 0.4, 0.6), Vector2(0.5 + sx * 0.28, 0.62),
+					Vector2(0.5 + sx * 0.24, 0.78), Vector2(0.5 + sx * 0.12, 0.72), Vector2(0.5 + sx * 0.04, 0.6)], col, ol, lw)
 		"glove":
 			for i in 4:
 				var x := 0.33 + i * 0.1

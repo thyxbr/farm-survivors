@@ -1347,6 +1347,327 @@
 		},
 		"desc": "Os dedos tecem runas mais rápido."
 	},
+	"seraph_wings": {
+		"name": "Asas Seráficas",
+		"type": "gear",
+		"slot": "back",
+		"back": "wings",
+		"style": "b_seraph",
+		"rarity": "epic",
+		"level": 30,
+		"defense": 2,
+		"price": 700,
+		"color": {
+			"$c": [0.96, 0.93, 0.85, 1.0]
+		},
+		"back_fx": "light_feathers",
+		"stats": {
+			"vit": 3,
+			"hp": 20,
+			"speed": 0.04
+		},
+		"desc": "Penas brancas de ponta dourada presas a um aro de sol. Soltam luz a cada batida."
+	},
+	"abyss_wings": {
+		"name": "Asas do Abismo",
+		"type": "gear",
+		"slot": "back",
+		"back": "wings",
+		"style": "b_abyss",
+		"rarity": "epic",
+		"level": 34,
+		"defense": 2,
+		"price": 740,
+		"color": {
+			"$c": [0.64, 0.13, 0.25, 1.0]
+		},
+		"back_fx": "embers",
+		"stats": {
+			"str": 3,
+			"crit": 0.03
+		},
+		"desc": "Membrana rubra esticada em ossos escuros, com brasas correndo pelas veias."
+	},
+	"crystal_wings": {
+		"name": "Asas de Cristal",
+		"type": "gear",
+		"slot": "back",
+		"back": "wings",
+		"style": "b_crystal",
+		"rarity": "epic",
+		"level": 38,
+		"defense": 2,
+		"price": 780,
+		"color": {
+			"$c": [0.66, 0.92, 1.0, 1.0]
+		},
+		"back_fx": "crystal_dust",
+		"stats": {
+			"int": 3,
+			"mp": 30
+		},
+		"desc": "Lascas de cristal em leque num braço de prata. Tilintam a cada passo."
+	},
+	"phoenix_wings": {
+		"name": "Asas de Fênix",
+		"type": "gear",
+		"slot": "back",
+		"back": "wings",
+		"style": "b_phoenix",
+		"rarity": "epic",
+		"level": 42,
+		"defense": 2,
+		"price": 820,
+		"color": {
+			"$c": [0.89, 0.26, 0.12, 1.0]
+		},
+		"back_fx": "fire_feathers",
+		"stats": {
+			"int": 2,
+			"str": 2,
+			"hp": 25
+		},
+		"desc": "Penas em labareda com as pontas acesas. Deixam brasas e plumas de fogo pelo caminho."
+	},
+	"mech_wings": {
+		"name": "Asas Mecânicas",
+		"type": "gear",
+		"slot": "back",
+		"back": "wings",
+		"style": "b_mech",
+		"rarity": "epic",
+		"level": 40,
+		"defense": 3,
+		"price": 800,
+		"color": {
+			"$c": [0.8, 0.83, 0.88, 1.0]
+		},
+		"back_fx": "sparks",
+		"stats": {
+			"agi": 3,
+			"speed": 0.05
+		},
+		"desc": "Lâminas de aço num braço articulado, com filetes de luz. Soltam faíscas nas juntas."
+	},
+	"dragon_wings": {
+		"name": "Asas de Dragão",
+		"type": "gear",
+		"slot": "back",
+		"back": "wings",
+		"style": "b_dragon",
+		"rarity": "rare",
+		"level": 24,
+		"defense": 2,
+		"price": 420,
+		"color": {
+			"$c": [0.18, 0.62, 0.42, 1.0]
+		},
+		"back_fx": "scales",
+		"stats": {
+			"vit": 2,
+			"str": 1
+		},
+		"desc": "Membrana verde em ossos de chifre. De vez em quando cai uma escama."
+	},
+	"fairy_wings": {
+		"name": "Asas de Fada",
+		"type": "gear",
+		"slot": "back",
+		"back": "wings",
+		"style": "b_fairy",
+		"rarity": "rare",
+		"level": 20,
+		"defense": 1,
+		"price": 380,
+		"color": {
+			"$c": [1.0, 0.77, 0.91, 1.0]
+		},
+		"back_fx": "pixie_dust",
+		"flap": 2.5,
+		"stats": {
+			"int": 2,
+			"mp": 15
+		},
+		"desc": "Asas de borboleta com nervuras de luz. Largam pó brilhante no ar."
+	},
+	"dragonking_cape": {
+		"name": "Capa do Rei-Dragão",
+		"type": "gear",
+		"slot": "back",
+		"back": "cape",
+		"style": "c_dragonking",
+		"rarity": "epic",
+		"level": 36,
+		"defense": 3,
+		"price": 760,
+		"color": {
+			"$c": [0.7, 0.13, 0.16, 1.0]
+		},
+		"back_fx": "embers",
+		"stats": {
+			"vit": 3,
+			"str": 2
+		},
+		"desc": "Veludo rubro com sobrecapa, gola de arminho, ombreiras de chifre e a barra em chamas vivas."
+	},
+	"starry_mantle": {
+		"name": "Manto da Galáxia",
+		"type": "gear",
+		"slot": "back",
+		"back": "cape",
+		"style": "c_starry",
+		"rarity": "epic",
+		"level": 32,
+		"defense": 2,
+		"price": 720,
+		"color": {
+			"$c": [0.14, 0.2, 0.49, 1.0]
+		},
+		"back_fx": "stardust",
+		"stats": {
+			"int": 3,
+			"mp": 25
+		},
+		"desc": "Uma nebulosa viva no pano: estrelas piscam, uma cadente cruza as costas. Correntes douradas com estrelas e a lua crescente."
+	},
+	"wanderer_cape": {
+		"name": "Manto do Corvo Andarilho",
+		"type": "gear",
+		"slot": "back",
+		"back": "cape",
+		"style": "c_wanderer",
+		"rarity": "rare",
+		"level": 16,
+		"defense": 2,
+		"price": 300,
+		"color": {
+			"$c": [0.49, 0.15, 0.19, 1.0]
+		},
+		"back_fx": "raven_feathers",
+		"stats": {
+			"agi": 2,
+			"speed": 0.03
+		},
+		"desc": "Três fileiras de penas de corvo nos ombros sobre a capa rasgada, com o cachecol vermelho de ponta comprida."
+	},
+	"half_cape": {
+		"name": "Meia Capa de Ombro",
+		"type": "gear",
+		"slot": "back",
+		"back": "cape",
+		"style": "c_half",
+		"rarity": "rare",
+		"level": 14,
+		"defense": 1,
+		"price": 260,
+		"color": {
+			"$c": [0.49, 0.13, 0.26, 1.0]
+		},
+		"back_fx": "petals",
+		"stats": {
+			"vit": 1,
+			"agi": 1
+		},
+		"desc": "Cai de um ombro só, em duas camadas com forro claro, bordado dourado e cordão com borlas."
+	},
+	"flame_cape": {
+		"name": "Capa das Chamas",
+		"type": "gear",
+		"slot": "back",
+		"back": "cape",
+		"style": "c_flame",
+		"rarity": "epic",
+		"level": 44,
+		"defense": 3,
+		"price": 840,
+		"color": {
+			"$c": [0.9, 0.35, 0.1, 1.0]
+		},
+		"back_fx": "embers",
+		"stats": {
+			"str": 3,
+			"int": 2
+		},
+		"desc": "Pano carbonizado que queima de baixo para cima sem se consumir. Ombreiras de obsidiana com labaredas."
+	},
+	"frost_cape": {
+		"name": "Capa Glacial",
+		"type": "gear",
+		"slot": "back",
+		"back": "cape",
+		"style": "c_frost",
+		"rarity": "epic",
+		"level": 40,
+		"defense": 3,
+		"price": 800,
+		"color": {
+			"$c": [0.6, 0.85, 1.0, 1.0]
+		},
+		"back_fx": "snowflakes",
+		"stats": {
+			"int": 3,
+			"mp": 30
+		},
+		"desc": "Gelo vivo em facetas, com pingentes na barra, gola de neve e cristais nos ombros."
+	},
+	"storm_cape": {
+		"name": "Capa da Tempestade",
+		"type": "gear",
+		"slot": "back",
+		"back": "cape",
+		"style": "c_storm",
+		"rarity": "epic",
+		"level": 46,
+		"defense": 3,
+		"price": 860,
+		"color": {
+			"$c": [0.3, 0.36, 0.6, 1.0]
+		},
+		"back_fx": "bolt_sparks",
+		"stats": {
+			"agi": 3,
+			"crit": 0.03
+		},
+		"desc": "Nuvens escuras rolam no pano e raios riscam as costas. Barra em dentes de relâmpago."
+	},
+	"verdant_cape": {
+		"name": "Capa da Floresta",
+		"type": "gear",
+		"slot": "back",
+		"back": "cape",
+		"style": "c_verdant",
+		"rarity": "epic",
+		"level": 38,
+		"defense": 3,
+		"price": 780,
+		"color": {
+			"$c": [0.2, 0.6, 0.32, 1.0]
+		},
+		"back_fx": "leaves",
+		"stats": {
+			"vit": 3,
+			"hp": 25
+		},
+		"desc": "Folhagem viva com cipós que pulsam luz, manto de folhas e flores nos ombros."
+	},
+	"traveler_cape": {
+		"name": "Capa de Viajante",
+		"type": "gear",
+		"slot": "back",
+		"back": "cape",
+		"rarity": "common",
+		"level": 1,
+		"defense": 1,
+		"price": 40,
+		"color": {
+			"$c": [0.2, 0.36, 0.3, 1.0]
+		},
+		"back_fx": "road_dust",
+		"stats": {
+			"vit": 1
+		},
+		"desc": "Lã grossa tingida de verde-musgo. Segura o vento da estrada."
+	},
 	"leather_boots": {
 		"name": "Botas de Couro",
 		"type": "gear",

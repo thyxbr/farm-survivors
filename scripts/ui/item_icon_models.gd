@@ -15,7 +15,7 @@ const TINT_LIGHT := "i_tint_light"  # a mesma cor, mais clara (brilho pintado, m
 const TINT_GLOW := "i_tint_glow"    # a cor do item com brilho próprio (orbe, cristal, brasa)
 
 ## Espaços cuja peça é montada no cavaleiro (ItemIcons usa o modelo de equipamento).
-const WORN_SLOTS := ["head", "armor", "hands", "feet"]
+const WORN_SLOTS := ["head", "armor", "hands", "feet", "back"]
 
 const POTION_HP := Color(0.9, 0.15, 0.18)
 const POTION_MP := Color(0.25, 0.4, 1.0)

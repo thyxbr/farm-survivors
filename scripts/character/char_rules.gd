@@ -11,7 +11,7 @@ extends RefCounted
 ## Vida/mana (cura, buff, teto do máximo) são do cliente: as regras não mexem em hp/mp.
 
 ## Espaços de equipamento (mesma ordem de ItemDB.SLOTS).
-const SLOTS := ["head", "amulet", "armor", "hands", "weapon", "offhand", "ring", "feet"]
+const SLOTS := ["head", "amulet", "armor", "hands", "weapon", "offhand", "ring", "feet", "back"]
 const CLASS_NAMES := {"sword": "Espada", "staff": "Cajado", "bow": "Arco", "scepter": "Cetro"}
 ## Classes de personagem fixas (tabela "classes"); a classe define a arma inicial e o tipo de arma.
 const CLASS_IDS := ["warrior", "archer", "mage", "healer"]

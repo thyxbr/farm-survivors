@@ -251,6 +251,9 @@ func _snap_visuals() -> void:
 	reset_physics_interpolation()
 	if cape:
 		cape.reset()
+	var back_cape = model.get_meta("back_cape", null) if model else null
+	if back_cape != null and is_instance_valid(back_cape):
+		back_cape.reset()
 	if cam_yaw:
 		cam_yaw.global_position = global_position + Vector3.UP * 1.55
 

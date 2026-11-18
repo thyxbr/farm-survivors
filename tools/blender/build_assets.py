@@ -199,6 +199,7 @@ exec(open(OUT.replace("assets/models/", "tools/blender/trees.py"), encoding="utf
 exec(open(OUT.replace("assets/models/", "tools/blender/weapons.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/armory.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/gear.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/back.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/body_mesh.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/anime.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/anime_body.py"), encoding="utf-8").read(), globals())
@@ -234,6 +235,9 @@ for _grp, _pre in (("staves", "st_"), ("bows", "bw_"), ("classic", "w_"), ("scep
 BUILDERS.update(dict(GEAR))      # roupas e armaduras modulares (gear.py); ASSETS=gear gera todas
 if "gear" in _only:
     _only += [n for n, _ in GEAR]
+BUILDERS.update(dict(BACK))      # asas e capas das costas (back.py); ASSETS=back gera todas
+if "back" in _only:
+    _only += [n for n, _ in BACK]
 # corpo feminino (female.py): knight_f e gear/<estilo>_f; ASSETS=female gera tudo, ASSETS=gear_f só as roupas
 BUILDERS["knight_f"] = build_knight_f
 BUILDERS.update(dict(FEM_GEAR))

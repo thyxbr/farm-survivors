@@ -3297,7 +3297,7 @@ func _test_gear() -> void:
 	world._open_menu(0)
 	await wait(0.15)
 	var m = world.modal
-	check(m != null and m.equip_slots.size() == 8 and m.bag_slots.size() >= 54, "inventário com boneco (8 espaços) e grade")
+	check(m != null and m.equip_slots.size() == 9 and m.bag_slots.size() >= 54, "inventário com boneco (9 espaços) e grade")
 	check(m.equip_slots.head.item_id == "leather_cap", "boneco mostra o capuz equipado")
 	var book: BookWindow = m.book
 	check(book != null and book.current_page() == 0, "menu do herói abre no livro, na aba Inventário")
