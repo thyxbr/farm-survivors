@@ -1182,6 +1182,240 @@
 		"style": "h_ember",
 		"desc": "A runa da testa acende quando o mago se zanga."
 	},
+	"lich_crown": {
+		"name": "Coroa do Lich Soberano",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 4,
+		"price": 1200,
+		"stats": {
+			"int": 10,
+			"mp": 40
+		},
+		"style": "h_lich",
+		"desc": "Os espinhos são de osso. Ninguém pergunta de quem."
+	},
+	"hierophant_mitre": {
+		"name": "Mitra do Hierofante Solar",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 4,
+		"price": 1200,
+		"stats": {
+			"int": 8,
+			"mp": 50,
+			"vit": 2
+		},
+		"style": "h_hierophant",
+		"desc": "O disco atrás da cabeça não é enfeite: é o sol de bolso da ordem."
+	},
+	"reaper_hood": {
+		"name": "Capuz do Ceifador do Vazio",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 4,
+		"price": 1200,
+		"stats": {
+			"int": 11,
+			"mp": 40,
+			"agi": 1
+		},
+		"style": "h_reaper",
+		"desc": "A máscara não tem boca que abra. As foices atrás da cabeça falam por ela."
+	},
+	"raven_hat": {
+		"name": "Chapéu do Senhor dos Corvos",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 4,
+		"price": 1200,
+		"stats": {
+			"int": 9,
+			"mp": 35,
+			"agi": 3
+		},
+		"style": "h_raven",
+		"desc": "O crânio na faixa ainda acompanha quem passa com os olhos."
+	},
+	"dragon_helm": {
+		"name": "Elmo do Mago Dracônico",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 4,
+		"price": 1200,
+		"stats": {
+			"int": 8,
+			"mp": 30,
+			"vit": 4
+		},
+		"style": "h_dragon",
+		"desc": "Escama por escama, de um dragão que perdeu a discussão."
+	},
+	"astral_diadem": {
+		"name": "Diadema do Astrônomo Celeste",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 4,
+		"price": 1200,
+		"stats": {
+			"int": 11,
+			"mp": 45
+		},
+		"style": "h_astral",
+		"desc": "A esfera atrás da cabeça gira devagar, acertada pelo céu de verdade."
+	},
+	"frost_crown": {
+		"name": "Coroa do Soberano do Gelo",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 4,
+		"price": 1200,
+		"stats": {
+			"int": 10,
+			"mp": 40,
+			"vit": 1
+		},
+		"style": "h_frost",
+		"desc": "Não derrete. Quem tentou esquentar desistiu no terceiro inverno."
+	},
+	"lich_robe": {
+		"name": "Manto do Lich Soberano",
+		"type": "armor",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 9,
+		"price": 1500,
+		"stats": {
+			"int": 14,
+			"mp": 60
+		},
+		"style": "a_lich",
+		"pants": {
+			"$c": [0.06, 0.08, 0.07, 1.0]
+		},
+		"desc": "Costelas por cima dos ombros, farrapos na barra. Já foi de alguém vivo."
+	},
+	"hierophant_robe": {
+		"name": "Casula do Hierofante Solar",
+		"type": "armor",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 9,
+		"price": 1500,
+		"stats": {
+			"int": 12,
+			"mp": 70,
+			"vit": 3
+		},
+		"style": "a_hierophant",
+		"pants": {
+			"$c": [0.92, 0.9, 0.85, 1.0]
+		},
+		"desc": "O pálio pesa. Dizem que é o peso de todas as promessas feitas ao sol."
+	},
+	"reaper_robe": {
+		"name": "Manto do Ceifador do Vazio",
+		"type": "armor",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 9,
+		"price": 1500,
+		"stats": {
+			"int": 15,
+			"mp": 55,
+			"agi": 2
+		},
+		"style": "a_reaper",
+		"pants": {
+			"$c": [0.06, 0.05, 0.08, 1.0]
+		},
+		"desc": "Aço nos ombros, uma caveira no peito e a barra em tiras, como se o vazio a roesse."
+	},
+	"raven_robe": {
+		"name": "Manto do Senhor dos Corvos",
+		"type": "armor",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 9,
+		"price": 1500,
+		"stats": {
+			"int": 13,
+			"mp": 50,
+			"agi": 4
+		},
+		"style": "a_raven",
+		"pants": {
+			"$c": [0.09, 0.09, 0.12, 1.0]
+		},
+		"desc": "Cada pena foi dada, não arrancada. Os corvos cobram depois."
+	},
+	"dragon_robe": {
+		"name": "Manto do Mago Dracônico",
+		"type": "armor",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 9,
+		"price": 1500,
+		"stats": {
+			"int": 12,
+			"mp": 45,
+			"vit": 6
+		},
+		"style": "a_dragon",
+		"pants": {
+			"$c": [0.13, 0.08, 0.09, 1.0]
+		},
+		"desc": "O ombro esquerdo carrega três chifres. O direito ficou livre para conjurar."
+	},
+	"astral_robe": {
+		"name": "Manto do Astrônomo Celeste",
+		"type": "armor",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 9,
+		"price": 1500,
+		"stats": {
+			"int": 16,
+			"mp": 65
+		},
+		"style": "a_astral",
+		"pants": {
+			"$c": [0.14, 0.16, 0.4, 1.0]
+		},
+		"desc": "As constelações bordadas mudam de lugar conforme a estação."
+	},
+	"frost_robe": {
+		"name": "Manto do Soberano do Gelo",
+		"type": "armor",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 9,
+		"price": 1500,
+		"stats": {
+			"int": 14,
+			"mp": 60,
+			"vit": 2
+		},
+		"style": "a_frost",
+		"pants": {
+			"$c": [0.5, 0.62, 0.8, 1.0]
+		},
+		"desc": "Gola de pele, ombros de cristal e uma franja que nunca pinga."
+	},
 	"ranger_hood": {
 		"name": "Capuz do Patrulheiro",
 		"type": "gear",
