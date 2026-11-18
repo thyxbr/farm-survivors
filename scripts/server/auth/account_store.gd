@@ -18,6 +18,8 @@ extends RefCounted
 ## IP vazio ("") desliga os limites de cadastro e de tentativas por IP (chamadas locais, testes).
 
 const SESSION_SECS := 86400
+## Sessão de quem marcou "Manter conectado": o cliente guarda o token (nunca a senha) e entra sem digitar.
+const REMEMBER_SECS := 30 * 86400
 const MAX_PASS_BYTES := 128
 const MAX_FAILS := 5
 const FAIL_WINDOW := 300.0
@@ -46,8 +48,8 @@ func register(username: String, password: String, ip := "") -> Dictionary:
 	return p["done"] if p.has("done") else finish(p["job"], derive_job(p["job"]))
 
 
-func login(username: String, password: String, ip: String) -> Dictionary:
-	var p := prepare_login(username, password, ip)
+func login(username: String, password: String, ip: String, remember := false) -> Dictionary:
+	var p := prepare_login(username, password, ip, remember)
 	return p["done"] if p.has("done") else finish(p["job"], derive_job(p["job"]))
 
 
@@ -74,7 +76,7 @@ func prepare_register(username: String, password: String, ip := "") -> Dictionar
 
 
 ## Thread principal. {"done": resultado} ou {"job": dados para derive_job/finish}.
-func prepare_login(username: String, password: String, ip: String) -> Dictionary:
+func prepare_login(username: String, password: String, ip: String, remember := false) -> Dictionary:
 	var now := float(clock.call())
 	if _count(_fails, "n:" + username.to_lower(), now, FAIL_WINDOW) >= MAX_FAILS \
 			or _count(_fails, "i:" + ip, now, FAIL_WINDOW) >= MAX_FAILS:
@@ -88,7 +90,8 @@ func prepare_login(username: String, password: String, ip: String) -> Dictionary
 		_fail_login(username, ip, now)
 		return {"done": {"ok": false, "err": "credenciais"}}
 	var rows := db.query("SELECT id, username, pass_hash, pass_salt FROM accounts WHERE username = ?", [username])
-	var job := {"kind": "login", "username": username, "password": password, "ip": ip, "iterations": iterations}
+	var job := {"kind": "login", "username": username, "password": password, "ip": ip, "iterations": iterations,
+		"remember": remember}
 	if rows.is_empty():
 		# deriva do mesmo jeito (sal qualquer) para não revelar pelo tempo se o nome existe
 		job["salt"] = Password.new_salt()
@@ -122,7 +125,7 @@ func finish(job: Dictionary, key: PackedByteArray) -> Dictionary:
 	var id := int(job["id"])
 	var name := str(job["name"])
 	var token := Crypto.new().generate_random_bytes(32).hex_encode()
-	var expires := int(now) + SESSION_SECS
+	var expires := int(now) + (REMEMBER_SECS if job.get("remember", false) else SESSION_SECS)
 	if not db.exec("INSERT INTO sessions(token, account_id, expires_at) VALUES(?,?,?)", [token.sha256_text(), id, expires]):
 		return {"ok": false, "err": "credenciais"}
 	db.exec("UPDATE accounts SET last_login = ? WHERE id = ?", [int(now), id])
@@ -147,6 +150,15 @@ func resolve_token(token: String) -> Dictionary:
 		return {}
 	var name := String(rows[0]["name"])
 	return {"id": int(rows[0]["id"]), "name": name, "is_admin": _is_admin(name)}
+
+
+## "Sair da conta": apaga todas as sessões da conta dona do token (as guardadas em outros computadores
+## também caem). Devolve false se o token não vale mais.
+func logout(token: String) -> bool:
+	var acc := resolve_token(token)
+	if acc.is_empty():
+		return false
+	return db.exec("DELETE FROM sessions WHERE account_id = ?", [int(acc["id"])])
 
 
 ## Nomes de admin_users que ainda não têm conta (o servidor avisa na partida).
