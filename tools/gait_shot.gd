@@ -4,6 +4,7 @@ extends Node3D
 ## Precisa de janela (não use --headless) e do --import feito antes:
 ##   godot --path . --resolution 2000x520 res://tools/gait_shot.tscn -- <saida.png> [vel] [corre 0..1]
 ## vel em m/s (padrão 5,2 = WALK_SPEED); corre = KnightAnim run (0 andar normal, 1 correndo).
+## Com "jogo" no fim, a fileira é vista de trás e de cima, como a câmera do jogo (sem a capa).
 ## Com "frente" no fim (em qualquer ordem com "roupa"), a fileira é vista de frente, em 3/4 (câmera à frente
 ## dos cavaleiros, uns 30° para o lado): mostra giro, troca de peso e braço cruzando, que de lado não aparecem.
 ## Com "roupa" no fim, calça os sapatos padrão (assets/models/gear/f_shoes.glb) em vez das placas.
@@ -29,7 +30,13 @@ func _ready() -> void:
 	for i in N:
 		var m := scene.instantiate() as Node3D
 		add_child(m)
-		m.position.z = i * 1.25
+		if "jogo" in args:     # fileira de lado a lado, vista de trás e de cima como a câmera do jogo; sem a capa
+			m.position.x = -i * 1.25
+			var cape := m.find_child("Cape", true, false) as Node3D
+			if cape:
+				cape.visible = false
+		else:
+			m.position.z = i * 1.25
 		if "roupa" in args:
 			_wear(m, "f_shoes", ["LegL_Sabaton", "LegR_Sabaton", "LegL_Knee", "LegR_Knee", "LegL_Foot", "LegR_Foot"])
 		var ri := KnightAnim.rig(m)
@@ -42,6 +49,9 @@ func _ready() -> void:
 	bm.size = Vector3(2, 0.02, N * 1.25 + 1.0)
 	g.mesh = bm
 	g.position = Vector3(0, -0.01, (N - 1) * 1.25 / 2.0)
+	if "jogo" in args:
+		bm.size = Vector3(N * 1.25 + 1.0, 0.02, 2)
+		g.position = Vector3(-(N - 1) * 1.25 / 2.0, -0.01, 0)
 	add_child(g)
 
 
@@ -133,7 +143,11 @@ func _process(_delta: float) -> void:
 		cam.projection = Camera3D.PROJECTION_ORTHOGONAL
 		cam.size = 2.3
 		var mid := (N - 1) * 1.25 / 2.0
-		if "frente" in OS.get_cmdline_user_args():
+		if "jogo" in OS.get_cmdline_user_args():
+			var el := deg_to_rad(35.0)     # câmera atrás e acima, como no jogo
+			cam.position = Vector3(-mid, 1.0 + 6.0 * sin(el), -6.0 * cos(el))
+			cam.rotation_degrees = Vector3(-35.0, 180.0, 0.0)
+		elif "frente" in OS.get_cmdline_user_args():
 			cam.position = Vector3(6.0 * sin(deg_to_rad(30.0)), 1.0, mid + 6.0 * cos(deg_to_rad(30.0)))
 			cam.rotation_degrees.y = 30.0
 		else:
