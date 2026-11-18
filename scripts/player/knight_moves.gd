@@ -288,6 +288,73 @@ const QUAKE := [
 		"leg_l": -0.55, "knee_l": 0.75, "leg_r": 0.35, "knee_r": 0.55}, "lin"],
 ]
 
+# ------------------------------------------------------------------ coleta (GatherAction; um ciclo = um golpe)
+## As duas mãos no cabo: a direita no suporte da arma, a esquerda por IK neste ponto do cabo (espaço do suporte:
+## o cabo sobe em +Z, a esquerda pega abaixo da direita) com o cotovelo apontando para POLE.
+const TOOL_LEFT_GRIP := Vector3(0.0, 0.0, -0.13)
+## Picareta: ergue por cima da cabeça (0,38), desce com tudo e crava na pedra à frente (0,5 = GatherAction.IMPACT),
+## segura o tranco e volta à pose pronta. Aqui só o corpo; os braços vêm de MINE_TOOL, como no machado.
+const MINE_READY := {"twist": 0.0, "leg_l": -0.14, "knee_l": 0.28, "leg_r": 0.14, "knee_r": 0.28}
+const MINE := [
+	[0.38, {"twist": -0.2, "body_x": -0.2, "head_x": -0.2, "head_y": 0.0,
+		"leg_l": -0.25, "knee_l": 0.4, "leg_r": 0.2, "knee_r": 0.45}, "out"],
+	[0.5, {"twist": 0.1, "body_x": 0.8, "head_x": 0.0,
+		"leg_l": -0.55, "knee_l": 0.8, "leg_r": 0.4, "knee_r": 0.65}, "in"],
+	[0.62, {"twist": 0.1, "body_x": 0.75}, "out"],
+]
+## Trajetória da picareta (mesmo formato de CHOP_TOOL; `edge` = para onde a ponta que bate aponta): pronta na
+## diagonal à frente do corpo; preparo com as mãos acima da cabeça e a picareta para trás; golpe de cima para baixo
+## até a ponta entrar na pedra, a mão direita descendo pelo cabo.
+const MINE_TOOL_READY := {"end": Vector3(0.12, 1.0, 0.27), "dir": Vector3(-0.3, 0.8, 0.5), "edge": Vector3(0.0, 0.5, 1.0),
+	"slide": 0.25}
+## As posições das mãos de cada chave saem de `tools/weapon_pose_shot.tscn -- coleta otimiza`: onde, com o tronco
+## daquela pose, os dois punhos fecham no cabo quase sem girar o pulso (o modelo não tem junta de pulso). No preparo
+## a picareta pende para trás da cabeça; no golpe o tronco dobra, os braços descem e o cabo chega quase horizontal.
+const MINE_TOOL := [
+	[0.38, {"end": Vector3(0.04, 1.78, 0.27), "dir": Vector3(-0.1, 0.35, -0.93), "edge": Vector3(0.0, 0.93, 0.35),
+		"slide": 0.38}, "out"],
+	[0.5, {"end": Vector3(-0.08, 0.81, 0.21), "dir": Vector3(-0.04, -0.2, 0.98), "edge": Vector3(0.0, -0.98, -0.2),
+		"slide": 0.0}, "in"],
+	[0.62, {"end": Vector3(-0.08, 0.82, 0.21), "dir": Vector3(-0.04, -0.18, 0.98), "edge": Vector3(0.0, -0.98, -0.18),
+		"slide": 0.0}, "out"],
+]
+## Machado, como no corte de árvore de verdade (destro, golpe lateral como o de um rebatedor): a mão esquerda fixa no
+## fim do cabo e a direita mais perto da cabeça no preparo, deslizando até a esquerda durante o golpe (`slide`, m).
+## O giro vem do corpo: tronco e quadril torcem para a direita no preparo (mãos na frente do ombro direito, machado
+## deitado para trás por cima dele) e desenrolam até passar do alvo: no impacto (0,5 = GatherAction.IMPACT) o peito
+## já está virado para a esquerda, os braços apontam para onde o peito aponta e o cabo fica atravessado, com a
+## cabeça do machado entrando na árvore na diagonal. O machado para na madeira (a mordida, 0,5 a 0,64) e volta à
+## pose pronta: entre um golpe e outro ele fica erguido na frente do corpo com as duas mãos.
+const CHOP_HIP_SHARE := 0.5
+## Corpo (tronco, quadril, pernas, cabeça) do ciclo; os braços vêm da trajetória do machado (CHOP_TOOL): as duas
+## mãos são resolvidas a partir do cabo (KnightAnim._arm_to_grip) e os pulsos alinham o punho com ele.
+const CHOP_READY := {"twist": -0.25, "leg_l": -0.14, "knee_l": 0.28, "leg_r": 0.14, "knee_r": 0.28}
+const CHOP := [
+	[0.36, {"twist": -0.9, "body_x": -0.05, "head_y": 0.45, "head_x": 0.05,
+		"leg_l": -0.12, "knee_l": 0.3, "leg_r": 0.2, "knee_r": 0.38}, "out"],
+	[0.5, {"twist": 1.0, "body_x": 0.15, "head_y": -0.7, "head_x": 0.1,
+		"leg_l": -0.25, "knee_l": 0.4, "leg_r": 0.25, "knee_r": 0.45}, "in"],
+	[0.64, {"twist": 0.98, "body_x": 0.14, "head_y": -0.7}, "lin"],
+]
+## Trajetória do machado no espaço do modelo (+Z = frente, +X = esquerda do personagem, Y = altura): `end` = mão
+## esquerda no fim do cabo, `dir` = cabo (do fim para a cabeça), `edge` = para onde o gume aponta e `slide` = quanto
+## a mão direita está subida no cabo (m). As posições das mãos saem de `tools/weapon_pose_shot.tscn -- coleta
+## otimiza` (ver MINE_TOOL). A ponta do gume no impacto (a mesma ferramenta imprime TIP) dá GatherAction.CHOP_REACH.
+const TOOL_POLE_L := Vector3(1.0, -1.0, -0.3)    ## cotovelo natural: para fora, para baixo e um pouco para trás
+const TOOL_POLE_R := Vector3(-1.0, -1.0, -0.3)
+const CHOP_TOOL_READY := {"end": Vector3(0.02, 1.0, 0.27), "dir": Vector3(-0.35, 0.8, 0.45), "edge": Vector3(1.0, 0.3, 0.3),
+	"slide": 0.32}
+const CHOP_TOOL := [
+	[0.36, {"end": Vector3(-0.15, 1.43, 0.48), "dir": Vector3(-0.3, 0.3, -0.9), "edge": Vector3(0.6, 0.7, 0.1),
+		"slide": 0.2}, "out"],
+	[0.44, {"end": Vector3(0.08, 1.04, 0.42), "dir": Vector3(-0.85, 0.2, -0.3), "edge": Vector3(0.3, -0.3, 0.9),
+		"slide": 0.15}, "in"],
+	[0.5, {"end": Vector3(0.41, 1.02, 0.2), "dir": Vector3(-0.75, -0.08, 0.65), "edge": Vector3(0.65, -0.3, 0.75),
+		"slide": 0.0}, "lin"],
+	[0.64, {"end": Vector3(0.42, 1.01, 0.2), "dir": Vector3(-0.74, -0.09, 0.66), "edge": Vector3(0.65, -0.3, 0.75),
+		"slide": 0.0}, "lin"],
+]
+
 ## Pose curta das habilidades de buff (0,5 s): braços erguidos e volta.
 const BUFF := [
 	[0.35, {"arm_r": Vector3(-2.5, 0.0, -0.3), "elbow_r": -0.5, "arm_l": Vector3(-2.3, 0.0, 0.3), "elbow_l": -0.5,

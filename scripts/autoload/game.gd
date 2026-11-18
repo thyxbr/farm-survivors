@@ -171,6 +171,18 @@ func _debug_screenshot() -> void:
 			for n in get_tree().get_nodes_in_group("interactable"):
 				if n.get("npc_id") == "blacksmith":
 					n.enchant_strike(Color(1.0, 0.42, 0.08)))
+	# `--gatherdemo=<s>`: perto de um veio/árvore (use --at=), aperta F <s> segundos antes da captura;
+	# `--gathertool=<id>` põe essa ferramenta na mochila antes (a melhor do tipo é a que vai para a mão)
+	for a in args:
+		if a.begins_with("--gathertool=") and ItemDB.ITEMS.has(a.substr(13)):
+			Econ.grant(0, 0, {a.substr(13): 1}, "demo", true)
+	for a in args:
+		if a.begins_with("--gatherdemo="):
+			get_tree().create_timer(maxf(delay - float(a.substr(13)), 0.1)).timeout.connect(func() -> void:
+				var pl = get_tree().get_first_node_in_group("player")
+				var n = GatherAction.nearest(pl) if pl else null
+				if n:
+					pl.start_gather(n))
 	# `--farmdemo` enche a horta com culturas em vários estágios (para screenshots)
 	if "--farmdemo" in args:
 		var now := Econ.now()
@@ -327,7 +339,7 @@ func _setup_input() -> void:
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
 		"jump": [KEY_SPACE], "sprint": [KEY_SHIFT], "dodge": [KEY_CTRL, KEY_ALT],
 		"interact": [KEY_E], "spell_1": [KEY_1], "spell_2": [KEY_2], "spell_3": [KEY_3], "spell_4": [KEY_4], "spell_5": [KEY_5],
-		"potion": [KEY_R], "mana_potion": [KEY_F], "inventory": [KEY_I, KEY_TAB], "character": [KEY_C],
+		"potion": [KEY_R], "mana_potion": [KEY_F], "gather": [KEY_F], "inventory": [KEY_I, KEY_TAB], "character": [KEY_C],
 		"talents": [KEY_K], "quest_log": [KEY_J], "professions": [KEY_L], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
 		"eat": [KEY_Q], "food_next": [KEY_T], "world_map": [KEY_M], "party": [KEY_P], "friends": [KEY_O],
 		# emotes (acenar, comemorar, sentar): eram as teclas 1–3 da praça; na vila 1–4 são magias

@@ -122,7 +122,7 @@ func _render(id: String) -> Texture2D:
 	var holder := Node3D.new()
 	vp.add_child(holder)
 	var slot := ItemDB.slot_of(id)
-	var weapon := slot == "weapon"
+	var weapon := slot == "weapon" or str(ItemDB.get_item(id).get("type", "")) == "tool"   # ferramenta: como arma
 	var family := _family(id)
 	if not family.is_empty():
 		var model := _family_model(family)

@@ -60,11 +60,13 @@ func test_roundtrip_matches_consts() -> void:
 			# o Cutelo do Rei Goblin passou para o nível do chefe, com o dano das armas de lá: sem o dano dele
 			(cur["goblin_cleaver"] as Dictionary).erase("damage")
 			(snap_items["goblin_cleaver"] as Dictionary).erase("damage")
-			# style é só o modelo 3D (roupas refeitas trocam o GLB), não balanceamento: sem ele dos dois lados
+			# visual (modelo 3D e a capa do cavaleiro; roupas refeitas trocam os dois), não balanceamento:
+			# sem eles dos dois lados
 			for id in cur:
-				(cur[id] as Dictionary).erase("style")
-				(snap_items[id] as Dictionary).erase("style")
-			T.ok(cur == snap_items, "tabela items igual ao snapshot (sem level, style e o dano do Cutelo)")
+				for k in ["style", "cape"]:
+					(cur[id] as Dictionary).erase(k)
+					(snap_items[id] as Dictionary).erase(k)
+			T.ok(cur == snap_items, "tabela items igual ao snapshot (sem level, visual e o dano do Cutelo)")
 			continue
 		elif n == "classes":
 			# a ficha da tela de criação (história, papel, perfil, emblema) é apresentação, não balanceamento
@@ -98,7 +100,8 @@ func test_roundtrip_matches_consts() -> void:
 			T.ok(kitchen == BalanceTables.decode(snap[n]), "receitas da cozinha iguais ao snapshot")
 			continue
 		elif n == "crops" or n == "world_nodes":
-			# parte 3: nível e XP de profissão nas culturas e nos nós; tipos de nó novos; coleta em 2-3 golpes
+			# parte 3: nível e XP de profissão nas culturas e nos nós; tipos de nó novos; coleta em 2-3 golpes.
+			# Coleta com ferramenta: os golpes viraram resistência (tough) e nível mínimo de ferramenta (tier)
 			var snap_t: Dictionary = (BalanceTables.decode(snap[n]) as Dictionary).duplicate(true)
 			var cur_t: Dictionary = cur.duplicate(true)
 			var a: Dictionary = cur_t if n == "crops" else cur_t.get("kinds", {})
@@ -107,7 +110,7 @@ func test_roundtrip_matches_consts() -> void:
 				if not b.has(k):
 					a.erase(k)
 					continue
-				for f in ["level", "xp", "prof", "hits", "tint"]:
+				for f in ["level", "xp", "prof", "hits", "tint", "tough", "tier"]:
 					(a[k] as Dictionary).erase(f)
 					(b[k] as Dictionary).erase(f)
 			T.ok(a == b, "tabela %s igual ao snapshot (sem os campos de profissão)" % n)
@@ -117,8 +120,9 @@ func test_roundtrip_matches_consts() -> void:
 			# o que sobrou estava na loja de antes ou é material/semente da camada 1
 			var old_stock: Array = (BalanceTables.decode(snap[n]) as Dictionary).get("stock", [])
 			for id in cur.get("stock", []):
-				T.ok(id in old_stock or id == "wooden_sword" or t.get_table("items").get(id, {}).get("type") in ["seed", "material"],
-					"loja: %s estava antes ou é semente/material" % id)
+				T.ok(id in old_stock or id == "wooden_sword" or t.get_table("items").get(id, {}).get("type") in ["seed", "material"]
+					or id in ["pickaxe_stone", "axe_stone"],
+					"loja: %s estava antes, é semente/material ou ferramenta de pedra" % id)
 			continue
 		elif n == "rules":
 			# a curva de XP foi para progression.json

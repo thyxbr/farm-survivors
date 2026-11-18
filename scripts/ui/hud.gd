@@ -33,6 +33,13 @@ var notif_box: VBoxContainer
 var loot_box: VBoxContainer
 var prompt_box: HBoxContainer
 var prompt: Label
+## Coleta (F): aviso perto do veio/árvore e, batendo, a barra de progresso com a ferramenta e a maestria.
+var gather_prompt: HBoxContainer
+var gather_prompt_label: Label
+var gather_box: VBoxContainer
+var gather_title: Label
+var gather_bar: ProgressBar
+var gather_info: Label
 var slots := {}
 var _slot_ids: Array[String] = ["", "", "", "", ""]   # id da habilidade em cada slot 1..ItemDB.SLOT_COUNT
 var _kit_class := ""
@@ -364,6 +371,60 @@ func _build_dock() -> void:
 	_ignore_all(prompt_box)
 	_anchor(prompt_box, 0.5, 1, -350, -hh - 70, 700, 30)
 	root.add_child(prompt_box)
+	gather_prompt = HBoxContainer.new()
+	gather_prompt.add_theme_constant_override("separation", 8)
+	gather_prompt.alignment = BoxContainer.ALIGNMENT_CENTER
+	gather_prompt.add_child(UITheme.keycap("F", 13))
+	gather_prompt_label = UITheme.outlined("", 17, Color(1, 0.95, 0.78), 5)
+	gather_prompt.add_child(gather_prompt_label)
+	_ignore_all(gather_prompt)
+	_anchor(gather_prompt, 0.5, 1, -350, -hh - 102, 700, 30)
+	gather_prompt.visible = false
+	root.add_child(gather_prompt)
+	gather_box = VBoxContainer.new()
+	gather_box.add_theme_constant_override("separation", 3)
+	gather_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	gather_title = UITheme.outlined("", 16, Color(1, 0.95, 0.78), 5)
+	gather_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	gather_box.add_child(gather_title)
+	gather_bar = UITheme.bar(Color(0.95, 0.75, 0.3), 280, 12)
+	gather_bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	gather_box.add_child(gather_bar)
+	gather_info = UITheme.outlined("", 13, Color(0.85, 0.85, 0.8), 4)
+	gather_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	gather_box.add_child(gather_info)
+	_ignore_all(gather_box)
+	_anchor(gather_box, 0.5, 1, -200, -hh - 150, 400, 64)   # acima da doca, longe do personagem (que fica no meio)
+	gather_box.visible = false
+	root.add_child(gather_box)
+
+
+## Aviso de F perto de um veio/árvore e a barra da coleta em andamento (GatherAction).
+func _update_gather() -> void:
+	var gathering: bool = player.ability == GatherAction.ID and not player.dead
+	var g: Node3D = player.gather_target
+	gather_prompt.visible = g != null and not gathering and not player.dead
+	if gather_prompt.visible:
+		var plan: Dictionary = g.gather_plan()
+		gather_prompt_label.text = "%s: %s" % [g.verb(), g.item_name()] if plan.ok else plan.msg
+		gather_prompt_label.add_theme_color_override("font_color",
+			Color(1, 0.95, 0.78) if plan.ok else Color(1.0, 0.55, 0.45))
+	gather_box.visible = gathering
+	if not gathering:
+		gather_bar.value = 0.0
+		return
+	var d: Dictionary = player.ability_data
+	var node = d.get("node")
+	if node == null or not is_instance_valid(node):
+		return
+	gather_title.text = "%s %s" % ["Cortando" if node.is_tree() else "Minerando", node.item_name()]
+	var want: float = (1.0 if d.has("done_t") else node.ratio()) * gather_bar.max_value
+	gather_bar.value = lerpf(gather_bar.value, want, 0.3)   # sobe deslizando a cada golpe
+	var prof: String = node.prof
+	var left := GatherRules.strikes(node.tough - node.progress, float(d.power))
+	gather_info.text = "%s · Maestria %d (+%d%%) · %s" % [ItemDB.get_item(str(d.tool)).get("name", ""),
+		Game.prof_level(prof), roundi((GatherRules.mastery_mult(Game.prof_level(prof)) - 1.0) * 100.0),
+		"pronto!" if d.has("done_t") else ("%d golpe%s" % [left, "" if left == 1 else "s"])]
 
 
 func _action(parent: Control, key: String) -> ItemSlot:
@@ -453,6 +514,7 @@ func _process(delta: float) -> void:
 		prompt_box.visible = t != null and not player.dead
 		if t:
 			prompt.text = t.interact_prompt()
+		_update_gather()
 	_update_food()
 	_update_compass()
 	_area_scan -= delta

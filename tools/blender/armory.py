@@ -1194,4 +1194,216 @@ ARMORY += [("sc_novice_scepter", build_sc_novice), ("sc_dawn_scepter", build_sc_
            ("sc_halo_scepter", build_sc_halo)]
 
 
+# ------------------------------------------------------------------ ferramentas de coleta (tl_<tipo>_<nível>.glb)
+# Picaretas e machados que o personagem saca para minerar e cortar árvores (GatherAction). Mesma convenção das
+# espadas: cabo em +Z com a mão direita na origem, cabeça perto de z = 0,575 e o lado que bate (ponta da picareta,
+# gume do machado) em +X. O machado é girado 90° no eixo do cabo no jogo (KnightLook.AXE_ROLL) para o gume liderar
+# o corte horizontal. A mão esquerda pega o cabo em z ≈ -0,13 (KnightMoves.TOOL_LEFT_GRIP).
+# "Tip" = ponto que bate na pedra/árvore (faíscas e lascas nascem ali).
+# Cada nível é mais rico que o de baixo, na cabeça e no cabo: pedra amarrada num galho; ferro com ponteira, talas e
+# rebites; mitril com espiral, crista e ouro; cristal com prata, anéis de runa acesos, lascas e pomo de cristal; astral
+# com filigrana dupla de ouro, runas douradas, asas e uma estrela no pomo. Luz e partículas: KnightLook._tool_fx.
+TOOL_TIERS = {
+    # madeira, veio, empunhadura, cabeça (luz, base, sombra), metal dos enfeites, brilho (gema/runa) ou None
+    "stone": dict(wood="#a8794a", grain="#7a5230", wrap="#6e4c2c", head=("#bdb8ae", "#8e8a82", "#55524e"),
+                  ring="#6e4c2c", glow=None, rock=True),
+    "iron": dict(wood="#a06c3c", grain="#704826", wrap="#4a3020", head=("#eef2f6", "#a8b4c4", "#46505e"),
+                 ring="#5e6672", glow=None),
+    "mithril": dict(wood="#5e4030", grain="#3a2618", wrap="#2c3a4a", head=("#e8fcff", "#8fdde8", "#2f6c78"),
+                    ring="#e0b44a", glow=None),
+    "crystal": dict(wood="#ece2cc", grain="#c4b496", wrap="#5a3a8a", head=("#e6dcff", "#a98cf0", "#5b3fa6"),
+                    ring="#d8deea", glow="#9a60ff", gem="#8f5cff"),
+    "astral": dict(wood="#3e2c60", grain="#22163a", wrap="#4a2a78", head=("#f4e0ff", "#b878f0", "#5a2a90"),
+                   ring="#f0c050", glow="#ffb02a", gem="#ffc23a"),
+}
+TOOL_EYE_Z = 0.575
+TOOL_WING = [(0.0, 0.0), (0.03, 0.015), (0.075, 0.06), (0.09, 0.12), (0.07, 0.1), (0.045, 0.07), (0.02, 0.045), (0.0, 0.035)]
+
+
+def _langets(m, col, z0=0.4, z1=0.545):
+    """Talas de metal descendo do olho pelo cabo (frente e costas), com dois rebites cada."""
+    for sy in (1, -1):
+        tube("Langet%d" % sy, [(0, 0.021 * sy, z0), (0, 0.021 * sy, z1)], 0.0065, m, col, sides=6, flat=0.55)
+        for z in (z0 + 0.025, z0 + 0.08):
+            orb("Rivet%d_%.2f" % (sy, z), m, col, (0, 0.027 * sy, z), 0.0055, seg=6)
+
+
+def _tool_handle(tier, t, m, g):
+    wood = grain(t["wood"], t["grain"], freq=2.0, zf=11.0, amt=0.4)
+    ring = H(t["ring"])
+    if tier == "stone":   # galho torto com nós, empunhadura de couro amarrada e um seixo no pé
+        shaft("Handle", m, wood, z0=-0.21, z1=0.63, r0=0.022, r1=0.019, seg=8, wobble=0.004, seed=3,
+              knots=((-0.2, 0.004, 0.02), (0.17, 0.005, 0.014), (0.36, 0.004, 0.012)))
+        wrap("Grip", m, H(t["wrap"]), -0.19, -0.04, 0.0245, turns=4, seg=8)
+        tube("Tie", spline([(0.0, -0.02, -0.03), (0.0, -0.032, -0.06), (0.004, -0.03, -0.1)], 4), 0.004, m, H(t["wrap"]))
+        orb("Knob", m, H(t["head"][1]), (0, 0, -0.222), 0.027, seg=7)
+        return
+    shaft("Handle", m, wood, z0=-0.21, z1=0.63, r0=0.021, r1=0.019, seg=12)
+    wrap("Grip", m, H(t["wrap"]), -0.19, -0.035, 0.0235, turns=6, seg=12)
+    if tier == "iron":
+        lathe("Butt", [(-0.245, 0.0), (-0.245, 0.017), (-0.236, 0.026), (-0.2, 0.026), (-0.196, 0.022), (-0.196, 0.0)],
+              m, ring, seg=12, smooth=False)
+        band("Mid", m, ring, 0.0, h=0.018, r=0.024, seg=12)
+        _langets(m, ring)
+        return
+    if tier == "mithril":
+        helix("Spiral", m, H(t["head"][1]), 0.0, 0.42, 0.0205, 2.5, r=0.0045, sides=6)
+        for z in (-0.19, -0.035, 0.0, 0.42):
+            band("Gold%.2f" % z, m, ring, z, h=0.016, r=0.026, seg=12)
+        lathe("Butt", [(-0.25, 0.0), (-0.25, 0.012), (-0.238, 0.027), (-0.205, 0.025), (-0.2, 0.0)], m, ring, seg=12,
+              smooth=False)
+        orb("ButtGem", m, H(t["head"][0]), (0, 0, -0.258), 0.013, seg=8)
+        _langets(m, ring)
+        return
+    # cristal e astral: filigrana dupla, anéis de runa acesos e pomo com gema
+    helix("Filigree", m, ring, -0.01, 0.47, 0.0205, 2.5, r=0.004, sides=6)
+    helix("Filigree2", m, ring, -0.01, 0.47, 0.0205, 2.5, r=0.004, phase=math.pi, sides=6)
+    for z in (-0.19, -0.035, -0.015, 0.49):
+        band("Band%.2f" % z, m, ring, z, h=0.016, r=0.026, seg=12)
+    runes = (0.12, 0.3) if tier == "crystal" else (0.08, 0.2, 0.32)
+    for z in runes:
+        band("Rune%.2f" % z, g, H(t["gem"]), z, h=0.018, r=0.0225, seg=12)
+    _langets(m, ring, z0=0.43)
+    lathe("Cup", [(-0.258, 0.0), (-0.258, 0.013), (-0.232, 0.027), (-0.2, 0.024), (-0.198, 0.0)], m, ring, seg=12,
+          smooth=False)
+    if tier == "crystal":
+        crystal("Pommel", g, H(t["gem"]), (0, 0, -0.27), 0.02, 0.03, 0.045, seg=6)
+        return
+    orb("Pommel", g, H(t["gem"]), (0, 0, -0.272), 0.021, seg=10)
+    for k in range(4):
+        a = math.pi / 4 + k * math.pi / 2
+        tube("Prong%d" % k, [(0.02 * math.cos(a), 0.02 * math.sin(a), -0.25), (0.016 * math.cos(a), 0.016 * math.sin(a), -0.28)],
+             0.0035, m, ring)
+    star = []
+    for i in range(8):
+        rr = 0.032 if i % 2 == 0 else 0.011
+        a = math.pi / 2 + math.pi * i / 4
+        star.append((rr * math.cos(a), -0.3 + rr * math.sin(a)))
+    flat("Star", star, g, H(t["gem"]), th=0.006, bevel=0.004, step=0.006)
+
+
+def _head_paint(t):
+    L, B, E = (H(c) for c in t["head"])
+
+    def fn(co):
+        if t.get("rock"):
+            return mix(B, L, 0.25 * (0.5 + 0.5 * math.sin(co.x * 40.0 + co.z * 25.0)))
+        return B
+    return fn
+
+
+def _pick_curve(span, lift=0.0, k=1.0):
+    return spline([(-span * k, 0, 0.47 + lift), (-span * 0.55 * k, 0, 0.555 + lift), (0, 0, 0.585 + lift),
+                   (span * 0.55 * k, 0, 0.555 + lift), ((span + 0.01) * k, 0, 0.465 + lift)], 6)
+
+
+def _tips(span):
+    return {1: ((span + 0.01), 0.465), -1: (-span, 0.47)}
+
+
+def build_tool_pickaxe(tier):
+    t = TOOL_TIERS[tier]
+    rock = t.get("rock", False)
+    m = vcf("tl_pick_" + tier, metal=0.0 if rock else 0.45)
+    g = vcf("tl_pick_%s_gem" % tier, emit=t["glow"], strength=0.8) if t["glow"] else None
+    _tool_handle(tier, t, m, g)
+    ring = H(t["ring"])
+    span = {"stone": 0.22, "iron": 0.25, "mithril": 0.26, "crystal": 0.26, "astral": 0.27}[tier]
+    thick = {"stone": 0.036, "iron": 0.028, "mithril": 0.028, "crystal": 0.026, "astral": 0.029}[tier]
+
+    def rad(u):
+        return thick * (0.16 + 0.84 * math.sin(math.pi * u) ** 0.55)
+    tube("Head", _pick_curve(span), rad, m, _head_paint(t), sides=6 if rock else 10, flat=0.8, smooth=not rock)
+    if rock:   # pedra lascada amarrada com tiras de couro cruzando o cabo
+        helix("Lash", m, H(t["wrap"]), 0.52, 0.64, 0.024, 2.5, r=0.0065)
+        tube("LashX", [(-0.04, -0.012, 0.6), (0.04, -0.012, 0.56)], 0.006, m, H(t["wrap"]))
+        tube("LashX2", [(-0.04, 0.012, 0.56), (0.04, 0.012, 0.6)], 0.006, m, H(t["wrap"]))
+        fin("tl_pickaxe_" + tier, span + 0.01, 0.465)
+        return
+    band("Socket", m, ring, TOOL_EYE_Z - 0.005, h=0.104, r=0.031, seg=14)
+    band("Collar", m, ring, 0.51, h=0.02, r=0.026, seg=14)
+    if tier in ("mithril", "crystal", "astral"):   # crista clara correndo por cima da meia-lua, rebites no olho
+        tube("Ridge", _pick_curve(span, 0.016, 0.82), lambda u: 0.009 * math.sin(math.pi * u) ** 0.6 + 0.001, m,
+             H(t["head"][0]), sides=8)
+        for sy in (1, -1):
+            orb("EyeRivet%d" % sy, m, H(t["head"][0]) if tier == "mithril" else ring, (0, 0.031 * sy, TOOL_EYE_Z), 0.007, seg=8)
+    if tier == "crystal":
+        gem = H(t["gem"])
+        for sx, (tx, tz) in _tips(span).items():   # pontas de cristal nas duas pontas e lascas ao longo da meia-lua
+            crystal("TipShard%d" % sx, g, gem, (tx - 0.012 * sx, 0, tz + 0.008), 0.014, 0.05, 0.015, seg=6,
+                    rot=(0, sx * 2.1, 0))
+            for k, (u, h) in enumerate(((0.35, 0.035), (0.6, 0.028))):
+                x = span * u * sx
+                z = 0.585 - (0.585 - 0.47) * (u ** 1.6)
+                crystal("Shard%d_%d" % (sx, k), g, gem, (x, 0, z + 0.008), 0.009, h, 0.01, seg=5, rot=(0, sx * 0.5, 0))
+        crystal("Crest", g, gem, (0, 0, 0.63), 0.016, 0.055, 0.02, seg=6)
+    if tier == "astral":
+        tube("Trim", _pick_curve(span, 0.024, 0.9), lambda u: 0.0055 * math.sin(math.pi * u) ** 0.4 + 0.0015, m, ring,
+             sides=6)
+        for sx, (tx, tz) in _tips(span).items():
+            cel(flat("Wing%d" % sx, [(x * sx, z) for x, z in TOOL_WING], m, th=0.006, bevel=0.005, step=0.008,
+                     loc=(0.022 * sx, 0, TOOL_EYE_Z + 0.01)), ring)
+            crystal("Glow%d" % sx, g, H(t["gem"]), (tx - 0.012 * sx, 0, tz + 0.008), 0.012, 0.04, 0.012, seg=6,
+                    rot=(0, sx * 2.1, 0))
+        orb("Gem", g, H(t["gem"]), (0, -0.034, TOOL_EYE_Z), 0.019, seg=10)
+        for s in (-1, 1):
+            tube("GemProng%d" % s, [(0.0, -0.028, TOOL_EYE_Z + 0.03 * s), (0.0, -0.04, TOOL_EYE_Z + 0.012 * s)], 0.004, m, ring)
+        crystal("Crest", g, H(t["gem"]), (0, 0, 0.635), 0.014, 0.05, 0.02, seg=6)
+    fin("tl_pickaxe_" + tier, span + 0.01, 0.465)
+
+
+def build_tool_axe(tier):
+    t = TOOL_TIERS[tier]
+    rock = t.get("rock", False)
+    m = vcf("tl_axe_" + tier, metal=0.0 if rock else 0.45)
+    g = vcf("tl_axe_%s_gem" % tier, emit=t["glow"], strength=0.8) if t["glow"] else None
+    _tool_handle(tier, t, m, g)
+    ring = H(t["ring"])
+    # lâmina no plano XZ: pescoço estreito saindo do olho e o gume curvo em +X
+    w = {"stone": 0.17, "iron": 0.2, "mithril": 0.21, "crystal": 0.21, "astral": 0.22}[tier]
+    out = [(-0.06, 0.515), (0.04, 0.515), (w * 0.55, 0.455), (w * 0.9, 0.39), (w + 0.012, 0.43), (w + 0.022, 0.52),
+           (w + 0.016, 0.61), (w * 0.92, 0.69), (w * 0.55, 0.63), (0.04, 0.6), (-0.06, 0.6)]
+    L, B, E = (H(c) for c in t["head"])
+    edge_x = w + 0.012
+
+    def paint2d(x, z, d):
+        c = mix(B, L, smooth01((x - (edge_x - 0.05)) / 0.035))      # gume afiado claro
+        if rock:
+            c = mix(c, E, 0.25 * (0.5 + 0.5 * math.sin(x * 70 + z * 45)))
+        return mix(E, c, smooth01((d - 0.001) / 0.009))
+    th = 0.02 if rock else 0.015
+    flat("Blade", out, m, th=th, bevel=0.012, step=0.01, paint2d=paint2d)
+    if rock:
+        helix("Lash", m, H(t["wrap"]), 0.5, 0.63, 0.024, 2.5, r=0.0065)
+        tube("LashX", [(-0.04, -0.02, 0.6), (0.03, -0.02, 0.52)], 0.006, m, H(t["wrap"]))
+        fin("tl_axe_" + tier, w + 0.022, 0.52)
+        return
+    band("Eye", m, ring, 0.557, h=0.105, r=0.031, seg=14)
+    for sy in (1, -1):   # rebites prendendo a lâmina no olho
+        for z in (0.535, 0.58):
+            orb("Rivet%d_%.2f" % (sy, z), m, ring, (0.055, (th - 0.002) * sy, z), 0.006, seg=6)
+    if tier in ("mithril", "astral"):   # filete gravado acompanhando o gume, nas duas faces
+        inlay = spline([(w * 0.6, 0, 0.47), (w * 0.86, 0, 0.44), (w - 0.008, 0, 0.52), (w * 0.86, 0, 0.62), (w * 0.6, 0, 0.6)], 5)
+        for sy in (1, -1):
+            tube("Inlay%d" % sy, [(x, (th - 0.004) * sy, z) for x, _, z in inlay], 0.0042, m, ring, sides=5)
+    if tier in ("crystal", "astral"):   # gume aceso: faixa de cristal/luz por todo o fio
+        edge = [(w * 0.82, 0.405), (w + 0.012, 0.43), (w + 0.022, 0.52), (w + 0.016, 0.61), (w * 0.86, 0.675),
+                (w * 0.8, 0.62), (w - 0.008, 0.52), (w * 0.82, 0.44)]
+        flat("Edge", edge, g, H(t["gem"]), th=th + 0.002, bevel=0.006, step=0.008)
+    if tier == "crystal":
+        crystal("Shard", g, H(t["gem"]), (-0.075, 0.0, 0.557), 0.02, 0.035, 0.03, seg=6, rot=(0, -math.pi / 2, 0))
+        crystal("Crest", g, H(t["gem"]), (0, 0, 0.62), 0.014, 0.045, 0.015, seg=6)
+    if tier == "astral":
+        orb("Gem", g, H(t["gem"]), (0.085, -0.014, 0.557), 0.018, seg=10)
+        cel(place(torus("GemRim", (0.085, 0.557), 0.022, 0.0045, m, seg=14, sides=5), (0, -0.0125, 0)), ring)
+        cel(flat("Wing", [(-x, z) for x, z in TOOL_WING], m, th=0.006, bevel=0.005, step=0.008, loc=(-0.02, 0, 0.57)), ring)
+        crystal("Crest", g, H(t["gem"]), (0, 0, 0.625), 0.014, 0.05, 0.015, seg=6)
+    fin("tl_axe_" + tier, w + 0.022, 0.52)
+
+
+for _tier in TOOL_TIERS:
+    ARMORY += [("tl_pickaxe_" + _tier, (lambda tt=_tier: build_tool_pickaxe(tt))),
+               ("tl_axe_" + _tier, (lambda tt=_tier: build_tool_axe(tt)))]
+
+
 WEAPONS.extend(ARMORY)   # ASSETS=weapons gera todas; ASSETS=staves / bows / classic geram só esse grupo

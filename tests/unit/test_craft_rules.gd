@@ -206,7 +206,7 @@ func test_recipe_catalog() -> void:
 	for id in bt.get_table("shop").stock:
 		var it: Dictionary = items[id]
 		var ok_item: bool = it.type in ["consumable", "seed"] or id in ["copper_ore", "pine_log", "hide_t1"] \
-			or (it.type in ["weapon", "armor", "gear"] and it.get("rarity") == "common" and int(it.get("level", 1)) <= 10)
+			or (it.type in ["weapon", "armor", "gear"] and it.get("rarity") == "common" and int(it.get("level", 1)) <= 10) 			or (it.type == "tool" and int(it.get("tier", 0)) == 1)
 		T.ok(ok_item, "loja só com o básico (%s)" % id)
 	# variante de qualidade e item só de craft não caem de monstro
 	for id in LootRules.gear_pool(bt, 46):
@@ -224,6 +224,16 @@ func test_gathering_and_farming_xp() -> void:
 	r = CharRules.gather(s, bt, {"items": {"copper_ore": 3}, "prof": "mining", "level": 1, "xp": 12})
 	T.ok(r.ok and CharRules.count_item(s, "copper_ore") == 3, "cobre no nível 1")
 	T.eq(CraftRules.xp(s, "mining"), 12, "XP de Mineração")
+	# ferramenta: o nó pede picareta/machado do nível dele na mochila
+	r = CharRules.gather(s, bt, {"items": {"arcane_crystal": 1}, "prof": "mining", "level": 1, "xp": 25, "tier": 2})
+	T.eq(r.err, "ferramenta_fraca", "cristal pede picareta de ferro; só tem a de pedra")
+	CharRules.add_item(s, bt, "pickaxe_iron", 1)
+	T.ok(CharRules.gather(s, bt, {"items": {"arcane_crystal": 1}, "prof": "mining", "level": 1, "xp": 25, "tier": 2}).ok,
+		"com a de ferro coleta")
+	CharRules.remove_item(s, "axe_stone", 1)
+	r = CharRules.gather(s, bt, {"items": {"pine_log": 3}, "prof": "woodcutting", "level": 1, "xp": 12, "tier": 1})
+	T.eq(r.err, "sem_ferramenta", "sem machado não corta")
+	T.eq(CharRules.count_item(s, "pine_log"), 0, "recusa não dá madeira")
 	# nós por camada nas cenas: cada tipo da tabela tem pelo menos um nó
 	var kinds := {}
 	for id in WorldHarvest.ids(bt):

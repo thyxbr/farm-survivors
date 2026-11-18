@@ -1026,8 +1026,7 @@
 		"pants": {
 			"$c": [0.22, 0.2, 0.2, 1.0]
 		},
-		"style": "a_surcoat",
-		"cape": true,
+		"style": "a_whiteknight",
 		"stats": {
 			"vit": 2,
 			"str": 2
@@ -3267,5 +3266,199 @@
 		"recipe": "astral_plate",
 		"art": "recipe_scroll",
 		"desc": "Use para aprender a receita de Placas Astrais."
+	},
+	"pickaxe_stone": {
+		"name": "Picareta de Pedra",
+		"type": "tool",
+		"tool": "pickaxe",
+		"tier": 1,
+		"power": 1.0,
+		"rarity": "common",
+		"price": 15,
+		"color": {
+			"$c": [
+				0.62,
+				0.6,
+				0.56,
+				1.0
+			]
+		},
+		"desc": "Pedra lascada amarrada com couro. Faz o serviço, devagar.",
+		"model": "tl_pickaxe_stone"
+	},
+	"pickaxe_iron": {
+		"name": "Picareta de Ferro",
+		"type": "tool",
+		"tool": "pickaxe",
+		"tier": 2,
+		"power": 1.6,
+		"rarity": "common",
+		"price": 70,
+		"color": {
+			"$c": [
+				0.72,
+				0.76,
+				0.82,
+				1.0
+			]
+		},
+		"desc": "Ferro batido na forja do Doran. Morde fundo.",
+		"model": "tl_pickaxe_iron"
+	},
+	"pickaxe_mithril": {
+		"name": "Picareta de Mitril",
+		"type": "tool",
+		"tool": "pickaxe",
+		"tier": 3,
+		"power": 2.5,
+		"rarity": "uncommon",
+		"price": 220,
+		"color": {
+			"$c": [
+				0.55,
+				0.87,
+				0.92,
+				1.0
+			]
+		},
+		"desc": "Leve como prata e duro como rocha.",
+		"model": "tl_pickaxe_mithril"
+	},
+	"pickaxe_crystal": {
+		"name": "Picareta de Cristal",
+		"type": "tool",
+		"tool": "pickaxe",
+		"tier": 4,
+		"power": 3.6,
+		"rarity": "rare",
+		"price": 520,
+		"color": {
+			"$c": [
+				0.65,
+				0.45,
+				1.0,
+				1.0
+			]
+		},
+		"desc": "Cristal arcano lapidado: corta como se a matéria cedesse.",
+		"aura": {"$c": [0.62, 0.38, 1.0, 1.0]},
+		"model": "tl_pickaxe_crystal"
+	},
+	"pickaxe_astral": {
+		"name": "Picareta Astral",
+		"type": "tool",
+		"tool": "pickaxe",
+		"tier": 5,
+		"power": 5.0,
+		"rarity": "epic",
+		"price": 1100,
+		"color": {
+			"$c": [
+				0.78,
+				0.55,
+				0.98,
+				1.0
+			]
+		},
+		"desc": "Forjada com astralita. Rocha e madeira se abrem num golpe.",
+		"aura": {"$c": [1.0, 0.75, 0.25, 1.0]},
+		"model": "tl_pickaxe_astral"
+	},
+	"axe_stone": {
+		"name": "Machado de Pedra",
+		"type": "tool",
+		"tool": "axe",
+		"tier": 1,
+		"power": 1.0,
+		"rarity": "common",
+		"price": 15,
+		"color": {
+			"$c": [
+				0.62,
+				0.6,
+				0.56,
+				1.0
+			]
+		},
+		"desc": "Pedra lascada amarrada com couro. Faz o serviço, devagar.",
+		"model": "tl_axe_stone"
+	},
+	"axe_iron": {
+		"name": "Machado de Ferro",
+		"type": "tool",
+		"tool": "axe",
+		"tier": 2,
+		"power": 1.6,
+		"rarity": "common",
+		"price": 70,
+		"color": {
+			"$c": [
+				0.72,
+				0.76,
+				0.82,
+				1.0
+			]
+		},
+		"desc": "Ferro batido na forja do Doran. Morde fundo.",
+		"model": "tl_axe_iron"
+	},
+	"axe_mithril": {
+		"name": "Machado de Mitril",
+		"type": "tool",
+		"tool": "axe",
+		"tier": 3,
+		"power": 2.5,
+		"rarity": "uncommon",
+		"price": 220,
+		"color": {
+			"$c": [
+				0.55,
+				0.87,
+				0.92,
+				1.0
+			]
+		},
+		"desc": "Leve como prata e duro como rocha.",
+		"model": "tl_axe_mithril"
+	},
+	"axe_crystal": {
+		"name": "Machado de Cristal",
+		"type": "tool",
+		"tool": "axe",
+		"tier": 4,
+		"power": 3.6,
+		"rarity": "rare",
+		"price": 520,
+		"color": {
+			"$c": [
+				0.65,
+				0.45,
+				1.0,
+				1.0
+			]
+		},
+		"desc": "Cristal arcano lapidado: corta como se a matéria cedesse.",
+		"aura": {"$c": [0.62, 0.38, 1.0, 1.0]},
+		"model": "tl_axe_crystal"
+	},
+	"axe_astral": {
+		"name": "Machado Astral",
+		"type": "tool",
+		"tool": "axe",
+		"tier": 5,
+		"power": 5.0,
+		"rarity": "epic",
+		"price": 1100,
+		"color": {
+			"$c": [
+				0.78,
+				0.55,
+				0.98,
+				1.0
+			]
+		},
+		"desc": "Forjada com astralita. Rocha e madeira se abrem num golpe.",
+		"aura": {"$c": [1.0, 0.75, 0.25, 1.0]},
+		"model": "tl_axe_astral"
 	}
 }

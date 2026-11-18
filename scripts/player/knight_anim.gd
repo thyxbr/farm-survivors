@@ -1017,6 +1017,129 @@ static func _bow_ik(r: Dictionary, p: Dictionary, k: float) -> void:
 	arm_ik_pose(r, p, "r", hand_r, KnightMoves.BOW_POLE_R, w)
 
 
+## Ferramenta de coleta conduzida pela trajetória (GatherAction.pose_cycle põe p["tool"]): `end` = onde fica a
+## mão esquerda (fim do cabo), `dir` = para onde o cabo aponta, `edge` = para onde o gume aponta e `slide` = quanto
+## a mão direita está subida no cabo, tudo no espaço do modelo. As duas mãos vão por IK até o cabo; o suporte da
+## arma é orientado por hold_weapon_upright com o que fica guardado aqui (tool_w, tool_dir, tool_edge).
+static func _tool_ik(r: Dictionary, p: Dictionary, k: float) -> void:
+	var t: Dictionary = p.get("tool", {})
+	var w: float = t.get("w", 0.0)
+	r["tool_w"] = lerpf(float(r.get("tool_w", 0.0)), w, k)
+	if w <= 0.001:
+		return
+	var dir: Vector3 = (t.dir as Vector3).normalized()
+	var edge: Vector3 = t.edge as Vector3
+	edge = (edge - dir * edge.dot(dir)).normalized()
+	r["tool_dir"] = dir
+	r["tool_edge"] = edge
+	var end_m: Vector3 = t.end
+	var hand_r: Vector3 = end_m + dir * (float(t.slide) - KnightMoves.TOOL_LEFT_GRIP.z)
+	_arm_to_grip(r, p, "l", end_m, dir, KnightMoves.TOOL_POLE_L, w)
+	_arm_to_grip(r, p, "r", hand_r, dir, KnightMoves.TOOL_POLE_R, w)
+
+
+## Braço inteiro a partir do cabo: a mão `side` vai para `target_m` e, como o modelo não tem junta de pulso (o punho
+## fecha no eixo Z do antebraço, polegar em +Z), o giro do cotovelo em volta da linha ombro-mão é escolhido para
+## o punho ficar o mais alinhado possível com o cabo (`axis_m`, apontando para a cabeça da ferramenta). O polegar
+## aponta para o lado de dentro da dobra do cotovelo, então o cotovelo acaba apontando para o lado oposto ao da
+## cabeça da ferramenta, como numa pegada de verdade; `pole_m` (para fora e para baixo) só desempata. O pulso
+## (_tool_wrists) tira o pouco que sobrar girando a malha da mão. Tudo no espaço do modelo.
+const GRIP_SWIVEL_STEPS := 20
+const GRIP_POLE_WEIGHT := 0.12   ## peso do cotovelo natural contra o alinhamento do punho
+static func _arm_to_grip(r: Dictionary, p: Dictionary, side: String, target_m: Vector3, axis_m: Vector3,
+		pole_m: Vector3, w: float) -> void:
+	if w <= 0.0:
+		return
+	var g := grip_solve(r, side, target_m, axis_m, pole_m)
+	if g.is_empty():
+		return
+	var sol: Array = g.sol
+	var cur: Vector3 = p["arm_" + side]
+	var e: Vector3 = sol[0]
+	e = Vector3(cur.x + wrapf(e.x - cur.x, -PI, PI), cur.y + wrapf(e.y - cur.y, -PI, PI), cur.z + wrapf(e.z - cur.z, -PI, PI))
+	p["arm_" + side] = cur.lerp(e, w)
+	p["elbow_" + side] = lerpf(p["elbow_" + side], sol[1], w)
+
+
+## A melhor pose do braço `side` para segurar o cabo em `target_m` com o punho em `axis_m` (ver _arm_to_grip), pela
+## pose atual do tronco: {"sol": [rotação do ombro, dobra do cotovelo], "turn": giro que ainda sobra para o pulso (rad),
+## "miss": quanto a mão fica longe do alvo por falta de alcance (m)}. {} se o modelo não tem cotovelo.
+## tools/weapon_pose_shot.tscn -- coleta otimiza usa isto para achar onde as mãos fecham certo em cada pose-chave.
+static func grip_solve(r: Dictionary, side: String, target_m: Vector3, axis_m: Vector3, pole_m: Vector3) -> Dictionary:
+	var arm: Node3D = r["Arm" + side.to_upper()]
+	var elbow: Node3D = r["Elbow" + side.to_upper()]
+	if arm == null or elbow == null or r.get("hand_" + side) == null:
+		return {}
+	var inv := KnightLook._chain(arm.get_parent(), r.model).affine_inverse()
+	var tgt := inv * target_m
+	var axis := (inv.basis * axis_m).normalized()
+	var pref := (inv.basis * pole_m).normalized()
+	var tn := (tgt - arm.position).normalized()
+	var a := tn.cross(Vector3.UP)
+	if a.length() < 0.05:
+		a = tn.cross(Vector3.RIGHT)
+	a = a.normalized()
+	var b := tn.cross(a).normalized()
+	var hand: Vector3 = r["hand_" + side]
+	var cost := func(ang: float) -> float:
+		var pole := a * cos(ang) + b * sin(ang)
+		var s := solve_arm(arm, elbow, hand, tgt, pole)
+		var fore := Basis.from_euler(s[0], EULER_ORDER_YXZ) * Basis(Vector3.RIGHT, s[1])
+		# o punho (eixo Z do antebraço, polegar em +Z) o mais alinhado possível com o cabo: é o giro que o pulso
+		# ainda teria de fazer. Só a perpendicularidade não basta: deixava a mão virada ao contrário (palma para fora)
+		return fore.z.angle_to(axis) + GRIP_POLE_WEIGHT * pole.angle_to(pref)
+	var best := 0.0
+	var best_c := INF
+	for i in GRIP_SWIVEL_STEPS:
+		var ang := TAU * i / GRIP_SWIVEL_STEPS
+		var c: float = cost.call(ang)
+		if c < best_c:
+			best_c = c
+			best = ang
+	var step := TAU / GRIP_SWIVEL_STEPS
+	for _i in 6:   # refina em volta do melhor: o resultado muda suave de um quadro para o outro
+		step *= 0.5
+		for cand in [best - step, best + step]:
+			var c: float = cost.call(cand)
+			if c < best_c:
+				best_c = c
+				best = cand
+	var sol := solve_arm(arm, elbow, hand, tgt, a * cos(best) + b * sin(best))
+	var ab := Basis.from_euler(sol[0], EULER_ORDER_YXZ)
+	var fore := ab * Basis(Vector3.RIGHT, sol[1])
+	var reached: Vector3 = arm.position + ab * (elbow.position + Basis(Vector3.RIGHT, sol[1]) * hand)
+	return {"sol": sol, "turn": fore.z.angle_to(axis), "miss": reached.distance_to(tgt)}
+
+
+## Pulsos da ferramenta com as duas mãos: gira a malha de cada mão em volta do centro dela para o punho fechar no
+## eixo do cabo (`dir_m`, espaço do modelo), até WRIST_MAX. `w` = peso (0 devolve as mãos ao lugar).
+const WRIST_MAX := 1.2    ## mais que isso a mão viraria ao contrário: melhor o punho um pouco torto
+static func _tool_wrists(r: Dictionary, dir_m: Vector3, w: float) -> void:
+	var model: Node3D = r.model
+	r["wrist_on"] = w > 0.0
+	for side in ["L", "R"]:
+		var fore: Node3D = r.get("Elbow" + side)
+		var c = r.get("hand_" + side.to_lower())
+		if fore == null or c == null:
+			continue
+		var local := Basis.IDENTITY
+		if w > 0.0:
+			var fb := KnightLook._chain(fore, model).basis.orthonormalized()
+			var q := Quaternion(fb.z.normalized(), dir_m.normalized())
+			r["wrist_turn_" + side] = q.get_angle()   # giro total que a mão precisaria (antes do limite)
+			if q.get_angle() > WRIST_MAX:
+				q = Quaternion(q.get_axis().normalized(), WRIST_MAX)
+			r["wrist_dev_" + side] = asin(clampf(absf(fb.y.dot(dir_m.normalized())), 0.0, 1.0))   # só a dobra
+			q = Quaternion.IDENTITY.slerp(q, clampf(w, 0.0, 1.0))
+			local = fb.inverse() * Basis(q) * fb
+		for n in fore.get_children():
+			if not (n is Node3D) or not ("Hand" in n.name):
+				continue
+			if not n.has_meta("wrist0"):
+				n.set_meta("wrist0", n.transform)
+			n.transform = Transform3D(local, (c as Vector3) - local * (c as Vector3)) * (n.get_meta("wrist0") as Transform3D)
+
+
 ## Corda e flecha do arco (depois de apply e hold_weapon_upright): a corda vai das pontas do arco até os
 ## dedos da mão da corda (com o peso do IK do arco) e a flecha sai dos dedos passando rente ao punho. O arco
 ## enverga conforme a corda é puxada.
@@ -1262,7 +1385,10 @@ static func apply(r: Dictionary, p: Dictionary, k: float) -> void:
 	r.LegR.rotation.y = lerpf(r.LegR.rotation.y, leg_yaw, f.call("leg_yaw"))
 	# arco: com tronco e cabeça no lugar, as mãos vão por IK até o arco e a corda
 	_bow_ik(r, p, f.call("arm_l"))
+	_tool_ik(r, p, f.call("arm_r"))
 	r["two_hand"] = lerpf(float(r.get("two_hand", 0.0)), float(p.get("two_hand", 0.0)), f.call("arm_l"))
+	# ferramenta de coleta: quanto a mão direita está subida no cabo, na direção da cabeça (m; ver hold_weapon_upright)
+	r["tool_slide"] = lerpf(float(r.get("tool_slide", 0.0)), float(p.get("tool_slide", 0.0)), f.call("arm_r"))
 	# pulsos: o modelo não tem pivô; o suporte da arma gira com este valor (hold_weapon_upright)
 	r["wrist_l"] = lerpf(float(r.get("wrist_l", 0.0)), p.wrist_l, f.call("wrist_l"))
 	r["wrist_r"] = lerpf(float(r.get("wrist_r", 0.0)), p.wrist_r, f.call("wrist_r"))
@@ -1308,6 +1434,8 @@ static func roll_floor(r: Dictionary) -> float:
 static func hold_weapon_upright(look: Dictionary, r: Dictionary) -> void:
 	var holder: Node3D = look.get("holder")
 	var arm: Node3D = look.get("arm")
+	if not look.get("tool", false) and r.get("wrist_on", false):
+		_tool_wrists(r, Vector3.UP, 0.0)   # guardou a ferramenta: mãos de volta ao lugar
 	if holder == null or not is_instance_valid(holder) or arm == null:
 		return
 	var bend: float = arm.rotation.x
@@ -1333,6 +1461,51 @@ static func hold_weapon_upright(look: Dictionary, r: Dictionary) -> void:
 		holder.rotation.x += to * tuck
 	if float(r.get("two_hand", 0.0)) > 0.01 and look.get("class", "") == "staff":
 		_staff_left_hand(holder, r)
+	var tw: float = r.get("tool_w", 0.0)
+	if look.get("tool", false) and tw > 0.001 and r.has("tool_dir"):
+		# conduzida pela trajetória (_tool_ik): cabo em `tool_dir` e gume em `tool_edge`. O gume do machado é +X do
+		# suporte (AXE_ROLL); o da picareta, -Y
+		var dir: Vector3 = r.tool_dir
+		var edge: Vector3 = r.tool_edge
+		var gx := edge if holder.has_meta("axe") else (-edge).cross(dir).normalized()
+		var want := Basis(gx, dir.cross(gx).normalized(), dir).orthonormalized()
+		var parent_xf := KnightLook._chain(holder.get_parent(), r.model)
+		var b := (parent_xf.basis.orthonormalized().inverse() * want).orthonormalized()
+		holder.basis = Basis(Quaternion(holder.basis.orthonormalized()).slerp(Quaternion(b), clampf(tw, 0.0, 1.0)))
+	if look.get("tool", false) and holder.has_meta("grip0"):
+		# a mão direita sobe pelo cabo (no preparo fica perto da cabeça) e desce até a esquerda no golpe: a mão
+		# fica onde está e é a ferramenta que corre no eixo do cabo
+		holder.position = (holder.get_meta("grip0") as Vector3) - holder.basis.z * float(r.get("tool_slide", 0.0))
+	if float(r.get("two_hand", 0.0)) > 0.01 and look.get("tool", false) and tw <= 0.001:
+		_staff_left_hand(holder, r, KnightMoves.TOOL_LEFT_GRIP, KnightMoves.TOOL_POLE_L)   # picareta/machado
+	if look.get("tool", false):
+		var hands_w := maxf(tw, float(r.get("two_hand", 0.0)))
+		_tool_fit_hands(holder, r, hands_w)
+		_tool_wrists(r, (KnightLook._chain(holder.get_parent(), r.model).basis * holder.basis).z, hands_w)
+
+
+## Ferramenta com as duas mãos: o IK leva as mãos perto do cabo, mas não exatamente nele (alcance, centro da mão x
+## palma). Depois dos braços postos, o cabo é girado para passar pela mão esquerda (a direita já é a origem do
+## suporte) e corre no próprio eixo até a esquerda ficar no fim dele (TOOL_LEFT_GRIP), sem perder o giro do gume.
+## `w` = peso das duas mãos.
+static func _tool_fit_hands(holder: Node3D, r: Dictionary, w: float) -> void:
+	if w <= 0.01 or r.get("hand_l") == null or not holder.has_meta("grip0"):
+		return
+	var model: Node3D = r.model
+	var parent_xf := KnightLook._chain(holder.get_parent(), model)
+	var right: Vector3 = parent_xf * (holder.get_meta("grip0") as Vector3)
+	var left: Vector3 = KnightLook._chain(r.ElbowL, model) * (r.hand_l as Vector3)
+	var span := right - left
+	if span.length() < 0.05:
+		return
+	var want_dir := span.normalized()
+	var cur := (parent_xf.basis * holder.basis).orthonormalized()   # suporte no espaço do modelo
+	var fit := Basis(Quaternion(cur.z.normalized(), want_dir)) * cur
+	var mixed := Basis(Quaternion(cur).slerp(Quaternion(fit.orthonormalized()), clampf(w, 0.0, 1.0)))
+	holder.basis = (parent_xf.basis.orthonormalized().inverse() * mixed).orthonormalized()
+	var slide := clampf(span.length() + KnightMoves.TOOL_LEFT_GRIP.z, 0.0, 0.45)
+	r["tool_slide"] = lerpf(float(r.get("tool_slide", 0.0)), slide, clampf(w, 0.0, 1.0))
+	holder.position = (holder.get_meta("grip0") as Vector3) - holder.basis.z * float(r.tool_slide)
 
 
 ## Arco: o punho fica na mão esquerda, mas a orientação vem do corpo, não do antebraço (o pulso solto).
@@ -1355,10 +1528,12 @@ static func _orient_bow(holder: Node3D, r: Dictionary, swing: float) -> void:
 
 ## Cajado com as duas mãos (golpe 3 e Chuva de Meteoros): a mão esquerda pega a vara um pouco abaixo da
 ## direita, por IK, com o peso r.two_hand (o braço sai da pose e volta a ela suavemente).
-static func _staff_left_hand(holder: Node3D, r: Dictionary) -> void:
+## `grip`/`pole`: ponto do cabo no espaço do suporte e direção do cotovelo (a ferramenta de coleta usa os seus).
+static func _staff_left_hand(holder: Node3D, r: Dictionary, grip := KnightMoves.STAFF_LEFT_GRIP,
+		pole := KnightMoves.STAFF_POLE_L) -> void:
 	var model: Node3D = r.model
-	var target: Vector3 = KnightLook._chain(holder, model) * KnightMoves.STAFF_LEFT_GRIP
-	var sol := arm_ik(r, "l", target, KnightMoves.STAFF_POLE_L)
+	var target: Vector3 = KnightLook._chain(holder, model) * grip
+	var sol := arm_ik(r, "l", target, pole)
 	if sol.is_empty():
 		return
 	var w: float = r.two_hand

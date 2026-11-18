@@ -180,6 +180,15 @@ func power_score(id: String) -> float:
 	return s
 
 
+## Linha da ferramenta de coleta: tipo, nível, força e o que a maestria faz.
+func tool_text(id: String) -> String:
+	var it := get_item(id)
+	var kind := str(it.get("tool", ""))
+	var pname := "Mineração" if kind == "pickaxe" else "Lenhador"   # sem autoload aqui (os testes compilam o ItemDB)
+	return "%s nível %d — Força %.1f [F perto do recurso] · Maestria em %s aumenta força e ritmo" % [
+		"Picareta" if kind == "pickaxe" else "Machado", int(it.get("tier", 1)), float(it.get("power", 1.0)), pname]
+
+
 func item_summary(id: String) -> String:
 	var it := get_item(id)
 	if it.is_empty():
@@ -192,6 +201,8 @@ func item_summary(id: String) -> String:
 			lines.append("%s — Defesa %d" % [SLOT_NAMES[slot_of(id)], it.get("defense", 0)])
 		"consumable":
 			lines.append("Consumível")
+		"tool":
+			lines.append(tool_text(id))
 		"material":
 			lines.append("Material de craft")
 		"scroll":

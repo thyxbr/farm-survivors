@@ -69,7 +69,7 @@ const LOW_MODELS := ["bowl", "pie", "feast", "dust", "bread"]
 ## Verdadeiro se o ícone do item sai do modelo de equipamento (arma, armadura, elmo, luvas, botas, escudo).
 static func is_gear(item: Dictionary) -> bool:
 	match item.get("type", ""):
-		"weapon", "armor":
+		"weapon", "armor", "tool":
 			return true
 		"gear":
 			var slot: String = item.get("slot", "")

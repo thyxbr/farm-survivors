@@ -44,7 +44,7 @@ var recipes: Array = []
 var food_buffs := {}
 
 
-## Personagem novo: sem equipamento, só consumíveis e sementes.
+## Personagem novo: sem equipamento, só consumíveis, sementes e as ferramentas de coleta de pedra.
 static func new_character(bt: BalanceTables) -> CharState:
 	var s := CharState.new()
 	s.gold = 25
@@ -52,7 +52,9 @@ static func new_character(bt: BalanceTables) -> CharState:
 	s.equipment = CharRules.empty_equipment()
 	s.farm = CharRules.default_farm(bt)
 	s.flags["prog_v"] = CharRules.PROG_VERSION   # já nasce na progressão por nível: nada a migrar
-	for e in [["health_potion", 3], ["mana_potion", 1], ["seed_carrot", 4], ["seed_wheat", 4], ["bread", 1]]:
+	s.flags["tools_v"] = true                    # e com as ferramentas de pedra (abaixo)
+	for e in [["health_potion", 3], ["mana_potion", 1], ["seed_carrot", 4], ["seed_wheat", 4], ["bread", 1],
+			["pickaxe_stone", 1], ["axe_stone", 1]]:
 		CharRules.add_item(s, bt, e[0], e[1])
 	s.hp = CharRules.base_max_hp(s, bt)
 	s.mp = CharRules.base_max_mp(s, bt)
