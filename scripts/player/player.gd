@@ -1888,8 +1888,54 @@ func _vfx_setup() -> void:
 				vfx_ability_auras[st] = true
 		elif a == "--vfxwalk":
 			_vfx_walk_demo()
+		elif a.begins_with("--rundemo"):   # capturas da corrida: `--rundemo` anda reto, `--rundemo=sprint` corre
+			_run_demo(a.ends_with("=sprint"))
 		elif a == "--aimdemo":   # capturas da mira do arco: segura o botão direito
 			Input.action_press.call_deferred("aim")
+
+
+## `--rundemo[=sprint]`: anda (ou corre) em linha reta sozinho e imprime a inclinação do tronco no mundo, para
+## conferir a marcha no jogo de verdade. Com `--runshots=<arquivo.png>` salva uma tira de 8 quadros de uma
+## passada, recortados em volta do personagem na câmera do jogo, e fecha.
+func _run_demo(sprint: bool) -> void:
+	await get_tree().create_timer(1.0).timeout
+	Input.action_press("move_forward")
+	if sprint:
+		Input.action_press("sprint")
+	var out := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--runshots="):
+			out = a.substr(11)
+	await get_tree().create_timer(0.9).timeout
+	var chest: Node3D = parts.get("Chest")
+	print("rundemo: vel %.1f m/s | quadril %.1f° | peito %.1f° | cabeça %.1f°" % [
+		Vector2(velocity.x, velocity.z).length(),
+		rad_to_deg(parts.Body.global_basis.get_euler().x - model.global_basis.get_euler().x),
+		rad_to_deg(chest.global_basis.get_euler().x) if chest else 0.0,
+		rad_to_deg(parts.Head.global_basis.get_euler().x)])
+	if out == "":
+		return
+	const N := 8
+	const W := 300
+	const H := 380
+	var strip := Image.create(W * N, H, false, Image.FORMAT_RGBA8)
+	var last := anim_t
+	var done := 0.0     # fase andada desde o começo da captura (anim_t pode dar a volta)
+	for i in N:
+		while done < TAU * i / N:   # um quadro a cada oitavo da passada
+			await get_tree().process_frame
+			done += absf(wrapf(anim_t - last, -PI, PI))
+			last = anim_t
+		await RenderingServer.frame_post_draw
+		var img := get_viewport().get_texture().get_image()
+		img.convert(Image.FORMAT_RGBA8)
+		var c := get_viewport().get_camera_3d().unproject_position(global_position + Vector3.UP * 0.9)
+		c *= Vector2(img.get_size()) / get_viewport().get_visible_rect().size   # a imagem pode ter outra escala
+		var rect := Rect2i(int(c.x) - W / 2, int(c.y) - H / 2, W, H).intersection(Rect2i(Vector2i.ZERO, img.get_size()))
+		strip.blit_rect(img, rect, Vector2i(W * i, 0))
+	strip.save_png(out)
+	print("RUNSHOTS ", out)
+	get_tree().quit()
 
 
 ## `--vfxwalk`: anda em zigue-zague, pula e ataca sozinho (para gravar os efeitos em movimento).
