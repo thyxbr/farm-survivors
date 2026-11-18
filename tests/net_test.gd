@@ -1153,6 +1153,14 @@ func _test_character_select() -> void:
 			check(entered and Game.char_class == "archer", "entrou no jogo com o herói escolhido (%s)" % Game.char_class)
 			check(int(Network.players.get(me, {}).get("char", 0)) == keep, "servidor associou o personagem ao jogador")
 			check(Network.my_name == sel_name + "Arq", "no jogo aparece o nome do herói, não o da conta (%s)" % Network.my_name)
+			# "Trocar de personagem": reconecta com o mesmo token e volta para a seleção, sem login
+			lists.clear()
+			check(Network.rejoin(), "trocar de personagem: reconecta com o token da sessão")
+			var back: bool = await _wait_until(func() -> bool: return not lists.is_empty(), 10.0)
+			check(back and join_error == "", "trocar de personagem: a lista da conta chega de novo (%s)" % join_error)
+			if back:
+				check(not Network.players.has(multiplayer.get_unique_id()), "trocar de personagem: fora do jogo até escolher")
+				check(lists[-1][0].size() == 1 and int(lists[-1][0][0].id) == keep, "trocar de personagem: o herói continua na conta")
 	Network.char_list_changed.disconnect(on_list)
 	Game.skip_auto_class = false
 	Game.go_to_menu()   # sai do servidor e fecha o mundo dessa conta antes da conta principal entrar

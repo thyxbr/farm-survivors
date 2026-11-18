@@ -218,6 +218,8 @@ func item_summary(id: String) -> String:
 		lines.append(FX_NAMES[it.fx])
 	if it.has("quality"):
 		lines.append("Qualidade: %s" % ItemQuality.NAMES.get(it.quality, it.quality))
+	if it.has("affix"):
+		lines.append("Bônus de ofício: %s (já somado)" % format_stat(str(it.affix_stat), float(it.affix_value)))
 	lines.append(it.desc)
 	lines.append("Valor: %d ouro" % it.price)
 	return "\n".join(lines)

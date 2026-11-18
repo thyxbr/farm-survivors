@@ -88,9 +88,9 @@ func test_give_item_only_in_admin_mode() -> void:
 
 func test_admin_equips_above_level() -> void:
 	var svc := _svc()
+	T.ok(svc.load_or_create(2).level < CharRules.item_level(_tables(), "archmage_robe"), "personagem abaixo do nível do manto")
 	T.ok(svc.set_admin(2, true, true).ok, "ligou")
 	T.ok(svc.admin_give(2, "archmage_robe", 2).ok, "deu dois mantos")
-	T.ok(svc.load_or_create(2).level < CharRules.item_level(_tables(), "archmage_robe"), "personagem abaixo do nível do manto")
 	var r := svc.apply(2, "equip", ["archmage_robe"])
 	T.ok(r.ok, "admin veste acima do nível: %s" % r.err)
 	T.ok(svc.apply(2, "unequip", ["armor"]).ok, "tirou")
@@ -112,3 +112,71 @@ func test_service_refills_after_each_op() -> void:
 	T.ok(r.state.flags.get("admin") is Dictionary, "flag no estado do cliente")
 	r = svc.set_admin(2, false, true)
 	T.ok(r.ok and not r.state.flags.has("admin"), "desligou")
+
+
+func test_on_maxes_level_and_off_restores() -> void:
+	var bt := _tables()
+	var s := CharState.new_character(bt)
+	CharRules.choose_class(s, bt, "warrior", "m")
+	var ev := []
+	CharRules._add_xp(s, bt, CharRules.xp_to_next(1, bt) + CharRules.xp_to_next(2, bt) + 7, ev)
+	T.eq(s.level, 3, "começa no nível 3")
+	CraftRules.gain(s, bt, "farming", 500, 1)
+	var farm_lv := CraftRules.level(s, "farming")
+	T.ok(farm_lv > 1 and farm_lv < CraftRules.max_level(bt), "Fazenda no meio do caminho")
+	var scroll := ""
+	for rid in bt.get_table("recipes"):
+		if str(bt.get_table("recipes")[rid].get("learn", "npc")) == "scroll":
+			scroll = str(rid)
+			break
+	T.ok(scroll != "" and not CraftRules.knows(s, bt, scroll), "receita de pergaminho desconhecida antes")
+	var top_rank := str(CharRules.ranks(bt)[-1].id)
+	T.ok(not CharRules.rank_at_least(s, bt, top_rank), "sem o rank mais alto antes")
+	T.ok(CharRules.spend_point(s, bt, "str").ok, "gastou um ponto antes")
+	var tid := str(CharRules.talent_defs(bt, s.char_class)[0].id)
+	T.ok(CharRules.learn_talent(s, bt, tid).ok, "aprendeu um talento antes")
+	var before := s.to_dict()
+	var top := ProgressionRules.max_level(bt)
+	var pts := int(CharRules._rules(bt).get("points_per_level", 3))
+	var r := AdminRules.set_on(s, bt, true)
+	T.ok(r.ok, "ligou")
+	T.eq(s.level, top, "nível máximo")
+	T.eq(s.xp, 0, "XP zerado no nível máximo")
+	T.eq(s.stat_points, int(before.stat_points) + (top - 3) * pts, "pontos de atributo dos níveis pulados")
+	T.eq(CharRules.talent_points(s, bt), top - 2, "pontos de talento do nível máximo")
+	var leveled := false
+	for e in r.events:
+		leveled = leveled or e.get("t", "") == "level_up"
+	T.ok(leveled, "avisa a subida de nível")
+	for prof in CraftRules.professions(bt):
+		T.eq(CraftRules.level(s, prof), CraftRules.max_level(bt), "%s no máximo" % prof)
+	T.ok(CraftRules.knows(s, bt, scroll), "conhece receita de pergaminho no admin")
+	T.ok(CharRules.rank_at_least(s, bt, top_rank), "qualquer rank serve no admin")
+	# gasta no nível máximo e passa pelo save (o JSON devolve os números como float)
+	T.ok(CharRules.spend_point(s, bt, "vit").ok, "gastou ponto no admin")
+	CharRules.learn_talent(s, bt, tid)
+	s = CharState.from_dict(JSON.parse_string(JSON.stringify(s.to_dict())), bt)
+	T.eq(s.level, top, "continua no máximo depois de recarregar")
+	T.ok(AdminRules.set_on(s, bt, false).ok, "desligou")
+	T.eq(s.level, 3, "nível de volta")
+	T.eq(s.xp, int(before.xp), "XP de volta")
+	T.eq(s.stat_points, int(before.stat_points), "pontos de volta")
+	T.eq(s.attributes, before.attributes, "atributos de volta")
+	T.eq(s.talents, before.talents, "talentos de volta")
+	T.eq(s.professions, before.professions, "profissões de volta")
+	T.eq(CharRules.rank_of(s), "D", "rank não mudou")
+	T.ok(not CraftRules.knows(s, bt, scroll), "receita de pergaminho desconhecida de novo")
+	T.ok(not CharRules.rank_at_least(s, bt, top_rank), "rank volta a valer")
+
+
+func test_old_admin_flag_gets_max_level_and_restores() -> void:
+	var bt := _tables()
+	var s := CharState.new_character(bt)
+	CharRules.choose_class(s, bt, "warrior", "m")
+	s.flags[AdminRules.FLAG] = {"gold": 5, "ecos": 1, "items": {}}   # ligado antes do nível máximo
+	T.ok(AdminRules.top_up(s, bt), "primeira reposição sobe o nível")
+	T.eq(s.level, ProgressionRules.max_level(bt), "nível máximo")
+	T.ok(AdminRules.set_on(s, bt, false).ok, "desligou")
+	T.eq(s.level, 1, "nível de volta")
+	T.eq(s.stat_points, 0, "pontos de volta")
+	T.eq(s.gold, 5, "ouro de volta")

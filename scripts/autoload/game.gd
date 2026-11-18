@@ -27,7 +27,7 @@ const CHAR_CREATE_SCENE := "res://scenes/char_create.tscn"
 
 var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "music_volume": 0.45, "sfx_volume": 0.9,
 	"ambience_volume": 0.7, "fullscreen": false, "invert_y": false,
-	"player_name": "", "server_address": "", "toon": true, "toon_outline": true}
+	"player_name": "", "server_address": "", "keep_logged": true, "toon": true, "toon_outline": true}
 
 # ---- espelho do personagem (escrito só por apply_state)
 var level := 1
@@ -144,6 +144,11 @@ func _debug_screenshot() -> void:
 	# com `--ui=enchant` abre o painel; com `--enchantstrike` o Doran dá o golpe de encanto na hora da captura
 	if "--enchantdemo" in args:
 		Econ.grant(600, 0, {"iron_ore": 30, "arcane_crystal": 3, "ember_core": 14, "frost_drop": 5}, "demo", true)
+		# com `--weapon=`, a arma pedida entra antes: o encanto é por arma e vale para a que está na mão
+		for a in args:
+			if a.begins_with("--weapon=") and count_item(a.substr(9)) == 0 and equipment.weapon != a.substr(9):
+				Econ.grant(0, 0, {a.substr(9): 1}, "demo", true)
+				equip(a.substr(9))
 		Econ.request("enchant", ["fogo"])
 		Econ.request("enchant", ["fogo"])
 		# `--enchantrich`: material de sobra para subir até +5 e trocar de elemento à vontade no Doran
@@ -151,6 +156,15 @@ func _debug_screenshot() -> void:
 			Econ.grant(6000, 0, {"iron_ore": 90, "arcane_crystal": 40, "champion_badge": 3, "ember_core": 40,
 				"frost_drop": 40, "thunder_totem": 40, "toxic_gland": 40, "golden_dust": 40, "shadow_fang": 40}, "demo", true)
 			Econ.demo_ecos(120)
+			# `--enchant-as=raio,4` (com --enchantrich): troca o encanto da arma para esse elemento e nível
+			for a in args:
+				if a.begins_with("--enchant-as="):
+					var want := a.substr(13).split(",")
+					for i in 8:
+						var cur := weapon_enchant()
+						if cur.el == want[0] and cur.lv >= int(want[1]):
+							break
+						Econ.request("enchant", [want[0]])
 	if "--enchantstrike" in args:
 		get_tree().create_timer(maxf(delay - 0.15, 0.1)).timeout.connect(func() -> void:
 			for n in get_tree().get_nodes_in_group("interactable"):
@@ -205,7 +219,7 @@ func _debug_screenshot() -> void:
 		quests = {"slimes": {"state": "done", "progress": 5}, "goblins": {"state": "active", "progress": 2}}
 		hp = max_hp() * 0.62
 	for a in args:
-		if a.begins_with("--weapon="):
+		if a.begins_with("--weapon=") and equipment.weapon != a.substr(9):
 			Econ.grant(0, 0, {a.substr(9): 1}, "demo", true)
 			equip(a.substr(9))
 		# `--equip=id,id,...` veste peças (capturas de armaduras; com `--body=f`, do corpo feminino);
@@ -259,6 +273,8 @@ func _debug_screenshot() -> void:
 						for n in get_tree().get_nodes_in_group("interactable"):
 							if n.get("npc_id") == "blacksmith":
 								w.open_enchant(n)
+					"craft", "craft:forge", "craft:leather", "craft:alchemy":
+						_craft_demo(w, a.substr(5).get_slice(":", 1) if ":" in a else "forge", args)
 				# `--tip=<n>` (com --ui=inv): abre a dica do espaço n da mochila, presa ao lado dele, para a captura
 				for t in args:
 					if t.begins_with("--tip=") and w.modal and w.modal.get("bag_slots") != null:
@@ -407,6 +423,25 @@ func go_to_menu() -> void:
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	Loading.go(MENU_SCENE)
+
+
+## Online: volta à seleção de personagem sem passar pelo menu nem pelo login (salva, reconecta com o
+## mesmo token e a fogueira abre com a lista que o servidor mandar). Fora do online vai ao menu.
+func go_to_char_select() -> void:
+	if not Network.is_client():
+		go_to_menu()
+		return
+	Network.autosave()
+	reset_run_mods()
+	get_tree().paused = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if not Network.rejoin():
+		Network.last_error = "Não deu para voltar à seleção de personagem. Entre de novo."
+		Loading.go(MENU_SCENE)
+		return
+	# a seleção abre vazia sob a tela de carregamento; a lista chega em seguida (char_list_changed).
+	# Se a conexão falhar, a própria seleção volta ao menu com o aviso (char_select._on_lost).
+	Loading.go(Network.CHAR_SELECT_SCENE)
 
 
 # ---------------------------------------------------------------- bônus da horda
@@ -1152,6 +1187,38 @@ static func harness_class(args: PackedStringArray) -> Array:
 	if cls == "" and harness:
 		cls = "warrior"
 	return [cls, bd]
+
+
+## `--ui=craft[:forge|leather|alchemy]` abre a bancada com materiais e a profissão no nível de `--prof=N`
+## (só o espelho: serve para capturas da tela). `--recipe=<id>` escolhe a receita; `--craftanim=work|ok|fail`
+## mostra a animação nessa fase, com um desfecho de mentira.
+func _craft_demo(w: Node, station: String, args: PackedStringArray) -> void:
+	Econ.grant(900, 0, {"iron_ore": 14, "oak_log": 3, "essence_t2": 5, "copper_ore": 9, "pine_log": 4, "essence_t1": 6,
+		"silver_ore": 6, "silverbirch_log": 1, "essence_t3": 2, "hide_t1": 8, "hide_t2": 5, "mint": 3, "slime_gel": 4}, "demo", true)
+	var prof := str(Balance.tables.get_table("professions").get("stations", {}).get(station, {}).get("prof", ""))
+	var rid := ""
+	var fx := ""
+	for a in args:
+		if a.begins_with("--prof="):
+			professions[prof] = {"lv": int(a.substr(7)), "xp": 40, "done": []}
+		elif a.begins_with("--recipe="):
+			rid = a.substr(9)
+		elif a.begins_with("--craftanim="):
+			fx = a.substr(12)
+	w.open_crafting(station)
+	var ui := w.modal as CraftingUI
+	if ui == null:
+		return
+	if rid != "":
+		ui._select(rid)
+		ui._scroll_to_selected.call_deferred()
+	if fx != "":
+		var out: String = ui._out(ui._sel)
+		ui.anim.start(out, station)
+		if fx == "ok":
+			ui.anim.resolve([[ItemQuality.make(out, "fina", "aguia" if CraftRules.has_affix(Balance.tables, ui._sel) else ""), 1]], 0, {})
+		elif fx == "fail":
+			ui.anim.resolve([], 1, {"iron_ore": 3, "essence_t2": 1})
 
 
 # ================================================================ espelho

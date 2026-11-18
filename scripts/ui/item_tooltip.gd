@@ -145,6 +145,8 @@ static func build_text(id: String, context := "bag", paper := false) -> String:
 		for k in ItemDB.STAT_ORDER:
 			if st.has(k):
 				t += "[color=#%s]%s[/color]\n" % [_hex(pal.stat), ItemDB.format_stat(k, float(st[k]))]
+		if it.has("affix"):   # bônus sorteado no craft (já somado nos atributos acima)
+			t += "[color=#%s]✦ Bônus de ofício: %s[/color]\n" % [_hex(pal.fx), ItemDB.format_stat(str(it.affix_stat), float(it.affix_value))]
 		if it.has("fx"):
 			t += "[color=#%s]✦ %s[/color]\n" % [_hex(pal.fx), ItemDB.FX_NAMES[it.fx]]
 		if it.has("needs"):

@@ -583,7 +583,7 @@ func summon_minions(pos: Vector3, n: int, kind := "goblin", level := 0) -> void:
 func _check_boss() -> void:
 	if Game.quest_state("goblin_king") == "active" and not Game.flags.get("king_dead", false):
 		if Network.is_client():
-			if boss == null or not is_instance_valid(boss) or boss.dead:
+			if not _king_alive():
 				Network.request_boss()   # o servidor cria (se ainda não existir) e todos veem
 			return
 		if boss == null or not is_instance_valid(boss):
@@ -595,19 +595,40 @@ func _check_boss() -> void:
 			hud.boss = boss
 
 
-## Servidor: o rei aparece quando algum jogador está com a missão ativa.
+## Há um Rei Goblin vivo no mundo aberto? (no cliente ele é um boneco do servidor, fora de `boss`)
+func _king_alive() -> bool:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e is Enemy and e.kind == "goblin_king" and not e.dead and not e.chief and not e.horde:
+			return true
+	return false
+
+
+## Servidor: o rei aparece quando algum jogador está com a missão ativa. Quem ainda tem a missão e não
+## participou do abate (outro jogador matou antes) pede de novo e ele volta BOSS_RESPAWN s depois.
+const BOSS_RESPAWN := 20.0
+const BOSS_RECHECK := 4.0
+var _boss_wait := 0.0
+var _boss_check := BOSS_RECHECK
+
+
 func server_spawn_boss() -> void:
-	if boss != null and is_instance_valid(boss) and not boss.dead:
+	if (boss != null and is_instance_valid(boss) and not boss.dead) or _boss_wait > 0.0:
 		return
 	boss = ENEMY.new()
 	boss.kind = "goblin_king"
 	boss.level = ProgressionRules.enemy_level(Balance.tables, "goblin_king", 0)
 	boss.position = RUINS + Vector3.UP * 0.3
 	add_child(boss)
+	boss.died.connect(func(_e: Enemy) -> void: _boss_wait = BOSS_RESPAWN)
 
 
 func _process(delta: float) -> void:
 	_t += delta
+	_boss_wait = maxf(_boss_wait - delta, 0.0)
+	_boss_check -= delta
+	if _boss_check <= 0.0:   # antes só conferia ao mudar de missão: rei morto por outro jogador não voltava
+		_boss_check = BOSS_RECHECK
+		_check_boss()
 	_boss_scan -= delta
 	if _boss_scan <= 0.0 and hud != null and player != null:
 		_boss_scan = 0.5

@@ -51,7 +51,7 @@ static func roll(bt: BalanceTables, kind: String, rng: RandomNumberGenerator, ch
 
 ## Equipamento que pode cair de monstro: nem nomeado (chefe), nem só de craft, nem variante de qualidade.
 static func droppable(item: Dictionary, id: String) -> bool:
-	return not item.get("named", false) and not item.get("craft", false) and ItemQuality.quality(id) == ""
+	return not item.get("named", false) and not item.get("craft", false) and ItemQuality.base(id) == id
 
 
 ## Equipamentos que um monstro de `level` pode deixar: equipáveis não nomeados com nível de item em

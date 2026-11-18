@@ -313,7 +313,7 @@ static func _burst_dir() -> Vector3:
 
 
 ## O chão em volta de `pos`: posição no chão e base inclinada como o terreno (Y = normal), medidas com
-## cinco raios para baixo (centro e quatro pontos a `reach` metros). Sem chão por baixo (ou fora de cena
+## nove raios para baixo (centro e oito pontos a `reach` metros). Sem chão por baixo (ou fora de cena
 ## com física), devolve `pos` e a base reta. Os desenhos de área usam isto para deitar no terreno.
 static func ground_frame(pos: Vector3, reach: float) -> Transform3D:
 	var root := FX._scene() as Node3D
@@ -323,18 +323,13 @@ static func ground_frame(pos: Vector3, reach: float) -> Transform3D:
 	if space == null:
 		return Transform3D(Basis.IDENTITY, pos)
 	var pts: Array = []
-	for off in [Vector3.ZERO, Vector3(reach, 0, 0), Vector3(-reach, 0, 0), Vector3(0, 0, reach), Vector3(0, 0, -reach)]:
+	for i in 9:
+		var off := Vector3.ZERO if i == 0 else Vector3(cos(i * TAU / 8.0), 0, sin(i * TAU / 8.0)) * reach
 		var q := PhysicsRayQueryParameters3D.create(pos + off + Vector3.UP * 6.0, pos + off - Vector3.UP * 8.0, 1)
 		var hit := space.intersect_ray(q)
-		if hit.is_empty():
-			return Transform3D(Basis.IDENTITY, pos)
-		pts.append(hit.position)
-	var x: Vector3 = ((pts[1] as Vector3) - (pts[2] as Vector3)).normalized()
-	var z: Vector3 = ((pts[3] as Vector3) - (pts[4] as Vector3)).normalized()
-	var y := z.cross(x).normalized()
-	if y.y < 0.5:      # parede ou degrau: não deita
-		return Transform3D(Basis.IDENTITY, pts[0])
-	return Transform3D(Basis(x, y, x.cross(y).normalized()), pts[0])
+		if not hit.is_empty():
+			pts.append(hit.position)
+	return GroundFit.fit(pts, pos)
 
 
 ## Desenho de chão com o shader `shader` (fx_frost_sigil, fx_rune_circle), centrado em `pos`, até `radius`:
