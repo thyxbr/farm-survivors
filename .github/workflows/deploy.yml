@@ -137,7 +137,7 @@ jobs:
     name: Exportar cliente Windows
     needs: test
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 90   # inclui a espera pela aprovação manual da assinatura
     env:
       GH_TOKEN: ${{ github.token }}
     outputs:
@@ -223,6 +223,41 @@ jobs:
             exit 1
           fi
 
+      # Assinatura digital (SignPath Foundation): sem ela o Controle Inteligente de Aplicativos do
+      # Windows 11 barra o exe. Só roda quando a variável SIGNPATH_ORGANIZATION_ID existe no repositório
+      # (Settings → Secrets and variables → Actions → Variables); sem ela o exe segue sem assinatura,
+      # como antes. O SignPath busca o artefato enviado abaixo (um zip com o exe na raiz), assina e
+      # devolve em build-assinado/. Cada pedido precisa de aprovação manual no painel do SignPath:
+      # o passo espera até 1 hora por ela.
+      - name: Guardar o exe sem assinatura
+        if: steps.ver.outputs.skip == 'false'
+        id: unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: cliente-windows-sem-assinatura
+          path: build/EcosDeValdoria.exe
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Assinar (SignPath)
+        if: steps.ver.outputs.skip == 'false' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: build-assinado
+
+      - name: Trocar pelo exe assinado
+        if: steps.ver.outputs.skip == 'false' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        run: |
+          test -s build-assinado/EcosDeValdoria.exe || { echo "::error::O SignPath não devolveu o exe assinado"; ls -la build-assinado || true; exit 1; }
+          mv -f build-assinado/EcosDeValdoria.exe build/EcosDeValdoria.exe
+
       - name: Guardar o exe exportado
         if: steps.ver.outputs.skip == 'false'
         uses: actions/upload-artifact@v4
@@ -247,6 +282,15 @@ jobs:
         with:
           name: cliente-windows
           path: build
+
+      # com a assinatura ligada, o exe que vai para a release tem que chegar aqui com assinatura válida
+      - name: Conferir a assinatura
+        if: needs.export.outputs.skip == 'false' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        shell: pwsh
+        run: |
+          $sig = Get-AuthenticodeSignature build/EcosDeValdoria.exe
+          "Assinatura: $($sig.Status) - $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid') { Write-Host "::error::O exe não tem assinatura válida: $($sig.StatusMessage)"; exit 1 }
 
       - name: Ligar sem tela
         if: needs.export.outputs.skip == 'false'

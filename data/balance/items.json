@@ -878,6 +878,75 @@
 		},
 		"desc": "Marinho e ouro. As runas da estola acendem quando o mago respira fundo."
 	},
+	"sage_robe": {
+		"name": "Manto do Sábio Celeste",
+		"type": "armor",
+		"rarity": "epic",
+		"level": 38,
+		"defense": 5,
+		"price": 650,
+		"stats": {
+			"int": 6,
+			"mp": 70
+		},
+		"style": "a_sage",
+		"pants": {
+			"$c": [0.14, 0.16, 0.3, 1.0]
+		},
+		"desc": "Branco e ouro sobre azul-marinho. O sol bordado nas costas nunca se põe."
+	},
+	"void_robe": {
+		"name": "Manto do Vazio",
+		"type": "armor",
+		"rarity": "epic",
+		"level": 41,
+		"defense": 6,
+		"price": 700,
+		"stats": {
+			"int": 9,
+			"mp": 40
+		},
+		"style": "a_void",
+		"pants": {
+			"$c": [0.07, 0.07, 0.1, 1.0]
+		},
+		"desc": "Negro como o céu sem lua. As runas azuis respiram no escuro."
+	},
+	"oracle_robe": {
+		"name": "Manto do Oráculo",
+		"type": "armor",
+		"rarity": "epic",
+		"level": 36,
+		"defense": 5,
+		"price": 620,
+		"stats": {
+			"int": 5,
+			"mp": 60,
+			"vit": 2
+		},
+		"style": "a_oracle",
+		"pants": {
+			"$c": [0.1, 0.1, 0.14, 1.0]
+		},
+		"desc": "Cinza-violeta com frisos de prata, em três camadas sobre os ombros."
+	},
+	"ember_robe": {
+		"name": "Manto das Runas de Brasa",
+		"type": "armor",
+		"rarity": "epic",
+		"level": 44,
+		"defense": 6,
+		"price": 750,
+		"stats": {
+			"int": 10,
+			"mp": 30
+		},
+		"style": "a_ember",
+		"pants": {
+			"$c": [0.1, 0.1, 0.12, 1.0]
+		},
+		"desc": "Carvão por fora, brasa nas runas. As mangas guardam o calor da última conjuração."
+	},
 	"ranger_vest": {
 		"name": "Gibão do Patrulheiro",
 		"type": "armor",
@@ -1051,6 +1120,67 @@
 		},
 		"style": "h_archmage",
 		"desc": "Feltro mole, lua de ouro e uma estrela que balança na aba."
+	},
+	"sage_hat": {
+		"name": "Chapéu do Sábio Celeste",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "epic",
+		"level": 38,
+		"defense": 2,
+		"price": 520,
+		"stats": {
+			"int": 4,
+			"mp": 45
+		},
+		"style": "h_sage",
+		"desc": "Feltro azul-marinho com um sol de ouro na copa."
+	},
+	"void_hood": {
+		"name": "Capuz do Vazio",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "epic",
+		"level": 41,
+		"defense": 2,
+		"price": 560,
+		"stats": {
+			"int": 6,
+			"mp": 25
+		},
+		"style": "h_void",
+		"desc": "Só os olhos aparecem, e nem sempre."
+	},
+	"oracle_hood": {
+		"name": "Capuz do Oráculo",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "epic",
+		"level": 36,
+		"defense": 2,
+		"price": 500,
+		"stats": {
+			"int": 4,
+			"mp": 35,
+			"vit": 1
+		},
+		"style": "h_oracle",
+		"desc": "Uma gema clara na testa, para ver o que ainda não aconteceu."
+	},
+	"ember_hood": {
+		"name": "Capuz das Runas de Brasa",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "epic",
+		"level": 44,
+		"defense": 2,
+		"price": 600,
+		"stats": {
+			"int": 7,
+			"mp": 20
+		},
+		"style": "h_ember",
+		"desc": "A runa da testa acende quando o mago se zanga."
 	},
 	"ranger_hood": {
 		"name": "Capuz do Patrulheiro",
