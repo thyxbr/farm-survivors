@@ -144,6 +144,11 @@ func _debug_screenshot() -> void:
 	# com `--ui=enchant` abre o painel; com `--enchantstrike` o Doran dá o golpe de encanto na hora da captura
 	if "--enchantdemo" in args:
 		Econ.grant(600, 0, {"iron_ore": 30, "arcane_crystal": 3, "ember_core": 14, "frost_drop": 5}, "demo", true)
+		# com `--weapon=`, a arma pedida entra antes: o encanto é por arma e vale para a que está na mão
+		for a in args:
+			if a.begins_with("--weapon=") and count_item(a.substr(9)) == 0 and equipment.weapon != a.substr(9):
+				Econ.grant(0, 0, {a.substr(9): 1}, "demo", true)
+				equip(a.substr(9))
 		Econ.request("enchant", ["fogo"])
 		Econ.request("enchant", ["fogo"])
 		# `--enchantrich`: material de sobra para subir até +5 e trocar de elemento à vontade no Doran
@@ -151,6 +156,15 @@ func _debug_screenshot() -> void:
 			Econ.grant(6000, 0, {"iron_ore": 90, "arcane_crystal": 40, "champion_badge": 3, "ember_core": 40,
 				"frost_drop": 40, "thunder_totem": 40, "toxic_gland": 40, "golden_dust": 40, "shadow_fang": 40}, "demo", true)
 			Econ.demo_ecos(120)
+			# `--enchant-as=raio,4` (com --enchantrich): troca o encanto da arma para esse elemento e nível
+			for a in args:
+				if a.begins_with("--enchant-as="):
+					var want := a.substr(13).split(",")
+					for i in 8:
+						var cur := weapon_enchant()
+						if cur.el == want[0] and cur.lv >= int(want[1]):
+							break
+						Econ.request("enchant", [want[0]])
 	if "--enchantstrike" in args:
 		get_tree().create_timer(maxf(delay - 0.15, 0.1)).timeout.connect(func() -> void:
 			for n in get_tree().get_nodes_in_group("interactable"):
@@ -205,7 +219,7 @@ func _debug_screenshot() -> void:
 		quests = {"slimes": {"state": "done", "progress": 5}, "goblins": {"state": "active", "progress": 2}}
 		hp = max_hp() * 0.62
 	for a in args:
-		if a.begins_with("--weapon="):
+		if a.begins_with("--weapon=") and equipment.weapon != a.substr(9):
 			Econ.grant(0, 0, {a.substr(9): 1}, "demo", true)
 			equip(a.substr(9))
 		# `--equip=id,id,...` veste peças (capturas de armaduras; com `--body=f`, do corpo feminino);

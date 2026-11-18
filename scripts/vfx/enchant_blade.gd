@@ -16,12 +16,13 @@ extends Node3D
 
 const STEP_FPS := 12.0         ## "quadros desenhados" por segundo (o tremor das formas)
 const GRIP := 0.22             ## fração do comprimento, a partir do cabo, que fica sem efeito
+const SIZE := 1.25             ## escala geral das formas (na câmera do jogo 1 px vale cerca de 1 cm)
 const LIFT := 0.004            ## cada tom fica este tanto (m) mais perto da câmera que o de trás
 
 const PALS := {
 	"fogo": FXToon.FIRE,
 	"gelo": FXToon.ICE,
-	"raio": {"core": Color(1.0, 1.0, 1.0), "mid": Color(0.8, 0.72, 1.0), "edge": Color(0.38, 0.2, 0.92)},
+	"raio": {"core": Color(1.0, 1.0, 1.0), "mid": Color(0.66, 0.56, 1.0), "edge": Color(0.2, 0.08, 0.6)},
 	"veneno": {"core": Color(0.88, 1.0, 0.55), "mid": Color(0.42, 0.88, 0.2), "edge": Color(0.08, 0.38, 0.14)},
 	"sagrado": {"core": Color(1.0, 1.0, 0.92), "mid": Color(1.0, 0.86, 0.4), "edge": Color(0.9, 0.5, 0.1)},
 	"sombra": {"core": Color(0.82, 0.55, 1.0), "mid": Color(0.36, 0.1, 0.6), "edge": Color(0.09, 0.02, 0.16)},
@@ -30,7 +31,7 @@ const PALS := {
 const MAIN := {
 	"fogo": [3, 5, 7, 9, 12],
 	"gelo": [2, 3, 5, 7, 9],
-	"raio": [1, 2, 2, 3, 4],
+	"raio": [2, 2, 3, 4, 5],
 	"veneno": [1.2, 2.0, 3.0, 4.0, 5.5],
 	"sagrado": [2, 3, 5, 7, 9],
 	"sombra": [2, 3, 5, 6, 8],
@@ -56,16 +57,44 @@ var _gens: Array = []          # ciclo em que cada labareda/fiapo está
 var _parts: Array = []         # soltos no mundo: fagulhas, flocos, gotas, bolhas, riscos, ciscos
 var _acc := [0.0, 0.0]         # acumuladores de nascimento (principal, secundário)
 var _crystals: Array = []      # [posição local da ponta] dos cristais de gelo
+var _rad := Vector2(0.02, 0.02)   # meia espessura da arma nos dois eixos de lado (medida das malhas)
+var _ca := 0.0                 # ângulo, em volta da lâmina, do lado que está virado para a câmera
 
 
 ## Monta o efeito. `def` = EnchantFX.ELEMENTS[element]; `tip_pos` = ponta da arma no espaço do suporte.
-static func make(element: String, _def: Dictionary, tip_pos: Vector3, level: int) -> EnchantBlade:
+## `holder` e `meshes` (as malhas da arma, filhas dele) servem para medir a espessura da arma: as formas
+## nascem na superfície dela, do lado da câmera. Sem isso, num cajado (grosso e de pé) ficavam por dentro.
+static func make(element: String, _def: Dictionary, tip_pos: Vector3, level: int, holder: Node3D = null,
+		meshes: Array = []) -> EnchantBlade:
 	var b := EnchantBlade.new()
-	b._build(element, tip_pos, clampi(level, 1, 5))
+	b._build(element, tip_pos, clampi(level, 1, 5), holder, meshes)
 	return b
 
 
-func _build(element: String, tip_pos: Vector3, level: int) -> void:
+## Meia espessura da arma na parte que recebe efeito, nos eixos X e Y do efeito (Z = ao longo da lâmina).
+func _measure(holder: Node3D, meshes: Array) -> void:
+	var inv := basis.inverse()
+	var rx := 0.0
+	var ry := 0.0
+	for mi: MeshInstance3D in meshes:
+		if mi.mesh == null or mi.has_meta("enchant_skip_overlay") or str(mi.name).begins_with("ToonOutline"):
+			continue
+		var xf := mi.transform
+		var p := mi.get_parent()
+		while p != null and p != holder:
+			if p is Node3D:
+				xf = (p as Node3D).transform * xf
+			p = p.get_parent()
+		for v in mi.mesh.get_faces():
+			var q := inv * (xf * v)
+			if q.z >= GRIP * _len and q.z <= _len * 1.1:
+				rx = maxf(rx, absf(q.x))
+				ry = maxf(ry, absf(q.y))
+	if rx > 0.0 or ry > 0.0:
+		_rad = Vector2(clampf(rx, 0.01, 0.12), clampf(ry, 0.01, 0.12))
+
+
+func _build(element: String, tip_pos: Vector3, level: int, holder: Node3D, meshes: Array) -> void:
 	_el = element if PALS.has(element) else "fogo"
 	_lv = level
 	_pal = PALS[_el]
@@ -75,6 +104,8 @@ func _build(element: String, tip_pos: Vector3, level: int) -> void:
 	var up := Vector3.UP if absf(d.y) < 0.95 else Vector3.RIGHT
 	basis = Basis.looking_at(-d, up)
 	_t = randf() * 10.0   # armas lado a lado não tremem em sincronia
+	if holder != null:
+		_measure(holder, meshes)
 	if _mat == null:
 		_mat = StandardMaterial3D.new()
 		_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -108,7 +139,9 @@ func _process(delta: float) -> void:
 	_cam_pos = cam.global_position
 	_cx = cam.global_basis.x.normalized()
 	_cy = cam.global_basis.y.normalized()
-	_s = global_basis.z.length()
+	_s = global_basis.z.length() * SIZE
+	var lc := global_transform.affine_inverse() * _cam_pos
+	_ca = atan2(lc.y, lc.x)
 	_mi.global_transform = Transform3D.IDENTITY
 	_v.clear()
 	_c.clear()
@@ -138,6 +171,13 @@ static func _h(a: float, b: float) -> float:
 ## Ponto da lâmina no mundo: `z` metros a partir do cabo, `off` de afastamento do eixo.
 func _at(z: float, off := Vector2.ZERO) -> Vector3:
 	return global_transform * Vector3(off.x, off.y, z)
+
+
+## Ponto na superfície da arma, do lado virado para a câmera: `z` ao longo da lâmina, `k` (0..1) escolhe
+## onde na meia-volta visível (0,5 = bem de frente) e `out` afasta da superfície (m).
+func _surf(z: float, k: float, out := 0.0) -> Vector3:
+	var a := _ca + (k - 0.5) * 3.4
+	return _at(z, Vector2(cos(a) * (_rad.x + out), sin(a) * (_rad.y + out)))
 
 
 ## Ponto sorteado ao longo da parte da lâmina que recebe efeito (`k` 0..1).
@@ -242,7 +282,7 @@ func _tongues(delta: float, step: int, o: Dictionary) -> void:
 		var cyc := _t / period + _h(i, 3.0)
 		var g := int(cyc)
 		var f := cyc - g
-		var root := _at(_z((i + _h(i, g)) / n), Vector2(_h(g, i) - 0.5, _h(i, g + 5.0) - 0.5) * 0.03)
+		var root := _surf(_z((i + _h(i, g)) / n), _h(g, i))
 		var height: float = o.h * (0.7 + 0.6 * _h(g, i + 1.0)) * _s
 		var base: Vector3 = root + Vector3.UP * height * o.rise * maxf(f - 0.45, 0.0) / 0.55
 		var target: Vector3 = base + Vector3.UP * height * (1.0 - (1.0 - f) * (1.0 - f))
@@ -271,7 +311,7 @@ func _fire(delta: float, step: int) -> void:
 	_tongues(delta, step, {"h": 0.1 + 0.024 * _lv, "w": 0.024 + 0.004 * _lv, "period": 0.6, "sway": 0.02, "rise": 0.9})
 	if _lv >= 2:
 		for i in _due(1, 2.5 * _lv, delta):
-			_spawn("ember", _at(_z(randf())), Vector3(randf_range(-0.15, 0.15), randf_range(0.4, 0.8), randf_range(-0.15, 0.15)),
+			_spawn("ember", _surf(_z(randf()), randf()), Vector3(randf_range(-0.15, 0.15), randf_range(0.4, 0.8), randf_range(-0.15, 0.15)),
 				randf_range(0.45, 0.8), 0.012 + 0.002 * _lv)
 
 
@@ -285,14 +325,14 @@ func _shadow(delta: float, step: int) -> void:
 
 
 # ------------------------------------------------------------------ raio
-## Feixes em zigue-zague colados na lâmina. Cada um dura três quadros desenhados (cheio, fino, restos) e
-## some por um ou dois antes do próximo: no +1 a arma estala de vez em quando, no +5 não para.
+## Feixes em zigue-zague por fora da lâmina. Cada um dura três quadros desenhados (cheio, fino, restos);
+## o primeiro emenda no seguinte e os outros somem por um ou dois quadros antes de voltar.
 func _bolts(step: int) -> void:
 	var n := int(MAIN.raio[_lv - 1])
-	var amp := (0.028 + 0.007 * _lv)
-	var width := (0.0045 + 0.0009 * _lv) * _s
+	var amp := (0.055 + 0.012 * _lv)
+	var width := (0.011 + 0.0016 * _lv) * _s
 	for i in n:
-		var cyc := 4 + i % 2
+		var cyc := 3 + i % 3     # o primeiro feixe não tem pausa: a arma nunca fica sem raio
 		var si := step + i * 3
 		var k := si % cyc
 		if k >= 3:
@@ -303,28 +343,30 @@ func _bolts(step: int) -> void:
 		var w: float = width * [1.0, 0.75, 0.5][k]
 		var pts := PackedVector3Array()
 		var ws := PackedFloat32Array()
-		var mid_off := Vector2.ZERO
-		# zigue-zague: os pontos alternam de lado numa direção sorteada em volta da lâmina
-		var ang0 := _h(g, i + 11.0) * TAU
-		var zig := Vector2(cos(ang0), sin(ang0))
-		for j in 9:
-			var off := Vector2.ZERO
-			if j > 0 and j < 8:
-				off = zig * (1.0 if j % 2 == 0 else -1.0) * amp * (0.35 + 0.65 * _h(g + j, i + k * 0.37))
-				off += Vector2(-zig.y, zig.x) * (_h(i + j, g + 9.0 + k * 0.21) - 0.5) * amp
-			if j == 4:
-				mid_off = off
-			pts.append(_at(lerpf(a, b, (j + (_h(j, g + i) - 0.5) * 0.5 * float(j > 0 and j < 8)) / 8.0), off))
-			ws.append(w * (0.0 if j == 0 or j == 8 else 1.0))
+		# zigue-zague por fora da arma, do lado da câmera: os pontos alternam de lado e de afastamento
+		# uma dobra a cada ~9 cm: num feixe curto (cetro) poucas dobras largas, não um rabisco apertado
+		var k0 := 0.3 + 0.4 * _h(g, i + 11.0)
+		var mid_k := k0
+		var mid_out := 0.0
+		var segs := clampi(roundi((b - a) / (0.09 * _s)), 3, 8)
+		var reach_out := minf(amp, (b - a) * 0.4)
+		for j in segs + 1:
+			var inner := j > 0 and j < segs
+			var kj := k0 + ((0.13 if j % 2 == 0 else -0.13) + (_h(i + j, g + 9.0 + k * 0.21) - 0.5) * 0.1) * float(inner)
+			var out := reach_out * (0.15 + 0.85 * _h(g + j, i + k * 0.37)) * float(inner)
+			if j == segs / 2:
+				mid_k = kj
+				mid_out = out
+			pts.append(_surf(lerpf(a, b, (j + (_h(j, g + i) - 0.5) * 0.5 * float(inner)) / segs), kj, out))
+			ws.append(w * float(inner))
 		_stroke(pts, ws, _pal)
 		if _lv >= 2 and k < 2 and _h(g, i + 4.0) > 0.35:      # ramo que sai para o ar
-			var out := mid_off.normalized() if mid_off.length() > 0.001 else Vector2.RIGHT
-			var reach := 0.07 + 0.03 * _lv * _h(i, g + 6.0)
+			var reach := 0.1 + 0.035 * _lv * _h(i, g + 6.0)
 			var zc := lerpf(a, b, 0.5)
-			_stroke(PackedVector3Array([_at(zc, mid_off), _at(zc + 0.04, mid_off + out * reach * 0.5 + Vector2(out.y, -out.x) * 0.03),
-				_at(zc + 0.02, mid_off + out * reach)]), PackedFloat32Array([w * 0.8, w * 0.6, 0.0]), _pal)
+			_stroke(PackedVector3Array([_surf(zc, mid_k, mid_out), _surf(zc + 0.04, mid_k + 0.06, mid_out + reach * 0.5),
+				_surf(zc + 0.02, mid_k, mid_out + reach)]), PackedFloat32Array([w * 0.8, w * 0.6, 0.0]), _pal)
 		if k == 0:                                             # faísca onde o feixe morre
-			_star(_at(b), (0.022 + 0.004 * _lv) * _s, _h(g, i) * PI, _pal)
+			_star(_surf(b, k0), (0.04 + 0.007 * _lv) * _s, _h(g, i) * PI, _pal)
 	if _lv >= 4:                                               # salto da ponta para o ar
 		var cyc2 := 16 - 3 * (_lv - 4)
 		var k2 := step % cyc2
@@ -342,7 +384,7 @@ func _bolts(step: int) -> void:
 				ws2.append(width * 1.3 * [1.0, 0.75, 0.5][k2] * (1.0 - u * 0.7))
 			_stroke(pts2, ws2, _pal)
 			if k2 < 2:
-				_star(pts2[5], 0.05 * _s, ang, _pal)
+				_star(pts2[5], 0.07 * _s, ang, _pal)
 
 
 # ------------------------------------------------------------------ gelo
@@ -364,7 +406,7 @@ func _grow_crystals() -> void:
 		m.set_instance_shader_parameter("col_edge", _pal.edge)
 		var side := up.cross(Vector3(0, 0, 1)).normalized()
 		m.basis = Basis(side, up, side.cross(up)).scaled_local(Vector3(height * 0.45, height, height * 0.45))
-		m.position = Vector3(0, 0, z) + radial * 0.008
+		m.position = Vector3(radial.x * _rad.x * 0.6, radial.y * _rad.y * 0.6, z)
 		add_child(m)
 		_crystals.append(m.position + up * height)
 
@@ -381,7 +423,7 @@ func _ice(delta: float, step: int) -> void:
 		_star(global_transform * tip, (0.03 + 0.005 * _lv) * [0.5, 1.0, 0.75, 0.35][k] * _s, 0.0, _pal)
 	if _lv >= 2:
 		for i in _due(1, 1.6 * _lv, delta):
-			_spawn("snow", _at(_z(randf())), Vector3(randf_range(-0.08, 0.08), randf_range(-0.3, -0.12), randf_range(-0.08, 0.08)),
+			_spawn("snow", _surf(_z(randf()), randf()), Vector3(randf_range(-0.08, 0.08), randf_range(-0.3, -0.12), randf_range(-0.08, 0.08)),
 				randf_range(0.7, 1.1), 0.012 + 0.0015 * _lv)
 
 
@@ -391,7 +433,7 @@ func _venom(delta: float) -> void:
 		_spawn("drip", Vector3.ZERO, Vector3.ZERO, 0.9, 0.013 + 0.002 * _lv, {"z": _z(randf())})
 	if _lv >= 2:
 		for i in _due(1, 0.9 * _lv, delta):
-			_spawn("bubble", _at(_z(randf())), Vector3(randf_range(-0.05, 0.05), randf_range(0.08, 0.16), randf_range(-0.05, 0.05)),
+			_spawn("bubble", _surf(_z(randf()), randf()), Vector3(randf_range(-0.05, 0.05), randf_range(0.08, 0.16), randf_range(-0.05, 0.05)),
 				randf_range(0.6, 1.0), randf_range(0.011, 0.016 + 0.002 * _lv))
 
 
@@ -405,11 +447,11 @@ func _holy(delta: float, step: int) -> void:
 		if k >= 6:
 			continue
 		var g := float(si / cyc)
-		var at := _at(_z((i + _h(i, g)) / n), Vector2(_h(g, i) - 0.5, _h(i, g + 3.0) - 0.5) * 0.1)
+		var at := _surf(_z((i + _h(i, g)) / n), _h(g, i), 0.05 * _h(i, g + 3.0))
 		_star(at, (0.04 + 0.007 * _lv) * [0.4, 0.8, 1.0, 1.0, 0.7, 0.35][k] * (0.7 + 0.6 * _h(g, i + 8.0)) * _s, 0.0, _pal)
 	if _lv >= 3:
 		for i in _due(1, 2.0 * (_lv - 2), delta):
-			_spawn("ray", _at(_z(randf())), Vector3.UP * randf_range(0.25, 0.45), randf_range(0.4, 0.6), 0.1 + 0.02 * _lv)
+			_spawn("ray", _surf(_z(randf()), randf()), Vector3.UP * randf_range(0.25, 0.45), randf_range(0.4, 0.6), 0.1 + 0.02 * _lv)
 	if _lv >= 4:   # estrela na ponta, alternando reta e inclinada
 		var big := step % 6 < 3
 		_star(_at(_len), (0.07 + 0.03 * (_lv - 4)) * (1.0 if big else 0.72) * _s, 0.0 if big else PI * 0.25, _pal)
@@ -440,7 +482,7 @@ func _draw_parts(delta: float, step: int) -> void:
 			"drip":       # incha presa na lâmina, depois pinga
 				var hang := 0.3
 				if p.age < hang:
-					p.p = _at(p.z) + Vector3.DOWN * 0.018 * _s
+					p.p = _surf(p.z, p.sd) + Vector3.DOWN * 0.012 * _s
 					p.v = Vector3.ZERO
 					size *= 0.35 + 0.65 * p.age / hang
 				else:
