@@ -28,7 +28,8 @@ const PLATE := "plate"
 const KNIGHT_SCENE := {"m": "res://assets/models/knight.glb", "f": "res://assets/models/knight_f.glb"}
 ## Estilos de cabeça que cobrem a nuca (capuz, coifas de malha e o chapéu de mago, que já traz o cabelo solto):
 ## o rabo de cavalo atravessaria, então some.
-const HIDE_PONYTAIL := ["h_hood", "h_nasal", "h_kettle", "h_wizard", "h_archmage", "h_sage", "h_void", "h_oracle", "h_ember"]
+const HIDE_PONYTAIL := ["h_hood", "h_nasal", "h_kettle", "h_wizard", "h_archmage", "h_sage", "h_void", "h_oracle", "h_ember",
+		"h_lich", "h_hierophant", "h_reaper", "h_raven", "h_dragon", "h_astral"]
 ## Materiais copiados e tingidos, por material de origem + cor (evita duplicar a cada troca de equipamento).
 static var _tint_cache := {}
 const SWORD_PARTS := ["Grip", "Blade"]
@@ -115,10 +116,20 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 	var tail := model.find_child("Ponytail", true, false) as Node3D
 	if tail:
 		tail.visible = not (gear_style("head", look.get("head", "")) in HIDE_PONYTAIL)
-	# capa: só com armadura de placas ou peça que a pede ("cape": true)
+	# capa: a do espaço das costas (tingida com a cor do item) ou, com ele vazio, a da armadura de placas
+	# ou da peça que a pede ("cape": true). Asas nas costas escondem a capa.
 	var cape := model.find_child("Cape", true, false) as Node3D
 	if cape:
-		cape.visible = gear_style("armor", armor_id) == PLATE or ItemDB.get_item(armor_id).get("cape", false)
+		var back_id: String = look.get("back", "")
+		var back_kind := back_kind_of(back_id)
+		var cape_mi := cape as MeshInstance3D
+		if back_kind == "":
+			cape.visible = gear_style("armor", armor_id) == PLATE or ItemDB.get_item(armor_id).get("cape", false)
+		else:
+			# capa com modelo próprio ("style") traz o pano dela: a do cavaleiro some
+			cape.visible = back_kind == "cape" and not ItemDB.get_item(back_id).has("style")
+		if cape_mi:
+			cape_mi.material_override = _item_mat(back_id) if cape.visible and back_kind == "cape" else null
 
 	# ---- mão secundária
 	var off: String = look.get("offhand", "")
@@ -207,10 +218,13 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 	_pick_hand(model, "R", wid == "")
 	_pick_hand(model, "L", not (shield_on or (wid != "" and cls in ["bow", "staff"])))
 	model.set_meta("look_nodes", made)
-	KnightAnim.ensure_chest(model)   # peças novas da parte de cima do tronco vão para o pivô do peito
+	var chest := KnightAnim.ensure_chest(model)   # peças novas da parte de cima do tronco vão para o pivô do peito
+	_attach_back(model, look.get("back", ""), chest)
 	PivotSkin.ensure(model)    # ossos das roupas com pele contínua seguem os pivôs
 	if ToonLook.enabled():
 		ToonLook.apply(model)
+	# texturas animadas e partículas dos conjuntos de fim de jogo (depois do toon: vence a conversão comum)
+	made.append_array(GearFx.apply(model, [gear_style("head", look.get("head", "")), gear_style("armor", armor_id)]))
 	if cape:
 		_sync_skinned_outline(cape)
 	return res
@@ -239,7 +253,73 @@ static func _sync_skinned_outline(mi: Node3D) -> void:
 			(c as MeshInstance3D).visible = m.visible
 
 
+# ------------------------------------------------------------------ costas (asas)
+## Prende a peça das costas do item `id` no pivô do peito, na mesma posição em que foi modelada
+## (assets/models/back/<style>.glb). Asas ganham a animação (BackWings); capas com modelo próprio têm o pano
+## (malha ClothMesh) transformado em tecido pelo CapeRig, com as mesmas cápsulas da capa do cavaleiro; toda
+## capa solta as partículas do item ("back_fx"). Entra em "look_nodes" para sair na próxima troca.
+static func _attach_back(model: Node3D, id: String, chest: Node3D) -> void:
+	model.remove_meta("back_cape")
+	var kind := back_kind_of(id)
+	if kind == "":
+		return
+	var it := ItemDB.get_item(id)
+	var path := "res://assets/models/back/%s.glb" % it.get("style", "")
+	var has_model: bool = it.has("style") and ResourceLoader.exists(path)
+	if it.has("style") and not has_model:
+		push_warning("peça das costas sem modelo: " + path)
+	if kind == "wings" and not has_model:
+		return
+	var g: Node3D = (load(path) as PackedScene).instantiate() as Node3D if has_model else Node3D.new()
+	WeaponModel.use_vertex_color(g)
+	g.name = "BackGear"
+	var holder: Node3D = chest if chest else model
+	holder.add_child(g)
+	# o GLB foi modelado no espaço do personagem (pés na origem): desfaz os pivôs até o modelo
+	var xf := Transform3D.IDENTITY
+	var n: Node3D = holder
+	while n != null and n != model:
+		xf = n.transform * xf
+		n = n.get_parent() as Node3D
+	g.transform = xf.affine_inverse()
+	if kind == "wings":
+		var wings := BackWings.new()
+		wings.name = "BackWings"
+		g.add_child(wings)
+		wings.setup(g, it)
+	else:
+		var cloth := g.find_child("ClothMesh", true, false) as MeshInstance3D
+		if cloth:
+			var rig := CapeRig.attach(cloth)
+			if rig:
+				for leg in ["LegL", "LegR"]:
+					var ln := model.find_child(leg, true, false) as Node3D
+					if ln:
+						rig.add_capsule(ln, 0.11, 0.95, Vector3(0, -0.45, 0))
+				if chest:
+					rig.add_capsule(chest, 0.14, 0.75, Vector3(0, 0.25, 0.02) - chest.position)
+				model.set_meta("back_cape", rig)
+		BackFx.apply_anim(g)     # pano animado (galáxia, fogo, gelo, raio, floresta)
+		# as partículas caem do meio da capa, atrás das costas
+		var fx := BackFx.make(it.get("back_fx", ""), Vector3(0.0, 0.85, -0.3), Vector3(0.3, 0.45, 0.06))
+		if fx:
+			g.add_child(fx)
+	var made: Array = model.get_meta("look_nodes", [])
+	made.append(g)
+	model.set_meta("look_nodes", made)
+
+
 # ------------------------------------------------------------------ roupas e armaduras
+## Tipo da peça das costas: "cape", "wings" ou "" (espaço vazio ou item que não é das costas).
+static func back_kind_of(id: String) -> String:
+	if id == "":
+		return ""
+	var it := ItemDB.get_item(id)
+	if it.get("slot", "") != "back":
+		return ""
+	return it.get("back", "cape")
+
+
 ## Estilo visual do item `id` no espaço `slot` ("" = espaço vazio). Itens sem "style" usam as placas.
 static func gear_style(slot: String, id: String) -> String:
 	if id == "":

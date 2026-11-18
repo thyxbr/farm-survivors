@@ -198,7 +198,7 @@ func _debug_screenshot() -> void:
 		for id in ["frost_brand", "ember_staff", "elven_bow", "storm_bow", "dragonfang", "knight_shield", "arcane_orb",
 				"hunter_quiver", "iron_helm", "mage_robe", "royal_plate", "iron_gauntlets", "swift_boots", "vampire_ring",
 				"sage_amulet", "sc_novice_scepter", "sc_dawn_scepter", "sc_blessed_scepter", "sc_seraph_scepter", "sc_halo_scepter", "goblin_cleaver", "guardian_greatsword", "royal_wings", "titan_cleaver", "rose_flame", "knight_helm", "chain_mail", "archer_bracers",
-				"iron_greaves", "life_amulet", "strength_ring"]:
+				"iron_greaves", "life_amulet", "strength_ring", "traveler_cape"]:
 			gear_ids[id] = 1
 		gear_ids["slime_gel"] = 7
 		gear_ids["goblin_ear"] = 3
