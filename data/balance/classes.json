@@ -12,7 +12,19 @@
 				0.3,
 				1.0
 			]
-		}
+		},
+		"lore": "Os guerreiros de Valdoria aprendem a espada nas muralhas da vila, onde cada noite de horda é uma prova. Ficam na frente para que os outros voltem para casa. Força faz o golpe pesar; a teimosia faz a linha não ceder.",
+		"role": "Corpo a corpo",
+		"style": "Linha de frente",
+		"difficulty": 1,
+		"profile": {
+			"dano": 4,
+			"resistencia": 5,
+			"alcance": 1,
+			"mobilidade": 3,
+			"suporte": 1
+		},
+		"emblem": "warrior"
 	},
 	"archer": {
 		"name": "Arqueiro",
@@ -27,7 +39,19 @@
 				0.4,
 				1.0
 			]
-		}
+		},
+		"lore": "Caçadores das trilhas do bosque, os arqueiros conhecem cada rastro antes de a horda pisar nele. Atiram de onde ninguém olha e já estão em outro lugar quando o inimigo vira. Agilidade é o que separa um tiro certo de uma flecha perdida.",
+		"role": "Distância",
+		"style": "Dano contínuo",
+		"difficulty": 2,
+		"profile": {
+			"dano": 4,
+			"resistencia": 2,
+			"alcance": 5,
+			"mobilidade": 4,
+			"suporte": 1
+		},
+		"emblem": "archer"
 	},
 	"mage": {
 		"name": "Mago",
@@ -42,7 +66,19 @@
 				1.0,
 				1.0
 			]
-		}
+		},
+		"lore": "Os magos estudam os Ecos, restos de magia antiga que ainda vibram nas ruínas de Valdoria. Um mago bem posicionado limpa uma onda inteira; um mago cercado não dura muito. A Inteligência alimenta cada chama.",
+		"role": "Distância",
+		"style": "Dano em área",
+		"difficulty": 3,
+		"profile": {
+			"dano": 5,
+			"resistencia": 1,
+			"alcance": 4,
+			"mobilidade": 2,
+			"suporte": 1
+		},
+		"emblem": "mage"
 	},
 	"healer": {
 		"name": "Healer",
@@ -57,6 +93,18 @@
 				0.5,
 				1.0
 			]
-		}
+		},
+		"lore": "Guardiões da capela da vila, os healers carregam a luz que mantém o grupo de pé. Curam no meio da luta sem largar o cetro, e a mesma luz que fecha feridas também castiga quem ataca os seus. A Inteligência mede quanto cada prece alcança.",
+		"role": "Suporte",
+		"style": "Cura e proteção",
+		"difficulty": 2,
+		"profile": {
+			"dano": 2,
+			"resistencia": 3,
+			"alcance": 3,
+			"mobilidade": 2,
+			"suporte": 5
+		},
+		"emblem": "healer"
 	}
 }

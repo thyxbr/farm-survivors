@@ -249,7 +249,8 @@ static func sway_ponytail(r: Dictionary, delta: float) -> void:
 	# o rabo de cavalo vem do penteado (KnightLook.apply) e é refeito a cada troca de equipamento
 	var model = r.get("model")
 	if is_instance_valid(model) and model is Node3D:
-		var cur = (model as Node3D).get_meta("ponytail", null)
+		# get_meta com padrão null conta como "sem padrão" e reclama a cada quadro: pergunta antes
+		var cur = (model as Node3D).get_meta("ponytail") if (model as Node3D).has_meta("ponytail") else null
 		cur = cur if is_instance_valid(cur) else null
 		if cur != tail:
 			tail = cur
