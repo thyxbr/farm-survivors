@@ -3,7 +3,8 @@ extends RefCounted
 ## Visual de arma encantada. Cor = elemento, força = nível (1..MAX_LEVEL). Duas partes:
 ##  - brilho por cima da arma (shader enchant_overlay): tom no +1, borda pulsando no +2,
 ##    faixas de energia correndo pela lâmina do +3 em diante;
-##  - partículas em volta da lâmina (EnchantBlade): uma camada a mais a cada nível.
+##  - efeito desenhado em volta da lâmina (EnchantBlade), com a cara do elemento: feixes de raio,
+##    labaredas, cristais de gelo, gotas de veneno, estrelas, fumaça de sombra; cresce a cada nível.
 
 const MAX_LEVEL := 5
 ## Força do brilho por nível (+1..+5): degraus desiguais para cada nível ficar fácil de distinguir.
@@ -48,7 +49,7 @@ static func apply(look: Dictionary, element: String, level: int) -> void:
 	var tip: Node3D = look.get("tip")
 	var tip_pos := tip.position if tip else Vector3(0, 0, 1)
 	# sem luz de verdade: ela tingia a armadura inteira. O brilho (bloom) do ambiente já dá o halo.
-	# partículas em volta da lâmina: uma camada a mais a cada nível (ver EnchantBlade)
+	# efeito desenhado do elemento em volta da lâmina, maior a cada nível (ver EnchantBlade)
 	var blade := EnchantBlade.make(element, e, tip_pos, level)
 	blade.set_meta("enchant_fx", true)
 	holder.add_child(blade)
