@@ -2,8 +2,8 @@ extends Node3D
 ## Foto de vários cavaleiros lado a lado, cada um vestido com um conjunto de equipamento (KnightLook),
 ## com a luz do jogo. Serve para conferir roupas e armaduras (assets/models/gear/*.glb) sem abrir o jogo.
 ## Precisa de janela (sem --headless) e do --import feito antes:
-##   godot --path . --resolution 1800x900 res://tools/look_shot.tscn -- <saida.png> [conjunto] [3q|back|side|close|wide|head|bust|waist|torso|legs|hands] [run|arms] [fem]
-## run = pose de corrida no meio da passada; fem = corpo feminino.
+##   godot --path . --resolution 1800x900 res://tools/look_shot.tscn -- <saida.png> [conjunto] [3q|back|side|close|wide|head|bust|waist|torso|legs|hands] [run|arms] [fem] [wait=<s>]
+## run = pose de corrida no meio da passada; fem = corpo feminino; wait = segundos antes da foto (efeitos animados).
 ## conjunto: "leves", "pesados", "todos" (padrão) ou ids separados por vírgula num só personagem;
 ## "cada:id1,id2,..." põe um personagem por id (para comparar armas lado a lado); "id1+id2" veste as duas
 ## peças no mesmo personagem (conjuntos lado a lado: "cada:lich_crown+lich_robe,frost_crown+frost_robe").
@@ -115,6 +115,10 @@ func _process(_delta: float) -> void:
 	_frames += 1
 	if _frames < 12:
 		return
+	# wait=<s>: espera esse tempo antes da foto (efeitos animados nos frisos, faixas de brilho)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("wait=") and Time.get_ticks_msec() < float(a.substr(5)) * 1000.0:
+			return
 	get_viewport().get_texture().get_image().save_png(_out)
 	print("SHOT ", _out)
 	get_tree().quit()
