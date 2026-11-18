@@ -18,6 +18,8 @@ const ECOS := 999999
 const ITEM_QTY := 999
 ## Tipos de item que contam como recurso (os empilháveis desses tipos são enchidos).
 const RESOURCE_TYPES := ["material", "seed", "crop", "food", "consumable"]
+## "Dar item": peças que não empilham entram no máximo esta quantidade por pedido (cada uma ocupa um espaço).
+const GIVE_MAX_LOOSE := 10
 
 
 static func is_on(s: CharState) -> bool:
@@ -71,6 +73,19 @@ static func set_on(s: CharState, bt: BalanceTables, on: bool) -> Dictionary:
 	for id in resource_ids(bt):
 		_set_count(s, bt, id, maxi(0, int(had.get(id, 0))))
 	return CharRules._ok([CharRules._notify("Modo admin desligado: recursos de volta ao que eram.", CharRules.C_GUILD)])
+
+
+## Põe `qty` de um item qualquer na mochila (menu "Adicionar item" e /item). Só com o modo admin ligado.
+## Enquanto ligado, CharRules.equip também não cobra o nível do item, para dar para testar a peça.
+static func give(s: CharState, bt: BalanceTables, id: String, qty: int) -> Dictionary:
+	if not is_on(s):
+		return CharRules._fail("sem_admin", [CharRules._notify("Ligue o modo admin para adicionar itens.", CharRules.C_BAD)])
+	var it = bt.get_table("items").get(id)
+	if not (it is Dictionary):
+		return CharRules._fail("item_desconhecido", [CharRules._notify("Item desconhecido: %s" % id, CharRules.C_BAD)])
+	var n := clampi(qty, 1, ITEM_QTY if bool(it.get("stack", false)) else GIVE_MAX_LOOSE)
+	CharRules.add_item(s, bt, id, n)
+	return CharRules._ok([{"t": "looted", "id": id, "qty": n}])
 
 
 ## Deixa exatamente `n` de `id` na mochila. true se mudou.

@@ -378,6 +378,17 @@ func set_admin(char_id: int, on: bool, allowed: bool) -> Dictionary:
 	return _result(char_id, _persist(char_id, s, before, "grant", "admin", r))
 
 
+## Modo admin: põe um item qualquer na mochila (AdminRules.give recusa com o modo desligado).
+## Registrado na economia com origem "admin".
+func admin_give(char_id: int, id: String, qty: int) -> Dictionary:
+	var s := load_or_create(char_id)
+	var before := _holdings(s)
+	var r := AdminRules.give(s, _bt, id, qty)
+	if not r.ok:
+		return _result(char_id, r)
+	return _result(char_id, _persist(char_id, s, before, "grant", "admin", r))
+
+
 # ================================================================ partidas e recordes
 ## Abre o registro de uma partida. 0 se não gravou.
 func start_run(mode: String, accounts: Array) -> int:

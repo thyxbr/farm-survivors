@@ -127,6 +127,7 @@ func _on_submit(text: String) -> void:
 ##   /hora 21 | 6:30  fixa a hora do dia nesta máquina · /hora auto  volta ao relógio do mundo
 ##   /w NOME msg  sussurro (mensagem só para ele) · /r msg  responde o último sussurro · /amigo NOME  pede amizade
 ##   /admin  liga/desliga o modo admin (recursos infinitos; só contas de administrador)
+##   /item ID [quantidade]  põe um item na mochila (só com o modo admin ligado)
 ##   /grupo NOME  convida para o grupo · /grupo sair · /grupo expulsar NOME (estes vão ao servidor, pelo Party)
 func _run_command(t: String) -> void:
 	# sussurro: o texto vai como foi digitado (o resto dos comandos é sem diferenciar maiúsculas)
@@ -158,6 +159,11 @@ func _run_command(t: String) -> void:
 				Econ.set_admin(false)
 			else:
 				Game.toggle_admin()
+		"item", "dar":
+			if arg == "":
+				_on_message("", "Use /item ID [quantidade], com o modo admin ligado. Ex.: /item archmage_robe")
+				return
+			Econ.admin_give(arg, maxi(1, int(parts[2])) if parts.size() > 2 else 1)
 		"clima", "weather":
 			if arg == "auto":
 				Weather.release()
