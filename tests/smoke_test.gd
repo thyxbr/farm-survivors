@@ -801,9 +801,12 @@ func _ready() -> void:
 	# a magia só sai com o jogador livre (cast() recusa no meio de golpe, esquiva ou habilidade)
 	await wait_until(func(): return player.dodge_timer <= 0.0 and not player.attacking and player.ability == "")
 	Game.fury = 0.0
+	# o nível forçado vai logo antes da magia: qualquer estado que o Econ reaplica durante as esperas (ouro ou
+	# saque recolhido ao chegar perto do slime) devolve o nível de verdade, e a Nova Gélida (nível 3) era recusada
+	Game.level = 5
 	player.cast("frost_nova")
-	check(Game.fury > 0.0, "magia do cajado enche a fúria (%.2f; recarga %.2f, golpe %s, esquiva %.2f, habilidade '%s', mana %.0f, slime a %.1f m)"
-		% [Game.fury, player.cooldowns.frost_nova, player.attacking, player.dodge_timer, player.ability, Game.mp,
+	check(Game.fury > 0.0, "magia do cajado enche a fúria (%.2f; nível %d, recarga %.2f, golpe %s, esquiva %.2f, habilidade '%s', mana %.0f, slime a %.1f m)"
+		% [Game.fury, Game.level, player.cooldowns.frost_nova, player.attacking, player.dodge_timer, player.ability, Game.mp,
 			nova_s.global_position.distance_to(player.global_position)])
 	# magias não roubam vida (o roubo é só do corpo a corpo)
 	var weapon_n: String = Game.equipment.weapon
@@ -818,6 +821,7 @@ func _ready() -> void:
 		nova_saved[e] = [e.max_hp, e.hp]
 		e.max_hp = 1.0e6
 		e.hp = 1.0e6
+	Game.level = 5
 	player.cast("frost_nova")
 	for e in nova_saved:
 		if is_instance_valid(e):
