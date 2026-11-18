@@ -2,13 +2,12 @@ extends Node3D
 ## Foto de vários cavaleiros lado a lado, cada um vestido com um conjunto de equipamento (KnightLook),
 ## com a luz do jogo. Serve para conferir roupas e armaduras (assets/models/gear/*.glb) sem abrir o jogo.
 ## Precisa de janela (sem --headless) e do --import feito antes:
-##   godot --path . --resolution 1800x900 res://tools/look_shot.tscn -- <saida.png> [conjunto] [3q|back|side|close|wide|head|bust|waist|torso|legs|hands] [run|arms]
-## run = pose de corrida no meio da passada.
+##   godot --path . --resolution 1800x900 res://tools/look_shot.tscn -- <saida.png> [conjunto] [3q|back|side|close|wide|head|bust|waist|torso|legs|hands] [run|arms] [fem]
+## run = pose de corrida no meio da passada; fem = corpo feminino.
 ## conjunto: "leves", "pesados", "todos" (padrão) ou ids separados por vírgula num só personagem;
 ## "cada:id1,id2,..." põe um personagem por id (para comparar armas lado a lado); "id1+id2" veste as duas
 ## peças no mesmo personagem (conjuntos lado a lado: "cada:lich_crown+lich_robe,frost_crown+frost_robe").
 
-const KNIGHT := preload("res://assets/models/knight.glb")
 const SETS := {
 	"leves": [
 		{},
@@ -62,7 +61,7 @@ func _ready() -> void:
 	elif "side" in args:
 		yaw = -90.0
 	for i in looks.size():
-		var m := KNIGHT.instantiate() as Node3D
+		var m := KnightLook.instance("f" if "fem" in args else "m")    # fem = corpo feminino (roupas _f)
 		add_child(m)
 		var gap := 2.5 if "wide" in args else 0.95    # asas abertas pedem mais espaço entre os personagens
 		m.position = Vector3((i - (looks.size() - 1) / 2.0) * gap, 0, 0)
