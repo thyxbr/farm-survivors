@@ -2033,18 +2033,28 @@ func _test_gather() -> void:
 	var back := player.global_position
 	var node = world.resource_nodes[0]
 	check(node.node_id == 0 and node.alive, "veio 0 de pé")
-	player.global_position = node.global_position + Vector3(1.5, 0.3, 0)
-	await wait(0.2)
+	player.global_position = node.global_position + Vector3(1.6, 0.3, 0)
+	await wait(0.3)
+	check(GatherAction.nearest(player) == node, "F alcança o veio 0")
+	var plan: Dictionary = node.gather_plan()
+	check(plan.ok and plan.tool == "pickaxe_stone", "personagem novo minera com a picareta de pedra (%s)" % str(plan))
+	check(int(plan.strikes) >= 2, "picareta de pedra pede vários golpes (%d)" % int(plan.strikes))
 	var iron0 := Game.count_item("iron_ore")
 	var mxp0 := Game.prof_xp("mining") + Game.prof_level("mining") * 100000
-	for i in 2:
-		node.hit(player.global_position)
-	check(node.alive and Game.count_item("iron_ore") == iron0, "2 golpes: veio de pé e nada ganho ainda")
-	node.hit(player.global_position)
-	await wait(0.2)
-	check(not node.alive, "3º golpe quebra o veio")
-	check(Game.prof_xp("mining") + Game.prof_level("mining") * 100000 > mxp0, "coleta dá XP de Mineração")
+	player.start_gather(node)
+	check(player.ability == GatherAction.ID, "F começa a coleta")
+	await wait(0.3)
+	check(player.gather_tool == "pickaxe_stone" and player.look.get("tool", false), "picareta na mão")
+	await wait(0.8 + float(plan.swing) * 1.2)
+	check(node.alive and node.progress > 0.0 and Game.count_item("iron_ore") == iron0,
+		"primeiros golpes: barra sobe, veio de pé, nada ganho ainda (%.1f/%.1f)" % [node.progress, node.tough])
+	await wait(float(plan.swing) * float(plan.strikes) + 1.0)
+	check(not node.alive, "um F só: bate sozinho até o veio ceder")
+	check(Game.prof_xp("mining") + Game.prof_level("mining") * 100000 > mxp0, "coleta dá XP de Mineração (maestria)")
 	check(Game.count_item("iron_ore") == iron0 + 3, "veio de ferro dá 3 minérios (%d → %d)" % [iron0, Game.count_item("iron_ore")])
+	check(player.ability == "" and player.gather_tool == "", "terminou: guarda a ferramenta")
+	await wait(0.1)
+	check(not player.look.get("tool", false), "arma de volta na mão")
 	Econ.gather_node(0, player.global_position)
 	await wait(0.1)
 	check(Game.count_item("iron_ore") == iron0 + 3, "veio esgotado não concede de novo")
@@ -2054,15 +2064,30 @@ func _test_gather() -> void:
 	Econ.gather_node(999, player.global_position)
 	await wait(0.1)
 	check(Game.count_item("iron_ore") == iron0 + 3, "veio inexistente não concede")
+	# andar interrompe e o progresso fica no nó
+	var node1 = world.resource_nodes[1]
+	player.global_position = node1.global_position + Vector3(1.2, 0.3, 0)
+	await wait(0.3)
+	player.start_gather(node1)
+	await wait(0.5 + float(plan.swing))
+	player.end_ability()
+	var kept: float = node1.progress
+	check(kept > 0.0 and node1.alive, "parou no meio: o progresso fica guardado (%.1f)" % kept)
+	# cristal pede picareta de ferro
 	var crystal = world.resource_nodes[6]
 	player.global_position = crystal.global_position + Vector3(1.5, 0.3, 0)
 	await wait(0.2)
+	plan = crystal.gather_plan()
+	check(not plan.ok and str(plan.msg).contains("Picareta de Ferro"), "cristal com picareta de pedra: avisa (%s)" % plan.msg)
+	Econ.grant(0, 0, {"pickaxe_iron": 1}, "teste", true)
+	await wait(0.1)
+	plan = crystal.gather_plan()
+	check(plan.ok and plan.tool == "pickaxe_iron", "com a de ferro na mochila, usa a de ferro")
 	var cr0 := Game.count_item("arcane_crystal")
-	for i in 3:
-		crystal.hit(player.global_position)
+	crystal.strike(player.global_position, crystal.tough)
 	await wait(0.2)
-	check(Game.count_item("arcane_crystal") == cr0 + 1, "cristal das Ruínas dá 1 cristal arcano em 3 golpes")
-	# veio de camada alta: sem o nível de Mineração os golpes não contam
+	check(Game.count_item("arcane_crystal") == cr0 + 1, "cristal das Ruínas dá 1 cristal arcano")
+	# veio de camada alta: sem o nível de Mineração F só avisa
 	var silver = null
 	for n in world.resource_nodes:
 		if n.prof == "mining" and n.level > Game.prof_level("mining"):
@@ -2072,9 +2097,9 @@ func _test_gather() -> void:
 	if silver != null:
 		player.global_position = silver.global_position + Vector3(1.5, 0.3, 0)
 		await wait(0.2)
-		for i in 4:
-			silver.hit(player.global_position)
-		check(silver.alive, "veio acima do nível não quebra")
+		check(not silver.gather_plan().ok, "veio acima do nível: F recusa")
+		player.start_gather(silver)
+		check(player.ability == "", "não começa a bater")
 	await _test_crafting()
 	player.global_position = back
 	await wait(0.2)

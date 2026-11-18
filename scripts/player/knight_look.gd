@@ -198,7 +198,7 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 		if mi:
 			mi.visible = false
 	var res := {"class": cls, "holder": null, "tip": null, "arrow": null, "arm": null, "elbow": null,
-		"counter": COUNTER[cls]}
+		"counter": COUNTER[cls], "tool": str(ItemDB.get_item(wid).get("type", "")) == "tool"}
 	if wid != "" and arm_r and arm_l:
 		var holder := Node3D.new()
 		holder.name = "WeaponHolder"
@@ -224,11 +224,16 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 				res.arrow = _build_bow(holder, tip, wid)
 			_:
 				_build_sword(holder, tip, wid)
+				if res.tool:
+					holder.set_meta("grip0", holder.position)   # a mão desliza pelo cabo a partir daqui
+					if str(ItemDB.get_item(wid).get("tool", "")) == "axe":
+						holder.set_meta("axe", true)
+					_tool_fx(holder, wid)
 	# ---- mãos: os GLBs de mão trazem a fechada (segura o cabo) e a aberta; fica só a que serve.
 	# Direita: fechada com qualquer arma. Esquerda: fechada com escudo, arco (segura o arco) e cajado (pega a vara
 	# nos golpes de duas mãos).
 	_pick_hand(model, "R", wid == "")
-	_pick_hand(model, "L", not (shield_on or (wid != "" and cls in ["bow", "staff"])))
+	_pick_hand(model, "L", not (shield_on or (wid != "" and cls in ["bow", "staff"]) or res.tool))   # ferramenta: as duas mãos
 	model.set_meta("look_nodes", made)
 	var chest := KnightAnim.ensure_chest(model)   # peças novas da parte de cima do tronco vão para o pivô do peito
 	_attach_back(model, look.get("back", ""), chest)
@@ -426,8 +431,15 @@ static func _tinted(src: BaseMaterial3D, c: Color, glow: float) -> BaseMaterial3
 # ------------------------------------------------------------------ armas
 static func _build_sword(h: Node3D, tip: Node3D, id: String) -> void:
 	var it := ItemDB.get_item(id)
-	if it.has("model") and _build_model(h, tip, it.model) != null:
-		return
+	if it.has("model"):
+		var w := _build_model(h, tip, it.model)
+		if w != null:
+			if str(it.get("tool", "")) == "axe":
+				# machado: gira no eixo do cabo para o gume liderar o corte horizontal (KnightMoves.CHOP)
+				var roll := Transform3D(Basis.IDENTITY.rotated(Vector3.BACK, AXE_ROLL), Vector3.ZERO)
+				w.transform = roll * w.transform
+				tip.position = roll * tip.position
+			return
 	var shape: String = it.get("shape", "")
 	var length := 0.86
 	var width := 0.052
@@ -477,6 +489,56 @@ static func _build_sword(h: Node3D, tip: Node3D, id: String) -> void:
 		tip.position = Vector3(0, 0, z0 + length)
 
 
+## Ferramenta de coleta nas mãos: as de nível alto (item com "aura") ganham luz na cabeça e faíscas subindo dela
+## (mais densas no nível astral). Só no personagem: o ícone do inventário usa _build_sword direto, sem isso.
+const TOOL_HEAD := Vector3(0.0, 0.0, 0.56)
+
+
+static func _tool_fx(h: Node3D, id: String) -> void:
+	var it := ItemDB.get_item(id)
+	if not it.has("aura"):
+		return
+	var c: Color = it.aura
+	var tier := int(it.get("tier", 1))
+	var light := OmniLight3D.new()
+	light.light_color = c
+	light.light_energy = 0.35 + 0.15 * (tier - 3)
+	light.omni_range = 1.6
+	light.shadow_enabled = false
+	light.position = TOOL_HEAD
+	h.add_child(light)
+	var p := CPUParticles3D.new()
+	p.amount = 8 if tier < 5 else 16
+	p.lifetime = 0.9
+	p.local_coords = false   # as faíscas ficam no ar quando a ferramenta passa (rastro no golpe)
+	p.position = TOOL_HEAD
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 0.16
+	p.direction = Vector3.UP
+	p.spread = 30.0
+	p.gravity = Vector3(0, 0.6, 0)
+	p.initial_velocity_min = 0.05
+	p.initial_velocity_max = 0.25
+	p.scale_amount_min = 0.5
+	p.scale_amount_max = 1.0
+	var curve := Curve.new()
+	curve.add_point(Vector2(0.0, 0.2))
+	curve.add_point(Vector2(0.3, 1.0))
+	curve.add_point(Vector2(1.0, 0.0))
+	p.scale_amount_curve = curve
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.035, 0.035)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	m.albedo_color = c
+	quad.material = m
+	p.mesh = quad
+	h.add_child(p)
+
+
 ## Arma modelada no Blender (assets/models/<model>.glb): cabo na origem, lâmina em +Y do GLB, largura em X.
 ## O suporte usa +Z como direção da lâmina e Y como largura; o empty "Tip" do GLB vira a ponta.
 ## O lado esquerdo da folha de conceito (-X do GLB, para onde as lâminas curvas dobram: as costas) vai para
@@ -495,6 +557,8 @@ static func _build_model(h: Node3D, tip: Node3D, model: String, basis := SWORD_B
 	return w
 
 
+## Giro do machado no eixo do cabo (rad), medido com tools/weapon_pose_shot.tscn -- coleta.
+const AXE_ROLL := PI / 2.0
 const SWORD_BASIS := Basis(Vector3(0, -1, 0), Vector3(0, 0, 1), Vector3(-1, 0, 0))
 
 

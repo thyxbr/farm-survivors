@@ -926,6 +926,8 @@ func _clean_look(look: Dictionary, char_id := 0) -> Dictionary:
 		out[s] = v if ItemDB.ITEMS.has(v) else ""
 	var fx := _clean_fx(look.get("fx"))
 	var e := server_weapon_enchant(char_id)
+	if str(ItemDB.get_item(out.weapon).get("type", "")) == "tool":
+		e = {"el": "", "lv": 0}   # coletando: a ferramenta na mão não leva o brilho da arma encantada
 	fx.en = e.el
 	fx.lv = e.lv
 	out["fx"] = fx

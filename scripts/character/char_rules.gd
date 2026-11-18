@@ -221,6 +221,21 @@ static func _inv_less(bt: BalanceTables, a: Dictionary, b: Dictionary) -> bool:
 	return str(_item(bt, a.id).get("name", a.id)) < str(_item(bt, b.id).get("name", b.id))
 
 
+# ================================================================ ferramentas de coleta
+## Personagem de antes da coleta com ferramenta (sem flags["tools_v"]): ganha a picareta e o machado de pedra
+## uma vez, para não perder a coleta que fazia com o ataque. Quem já tem do tipo não ganha outro.
+## Devolve true se mudou algo (flag marcada).
+static func migrate_tools(s: CharState, bt: BalanceTables) -> bool:
+	if s.flags.get("tools_v", false):
+		return false
+	var items_t := bt.get_table("items")
+	for e in [["pickaxe", "pickaxe_stone"], ["axe", "axe_stone"]]:
+		if GatherRules.best_tool(items_t, s.inventory, e[0]) == "" and items_t.has(e[1]):
+			add_item(s, bt, e[1], 1)
+	s.flags["tools_v"] = true
+	return true
+
+
 # ================================================================ migração da progressão
 ## Versão da progressão por nível; vive em flags["prog_v"] (salvo no banco e no arquivo, sem coluna nova).
 const PROG_VERSION := 1
@@ -582,13 +597,20 @@ static func cook(s: CharState, bt: BalanceTables, recipe: String, times = 1) -> 
 
 # ================================================================ coleta (veios e árvores)
 ## Coleta de um nó (WorldHarvest.gather já conferiu distância e tempo de volta): pede o nível da profissão
-## de coleta do nó, dá os itens e a XP. `g` = {"items", "prof", "level", "xp"}.
+## de coleta do nó e uma ferramenta do tipo e nível certos na mochila (GatherRules), dá os itens e a XP.
+## `g` = {"items", "prof", "level", "xp", "tier"}.
 static func gather(s: CharState, bt: BalanceTables, g: Dictionary) -> Dictionary:
 	var prof := str(g.get("prof", ""))
 	var need := int(g.get("level", 1))
 	if prof != "" and CraftRules.level(s, prof) < need:
 		var pname := str(CraftRules.professions(bt).get(prof, {}).get("name", prof))
 		return _fail("nivel", [_notify("Precisa de %s nível %d." % [pname, need], C_BAD)])
+	var items_t := bt.get_table("items")
+	var kind := GatherRules.tool_kind(prof)
+	var need_tier := int(g.get("tier", 1))
+	var tool_ok := GatherRules.check(items_t, GatherRules.best_tool(items_t, s.inventory, kind), kind, need_tier)
+	if not tool_ok.ok:
+		return _fail(tool_ok.err, [_notify(GatherRules.refusal_text(items_t, tool_ok.err, kind, need_tier), C_BAD)])
 	var r := grant(s, bt, 0, 0, g.get("items", {}))
 	if r.ok and prof != "":
 		r.events.append_array(CraftRules.gain(s, bt, prof, int(g.get("xp", 0)), need))
