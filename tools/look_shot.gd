@@ -5,7 +5,8 @@ extends Node3D
 ##   godot --path . --resolution 1800x900 res://tools/look_shot.tscn -- <saida.png> [conjunto] [3q|back|side|close|wide|head|bust|waist|torso|legs|hands] [run|arms]
 ## run = pose de corrida no meio da passada.
 ## conjunto: "leves", "pesados", "todos" (padrão) ou ids separados por vírgula num só personagem;
-## "cada:id1,id2,..." põe um personagem por id (para comparar armas lado a lado).
+## "cada:id1,id2,..." põe um personagem por id (para comparar armas lado a lado); "id1+id2" veste as duas
+## peças no mesmo personagem (conjuntos lado a lado: "cada:lich_crown+lich_robe,frost_crown+frost_robe").
 
 const KNIGHT := preload("res://assets/models/knight.glb")
 const SETS := {
@@ -40,8 +41,11 @@ func _ready() -> void:
 	elif which == "todos":
 		looks = SETS.leves + SETS.pesados
 	elif which.begins_with("cada:"):
-		for id in which.substr(5).split(","):
-			looks.append({ItemDB.slot_of(id): id})
+		for ids in which.substr(5).split(","):
+			var l := {}
+			for id in ids.split("+"):       # "a+b" veste as duas peças no mesmo personagem
+				l[ItemDB.slot_of(id)] = id
+			looks.append(l)
 	else:
 		var l := {}
 		for id in which.split(","):
