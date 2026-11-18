@@ -861,6 +861,23 @@
 		},
 		"desc": "Bordado com fios que brilham na escuridão."
 	},
+	"archmage_robe": {
+		"name": "Manto do Arquimago",
+		"type": "armor",
+		"rarity": "epic",
+		"level": 35,
+		"defense": 5,
+		"price": 600,
+		"stats": {
+			"int": 7,
+			"mp": 50
+		},
+		"style": "a_archmage",
+		"pants": {
+			"$c": [0.16, 0.17, 0.3, 1.0]
+		},
+		"desc": "Marinho e ouro. As runas da estola acendem quando o mago respira fundo."
+	},
 	"ranger_vest": {
 		"name": "Gibão do Patrulheiro",
 		"type": "armor",
@@ -1019,6 +1036,21 @@
 			"$c": [0.92, 0.74, 0.3, 1.0]
 		},
 		"desc": "Pontudo como deve ser."
+	},
+	"archmage_hat": {
+		"name": "Chapéu do Arquimago",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "epic",
+		"level": 35,
+		"defense": 2,
+		"price": 500,
+		"stats": {
+			"int": 5,
+			"mp": 35
+		},
+		"style": "h_archmage",
+		"desc": "Feltro mole, lua de ouro e uma estrela que balança na aba."
 	},
 	"ranger_hood": {
 		"name": "Capuz do Patrulheiro",
