@@ -438,7 +438,8 @@ static func equip(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	if slot_name == "offhand" and it.has("needs") and it.needs != weapon_class(bt, s.equipment.weapon):
 		return _fail("exige_classe", [_notify("%s exige %s." % [it.name, str(CLASS_NAMES.get(it.needs, it.needs)).to_lower()],
 			Color(1, 0.6, 0.5))])
-	if s.level < item_level(bt, id):
+	# com o modo admin ligado (AdminRules.FLAG) o nível do item não impede: é para testar equipamento
+	if s.level < item_level(bt, id) and not (s.flags.get("admin") is Dictionary):
 		return _fail("exige_nivel", [_notify("Requer nível %d." % item_level(bt, id), Color(1, 0.6, 0.5))])
 	var ev: Array = []
 	remove_item(s, id, 1)

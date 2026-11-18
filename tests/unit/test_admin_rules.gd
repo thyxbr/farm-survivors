@@ -71,6 +71,34 @@ func test_service_requires_permission() -> void:
 	T.eq(int(r.state.gold), gold, "nada mudou")
 
 
+func test_give_item_only_in_admin_mode() -> void:
+	var svc := _svc()
+	var r := svc.admin_give(2, "archmage_robe", 1)
+	T.ok(not r.ok and r.err == "sem_admin", "recusado com o modo admin desligado")
+	T.eq(CharRules.count_item(svc.load_or_create(2), "archmage_robe"), 0, "nada entrou na mochila")
+	T.ok(svc.set_admin(2, true, true).ok, "ligou")
+	r = svc.admin_give(2, "archmage_robe", 1)
+	T.ok(r.ok, "deu o manto: %s" % r.err)
+	T.eq(CharRules.count_item(svc.load_or_create(2), "archmage_robe"), 1, "manto na mochila")
+	r = svc.admin_give(2, "nao_existe", 1)
+	T.ok(not r.ok and r.err == "item_desconhecido", "item desconhecido recusado")
+	r = svc.admin_give(2, "archmage_hat", 500)
+	T.eq(CharRules.count_item(svc.load_or_create(2), "archmage_hat"), AdminRules.GIVE_MAX_LOOSE, "peça solta: limite por pedido")
+
+
+func test_admin_equips_above_level() -> void:
+	var svc := _svc()
+	T.ok(svc.set_admin(2, true, true).ok, "ligou")
+	T.ok(svc.admin_give(2, "archmage_robe", 2).ok, "deu dois mantos")
+	T.ok(svc.load_or_create(2).level < CharRules.item_level(_tables(), "archmage_robe"), "personagem abaixo do nível do manto")
+	var r := svc.apply(2, "equip", ["archmage_robe"])
+	T.ok(r.ok, "admin veste acima do nível: %s" % r.err)
+	T.ok(svc.apply(2, "unequip", ["armor"]).ok, "tirou")
+	T.ok(svc.set_admin(2, false, true).ok, "desligou")
+	r = svc.apply(2, "equip", ["archmage_robe"])
+	T.ok(not r.ok and r.err == "exige_nivel", "sem admin o nível volta a valer")
+
+
 func test_service_refills_after_each_op() -> void:
 	var svc := _svc()
 	svc.load_or_create(2).equipment.weapon = "azure_edge"   # o personagem novo começa sem arma

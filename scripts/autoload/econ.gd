@@ -173,6 +173,22 @@ func set_admin(on: bool) -> void:
 	_deliver("admin", [on], _svc.set_admin(SOLO_ACCOUNT, on, true))
 
 
+## Modo admin: põe `qty` de um item qualquer na mochila (resposta como op "admin_give"). Solo e online
+## passam pela mesma regra (AdminRules.give): só funciona com o modo admin ligado.
+func admin_give(id: String, qty := 1) -> void:
+	if Network.is_client():
+		_seq += 1
+		_pending[_seq] = {"op": "admin_give", "args": [id, qty]}
+		_admin_give_req.rpc_id(1, _seq, id, qty)
+		return
+	if Network.is_server():
+		return
+	if not ensure_solo():
+		_deliver("admin_give", [id, qty], {"ok": false, "err": "sem_banco", "events": [], "state": {}})
+		return
+	_deliver("admin_give", [id, qty], _svc.admin_give(SOLO_ACCOUNT, id, qty))
+
+
 ## Ecos para o personagem de demonstração (só solo; usado pelas opções de depuração do Game).
 func demo_ecos(amount: int) -> void:
 	if Network.is_online() or not ensure_solo():
@@ -715,6 +731,21 @@ func _admin_req(seq: int, on: bool) -> void:
 	if allowed:
 		print("[server] modo admin %s: %s" % ["ligado" if on else "desligado", Network.players[peer].get("name", "?")])
 	var r := Network.characters.set_admin(char_id, on, allowed)
+	_econ_res.rpc_id(peer, seq, r.ok, r.err, events_of(r), r.state)
+
+
+## Modo admin: adicionar item. Quem pode é quem conseguiu ligar o modo admin (ver _admin_req); com ele
+## desligado a regra recusa.
+@rpc("any_peer", "call_remote", "reliable")
+func _admin_give_req(seq: int, id: String, qty: int) -> void:
+	var char_id := _sender_char()
+	if char_id <= 0:
+		_reply_no_session(seq)
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	var r := Network.characters.admin_give(char_id, id, qty)
+	if r.ok:
+		print("[server] admin adicionou %d x %s: %s" % [qty, id, Network.players[peer].get("name", "?")])
 	_econ_res.rpc_id(peer, seq, r.ok, r.err, events_of(r), r.state)
 
 
