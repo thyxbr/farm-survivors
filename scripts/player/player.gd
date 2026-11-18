@@ -219,7 +219,12 @@ func _build_model() -> void:
 	if cape:
 		cape.add_capsule(parts.LegL, 0.11, 0.95, Vector3(0, -0.45, 0))
 		cape.add_capsule(parts.LegR, 0.11, 0.95, Vector3(0, -0.45, 0))
-		cape.add_capsule(parts.Body, 0.14, 0.75, Vector3(0, 0.25, 0.02))
+		# tronco: a cápsula acompanha o peito (a capa sai dos ombros); mesma posição de antes em repouso
+		var chest: Node3D = parts.get("Chest")
+		if chest:
+			cape.add_capsule(chest, 0.14, 0.75, Vector3(0, 0.25, 0.02) - chest.position)
+		else:
+			cape.add_capsule(parts.Body, 0.14, 0.75, Vector3(0, 0.25, 0.02))
 
 
 ## Troca o modelo pelo do corpo `b` ("m"/"f"): o rabo de cavalo e as proporções vêm do GLB, então o

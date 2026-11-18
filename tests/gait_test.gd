@@ -40,6 +40,8 @@ func _ready() -> void:
 	_leans_with_speed(1.0, 1.0, 0.25)
 	_foot_lands_under_body(1.0, 0.0)
 	_foot_lands_under_body(1.0, 1.0)
+	_spine_curves(1.0, 0.0)
+	_spine_curves(1.0, 1.0)
 	print("gait_test: ", "OK" if fails == 0 else "%d falhas" % fails)
 	get_tree().quit(0 if fails == 0 else 1)
 
@@ -60,7 +62,7 @@ func _cycle(move: float, run: float) -> Array:
 		var hw: Vector3 = r.ElbowL.global_transform * hand
 		out.append({
 			"head_yaw": _yaw(r.Head), "head_roll": _roll(r.Head),
-			"body_yaw": _yaw(r.Body), "body_roll": _roll(r.Body),
+			"body_yaw": _yaw(r.Chest), "body_roll": _roll(r.Chest),
 			"pelvis_yaw": _yaw(r.Pelvis),
 			"ankle_x": r.AnkleL.global_position.x,
 			"stance_l": u < KnightAnim.gait_duty(move, run),
@@ -202,7 +204,7 @@ func _head_steady_with_smoothing(move: float, run: float, tag: String) -> void:
 		KnightAnim.apply(r, p, 1.0 - exp(-14.0 * dt))
 		if i >= 90:
 			var hy := _yaw(r.Head)
-			var by := _yaw(r.Body)
+			var by := _yaw(r.Chest)
 			h_lo = minf(h_lo, hy)
 			h_hi = maxf(h_hi, hy)
 			b_lo = minf(b_lo, by)
@@ -323,7 +325,7 @@ func _leans_with_speed(move: float, run: float, least: float) -> void:
 		var p := KnightAnim.locomotion_pose(r, TAU * i / N, move, run)
 		KnightAnim.apply(r, p, 1.0)
 		KnightAnim.apply(r, p, 1.0)
-		var b := _pitch(r.Body)
+		var b := _pitch(r.Chest)
 		body += b / N
 		head += _pitch(r.Head) / N
 		lo = minf(lo, b)
@@ -351,3 +353,31 @@ func _foot_lands_under_body(move: float, run: float) -> void:
 	var behind: float = -z[1]    # > 0: atrás na saída
 	check(front > 0.0 and behind - front >= 0.04, "foot_lands_under_body (move %.1f run %.1f)" % [move, run],
 		"à frente %.3f m, atrás %.3f m" % [front, behind])
+
+
+## Coluna: correndo, o peito cai mais que o quadril e a cabeça volta (curva); cinto e saiote (Body) giram com
+## a pelve, contra os ombros (Chest); e um golpe por cima da marcha recebe o tronco inteiro de volta em Body.
+func _spine_curves(move: float, run: float) -> void:
+	var model := (load("res://assets/models/knight.glb") as PackedScene).instantiate() as Node3D
+	add_child(model)
+	var r := KnightAnim.rig(model)
+	var p := KnightAnim.locomotion_pose(r, 0.0, move, run)
+	KnightAnim.apply(r, p, 1.0)
+	KnightAnim.apply(r, p, 1.0)
+	var hips := _pitch(r.Body)
+	var chest := _pitch(r.Chest)
+	var head := _pitch(r.Head)
+	var hips_yaw := _yaw(r.Body)
+	var chest_yaw := _yaw(r.Chest)
+	var shoulders: float = p.twist + p.chest_y
+	var lean: float = p.body_x + p.chest_x
+	KnightAnim.drop_gait_comp(p)   # o que todo golpe, arco e magia chama antes de pôr a própria pose
+	model.queue_free()
+	var tag := " (move %.1f run %.1f)" % [move, run]
+	check(hips > 0.03 and chest > hips + 0.03 and head < chest - 0.03, "spine_curves" + tag,
+		"quadril %.3f peito %.3f cabeça %.3f rad" % [hips, chest, head])
+	check(hips_yaw < -0.03 and chest_yaw > 0.03, "hips_turn_against_shoulders" + tag,
+		"cinto %.3f ombros %.3f rad" % [hips_yaw, chest_yaw])
+	check(p.chest_x == 0.0 and p.chest_y == 0.0 and p.chest_z == 0.0 and absf(shoulders) > 0.03
+		and absf(p.twist - shoulders) < 1e-6 and absf(p.body_x - lean) < 1e-6, "attack_takes_whole_torso" + tag,
+		"peito (%.3f, %.3f, %.3f) body_x %.3f (inclinação %.3f)" % [p.chest_x, p.chest_y, p.chest_z, p.body_x, lean])

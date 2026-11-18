@@ -88,6 +88,14 @@ const HEAD_LEAN := 0.6            ## quanto da inclinação a cabeça desfaz (co
 ## Inclinado, o corpo vai à frente dos pés: o apoio inteiro recua esta fração de perna * sen(inclinação). O pé
 ## pousa mais embaixo do corpo e empurra mais atrás, como numa corrida, em vez de bater lá na frente.
 const STANCE_BACK := 0.3
+## Coluna: o tronco tem dois pivôs, Body (quadril, cinto, saiote) e Chest (peito, ombros, braços e cabeça),
+## criado em ensure_chest(). A inclinação da corrida se reparte entre os dois (o peito cai mais que o quadril e
+## a cabeça volta: a coluna faz uma curva), os ombros giram no peito contra o quadril e ficam nivelados
+## enquanto o quadril pende sobre a perna de apoio.
+const CHEST_LEAN := 0.45          ## fração da inclinação que o peito faz (o resto é do quadril)
+const CHEST_LEVEL := 0.7          ## quanto o peito desfaz do pender do quadril (ombros nivelados)
+const CHEST_MIN_TOP := 0.12       ## peça rígida do tronco vai para o peito se sobe isto acima da cintura (m)
+const CHEST_DEFAULT_Y := 0.12     ## altura da cintura acima do pivô Body em modelos sem a malha Torso (m)
 const LEAN_ACCEL := 0.01          ## inclinação extra por m/s² de aceleração para a frente (soma em player.gd)
 const LEAN_MIN := -0.12           ## limites dessa parte da aceleração (freando / arrancando)
 const LEAN_ACCEL_MAX := 0.1
@@ -133,6 +141,7 @@ const ROLL_TUCK := {
 	"body_x": 0.75, "head_x": 0.7, "leg_l": -1.75, "leg_r": -1.55, "knee_l": 2.3, "knee_r": 2.2,
 	"arm_l": Vector3(-0.9, 0.0, 0.25), "arm_r": Vector3(-0.7, 0.0, -0.25), "elbow_l": -1.7, "elbow_r": -1.4,
 	"twist": 0.0, "hip_twist": 0.0, "leg_yaw": 0.0, "body_y": 0.0, "body_z": 0.0, "body_shift": 0.0,
+	"chest_x": 0.0, "chest_y": 0.0, "chest_z": 0.0,
 	"head_y": 0.0, "head_z": 0.0,
 }
 ## Rolando, a arma aponta para trás e um pouco para cima (ângulo em torno do eixo X do modelo; 0 = para a
@@ -155,7 +164,7 @@ const DEATH_WEAPON_X := 1.5
 const ARM_IK_MAX_BEND := -2.5
 const LEG_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r", "foot_l", "foot_r"]
 const POSE_KEYS := ["leg_l", "leg_r", "knee_l", "knee_r", "foot_l", "foot_r", "lift", "body_x", "body_y", "body_z", "body_shift",
-	"twist", "hip_twist", "leg_yaw", "roll", "head_x", "head_y", "head_z", "arm_l", "arm_r", "elbow_l", "elbow_r", "wrist_l", "wrist_r", "ground"]
+	"twist", "hip_twist", "leg_yaw", "roll", "chest_x", "chest_y", "chest_z", "head_x", "head_y", "head_z", "arm_l", "arm_r", "elbow_l", "elbow_r", "wrist_l", "wrist_r", "ground"]
 
 
 ## Pivôs do modelo + medidas das pernas. Funciona com modelos antigos sem KneeX/ElbowX (ficam null).
@@ -164,6 +173,7 @@ static func rig(model: Node3D) -> Dictionary:
 	for n in ["LegL", "LegR", "KneeL", "KneeR", "AnkleL", "AnkleR", "ArmL", "ArmR", "ElbowL", "ElbowR", "Body", "Head"]:
 		r[n] = model.find_child(n, true, false)
 	r["Pelvis"] = _ensure_pelvis(r)
+	r["Chest"] = ensure_chest(model)
 	r["body_y"] = r.Body.position.y
 	r["body_x0"] = r.Body.position.x
 	r["twist"] = 0.0
@@ -288,6 +298,50 @@ static func _ensure_pelvis(r: Dictionary) -> Node3D:
 	return pelvis
 
 
+## Pivô do peito (Chest), filho de Body na altura da cintura: cabeça, braços, capa e as peças rígidas da parte
+## de cima do tronco passam para ele; quadril, cinto e saiote ficam em Body. Com ele a coluna dobra na cintura
+## (veja CHEST_LEAN). Criado aqui (e não no GLB) para valer em todo modelo e armadura; pode ser chamado de novo
+## depois de trocar as roupas (KnightLook.apply), para separar as peças novas. Devolve null sem o pivô Body.
+static func ensure_chest(model: Node3D) -> Node3D:
+	var body := model.find_child("Body", true, false) as Node3D
+	if body == null:
+		return null
+	var chest := body.get_node_or_null("Chest") as Node3D
+	if chest == null:
+		chest = Node3D.new()
+		chest.name = "Chest"
+		var y := CHEST_DEFAULT_Y
+		var torso := body.get_node_or_null("Torso") as MeshInstance3D
+		if torso and torso.mesh:
+			y = (torso.transform * torso.get_aabb()).position.y + 0.03   # um pouco acima da borda de baixo do tronco
+		chest.position = Vector3(0.0, y, 0.0)
+		body.add_child(chest)
+		chest.owner = body.owner
+	var inv := chest.transform.affine_inverse()
+	for c in body.get_children():
+		var n := c as Node3D
+		if n == null or n == chest:
+			continue
+		var up := false
+		if n is MeshInstance3D:
+			var mi := n as MeshInstance3D
+			up = mi.mesh != null and (mi.transform * mi.get_aabb()).end.y > chest.position.y + CHEST_MIN_TOP
+		else:
+			# pivôs (cabeça, braços), esqueleto da capa e suportes presos às costas
+			var named: bool = n.name in ["Head", "ArmL", "ArmR"] or String(n.name).begins_with("Cape")
+			up = named or n.position.y > chest.position.y + CHEST_MIN_TOP
+		if not up:
+			continue
+		var xf := inv * n.transform
+		var own := n.owner
+		n.owner = null
+		body.remove_child(n)
+		chest.add_child(n)
+		n.owner = own
+		n.transform = xf
+	return chest
+
+
 ## Comprimento da perna esticada (quadril ao tornozelo).
 static func leg_length(r: Dictionary) -> float:
 	return r.thigh + r.shin
@@ -297,7 +351,8 @@ static func leg_length(r: Dictionary) -> float:
 static func rest_pose() -> Dictionary:
 	return {"leg_l": 0.0, "leg_r": 0.0, "knee_l": 0.0, "knee_r": 0.0, "foot_l": 0.0, "foot_r": 0.0, "lift": 0.0,
 		"body_x": 0.0, "body_y": 0.0,
-		"body_z": 0.0, "body_shift": 0.0, "twist": 0.0, "hip_twist": 0.0, "leg_yaw": 0.0, "roll": 0.0, "head_x": 0.0, "head_y": 0.0, "head_z": 0.0, "wrist_l": 0.0, "wrist_r": 0.0,
+		"body_z": 0.0, "body_shift": 0.0, "twist": 0.0, "hip_twist": 0.0, "leg_yaw": 0.0, "roll": 0.0, "chest_x": 0.0, "chest_y": 0.0, "chest_z": 0.0,
+		"head_x": 0.0, "head_y": 0.0, "head_z": 0.0, "wrist_l": 0.0, "wrist_r": 0.0,
 		"arm_l": Vector3(0, 0, IDLE_ARM_OUT), "arm_r": Vector3(IDLE_ARM_R_X, 0, -IDLE_ARM_OUT),
 		"elbow_l": IDLE_ELBOW, "elbow_r": IDLE_ELBOW, "ground": 1.0, "snap": [], "speed": {}}
 
@@ -414,22 +469,31 @@ static func locomotion_pose(r: Dictionary, phase: float, move: float, run: float
 	p.arm_r.z += cross * maxf(-sl, 0.0)
 	# o tronco amortece no meio de cada apoio (além do que a altura das pernas já dá)
 	p.body_y = -lerpf(BODY_BOUNCE_WALK, BODY_BOUNCE_RUN, run) * move * bounce
-	p.twist = lerpf(TORSO_TWIST_WALK, TORSO_TWIST_RUN, run) * move * cos(phase - TORSO_LAG)
+	var shoulders := lerpf(TORSO_TWIST_WALK, TORSO_TWIST_RUN, run) * move * cos(phase - TORSO_LAG)   # giro dos ombros
 	# o quadril gira contra os ombros e as pernas desfazem esse giro (continuam balançando para a frente)
 	p.hip_twist = -lerpf(PELVIS_TWIST_WALK, PELVIS_TWIST_RUN, run) * move * cos(phase)
 	p.leg_yaw = -p.hip_twist
+	# com o pivô do peito, o cinto e o saiote (Body) giram com o quadril e os ombros giram no peito, contra ele
+	var spine: bool = r.get("Chest") != null
+	p.twist = p.hip_twist if spine else shoulders
+	p.chest_y = shoulders - p.twist
 	# o quadril pende um pouco sobre a perna de apoio
 	p.body_z = -HIP_DROP * move * sin(phase)
 	# e a pelve passa para o lado dessa perna
 	p.body_shift = lerpf(WEIGHT_SHIFT_WALK, WEIGHT_SHIFT_RUN, run) * move * sin(phase)
 	# o corpo cai para a frente com a velocidade e mergulha um pouco mais a cada apoio
-	p.body_x = lean + LEAN_PULSE * move * bounce
-	p.head_x = -HEAD_LEAN * p.body_x
+	var pitch := lean + LEAN_PULSE * move * bounce
+	p.chest_x = pitch * CHEST_LEAN if spine else 0.0   # o peito cai mais que o quadril: a coluna curva
+	p.body_x = pitch - p.chest_x
+	p.head_x = -HEAD_LEAN * pitch
+	# os ombros ficam quase nivelados enquanto o quadril pende
+	p.chest_z = -CHEST_LEVEL * p.body_z if spine else 0.0
 	# a cabeça desfaz quase todo o giro e a inclinação do tronco: o olhar fica estável
-	p.head_y = -HEAD_STEADY * p.twist
+	p.head_y = -HEAD_STEADY * shoulders
 	# com o tronco inclinado, o giro da cabeça é em torno de um eixo deitado e a tombaria de lado: o termo
 	# com sin() desfaz esse tombo
-	p.head_z = -HEAD_STEADY * p.body_z - p.head_y * sin(p.body_x)
+	# o mesmo vale para o giro do peito sobre o quadril inclinado
+	p.head_z = -HEAD_STEADY * (p.body_z + p.chest_z) - p.head_y * sin(pitch) - p.chest_y * sin(p.body_x)
 	return p
 
 
@@ -619,6 +683,14 @@ static func drop_gait_comp(p: Dictionary) -> void:
 	p.head_y = 0.0
 	p.head_z = 0.0
 	p.leg_yaw = 0.0
+	# o que a marcha pôs no peito volta para o tronco inteiro (Body): o golpe parte da mesma pose de tronco de
+	# sempre e manda nele sozinho. apply() leva o peito com a mesma velocidade do tronco, então não há tranco.
+	p.twist += float(p.get("chest_y", 0.0))
+	p.body_x += float(p.get("chest_x", 0.0))
+	p.body_z += float(p.get("chest_z", 0.0))
+	p.chest_x = 0.0
+	p.chest_y = 0.0
+	p.chest_z = 0.0
 	var spd: Dictionary = p.speed.duplicate()   # p.speed pode ser compartilhado com outra pose
 	spd.erase("head_y")
 	spd.erase("head_z")
@@ -995,6 +1067,8 @@ static func reset_twist(r: Dictionary) -> void:
 	r.Body.rotation.y = 0.0
 	if r.get("Pelvis"):
 		r.Pelvis.rotation.y = 0.0
+	if r.get("Chest"):
+		r.Chest.rotation = Vector3.ZERO
 
 
 ## Esquiva (rolamento para a frente) no instante `u` (0..1 da esquiva): mergulha encolhendo o corpo, o
@@ -1147,6 +1221,12 @@ static func apply(r: Dictionary, p: Dictionary, k: float) -> void:
 		body.rotation.y = wrapf(r.twist - r.hip_twist, -PI, PI)
 	else:
 		body.rotation.y = r.twist
+	# peito: segue com a velocidade da chave de tronco do mesmo eixo, para os dois mudarem juntos
+	var chest: Node3D = r.get("Chest")
+	if chest:
+		chest.rotation.x = lerpf(chest.rotation.x, float(p.get("chest_x", 0.0)), f.call("body_x"))
+		chest.rotation.y = lerpf(chest.rotation.y, float(p.get("chest_y", 0.0)), f.call("twist"))
+		chest.rotation.z = lerpf(chest.rotation.z, float(p.get("chest_z", 0.0)), f.call("body_z"))
 	body.position.y = lerpf(body.position.y, r.body_y + p.body_y, f.call("body_y"))
 	body.position.x = lerpf(body.position.x, r.body_x0 + p.body_shift, f.call("body_shift"))
 	# mirando com o arco a cabeça acompanha a inclinação da mira

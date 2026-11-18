@@ -48,3 +48,14 @@ o apoio recua em relação ao quadril (`STANCE_BACK`: o pé pousa mais embaixo d
 mergulha um pouco a cada apoio (`LEAN_PULSE`); a cabeça desfaz 60% (`HEAD_LEAN`). `player.gd` fica só com a
 parte da aceleração. Fica para depois (caminho B): dividir o tronco em quadril/peito/pescoço nos modelos, com a
 inclinação repartida pela coluna; é o que resolve a "coluna reta".
+
+## Terceira rodada (17/11): coluna, etapa 1 (só código)
+Aprovado pelo Henrique em duas etapas. Etapa 1, feita: pivô `Chest` criado em `KnightAnim.ensure_chest()` (filho de
+`Body`, na cintura); cabeça, braços, capa e as peças rígidas que sobem acima da cintura passam para ele, pela
+altura de cada peça (vale para toda armadura; `KnightLook.apply` chama de novo ao trocar a roupa). Na marcha a
+inclinação se reparte (`CHEST_LEAN`), os ombros giram no peito contra o quadril (cinto e saiote agora giram com
+a pelve) e ficam nivelados (`CHEST_LEVEL`). Golpes, arco e magias recebem o tronco inteiro de volta em `Body`
+(`drop_gait_comp`), então as poses deles não mudam. Roupas de pele contínua têm um osso só no tronco: ele segue o
+peito (`PivotSkin`), ou seja, inclinam inteiras e não curvam.
+Etapa 2, pendente (Blender): osso de peito no esqueleto das roupas de pele contínua (camisa, corpo base, manto
+do arquimago) para o tecido curvar; emendas das peças rígidas, se aparecerem no jogo.
