@@ -143,8 +143,8 @@ func frame_face() -> void:
 	_user_turned = true
 	if cam == null:
 		return   # ainda fora da árvore: _ready aplica
-	cam.position = Vector3(0, 1.7, 1.3)
-	cam.look_at(Vector3(0, 1.64, 0))
+	cam.position = Vector3(0, 1.66, 1.0)
+	cam.look_at(Vector3(0, 1.58, 0))
 	pivot.rotation.y = -0.75
 
 

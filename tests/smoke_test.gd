@@ -3577,6 +3577,23 @@ func _test_char_create() -> void:
 	await wait(0.2)
 	check(cc.title_label.text == "Crie seu herói" and not cc.old_note.visible, "título de herói novo, sem aviso de arma")
 	check(cc.cards.size() == 4, "quatro cartões de classe (%d)" % cc.cards.size())
+	var emb_ok := true
+	for id in cc.cards:
+		emb_ok = emb_ok and cc.cards[id].find_children("*", "ClassEmblem", true, false).size() == 1
+	check(emb_ok, "cada classe da coluna tem o seu emblema")
+	check(cc.hair_picker.buttons.size() == 4, "quatro miniaturas de penteado (%d)" % cc.hair_picker.buttons.size())
+	cc.select_class("healer")
+	var kit: Array = ItemDB.kit("scepter")
+	var icons_ok: bool = cc.skill_strip.slots.size() == kit.size()
+	for i in kit.size():   # arte pintada da própria habilidade; o desenho do IconPainter fica de reserva
+		icons_ok = icons_ok and cc.skill_strip.slots[i].icon_tex == ItemSlot.skill_art(kit[i]) \
+			and cc.skill_strip.slots[i].icon_kind == str(ItemDB.ABILITIES[kit[i]].icon)
+	check(icons_ok, "healer: um ícone por habilidade, arte dela ou desenho de reserva (%d)" % cc.skill_strip.slots.size())
+	check(cc.skill_strip.slots[0].icon_tex != null and "Cura" in cc.skill_strip.detail_text(),
+		"primeira habilidade com arte pintada e detalhe aberto (%s)" % cc.skill_strip.detail_text())
+	for t in ["Ab", "Ana Luz", "Abcdefghijklmnopq", ""]:
+		check(not cc._name_rule(t)[0], "nome recusado: '%s' (%s)" % [t, cc._name_rule(t)[1]])
+	check(cc._name_rule("Ayla")[0], "nome aceito: Ayla")
 	cc.select_class("archer")
 	check(cc.preview.weapon_override == "short_bow", "prévia mostra o arco inicial sem equipar")
 	var kit_ok := true
@@ -3587,6 +3604,17 @@ func _test_char_create() -> void:
 	check(cc.body == "f" and KnightLook.body_of(cc.preview.model) == "f"
 		and cc.preview.model.find_child("Gear_Ponytail", true, false) != null, "Feminino troca a prévia para o corpo feminino")
 	check(cc.preview.model.find_child("Gear_HairLong", true, false) != null, "prévia feminina com o cabelo comprido")
+	var f_ids: Array = cc.hair_picker.buttons.keys()
+	check(f_ids == HairStyles.STYLES["f"] and cc.hair == HairStyles.default_for("f")
+		and cc.hair_picker.buttons[cc.hair].button_pressed, "Feminino: miniaturas do corpo feminino, padrão marcado (%s)" % [f_ids])
+	cc.hair_picker.buttons["f_marias"].emit_signal("pressed")
+	check(cc.hair == "f_marias" and cc.preview.hair_override == "f_marias", "miniatura troca o cabelo do herói")
+	for i in 3:   # trocar de corpo várias vezes não deixa miniatura sobrando
+		cc.select_body("m")
+		cc.select_body("f")
+	await wait(0.1)
+	check(cc.hair_picker.get_child_count() == 4 and cc.hair == HairStyles.default_for("f"),
+		"trocar o corpo várias vezes: 4 miniaturas e o penteado padrão (%d)" % cc.hair_picker.get_child_count())
 	cc.select_body("m")
 	check(cc.body == "m" and KnightLook.body_of(cc.preview.model) == "m"
 		and cc.preview.model.find_child("Gear_Ponytail", true, false) == null, "Masculino volta a prévia para o corpo masculino")

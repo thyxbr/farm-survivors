@@ -48,7 +48,8 @@ func set_body(body: String) -> void:
 		p.frame_face()
 		p.freeze_after(6)
 		v.add_child(p)
-		var l := UITheme.label(b.tooltip_text, 12, UITheme.DIM)
+		var l := UITheme.label(b.tooltip_text, 11, UITheme.DIM)
+		l.clip_text = true
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.add_child(l)
@@ -60,8 +61,8 @@ func set_body(body: String) -> void:
 ## Marca o penteado `hair_id` sem emitir `chosen`.
 func select(hair_id: String) -> void:
 	if buttons.has(hair_id):
-		buttons[hair_id].set_pressed_no_signal(true)
-		for id in buttons:
+		for id in buttons:   # set_pressed_no_signal não desmarca os outros do grupo
+			buttons[id].set_pressed_no_signal(id == hair_id)
 			var l: Label = buttons[id].get_child(0).get_child(1)
 			l.add_theme_color_override("font_color", UITheme.TEXT if id == hair_id else UITheme.DIM)
 
