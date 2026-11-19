@@ -72,6 +72,9 @@ var _req_limit := TokenBuckets.new(REQ_BURST, REQ_RATE)
 var _claim_limit := TokenBuckets.new(CLAIM_BURST, CLAIM_RATE)
 ## Coleta de ferro e cristal em Valdoria: quando cada conta pode coletar cada veio de novo.
 var _gather := WorldHarvest.new()
+## Cliente: nós de coleta esgotados por outros jogadores -> instante (s, relógio do motor) em que voltam. O mundo
+## consulta ao montar os nós (node_down_for), que pode ser depois do aviso chegar.
+var _nodes_down := {}
 
 
 func _ready() -> void:
@@ -804,7 +807,52 @@ func _gather_node(seq: int, id: int) -> void:
 	var r := Network.characters.gather(char_id, g)
 	if not r.ok:
 		_gather.undo(char_id, id)
+	else:
+		# o nó é do mundo: some para todo mundo em Valdoria até voltar
+		var secs := float(WorldHarvest.node_def(Balance.tables, id).get("respawn", 60.0))
+		for pid in Network.zone_peers("world"):
+			if pid != peer:
+				_node_gone.rpc_id(pid, id, secs)
 	_econ_res.rpc_id(peer, seq, r.ok, r.err, events_of(r), r.state)
+
+
+## Servidor: quem acabou de entrar em Valdoria recebe os nós que estão esgotados agora (e quanto falta para voltarem).
+func server_send_depleted(peer: int) -> void:
+	var d := _gather.depleted(now())
+	if not d.is_empty():
+		_nodes_depleted.rpc_id(peer, d)
+
+
+## Cliente: outro jogador coletou o nó `id`; ele volta em `secs` segundos.
+@rpc("authority", "call_remote", "reliable")
+func _node_gone(id: int, secs: float) -> void:
+	_mark_node_down(id, secs)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _nodes_depleted(d: Dictionary) -> void:
+	for id in d:
+		_mark_node_down(int(id), float(d[id]))
+
+
+func _mark_node_down(id: int, secs: float) -> void:
+	_nodes_down[id] = Time.get_ticks_msec() / 1000.0 + secs
+	var w := get_tree().current_scene
+	if w and "resource_by_id" in w:
+		var n = w.resource_by_id.get(id)
+		if n != null and is_instance_valid(n):
+			n.deplete(secs)
+
+
+## Segundos até o nó `id` voltar, se outro jogador o esgotou (0 = de pé).
+func node_down_for(id: int) -> float:
+	if not _nodes_down.has(id):
+		return 0.0
+	var left := float(_nodes_down[id]) - Time.get_ticks_msec() / 1000.0
+	if left <= 0.0:
+		_nodes_down.erase(id)
+		return 0.0
+	return left
 
 
 # ================================================================ cliente

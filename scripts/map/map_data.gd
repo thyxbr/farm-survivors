@@ -22,7 +22,10 @@ const ENEMIES_JSON := "res://data/balance/enemies.json"
 static var scene_override := {}
 static var _landmarks := {}        # map_id -> {id: Vector3 local}
 static var _areas := {}            # map_id -> [área] (ver areas())
-static var _resource_nodes = null  # node_id -> {"kind", "pos"} (global)
+static var _resource_nodes = null  # node_id -> {"kind", "pos"} (global); árvores do cenário: + "prop", "scale"
+## Ids das árvores do cenário (MapProp tree_*): TREE_ID_BASE + ordem delas nas cenas de SCENES. Mexer nas árvores no
+## editor renumera as de depois; os veios (MapEntity) têm node_id fixo, abaixo disso.
+const TREE_ID_BASE := 100000
 static var _enemy_kinds := PackedStringArray()
 
 
@@ -136,6 +139,7 @@ static func all_areas() -> Array:
 static func resource_nodes() -> Dictionary:
 	if _resource_nodes == null:
 		var out := {}
+		var tree_i := 0
 		for map_id in SCENES:
 			var root := load_root(map_id)
 			if root == null:
@@ -144,6 +148,11 @@ static func resource_nodes() -> Dictionary:
 			for n in root.find_children("*", "Node3D", true, false):
 				if n is MapEntity and n.kind == "resource_node" and n.node_id >= 0:
 					out[n.node_id] = {"kind": n.ref, "pos": origin(map_id) + settled(root, n, g)}
+				elif n is MapProp and str(n.model).begins_with("tree_"):
+					# toda árvore do cenário se corta: o tipo de madeira vem de world_nodes.json "tree_models"
+					out[TREE_ID_BASE + tree_i] = {"kind": str(n.model), "pos": origin(map_id) + settled(root, n, g),
+						"prop": true, "scale": (n as Node3D).scale.x}
+					tree_i += 1
 			if g != null:
 				g.free()
 			root.free()

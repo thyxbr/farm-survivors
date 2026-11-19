@@ -224,13 +224,16 @@ func test_gathering_and_farming_xp() -> void:
 	r = CharRules.gather(s, bt, {"items": {"copper_ore": 3}, "prof": "mining", "level": 1, "xp": 12})
 	T.ok(r.ok and CharRules.count_item(s, "copper_ore") == 3, "cobre no nível 1")
 	T.eq(CraftRules.xp(s, "mining"), 12, "XP de Mineração")
-	# ferramenta: o nó pede picareta/machado do nível dele na mochila
+	# ferramenta: o nó pede picareta/machado do nível dele equipado
 	r = CharRules.gather(s, bt, {"items": {"arcane_crystal": 1}, "prof": "mining", "level": 1, "xp": 25, "tier": 2})
 	T.eq(r.err, "ferramenta_fraca", "cristal pede picareta de ferro; só tem a de pedra")
 	CharRules.add_item(s, bt, "pickaxe_iron", 1)
+	T.eq(CharRules.gather(s, bt, {"items": {"arcane_crystal": 1}, "prof": "mining", "level": 1, "xp": 25, "tier": 2}).err,
+		"ferramenta_fraca", "a de ferro só na mochila não conta")
+	T.ok(CharRules.equip(s, bt, "pickaxe_iron").ok, "equipa a de ferro")
 	T.ok(CharRules.gather(s, bt, {"items": {"arcane_crystal": 1}, "prof": "mining", "level": 1, "xp": 25, "tier": 2}).ok,
 		"com a de ferro coleta")
-	CharRules.remove_item(s, "axe_stone", 1)
+	s.equipment.axe = ""
 	r = CharRules.gather(s, bt, {"items": {"pine_log": 3}, "prof": "woodcutting", "level": 1, "xp": 12, "tier": 1})
 	T.eq(r.err, "sem_ferramenta", "sem machado não corta")
 	T.eq(CharRules.count_item(s, "pine_log"), 0, "recusa não dá madeira")

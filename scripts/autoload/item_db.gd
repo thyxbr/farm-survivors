@@ -80,9 +80,12 @@ static var SHOP_STOCK: Array = []
 # ---------------------------------------------------------------- equipamento
 ## Espaços de equipamento na ordem do "boneco" (esquerda de cima para baixo, depois direita; "back",
 ## capas e asas, fica sob o boneco).
-const SLOTS := ["head", "amulet", "armor", "hands", "weapon", "offhand", "ring", "feet", "back"]
+const SLOTS := ["head", "amulet", "armor", "hands", "weapon", "offhand", "ring", "feet", "back", "pickaxe", "axe"]
+## Espaços das ferramentas de coleta (não contam como equipamento de combate).
+const TOOL_SLOTS := ["pickaxe", "axe"]
 const SLOT_NAMES := {"weapon": "Arma", "offhand": "Mão secundária", "head": "Cabeça", "armor": "Peito",
-	"hands": "Mãos", "feet": "Pés", "amulet": "Amuleto", "ring": "Anel", "back": "Costas"}
+	"hands": "Mãos", "feet": "Pés", "amulet": "Amuleto", "ring": "Anel", "back": "Costas", "pickaxe": "Picareta",
+	"axe": "Machado"}
 const CLASS_NAMES := {"sword": "Espada", "staff": "Cajado", "bow": "Arco", "scepter": "Cetro"}
 const CLASS_HINT := {"sword": "Combo de 3 golpes · escala com Força",
 	"staff": "Projéteis arcanos · escala com Inteligência",
@@ -123,6 +126,8 @@ func slot_of(id: String) -> String:
 			return "armor"
 		"gear":
 			return it.get("slot", "")
+		"tool":
+			return str(it.get("tool", ""))   # picareta e machado têm espaço próprio
 	return ""
 
 
@@ -162,7 +167,7 @@ func format_stat(k: String, v: float, signed := true) -> String:
 ## Categoria usada pelos filtros do inventário e da loja.
 func category(id: String) -> String:
 	var t: String = get_item(id).get("type", "")
-	if t in ["weapon", "armor", "gear"]:
+	if t in ["weapon", "armor", "gear", "tool"]:
 		return "equip"
 	if t in ["consumable", "food", "crop"]:
 		return "use"

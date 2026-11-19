@@ -211,7 +211,12 @@ static func chop_target(trunk_r: float) -> Vector3:
 static func nearest(player: Node) -> Node3D:
 	var best: Node3D = null
 	var best_d := REACH
-	for n in player.get_tree().get_nodes_in_group("harvest"):
+	var w := player.get_tree().current_scene
+	var cands: Array = w.harvest_near(player.global_position) if w and w.has_method("harvest_near") \
+		else player.get_tree().get_nodes_in_group("harvest")
+	for n in cands:
+		if not is_instance_valid(n):
+			continue
 		if not n.alive:
 			continue
 		var dist: float = n.edge_distance(player.global_position)

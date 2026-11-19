@@ -2027,7 +2027,16 @@ func _test_crafting() -> void:
 
 # ---------------------------------------------------------------- Coleta de ferro e cristal
 func _test_gather() -> void:
-	check(world.resource_nodes.size() == 71, "veios, cristais e árvores de coleta dos quatro mapas (%d)" % world.resource_nodes.size())
+	check(world.resource_nodes.size() == WorldHarvest.count(Balance.tables) and world.resource_nodes.size() > 600,
+		"veios, cristais e todas as árvores dos quatro mapas viram nós (%d)" % world.resource_nodes.size())
+	var scenery := 0
+	for n in world.resource_nodes:
+		if n.prop:
+			scenery += 1
+			if n._visual == null:
+				check(false, "árvore %d do cenário sem modelo ligado" % n.node_id)
+				break
+	check(scenery > 600, "árvores do cenário ligadas ao modelo do mapa (%d)" % scenery)
 	if world.resource_nodes.size() < 10:
 		return
 	var back := player.global_position
@@ -2081,8 +2090,12 @@ func _test_gather() -> void:
 	check(not plan.ok and str(plan.msg).contains("Picareta de Ferro"), "cristal com picareta de pedra: avisa (%s)" % plan.msg)
 	Econ.grant(0, 0, {"pickaxe_iron": 1}, "teste", true)
 	await wait(0.1)
+	check(not crystal.gather_plan().ok, "a de ferro só na mochila não conta: vale a equipada")
+	Game.equip("pickaxe_iron")
+	await wait(0.1)
+	check(Game.equipment.get("pickaxe", "") == "pickaxe_iron", "picareta de ferro no espaço da picareta")
 	plan = crystal.gather_plan()
-	check(plan.ok and plan.tool == "pickaxe_iron", "com a de ferro na mochila, usa a de ferro")
+	check(plan.ok and plan.tool == "pickaxe_iron", "com a de ferro equipada, usa a de ferro")
 	var cr0 := Game.count_item("arcane_crystal")
 	crystal.strike(player.global_position, crystal.tough)
 	await wait(0.2)
@@ -3388,6 +3401,15 @@ func _test_gear() -> void:
 	await wait(0.15)
 	var m = world.modal
 	check(m != null and m.equip_slots.size() == 9 and m.bag_slots.size() >= 54, "inventário com boneco (9 espaços) e grade")
+	check(m.tool_slots.size() == 2 and m.tool_slots.pickaxe.item_id == Game.equipment.get("pickaxe", ""),
+		"aba Ferramentas da página do herói com os espaços da picareta e do machado")
+	check(m.gear_view.visible and not m.tools_view.visible, "Inventário abre na aba Equipamento")
+	m._set_side_tab("tools")
+	await wait(0.05)
+	check(m.tools_view.visible and not m.gear_view.visible and m.tool_slots.pickaxe.visible and not m.equip_slots.head.visible,
+		"aba Ferramentas troca os espaços em volta do boneco (a mochila fica)")
+	check(m.hero_preview.weapon_override == Game.equipment.get("pickaxe", ""), "na aba Ferramentas o boneco segura a picareta")
+	m._set_side_tab("equip")
 	check(m.equip_slots.head.item_id == "leather_cap", "boneco mostra o capuz equipado")
 	var book: BookWindow = m.book
 	check(book != null and book.current_page() == 0, "menu do herói abre no livro, na aba Inventário")

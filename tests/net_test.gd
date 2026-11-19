@@ -134,10 +134,11 @@ func _ready() -> void:
 	if Network.world == null:
 		_finish()
 		return
-	# personagem novo não tem equipamento: só a arma da classe que o --nettest escolheu (guerreiro);
-	# pede ao servidor (--test) o kit das três classes de arma
+	# personagem novo não tem equipamento de combate: só a arma da classe que o --nettest escolheu (guerreiro),
+	# além da picareta e do machado de pedra; pede ao servidor (--test) o kit das três classes de arma
 	check(Game.char_class == "warrior" and Game.equipment.weapon == "azure_edge"
-		and Game.equipment.values().filter(func(v) -> bool: return v != "").size() == 1,
+		and Game.equipment.pickaxe == "pickaxe_stone" and Game.equipment.axe == "axe_stone"
+		and Game.equipment.keys().filter(func(k) -> bool: return Game.equipment[k] != "" and not (k in ItemDB.TOOL_SLOTS)).size() == 1,
 		"personagem novo começa só com a arma da classe (%s, %s)" % [Game.char_class, Game.equipment.weapon])
 	Econ.request_test_items({"azure_edge": 1, "apprentice_staff": 1, "short_bow": 1, "leather_boots": 1})
 	check(await _wait_until(func() -> bool: return Game.count_item("short_bow") == 1 and Game.count_item("leather_boots") == 1, 5.0),
@@ -339,20 +340,32 @@ func _ready() -> void:
 			var mis: Array = hold.find_children("*", "MeshInstance3D", true, false) if hold else []
 			check(not mis.is_empty() and mis[0].material_overlay != null, "encanto aplicado na arma da réplica de %s" % rp.display_name)
 
-	# coleta de ferro: o servidor confere a distância e o tempo de volta do veio (veios são de cada jogador)
+	# coleta de ferro: o servidor confere a distância e o tempo de volta do veio. Os veios são do mundo: cada
+	# jogador coleta um diferente (Ana o 0, Beto o 1) e o veio que o outro coletou some para ele também
+	var mine := 0 if my_name == "Ana" else 1
+	var theirs := 1 - mine
 	var ore0 := Game.count_item("iron_ore")
 	var here: Vector3 = w.player.global_position
-	Econ.gather_node(0, here)
+	Econ.gather_node(mine, here)
 	await wait(0.8)
 	check(Game.count_item("iron_ore") == ore0, "coleta de longe é recusada pelo servidor")
-	w.player.global_position = WorldHarvest.node_def(Balance.tables, 0).pos + Vector3(1.5, 0.4, 0)
+	w.player.global_position = WorldHarvest.node_def(Balance.tables, mine).pos + Vector3(1.5, 0.4, 0)
 	await wait(0.8)   # a posição nova chega ao servidor
-	Econ.gather_node(0, w.player.global_position)
+	Econ.gather_node(mine, w.player.global_position)
 	check(await _wait_until(func() -> bool: return Game.count_item("iron_ore") == ore0 + 3, 5.0),
 		"coleta perto do veio concede 3 minérios")
-	Econ.gather_node(0, w.player.global_position)
+	Econ.gather_node(mine, w.player.global_position)
 	await wait(0.8)
 	check(Game.count_item("iron_ore") == ore0 + 3, "veio esgotado não concede de novo")
+	if peers > 1:
+		var other_node = w.resource_by_id.get(theirs)
+		check(await _wait_until(func() -> bool: return other_node != null and not other_node.alive, 8.0),
+			"o veio que o colega coletou sumiu para mim também")
+		w.player.global_position = WorldHarvest.node_def(Balance.tables, theirs).pos + Vector3(1.5, 0.4, 0)
+		await wait(0.8)
+		Econ.gather_node(theirs, w.player.global_position)
+		await wait(0.8)
+		check(Game.count_item("iron_ore") == ore0 + 3, "o servidor recusa o veio que o colega já levou")
 	w.player.global_position = here
 	await wait(0.3)
 

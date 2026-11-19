@@ -124,6 +124,12 @@ var maps := {}
 var santa: Node3D = null
 ## Veios de ferro e cristais arcanos (WorldResourceNode); vazio no servidor dedicado.
 var resource_nodes: Array = []
+## Nós de coleta por id (Econ.node_gone esconde pelo id) e numa grade de HARVEST_CELL m (busca de F perto do jogador).
+var resource_by_id := {}
+var harvest_grid := {}
+const HARVEST_CELL := 8.0
+## Árvores do mapa montadas pelo MapLoader, pelo lugar (MapLoader.tree_key): viram nós de coleta.
+var tree_props := {}
 var flicker_lights: Array = []
 var rng := RandomNumberGenerator.new()
 var _night_scan := 0.0      # tempo até a próxima conferida de dia/noite (bichos noturnos)
@@ -501,17 +507,44 @@ func _scatter_grass() -> void:
 
 
 # ================================================================ veios e cristais
-## Materiais do encantamento: veios de ferro em volta do Acampamento Goblin e cristais nas Ruínas
-## (posições nas cenas dos mapas, tipos em data/balance/world_nodes.json). São de cada jogador: nada aqui é
-## replicado.
+## Veios, cristais e todas as árvores (posições nas cenas dos mapas, tipos em data/balance/world_nodes.json). Os nós
+## são do mundo: quem coleta primeiro leva e o nó some para todos (Econ.node_gone; quem entra recebe os esgotados).
 func _setup_resource_nodes() -> void:
 	for i in WorldHarvest.ids(Balance.tables):
 		var def := WorldHarvest.node_def(Balance.tables, i)
 		if def.is_empty():
 			continue
 		var n := WorldResourceNode.from_def(def)
+		if n.prop:
+			var p: Node3D = tree_props.get(MapLoader.tree_key(def.pos))
+			if p == null:
+				n.free()   # árvore de um mapa que não foi montado aqui
+				continue
+			n.attach_prop(p)
 		add_child(n)
 		resource_nodes.append(n)
+		resource_by_id[n.node_id] = n
+		var cell := _harvest_cell(n.position)
+		if not harvest_grid.has(cell):
+			harvest_grid[cell] = []
+		harvest_grid[cell].append(n)
+		var down := Econ.node_down_for(n.node_id)
+		if down > 0.0:
+			n.deplete(down)
+
+
+func _harvest_cell(p: Vector3) -> Vector2i:
+	return Vector2i(floori(p.x / HARVEST_CELL), floori(p.z / HARVEST_CELL))
+
+
+## Nós de coleta nas células em volta de `p` (o alcance de F é bem menor que uma célula).
+func harvest_near(p: Vector3) -> Array:
+	var c := _harvest_cell(p)
+	var out: Array = []
+	for dx in [-1, 0, 1]:
+		for dz in [-1, 0, 1]:
+			out.append_array(harvest_grid.get(c + Vector2i(dx, dz), []))
+	return out
 
 
 # ================================================================ inimigos

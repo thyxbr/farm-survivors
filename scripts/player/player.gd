@@ -1532,6 +1532,8 @@ func start_gather(node: Node3D) -> void:
 	if dead or remote or attacking or dodge_timer > 0 or ability != "" or not is_on_floor():
 		return
 	var plan: Dictionary = node.gather_plan()
+	if plan.ok and plan.has("equip"):
+		Game.equip(str(plan.equip))   # espaço vazio: equipa a melhor da mochila (o servidor confere na coleta)
 	if not plan.ok:
 		Game.notify.emit(plan.msg, CharRules.C_BAD)
 		return

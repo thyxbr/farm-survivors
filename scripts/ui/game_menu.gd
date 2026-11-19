@@ -1,6 +1,7 @@
 extends Control
-## Menu do herói, num livro aberto (BookWindow): Inventário (herói com o equipamento + mochila em grade),
-## Personagem (atributos, estatísticas, magias), Talentos (árvore da classe, TalentPanel) e Missões (lista + detalhes).
+## Menu do herói, num livro aberto (BookWindow): Inventário (à esquerda, abas Equipamento — o herói com o que veste —
+## e Ferramentas — picareta e machado; à direita a mochila em grade), Personagem (atributos, estatísticas, magias),
+## Talentos (árvore da classe, TalentPanel), Missões (lista + detalhes) e Profissões.
 ## Referências: boneco e grade de Diablo/Path of Exile, dicas com comparação calculada,
 ## filtros por categoria, atalhos visíveis nas abas.
 
@@ -32,6 +33,15 @@ var stats_box: HBoxContainer
 var hero_label: Label
 var class_label: Label
 var bag_count: Label
+
+# ferramentas (aba da página esquerda do Inventário)
+var tool_slots := {}            # "pickaxe"/"axe" -> ItemSlot do espaço
+var tool_info := {}             # "pickaxe"/"axe" -> VBoxContainer com força e maestria
+var gear_view: Control          # aba Equipamento: o resumo de atributos embaixo do boneco
+var tools_view: Control         # aba Ferramentas: o resumo de cada ferramenta embaixo do boneco
+var hero_preview: CharPreview   # o boneco (na aba Ferramentas segura a picareta ou o machado)
+var side_tab := "equip"
+var side_buttons := {}          # "equip"/"tools" -> botão da aba
 
 # personagem
 const ATTR_ORDER := ["str", "int", "vit", "agi"]
@@ -80,6 +90,8 @@ func _ready() -> void:
 	add_child(tooltip)
 	for s in equip_slots.values():
 		s.tooltip = tooltip
+	for s in tool_slots.values():
+		s.tooltip = tooltip
 	for s in bag_slots:
 		s.tooltip = tooltip
 	var ids: Array = Game.equipment.values()
@@ -120,7 +132,25 @@ func _build_inventory() -> Control:
 	class_label = UITheme.ink("", 14, UITheme.INK_DIM)
 	class_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lv.add_child(class_label)
+	# abas da página esquerda: Equipamento (o herói) e Ferramentas (picareta e machado)
+	var side := HBoxContainer.new()
+	side.add_theme_constant_override("separation", 6)
+	side.alignment = BoxContainer.ALIGNMENT_CENTER
+	var sg := ButtonGroup.new()
+	for f in [["equip", "Equipamento"], ["tools", "Ferramentas"]]:
+		var b := Button.new()
+		b.text = f[1]
+		b.toggle_mode = true
+		b.button_group = sg
+		b.button_pressed = f[0] == side_tab
+		b.custom_minimum_size = Vector2(150, 30)
+		b.add_theme_font_size_override("font_size", 17)
+		b.pressed.connect(_set_side_tab.bind(f[0]))
+		side.add_child(b)
+		side_buttons[f[0]] = b
+	lv.add_child(side)
 	lv.add_child(HSeparator.new())
+	# o boneco é o mesmo nas duas abas; os espaços em volta e o resumo de baixo trocam com a aba
 	var doll := HBoxContainer.new()
 	doll.add_theme_constant_override("separation", 16)
 	doll.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -136,10 +166,12 @@ func _build_inventory() -> Control:
 	col_m.add_theme_constant_override("separation", 6)
 	col_m.alignment = BoxContainer.ALIGNMENT_CENTER
 	doll.add_child(col_m)
-	col_m.add_child(CharPreview.new(Vector2(250, 300)))
+	hero_preview = CharPreview.new(Vector2(250, 300))
+	col_m.add_child(hero_preview)
 	doll.add_child(col_r)
 	for i in ItemDB.SLOTS.size():
 		var sname: String = ItemDB.SLOTS[i]
+		var tool := sname in ItemDB.TOOL_SLOTS
 		var s := ItemSlot.new(74)
 		s.paper = true
 		s.slot_name = sname
@@ -150,17 +182,27 @@ func _build_inventory() -> Control:
 		s.drop_handler = _drop_on_equip
 		s.right_clicked.connect(func(sl: ItemSlot) -> void: _unequip(sl.slot_name))
 		s.double_clicked.connect(func(sl: ItemSlot) -> void: _unequip(sl.slot_name))
-		if sname == "back":
+		if tool:
+			# ferramentas em volta do boneco como o equipamento, alternando os lados (novas ferramentas entram aqui)
+			var k := ItemDB.TOOL_SLOTS.find(sname)
+			(col_l if k % 2 == 0 else col_r).add_child(s)
+			s.visible = false
+			tool_slots[sname] = s
+		elif sname == "back":
 			s.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 			col_m.add_child(s)
+			equip_slots[sname] = s
 		else:
 			(col_l if i < 4 else col_r).add_child(s)
-		equip_slots[sname] = s
+			equip_slots[sname] = s
 	lv.add_child(HSeparator.new())
 	stats_box = HBoxContainer.new()
 	stats_box.add_theme_constant_override("separation", 22)
 	stats_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	lv.add_child(stats_box)
+	gear_view = stats_box
+	tools_view = _build_tool_side()
+	lv.add_child(tools_view)
 	gold_label = UITheme.ink("", 20, INK_GOLD, true)
 	gold_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lv.add_child(gold_label)
@@ -776,6 +818,86 @@ func _refresh_professions() -> void:
 		prof_right.add_child(l)
 
 
+# ================================================================ ferramentas (aba da página esquerda)
+## Resumo embaixo do boneco na aba Ferramentas: uma coluna por ferramenta (nome, nível, força e maestria), como os
+## grupos de atributos da aba Equipamento. Os espaços ficam em volta do boneco (_build_inventory).
+func _build_tool_side() -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.visible = false
+	var cols := HBoxContainer.new()
+	cols.add_theme_constant_override("separation", 22)
+	box.add_child(cols)
+	for kind in ItemDB.TOOL_SLOTS:
+		var info := VBoxContainer.new()
+		info.add_theme_constant_override("separation", 2)
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		cols.add_child(info)
+		tool_info[kind] = info
+	return box
+
+
+func _set_side_tab(t: String) -> void:
+	side_tab = t
+	if side_buttons.has(t):
+		(side_buttons[t] as Button).button_pressed = true   # o grupo solta o outro (só "pressed" chama esta função)
+	if gear_view and tools_view:
+		gear_view.visible = t == "equip"
+		tools_view.visible = t == "tools"
+		for k in equip_slots:
+			(equip_slots[k] as ItemSlot).visible = t == "equip"
+		for k in tool_slots:
+			(tool_slots[k] as ItemSlot).visible = t == "tools"
+		_show_tool_in_hand()
+	Sfx.play("click", 0.0)
+
+
+## Na aba Ferramentas o boneco segura a picareta (ou o machado, sem picareta); na de Equipamento, a arma.
+func _show_tool_in_hand() -> void:
+	if hero_preview == null:
+		return
+	var want := ""
+	if side_tab == "tools":
+		for kind in ItemDB.TOOL_SLOTS:
+			if str(Game.equipment.get(kind, "")) != "":
+				want = str(Game.equipment[kind])
+				break
+	if hero_preview.weapon_override != want:
+		hero_preview.weapon_override = want
+		hero_preview.refresh()
+
+
+func _refresh_tools() -> void:
+	if tool_slots.is_empty():
+		return
+	_show_tool_in_hand()
+	for kind in tool_slots:
+		var id := str(Game.equipment.get(kind, ""))
+		(tool_slots[kind] as ItemSlot).set_state(id)
+		var info: VBoxContainer = tool_info[kind]
+		_clear(info)
+		var prof := "mining" if kind == "pickaxe" else "woodcutting"
+		var lv := Game.prof_level(prof)
+		info.add_child(UITheme.ink(ItemDB.SLOT_NAMES[kind], 18, UITheme.INK_RED, true))
+		# mesma altura dos grupos de atributos: título + 3 linhas
+		var rows: Array = []
+		if id == "":
+			rows.append(["Equipada", "nenhuma"])
+			rows.append(["Nível · Força", "—"])
+		else:
+			var it := ItemDB.get_item(id)
+			rows.append([str(it.name), ""])
+			rows.append(["Nível · Força", "%d · %.1f" % [int(it.get("tier", 1)), float(it.get("power", 1.0))]])
+		rows.append(["Maestria (%s)" % Game.prof_name(prof), "%d (+%d%%)" % [lv, roundi((GatherRules.mastery_mult(lv) - 1.0) * 100.0)]])
+		for r in rows:
+			var row := HBoxContainer.new()
+			row.add_child(UITheme.ink(r[0], 14, UITheme.INK_DIM))
+			row.add_child(UITheme.spacer())
+			row.add_child(UITheme.ink(r[1], 15, UITheme.INK))
+			info.add_child(row)
+
+
 func _spread(separation: int) -> Array:
 	var spread := HBoxContainer.new()
 	spread.add_theme_constant_override("separation", int(BookLayout.SPINE))
@@ -807,6 +929,7 @@ func _refresh() -> void:
 	if not is_inside_tree():
 		return
 	_refresh_inventory()
+	_refresh_tools()
 	_refresh_character()
 	talent_panel.refresh()
 	_refresh_quests()

@@ -99,5 +99,5 @@ static func tier_name(items: Dictionary, kind: String, need_tier: int) -> String
 ## Aviso para o jogador quando a ferramenta não serve (check() recusou).
 static func refusal_text(items: Dictionary, err: String, kind: String, need_tier: int) -> String:
 	if err == "sem_ferramenta":
-		return "Precisa de um%s %s (o mercador vende as de pedra)." % ["a" if kind == "pickaxe" else "", TOOL_NAMES.get(kind, kind)]
+		return "Equipe um%s %s (o mercador vende as de pedra)." % ["a" if kind == "pickaxe" else "", TOOL_NAMES.get(kind, kind)]
 	return "Precisa de %s ou melhor." % tier_name(items, kind, need_tier)

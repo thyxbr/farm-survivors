@@ -1,4 +1,6 @@
 {
+	"tree_models": {"tree_pine": "pine", "tree_fir": "pine", "tree_oak": "oak", "tree_maple": "oak", "tree_apple": "oak",
+		"tree_cherry": "oak", "tree_orange": "oak", "tree_pear": "oak", "tree_birch": "silverbirch"},
 	"kinds": {
 		"copper": {"item": "copper_ore", "amount": 3, "tough": 6, "tier": 1, "respawn": 150, "model": "ore", "tint": {"$c": [0.85, 0.45, 0.2, 1]}, "prof": "mining", "level": 1, "xp": 12},
 		"iron": {"item": "iron_ore", "amount": 3, "tough": 8, "tier": 1, "respawn": 180, "model": "iron", "prof": "mining", "level": 1, "xp": 20},

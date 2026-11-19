@@ -481,6 +481,7 @@ func _client_ready() -> void:
 		if pid != id:
 			_player_joined.rpc_id(id, pid, players[pid])
 	send_zone_enemies(id)
+	Econ.server_send_depleted(id)   # veios e árvores que outros já coletaram somem para ele também
 	Hub.server_send_state(id)   # recordes (o mestre das passivas e o quadro da vila mostram)
 	if not _lobby.is_empty():
 		_horde_lobby.rpc_id(id, _lobby_state())
