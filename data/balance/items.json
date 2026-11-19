@@ -819,7 +819,7 @@
 		"desc": "Couro curtido. Leve e flexível."
 	},
 	"chain_mail": {
-		"name": "Cota de Malha",
+		"name": "Couraça de Ferro",
 		"type": "armor",
 		"rarity": "uncommon",
 		"level": 8,
@@ -832,11 +832,11 @@
 		"stats": {
 			"vit": 1
 		},
-		"style": "a_mail",
+		"style": "a_firstplate",
 		"pants": {
 			"$c": [0.26, 0.24, 0.23, 1.0]
 		},
-		"desc": "Anéis de aço entrelaçados."
+		"desc": "Placas de ferro sobre a cota de malha."
 	},
 	"mage_robe": {
 		"name": "Manto Arcano",

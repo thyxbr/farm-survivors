@@ -60,10 +60,10 @@ func test_roundtrip_matches_consts() -> void:
 			# o Cutelo do Rei Goblin passou para o nível do chefe, com o dano das armas de lá: sem o dano dele
 			(cur["goblin_cleaver"] as Dictionary).erase("damage")
 			(snap_items["goblin_cleaver"] as Dictionary).erase("damage")
-			# visual (modelo 3D e a capa do cavaleiro; roupas refeitas trocam os dois), não balanceamento:
+			# visual e texto (modelo 3D, capa, nome e descrição; roupas refeitas trocam isso), não balanceamento:
 			# sem eles dos dois lados
 			for id in cur:
-				for k in ["style", "cape"]:
+				for k in ["style", "cape", "name", "desc"]:
 					(cur[id] as Dictionary).erase(k)
 					(snap_items[id] as Dictionary).erase(k)
 			T.ok(cur == snap_items, "tabela items igual ao snapshot (sem level, visual e o dano do Cutelo)")
