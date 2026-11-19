@@ -1524,6 +1524,7 @@
 	"iron_gauntlets": {
 		"name": "Manoplas de Ferro",
 		"type": "gear",
+		"style": "g_ironplate",
 		"slot": "hands",
 		"rarity": "uncommon",
 		"level": 3,
@@ -1922,6 +1923,7 @@
 	"iron_greaves": {
 		"name": "Grevas de Ferro",
 		"type": "gear",
+		"style": "f_ironplate",
 		"slot": "feet",
 		"rarity": "uncommon",
 		"level": 12,
