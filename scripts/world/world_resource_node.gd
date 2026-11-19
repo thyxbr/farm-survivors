@@ -1,6 +1,8 @@
 class_name WorldResourceNode
 extends Node3D
-## Veio de minério/cristal ou árvore de coleta de Valdoria. Cada jogador tem os seus nós, como o saque pessoal.
+## Veio de minério/cristal ou árvore de Valdoria. Os nós são do mundo: quem coleta primeiro leva e o nó some para
+## todos até voltar (Econ.node_gone). Toda árvore do cenário é um nó (`prop`): o nó não monta modelo nem colisão,
+## usa os da árvore do mapa (attach_prop) e os esconde quando ela cai.
 ## O jogador chega perto e aperta F (GatherAction): saca a picareta ou o machado e bate sozinho até o nó ceder.
 ## Cada golpe soma a força da ferramenta × maestria (GatherRules) até passar a resistência `tough`; aí o nó some
 ## e pede a coleta ao Econ (solo: concede na hora; online: o servidor confere distância, tempo de volta e a
@@ -26,6 +28,12 @@ var radius := 0.75
 var tough := 6.0
 var tier := 1
 var respawn := 180.0
+## Árvore do cenário (MapProp do mapa): o visual e a colisão são os dela (attach_prop).
+var prop := false
+## Escala da árvore: o tronco (TRUNK) cresce com ela.
+var trunk_scale := 1.0
+var _prop_node: Node3D
+var _prop_shapes: Array = []
 ## Força já somada dos golpes (0..tough). Fica guardada se o jogador parar no meio; zera quando o nó volta.
 var progress := 0.0
 var alive := true
@@ -49,13 +57,34 @@ static func from_def(def: Dictionary) -> WorldResourceNode:
 	n.tier = int(def.get("tier", 1))
 	n.respawn = float(def.respawn)
 	n.position = def.pos
+	n.prop = bool(def.get("prop", false))
+	n.trunk_scale = float(def.get("scale", 1.0)) if n.prop else n.size
 	if n.is_tree():
 		n.radius = 0.45   # só o tronco bloqueia: o machado alcança de perto
+	if n.prop:
+		n.size = 1.0   # o modelo já vem na escala da árvore do mapa
+		n.yaw = 0.0
+		n.radius = float(TRUNK.get(n.kind, 0.24)) * n.trunk_scale + 0.2
 	return n
+
+
+## Liga o nó à árvore `p` do mapa (MapProp montado pelo MapLoader): o modelo dela é o visual que balança e cai, e a
+## colisão dela some junto quando cai.
+func attach_prop(p: Node3D) -> void:
+	_prop_node = p
+	for c in p.get_children():
+		if c is StaticBody3D:
+			for cs in c.get_children():
+				if cs is CollisionShape3D:
+					_prop_shapes.append(cs)
+		elif c is Node3D and _visual == null:
+			_visual = c
 
 
 func _ready() -> void:
 	add_to_group("harvest")
+	if prop:
+		return   # árvore do mapa: visual e colisão são dela (attach_prop)
 	var body := StaticBody3D.new()
 	body.collision_mask = 0
 	_shape = CollisionShape3D.new()
@@ -83,7 +112,7 @@ const TRUNK := {"tree_pine": 0.22, "tree_fir": 0.22, "tree_oak": 0.3, "tree_birc
 ## (GatherAction.CHOP_REACH) encostando na casca; pedra = STAND da borda da colisão.
 func stand_distance() -> float:
 	if is_tree():
-		return GatherAction.chop_target(float(TRUNK.get(kind, 0.24)) * size).length()
+		return GatherAction.chop_target(float(TRUNK.get(kind, 0.24)) * trunk_scale).length()
 	return radius + GatherAction.STAND
 
 
@@ -107,13 +136,20 @@ func edge_distance(from: Vector3) -> float:
 ## Pode coletar agora? Confere profissão e ferramenta do jogador local (o servidor confere de novo).
 ## {"ok", "msg", "tool", "power", "swing", "strikes"}: a melhor ferramenta do tipo, a força de cada golpe com a
 ## maestria, os segundos de cada golpe e quantos golpes ainda faltam.
+## A ferramenta é a do espaço próprio (picareta/machado). Espaço vazio com uma na mochila: o plano usa a melhor da
+## mochila e devolve "equip" com ela (player.start_gather equipa antes de bater).
 func gather_plan() -> Dictionary:
-	var out := {"ok": false, "msg": "", "tool": "", "power": 0.0, "swing": 1.0, "strikes": 0}
+	var out := {"ok": false, "msg": "", "tool": "", "power": 0.0, "swing": 1.0, "strikes": 0, "kind": ""}
+	var kind_t := GatherRules.tool_kind(prof)
+	out.kind = kind_t
 	if prof != "" and Game.prof_level(prof) < level:
 		out.msg = "Precisa de %s nível %d." % [Game.prof_name(prof), level]
 		return out
-	var kind_t := GatherRules.tool_kind(prof)
-	var tool := GatherRules.best_tool(ItemDB.ITEMS, Game.inventory, kind_t)
+	var tool := str(Game.equipment.get(kind_t, ""))
+	if tool == "" and kind_t != "":
+		tool = GatherRules.best_tool(ItemDB.ITEMS, Game.inventory, kind_t)
+		if tool != "":
+			out["equip"] = tool
 	var ok := GatherRules.check(ItemDB.ITEMS, tool, kind_t, tier)
 	if not ok.ok:
 		out.msg = GatherRules.refusal_text(ItemDB.ITEMS, ok.err, kind_t, tier)
@@ -146,6 +182,14 @@ func strike(from: Vector3, power: float) -> bool:
 	return true
 
 
+## Outro jogador coletou (ou o nó já estava esgotado ao entrar): some agora e volta em `secs` segundos.
+func deplete(secs: float) -> void:
+	if not alive:
+		return
+	set_alive(false)
+	get_tree().create_timer(maxf(secs, 1.0)).timeout.connect(_restore)
+
+
 func _restore() -> void:
 	if is_inside_tree():
 		set_alive(true)
@@ -158,6 +202,9 @@ func set_alive(on: bool) -> void:
 	alive = on
 	if _shape:
 		_shape.set_deferred("disabled", not on)
+	for cs in _prop_shapes:
+		if is_instance_valid(cs):
+			cs.set_deferred("disabled", not on)
 	if on:
 		progress = 0.0
 	if _visual == null:
@@ -210,16 +257,6 @@ func _build_visual() -> void:
 		add_child(_visual)
 		if tint != Color(0.55, 0.3, 0.2):
 			_tint(_visual, tint)
-		# fita amarela no tronco: árvore que dá para cortar (as de enfeite não têm)
-		var band := MeshInstance3D.new()
-		var cyl := CylinderMesh.new()
-		cyl.top_radius = 0.3
-		cyl.bottom_radius = 0.3
-		cyl.height = 0.18
-		band.mesh = cyl
-		band.position.y = 1.1
-		band.material_override = _mat(Color(1.0, 0.8, 0.2), 0.3)
-		_visual.add_child(band)
 		return
 	_visual = Node3D.new() if kind == "crystal" else ROCK.instantiate()
 	_visual.rotation.y = yaw

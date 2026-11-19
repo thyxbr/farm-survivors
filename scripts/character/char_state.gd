@@ -44,7 +44,7 @@ var recipes: Array = []
 var food_buffs := {}
 
 
-## Personagem novo: sem equipamento, só consumíveis, sementes e as ferramentas de coleta de pedra.
+## Personagem novo: sem equipamento de combate, só consumíveis, sementes e as ferramentas de coleta de pedra.
 static func new_character(bt: BalanceTables) -> CharState:
 	var s := CharState.new()
 	s.gold = 25
@@ -52,9 +52,10 @@ static func new_character(bt: BalanceTables) -> CharState:
 	s.equipment = CharRules.empty_equipment()
 	s.farm = CharRules.default_farm(bt)
 	s.flags["prog_v"] = CharRules.PROG_VERSION   # já nasce na progressão por nível: nada a migrar
-	s.flags["tools_v"] = true                    # e com as ferramentas de pedra (abaixo)
-	for e in [["health_potion", 3], ["mana_potion", 1], ["seed_carrot", 4], ["seed_wheat", 4], ["bread", 1],
-			["pickaxe_stone", 1], ["axe_stone", 1]]:
+	s.flags["tools_v"] = CharRules.TOOLS_VERSION   # e com a picareta e o machado de pedra equipados
+	s.equipment.pickaxe = "pickaxe_stone"
+	s.equipment.axe = "axe_stone"
+	for e in [["health_potion", 3], ["mana_potion", 1], ["seed_carrot", 4], ["seed_wheat", 4], ["bread", 1]]:
 		CharRules.add_item(s, bt, e[0], e[1])
 	s.hp = CharRules.base_max_hp(s, bt)
 	s.mp = CharRules.base_max_mp(s, bt)
@@ -140,6 +141,9 @@ static func from_dict(d, bt: BalanceTables = null) -> CharState:
 	s.flags = fl.duplicate(true) if fl is Dictionary else {}
 	if s.flags.has("prog_v"):
 		s.flags["prog_v"] = _int(s.flags["prog_v"], 0)   # vem do JSON como float
+	if s.flags.has("tools_v"):   # idem; a versão 1 gravava true
+		var tv = s.flags["tools_v"]
+		s.flags["tools_v"] = (1 if tv else 0) if tv is bool else _int(tv, 0)
 	s.farm = _parse_farm(d.get("farm"), bt)
 	s.hp = maxf(0.0, _float(d.get("hp"), 0.0))
 	s.mp = maxf(0.0, _float(d.get("mp"), 0.0))

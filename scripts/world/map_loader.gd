@@ -106,10 +106,18 @@ static func _settle(root: MapRoot, g: Node3D) -> void:
 		(n as Node3D).global_position.y += h
 
 
+## Chave de lugar de uma árvore do mapa (x, z em quartos de metro): liga o MapProp montado ao nó de coleta de mesmo
+## lugar (MapData.resource_nodes calcula a posição pela mesma cena).
+static func tree_key(pos: Vector3) -> Vector2i:
+	return Vector2i(roundi(pos.x * 4.0), roundi(pos.z * 4.0))
+
+
 ## Modelo + colisão simples + pegada sem capim, como o prop() do mundo, dentro do próprio nó.
 static func _prop(w: Node3D, p: MapProp) -> void:
 	var inst: Node3D = (load(MapProp.model_path(p.model)) as PackedScene).instantiate()
 	p.add_child(inst)
+	if p.model.begins_with("tree_") and "tree_props" in w:
+		w.tree_props[tree_key(p.global_position)] = p   # vira nó de coleta (world._setup_resource_nodes)
 	p.apply_tint(inst)
 	var s := p.scale.x
 	_set_range(p, inst, s)

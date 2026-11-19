@@ -274,6 +274,11 @@ func _debug_screenshot() -> void:
 						w._open_menu(2)
 					"quests":
 						w._open_menu(3)
+					"tools":
+						w._open_menu(0)
+						await get_tree().process_frame
+						if w.modal:
+							w.modal._set_side_tab("tools")
 					"shop":
 						w.open_shop()
 					"map":
@@ -402,8 +407,8 @@ func entry_scene() -> String:
 func is_old_character() -> bool:
 	if level > 1 or xp > 0:
 		return true
-	for v in equipment.values():
-		if str(v) != "":
+	for k in equipment:
+		if str(equipment[k]) != "" and not (k in ItemDB.TOOL_SLOTS):   # picareta e machado vêm com o personagem
 			return true
 	for slot in inventory:
 		if ItemDB.slot_of(str(slot.id)) == "weapon":
@@ -884,7 +889,7 @@ func use_item(id: String) -> bool:
 				return false
 			Econ.request("consume", [id])
 			return true
-		"weapon", "armor", "gear":
+		"weapon", "armor", "gear", "tool":
 			equip(id)
 			return true
 		"food", "crop":
