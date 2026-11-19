@@ -710,7 +710,7 @@ func _refresh_quests() -> void:
 		var prog := StoryRules.progress(qt, Game.quests, id, counts)
 		if st == "none":
 			var need := StoryRules.needs_rank(qt, id)
-			if not StoryRules.rank_ge(Game.rank(), need):
+			if not StoryRules.rank_ge(Game.access_rank(), need):
 				txt = "Exige Rank %s: faça contratos e peça promoção à Lina" % need
 			else:
 				txt = "Fale com %s" % StoryDialogue.NAMES.get(StoryRules.giver(qt, id), d.giver)
@@ -734,7 +734,7 @@ func _refresh_quests() -> void:
 		if first:
 			# bússola do objetivo: seta virada para onde ir (relativa à câmera) e a distância
 			_track_dest = StoryRules.destination(qt, Game.quests, id, counts)
-			if st == "none" and not StoryRules.rank_ge(Game.rank(), StoryRules.needs_rank(qt, id)):
+			if st == "none" and not StoryRules.rank_ge(Game.access_rank(), StoryRules.needs_rank(qt, id)):
 				_track_dest = {"npc": "lina"}   # falta rank: a bússola leva à guilda
 			var row := HBoxContainer.new()
 			row.alignment = BoxContainer.ALIGNMENT_END

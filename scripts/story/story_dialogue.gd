@@ -102,7 +102,7 @@ static func build(npc: Node) -> Array:
 	var qt: Dictionary = ItemDB.QUESTS
 	var quests: Dictionary = Game.quests
 	var counts := _counts(qt)
-	var rank := Game.rank()
+	var rank := Game.access_rank()
 	var pages: Array = []
 	var done := StoryRules.turnable_at(qt, quests, id, counts)
 	if done != "":
@@ -380,7 +380,7 @@ static func _coach(id: String) -> Array:
 			continue
 		var need: String = Regions.DATA[r].rank
 		var label := Regions.display_name(r) if r != "vila" else "Voltar para Valdoria"
-		if Regions.unlocked(r, Game.rank()):
+		if Regions.unlocked(r, Game.access_rank()):
 			choices.append({"text": label, "action": _travel.bind(r)})
 		else:
 			choices.append({"text": "%s (Rank %s)" % [label, need], "pages": [

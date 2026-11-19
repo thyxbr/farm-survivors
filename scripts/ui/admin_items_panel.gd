@@ -2,6 +2,8 @@ extends Control
 ## Modo admin: lista todos os itens do jogo e põe o escolhido na mochila (Econ.admin_give).
 ## Abre pelo menu de pausa com o modo admin ligado. Busca por nome ou id, filtro por tipo, quantidade e a
 ## opção de já vestir a peça (com o modo admin ligado o nível do item não impede de equipar).
+## Os itens aparecem numa grade com o ícone de cada um (o mesmo da mochila) e o nome embaixo; passar o mouse
+## mostra a dica completa do item e clicar adiciona.
 
 signal closed
 
@@ -14,7 +16,15 @@ var _search: LineEdit
 var _type: OptionButton
 var _qty: SpinBox
 var _equip: CheckBox
-var _list: VBoxContainer
+var _variants: CheckBox
+const COLS := 7
+const CELL := 96.0
+## A grade é montada aos poucos (tantos itens por quadro) para a busca não travar com centenas de ícones.
+const PER_FRAME := 48
+
+var _list: GridContainer
+var _tooltip: ItemTooltip
+var _pending: Array = []
 var _status: Label
 var _types: Array = []
 var _equip_after := ""
@@ -26,7 +36,7 @@ func _ready() -> void:
 	var p := UITheme.centered_panel(self, 0.6)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
-	v.custom_minimum_size = Vector2(600, 0)
+	v.custom_minimum_size = Vector2(COLS * (CELL + 8) + 24, 0)
 	p.add_child(v)
 	var title := UITheme.label("Adicionar item (admin)", 28, UITheme.GOLD)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -65,15 +75,24 @@ func _ready() -> void:
 	_equip.text = "Equipar ao adicionar"
 	_equip.button_pressed = true
 	row2.add_child(_equip)
+	# qualidade (@fina, @obra) e encanto (~coruja...) multiplicam cada peça: escondidos até pedir
+	_variants = CheckBox.new()
+	_variants.text = "Mostrar qualidades e encantos"
+	_variants.toggled.connect(func(_on: bool) -> void: _fill())
+	row2.add_child(_variants)
 
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(600, 380)
+	scroll.custom_minimum_size = Vector2(0, 420)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	v.add_child(scroll)
-	_list = VBoxContainer.new()
+	_list = GridContainer.new()
+	_list.columns = COLS
 	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_list.add_theme_constant_override("separation", 2)
+	_list.add_theme_constant_override("h_separation", 8)
+	_list.add_theme_constant_override("v_separation", 8)
 	scroll.add_child(_list)
+	_tooltip = ItemTooltip.new()
+	add_child(_tooltip)
 
 	_status = UITheme.label("", 15, UITheme.DIM)
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -93,6 +112,8 @@ func matching() -> Array:
 		var it: Dictionary = ItemDB.ITEMS[id]
 		if want != "" and str(it.get("type", "")) != want:
 			continue
+		if not _variants.button_pressed and ("@" in str(id) or "~" in str(id)):
+			continue
 		if q != "" and not (q in str(it.get("name", "")).to_lower() or q in str(id).to_lower()):
 			continue
 		out.append(str(id))
@@ -107,19 +128,50 @@ func matching() -> Array:
 
 func _fill() -> void:
 	for c in _list.get_children():
+		_list.remove_child(c)
 		c.queue_free()
-	var ids := matching()
-	for id: String in ids:
-		var it: Dictionary = ItemDB.ITEMS[id]
-		var b := Button.new()
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.text = "%s   ·   %s   ·   nv %d   ·   %s" % [it.get("name", id), TYPE_NAMES.get(it.get("type", ""), it.get("type", "")),
-				int(it.get("level", 1)), id]
-		b.add_theme_color_override("font_color", ItemDB.rarity_color(id))
-		b.pressed.connect(_give.bind(id))
-		_list.add_child(b)
-	_status.text = "%d itens" % ids.size()
+	_tooltip.hide()
+	_pending = matching()
+	ItemIcons.prewarm(_pending)
+	_status.text = "%d itens" % _pending.size()
 	_status.add_theme_color_override("font_color", UITheme.DIM)
+	_build_some()
+
+
+func _process(_delta: float) -> void:
+	if not _pending.is_empty():
+		_build_some()
+
+
+## Monta a próxima leva de quadradinhos da grade.
+func _build_some() -> void:
+	for i in mini(PER_FRAME, _pending.size()):
+		_list.add_child(_cell(str(_pending.pop_front())))
+
+
+## Um item da grade: ícone com moldura da raridade, nome e nível embaixo. Clicar adiciona.
+func _cell(id: String) -> Control:
+	var it: Dictionary = ItemDB.ITEMS[id]
+	var box := VBoxContainer.new()
+	box.custom_minimum_size = Vector2(CELL, 0)
+	box.add_theme_constant_override("separation", 2)
+	var slot := ItemSlot.new(72)
+	slot.model_icon = true
+	slot.item_id = id
+	slot.context = "admin"
+	slot.tooltip = _tooltip
+	slot.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	slot.clicked.connect(func(_s: ItemSlot) -> void: _give(id))
+	box.add_child(slot)
+	var nm := UITheme.label(str(it.get("name", id)), 12, ItemDB.rarity_color(id))
+	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	nm.custom_minimum_size = Vector2(CELL, 0)
+	box.add_child(nm)
+	var lv := UITheme.label("nv %d" % int(it.get("level", 1)), 11, UITheme.DIM)
+	lv.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(lv)
+	return box
 
 
 func _give(id: String) -> void:

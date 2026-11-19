@@ -201,7 +201,7 @@ func _draw() -> void:
 	_hits.clear()
 	draw_rect(Rect2(Vector2.ZERO, size), C_SEA)
 	_draw_grid()
-	var rank := Game.rank()
+	var rank := Game.access_rank()
 	for id in Regions.ORDER:
 		_draw_region(id, Regions.unlocked(id, rank))
 	_draw_routes(rank)

@@ -2147,6 +2147,10 @@ func _test_enchant() -> void:
 	await wait(0.2)
 	check(Game.weapon_enchant().lv == 1, "sem recursos não sobe")
 	check(Game.enchant_text(Game.equipment.weapon) == "Fogo +1 · +5% de dano", "texto do encanto para a dica da arma")
+	# o encanto é do tipo de arma: a versão com qualidade e afixo de craft usa o mesmo (como no servidor)
+	var crafted: String = Game.equipment.weapon + "@fina~urso"
+	check(Game.enchant_of(crafted) == {"el": "fogo", "lv": 1},
+		"arma com qualidade/afixo usa o encanto do tipo base (%s)" % Game.enchant_of(crafted))
 	Game.enchant_changed.disconnect(on_changed)
 
 	# ---- painel do Doran (a arma está em fogo +1, sem materiais)

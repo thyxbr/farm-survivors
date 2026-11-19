@@ -2275,7 +2275,7 @@ def _g_quilt(ob, fn, depth):
         v.co += n * depth * fn(v.co)
 
 
-def _g_shoulder_dome(src, s, lames, phis=28, rows=8, pull=0.55):
+def _g_shoulder_dome(src, s, lames, phis=28, rows=8, pull=0.55, cap=None, taper=False):
     """Grades curvas em volta do ombro do lado s: direção (θ, φ) a partir da articulação, θ = 0 subindo pelo eixo
     do braço (topo do ombro), φ = 0 para fora. O raio vem do corpo (raio de fora para dentro), alisado por cima
     (envelope) e puxado para o máximo da fileira, o que arredonda a quina do ombro.
@@ -2316,13 +2316,23 @@ def _g_shoulder_dome(src, s, lames, phis=28, rows=8, pull=0.55):
                 row.append((t, ph, i / rows))
             grid.append(row)
         R = [[body_r(t, ph) for t, ph, _ in row] for row in grid]
+        if cap is not None:            # raio batendo no pescoço/trapézio não estica a copa: nem acima da mediana
+            for i in range(rows + 1):  # da fileira, nem (de baixo para cima) acima da fileira de baixo
+                med = sorted(R[i])[len(R[i]) // 2]
+                R[i] = [min(r, med + cap) for r in R[i]]
+            for i in range(rows - 1, -1, -1):
+                R[i] = [min(r, rb + cap) for r, rb in zip(R[i], R[i + 1])]
         for _ in range(6):             # envelope alisado: nunca entra no corpo, perde os degraus
             S = [[(R[i][max(j - 1, 0)] + 2 * R[i][j] + R[i][min(j + 1, phis)] +
                    R[max(i - 1, 0)][j] + R[min(i + 1, rows)][j]) / 6 for j in range(phis + 1)] for i in range(rows + 1)]
             R = [[max(R[i][j], S[i][j]) for j in range(phis + 1)] for i in range(rows + 1)]
         for i in range(rows + 1):      # puxa cada fileira para o seu máximo: arco redondo de frente
             m = max(R[i])
-            R[i] = [r + (m - r) * pull for r in R[i]]
+            if taper:                  # nas pontas arredondadas (t volta para o topo) não puxa: senão a ponta
+                tm = max(t for t, _, _ in grid[i])     # da barra sobe acima da copa e vira uma aleta
+                R[i] = [r + (m - r) * pull * ((t - ta) / max(1e-6, tm - ta)) for r, (t, _, _) in zip(R[i], grid[i])]
+            else:
+                R[i] = [r + (m - r) * pull for r in R[i]]
         rings = [[base(t) + dirv(t, ph) * (R[i][j] + off + flare * w ** 2.5) for j, (t, ph, w) in enumerate(row)]
                  for i, row in enumerate(grid)]
         out.append((rings, [[dirv(t, ph) for t, ph, _ in row] for row in grid], C))
@@ -2893,13 +2903,15 @@ def _wk_torso_sec(z):
     return rx0, ry0, e0.get("fr", 1.0), e0.get("bk", 1.0), e0.get("y", 0.0)
 
 
-def wk_plate_pt(a, z, off, keel=0.0, sq=2.0):
+def wk_plate_pt(a, z, off, keel=0.0, sq=2.0, fr_max=None):
     """Ponto da placa no ângulo a (0 = frente) e altura z, off metros por fora do corpo. A placa não segue o
     relevo do peito: a seção é a do corpo alisada (maior entre a altura e as vizinhas)."""
     secs = [_wk_torso_sec(z + dz) for dz in (-0.012, 0.0, 0.012)]
     rx = max(s[0] for s in secs) + off
     ry = max(s[1] for s in secs) + off
     fr = max(s[2] for s in secs)
+    if fr_max is not None:             # peito liso: a placa não acompanha o volume do peitoral
+        fr = min(fr, fr_max)
     bk = max(s[3] for s in secs)
     y0 = secs[1][4]
     x, y = cb_spt(a, rx, ry, fr, bk, sq=sq, keel=keel)
@@ -3786,6 +3798,230 @@ def build_a_paladin():
                              (skirt, "fn", _gb_skirt_w, 1.0), (cape, "fn", _pal_cape_w, 1.0),
                              (arms, "vert", ("ArmL", "ArmR", "ElbowL", "ElbowR"), 1.0)])
     join_objs("Paladin", parts + shoulder + tas + mid + skirt + cape + arms)
+    g_export_skinned(style)
+
+
+# ------------------------------------------------------------------ primeira placa (tier II, malha lisa)
+# Referência: Lara Jenn, "Armor design study". Poucas placas grandes de ferro claro, curvas e lisas: peitoral
+# com quilha forte no meio e ponta em V embaixo, borda de cima virada para fora em volta do pescoço, forro de
+# couro claro aparecendo nas bordas, cota escura por baixo. Sem dourado e sem capa (tier de ferro).
+def firstplate_mats():
+    return dict(
+        plate=gm("fp_plate", "#C9CDD2", 0.35, 0.7), plate_d=gm("fp_plate_d", "#868C95", 0.45, 0.7),
+        lining=gm("fp_lining", "#C2A47C", 0.9), mail=gm("fp_mail", "#2F3035", 0.65, 0.5),
+        lea=gm("fp_leather", "#3A2F2A", 0.8),
+    )
+
+
+def firstplate_torso(K, src, body):
+    """Tronco: cota escura (casca), peitoral com quilha forte e ponta em V até a barriga, borda de cima virada
+    para fora, costal, gorjal baixo de placa; forro de couro claro em todas as bordas e rebites nos cantos.
+    Devolve (casca, peças)."""
+    def is_torso(c, b, n):
+        return not (b.startswith("Arm") or b.startswith("Elbow") or b.startswith("Knee")) and 0.86 <= c.z < 1.52
+
+    under = cb_piece(src, "Mail", is_torso, 0.006, K["mail"])
+    g_subdiv(under, 2)
+    parts = []
+    A = 1.32
+
+    def top_z(a):                      # decote redondo, sobe para os ombros
+        return 1.475 - 0.05 * math.cos(a) ** 2 - 0.06 * (abs(a) / A) ** 4
+
+    def bot_z(a):                      # ponta em V no meio, sobe para os lados
+        return 1.0 + 0.14 * min(1.0, abs(a) / 1.15) ** 1.1
+
+    def breast(u, v, out=0.0):
+        a = -A + 2 * A * v
+        z = top_z(a) + (bot_z(a) - top_z(a)) * u
+        return wk_plate_pt(a, z, 0.03 + out, keel=0.12, fr_max=1.03)   # liso, sem marcar o peitoral
+    bp, br = _wk_plate("Breastplate", breast, 18, 40, K["plate"], body)
+    parts.append(bp)
+    # borda: forro de couro por baixo (cordão largo) e a placa dobrada por cima (cordão fino de ferro)
+    side_l = [r[0] for r in br]
+    side_r = [r[-1] for r in br]
+    outline = br[0] + side_r[1:] + br[-1][::-1][1:] + side_l[::-1][1:-1]
+    parts.append(g_pipe("BreastLining", outline, 0.0085, K["lining"], body, sides=8, loop=True))
+    parts.append(g_pipe("BreastRim", [q + Vector((q.x, q.y, 0)).normalized() * 0.004 for q in outline], 0.0045,
+                        K["plate"], body, sides=8, loop=True))
+    # borda de cima virada para fora: tira curva em volta do decote
+    lip = []
+    for j in range(31):
+        v = 0.2 + 0.6 * j / 30         # só no decote: nas pontas a ombreira cobre (e a aba ficava em pé)
+        q = breast(0.0, v)
+        a = -A + 2 * A * v
+        d = Vector((math.sin(a), -math.cos(a), 0))
+        lip.append([q + d * 0.003 + Vector((0, 0, 0.002)), q + d * 0.03 + Vector((0, 0, 0.022))])
+    rings = [[p[0] for p in lip], [p[1] for p in lip]]
+    parts.append(g_smooth_mesh("BreastLip", rings, K["plate"], body, cap_end=False, closed=False, thick=0.004,
+                               outward=True))
+    parts.append(g_pipe("BreastLipRim", rings[1], 0.004, K["lining"], body, sides=6))
+    # quilha: aresta marcada no meio, do decote à ponta
+    parts.append(g_pipe("BreastKeel", [breast(u, 0.5, 0.002) for u in (0.08, 0.35, 0.65, 0.95)], 0.0026, K["plate_d"],
+                        body, sides=6))
+    for v in (0.2, 0.8):               # rebites nos lados de baixo
+        for u in (0.6, 0.8):
+            q = breast(u, v, 0.004)
+            parts.append(g_bead("BreastRivet%d_%d" % (int(v * 10), int(u * 10)), q, 0.005, K["plate_d"], body))
+    # ---- costal
+    B = math.pi - 1.25
+
+    def back(u, v):
+        a = math.pi - B + 2 * B * v
+        zt = 1.49 - 0.07 * abs(2 * v - 1) ** 4
+        z = zt + (1.12 - zt) * u
+        return wk_plate_pt(a, z, 0.018)
+    bk, bkr = _wk_plate("Backplate", back, 14, 30, K["plate"], body)
+    parts.append(bk)
+    bo = bkr[0] + [r[-1] for r in bkr[1:]] + bkr[-1][::-1][1:] + [r[0] for r in bkr[::-1][1:-1]]
+    parts.append(g_pipe("BackLining", bo, 0.008, K["lining"], body, sides=8, loop=True))
+    # ---- gorjal baixo: colar de placa em volta do pescoço, alto atrás (protege a nuca)
+    def ring(z, rx, ry, y0=0.012, n=36):
+        return [Vector((math.sin(2 * math.pi * j / n) * rx, y0 - math.cos(2 * math.pi * j / n) * ry, z))
+                for j in range(n)]
+    gor = []
+    for k, (z0, rx, ry) in enumerate(((1.45, 0.128, 0.114), (1.49, 0.106, 0.096), (1.525, 0.094, 0.087))):
+        r = ring(z0, rx, ry)
+        gor.append([q + Vector((0, 0, 0.03 * max(0.0, math.cos(2 * math.pi * j / 36)) * (k / 2)))
+                    for j, q in enumerate(r)])
+    parts.append(g_smooth_mesh("Gorget", gor, K["plate"], body, cap_end=False, thick=0.006, outward=True))
+    parts.append(g_pipe("GorgetRim", gor[-1], 0.005, K["lining"], body, sides=8, loop=True))
+    # ---- cinto de couro escuro sobre a cota, com fivela de ferro
+    from mathutils.bvhtree import BVHTree
+    ub = BVHTree.FromPolygons([v.co.copy() for v in under.data.vertices], [tuple(p.vertices) for p in under.data.polygons])
+    N = 48
+
+    def on_under(a, z, out):
+        d = Vector((math.sin(a), -math.cos(a), 0))
+        h = ub.ray_cast(Vector((0, 0, z)) + d * 0.6, -d)[0]
+        return (h if h is not None else Vector((0, 0, z)) + d * 0.15) + d * out
+    belt = [[on_under(2 * math.pi * j / N, z, out) for j in range(N)]
+            for z, out in ((0.955, 0.004), (0.96, 0.012), (0.995, 0.012), (1.0, 0.004))]
+    parts.append(g_smooth_mesh("Belt", belt, K["lea"], body, cap_end=False, outward=True))
+    bc = on_under(0.0, 0.978, 0.014)
+    parts.append(g_pipe("Buckle", [bc + Vector((x, 0, y)) for x, y in ((-0.018, 0.016), (0.018, 0.016), (0.018, -0.016),
+                                                                       (-0.018, -0.016))], 0.0038, K["plate_d"], body,
+                        sides=8, loop=True))
+    return under, parts
+
+
+
+def firstplate_pauldron(K, src, body, s):
+    """Ombreira da primeira placa: copa grande, lisa e redonda que cobre o ombro e o alto do braço, e uma
+    lâmina embaixo; forro de couro claro em todas as bordas e um
+    rebite na frente."""
+    sn = "L" if s > 0 else "R"
+    lames = [(0.05, 2.35, 1.9, 0.055, 0.0), (2.2, 3.0, 2.0, 0.044, 0.004)]
+    parts = []
+    for k, (rings, dirs, C) in enumerate(_g_shoulder_dome(src, s, lames, phis=32, rows=10, cap=0.006, taper=True)):
+        parts.append(g_smooth_mesh("Pauldron%s%d" % (sn, k), rings, K["plate"], body, cap_end=False, closed=False,
+                                   thick=0.006, outward=True))
+        n = len(rings[0])
+        edge = [rings[-1][j] + dirs[-1][j] * 0.002 for j in range(n)]
+        if k == 0:                     # na copa as pontas da barra sobem até o topo: o debrum para antes
+            loop = edge[4:-4]
+        else:
+            ends = [[r[side] + d[side] * 0.002 for r, d in zip(rings, dirs)] for side in (0, n - 1)]
+            loop = ends[0][::-1] + edge[1:-1] + ends[1]
+        parts.append(g_pipe("PauldronLining%s%d" % (sn, k), loop, 0.008, K["lining"], body, sides=8))
+        parts.append(g_pipe("PauldronRim%s%d" % (sn, k), [q + (q - C).normalized() * 0.004 for q in loop], 0.0042,
+                            K["plate"], body, sides=8))
+        if k == 0:
+            jf = int(n * 0.82)         # rebite na frente
+            q = rings[len(rings) // 2][jf] + dirs[len(rings) // 2][jf] * 0.004
+            parts.append(g_bead("PauldronRivet" + sn, q, 0.006, K["plate_d"], body))
+    return parts
+
+
+def firstplate_faulds(K, body):
+    """Escarcelas da primeira placa: em cada lado do quadril uma placa grande e comprida que desce do cinto
+    até o meio da coxa, curvada com o corpo e com a barra em ponta para fora; na frente uma placa curta em
+    escudo sob a ponta do peitoral. Forro de couro claro nas bordas, rebites no alto. Devolve (laterais, frente)."""
+    tas, mid = [], []
+    for sn, s in (("L", 1), ("R", -1)):
+        A0, A1 = 0.5, 1.5
+
+        def lame(u, v):
+            a0 = A0 + 0.18 * u ** 1.3           # afina para baixo pelo lado de dentro: abre a frente
+            a = (a0 + (A1 - a0) * v) * s
+            h = 0.23 + 0.05 * v ** 1.5          # mais comprida do lado de fora, barra em diagonal
+            z = 0.995 - h * u
+            return _pal_hip_pt(a, z, 0.02 + 0.03 * u)
+        ob, rr = _wk_plate("Tasset" + sn, lame, 10, 22, K["plate"], body, thick=0.006)
+        tas.append(ob)
+        edge = [r[0] for r in rr] + rr[-1][1:] + [r[-1] for r in rr][::-1][1:]
+        tas.append(g_pipe("TassetLining" + sn, edge, 0.0075, K["lining"], body, sides=8))
+        tas.append(g_pipe("TassetRim" + sn, [q + Vector((q.x, q.y, 0)).normalized() * 0.004 for q in edge], 0.004,
+                          K["plate"], body, sides=8))
+        tas.append(g_pipe("TassetRidge" + sn, [lame(u, 0.55) + Vector((lame(u, 0.55).x, lame(u, 0.55).y, 0)).normalized() * 0.002
+                                               for u in (0.1, 0.4, 0.7, 0.95)], 0.0024, K["plate_d"], body, sides=6))
+        for v in (0.15, 0.85):
+            q = lame(0.08, v)
+            tas.append(g_bead("TassetRivet%s%d" % (sn, int(v * 10)), q + Vector((q.x, q.y, 0)).normalized() * 0.005,
+                              0.0055, K["plate_d"], body))
+    AF = 0.3
+
+    def front(u, v):
+        a = -AF + 2 * AF * v
+        x = abs(2 * v - 1)
+        z = 1.005 - (0.1 - 0.06 * x ** 1.5) * u
+        return _pal_hip_pt(a, z, 0.032 + 0.008 * u)
+    fp, fr = _wk_plate("FrontPlate", front, 6, 16, K["plate"], body, thick=0.006)
+    mid.append(fp)
+    fe = [r[0] for r in fr] + fr[-1][1:] + [r[-1] for r in fr][::-1][1:]
+    mid.append(g_pipe("FrontPlateLining", fe, 0.007, K["lining"], body, sides=8))
+    return tas, mid
+
+
+def firstplate_cuisses(K, src, body):
+    """Coxeiras: casca de placa na frente de cada coxa, do quadril até logo acima do joelho, alisada e com o
+    forro de couro claro em volta (a casca sai do corpo com pesos, então dobra com a perna). Devolve
+    (cascas, debruns)."""
+    shells, trims = [], []
+    knee_z = CB_J["knee"].z
+    for sn, s in (("L", 1), ("R", -1)):
+        def keep(c, b, n, s=s):
+            hip = cb_mirror(CB_J["hip"], s)
+            d = Vector((c.x - hip.x, c.y - hip.y, 0)).normalized()
+            # só a frente e o lado de fora da coxa (o lado de dentro some entre as pernas)
+            return b.startswith("Leg") and c.x * s > 0 and d.y < -0.25 and d.x * s > -0.55 and                 knee_z + 0.06 < c.z < 0.77
+        sh = cb_piece(src, "Cuisse" + sn, keep, 0.016, K["plate"])
+        g_subdiv(sh, 2)
+        shells.append(sh)
+        trims += g_border_pipes(sh, "CuisseLining" + sn, 0.0065, K["lining"], body, smooth=6, step=0.01)
+    return shells, trims
+
+def build_a_firstplate():
+    """Primeira placa (tier II). Rodada 1: tronco (peitoral com quilha, costal, gorjal, cinto); braços e pernas
+    com a cota escura até as próximas peças."""
+    style = "a_firstplate"
+    P, R = g_rig(style)
+    M = g_mats()
+    K = firstplate_mats()
+    body = R["Body"]
+    rig, src = _cb_start(M)
+    neck(R, M["skin"])
+    hips(R, K["mail"])
+    g_skinned_pants(src, M["pants"])
+    under, parts = firstplate_torso(K, src, body)
+    shoulder = firstplate_pauldron(K, src, body, 1) + firstplate_pauldron(K, src, body, -1)
+    KA = dict(K, gold=K["lining"])     # braços do paladino com as bordas em couro claro no lugar do ouro
+    arms = paladin_arm(KA, src, body, 1) + paladin_arm(KA, src, body, -1)
+    tas, mid = firstplate_faulds(K, body)
+    cuis, cuis_trim = firstplate_cuisses(K, src, body)
+    sleeves = cb_piece(src, "Sleeves", lambda c, b, n: (b.startswith("Arm") or b.startswith("Elbow"))
+                       and (not b.startswith("Elbow") or _cb_fore_t(c) < 0.86), 0.008, K["mail"])
+    g_subdiv(sleeves)
+    g_loose_world(style)
+    os.makedirs(OUT + "gear", exist_ok=True)
+    targets = [o for o in scn.objects if o.type == 'MESH']
+    bake_ao(targets, _occluders(style, P, R, M))
+    cel_paint(targets, skip=("g_skin",))
+    g_skin_finish(rig, src, [(shoulder, "vert", ("Body", "ArmL", "ArmR"), 0.7),
+                             (arms, "vert", ("ArmL", "ArmR", "ElbowL", "ElbowR"), 1.0),
+                             (tas, "fn", _wk_tasset_w, 1.0), (mid, "fn", _wk_center_w, 1.0),
+                             (cuis_trim, "vert", ("LegL", "LegR"), 1.0)])
+    join_objs("FirstPlate", parts + shoulder + arms + tas + mid + cuis_trim)
     g_export_skinned(style)
 
 def build_a_gambeson():
@@ -5430,7 +5666,7 @@ def _gear_builder(fn):
 GEAR = [(n, _gear_builder(globals()["build_" + n])) for n in (
     "h_bare", "h_hood", "h_cap", "h_kettle", "h_nasal", "h_great", "h_wizard", "h_archmage", "h_sage", "h_void", "h_oracle", "h_ember",
     "h_lich", "h_hierophant", "h_reaper", "h_raven", "h_dragon", "h_astral", "h_frost",
-    "a_shirt", "a_tunic", "a_leather", "a_gambeson", "a_whiteknight", "a_paladin", "a_mail", "a_surcoat", "a_robe", "a_archmage", "a_sage", "a_void", "a_oracle", "a_ember",
+    "a_shirt", "a_tunic", "a_leather", "a_gambeson", "a_whiteknight", "a_paladin", "a_firstplate", "a_mail", "a_surcoat", "a_robe", "a_archmage", "a_sage", "a_void", "a_oracle", "a_ember",
     "a_lich", "a_hierophant", "a_reaper", "a_raven", "a_dragon", "a_astral", "a_frost",
     "g_bare", "g_gloves", "g_bracers",
     "f_shoes", "f_boots", "f_plated")]

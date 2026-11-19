@@ -331,7 +331,7 @@ parts`. Com mais de 4 o Gemini costuma misturar as peças de um item no outro.
 | Arquivo | Item | Notes |
 |---|---|---|
 | `leather_armor` | Armadura de Couro | Tanned leather chest armor, front view. |
-| `chain_mail` | Cota de Malha | Steel chain mail shirt, front view. |
+| `chain_mail` | Couraça de Ferro | Iron breastplate with a center ridge over dark chain mail, front view. |
 | `mage_robe` | Manto Arcano | Mage robe with embroidery that glows faintly. |
 | `ranger_vest` | Gibão do Patrulheiro | Reinforced leather vest in forest tones. |
 | `royal_plate` | Placas Reais | Heroic plate armor. |

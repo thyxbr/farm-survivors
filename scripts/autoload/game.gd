@@ -482,8 +482,10 @@ func mod(k: String) -> float:
 
 # ---------------------------------------------------------------- encantamento
 ## Encanto de uma arma do personagem: {"el", "lv"}; sem encanto = {"el": "", "lv": 0}.
+## O encanto é do tipo de arma: "iron_sword@fina~urso" usa o de "iron_sword" (igual a EnchantRules.of,
+## que o servidor usa; sem isso a arma craftada ficava sem brilho e sem bônus só para o próprio jogador).
 func enchant_of(weapon_id: String) -> Dictionary:
-	var e = enchants.get(weapon_id)
+	var e = enchants.get(ItemQuality.base(weapon_id))
 	if e is Dictionary and int(e.get("lv", 0)) > 0:
 		return {"el": str(e.get("el", "")), "lv": int(e.lv)}
 	return {"el": "", "lv": 0}
@@ -832,6 +834,12 @@ func talent_reset_cost() -> int:
 ## Rank na guilda ("D" a "S") e pontos de guilda (espelho do personagem).
 func rank() -> String:
 	return str(flags.get("rank", "D"))
+
+
+## Rank que vale nas travas (carruagem, dungeons, missões, mapa): com o modo admin ligado qualquer rank
+## serve, igual a CharRules.rank_at_least no servidor. O rank de verdade (rank()) não muda e é o que aparece.
+func access_rank() -> String:
+	return str(StoryRules.RANKS.back()) if admin_mode() else rank()
 
 
 func guild_points() -> int:

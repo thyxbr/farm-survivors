@@ -31,7 +31,7 @@ func _process(_delta: float) -> void:
 	elif _frames == 10:
 		for id: String in _panel.matching():
 			_panel._give(id)
-	elif _frames == 20:
+	elif _frames == 600:   # espera os ícones 3D da grade ficarem prontos
 		print("ADMIN ", Game.admin_mode(), " | ACHOU ", _panel.matching(), " | VESTIDO ", Game.equipment)
 		get_viewport().get_texture().get_image().save_png(_out)
 		print("SHOT ", _out)
