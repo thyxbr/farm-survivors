@@ -1278,7 +1278,7 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun
 	if bar_root:
 		bar_root.visible = true
 	if not is_boss and ai() != "plant":   # a Flor-faminta tem raiz: não recua
-		var heavy: bool = data.get("elite", false) or elite   # campeões e elites da horda quase não recuam
+		var heavy: bool = data.get("elite", false) or elite or data.model == "golem"   # campeões, elites e o Golem quase não recuam
 		var kb := global_position - from_pos
 		kb.y = 0
 		if kb.length() > 0.01:
@@ -1412,9 +1412,38 @@ func die_visual() -> void:
 		name_tag.visible = false
 		quest_icon.visible = false
 	Sfx.play_at("slime" if data.model == "slime" else "enemy_die", global_position, 0.1, -4.0 if horde else 0.0)
+	if data.has("death_blast"):
+		_death_blast()
 	died.emit(self)
 	# acende azul e se desfaz em cacos (FXShatter); o nó sai assim que o modelo some
 	FXShatter.play(self, model, meshes, model.scale.x, is_boss, queue_free)
+
+
+## Golem de Cristal: ao morrer, aviso no chão e, `death_delay` s depois, os estilhaços estouram em `death_blast` m.
+## Só quem manda no monstro (servidor ou solo) aplica o dano; a réplica mostra o aviso e o estouro. Não depende
+## deste nó (que some no FXShatter): o timer leva só valores copiados.
+func _death_blast() -> void:
+	var pos := global_position
+	var r := float(data.death_blast)
+	var delay := float(data.get("death_delay", 0.8))
+	var deal := not puppet
+	var lvl := level
+	var dmg: float = data.damage * dmg_mult
+	var parent := get_parent()
+	var tree := get_tree()
+	FX.telegraph(pos, r, delay)
+	if deal:
+		print("death_blast ", kind)
+	tree.create_timer(delay).timeout.connect(func() -> void:
+		Sfx.play_at("explode", pos, 0.1, -2.0)
+		FXToon.blast(pos, r)
+		if not deal or not is_instance_valid(parent):
+			return
+		var pool: Array = parent.targets() if parent.has_method("targets") else tree.get_nodes_in_group("players")
+		for p in pool:
+			if is_instance_valid(p) and not p.dead and p.global_position.distance_to(pos) <= r:
+				p.take_damage(Enemy.vs(lvl, p, dmg), pos)
+				p.add_shake(0.3))
 
 
 ## Solo: sorteio do loot (LootRules, o mesmo do servidor) em pickups no chão.
@@ -1577,6 +1606,9 @@ func _animate(delta: float, hspeed: float) -> void:
 	if data.model == "bat":
 		_animate_bat(hspeed, k)
 		return
+	if data.model == "golem":
+		_animate_golem(hspeed, s, k)
+		return
 	var amp: float = clamp(hspeed / 4.0, 0.0, 1.0) * 0.8
 	var at := attack_timer
 	var ht := _hit_time()
@@ -1666,6 +1698,45 @@ func _animate_spider(hspeed: float, k: float) -> void:
 		var br := 1.0 + sin(anim_t * 0.8) * 0.035
 		abd.scale = abd.scale.lerp(Vector3(br, br, br), k)
 		abd.rotation.x = lerp(abd.rotation.x, 0.12 if attack_kind == "web" and state == "attack" else 0.0, k)
+
+
+## Golem de Cristal: passada pesada balançando o tronco de lado, braços pendulares; golpe comum = soco do braço
+## direito; pancada (slam) = ergue os dois punhos acima da cabeça e bate no chão no _hit_time.
+## Pivôs: rotação x positiva leva perna/braço para trás (negativa ergue para a frente).
+func _animate_golem(hspeed: float, s: float, k: float) -> void:
+	var amp: float = clamp(hspeed / 2.5, 0.0, 1.0)
+	var leg := s * 0.4 * amp
+	var arm_l := -s * 0.25 * amp
+	var arm_r := s * 0.25 * amp
+	var body_x := 0.06 + sin(anim_t * 0.4) * 0.02 * (1.0 - amp)   # curvado, respirando parado
+	var body_z := sin(anim_t) * 0.07 * amp
+	if state == "attack":
+		var t := attack_timer
+		var ht := _hit_time()
+		if attack_kind == "slam":
+			if t < ht:
+				var u := clampf(t / ht, 0.0, 1.0)
+				arm_l = lerpf(-0.3, -2.7, u)
+				arm_r = arm_l
+				body_x = lerpf(0.06, -0.2, u)
+			elif t < ht + 0.4:
+				arm_l = -0.7
+				arm_r = -0.7
+				body_x = 0.35
+		elif attack_kind == "swing":
+			if t < ht:
+				arm_r = lerpf(0.0, -1.9, clampf(t / ht, 0.0, 1.0))
+				body_z = -0.08
+			elif t < ht + 0.3:
+				arm_r = -0.5
+				body_x = 0.2
+				body_z = 0.1
+	parts.LegL.rotation.x = lerp(parts.LegL.rotation.x, leg, k)
+	parts.LegR.rotation.x = lerp(parts.LegR.rotation.x, -leg, k)
+	parts.ArmL.rotation.x = lerp(parts.ArmL.rotation.x, arm_l, k)
+	parts.ArmR.rotation.x = lerp(parts.ArmR.rotation.x, arm_r, k)
+	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x, k)
+	parts.Body.rotation.z = lerp(parts.Body.rotation.z, body_z, k)
 
 
 ## Flor-faminta: balança devagar com a boca entreaberta; ao ver alguém perto abre a boca; no bote estica o caule e

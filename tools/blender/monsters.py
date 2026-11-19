@@ -1080,6 +1080,140 @@ def build_centipede():
     export("centipede")
 
 
+# ================================================================== GOLEM DE CRISTAL (mina)
+# Golem do Veio de Cristal (~2,4 m): tronco de rocha escura curvado para a frente, cabeça pequena afundada entre
+# os ombros com olhos de cristal, braços enormes com punhos de pedra quase no chão e pernas curtas e grossas.
+# Aglomerados de cristal ciano brotam dos ombros e das costas. Frente = -Y.
+# Pivôs animados por scripts/enemies/enemy.gd (_animate_golem): LegL, LegR (no quadril), Body (tronco), Head e
+# ArmL/ArmR (no ombro, dentro de Body). Rotação x positiva leva perna/braço para trás.
+def _vsurf(secs, z, deg, out=0.0):
+    """Ponto da superfície de um loft vertical (ao longo de Z) na altura z: deg 0 = +X, 90 = frente (-Y),
+    180 = -X, 270 = costas. out empurra para fora (negativo: para dentro)."""
+    for a, b in zip(secs, secs[1:]):
+        if a["c"].z <= z <= b["c"].z:
+            s = _mix(a, b, (z - a["c"].z) / max(1e-6, b["c"].z - a["c"].z))
+            break
+    else:
+        s = secs[-1]
+    r = math.radians(deg)
+    return Vector((s["c"].x + math.cos(r) * (s["rx"] + out), s["c"].y - math.sin(r) * (s["ry"] + out), z))
+
+
+def _crystal(name, base, direction, length, r, mats, parent):
+    """Cristal hexagonal: prisma que nasce de dentro da rocha e fecha em ponta (corpo claro, ponta mais escura)."""
+    d = Vector(direction).normalized()
+    p0 = Vector(base) - d * 0.05
+    p1 = Vector(base) + d * length * 0.7
+    p2 = Vector(base) + d * length
+    sloft(name, [sec(p0, r, r), sec(p1, r * 0.95, r * 0.95), sec(p2, r * 0.05, r * 0.05)], mats[0], parent,
+          sides=6, phase=0.0, fwd=(0, 0, 1) if abs(d.z) < 0.9 else (0, -1, 0), mats=(mats[1],),
+          matf=lambda i, j: 1 if i >= 1 else 0)
+
+
+def _rock(name, c, r, material, parent, squash=(1.0, 1.0, 1.0), sides=7, prof=None):
+    """Pedra facetada: loft curto ao longo de Z com poucas faces (aresta viva entre elas = leitura de rocha)."""
+    c = Vector(c)
+    rx, ry, rz = r * squash[0], r * squash[1], r * squash[2]
+    prof = prof or ((-1.0, 0.35), (-0.6, 0.85), (0.0, 1.0), (0.55, 0.88), (0.92, 0.45), (1.0, 0.08))
+    secs = [sec(c + Vector((0, 0, rz * t)), rx * k, ry * k) for t, k in prof]
+    return sloft(name, secs, material, parent, sides=sides, phase=0.0)
+
+
+def build_golem():
+    rock = mat("gm_rock", hexc("#5E5A58"), 0.92)
+    rock_d = mat("gm_rock_d", hexc("#3A3634"), 0.92)
+    rock_l = mat("gm_rock_l", hexc("#86807A"), 0.92)
+    crys = mat("gm_crystal", hexc("#3FD2F2"), 0.25, 0.0, emit=(0.15, 0.8, 1.0), strength=2.4)
+    crys_d = mat("gm_crystal_d", hexc("#1B78B8"), 0.25, 0.0, emit=(0.05, 0.45, 0.9), strength=1.8)
+    eye = mat("gm_eye_flat", (0.6, 0.95, 1.0), 0.2, 0.0, emit=(0.4, 0.9, 1.0), strength=4.0)
+    up = (0, 0, 1)
+    HIP = 0.85
+
+    root = empty("Golem", (0, 0, 0))
+
+    # ---------------- tronco em triângulo invertido: cintura de pedra estreita, peito e ombros largos, corcunda
+    body = empty("Body", (0, 0, HIP), root)
+    torso = fera_dense([sec((0, 0.02, HIP - 0.12), 0.3, 0.26), sec((0, 0.0, HIP + 0.1), 0.4, 0.32),
+                        sec((0, -0.04, 1.3), 0.6, 0.44), sec((0, -0.06, 1.62), 0.66, 0.46),
+                        sec((0, -0.04, 1.86), 0.56, 0.42), sec((0, 0.0, 2.0), 0.34, 0.3),
+                        sec((0, 0.02, 2.06), 0.06, 0.06)], 14, cut=1)
+    sloft("Torso", torso, rock, body, sides=9, phase=0.0, mats=(rock_d,),
+          matf=lambda i, j: 1 if j in (3, 4, 5) and i < 5 else 0)
+    # bacia de pedra onde as pernas entram
+    _rock("Pelvis", (0, 0.02, HIP - 0.06), 0.42, rock_d, body, squash=(1.0, 0.8, 0.45), sides=8)
+    # placas do peito (duas lajes claras inclinadas) e laje da barriga, meio enterradas no tronco
+    for s in (1, -1):
+        p = _vsurf(torso, 1.48, 90 - s * 32, -0.06)
+        _rock("Pec%d" % (0 if s > 0 else 1), p, 0.24, rock_l, body, squash=(1.2, 0.45, 0.7), sides=6)
+    _rock("Belly", _vsurf(torso, 1.08, 90, -0.06), 0.2, rock_l, body, squash=(1.1, 0.4, 0.75), sides=6)
+    # veios de cristal rachando o peito
+    for k, pts in enumerate((((1.7, 70), (1.52, 82), (1.3, 76), (1.12, 86)), ((1.66, 112), (1.45, 104), (1.24, 112)))):
+        fera_curve("Vein%d" % k, [_vsurf(torso, z, d, 0.004) for z, d in pts], 0.022, 0.012, crys, body, sides=5)
+
+    # ---------------- cabeça pequena e afundada, mandíbula saliente, sobrancelha grossa e olhos de cristal
+    head = empty("Head", (0, -0.36, 1.86), body)
+    _rock("HeadMesh", (0, -0.42, 1.9), 0.21, rock_d, head, squash=(1.0, 0.95, 0.85), sides=7)
+    _rock("Jaw", (0, -0.5, 1.77), 0.17, rock, head, squash=(1.25, 0.8, 0.5), sides=6)
+    _rock("Brow", (0, -0.55, 1.99), 0.14, rock_l, head, squash=(1.7, 0.5, 0.35), sides=6)
+    for s in (1, -1):
+        c = Vector((s * 0.085, -0.6, 1.92))
+        sloft("Eye%d" % (0 if s > 0 else 1), [sec(c + Vector((0, 0.05, 0)), 0.02, 0.02), sec(c, 0.042, 0.036),
+                                              sec(c + Vector((0, -0.025, 0)), 0.03, 0.025),
+                                              sec(c + Vector((0, -0.035, 0)), 0.005, 0.005)], eye, head, sides=8, fwd=up)
+
+    # ---------------- pernas curtas em coluna, mais largas embaixo, pé de laje
+    for side, x in (("LegL", 0.24), ("LegR", -0.24)):
+        s = 1 if x > 0 else -1
+        leg = empty(side, (x, 0, HIP), root)
+        lsecs = [sec((x, 0.0, HIP + 0.05), 0.2, 0.2), sec((x + s * 0.03, -0.02, 0.55), 0.21, 0.21),
+                 sec((x + s * 0.05, 0.0, 0.25), 0.25, 0.25), sec((x + s * 0.05, 0.0, 0.12), 0.26, 0.26)]
+        sloft(side + "_Mesh", lsecs, rock, leg, sides=7, phase=0.0)
+        _rock(side + "_Knee", (x + s * 0.03, -0.14, 0.52), 0.13, rock_l, leg, squash=(1.0, 0.7, 1.0), sides=6)
+        _rock(side + "_Foot", (x + s * 0.05, -0.08, 0.1), 0.3, rock_d, leg, squash=(1.0, 1.25, 0.36), sides=7)
+
+    # ---------------- braços de gorila: pedra do ombro cravada no tronco, braço fino, cotovelo, antebraço grosso e
+    # punho enorme. O pivô fica DENTRO do tronco: girando, a pedra do ombro continua enterrada no corpo.
+    arms = {}
+    for side, x in (("ArmL", 0.66), ("ArmR", -0.66)):
+        s = 1 if x > 0 else -1
+        arm = arms[side] = empty(side, (s * 0.45, -0.04, 1.68), body)
+        _rock(side + "_Shoulder", (x, -0.04, 1.7), 0.34, rock, arm, squash=(1.0, 0.95, 0.85), sides=7)
+        _rock(side + "_ShoulderCap", (x + s * 0.06, -0.04, 1.86), 0.24, rock_l, arm, squash=(1.0, 0.95, 0.55), sides=6)
+        elbow = Vector((x + s * 0.14, -0.08, 1.18))
+        sloft(side + "_Upper", [sec((x + s * 0.04, -0.05, 1.62), 0.17, 0.17), sec(elbow + Vector((0, 0, 0.1)), 0.15, 0.15),
+                                sec(elbow, 0.15, 0.15)], rock, arm, sides=7, phase=0.0)
+        _rock(side + "_Elbow", elbow, 0.19, rock_d, arm, sides=7)
+        wrist = Vector((x + s * 0.16, -0.18, 0.62))
+        sloft(side + "_Fore", [sec(elbow, 0.2, 0.2), sec(elbow.lerp(wrist, 0.5), 0.26, 0.26), sec(wrist, 0.27, 0.26)],
+              rock, arm, sides=7, phase=0.0)
+        _rock(side + "_Bracer", elbow.lerp(wrist, 0.55) + Vector((s * 0.12, -0.08, 0)), 0.2, rock_l, arm,
+              squash=(0.5, 0.9, 1.3), sides=6)
+        fist_c = Vector((x + s * 0.16, -0.22, 0.42))
+        _rock(side + "_Fist", fist_c, 0.3, rock_d, arm, squash=(1.0, 1.05, 0.85), sides=7)
+        for k, dx in enumerate((-0.13, 0.0, 0.13)):   # nós dos dedos para a frente e para baixo
+            _rock(side + "_Knuckle%d" % k, fist_c + Vector((dx, -0.24, -0.1)), 0.1, rock, arm, sides=6)
+
+    # ---------------- cristais: aglomerado grande no ombro direito, menor no esquerdo, e na corcunda
+    for side, s, big in (("ArmR", -1, True), ("ArmL", 1, False)):
+        base = Vector((s * 0.72, -0.04, 1.9))
+        spec = ((((0.3, 0.0, 1.0), 0.75, 0.12), ((0.7, 0.2, 0.7), 0.55, 0.09), ((0.5, -0.4, 0.8), 0.5, 0.085),
+                 ((0.9, 0.3, 0.3), 0.4, 0.07)) if big else
+                (((0.4, 0.1, 1.0), 0.5, 0.09), ((0.8, -0.2, 0.5), 0.36, 0.07)))
+        for k, (d, ln, rr) in enumerate(spec):
+            _crystal("%s_Crystal%d" % (side, k), base, (s * d[0], d[1], d[2]), ln, rr, (crys, crys_d), arms[side])
+    for k, (z, dx, ln, rr) in enumerate(((1.9, 0.0, 0.6, 0.1), (1.76, 0.2, 0.42, 0.075), (1.72, -0.22, 0.48, 0.08),
+                                         (1.5, 0.1, 0.34, 0.065), (1.42, -0.12, 0.3, 0.06))):
+        base = _vsurf(torso, z, 270, -0.04) + Vector((dx, 0, 0))
+        _crystal("BackCrystal%d" % k, base, (dx * 1.5, 0.75, 0.65), ln, rr, (crys, crys_d), body)
+
+    # rocha facetada: aresta viva entre as faces (35°), em vez do liso das feras
+    for ob in coll.all_objects:
+        if ob.type == 'MESH':
+            smooth_sharp(ob, 35.0)
+    loose_parts("golem")
+    export("golem")
+
+
 # ================================================================== FLOR-FAMINTA (planta carnívora)
 # Planta da beira das trilhas: roseta de folhas no chão, caule grosso que se curva para a frente e uma cabeça de
 # duas mandíbulas (como uma dioneia) com dentes que se cruzam; dois cipós com espinhos saem da base. Não anda.

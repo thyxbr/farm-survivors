@@ -5,6 +5,7 @@ const SPIDER := ["Body", "Abdomen", "Head", "Leg0L", "Leg1L", "Leg2L", "Leg3L", 
 const REQUIRED := {
 	"spider": SPIDER,
 	"centipede": SPIDER,
+	"golem": ["LegL", "LegR", "Body", "Head", "ArmL", "ArmR"],
 }
 
 

@@ -1387,5 +1387,50 @@
 		],
 		"ref_level": 2,
 		"chill_venom": true
+	},
+	"golem_cristal": {
+		"name": "Golem de Cristal",
+		"model": "golem",
+		"hp": 300,
+		"damage": 20,
+		"speed": 2.2,
+		"xp": 85,
+		"gold": [
+			8,
+			16
+		],
+		"aggro": 12.0,
+		"reach": 2.6,
+		"cooldown": 2.0,
+		"radius": 0.75,
+		"height": 2.4,
+		"scale": 1.0,
+		"color": {
+			"$c": [
+				0.45,
+				0.85,
+				1.0,
+				1.0
+			]
+		},
+		"slam_every": 2,
+		"bld": 2.0,
+		"death_blast": 3.0,
+		"death_delay": 0.8,
+		"loot": [
+			[
+				"arcane_crystal",
+				0.35
+			],
+			[
+				"iron_ore",
+				0.4
+			],
+			[
+				"health_potion",
+				0.05
+			]
+		],
+		"ref_level": 2
 	}
 }
