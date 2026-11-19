@@ -3,6 +3,8 @@ extends RefCounted
 ## material; um material renomeado no Blender deixaria a peça sem efeito, em silêncio).
 
 const ENDGAME := ["lich", "hierophant", "reaper", "raven", "dragon", "astral", "frost"]
+## armaduras com efeito só no material, sem partículas nem cabeça própria (o brilho do ouro do paladino)
+const FX_ONLY := ["a_paladin"]
 const DIR := "res://assets/models/gear/"
 
 
@@ -27,8 +29,10 @@ func test_every_surface_entry_exists_in_a_model() -> void:
 	for k in ENDGAME:
 		all.merge(_materials("h_" + k))
 		all.merge(_materials("a_" + k))
+	for st in FX_ONLY:
+		all.merge(_materials(st))
 	for name in GearFx.SURFACES:
-		T.ok(all.has(name), "material '%s' da tabela não existe em nenhum GLB de fim de jogo" % name)
+		T.ok(all.has(name), "material '%s' da tabela não existe em nenhum GLB com efeito" % name)
 
 
 func test_every_endgame_set_is_animated() -> void:

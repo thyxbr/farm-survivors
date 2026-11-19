@@ -31,6 +31,10 @@ const SURFACES := {
 		"sheen_col": Color(1.0, 0.93, 0.62), "sheen_power": 1.1, "sheen_dir": Vector3(0.6, 1.0, 0.0), "sheen_speed": 0.34}},
 	"rb_hierophant_trim": {"shader": SHEEN, "lit": true, "params": {
 		"sheen_col": Color(1.0, 0.93, 0.62), "sheen_power": 1.1, "sheen_dir": Vector3(0.6, 1.0, 0.0), "sheen_speed": 0.34}},
+	# ---- Paladino real: a cada poucos segundos uma faixa de luz sobe correndo pelos frisos de ouro
+	"pa_gold": {"shader": SHEEN, "lit": true, "params": {
+		"sheen_col": Color(1.0, 0.95, 0.7), "sheen_power": 1.5, "sheen_dir": Vector3(0.35, 1.0, 0.0), "sheen_freq": 0.05,
+		"sheen_speed": 0.35, "sheen_width": 0.045, "gloss": 0.0}},
 	# ---- Senhor dos Corvos: reflexo azul-violeta varrendo as penas, olhos pulsando
 	"eg_raven_feather": {"shader": SHEEN, "lit": true, "params": {
 		"sheen_col": Color(0.3, 0.42, 1.0), "sheen_power": 0.6, "sheen_dir": Vector3(1.0, 0.5, 0.0), "sheen_freq": 0.7,

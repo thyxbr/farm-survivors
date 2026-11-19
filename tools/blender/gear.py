@@ -3319,6 +3319,475 @@ def build_a_whiteknight():
     g_export_skinned(style)
 
 
+
+# ------------------------------------------------------------------ paladino real (tier IV, malha lisa)
+# Referência: Bell, "Paladin". Couraça de prata comprida até o cinto sobre cota escura, com faixas douradas
+# gravadas descendo dos lados do peito, cruz dourada escura com volutas no meio do peito, gola de ouro em
+# pontas em volta do gorjal, cinto fino com fivela. Ouro e prata fixos; o pano (próximas peças) é t1_.
+def _pal_hip_pt(a, z, off):
+    """Como _wk_hip_pt, mas a folga e a abertura para baixo vão por igual em volta (não multiplicadas pelo
+    glúteo): a roupa de placa cai reta atrás, sem marcar o glúteo."""
+    rx, ry, fr, bk, y0 = _wk_torso_sec(0.95)
+    bk = min(bk, 1.08)
+    x, y = cb_spt(a, rx, ry, fr, bk)
+    d = Vector((math.sin(a), -math.cos(a), 0))
+    grow = off + 0.1 * max(0.0, 0.96 - z)
+    return Vector((x, y + y0, z)) + d * grow
+
+
+def paladin_mats():
+    return dict(
+        plate=gm("pa_plate", "#C8CED6", 0.3, 0.8), plate_d=gm("pa_plate_d", "#7F8894", 0.4, 0.8),
+        gold=gm("pa_gold", "#D2A64A", 0.3, 0.85), gold_d=gm("pa_gold_d", "#6E4E1E", 0.45, 0.8),
+        mail=gm("pa_mail", "#45464C", 0.6, 0.6), lea=gm("pa_leather", "#5A4130", 0.8),
+        cloth=gm("t1_pal_cloth", "#C9A24E", 0.9), white=gm("pa_white", "#E4E2DC", 0.9),
+        dark=gm("pa_dark", "#2E2B31", 0.9), hem=gm("pa_hem", "#B98A3A", 0.6, 0.3),
+    )
+
+
+def paladin_torso(K, src, body):
+    """Tronco: cota escura (casca), couraça e costal lisos com borda dobrada, faixas douradas gravadas dos
+    lados do peito, cruz dourada com volutas no meio, gorjal de prata com gola de ouro em pontas e cinto fino.
+    Devolve (casca, peças)."""
+    def is_torso(c, b, n):
+        return not (b.startswith("Arm") or b.startswith("Elbow") or b.startswith("Knee")) and 0.86 <= c.z < 1.52
+
+    under = cb_piece(src, "Mail", is_torso, 0.006, K["mail"])
+    g_subdiv(under, 2)
+    parts = []
+    A = 1.3
+
+    def top_z(a):
+        return 1.49 - 0.06 * math.cos(a) ** 2 - 0.07 * (abs(a) / A) ** 4
+
+    def bot_z(a):                      # couraça comprida: termina no cinto, um pouco mais baixa na frente
+        return 1.03 - 0.012 * math.cos(a) ** 2
+
+    def breast(u, v):
+        a = -A + 2 * A * v
+        z = top_z(a) + (bot_z(a) - top_z(a)) * u
+        bulge = 0.006 * math.sin(math.pi * min(1.0, u * 1.6)) * max(0.0, math.cos(a)) ** 1.5
+        return wk_plate_pt(a, z, 0.016 + bulge, keel=0.03)
+    bp, br = _wk_plate("Cuirass", breast, 20, 40, K["plate"], body)
+    parts.append(bp)
+    outline = br[0] + [r[-1] for r in br[1:]] + br[-1][::-1][1:] + [r[0] for r in br[::-1][1:-1]]
+    parts.append(g_pipe("CuirassRim", outline, 0.0065, K["plate"], body, sides=8, loop=True))
+    B = math.pi - 1.25
+
+    def back(u, v):
+        a = math.pi - B + 2 * B * v
+        zt = 1.48 - 0.07 * abs(2 * v - 1) ** 4
+        z = zt + (1.03 - zt) * u
+        return wk_plate_pt(a, z, 0.017)
+    bk, bkr = _wk_plate("Backplate", back, 16, 30, K["plate"], body)
+    parts.append(bk)
+    parts.append(g_pipe("BackRim", bkr[0] + [r[-1] for r in bkr[1:]] + bkr[-1][::-1][1:] + [r[0] for r in bkr[::-1][1:-1]],
+                        0.006, K["plate"], body, sides=8, loop=True))
+
+    def on(u, v, out=0.004):           # ponto por cima da couraça
+        q = breast(u, v)
+        return q + Vector((q.x, q.y, 0)).normalized() * out
+    # ---- faixas douradas gravadas: descem dos lados do peito até o cinto, com folhas em V ao longo
+    for sn, vc in (("L", 0.79), ("R", 0.21)):
+        path = [on(u, vc + 0.03 * (u - 0.5) * (1 if vc > 0.5 else -1), 0.003) for u in (0.1 + 0.88 * i / 16 for i in range(17))]
+        a = -A + 2 * A * vc
+        side0 = (math.cos(a), math.sin(a), 0)
+        parts.append(g_smooth_mesh("GoldBand" + sn, g_curved_tube(path, [(0.016, 0.0025)] * len(path), sides=8,
+                                                                  side0=side0), K["gold"], body))
+        w = Vector(side0)
+        for k in range(1, 16, 2):     # folhas: pares de traços em V subindo pela faixa
+            c = path[k]
+            up = (path[k - 1] - path[k + 1]).normalized()
+            nn = Vector((c.x, c.y, 0)).normalized()
+            for sg in (1, -1):
+                parts.append(g_pipe("GoldLeaf%s%d_%d" % (sn, k, sg > 0),
+                                    [c + nn * 0.003 - up * 0.004, c + nn * 0.003 + up * 0.006 + w * 0.011 * sg],
+                                    0.0018, K["gold_d"], body, sides=6))
+        parts.append(g_pipe("GoldBandEdge%sA" % sn, [q + w * 0.016 + Vector((q.x, q.y, 0)).normalized() * 0.002 for q in path],
+                            0.0022, K["gold_d"], body, sides=6))
+        parts.append(g_pipe("GoldBandEdge%sB" % sn, [q - w * 0.016 + Vector((q.x, q.y, 0)).normalized() * 0.002 for q in path],
+                            0.0022, K["gold_d"], body, sides=6))
+    # ---- cruz no meio do peito: braços que alargam nas pontas (dourado escuro), aro e volutas douradas
+    cc = on(0.36, 0.5, 0.004)
+    for ang in (0, 90, 180, 270):      # cruz pátea: quatro braços que alargam (cada um convexo) e o miolo
+        r = math.radians(ang)
+        d = Vector((math.cos(r), math.sin(r)))
+        p = Vector((-d.y, d.x))
+        L = 0.066 if ang == 270 else 0.046
+        quad = [d * 0.004 - p * 0.008, d * L - p * 0.019, d * L + p * 0.019, d * 0.004 + p * 0.008]
+        parts.append(g_plate("CrossArm%d" % ang, [(q.x, q.y) for q in quad], cc, (1, 0, 0), (0, 0, 1), 0.007,
+                             K["gold_d"], body))
+        rim = [cc + Vector((0, -0.0055, 0)) + Vector((q.x, 0, q.y)) for q in (quad[1], quad[2])]
+        parts.append(g_pipe("CrossTip%d" % ang, rim, 0.0028, K["gold"], body, sides=6))
+        parts.append(g_pipe("CrossSide%d" % ang, [cc + Vector((0, -0.0055, 0)) + Vector((q.x, 0, q.y))
+                                                   for q in (quad[0], quad[1])], 0.0022, K["gold"], body, sides=6))
+        parts.append(g_pipe("CrossSideB%d" % ang, [cc + Vector((0, -0.0055, 0)) + Vector((q.x, 0, q.y))
+                                                    for q in (quad[3], quad[2])], 0.0022, K["gold"], body, sides=6))
+    parts.append(g_bead("CrossBoss", cc + Vector((0, -0.004, 0)), 0.009, K["gold"], body))
+    for side, vs in (("L", 1), ("R", -1)):     # volutas: saem do braço da cruz e enrolam para baixo
+        curl = []
+        for i in range(18):
+            t = i / 17
+            ang = 4.6 * t
+            rad = 0.09 * (1 - 0.72 * t)
+            curl.append(on(0.36 + 0.03 + rad * math.sin(ang) * 0.75, 0.5 + vs * (0.13 + 0.06 * t - rad * math.cos(ang) * 0.5 + rad * 0.5),
+                           0.004))
+        parts.append(g_pipe("CrossCurl" + side, g_spline(curl, 34), 0.0028, K["gold"], body, sides=6))
+    # ---- gorjal de prata e gola de ouro em pontas por cima da borda da couraça
+    def ring(z, rx, ry, y0=0.012, n=36):
+        return [Vector((math.sin(2 * math.pi * j / n) * rx, y0 - math.cos(2 * math.pi * j / n) * ry, z))
+                for j in range(n)]
+    gor = [ring(1.44, 0.132, 0.116), ring(1.49, 0.11, 0.098), ring(1.535, 0.094, 0.086), ring(1.565, 0.09, 0.084)]
+    parts.append(g_smooth_mesh("Gorget", gor, K["plate"], body, cap_end=False, thick=0.006, outward=True))
+    parts.append(g_pipe("GorgetRim", gor[-1], 0.006, K["gold"], body, sides=8, loop=True))
+    collar = [Vector((q.x * 1.04, 0.012 + (q.y - 0.012) * 1.04, q.z + 0.006)) for q in ring(1.452, 0.134, 0.118)]
+    parts.append(g_pipe("GoldCollar", collar, 0.009, K["gold"], body, sides=10, loop=True))
+    for k, ang in enumerate((-1.25, -0.75, -0.3, 0.3, 0.75, 1.25)):       # pontas de ouro abertas para fora
+        base = Vector((math.sin(ang) * 0.138, 0.012 - math.cos(ang) * 0.122, 1.455))
+        out = Vector((math.sin(ang), -math.cos(ang), 0))
+        L = 0.06 if abs(ang) < 0.5 else 0.05
+        tip = [base, base + out * L * 0.5 + Vector((0, 0, 0.004)), base + out * L + Vector((0, 0, 0.02))]   # abre para fora e sobe
+        parts.append(g_smooth_mesh("CollarSpike%d" % k, g_curved_tube(g_spline(tip, 6),
+                                                                       [(0.014 * (1 - i / 7) + 0.001, 0.003) for i in range(7)],
+                                                                       sides=8, side0=(math.cos(ang), math.sin(ang), 0)),
+                                   K["gold"], body))
+    # ---- cinto fino de couro com fivela dourada
+    from mathutils.bvhtree import BVHTree
+    bpy.context.view_layer.update()
+    cb = BVHTree.FromPolygons([bp.matrix_world @ v.co for v in bp.data.vertices], [tuple(p.vertices) for p in bp.data.polygons])
+    N = 48
+
+    def on_body(a, z, out):
+        d = Vector((math.sin(a), -math.cos(a), 0))
+        h = cb.ray_cast(Vector((0, 0, z)) + d * 0.6, -d)[0]
+        return (h if h is not None else wk_plate_pt(a, z, 0.024)) + d * out
+    belt = [[on_body(2 * math.pi * j / N, z, out) for j in range(N)]
+            for z, out in ((1.04, 0.002), (1.043, 0.007), (1.067, 0.007), (1.07, 0.002))]
+    parts.append(g_smooth_mesh("Belt", belt, K["lea"], body, cap_end=False, outward=True))
+    bc = on_body(0.0, 1.055, 0.006)
+    rim = [bc + Vector((x, 0, y)) for x, y in ((-0.02, 0.016), (0.02, 0.016), (0.02, -0.016), (-0.02, -0.016))]
+    parts.append(g_pipe("Buckle", rim, 0.004, K["gold"], body, sides=8, loop=True))
+    parts.append(g_pipe("BuckleBar", [bc + Vector((-0.006, 0.004, 0.017)), bc + Vector((-0.006, 0.004, -0.017))], 0.0035,
+                        K["gold"], body, sides=6))
+    return under, parts
+
+
+
+def paladin_pauldron(K, src, body, s):
+    """Ombreiras do paladino. Direita (s < 0): copa e três lâminas em leque, cada uma com debrum de ouro e uma
+    lâmina em ponta que sai para trás e para fora (as pontas crescem de cima para baixo), voluta de ouro na
+    copa. Esquerda (s > 0): copa redonda e três lâminas com debrum de ouro, medalhão de cruz num sol de ouro
+    na frente (onde a capa prende)."""
+    sn = "L" if s > 0 else "R"
+    fan = s < 0
+    lames = [(0.05, 1.85, 1.8, 0.05, 0.006), (1.7, 2.55, 1.95, 0.044, 0.016 if fan else 0.006),
+             (2.4, 3.25, 2.0, 0.038, 0.02 if fan else 0.006), (3.1, 3.95, 2.05, 0.032, 0.024 if fan else 0.006)]
+    parts = []
+    for k, (rings, dirs, C) in enumerate(_g_shoulder_dome(src, s, lames, phis=32, rows=10)):
+        parts.append(g_smooth_mesh("Pauldron%s%d" % (sn, k), rings, K["plate"], body, cap_end=False, closed=False,
+                                   thick=0.006, outward=True))
+        n = len(rings[0])
+        edge = [rings[-1][j] + dirs[-1][j] * 0.002 for j in range(n)]
+        r0 = 4 if k == 0 else 0
+        ends = [[r[side] + d[side] * 0.002 for r, d in zip(rings[r0:], dirs[r0:])] for side in (0, n - 1)]
+        parts.append(g_pipe("PauldronGold%s%d" % (sn, k), ends[0][::-1] + edge[1:-1] + ends[1], 0.0062, K["gold"], body,
+                            sides=8))
+        fi = len(rings) - 3
+        parts.append(g_pipe("PauldronFlute%s%d" % (sn, k), [rings[fi][j] + dirs[fi][j] * 0.001 for j in range(3, n - 3)],
+                            0.0022, K["plate_d"], body, sides=6))
+        if fan and k > 0:              # lâmina em ponta saindo da ponta de trás, para fora e para baixo
+            j = int(n * 0.6)           # do lado de fora, um pouco para trás: aparece de frente como um leque
+            base = rings[-2][j]
+            dn = dirs[-2][j]
+            back = (rings[-2][min(n - 1, j + 4)] - rings[-2][j - 4]).normalized()
+            L = 0.07 + 0.025 * k
+            path = [base, base + back * L * 0.2 + dn * L * 0.5 + Vector((0, 0, 0.01)),
+                    base + back * L * 0.35 + dn * L + Vector((0, 0, 0.022 - 0.014 * k))]
+            sp = g_spline(path, 8)
+            w = [(0.022 * (1 - i / 9) ** 0.8 + 0.001, 0.0035) for i in range(9)]
+            side0 = back.cross(dn).normalized()
+            parts.append(g_smooth_mesh("PauldronBlade%s%d" % (sn, k), g_curved_tube(sp, w, sides=8, side0=tuple(side0)),
+                                       K["plate"], body))
+            parts.append(g_pipe("PauldronBladeGold%s%d" % (sn, k), [q + side0 * ww[0] for q, ww in zip(sp, w)][:-1],
+                                0.0028, K["gold"], body, sides=6))
+        if k == 0:
+            i0, j0 = len(rings) // 2, n // 2
+            q, dn = rings[i0][j0], dirs[i0][j0]
+            up = (rings[i0 - 2][j0] - rings[i0 + 2][j0]).normalized()
+            side = up.cross(dn).normalized()
+            up = dn.cross(side).normalized()
+            if fan:                    # voluta de ouro na copa
+                curl = []
+                for i in range(16):
+                    t = i / 15
+                    ang = 4.4 * t
+                    rad = 0.04 * (1 - 0.7 * t)
+                    curl.append(q + dn * 0.002 + side * (rad * math.cos(ang) - 0.02 + 0.03 * t) + up * (rad * math.sin(ang)))
+                parts.append(g_pipe("PauldronCurl" + sn, g_spline(curl, 30), 0.003, K["gold"], body, sides=6))
+            else:                      # medalhão: sol de ouro com cruz escura, na frente da copa
+                jm = int(n * 0.8)
+                im = len(rings) - 3
+                mq, mdn = rings[im][jm], dirs[im][jm]
+                mup = (rings[im - 2][jm] - rings[im + 2][jm]).normalized()
+                ms = mup.cross(mdn).normalized()
+                mup = mdn.cross(ms).normalized()
+                sun = []
+                for i in range(32):
+                    r = 0.042 if i % 2 == 0 else 0.026
+                    an = math.pi * i / 16
+                    sun.append((math.cos(an) * r, math.sin(an) * r))
+                parts.append(g_plate("MedalSun" + sn, sun, mq + mdn * 0.006, ms, mup, 0.006, K["gold"], body))
+                parts.append(g_pipe("MedalRing" + sn, [mq + mdn * 0.011 + ms * math.cos(2 * math.pi * i / 20) * 0.024
+                                                       + mup * math.sin(2 * math.pi * i / 20) * 0.024 for i in range(20)],
+                                    0.003, K["gold_d"], body, sides=6, loop=True))
+                for ang in (0, 90, 180, 270):
+                    r = math.radians(ang)
+                    d2 = Vector((math.cos(r), math.sin(r)))
+                    p2 = Vector((-d2.y, d2.x))
+                    quad = [d2 * 0.003 - p2 * 0.005, d2 * 0.022 - p2 * 0.011, d2 * 0.022 + p2 * 0.011, d2 * 0.003 + p2 * 0.005]
+                    parts.append(g_plate("MedalCross%s%d" % (sn, ang), [(v.x, v.y) for v in quad], mq + mdn * 0.012, ms, mup,
+                                         0.005, K["gold_d"], body))
+                parts.append(g_bead("MedalBoss" + sn, mq + mdn * 0.014, 0.006, K["gold"], body))
+    return parts
+
+
+def paladin_faulds(K, body):
+    """Escarcelas do paladino: na frente uma faixa de placa com o arco aberto no meio (borda dobrada e rebites);
+    em cada coxa quatro lâminas de barra arredondada, cada uma por cima da de baixo, com uma faixa de ouro
+    gravada descendo pelo meio e um rebite de cada lado dela. Devolve (lâminas das coxas, placa da frente)."""
+    tas, mid = [], []
+    for sn, s in (("L", 1), ("R", -1)):
+        A0, A1, AC = 0.3, 1.45, 0.85
+        for k in range(4):
+            zt = 1.055 - 0.075 * k             # a primeira sai de baixo do cinto (presa nele)
+
+            def lame(u, v, zt=zt, k=k):
+                a = (A0 + (A1 - A0) * v) * s
+                h = 0.09 - 0.02 * abs(2 * v - 1) ** 3                   # barra arredondada (pontas sobem)
+                z = zt - h * u
+                return _pal_hip_pt(a, z, (0.004 if k == 0 else 0.022) + 0.012 * u)
+            ob, rr = _wk_plate("Tasset%s%d" % (sn, k), lame, 6, 24, K["plate"], body, thick=0.005)
+            tas.append(ob)
+            edge = [r[0] for r in rr] + rr[-1][1:] + [r[-1] for r in rr][::-1][1:]
+            tas.append(g_pipe("TassetRim%s%d" % (sn, k), edge, 0.0052, K["plate"], body, sides=8))
+            vc = (AC - A0) / (A1 - A0)
+
+            def on(u, v, out=0.0035, lame=lame):
+                q = lame(u, v)
+                return q + Vector((q.x, q.y, 0)).normalized() * out
+            stripe = [on(u, vc) for u in (0.05, 0.35, 0.65, 0.95)]
+            a = AC * s
+            w = Vector((math.cos(a), math.sin(a), 0))
+            tas.append(g_smooth_mesh("TassetGold%s%d" % (sn, k), g_curved_tube(stripe, [(0.018, 0.0022)] * 4, sides=8,
+                                                                              side0=tuple(w)), K["gold"], body))
+            for sg in (1, -1):
+                tas.append(g_pipe("TassetGoldEdge%s%d_%d" % (sn, k, sg > 0), [q + w * 0.018 * sg for q in stripe], 0.0018,
+                                  K["gold_d"], body, sides=6))
+                q = on(0.45, vc + sg * 0.24, 0.004)
+                tas.append(g_bead("TassetRivet%s%d_%d" % (sn, k, sg > 0), q, 0.0055, K["plate_d"], body))
+            for i in (1, 2):           # folhas gravadas na faixa
+                c = on(0.33 * i, vc, 0.005)
+                tas.append(g_pipe("TassetLeaf%s%d_%d" % (sn, k, i), [c - w * 0.01 + Vector((0, 0, 0.006)), c,
+                                                                   c + w * 0.01 + Vector((0, 0, 0.006))], 0.0016,
+                                  K["gold_d"], body, sides=6))
+    # ---- faixa da frente com o arco aberto no meio
+    AF = 0.62
+
+    def front(u, v):
+        a = -AF + 2 * AF * v
+        x = a / 0.36
+        arch = 0.075 * max(0.0, 1 - x * x) ** 0.5                       # arco: a barra sobe no meio
+        z = 1.06 - (0.12 - arch) * u
+        return _pal_hip_pt(a, z, 0.008 + 0.03 * u)
+    fp, fr = _wk_plate("FrontFauld", front, 8, 36, K["plate"], body, thick=0.006)
+    mid.append(fp)
+    mid.append(g_pipe("FrontFauldRim", [r[0] for r in fr] + fr[-1][1:] + [r[-1] for r in fr][::-1][1:], 0.0058,
+                      K["plate"], body, sides=8))
+    mid.append(g_pipe("FrontFauldArch", [front(0.97, 0.5 + (j / 20 - 0.5) * 0.62) +
+                                         Vector((0, -0.003, 0.004)) for j in range(21)], 0.0024, K["gold"], body, sides=6))
+    for v in (0.12, 0.88, 0.3, 0.7):
+        q = front(0.55, v)
+        mid.append(g_bead("FrontFauldRivet%d" % int(v * 100), q + Vector((q.x, q.y, 0)).normalized() * 0.005, 0.0055,
+                          K["plate_d"], body))
+    return tas, mid
+
+
+def paladin_skirt(K, body):
+    """Saia do paladino: dois panos que saem por baixo das escarcelas até a canela, dourado à direita (cor do
+    item) e branco à esquerda, com pregas soltas, aberta na frente e fendida atrás; barra larga bordada (faixa de
+    ouro com zigue-zague e losangos) e um painel escuro no meio da frente. Devolve as peças (pesos da saia)."""
+    Z0, Z1 = 0.99, 0.43
+    out = []
+
+    def pt(a, t, add=0.0):
+        z = Z0 - (Z0 - Z1) * t
+        fold = (0.02 * math.sin(9 * a + 0.6) + 0.007 * math.sin(23 * a)) * min(1.0, t * 2.5)   # pregas soltas
+        return _pal_hip_pt(a, z, 0.006 + 0.03 * t ** 1.1 + fold + add)
+
+    def fo(t):
+        return 0.16 + 0.08 * t
+
+    def slit(t):
+        return 0.06 * max(0.0, (t - 0.35) / 0.65) ** 0.8
+    rows, NC = 16, 34
+    for sn, s, mat in (("L", 1, K["white"]), ("R", -1, K["cloth"])):
+        def ga(j, t):
+            a0, a1 = fo(t), math.pi - slit(t)
+            return (a0 + (a1 - a0) * j / NC) * s
+        grid = [[pt(ga(j, i / rows), i / rows) for j in range(NC + 1)] for i in range(rows + 1)]
+        out.append(g_smooth_mesh("Skirt" + sn, grid, mat, body, cap_end=False, closed=False, thick=0.005, outward=True))
+        # barra bordada: faixa por cima do pano na altura da barra, debrum, zigue-zague e losangos
+        th = [0.88, 0.94, 1.0]
+        band = [[pt(ga(j, t), t, 0.003) for j in range(NC + 1)] for t in th]
+        out.append(g_smooth_mesh("SkirtHem" + sn, band, K["hem"], body, cap_end=False, closed=False, thick=0.003,
+                                 outward=True))
+        for nm, t in (("Hi", 0.88), ("Lo", 1.0)):
+            out.append(g_pipe("SkirtHemEdge%s%s" % (sn, nm), [pt(ga(j, t), t, 0.006) for j in range(NC + 1)], 0.0028,
+                              K["gold"], body, sides=6))
+        zz = [pt(ga(j * 0.5, 0.91 if j % 2 == 0 else 0.97), 0.91 if j % 2 == 0 else 0.97, 0.007) for j in range(2 * NC + 1)]
+        out.append(g_pipe("SkirtZig" + sn, zz, 0.0018, K["gold_d"], body, sides=6))
+        out.append(g_pipe("SkirtFrontEdge" + sn, [pt(fo(i / rows) * s, i / rows, 0.003) for i in range(1, rows + 1)],
+                          0.0035, K["gold"], body, sides=6))
+    # painel escuro no meio da frente (aparece pela abertura), do cinto até a barra
+    lp = [_pal_hip_pt(0.0, Z0 - (Z0 - Z1) * t, 0.004 + 0.02 * t) + Vector((0, 0.004, 0)) for t in (i / 10 for i in range(11))]
+    out.append(g_smooth_mesh("CenterCloth", g_curved_tube(lp, [(0.085 + 0.02 * i / 10, 0.004) for i in range(11)], sides=10,
+                                                          side0=(1, 0, 0)), K["dark"], body))
+    return out
+
+
+def _pal_cape_w(p):
+    """Capa: no alto com o tronco; da cintura para baixo um pouco com a média das coxas (balança pouco e não
+    deixa a coxa que sobe atravessar o pano)."""
+    leg = max(0.0, min(1.0, (0.95 - p.z) / 0.45)) * 0.45
+    return {"Body": 1.0 - leg, "LegL": leg / 2, "LegR": leg / 2}
+
+
+def paladin_cape(K, body):
+    """Capa dourada comprida (cor do item): presa no alto do costal entre as ombreiras, cai pelas costas até a
+    canela abrindo em pregas largas e passando por fora da saia; debrum de ouro na barra e nas bordas e dois
+    fechos de ouro em losango no alto."""
+    rows, NC = 18, 30
+    ZT, ZB = 1.455, 0.34
+
+    WRAP = 1.2                         # curva das bordas para a frente (y -= WRAP * x²)
+
+    def need(a, z):                    # ponto mínimo por fora do costal, da saia e das escarcelas
+        if z > 1.0:
+            q = wk_plate_pt(a, z, 0.03)
+        else:
+            q = _pal_hip_pt(a, min(z, 0.99), 0.03 + 0.015 * (1.0 - z))
+        return q
+
+    def center_need(z):                # y que o meio da capa precisa ter para a casca curva passar por fora
+        return max(q.y + WRAP * q.x ** 2 for q in (need(math.pi + 0.07 * k, z) for k in range(-9, 10)))
+    zs = [ZT - (ZT - ZB) * i / 24 for i in range(25)]
+    nd = [center_need(z) for z in zs]
+    # reta mais em pé possível: a menor inclinação cujo alto fique no máximo 2,5 cm atrás do costal
+    for k in range(81):
+        slope = 0.005 * k
+        yt = max(n - slope * (ZT - z) for n, z in zip(nd, zs))
+        if yt - nd[0] <= 0.025:
+            break
+
+    def cpt(u, v, out=0.0):            # u: 0 em cima -> 1 embaixo; v: 0 -> 1 de um lado ao outro
+        """Capa reta: o meio desce numa reta do alto do costal (inclinada só o bastante para passar por fora
+        do glúteo e da saia, sem marcá-lo), as bordas curvam um pouco para a frente."""
+        z = ZT - (ZT - ZB) * u
+        x = (0.15 + 0.09 * u ** 0.8) * (2 * v - 1)
+        fold = 0.016 * math.sin(2 * math.pi * v * 5.5) * u ** 0.9
+        y = yt + slope * (ZT - z) - WRAP * x * x + fold + out
+        return Vector((x, y, z))
+    grid = [[cpt(i / rows, j / NC) for j in range(NC + 1)] for i in range(rows + 1)]
+    parts = [g_smooth_mesh("Cape", grid, K["cloth"], body, cap_end=False, closed=False, thick=0.006, outward=True)]
+    parts.append(g_pipe("CapeEdge", [cpt(i / rows, 0, 0.002) for i in range(rows, 0, -1)], 0.004, K["gold"], body, sides=6))
+    parts.append(g_pipe("CapeEdgeR", [cpt(i / rows, 1, 0.002) for i in range(1, rows + 1)], 0.004, K["gold"], body, sides=6))
+    parts.append(g_pipe("CapeHem", [cpt(1.0, j / NC, 0.003) for j in range(NC + 1)], 0.006, K["gold"], body, sides=8))
+    parts.append(g_pipe("CapeHemIn", [cpt(0.965, j / NC, 0.004) for j in range(NC + 1)], 0.0025, K["gold_d"], body,
+                        sides=6))
+    for k, v in enumerate((0.08, 0.92)):  # fechos no alto
+        q = cpt(0.03, v, 0.006)
+        d = Vector((q.x, q.y, 0)).normalized()
+        w = d.cross(Vector((0, 0, 1))).normalized()
+        parts.append(g_plate("CapeClasp%d" % k, [(x * 0.024, y * 0.032) for x, y in G_DIAMOND], q, w, (0, 0, 1), 0.006,
+                             K["gold"], body))
+        parts.append(g_bead("CapeClaspGem%d" % k, q + d * 0.005, 0.008, K["gold_d"], body))
+    return parts
+
+
+def paladin_arm(K, src, body, s):
+    """Braços do paladino: o braçal e a cotoveleira do cavaleiro branco com os frisos em ouro, mais o braçal de
+    cima (do pé da ombreira ao cotovelo) com duas lâminas e debrum de ouro."""
+    from mathutils.bvhtree import BVHTree
+    sn = "L" if s > 0 else "R"
+    parts = wknight_arm(K, src, body, s)
+    for o in parts:                    # frisos e bordas em ouro
+        if any(o.name.startswith(n) for n in ("VambraceRim", "VambraceBand", "CouterRim", "CouterWingRim", "CouterBoss")):
+            o.data.materials.clear()
+            o.data.materials.append(K["gold"])
+    tmp = cb_piece(src, "ArmProbeU" + sn, lambda c, b, n: b.startswith("Arm") and c.x * s > 0)
+    bvh = BVHTree.FromPolygons([v.co.copy() for v in tmp.data.vertices], [tuple(p.vertices) for p in tmp.data.polygons])
+    bpy.data.objects.remove(tmp, do_unlink=True)
+    L1, L2, at, coords, ring = _gb_arm_frame(s)
+    NP = 32
+    for k, (t0, t1) in enumerate(((0.5, 0.74), (0.7, 0.93))):
+        rings, dirs = [], []
+        for i in range(7):
+            t = t0 + (t1 - t0) * i / 6
+            c, ax = at(t * L1)
+            o = Vector((s, 0, 0))
+            o = (o - ax * o.dot(ax)).normalized()
+            f = ax.cross(o).normalized()
+            ds = [o * math.cos(2 * math.pi * j / NP) + f * math.sin(2 * math.pi * j / NP) for j in range(NP)]
+            rs = []
+            for d in ds:
+                h = bvh.ray_cast(c + d * 0.25, -d)
+                rs.append((0.25 - h[3]) if h[0] is not None else 0.045)
+            rm = sum(rs) / NP
+            rs = [(rs[j - 1] + 2 * rs[j] + rs[(j + 1) % NP]) / 4 for j in range(NP)]
+            add = 0.011 + 0.004 * k + 0.004 * i / 6
+            rings.append([c + d * (max(r, 0.5 * (r + rm)) + add) for d, r in zip(ds, rs)])
+            dirs.append(ds)
+        parts.append(g_smooth_mesh("Rerebrace%s%d" % (sn, k), rings, K["plate"], body, cap_end=False, thick=0.005,
+                                   outward=True))
+        parts.append(g_pipe("RerebraceGold%s%d" % (sn, k), [q + d * 0.002 for q, d in zip(rings[-1], dirs[-1])], 0.0045,
+                            K["gold"], body, sides=8, loop=True))
+        parts.append(g_pipe("RerebraceRim%s%d" % (sn, k), [q + d * 0.002 for q, d in zip(rings[0], dirs[0])], 0.004,
+                            K["plate"], body, sides=8, loop=True))
+    return parts
+
+def build_a_paladin():
+    """Paladino real (tier IV). Rodada 1: tronco (couraça, faixas e cruz de ouro, gorjal com gola em pontas,
+    cinto); braços e pernas com a cota escura até as próximas peças."""
+    style = "a_paladin"
+    P, R = g_rig(style)
+    M = g_mats()
+    K = paladin_mats()
+    body = R["Body"]
+    rig, src = _cb_start(M)
+    neck(R, M["skin"])
+    hips(R, K["mail"])
+    g_skinned_pants(src, M["pants"])
+    under, parts = paladin_torso(K, src, body)
+    shoulder = paladin_pauldron(K, src, body, 1) + paladin_pauldron(K, src, body, -1)
+    tas, mid = paladin_faulds(K, body)
+    skirt = paladin_skirt(K, body)
+    cape = paladin_cape(K, body)
+    arms = paladin_arm(K, src, body, 1) + paladin_arm(K, src, body, -1)
+    sleeves = cb_piece(src, "Sleeves", lambda c, b, n: (b.startswith("Arm") or b.startswith("Elbow"))
+                       and (not b.startswith("Elbow") or _cb_fore_t(c) < 0.86), 0.008, K["mail"])
+    g_subdiv(sleeves)
+    g_loose_world(style)
+    os.makedirs(OUT + "gear", exist_ok=True)
+    targets = [o for o in scn.objects if o.type == 'MESH']
+    bake_ao(targets, _occluders(style, P, R, M))
+    cel_paint(targets, skip=("g_skin",))
+    g_skin_finish(rig, src, [(shoulder, "vert", ("Body", "ArmL", "ArmR"), 0.7),
+                             (tas, "fn", _wk_tasset_w, 1.0), (mid, "fn", _wk_center_w, 1.0),
+                             (skirt, "fn", _gb_skirt_w, 1.0), (cape, "fn", _pal_cape_w, 1.0),
+                             (arms, "vert", ("ArmL", "ArmR", "ElbowL", "ElbowR"), 1.0)])
+    join_objs("Paladin", parts + shoulder + tas + mid + skirt + cape + arms)
+    g_export_skinned(style)
+
 def build_a_gambeson():
     """Gibão acolchoado (tier I). Rodada 1: tronco (gibão, placa do peito, gola e cinto); mangas são a casca
     lisa do braço e as pernas usam a calça simples até as próximas peças."""
@@ -4961,7 +5430,7 @@ def _gear_builder(fn):
 GEAR = [(n, _gear_builder(globals()["build_" + n])) for n in (
     "h_bare", "h_hood", "h_cap", "h_kettle", "h_nasal", "h_great", "h_wizard", "h_archmage", "h_sage", "h_void", "h_oracle", "h_ember",
     "h_lich", "h_hierophant", "h_reaper", "h_raven", "h_dragon", "h_astral", "h_frost",
-    "a_shirt", "a_tunic", "a_leather", "a_gambeson", "a_whiteknight", "a_mail", "a_surcoat", "a_robe", "a_archmage", "a_sage", "a_void", "a_oracle", "a_ember",
+    "a_shirt", "a_tunic", "a_leather", "a_gambeson", "a_whiteknight", "a_paladin", "a_mail", "a_surcoat", "a_robe", "a_archmage", "a_sage", "a_void", "a_oracle", "a_ember",
     "a_lich", "a_hierophant", "a_reaper", "a_raven", "a_dragon", "a_astral", "a_frost",
     "g_bare", "g_gloves", "g_bracers",
     "f_shoes", "f_boots", "f_plated")]
