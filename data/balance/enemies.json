@@ -1347,5 +1347,45 @@
 		],
 		"ref_level": 2,
 		"throw_cd": 5.0
+	},
+	"centopeia": {
+		"name": "Centopeia de Túnel",
+		"model": "centipede",
+		"hp": 60,
+		"damage": 12,
+		"speed": 5.0,
+		"xp": 34,
+		"gold": [
+			3,
+			8
+		],
+		"aggro": 14.0,
+		"reach": 1.6,
+		"cooldown": 1.2,
+		"radius": 0.45,
+		"height": 0.5,
+		"scale": 1.0,
+		"color": {
+			"$c": [
+				0.55,
+				0.25,
+				0.12,
+				1.0
+			]
+		},
+		"ai": "pack",
+		"chill": 1.5,
+		"loot": [
+			[
+				"shadow_fang",
+				0.3
+			],
+			[
+				"health_potion",
+				0.03
+			]
+		],
+		"ref_level": 2,
+		"chill_venom": true
 	}
 }

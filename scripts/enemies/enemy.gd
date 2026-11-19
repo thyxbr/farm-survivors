@@ -183,7 +183,7 @@ func _ready() -> void:
 		_make_elite_glow()
 	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head", "Tail", "Jaw"]:   # Tail e Jaw: só o raptor
 		parts[n] = model.find_child(n, true, false)
-	if data.model == "spider":   # Tecelã: abdômen e as oito pernas (Leg0L..Leg3R)
+	if data.model in ["spider", "centipede"]:   # Tecelã e Centopeia: abdômen e as pernas (Leg0L..Leg3R)
 		for n in SPIDER_PARTS:
 			parts[n] = model.find_child(n, true, false)
 	for n in ["Tongue", "VineL", "VineR", "WingL", "WingR"]:   # Bocarrão, Flor-faminta e Asa-couro
@@ -1101,8 +1101,8 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 			if facing_ok:
 				player.take_damage(vs(level, player, data.damage * dmg_mult * randf_range(0.9, 1.1)), global_position)
 				if data.has("chill") and player.has_method("apply_chill"):
-					player.apply_chill(float(data.chill))
-		if attack_kind == "swing" or (attack_kind == "lunge" and data.model in ["raptor", "spider", "frog", "bat"]):
+					player.apply_chill(float(data.chill), data.get("chill_venom", false))
+		if attack_kind == "swing" or (attack_kind == "lunge" and data.model in ["raptor", "spider", "centipede", "frog", "bat"]):
 			Sfx.play_at("swing", global_position, 0.15, -4.0)
 	if attack_timer >= _attack_duration():
 		attack_cd = data.cooldown * (0.7 if enraged else 1.0) * randf_range(0.8, 1.2)
@@ -1565,7 +1565,7 @@ func _animate(delta: float, hspeed: float) -> void:
 	if data.model == "raptor":
 		_animate_raptor(hspeed, s, k)
 		return
-	if data.model == "spider":
+	if data.model in ["spider", "centipede"]:
 		_animate_spider(hspeed, k)
 		return
 	if data.model == "plant":

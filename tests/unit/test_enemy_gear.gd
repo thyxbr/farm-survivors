@@ -81,6 +81,8 @@ func test_new_kinds_present() -> void:
 		T.ok(enemies.has(k), "tipo %s existe" % k)
 	T.ok(enemies.get("kobold", {}).get("ai", "") != "bomber", "kobold arremessa, não explode junto")
 	T.ok(enemies.get("kobold", {}).has("throw_cd") and enemies.get("kobold", {}).has("throw_range"), "kobold tem arremesso")
+	T.ok(enemies.get("centopeia", {}).get("chill_venom", false), "a lentidão da centopeia é veneno (aviso próprio)")
+	T.ok(not enemies["slime_gelo"].get("chill_venom", false), "a do slime de gelo continua sendo frio")
 	T.eq(enemies["esqueleto_mago"].get("shot", ""), "bolt", "mago atira projétil mágico")
 	T.eq(enemies["goblin_bombardeiro"].get("ai", ""), "bomber", "bombardeiro explode")
 	T.eq(float(enemies["slime_gelo"].get("chill", 0.0)), 2.5, "slime de gelo deixa lento por 2,5 s")

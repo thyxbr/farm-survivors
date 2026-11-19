@@ -981,6 +981,105 @@ def build_spider():
     export("spider")
 
 
+# ================================================================== CENTOPEIA DE TÚNEL (mina)
+# Centopeia gigante das galerias: corpo comprido e baixo (~2,2 m) em gomos de quitina vermelho-ferrugem com placas
+# escuras no dorso, oito pares de patas ocre, antenas longas e forcípulas (as "presas" da frente). Frente = -Y.
+# Usa os MESMOS pivôs da tecelã para reaproveitar a animação dela (enemy.gd trata "centipede" como "spider"):
+# Body (metade da frente; ao armar o bote ergue a cabeça), Abdomen (metade de trás, dentro de Body), Head
+# (forcípulas e antenas, dentro de Body) e Leg0L..Leg3L / Leg0R..Leg3R (cada pivô leva dois pares de patas
+# vizinhos; 0 é o da frente).
+CENTI_SEGS = 9                                   # gomos, da cabeça (0) à cauda
+CENTI_Y0, CENTI_Y1 = -0.95, 1.2                  # frente e trás do corpo
+CENTI_LEG_Y = [-0.62, -0.38, -0.14, 0.1, 0.34, 0.58, 0.8, 1.0]   # um par de patas por gomo (sem a cabeça)
+
+
+def _centi_secs(y0, y1, n_seg, z, rx, ry, taper_front=0.0, taper_back=0.0):
+    """Seções de um trecho do corpo: cada gomo incha no meio e afina na junta (anel liso, sem degrau)."""
+    secs = []
+    steps = n_seg * 4
+    for i in range(steps + 1):
+        u = i / steps
+        y = y0 + (y1 - y0) * u
+        bulge = 0.86 + 0.14 * math.sin(math.pi * ((u * n_seg) % 1.0))
+        tf = 1.0 - taper_front * max(0.0, 1.0 - u * 3.0)
+        tb = 1.0 - taper_back * max(0.0, u * 3.0 - 2.0)
+        k = bulge * tf * tb
+        secs.append(sec((0, y, z), rx * k, ry * k, bk=0.75))
+    return secs
+
+
+def build_centipede():
+    chit = mat("c_chitin", hexc("#8A3A22"), 0.55)
+    chit_d = mat("c_chitin_d", hexc("#3E1A10"), 0.55)
+    belly = mat("c_belly", hexc("#C98F45"), 0.7)
+    leg_m = mat("c_leg", hexc("#D9A04E"), 0.6)
+    tip_m = mat("c_tip", hexc("#2A140C"), 0.5)
+    eye = mat("c_eye_flat", (1.0, 0.65, 0.1), 0.3, 0.0, emit=(1.0, 0.5, 0.05), strength=3.0)
+    up = (0, 0, 1)
+    Z = 0.24                                    # altura do eixo do corpo (rente ao chão)
+
+    root = empty("Centipede", (0, 0, 0))
+    body = empty("Body", (0, 0.2, Z), root)
+
+    # ---------------- metade da frente (Body) e de trás (Abdomen): dois tubos que se encostam na junta y=0.2
+    # 8 anéis por gomo (n = gomos * 8 + 1): a junta cai no anel múltiplo de 8 e a faixa escura do dorso
+    # (metade de cima do anel) fica logo depois dela, uma por gomo
+    front = fera_dense(_centi_secs(CENTI_Y0, 0.26, 5, Z, 0.17, 0.11, taper_front=0.45), 41, cut=1)
+    sloft("BodyFront", front, chit, body, sides=14, fwd=up, mats=(chit_d, belly),
+          matf=lambda i, j: 2 if j in (10, 11, 12) else (1 if 1 <= j <= 6 and i % 8 in (0, 1) else 0))
+    abd = empty("Abdomen", (0, 0.2, Z), body)
+    back = fera_dense(_centi_secs(0.14, CENTI_Y1, 4, Z, 0.165, 0.105, taper_back=0.6), 33, cut=1)
+    sloft("BodyBack", back, chit, abd, sides=14, fwd=up, mats=(chit_d, belly),
+          matf=lambda i, j: 2 if j in (10, 11, 12) else (1 if 1 <= j <= 6 and i % 8 in (0, 1) else 0))
+    # dois cercos (gonópodes) na ponta da cauda, para trás
+    for s, nm in ((1, "L"), (-1, "R")):
+        p = fera_surf(back, CENTI_Y1 - 0.05, 0 if s > 0 else 180, -0.02)
+        fera_curve("Cercus" + nm, [p, p + Vector((s * 0.06, 0.16, 0.02)), p + Vector((s * 0.1, 0.3, 0.0))],
+                   0.025, 0.006, tip_m, abd, sides=6)
+
+    # ---------------- cabeça: olhos âmbar, antenas longas e forcípulas em gancho
+    head = empty("Head", (0, CENTI_Y0 + 0.12, Z), body)
+    for s, nm in ((1, "L"), (-1, "R")):
+        c = fera_surf(front, CENTI_Y0 + 0.1, 40 if s > 0 else 140, -0.006)
+        sloft("Eye" + nm, [sec(c + Vector((0, 0.006, 0)), 0.01, 0.01), sec(c + Vector((0, -0.006, 0.004)), 0.02, 0.02),
+                           sec(c + Vector((0, -0.016, 0.006)), 0.008, 0.008)], eye, head, sides=8, fwd=up)
+        a0 = fera_surf(front, CENTI_Y0 + 0.05, 55 if s > 0 else 125, -0.01)
+        fera_curve("Antenna" + nm, [a0, a0 + Vector((s * 0.08, -0.16, 0.12)), a0 + Vector((s * 0.2, -0.36, 0.16)),
+                                    a0 + Vector((s * 0.32, -0.5, 0.1))], 0.016, 0.004, chit_d, head, sides=6)
+        f0 = fera_surf(front, CENTI_Y0 + 0.08, -20 if s > 0 else -160, -0.02)
+        fsecs = fera_dense([sec(f0, 0.035, 0.03), sec(f0 + Vector((s * 0.05, -0.1, -0.03)), 0.03, 0.026),
+                            sec(f0 + Vector((s * 0.02, -0.2, -0.05)), 0.02, 0.018),
+                            sec(f0 + Vector((-s * 0.04, -0.25, -0.05)), 0.008, 0.008),
+                            sec(f0 + Vector((-s * 0.07, -0.25, -0.05)), 0.002, 0.002)], 12)
+        sloft("Forcipule" + nm, fsecs, chit_d, head, sides=8, fwd=(0, -1, 0), mats=(tip_m,),
+              matf=lambda i, j: 1 if i >= 7 else 0)
+
+    # ---------------- oito pares de patas finas em arco até o chão; cada pivô LegN leva dois pares vizinhos
+    pivots = {}
+    for k, y in enumerate(CENTI_LEG_Y):
+        g = k // 2
+        secs_src = front if y < 0.2 else back
+        for s, nm in ((1, "L"), (-1, "R")):
+            hip = fera_surf(secs_src, y, -15 if s > 0 else -165, -0.025)
+            name = "Leg%d%s" % (g, nm)
+            leg = pivots.get(name)
+            if leg is None:
+                leg = pivots[name] = empty(name, hip, root)
+            sweep = 0.06 * (1.5 - g)                # as da frente apontam um pouco para a frente
+            pts = [(hip, 0.03), (hip + Vector((s * 0.14, -sweep * 0.5, 0.08)), 0.026),
+                   (hip + Vector((s * 0.3, -sweep, 0.02)), 0.02),
+                   (Vector((hip.x + s * 0.4, hip.y - sweep * 1.3, 0.012)), 0.01)]
+            lsecs = fera_dense([sec(p, r, r) for p, r in pts], 12)
+            sloft("Leg%d%s_Mesh" % (k, nm), lsecs, leg_m, leg, sides=8, fwd=up, mats=(tip_m,),
+                  matf=lambda i, j: 1 if i >= 9 else 0)
+
+    for ob in coll.all_objects:
+        if ob.type == 'MESH':
+            smooth_sharp(ob, 80.0)
+    loose_parts("centipede")
+    export("centipede")
+
+
 # ================================================================== FLOR-FAMINTA (planta carnívora)
 # Planta da beira das trilhas: roseta de folhas no chão, caule grosso que se curva para a frente e uma cabeça de
 # duas mandíbulas (como uma dioneia) com dentes que se cruzam; dois cipós com espinhos saem da base. Não anda.

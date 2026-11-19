@@ -850,9 +850,9 @@ func server_damage_player(peer_id: int, amount: float, from_pos: Vector3) -> voi
 		_you_were_hit.rpc_id(peer_id, amount, from_pos)
 
 
-func server_chill_player(peer_id: int, secs: float) -> void:
+func server_chill_player(peer_id: int, secs: float, venom := false) -> void:
 	if players.has(peer_id):
-		_you_were_chilled.rpc_id(peer_id, secs)
+		_you_were_chilled.rpc_id(peer_id, secs, venom)
 
 
 func server_web_player(peer_id: int, secs: float) -> void:
@@ -1300,9 +1300,9 @@ func _you_got_buff(buff_id: String, secs: float) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _you_were_chilled(secs: float) -> void:
+func _you_were_chilled(secs: float, venom: bool) -> void:
 	if world and world.player:
-		world.player.apply_chill(secs)
+		world.player.apply_chill(secs, venom)
 
 
 @rpc("authority", "call_remote", "reliable")
