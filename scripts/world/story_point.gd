@@ -78,7 +78,7 @@ func _update_marker() -> void:
 			add_to_group(g)
 		elif not here and is_in_group(g):
 			remove_from_group(g)
-	var m := StoryRules.marker(ItemDB.QUESTS, Game.quests, npc_id, {}, Game.rank())
+	var m := StoryRules.marker(ItemDB.QUESTS, Game.quests, npc_id, {}, Game.access_rank())
 	NPC_SCRIPT.set_marker(marker, m)
 	if _glow:
 		_glow.light_energy = 1.2 if m != "" and npc_id != "board" else 0.0

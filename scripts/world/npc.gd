@@ -162,7 +162,7 @@ func _update_marker() -> void:
 	for id in qt:
 		for item in StoryRules.count_ids(qt[id]):
 			counts[item] = Game.count_item(item)
-	var m := StoryRules.marker(qt, Game.quests, npc_id, counts, Game.rank())
+	var m := StoryRules.marker(qt, Game.quests, npc_id, counts, Game.access_rank())
 	set_marker(marker, m)
 
 

@@ -193,6 +193,10 @@ static func build_text(id: String, context := "bag", paper := false) -> String:
 		"equip":
 			t += "[color=#%s]Valor: %d ◆[/color]\n" % [dim, price]
 			t += "[color=#%s]Clique direito: remover · arraste para a mochila[/color]" % dim
+		"admin":
+			t += "[color=#%s]id: %s[/color]
+" % [dim, id]
+			t += "[color=#%s]Clique: adicionar à mochila[/color]" % dim
 		_:
 			t += "[color=#%s]Valor: %d ◆[/color]\n" % [dim, price]
 			if slot != "" and Game.can_wield(id):
