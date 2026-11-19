@@ -359,6 +359,8 @@ parts`. Com mais de 4 o Gemini costuma misturar as peças de um item no outro.
 | `iron_greaves` | Grevas de Ferro | Pair of iron greaves. |
 | `swift_boots` | Botas Velozes | Pair of boots with wings embroidered at the heel. |
 | `reinforced_boots` | Botas Reforçadas | Leather boots with steel greaves and toe caps. |
+| `royal_greaves` | Grevas Reais | Pair of silver greaves with gold trim and winged knee cops. |
+| `royal_gauntlets` | Manoplas Reais | Pair of silver gauntlets with flared cuffs trimmed in gold. |
 | `wooden_shield` | Escudo de Madeira | Wooden plank shield with nails, front view. |
 | `knight_shield` | Escudo do Cavaleiro | Shield with the Valdoria guard crest, front view. |
 | `arcane_orb` | Orbe Arcano | Floating glowing arcane orb. |

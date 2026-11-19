@@ -2931,7 +2931,9 @@ def wknight_torso(K, src, body):
     def is_torso(c, b, n):
         return not (b.startswith("Arm") or b.startswith("Elbow") or b.startswith("Knee")) and 0.86 <= c.z < 1.52
 
-    under = cb_piece(src, "Under", is_torso, 0.006, K["under"])
+    def under_keep(c, b, n):           # gibão desce pela virilha e pelo alto das coxas (entre as placas)
+        return not (b.startswith("Arm") or b.startswith("Elbow") or b.startswith("Knee")) and 0.7 <= c.z < 1.52
+    under = cb_piece(src, "Under", under_keep, 0.006, K["under"])
     g_subdiv(under, 2)
     parts = []
     # ---- peitoral: frente, da linha sob o peito até a gola, com a borda de baixo em V e a de cima em arco
@@ -2964,7 +2966,7 @@ def wknight_torso(K, src, body):
     def back(u, v):
         a = math.pi - B + 2 * B * v
         zt = 1.48 - 0.07 * abs(2 * v - 1) ** 4             # cantos de cima arredondados (sob a ombreira)
-        z = zt + (1.2 - zt) * u
+        z = zt + (1.06 - zt) * u                           # desce até a faixa: as costas ficam fechadas
         return wk_plate_pt(a, z, 0.017)
     bk, bkr = _wk_plate("Backplate", back, 12, 30, K["plate"], body)
     parts.append(bk)
@@ -3315,6 +3317,9 @@ def build_a_whiteknight():
     shoulder = wknight_pauldron(K, src, body, 1) + wknight_pauldron(K, src, body, -1)
     arms = wknight_arm(K, src, body, 1) + wknight_arm(K, src, body, -1)
     tas, mid, loin = wknight_tassets(K, body)
+    KL = dict(K, lining=K["plate"])    # culote e coxeiras da couraça de ferro, com a borda dobrada em prata
+    culet = firstplate_culet(KL, body)
+    cuis, cuis_trim = firstplate_cuisses(KL, src, body)
     sleeves = cb_piece(src, "Sleeves", lambda c, b, n: (b.startswith("Arm") or b.startswith("Elbow"))
                        and (not b.startswith("Elbow") or _cb_fore_t(c) < 0.86), 0.01, K["under"])
     g_subdiv(sleeves)
@@ -3326,8 +3331,10 @@ def build_a_whiteknight():
     g_skin_finish(rig, src, [(shoulder, "vert", ("Body", "ArmL", "ArmR"), 0.7),
                              (arms, "vert", ("ArmL", "ArmR", "ElbowL", "ElbowR"), 1.0),
                              (tas, "fn", _wk_tasset_w, 1.0), (mid, "fn", _wk_center_w, 1.0),
-                             (cloth + loin, "fn", _wk_cloth_w, 1.0)])
-    join_objs("WhiteKnight", [o for o in parts if o not in cloth] + shoulder + arms + tas + mid + cloth + loin)
+                             (cloth + loin, "fn", _wk_cloth_w, 1.0),
+                             (culet, "fn", _gb_skirt_w, 1.0), (cuis_trim, "vert", ("LegL", "LegR"), 1.0)])
+    join_objs("WhiteKnight", [o for o in parts if o not in cloth] + shoulder + arms + tas + mid + cloth + loin + culet
+              + cuis_trim)
     g_export_skinned(style)
 
 
@@ -5690,11 +5697,26 @@ def _ip_mats():
 
 
 def build_f_ironplate():
-    """Grevas de ferro: greva lisa fechada em volta da canela (segue a panturrilha, aresta suave na frente, boca
+    _plate_greaves("f_ironplate", _ip_mats())
+
+
+def build_f_knightplate():
+    """Grevas de prata: as do cavaleiro branco (prata clara, bordas dobradas em prata, malha no gibão escuro)."""
+    K = wknight_mats()
+    _plate_greaves("f_knightplate", dict(K, lining=K["plate"], mail=K["under"]))
+
+
+def build_f_royalplate():
+    """Grevas reais: as do paladino (prata com frisos de ouro, malha escura)."""
+    K = paladin_mats()
+    _plate_greaves("f_royalplate", dict(K, lining=K["gold"]))
+
+
+def _plate_greaves(style, K):
+    """Grevas de placa: greva lisa fechada em volta da canela (segue a panturrilha, aresta suave na frente, boca
     um pouco aberta no tornozelo), joelheira em cúpula com asa em gota do lado de fora, pé de placa com três
     lâminas sobre o peito do pé; forro de couro claro nas bocas, na joelheira, na asa e nas lâminas."""
-    P, R = g_rig("f_ironplate")
-    K = _ip_mats()
+    P, R = g_rig(style)
     NP = 28
     for n, s in (("L", 1), ("R", -1)):
         S = limb_sections(P, s)
@@ -5763,14 +5785,27 @@ def build_f_ironplate():
                    for th in (-1.25 + 2.5 * m / 12 for m in range(13))]
             foot.append(g_pipe("Leg%s_SabatonLame%d" % (n, k), arc, 0.0045, K["lining"], ankle, sides=8))
         join_objs("Leg%s_BootFoot" % n, foot)
-    g_export("f_ironplate", P, R)
+    g_export(style, P, R)
 
 
 def build_g_ironplate():
-    """Manoplas de ferro: mão de placa (fechada e aberta, o jogo usa uma das duas) e punho de placa que abre
+    _plate_gauntlets("g_ironplate", _ip_mats())
+
+
+def build_g_knightplate():
+    K = wknight_mats()
+    _plate_gauntlets("g_knightplate", dict(K, lining=K["plate"]))
+
+
+def build_g_royalplate():
+    K = paladin_mats()
+    _plate_gauntlets("g_royalplate", dict(K, lining=K["gold"]))
+
+
+def _plate_gauntlets(style, K):
+    """Manoplas de placa: mão de placa (fechada e aberta, o jogo usa uma das duas) e punho de placa que abre
     em sino para o cotovelo, com forro de couro claro na boca e um friso no pulso."""
-    P, R = g_rig("g_ironplate")
-    K = _ip_mats()
+    P, R = g_rig(style)
     SD = 20
     for n, s in (("L", 1), ("R", -1)):
         S = limb_sections(P, s)
@@ -5786,7 +5821,7 @@ def build_g_ironplate():
         parts.append(band("Arm%s_CuffLining" % n, c0, -fd, 0.012, K["lining"], elbow, sides=SD, out=0.002))
         parts.append(band("Arm%s_CuffBand" % n, c2, -fd, 0.008, K["plate_d"], elbow, sides=SD, out=0.002))
         join_objs("Arm%s_Gauntlet" % n, parts)
-    g_export("g_ironplate", P, R)
+    g_export(style, P, R)
 
 
 def _gear_builder(fn):
@@ -5807,5 +5842,5 @@ GEAR = [(n, _gear_builder(globals()["build_" + n])) for n in (
     "h_lich", "h_hierophant", "h_reaper", "h_raven", "h_dragon", "h_astral", "h_frost",
     "a_shirt", "a_tunic", "a_leather", "a_gambeson", "a_whiteknight", "a_paladin", "a_firstplate", "a_mail", "a_surcoat", "a_robe", "a_archmage", "a_sage", "a_void", "a_oracle", "a_ember",
     "a_lich", "a_hierophant", "a_reaper", "a_raven", "a_dragon", "a_astral", "a_frost",
-    "g_bare", "g_gloves", "g_bracers", "g_ironplate",
-    "f_shoes", "f_boots", "f_plated", "f_ironplate")]
+    "g_bare", "g_gloves", "g_bracers", "g_ironplate", "g_knightplate", "g_royalplate",
+    "f_shoes", "f_boots", "f_plated", "f_ironplate", "f_knightplate", "f_royalplate")]
