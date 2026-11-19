@@ -989,6 +989,42 @@
 		},
 		"desc": "Armadura de placas digna de um herói."
 	},
+	"royal_greaves": {
+		"name": "Grevas Reais",
+		"type": "gear",
+		"style": "f_royalplate",
+		"slot": "feet",
+		"rarity": "epic",
+		"level": 15,
+		"defense": 3,
+		"price": 180,
+		"color": {
+			"$c": [0.85, 0.7, 0.35, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"vit": 2
+		},
+		"desc": "Prata e ouro até o tornozelo, do mesmo ferreiro das Placas Reais."
+	},
+	"royal_gauntlets": {
+		"name": "Manoplas Reais",
+		"type": "gear",
+		"style": "g_royalplate",
+		"slot": "hands",
+		"rarity": "epic",
+		"level": 15,
+		"defense": 2,
+		"price": 180,
+		"color": {
+			"$c": [0.85, 0.7, 0.35, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"str": 3
+		},
+		"desc": "O punho em sino tem o friso de ouro das Placas Reais."
+	},
 	"traveler_tunic": {
 		"name": "Túnica de Viajante",
 		"type": "armor",
@@ -2764,6 +2800,7 @@
 	"silver_gauntlets": {
 		"name": "Manoplas de Prata",
 		"type": "gear",
+		"style": "g_knightplate",
 		"slot": "hands",
 		"rarity": "rare",
 		"level": 27,
@@ -2782,6 +2819,7 @@
 	"silver_greaves": {
 		"name": "Grevas de Prata",
 		"type": "gear",
+		"style": "f_knightplate",
 		"slot": "feet",
 		"rarity": "rare",
 		"level": 26,
