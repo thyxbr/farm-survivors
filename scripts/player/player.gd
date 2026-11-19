@@ -124,6 +124,8 @@ var _footstep := 0.0
 var remote := false
 var peer_id := 0
 var display_name := ""
+## Título mostrado acima do nome ("" = sem título).
+var display_title := ""
 ## Bloqueia o controle sem pausar a árvore (menus abertos no multiplayer).
 var input_locked := false
 ## Desafio da Horda em grupo: parado enquanto o grupo escolhe as cartas de nível.
@@ -134,6 +136,7 @@ var chat_typing := false
 var emote := ""
 var _emote_t := 0.0
 var name_tag: Label3D
+var title_tag: Label3D
 var _net_pos := Vector3.ZERO
 var _net_yaw := 0.0
 var _net_floor := true
@@ -202,6 +205,12 @@ func _ready() -> void:
 	Game.food_eaten.connect(_on_food_eaten)
 	_vfx_setup()
 	Game.kit_changed.connect(end_ability)   # só o jogador local: réplicas saem antes, em _ready_remote
+	# o próprio nome e título em cima da cabeça (as réplicas montam o delas em _ready_remote)
+	display_name = Game.hero_name()
+	display_title = Game.hero_title()
+	_make_name_tag(Color(1.0, 0.97, 0.85), 0.003, 2.05)
+	Game.stats_changed.connect(_refresh_own_tag)
+	Network.players_changed.connect(_refresh_own_tag)
 	_update_equipment_visual()
 	FXEpic.prewarm()   # shaders dos efeitos prontos: a primeira habilidade não engasga
 	FXEpic.prewarm_instances.call_deferred(self)   # e os pipelines de desenho de cada tipo de efeito
@@ -299,16 +308,36 @@ func _ready_remote() -> void:
 	_build_model()
 	_net_pos = position
 	_snap_visuals()
-	var tag := Label3D.new()
-	name_tag = tag
-	tag.text = display_name
-	tag.font_size = 40
-	tag.outline_size = 8
-	tag.pixel_size = 0.006
-	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	tag.modulate = Color(0.75, 0.9, 1.0)
-	tag.position.y = 2.25
-	add_child(tag)
+	_make_name_tag(Color(0.75, 0.9, 1.0), 0.006, 2.25)
+
+
+## Nome em cima da cabeça e, acima dele, o título (menor, dourado). Vale para o jogador e as réplicas.
+## `px` = tamanho do pixel do texto (o próprio jogador usa menor: a câmera fica bem perto); `y` = altura do nome.
+func _make_name_tag(color: Color, px: float, y: float) -> void:
+	name_tag = Label3D.new()
+	name_tag.font_size = 40
+	name_tag.outline_size = 8
+	name_tag.pixel_size = px
+	name_tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	name_tag.modulate = color
+	name_tag.position.y = y
+	add_child(name_tag)
+	title_tag = Label3D.new()
+	title_tag.font_size = 30
+	title_tag.outline_size = 8
+	title_tag.pixel_size = px
+	title_tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	title_tag.modulate = Color(1.0, 0.82, 0.4)
+	title_tag.position.y = y + px * 40.0   # logo acima do nome, sem encostar
+	add_child(title_tag)
+	set_display_name(display_name)
+	set_title(display_title)
+
+
+## Jogador local: nome do herói e título escolhido (mudam ao trocar de título ou ao entrar no servidor).
+func _refresh_own_tag() -> void:
+	set_display_name(Game.hero_name())
+	set_title(Game.hero_title())
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -1684,6 +1713,14 @@ func set_display_name(n: String) -> void:
 	display_name = n
 	if name_tag:
 		name_tag.text = n
+		name_tag.visible = n != ""
+
+
+func set_title(t: String) -> void:
+	display_title = t
+	if title_tag:
+		title_tag.text = "« %s »" % t if t != "" else ""
+		title_tag.visible = t != "" and display_name != ""
 
 
 func _remote_process(delta: float) -> void:
