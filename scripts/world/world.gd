@@ -1062,7 +1062,7 @@ func _scatter_region_grass() -> void:
 func travel_to(region: String) -> void:
 	if player == null or player.dead or not Regions.DATA.has(region):
 		return
-	if not Regions.unlocked(region, Game.rank()):
+	if not Regions.unlocked(region, Game.access_rank()):
 		Game.notify.emit("A carruagem só vai para lá com Rank %s." % Regions.DATA[region].rank, Color(1, 0.6, 0.5))
 		return
 	if _travel_fade == null:
@@ -1094,7 +1094,7 @@ func use_dungeon_door(target: String) -> void:
 		return
 	if not Regions.is_dungeon(target):
 		return
-	if not Regions.unlocked(target, Game.rank()):
+	if not Regions.unlocked(target, Game.access_rank()):
 		Game.notify.emit("%s exige Rank %s na guilda." % [Regions.display_name(target), Regions.DATA[target].rank],
 			Color(1, 0.6, 0.5))
 		return

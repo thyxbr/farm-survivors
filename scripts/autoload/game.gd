@@ -829,6 +829,12 @@ func rank() -> String:
 	return str(flags.get("rank", "D"))
 
 
+## Rank que vale nas travas (carruagem, dungeons, missões, mapa): com o modo admin ligado qualquer rank
+## serve, igual a CharRules.rank_at_least no servidor. O rank de verdade (rank()) não muda e é o que aparece.
+func access_rank() -> String:
+	return str(StoryRules.RANKS.back()) if admin_mode() else rank()
+
+
 func guild_points() -> int:
 	return int(flags.get("guild_pts", 0))
 

@@ -615,7 +615,7 @@ func _refresh_quests() -> void:
 			# a próxima da história, ainda não aceita: diz com quem falar (ou o rank que falta)
 			var need := StoryRules.needs_rank(qt, id)
 			var who: String = StoryDialogue.NAMES.get(StoryRules.giver(qt, id), qt[id].get("giver", ""))
-			var hint := "○  Próxima: fale com %s" % who if StoryRules.rank_ge(Game.rank(), need) \
+			var hint := "○  Próxima: fale com %s" % who if StoryRules.rank_ge(Game.access_rank(), need) \
 				else "○  Próxima: exige Rank %s" % need
 			var l := UITheme.ink(hint, 18, UITheme.INK_DIM)
 			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
