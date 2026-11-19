@@ -36,7 +36,7 @@ const FIREBALL := preload("res://scripts/player/fireball.gd")
 const UPG := preload("res://scripts/survival/upgrades.gd")
 
 const STATES := ["idle", "wander", "chase", "return", "attack", "dead"]
-const ATTACK_KINDS := ["swing", "lunge", "slam", "shoot", "fuse", "cast", "web", "tongue"]
+const ATTACK_KINDS := ["swing", "lunge", "slam", "shoot", "fuse", "cast", "web", "tongue", "throw"]
 const SNAP_STRIDE := 10   # id, x, y, z, yaw, hp, state, attack_timer, attack_kind, flags
 ## Tempo da fila do Desafio da Horda (cai para HORDE_LOBBY_ALL quando todos já responderam).
 const HORDE_LOBBY_TIME := 15.0
@@ -717,6 +717,8 @@ func _send_enemy_snapshot() -> void:
 			continue
 		var p := e.global_position
 		var flags := (1 if e.slow_timer > 0 else 0) | (2 if e.enraged else 0)
+		if e.state == "attack" and e.attack_kind == "throw":   # Kobold: onde a dinamite cai (ThrowRules)
+			flags = ThrowRules.pack_flags(flags, e.throw_point - p)
 		var row := [net_id, p.x, p.y, p.z, e.model.rotation.y, e.hp,
 			max(0, STATES.find(e.state)), e.attack_timer, max(0, ATTACK_KINDS.find(e.attack_kind)), flags]
 		snap_world.append_array(row)

@@ -227,6 +227,14 @@ def build_goblin():
         limb("ClubSpike%d" % k, (hx + dx * 0.8, -0.46, hz + 0.045 + dz * 0.8),
              (hx + dx * 1.5, -0.47, hz + 0.045 + dz * 1.5), 0.018, 0.0, iron, sides=4, parent=o)
 
+    # --- picareta de mineiro (kobold): cabo reto e cabeça de ferro com bico para cima e pá para baixo
+    o = opt("Pickaxe", (hx, hy, hz), arm_r)
+    limb("PickHaft", (hx, 0.1, hz), (hx, -0.6, hz + 0.03), 0.02, 0.023, wood, sides=6, parent=o)
+    limb("PickGrip", (hx, 0.08, hz), (hx, -0.07, hz + 0.006), 0.026, 0.026, lea, sides=6, parent=o)
+    tbox("PickEye", (hx, -0.58, hz + 0.03), (0.05, 0.06, 0.07), iron_d, bevel=0.008, parent=o)
+    limb("PickBeak", (hx, -0.58, hz + 0.06), (hx, -0.54, hz + 0.24), 0.026, 0.0, iron, sides=4, parent=o)
+    limb("PickBlade", (hx, -0.58, hz), (hx, -0.55, hz - 0.15), 0.03, 0.01, iron, sides=4, flat=0.4, parent=o)
+
     # --- clava enorme de tronco com cintas de ferro (bruto)
     o = opt("BigClub", (hx, hy, hz), arm_r)
     limb("BigClub", (hx, 0.1, hz), (hx, -0.78, hz + 0.07), 0.034, 0.125, wood, sides=7, jitter=0.006, parent=o)
@@ -356,6 +364,27 @@ def build_goblin():
     for k in range(2):
         strap("GutStrap%d" % k, ((0.16 - k * 0.32), -0.07, 0.72), ((0.15 - k * 0.3), 0.1, 0.72), 0.05, lea_d, o,
               ((1 - 2 * k), 0, 0))
+
+    # --- capacete de mineiro com lampião aceso na testa (kobold)
+    o = opt("MinerHelmet", (0, cy, top_z), head)
+    dome("MinerHelmet", (0, cy, top_z - 0.085), (0, 0, 1), 0.122, 0.144, 0.12, lea, o, sides=8, lip=0.03)
+    ring("MinerHelmetBand", top_z - 0.08, 0.126, 0.028, lea_d, parent=o, sides=8, flat=1.19, y=cy)
+    lamp_y = cy - 0.144 * 1.0 - 0.01
+    tbox("MinerLampBase", (0, lamp_y, top_z - 0.04), (0.06, 0.03, 0.06), iron_d, bevel=0.006, parent=o)
+    limb("MinerLampCup", (0, lamp_y - 0.01, top_z - 0.04), (0, lamp_y - 0.055, top_z - 0.04), 0.03, 0.04, iron,
+         sides=8, parent=o)
+    limb("MinerLampGlow", (0, lamp_y - 0.045, top_z - 0.04), (0, lamp_y - 0.06, top_z - 0.04), 0.032, 0.03, fire,
+         sides=8, parent=o)
+
+    # --- cinto de couro com bananas de dinamite (kobold)
+    # cinto mais grosso por cima do cinto da tanga; as bananas encostam nele, em volta da cintura (fivela no meio)
+    o = opt("DynamiteBelt", (0, 0, 0.62), body)
+    loft("DynBelt", grow(span(torso, 0.16, 0.27), add=0.026), lea_d, o, sides=8)
+    tbox("DynBuckle", (0, -0.138, 0.625), (0.06, 0.016, 0.05), iron, bevel=0.006, parent=o)
+    for k, a in enumerate((-1.15, -0.6, 0.6, 1.15)):
+        bx, by = math.sin(a) * 0.168, -math.cos(a) * 0.136 - 0.006
+        limb("Dyn%d" % k, (bx, by, 0.56), (bx, by, 0.7), 0.026, 0.026, red, sides=6, parent=o)
+        limb("DynFuse%d" % k, (bx, by, 0.698), (bx * 1.08, by * 1.08, 0.74), 0.006, 0.004, cloth_l, sides=4, parent=o)
 
     # --- coroa (rei): aro facetado sentado no crânio
     cz, cr = top_z, 0.094

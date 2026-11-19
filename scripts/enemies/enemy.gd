@@ -68,6 +68,9 @@ var attack_cd := 0.0
 var attack_timer := 0.0
 var attack_kind := "swing"
 var attack_count := 0
+## Kobold: onde a dinamite do ataque "throw" cai (o servidor escolhe; a réplica recebe o deslocamento nos bits altos de flags).
+var throw_point := Vector3.ZERO
+var _dyn: MeshInstance3D = null
 var hit_done := false
 var slow_timer := 0.0
 ## Marca tóxica (arma encantada com Veneno): enquanto venom_timer > 0, todo dano recebido vale
@@ -771,10 +774,12 @@ func _ranged_move(to_player: Vector3, dist: float, spd: float) -> Array:
 
 
 # ------------------------------------------------------------ ataques
-## Ataque especial de meia distância pronto? Tecelã: teia; Bocarrão: língua que puxa.
+## Ataque especial de meia distância pronto? Tecelã: teia; Bocarrão: língua que puxa; Kobold: dinamite.
 func _web_ready(dist: float) -> bool:
 	if web_cd > 0.0 or dist <= data.reach * 1.4:
 		return false
+	if data.has("throw_range"):   # Kobold: dinamite de meia distância (colado, vai de picareta)
+		return dist > data.reach * 1.6 and dist < float(data.throw_range)
 	match ai():
 		"weaver":
 			return dist > data.reach * 1.6 and dist < float(data.get("web_range", 10.0))
@@ -999,6 +1004,15 @@ func _begin_attack(dist := 0.0) -> void:
 		"flyer":
 			attack_kind = "lunge"   # rasante
 			return
+	if data.has("throw_range") and _web_ready(dist) and _tgt != null and is_instance_valid(_tgt):
+		attack_kind = "throw"
+		web_cd = float(data.get("throw_cd", 5.0)) * randf_range(0.85, 1.15)
+		throw_point = ThrowRules.target(global_position, _tgt.global_position, float(data.throw_range))
+		var to := throw_point - global_position
+		if to.length() > 0.01:
+			model.rotation.y = atan2(to.x, to.z)
+		FX.telegraph(throw_point, data.blast, _hit_time())
+		return
 	if data.model == "slime":
 		attack_kind = "lunge"
 		velocity.y = 4.5
@@ -1029,6 +1043,8 @@ func _attack_duration() -> float:
 			return 1.0
 		"tongue":
 			return 1.2
+		"throw":
+			return 1.3
 	return 0.95 if not is_boss else 1.1
 
 
@@ -1048,12 +1064,15 @@ func _hit_time() -> float:
 			return 0.55
 		"tongue":
 			return 0.5
+		"throw":
+			return 1.0
 	return 0.5 if not is_boss else 0.6
 
 
 ## player: o alvo do ataque.
 func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> void:
 	attack_timer += delta
+	_update_dynamite()
 	if not hit_done and attack_timer >= _hit_time():
 		hit_done = true
 		if attack_kind == "shoot":
@@ -1067,6 +1086,8 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 		elif attack_kind == "fuse":
 			_explode(false)
 			return
+		elif attack_kind == "throw":
+			_dynamite_blast(false)
 		elif attack_kind == "slam":
 			var sr := _slam_radius()
 			Sfx.play_at("slam", global_position, 0.0)
@@ -1179,6 +1200,51 @@ func _explode(visual: bool) -> void:
 			p.take_damage(vs(level, p, data.damage * dmg_mult), global_position)
 			p.add_shake(0.35)
 	_die()
+
+
+## Kobold: a dinamite cai em throw_point e explode em área (quem jogou não morre).
+func _dynamite_blast(visual: bool) -> void:
+	var r: float = data.blast
+	Sfx.play_at("explode", throw_point, 0.1, -2.0)
+	FXToon.blast(throw_point, r)
+	if visual:
+		return
+	var pool: Array = get_parent().targets() if get_parent().has_method("targets") else get_tree().get_nodes_in_group("players")
+	for p in pool:
+		if not p.dead and p.global_position.distance_to(throw_point) <= r:
+			p.take_damage(vs(level, p, data.damage * dmg_mult * 1.2), throw_point)
+			p.add_shake(0.3)
+
+
+## A banana de dinamite voando em arco da mão até throw_point (só visual; some fora do arremesso).
+func _update_dynamite() -> void:
+	var flying := state == "attack" and attack_kind == "throw" and attack_timer >= 0.35 and attack_timer < _hit_time()
+	if not flying:
+		if _dyn:
+			_dyn.visible = false
+		return
+	if _dyn == null:
+		if DisplayServer.get_name() == "headless":
+			return
+		_dyn = MeshInstance3D.new()
+		var c := CylinderMesh.new()
+		c.top_radius = 0.06
+		c.bottom_radius = 0.06
+		c.height = 0.32
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color(0.75, 0.12, 0.1)
+		m.emission_enabled = true
+		m.emission = Color(1.0, 0.45, 0.1)
+		m.emission_energy_multiplier = 0.4
+		c.material = m
+		_dyn.mesh = c
+		_dyn.top_level = true
+		add_child(_dyn)
+	var t := inverse_lerp(0.35, _hit_time(), attack_timer)
+	var hand := global_position + Vector3.UP * 1.1 * float(data.scale)
+	_dyn.visible = true
+	_dyn.global_position = ThrowRules.arc(hand, throw_point + Vector3.UP * 0.15, t, 2.5)
+	_dyn.rotation = Vector3(t * 9.0, 0.0, t * 5.0)
 
 
 # ------------------------------------------------------------ dano
@@ -1406,13 +1472,24 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 				FX.telegraph(global_position, _slam_radius(), 0.9)
 			elif attack_kind == "fuse":
 				FX.telegraph(global_position, data.blast, maxf(0.2, _hit_time() - atk_t))
+			elif attack_kind == "throw":
+				_replica_throw(flags, atk_t)
 		elif atk_t < attack_timer - 0.3:
 			# um novo ataque começou entre dois snapshots
 			attack_kind = atk_kind
 			attack_timer = atk_t
 			hit_done = atk_t >= _hit_time()
+			if attack_kind == "throw":
+				_replica_throw(flags, atk_t)
 	if new_state != state:
 		_set_state(new_state)
+
+
+## Réplica: o ponto da dinamite = posição do snapshot + o deslocamento que vem nos bits altos de flags.
+func _replica_throw(flags: int, atk_t: float) -> void:
+	throw_point = _net_pos + ThrowRules.unpack_offset(flags)
+	if atk_t < _hit_time():
+		FX.telegraph(throw_point, data.blast, maxf(0.2, _hit_time() - atk_t))
 
 
 func show_hit(amount: float, crit: bool) -> void:
@@ -1442,6 +1519,7 @@ func _puppet_process(delta: float) -> void:
 	if state == "attack":
 		var before := attack_timer
 		attack_timer += delta
+		_update_dynamite()
 		if not hit_done and before < _hit_time() and attack_timer >= _hit_time():
 			hit_done = true
 			if attack_kind == "slam":
@@ -1457,6 +1535,8 @@ func _puppet_process(delta: float) -> void:
 				_cast_heal(true)
 			elif attack_kind == "fuse":
 				_explode(true)
+			elif attack_kind == "throw":
+				_dynamite_blast(true)
 			elif attack_kind == "swing":
 				Sfx.play_at("swing", global_position, 0.15, -4.0)
 	var hspeed := Vector2(global_position.x - prev.x, global_position.z - prev.z).length() / maxf(delta, 0.0001)

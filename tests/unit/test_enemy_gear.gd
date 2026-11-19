@@ -77,8 +77,10 @@ func test_every_enemy_gear_exists_in_model() -> void:
 
 func test_new_kinds_present() -> void:
 	var enemies: Dictionary = BalanceTables.load_dir("res://data/balance").get_table("enemies")
-	for k in ["esqueleto", "esqueleto_arqueiro", "esqueleto_mago", "esqueleto_cavaleiro", "goblin_bombardeiro", "slime_gelo"]:
+	for k in ["esqueleto", "esqueleto_arqueiro", "esqueleto_mago", "esqueleto_cavaleiro", "goblin_bombardeiro", "slime_gelo", "kobold"]:
 		T.ok(enemies.has(k), "tipo %s existe" % k)
+	T.ok(enemies.get("kobold", {}).get("ai", "") != "bomber", "kobold arremessa, não explode junto")
+	T.ok(enemies.get("kobold", {}).has("throw_cd") and enemies.get("kobold", {}).has("throw_range"), "kobold tem arremesso")
 	T.eq(enemies["esqueleto_mago"].get("shot", ""), "bolt", "mago atira projétil mágico")
 	T.eq(enemies["goblin_bombardeiro"].get("ai", ""), "bomber", "bombardeiro explode")
 	T.eq(float(enemies["slime_gelo"].get("chill", 0.0)), 2.5, "slime de gelo deixa lento por 2,5 s")
