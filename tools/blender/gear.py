@@ -3820,7 +3820,9 @@ def firstplate_torso(K, src, body):
     def is_torso(c, b, n):
         return not (b.startswith("Arm") or b.startswith("Elbow") or b.startswith("Knee")) and 0.86 <= c.z < 1.52
 
-    under = cb_piece(src, "Mail", is_torso, 0.006, K["mail"])
+    def mail_keep(c, b, n):            # cota desce pela virilha e pelo alto das coxas (aparece entre as placas)
+        return not (b.startswith("Arm") or b.startswith("Elbow") or b.startswith("Knee")) and 0.7 <= c.z < 1.52
+    under = cb_piece(src, "Mail", mail_keep, 0.006, K["mail"])
     g_subdiv(under, 2)
     parts = []
     A = 1.32
@@ -3869,7 +3871,7 @@ def firstplate_torso(K, src, body):
     def back(u, v):
         a = math.pi - B + 2 * B * v
         zt = 1.49 - 0.07 * abs(2 * v - 1) ** 4
-        z = zt + (1.12 - zt) * u
+        z = zt + (1.0 - zt) * u            # desce até o cinto: as costas ficam fechadas
         return wk_plate_pt(a, z, 0.018)
     bk, bkr = _wk_plate("Backplate", back, 14, 30, K["plate"], body)
     parts.append(bk)
@@ -3973,8 +3975,32 @@ def firstplate_faulds(K, body):
     return tas, mid
 
 
+
+def firstplate_culet(K, body):
+    """Culote: duas lâminas atrás, do cinto até a curva do glúteo, cada uma por cima da de baixo, forro de couro
+    claro na barra e rebites nas pontas (fecha as costas abaixo do costal)."""
+    out = []
+    A = 1.45
+    for k in range(2):
+        zt = 1.0 - 0.075 * k
+
+        def lame(u, v, zt=zt, k=k):
+            a = math.pi - A + 2 * A * v
+            z = zt - 0.085 * u
+            return _pal_hip_pt(a, z, 0.026 + 0.004 * k + 0.012 * u)
+        ob, rr = _wk_plate("Culet%d" % k, lame, 5, 26, K["plate"], body, thick=0.006)
+        out.append(ob)
+        edge = [r[0] for r in rr] + rr[-1][1:] + [r[-1] for r in rr][::-1][1:]
+        out.append(g_pipe("CuletLining%d" % k, edge, 0.0065, K["lining"], body, sides=8))
+        for v in (0.06, 0.94):
+            q = lame(0.4, v)
+            out.append(g_bead("CuletRivet%d_%d" % (k, int(v * 10)), q + Vector((q.x, q.y, 0)).normalized() * 0.005,
+                              0.005, K["plate_d"], body))
+    return out
+
+
 def firstplate_cuisses(K, src, body):
-    """Coxeiras: casca de placa na frente de cada coxa, do quadril até logo acima do joelho, alisada e com o
+    """Coxeiras: casca de placa em volta de cada coxa inteira (do lado de dentro termina mais baixo, longe da virilha), do quadril até logo acima do joelho, alisada e com o
     forro de couro claro em volta (a casca sai do corpo com pesos, então dobra com a perna). Devolve
     (cascas, debruns)."""
     shells, trims = [], []
@@ -3984,7 +4010,7 @@ def firstplate_cuisses(K, src, body):
             hip = cb_mirror(CB_J["hip"], s)
             d = Vector((c.x - hip.x, c.y - hip.y, 0)).normalized()
             # só a frente e o lado de fora da coxa (o lado de dentro some entre as pernas)
-            return b.startswith("Leg") and c.x * s > 0 and d.y < -0.25 and d.x * s > -0.55 and                 knee_z + 0.06 < c.z < 0.77
+            return b.startswith("Leg") and c.x * s > 0 and knee_z + 0.03 < c.z < (0.77 if d.x * s > -0.3 else 0.7)
         sh = cb_piece(src, "Cuisse" + sn, keep, 0.016, K["plate"])
         g_subdiv(sh, 2)
         shells.append(sh)
@@ -4009,6 +4035,7 @@ def build_a_firstplate():
     arms = paladin_arm(KA, src, body, 1) + paladin_arm(KA, src, body, -1)
     tas, mid = firstplate_faulds(K, body)
     cuis, cuis_trim = firstplate_cuisses(K, src, body)
+    culet = firstplate_culet(K, body)
     sleeves = cb_piece(src, "Sleeves", lambda c, b, n: (b.startswith("Arm") or b.startswith("Elbow"))
                        and (not b.startswith("Elbow") or _cb_fore_t(c) < 0.86), 0.008, K["mail"])
     g_subdiv(sleeves)
@@ -4020,8 +4047,8 @@ def build_a_firstplate():
     g_skin_finish(rig, src, [(shoulder, "vert", ("Body", "ArmL", "ArmR"), 0.7),
                              (arms, "vert", ("ArmL", "ArmR", "ElbowL", "ElbowR"), 1.0),
                              (tas, "fn", _wk_tasset_w, 1.0), (mid, "fn", _wk_center_w, 1.0),
-                             (cuis_trim, "vert", ("LegL", "LegR"), 1.0)])
-    join_objs("FirstPlate", parts + shoulder + arms + tas + mid + cuis_trim)
+                             (cuis_trim, "vert", ("LegL", "LegR"), 1.0), (culet, "fn", _gb_skirt_w, 1.0)])
+    join_objs("FirstPlate", parts + shoulder + arms + tas + mid + cuis_trim + culet)
     g_export_skinned(style)
 
 def build_a_gambeson():
@@ -5650,6 +5677,118 @@ def build_f_plated():
     g_export("f_plated", P, R)
 
 
+
+# ------------------------------------------------------------------ grevas e manoplas da primeira placa
+# Combinam com a Couraça de Ferro (a_firstplate): ferro claro e liso com forro de couro claro nas bordas.
+# Peças rígidas nos pivôs (Knee / Ankle / Elbow), como as outras botas e luvas; malha lisa (loft de muitos lados).
+def _ip_mats():
+    return dict(
+        plate=gm("fp_plate", "#C9CDD2", 0.35, 0.7), plate_d=gm("fp_plate_d", "#868C95", 0.45, 0.7),
+        lining=gm("fp_lining", "#C2A47C", 0.9), lea=gm("fp_leather", "#3A2F2A", 0.8),
+        mail=gm("fp_mail", "#2F3035", 0.65, 0.5),
+    )
+
+
+def build_f_ironplate():
+    """Grevas de ferro: greva lisa fechada em volta da canela (segue a panturrilha, aresta suave na frente, boca
+    um pouco aberta no tornozelo), joelheira em cúpula com asa em gota do lado de fora, pé de placa com três
+    lâminas sobre o peito do pé; forro de couro claro nas bocas, na joelheira, na asa e nas lâminas."""
+    P, R = g_rig("f_ironplate")
+    K = _ip_mats()
+    NP = 28
+    for n, s in (("L", 1), ("R", -1)):
+        S = limb_sections(P, s)
+        knee, ankle = R["Knee" + n], R["Ankle" + n]
+        KJ = mirror(P["knee"], s)
+        sh = S["shin"]
+        parts = []
+        # o espaço dos pés esconde o joelho do corpo: calça na canela e cota de malha fechando a volta do joelho
+        # (atrás ficava um buraco, via-se o lado de dentro da joelheira)
+        M = g_mats()
+        _shin_hose(P, R, n, s, M["pants"])
+        th = S["thigh"]
+        kn = grow(span(th, 0.9, 1.0), 1.0, 0.004) + grow(span(sh, 0.0, 0.22), 1.0, 0.004)[1:]
+        parts.append(loft("Leg%s_KneeMail" % n, kn, K["mail"], knee, sides=NP))
+
+        def ring(t, add, flare=0.0):
+            q = sample(sh, t)
+            c = q["c"]
+            rx, ry = q["rx"] * 1.06 + add + flare, q["ry"] * 1.06 + add + flare
+            fr, bk = q.get("fr", 1.0), q.get("bk", 1.0)
+            out = []
+            for j in range(NP):
+                a = 2 * math.pi * j / NP
+                x, y = cb_spt(a, rx, ry, fr, bk, keel=0.06)
+                out.append(Vector((c.x + x, c.y + y, c.z)))
+            return out
+        ts = [0.2 + 0.78 * i / 12 for i in range(13)]
+        rings = [ring(t, 0.012, 0.012 * max(0.0, (t - 0.85) / 0.13) ** 1.5) for t in ts]
+        parts.append(g_smooth_mesh("Leg%s_Greave" % n, rings, K["plate"], knee, cap_end=False, thick=0.005,
+                                   outward=True))
+        for nm, rr in (("Top", rings[0]), ("Bot", rings[-1])):
+            parts.append(g_pipe("Leg%s_GreaveLining%s" % (n, nm), rr, 0.0055, K["lining"], knee, sides=8, loop=True))
+        parts.append(g_pipe("Leg%s_GreaveBand" % n, ring(0.78, 0.0155), 0.003, K["plate_d"], knee, sides=6, loop=True))
+        # joelheira: calota na frente do joelho (centro um pouco para trás), borda forrada
+        kc = Vector((KJ.x, KJ.y - 0.014, KJ.z - 0.012))
+        fwd = Vector((0, -1, 0.15)).normalized()
+        u = Vector((1, 0, 0))
+        v = fwd.cross(u).normalized()
+        RAD = 0.07
+        cap = []
+        for i in range(1, 9):
+            al = 1.45 * i / 8
+            cap.append([kc + (fwd * math.cos(al) + (u * math.cos(2 * math.pi * j / NP) * 1.05 +
+                                                     v * math.sin(2 * math.pi * j / NP)) * math.sin(al)) * RAD
+                        for j in range(NP)])
+        tip = kc + fwd * RAD
+        parts.append(g_smooth_mesh("Leg%s_Poleyn" % n, [[tip] * NP] + cap, K["plate"], knee, cap_end=False,
+                                   thick=0.005, outward=True))
+        parts.append(g_pipe("Leg%s_PoleynLining" % n, cap[-1], 0.006, K["lining"], knee, sides=8, loop=True))
+        parts.append(g_bead("Leg%s_PoleynBoss" % n, tip + fwd * 0.002, 0.008, K["plate_d"], knee))
+        # asa em gota do lado de fora do joelho, forrada
+        wc = kc + u * (s * 0.07) + Vector((0, 0.006, -0.004))
+        leaf = [(math.sin(2 * math.pi * j / 20) * 0.03 * (1 - 0.3 * max(0.0, -math.cos(2 * math.pi * j / 20))),
+                 math.cos(2 * math.pi * j / 20) * 0.048 - 0.006) for j in range(20)]
+        parts.append(g_plate("Leg%s_PoleynWing" % n, leaf, wc, (0, 1, 0), (0, 0, 1), 0.006, K["plate"], knee))
+        parts.append(g_pipe("Leg%s_PoleynWingLining" % n, [wc + Vector((s * 0.004, x, y)) for x, y in leaf], 0.0035,
+                            K["lining"], knee, sides=6, loop=True))
+        join_objs("Leg%s_Boot" % n, parts)
+        # pé: sapato de placa com sola de couro e três lâminas forradas sobre o peito do pé
+        foot = _shoe(P, R, n, s, K["plate"], K["lea"])
+        ft = _foot_secs(P, s, 1.08, 0.006)
+        for k, i in enumerate((1, 2, 3)):
+            a = ft[i]
+            c = a["c"]
+            arc = [c + Vector((math.sin(th) * (a["rx"] + 0.004), 0.0, math.cos(th) * (a["ry"] + 0.004)))
+                   for th in (-1.25 + 2.5 * m / 12 for m in range(13))]
+            foot.append(g_pipe("Leg%s_SabatonLame%d" % (n, k), arc, 0.0045, K["lining"], ankle, sides=8))
+        join_objs("Leg%s_BootFoot" % n, foot)
+    g_export("f_ironplate", P, R)
+
+
+def build_g_ironplate():
+    """Manoplas de ferro: mão de placa (fechada e aberta, o jogo usa uma das duas) e punho de placa que abre
+    em sino para o cotovelo, com forro de couro claro na boca e um friso no pulso."""
+    P, R = g_rig("g_ironplate")
+    K = _ip_mats()
+    SD = 20
+    for n, s in (("L", 1), ("R", -1)):
+        S = limb_sections(P, s)
+        elbow = R["Elbow" + n]
+        F = S["fore"]
+        fd = (F[-1]["c"] - F[0]["c"]).normalized()
+        soft_fist("Arm" + n, P, s, K["plate"], elbow)
+        relaxed_hand("Arm" + n, P, s, K["plate"], elbow)
+        c0 = grow([sample(F, 0.62)], 1.36, 0.02)[0]
+        c1 = grow([sample(F, 0.82)], 1.16, 0.012)[0]
+        c2 = grow([sample(F, 1.0)], 1.12, 0.009)[0]
+        parts = [loft("Arm%s_Cuff" % n, [c0, c1, c2], K["plate"], elbow, sides=SD, caps=(False, False), thick=0.006)]
+        parts.append(band("Arm%s_CuffLining" % n, c0, -fd, 0.012, K["lining"], elbow, sides=SD, out=0.002))
+        parts.append(band("Arm%s_CuffBand" % n, c2, -fd, 0.008, K["plate_d"], elbow, sides=SD, out=0.002))
+        join_objs("Arm%s_Gauntlet" % n, parts)
+    g_export("g_ironplate", P, R)
+
+
 def _gear_builder(fn):
     """armory.py redefine band() depois deste arquivo; as roupas usam a do cavaleiro (characters.py)."""
     def run():
@@ -5668,5 +5807,5 @@ GEAR = [(n, _gear_builder(globals()["build_" + n])) for n in (
     "h_lich", "h_hierophant", "h_reaper", "h_raven", "h_dragon", "h_astral", "h_frost",
     "a_shirt", "a_tunic", "a_leather", "a_gambeson", "a_whiteknight", "a_paladin", "a_firstplate", "a_mail", "a_surcoat", "a_robe", "a_archmage", "a_sage", "a_void", "a_oracle", "a_ember",
     "a_lich", "a_hierophant", "a_reaper", "a_raven", "a_dragon", "a_astral", "a_frost",
-    "g_bare", "g_gloves", "g_bracers",
-    "f_shoes", "f_boots", "f_plated")]
+    "g_bare", "g_gloves", "g_bracers", "g_ironplate",
+    "f_shoes", "f_boots", "f_plated", "f_ironplate")]
