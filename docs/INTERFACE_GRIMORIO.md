@@ -5,6 +5,45 @@ estão prontos; as telas migram uma etapa por vez. O HUD de jogo fica como está
 Todo o resto da interface (menus, inventário, lojas, ofícios, diálogos, telas da colônia e da Horda) migra
 para a aparência de um livro: páginas de pergaminho, texto a tinta, abas de marcador.
 
+## Janelas laterais (20/11/2026)
+
+O livro em tela cheia saiu. Pedido do dono do projeto, com as telas de um MMO de vista de cima como
+referência: várias janelas abertas ao mesmo tempo **sem sobrepor**, o mundo visível no meio, cores neutras.
+
+- **Duas vagas** (`WindowDock`): o inventário encosta na direita; herói (C, K, J, L), social (P, O), loja,
+  bancadas, horta, caldeirão, encantamento, Mestre Orin e recordes encostam na esquerda. Abrir outra janela
+  no mesmo lado troca a anterior. O mundo não escurece e o painel não bloqueia o mouse fora dele.
+- **Estação que mexe com a mochila** (`wants_inventory`) abre o inventário junto e ele fecha com ela. Com a
+  loja ao lado, clique direito na mochila vende (`trade_item`); a loja perdeu a grade "vender".
+- **Atalhos com janela aberta:** o mundo está pausado e não recebe tecla; quem trata I/C/K/J/L/P/O é o
+  `WindowDock` (`world.toggle_window`). A tecla da aba aberta fecha a janela; Esc fecha a de cima.
+- **`world.modal`** continua sendo "a janela da frente" (a última aberta); fica null só quando nada está na
+  tela. Janela modal de verdade (diálogo, pausa, mapa, cartas da Horda) fecha as laterais ao abrir.
+  `world.close_ui()` fecha tudo.
+- **Moldura e material (2ª rodada):** o bege acinzentado liso foi recusado ("cor feia", "HTML puro",
+  "muito espaço sobrando"). Agora: moldura de madeira escura com friso de bronze e cantoneiras com rebites,
+  pergaminho quente com fibra (`assets/ui/kit/win_*.png`, gerados por `tools/ui_kit/make_window_kit.py`,
+  9 fatias); botões em bisel, ligado = couro escuro com texto claro, ação principal vermelha
+  (`UITheme.primary`); espaços de item são poços com aro de bronze e fundo tingido pela raridade; dica de
+  item na moldura pequena; janela do herói/estação com a altura do conteúdo (`fit_height`), o inventário
+  com a altura da tela (a mochila rola). Base: `UITheme.PAGE`, `PAGE_EDGE`, `parch_box()`. O menu
+  do herói e o social continuam em `BookWindow` (agora um painel lateral com título, ✕ redondo e abas
+  embaixo do título); as estações usam `UITheme.dock_panel()`.
+- **Telas escritas para o tema escuro não foram reescritas:** `PaperInk` converte em tempo real texto claro
+  em tinta (`UITheme.paper_color`, idempotente), tira contorno, troca caixa escura por quadro a tinta e
+  cor de linha de `ItemList`. Linha de lista selecionada é realce claro, não tinta cheia (o texto colorido
+  da linha sumia).
+- **Painel de estação encolhe com o conteúdo:** Control só cresce sozinho; `dock_panel` refaz o tamanho em
+  `minimum_size_changed` (a forja passava da tela).
+- **Larguras (tela de 1600):** inventário 424 px de página (mochila em 6 colunas), herói/social 1040 px em
+  duas colunas (`BookLayout.COL_GAP`). O smoke test confere que as duas janelas não se cruzam e que cada
+  coluna fica dentro da janela.
+- **Comparar:** segurando Shift sobre um item equipável, a ficha do item equipado naquele espaço abre ao
+  lado da dica (`ItemTooltip._cmp`, contexto "worn"). Captura: `--ui=inv --tip=5 --shift`; várias janelas:
+  `--ui=char,inv`.
+
+O que vem abaixo é o histórico do livro (as lições sobre papel, tinta e ícones continuam valendo).
+
 ## Por quê
 
 A interface inteira era desenhada por código com caixas de cor chapada (`UITheme`, só `StyleBoxFlat`), sem
@@ -105,7 +144,9 @@ descartados: o primeiro fica "vetorial" demais, o segundo é caro para ornamento
 | Livro aberto e abas de marcador (PNG) | `assets/ui/book.png`, `tab_on.png`, `tab_off.png` |
 | Gerador das imagens | `tools/blender/ui_kit.py` |
 | Medidas do livro, regra "cabe na página", escala para janela pequena | `scripts/ui/book_layout.gd` |
-| Janela-livro: abas, marcador de fechar, rolagem, aviso de página grande demais | `scripts/ui/book_window.gd` |
+| Janela lateral com abas (era o livro): título, fechar, rolagem, aviso de página larga demais | `scripts/ui/book_window.gd` |
+| Vagas esquerda/direita, inventário junto da estação, atalhos com janela aberta | `scripts/ui/window_dock.gd`, `world.gd` (`_open_docked`) |
+| Tema escuro convertido em tinta nas janelas de estação | `scripts/ui/paper_ink.gd`, `UITheme.dock_panel()` |
 | Fontes embutidas: Cinzel (títulos, peso 600) e EB Garamond (texto), licença OFL | `assets/fonts`, `UITheme.serif()` e `UITheme.body()` |
 | Tema de papel, cores de tinta, `ink()`, `ink_section()`, `ink_bar()`, `ink_inset()`, `on_paper()` | `scripts/ui/ui_theme.gd` |
 | Espaço de item sobre papel (`paper = true`) | `scripts/ui/item_slot.gd` |

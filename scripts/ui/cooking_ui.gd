@@ -3,6 +3,10 @@ extends Control
 
 signal closed
 
+## Janela lateral da esquerda (WindowDock), com o inventário aberto ao lado.
+var dock_side := "left"
+var wants_inventory := true
+
 var kitchen: Node = null
 var list: ItemList
 var title_l: Label
@@ -16,7 +20,7 @@ var max_btn: Button
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var p := UITheme.centered_panel(self, 0.45)
+	var p := UITheme.dock_panel(self)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
 	p.add_child(v)
@@ -53,7 +57,7 @@ func _ready() -> void:
 
 	var btns := HBoxContainer.new()
 	btns.add_theme_constant_override("separation", 12)
-	cook_btn = UITheme.button("Cozinhar", func() -> void: _cook(1), 200)
+	cook_btn = UITheme.primary(UITheme.button("Cozinhar", func() -> void: _cook(1), 200))
 	max_btn = UITheme.button("Cozinhar tudo", func() -> void: _cook(99), 220)
 	btns.add_child(cook_btn)
 	btns.add_child(max_btn)

@@ -883,8 +883,7 @@ func net_levelup(level: int, xp: float, picks: int, timeout: float) -> void:
 	Game.notify.emit("O grupo subiu para o nível %d! A horda para até todos escolherem." % level, Color(0.5, 0.85, 1.0))
 	# inventário, pausa etc. fecham: a escolha é para todos ao mesmo tempo
 	if world.modal != null and world.modal.get_script() != UI:
-		world.modal.queue_free()
-		world._on_modal_closed()
+		world.close_ui()
 	_try_open_next.call_deferred()
 
 
@@ -1338,6 +1337,7 @@ func end_run(reason: String, from_server := false) -> void:
 
 
 func _open_results() -> void:
+	world.dock.close_all()
 	if world.modal != null:
 		world.modal.queue_free()
 		world.modal = null

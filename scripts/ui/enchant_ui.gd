@@ -6,6 +6,10 @@ extends Control
 
 signal closed
 
+## Janela lateral da esquerda (WindowDock), com o inventário aberto ao lado.
+var dock_side := "left"
+var wants_inventory := true
+
 ## Erros do serviço -> aviso para o jogador.
 const ERRORS := {
 	"sem_ouro": "Ouro insuficiente.",
@@ -40,7 +44,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = UITheme.get_theme()
-	var p := UITheme.centered_panel(self, 0.55)
+	var p := UITheme.dock_panel(self)
 	p.custom_minimum_size = Vector2(860, 0)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 10)
@@ -76,7 +80,7 @@ func _ready() -> void:
 	_notice = UITheme.label("", 15, UITheme.DIM)
 	_notice.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	foot.add_child(_notice)
-	enchant_button = UITheme.button("Encantar", _on_enchant, 160)
+	enchant_button = UITheme.primary(UITheme.button("Encantar", _on_enchant, 160))
 	foot.add_child(enchant_button)
 	foot.add_child(UITheme.keycap("E", 13))
 	foot.add_child(UITheme.button("Fechar", _close, 120))
@@ -201,7 +205,15 @@ func _element_button(el: String, def: Dictionary, cur: Dictionary) -> void:
 	b.add_theme_color_override("font_color", color)
 	b.add_theme_color_override("font_hover_color", color.lightened(0.3))
 	if el == selected:
-		b.add_theme_stylebox_override("normal", UITheme.frame_box(Color(color.r, color.g, color.b, 0.22), color, 6))
+		# escolhido: o botão tingido pela cor do elemento, com aro dela (sem sombra, sobre o pergaminho)
+		var on := StyleBoxFlat.new()
+		on.bg_color = Color(color.r, color.g, color.b, 0.3)
+		on.border_color = UITheme.on_paper(color)
+		on.set_border_width_all(2)
+		on.set_corner_radius_all(4)
+		on.content_margin_left = 12
+		on.content_margin_right = 12
+		b.add_theme_stylebox_override("normal", on)
 	if el == cur.el and cur.lv > 0:
 		b.text = "%s +%d" % [def.get("name", el), cur.lv]
 	_elements.add_child(b)

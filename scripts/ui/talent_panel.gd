@@ -37,7 +37,7 @@ var _right: VBoxContainer
 
 
 func _init() -> void:
-	add_theme_constant_override("separation", int(BookLayout.SPINE))
+	add_theme_constant_override("separation", int(BookLayout.COL_GAP))
 	for i in 2:
 		var v := VBoxContainer.new()
 		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL

@@ -5,6 +5,9 @@ extends Control
 
 signal closed
 
+## Janela lateral da esquerda (WindowDock).
+var dock_side := "left"
+
 ## Erros do serviço -> aviso para o jogador.
 const ERRORS := {
 	"sem_ecos": "Ecos insuficientes.",
@@ -27,7 +30,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = UITheme.get_theme()
-	var p := UITheme.centered_panel(self, 0.55)
+	var p := UITheme.dock_panel(self)
 	p.custom_minimum_size = Vector2(900, 0)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 10)
