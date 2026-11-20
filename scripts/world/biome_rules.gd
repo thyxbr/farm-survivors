@@ -87,6 +87,29 @@ const DATA := {
 }
 
 
+## Debaixo da terra (dungeons): sem sol nem céu, névoa preta que engole o que está a uns 15 m, pouca luz
+## ambiente (quem ilumina são as tochas e os braseiros), sem clima.
+const UNDERGROUND := {
+	"sky_top": Color(0.02, 0.02, 0.025), "sky_hz": Color(0.035, 0.03, 0.035), "ground_hz": Color(0.03, 0.025, 0.03),
+	"fog": Color(0.025, 0.02, 0.025), "fog_density": 0.085,
+	"sun": 0.0, "sun_color": Color(1, 1, 1), "ambient": 0.6, "saturation": 0.95, "rim": 0.2,
+	"autumn": false, "motes": "dust",
+}
+## Cor da névoa de cada dungeon: verde podre no Covil, azul gelado nas Galerias, brasa na Cripta, sangue no Abismo.
+const DUNGEON_FOG := {"dg_bosque": Color(0.035, 0.05, 0.03), "dg_mina": Color(0.03, 0.04, 0.06),
+	"dg_pico": Color(0.07, 0.03, 0.02), "dg_final": Color(0.07, 0.015, 0.03)}
+
+
+## Céu, névoa, luz e partículas do lugar `map_id`: o bioma nos mapas, debaixo da terra nas dungeons.
+static func atmo(map_id: String) -> Dictionary:
+	if Regions.is_dungeon(map_id):
+		var u := UNDERGROUND.duplicate()
+		u.fog = DUNGEON_FOG.get(map_id, u.fog)
+		u.sky_hz = (u.fog as Color) * 1.2
+		return u
+	return of(map_id) if has_sky(map_id) else {}
+
+
 ## Bioma do mapa `map_id` (dungeon: o do mapa de fora). Sem bioma próprio: o Vale.
 static func of(map_id: String) -> Dictionary:
 	var id := str(Regions.DATA.get(map_id, {}).get("parent", map_id))
@@ -103,8 +126,12 @@ static func has_sky(map_id: String) -> bool:
 ## Clima do jogo `s` (Weather.state) passado pelo bioma: o pântano fica sempre úmido, a geleira coberta de neve
 ## e nevando, o vulcão seco. Devolve uma cópia.
 static func weather(map_id: String, s: Dictionary) -> Dictionary:
-	var w: Dictionary = of(map_id).get("weather", {})
 	var o := s.duplicate()
+	if Regions.is_dungeon(map_id):   # debaixo da terra: nada de chuva, neve, poça nem vento
+		for k in ["rain", "snow", "cover", "wet", "cloud", "wind"]:
+			o[k] = 0.0
+		return o
+	var w: Dictionary = of(map_id).get("weather", {})
 	if w.is_empty():
 		return o
 	if w.get("no_rain", false):

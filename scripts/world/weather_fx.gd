@@ -55,6 +55,8 @@ var _ash: GPUParticles3D
 var _ash_pm: ParticleProcessMaterial
 var _embers: GPUParticles3D
 var _flies: GPUParticles3D
+var _cave: GPUParticles3D   # dungeon: poeira pairando devagar na luz das tochas
+var _hero_light: OmniLight3D   # dungeon: brilho fraco e curto em volta do herói (vê-se perto, o resto é escuro)
 
 var _rain_audio: AudioStreamPlayer
 var _wind_audio: AudioStreamPlayer
@@ -152,6 +154,8 @@ func _eff_base() -> Dictionary:
 	if b.has("ambient"):
 		b.ambient = float(_base.ambient) * float(_bio.ambient)
 		b.saturation = float(_base.saturation) * float(_bio.saturation)
+	if b.has("rim"):
+		b.rim = float(_base.rim) * float(_bio.get("rim", 1.0))
 	return b
 
 
@@ -340,6 +344,27 @@ func _build_particles() -> void:
 	_flies.process_material = fpm
 	_flies.draw_pass_1 = _dot_mesh(0.09, Color(0.75, 1.0, 0.45, 1.0) * 2.5)
 	_add_particles(_flies)
+	_cave = GPUParticles3D.new()
+	_cave.amount = 260
+	_cave.lifetime = 8.0
+	_cave.preprocess = 5.0
+	_cave.local_coords = false
+	var cpm := ParticleProcessMaterial.new()
+	cpm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	cpm.emission_box_extents = Vector3(10, 2.5, 10)
+	cpm.spread = 180.0
+	cpm.initial_velocity_min = 0.02
+	cpm.initial_velocity_max = 0.15
+	cpm.gravity = Vector3(0, -0.02, 0)
+	cpm.turbulence_enabled = true
+	cpm.turbulence_noise_strength = 0.6
+	cpm.turbulence_noise_scale = 4.0
+	cpm.turbulence_influence_min = 0.02
+	cpm.turbulence_influence_max = 0.06
+	cpm.color_ramp = _fade_ramp(0.25, 0.7)
+	_cave.process_material = cpm
+	_cave.draw_pass_1 = _dot_mesh(0.035, Color(0.75, 0.7, 0.62, 0.55))
+	_add_particles(_cave)
 
 	# vento forte: folhas rodopiando e riscos de ar passando rápido
 	_leaves = GPUParticles3D.new()
@@ -644,6 +669,23 @@ func _update_particles(s: Dictionary, wind: float) -> void:
 	_set_level(_embers, 0.6 if motes == "ash" else 0.0)
 	_flies.global_position = Vector3(c.x, maxf(0.8, c.y - 2.0), c.z)
 	_set_level(_flies, 1.0 if motes == "fireflies" else 0.0)
+	_cave.global_position = c + Vector3(0, -1.5, 0)
+	_set_level(_cave, 1.0 if motes == "dust" else 0.0)
+	var w := get_tree().current_scene
+	var hero: Node3D = w.get("player") if w != null else null
+	if _hero_light == null:
+		_hero_light = OmniLight3D.new()
+		_hero_light.top_level = true
+		_hero_light.light_color = Color(1.0, 0.82, 0.62)
+		_hero_light.omni_range = 7.0
+		_hero_light.omni_attenuation = 1.8
+		_hero_light.shadow_enabled = false
+		add_child(_hero_light)
+	var under := motes == "dust" and hero != null
+	_hero_light.visible = under
+	if under:
+		_hero_light.global_position = hero.global_position + Vector3(0, 2.6, 0)
+		_hero_light.light_energy = 0.9
 
 
 func _set_level(p: GPUParticles3D, level: float) -> void:
@@ -851,9 +893,9 @@ func _apply(delta: float) -> void:
 	var region := Regions.region_at(cam.global_position) if cam != null else "vila"
 	if region != _region:
 		_region = region
-		_bio = BiomeRules.of(region) if BiomeRules.has_sky(region) else {}
+		_bio = BiomeRules.atmo(region)
 	var s: Dictionary = BiomeRules.weather(region, Weather.state)
-	var wind := Weather.wind_now()
+	var wind := 0.0 if Regions.is_dungeon(region) else Weather.wind_now()
 	RenderingServer.global_shader_parameter_set("weather_wet", s.wet)
 	RenderingServer.global_shader_parameter_set("weather_snow", s.cover)
 	RenderingServer.global_shader_parameter_set("weather_rain", s.rain)
