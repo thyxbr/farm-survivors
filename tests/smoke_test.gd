@@ -2714,8 +2714,16 @@ func _test_farm() -> void:
 	await wait(0.1)
 	check(world.modal != null and world.modal.get("plot_index") == 0, "menu de plantio abre")
 	var seeds0 := Game.count_item("seed_carrot")
-	world.modal.seed_list.select(ItemDB.CROP_ORDER.find("carrot"))
+	world.modal.select_crop("carrot")
 	world.modal._plant_here()
+	await wait(0.05)
+	var confirm: ActionModal = null
+	for n in world.modal.get_children():
+		if n is ActionModal:
+			confirm = n
+	check(confirm != null and Game.plot_state(0) == "empty", "plantar pergunta antes (janelinha de confirmação)")
+	if confirm:
+		confirm._confirm()
 	await wait(0.1)
 	check(world.modal == null and Game.plot_state(0) == "growing" and Game.farm.plots[0].crop == "carrot", "cenoura plantada")
 	check(Game.count_item("seed_carrot") == seeds0 - 1, "semente consumida")
@@ -2745,8 +2753,8 @@ func _test_farm() -> void:
 	Econ.grant(200, 0, {}, "teste")
 	plot.interact(player)
 	await wait(0.1)
-	world.modal.seed_list.select(ItemDB.CROP_ORDER.find("tomato"))
-	world.modal._plant_all()
+	world.modal.select_crop("tomato")
+	world.modal.plant_all_now()
 	await wait(0.1)
 	var growing := 0
 	for i in Game.FARM_PLOTS:
@@ -2769,7 +2777,7 @@ func _test_farm() -> void:
 	kitchen.interact(player)
 	await wait(0.1)
 	check(world.modal != null and world.modal.has_method("_cook"), "menu do caldeirão abre")
-	world.modal.list.select(ItemDB.RECIPE_ORDER.find("spicy_soup"))
+	world.modal.select_recipe("spicy_soup")
 	world.modal._cook(99)
 	check(Game.count_item("spicy_soup") == 3, "cozinhou 3 sopas picantes (%d)" % Game.count_item("spicy_soup"))
 	world.modal._close()
@@ -3481,11 +3489,14 @@ func _test_gear() -> void:
 		h._show_tab(i)
 		await wait(0.1)
 		var area: Rect2 = h.book.content_rect().grow(1.0)
-		var halves: Array = h.pages[i].get_children()
-		var lr: Rect2 = halves[0].get_global_rect()
-		var rr: Rect2 = halves[1].get_global_rect()
-		check(halves.size() == 2 and area.position.x <= lr.position.x and rr.end.x <= area.end.x and lr.end.x <= rr.position.x,
-			"aba %d: duas colunas dentro da janela (%.0f | %.0f)" % [i, lr.size.x, rr.size.x])
+		var pr: Rect2 = h.pages[i].get_global_rect()
+		check(area.position.x <= pr.position.x and pr.end.x <= area.end.x and h.book.page_width == h.TAB_WIDTHS[i],
+			"aba %d dentro da janela, na largura dela (%.0f de %.0f)" % [i, pr.size.x, h.book.page_width])
+		if h.pages[i] is HBoxContainer:   # abas em duas colunas: uma não invade a outra
+			var halves: Array = h.pages[i].get_children()
+			var lr: Rect2 = halves[0].get_global_rect()
+			var rr: Rect2 = halves[1].get_global_rect()
+			check(lr.end.x <= rr.position.x, "aba %d: colunas lado a lado sem se cruzar" % i)
 	check(h.book.overflow_warnings == 0 and book.overflow_warnings == 0, "nenhuma aba pede mais largura do que a janela tem")
 	# o atalho da aba aberta fecha a janela; o inventário fica
 	world.toggle_window("character")
