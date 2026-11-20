@@ -7,6 +7,7 @@ extends Node3D
 const GROUND_SHADER := preload("res://assets/shaders/ground.gdshader")
 const GRASS_SHADER := preload("res://assets/shaders/grass.gdshader")
 const MAX_SHAPES := 64
+const MAX_RIVER := 192
 const CHUNK := 20.0
 ## Capim: candidatos por m² = density * GRASS_MUL; um ruído de touceiras decide quantos ficam
 ## (campo cheio onde ele sobe, ralo onde desce).
@@ -40,6 +41,7 @@ var _shapes := PackedVector4Array()
 var _cols := PackedVector4Array()
 var _mix := PackedFloat32Array()
 var _angs := PackedFloat32Array()   # giro em Y de cada retângulo (0 nos discos)
+var _river := PackedVector4Array()   # rios (MapRiver): (x, z, meia largura sem chão, 1 = começa um rio novo)
 var _mat: ShaderMaterial
 var _noise_tex: NoiseTexture2D
 
@@ -107,9 +109,30 @@ func _add(s: Vector4, c: Color, soft: float, grass: float, angle := 0.0) -> void
 	_push()
 
 
+## Rio: o chão some na faixa de meia largura `half_w` em volta do caminho `pts` (x, z do mapa); a margem e a
+## água são do MapRiver.
+func add_river(pts: PackedVector2Array, half_w: float) -> void:
+	for i in pts.size():
+		if _river.size() >= MAX_RIVER:
+			push_warning("ground: limite de %d pontos de rio" % MAX_RIVER)
+			break
+		_river.append(Vector4(pts[i].x, pts[i].y, half_w, 1.0 if i == 0 else 0.0))
+	_push()
+
+
 func _push() -> void:
 	if _mat == null:
 		return
+	var rv := PackedVector4Array()
+	var box := Vector4(INF, INF, -INF, -INF)
+	for r in _river:
+		var q := Vector4(r.x + world_offset.x, r.y + world_offset.y, r.z, r.w)
+		rv.append(q)
+		box = Vector4(minf(box.x, q.x - q.z), minf(box.y, q.y - q.z), maxf(box.z, q.x + q.z), maxf(box.w, q.y + q.z))
+	rv.resize(MAX_RIVER)
+	_mat.set_shader_parameter("river", rv)
+	_mat.set_shader_parameter("river_count", _river.size())
+	_mat.set_shader_parameter("river_box", box if not _river.is_empty() else Vector4.ZERO)
 	var s := PackedVector4Array()
 	for sh in _shapes:
 		s.append(Vector4(sh.x + world_offset.x, sh.y + world_offset.y, sh.z, sh.w))

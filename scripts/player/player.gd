@@ -152,7 +152,7 @@ func _ready() -> void:
 		return
 	add_to_group("player")
 	collision_layer = 2
-	collision_mask = 1 | 4 | 8
+	collision_mask = 1 | 4 | 8 | MapRiver.WALL_LAYER   # 32: paredes do rio (a câmera não bate nelas)
 	floor_snap_length = 0.4
 	var col := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()

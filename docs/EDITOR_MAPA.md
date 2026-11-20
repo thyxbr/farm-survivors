@@ -30,6 +30,14 @@ Todos ficam em `scripts/map/` e aparecem no Inspector com as opções abaixo.
   ferraria, com o ferreiro dentro; a oficina do artesão e o laboratório de alquimia, abertos na frente), as três
   barracas da feira (`stall_cloth`, `stall_farm`, `stall_goods`) e o poço; `palette` pinta a casa, `flowers` põe canteiro, `delivery` marca uma das 6
   portas da missão de Natal. A porta da casa é a seta azul (+Z) do gizmo.
+- **Rio (MapRiver)**, em Rio: o caminho são os filhos **Ponto0, Ponto1...** (MapWaypoint), como o caminho dos
+  moradores: arraste cada um no 3D, Ctrl+D num ponto acrescenta outro, a ordem na árvore é a ordem do rio. O chão
+  some ao longo do caminho e no lugar entram a margem e a água (`width` = largura da água, `bank` = margem de cada
+  lado, `flow` = correnteza, cores da água e da margem). Paredes invisíveis na beira seguram jogador e monstros
+  fora da água; só abrem onde há uma ponte: um Objeto com `model = bridge_stone` atravessado no rio (a ponte
+  cruza ao longo da seta azul, +Z). A validação dos mapas acusa qualquer peça (árvore, NPC, ponto de monstro,
+  landmark) dentro do leito. O rio do Vale passa ao norte dos Campos do Norte; a Ponte do Norte fica na Estrada do
+  Norte.
 - **Área pintada no chão (MapGroundPaint)**: retângulo ou disco com cor e borda suave (ruas, trilhas, praça,
   lotes). O retângulo gira com o nó (gire em Y para fazer uma rua na diagonal; o contorno da prévia mostra o
   resultado). Mover, girar ou mudar o tamanho já redesenha o chão no editor. No máximo 64 por mapa.

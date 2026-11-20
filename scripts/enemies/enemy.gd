@@ -189,7 +189,7 @@ func _ready() -> void:
 	is_boss = data.get("boss", false) or chief
 	add_to_group("enemies")
 	collision_layer = _layer
-	collision_mask = 1 | 2 | 4
+	collision_mask = 1 | 2 | 4 | MapRiver.WALL_LAYER
 	if data.get("ai", "") == "worm":   # Mãe-Verme: só o terreno a segura; ninguém a empurra (os outros batem nela)
 		collision_mask = 1
 	var col := CollisionShape3D.new()

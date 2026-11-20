@@ -114,6 +114,8 @@ func grass_lists() -> Dictionary:
 		if p.no_grass and p.shape != 0:
 			var c := local_xform(p).origin
 			keep.append([Vector2(c.x, c.z), p.footprint() + 0.15])
+	for r: MapRiver in pieces(MapRiver):
+		keep.append_array(r.grass_discs())
 	return {"keep_out": keep, "sparse": sparse}
 
 
@@ -131,6 +133,8 @@ func make_ground(world_offset := Vector2.ZERO) -> Node3D:
 			g.add_rect(p.center, p.size, p.color, p.soft, p.grass, p.angle)
 	for m: Vector4 in mountain_data():
 		g.add_mountain(Vector3(m.x, 0, m.y), m.z, m.w)
+	for r: MapRiver in pieces(MapRiver):
+		g.add_river(r.samples(), r.half_total())
 	g.border_mountains(border_height)
 	g.border_pass(south_pass_x, south_pass_width)
 	return g
