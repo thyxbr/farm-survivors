@@ -144,17 +144,10 @@ func _ready() -> void:
 	note_l.custom_minimum_size.x = 500
 	rv.add_child(note_l)
 	# ---- rodapé
-	var foot := HBoxContainer.new()
-	foot.add_theme_constant_override("separation", 12)
-	var hint := UITheme.label("↑ ↓ escolhe · Enter fabrica", 14, UITheme.DIM)
-	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	foot.add_child(hint)
-	craft_btn = UITheme.primary(UITheme.button("Fabricar", func() -> void: _craft(1), 200))
-	max_btn = UITheme.button("Fabricar tudo", func() -> void: _craft(CharRules.MAX_COUNT), 220)
-	foot.add_child(craft_btn)
-	foot.add_child(max_btn)
-	foot.add_child(UITheme.button("Sair", _close, 120))
-	v.add_child(foot)
+	var hint := UITheme.label("↑ ↓ escolhe · Enter fabrica · duplo clique na receita fabrica uma", 14, UITheme.DIM)
+	craft_btn = UITheme.primary(UITheme.button("Fabricar", func() -> void: _craft(1)))
+	max_btn = UITheme.button("Fabricar tudo", func() -> void: _craft(CharRules.MAX_COUNT))
+	v.add_child(UITheme.footer(hint, [max_btn, craft_btn, UITheme.button("Sair", _close)]))
 	add_child(tooltip)
 	anim = CraftAnim.new()
 	add_child(anim)

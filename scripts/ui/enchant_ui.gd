@@ -75,16 +75,9 @@ func _ready() -> void:
 	_missing = UITheme.label("", 15, UITheme.BAD)
 	_missing.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	right.add_child(_missing)
-	var foot := HBoxContainer.new()
-	foot.add_theme_constant_override("separation", 10)
 	_notice = UITheme.label("", 15, UITheme.DIM)
-	_notice.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	foot.add_child(_notice)
-	enchant_button = UITheme.primary(UITheme.button("Encantar", _on_enchant, 160))
-	foot.add_child(enchant_button)
-	foot.add_child(UITheme.keycap("E", 13))
-	foot.add_child(UITheme.button("Fechar", _close, 120))
-	v.add_child(foot)
+	enchant_button = UITheme.primary(UITheme.button("Encantar", _on_enchant))
+	v.add_child(UITheme.footer(_notice, [enchant_button, UITheme.button("Sair", _close)]))
 	Econ.result.connect(_on_result)
 	Game.enchant_changed.connect(_refresh)
 	Game.inventory_changed.connect(_refresh)

@@ -213,9 +213,9 @@ def inset(w=96, h=96):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    frame().save(os.path.join(OUT, "win_frame.png"))
-    # dica de item e quadros pequenos: friso fino, cantoneiras curtas
-    frame(size=96, margin=20, band=6, seed=5, arm=18, thick=7).save(os.path.join(OUT, "win_frame_small.png"))
+    # molduras A/B/C (grande e pequena) em frame_styles.py; o jogo escolhe por UITheme.frame_style()
+    import frame_styles
+    frame_styles.build(OUT)
     paper_btn = dict(fill=(218, 196, 150), border=(92, 62, 36), light=(246, 232, 200), dark=(170, 140, 96))
     button(**paper_btn).save(os.path.join(OUT, "win_btn.png"))
     button(fill=(230, 210, 166), border=(120, 84, 44), light=(255, 244, 214), dark=(184, 154, 108)).save(
