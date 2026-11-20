@@ -1975,6 +1975,26 @@ func _test_dungeons() -> void:
 	world._respawn()
 	await wait(0.2)
 	check(player.global_position.distance_to(Regions.door_point("dg_mina")) < 3.0, "quem morre na dungeon volta na porta dela")
+	# chefe da dungeon: só luta dentro da sala dele (arena) e perde o agro quando o jogador sai
+	var king: Enemy = null
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.is_boss and Regions.region_at(e.global_position) == "dg_mina":
+			king = e
+	check(king != null and king.arena.size.x >= 30.0 and king.arena.size.y >= 24.0,
+		"Rei Caído tem a sala grande como arena (%s)" % (str(king.arena) if king else "sem chefe"))
+	if king != null:
+		var o := Regions.DATA["dg_mina"].origin as Vector3
+		var hp0: float = Game.hp
+		player.global_position = o + Vector3(0, 0.3, -20.0)   # antecâmara, na frente do portão
+		await wait(1.0)
+		check(king.state in ["idle", "wander"], "chefe não ataca quem está fora da sala (estado %s)" % king.state)
+		player.global_position = o + Vector3(14.0, 0.3, -26.0)   # dentro da sala, longe do alcance normal de agro
+		await wait(0.6)
+		check(king.state in ["chase", "attack"], "chefe persegue quem entra na sala (estado %s)" % king.state)
+		player.global_position = o + Vector3(0, 0.3, -20.0)
+		await wait(0.8)
+		check(king.state in ["return", "idle", "wander"], "chefe perde o agro quando o jogador sai da sala (estado %s)" % king.state)
+		Game.hp = hp0
 	Game.flags["rank"] = rank0
 	player.global_position = back
 	await wait(0.2)

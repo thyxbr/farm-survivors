@@ -72,6 +72,8 @@ static func build(w: Node3D, map_id: String) -> MapRoot:
 							"level": lv.x, "level_max": lv.y, "elite": n.elite, "area": area}
 					if dungeon:
 						entry.merge({"dungeon": map_id, "slot": i, "base": base, "boss": boss_kind, "chief": n.chief})
+						if boss_kind:
+							entry["arena"] = boss_arena(root, n.global_position)
 					if n.night_only:
 						entry["night"] = true   # bicho da noite (o mundo segura de dia)
 					list.append(entry)
@@ -89,6 +91,18 @@ static func build(w: Node3D, map_id: String) -> MapRoot:
 			keep.append_array((n as MapRiver).grass_discs(Vector2(o.x, o.z)))
 	w.grass_areas[map_id] = {"keep_out": keep, "sparse": sparse}
 	return root
+
+
+## Sala do chefe (MapDungeonRoom com `boss`) onde fica o ponto, em x, z do mundo (vazio se não estiver numa).
+static func boss_arena(root: MapRoot, pos: Vector3) -> Rect2:
+	for r: MapDungeonRoom in root.pieces(MapDungeonRoom):
+		if not r.boss:
+			continue
+		var c := r.global_position
+		var rect := Rect2(Vector2(c.x, c.z) - r.size / 2.0, r.size)
+		if rect.has_point(Vector2(pos.x, pos.z)):
+			return rect
+	return Rect2()
 
 
 ## Assenta no relevo as peças de topo com follow_ground (as que estão dentro de outra peça vão junto com ela):

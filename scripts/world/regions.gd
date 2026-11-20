@@ -15,7 +15,7 @@ const DATA := {
 	# na carruagem nem no atlas; o rank é o da porta. A faixa de nível das salas fica no regions.json.
 	"dg_bosque": {"name": "Covil das Raízes", "origin": Vector3(-800, 0, 800), "half": 45.0, "rank": "C",
 		"dungeon": true, "parent": "bosque"},
-	"dg_mina": {"name": "Galerias Profundas", "origin": Vector3(-800, 0, 0), "half": 45.0, "rank": "B",
+	"dg_mina": {"name": "Galerias Profundas", "origin": Vector3(-800, 0, 0), "half": 55.0, "rank": "B",
 		"dungeon": true, "parent": "mina"},
 	"dg_pico": {"name": "Cripta de Cinzas", "origin": Vector3(-800, 0, -800), "half": 45.0, "rank": "A",
 		"dungeon": true, "parent": "pico"},
