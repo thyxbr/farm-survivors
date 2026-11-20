@@ -2,28 +2,26 @@ class_name ArrivalCutscene
 extends Node
 ## Abertura "isekai" do personagem novo (primeira vez no mundo), antes da narração e do Ancião Bram:
 ##   1. Tela preta: a última lembrança do outro mundo ("uma luz muito forte... e uma voz dizendo: Ops.").
-##   2. Janela de SISTEMA (o clichê do anime isekai): transferência de alma, nome, classe, nível 1 e um
-##      aviso de que a altitude de chegada ficou "um pouco" imprecisa.
-##   3. Plano do céu sobre Valdoria: uma estrela cai riscando o céu na direção da estrada do sul...
-##   4. ...e acerta em cheio a carroça de feno do Beto. PLOFT. Só as pernas do herói ficam para fora.
-##   5. O herói se solta num pulo, cai em pé ao lado da carroça, tonto (estrelinhas girando) e olha a vila.
+##   2. Janela de SISTEMA (o clichê do anime isekai): transferência de alma, nome, classe, nível 1 e o aviso
+##      de que o corpo vai ser montado "com o material disponível".
+##   3. Plano do céu sobre Valdoria: um ponto de luz se abre lá no alto e desce um feixe até a estrada do sul.
+##   4. Um selo se acende no chão e fragmentos de cristal chegam girando de todos os lados, montando um casulo.
+##   5. O casulo pulsa, racha e estoura em cacos: o herói está lá dentro, flutuando, e desce devagar até o chão.
 ##   6. A câmera volta para trás do jogador e o mundo passa para a narração (StoryDialogue.intro()).
-## Espaço, Enter ou Esc pulam para o fim a qualquer momento. A carroça e o feno espalhado ficam na estrada
-## (só neste cliente, até sair do mapa), como prova do pouso.
+## Espaço, Enter ou Esc pulam para o fim a qualquer momento. Alguns cristais pequenos ficam cravados na estrada
+## (só neste cliente, até sair do mapa), como prova da chegada.
 
 signal finished
 
 const SKY_BLUE := Color(0.45, 0.85, 1.0)
 const STAR_GOLD := Color(1.0, 0.9, 0.55)
-const HAY := Color(0.93, 0.78, 0.36)
-const HAY_DARK := Color(0.8, 0.6, 0.24)
-const WOOD := Color(0.48, 0.3, 0.15)
-const WOOD_DARK := Color(0.3, 0.18, 0.09)
+const CRYSTAL_TONES := [Color(0.55, 0.92, 1.0), Color(0.4, 0.75, 1.0), Color(0.72, 0.68, 1.0), Color(0.82, 0.97, 1.0)]
 
-## Pés do herói quando ele está de cabeça para baixo enfiado no feno (acima do chão).
-const STUCK_FEET := 2.85
-## Para onde ele pula ao sair da carroça (lado direito da estrada).
-const HOP_SIDE := 2.1
+## Altura em que o herói aparece quando o casulo estoura (depois desce flutuando).
+const REVEAL_HEIGHT := 0.9
+## Quanto tempo os fragmentos levam para chegar ao casulo (cada um tem um atraso de até SHARD_STAGGER).
+const SHARD_FLIGHT := 1.5
+const SHARD_STAGGER := 1.1
 
 var world: Node
 var player: Node3D
@@ -39,16 +37,16 @@ var _lines: VBoxContainer
 var _land := Vector3.ZERO
 var _fwd := Vector3.FORWARD
 var _right := Vector3.RIGHT
-var _cart: Node3D
-var _star: Node3D
-var _star_p := [Vector3.ZERO, Vector3.ZERO, Vector3.ZERO]   # bézier da queda
-var _star_t := -1.0          # 0..1 durante a queda, -1 fora dela
-var _trail_acc := 0.0
 var _sky_look := Vector3.ZERO
+var _beam: MeshInstance3D
+var _seal: MeshInstance3D
+var _core_light: OmniLight3D
+var _cocoon: Array = []      # fragmentos em voo/montados: {"n", "a0", "r0", "h0", "a1", "r1", "h1", "q0", "q1", "t0"}
+var _cocoon_t := -1.0        # relógio da montagem (-1 fora dela)
+var _remnants: Node3D
+var _glow: MeshInstance3D
 var _shake := 0.0
-var _wiggle := false
-var _dizzy: Node3D
-var _fx: Array = []          # partículas soltas: {"n": Node3D, "v": Vector3, "life", "age", "grow", "grav"}
+var _fx: Array = []          # partículas soltas: {"n": Node3D, "v": Vector3, "life", "age", "grow", "grav", "a0"}
 var _tweens: Array[Tween] = []
 var _done := false
 var _hud_was_visible := true
@@ -59,7 +57,7 @@ var _interp_mode := Node.PHYSICS_INTERPOLATION_MODE_INHERIT
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_land = player.global_position
-	# a vila fica ao norte da estrada: o herói cai olhando para ela
+	# a vila fica ao norte da estrada: o herói surge olhando para ela
 	var to_village := Vector3(-_land.x, 0, -_land.z)
 	_fwd = to_village.normalized() if to_village.length() > 1.0 else Vector3(0, 0, -1)
 	_right = _fwd.cross(Vector3.UP).normalized()
@@ -73,6 +71,10 @@ func _ready() -> void:
 	# a cena move o herói fora do passo de física: sem interpolação, o desenho acompanha na hora
 	_interp_mode = player.physics_interpolation_mode
 	player.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	player.set_physics_process(false)
+	var model: Node3D = player.get("model")
+	if model:
+		model.rotation.y = atan2(_fwd.x, _fwd.z)
 	if world.get("hud") != null:
 		_hud_was_visible = world.hud.visible
 		world.hud.visible = false
@@ -90,30 +92,27 @@ func _run() -> void:
 	# --- 2. janela de sistema
 	await _system_window()
 	if _done: return
-	# --- 3. o céu de Valdoria e a estrela cadente
-	_cart = _build_cart()
-	world.add_child(_cart)
-	_cart.global_position = _land
-	_cart.rotation.y = atan2(_fwd.x, _fwd.z)
+	# --- 3. o céu de Valdoria e o feixe de luz
 	_fade(_black, 0.0, 1.0)
-	_subtitle_show("Valdoria", 2.4, true)
-	await _wait(1.1)
+	_subtitle_show("Valdoria", 2.0, true)
+	await _wait(1.6)
 	if _done: return
-	_start_star()
-	Sfx.play("staff_wind", 0.0, -4.0)
-	await _wait(3.1)
+	await _beam_down()
 	if _done: return
-	# --- 4. PLOFT
-	_impact()
-	await _wait(2.6)
+	# --- 4. o selo e os fragmentos montando o casulo
+	_start_cocoon()
+	await _wait(SHARD_FLIGHT + SHARD_STAGGER + 0.15)
 	if _done: return
-	# --- 5. o herói se solta e cai tonto ao lado da carroça
-	await _hop_out()
+	await _cocoon_pulse()
 	if _done: return
-	await _wait(2.4)
+	# --- 5. o casulo estoura e o herói desce flutuando
+	_shatter()
+	await _float_down()
 	if _done: return
-	_subtitle_show("(Isso é... feno? Isso é... OUTRO MUNDO?!)", 2.6)
-	await _wait(2.8)
+	await _wait(1.0)
+	if _done: return
+	_subtitle_show("(Eu fui... montado de cristal? Isso é... OUTRO MUNDO?!)", 2.6)
+	await _wait(3.0)
 	if _done: return
 	# --- 6. volta para a câmera do jogo
 	await _blend_to_player(1.3)
@@ -130,17 +129,11 @@ func _input(event: InputEvent) -> void:
 		_skip()
 
 
-## Pula para o estado final: herói em pé ao lado da carroça, câmera do jogo.
+## Pula para o estado final: herói em pé na estrada, cristais cravados em volta, câmera do jogo.
 func _skip() -> void:
 	for tw in _tweens:
 		if tw.is_valid():
 			tw.kill()
-	if _cart == null:
-		_cart = _build_cart()
-		world.add_child(_cart)
-		_cart.global_position = _land
-		_cart.rotation.y = atan2(_fwd.x, _fwd.z)
-		_scatter_hay()
 	_finish()
 
 
@@ -148,25 +141,27 @@ func _finish() -> void:
 	if _done:
 		return
 	_done = true
-	_star_t = -1.0
-	if _star:
-		_star.queue_free()
-		_star = null
-	if _dizzy:
-		_dizzy.queue_free()
-		_dizzy = null
+	_cocoon_t = -1.0
+	for c in _cocoon:
+		if is_instance_valid(c.n):
+			c.n.queue_free()
+	_cocoon.clear()
+	for n in [_beam, _seal, _core_light, _glow]:
+		if is_instance_valid(n):
+			n.queue_free()
 	for f in _fx:
 		if is_instance_valid(f.n):
 			f.n.queue_free()
 	_fx.clear()
-	# herói em pé, fora da carroça, olhando a vila
+	if _remnants == null:
+		_plant_remnants()
+	# herói em pé no meio dos cristais, olhando a vila
 	var model: Node3D = player.get("model")
 	if model:
 		model.rotation.x = 0.0
 		model.rotation.z = 0.0
 		model.rotation.y = atan2(_fwd.x, _fwd.z)
-	if player.global_position.distance_to(_land + _right * HOP_SIDE) > 0.3:
-		player.global_position = _land + _right * HOP_SIDE + Vector3.UP * 0.1
+	player.global_position = _land + Vector3.UP * 0.05
 	_set_player_hidden(false)
 	player.set_physics_process(true)
 	player.physics_interpolation_mode = _interp_mode
@@ -194,19 +189,27 @@ func _process(delta: float) -> void:
 	if _done:
 		return
 	_clock += delta
-	# estrela caindo: posição na bézier (acelera no fim), rastro e câmera acompanhando
-	if _star_t >= 0.0 and _star:
-		_star_t = minf(1.0, _star_t + delta / 3.0)
-		var u := pow(_star_t, 1.7)
-		var p := _bezier(u)
-		_star.global_position = p
-		_star.rotate_y(delta * 6.0)
-		_trail_acc += delta
-		while _trail_acc > 0.018:
-			_trail_acc -= 0.018
-			_trail_puff(p)
-		_look(_cam.global_position, _sky_look.lerp(p, 0.55 + 0.4 * u))
-	# partículas: rastro, poeira e fiapos de feno
+	# fragmentos chegando em espiral até o lugar deles no casulo
+	if _cocoon_t >= 0.0:
+		_cocoon_t += delta
+		for c in _cocoon:
+			var u := clampf((_cocoon_t - float(c.t0)) / SHARD_FLIGHT, 0.0, 1.0)
+			var n: Node3D = c.n
+			if u <= 0.0:
+				continue
+			if not n.visible:
+				n.visible = true
+				if randf() < 0.35:
+					Sfx.play("gem", 0.15, -10.0)
+			var e := 1.0 - pow(1.0 - u, 3.0)   # chega rápido e assenta devagar
+			var a := lerpf(c.a0, c.a1, e)
+			var r := lerpf(c.r0, c.r1, e)
+			var h := lerpf(c.h0, c.h1, e)
+			n.global_position = _land + Vector3(cos(a) * r, h, sin(a) * r)
+			n.quaternion = (c.q0 as Quaternion).slerp(c.q1, e)
+			if u < 1.0:
+				_trail_mote(n.global_position, 0.05)
+	# partículas: brilhos, cacos e poeira
 	for i in range(_fx.size() - 1, -1, -1):
 		var f: Dictionary = _fx[i]
 		var n: Node3D = f.n
@@ -222,24 +225,21 @@ func _process(delta: float) -> void:
 		if f.grav > 0.0 and n.global_position.y < _land.y + 0.03:
 			n.global_position.y = _land.y + 0.03
 			f.v = Vector3.ZERO
+		if f.has("spin"):
+			n.rotate_object_local(f.spin, delta * 7.0)
 		n.scale = Vector3.ONE * lerpf(1.0, float(f.grow), k)
 		var mi := n as MeshInstance3D
 		if mi and mi.material_override is StandardMaterial3D:
 			var m: StandardMaterial3D = mi.material_override
 			m.albedo_color.a = (1.0 - k) * float(f.get("a0", 1.0))
-	# pernas para fora do feno, chacoalhando
-	var model: Node3D = player.get("model")
-	if _wiggle and model:
-		model.rotation.z = sin(_clock * 15.0) * 0.14
-	# estrelinhas de tontura em volta da cabeça
-	if _dizzy:
-		_dizzy.global_position = player.global_position + Vector3.UP * 2.05
-		_dizzy.rotation.y += delta * 5.0
+	# selo girando no chão
+	if is_instance_valid(_seal):
+		_seal.rotation.y += delta * 0.8
 	# tremor da câmera
 	if _shake > 0.0:
 		_shake = maxf(0.0, _shake - delta * 1.6)
-		_cam.h_offset = randf_range(-1, 1) * _shake * 0.35
-		_cam.v_offset = randf_range(-1, 1) * _shake * 0.35
+		_cam.h_offset = randf_range(-1, 1) * _shake * 0.3
+		_cam.v_offset = randf_range(-1, 1) * _shake * 0.3
 	else:
 		_cam.h_offset = 0.0
 		_cam.v_offset = 0.0
@@ -247,131 +247,216 @@ func _process(delta: float) -> void:
 
 # ================================================================ cenas
 func _place_sky_camera() -> void:
-	# atrás da carroça (ao sul), baixo, olhando o céu por cima da vila
+	# ao sul do ponto de chegada, baixo, olhando o céu por cima da vila
 	var pos := _land - _fwd * 11.0 - _right * 3.5 + Vector3.UP * 2.0
 	_sky_look = _land + _fwd * 40.0 + _right * 8.0 + Vector3.UP * 22.0
 	_look(pos, _sky_look)
 
 
-func _start_star() -> void:
-	_star = Node3D.new()
-	world.add_child(_star)
-	var core := _sphere(0.32, Color(1, 0.98, 0.9), false)
-	_star.add_child(core)
-	var halo := _sphere(0.95, Color(SKY_BLUE, 0.35), true)
-	_star.add_child(halo)
-	var halo2 := _sphere(2.2, Color(0.35, 0.6, 1.0, 0.12), true)
-	_star.add_child(halo2)
-	var light := OmniLight3D.new()
-	light.light_color = Color(0.75, 0.9, 1.0)
-	light.light_energy = 5.0
-	light.omni_range = 14.0
-	_star.add_child(light)
-	_star_p = [
-		_land + _fwd * 75.0 + _right * 34.0 + Vector3.UP * 58.0,
-		_land + _fwd * 22.0 + _right * 18.0 + Vector3.UP * 34.0,
-		_land + Vector3.UP * 1.4,
-	]
-	_star.global_position = _star_p[0]
-	_star_t = 0.0
-
-
-func _bezier(u: float) -> Vector3:
-	var a: Vector3 = _star_p[0].lerp(_star_p[1], u)
-	var b: Vector3 = _star_p[1].lerp(_star_p[2], u)
-	return a.lerp(b, u)
-
-
-func _trail_puff(p: Vector3) -> void:
-	var c := SKY_BLUE if randf() < 0.55 else STAR_GOLD
-	var s := _sphere(randf_range(0.35, 0.6), Color(c, 0.7), true)
-	world.add_child(s)
-	s.global_position = p + Vector3(randf_range(-0.2, 0.2), randf_range(-0.2, 0.2), randf_range(-0.2, 0.2))
-	_fx.append({"n": s, "v": Vector3.ZERO, "life": 1.3, "age": 0.0, "grow": 0.1, "grav": 0.0, "a0": 0.7})
-
-
-func _impact() -> void:
-	_star_t = -1.0
-	if _star:
-		_star.queue_free()
-		_star = null
-	Sfx.play("explode", 0.05, -2.0)
-	Sfx.play("slam", 0.05, -4.0)
-	_flash.color.a = 0.95
-	_track(create_tween()).tween_property(_flash, "color:a", 0.0, 0.55)
-	_shake = 1.0
-	# poeira
-	for i in 12:
-		var a := TAU * i / 12.0
-		var d := _sphere(randf_range(0.18, 0.3), Color(0.86, 0.78, 0.6, 0.5), false)
-		world.add_child(d)
-		d.global_position = _land + Vector3.UP * 0.3 + Vector3(cos(a), 0, sin(a)) * 1.0
-		_fx.append({"n": d, "v": Vector3(cos(a) * randf_range(1.6, 2.6), randf_range(0.3, 0.9), sin(a) * randf_range(1.6, 2.6)),
-			"life": 1.0, "age": 0.0, "grow": 1.6, "grav": 0.0, "a0": 0.45})
-	# fiapos de feno voando
-	for i in 36:
-		var straw := MeshInstance3D.new()
-		var bm := BoxMesh.new()
-		bm.size = Vector3(0.04, 0.04, randf_range(0.18, 0.35))
-		straw.mesh = bm
-		straw.material_override = _mat(HAY if randf() < 0.6 else HAY_DARK)
-		world.add_child(straw)
-		straw.global_position = _land + Vector3.UP * 1.3
-		straw.rotation = Vector3(randf() * TAU, randf() * TAU, randf() * TAU)
-		var dir := Vector3(randf_range(-1, 1), randf_range(0.8, 2.0), randf_range(-1, 1)).normalized()
-		_fx.append({"n": straw, "v": dir * randf_range(4.0, 8.0), "life": 2.6, "age": 0.0, "grow": 1.0, "grav": 9.0})
-	_scatter_hay()
-	# o herói enfiado de cabeça no feno, pernas para cima
-	_set_player_hidden(false, true)
-	player.set_physics_process(false)
-	player.global_position = _land + Vector3.UP * STUCK_FEET
-	var model: Node3D = player.get("model")
-	if model:
-		model.rotation.y = atan2(_fwd.x, _fwd.z)
-		model.rotation.x = PI
-	_wiggle = true
-	_onomatopoeia("PLOFT!")
-	# corta para o lado da carroça
-	_look(_land + _right * 4.6 - _fwd * 2.2 + Vector3.UP * 1.7, _land + Vector3.UP * 1.45)
-
-
-func _hop_out() -> void:
-	_wiggle = false
-	Sfx.play("dodge", 0.05)
-	var model: Node3D = player.get("model")
-	var a := player.global_position
-	var b := _land + _right * HOP_SIDE + Vector3.UP * 0.05
-	var hop := func(u: float) -> void:
-		player.global_position = a.lerp(b, u) + Vector3.UP * sin(u * PI) * 1.5
-		if model:
-			model.rotation.x = PI + PI * u   # cambalhota: de cabeça para baixo até em pé
-			model.rotation.z = 0.0
+## Um ponto de luz se abre no céu e um feixe desce até a estrada; a câmera acompanha descendo.
+func _beam_down() -> void:
+	Sfx.play("portal", 0.0, -4.0)
+	var top := _land + Vector3.UP * 60.0
+	_beam = MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.55
+	cm.bottom_radius = 0.55
+	cm.height = 1.0
+	cm.radial_segments = 16
+	cm.cap_top = false
+	cm.cap_bottom = false
+	_beam.mesh = cm
+	var bm := _glow_mat(Color(SKY_BLUE, 0.45))
+	bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	bm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	bm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_beam.material_override = bm
+	_beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	world.add_child(_beam)
+	_beam.global_position = top
+	_beam.scale = Vector3(1, 0.01, 1)
+	var cam0 := _cam.global_position
+	var cam1 := _land + _fwd * 5.5 + _right * 2.6 + Vector3.UP * 2.4
+	var look0 := _sky_look
+	var grow := func(u: float) -> void:
+		var ln := maxf(0.01, 60.0 * u)
+		_beam.scale = Vector3(1, ln, 1)
+		_beam.global_position = top + Vector3.DOWN * ln * 0.5
+		var tip := top + Vector3.DOWN * ln
+		_look(cam0.lerp(cam1, smoothstep(0.25, 1.0, u)), look0.lerp(tip, smoothstep(0.0, 0.5, u)).lerp(_land + Vector3.UP * 1.1, smoothstep(0.55, 1.0, u)))
 	var tw := _track(create_tween())
-	tw.tween_method(hop, 0.0, 1.0, 0.75)
+	tw.tween_method(grow, 0.0, 1.0, 1.8).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	await tw.finished
 	if _done:
 		return
-	if model:
-		model.rotation.x = 0.0
+	_shake = 0.3
+	# o feixe afina enquanto o selo assume
+	_track(create_tween()).tween_property(_beam, "scale:x", 0.25, 1.4)
+	_track(create_tween()).tween_property(_beam, "scale:z", 0.25, 1.4)
+
+
+## Selo no chão e os fragmentos saindo de todos os lados em espiral até o casulo.
+func _start_cocoon() -> void:
+	_seal = MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 1.25
+	tm.outer_radius = 1.4
+	tm.rings = 48
+	tm.ring_segments = 6
+	_seal.mesh = tm
+	_seal.material_override = _glow_mat(SKY_BLUE)
+	_seal.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	world.add_child(_seal)
+	_seal.global_position = _land + Vector3.UP * 0.04
+	_seal.scale = Vector3(0.05, 0.12, 0.05)
+	# marcas do selo: quatro losangos em cruz por dentro do anel
+	for i in 4:
+		var mark := MeshInstance3D.new()
+		var pm := PrismMesh.new()
+		pm.size = Vector3(0.22, 0.36, 0.02)
+		mark.mesh = pm
+		mark.material_override = _glow_mat(STAR_GOLD)
+		var a := TAU * i / 4.0
+		mark.position = Vector3(cos(a) * 1.0, 0.0, sin(a) * 1.0)
+		mark.rotation = Vector3(-PI / 2, 0, 0)
+		mark.rotate_y(-a - PI / 2)
+		_seal.add_child(mark)
+	_track(create_tween()).tween_property(_seal, "scale", Vector3(1, 0.12, 1), 0.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_core_light = OmniLight3D.new()
+	_core_light.light_color = Color(0.7, 0.9, 1.0)
+	_core_light.light_energy = 1.5
+	_core_light.omni_range = 7.0
+	world.add_child(_core_light)
+	_core_light.global_position = _land + Vector3.UP * 1.1
+	Sfx.play("frost", 0.0, -6.0)
+	# câmera girando devagar em volta do casulo enquanto ele se monta
+	var orbit := func(u: float) -> void:
+		var a := lerpf(0.55, -0.35, u)
+		var dir := (_fwd * cos(a) + _right * sin(a)).normalized()
+		_look(_land + dir * lerpf(6.0, 4.6, u) + Vector3.UP * lerpf(2.4, 1.8, u), _land + Vector3.UP * 1.1)
+	_track(create_tween()).tween_method(orbit, 0.0, 1.0, SHARD_FLIGHT + SHARD_STAGGER + 1.4).set_trans(Tween.TRANS_SINE)
+	# o casulo: um anel de cristais grandes inclinados para dentro e uma coroa menor por cima
+	var slots: Array = []
+	for i in 9:
+		var a := TAU * i / 9.0 + 0.2
+		slots.append({"a": a, "r": randf_range(0.6, 0.78), "h": 0.0, "len": randf_range(1.7, 2.4), "w": randf_range(0.17, 0.24), "tilt": randf_range(0.22, 0.45)})
+	for i in 6:
+		var a := TAU * i / 6.0 + 0.5
+		slots.append({"a": a, "r": 0.32, "h": 0.85, "len": randf_range(1.0, 1.3), "w": 0.16, "tilt": 0.6})
+	for i in 4:
+		var a := TAU * i / 4.0 + 1.0
+		slots.append({"a": a, "r": 0.95, "h": 0.0, "len": randf_range(0.6, 0.9), "w": 0.13, "tilt": -0.35})
+	for s in slots:
+		var n := _crystal(float(s.w), float(s.len), CRYSTAL_TONES[randi() % CRYSTAL_TONES.size()], 0.9)
+		n.visible = false
+		world.add_child(n)
+		# aponta para cima, inclinado em direção ao centro (tilt > 0) ou para fora (tilt < 0)
+		var out := Vector3(cos(s.a), 0, sin(s.a))
+		var dir := (Vector3.UP - out * float(s.tilt)).normalized()
+		var q1 := Quaternion(Vector3.UP, dir)
+		var q0 := Quaternion(Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).normalized(), randf() * TAU)
+		var a0 := float(s.a) - randf_range(1.4, 2.4)
+		_cocoon.append({"n": n, "a0": a0, "r0": randf_range(3.5, 6.0), "h0": randf_range(4.5, 9.0),
+			"a1": float(s.a), "r1": float(s.r), "h1": float(s.h), "q0": q0, "q1": q1,
+			"t0": randf() * SHARD_STAGGER})
+	_cocoon_t = 0.0
+
+
+## O casulo pronto pulsa de luz duas vezes e treme (alguém está lá dentro).
+func _cocoon_pulse() -> void:
+	_cocoon_t = -1.0
+	for i in 2:
+		Sfx.play("gem", 0.0, -4.0)
+		var tw := _track(create_tween())
+		tw.tween_property(_core_light, "light_energy", 6.0, 0.22)
+		tw.tween_property(_core_light, "light_energy", 1.8, 0.35)
+		_shake = 0.25 + 0.2 * i
+		await tw.finished
+		if _done:
+			return
+	await _wait(0.25)
+
+
+## O casulo estoura em cacos: flash, tremor, cacos voando e alguns cristais cravados na estrada.
+func _shatter() -> void:
+	Sfx.play("frost_hit", 0.0, -1.0)
+	Sfx.play("levelup", 0.0, -8.0)
+	_flash.color = Color(0.85, 0.97, 1.0, 0.9)
+	_track(create_tween()).tween_property(_flash, "color:a", 0.0, 0.6)
+	_shake = 0.8
+	for c in _cocoon:
+		var n: Node3D = c.n
+		if not is_instance_valid(n):
+			continue
+		# cada cristal do casulo vira dois ou três cacos voando para fora
+		for k in 3:
+			var shard := _crystal(randf_range(0.05, 0.1), randf_range(0.15, 0.32), CRYSTAL_TONES[randi() % CRYSTAL_TONES.size()], 0.95)
+			world.add_child(shard)
+			shard.global_position = n.global_position + Vector3.UP * randf_range(0.2, 1.4)
+			var out := (shard.global_position - _land) * Vector3(1, 0, 1)
+			out = out.normalized() if out.length() > 0.05 else Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)).normalized()
+			var v := out * randf_range(3.0, 6.5) + Vector3.UP * randf_range(2.5, 5.5)
+			_fx.append({"n": shard, "v": v, "life": randf_range(1.1, 1.7), "age": 0.0, "grow": 0.4, "grav": 11.0,
+				"spin": Vector3(randf_range(-1, 1), 1, randf_range(-1, 1)).normalized()})
+		n.queue_free()
+	_cocoon.clear()
+	for i in 24:
+		_trail_mote(_land + Vector3.UP * randf_range(0.3, 1.9), 0.9)
+	_plant_remnants()
+	if is_instance_valid(_beam):
+		_track(create_tween()).tween_property(_beam.material_override, "albedo_color:a", 0.0, 0.8)
+	if is_instance_valid(_seal):
+		# o selo abre e some (o anel e as marcas)
+		for mi in [_seal] + _seal.get_children():
+			var m: StandardMaterial3D = mi.material_override
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			_track(create_tween()).tween_property(m, "albedo_color:a", 0.0, 1.2)
+		var st := _track(create_tween())
+		st.tween_property(_seal, "scale", Vector3(1.6, 0.12, 1.6), 1.2)
+		st.tween_callback(_seal.queue_free)
+	if is_instance_valid(_core_light):
+		_track(create_tween()).tween_property(_core_light, "light_energy", 0.0, 1.4)
+	# o herói aparece no meio, flutuando, envolto num brilho que se apaga
+	player.global_position = _land + Vector3.UP * REVEAL_HEIGHT
+	_set_player_hidden(false, true)
+	_glow = _sphere(1.05, Color(SKY_BLUE, 0.35), true)
+	world.add_child(_glow)
+	_glow.global_position = player.global_position + Vector3.UP * 0.95
+
+
+## O herói desce flutuando até o chão; a câmera vai para a frente dele.
+func _float_down() -> void:
+	var a := player.global_position
+	var b := _land + Vector3.UP * 0.05
+	var cam0 := _cam.global_position
+	var cam1 := _land + _fwd * 3.6 - _right * 1.2 + Vector3.UP * 1.55
+	var look0 := _land + Vector3.UP * 1.1
+	var look1 := _land + Vector3.UP * 1.2
+	var down := func(u: float) -> void:
+		player.global_position = a.lerp(b, u)
+		if is_instance_valid(_glow):
+			_glow.global_position = player.global_position + Vector3.UP * 0.95
+			(_glow.material_override as StandardMaterial3D).albedo_color.a = 0.35 * (1.0 - u)
+			_glow.scale = Vector3.ONE * lerpf(1.0, 0.7, u)
+		if randf() < 0.3:
+			_trail_mote(player.global_position + Vector3(randf_range(-0.5, 0.5), randf_range(0.2, 1.8), randf_range(-0.5, 0.5)), 0.4)
+		_look(cam0.lerp(cam1, u), look0.lerp(look1, u))
+	var tw := _track(create_tween())
+	tw.tween_method(down, 0.0, 1.0, 1.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await tw.finished
+	if _done:
+		return
+	if is_instance_valid(_glow):
+		_glow.queue_free()
 	player.global_position = b
-	player.set_physics_process(true)
-	Sfx.play("hit", 0.05, -6.0)
-	_shake = 0.35
-	_dizzy = _make_dizzy()
-	world.add_child(_dizzy)
-	# câmera de frente para o herói tonto, a vila atrás da câmera
-	var from := _land + _right * 4.6 - _fwd * 2.2 + Vector3.UP * 1.7
-	var to := b + _fwd * 3.0 - _right * 1.4 + Vector3.UP * 1.5
-	var at0 := _land + Vector3.UP * 1.45
-	var at1 := b + Vector3.UP * 1.25
-	var move := func(u: float) -> void: _look(from.lerp(to, u), at0.lerp(at1, u))
-	_track(create_tween()).tween_method(move, 0.0, 1.0, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	Sfx.play("heal", 0.05, -6.0)
+	# poeirinha de cristal subindo em volta dos pés
+	for i in 10:
+		var ang := TAU * i / 10.0
+		_trail_mote(_land + Vector3(cos(ang) * 0.6, 0.1, sin(ang) * 0.6), 0.6)
 
 
 func _blend_to_player(dur: float) -> void:
-	if _dizzy:
-		_dizzy.queue_free()
-		_dizzy = null
 	_aim_player_camera()
 	var cam: Camera3D = player.get("camera")
 	if cam == null:
@@ -399,100 +484,82 @@ func _aim_player_camera() -> void:
 		pitch_node.rotation.x = -0.25
 
 
-# ================================================================ cenário
-## Carroça de feno do Beto: caixa de madeira, quatro rodas, varais na frente e um monte de feno em cima.
-## Comprimento ao longo de +Z (o roteiro gira para a frente apontar para a vila).
-func _build_cart() -> Node3D:
-	var root := Node3D.new()
-	root.name = "CarrocaDoBeto"
-	var wood := _mat(WOOD)
-	var dark := _mat(WOOD_DARK)
-	_box(root, Vector3(1.5, 0.12, 2.4), Vector3(0, 0.6, 0), wood)
-	for sx in [-1.0, 1.0]:
-		_box(root, Vector3(0.08, 0.42, 2.4), Vector3(0.71 * sx, 0.87, 0), wood)
-		_box(root, Vector3(0.1, 0.1, 2.5), Vector3(0.71 * sx, 1.1, 0), dark)
-		for sz in [-1.0, 1.0]:
-			var wheel := MeshInstance3D.new()
-			var cm := CylinderMesh.new()
-			cm.top_radius = 0.44
-			cm.bottom_radius = 0.44
-			cm.height = 0.09
-			cm.radial_segments = 16
-			wheel.mesh = cm
-			wheel.material_override = dark
-			wheel.rotation.z = PI / 2
-			wheel.position = Vector3(0.84 * sx, 0.44, 0.78 * sz)
-			root.add_child(wheel)
-			_box(root, Vector3(0.12, 0.16, 0.16), Vector3(0.9 * sx, 0.44, 0.78 * sz), wood)
-		# varal (os dois paus da frente, para o cavalo que fugiu de susto)
-		var shaft := _box(root, Vector3(0.07, 0.07, 1.7), Vector3(0.42 * sx, 0.5, 2.0), dark)
-		shaft.rotation.x = 0.12
-	for sz in [-1.0, 1.0]:
-		_box(root, Vector3(1.5, 0.42, 0.08), Vector3(0, 0.87, 1.18 * sz), wood)
-	_box(root, Vector3(1.6, 0.08, 0.08), Vector3(0, 0.44, 0.78), dark)
-	_box(root, Vector3(1.6, 0.08, 0.08), Vector3(0, 0.44, -0.78), dark)
-	# monte de feno (uma cratera no meio, onde o herói entrou)
-	var mounds := [[Vector3(0, 1.08, -0.55), Vector3(0.78, 0.5, 0.75)], [Vector3(0, 1.08, 0.6), Vector3(0.78, 0.48, 0.7)],
-		[Vector3(-0.42, 1.12, 0.0), Vector3(0.42, 0.52, 0.6)], [Vector3(0.42, 1.1, 0.05), Vector3(0.42, 0.5, 0.55)],
-		[Vector3(0, 1.35, -0.2), Vector3(0.5, 0.42, 0.5)]]
-	for m in mounds:
-		var hay := _sphere(1.0, HAY, false)
-		hay.material_override = _mat(HAY)
-		hay.position = m[0]
-		hay.scale = m[1]
-		root.add_child(hay)
+# ================================================================ cenário e efeitos
+## Cristal: prisma de seis lados com ponta, de pé ao longo de +Y a partir da base (origem no pé).
+func _crystal(w: float, length: float, c: Color, alpha: float) -> MeshInstance3D:
+	var body := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = w
+	cm.bottom_radius = w * 0.8
+	cm.height = length * 0.72
+	cm.radial_segments = 6
+	cm.rings = 1
+	body.mesh = cm
+	body.material_override = _crystal_mat(c, alpha)
+	body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# a malha do corpo fica deslocada para a base cair na origem do nó
+	var root := MeshInstance3D.new()
+	root.material_override = body.material_override
+	root.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.position = Vector3.UP * length * 0.36
+	root.add_child(body)
+	var tip := MeshInstance3D.new()
+	var tmesh := CylinderMesh.new()
+	tmesh.top_radius = 0.0
+	tmesh.bottom_radius = w
+	tmesh.height = length * 0.28
+	tmesh.radial_segments = 6
+	tmesh.rings = 1
+	tip.mesh = tmesh
+	tip.material_override = body.material_override
+	tip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	tip.position = Vector3.UP * length * 0.86
+	root.add_child(tip)
+	return root
+
+
+func _crystal_mat(c: Color, alpha: float) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(c, alpha)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.emission_enabled = true
+	m.emission = c
+	m.emission_energy_multiplier = 0.55
+	m.roughness = 0.15
+	m.metallic_specular = 0.9
+	return m
+
+
+## Brilho pequeno que sobe e some (rastro dos fragmentos, poeira de cristal).
+func _trail_mote(p: Vector3, rise: float) -> void:
+	var c: Color = SKY_BLUE if randf() < 0.7 else STAR_GOLD
+	var s := _sphere(randf_range(0.04, 0.09), Color(c, 0.85), true)
+	world.add_child(s)
+	s.global_position = p
+	_fx.append({"n": s, "v": Vector3(randf_range(-0.2, 0.2), rise, randf_range(-0.2, 0.2)), "life": randf_range(0.6, 1.1),
+		"age": 0.0, "grow": 0.3, "grav": 0.0, "a0": 0.85})
+
+
+## Cristais pequenos cravados na estrada em volta do ponto de chegada (ficam depois da cena).
+func _plant_remnants() -> void:
+	_remnants = Node3D.new()
+	_remnants.name = "CristaisDaChegada"
+	world.add_child(_remnants)
+	_remnants.global_position = _land
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
-	for i in 26:
-		var st := _box(root, Vector3(0.035, 0.035, rng.randf_range(0.25, 0.45)),
-			Vector3(rng.randf_range(-0.65, 0.65), rng.randf_range(1.2, 1.55), rng.randf_range(-1.0, 1.0)),
-			_mat(HAY_DARK if i % 3 == 0 else HAY))
-		st.rotation = Vector3(rng.randf_range(-0.9, 0.9), rng.randf() * TAU, rng.randf_range(-0.9, 0.9))
-	# colisão simples: dá para encostar na carroça, não para atravessar
-	var body := StaticBody3D.new()
-	var shape := CollisionShape3D.new()
-	var bs := BoxShape3D.new()
-	bs.size = Vector3(1.7, 1.5, 2.5)
-	shape.shape = bs
-	shape.position = Vector3(0, 0.75, 0)
-	body.add_child(shape)
-	root.add_child(body)
-	return root
-
-
-## Feno espalhado pelo chão em volta da carroça (fica depois da cena).
-func _scatter_hay() -> void:
-	if _cart == null:
-		return
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 11
-	for i in 9:
+	for i in 7:
 		var a := rng.randf() * TAU
-		var r := rng.randf_range(1.5, 3.2)
-		var tuft := _sphere(1.0, HAY, false)
-		tuft.material_override = _mat(HAY_DARK if i % 2 else HAY)
-		tuft.scale = Vector3(rng.randf_range(0.18, 0.32), 0.12, rng.randf_range(0.18, 0.32))
-		_cart.add_child(tuft)
-		tuft.global_position = _land + Vector3(cos(a) * r, 0.04, sin(a) * r)
-
-
-func _make_dizzy() -> Node3D:
-	var root := Node3D.new()
-	# brilhos de quatro pontas (duas varetas cruzadas) girando em volta da cabeça
-	for i in 4:
-		var a := TAU * i / 4.0
-		var spark := Node3D.new()
-		spark.position = Vector3(cos(a) * 0.4, (0.05 if i % 2 else -0.03), sin(a) * 0.4)
-		for rz in [0.0, PI / 2]:
-			var arm := MeshInstance3D.new()
-			var bm := BoxMesh.new()
-			bm.size = Vector3(0.2, 0.035, 0.02)
-			arm.mesh = bm
-			arm.material_override = _glow_mat(STAR_GOLD if i % 2 == 0 else Color(1, 1, 0.85))
-			arm.rotation.z = rz + PI / 4
-			spark.add_child(arm)
-		root.add_child(spark)
-	return root
+		var r := rng.randf_range(0.9, 2.1)
+		var cl := Node3D.new()
+		_remnants.add_child(cl)
+		cl.position = Vector3(cos(a) * r, -0.04, sin(a) * r)
+		cl.rotation.y = rng.randf() * TAU
+		for k in rng.randi_range(1, 3):
+			var n := _crystal(rng.randf_range(0.05, 0.09), rng.randf_range(0.22, 0.45), CRYSTAL_TONES[rng.randi() % CRYSTAL_TONES.size()], 0.85)
+			cl.add_child(n)
+			n.position = Vector3(rng.randf_range(-0.08, 0.08), 0, rng.randf_range(-0.08, 0.08))
+			n.rotation = Vector3(rng.randf_range(-0.5, 0.5), 0, rng.randf_range(-0.5, 0.5))
 
 
 # ================================================================ interface (tela preta, sistema, legendas)
@@ -613,8 +680,8 @@ func _system_window() -> void:
 		["Nome: %s   ·   Classe: %s   ·   Nível 1" % [StoryDialogue.hero(), cls if cls != "" else "???"], Color(1, 1, 1)],
 		["Título obtido: [ Forasteiro de Outro Mundo ]", STAR_GOLD],
 		["Habilidade única: ??? (ainda não descoberta)", Color(0.85, 0.95, 1.0)],
-		["⚠ Destino: Valdoria — coordenadas imprecisas.", Color(1.0, 0.78, 0.4)],
-		["⚠ Altitude de chegada: 300 m.  Boa sorte!", Color(1.0, 0.55, 0.45)],
+		["⚠ Corpo original: indisponível. Montando um novo com o material local...", Color(1.0, 0.78, 0.4)],
+		["⚠ Material local: cristal. Montagem: 99,7%.  Boa sorte!", Color(1.0, 0.55, 0.45)],
 	]
 	for r in rows:
 		if _done:
@@ -649,31 +716,6 @@ func _subtitle_show(text: String, hold: float, title := false) -> void:
 	tw.tween_property(_subtitle, "modulate:a", 1.0, 0.4)
 	tw.tween_interval(hold)
 	tw.tween_property(_subtitle, "modulate:a", 0.0, 0.5)
-
-
-## Onomatopeia de mangá no meio da tela: entra grande e torta, encolhe e some.
-func _onomatopoeia(text: String) -> void:
-	var l := UITheme.outlined(text, 96, Color(1.0, 0.86, 0.3), 16)
-	l.add_theme_font_override("font", UITheme.serif())
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.anchor_left = 0.27
-	l.anchor_right = 0.27
-	l.anchor_top = 0.24
-	l.anchor_bottom = 0.24
-	l.offset_left = -260
-	l.offset_right = 260
-	l.offset_top = -80
-	l.offset_bottom = 80
-	l.pivot_offset = Vector2(260, 80)
-	l.rotation = -0.18
-	l.scale = Vector2(2.2, 2.2)
-	_ui.add_child(l)
-	var tw := _track(create_tween())
-	tw.tween_property(l, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.tween_interval(1.0)
-	tw.tween_property(l, "modulate:a", 0.0, 0.4)
-	tw.tween_callback(l.queue_free)
 
 
 # ================================================================ utilidades
