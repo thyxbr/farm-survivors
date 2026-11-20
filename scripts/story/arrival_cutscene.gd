@@ -3,25 +3,49 @@ extends Node
 ## Abertura "isekai" do personagem novo (primeira vez no mundo), antes da narração e do Ancião Bram:
 ##   1. Tela preta: a última lembrança do outro mundo ("uma luz muito forte... e uma voz dizendo: Ops.").
 ##   2. Janela de SISTEMA (o clichê do anime isekai): transferência de alma, nome, classe, nível 1 e o aviso
-##      de que o corpo vai ser montado "com o material disponível".
-##   3. Plano do céu sobre Valdoria: um ponto de luz se abre lá no alto e desce um feixe até a estrada do sul.
-##   4. Um selo se acende no chão e fragmentos de cristal chegam girando de todos os lados, montando um casulo.
-##   5. O casulo pulsa, racha e estoura em cacos: o herói está lá dentro, flutuando, e desce devagar até o chão.
+##      de que o corpo original não veio junto e um novo vai ser gerado ali mesmo.
+##   3. Plano do céu sobre Valdoria: um feixe de luz desce do céu até a estrada do sul.
+##   4. Reconstrução: um anel de varredura sobe dos pés à cabeça e o corpo vai sendo montado em luz azul,
+##      com blocos de dados chegando de todos os lados até a linha do anel.
+##   5. O holograma fica sólido num clarão (o brilho azul se apaga por cima do corpo de verdade).
 ##   6. A câmera volta para trás do jogador e o mundo passa para a narração (StoryDialogue.intro()).
-## Espaço, Enter ou Esc pulam para o fim a qualquer momento. Alguns cristais pequenos ficam cravados na estrada
-## (só neste cliente, até sair do mapa), como prova da chegada.
+## Espaço, Enter ou Esc pulam para o fim a qualquer momento.
 
 signal finished
 
 const SKY_BLUE := Color(0.45, 0.85, 1.0)
 const STAR_GOLD := Color(1.0, 0.9, 0.55)
-const CRYSTAL_TONES := [Color(0.55, 0.92, 1.0), Color(0.4, 0.75, 1.0), Color(0.72, 0.68, 1.0), Color(0.82, 0.97, 1.0)]
+const DATA_TONES := [Color(0.45, 0.85, 1.0), Color(0.75, 0.95, 1.0), Color(0.35, 0.6, 1.0)]
 
-## Altura em que o herói aparece quando o casulo estoura (depois desce flutuando).
-const REVEAL_HEIGHT := 0.9
-## Quanto tempo os fragmentos levam para chegar ao casulo (cada um tem um atraso de até SHARD_STAGGER).
-const SHARD_FLIGHT := 1.5
-const SHARD_STAGGER := 1.1
+## Altura que o anel de varredura percorre (pés até um pouco acima da cabeça) e quanto tempo leva.
+const BUILD_HEIGHT := 2.15
+const BUILD_TIME := 2.8
+
+## Holograma da reconstrução: some acima da linha de corte (altura no mundo), faixa branca na linha, grade
+## de "dados" e borda brilhante. `fade` multiplica tudo (o brilho que se apaga por cima do corpo pronto).
+const HOLO_SHADER := """
+shader_type spatial;
+render_mode unshaded, blend_add, cull_back, depth_draw_never, shadows_disabled;
+uniform float cut_y = 1000.0;
+uniform float band = 0.14;
+uniform vec4 tint : source_color = vec4(0.45, 0.85, 1.0, 1.0);
+uniform float fade = 1.0;
+varying vec3 wpos;
+void vertex() {
+	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+}
+void fragment() {
+	if (wpos.y > cut_y) {
+		discard;
+	}
+	float edge = 1.0 - smoothstep(0.0, band, cut_y - wpos.y);
+	vec3 g = abs(fract(wpos * 14.0) - 0.5);
+	float grid = step(0.43, max(g.x, g.z)) + step(0.45, g.y);
+	float rim = pow(1.0 - abs(dot(NORMAL, VIEW)), 2.0);
+	vec3 c = tint.rgb * (0.28 + 0.75 * rim + 0.35 * min(grid, 1.0)) + vec3(0.9, 0.97, 1.0) * edge * 1.4;
+	ALBEDO = c * fade;
+}
+"""
 
 var world: Node
 var player: Node3D
@@ -40,11 +64,13 @@ var _right := Vector3.RIGHT
 var _sky_look := Vector3.ZERO
 var _beam: MeshInstance3D
 var _seal: MeshInstance3D
+var _rings: Array[MeshInstance3D] = []
 var _core_light: OmniLight3D
-var _cocoon: Array = []      # fragmentos em voo/montados: {"n", "a0", "r0", "h0", "a1", "r1", "h1", "q0", "q1", "t0"}
-var _cocoon_t := -1.0        # relógio da montagem (-1 fora dela)
-var _remnants: Node3D
-var _glow: MeshInstance3D
+var _holo: ShaderMaterial
+var _holo_meshes: Array = []   # {"mi", "override", "overlay"}: materiais originais para devolver no fim
+var _cut := -1000.0            # linha de corte atual (altura no mundo) durante a montagem
+var _building := false
+var _bit_acc := 0.0
 var _shake := 0.0
 var _fx: Array = []          # partículas soltas: {"n": Node3D, "v": Vector3, "life", "age", "grow", "grav", "a0"}
 var _tweens: Array[Tween] = []
@@ -72,6 +98,7 @@ func _ready() -> void:
 	_interp_mode = player.physics_interpolation_mode
 	player.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	player.set_physics_process(false)
+	player.global_position = _land + Vector3.UP * 0.05
 	var model: Node3D = player.get("model")
 	if model:
 		model.rotation.y = atan2(_fwd.x, _fwd.z)
@@ -99,19 +126,16 @@ func _run() -> void:
 	if _done: return
 	await _beam_down()
 	if _done: return
-	# --- 4. o selo e os fragmentos montando o casulo
-	_start_cocoon()
-	await _wait(SHARD_FLIGHT + SHARD_STAGGER + 0.15)
+	# --- 4. a reconstrução, dos pés à cabeça
+	await _build_body()
 	if _done: return
-	await _cocoon_pulse()
+	await _wait(0.45)
 	if _done: return
-	# --- 5. o casulo estoura e o herói desce flutuando
-	_shatter()
-	await _float_down()
+	# --- 5. o holograma fica sólido
+	_solidify()
+	await _wait(1.4)
 	if _done: return
-	await _wait(1.0)
-	if _done: return
-	_subtitle_show("(Eu fui... montado de cristal? Isso é... OUTRO MUNDO?!)", 2.6)
+	_subtitle_show("(Esse corpo... é meu? Isso é... OUTRO MUNDO?!)", 2.6)
 	await _wait(3.0)
 	if _done: return
 	# --- 6. volta para a câmera do jogo
@@ -129,7 +153,7 @@ func _input(event: InputEvent) -> void:
 		_skip()
 
 
-## Pula para o estado final: herói em pé na estrada, cristais cravados em volta, câmera do jogo.
+## Pula para o estado final: herói em pé na estrada, câmera do jogo.
 func _skip() -> void:
 	for tw in _tweens:
 		if tw.is_valid():
@@ -141,21 +165,20 @@ func _finish() -> void:
 	if _done:
 		return
 	_done = true
-	_cocoon_t = -1.0
-	for c in _cocoon:
-		if is_instance_valid(c.n):
-			c.n.queue_free()
-	_cocoon.clear()
-	for n in [_beam, _seal, _core_light, _glow]:
+	_building = false
+	_restore_materials()
+	for n in [_beam, _seal, _core_light]:
 		if is_instance_valid(n):
 			n.queue_free()
+	for r in _rings:
+		if is_instance_valid(r):
+			r.queue_free()
+	_rings.clear()
 	for f in _fx:
 		if is_instance_valid(f.n):
 			f.n.queue_free()
 	_fx.clear()
-	if _remnants == null:
-		_plant_remnants()
-	# herói em pé no meio dos cristais, olhando a vila
+	# herói em pé, olhando a vila
 	var model: Node3D = player.get("model")
 	if model:
 		model.rotation.x = 0.0
@@ -189,27 +212,15 @@ func _process(delta: float) -> void:
 	if _done:
 		return
 	_clock += delta
-	# fragmentos chegando em espiral até o lugar deles no casulo
-	if _cocoon_t >= 0.0:
-		_cocoon_t += delta
-		for c in _cocoon:
-			var u := clampf((_cocoon_t - float(c.t0)) / SHARD_FLIGHT, 0.0, 1.0)
-			var n: Node3D = c.n
-			if u <= 0.0:
-				continue
-			if not n.visible:
-				n.visible = true
-				if randf() < 0.35:
-					Sfx.play("gem", 0.15, -10.0)
-			var e := 1.0 - pow(1.0 - u, 3.0)   # chega rápido e assenta devagar
-			var a := lerpf(c.a0, c.a1, e)
-			var r := lerpf(c.r0, c.r1, e)
-			var h := lerpf(c.h0, c.h1, e)
-			n.global_position = _land + Vector3(cos(a) * r, h, sin(a) * r)
-			n.quaternion = (c.q0 as Quaternion).slerp(c.q1, e)
-			if u < 1.0:
-				_trail_mote(n.global_position, 0.05)
-	# partículas: brilhos, cacos e poeira
+	# blocos de dados chegando de todos os lados até a linha do anel
+	if _building:
+		_bit_acc += delta
+		while _bit_acc > 0.012:
+			_bit_acc -= 0.012
+			_data_bit_in()
+		if _holo:
+			_holo.set_shader_parameter("fade", 0.85 + 0.15 * sin(_clock * 37.0))
+	# partículas
 	for i in range(_fx.size() - 1, -1, -1):
 		var f: Dictionary = _fx[i]
 		var n: Node3D = f.n
@@ -222,11 +233,6 @@ func _process(delta: float) -> void:
 		var k: float = f.age / f.life
 		f.v += Vector3.DOWN * float(f.grav) * delta
 		n.global_position += f.v * delta
-		if f.grav > 0.0 and n.global_position.y < _land.y + 0.03:
-			n.global_position.y = _land.y + 0.03
-			f.v = Vector3.ZERO
-		if f.has("spin"):
-			n.rotate_object_local(f.spin, delta * 7.0)
 		n.scale = Vector3.ONE * lerpf(1.0, float(f.grow), k)
 		var mi := n as MeshInstance3D
 		if mi and mi.material_override is StandardMaterial3D:
@@ -253,20 +259,20 @@ func _place_sky_camera() -> void:
 	_look(pos, _sky_look)
 
 
-## Um ponto de luz se abre no céu e um feixe desce até a estrada; a câmera acompanha descendo.
+## Um feixe de luz desce do céu até a estrada; a câmera acompanha descendo.
 func _beam_down() -> void:
 	Sfx.play("portal", 0.0, -4.0)
 	var top := _land + Vector3.UP * 60.0
 	_beam = MeshInstance3D.new()
 	var cm := CylinderMesh.new()
-	cm.top_radius = 0.55
-	cm.bottom_radius = 0.55
+	cm.top_radius = 0.6
+	cm.bottom_radius = 0.6
 	cm.height = 1.0
 	cm.radial_segments = 16
 	cm.cap_top = false
 	cm.cap_bottom = false
 	_beam.mesh = cm
-	var bm := _glow_mat(Color(SKY_BLUE, 0.45))
+	var bm := _glow_mat(Color(SKY_BLUE, 0.4))
 	bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	bm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	bm.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -276,31 +282,25 @@ func _beam_down() -> void:
 	_beam.global_position = top
 	_beam.scale = Vector3(1, 0.01, 1)
 	var cam0 := _cam.global_position
-	var cam1 := _land + _fwd * 5.5 + _right * 2.6 + Vector3.UP * 2.4
+	var cam1 := _land + _fwd * 4.6 + _right * 2.2 + Vector3.UP * 1.6
 	var look0 := _sky_look
 	var grow := func(u: float) -> void:
 		var ln := maxf(0.01, 60.0 * u)
 		_beam.scale = Vector3(1, ln, 1)
 		_beam.global_position = top + Vector3.DOWN * ln * 0.5
 		var tip := top + Vector3.DOWN * ln
-		_look(cam0.lerp(cam1, smoothstep(0.25, 1.0, u)), look0.lerp(tip, smoothstep(0.0, 0.5, u)).lerp(_land + Vector3.UP * 1.1, smoothstep(0.55, 1.0, u)))
+		_look(cam0.lerp(cam1, smoothstep(0.25, 1.0, u)), look0.lerp(tip, smoothstep(0.0, 0.5, u)).lerp(_land + Vector3.UP * 0.9, smoothstep(0.55, 1.0, u)))
 	var tw := _track(create_tween())
 	tw.tween_method(grow, 0.0, 1.0, 1.8).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	await tw.finished
 	if _done:
 		return
 	_shake = 0.3
-	# o feixe afina enquanto o selo assume
-	_track(create_tween()).tween_property(_beam, "scale:x", 0.25, 1.4)
-	_track(create_tween()).tween_property(_beam, "scale:z", 0.25, 1.4)
-
-
-## Selo no chão e os fragmentos saindo de todos os lados em espiral até o casulo.
-func _start_cocoon() -> void:
+	# selo no chão e luz azul no ponto de chegada
 	_seal = MeshInstance3D.new()
 	var tm := TorusMesh.new()
-	tm.inner_radius = 1.25
-	tm.outer_radius = 1.4
+	tm.inner_radius = 1.05
+	tm.outer_radius = 1.15
 	tm.rings = 48
 	tm.ring_segments = 6
 	_seal.mesh = tm
@@ -309,151 +309,103 @@ func _start_cocoon() -> void:
 	world.add_child(_seal)
 	_seal.global_position = _land + Vector3.UP * 0.04
 	_seal.scale = Vector3(0.05, 0.12, 0.05)
-	# marcas do selo: quatro losangos em cruz por dentro do anel
-	for i in 4:
-		var mark := MeshInstance3D.new()
-		var pm := PrismMesh.new()
-		pm.size = Vector3(0.22, 0.36, 0.02)
-		mark.mesh = pm
-		mark.material_override = _glow_mat(STAR_GOLD)
-		var a := TAU * i / 4.0
-		mark.position = Vector3(cos(a) * 1.0, 0.0, sin(a) * 1.0)
-		mark.rotation = Vector3(-PI / 2, 0, 0)
-		mark.rotate_y(-a - PI / 2)
-		_seal.add_child(mark)
-	_track(create_tween()).tween_property(_seal, "scale", Vector3(1, 0.12, 1), 0.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_track(create_tween()).tween_property(_seal, "scale", Vector3(1, 0.12, 1), 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_core_light = OmniLight3D.new()
-	_core_light.light_color = Color(0.7, 0.9, 1.0)
-	_core_light.light_energy = 1.5
-	_core_light.omni_range = 7.0
+	_core_light.light_color = Color(0.6, 0.85, 1.0)
+	_core_light.light_energy = 2.0
+	_core_light.omni_range = 6.0
 	world.add_child(_core_light)
-	_core_light.global_position = _land + Vector3.UP * 1.1
-	Sfx.play("frost", 0.0, -6.0)
-	# câmera girando devagar em volta do casulo enquanto ele se monta
-	var orbit := func(u: float) -> void:
-		var a := lerpf(0.55, -0.35, u)
-		var dir := (_fwd * cos(a) + _right * sin(a)).normalized()
-		_look(_land + dir * lerpf(6.0, 4.6, u) + Vector3.UP * lerpf(2.4, 1.8, u), _land + Vector3.UP * 1.1)
-	_track(create_tween()).tween_method(orbit, 0.0, 1.0, SHARD_FLIGHT + SHARD_STAGGER + 1.4).set_trans(Tween.TRANS_SINE)
-	# o casulo: um anel de cristais grandes inclinados para dentro e uma coroa menor por cima
-	var slots: Array = []
-	for i in 9:
-		var a := TAU * i / 9.0 + 0.2
-		slots.append({"a": a, "r": randf_range(0.6, 0.78), "h": 0.0, "len": randf_range(1.7, 2.4), "w": randf_range(0.17, 0.24), "tilt": randf_range(0.22, 0.45)})
-	for i in 6:
-		var a := TAU * i / 6.0 + 0.5
-		slots.append({"a": a, "r": 0.32, "h": 0.85, "len": randf_range(1.0, 1.3), "w": 0.16, "tilt": 0.6})
-	for i in 4:
-		var a := TAU * i / 4.0 + 1.0
-		slots.append({"a": a, "r": 0.95, "h": 0.0, "len": randf_range(0.6, 0.9), "w": 0.13, "tilt": -0.35})
-	for s in slots:
-		var n := _crystal(float(s.w), float(s.len), CRYSTAL_TONES[randi() % CRYSTAL_TONES.size()], 0.9)
-		n.visible = false
-		world.add_child(n)
-		# aponta para cima, inclinado em direção ao centro (tilt > 0) ou para fora (tilt < 0)
-		var out := Vector3(cos(s.a), 0, sin(s.a))
-		var dir := (Vector3.UP - out * float(s.tilt)).normalized()
-		var q1 := Quaternion(Vector3.UP, dir)
-		var q0 := Quaternion(Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).normalized(), randf() * TAU)
-		var a0 := float(s.a) - randf_range(1.4, 2.4)
-		_cocoon.append({"n": n, "a0": a0, "r0": randf_range(3.5, 6.0), "h0": randf_range(4.5, 9.0),
-			"a1": float(s.a), "r1": float(s.r), "h1": float(s.h), "q0": q0, "q1": q1,
-			"t0": randf() * SHARD_STAGGER})
-	_cocoon_t = 0.0
+	_core_light.global_position = _land + Vector3.UP * 1.2
+	# o feixe afina até virar um fio fraco, para não esconder o corpo sendo montado
+	_track(create_tween()).tween_property(_beam, "scale:x", 0.1, 0.6)
+	_track(create_tween()).tween_property(_beam, "scale:z", 0.1, 0.6)
+	_track(create_tween()).tween_property(_beam.material_override, "albedo_color:a", 0.22, 0.6)
 
 
-## O casulo pronto pulsa de luz duas vezes e treme (alguém está lá dentro).
-func _cocoon_pulse() -> void:
-	_cocoon_t = -1.0
-	for i in 2:
-		Sfx.play("gem", 0.0, -4.0)
-		var tw := _track(create_tween())
-		tw.tween_property(_core_light, "light_energy", 6.0, 0.22)
-		tw.tween_property(_core_light, "light_energy", 1.8, 0.35)
-		_shake = 0.25 + 0.2 * i
-		await tw.finished
-		if _done:
-			return
-	await _wait(0.25)
-
-
-## O casulo estoura em cacos: flash, tremor, cacos voando e alguns cristais cravados na estrada.
-func _shatter() -> void:
-	Sfx.play("frost_hit", 0.0, -1.0)
-	Sfx.play("levelup", 0.0, -8.0)
-	_flash.color = Color(0.85, 0.97, 1.0, 0.9)
-	_track(create_tween()).tween_property(_flash, "color:a", 0.0, 0.6)
-	_shake = 0.8
-	for c in _cocoon:
-		var n: Node3D = c.n
-		if not is_instance_valid(n):
-			continue
-		# cada cristal do casulo vira dois ou três cacos voando para fora
-		for k in 3:
-			var shard := _crystal(randf_range(0.05, 0.1), randf_range(0.15, 0.32), CRYSTAL_TONES[randi() % CRYSTAL_TONES.size()], 0.95)
-			world.add_child(shard)
-			shard.global_position = n.global_position + Vector3.UP * randf_range(0.2, 1.4)
-			var out := (shard.global_position - _land) * Vector3(1, 0, 1)
-			out = out.normalized() if out.length() > 0.05 else Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)).normalized()
-			var v := out * randf_range(3.0, 6.5) + Vector3.UP * randf_range(2.5, 5.5)
-			_fx.append({"n": shard, "v": v, "life": randf_range(1.1, 1.7), "age": 0.0, "grow": 0.4, "grav": 11.0,
-				"spin": Vector3(randf_range(-1, 1), 1, randf_range(-1, 1)).normalized()})
-		n.queue_free()
-	_cocoon.clear()
-	for i in 24:
-		_trail_mote(_land + Vector3.UP * randf_range(0.3, 1.9), 0.9)
-	_plant_remnants()
-	if is_instance_valid(_beam):
-		_track(create_tween()).tween_property(_beam.material_override, "albedo_color:a", 0.0, 0.8)
-	if is_instance_valid(_seal):
-		# o selo abre e some (o anel e as marcas)
-		for mi in [_seal] + _seal.get_children():
-			var m: StandardMaterial3D = mi.material_override
-			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-			_track(create_tween()).tween_property(m, "albedo_color:a", 0.0, 1.2)
-		var st := _track(create_tween())
-		st.tween_property(_seal, "scale", Vector3(1.6, 0.12, 1.6), 1.2)
-		st.tween_callback(_seal.queue_free)
-	if is_instance_valid(_core_light):
-		_track(create_tween()).tween_property(_core_light, "light_energy", 0.0, 1.4)
-	# o herói aparece no meio, flutuando, envolto num brilho que se apaga
-	player.global_position = _land + Vector3.UP * REVEAL_HEIGHT
+## O anel de varredura sobe dos pés à cabeça; abaixo dele o corpo existe em luz azul.
+func _build_body() -> void:
+	_apply_hologram()
 	_set_player_hidden(false, true)
-	_glow = _sphere(1.05, Color(SKY_BLUE, 0.35), true)
-	world.add_child(_glow)
-	_glow.global_position = player.global_position + Vector3.UP * 0.95
-
-
-## O herói desce flutuando até o chão; a câmera vai para a frente dele.
-func _float_down() -> void:
-	var a := player.global_position
-	var b := _land + Vector3.UP * 0.05
-	var cam0 := _cam.global_position
-	var cam1 := _land + _fwd * 3.6 - _right * 1.2 + Vector3.UP * 1.55
-	var look0 := _land + Vector3.UP * 1.1
-	var look1 := _land + Vector3.UP * 1.2
-	var down := func(u: float) -> void:
-		player.global_position = a.lerp(b, u)
-		if is_instance_valid(_glow):
-			_glow.global_position = player.global_position + Vector3.UP * 0.95
-			(_glow.material_override as StandardMaterial3D).albedo_color.a = 0.35 * (1.0 - u)
-			_glow.scale = Vector3.ONE * lerpf(1.0, 0.7, u)
-		if randf() < 0.3:
-			_trail_mote(player.global_position + Vector3(randf_range(-0.5, 0.5), randf_range(0.2, 1.8), randf_range(-0.5, 0.5)), 0.4)
-		_look(cam0.lerp(cam1, u), look0.lerp(look1, u))
+	Sfx.play("arcane_cast", 0.0, -3.0)
+	for i in 2:
+		var r := MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = 0.55 + 0.22 * i
+		tm.outer_radius = 0.59 + 0.22 * i
+		tm.rings = 40
+		tm.ring_segments = 4
+		r.mesh = tm
+		var m := _glow_mat(Color(0.85, 0.97, 1.0, 0.95 - 0.45 * i))
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		r.material_override = m
+		r.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		world.add_child(r)
+		r.scale = Vector3(1, 0.3, 1)
+		_rings.append(r)
+	_building = true
+	var y0 := _land.y - 0.05
+	var step := func(u: float) -> void:
+		_cut = y0 + BUILD_HEIGHT * u
+		_holo.set_shader_parameter("cut_y", _cut)
+		for i in _rings.size():
+			_rings[i].global_position = Vector3(_land.x, _cut - 0.06 * i, _land.z)
+		# câmera girando devagar, de três quartos para a frente do herói, subindo junto
+		var a := lerpf(0.75, 0.15, u)
+		var dir := (_fwd * cos(a) + _right * sin(a)).normalized()
+		_look(_land + dir * lerpf(4.4, 3.6, u) + Vector3.UP * lerpf(1.1, 1.6, u), _land + Vector3.UP * lerpf(0.7, 1.2, u))
 	var tw := _track(create_tween())
-	tw.tween_method(down, 0.0, 1.0, 1.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_method(step, 0.0, 1.0, BUILD_TIME)
+	# blips de montagem pelo caminho
+	for i in 5:
+		tw.parallel().tween_callback(Sfx.play.bind("click", 0.2, -8.0)).set_delay(BUILD_TIME * (0.1 + 0.18 * i))
 	await tw.finished
+	_building = false
 	if _done:
 		return
-	if is_instance_valid(_glow):
-		_glow.queue_free()
-	player.global_position = b
-	Sfx.play("heal", 0.05, -6.0)
-	# poeirinha de cristal subindo em volta dos pés
-	for i in 10:
-		var ang := TAU * i / 10.0
-		_trail_mote(_land + Vector3(cos(ang) * 0.6, 0.1, sin(ang) * 0.6), 0.6)
+	_holo.set_shader_parameter("fade", 1.0)
+	for r in _rings:
+		var rt := _track(create_tween())
+		rt.tween_property(r.material_override, "albedo_color:a", 0.0, 0.35)
+		rt.tween_callback(r.queue_free)
+	_rings.clear()
+
+
+## O holograma vira o corpo de verdade num clarão; o brilho azul se apaga por cima e os blocos se espalham.
+func _solidify() -> void:
+	Sfx.play("levelup", 0.0, -4.0)
+	Sfx.play("heal", 0.0, -6.0)
+	_flash.color = Color(0.85, 0.97, 1.0, 0.85)
+	_track(create_tween()).tween_property(_flash, "color:a", 0.0, 0.5)
+	_shake = 0.35
+	# materiais originais de volta; o holograma passa a ser só um brilho por cima, que some
+	for h in _holo_meshes:
+		if is_instance_valid(h.mi):
+			h.mi.material_override = h.override
+			h.mi.material_overlay = _holo
+	_holo.set_shader_parameter("cut_y", 1000.0)
+	_track(create_tween()).tween_method(func(v: float) -> void: _holo.set_shader_parameter("fade", v), 1.0, 0.0, 0.9)
+	_track(create_tween()).tween_callback(_restore_materials).set_delay(0.95)
+	for i in 40:
+		var p := _land + Vector3(randf_range(-0.35, 0.35), randf_range(0.1, 1.9), randf_range(-0.35, 0.35))
+		var out := (p - _land) * Vector3(1, 0, 1)
+		out = out.normalized() if out.length() > 0.05 else Vector3.RIGHT
+		_data_bit(p, out * randf_range(1.5, 3.2) + Vector3.UP * randf_range(0.2, 1.2), randf_range(0.6, 1.0), -1.5)
+	if is_instance_valid(_beam):
+		_track(create_tween()).tween_property(_beam.material_override, "albedo_color:a", 0.0, 0.6)
+	if is_instance_valid(_seal):
+		var m: StandardMaterial3D = _seal.material_override
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_track(create_tween()).tween_property(m, "albedo_color:a", 0.0, 1.0)
+		_track(create_tween()).tween_property(_seal, "scale", Vector3(1.8, 0.12, 1.8), 1.0)
+	if is_instance_valid(_core_light):
+		_track(create_tween()).tween_property(_core_light, "light_energy", 0.0, 1.2)
+	# câmera de frente, mais perto
+	var cam0 := _cam.global_position
+	var cam1 := _land + _fwd * 3.0 - _right * 0.9 + Vector3.UP * 1.55
+	var look0 := _land + Vector3.UP * 1.2
+	var move := func(u: float) -> void: _look(cam0.lerp(cam1, u), look0.lerp(_land + Vector3.UP * 1.3, u))
+	_track(create_tween()).tween_method(move, 0.0, 1.0, 1.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
 func _blend_to_player(dur: float) -> void:
@@ -484,82 +436,57 @@ func _aim_player_camera() -> void:
 		pitch_node.rotation.x = -0.25
 
 
-# ================================================================ cenário e efeitos
-## Cristal: prisma de seis lados com ponta, de pé ao longo de +Y a partir da base (origem no pé).
-func _crystal(w: float, length: float, c: Color, alpha: float) -> MeshInstance3D:
-	var body := MeshInstance3D.new()
-	var cm := CylinderMesh.new()
-	cm.top_radius = w
-	cm.bottom_radius = w * 0.8
-	cm.height = length * 0.72
-	cm.radial_segments = 6
-	cm.rings = 1
-	body.mesh = cm
-	body.material_override = _crystal_mat(c, alpha)
-	body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	# a malha do corpo fica deslocada para a base cair na origem do nó
-	var root := MeshInstance3D.new()
-	root.material_override = body.material_override
-	root.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	body.position = Vector3.UP * length * 0.36
-	root.add_child(body)
-	var tip := MeshInstance3D.new()
-	var tmesh := CylinderMesh.new()
-	tmesh.top_radius = 0.0
-	tmesh.bottom_radius = w
-	tmesh.height = length * 0.28
-	tmesh.radial_segments = 6
-	tmesh.rings = 1
-	tip.mesh = tmesh
-	tip.material_override = body.material_override
-	tip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	tip.position = Vector3.UP * length * 0.86
-	root.add_child(tip)
-	return root
+# ================================================================ holograma e efeitos
+## Troca os materiais do modelo pelo holograma (guardando os originais).
+func _apply_hologram() -> void:
+	var sh := Shader.new()
+	sh.code = HOLO_SHADER
+	_holo = ShaderMaterial.new()
+	_holo.shader = sh
+	_holo.set_shader_parameter("cut_y", _land.y - 0.1)
+	var model: Node3D = player.get("model")
+	if model == null:
+		return
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		_holo_meshes.append({"mi": mi, "override": mi.material_override, "overlay": mi.material_overlay})
+		mi.material_override = _holo
+		mi.material_overlay = null
 
 
-func _crystal_mat(c: Color, alpha: float) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(c, alpha)
+func _restore_materials() -> void:
+	for h in _holo_meshes:
+		if is_instance_valid(h.mi):
+			h.mi.material_override = h.override
+			h.mi.material_overlay = h.overlay
+	_holo_meshes.clear()
+
+
+## Bloco de dados que nasce em volta do herói e voa até a linha do anel.
+func _data_bit_in() -> void:
+	var a := randf() * TAU
+	var r := randf_range(1.2, 2.6)
+	var p := _land + Vector3(cos(a) * r, _cut - _land.y + randf_range(-0.2, 0.9), sin(a) * r)
+	var target := _land + Vector3(cos(a) * 0.25, _cut - _land.y, sin(a) * 0.25)
+	var life := randf_range(0.3, 0.5)
+	_data_bit(p, (target - p) / life, life, 0.0)
+
+
+## Cubinho de luz (os "dados" da reconstrução).
+func _data_bit(p: Vector3, v: Vector3, life: float, grav: float) -> void:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	var s := randf_range(0.035, 0.08)
+	bm.size = Vector3(s, s, s)
+	mi.mesh = bm
+	var m := _glow_mat(Color(DATA_TONES[randi() % DATA_TONES.size()], 0.95))
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.emission_enabled = true
-	m.emission = c
-	m.emission_energy_multiplier = 0.55
-	m.roughness = 0.15
-	m.metallic_specular = 0.9
-	return m
-
-
-## Brilho pequeno que sobe e some (rastro dos fragmentos, poeira de cristal).
-func _trail_mote(p: Vector3, rise: float) -> void:
-	var c: Color = SKY_BLUE if randf() < 0.7 else STAR_GOLD
-	var s := _sphere(randf_range(0.04, 0.09), Color(c, 0.85), true)
-	world.add_child(s)
-	s.global_position = p
-	_fx.append({"n": s, "v": Vector3(randf_range(-0.2, 0.2), rise, randf_range(-0.2, 0.2)), "life": randf_range(0.6, 1.1),
-		"age": 0.0, "grow": 0.3, "grav": 0.0, "a0": 0.85})
-
-
-## Cristais pequenos cravados na estrada em volta do ponto de chegada (ficam depois da cena).
-func _plant_remnants() -> void:
-	_remnants = Node3D.new()
-	_remnants.name = "CristaisDaChegada"
-	world.add_child(_remnants)
-	_remnants.global_position = _land
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 7
-	for i in 7:
-		var a := rng.randf() * TAU
-		var r := rng.randf_range(0.9, 2.1)
-		var cl := Node3D.new()
-		_remnants.add_child(cl)
-		cl.position = Vector3(cos(a) * r, -0.04, sin(a) * r)
-		cl.rotation.y = rng.randf() * TAU
-		for k in rng.randi_range(1, 3):
-			var n := _crystal(rng.randf_range(0.05, 0.09), rng.randf_range(0.22, 0.45), CRYSTAL_TONES[rng.randi() % CRYSTAL_TONES.size()], 0.85)
-			cl.add_child(n)
-			n.position = Vector3(rng.randf_range(-0.08, 0.08), 0, rng.randf_range(-0.08, 0.08))
-			n.rotation = Vector3(rng.randf_range(-0.5, 0.5), 0, rng.randf_range(-0.5, 0.5))
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	world.add_child(mi)
+	mi.global_position = p
+	mi.rotation = Vector3(randf() * TAU, randf() * TAU, 0)
+	_fx.append({"n": mi, "v": v, "life": life, "age": 0.0, "grow": 0.4, "grav": grav, "a0": 0.95})
 
 
 # ================================================================ interface (tela preta, sistema, legendas)
@@ -680,8 +607,8 @@ func _system_window() -> void:
 		["Nome: %s   ·   Classe: %s   ·   Nível 1" % [StoryDialogue.hero(), cls if cls != "" else "???"], Color(1, 1, 1)],
 		["Título obtido: [ Forasteiro de Outro Mundo ]", STAR_GOLD],
 		["Habilidade única: ??? (ainda não descoberta)", Color(0.85, 0.95, 1.0)],
-		["⚠ Corpo original: indisponível. Montando um novo com o material local...", Color(1.0, 0.78, 0.4)],
-		["⚠ Material local: cristal. Montagem: 99,7%.  Boa sorte!", Color(1.0, 0.55, 0.45)],
+		["⚠ Corpo original: não veio junto. Gerando um novo no destino...", Color(1.0, 0.78, 0.4)],
+		["⚠ Reconstrução: 99,7%. Os 0,3% devem fazer falta.  Boa sorte!", Color(1.0, 0.55, 0.45)],
 	]
 	for r in rows:
 		if _done:

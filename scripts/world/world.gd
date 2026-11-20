@@ -815,7 +815,7 @@ func close_ui() -> void:
 
 
 ## Abertura da história (personagem novo, primeira vez no mundo): a cena da chegada (ArrivalCutscene: o
-## herói se materializa de fragmentos de cristal) e depois a narração. Não roda nos testes.
+## corpo do herói é montado em luz, dos pés à cabeça) e depois a narração. Não roda nos testes.
 ## `-- --introdemo` força a abertura num personagem novo descartável (para capturas).
 func _play_intro() -> void:
 	var args := OS.get_cmdline_user_args()

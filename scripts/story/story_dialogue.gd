@@ -540,16 +540,16 @@ static func _open_enchant() -> void:
 
 
 # ================================================================ prólogo
-## Narração logo depois da cena da chegada (ArrivalCutscene: o herói se materializou de um casulo de cristal na estrada, na frente do Beto).
+## Narração logo depois da cena da chegada (ArrivalCutscene: o corpo do herói foi montado em luz, dos pés à cabeça, na estrada, na frente do Beto).
 ## O tom é de anime isekai: alguém de outro mundo acorda num lugar que obviamente não é o dele.
 static func intro() -> Array:
 	return [
-		p("PELAS BARBAS DO MEU AVÔ! VOCÊ... VOCÊ SAIU DE DENTRO DE UM CRISTAL?!", NAMES.coach, "shout"),
+		p("PELAS BARBAS DO MEU AVÔ! VOCÊ... VOCÊ FOI MONTADO DE LUZ, PEDACINHO POR PEDACINHO?!", NAMES.coach, "shout"),
 		narr("(O cocheiro larga as rédeas e sai correndo para a vila, gritando para quem quiser ouvir.)"),
 		narr("Você olha as próprias mãos. Ainda brilham um pouquinho. O céu é azul demais. O ar cheira a pão e a magia. Nada aqui parece o seu mundo.", ""),
 		narr("Valdoria. Uma vila pacata, com um poço, seis casas, uma ferraria barulhenta e um problema sério de slimes.", ""),
 		narr("(Na praça, um velho de barba aponta para você com as duas mãos, tremendo de emoção.)"),
-		p("UM HERÓI FEITO DE CRISTAL! ESTÁ NA PROFECIA! ...EU ACHO! VENHA ATÉ O POÇO, FORASTEIRO!", NAMES.elder, "shout"),
+		p("UM HERÓI FEITO DE LUZ! ESTÁ NA PROFECIA! ...EU ACHO! VENHA ATÉ O POÇO, FORASTEIRO!", NAMES.elder, "shout"),
 		narr("Siga a estrada até a vila e fale com o Ancião Bram (!) perto do poço da praça. Use E para interagir.", ""),
 	]
 
@@ -559,11 +559,11 @@ static func _offer(q: String) -> Array:
 	match q:
 		"chegada":
 			return [
-				p("AH! PÓ DE CRISTAL NA ROUPA! AINDA BRILHANDO! ESSE OLHAR DE QUEM NÃO FAZ IDEIA DE ONDE ESTÁ!", null, "shout"),
+				p("AH! AINDA SOLTANDO FAÍSCA AZUL! ESSE BRILHO NOS OLHOS! ESSE OLHAR DE QUEM NÃO FAZ IDEIA DE ONDE ESTÁ!", null, "shout"),
 				_with_choices(p("Forasteiro, eu sou Bram, o ancião de Valdoria. E você... você é o HERÓI DA PROFECIA!"),
 					flavor("Que profecia?", [
 						p("A antiga! Escrita há... (ele olha para a palma da própria mão) ...muitos anos."),
-						p("\"Quando a vila mais precisar, um herói brotará do cristal...\" (ele aperta os olhos) \"...na estrada do sul, de preferência na frente do Beto.\" O Beto viu tudo. Está provado."),
+						p("\"Quando a vila mais precisar, um herói será montado da luz...\" (ele aperta os olhos) \"...na estrada do sul, de preferência na frente do Beto.\" O Beto viu tudo. Está provado."),
 					], "Eu vim de OUTRO MUNDO!", [
 						p("Outro mundo! CLARO! Isso também está na profecia. Linha dois. Acabei de lembrar."),
 						p("Lá no seu mundo também tem slime? Não? Que sorte. Aqui tem bastante."),

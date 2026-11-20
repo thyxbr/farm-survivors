@@ -32,7 +32,7 @@ const TIPS := [
 	"I abre o inventário e C, a ficha do personagem.",
 	"O Mestre Orin, ao lado do portal da vila, troca Ecos por passivas permanentes.",
 	"Os contratos do Quadro da Guilda são só para aventureiros registrados. O registro vem com a história.",
-	"O Beto ainda jura para todo mundo que viu alguém sair de dentro de um cristal na estrada do sul.",
+	"O Beto ainda jura para todo mundo que viu alguém ser montado de luz, pedacinho por pedacinho, na estrada do sul.",
 ]
 
 ## A tela está cobrindo o jogo (o jogador fica travado e imune).
