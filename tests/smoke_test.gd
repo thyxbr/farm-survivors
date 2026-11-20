@@ -2051,6 +2051,9 @@ func _test_gather() -> void:
 	check(int(plan.strikes) >= 2, "picareta de pedra pede vários golpes (%d)" % int(plan.strikes))
 	var iron0 := Game.count_item("iron_ore")
 	var mxp0 := Game.prof_xp("mining") + Game.prof_level("mining") * 100000
+	# o veio 0 fica no Acampamento Goblin: goblins que já foram alvo de outra parte do teste não entram na calmaria
+	# (_physics_process) e um golpe deles interrompe a coleta. Aqui todo monstro perto fica atordoado até o fim.
+	_hush_around(node.global_position, 25.0, 3.0 + float(plan.swing) * (float(plan.strikes) + 3.0))
 	player.start_gather(node)
 	check(player.ability == GatherAction.ID, "F começa a coleta")
 	await wait(0.3)
@@ -3910,6 +3913,13 @@ func _nearest_clear_lane(kind: String) -> Enemy:
 				bd = d
 				best = e
 	return _target(best) if best != null else _nearest(kind)
+
+
+## Atordoa por `secs` todo monstro vivo a até `radius` m de `at`, alvo do teste ou não.
+func _hush_around(at: Vector3, radius: float, secs: float) -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not e.dead and e.global_position.distance_to(at) < radius:
+			e.apply_stun(secs)
 
 
 func _nearest(kind: String, area := "") -> Enemy:
