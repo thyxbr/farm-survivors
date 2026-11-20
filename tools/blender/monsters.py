@@ -1214,6 +1214,152 @@ def build_golem():
     export("golem")
 
 
+# ================================================================== TOUPEIRA-BROCA (mina)
+# Toupeira grande dos fossos (~1,4 m), curvada para a frente: corpo em pera de pelo cinza-escuro com barriga clara,
+# pernas curtas, braços de cavar com mãos em pá e garras enormes, focinho comprido que termina numa broca de
+# metal enferrujado em espiral e óculos de mineiro na testa. Frente = -Y.
+# Pivôs animados por scripts/enemies/enemy.gd (_animate_mole): LegL, LegR (no quadril, dentro do corpo), Body,
+# Head (focinho, dentro de Body), Drill (a broca, dentro de Head; gira no eixo do focinho) e ArmL/ArmR (no ombro,
+# DENTRO do tronco: o ombro é uma massa de pelo enterrada no corpo, então o braço não se solta ao girar).
+def build_mole():
+    fur = mat("ml_fur", hexc("#4A4442"), 0.95)
+    fur_d = mat("ml_fur_d", hexc("#2E2928"), 0.95)
+    belly = mat("ml_belly", hexc("#8C7F76"), 0.95)
+    skin = mat("ml_skin", hexc("#D98C8C"), 0.8)          # palmas e nariz
+    claw = mat("ml_claw", hexc("#E8DCC0"), 0.6)
+    rust = mat("ml_rust", hexc("#9A5A2E"), 0.55, 0.6)
+    rust_d = mat("ml_rust_d", hexc("#5E331A"), 0.6, 0.6)
+    steel = mat("ml_steel", hexc("#9097A0"), 0.4, 0.8)
+    lens = mat("ml_lens", hexc("#F2C04A"), 0.2, 0.0, emit=(1.0, 0.7, 0.2), strength=1.5)
+    lea = mat("ml_leather", hexc("#5A3A20"), 0.85)
+    up = (0, 0, 1)
+    HIP = 0.38
+
+    root = empty("Mole", (0, 0, 0))
+
+    # ---------------- corpo em pera, curvado para a frente; barriga clara na frente
+    body = empty("Body", (0, 0, HIP), root)
+    torso = fera_dense([sec((0, 0.04, 0.16), 0.3, 0.28), sec((0, 0.0, 0.42), 0.46, 0.42),
+                        sec((0, -0.06, 0.72), 0.44, 0.38), sec((0, -0.14, 0.98), 0.34, 0.3),
+                        sec((0, -0.2, 1.14), 0.2, 0.19), sec((0, -0.22, 1.2), 0.05, 0.05)], 24, cut=2)
+    sloft("Torso", torso, fur, body, sides=24, sharp=80.0)
+    # barriga clara: elipsoide liso e denso, só a frente para fora do corpo
+    fy = _vsurf(torso, 0.6, 90).y
+    _blob("Belly", (0, fy + 0.22, 0.6), 0.3, 0.24, 0.36, belly, body, sides=24, rings=14)
+    for k, (z, dx) in enumerate(((1.05, 0.0), (0.92, 0.12), (0.92, -0.12), (0.78, 0.0))):   # tufos nas costas
+        p = _vsurf(torso, z, 270, -0.03) + Vector((dx, 0, 0))
+        fera_tip("Tuft%d" % k, p, p + Vector((dx * 0.6, 0.14, 0.08)), 0.05, fur_d, body)
+
+    # ---------------- cabeça: focinho comprido para a frente, nariz rosado em volta da broca, óculos na testa
+    head = empty("Head", (0, -0.24, 1.04), body)
+    snout = fera_dense([sec((0, -0.14, 1.06), 0.24, 0.23), sec((0, -0.32, 1.06), 0.22, 0.2),
+                        sec((0, -0.5, 1.03), 0.15, 0.13), sec((0, -0.6, 1.01), 0.12, 0.11)], 12)
+    sloft("Snout", snout, fur, head, sides=14, fwd=up)
+    sloft("Nose", [sec((0, -0.57, 1.01), 0.125, 0.115), sec((0, -0.63, 1.01), 0.14, 0.13),
+                   sec((0, -0.66, 1.01), 0.11, 0.1)], skin, head, sides=14, fwd=up)
+    for s in (1, -1):   # olhinhos quase escondidos
+        c = fera_surf(snout, -0.36, 90 - s * 45, -0.004)
+        sloft("Eye%d" % (0 if s > 0 else 1), [sec(c + Vector((0, 0.01, 0)), 0.012, 0.012), sec(c, 0.022, 0.02),
+                                              sec(c + Vector((0, -0.012, 0)), 0.006, 0.006)],
+              mat("ml_eye_flat", hexc("#120C0A"), 0.3), head, sides=8, fwd=up)
+    # óculos de mineiro na testa: tira de couro em volta da cabeça e duas lentes âmbar em aros de metal
+    sloft("GoggleStrap", fera_dense([sec(fera_surf(snout, -0.16, a, 0.012), 0.03, 0.022)
+                                     for a in (200, 160, 120, 90, 60, 20, -20)], 14), lea, head, sides=6, fwd=up)
+    for s in (1, -1):
+        c = fera_surf(snout, -0.22, 90 - s * 28, 0.02)
+        sloft("GoggleRim%d" % (0 if s > 0 else 1), [sec(c + Vector((0, 0.03, -0.01)), 0.055, 0.055),
+                                                    sec(c + Vector((0, -0.01, 0.0)), 0.06, 0.06),
+                                                    sec(c + Vector((0, -0.02, 0.0)), 0.05, 0.05)], steel, head, sides=10,
+              fwd=up)
+        sloft("GoggleLens%d" % (0 if s > 0 else 1), [sec(c + Vector((0, -0.015, 0)), 0.045, 0.045),
+                                                     sec(c + Vector((0, -0.028, 0)), 0.035, 0.035)], lens, head, sides=10,
+              fwd=up)
+    # broca: cone de metal enferrujado com rosca em espiral, encaixada num colar de aço dentro do nariz
+    drill = empty("Drill", (0, -0.62, 1.01), head)
+    sloft("DrillCollar", [sec((0, -0.6, 1.01), 0.1, 0.1), sec((0, -0.68, 1.01), 0.11, 0.11)], steel, drill, sides=10,
+          fwd=up)
+    sloft("DrillCone", [sec((0, -0.66, 1.01), 0.1, 0.1), sec((0, -0.82, 1.01), 0.065, 0.065),
+                        sec((0, -0.98, 1.01), 0.008, 0.008)], rust, drill, sides=10, fwd=up)
+    helix = []
+    for i in range(22):
+        u = i / 21
+        a = u * 3.2 * 2 * math.pi
+        y = -0.67 - u * 0.29
+        r = (0.1 + (0.008 - 0.1) * (u * 0.29 / 0.32)) + 0.012
+        helix.append(Vector((math.cos(a) * r, y, 1.01 + math.sin(a) * r)))
+    fera_curve("DrillThread", helix, 0.018, 0.006, rust_d, drill, sides=5)
+
+    # ---------------- pernas em dois ossos: coxa (LegL/LegR, no quadril dentro do corpo) e canela + pé (KneeL/KneeR).
+    # Cada osso é um tubo liso; o joelho é uma junta redonda que cobre a dobra.
+    for side, x in (("LegL", 0.2), ("LegR", -0.2)):
+        s = 1 if x > 0 else -1
+        k_side = "Knee" + side[-1]
+        leg = empty(side, (x, 0.02, HIP), root)
+        knee = Vector((x + s * 0.06, -0.05, 0.22))
+        thigh = fera_dense([sec((x, 0.02, HIP + 0.16), 0.16, 0.16), sec((x + s * 0.04, -0.02, 0.36), 0.165, 0.16),
+                            sec(knee + Vector((0, 0, 0.04)), 0.125, 0.125), sec(knee, 0.12, 0.12)], 14, cut=2)
+        sloft(side + "_Thigh", thigh, fur, leg, sides=16, sharp=80.0)
+        _blob(side + "_KneeJoint", knee, 0.125, 0.125, 0.125, fur, leg)
+        shin_p = empty(k_side, tuple(knee), leg)
+        ankle = Vector((x + s * 0.07, -0.02, 0.08))
+        shin = fera_dense([sec(knee + Vector((0, 0, 0.02)), 0.118, 0.118), sec(knee.lerp(ankle, 0.5), 0.11, 0.11),
+                           sec(ankle, 0.095, 0.095)], 12, cut=2)
+        sloft(side + "_Shin", shin, fur, shin_p, sides=16, sharp=80.0)
+        foot = fera_dense([sec(ankle + Vector((0, 0.06, -0.01)), 0.08, 0.05), sec(ankle + Vector((0, -0.04, -0.025)), 0.12, 0.06),
+                           sec(ankle + Vector((0, -0.15, -0.035)), 0.1, 0.045),
+                           sec(ankle + Vector((0, -0.18, -0.037)), 0.05, 0.025)], 12, cut=2)
+        sloft(side + "_Foot", foot, skin, shin_p, sides=14, fwd=up, sharp=80.0)
+        for k, dx in enumerate((-0.06, 0.0, 0.06)):
+            t0 = ankle + Vector((dx, -0.17, -0.035))
+            fera_curve("%s_Toe%d" % (side, k), [t0 + Vector((0, 0.03, 0)), t0 + Vector((0, -0.05, -0.005)),
+                                                t0 + Vector((0, -0.09, -0.04))], 0.022, 0.004, claw, shin_p, sides=6)
+
+    # ---------------- braços de cavar em dois ossos: braço (ArmL/ArmR, pivô dentro do tronco; o tubo nasce de dentro
+    # do corpo e incha no ombro) e antebraço + mão (ElbowL/ElbowR). Antebraço e mão-pá são UMA malha lisa (pelo até
+    # o pulso, pele na palma); o cotovelo é uma junta redonda que cobre a dobra.
+    for side, x in (("ArmL", 0.34), ("ArmR", -0.34)):
+        s = 1 if x > 0 else -1
+        arm = empty(side, (s * 0.24, -0.1, 0.84), body)
+        elbow = Vector((s * 0.5, -0.3, 0.66))
+        upper = fera_dense([sec((s * 0.14, -0.06, 0.9), 0.15, 0.15), sec((s * 0.34, -0.12, 0.85), 0.175, 0.17),
+                            sec((s * 0.45, -0.21, 0.76), 0.145, 0.14), sec(elbow, 0.12, 0.12)], 16, cut=2)
+        sloft(side + "_Upper", upper, fur, arm, sides=16, sharp=80.0)
+        _blob(side + "_ElbowJoint", elbow, 0.127, 0.127, 0.127, fur, arm)
+        fore_p = empty("Elbow" + side[-1], tuple(elbow), arm)
+        wrist = Vector((s * 0.49, -0.5, 0.56))
+        palm = Vector((s * 0.5, -0.61, 0.52))
+        fore = fera_dense([sec(elbow + Vector((0, 0.02, 0.01)), 0.118, 0.118), sec(elbow.lerp(wrist, 0.5), 0.13, 0.125),
+                           sec(wrist, 0.105, 0.095), sec(palm, 0.17, 0.07),
+                           sec(palm + Vector((0, -0.08, -0.03)), 0.15, 0.05),
+                           sec(palm + Vector((0, -0.105, -0.04)), 0.09, 0.03)], 20, cut=2)
+        sloft(side + "_Fore", fore, fur, fore_p, sides=16, fwd=up, mats=(skin,), sharp=80.0,
+              matf=lambda i, j, cs=fore, wy=wrist.y + 0.02: 1 if cs[i]["c"].y < wy else 0)
+        for k, dx in enumerate((-0.1, -0.035, 0.035, 0.1)):
+            c0 = palm + Vector((dx, -0.07, -0.03))
+            fera_curve("%s_Claw%d" % (side, k), [c0 + Vector((0, 0.03, 0)), c0 + Vector((dx * 0.2, -0.12, -0.02)),
+                                                 c0 + Vector((dx * 0.3, -0.22, -0.1)),
+                                                 c0 + Vector((dx * 0.3, -0.25, -0.18))], 0.035, 0.006, claw, fore_p,
+                       sides=8)
+
+    # tudo liso: aresta viva só em dobra muito fechada (ponta de garra, aro dos óculos)
+    for ob in coll.all_objects:
+        if ob.type == 'MESH':
+            smooth_sharp(ob, 80.0)
+    loose_parts("mole")
+    export("mole")
+
+
+def _blob(name, c, rx, ry, rz, material, parent, sides=18, rings=10):
+    """Elipsoide liso e denso (junta de cotovelo/joelho, barriga): borda limpa onde cruza outra malha."""
+    c = Vector(c)
+    secs = []
+    for i in range(rings + 1):
+        a = -math.pi / 2 + math.pi * i / rings
+        k = max(0.02, math.cos(a))
+        secs.append(sec(c + Vector((0, 0, rz * math.sin(a))), rx * k, ry * k))
+    return sloft(name, secs, material, parent, sides=sides, sharp=89.0)
+
+
 # ================================================================== FLOR-FAMINTA (planta carnívora)
 # Planta da beira das trilhas: roseta de folhas no chão, caule grosso que se curva para a frente e uma cabeça de
 # duas mandíbulas (como uma dioneia) com dentes que se cruzam; dois cipós com espinhos saem da base. Não anda.

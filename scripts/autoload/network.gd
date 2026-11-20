@@ -35,8 +35,8 @@ const ENEMY := preload("res://scripts/enemies/enemy.gd")
 const FIREBALL := preload("res://scripts/player/fireball.gd")
 const UPG := preload("res://scripts/survival/upgrades.gd")
 
-const STATES := ["idle", "wander", "chase", "return", "attack", "dead"]
-const ATTACK_KINDS := ["swing", "lunge", "slam", "shoot", "fuse", "cast", "web", "tongue", "throw"]
+const STATES := ["idle", "wander", "chase", "return", "attack", "dead", "burrow"]
+const ATTACK_KINDS := ["swing", "lunge", "slam", "shoot", "fuse", "cast", "web", "tongue", "throw", "emerge"]
 const SNAP_STRIDE := 10   # id, x, y, z, yaw, hp, state, attack_timer, attack_kind, flags
 ## Tempo da fila do Desafio da Horda (cai para HORDE_LOBBY_ALL quando todos já responderam).
 const HORDE_LOBBY_TIME := 15.0

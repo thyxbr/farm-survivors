@@ -124,6 +124,13 @@ var _net_pos := Vector3.ZERO
 var _net_yaw := 0.0
 ## Recarga do ataque especial (segundos), à parte da do golpe: teia da Tecelã, língua do Bocarrão.
 var web_cd := 0.0
+## Toupeira-Broca (ai "burrow"): segundos debaixo da terra, segundos na superfície desde que saiu, o monte de
+## terra que anda por cima dela e a camada de colisão normal (zerada enquanto está enterrada).
+var dig_t := 0.0
+var surface_t := 0.0
+var _dirt: MeshInstance3D = null
+var _layer := 4
+var _dust_t := 0.0
 ## Bocarrão: até onde a língua vai no ataque em curso (só para o desenho).
 var tongue_len := 0.0
 const SPIDER_PARTS := ["Abdomen", "Leg0L", "Leg1L", "Leg2L", "Leg3L", "Leg0R", "Leg1R", "Leg2R", "Leg3R"]
@@ -166,7 +173,7 @@ func _ready() -> void:
 	radius = data.radius * (1.2 if elite else 1.0)
 	is_boss = data.get("boss", false) or chief
 	add_to_group("enemies")
-	collision_layer = 4
+	collision_layer = _layer
 	collision_mask = 1 | 2 | 4
 	var col := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
@@ -181,8 +188,11 @@ func _ready() -> void:
 	add_child(model)
 	if elite:
 		_make_elite_glow()
-	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head", "Tail", "Jaw"]:   # Tail e Jaw: só o raptor
+	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head", "Tail", "Jaw", "Drill"]:   # Tail e Jaw: raptor; Drill: toupeira
 		parts[n] = model.find_child(n, true, false)
+	if data.model == "mole":   # Toupeira: o segundo osso de cada membro (cotovelo e joelho)
+		for n in ["ElbowL", "ElbowR", "KneeL", "KneeR"]:
+			parts[n] = model.find_child(n, true, false)
 	if data.model in ["spider", "centipede"]:   # Tecelã e Centopeia: abdômen e as pernas (Leg0L..Leg3R)
 		for n in SPIDER_PARTS:
 			parts[n] = model.find_child(n, true, false)
@@ -490,6 +500,8 @@ func _physics_process(delta: float) -> void:
 	web_cd = maxf(0.0, web_cd - delta)
 	slow_timer = max(0.0, slow_timer - delta)
 	venom_timer = maxf(0.0, venom_timer - delta)
+	if ai() == "burrow" and state != "burrow":
+		surface_t += delta
 	stagger = max(0.0, stagger - delta)
 	provoked = maxf(0.0, provoked - delta)
 	_update_flash(delta)
@@ -553,6 +565,9 @@ func _physics_process(delta: float) -> void:
 				var r := _ranged_move(to_player, dist, spd)
 				move = r[0]
 				face = r[1]
+			elif ai() == "burrow" and BurrowRules.should_dig(dist, surface_t, data):
+				_set_state("burrow")   # Toupeira: afunda e vai por baixo da terra até o alvo
+				dig_t = 0.0
 			elif (dist <= data.reach or _web_ready(dist)) and attack_cd <= 0:
 				_begin_attack(dist)
 			elif dist > data.reach * 0.8:
@@ -576,6 +591,15 @@ func _physics_process(delta: float) -> void:
 				_set_state("idle")
 			else:
 				move = to.normalized() * spd
+		"burrow":
+			dig_t += delta
+			var tgt: Vector3 = player.global_position if player and not player.dead else global_position
+			var nxt := BurrowRules.dig_step(global_position, tgt, float(data.dig_speed) * speed_mult, delta)
+			move = (nxt - global_position) / maxf(delta, 0.0001)
+			move.y = 0.0
+			face = move
+			if BurrowRules.should_emerge(global_position, tgt, dig_t, data):
+				_begin_emerge()
 		"attack":
 			_update_attack(delta, player, to_player, dist)
 			if attack_kind == "lunge" and attack_timer > 0.35 and attack_timer < 0.6:
@@ -707,6 +731,11 @@ func model_forward() -> Vector3:
 func _set_state(s: String) -> void:
 	state = s
 	state_timer = 0.0
+	if ai() == "burrow":
+		if s == "burrow":
+			_set_buried(true)
+		elif s != "attack":   # no "attack" quem desenterra é o golpe de emergir (_emerge_hit)
+			_set_buried(false)
 	if s == "chase" and bar_root and not horde:
 		bar_root.visible = true
 	if s == "chase" and ai() == "pack" and not horde:
@@ -1045,6 +1074,8 @@ func _attack_duration() -> float:
 			return 1.2
 		"throw":
 			return 1.3
+		"emerge":
+			return 1.7
 	return 0.95 if not is_boss else 1.1
 
 
@@ -1065,6 +1096,8 @@ func _hit_time() -> float:
 		"tongue":
 			return 0.5
 		"throw":
+			return 1.0
+		"emerge":
 			return 1.0
 	return 0.5 if not is_boss else 0.6
 
@@ -1088,6 +1121,8 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 			return
 		elif attack_kind == "throw":
 			_dynamite_blast(false)
+		elif attack_kind == "emerge":
+			_emerge_hit(false)
 		elif attack_kind == "slam":
 			var sr := _slam_radius()
 			Sfx.play_at("slam", global_position, 0.0)
@@ -1202,6 +1237,59 @@ func _explode(visual: bool) -> void:
 	_die()
 
 
+## Toupeira: chegou debaixo do alvo (ou cansou de cavar): aviso no chão e, no _hit_time, sai com dano em área.
+func _begin_emerge() -> void:
+	_set_state("attack")
+	attack_kind = "emerge"
+	attack_timer = 0.0
+	hit_done = false
+	attack_count += 1
+	FX.telegraph(global_position, float(data.emerge_radius), _hit_time())
+
+
+## Sai do chão: mostra o modelo, terra voando e dano em quem está no círculo. visual: réplica (sem dano).
+func _emerge_hit(visual: bool) -> void:
+	_set_buried(false)
+	surface_t = 0.0
+	var r := float(data.emerge_radius)
+	Sfx.play_at("slam", global_position, 0.1)
+	FXToon.slam(global_position, r)
+	if visual:
+		return
+	var pool: Array = get_parent().targets() if get_parent().has_method("targets") else get_tree().get_nodes_in_group("players")
+	for p in pool:
+		if not p.dead and p.global_position.distance_to(global_position) <= r:
+			p.take_damage(vs(level, p, data.damage * dmg_mult * 1.3), global_position)
+			p.add_shake(0.35)
+
+
+## Enterrada: some o modelo, a barra e a colisão (não pode ser alvo); aparece o monte de terra que anda.
+func _set_buried(on: bool) -> void:
+	if model:
+		model.visible = not on
+	collision_layer = 0 if on else _layer
+	if bar_root and on:
+		bar_root.visible = false
+	if name_tag:
+		name_tag.visible = not on
+	if on and _dirt == null and DisplayServer.get_name() != "headless":
+		_dirt = MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.85
+		sm.height = 0.7
+		sm.radial_segments = 10
+		sm.rings = 5
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color(0.36, 0.26, 0.18)
+		m.roughness = 1.0
+		sm.material = m
+		_dirt.mesh = sm
+		_dirt.position = Vector3(0, 0.02, 0)
+		add_child(_dirt)
+	if _dirt:
+		_dirt.visible = on
+
+
 ## Kobold: a dinamite cai em throw_point e explode em área (quem jogou não morre).
 func _dynamite_blast(visual: bool) -> void:
 	var r: float = data.blast
@@ -1249,7 +1337,7 @@ func _update_dynamite() -> void:
 
 # ------------------------------------------------------------ dano
 func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun := 0.0, pull := 0.0) -> void:
-	if dead:
+	if dead or BurrowRules.hidden(state, attack_kind, hit_done):
 		return
 	asleep = false
 	_sleep_t = SLEEP_CHECK
@@ -1307,7 +1395,7 @@ func apply_stun(t: float) -> void:
 	if puppet:
 		Network.client_hit_enemy(net_id, 0.0, global_position, false, 0.0, t)
 		return
-	if dead or is_boss:
+	if dead or is_boss or BurrowRules.hidden(state, attack_kind, hit_done):
 		return
 	stagger = max(stagger, t)
 	attack_cd = max(attack_cd, t)   # sem golpe novo durante o atordoamento (o stagger de um golpe comum fica como está)
@@ -1503,6 +1591,8 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 				FX.telegraph(global_position, data.blast, maxf(0.2, _hit_time() - atk_t))
 			elif attack_kind == "throw":
 				_replica_throw(flags, atk_t)
+			elif attack_kind == "emerge":
+				FX.telegraph(_net_pos, float(data.emerge_radius), maxf(0.2, _hit_time() - atk_t))
 		elif atk_t < attack_timer - 0.3:
 			# um novo ataque começou entre dois snapshots
 			attack_kind = atk_kind
@@ -1566,6 +1656,8 @@ func _puppet_process(delta: float) -> void:
 				_explode(true)
 			elif attack_kind == "throw":
 				_dynamite_blast(true)
+			elif attack_kind == "emerge":
+				_emerge_hit(true)
 			elif attack_kind == "swing":
 				Sfx.play_at("swing", global_position, 0.15, -4.0)
 	var hspeed := Vector2(global_position.x - prev.x, global_position.z - prev.z).length() / maxf(delta, 0.0001)
@@ -1608,6 +1700,9 @@ func _animate(delta: float, hspeed: float) -> void:
 		return
 	if data.model == "golem":
 		_animate_golem(hspeed, s, k)
+		return
+	if data.model == "mole":
+		_animate_mole(delta, hspeed, s, k)
 		return
 	var amp: float = clamp(hspeed / 4.0, 0.0, 1.0) * 0.8
 	var at := attack_timer
@@ -1737,6 +1832,77 @@ func _animate_golem(hspeed: float, s: float, k: float) -> void:
 	parts.ArmR.rotation.x = lerp(parts.ArmR.rotation.x, arm_r, k)
 	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x, k)
 	parts.Body.rotation.z = lerp(parts.Body.rotation.z, body_z, k)
+
+
+## Toupeira-Broca, em dois ossos por membro: braço (ArmL/ArmR) + antebraço (ElbowL/ElbowR), coxa (LegL/LegR) +
+## canela (KneeL/KneeR). Anda curvada, o joelho dobra quando a perna volta e os antebraços balançam soltos; a broca
+## gira sempre (mais rápido no ataque). Golpe comum = arma a garra no alto (cotovelo dobrado) e rasga para baixo
+## esticando o antebraço; emergir = sai com os dois braços para cima. Enterrada, só o monte de terra anda.
+## Rotação x: positiva leva braço/perna/canela para trás; negativa no cotovelo dobra o antebraço para cima.
+func _animate_mole(delta: float, hspeed: float, s: float, k: float) -> void:
+	if _dirt and _dirt.visible:
+		var w := 1.0 + sin(anim_t * 3.0) * 0.08
+		_dirt.scale = Vector3(w, 1.0 / w, w)
+		_dust_t -= delta
+		if _dust_t <= 0.0:   # terra espirrando enquanto o monte anda
+			_dust_t = 0.18
+			FX.burst(global_position + Vector3.UP * 0.3, Color(0.45, 0.33, 0.22), 5, 2.2, 0.12, 0.5)
+	var amp: float = clamp(hspeed / 3.5, 0.0, 1.0)
+	var idle := 1.0 - amp
+	var leg := s * 0.5 * amp
+	var c := cos(anim_t)
+	# o joelho dobra enquanto a perna volta para a frente (fase de cada lado), parado fica levemente dobrado
+	var knee_l := maxf(0.0, c) * 0.8 * amp + 0.08
+	var knee_r := maxf(0.0, -c) * 0.8 * amp + 0.08
+	var arm_l := -s * 0.35 * amp - 0.2
+	var arm_r := s * 0.35 * amp - 0.2
+	# antebraços soltos: seguem o balanço do braço com atraso e respiram parados
+	var elb_l := -0.35 - c * 0.25 * amp - sin(anim_t * 0.6) * 0.06 * idle
+	var elb_r := -0.35 + c * 0.25 * amp - sin(anim_t * 0.6 + 1.0) * 0.06 * idle
+	var body_x := 0.08 + sin(anim_t * 0.5) * 0.03 * idle
+	var body_y := s * 0.08 * amp
+	var head_x := sin(anim_t * 0.7) * 0.05 * idle
+	var spin := 10.0
+	if state == "attack":
+		var t := attack_timer
+		var ht := _hit_time()
+		spin = 30.0
+		if attack_kind == "emerge":
+			if t >= ht and t < ht + 0.5:
+				arm_l = -2.3
+				arm_r = -2.3
+				elb_l = -0.8
+				elb_r = -0.8
+				body_x = -0.25
+				head_x = -0.3
+		elif t < ht:      # arma: braço para cima, garra erguida com o cotovelo bem dobrado, corpo torcido
+			var u := clampf(t / ht, 0.0, 1.0)
+			arm_r = lerpf(-0.2, -1.5, u)
+			elb_r = lerpf(-0.35, -1.5, u)
+			elb_l = -0.6
+			body_y = 0.25 * u
+			head_x = -0.2
+		elif t < ht + 0.3:   # rasga para baixo: o braço desce e o antebraço estica
+			arm_r = -0.5
+			elb_r = -0.05
+			arm_l = -1.0
+			elb_l = -0.9
+			body_x = 0.25
+			body_y = -0.2
+	parts.LegL.rotation.x = lerp(parts.LegL.rotation.x, leg, k)
+	parts.LegR.rotation.x = lerp(parts.LegR.rotation.x, -leg, k)
+	parts.ArmL.rotation.x = lerp(parts.ArmL.rotation.x, arm_l, k)
+	parts.ArmR.rotation.x = lerp(parts.ArmR.rotation.x, arm_r, k)
+	for pair in [["KneeL", knee_l], ["KneeR", knee_r], ["ElbowL", elb_l], ["ElbowR", elb_r]]:
+		var j: Node3D = parts.get(pair[0])
+		if j:
+			j.rotation.x = lerp(j.rotation.x, float(pair[1]), k)
+	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x, k)
+	parts.Body.rotation.y = lerp(parts.Body.rotation.y, body_y, k)
+	if parts.Head:
+		parts.Head.rotation.x = lerp(parts.Head.rotation.x, head_x, k)
+	if parts.Drill:
+		parts.Drill.rotation.z += spin * delta
 
 
 ## Flor-faminta: balança devagar com a boca entreaberta; ao ver alguém perto abre a boca; no bote estica o caule e

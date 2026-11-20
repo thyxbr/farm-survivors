@@ -1432,5 +1432,49 @@
 			]
 		],
 		"ref_level": 2
+	},
+	"toupeira": {
+		"name": "Toupeira-Broca",
+		"model": "mole",
+		"ai": "burrow",
+		"hp": 150,
+		"damage": 17,
+		"speed": 3.6,
+		"xp": 55,
+		"gold": [
+			5,
+			12
+		],
+		"aggro": 15.0,
+		"reach": 1.8,
+		"cooldown": 1.5,
+		"radius": 0.55,
+		"height": 1.4,
+		"scale": 1.0,
+		"color": {
+			"$c": [
+				0.45,
+				0.3,
+				0.2,
+				1.0
+			]
+		},
+		"dig_min": 4.0,
+		"dig_max": 14.0,
+		"surface_secs": 3.0,
+		"dig_max_secs": 4.0,
+		"dig_speed": 7.0,
+		"emerge_radius": 2.6,
+		"loot": [
+			[
+				"iron_ore",
+				0.4
+			],
+			[
+				"health_potion",
+				0.04
+			]
+		],
+		"ref_level": 2
 	}
 }

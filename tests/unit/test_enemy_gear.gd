@@ -83,6 +83,10 @@ func test_new_kinds_present() -> void:
 	T.ok(enemies.get("kobold", {}).has("throw_cd") and enemies.get("kobold", {}).has("throw_range"), "kobold tem arremesso")
 	T.ok(enemies.get("centopeia", {}).get("chill_venom", false), "a lentidão da centopeia é veneno (aviso próprio)")
 	T.ok(not enemies["slime_gelo"].get("chill_venom", false), "a do slime de gelo continua sendo frio")
+	var mole: Dictionary = enemies.get("toupeira", {})
+	T.eq(mole.get("ai", ""), "burrow", "toupeira cava")
+	for key in ["dig_min", "dig_max", "surface_secs", "dig_max_secs", "dig_speed", "emerge_radius"]:
+		T.ok(mole.has(key), "toupeira tem %s" % key)
 	var golem: Dictionary = enemies.get("golem_cristal", {})
 	T.eq(golem.get("model", ""), "golem", "golem usa o modelo novo")
 	T.ok(float(golem.get("death_blast", 0.0)) > 0.0 and float(golem.get("death_delay", 0.0)) > 0.0, "golem estoura ao morrer")
