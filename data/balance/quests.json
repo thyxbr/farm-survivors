@@ -343,7 +343,7 @@
 		"reward_items": {}
 	},
 	"bosque": {
-		"name": "O Bosque Sussurrante",
+		"name": "O Pântano Sussurrante",
 		"giver": "Lina, da Guilda",
 		"giver_id": "lina",
 		"turn_in": "Sylvi, a Patrulheira",
@@ -354,7 +354,7 @@
 		"rank": "C",
 		"chapter": {
 			"n": 8,
-			"title": "O Bosque Sussurrante"
+			"title": "O Pântano Sussurrante"
 		},
 		"where": [
 			0,
@@ -364,15 +364,15 @@
 		"talk": {
 			"offer": [
 				"! Rank C! Parabéns! Bem na hora, porque chegou um pedido urgente.",
-				"O Tico, o menino da Dona Zélia, seguiu um \"slime dourado\" até o Bosque Sussurrante e não voltou.",
-				"A carruagem da guilda fica do lado de fora do portão norte. O Beto leva você. Procure a Sylvi, a patrulheira do bosque."
+				"O Tico, o menino da Dona Zélia, seguiu um \"slime dourado\" até o Pântano Sussurrante e não voltou.",
+				"A carruagem da guilda fica do lado de fora do portão norte. O Beto leva você. Procure a Sylvi, a patrulheira do pântano."
 			],
-			"accept": "Vou para o bosque",
-			"locked": "Tenho um pedido sério do Bosque Sussurrante, mas é para Rank C. Junte pontos no Quadro de Contratos e volte para a promoção!",
-			"remind": "A carruagem fica do lado de fora do portão norte. Bosque Sussurrante. A Sylvi te espera no acampamento dela.",
+			"accept": "Vou para o pântano",
+			"locked": "Tenho um pedido sério do Pântano Sussurrante, mas é para Rank C. Junte pontos no Quadro de Contratos e volte para a promoção!",
+			"remind": "A carruagem fica do lado de fora do portão norte. Pântano Sussurrante. A Sylvi te espera no acampamento dela.",
 			"done": [
 				"Shh! Fale baixo. As árvores daqui escutam. E fofocam.",
-				"Sou a Sylvi, patrulheira do bosque. Você é o tal herói Rank D? ...Rank C? Que progresso.",
+				"Sou a Sylvi, patrulheira do pântano. Você é o tal herói Rank D? ...Rank C? Que progresso.",
 				{
 					"choices": [
 						[
@@ -392,8 +392,8 @@
 				"[reward]Vi pegadas pequenas indo para o nordeste, na direção da clareira. E um rastro de gosma. Muita gosma."
 			]
 		},
-		"desc": "Um pedido urgente chegou do Bosque Sussurrante: um menino da vila sumiu por lá. Pegue a carruagem da guilda e procure a patrulheira Sylvi.",
-		"objective": "Viaje ao Bosque Sussurrante (carruagem, portão norte) e fale com a Sylvi",
+		"desc": "Um pedido urgente chegou do Pântano Sussurrante: um menino da vila sumiu por lá. Pegue a carruagem da guilda e procure a patrulheira Sylvi.",
+		"objective": "Viaje ao Pântano Sussurrante (carruagem, portão norte) e fale com a Sylvi",
 		"reward_xp": 35522,
 		"level": 11,
 		"reward_gold": 20,
@@ -412,7 +412,7 @@
 			30,
 			772
 		],
-		"hint": "(Fale com a Sylvi no acampamento do bosque.)",
+		"hint": "(Fale com a Sylvi no acampamento do pântano.)",
 		"talk": {
 			"offer": [
 				"Siga as pegadas para o nordeste. E cuidado com os slimes velozes: eles mordem o calcanhar.",
@@ -442,8 +442,8 @@
 				"[reward]Herói... você pode derrotar a Slime Rainha? Ela fica na clareira a oeste. E pegar meu estilingue de volta?"
 			]
 		},
-		"desc": "Sylvi viu pegadas pequenas indo para o nordeste do bosque. Encontre o Tico.",
-		"objective": "Encontre o Tico no nordeste do Bosque Sussurrante",
+		"desc": "Sylvi viu pegadas pequenas indo para o nordeste do pântano. Encontre o Tico.",
+		"objective": "Encontre o Tico no nordeste do Pântano Sussurrante",
 		"reward_xp": 35522,
 		"level": 11,
 		"reward_gold": 20,
@@ -463,7 +463,7 @@
 			766
 		],
 		"guild_pts": 70,
-		"hint": "(O Tico está no nordeste do bosque.)",
+		"hint": "(O Tico está no nordeste do pântano.)",
 		"talk": {
 			"offer": [
 				"Ela é ENORME e quando apanha se divide em slimezinhos! Mas você é o herói, né? Né?!"
@@ -473,12 +473,12 @@
 			"done": [
 				"Você derrotou a Slime Rainha?! As árvores vão falar disso por um século.",
 				"* (Sylvi devolve o estilingue grudento do Tico. O menino comemora e volta para a vila com a carruagem.)",
-				"Mas tem uma coisa estranha. Os slimes não moram aqui. Eles FUGIRAM para cá. De alguma coisa na Mina de Cristal.",
+				"Mas tem uma coisa estranha. Os slimes não moram aqui. Eles FUGIRAM para cá. De alguma coisa na Geleira de Cristal.",
 				"[reward]Tome estas botas. São rápidas. Vai precisar delas se for se meter com o que assusta até slime."
 			]
 		},
-		"desc": "A Slime Rainha domina a clareira a oeste do Bosque Sussurrante. Derrote-a e conte tudo à Sylvi.",
-		"objective": "Derrote a Slime Rainha na clareira oeste do bosque",
+		"desc": "A Slime Rainha domina a clareira a oeste do Pântano Sussurrante. Derrote-a e conte tudo à Sylvi.",
+		"objective": "Derrote a Slime Rainha na clareira oeste do pântano",
 		"reward_xp": 149150,
 		"level": 20,
 		"reward_gold": 150,
@@ -487,7 +487,7 @@
 		}
 	},
 	"mina": {
-		"name": "A Mina de Cristal",
+		"name": "A Geleira de Cristal",
 		"giver": "Lina, da Guilda",
 		"giver_id": "lina",
 		"turn_in": "Bolgar, o Minerador",
@@ -498,22 +498,22 @@
 		"rank": "B",
 		"chapter": {
 			"n": 9,
-			"title": "A Mina de Cristal"
+			"title": "A Geleira de Cristal"
 		},
 		"where": [
 			806,
 			32
 		],
-		"hint": "(Volte à Guilda: chegou um pedido da Mina de Cristal.)",
+		"hint": "(Volte à Guilda: chegou um pedido da Geleira de Cristal.)",
 		"talk": {
 			"offer": [
-				"Recebi o relatório da Sylvi. E logo em seguida chegou ISTO da Mina de Cristal:",
+				"Recebi o relatório da Sylvi. E logo em seguida chegou ISTO da Geleira de Cristal:",
 				"* (\"SOCORRO. ESQUELETOS NA MINA. ELES NÃO PAGAM ALUGUEL. — Bolgar\")",
 				"Missão de Rank B. E você... é Rank B! Que coincidência burocraticamente perfeita. A carruagem te leva."
 			],
 			"accept": "Vou para a mina",
-			"locked": "Tem um pedido da Mina de Cristal, mas é para Rank B. Continue juntando pontos e volte para a promoção!",
-			"remind": "Mina de Cristal, pela carruagem do portão norte. O Bolgar está na entrada. Provavelmente reclamando.",
+			"locked": "Tem um pedido da Geleira de Cristal, mas é para Rank B. Continue juntando pontos e volte para a promoção!",
+			"remind": "Geleira de Cristal, pela carruagem do portão norte. O Bolgar está na entrada. Provavelmente reclamando.",
 			"done": [
 				"Finalmente! A guilda mandou alguém! E é... um só? Tá. Melhor que nada. Bolgar, minerador há 140 anos.",
 				"! Os esqueletos tomaram as galerias! Cavam, carregam pedra, empilham cristal... e não me deixam entrar na MINHA mina!",
@@ -536,8 +536,8 @@
 				"[reward]Me ajude a limpar as galerias e eu descubro quem está por trás disso."
 			]
 		},
-		"desc": "Os slimes do bosque fugiram de algo na Mina de Cristal. A guilda recebeu um pedido do minerador Bolgar. Missão para Rank B.",
-		"objective": "Viaje à Mina de Cristal (carruagem) e fale com o Bolgar",
+		"desc": "Os slimes do pântano fugiram de algo na Geleira de Cristal. A guilda recebeu um pedido do minerador Bolgar. Missão para Rank B.",
+		"objective": "Viaje à Geleira de Cristal (carruagem) e fale com o Bolgar",
 		"reward_xp": 149150,
 		"level": 20,
 		"reward_gold": 40,
@@ -575,7 +575,7 @@
 				"[reward]Toma este escudo. Achei numa galeria velha. Tem um brasão de cavaleiro, mas o dono não vai reclamar. Ele é um dos esqueletos."
 			]
 		},
-		"desc": "Esqueletos tomaram as galerias da Mina de Cristal. Derrote 8 deles.",
+		"desc": "Esqueletos tomaram as galerias da Geleira de Cristal. Derrote 8 deles.",
 		"objective": "Esqueletos derrotados nas galerias da mina",
 		"reward_xp": 254805,
 		"level": 25,
@@ -610,7 +610,7 @@
 				"* (Um diário de capa de couro... de quê? Melhor não saber.)",
 				"! \"Diário de MORGRATH, O LICH. Dia 3.402 de aposentadoria. Que tédio.\"",
 				"\"Pedi para entrar na Guilda dos Aventureiros. A recepcionista disse que mortos-vivos não podem ser Rank S. PRECONCEITO.\"",
-				"\"Plano: montar minha PRÓPRIA guilda no Pico das Cinzas. Já recrutei esqueletos, um rei goblin (foi pela torta) e um tal de Kael. Prometi Rank S instantâneo. Ele aceitou na hora.\"",
+				"\"Plano: montar minha PRÓPRIA guilda no Vulcão das Cinzas. Já recrutei esqueletos, um rei goblin (foi pela torta) e um tal de Kael. Prometi Rank S instantâneo. Ele aceitou na hora.\"",
 				"[reward]* (...O Kael entrou para a guilda do Lich?! A Lina precisa saber disso.)"
 			]
 		},
@@ -633,7 +633,7 @@
 		"rank": "A",
 		"chapter": {
 			"n": 10,
-			"title": "O Pico das Cinzas"
+			"title": "O Vulcão das Cinzas"
 		},
 		"where": [
 			800,
@@ -644,11 +644,11 @@
 			"offer": [
 				"Um LICH montando uma guilda pirata?! Sem alvará? Sem formulário?! Isso é... isso é...",
 				"! UM ULTRAJE ADMINISTRATIVO!",
-				"Desculpe. Respirei. O Pico das Cinzas é missão de Rank A. E o Kael está lá. Traga ele de volta. E, se puder, feche essa guilda falsificada."
+				"Desculpe. Respirei. O Vulcão das Cinzas é missão de Rank A. E o Kael está lá. Traga ele de volta. E, se puder, feche essa guilda falsificada."
 			],
 			"accept": "Vou buscar o Kael",
-			"locked": "O Pico das Cinzas é missão de Rank A. Eu sei que é pessoal, mas regras são regras! Junte pontos e volte.",
-			"remind": "Pico das Cinzas, pela carruagem. O Kael está lá em cima. Provavelmente fazendo pose.",
+			"locked": "O Vulcão das Cinzas é missão de Rank A. Eu sei que é pessoal, mas regras são regras! Junte pontos e volte.",
+			"remind": "Vulcão das Cinzas, pela carruagem. O Kael está lá em cima. Provavelmente fazendo pose.",
 			"done": [
 				"! ALTO! Quem vem lá? ...Ah. É você.",
 				"Eu sou KAEL, RANK S da Guilda do Pico! Olha meu cartão novo! É preto com bordas douradas!",
@@ -673,8 +673,8 @@
 				"[reward]! Chega! KAEL, A LÂMINA CARMESIM, SE DEMITE DA GUILDA DO LICH!"
 			]
 		},
-		"desc": "Morgrath, o Lich, está montando uma guilda rival no Pico das Cinzas, e o Kael foi junto. Missão de Rank A.",
-		"objective": "Viaje ao Pico das Cinzas e encontre o Kael",
+		"desc": "Morgrath, o Lich, está montando uma guilda rival no Vulcão das Cinzas, e o Kael foi junto. Missão de Rank A.",
+		"objective": "Viaje ao Vulcão das Cinzas e encontre o Kael",
 		"reward_xp": 394678,
 		"level": 30,
 		"reward_gold": 60,
@@ -694,7 +694,7 @@
 			766
 		],
 		"guild_pts": 150,
-		"hint": "(Fale com o Kael no Pico das Cinzas.)",
+		"hint": "(Fale com o Kael no Vulcão das Cinzas.)",
 		"talk": {
 			"offer": [
 				"Ele está no topo, no círculo de pedras. Cuidado: ele invoca esqueletos quando se irrita. E ele se irrita fácil.",
@@ -708,8 +708,8 @@
 				"[reward]Com isso, você cumpre o requisito da prova final: o Rank S. Junte os pontos e venha falar comigo."
 			]
 		},
-		"desc": "Morgrath, o Lich, espera no topo do Pico das Cinzas. Derrote-o e leve a notícia à Lina.",
-		"objective": "Derrote Morgrath no topo do Pico das Cinzas",
+		"desc": "Morgrath, o Lich, espera no topo do Vulcão das Cinzas. Derrote-o e leve a notícia à Lina.",
+		"objective": "Derrote Morgrath no topo do Vulcão das Cinzas",
 		"reward_xp": 885015,
 		"level": 42,
 		"reward_gold": 500,
@@ -923,17 +923,17 @@
 		],
 		"talk": {
 			"offer": [
-				"* \"CONTRATO (Rank C): 6 slimes velozes no Bosque Sussurrante. Os lenhadores pedem botas mais grossas ou um herói.\""
+				"* \"CONTRATO (Rank C): 6 slimes velozes no Pântano Sussurrante. Os lenhadores pedem botas mais grossas ou um herói.\""
 			],
 			"accept": "Aceitar contrato",
-			"remind": "Slimes velozes, Bosque Sussurrante ({n})",
+			"remind": "Slimes velozes, Pântano Sussurrante ({n})",
 			"done": [
 				"Calcanhares salvos! Os lenhadores mandaram um cesto de nozes. Eu comi metade. Desculpa.",
 				"[reward]Pagamento do contrato."
 			]
 		},
 		"side": true,
-		"desc": "Slimes velozes no Bosque Sussurrante estão mordendo o calcanhar dos lenhadores.",
+		"desc": "Slimes velozes no Pântano Sussurrante estão mordendo o calcanhar dos lenhadores.",
 		"objective": "Slimes velozes derrotados",
 		"region": "clareira_saltitante",
 		"reward_xp": 34922,
@@ -1001,14 +1001,14 @@
 				"* \"CONTRATO (Rank B): 3 goblins brutos. Grandes. Bravos. Com clava. Leve poções.\""
 			],
 			"accept": "Aceitar contrato",
-			"remind": "Goblins brutos nas ruínas ou na Mina de Cristal ({n})",
+			"remind": "Goblins brutos nas ruínas ou na Geleira de Cristal ({n})",
 			"done": [
 				"Três brutos a menos no mundo! A balança da guilda agradece.",
 				"[reward]Pagamento do contrato."
 			]
 		},
 		"side": true,
-		"desc": "Goblins brutos guardam as ruínas e a Mina de Cristal.",
+		"desc": "Goblins brutos guardam as ruínas e a Geleira de Cristal.",
 		"objective": "Goblins brutos derrotados (ruínas ou mina)",
 		"reward_xp": 101922,
 		"level": 25,
@@ -1041,18 +1041,18 @@
 		],
 		"talk": {
 			"offer": [
-				"* \"CONTRATO (Rank A): a legião de esqueletos do Pico das Cinzas continua marchando. Ninguém avisou que o chefe saiu.\""
+				"* \"CONTRATO (Rank A): a legião de esqueletos do Vulcão das Cinzas continua marchando. Ninguém avisou que o chefe saiu.\""
 			],
 			"accept": "Aceitar contrato",
-			"remind": "Esqueletos no Pico das Cinzas ({n})",
+			"remind": "Esqueletos no Vulcão das Cinzas ({n})",
 			"done": [
 				"A legião está menor! Ainda sobram uns ossos, mas a gente chega lá.",
 				"[reward]Pagamento de Rank A. Gaste bem!"
 			]
 		},
 		"side": true,
-		"desc": "Os restos da legião do Lich ainda andam pelo Pico das Cinzas.",
-		"objective": "Esqueletos derrotados no Pico das Cinzas",
+		"desc": "Os restos da legião do Lich ainda andam pelo Vulcão das Cinzas.",
+		"objective": "Esqueletos derrotados no Vulcão das Cinzas",
 		"reward_xp": 228547,
 		"level": 35,
 		"reward_gold": 200,
@@ -1212,7 +1212,7 @@
 				"É para uma poção que definitivamente não vai abrir um portal para outra dimensão. Uns 70% de certeza."
 			],
 			"accept": "Trago os cristais",
-			"remind": "Cristais arcanos: {n}. Nas ruínas ou na Mina de Cristal. Zzz.",
+			"remind": "Cristais arcanos: {n}. Nas ruínas ou na Geleira de Cristal. Zzz.",
 			"done": [
 				"Três cristais. Perfeito. Agora... não olhe.",
 				"* (Um zumbido. Um clarão roxo. Por um segundo, a botica cheira a outra dimensão.)",
@@ -1221,7 +1221,7 @@
 		},
 		"side": true,
 		"desc": "Pip quer cristais arcanos para uma poção que \"definitivamente não vai abrir um portal\".",
-		"objective": "Cristais Arcanos para a Pip (ruínas ou Mina de Cristal)",
+		"objective": "Cristais Arcanos para a Pip (ruínas ou Geleira de Cristal)",
 		"reward_xp": 75,
 		"level": 1,
 		"reward_gold": 60,
@@ -1360,7 +1360,7 @@
 		"requires_hint": "Sir Osvaldo só confia em aventureiros registrados na Guilda."
 	},
 	"sylvi_xama": {
-		"name": "Cantoria no Bosque",
+		"name": "Cantoria no Pântano",
 		"giver": "Sylvi, a Patrulheira",
 		"giver_id": "sylvi",
 		"turn_in": "Sylvi, a Patrulheira",
@@ -1379,7 +1379,7 @@
 				"Três xamãs goblins acamparam a leste daqui. Cantam a noite toda. As árvores não dormem. Eu não durmo.",
 				"Uma patrulheira sem sono é uma patrulheira perigosa. Me ajuda?"
 			],
-			"accept": "Silêncio no bosque",
+			"accept": "Silêncio no pântano",
 			"remind": "Xamãs goblins a leste do acampamento ({n}). Ainda dá pra ouvir eles desafinando.",
 			"done": [
 				"Silêncio. As árvores agradecem. Uma delas até parou de fofocar.",
@@ -1387,7 +1387,7 @@
 			]
 		},
 		"side": true,
-		"desc": "Xamãs goblins fazem rituais barulhentos no Bosque Sussurrante.",
+		"desc": "Xamãs goblins fazem rituais barulhentos no Pântano Sussurrante.",
 		"objective": "Xamãs goblins derrotados",
 		"region": "circulo_xamas",
 		"reward_xp": 58203,
@@ -1464,8 +1464,8 @@
 			]
 		},
 		"side": true,
-		"desc": "Kael quer provar que mudou: quem derrota mais Cavaleiros Esqueletos no Pico das Cinzas?",
-		"objective": "Cavaleiros Esqueletos derrotados no Pico das Cinzas",
+		"desc": "Kael quer provar que mudou: quem derrota mais Cavaleiros Esqueletos no Vulcão das Cinzas?",
+		"objective": "Cavaleiros Esqueletos derrotados no Vulcão das Cinzas",
 		"reward_xp": 380912,
 		"level": 35,
 		"reward_gold": 180,

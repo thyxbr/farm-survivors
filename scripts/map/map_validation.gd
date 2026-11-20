@@ -94,11 +94,41 @@ static func check(root: MapRoot) -> PackedStringArray:
 			got.sort()
 			if got != range(INDEXED[k]):
 				out.append("%s: os índices precisam ser 0..%d, um de cada (veio %s)" % [k, INDEXED[k] - 1, str(got)])
+	out.append_array(_river_problems(root))
 	var lim := root.half + MARGIN
 	for n in root.all_pieces():
 		var p := root.local_xform(n).origin
 		if absf(p.x) > lim or absf(p.z) > lim:
 			out.append("%s: fora do mapa (%.0f, %.0f; limite %.0f)" % [str(root.get_path_to(n)), p.x, p.z, lim])
+	return out
+
+
+## Rios: precisam de 2 pontos ou mais, e nada do jogo pode ficar dentro do leito (fica do outro lado da parede ou
+## debaixo d'água). Só a ponte pode.
+static func _river_problems(root: MapRoot) -> PackedStringArray:
+	var out := PackedStringArray()
+	var rivers := root.pieces(MapRiver)
+	for r: MapRiver in rivers:
+		if r.control_points().size() < 2:
+			out.append("%s: rio precisa de 2 pontos de caminho ou mais (filhos MapWaypoint)" % root.get_path_to(r))
+	if rivers.is_empty():
+		return out
+	for n in root.all_pieces():
+		if n is MapRiver or n is MapGroundPaint or n is MapRegion or n is MapGrassArea or n is MapMountain:
+			continue
+		if n is MapProp and MapRiver.BRIDGE_HALF.has((n as MapProp).model):
+			continue
+		var p := root.local_xform(n).origin
+		var reach := 0.0
+		if n is MapProp:
+			reach = (n as MapProp).footprint()
+		elif n is EnemySpawn:
+			reach = (n as EnemySpawn).radius
+		for r: MapRiver in rivers:
+			var d := MapRiver.distance_to(r.samples(), Vector2(p.x, p.z))
+			if d - reach < r.half_total():
+				out.append("%s: dentro do rio %s (a %.1f m do meio; o leito vai até %.1f m)"
+					% [root.get_path_to(n), r.name, d, r.half_total()])
 	return out
 
 

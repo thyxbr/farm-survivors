@@ -474,7 +474,11 @@ func _ready() -> void:
 	Game.fury = 100.0
 	player.invuln = 0.0
 	player.model.rotation.y = 0.5
-	# o puxão se vê: um inimigo a 3 m termina bem mais perto depois do giro (com vida de sobra para não morrer)
+	# o puxão se vê: um inimigo a 3 m termina bem mais perto depois do giro (com vida de sobra para não morrer).
+	# Num campo aberto: perto da ponte ou de uma cerca, a mureta entre os dois segurava o puxão.
+	var pull_back := player.global_position
+	player.global_position = Vector3(-105, 0.3, 80)
+	await wait(0.1)
 	var pl_max: float = pl_s.max_hp
 	pl_s.hp = 100000.0
 	pl_s.max_hp = 100000.0
@@ -491,6 +495,7 @@ func _ready() -> void:
 	# o puxão por volta depende de quantos quadros de física cabem no giro: na máquina local leva ~1,7 m,
 	# no CI lento chegou a 0,98 m. 0,6 m ainda separa com folga o puxão de um inimigo parado.
 	check(d_pull0 - d_pull1 >= 0.6, "Turbilhão puxa o inimigo para perto (%.2f m -> %.2f m)" % [d_pull0, d_pull1])
+	player.global_position = pull_back
 	pl_s.max_hp = pl_max
 	pl_s.hp = pl_max
 	check(player.ability == "" and is_equal_approx(Engine.time_scale, 1.0), "Turbilhão termina sozinho (%s)" % player.ability)
@@ -1088,6 +1093,7 @@ func _ready() -> void:
 	await _test_bocarrao_tongue()
 	await _test_flor_rooted()
 	await _test_enemy_detour()
+	await _test_river()
 	await _test_archer_pose()
 	await _test_gold_goblin_world()
 	if _part() != "mundo":
@@ -2298,6 +2304,35 @@ func _test_enemy_detour() -> void:
 	await wait(0.1)
 
 
+## Rio do Vale: andando para o norte fora da ponte, a parede da margem segura o jogador antes da água; pela
+## Estrada do Norte ele sobe na ponte e chega do outro lado sem cair.
+func _test_river() -> void:
+	var back := player.global_position
+	player.invuln = 99.0
+	var yaw0: float = player.cam_yaw.global_rotation.y
+	player.cam_yaw.global_rotation.y = 0.0   # câmera olhando para -Z: "frente" é o norte
+	for case in [[Vector3(20, 0.3, -17), false], [Vector3(0, 0.3, -17), true]]:
+		player.global_position = case[0]
+		player.velocity = Vector3.ZERO
+		await wait(0.2)
+		var low := 99.0
+		Input.action_press("move_forward")
+		for i in 50:
+			await wait(0.1)
+			low = minf(low, player.global_position.y)
+		Input.action_release("move_forward")
+		var z: float = player.global_position.z
+		if case[1]:
+			check(z < -40.0, "atravessa o rio pela ponte (chegou a z = %.1f)" % z)
+			check(low > -0.2, "não afunda nem cai da ponte (y mínimo %.2f)" % low)
+		else:
+			check(z < -21.0 and z > -26.5, "a margem do rio segura o jogador fora da água (parou em z = %.1f)" % z)
+	player.cam_yaw.global_rotation.y = yaw0
+	player.invuln = 0.0
+	player.global_position = back
+	await wait(0.1)
+
+
 ## Arqueiro: o arco fica em pé na mão esquerda esticada para o alvo e a flecha encaixada aparece puxando; com
 ## um muro no meio não atira (anda de lado até abrir a linha) e, livre, atira e acerta.
 func _test_archer_pose() -> void:
@@ -2586,7 +2621,7 @@ func _test_story_talk() -> void:
 
 
 ## Guilda e mapas: registro (Rank D), contrato do quadro, promoção pela Lina (Rank C), carruagem para o
-## Bosque Sussurrante (monstros e NPCs de lá) e volta para a vila.
+## Pântano Sussurrante (monstros e NPCs de lá) e volta para a vila.
 func _test_guild_travel() -> void:
 	_story_to("registro")
 	Game.start_quest("registro")
@@ -2630,10 +2665,10 @@ func _test_guild_travel() -> void:
 	var dests: Array = []
 	for ch in pages[0].get("choices", []):
 		dests.append(str(ch.text))
-	check("Bosque Sussurrante" in dests and "Mina de Cristal (Rank B)" in dests, "carruagem: bosque liberado, mina travada (%s)" % [dests])
+	check("Pântano Sussurrante" in dests and "Geleira de Cristal (Rank B)" in dests, "carruagem: bosque liberado, mina travada (%s)" % [dests])
 	world.travel_to("bosque")
 	await wait(1.6)
-	check(Regions.region_at(player.global_position) == "bosque", "viagem leva ao Bosque Sussurrante (%s)" % player.global_position)
+	check(Regions.region_at(player.global_position) == "bosque", "viagem leva ao Pântano Sussurrante (%s)" % player.global_position)
 	check(_interactable("sylvi") != null and _interactable("coach_bosque") != null, "Sylvi e a carruagem no bosque")
 	var queen := false
 	for e in get_tree().get_nodes_in_group("enemies"):

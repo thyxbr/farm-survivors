@@ -189,7 +189,7 @@ func _ready() -> void:
 	is_boss = data.get("boss", false) or chief
 	add_to_group("enemies")
 	collision_layer = _layer
-	collision_mask = 1 | 2 | 4
+	collision_mask = 1 | 2 | 4 | MapRiver.WALL_LAYER
 	if data.get("ai", "") == "worm":   # Mãe-Verme: só o terreno a segura; ninguém a empurra (os outros batem nela)
 		collision_mask = 1
 	var col := CollisionShape3D.new()
@@ -1447,7 +1447,7 @@ func _boss_intro() -> void:
 	var w := get_tree().current_scene
 	var hud = w.get("hud") if w != null else null
 	if hud != null and hud.get("region_banner") != null:
-		hud.region_banner.show_area(data.name, "Chefe da Mina de Cristal")
+		hud.region_banner.show_area(data.name, "Chefe da Geleira de Cristal")
 
 
 ## Partículas de cristal e poeira subindo do corpo o tempo todo (presas ao modelo: somem quando ela afunda).

@@ -5,14 +5,29 @@ Os quatro mapas do jogo são cenas que você abre e edita no 3D do Godot:
 | Mapa | Cena |
 |---|---|
 | Vale de Valdoria (vila, campos, acampamento, ruínas, lagoa, ninho) | `scenes/maps/vale.tscn` |
-| Bosque Sussurrante | `scenes/maps/bosque.tscn` |
-| Mina de Cristal | `scenes/maps/mina.tscn` |
-| Pico das Cinzas | `scenes/maps/pico.tscn` |
+| Pântano Sussurrante | `scenes/maps/bosque.tscn` |
+| Geleira de Cristal | `scenes/maps/mina.tscn` |
+| Vulcão das Cinzas | `scenes/maps/pico.tscn` |
 | Arena do Desafio da Horda (mapa à parte, longe ao norte) | `scenes/maps/arena.tscn` |
 
 O que está na cena é o que o jogo monta: mover, apagar ou duplicar (Ctrl+D) um nó muda o jogo. No editor a
 cena mostra o chão de verdade (relevo, serra, trilhas), a luz e o estilo toon do jogo. Capim, clima e hora do dia
 só aparecem jogando.
+
+## Biomas
+
+Cada mapa de viagem tem bioma próprio (`scripts/world/biome_rules.gd`): cor do chão e do capim, o que nasce
+no meio do capim, a serra em volta (rocha, mata, neve e as árvores da encosta), o céu, a névoa, o sol e o clima.
+O editor já mostra o chão e a serra do bioma; céu, névoa e clima só jogando.
+
+- **Pântano Sussurrante** (`bosque`): lama e capim escuro, juncos, samambaias e cogumelos que brilham, árvores do
+  pântano (`tree_swamp`), charcos (MapRiver de água parada, em Bioma), névoa verde, sempre úmido, vaga-lumes.
+- **Geleira de Cristal** (`mina`): neve cobrindo o chão e as peças, nevando sempre, cristais de gelo
+  (`ice_crystal`), céu claro e frio.
+- **Vulcão das Cinzas** (`pico`): chão de cinza sem capim, árvores mortas queimadas (`tree_dead`), espinhos de
+  obsidiana (`ice_crystal` com `tint` escuro), rios de lava (MapRiver com `glow`), céu vermelho, cinza e brasas.
+
+As dungeons usam o bioma do mapa de onde se entra. O Vale e a Arena ficam como sempre foram.
 
 ## O que cada tipo de nó faz
 
@@ -30,6 +45,15 @@ Todos ficam em `scripts/map/` e aparecem no Inspector com as opções abaixo.
   ferraria, com o ferreiro dentro; a oficina do artesão e o laboratório de alquimia, abertos na frente), as três
   barracas da feira (`stall_cloth`, `stall_farm`, `stall_goods`) e o poço; `palette` pinta a casa, `flowers` põe canteiro, `delivery` marca uma das 6
   portas da missão de Natal. A porta da casa é a seta azul (+Z) do gizmo.
+- **Rio (MapRiver)**, em Rio: o caminho são os filhos **Ponto0, Ponto1...** (MapWaypoint), como o caminho dos
+  moradores: arraste cada um no 3D, Ctrl+D num ponto acrescenta outro, a ordem na árvore é a ordem do rio. O chão
+  some ao longo do caminho e no lugar entram a margem e a água (`width` = largura da água, `bank` = margem de cada
+  lado, `flow` = correnteza, cores da água e da margem; `glow` acende a água em lava; `bank_plant` e `bank_rocks` = o que
+  nasce na beira). As duas pontas são arredondadas: um rio curto vira charco ou poça de lava. Paredes invisíveis na beira seguram jogador e monstros
+  fora da água; só abrem onde há uma ponte: um Objeto com `model = bridge_stone` atravessado no rio (a ponte
+  cruza ao longo da seta azul, +Z). A validação dos mapas acusa qualquer peça (árvore, NPC, ponto de monstro,
+  landmark) dentro do leito. O rio do Vale passa ao norte dos Campos do Norte; a Ponte do Norte fica na Estrada do
+  Norte.
 - **Área pintada no chão (MapGroundPaint)**: retângulo ou disco com cor e borda suave (ruas, trilhas, praça,
   lotes). O retângulo gira com o nó (gire em Y para fazer uma rua na diagonal; o contorno da prévia mostra o
   resultado). Mover, girar ou mudar o tamanho já redesenha o chão no editor. No máximo 64 por mapa.
@@ -47,6 +71,16 @@ Todos ficam em `scripts/map/` e aparecem no Inspector com as opções abaixo.
   dentro. Dentro da dungeon, `ref = "out"` (exatamente uma) e o landmark `arrive` (onde se chega). A cena de cada
   dungeon é `scenes/maps/dg_<id>.tscn` (no `MapData.SCENES` e no `Regions.DATA`, com `dungeon: true` e `parent`).
   No ponto de monstro do chefe da dungeon, ligue `chief`.
+- **Planta da dungeon (MapDungeon)**, no nó Dungeon das cenas `dg_*`: as dungeons são debaixo da terra. O
+  MapDungeon junta as **salas** (MapDungeonRoom, em Salas: `size`, `height` do teto, `round` = elipse,
+  `pillars`, `boss` = sala do chefe) e os **corredores** (MapDungeonPath, em Corredores: `width`, `height` e os
+  pontos Ponto0, Ponto1... como o caminho dos moradores; curvas secas escondem o que vem depois) numa grade de
+  1 m e monta chão, paredes de rocha, teto, tochas e enfeites do `theme` (raizes, mina, cripta, abismo). Onde um
+  corredor ou sala encosta na sala do chefe nasce o portão (até 6 m de largura; o resto da abertura vira parede)
+  com duas estátuas de guardião e braseiros. A sala do chefe fica escura; quando o jogador chega a 10 m do portão,
+  ele abre, os braseiros acendem em volta e o nome da sala aparece. Chegada, saída e monstros precisam ficar no
+  chão da dungeon (o teste `test_dungeon_layout` confere). Debaixo da terra não há sol, céu nem clima, e a névoa
+  escura limita a visão.
 - **Bancada de craft**: MapEntity com `kind = station` e `ref` = a estação (`leather` é a Bancada de Couraria, na
   oficina do artesão; `alchemy` é a mesa de alquimia, no laboratório ao lado da botica). A forja abre pelos
   serviços do Doran; a alquimia também pela Pip e a couraria pelo Mestre Aurélio.

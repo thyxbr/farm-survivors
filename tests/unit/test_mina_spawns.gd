@@ -1,5 +1,5 @@
 extends RefCounted
-## A Mina de Cristal (scenes/maps/mina.tscn): cada monstro novo na sua região, os esqueletos só no corredor norte
+## A Geleira de Cristal (scenes/maps/mina.tscn): cada monstro novo na sua região, os esqueletos só no corredor norte
 ## e no Salão (a linha de história do Bolgar), a Mãe-Verme no fosso oeste e só o bando de Brutos do contrato.
 ## Lê o .tscn como texto (o mapa tem scripts @tool que precisam dos autoloads).
 

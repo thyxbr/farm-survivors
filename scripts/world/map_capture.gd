@@ -71,6 +71,7 @@ func _render(region: String) -> Texture2D:
 	vp.msaa_3d = Viewport.MSAA_2X
 	var cam := Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
+	cam.cull_mask &= ~MapDungeon.CEILING_LAYER   # sem o teto das dungeons (a foto é de cima)
 	cam.size = r.size.x
 	cam.near = 1.0
 	cam.far = 400.0

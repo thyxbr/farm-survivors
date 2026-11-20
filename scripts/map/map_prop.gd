@@ -9,7 +9,8 @@ const MODELS := ["tree_oak", "tree_pine", "tree_fir", "tree_birch", "tree_maple"
 	"tree_orange", "tree_pear", "rock", "fence", "crate", "barrel", "chest", "tent", "campfire", "lamp", "well",
 	"notice_board", "signpost", "ruin_pillar", "ruin_wall", "anvil", "forge", "flower_sunflower",
 	"flower_lavender", "flower_tulips", "flower_daisies", "flower_poppies", "flower_bluebells", "fern", "house", "house_b", "house_c", "house_d", "house_e", "house_f",
-	"shop_smithy", "shop_alchemist", "shop_merchant", "tombstone", "crypt", "palisade", "watchtower"]
+	"shop_smithy", "shop_alchemist", "shop_merchant", "tombstone", "crypt", "palisade", "watchtower", "bridge_stone",
+	"tree_swamp", "tree_dead", "reeds", "mushrooms", "ice_crystal"]
 
 ## Colisão padrão de cada modelo: [forma (1 caixa, 2 cilindro), tamanho]. Caixa: largura, altura, profundidade;
 ## cilindro: x = raio, y = altura. Valores tirados do world.gd antigo.
@@ -26,6 +27,8 @@ const DEFAULT_SHAPE := {
 	"ruin_wall": [1, Vector3(4.2, 2.0, 0.9)], "anvil": [2, Vector3(0.3, 0.8, 0)], "forge": [1, Vector3(0.9, 1.0, 0.8)],
 	"tombstone": [1, Vector3(0.8, 1.1, 0.35)], "crypt": [1, Vector3(4.0, 3.6, 4.8)],
 	"palisade": [1, Vector3(2.1, 2.6, 0.4)], "watchtower": [1, Vector3(2.8, 4.0, 2.8)],
+	"tree_swamp": [2, Vector3(0.42, 3, 0)], "tree_dead": [2, Vector3(0.32, 3, 0)],
+	"ice_crystal": [2, Vector3(0.75, 2.4, 0)],
 }
 const COLLIDER_COLOR := Color(0.2, 0.6, 1.0, 0.25)
 
@@ -34,7 +37,8 @@ const COLLIDER_COLOR := Color(0.2, 0.6, 1.0, 0.25)
 	"tree_orange", "tree_pear", "rock", "fence", "crate", "barrel", "chest", "tent", "campfire", "lamp", "well",
 	"notice_board", "signpost", "ruin_pillar", "ruin_wall", "anvil", "forge", "flower_sunflower",
 	"flower_lavender", "flower_tulips", "flower_daisies", "flower_poppies", "flower_bluebells", "fern", "house", "house_b", "house_c", "house_d", "house_e", "house_f",
-	"shop_smithy", "shop_alchemist", "shop_merchant", "tombstone", "crypt", "palisade", "watchtower") var model := "rock":
+	"shop_smithy", "shop_alchemist", "shop_merchant", "tombstone", "crypt", "palisade", "watchtower", "bridge_stone",
+	"tree_swamp", "tree_dead", "reeds", "mushrooms", "ice_crystal") var model := "rock":
 	set(v):
 		var changed := v != model
 		model = v

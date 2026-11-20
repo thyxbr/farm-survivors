@@ -82,6 +82,11 @@ static func build(w: Node3D, map_id: String) -> MapRoot:
 		elif n is MapGrassArea:
 			var c: Vector3 = n.global_position
 			(sparse if n.sparse else keep).append([Vector2(c.x, c.z), n.radius])
+		elif n is MapDungeon:
+			(n as MapDungeon).build_game()
+		elif n is MapRiver:
+			(n as MapRiver).build_game()
+			keep.append_array((n as MapRiver).grass_discs(Vector2(o.x, o.z)))
 	w.grass_areas[map_id] = {"keep_out": keep, "sparse": sparse}
 	return root
 
