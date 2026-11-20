@@ -474,7 +474,11 @@ func _ready() -> void:
 	Game.fury = 100.0
 	player.invuln = 0.0
 	player.model.rotation.y = 0.5
-	# o puxão se vê: um inimigo a 3 m termina bem mais perto depois do giro (com vida de sobra para não morrer)
+	# o puxão se vê: um inimigo a 3 m termina bem mais perto depois do giro (com vida de sobra para não morrer).
+	# Num campo aberto: perto da ponte ou de uma cerca, a mureta entre os dois segurava o puxão.
+	var pull_back := player.global_position
+	player.global_position = Vector3(-105, 0.3, 80)
+	await wait(0.1)
 	var pl_max: float = pl_s.max_hp
 	pl_s.hp = 100000.0
 	pl_s.max_hp = 100000.0
@@ -491,6 +495,7 @@ func _ready() -> void:
 	# o puxão por volta depende de quantos quadros de física cabem no giro: na máquina local leva ~1,7 m,
 	# no CI lento chegou a 0,98 m. 0,6 m ainda separa com folga o puxão de um inimigo parado.
 	check(d_pull0 - d_pull1 >= 0.6, "Turbilhão puxa o inimigo para perto (%.2f m -> %.2f m)" % [d_pull0, d_pull1])
+	player.global_position = pull_back
 	pl_s.max_hp = pl_max
 	pl_s.hp = pl_max
 	check(player.ability == "" and is_equal_approx(Engine.time_scale, 1.0), "Turbilhão termina sozinho (%s)" % player.ability)

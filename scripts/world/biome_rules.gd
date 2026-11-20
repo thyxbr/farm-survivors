@@ -87,6 +87,23 @@ const DATA := {
 }
 
 
+## Debaixo da terra (dungeons): sem sol nem céu, névoa preta que engole o que está a uns 15 m, pouca luz
+## ambiente (quem ilumina são as tochas e os braseiros), sem clima.
+const UNDERGROUND := {
+	"sky_top": Color(0.02, 0.02, 0.025), "sky_hz": Color(0.035, 0.03, 0.035), "ground_hz": Color(0.03, 0.025, 0.03),
+	"fog": Color(0.025, 0.02, 0.025), "fog_density": 0.06,
+	"sun": 0.0, "sun_color": Color(1, 1, 1), "ambient": 0.65, "saturation": 1.0, "rim": 0.25,
+	"autumn": false, "motes": "",
+}
+
+
+## Céu, névoa, luz e partículas do lugar `map_id`: o bioma nos mapas, debaixo da terra nas dungeons.
+static func atmo(map_id: String) -> Dictionary:
+	if Regions.is_dungeon(map_id):
+		return UNDERGROUND
+	return of(map_id) if has_sky(map_id) else {}
+
+
 ## Bioma do mapa `map_id` (dungeon: o do mapa de fora). Sem bioma próprio: o Vale.
 static func of(map_id: String) -> Dictionary:
 	var id := str(Regions.DATA.get(map_id, {}).get("parent", map_id))
@@ -103,8 +120,12 @@ static func has_sky(map_id: String) -> bool:
 ## Clima do jogo `s` (Weather.state) passado pelo bioma: o pântano fica sempre úmido, a geleira coberta de neve
 ## e nevando, o vulcão seco. Devolve uma cópia.
 static func weather(map_id: String, s: Dictionary) -> Dictionary:
-	var w: Dictionary = of(map_id).get("weather", {})
 	var o := s.duplicate()
+	if Regions.is_dungeon(map_id):   # debaixo da terra: nada de chuva, neve, poça nem vento
+		for k in ["rain", "snow", "cover", "wet", "cloud", "wind"]:
+			o[k] = 0.0
+		return o
+	var w: Dictionary = of(map_id).get("weather", {})
 	if w.is_empty():
 		return o
 	if w.get("no_rain", false):

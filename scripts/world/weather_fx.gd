@@ -152,6 +152,8 @@ func _eff_base() -> Dictionary:
 	if b.has("ambient"):
 		b.ambient = float(_base.ambient) * float(_bio.ambient)
 		b.saturation = float(_base.saturation) * float(_bio.saturation)
+	if b.has("rim"):
+		b.rim = float(_base.rim) * float(_bio.get("rim", 1.0))
 	return b
 
 
@@ -851,9 +853,9 @@ func _apply(delta: float) -> void:
 	var region := Regions.region_at(cam.global_position) if cam != null else "vila"
 	if region != _region:
 		_region = region
-		_bio = BiomeRules.of(region) if BiomeRules.has_sky(region) else {}
+		_bio = BiomeRules.atmo(region)
 	var s: Dictionary = BiomeRules.weather(region, Weather.state)
-	var wind := Weather.wind_now()
+	var wind := 0.0 if Regions.is_dungeon(region) else Weather.wind_now()
 	RenderingServer.global_shader_parameter_set("weather_wet", s.wet)
 	RenderingServer.global_shader_parameter_set("weather_snow", s.cover)
 	RenderingServer.global_shader_parameter_set("weather_rain", s.rain)

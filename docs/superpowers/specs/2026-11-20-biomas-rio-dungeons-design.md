@@ -45,3 +45,17 @@ caverna enquanto o jogador está dentro. Alternativa (modelar cada dungeon no Bl
 ## O que fica para o construtor
 Formato exato das salas das dungeons, quantos biomas extras de enfeite (modelos novos) e o tom de cada paleta:
 decidido rodada a rodada com fotos no jogo.
+
+## Biomas (PR 2, feito)
+`BiomeRules` (puro) por mapa: capim, plantas, serra, árvores da encosta, céu, névoa, sol, clima e partículas.
+Chão e serra leem o bioma em `MapRoot.make_ground`; o `WeatherFX` troca céu/névoa/sol/clima pelo mapa da câmera.
+Charcos e lava são `MapRiver` curtos com pontas arredondadas.
+
+## Dungeons (PR 3, feito)
+`MapDungeon` junta salas (`MapDungeonRoom`) e corredores (`MapDungeonPath`) numa grade de 1 m: chão, paredes de
+rocha com deslocamento por ruído (o mesmo nos dois lados de um canto, sem fresta), teto só visto de baixo (a
+câmera passa por ele; camada visual fora da foto do minimapa), colisão só no chão e nas paredes. Tochas, enfeites
+por tema e, onde um corredor encosta na sala `boss`, o portão (até 6 m, resto vira parede) com estátuas e
+braseiros. `DungeonFX` (cliente) abre o portão a 10 m: folhas giram, braseiros da sala acendem em volta, círculo
+de runas, letreiro com o nome da sala. Debaixo da terra: `BiomeRules.UNDERGROUND` (sem sol, céu preto, névoa
+escura, sem clima). Plantas geradas por script (fora do repositório) e conferidas por `test_dungeon_layout`.

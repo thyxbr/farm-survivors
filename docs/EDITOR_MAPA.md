@@ -71,6 +71,16 @@ Todos ficam em `scripts/map/` e aparecem no Inspector com as opções abaixo.
   dentro. Dentro da dungeon, `ref = "out"` (exatamente uma) e o landmark `arrive` (onde se chega). A cena de cada
   dungeon é `scenes/maps/dg_<id>.tscn` (no `MapData.SCENES` e no `Regions.DATA`, com `dungeon: true` e `parent`).
   No ponto de monstro do chefe da dungeon, ligue `chief`.
+- **Planta da dungeon (MapDungeon)**, no nó Dungeon das cenas `dg_*`: as dungeons são debaixo da terra. O
+  MapDungeon junta as **salas** (MapDungeonRoom, em Salas: `size`, `height` do teto, `round` = elipse,
+  `pillars`, `boss` = sala do chefe) e os **corredores** (MapDungeonPath, em Corredores: `width`, `height` e os
+  pontos Ponto0, Ponto1... como o caminho dos moradores; curvas secas escondem o que vem depois) numa grade de
+  1 m e monta chão, paredes de rocha, teto, tochas e enfeites do `theme` (raizes, mina, cripta, abismo). Onde um
+  corredor ou sala encosta na sala do chefe nasce o portão (até 6 m de largura; o resto da abertura vira parede)
+  com duas estátuas de guardião e braseiros. A sala do chefe fica escura; quando o jogador chega a 10 m do portão,
+  ele abre, os braseiros acendem em volta e o nome da sala aparece. Chegada, saída e monstros precisam ficar no
+  chão da dungeon (o teste `test_dungeon_layout` confere). Debaixo da terra não há sol, céu nem clima, e a névoa
+  escura limita a visão.
 - **Bancada de craft**: MapEntity com `kind = station` e `ref` = a estação (`leather` é a Bancada de Couraria, na
   oficina do artesão; `alchemy` é a mesa de alquimia, no laboratório ao lado da botica). A forja abre pelos
   serviços do Doran; a alquimia também pela Pip e a couraria pelo Mestre Aurélio.
