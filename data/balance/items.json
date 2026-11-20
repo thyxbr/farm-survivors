@@ -1090,6 +1090,61 @@
 		},
 		"desc": "Escamas que nem o fogo atravessa."
 	},
+	"ember_helm": {
+		"name": "Elmo de Escamas de Dragão",
+		"type": "gear",
+		"style": "h_emberscale",
+		"slot": "head",
+		"rarity": "legendary",
+		"level": 35,
+		"defense": 7,
+		"price": 480,
+		"color": {
+			"$c": [0.6, 0.12, 0.1, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"vit": 4,
+			"hp": 20
+		},
+		"desc": "Dois olhos de brasa e chifres voltados para trás."
+	},
+	"ember_claws": {
+		"name": "Garras de Escamas de Dragão",
+		"type": "gear",
+		"style": "g_emberscale",
+		"slot": "hands",
+		"rarity": "legendary",
+		"level": 35,
+		"defense": 2,
+		"price": 420,
+		"color": {
+			"$c": [0.6, 0.12, 0.1, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"str": 5
+		},
+		"desc": "A brasa corre até a ponta das garras."
+	},
+	"ember_greaves": {
+		"name": "Grevas de Escamas de Dragão",
+		"type": "gear",
+		"style": "f_emberscale",
+		"slot": "feet",
+		"rarity": "legendary",
+		"level": 35,
+		"defense": 5,
+		"price": 420,
+		"color": {
+			"$c": [0.6, 0.12, 0.1, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"vit": 3
+		},
+		"desc": "Três garras em cada pé e a brasa entre as escamas."
+	},
 	"leather_cap": {
 		"name": "Capuz de Couro",
 		"type": "gear",
