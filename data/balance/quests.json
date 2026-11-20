@@ -12,7 +12,7 @@
 			"n": 1,
 			"title": "Um Herói Caiu na Vila"
 		},
-		"desc": "O Ancião Bram jura que você é o herói de uma profecia (que ele parece estar inventando agora). Pegue o \"Kit do Herói\" com a Mira, no empório a leste do poço.",
+		"desc": "Você caiu do céu (de outro mundo, ao que parece) direto na carroça de feno do Beto. O Ancião Bram jura que isso faz de você o herói de uma profecia, que ele parece estar inventando agora. Pegue o \"Kit do Herói\" com a Mira, no empório a leste do poço.",
 		"objective": "Fale com a Mira no empório",
 		"reward_xp": 112,
 		"level": 1,
@@ -788,7 +788,9 @@
 		"reward_gold": 40,
 		"reward_items": {
 			"mana_potion": 1
-		}
+		},
+		"requires": "registro",
+		"requires_hint": "Só aventureiros registrados na Guilda podem aceitar contratos do quadro."
 	},
 	"q_bombas": {
 		"name": "Contrato: Bombardeiros",
@@ -824,7 +826,9 @@
 		"reward_gold": 55,
 		"reward_items": {
 			"health_potion": 2
-		}
+		},
+		"requires": "registro",
+		"requires_hint": "Só aventureiros registrados na Guilda podem aceitar contratos do quadro."
 	},
 	"q_ninho": {
 		"name": "Contrato: O Ninho",
@@ -861,7 +865,9 @@
 		"reward_gold": 70,
 		"reward_items": {
 			"slime_gel": 3
-		}
+		},
+		"requires": "registro",
+		"requires_hint": "Só aventureiros registrados na Guilda podem aceitar contratos do quadro."
 	},
 	"q_dourado": {
 		"name": "Contrato: Goblin Dourado",
@@ -896,7 +902,9 @@
 		"reward_xp": 11303,
 		"level": 10,
 		"reward_gold": 120,
-		"reward_items": {}
+		"reward_items": {},
+		"requires": "registro",
+		"requires_hint": "Só aventureiros registrados na Guilda podem aceitar contratos do quadro."
 	},
 	"q_veloz": {
 		"name": "Contrato: Mordidas no Calcanhar",
@@ -931,7 +939,9 @@
 		"reward_xp": 34922,
 		"level": 16,
 		"reward_gold": 80,
-		"reward_items": {}
+		"reward_items": {},
+		"requires": "registro",
+		"requires_hint": "Só aventureiros registrados na Guilda podem aceitar contratos do quadro."
 	},
 	"q_cavaleiro": {
 		"name": "Contrato: O Cavaleiro Sem Descanso",
@@ -966,7 +976,9 @@
 		"reward_xp": 17508,
 		"level": 12,
 		"reward_gold": 120,
-		"reward_items": {}
+		"reward_items": {},
+		"requires": "registro",
+		"requires_hint": "Só aventureiros registrados na Guilda podem aceitar contratos do quadro."
 	},
 	"q_brutos": {
 		"name": "Contrato: Brutamontes",
@@ -1001,7 +1013,9 @@
 		"reward_xp": 101922,
 		"level": 25,
 		"reward_gold": 130,
-		"reward_items": {}
+		"reward_items": {},
+		"requires": "registro",
+		"requires_hint": "Só aventureiros registrados na Guilda podem aceitar contratos do quadro."
 	},
 	"q_cinzas": {
 		"name": "Contrato: Legião das Cinzas",
@@ -1042,7 +1056,9 @@
 		"reward_xp": 228547,
 		"level": 35,
 		"reward_gold": 200,
-		"reward_items": {}
+		"reward_items": {},
+		"requires": "registro",
+		"requires_hint": "Só aventureiros registrados na Guilda podem aceitar contratos do quadro."
 	},
 	"gato": {
 		"name": "O Gato Fugitivo",
@@ -1170,7 +1186,9 @@
 		"reward_xp": 75,
 		"level": 1,
 		"reward_gold": 40,
-		"reward_items": {}
+		"reward_items": {},
+		"requires": "forja",
+		"requires_hint": "Conheça o Doran na ferraria antes."
 	},
 	"cristais": {
 		"name": "Cristais Arcanos",
@@ -1209,7 +1227,9 @@
 		"reward_gold": 60,
 		"reward_items": {
 			"mana_potion": 2
-		}
+		},
+		"requires": "gel",
+		"requires_hint": "A Pip ainda nem sabe quem você é."
 	},
 	"espantalho": {
 		"name": "O Espantalho Medroso",
@@ -1291,7 +1311,9 @@
 		"reward_gold": 60,
 		"reward_items": {
 			"hunter_quiver": 1
-		}
+		},
+		"requires": "registro",
+		"requires_hint": "O Ravi só caça com aventureiros registrados na Guilda."
 	},
 	"aposentado": {
 		"name": "O Cavaleiro Aposentado",
@@ -1333,7 +1355,9 @@
 		"reward_gold": 100,
 		"reward_items": {
 			"knight_helm": 1
-		}
+		},
+		"requires": "registro",
+		"requires_hint": "Sir Osvaldo só confia em aventureiros registrados na Guilda."
 	},
 	"sylvi_xama": {
 		"name": "Cantoria no Bosque",
@@ -1371,7 +1395,9 @@
 		"reward_gold": 80,
 		"reward_items": {
 			"elven_bow": 1
-		}
+		},
+		"requires": "bosque",
+		"requires_hint": "Chegue ao Bosque Sussurrante pela história primeiro."
 	},
 	"bolgar_cristal": {
 		"name": "Cristais do Bolgar",
@@ -1406,7 +1432,9 @@
 		"reward_xp": 99434,
 		"level": 20,
 		"reward_gold": 140,
-		"reward_items": {}
+		"reward_items": {},
+		"requires": "mina",
+		"requires_hint": "Chegue à Mina de Cristal pela história primeiro."
 	},
 	"kael_treino": {
 		"name": "Treino com o Rival",
@@ -1443,7 +1471,9 @@
 		"reward_gold": 180,
 		"reward_items": {
 			"vampire_ring": 1
-		}
+		},
+		"requires": "kael_sumiu",
+		"requires_hint": "Encontre o Kael no Pico das Cinzas primeiro."
 	},
 	"natal_presentes": {
 		"giver": "Papai Noel",

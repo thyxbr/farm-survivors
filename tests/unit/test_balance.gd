@@ -84,6 +84,8 @@ func test_roundtrip_matches_consts() -> void:
 				(cur[id] as Dictionary).erase("level")
 				(cur[id] as Dictionary).erase("reward_xp")
 				(snap_quests[id] as Dictionary).erase("reward_xp")
+				(snap_quests[id] as Dictionary).erase("level")   # snapshot regravado já traz o campo
+				(snap_quests[id] as Dictionary).erase("region")
 				# regiões com nome (parte 2): a missão cita a região e o objetivo perdeu o "onde"
 				if (cur[id] as Dictionary).has("region"):
 					(cur[id] as Dictionary).erase("region")

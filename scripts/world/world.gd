@@ -814,14 +814,29 @@ func close_ui() -> void:
 		_on_modal_closed()
 
 
-## Narração de abertura da história (personagem novo, primeira vez no mundo). Não roda nos testes.
+## Abertura da história (personagem novo, primeira vez no mundo): a cena da chegada (ArrivalCutscene: o
+## herói cai do céu na carroça de feno) e depois a narração. Não roda nos testes.
+## `-- --introdemo` força a abertura num personagem novo descartável (para capturas).
 func _play_intro() -> void:
 	var args := OS.get_cmdline_user_args()
 	if DisplayServer.get_name() == "headless" or "--smoketest" in args or "--nointro" in args \
 			or Array(args).any(func(a: String) -> bool: return a.begins_with("--nettest")):
 		return
-	await get_tree().create_timer(1.5).timeout
-	if is_inside_tree() and modal == null and not Loading.covering and survival == null:
+	await get_tree().create_timer(0.3).timeout
+	# espera a tela de carregamento sair (a cena começa em preto, então nada do mapa aparece antes)
+	var waited := 0.0
+	while is_inside_tree() and Loading.covering and waited < 30.0:
+		await get_tree().process_frame
+		waited += get_process_delta_time()
+	if not is_inside_tree() or modal != null or survival != null or player == null:
+		return
+	var cut := ArrivalCutscene.new()
+	cut.world = self
+	cut.player = player
+	add_child(cut)
+	await cut.finished
+	await get_tree().create_timer(0.4).timeout
+	if is_inside_tree() and modal == null and survival == null:
 		open_dialogue("", StoryDialogue.intro())
 
 
