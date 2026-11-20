@@ -162,3 +162,80 @@ script = ExtResource("6")
 region_id = "campos_norte"
 shape = 1
 radius = 0.0
+
+[node name="Area 41" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 42" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 43" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 44" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 45" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 46" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 47" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 48" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 49" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 50" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 51" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 52" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 53" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 54" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 55" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 56" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 57" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 58" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 59" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 60" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 61" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 62" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 63" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="Area 64" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="MoradorSemCaminho" type="Node3D" parent="."]
+script = ExtResource("4")
+kind = "walker"
+ref = "marta"

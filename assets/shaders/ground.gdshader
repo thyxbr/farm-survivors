@@ -6,8 +6,9 @@ render_mode diffuse_burley;
 #include "res://assets/shaders/ground_common.gdshaderinc"
 #include "res://assets/shaders/toon_light.gdshaderinc"
 
-const int MAX_SHAPES = 40;
+const int MAX_SHAPES = 64;
 uniform vec4 shapes[MAX_SHAPES];      // retângulo: (cx, cz, meia_x, meia_z); disco: (cx, cz, raio, -1)
+uniform float shape_ang[MAX_SHAPES];  // giro do retângulo em Y (radianos, como o rotation.y do nó)
 uniform vec4 shape_cols[MAX_SHAPES];  // rgb linear + maciez da borda (m)
 uniform float shape_grass[MAX_SHAPES]; // 0 = terra lisa; > 0 = grama baixa/pisada manchada com a cor
 uniform int shape_count = 0;
@@ -61,7 +62,10 @@ void fragment() {
 	for (int i = 0; i < shape_count; i++) {
 		vec4 s = shapes[i];
 		vec4 c = shape_cols[i];
-		float d = s.w < 0.0 ? length(wxz - s.xy) - s.z : sd_box(wxz - s.xy, s.zw);
+		vec2 dp = wxz - s.xy;
+		float ca = cos(shape_ang[i]);
+		float sa = sin(shape_ang[i]);
+		float d = s.w < 0.0 ? length(dp) - s.z : sd_box(vec2(dp.x * ca - dp.y * sa, dp.x * sa + dp.y * ca), s.zw);
 		float soft = c.a;
 		d += edge_n * soft;
 		float a = 1.0 - smoothstep(-soft * 0.3 - 0.02, soft * 0.3 + 0.02, d);

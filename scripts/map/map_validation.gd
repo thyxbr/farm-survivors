@@ -3,7 +3,7 @@ extends RefCounted
 ## Confere uma cena de mapa contra o que o jogo aceita (sem autoload; usado pelo teste
 ## tests/unit/test_map_validation.gd, rode depois de editar um mapa). Cada problema vem com o caminho do nó.
 
-const MAX_PAINTS := 40
+const MAX_PAINTS := 64
 const MARGIN := 30.0   # além da meia largura (a serra e a floresta da borda ficam um pouco para fora)
 const WORLD_NODES := "res://data/balance/world_nodes.json"
 const REGIONS := "res://data/balance/regions.json"
@@ -11,6 +11,8 @@ const REGIONS := "res://data/balance/regions.json"
 const REQUIRED := {"vila": ["camp", "ruins", "farm", "nest", "orchard", "village_spawn", "portal", "horde_return",
 	"pond", "coach", "arrive"], "arena": []}
 const REQUIRED_REGION := ["coach", "arrive"]
+## NPCs que o vale precisa ter uma vez (MapEntity com esse kind): a Mira e a Pip.
+const UNIQUE_NPCS := ["merchant", "alchemist"]
 ## Índices que o vale precisa ter completos: tipo -> quantidade (canteiros da Horta, presentes do Natal).
 const INDEXED := {"farm_plot": 12, "xmas_gift": 8}
 
@@ -68,8 +70,12 @@ static func check(root: MapRoot) -> PackedStringArray:
 			out.append("precisa de exatamente 1 porta para a dungeon '%s' (dungeon_door ref \"%s\")" % [d, d])
 	var veins: Dictionary = _vein_kinds()
 	var seen := {}
+	var npcs := {}
 	for e: MapEntity in root.pieces(MapEntity):
 		var at := str(root.get_path_to(e))
+		npcs[e.kind] = int(npcs.get(e.kind, 0)) + 1
+		if e.kind == "walker" and e.walk_path().size() < 2:
+			out.append("%s: morador que passeia precisa de 2 pontos de caminho ou mais (filhos MapWaypoint)" % at)
 		if e.kind == "resource_node":
 			if e.node_id < 0:
 				out.append("%s: nó de coleta sem node_id" % at)
@@ -80,6 +86,9 @@ static func check(root: MapRoot) -> PackedStringArray:
 				seen[e.kind] = []
 			seen[e.kind].append(e.index)
 	if root.map_id == "vila":
+		for k in UNIQUE_NPCS:
+			if int(npcs.get(k, 0)) != 1:
+				out.append("NPC '%s' aparece %d vez(es); precisa de exatamente 1" % [k, int(npcs.get(k, 0))])
 		for k in INDEXED:
 			var got: Array = seen.get(k, [])
 			got.sort()

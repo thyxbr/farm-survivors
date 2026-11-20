@@ -81,12 +81,15 @@ func local_xform(n: Node3D) -> Transform3D:
 	return MapData.local_xform(self, n)
 
 
-## Formas pintadas no chão, em coordenadas do mapa (retângulos sempre alinhados aos eixos).
+## Formas pintadas no chão, em coordenadas do mapa. `angle` = giro do retângulo em Y (o do nó, somado ao dos
+## grupos acima dele), para ruas na diagonal.
 func paint_data() -> Array:
 	var out: Array = []
 	for p: MapGroundPaint in pieces(MapGroundPaint):
-		out.append({"center": local_xform(p).origin, "disc": p.disc, "size": p.size, "radius": p.radius,
-			"color": p.color, "soft": p.soft, "grass": p.grass})
+		var xf := local_xform(p)
+		var ax := xf.basis.x
+		out.append({"center": xf.origin, "disc": p.disc, "size": p.size, "radius": p.radius,
+			"color": p.color, "soft": p.soft, "grass": p.grass, "angle": snappedf(-atan2(ax.z, ax.x), 0.0001)})
 	return out
 
 
@@ -125,7 +128,7 @@ func make_ground(world_offset := Vector2.ZERO) -> Node3D:
 		if p.disc:
 			g.add_disc(p.center, p.radius, p.color, p.soft, p.grass)
 		else:
-			g.add_rect(p.center, p.size, p.color, p.soft, p.grass)
+			g.add_rect(p.center, p.size, p.color, p.soft, p.grass, p.angle)
 	for m: Vector4 in mountain_data():
 		g.add_mountain(Vector3(m.x, 0, m.y), m.z, m.w)
 	g.border_mountains(border_height)

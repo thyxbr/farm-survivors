@@ -6,7 +6,7 @@ extends Node3D
 
 const GROUND_SHADER := preload("res://assets/shaders/ground.gdshader")
 const GRASS_SHADER := preload("res://assets/shaders/grass.gdshader")
-const MAX_SHAPES := 40
+const MAX_SHAPES := 64
 const CHUNK := 20.0
 ## Capim: candidatos por m² = density * GRASS_MUL; um ruído de touceiras decide quantos ficam
 ## (campo cheio onde ele sobe, ralo onde desce).
@@ -39,6 +39,7 @@ var world_offset := Vector2.ZERO
 var _shapes := PackedVector4Array()
 var _cols := PackedVector4Array()
 var _mix := PackedFloat32Array()
+var _angs := PackedFloat32Array()   # giro em Y de cada retângulo (0 nos discos)
 var _mat: ShaderMaterial
 var _noise_tex: NoiseTexture2D
 
@@ -82,18 +83,19 @@ func setup(map_half: float) -> void:
 	_push()
 
 
-## Trilha/área retangular (alinhada aos eixos). soft = largura da borda irregular em metros.
+## Trilha/área retangular, girada `angle` radianos em Y (como o rotation.y de um nó: 0 = alinhada aos eixos).
+## soft = largura da borda irregular em metros.
 ## grass = 0 pinta terra/pedra lisa; > 0 deixa a grama aparecer por baixo (grama baixa, pisada),
 ## manchada com a cor da forma, e nasce capim baixo e ralo dentro (densidade ~ grass).
-func add_rect(center: Vector3, size: Vector2, c: Color, soft := 0.7, grass := 0.0) -> void:
-	_add(Vector4(center.x, center.z, size.x / 2.0, size.y / 2.0), c, soft, grass)
+func add_rect(center: Vector3, size: Vector2, c: Color, soft := 0.7, grass := 0.0, angle := 0.0) -> void:
+	_add(Vector4(center.x, center.z, size.x / 2.0, size.y / 2.0), c, soft, grass, angle)
 
 
 func add_disc(center: Vector3, r: float, c: Color, soft := 0.7, grass := 0.0) -> void:
 	_add(Vector4(center.x, center.z, r, -1.0), c, soft, grass)
 
 
-func _add(s: Vector4, c: Color, soft: float, grass: float) -> void:
+func _add(s: Vector4, c: Color, soft: float, grass: float, angle := 0.0) -> void:
 	if _shapes.size() >= MAX_SHAPES:
 		push_warning("ground: limite de %d formas" % MAX_SHAPES)
 		return
@@ -101,6 +103,7 @@ func _add(s: Vector4, c: Color, soft: float, grass: float) -> void:
 	_shapes.append(s)
 	_cols.append(Vector4(lc.r, lc.g, lc.b, soft))
 	_mix.append(clampf(grass, 0.0, 1.0))
+	_angs.append(angle if s.w >= 0.0 else 0.0)
 	_push()
 
 
@@ -112,12 +115,15 @@ func _push() -> void:
 		s.append(Vector4(sh.x + world_offset.x, sh.y + world_offset.y, sh.z, sh.w))
 	var c := _cols.duplicate()
 	var m := _mix.duplicate()
+	var a := _angs.duplicate()
 	s.resize(MAX_SHAPES)
+	a.resize(MAX_SHAPES)
 	c.resize(MAX_SHAPES)
 	m.resize(MAX_SHAPES)
 	_mat.set_shader_parameter("shapes", s)
 	_mat.set_shader_parameter("shape_cols", c)
 	_mat.set_shader_parameter("shape_grass", m)
+	_mat.set_shader_parameter("shape_ang", a)
 	_mat.set_shader_parameter("shape_count", _shapes.size())
 
 
@@ -414,18 +420,29 @@ func _ring_forest() -> void:
 	_chunk(pine, pines, [], Vector3.ZERO, 0.0, false, true)
 
 
-## Distância (aprox.) até a forma pintada mais próxima; negativa = dentro.
+## Distância (aprox.) até a forma pintada mais próxima; negativa = dentro. `shapes` = [[Vector4, giro], ...]
+## (como o scatter_grass separa por bloco); vazio = todas as formas.
 func shape_distance(p: Vector2, shapes: Array = []) -> float:
 	var best := INF
-	for s in (shapes if not shapes.is_empty() else Array(_shapes)):
-		best = min(best, _sd(s, p))
+	if shapes.is_empty():
+		for k in _shapes.size():
+			best = min(best, _sd(_shapes[k], p, _angs[k]))
+		return best
+	for e in shapes:
+		best = min(best, _sd(e[0], p, e[1]))
 	return best
 
 
-static func _sd(s: Vector4, p: Vector2) -> float:
+## Distância com sinal até uma forma (disco ou retângulo girado `ang` em Y, mesma conta do shader).
+static func _sd(s: Vector4, p: Vector2, ang := 0.0) -> float:
 	if s.w < 0.0:
 		return p.distance_to(Vector2(s.x, s.y)) - s.z
-	var q := (p - Vector2(s.x, s.y)).abs() - Vector2(s.z, s.w)
+	var d := p - Vector2(s.x, s.y)
+	if ang != 0.0:
+		var ca := cos(ang)
+		var sa := sin(ang)
+		d = Vector2(d.x * ca - d.y * sa, d.x * sa + d.y * ca)
+	var q := d.abs() - Vector2(s.z, s.w)
 	return Vector2(max(q.x, 0.0), max(q.y, 0.0)).length() + min(max(q.x, q.y), 0.0)
 
 
@@ -473,11 +490,14 @@ func scatter_grass(seed_value: int, density := 0.55, keep_out: Array = [], spars
 			for k in _shapes.size():
 				var s := _shapes[k]
 				var r := Rect2(s.x - s.z, s.y - (s.z if s.w < 0.0 else s.w), s.z * 2.0, (s.z if s.w < 0.0 else s.w) * 2.0)
+				if _angs[k] != 0.0:   # retângulo girado: o quadrado que cabe ele em qualquer giro
+					var rr := Vector2(s.z, s.w).length()
+					r = Rect2(s.x - rr, s.y - rr, rr * 2.0, rr * 2.0)
 				if box.grow(1.0).intersects(r):
 					if _mix[k] > 0.0:
-						grassy.append([s, _mix[k]])
+						grassy.append([s, _mix[k], _angs[k]])
 					else:
-						shapes.append(s)
+						shapes.append([s, _angs[k]])
 			var outs := _near(keep_out, box)
 			var few := _near(sparse, box)
 			var tufts: Array[Transform3D] = []
@@ -646,7 +666,7 @@ func _inside_grown(p: Vector2, areas: Array, extra: float) -> bool:
 static func _grassy_at(p: Vector2, grassy: Array) -> float:
 	var best := -1.0
 	for e in grassy:
-		if _sd(e[0], p) < 0.0:
+		if _sd(e[0], p, e[2]) < 0.0:
 			best = maxf(best, e[1])
 	return best
 

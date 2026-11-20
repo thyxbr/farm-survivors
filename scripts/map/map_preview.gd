@@ -111,3 +111,17 @@ static func box(parent: Node3D, center: Vector3, size: Vector3, c: Color) -> voi
 	mi.position = center
 	mi.material_override = mat(c)
 	parent.add_child(mi)
+
+
+## Faixa fina no chão de a até b (caminho dos moradores).
+static func segment(parent: Node3D, a: Vector3, b: Vector3, c: Color, width := 0.18) -> void:
+	var d := b - a
+	if Vector2(d.x, d.z).length() < 0.01:
+		return
+	var mi := MeshInstance3D.new()
+	var m := BoxMesh.new()
+	m.size = Vector3(width, 0.04, d.length())
+	mi.mesh = m
+	mi.transform = Transform3D(Basis.looking_at(d.normalized()), (a + b) / 2.0 + Vector3(0, 0.08, 0))
+	mi.material_override = mat(c)
+	parent.add_child(mi)
