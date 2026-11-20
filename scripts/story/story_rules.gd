@@ -118,9 +118,27 @@ static func offer_at(qt: Dictionary, quests: Dictionary, npc_id: String, rank :=
 	return ""
 
 
-## Secundária disponível para aceitar (rank suficiente; nunca feita ou repetível e já entregue).
+## Missões que precisam estar concluídas antes desta ("requires": id ou [ids]). Ex.: os contratos do quadro
+## exigem o registro na Guilda; a secundária de um NPC exige tê-lo conhecido na história.
+static func requirements(q: Dictionary) -> Array:
+	var r = q.get("requires", [])
+	return [str(r)] if r is String else Array(r)
+
+
+## Primeira missão exigida por id que ainda não foi concluída ("" = tudo cumprido).
+static func missing_requirement(qt: Dictionary, quests: Dictionary, id: String) -> String:
+	for need in requirements(qt.get(id, {})):
+		if state(quests, need) != "done":
+			return need
+	return ""
+
+
+## Secundária disponível para aceitar (rank suficiente, requisitos cumpridos; nunca feita ou repetível e já
+## entregue).
 static func side_available(qt: Dictionary, quests: Dictionary, id: String, rank: String) -> bool:
 	if not is_side(qt, id) or not rank_ge(rank, needs_rank(qt, id)):
+		return false
+	if missing_requirement(qt, quests, id) != "":
 		return false
 	var st := state(quests, id)
 	return st == "none" or (st == "done" and bool(qt[id].get("repeat", false)))

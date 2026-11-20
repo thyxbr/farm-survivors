@@ -133,7 +133,7 @@ func _debug_screenshot() -> void:
 			spawn_position = Vector3(float(v[0]), 0.5, float(v[1]))
 			spawn_yaw = float(v[2]) if v.size() > 2 else 0.0
 	var args := OS.get_cmdline_user_args()
-	var demo := "--farmdemo" in args or "--geardemo" in args or "--enchantdemo" in args
+	var demo := "--farmdemo" in args or "--geardemo" in args or "--enchantdemo" in args or "--introdemo" in args
 	for a in args:
 		demo = demo or a.begins_with("--weapon=")
 	if demo:
@@ -1205,7 +1205,7 @@ static func harness_class(args: PackedStringArray) -> Array:
 		elif a.begins_with("--weapon="):
 			weapon = a.substr(9)
 			harness = true
-		elif a in ["--smoketest", "--vilatest", "--farmdemo", "--geardemo", "--enchantdemo"] or a.begins_with("--nettest="):
+		elif a in ["--smoketest", "--vilatest", "--farmdemo", "--geardemo", "--enchantdemo", "--introdemo"] or a.begins_with("--nettest="):
 			harness = true
 	if cls == "" and weapon != "":
 		var wc := CharRules.weapon_class(Balance.tables, weapon)
