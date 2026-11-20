@@ -61,8 +61,11 @@ var _t := 0.0
 var _walk := 0.0
 var _run := 0.0
 var _flap := 1.0
-## 1 = penas e membranas que dobram; menos para asas duras (cristal, mecânica).
+## 1 = penas e membranas que dobram; menos para asas duras (cristal, mecânica) e de borboleta.
 var _flex := 1.0
+## Quanto a pose de velocidade (recuo, deitar, caimento) vale: 1 nas asas de penas; menos na de borboleta, cujos
+## dois lóbulos grandes se cruzam e atravessam o corpo se a asa deitar e dobrar como uma de penas.
+var _pose := 1.0
 var _last := Vector3.ZERO
 var _has_last := false
 var _vel := Vector3.ZERO
@@ -83,7 +86,13 @@ func setup(root: Node3D, item: Dictionary) -> void:
 	_t = randf() * 10.0     # cada personagem bate num tempo diferente
 	_flap = float(item.get("flap", 1.0))
 	var style: String = item.get("style", "")
-	_flex = float(item.get("wing_flex", 0.35 if style in ["b_crystal", "b_mech"] else 1.0))
+	var flex_default := 1.0
+	if style in ["b_crystal", "b_mech"]:
+		flex_default = 0.35
+	elif style == "b_fairy":
+		flex_default = 0.15     # membrana dura: bate quase inteira, sem dobrar lóbulo sobre lóbulo
+	_flex = float(item.get("wing_flex", flex_default))
+	_pose = float(item.get("wing_pose", 0.4 if style == "b_fairy" else 1.0))
 	if not legacy:
 		for side in [[_l, 1.0], [_r, -1.0]]:
 			if side[0] != null:
@@ -135,8 +144,8 @@ func _animate(w: Dictionary, acc: Vector3, wind: float, delta: float) -> void:
 	var s: float = w.side
 	var hz := IDLE_HZ * _flap
 	var still := 1.0 - _walk
-	var move := _walk
-	var run := _run
+	var move := _walk * _pose
+	var run := _run * _pose
 	var flex := _flex
 	var flutter_amp := (0.025 * move + 0.055 * run + 0.04 * wind) * flex
 	var flutter_hz := 2.2 + 2.6 * run
