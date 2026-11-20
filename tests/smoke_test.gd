@@ -3404,7 +3404,7 @@ func _test_gear() -> void:
 	world._open_menu(0)
 	await wait(0.15)
 	var m = world.modal
-	check(m != null and m.equip_slots.size() == 9 and m.bag_slots.size() >= 54, "inventário com boneco (9 espaços) e grade")
+	check(m != null and m.equip_slots.size() == 9 and m.bag_slots.size() >= 48, "inventário com boneco (9 espaços) e grade")
 	check(m.tool_slots.size() == 2 and m.tool_slots.pickaxe.item_id == Game.equipment.get("pickaxe", ""),
 		"aba Ferramentas da página do herói com os espaços da picareta e do machado")
 	check(m.gear_view.visible and not m.tools_view.visible, "Inventário abre na aba Equipamento")
@@ -3416,21 +3416,38 @@ func _test_gear() -> void:
 	m._set_side_tab("equip")
 	check(m.equip_slots.head.item_id == "leather_cap", "boneco mostra o capuz equipado")
 	var book: BookWindow = m.book
-	check(book != null and book.current_page() == 0, "menu do herói abre no livro, na aba Inventário")
-	for i in m.pages.size():
-		m._show_tab(i)
+	check(book != null and book.side == "right" and m.pages.size() == 1 and world.dock.at("right") == m,
+		"inventário abre na janela da direita")
+	await wait(0.1)
+	var inv_page: Rect2 = m.pages[0].get_global_rect()
+	check(book.content_rect().grow(1.0).encloses(inv_page),
+		"inventário cabe inteiro na janela, sem rolar (%s em %s)" % [inv_page, book.content_rect()])
+	# janela do herói (C) abre à esquerda sem fechar o inventário, e as duas não se sobrepõem
+	world._open_menu(1)
+	await wait(0.15)
+	var h = world.modal
+	check(h != m and h.mode == "hero" and world.dock.at("left") == h and world.dock.at("right") == m and is_instance_valid(m),
+		"janela do herói abre à esquerda com o inventário aberto à direita")
+	check(not h.book._frame.get_global_rect().intersects(m.book._frame.get_global_rect()),
+		"janelas do herói e do inventário não se sobrepõem (%s | %s)" % [h.book._frame.get_global_rect(), m.book._frame.get_global_rect()])
+	for i in h.pages.size():
+		h._show_tab(i)
 		await wait(0.1)
-		var area := book.content_rect().grow(1.0)
-		var page_rect: Rect2 = m.pages[i].get_global_rect()
-		check(book.current_page() == i and area.encloses(page_rect), "aba %d fica dentro das páginas do livro" % i)
-		# as duas metades de cada aba respeitam a página e deixam a lombada livre
-		var halves: Array = m.pages[i].get_children()
+		var area: Rect2 = h.book.content_rect().grow(1.0)
+		var halves: Array = h.pages[i].get_children()
 		var lr: Rect2 = halves[0].get_global_rect()
 		var rr: Rect2 = halves[1].get_global_rect()
-		var room := BookLayout.page_room().x * book.content_rect().size.x / BookLayout.content_room().x
-		check(halves.size() == 2 and lr.size.x <= room + 1.0 and rr.size.x <= room + 1.0 and lr.end.x <= rr.position.x,
-			"aba %d: duas páginas com a lombada livre (%.0f | %.0f)" % [i, lr.size.x, rr.size.x])
-	check(book.overflow_warnings == 0, "nenhuma aba pede mais espaço do que o livro tem")
+		check(halves.size() == 2 and area.position.x <= lr.position.x and rr.end.x <= area.end.x and lr.end.x <= rr.position.x,
+			"aba %d: duas colunas dentro da janela (%.0f | %.0f)" % [i, lr.size.x, rr.size.x])
+	check(h.book.overflow_warnings == 0 and book.overflow_warnings == 0, "nenhuma aba pede mais largura do que a janela tem")
+	# o atalho da aba aberta fecha a janela; o inventário fica
+	world.toggle_window("character")
+	world.toggle_window("character")
+	await wait(0.05)
+	check(world.dock.at("left") == null and world.dock.at("right") == m and world.modal == m, "C de novo fecha só a janela do herói")
+	world._open_menu(1)
+	await wait(0.1)
+	h = world.modal
 	var plain_tip := ItemTooltip.new()
 	check(m.tooltip.paper and not plain_tip.paper, "dica de item: papel no livro, escura por padrão")
 	plain_tip.free()
@@ -3438,13 +3455,17 @@ func _test_gear() -> void:
 	var tip_dark := ItemTooltip.build_text("leather_cap", "bag")
 	check(tip_paper != tip_dark and not tip_paper.contains(UITheme.GOOD.to_html(false))
 		and not tip_paper.contains(UITheme.DIM.to_html(false)), "dica de papel não usa as cores claras do tema escuro")
-	# Personagem e Missões a tinta: nenhum painel escuro nem texto claro
-	for i in [1, 2, 3]:
-		m._show_tab(i)
+	await _test_compare(m)
+	# Personagem, Missões e Profissões a tinta: nenhum painel escuro nem texto claro
+	for i in [0, 2, 3]:
+		h._show_tab(i)
 		await wait(0.1)
-		check(_light_text(m.pages[i]) == "", "aba %d sem texto claro nem painel escuro%s" % [i, _light_text(m.pages[i])])
+		check(_light_text(h.pages[i]) == "", "aba %d sem texto claro nem painel escuro%s" % [i, _light_text(h.pages[i])])
+	m._close()
+	await wait(0.05)
+	m = h
 	# gastar um ponto de atributo pelo botão "+" da aba Personagem
-	m._show_tab(1)
+	m._show_tab(0)
 	if Game.stat_points <= 0:
 		Game.add_xp(Game.xp_to_next())   # sobe um nível para ter ponto a gastar
 	await wait(0.1)
@@ -3458,7 +3479,7 @@ func _test_gear() -> void:
 	check(m.attr_values["str"].text == str(Game.attr("str")), "aba Personagem mostra o novo valor de Força")
 	check(m.attr_buttons["str"].disabled == (Game.stat_points <= 0), "botão + desliga quando os pontos acabam")
 	# selecionar uma missão troca os detalhes
-	m._show_tab(3)
+	m._show_tab(2)
 	var fake_quest := not Game.quests.has("goblins")
 	if fake_quest:   # segunda missão só no espelho da tela (o estado de verdade fica no Econ)
 		Game.quests["goblins"] = {"state": "active", "progress": 1}
@@ -3488,18 +3509,23 @@ func _test_gear() -> void:
 	world.open_shop()
 	await wait(0.1)
 	check(world.modal != null and world.modal.buy_grid.get_child_count() > 10, "loja mostra a grade de mercadorias")
+	var shop_inv = world.dock.at("right")
+	check(shop_inv != null and shop_inv.trade == world.modal and shop_inv.bag_slots[0].context == "sell",
+		"loja abre o inventário ao lado, e nele o clique direito vende")
 	world.modal._close()
 	await wait(0.05)
+	check(world.modal == null and (not is_instance_valid(shop_inv) or shop_inv.is_queued_for_deletion()),
+		"fechar a loja fecha o inventário que ela abriu")
 
 
 ## Aba Talentos (Guerreiro): aprende pelo botão e vê x/3, linha bloqueada apagada; a Lina redistribui e
 ## devolve os pontos (cobra 50 x nível acima do 5).
 func _test_talent_tab(m) -> void:
-	check(m.TAB_NAMES[2] == "Talentos" and m.TAB_ACTIONS[2] == "talents", "aba Talentos ao lado de Personagem (K)")
+	check(m.TAB_NAMES[1] == "Talentos" and m.TAB_ACTIONS[1] == "talents", "aba Talentos ao lado de Personagem (K)")
 	check(InputMap.has_action("talents"), "atalho K da aba Talentos")
 	while Game.talent_points() < 2:
 		Game.add_xp(Game.xp_to_next())
-	m._show_tab(2)
+	m._show_tab(1)
 	await wait(0.15)
 	var tp = m.talent_panel
 	check(tp != null and tp.buttons.size() == 9, "aba Talentos mostra os 9 talentos da classe")
@@ -3517,8 +3543,8 @@ func _test_talent_tab(m) -> void:
 	check(tp.level_labels["w_edge"].text == "1/3", "aba mostra 1/3 (%s)" % tp.level_labels["w_edge"].text)
 	check(is_equal_approx(float(Game.talent_mods.get("damage", 0.0)), 0.04), "talento já vale: dano +4%")
 	check(tp.reset_label.text.contains("Lina"), "aba diz onde redistribuir (%s)" % tp.reset_label.text)
-	check(m.book.overflow_warnings == 0, "aba Talentos cabe no livro")
-	check(_light_text(m.pages[2]) == "", "aba Talentos a tinta%s" % _light_text(m.pages[2]))
+	check(m.book.overflow_warnings == 0, "aba Talentos cabe na janela")
+	check(_light_text(m.pages[1]) == "", "aba Talentos a tinta%s" % _light_text(m.pages[1]))
 	# redistribuir pela Lina: a opção está nos serviços dela e cobra 50 x nível (grátis até o 5)
 	var cost := Game.talent_reset_cost()
 	if Game.gold < cost:
@@ -3543,6 +3569,34 @@ func _test_talent_tab(m) -> void:
 
 ## Procura, numa página do livro, texto claro (ilegível sobre papel) ou painel de fundo escuro.
 ## Devolve "" se estiver tudo a tinta, ou a descrição do primeiro problema.
+## Shift sobre um item equipável abre ao lado a ficha do item equipado naquele espaço.
+func _test_compare(m) -> void:
+	var worn := str(Game.equipment.get("weapon", ""))
+	var slot: ItemSlot = null
+	for s in m.bag_slots:
+		if s.item_id != "" and s.item_id != worn and ItemDB.slot_of(s.item_id) == "weapon":
+			slot = s
+			break
+	check(worn != "" and slot != null, "há arma equipada e outra na mochila para comparar")
+	if slot == null:
+		return
+	check(ItemTooltip.compare_target(slot.item_id, "bag") == worn and ItemTooltip.compare_target(worn, "equip") == ""
+		and ItemTooltip.compare_target("health_potion", "bag") == "", "comparar: só item equipável contra o equipado no mesmo espaço")
+	var tip: ItemTooltip = m.tooltip
+	tip.show_for(slot)
+	tip.set_process(false)   # sem Shift de verdade, o próximo quadro fecharia a ficha
+	tip._update_compare(true)
+	await wait(0.05)
+	check(tip._cmp.visible and tip._cmp_text.text.contains(ItemDB.get_item(worn).name)
+		and not tip._cmp.get_global_rect().intersects(tip.get_global_rect()),
+		"com Shift a ficha do equipado abre ao lado da dica, sem cobrir (%s, %s | %s)" % [tip._cmp.visible,
+			tip._cmp.get_global_rect(), tip.get_global_rect()])
+	tip._update_compare(false)
+	check(not tip._cmp.visible, "soltar Shift fecha a ficha do equipado")
+	tip.hide_for(slot)
+	tip.set_process(true)
+
+
 func _light_text(node: Node) -> String:
 	if node is Label and node.is_visible_in_tree() and node.text != "":
 		var c: Color = node.get_theme_color("font_color")

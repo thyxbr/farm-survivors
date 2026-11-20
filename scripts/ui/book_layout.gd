@@ -10,6 +10,8 @@ const SIDE := 88.0
 const TOP := 62.0
 ## Vão entre as duas páginas (a lombada).
 const SPINE := 84.0
+## Vão entre as duas colunas de uma janela lateral (BookWindow).
+const COL_GAP := 28.0
 ## Folga mínima entre o livro e a borda da janela, e a menor escala aceita.
 const SCREEN_GAP := 16.0
 const MIN_SCALE := 0.25

@@ -1,8 +1,13 @@
 extends Control
-## Loja da Mira: grade de mercadorias com preço e grade da mochila para vender (metade do valor).
-## Clique direito/duplo clique compra ou vende; a dica mostra a comparação com o equipado.
+## Loja da Mira: janela da esquerda com a grade de mercadorias e o preço; a mochila é o inventário, aberto
+## à direita junto com a loja (WindowDock), e lá o clique direito vende (metade do valor, `trade_item`).
+## Clique direito/duplo clique compra; a dica mostra a comparação com o equipado (Shift: o equipado ao lado).
 
 signal closed
+
+## Janela lateral da esquerda (WindowDock), com o inventário aberto ao lado.
+var dock_side := "left"
+var wants_inventory := true
 
 const COLS := 7
 const SLOT := 62.0
@@ -10,7 +15,6 @@ const SLOT := 62.0
 var tooltip: ItemTooltip
 var gold_label: Label
 var buy_grid: GridContainer
-var sell_grid: GridContainer
 var info: Label
 var filter := "all"
 var title := "Barraca da Mira"
@@ -21,15 +25,19 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = UITheme.get_theme()
-	var p := UITheme.centered_panel(self, 0.55)
-	p.custom_minimum_size = Vector2(1180, 700)
+	var p := UITheme.dock_panel(self)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 10)
 	p.add_child(v)
 	var top := HBoxContainer.new()
 	var title_box := VBoxContainer.new()
 	title_box.add_child(UITheme.heading(title, 30))
-	title_box.add_child(UITheme.label(quote, 15, UITheme.DIM))
+	# a fala quebra linha: quem dá a largura da janela é a grade, sem sobrar papel dos lados
+	var q := UITheme.label(quote, 15, UITheme.DIM)
+	q.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	q.custom_minimum_size.x = 260
+	title_box.add_child(q)
+	title_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(title_box)
 	top.add_child(UITheme.spacer())
 	gold_label = UITheme.heading("", 24, Color(1, 0.84, 0.35))
@@ -59,26 +67,16 @@ func _ready() -> void:
 		b.button_group = fg
 		b.button_pressed = f[0] == filter
 		b.custom_minimum_size.y = 34
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL   # os filtros ocupam a linha toda
 		b.add_theme_font_size_override("font_size", 15)
 		b.pressed.connect(_set_filter.bind(f[0]))
 		fr.add_child(b)
 	lv.add_child(fr)
 	buy_grid = _grid(lv)
-	# ---- mochila
-	var right := _inset()
-	h.add_child(right)
-	var rv := VBoxContainer.new()
-	rv.add_theme_constant_override("separation", 8)
-	right.add_child(rv)
-	rv.add_child(UITheme.section("Sua mochila (vender)"))
-	var spacer := Control.new()
-	spacer.custom_minimum_size.y = 34
-	rv.add_child(spacer)
-	sell_grid = _grid(rv)
 
 	var foot := HBoxContainer.new()
 	foot.add_theme_constant_override("separation", 10)
-	info = UITheme.label("Passe o mouse para ver detalhes · clique direito ou duplo clique para comprar/vender", 15, UITheme.DIM)
+	info = UITheme.label("Clique direito: comprar · na mochila: vender", 15, UITheme.DIM)
 	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	foot.add_child(info)
 	foot.add_child(UITheme.keycap("E", 13))
@@ -86,6 +84,7 @@ func _ready() -> void:
 	v.add_child(foot)
 
 	tooltip = ItemTooltip.new()
+	tooltip.paper = true
 	add_child(tooltip)
 	Game.inventory_changed.connect(_refresh)
 	Game.stats_changed.connect(_refresh)
@@ -104,7 +103,7 @@ func _grid(parent: Control) -> GridContainer:
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.custom_minimum_size = Vector2(COLS * (SLOT + 6), 470)
+	scroll.custom_minimum_size = Vector2(COLS * (SLOT + 6), 4 * (SLOT + 6) + 4)
 	parent.add_child(scroll)
 	var g := GridContainer.new()
 	g.columns = COLS
@@ -139,8 +138,6 @@ func _refresh() -> void:
 	tooltip.visible = false
 	for c in buy_grid.get_children():
 		c.queue_free()
-	for c in sell_grid.get_children():
-		c.queue_free()
 	for id in ItemDB.SHOP_STOCK:
 		if not _matches(id):
 			continue
@@ -150,16 +147,6 @@ func _refresh() -> void:
 		# arma de outra classe continua à venda (dá para revender), mas apagada: a dica diz de quem ela é
 		s.dim = price > Game.gold or not Game.can_wield(id)
 		buy_grid.add_child(s)
-	var n := 0
-	for slot in Game.inventory:
-		var s := _slot("sell", slot.id, slot.qty)
-		sell_grid.add_child(s)
-		n += 1
-	while n < COLS * 7:   # espaços vazios completam a grade
-		var e := ItemSlot.new(SLOT)
-		e.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		sell_grid.add_child(e)
-		n += 1
 
 
 func _slot(ctx: String, id: String, q: int) -> ItemSlot:
@@ -180,6 +167,11 @@ func _buy(s: ItemSlot) -> void:
 
 func _sell(s: ItemSlot) -> void:
 	Game.sell(s.item_id)
+
+
+## Item vendido pelo inventário aberto ao lado (clique direito na mochila).
+func trade_item(id: String) -> void:
+	Game.sell(id)
 
 
 func _on_econ_result(op: String, ok: bool, _err: String) -> void:
