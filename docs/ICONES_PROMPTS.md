@@ -337,7 +337,7 @@ parts`. Com mais de 4 o Gemini costuma misturar as peças de um item no outro.
 | `royal_plate` | Placas Reais | Heroic plate armor. |
 | `traveler_tunic` | Túnica de Viajante | Two-color wool tunic with bandolier and pouch. |
 | `guard_surcoat` | Sobreveste da Guarda | Chain mail under a tabard with the guard's cross. |
-| `dragon_plate` | Couraça de Escamas de Dragão | Breastplate made of dragon scales. |
+| `dragon_plate` | Couraça de Escamas de Dragão | Dark dragon-scale armor with glowing red ember between the scales and a flame gem on the chest. |
 
 ## E. Acessórios e peças (25) — anexar referência
 

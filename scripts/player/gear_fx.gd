@@ -31,6 +31,13 @@ const SURFACES := {
 		"sheen_col": Color(1.0, 0.93, 0.62), "sheen_power": 1.1, "sheen_dir": Vector3(0.6, 1.0, 0.0), "sheen_speed": 0.34}},
 	"rb_hierophant_trim": {"shader": SHEEN, "lit": true, "params": {
 		"sheen_col": Color(1.0, 0.93, 0.62), "sheen_power": 1.1, "sheen_dir": Vector3(0.6, 1.0, 0.0), "sheen_speed": 0.34}},
+	# ---- Escamas de brasa: a brasa respira (pulso lento) e uma onda mais clara desce do peito para as mãos e a
+	#      barra da saia; a gema do esterno treme como chama
+	"ds_vein_glow_flat": {"shader": GLOW, "params": {
+		"pulse": 0.35, "pulse_speed": 1.1, "flow_freq": 0.9, "flow_speed": 0.45, "flow_sharp": 10.0, "low": 0.6,
+		"flow_dir": Vector3(0.0, -1.0, 0.0), "hot": Color(1.0, 0.22, 0.1), "energy": 1.0}},
+	"ds_gem_glow_flat": {"shader": GLOW, "params": {"flicker": 0.8, "pulse": 0.25, "pulse_speed": 1.1,
+		"hot": Color(1.0, 0.95, 0.7)}},
 	# ---- Paladino real: a cada poucos segundos uma faixa de luz sobe correndo pelos frisos de ouro
 	"pa_gold": {"shader": SHEEN, "lit": true, "params": {
 		"sheen_col": Color(1.0, 0.95, 0.7), "sheen_power": 1.5, "sheen_dir": Vector3(0.35, 1.0, 0.0), "sheen_freq": 0.05,
