@@ -603,7 +603,7 @@ func _refresh_kit() -> void:
 
 func _refresh_static() -> void:
 	level_label.text = str(Game.level)
-	var n: String = str(Game.settings.get("player_name", ""))
+	var n: String = Game.hero_name()
 	name_label.text = n if n != "" else "Cavaleiro"
 	class_label.text = Game.class_display_name()
 	gold_label.text = "◆ ∞  ADMIN" if Game.admin_mode() else "◆ %d" % Game.gold

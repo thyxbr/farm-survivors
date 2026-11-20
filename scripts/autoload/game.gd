@@ -538,6 +538,19 @@ func weapon_class() -> String:
 
 
 ## Nome da classe do personagem (tabela `classes`: "Guerreiro", "Healer"...); sem classe ainda, "Sem classe".
+## Nome do herói como os outros veem: online é o do personagem (o servidor manda no _accepted);
+## offline, o nome digitado no menu. "" se não houver nenhum.
+func hero_name() -> String:
+	if Network.is_online() and Network.my_name != "":
+		return Network.my_name
+	return str(settings.get("player_name", ""))
+
+
+## Título escolhido pelo personagem, já com o nome ("" = sem título).
+func hero_title() -> String:
+	return TitleRules.label(TitleRules.current(level, flags))
+
+
 func class_display_name() -> String:
 	var row = Balance.tables.get_table("classes").get(char_class, {})
 	return str(row.get("name", char_class)) if row is Dictionary and char_class != "" else "Sem classe"
@@ -749,6 +762,11 @@ func add_item(id: String, qty := 1, silent := false) -> void:
 
 func spend_point(attr_id: String) -> void:
 	Econ.request("spend_point", [attr_id])
+
+
+## Escolhe o título mostrado acima do nome ("" tira). O servidor/solo confere se está liberado.
+func set_title(id: String) -> void:
+	Econ.request("set_title", [id])
 
 
 func sort_inventory() -> void:

@@ -1601,7 +1601,7 @@ func _update_combos() -> void:
 func scoreboard_rows() -> Array:
 	var rows: Array = []
 	if role != "client":
-		var n: String = str(Game.settings.get("player_name", ""))
+		var n: String = Game.hero_name()
 		rows.append({"name": n if n != "" else "Você", "me": true, "dead": player != null and player.dead,
 			"dmg": my_dmg, "kills": kills, "falls": 0, "build": my_build()})
 		return rows

@@ -454,6 +454,7 @@ func _refresh_character() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.clip_text = true
 	lv.add_child(title)
+	lv.add_child(_title_row())
 	var xrow := HBoxContainer.new()
 	xrow.add_child(UITheme.ink("Experiência", 15, UITheme.INK_DIM))
 	xrow.add_child(UITheme.spacer())
@@ -585,8 +586,38 @@ func _build_talents() -> Control:
 	return talent_panel
 
 
+## Linha "Título" da ficha: lista dos títulos liberados (o escolhido aparece acima do nome, para todos).
+func _title_row() -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var lbl := UITheme.ink("Título", 15, UITheme.INK_DIM)
+	lbl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(lbl)
+	var pick := OptionButton.new()
+	pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pick.add_item("Sem título")
+	pick.set_item_metadata(0, "")
+	var cur := TitleRules.current(Game.level, Game.flags)
+	var ids := TitleRules.unlocked(Game.level, Game.flags)
+	for id in ids:
+		pick.add_item(TitleRules.label(id))
+		var i := pick.item_count - 1
+		pick.set_item_metadata(i, id)
+		pick.set_item_tooltip(i, str(TitleRules.TITLES[id].desc))
+		if id == cur:
+			pick.select(i)
+	pick.tooltip_text = "%d de %d títulos liberados. Sobem com o nível, o rank da guilda e os recordes." % [
+		ids.size(), TitleRules.TITLES.size()]
+	pick.item_selected.connect(func(i: int) -> void:
+		var id := str(pick.get_item_metadata(i))
+		if id != TitleRules.current(Game.level, Game.flags):
+			Game.set_title(id))
+	row.add_child(pick)
+	return row
+
+
 func _hero_name() -> String:
-	var n: String = str(Game.settings.get("player_name", ""))
+	var n: String = Game.hero_name()
 	return n if n != "" else "Cavaleiro"
 
 
