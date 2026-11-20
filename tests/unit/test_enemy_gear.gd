@@ -87,6 +87,11 @@ func test_new_kinds_present() -> void:
 	T.eq(mole.get("ai", ""), "burrow", "toupeira cava")
 	for key in ["dig_min", "dig_max", "surface_secs", "dig_max_secs", "dig_speed", "emerge_radius"]:
 		T.ok(mole.has(key), "toupeira tem %s" % key)
+	var worm: Dictionary = enemies.get("mae_verme", {})
+	T.ok(worm.get("boss", false) and worm.get("ai", "") == "worm", "mãe-verme é chefe com ia de verme")
+	T.eq(worm.get("summon", ""), "centopeia", "mãe-verme chama centopeias")
+	T.eq(worm.get("shot", ""), "acid", "mãe-verme cospe ácido")
+	T.eq(worm.get("leash", []).size(), 2, "mãe-verme presa ao fosso (meio-tamanho x, z)")
 	var golem: Dictionary = enemies.get("golem_cristal", {})
 	T.eq(golem.get("model", ""), "golem", "golem usa o modelo novo")
 	T.ok(float(golem.get("death_blast", 0.0)) > 0.0 and float(golem.get("death_delay", 0.0)) > 0.0, "golem estoura ao morrer")

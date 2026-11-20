@@ -131,6 +131,21 @@ var surface_t := 0.0
 var _dirt: MeshInstance3D = null
 var _layer := 4
 var _dust_t := 0.0
+## Mãe-Verme (ai "worm"): ataques feitos desde que saiu do chão e o relógio da conferência do fosso.
+var worm_hits := 0
+var _leash_t := 0.0
+## Mãe-Verme, habilidades de chefe (BossRules): especiais já feitos, mergulhos de fúria pendentes, semente do
+## Desmoronamento (vai no snapshot), pontos das pedras e das Poças de Ácido do golpe atual, a entrada já mostrada
+## a este jogador, o visual da fúria (cristais vermelhos) e a aura de partículas.
+var _specials := 0
+var _fury_dives := 0
+var boss_seed := 0
+var _rock_pts: Array = []
+var _acid_pts: Array = []
+var _intro_shown := false
+var _fury_look := false
+var _fury_saved := {}
+var _boss_aura: CPUParticles3D = null
 ## Bocarrão: até onde a língua vai no ataque em curso (só para o desenho).
 var tongue_len := 0.0
 const SPIDER_PARTS := ["Abdomen", "Leg0L", "Leg1L", "Leg2L", "Leg3L", "Leg0R", "Leg1R", "Leg2R", "Leg3R"]
@@ -175,6 +190,8 @@ func _ready() -> void:
 	add_to_group("enemies")
 	collision_layer = _layer
 	collision_mask = 1 | 2 | 4
+	if data.get("ai", "") == "worm":   # Mãe-Verme: só o terreno a segura; ninguém a empurra (os outros batem nela)
+		collision_mask = 1
 	var col := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = radius
@@ -190,6 +207,8 @@ func _ready() -> void:
 		_make_elite_glow()
 	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head", "Tail", "Jaw", "Drill"]:   # Tail e Jaw: raptor; Drill: toupeira
 		parts[n] = model.find_child(n, true, false)
+	if data.model == "worm":   # Mãe-Verme: o segundo osso do corpo
+		parts["Neck"] = model.find_child("Neck", true, false)
 	if data.model == "mole":   # Toupeira: o segundo osso de cada membro (cotovelo e joelho)
 		for n in ["ElbowL", "ElbowR", "KneeL", "KneeR"]:
 			parts[n] = model.find_child(n, true, false)
@@ -241,6 +260,10 @@ func _ready() -> void:
 	model.rotation.y = randf() * TAU
 	if horde:
 		state = "chase"
+	if data.get("ai", "") == "worm":
+		_make_boss_aura()
+		if not puppet:
+			_set_state("burrow")   # a Mãe-Verme começa enterrada: a entrada da luta é ela saindo do chão
 	if Network.is_server():
 		Network.server_register_enemy(self)
 
@@ -502,6 +525,8 @@ func _physics_process(delta: float) -> void:
 	venom_timer = maxf(0.0, venom_timer - delta)
 	if ai() == "burrow" and state != "burrow":
 		surface_t += delta
+	if ai() == "worm":
+		_worm_leash(delta)
 	stagger = max(0.0, stagger - delta)
 	provoked = maxf(0.0, provoked - delta)
 	_update_flash(delta)
@@ -542,7 +567,19 @@ func _physics_process(delta: float) -> void:
 				move = to.normalized() * spd * 0.4
 				state_timer += delta
 		"chase":
-			if horde and ai() != "melee" and ai() != "bomber" and ai() != "pack":
+			if ai() == "worm":
+				# Mãe-Verme: não anda na superfície; morde perto, cospe ácido longe e, depois de alguns ataques,
+				# mergulha para sair debaixo do alvo. Sem ninguém no fosso, mergulha e volta para casa.
+				if dist < INF:
+					face = to_player
+				if not _worm_target_ok(player):
+					_worm_dive()
+				elif worm_hits >= BossRules.surface_attacks(int(data.get("surface_attacks", 3)), _fury_dives) \
+						and attack_cd <= 0:
+					_worm_dive()
+				elif attack_cd <= 0:
+					_begin_attack(dist)
+			elif horde and ai() != "melee" and ai() != "bomber" and ai() != "pack":
 				if dist == INF:
 					_set_state("idle")
 				else:
@@ -580,6 +617,8 @@ func _physics_process(delta: float) -> void:
 			if face == Vector3.ZERO:
 				face = to_player
 		"return":
+			if ai() == "worm":
+				_worm_dive()
 			var to := home - global_position
 			to.y = 0
 			if dist < data.aggro * 0.7:
@@ -594,11 +633,20 @@ func _physics_process(delta: float) -> void:
 		"burrow":
 			dig_t += delta
 			var tgt: Vector3 = player.global_position if player and not player.dead else global_position
-			var nxt := BurrowRules.dig_step(global_position, tgt, float(data.dig_speed) * speed_mult, delta)
+			var going_home := false
+			if ai() == "worm":   # o Mergulho sai debaixo de quem está mais longe dela no fosso
+				var far = _worm_far_target()
+				going_home = far == null
+				tgt = home if going_home else BurrowRules.clamp_to_leash(far.global_position, home, _worm_leash_size())
+			var fury := 1.6 if enraged and ai() == "worm" else 1.0   # na fúria a Mãe-Verme cava mais rápido
+			var nxt := BurrowRules.dig_step(global_position, tgt, float(data.dig_speed) * speed_mult * fury, delta)
 			move = (nxt - global_position) / maxf(delta, 0.0001)
 			move.y = 0.0
 			face = move
-			if BurrowRules.should_emerge(global_position, tgt, dig_t, data):
+			if going_home:
+				if Vector2(home.x - global_position.x, home.z - global_position.z).length() < 1.0:
+					pass   # em casa, sem ninguém: fica enterrada esperando (a próxima luta começa com a entrada)
+			elif BurrowRules.should_emerge(global_position, tgt, dig_t, data):
 				_begin_emerge()
 		"attack":
 			_update_attack(delta, player, to_player, dist)
@@ -630,6 +678,9 @@ func _physics_process(delta: float) -> void:
 	var accel := 30.0
 	velocity.x = move_toward(velocity.x, move.x, accel * delta)
 	velocity.z = move_toward(velocity.z, move.z, accel * delta)
+	if ai() == "worm" and state != "burrow":   # Mãe-Verme fincada no chão: não escorrega nem é empurrada
+		velocity.x = 0.0
+		velocity.z = 0.0
 	move_and_slide()
 	_check_stuck(move, delta)
 	_animate(delta, Vector2(velocity.x, velocity.z).length())
@@ -731,7 +782,7 @@ func model_forward() -> Vector3:
 func _set_state(s: String) -> void:
 	state = s
 	state_timer = 0.0
-	if ai() == "burrow":
+	if ai() in ["burrow", "worm"]:
 		if s == "burrow":
 			_set_buried(true)
 		elif s != "attack":   # no "attack" quem desenterra é o golpe de emergir (_emerge_hit)
@@ -1033,6 +1084,27 @@ func _begin_attack(dist := 0.0) -> void:
 		"flyer":
 			attack_kind = "lunge"   # rasante
 			return
+		"worm":
+			attack_kind = BossRules.worm_attack(worm_hits, _specials, dist, float(data.reach))
+			worm_hits += 1
+			match attack_kind:
+				"slam":   # mordida que bate no chão em volta
+					FX.telegraph(global_position, _slam_radius(), 0.9)
+				"quake":
+					_specials += 1
+					_quake_warn(0.0)
+				"rockfall":
+					_specials += 1
+					boss_seed = randi() & 0xFFFF
+					_rock_pts = _rockfall_targets(global_position)
+					_rockfall_warn(0.0)
+				"acid_rain":
+					var far = _worm_far_target()   # as Poças caem em quem está mais longe dela no fosso
+					var aim: Vector3 = far.global_position if far != null else global_position + model_forward() * 8.0
+					throw_point = BurrowRules.clamp_to_leash(aim, home, _worm_leash_size())
+					_acid_pts = BossRules.acid_points(global_position, throw_point)
+					_acid_warn(0.0)
+			return
 	if data.has("throw_range") and _web_ready(dist) and _tgt != null and is_instance_valid(_tgt):
 		attack_kind = "throw"
 		web_cd = float(data.get("throw_cd", 5.0)) * randf_range(0.85, 1.15)
@@ -1076,6 +1148,12 @@ func _attack_duration() -> float:
 			return 1.3
 		"emerge":
 			return 1.7
+		"quake":
+			return float(BossRules.quake_ring(BossRules.QUAKE_RINGS - 1).t) + 0.5
+		"rockfall":
+			return 2.4
+		"acid_rain":
+			return 1.6
 	return 0.95 if not is_boss else 1.1
 
 
@@ -1099,6 +1177,12 @@ func _hit_time() -> float:
 			return 1.0
 		"emerge":
 			return 1.0
+		"quake":
+			return float(BossRules.quake_ring(0).t)
+		"rockfall":
+			return 1.8
+		"acid_rain":
+			return 1.1
 	return 0.5 if not is_boss else 0.6
 
 
@@ -1106,6 +1190,7 @@ func _hit_time() -> float:
 func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> void:
 	attack_timer += delta
 	_update_dynamite()
+	_boss_tick(false, attack_timer - delta, attack_timer)
 	if not hit_done and attack_timer >= _hit_time():
 		hit_done = true
 		if attack_kind == "shoot":
@@ -1123,6 +1208,12 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 			_dynamite_blast(false)
 		elif attack_kind == "emerge":
 			_emerge_hit(false)
+		elif attack_kind == "quake":
+			pass   # os anéis acertam em _boss_tick, cada um na sua hora
+		elif attack_kind == "rockfall":
+			_rockfall_hit(false)
+		elif attack_kind == "acid_rain":
+			_acid_hit(false)
 		elif attack_kind == "slam":
 			var sr := _slam_radius()
 			Sfx.play_at("slam", global_position, 0.0)
@@ -1157,11 +1248,12 @@ func _shoot(visual: bool) -> void:
 		dir = _aim_dir(to, to.length()).normalized()
 		model.rotation.y = atan2(dir.x, dir.z)
 	var arrow := ENEMY_ARROW.new()
+	arrow.acid = data.get("shot", "") == "acid"
 	arrow.direction = dir
 	arrow.damage = 0.0 if visual else data.damage * dmg_mult
 	arrow.level = level
 	arrow.source = get_parent()
-	arrow.magic = bolt
+	arrow.magic = bolt or arrow.acid
 	get_parent().add_child(arrow)
 	arrow.global_position = origin
 
@@ -1251,6 +1343,11 @@ func _begin_emerge() -> void:
 func _emerge_hit(visual: bool) -> void:
 	_set_buried(false)
 	surface_t = 0.0
+	worm_hits = 0
+	if ai() == "worm":
+		if not visual and _fury_dives > 0:
+			_fury_dives -= 1
+		_boss_intro()
 	var r := float(data.emerge_radius)
 	Sfx.play_at("slam", global_position, 0.1)
 	FXToon.slam(global_position, r)
@@ -1261,6 +1358,278 @@ func _emerge_hit(visual: bool) -> void:
 		if not p.dead and p.global_position.distance_to(global_position) <= r:
 			p.take_damage(vs(level, p, data.damage * dmg_mult * 1.3), global_position)
 			p.add_shake(0.35)
+
+
+## Mãe-Verme: meio-tamanho (x, z) do retângulo do fosso em volta de `home`.
+func _worm_leash_size() -> Vector2:
+	var l: Array = data.get("leash", [20, 15])
+	return Vector2(float(l[0]), float(l[1]))
+
+
+## Mãe-Verme: o alvo vale se está vivo e dentro do fosso.
+func _worm_target_ok(player) -> bool:
+	return player != null and not player.dead and BurrowRules.in_leash(player.global_position, home, _worm_leash_size())
+
+
+## Mãe-Verme: o jogador vivo mais longe dela dentro do fosso (null = ninguém no fosso). As Poças e o Mergulho
+## miram nele (BossRules.farthest_index); o cuspe e a mordida seguem no mais perto.
+func _worm_far_target() -> Node3D:
+	var cand: Array = []
+	var pos: Array = []
+	for p in _boss_pool():
+		if not p.dead and BurrowRules.in_leash(p.global_position, home, _worm_leash_size()):
+			cand.append(p)
+			pos.append(p.global_position)
+	var i := BossRules.farthest_index(global_position, pos)
+	return cand[i] if i >= 0 else null
+
+
+## Mãe-Verme: mergulha (o estado "burrow" decide para onde: debaixo do alvo ou de volta para casa).
+func _worm_dive() -> void:
+	_set_state("burrow")
+	dig_t = 0.0
+
+
+## Mãe-Verme: a cada 1 s confere o fosso; sem ninguém e ferida, volta à vida cheia (reset de chefe).
+func _worm_leash(delta: float) -> void:
+	_leash_t -= delta
+	if _leash_t > 0.0:
+		return
+	_leash_t = 1.0
+	var n := 0
+	var pool: Array = get_parent().targets() if get_parent().has_method("targets") else get_tree().get_nodes_in_group("players")
+	for p in pool:
+		if not p.dead and BurrowRules.in_leash(p.global_position, home, _worm_leash_size()):
+			n += 1
+	if BurrowRules.worm_should_reset(n, hp, max_hp):
+		hp = max_hp
+		enraged = false
+		summoned = false
+		contributors.clear()
+		_fury_dives = 0
+		_specials = 0
+		_intro_shown = false
+		_set_fury_look(false)
+		health_changed.emit(self)
+
+
+## Quem pode levar os golpes do chefe (no solo/servidor): a lista do modo (Horda) ou os jogadores do mundo.
+func _boss_pool() -> Array:
+	return get_parent().targets() if get_parent().has_method("targets") else get_tree().get_nodes_in_group("players")
+
+
+## O jogador desta tela (null no servidor dedicado).
+func _local_player() -> Node3D:
+	var w := get_tree().current_scene
+	return w.get("player") if w != null else null
+
+
+## Entrada de chefe: a primeira vez que sai do chão perto deste jogador, a tela treme, ela ruge e o nome aparece
+## em destaque (o letreiro das regiões). De novo só depois de um reset.
+func _boss_intro() -> void:
+	if _intro_shown:
+		return
+	var lp := _local_player()
+	if lp == null or lp.global_position.distance_to(global_position) > 30.0:
+		return
+	_intro_shown = true
+	if lp.has_method("add_shake"):
+		lp.add_shake(0.9)
+	Sfx.play_at("slam", global_position, 0.0)
+	var w := get_tree().current_scene
+	var hud = w.get("hud") if w != null else null
+	if hud != null and hud.get("region_banner") != null:
+		hud.region_banner.show_area(data.name, "Chefe da Mina de Cristal")
+
+
+## Partículas de cristal e poeira subindo do corpo o tempo todo (presas ao modelo: somem quando ela afunda).
+func _make_boss_aura() -> void:
+	if DisplayServer.get_name() == "headless" or model == null:
+		return
+	var p := CPUParticles3D.new()
+	p.amount = 28
+	p.lifetime = 2.2
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 1.3
+	p.position = Vector3(0, 2.2, 0)
+	p.direction = Vector3.UP
+	p.spread = 30.0
+	p.initial_velocity_min = 0.5
+	p.initial_velocity_max = 1.3
+	p.gravity = Vector3(0, 0.3, 0)
+	p.scale_amount_min = 0.06
+	p.scale_amount_max = 0.14
+	var box := BoxMesh.new()
+	box.size = Vector3.ONE
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = BossFX.CYAN
+	box.material = m
+	p.mesh = box
+	model.add_child(p)
+	_boss_aura = p
+
+
+## Material com brilho próprio (na Mãe-Verme: cristais, olhos e runas). As peças do modelo são juntadas numa
+## malha só com o material toon (sem o nome do Blender), então é o brilho que as reconhece.
+static func _glows(m: Material) -> bool:
+	if m is ShaderMaterial:
+		var e = (m as ShaderMaterial).get_shader_parameter("emission")
+		return e is Color and (e as Color).get_luminance() > 0.05
+	if m is StandardMaterial3D:
+		return (m as StandardMaterial3D).emission_enabled
+	return false
+
+
+## Fúria: os cristais, as runas e os olhos passam de ciano/âmbar para vermelho (e a aura também); `on` = false
+## devolve as cores. Troca só as superfícies que brilham (_glows); o resto do corpo fica como está.
+func _set_fury_look(on: bool) -> void:
+	if on == _fury_look:
+		return
+	_fury_look = on
+	for mi: MeshInstance3D in meshes:
+		if mi.mesh == null:
+			continue
+		for s in mi.mesh.get_surface_count():
+			var src := mi.mesh.surface_get_material(s)
+			var cur := mi.get_surface_override_material(s)
+			var now: Material = cur if cur != null else src
+			if now == null or not _glows(now):
+				continue
+			var key := "%d:%d" % [mi.get_instance_id(), s]
+			if on:
+				_fury_saved[key] = cur
+				var red: Material = now.duplicate()
+				if red is ShaderMaterial:
+					(red as ShaderMaterial).set_shader_parameter("albedo", Color(1.0, 0.25, 0.18))
+					(red as ShaderMaterial).set_shader_parameter("emission", BossFX.RED)
+				elif red is StandardMaterial3D:
+					(red as StandardMaterial3D).albedo_color = Color(1.0, 0.25, 0.18)
+					(red as StandardMaterial3D).emission = BossFX.RED
+				mi.set_surface_override_material(s, red)
+			elif _fury_saved.has(key):
+				mi.set_surface_override_material(s, _fury_saved[key])
+	if not on:
+		_fury_saved.clear()
+	if _boss_aura != null:
+		(_boss_aura.mesh.material as StandardMaterial3D).albedo_color = BossFX.RED if on else BossFX.CYAN
+
+
+## Onda de Cristais: avisos dos anéis (cada um enche até a sua hora). `elapsed` = quanto do golpe já passou.
+func _quake_warn(elapsed: float) -> void:
+	var c := _net_pos if puppet else global_position
+	for i in BossRules.QUAKE_RINGS:
+		var q := BossRules.quake_ring(i)
+		if float(q.t) > elapsed:
+			BossFX.ring_warning(c, float(q.r), float(q.w), float(q.t) - elapsed)
+	var lp := _local_player()
+	if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(c) < 30.0:
+		lp.add_shake(0.35)
+
+
+## Desmoronamento: pedras sorteadas pela semente em volta de `center` e uma sob cada jogador por perto.
+func _rockfall_targets(center: Vector3) -> Array:
+	var pts := BossRules.rockfall_points(boss_seed, center, BossRules.ROCK_SPREAD, BossRules.ROCKS)
+	for p in get_tree().get_nodes_in_group("players"):
+		if not p.dead and p.global_position.distance_to(center) < 25.0:
+			pts.append(Vector3(p.global_position.x, center.y, p.global_position.z))
+	return pts
+
+
+func _rockfall_warn(elapsed: float) -> void:
+	var left := maxf(0.2, _hit_time() - elapsed)
+	for p in _rock_pts:
+		FX.telegraph(p, 2.2, left)
+	var lp := _local_player()
+	if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(global_position) < 30.0:
+		lp.add_shake(0.6)   # o rugido que faz o teto ceder
+	Sfx.play_at("slam", global_position, 0.0, 2.0)
+
+
+func _rockfall_hit(visual: bool) -> void:
+	if visual:
+		return
+	var dmg: float = data.damage * dmg_mult * 1.4
+	for p in _boss_pool():
+		if p.dead:
+			continue
+		for pt in _rock_pts:
+			if Vector2(p.global_position.x - pt.x, p.global_position.z - pt.z).length() <= 2.2:
+				p.take_damage(vs(level, p, dmg), pt)
+				break
+
+
+## Poças de Ácido: avisos onde as três bolhas vão cair e as bolhas voando da boca.
+func _acid_warn(elapsed: float) -> void:
+	var left := maxf(0.2, _hit_time() - elapsed)
+	var mouth := (_net_pos if puppet else global_position) + Vector3.UP * 4.2
+	for p in _acid_pts:
+		FX.telegraph(p, 1.8, left)
+		BossFX.lob(mouth, p + Vector3.UP * 0.2, left, 3.0)
+	Sfx.play_at("slime", global_position, 0.2, -2.0)
+
+
+## As bolhas caem: respingo e uma poça em cada ponto (a poça dói por alguns segundos; só o servidor/solo dá dano).
+func _acid_hit(visual: bool) -> void:
+	var tick: float = data.damage * dmg_mult * 0.25
+	for pt in _acid_pts:
+		FX.burst(pt + Vector3.UP * 0.3, BossFX.ACID, 12, 3.0, 0.14, 0.6)
+		var pool := AcidPool.new()
+		pool.dmg = tick
+		pool.level = level
+		pool.deal = not visual
+		get_parent().add_child(pool)
+		pool.global_position = pt
+	if visual:
+		return
+	var dmg: float = data.damage * dmg_mult * 0.6
+	for p in _boss_pool():
+		if p.dead:
+			continue
+		for pt in _acid_pts:
+			if Vector2(p.global_position.x - pt.x, p.global_position.z - pt.z).length() <= 1.8:
+				p.take_damage(vs(level, p, dmg), pt)
+				break
+
+
+## A cada quadro de um golpe de chefe entre t0 e t1 (s desde o início): anéis da Onda que irrompem agora e as
+## pedras do Desmoronamento que começam a cair (para chegar ao chão no _hit_time). visual: réplica (sem dano).
+func _boss_tick(visual: bool, t0: float, t1: float) -> void:
+	if state != "attack":
+		return
+	var c := _net_pos if puppet else global_position
+	if attack_kind == "quake":
+		for i in BossRules.QUAKE_RINGS:
+			var q := BossRules.quake_ring(i)
+			if t0 < float(q.t) and float(q.t) <= t1:
+				BossFX.crystal_ring(c, float(q.r), clampi(int(float(q.r) * 2.4), 8, 40),
+					BossFX.RED if enraged else BossFX.CYAN)
+				Sfx.play_at("slam", c, 0.1, -3.0)
+				if not visual:
+					for p in _boss_pool():
+						var d := Vector2(p.global_position.x - c.x, p.global_position.z - c.z).length()
+						if not p.dead and BossRules.in_quake_ring(d, i):
+							p.take_damage(vs(level, p, data.damage * dmg_mult * 1.1), c)
+	elif attack_kind == "rockfall":
+		var drop := _hit_time() - 0.55
+		if t0 < drop and drop <= t1:
+			for pt in _rock_pts:
+				BossFX.falling_rock(pt, 0.55)
+
+
+## Réplica: começa a desenhar um golpe de chefe que o snapshot acabou de trazer (`atk_t` s já passados).
+func _replica_boss_start(flags: int, atk_t: float) -> void:
+	match attack_kind:
+		"quake":
+			_quake_warn(atk_t)
+		"rockfall":
+			boss_seed = BossRules.unpack_seed(flags)
+			_rock_pts = _rockfall_targets(_net_pos)
+			_rockfall_warn(atk_t)
+		"acid_rain":
+			throw_point = _net_pos + ThrowRules.unpack_offset(flags)
+			_acid_pts = BossRules.acid_points(_net_pos, throw_point)
+			_acid_warn(atk_t)
 
 
 ## Enterrada: some o modelo, a barra e a colisão (não pode ser alvo); aparece o monte de terra que anda.
@@ -1380,6 +1749,9 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun
 				_set_state("chase")
 	if is_boss and not enraged and hp < max_hp * 0.5:
 		enraged = true
+		if ai() == "worm":
+			_fury_dives = BossRules.FURY_DIVES
+			_set_fury_look(true)
 		Game.notify.emit("%s está enfurecido!" % data.name, Color(1, 0.4, 0.3))
 		if not summoned:
 			summoned = true
@@ -1580,6 +1952,10 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 	if now_enraged and not enraged and (not horde or get_tree().current_scene.get("survival") != null):
 		Game.notify.emit("%s está enfurecido!" % data.name, Color(1, 0.4, 0.3))
 	enraged = now_enraged
+	if ai() == "worm":
+		_set_fury_look(enraged)
+		if new_state == "burrow" and new_hp >= max_hp:
+			_intro_shown = false   # voltou para casa cheia: a próxima luta tem entrada de novo
 	if new_state == "attack":
 		if state != "attack":
 			attack_kind = atk_kind
@@ -1593,6 +1969,8 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 				_replica_throw(flags, atk_t)
 			elif attack_kind == "emerge":
 				FX.telegraph(_net_pos, float(data.emerge_radius), maxf(0.2, _hit_time() - atk_t))
+			elif attack_kind in ["quake", "rockfall", "acid_rain"]:
+				_replica_boss_start(flags, atk_t)
 		elif atk_t < attack_timer - 0.3:
 			# um novo ataque começou entre dois snapshots
 			attack_kind = atk_kind
@@ -1600,6 +1978,8 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 			hit_done = atk_t >= _hit_time()
 			if attack_kind == "throw":
 				_replica_throw(flags, atk_t)
+			elif attack_kind in ["quake", "rockfall", "acid_rain"]:
+				_replica_boss_start(flags, atk_t)
 	if new_state != state:
 		_set_state(new_state)
 
@@ -1639,6 +2019,7 @@ func _puppet_process(delta: float) -> void:
 		var before := attack_timer
 		attack_timer += delta
 		_update_dynamite()
+		_boss_tick(true, before, attack_timer)
 		if not hit_done and before < _hit_time() and attack_timer >= _hit_time():
 			hit_done = true
 			if attack_kind == "slam":
@@ -1658,6 +2039,10 @@ func _puppet_process(delta: float) -> void:
 				_dynamite_blast(true)
 			elif attack_kind == "emerge":
 				_emerge_hit(true)
+			elif attack_kind == "rockfall":
+				_rockfall_hit(true)
+			elif attack_kind == "acid_rain":
+				_acid_hit(true)
 			elif attack_kind == "swing":
 				Sfx.play_at("swing", global_position, 0.15, -4.0)
 	var hspeed := Vector2(global_position.x - prev.x, global_position.z - prev.z).length() / maxf(delta, 0.0001)
@@ -1703,6 +2088,9 @@ func _animate(delta: float, hspeed: float) -> void:
 		return
 	if data.model == "mole":
 		_animate_mole(delta, hspeed, s, k)
+		return
+	if data.model == "worm":
+		_animate_worm(k)
 		return
 	var amp: float = clamp(hspeed / 4.0, 0.0, 1.0) * 0.8
 	var at := attack_timer
@@ -1903,6 +2291,82 @@ func _animate_mole(delta: float, hspeed: float, s: float, k: float) -> void:
 		parts.Head.rotation.x = lerp(parts.Head.rotation.x, head_x, k)
 	if parts.Drill:
 		parts.Drill.rotation.z += spin * delta
+
+
+## Mãe-Verme: o corpo balança devagar, o pescoço (segundo osso) ondula e a boca respira (pétalas no Jaw, por
+## escala). Mordida = recua o pescoço com a boca aberta e desce de uma vez; cuspe = ergue a cabeça e escancara;
+## emergir = o corpo sobe do chão no golpe. Rotação x positiva leva o topo para a frente.
+func _animate_worm(k: float) -> void:
+	var neck: Node3D = parts.get("Neck")
+	var neck_x := sin(anim_t * 0.6) * 0.07
+	var neck_z := sin(anim_t * 0.45) * 0.09
+	var body_z := sin(anim_t * 0.3 + 1.0) * 0.03
+	var head_x := sin(anim_t * 0.8 + 1.0) * 0.08
+	var jaw := 1.0 + sin(anim_t * 1.3) * 0.06
+	var rise := 0.0
+	if state == "attack":
+		var t := attack_timer
+		var ht := _hit_time()
+		var u := clampf(t / ht, 0.0, 1.0)
+		match attack_kind:
+			"slam":
+				if t < ht:
+					neck_x = lerpf(0.0, -0.4, u)
+					head_x = -0.3
+					jaw = lerpf(1.0, 1.35, u)
+				elif t < ht + 0.35:
+					neck_x = 0.6
+					head_x = 0.4
+					jaw = 0.8
+			"shoot":
+				if t < ht:
+					head_x = lerpf(0.0, -0.35, u)
+					jaw = lerpf(1.0, 1.4, u)
+				elif t < ht + 0.3:
+					neck_x = 0.2
+					head_x = 0.2
+					jaw = 1.2
+			"emerge":
+				if t >= ht:
+					rise = clampf((t - ht) / 0.35, 0.0, 1.0)
+					jaw = 1.4
+				else:
+					rise = 0.0
+			"quake":   # ergue-se toda e bate o corpo no chão; fica baixa enquanto os anéis abrem
+				if t < ht:
+					neck_x = lerpf(0.0, -0.5, u)
+					head_x = -0.4
+					jaw = 1.3
+				else:
+					neck_x = 0.75
+					head_x = 0.5
+					jaw = 0.85
+					body_z = sin(t * 25.0) * 0.04
+			"rockfall":   # rugido: cabeça para o teto, boca escancarada, tremendo
+				neck_x = -0.3
+				head_x = -0.7
+				jaw = 1.55
+				body_z = sin(t * 30.0) * 0.05
+			"acid_rain":
+				if t < ht:
+					head_x = lerpf(0.0, -0.5, u)
+					jaw = lerpf(1.0, 1.5, u)
+				else:
+					neck_x = 0.25
+					head_x = 0.25
+					jaw = 1.2
+	if state == "attack" and attack_kind == "emerge":
+		parts.Body.position.y = lerpf(-4.0, 0.0, rise)
+	else:
+		parts.Body.position.y = lerp(parts.Body.position.y, 0.0, k)
+	parts.Body.rotation.z = lerp(parts.Body.rotation.z, body_z, k)
+	if neck:
+		neck.rotation.x = lerp(neck.rotation.x, neck_x, k)
+		neck.rotation.z = lerp(neck.rotation.z, neck_z, k)
+	if parts.Head:
+		parts.Head.rotation.x = lerp(parts.Head.rotation.x, head_x, k)
+	if parts.Jaw:
+		parts.Jaw.scale = parts.Jaw.scale.lerp(Vector3(jaw, jaw, jaw), k)
 
 
 ## Flor-faminta: balança devagar com a boca entreaberta; ao ver alguém perto abre a boca; no bote estica o caule e

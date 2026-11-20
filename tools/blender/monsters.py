@@ -1360,6 +1360,172 @@ def _blob(name, c, rx, ry, rz, material, parent, sides=18, rings=10):
     return sloft(name, secs, material, parent, sides=sides, sharp=89.0)
 
 
+# ================================================================== MÃE-VERME DAS PROFUNDEZAS (chefe da mina)
+# Verme gigante (~4,4 m fora do chão) que sai de um anel de terra revirada: corpo em gomos de couro marrom com
+# sulcos escuros, couraça de placas de pedra e cristais ciano no dorso, pescoço que se curva para a frente e uma
+# boca redonda que abre em cinco pétalas, com três anéis de dentes descendo pela garganta. Frente = -Y.
+# Pivôs animados por scripts/enemies/enemy.gd (_animate_worm), dois ossos de corpo como os membros:
+# Body (trecho de baixo; sobe do chão ao emergir), Neck (trecho de cima, dentro de Body; a emenda fica sob o colar
+# de pedra e os dois tubos se cruzam por dentro), Head (a boca, dentro de Neck) e Jaw (as pétalas; abre por escala).
+WORM_SEG = 0.44        # altura de um gomo
+
+
+def _worm_secs(path, r0, r1, n, seg_len, phase=0.0):
+    """Seções de um tubo em gomos ao longo de path(u) -> Vector (u de 0 a 1): o raio vai de r0 a r1 e incha no meio
+    de cada gomo (sulco liso na junta). Devolve (seções, lista 'é sulco' por anel)."""
+    secs, groove = [], []
+    length = 0.0
+    prev = path(0.0)
+    for i in range(n + 1):
+        u = i / n
+        p = path(u)
+        length += (p - prev).length
+        prev = p
+        w = (length / seg_len + phase) % 1.0
+        bulge = 0.9 + 0.1 * math.sin(math.pi * w)
+        r = (r0 + (r1 - r0) * u) * bulge
+        secs.append(sec(p, r, r * 0.96))
+        groove.append(w < 0.12 or w > 0.88)
+    return secs, groove
+
+
+def _rune(name, c, out, size, material, parent):
+    """Runa acesa (um "V" com uma barra em cima) desenhada na face de uma placa que olha para `out`."""
+    out = Vector(out).normalized()
+    side = Vector((1, 0, 0))
+    up = out.cross(side).normalized()
+    c = Vector(c) - out * 0.03
+    v = [c + side * -size + up * size * 0.6, c + up * -size * 0.7, c + side * size + up * size * 0.6]
+    fera_curve(name + "V", v, 0.05, 0.045, material, parent, sides=6)
+    fera_curve(name + "Bar", [c + side * -size * 0.55 + up * size * 0.85, c + side * size * 0.55 + up * size * 0.85],
+               0.045, 0.045, material, parent, sides=6)
+
+
+def build_worm():
+    skin = mat("wv_skin", hexc("#7A5E4C"), 0.8)
+    skin_d = mat("wv_skin_d", hexc("#4A3428"), 0.85)
+    lip = mat("wv_lip", hexc("#B07A6A"), 0.7)
+    gum = mat("wv_gum", hexc("#7A2630"), 0.7)
+    throat = mat("wv_throat_flat", hexc("#2A0C10"), 0.9)
+    throat.use_backface_culling = False      # a garganta é vista por dentro: dupla face no glTF
+    tooth = mat("wv_tooth", hexc("#EFE6D0"), 0.5)
+    stone = mat("wv_stone", hexc("#5E5A58"), 0.92)
+    stone_l = mat("wv_stone_l", hexc("#86807A"), 0.92)
+    dirt = mat("wv_dirt", hexc("#4A3524"), 1.0)
+    crys = mat("wv_crystal", hexc("#3FD2F2"), 0.25, 0.0, emit=(0.15, 0.8, 1.0), strength=2.4)
+    crys_d = mat("wv_crystal_d", hexc("#1B78B8"), 0.25, 0.0, emit=(0.05, 0.45, 0.9), strength=1.8)
+    eye = mat("wv_eye_flat", hexc("#FFB23A"), 0.3, 0.0, emit=(1.0, 0.6, 0.1), strength=3.0)
+    rune = mat("wv_rune_flat", hexc("#7FE8F5"), 0.3, 0.0, emit=(0.2, 0.85, 1.0), strength=2.6)
+    up = (0, 0, 1)
+
+    root = empty("Worm", (0, 0, 0))
+
+    # ---------------- terra revirada em volta da base (fica no chão; o corpo sobe por dentro dela)
+    # anel irregular: montes de terra de tamanhos diferentes, encavalados, mais altos junto do corpo
+    _blob("Mound", (0, 0.0, -0.05), 1.25, 1.2, 0.3, dirt, root, sides=24, rings=10)
+    for k in range(9):
+        a = k / 9 * 2 * math.pi + 0.3
+        rr = 1.05 + 0.18 * math.sin(k * 2.3)
+        size = 0.42 + 0.12 * math.sin(k * 1.7)
+        _blob("Heap%d" % k, (math.cos(a) * rr, math.sin(a) * rr, 0.0), size * 1.2, size, size * (0.55 + 0.2 * (k % 2)),
+              dirt, root, sides=14, rings=8)
+    for k in range(6):
+        a = k / 6 * 2 * math.pi + 0.9
+        _rock("Clod%d" % k, (math.cos(a) * 1.15, math.sin(a) * 1.12, 0.14), 0.2 - 0.03 * (k % 3), stone, root,
+              squash=(1.0, 0.9, 0.6), sides=7)
+
+    # ---------------- trecho de baixo (Body): quase reto, leve inclinação para a frente
+    body = empty("Body", (0, 0, 0), root)
+    low_path = lambda u: Vector((0.0, 0.1 - 0.15 * u, -0.5 + 2.75 * u))
+    low, low_g = _worm_secs(low_path, 0.82, 0.76, 40, WORM_SEG)
+    sloft("BodyLow", low, skin, body, sides=22, mats=(skin_d,), sharp=80.0,
+          matf=lambda i, j, g=low_g: 1 if g[i] else 0)
+
+    # ---------------- trecho de cima (Neck): começa DENTRO do de baixo e se curva para a frente até a boca
+    neck_base = Vector((0.0, -0.05, 2.0))
+    neck = empty("Neck", tuple(neck_base), body)
+    up_path = lambda u: Vector((0.0, -0.02 - 1.0 * u * u, 1.8 + 2.0 * u - 0.25 * u * u))
+    upp, up_g = _worm_secs(up_path, 0.74, 0.64, 40, WORM_SEG, phase=0.5)
+    sloft("BodyUp", upp, skin, neck, sides=22, mats=(skin_d,), sharp=80.0, caps=(True, False),
+          matf=lambda i, j, g=up_g: 1 if g[i] else 0)
+    # colar de pedra cobrindo a emenda dos dois ossos (no osso de baixo: o de cima gira por dentro dele)
+    _blob("Collar", (0, -0.06, 2.05), 0.9, 0.86, 0.2, stone, body, sides=24, rings=8)
+
+    # ---------------- boca: o fim do tubo abre em funil (garganta escura), lábio grosso, dentes e pétalas
+    top = up_path(1.0)
+    tan = (up_path(1.0) - up_path(0.97)).normalized()
+    head = empty("Head", tuple(top), neck)
+    mouth_c = top + tan * 0.32
+    sloft("HeadFlare", [sec(top - tan * 0.15, 0.66, 0.64), sec(top + tan * 0.12, 0.72, 0.7),
+                        sec(mouth_c, 0.8, 0.78)], skin, head, sides=22, axis=tuple(tan), caps=(False, False), sharp=80.0)
+    sloft("Lip", [sec(mouth_c - tan * 0.04, 0.82, 0.8), sec(mouth_c + tan * 0.06, 0.86, 0.84),
+                  sec(mouth_c + tan * 0.1, 0.78, 0.76), sec(mouth_c + tan * 0.06, 0.66, 0.64)], lip, head, sides=22,
+          axis=tuple(tan), caps=(False, False), sharp=80.0)
+    # garganta: funil escuro descendo para dentro do pescoço (o que se vê ao olhar a boca)
+    sloft("Throat", [sec(mouth_c + tan * 0.06, 0.68, 0.66), sec(mouth_c - tan * 0.3, 0.45, 0.43),
+                     sec(mouth_c - tan * 0.7, 0.12, 0.12)], throat, head, sides=20, axis=tuple(tan), caps=(False, True),
+          sharp=80.0)
+    # três anéis de dentes descendo pela garganta, apontando para o centro
+    side_v = Vector((1, 0, 0))
+    up_v = tan.cross(side_v).normalized()
+    for ring_i, (depth, rr, n, ln) in enumerate(((0.0, 0.64, 12, 0.2), (-0.18, 0.52, 10, 0.16), (-0.36, 0.38, 8, 0.12))):
+        for t in range(n):
+            a = t / n * 2 * math.pi + ring_i * 0.25
+            radial = side_v * math.cos(a) + up_v * math.sin(a)
+            base = mouth_c + tan * depth + radial * rr
+            fera_tip("Tooth%d_%d" % (ring_i, t), base + radial * 0.03, base - radial * ln + tan * 0.05, 0.045, tooth,
+                     head, sides=6)
+    # pétalas: cinco abas grossas saindo do lábio, curvadas para fora (no Jaw: abrem pela escala)
+    # coroa de cristais em volta da boca (no Head: não abre com as pétalas) e seis olhos acesos logo abaixo do lábio
+    for t in range(8):
+        a = t / 8 * 2 * math.pi + math.pi / 8
+        radial = side_v * math.cos(a) + up_v * math.sin(a)
+        base = mouth_c - tan * 0.12 + radial * 0.74
+        _crystal("Crown%d" % t, base, tuple(radial * 0.75 + tan * 0.65), 0.8 if t % 2 else 0.58, 0.1 if t % 2 else 0.08,
+                 (crys, crys_d), head)
+    for t in range(6):
+        a = math.pi * (1.15 + t * 0.14)            # na metade de baixo da boca, virados para a frente
+        radial = side_v * math.cos(a) + up_v * math.sin(a)
+        c = mouth_c - tan * 0.22 + radial * 0.7
+        _blob("Eye%d" % t, c, 0.115, 0.115, 0.115, eye, head, sides=14, rings=8)
+    jaw = empty("Jaw", tuple(mouth_c), head)
+    for t in range(5):
+        a = t / 5 * 2 * math.pi + math.pi / 2
+        radial = side_v * math.cos(a) + up_v * math.sin(a)
+        # aba larga e fina (como pétala de flor carnívora): nasce dentro do lábio, sobe e vira para fora
+        p0 = mouth_c + radial * 0.66
+        p1 = p0 + radial * 0.14 + tan * 0.3
+        p2 = p1 + radial * 0.26 + tan * 0.14
+        p3 = p2 + radial * 0.2 - tan * 0.04
+        psecs = fera_dense([sec(p0, 0.34, 0.07), sec(p1, 0.36, 0.06), sec(p2, 0.28, 0.045), sec(p3, 0.06, 0.03)], 16,
+                           cut=2)
+        sloft("Petal%d" % t, psecs, lip, jaw, sides=14, fwd=tuple(radial), sharp=80.0)
+
+    # ---------------- couraça: placas de pedra e cristais no dorso (+Y) de cada osso
+    for k, u in enumerate((0.25, 0.5, 0.75)):
+        p = low_path(u)
+        _rock("PlateLow%d" % k, (p.x, p.y + 0.72, p.z), 0.36, stone, body, squash=(1.3, 0.55, 0.7), sides=8)
+        _rune("RuneLow%d" % k, Vector((p.x, p.y + 0.72 + 0.17, p.z)), Vector((0, 1, 0)), 0.2, rune, body)
+    for k, u in enumerate((0.2, 0.45, 0.7, 0.9)):
+        p = up_path(u)
+        tn = (up_path(min(1.0, u + 0.02)) - up_path(max(0.0, u - 0.02))).normalized()
+        back = Vector((0, 1, 0)) - tn * tn.y
+        back.normalize()
+        _rock("PlateUp%d" % k, tuple(p + back * 0.6), 0.32, stone_l if k % 2 else stone, neck,
+              squash=(1.25, 0.55, 0.7), sides=8)
+        _rune("RuneUp%d" % k, p + back * (0.6 + 0.15), back, 0.17, rune, neck)
+        if k in (1, 2):
+            for c, (dx, ln) in enumerate(((-0.18, 0.55), (0.16, 0.42))):
+                _crystal("NeckCrystal%d_%d" % (k, c), p + back * 0.62 + Vector((dx, 0, 0)), tuple(back + up_v * 0.3),
+                         ln, 0.085, (crys, crys_d), neck)
+    for c, (z, dx, ln) in enumerate(((1.0, -0.22, 0.5), (1.2, 0.2, 0.62), (1.55, 0.0, 0.45))):
+        p = low_path((z + 0.5) / 2.75)
+        _crystal("BodyCrystal%d" % c, (p.x + dx, p.y + 0.72, p.z), (dx, 1.0, 0.55), ln, 0.09, (crys, crys_d), body)
+
+    loose_parts("worm")
+    export("worm")
+
+
 # ================================================================== FLOR-FAMINTA (planta carnívora)
 # Planta da beira das trilhas: roseta de folhas no chão, caule grosso que se curva para a frente e uma cabeça de
 # duas mandíbulas (como uma dioneia) com dentes que se cruzam; dois cipós com espinhos saem da base. Não anda.

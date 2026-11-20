@@ -49,3 +49,23 @@ func test_burrowed_is_untargetable() -> void:
 	T.ok(not BurrowRules.hidden("attack", "emerge", true), "saiu do chão: leva dano")
 	T.ok(not BurrowRules.hidden("chase", "", false), "na superfície: leva dano")
 	T.ok(not BurrowRules.hidden("attack", "swing", false), "golpe comum: leva dano")
+
+
+## Mãe-Verme: sem ninguém no fosso e ferida, volta à vida cheia (reset de chefe).
+func test_worm_resets_when_alone() -> void:
+	T.ok(BurrowRules.worm_should_reset(0, 500.0, 3000.0), "sozinha e ferida: volta")
+	T.ok(not BurrowRules.worm_should_reset(1, 500.0, 3000.0), "com jogador: luta")
+	T.ok(not BurrowRules.worm_should_reset(0, 3000.0, 3000.0), "cheia: nada a fazer")
+
+
+func test_emerge_point_inside_leash() -> void:
+	var home := Vector3(-45, 0, -40)
+	var p := BurrowRules.clamp_to_leash(Vector3(10, 0, -40), home, Vector2(20, 15))
+	T.ok(absf(p.x - home.x) <= 20.0 and absf(p.z - home.z) <= 15.0, "emerge dentro do fosso")
+
+
+func test_in_leash() -> void:
+	var home := Vector3(-45, 0, -40)
+	T.ok(BurrowRules.in_leash(Vector3(-30, 3, -30), home, Vector2(20, 15)), "dentro do fosso")
+	T.ok(not BurrowRules.in_leash(Vector3(-20, 0, -40), home, Vector2(20, 15)), "fora em x")
+	T.ok(not BurrowRules.in_leash(Vector3(-45, 0, -20), home, Vector2(20, 15)), "fora em z")

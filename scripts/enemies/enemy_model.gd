@@ -19,6 +19,7 @@ const MODELS := {
 	"centipede": preload("res://assets/models/centipede.glb"),
 	"golem": preload("res://assets/models/golem.glb"),
 	"mole": preload("res://assets/models/mole.glb"),
+	"worm": preload("res://assets/models/worm.glb"),
 	"plant": preload("res://assets/models/plant.glb"),
 	"frog": preload("res://assets/models/frog.glb"),
 	"bat": preload("res://assets/models/bat.glb"),

@@ -36,6 +36,16 @@ static func clamp_to_leash(p: Vector3, home: Vector3, half_size: Vector2) -> Vec
 		clampf(p.z, home.z - half_size.y, home.z + half_size.y))
 
 
+## Dentro do retângulo de meio-tamanho `half_size` (x, z) em volta de `home` (altura não conta).
+static func in_leash(p: Vector3, home: Vector3, half_size: Vector2) -> bool:
+	return absf(p.x - home.x) <= half_size.x and absf(p.z - home.z) <= half_size.y
+
+
+## Mãe-Verme: ninguém no fosso e ela ferida -> volta à vida cheia (reset de chefe).
+static func worm_should_reset(players_in_leash: int, hp: float, max_hp: float) -> bool:
+	return players_in_leash == 0 and hp < max_hp
+
+
 ## Escondida debaixo da terra (não leva dano nem atordoamento): cavando, ou subindo antes do golpe de emergir.
 static func hidden(state: String, attack_kind: String, hit_done: bool) -> bool:
 	return state == "burrow" or (state == "attack" and attack_kind == "emerge" and not hit_done)

@@ -1476,5 +1476,78 @@
 			]
 		],
 		"ref_level": 2
+	},
+	"mae_verme": {
+		"name": "Mãe-Verme das Profundezas",
+		"model": "worm",
+		"ai": "worm",
+		"boss": true,
+		"hp": 633,
+		"damage": 60,
+		"speed": 0.0,
+		"xp": 1000,
+		"gold": [
+			200,
+			300
+		],
+		"aggro": 22.0,
+		"reach": 5.0,
+		"cooldown": 1.7,
+		"radius": 1.2,
+		"height": 4.2,
+		"scale": 1.0,
+		"color": {
+			"$c": [
+				0.5,
+				0.38,
+				0.3,
+				1.0
+			]
+		},
+		"bld": 2.0,
+		"shot": "acid",
+		"summon": "centopeia",
+		"leash": [
+			20,
+			15
+		],
+		"surface_attacks": 3,
+		"dig_min": 0.0,
+		"dig_max": 999.0,
+		"surface_secs": 0.0,
+		"dig_max_secs": 2.5,
+		"dig_speed": 10.0,
+		"emerge_radius": 3.5,
+		"loot": [
+			[
+				"arcane_crystal",
+				1.0
+			],
+			[
+				"iron_ore",
+				1.0
+			],
+			[
+				"health_potion",
+				1.0
+			],
+			[
+				"abyss_core",
+				0.15
+			],
+			[
+				"scroll_mithril_gauntlets",
+				0.25
+			],
+			[
+				"scroll_mithril_longbow",
+				0.25
+			],
+			[
+				"scroll_sc_halo_scepter",
+				0.25
+			]
+		],
+		"ref_level": 2
 	}
 }
