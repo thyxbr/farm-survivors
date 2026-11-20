@@ -98,6 +98,7 @@ var player: Player
 var hud
 var ui_layer: CanvasLayer
 var modal: Control = null
+var dock: WindowDock
 var boss: Enemy = null
 var survival: Node3D = null
 var chat: CanvasLayer = null
@@ -199,6 +200,9 @@ func _ready() -> void:
 	ui_layer.layer = 10
 	ui_layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(ui_layer)
+	dock = WindowDock.new()
+	dock.world = self
+	ui_layer.add_child(dock)
 
 	Game.quests_changed.connect(_check_boss)
 	_check_boss()
@@ -460,9 +464,7 @@ func start_survival() -> void:
 func start_survival_net(team: Dictionary, slot: int, round_time: float) -> void:
 	if survival != null or player == null:
 		return
-	if modal != null:
-		modal.queue_free()
-		_on_modal_closed()
+	close_ui()
 	if player.dead:
 		player.revive(ARENA)
 	survival = SURVIVAL.new()
@@ -770,10 +772,49 @@ func open_world_map(tab := 0) -> void:
 	_open_modal(m)
 
 
+## Menu do herói: a aba 0 é o inventário (janela da direita); 1-4 são Personagem, Talentos, Missões e
+## Profissões, na janela da esquerda.
 func _open_menu(tab: int) -> void:
 	var m := GAME_MENU.new()
-	m.start_tab = tab
+	m.mode = "inventory" if tab == 0 else "hero"
+	m.start_tab = maxi(0, tab - 1)
 	_open_modal(m)
+
+
+## Atalho apertado com janelas abertas (WindowDock): abre a janela; se ela já está aberta na mesma aba, fecha.
+func toggle_window(action: String) -> void:
+	var spec: Array = WindowDock.HOTKEYS[action]
+	var cur: Control = dock.at(spec[0])
+	var tab: int = spec[1]
+	if cur != null and cur.get_script() == GAME_MENU and tab >= 0:
+		var want := "inventory" if tab == 0 else "hero"
+		if cur.mode == want:
+			if tab == 0 or cur.book.current_page() == tab - 1:
+				WindowDock.close_window(cur)
+			else:
+				cur._show_tab(tab - 1)
+			return
+	if cur != null and cur.get_script() == WORLD_MAP_UI and tab < 0:
+		var page: int = cur.book.page_for_action(action)
+		if cur.book.current_page() == page:
+			WindowDock.close_window(cur)
+		else:
+			cur.book.show_page(page)
+		return
+	if tab >= 0:
+		_open_menu(tab)
+	elif action == "party":
+		open_world_map(WORLD_MAP_UI.TAB_PARTY)
+	else:
+		open_world_map(WORLD_MAP_UI.TAB_FRIENDS)
+
+
+## Fecha tudo que está na tela: janelas laterais e a janela modal.
+func close_ui() -> void:
+	dock.close_all()
+	if modal != null:
+		modal.queue_free()
+		_on_modal_closed()
 
 
 ## Narração de abertura da história (personagem novo, primeira vez no mundo). Não roda nos testes.
@@ -924,15 +965,64 @@ func open_modal(c: Control) -> void:
 	_open_modal(c)
 
 
+## Janela com `dock_side` ("left"/"right") encaixa ao lado das outras (WindowDock); o resto (diálogo,
+## pausa, mapa, cartas da Horda) é modal: uma por vez, e fecha as janelas laterais ao abrir.
+## `modal` aponta para a última janela aberta; fica null quando nada está na tela.
 func _open_modal(c: Control) -> void:
-	if modal != null:
+	var side = c.get("dock_side")
+	if side is String and side != "":
+		_open_docked(c, side)
 		return
+	if modal != null:
+		if not dock.has(modal):
+			return
+		dock.close_all()
 	modal = c
 	ui_layer.add_child(c)
 	c.closed.connect(_on_modal_closed)
+	_ui_shown()
+
+
+func _open_docked(c: Control, side: String, opener: Control = null) -> void:
+	if modal != null and not dock.has(modal):
+		return   # diálogo, pausa etc. na frente
+	var first := not dock.is_open()
+	dock.put(c, side, opener)
+	ui_layer.add_child(c)
+	c.closed.connect(_on_docked_closed.bind(c))
+	modal = c
+	if first:
+		_ui_shown()
+	# estação que mexe com a mochila abre o inventário do outro lado (e ele fecha junto com ela)
+	if opener == null and c.get("wants_inventory") == true and dock.at("right") == null:
+		var inv := GAME_MENU.new()
+		inv.mode = "inventory"
+		_open_docked(inv, "right", c)
+		modal = c
+	_link_trade()
+
+
+func _ui_shown() -> void:
 	_set_paused(true)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	hud.visible = false
+
+
+func _on_docked_closed(c: Control) -> void:
+	dock.forget(c)
+	if modal == c:
+		modal = dock.find(func(_w: Control) -> bool: return true)
+	_link_trade()
+	if not dock.is_open():
+		_on_modal_closed()
+
+
+## Inventário aberto ao lado de uma loja: clique direito na mochila vende (a loja recebe o item).
+func _link_trade() -> void:
+	var inv: Control = dock.at("right")
+	if inv != null and inv.get_script() == GAME_MENU:
+		var left: Control = dock.at("left")
+		inv.set_trade(left if left != null and left.has_method("trade_item") else null)
 
 
 ## No multiplayer o mundo não para: só o controle do jogador fica travado.
@@ -959,6 +1049,7 @@ func _on_player_died() -> void:
 		survival.on_player_died()
 		return
 	await get_tree().create_timer(1.8).timeout
+	dock.close_all()
 	if modal != null:
 		modal.queue_free()
 		modal = null

@@ -4,6 +4,10 @@ extends Control
 
 signal closed
 
+## Janela lateral da esquerda (WindowDock), com o inventário aberto ao lado.
+var dock_side := "left"
+var wants_inventory := true
+
 var plot_index := 0
 var seed_list: ItemList
 var info: Label
@@ -17,7 +21,7 @@ var _batch := {}
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var p := UITheme.centered_panel(self, 0.45)
+	var p := UITheme.dock_panel(self)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
 	p.add_child(v)
@@ -46,7 +50,7 @@ func _ready() -> void:
 
 	var btns := HBoxContainer.new()
 	btns.add_theme_constant_override("separation", 12)
-	plant_btn = UITheme.button("Plantar aqui", _plant_here, 230)
+	plant_btn = UITheme.primary(UITheme.button("Plantar aqui", _plant_here, 230))
 	all_btn = UITheme.button("Plantar em todos os vazios", _plant_all, 290)
 	btns.add_child(plant_btn)
 	btns.add_child(all_btn)
