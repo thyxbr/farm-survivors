@@ -8,7 +8,7 @@ extends Node3D
 const MODELS := ["tree_oak", "tree_pine", "tree_fir", "tree_birch", "tree_maple", "tree_cherry", "tree_apple",
 	"tree_orange", "tree_pear", "rock", "fence", "crate", "barrel", "chest", "tent", "campfire", "lamp", "well",
 	"notice_board", "signpost", "ruin_pillar", "ruin_wall", "anvil", "forge", "flower_sunflower",
-	"flower_lavender", "flower_tulips", "fern", "house", "house_b", "house_c", "house_d", "house_e", "house_f",
+	"flower_lavender", "flower_tulips", "flower_daisies", "flower_poppies", "flower_bluebells", "fern", "house", "house_b", "house_c", "house_d", "house_e", "house_f",
 	"shop_smithy", "shop_alchemist", "shop_merchant", "tombstone", "crypt", "palisade", "watchtower"]
 
 ## Colisão padrão de cada modelo: [forma (1 caixa, 2 cilindro), tamanho]. Caixa: largura, altura, profundidade;
@@ -33,7 +33,7 @@ const COLLIDER_COLOR := Color(0.2, 0.6, 1.0, 0.25)
 @export_enum("tree_oak", "tree_pine", "tree_fir", "tree_birch", "tree_maple", "tree_cherry", "tree_apple",
 	"tree_orange", "tree_pear", "rock", "fence", "crate", "barrel", "chest", "tent", "campfire", "lamp", "well",
 	"notice_board", "signpost", "ruin_pillar", "ruin_wall", "anvil", "forge", "flower_sunflower",
-	"flower_lavender", "flower_tulips", "fern", "house", "house_b", "house_c", "house_d", "house_e", "house_f",
+	"flower_lavender", "flower_tulips", "flower_daisies", "flower_poppies", "flower_bluebells", "fern", "house", "house_b", "house_c", "house_d", "house_e", "house_f",
 	"shop_smithy", "shop_alchemist", "shop_merchant", "tombstone", "crypt", "palisade", "watchtower") var model := "rock":
 	set(v):
 		var changed := v != model
