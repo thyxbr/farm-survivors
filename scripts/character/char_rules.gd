@@ -11,7 +11,7 @@ extends RefCounted
 ## Vida/mana (cura, buff, teto do máximo) são do cliente: as regras não mexem em hp/mp.
 
 ## Espaços de equipamento (mesma ordem de ItemDB.SLOTS).
-const SLOTS := ["head", "amulet", "armor", "hands", "weapon", "offhand", "ring", "feet", "back"]
+const SLOTS := ["head", "amulet", "armor", "hands", "weapon", "offhand", "ring", "feet", "back", "pickaxe", "axe"]
 const CLASS_NAMES := {"sword": "Espada", "staff": "Cajado", "bow": "Arco", "scepter": "Cetro"}
 ## Classes de personagem fixas (tabela "classes"); a classe define a arma inicial e o tipo de arma.
 const CLASS_IDS := ["warrior", "archer", "mage", "healer"]
@@ -72,6 +72,8 @@ static func slot_of(bt: BalanceTables, id: String) -> String:
 			return "armor"
 		"gear":
 			return it.get("slot", "")
+		"tool":
+			return str(it.get("tool", ""))   # picareta e machado têm espaço próprio
 	return ""
 
 
@@ -222,17 +224,24 @@ static func _inv_less(bt: BalanceTables, a: Dictionary, b: Dictionary) -> bool:
 
 
 # ================================================================ ferramentas de coleta
-## Personagem de antes da coleta com ferramenta (sem flags["tools_v"]): ganha a picareta e o machado de pedra
-## uma vez, para não perder a coleta que fazia com o ataque. Quem já tem do tipo não ganha outro.
+## Ferramentas de coleta nos espaços próprios (flags["tools_v"] = 2). Personagem de antes: a melhor picareta e o
+## melhor machado da mochila vão para os espaços; quem não tinha nenhum ganha o de pedra já equipado, uma vez.
 ## Devolve true se mudou algo (flag marcada).
+const TOOLS_VERSION := 2
 static func migrate_tools(s: CharState, bt: BalanceTables) -> bool:
-	if s.flags.get("tools_v", false):
+	if int(s.flags.get("tools_v", 0)) >= TOOLS_VERSION:
 		return false
 	var items_t := bt.get_table("items")
 	for e in [["pickaxe", "pickaxe_stone"], ["axe", "axe_stone"]]:
-		if GatherRules.best_tool(items_t, s.inventory, e[0]) == "" and items_t.has(e[1]):
-			add_item(s, bt, e[1], 1)
-	s.flags["tools_v"] = true
+		if str(s.equipment.get(e[0], "")) != "":
+			continue
+		var best := GatherRules.best_tool(items_t, s.inventory, e[0])
+		if best != "":
+			remove_item(s, best, 1)
+			s.equipment[e[0]] = best
+		elif int(s.flags.get("tools_v", 0)) < 1 and items_t.has(e[1]):
+			s.equipment[e[0]] = e[1]   # a v1 dava a de pedra na mochila; quem nunca recebeu ganha agora
+	s.flags["tools_v"] = TOOLS_VERSION
 	return true
 
 
@@ -608,7 +617,7 @@ static func gather(s: CharState, bt: BalanceTables, g: Dictionary) -> Dictionary
 	var items_t := bt.get_table("items")
 	var kind := GatherRules.tool_kind(prof)
 	var need_tier := int(g.get("tier", 1))
-	var tool_ok := GatherRules.check(items_t, GatherRules.best_tool(items_t, s.inventory, kind), kind, need_tier)
+	var tool_ok := GatherRules.check(items_t, str(s.equipment.get(kind, "")), kind, need_tier)
 	if not tool_ok.ok:
 		return _fail(tool_ok.err, [_notify(GatherRules.refusal_text(items_t, tool_ok.err, kind, need_tier), C_BAD)])
 	var r := grant(s, bt, 0, 0, g.get("items", {}))

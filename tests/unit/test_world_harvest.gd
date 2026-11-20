@@ -14,9 +14,13 @@ func test_table_shape() -> void:
 	var bt := _tables()
 	var items: Dictionary = bt.get_table("items")
 	# 20 de antes (ferro e cristal no vale e na Mina) + 51 da parte 3 (minério e madeira de cada camada)
-	T.eq(WorldHarvest.count(bt), 71, "nós de coleta dos quatro mapas")
+	# 71 veios e árvores especiais (MapEntity) + toda árvore do cenário dos quatro mapas (MapProp tree_*)
+	var placed := WorldHarvest.ids(bt).filter(func(i) -> bool: return i < MapData.TREE_ID_BASE).size()
+	var trees := WorldHarvest.count(bt) - placed
+	T.eq(placed, 71, "veios e árvores especiais dos quatro mapas")
+	T.ok(trees > 600, "árvores do cenário cortáveis (%d)" % trees)
 	var kinds := {}
-	for i in WorldHarvest.count(bt):
+	for i in WorldHarvest.ids(bt).filter(func(x) -> bool: return x < MapData.TREE_ID_BASE):
 		var d := WorldHarvest.node_def(bt, i)
 		kinds[d.kind] = int(kinds.get(d.kind, 0)) + 1
 		T.ok(items.has(d.item), "item do nó %d existe" % i)
@@ -49,7 +53,11 @@ func test_gather_and_respawn() -> void:
 	T.ok(h.ready_in(2, 0, 1001.0) > 170.0, "falta quase o tempo todo para voltar")
 	T.eq(h.gather(bt, 2, 0, at, 1179.0).err, "esgotado", "um segundo antes de voltar")
 	T.ok(h.gather(bt, 2, 0, at, 1180.0).ok, "depois de 180 s concede de novo")
-	T.ok(h.gather(bt, 3, 0, at, 1181.0).ok, "outra conta no mesmo veio: veios são pessoais")
+	T.eq(h.gather(bt, 3, 0, at, 1001.0).err, "esgotado", "outra conta no mesmo veio: é do mundo, já foi coletado")
+	var h2 := WorldHarvest.new()
+	h2.gather(bt, 2, 0, at, 10.0)
+	T.ok(h2.depleted(11.0).has(0), "esgotado aparece para quem entra")
+	T.ok(not h2.depleted(191.0).has(0), "depois de voltar, sai da lista")
 	T.ok(h.gather(bt, 2, 1, WorldHarvest.node_def(bt, 1).pos, 1181.0).ok, "outro veio da mesma conta")
 
 
@@ -96,10 +104,34 @@ func test_ids_are_fixed_not_list_positions() -> void:
 		"bosque": "res://tests/unit/fixtures/map_root_fixture.tscn", "mina": "res://tests/unit/fixtures/map_root_fixture.tscn",
 		"pico": "res://tests/unit/fixtures/map_root_fixture.tscn"}
 	MapData.clear_cache()
-	T.eq(WorldHarvest.count(bt), 2, "dois nós na cena")
-	T.eq(WorldHarvest.ids(bt), [0, 2], "ids da cena, em ordem")
+	var placed := WorldHarvest.ids(bt).filter(func(i) -> bool: return i < MapData.TREE_ID_BASE)
+	T.eq(placed, [0, 2], "dois nós na cena, com os ids da cena e em ordem (as árvores do cenário vêm depois)")
 	T.eq(WorldHarvest.node_def(bt, 1), {}, "id que a cena não tem: nada (apagar um nó não renumera os outros)")
 	T.eq(WorldHarvest.node_def(bt, 2).kind, "crystal", "nó 2 é o cristal da cena")
 	T.ok(WorldHarvest.node_def(bt, 2).pos.is_equal_approx(Vector3(-5, 0, 4)), "posição do nó 2 vem da cena")
 	MapData.scene_override = {}
 	MapData.clear_cache()
+
+
+## Toda árvore do cenário se corta e dá a madeira da família dela (world_nodes.json "tree_models").
+func test_scenery_trees() -> void:
+	var bt := _tables()
+	var models := {}
+	for id in WorldHarvest.ids(bt):
+		if id < MapData.TREE_ID_BASE:
+			continue
+		var d := WorldHarvest.node_def(bt, id)
+		T.ok(d.prop, "árvore %d é do cenário" % id)
+		T.ok(str(d.model).begins_with("tree_"), "modelo da árvore %d" % id)
+		models[d.model] = d.kind
+	T.eq(models.get("tree_pine"), "pine", "pinheiro dá pinho")
+	T.eq(models.get("tree_fir"), "pine", "abeto dá pinho")
+	T.eq(models.get("tree_oak"), "oak", "carvalho dá carvalho")
+	T.eq(models.get("tree_maple"), "oak", "bordo dá carvalho")
+	T.eq(models.get("tree_apple"), "oak", "frutífera dá carvalho")
+	T.eq(models.get("tree_birch"), "silverbirch", "bétula dá bétula prateada")
+	var first: int = WorldHarvest.ids(bt).filter(func(x) -> bool: return x >= MapData.TREE_ID_BASE)[0]
+	var pos: Vector3 = WorldHarvest.node_def(bt, first).pos
+	var h := WorldHarvest.new()
+	T.ok(h.gather(bt, 2, first, pos + Vector3(1.0, 0, 0), 50.0).ok, "corta uma árvore do cenário")
+	T.eq(h.gather(bt, 3, first, pos, 51.0).err, "esgotado", "e ela some para os outros")

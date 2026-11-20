@@ -989,6 +989,42 @@
 		},
 		"desc": "Armadura de placas digna de um herói."
 	},
+	"royal_greaves": {
+		"name": "Grevas Reais",
+		"type": "gear",
+		"style": "f_royalplate",
+		"slot": "feet",
+		"rarity": "epic",
+		"level": 15,
+		"defense": 3,
+		"price": 180,
+		"color": {
+			"$c": [0.85, 0.7, 0.35, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"vit": 2
+		},
+		"desc": "Prata e ouro até o tornozelo, do mesmo ferreiro das Placas Reais."
+	},
+	"royal_gauntlets": {
+		"name": "Manoplas Reais",
+		"type": "gear",
+		"style": "g_royalplate",
+		"slot": "hands",
+		"rarity": "epic",
+		"level": 15,
+		"defense": 2,
+		"price": 180,
+		"color": {
+			"$c": [0.85, 0.7, 0.35, 1.0]
+		},
+		"metal": true,
+		"stats": {
+			"str": 3
+		},
+		"desc": "O punho em sino tem o friso de ouro das Placas Reais."
+	},
 	"traveler_tunic": {
 		"name": "Túnica de Viajante",
 		"type": "armor",
@@ -1524,6 +1560,7 @@
 	"iron_gauntlets": {
 		"name": "Manoplas de Ferro",
 		"type": "gear",
+		"style": "g_ironplate",
 		"slot": "hands",
 		"rarity": "uncommon",
 		"level": 3,
@@ -1922,6 +1959,7 @@
 	"iron_greaves": {
 		"name": "Grevas de Ferro",
 		"type": "gear",
+		"style": "f_ironplate",
 		"slot": "feet",
 		"rarity": "uncommon",
 		"level": 12,
@@ -2762,6 +2800,7 @@
 	"silver_gauntlets": {
 		"name": "Manoplas de Prata",
 		"type": "gear",
+		"style": "g_knightplate",
 		"slot": "hands",
 		"rarity": "rare",
 		"level": 27,
@@ -2780,6 +2819,7 @@
 	"silver_greaves": {
 		"name": "Grevas de Prata",
 		"type": "gear",
+		"style": "f_knightplate",
 		"slot": "feet",
 		"rarity": "rare",
 		"level": 26,
@@ -3272,6 +3312,7 @@
 		"name": "Picareta de Pedra",
 		"type": "tool",
 		"tool": "pickaxe",
+		"level": 1,
 		"tier": 1,
 		"power": 1.0,
 		"rarity": "common",
@@ -3291,6 +3332,7 @@
 		"name": "Picareta de Ferro",
 		"type": "tool",
 		"tool": "pickaxe",
+		"level": 1,
 		"tier": 2,
 		"power": 1.6,
 		"rarity": "common",
@@ -3310,6 +3352,7 @@
 		"name": "Picareta de Mitril",
 		"type": "tool",
 		"tool": "pickaxe",
+		"level": 1,
 		"tier": 3,
 		"power": 2.5,
 		"rarity": "uncommon",
@@ -3329,6 +3372,7 @@
 		"name": "Picareta de Cristal",
 		"type": "tool",
 		"tool": "pickaxe",
+		"level": 1,
 		"tier": 4,
 		"power": 3.6,
 		"rarity": "rare",
@@ -3349,6 +3393,7 @@
 		"name": "Picareta Astral",
 		"type": "tool",
 		"tool": "pickaxe",
+		"level": 1,
 		"tier": 5,
 		"power": 5.0,
 		"rarity": "epic",
@@ -3369,6 +3414,7 @@
 		"name": "Machado de Pedra",
 		"type": "tool",
 		"tool": "axe",
+		"level": 1,
 		"tier": 1,
 		"power": 1.0,
 		"rarity": "common",
@@ -3388,6 +3434,7 @@
 		"name": "Machado de Ferro",
 		"type": "tool",
 		"tool": "axe",
+		"level": 1,
 		"tier": 2,
 		"power": 1.6,
 		"rarity": "common",
@@ -3407,6 +3454,7 @@
 		"name": "Machado de Mitril",
 		"type": "tool",
 		"tool": "axe",
+		"level": 1,
 		"tier": 3,
 		"power": 2.5,
 		"rarity": "uncommon",
@@ -3426,6 +3474,7 @@
 		"name": "Machado de Cristal",
 		"type": "tool",
 		"tool": "axe",
+		"level": 1,
 		"tier": 4,
 		"power": 3.6,
 		"rarity": "rare",
@@ -3446,6 +3495,7 @@
 		"name": "Machado Astral",
 		"type": "tool",
 		"tool": "axe",
+		"level": 1,
 		"tier": 5,
 		"power": 5.0,
 		"rarity": "epic",

@@ -89,15 +89,36 @@ func test_check() -> void:
 ## Personagem de antes das ferramentas ganha as de pedra uma vez (quem já tem do tipo não ganha outra).
 func test_migrate_tools() -> void:
 	_items()
+	# personagem de antes de tudo: a picareta da mochila vai para o espaço; sem machado, ganha o de pedra equipado
 	var s := CharState.new()
-	s.inventory = [{"id": "pickaxe_iron", "qty": 1}]
+	s.equipment = CharRules.empty_equipment()
+	s.inventory = [{"id": "pickaxe_iron", "qty": 1}, {"id": "pickaxe_stone", "qty": 1}]
 	T.ok(CharRules.migrate_tools(s, _bt), "migrou")
-	T.eq(CharRules.count_item(s, "pickaxe_stone"), 0, "já tinha picareta: não ganha a de pedra")
-	T.eq(CharRules.count_item(s, "axe_stone"), 1, "ganha o machado de pedra")
+	T.eq(s.equipment.pickaxe, "pickaxe_iron", "a melhor picareta da mochila foi equipada")
+	T.eq(CharRules.count_item(s, "pickaxe_iron"), 0, "e saiu da mochila")
+	T.eq(CharRules.count_item(s, "pickaxe_stone"), 1, "a de pedra fica na mochila")
+	T.eq(s.equipment.axe, "axe_stone", "sem machado: ganha o de pedra equipado")
 	T.ok(not CharRules.migrate_tools(s, _bt), "só uma vez")
-	CharRules.remove_item(s, "axe_stone", 1)
-	CharRules.migrate_tools(s, _bt)
-	T.eq(CharRules.count_item(s, "axe_stone"), 0, "vendeu o machado: não volta")
+	# personagem da versão anterior (ferramentas na mochila, flag 1): equipa, não dá outra
+	var v1 := CharState.new()
+	v1.equipment = CharRules.empty_equipment()
+	v1.flags["tools_v"] = true
+	v1.inventory = [{"id": "axe_stone", "qty": 1}]
+	CharRules.migrate_tools(v1, _bt)
+	T.eq(v1.equipment.axe, "axe_stone", "v1: o machado da mochila foi equipado")
+	T.eq(v1.equipment.pickaxe, "", "v1 que vendeu a picareta: não ganha outra")
 	var fresh := CharState.new_character(_bt)
 	T.ok(not CharRules.migrate_tools(fresh, _bt), "personagem novo já nasce com as de pedra")
-	T.eq(CharRules.count_item(fresh, "pickaxe_stone") + CharRules.count_item(fresh, "axe_stone"), 2, "kit de pedra")
+	T.eq([fresh.equipment.pickaxe, fresh.equipment.axe], ["pickaxe_stone", "axe_stone"], "kit de pedra equipado")
+
+
+## Picareta e machado têm espaço próprio: equipar e desequipar.
+func test_tool_slots() -> void:
+	_items()
+	var s := CharState.new_character(_bt)
+	T.eq(CharRules.slot_of(_bt, "pickaxe_crystal"), "pickaxe", "picareta vai no espaço da picareta")
+	T.eq(CharRules.slot_of(_bt, "axe_iron"), "axe", "machado vai no espaço do machado")
+	CharRules.add_item(s, _bt, "axe_iron", 1)
+	T.ok(CharRules.equip(s, _bt, "axe_iron").ok, "equipa o machado de ferro")
+	T.eq(s.equipment.axe, "axe_iron", "no espaço")
+	T.eq(CharRules.count_item(s, "axe_stone"), 1, "o de pedra voltou para a mochila")

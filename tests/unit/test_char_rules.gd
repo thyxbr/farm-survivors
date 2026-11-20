@@ -43,7 +43,10 @@ func test_new_character_matches_new_game() -> void:
 	T.eq(s.level, 1, "nível")
 	T.eq(s.gold, 25, "ouro inicial")
 	T.eq(s.attributes, {"str": 5, "int": 5, "vit": 5, "agi": 5}, "atributos")
-	T.eq(s.equipment, CharRules.empty_equipment(), "sem nenhum equipamento (nem arma) até escolher a classe")
+	var eq := CharRules.empty_equipment()
+	eq.pickaxe = "pickaxe_stone"
+	eq.axe = "axe_stone"
+	T.eq(s.equipment, eq, "sem equipamento de combate (nem arma) até escolher a classe; só as ferramentas de pedra")
 	T.eq(s.char_class, "", "sem classe")
 	T.eq(_count(s, "health_potion"), 3, "poções")
 	T.eq(_count(s, "seed_wheat"), 4, "sementes de trigo")
