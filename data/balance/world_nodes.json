@@ -1,6 +1,7 @@
 {
 	"tree_models": {"tree_pine": "pine", "tree_fir": "pine", "tree_oak": "oak", "tree_maple": "oak", "tree_apple": "oak",
-		"tree_cherry": "oak", "tree_orange": "oak", "tree_pear": "oak", "tree_birch": "silverbirch"},
+		"tree_cherry": "oak", "tree_orange": "oak", "tree_pear": "oak", "tree_birch": "silverbirch",
+		"tree_swamp": "oak", "tree_dead": "ashwood"},
 	"kinds": {
 		"copper": {"item": "copper_ore", "amount": 3, "tough": 6, "tier": 1, "respawn": 150, "model": "ore", "tint": {"$c": [0.85, 0.45, 0.2, 1]}, "prof": "mining", "level": 1, "xp": 12},
 		"iron": {"item": "iron_ore", "amount": 3, "tough": 8, "tier": 1, "respawn": 180, "model": "iron", "prof": "mining", "level": 1, "xp": 20},
@@ -11,7 +12,7 @@
 		"pine": {"item": "pine_log", "amount": 3, "tough": 6, "tier": 1, "respawn": 120, "model": "tree_pine", "prof": "woodcutting", "level": 1, "xp": 12},
 		"oak": {"item": "oak_log", "amount": 3, "tough": 9, "tier": 1, "respawn": 150, "model": "tree_oak", "prof": "woodcutting", "level": 10, "xp": 30},
 		"silverbirch": {"item": "silverbirch_log", "amount": 3, "tough": 13, "tier": 2, "respawn": 180, "model": "tree_birch", "prof": "woodcutting", "level": 20, "xp": 45},
-		"ashwood": {"item": "ashwood_log", "amount": 3, "tough": 16, "tier": 2, "respawn": 200, "model": "tree_fir", "tint": {"$c": [0.55, 0.55, 0.55, 1]}, "prof": "woodcutting", "level": 30, "xp": 70},
+		"ashwood": {"item": "ashwood_log", "amount": 3, "tough": 16, "tier": 2, "respawn": 200, "model": "tree_dead", "prof": "woodcutting", "level": 30, "xp": 70},
 		"soulwood": {"item": "soulwood_log", "amount": 2, "tough": 22, "tier": 3, "respawn": 240, "model": "tree_maple", "tint": {"$c": [0.6, 0.45, 0.95, 1]}, "prof": "woodcutting", "level": 40, "xp": 100}
 	}
 }

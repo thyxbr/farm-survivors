@@ -92,7 +92,7 @@ static func color_of(speaker: String) -> Color:
 	return COLORS[""]
 
 
-## Se o NPC (ou objeto) está no mapa agora: o Kael troca a vila pelo Pico das Cinzas enquanto está com o
+## Se o NPC (ou objeto) está no mapa agora: o Kael troca a vila pelo Vulcão das Cinzas enquanto está com o
 ## Lich; o Tico volta para casa depois da Slime Rainha; o gato some quando é achado.
 static func present(id: String) -> bool:
 	var q: Dictionary = Game.quests

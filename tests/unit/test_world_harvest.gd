@@ -28,7 +28,7 @@ func test_table_shape() -> void:
 	T.eq(kinds, {"iron": 14, "crystal": 10, "copper": 6, "pine": 8, "oak": 8, "silver": 6, "silverbirch": 4,
 		"mithril": 6, "ashwood": 4, "astralite": 3, "soulwood": 2}, "nós por tipo")
 	for i in range(10, 20):
-		T.eq(Regions.region_at(WorldHarvest.node_def(bt, i).pos), "mina", "nó %d fica na Mina de Cristal" % i)
+		T.eq(Regions.region_at(WorldHarvest.node_def(bt, i).pos), "mina", "nó %d fica na Geleira de Cristal" % i)
 	var iron := WorldHarvest.node_def(bt, 0)
 	T.eq(iron.item, "iron_ore", "nó 0 dá minério")
 	T.eq(iron.amount, 3, "3 por veio")

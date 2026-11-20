@@ -196,6 +196,7 @@ exec(open(OUT.replace("assets/models/", "tools/blender/props.py"), encoding="utf
 exec(open(OUT.replace("assets/models/", "tools/blender/buildings.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/village.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/trees.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/biomes.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/weapons.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/armory.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/gear.py"), encoding="utf-8").read(), globals())
@@ -227,6 +228,9 @@ if "village" in _only:
 if "buildings" in _only:   # ASSETS=buildings gera todas as construções da Defesa da Cidade (b_<tipo>_<nível>)
     _only += [n for n in PROP_BUILDERS if n.startswith("b_")]
 BUILDERS.update(TREE_BUILDERS)   # árvores e flores (trees.py)
+BUILDERS.update(BIOME_BUILDERS)   # peças dos biomas (biomes.py); ASSETS=biomes gera todas
+if "biomes" in _only:
+    _only += list(BIOME_BUILDERS)
 BUILDERS.update(dict(WEAPONS))   # w_<id>: espadas (weapons.py); ASSETS=weapons gera todas
 if "weapons" in _only:
     _only += [n for n, _ in WEAPONS]

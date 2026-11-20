@@ -2616,7 +2616,7 @@ func _test_story_talk() -> void:
 
 
 ## Guilda e mapas: registro (Rank D), contrato do quadro, promoção pela Lina (Rank C), carruagem para o
-## Bosque Sussurrante (monstros e NPCs de lá) e volta para a vila.
+## Pântano Sussurrante (monstros e NPCs de lá) e volta para a vila.
 func _test_guild_travel() -> void:
 	_story_to("registro")
 	Game.start_quest("registro")
@@ -2660,10 +2660,10 @@ func _test_guild_travel() -> void:
 	var dests: Array = []
 	for ch in pages[0].get("choices", []):
 		dests.append(str(ch.text))
-	check("Bosque Sussurrante" in dests and "Mina de Cristal (Rank B)" in dests, "carruagem: bosque liberado, mina travada (%s)" % [dests])
+	check("Pântano Sussurrante" in dests and "Geleira de Cristal (Rank B)" in dests, "carruagem: bosque liberado, mina travada (%s)" % [dests])
 	world.travel_to("bosque")
 	await wait(1.6)
-	check(Regions.region_at(player.global_position) == "bosque", "viagem leva ao Bosque Sussurrante (%s)" % player.global_position)
+	check(Regions.region_at(player.global_position) == "bosque", "viagem leva ao Pântano Sussurrante (%s)" % player.global_position)
 	check(_interactable("sylvi") != null and _interactable("coach_bosque") != null, "Sylvi e a carruagem no bosque")
 	var queen := false
 	for e in get_tree().get_nodes_in_group("enemies"):

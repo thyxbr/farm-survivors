@@ -37,7 +37,14 @@ const DECOR_STEP := 6.0
 ## Cor da água funda (meio) e rasa (beiras).
 @export var deep_color := Color(0.09, 0.27, 0.36)
 @export var shallow_color := Color(0.2, 0.47, 0.5)
-## Sorteio das pedras e samambaias da margem.
+## Brilho da água (0 = água; ~2,5 = lava: a cor acende e borra com o glow da tela).
+@export var glow := 0.0
+## Cor da espuma da beira (água: branca; lava: amarela).
+@export var foam_color := Color(0.86, 0.93, 0.92)
+## Planta da beira (modelo de assets/models: fern, reeds...; vazio = nenhuma) e se há pedras na beira.
+@export var bank_plant := "fern"
+@export var bank_rocks := true
+## Sorteio das pedras e plantas da margem.
 @export var decor_seed := 7
 ## Cor da margem: barranco de cima (perto do capim), terra e lama molhada (perto da água).
 @export var bank_top := Color(0.33, 0.33, 0.18)
@@ -191,7 +198,8 @@ func _build(holder: Node3D, visual: bool, walls: bool) -> void:
 		return
 	var nrm := _normals(pts)
 	if visual:
-		holder.add_child(_bank_mesh(pts, nrm))
+		var bm := _bank_mesh(pts, nrm)
+		holder.add_child(bm)
 		holder.add_child(_water_mesh(pts, nrm))
 		_decor(holder, pts, nrm, bridges())
 	if walls:
@@ -231,6 +239,15 @@ func _bank_mesh(pts: PackedVector2Array, nrm: PackedVector2Array) -> MeshInstanc
 				var j := 0.94 + 0.12 * fposmod(sin(pts[i].x * 12.99 + pts[i].y * 78.23 + k * 3.1) * 43758.5, 1.0)
 				col = Color(col.r * j, col.g * j, col.b * j)
 				_quad(st, a, b, c, d, col)
+	# pontas arredondadas (charco e poça fecham; o rio do Vale some dentro da serra)
+	for e in _ends(pts, nrm):
+		for q in CAP_STEPS:
+			for k in prof.size() - 1:
+				var a := _cv(e, q, prof[k])
+				var b := _cv(e, q + 1, prof[k])
+				var c := _cv(e, q + 1, prof[k + 1])
+				var d := _cv(e, q, prof[k + 1])
+				_quad(st, a, b, c, d, cols[prof[k + 1][2]])
 	var mesh := st.commit()
 	var m := StandardMaterial3D.new()
 	m.vertex_color_use_as_albedo = true
@@ -242,6 +259,27 @@ func _bank_mesh(pts: PackedVector2Array, nrm: PackedVector2Array) -> MeshInstanc
 	mi.name = "RiverBank"
 	mi.mesh = mesh
 	return mi
+
+
+const CAP_STEPS := 8
+
+
+## Pontas do rio: [ponto, normal, direção para fora].
+static func _ends(pts: PackedVector2Array, nrm: PackedVector2Array) -> Array:
+	var n := pts.size()
+	return [[pts[0], nrm[0], (pts[0] - pts[1]).normalized()],
+		[pts[n - 1], -nrm[n - 1], (pts[n - 1] - pts[n - 2]).normalized()]]
+
+
+## Direção do passo `q` da ponta (de um lado do rio, contornando a ponta, até o outro).
+static func _cap_dir(e: Array, q: int) -> Vector2:
+	var a := PI * float(q) / CAP_STEPS
+	return (e[1] as Vector2) * cos(a) + (e[2] as Vector2) * sin(a)
+
+
+static func _cv(e: Array, q: int, pr: Array) -> Vector3:
+	var p: Vector2 = (e[0] as Vector2) + _cap_dir(e, q) * float(pr[0])
+	return Vector3(p.x, float(pr[1]), p.y)
 
 
 static func _pv(p: Vector2, n: Vector2, side: float, pr: Array) -> Vector3:
@@ -280,6 +318,15 @@ func _water_mesh(pts: PackedVector2Array, nrm: PackedVector2Array) -> MeshInstan
 			st.set_normal(Vector3.UP)
 			st.set_uv(v[1])
 			st.add_vertex(Vector3(v[0].x, water_y, v[0].y))
+	for e in _ends(pts, nrm):   # leque na ponta: a borda de fora com espuma (v = ±1)
+		for q in CAP_STEPS:
+			var c0: Vector2 = e[0]
+			var r0 := c0 + _cap_dir(e, q) * w
+			var r1 := c0 + _cap_dir(e, q + 1) * w
+			for v in [[c0, 0.0], [r0, 1.0], [r1, 1.0]]:
+				st.set_normal(Vector3.UP)
+				st.set_uv(Vector2(along * 0.5, v[1]))
+				st.add_vertex(Vector3(v[0].x, water_y, v[0].y))
 	st.index()
 	var mesh := st.commit()
 	# a ordem dos triângulos depende do lado da normal: o material desenha os dois lados
@@ -288,6 +335,8 @@ func _water_mesh(pts: PackedVector2Array, nrm: PackedVector2Array) -> MeshInstan
 	mat.set_shader_parameter("deep", deep_color)
 	mat.set_shader_parameter("shallow", shallow_color)
 	mat.set_shader_parameter("flow", flow)
+	mat.set_shader_parameter("glow", glow)
+	mat.set_shader_parameter("foam", foam_color)
 	mat.set_shader_parameter("noise_tex", _noise())
 	mat.set_shader_parameter("toon", ToonLook.enabled())
 	mesh.surface_set_material(0, mat)
@@ -313,8 +362,8 @@ static func _noise() -> NoiseTexture2D:
 
 ## Pedras na beira d'água e samambaias no barranco, sorteadas sempre do mesmo jeito (sem colisão).
 func _decor(holder: Node3D, pts: PackedVector2Array, nrm: PackedVector2Array, bridges_list: Array) -> void:
-	var rock: PackedScene = load(MapProp.model_path("rock"))
-	var fern: PackedScene = load(MapProp.model_path("fern"))
+	var rock: PackedScene = load(MapProp.model_path("rock")) if bank_rocks else null
+	var fern: PackedScene = load(MapProp.model_path(bank_plant)) if bank_plant != "" else null
 	var rng := RandomNumberGenerator.new()
 	rng.seed = decor_seed
 	var w := width / 2.0
@@ -329,14 +378,14 @@ func _decor(holder: Node3D, pts: PackedVector2Array, nrm: PackedVector2Array, br
 		if _in_bridge(c, bridges_list, -3.0):
 			continue
 		var n := nrm[i] * side
-		if rng.randf() < 0.75:
+		if rock != null and rng.randf() < 0.75:
 			var q := c + n * rng.randf_range(w - 0.3, w + 0.5)
 			var s := rng.randf_range(0.45, 0.85)
 			_place(holder, rock, Vector3(q.x, water_y - 0.3 * s, q.y), s, rng.randf() * TAU)
 			if rng.randf() < 0.4:   # uma pedrinha ao lado
 				var q2 := q + (pts[i] - pts[i - 1]).normalized() * rng.randf_range(0.7, 1.2)
 				_place(holder, rock, Vector3(q2.x, water_y - 0.12, q2.y), s * 0.45, rng.randf() * TAU)
-		for k in rng.randi_range(1, 3):
+		for k in (rng.randi_range(1, 3) if fern != null else 0):
 			var q := c + n * rng.randf_range(w + bank * 0.8, w + bank + 0.4) 					+ (pts[i] - pts[i - 1]).normalized() * rng.randf_range(-1.2, 1.2)
 			_place(holder, fern, Vector3(q.x, -0.06, q.y), rng.randf_range(0.7, 1.15), rng.randf() * TAU)
 
@@ -370,6 +419,10 @@ func _walls(pts: PackedVector2Array, nrm: PackedVector2Array, bridges_list: Arra
 				elif inside and run_start >= 0:
 					_wall_box(body, a.lerp(b, float(run_start) / n), a.lerp(b, float(k) / n), k < n)
 					run_start = -1
+	for e in _ends(pts, nrm):
+		for q in CAP_STEPS:
+			var c0: Vector2 = e[0]
+			_wall_box(body, c0 + _cap_dir(e, q) * off, c0 + _cap_dir(e, q + 1) * off, false)
 	return body
 
 

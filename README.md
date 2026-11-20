@@ -51,9 +51,9 @@ C:/Tools/Godot/Godot_v4.7.2-stable_win64_console.exe --path C:/Games/godot-3d
 - **Guilda dos Aventureiros e Arco 2** (Valdoria é o centro de tudo): depois da festa, a Lina registra o herói
   no **Rank D** ("feitos de antes do registro não contam"). Missões e contratos dão **pontos de guilda**; com
   pontos suficientes a Lina promove a **C, B, A e S** (cada promoção dá pontos de atributo e ouro; o S exige
-  derrotar o Lich). O Arco 2 (episódios 7 a 11) segue por mapas novos: **Bosque Sussurrante** (Rank C: Sylvi, o
-  Tico perdido e a Slime Rainha), **Mina de Cristal** (Rank B: o anão Bolgar, esqueletos de crachá, veios de
-  cristal e o diário do Lich) e **Pico das Cinzas** (Rank A: o Kael na guilda falsa e **Morgrath, o Lich
+  derrotar o Lich). O Arco 2 (episódios 7 a 11) segue por mapas novos: **Pântano Sussurrante** (Rank C: Sylvi, o
+  Tico perdido e a Slime Rainha), **Geleira de Cristal** (Rank B: o anão Bolgar, esqueletos de crachá, veios de
+  cristal e o diário do Lich) e **Vulcão das Cinzas** (Rank A: o Kael na guilda falsa e **Morgrath, o Lich
   Aposentado**). A viagem é pela **carruagem da guilda** (portão norte), liberada por rank.
 - **19 missões secundárias**: o **Quadro de Contratos** da guilda (vários repetíveis, por rank) e moradores com
   pedidos espalhados pelo vale e pelos mapas: Dona Zélia e o gato fugitivo, o guarda Rufus e a sopa picante,

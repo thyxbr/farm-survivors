@@ -11,6 +11,7 @@ uniform vec3 deep : source_color = vec3(0.09, 0.27, 0.36);
 uniform vec3 shallow : source_color = vec3(0.2, 0.47, 0.5);
 uniform vec3 foam : source_color = vec3(0.86, 0.93, 0.92);
 uniform float flow = 1.2;
+uniform float glow = 0.0;   // lava: a cor acende (EMISSION) e borra com o glow da tela
 
 void fragment() {
 	float u = UV.x;
@@ -34,6 +35,7 @@ void fragment() {
 	float fo = smoothstep(0.86, 0.88, edge + (fn - 0.5) * 0.12);
 	col = mix(col, foam, fo);
 	ALBEDO = col;
+	EMISSION = col * glow;
 	ROUGHNESS = 0.25;
 	SPECULAR = 0.5;
 }

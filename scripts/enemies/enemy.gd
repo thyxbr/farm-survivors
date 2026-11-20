@@ -1447,7 +1447,7 @@ func _boss_intro() -> void:
 	var w := get_tree().current_scene
 	var hud = w.get("hud") if w != null else null
 	if hud != null and hud.get("region_banner") != null:
-		hud.region_banner.show_area(data.name, "Chefe da Mina de Cristal")
+		hud.region_banner.show_area(data.name, "Chefe da Geleira de Cristal")
 
 
 ## Partículas de cristal e poeira subindo do corpo o tempo todo (presas ao modelo: somem quando ela afunda).

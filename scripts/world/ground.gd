@@ -41,6 +41,8 @@ var _shapes := PackedVector4Array()
 var _cols := PackedVector4Array()
 var _mix := PackedFloat32Array()
 var _angs := PackedFloat32Array()   # giro em Y de cada retângulo (0 nos discos)
+## Bioma do mapa (BiomeRules.of): cores do chão, do capim e da serra, plantas e árvores da encosta. Pôr antes do setup.
+var biome: Dictionary = BiomeRules.VALE
 var _river := PackedVector4Array()   # rios (MapRiver): (x, z, meia largura sem chão, 1 = começa um rio novo)
 var _mat: ShaderMaterial
 var _noise_tex: NoiseTexture2D
@@ -62,6 +64,7 @@ func setup(map_half: float) -> void:
 	_mat.shader = GROUND_SHADER
 	_mat.set_shader_parameter("noise_tex", _noise_tex)
 	_mat.set_shader_parameter("toon", ToonLook.enabled())
+	_grass_colors(_mat)
 	var ground := MeshInstance3D.new()
 	ground.name = "Ground"
 	var plane := PlaneMesh.new()
@@ -83,6 +86,13 @@ func setup(map_half: float) -> void:
 		add_child(prints)
 		prints.setup(_noise_tex, body)
 	_push()
+
+
+## Cores do capim do bioma no material do chão ou dos tufos (os dois usam ground_common.gdshaderinc).
+func _grass_colors(m: ShaderMaterial) -> void:
+	var g: Array = biome.grass
+	for i in 4:
+		m.set_shader_parameter(["grass_dark", "grass_light", "grass_lush", "grass_dry"][i], g[i])
 
 
 ## Trilha/área retangular, girada `angle` radianos em Y (como o rotation.y de um nó: 0 = alinhada aos eixos).
@@ -386,19 +396,22 @@ func _terrain_tri(verts: PackedVector3Array, norms: PackedVector3Array, cols: Pa
 		jit = 1.0
 	# grama (a mesma do chão na base), mata mais escura nas encostas baixas da serra, rocha nas
 	# faces íngremes e no alto, neve nos topos da serra
-	var grass := Color(0.27, 0.45, 0.16).lerp(Color(0.2, 0.37, 0.13), v)
+	var rg: Array = biome.ring_grass
+	var rr: Array = biome.ring_rock
+	var grass: Color = (rg[0] as Color).lerp(rg[1], v)
 	if ring:
 		var t_wood := smoothstep(4.0, 20.0, h)
-		grass = grass.lerp(Color(0.16, 0.3, 0.14), (roundf(t_wood) if toon else t_wood) * 0.7)
-	var rock := Color(0.47, 0.44, 0.4).lerp(Color(0.33, 0.31, 0.3), v)
+		grass = grass.lerp(biome.ring_wood, (roundf(t_wood) if toon else t_wood) * 0.7)
+	var rock: Color = (rr[0] as Color).lerp(rr[1], v)
 	var t_rock := clampf(smoothstep(0.24, 0.42, slope) + smoothstep(14.0, 32.0, h) * 0.5, 0.0, 1.0)
 	if toon:
 		t_rock = roundf(t_rock)
 	var col := grass.lerp(rock, t_rock)
-	if ring:
-		var line := _ring_height * 0.62 + n.get_noise_2d(cen.x * 0.8, cen.z * 0.8) * 10.0
+	var rs: Array = biome.ring_snow
+	if not rs.is_empty() and (ring or float(biome.snow_line) < 0.5):
+		var line := _ring_height * float(biome.snow_line) + n.get_noise_2d(cen.x * 0.8, cen.z * 0.8) * 10.0
 		if h > line and slope < 0.62:
-			col = Color(0.9, 0.92, 0.96).lerp(Color(0.78, 0.82, 0.9), v)
+			col = (rs[0] as Color).lerp(rs[1], v)
 	if ring and _on_pass_road(cen.x, cen.z):
 		col = Color(0.5, 0.46, 0.38)   # a estrada do sul continuando pela passagem (a mesma cor da pintura)
 	col = Color(col.r * jit, col.g * jit, col.b * jit)
@@ -414,10 +427,14 @@ func _terrain_tri(verts: PackedVector3Array, norms: PackedVector3Array, cols: Pa
 func _ring_forest() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 991
-	var fir := _glb_mesh(load("res://assets/models/tree_fir.glb"))
-	var pine := _glb_mesh(load("res://assets/models/tree_pine.glb"))
-	var firs: Array[Transform3D] = []
-	var pines: Array[Transform3D] = []
+	# árvores da encosta pelo bioma: {modelo: fração}
+	var kinds: Array = (biome.ring_trees as Dictionary).keys()
+	var meshes: Array = []
+	var lists: Array = []
+	for k in kinds:
+		meshes.append(_glb_mesh(load("res://assets/models/%s.glb" % k)))
+		var arr: Array[Transform3D] = []
+		lists.append(arr)
 	var n := _mtn_noise()
 	var ext := half + 70.0
 	for i in 2600:
@@ -435,12 +452,14 @@ func _ring_forest() -> void:
 		var s := rng.randf_range(1.0, 1.9)
 		var xf := Transform3D(Basis().rotated(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.9, 1.2), s)),
 				Vector3(p.x, h - MTN_SINK - 0.1, p.y))
-		if rng.randf() < 0.65:
-			firs.append(xf)
-		else:
-			pines.append(xf)
-	_chunk(fir, firs, [], Vector3.ZERO, 0.0, false, true)
-	_chunk(pine, pines, [], Vector3.ZERO, 0.0, false, true)
+		var pick := rng.randf()
+		for k in kinds.size():
+			pick -= float(biome.ring_trees[kinds[k]])
+			if pick < 0.0 or k == kinds.size() - 1:
+				lists[k].append(xf)
+				break
+	for i in kinds.size():
+		_chunk(meshes[i], lists[i], [], Vector3.ZERO, 0.0, false, true)
 
 
 ## Distância (aprox.) até a forma pintada mais próxima; negativa = dentro. `shapes` = [[Vector4, giro], ...]
@@ -488,6 +507,7 @@ func scatter_grass(seed_value: int, density := 0.55, keep_out: Array = [], spars
 	gmat.shader = GRASS_SHADER
 	gmat.set_shader_parameter("noise_tex", _noise_tex)
 	gmat.set_shader_parameter("toon", ToonLook.enabled())
+	_grass_colors(gmat)
 	tuft.surface_set_material(0, gmat)
 	tuft_far.surface_set_material(0, gmat)
 	tuft_low.surface_set_material(0, gmat)
@@ -495,12 +515,15 @@ func scatter_grass(seed_value: int, density := 0.55, keep_out: Array = [], spars
 	clump.seed = seed_value
 	clump.frequency = 0.045
 	clump.fractal_octaves = 2
+	# o que nasce no meio do capim troca com o bioma (pântano: juncos, samambaias e cogumelos; neve e cinza: nada)
 	var plant_meshes := {}
-	for k in PLANT_MODELS:
-		plant_meshes[k] = _glb_mesh(PLANT_MODELS[k])
+	var pm: Dictionary = biome.plants
+	for k in pm:
+		plant_meshes[k] = _glb_mesh(load("res://assets/models/%s.glb" % pm[k]))
 	var flower_meshes := {}
-	for k in FLOWER_MODELS:
-		flower_meshes[k] = _glb_mesh(FLOWER_MODELS[k])
+	if biome.flowers:
+		for k in FLOWER_MODELS:
+			flower_meshes[k] = _glb_mesh(FLOWER_MODELS[k])
 	var n := int(ceil(half * 2.0 / CHUNK))
 	for cx in n:
 		for cz in n:
@@ -618,6 +641,8 @@ func _scatter_plants(rng: RandomNumberGenerator, clump: FastNoiseLite, meshes: D
 			bushes.append(xf)
 		else:
 			berries.append(xf)
+	if meshes.is_empty():
+		return
 	_chunk(meshes["fern"], ferns, [], center, 70.0, false)
 	_chunk(meshes["bush"], bushes, [], center, 110.0, false, true)
 	_chunk(meshes["bush_berry"], berries, [], center, 110.0, false, true)
@@ -628,6 +653,8 @@ func _scatter_plants(rng: RandomNumberGenerator, clump: FastNoiseLite, meshes: D
 func _scatter_flowers(rng: RandomNumberGenerator, clump: FastNoiseLite, meshes: Dictionary, box: Rect2,
 		amount: float, shapes: Array, grassy: Array, outs: Array, few: Array, center: Vector3) -> void:
 	var kinds: Array = meshes.keys()
+	if kinds.is_empty():
+		return
 	var by_kind := {}
 	for k in kinds:
 		var arr: Array[Transform3D] = []
