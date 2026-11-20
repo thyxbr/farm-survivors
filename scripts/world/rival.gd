@@ -1,6 +1,6 @@
 class_name Rival
 extends KnightNPC
-## Kael, a Lâmina Carmesim: o rival do herói, no portão leste da vila (e, no Arco 2, no Pico das Cinzas,
+## Kael, a Lâmina Carmesim: o rival do herói, no portão leste da vila (e, no Arco 2, no Vulcão das Cinzas,
 ## como "kael_pico"). Sobreveste da guarda, sabre e luvas, sem elmo para o rosto aparecer no close; ensaia
 ## a "pose heroica" sozinho e faz a pose ao abrir o diálogo.
 

@@ -352,7 +352,7 @@ func _friend_row(f: Dictionary) -> Control:
 	return p
 
 
-## "Bosque Sussurrante", "carregando", "visto há 3 dia(s)"...
+## "Pântano Sussurrante", "carregando", "visto há 3 dia(s)"...
 func _friend_status(f: Dictionary) -> String:
 	if bool(f.get("online", false)):
 		if str(f.get("zone", "")) == "loading":

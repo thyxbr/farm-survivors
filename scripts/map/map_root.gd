@@ -125,6 +125,7 @@ func make_ground(world_offset := Vector2.ZERO) -> Node3D:
 	var g: Node3D = load(GROUND).new()
 	g.name = "Ground_" + map_id
 	g.world_offset = world_offset
+	g.biome = BiomeRules.of(map_id)
 	g.setup(half)
 	for p in paint_data():
 		if p.disc:

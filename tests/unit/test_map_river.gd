@@ -35,7 +35,11 @@ func test_walls_open_only_at_the_bridge() -> void:
 	T.eq(body.collision_layer, MapRiver.WALL_LAYER, "camada das paredes do rio")
 	var near_l := false
 	var near_r := false
+	var caps := 0
 	for cs: CollisionShape3D in body.get_children():
+		if absf(cs.position.x) > 39.0:
+			caps += 1   # contorno da ponta arredondada
+			continue
 		var half: float = (cs.shape as BoxShape3D).size.x / 2.0
 		var x0 := cs.position.x - half
 		var x1 := cs.position.x + half
@@ -44,6 +48,7 @@ func test_walls_open_only_at_the_bridge() -> void:
 		near_r = near_r or (x0 < 2.9 and x0 >= 2.3)
 		T.ok(absf(absf(cs.position.z) - (r.half_total() - 0.2)) < 0.05, "parede na beira da margem")
 	T.ok(near_l and near_r, "as paredes encostam nas muretas dos dois lados")
+	T.ok(caps >= 2 * MapRiver.CAP_STEPS, "as duas pontas do rio também têm parede em volta")
 	root.free()
 
 
