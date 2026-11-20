@@ -201,8 +201,9 @@ func _ready() -> void:
 	# + os guardas da vila (VillageGuard, também conversam)
 	var n_inter := get_tree().get_nodes_in_group("interactable").size()
 	var n_guards := get_tree().get_nodes_in_group("npc").filter(func(n: Node) -> bool: return n is VillageGuard).size()
-	check(n_inter == 7 + 9 + 7 + 1 + world.points.size() + Game.FARM_PLOTS + 1 + 1 + 8 + n_guards,
-		"interagíveis do vale, da guilda e dos mapas + %d canteiros + caldeirão + bancada de couraria + 8 portas de dungeon + %d guardas (%d)" % [Game.FARM_PLOTS, n_guards, n_inter])
+	# a feira e as oficinas da vila do sul: 3 feirantes + o artesão, 4 moradores que passeiam e a mesa de alquimia
+	check(n_inter == 7 + 9 + 7 + 1 + world.points.size() + Game.FARM_PLOTS + 1 + 1 + 8 + n_guards + 4 + 4 + 1,
+		"interagíveis do vale, da guilda e dos mapas + %d canteiros + caldeirão + bancadas de couraria e alquimia + feirantes, artesão e moradores + 8 portas de dungeon + %d guardas (%d)" % [Game.FARM_PLOTS, n_guards, n_inter])
 	check(not ResourceLoader.exists("res://scenes/colony.tscn"), "sem a Defesa da Cidade")
 
 	# --- diálogo e missão
@@ -232,8 +233,8 @@ func _ready() -> void:
 	await _test_elder(elder as Elder)
 	await _test_merchant()
 
-	# --- combate corpo a corpo
-	var slime := _nearest("slime")
+	# --- combate corpo a corpo (um slime dos Campos do Norte: a missão dos slimes conta só os de lá)
+	var slime := _nearest("slime", "campos_norte")
 	var xp0 := Game.xp
 	var lvl0 := Game.level
 	var gold0 := Game.gold
@@ -3787,7 +3788,7 @@ func _test_village_guard() -> void:
 	var pickups0 := _count_pickups()
 	player.global_position = Vector3(2, 0.3, 6)
 	intruder.take_damage(1.0, player.global_position, false)   # o jogador acertou antes: mesmo assim não leva nada
-	intruder.global_position = Vector3(4, 0.5, 4)
+	intruder.global_position = Vector3(4, 0.5, 76)   # na praça da feira
 	await wait_until(func() -> bool: return intruder.dead, VillageWard.DOOM + 2.0)
 	check(intruder.dead, "goblin que entra na vila é abatido pela guarda")
 	await wait(0.3)
@@ -3796,8 +3797,8 @@ func _test_village_guard() -> void:
 	check(JSON.stringify(Game.quests) == prog0, "abate da guarda não conta em missão")
 	# monstro do lado de fora não entra atrás do jogador: para na cerca
 	var chaser := _today(_nearest("slime"))
-	player.global_position = Vector3(0, 0.3, -12)
-	chaser.global_position = Vector3(0, 0.5, -27)
+	player.global_position = Vector3(0, 0.3, 40)   # na estrada entre a Horta e o portão norte
+	chaser.global_position = Vector3(0, 0.5, 8)
 	chaser._set_state("chase")
 	await wait(2.0)
 	check(not chaser.dead and not VillageWard.inside(chaser.global_position, VillageWard.KILL_MARGIN),

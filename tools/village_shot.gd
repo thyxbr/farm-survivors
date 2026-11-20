@@ -9,6 +9,20 @@ extends SceneTree
 ## Noel e o trenó), largo (Largo dos Ecos), street (Rua do Portal). `--hora=22` tira as fotos de noite.
 
 const VIEWS := {
+	# vila do sul (0.61.0): a chegada pela estrada, a feira, as oficinas e a passagem na serra
+	"chegada": [Vector3(0, 3.2, 121), Vector3(0, 2.0, 88)],
+	"estrada": [Vector3(1, 5.0, 100), Vector3(1, 2.0, 140)],
+	"rua": [Vector3(0, 2.6, 99), Vector3(0, 1.6, 78)],
+	"feira": [Vector3(6, 7.5, 86), Vector3(-1, 0.5, 66)],
+	"feira_norte": [Vector3(0, 6.5, 58), Vector3(0, 0.5, 76)],
+	"oficinas": [Vector3(0, 5.5, 64), Vector3(0, 1.2, 52)],
+	"oficina": [Vector3(3.2, 3.0, 55.5), Vector3(10.5, 1.2, 54.5)],
+	"ferraria": [Vector3(-3.2, 3.0, 55.5), Vector3(-10.5, 1.2, 54.5)],
+	"alquimia": [Vector3(-6.5, 3.4, 73), Vector3(-14.5, 1.4, 73)],
+	"emporio": [Vector3(6.5, 3.4, 71), Vector3(14.5, 1.4, 72)],
+	"vila_cima": [Vector3(0, 70, 118), Vector3(0, 0, 76)],
+	"largo_ecos": [Vector3(-16, 5.5, 50), Vector3(-29, 0.5, 57)],
+	"passagem": [Vector3(0, 12, 112), Vector3(10, 2, 170)],
 	"xmas": [Vector3(2.5, 2.6, -3.5), Vector3(8.8, 2.0, -10.3)],
 	"gate": [Vector3(0, 2.2, -8.0), Vector3(2.5, 0.8, -12.4)],
 	"over": [Vector3(2, 26, -20), Vector3(0, 0, 4)],

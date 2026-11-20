@@ -1,13 +1,14 @@
 class_name VillageWard
 extends RefCounted
-## Zona protegida pela guarda da vila (Vale, coordenadas do mundo): a vila cercada e, ao sul, a Horta e o
-## Pomar. Nenhum monstro do mundo entra: a IA não persegue quem está aqui dentro nem dá passo para dentro, e o
+## Zona protegida pela guarda da vila (Vale, coordenadas do mundo): a vila cercada (no sul do vale) e, logo ao
+## norte dela, a Horta e o Pomar dos dois lados da estrada. Nenhum monstro do mundo entra: a IA não persegue quem está aqui dentro nem dá passo para dentro, e o
 ## que entrar mesmo assim (empurrão, bug de física) é abatido pelos guardas depois de DOOM segundos.
 ## Monstro abatido pela guarda não dá XP, loot nem conta em missão para ninguém (Enemy.guard_kill).
 ## Só contas puras (sem autoload), para os testes. A Horda (arena) fica longe e não usa a zona.
 
-## Retângulos (x0, z0, largura, profundidade): a cerca da vila (VillageLayout.BOUNDS) e a Horta + Pomar.
-const ZONES := [Rect2(-36, -18, 75, 45), Rect2(-13, 25, 44, 18)]
+## Retângulos (x0, z0, largura, profundidade): a cerca da vila (VillageLayout.BOUNDS) e a Horta + Pomar, que
+## encosta no portão norte.
+const ZONES := [Rect2(-40, 46, 80, 55), Rect2(-30, 24, 60, 22)]
 ## Folga em volta das zonas (m): o monstro para antes da cerca e a guarda atira quem passar dela.
 const MARGIN := 4.0
 ## Folga (m) além da cerca em que a guarda atira: um pouco mais para dentro que a linha onde o monstro para
