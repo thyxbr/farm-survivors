@@ -24,6 +24,8 @@ const HIDE_DIST := 120.0
 const FAR_MARGIN := 6.0
 const FAR_SCAN := 0.5
 var far := false
+## Até quantos metros o NPC vira o rosto para o jogador (o morador que passeia só vira quando para).
+var face_player_dist := 7.0
 var _far_scan := 0.0
 
 
@@ -145,7 +147,7 @@ func _process(delta: float) -> void:
 	marker.position.y = 2.85 + sin(_t * 3.0) * 0.08
 	var player := get_tree().get_first_node_in_group("player") as Node3D
 	var target_yaw := _base_yaw
-	if player and player.global_position.distance_to(global_position) < 7.0:
+	if player and player.global_position.distance_to(global_position) < face_player_dist:
 		var to := player.global_position - global_position
 		target_yaw = atan2(to.x, to.z) - global_rotation.y
 	model.rotation.y = lerp_angle(model.rotation.y, target_yaw, 4.0 * delta)

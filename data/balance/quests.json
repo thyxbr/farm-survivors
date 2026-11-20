@@ -168,7 +168,7 @@
 			"seed_pumpkin": 2,
 			"seed_wheat": 2
 		},
-		"desc": "O Rei Goblin quer a lendária Torta de Abóbora de Valdoria. O plano do Bram: assar uma como isca. Plante abóbora e trigo na Horta (saída sul), colha e cozinhe a torta no caldeirão.",
+		"desc": "O Rei Goblin quer a lendária Torta de Abóbora de Valdoria. O plano do Bram: assar uma como isca. Plante abóbora e trigo na Horta (saída norte da vila), colha e cozinhe a torta no caldeirão.",
 		"objective": "Torta de Abóbora para o Bram",
 		"reward_xp": 8293,
 		"level": 6,
@@ -1556,7 +1556,7 @@
 				"Dois Pães Rústicos e um Ensopado de Cenoura. As renas também gostam de cenoura, então... faça bastante."
 			],
 			"accept": "Preparar a ceia",
-			"remind": "Plante e cozinhe no Caldeirão da Horta, pelo portão sul: 2 Pães Rústicos e 1 Ensopado de Cenoura.",
+			"remind": "Plante e cozinhe no Caldeirão da Horta, pelo portão norte: 2 Pães Rústicos e 1 Ensopado de Cenoura.",
 			"done": [
 				"! Hmm, que cheiro! Pão quentinho e ensopado... igualzinho ao da Mamãe Noel. Não conte a ela.",
 				"[reward]Um banquete para você também. Ninguém passa fome no Natal!"

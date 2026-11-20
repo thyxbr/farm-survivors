@@ -83,8 +83,9 @@ func test_json_and_scenes_agree() -> void:
 
 func test_area_at_on_real_maps() -> void:
 	T.eq(Regions.area_at(Vector3(86, 0, 0)), "toca_goblins", "o acampamento goblin")
-	T.eq(Regions.area_at(Vector3(0, 0, -45)), "campos_norte", "campos ao norte da vila")
-	T.eq(Regions.area_at(Vector3(0, 0, 0)), "", "a vila não é região de monstro")
+	T.eq(Regions.area_at(Vector3(0, 0, -6)), "campos_norte", "campos ao norte da vila")
+	T.eq(Regions.area_at(Vector3(0, 0, 72)), "", "a vila não é região de monstro")
+	T.eq(Regions.area_at(Vector3(-28, 0, -52)), "forte_brutos", "o forte perto do cemitério")
 	T.eq(Regions.area_at(Regions.at("pico", Vector3(0, 0, -45))), "cume_maldito", "o cume dentro das ameias")
 	T.eq(Regions.area_at(Regions.at("bosque", Vector3(-26, 0, -36))), "ninho_rainha", "a Slime Rainha no ninho")
 	T.ok(Regions.area_center("toca_goblins").distance_to(Vector3(86, 0, 0)) < 1.0, "centro da toca")

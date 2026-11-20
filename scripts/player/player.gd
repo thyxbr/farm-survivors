@@ -117,7 +117,7 @@ var interact_target: Node3D = null
 var gather_target: Node3D = null
 ## Ferramenta na mão durante a coleta (vira a arma do visual; "" = a arma equipada de sempre).
 var gather_tool := ""
-var spawn_point := Vector3(0, 0.5, 6)
+var spawn_point := Vector3(0, 0.5, 116)   # o world troca pelo landmark village_spawn (estrada do sul)
 var _footstep := 0.0
 
 ## Multiplayer: réplica de outro jogador (sem câmera, sem input, sem atributos locais).

@@ -18,15 +18,17 @@ só aparecem jogando.
 
 Todos ficam em `scripts/map/` e aparecem no Inspector com as opções abaixo.
 
-- **Raiz do mapa (MapRoot)**: tamanho do mapa (`half`), altura da serra em volta (`border_height`), densidade e
+- **Raiz do mapa (MapRoot)**: tamanho do mapa (`half`), altura da serra em volta (`border_height`), a passagem na
+  serra do sul por onde chega a estrada (`south_pass_x`, `south_pass_width`; 0 = sem passagem), densidade e
   semente do capim. `show_preview` liga a prévia, `show_colliders` mostra as colisões (azul) e `preview_grass`
   desenha o capim no editor (pesado).
 - **Objeto (MapProp)**: qualquer modelo de `assets/models` (árvore, pedra, cerca, caixote, tenda, ruína,
   lampião...). Trocar o `model` já põe a colisão padrão dele; `shape` e `shape_size` ajustam a colisão;
   `no_grass` tira o capim de baixo; `tint` pinta o modelo inteiro de uma cor (alfa 0 = cores do modelo, como os
   pinheiros mortos da Arena). A escala do nó é a escala do modelo.
-- **Construção da vila (VillageBuilding)**, em Vila/Construções: casas, as três lojas (com a Mira, a Pip e o
-  ferreiro na frente) e o poço; `palette` pinta a casa, `flowers` põe canteiro, `delivery` marca uma das 6
+- **Construção da vila (VillageBuilding)**, em Vila/Construções: casas, as lojas (empório da Mira, botica da Pip e
+  ferraria, com o dono na frente; a oficina do artesão e o laboratório de alquimia, abertos na frente), as três
+  barracas da feira (`stall_cloth`, `stall_farm`, `stall_goods`) e o poço; `palette` pinta a casa, `flowers` põe canteiro, `delivery` marca uma das 6
   portas da missão de Natal. A porta da casa é a seta azul (+Z) do gizmo.
 - **Área pintada no chão (MapGroundPaint)**: retângulo ou disco com cor e borda suave (trilhas, praça, lotes).
   O retângulo fica sempre alinhado aos eixos. No máximo 40 por mapa.
@@ -44,8 +46,14 @@ Todos ficam em `scripts/map/` e aparecem no Inspector com as opções abaixo.
   dentro. Dentro da dungeon, `ref = "out"` (exatamente uma) e o landmark `arrive` (onde se chega). A cena de cada
   dungeon é `scenes/maps/dg_<id>.tscn` (no `MapData.SCENES` e no `Regions.DATA`, com `dungeon: true` e `parent`).
   No ponto de monstro do chefe da dungeon, ligue `chief`.
-- **Bancada de craft**: MapEntity com `kind = station` e `ref` = a estação (`leather` é a Bancada de Couraria da
-  vila). A forja e a alquimia abrem pelos serviços do Doran e da Pip.
+- **Bancada de craft**: MapEntity com `kind = station` e `ref` = a estação (`leather` é a Bancada de Couraria, na
+  oficina do artesão; `alchemy` é a mesa de alquimia, no laboratório ao lado da botica). A forja abre pelos
+  serviços do Doran; a alquimia também pela Pip e a couraria pelo Mestre Aurélio.
+- **Feirante**: MapEntity `npc` com `ref` = `tereza` (couro e tecido), `bento` (sementes e ferramentas) ou `cida`
+  (provisões), atrás do balcão da barraca. Cada vendedor vende um tipo de coisa (ShopUI.STALLS); a Mira, as armas.
+- **Morador que passeia**: MapEntity com `kind = walker`, `ref` = o NPC (`marta`, `joca`, `lauro`, `bia`) e
+  `params.path` = `[[x, z], [x, z, segundos parado], ...]` em coordenadas do mundo. Ele vai e volta pelo caminho e
+  para quando o jogador chega perto.
 - **Nó de coleta**: MapEntity com `kind = resource_node`, `ref` = um tipo de `data/balance/world_nodes.json`
   (cobre, ferro, cristal, prata, mithril, astralita; pinho, carvalho, bétula-prata, freixo-cinza, madeira-de-alma)
   e um `node_id` fixo (hoje 0–70). Para um
@@ -74,7 +82,11 @@ A Arena não usa o chão de Valdoria (`has_ground` desligado na raiz): o piso de
 caixa que estão na própria cena. A posição dela no mundo fica em `MapData.EXTRA_ORIGINS`.
 
 Música da vila: toca dentro de `VillageLayout.BOUNDS`. Se você mudar a cerca da vila de lugar, ajuste esse
-retângulo também.
+retângulo também, e a zona da guarda (`VillageWard.ZONES`: a vila e a Horta + Pomar).
+
+A vila fica no sul do vale (desde a 0.61.0): o personagem novo nasce na estrada do sul (`village_spawn`), entra pelo
+portão sul, passa pela Rua da Chegada e chega na praça da feira. A Horta e o Pomar ficam logo depois do portão
+norte; a carruagem do Beto fica do lado de fora dele.
 
 ## Antes de rodar o jogo
 

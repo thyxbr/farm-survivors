@@ -151,6 +151,50 @@ func border_mountains(height: float) -> void:
 	_ring_height = height
 
 
+## Passagem na serra do sul: um vale de fundo plano (meia largura `width`) em volta de x = `x`, por onde a
+## estrada sai do mapa. Reto até o fim do chão plano (PASS_BEND m além da borda), depois faz uma curva para o
+## leste (PASS_SHIFT m) e some atrás do morro; o vale fecha PASS_LEN m depois da borda. width 0 = sem passagem.
+## O fundo do vale além do chão plano é a malha da serra, com a estrada pintada nela (_terrain_tri).
+const PASS_BEND := 34.0
+const PASS_LEN := 70.0
+const PASS_SHIFT := 24.0
+var _pass_x := 0.0
+var _pass_w := 0.0
+
+
+func border_pass(x: float, width: float) -> void:
+	_pass_x = x
+	_pass_w = width
+
+
+## x do meio da estrada da passagem a `out` metros além da borda.
+func _pass_center(out: float) -> float:
+	return _pass_x + smoothstep(PASS_BEND, PASS_LEN - 8.0, out) * PASS_SHIFT
+
+
+## Quanto da serra fica em (x, z) por causa da passagem: 0 no fundo do vale, 1 fora dele.
+func _pass_k(x: float, z: float, out: float) -> float:
+	if _pass_w <= 0.0 or z < absf(x):
+		return 1.0
+	var open := 1.0 - smoothstep(PASS_LEN, PASS_LEN + 24.0, out)
+	var k := smoothstep(_pass_w, _pass_w * 3.4, absf(x - _pass_center(out)))
+	return lerpf(1.0, k, open)
+
+
+## Altura do fundo da passagem: 0 em cima do chão plano; depois dele sobe devagar (a malha da serra aparece
+## por cima do fim do plano, sem buraco).
+func _pass_floor(out: float) -> float:
+	return smoothstep(PASS_BEND - 6.0, PASS_BEND + 2.0, out) * 0.35 + maxf(0.0, out - PASS_BEND - 2.0) * 0.05
+
+
+## (x, z) está na estrada pintada da passagem, na malha da serra?
+func _on_pass_road(x: float, z: float) -> bool:
+	if _pass_w <= 0.0 or z < absf(x):
+		return false
+	var out := z - (half + 1.0)
+	return out > PASS_BEND - 8.0 and out < PASS_LEN + 6.0 and absf(x - _pass_center(out)) < 3.2
+
+
 ## Altura do terreno em (x, z); 0 no chão plano.
 func height_at(x: float, z: float) -> float:
 	return maxf(_peak_h(x, z), _ring_h(x, z))
@@ -203,7 +247,11 @@ func _ring_h(x: float, z: float) -> float:
 	var big := n.get_noise_2d(x * 0.35 + 900.0, z * 0.35 - 400.0)        # picos e vales da serra
 	var ridge := 1.0 - absf(n.get_noise_2d(x * 1.1, z * 1.1 + 300.0))      # cristas
 	var rise := smoothstep(0.0, 75.0, out)
-	return _ring_height * rise * maxf(0.15, 0.62 + 0.5 * big + 0.3 * ridge) + out * 0.04
+	var h := _ring_height * rise * maxf(0.15, 0.62 + 0.5 * big + 0.3 * ridge) + out * 0.04
+	var k := _pass_k(x, z, out)
+	if k >= 1.0:
+		return h
+	return maxf(h * k, _pass_floor(out))
 
 
 ## Monta a malha (cliente) e a colisão (sempre, também no servidor) do relevo. Chamar depois de
@@ -322,6 +370,8 @@ func _terrain_tri(verts: PackedVector3Array, norms: PackedVector3Array, cols: Pa
 		var line := _ring_height * 0.62 + n.get_noise_2d(cen.x * 0.8, cen.z * 0.8) * 10.0
 		if h > line and slope < 0.62:
 			col = Color(0.9, 0.92, 0.96).lerp(Color(0.78, 0.82, 0.9), v)
+	if ring and _on_pass_road(cen.x, cen.z):
+		col = Color(0.5, 0.46, 0.38)   # a estrada do sul continuando pela passagem (a mesma cor da pintura)
 	col = Color(col.r * jit, col.g * jit, col.b * jit)
 	verts.append(a)
 	verts.append(b)
@@ -349,6 +399,8 @@ func _ring_forest() -> void:
 		var h := _ring_h(p.x, p.y)
 		if h > _ring_height * 0.5 or slope_at(p.x, p.y) > 0.4:
 			continue
+		if _pass_k(p.x, p.y, out) < 0.35:
+			continue   # o fundo da passagem do sul fica livre (a estrada passa por ali)
 		if n.get_noise_2d(p.x * 1.5 + 77.0, p.y * 1.5) < -0.15 + smoothstep(5.0, 30.0, h) * 0.4:
 			continue   # bosques com clareiras, mais ralo para cima
 		var s := rng.randf_range(1.0, 1.9)

@@ -1,7 +1,10 @@
 extends Control
-## Loja da Mira: janela da esquerda com a grade de mercadorias e o preço; a mochila é o inventário, aberto
+## Loja de um vendedor da vila: janela da esquerda com a grade de mercadorias e o preço; a mochila é o inventário, aberto
 ## à direita junto com a loja (WindowDock), e lá o clique direito vende (metade do valor, `trade_item`).
 ## Clique direito/duplo clique compra; a dica mostra a comparação com o equipado (Shift: o equipado ao lado).
+## Cada vendedor vende um tipo de coisa (`stall`, ver STALLS): a Mira as armas, a Tereza couro e tecido, o Seu
+## Bento sementes e ferramentas, a Dona Cida provisões e a Pip poções. Todos compram qualquer item da mochila.
+## O estoque é um só (shop.json); a barraca só escolhe o que mostra. "" = tudo, com os filtros.
 
 signal closed
 
@@ -17,11 +20,26 @@ var gold_label: Label
 var buy_grid: GridContainer
 var info: Label
 var filter := "all"
-var title := "Barraca da Mira"
-var quote := "\"Armas, armaduras e tudo que um herói precisa. Pago metade pelo que você trouxer!\""
+var title := "Mercadorias de Valdoria"
+var quote := "\"Tudo que um herói precisa. Pago metade pelo que você trouxer!\""
+## Barraca aberta (chave de STALLS); "" mostra o estoque inteiro com os botões de filtro.
+var stall := ""
+
+## Barracas: [título, fala, filtro do que vendem].
+const STALLS := {
+	"arms": ["Empório da Mira", "\"Lâminas, cajados, arcos e escudos. Pago metade pelo que você trouxer!\"", "arms"],
+	"cloth": ["Couro & Tecido da Tereza", "\"Cada ponto costurado à mão. Gibão novo, herói novo!\"", "armor"],
+	"farm": ["Sementes & Ferramentas do Seu Bento", "\"Planta hoje, colhe amanhã. Picareta boa não escolhe pedra.\"", "farm"],
+	"goods": ["Provisões da Dona Cida", "\"Poção, pão e o que mais faltar no alforje, meu bem.\"", "goods"],
+	"potions": ["Botica da Pip", "\"Poções. Não agite. Não cheire. Beba de uma vez.\"", "use"],
+}
 
 
 func _ready() -> void:
+	if STALLS.has(stall):
+		title = STALLS[stall][0]
+		quote = STALLS[stall][1]
+		filter = STALLS[stall][2]
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = UITheme.get_theme()
@@ -71,7 +89,10 @@ func _ready() -> void:
 		b.add_theme_font_size_override("font_size", 15)
 		b.pressed.connect(_set_filter.bind(f[0]))
 		fr.add_child(b)
-	lv.add_child(fr)
+	if stall == "":   # numa barraca o filtro é o da barraca, sem botões
+		lv.add_child(fr)
+	else:
+		fr.free()
 	buy_grid = _grid(lv)
 
 	var foot := HBoxContainer.new()
@@ -119,7 +140,14 @@ func _set_filter(f: String) -> void:
 
 
 func _matches(id: String) -> bool:
+	var t: String = ItemDB.get_item(id).get("type", "")
 	match filter:
+		"arms":
+			return t == "weapon" or ItemDB.slot_of(id) == "offhand"
+		"farm":
+			return t in ["seed", "tool"]
+		"goods":
+			return t in ["consumable", "food", "material"]
 		"weapon":
 			return ItemDB.slot_of(id) in ["weapon", "offhand"]
 		"armor":

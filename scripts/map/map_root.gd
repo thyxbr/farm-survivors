@@ -20,6 +20,10 @@ const PLAN := "Planta"
 @export var half := 125.0
 ## Altura da serra em volta do mapa (0 = sem serra).
 @export var border_height := 58.0
+## Passagem na serra do sul (a estrada por onde o aventureiro chega): x do meio e meia largura do fundo (m);
+## 0 = sem passagem. O vale da passagem vai sumindo numa curva uns 30 m depois da borda.
+@export var south_pass_x := 0.0
+@export var south_pass_width := 0.0
 ## Densidade do capim (0..1) e das plantinhas no meio dele.
 @export_range(0.0, 1.0, 0.01) var grass_density := 0.6
 @export_range(0.0, 2.0, 0.05) var grass_plants := 1.0
@@ -125,6 +129,7 @@ func make_ground(world_offset := Vector2.ZERO) -> Node3D:
 	for m: Vector4 in mountain_data():
 		g.add_mountain(Vector3(m.x, 0, m.y), m.z, m.w)
 	g.border_mountains(border_height)
+	g.border_pass(south_pass_x, south_pass_width)
 	return g
 
 

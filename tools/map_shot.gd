@@ -24,6 +24,11 @@ const VIEWS := {
 	"region_center": [Vector3(0, 14, 40), Vector3(0, 0, 0)],
 	# de cima, o mapa inteiro (norte = em cima): para conferir onde cada bando nasce
 	"top": [Vector3(0, 200, 0.01), Vector3(0, 0, 0)],
+	# a vila do sul: de cima, a chegada pela estrada e a praça da feira
+	"vila_top": [Vector3(0, 95, 74.01), Vector3(0, 0, 74)],
+	"vila_wide": [Vector3(0, 48, 132), Vector3(0, 0, 72)],
+	"vila_arrive": [Vector3(0, 3.0, 119), Vector3(0, 1.5, 90)],
+	"vila_back": [Vector3(0, 4.0, 104), Vector3(0, 2.0, 135)],
 }
 
 var _out := ""

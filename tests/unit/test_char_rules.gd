@@ -757,7 +757,7 @@ func test_from_dict_rejects_malicious() -> void:
 	T.eq(s.equipment.ring, "", "anel de tipo errado")
 	T.ok(not s.equipment.has("cauda"), "espaço desconhecido some")
 	T.eq(s.quests, {"slimes": {"state": "ready", "progress": 5}}, "só missões e estados conhecidos")
-	T.eq(s.flags, {}, "flags padrão")
+	T.eq(s.flags, {"map_v": CharState.MAP_V}, "flags padrão (só a versão da planta do vale)")
 	T.eq(s.farm.unlocked, 12, "abertos limitados")
 	T.eq(s.farm.plots.size(), 12, "12 canteiros")
 	T.eq(s.farm.plots[0].crop, "", "cultura desconhecida some")
@@ -1386,3 +1386,15 @@ func test_state_old_save_no_hair() -> void:
 	T.eq(HairStyles.resolve(b.body, b.hair), "f_longo", "cai no padrão do corpo")
 	T.eq(HairStyles.resolve("m", "f_marias"), "m_curto", "penteado de outro corpo cai no padrão")
 	T.eq(HairStyles.resolve("", ""), "m_curto", "sem corpo = masculino")
+
+
+## A vila foi para o sul do vale: save antigo (sem flags.map_v) parado dentro da vila antiga volta uma vez para a
+## entrada da vila nova (world_pos nulo); fora dela, ou já na planta nova, fica onde estava.
+func test_old_village_position_moves_once() -> void:
+	var s := CharState.from_dict({"world_pos": [3.0, 0.5, 6.0], "flags": {}})
+	T.eq(s.world_pos, null, "save antigo dentro da vila antiga vai para a entrada nova")
+	T.eq(int(s.flags.get("map_v", 0)), CharState.MAP_V, "e fica marcado com a planta nova")
+	s = CharState.from_dict({"world_pos": [3.0, 0.5, 6.0], "flags": {"map_v": CharState.MAP_V}})
+	T.eq(s.world_pos, Vector3(3.0, 0.5, 6.0), "na planta nova os Campos do Norte ficam onde estavam")
+	s = CharState.from_dict({"world_pos": [86.0, 0.5, 0.0], "flags": {}})
+	T.eq(s.world_pos, Vector3(86.0, 0.5, 0.0), "save antigo fora da vila antiga fica onde estava")

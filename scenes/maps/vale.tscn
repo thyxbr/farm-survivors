@@ -31,6 +31,7 @@ size = Vector3(2, 20, 254)
 
 [node name="Vale" type="Node3D" unique_id=1068750340]
 script = ExtResource("1_ishsc")
+south_pass_width = 7.0
 grass_seed = 20261120
 
 [node name="Chão" type="Node3D" parent="." unique_id=1103701201]
@@ -45,73 +46,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 44, 0, 0)
 script = ExtResource("2_3yltp")
 size = Vector2(64, 4.5)
 
-[node name="Disco" type="Node3D" parent="Chão" unique_id=2146157006]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1)
-script = ExtResource("2_3yltp")
-disc = true
-radius = 10.0
-color = Color(0.5, 0.45, 0.36, 1)
-soft = 0.9
-
-[node name="Área 3" type="Node3D" parent="Chão" unique_id=1162430461]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, -15)
-script = ExtResource("2_3yltp")
-size = Vector2(73, 4)
-color = Color(0.5, 0.46, 0.38, 1)
-soft = 0.5
-
-[node name="Área 4" type="Node3D" parent="Chão" unique_id=1248439253]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, 2.5)
-script = ExtResource("2_3yltp")
-size = Vector2(22, 4)
-color = Color(0.5, 0.46, 0.38, 1)
-soft = 0.5
-
-[node name="Área 5" type="Node3D" parent="Chão" unique_id=1855594600]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0, 0)
-script = ExtResource("2_3yltp")
-size = Vector2(22, 4)
-color = Color(0.5, 0.46, 0.38, 1)
-soft = 0.5
-
-[node name="Área 6" type="Node3D" parent="Chão" unique_id=2001374203]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 20)
-script = ExtResource("2_3yltp")
-size = Vector2(73, 3.6)
-color = Color(0.5, 0.46, 0.38, 1)
-soft = 0.5
-
-[node name="Área 7" type="Node3D" parent="Chão" unique_id=1110431515]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, 2.5)
-script = ExtResource("2_3yltp")
-size = Vector2(4, 35)
-color = Color(0.5, 0.46, 0.38, 1)
-soft = 0.5
-
-[node name="Área 8" type="Node3D" parent="Chão" unique_id=128128684]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, 2.5)
-script = ExtResource("2_3yltp")
-size = Vector2(4, 35)
-color = Color(0.5, 0.46, 0.38, 1)
-soft = 0.5
-
-[node name="Área 9" type="Node3D" parent="Chão" unique_id=1326986528]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -10)
-script = ExtResource("2_3yltp")
-size = Vector2(4, 10)
-color = Color(0.5, 0.46, 0.38, 1)
-soft = 0.5
-
-[node name="Disco 2" type="Node3D" parent="Chão" unique_id=1561329654]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 0, 7.6)
-script = ExtResource("2_3yltp")
-disc = true
-radius = 4.8
-color = Color(0.55, 0.5, 0.42, 1)
-soft = 0.5
-
 [node name="Área 10" type="Node3D" parent="Chão" unique_id=499675666]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -38, 0, -4)
 script = ExtResource("2_3yltp")
 size = Vector2(9, 3.6)
 
@@ -138,46 +74,41 @@ size = Vector2(16, 15)
 color = Color(0.36, 0.42, 0.2, 1)
 soft = 0.6
 
-[node name="Área 12" type="Node3D" parent="Chão" unique_id=383483249]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 19.5)
-script = ExtResource("2_3yltp")
-size = Vector2(3.2, 17)
-
 [node name="Área 13" type="Node3D" parent="Chão" unique_id=1566372274]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 33.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, 33.5)
 script = ExtResource("2_3yltp")
 size = Vector2(20, 13.5)
 color = Color(0.4, 0.42, 0.22, 1)
 soft = 0.5
 
 [node name="Área 14" type="Node3D" parent="Chão" unique_id=730444575]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 31)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17, 0, 31)
 script = ExtResource("2_3yltp")
 size = Vector2(2.6, 9)
 
 [node name="Área 15" type="Node3D" parent="Chão" unique_id=1905500504]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, -24)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, 16)
 script = ExtResource("2_3yltp")
 size = Vector2(10, 7)
 color = Color(0.36, 0.24999999, 0.15, 1)
 soft = 0.25
 
 [node name="Área 16" type="Node3D" parent="Chão" unique_id=1267437796]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, -26)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 14)
 script = ExtResource("2_3yltp")
 size = Vector2(10, 7)
 color = Color(0.36, 0.24999999, 0.15, 1)
 soft = 0.25
 
 [node name="Área 17" type="Node3D" parent="Chão" unique_id=89966753]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0, -40)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0, 0)
 script = ExtResource("2_3yltp")
 size = Vector2(10, 7)
 color = Color(0.36, 0.24999999, 0.15, 1)
 soft = 0.25
 
 [node name="Área 18" type="Node3D" parent="Chão" unique_id=826707104]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0, -42)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0, -2)
 script = ExtResource("2_3yltp")
 size = Vector2(10, 7)
 color = Color(0.36, 0.24999999, 0.15, 1)
@@ -223,12 +154,92 @@ script = ExtResource("3_hyec1")
 radius = 26.0
 height = 17.0
 
+[node name="Estrada do Sul" type="Node3D" parent="Chão"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 122)
+script = ExtResource("2_3yltp")
+size = Vector2(5, 80)
+color = Color(0.5, 0.46, 0.38, 1)
+soft = 0.5
+
+[node name="Praça da Feira" type="Node3D" parent="Chão"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 72)
+script = ExtResource("2_3yltp")
+disc = true
+radius = 13.0
+color = Color(0.55, 0.5, 0.42, 1)
+soft = 0.7
+
+[node name="Estrada do Norte" type="Node3D" parent="Chão"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 24.5)
+script = ExtResource("2_3yltp")
+size = Vector2(4.5, 69)
+color = Color(0.5, 0.46, 0.38, 1)
+soft = 0.5
+
+[node name="Rua Oeste" type="Node3D" parent="Chão"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28, 0, 72)
+script = ExtResource("2_3yltp")
+size = Vector2(26, 3.6)
+color = Color(0.5, 0.46, 0.38, 1)
+soft = 0.5
+
+[node name="Rua Leste" type="Node3D" parent="Chão"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0, 72)
+script = ExtResource("2_3yltp")
+size = Vector2(26, 3.6)
+color = Color(0.5, 0.46, 0.38, 1)
+soft = 0.5
+
+[node name="Largo dos Ecos" type="Node3D" parent="Chão"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28, 0, 56)
+script = ExtResource("2_3yltp")
+disc = true
+radius = 6.0
+color = Color(0.55, 0.5, 0.42, 1)
+soft = 0.7
+
+[node name="Rua das Flores" type="Node3D" parent="Chão"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 0, 83.8)
+script = ExtResource("2_3yltp")
+size = Vector2(30, 3.2)
+color = Color(0.5, 0.46, 0.38, 1)
+soft = 0.5
+
+[node name="Rua dos Artesãos" type="Node3D" parent="Chão"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27.5, 0, 59.8)
+script = ExtResource("2_3yltp")
+size = Vector2(25, 3.2)
+color = Color(0.5, 0.46, 0.38, 1)
+soft = 0.5
+
+[node name="Caminho do Natal" type="Node3D" parent="Chão"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17.8, 0, 81)
+script = ExtResource("2_3yltp")
+size = Vector2(2.8, 15.5)
+color = Color(0.5, 0.46, 0.38, 1)
+soft = 0.5
+
+[node name="Pracinha de Natal" type="Node3D" parent="Chão"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24, 0, 92)
+script = ExtResource("2_3yltp")
+disc = true
+radius = 6.5
+color = Color(0.55, 0.5, 0.42, 1)
+soft = 0.7
+
+[node name="Jardim da Dona Zélia" type="Node3D" parent="Chão"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, 95.6)
+script = ExtResource("2_3yltp")
+size = Vector2(25, 7.5)
+color = Color(0.36, 0.42, 0.2, 1)
+soft = 0.8
+
 [node name="Vila" type="Node3D" parent="." unique_id=582046479]
 
 [node name="Objetos" type="Node3D" parent="Vila" unique_id=1871484379]
 
 [node name="lamp" type="Node3D" parent="Vila/Objetos" unique_id=409090079]
-transform = Transform3D(0.70710677, 0, 0.70710677, 0, 1, 0, -0.70710677, 0, 0.70710677, -5, 0, -5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.6, 0, 101.6)
 script = ExtResource("4_gxwoc")
 model = "lamp"
 shape = 2
@@ -250,7 +261,7 @@ kind = "lamp_garland"
 follow_ground = false
 
 [node name="lamp 2" type="Node3D" parent="Vila/Objetos" unique_id=825025436]
-transform = Transform3D(0.70710677, 0, -0.70710677, 0, 1, 0, 0.70710677, 0, 0.70710677, 5, 0, -5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.6, 0, 101.6)
 script = ExtResource("4_gxwoc")
 model = "lamp"
 shape = 2
@@ -272,7 +283,7 @@ kind = "lamp_garland"
 follow_ground = false
 
 [node name="lamp 3" type="Node3D" parent="Vila/Objetos" unique_id=628883096]
-transform = Transform3D(-0.79999995, 0, -0.6000001, 0, 1, 0, 0.6000001, 0, -0.79999995, 6, 0, 8)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -3.6, 0, 84.6)
 script = ExtResource("4_gxwoc")
 model = "lamp"
 shape = 2
@@ -294,7 +305,7 @@ kind = "lamp_garland"
 follow_ground = false
 
 [node name="lamp 4" type="Node3D" parent="Vila/Objetos" unique_id=292737188]
-transform = Transform3D(-0.79999995, 0, 0.6000001, 0, 1, 0, -0.6000001, 0, -0.79999995, -6, 0, 8)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 3.6, 0, 84.6)
 script = ExtResource("4_gxwoc")
 model = "lamp"
 shape = 2
@@ -315,368 +326,8 @@ script = ExtResource("6_l6sia")
 kind = "lamp_garland"
 follow_ground = false
 
-[node name="fence" type="Node3D" parent="Vila/Objetos" unique_id=987948026]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -35, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 2" type="Node3D" parent="Vila/Objetos" unique_id=1686217857]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 3" type="Node3D" parent="Vila/Objetos" unique_id=398724706]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -31, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 4" type="Node3D" parent="Vila/Objetos" unique_id=1083868845]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -29, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 5" type="Node3D" parent="Vila/Objetos" unique_id=48700357]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -27, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 6" type="Node3D" parent="Vila/Objetos" unique_id=207747257]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 7" type="Node3D" parent="Vila/Objetos" unique_id=1477939309]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -23, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 8" type="Node3D" parent="Vila/Objetos" unique_id=2006650517]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -21, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 9" type="Node3D" parent="Vila/Objetos" unique_id=1838136029]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -19, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 10" type="Node3D" parent="Vila/Objetos" unique_id=773909423]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 11" type="Node3D" parent="Vila/Objetos" unique_id=1337225713]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 12" type="Node3D" parent="Vila/Objetos" unique_id=894073117]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 13" type="Node3D" parent="Vila/Objetos" unique_id=1142337049]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 14" type="Node3D" parent="Vila/Objetos" unique_id=1637444976]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 15" type="Node3D" parent="Vila/Objetos" unique_id=1797224983]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 16" type="Node3D" parent="Vila/Objetos" unique_id=681229853]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 17" type="Node3D" parent="Vila/Objetos" unique_id=1541254443]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 18" type="Node3D" parent="Vila/Objetos" unique_id=1055585939]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 19" type="Node3D" parent="Vila/Objetos" unique_id=162925650]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 20" type="Node3D" parent="Vila/Objetos" unique_id=1524352191]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 21" type="Node3D" parent="Vila/Objetos" unique_id=1646825778]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 23, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 22" type="Node3D" parent="Vila/Objetos" unique_id=969307846]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 23" type="Node3D" parent="Vila/Objetos" unique_id=1870704610]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 24" type="Node3D" parent="Vila/Objetos" unique_id=1922530061]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 25" type="Node3D" parent="Vila/Objetos" unique_id=540413906]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 31, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 26" type="Node3D" parent="Vila/Objetos" unique_id=932976285]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 27" type="Node3D" parent="Vila/Objetos" unique_id=1463372415]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 28" type="Node3D" parent="Vila/Objetos" unique_id=1184262829]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 37, 0, -18)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 29" type="Node3D" parent="Vila/Objetos" unique_id=1027673222]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -36, 0, -17)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 30" type="Node3D" parent="Vila/Objetos" unique_id=1517381170]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -36, 0, -15)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 31" type="Node3D" parent="Vila/Objetos" unique_id=459455083]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -36, 0, -13)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 32" type="Node3D" parent="Vila/Objetos" unique_id=272561902]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -36, 0, -11)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 33" type="Node3D" parent="Vila/Objetos" unique_id=301126930]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -36, 0, -9)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 34" type="Node3D" parent="Vila/Objetos" unique_id=1687751578]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -36, 0, -7)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 35" type="Node3D" parent="Vila/Objetos" unique_id=2055799638]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -36, 0, -5)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 36" type="Node3D" parent="Vila/Objetos" unique_id=957881592]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -36, 0, -3)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 37" type="Node3D" parent="Vila/Objetos" unique_id=409177780]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -36, 0, -1)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 38" type="Node3D" parent="Vila/Objetos" unique_id=804880867]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -36, 0, 7)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 39" type="Node3D" parent="Vila/Objetos" unique_id=681454655]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -36, 0, 13)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 40" type="Node3D" parent="Vila/Objetos" unique_id=2136886477]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -36, 0, 15)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 41" type="Node3D" parent="Vila/Objetos" unique_id=129864595]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -36, 0, 17)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 42" type="Node3D" parent="Vila/Objetos" unique_id=1505527994]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -36, 0, 19)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 43" type="Node3D" parent="Vila/Objetos" unique_id=1832481316]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -36, 0, 21)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 44" type="Node3D" parent="Vila/Objetos" unique_id=549972291]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -36, 0, 23)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 45" type="Node3D" parent="Vila/Objetos" unique_id=1365327940]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -36, 0, 25)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
 [node name="notice_board" type="Node3D" parent="Vila/Objetos" unique_id=251279536]
-transform = Transform3D(0.94605947, 0, -0.32399297, 0, 1, 0, 0.32399297, 0, 0.94605947, 5, 0, -10.6)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -6.8, 0, 49.4)
 script = ExtResource("4_gxwoc")
 model = "notice_board"
 shape = 1
@@ -703,7 +354,7 @@ Carruagem da guilda no portão norte.",
 }
 
 [node name="lamp 5" type="Node3D" parent="Vila/Objetos" unique_id=619288655]
-transform = Transform3D(0.47097617, 0, 0.88214594, 0, 1, 0, -0.88214594, 0, 0.47097617, -23.6, 0, -12.6)
+transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, -9.2, 0, 62.8)
 script = ExtResource("4_gxwoc")
 model = "lamp"
 shape = 2
@@ -725,7 +376,7 @@ kind = "lamp_garland"
 follow_ground = false
 
 [node name="lamp 6" type="Node3D" parent="Vila/Objetos" unique_id=185231723]
-transform = Transform3D(-0.20329157, 0, 0.9791182, 0, 1, 0, -0.9791182, 0, -0.20329157, -23.6, 0, 4.9)
+transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 9.2, 0, 62.8)
 script = ExtResource("4_gxwoc")
 model = "lamp"
 shape = 2
@@ -747,7 +398,7 @@ kind = "lamp_garland"
 follow_ground = false
 
 [node name="lamp 7" type="Node3D" parent="Vila/Objetos" unique_id=1267642696]
-transform = Transform3D(-0.60053974, 0, 0.79959494, 0, 1, 0, -0.79959494, 0, -0.60053974, -23.7, 0, 17.8)
+transform = Transform3D(-0.699929, 0, 0.714213, 0, 1, 0, -0.714213, 0, -0.699929, -10, 0, 81.8)
 script = ExtResource("4_gxwoc")
 model = "lamp"
 shape = 2
@@ -769,7 +420,7 @@ kind = "lamp_garland"
 follow_ground = false
 
 [node name="lamp 8" type="Node3D" parent="Vila/Objetos" unique_id=955029978]
-transform = Transform3D(-0.005882273, 0, 0.9999827, 0, 1, 0, -0.9999827, 0, -0.005882273, -34, 0, 0.2)
+transform = Transform3D(-0.699929, 0, -0.714213, 0, 1, 0, 0.714213, 0, -0.699929, 10, 0, 81.8)
 script = ExtResource("4_gxwoc")
 model = "lamp"
 shape = 2
@@ -791,7 +442,7 @@ kind = "lamp_garland"
 follow_ground = false
 
 [node name="lamp 9" type="Node3D" parent="Vila/Objetos" unique_id=633323612]
-transform = Transform3D(0.4558759, 0, -0.8900433, 0, 1, 0, 0.8900433, 0, 0.4558759, 24.6, 0, -12.6)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -3.6, 0, 46.6)
 script = ExtResource("4_gxwoc")
 model = "lamp"
 shape = 2
@@ -813,7 +464,7 @@ kind = "lamp_garland"
 follow_ground = false
 
 [node name="lamp 10" type="Node3D" parent="Vila/Objetos" unique_id=757454999]
-transform = Transform3D(-0.09710001, 0, -0.9952746, 0, 1, 0, 0.9952746, 0, -0.09710001, 24.6, 0, 2.4)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 3.6, 0, 46.6)
 script = ExtResource("4_gxwoc")
 model = "lamp"
 shape = 2
@@ -835,7 +486,7 @@ kind = "lamp_garland"
 follow_ground = false
 
 [node name="lamp 11" type="Node3D" parent="Vila/Objetos" unique_id=1364079086]
-transform = Transform3D(-0.5862117, 0, -0.8101579, 0, 1, 0, 0.8101579, 0, -0.5862117, 24.6, 0, 17.8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24, 0, 70)
 script = ExtResource("4_gxwoc")
 model = "lamp"
 shape = 2
@@ -857,7 +508,7 @@ kind = "lamp_garland"
 follow_ground = false
 
 [node name="lamp 12" type="Node3D" parent="Vila/Objetos" unique_id=1948230914]
-transform = Transform3D(0.062042374, 0, -0.9980735, 0, 1, 0, 0.9980735, 0, 0.062042374, 37, 0, -2.3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -34, 0, 70)
 script = ExtResource("4_gxwoc")
 model = "lamp"
 shape = 2
@@ -879,7 +530,7 @@ kind = "lamp_garland"
 follow_ground = false
 
 [node name="lamp 13" type="Node3D" parent="Vila/Objetos" unique_id=1836453340]
-transform = Transform3D(0.9736163, 0, 0.22819132, 0, 1, 0, -0.22819132, 0, 0.9736163, -3, 0, -12.8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 0, 70)
 script = ExtResource("4_gxwoc")
 model = "lamp"
 shape = 2
@@ -901,7 +552,7 @@ kind = "lamp_garland"
 follow_ground = false
 
 [node name="lamp 14" type="Node3D" parent="Vila/Objetos" unique_id=1337926684]
-transform = Transform3D(0.9736163, 0, -0.22819132, 0, 1, 0, 0.22819132, 0, 0.9736163, 3, 0, -12.8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 34, 0, 70)
 script = ExtResource("4_gxwoc")
 model = "lamp"
 shape = 2
@@ -922,115 +573,43 @@ script = ExtResource("6_l6sia")
 kind = "lamp_garland"
 follow_ground = false
 
-[node name="fence 46" type="Node3D" parent="Vila/Objetos" unique_id=712970210]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, 26)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 47" type="Node3D" parent="Vila/Objetos" unique_id=1396063896]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, 26)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 48" type="Node3D" parent="Vila/Objetos" unique_id=1347292858]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0, 26)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 49" type="Node3D" parent="Vila/Objetos" unique_id=728208572]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, 26)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 50" type="Node3D" parent="Vila/Objetos" unique_id=446313994]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, 26)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 51" type="Node3D" parent="Vila/Objetos" unique_id=781506676]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 26)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 52" type="Node3D" parent="Vila/Objetos" unique_id=1873525090]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, 26)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 53" type="Node3D" parent="Vila/Objetos" unique_id=2124936555]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 26)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
-[node name="fence 54" type="Node3D" parent="Vila/Objetos" unique_id=699524758]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 26)
-script = ExtResource("4_gxwoc")
-model = "fence"
-shape = 1
-shape_size = Vector3(2.1, 1, 0.25)
-no_grass = false
-
 [node name="flower_sunflower" type="Node3D" parent="Vila/Objetos" unique_id=1127057319]
-transform = Transform3D(-1.0702088, 0, -0.073263586, 0, 1.0727136, 0, 0.073263586, 0, -1.0702088, -9.293003, 0, 25.4)
+transform = Transform3D(-1.070209, 0, -0.073264, 0, 1.072714, 0, 0.073264, 0, -1.070209, -27.293003, 0, 25.4)
 script = ExtResource("4_gxwoc")
 model = "flower_sunflower"
 
 [node name="flower_sunflower 2" type="Node3D" parent="Vila/Objetos" unique_id=337139695]
-transform = Transform3D(-1.0834029, 0, -0.20629823, 0, 1.1028693, 0, 0.20629823, 0, -1.0834029, -8.445134, 0, 25.4)
+transform = Transform3D(-1.083403, 0, -0.206298, 0, 1.102869, 0, 0.206298, 0, -1.083403, -26.445134, 0, 25.4)
 script = ExtResource("4_gxwoc")
 model = "flower_sunflower"
 
 [node name="flower_sunflower 3" type="Node3D" parent="Vila/Objetos" unique_id=1835500184]
-transform = Transform3D(-1.0981165, 0, 0.026338203, 0, 1.0984323, 0, -0.026338203, 0, -1.0981165, -6.718155, 0, 25.4)
+transform = Transform3D(-1.098116, 0, 0.026338, 0, 1.098432, 0, -0.026338, 0, -1.098116, -24.718155, 0, 25.4)
 script = ExtResource("4_gxwoc")
 model = "flower_sunflower"
 
 [node name="flower_sunflower 4" type="Node3D" parent="Vila/Objetos" unique_id=2119835022]
-transform = Transform3D(-0.8882682, 0, 0.23725763, 0, 0.91940826, 0, -0.23725763, 0, -0.8882682, -5.5779595, 0, 25.4)
+transform = Transform3D(-0.888268, 0, 0.237258, 0, 0.919408, 0, -0.237258, 0, -0.888268, -23.577959, 0, 25.4)
 script = ExtResource("4_gxwoc")
 model = "flower_sunflower"
 
 [node name="flower_sunflower 5" type="Node3D" parent="Vila/Objetos" unique_id=1347463285]
-transform = Transform3D(-0.89540416, 0, 0.04681684, 0, 0.89662725, 0, -0.04681684, 0, -0.89540416, -4.3919, 0, 25.4)
+transform = Transform3D(-0.895404, 0, 0.046817, 0, 0.896627, 0, -0.046817, 0, -0.895404, -22.3919, 0, 25.4)
 script = ExtResource("4_gxwoc")
 model = "flower_sunflower"
 
 [node name="flower_sunflower 6" type="Node3D" parent="Vila/Objetos" unique_id=1758252071]
-transform = Transform3D(-0.9413048, 0, -0.1262929, 0, 0.9497392, 0, 0.1262929, 0, -0.9413048, -3.0631187, 0, 25.4)
+transform = Transform3D(-0.941305, 0, -0.126293, 0, 0.949739, 0, 0.126293, 0, -0.941305, -21.063119, 0, 25.4)
 script = ExtResource("4_gxwoc")
 model = "flower_sunflower"
 
 [node name="flower_sunflower 7" type="Node3D" parent="Vila/Objetos" unique_id=1450195153]
-transform = Transform3D(-1.097395, 0, -0.16743103, 0, 1.1100941, 0, 0.16743103, 0, -1.097395, -1.6134276, 0, 25.4)
+transform = Transform3D(-1.097395, 0, -0.167431, 0, 1.110094, 0, 0.167431, 0, -1.097395, -19.613428, 0, 25.4)
 script = ExtResource("4_gxwoc")
 model = "flower_sunflower"
 
 [node name="lamp 15" type="Node3D" parent="Vila/Objetos" unique_id=1718923140]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 3.6, 0, 25.4)
+transform = Transform3D(-1, 0, -0, 0, 1, 0, 0, 0, -1, -14.4, 0, 25.4)
 script = ExtResource("4_gxwoc")
 model = "lamp"
 shape = 2
@@ -1045,64 +624,1407 @@ script = ExtResource("5_jcb2b")
 mode = 1
 night_energy = 1.4
 
+[node name="fence" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -39, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 2" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -37, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 3" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -35, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 4" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 5" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -31, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 6" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -29, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 7" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -27, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 8" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 9" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -23, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 10" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -21, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 11" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -19, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 12" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 13" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 14" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 15" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 16" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 17" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 18" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 19" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 20" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 21" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 22" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 23" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 24" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 25" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 26" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 27" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 28" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 23, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 29" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 30" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 31" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 32" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 31, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 33" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 34" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 35" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 37, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 36" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 39, 0, 46)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 37" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -39, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 38" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -37, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 39" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -35, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 40" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 41" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -31, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 42" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -29, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 43" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -27, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 44" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 45" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -23, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 46" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -21, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 47" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -19, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 48" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 49" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 50" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 51" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 52" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 53" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 54" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 55" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 56" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 57" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 58" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 59" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 60" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 61" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 62" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 63" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 64" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 23, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 65" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 66" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 67" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 68" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 31, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 69" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 70" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 71" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 37, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 72" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 39, 0, 101)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 73" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 47)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 74" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 49)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 75" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 51)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 76" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 53)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 77" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 55)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 78" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 57)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 79" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 59)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 80" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 61)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 81" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 63)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 82" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 65)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 83" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 67)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 84" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 77)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 85" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 79)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 86" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 81)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 87" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 83)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 88" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 85)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 89" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 87)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 90" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 89)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 91" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 91)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 92" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 93)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 93" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 95)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 94" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 97)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 95" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -40, 0, 99)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 96" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 47)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 97" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 49)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 98" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 51)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 99" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 53)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 100" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 55)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 101" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 57)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 102" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 59)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 103" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 61)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 104" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 63)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 105" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 65)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 106" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 67)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 107" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 77)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 108" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 79)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 109" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 81)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 110" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 83)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 111" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 85)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 112" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 87)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 113" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 89)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 114" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 91)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 115" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 93)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 116" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 95)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 117" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 97)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="fence 118" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 40, 0, 99)
+script = ExtResource("4_gxwoc")
+model = "fence"
+shape = 1
+shape_size = Vector3(2.1, 1, 0.25)
+no_grass = false
+
+[node name="crate quintal 1" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0.955336, 0, 0.29552, 0, 1, 0, -0.29552, 0, 0.955336, 13.6, 0, 49.4)
+script = ExtResource("4_gxwoc")
+model = "crate"
+shape = 1
+shape_size = Vector3(0.8, 0.8, 0.8)
+
+[node name="crate quintal 2" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0.980067, 0, -0.198669, 0, 1, 0, 0.198669, 0, 0.980067, 14.4, 0, 48.9)
+script = ExtResource("4_gxwoc")
+model = "crate"
+shape = 1
+shape_size = Vector3(0.8, 0.8, 0.8)
+
+[node name="barrel quintal 3" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.2, 0, 50.6)
+script = ExtResource("4_gxwoc")
+model = "barrel"
+shape = 2
+shape_size = Vector3(0.38, 1, 0)
+
+[node name="barrel quintal 4" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 0, 51.4)
+script = ExtResource("4_gxwoc")
+model = "barrel"
+shape = 2
+shape_size = Vector3(0.38, 1, 0)
+
+[node name="crate quintal 5" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0.825336, 0, 0.564642, 0, 1, 0, -0.564642, 0, 0.825336, 31, 0, 50.5)
+script = ExtResource("4_gxwoc")
+model = "crate"
+shape = 1
+shape_size = Vector3(0.8, 0.8, 0.8)
+
+[node name="barrel quintal 6" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 0, 51.6)
+script = ExtResource("4_gxwoc")
+model = "barrel"
+shape = 2
+shape_size = Vector3(0.38, 1, 0)
+
+[node name="flor jardim 1" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1.1, 0, 0, 0, 1.1, 0, 0, 0, 1.1, 15.5, 0, 94)
+script = ExtResource("4_gxwoc")
+model = "flower_tulips"
+
+[node name="flor jardim 2" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0.294249, 0, 1.059914, 0, 1.1, 0, -1.059914, 0, 0.294249, 18.9, 0, 94)
+script = ExtResource("4_gxwoc")
+model = "flower_lavender"
+
+[node name="flor jardim 3" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.942578, 0, 0.567052, 0, 1.1, 0, -0.567052, 0, -0.942578, 22.3, 0, 94)
+script = ExtResource("4_gxwoc")
+model = "flower_daisies"
+
+[node name="flor jardim 4" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.798526, 0, -0.756543, 0, 1.1, 0, 0.756543, 0, -0.798526, 25.7, 0, 94)
+script = ExtResource("4_gxwoc")
+model = "flower_poppies"
+
+[node name="flor jardim 5" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0.515368, 0, -0.9718, 0, 1.1, 0, 0.9718, 0, 0.515368, 29.1, 0, 94)
+script = ExtResource("4_gxwoc")
+model = "flower_bluebells"
+
+[node name="flor jardim 6" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1.074246, 0, 0.236632, 0, 1.1, 0, -0.236632, 0, 1.074246, 32.5, 0, 94)
+script = ExtResource("4_gxwoc")
+model = "flower_tulips"
+
+[node name="flor jardim 7" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0.059351, 0, 1.098398, 0, 1.1, 0, -1.098398, 0, 0.059351, 35.9, 0, 94)
+script = ExtResource("4_gxwoc")
+model = "flower_lavender"
+
+[node name="flor jardim 8" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-1.042494, 0, 0.351008, 0, 1.1, 0, -0.351008, 0, -1.042494, 15.5, 0, 97.6)
+script = ExtResource("4_gxwoc")
+model = "flower_daisies"
+
+[node name="flor jardim 9" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.617083, 0, -0.910609, 0, 1.1, 0, 0.910609, 0, -0.617083, 18.9, 0, 97.6)
+script = ExtResource("4_gxwoc")
+model = "flower_poppies"
+
+[node name="flor jardim 10" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0.712356, 0, -0.838182, 0, 1.1, 0, 0.838182, 0, 0.712356, 22.3, 0, 97.6)
+script = ExtResource("4_gxwoc")
+model = "flower_bluebells"
+
+[node name="flor jardim 11" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0.998191, 0, 0.462184, 0, 1.1, 0, -0.462184, 0, 0.998191, 25.7, 0, 97.6)
+script = ExtResource("4_gxwoc")
+model = "flower_tulips"
+
+[node name="flor jardim 12" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.178326, 0, 1.085449, 0, 1.1, 0, -1.085449, 0, -0.178326, 29.1, 0, 97.6)
+script = ExtResource("4_gxwoc")
+model = "flower_lavender"
+
+[node name="flor jardim 13" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-1.093595, 0, 0.118529, 0, 1.1, 0, -0.118529, 0, -1.093595, 32.5, 0, 97.6)
+script = ExtResource("4_gxwoc")
+model = "flower_daisies"
+
+[node name="flor jardim 14" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.406745, 0, -1.022036, 0, 1.1, 0, 1.022036, 0, -0.406745, 35.9, 0, 97.6)
+script = ExtResource("4_gxwoc")
+model = "flower_poppies"
+
+[node name="flor praça 1" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.1, 0, 79)
+script = ExtResource("4_gxwoc")
+model = "flower_tulips"
+
+[node name="flor praça 2" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.504846, 0, 0.863209, 0, 1, 0, -0.863209, 0, -0.504846, -11.5, 0, 79.4)
+script = ExtResource("4_gxwoc")
+model = "flower_lavender"
+
+[node name="flor praça 3" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.490261, 0, -0.871576, 0, 1, 0, 0.871576, 0, -0.490261, -10.9, 0, 79)
+script = ExtResource("4_gxwoc")
+model = "flower_daisies"
+
+[node name="flor praça 4" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.9, 0, 79)
+script = ExtResource("4_gxwoc")
+model = "flower_lavender"
+
+[node name="flor praça 5" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.504846, 0, 0.863209, 0, 1, 0, -0.863209, 0, -0.504846, 11.5, 0, 79.4)
+script = ExtResource("4_gxwoc")
+model = "flower_daisies"
+
+[node name="flor praça 6" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.490261, 0, -0.871576, 0, 1, 0, 0.871576, 0, -0.490261, 12.1, 0, 79)
+script = ExtResource("4_gxwoc")
+model = "flower_poppies"
+
+[node name="flor praça 7" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 0, 61)
+script = ExtResource("4_gxwoc")
+model = "flower_daisies"
+
+[node name="flor praça 8" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.504846, 0, 0.863209, 0, 1, 0, -0.863209, 0, -0.504846, -3.6, 0, 61.4)
+script = ExtResource("4_gxwoc")
+model = "flower_poppies"
+
+[node name="flor praça 9" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.490261, 0, -0.871576, 0, 1, 0, 0.871576, 0, -0.490261, -3, 0, 61)
+script = ExtResource("4_gxwoc")
+model = "flower_bluebells"
+
+[node name="flor praça 10" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 61)
+script = ExtResource("4_gxwoc")
+model = "flower_poppies"
+
+[node name="flor praça 11" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.504846, 0, 0.863209, 0, 1, 0, -0.863209, 0, -0.504846, 3.6, 0, 61.4)
+script = ExtResource("4_gxwoc")
+model = "flower_bluebells"
+
+[node name="flor praça 12" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.490261, 0, -0.871576, 0, 1, 0, 0.871576, 0, -0.490261, 4.2, 0, 61)
+script = ExtResource("4_gxwoc")
+model = "flower_tulips"
+
+[node name="lamp rua das flores" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.6, 0, 81.9)
+script = ExtResource("4_gxwoc")
+model = "lamp"
+shape = 2
+shape_size = Vector3(0.12, 3.7, 0)
+tint = Color(0.12, 0.4, 0.2, 1)
+
+[node name="Luz" type="OmniLight3D" parent="Vila/Objetos/lamp rua das flores"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.3, 0.5)
+light_color = Color(1, 0.75, 0.4, 1)
+light_energy = 1.6
+omni_range = 9.0
+script = ExtResource("5_jcb2b")
+mode = 1
+night_energy = 1.6
+
+[node name="Festão" type="Node3D" parent="Vila/Objetos/lamp rua das flores"]
+script = ExtResource("6_l6sia")
+kind = "lamp_garland"
+follow_ground = false
+
+[node name="lamp rua das flores 2" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32.4, 0, 81.9)
+script = ExtResource("4_gxwoc")
+model = "lamp"
+shape = 2
+shape_size = Vector3(0.12, 3.7, 0)
+tint = Color(0.12, 0.4, 0.2, 1)
+
+[node name="Luz" type="OmniLight3D" parent="Vila/Objetos/lamp rua das flores 2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.3, 0.5)
+light_color = Color(1, 0.75, 0.4, 1)
+light_energy = 1.6
+omni_range = 9.0
+script = ExtResource("5_jcb2b")
+mode = 1
+night_energy = 1.6
+
+[node name="Festão" type="Node3D" parent="Vila/Objetos/lamp rua das flores 2"]
+script = ExtResource("6_l6sia")
+kind = "lamp_garland"
+follow_ground = false
+
+[node name="lamp rua dos artesãos" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 23, 0, 61.9)
+script = ExtResource("4_gxwoc")
+model = "lamp"
+shape = 2
+shape_size = Vector3(0.12, 3.7, 0)
+tint = Color(0.12, 0.4, 0.2, 1)
+
+[node name="Luz" type="OmniLight3D" parent="Vila/Objetos/lamp rua dos artesãos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.3, 0.5)
+light_color = Color(1, 0.75, 0.4, 1)
+light_energy = 1.6
+omni_range = 9.0
+script = ExtResource("5_jcb2b")
+mode = 1
+night_energy = 1.6
+
+[node name="Festão" type="Node3D" parent="Vila/Objetos/lamp rua dos artesãos"]
+script = ExtResource("6_l6sia")
+kind = "lamp_garland"
+follow_ground = false
+
+[node name="lamp rua dos artesãos 2" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 31, 0, 61.9)
+script = ExtResource("4_gxwoc")
+model = "lamp"
+shape = 2
+shape_size = Vector3(0.12, 3.7, 0)
+tint = Color(0.12, 0.4, 0.2, 1)
+
+[node name="Luz" type="OmniLight3D" parent="Vila/Objetos/lamp rua dos artesãos 2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.3, 0.5)
+light_color = Color(1, 0.75, 0.4, 1)
+light_energy = 1.6
+omni_range = 9.0
+script = ExtResource("5_jcb2b")
+mode = 1
+night_energy = 1.6
+
+[node name="Festão" type="Node3D" parent="Vila/Objetos/lamp rua dos artesãos 2"]
+script = ExtResource("6_l6sia")
+kind = "lamp_garland"
+follow_ground = false
+
+[node name="lamp pracinha" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.825336, 0, -0.564642, 0, 1, 0, 0.564642, 0, -0.825336, -19.4, 0, 87.2)
+script = ExtResource("4_gxwoc")
+model = "lamp"
+shape = 2
+shape_size = Vector3(0.12, 3.7, 0)
+tint = Color(0.12, 0.4, 0.2, 1)
+
+[node name="Luz" type="OmniLight3D" parent="Vila/Objetos/lamp pracinha"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.3, 0.5)
+light_color = Color(1, 0.75, 0.4, 1)
+light_energy = 1.6
+omni_range = 9.0
+script = ExtResource("5_jcb2b")
+mode = 1
+night_energy = 1.6
+
+[node name="Festão" type="Node3D" parent="Vila/Objetos/lamp pracinha"]
+script = ExtResource("6_l6sia")
+kind = "lamp_garland"
+follow_ground = false
+
+[node name="lamp pracinha 2" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.825336, 0, 0.564642, 0, 1, 0, -0.564642, 0, -0.825336, -28.6, 0, 87.2)
+script = ExtResource("4_gxwoc")
+model = "lamp"
+shape = 2
+shape_size = Vector3(0.12, 3.7, 0)
+tint = Color(0.12, 0.4, 0.2, 1)
+
+[node name="Luz" type="OmniLight3D" parent="Vila/Objetos/lamp pracinha 2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.3, 0.5)
+light_color = Color(1, 0.75, 0.4, 1)
+light_energy = 1.6
+omni_range = 9.0
+script = ExtResource("5_jcb2b")
+mode = 1
+night_energy = 1.6
+
+[node name="Festão" type="Node3D" parent="Vila/Objetos/lamp pracinha 2"]
+script = ExtResource("6_l6sia")
+kind = "lamp_garland"
+follow_ground = false
+
+[node name="flor jardim 15" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1.1, 0, 0, 0, 1.1, 0, 0, 0, 1.1, 17.2, 0, 95.8)
+script = ExtResource("4_gxwoc")
+model = "flower_tulips"
+
+[node name="flor jardim 16" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0.683771, 0, 0.86166, 0, 1.1, 0, -0.86166, 0, 0.683771, 20.6, 0, 95.8)
+script = ExtResource("4_gxwoc")
+model = "flower_lavender"
+
+[node name="flor jardim 17" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.249922, 0, 1.071232, 0, 1.1, 0, -1.071232, 0, -0.249922, 24, 0, 95.8)
+script = ExtResource("4_gxwoc")
+model = "flower_daisies"
+
+[node name="flor jardim 18" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.994479, 0, 0.470118, 0, 1.1, 0, -0.470118, 0, -0.994479, 27.4, 0, 95.8)
+script = ExtResource("4_gxwoc")
+model = "flower_poppies"
+
+[node name="flor jardim 19" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.986434, 0, -0.486772, 0, 1.1, 0, 0.486772, 0, -0.986434, 30.8, 0, 95.8)
+script = ExtResource("4_gxwoc")
+model = "flower_bluebells"
+
+[node name="flor jardim 20" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.231875, 0, -1.075283, 0, 1.1, 0, 1.075283, 0, -0.231875, 34.2, 0, 95.8)
+script = ExtResource("4_gxwoc")
+model = "flower_sunflower"
+
+[node name="flor jardim 21" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0.698162, 0, -0.850041, 0, 1.1, 0, 0.850041, 0, 0.698162, 17.2, 0, 97)
+script = ExtResource("4_gxwoc")
+model = "flower_tulips"
+
+[node name="flor jardim 22" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(1.099845, 0, 0.018495, 0, 1.1, 0, -0.018495, 0, 1.099845, 20.6, 0, 97)
+script = ExtResource("4_gxwoc")
+model = "flower_lavender"
+
+[node name="flor jardim 23" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(0.669186, 0, 0.873035, 0, 1.1, 0, -0.873035, 0, 0.669186, 24, 0, 97)
+script = ExtResource("4_gxwoc")
+model = "flower_daisies"
+
+[node name="flor jardim 24" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.267899, 0, 1.066879, 0, 1.1, 0, -1.066879, 0, -0.267899, 27.4, 0, 97)
+script = ExtResource("4_gxwoc")
+model = "flower_poppies"
+
+[node name="flor jardim 25" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-1.002243, 0, 0.45333, 0, 1.1, 0, -0.45333, 0, -1.002243, 30.8, 0, 97)
+script = ExtResource("4_gxwoc")
+model = "flower_bluebells"
+
+[node name="flor jardim 26" type="Node3D" parent="Vila/Objetos"]
+transform = Transform3D(-0.97811, 0, -0.503289, 0, 1.1, 0, 0.503289, 0, -0.97811, 34.2, 0, 97)
+script = ExtResource("4_gxwoc")
+model = "flower_sunflower"
+
 [node name="Árvores" type="Node3D" parent="Vila" unique_id=511881066]
 
 [node name="tree_cherry" type="Node3D" parent="Vila/Árvores" unique_id=1638658253]
-transform = Transform3D(0.81203604, 0, 0.25119218, 0, 0.85, 0, -0.25119218, 0, 0.81203604, -17, 0, -1.5)
+transform = Transform3D(0.812036, 0, 0.251192, 0, 0.85, 0, -0.251192, 0, 0.812036, -14.4, 0, 87.6)
 script = ExtResource("4_gxwoc")
 model = "tree_cherry"
 shape = 2
 shape_size = Vector3(0.38, 3.0000002, 0)
 
 [node name="tree_cherry 2" type="Node3D" parent="Vila/Árvores" unique_id=1638044597]
-transform = Transform3D(-0.31211013, 0, 0.68197304, 0, 0.75, 0, -0.68197304, 0, -0.31211013, 9, 0, 11.5)
+transform = Transform3D(-0.31211, 0, 0.681973, 0, 0.75, 0, -0.681973, 0, -0.31211, 6.4, 0, 80.2)
 script = ExtResource("4_gxwoc")
 model = "tree_cherry"
 shape = 2
 shape_size = Vector3(0.38, 3, 0)
 
 [node name="tree_pine" type="Node3D" parent="Vila/Árvores" unique_id=1181950086]
-transform = Transform3D(0.3858917, 0, -0.9388453, 0, 1.015058, 0, 0.9388453, 0, 0.3858917, 32.30031, 0, 18.579659)
+transform = Transform3D(0.385892, 0, -0.938845, 0, 1.015058, 0, 0.938845, 0, 0.385892, -37, 0, 98)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
 [node name="tree_fir" type="Node3D" parent="Vila/Árvores" unique_id=1569202631]
-transform = Transform3D(0.864206, 0, -1.1872528, 0, 1.4684758, 0, 1.1872528, 0, 0.864206, 31.563812, 0, -13.140884)
+transform = Transform3D(0.864206, 0, -1.187253, 0, 1.468476, 0, 1.187253, 0, 0.864206, 37, 0, 49)
 script = ExtResource("4_gxwoc")
 model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
 [node name="tree_pine 2" type="Node3D" parent="Vila/Árvores" unique_id=1434595105]
-transform = Transform3D(0.28149024, 0, -0.8037075, 0, 0.85157645, 0, 0.8037075, 0, 0.28149024, 35.539726, 0, 26.48645)
+transform = Transform3D(0.28149, 0, -0.803708, 0, 0.851576, 0, 0.803708, 0, 0.28149, 37, 0, 98)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3.0000002, 0)
 
 [node name="tree_pine 3" type="Node3D" parent="Vila/Árvores" unique_id=982740374]
-transform = Transform3D(-0.517665, 0, -0.65788484, 0, 0.83713174, 0, 0.65788484, 0, -0.517665, -30.924652, 0, -11.623253)
+transform = Transform3D(-0.517665, 0, -0.657885, 0, 0.837132, 0, 0.657885, 0, -0.517665, -37, 0, 49)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
+[node name="árvore do jardim 1" type="Node3D" parent="Vila/Árvores"]
+transform = Transform3D(0.85, 0, 0, 0, 0.85, 0, 0, 0, 0.85, 13.6, 0, 96.2)
+script = ExtResource("4_gxwoc")
+model = "tree_apple"
+shape = 2
+shape_size = Vector3(0.38, 3, 0)
+
+[node name="árvore do jardim 2" type="Node3D" parent="Vila/Árvores"]
+transform = Transform3D(-0.109518, 0, 0.842915, 0, 0.85, 0, -0.842915, 0, -0.109518, 38, 0, 96.6)
+script = ExtResource("4_gxwoc")
+model = "tree_orange"
+shape = 2
+shape_size = Vector3(0.38, 3, 0)
+
+[node name="árvore do jardim 3" type="Node3D" parent="Vila/Árvores"]
+transform = Transform3D(-0.821778, 0, -0.21721, 0, 0.85, 0, 0.21721, 0, -0.821778, 26, 0, 98.4)
+script = ExtResource("4_gxwoc")
+model = "tree_pear"
+shape = 2
+shape_size = Vector3(0.38, 3, 0)
+
+[node name="árvore do jardim 4" type="Node3D" parent="Vila/Árvores"]
+transform = Transform3D(0.321281, 0, -0.786942, 0, 0.85, 0, 0.786942, 0, 0.321281, 19.8, 0, 98.6)
+script = ExtResource("4_gxwoc")
+model = "tree_cherry"
+shape = 2
+shape_size = Vector3(0.38, 3, 0)
+
+[node name="árvore do jardim 5" type="Node3D" parent="Vila/Árvores"]
+transform = Transform3D(0.738988, 0, 0.419996, 0, 0.85, 0, -0.419996, 0, 0.738988, 32.4, 0, 98.8)
+script = ExtResource("4_gxwoc")
+model = "tree_apple"
+shape = 2
+shape_size = Vector3(0.38, 3, 0)
+
 [node name="NPCs e pontos" type="Node3D" parent="Vila" unique_id=106902795]
 
 [node name="elder" type="Node3D" parent="Vila/NPCs e pontos" unique_id=605268143]
-transform = Transform3D(0.94299036, 0, 0.33282012, 0, 1, 0, -0.33282012, 0, 0.94299036, -3, 0, -2.5)
+transform = Transform3D(0.988771, 0, 0.149438, 0, 1, 0, -0.149438, 0, 0.988771, -2.6, 0, 76)
 script = ExtResource("7_iymgv")
 kind = "elder"
 
 [node name="rival" type="Node3D" parent="Vila/NPCs e pontos" unique_id=448193131]
-transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 16.2, 0, -1.6)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 37.4, 0, 72)
 script = ExtResource("7_iymgv")
 kind = "rival"
 
 [node name="Poste de direção" type="Node3D" parent="Vila/NPCs e pontos" unique_id=1118408905]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.8, 0, 20.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.4, 0, 50.4)
 script = ExtResource("7_iymgv")
 kind = "signpost"
 params = {
@@ -1110,57 +2032,57 @@ params = {
 }
 
 [node name="board" type="Node3D" parent="Vila/NPCs e pontos" unique_id=1374961534]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.6436076, 0, -9.559335)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -6, 0, 49.4)
 script = ExtResource("7_iymgv")
 kind = "story_point"
 ref = "board"
 
 [node name="lina" type="Node3D" parent="Vila/NPCs e pontos" unique_id=288996324]
-transform = Transform3D(0.9859992, 0, -0.16674986, 0, 1, 0, 0.16674986, 0, 0.9859992, 2.3, 0, -9.6)
+transform = Transform3D(-0.342898, 0, 0.939373, 0, 1, 0, -0.939373, 0, -0.342898, -4.7, 0, 51.4)
 script = ExtResource("7_iymgv")
 ref = "lina"
 
 [node name="coach" type="Node3D" parent="Vila/NPCs e pontos" unique_id=2119909495]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0, -18)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 5.6, 0, 41.6)
 script = ExtResource("7_iymgv")
 ref = "coach"
 
 [node name="rufus" type="Node3D" parent="Vila/NPCs e pontos" unique_id=1149081102]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 4.6, 0, -16.6)
+transform = Transform3D(0.955336, 0, 0.29552, 0, 1, 0, -0.29552, 0, 0.955336, 4.4, 0, 99.6)
 script = ExtResource("7_iymgv")
 ref = "rufus"
 
 [node name="zelia" type="Node3D" parent="Vila/NPCs e pontos" unique_id=1837485812]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -2.6, 0, 12.6)
+transform = Transform3D(0.921061, 0, 0.389418, 0, 0.999999, 0, -0.389418, 0, 0.921061, 19.1, 0, 85.4)
 script = ExtResource("7_iymgv")
 ref = "zelia"
 
 [node name="portal" type="Node3D" parent="Vila/NPCs e pontos" unique_id=511227159]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, -9.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28, 0, 54)
 script = ExtResource("7_iymgv")
 kind = "portal"
 
 [node name="passive_master" type="Node3D" parent="Vila/NPCs e pontos" unique_id=512198308]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 21, 0, 11.6)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -33.6, 0, 58.2)
 script = ExtResource("7_iymgv")
 kind = "hub_point"
 ref = "passive_master"
 
 [node name="records" type="Node3D" parent="Vila/NPCs e pontos" unique_id=1311125604]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 17.4, 0, 6.4)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -22.4, 0, 58.2)
 script = ExtResource("7_iymgv")
 kind = "hub_point"
 ref = "records"
 
 [node name="santa" type="Node3D" parent="Vila/NPCs e pontos" unique_id=635364392]
-transform = Transform3D(0.6058201, 0, -0.7956016, 0, 1, 0, 0.7956016, 0, 0.6058201, 16, 0, -11.4)
+transform = Transform3D(-0.479426, 0, 0.877583, 0, 1, 0, -0.877583, 0, -0.479426, -27.6, 0, 89.8)
 script = ExtResource("7_iymgv")
 kind = "santa"
 
 [node name="Enfeites" type="Node3D" parent="Vila" unique_id=2058135240]
 
 [node name="Placa" type="Node3D" parent="Vila/Enfeites" unique_id=609169252]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 3.5, -10.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.8, 3.5, 49.4)
 script = ExtResource("6_l6sia")
 kind = "label"
 params = {
@@ -1176,7 +2098,7 @@ params = {
 follow_ground = false
 
 [node name="Placa 2" type="Node3D" parent="Vila/Enfeites" unique_id=935319730]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 2.6, 26)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17, 2.6, 26)
 script = ExtResource("6_l6sia")
 kind = "label"
 params = {
@@ -1192,7 +2114,7 @@ params = {
 follow_ground = false
 
 [node name="Árvore de Natal" type="Node3D" parent="Vila/Enfeites" unique_id=1817660711]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.8, 0, -10.3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24, 0, 92)
 script = ExtResource("6_l6sia")
 params = {
 "scale": 1.0,
@@ -1200,11 +2122,11 @@ params = {
 }
 
 [node name="Varal de luzes" type="Node3D" parent="Vila/Enfeites" unique_id=1685574098]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 3.45, -5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.6, 3.45, 101.6)
 script = ExtResource("6_l6sia")
 kind = "light_string"
 params = {
-"end": Vector3(10, 0, 0),
+"end": Vector3(7.2, 0, 0),
 "palette": "multi",
 "pattern": 0,
 "sag": 0.6,
@@ -1212,11 +2134,11 @@ params = {
 }
 
 [node name="Varal de luzes 2" type="Node3D" parent="Vila/Enfeites" unique_id=1425071184]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 3.45, -5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.6, 3.45, 84.6)
 script = ExtResource("6_l6sia")
 kind = "light_string"
 params = {
-"end": Vector3(1, 0, 13),
+"end": Vector3(7.2, 0, 0),
 "palette": "multi",
 "pattern": 1,
 "sag": 0.6,
@@ -1224,11 +2146,11 @@ params = {
 }
 
 [node name="Varal de luzes 3" type="Node3D" parent="Vila/Enfeites" unique_id=509735912]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 3.45, 8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.6, 3.45, 46.6)
 script = ExtResource("6_l6sia")
 kind = "light_string"
 params = {
-"end": Vector3(-12, 0, 0),
+"end": Vector3(7.2, 0, 0),
 "palette": "multi",
 "pattern": 0,
 "sag": 0.6,
@@ -1236,11 +2158,11 @@ params = {
 }
 
 [node name="Varal de luzes 4" type="Node3D" parent="Vila/Enfeites" unique_id=87173135]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 3.45, 8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -34, 3.45, 70)
 script = ExtResource("6_l6sia")
 kind = "light_string"
 params = {
-"end": Vector3(1, 0, -13),
+"end": Vector3(10, 0, 0),
 "palette": "multi",
 "pattern": 1,
 "sag": 0.6,
@@ -1248,7 +2170,7 @@ params = {
 }
 
 [node name="Bengala" type="Node3D" parent="Vila/Enfeites" unique_id=1683369786]
-transform = Transform3D(-0.61015075, 0, 0.7922853, 0, 1, 0, -0.7922853, 0, -0.61015075, -13.4, 0, -17.4)
+transform = Transform3D(-0.610151, 0, 0.792285, 0, 1, 0, -0.792285, 0, -0.610151, -2.8, 0, 102)
 script = ExtResource("6_l6sia")
 kind = "candy_cane"
 params = {
@@ -1256,7 +2178,7 @@ params = {
 }
 
 [node name="Bengala 2" type="Node3D" parent="Vila/Enfeites" unique_id=1716051008]
-transform = Transform3D(0.19177543, 0, 0.9814388, 0, 1, 0, -0.9814388, 0, 0.19177543, 3.4, 0, -17.4)
+transform = Transform3D(0.191775, 0, 0.981439, 0, 1, 0, -0.981439, 0, 0.191775, 2.8, 0, 102)
 script = ExtResource("6_l6sia")
 kind = "candy_cane"
 params = {
@@ -1264,7 +2186,7 @@ params = {
 }
 
 [node name="Bengala 3" type="Node3D" parent="Vila/Enfeites" unique_id=1213578793]
-transform = Transform3D(-0.055034462, 0, -0.99848443, 0, 1, 0, 0.99848443, 0, -0.055034462, -1.4, 0, 25.4)
+transform = Transform3D(-0.055034, 0, -0.998484, 0, 1, 0, 0.998484, 0, -0.055034, -2.8, 0, 45.6)
 script = ExtResource("6_l6sia")
 kind = "candy_cane"
 params = {
@@ -1272,7 +2194,7 @@ params = {
 }
 
 [node name="Bengala 4" type="Node3D" parent="Vila/Enfeites" unique_id=1195303319]
-transform = Transform3D(0.13267498, 0, -0.9911596, 0, 1, 0, 0.9911596, 0, 0.13267498, 3.4, 0, 25.4)
+transform = Transform3D(0.132675, 0, -0.99116, 0, 1, 0, 0.99116, 0, 0.132675, 2.8, 0, 45.6)
 script = ExtResource("6_l6sia")
 kind = "candy_cane"
 params = {
@@ -1280,7 +2202,7 @@ params = {
 }
 
 [node name="Bengala 5" type="Node3D" parent="Vila/Enfeites" unique_id=1186653129]
-transform = Transform3D(0.9961031, 0, 0.08819662, 0, 1, 0, -0.08819662, 0, 0.9961031, 38.4, 0, -3.4)
+transform = Transform3D(0.996103, 0, 0.088197, 0, 1, 0, -0.088197, 0, 0.996103, 40.6, 0, 69.4)
 script = ExtResource("6_l6sia")
 kind = "candy_cane"
 params = {
@@ -1288,7 +2210,7 @@ params = {
 }
 
 [node name="Bengala 6" type="Node3D" parent="Vila/Enfeites" unique_id=641224332]
-transform = Transform3D(0.9961031, 0, -0.08819662, 0, 1, 0, 0.08819662, 0, 0.9961031, 38.4, 0, 3.4)
+transform = Transform3D(0.996103, 0, -0.088197, 0, 1, 0, 0.088197, 0, 0.996103, 40.6, 0, 74.6)
 script = ExtResource("6_l6sia")
 kind = "candy_cane"
 params = {
@@ -1296,7 +2218,7 @@ params = {
 }
 
 [node name="Bengala 7" type="Node3D" parent="Vila/Enfeites" unique_id=281631896]
-transform = Transform3D(-0.999677, 0, 0.025415458, 0, 1, 0, -0.025415458, 0, -0.999677, -35.4, 0, -0.9)
+transform = Transform3D(-0.999677, 0, 0.025415, 0, 1, 0, -0.025415, 0, -0.999677, -40.6, 0, 69.4)
 script = ExtResource("6_l6sia")
 kind = "candy_cane"
 params = {
@@ -1304,7 +2226,7 @@ params = {
 }
 
 [node name="Bengala 8" type="Node3D" parent="Vila/Enfeites" unique_id=920896385]
-transform = Transform3D(-0.9863939, 0, -0.1643989, 0, 1, 0, 0.1643989, 0, -0.9863939, -35.4, 0, 5.9)
+transform = Transform3D(-0.986394, 0, -0.164399, 0, 1, 0, 0.164399, 0, -0.986394, -40.6, 0, 74.6)
 script = ExtResource("6_l6sia")
 kind = "candy_cane"
 params = {
@@ -1312,7 +2234,7 @@ params = {
 }
 
 [node name="Árvore de Natal 2" type="Node3D" parent="Vila/Enfeites" unique_id=445882951]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.2, 0, 3.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13.2, 0, 60.2)
 script = ExtResource("6_l6sia")
 params = {
 "scale": 0.38,
@@ -1320,7 +2242,7 @@ params = {
 }
 
 [node name="Árvore de Natal 3" type="Node3D" parent="Vila/Enfeites" unique_id=1018008975]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.4, 0, -3.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.2, 0, 60.2)
 script = ExtResource("6_l6sia")
 params = {
 "scale": 0.38,
@@ -1328,12 +2250,12 @@ params = {
 }
 
 [node name="Boneco de neve" type="Node3D" parent="Vila/Enfeites" unique_id=1588062355]
-transform = Transform3D(0.38999334, 0, 0.9208177, 0, 1, 0, -0.9208177, 0, 0.38999334, -8.5, 0, -3.6)
+transform = Transform3D(0.389993, 0, 0.920818, 0, 1, 0, -0.920818, 0, 0.389993, -20.2, 0, 95.8)
 script = ExtResource("6_l6sia")
 kind = "snowman"
 
 [node name="Presentes" type="Node3D" parent="Vila/Enfeites" unique_id=1240985893]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 0, -1.4)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22.2, 0, 94.4)
 script = ExtResource("6_l6sia")
 kind = "gifts"
 params = {
@@ -1345,11 +2267,11 @@ params = {
 }
 
 [node name="Varal de luzes 5" type="Node3D" parent="Vila/Enfeites" unique_id=879237730]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 3.45, -12.8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 3.45, 70)
 script = ExtResource("6_l6sia")
 kind = "light_string"
 params = {
-"end": Vector3(6, 0, 0),
+"end": Vector3(10, 0, 0),
 "palette": "multi",
 "pattern": 1,
 "sag": 0.5,
@@ -1357,14 +2279,75 @@ params = {
 }
 
 [node name="Trenó" type="Node3D" parent="Vila/Enfeites" unique_id=1785860186]
-transform = Transform3D(-0.58850116, 0, -0.80849636, 0, 1, 0, 0.80849636, 0, -0.58850116, 12.7, 0, -11.9)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -29, 0, 96.8)
 script = ExtResource("6_l6sia")
 kind = "sleigh"
+
+[node name="Carroça da guilda" type="Node3D" parent="Vila/Enfeites"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 9, 0, 41.2)
+script = ExtResource("6_l6sia")
+kind = "wagon"
+
+[node name="Placa de Valdoria" type="Node3D" parent="Vila/Enfeites"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 101.6)
+script = ExtResource("6_l6sia")
+kind = "label"
+params = {
+"billboard": true,
+"color": Color(1, 0.88, 0.55, 1),
+"double_sided": true,
+"font_size": 72,
+"outline_size": 12,
+"pixel_size": 0.006,
+"text": "Valdoria",
+"width": 0.0
+}
+follow_ground = false
+
+[node name="Placa da Feira" type="Node3D" parent="Vila/Enfeites"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.2, 84.6)
+script = ExtResource("6_l6sia")
+kind = "label"
+params = {
+"billboard": true,
+"color": Color(1, 0.8, 0.45, 1),
+"double_sided": true,
+"font_size": 52,
+"outline_size": 10,
+"pixel_size": 0.006,
+"text": "Feira de Valdoria",
+"width": 0.0
+}
+follow_ground = false
+
+[node name="Varal da Rua das Flores" type="Node3D" parent="Vila/Enfeites"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.6, 3.45, 81.9)
+script = ExtResource("6_l6sia")
+kind = "light_string"
+params = {
+"end": Vector3(18.8, 0, 0),
+"palette": "multi",
+"pattern": 1,
+"sag": 0.6,
+"spacing": 0.42
+}
+
+[node name="Varal da pracinha" type="Node3D" parent="Vila/Enfeites"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -19.4, 3.45, 87.2)
+script = ExtResource("6_l6sia")
+kind = "light_string"
+params = {
+"end": Vector3(-9.2, 0, 0),
+"palette": "multi",
+"pattern": 1,
+"sag": 0.6,
+"spacing": 0.42
+}
 
 [node name="Luzes" type="Node3D" parent="Vila" unique_id=614576681]
 
 [node name="Luz" type="OmniLight3D" parent="Vila/Luzes" unique_id=651672992]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -214.00555, 6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -214.00555, 72)
 light_color = Color(1, 0.3, 0.12, 1)
 light_energy = 0.0
 omni_range = 16.0
@@ -1372,7 +2355,7 @@ omni_attenuation = 0.5
 script = ExtResource("5_jcb2b")
 
 [node name="Luz 2" type="OmniLight3D" parent="Vila/Luzes" unique_id=1143056828]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -219.50555, 6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -219.50555, 72)
 light_color = Color(1, 0.45, 0.1, 1)
 light_energy = 0.0
 omni_range = 8.0
@@ -1386,157 +2369,241 @@ script = ExtResource("5_jcb2b")
 script = ExtResource("8_dfddp")
 model = "well"
 flowers = 0
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 72)
 
 [node name="Casa 1" type="Node3D" parent="Vila/Construções/Praça" unique_id=141904046]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -13, 0, -6)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -7.7, 0, 97)
 script = ExtResource("8_dfddp")
 flowers = 2
+model = "house_d"
+palette = 7
+delivery = true
 
 [node name="Casa 2" type="Node3D" parent="Vila/Construções/Praça" unique_id=1134376812]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -13, 0, 7)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -7.2, 0, 91.5)
 script = ExtResource("8_dfddp")
-model = "house_c"
-flowers = 2
+model = "house_f"
+flowers = 1
+palette = 4
 
 [node name="Casa 3" type="Node3D" parent="Vila/Construções/Praça" unique_id=1331674363]
-transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 13, 0, -6)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -7.6, 0, 86)
 script = ExtResource("8_dfddp")
-model = "house_c"
-flowers = 2
+model = "house"
+flowers = 1
+palette = 1
 
 [node name="Casa 4" type="Node3D" parent="Vila/Construções/Praça" unique_id=258046555]
-transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 13, 0, 7)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 7.6, 0, 97)
 script = ExtResource("8_dfddp")
 model = "house_b"
 flowers = 2
+palette = 9
+delivery = true
 
 [node name="Casa 5" type="Node3D" parent="Vila/Construções/Praça" unique_id=1273419890]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -5, 0, 16)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 8.2, 0, 89.5)
 script = ExtResource("8_dfddp")
-model = "house_b"
-flowers = 2
-
-[node name="Casa 6" type="Node3D" parent="Vila/Construções/Praça" unique_id=1787459064]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 6, 0, 16)
-script = ExtResource("8_dfddp")
-flowers = 2
+model = "house_e"
+flowers = 1
+palette = 5
 
 [node name="Lojas" type="Node3D" parent="Vila/Construções" unique_id=707970018]
 
 [node name="Empório" type="Node3D" parent="Vila/Construções/Lojas" unique_id=129800538]
-transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 9.4, 0, 0.5)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 14.5, 0, 72)
 script = ExtResource("8_dfddp")
 model = "shop_merchant"
 flowers = 0
 
 [node name="Botica" type="Node3D" parent="Vila/Construções/Lojas" unique_id=2062003725]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -12, 0, 0.5)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -14.5, 0, 69)
 script = ExtResource("8_dfddp")
 model = "shop_alchemist"
 flowers = 0
 
 [node name="Ferraria" type="Node3D" parent="Vila/Construções/Lojas" unique_id=1243159464]
-transform = Transform3D(-0.6507913, 0, 0.75925666, 0, 1, 0, -0.75925666, 0, -0.6507913, -10.5, 0, 13)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -9.5, 0, 54.5)
 script = ExtResource("8_dfddp")
 model = "shop_smithy"
 flowers = 0
 
+[node name="Oficina" type="Node3D" parent="Vila/Construções/Lojas"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 9.5, 0, 54.5)
+script = ExtResource("8_dfddp")
+model = "shop_workshop"
+
+[node name="Laboratório" type="Node3D" parent="Vila/Construções/Lojas"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -14.5, 0, 75.6)
+script = ExtResource("8_dfddp")
+model = "shop_alchemy_lab"
+
+[node name="Barraca de Couro e Tecido" type="Node3D" parent="Vila/Construções/Lojas"]
+transform = Transform3D(0.76652, 0, 0.64222, 0, 1, 0, -0.64222, 0, 0.76652, -6.2, 0, 64.6)
+script = ExtResource("8_dfddp")
+model = "stall_cloth"
+
+[node name="Barraca de Sementes" type="Node3D" parent="Vila/Construções/Lojas"]
+transform = Transform3D(0.76652, 0, -0.64222, 0, 1, 0, 0.64222, 0, 0.76652, 6.2, 0, 64.6)
+script = ExtResource("8_dfddp")
+model = "stall_farm"
+
+[node name="Barraca de Provisões" type="Node3D" parent="Vila/Construções/Lojas"]
+transform = Transform3D(-0.788316, 0, 0.615271, 0, 1, 0, -0.615271, 0, -0.788316, -6.4, 0, 80.2)
+script = ExtResource("8_dfddp")
+model = "stall_goods"
+
 [node name="Bairro Oeste" type="Node3D" parent="Vila/Construções" unique_id=585543948]
 
 [node name="Casa 1" type="Node3D" parent="Vila/Construções/Bairro Oeste" unique_id=34645389]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -31, 0, -10.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22, 0, 66)
+script = ExtResource("8_dfddp")
+model = "house_c"
+palette = 2
+flowers = 1
+delivery = true
+
+[node name="Casa 2" type="Node3D" parent="Vila/Construções/Bairro Oeste" unique_id=1226288724]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -29.5, 0, 66)
+script = ExtResource("8_dfddp")
+model = "house"
+palette = 11
+flowers = 1
+
+[node name="Casa 3" type="Node3D" parent="Vila/Construções/Bairro Oeste" unique_id=7050142]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -36.3, 0, 66)
+script = ExtResource("8_dfddp")
+palette = 14
+model = "house_f"
+flowers = 1
+
+[node name="Casa 4" type="Node3D" parent="Vila/Construções/Bairro Oeste" unique_id=132387572]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -22, 0, 78)
+script = ExtResource("8_dfddp")
+model = "house_b"
+palette = 3
+flowers = 1
+
+[node name="Casa 5" type="Node3D" parent="Vila/Construções/Bairro Oeste" unique_id=258774643]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -29.5, 0, 78)
 script = ExtResource("8_dfddp")
 model = "house_d"
 palette = 0
-flowers = 0
-
-[node name="Casa 2" type="Node3D" parent="Vila/Construções/Bairro Oeste" unique_id=1226288724]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -20, 0, -10.5)
-script = ExtResource("8_dfddp")
-model = "house_c"
-palette = 1
 delivery = true
-
-[node name="Casa 3" type="Node3D" parent="Vila/Construções/Bairro Oeste" unique_id=7050142]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -31, 0, -2.3)
-script = ExtResource("8_dfddp")
-palette = 2
-
-[node name="Casa 4" type="Node3D" parent="Vila/Construções/Bairro Oeste" unique_id=132387572]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20.2, 0, -2.3)
-script = ExtResource("8_dfddp")
-model = "house_e"
-palette = 3
-
-[node name="Casa 5" type="Node3D" parent="Vila/Construções/Bairro Oeste" unique_id=258774643]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -30.5, 0, 6.6)
-script = ExtResource("8_dfddp")
-model = "house_f"
-palette = 4
-delivery = true
+flowers = 2
 
 [node name="Casa 6" type="Node3D" parent="Vila/Construções/Bairro Oeste" unique_id=161324991]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -20.3, 0, 7.4)
-script = ExtResource("8_dfddp")
-model = "house_b"
-palette = 5
-
-[node name="Casa 7" type="Node3D" parent="Vila/Construções/Bairro Oeste" unique_id=160910751]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -31, 0, 15.6)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -36.3, 0, 78)
 script = ExtResource("8_dfddp")
 model = "house_c"
-palette = 6
+palette = 12
+flowers = 1
 
-[node name="Casa 8" type="Node3D" parent="Vila/Construções/Bairro Oeste" unique_id=1668350740]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20.5, 0, 15.3)
+[node name="Casa 7" type="Node3D" parent="Vila/Construções/Bairro Oeste" unique_id=160910751]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -35.5, 0, 91)
 script = ExtResource("8_dfddp")
-model = "house_d"
-palette = 7
-flowers = 0
-delivery = true
+model = "house_e"
+palette = 6
+flowers = 2
+
+[node name="Casa 8" type="Node3D" parent="Vila/Construções/Bairro Oeste"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -14, 0, 96.6)
+script = ExtResource("8_dfddp")
+model = "house_c"
+palette = 8
+flowers = 2
 
 [node name="Bairro Leste" type="Node3D" parent="Vila/Construções" unique_id=395483071]
 
 [node name="Casa 1" type="Node3D" parent="Vila/Construções/Bairro Leste" unique_id=1839126438]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 20.5, 0, -10.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 0, 66)
 script = ExtResource("8_dfddp")
-model = "house_f"
-palette = 8
+model = "house_d"
+palette = 10
+flowers = 1
+delivery = true
 
 [node name="Casa 2" type="Node3D" parent="Vila/Construções/Bairro Leste" unique_id=1932402015]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 0, -4.3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29.5, 0, 66)
 script = ExtResource("8_dfddp")
-model = "house_b"
-palette = 9
-delivery = true
+model = "house_c"
+palette = 8
+flowers = 1
 
 [node name="Casa 3" type="Node3D" parent="Vila/Construções/Bairro Leste" unique_id=264712878]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33.5, 0, 15.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 36.3, 0, 66)
 script = ExtResource("8_dfddp")
-model = "house_e"
-palette = 10
-delivery = true
+model = "house_f"
+palette = 15
+flowers = 1
 
 [node name="Casa 4" type="Node3D" parent="Vila/Construções/Bairro Leste" unique_id=121873153]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 0, 15.6)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 22, 0, 78)
 script = ExtResource("8_dfddp")
-palette = 11
+palette = 13
+model = "house"
+flowers = 1
 
 [node name="Rua das Flores" type="Node3D" parent="Vila/Construções" unique_id=2074189009]
 
 [node name="Casa 1" type="Node3D" parent="Vila/Construções/Rua das Flores" unique_id=855899171]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -16.5, 0, 24.4)
-script = ExtResource("8_dfddp")
-model = "house_d"
-palette = 14
-flowers = 0
-
-[node name="Casa 2" type="Node3D" parent="Vila/Construções/Rua das Flores" unique_id=159496908]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 16, 0, 24.2)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 29.5, 0, 78)
 script = ExtResource("8_dfddp")
 model = "house_b"
-palette = 15
+palette = 0
+flowers = 2
+
+[node name="Casa 2" type="Node3D" parent="Vila/Construções/Rua das Flores" unique_id=159496908]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 22.6, 0, 87.8)
+script = ExtResource("8_dfddp")
+model = "house_d"
+palette = 9
 delivery = true
+flowers = 2
+
+[node name="Rua dos Artesãos" type="Node3D" parent="Vila/Construções"]
+
+[node name="Casa 1" type="Node3D" parent="Vila/Construções/Rua dos Artesãos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19.6, 0, 54.8)
+script = ExtResource("8_dfddp")
+model = "house_b"
+palette = 1
+flowers = 1
+
+[node name="Casa 2" type="Node3D" parent="Vila/Construções/Rua dos Artesãos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26.4, 0, 54.8)
+script = ExtResource("8_dfddp")
+model = "house_c"
+palette = 6
+flowers = 2
+
+[node name="Casa 3" type="Node3D" parent="Vila/Construções/Rua dos Artesãos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33.2, 0, 54.8)
+script = ExtResource("8_dfddp")
+model = "house_d"
+palette = 12
+flowers = 1
+
+[node name="Casa 3" type="Node3D" parent="Vila/Construções/Rua das Flores"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 15.8, 0, 87.8)
+script = ExtResource("8_dfddp")
+model = "house_c"
+palette = 4
+flowers = 1
+
+[node name="Casa 4" type="Node3D" parent="Vila/Construções/Rua das Flores"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 29.4, 0, 87.8)
+script = ExtResource("8_dfddp")
+model = "house"
+palette = 14
+flowers = 2
+
+[node name="Casa 5" type="Node3D" parent="Vila/Construções/Rua das Flores"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 36, 0, 87.8)
+script = ExtResource("8_dfddp")
+model = "house_f"
+palette = 7
+flowers = 1
 
 [node name="Ninho de Slimes" type="Node3D" parent="." unique_id=1623001312]
 
@@ -2341,11 +3408,6 @@ transform = Transform3D(0.37686872, 0, 1.687547, 0, 1.7291168, 0, -1.687547, 0, 
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 
-[node name="tree_pine 89" type="Node3D" parent="Natureza/Árvores" unique_id=817133031]
-transform = Transform3D(1.1166463, 0, -1.3042876, 0, 1.716993, 0, 1.3042876, 0, 1.1166463, -3.2161093, 0, 120.52646)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-
 [node name="tree_pine 90" type="Node3D" parent="Natureza/Árvores" unique_id=2062585413]
 transform = Transform3D(0.9403824, 0, -1.0914516, 0, 1.4406893, 0, 1.0914516, 0, 0.9403824, 119.34394, 0, -3.2161093)
 script = ExtResource("4_gxwoc")
@@ -2353,11 +3415,6 @@ model = "tree_pine"
 
 [node name="tree_pine 91" type="Node3D" parent="Natureza/Árvores" unique_id=294380884]
 transform = Transform3D(1.0936818, 0, 0.53975296, 0, 1.2196201, 0, -0.53975296, 0, 1.0936818, -124.84672, 0, -3.2161093)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-
-[node name="tree_pine 92" type="Node3D" parent="Natureza/Árvores" unique_id=524366358]
-transform = Transform3D(-1.3685406, 0, 0.92464334, 0, 1.6516261, 0, -0.92464334, 0, -1.3685406, 1.7594132, 0, 123.472145)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 
@@ -2904,13 +3961,6 @@ model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_pine 196" type="Node3D" parent="Natureza/Árvores" unique_id=98580868]
-transform = Transform3D(-0.4059635, 0, -1.0640893, 0, 1.1388997, 0, 1.0640893, 0, -0.4059635, 30.680876, 0, 58.700104)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
 [node name="tree_fir 7" type="Node3D" parent="Natureza/Árvores" unique_id=1363656666]
 transform = Transform3D(-1.3905551, 0, -0.060878143, 0, 1.3918871, 0, 0.060878143, 0, -1.3905551, 49.333733, 0, -27.686573)
 script = ExtResource("4_gxwoc")
@@ -3003,7 +4053,7 @@ shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
 [node name="tree_pine 203" type="Node3D" parent="Natureza/Árvores" unique_id=1358642709]
-transform = Transform3D(-0.21713185, 0, -1.4043201, 0, 1.4210072, 0, 1.4043201, 0, -0.21713185, 54.4181, 0, 62.220596)
+transform = Transform3D(-0.217132, 0, -1.40432, 0, 1.421007, 0, 1.40432, 0, -0.217132, 60.4181, 0, 10.220596)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
@@ -3038,7 +4088,7 @@ shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
 [node name="tree_birch 8" type="Node3D" parent="Natureza/Árvores" unique_id=890600969]
-transform = Transform3D(-0.4187988, 0, -0.82111084, 0, 0.9217459, 0, 0.82111084, 0, -0.4187988, 38.765213, 0, 68.35765)
+transform = Transform3D(-0.418799, 0, -0.821111, 0, 0.921746, 0, 0.821111, 0, -0.418799, 44.765213, 0, 16.35765)
 script = ExtResource("4_gxwoc")
 model = "tree_birch"
 shape = 2
@@ -3073,7 +4123,7 @@ shape = 2
 shape_size = Vector3(0.32, 3.0000002, 0)
 
 [node name="tree_pine 212" type="Node3D" parent="Natureza/Árvores" unique_id=722612248]
-transform = Transform3D(-0.040347423, 0, 1.3905073, 0, 1.3910925, 0, -1.3905073, 0, -0.040347423, 42.689972, 0, 64.55298)
+transform = Transform3D(-0.040347, 0, 1.390507, 0, 1.391093, 0, -1.390507, 0, -0.040347, 48.689972, 0, 12.55298)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
@@ -3122,7 +4172,7 @@ shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
 [node name="tree_fir 20" type="Node3D" parent="Natureza/Árvores" unique_id=402251113]
-transform = Transform3D(-0.9786557, 0, -0.86165416, 0, 1.3039229, 0, 0.86165416, 0, -0.9786557, 28.22952, 0, -20.649078)
+transform = Transform3D(-0.978656, 0, -0.861654, 0, 1.303923, 0, 0.861654, 0, -0.978656, 28.22952, 0, 19.350922)
 script = ExtResource("4_gxwoc")
 model = "tree_fir"
 shape = 2
@@ -3221,13 +4271,6 @@ shape_size = Vector3(0.35, 3, 0)
 
 [node name="tree_pine 232" type="Node3D" parent="Natureza/Árvores" unique_id=1508362111]
 transform = Transform3D(-0.4942175, 0, -0.8210915, 0, 0.9583539, 0, 0.8210915, 0, -0.4942175, 78.220795, 0, 21.57853)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 2.9999998, 0)
-
-[node name="tree_pine 233" type="Node3D" parent="Natureza/Árvores" unique_id=2039537426]
-transform = Transform3D(-0.26236096, 0, 0.7587973, 0, 0.80287397, 0, -0.7587973, 0, -0.26236096, 40.900116, 0, 62.468826)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
@@ -3353,7 +4396,7 @@ shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
 [node name="tree_pine 241" type="Node3D" parent="Natureza/Árvores" unique_id=149373070]
-transform = Transform3D(-0.077736124, 0, -1.4642777, 0, 1.4663397, 0, 1.4642777, 0, -0.077736124, 33.72003, 0, -39.825768)
+transform = Transform3D(-0.077736, 0, -1.464278, 0, 1.46634, 0, 1.464278, 0, -0.077736, 33.72003, 0, 0.174232)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
@@ -3471,13 +4514,6 @@ model = "tree_fir"
 shape = 2
 shape_size = Vector3(0.32, 3, 0)
 
-[node name="tree_birch 16" type="Node3D" parent="Natureza/Árvores" unique_id=68425171]
-transform = Transform3D(0.759198, 0, -0.8660693, 0, 1.1517195, 0, 0.8660693, 0, 0.759198, 41.26782, 0, 43.009758)
-script = ExtResource("4_gxwoc")
-model = "tree_birch"
-shape = 2
-shape_size = Vector3(0.25, 3, 0)
-
 [node name="tree_fir 38" type="Node3D" parent="Natureza/Árvores" unique_id=715119515]
 transform = Transform3D(0.41128185, 0, 0.9279402, 0, 1.0150003, 0, -0.9279402, 0, 0.41128185, 56.577377, 0, 50.38353)
 script = ExtResource("4_gxwoc")
@@ -3506,15 +4542,8 @@ model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_fir 40" type="Node3D" parent="Natureza/Árvores" unique_id=234173509]
-transform = Transform3D(-1.0776408, 0, 0.34440136, 0, 1.1313363, 0, -0.34440136, 0, -1.0776408, 31.187462, 0, 54.407722)
-script = ExtResource("4_gxwoc")
-model = "tree_fir"
-shape = 2
-shape_size = Vector3(0.32, 3, 0)
-
 [node name="tree_pine 258" type="Node3D" parent="Natureza/Árvores" unique_id=344662197]
-transform = Transform3D(-1.350086, 0, -0.14388913, 0, 1.357732, 0, 0.14388913, 0, -1.350086, 50.15071, 0, 63.5782)
+transform = Transform3D(-1.350086, 0, -0.143889, 0, 1.357732, 0, 0.143889, 0, -1.350086, 56.15071, 0, 11.5782)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
@@ -3611,13 +4640,6 @@ model = "tree_apple"
 shape = 2
 shape_size = Vector3(0.3, 3, 0)
 
-[node name="tree_fir 43" type="Node3D" parent="Natureza/Árvores" unique_id=117475934]
-transform = Transform3D(-1.1277232, 0, 0.2007921, 0, 1.1454593, 0, -0.2007921, 0, -1.1277232, 11.770905, 0, 100.741104)
-script = ExtResource("4_gxwoc")
-model = "tree_fir"
-shape = 2
-shape_size = Vector3(0.32, 3, 0)
-
 [node name="tree_pear" type="Node3D" parent="Natureza/Árvores" unique_id=91188106]
 transform = Transform3D(-0.21091565, 0, -0.8045949, 0, 0.8317802, 0, 0.8045949, 0, -0.21091565, -20.74369, 0, 104.37532)
 script = ExtResource("4_gxwoc")
@@ -3640,7 +4662,7 @@ shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 7" type="Node3D" parent="Natureza/Árvores" unique_id=1117261058]
-transform = Transform3D(0.5298514, 0, 0.91026, 0, 1.0532407, 0, -0.91026, 0, 0.5298514, -62.02958, -0.34999973, 71.99576)
+transform = Transform3D(0.529851, 0, 0.91026, 0, 1.053241, 0, -0.91026, 0, 0.529851, -62.02958, -0.35, -18.00424)
 script = ExtResource("4_gxwoc")
 model = "tree_oak"
 shape = 2
@@ -3681,20 +4703,6 @@ model = "tree_oak"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
-[node name="tree_pine 262" type="Node3D" parent="Natureza/Árvores" unique_id=1455883946]
-transform = Transform3D(-0.29749924, 0, -0.9240823, 0, 0.9707903, 0, 0.9240823, 0, -0.29749924, -40.82865, 0, 65.268875)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
-[node name="tree_birch 20" type="Node3D" parent="Natureza/Árvores" unique_id=588483772]
-transform = Transform3D(-0.90551287, 0, 0.73225605, 0, 1.1645396, 0, -0.73225605, 0, -0.90551287, -2.0752335, 0, 65.569305)
-script = ExtResource("4_gxwoc")
-model = "tree_birch"
-shape = 2
-shape_size = Vector3(0.25, 3, 0)
-
 [node name="tree_oak 11" type="Node3D" parent="Natureza/Árvores" unique_id=1962797830]
 transform = Transform3D(-0.8693676, 0, 0.45427635, 0, 0.9809011, 0, -0.45427635, 0, -0.8693676, -71.63708, -0.35000008, 58.038544)
 script = ExtResource("4_gxwoc")
@@ -3709,22 +4717,8 @@ model = "tree_oak"
 shape = 2
 shape_size = Vector3(0.40000004, 3, 0)
 
-[node name="tree_oak 13" type="Node3D" parent="Natureza/Árvores" unique_id=1904607454]
-transform = Transform3D(0.4517031, 0, -0.84367347, 0, 0.9569852, 0, 0.84367347, 0, 0.4517031, -1.4585953, 0, 96.64661)
-script = ExtResource("4_gxwoc")
-model = "tree_oak"
-shape = 2
-shape_size = Vector3(0.4, 3, 0)
-
 [node name="tree_oak 14" type="Node3D" parent="Natureza/Árvores" unique_id=731356757]
 transform = Transform3D(-0.47834417, 0, 0.678629, 0, 0.8302713, 0, -0.678629, 0, -0.47834417, -112.4887, -0.35, 100.55791)
-script = ExtResource("4_gxwoc")
-model = "tree_oak"
-shape = 2
-shape_size = Vector3(0.4, 3, 0)
-
-[node name="tree_oak 15" type="Node3D" parent="Natureza/Árvores" unique_id=1892480998]
-transform = Transform3D(-0.8713074, 0, 0.6270982, 0, 1.0735123, 0, -0.6270982, 0, -0.8713074, 20.065018, 0, 84.29573)
 script = ExtResource("4_gxwoc")
 model = "tree_oak"
 shape = 2
@@ -3758,26 +4752,12 @@ model = "tree_oak"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
-[node name="tree_pine 263" type="Node3D" parent="Natureza/Árvores" unique_id=1434987285]
-transform = Transform3D(-0.7494436, 0, 0.5938574, 0, 0.9562073, 0, -0.5938574, 0, -0.7494436, -15.653542, 0, 27.202438)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
 [node name="tree_pine 264" type="Node3D" parent="Natureza/Árvores" unique_id=749547297]
 transform = Transform3D(0.80431753, 0, -0.6097722, 0, 1.0093309, 0, 0.6097722, 0, 0.80431753, -79.58276, -0.35, -70.284775)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
-
-[node name="tree_oak 18" type="Node3D" parent="Natureza/Árvores" unique_id=871478327]
-transform = Transform3D(0.9836273, 0, 0.11434085, 0, 0.99025077, 0, -0.11434085, 0, 0.9836273, 24.230118, 0, 56.306274)
-script = ExtResource("4_gxwoc")
-model = "tree_oak"
-shape = 2
-shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 4" type="Node3D" parent="Natureza/Árvores" unique_id=1719023938]
 transform = Transform3D(-0.68901336, 0, -0.613947, 0, 0.92285985, 0, 0.613947, 0, -0.68901336, -98.48455, -0.33134943, -101.60255)
@@ -3793,13 +4773,6 @@ model = "tree_maple"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
-[node name="tree_pine 265" type="Node3D" parent="Natureza/Árvores" unique_id=1495034788]
-transform = Transform3D(0.27881876, 0, 0.8674046, 0, 0.91111505, 0, -0.8674046, 0, 0.27881876, -16.991676, 0, -66.93898)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 2.9999998, 0)
-
 [node name="tree_apple 2" type="Node3D" parent="Natureza/Árvores" unique_id=1648376609]
 transform = Transform3D(-0.6119623, 0, 0.84036905, 0, 1.0395759, 0, -0.84036905, 0, -0.6119623, -74.356026, -0.34999964, 62.5679)
 script = ExtResource("4_gxwoc")
@@ -3814,13 +4787,6 @@ model = "tree_oak"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
-[node name="tree_pine 266" type="Node3D" parent="Natureza/Árvores" unique_id=629191459]
-transform = Transform3D(-0.2294004, 0, -1.2131402, 0, 1.2346392, 0, 1.2131402, 0, -0.2294004, -11.876694, 0, 69.09085)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
 [node name="tree_oak 21" type="Node3D" parent="Natureza/Árvores" unique_id=1197829842]
 transform = Transform3D(-0.6981252, 0, -0.72491914, 0, 1.0064226, 0, 0.72491914, 0, -0.6981252, -28.47245, 0, 112.57463)
 script = ExtResource("4_gxwoc")
@@ -3828,22 +4794,8 @@ model = "tree_oak"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
-[node name="tree_oak 22" type="Node3D" parent="Natureza/Árvores" unique_id=1731921612]
-transform = Transform3D(-0.829116, 0, 0.120873995, 0, 0.8378806, 0, -0.120873995, 0, -0.829116, -37.168976, 0, 64.7908)
-script = ExtResource("4_gxwoc")
-model = "tree_oak"
-shape = 2
-shape_size = Vector3(0.4, 3, 0)
-
-[node name="tree_pine 267" type="Node3D" parent="Natureza/Árvores" unique_id=1112946812]
-transform = Transform3D(-0.29123765, 0, -0.79153466, 0, 0.8434136, 0, 0.79153466, 0, -0.29123765, 15.887329, 0, 92.14545)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
 [node name="tree_pine 268" type="Node3D" parent="Natureza/Árvores" unique_id=889219474]
-transform = Transform3D(-0.39839223, 0, -0.9368076, 0, 1.0180004, 0, 0.9368076, 0, -0.39839223, -59.071827, 0, -0.8970642)
+transform = Transform3D(-0.398392, 0, -0.936808, 0, 1.018, 0, 0.936808, 0, -0.398392, -57.071827, 0, -4.897064)
 script = ExtResource("4_gxwoc")
 model = "tree_pine"
 shape = 2
@@ -3857,7 +4809,7 @@ shape = 2
 shape_size = Vector3(0.3, 3, 0)
 
 [node name="tree_pear 3" type="Node3D" parent="Natureza/Árvores" unique_id=657299143]
-transform = Transform3D(0.3323306, 0, -1.2124261, 0, 1.2571478, 0, 1.2124261, 0, 0.3323306, -43.05423, 0, 1.0328827)
+transform = Transform3D(0.332331, 0, -1.212426, 0, 1.257148, 0, 1.212426, 0, 0.332331, -41.05423, 0, -2.967117)
 script = ExtResource("4_gxwoc")
 model = "tree_pear"
 shape = 2
@@ -3898,26 +4850,12 @@ model = "tree_oak"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
-[node name="tree_oak 25" type="Node3D" parent="Natureza/Árvores" unique_id=193123912]
-transform = Transform3D(1.1940067, 0, -0.4793398, 0, 1.2866307, 0, 0.4793398, 0, 1.1940067, -28.691193, 0, 56.041122)
-script = ExtResource("4_gxwoc")
-model = "tree_oak"
-shape = 2
-shape_size = Vector3(0.4, 3, 0)
-
 [node name="tree_oak 26" type="Node3D" parent="Natureza/Árvores" unique_id=719007320]
 transform = Transform3D(0.59198695, 0, 0.75645924, 0, 0.96056193, 0, -0.75645924, 0, 0.59198695, -108.703835, 0, 7.9265137)
 script = ExtResource("4_gxwoc")
 model = "tree_oak"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
-
-[node name="tree_pine 270" type="Node3D" parent="Natureza/Árvores" unique_id=1397880465]
-transform = Transform3D(1.2747748, 0, -0.1536766, 0, 1.2840044, 0, 0.1536766, 0, 1.2747748, -39.3331, 0, -43.23709)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
 
 [node name="tree_birch 22" type="Node3D" parent="Natureza/Árvores" unique_id=445074218]
 transform = Transform3D(-1.2414594, 0, -0.29647565, 0, 1.2763696, 0, 0.29647565, 0, -1.2414594, -67.080505, 0, 30.653976)
@@ -3947,13 +4885,6 @@ model = "tree_cherry"
 shape = 2
 shape_size = Vector3(0.38, 3, 0)
 
-[node name="tree_pine 273" type="Node3D" parent="Natureza/Árvores" unique_id=825102062]
-transform = Transform3D(0.07365966, 0, -0.9895527, 0, 0.9922904, 0, 0.9895527, 0, 0.07365966, -38.155678, 0, 57.027588)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 2.9999998, 0)
-
 [node name="tree_maple 6" type="Node3D" parent="Natureza/Árvores" unique_id=1781511204]
 transform = Transform3D(-0.73537844, 0, 0.4298004, 0, 0.8517686, 0, -0.4298004, 0, -0.73537844, -105.5571, -0.34999996, 68.927826)
 script = ExtResource("4_gxwoc")
@@ -3963,20 +4894,6 @@ shape_size = Vector3(0.4, 3.0000002, 0)
 
 [node name="tree_oak 27" type="Node3D" parent="Natureza/Árvores" unique_id=889987882]
 transform = Transform3D(-0.760545, 0, 0.40303302, 0, 0.86073476, 0, -0.40303302, 0, -0.760545, -107.273834, 0, -70.568436)
-script = ExtResource("4_gxwoc")
-model = "tree_oak"
-shape = 2
-shape_size = Vector3(0.4, 3, 0)
-
-[node name="tree_oak 28" type="Node3D" parent="Natureza/Árvores" unique_id=1822348248]
-transform = Transform3D(-0.40714458, 0, 1.1656784, 0, 1.234736, 0, -1.1656784, 0, -0.40714458, -40.30539, 0, -35.965446)
-script = ExtResource("4_gxwoc")
-model = "tree_oak"
-shape = 2
-shape_size = Vector3(0.4, 3, 0)
-
-[node name="tree_oak 29" type="Node3D" parent="Natureza/Árvores" unique_id=1195449138]
-transform = Transform3D(-0.3458628, 0, 1.0104626, 0, 1.0680149, 0, -1.0104626, 0, -0.3458628, 10.023666, 0, 64.71983)
 script = ExtResource("4_gxwoc")
 model = "tree_oak"
 shape = 2
@@ -3995,27 +4912,6 @@ script = ExtResource("4_gxwoc")
 model = "tree_oak"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
-
-[node name="tree_pine 274" type="Node3D" parent="Natureza/Árvores" unique_id=56014974]
-transform = Transform3D(0.55564785, 0, 0.6756276, 0, 0.87476695, 0, -0.6756276, 0, 0.55564785, 12.383331, 0, 66.756805)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3.0000002, 0)
-
-[node name="tree_pine 275" type="Node3D" parent="Natureza/Árvores" unique_id=960490164]
-transform = Transform3D(1.1311878, 0, 0.21861435, 0, 1.1521189, 0, -0.21861435, 0, 1.1311878, -21.263763, 0, 59.203156)
-script = ExtResource("4_gxwoc")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
-[node name="tree_birch 24" type="Node3D" parent="Natureza/Árvores" unique_id=1240785207]
-transform = Transform3D(0.38217795, 0, -1.22464, 0, 1.2828887, 0, 1.22464, 0, 0.38217795, 27.108444, 0, 57.272858)
-script = ExtResource("4_gxwoc")
-model = "tree_birch"
-shape = 2
-shape_size = Vector3(0.25, 3, 0)
 
 [node name="tree_fir 45" type="Node3D" parent="Natureza/Árvores" unique_id=779728429]
 transform = Transform3D(-1.0156176, 0, 0.19972971, 0, 1.0350705, 0, -0.19972971, 0, -1.0156176, -89.63687, -0.3499999, 113.608215)
@@ -4507,12 +5403,6 @@ script = ExtResource("4_gxwoc")
 shape = 2
 shape_size = Vector3(0.65, 0.9, 0)
 
-[node name="rock 3" type="Node3D" parent="Natureza/Pedras" unique_id=1701238500]
-transform = Transform3D(-0.46984202, 0, 0.5430798, 0, 0.71811366, 0, -0.5430798, 0, -0.46984202, 12.143204, 0, 90.02681)
-script = ExtResource("4_gxwoc")
-shape = 2
-shape_size = Vector3(0.65, 0.9, 0)
-
 [node name="rock 4" type="Node3D" parent="Natureza/Pedras" unique_id=1812105228]
 transform = Transform3D(0.99951833, 0, -0.06107379, 0, 1.0013825, 0, 0.06107379, 0, 0.99951833, -116.377594, 0, 113.21301)
 script = ExtResource("4_gxwoc")
@@ -4537,20 +5427,8 @@ script = ExtResource("4_gxwoc")
 shape = 2
 shape_size = Vector3(0.65, 0.9, 0)
 
-[node name="rock 8" type="Node3D" parent="Natureza/Pedras" unique_id=697353812]
-transform = Transform3D(-0.5184462, 0, -0.3860779, 0, 0.6464075, 0, 0.3860779, 0, -0.5184462, -31.388527, 0, 97.95473)
-script = ExtResource("4_gxwoc")
-shape = 2
-shape_size = Vector3(0.65, 0.9, 0)
-
 [node name="rock 9" type="Node3D" parent="Natureza/Pedras" unique_id=20589375]
 transform = Transform3D(-0.060823135, 0, -0.6980872, 0, 0.7007319, 0, 0.6980872, 0, -0.060823135, -62.69417, 0, -39.051888)
-script = ExtResource("4_gxwoc")
-shape = 2
-shape_size = Vector3(0.65, 0.9, 0)
-
-[node name="rock 10" type="Node3D" parent="Natureza/Pedras" unique_id=118873608]
-transform = Transform3D(0.29995728, 0, -1.0389446, 0, 1.0813789, 0, 1.0389446, 0, 0.29995728, 8.78035, 0, 60.20862)
 script = ExtResource("4_gxwoc")
 shape = 2
 shape_size = Vector3(0.65, 0.9, 0)
@@ -4563,12 +5441,6 @@ shape_size = Vector3(0.65, 0.9, 0)
 
 [node name="rock 12" type="Node3D" parent="Natureza/Pedras" unique_id=1447646527]
 transform = Transform3D(1.0550108, 0, -0.100800835, 0, 1.0598154, 0, 0.100800835, 0, 1.0550108, -104.45009, -0.31794477, 70.438324)
-script = ExtResource("4_gxwoc")
-shape = 2
-shape_size = Vector3(0.65, 0.9, 0)
-
-[node name="rock 13" type="Node3D" parent="Natureza/Pedras" unique_id=652952602]
-transform = Transform3D(-0.7290761, 0, -0.9766341, 0, 1.218756, 0, 0.9766341, 0, -0.7290761, 14.745468, 0, 98.6958)
 script = ExtResource("4_gxwoc")
 shape = 2
 shape_size = Vector3(0.65, 0.9, 0)
@@ -4586,7 +5458,7 @@ shape = 2
 shape_size = Vector3(0.65, 0.9, 0)
 
 [node name="rock 16" type="Node3D" parent="Natureza/Pedras" unique_id=2044678891]
-transform = Transform3D(0.30425432, 0, -0.67896324, 0, 0.74401736, 0, 0.67896324, 0, 0.30425432, -10.423859, 0, -52.936844)
+transform = Transform3D(0.304254, 0, -0.678963, 0, 0.744017, 0, 0.678963, 0, 0.304254, -10.423859, 0, -12.936844)
 script = ExtResource("4_gxwoc")
 shape = 2
 shape_size = Vector3(0.65, 0.9, 0)
@@ -4758,7 +5630,7 @@ shape_size = Vector3(0.3, 3, 0)
 [node name="Colisões" type="Node3D" parent="." unique_id=835037431]
 
 [node name="Colisão" type="StaticBody3D" parent="Colisões" unique_id=487177834]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.8, 1.3, 20.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.4, 1.3, 50.4)
 collision_mask = 0
 
 [node name="@CollisionShape3D@6772" type="CollisionShape3D" parent="Colisões/Colisão" unique_id=2135592471]
@@ -4793,18 +5665,18 @@ shape = SubResource("BoxShape3D_vfutg")
 [node name="NPCs e pontos" type="Node3D" parent="Campos" unique_id=181358629]
 
 [node name="tonico" type="Node3D" parent="Campos/NPCs e pontos" unique_id=462098155]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -21, 0, -22)
+transform = Transform3D(-0, 0, 1, 0, 1, 0, -1, 0, -0, -21, 0, 18)
 script = ExtResource("7_iymgv")
 ref = "tonico"
 
 [node name="xmas_gift" type="Node3D" parent="Campos/NPCs e pontos" unique_id=446590889]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22, 0, -31)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22, 0, 9)
 script = ExtResource("7_iymgv")
 kind = "xmas_gift"
 index = 0
 
 [node name="xmas_gift 2" type="Node3D" parent="Campos/NPCs e pontos" unique_id=1971422774]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 0, -48)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 0, -8)
 script = ExtResource("7_iymgv")
 kind = "xmas_gift"
 index = 1
@@ -4812,134 +5684,134 @@ index = 1
 [node name="Objetos" type="Node3D" parent="Campos" unique_id=1200833298]
 
 [node name="fence" type="Node3D" parent="Campos/Objetos" unique_id=493110117]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, -28.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, 11.8)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 2" type="Node3D" parent="Campos/Objetos" unique_id=1537505707]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0, -28.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0, 11.8)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 3" type="Node3D" parent="Campos/Objetos" unique_id=688099772]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, -28.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, 11.8)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 4" type="Node3D" parent="Campos/Objetos" unique_id=1904284346]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0, -28.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0, 11.8)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 5" type="Node3D" parent="Campos/Objetos" unique_id=1978602801]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, -28.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, 11.8)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 6" type="Node3D" parent="Campos/Objetos" unique_id=419429290]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, -30.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 9.8)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 7" type="Node3D" parent="Campos/Objetos" unique_id=728836426]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, -30.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 9.8)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 8" type="Node3D" parent="Campos/Objetos" unique_id=2084242940]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, -30.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 9.8)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 9" type="Node3D" parent="Campos/Objetos" unique_id=996192766]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 0, -30.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 0, 9.8)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 10" type="Node3D" parent="Campos/Objetos" unique_id=830867463]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, -30.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, 9.8)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 11" type="Node3D" parent="Campos/Objetos" unique_id=1993953143]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, -44.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, -4.2)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 12" type="Node3D" parent="Campos/Objetos" unique_id=1886072335]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, -44.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, -4.2)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 13" type="Node3D" parent="Campos/Objetos" unique_id=748706787]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0, -44.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0, -4.2)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 14" type="Node3D" parent="Campos/Objetos" unique_id=1799240444]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, -44.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, -4.2)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 15" type="Node3D" parent="Campos/Objetos" unique_id=1622781996]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0, -44.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0, -4.2)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 16" type="Node3D" parent="Campos/Objetos" unique_id=243702159]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 0, -46.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 0, -6.2)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 17" type="Node3D" parent="Campos/Objetos" unique_id=844470232]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13, 0, -46.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13, 0, -6.2)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 18" type="Node3D" parent="Campos/Objetos" unique_id=320014876]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0, -46.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0, -6.2)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 19" type="Node3D" parent="Campos/Objetos" unique_id=1721182354]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 0, -46.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 0, -6.2)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="fence 20" type="Node3D" parent="Campos/Objetos" unique_id=298283512]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19, 0, -46.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19, 0, -6.2)
 script = ExtResource("4_gxwoc")
 model = "fence"
 no_grass = false
 
 [node name="barrel" type="Node3D" parent="Campos/Objetos" unique_id=1272812524]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, -22)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, 18)
 script = ExtResource("4_gxwoc")
 model = "barrel"
 shape = 2
 shape_size = Vector3(0.38, 1, 0)
 
 [node name="crate" type="Node3D" parent="Campos/Objetos" unique_id=1784505981]
-transform = Transform3D(0.8253356, 0, 0.5646425, 0, 1, 0, -0.5646425, 0, 0.8253356, 8, 0, -21)
+transform = Transform3D(0.825336, 0, 0.564643, 0, 1, 0, -0.564643, 0, 0.825336, 8, 0, 19)
 script = ExtResource("4_gxwoc")
 model = "crate"
 shape = 1
@@ -4948,35 +5820,35 @@ shape_size = Vector3(0.8, 0.8, 0.8)
 [node name="Árvores" type="Node3D" parent="Campos" unique_id=1379712627]
 
 [node name="tree_oak" type="Node3D" parent="Campos/Árvores" unique_id=1270297912]
-transform = Transform3D(-0.26180783, 0, -1.1992705, 0, 1.227515, 0, 1.1992705, 0, -0.26180783, -23.148338, 0, -41.614235)
+transform = Transform3D(-0.261808, 0, -1.19927, 0, 1.227515, 0, 1.19927, 0, -0.261808, -23.148338, 0, -1.614235)
 script = ExtResource("4_gxwoc")
 model = "tree_oak"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_birch" type="Node3D" parent="Campos/Árvores" unique_id=1803572634]
-transform = Transform3D(-1.0951501, 0, 0.660309, 0, 1.2788126, 0, -0.660309, 0, -1.0951501, -15.983742, 0, -50.229126)
+transform = Transform3D(-1.09515, 0, 0.660309, 0, 1.278813, 0, -0.660309, 0, -1.09515, -15.983742, 0, -10.229126)
 script = ExtResource("4_gxwoc")
 model = "tree_birch"
 shape = 2
 shape_size = Vector3(0.25, 3, 0)
 
 [node name="tree_oak 2" type="Node3D" parent="Campos/Árvores" unique_id=834104715]
-transform = Transform3D(0.6079335, 0, 0.73638874, 0, 0.9549092, 0, -0.73638874, 0, 0.6079335, -20.021782, 0, -50.499687)
+transform = Transform3D(0.607934, 0, 0.736389, 0, 0.954909, 0, -0.736389, 0, 0.607934, -20.021782, 0, -10.499687)
 script = ExtResource("4_gxwoc")
 model = "tree_oak"
 shape = 2
 shape_size = Vector3(0.4, 2.9999998, 0)
 
 [node name="tree_oak 3" type="Node3D" parent="Campos/Árvores" unique_id=1484390140]
-transform = Transform3D(1.1295623, 0, -0.24892764, 0, 1.1566658, 0, 0.24892764, 0, 1.1295623, 7.4315033, 0, -33.931427)
+transform = Transform3D(1.129562, 0, -0.248928, 0, 1.156666, 0, 0.248928, 0, 1.129562, 7.431503, 0, 6.068573)
 script = ExtResource("4_gxwoc")
 model = "tree_oak"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_birch 2" type="Node3D" parent="Campos/Árvores" unique_id=678397100]
-transform = Transform3D(-0.7487496, 0, -0.867337, 0, 1.1458182, 0, 0.867337, 0, -0.7487496, 21.343903, 0, -51.337746)
+transform = Transform3D(-0.74875, 0, -0.867337, 0, 1.145818, 0, 0.867337, 0, -0.74875, 21.343903, 0, -11.337746)
 script = ExtResource("4_gxwoc")
 model = "tree_birch"
 shape = 2
@@ -4985,12 +5857,12 @@ shape_size = Vector3(0.25, 3, 0)
 [node name="Enfeites" type="Node3D" parent="Campos" unique_id=939445502]
 
 [node name="Carroça" type="Node3D" parent="Campos/Enfeites" unique_id=1657765842]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.7, 0, -18.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.7, 0, 21.5)
 script = ExtResource("6_l6sia")
 kind = "wagon"
 
 [node name="Plantação" type="Node3D" parent="Campos/Enfeites" unique_id=75617747]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, -24)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, 16)
 script = ExtResource("6_l6sia")
 kind = "crops"
 params = {
@@ -5000,7 +5872,7 @@ params = {
 }
 
 [node name="Plantação 2" type="Node3D" parent="Campos/Enfeites" unique_id=1769247924]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, -26)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 14)
 script = ExtResource("6_l6sia")
 kind = "crops"
 params = {
@@ -5010,7 +5882,7 @@ params = {
 }
 
 [node name="Plantação 3" type="Node3D" parent="Campos/Enfeites" unique_id=1821633428]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0, -40)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0, 0)
 script = ExtResource("6_l6sia")
 kind = "crops"
 params = {
@@ -5020,7 +5892,7 @@ params = {
 }
 
 [node name="Plantação 4" type="Node3D" parent="Campos/Enfeites" unique_id=538700085]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0, -42)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0, -2)
 script = ExtResource("6_l6sia")
 kind = "crops"
 params = {
@@ -5472,6 +6344,7 @@ node_id = 9
 [node name="Horta" type="Node3D" parent="." unique_id=1712583524]
 
 [node name="Objetos" type="Node3D" parent="Horta" unique_id=2121970175]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, 0)
 
 [node name="fence" type="Node3D" parent="Horta/Objetos" unique_id=1027427396]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, 40.5)
@@ -5700,6 +6573,7 @@ shape = 2
 shape_size = Vector3(0.38, 1, 0)
 
 [node name="NPCs e pontos" type="Node3D" parent="Horta" unique_id=148984780]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, 0)
 
 [node name="farm_plot" type="Node3D" parent="Horta/NPCs e pontos" unique_id=285879761]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.2, 0, 29.7)
@@ -5779,6 +6653,7 @@ script = ExtResource("7_iymgv")
 kind = "kitchen"
 
 [node name="Árvores" type="Node3D" parent="Horta" unique_id=518647513]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, 0)
 
 [node name="tree_oak" type="Node3D" parent="Horta/Árvores" unique_id=154754551]
 transform = Transform3D(0.7663774, 0, 0.7890917, 0, 1.1, 0, -0.7890917, 0, 0.7663774, -8.2, 0, 38)
@@ -5788,6 +6663,7 @@ shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="Enfeites" type="Node3D" parent="Horta" unique_id=1986658451]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, 0)
 
 [node name="Espantalho" type="Node3D" parent="Horta/Enfeites" unique_id=384501293]
 transform = Transform3D(0.87758255, 0, 0.47942555, 0, 1, 0, -0.47942555, 0, 0.87758255, -7.6, 0, 34.2)
@@ -5866,61 +6742,61 @@ shape_size = Vector3(0.6, 0.8, 0)
 [node name="Monstros" type="Node3D" parent="." unique_id=348328739]
 
 [node name="slime (Campos)" type="Node3D" parent="Monstros" unique_id=2004284801]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0, -34)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0, 6)
 script = ExtResource("9_5rons")
 level = 1
 level_max = 4
 
 [node name="slime (Campos) 2" type="Node3D" parent="Monstros" unique_id=1195179296]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, -35)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 5)
 script = ExtResource("9_5rons")
 level = 1
 level_max = 4
 
 [node name="slime (Campos) 3" type="Node3D" parent="Monstros" unique_id=1038340065]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, -42)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, -2)
 script = ExtResource("9_5rons")
 level = 1
 level_max = 4
 
 [node name="slime (Campos) 4" type="Node3D" parent="Monstros" unique_id=171637040]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -45)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -5)
 script = ExtResource("9_5rons")
 level = 1
 level_max = 4
 
 [node name="slime (Campos) 5" type="Node3D" parent="Monstros" unique_id=1474069136]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, -52)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, -12)
 script = ExtResource("9_5rons")
 level = 1
 level_max = 4
 
 [node name="slime (Natureza)" type="Node3D" parent="Monstros" unique_id=794621675]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, -54)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, -14)
 script = ExtResource("9_5rons")
 level = 1
 level_max = 4
 
 [node name="slime (Natureza) 2" type="Node3D" parent="Monstros" unique_id=1165345260]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 0, -46)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 0, -6)
 script = ExtResource("9_5rons")
 level = 1
 level_max = 4
 
 [node name="slime (Natureza) 3" type="Node3D" parent="Monstros" unique_id=1254457502]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, -50)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, -10)
 script = ExtResource("9_5rons")
 level = 1
 level_max = 4
 
 [node name="slime (Campos) 6" type="Node3D" parent="Monstros" unique_id=930946090]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, -34)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, 6)
 script = ExtResource("9_5rons")
 level = 1
 level_max = 4
 
 [node name="slime (Campos) 7" type="Node3D" parent="Monstros" unique_id=1525559933]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, -36)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, 4)
 script = ExtResource("9_5rons")
 level = 1
 level_max = 4
@@ -5974,7 +6850,7 @@ level = 5
 level_max = 8
 
 [node name="goblin (Forte dos Brutos)" type="Node3D" parent="Monstros" unique_id=1353049841]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 99)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -21, 0, -55)
 script = ExtResource("9_5rons")
 kind = "goblin"
 respawn = 90.0
@@ -5982,7 +6858,7 @@ level = 5
 level_max = 8
 
 [node name="goblin (Forte dos Brutos) 2" type="Node3D" parent="Monstros" unique_id=1194242818]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 0, 99)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -35, 0, -55)
 script = ExtResource("9_5rons")
 kind = "goblin"
 respawn = 90.0
@@ -6022,7 +6898,7 @@ level = 8
 level_max = 11
 
 [node name="goblin_bruto (Forte dos Brutos)" type="Node3D" parent="Monstros" unique_id=842521108]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, 91)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -20, 0, -47)
 script = ExtResource("9_5rons")
 kind = "goblin_bruto"
 respawn = 150.0
@@ -6030,7 +6906,7 @@ level = 8
 level_max = 11
 
 [node name="goblin_bruto (Forte dos Brutos) 2" type="Node3D" parent="Monstros" unique_id=250953076]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 91)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -36, 0, -47)
 script = ExtResource("9_5rons")
 kind = "goblin_bruto"
 respawn = 150.0
@@ -6038,7 +6914,7 @@ level = 8
 level_max = 11
 
 [node name="goblin_dourado (Forte dos Brutos)" type="Node3D" parent="Monstros" unique_id=1371452649]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 104)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -28, 0, -60)
 script = ExtResource("9_5rons")
 kind = "goblin_dourado"
 respawn = 120.0
@@ -6126,7 +7002,7 @@ level = 5
 level_max = 8
 
 [node name="slime_gelo (Campos)" type="Node3D" parent="Monstros" unique_id=1752604012]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, -44)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, -4)
 script = ExtResource("9_5rons")
 kind = "slime_gelo"
 respawn = 60.0
@@ -6134,7 +7010,7 @@ level = 6
 level_max = 9
 
 [node name="slime_gelo (Natureza)" type="Node3D" parent="Monstros" unique_id=717323818]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, -54)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, -14)
 script = ExtResource("9_5rons")
 kind = "slime_gelo"
 respawn = 60.0
@@ -6166,7 +7042,7 @@ level = 4
 level_max = 9
 
 [node name="flor_faminta (Natureza) 2" type="Node3D" parent="Monstros" unique_id=462298500]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 0, 60)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 44, 0, -36)
 script = ExtResource("9_5rons")
 kind = "flor_faminta"
 respawn = 70.0
@@ -6182,7 +7058,7 @@ level = 4
 level_max = 9
 
 [node name="flor_faminta (Natureza)" type="Node3D" parent="Monstros" unique_id=1235151438]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28, 0, 66)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -76, 0, -16)
 script = ExtResource("9_5rons")
 kind = "flor_faminta"
 respawn = 70.0
@@ -6313,7 +7189,7 @@ level = 1
 level_max = 4
 
 [node name="slime_veloz (Ninho de Slimes)" type="Node3D" parent="Monstros" unique_id=1544222870]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -51.5, 0, 46)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -54.5, 0, 46)
 script = ExtResource("9_5rons")
 kind = "slime_veloz"
 respawn = 45.0
@@ -6347,13 +7223,13 @@ level_max = 4
 [node name="Lugares" type="Node3D" parent="." unique_id=1481008198]
 
 [node name="coach" type="Node3D" parent="Lugares" unique_id=1478111445]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0, -18)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.6, 0, 42)
 script = ExtResource("10_jeidb")
 id = "coach"
 follow_ground = false
 
 [node name="arrive" type="Node3D" parent="Lugares" unique_id=1410795599]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.3, -16)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.6, 0.3, 42.6)
 script = ExtResource("10_jeidb")
 id = "arrive"
 follow_ground = false
@@ -6371,7 +7247,7 @@ id = "ruins"
 follow_ground = false
 
 [node name="farm" type="Node3D" parent="Lugares" unique_id=1040929883]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 33)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, 33)
 script = ExtResource("10_jeidb")
 id = "farm"
 follow_ground = false
@@ -6389,19 +7265,19 @@ id = "orchard"
 follow_ground = false
 
 [node name="village_spawn" type="Node3D" parent="Lugares" unique_id=1236082999]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 6)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.3, 116)
 script = ExtResource("10_jeidb")
 id = "village_spawn"
 follow_ground = false
 
 [node name="portal" type="Node3D" parent="Lugares" unique_id=2121084470]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, -9.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28, 0, 54)
 script = ExtResource("10_jeidb")
 id = "portal"
 follow_ground = false
 
 [node name="horde_return" type="Node3D" parent="Lugares" unique_id=2124778222]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0.5, -6.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28, 0.5, 57.5)
 script = ExtResource("10_jeidb")
 id = "horde_return"
 follow_ground = false
@@ -6414,724 +7290,33 @@ follow_ground = false
 
 [node name="Capim" type="Node3D" parent="." unique_id=858721890]
 
-[node name="Sem capim" type="Node3D" parent="Capim" unique_id=622677456]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.8, 0, -10.3)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 2" type="Node3D" parent="Capim" unique_id=1722610827]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.2, 0, 3.6)
-script = ExtResource("11_hmt17")
-radius = 1.0
-
-[node name="Sem capim 3" type="Node3D" parent="Capim" unique_id=1070605785]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.4, 0, -3.6)
-script = ExtResource("11_hmt17")
-radius = 1.0
-
-[node name="Sem capim 4" type="Node3D" parent="Capim" unique_id=1677347563]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.5, 0, -3.6)
-script = ExtResource("11_hmt17")
-radius = 0.8
-
-[node name="Sem capim 5" type="Node3D" parent="Capim" unique_id=921493924]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.8, 0, 20.5)
-script = ExtResource("11_hmt17")
-radius = 0.5
-
-[node name="Sem capim 6" type="Node3D" parent="Capim" unique_id=1611536575]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.7, 0, -18.5)
-script = ExtResource("11_hmt17")
-radius = 2.2
-
-[node name="Sem capim 7" type="Node3D" parent="Capim" unique_id=1895346822]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 0, 11.6)
-script = ExtResource("11_hmt17")
-radius = 2.5
-
-[node name="Sem capim 8" type="Node3D" parent="Capim" unique_id=1485495087]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17.4, 0, 6.4)
-script = ExtResource("11_hmt17")
-radius = 2.5
-
-[node name="Sem capim 9" type="Node3D" parent="Capim" unique_id=619181605]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.7, 0, -11.9)
-script = ExtResource("11_hmt17")
-radius = 1.8
-
 [node name="Sem capim 10" type="Node3D" parent="Capim" unique_id=783128099]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -80, 0, 15)
 script = ExtResource("11_hmt17")
 radius = 9.0
 
-[node name="Sem capim 11" type="Node3D" parent="Capim" unique_id=697486640]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -35, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 12" type="Node3D" parent="Capim" unique_id=903300383]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -32.64516, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 13" type="Node3D" parent="Capim" unique_id=681447461]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30.290323, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 14" type="Node3D" parent="Capim" unique_id=173684494]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -27.935484, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 15" type="Node3D" parent="Capim" unique_id=1789108100]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25.580645, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 16" type="Node3D" parent="Capim" unique_id=1508133613]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -23.225807, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 17" type="Node3D" parent="Capim" unique_id=1460240079]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20.870968, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 18" type="Node3D" parent="Capim" unique_id=1842254696]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18.516129, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 19" type="Node3D" parent="Capim" unique_id=264594613]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16.161291, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 20" type="Node3D" parent="Capim" unique_id=1497565452]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13.806452, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 21" type="Node3D" parent="Capim" unique_id=193942495]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.451612, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 22" type="Node3D" parent="Capim" unique_id=1299936184]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.096774, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 23" type="Node3D" parent="Capim" unique_id=298620075]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.7419353, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 24" type="Node3D" parent="Capim" unique_id=1653122709]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.387097, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 25" type="Node3D" parent="Capim" unique_id=2053540373]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.032258, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 26" type="Node3D" parent="Capim" unique_id=1172269909]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.32258064, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 27" type="Node3D" parent="Capim" unique_id=426479581]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.6774194, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 28" type="Node3D" parent="Capim" unique_id=739402082]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.032258, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 29" type="Node3D" parent="Capim" unique_id=992464220]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.387097, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 30" type="Node3D" parent="Capim" unique_id=1142090732]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.741936, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 31" type="Node3D" parent="Capim" unique_id=844386945]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.096774, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 32" type="Node3D" parent="Capim" unique_id=922017336]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14.451612, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 33" type="Node3D" parent="Capim" unique_id=997263139]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.806452, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 34" type="Node3D" parent="Capim" unique_id=694888948]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19.161291, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 35" type="Node3D" parent="Capim" unique_id=2018495413]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21.516129, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 36" type="Node3D" parent="Capim" unique_id=533259023]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 23.870968, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 37" type="Node3D" parent="Capim" unique_id=607088605]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26.225807, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 38" type="Node3D" parent="Capim" unique_id=220776009]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28.580645, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 39" type="Node3D" parent="Capim" unique_id=1843095526]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30.935484, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 40" type="Node3D" parent="Capim" unique_id=1573834312]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33.29032, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 41" type="Node3D" parent="Capim" unique_id=1998780417]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35.64516, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 42" type="Node3D" parent="Capim" unique_id=2067525850]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 38, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 43" type="Node3D" parent="Capim" unique_id=1761790900]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -36, 0, 2.5)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 44" type="Node3D" parent="Capim" unique_id=207763368]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.8, 0, 2.5)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 45" type="Node3D" parent="Capim" unique_id=35757402]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -31.6, 0, 2.5)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 46" type="Node3D" parent="Capim" unique_id=7046070]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -29.4, 0, 2.5)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 47" type="Node3D" parent="Capim" unique_id=431087341]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -27.2, 0, 2.5)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 48" type="Node3D" parent="Capim" unique_id=1533496872]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, 2.5)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 49" type="Node3D" parent="Capim" unique_id=2110502367]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22.8, 0, 2.5)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 50" type="Node3D" parent="Capim" unique_id=357313316]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20.6, 0, 2.5)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 51" type="Node3D" parent="Capim" unique_id=2018821618]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18.4, 0, 2.5)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 52" type="Node3D" parent="Capim" unique_id=874473649]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16.2, 0, 2.5)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 53" type="Node3D" parent="Capim" unique_id=1681935510]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, 2.5)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 54" type="Node3D" parent="Capim" unique_id=1369351463]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 0, 0)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 55" type="Node3D" parent="Capim" unique_id=1851713447]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19.2, 0, 0)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 56" type="Node3D" parent="Capim" unique_id=1347289920]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21.4, 0, 0)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 57" type="Node3D" parent="Capim" unique_id=720836702]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 23.6, 0, 0)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 58" type="Node3D" parent="Capim" unique_id=1488916439]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25.8, 0, 0)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 59" type="Node3D" parent="Capim" unique_id=1986801167]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0, 0)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 60" type="Node3D" parent="Capim" unique_id=1644092640]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30.2, 0, 0)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 61" type="Node3D" parent="Capim" unique_id=1882788100]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32.4, 0, 0)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 62" type="Node3D" parent="Capim" unique_id=1425249432]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 34.6, 0, 0)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 63" type="Node3D" parent="Capim" unique_id=1282362011]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 36.8, 0, 0)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 64" type="Node3D" parent="Capim" unique_id=1698012866]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 39, 0, 0)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 65" type="Node3D" parent="Capim" unique_id=196495398]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -35, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 66" type="Node3D" parent="Capim" unique_id=356214326]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -32.85294, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 67" type="Node3D" parent="Capim" unique_id=1011812014]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30.705883, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 68" type="Node3D" parent="Capim" unique_id=1182282335]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28.558823, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 69" type="Node3D" parent="Capim" unique_id=1773848345]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26.411764, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 70" type="Node3D" parent="Capim" unique_id=888685835]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.264706, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 71" type="Node3D" parent="Capim" unique_id=742896274]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22.117647, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 72" type="Node3D" parent="Capim" unique_id=299682581]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -19.970589, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 73" type="Node3D" parent="Capim" unique_id=320075397]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17.82353, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 74" type="Node3D" parent="Capim" unique_id=1216287230]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15.676471, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 75" type="Node3D" parent="Capim" unique_id=673769180]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13.529411, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 76" type="Node3D" parent="Capim" unique_id=1070510000]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.382353, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 77" type="Node3D" parent="Capim" unique_id=351932888]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.235294, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 78" type="Node3D" parent="Capim" unique_id=1376255956]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.0882354, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 79" type="Node3D" parent="Capim" unique_id=444614253]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.9411764, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 80" type="Node3D" parent="Capim" unique_id=154462075]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.7941177, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 81" type="Node3D" parent="Capim" unique_id=423048377]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.64705884, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 82" type="Node3D" parent="Capim" unique_id=2038751898]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 83" type="Node3D" parent="Capim" unique_id=1095641453]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.6470587, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 84" type="Node3D" parent="Capim" unique_id=1386112783]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.7941175, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 85" type="Node3D" parent="Capim" unique_id=531519969]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.9411764, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 86" type="Node3D" parent="Capim" unique_id=1626156275]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.088235, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 87" type="Node3D" parent="Capim" unique_id=1078094866]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.235294, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 88" type="Node3D" parent="Capim" unique_id=1452390492]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14.382353, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 89" type="Node3D" parent="Capim" unique_id=1243699144]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.529411, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 90" type="Node3D" parent="Capim" unique_id=601014514]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18.67647, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 91" type="Node3D" parent="Capim" unique_id=2063470130]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20.82353, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 92" type="Node3D" parent="Capim" unique_id=1669958679]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22.970589, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 93" type="Node3D" parent="Capim" unique_id=295853919]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25.117647, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 94" type="Node3D" parent="Capim" unique_id=112526835]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27.264706, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 95" type="Node3D" parent="Capim" unique_id=543990185]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29.411764, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 96" type="Node3D" parent="Capim" unique_id=2083181253]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 31.558823, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 97" type="Node3D" parent="Capim" unique_id=743498209]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33.705883, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 98" type="Node3D" parent="Capim" unique_id=976282074]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35.85294, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 99" type="Node3D" parent="Capim" unique_id=2010686329]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 38, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.199999952316284
-
-[node name="Sem capim 100" type="Node3D" parent="Capim" unique_id=607989392]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 101" type="Node3D" parent="Capim" unique_id=123680524]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, -12.666667)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 102" type="Node3D" parent="Capim" unique_id=1868680618]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, -10.333333)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 103" type="Node3D" parent="Capim" unique_id=1139832269]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, -8)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 104" type="Node3D" parent="Capim" unique_id=1318738919]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, -5.6666665)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 105" type="Node3D" parent="Capim" unique_id=1697537053]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, -3.3333333)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 106" type="Node3D" parent="Capim" unique_id=1399792737]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, -1)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 107" type="Node3D" parent="Capim" unique_id=1839603628]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, 1.3333334)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 108" type="Node3D" parent="Capim" unique_id=1847596800]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, 3.6666667)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 109" type="Node3D" parent="Capim" unique_id=1443422041]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, 6)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 110" type="Node3D" parent="Capim" unique_id=92351152]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, 8.333333)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 111" type="Node3D" parent="Capim" unique_id=850280540]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, 10.666667)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 112" type="Node3D" parent="Capim" unique_id=914114039]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, 13)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 113" type="Node3D" parent="Capim" unique_id=2019580922]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, 15.333333)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 114" type="Node3D" parent="Capim" unique_id=1230640953]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, 17.666666)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 115" type="Node3D" parent="Capim" unique_id=1921951210]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 116" type="Node3D" parent="Capim" unique_id=1455897452]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 117" type="Node3D" parent="Capim" unique_id=1770907140]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, -12.666667)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 118" type="Node3D" parent="Capim" unique_id=832715451]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, -10.333333)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 119" type="Node3D" parent="Capim" unique_id=1682972912]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, -8)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 120" type="Node3D" parent="Capim" unique_id=741601782]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, -5.6666665)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 121" type="Node3D" parent="Capim" unique_id=244120293]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, -3.3333333)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 122" type="Node3D" parent="Capim" unique_id=987132117]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, -1)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 123" type="Node3D" parent="Capim" unique_id=327170366]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, 1.3333334)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 124" type="Node3D" parent="Capim" unique_id=96846416]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, 3.6666667)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 125" type="Node3D" parent="Capim" unique_id=182229550]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, 6)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 126" type="Node3D" parent="Capim" unique_id=963281818]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, 8.333333)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 127" type="Node3D" parent="Capim" unique_id=2119808601]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, 10.666667)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 128" type="Node3D" parent="Capim" unique_id=1544457210]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, 13)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 129" type="Node3D" parent="Capim" unique_id=1505120753]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, 15.333333)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 130" type="Node3D" parent="Capim" unique_id=1327151033]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, 17.666666)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 131" type="Node3D" parent="Capim" unique_id=379180835]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, 20)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 132" type="Node3D" parent="Capim" unique_id=115681697]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -15)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 133" type="Node3D" parent="Capim" unique_id=1914922432]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -13)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 134" type="Node3D" parent="Capim" unique_id=206075559]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -11)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 135" type="Node3D" parent="Capim" unique_id=1322341316]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -9)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 136" type="Node3D" parent="Capim" unique_id=1564504885]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -7)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 137" type="Node3D" parent="Capim" unique_id=39181351]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -5)
-script = ExtResource("11_hmt17")
-radius = 2.4
-
-[node name="Sem capim 138" type="Node3D" parent="Capim" unique_id=1311799573]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 0, 7.6)
-script = ExtResource("11_hmt17")
-radius = 4.8
-
-[node name="Capim ralo" type="Node3D" parent="Capim" unique_id=1647647254]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 4)
-script = ExtResource("11_hmt17")
-sparse = true
-radius = 22.0
-
 [node name="Capim ralo 2" type="Node3D" parent="Capim" unique_id=798939445]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 33)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, 33)
 script = ExtResource("11_hmt17")
 sparse = true
 radius = 12.0
 
-[node name="Capim ralo 3" type="Node3D" parent="Capim" unique_id=654794407]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24, 0, 4)
+[node name="Capim ralo da vila" type="Node3D" parent="Capim"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 74)
 script = ExtResource("11_hmt17")
 sparse = true
-radius = 15.0
+radius = 30.0
 
-[node name="Capim ralo 4" type="Node3D" parent="Capim" unique_id=1887952764]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, 4)
+[node name="Capim ralo da estrada" type="Node3D" parent="Capim"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 108)
 script = ExtResource("11_hmt17")
 sparse = true
-radius = 15.0
+radius = 9.0
 
 [node name="Regiões" type="Node3D" parent="."]
 
 [node name="campos_norte" type="Node3D" parent="Regiões"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -46)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6)
 script = ExtResource("90_regiao")
 region_id = "campos_norte"
 size = Vector2(64, 28)
@@ -7172,14 +7357,14 @@ shape = 1
 radius = 16.0
 
 [node name="capinzal_raptores 3" type="Node3D" parent="Regiões"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 50, 0, 78)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 56, 0, 26)
 script = ExtResource("90_regiao")
 region_id = "capinzal_raptores"
 shape = 1
 radius = 16.0
 
 [node name="capinzal_raptores 4" type="Node3D" parent="Regiões"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -50, 0, 80)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -50, 0, -10)
 script = ExtResource("90_regiao")
 region_id = "capinzal_raptores"
 shape = 1
@@ -7210,7 +7395,7 @@ region_id = "ruinas_valdoria"
 size = Vector2(70, 36)
 
 [node name="bando slime 1" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28, 0, -40)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28, 0, 0)
 script = ExtResource("9_5rons")
 kind = "slime"
 count = 4
@@ -7218,7 +7403,7 @@ radius = 5.0
 respawn = 25.0
 
 [node name="bando slime 2" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0, -56)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0, -16)
 script = ExtResource("9_5rons")
 kind = "slime"
 count = 4
@@ -7226,7 +7411,7 @@ radius = 5.0
 respawn = 25.0
 
 [node name="bando slime 3" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, -54)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, -14)
 script = ExtResource("9_5rons")
 kind = "slime"
 count = 4
@@ -7290,7 +7475,7 @@ radius = 4.0
 respawn = 25.0
 
 [node name="bando raptor_capim 3" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 50, 0, 78)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 56, 0, 26)
 script = ExtResource("9_5rons")
 kind = "raptor_capim"
 count = 4
@@ -7298,7 +7483,7 @@ radius = 5.0
 respawn = 25.0
 
 [node name="bando raptor_capim 4" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -50, 0, 80)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -50, 0, -10)
 script = ExtResource("9_5rons")
 kind = "raptor_capim"
 count = 4
@@ -7346,7 +7531,7 @@ radius = 4.0
 respawn = 25.0
 
 [node name="bando bruto (Forte dos Brutos)" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 95)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -28, 0, -51)
 script = ExtResource("9_5rons")
 kind = "goblin_bruto"
 respawn = 25.0
@@ -7363,7 +7548,7 @@ ref = "copper"
 node_id = 20
 
 [node name="copper 2" type="Node3D" parent="Coleta"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 34, 0, -26)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 34, 0, 14)
 script = ExtResource("7_iymgv")
 kind = "resource_node"
 ref = "copper"
@@ -7454,10 +7639,72 @@ ref = "pine"
 node_id = 33
 
 [node name="Bancada de Couraria" type="Node3D" parent="Vila/NPCs e pontos"]
-transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 29, 0, 2)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 9.05, 0, 54.5)
 script = ExtResource("7_iymgv")
 kind = "station"
 ref = "leather"
+
+[node name="tereza" type="Node3D" parent="Vila/NPCs e pontos"]
+transform = Transform3D(0.76652, 0, 0.64222, 0, 1, 0, -0.64222, 0, 0.76652, -6.360555, 0, 64.40837)
+script = ExtResource("7_iymgv")
+ref = "tereza"
+
+[node name="bento" type="Node3D" parent="Vila/NPCs e pontos"]
+transform = Transform3D(0.76652, 0, -0.64222, 0, 1, 0, 0.64222, 0, 0.76652, 6.360555, 0, 64.40837)
+script = ExtResource("7_iymgv")
+ref = "bento"
+
+[node name="cida" type="Node3D" parent="Vila/NPCs e pontos"]
+transform = Transform3D(-0.788316, 0, 0.615271, 0, 1, 0, -0.615271, 0, -0.788316, -6.553818, 0, 80.397079)
+script = ExtResource("7_iymgv")
+ref = "cida"
+
+[node name="aurelio" type="Node3D" parent="Vila/NPCs e pontos"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 10.25, 0, 54.5)
+script = ExtResource("7_iymgv")
+ref = "aurelio"
+
+[node name="Bancada da Pip" type="Node3D" parent="Vila/NPCs e pontos"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -14.5, 0, 75.6)
+script = ExtResource("7_iymgv")
+kind = "station"
+ref = "alchemy"
+
+[node name="marta" type="Node3D" parent="Vila/NPCs e pontos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22, 0, 73.6)
+script = ExtResource("7_iymgv")
+kind = "walker"
+ref = "marta"
+params = {
+"path": [[-22, 73.6, 3], [-15.6, 73.4], [-9.6, 74.2], [-5.4, 78.4, 5]]
+}
+
+[node name="joca" type="Node3D" parent="Vila/NPCs e pontos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.6, 0, 69.4)
+script = ExtResource("7_iymgv")
+kind = "walker"
+ref = "joca"
+params = {
+"path": [[-4.6, 69.4, 1.5], [-2.2, 67.2], [2.2, 67.2], [4.6, 69.4, 2]]
+}
+
+[node name="lauro" type="Node3D" parent="Vila/NPCs e pontos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0, 99)
+script = ExtResource("7_iymgv")
+kind = "walker"
+ref = "lauro"
+params = {
+"path": [[1.2, 99, 4], [1.2, 86.5], [3.2, 80.4], [11, 77.2, 3], [17.4, 76.4], [19, 73], [31, 73, 6]]
+}
+
+[node name="bia" type="Node3D" parent="Vila/NPCs e pontos"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.6, 0, 57.6)
+script = ExtResource("7_iymgv")
+kind = "walker"
+ref = "bia"
+params = {
+"path": [[6.6, 57.6, 4], [2.4, 60.6], [-2.6, 60.8], [-10.6, 62.4], [-11.2, 64.6, 4]]
+}
 
 [node name="bando esqueleto (Ruínas)" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, -118)
@@ -7468,7 +7715,7 @@ radius = 4.0
 respawn = 90.0
 
 [node name="forte_brutos" type="Node3D" parent="Regiões"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 96)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -28, 0, -52)
 script = ExtResource("90_regiao")
 region_id = "forte_brutos"
 shape = 1
@@ -7477,57 +7724,57 @@ radius = 16.0
 [node name="Guarda" type="Node3D" parent="."]
 
 [node name="guarda" type="Node3D" parent="Guarda"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -3.5, 0, -16.3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.8, 0, 102.4)
 script = ExtResource("7_iymgv")
 kind = "guard"
 
 [node name="guarda 2" type="Node3D" parent="Guarda"]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 37.3, 0, -3.2)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 4.6, 0, 45)
 script = ExtResource("7_iymgv")
 kind = "guard"
 
 [node name="guarda 3" type="Node3D" parent="Guarda"]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 37.3, 0, 3.2)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 41.2, 0, 68.6)
 script = ExtResource("7_iymgv")
 kind = "guard"
 
 [node name="guarda 4" type="Node3D" parent="Guarda"]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -34.2, 0, 0.3)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 41.2, 0, 75.4)
 script = ExtResource("7_iymgv")
 kind = "guard"
 
 [node name="guarda 5" type="Node3D" parent="Guarda"]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -34.2, 0, 5.7)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -41.2, 0, 68.6)
 script = ExtResource("7_iymgv")
 kind = "guard"
 
 [node name="guarda 6" type="Node3D" parent="Guarda"]
-transform = Transform3D(-0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, -0.707107, -34.3, 0, -16.3)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -41.2, 0, 75.4)
 script = ExtResource("7_iymgv")
 kind = "guard"
 
 [node name="guarda 7" type="Node3D" parent="Guarda"]
-transform = Transform3D(-0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, -0.707107, 37.3, 0, -16.3)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -38.6, 0, 47.6)
 script = ExtResource("7_iymgv")
 kind = "guard"
 
 [node name="guarda 8" type="Node3D" parent="Guarda"]
-transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, -34.3, 0, 25.3)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 38.6, 0, 47.6)
 script = ExtResource("7_iymgv")
 kind = "guard"
 
 [node name="guarda 9" type="Node3D" parent="Guarda"]
-transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 37.3, 0, 25.3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -38.6, 0, 99.4)
 script = ExtResource("7_iymgv")
 kind = "guard"
 
 [node name="guarda 10" type="Node3D" parent="Guarda"]
-transform = Transform3D(0.707107, 0, 0.707107, 0, 1, 0, -0.707107, 0, 0.707107, -13, 0, 41.5)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -29.6, 0, 23.6)
 script = ExtResource("7_iymgv")
 kind = "guard"
 
 [node name="guarda 11" type="Node3D" parent="Guarda"]
-transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, 31.5, 0, 41.5)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 29.6, 0, 23.6)
 script = ExtResource("7_iymgv")
 kind = "guard"
 
@@ -7999,266 +8246,266 @@ shape_size = Vector3(2.8, 4, 2.8)
 [node name="Objetos" type="Node3D" parent="Forte dos Brutos"]
 
 [node name="palisade" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -11, 0, 83)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13, 0, -39)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 2" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -9, 0, 83)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0, -39)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 3" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -7, 0, 83)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17, 0, -39)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 4" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -5, 0, 83)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -19, 0, -39)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 5" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -3, 0, 83)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -21, 0, -39)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 6" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 11, 0, 83)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -35, 0, -39)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 7" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 13, 0, 83)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -37, 0, -39)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 8" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 15, 0, 83)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -39, 0, -39)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 9" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 17, 0, 83)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -41, 0, -39)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 10" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 19, 0, 83)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -43, 0, -39)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 11" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -12.3, 0, 85)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -11.7, 0, -41)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 12" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 20.3, 0, 85)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -44.3, 0, -41)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 13" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -12.3, 0, 87)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -11.7, 0, -43)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 14" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 20.3, 0, 87)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -44.3, 0, -43)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 15" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -12.3, 0, 89)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -11.7, 0, -45)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 16" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 20.3, 0, 89)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -44.3, 0, -45)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 17" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -12.3, 0, 91)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -11.7, 0, -47)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 18" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 20.3, 0, 91)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -44.3, 0, -47)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 19" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -12.3, 0, 93)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -11.7, 0, -49)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 20" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 20.3, 0, 93)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -44.3, 0, -49)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 21" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -12.3, 0, 95)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -11.7, 0, -51)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 22" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 20.3, 0, 95)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -44.3, 0, -51)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 23" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -12.3, 0, 97)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -11.7, 0, -53)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 24" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 20.3, 0, 97)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -44.3, 0, -53)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 25" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -12.3, 0, 99)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -11.7, 0, -55)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="palisade 26" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 20.3, 0, 99)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -44.3, 0, -55)
 script = ExtResource("4_gxwoc")
 model = "palisade"
 shape = 1
 shape_size = Vector3(2.1, 2.6, 0.4)
 
 [node name="watchtower" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -1, 0, 85)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -23, 0, -41)
 script = ExtResource("4_gxwoc")
 model = "watchtower"
 shape = 1
 shape_size = Vector3(2.8, 4, 2.8)
 
 [node name="watchtower 2" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 9, 0, 85)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33, 0, -41)
 script = ExtResource("4_gxwoc")
 model = "watchtower"
 shape = 1
 shape_size = Vector3(2.8, 4, 2.8)
 
 [node name="tent" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(1.013167, 0, -0.42836, 0, 1.1, 0, 0.42836, 0, 1.013167, -7, 0, 104)
+transform = Transform3D(-1.013167, 0, 0.42836, 0, 1.1, 0, -0.42836, 0, -1.013167, -17, 0, -60)
 script = ExtResource("4_gxwoc")
 model = "tent"
 shape = 1
 shape_size = Vector3(2, 2.2, 2)
 
 [node name="tent 2" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(1.1, 0, 0, 0, 1.1, 0, 0, 0, 1.1, 4, 0, 109)
+transform = Transform3D(-1.1, 0, 0, 0, 1.1, 0, 0, 0, -1.1, -28, 0, -65)
 script = ExtResource("4_gxwoc")
 model = "tent"
 shape = 1
 shape_size = Vector3(2, 2.2, 2)
 
 [node name="tent 3" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(1.013167, 0, 0.42836, 0, 1.1, 0, -0.42836, 0, 1.013167, 15, 0, 104)
+transform = Transform3D(-1.013167, 0, -0.42836, 0, 1.1, 0, 0.42836, 0, -1.013167, -39, 0, -60)
 script = ExtResource("4_gxwoc")
 model = "tent"
 shape = 1
 shape_size = Vector3(2, 2.2, 2)
 
 [node name="campfire" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 97)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -28, 0, -53)
 script = ExtResource("4_gxwoc")
 model = "campfire"
 shape = 2
 shape_size = Vector3(0.6, 0.4, 0)
 
 [node name="crate" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0.955336, 0, -0.29552, 0, 1, 0, 0.29552, 0, 0.955336, -9, 0, 95)
+transform = Transform3D(-0.955336, 0, 0.29552, 0, 1, 0, -0.29552, 0, -0.955336, -15, 0, -51)
 script = ExtResource("4_gxwoc")
 model = "crate"
 shape = 1
 shape_size = Vector3(0.8, 0.8, 0.8)
 
 [node name="barrel" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0.955336, 0, -0.29552, 0, 1, 0, 0.29552, 0, 0.955336, -8.2, 0, 96.1)
+transform = Transform3D(-0.955336, 0, 0.29552, 0, 1, 0, -0.29552, 0, -0.955336, -15.8, 0, -52.1)
 script = ExtResource("4_gxwoc")
 model = "barrel"
 shape = 2
 shape_size = Vector3(0.38, 1, 0)
 
 [node name="crate 2" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0.955336, 0, -0.29552, 0, 1, 0, 0.29552, 0, 0.955336, 17, 0, 95)
+transform = Transform3D(-0.955336, 0, 0.29552, 0, 1, 0, -0.29552, 0, -0.955336, -41, 0, -51)
 script = ExtResource("4_gxwoc")
 model = "crate"
 shape = 1
 shape_size = Vector3(0.8, 0.8, 0.8)
 
 [node name="crate 3" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0.955336, 0, -0.29552, 0, 1, 0, 0.29552, 0, 0.955336, 17.6, 0, 93.9)
+transform = Transform3D(-0.955336, 0, 0.29552, 0, 1, 0, -0.29552, 0, -0.955336, -41.6, 0, -49.9)
 script = ExtResource("4_gxwoc")
 model = "crate"
 shape = 1
 shape_size = Vector3(0.8, 0.8, 0.8)
 
 [node name="barrel 2" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(0.955336, 0, -0.29552, 0, 1, 0, 0.29552, 0, 0.955336, 16.5, 0, 98)
+transform = Transform3D(-0.955336, 0, 0.29552, 0, 1, 0, -0.29552, 0, -0.955336, -40.5, 0, -54)
 script = ExtResource("4_gxwoc")
 model = "barrel"
 shape = 2
 shape_size = Vector3(0.38, 1, 0)
 
 [node name="chão do forte" type="Node3D" parent="Forte dos Brutos/Objetos"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 96)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -28, 0, -52)
 script = ExtResource("2_3yltp")
 size = Vector2(32, 20)
 color = Color(0.42, 0.33, 0.22, 0.6)

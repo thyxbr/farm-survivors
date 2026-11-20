@@ -6,7 +6,8 @@ extends Node3D
 ## mundo cria o nó certo pelo `kind` (world.gd, make_entity); aqui ficam só os dados, sem autoload.
 
 ## Tipo: elder, merchant, alchemist, blacksmith, rival, npc, story_point, hub_point, farm_plot, kitchen,
-## portal, signpost, santa, xmas_gift, xmas_door, resource_node, guard (guarda da vila, VillageGuard).
+## portal, signpost, santa, xmas_gift, xmas_door, resource_node, guard (guarda da vila, VillageGuard), station
+## (bancada de craft), walker (morador que passeia: ref = id do NPC, params.path = [[x, z, espera?], ...] no mundo).
 @export var kind := "npc"
 ## Referência do tipo: id do NPC ou do ponto da história, building_id do ponto da praça, tipo do veio
 ## (iron/crystal) do nó de coleta.

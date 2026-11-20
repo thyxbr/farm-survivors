@@ -13,6 +13,11 @@ const M := {
 	"shop_smithy": preload("res://assets/models/shop_smithy.glb"),
 	"shop_alchemist": preload("res://assets/models/shop_alchemist.glb"),
 	"shop_merchant": preload("res://assets/models/shop_merchant.glb"),
+	"shop_workshop": preload("res://assets/models/shop_workshop.glb"),
+	"shop_alchemy_lab": preload("res://assets/models/shop_alchemy_lab.glb"),
+	"stall_cloth": preload("res://assets/models/stall_cloth.glb"),
+	"stall_farm": preload("res://assets/models/stall_farm.glb"),
+	"stall_goods": preload("res://assets/models/stall_goods.glb"),
 	"tree_pine": preload("res://assets/models/tree_pine.glb"),
 	"tree_oak": preload("res://assets/models/tree_oak.glb"),
 	"tree_fir": preload("res://assets/models/tree_fir.glb"),
@@ -78,21 +83,21 @@ const MAP_HALF := 125.0
 ## Lugares com nome dos mapas: vêm dos landmarks das cenas (MapLandmark: village_spawn, ruins, camp, portal,
 ## horde_return, farm, nest, orchard, pond no vale) e da raiz da Arena quando os mapas são montados; os valores
 ## abaixo só valem antes disso.
-var VILLAGE_SPAWN := Vector3(0, 0.3, 6)
+var VILLAGE_SPAWN := Vector3(0, 0.3, 116)
 var RUINS := Vector3(0, 0, -100)
 var CAMP := Vector3(86, 0, 0)
 ## Arena do Desafio da Horda: mapa próprio (scenes/maps/arena.tscn), longe ao norte, fora de Valdoria.
 var ARENA := Vector3(0, 0, -1000)
 ## Metade do lado do chão da arena (MapRoot.half da cena da Arena).
 var ARENA_HALF := 70.0
-var PORTAL_POS := Vector3(-8, 0, -9.5)
+var PORTAL_POS := Vector3(-28, 0, 54)
 ## Onde o jogador volta ao fim do Desafio: na frente do portal da vila.
-var HORDE_RETURN := Vector3(-8, 0.5, -6.5)
-var FARM := Vector3(0, 0, 33)          # Horta da Vila (saída sul)
-var NEST := Vector3(-36, 0, 36)        # Ninho de Slimes (sudoeste da vila)
+var HORDE_RETURN := Vector3(-28, 0.5, 57.5)
+var FARM := Vector3(-18, 0, 33)        # Horta da Vila (saída norte)
+var NEST := Vector3(-60, 0, 46)        # Ninho de Slimes (noroeste da vila)
 ## Lagoa do oeste, casa dos Bocarrões.
 var POND := Vector3(-80, 0, 15)
-var ORCHARD := Vector3(20, 0, 33)      # pomar a leste da Horta
+var ORCHARD := Vector3(20, 0, 33)      # pomar do outro lado da estrada, na frente da Horta
 
 var player: Player
 var hud
@@ -183,6 +188,8 @@ func _ready() -> void:
 
 	_setup_resource_nodes()
 	player = PLAYER.new()
+	# personagem novo (ou sem lugar salvo) chega pela estrada do sul, olhando para a vila
+	player.spawn_point = VILLAGE_SPAWN + Vector3(0, 0.2, 0)
 	add_child(player)
 	player.died.connect(_on_player_died)
 
@@ -334,7 +341,7 @@ func _build_buildings() -> void:
 		var xf := VillageLayout.xform(b)
 		if model == "well":
 			prop("well", b.pos, b.yaw, 1.0, "cyl", Vector3(0.95, 1.2, 0))
-		elif model.begins_with("shop_"):
+		elif VillageLayout.is_shop(model):
 			var sh: Array = VillageLayout.SHOP_SHAPES[model]
 			_shop(model, b.pos, b.yaw, sh[0], sh[1], sh[2])
 			_shop_keeper(model, xf)
@@ -919,8 +926,11 @@ func _finish_closeup() -> void:
 		closeup_cam = null
 
 
-func open_shop() -> void:
-	_open_modal(SHOP.new())
+## Loja: `stall` = a barraca de quem abriu (ShopUI.STALLS); "" = o estoque inteiro.
+func open_shop(stall := "") -> void:
+	var ui := SHOP.new()
+	ui.stall = stall
+	_open_modal(ui)
 
 
 ## Painel de encantamento do ferreiro. `smith` = quem abriu (bate na bigorna quando o encanto sai).
@@ -1093,6 +1103,13 @@ func make_entity(e: MapEntity) -> Node3D:
 			n = RegionBuilder.npc(e.ref, e.global_position, yaw)
 			if e.params.has("npc_id"):
 				n.set("npc_id", e.params.npc_id)
+		"walker":
+			var path: Array = e.params.get("path", [])
+			n = RegionBuilder.walker(e.ref, path)
+			if path.size() >= 2:   # nasce no primeiro ponto do caminho (o _ready assenta no chão)
+				var p0: Array = path[0]
+				n.position = Vector3(float(p0[0]), e.global_position.y, float(p0[1]))
+				return n
 		"story_point":
 			n = RegionBuilder.point(e.ref, e.global_position, yaw)
 		"hub_point":

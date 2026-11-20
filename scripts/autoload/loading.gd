@@ -26,7 +26,7 @@ const TIPS := [
 	"Esquivar (Ctrl) deixa você imune por um instante.",
 	"Segure Shift para correr.",
 	"R e F bebem as poções.",
-	"Plante e cozinhe na Horta, saindo pelo portão sul da vila.",
+	"Plante e cozinhe na Horta, saindo pelo portão norte da vila.",
 	"O Ancião Bram, na praça da vila, tem missões para você.",
 	"As teclas 1 a 3 usam as habilidades da arma; a 4, a ultimate.",
 	"I abre o inventário e C, a ficha do personagem.",
