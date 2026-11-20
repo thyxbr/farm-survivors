@@ -2684,8 +2684,16 @@ func _test_farm() -> void:
 	await wait(0.1)
 	check(world.modal != null and world.modal.get("plot_index") == 0, "menu de plantio abre")
 	var seeds0 := Game.count_item("seed_carrot")
-	world.modal.seed_list.select(ItemDB.CROP_ORDER.find("carrot"))
+	world.modal.select_crop("carrot")
 	world.modal._plant_here()
+	await wait(0.05)
+	var confirm: ActionModal = null
+	for n in world.modal.get_children():
+		if n is ActionModal:
+			confirm = n
+	check(confirm != null and Game.plot_state(0) == "empty", "plantar pergunta antes (janelinha de confirmação)")
+	if confirm:
+		confirm._confirm()
 	await wait(0.1)
 	check(world.modal == null and Game.plot_state(0) == "growing" and Game.farm.plots[0].crop == "carrot", "cenoura plantada")
 	check(Game.count_item("seed_carrot") == seeds0 - 1, "semente consumida")
@@ -2715,8 +2723,8 @@ func _test_farm() -> void:
 	Econ.grant(200, 0, {}, "teste")
 	plot.interact(player)
 	await wait(0.1)
-	world.modal.seed_list.select(ItemDB.CROP_ORDER.find("tomato"))
-	world.modal._plant_all()
+	world.modal.select_crop("tomato")
+	world.modal.plant_all_now()
 	await wait(0.1)
 	var growing := 0
 	for i in Game.FARM_PLOTS:
@@ -2739,7 +2747,7 @@ func _test_farm() -> void:
 	kitchen.interact(player)
 	await wait(0.1)
 	check(world.modal != null and world.modal.has_method("_cook"), "menu do caldeirão abre")
-	world.modal.list.select(ItemDB.RECIPE_ORDER.find("spicy_soup"))
+	world.modal.select_recipe("spicy_soup")
 	world.modal._cook(99)
 	check(Game.count_item("spicy_soup") == 3, "cozinhou 3 sopas picantes (%d)" % Game.count_item("spicy_soup"))
 	world.modal._close()

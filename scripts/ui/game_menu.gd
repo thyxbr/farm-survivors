@@ -458,22 +458,8 @@ func _refresh_character() -> void:
 	attr_values.clear()
 	# ---- página esquerda: quem é o herói e os atributos
 	var lv := char_left
-	var title := UITheme.ink("%s · Nível %d" % [_hero_name(), Game.level], 30, UITheme.INK, true)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.clip_text = true
-	lv.add_child(title)
-	lv.add_child(_title_row())
-	var xrow := HBoxContainer.new()
-	xrow.add_child(UITheme.ink("Experiência", 15, UITheme.INK_DIM))
-	xrow.add_child(UITheme.spacer())
-	var xp_need := Game.xp_to_next()
-	xrow.add_child(UITheme.ink("MÁX" if xp_need <= 0 else "%d / %d" % [Game.xp, xp_need], 15))
-	lv.add_child(xrow)
-	var xpb := UITheme.ink_bar(UITheme.XP, 0, 14)
-	xpb.max_value = maxi(xp_need, 1)
-	xpb.value = Game.xp if xp_need > 0 else 1
-	lv.add_child(xpb)
-	lv.add_child(_gap(6))
+	lv.add_child(_hero_card())
+	lv.add_child(_gap(4))
 	var pts := UITheme.ink_section("Atributos", 20)
 	if Game.stat_points > 0:
 		# aviso em quadro de tinta vermelha (texto a tinta, não um selo de cor cheia)
@@ -524,68 +510,111 @@ func _refresh_character() -> void:
 	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lv.add_child(tip)
 
-	# ---- página direita: estatísticas e habilidades
+	# ---- página direita: estatísticas agrupadas (cada número com ícone e dica) e habilidades
 	var rv := char_right
-	rv.add_child(_gap(4))
 	rv.add_child(UITheme.ink_section("Estatísticas", 20))
-	var g := GridContainer.new()
-	g.columns = 4
-	g.add_theme_constant_override("h_separation", 12)
-	g.add_theme_constant_override("v_separation", 2)
-	rv.add_child(g)
 	var st := Game.stat_snapshot()
 	var red := 1.0 - 50.0 / (50.0 + Game.defense() * 4.0)
-	var rows := [["Classe", Game.class_display_name()], ["Arma", ItemDB.CLASS_NAMES[Game.weapon_class()]], ["Dano do ataque", "%.0f" % st.dmg],
-		["Defesa", "%.1f" % st.def], ["Redução de dano", "%d%%" % int(round(red * 100))],
-		["Vida máxima", "%d" % st.hp], ["Mana máxima", "%d" % st.mp], ["Vigor máximo", "%d" % Game.max_stamina()],
-		["Poder mágico", "%.0f" % st.spell], ["Crítico", "%d%%" % int(round(st.crit * 100))],
-		["Velocidade", "%d%%" % int(round(st.speed * 100))], ["Recarga reduzida", "%d%%" % int(round(st.cdr * 100))],
-		["Roubo de vida", "%d%%" % int(round(st.leech * 100))], ["Inimigos derrotados", str(Game.kills)]]
+	var pct := func(v: float) -> String: return "%d%%" % int(round(v * 100))
+	var groups := HBoxContainer.new()
+	groups.add_theme_constant_override("separation", 10)
+	rv.add_child(groups)
+	groups.add_child(_stat_group("Ataque", [
+		["fury", Color(0.85, 0.3, 0.15), "Dano do ataque", "%.0f" % st.dmg,
+			"Dano de cada golpe. Vem da arma, da Força (espada e arco), da Inteligência (cajado) e dos talentos."],
+		["focus", Color(0.9, 0.7, 0.2), "Crítico", pct.call(st.crit), "Chance de um golpe causar dano dobrado. Agilidade e itens aumentam."],
+		["boot", Color(0.35, 0.65, 0.3), "Velocidade", pct.call(st.speed), "Ritmo dos ataques e do passo. Agilidade e itens aumentam."],
+		["orb", Color(0.35, 0.45, 0.95), "Poder mágico", "%.0f" % st.spell, "Força das magias e curas. Inteligência e itens aumentam."],
+		["frost", Color(0.35, 0.7, 0.95), "Recarga reduzida", pct.call(st.cdr), "Quanto as recargas das habilidades ficam mais curtas."],
+		["heal", Color(0.75, 0.15, 0.2), "Roubo de vida", pct.call(st.leech), "Parte do dano causado que volta como vida."]]))
+	groups.add_child(_stat_group("Defesa", [
+		["potion", Color(0.85, 0.15, 0.15), "Vida máxima", "%d" % st.hp, "Vitalidade, armaduras e o Mestre Orin aumentam."],
+		["shield", Color(0.55, 0.45, 0.3), "Defesa", "%.1f" % st.def, "Soma das armaduras e da Vitalidade."],
+		["ward", Color(0.3, 0.55, 0.9), "Redução de dano", pct.call(red), "Quanto do dano dos inimigos a sua Defesa absorve agora."],
+		["potion", Color(0.2, 0.4, 0.95), "Mana máxima", "%d" % st.mp, "Gasta pelas magias. Inteligência aumenta."],
+		["boot", Color(0.45, 0.7, 0.3), "Vigor máximo", "%d" % Game.max_stamina(), "Gasto ao correr e esquivar. Agilidade aumenta."]]))
+	var prog: Array = [["Classe", Game.class_display_name()], ["Arma", ItemDB.CLASS_NAMES[Game.weapon_class()]],
+		["Inimigos derrotados", str(Game.kills)]]
 	if Game.quest_state("registro") == "done":
-		rows.push_front(["Pontos de guilda", str(Game.guild_points())])
-		rows.push_front(["Rank na Guilda", Game.rank()])
+		prog.append(["Rank na Guilda", Game.rank()])
+		prog.append(["Pontos de guilda", str(Game.guild_points())])
+	var pg := GridContainer.new()
+	pg.columns = 2
+	pg.add_theme_constant_override("h_separation", 24)
+	pg.add_theme_constant_override("v_separation", 1)
+	for r in prog:
+		var cell := HBoxContainer.new()
+		cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		cell.add_child(UITheme.ink(r[0], 14, UITheme.INK_DIM))
+		cell.add_child(UITheme.spacer())
+		cell.add_child(UITheme.ink(r[1], 15))
+		pg.add_child(cell)
+	rv.add_child(pg)
+
+
+## Cartão do herói no topo da ficha: emblema da classe, nome e nível, classe e título, experiência.
+func _hero_card() -> Control:
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", UITheme.ink_inset(12))
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 14)
+	card.add_child(h)
+	var row = Balance.tables.get_table("classes").get(Game.char_class, {})
+	var em := ClassEmblem.for_class(row if row is Dictionary else {}, 78)
+	em.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(em)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 3)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(v)
+	var name_l := UITheme.ink(_hero_name(), 26, UITheme.INK, true)
+	name_l.clip_text = true
+	v.add_child(name_l)
+	v.add_child(UITheme.ink("Nível %d · %s" % [Game.level, Game.class_display_name()], 16, UITheme.INK_DIM))
+	v.add_child(_title_row())
+	var xrow := HBoxContainer.new()
+	xrow.add_child(UITheme.ink("Experiência", 14, UITheme.INK_DIM))
+	xrow.add_child(UITheme.spacer())
+	var xp_need := Game.xp_to_next()
+	xrow.add_child(UITheme.ink("MÁX" if xp_need <= 0 else "%d / %d" % [Game.xp, xp_need], 14))
+	v.add_child(xrow)
+	var xpb := UITheme.ink_bar(UITheme.XP, 0, 12)
+	xpb.max_value = maxi(xp_need, 1)
+	xpb.value = Game.xp if xp_need > 0 else 1
+	v.add_child(xpb)
+	return card
+
+
+## Quadro de estatísticas: título e uma linha por número (ícone, nome, valor). Passar o mouse explica de
+## onde o número vem. `rows`: [desenho, cor, nome, valor, explicação].
+func _stat_group(title: String, rows: Array) -> Control:
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", UITheme.ink_inset(10))
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 3)
+	card.add_child(v)
+	v.add_child(UITheme.ink(title, 17, UITheme.INK_RED, true))
 	for r in rows:
-		var nl := UITheme.ink(r[0], 15, UITheme.INK_DIM)
+		var line := HBoxContainer.new()
+		line.add_theme_constant_override("separation", 8)
+		line.mouse_filter = Control.MOUSE_FILTER_PASS
+		line.tooltip_text = "%s: %s" % [r[2], r[4]]
+		var ic := ItemSlot.new(26)
+		ic.paper = true
+		ic.icon_kind = r[0]
+		ic.icon_color = r[1]
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		line.add_child(ic)
+		var nl := UITheme.ink(r[2], 15, UITheme.INK_DIM)
 		nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		g.add_child(nl)
-		var vl := UITheme.ink(r[1], 16)
-		vl.custom_minimum_size.x = 62
-		vl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		g.add_child(vl)
-	rv.add_child(_gap(6))
-	rv.add_child(UITheme.ink_section("Habilidades", 20))
-	for id in Game.ability_kit():
-		var sp: Dictionary = ItemDB.ABILITIES[id]
-		var known := Game.knows_ability(id)
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 12)
-		var s := ItemSlot.new(50)
-		s.paper = true
-		s.icon_kind = sp.icon
-		s.icon_tex = ItemSlot.skill_art(id)
-		s.key_text = str(sp.slot)
-		s.dim = not known
-		s.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		s.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-		row.add_child(s)
-		var tv := VBoxContainer.new()
-		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		tv.add_theme_constant_override("separation", 0)
-		var head := HBoxContainer.new()
-		head.add_theme_constant_override("separation", 10)
-		head.add_child(UITheme.ink(sp.name, 17, UITheme.INK if known else UITheme.INK_DIM, true))
-		head.add_child(UITheme.spacer())
-		var meta := "%s · %s" % [("%d MP" % sp.cost) if sp.cost > 0 else "sem custo",
-			"ultimate (fúria)" if sp.ultimate else "recarga %.1fs" % (sp.cooldown * Game.cooldown_mult())]
-		head.add_child(UITheme.ink(meta, 14, UITheme.INK_DIM))
-		tv.add_child(head)
-		var d := UITheme.ink(sp.desc, 14, UITheme.INK if known else UITheme.INK_DIM)
-		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		tv.add_child(d)
-		if not known:
-			tv.add_child(UITheme.ink("Aprende no nível %d" % sp.level, 13, UITheme.INK_RED))
-		row.add_child(tv)
-		rv.add_child(row)
+		nl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		line.add_child(nl)
+		var vl := UITheme.ink(r[3], 17, UITheme.INK, true)
+		vl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		line.add_child(vl)
+		v.add_child(line)
+	return card
 
 
 # ================================================================ talentos
@@ -822,39 +851,71 @@ func _build_professions() -> Control:
 	return cols[0]
 
 
+## Ícone de cada profissão (um item que ela produz ou colhe).
+const PROF_ICON := {"mining": "copper_ore", "woodcutting": "pine_log", "farming": "seed_carrot", "smithing": "iron_sword",
+	"leatherwork": "leather_armor", "alchemy": "health_potion", "cooking": "bread"}
+
+
+## Um cartão por profissão, em duas colunas: ícone, nome, nível grande, barra de XP com os números, onde se
+## pratica e quantas receitas já sabe.
 func _refresh_professions() -> void:
 	if prof_left == null:
 		return
 	_clear(prof_left)
 	_clear(prof_right)
 	var bt := Balance.tables
-	prof_left.add_child(_gap(4))
-	prof_left.add_child(UITheme.ink_section("Profissões", 20))
-	prof_right.add_child(_gap(4))
-	prof_right.add_child(UITheme.ink_section("Onde e o quê", 20))
 	var s := Game.char_state()
-	for prof in CraftRules.professions(bt):
-		var lv := Game.prof_level(prof)
-		var need := CraftRules.xp_to_next(bt, lv)
-		prof_left.add_child(UITheme.ink("%s  ·  nível %d" % [Game.prof_name(prof), lv], 17, UITheme.INK, true))
-		var bar := UITheme.ink_bar(UITheme.XP, 300, 6)
-		bar.max_value = maxi(need, 1)
-		bar.value = Game.prof_xp(prof) if need > 0 else 1
-		prof_left.add_child(bar)
-		prof_left.add_child(UITheme.ink("%d / %d XP" % [Game.prof_xp(prof), need] if need > 0 else "Nível máximo", 13, UITheme.INK_DIM))
-		var st := str(CraftRules.professions(bt)[prof].get("station", ""))
-		var line := str(PROF_WHERE.get(prof, ""))
-		if st != "":
-			var total := 0
-			var known := 0
-			for rid in CraftRules.station_recipes(bt, st):
-				total += 1
-				if CraftRules.knows(s, bt, rid):
-					known += 1
-			line += "  Receitas: %d de %d." % [known, total]
-		var l := UITheme.ink("%s: %s" % [Game.prof_name(prof), line], 14)
-		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		prof_right.add_child(l)
+	var profs: Array = CraftRules.professions(bt).keys()
+	for i in profs.size():
+		var prof: String = profs[i]
+		var col := prof_left if i < int(ceil(profs.size() / 2.0)) else prof_right
+		col.add_child(_prof_card(prof, bt, s))
+
+
+func _prof_card(prof: String, bt: Variant, s: Variant) -> Control:
+	var lv := Game.prof_level(prof)
+	var need := CraftRules.xp_to_next(bt, lv)
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", UITheme.ink_inset(10))
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 12)
+	card.add_child(h)
+	var ic := ItemSlot.new(58)
+	ic.paper = true
+	ic.model_icon = true
+	ic.item_id = str(PROF_ICON.get(prof, ""))
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ic.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	h.add_child(ic)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 2)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(v)
+	var top := HBoxContainer.new()
+	var n := UITheme.ink(Game.prof_name(prof), 19, UITheme.INK, true)
+	n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(n)
+	top.add_child(UITheme.ink("Nível %d" % lv, 17, UITheme.INK_RED, true))
+	v.add_child(top)
+	var bar := UITheme.ink_bar(UITheme.XP, 0, 8)
+	bar.max_value = maxi(need, 1)
+	bar.value = Game.prof_xp(prof) if need > 0 else 1
+	v.add_child(bar)
+	var line := "%d / %d XP" % [Game.prof_xp(prof), need] if need > 0 else "Nível máximo"
+	var st := str(CraftRules.professions(bt)[prof].get("station", ""))
+	if st != "":
+		var total := 0
+		var known := 0
+		for rid in CraftRules.station_recipes(bt, st):
+			total += 1
+			if CraftRules.knows(s, bt, rid):
+				known += 1
+		line += "  ·  receitas %d de %d" % [known, total]
+	v.add_child(UITheme.ink(line, 13, UITheme.INK_DIM))
+	var where := UITheme.ink(str(PROF_WHERE.get(prof, "")), 14)
+	where.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(where)
+	return card
 
 
 # ================================================================ ferramentas (aba da página esquerda)

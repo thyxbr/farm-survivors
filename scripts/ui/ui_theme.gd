@@ -483,7 +483,7 @@ const DOCK_MARGIN := 16.0
 ## Fundo de uma janela lateral: moldura de madeira com friso de bronze e cantoneiras, pergaminho dentro
 ## (assets/ui/kit/win_frame.png, gerado por tools/ui_kit/make_window_kit.py). `margin` é o respiro entre o
 ## friso e o conteúdo.
-static func parch_box(margin := 8) -> StyleBox:
+static func parch_box(margin := 16) -> StyleBox:
 	var fb := _box(PAGE, PAGE_EDGE, 3, 8, margin + 12, margin + 10)
 	return _win_tex("win_frame_" + frame_style(), 30, 13 + margin, 12 + margin, fb)
 
