@@ -227,6 +227,14 @@ def build_goblin():
         limb("ClubSpike%d" % k, (hx + dx * 0.8, -0.46, hz + 0.045 + dz * 0.8),
              (hx + dx * 1.5, -0.47, hz + 0.045 + dz * 1.5), 0.018, 0.0, iron, sides=4, parent=o)
 
+    # --- picareta de mineiro (kobold): cabo reto e cabeça de ferro com bico para cima e pá para baixo
+    o = opt("Pickaxe", (hx, hy, hz), arm_r)
+    limb("PickHaft", (hx, 0.1, hz), (hx, -0.6, hz + 0.03), 0.02, 0.023, wood, sides=6, parent=o)
+    limb("PickGrip", (hx, 0.08, hz), (hx, -0.07, hz + 0.006), 0.026, 0.026, lea, sides=6, parent=o)
+    tbox("PickEye", (hx, -0.58, hz + 0.03), (0.05, 0.06, 0.07), iron_d, bevel=0.008, parent=o)
+    limb("PickBeak", (hx, -0.58, hz + 0.06), (hx, -0.54, hz + 0.24), 0.026, 0.0, iron, sides=4, parent=o)
+    limb("PickBlade", (hx, -0.58, hz), (hx, -0.55, hz - 0.15), 0.03, 0.01, iron, sides=4, flat=0.4, parent=o)
+
     # --- clava enorme de tronco com cintas de ferro (bruto)
     o = opt("BigClub", (hx, hy, hz), arm_r)
     limb("BigClub", (hx, 0.1, hz), (hx, -0.78, hz + 0.07), 0.034, 0.125, wood, sides=7, jitter=0.006, parent=o)
@@ -356,6 +364,27 @@ def build_goblin():
     for k in range(2):
         strap("GutStrap%d" % k, ((0.16 - k * 0.32), -0.07, 0.72), ((0.15 - k * 0.3), 0.1, 0.72), 0.05, lea_d, o,
               ((1 - 2 * k), 0, 0))
+
+    # --- capacete de mineiro com lampião aceso na testa (kobold)
+    o = opt("MinerHelmet", (0, cy, top_z), head)
+    dome("MinerHelmet", (0, cy, top_z - 0.085), (0, 0, 1), 0.122, 0.144, 0.12, lea, o, sides=8, lip=0.03)
+    ring("MinerHelmetBand", top_z - 0.08, 0.126, 0.028, lea_d, parent=o, sides=8, flat=1.19, y=cy)
+    lamp_y = cy - 0.144 * 1.0 - 0.01
+    tbox("MinerLampBase", (0, lamp_y, top_z - 0.04), (0.06, 0.03, 0.06), iron_d, bevel=0.006, parent=o)
+    limb("MinerLampCup", (0, lamp_y - 0.01, top_z - 0.04), (0, lamp_y - 0.055, top_z - 0.04), 0.03, 0.04, iron,
+         sides=8, parent=o)
+    limb("MinerLampGlow", (0, lamp_y - 0.045, top_z - 0.04), (0, lamp_y - 0.06, top_z - 0.04), 0.032, 0.03, fire,
+         sides=8, parent=o)
+
+    # --- cinto de couro com bananas de dinamite (kobold)
+    # cinto mais grosso por cima do cinto da tanga; as bananas encostam nele, em volta da cintura (fivela no meio)
+    o = opt("DynamiteBelt", (0, 0, 0.62), body)
+    loft("DynBelt", grow(span(torso, 0.16, 0.27), add=0.026), lea_d, o, sides=8)
+    tbox("DynBuckle", (0, -0.138, 0.625), (0.06, 0.016, 0.05), iron, bevel=0.006, parent=o)
+    for k, a in enumerate((-1.15, -0.6, 0.6, 1.15)):
+        bx, by = math.sin(a) * 0.168, -math.cos(a) * 0.136 - 0.006
+        limb("Dyn%d" % k, (bx, by, 0.56), (bx, by, 0.7), 0.026, 0.026, red, sides=6, parent=o)
+        limb("DynFuse%d" % k, (bx, by, 0.698), (bx * 1.08, by * 1.08, 0.74), 0.006, 0.004, cloth_l, sides=4, parent=o)
 
     # --- coroa (rei): aro facetado sentado no crânio
     cz, cr = top_z, 0.094
@@ -950,6 +979,551 @@ def build_spider():
             smooth_sharp(ob, 80.0)
     loose_parts("spider")
     export("spider")
+
+
+# ================================================================== CENTOPEIA DE TÚNEL (mina)
+# Centopeia gigante das galerias: corpo comprido e baixo (~2,2 m) em gomos de quitina vermelho-ferrugem com placas
+# escuras no dorso, oito pares de patas ocre, antenas longas e forcípulas (as "presas" da frente). Frente = -Y.
+# Usa os MESMOS pivôs da tecelã para reaproveitar a animação dela (enemy.gd trata "centipede" como "spider"):
+# Body (metade da frente; ao armar o bote ergue a cabeça), Abdomen (metade de trás, dentro de Body), Head
+# (forcípulas e antenas, dentro de Body) e Leg0L..Leg3L / Leg0R..Leg3R (cada pivô leva dois pares de patas
+# vizinhos; 0 é o da frente).
+CENTI_SEGS = 9                                   # gomos, da cabeça (0) à cauda
+CENTI_Y0, CENTI_Y1 = -0.95, 1.2                  # frente e trás do corpo
+CENTI_LEG_Y = [-0.62, -0.38, -0.14, 0.1, 0.34, 0.58, 0.8, 1.0]   # um par de patas por gomo (sem a cabeça)
+
+
+def _centi_secs(y0, y1, n_seg, z, rx, ry, taper_front=0.0, taper_back=0.0):
+    """Seções de um trecho do corpo: cada gomo incha no meio e afina na junta (anel liso, sem degrau)."""
+    secs = []
+    steps = n_seg * 4
+    for i in range(steps + 1):
+        u = i / steps
+        y = y0 + (y1 - y0) * u
+        bulge = 0.86 + 0.14 * math.sin(math.pi * ((u * n_seg) % 1.0))
+        tf = 1.0 - taper_front * max(0.0, 1.0 - u * 3.0)
+        tb = 1.0 - taper_back * max(0.0, u * 3.0 - 2.0)
+        k = bulge * tf * tb
+        secs.append(sec((0, y, z), rx * k, ry * k, bk=0.75))
+    return secs
+
+
+def build_centipede():
+    chit = mat("c_chitin", hexc("#8A3A22"), 0.55)
+    chit_d = mat("c_chitin_d", hexc("#3E1A10"), 0.55)
+    belly = mat("c_belly", hexc("#C98F45"), 0.7)
+    leg_m = mat("c_leg", hexc("#D9A04E"), 0.6)
+    tip_m = mat("c_tip", hexc("#2A140C"), 0.5)
+    eye = mat("c_eye_flat", (1.0, 0.65, 0.1), 0.3, 0.0, emit=(1.0, 0.5, 0.05), strength=3.0)
+    up = (0, 0, 1)
+    Z = 0.24                                    # altura do eixo do corpo (rente ao chão)
+
+    root = empty("Centipede", (0, 0, 0))
+    body = empty("Body", (0, 0.2, Z), root)
+
+    # ---------------- metade da frente (Body) e de trás (Abdomen): dois tubos que se encostam na junta y=0.2
+    # 8 anéis por gomo (n = gomos * 8 + 1): a junta cai no anel múltiplo de 8 e a faixa escura do dorso
+    # (metade de cima do anel) fica logo depois dela, uma por gomo
+    front = fera_dense(_centi_secs(CENTI_Y0, 0.26, 5, Z, 0.17, 0.11, taper_front=0.45), 41, cut=1)
+    sloft("BodyFront", front, chit, body, sides=14, fwd=up, mats=(chit_d, belly),
+          matf=lambda i, j: 2 if j in (10, 11, 12) else (1 if 1 <= j <= 6 and i % 8 in (0, 1) else 0))
+    abd = empty("Abdomen", (0, 0.2, Z), body)
+    back = fera_dense(_centi_secs(0.14, CENTI_Y1, 4, Z, 0.165, 0.105, taper_back=0.6), 33, cut=1)
+    sloft("BodyBack", back, chit, abd, sides=14, fwd=up, mats=(chit_d, belly),
+          matf=lambda i, j: 2 if j in (10, 11, 12) else (1 if 1 <= j <= 6 and i % 8 in (0, 1) else 0))
+    # dois cercos (gonópodes) na ponta da cauda, para trás
+    for s, nm in ((1, "L"), (-1, "R")):
+        p = fera_surf(back, CENTI_Y1 - 0.05, 0 if s > 0 else 180, -0.02)
+        fera_curve("Cercus" + nm, [p, p + Vector((s * 0.06, 0.16, 0.02)), p + Vector((s * 0.1, 0.3, 0.0))],
+                   0.025, 0.006, tip_m, abd, sides=6)
+
+    # ---------------- cabeça: olhos âmbar, antenas longas e forcípulas em gancho
+    head = empty("Head", (0, CENTI_Y0 + 0.12, Z), body)
+    for s, nm in ((1, "L"), (-1, "R")):
+        c = fera_surf(front, CENTI_Y0 + 0.1, 40 if s > 0 else 140, -0.006)
+        sloft("Eye" + nm, [sec(c + Vector((0, 0.006, 0)), 0.01, 0.01), sec(c + Vector((0, -0.006, 0.004)), 0.02, 0.02),
+                           sec(c + Vector((0, -0.016, 0.006)), 0.008, 0.008)], eye, head, sides=8, fwd=up)
+        a0 = fera_surf(front, CENTI_Y0 + 0.05, 55 if s > 0 else 125, -0.01)
+        fera_curve("Antenna" + nm, [a0, a0 + Vector((s * 0.08, -0.16, 0.12)), a0 + Vector((s * 0.2, -0.36, 0.16)),
+                                    a0 + Vector((s * 0.32, -0.5, 0.1))], 0.016, 0.004, chit_d, head, sides=6)
+        f0 = fera_surf(front, CENTI_Y0 + 0.08, -20 if s > 0 else -160, -0.02)
+        fsecs = fera_dense([sec(f0, 0.035, 0.03), sec(f0 + Vector((s * 0.05, -0.1, -0.03)), 0.03, 0.026),
+                            sec(f0 + Vector((s * 0.02, -0.2, -0.05)), 0.02, 0.018),
+                            sec(f0 + Vector((-s * 0.04, -0.25, -0.05)), 0.008, 0.008),
+                            sec(f0 + Vector((-s * 0.07, -0.25, -0.05)), 0.002, 0.002)], 12)
+        sloft("Forcipule" + nm, fsecs, chit_d, head, sides=8, fwd=(0, -1, 0), mats=(tip_m,),
+              matf=lambda i, j: 1 if i >= 7 else 0)
+
+    # ---------------- oito pares de patas finas em arco até o chão; cada pivô LegN leva dois pares vizinhos
+    pivots = {}
+    for k, y in enumerate(CENTI_LEG_Y):
+        g = k // 2
+        secs_src = front if y < 0.2 else back
+        for s, nm in ((1, "L"), (-1, "R")):
+            hip = fera_surf(secs_src, y, -15 if s > 0 else -165, -0.025)
+            name = "Leg%d%s" % (g, nm)
+            leg = pivots.get(name)
+            if leg is None:
+                leg = pivots[name] = empty(name, hip, root)
+            sweep = 0.06 * (1.5 - g)                # as da frente apontam um pouco para a frente
+            pts = [(hip, 0.03), (hip + Vector((s * 0.14, -sweep * 0.5, 0.08)), 0.026),
+                   (hip + Vector((s * 0.3, -sweep, 0.02)), 0.02),
+                   (Vector((hip.x + s * 0.4, hip.y - sweep * 1.3, 0.012)), 0.01)]
+            lsecs = fera_dense([sec(p, r, r) for p, r in pts], 12)
+            sloft("Leg%d%s_Mesh" % (k, nm), lsecs, leg_m, leg, sides=8, fwd=up, mats=(tip_m,),
+                  matf=lambda i, j: 1 if i >= 9 else 0)
+
+    for ob in coll.all_objects:
+        if ob.type == 'MESH':
+            smooth_sharp(ob, 80.0)
+    loose_parts("centipede")
+    export("centipede")
+
+
+# ================================================================== GOLEM DE CRISTAL (mina)
+# Golem do Veio de Cristal (~2,4 m): tronco de rocha escura curvado para a frente, cabeça pequena afundada entre
+# os ombros com olhos de cristal, braços enormes com punhos de pedra quase no chão e pernas curtas e grossas.
+# Aglomerados de cristal ciano brotam dos ombros e das costas. Frente = -Y.
+# Pivôs animados por scripts/enemies/enemy.gd (_animate_golem): LegL, LegR (no quadril), Body (tronco), Head e
+# ArmL/ArmR (no ombro, dentro de Body). Rotação x positiva leva perna/braço para trás.
+def _vsurf(secs, z, deg, out=0.0):
+    """Ponto da superfície de um loft vertical (ao longo de Z) na altura z: deg 0 = +X, 90 = frente (-Y),
+    180 = -X, 270 = costas. out empurra para fora (negativo: para dentro)."""
+    for a, b in zip(secs, secs[1:]):
+        if a["c"].z <= z <= b["c"].z:
+            s = _mix(a, b, (z - a["c"].z) / max(1e-6, b["c"].z - a["c"].z))
+            break
+    else:
+        s = secs[-1]
+    r = math.radians(deg)
+    return Vector((s["c"].x + math.cos(r) * (s["rx"] + out), s["c"].y - math.sin(r) * (s["ry"] + out), z))
+
+
+def _crystal(name, base, direction, length, r, mats, parent):
+    """Cristal hexagonal: prisma que nasce de dentro da rocha e fecha em ponta (corpo claro, ponta mais escura)."""
+    d = Vector(direction).normalized()
+    p0 = Vector(base) - d * 0.05
+    p1 = Vector(base) + d * length * 0.7
+    p2 = Vector(base) + d * length
+    sloft(name, [sec(p0, r, r), sec(p1, r * 0.95, r * 0.95), sec(p2, r * 0.05, r * 0.05)], mats[0], parent,
+          sides=6, phase=0.0, fwd=(0, 0, 1) if abs(d.z) < 0.9 else (0, -1, 0), mats=(mats[1],),
+          matf=lambda i, j: 1 if i >= 1 else 0)
+
+
+def _rock(name, c, r, material, parent, squash=(1.0, 1.0, 1.0), sides=7, prof=None):
+    """Pedra facetada: loft curto ao longo de Z com poucas faces (aresta viva entre elas = leitura de rocha)."""
+    c = Vector(c)
+    rx, ry, rz = r * squash[0], r * squash[1], r * squash[2]
+    prof = prof or ((-1.0, 0.35), (-0.6, 0.85), (0.0, 1.0), (0.55, 0.88), (0.92, 0.45), (1.0, 0.08))
+    secs = [sec(c + Vector((0, 0, rz * t)), rx * k, ry * k) for t, k in prof]
+    return sloft(name, secs, material, parent, sides=sides, phase=0.0)
+
+
+def build_golem():
+    rock = mat("gm_rock", hexc("#5E5A58"), 0.92)
+    rock_d = mat("gm_rock_d", hexc("#3A3634"), 0.92)
+    rock_l = mat("gm_rock_l", hexc("#86807A"), 0.92)
+    crys = mat("gm_crystal", hexc("#3FD2F2"), 0.25, 0.0, emit=(0.15, 0.8, 1.0), strength=2.4)
+    crys_d = mat("gm_crystal_d", hexc("#1B78B8"), 0.25, 0.0, emit=(0.05, 0.45, 0.9), strength=1.8)
+    eye = mat("gm_eye_flat", (0.6, 0.95, 1.0), 0.2, 0.0, emit=(0.4, 0.9, 1.0), strength=4.0)
+    up = (0, 0, 1)
+    HIP = 0.85
+
+    root = empty("Golem", (0, 0, 0))
+
+    # ---------------- tronco em triângulo invertido: cintura de pedra estreita, peito e ombros largos, corcunda
+    body = empty("Body", (0, 0, HIP), root)
+    torso = fera_dense([sec((0, 0.02, HIP - 0.12), 0.3, 0.26), sec((0, 0.0, HIP + 0.1), 0.4, 0.32),
+                        sec((0, -0.04, 1.3), 0.6, 0.44), sec((0, -0.06, 1.62), 0.66, 0.46),
+                        sec((0, -0.04, 1.86), 0.56, 0.42), sec((0, 0.0, 2.0), 0.34, 0.3),
+                        sec((0, 0.02, 2.06), 0.06, 0.06)], 14, cut=1)
+    sloft("Torso", torso, rock, body, sides=9, phase=0.0, mats=(rock_d,),
+          matf=lambda i, j: 1 if j in (3, 4, 5) and i < 5 else 0)
+    # bacia de pedra onde as pernas entram
+    _rock("Pelvis", (0, 0.02, HIP - 0.06), 0.42, rock_d, body, squash=(1.0, 0.8, 0.45), sides=8)
+    # placas do peito (duas lajes claras inclinadas) e laje da barriga, meio enterradas no tronco
+    for s in (1, -1):
+        p = _vsurf(torso, 1.48, 90 - s * 32, -0.06)
+        _rock("Pec%d" % (0 if s > 0 else 1), p, 0.24, rock_l, body, squash=(1.2, 0.45, 0.7), sides=6)
+    _rock("Belly", _vsurf(torso, 1.08, 90, -0.06), 0.2, rock_l, body, squash=(1.1, 0.4, 0.75), sides=6)
+    # veios de cristal rachando o peito
+    for k, pts in enumerate((((1.7, 70), (1.52, 82), (1.3, 76), (1.12, 86)), ((1.66, 112), (1.45, 104), (1.24, 112)))):
+        fera_curve("Vein%d" % k, [_vsurf(torso, z, d, 0.004) for z, d in pts], 0.022, 0.012, crys, body, sides=5)
+
+    # ---------------- cabeça pequena e afundada, mandíbula saliente, sobrancelha grossa e olhos de cristal
+    head = empty("Head", (0, -0.36, 1.86), body)
+    _rock("HeadMesh", (0, -0.42, 1.9), 0.21, rock_d, head, squash=(1.0, 0.95, 0.85), sides=7)
+    _rock("Jaw", (0, -0.5, 1.77), 0.17, rock, head, squash=(1.25, 0.8, 0.5), sides=6)
+    _rock("Brow", (0, -0.55, 1.99), 0.14, rock_l, head, squash=(1.7, 0.5, 0.35), sides=6)
+    for s in (1, -1):
+        c = Vector((s * 0.085, -0.6, 1.92))
+        sloft("Eye%d" % (0 if s > 0 else 1), [sec(c + Vector((0, 0.05, 0)), 0.02, 0.02), sec(c, 0.042, 0.036),
+                                              sec(c + Vector((0, -0.025, 0)), 0.03, 0.025),
+                                              sec(c + Vector((0, -0.035, 0)), 0.005, 0.005)], eye, head, sides=8, fwd=up)
+
+    # ---------------- pernas curtas em coluna, mais largas embaixo, pé de laje
+    for side, x in (("LegL", 0.24), ("LegR", -0.24)):
+        s = 1 if x > 0 else -1
+        leg = empty(side, (x, 0, HIP), root)
+        lsecs = [sec((x, 0.0, HIP + 0.05), 0.2, 0.2), sec((x + s * 0.03, -0.02, 0.55), 0.21, 0.21),
+                 sec((x + s * 0.05, 0.0, 0.25), 0.25, 0.25), sec((x + s * 0.05, 0.0, 0.12), 0.26, 0.26)]
+        sloft(side + "_Mesh", lsecs, rock, leg, sides=7, phase=0.0)
+        _rock(side + "_Knee", (x + s * 0.03, -0.14, 0.52), 0.13, rock_l, leg, squash=(1.0, 0.7, 1.0), sides=6)
+        _rock(side + "_Foot", (x + s * 0.05, -0.08, 0.1), 0.3, rock_d, leg, squash=(1.0, 1.25, 0.36), sides=7)
+
+    # ---------------- braços de gorila: pedra do ombro cravada no tronco, braço fino, cotovelo, antebraço grosso e
+    # punho enorme. O pivô fica DENTRO do tronco: girando, a pedra do ombro continua enterrada no corpo.
+    arms = {}
+    for side, x in (("ArmL", 0.66), ("ArmR", -0.66)):
+        s = 1 if x > 0 else -1
+        arm = arms[side] = empty(side, (s * 0.45, -0.04, 1.68), body)
+        _rock(side + "_Shoulder", (x, -0.04, 1.7), 0.34, rock, arm, squash=(1.0, 0.95, 0.85), sides=7)
+        _rock(side + "_ShoulderCap", (x + s * 0.06, -0.04, 1.86), 0.24, rock_l, arm, squash=(1.0, 0.95, 0.55), sides=6)
+        elbow = Vector((x + s * 0.14, -0.08, 1.18))
+        sloft(side + "_Upper", [sec((x + s * 0.04, -0.05, 1.62), 0.17, 0.17), sec(elbow + Vector((0, 0, 0.1)), 0.15, 0.15),
+                                sec(elbow, 0.15, 0.15)], rock, arm, sides=7, phase=0.0)
+        _rock(side + "_Elbow", elbow, 0.19, rock_d, arm, sides=7)
+        wrist = Vector((x + s * 0.16, -0.18, 0.62))
+        sloft(side + "_Fore", [sec(elbow, 0.2, 0.2), sec(elbow.lerp(wrist, 0.5), 0.26, 0.26), sec(wrist, 0.27, 0.26)],
+              rock, arm, sides=7, phase=0.0)
+        _rock(side + "_Bracer", elbow.lerp(wrist, 0.55) + Vector((s * 0.12, -0.08, 0)), 0.2, rock_l, arm,
+              squash=(0.5, 0.9, 1.3), sides=6)
+        fist_c = Vector((x + s * 0.16, -0.22, 0.42))
+        _rock(side + "_Fist", fist_c, 0.3, rock_d, arm, squash=(1.0, 1.05, 0.85), sides=7)
+        for k, dx in enumerate((-0.13, 0.0, 0.13)):   # nós dos dedos para a frente e para baixo
+            _rock(side + "_Knuckle%d" % k, fist_c + Vector((dx, -0.24, -0.1)), 0.1, rock, arm, sides=6)
+
+    # ---------------- cristais: aglomerado grande no ombro direito, menor no esquerdo, e na corcunda
+    for side, s, big in (("ArmR", -1, True), ("ArmL", 1, False)):
+        base = Vector((s * 0.72, -0.04, 1.9))
+        spec = ((((0.3, 0.0, 1.0), 0.75, 0.12), ((0.7, 0.2, 0.7), 0.55, 0.09), ((0.5, -0.4, 0.8), 0.5, 0.085),
+                 ((0.9, 0.3, 0.3), 0.4, 0.07)) if big else
+                (((0.4, 0.1, 1.0), 0.5, 0.09), ((0.8, -0.2, 0.5), 0.36, 0.07)))
+        for k, (d, ln, rr) in enumerate(spec):
+            _crystal("%s_Crystal%d" % (side, k), base, (s * d[0], d[1], d[2]), ln, rr, (crys, crys_d), arms[side])
+    for k, (z, dx, ln, rr) in enumerate(((1.9, 0.0, 0.6, 0.1), (1.76, 0.2, 0.42, 0.075), (1.72, -0.22, 0.48, 0.08),
+                                         (1.5, 0.1, 0.34, 0.065), (1.42, -0.12, 0.3, 0.06))):
+        base = _vsurf(torso, z, 270, -0.04) + Vector((dx, 0, 0))
+        _crystal("BackCrystal%d" % k, base, (dx * 1.5, 0.75, 0.65), ln, rr, (crys, crys_d), body)
+
+    # rocha facetada: aresta viva entre as faces (35°), em vez do liso das feras
+    for ob in coll.all_objects:
+        if ob.type == 'MESH':
+            smooth_sharp(ob, 35.0)
+    loose_parts("golem")
+    export("golem")
+
+
+# ================================================================== TOUPEIRA-BROCA (mina)
+# Toupeira grande dos fossos (~1,4 m), curvada para a frente: corpo em pera de pelo cinza-escuro com barriga clara,
+# pernas curtas, braços de cavar com mãos em pá e garras enormes, focinho comprido que termina numa broca de
+# metal enferrujado em espiral e óculos de mineiro na testa. Frente = -Y.
+# Pivôs animados por scripts/enemies/enemy.gd (_animate_mole): LegL, LegR (no quadril, dentro do corpo), Body,
+# Head (focinho, dentro de Body), Drill (a broca, dentro de Head; gira no eixo do focinho) e ArmL/ArmR (no ombro,
+# DENTRO do tronco: o ombro é uma massa de pelo enterrada no corpo, então o braço não se solta ao girar).
+def build_mole():
+    fur = mat("ml_fur", hexc("#4A4442"), 0.95)
+    fur_d = mat("ml_fur_d", hexc("#2E2928"), 0.95)
+    belly = mat("ml_belly", hexc("#8C7F76"), 0.95)
+    skin = mat("ml_skin", hexc("#D98C8C"), 0.8)          # palmas e nariz
+    claw = mat("ml_claw", hexc("#E8DCC0"), 0.6)
+    rust = mat("ml_rust", hexc("#9A5A2E"), 0.55, 0.6)
+    rust_d = mat("ml_rust_d", hexc("#5E331A"), 0.6, 0.6)
+    steel = mat("ml_steel", hexc("#9097A0"), 0.4, 0.8)
+    lens = mat("ml_lens", hexc("#F2C04A"), 0.2, 0.0, emit=(1.0, 0.7, 0.2), strength=1.5)
+    lea = mat("ml_leather", hexc("#5A3A20"), 0.85)
+    up = (0, 0, 1)
+    HIP = 0.38
+
+    root = empty("Mole", (0, 0, 0))
+
+    # ---------------- corpo em pera, curvado para a frente; barriga clara na frente
+    body = empty("Body", (0, 0, HIP), root)
+    torso = fera_dense([sec((0, 0.04, 0.16), 0.3, 0.28), sec((0, 0.0, 0.42), 0.46, 0.42),
+                        sec((0, -0.06, 0.72), 0.44, 0.38), sec((0, -0.14, 0.98), 0.34, 0.3),
+                        sec((0, -0.2, 1.14), 0.2, 0.19), sec((0, -0.22, 1.2), 0.05, 0.05)], 24, cut=2)
+    sloft("Torso", torso, fur, body, sides=24, sharp=80.0)
+    # barriga clara: elipsoide liso e denso, só a frente para fora do corpo
+    fy = _vsurf(torso, 0.6, 90).y
+    _blob("Belly", (0, fy + 0.22, 0.6), 0.3, 0.24, 0.36, belly, body, sides=24, rings=14)
+    for k, (z, dx) in enumerate(((1.05, 0.0), (0.92, 0.12), (0.92, -0.12), (0.78, 0.0))):   # tufos nas costas
+        p = _vsurf(torso, z, 270, -0.03) + Vector((dx, 0, 0))
+        fera_tip("Tuft%d" % k, p, p + Vector((dx * 0.6, 0.14, 0.08)), 0.05, fur_d, body)
+
+    # ---------------- cabeça: focinho comprido para a frente, nariz rosado em volta da broca, óculos na testa
+    head = empty("Head", (0, -0.24, 1.04), body)
+    snout = fera_dense([sec((0, -0.14, 1.06), 0.24, 0.23), sec((0, -0.32, 1.06), 0.22, 0.2),
+                        sec((0, -0.5, 1.03), 0.15, 0.13), sec((0, -0.6, 1.01), 0.12, 0.11)], 12)
+    sloft("Snout", snout, fur, head, sides=14, fwd=up)
+    sloft("Nose", [sec((0, -0.57, 1.01), 0.125, 0.115), sec((0, -0.63, 1.01), 0.14, 0.13),
+                   sec((0, -0.66, 1.01), 0.11, 0.1)], skin, head, sides=14, fwd=up)
+    for s in (1, -1):   # olhinhos quase escondidos
+        c = fera_surf(snout, -0.36, 90 - s * 45, -0.004)
+        sloft("Eye%d" % (0 if s > 0 else 1), [sec(c + Vector((0, 0.01, 0)), 0.012, 0.012), sec(c, 0.022, 0.02),
+                                              sec(c + Vector((0, -0.012, 0)), 0.006, 0.006)],
+              mat("ml_eye_flat", hexc("#120C0A"), 0.3), head, sides=8, fwd=up)
+    # óculos de mineiro na testa: tira de couro em volta da cabeça e duas lentes âmbar em aros de metal
+    sloft("GoggleStrap", fera_dense([sec(fera_surf(snout, -0.16, a, 0.012), 0.03, 0.022)
+                                     for a in (200, 160, 120, 90, 60, 20, -20)], 14), lea, head, sides=6, fwd=up)
+    for s in (1, -1):
+        c = fera_surf(snout, -0.22, 90 - s * 28, 0.02)
+        sloft("GoggleRim%d" % (0 if s > 0 else 1), [sec(c + Vector((0, 0.03, -0.01)), 0.055, 0.055),
+                                                    sec(c + Vector((0, -0.01, 0.0)), 0.06, 0.06),
+                                                    sec(c + Vector((0, -0.02, 0.0)), 0.05, 0.05)], steel, head, sides=10,
+              fwd=up)
+        sloft("GoggleLens%d" % (0 if s > 0 else 1), [sec(c + Vector((0, -0.015, 0)), 0.045, 0.045),
+                                                     sec(c + Vector((0, -0.028, 0)), 0.035, 0.035)], lens, head, sides=10,
+              fwd=up)
+    # broca: cone de metal enferrujado com rosca em espiral, encaixada num colar de aço dentro do nariz
+    drill = empty("Drill", (0, -0.62, 1.01), head)
+    sloft("DrillCollar", [sec((0, -0.6, 1.01), 0.1, 0.1), sec((0, -0.68, 1.01), 0.11, 0.11)], steel, drill, sides=10,
+          fwd=up)
+    sloft("DrillCone", [sec((0, -0.66, 1.01), 0.1, 0.1), sec((0, -0.82, 1.01), 0.065, 0.065),
+                        sec((0, -0.98, 1.01), 0.008, 0.008)], rust, drill, sides=10, fwd=up)
+    helix = []
+    for i in range(22):
+        u = i / 21
+        a = u * 3.2 * 2 * math.pi
+        y = -0.67 - u * 0.29
+        r = (0.1 + (0.008 - 0.1) * (u * 0.29 / 0.32)) + 0.012
+        helix.append(Vector((math.cos(a) * r, y, 1.01 + math.sin(a) * r)))
+    fera_curve("DrillThread", helix, 0.018, 0.006, rust_d, drill, sides=5)
+
+    # ---------------- pernas em dois ossos: coxa (LegL/LegR, no quadril dentro do corpo) e canela + pé (KneeL/KneeR).
+    # Cada osso é um tubo liso; o joelho é uma junta redonda que cobre a dobra.
+    for side, x in (("LegL", 0.2), ("LegR", -0.2)):
+        s = 1 if x > 0 else -1
+        k_side = "Knee" + side[-1]
+        leg = empty(side, (x, 0.02, HIP), root)
+        knee = Vector((x + s * 0.06, -0.05, 0.22))
+        thigh = fera_dense([sec((x, 0.02, HIP + 0.16), 0.16, 0.16), sec((x + s * 0.04, -0.02, 0.36), 0.165, 0.16),
+                            sec(knee + Vector((0, 0, 0.04)), 0.125, 0.125), sec(knee, 0.12, 0.12)], 14, cut=2)
+        sloft(side + "_Thigh", thigh, fur, leg, sides=16, sharp=80.0)
+        _blob(side + "_KneeJoint", knee, 0.125, 0.125, 0.125, fur, leg)
+        shin_p = empty(k_side, tuple(knee), leg)
+        ankle = Vector((x + s * 0.07, -0.02, 0.08))
+        shin = fera_dense([sec(knee + Vector((0, 0, 0.02)), 0.118, 0.118), sec(knee.lerp(ankle, 0.5), 0.11, 0.11),
+                           sec(ankle, 0.095, 0.095)], 12, cut=2)
+        sloft(side + "_Shin", shin, fur, shin_p, sides=16, sharp=80.0)
+        foot = fera_dense([sec(ankle + Vector((0, 0.06, -0.01)), 0.08, 0.05), sec(ankle + Vector((0, -0.04, -0.025)), 0.12, 0.06),
+                           sec(ankle + Vector((0, -0.15, -0.035)), 0.1, 0.045),
+                           sec(ankle + Vector((0, -0.18, -0.037)), 0.05, 0.025)], 12, cut=2)
+        sloft(side + "_Foot", foot, skin, shin_p, sides=14, fwd=up, sharp=80.0)
+        for k, dx in enumerate((-0.06, 0.0, 0.06)):
+            t0 = ankle + Vector((dx, -0.17, -0.035))
+            fera_curve("%s_Toe%d" % (side, k), [t0 + Vector((0, 0.03, 0)), t0 + Vector((0, -0.05, -0.005)),
+                                                t0 + Vector((0, -0.09, -0.04))], 0.022, 0.004, claw, shin_p, sides=6)
+
+    # ---------------- braços de cavar em dois ossos: braço (ArmL/ArmR, pivô dentro do tronco; o tubo nasce de dentro
+    # do corpo e incha no ombro) e antebraço + mão (ElbowL/ElbowR). Antebraço e mão-pá são UMA malha lisa (pelo até
+    # o pulso, pele na palma); o cotovelo é uma junta redonda que cobre a dobra.
+    for side, x in (("ArmL", 0.34), ("ArmR", -0.34)):
+        s = 1 if x > 0 else -1
+        arm = empty(side, (s * 0.24, -0.1, 0.84), body)
+        elbow = Vector((s * 0.5, -0.3, 0.66))
+        upper = fera_dense([sec((s * 0.14, -0.06, 0.9), 0.15, 0.15), sec((s * 0.34, -0.12, 0.85), 0.175, 0.17),
+                            sec((s * 0.45, -0.21, 0.76), 0.145, 0.14), sec(elbow, 0.12, 0.12)], 16, cut=2)
+        sloft(side + "_Upper", upper, fur, arm, sides=16, sharp=80.0)
+        _blob(side + "_ElbowJoint", elbow, 0.127, 0.127, 0.127, fur, arm)
+        fore_p = empty("Elbow" + side[-1], tuple(elbow), arm)
+        wrist = Vector((s * 0.49, -0.5, 0.56))
+        palm = Vector((s * 0.5, -0.61, 0.52))
+        fore = fera_dense([sec(elbow + Vector((0, 0.02, 0.01)), 0.118, 0.118), sec(elbow.lerp(wrist, 0.5), 0.13, 0.125),
+                           sec(wrist, 0.105, 0.095), sec(palm, 0.17, 0.07),
+                           sec(palm + Vector((0, -0.08, -0.03)), 0.15, 0.05),
+                           sec(palm + Vector((0, -0.105, -0.04)), 0.09, 0.03)], 20, cut=2)
+        sloft(side + "_Fore", fore, fur, fore_p, sides=16, fwd=up, mats=(skin,), sharp=80.0,
+              matf=lambda i, j, cs=fore, wy=wrist.y + 0.02: 1 if cs[i]["c"].y < wy else 0)
+        for k, dx in enumerate((-0.1, -0.035, 0.035, 0.1)):
+            c0 = palm + Vector((dx, -0.07, -0.03))
+            fera_curve("%s_Claw%d" % (side, k), [c0 + Vector((0, 0.03, 0)), c0 + Vector((dx * 0.2, -0.12, -0.02)),
+                                                 c0 + Vector((dx * 0.3, -0.22, -0.1)),
+                                                 c0 + Vector((dx * 0.3, -0.25, -0.18))], 0.035, 0.006, claw, fore_p,
+                       sides=8)
+
+    # tudo liso: aresta viva só em dobra muito fechada (ponta de garra, aro dos óculos)
+    for ob in coll.all_objects:
+        if ob.type == 'MESH':
+            smooth_sharp(ob, 80.0)
+    loose_parts("mole")
+    export("mole")
+
+
+def _blob(name, c, rx, ry, rz, material, parent, sides=18, rings=10):
+    """Elipsoide liso e denso (junta de cotovelo/joelho, barriga): borda limpa onde cruza outra malha."""
+    c = Vector(c)
+    secs = []
+    for i in range(rings + 1):
+        a = -math.pi / 2 + math.pi * i / rings
+        k = max(0.02, math.cos(a))
+        secs.append(sec(c + Vector((0, 0, rz * math.sin(a))), rx * k, ry * k))
+    return sloft(name, secs, material, parent, sides=sides, sharp=89.0)
+
+
+# ================================================================== MÃE-VERME DAS PROFUNDEZAS (chefe da mina)
+# Verme gigante (~4,4 m fora do chão) que sai de um anel de terra revirada: corpo em gomos de couro marrom com
+# sulcos escuros, couraça de placas de pedra e cristais ciano no dorso, pescoço que se curva para a frente e uma
+# boca redonda que abre em cinco pétalas, com três anéis de dentes descendo pela garganta. Frente = -Y.
+# Pivôs animados por scripts/enemies/enemy.gd (_animate_worm), dois ossos de corpo como os membros:
+# Body (trecho de baixo; sobe do chão ao emergir), Neck (trecho de cima, dentro de Body; a emenda fica sob o colar
+# de pedra e os dois tubos se cruzam por dentro), Head (a boca, dentro de Neck) e Jaw (as pétalas; abre por escala).
+WORM_SEG = 0.44        # altura de um gomo
+
+
+def _worm_secs(path, r0, r1, n, seg_len, phase=0.0):
+    """Seções de um tubo em gomos ao longo de path(u) -> Vector (u de 0 a 1): o raio vai de r0 a r1 e incha no meio
+    de cada gomo (sulco liso na junta). Devolve (seções, lista 'é sulco' por anel)."""
+    secs, groove = [], []
+    length = 0.0
+    prev = path(0.0)
+    for i in range(n + 1):
+        u = i / n
+        p = path(u)
+        length += (p - prev).length
+        prev = p
+        w = (length / seg_len + phase) % 1.0
+        bulge = 0.9 + 0.1 * math.sin(math.pi * w)
+        r = (r0 + (r1 - r0) * u) * bulge
+        secs.append(sec(p, r, r * 0.96))
+        groove.append(w < 0.12 or w > 0.88)
+    return secs, groove
+
+
+def _rune(name, c, out, size, material, parent):
+    """Runa acesa (um "V" com uma barra em cima) desenhada na face de uma placa que olha para `out`."""
+    out = Vector(out).normalized()
+    side = Vector((1, 0, 0))
+    up = out.cross(side).normalized()
+    c = Vector(c) - out * 0.03
+    v = [c + side * -size + up * size * 0.6, c + up * -size * 0.7, c + side * size + up * size * 0.6]
+    fera_curve(name + "V", v, 0.05, 0.045, material, parent, sides=6)
+    fera_curve(name + "Bar", [c + side * -size * 0.55 + up * size * 0.85, c + side * size * 0.55 + up * size * 0.85],
+               0.045, 0.045, material, parent, sides=6)
+
+
+def build_worm():
+    skin = mat("wv_skin", hexc("#7A5E4C"), 0.8)
+    skin_d = mat("wv_skin_d", hexc("#4A3428"), 0.85)
+    lip = mat("wv_lip", hexc("#B07A6A"), 0.7)
+    gum = mat("wv_gum", hexc("#7A2630"), 0.7)
+    throat = mat("wv_throat_flat", hexc("#2A0C10"), 0.9)
+    throat.use_backface_culling = False      # a garganta é vista por dentro: dupla face no glTF
+    tooth = mat("wv_tooth", hexc("#EFE6D0"), 0.5)
+    stone = mat("wv_stone", hexc("#5E5A58"), 0.92)
+    stone_l = mat("wv_stone_l", hexc("#86807A"), 0.92)
+    dirt = mat("wv_dirt", hexc("#4A3524"), 1.0)
+    crys = mat("wv_crystal", hexc("#3FD2F2"), 0.25, 0.0, emit=(0.15, 0.8, 1.0), strength=2.4)
+    crys_d = mat("wv_crystal_d", hexc("#1B78B8"), 0.25, 0.0, emit=(0.05, 0.45, 0.9), strength=1.8)
+    eye = mat("wv_eye_flat", hexc("#FFB23A"), 0.3, 0.0, emit=(1.0, 0.6, 0.1), strength=3.0)
+    rune = mat("wv_rune_flat", hexc("#7FE8F5"), 0.3, 0.0, emit=(0.2, 0.85, 1.0), strength=2.6)
+    up = (0, 0, 1)
+
+    root = empty("Worm", (0, 0, 0))
+
+    # ---------------- terra revirada em volta da base (fica no chão; o corpo sobe por dentro dela)
+    # anel irregular: montes de terra de tamanhos diferentes, encavalados, mais altos junto do corpo
+    _blob("Mound", (0, 0.0, -0.05), 1.25, 1.2, 0.3, dirt, root, sides=24, rings=10)
+    for k in range(9):
+        a = k / 9 * 2 * math.pi + 0.3
+        rr = 1.05 + 0.18 * math.sin(k * 2.3)
+        size = 0.42 + 0.12 * math.sin(k * 1.7)
+        _blob("Heap%d" % k, (math.cos(a) * rr, math.sin(a) * rr, 0.0), size * 1.2, size, size * (0.55 + 0.2 * (k % 2)),
+              dirt, root, sides=14, rings=8)
+    for k in range(6):
+        a = k / 6 * 2 * math.pi + 0.9
+        _rock("Clod%d" % k, (math.cos(a) * 1.15, math.sin(a) * 1.12, 0.14), 0.2 - 0.03 * (k % 3), stone, root,
+              squash=(1.0, 0.9, 0.6), sides=7)
+
+    # ---------------- trecho de baixo (Body): quase reto, leve inclinação para a frente
+    body = empty("Body", (0, 0, 0), root)
+    low_path = lambda u: Vector((0.0, 0.1 - 0.15 * u, -0.5 + 2.75 * u))
+    low, low_g = _worm_secs(low_path, 0.82, 0.76, 40, WORM_SEG)
+    sloft("BodyLow", low, skin, body, sides=22, mats=(skin_d,), sharp=80.0,
+          matf=lambda i, j, g=low_g: 1 if g[i] else 0)
+
+    # ---------------- trecho de cima (Neck): começa DENTRO do de baixo e se curva para a frente até a boca
+    neck_base = Vector((0.0, -0.05, 2.0))
+    neck = empty("Neck", tuple(neck_base), body)
+    up_path = lambda u: Vector((0.0, -0.02 - 1.0 * u * u, 1.8 + 2.0 * u - 0.25 * u * u))
+    upp, up_g = _worm_secs(up_path, 0.74, 0.64, 40, WORM_SEG, phase=0.5)
+    sloft("BodyUp", upp, skin, neck, sides=22, mats=(skin_d,), sharp=80.0, caps=(True, False),
+          matf=lambda i, j, g=up_g: 1 if g[i] else 0)
+    # colar de pedra cobrindo a emenda dos dois ossos (no osso de baixo: o de cima gira por dentro dele)
+    _blob("Collar", (0, -0.06, 2.05), 0.9, 0.86, 0.2, stone, body, sides=24, rings=8)
+
+    # ---------------- boca: o fim do tubo abre em funil (garganta escura), lábio grosso, dentes e pétalas
+    top = up_path(1.0)
+    tan = (up_path(1.0) - up_path(0.97)).normalized()
+    head = empty("Head", tuple(top), neck)
+    mouth_c = top + tan * 0.32
+    sloft("HeadFlare", [sec(top - tan * 0.15, 0.66, 0.64), sec(top + tan * 0.12, 0.72, 0.7),
+                        sec(mouth_c, 0.8, 0.78)], skin, head, sides=22, axis=tuple(tan), caps=(False, False), sharp=80.0)
+    sloft("Lip", [sec(mouth_c - tan * 0.04, 0.82, 0.8), sec(mouth_c + tan * 0.06, 0.86, 0.84),
+                  sec(mouth_c + tan * 0.1, 0.78, 0.76), sec(mouth_c + tan * 0.06, 0.66, 0.64)], lip, head, sides=22,
+          axis=tuple(tan), caps=(False, False), sharp=80.0)
+    # garganta: funil escuro descendo para dentro do pescoço (o que se vê ao olhar a boca)
+    sloft("Throat", [sec(mouth_c + tan * 0.06, 0.68, 0.66), sec(mouth_c - tan * 0.3, 0.45, 0.43),
+                     sec(mouth_c - tan * 0.7, 0.12, 0.12)], throat, head, sides=20, axis=tuple(tan), caps=(False, True),
+          sharp=80.0)
+    # três anéis de dentes descendo pela garganta, apontando para o centro
+    side_v = Vector((1, 0, 0))
+    up_v = tan.cross(side_v).normalized()
+    for ring_i, (depth, rr, n, ln) in enumerate(((0.0, 0.64, 12, 0.2), (-0.18, 0.52, 10, 0.16), (-0.36, 0.38, 8, 0.12))):
+        for t in range(n):
+            a = t / n * 2 * math.pi + ring_i * 0.25
+            radial = side_v * math.cos(a) + up_v * math.sin(a)
+            base = mouth_c + tan * depth + radial * rr
+            fera_tip("Tooth%d_%d" % (ring_i, t), base + radial * 0.03, base - radial * ln + tan * 0.05, 0.045, tooth,
+                     head, sides=6)
+    # pétalas: cinco abas grossas saindo do lábio, curvadas para fora (no Jaw: abrem pela escala)
+    # coroa de cristais em volta da boca (no Head: não abre com as pétalas) e seis olhos acesos logo abaixo do lábio
+    for t in range(8):
+        a = t / 8 * 2 * math.pi + math.pi / 8
+        radial = side_v * math.cos(a) + up_v * math.sin(a)
+        base = mouth_c - tan * 0.12 + radial * 0.74
+        _crystal("Crown%d" % t, base, tuple(radial * 0.75 + tan * 0.65), 0.8 if t % 2 else 0.58, 0.1 if t % 2 else 0.08,
+                 (crys, crys_d), head)
+    for t in range(6):
+        a = math.pi * (1.15 + t * 0.14)            # na metade de baixo da boca, virados para a frente
+        radial = side_v * math.cos(a) + up_v * math.sin(a)
+        c = mouth_c - tan * 0.22 + radial * 0.7
+        _blob("Eye%d" % t, c, 0.115, 0.115, 0.115, eye, head, sides=14, rings=8)
+    jaw = empty("Jaw", tuple(mouth_c), head)
+    for t in range(5):
+        a = t / 5 * 2 * math.pi + math.pi / 2
+        radial = side_v * math.cos(a) + up_v * math.sin(a)
+        # aba larga e fina (como pétala de flor carnívora): nasce dentro do lábio, sobe e vira para fora
+        p0 = mouth_c + radial * 0.66
+        p1 = p0 + radial * 0.14 + tan * 0.3
+        p2 = p1 + radial * 0.26 + tan * 0.14
+        p3 = p2 + radial * 0.2 - tan * 0.04
+        psecs = fera_dense([sec(p0, 0.34, 0.07), sec(p1, 0.36, 0.06), sec(p2, 0.28, 0.045), sec(p3, 0.06, 0.03)], 16,
+                           cut=2)
+        sloft("Petal%d" % t, psecs, lip, jaw, sides=14, fwd=tuple(radial), sharp=80.0)
+
+    # ---------------- couraça: placas de pedra e cristais no dorso (+Y) de cada osso
+    for k, u in enumerate((0.25, 0.5, 0.75)):
+        p = low_path(u)
+        _rock("PlateLow%d" % k, (p.x, p.y + 0.72, p.z), 0.36, stone, body, squash=(1.3, 0.55, 0.7), sides=8)
+        _rune("RuneLow%d" % k, Vector((p.x, p.y + 0.72 + 0.17, p.z)), Vector((0, 1, 0)), 0.2, rune, body)
+    for k, u in enumerate((0.2, 0.45, 0.7, 0.9)):
+        p = up_path(u)
+        tn = (up_path(min(1.0, u + 0.02)) - up_path(max(0.0, u - 0.02))).normalized()
+        back = Vector((0, 1, 0)) - tn * tn.y
+        back.normalize()
+        _rock("PlateUp%d" % k, tuple(p + back * 0.6), 0.32, stone_l if k % 2 else stone, neck,
+              squash=(1.25, 0.55, 0.7), sides=8)
+        _rune("RuneUp%d" % k, p + back * (0.6 + 0.15), back, 0.17, rune, neck)
+        if k in (1, 2):
+            for c, (dx, ln) in enumerate(((-0.18, 0.55), (0.16, 0.42))):
+                _crystal("NeckCrystal%d_%d" % (k, c), p + back * 0.62 + Vector((dx, 0, 0)), tuple(back + up_v * 0.3),
+                         ln, 0.085, (crys, crys_d), neck)
+    for c, (z, dx, ln) in enumerate(((1.0, -0.22, 0.5), (1.2, 0.2, 0.62), (1.55, 0.0, 0.45))):
+        p = low_path((z + 0.5) / 2.75)
+        _crystal("BodyCrystal%d" % c, (p.x + dx, p.y + 0.72, p.z), (dx, 1.0, 0.55), ln, 0.09, (crys, crys_d), body)
+
+    loose_parts("worm")
+    export("worm")
 
 
 # ================================================================== FLOR-FAMINTA (planta carnívora)

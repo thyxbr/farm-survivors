@@ -1434,18 +1434,21 @@ func _food_frost_nova() -> void:
 
 
 # ------------------------------------------------------------ dano e morte
-## Golpe gelado (Slime de Gelo): anda mais devagar por `secs`. Não acumula, só renova.
-func apply_chill(secs: float) -> void:
+## Golpe gelado (Slime de Gelo) ou veneno paralisante (Centopeia, `venom`): anda mais devagar por `secs`.
+## Não acumula, só renova; muda só o aviso e a cor.
+func apply_chill(secs: float, venom := false) -> void:
 	if remote:
 		if Network.is_server() and not dead:
-			Network.server_chill_player(peer_id, secs)
+			Network.server_chill_player(peer_id, secs, venom)
 		return
 	if dead or secs <= 0.0:
 		return
+	var col := Color(0.55, 0.9, 0.3) if venom else Color(0.6, 0.85, 1.0)
 	if chill_t <= 0.0:
-		Game.notify.emit("Você está congelando: mais lento por um instante.", Color(0.6, 0.85, 1.0))
+		Game.notify.emit("Veneno: mais lento por um instante." if venom
+			else "Você está congelando: mais lento por um instante.", col)
 	chill_t = maxf(chill_t, secs)
-	FX.burst(global_position + Vector3.UP, Color(0.6, 0.85, 1.0), 14, 2.5, 0.1, 0.6)
+	FX.burst(global_position + Vector3.UP, col, 14, 2.5, 0.1, 0.6)
 
 
 ## Teia da Tecelã: quase parado por `secs`. Não acumula, só renova.

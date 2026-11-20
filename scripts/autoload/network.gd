@@ -35,8 +35,8 @@ const ENEMY := preload("res://scripts/enemies/enemy.gd")
 const FIREBALL := preload("res://scripts/player/fireball.gd")
 const UPG := preload("res://scripts/survival/upgrades.gd")
 
-const STATES := ["idle", "wander", "chase", "return", "attack", "dead"]
-const ATTACK_KINDS := ["swing", "lunge", "slam", "shoot", "fuse", "cast", "web", "tongue"]
+const STATES := ["idle", "wander", "chase", "return", "attack", "dead", "burrow"]
+const ATTACK_KINDS := ["swing", "lunge", "slam", "shoot", "fuse", "cast", "web", "tongue", "throw", "emerge", "quake", "rockfall", "acid_rain"]
 const SNAP_STRIDE := 10   # id, x, y, z, yaw, hp, state, attack_timer, attack_kind, flags
 ## Tempo da fila do Desafio da Horda (cai para HORDE_LOBBY_ALL quando todos já responderam).
 const HORDE_LOBBY_TIME := 15.0
@@ -719,6 +719,10 @@ func _send_enemy_snapshot() -> void:
 			continue
 		var p := e.global_position
 		var flags := (1 if e.slow_timer > 0 else 0) | (2 if e.enraged else 0)
+		if e.state == "attack" and e.attack_kind in ["throw", "acid_rain"]:   # Kobold e Mãe-Verme: onde cai
+			flags = ThrowRules.pack_flags(flags, e.throw_point - p)
+		elif e.state == "attack" and e.attack_kind == "rockfall":   # Mãe-Verme: semente das pedras (BossRules)
+			flags = BossRules.pack_seed(flags, e.boss_seed)
 		var row := [net_id, p.x, p.y, p.z, e.model.rotation.y, e.hp,
 			max(0, STATES.find(e.state)), e.attack_timer, max(0, ATTACK_KINDS.find(e.attack_kind)), flags]
 		snap_world.append_array(row)
@@ -850,9 +854,9 @@ func server_damage_player(peer_id: int, amount: float, from_pos: Vector3) -> voi
 		_you_were_hit.rpc_id(peer_id, amount, from_pos)
 
 
-func server_chill_player(peer_id: int, secs: float) -> void:
+func server_chill_player(peer_id: int, secs: float, venom := false) -> void:
 	if players.has(peer_id):
-		_you_were_chilled.rpc_id(peer_id, secs)
+		_you_were_chilled.rpc_id(peer_id, secs, venom)
 
 
 func server_web_player(peer_id: int, secs: float) -> void:
@@ -1332,9 +1336,9 @@ func _you_got_buff(buff_id: String, secs: float) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _you_were_chilled(secs: float) -> void:
+func _you_were_chilled(secs: float, venom: bool) -> void:
 	if world and world.player:
-		world.player.apply_chill(secs)
+		world.player.apply_chill(secs, venom)
 
 
 @rpc("authority", "call_remote", "reliable")

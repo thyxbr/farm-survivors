@@ -424,6 +424,7 @@ func _ready() -> void:
 		await _test_heal(w)
 		await _test_party(w)
 		await _test_social(w)
+		await _test_burrow(w)
 
 	if horde_role != "":
 		await _test_horde(w)
@@ -435,6 +436,57 @@ func _ready() -> void:
 	if relogin:
 		await _test_second_login_kicks_first()
 	_finish()
+
+
+# ---------------------------------------------------------------- Toupeira-Broca na Mina
+## Toupeira-Broca (Mina): a réplica no cliente esconde o modelo e tira a colisão enquanto o servidor diz que ela
+## está cavando, e mostra de novo quando ela emerge. Só Ana vai à Mina; Beto espera na barreira.
+## Ana fica imune enquanto está lá (`invuln`, que vale também para o dano mandado pelo servidor): os fossos têm
+## bandos de Toupeiras e outros monstros do nível 25, e morta ela voltaria para a vila (e não abriria a fila da
+## Horda, que vem depois). O teste confere a réplica, não a sobrevivência no fosso.
+func _test_burrow(w: Node) -> void:
+	if my_name == "Ana":
+		var back: Vector3 = w.player.global_position
+		w.player.invuln = 999.0
+		w.player.global_position = Regions.arrive_point("mina")
+		await wait(1.5)
+		var mole: Enemy = null
+		var best := INF
+		for e in Network.enemies.values():
+			if is_instance_valid(e) and e.kind == "toupeira" and not e.dead:
+				var d: float = e.global_position.distance_to(w.player.global_position)
+				if d < best:
+					best = d
+					mole = e
+		check(mole != null, "há uma Toupeira-Broca na Mina para o teste de cavar")
+		if mole != null:
+			# a meia distância (entre dig_min e dig_max): ela vê, espera a janela na superfície e cava. A réplica
+			# longe da câmera fica congelada (Enemy.still) com a posição velha: a posição real é a do snapshot
+			# (_net_pos), e a Ana se reposiciona se a Toupeira andar para fora da faixa
+			var dug := false
+			for i in 40:
+				var real: Vector3 = mole._net_pos
+				var d := Vector2(w.player.global_position.x - real.x, w.player.global_position.z - real.z).length()
+				if i == 0 or d < 5.0 or d > 12.0:
+					w.player.global_position = real + Vector3(8, 0.5, 0)
+				await wait(0.25)
+				if mole.state == "burrow":
+					dug = true
+					break
+			check(dug, "a Toupeira cava (estado burrow chega ao cliente)")
+			if dug:
+				check(not mole.model.visible and mole.collision_layer == 0,
+					"réplica enterrada: modelo escondido e sem colisão")
+			# sai de perto: ela emerge pelo tempo (dig_max_secs) longe daqui, sem matar a Ana (morta não abre a
+			# fila da Horda, que vem depois)
+			w.player.global_position = mole.global_position + Vector3(40, 0.5, 0)
+			var out := await _wait_until(func() -> bool: return mole.model.visible, 8.0)
+			check(out and mole.collision_layer != 0, "réplica emerge: modelo e colisão de volta")
+		w.player.global_position = back
+		await wait(1.0)
+		w.player.invuln = 0.0
+		check(not w.player.dead, "Ana volta viva da Mina")
+	await _sync("burrow_done")
 
 
 # ---------------------------------------------------------------- habilidades da espada replicadas

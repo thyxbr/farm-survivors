@@ -1,5 +1,5 @@
 # Folha de conferência de um asset: frente, 3/4 e costas, corpo inteiro.
-# blender -b --factory-startup --python tools/blender/preview_single.py -- <nome> <saida.png> [silhouette] [small]
+# blender -b --factory-startup --python tools/blender/preview_single.py -- <nome> <saida.png> [silhouette] [small] [big|huge]
 # "small" renderiza em 900x573 (iterações de forma/proporção, imagem ~4x mais barata de ler);
 # sem ele sai em 1650x1050 (conferência final de detalhes).
 import bpy, sys, math
@@ -10,6 +10,9 @@ name, out = args[0], args[1]
 flags = set(args[2:])
 silhouette = "silhouette" in flags
 small = "small" in flags
+big = "big" in flags   # monstro grande (~2,5 m): afasta as três vistas e abre a câmera
+huge = "huge" in flags   # chefe enorme (~4,5 m)
+GAP = 3.8 if huge else (2.7 if big else 1.05)
 scn = bpy.context.scene
 for o in list(scn.objects):
     bpy.data.objects.remove(o)
@@ -22,15 +25,15 @@ for i, ang in enumerate((0.0, 0.75, math.pi)):
             o.data.calc_loop_triangles()
             tris += len(o.data.loop_triangles)
         if o.parent is None:
-            o.location.x += (i - 1) * 1.05
+            o.location.x += (i - 1) * GAP
             o.rotation_mode = 'XYZ'
             o.rotation_euler.z += ang
 print("TRIS", name, tris, flush=True)
 cam = bpy.data.objects.new("Cam", bpy.data.cameras.new("Cam"))
 scn.collection.objects.link(cam)
 cam.data.type = 'ORTHO'
-cam.data.ortho_scale = 3.3
-cam.location = (0, -10, 0.98)
+cam.data.ortho_scale = 12.5 if huge else (8.4 if big else 3.3)
+cam.location = (0, -10, 2.3 if huge else (1.3 if big else 0.98))
 cam.rotation_euler = (math.radians(90), 0, 0)
 scn.camera = cam
 scn.render.engine = 'BLENDER_WORKBENCH'
