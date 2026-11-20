@@ -3,14 +3,17 @@ extends Node3D
 ## (asa inteira girando no pivô), à direita a nova (esqueleto ao longo da asa, BackWings). Eles andam de verdade
 ## pelo chão, então a velocidade, a passada e a inércia chegam às asas como no jogo.
 ## Precisa de janela e do --import feito antes:
-##   godot --path . --resolution 1600x900 res://tools/wing_lab.tscn [-- asa] [costas|lado|frente]
-## asa: seraph_wings (padrão), abyss_wings, crystal_wings, phoenix_wings, mech_wings, dragon_wings, fairy_wings.
+##   godot --path . --resolution 1600x900 res://tools/wing_lab.tscn [-- asa] [lado|frente|tras]
+## asa: seraph_wings (padrão), abyss_wings, crystal_wings, phoenix_wings, mech_wings, dragon_wings, fairy_wings;
+## também capas (traveler_cape, wanderer_cape, starry_mantle...): aí a comparação é o vento antigo da capa
+## (CapeRig) contra o novo. `vento` liga o vento do clima (some com --weather=vento|chuva antes do `--`).
 ## Teclas: 1 parado, 2 andar, 3 correr, Espaço liga/desliga o ciclo automático (parado > anda > corre > para),
 ## Q/E troca a asa, A/D vira (curva), setas giram a câmera, +/- zoom, V troca a vista, P pausa.
 ## Para gravar: acrescente --write-movie <pasta>/f.png --fixed-fps 30 (o ciclo automático roda uma volta e sai).
 
 const KNIGHT := preload("res://assets/models/knight.glb")
-const WINGS := ["seraph_wings", "abyss_wings", "dragon_wings", "phoenix_wings", "fairy_wings", "crystal_wings", "mech_wings"]
+const WINGS := ["seraph_wings", "abyss_wings", "dragon_wings", "phoenix_wings", "fairy_wings", "crystal_wings", "mech_wings",
+		"traveler_cape", "wanderer_cape", "half_cape", "starry_mantle", "dragonking_cape", "flame_cape"]
 const GAP := 1.5                 # meia distância entre os dois cavaleiros
 const WALK := 5.2
 const RUN := 8.6
@@ -50,10 +53,14 @@ func _ready() -> void:
 		var i := WINGS.find(a)
 		if i >= 0:
 			_wing = i
+	if "vento" in args:
+		Weather.fx = self       # sem WeatherFX o clima não chega à capa
 	if "lado" in args:
 		_view = 1
 	elif "frente" in args:
 		_view = 2
+	elif "tras" in args:
+		_view = 3
 	_apply_view()
 	_movie = OS.has_feature("movie") or "--write-movie" in OS.get_cmdline_args()
 	WorldLighting.build(self)
@@ -86,8 +93,10 @@ func _spawn() -> void:
 		_rig.add_child(m)
 		m.position = _slot(side[1])
 		BackWings.legacy_default = side[1]
+		CapeRig.legacy_default = side[1]
 		KnightLook.apply(m, {"back": WINGS[_wing]})
 		BackWings.legacy_default = false
+		CapeRig.legacy_default = false
 		var tag := Label3D.new()
 		tag.text = side[2]
 		tag.font_size = 72

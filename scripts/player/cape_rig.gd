@@ -35,6 +35,7 @@ static func attach(cape: MeshInstance3D, center := Vector2(0.0, -0.035)) -> Cape
 
 	var rig := CapeRig.new()
 	rig.name = "CapeRig"
+	rig.legacy = legacy_default
 	var skel := Skeleton3D.new()
 	skel.name = "CapeSkeleton"
 	skel.transform = cape.transform
@@ -96,6 +97,8 @@ func add_capsule(node: Node3D, radius: float, height: float, offset := Vector3.Z
 ## Volta a capa ao repouso (teleporte, renascer): evita um chicote gigante.
 func reset() -> void:
 	_follow()
+	_has_last = false
+	_vel = Vector3.ZERO
 	sim.reset()
 
 
@@ -104,11 +107,69 @@ func _physics_process(_delta: float) -> void:
 	_blow()
 
 
-## Vento do clima: a "gravidade" da capa tomba para o lado do vento, com tremulado nas pontas.
+## Ar que bate na capa: o vento do clima menos a velocidade do corpo (correr contra o ar parado também é
+## vento). A "gravidade" da capa tomba para onde o ar vai: correndo, a capa vai para trás; parado num dia de
+## vento, tomba de leve para o lado do vento. O vento do clima pesa pouco (WIND_PUSH) para a capa não ficar
+## sempre deitada de lado, e o tremulado só mexe na força, não na direção.
+const WIND_PUSH := 0.45
+## Quanto cada m/s do corpo empurra a capa para trás (8,6 m/s correndo dá ~0,9).
+const SPEED_PUSH := 0.105
+## Tombo máximo da gravidade (1 = 45°): nem o temporal deixa a capa na horizontal.
+const MAX_PUSH := 1.0
+
+## Laboratório (tools/wing_lab.gd): capas criadas enquanto isto vale usam o vento antigo (sem corrida).
+static var legacy_default := false
+var legacy := false
 var _wind_level := 0.0
+var _last := Vector3.ZERO
+var _has_last := false
+var _vel := Vector3.ZERO
+var _still := false
 
 
 func _blow() -> void:
+	if legacy:
+		_blow_legacy()
+		return
+	var weather := get_node_or_null("/root/Weather")
+	var w: float = weather.visual_wind() if weather != null else 0.0
+	var dt := get_physics_process_delta_time()
+	var p := skeleton.global_position
+	var v := Vector3.ZERO
+	if _has_last and dt > 0.0:
+		v = (p - _last) / dt
+		if v.length() > 30.0:     # teleporte
+			v = Vector3.ZERO
+	_last = p
+	_has_last = true
+	_vel = _vel.lerp(Vector3(v.x, 0.0, v.z), 1.0 - exp(-8.0 * dt))
+	var air := -_vel * SPEED_PUSH
+	if w > 0.02:
+		var wd: Vector2 = weather.wind_dir
+		air += Vector3(wd.x, 0.0, wd.y) * w * WIND_PUSH
+	var strength := air.length()
+	if strength < 0.02:
+		if not _still:      # sem ar: volta a cair reto (uma vez só)
+			_still = true
+			for c in CHAINS.size():
+				for j in BONES:
+					sim.set_joint_gravity_direction(c, j, Vector3.DOWN)
+		return
+	_still = false
+	var dir := air / strength
+	strength = minf(strength, MAX_PUSH)
+	var t := Time.get_ticks_msec() * 0.001
+	var flap := clampf(strength * 1.5, 0.0, 1.0)      # tremula mais quanto mais ar
+	for c in CHAINS.size():
+		for j in BONES:
+			var f := float(j + 1) / BONES
+			var flutter := 1.0 + 0.22 * flap * sin(t * (5.5 + 1.5 * c) + j * 0.9 + c * 1.7)
+			var push := strength * flutter * (0.55 + 0.45 * f)
+			sim.set_joint_gravity_direction(c, j, (Vector3.DOWN + dir * push + Vector3.UP * 0.1 * push * f).normalized())
+
+
+## Vento antigo, para comparar: só o clima, forte e numa direção fixa do mundo.
+func _blow_legacy() -> void:
 	var weather := get_node_or_null("/root/Weather")
 	var w: float = weather.visual_wind() if weather != null else 0.0
 	if w < 0.02 and _wind_level < 0.02:
