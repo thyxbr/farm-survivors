@@ -425,15 +425,16 @@ func _ready() -> void:
 	_finish()
 
 
-# ---------------------------------------------------------------- habilidades da espada replicadas
-## Quem não é "join" (Ana) usa as três habilidades; o outro (Beto) vê a réplica de Ana entrar em cada uma.
-## Que o servidor dedicado não cria nós de efeito não dá para ver daqui (o cliente só enxerga os próprios nós):
-## isso é conferido no smoke test (FX._scene() nulo com Network.mode == SERVER).
+# ---------------------------------------------------------------- Toupeira-Broca na Mina
 ## Toupeira-Broca (Mina): a réplica no cliente esconde o modelo e tira a colisão enquanto o servidor diz que ela
 ## está cavando, e mostra de novo quando ela emerge. Só Ana vai à Mina; Beto espera na barreira.
+## Ana fica imune enquanto está lá (`invuln`, que vale também para o dano mandado pelo servidor): os fossos têm
+## bandos de Toupeiras e outros monstros do nível 25, e morta ela voltaria para a vila (e não abriria a fila da
+## Horda, que vem depois). O teste confere a réplica, não a sobrevivência no fosso.
 func _test_burrow(w: Node) -> void:
 	if my_name == "Ana":
 		var back: Vector3 = w.player.global_position
+		w.player.invuln = 999.0
 		w.player.global_position = Regions.arrive_point("mina")
 		await wait(1.5)
 		var mole: Enemy = null
@@ -446,9 +447,19 @@ func _test_burrow(w: Node) -> void:
 					mole = e
 		check(mole != null, "há uma Toupeira-Broca na Mina para o teste de cavar")
 		if mole != null:
-			# a meia distância (entre dig_min e dig_max): ela vê, espera a janela na superfície e cava
-			w.player.global_position = mole.global_position + Vector3(8, 0.5, 0)
-			var dug := await _wait_until(func() -> bool: return mole.state == "burrow", 10.0)
+			# a meia distância (entre dig_min e dig_max): ela vê, espera a janela na superfície e cava. A réplica
+			# longe da câmera fica congelada (Enemy.still) com a posição velha: a posição real é a do snapshot
+			# (_net_pos), e a Ana se reposiciona se a Toupeira andar para fora da faixa
+			var dug := false
+			for i in 40:
+				var real: Vector3 = mole._net_pos
+				var d := Vector2(w.player.global_position.x - real.x, w.player.global_position.z - real.z).length()
+				if i == 0 or d < 5.0 or d > 12.0:
+					w.player.global_position = real + Vector3(8, 0.5, 0)
+				await wait(0.25)
+				if mole.state == "burrow":
+					dug = true
+					break
 			check(dug, "a Toupeira cava (estado burrow chega ao cliente)")
 			if dug:
 				check(not mole.model.visible and mole.collision_layer == 0,
@@ -460,10 +471,15 @@ func _test_burrow(w: Node) -> void:
 			check(out and mole.collision_layer != 0, "réplica emerge: modelo e colisão de volta")
 		w.player.global_position = back
 		await wait(1.0)
+		w.player.invuln = 0.0
 		check(not w.player.dead, "Ana volta viva da Mina")
 	await _sync("burrow_done")
 
 
+# ---------------------------------------------------------------- habilidades da espada replicadas
+## Quem não é "join" (Ana) usa as três habilidades; o outro (Beto) vê a réplica de Ana entrar em cada uma.
+## Que o servidor dedicado não cria nós de efeito não dá para ver daqui (o cliente só enxerga os próprios nós):
+## isso é conferido no smoke test (FX._scene() nulo com Network.mode == SERVER).
 func _test_sword(w: Node) -> void:
 	# a espada inicial voltou para a mochila quando o cajado foi equipado (o cliente online não se dá itens)
 	await _pick_class("warrior", "azure_edge")
