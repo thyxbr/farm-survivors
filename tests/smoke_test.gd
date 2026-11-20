@@ -1088,6 +1088,7 @@ func _ready() -> void:
 	await _test_bocarrao_tongue()
 	await _test_flor_rooted()
 	await _test_enemy_detour()
+	await _test_river()
 	await _test_archer_pose()
 	await _test_gold_goblin_world()
 	if _part() != "mundo":
@@ -2294,6 +2295,35 @@ func _test_enemy_detour() -> void:
 		await wait(0.1)
 	player.invuln = 0.0
 	Game.hp = Game.max_hp()
+	player.global_position = back
+	await wait(0.1)
+
+
+## Rio do Vale: andando para o norte fora da ponte, a parede da margem segura o jogador antes da água; pela
+## Estrada do Norte ele sobe na ponte e chega do outro lado sem cair.
+func _test_river() -> void:
+	var back := player.global_position
+	player.invuln = 99.0
+	var yaw0: float = player.cam_yaw.global_rotation.y
+	player.cam_yaw.global_rotation.y = 0.0   # câmera olhando para -Z: "frente" é o norte
+	for case in [[Vector3(20, 0.3, -17), false], [Vector3(0, 0.3, -17), true]]:
+		player.global_position = case[0]
+		player.velocity = Vector3.ZERO
+		await wait(0.2)
+		var low := 99.0
+		Input.action_press("move_forward")
+		for i in 50:
+			await wait(0.1)
+			low = minf(low, player.global_position.y)
+		Input.action_release("move_forward")
+		var z: float = player.global_position.z
+		if case[1]:
+			check(z < -40.0, "atravessa o rio pela ponte (chegou a z = %.1f)" % z)
+			check(low > -0.2, "não afunda nem cai da ponte (y mínimo %.2f)" % low)
+		else:
+			check(z < -21.0 and z > -26.5, "a margem do rio segura o jogador fora da água (parou em z = %.1f)" % z)
+	player.cam_yaw.global_rotation.y = yaw0
+	player.invuln = 0.0
 	player.global_position = back
 	await wait(0.1)
 

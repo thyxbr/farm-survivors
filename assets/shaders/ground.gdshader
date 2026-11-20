@@ -12,6 +12,10 @@ uniform float shape_ang[MAX_SHAPES];  // giro do retângulo em Y (radianos, como
 uniform vec4 shape_cols[MAX_SHAPES];  // rgb linear + maciez da borda (m)
 uniform float shape_grass[MAX_SHAPES]; // 0 = terra lisa; > 0 = grama baixa/pisada manchada com a cor
 uniform int shape_count = 0;
+const int MAX_RIVER = 192;
+uniform vec4 river[MAX_RIVER];   // caminho dos rios (MapRiver): (x, z, meia largura sem chão, 1 = início de um rio)
+uniform int river_count = 0;
+uniform vec4 river_box;          // retângulo que contém os rios (min x, min z, max x, max z)
 
 // Clima (scripts/autoload/weather.gd, publicado pelo WeatherFX): água no chão, neve acumulada e
 // chuva caindo agora (respingos nas poças). Fora de Valdoria/praça ficam em 0.
@@ -51,6 +55,21 @@ vec2 ripple(vec2 p, float cell, float t) {
 }
 
 void fragment() {
+	// rio: o chão some na faixa do leito (a margem e a água ficam por baixo, no MapRiver)
+	if (river_count > 1 && wxz.x > river_box.x && wxz.y > river_box.y && wxz.x < river_box.z && wxz.y < river_box.w) {
+		for (int i = 1; i < river_count; i++) {
+			vec4 b = river[i];
+			if (b.w > 0.5) {
+				continue;
+			}
+			vec2 a = river[i - 1].xy;
+			vec2 ab = b.xy - a;
+			float h = clamp(dot(wxz - a, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0);
+			if (length(wxz - a - ab * h) < b.z) {
+				discard;
+			}
+		}
+	}
 	vec3 grass = grass_color(wxz);
 	vec3 col = grass;
 	float n2 = texture(noise_tex, wxz * 0.047 + vec2(0.37, 0.11)).r;
