@@ -4058,6 +4058,537 @@ def build_a_firstplate():
     join_objs("FirstPlate", parts + shoulder + arms + tas + mid + cuis_trim + culet)
     g_export_skinned(style)
 
+
+# ------------------------------------------------------------------ escamas de brasa (endgame, malha lisa)
+# Referência: Sleeping Thunder, armadura de escamas negras com veias vermelhas acesas. Faixas de escama em V
+# (chevron) da gola à cintura, na frente e atrás, com a brasa aparecendo na fresta entre uma faixa e a de baixo;
+# gema em chama no esterno; gola alta de escamas. A brasa é material com emissão (vai pulsar pelo GearFx).
+def ember_mats():
+    return dict(
+        scale=gm("ds_scale", "#2A2831", 0.55, 0.35), scale_d=gm("ds_scale_d", "#131217", 0.65, 0.3),
+        under=gm("ds_under", "#17161B", 0.85), lea=gm("ds_leather", "#1E1B1E", 0.8),
+        cloth=gm("ds_cloth", "#201E26", 0.9),
+        vein=mat("ds_vein_glow_flat", hexc("#7E1512"), 0.5, 0.0, emit=hexc("#8A0C08"), strength=0.3),
+        gem=mat("ds_gem_glow_flat", hexc("#FF8A3A"), 0.3, 0.0, emit=hexc("#FF5A1A"), strength=2.2),
+    )
+
+
+def g_surface_leaf(name, bvh, guide, half_w, material, parent, n=10, off0=0.012, lift=0.02, arch=0.006, thick=0.004,
+                   stripe=None):
+    """Escama em folha deitada sobre o corpo: a linha do meio é guide(s) (s = 0 raiz .. 1 ponta) projetada na
+    superfície mais próxima (bvh do corpo), a off0 dela e levantando até off0 + lift na ponta; half_w(s) dá a
+    meia largura; a seção é arqueada (arch)."""
+    cs, ns = [], []
+    for i in range(n):
+        t = i / (n - 1)
+        loc, nrm, _, _ = bvh.find_nearest(guide(t))
+        cs.append(loc)
+        ns.append(nrm)
+    for _ in range(3):                 # alisa a linha e as normais (a projeção no corpo vem em degraus)
+        cs = [cs[0]] + [(cs[i - 1] + cs[i] * 2 + cs[i + 1]) / 4 for i in range(1, n - 1)] + [cs[-1]]
+        ns = [ns[0]] + [(ns[i - 1] + ns[i] * 2 + ns[i + 1]).normalized() for i in range(1, n - 1)] + [ns[-1]]
+    ns[-1] = ns[-2]
+    cs = [c + nr * (off0 + lift * (i / (n - 1)) ** 2) for i, (c, nr) in enumerate(zip(cs, ns))]
+    rows = []
+    for i in range(n):
+        tg = (cs[min(i + 1, n - 1)] - cs[max(i - 1, 0)]).normalized()
+        w = tg.cross(ns[i]).normalized()
+        hw = max(0.0012, half_w(i / (n - 1)))
+        rows.append([cs[i] + w * hw * x + ns[i] * arch * (1 - x * x) for x in (-1.0, -0.5, 0.0, 0.5, 1.0)])
+    leaf = g_smooth_mesh(name, rows, material, parent, cap_end=False, closed=False, thick=thick, outward=True)
+    if stripe is None:
+        return leaf
+    # faixa de brasa larga ao longo da folha, na metade de cima dela (a brasa que aparece sob a folha de cima)
+    srows = []
+    for i in range(1, n - 1):
+        tg = (cs[min(i + 1, n - 1)] - cs[max(i - 1, 0)]).normalized()
+        w = tg.cross(ns[i]).normalized()
+        if w.z < 0:
+            w = -w
+        hw = max(0.0012, half_w(i / (n - 1)))
+        srows.append([cs[i] + w * hw * x + ns[i] * (arch * (1 - x * x) + 0.001) for x in (0.12, 0.4, 0.68)])
+    return [leaf, g_smooth_mesh(name + "Glow", srows, stripe, parent, cap_end=False, closed=False, outward=True)]
+
+
+def ember_torso(K, src, body):
+    """Tronco das escamas de brasa. Por baixo de tudo, um fundo de brasa aceso (casca do corpo) da cintura à
+    gola e por cima dos ombros. Sobre ele, escamas escuras: no peito e nas costas, quatro fileiras em V de
+    placas grandes (o vermelho aparece em faixas largas entre as fileiras); nos ombros, um leque de escamas
+    em folha que sai da gema (na frente) e da espinha (atrás) e passa da ponta do ombro, com o vermelho entre
+    uma folha e outra; a gema em chama fica no esterno, num engaste escuro cercado de escamas pequenas.
+    Devolve (casca, peças rígidas, escamas dos ombros)."""
+    from mathutils.bvhtree import BVHTree
+
+    def keep(c, b, n):                 # até o quadril: abaixo disso a calça com pele tem a mesma folga (serrilhava)
+        return not (b.startswith("Arm") or b.startswith("Elbow") or b.startswith("Knee")) and 0.9 <= c.z < 1.52
+
+    under = cb_piece(src, "Under", keep, 0.006, K["under"])
+    g_subdiv(under, 2)
+    parts, mantle = [], []
+    NB, Z0, Z1 = 5, 1.43, 1.0          # a primeira fileira fica logo abaixo da gema (só no meio da frente)
+    step = (Z0 - Z1) / NB
+    VD = 0.1                           # V fundo e reto (a ponta desce no meio da frente e das costas)
+
+    def band_z(k, a):
+        x = min(1.0, abs(math.sin(a)) / 0.85)
+        return Z0 - step * k - VD * (1 - x)
+
+    # ---- fundo em brasa: da cintura à gola, e o alto dos braços (sob as escamas dos ombros)
+    def ember_keep(c, b, n):
+        if b.startswith("Arm"):
+            sd = 1 if c.x > 0 else -1
+            return _cb_t(c, cb_mirror(CB_J["shoulder"], sd), cb_mirror(CB_J["elbow"], sd)) < 0.34
+        a = math.atan2(c.x, -c.y)
+        return keep(c, b, n) and band_z(NB, a) - 0.01 < c.z < 1.5
+    bed = cb_piece(src, "EmberBed", ember_keep, 0.011, K["vein"])
+    g_subdiv(bed, 2)
+    # ---- peito e costas: fileiras em V de placas grandes (duas por lado na frente), cada placa encosta a raiz
+    #      no fundo e levanta a barra por cima da fileira de baixo; entre as fileiras fica a faixa de brasa
+    NSC = 8
+    for k in range(NB):
+        for m in range(NSC):
+            a0 = -math.pi + 2 * math.pi * m / NSC + 0.012
+            span = 2 * math.pi / NSC - 0.024
+            am = a0 + span / 2
+            aw = abs(math.atan2(math.sin(am), math.cos(am)))
+            if (k == 0 and aw > 0.8) or (k == 1 and 1.15 < aw < 2.0):
+                continue               # fileira de cima só no peito; axila fica sob o braço
+
+            def scale(u, v, k=k, a0=a0, span=span):
+                a = a0 + span * v
+                top = band_z(k, a) + 0.004
+                x = 2 * v - 1
+                h = step * (0.6 + 0.1 * (1 - abs(x) ** 1.5))
+                z = top - h * u
+                puff = 0.008 * math.sin(math.pi * min(1.0, u * 1.1)) * (1 - 0.4 * x * x)
+                return wk_plate_pt(a, z, 0.008 + puff + 0.012 * u, fr_max=1.03)
+            rows = [[scale(i / 5, j / 10) for j in range(11)] for i in range(6)]
+            parts.append(g_smooth_mesh("Scale%d_%d" % (k, m), rows, K["scale"], body, cap_end=False, closed=False,
+                                       thick=0.005, outward=True))
+    # ---- placas lisas das omoplatas (acima das fileiras, nas costas)
+    for sn, sg in (("L", 1), ("R", -1)):
+        def blade(u, v, sg=sg):
+            a = math.pi - sg * (0.06 + 0.95 * v)
+            top = 1.455 - 0.05 * v
+            bot = band_z(1, a) - 0.004
+            return wk_plate_pt(a, top + (bot - top) * u, 0.009 + 0.011 * u + 0.006 * math.sin(math.pi * u))
+        rows = [[blade(i / 6, j / 8) for j in range(9)] for i in range(7)]
+        parts.append(g_smooth_mesh("BackBlade" + sn, rows, K["scale"], body, cap_end=False, closed=False,
+                                   thick=0.005, outward=True))
+    # ---- gola alta de escama
+    def ring(z, rx, ry, y0=0.012, n=36):
+        return [Vector((math.sin(2 * math.pi * j / n) * rx, y0 - math.cos(2 * math.pi * j / n) * ry, z))
+                for j in range(n)]
+    col = [ring(1.43, 0.13, 0.115), ring(1.48, 0.104, 0.094), ring(1.53, 0.09, 0.083), ring(1.575, 0.088, 0.082)]
+    parts.append(g_smooth_mesh("Collar", col, K["scale"], body, cap_end=False, thick=0.006, outward=True))
+    parts.append(g_pipe("CollarRim", col[-1], 0.004, K["scale_d"], body, sides=6, loop=True))
+    # ---- gema em chama no esterno, em engaste escuro, cercada de escamas pequenas
+    mw = src.matrix_world
+    bvh = BVHTree.FromPolygons([mw @ v.co for v in src.data.vertices], [tuple(p.vertices) for p in src.data.polygons])
+    g0, gn, _, _ = bvh.find_nearest(wk_plate_pt(0.0, 1.405, 0.02, fr_max=1.03))
+    RT, UP = Vector((1, 0, 0)), Vector((0, 0, 1))
+    flame = [(0.0, 0.046), (0.015, 0.016), (0.02, -0.008), (0.0, -0.034), (-0.02, -0.008), (-0.015, 0.016)]
+    parts.append(g_plate("ChestGemSeat", [(x * 1.45, y * 1.35) for x, y in flame], g0 + gn * 0.024, RT, UP, 0.008,
+                         K["scale_d"], body))
+    parts.append(g_plate("ChestGem", flame, g0 + gn * 0.033, RT, UP, 0.01, K["gem"], body))
+    for q, (deg, L, W) in enumerate(((62, 0.05, 0.014), (118, 0.05, 0.014), (22, 0.062, 0.017), (158, 0.062, 0.017),
+                                     (-22, 0.066, 0.018), (202, 0.066, 0.018), (-62, 0.07, 0.016),
+                                     (242, 0.07, 0.016), (270, 0.105, 0.015))):
+        t = math.radians(deg)
+        d = RT * math.cos(t) + UP * math.sin(t)
+        parts.append(g_surface_leaf("GemScale%d" % q, bvh, lambda u, d=d, L=L: g0 + d * (0.014 + L * u),
+                                    lambda u, W=W: W * (0.6 + 0.4 * min(1.0, u * 3.5)) * (1 - u ** 2.2),
+                                    K["scale"], body, n=8, off0=0.014, lift=0.012, arch=0.004))
+    # ---- leque curto de escamas em folha em volta da gema (frente) e no alto das costas: fica no tronco, não
+    #      sobe no ombro
+    b0 = bvh.find_nearest(wk_plate_pt(math.pi, 1.44, 0.02))[0]
+    fans = (("F", g0 + UP * 0.012, ((60, 0.085), (34, 0.105), (12, 0.125), (-10, 0.12), (-32, 0.1))),
+            ("B", b0, ((48, 0.085), (26, 0.1), (6, 0.12), (-14, 0.115))))
+    for fn, org, leaves in fans:
+        for sn, sg in (("L", 1), ("R", -1)):
+            for q, (deg, L) in enumerate(leaves):
+                t = math.radians(deg)
+                d = RT * (sg * math.cos(t)) + UP * math.sin(t)
+                parts += g_surface_leaf("Fan%s%s%d" % (fn, sn, q), bvh,
+                                        lambda u, d=d, L=L, org=org: org + d * (0.035 + L * u),
+                                        lambda u: 0.024 * (0.5 + 0.5 * min(1.0, u * 2.5)) * (1 - u ** 3.0),
+                                        K["scale"], body, n=10, off0=0.02 - 0.0025 * q, lift=0.012, arch=0.006,
+                                        thick=0.005, stripe=K["vein"])
+    # ---- ombros: ombreira de três placas de escama empilhadas, cada uma por cima da de baixo, com a barra
+    #      recortada em três pontas de folha e uma faixa de brasa ao longo
+    for sn, sg in (("L", 1), ("R", -1)):
+        lames = [(0.08, 1.7, 1.75, 0.04, 0.004), (1.3, 2.55, 1.9, 0.036, 0.016), (2.1, 3.35, 1.95, 0.03, 0.02)]
+        for k, (rings, dirs, C) in enumerate(_g_shoulder_dome(src, sg, lames, phis=30, rows=8, cap=0.006, taper=True)):
+            n, nr = len(rings[0]), len(rings)
+
+            def col(j, u, rings=rings, nr=nr):         # ponto da coluna j na fração u da altura
+                x = u * (nr - 1)
+                i0 = min(nr - 2, int(x))
+                return rings[i0][j].lerp(rings[i0 + 1][j], x - i0)
+            NL = 3
+            grid = []
+            for i in range(nr):
+                row = []
+                for j in range(n):
+                    tip = abs(math.sin(math.pi * NL * j / (n - 1))) ** 1.3     # 0 entre as folhas, 1 na ponta
+                    row.append(col(j, (i / (nr - 1)) * (0.5 + 0.5 * tip)))
+                grid.append(row)
+            mantle.append(g_smooth_mesh("ShoulderScale%s%d" % (sn, k), grid, K["scale"], body, cap_end=False,
+                                        closed=False, thick=0.006, outward=True))
+            glow = [[col(j, u) + dirs[min(nr - 1, int(u * (nr - 1)))][j] * 0.0012 for j in range(3, n - 3)]
+                    for u in (0.2, 0.3, 0.4)]
+            mantle.append(g_smooth_mesh("ShoulderGlow%s%d" % (sn, k), glow, K["vein"], body, cap_end=False,
+                                        closed=False, outward=True))
+    parts.append(bed)
+    return under, parts, mantle
+
+
+def ember_arms(K, src, body):
+    """Braços das escamas de brasa. Alto do braço: placa escura (casca do corpo) com um rasgo de brasa em amêndoa
+    do lado de fora. Antebraço: casca escura e escamas grandes em folha trançadas em duas colunas, com a brasa
+    na costura do meio; cotoveleira redonda. Devolve as peças que seguem o braço."""
+    from mathutils.bvhtree import BVHTree
+    orn = []
+    NP = 28
+    for sn, s in (("L", 1), ("R", -1)):
+        sh, el = cb_mirror(CB_J["shoulder"], s), cb_mirror(CB_J["elbow"], s)
+
+        def arm_side(c, s=s):
+            return c.x * s > 0
+        up = cb_piece(src, "ArmScale" + sn, lambda c, b, n, sh=sh, el=el: b.startswith("Arm") and arm_side(c)
+                      and _cb_t(c, sh, el) >= 0.3, 0.013, K["scale"])
+        g_subdiv(up, 2)
+        bed = cb_piece(src, "ForeShell" + sn, lambda c, b, n: b.startswith("Elbow") and arm_side(c)
+                       and _cb_fore_t(c) < 0.88, 0.008, K["scale_d"])
+        g_subdiv(bed, 2)
+        tmp = cb_piece(src, "ArmProbe" + sn, lambda c, b, n: (b.startswith("Arm") or b.startswith("Elbow")) and arm_side(c))
+        bvh = BVHTree.FromPolygons([v.co.copy() for v in tmp.data.vertices], [tuple(p.vertices) for p in tmp.data.polygons])
+        bpy.data.objects.remove(tmp, do_unlink=True)
+        L1, L2, at, coords, ring = _gb_arm_frame(s)
+        # rasgo de brasa em amêndoa no lado de fora do alto do braço, com moldura escura
+        o = Vector((s, 0, 0))
+        slit = lambda u: sh.lerp(el, 0.42 + 0.42 * u) + o * 0.2
+        orn.append(g_surface_leaf("ArmSlitRim" + sn, bvh, slit, lambda u: 0.02 * math.sin(math.pi * u) ** 0.7 + 0.002,
+                                  K["scale_d"], body, n=10, off0=0.014, lift=0.0, arch=0.003, thick=0.004))
+        orn.append(g_surface_leaf("ArmSlit" + sn, bvh, slit, lambda u: 0.013 * math.sin(math.pi * u) ** 0.8 + 0.001,
+                                  K["vein"], body, n=10, off0=0.023, lift=0.0, arch=0.002, thick=0.003))
+        # antebraço trançado: duas colunas de escamas grandes em folha, uma de cada lado da linha de fora, que
+        # descem em diagonal para o meio e se encaixam alternadas (cada uma cobre a raiz da seguinte); na costura
+        # do meio aparece a brasa. As escamas são grades limpas em coordenadas do braço (posição no eixo, ângulo),
+        # sobre o raio médio do antebraço: projetar na malha amassava as folhas em volta do braço fino.
+        def arm_pt(pos, ph):
+            c, ax = at(min(pos, L1 + 0.96 * L2))
+            oo = (o - ax * o.dot(ax)).normalized()
+            f = ax.cross(oo).normalized()
+            return c + (oo * math.cos(ph) + f * math.sin(ph)) * 0.2
+        rcache = {}
+
+        def rmean(pos):
+            k = round(pos, 3)
+            if k not in rcache:
+                c, ax = at(min(pos, L1 + 0.96 * L2))
+                oo = (o - ax * o.dot(ax)).normalized()
+                f = ax.cross(oo).normalized()
+                rs = []
+                for m in range(12):
+                    d = oo * math.cos(m * math.pi / 6) + f * math.sin(m * math.pi / 6)
+                    h = bvh.ray_cast(c + d * 0.25, -d)
+                    rs.append((0.25 - h[3]) if h[0] is not None else 0.04)
+                rcache[k] = sum(rs) / 12
+            return rcache[k]
+
+        def surf(pos, ph, out):
+            pos = min(max(pos, L1 - 0.02), L1 + 0.95 * L2)
+            c, ax = at(pos)
+            oo = (o - ax * o.dot(ax)).normalized()
+            f = ax.cross(oo).normalized()
+            return c + (oo * math.cos(ph) + f * math.sin(ph)) * (rmean(pos) + out)
+        T0, T1, NR, RA = 0.02, 0.93, 5, 0.045
+        step = (T1 - T0) * L2 / (NR + 0.75)  # a última escama (1,75 passo) ainda cabe antes do pulso
+        seam = [[surf(L1 + (T0 + 0.05 + (T1 - T0 - 0.09) * i / 14) * L2, ph, 0.0105) for ph in (-1.2, -0.6, 0.0, 0.6, 1.2)]
+                for i in range(15)]
+        orn.append(g_smooth_mesh("ForeSeam" + sn, seam, K["vein"], body, cap_end=False, closed=False, thick=0.003,
+                                 outward=True))
+        for k in range(NR):
+            for q, sg in enumerate((1, -1)):
+                p0 = L1 + T0 * L2 + step * k - 0.012       # os dois lados na mesma altura: o par forma um V
+
+                def center(u, p0=p0, sg=sg):       # linha do meio da escama em (posição, ângulo)
+                    return p0 + step * 1.75 * u, sg * (2.2 - 2.12 * u ** 0.9)
+                def grid(dpos, out0, lift, arch, wk=1.0):
+                    rows = []
+                    for i in range(11):
+                        u = i / 10
+                        pa, pha = center(max(0.0, u - 0.05))
+                        pb, phb = center(min(1.0, u + 0.05))
+                        tp, tph = pb - pa, (phb - pha) * RA
+                        ln = math.hypot(tp, tph) or 1.0
+                        np_, nph = -tph / ln, tp / ln                   # perpendicular no plano desenrolado
+                        pc, phc = center(u)
+                        # larga na raiz (as escamas se cobrem no lado do braço) e fina para a ponta (no meio sobra
+                        # um V de brasa entre um par e o seguinte)
+                        hw = (0.03 - 0.021 * u) * (0.7 + 0.3 * min(1.0, u * 4.0)) * (1 - u ** 5.0) ** 0.7 * wk
+                        hw = max(hw, 0.0015)
+                        rows.append([surf(pc + dpos + np_ * hw * x, phc + nph * hw * x / RA,
+                                          out0 + lift * u + arch * (1 - x * x))
+                                     for x in (-1.0, -0.6, -0.2, 0.2, 0.6, 1.0)])
+                    return rows
+                rows = grid(0.0, 0.011, 0.015, 0.007)
+                nm = "ForeScale%s%d_%d" % (sn, k, q)
+                orn.append(g_smooth_mesh(nm, rows, K["scale"], body, cap_end=False, closed=False, thick=0.005,
+                                         outward=True))
+                # contorno escuro da escama e a brasa por baixo da borda dela (cópia deslocada para a ponta)
+                border = [r[0] for r in rows] + rows[-1][1:-1] + [r[-1] for r in rows][::-1]
+                orn.append(g_pipe(nm + "Edge", border, 0.0024, K["scale_d"], body, sides=6, loop=True))
+        # cotoveleira: escama redonda grande sobre o cotovelo
+        orn.append(g_surface_leaf("ElbowScale" + sn, bvh, lambda u: arm_pt(L1 - 0.07 + 0.14 * u, 0.0) + Vector((0, 0.1, 0)),
+                                  lambda u: 0.04 * math.sin(math.pi * (0.12 + 0.8 * u)) ** 0.6,
+                                  K["scale"], body, n=9, off0=0.014, lift=0.004, arch=0.012, thick=0.005))
+    return orn
+
+
+def ember_fringe(K, body):
+    """Franja da cintura: escamas grandes em folha que pendem do fim do tronco e abrem para fora, em duas
+    camadas desencontradas (a de cima mais curta), em toda a volta menos no meio da frente (onde a saia abre);
+    atrás, a folha do meio é mais comprida. Escuras, sem brasa, cada uma com o contorno marcado."""
+    out = []
+    N = 12
+    for layer, (L0, zt, off0, wid) in enumerate(((0.19, 1.0, 0.02, 0.062), (0.12, 1.03, 0.032, 0.054))):
+        for m in range(N):
+            a = 2 * math.pi * (m + 0.5 * layer) / N
+            aw = abs(math.atan2(math.sin(a), math.cos(a)))
+            if aw < 0.4:
+                continue                       # meio da frente: aberto
+            L = L0 * (1.25 if aw > 2.9 else 1.0) * (1.0 + 0.15 * abs(math.sin(a)))
+
+            def leaf(u, x, a=a, L=L, zt=zt, off0=off0, wid=wid):
+                hw = wid * (0.7 + 0.3 * min(1.0, u * 4.0)) * (1 - u ** 3.0) ** 0.8
+                z = zt - L * u
+                q = _pal_hip_pt(a + hw * x / 0.17, z, off0 + 0.05 * u ** 1.3 + 0.008 * (1 - x * x))
+                return q
+            rows = [[leaf(i / 9, x) for x in (-1.0, -0.6, -0.2, 0.2, 0.6, 1.0)] for i in range(10)]
+            nm = "Fringe%d_%d" % (layer, m)
+            out.append(g_smooth_mesh(nm, rows, K["scale"], body, cap_end=False, closed=False, thick=0.005,
+                                     outward=True))
+            border = [r[0] for r in rows] + rows[-1][1:-1] + [r[-1] for r in rows][::-1]
+            out.append(g_pipe(nm + "Edge", border, 0.0024, K["scale_d"], body, sides=6, loop=True))
+            out.append(g_pipe(nm + "Rib", [leaf(u, 0.0) + Vector((0, 0, 0)) for u in (0.08, 0.35, 0.65, 0.92)], 0.002,
+                              K["scale_d"], body, sides=6))
+    return out
+
+
+def ember_skirt(K, body):
+    """Saia longa das escamas de brasa: pano negro do quadril ao tornozelo em duas metades, aberta na frente (as
+    pernas aparecem) e fechada atrás em repouso; barra e bordas da frente em brasa, losangos de brasa nas
+    costas (um grande no meio, dois menores acima e abaixo) e uma fileira de losangos pequenos junto de cada
+    borda da frente. Devolve as peças (pesos da saia)."""
+    Z0, Z1 = 0.995, 0.17
+    out = []
+    cloth = K["cloth"]
+
+    def pt(a, t, add=0.0):
+        z = Z0 - (Z0 - Z1) * t
+        fold = (0.016 * math.sin(7 * a + 0.4) + 0.006 * math.sin(17 * a)) * min(1.0, t * 2.5)
+        return _pal_hip_pt(a, z, 0.006 + 0.012 * t + fold + add)
+
+    def fo(t):                         # meia abertura da frente
+        return 0.42 + 0.2 * t
+    rows, NC = 20, 36
+    for sn, s in (("L", 1), ("R", -1)):
+        def ga(j, t, s=s):
+            return (fo(t) + (math.pi - fo(t)) * j / NC) * s
+        grid = [[pt(ga(j, i / rows), i / rows) for j in range(NC + 1)] for i in range(rows + 1)]
+        out.append(g_smooth_mesh("Skirt" + sn, grid, cloth, body, cap_end=False, closed=False, thick=0.005,
+                                 outward=True))
+        # barra de brasa (faixa) e borda da frente
+        hem = [[pt(ga(j, t), t, 0.002) for j in range(NC + 1)] for t in (0.955, 0.972, 0.99)]
+        out.append(g_smooth_mesh("SkirtHem" + sn, hem, K["vein"], body, cap_end=False, closed=False, thick=0.003,
+                                 outward=True))
+        edge = [[pt((fo(t) + da) * s, t, 0.002) for da in (0.0, 0.03, 0.06)] for t in (i / rows for i in range(2, rows + 1))]
+        out.append(g_smooth_mesh("SkirtEdge" + sn, edge, K["vein"], body, cap_end=False, closed=False, thick=0.003,
+                                 outward=True))
+
+        # ---- desenhos de brasa sobre o pano. Coordenadas do desenho: x = distância horizontal (m) a partir da
+        #      costura das costas ("B") ou da borda da frente ("F"), t = altura na saia (0 cintura .. 1 barra)
+        H = Z0 - Z1
+
+        def Rt(t):
+            return 0.17 + 0.1 * t
+
+        def at_(mode, x, t, s=s):
+            a = (math.pi - x / Rt(t)) if mode == "B" else (fo(t) + x / Rt(t))
+            return pt(a * s, min(max(t, 0.02), 0.995), 0.002)
+
+        def stroke(nm, mode, pts, w=0.0042):
+            """Traço: linha curva pelos pontos (x, t), mais fina nas pontas."""
+            sp = g_spline([Vector((x, t * H, 0)) for x, t in pts], max(8, len(pts) * 7))
+            rows = []
+            for k, q in enumerate(sp):
+                tg = (sp[min(k + 1, len(sp) - 1)] - sp[max(k - 1, 0)]).normalized()
+                pr = Vector((-tg.y, tg.x, 0))
+                ww = w * (0.35 + 0.65 * math.sin(math.pi * k / (len(sp) - 1)) ** 0.5)
+                rows.append([at_(mode, max(0.0, q.x + pr.x * ww * sg), (q.y + pr.y * ww * sg) / H) for sg in (-1, 1)])
+            out.append(g_smooth_mesh("%s%s" % (nm, sn), rows, K["vein"], body, cap_end=False, closed=False, thick=0.003,
+                                     outward=True))
+
+        def almond(nm, mode, xc, tc, hw, ht, seam=False):
+            """Amêndoa cheia (olho/folha de chama); seam = metade encostada na costura do meio."""
+            rows = []
+            for k in range(9):
+                v = k / 8 * 2 - 1
+                w = hw * math.cos(v * math.pi / 2) ** 1.2
+                xs = (0.0, w / 2, w) if seam else (xc - w, xc, xc + w)
+                rows.append([at_(mode, max(0.0, x), tc + ht * v) for x in xs])
+            out.append(g_smooth_mesh("%s%s" % (nm, sn), rows, K["vein"], body, cap_end=False, closed=False, thick=0.003,
+                                     outward=True))
+
+        def dots(nm, mode, pts, r=0.006):
+            for k, (x, t) in enumerate(pts):
+                almond("%s%d" % (nm, k), mode, x, t, r, r / H)
+        # costas, eixo do meio: losangos pequenos, olho grande com contorno, olho pequeno e linhas até a barra
+        almond("BkEye", "B", 0, 0.585, 0.022, 0.085, seam=True)
+        stroke("BkEyeRim", "B", [(0.004, 0.42), (0.02, 0.47), (0.048, 0.58), (0.03, 0.67), (0.006, 0.74)])
+        almond("BkEyeLo", "B", 0, 0.845, 0.012, 0.045, seam=True)
+        stroke("BkEyeLoRim", "B", [(0.006, 0.75), (0.03, 0.83), (0.022, 0.9), (0.03, 0.975)])
+        stroke("BkAxis", "B", [(0.004, 0.2), (0.005, 0.3), (0.004, 0.41)], 0.004)
+        almond("BkDiaHi", "B", 0, 0.235, 0.011, 0.028, seam=True)
+        almond("BkDiaMid", "B", 0, 0.34, 0.013, 0.034, seam=True)
+        # costas, lado: rasgo de brasa na cintura, losango vazado, linhas que abrem em chamas até a barra
+        almond("BkSlash", "B", 0.155, 0.12, 0.012, 0.1)
+        dots("BkDotHi", "B", [(0.195, 0.25), (0.2, 0.29)])
+        stroke("BkDiaA", "B", [(0.215, 0.33), (0.245, 0.375), (0.215, 0.42), (0.185, 0.375), (0.215, 0.33)], 0.003)
+        almond("BkDiaIn", "B", 0.215, 0.375, 0.008, 0.022)
+        stroke("BkRayOut", "B", [(0.225, 0.42), (0.275, 0.52), (0.31, 0.6)])
+        stroke("BkRayIn", "B", [(0.205, 0.42), (0.17, 0.5), (0.13, 0.58)])
+        dots("BkDotMid", "B", [(0.12, 0.6), (0.112, 0.63), (0.105, 0.66)], 0.005)
+        stroke("BkFlameA", "B", [(0.31, 0.6), (0.27, 0.74), (0.275, 0.88), (0.3, 0.975)])
+        stroke("BkFlameB", "B", [(0.31, 0.62), (0.335, 0.78), (0.325, 0.9), (0.34, 0.975)])
+        stroke("BkFlameC", "B", [(0.1, 0.68), (0.14, 0.78), (0.15, 0.9), (0.13, 0.975)])
+        stroke("BkFlameD", "B", [(0.205, 0.7), (0.235, 0.82), (0.22, 0.975)])
+        almond("BkLeaf", "B", 0.285, 0.83, 0.01, 0.05)
+        # frente: gota e riscos junto da cintura, pontos, e embaixo as curvas que saem da borda e enrolam
+        almond("FrDrop", "F", 0.035, 0.07, 0.007, 0.03)
+        stroke("FrTickA", "F", [(0.03, 0.13), (0.07, 0.19), (0.115, 0.225)])
+        stroke("FrTickB", "F", [(0.04, 0.14), (0.055, 0.22), (0.06, 0.31)])
+        dots("FrDot", "F", [(0.062, 0.34), (0.066, 0.375), (0.07, 0.41)], 0.005)
+        stroke("FrSweep", "F", [(0.21, 0.6), (0.14, 0.7), (0.06, 0.78), (0.03, 0.8)])
+        stroke("FrCurl", "F", [(0.05, 0.785), (0.1, 0.84), (0.15, 0.84), (0.17, 0.81)])
+        dots("FrCurlDot", "F", [(0.185, 0.8), (0.2, 0.79)], 0.004)
+        stroke("FrArc", "F", [(0.04, 0.8), (0.055, 0.88), (0.1, 0.94), (0.15, 0.965)])
+    return out
+
+
+def g_limb_braid(prefix, bvh, A, B, fdir, K, body, pairs=4, t0=0.05, t1=0.95, ra=0.07, hw0=0.042, hw1=0.014,
+                 seam_ph=1.2, ph0=2.2):
+    """Trança de escamas em volta de um membro reto (eixo A -> B): faixa de brasa na linha da frente (fdir) e
+    `pairs` pares de escamas em folha que nascem dos lados e descem em diagonal até se encontrarem na frente,
+    largas na raiz (cobrem a de baixo) e finas na ponta (sobra um V de brasa entre os pares), cada uma com o
+    contorno escuro. Grades limpas em coordenadas do membro (posição no eixo, ângulo) sobre o raio médio."""
+    ax = (B - A).normalized()
+    Ltot = (B - A).length
+    oo = (Vector(fdir) - ax * Vector(fdir).dot(ax)).normalized()
+    f = ax.cross(oo).normalized()
+    rcache = {}
+
+    def rmean(pos):
+        k = round(pos, 3)
+        if k not in rcache:
+            c = A + ax * pos
+            rs = []
+            for m in range(12):
+                d = oo * math.cos(m * math.pi / 6) + f * math.sin(m * math.pi / 6)
+                h = bvh.ray_cast(c + d * 0.3, -d)
+                rs.append((0.3 - h[3]) if h[0] is not None else ra)
+            rcache[k] = sum(rs) / 12
+        return rcache[k]
+
+    def surf(pos, ph, out):
+        pos = min(max(pos, 0.0), Ltot)
+        return A + ax * pos + (oo * math.cos(ph) + f * math.sin(ph)) * (rmean(pos) + out)
+    out = []
+    step = (t1 - t0) * Ltot / (pairs + 0.75)
+    seam = [[surf((t0 + 0.04 + (t1 - t0 - 0.08) * i / 14) * Ltot, ph, 0.0105)
+             for ph in (-seam_ph, -seam_ph / 2, 0.0, seam_ph / 2, seam_ph)] for i in range(15)]
+    out.append(g_smooth_mesh(prefix + "Seam", seam, K["vein"], body, cap_end=False, closed=False, thick=0.003,
+                             outward=True))
+    for k in range(pairs):
+        for q, sg in enumerate((1, -1)):
+            p0 = t0 * Ltot + step * k
+
+            def center(u, p0=p0, sg=sg):
+                return p0 + step * 1.75 * u, sg * (ph0 - (ph0 - 0.08) * u ** 0.9)
+            rows = []
+            for i in range(11):
+                u = i / 10
+                pa, pha = center(max(0.0, u - 0.05))
+                pb, phb = center(min(1.0, u + 0.05))
+                tp, tph = pb - pa, (phb - pha) * ra
+                ln = math.hypot(tp, tph) or 1.0
+                np_, nph = -tph / ln, tp / ln
+                pc, phc = center(u)
+                hw = (hw0 - (hw0 - hw1) * u) * (0.7 + 0.3 * min(1.0, u * 4.0)) * (1 - u ** 5.0) ** 0.7
+                hw = max(hw, 0.0015)
+                rows.append([surf(pc + np_ * hw * x, phc + nph * hw * x / ra, 0.011 + 0.015 * u + 0.008 * (1 - x * x))
+                             for x in (-1.0, -0.6, -0.2, 0.2, 0.6, 1.0)])
+            nm = "%sScale%d_%d" % (prefix, k, q)
+            out.append(g_smooth_mesh(nm, rows, K["scale"], body, cap_end=False, closed=False, thick=0.005, outward=True))
+            border = [r[0] for r in rows] + rows[-1][1:-1] + [r[-1] for r in rows][::-1]
+            out.append(g_pipe(nm + "Edge", border, 0.0024, K["scale_d"], body, sides=6, loop=True))
+    return out
+
+
+def ember_legs(K, src, body):
+    """Coxas das escamas de brasa: casca escura em volta da coxa e, na frente, a mesma trança de escamas do
+    antebraço (quatro pares em V com a brasa entre eles), do quadril até logo acima do joelho."""
+    from mathutils.bvhtree import BVHTree
+    orn = []
+    knee_z = CB_J["knee"].z
+    for sn, s in (("L", 1), ("R", -1)):
+        shell = cb_piece(src, "ThighShell" + sn, lambda c, b, n, s=s: b.startswith("Leg") and c.x * s > 0
+                         and knee_z + 0.02 < c.z < 0.9, 0.009, K["scale_d"])
+        g_subdiv(shell, 2)
+        tmp = cb_piece(src, "LegProbe" + sn, lambda c, b, n, s=s: (b.startswith("Leg") or b.startswith("Knee"))
+                       and c.x * s > 0 and c.z < 0.95)
+        bvh = BVHTree.FromPolygons([v.co.copy() for v in tmp.data.vertices], [tuple(p.vertices) for p in tmp.data.polygons])
+        bpy.data.objects.remove(tmp, do_unlink=True)
+        hip, kn = cb_mirror(CB_J["hip"], s), cb_mirror(CB_J["knee"], s)
+        orn += g_limb_braid("Thigh" + sn, bvh, hip, kn, (0, -1, 0), K, body, pairs=4, t0=0.2, t1=0.93, ra=0.075,
+                            hw0=0.042, hw1=0.014, seam_ph=0.9, ph0=1.35)
+    return orn
+
+
+def build_a_emberscale():
+    """Escamas de brasa (endgame). Rodada 1: tronco (faixas de escama em V com veias acesas, gola, gema);
+    braços e pernas com o gibão negro até as próximas peças."""
+    style = "a_emberscale"
+    P, R = g_rig(style)
+    M = g_mats()
+    K = ember_mats()
+    body = R["Body"]
+    rig, src = _cb_start(M)
+    neck(R, M["skin"])
+    hips(R, K["under"])
+    g_skinned_pants(src, M["pants"])
+    under, parts, mantle = ember_torso(K, src, body)
+    arms = ember_arms(K, src, body)
+    fringe = ember_fringe(K, body)
+    skirt = ember_skirt(K, body)
+    legs = ember_legs(K, src, body)
+    sleeves = cb_piece(src, "Sleeves", lambda c, b, n: (b.startswith("Arm") or b.startswith("Elbow"))
+                       and (not b.startswith("Elbow") or _cb_fore_t(c) < 0.86), 0.008, K["under"])
+    g_subdiv(sleeves)
+    g_loose_world(style)
+    os.makedirs(OUT + "gear", exist_ok=True)
+    targets = [o for o in scn.objects if o.type == 'MESH']
+    bake_ao(targets, _occluders(style, P, R, M))
+    cel_paint(targets, skip=("g_skin", K["vein"].name, K["gem"].name))
+    g_skin_finish(rig, src, [(mantle, "vert", ("Body", "ArmL", "ArmR"), 0.7),
+                             (arms, "vert", ("ArmL", "ArmR", "ElbowL", "ElbowR"), 1.0),
+                             (fringe, "fn", _gb_skirt_w, 1.0), (skirt, "fn", _gb_skirt_w, 1.0),
+                             (legs, "vert", ("Body", "LegL", "LegR", "KneeL", "KneeR"), 1.0)])
+    join_objs("EmberScale", parts + mantle + arms + fringe + skirt + legs)
+    g_export_skinned(style)
+
 def build_a_gambeson():
     """Gibão acolchoado (tier I). Rodada 1: tronco (gibão, placa do peito, gola e cinto); mangas são a casca
     lisa do braço e as pernas usam a calça simples até as próximas peças."""
@@ -5824,6 +6355,212 @@ def _plate_gauntlets(style, K):
     g_export(style, P, R)
 
 
+
+# ------------------------------------------------------------------ garras e grevas das escamas de brasa
+def build_g_emberscale():
+    """Garras de escama: mão negra (fechada e aberta), garras compridas nas pontas dos dedos da mão aberta, brasa
+    em amêndoa nas costas da mão e punho de escama com anel de brasa."""
+    P, R = g_rig("g_emberscale")
+    K = ember_mats()
+    SD = 20
+    for n, s in (("L", 1), ("R", -1)):
+        S = limb_sections(P, s)
+        elbow = R["Elbow" + n]
+        F = S["fore"]
+        fd = (F[-1]["c"] - F[0]["c"]).normalized()
+        hd, o, ay, up, pt = _hand_frame(P, s)
+        almond = [(math.sin(2 * math.pi * j / 16) * 0.011 * hd, (math.cos(2 * math.pi * j / 16) * 0.026 - 0.05) * hd)
+                  for j in range(16)]
+        fist = soft_fist("Arm" + n, P, s, K["scale"], elbow)
+        fparts = [fist, g_plate("Arm%s_FistGlow" % n, almond, pt(0.034, -0.002, 0.0), ay, up, 0.004, K["vein"], elbow)]
+        join_objs("Arm%s_Hand" % n, fparts)
+        hand = relaxed_hand("Arm" + n, P, s, K["scale"], elbow)
+        oparts = [hand, g_plate("Arm%s_OpenGlow" % n, almond, pt(0.014, -0.002, 0.0), ay, up, 0.004, K["vein"], elbow)]
+        # garras: continuam a última falange de cada dedo da mão aberta (mesma conta de relaxed_hand)
+        for q, (y, sp, zb, f, w, cu) in enumerate(((-0.0325, -0.007, -0.086, 0.95, 1.0, 0), (-0.0108, -0.002, -0.089, 1.0, 1.04, 4),
+                                                   (0.0108, 0.003, -0.087, 0.93, 0.98, 9), (0.0315, 0.008, -0.081, 0.76, 0.86, 14))):
+            cur = (-0.006, zb)
+            for L, a in ((0.042, 14 + cu), (0.027, 36 + cu * 1.5), (0.023, 54 + cu * 2)):
+                t = math.radians(a)
+                d = (-math.sin(t), -math.cos(t))
+                cur = (cur[0] + d[0] * L * f, cur[1] + d[1] * L * f)
+            yy = y + sp
+            oparts.append(g_cone("Arm%s_Claw%d" % (n, q), [pt(cur[0] - d[0] * 0.006, yy, cur[1] - d[1] * 0.006),
+                                                          pt(cur[0] + d[0] * 0.018, yy, cur[1] + d[1] * 0.02),
+                                                          pt(cur[0] + d[0] * 0.03 - 0.008, yy, cur[1] + d[1] * 0.044)],
+                                 0.0078 * hd * w, K["scale_d"], elbow, sides=8))
+        oparts.append(g_cone("Arm%s_ClawThumb" % n, [pt(-0.016, -0.0625, -0.088), pt(-0.02, -0.065, -0.105),
+                                                     pt(-0.028, -0.064, -0.122)], 0.0075 * hd, K["scale_d"], elbow,
+                             sides=8))
+        join_objs("Arm%s_HandOpen" % n, oparts)
+        c0 = grow([sample(F, 0.66)], 1.34, 0.018)[0]
+        c1 = grow([sample(F, 0.84)], 1.16, 0.011)[0]
+        c2 = grow([sample(F, 1.0)], 1.12, 0.008)[0]
+        cuff = [loft("Arm%s_Cuff" % n, [c0, c1, c2], K["scale"], elbow, sides=SD, caps=(False, False), thick=0.006)]
+        cuff.append(band("Arm%s_CuffRim" % n, c0, -fd, 0.01, K["scale_d"], elbow, sides=SD, out=0.002))
+        cuff.append(band("Arm%s_CuffGlow" % n, c2, -fd, 0.008, K["vein"], elbow, sides=SD, out=0.002))
+        join_objs("Arm%s_Gauntlet" % n, cuff)
+    g_export("g_emberscale", P, R)
+
+
+def build_f_emberscale():
+    """Grevas de escama: canela e volta do joelho em casca negra, trança de escamas na frente da canela (pares em
+    V com a brasa entre eles), escama em calota no joelho, pé de escama com três garras e uma faixa de brasa."""
+    from mathutils.bvhtree import BVHTree
+    P, R = g_rig("f_emberscale")
+    K = ember_mats()
+    NP = 24
+    for n, s in (("L", 1), ("R", -1)):
+        S = limb_sections(P, s)
+        knee, ankle = R["Knee" + n], R["Ankle" + n]
+        sh, th = S["shin"], S["thigh"]
+        KJ, AJ = mirror(P["knee"], s), mirror(P["ankle"], s)
+        hose = loft("Leg%s_Shin" % n, grow(sh, 1.07, 0.006), K["scale_d"], knee, sides=NP)
+        kn = grow(span(th, 0.9, 1.0), 1.0, 0.004) + grow(span(sh, 0.0, 0.22), 1.0, 0.004)[1:]
+        parts = [loft("Leg%s_KneeShell" % n, kn, K["scale_d"], knee, sides=NP)]
+        bpy.context.view_layer.update()
+        mw = hose.matrix_world
+        bvh = BVHTree.FromPolygons([mw @ v.co for v in hose.data.vertices], [tuple(p.vertices) for p in hose.data.polygons])
+        parts += g_limb_braid("Shin" + n, bvh, KJ, AJ, (0, -1, 0), K, knee, pairs=4, t0=0.14, t1=0.93, ra=0.05,
+                              hw0=0.036, hw1=0.012, seam_ph=1.0, ph0=1.9)
+        # escama do joelho: calota com a ponta para cima
+        kc = Vector((KJ.x, KJ.y - 0.014, KJ.z - 0.012))
+        fwd = Vector((0, -1, 0.15)).normalized()
+        u = Vector((1, 0, 0))
+        v = fwd.cross(u).normalized()
+        cap = []
+        for i in range(1, 8):
+            al = 1.35 * i / 7
+            cap.append([kc + (fwd * math.cos(al) + (u * math.cos(2 * math.pi * j / NP) +
+                                                     v * math.sin(2 * math.pi * j / NP) * 1.15) * math.sin(al)) * 0.068
+                        for j in range(NP)])
+        tip = kc + fwd * 0.068
+        parts.append(g_smooth_mesh("Leg%s_KneeScale" % n, [[tip] * NP] + cap, K["scale"], knee, cap_end=False,
+                                   thick=0.005, outward=True))
+        parts.append(g_pipe("Leg%s_KneeScaleEdge" % n, cap[-1], 0.004, K["scale_d"], knee, sides=6, loop=True))
+        join_objs("Leg%s_Boot" % n, parts)
+        foot = _shoe(P, R, n, s, K["scale"], K["scale_d"])
+        ft = _foot_secs(P, s, 1.08, 0.006)
+        a = ft[2]
+        arc = [a["c"] + Vector((math.sin(t) * (a["rx"] + 0.004), 0.0, math.cos(t) * (a["ry"] + 0.004)))
+               for t in (-1.2 + 2.4 * m / 12 for m in range(13))]
+        foot.append(g_pipe("Leg%s_FootGlow" % n, arc, 0.0055, K["vein"], ankle, sides=8))
+        tipc = ft[-1]["c"]
+        k = P["ft"]
+        for q, dx in enumerate((-0.024, 0.0, 0.024)):
+            foot.append(g_cone("Leg%s_ToeClaw%d" % (n, q), [tipc + Vector((dx * k, 0.012, 0.004)),
+                                                           tipc + Vector((dx * k * 1.15, -0.028 * k, 0.006)),
+                                                           tipc + Vector((dx * k * 1.25, -0.06 * k, -0.014 * k))],
+                               0.012 * k, K["scale_d"], ankle, sides=8))
+        join_objs("Leg%s_BootFoot" % n, foot)
+    g_export("f_emberscale", P, R)
+
+
+
+# ------------------------------------------------------------------ elmo das escamas de brasa
+def build_h_emberscale():
+    """Elmo de escamas: casco negro fechado e justo; máscara com olhos grandes de brasa sob a sobrancelha, quilha no
+    nariz, grade triangular na boca com barras de brasa e placas nas bochechas; casco liso atrás, só com a
+    crista de brasa da testa à nuca, dois chifres para trás e guarda-nuca curta."""
+    P, R = g_rig("h_emberscale")
+    K = ember_mats()
+    head = R["Head"]
+    C = Vector((0, 0.012, 1.69))
+
+    def hp(th, z, out=0.0):
+        """Ponto do casco, em forma de cabeça de dragão: têmporas largas, rosto que afunila em V até o queixo,
+        quilha no meio do rosto com focinho, e o alto do crânio mais alto e puxado para trás."""
+        dz = z - C.z
+        if dz >= 0:
+            k = math.sqrt(max(0.03, 1 - (dz / 0.158) ** 2))
+            back = 0.03 * (dz / 0.158) ** 1.5              # crânio puxado para trás
+        else:
+            k = 1 - 0.5 * min(1.0, -dz / 0.19) ** 1.4       # afunila até o queixo
+            back = 0.0
+        face = max(0.0, math.cos(th))
+        kx = k * (1 - 0.1 * face)                           # rosto mais estreito que a nuca
+        keel = 0.018 * face ** 7                            # aresta no meio do rosto
+        snout = 0.028 * face ** 4 * max(0.0, min(1.0, (1.71 - z) / 0.09)) * max(0.0, min(1.0, (z - 1.5) / 0.05))
+        return Vector((math.sin(th) * (0.12 * kx + out),
+                       C.y + back - math.cos(th) * (0.136 * k + out + keel + snout), z))
+    NP = 40
+    zs = [1.5, 1.53, 1.57, 1.61, 1.65, 1.69, 1.73, 1.77, 1.8, 1.825, 1.84, 1.846]
+    shell = [[hp(2 * math.pi * j / NP, z) for j in range(NP)] for z in zs]
+    parts = [g_smooth_mesh("EmberHelm", shell, K["scale"], head, cap_end=True)]
+    # guarda-nuca curta: aba de escama que abre um pouco para baixo e assenta na gola (lados e nuca)
+    NA = 36
+    flare = []
+    for i in range(4):
+        u = i / 3
+        row = []
+        for j in range(NA + 1):
+            th = 1.0 + (2 * math.pi - 2.0) * j / NA
+            side = min(1.0, min(th - 1.0, 2 * math.pi - 1.0 - th) / 0.5)
+            row.append(hp(th, 1.56 - 0.06 * u, 0.003 + (0.004 + 0.03 * u ** 1.5) * (0.4 + 0.6 * side)))
+        flare.append(row)
+    parts.append(g_smooth_mesh("HelmSkirt", flare, K["scale_d"], head, cap_end=False, closed=False, thick=0.006,
+                               outward=True))
+    parts.append(g_pipe("HelmSkirtGlow", flare[-1], 0.004, K["vein"], head, sides=6))
+    # olhos de brasa: amêndoas inclinadas, com sobrancelha em quilha por cima
+    for sn, sg in (("L", 1), ("R", -1)):
+        th = sg * 0.46
+        q = hp(th, 1.695, 0.002)
+        nrm = Vector((math.sin(th), -math.cos(th), 0))
+        tu = Vector((math.cos(th), math.sin(th), 0)) * sg
+        eye = [(-0.026, -0.014), (-0.024, 0.004), (-0.004, 0.016), (0.024, 0.018), (0.034, 0.006), (0.012, -0.012)]
+        parts.append(g_plate("HelmEye" + sn, eye, q, tu, (0, 0, 1), 0.006, K["gem"], head))
+        brow = [hp(sg * a, 1.712 + 0.05 * (a / 0.9) ** 1.2, 0.009) for a in (0.04, 0.25, 0.5, 0.75, 1.0)]
+        parts.append(g_pipe("HelmBrow" + sn, brow, 0.008, K["scale_d"], head, sides=8))
+    # quilha do nariz, grade da boca e placas das bochechas em V com fresta de brasa
+    parts.append(g_pipe("HelmNose", [hp(0.0, z, 0.004) for z in (1.74, 1.7, 1.66, 1.625)], 0.007,
+                        K["scale_d"], head, sides=8))
+    # grade da boca: triângulo escuro abaixo do nariz, com barras verticais de brasa
+    def gr(x, z, out):                  # x em rad a partir do meio
+        return hp(x, z, out)
+    tri = [[gr(-0.34 * (1 - u), 1.615 - 0.085 * u, 0.006), gr(0.0, 1.615 - 0.085 * u, 0.012),
+            gr(0.34 * (1 - u), 1.615 - 0.085 * u, 0.006)] for u in (0.0, 0.25, 0.5, 0.75, 0.97)]
+    parts.append(g_smooth_mesh("HelmGrille", tri, K["scale_d"], head, cap_end=False, closed=False, thick=0.006,
+                               outward=True))
+    for q, x in enumerate((-0.2, -0.1, 0.0, 0.1, 0.2)):
+        ln = 0.085 * (1 - abs(x) / 0.34) * 0.9
+        parts.append(g_pipe("HelmGrilleBar%d" % q, [gr(x, 1.61, 0.013), gr(x, 1.61 - ln, 0.013)], 0.003, K["vein"],
+                            head, sides=6))
+    for sn, sg in (("L", 1), ("R", -1)):
+        def cheek(u, v, sg=sg):
+            a = sg * (0.16 + 0.95 * v)
+            top = 1.665 - 0.02 * v
+            bot = 1.52 + 0.1 * v ** 1.2                      # borda de baixo sobe para a orelha: V de frente
+            return hp(a, top + (bot - top) * u, 0.005 + 0.008 * u)
+        rows = [[cheek(i / 5, j / 8) for j in range(9)] for i in range(6)]
+        parts.append(g_smooth_mesh("HelmCheek" + sn, rows, K["scale"], head, cap_end=False, closed=False, thick=0.005,
+                                   outward=True))
+        border = [r[0] for r in rows] + rows[-1][1:-1] + [r[-1] for r in rows][::-1]
+        parts.append(g_pipe("HelmCheekEdge" + sn, border, 0.0028, K["scale_d"], head, sides=6, loop=True))
+        parts.append(g_pipe("HelmCheekGlow" + sn, [hp(sg * (0.16 + 0.95 * v), 1.672 - 0.02 * v, 0.004) for v in
+                                                    (0.0, 0.25, 0.5, 0.75, 1.0)], 0.0035, K["vein"], head, sides=6))
+    # crista de brasa: arco no plano do meio, do alto da testa, por cima, até a nuca
+    crest = []
+    for i in range(21):
+        b = 0.55 + (math.pi - 0.75) * i / 20          # 90 graus = topo; menos = frente, mais = nuca
+        nrm = Vector((0, -math.cos(b), math.sin(b)))
+        base = C + Vector((0, -0.136 * math.cos(b) + 0.03 * max(0.0, math.sin(b)) ** 1.5, 0.158 * math.sin(b)))
+        w = 0.008 * math.sin(math.pi * i / 20) ** 0.5 + 0.002
+        crest.append([base + Vector((sgx * w, 0, 0)) + nrm * (0.004 + 0.01 * math.sin(math.pi * i / 20)) for sgx in (-1, 0, 1)])
+    parts.append(g_smooth_mesh("HelmCrest", crest, K["vein"], head, cap_end=False, closed=False, thick=0.006,
+                               outward=True))
+    # chifres: saem acima das têmporas e curvam para trás e para cima
+    for sn, sg in (("L", 1), ("R", -1)):
+        b = hp(sg * 1.45, 1.785, -0.008)
+        parts.append(g_cone("HelmHorn" + sn, [b, b + Vector((sg * 0.05, 0.04, 0.045)), b + Vector((sg * 0.075, 0.12, 0.085)),
+                                              b + Vector((sg * 0.07, 0.17, 0.125))], 0.019, K["scale_d"], head, sides=10,
+                            n=14, ridge=0.0025))
+        parts.append(g_pipe("HelmHornGlow" + sn, g_circle(b + Vector((sg * 0.012, 0.01, 0.012)),
+                                                           Vector((0, 1, -0.4)), Vector((sg * 0.6, 0, -1)), 0.021, n=14),
+                            0.004, K["vein"], head, sides=6, loop=True))
+    join_objs("EmberHelm", parts)
+    g_export("h_emberscale", P, R)
+
+
 def _gear_builder(fn):
     """armory.py redefine band() depois deste arquivo; as roupas usam a do cavaleiro (characters.py)."""
     def run():
@@ -5839,8 +6576,8 @@ def _gear_builder(fn):
 
 GEAR = [(n, _gear_builder(globals()["build_" + n])) for n in (
     "h_bare", "h_hood", "h_cap", "h_kettle", "h_nasal", "h_great", "h_wizard", "h_archmage", "h_sage", "h_void", "h_oracle", "h_ember",
-    "h_lich", "h_hierophant", "h_reaper", "h_raven", "h_dragon", "h_astral", "h_frost",
-    "a_shirt", "a_tunic", "a_leather", "a_gambeson", "a_whiteknight", "a_paladin", "a_firstplate", "a_mail", "a_surcoat", "a_robe", "a_archmage", "a_sage", "a_void", "a_oracle", "a_ember",
+    "h_lich", "h_hierophant", "h_reaper", "h_raven", "h_dragon", "h_astral", "h_frost", "h_emberscale",
+    "a_shirt", "a_tunic", "a_leather", "a_gambeson", "a_whiteknight", "a_paladin", "a_firstplate", "a_emberscale", "a_mail", "a_surcoat", "a_robe", "a_archmage", "a_sage", "a_void", "a_oracle", "a_ember",
     "a_lich", "a_hierophant", "a_reaper", "a_raven", "a_dragon", "a_astral", "a_frost",
-    "g_bare", "g_gloves", "g_bracers", "g_ironplate", "g_knightplate", "g_royalplate",
-    "f_shoes", "f_boots", "f_plated", "f_ironplate", "f_knightplate", "f_royalplate")]
+    "g_bare", "g_gloves", "g_bracers", "g_ironplate", "g_knightplate", "g_royalplate", "g_emberscale",
+    "f_shoes", "f_boots", "f_plated", "f_ironplate", "f_knightplate", "f_royalplate", "f_emberscale")]

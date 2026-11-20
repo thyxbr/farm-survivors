@@ -4,7 +4,7 @@ extends RefCounted
 
 const ENDGAME := ["lich", "hierophant", "reaper", "raven", "dragon", "astral", "frost"]
 ## armaduras com efeito só no material, sem partículas nem cabeça própria (o brilho do ouro do paladino)
-const FX_ONLY := ["a_paladin"]
+const FX_ONLY := ["a_paladin", "a_emberscale"]
 const DIR := "res://assets/models/gear/"
 
 

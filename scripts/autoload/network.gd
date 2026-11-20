@@ -397,7 +397,8 @@ func _enter_world(id: int, char_id: int) -> void:
 		shown = str(sel.name)
 	# zona "loading" até o cliente terminar de carregar Valdoria (_client_ready); "ready" = já carregou
 	players[id] = {"name": shown, "account": int(sel.account), "char": char_id, "admin": bool(sel.admin),
-		"look": _clean_look(char_look, char_id), "ready": false, "zone": "loading"}
+		"look": _clean_look(char_look, char_id), "ready": false, "zone": "loading",
+		"title": _title_of(char_id)}
 	print("[server] %s entrou com %s (personagem %d, peer %d, conta %d, %d online)" % [sel.name, shown, char_id, id,
 		sel.account, players.size()])
 	# tabelas e personagem antes do _accepted (mesmo canal confiável: chegam antes da troca de cena)
@@ -914,6 +915,37 @@ func server_refresh_look(peer: int) -> void:
 	_relay_look(peer)
 
 
+## Servidor: nome do título escolhido pelo personagem ("" = sem título), como aparece acima do nome.
+func _title_of(char_id: int) -> String:
+	if char_id <= 0 or characters == null:
+		return ""
+	var s := characters.load_or_create(char_id)
+	return TitleRules.label(TitleRules.current(s.level, s.flags))
+
+
+## Servidor: o peer trocou de título (op "set_title"): grava no `players` e avisa todo mundo (ele também).
+func server_refresh_title(peer: int) -> void:
+	if not is_server() or not players.has(peer):
+		return
+	var t := _title_of(int(players[peer].get("char", 0)))
+	if t == str(players[peer].get("title", "")):
+		return
+	players[peer].title = t
+	for pid in _all_peers():
+		_player_title.rpc_id(pid, peer, t)
+
+
+## Cliente: o título de `id` mudou (pode ser o próprio jogador).
+@rpc("authority", "call_remote", "reliable")
+func _player_title(id: int, title: String) -> void:
+	if players.has(id):
+		players[id].title = title
+	var rp: Player = remote_players.get(id)
+	if rp and is_instance_valid(rp):
+		rp.set_title(title)
+	players_changed.emit()
+
+
 ## Servidor: encanto ({"el", "lv"}) da arma que a conta tem equipada, lido do personagem gravado.
 func server_weapon_enchant(char_id: int) -> Dictionary:
 	if char_id <= 0 or characters == null:
@@ -1249,6 +1281,7 @@ func _player_joined(id: int, info: Dictionary) -> void:
 	var rp: Player = remote_players.get(id)
 	if rp and is_instance_valid(rp):
 		rp.set_display_name(info.name)
+		rp.set_title(str(info.get("title", "")))
 	_apply_remote_look(id)
 	players_changed.emit()
 
@@ -1426,6 +1459,7 @@ func _apply_remote_state(id: int, pos: Vector3, yaw: float, vel: Vector3, flags:
 		rp.remote = true
 		rp.peer_id = id
 		rp.display_name = players[id].name if players.has(id) else "?"
+		rp.display_title = str(players[id].get("title", "")) if players.has(id) else ""
 		# já nasce com o corpo do visual conhecido (sem montar o masculino para trocar em seguida)
 		rp.model_body = KnightLook.body_key(players[id].get("look", {}).get("body", "")) if players.has(id) else "m"
 		rp.position = pos

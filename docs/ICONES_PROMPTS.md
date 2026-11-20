@@ -337,7 +337,7 @@ parts`. Com mais de 4 o Gemini costuma misturar as peças de um item no outro.
 | `royal_plate` | Placas Reais | Heroic plate armor. |
 | `traveler_tunic` | Túnica de Viajante | Two-color wool tunic with bandolier and pouch. |
 | `guard_surcoat` | Sobreveste da Guarda | Chain mail under a tabard with the guard's cross. |
-| `dragon_plate` | Couraça de Escamas de Dragão | Breastplate made of dragon scales. |
+| `dragon_plate` | Couraça de Escamas de Dragão | Dark dragon-scale armor with glowing red ember between the scales and a flame gem on the chest. |
 
 ## E. Acessórios e peças (25) — anexar referência
 
@@ -361,6 +361,9 @@ parts`. Com mais de 4 o Gemini costuma misturar as peças de um item no outro.
 | `reinforced_boots` | Botas Reforçadas | Leather boots with steel greaves and toe caps. |
 | `royal_greaves` | Grevas Reais | Pair of silver greaves with gold trim and winged knee cops. |
 | `royal_gauntlets` | Manoplas Reais | Pair of silver gauntlets with flared cuffs trimmed in gold. |
+| `ember_helm` | Elmo de Escamas de Dragão | Black closed helm with glowing ember eyes, a mouth grille and swept-back horns. |
+| `ember_claws` | Garras de Escamas de Dragão | Pair of black scale gauntlets with long claws and a glowing ember slit. |
+| `ember_greaves` | Grevas de Escamas de Dragão | Pair of black scale greaves with clawed feet and ember between the scales. |
 | `wooden_shield` | Escudo de Madeira | Wooden plank shield with nails, front view. |
 | `knight_shield` | Escudo do Cavaleiro | Shield with the Valdoria guard crest, front view. |
 | `arcane_orb` | Orbe Arcano | Floating glowing arcane orb. |

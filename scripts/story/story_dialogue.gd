@@ -406,7 +406,7 @@ static func _counts(qt: Dictionary) -> Dictionary:
 
 
 static func hero() -> String:
-	var n: String = str(Game.settings.get("player_name", ""))
+	var n: String = Game.hero_name()
 	return n if n != "" else "Aventureiro"
 
 

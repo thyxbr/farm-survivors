@@ -187,6 +187,19 @@ func _ready() -> void:
 			var holder: Node3D = rp.look.get("holder")
 			check(holder != null and is_instance_valid(holder), "modelo do arco montado na réplica de %s" % rp.display_name)
 
+	# título: o próprio nome (do herói) em cima da cabeça; o título escolhido aparece acima dele para todos
+	check(w.player.name_tag != null and w.player.name_tag.text == my_name, "o próprio nome do herói acima da cabeça")
+	Game.set_title("recem_chegado")
+	var own_title := func() -> bool:
+		return w.player.title_tag.visible and w.player.title_tag.text.contains("Recém-chegado")
+	check(await _wait_until(own_title, 5.0), "o próprio título acima do nome")
+	if peers > 1:
+		check(await _wait_until(func() -> bool:
+			for rp in Network.remote_players.values():
+				if rp.display_title != "Recém-chegado" or not rp.title_tag.visible:
+					return false
+			return true, 8.0), "vê o título dos outros jogadores acima do nome")
+
 	# chat: cada um manda uma mensagem e recebe a do outro (com o próprio eco)
 	if peers > 1:
 		check(w.chat != null, "caixa de chat criada no mundo")
