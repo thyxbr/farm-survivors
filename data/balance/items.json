@@ -961,12 +961,12 @@
 			"agi": 4,
 			"crit": 0.03
 		},
-		"style": "a_leather",
+		"style": "a_ranger",
 		"color2": {
 			"$c": [0.24, 0.16, 0.08, 1.0]
 		},
 		"pants": {
-			"$c": [0.3, 0.25, 0.17, 1.0]
+			"$c": [0.19, 0.21, 0.27, 1.0]
 		},
 		"desc": "Couro reforçado em tons de floresta."
 	},
@@ -1599,6 +1599,24 @@
 		},
 		"desc": "Fenda estreita, cruz dourada. Ninguém vê seu medo."
 	},
+	"ranger_gloves": {
+		"name": "Luvas do Patrulheiro",
+		"type": "gear",
+		"slot": "hands",
+		"rarity": "rare",
+		"level": 23,
+		"defense": 2,
+		"price": 170,
+		"color": {
+			"$c": [0.43, 0.29, 0.2, 1.0]
+		},
+		"stats": {
+			"agi": 2,
+			"crit": 0.02
+		},
+		"style": "g_ranger",
+		"desc": "Uma de couro, a outra enrolada em pano. O arco não escorrega de nenhuma das duas."
+	},
 	"leather_gloves": {
 		"name": "Luvas de Couro",
 		"type": "gear",
@@ -2029,6 +2047,24 @@
 			"vit": 1
 		},
 		"desc": "Barulhentas, mas resistentes."
+	},
+	"ranger_boots": {
+		"name": "Botas do Patrulheiro",
+		"type": "gear",
+		"slot": "feet",
+		"rarity": "rare",
+		"level": 23,
+		"defense": 2,
+		"price": 180,
+		"color": {
+			"$c": [0.28, 0.19, 0.15, 1.0]
+		},
+		"stats": {
+			"agi": 2,
+			"speed": 0.05
+		},
+		"style": "f_ranger",
+		"desc": "Couro curtido de cano alto, cingido de tiras. Não range nem quando o dono corre."
 	},
 	"swift_boots": {
 		"name": "Botas Velozes",
