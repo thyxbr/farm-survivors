@@ -3459,11 +3459,14 @@ func _test_gear() -> void:
 		h._show_tab(i)
 		await wait(0.1)
 		var area: Rect2 = h.book.content_rect().grow(1.0)
-		var halves: Array = h.pages[i].get_children()
-		var lr: Rect2 = halves[0].get_global_rect()
-		var rr: Rect2 = halves[1].get_global_rect()
-		check(halves.size() == 2 and area.position.x <= lr.position.x and rr.end.x <= area.end.x and lr.end.x <= rr.position.x,
-			"aba %d: duas colunas dentro da janela (%.0f | %.0f)" % [i, lr.size.x, rr.size.x])
+		var pr: Rect2 = h.pages[i].get_global_rect()
+		check(area.position.x <= pr.position.x and pr.end.x <= area.end.x and h.book.page_width == h.TAB_WIDTHS[i],
+			"aba %d dentro da janela, na largura dela (%.0f de %.0f)" % [i, pr.size.x, h.book.page_width])
+		if h.pages[i] is HBoxContainer:   # abas em duas colunas: uma não invade a outra
+			var halves: Array = h.pages[i].get_children()
+			var lr: Rect2 = halves[0].get_global_rect()
+			var rr: Rect2 = halves[1].get_global_rect()
+			check(lr.end.x <= rr.position.x, "aba %d: colunas lado a lado sem se cruzar" % i)
 	check(h.book.overflow_warnings == 0 and book.overflow_warnings == 0, "nenhuma aba pede mais largura do que a janela tem")
 	# o atalho da aba aberta fecha a janela; o inventário fica
 	world.toggle_window("character")

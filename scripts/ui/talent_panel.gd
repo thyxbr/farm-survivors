@@ -45,6 +45,7 @@ func _init() -> void:
 		add_child(v)
 		if i == 0:
 			_left = v
+			v.size_flags_stretch_ratio = 0.62   # habilidades numa coluna mais estreita que a árvore
 		else:
 			_right = v
 
@@ -107,9 +108,12 @@ func _abilities(lv: VBoxContainer) -> void:
 	for id in Game.ability_kit():
 		var sp: Dictionary = ItemDB.ABILITIES[id]
 		var known := Game.knows_ability(id)
+		var card := PanelContainer.new()
+		card.add_theme_stylebox_override("panel", UITheme.ink_inset(8))
 		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 12)
-		var s := ItemSlot.new(50)
+		row.add_theme_constant_override("separation", 10)
+		card.add_child(row)
+		var s := ItemSlot.new(48)
 		s.paper = true
 		s.icon_kind = sp.icon
 		s.icon_tex = ItemSlot.skill_art(id)
@@ -121,21 +125,17 @@ func _abilities(lv: VBoxContainer) -> void:
 		var tv := VBoxContainer.new()
 		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tv.add_theme_constant_override("separation", 0)
-		var head := HBoxContainer.new()
-		head.add_theme_constant_override("separation", 10)
-		head.add_child(UITheme.ink(sp.name, 17, UITheme.INK if known else UITheme.INK_DIM, true))
-		head.add_child(UITheme.spacer())
+		tv.add_child(UITheme.ink(sp.name, 17, UITheme.INK if known else UITheme.INK_DIM, true))
 		var meta := "%s · %s" % [("%d MP" % sp.cost) if sp.cost > 0 else "sem custo",
 			"ultimate (fúria)" if sp.ultimate else "recarga %.1fs" % (sp.cooldown * Game.cooldown_mult())]
-		head.add_child(UITheme.ink(meta, 14, UITheme.INK_DIM))
-		tv.add_child(head)
+		tv.add_child(UITheme.ink(meta, 13, UITheme.INK_DIM))
 		var d := UITheme.ink(sp.desc, 14, UITheme.INK if known else UITheme.INK_DIM)
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		tv.add_child(d)
 		if not known:
 			tv.add_child(UITheme.ink("Aprende no nível %d" % sp.level, 13, UITheme.INK_RED))
 		row.add_child(tv)
-		lv.add_child(row)
+		lv.add_child(card)
 
 
 # ================================================================ página direita
