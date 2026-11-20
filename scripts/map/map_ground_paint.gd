@@ -1,8 +1,9 @@
 @tool
 class_name MapGroundPaint
 extends Node3D
-## Área pintada no chão (trilha, praça, lote de terra, clareira): retângulo ou disco com cor e borda suave. O
-## shader do chão desenha a borda irregular. Gira só em Y; no máximo 40 por mapa (limite do ground.gd).
+## Área pintada no chão (trilha, rua, praça, lote de terra, clareira): retângulo ou disco com cor e borda suave.
+## O shader do chão desenha a borda irregular. O retângulo gira com o nó em Y (rua na diagonal: gire o nó); no
+## máximo 64 por mapa (limite do ground.gd).
 ## No editor entra no chão da prévia (MapRoot); um contorno fino mostra onde ela está.
 
 ## Disco em vez de retângulo.

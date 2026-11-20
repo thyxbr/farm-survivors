@@ -7,7 +7,8 @@ extends Node3D
 
 ## Tipo: elder, merchant, alchemist, blacksmith, rival, npc, story_point, hub_point, farm_plot, kitchen,
 ## portal, signpost, santa, xmas_gift, xmas_door, resource_node, guard (guarda da vila, VillageGuard), station
-## (bancada de craft), walker (morador que passeia: ref = id do NPC, params.path = [[x, z, espera?], ...] no mundo).
+## (bancada de craft), walker (morador que passeia: ref = id do NPC; o caminho são os filhos MapWaypoint, que se
+## arrastam no 3D; sem filhos vale o antigo params.path = [[x, z, espera?], ...] no mundo).
 @export var kind := "npc"
 ## Referência do tipo: id do NPC ou do ponto da história, building_id do ponto da praça, tipo do veio
 ## (iron/crystal) do nó de coleta.
@@ -66,9 +67,49 @@ func build_preview(height: Callable = Callable()) -> void:
 		"hub_point":
 			MapPreview.box(p, Vector3(0, 1.0, 0), Vector3(1.2, 2.0, 1.2), Color(0.85, 0.3, 0.9, 0.6))
 			MapPreview.label(p, Vector3(0, 2.6, 0), caption())
+		"walker":
+			_walker_preview(p, height)
 		_:
 			MapPreview.dummy(p, Vector3.ZERO, caption(), COLORS.get(kind, Color(1.0, 0.85, 0.3)))
 	MapPreview.seat(self, p, follow_ground, height)
+
+## Caminho do morador que passeia, no mundo: os filhos MapWaypoint em ordem; sem eles, o params.path.
+func walk_path() -> Array:
+	var out: Array = []
+	for c in get_children():
+		if c is MapWaypoint:
+			out.append((c as MapWaypoint).path_point())
+	return out if not out.is_empty() else params.get("path", [])
+
+
+## Um MapWaypoint filho mudou (arrastado, duplicado, espera nova): redesenha o caminho.
+func waypoints_changed() -> void:
+	if Engine.is_editor_hint() and is_inside_tree():
+		build_preview(_height)
+
+
+## Boneco no primeiro ponto, faixa azul ligando os pontos e a marca de cada ponto (clicável no 3D).
+func _walker_preview(p: Node3D, height: Callable) -> void:
+	var base := MapPreview.ground_y(follow_ground, 0.0, height, global_position.x, global_position.z)
+	var pts: Array[Vector3] = []
+	var n := 0
+	for c in get_children():
+		if not c is MapWaypoint:
+			continue
+		var wp := c as MapWaypoint
+		var g := wp.global_position
+		var gy := MapPreview.ground_y(true, 0.0, height, g.x, g.z)
+		wp.draw_marker(gy - g.y, n)
+		var l := to_local(g)
+		pts.append(Vector3(l.x, gy - base, l.z))
+		n += 1
+	if pts.is_empty():   # caminho antigo, em números: só o boneco
+		MapPreview.dummy(p, Vector3.ZERO, caption() + " (sem pontos)", COLORS.get(kind, Color(1.0, 0.85, 0.3)))
+		return
+	MapPreview.dummy(p, pts[0], caption(), Color(0.3, 0.9, 1.0))
+	for i in range(1, pts.size()):
+		MapPreview.segment(p, pts[i - 1], pts[i], Color(0.3, 0.9, 1.0, 0.6))
+
 
 ## No editor: mover o nó reassenta a prévia no relevo.
 func _notification(what: int) -> void:

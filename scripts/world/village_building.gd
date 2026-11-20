@@ -92,13 +92,9 @@ func _house_extras(v: Node3D) -> void:
 		v.add_child(f)
 
 
-## O dono na frente da loja (boneco com o nome); na ferraria, a bigorna e a forja do ferreiro.
+## Na ferraria, o ferreiro, a bigorna e a forja. A Mira e a Pip são MapEntity próprias (merchant/alchemist).
 func _shop_extras(v: Node3D) -> void:
 	match model:
-		"shop_merchant":
-			_keeper(v, VillageLayout.MERCHANT_SPOT, "Mira")
-		"shop_alchemist":
-			_keeper(v, VillageLayout.ALCHEMIST_SPOT, "Pip")
 		"shop_smithy":
 			_keeper(v, Vector3.ZERO, "Ferreiro")
 			var bs: GDScript = load("res://scripts/world/blacksmith.gd")

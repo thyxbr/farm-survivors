@@ -373,21 +373,11 @@ func _house(b: Dictionary, xf: Transform3D, i: int) -> void:
 			prop(kind, fp, rng.randf() * TAU, rng.randf_range(0.9, 1.2))
 
 
-## O dono de cada loja na frente dela: a Mira no balcão do empório, a Pip na porta da botica e o ferreiro na
-## ferraria (a origem da ferraria é o lugar dele; a bigorna e a forja ficam em volta).
+## O ferreiro na ferraria (a origem da ferraria é o lugar dele; a bigorna e a forja ficam em volta). A Mira e a
+## Pip são nós próprios na cena (MapEntity merchant/alchemist), que se movem à parte da loja.
 func _shop_keeper(model: String, xf: Transform3D) -> void:
 	var yaw := xf.basis.get_euler().y
 	match model:
-		"shop_merchant":
-			var merchant := MERCHANT.new()
-			merchant.position = xf * VillageLayout.MERCHANT_SPOT
-			merchant.rotation.y = yaw
-			add_child(merchant)
-		"shop_alchemist":
-			var pip := ALCHEMIST.new()
-			pip.position = xf * VillageLayout.ALCHEMIST_SPOT
-			pip.rotation.y = yaw
-			add_child(pip)
 		"shop_smithy":
 			var smith := BLACKSMITH.new()
 			smith.position = xf.origin
@@ -1100,12 +1090,16 @@ func make_entity(e: MapEntity) -> Node3D:
 			n = ELDER.new()
 		"rival":
 			n = RIVAL.new()
+		"merchant":
+			n = MERCHANT.new()
+		"alchemist":
+			n = ALCHEMIST.new()
 		"npc":
 			n = RegionBuilder.npc(e.ref, e.global_position, yaw)
 			if e.params.has("npc_id"):
 				n.set("npc_id", e.params.npc_id)
 		"walker":
-			var path: Array = e.params.get("path", [])
+			var path: Array = e.walk_path()
 			n = RegionBuilder.walker(e.ref, path)
 			if path.size() >= 2:   # nasce no primeiro ponto do caminho (o _ready assenta no chão)
 				var p0: Array = path[0]

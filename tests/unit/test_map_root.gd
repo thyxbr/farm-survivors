@@ -14,7 +14,7 @@ func test_paints_and_mountains() -> void:
 	var paints := r.paint_data()
 	T.eq(paints.size(), 2, "duas formas pintadas")
 	T.eq(paints[0], {"center": Vector3(3, 0, 4), "disc": false, "size": Vector2(6, 2), "radius": 4.0,
-		"color": Color(0.5, 0.4, 0.3), "soft": 0.5, "grass": 0.0}, "retângulo dentro de um grupo deslocado")
+		"color": Color(0.5, 0.4, 0.3), "soft": 0.5, "grass": 0.0, "angle": 0.0}, "retângulo dentro de um grupo deslocado")
 	T.eq(paints[1].disc, true, "disco")
 	T.eq(r.mountain_data(), [Vector4(-20, 30, 12, 9)], "morro: x, z, raio, altura")
 	r.free()
@@ -30,3 +30,14 @@ func test_grass_lists() -> void:
 	T.eq(g.sparse, [[Vector2(7, 7), 3.0]], "área de capim ralo")
 	T.eq(g.keep_out.size(), 2, "cerca com no_grass desligado não entra")
 	r.free()
+
+
+func test_rotated_rect_distance() -> void:
+	var g: GDScript = load(MapRoot.GROUND)
+	var s := Vector4(0, 0, 5, 1)   # rua de 10 x 2 ao longo de x
+	T.ok(g._sd(s, Vector2(4, 0)) < 0.0, "sem giro: (4, 0) fica dentro")
+	T.ok(g._sd(s, Vector2(0, 4)) > 0.0, "sem giro: (0, 4) fica fora")
+	T.ok(g._sd(s, Vector2(4, 0), PI / 2.0) > 0.0, "girada 90°: (4, 0) sai")
+	T.ok(g._sd(s, Vector2(0, -4), PI / 2.0) < 0.0, "girada 90°: a rua passa a correr em z")
+	var d := Vector2(cos(PI / 4.0), -sin(PI / 4.0)) * 4.0   # eixo x local de um nó girado 45° em Y
+	T.ok(g._sd(s, d, PI / 4.0) < 0.0, "girada 45°: segue o eixo x do nó")

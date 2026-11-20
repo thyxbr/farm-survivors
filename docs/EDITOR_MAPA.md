@@ -27,11 +27,12 @@ Todos ficam em `scripts/map/` e aparecem no Inspector com as opções abaixo.
   `no_grass` tira o capim de baixo; `tint` pinta o modelo inteiro de uma cor (alfa 0 = cores do modelo, como os
   pinheiros mortos da Arena). A escala do nó é a escala do modelo.
 - **Construção da vila (VillageBuilding)**, em Vila/Construções: casas, as lojas (empório da Mira, botica da Pip e
-  ferraria, com o dono na frente; a oficina do artesão e o laboratório de alquimia, abertos na frente), as três
+  ferraria, com o ferreiro dentro; a oficina do artesão e o laboratório de alquimia, abertos na frente), as três
   barracas da feira (`stall_cloth`, `stall_farm`, `stall_goods`) e o poço; `palette` pinta a casa, `flowers` põe canteiro, `delivery` marca uma das 6
   portas da missão de Natal. A porta da casa é a seta azul (+Z) do gizmo.
-- **Área pintada no chão (MapGroundPaint)**: retângulo ou disco com cor e borda suave (trilhas, praça, lotes).
-  O retângulo fica sempre alinhado aos eixos. No máximo 40 por mapa.
+- **Área pintada no chão (MapGroundPaint)**: retângulo ou disco com cor e borda suave (ruas, trilhas, praça,
+  lotes). O retângulo gira com o nó (gire em Y para fazer uma rua na diagonal; o contorno da prévia mostra o
+  resultado). Mover, girar ou mudar o tamanho já redesenha o chão no editor. No máximo 64 por mapa.
 - **Morro (MapMountain)**: raio e altura. Ao mover um morro, o chão e tudo que segue o relevo acompanham.
 - **Área do capim (MapGrassArea)**: disco sem capim ou com capim ralo.
 - **Luz (MapLight)**: `mode` normal, noite (acende ao escurecer) ou piscando (fogo).
@@ -51,9 +52,14 @@ Todos ficam em `scripts/map/` e aparecem no Inspector com as opções abaixo.
   serviços do Doran; a alquimia também pela Pip e a couraria pelo Mestre Aurélio.
 - **Feirante**: MapEntity `npc` com `ref` = `tereza` (couro e tecido), `bento` (sementes e ferramentas) ou `cida`
   (provisões), atrás do balcão da barraca. Cada vendedor vende um tipo de coisa (ShopUI.STALLS); a Mira, as armas.
-- **Morador que passeia**: MapEntity com `kind = walker`, `ref` = o NPC (`marta`, `joca`, `lauro`, `bia`) e
-  `params.path` = `[[x, z], [x, z, segundos parado], ...]` em coordenadas do mundo. Ele vai e volta pelo caminho e
-  para quando o jogador chega perto.
+- **Mira e Pip**: MapEntity com `kind = merchant` (Mira, no balcão do empório) e `kind = alchemist` (Pip, na porta
+  da botica), em Vila/NPCs e pontos. Movem e giram à parte da loja (mover a loja não leva a dona junto). O vale
+  precisa ter uma de cada. O ferreiro continua preso à origem da ferraria (bigorna e forja em volta dele).
+- **Morador que passeia**: MapEntity com `kind = walker` e `ref` = o NPC (`marta`, `joca`, `lauro`, `bia`). O
+  caminho são os filhos **Ponto0, Ponto1...** (MapWaypoint): arraste cada um no 3D (clique no disco azul com o
+  número). A ordem na árvore é a ordem do caminho; Ctrl+D num ponto acrescenta outro; `wait` = segundos parado
+  ali. Mover o nó do morador leva o caminho inteiro. Ele vai e volta e para quando o jogador chega perto. Precisa
+  de 2 pontos ou mais.
 - **Nó de coleta**: MapEntity com `kind = resource_node`, `ref` = um tipo de `data/balance/world_nodes.json`
   (cobre, ferro, cristal, prata, mithril, astralita; pinho, carvalho, bétula-prata, freixo-cinza, madeira-de-alma)
   e um `node_id` fixo (hoje 0–70). Para um
@@ -87,6 +93,12 @@ retângulo também, e a zona da guarda (`VillageWard.ZONES`: a vila e a Horta + 
 A vila fica no sul do vale (desde a 0.61.0): o personagem novo nasce na estrada do sul (`village_spawn`), entra pelo
 portão sul, passa pela Rua da Chegada e chega na praça da feira. A Horta e o Pomar ficam logo depois do portão
 norte; a carruagem do Beto fica do lado de fora dele.
+
+## O editor mostra o mapa velho?
+
+O Godot abre a pasta onde ele está (`C:\Games\godot-3d`). Mapa novo que entrou pelo GitHub só aparece depois de
+atualizar essa pasta (`git pull` no `main`); com o editor aberto, ele pergunta se recarrega a cena — diga que sim
+(ou feche e abra a cena de novo).
 
 ## Antes de rodar o jogo
 

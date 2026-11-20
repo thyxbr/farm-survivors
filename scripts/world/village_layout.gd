@@ -51,9 +51,6 @@ const SHOP_SHAPES := {
 	"stall_goods": [[[Vector3(0, 0, -0.05), Vector3(3.2, 2.6, 2.2)]], [[Vector3(-1.95, 0, -0.4), 0.38],
 		[Vector3(1.95, 0, 0.1), 0.6]], 2.4],
 }
-## Onde o dono fica, no espaço da loja (a Mira atrás do balcão do empório, a Pip na porta da botica).
-const MERCHANT_SPOT := Vector3(-0.7, 0, 2.4)
-const ALCHEMIST_SPOT := Vector3(0.3, 0, 3.0)
 ## Onde o feirante fica atrás do balcão da barraca, onde o artesão fica na oficina (a Bancada de Couraria na
 ## frente dele) e onde vai a mesa de alquimia no laboratório, no espaço de cada construção.
 const STALL_SPOT := Vector3(0, 0, -0.25)
