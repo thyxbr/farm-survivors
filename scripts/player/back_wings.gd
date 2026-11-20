@@ -29,16 +29,18 @@ const SPAN := 5
 const MODEL_SWEEP := deg_to_rad(24.0)
 
 ## Pose de velocidade na raiz (rad): recuo em torno do eixo de pé e deitar para trás.
-const SWEEP_WALK := 0.20
-const SWEEP_RUN := 0.40
-const PITCH_WALK := 0.08
-const PITCH_RUN := 0.36
-## Arrasto: cada junta depois da raiz recua mais um pouco (rad, multiplicado pela distância à raiz).
-const DRAG_WALK := 0.05
-const DRAG_RUN := 0.13
+const SWEEP_WALK := 0.12
+const SWEEP_RUN := 0.22
+const PITCH_WALK := 0.05
+const PITCH_RUN := 0.16
+## Arrasto: cada junta depois da raiz recua mais um pouco (rad, multiplicado pela distância à raiz). Os giros
+## das juntas se somam até a ponta (com o recuo da raiz e os 24° da modelagem), então valores pequenos aqui já
+## curvam bastante: acima disso a asa fecha nas costas e as penas atravessam umas às outras.
+const DRAG_WALK := 0.02
+const DRAG_RUN := 0.045
 ## Penas de baixo levadas para trás pelo ar (rad).
-const DRAPE_WALK := 0.14
-const DRAPE_RUN := 0.38
+const DRAPE_WALK := 0.06
+const DRAPE_RUN := 0.15
 
 ## Batida antiga (legacy): recuo e tremida da asa inteira.
 const OLD_RUN_SWEEP := 0.34
@@ -63,8 +65,7 @@ var _run := 0.0
 var _flap := 1.0
 ## 1 = penas e membranas que dobram; menos para asas duras (cristal, mecânica) e de borboleta.
 var _flex := 1.0
-## Quanto a pose de velocidade (recuo, deitar, caimento) vale: 1 nas asas de penas; menos na de borboleta, cujos
-## dois lóbulos grandes se cruzam e atravessam o corpo se a asa deitar e dobrar como uma de penas.
+## Quanto a pose de velocidade (recuo, deitar, caimento) vale; o item pode mudar com "wing_pose".
 var _pose := 1.0
 var _last := Vector3.ZERO
 var _has_last := false
@@ -92,7 +93,7 @@ func setup(root: Node3D, item: Dictionary) -> void:
 	elif style == "b_fairy":
 		flex_default = 0.15     # membrana dura: bate quase inteira, sem dobrar lóbulo sobre lóbulo
 	_flex = float(item.get("wing_flex", flex_default))
-	_pose = float(item.get("wing_pose", 0.4 if style == "b_fairy" else 1.0))
+	_pose = float(item.get("wing_pose", 1.0))
 	if not legacy:
 		for side in [[_l, 1.0], [_r, -1.0]]:
 			if side[0] != null:
@@ -168,7 +169,7 @@ func _animate(w: Dictionary, acc: Vector3, wind: float, delta: float) -> void:
 			sweep += sin(_t * TAU * flutter_hz - lag * 1.3 + s) * flutter_amp * t
 			lift = sin(_t * TAU * hz - 0.9 - lag) * 0.035 * flex
 			lift += sin(_t * TAU * flutter_hz * 0.7 - lag + 1.1) * flutter_amp * 0.5 * t
-			lift -= run * 0.05 * t * flex          # pontas abaixam um pouco na corrida
+			lift -= run * 0.03 * t * flex          # pontas abaixam um pouco na corrida
 		var drape := (move * DRAPE_WALK + run * (DRAPE_RUN - DRAPE_WALK)) * (0.55 + 0.45 * t) * flex
 		drape += sin(_t * TAU * flutter_hz * 1.15 - lag * 1.1 + 0.6 * s) * flutter_amp * 1.4 * (0.4 + 0.6 * t)
 		drape += sin(_t * TAU * hz - lag - 1.6) * 0.03 * still * flex
