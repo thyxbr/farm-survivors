@@ -182,7 +182,54 @@ def build_ice_crystal():
     tr_finish(objs, "IceCrystal", "ice_crystal")
 
 
+# ======================================================== OSSOS (dungeons)
+b_bone = mat("b_bone", _lin(0.78, 0.74, 0.62), 0.9)
+b_bone_dk = mat("b_bone_dark", _lin(0.52, 0.48, 0.38), 0.9)
+b_socket = mat("b_socket", _lin(0.04, 0.03, 0.03), 1.0)
+
+
+def _skull(objs, name, c, s, yaw, tilt=0.0, seed=1):
+    """Crânio: calota, maxilar e órbitas escuras encaixadas (frente = -Y antes do giro)."""
+    c = Vector(c)
+    R = Matrix.Rotation(yaw, 4, 'Z') @ Matrix.Rotation(tilt, 4, 'X')
+
+    def at(v):
+        return c + (R @ Vector(v).to_4d()).to_3d() * s
+    objs.append(boulder(name + "Cap", at((0, 0, 0.11)), (0.2 * s, 0.24 * s, 0.2 * s), b_bone, n=16, seed=seed,
+                        flat_bottom=False, rot=(tilt, 0, yaw)))
+    objs.append(boulder(name + "Jaw", at((0, -0.07, 0.03)), (0.13 * s, 0.12 * s, 0.08 * s), b_bone_dk, n=10,
+                        seed=seed + 1, flat_bottom=False, rot=(tilt, 0, yaw)))
+    for x in (-0.045, 0.045):
+        objs.append(boulder(name + "Eye", at((x, -0.1, 0.11)), (0.055 * s, 0.05 * s, 0.05 * s), b_socket, n=8,
+                            seed=seed + 2, flat_bottom=False, rot=(tilt, 0, yaw)))
+    objs.append(boulder(name + "Nose", at((0, -0.115, 0.07)), (0.03 * s, 0.03 * s, 0.035 * s), b_socket, n=7,
+                        seed=seed + 3, flat_bottom=False, rot=(tilt, 0, yaw)))
+
+
+def build_bones():
+    """Monte de ossos com dois crânios: ossos longos cruzados, costelas e um crânio por cima. ~1,1 m."""
+    rnd = random.Random(801)
+    objs = []
+    for k in range(11):
+        a = rnd.uniform(0, 2 * PI)
+        L = rnd.uniform(0.35, 0.6)
+        c = Vector((rnd.uniform(-0.3, 0.3), rnd.uniform(-0.3, 0.3), 0.04 + 0.03 * (k % 3)))
+        d = Vector((math.cos(a), math.sin(a), rnd.uniform(-0.1, 0.15))) * L / 2
+        objs.append(tr_tube("Bone%d" % k, [c - d, c - d * 0.85, c + d * 0.85, c + d], [0.035, 0.022, 0.022, 0.035],
+                            b_bone if k % 3 else b_bone_dk, seg=5, seed=810 + k))
+        for e in (c - d, c + d):
+            objs.append(boulder("Knob%d" % len(objs), e, (0.07, 0.07, 0.06), b_bone, n=7, seed=820 + len(objs),
+                                flat_bottom=False))
+    for k in range(4):   # costelas em arco
+        x = -0.15 + k * 0.08
+        objs.append(tr_limb("Rib%d" % k, (x, -0.2, 0.03), (x, 0.15, 0.03), 0.018, 0.012, b_bone_dk,
+                            bend=(0, 0, 0.16), n=4, seg=4))
+    _skull(objs, "SkullA", (0.05, -0.05, 0.12), 1.0, 0.3, -0.15, seed=830)
+    _skull(objs, "SkullB", (-0.3, 0.25, 0.0), 0.85, 2.4, 0.3, seed=840)
+    tr_finish(objs, "Bones", "bones")
+
+
 BIOME_BUILDERS = {
     "tree_swamp": build_tree_swamp, "tree_dead": build_tree_dead, "reeds": build_reeds, "mushrooms": build_mushrooms,
-    "ice_crystal": build_ice_crystal,
+    "ice_crystal": build_ice_crystal, "bones": build_bones,
 }

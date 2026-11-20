@@ -17,6 +17,12 @@ var _gate_pos := Vector3.ZERO
 var _opened := false
 var _t := 0.0
 var _check := 0.0
+var _dread: OmniLight3D   # luz da sala do chefe, na cor das runas: pulsa devagar depois que o portão abre
+var _t_open := 0.0
+
+
+func set_dread(l: OmniLight3D) -> void:
+	_dread = l
 
 
 func add_flicker(l: OmniLight3D) -> void:
@@ -43,6 +49,9 @@ func _process(delta: float) -> void:
 		var l: OmniLight3D = f[0]
 		var ph: float = f[2]
 		l.light_energy = float(f[1]) * (0.85 + 0.1 * sin(_t * 9.0 + ph) + 0.05 * sin(_t * 23.0 + ph * 2.0))
+	if _dread != null and _opened:
+		_t_open += delta * 0.4
+		_dread.light_energy = minf(_t_open, 1.0) * (1.1 + 0.5 * sin(_t * 1.6))
 	if _gate == null or _opened:
 		return
 	_check -= delta

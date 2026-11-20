@@ -20,22 +20,26 @@ const THEMES := {
 	"raizes": {"wall": [Color(0.3, 0.24, 0.17), Color(0.36, 0.3, 0.2), Color(0.18, 0.2, 0.12)],
 		"floor": [Color(0.22, 0.2, 0.14), Color(0.17, 0.21, 0.12)], "ceiling": Color(0.13, 0.11, 0.08), "rough": 0.38,
 		"tiles": false, "torch": Color(1.0, 0.78, 0.45), "rune": Color(0.4, 1.0, 0.45),
-		"props": [["mushrooms", 4.0, 0.7, 1.3, Color(1, 1, 1, 0)], ["rock", 3.0, 0.6, 1.1, Color(0.28, 0.24, 0.18, 1)]],
+		"props": [["mushrooms", 3.0, 0.7, 1.3, Color(1, 1, 1, 0)], ["rock", 3.0, 0.6, 1.1, Color(0.28, 0.24, 0.18, 1)],
+			["bones", 2.5, 0.8, 1.2, Color(1, 1, 1, 0)]], "stalactites": true, "blood": 0.3,
 		"roots": true},
 	"mina": {"wall": [Color(0.42, 0.46, 0.52), Color(0.52, 0.57, 0.63), Color(0.3, 0.33, 0.38)],
 		"floor": [Color(0.36, 0.37, 0.4), Color(0.3, 0.31, 0.34)], "ceiling": Color(0.2, 0.22, 0.26), "rough": 0.3,
 		"tiles": false, "torch": Color(1.0, 0.7, 0.4), "rune": Color(1.0, 0.65, 0.3),
 		"props": [["ice_crystal", 3.0, 0.4, 0.8, Color(1, 1, 1, 0)], ["crate", 1.0, 0.9, 1.1, Color(1, 1, 1, 0)],
-			["barrel", 1.0, 0.9, 1.1, Color(1, 1, 1, 0)]],
+			["barrel", 1.0, 0.9, 1.1, Color(1, 1, 1, 0)], ["bones", 2.0, 0.8, 1.2, Color(1, 1, 1, 0)]],
+		"stalactites": true, "blood": 0.4, "chains": true,
 		"beams": true},
 	"cripta": {"wall": [Color(0.36, 0.32, 0.3), Color(0.44, 0.4, 0.36), Color(0.24, 0.21, 0.2)],
 		"floor": [Color(0.3, 0.27, 0.25), Color(0.24, 0.21, 0.2)], "ceiling": Color(0.16, 0.14, 0.13), "rough": 0.05,
 		"tiles": true, "torch": Color(1.0, 0.55, 0.3), "rune": Color(0.7, 0.4, 1.0),
-		"props": [["tombstone", 2.5, 0.9, 1.2, Color(1, 1, 1, 0)], ["ruin_pillar", 1.0, 0.7, 0.9, Color(1, 1, 1, 0)]]},
+		"props": [["tombstone", 2.5, 0.9, 1.2, Color(1, 1, 1, 0)], ["ruin_pillar", 1.0, 0.7, 0.9, Color(1, 1, 1, 0)],
+			["bones", 4.0, 0.8, 1.3, Color(1, 1, 1, 0)]], "blood": 0.7, "chains": true},
 	"abismo": {"wall": [Color(0.2, 0.17, 0.24), Color(0.27, 0.22, 0.3), Color(0.12, 0.1, 0.14)],
 		"floor": [Color(0.18, 0.15, 0.2), Color(0.14, 0.12, 0.16)], "ceiling": Color(0.08, 0.07, 0.1), "rough": 0.34,
 		"tiles": false, "torch": Color(1.0, 0.35, 0.4), "rune": Color(1.0, 0.25, 0.35),
-		"props": [["ice_crystal", 3.0, 0.5, 1.0, Color(0.35, 0.12, 0.5, 1)], ["rock", 2.0, 0.6, 1.2, Color(0.14, 0.12, 0.16, 1)]]},
+		"props": [["ice_crystal", 3.0, 0.5, 1.0, Color(0.35, 0.12, 0.5, 1)], ["rock", 2.0, 0.6, 1.2, Color(0.14, 0.12, 0.16, 1)],
+			["bones", 3.5, 0.8, 1.3, Color(1, 1, 1, 0)]], "stalactites": true, "blood": 0.8, "chains": true},
 }
 
 @export_enum("raizes", "mina", "cripta", "abismo") var theme := "cripta":
@@ -292,8 +296,16 @@ func _floor_mesh(th: Dictionary) -> MeshInstance3D:
 		else:
 			var v := _noise.get_noise_2d(x0 * 0.4, z0 * 0.4) * 0.5 + 0.5
 			col = (fc[0] as Color).lerp(fc[1], roundf(v)) * (0.94 + 0.12 * _hash(x0, z0))
+		# manchas: fuligem em placas e sangue seco perto das paredes (mais nas dungeons fundas)
+		var soot := _noise.get_noise_2d(x0 * 0.9 + 40.0, z0 * 0.9) * 0.5 + 0.5
+		if soot > 0.68:
+			col = col * 0.6
+		var blood: float = th.get("blood", 0.0)
+		var bn := _noise.get_noise_2d(x0 * 1.7 - 90.0, z0 * 1.7 + 13.0) * 0.5 + 0.5
+		if blood > 0.0 and bn > 1.0 - 0.18 * blood and _near_wall(k):
+			col = Color(0.22, 0.04, 0.03).lerp(col, 0.35)
 		if _boss_cells.has(k):
-			col = col * 0.85
+			col = col * 0.8
 		col.a = 1.0
 		# a laje passa um pouco por baixo das paredes (a rocha irregular não deixa fresta)
 		var g := 0.0
@@ -312,6 +324,14 @@ func _floor_mesh(th: Dictionary) -> MeshInstance3D:
 	mi.mesh = st.commit()
 	mi.material_override = _mat()
 	return mi
+
+
+func _near_wall(k: Vector2i) -> bool:
+	for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(2, 0), Vector2i(-2, 0),
+			Vector2i(0, 2), Vector2i(0, -2)]:
+		if not _cells.has(k + d):
+			return true
+	return false
 
 
 ## Bordas entre uma célula andável e a rocha: [ponto a (y = 0), ponto b, direção para a rocha, altura do teto].
@@ -462,12 +482,15 @@ func _torches(holder: Node3D, fx: Node, th: Dictionary) -> void:
 		t.position = p + inward * 0.25 + Vector3(0, 2.4, 0)
 		t.basis = Basis.looking_at(-inward, Vector3.UP)
 		holder.add_child(t)
-		_torch_mesh(t, tc)
+		var dead := rng.randf() < 0.3   # tocha apagada: só o toco queimado (o escuro fica maior)
+		_torch_mesh(t, tc, dead)
+		if dead:
+			continue
 		var l := OmniLight3D.new()
 		l.light_color = tc
-		l.light_energy = 2.1
-		l.omni_range = 10.5
-		l.omni_attenuation = 1.2
+		l.light_energy = 2.4
+		l.omni_range = 9.5
+		l.omni_attenuation = 1.6
 		l.position = Vector3(0, 0.35, -0.5)
 		l.distance_fade_enabled = true
 		l.distance_fade_begin = 40.0
@@ -477,7 +500,7 @@ func _torches(holder: Node3D, fx: Node, th: Dictionary) -> void:
 			fx.add_flicker(l)
 
 
-static func _torch_mesh(parent: Node3D, c: Color) -> void:
+static func _torch_mesh(parent: Node3D, c: Color, dead := false) -> void:
 	var wood := StandardMaterial3D.new()
 	wood.albedo_color = Color(0.25, 0.15, 0.08)
 	var iron := StandardMaterial3D.new()
@@ -516,7 +539,10 @@ static func _torch_mesh(parent: Node3D, c: Color) -> void:
 	f.material_override = flame
 	f.position = Vector3(0, 0.38, -0.39)
 	f.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	f.visible = not dead
 	parent.add_child(f)
+	if dead:
+		wood.albedo_color = Color(0.06, 0.05, 0.05)
 
 
 func _decor(holder: Node3D, th: Dictionary) -> void:
@@ -548,6 +574,10 @@ func _decor(holder: Node3D, th: Dictionary) -> void:
 				holder.add_child(inst)
 	if th.get("beams", false):
 		_beams(holder, rng)
+	if th.get("chains", false):
+		_chains(holder, rng)
+	if th.get("stalactites", false):
+		_stalactites(holder, rng, th)
 	if th.get("roots", false):
 		_roots(holder, rng)
 
@@ -601,6 +631,77 @@ static func _beam_box(holder: Node3D, pos: Vector3, size: Vector3, m: Material) 
 	mi.position = pos
 	holder.add_child(mi)
 	return mi
+
+
+## Correntes penduradas do teto nas salas, algumas com um gancho na ponta.
+func _chains(holder: Node3D, rng: RandomNumberGenerator) -> void:
+	var iron := StandardMaterial3D.new()
+	iron.albedo_color = Color(0.16, 0.15, 0.15)
+	iron.metallic = 0.6
+	iron.roughness = 0.5
+	var link := TorusMesh.new()
+	link.inner_radius = 0.045
+	link.outer_radius = 0.085
+	link.rings = 6
+	link.ring_segments = 4
+	var keys := _cells.keys()
+	var placed := 0
+	var tries := 0
+	while placed < int(keys.size() / 70.0) and tries < 400:
+		tries += 1
+		var k: Vector2i = keys[rng.randi() % keys.size()]
+		var h: float = _cells[k]
+		if h < 5.5 or _near_wall(k):
+			continue   # só em salas, longe das paredes
+		placed += 1
+		var c := _center(k)
+		var L := rng.randf_range(1.5, minf(3.6, h - 2.4))
+		var n := int(L / 0.13)
+		for i in n:
+			var mi := MeshInstance3D.new()
+			mi.mesh = link
+			mi.material_override = iron
+			mi.position = Vector3(c.x, h - 0.07 - i * 0.13, c.y)
+			mi.rotation = Vector3(PI / 2.0, (PI / 2.0) * (i % 2), 0)
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			holder.add_child(mi)
+		if rng.randf() < 0.5:
+			var hook := MeshInstance3D.new()
+			var cm := CylinderMesh.new()
+			cm.top_radius = 0.035
+			cm.bottom_radius = 0.0
+			cm.height = 0.35
+			cm.radial_segments = 4
+			hook.mesh = cm
+			hook.material_override = iron
+			hook.position = Vector3(c.x, h - n * 0.13 - 0.15, c.y)
+			holder.add_child(hook)
+
+
+## Cavernas: estalactites pontudas descendo do teto (na cor da rocha).
+func _stalactites(holder: Node3D, rng: RandomNumberGenerator, th: Dictionary) -> void:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = (th.wall[0] as Color) * 0.8
+	m.roughness = 1.0
+	var keys := _cells.keys()
+	for i in int(keys.size() / 9.0):
+		var k: Vector2i = keys[rng.randi() % keys.size()]
+		var h: float = _cells[k]
+		var L := rng.randf_range(0.4, minf(1.6, h - 3.0))
+		if L < 0.3:
+			continue
+		var mi := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = rng.randf_range(0.12, 0.28)
+		cm.bottom_radius = 0.0
+		cm.height = L
+		cm.radial_segments = 5
+		cm.rings = 1
+		mi.mesh = cm
+		mi.material_override = m
+		var c := _center(k) + Vector2(rng.randf_range(-0.4, 0.4), rng.randf_range(-0.4, 0.4))
+		mi.position = Vector3(c.x, h - L / 2.0 + 0.05, c.y)
+		holder.add_child(mi)
 
 
 ## Covil: raízes penduradas do teto.
@@ -765,6 +866,24 @@ func _boss_gate(holder: Node3D, fx: Node, th: Dictionary) -> void:
 		var a := TAU * (float(i) + 0.5) / n
 		var q := center + Vector2(cos(a), sin(a)) * (rad - 2.2)
 		ring.append(_brazier(holder, Vector3(q.x, 0, q.y), th, false))
+	# ossos dos que tentaram antes, espalhados na frente do portão
+	var brng := RandomNumberGenerator.new()
+	brng.seed = seed * 7 + 1
+	for i in 5:
+		var bone := _model("bones", Color(1, 1, 1, 0))
+		if bone == null:
+			break
+		var off := side * brng.randf_range(-w / 2.0 - 1.5, w / 2.0 + 1.5) - dir * brng.randf_range(1.5, 6.0)
+		bone.transform = Transform3D(Basis(Vector3.UP, brng.randf() * TAU).scaled(Vector3.ONE * brng.randf_range(0.8, 1.2)),
+			Vector3(pos.x + off.x, 0, pos.y + off.y))
+		holder.add_child(bone)
+	var dread := OmniLight3D.new()   # luz da sala do chefe: acende pulsando quando o portão abre
+	dread.light_color = th.rune
+	dread.light_energy = 0.0
+	dread.omni_range = rad + 4.0
+	dread.position = Vector3(center.x, 6.0, center.y)
+	dread.name = "Dread"
+	holder.add_child(dread)
 	ring.sort_custom(func(x, y): return (x as Node3D).position.distance_to(gate.position) < (y as Node3D).position.distance_to(gate.position))
 	# círculo de runas no meio da sala
 	var circle := MeshInstance3D.new()
@@ -780,6 +899,7 @@ func _boss_gate(holder: Node3D, fx: Node, th: Dictionary) -> void:
 	holder.add_child(circle)
 	if fx != null:
 		fx.setup_gate(gate, leaves, ring, circle, Vector3(pos.x, 0, pos.y))
+		fx.set_dread(dread)
 
 
 func _brazier(holder: Node3D, pos: Vector3, th: Dictionary, lit: bool) -> Node3D:
@@ -808,7 +928,7 @@ func _brazier(holder: Node3D, pos: Vector3, th: Dictionary, lit: bool) -> Node3D
 	bowl.material_override = iron
 	bowl.position.y = 1.25
 	b.add_child(bowl)
-	var tc: Color = th.torch
+	var tc: Color = th.torch if lit else th.rune   # a sala do chefe queima na cor das runas
 	var flame := MeshInstance3D.new()
 	var fm := SphereMesh.new()
 	fm.radius = 0.38

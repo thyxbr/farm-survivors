@@ -91,16 +91,22 @@ const DATA := {
 ## ambiente (quem ilumina são as tochas e os braseiros), sem clima.
 const UNDERGROUND := {
 	"sky_top": Color(0.02, 0.02, 0.025), "sky_hz": Color(0.035, 0.03, 0.035), "ground_hz": Color(0.03, 0.025, 0.03),
-	"fog": Color(0.025, 0.02, 0.025), "fog_density": 0.06,
-	"sun": 0.0, "sun_color": Color(1, 1, 1), "ambient": 0.65, "saturation": 1.0, "rim": 0.25,
-	"autumn": false, "motes": "",
+	"fog": Color(0.025, 0.02, 0.025), "fog_density": 0.085,
+	"sun": 0.0, "sun_color": Color(1, 1, 1), "ambient": 0.6, "saturation": 0.95, "rim": 0.2,
+	"autumn": false, "motes": "dust",
 }
+## Cor da névoa de cada dungeon: verde podre no Covil, azul gelado nas Galerias, brasa na Cripta, sangue no Abismo.
+const DUNGEON_FOG := {"dg_bosque": Color(0.035, 0.05, 0.03), "dg_mina": Color(0.03, 0.04, 0.06),
+	"dg_pico": Color(0.07, 0.03, 0.02), "dg_final": Color(0.07, 0.015, 0.03)}
 
 
 ## Céu, névoa, luz e partículas do lugar `map_id`: o bioma nos mapas, debaixo da terra nas dungeons.
 static func atmo(map_id: String) -> Dictionary:
 	if Regions.is_dungeon(map_id):
-		return UNDERGROUND
+		var u := UNDERGROUND.duplicate()
+		u.fog = DUNGEON_FOG.get(map_id, u.fog)
+		u.sky_hz = (u.fog as Color) * 1.2
+		return u
 	return of(map_id) if has_sky(map_id) else {}
 
 
