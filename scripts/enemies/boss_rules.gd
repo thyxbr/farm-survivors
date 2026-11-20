@@ -70,6 +70,20 @@ static func surface_attacks(normal: int, fury_left: int) -> int:
 	return 0 if fury_left > 0 else normal
 
 
+## Índice do ponto mais perto de `origin` no plano (a altura não conta); -1 se a lista está vazia. A Mãe-Verme
+## escolhe o alvo do cuspe e da mordida assim, só entre quem está dentro do fosso.
+static func nearest_index(origin: Vector3, points: Array) -> int:
+	var best := -1
+	var best_d := INF
+	for i in points.size():
+		var p: Vector3 = points[i]
+		var d := Vector2(p.x - origin.x, p.z - origin.z).length()
+		if d < best_d:
+			best_d = d
+			best = i
+	return best
+
+
 ## Índice do ponto mais distante de `origin` no plano (a altura não conta); -1 se a lista está vazia. As Poças de
 ## Ácido e o Mergulho miram quem está mais longe dentro do fosso: quem ataca de longe também fica sob pressão.
 static func farthest_index(origin: Vector3, points: Array) -> int:

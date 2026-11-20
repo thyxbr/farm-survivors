@@ -76,3 +76,11 @@ func test_farthest_target() -> void:
 	T.eq(BossRules.farthest_index(o, pts), 1, "o mais distante no plano (altura não conta)")
 	T.eq(BossRules.farthest_index(o, [Vector3(3, 0, 0)]), 0, "sozinho: ele mesmo")
 	T.eq(BossRules.farthest_index(o, []), -1, "ninguém: -1")
+
+
+## A Mãe-Verme escolhe o alvo mais perto entre quem está DENTRO do fosso: um jogador logo fora não pode fazer
+## ela mergulhar sem parar (revisão final).
+func test_nearest_target() -> void:
+	var o := Vector3.ZERO
+	T.eq(BossRules.nearest_index(o, [Vector3(9, 0, 0), Vector3(0, 7, 3), Vector3(-12, 0, 0)]), 1, "o mais perto no plano")
+	T.eq(BossRules.nearest_index(o, []), -1, "ninguém: -1")

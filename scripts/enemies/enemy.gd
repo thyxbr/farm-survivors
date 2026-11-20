@@ -534,6 +534,8 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var player := _nearest_player()
+	if ai() == "worm":
+		player = _worm_in_pit("near")   # a Mãe-Verme só vê quem está dentro do fosso (null = ninguém)
 	var to_player := Vector3.ZERO
 	var dist := INF
 	if player and not player.dead:
@@ -1371,17 +1373,23 @@ func _worm_target_ok(player) -> bool:
 	return player != null and not player.dead and BurrowRules.in_leash(player.global_position, home, _worm_leash_size())
 
 
-## Mãe-Verme: o jogador vivo mais longe dela dentro do fosso (null = ninguém no fosso). As Poças e o Mergulho
-## miram nele (BossRules.farthest_index); o cuspe e a mordida seguem no mais perto.
-func _worm_far_target() -> Node3D:
+## Mãe-Verme: o jogador vivo dentro do fosso mais perto (`which` = "near": cuspe, mordida, quem ela encara)
+## ou mais longe dela ("far": as Poças e o Mergulho). null = ninguém no fosso. Quem está fora do fosso não conta:
+## senão um jogador logo fora faria ela mergulhar sem parar.
+func _worm_in_pit(which: String) -> Player:
 	var cand: Array = []
 	var pos: Array = []
 	for p in _boss_pool():
 		if not p.dead and BurrowRules.in_leash(p.global_position, home, _worm_leash_size()):
 			cand.append(p)
 			pos.append(p.global_position)
-	var i := BossRules.farthest_index(global_position, pos)
+	var i := BossRules.nearest_index(global_position, pos) if which == "near" \
+		else BossRules.farthest_index(global_position, pos)
 	return cand[i] if i >= 0 else null
+
+
+func _worm_far_target() -> Player:
+	return _worm_in_pit("far")
 
 
 ## Mãe-Verme: mergulha (o estado "burrow" decide para onde: debaixo do alvo ou de volta para casa).
@@ -1527,11 +1535,14 @@ func _quake_warn(elapsed: float) -> void:
 		lp.add_shake(0.35)
 
 
-## Desmoronamento: pedras sorteadas pela semente em volta de `center` e uma sob cada jogador por perto.
+## Desmoronamento: pedras sorteadas pela semente em volta de `center` e uma sob cada jogador por perto que esteja
+## no fosso dela (a mesma região do mapa: servidor e réplica sabem sem trocar nada). Quem passa fora do fosso,
+## ainda que perto (o Salão do Cavaleiro é vizinho), não entra na luta.
 func _rockfall_targets(center: Vector3) -> Array:
 	var pts := BossRules.rockfall_points(boss_seed, center, BossRules.ROCK_SPREAD, BossRules.ROCKS)
+	var arena := Regions.area_at(center)
 	for p in get_tree().get_nodes_in_group("players"):
-		if not p.dead and p.global_position.distance_to(center) < 25.0:
+		if not p.dead and p.global_position.distance_to(center) < 25.0 and arena != "" 				and Regions.area_at(p.global_position) == arena:
 			pts.append(Vector3(p.global_position.x, center.y, p.global_position.z))
 	return pts
 
@@ -1637,6 +1648,12 @@ func _set_buried(on: bool) -> void:
 	if model:
 		model.visible = not on
 	collision_layer = 0 if on else _layer
+	# fora do grupo "enemies" enquanto enterrada: golpes, flechas, magias, encantos e mira não a acham (e nada de
+	# roubo de vida ou fúria batendo num monte de terra); volta ao sair do chão, se não morreu
+	if on:
+		remove_from_group("enemies")
+	elif not dead and not is_in_group("enemies"):
+		add_to_group("enemies")
 	if bar_root and on:
 		bar_root.visible = false
 	if name_tag:
@@ -1982,6 +1999,9 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 				_replica_boss_start(flags, atk_t)
 	if new_state != state:
 		_set_state(new_state)
+	if ai() in ["burrow", "worm"]:
+		# réplica que chega no meio do "emergir", já depois do golpe, aparece na hora (o servidor já a mostra)
+		_set_buried(BurrowRules.hidden(state, attack_kind, hit_done))
 
 
 ## Réplica: o ponto da dinamite = posição do snapshot + o deslocamento que vem nos bits altos de flags.
