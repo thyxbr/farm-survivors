@@ -3434,6 +3434,19 @@ func _test_gear() -> void:
 		"janela do herói abre à esquerda com o inventário aberto à direita")
 	check(not h.book._frame.get_global_rect().intersects(m.book._frame.get_global_rect()),
 		"janelas do herói e do inventário não se sobrepõem (%s | %s)" % [h.book._frame.get_global_rect(), m.book._frame.get_global_rect()])
+	# arrastar: a janela do herói solta por cima do inventário encosta ao lado dele, e reabre onde ficou
+	var hf: Control = h.book.frame()
+	var mf: Control = m.book.frame()
+	hf.set_meta("_user_pos", mf.position - Vector2(200, 0))
+	h.book._layout()
+	check(hf.get_global_rect().intersects(mf.get_global_rect()), "janela arrastada por cima do inventário (antes de soltar)")
+	world.dock.resolve(hf)
+	await wait(0.05)
+	check(not hf.get_global_rect().grow(-1.0).intersects(mf.get_global_rect())
+		and Rect2(Vector2.ZERO, hf.get_viewport_rect().size).encloses(hf.get_global_rect()),
+		"ao soltar, a janela encosta ao lado da outra sem sair da tela (%s | %s)" % [hf.get_global_rect(), mf.get_global_rect()])
+	hf.remove_meta("_user_pos")
+	h.book._layout()
 	for i in h.pages.size():
 		h._show_tab(i)
 		await wait(0.1)

@@ -42,6 +42,14 @@ referência: várias janelas abertas ao mesmo tempo **sem sobrepor**, o mundo vi
   lado da dica (`ItemTooltip._cmp`, contexto "worn"). Captura: `--ui=inv --tip=5 --shift`; várias janelas:
   `--ui=char,inv`.
 
+- **3ª rodada (moldura escolhida e janelas soltas):** comparadas três molduras na mesma loja (A madeira e
+  bronze, B ferro forjado, C couro costurado; `tools/ui_kit/frame_styles.py`); ficou a **B**. Faixa de 10 px
+  e respiro interno menor (a margem lateral tomava espaço demais). Janelas **arrastáveis** por qualquer parte
+  vazia (`UITheme.make_draggable`); ao soltar por cima de outra, encostam ao lado (`WindowDock.resolve`) e
+  reabrem onde o jogador as deixou. Rodapé único (`UITheme.footer`): dica numa linha própria, botões à
+  direita (secundários, ação principal vermelha, "Sair"), sem o selo "E" (Esc fecha). A grade da loja usa as
+  colunas que couberem.
+
 O que vem abaixo é o histórico do livro (as lições sobre papel, tinta e ícones continuam valendo).
 
 ## Por quê

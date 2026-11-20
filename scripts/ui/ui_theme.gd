@@ -483,15 +483,21 @@ const DOCK_MARGIN := 16.0
 ## Fundo de uma janela lateral: moldura de madeira com friso de bronze e cantoneiras, pergaminho dentro
 ## (assets/ui/kit/win_frame.png, gerado por tools/ui_kit/make_window_kit.py). `margin` é o respiro entre o
 ## friso e o conteúdo.
-static func parch_box(margin := 10) -> StyleBox:
-	var fb := _box(PAGE, PAGE_EDGE, 3, 8, margin + 18, margin + 14)
-	return _win_tex("win_frame", 44, 22 + margin, 20 + margin, fb)
+static func parch_box(margin := 8) -> StyleBox:
+	var fb := _box(PAGE, PAGE_EDGE, 3, 8, margin + 12, margin + 10)
+	return _win_tex("win_frame_" + frame_style(), 30, 13 + margin, 12 + margin, fb)
 
 
 ## Moldura pequena (dica de item): o mesmo material com friso fino.
-static func small_frame(margin := 8) -> StyleBox:
-	var fb := _box(PAGE, PAGE_EDGE, 2, 4, margin + 8, margin + 6)
-	return _win_tex("win_frame_small", 20, 10 + margin, 9 + margin, fb)
+static func small_frame(margin := 6) -> StyleBox:
+	var fb := _box(PAGE, PAGE_EDGE, 2, 4, margin + 6, margin + 5)
+	return _win_tex("win_frame_small_" + frame_style(), 16, 8 + margin, 7 + margin, fb)
+
+
+## Material da moldura das janelas (tools/ui_kit/frame_styles.py). Comparadas A (madeira e bronze),
+## B (ferro forjado) e C (couro costurado) em 20/11/2026; o dono do projeto escolheu a B.
+static func frame_style() -> String:
+	return "b"
 
 
 ## Botão de pergaminho do kit das janelas (`name` = win_btn, win_btn_hover, win_btn_on, win_btn_off, win_btn_red).
@@ -536,6 +542,29 @@ static func primary(b: Button) -> Button:
 	return b
 
 
+## Rodapé das janelas: a dica numa linha própria (quebra linha, nunca é espremida pelos botões) e, embaixo,
+## os botões alinhados à direita, todos da mesma altura e com largura pelo texto. Ordem: secundários, a ação
+## principal (vermelha) e por último "Sair". Sem selo de tecla: Esc fecha qualquer janela.
+static func footer(hint: Label, buttons: Array) -> VBoxContainer:
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	if hint != null:
+		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hint.custom_minimum_size.x = 120
+		v.add_child(hint)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.alignment = BoxContainer.ALIGNMENT_END
+	for b: Button in buttons:
+		b.custom_minimum_size = Vector2(110, 36)
+		b.size_flags_horizontal = Control.SIZE_SHRINK_END
+		b.add_theme_font_size_override("font_size", 16)
+		row.add_child(b)
+	v.add_child(row)
+	return v
+
+
 ## Ornamento de bronze (linha com losango) para separar o título do conteúdo.
 static func ornament() -> Control:
 	var path := KIT + "win_divider.png"
@@ -566,9 +595,10 @@ static func dock_panel(parent: Control, side := "left") -> PanelContainer:
 		var sz := p.get_combined_minimum_size()
 		if p.size != sz:
 			p.size = sz   # encolhe junto quando o conteúdo diminui (o Control sozinho só cresce)
-		var y := maxf(DOCK_MARGIN, (root.size.y - sz.y) * 0.5)
 		var x := DOCK_MARGIN if side == "left" else root.size.x - sz.x - DOCK_MARGIN
-		p.position = Vector2(x, y).round()
+		p.position = frame_pos(p, Vector2(x, DOCK_MARGIN), root.size)
+	parent.set_meta("_dock_frame", p)
+	make_draggable(p, place)
 	root.resized.connect(place)
 	p.resized.connect(place)
 	p.minimum_size_changed.connect(place)
@@ -577,6 +607,31 @@ static func dock_panel(parent: Control, side := "left") -> PanelContainer:
 	ink.target = p
 	p.add_child(ink)
 	return p
+
+
+## Janela arrastável: segurando o botão esquerdo em qualquer parte vazia do painel (título, papel, moldura)
+## ela acompanha o mouse; `relayout` reposiciona (lendo `frame_pos`). Ao soltar, o WindowDock desencavala:
+## se ficou por cima de outra janela, encosta ao lado dela.
+static func make_draggable(frame: Control, relayout: Callable) -> void:
+	frame.mouse_filter = Control.MOUSE_FILTER_STOP
+	frame.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT:
+			if e.pressed:
+				frame.set_meta("_drag", frame.get_global_mouse_position() - frame.global_position)
+			elif frame.has_meta("_drag"):
+				frame.remove_meta("_drag")
+				frame.get_tree().call_group("window_dock", "resolve", frame)
+		elif e is InputEventMouseMotion and frame.has_meta("_drag"):
+			var parent_pos := (frame.get_parent() as Control).global_position
+			frame.set_meta("_user_pos", frame.get_global_mouse_position() - frame.get_meta("_drag") - parent_pos)
+			relayout.call())
+
+
+## Posição da janela: a que o jogador escolheu arrastando (ou o WindowDock, ao desencavalar) ou `default`;
+## sempre inteira dentro de `area`.
+static func frame_pos(frame: Control, default: Vector2, area: Vector2) -> Vector2:
+	var p: Vector2 = frame.get_meta("_user_pos") if frame.has_meta("_user_pos") else default
+	return p.clamp(Vector2.ZERO, (area - frame.size).max(Vector2.ZERO)).round()
 
 
 ## Cor clara do tema escuro convertida para tinta sobre o pergaminho: branco/creme vira tinta, cinza vira

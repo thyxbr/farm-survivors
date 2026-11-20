@@ -55,14 +55,9 @@ func _ready() -> void:
 	pantry_l.custom_minimum_size = Vector2(860, 0)
 	v.add_child(pantry_l)
 
-	var btns := HBoxContainer.new()
-	btns.add_theme_constant_override("separation", 12)
-	cook_btn = UITheme.primary(UITheme.button("Cozinhar", func() -> void: _cook(1), 200))
-	max_btn = UITheme.button("Cozinhar tudo", func() -> void: _cook(99), 220)
-	btns.add_child(cook_btn)
-	btns.add_child(max_btn)
-	btns.add_child(UITheme.button("Sair", _close, 120))
-	v.add_child(btns)
+	cook_btn = UITheme.primary(UITheme.button("Cozinhar", func() -> void: _cook(1)))
+	max_btn = UITheme.button("Cozinhar tudo", func() -> void: _cook(99))
+	v.add_child(UITheme.footer(null, [max_btn, cook_btn, UITheme.button("Sair", _close)]))
 
 	Game.inventory_changed.connect(_refresh)
 	Econ.done.connect(_on_econ_done)

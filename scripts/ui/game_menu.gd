@@ -275,14 +275,15 @@ func _build_inventory() -> Control:
 	foot.add_child(sel_label)
 	use_btn = UITheme.primary(UITheme.button("Usar", _use_selected, 96))
 	drop_btn = UITheme.button("Descartar", _drop_selected, 96)
-	for b in [use_btn, drop_btn]:
-		b.custom_minimum_size.y = 32
+	for b in [drop_btn, use_btn]:   # a ação principal (vermelha) por último, como nas outras janelas
+		b.custom_minimum_size.y = 34
 		b.focus_mode = Control.FOCUS_NONE
 		b.add_theme_font_size_override("font_size", 16)
 		foot.add_child(b)
 	lv.add_child(foot)
-	hint_label = UITheme.ink("", 12, UITheme.INK_DIM)
-	hint_label.clip_text = true
+	hint_label = UITheme.ink("", 13, UITheme.INK_DIM)
+	hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART   # quebra linha em vez de cortar
+	hint_label.custom_minimum_size.x = 120
 	lv.add_child(hint_label)
 	return lv
 

@@ -40,7 +40,7 @@ func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	theme = UITheme.paper_theme()
 	_frame = PanelContainer.new()
-	_frame.add_theme_stylebox_override("panel", UITheme.parch_box(6))
+	_frame.add_theme_stylebox_override("panel", UITheme.parch_box())
 	add_child(_frame)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 6)
@@ -62,6 +62,12 @@ func _init() -> void:
 	_stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	v.add_child(_stack)
 	resized.connect(_layout)
+	UITheme.make_draggable(_frame, _layout)
+
+
+## Painel da janela (o que se arrasta e o que não pode cobrir outra janela).
+func frame() -> Control:
+	return _frame
 
 
 ## Botão redondo de fechar do cabeçalho das janelas (também usado pelas telas de estação).
@@ -107,7 +113,7 @@ func _layout() -> void:
 		# moldura, cabeçalho e abas (o mínimo do painel, com a rolagem valendo zero) + a página inteira
 		h = minf(h, _frame.get_combined_minimum_size().y + _contents[_current].get_combined_minimum_size().y)
 	_frame.size = Vector2(w, h)
-	_frame.position = Vector2(m if side == "left" else size.x - w - m, m).round()
+	_frame.position = UITheme.frame_pos(_frame, Vector2(m if side == "left" else size.x - w - m, m), size)
 
 
 ## Largura que a janela ocupa na tela, com a moldura e a margem até a borda.

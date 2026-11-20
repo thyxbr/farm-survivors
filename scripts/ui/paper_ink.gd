@@ -102,8 +102,9 @@ static func _ink_color(c: Control, key: String) -> void:
 
 ## Caixa escura (StyleBoxFlat escuro ou textura do kit de madeira) vira um quadro a tinta; caixa clara fica.
 static func _ink_box(sb: StyleBox) -> StyleBox:
-	var mx := sb.content_margin_left if sb.content_margin_left >= 0 else 12.0
-	var my := sb.content_margin_top if sb.content_margin_top >= 0 else 10.0
+	# seções internas mais justas que no tema escuro: o papel em volta já é a margem
+	var mx := minf(sb.content_margin_left, 10.0) if sb.content_margin_left >= 0 else 10.0
+	var my := minf(sb.content_margin_top, 8.0) if sb.content_margin_top >= 0 else 8.0
 	if sb is StyleBoxTexture:
 		return _framed(mx, my, Color(UITheme.INK, 0.35))
 	if sb is StyleBoxFlat:
