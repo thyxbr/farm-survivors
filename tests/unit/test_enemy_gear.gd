@@ -77,8 +77,24 @@ func test_every_enemy_gear_exists_in_model() -> void:
 
 func test_new_kinds_present() -> void:
 	var enemies: Dictionary = BalanceTables.load_dir("res://data/balance").get_table("enemies")
-	for k in ["esqueleto", "esqueleto_arqueiro", "esqueleto_mago", "esqueleto_cavaleiro", "goblin_bombardeiro", "slime_gelo"]:
+	for k in ["esqueleto", "esqueleto_arqueiro", "esqueleto_mago", "esqueleto_cavaleiro", "goblin_bombardeiro", "slime_gelo", "kobold"]:
 		T.ok(enemies.has(k), "tipo %s existe" % k)
+	T.ok(enemies.get("kobold", {}).get("ai", "") != "bomber", "kobold arremessa, não explode junto")
+	T.ok(enemies.get("kobold", {}).has("throw_cd") and enemies.get("kobold", {}).has("throw_range"), "kobold tem arremesso")
+	T.ok(enemies.get("centopeia", {}).get("chill_venom", false), "a lentidão da centopeia é veneno (aviso próprio)")
+	T.ok(not enemies["slime_gelo"].get("chill_venom", false), "a do slime de gelo continua sendo frio")
+	var mole: Dictionary = enemies.get("toupeira", {})
+	T.eq(mole.get("ai", ""), "burrow", "toupeira cava")
+	for key in ["dig_min", "dig_max", "surface_secs", "dig_max_secs", "dig_speed", "emerge_radius"]:
+		T.ok(mole.has(key), "toupeira tem %s" % key)
+	var worm: Dictionary = enemies.get("mae_verme", {})
+	T.ok(worm.get("boss", false) and worm.get("ai", "") == "worm", "mãe-verme é chefe com ia de verme")
+	T.eq(worm.get("summon", ""), "centopeia", "mãe-verme chama centopeias")
+	T.eq(worm.get("shot", ""), "acid", "mãe-verme cospe ácido")
+	T.eq(worm.get("leash", []).size(), 2, "mãe-verme presa ao fosso (meio-tamanho x, z)")
+	var golem: Dictionary = enemies.get("golem_cristal", {})
+	T.eq(golem.get("model", ""), "golem", "golem usa o modelo novo")
+	T.ok(float(golem.get("death_blast", 0.0)) > 0.0 and float(golem.get("death_delay", 0.0)) > 0.0, "golem estoura ao morrer")
 	T.eq(enemies["esqueleto_mago"].get("shot", ""), "bolt", "mago atira projétil mágico")
 	T.eq(enemies["goblin_bombardeiro"].get("ai", ""), "bomber", "bombardeiro explode")
 	T.eq(float(enemies["slime_gelo"].get("chill", 0.0)), 2.5, "slime de gelo deixa lento por 2,5 s")

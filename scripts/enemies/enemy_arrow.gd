@@ -16,6 +16,9 @@ var level := 0
 var source: Node
 ## Orbe roxo no lugar da flecha.
 var magic := false
+## Cuspe de ácido (Mãe-Verme): o orbe verde (com `magic`).
+var acid := false
+const ACID := {"core": Color(0.08, 0.14, 0.02), "mid": Color(0.3, 0.6, 0.05), "edge": Color(0.65, 1.0, 0.25)}
 ## Bola de teia (Tecelã): ao acertar, prende o jogador por web_secs (Player.apply_web).
 var web := false
 var web_secs := 0.0
@@ -28,7 +31,7 @@ func _ready() -> void:
 	if magic:
 		_build_orb()
 		# rastro desenhado atrás do orbe (lê `direction`)
-		FXToon.comet(self, FXToon.MENACE, 1.6, 0.16, false)      # miolo escuro, borda acesa: o traço dos monstros
+		FXToon.comet(self, ACID if acid else FXToon.MENACE, 1.6, 0.16, false)      # miolo escuro, borda acesa: o traço dos monstros
 		return
 	if web:
 		_build_web()
@@ -103,13 +106,13 @@ func _build_orb() -> void:
 	orb.rings = 4
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.albedo_color = Color(0.12, 0.03, 0.14)      # miolo quase preto; a borda acesa vem do rastro e da luz
+	m.albedo_color = Color(0.25, 0.55, 0.08) if acid else Color(0.12, 0.03, 0.14)      # miolo escuro; a borda acesa vem do rastro e da luz
 	orb.material = m
 	mi.mesh = orb
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 	var light := OmniLight3D.new()
-	light.light_color = Color(0.65, 0.35, 1.0)
+	light.light_color = Color(0.5, 1.0, 0.25) if acid else Color(0.65, 0.35, 1.0)
 	light.light_energy = 1.2
 	light.omni_range = 3.0
 	add_child(light)
@@ -153,7 +156,7 @@ func _physics_process(delta: float) -> void:
 			if web and p.has_method("apply_web"):
 				p.apply_web(web_secs)
 			if magic:
-				FXToon.spark_hit(global_position, direction, FXToon.MENACE, 6, 1.1)
+				FXToon.spark_hit(global_position, direction, ACID if acid else FXToon.MENACE, 6, 1.1)
 			elif web:
 				FXToon.hit_splat(global_position, Color(0.93, 0.93, 0.97), 6)
 			else:

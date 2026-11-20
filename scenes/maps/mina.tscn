@@ -1312,29 +1312,23 @@ kind = "wagon"
 
 [node name="Monstros" type="Node3D" parent="." unique_id=1690076752]
 
-[node name="esqueleto" type="Node3D" parent="Monstros" unique_id=285633604]
+[node name="kobold" type="Node3D" parent="Monstros" unique_id=285633604]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, 12)
 script = ExtResource("7_5aw42")
-kind = "esqueleto"
+kind = "kobold"
 respawn = 60.0
-level = 20
-level_max = 30
 
-[node name="esqueleto 2" type="Node3D" parent="Monstros" unique_id=214125510]
+[node name="kobold 2" type="Node3D" parent="Monstros" unique_id=214125510]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, 2)
 script = ExtResource("7_5aw42")
-kind = "esqueleto"
+kind = "kobold"
 respawn = 60.0
-level = 20
-level_max = 30
 
-[node name="esqueleto 3" type="Node3D" parent="Monstros" unique_id=1634195089]
+[node name="golem_cristal" type="Node3D" parent="Monstros" unique_id=1634195089]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -10)
 script = ExtResource("7_5aw42")
-kind = "esqueleto"
+kind = "golem_cristal"
 respawn = 60.0
-level = 20
-level_max = 30
 
 [node name="esqueleto 4" type="Node3D" parent="Monstros" unique_id=1172784473]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -20)
@@ -1360,21 +1354,17 @@ respawn = 60.0
 level = 20
 level_max = 30
 
-[node name="esqueleto_arqueiro" type="Node3D" parent="Monstros" unique_id=2025535788]
+[node name="golem_cristal 2" type="Node3D" parent="Monstros" unique_id=2025535788]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22, 0, -8)
 script = ExtResource("7_5aw42")
-kind = "esqueleto_arqueiro"
+kind = "golem_cristal"
 respawn = 80.0
-level = 20
-level_max = 30
 
-[node name="esqueleto_arqueiro 2" type="Node3D" parent="Monstros" unique_id=1575597512]
+[node name="golem_cristal 3" type="Node3D" parent="Monstros" unique_id=1575597512]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 0, -8)
 script = ExtResource("7_5aw42")
-kind = "esqueleto_arqueiro"
+kind = "golem_cristal"
 respawn = 80.0
-level = 20
-level_max = 30
 
 [node name="esqueleto_mago" type="Node3D" parent="Monstros" unique_id=812494734]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, -30)
@@ -1399,18 +1389,18 @@ kind = "esqueleto_cavaleiro"
 respawn = 300.0
 level = 30
 
-[node name="goblin_bruto" type="Node3D" parent="Monstros" unique_id=1858352782]
+[node name="kobold 3" type="Node3D" parent="Monstros" unique_id=1858352782]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -34, 0, 2)
 script = ExtResource("7_5aw42")
-kind = "goblin_bruto"
+kind = "kobold"
 respawn = 150.0
-level = 20
-level_max = 30
 
-[node name="goblin_bruto 2" type="Node3D" parent="Monstros" unique_id=1096555487]
+[node name="bando goblin_bruto (contrato)" type="Node3D" parent="Monstros" unique_id=1096555487]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 34, 0, 2)
 script = ExtResource("7_5aw42")
 kind = "goblin_bruto"
+count = 3
+radius = 3.0
 respawn = 150.0
 level = 20
 level_max = 30
@@ -1461,51 +1451,51 @@ script = ExtResource("90_regiao")
 region_id = "salao_cavaleiro"
 size = Vector2(40, 24)
 
-[node name="bando esqueleto 1" type="Node3D" parent="Monstros"]
+[node name="bando kobold 1" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, 20)
 script = ExtResource("7_5aw42")
-kind = "esqueleto"
+kind = "kobold"
 count = 4
 radius = 5.0
 respawn = 25.0
 
-[node name="bando esqueleto 2" type="Node3D" parent="Monstros"]
+[node name="bando centopeia 1" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, 20)
 script = ExtResource("7_5aw42")
-kind = "esqueleto"
-count = 4
-radius = 5.0
+kind = "centopeia"
+count = 3
+radius = 4.0
 respawn = 25.0
 
-[node name="bando goblin_bruto 1" type="Node3D" parent="Monstros"]
+[node name="bando centopeia 2" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35, 0, 28)
 script = ExtResource("7_5aw42")
-kind = "goblin_bruto"
+kind = "centopeia"
 count = 3
 radius = 4.0
 respawn = 25.0
 
-[node name="bando goblin_bruto 2" type="Node3D" parent="Monstros"]
+[node name="bando kobold 2" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40, 0, 28)
 script = ExtResource("7_5aw42")
-kind = "goblin_bruto"
+kind = "kobold"
 count = 3
 radius = 4.0
 respawn = 25.0
 
-[node name="bando esqueleto_arqueiro 1" type="Node3D" parent="Monstros"]
+[node name="bando kobold 3" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40, 0, -15)
 script = ExtResource("7_5aw42")
-kind = "esqueleto_arqueiro"
+kind = "kobold"
 count = 3
 radius = 4.0
 respawn = 25.0
 
-[node name="bando esqueleto 3" type="Node3D" parent="Monstros"]
+[node name="bando golem_cristal 1" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 0, -15)
 script = ExtResource("7_5aw42")
-kind = "esqueleto"
-count = 4
+kind = "golem_cristal"
+count = 2
 radius = 4.0
 respawn = 25.0
 
@@ -1517,43 +1507,42 @@ count = 3
 radius = 3.0
 respawn = 25.0
 
-[node name="bando goblin_bruto 3" type="Node3D" parent="Monstros"]
+[node name="mae_verme" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -45, 0, -40)
 script = ExtResource("7_5aw42")
-kind = "goblin_bruto"
-count = 4
-radius = 5.0
-respawn = 25.0
+kind = "mae_verme"
+level = 28
+respawn = 300.0
 
-[node name="bando goblin_bruto 4" type="Node3D" parent="Monstros"]
+[node name="bando toupeira 1" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -35, 0, -30)
 script = ExtResource("7_5aw42")
-kind = "goblin_bruto"
-count = 3
+kind = "toupeira"
+count = 2
 radius = 4.0
 respawn = 25.0
 
-[node name="bando esqueleto 4" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -55, 0, -48)
+[node name="bando esqueleto corredor" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 0, -26.0)
 script = ExtResource("7_5aw42")
 kind = "esqueleto"
 count = 4
 radius = 4.0
 respawn = 25.0
 
-[node name="bando goblin_bruto 5" type="Node3D" parent="Monstros"]
+[node name="bando toupeira 2" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 45, 0, -40)
 script = ExtResource("7_5aw42")
-kind = "goblin_bruto"
-count = 4
+kind = "toupeira"
+count = 3
 radius = 5.0
 respawn = 25.0
 
-[node name="bando esqueleto_arqueiro 2" type="Node3D" parent="Monstros"]
+[node name="bando toupeira 3" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 50, 0, -30)
 script = ExtResource("7_5aw42")
-kind = "esqueleto_arqueiro"
-count = 4
+kind = "toupeira"
+count = 2
 radius = 4.0
 respawn = 25.0
 
