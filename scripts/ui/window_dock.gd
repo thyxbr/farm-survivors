@@ -14,10 +14,96 @@ const HOTKEYS := {"inventory": ["right", 0], "character": ["left", 1], "talents"
 var world: Node
 var windows := {}            # "left"/"right" -> Control
 var _companion := {}         # janela aberta junto -> janela que a abriu
+## Onde o jogador deixou cada tipo de janela (arrastando): ela reabre lá.
+var _spots := {}             # tipo da janela -> posição
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	add_to_group("window_dock")
+
+
+## Painel visível de uma janela (o que o jogador arrasta), ou null.
+static func frame_of(c: Control) -> Control:
+	if not is_instance_valid(c):
+		return null
+	var b = c.get("book")
+	if b is BookWindow:
+		return b.frame()
+	if c.has_meta("_dock_frame"):
+		return c.get_meta("_dock_frame")
+	return null
+
+
+## Janela que ficou por cima de outra (arrastada ou recém-aberta) encosta ao lado dela, do lado mais perto
+## de onde está; se não cabe de nenhum lado, empurra a outra. Nada sai da tela.
+func resolve(moved: Control) -> void:
+	if not is_instance_valid(moved) or not moved.is_inside_tree():
+		return
+	_resolve(moved)
+	for c in windows.values():   # guarda onde cada janela ficou
+		var f := frame_of(c)
+		if f != null and f.has_meta("_user_pos"):
+			_spots[kind_of(c)] = f.get_meta("_user_pos")
+
+
+static func kind_of(c: Control) -> String:
+	return "%s:%s" % [c.get_script().resource_path if c.get_script() else c.get_class(), str(c.get("mode"))]
+
+
+## Janela recém-aberta: volta para onde o jogador a deixou da última vez e, se cobrir outra, desencavala.
+func settle(c: Control) -> void:
+	var f := frame_of(c)
+	if f == null:
+		return
+	if _spots.has(kind_of(c)):
+		f.set_meta("_user_pos", _spots[kind_of(c)])
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if is_instance_valid(f) and f.is_inside_tree():
+		_resolve(f)
+
+
+func _resolve(moved: Control) -> void:
+	var area := moved.get_viewport_rect().size
+	for c in windows.values():
+		var other := frame_of(c)
+		if other == null or other == moved or not other.is_visible_in_tree():
+			continue
+		var a := moved.get_global_rect()
+		var b := other.get_global_rect()
+		if not a.grow(-1.0).intersects(b):
+			continue
+		var spot = _beside(a, b, area)
+		if spot != null:
+			_place(moved, spot)
+		else:
+			spot = _beside(b, a, area)
+			if spot != null:
+				_place(other, spot)
+
+
+## Posição para o retângulo `a` ao lado de `b` (esquerda ou direita, a mais perto), ou null se não cabe.
+static func _beside(a: Rect2, b: Rect2, area: Vector2) -> Variant:
+	var gap := 8.0
+	var opts: Array = []
+	var left := b.position.x - gap - a.size.x
+	var right := b.end.x + gap
+	if left >= 0.0:
+		opts.append(Vector2(left, a.position.y))
+	if right + a.size.x <= area.x:
+		opts.append(Vector2(right, a.position.y))
+	if opts.is_empty():
+		return null
+	opts.sort_custom(func(p: Vector2, q: Vector2) -> bool:
+		return absf(p.x - a.position.x) < absf(q.x - a.position.x))
+	return opts[0]
+
+
+static func _place(frame: Control, global_pos: Vector2) -> void:
+	var parent_pos := (frame.get_parent() as Control).global_position
+	frame.set_meta("_user_pos", global_pos - parent_pos)
+	frame.position = (global_pos - parent_pos).round()
 
 
 func is_open() -> bool:

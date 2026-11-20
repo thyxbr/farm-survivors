@@ -24,12 +24,7 @@ func _ready() -> void:
 	body = VBoxContainer.new()
 	body.add_theme_constant_override("separation", 8)
 	v.add_child(body)
-	var foot := HBoxContainer.new()
-	foot.add_theme_constant_override("separation", 10)
-	foot.add_child(UITheme.spacer())
-	foot.add_child(UITheme.keycap("E", 13))
-	foot.add_child(UITheme.button("Sair", _close, 140))
-	v.add_child(foot)
+	v.add_child(UITheme.footer(null, [UITheme.button("Sair", _close)]))
 	Hub.changed.connect(_refresh)
 	_refresh()
 

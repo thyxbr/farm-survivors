@@ -1010,6 +1010,7 @@ func _open_docked(c: Control, side: String, opener: Control = null) -> void:
 		_open_docked(inv, "right", c)
 		modal = c
 	_link_trade()
+	dock.settle(c)
 
 
 func _ui_shown() -> void:

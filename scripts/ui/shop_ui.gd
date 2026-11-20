@@ -95,14 +95,8 @@ func _ready() -> void:
 		fr.free()
 	buy_grid = _grid(lv)
 
-	var foot := HBoxContainer.new()
-	foot.add_theme_constant_override("separation", 10)
-	info = UITheme.label("Clique direito: comprar · na mochila: vender", 15, UITheme.DIM)
-	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	foot.add_child(info)
-	foot.add_child(UITheme.keycap("E", 13))
-	foot.add_child(UITheme.button("Sair", _close, 140))
-	v.add_child(foot)
+	info = UITheme.label("Clique direito: comprar · na mochila: vender · Shift: comparar", 14, UITheme.DIM)
+	v.add_child(UITheme.footer(info, [UITheme.button("Sair", _close)]))
 
 	tooltip = ItemTooltip.new()
 	tooltip.paper = true
@@ -131,6 +125,10 @@ func _grid(parent: Control) -> GridContainer:
 	g.add_theme_constant_override("h_separation", 6)
 	g.add_theme_constant_override("v_separation", 6)
 	scroll.add_child(g)
+	# quantas colunas couberem na largura da janela (o título pode alargá-la): a grade vai de borda a borda
+	scroll.resized.connect(func() -> void:
+		var bar := 14.0 if scroll.get_v_scroll_bar().visible else 0.0
+		g.columns = maxi(COLS, int((scroll.size.x - bar + 6.0) / (SLOT + 6.0))))
 	return g
 
 

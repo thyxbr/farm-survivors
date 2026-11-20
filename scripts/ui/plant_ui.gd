@@ -48,16 +48,10 @@ func _ready() -> void:
 	info.custom_minimum_size = Vector2(380, 300)
 	h.add_child(info)
 
-	var btns := HBoxContainer.new()
-	btns.add_theme_constant_override("separation", 12)
-	plant_btn = UITheme.primary(UITheme.button("Plantar aqui", _plant_here, 230))
-	all_btn = UITheme.button("Plantar em todos os vazios", _plant_all, 290)
-	btns.add_child(plant_btn)
-	btns.add_child(all_btn)
-	btns.add_child(UITheme.button("Comprar 5", _buy5, 140))
-	btns.add_child(UITheme.button("Sair", _close, 120))
-	v.add_child(btns)
-	v.add_child(UITheme.label("Duplo clique planta · E ou Esc fecha", 14, UITheme.DIM))
+	plant_btn = UITheme.primary(UITheme.button("Plantar aqui", _plant_here))
+	all_btn = UITheme.button("Plantar em todos os vazios", _plant_all)
+	v.add_child(UITheme.footer(UITheme.label("Duplo clique na semente planta neste canteiro", 14, UITheme.DIM),
+		[UITheme.button("Comprar 5", _buy5), all_btn, plant_btn, UITheme.button("Sair", _close)]))
 
 	Game.inventory_changed.connect(_refresh)
 	Game.stats_changed.connect(_refresh)
