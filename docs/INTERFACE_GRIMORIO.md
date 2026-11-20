@@ -50,6 +50,13 @@ referência: várias janelas abertas ao mesmo tempo **sem sobrepor**, o mundo vi
   direita (secundários, ação principal vermelha, "Sair"), sem o selo "E" (Esc fecha). A grade da loja usa as
   colunas que couberem.
 
+- **4ª rodada (estações e ficha):** horta, caldeirão e encantamento no formato da forja (`StationKit`:
+  lista com ícone à esquerda, detalhe com ícone grande, plaquinhas e "tenho / preciso" à direita). Plantar
+  pede confirmação numa janelinha como a do canteiro do Albion (`ActionModal`). Ficha do herói seguindo as
+  boas fichas de ARPG (PoE 2, Diablo III/IV): cartão do herói com emblema, estatísticas em quadros Ataque e
+  Defesa, cada número com ícone e dica de onde vem. Profissões e Mestre Orin em cartões; talentos com barra
+  do ramo e traços ligando as linhas.
+
 O que vem abaixo é o histórico do livro (as lições sobre papel, tinta e ícones continuam valendo).
 
 ## Por quê

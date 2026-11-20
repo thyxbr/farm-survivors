@@ -1,6 +1,8 @@
 extends Control
-## Menu de plantio de um canteiro vazio: escolher semente, plantar aqui ou em todos os vazios.
-## Se faltar semente, compra na hora (sementeira da horta).
+## Horta, no formato da forja (StationKit): à esquerda as sementes (ícone, tempo e rendimento, quantas
+## tenho ou o preço); à direita a escolhida, com o tempo, a colheita, quantas sementes e em que pratos vai.
+## "Plantar" abre uma janelinha de confirmação (ActionModal) com o que vai acontecer e o custo de comprar a
+## semente que faltar; "Plantar em todos" faz o mesmo para todos os canteiros vazios.
 
 signal closed
 
@@ -9,11 +11,16 @@ var dock_side := "left"
 var wants_inventory := true
 
 var plot_index := 0
-var seed_list: ItemList
-var info: Label
-var gold_label: Label
 var plant_btn: Button
 var all_btn: Button
+var tooltip: ItemTooltip
+var gold_label: Label
+var _rows := {}           # cultura -> linha (StationKit.row)
+var _sel := ""
+var _head: Dictionary     # StationKit.detail_head
+var _chips: HBoxContainer
+var _uses: GridContainer
+var _note: Label
 ## "Plantar em todos" em andamento: {"crop", "queue" (canteiros a pedir), "ok"} ({} = nenhum).
 var _batch := {}
 
@@ -25,94 +32,102 @@ func _ready() -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
 	p.add_child(v)
-	var top := HBoxContainer.new()
-	top.add_child(UITheme.label("Canteiro %d — Plantar" % (plot_index + 1), 28, UITheme.GOLD))
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(sp)
-	gold_label = UITheme.label("", 22, Color(1, 0.85, 0.35))
-	top.add_child(gold_label)
-	v.add_child(top)
-	v.add_child(UITheme.label("Regue depois de plantar: cresce 2x mais rápido e rende +1.", 16, UITheme.DIM))
-
+	gold_label = UITheme.heading("", 22, Color(1, 0.84, 0.35))
+	v.add_child(StationKit.header("Canteiro %d" % (plot_index + 1), gold_label))
+	v.add_child(UITheme.label("Regue depois de plantar: cresce 2x mais rápido e rende +1.", 15, UITheme.DIM))
 	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 20)
+	h.add_theme_constant_override("separation", 16)
 	v.add_child(h)
-	seed_list = ItemList.new()
-	seed_list.custom_minimum_size = Vector2(470, 300)
-	seed_list.item_selected.connect(func(_i: int) -> void: _update_info())
-	seed_list.item_activated.connect(func(_i: int) -> void: _plant_here())
-	h.add_child(seed_list)
-	info = UITheme.label("", 16)
-	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	info.custom_minimum_size = Vector2(380, 300)
-	h.add_child(info)
-
-	plant_btn = UITheme.primary(UITheme.button("Plantar aqui", _plant_here))
-	all_btn = UITheme.button("Plantar em todos os vazios", _plant_all)
+	var list := StationKit.list_panel("Sementes", null, Vector2(380, 380))
+	h.add_child(list.panel)
+	for crop in ItemDB.CROP_ORDER:
+		var c: Dictionary = ItemDB.CROPS[crop]
+		var r := StationKit.row(c.seed, c.name, "Cresce em %ds · rende %d–%d" % [int(c.time), c.yield[0], c.yield[1]],
+			select_crop.bind(crop), _plant_here)
+		list.rows.add_child(r.btn)
+		_rows[crop] = r
+	var det := StationKit.detail_panel(460)
+	h.add_child(det.panel)
+	tooltip = ItemTooltip.new()
+	tooltip.paper = true
+	_head = StationKit.detail_head(det.box, tooltip, 112)
+	_chips = HBoxContainer.new()
+	_chips.add_theme_constant_override("separation", 8)
+	det.box.add_child(_chips)
+	det.box.add_child(UITheme.section("Usada em", 18))
+	_uses = StationKit.materials_grid()
+	det.box.add_child(_uses)
+	det.box.add_child(UITheme.spacer())
+	_note = UITheme.label("", 15, UITheme.DIM)
+	_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_note.custom_minimum_size.x = 420
+	det.box.add_child(_note)
+	plant_btn = UITheme.primary(UITheme.button("Plantar", _plant_here))
+	all_btn = UITheme.button("Plantar em todos", _plant_all)
 	v.add_child(UITheme.footer(UITheme.label("Duplo clique na semente planta neste canteiro", 14, UITheme.DIM),
 		[UITheme.button("Comprar 5", _buy5), all_btn, plant_btn, UITheme.button("Sair", _close)]))
-
+	add_child(tooltip)
 	Game.inventory_changed.connect(_refresh)
 	Game.stats_changed.connect(_refresh)
 	Econ.done.connect(_on_econ_done)
-	_refresh()
 	# começa na semente que o jogador tem (ou na primeira)
-	var pick := 0
-	for i in ItemDB.CROP_ORDER.size():
-		if Game.count_item(ItemDB.CROPS[ItemDB.CROP_ORDER[i]].seed) > 0:
-			pick = i
+	_sel = ItemDB.CROP_ORDER[0]
+	for crop in ItemDB.CROP_ORDER:
+		if Game.count_item(ItemDB.CROPS[crop].seed) > 0:
+			_sel = crop
 			break
-	seed_list.select(pick)
-	seed_list.grab_focus.call_deferred()
-	_update_info()
+	_refresh()
 
 
-func _selected_crop() -> String:
-	var sel := seed_list.get_selected_items()
-	return ItemDB.CROP_ORDER[sel[0]] if not sel.is_empty() else ""
+## Escolhe a semente (os testes usam; as linhas chamam a mesma coisa).
+func select_crop(crop: String) -> void:
+	_sel = crop
+	_refresh()
 
 
 func _refresh() -> void:
+	if not is_inside_tree():
+		return
 	gold_label.text = "◆ %d ouro" % Game.gold
-	var sel := seed_list.get_selected_items()
-	seed_list.clear()
-	for crop in ItemDB.CROP_ORDER:
+	for crop in _rows:
 		var c: Dictionary = ItemDB.CROPS[crop]
-		var seed_it := ItemDB.get_item(c.seed)
 		var n := Game.count_item(c.seed)
-		var txt := "%s   %s" % [c.name, ("x%d" % n) if n > 0 else "(%d ouro)" % seed_it.price]
-		seed_list.add_item(txt)
-		var idx := seed_list.item_count - 1
-		seed_list.set_item_tooltip_enabled(idx, false)
-		if n > 0:
-			seed_list.set_item_custom_fg_color(idx, c.color.lightened(0.35))
-		elif Game.gold < seed_it.price:
-			seed_list.set_item_custom_fg_color(idx, Color(0.55, 0.45, 0.45))
-		else:
-			seed_list.set_item_custom_fg_color(idx, UITheme.DIM)
-	if not sel.is_empty():
-		seed_list.select(sel[0])
+		var price: int = ItemDB.get_item(c.seed).price
+		var can := n > 0 or Game.gold >= price
+		StationKit.set_row(_rows[crop], crop == _sel, can, c.color.lightened(0.35),
+			("x%d" % n) if n > 0 else "%d◆" % price, UITheme.GOOD if n > 0 else UITheme.GOLD)
 	_update_info()
 
 
 func _update_info() -> void:
-	var crop := _selected_crop()
-	if crop == "":
+	StationKit.clear(_chips)
+	StationKit.clear(_uses)
+	if _sel == "":
 		return
-	var c: Dictionary = ItemDB.CROPS[crop]
+	var c: Dictionary = ItemDB.CROPS[_sel]
 	var seed_it := ItemDB.get_item(c.seed)
 	var n := Game.count_item(c.seed)
-	var uses: Array[String] = []
+	(_head.slot as ItemSlot).set_state(c.seed, n)
+	_head.title.text = c.name
+	_head.title.add_theme_color_override("font_color", c.color.lightened(0.35))
+	_head.sub.text = seed_it.desc
+	_head.stats.text = "Semente: %d ouro" % seed_it.price
+	_chips.add_child(StationKit.chip("%ds" % int(c.time), "Cresce (regada: %ds)" % int(c.time / 2.0), Color(0.55, 0.85, 1.0)))
+	_chips.add_child(StationKit.chip("%d–%d" % [c.yield[0], c.yield[1]], "Por colheita", Color(0.6, 1.0, 0.5)))
+	_chips.add_child(StationKit.chip("x%d" % n, "Sementes", UITheme.GOLD, n > 0))
+	var any := false
 	for r in ItemDB.RECIPE_ORDER:
-		if ItemDB.RECIPES[r].has(crop):
-			uses.append(ItemDB.get_item(r).name)
-	info.text = "%s\n%s\n\nCresce em %ds (regado: %ds)\nRende %d–%d por colheita\nSementes: %d   ·   Preço: %d ouro\n\nUsada em: %s" % [
-		c.name, seed_it.desc, int(c.time), int(c.time / 2.0), c.yield[0], c.yield[1], n, seed_it.price,
-		", ".join(uses) if not uses.is_empty() else "—"]
-	plant_btn.text = "Plantar aqui" if n > 0 else "Comprar e plantar (%d)" % seed_it.price
+		if ItemDB.RECIPES[r].has(_sel):
+			any = true
+			_uses.add_child(StationKit.material(r, ItemDB.get_item(r).name, Game.count_item(_sel), int(ItemDB.RECIPES[r][_sel]), tooltip))
+	if not any:
+		_uses.add_child(UITheme.label("Nenhum prato ainda.", 15, UITheme.DIM))
+	var price: int = seed_it.price
+	_note.text = "" if n > 0 else ("Sem sementes: plantar compra uma por %d ouro." % price if Game.gold >= price
+		else "Sem sementes e sem ouro para comprar (%d)." % price)
+	plant_btn.disabled = n <= 0 and Game.gold < price
 	var empties := _empty_plots()
-	all_btn.text = "Plantar em todos os vazios (%d)" % empties.size()
+	all_btn.text = "Plantar em todos (%d)" % empties.size()
 	all_btn.disabled = empties.size() <= 1
 
 
@@ -124,24 +139,47 @@ func _empty_plots() -> Array[int]:
 	return out
 
 
+## Confirmação antes de plantar (a janelinha mostra tempo, colheita e o custo da semente que faltar).
 func _plant_here() -> void:
-	var crop := _selected_crop()
-	if crop == "":
+	if _sel == "" or plant_btn.disabled:
 		return
-	Game.plant(plot_index, crop, true)   # fecha quando o Econ confirmar
+	var c: Dictionary = ItemDB.CROPS[_sel]
+	var n := Game.count_item(c.seed)
+	var lines := [[c.name, c.color], ["Cresce em %ds (regada: %ds) · rende %d–%d" % [int(c.time), int(c.time / 2.0),
+		c.yield[0], c.yield[1]], UITheme.DIM]]
+	if n <= 0:
+		lines.append(["Compra 1 semente por %d ouro" % ItemDB.get_item(c.seed).price, UITheme.GOLD])
+	ActionModal.open(self, "Plantar no canteiro %d" % (plot_index + 1), c.seed, lines, "Plantar", plant_now, n)
 
 
-## Planta a semente escolhida em todos os canteiros vazios, comprando o que faltar.
-## Um pedido por vez: o próximo só sai quando o anterior é confirmado; a primeira recusa (ex.: acabou
-## o ouro) ou a queda da conexão (Econ responde "sem_conexao") encerra o lote — nunca fica travado.
+## Planta a semente escolhida neste canteiro (sem perguntar; a janela fecha quando o Econ confirmar).
+func plant_now() -> void:
+	if _sel != "":
+		Game.plant(plot_index, _sel, true)
+
+
+## Confirmação de plantar em todos os canteiros vazios, com quantas sementes faltam comprar.
 func _plant_all() -> void:
-	var crop := _selected_crop()
-	if crop == "" or not _batch.is_empty():
+	if _sel == "" or not _batch.is_empty() or all_btn.disabled:
+		return
+	var c: Dictionary = ItemDB.CROPS[_sel]
+	var k := _empty_plots().size()
+	var n := Game.count_item(c.seed)
+	var lines := [["%d canteiros vazios" % k, UITheme.TEXT]]
+	if n < k:
+		lines.append(["Compra %d sementes por %d ouro" % [k - n, (k - n) * int(ItemDB.get_item(c.seed).price)], UITheme.GOLD])
+	ActionModal.open(self, "Plantar %s em todos" % c.name, c.seed, lines, "Plantar %d" % k, plant_all_now, n)
+
+
+## Planta em todos os canteiros vazios, comprando o que faltar. Um pedido por vez: o próximo só sai quando
+## o anterior é confirmado; a primeira recusa (ex.: acabou o ouro) ou a queda da conexão encerra o lote.
+func plant_all_now() -> void:
+	if _sel == "" or not _batch.is_empty():
 		return
 	var order := _empty_plots()
 	order.erase(plot_index)
 	order.push_front(plot_index)
-	_batch = {"crop": crop, "queue": order, "ok": 0}
+	_batch = {"crop": _sel, "queue": order, "ok": 0}
 	_plant_next()
 
 
@@ -163,10 +201,8 @@ func _finish_batch() -> void:
 
 
 func _buy5() -> void:
-	var crop := _selected_crop()
-	if crop == "":
-		return
-	Game.buy(ItemDB.CROPS[crop].seed, 5)
+	if _sel != "":
+		Game.buy(ItemDB.CROPS[_sel].seed, 5)
 
 
 func _on_econ_done(op: String, args: Array, ok: bool, _err: String, _events: Array) -> void:

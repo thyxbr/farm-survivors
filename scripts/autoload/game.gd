@@ -1372,8 +1372,17 @@ func _open_debug_ui(w: Node, ui_name: String, args: PackedStringArray) -> void:
 			w.open_shop()
 		"plant":
 			w.open_plant_menu(0)
+		"plant_ok":   # a janelinha de confirmação de plantar
+			w.open_plant_menu(0)
+			await get_tree().process_frame
+			if w.modal and w.modal.has_method("_plant_here"):
+				w.modal._plant_here()
 		"cook":
 			w.open_cooking()
+		"prof":
+			w._open_menu(4)
+		"orin":
+			w.open_modal(load("res://scripts/ui/passive_master_ui.gd").new())
 		"map":
 			w.open_world_map()
 		"party":
