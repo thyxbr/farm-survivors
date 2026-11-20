@@ -4615,6 +4615,449 @@ def build_a_gambeson():
     g_export_skinned(style)
 
 
+# ------------------------------------------------------------------ patrulheiro (linha leve, malha lisa)
+# Referência: Tina Yeh, "Ranger" (artstation.com/artwork/4beWlq). Colete oliva fechado no meio por fechos de
+# tira trançada com ponteiras de metal, sobre camisa branca folgada; duas correias de couro em X com debrum
+# claro, cachecol escuro de tricô, cinto escuro com chapa de couro tachada. Cores fixas (rg_), como o gibão.
+def ranger_mats():
+    return dict(
+        vest=gm("rg_vest", "#586034", 0.95), vest_d=gm("rg_vest_d", "#3A4022", 0.95),
+        strap=gm("rg_strap", "#3C4630", 0.9), lea=gm("rg_leather", "#7C4A26", 0.8),
+        lea_l=gm("rg_leather_l", "#B98A4E", 0.85), lea_d=gm("rg_leather_d", "#472A18", 0.85),
+        belt=gm("rg_belt", "#2C2622", 0.85), scarf=gm("rg_scarf", "#2E3036", 0.95),
+        scarf_d=gm("rg_scarf_d", "#15161A", 0.95), linen=gm("rg_linen", "#E2DBC8", 0.95),
+        linen_d=gm("rg_linen_d", "#B4AB95", 0.95), metal=gm("rg_metal", "#B4B8BC", 0.45, 0.6),
+        brc=gm("rg_bracer", "#6E4A34", 0.8), brc_d=gm("rg_bracer_d", "#3E2618", 0.85),
+        brc2=gm("rg_bracer2", "#4E302C", 0.8),
+    )
+
+
+def rg_snap(bvh, guide, n, out, loop=False, smooth=6):
+    """Linha deitada numa superfície: guide (pontos aproximados) vira n pontos regulares, alisados e projetados
+    no ponto mais próximo da malha (bvh). Devolve (pontos a `out` da superfície, normais alisadas)."""
+    g = list(guide) + ([guide[0]] if loop else [])
+    d = [0.0]
+    for a, b in zip(g, g[1:]):
+        d.append(d[-1] + (b - a).length)
+    m = n if loop else n - 1
+    pts = []
+    for i in range(n):
+        x = d[-1] * i / m
+        k = max(j for j in range(len(d) - 1) if d[j] <= x + 1e-9)
+        pts.append(g[k].lerp(g[k + 1], (x - d[k]) / max(d[k + 1] - d[k], 1e-6)))
+    C = Vector((0, 0, 1.2))
+
+    def avg(L, i):
+        if loop:
+            return L[i - 1] + L[i] * 2 + L[(i + 1) % n]
+        return L[i] * 4 if i in (0, n - 1) else L[i - 1] + L[i] * 2 + L[i + 1]
+    nrm = [Vector((0, -1, 0))] * n
+    for _ in range(3):
+        for _ in range(smooth):
+            pts = [avg(pts, i) / 4 for i in range(n)]
+        hits = [bvh.find_nearest(p) for p in pts]
+        pts = [h[0] for h in hits]
+        nrm = [h[1] if (h[0] - C).dot(h[1]) >= 0 else -h[1] for h in hits]
+    for _ in range(smooth):
+        nrm = [avg(nrm, i).normalized() for i in range(n)]
+    return [p + nr * out for p, nr in zip(pts, nrm)], nrm
+
+
+def rg_band(name, pts, nrms, hw, th, material, parent, loop=False, sides=10, taper=0):
+    """Correia chata deitada: seção achatada de cantos redondos (meia largura hw, espessura th) ao longo de pts,
+    com a base na superfície (normais nrms). taper = quantos pontos afinam em cada ponta."""
+    n = len(pts)
+    rings = []
+    for i in range(n):
+        t = (pts[(i + 1) % n] - pts[i - 1]) if loop else (pts[min(i + 1, n - 1)] - pts[max(i - 1, 0)])
+        t.normalize()
+        nr = (nrms[i] - t * nrms[i].dot(t)).normalized()
+        sd = t.cross(nr).normalized()
+        k = 1.0
+        if taper and not loop:
+            k = min(1.0, 0.35 + 0.65 * min(i, n - 1 - i) / taper)
+        ring = []
+        for j in range(sides):
+            a = 2 * math.pi * j / sides
+            cx, sy = math.cos(a), math.sin(a)
+            x = math.copysign(abs(cx) ** 0.45, cx) * hw * k
+            y = math.copysign(abs(sy) ** 0.45, sy) * th / 2
+            ring.append(pts[i] + sd * x + nr * (y + th / 2 - 0.0015))
+        rings.append(ring)
+    if loop:
+        rings += rings[:2]
+    return g_smooth_mesh(name, rings, material, parent, cap_end=not loop)
+
+
+def rg_edges(name, pts, nrms, hw, th, r, material, parent, loop=False):
+    """Debrum nas duas bordas de uma correia de rg_band."""
+    n = len(pts)
+    out = []
+    for sg in (-1, 1):
+        ln = []
+        for i in range(n):
+            t = (pts[(i + 1) % n] - pts[i - 1]) if loop else (pts[min(i + 1, n - 1)] - pts[max(i - 1, 0)])
+            t.normalize()
+            nr = (nrms[i] - t * nrms[i].dot(t)).normalized()
+            ln.append(pts[i] + t.cross(nr).normalized() * hw * sg * 0.86 + nr * (th - 0.001))
+        out.append(g_pipe("%s%d" % (name, sg + 1), ln, r, material, parent, sides=6, loop=loop))
+    return out
+
+
+def rg_buckle(name, q, u, v, nr, w, h, material, parent, r=0.0028, pin=True):
+    """Fivela de aro retangular em q: u ao longo da correia, v atravessado, nr para fora."""
+    u, v, nr = Vector(u).normalized(), Vector(v).normalized(), Vector(nr).normalized()
+    rim = [q + nr * 0.004 + u * x + v * y for x, y in ((-w, h), (0, h * 1.04), (w, h), (w * 1.05, 0), (w, -h),
+                                                       (0, -h * 1.04), (-w, -h), (-w * 1.05, 0))]
+    out = [g_pipe(name, rim, r, material, parent, sides=6, loop=True)]
+    if pin:
+        out.append(g_pipe(name + "Pin", [q + nr * 0.005 - u * w, q + nr * 0.007, q + nr * 0.005 + u * w], r * 0.8,
+                          material, parent, sides=6))
+    return out
+
+
+def ranger_torso(K, src, body):
+    """Tronco do patrulheiro: colete oliva (casca do corpo) com costuras, três fechos de tira com ponteiras de
+    metal, duas tiras verdes de fivela no alto do peito, correias em X com debrum claro (dão a volta pelas
+    costas), ponta de correia furada pendurada no peito direito, cachecol de tricô e cinto com chapa tachada.
+    Devolve (casca do colete, peças rígidas)."""
+    from mathutils.bvhtree import BVHTree
+
+    def is_torso(c, b, n):
+        return not (b.startswith("Arm") or b.startswith("Elbow") or b.startswith("Knee")) and 0.86 <= c.z < 1.51
+
+    vest = cb_piece(src, "Vest", is_torso, 0.014, K["vest"])
+    g_subdiv(vest, 2)
+    rad, hit_a = _g_ray_tools(vest)
+    bvh = BVHTree.FromPolygons([v.co.copy() for v in vest.data.vertices], [tuple(p.vertices) for p in vest.data.polygons])
+    parts = []
+
+    def tan(a):
+        return Vector((math.cos(a), math.sin(a), 0))
+    UP = Vector((0, 0, 1))
+
+    # ---- costuras do colete: fecho do meio (duas bordas encostadas), recortes da frente e meio das costas
+    for nm, a, z0, z1, r in (("SeamFrontL", 0.028, 0.99, 1.43, 0.0024), ("SeamFrontR", -0.028, 0.99, 1.43, 0.0024),
+                             ("SeamSideL", 0.8, 1.05, 1.3, 0.002), ("SeamSideR", -0.8, 1.05, 1.3, 0.002),
+                             ("SeamBack", math.pi, 1.0, 1.45, 0.002)):
+        parts.append(g_pipe(nm, [hit_a(a, z0 + (z1 - z0) * i / 15, 0.0006) for i in range(16)], r, K["vest_d"],
+                            body, sides=6))
+
+    # ---- fechos: tira trançada verde-escura com ponteira de metal arredondada e rebite em cada ponta
+    cap_o = [(-0.01, -0.0105), (0.004, -0.0105), (0.011, -0.007), (0.0135, 0.0), (0.011, 0.007), (0.004, 0.0105),
+             (-0.01, 0.0105)]
+    for k, z in enumerate((1.225, 1.15, 1.08)):
+        A = 0.36
+        pts = [hit_a(-A + 2 * A * i / 8, z, 0.0) for i in range(9)]
+        nr = [rad(-A + 2 * A * i / 8) for i in range(9)]
+        parts.append(rg_band("ClaspStrap%d" % k, pts, nr, 0.009, 0.005, K["strap"], body))
+        for sg in (-1, 1):
+            a = sg * A
+            q = hit_a(a, z, 0.0045)
+            parts.append(g_plate("ClaspCap%d_%d" % (k, sg + 1), cap_o, q, tan(a) * sg, UP, 0.004, K["metal"], body))
+            parts.append(g_bead("ClaspRivet%d_%d" % (k, sg + 1), hit_a(a + sg * 0.03, z, 0.008), 0.0035, K["metal"],
+                                body))
+
+    # ---- duas tiras verdes de fivela no alto do peito (a de baixo mais larga, com dois rebites na ponta)
+    for k, (z, a0, a1, hw, ab, rv) in enumerate(((1.345, -0.46, 0.5, 0.0115, -0.05, (0.36, 0.43)),
+                                                 (1.405, -0.34, 0.3, 0.009, 0.07, ()))):
+        aa = [a0 + (a1 - a0) * i / 12 for i in range(13)]
+        parts.append(rg_band("ChestStrap%d" % k, [hit_a(a, z, 0.0) for a in aa], [rad(a) for a in aa], hw, 0.005,
+                             K["strap"], body))
+        parts += rg_buckle("ChestBuckle%d" % k, hit_a(ab, z, 0.004), tan(ab), UP, rad(ab), 0.012, hw + 0.004,
+                           K["metal"], body)
+        for j, a in enumerate(rv):
+            parts.append(g_bead("ChestRivet%d_%d" % (k, j), hit_a(a, z, 0.0055), 0.0038, K["metal"], body))
+
+    # ---- correias em X: cada uma sai de um ombro, cruza o peito, passa sob o braço do outro lado e volta pelas
+    #      costas ao mesmo ombro; debrum claro nas bordas. A que desce para o quadril esquerdo fica por cima e tem
+    #      fivela no lado.
+    for sn, s, out in (("A", 1, 0.0075), ("B", -1, 0.002)):          # s = lado do quadril onde ela chega
+        guide = [Vector(p) for p in ((-0.1 * s, 0.0, 1.5), (-0.085 * s, -0.1, 1.42), (0.0, -0.13, 1.325),
+                                     (0.1 * s, -0.11, 1.2), (0.16 * s, 0.0, 1.12), (0.1 * s, 0.11, 1.17),
+                                     (0.0, 0.13, 1.28), (-0.085 * s, 0.1, 1.42))]
+        pts, nr = rg_snap(bvh, guide, 96, out, loop=True)
+        parts.append(rg_band("Cross" + sn, pts, nr, 0.019, 0.0055, K["lea"], body, loop=True))
+        parts += rg_edges("CrossEdge" + sn, pts, nr, 0.019, 0.0055, 0.0028, K["lea_l"], body, loop=True)
+        if s > 0:                        # fivela da correia, no lado esquerdo da cintura
+            i = min(range(96), key=lambda j: (pts[j] - Vector((0.135, -0.085, 1.16))).length)
+            t = (pts[i + 1] - pts[i - 1]).normalized()
+            parts += rg_buckle("CrossBuckle", pts[i] + nr[i] * 0.004, t, t.cross(nr[i]), nr[i], 0.014, 0.024,
+                               K["metal"], body, r=0.0034)
+
+    # ---- ponta de correia pendurada no peito direito: couro claro, furos e passador de metal
+    hg = [Vector(p) for p in ((-0.082, -0.1, 1.455), (-0.08, -0.12, 1.4), (-0.078, -0.13, 1.35), (-0.076, -0.13, 1.3))]
+    hp, hn = rg_snap(bvh, hg, 14, 0.011, smooth=3)
+    parts.append(rg_band("HangStrap", hp, hn, 0.012, 0.005, K["lea_l"], body, taper=2))
+    for j in (4, 6, 8):
+        parts.append(g_bead("HangHole%d" % j, hp[j] + hn[j] * 0.0035, 0.003, K["lea_d"], body))
+    t = (hp[11] - hp[10]).normalized()
+    parts += rg_buckle("HangKeeper", hp[11] + hn[11] * 0.001, t.cross(hn[11]), t, hn[11], 0.015, 0.004, K["metal"],
+                       body, pin=False)
+
+    # ---- cachecol de tricô: gola larga e fofa em volta do pescoço, caída na frente, com dobras
+    N = 44
+    rows = []
+    for k, (z, rx, ry, sag) in enumerate(((1.435, 0.1, 0.092, 0.05), (1.452, 0.134, 0.118, 0.06),
+                                          (1.484, 0.143, 0.128, 0.048), (1.514, 0.13, 0.117, 0.03),
+                                          (1.54, 0.106, 0.098, 0.012), (1.556, 0.086, 0.082, 0.006),
+                                          (1.548, 0.064, 0.062, 0.0))):
+        row = []
+        for j in range(N):
+            a = 2 * math.pi * j / N
+            fr = max(0.0, math.cos(a)) ** 2
+            w = 1.0 + (0.045 * math.sin(3 * a + 1.7 * k) + 0.025 * math.sin(7 * a + k)) * (0 < k < 6)
+            row.append(Vector((math.sin(a) * rx * w, 0.014 - math.cos(a) * ry * w - 0.012 * fr, z - sag * fr)))
+        rows.append(row)
+    parts.append(g_smooth_mesh("Scarf", rows, K["scarf"], body, cap_end=False))
+    for k, i in enumerate((2, 3, 4)):    # vincos entre as voltas do cachecol
+        parts.append(g_pipe("ScarfFold%d" % k, [(p + q) / 2 + Vector((0, 0, -0.004)) for p, q in zip(rows[i], rows[i + 1])],
+                            0.003, K["scarf_d"], body, sides=6, loop=True))
+
+    # ---- cinto escuro com debrum e, na frente, chapa de couro com quatro tachas
+    NB = 48
+    belt_rows = [[hit_a(2 * math.pi * j / NB, z, o) for j in range(NB)]
+                 for z, o in ((0.992, 0.004), (0.996, 0.013), (1.04, 0.013), (1.044, 0.004))]
+    parts.append(g_smooth_mesh("Belt", belt_rows, K["belt"], body, cap_end=False, outward=True))
+    aa = [-0.3 + 0.6 * i / 10 for i in range(11)]
+    parts.append(rg_band("BeltPlate", [hit_a(a, 1.014, 0.012) for a in aa], [rad(a) for a in aa], 0.034, 0.006,
+                         K["lea"], body))
+    for i, (a, dz) in enumerate(((-0.17, 0.014), (0.17, 0.014), (-0.17, -0.014), (0.17, -0.014))):
+        parts.append(g_bead("BeltStud%d" % i, hit_a(a, 1.014 + dz, 0.019), 0.0055, K["metal"], body))
+    return vest, parts
+
+
+def ranger_shoulder(K, src, body, s):
+    """Ombro do patrulheiro: capa curta verde do colete sobre o alto do braço e, por cima, pala de couro com
+    debrum claro. No direito a pala é de couro claro em duas camadas, presa à capa por uma fileira de passadores;
+    no esquerdo é de couro escuro, com dois passadores só na borda de fora."""
+    sn = "L" if s > 0 else "R"
+    # raio limitado à mediana da fileira (cap): sem isso a fileira puxa para o raio que bate no peito e nas
+    # costas e a barra abre para fora como dragona
+    (cr, cd, _), = _g_shoulder_dome(src, s, [(0.3, 2.95, 1.8, 0.013, 0.002)], phis=36, rows=14, pull=0.12,
+                                    cap=0.006, taper=True)
+    (yr, yd, _), = _g_shoulder_dome(src, s, [(0.05, 2.45 if s < 0 else 2.25, 1.65, 0.022, 0.002)], phis=32,
+                                    rows=12, pull=0.15, cap=0.006, taper=True)
+    n = len(cr[0])
+    parts = [g_smooth_mesh("ShCap" + sn, cr, K["vest"], body, cap_end=False, closed=False, thick=0.006, outward=True)]
+    edge = [r[0] for r in cr] + cr[-1][1:-1] + [r[-1] for r in cr][::-1]
+    edir = [r[0] for r in cd] + cd[-1][1:-1] + [r[-1] for r in cd][::-1]
+    parts.append(g_pipe("ShCapHem" + sn, [q + d * 0.003 for q, d in zip(edge, edir)], 0.0042, K["vest_d"], body,
+                        sides=8))
+    lea = K["lea"] if s < 0 else K["lea_d"]
+    parts.append(g_smooth_mesh("ShYoke" + sn, yr, lea, body, cap_end=False, closed=False, thick=0.007, outward=True))
+    edge = [r[0] for r in yr] + yr[-1][1:-1] + [r[-1] for r in yr][::-1]
+    edir = [r[0] for r in yd] + yd[-1][1:-1] + [r[-1] for r in yd][::-1]
+    parts.append(g_pipe("ShYokeHem" + sn, [q + d * 0.004 for q, d in zip(edge, edir)], 0.005, K["lea_l"], body, sides=8))
+    n = len(yr[0])
+    if s < 0:                            # segunda camada: faixa clara por dentro da borda
+        i = len(yr) - 4
+        parts.append(g_pipe("ShYokeBand" + sn, [yr[i][j] + yd[i][j] * 0.005 for j in range(3, n - 3)], 0.0045,
+                            K["lea_l"], body, sides=8))
+    cols = range(4, n - 3, 4) if s < 0 else (n // 2 - 3, n // 2 + 3)
+    flat = [(q, d) for r, dr in zip(cr, cd) for q, d in zip(r, dr)]
+    for j in cols:                       # passadores de couro: tira deitada que atravessa a borda da pala e
+        d = yd[-1][j]                    # assenta na capa verde logo abaixo
+        dn = (yr[-1][j] - yr[-4][j]).normalized()
+        q, dq = min(flat, key=lambda e: (e[0] - (yr[-1][j] + dn * 0.02)).length)
+        pts = [yr[-4][j] + d * 0.006, yr[-2][j] + d * 0.007, yr[-1][j] + d * 0.009, q + dq * 0.004]
+        parts.append(rg_band("ShTab%s%d" % (sn, j), pts, [d, d, d, dq], 0.0055, 0.004,
+                             K["lea_d"] if s < 0 else K["lea_l"], body))
+    return parts
+
+
+def ranger_arms(K, src, body):
+    """Braços do patrulheiro: manga de linho bufante (casca do braço estufada do meio do braço até o cotovelo,
+    com dobras macias) e braçadeira longa de couro do cotovelo ao pulso, boca larga no cotovelo. Direita:
+    couro castanho com três ganchos de amarração no lado de dentro e dobra enrolada perto do pulso; esquerda:
+    couro castanho-avermelhado com faixa verde e argola de metal abaixo do cotovelo.
+    Devolve (cascas tiradas do corpo, enfeites)."""
+    from mathutils.bvhtree import BVHTree
+    shells, orn = [], []
+    for sn, s in (("L", 1), ("R", -1)):
+        L1, L2, at, coords, ring = _gb_arm_frame(s)
+
+        def arm(b, c, s=s):
+            return (b.startswith("Arm") or b.startswith("Elbow")) and c.x * s > 0
+        sl = cb_piece(src, "Sleeve" + sn, lambda c, b, n: arm(b, c) and (b.startswith("Arm") or _cb_fore_t(c) < 0.12),
+                      0.008, K["linen"])
+        g_subdiv(sl, 2)
+        for v in sl.data.vertices:       # bufante: estufa do meio do braço até o cotovelo, dobras em volta
+            u, ph = coords(v.co)
+            t = u / L1
+            up = max(0.0, min(1.0, (t - 0.3) / 0.4))
+            dn = max(0.0, min(1.0, (t - 0.82) / 0.18))   # recolhe para entrar na boca da braçadeira
+            bl = 0.024 * up * up * (3 - 2 * up) * (1 - 0.6 * dn)
+            fold = 0.007 * abs(math.sin(3 * ph + 2.4 * t)) ** 0.6 * bl / 0.024
+            v.co += v.normal * (bl + fold)
+        shells.append(sl)
+
+        FV0, FV1 = 0.04, 0.9
+        mat, rim = (K["brc"], K["brc_d"]) if s < 0 else (K["brc2"], K["lea_d"])
+        vb = cb_piece(src, "Bracer" + sn, lambda c, b, n: arm(b, c) and b.startswith("Elbow") and
+                      FV0 <= _cb_fore_t(c) <= FV1, 0.02, mat)
+        g_subdiv(vb, 2)
+        fl = 0.017 if s < 0 else 0.011
+        for v in vb.data.vertices:       # boca larga no cotovelo, aperta no pulso
+            ft = _cb_fore_t(v.co)
+            v.co += v.normal * (fl * max(0.0, 1 - (ft - FV0) / 0.3) ** 2 - 0.003 * max(0.0, ft - 0.6))
+        shells.append(vb)
+        orn += g_border_pipes(vb, "BracerEdge" + sn, 0.0045, rim, body)
+        bvh = BVHTree.FromPolygons([v.co.copy() for v in vb.data.vertices], [tuple(p.vertices) for p in vb.data.polygons])
+
+        def frame(u, ph):
+            c, ax = at(u)
+            q = ring(bvh, u, 0.0, phis=[ph])[0]
+            nn = (q - c - ax * (q - c).dot(ax)).normalized()
+            return q, nn, ax, ax.cross(nn).normalized()
+        if s < 0:
+            hooks = []
+            ph = s * (math.pi / 2 + 0.6)                 # frente, puxado para o lado do corpo
+            for k, ft in enumerate((0.13, 0.24, 0.35)):
+                q, nn, ax, w = frame(L1 + ft * L2, ph)
+                hooks.append((q, nn, w))
+                orn.append(g_pipe("BracerHook%s%d" % (sn, k), [q - w * 0.005 + nn * 0.001, q - w * 0.004 + nn * 0.006,
+                                                              q + w * 0.002 + nn * 0.008, q + w * 0.006 + nn * 0.005],
+                                  0.0022, K["metal"], body, sides=6))
+            lace = []
+            for k, (q, nn, w) in enumerate(hooks):
+                lace += [q + w * 0.009 + nn * 0.002, q + nn * 0.006, q - w * 0.008 + nn * 0.002]
+            orn.append(g_pipe("BracerLace" + sn, g_spline(lace, 24), 0.0016, K["lea_d"], body, sides=6))
+            for k, ft in enumerate((0.6, 0.65)):         # dobra enrolada perto do pulso
+                pts = ring(bvh, L1 + ft * L2, 0.002, n=32)
+                if None not in pts:
+                    orn.append(g_pipe("BracerRoll%s%d" % (sn, k), pts, 0.0048, mat, body, sides=8, loop=True))
+        else:
+            brs = []
+            for i in range(6):           # faixa verde enrolada, bojuda no meio, com argola de metal por fora
+                v = i / 5
+                pts = ring(bvh, L1 + (0.17 + 0.09 * v) * L2, 0.002 + 0.004 * math.sin(math.pi * v), n=32)
+                if None in pts:
+                    break
+                brs.append(pts)
+            if len(brs) == 6:
+                orn.append(g_smooth_mesh("BracerBand" + sn, brs, K["vest"], body, cap_end=False, outward=True,
+                                         thick=0.004))
+                for nm, r in (("Hi", brs[0]), ("Lo", brs[-1])):
+                    orn.append(g_pipe("BracerBandEdge%s%s" % (sn, nm), r, 0.0025, K["vest_d"], body, sides=6,
+                                      loop=True))
+            q, nn, ax, w = frame(L1 + 0.215 * L2, 0.25)
+            orn.append(g_pipe("BracerRing" + sn, [q + nn * 0.008 + ax * 0.011 * math.cos(2 * math.pi * j / 12) +
+                                                  w * 0.017 * math.sin(2 * math.pi * j / 12) for j in range(12)],
+                              0.0032, K["metal"], body, sides=6, loop=True))
+            for k, ft in enumerate((0.45, 0.68)):        # vincos do couro
+                pts = ring(bvh, L1 + ft * L2, 0.0005, n=32)
+                if None not in pts:
+                    orn.append(g_pipe("BracerFold%s%d" % (sn, k), pts, 0.0026, K["lea_d"], body, sides=6, loop=True))
+    return shells, orn
+
+
+def _rg_skirt_w(p):
+    """Pesos da saia do patrulheiro: os painéis são abertos no meio da frente e de trás, então cada um vai inteiro
+    com a perna do seu lado; os da frente passam para a coxa logo abaixo do cinto (a coxa na passada não fura o
+    pano), os de trás mais devagar."""
+    a = math.atan2(abs(p.x), -p.y)
+    front = a < 1.62
+    leg = max(0.0, min(1.0, (0.975 - p.z) / (0.13 if front else 0.22))) * (0.97 if front else 0.85)
+    w = {"Body": 1.0 - leg, "LegL" if p.x > 0 else "LegR": leg}
+    return {b: v for b, v in w.items() if v > 1e-4}
+
+
+def ranger_skirt(K, body, vest):
+    """Saia do colete: quatro painéis de pano oliva do cinto até pouco acima do joelho, abertos no meio da
+    frente, nos lados (fenda que abre descendo) e no meio das costas; debrum escuro nas bordas, contorno de
+    bolso costurado nos painéis da frente, presilhas de couro junto às fendas dos lados e duas tiras finas de
+    couro penduradas na frente direita. Devolve as peças (pesos por _rg_skirt_w)."""
+    _, hit_a = _g_ray_tools(vest)
+    Z0 = 0.995
+    SPL = 1.62                             # fenda do lado (rad a partir da frente)
+    r0_cache = {}
+
+    def r0(a):                             # raio do pano no alto: por fora do colete (e do glúteo)
+        k = round(a, 4)
+        if k not in r0_cache:
+            r0_cache[k] = max(Vector((q.x, q.y)).length for q in (hit_a(a, 0.99), hit_a(a, 0.93), hit_a(a, 0.88)))
+        return r0_cache[k]
+
+    def pt(a, t, z1, out=0.0):
+        r = r0(a) + 0.011 + 0.032 * t ** 0.9 + 0.005 * math.sin(7 * a) * t + out
+        return Vector((math.sin(a) * r, -math.cos(a) * r, Z0 - t * (Z0 - z1)))
+
+    def fo(t):                             # meia abertura da frente
+        return 0.03 + 0.05 * t
+
+    def sg(t):                             # meia abertura da fenda do lado: fechada no quadril
+        return 0.004 + 0.07 * max(0.0, (t - 0.2) / 0.8) ** 1.2
+
+    def bk(t):                             # meia abertura de trás
+        return 0.004 + 0.05 * max(0.0, (t - 0.3) / 0.7)
+    rows, NC = 16, 14
+    parts = []
+    for side, s in (("L", 1), ("R", -1)):
+        for nm, a0f, a1f, z1 in (("Front", fo, lambda t: SPL - sg(t), 0.6),
+                                 ("Back", lambda t: SPL + sg(t), lambda t: math.pi - bk(t), 0.575)):
+            def P(u, t, out=0.0, a0f=a0f, a1f=a1f, z1=z1, s=s):
+                return pt(s * (a0f(t) + (a1f(t) - a0f(t)) * u), t, z1, out)
+            grid = [[P(j / NC, i / rows) for j in range(NC + 1)] for i in range(rows + 1)]
+            pn = "Skirt%s%s" % (nm, side)
+            parts.append(g_smooth_mesh(pn, grid, K["vest"], body, cap_end=False, closed=False, thick=0.005,
+                                       outward=True))
+            edge = [P(0.0, i / rows, 0.003) for i in range(2, rows + 1)] + \
+                   [P(j / NC, 1.0, 0.003) for j in range(1, NC)] + [P(1.0, i / rows, 0.003) for i in range(rows, 1, -1)]
+            parts.append(g_pipe(pn + "Edge", edge, 0.0034, K["vest_d"], body, sides=8))
+            if nm == "Front":              # bolso costurado: aba e contorno
+                u0, u1, t0, t1 = 0.22, 0.78, 0.42, 0.82
+                box = [P(u0 + (u1 - u0) * k / 8, t0, 0.0012) for k in range(9)] + \
+                      [P(u1, t0 + (t1 - t0) * k / 6, 0.0012) for k in range(1, 7)] + \
+                      [P(u1 - (u1 - u0) * k / 8, t1, 0.0012) for k in range(1, 9)] + \
+                      [P(u0, t1 - (t1 - t0) * k / 6, 0.0012) for k in range(1, 6)]
+                parts.append(g_pipe(pn + "Pocket", box, 0.0018, K["vest_d"], body, sides=6, loop=True))
+                parts.append(g_pipe(pn + "Flap", [P(u0 + (u1 - u0) * k / 8, t0 + 0.07, 0.0012) for k in range(9)],
+                                    0.0018, K["vest_d"], body, sides=6))
+                for k, t in enumerate((0.28, 0.55)):     # presilhas de couro junto à fenda do lado
+                    q, q2 = P(0.92, t, 0.004), P(0.92, t + 0.06, 0.004)
+                    a = s * (a0f(t) + (a1f(t) - a0f(t)) * 0.92)
+                    parts.append(g_plate("%sTab%d" % (pn, k), [(-0.007, -0.016), (0.007, -0.016), (0.007, 0.016),
+                                                               (-0.007, 0.016)], q,
+                                         Vector((math.cos(a), math.sin(a), 0)), q - q2, 0.004, K["lea"], body))
+                if s < 0:                  # tiras finas de couro penduradas, com ponta enrolada
+                    for k, u in enumerate((0.3, 0.55)):
+                        top = P(u, 0.03, 0.006)
+                        tie = [P(u + 0.02 * math.sin(3 * t), t, 0.006) for t in (0.03, 0.12, 0.22, 0.32, 0.4)]
+                        parts.append(g_pipe("%sTie%d" % (pn, k), tie, 0.0028, K["lea"], body, sides=6))
+                        parts.append(g_bead("%sTieKnot%d" % (pn, k), top, 0.006, K["lea_d"], body))
+                        parts.append(g_bead("%sTieEnd%d" % (pn, k), tie[-1], 0.0045, K["lea_d"], body))
+    return parts
+
+
+def build_a_ranger():
+    """Patrulheiro (linha leve). Rodada 1: tronco (colete, fechos, correias em X, cachecol e cinto); as mangas
+    são a casca lisa de linho e as pernas a calça simples até as próximas peças."""
+    style = "a_ranger"
+    P, R = g_rig(style)
+    M = g_mats()
+    K = ranger_mats()
+    body = R["Body"]
+    rig, src = _cb_start(M)
+    neck(R, M["skin"])
+    hips(R, M["pants"])
+    g_skinned_pants(src, M["pants"])
+    vest, parts = ranger_torso(K, src, body)
+    shoulder = ranger_shoulder(K, src, body, 1) + ranger_shoulder(K, src, body, -1)
+    arm_shells, arm_orn = ranger_arms(K, src, body)
+    skirt = ranger_skirt(K, body, vest)
+    g_loose_world(style)
+    os.makedirs(OUT + "gear", exist_ok=True)
+    targets = [o for o in scn.objects if o.type == 'MESH']
+    bake_ao(targets, _occluders(style, P, R, M))
+    cel_paint(targets, skip=("g_skin",))
+    g_skin_finish(rig, src, [(shoulder, "vert", ("Body", "ArmL", "ArmR"), 0.7),
+                             (arm_orn, "vert", ("Body", "ArmL", "ArmR", "ElbowL", "ElbowR"), 1.0),
+                             (skirt, "fn", _rg_skirt_w, 1.0)])
+    join_objs("Ranger", parts + shoulder + arm_orn + skirt)
+    g_export_skinned(style)
+
+
 def build_hood(style, A, o, extra=None):
     """Capuz liso: casca dupla em volta da cabeça (pano por fora, forro por dentro), aberta na frente para o
     rosto, com a borda da abertura avançada, ponta caída para trás e gola larga que assenta nos ombros; debrum
@@ -6103,6 +6546,64 @@ def build_g_bracers():
     g_export("g_bracers", P, R)
 
 
+def build_g_ranger():
+    """Luvas do patrulheiro: direita de couro castanho (continua a braçadeira da armadura); esquerda de couro
+    escuro com pano azul enrolado no pulso e na palma e uma tira avermelhada cruzada por cima. Punho curto com
+    friso, que entra sob a braçadeira."""
+    from mathutils import Matrix
+    P, R = g_rig("g_ranger")
+    K = ranger_mats()
+    tan, dark = gm("rg_glove", "#6E4A34", 0.8), gm("rg_glove_d", "#3A3230", 0.8)
+    blue, red = gm("rg_wrap", "#46526A", 0.95), gm("rg_wrap_r", "#6A3A34", 0.9)
+    N = 24
+    for n, s in (("L", 1), ("R", -1)):
+        S = limb_sections(P, s)
+        elbow = R["Elbow" + n]
+        F = S["fore"]
+        hd, o, ay, up, pt = _hand_frame(P, s)
+        mat = dark if s > 0 else tan
+        fist = soft_fist("Arm" + n, P, s, mat, elbow)
+        hand = relaxed_hand("Arm" + n, P, s, mat, elbow)
+        fp, op = [fist], [hand]
+        cuff = [_rg_ring(sample(F, t), 1.08, add, n=N) for t, add in ((0.8, 0.006), (0.9, 0.008), (1.0, 0.009))]
+        cp = [g_smooth_mesh("Arm%s_GloveCuff" % n, cuff, mat, elbow, cap_end=False, thick=0.003, outward=True),
+              g_pipe("Arm%s_GloveCuffRim" % n, _rg_ring(sample(F, 0.95), 1.08, 0.012, n=N), 0.0035,
+                     K["lea_d"] if s < 0 else red, elbow, sides=6, loop=True)]
+        if s > 0:
+            # pano azul no pulso: voltas levemente tortas, borda esfiapada
+            for k, (t0, t1, tw) in enumerate(((0.8, 0.88, 0.01), (0.87, 0.95, -0.012), (0.93, 1.0, 0.008))):
+                rows = [_rg_ring(sample(F, t0 + (t1 - t0) * v), 1.08, 0.012 + 0.004 * math.sin(math.pi * v), n=N,
+                                 dz=lambda a, tw=tw: tw * math.sin(a)) for v in (0.0, 0.5, 1.0)]
+                cp.append(g_smooth_mesh("Arm%s_Wrap%d" % (n, k), rows, blue, elbow, cap_end=False, thick=0.003,
+                                        outward=True))
+            # tira vermelha cruzada em X sobre as voltas
+            for k, ph in enumerate((0.0, math.pi)):
+                pts = [_rg_ring(sample(F, 0.82 + 0.16 * v), 1.08, 0.018, n=N)[int((ph / (2 * math.pi) * N + v * N * 0.6))
+                                                                                % N] for v in [i / 10 for i in range(11)]]
+                cp.append(g_pipe("Arm%s_WrapStrap%d" % (n, k), pts, 0.0045, red, elbow, sides=6))
+            # volta de pano na palma da mão (fechada e aberta)
+            bpy.context.view_layer.update()
+            W = pt(0, 0, 0)
+            for lst, ob, nm in ((fp, fist, "Fist"), (op, hand, "Open")):
+                rows = []                # volta medida na própria malha da mão: faixa logo abaixo do pulso
+                for z, add in ((-0.026, 0.0), (-0.04, 0.003), (-0.054, 0.0)):
+                    zz = W.z + z * hd
+                    vs = [ob.matrix_world @ v.co for v in ob.data.vertices]
+                    vs = [v for v in vs if abs(v.z - zz) < 0.006]
+                    x0, x1 = min(v.x for v in vs), max(v.x for v in vs)
+                    y0, y1 = min(v.y for v in vs), max(v.y for v in vs)
+                    c = Vector(((x0 + x1) / 2, (y0 + y1) / 2, zz))
+                    rows.append([c + Vector((math.cos(2 * math.pi * j / N) * ((x1 - x0) / 2 + 0.004 + add),
+                                             math.sin(2 * math.pi * j / N) * ((y1 - y0) / 2 + 0.004 + add), 0))
+                                 for j in range(N)])
+                lst.append(g_smooth_mesh("Arm%s_PalmWrap%s" % (n, nm), rows, blue, elbow, cap_end=False, thick=0.003,
+                                         outward=True))
+        join_objs("Arm%s_Hand" % n, fp)
+        join_objs("Arm%s_HandOpen" % n, op)
+        join_objs("Arm%s_Gauntlet" % n, cp)
+    g_export("g_ranger", P, R)
+
+
 # ================================================================== PÉS
 def _shin_hose(P, R, n, s, material):
     S = limb_sections(P, s)
@@ -6181,6 +6682,102 @@ def build_f_boots():
         join_objs("Leg%s_BootFoot" % n, foot)
         join_objs("Leg%s_Boot" % n, parts)
     g_export("f_boots", P, R)
+
+
+def _rg_ring(sc, k=1.0, add=0.0, n=32, bump=None, dz=None):
+    """Anel liso em volta de uma seção de membro (sample/span): elipse com a frente e as costas da seção,
+    bump(a) soma ao raio e dz(a) sobe/desce o ponto (a = 0 na frente, cresce para +x)."""
+    c = sc["c"]
+    out = []
+    for j in range(n):
+        a = 2 * math.pi * j / n
+        f = sc.get("fr", 1.0) if math.cos(a) > 0 else sc.get("bk", 1.0)
+        rx = sc["rx"] * k + add + (bump(a) if bump else 0.0)
+        ry = (sc["ry"] * f) * k + add + (bump(a) if bump else 0.0)
+        out.append(c + Vector((math.sin(a) * rx, -math.cos(a) * ry, dz(a) if dz else 0.0)))
+    return out
+
+
+def build_f_ranger():
+    """Botas do patrulheiro: cano de couro escuro do joelho ao tornozelo, cingido por cinco tiras sobrepostas
+    (borda de cima mais clara), dobra larga no topo que sobe em ponta atrás e por fora; joelho e canela repostos
+    com a calça (tp_, a cor da calça da armadura); sapato de bico fino com lingueta sobre o peito do pé e tira
+    no tornozelo com fivela por fora."""
+    P, R = g_rig("f_ranger")
+    M = g_mats()
+    K = ranger_mats()
+    boot, boot_l = gm("rg_boot", "#3A2A24", 0.85), gm("rg_boot_l", "#5C4436", 0.85)
+    shoe, sole = gm("rg_shoe", "#46302A", 0.8), gm("rg_sole", "#24180F", 0.9)
+    N = 32
+    for n, s in (("L", 1), ("R", -1)):
+        S = limb_sections(P, s)
+        sh, th = S["shin"], S["thigh"]
+        knee = R["Knee" + n]
+        # ---- joelho e alto da canela: calça (o espaço dos pés esconde o joelho do corpo)
+        kn = grow(span(th, 0.86, 1.0), 1.05, 0.006) + grow(span(sh, 0.0, 0.2), 1.05, 0.006)[1:]
+        parts = [g_smooth_mesh("Leg%s_Knee" % n, [_rg_ring(x, n=N) for x in kn], M["pants"], knee, cap_end=False)]
+        # ---- cano
+        cano = [sample(sh, 0.12 + 0.86 * i / 14) for i in range(15)]
+        parts.append(g_smooth_mesh("Leg%s_Shaft" % n, [_rg_ring(x, 1.04, 0.009, n=N) for x in cano], boot, knee,
+                                   cap_end=False))
+        # ---- tiras sobrepostas, um pouco inclinadas, cada uma com a borda de cima clara
+        # faixas largas empilhadas: cada uma sai em degrau por cima da de baixo (borda de cima grossa e clara,
+        # afinando para baixo, onde entra sob a seguinte)
+        for k, t in enumerate((0.4, 0.53, 0.66, 0.79)):
+            def dz(a):
+                return 0.01 * math.sin(a) * s
+            rows = [_rg_ring(sample(sh, t + dt), 1.04, 0.009 + ad, n=N, dz=dz)
+                    for dt, ad in ((-0.05, 0.003), (-0.046, 0.012), (-0.035, 0.014), (0.0, 0.011), (0.035, 0.007),
+                                   (0.05, 0.002))]
+            parts.append(g_smooth_mesh("Leg%s_Wrap%d" % (n, k), rows, boot, knee, cap_end=False))
+            parts.append(g_pipe("Leg%s_WrapEdge%d" % (n, k), rows[1], 0.0026, boot_l, knee, sides=6, loop=True))
+        # ---- dobra do topo: larga, sobe em ponta atrás e por fora
+        aout = s * (math.pi - 0.75)
+
+        def peak(a, aout=aout):
+            d = math.atan2(math.sin(a - aout), math.cos(a - aout))
+            return max(0.0, math.cos(d)) ** 5
+
+        cuff = [_rg_ring(sample(sh, 0.04), 1.3, 0.016, n=N, bump=lambda a: 0.012 * peak(a), dz=lambda a: 0.05 * peak(a)),
+                _rg_ring(sample(sh, 0.1), 1.26, 0.016, n=N, bump=lambda a: 0.008 * peak(a), dz=lambda a: 0.03 * peak(a)),
+                _rg_ring(sample(sh, 0.19), 1.18, 0.015, n=N),
+                _rg_ring(sample(sh, 0.25), 1.04, 0.009, n=N)]
+        parts.append(g_smooth_mesh("Leg%s_Cuff" % n, cuff, boot, knee, cap_end=False, thick=0.004, outward=True))
+        parts.append(g_pipe("Leg%s_CuffRim" % n, cuff[0], 0.004, boot_l, knee, sides=6, loop=True))
+        parts.append(g_pipe("Leg%s_CuffHem" % n, cuff[2], 0.0035, boot_l, knee, sides=6, loop=True))
+        # ---- tira do tornozelo com fivela por fora
+        an = _rg_ring(sample(sh, 0.94), 1.18, 0.014, n=N)
+        parts.append(g_pipe("Leg%s_AnkleStrap" % n, an, 0.0055, K["lea_d"], knee, sides=8, loop=True))
+        q = an[N // 4] if s > 0 else an[3 * N // 4]
+        parts += rg_buckle("Leg%s_AnkleBuckle" % n, q, Vector((0, -1, 0)), Vector((0, 0, 1)), Vector((s, 0, 0)),
+                           0.011, 0.009, K["metal"], knee, r=0.0024)
+        join_objs("Leg%s_Boot" % n, parts)
+        # ---- sapato: bico fino, salto baixo, lingueta sobre o peito do pé
+        ankle = R["Ankle" + n]
+        f = P["ft"]
+        ft = _foot_secs(P, s, 1.04, 0.004)
+        tip = ft[-1]                     # bico fino: a última seção avança e afina
+        ft[-1] = dict(tip, c=tip["c"] + Vector((0, -0.016 * f, -0.002 * f)), rx=tip["rx"] * 0.5, ry=tip["ry"] * 0.6)
+        zmin = 0.02 * f                  # o cabedal assenta na sola (lisa, não facetada)
+
+        def fring(sc, k=1.0):
+            return [sc["c"] + Vector((math.sin(a) * sc["rx"] * k, 0, 0)) +
+                    Vector((0, 0, max(zmin - sc["c"].z, math.cos(a) * sc["ry"] * k * 0.86)))
+                    for a in (2 * math.pi * j / N for j in range(N))]
+        h0 = ft[0]
+        hc = dict(h0, c=h0["c"] + Vector((0, 0.014 * f, 0.006)))
+        rings = [fring(hc, 0.02), fring(dict(h0, c=h0["c"] + Vector((0, 0.011 * f, 0.004))), 0.5), fring(h0, 0.9)]
+        rings += [fring(x) for x in ft]
+        rings.append(fring(dict(ft[-1], c=ft[-1]["c"] + Vector((0, -0.012 * f, -0.002))), 0.4))
+        foot = [g_smooth_mesh("Leg%s_Foot" % n, rings, shoe, ankle),
+                foot_sole("Leg%s_Sole" % n, ft, sole, ankle, f, heel=0.012 * f)]
+        b = ft[1]                        # tira sobre o peito do pé
+        arc = [b["c"] + Vector((math.sin(t) * (b["rx"] + 0.003), 0, max(zmin - b["c"].z + 0.004, math.cos(t) * (b["ry"] + 0.003))))
+               for t in (-1.9 + 3.8 * m / 14 for m in range(15))]
+        foot.append(g_pipe("Leg%s_Instep" % n, arc, 0.0045, K["lea_d"], ankle, sides=8))
+        join_objs("Leg%s_BootFoot" % n, foot)
+    g_loose_world("f_ranger")
+    g_export("f_ranger", P, R)
 
 
 def build_f_plated():
@@ -6577,7 +7174,7 @@ def _gear_builder(fn):
 GEAR = [(n, _gear_builder(globals()["build_" + n])) for n in (
     "h_bare", "h_hood", "h_cap", "h_kettle", "h_nasal", "h_great", "h_wizard", "h_archmage", "h_sage", "h_void", "h_oracle", "h_ember",
     "h_lich", "h_hierophant", "h_reaper", "h_raven", "h_dragon", "h_astral", "h_frost", "h_emberscale",
-    "a_shirt", "a_tunic", "a_leather", "a_gambeson", "a_whiteknight", "a_paladin", "a_firstplate", "a_emberscale", "a_mail", "a_surcoat", "a_robe", "a_archmage", "a_sage", "a_void", "a_oracle", "a_ember",
+    "a_shirt", "a_tunic", "a_leather", "a_gambeson", "a_ranger", "a_whiteknight", "a_paladin", "a_firstplate", "a_emberscale", "a_mail", "a_surcoat", "a_robe", "a_archmage", "a_sage", "a_void", "a_oracle", "a_ember",
     "a_lich", "a_hierophant", "a_reaper", "a_raven", "a_dragon", "a_astral", "a_frost",
-    "g_bare", "g_gloves", "g_bracers", "g_ironplate", "g_knightplate", "g_royalplate", "g_emberscale",
-    "f_shoes", "f_boots", "f_plated", "f_ironplate", "f_knightplate", "f_royalplate", "f_emberscale")]
+    "g_bare", "g_gloves", "g_bracers", "g_ironplate", "g_knightplate", "g_royalplate", "g_emberscale", "g_ranger",
+    "f_shoes", "f_boots", "f_plated", "f_ironplate", "f_knightplate", "f_royalplate", "f_emberscale", "f_ranger")]

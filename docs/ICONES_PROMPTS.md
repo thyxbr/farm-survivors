@@ -333,7 +333,7 @@ parts`. Com mais de 4 o Gemini costuma misturar as peças de um item no outro.
 | `leather_armor` | Armadura de Couro | Tanned leather chest armor, front view. |
 | `chain_mail` | Couraça de Ferro | Iron breastplate with a center ridge over dark chain mail, front view. |
 | `mage_robe` | Manto Arcano | Mage robe with embroidery that glows faintly. |
-| `ranger_vest` | Gibão do Patrulheiro | Reinforced leather vest in forest tones. |
+| `ranger_vest` | Gibão do Patrulheiro | Olive green ranger vest with metal-tipped clasps, two crossed leather straps with light edging, a dark knit scarf and long split coat panels with stitched pockets, front view. |
 | `royal_plate` | Placas Reais | Heroic plate armor. |
 | `traveler_tunic` | Túnica de Viajante | Two-color wool tunic with bandolier and pouch. |
 | `guard_surcoat` | Sobreveste da Guarda | Chain mail under a tabard with the guard's cross. |
@@ -364,6 +364,8 @@ parts`. Com mais de 4 o Gemini costuma misturar as peças de um item no outro.
 | `ember_helm` | Elmo de Escamas de Dragão | Black closed helm with glowing ember eyes, a mouth grille and swept-back horns. |
 | `ember_claws` | Garras de Escamas de Dragão | Pair of black scale gauntlets with long claws and a glowing ember slit. |
 | `ember_greaves` | Grevas de Escamas de Dragão | Pair of black scale greaves with clawed feet and ember between the scales. |
+| `ranger_boots` | Botas do Patrulheiro | Pair of tall dark leather boots wrapped in stacked leather bands, a turned-down cuff and pointed shoes with a buckled ankle strap. |
+| `ranger_gloves` | Luvas do Patrulheiro | Pair of archer gloves: one brown leather glove, the other dark leather wrapped in blue cloth with a red strap. |
 | `wooden_shield` | Escudo de Madeira | Wooden plank shield with nails, front view. |
 | `knight_shield` | Escudo do Cavaleiro | Shield with the Valdoria guard crest, front view. |
 | `arcane_orb` | Orbe Arcano | Floating glowing arcane orb. |

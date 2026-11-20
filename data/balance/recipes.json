@@ -67,6 +67,8 @@
 	"vampire_ring": {"station": "forge", "prof": "smithing", "level": 22, "ingredients": {"silver_ore": 3, "essence_t3": 1}, "gold": 110, "out": "vampire_ring", "qty": 1, "xp": 76, "learn": "npc"},
 	"frost_brand": {"station": "forge", "prof": "smithing", "level": 23, "ingredients": {"silver_ore": 5, "silverbirch_log": 1, "essence_t3": 2}, "gold": 115, "out": "frost_brand", "qty": 1, "xp": 79, "learn": "npc"},
 	"ranger_vest": {"station": "leather", "prof": "leatherwork", "level": 23, "ingredients": {"hide_t3": 4, "essence_t3": 2}, "gold": 115, "out": "ranger_vest", "qty": 1, "xp": 79, "learn": "npc"},
+	"ranger_boots": {"station": "leather", "prof": "leatherwork", "level": 23, "ingredients": {"hide_t3": 3, "essence_t3": 1}, "gold": 100, "out": "ranger_boots", "qty": 1, "xp": 72, "learn": "npc"},
+	"ranger_gloves": {"station": "leather", "prof": "leatherwork", "level": 23, "ingredients": {"hide_t3": 2, "essence_t3": 1}, "gold": 95, "out": "ranger_gloves", "qty": 1, "xp": 70, "learn": "npc"},
 	"guard_surcoat": {"station": "leather", "prof": "leatherwork", "level": 24, "ingredients": {"hide_t3": 4, "essence_t3": 2, "knight_sigil": 1}, "gold": 120, "out": "guard_surcoat", "qty": 1, "xp": 82, "learn": "scroll"},
 	"neon_edge": {"station": "forge", "prof": "smithing", "level": 24, "ingredients": {"silver_ore": 5, "silverbirch_log": 1, "essence_t3": 2}, "gold": 120, "out": "neon_edge", "qty": 1, "xp": 82, "learn": "npc"},
 	"sc_seraph_scepter": {"station": "alchemy", "prof": "alchemy", "level": 24, "ingredients": {"silverbirch_log": 2, "arcane_crystal": 1, "essence_t3": 2}, "gold": 120, "out": "sc_seraph_scepter", "qty": 1, "xp": 82, "learn": "npc"},
