@@ -1995,6 +1995,23 @@ func _test_dungeons() -> void:
 		await wait(0.8)
 		check(king.state in ["return", "idle", "wander"], "chefe perde o agro quando o jogador sai da sala (estado %s)" % king.state)
 		Game.hp = hp0
+		# só um chefe na sala, e o portal de volta só abre depois que ele cai
+		var portal: Node = world.get_node_or_null("BossPortal_dg_mina")
+		var n_boss := 0
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if e.is_boss and king.arena.grow(2.0).has_point(Vector2(e.global_position.x, e.global_position.z)):
+				n_boss += 1
+		check(n_boss == 1, "um chefe só na sala (%d)" % n_boss)
+		check(portal != null and not portal.is_open(), "portal de volta fechado com o chefe vivo")
+		king.take_damage(999999, king.global_position + Vector3.FORWARD, false)
+		await wait(2.2)
+		check(portal != null and portal.is_open() and portal.visible, "chefe morto: o portal de volta abre na sala")
+		if portal != null:
+			player.global_position = portal.global_position + Vector3(0, 0.3, 1.5)
+			portal.interact(player)
+			await wait(1.6)
+			check(player.global_position.distance_to(Regions.arrive_point("dg_mina")) < 3.0,
+				"o portal leva de volta à entrada da dungeon")
 	Game.flags["rank"] = rank0
 	player.global_position = back
 	await wait(0.2)

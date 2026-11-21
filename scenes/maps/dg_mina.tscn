@@ -71,7 +71,7 @@ pillars = true
 
 [node name="Túnel 1" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.4
+width = 6.4
 height = 5.0
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Túnel 1"]
@@ -100,7 +100,7 @@ script = ExtResource("12_dg")
 
 [node name="Túnel 2" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.0
+width = 6.0
 height = 4.8
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Túnel 2"]
@@ -113,7 +113,7 @@ script = ExtResource("12_dg")
 
 [node name="Túnel 3" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.4
+width = 6.4
 height = 5.0
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Túnel 3"]
@@ -134,7 +134,7 @@ script = ExtResource("12_dg")
 
 [node name="Túnel 4" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.0
+width = 6.0
 height = 4.8
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Túnel 4"]
@@ -147,7 +147,7 @@ script = ExtResource("12_dg")
 
 [node name="Túnel 5" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.4
+width = 6.4
 height = 5.0
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Túnel 5"]
@@ -237,7 +237,7 @@ radius = 4.0
 respawn = 40.0
 
 [node name="bando 5 esqueleto_mago" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0.0, 20)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.0, 20)
 script = ExtResource("7_dg")
 kind = "esqueleto_mago"
 count = 3

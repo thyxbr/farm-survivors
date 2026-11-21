@@ -1229,6 +1229,11 @@ func use_dungeon_door(target: String) -> void:
 		var here := Regions.region_at(player.global_position)
 		_teleport(Regions.door_point(here), Regions.display_name(Regions.parent_of(here)), "SAINDO DA DUNGEON")
 		return
+	if target == "entrance":   # portal da sala do chefe, depois que ele cai
+		var dg := Regions.region_at(player.global_position)
+		if Regions.is_dungeon(dg):
+			_teleport(Regions.arrive_point(dg), Regions.display_name(dg), "ENTRADA DA DUNGEON")
+		return
 	if not Regions.is_dungeon(target):
 		return
 	if not Regions.unlocked(target, Game.access_rank()):
