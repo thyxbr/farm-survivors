@@ -594,60 +594,247 @@ def mail_coif(name, head, chain, open_face=True, bottom=1.36):
 
 
 def build_h_kettle():
-    """Chapéu de ferro (aba larga) sobre cota de malha com o rosto aberto."""
+    """Chapéu de Ferro (kettle hat): copa justa em superelipse com crista alta da testa à nuca; faixa escura rebitada
+    na base; aba inclinada para baixo, curta na frente (deixa ver os olhos) e mais larga nos lados e atrás, com
+    borda de latão enrolada; cortina de malha nos lados e na nuca, até o pescoço.
+    A silhueta vem da aba e da crista, não de uma bola: a copa fica rente à cabeça (folga medida em h_bare)."""
     P, R = g_rig("h_kettle")
     M = g_mats()
     head = R["Head"]
     plain_head(R, M, hair=False)
-    st = gm("t1_kettle", "#8E96A3", 0.5, 0.6)
-    parts = mail_coif("Coif", head, M["chain"])
-    z0 = HEAD_CHIN + 0.185
-    parts.append(loft("Kettle", [sec((0, 0.01, z0), 0.126, 0.138), sec((0, 0.01, z0 + 0.05), 0.124, 0.136),
-                                 sec((0, 0.01, z0 + 0.09), 0.106, 0.116, keel=0.06),
-                                 sec((0, 0.01, z0 + 0.115), 0.06, 0.068), sec((0, 0.01, z0 + 0.122), 0.015, 0.02)],
-                      st, head, sides=12, phase=0, axis=ZUP))
-    parts.append(loft("KettleBrim", [sec((0, 0.01, z0 + 0.01), 0.126, 0.138),
-                                     sec((0, 0.01, z0 - 0.02), 0.21, 0.22),
-                                     sec((0, 0.01, z0 - 0.034), 0.214, 0.224),
-                                     sec((0, 0.01, z0 - 0.004), 0.126, 0.138)], st, head, sides=16, phase=0, axis=ZUP))
-    # crista central e faixa rebitada
-    prof = [(-0.13, z0 + 0.05), (-0.11, z0 + 0.09), (-0.06, z0 + 0.115), (0.0, z0 + 0.124), (0.06, z0 + 0.115),
-            (0.11, z0 + 0.09), (0.13, z0 + 0.05)]
-    parts.append(loft("KettleCrest", [sec((0, y + 0.01, z + 0.002), 0.012, 0.008) for y, z in prof], st, head,
-                      sides=4, phase=0, fwd=(1, 0, 0)))
-    parts.append(band("KettleBand", sec((0, 0.01, z0 + 0.005), 0.126, 0.138), ZUP, 0.022, M["steel_d"], head,
-                      sides=12, phase=0, out=0.004, thick=0.006))
-    join_objs("Kettle", parts)
-    g_export("h_kettle", P, R)
+    st = gm("t1_kettle", "#A3ABB8", 0.42, 0.65)
+    st_d = gm("t1d_kettle", "#5E6674", 0.5, 0.6)
+    brass = gm("gw_kettle_brass", "#B8822F", 0.4, 0.7)
+    chain = gm("gw_kettle_chain", "#868C96", 0.85, 0.3)
+    chd = gm("gw_kettle_chain_d", "#555B65", 0.7, 0.45)
+    C = Vector((0, 0.012, 1.722))
+    TOP = 0.13
+
+    def prof(z):
+        """meia largura, profundidade da frente, profundidade de trás, expoente da superelipse."""
+        if z >= C.z:
+            d = min(1.0, (z - C.z) / TOP)
+            k = max(0.0, 1 - d ** 2.1) ** 0.55
+            return 0.106 * k, 0.125 * k, 0.122 * k, 2.4 + 0.4 * (1 - d)
+        return 0.106, 0.125, 0.122, 2.8
+
+    def hp(th, z, out=0.0):
+        a, bf, bb, n = prof(z)
+        s, c = math.sin(th), math.cos(th)
+        b = bf if c > 0 else bb
+        x = math.copysign(abs(s) ** (2 / n), s) * (a + out)
+        y = -math.copysign(abs(c) ** (2 / n), c) * (b + out)
+        return Vector((x, C.y + y, z))
+
+    def nrm(th):
+        return Vector((math.sin(th), -math.cos(th), 0))
+
+    parts = []
+    NP = 56
+    zs = [C.z - 0.012 + (TOP + 0.012) * (i / 16) ** 0.85 for i in range(17)]
+    parts.append(g_smooth_mesh("KettleCrown", [[hp(2 * math.pi * j / NP, z) for j in range(NP)] for z in zs], st,
+                               head, cap_end=True, outward=True))
+    # aba: sai da base da copa e cai para fora; curta na frente, larga nos lados e atrás
+    def brim_w(th):
+        c = math.cos(th)
+        return 0.054 - 0.018 * max(0.0, c) ** 2 + 0.006 * max(0.0, -c)
+
+    brim = []
+    for i in range(7):
+        u = i / 6
+        row = []
+        for j in range(NP):
+            th = 2 * math.pi * j / NP
+            w = brim_w(th)
+            p = hp(th, C.z - 0.004, w * u)
+            p.z = C.z - 0.004 - 0.05 * u ** 1.25 * (1 - 0.62 * max(0.0, math.cos(th)) ** 2)   # na frente quase reta: olhos à mostra
+            row.append(p)
+        row.append(row[0])
+        brim.append(row)
+    parts.append(g_smooth_mesh("KettleBrim", brim, st, head, cap_end=False, closed=False, thick=0.0045,
+                               outward=True))
+    parts.append(g_pipe("KettleBrimRoll", brim[-1][:-1], 0.0055, brass, head, sides=8, loop=True))
+    # faixa escura rebitada na base da copa
+    band = [[hp(2 * math.pi * j / NP, C.z - 0.004 + 0.024 * v, 0.004) for j in range(NP)] for v in (0, 0.5, 1)]
+    for r in band:
+        r.append(r[0])
+    parts.append(g_smooth_mesh("KettleBand", band, st_d, head, cap_end=False, closed=False, thick=0.004,
+                               outward=True))
+    for k in range(14):
+        th = 2 * math.pi * (k + 0.5) / 14
+        parts.append(g_cap("KettleRivet%d" % k, hp(th, C.z + 0.008, 0.0075), nrm(th), (0, 0, 1), 0.0045, 0.0045,
+                           0.003, brass, head, sides=10))
+    # crista: lâmina no plano do meio, da faixa da frente até a de trás, mais alta no topo, com fio de latão
+    crest, ridge = [], []
+    for i in range(23):
+        b = 0.12 + (math.pi - 0.24) * i / 22                # 0 frente, pi/2 topo, pi nuca
+        z = C.z + 0.02 + (TOP - 0.02) * math.sin(b)
+        y = hp(0.0 if b < math.pi / 2 else math.pi, z).y
+        n = Vector((0, -math.cos(b) * 0.6, math.sin(b))).normalized()
+        hgt = 0.003 + 0.007 * math.sin(math.pi * i / 22) ** 0.8
+        base = Vector((0, y, z)) - n * 0.004
+        crest.append([base + Vector((-0.009, 0, 0)), base + n * hgt, base + Vector((0.009, 0, 0))])
+        ridge.append(base + n * (hgt + 0.0015))
+    parts.append(g_smooth_mesh("KettleCrest", crest, st, head, cap_end=False, closed=False, thick=0.004,
+                               outward=True))
+    parts.append(g_pipe("KettleCrestBrass", ridge[2:-2], 0.003, brass, head, sides=6))
+    # cortina de malha: pende de baixo da aba só nos lados e na nuca, até o pescoço; sem gola sob o queixo,
+    # para não cobrir a gola da armadura
+
+    def mail(th, z, out=0.0):
+        w = max(0.0, min(1.0, (C.z - z) / (C.z - ZB + 0.05)))
+        a = 0.102 + 0.004 * w ** 1.5
+        bf, bb = 0.114 + 0.004 * w, 0.112 + 0.008 * w ** 1.5
+        s, c = math.sin(th), math.cos(th)
+        b = bf if c > 0 else bb
+        x = math.copysign(abs(s) ** (2 / 2.6), s) * (a + out)
+        y = -math.copysign(abs(c) ** (2 / 2.6), c) * (b + out)
+        return Vector((x, C.y + y, z))
+    ZB = 1.585
+    T0 = 1.0
+    def zb(th):
+        return ZB - 0.05 * max(0.0, -math.cos(th)) ** 1.5      # atrás desce até encostar na gola
+
+    def cz(th, t):
+        return C.z - 0.006 - (C.z - 0.006 - zb(th)) * t
+    ths = [T0 + (2 * math.pi - 2 * T0) * j / 40 for j in range(41)]
+    curtain = [[mail(th, cz(th, i / 10)) for th in ths] for i in range(11)]
+    parts.append(g_smooth_mesh("KettleMail", curtain, chain, head, cap_end=False, closed=False, thick=0.006,
+                               outward=True))
+    for i, t in enumerate([0.35, 0.7]):
+        pts = [mail(th, cz(th, t), 0.004) for th in [T0 + (2 * math.pi - 2 * T0) * j / 48 for j in range(49)]]
+        parts.append(g_pipe("KettleMailRow%d" % i, pts, 0.0022, chd, head, sides=6))
+    parts.append(g_pipe("KettleMailHem", [mail(th, zb(th), 0.004) for th in [T0 + (2 * math.pi - 2 * T0) * j / 48 for j in range(49)]],
+                        0.004, brass, head, sides=8))
+    for sn, sg in (("L", 1), ("R", -1)):
+        parts.append(g_pipe("KettleMailEdge" + sn, [mail(sg * T0, z, 0.004) for z in (C.z - 0.006, 1.68, 1.64,
+                                                                                         1.61, ZB)],
+                            0.0032, brass, head, sides=6))
+    g_head_done("h_kettle", "Kettle", parts, P, R)
 
 
 def build_h_nasal():
-    """Elmo cônico de nasal (gomos rebitados), com cota de malha pendendo da borda e o rosto aberto."""
+    """Elmo de Ferro (nasal): crânio liso em ponta com quatro nervuras de latão até o pino do topo; faixa de latão
+    rebitada na testa, que desce em ponta para a nasal colada ao nariz; bochecheiras arredondadas nos lados; cota de
+    malha lisa por baixo, aberta no rosto, fechando sob o queixo e assentando nos ombros.
+    Casca em superelipse e folga medida na cabeça lisa (h_bare): o elmo não pode virar um balão na cabeça."""
     P, R = g_rig("h_nasal")
     M = g_mats()
     head = R["Head"]
     plain_head(R, M, hair=False)
-    st = gm("t1_nasal", "#A9B1BE", 0.5, 0.6)
-    parts = mail_coif("Aventail", head, M["chain"])
-    z0 = HEAD_CHIN + 0.17
-    parts.append(loft("Nasal", [sec((0, 0.012, z0), 0.124, 0.138), sec((0, 0.012, z0 + 0.04), 0.124, 0.138),
-                                sec((0, 0.014, z0 + 0.09), 0.1, 0.112, keel=0.04),
-                                sec((0, 0.02, z0 + 0.13), 0.05, 0.058), sec((0, 0.026, z0 + 0.155), 0.008, 0.01)],
-                      st, head, sides=8, phase=0, axis=ZUP))
-    parts.append(band("NasalBand", sec((0, 0.012, z0), 0.124, 0.138), ZUP, 0.03, M["brass"], head, sides=8,
-                      phase=0, out=0.004, thick=0.006))
-    for k, ang in enumerate((math.pi / 4, 3 * math.pi / 4, -3 * math.pi / 4, -math.pi / 4)):   # costelas dos gomos
-        pts = [Vector((math.sin(ang) * (rx + 0.004), 0.012 - math.cos(ang) * (ry + 0.004), z))
-               for z, rx, ry in ((z0 + 0.03, 0.124, 0.138), (z0 + 0.09, 0.1, 0.112), (z0 + 0.13, 0.05, 0.058),
-                                 (z0 + 0.15, 0.012, 0.014))]
-        parts.append(loft("NasalRib%d" % k, [sec(p, 0.008, 0.005) for p in pts], M["brass"], head, sides=4))
-    # protetor de nariz
-    fy = 0.012 - 0.138 * 1.0 - 0.006
-    parts.append(loft("NasalGuard", [sec((0, fy, z0 + 0.03), 0.018, 0.006), sec((0, fy - 0.006, z0 - 0.05), 0.016, 0.006),
-                                     sec((0, fy - 0.004, z0 - 0.085), 0.02, 0.006)], st, head, sides=4,
-                      fwd=(0, -1, 0)))
-    join_objs("Nasal", parts)
-    g_export("h_nasal", P, R)
+    st = gm("t1_nasal", "#A9B1BE", 0.42, 0.65)
+    brass = gm("gw_nasal_brass", "#B8822F", 0.4, 0.7)
+    chain = gm("gw_nasal_chain", "#6A707A", 0.7, 0.5)
+    chd = gm("gw_nasal_chain_d", "#3E434B", 0.8, 0.4)
+    C = Vector((0, 0.012, 1.715))
+    TOP = 0.15
+
+    def prof(z):
+        """meia largura, profundidade da frente, profundidade de trás, expoente da superelipse."""
+        if z >= C.z:
+            d = min(1.0, (z - C.z) / TOP)
+            k = max(0.0, 1 - d ** 1.7) ** 0.62                  # cúpula que termina em ponta, não bola
+            return 0.104 * k, 0.128 * k, 0.12 * k, 2.4
+        return 0.104, 0.128, 0.12, 2.6
+
+    def hp(th, z, out=0.0):
+        a, bf, bb, n = prof(z)
+        s, c = math.sin(th), math.cos(th)
+        b = bf if c > 0 else bb
+        x = math.copysign(abs(s) ** (2 / n), s) * (a + out)
+        y = -math.copysign(abs(c) ** (2 / n), c) * (b + out)
+        return Vector((x, C.y + y, z))
+
+    parts = []
+    NP = 48
+    zs = [C.z - 0.012 + (TOP + 0.012) * (i / 16) ** 0.85 for i in range(17)]
+    parts.append(g_smooth_mesh("NasalSkull", [[hp(2 * math.pi * j / NP, z) for j in range(NP)] for z in zs], st,
+                               head, cap_end=True, outward=True))
+    # nervuras de latão: quatro arcos da faixa até o topo, nas diagonais
+    for k, th in enumerate((math.pi / 4, 3 * math.pi / 4, -3 * math.pi / 4, -math.pi / 4)):
+        rib = [hp(th, C.z + 0.02 + (TOP - 0.025) * (i / 10) ** 0.9, 0.003) for i in range(11)]
+        parts.append(g_pipe("NasalRib%d" % k, rib, 0.0048, brass, head, sides=8))
+    parts.append(g_cap("NasalFinial", C + Vector((0, 0, TOP - 0.006)), (0, 0, 1), (1, 0, 0), 0.013, 0.013, 0.016,
+                       brass, head, sides=14))
+    # faixa da testa: larga, com a borda de baixo descendo em ponta no meio (vira a nasal)
+    def band_z(th, top):
+        dip = 0.018 * max(0.0, math.cos(th)) ** 16
+        return (C.z + 0.022 if top else C.z - 0.008 - dip)
+    band = [[hp(2 * math.pi * j / NP, band_z(2 * math.pi * j / NP, False) * (1 - v) + band_z(0, True) * v,
+                0.007 - 0.002 * v) for j in range(NP)] for v in (0.0, 0.33, 0.66, 1.0)]
+    for r in band:
+        r.append(r[0])
+    parts.append(g_smooth_mesh("NasalBand", band, brass, head, cap_end=False, closed=False, thick=0.005,
+                               outward=True))
+    parts.append(g_pipe("NasalBandLip", band[0], 0.0035, brass, head, sides=8))
+    for k in range(12):
+        th = 2 * math.pi * (k + 0.5) / 12
+        c = hp(th, C.z + 0.007, 0.01)
+        nb = Vector((math.sin(th), -math.cos(th), 0))
+        parts.append(g_cap("NasalRivet%d" % k, c, nb, (0, 0, 1), 0.0048, 0.0048, 0.003, st, head, sides=10))
+    # nasal: lâmina que sai da ponta da faixa e desce rente ao nariz, alargando na ponta
+    nas = []
+    for i in range(9):
+        u = i / 8
+        z = C.z - 0.02 - 0.085 * u
+        y = C.y - 0.128 - 0.004 - 0.011 * u ** 1.3
+        w = 0.0062 - 0.0015 * math.sin(math.pi * u) + 0.004 * u ** 4
+        nas.append([Vector((sx * w, y + 0.0045 * abs(sx) ** 1.5, z)) for sx in (-1, -0.5, 0, 0.5, 1)])
+    parts.append(g_smooth_mesh("NasalGuard", nas, st, head, cap_end=False, closed=False, thick=0.005, outward=True))
+    parts.append(g_pipe("NasalGuardEdgeL", [r[0] for r in nas], 0.0022, brass, head, sides=6))
+    parts.append(g_pipe("NasalGuardEdgeR", [r[-1] for r in nas], 0.0022, brass, head, sides=6))
+    # bochecheiras: placas arredondadas que pendem da faixa nos lados, na frente das orelhas
+    for sn, sg in (("L", 1), ("R", -1)):
+        def ck(u, v, sg=sg):
+            t0, t1 = 0.95, 1.85                            # da frente (perto do olho) até atrás da orelha
+            th = sg * (t0 + (t1 - t0) * v)
+            depth = 0.112 * max(0.0, 1 - (2 * v - 1) ** 4) ** 0.5 + 0.012    # borda de baixo arredondada
+            z = C.z - 0.004 - depth * u
+            return hp(th, z, 0.005 + 0.012 * u)
+        rows = [[ck(i / 6, j / 10) for j in range(11)] for i in range(7)]
+        parts.append(g_smooth_mesh("NasalCheek" + sn, rows, st, head, cap_end=False, closed=False, thick=0.005,
+                                   outward=True))
+        border = [r[0] for r in rows] + rows[-1][1:-1] + [r[-1] for r in rows][::-1]
+        parts.append(g_pipe("NasalCheekEdge" + sn, border, 0.0026, brass, head, sides=6, loop=True))
+        c = hp(sg * 1.4, C.z - 0.03, 0.02)
+        nb = Vector((math.sin(sg * 1.4), -math.cos(sg * 1.4), 0))
+        parts.append(g_cap("NasalCheekRivet" + sn, c, nb, (0, 0, 1), 0.006, 0.006, 0.004, brass, head, sides=10))
+    # cota de malha: lados e nuca da faixa até os ombros, e a gola que fecha sob o queixo
+
+    def mail(th, z, out=0.0):
+        """Ponto da malha: justa no pescoço, abrindo como uma pelerine curta sobre os ombros."""
+        a0, bf0, bb0 = 0.102, 0.122, 0.118
+        if z > 1.6:
+            w = (z - 1.6) / (C.z - 1.6)
+            a, bf, bb = 0.1 + 0.004 * w, 0.112 + 0.01 * w, 0.11 + 0.008 * w
+        else:
+            f = max(0.0, (1.6 - z) / 0.1) ** 1.6
+            a, bf, bb = 0.1 + 0.05 * f, 0.112 + 0.022 * f, 0.11 + 0.03 * f
+        s, c = math.sin(th), math.cos(th)
+        b = bf if c > 0 else bb
+        x = math.copysign(abs(s) ** (2 / 2.6), s) * (a + out)
+        y = -math.copysign(abs(c) ** (2 / 2.6), c) * (b + out)
+        return Vector((x, C.y + y, z))
+    ZB = 1.5
+    mz = [C.z - 0.004 - (C.z - 0.004 - ZB) * i / 14 for i in range(15)]
+    back = [[mail(0.82 + (2 * math.pi - 1.64) * j / 40, z) for j in range(41)] for z in mz]
+    parts.append(g_smooth_mesh("NasalMail", back, chain, head, cap_end=False, closed=False, thick=0.006,
+                               outward=True))
+    tz = [1.556 - (1.556 - ZB) * i / 8 for i in range(9)]
+    throat = [[mail(-0.95 + 1.9 * j / 20, z, 0.002) for j in range(21)] for z in tz]
+    parts.append(g_smooth_mesh("NasalMailThroat", throat, chain, head, cap_end=False, closed=False, thick=0.006,
+                               outward=True))
+    for i, z in enumerate([1.665, 1.615, 1.565, 1.525]):     # fileiras de elos
+        th0 = 0.82 if z > 1.556 else 0.0
+        pts = [mail(th0 + (2 * math.pi - 2 * th0) * j / 48, z, 0.004) for j in range(49)]
+        parts.append(g_pipe("NasalMailRow%d" % i, pts, 0.0022, chd, head, sides=6, loop=(th0 == 0.0)))
+    parts.append(g_pipe("NasalMailHem", [mail(2 * math.pi * j / 48, ZB, 0.004) for j in range(48)], 0.0045, brass,
+                        head, sides=8, loop=True))
+    parts.append(g_pipe("NasalMailEdgeL", [mail(0.82, z, 0.004) for z in (C.z - 0.004, 1.66, 1.62, 1.585, 1.57)],
+                        0.003, chd, head, sides=6))
+    parts.append(g_pipe("NasalMailEdgeR", [mail(-0.82, z, 0.004) for z in (C.z - 0.004, 1.66, 1.62, 1.585, 1.57)],
+                        0.003, chd, head, sides=6))
+    g_head_done("h_nasal", "Nasal", parts, P, R)
 
 
 def build_h_great():

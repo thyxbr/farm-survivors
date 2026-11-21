@@ -293,7 +293,7 @@ func _snap_visuals() -> void:
 	reset_physics_interpolation()
 	if cape:
 		cape.reset()
-	var back_cape = model.get_meta("back_cape", null) if model else null
+	var back_cape = model.get_meta("back_cape") if model and model.has_meta("back_cape") else null
 	if back_cape != null and is_instance_valid(back_cape):
 		back_cape.reset()
 	if cam_yaw:

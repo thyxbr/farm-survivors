@@ -1281,6 +1281,10 @@ func travel_to(region: String, mode := "coach") -> void:
 	player.input_locked = true
 	var tw := create_tween()
 	tw.tween_property(_travel_fade, "color:a", 1.0, 0.4)
+	if mode == "map" and _rebuild_on_teleport():
+		# teleporte do mapa-mundi: o corpo é remontado em luz na chegada (versão curta da abertura)
+		tw.tween_callback(_arrive_rebuilt.bind(region))
+		return
 	tw.tween_callback(_arrive.bind(region, mode))
 	tw.tween_interval(0.35)
 	tw.tween_property(_travel_fade, "color:a", 0.0, 0.5)
@@ -1335,7 +1339,30 @@ func _teleport(to: Vector3, title: String, kicker: String) -> void:
 	tw.tween_callback(func() -> void: player.input_locked = false)
 
 
-func _arrive(region: String, mode := "coach") -> void:
+## A cena da reconstrução precisa de janela (não roda headless nem nos testes automáticos).
+func _rebuild_on_teleport() -> bool:
+	var args := OS.get_cmdline_user_args()
+	return DisplayServer.get_name() != "headless" and not "--smoketest" in args 		and not Array(args).any(func(a: String) -> bool: return a.begins_with("--nettest"))
+
+
+## Chegada do teleporte do mapa-mundi: põe o herói no ponto de chegada e toca a reconstrução curta
+## (ArrivalCutscene.quick), que devolve a câmera e os controles; o cartão com o nome vem depois.
+func _arrive_rebuilt(region: String) -> void:
+	_arrive(region, "map", false)
+	var cut := ArrivalCutscene.new()
+	cut.world = self
+	cut.player = player
+	cut.quick = true
+	var d := Regions.arrive_point(region) - Regions.coach_point(region)
+	cut.face = d if region != "vila" else Vector3.ZERO
+	add_child(cut)
+	_travel_fade.color.a = 0.0   # a cena tem a própria tela preta, que abre no céu
+	await cut.finished
+	if story_card:
+		story_card.enqueue("TELEPORTE", Regions.display_name(region))
+
+
+func _arrive(region: String, mode := "coach", card := true) -> void:
 	var to: Vector3 = Regions.arrive_point(region)
 	player.global_position = to
 	player.velocity = Vector3.ZERO
@@ -1344,7 +1371,7 @@ func _arrive(region: String, mode := "coach") -> void:
 	if region != "vila":
 		player.model.rotation.y = atan2(-d.x, -d.z)   # de costas para a carruagem, olhando para o mapa
 	Sfx.play("portal", -6.0)
-	if story_card:
+	if story_card and card:
 		story_card.enqueue("CARRUAGEM DA GUILDA" if mode == "coach" else "TELEPORTE", Regions.display_name(region))
 
 
