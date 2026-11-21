@@ -449,7 +449,33 @@ static func hammer_raise_pose(p: Dictionary, t: float, lower: float) -> void:
 
 ## Chave da subida da espada `t` s depois do começo (misturando as vizinhas); depois do fim, a última.
 static func hammer_raise_key(t: float) -> Array:
-	var keys: Array = KnightMoves.HAMMER_RAISE
+	return clip_key(KnightMoves.HAMMER_RAISE, t)
+
+
+## Círculo da Provocação Sombria: pose do clipe "Sword And Shield Power Up" (KnightMoves.TAUNT_CAST) no instante
+## `clip_t` do clipe (DarkTauntRules.clip_time). Recolhe os braços, explode a energia com os braços para baixo e o
+## peito aberto, segura e volta à guarda; o peso sai da locomoção no começo e volta a ela no fim do clipe. As duas
+## mãos vão por IK (_guard_ik); a cabeça acompanha o peito (olha para cima na explosão).
+static func taunt_pose(p: Dictionary, clip_t: float) -> void:
+	var k := clip_key(KnightMoves.TAUNT_CAST, clip_t)
+	var w := smoothstep(0.0, KnightMoves.TAUNT_LEAD, clip_t) * (1.0 - smoothstep(2.0, 2.36, clip_t))
+	if w <= 0.001:
+		return
+	for j in ["leg_l", "knee_l", "leg_r", "knee_r"]:
+		p[j] = lerpf(p[j], float(KnightMoves.TAUNT_STANCE[j]), w)
+	p.body_y = lerpf(p.body_y, float(KnightMoves.TAUNT_STANCE.body_y) + float(k[7]), w)
+	p.body_x = lerpf(p.body_x, float(k[5]), w)
+	p.twist = lerpf(p.twist, float(k[6]), w)
+	p.head_x = lerpf(p.head_x, float(k[5]) * 0.5, w)
+	p.head_y = lerpf(p.head_y, -float(k[6]) * 0.85, w)
+	p["guard"] = {"w": w, "hand_r": k[3], "elbow_r": k[4], "hand_l": k[1], "elbow_l": k[2]}
+	for j in ["body_x", "body_y", "twist", "head_x", "head_y"]:
+		if not (j in p.snap):
+			p.snap.append(j)
+
+
+## Chave de um clipe medido (formato [t, ...valores]) no instante `t`, misturando as vizinhas; depois do fim, a última.
+static func clip_key(keys: Array, t: float) -> Array:
 	if t <= 0.0:
 		return keys[0]
 	for i in range(1, keys.size()):

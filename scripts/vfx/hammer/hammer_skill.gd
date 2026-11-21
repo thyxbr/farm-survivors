@@ -1,6 +1,6 @@
 class_name HammerSkill
 extends Node3D
-## Martelo de Energia (habilidade 2 da espada com escudo): a sequência inteira, em cena própria
+## Martelo de Energia (habilidade 4 da espada com escudo): a sequência inteira, em cena própria
 ## (scenes/vfx/hammer/hammer_skill.tscn). HammerAbilities cria uma por ativação, na cena do mundo; ela se libera
 ## sozinha quando o último efeito some. Cada etapa é de um componente:
 ##   INVOKE    o círculo mágico (MagicCircle) se materializa acima da cabeça do herói e o acompanha

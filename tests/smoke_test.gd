@@ -245,7 +245,7 @@ func _check_aegis_wall(player: Node, world: Node, cfg: AegisConfig) -> void:
 	player.invuln = 0.0
 
 
-## Martelo de Energia (espada + escudo, slot 2 / tecla 2): kit, círculo acima da cabeça girando, martelo saindo
+## Martelo de Energia (espada + escudo, slot 4 / tecla 4, no lugar do Turbilhão): kit, círculo acima da cabeça girando, martelo saindo
 ## do círculo proporcional a ele (do tamanho do da Égide), câmera olhando para cima, círculo fechando antes da queda, queda no ponto certo, dano em área (os de
 ## dentro uma vez só, os de fora nada), crateras pela área, recarga, limpeza de tudo e o cancelamento pela esquiva.
 func _check_hammer(player: Node, world: Node) -> void:
@@ -257,8 +257,8 @@ func _check_hammer(player: Node, world: Node) -> void:
 	equip_any("wooden_shield")
 	await wait_until(func(): return Game.offhand_kind() == "shield" and Game.level >= 3)
 	var kit := Game.ability_kit()
-	check(kit.size() == 4 and kit[1] == "sword_hammer" and not ("sword_quake" in kit),
-		"Martelo: espada + escudo troca a habilidade 2 (%s)" % [kit])
+	check(kit.size() == 4 and kit[3] == "sword_hammer" and kit[1] == "sword_quake" and not ("sword_whirl" in kit),
+		"Martelo: espada + escudo troca a habilidade 4 (%s)" % [kit])
 	check(Game.knows_ability("sword_hammer"), "Martelo: liberado no nível %d" % ItemDB.ABILITIES.sword_hammer.level)
 	var count_fx := func(cls: String) -> int:
 		var n := 0
@@ -294,7 +294,7 @@ func _check_hammer(player: Node, world: Node) -> void:
 	player.cooldowns.sword_hammer = 0.0
 	player.invuln = 99.0   # os monstros não interferem (o teste é do golpe)
 	player.cast("sword_hammer")
-	check(player.ability == "sword_hammer", "Martelo: a habilidade começa na tecla 2")
+	check(player.ability == "sword_hammer", "Martelo: a habilidade começa na tecla 4")
 	var skill: HammerSkill = player.ability_data.get("skill")
 	check(is_instance_valid(skill) and skill.get_parent() == get_tree().current_scene, "Martelo: HammerSkill na cena do mundo")
 	var cd: float = player.cooldowns.sword_hammer
@@ -392,13 +392,217 @@ func _check_hammer(player: Node, world: Node) -> void:
 	# tira o escudo: o Golpe Sísmico volta
 	Game.unequip("offhand")
 	await wait_until(func(): return Game.offhand_kind() == "")
-	check(Game.ability_kit()[1] == "sword_quake", "Martelo: sem escudo a habilidade 2 volta a ser o Golpe Sísmico")
+	check(Game.ability_kit()[3] == "sword_whirl", "Martelo: sem escudo a habilidade 4 volta a ser o Turbilhão")
 	Econ.test_force_level(lv0)
 	player.global_position = back
 	player.velocity = Vector3.ZERO
 	player.cooldowns.sword_hammer = 0.0
 	player.invuln = 0.0
 	Game.hp = hp_player
+
+
+## Círculo da Provocação Sombria (espada + escudo, slot 3 / tecla 3): kit, círculo no chão sob o herói girando, mãos
+## em pontos diferentes, captura só de quem está dentro (uma vez), imobilização, a IA trocando o alvo (um aliado
+## mais perto) pelo herói e indo atacá-lo, olhos vermelhos por inimigo seguindo a cabeça, morte no meio, fim da
+## provocação (olhos somem e a IA volta), herói que provocou morrendo, limpeza e o cancelamento pela esquiva.
+func _check_dark_taunt(player: Node, world: Node) -> void:
+	var cfg: DarkTauntConfig = DarkTauntAbilities.CONFIG
+	var back: Vector3 = player.global_position
+	var lv0: int = Game.level
+	Econ.test_force_level(maxi(lv0, 5))
+	Game.add_item("wooden_shield")
+	equip_any("wooden_shield")
+	await wait_until(func(): return Game.offhand_kind() == "shield" and Game.level >= 5)
+	var kit := Game.ability_kit()
+	check(kit.size() == 4 and kit[2] == "sword_taunt" and not ("sword_fury" in kit),
+		"Provocação: espada + escudo troca a habilidade 3 (%s)" % [kit])
+	check(Game.knows_ability("sword_taunt"), "Provocação: liberada no nível %d" % ItemDB.ABILITIES.sword_taunt.level)
+	var count_fx := func(cls: String) -> int:
+		var n := 0
+		for c in get_tree().current_scene.find_children("*", cls, true, false):
+			if not c.is_queued_for_deletion():
+				n += 1
+		return n
+	var spot := Vector3(-105, 0.3, 40)   # fora da vila (a guarda abate monstro lá dentro)
+	player.global_position = spot
+	player.velocity = Vector3.ZERO
+	player.model.rotation.y = 0.0
+	await wait(0.25)
+	await wait_until(func(): return player.ability == "" and not player.attacking and player.dodge_timer <= 0.0)
+	var hero_pos: Vector3 = player.global_position
+	# um aliado (réplica de outro jogador) mais perto dos monstros: sem a provocação, é ele o alvo
+	var ally := Player.new()
+	ally.remote = true
+	world.add_child(ally)
+	ally.global_position = hero_pos + Vector3(4.6, 0, 0)
+	ally._net_pos = ally.global_position
+	# 4 monstros dentro do raio (mais perto do aliado que do herói), 2 fora
+	var mobs: Array = []
+	for off in [Vector3(3.6, 0, 1.2), Vector3(4.2, 0, -1.4), Vector3(2.9, 0, 2.6), Vector3(-1.5, 0, 4.4),
+			Vector3(cfg.radius + 4.0, 0, 0.5), Vector3(-cfg.radius - 4.0, 0, -2.0)]:
+		var e := Enemy.new()
+		e.kind = "goblin"
+		world.add_child(e)
+		e.global_position = hero_pos + off
+		e.home = e.global_position
+		mobs.append(e)
+	var inside := mobs.slice(0, 4)
+	var outside := mobs.slice(4)
+	await wait(0.2)
+	# os de fora ficam parados: andando, eles entram no círculo antes de ele terminar (e aí são agarrados, certo)
+	for e in outside:
+		e.set_physics_process(false)
+	check(inside[0]._nearest_player() == ally, "Provocação: antes, o alvo do monstro é o aliado mais perto")
+	player.cooldowns.sword_taunt = 0.0
+	player.invuln = 99.0
+	player.cast("sword_taunt")
+	check(player.ability == "sword_taunt", "Provocação: a habilidade começa na tecla 3")
+	var skill: DarkTauntSkill = player.ability_data.get("skill")
+	check(is_instance_valid(skill) and skill.get_parent() == get_tree().current_scene, "Provocação: DarkTauntSkill na cena do mundo")
+	var cd: float = player.cooldowns.sword_taunt
+	check(cd >= cfg.cooldown * Game.cooldown_mult() - 0.01, "Provocação: recarga do DarkTauntConfig (%.1f s)" % cd)
+	# o círculo se desenha no chão, sob o herói, girando
+	await wait(DarkTauntConfig.CAST_LEAD + cfg.circle_form_time * 0.5)
+	var cp: Vector3 = skill.circle.global_position
+	check(skill.circle.visible and Vector2(cp.x - hero_pos.x, cp.z - hero_pos.z).length() < 0.05 and absf(cp.y - hero_pos.y) < 0.6,
+		"Provocação: círculo no chão, centrado sob o herói (%.2f m de altura relativa)" % (cp.y - hero_pos.y))
+	var f0 := skill.circle.formed()
+	var a0: float = skill.circle.spin_angle
+	await wait(0.15)
+	check(f0 > 0.0 and f0 < 1.0 and skill.circle.formed() > f0, "Provocação: círculo aparece aos poucos (%.2f -> %.2f)" % [f0, skill.circle.formed()])
+	check(skill.circle.spin_angle > a0, "Provocação: os anéis giram")
+	# parado enquanto invoca
+	var pos_w: Vector3 = player.global_position
+	Input.action_press("move_forward")
+	await wait(0.25)
+	Input.action_release("move_forward")
+	check(Vector2(player.global_position.x - pos_w.x, player.global_position.z - pos_w.z).length() < 0.05, "Provocação: parado enquanto invoca")
+	check(player.cam_back > 0.5, "Provocação: a câmera recua para o círculo caber")
+	# as mãos sobem: uma por alvo dentro do raio, em pontos diferentes
+	await wait_until(func(): return skill.state >= DarkTauntSkill.State.RISE, 3.0)
+	check(skill.targets.size() == inside.size() and inside.all(func(e): return e in skill.targets)
+		and outside.all(func(e): return not (e in skill.targets)), "Provocação: só os %d de dentro são alvos (%d)" % [inside.size(), skill.targets.size()])
+	check(skill.hands.size() == maxi(cfg.hand_count, inside.size()), "Provocação: %d mãos sombrias" % skill.hands.size())
+	var min_gap := INF
+	for i in skill.hands.size():
+		for j in range(i + 1, skill.hands.size()):
+			var pa: Vector3 = skill.hands[i].global_position
+			var pb: Vector3 = skill.hands[j].global_position
+			min_gap = minf(min_gap, Vector2(pa.x - pb.x, pa.z - pb.z).length())
+	check(min_gap > 0.4 and inside.all(func(e): return skill.hands.any(func(h): return h.target == e)),
+		"Provocação: cada alvo tem a sua mão, saindo de pontos diferentes (menor distância %.2f m)" % min_gap)
+	# fecham: cada um capturado uma vez, preso e provocado; os de fora nada
+	await wait_until(func(): return skill.captured_count >= inside.size(), 3.0)
+	check(skill.captured_count == inside.size(), "Provocação: os %d monstros de dentro são agarrados (%d)" % [inside.size(), skill.captured_count])
+	var grabbing := skill.hands.filter(func(h): return h.held)
+	check(grabbing.size() == inside.size() and grabbing.all(func(h): return h.grip >= 0.99), "Provocação: as mãos fecham os dedos nos alvos")
+	await wait(0.05)
+	check(inside.all(func(e): return e.held_t > 0.0 and e.taunt_t > 0.0 and e.taunt_by == player),
+		"Provocação: os agarrados ficam presos e provocados pelo herói")
+	check(outside.all(func(e): return e.taunt_t <= 0.0 and e.held_t <= 0.0), "Provocação: os de fora não são afetados")
+	check(not (player in skill.targets) and not (ally in skill.targets), "Provocação: o herói e o aliado nunca são agarrados")
+	check(inside.all(func(e): return e.taunt_eyes != null and e.taunt_eyes.active and e.taunt_eyes.visible)
+		and outside.all(func(e): return e.taunt_eyes == null), "Provocação: cada provocado tem o seu par de olhos vermelhos")
+	var flat := func(a: Vector3, b: Vector3) -> float: return Vector2(a.x - b.x, a.z - b.z).length()
+	var eyes_ok := true
+	for e in inside:
+		if e.taunt_eyes == null:
+			eyes_ok = false
+			continue
+		var ep: Vector3 = e.taunt_eyes.global_position
+		eyes_ok = eyes_ok and ep.y > e.global_position.y + e.head_top() and flat.call(ep, e.global_position) < 0.6
+	check(eyes_ok, "Provocação: os olhos ficam acima da cabeça de cada um")
+	var held_pos := {}
+	for e in inside:
+		held_pos[e] = e.global_position
+	await wait(0.5)
+	var still_ok := true
+	for e in inside:
+		still_ok = still_ok and flat.call(e.global_position, held_pos[e]) < 0.15 and e.state != "attack"
+	check(still_ok, "Provocação: presos pelas mãos não andam nem atacam")
+	check(inside.all(func(e): return e._nearest_player() == player) and outside[0]._nearest_player() == ally,
+		"Provocação: o alvo dos provocados passa a ser o herói (o de fora segue no aliado)")
+	await wait_until(func(): return player.ability == "", 3.0)
+	check(player.ability == "", "Provocação: o herói fica livre depois que as mãos agarram")
+	# as mãos soltam: os provocados vêm atrás do herói (e não do aliado, que está mais perto)
+	await wait_until(func(): return inside.all(func(e): return e.held_t <= 0.0), cfg.hold_time + 1.0)
+	var d0 := {}
+	for e in inside:
+		d0[e] = Vector2(e.global_position.x - hero_pos.x, e.global_position.z - hero_pos.z).length()
+	await wait(1.0)
+	var closer := []
+	for e in inside:
+		if flat.call(e.global_position, hero_pos) < float(d0[e]) - 0.3 or e.state == "attack":
+			closer.append(e)
+	check(closer.size() >= inside.size() - 1 and inside.all(func(e): return e._tgt == player),
+		"Provocação: soltos, perseguem o herói (%d de %d se aproximaram)" % [closer.size(), inside.size()])
+	check(inside.all(func(e): return e.taunt_eyes != null and Vector2(e.taunt_eyes.global_position.x - e.global_position.x, e.taunt_eyes.global_position.z - e.global_position.z).length() < 0.6),
+		"Provocação: os olhos acompanham o monstro andando")
+	# um provocado morre no meio: o indicador sai junto
+	var victim: Enemy = inside[3]
+	victim.take_damage(99999.0, hero_pos, false)
+	await wait(0.05)
+	check(victim.dead and victim.taunt_t <= 0.0 and (victim.taunt_eyes == null or not is_instance_valid(victim.taunt_eyes)),
+		"Provocação: monstro morto perde a provocação e os olhos")
+	# fim da provocação: os olhos se apagam aos poucos e a IA volta a escolher o mais perto
+	var rest := inside.slice(0, 3)
+	for e in rest:
+		e.taunt_t = 0.05
+	await wait(0.15)
+	check(rest.all(func(e): return e.taunt_t <= 0.0 and e.taunt_by == null and e.taunt_eyes != null and not e.taunt_eyes.active),
+		"Provocação: acabou o tempo, a provocação termina")
+	check(rest.all(func(e): return e.taunt_eyes != null and e.taunt_eyes.visible), "Provocação: os olhos não somem de uma vez (apagando)")
+	await wait(cfg.eye_fade_time + 0.2)
+	check(rest.all(func(e): return e.taunt_eyes != null and not e.taunt_eyes.visible), "Provocação: os olhos somem no fim")
+	var near_ally: Enemy = rest[0]
+	near_ally.global_position = ally.global_position + Vector3(1.2, 0, 0)
+	await wait(0.1)
+	check(near_ally._nearest_player() == ally, "Provocação: depois do fim, a IA volta a escolher o alvo mais perto")
+	# o herói que provocou morre (aqui: o aliado como provocador): a provocação acaba na hora
+	var e2: Enemy = rest[1]
+	e2.apply_taunt(ally, 0.0, 5.0)
+	await wait(0.05)
+	check(e2.taunt_t > 0.0 and e2._nearest_player() == ally, "Provocação: apply_taunt direto vale")
+	ally.dead = true
+	await wait(0.1)
+	check(e2.taunt_t <= 0.0 and e2.taunt_by == null, "Provocação: quem provocou morreu, a provocação acaba")
+	ally.dead = false
+	# tudo sai da cena no fim (mãos, círculo, efeitos)
+	await wait_until(func(): return not is_instance_valid(skill), cfg.dissipate_time + cfg.circle_linger + 4.0)
+	check(not is_instance_valid(skill) and count_fx.call("ShadowHand") == 0 and count_fx.call("DarkMagicCircle") == 0
+		and count_fx.call("DarkTauntVFX") == 0, "Provocação: mãos, círculo e efeitos removidos no fim")
+	# esquiva antes das mãos fecharem: cancela sem provocar ninguém
+	var fresh := Enemy.new()
+	fresh.kind = "goblin"
+	world.add_child(fresh)
+	fresh.global_position = hero_pos + Vector3(2.0, 0, -2.0)
+	fresh.home = fresh.global_position
+	mobs.append(fresh)
+	await wait(0.1)
+	player.global_position = hero_pos
+	player.cooldowns.sword_taunt = 0.0
+	player.cast("sword_taunt")
+	var skill2: DarkTauntSkill = player.ability_data.get("skill")
+	await wait(DarkTauntConfig.CAST_LEAD + 0.2)
+	check(DarkTauntAbilities.can_dodge_cancel(player), "Provocação: esquiva pode cancelar antes das mãos fecharem")
+	DarkTauntAbilities.dodge_cancel(player)
+	check(player.ability == "" and skill2.state == DarkTauntSkill.State.CANCELED, "Provocação: cancelada pela esquiva")
+	await wait_until(func(): return not is_instance_valid(skill2), 4.0)
+	check(not is_instance_valid(skill2) and fresh.taunt_t <= 0.0 and fresh.taunt_eyes == null,
+		"Provocação: cancelada não provoca ninguém e se libera")
+	for e in mobs:
+		if is_instance_valid(e):
+			e.queue_free()
+	ally.queue_free()
+	# tira o escudo: a Fúria Picante volta
+	Game.unequip("offhand")
+	await wait_until(func(): return Game.offhand_kind() == "")
+	check(Game.ability_kit()[2] == "sword_fury", "Provocação: sem escudo a habilidade 3 volta a ser a Fúria Picante")
+	Econ.test_force_level(lv0)
+	player.global_position = back
+	player.velocity = Vector3.ZERO
+	player.cooldowns.sword_taunt = 0.0
+	player.invuln = 0.0
 
 
 func EnemyArrow_script() -> GDScript:
@@ -893,6 +1097,7 @@ func _ready() -> void:
 	check(Game.level < 3 and not Game.knows_ability("frost_nova") and ItemDB.ABILITIES.frost_nova.level == 3, "Nova Gélida só no nível 3")
 	await _check_aegis(player, world)
 	await _check_hammer(player, world)
+	await _check_dark_taunt(player, world)
 	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
 	# quem testar; resta conferir que há recarga para cada habilidade
 	Game.add_item("short_bow")

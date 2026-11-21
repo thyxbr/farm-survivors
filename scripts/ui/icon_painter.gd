@@ -282,6 +282,11 @@ static func draw(ci: CanvasItem, kind: String, col: Color, r: Rect2, ghost := fa
 				_bar(ci, P, Vector2(0.24, 0.6), Vector2(0.24, 0.84), 0.07, Color(1.0, 0.8, 0.35), ol, lw * 0.5)
 				_bar(ci, P, Vector2(0.76, 0.6), Vector2(0.76, 0.84), 0.07, Color(1.0, 0.8, 0.35), ol, lw * 0.5)
 				ci.draw_circle(P.call(0.5, 0.72), S * 0.07, Color(0.95, 0.98, 1.0))
+		"taunt":   # círculo roxo no chão e dois olhos vermelhos com raiva acima
+			_poly(ci, P, [Vector2(0.12, 0.72), Vector2(0.5, 0.6), Vector2(0.88, 0.72), Vector2(0.5, 0.9)], Color(0.45, 0.2, 0.75), ol, lw)
+			if not ghost:
+				_poly(ci, P, [Vector2(0.2, 0.36), Vector2(0.44, 0.42), Vector2(0.4, 0.5), Vector2(0.24, 0.46)], Color(1.0, 0.2, 0.15), ol, lw * 0.6)
+				_poly(ci, P, [Vector2(0.8, 0.36), Vector2(0.56, 0.42), Vector2(0.6, 0.5), Vector2(0.76, 0.46)], Color(1.0, 0.2, 0.15), ol, lw * 0.6)
 		"radiant":   # sol: disco dourado com raios
 			for i in 8:
 				var a := i * PI / 4.0

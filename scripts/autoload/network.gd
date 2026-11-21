@@ -729,6 +729,8 @@ func _send_enemy_snapshot() -> void:
 			flags = ThrowRules.pack_flags(flags, e.throw_point - p)
 		if e.shielded:   # Forjador: Escudo Rúnico de pé (ForgeRules.SHIELD_FLAG)
 			flags |= ForgeRules.SHIELD_FLAG
+		if e.taunt_t > 0.0:
+			flags |= Enemy.TAUNT_FLAG   # provocado: as réplicas mostram os olhos vermelhos (depois dos pacotes acima)
 		var row := [net_id, p.x, p.y, p.z, e.model.rotation.y, e.hp,
 			max(0, STATES.find(e.state)), e.attack_timer, max(0, ATTACK_KINDS.find(e.attack_kind)), flags]
 		snap_world.append_array(row)
@@ -740,6 +742,43 @@ func _send_enemy_snapshot() -> void:
 	_snapshots_sent += 1
 	for pid in peers:
 		_enemy_snapshot.rpc_id(pid, snap_world)
+
+
+## Círculo da Provocação Sombria pedido por um cliente (Enemy.apply_taunt numa réplica): quem provoca é a réplica
+## do jogador aqui no servidor, então a IA do monstro (que roda aqui) passa a perseguir e golpear ele. Só vale
+## perto (raio do círculo + folga do atraso da posição), com tempos limitados ao DarkTauntConfig e em levas: uma
+## ativação manda um pedido por monstro de uma vez; outra leva só depois de metade da recarga.
+const TAUNT_BATCH_WINDOW := 1.0
+const TAUNT_BATCH_MAX := 40
+var _taunt_batch := {}   # peer_id -> [início da leva (s), pedidos nela]
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _taunt_enemy(net_id: int, hold: float, secs: float) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not is_server() or not players.has(id):
+		return
+	var e: Enemy = enemies.get(net_id)
+	var rp: Player = remote_players.get(id)
+	if e == null or not is_instance_valid(e) or e.dead or rp == null or not is_instance_valid(rp) or zone_of(id) != "world":
+		return
+	var cfg: DarkTauntConfig = DarkTauntAbilities.CONFIG
+	var from: Vector3 = last_pos.get(id, Vector3.INF)
+	if not from.is_finite() or not DarkTauntRules.in_radius(from, e.global_position, cfg.radius + 6.0, e.radius):
+		return
+	if not is_finite(hold) or not is_finite(secs):
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	var b: Array = _taunt_batch.get(id, [-INF, 0])
+	if now - float(b[0]) > TAUNT_BATCH_WINDOW:
+		if now - float(b[0]) < cfg.cooldown * 0.5:
+			return   # leva nova cedo demais para a recarga
+		b = [now, 0]
+	if int(b[1]) >= TAUNT_BATCH_MAX:
+		return
+	b[1] = int(b[1]) + 1
+	_taunt_batch[id] = b
+	e.apply_taunt(rp, clampf(hold, 0.0, cfg.hold_time), clampf(secs, 0.0, cfg.taunt_time))
 
 
 ## Marca tóxica pedida por um cliente: mesmas conferências de um acerto (zona e alcance) e os valores
@@ -1208,6 +1247,13 @@ func send_event(kind: String, a := Vector3.ZERO, b := Vector3.ZERO) -> void:
 func client_hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun := 0.0, pull := 0.0) -> void:
 	if is_client():
 		_hit_enemy.rpc_id(1, net_id, amount, from_pos, crit, slow, stun, pull)
+
+
+## Círculo da Provocação Sombria (ver Enemy.apply_taunt): quem aplica é o servidor, com a réplica deste jogador
+## como alvo da provocação.
+func client_taunt_enemy(net_id: int, hold: float, secs: float) -> void:
+	if is_client():
+		_taunt_enemy.rpc_id(1, net_id, hold, secs)
 
 
 ## Marca tóxica da arma encantada com Veneno (ver Enemy.apply_venom): quem aplica é o servidor.

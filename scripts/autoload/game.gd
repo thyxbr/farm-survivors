@@ -112,6 +112,9 @@ func _ready() -> void:
 			get_tree().root.add_child.call_deferred(load("res://tools/atlas_shot.gd").new())
 		elif a.begins_with("--teleportshot="):
 			get_tree().root.add_child.call_deferred(load("res://tools/teleport_shot.gd").new())
+	if "--tauntdemo" in OS.get_cmdline_user_args():
+		# demonstração do Círculo da Provocação Sombria (use com --weapon=iron_sword: personagem descartável)
+		get_tree().root.add_child.call_deferred(load("res://tools/taunt_demo.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
 		# o Econ usa user://smoketest_solo.json, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())
