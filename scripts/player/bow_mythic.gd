@@ -72,8 +72,9 @@ static func _add(p: Node3D, n: Node3D, pos: Vector3) -> void:
 	var root := p.get_tree().current_scene if p.is_inside_tree() else null
 	if root == null:
 		return
+	# a posição vai antes do add_child: o _ready do efeito já desenha e calcula em volta dela
+	n.position = _ground(p, pos)
 	root.add_child(n)
-	n.global_position = _ground(p, pos)
 
 
 ## Ponto do chão logo abaixo de `pos` (até 6 m), para fenda, chuva e espinheiro deitarem no terreno.
@@ -156,8 +157,8 @@ static func _bounce(p: Node3D, e: Node) -> void:
 # ------------------------------------------------------------------ Raiz-Mãe: flor de cura
 static func spawn_flower(p: Node3D, at: Vector3) -> void:
 	var f := Flower.new()
+	f.position = _ground(p, at)
 	p.get_tree().current_scene.add_child(f)
-	f.global_position = _ground(p, at)
 
 
 # ================================================================== nós dos efeitos
@@ -169,18 +170,20 @@ class Rift extends Node3D:
 	var _t := 0.0
 	var _tick := 0.0
 	var _swirl: CPUParticles3D
+	var _ring_t := 0.0
 	var _core: Node3D
 	var _light: OmniLight3D
 
 	func _ready() -> void:
 		var r := float(R.VORTEX.radius)
 		FXToon.ring_wave(global_position, r, 0.4, VOID, 0.2)
-		FXToon.rune_circle(global_position, r * 0.6, 0.25, float(R.VORTEX.time))
+		HolyFX.seal(global_position, VOID, r * 0.75, float(R.VORTEX.time) + 0.2)
+		HolyFX.seal(global_position, VOID, r * 0.4, float(R.VORTEX.time) + 0.2)
 		_core = Node3D.new()
 		add_child(_core)
 		_core.position = Vector3.UP * 1.0
-		FXToon.orb(_core, VOID, 0.9)
-		_swirl = FXEpic.stream(self, "glow", VOID.mid, 70, 0.9, 0.1)
+		FXToon.orb(_core, VOID, 2.4)
+		_swirl = FXEpic.stream(self, "glow", VOID.mid, 140, 0.9, 0.16)
 		if _swirl:   # partículas nascem na borda e espiralam para o centro
 			_swirl.position = Vector3.UP * 0.8
 			_swirl.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE_SURFACE
@@ -200,8 +203,12 @@ class Rift extends Node3D:
 
 	func _process(delta: float) -> void:
 		_t += delta
-		_core.scale = Vector3.ONE * (0.6 + 0.6 * sin(_t * 9.0) * 0.15 + _t / float(R.VORTEX.time) * 0.5)
+		_core.scale = Vector3.ONE * (0.7 + 0.12 * sin(_t * 9.0) + _t / float(R.VORTEX.time) * 0.6)
 		_core.rotate_y(delta * 6.0)
+		_ring_t -= delta
+		if _ring_t <= 0.0:   # ondas que fecham para o centro: o puxão desenhado no chão
+			_ring_t = 0.3
+			FXToon.ring_wave(global_position, float(R.VORTEX.radius) * 0.9, 0.25, VOID, 0.3)
 		_tick -= delta
 		if _tick <= 0.0:
 			_tick = float(R.VORTEX.tick)
@@ -258,23 +265,34 @@ class Rain extends Node3D:
 			_drop(_pts[_next])
 			_next += 1
 		if _next >= _pts.size():
-			queue_free()
+			set_process(false)
+			get_tree().create_timer(float(R.RAIN.height) / 40.0 + 0.2).timeout.connect(queue_free)
 
+	## Uma flecha de fogo desce sobre `at`. A flecha é só visual (árvores e telhados no caminho não roubam o
+	## acerto); o dano em área sai no ponto do chão quando ela chega lá.
 	func _drop(at: Vector3) -> void:
 		var a := PROJECTILE.new()
 		a.kind = "arrow"
-		a.fx = "splash"
 		a.color = Color(1.0, 0.45, 0.12)
 		a.trail = FXToon.FIRE
-		a.visual_only = visual_only
-		a.damage = damage * float(R.RAIN.dmg)
-		a.crit = crit
+		a.visual_only = true
+		a.no_drop = true
 		var start := at + Vector3(randf_range(-0.8, 0.8), float(R.RAIN.height), randf_range(-0.8, 0.8))
 		a.direction = (at - start).normalized()
-		a.speed = 34.0
-		a.life = 1.2
+		a.speed = 40.0
+		var fly := start.distance_to(at) / a.speed
+		a.life = fly
+		a.position = start
 		get_tree().current_scene.add_child(a)
-		a.global_position = start
+		get_tree().create_timer(fly).timeout.connect(_land.bind(at))
+
+	func _land(at: Vector3) -> void:
+		FXToon.fire_burst(at, 1.0)
+		FXToon.ring_wave(at, 1.4, 0.25, FXToon.FIRE, 0.12)
+		if visual_only or not is_inside_tree():
+			return
+		for e in BowMythic._enemies_near(get_tree(), at, float(R.RAIN.splash)):
+			BowMythic._hurt(e, damage * float(R.RAIN.dmg), at, crit)
 
 
 ## Espinheiro da Raiz-Mãe: espinhos verdes brotam em volta; dano e lentidão por BRAMBLE.time s.
@@ -289,7 +307,8 @@ class Bramble extends Node3D:
 	func _ready() -> void:
 		var r := float(R.BRAMBLE.radius)
 		FXToon.ring_wave(global_position, r, 0.35, LEAF, 0.2)
-		_leaves = FXEpic.stream(self, "glow", LEAF.mid, 30, 1.4, 0.08)
+		HolyFX.seal(global_position, LEAF, r, float(R.BRAMBLE.time))
+		_leaves = FXEpic.stream(self, "glow", LEAF.mid, 60, 1.4, 0.12)
 		if _leaves:
 			_leaves.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
 			_leaves.emission_sphere_radius = r * 0.8
@@ -307,19 +326,19 @@ class Bramble extends Node3D:
 					BowMythic._hurt(e, damage * float(R.BRAMBLE.tick_dmg), global_position, false, float(R.BRAMBLE.slow))
 					if e.dead or e.hp <= 0.0:
 						var f := Flower.new()
+						f.position = e.global_position
 						get_tree().current_scene.add_child(f)
-						f.global_position = e.global_position
 		if _t >= float(R.BRAMBLE.time):
 			FXEpic.stop_stream(_leaves)
 			queue_free()
 
 	func _thorns() -> void:
 		var r := float(R.BRAMBLE.radius)
-		for i in 7:
-			var out := Vector3.BACK.rotated(Vector3.UP, TAU * (i + randf_range(-0.3, 0.3)) / 7.0)
+		for i in 11:
+			var out := Vector3.BACK.rotated(Vector3.UP, TAU * (i + randf_range(-0.3, 0.3)) / 11.0)
 			var foot := global_position + out * randf_range(0.3, r)
-			var h := randf_range(0.6, 1.1)
-			FXToon.streak(foot, foot + (Vector3.UP + out * 0.6).normalized() * h, h * 0.16, LEAF,
+			var h := randf_range(1.0, 1.9)
+			FXToon.streak(foot, foot + (Vector3.UP + out * 0.6).normalized() * h, h * 0.2, LEAF,
 				{"billboard": true, "sweep": 0.06, "hold": 0.25, "fade": 0.3, "blunt": 1.0, "peak": 0.05, "lead": 0.3})
 
 
@@ -360,7 +379,7 @@ class Flower extends Node3D:
 		heart.material_override = _mat(Color(1.0, 0.9, 0.4), 0.8)
 		add_child(heart)
 		scale = Vector3.ONE * 0.05
-		create_tween().tween_property(self, "scale", Vector3.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		create_tween().tween_property(self, "scale", Vector3.ONE * 1.7, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		var motes := FXEpic.stream(self, "glow", BLOOM.mid, 16, 1.2, 0.07)
 		if motes:
 			motes.position.y = 0.55

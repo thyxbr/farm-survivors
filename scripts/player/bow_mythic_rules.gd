@@ -14,7 +14,7 @@ const FX := ["vortex", "solar", "dragonfire", "gale", "crescent", "bramble"]
 const VORTEX := {"radius": 6.0, "time": 1.2, "tick": 0.2, "pull": 7.0, "tick_dmg": 0.06,
 	"implode_radius": 4.0, "implode_dmg": 1.3, "stun": 0.6}
 const SOLAR := {"marks": 3, "window": 6.0, "radius": 2.8, "dmg": 1.6}
-const RAIN := {"arrows": 9, "radius": 3.6, "time": 1.0, "height": 13.0, "dmg": 0.55}
+const RAIN := {"arrows": 14, "radius": 3.6, "time": 1.0, "height": 13.0, "dmg": 0.55, "splash": 2.0}
 const GALE := {"push": 9.0, "bounces": 3, "range": 9.0, "bounce_dmg": 0.7, "dash": 0.2}
 const CRESCENT := {"window": 0.3, "ghost_delay": 0.35, "ghost_dmg": 0.8}
 const BRAMBLE := {"radius": 2.6, "time": 3.0, "tick": 0.5, "tick_dmg": 0.12, "slow": 1.2,
