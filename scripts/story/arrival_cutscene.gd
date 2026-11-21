@@ -10,6 +10,8 @@ extends Node
 ##   5. O holograma fica sólido num clarão (o brilho azul se apaga por cima do corpo de verdade).
 ##   6. A câmera volta para trás do jogador e o mundo passa para a narração (StoryDialogue.intro()).
 ## Espaço, Enter ou Esc pulam para o fim a qualquer momento.
+## `quick` (teleporte pago do mapa-mundi): só o feixe, a montagem e o clarão, mais curtos e sem textos; o herói
+## surge olhando para `face`.
 
 signal finished
 
@@ -49,6 +51,12 @@ void fragment() {
 
 var world: Node
 var player: Node3D
+## Versão curta (teleporte do mapa-mundi) e a direção para onde o herói olha ao surgir (zero = a vila).
+var quick := false
+var face := Vector3.ZERO
+## Duração do feixe descendo e da montagem (a versão curta encurta as duas).
+var _beam_time := 1.8
+var _build_time := BUILD_TIME
 
 var _cam: Camera3D
 var _ui: CanvasLayer
@@ -86,6 +94,12 @@ func _ready() -> void:
 	# a vila fica ao norte da estrada: o herói surge olhando para ela
 	var to_village := Vector3(-_land.x, 0, -_land.z)
 	_fwd = to_village.normalized() if to_village.length() > 1.0 else Vector3(0, 0, -1)
+	var f := Vector3(face.x, 0, face.z)
+	if f.length() > 0.01:
+		_fwd = f.normalized()
+	if quick:
+		_beam_time = 0.9
+		_build_time = 1.6
 	_right = _fwd.cross(Vector3.UP).normalized()
 	_build_ui()
 	_cam = Camera3D.new()
@@ -110,6 +124,9 @@ func _ready() -> void:
 
 # ================================================================ roteiro
 func _run() -> void:
+	if quick:
+		await _run_quick()
+		return
 	# --- 1. a última lembrança (tela preta)
 	_place_sky_camera()
 	await _say_black("A última coisa de que você se lembra é uma luz muito forte...", 2.1)
@@ -140,6 +157,22 @@ func _run() -> void:
 	if _done: return
 	# --- 6. volta para a câmera do jogo
 	await _blend_to_player(1.3)
+	if _done: return
+	_finish()
+
+
+## Teleporte: a tela já vem preta da viagem; abre no céu, o feixe desce, o corpo é montado e volta ao jogo.
+func _run_quick() -> void:
+	_place_sky_camera()
+	_fade(_black, 0.0, 0.35)
+	await _beam_down()
+	if _done: return
+	await _build_body()
+	if _done: return
+	_solidify()
+	await _wait(1.0)
+	if _done: return
+	await _blend_to_player(0.8)
 	if _done: return
 	_finish()
 
@@ -291,7 +324,7 @@ func _beam_down() -> void:
 		var tip := top + Vector3.DOWN * ln
 		_look(cam0.lerp(cam1, smoothstep(0.25, 1.0, u)), look0.lerp(tip, smoothstep(0.0, 0.5, u)).lerp(_land + Vector3.UP * 0.9, smoothstep(0.55, 1.0, u)))
 	var tw := _track(create_tween())
-	tw.tween_method(grow, 0.0, 1.0, 1.8).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_method(grow, 0.0, 1.0, _beam_time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	await tw.finished
 	if _done:
 		return
@@ -355,10 +388,10 @@ func _build_body() -> void:
 		var dir := (_fwd * cos(a) + _right * sin(a)).normalized()
 		_look(_land + dir * lerpf(4.4, 3.6, u) + Vector3.UP * lerpf(1.1, 1.6, u), _land + Vector3.UP * lerpf(0.7, 1.2, u))
 	var tw := _track(create_tween())
-	tw.tween_method(step, 0.0, 1.0, BUILD_TIME)
+	tw.tween_method(step, 0.0, 1.0, _build_time)
 	# blips de montagem pelo caminho
 	for i in 5:
-		tw.parallel().tween_callback(Sfx.play.bind("click", 0.2, -8.0)).set_delay(BUILD_TIME * (0.1 + 0.18 * i))
+		tw.parallel().tween_callback(Sfx.play.bind("click", 0.2, -8.0)).set_delay(_build_time * (0.1 + 0.18 * i))
 	await tw.finished
 	_building = false
 	if _done:
