@@ -71,7 +71,7 @@ func test_spawn_count() -> void:
 
 func test_json_and_scenes_agree() -> void:
 	var t := _table()
-	T.eq(t.size(), 33, "21 regiões dos mapas + 12 salas das 4 dungeons no regions.json")
+	T.eq(t.size(), 35, "23 regiões dos mapas + 12 salas das 4 dungeons no regions.json")
 	var seen := {}
 	for a in MapData.all_areas():
 		seen[a.id] = true
