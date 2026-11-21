@@ -260,10 +260,9 @@ count = 2
 radius = 1.2
 respawn = 150.0
 
-[node name="chefe goblin_king" type="Node3D" parent="Monstros"]
+[node name="chefe forjador_runico" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -44)
 script = ExtResource("7_dg")
-kind = "goblin_king"
+kind = "forjador_runico"
 respawn = 600.0
-elite = true
 chief = true

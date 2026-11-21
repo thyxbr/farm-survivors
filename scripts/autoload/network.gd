@@ -38,6 +38,7 @@ const UPG := preload("res://scripts/survival/upgrades.gd")
 const STATES := ["idle", "wander", "chase", "return", "attack", "dead", "burrow"]
 const ATTACK_KINDS := ["swing", "lunge", "slam", "shoot", "fuse", "cast", "web", "tongue", "throw", "emerge", "quake", "rockfall", "acid_rain",
 	"roots", "sprouts", "spores",   # Espinheira (no fim: os índices de antes não mudam)
+	"hammer", "vent", "rune_shield",   # Forjador Rúnico
 	"volley", "voids", "mirage", "collapse"]   # Arauto do Abismo (AbyssRules.KINDS)
 const SNAP_STRIDE := 10   # id, x, y, z, yaw, hp, state, attack_timer, attack_kind, flags
 ## Tempo da fila do Desafio da Horda (cai para HORDE_LOBBY_ALL quando todos já responderam).
@@ -729,6 +730,10 @@ func _send_enemy_snapshot() -> void:
 			flags = ThrowRules.pack_flags(flags, e.throw_point - p)
 		elif e.state == "attack" and e.attack_kind in ["voids", "mirage"]:   # Arauto: semente das zonas e da roda
 			flags = BossRules.pack_seed(flags, e.boss_seed)
+		if e.state == "attack" and e.attack_kind == "hammer":   # Forjador: para onde aponta o cone da Martelada
+			flags = ThrowRules.pack_flags(flags, e.throw_point - p)
+		if e.shielded:   # Forjador: Escudo Rúnico de pé (ForgeRules.SHIELD_FLAG)
+			flags |= ForgeRules.SHIELD_FLAG
 		var row := [net_id, p.x, p.y, p.z, e.model.rotation.y, e.hp,
 			max(0, STATES.find(e.state)), e.attack_timer, max(0, ATTACK_KINDS.find(e.attack_kind)), flags]
 		snap_world.append_array(row)
