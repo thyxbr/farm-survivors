@@ -390,3 +390,12 @@ const WHIRL := [
 		"body_x": 0.5, "arm_l": Vector3(-0.8, -0.1, 0.25), "elbow_l": -0.2,
 		"leg_l": -0.6, "knee_l": 0.85, "leg_r": 0.4, "knee_r": 0.65}, "lin"],
 ]
+
+
+## Escudo levantado (botão direito com escudo): braço esquerdo dobrado na frente do peito, face do escudo
+## para a frente, de pé, a borda de cima na altura do queixo. Giro do ombro e cotovelo medidos com
+## tools/shield_pose_probe.tscn (procura a face do escudo em +Z do modelo). O tronco gira um pouco para o
+## ombro do escudo ir à frente, os joelhos dobram e o corpo inclina para dentro do escudo (guarda de pé
+## firme). `jolt` = tranco de um golpe defendido: o braço cede para trás e volta.
+const SHIELD_GUARD := {"arm_l": Vector3(0.866, -1.656, 0.421), "elbow_l": -1.1, "twist": -0.18, "body_x": 0.1,
+	"knee": 0.22, "head_x": -0.05, "jolt_arm": 0.22, "jolt_elbow": -0.25, "speed": 2.5}

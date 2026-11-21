@@ -234,7 +234,7 @@ if "biomes" in _only:
 BUILDERS.update(dict(WEAPONS))   # w_<id>: espadas (weapons.py); ASSETS=weapons gera todas
 if "weapons" in _only:
     _only += [n for n, _ in WEAPONS]
-for _grp, _pre in (("staves", "st_"), ("bows", "bw_"), ("classic", "w_"), ("scepters", "sc_"), ("tools", "tl_")):   # grupos de armory.py
+for _grp, _pre in (("staves", "st_"), ("bows", "bw_"), ("classic", "w_"), ("scepters", "sc_"), ("tools", "tl_"), ("shields", "sh_")):   # grupos de armory.py
     if _grp in _only:
         _only += [n for n, _ in ARMORY if n.startswith(_pre)]
 BUILDERS.update(dict(GEAR))      # roupas e armaduras modulares (gear.py); ASSETS=gear gera todas

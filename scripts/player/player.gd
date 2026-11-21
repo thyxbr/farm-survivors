@@ -101,6 +101,12 @@ const CHILL_SPEED := 0.6
 const WEB_SPEED := 0.3
 var cast_timer := 0.0
 var stamina_delay := 0.0
+## Escudo levantado (botão direito segurado com escudo na mão secundária; regras em ShieldRules).
+var blocking := false
+var _block_w := 0.0          ## 0..1: quanto o braço do escudo já subiu (suavizado, anima a pose)
+var _block_chain := 0        ## golpes defendidos em sequência (cada um custa mais fôlego)
+var _block_since := 99.0     ## segundos desde o último golpe defendido (zera a sequência)
+var guard_break_t := 0.0     ## guarda quebrada: segundos sem poder levantar o escudo
 var shake := 0.0
 ## Quanto a câmera recua (m) além da distância normal: a habilidade pede, _process aproxima suave.
 var cam_back := 0.0
@@ -410,8 +416,9 @@ func _local_process(delta: float) -> void:
 		dir = dir.normalized()
 
 	var busy := ability != ""
+	_update_block(delta, busy)
 	var sprinting := Input.is_action_pressed("sprint") and dir.length() > 0.1 and Game.stamina > 1.0 and not attacking and not drawing \
-		and not busy
+		and not busy and not blocking
 	if sprinting:
 		Game.stamina = max(0.0, Game.stamina - 20.0 * delta)
 		stamina_delay = 0.6
@@ -428,6 +435,10 @@ func _local_process(delta: float) -> void:
 		speed *= 0.45
 	elif cast_timer > 0:
 		speed *= 0.6
+	if blocking:
+		speed *= ShieldRules.MOVE_SPEED
+	elif guard_break_t > 0.0:
+		speed *= 0.35   # cambaleando depois da guarda quebrada
 
 	if busy:
 		# controla a velocidade horizontal (e pode terminar); recebe a direção pedida pelo jogador
@@ -459,6 +470,9 @@ func _local_process(delta: float) -> void:
 		velocity.y = JUMP_VELOCITY
 	# com arco o botão direito mira: o mesmo clique não esquiva (a esquiva fica no Ctrl/Alt)
 	var aim_click: bool = look["class"] == "bow" and Input.is_action_just_pressed("aim")
+	# com escudo o botão direito levanta o escudo (_update_block): o mesmo clique também não esquiva
+	if has_shield() and Input.is_action_just_pressed("aim"):
+		aim_click = true
 	# habilidade preparada: o clique esquerdo confirma em vez de dar o ataque básico
 	var armed_click := false
 	if heal_armed:
@@ -535,7 +549,7 @@ func _local_process(delta: float) -> void:
 
 	# orientação do modelo: mira para frente da câmera ao atacar/conjurar, senão para onde anda
 	var face := Vector3.ZERO
-	if attacking or cast_timer > 0 or drawing or aiming:
+	if attacking or cast_timer > 0 or drawing or aiming or blocking:
 		face = fwd
 	elif dodge_timer > 0:
 		face = dodge_dir
@@ -581,11 +595,72 @@ func _regen(delta: float) -> void:
 	Game.mp = min(Game.max_mp(), Game.mp + (0.8 + Game.attr("int") * 0.15) * (1.0 + float(Game.talent_mods.get("mp_regen", 0.0))) * delta)
 	Game.hp = min(Game.max_hp(), Game.hp + (0.3 + Game.attr("vit") * 0.05 + Game.mod("regen")) * delta)
 	if stamina_delay <= 0:
-		Game.stamina = min(Game.max_stamina(), Game.stamina + 32.0 * delta)
+		var regen := 32.0 * (ShieldRules.REGEN_MULT if blocking else 1.0)   # escudo erguido recupera devagar
+		Game.stamina = min(Game.max_stamina(), Game.stamina + regen * delta)
 
 
 func facing() -> Vector3:
 	return Vector3(sin(model.rotation.y), 0, cos(model.rotation.y))
+
+
+# ------------------------------------------------------------ escudo
+## Escudo na mão secundária (o item pede espada): o botão direito segurado defende (ShieldRules).
+func has_shield() -> bool:
+	if remote or look.get("class", "") != "sword" or _unarmed():
+		return false
+	var off: String = Game.equipment.get("offhand", "")
+	return off != "" and str(ItemDB.get_item(off).get("needs", "")) == "sword"
+
+
+## Botão direito segurado com escudo: levanta (com fôlego, sem guarda quebrada, sem golpe/esquiva/habilidade).
+func _update_block(delta: float, busy: bool) -> void:
+	_block_since += delta
+	if _block_since > ShieldRules.CHAIN_RESET:
+		_block_chain = 0
+	guard_break_t = maxf(0.0, guard_break_t - delta)
+	var want := has_shield() and Input.is_action_pressed("aim") and not heal_armed and area_armed == ""
+	blocking = want and not busy and not attacking and dodge_timer <= 0 and guard_break_t <= 0.0 \
+		and Game.stamina > 0.5 and not dead
+
+
+## Golpe segurado pelo escudo: só passa `amount` (o que o escudo não segurou), empurra um pouco e faísca.
+func _take_blocked(amount: float, from_pos: Vector3) -> void:
+	_block_fx(from_pos)
+	var push := global_position - from_pos
+	push.y = 0
+	if push.length() > 0.01:
+		push = push.normalized() * (1.5 + 0.6 * minf(_block_chain, 4))   # cada golpe seguido empurra mais
+		velocity.x = push.x
+		velocity.z = push.z
+	invuln = 0.3
+	Game.add_fury(amount / Game.max_hp() * 15.0)
+	if amount >= 0.5:
+		var chip: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
+		Game.hp -= chip
+		FX.damage_number(global_position + Vector3.UP * 2.0, str(int(round(chip))), Color(0.75, 0.8, 0.9), 44)
+	Game.stats_changed.emit()
+	if Game.hp <= 0:
+		_die()
+
+
+## Fôlego acabou com o escudo erguido: o braço cai, cambaleia e fica um tempo sem defender.
+func _guard_break() -> void:
+	blocking = false
+	guard_break_t = ShieldRules.BREAK_TIME
+	_block_chain = 0
+	Game.notify.emit("Guarda quebrada!", Color(1, 0.55, 0.35))
+	Sfx.play("slam", 0.1, -4.0)
+	add_shake(0.45)
+
+
+## Faíscas e som de metal no escudo, do lado de onde veio o golpe.
+func _block_fx(from_pos: Vector3) -> void:
+	var to := from_pos - global_position
+	to.y = 0
+	var side := to.normalized() if to.length() > 0.01 else facing()
+	FX.burst(global_position + Vector3.UP * 1.05 + side * 0.45, Color(1.0, 0.85, 0.45), 14, 3.5, 0.08, 0.35)
+	Sfx.play("sword_hit", 0.12, -2.0)
+	add_shake(0.12 + 0.05 * minf(_block_chain, 4))
 
 
 # ------------------------------------------------------------ esquiva
@@ -1475,6 +1550,17 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 		return
 	if Game.admin_mode():
 		return
+	if blocking and ShieldRules.in_front(global_position, facing(), from_pos):
+		var res := ShieldRules.resolve(amount, Game.stamina, _block_chain, ItemDB.get_item(Game.equipment.get("offhand", "")))
+		Game.stamina = res.stamina
+		stamina_delay = 0.8
+		_block_since = 0.0
+		_block_chain += 1
+		if res.broke:
+			_guard_break()   # sem fôlego: o golpe entra cheio (segue abaixo)
+		else:
+			_take_blocked(res.damage, from_pos)
+			return
 	var final_dmg: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
 	Game.hp -= final_dmg
 	Game.add_fury(final_dmg / Game.max_hp() * 25.0)
@@ -1657,6 +1743,7 @@ const NF_CAST := 8
 const NF_DEAD := 16
 const NF_DRAW := 32
 const NF_ABILITY := 64   ## habilidade de arma em execução (qual: pelo evento SwordAbilities.play_remote)
+const NF_BLOCK := 128    ## escudo levantado
 
 
 func _net_send(delta: float) -> void:
@@ -1666,7 +1753,7 @@ func _net_send(delta: float) -> void:
 	_net_send_t = maxf(_net_send_t + 1.0 / Network.SEND_RATE, 0.0)
 	var flags := (NF_FLOOR if is_on_floor() else 0) | (NF_ATTACK if attacking else 0) \
 		| (NF_DODGE if dodge_timer > 0 else 0) | (NF_CAST if cast_timer > 0 else 0) | (NF_DEAD if dead else 0) | (NF_DRAW if drawing else 0) \
-		| (NF_ABILITY if ability != "" else 0)
+		| (NF_ABILITY if ability != "" else 0) | (NF_BLOCK if blocking else 0)
 	Network.send_player_state(global_position, model.rotation.y, velocity, flags, combo, attack_timer)
 
 
@@ -1678,6 +1765,7 @@ func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int,
 	_net_age = 0.0
 	_net_floor = flags & NF_FLOOR != 0
 	dodge_timer = 0.12 if flags & NF_DODGE else 0.0
+	blocking = flags & NF_BLOCK != 0
 	cast_timer = 0.15 if flags & NF_CAST else 0.0
 	if flags & NF_DRAW:
 		if not drawing:
@@ -1954,6 +2042,11 @@ func _animate(delta: float) -> void:
 		_slash_fx()
 	elif _cast_t < KnightMoves.CAST_TIME:
 		KnightAnim.cast_pose(p, _cast_kind, _cast_t / KnightMoves.CAST_TIME, _amp, cls == "staff")
+	# escudo: sobe rápido (~0,12 s) e desce um pouco mais devagar; o golpe defendido dá um tranco no braço
+	var up := blocking and ability == "" and not attacking and dodge_timer <= 0 and not dead
+	_block_w = move_toward(_block_w, 1.0 if up else 0.0, delta * (8.0 if up else 5.0))
+	if _block_w > 0.001:
+		KnightAnim.shield_block_pose(p, _block_w, maxf(0.0, 1.0 - _block_since / 0.25), _amp)
 	if ability != "" or drawing or attacking or _cast_t < KnightMoves.CAST_TIME:
 		KnightAnim.hips_follow(p)
 	KnightAnim.apply(parts, p, k)

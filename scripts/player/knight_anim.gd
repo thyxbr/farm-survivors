@@ -915,6 +915,28 @@ static func weapon_carry(p: Dictionary, cls: String, move: float, run: float) ->
 			p.elbow_l = lerpf(c.elbow_idle, lerpf(c.elbow, c.elbow_run, run), move)
 
 
+## Escudo levantado (KnightMoves.SHIELD_GUARD) por cima da locomoção: `w` 0..1 = quanto já subiu, `jolt`
+## 0..1 = tranco do último golpe defendido, `move` 0..1 = quanto anda (andando os joelhos já dobram na passada).
+static func shield_block_pose(p: Dictionary, w: float, jolt: float, move: float) -> void:
+	var g: Dictionary = KnightMoves.SHIELD_GUARD
+	var e := w * w * (3.0 - 2.0 * w)
+	var arm: Vector3 = g.arm_l
+	arm.x += float(g.jolt_arm) * jolt
+	p.arm_l = (p.arm_l as Vector3).lerp(arm, e)
+	p.elbow_l = lerpf(p.elbow_l, float(g.elbow_l) + float(g.jolt_elbow) * jolt, e)
+	p.wrist_l = lerpf(p.wrist_l, 0.0, e)
+	p.twist = lerpf(p.twist, float(g.twist), e)
+	p.body_x += float(g.body_x) * e
+	p.head_x += float(g.head_x) * e
+	var still := e * (1.0 - move)
+	p.knee_l = maxf(p.knee_l, float(g.knee) * still)
+	p.knee_r = maxf(p.knee_r, float(g.knee) * still)
+	p.leg_l = minf(p.leg_l, -float(g.knee) * 0.5 * still)
+	p.leg_r = minf(p.leg_r, -float(g.knee) * 0.5 * still)
+	for j in ["arm_l", "elbow_l", "twist"]:
+		p.speed[j] = float(g.speed)
+
+
 ## IK de dois ossos do braço: ombro (ArmX, giro livre, ordem YXZ) e cotovelo (ElbowX, dobra só em X).
 ## `target` = onde o centro da mão deve ficar e `pole` = para onde o cotovelo deve apontar, os dois no
 ## espaço do pai do ombro (Body). Devolve [rotação do ombro, dobra do cotovelo]. Alvo fora do alcance:

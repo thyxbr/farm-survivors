@@ -166,6 +166,8 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 	if fore_r == null:
 		fore_r = arm_r
 	var hand_l := _point_in(model, fore_l, "ArmL_Hand")
+	if shield_on and fore_l:
+		_build_shield(model, fore_l, off, made)
 	if off != "" and not shield_on and fore_l:
 		var it := ItemDB.get_item(off)
 		if it.get("needs", "") == "staff":   # orbe flutuando sobre a mão esquerda
@@ -537,6 +539,35 @@ static func _tool_fx(h: Node3D, id: String) -> void:
 	quad.material = m
 	p.mesh = quad
 	h.add_child(p)
+
+
+## Escudo com modelo próprio (item "model" -> assets/models/sh_<id>.glb, tools/blender/armory.py): entra no lugar
+## da tábua do knight.glb (que some com o aro), preso ao antebraço esquerdo. O GLB tem a face em +Z, a altura
+## em +Y e a origem no meio das costas; aqui a face vai para +X do antebraço (para fora, como a tábua antiga)
+## e a origem para o centro das costas da tábua antiga.
+const SHIELD_BASIS := Basis(Vector3(0, 0, -1), Vector3(0, 1, 0), Vector3(1, 0, 0))
+
+
+static func _build_shield(model: Node3D, fore_l: Node3D, id: String, made: Array) -> void:
+	var path := "res://assets/models/%s.glb" % str(ItemDB.get_item(id).get("model", ""))
+	var board := model.find_child("Shield", true, false) as MeshInstance3D
+	if not ItemDB.get_item(id).has("model") or not ResourceLoader.exists(path) or board == null:
+		return
+	for pn in SHIELD_PARTS:
+		var mi := model.find_child(pn, true, false) as MeshInstance3D
+		if mi:
+			mi.visible = false
+	var box := board.mesh.get_aabb()
+	var t := _chain(board, fore_l)
+	var at := t * Vector3(box.position.x, box.get_center().y, box.get_center().z)   # costas da tábua (lado do braço)
+	var h := Node3D.new()
+	h.name = "ShieldHolder"
+	h.transform = Transform3D(SHIELD_BASIS, at)
+	fore_l.add_child(h)
+	made.append(h)
+	var w := (load(path) as PackedScene).instantiate() as Node3D
+	WeaponModel.use_vertex_color(w)
+	h.add_child(w)
 
 
 ## Arma modelada no Blender (assets/models/<model>.glb): cabo na origem, lâmina em +Y do GLB, largura em X.

@@ -3426,6 +3426,41 @@ func _test_gear() -> void:
 	check(Game.equipment.offhand == "wooden_shield", "escudo equipado com espada")
 	var shield_mesh := player.model.find_child("Shield", true, false) as MeshInstance3D
 	check(shield_mesh == null or shield_mesh.visible, "escudo aparece no modelo")
+	# defesa com escudo: botão direito segurado levanta; golpe de frente custa fôlego (mais a cada golpe) e
+	# passa só parte do dano; pelas costas entra cheio; sem fôlego a guarda quebra
+	Input.action_press("aim")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(player.blocking, "botão direito com escudo levanta o escudo")
+	check(player.dodge_timer <= 0.0, "levantar o escudo não esquiva")
+	var front := player.global_position + player.facing() * 2.0
+	Game.stamina = Game.max_stamina()
+	Game.hp = Game.max_hp()
+	player.invuln = 0.0
+	var hp_b := Game.hp
+	var st_b := Game.stamina
+	player.take_damage(20.0, front)
+	var lost1 := hp_b - Game.hp
+	var cost1 := st_b - Game.stamina
+	check(cost1 > 0.0 and lost1 < 20.0 * 0.6, "golpe defendido gasta fôlego (%.1f) e segura dano (passou %.1f)" % [cost1, lost1])
+	player.invuln = 0.0
+	st_b = Game.stamina
+	player.take_damage(20.0, front)
+	check(st_b - Game.stamina > cost1 + 0.1, "2º golpe seguido custa mais fôlego (%.1f > %.1f)" % [st_b - Game.stamina, cost1])
+	player.invuln = 0.0
+	hp_b = Game.hp
+	st_b = Game.stamina
+	player.take_damage(20.0, player.global_position - player.facing() * 2.0)
+	check(Game.stamina == st_b and hp_b - Game.hp > lost1, "golpe pelas costas não é defendido")
+	player.invuln = 0.0
+	Game.stamina = 1.0
+	player.take_damage(20.0, front)
+	check(player.guard_break_t > 0.0 and not player.blocking, "sem fôlego a guarda quebra")
+	Input.action_release("aim")
+	player.guard_break_t = 0.0
+	Game.hp = Game.max_hp()
+	Game.stamina = Game.max_stamina()
+	await get_tree().physics_frame
 	equip_any("apprentice_staff")
 	check(Game.equipment.offhand == "" and Game.count_item("wooden_shield") == shields0, "trocar para cajado guarda o escudo")
 	equip_any("iron_sword")
