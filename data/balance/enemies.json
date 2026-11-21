@@ -1164,6 +1164,122 @@
 		"loot": [],
 		"ref_level": 12
 	},
+	"sentinela_nevasca": {
+		"name": "Sentinela da Nevasca",
+		"model": "sentinel",
+		"ai": "blizzard",
+		"hp": 2400,
+		"damage": 34,
+		"speed": 2.8,
+		"xp": 1200,
+		"gold": [
+			250,
+			350
+		],
+		"aggro": 22.0,
+		"reach": 5.0,
+		"cooldown": 1.8,
+		"radius": 1.5,
+		"height": 3.4,
+		"scale": 0.85,
+		"color": {
+			"$c": [
+				0.45,
+				0.85,
+				1.0,
+				1.0
+			]
+		},
+		"bld": 2.5,
+		"loot": [
+			[
+				"eclipse_greatsword",
+				0.04
+			],
+			[
+				"arcane_crystal",
+				1.0
+			],
+			[
+				"bone_shard",
+				1.0
+			],
+			[
+				"health_potion",
+				1.0
+			],
+			[
+				"guardian_greatsword",
+				0.12
+			],
+			[
+				"archmage_staff",
+				0.08
+			],
+			[
+				"storm_bow",
+				0.06
+			],
+			[
+				"dragonfang",
+				0.04
+			],
+			[
+				"lich_phylactery",
+				1.0
+			],
+			[
+				"abyss_core",
+				0.25
+			],
+			[
+				"scroll_sc_halo_scepter",
+				0.25
+			],
+			[
+				"scroll_mithril_longbow",
+				0.25
+			],
+			[
+				"scroll_mithril_gauntlets",
+				0.25
+			],
+			[
+				"scroll_astral_gauntlets",
+				0.08
+			],
+			[
+				"scroll_astral_greaves",
+				0.08
+			],
+			[
+				"scroll_astral_helm",
+				0.08
+			],
+			[
+				"scroll_astral_blade",
+				0.08
+			],
+			[
+				"scroll_astral_bow",
+				0.08
+			],
+			[
+				"scroll_sc_astral_scepter",
+				0.08
+			],
+			[
+				"scroll_soulwood_staff",
+				0.08
+			],
+			[
+				"scroll_astral_plate",
+				0.08
+			]
+		],
+		"boss": true,
+		"ref_level": 10
+	},
 	"lich": {
 		"name": "Morgrath, o Lich",
 		"model": "skeleton",
