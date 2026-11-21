@@ -75,6 +75,11 @@ var _gather := WorldHarvest.new()
 ## Cliente: nós de coleta esgotados por outros jogadores -> instante (s, relógio do motor) em que voltam. O mundo
 ## consulta ao montar os nós (node_down_for), que pode ser depois do aviso chegar.
 var _nodes_down := {}
+## Cliente: nós em que outro jogador está batendo agora (id -> true). Ninguém mais começa a coletar neles.
+var _nodes_busy := {}
+## Servidor: de quanto em quanto tempo as reservas vencidas são liberadas (s).
+const CLAIM_SWEEP := 1.0
+var _claim_sweep_t := CLAIM_SWEEP
 
 
 func _ready() -> void:
@@ -228,7 +233,82 @@ func gather_node(id: int, from: Vector3) -> void:
 func _gather_refusal(err: String) -> Array:
 	if err == "esgotado":
 		return [CharRules._notify("Este ponto de coleta ainda não se recuperou.", CharRules.C_BAD)]
+	if err == "ocupado":
+		return [CharRules._notify(BUSY_TEXT, CharRules.C_BAD)]
 	return []
+
+
+const BUSY_TEXT := "Outro jogador já está coletando aqui."
+
+
+## Reserva do nó `id` para o jogador local: chamada ao começar a bater e renovada a cada golpe (GatherAction).
+## Só online; o servidor recusa se outro jogador já está nele (_claim_res tira o jogador do nó).
+func claim_node(id: int) -> void:
+	if Network.is_client():
+		_claim_node.rpc_id(1, id)
+
+
+## O jogador local parou de bater no nó `id`.
+func release_node(id: int) -> void:
+	if Network.is_client():
+		_release_node.rpc_id(1, id)
+
+
+## Outro jogador está batendo no nó `id` agora? (só online; no solo nunca)
+func node_busy(id: int) -> bool:
+	return Network.is_client() and _nodes_busy.has(id)
+
+
+## Servidor: avisa quem está em Valdoria (menos `except`) que o nó `id` ficou ocupado ou livre.
+func _broadcast_busy(id: int, busy: bool, except := 0) -> void:
+	for pid in Network.zone_peers("world"):
+		if pid != except:
+			_node_busy.rpc_id(pid, id, busy)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _claim_node(id: int) -> void:
+	var peer := multiplayer.get_remote_sender_id()
+	if _sender_char() <= 0 or Network.zone_of(peer) != "world":
+		return
+	if not _claim_limit.allow(peer, Time.get_ticks_msec() / 1000.0):
+		return
+	var t := now()
+	var was := _gather.holder(id, t)
+	if not _gather.claim(Balance.tables, id, peer, t):
+		_claim_res.rpc_id(peer, id, false)
+		return
+	if was != peer:
+		_broadcast_busy(id, true, peer)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _release_node(id: int) -> void:
+	var peer := multiplayer.get_remote_sender_id()
+	if _gather.release(id, peer):
+		_broadcast_busy(id, false, peer)
+
+
+## Cliente: o servidor recusou a reserva (outro jogador chegou antes): para de bater nesse nó.
+@rpc("authority", "call_remote", "reliable")
+func _claim_res(id: int, ok: bool) -> void:
+	if ok:
+		return
+	var w := get_tree().current_scene
+	var p = w.get("player") if w else null
+	if p is Player and is_instance_valid(p) and p.ability == GatherAction.ID:
+		var n = p.ability_data.get("node")
+		if n != null and is_instance_valid(n) and int(n.node_id) == id:
+			p.end_ability()
+			Game.notify.emit(BUSY_TEXT, CharRules.C_BAD)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _node_busy(id: int, busy: bool) -> void:
+	if busy:
+		_nodes_busy[id] = true
+	else:
+		_nodes_busy.erase(id)
 
 
 ## Concessão (loot, missão, prêmio de partida). Só offline: online quem concede é o servidor
@@ -345,6 +425,7 @@ func client_reset() -> void:
 	for seq in waiting:
 		_finish(str(waiting[seq].op), waiting[seq].args, false, "sem_conexao", [], {})
 	_solo_loaded = false
+	_nodes_busy.clear()
 
 
 # ================================================================ vida, mana e posição
@@ -401,6 +482,11 @@ func _physics_process(delta: float) -> void:
 		if _purge_t <= 0.0:
 			_purge_t = PURGE_EVERY
 			pickups.purge_expired()
+		_claim_sweep_t -= delta
+		if _claim_sweep_t <= 0.0:
+			_claim_sweep_t = CLAIM_SWEEP
+			for id in _gather.expire_claims(now()):
+				_broadcast_busy(id, false)
 		return
 	# solo: relatório periódico (online o Network cuida, com o mesmo intervalo)
 	if Network.is_online() or not _solo_loaded:
@@ -554,6 +640,8 @@ func server_peer_gone(peer: int) -> void:
 	_req_limit.forget(peer)
 	_claim_limit.forget(peer)
 	pickups.drop_peer(peer)
+	for id in _gather.release_owner(peer):
+		_broadcast_busy(id, false, peer)
 
 
 ## Servidor: o peer trocou de zona; o loot que ficou no chão da zona antiga some (o cliente já trocou de cena).
@@ -562,6 +650,8 @@ func server_peer_zone_left(peer: int, old_zone: String) -> void:
 	pickups.drop_peer(peer, old_zone)
 	if old_zone == "world":
 		pickups.drop_peer(peer, "horde")
+		for id in _gather.release_owner(peer):
+			_broadcast_busy(id, false, peer)
 
 
 ## Conta do peer (0 se não está no jogo).
@@ -803,7 +893,7 @@ func _gather_node(seq: int, id: int) -> void:
 	var pos: Vector3 = Network.last_pos.get(peer, Vector3.INF)
 	if Network.zone_of(peer) != "world":
 		pos = Vector3.INF   # fora de Valdoria não há veios
-	var g := _gather.gather(Balance.tables, char_id, id, pos, now())
+	var g := _gather.gather(Balance.tables, char_id, id, pos, now(), peer)
 	if not g.ok:
 		_econ_res.rpc_id(peer, seq, false, str(g.err), _gather_refusal(g.err), {})
 		return
@@ -824,6 +914,8 @@ func server_send_depleted(peer: int) -> void:
 	var d := _gather.depleted(now())
 	if not d.is_empty():
 		_nodes_depleted.rpc_id(peer, d)
+	for id in _gather.claims(now()):
+		_node_busy.rpc_id(peer, id, true)   # nós em que alguém está batendo agora
 
 
 ## Cliente: outro jogador coletou o nó `id`; ele volta em `secs` segundos.
@@ -840,6 +932,7 @@ func _nodes_depleted(d: Dictionary) -> void:
 
 func _mark_node_down(id: int, secs: float) -> void:
 	_nodes_down[id] = Time.get_ticks_msec() / 1000.0 + secs
+	_nodes_busy.erase(id)
 	var w := get_tree().current_scene
 	if w and "resource_by_id" in w:
 		var n = w.resource_by_id.get(id)

@@ -41,9 +41,11 @@ static func start(player: Node, node: Node3D, plan: Dictionary) -> void:
 	player.begin_ability(ID, {"node": node, "tool": plan.tool, "power": float(plan.power), "swing": float(plan.swing),
 		"axe": axe, "approach": absf(_center_distance(player, node) - node.stand_distance()) > STAND_TOL})
 	_face(player, node.global_position)
+	Econ.claim_node(int(node.node_id))   # online: ninguém mais coleta este nó enquanto bato nele
 	player.gather_tool = str(plan.tool)
 	player.refresh_look()
 	if not player.ability_data.approach:
+		_reset_clock(player.ability_data)
 		_announce(player)
 
 
@@ -103,6 +105,7 @@ static func _approach(player: Node, d: Dictionary, t: float, move_dir: Vector3) 
 	if absf(off) <= STAND_TOL or t > APPROACH_MAX or to.length() < 0.05:
 		d.approach = false
 		player.ability_t = 0.0
+		_reset_clock(d)
 		player.velocity.x = 0.0
 		player.velocity.z = 0.0
 		_announce(player)
@@ -120,12 +123,36 @@ static func _impact(player: Node, d: Dictionary, t: float) -> void:
 		FX.burst(tip, Color(0.45, 0.3, 0.15) if d.get("axe", false) else Color(0.62, 0.6, 0.56), 5, 2.5, 0.06, 0.3)
 		return
 	var node = d.node
+	d["last_hit"] = t
+	d["next_hit"] = t + float(d.get("swing", 1.0))
+	Econ.claim_node(int(node.node_id))   # renova a reserva a cada golpe
 	var done: bool = node.strike(player.global_position, float(d.power))
 	player.add_shake(0.07)
 	if not d.get("axe", false):
 		FX.burst(tip, Color(1.0, 0.85, 0.5), 4, 3.5, 0.04, 0.25)   # faíscas da picareta na pedra
 	if done:
 		d["done_t"] = t
+
+
+## Relógio da barra de progresso: o primeiro golpe bate em IMPACT do ciclo, os outros a cada `swing`.
+static func _reset_clock(d: Dictionary) -> void:
+	d["last_hit"] = 0.0
+	d["next_hit"] = float(d.get("swing", 1.0)) * IMPACT
+
+
+## Fração da coleta para a barra do HUD (0..1): a força já somada no nó mais a parte do próximo golpe que o
+## ciclo já andou, para a barra subir sem parar em vez de pular a cada golpe (e chegar cheia no golpe final).
+static func bar_ratio(player: Node) -> float:
+	var d: Dictionary = player.ability_data
+	var node = d.get("node")
+	if d.has("done_t"):
+		return 1.0
+	if node == null or not is_instance_valid(node) or d.get("approach", false):
+		return 0.0 if node == null or not is_instance_valid(node) else node.ratio()
+	var span := maxf(float(d.get("next_hit", 1.0)) - float(d.get("last_hit", 0.0)), 0.001)
+	var step := clampf((player.ability_t - float(d.get("last_hit", 0.0))) / span, 0.0, 1.0)
+	var tough: float = maxf(node.tough, 0.001)
+	return clampf(minf(node.progress + float(d.get("power", 0.0)) * step, node.tough) / tough, 0.0, 1.0)
 
 
 static func release(_player: Node) -> void:
