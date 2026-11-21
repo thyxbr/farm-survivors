@@ -254,8 +254,9 @@ func _ready() -> void:
 	if data.model == "mole":   # Toupeira: o segundo osso de cada membro (cotovelo e joelho)
 		for n in ["ElbowL", "ElbowR", "KneeL", "KneeR"]:
 			parts[n] = model.find_child(n, true, false)
-	if data.model == "thorn_tree":   # Espinheira: cotovelos, joelhos e a copa
-		for n in ["ElbowL", "ElbowR", "KneeL", "KneeR", "Crown"]:
+	if data.model == "thorn_tree":   # Espinheira: cotovelos, joelhos, mãos, a copa, os galhos dos lados e os cipós
+		for n in ["ElbowL", "ElbowR", "KneeL", "KneeR", "HandL", "HandR", "Crown", "BoughL", "BoughR", "Hang0", "Hang1",
+				"Hang2", "Hang3"]:
 			parts[n] = model.find_child(n, true, false)
 	if data.model in ["spider", "centipede"]:   # Tecelã e Centopeia: abdômen e as pernas (Leg0L..Leg3R)
 		for n in SPIDER_PARTS:
@@ -2174,6 +2175,8 @@ func show_hit(amount: float, crit: bool) -> void:
 		Color(1, 0.85, 0.2) if crit else Color.WHITE, 64 if crit else 48)
 	FXToon.hit_splat(global_position + Vector3.UP * data.height * data.scale * 0.5, data.color, 5)
 	_flash_t = 0.1
+	if data.model == "thorn_tree":
+		_thorn_leaves(8 if crit else 4)   # cada pancada arranca folhas da copa
 	if bar_root:
 		bar_root.visible = true
 
@@ -3260,15 +3263,21 @@ func wither() -> void:
 	queue_free()
 
 
-## Espinheira: passada pesada de raiz (joelho dobra quando a perna volta), braços compridos balançando com atraso,
-## a copa ondulando e o queixo respirando. Golpes: a garra arma com o corpo indo para trás e para baixo e o braço
-## direito subindo, depois varre para a frente; as Raízes erguem os dois braços e cravam as garras no chão (ficam
-## lá enquanto as raízes correm); os Brotos são um rugido com os braços abertos e a copa tremendo; os Esporos
-## curvam o tronco e a copa bombeia. Rotação x positiva: topo para a frente, perna/braço para trás, queixo abre.
+## Espinheira: passada pesada de raiz (joelho dobra quando a perna volta; cada pisada levanta terra e derruba
+## folhas), braços compridos balançando com atraso e as mãos de garra abrindo e fechando, a copa ondulando com os
+## galhos dos lados e os cipós pendurados cada um no seu tempo, o queixo respirando e folhas caindo o tempo todo.
+## Golpes: a garra arma com o corpo indo para trás e para baixo e o braço direito subindo de mão aberta, depois
+## varre para a frente; as Raízes erguem os dois braços e cravam as garras no chão (ficam lá enquanto as raízes
+## correm); os Brotos são um rugido com os braços abertos e a copa tremendo; os Esporos curvam o tronco e a copa
+## bombeia. Rotação x positiva: topo para a frente, perna/braço para trás, queixo abre, mão fecha.
 func _animate_thorn(hspeed: float, s: float, k: float) -> void:
 	var body: Node3D = parts.Body
 	if not _rig.has("body_rest"):
 		_rig["body_rest"] = body.position
+		_rig["step"] = 0.0
+		_rig["hit"] = false
+		if parts.get("Crown") != null and not puppet_headless():
+			_rig["leaves"] = BossFX.leaf_fall(parts.Crown, 1.7, 1.2)
 	var amp := clampf(hspeed / 2.6, 0.0, 1.0)
 	var idle := 1.0 - amp
 	var c := cos(anim_t)
@@ -3276,17 +3285,23 @@ func _animate_thorn(hspeed: float, s: float, k: float) -> void:
 	var leg := s * 0.38 * amp
 	var knee_l := maxf(0.0, c) * 0.7 * amp + 0.06
 	var knee_r := maxf(0.0, -c) * 0.7 * amp + 0.06
-	var arm_l := -s * 0.3 * amp - 0.08 + sin(lt * 0.7) * 0.03 * idle
-	var arm_r := s * 0.3 * amp - 0.08 + sin(lt * 0.7 + 1.3) * 0.03 * idle
-	var elb_l := -0.22 - c * 0.18 * amp - sin(lt * 0.6) * 0.05 * idle
-	var elb_r := -0.22 + c * 0.18 * amp - sin(lt * 0.6 + 1.0) * 0.05 * idle
+	var arm_l := -s * 0.3 * amp - 0.06 + sin(lt * 0.7) * 0.035 * idle
+	var arm_r := s * 0.3 * amp - 0.06 + sin(lt * 0.7 + 1.3) * 0.035 * idle
+	var elb_l := -0.2 - c * 0.2 * amp - sin(lt * 0.6) * 0.06 * idle
+	var elb_r := -0.2 + c * 0.2 * amp - sin(lt * 0.6 + 1.0) * 0.06 * idle
+	# mãos: soltas, abrem e fecham devagar; andando seguem o braço com atraso
+	var hand_l := 0.12 + sin(lt * 0.9 + 0.5) * 0.14 * idle + sin(anim_t - 0.9) * 0.2 * amp
+	var hand_r := 0.12 + sin(lt * 0.9 + 2.1) * 0.14 * idle - sin(anim_t - 0.9) * 0.2 * amp
 	var body_x := 0.07 + sin(lt * 0.55) * 0.025 * idle
-	var body_y := s * 0.05 * amp
-	var body_z := sin(anim_t) * 0.045 * amp   # o peso passa de uma raiz para a outra
-	var off := Vector3(0.0, -absf(s) * 0.06 * amp + sin(lt * 1.1) * 0.02 * idle, 0.0)
-	var crown_x := sin(lt * 0.5) * 0.035 + body_x * -0.3
-	var crown_z := sin(lt * 0.7 + 0.4) * 0.045 - body_z * 1.2
+	var body_y := s * 0.07 * amp + sin(lt * 0.33) * 0.03 * idle
+	var body_z := sin(anim_t) * 0.05 * amp   # o peso passa de uma raiz para a outra
+	var off := Vector3(0.0, -absf(s) * 0.07 * amp + sin(lt * 1.1) * 0.02 * idle, 0.0)
+	var head_x := sin(lt * 0.45 + 0.7) * 0.025 * idle
+	var crown_x := sin(lt * 0.5) * 0.04 - body_x * 0.3 - absf(s) * 0.05 * amp
+	var crown_z := sin(lt * 0.7 + 0.4) * 0.05 - body_z * 1.3
 	var crown_s := 1.0
+	var bough := sin(lt * 0.8 - 0.9) * 0.05 + sin(anim_t - 1.1) * 0.07 * amp   # galhos dos lados: atrasados
+	var shake := 0.0   # tremor da copa (galhos e cipós chacoalham junto)
 	var jaw := 0.04 + sin(lt * 1.2) * 0.03
 	if state == "attack":
 		var t := attack_timer
@@ -3295,25 +3310,30 @@ func _animate_thorn(hspeed: float, s: float, k: float) -> void:
 		var e := u * u * (3.0 - 2.0 * u)
 		match attack_kind:
 			"swing":
-				if t < ht:   # arma: recua e afunda, gira o tronco, braço direito sobe por trás
-					off = Vector3(0.0, -0.16 * e, -0.3 * e)
-					body_y = 0.4 * e
+				if t < ht:   # arma: recua e afunda, gira o tronco, braço direito sobe por trás de mão aberta
+					off = Vector3(0.0, -0.18 * e, -0.32 * e)
+					body_y = 0.42 * e
 					body_x = 0.02
 					arm_r = -2.3 * e
 					elb_r = -0.9 * e
+					hand_r = -0.5 * e
 					arm_l = -0.5 * e
+					hand_l = 0.4 * e
 					jaw = 0.25 * e
-				elif t < ht + 0.35:   # varre: o corpo vai para a frente e o braço desce cruzando
-					off = Vector3(0.0, -0.1, 0.32)
-					body_y = -0.45
-					body_x = 0.32
+					head_x = -0.04 * e
+				elif t < ht + 0.35:   # varre: o corpo vai para a frente e o braço desce cruzando, mão em gancho
+					off = Vector3(0.0, -0.1, 0.34)
+					body_y = -0.48
+					body_x = 0.34
 					arm_r = -0.45
 					elb_r = -0.1
-					arm_l = 0.25
-					jaw = 0.35
+					hand_r = 0.55
+					arm_l = 0.3
+					jaw = 0.38
+					shake = 1.0
 			"roots":
 				var dur := _attack_duration()
-				if t < ht - 0.25:   # os dois braços sobem, o tronco recua
+				if t < ht - 0.25:   # os dois braços sobem de mãos abertas, o tronco recua
 					var w := clampf(t / (ht - 0.25), 0.0, 1.0)
 					w = w * w * (3.0 - 2.0 * w)
 					off = Vector3(0.0, -0.08 * w, -0.25 * w)
@@ -3321,6 +3341,8 @@ func _animate_thorn(hspeed: float, s: float, k: float) -> void:
 					arm_r = -2.6 * w
 					elb_l = -0.5 * w
 					elb_r = -0.5 * w
+					hand_l = -0.5 * w
+					hand_r = -0.5 * w
 					body_x = -0.04
 					jaw = 0.3 * w
 				elif t < dur - 0.35:   # crava as garras no chão e segura enquanto as raízes correm
@@ -3330,22 +3352,26 @@ func _animate_thorn(hspeed: float, s: float, k: float) -> void:
 					arm_r = -0.2
 					elb_l = -0.15
 					elb_r = -0.15
+					hand_l = 0.35
+					hand_r = 0.35
 					knee_l = 0.45
 					knee_r = 0.45
 					leg = -0.2
 					jaw = 0.4
-					crown_z += sin(t * 28.0) * 0.03
+					shake = 0.6
 			"sprouts":
 				if t < ht + 0.5:   # rugido: braços abertos com as garras para cima, copa tremendo
 					arm_l = -1.4 * e
 					arm_r = -1.4 * e
 					elb_l = -1.1 * e
 					elb_r = -1.1 * e
+					hand_l = -0.6 * e
+					hand_r = -0.6 * e
 					body_x = -0.1 * e
 					off = Vector3(0.0, 0.05 * e, -0.1 * e)
 					jaw = 0.5 * e
-					crown_z += sin(t * 32.0) * 0.07 * e
-					crown_x += sin(t * 27.0 + 1.0) * 0.05 * e
+					head_x = -0.05 * e
+					shake = 1.4 * e
 			"spores":
 				if t < ht + 0.4:   # curva o tronco, braços para trás, a copa incha e solta
 					body_x = 0.38 * e
@@ -3354,14 +3380,39 @@ func _animate_thorn(hspeed: float, s: float, k: float) -> void:
 					arm_r = 0.45 * e
 					elb_l = -0.3
 					elb_r = -0.3
+					hand_l = 0.5 * e
+					hand_r = 0.5 * e
 					jaw = 0.45 * e
-					crown_s = 1.0 + 0.1 * e + (sin(t * 22.0) * 0.04 if t < ht else 0.0)
+					crown_s = 1.0 + 0.1 * e
 					crown_x = 0.25 * e
+					shake = 1.0 if t < ht else 0.3
+		# o golpe acerta: folhas arrancadas da copa (uma vez por golpe)
+		if t >= ht and not _rig.hit:
+			_rig.hit = true
+			_thorn_leaves(14 if attack_kind in ["sprouts", "spores"] else 9)
+		elif t < ht:
+			_rig.hit = false
+	else:
+		_rig.hit = false
+	if stagger > 0.0 or _flash_t > 0.0:
+		shake = maxf(shake, 0.8)   # pancada: a copa estremece
+	var sh := shake * sin(lt * 31.0)
+	var sh2 := shake * sin(lt * 27.0 + 1.0)
+	crown_z += sh * 0.05
+	crown_x += sh2 * 0.035
+	# pisada: quando uma raiz bate no chão, terra espirra, folhas caem e quem está perto sente o tranco
+	if amp > 0.35 and state != "attack":
+		var step := signf(s)
+		if step != 0.0 and step != float(_rig.step):
+			_rig.step = step
+			_thorn_step("KneeL" if step > 0.0 else "KneeR")
+	var roots_pose := state == "attack" and attack_kind == "roots"
 	parts.LegL.rotation.x = lerp(parts.LegL.rotation.x, leg, k)
-	parts.LegR.rotation.x = lerp(parts.LegR.rotation.x, -leg if state != "attack" or attack_kind != "roots" else leg, k)
+	parts.LegR.rotation.x = lerp(parts.LegR.rotation.x, leg if roots_pose else -leg, k)
 	parts.ArmL.rotation.x = lerp(parts.ArmL.rotation.x, arm_l, k)
 	parts.ArmR.rotation.x = lerp(parts.ArmR.rotation.x, arm_r, k)
-	for pair in [["KneeL", knee_l], ["KneeR", knee_r], ["ElbowL", elb_l], ["ElbowR", elb_r]]:
+	for pair in [["KneeL", knee_l], ["KneeR", knee_r], ["ElbowL", elb_l], ["ElbowR", elb_r], ["HandL", hand_l],
+			["HandR", hand_r]]:
 		var j: Node3D = parts.get(pair[0])
 		if j:
 			j.rotation.x = lerp(j.rotation.x, float(pair[1]), k)
@@ -3369,10 +3420,52 @@ func _animate_thorn(hspeed: float, s: float, k: float) -> void:
 	body.rotation.y = lerp(body.rotation.y, body_y, k)
 	body.rotation.z = lerp(body.rotation.z, body_z, k)
 	body.position = body.position.lerp(_rig.body_rest + off, k)
+	if parts.Head:
+		parts.Head.rotation.x = lerp(parts.Head.rotation.x, head_x, k)
 	var crown: Node3D = parts.get("Crown")
 	if crown:
 		crown.rotation.x = lerp(crown.rotation.x, crown_x, k)
 		crown.rotation.z = lerp(crown.rotation.z, crown_z, k)
 		crown.scale = crown.scale.lerp(Vector3.ONE * crown_s, k)
+	# galhos mestres dos lados: seguem a copa com atraso (um sobe quando o outro desce) e tremem com ela
+	for pair in [["BoughL", 1.0], ["BoughR", -1.0]]:
+		var bn: Node3D = parts.get(pair[0])
+		if bn:
+			var sd: float = pair[1]
+			bn.rotation.z = lerp(bn.rotation.z, bough * sd + sh2 * 0.05, k)
+			bn.rotation.x = lerp(bn.rotation.x, sin(lt * 0.6 + sd) * 0.03 + sh * 0.04 * sd, k)
+	# cipós pendurados: pêndulos, cada um com o seu tempo; andando ficam para trás
+	for i in 4:
+		var hn: Node3D = parts.get("Hang%d" % i)
+		if hn:
+			var ph := i * 1.7
+			hn.rotation.x = lerp(hn.rotation.x, sin(lt * 1.3 + ph) * 0.1 + sin(anim_t - 1.4 + ph) * 0.22 * amp
+				- 0.18 * amp + sh * 0.25, k)
+			hn.rotation.z = lerp(hn.rotation.z, sin(lt * 1.05 + ph * 1.3) * 0.12 - crown_z * 0.8 + sh2 * 0.25, k)
 	if parts.Jaw:
 		parts.Jaw.rotation.x = lerp(parts.Jaw.rotation.x, jaw, k)
+
+
+## Sem tela (servidor dedicado, testes headless): nada de partículas.
+func puppet_headless() -> bool:
+	return DisplayServer.get_name() == "headless"
+
+
+## Folhas arrancadas da copa.
+func _thorn_leaves(n: int) -> void:
+	var crown: Node3D = parts.get("Crown")
+	if crown != null and is_inside_tree():
+		BossFX.leaf_burst(crown.global_position + Vector3.UP * 1.2 * float(data.scale), n, 1.6)
+
+
+## Pisada de uma raiz: terra, algumas folhas e um tranco em quem está perto.
+func _thorn_step(knee: String) -> void:
+	var kn: Node3D = parts.get(knee)
+	if kn == null or not is_inside_tree() or puppet_headless():
+		return
+	var at := Vector3(kn.global_position.x, global_position.y + 0.1, kn.global_position.z)
+	FX.burst(at, Color(0.34, 0.25, 0.16), 7, 2.4, 0.12, 0.5)
+	_thorn_leaves(3)
+	var lp := _local_player()
+	if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(global_position) < 14.0:
+		lp.add_shake(0.08)
