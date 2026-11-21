@@ -1462,6 +1462,7 @@ func _ready() -> void:
 	await _test_bocarrao_tongue()
 	await _test_flor_rooted()
 	await _test_espinheira()
+	await _test_forjador()
 	await _test_enemy_detour()
 	await _test_river()
 	await _test_archer_pose()
@@ -4530,6 +4531,143 @@ func _count(kind: String) -> int:
 		if e.kind == kind:
 			n += 1
 	return n
+
+
+## Forjador Rúnico (chefe das Galerias Profundas): a Martelada acerta quem está no cone e deixa as faixas de metal
+## derretido (que queimam quem pisa), o Respiro da Fornalha queima quem está colado, o Escudo Rúnico deixa ele
+## imune e só cai com as 3 runas quebradas (e ele segue atacando), e abaixo de metade da vida ele superaquece:
+## golpes mais rápidos, mais faixas e mais dano recebido.
+func _test_forjador() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 40)
+	player.global_position = spot
+	Game.hp = Game.max_hp()
+	var e := Enemy.new()
+	e.kind = "forjador_runico"
+	world.add_child(e)
+	e.global_position = spot + Vector3(0, 0, -5)
+	e.home = e.global_position
+	await wait(0.2)
+	check(e.is_boss and e.parts.get("Hammer") != null and e.parts.get("KneeL") != null and e.parts.get("ElbowR") != null
+		and e.parts.get("Door") != null, "Forjador: chefe, com martelo, joelhos, cotovelos e a porta da fornalha no modelo")
+	# Martelada: o jogador está a 5 m, na frente
+	var hp0: float = Game.hp
+	e._forge_n = 0
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "hammer", "Forjador: ataca com a Martelada (%s)" % e.attack_kind)
+	check(ForgeRules.in_cone(e._forge_origin, e._forge_dir, player.global_position), "Forjador: o cone aponta para o alvo")
+	await wait_until(func(): return Game.hp < hp0, 3.0)
+	check(Game.hp < hp0, "Forjador: a Martelada acerta quem está no cone (%.0f -> %.0f)" % [hp0, Game.hp])
+	var trails := _forge_trails()
+	check(trails.size() == ForgeRules.TRAILS, "Forjador: a Martelada deixa as faixas de metal derretido (%d)" % trails.size())
+	# a faixa do meio passa debaixo do jogador: queima enquanto ele fica em cima
+	Game.hp = Game.max_hp()
+	var hp1: float = Game.hp
+	await wait_until(func(): return Game.hp < hp1, 2.5)
+	check(Game.hp < hp1, "Forjador: o metal derretido queima quem pisa (%.0f -> %.0f)" % [hp1, Game.hp])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	for tr in _forge_trails():
+		tr.queue_free()
+	# Respiro da Fornalha: o 3º golpe, com o alvo colado nele
+	player.global_position = e.global_position + Vector3(0, 0, 3.0)
+	Game.hp = Game.max_hp()
+	var hp2: float = Game.hp
+	e._forge_n = 2
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "vent", "Forjador: com o alvo colado vem o Respiro da Fornalha (%s)" % e.attack_kind)
+	await wait_until(func(): return Game.hp < hp2, 3.0)
+	check(Game.hp < hp2, "Forjador: o Respiro queima quem está em volta (%.0f -> %.0f)" % [hp2, Game.hp])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	# Escudo Rúnico: a vida cai a 80%, ele crava o punho e as 3 runas nascem
+	Game.hp = Game.max_hp()
+	e.hp = e.max_hp * 0.7
+	e._forge_n = 0
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "rune_shield", "Forjador: ferido, ergue o Escudo Rúnico (%s)" % e.attack_kind)
+	await wait_until(func(): return e.shielded, 3.0)
+	var runes: Array = e._runes_near()
+	check(e.shielded and runes.size() == ForgeRules.RUNES, "Forjador: o escudo sobe e as runas nascem (%d)" % runes.size())
+	var hp_s: float = e.hp
+	e.take_damage(500.0, player.global_position, false)
+	check(is_equal_approx(e.hp, hp_s), "Forjador: com o escudo de pé ele é imune (%.0f -> %.0f)" % [hp_s, e.hp])
+	# com o escudo de pé ele continua atacando
+	await wait_until(func(): return e.state != "attack", 3.0)
+	Game.hp = Game.max_hp()
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack", 2.5)
+	check(e.state == "attack" and e.attack_kind in ["hammer", "vent"] and e.shielded,
+		"Forjador: de escudo erguido ele continua atacando (%s)" % e.attack_kind)
+	# duas runas quebradas: o escudo fica; a terceira: cai
+	for i in 2:
+		runes[i].take_damage(999999.0, player.global_position, false)
+	await wait(1.2)
+	check(e.shielded and e._runes_near().size() == 1, "Forjador: com uma runa viva o escudo continua de pé")
+	runes[2].take_damage(999999.0, player.global_position, false)
+	await wait_until(func(): return not e.shielded, 2.0)
+	check(not e.shielded, "Forjador: o escudo só cai com as 3 runas quebradas")
+	hp_s = e.hp
+	e.take_damage(50.0, player.global_position, false)
+	check(e.hp < hp_s, "Forjador: sem o escudo volta a levar dano (%.0f -> %.0f)" % [hp_s, e.hp])
+	check(not e._forge_wants_shield(), "Forjador: o próximo escudo espera a recarga")
+	await wait_until(func(): return e.state != "attack", 3.0)
+	for tr in _forge_trails():
+		tr.queue_free()
+	# fase 2: abaixo de metade da vida, superaquecido
+	var slow: float = e._forge_time(1.0)
+	e.hp = e.max_hp * 0.52
+	e.take_damage(e.max_hp * 0.05, player.global_position, false)
+	check(e.enraged, "Forjador: abaixo de metade da vida ele superaquece")
+	check(e._forge_time(1.0) < slow, "Forjador: superaquecido ataca mais rápido (%.2f -> %.2f)" % [slow, e._forge_time(1.0)])
+	hp_s = e.hp
+	e.take_damage(100.0, player.global_position, false)
+	var took: float = hp_s - e.hp
+	var plain: float = e.incoming(100.0)
+	check(took > plain * 1.2, "Forjador: superaquecido leva mais dano (%.0f em vez de %.0f)" % [took, plain])
+	player.global_position = e.global_position + Vector3(0, 0, 5.0)
+	Game.hp = Game.max_hp()
+	e._forge_n = 0
+	e._forge_since = 0.0
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack" and e.hit_done, 4.0)
+	check(e.attack_kind == "hammer" and _forge_trails().size() == ForgeRules.TRAILS_HOT,
+		"Forjador: superaquecido a Martelada deixa mais faixas (%d)" % _forge_trails().size())
+	# fim da luta: sem ele de escudo erguido, as runas se desfazem (sem recompensa)
+	e._forge_since = ForgeRules.SHIELD_CD
+	await wait_until(func(): return e.state != "attack", 3.0)
+	Game.hp = Game.max_hp()
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.shielded, 5.0)
+	var last: Array = e._runes_near()
+	check(e.shielded and last.size() == ForgeRules.RUNES, "Forjador: depois da recarga o escudo sobe de novo (%d runas)" % last.size())
+	e.queue_free()
+	await wait(1.5)
+	var left := 0
+	for r in last:
+		if is_instance_valid(r) and not r.dead:
+			left += 1
+	check(left == 0, "Forjador: sem ele, as runas se desfazem (%d sobraram)" % left)
+	for tr in _forge_trails():
+		tr.queue_free()
+	Game.hp = Game.max_hp()
+	player.global_position = back
+	await wait(0.1)
+
+
+func _forge_trails() -> Array:
+	var out := []
+	for c in world.get_children():
+		if c is MoltenTrail and not c.is_queued_for_deletion():
+			out.append(c)
+	return out
 
 
 ## Espinheira, a Guardiã-Raiz (chefe do Bosque): as Raízes acertam de longe e prendem, os Brotos nascem e a curam,
