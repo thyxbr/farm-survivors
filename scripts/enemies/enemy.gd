@@ -43,6 +43,12 @@ const FAR_HIDE := 110.0
 const FAR_MARGIN := 10.0
 var still := false
 var _far_t := 0.0
+## Nome, ícone de missão e barra de vida ficam juntos neste nó; some quando a câmera não vê o monstro (parede
+## ou morro no meio), já que as placas desenham por cima de tudo (no_depth_test).
+var _plates: Node3D
+var _occ_t := 0.0
+const OCCLUDE_CHECK := 0.2
+const OCCLUDE_MASK := 1   # camada "world"
 var _sleep_t := 0.0
 const SLEEP_CHECK := 0.5
 ## Tamanho do modelo além de data.scale (elite e camada de nível).
@@ -177,6 +183,7 @@ func _ready() -> void:
 		sleep_radius = float(Balance.tables.get_table("rules").get("enemy_sleep_radius", 0.0))
 		_sleep_t = randf() * SLEEP_CHECK   # espalha as conferências pelos quadros
 	_far_t = randf() * SLEEP_CHECK
+	_occ_t = randf() * OCCLUDE_CHECK
 	display_name = data.name
 	if elite:
 		display_name += " de Elite"
@@ -391,10 +398,34 @@ func _horde_frozen() -> bool:
 	return sv != null and is_instance_valid(sv) and sv.get("frozen") == true
 
 
+func _plate_parent() -> Node3D:
+	if _plates == null:
+		_plates = Node3D.new()
+		_plates.name = "Plates"
+		add_child(_plates)
+	return _plates
+
+
+## Esconde as placas quando há chão ou parede (camada world) entre a câmera e a cabeça do monstro: dentro das
+## dungeons os nomes não aparecem mais através das paredes.
+func _update_occlusion() -> void:
+	if _plates == null or not visible:
+		return
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var head: Vector3 = global_position + Vector3.UP * (float(data.height) * float(data.scale) * size_mult * 0.8)
+	var from := cam.global_position
+	if from.distance_to(head) > NAME_RANGE * 2.0:
+		return   # longe demais: o visibility_range já tira o nome
+	var q := PhysicsRayQueryParameters3D.create(from, head, OCCLUDE_MASK)
+	_plates.visible = get_world_3d().direct_space_state.intersect_ray(q).is_empty()
+
+
 func _make_health_bar() -> void:
 	bar_root = Node3D.new()
 	bar_root.position.y = data.height * data.scale * (size_mult if level > 0 else 1.0) + 0.45
-	add_child(bar_root)
+	_plate_parent().add_child(bar_root)
 	if _bar_meshes.is_empty():      # as duas malhas (e os materiais) servem para todas as barras
 		for spec in [[Vector2(1.0, 0.12), Color(0, 0, 0, 0.7), 0], [Vector2(0.96, 0.08), Color(0.85, 0.15, 0.1), 1]]:
 			var q := QuadMesh.new()
@@ -428,7 +459,7 @@ func _make_name_tag() -> void:
 		Game.leveled_up.connect(_update_plate_color)
 	name_tag.position.y = top + (0.75 if not is_boss else 0.5)
 	name_tag.visibility_range_end = NAME_RANGE * (2.0 if is_boss else 1.0)
-	add_child(name_tag)
+	_plate_parent().add_child(name_tag)
 	quest_icon = Sprite3D.new()
 	quest_icon.texture = _quest_texture()
 	quest_icon.pixel_size = 0.0024
@@ -440,7 +471,7 @@ func _make_name_tag() -> void:
 	quest_icon.position.y = name_tag.position.y
 	quest_icon.offset.y = 18.0     # em pixels do ícone: fica logo acima do nome a qualquer distância
 	quest_icon.visibility_range_end = name_tag.visibility_range_end
-	add_child(quest_icon)
+	_plate_parent().add_child(quest_icon)
 	Game.quests_changed.connect(_update_quest_icon)
 	_update_quest_icon()
 
@@ -519,6 +550,11 @@ static func _bar_mat(c: Color, priority: int) -> StandardMaterial3D:
 
 
 func _physics_process(delta: float) -> void:
+	if _plates != null:
+		_occ_t -= delta
+		if _occ_t <= 0.0:
+			_occ_t = OCCLUDE_CHECK
+			_update_occlusion()
 	if not horde and not is_boss:
 		_far_t -= delta
 		if _far_t <= 0.0:

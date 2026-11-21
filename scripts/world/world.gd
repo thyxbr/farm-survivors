@@ -1350,10 +1350,19 @@ func _arrive(region: String, mode := "coach") -> void:
 
 ## Chefes que nascem como monstros comuns (o Lich, a Slime Rainha não é chefe): a barra aparece quando o
 ## jogador chega perto, como a do Rei Goblin.
+## O chefe guardado só fica se ainda estiver perto: o servidor anuncia todo chefe que nasce (o de outra dungeon
+## ou o Rei Goblin do mapa), e antes isso prendia a barra num chefe distante e a do chefe da sala não aparecia.
 func _scan_boss() -> void:
-	if hud.boss != null and is_instance_valid(hud.boss) and not hud.boss.dead:
+	var cur = hud.boss
+	if cur != null and is_instance_valid(cur) and not cur.dead and cur.global_position.distance_to(player.global_position) < 40.0:
 		return
+	var best: Enemy = null
+	var best_d := 40.0
 	for e in get_tree().get_nodes_in_group("enemies"):
-		if e is Enemy and e.is_boss and not e.dead and e.global_position.distance_to(player.global_position) < 40.0:
-			hud.boss = e
-			return
+		if e is Enemy and e.is_boss and not e.dead and not e.horde:
+			var d: float = e.global_position.distance_to(player.global_position)
+			if d < best_d:
+				best_d = d
+				best = e
+	if best != null:
+		hud.boss = best
