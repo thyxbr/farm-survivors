@@ -86,6 +86,7 @@
 	"sc_halo_scepter": {"station": "alchemy", "prof": "alchemy", "level": 35, "ingredients": {"ashwood_log": 3, "arcane_crystal": 1, "essence_t4": 2, "lich_phylactery": 1}, "gold": 175, "out": "sc_halo_scepter", "qty": 1, "xp": 115, "learn": "scroll"},
 	"titan_cleaver": {"station": "forge", "prof": "smithing", "level": 35, "ingredients": {"mithril_ore": 6, "ashwood_log": 1, "essence_t4": 2}, "gold": 175, "out": "titan_cleaver", "qty": 1, "xp": 115, "learn": "npc"},
 	"mithril_greaves": {"station": "forge", "prof": "smithing", "level": 36, "ingredients": {"mithril_ore": 4, "essence_t4": 1}, "gold": 180, "out": "mithril_greaves", "qty": 1, "xp": 118, "learn": "npc"},
+	"mithril_plate": {"station": "forge", "prof": "smithing", "level": 36, "ingredients": {"mithril_ore": 6, "essence_t4": 2}, "gold": 180, "out": "mithril_plate", "qty": 1, "xp": 118, "learn": "npc"},
 	"mithril_longbow": {"station": "leather", "prof": "leatherwork", "level": 36, "ingredients": {"hide_t4": 5, "ashwood_log": 3, "essence_t4": 2, "lich_phylactery": 1}, "gold": 180, "out": "mithril_longbow", "qty": 1, "xp": 118, "learn": "scroll"},
 	"mithril_gauntlets": {"station": "forge", "prof": "smithing", "level": 37, "ingredients": {"mithril_ore": 4, "essence_t4": 1, "lich_phylactery": 1}, "gold": 185, "out": "mithril_gauntlets", "qty": 1, "xp": 121, "learn": "scroll"},
 	"astral_gauntlets": {"station": "forge", "prof": "smithing", "level": 45, "ingredients": {"astralite_ore": 4, "essence_t5": 1}, "gold": 225, "out": "astral_gauntlets", "qty": 1, "xp": 145, "learn": "scroll"},
