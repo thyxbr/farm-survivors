@@ -1,6 +1,6 @@
 # Peças dos biomas dos mapas de viagem: Pântano Sussurrante (árvore do pântano, juncos, cogumelos), Geleira de
-# Cristal (cristais de gelo) e Vulcão das Cinzas (árvore morta queimada). Executado por build_assets.py depois de
-# trees.py (usa boulder/hull/join/_mesh_obj/_lin de props.py e tr_* de trees.py).
+# Cristal (cristais de gelo, pinheiro congelado, pináculo de gelo) e Vulcão das Cinzas (árvore morta queimada).
+# Executado por build_assets.py depois de trees.py (usa boulder/hull/join/_mesh_obj/_lin de props.py e tr_* de trees.py).
 #
 # Mesmo estilo das árvores: low-poly facetado, tons por direção da face, uma malha por modelo.
 # Frente = -Y, chão em Z = 0, origem no pé.
@@ -182,6 +182,81 @@ def build_ice_crystal():
     tr_finish(objs, "IceCrystal", "ice_crystal")
 
 
+# ======================================================== GELEIRA: PINHEIRO CONGELADO E PINÁCULO DE GELO
+b_frost_bark = mat("b_frost_bark", _lin(0.27, 0.27, 0.31), 0.95)
+b_frost = [mat("b_frost_dark", _lin(0.09, 0.21, 0.27), 0.85), mat("b_frost", _lin(0.36, 0.56, 0.64), 0.7),
+           mat("b_frost_snow", _lin(0.93, 0.96, 0.99), 0.8)]
+b_glacier_rock = [mat("b_glacier_rock_dark", _lin(0.20, 0.23, 0.30), 0.9),
+                  mat("b_glacier_rock", _lin(0.34, 0.38, 0.47), 0.9), mat("b_glacier_snow", _lin(0.9, 0.94, 0.98), 0.85)]
+
+
+def _icicle(name, top, length, r, seed):
+    """Pingente de gelo: pirâmide fina apontando para baixo."""
+    rnd = random.Random(seed)
+    top = Vector(top)
+    pts = []
+    for k in range(4):
+        a = k / 4 * 2 * PI + rnd.uniform(-0.2, 0.2)
+        pts.append(top + Vector((math.cos(a) * r, math.sin(a) * r, 0.02)))
+    pts.append(top + Vector((rnd.uniform(-0.02, 0.02), rnd.uniform(-0.02, 0.02), -length)))
+    return hull(name, pts, b_ice[1])
+
+
+def build_tree_frost():
+    """Pinheiro congelado (Geleira): poucas saias largas e caídas sob o peso da neve (topo branco, lado
+    azul-gelo, baixo escuro), tronco cinza-azulado e pingentes de gelo nas pontas dos galhos. ~5,6 m."""
+    rnd = random.Random(901)
+    objs = [tr_trunk("Trunk", 5.0, 0.24, 0.06, b_frost_bark, lean=(0.06, -0.04), flare=1.8, seed=902, seg=7)]
+    tr_roots(objs, "Frost", 0.24, b_frost_bark, n=4, seed=903, length=0.4)
+    tiers = [(0.95, 1.95, 1.05), (1.85, 1.62, 1.0), (2.7, 1.3, 0.95), (3.5, 0.98, 0.9), (4.25, 0.66, 0.85)]
+    for i, (z, r, h) in enumerate(tiers):
+        tier = _tier_frost("Tier%d" % i, z, r, h, seed=910 + i, pts=9 - i)
+        objs.append(tier)
+        # pingentes nas pontas caídas da saia (mais nas de baixo)
+        for k in range(6 - i):
+            a = rnd.uniform(0, 2 * PI)
+            rr = r * rnd.uniform(0.78, 0.95)
+            zz = z - 0.55 * r * 0.85
+            objs.append(_icicle("Icicle%d_%d" % (i, k), (math.cos(a) * rr, math.sin(a) * rr, zz),
+                                rnd.uniform(0.22, 0.45), 0.045, 930 + i * 10 + k))
+    objs.append(_tier_frost("Tip", 4.85, 0.3, 0.8, seed=919, pts=5, droop=0.2))
+    tr_finish(objs, "TreeFrost", "tree_frost")
+
+
+# _tier de trees.py guardado agora: o laço das ferramentas no armory.py reusa o nome global depois
+_conifer_tier = _tier
+
+
+def _tier_frost(name, z, r, h, seed, pts=8, droop=0.55):
+    """Saia do pinheiro congelado: a de conífera, mais caída, com o topo inteiro branco de neve."""
+    return _conifer_tier(name, z, r, h, b_frost, seed, pts=pts, droop=droop, jag=0.66)
+
+
+def build_ice_spire():
+    """Pináculo de gelo (Geleira): uma lança de gelo de ~5,5 m levemente torta, três menores encostadas e lascas,
+    nascendo de um monte de rocha escura com neve por cima. Marco de paisagem e paredão da Geleira."""
+    rnd = random.Random(951)
+    objs = [_prism("Main", (0, 0, -0.3), (0.12, 0.06, 1), 5.6, 0.62, b_ice, 952, sides=7)]
+    for k, (a, L, r, lean) in enumerate(((0.6, 3.9, 0.46, 0.35), (2.4, 3.1, 0.4, 0.45), (4.3, 2.5, 0.36, 0.55),
+                                         (5.4, 1.8, 0.28, 0.7))):
+        base = Vector((math.cos(a) * 0.62, math.sin(a) * 0.62, -0.2))
+        d = Vector((math.cos(a) * lean, math.sin(a) * lean, 1))
+        objs.append(_prism("Side%d" % k, base, d, L, r, b_ice, 960 + k))
+    for k in range(7):
+        a = rnd.uniform(0, 2 * PI)
+        base = Vector((math.cos(a) * rnd.uniform(1.0, 1.5), math.sin(a) * rnd.uniform(1.0, 1.5), -0.1))
+        d = Vector((math.cos(a) * rnd.uniform(0.5, 0.9), math.sin(a) * rnd.uniform(0.5, 0.9), 1))
+        objs.append(_prism("Shard%d" % k, base, d, rnd.uniform(0.6, 1.3), rnd.uniform(0.12, 0.2), b_ice, 970 + k))
+    # monte de rocha em volta do pé (as lanças saem de dentro dele), neve no topo das pedras
+    for k, (x, y, sx, sy, sz) in enumerate(((0.0, 0.0, 2.6, 2.3, 0.9), (1.1, -0.5, 1.3, 1.1, 0.7),
+                                            (-1.0, 0.6, 1.2, 1.3, 0.6), (0.3, 1.1, 1.1, 0.9, 0.5))):
+        ob = boulder("Rock%d" % k, (x, y, 0.0), (sx, sy, sz), b_glacier_rock[1], n=14, seed=980 + k)
+        tr_tone(ob, b_glacier_rock, hi=0.55, lo=-0.2, rnd=random.Random(k), flip=0.05)
+        _drop_first_slot(ob)
+        objs.append(ob)
+    tr_finish(objs, "IceSpire", "ice_spire")
+
+
 # ======================================================== OSSOS (dungeons)
 b_bone = mat("b_bone", _lin(0.78, 0.74, 0.62), 0.9)
 b_bone_dk = mat("b_bone_dark", _lin(0.52, 0.48, 0.38), 0.9)
@@ -231,5 +306,6 @@ def build_bones():
 
 BIOME_BUILDERS = {
     "tree_swamp": build_tree_swamp, "tree_dead": build_tree_dead, "reeds": build_reeds, "mushrooms": build_mushrooms,
-    "ice_crystal": build_ice_crystal, "bones": build_bones,
+    "ice_crystal": build_ice_crystal, "bones": build_bones, "tree_frost": build_tree_frost,
+    "ice_spire": build_ice_spire,
 }

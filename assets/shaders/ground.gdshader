@@ -10,7 +10,8 @@ const int MAX_SHAPES = 64;
 uniform vec4 shapes[MAX_SHAPES];      // retângulo: (cx, cz, meia_x, meia_z); disco: (cx, cz, raio, -1)
 uniform float shape_ang[MAX_SHAPES];  // giro do retângulo em Y (radianos, como o rotation.y do nó)
 uniform vec4 shape_cols[MAX_SHAPES];  // rgb linear + maciez da borda (m)
-uniform float shape_grass[MAX_SHAPES]; // 0 = terra lisa; > 0 = grama baixa/pisada manchada com a cor
+uniform float shape_grass[MAX_SHAPES]; // 0 = terra lisa; > 0 = grama baixa/pisada manchada com a cor;
+                                       // -1 = gelo, -2 = rocha nua (a neve acumulada não cobre)
 uniform int shape_count = 0;
 const int MAX_RIVER = 192;
 uniform vec4 river[MAX_RIVER];   // caminho dos rios (MapRiver): (x, z, meia largura sem chão, 1 = início de um rio)
@@ -78,6 +79,8 @@ void fragment() {
 	col *= 0.95 + 0.1 * n4;
 	float edge_n = (n2 - 0.5) * 1.4 + (n3 - 0.5) * 0.6;
 	float dirt = 0.0;   // quanto deste ponto é terra/pedra lisa (sem grama): poças nascem mais aí
+	float bare = 0.0;   // gelo e rocha nua: a neve acumulada não cobre
+	float icy = 0.0;    // gelo: liso e brilhante
 	for (int i = 0; i < shape_count; i++) {
 		vec4 s = shapes[i];
 		vec4 c = shape_cols[i];
@@ -91,7 +94,28 @@ void fragment() {
 		// terra batida: pedrisco claro e marcas escuras
 		vec3 sc = c.rgb * (0.85 + 0.25 * n3) * (0.9 + 0.2 * n4);
 		float g = shape_grass[i];
-		if (g > 0.0) {
+		if (g < -0.5) {
+			if (g > -1.5) {
+				// gelo: azul da forma, mais fundo nas manchas, veios brancos de geada em diagonal e
+				// rachaduras finas (cristas do ruído) claras com borda escura
+				float deep = smoothstep(0.42, 0.7, n2);
+				vec3 ice = mix(c.rgb * 1.08, c.rgb * 0.62, deep) * (0.97 + 0.06 * n4);
+				float fr = texture(noise_tex, vec2((wxz.x + wxz.y) * 0.035, (wxz.x - wxz.y) * 0.35)).r;
+				ice = mix(ice, vec3(0.82, 0.92, 0.98), smoothstep(0.6, 0.66, fr) * 0.55);
+				float r1 = abs(texture(noise_tex, wxz * 0.09 + vec2(0.31, 0.77)).r - 0.5);
+				float r2 = abs(texture(noise_tex, wxz * 0.21 + vec2(0.83, 0.19)).r - 0.5);
+				float crack = max(1.0 - smoothstep(0.008, 0.018, r1), (1.0 - smoothstep(0.005, 0.012, r2)) * 0.7);
+				float crack_dk = (1.0 - smoothstep(0.014, 0.03, r1)) * (1.0 - crack);
+				ice *= 1.0 - crack_dk * 0.25;
+				sc = mix(ice, vec3(0.9, 0.96, 1.0), crack * 0.85);
+			} else {
+				// rocha nua: pedra com veios escuros
+				float vein = 1.0 - smoothstep(0.01, 0.03, abs(texture(noise_tex, wxz * 0.15 + vec2(0.5, 0.2)).r - 0.5));
+				sc *= 1.0 - vein * 0.3;
+			}
+			bare = mix(bare, 1.0, a);
+			icy = mix(icy, g > -1.5 ? 1.0 : 0.0, a);
+		} else if (g > 0.0) {
 			// grama baixa: a grama do chão tingida pela cor da forma, com manchas gastas
 			// (mais claras e secas) onde o ruído médio sobe e riscos finos de pisada
 			float worn = smoothstep(0.5, 0.72, n3) * 0.6 + smoothstep(0.55, 0.8, n4) * 0.25;
@@ -99,7 +123,7 @@ void fragment() {
 			sc = mix(sc, mix(low, sc * 1.05, worn), g);
 		}
 		col = mix(col, sc, a);
-		dirt = mix(dirt, 1.0 - g, a);
+		dirt = mix(dirt, 1.0 - max(g, 0.0), a);
 	}
 	// Outono: folhas caídas espalhadas pela grama (menos nas trilhas), em tons de fogo.
 	if (season_autumn > 0.0) {
@@ -113,8 +137,8 @@ void fragment() {
 		lc = mix(lc, vec3(0.24, 0.11, 0.03), smoothstep(0.72, 0.8, hue));   // folha velha, marrom
 		col = mix(col, lc * (0.85 + 0.3 * n3), leaf);
 	}
-	float rough = 1.0;
-	float spec = 0.25;
+	float rough = mix(1.0, 0.12, icy);
+	float spec = mix(0.25, 0.75, icy);
 	vec3 nrm = vec3(0.0, 1.0, 0.0);
 
 	// Molhado: escurece (terra mais que grama) e ganha brilho.
@@ -141,7 +165,7 @@ void fragment() {
 	// ao derreter some na ordem inversa, em placas, e deixa o chão molhado (a água vem do weather).
 	float sn = texture(noise_tex, wxz * 0.05 + vec2(0.52, 0.21)).r * 0.6 + n3 * 0.3 + n4 * 0.1;
 	float th_s = 1.02 - weather_snow * 1.3 + dirt * 0.14;
-	float snow = smoothstep(th_s, th_s + 0.1, sn);
+	float snow = smoothstep(th_s, th_s + 0.1, sn) * (1.0 - bare);
 	vec3 snow_col = vec3(0.88, 0.91, 0.96) * (0.95 + 0.07 * n4);
 	snow_col = mix(snow_col, snow_col * vec3(0.9, 0.89, 0.88), dirt * 0.5);   // trilha: neve pisada
 	col = mix(col, snow_col, snow);
