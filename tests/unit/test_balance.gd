@@ -35,6 +35,7 @@ func test_roundtrip_matches_consts() -> void:
 			cur = cur.duplicate(true)
 			for kind in cur:
 				(cur[kind] as Dictionary).erase("ref_level")
+				(cur[kind] as Dictionary).erase("elements")   # afinidades elementais (bestiário) nasceram depois
 			# o loot foi enxugado (equipamento vem do sorteio por nível): compara o resto, dos dois lados
 			var snap_enemies: Dictionary = (BalanceTables.decode(snap[n]) as Dictionary).duplicate(true)
 			for kind in cur:

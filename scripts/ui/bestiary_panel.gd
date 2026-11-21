@@ -13,12 +13,12 @@ const COLS := 5
 const ROWS_PER_PAGE := 3
 const CARD := Vector2(172, 168)
 const PORTRAIT := 104.0
-const BIG := 210.0
+const BIG := 190.0
 const INK_GOOD := Color(0.1, 0.4, 0.12)
 const INK_GOLD := Color(0.45, 0.27, 0.02)
 const SILHOUETTE := Color(0.16, 0.11, 0.07, 0.9)
 ## Espaços por fileira de espólio (o resto fica vazio, como na Cyclopedia).
-const LOOT_SLOTS := 13
+const LOOT_SLOTS := 15
 static var _sil_mat: ShaderMaterial
 const STARS := {"comum": 1, "forte": 2, "elite": 3, "chefe": 4}
 const BAND_NAMES := ["", "Comum", "Incomum", "Raro", "Muito raro"]
@@ -278,6 +278,9 @@ func _build_entry(kind: String) -> void:
 		if st >= 2 else "", "Revelado no estágio 2"))
 	row.add_child(side)
 	_body.add_child(row)
+	# elementos (estágio 2, como as resistências da Cyclopedia)
+	_body.add_child(UITheme.ink_section("Elementos", 18))
+	_body.add_child(_elements(bt, kind, st >= 2))
 	# espólio por raridade
 	_body.add_child(UITheme.ink_section("Espólio", 18))
 	var view := BestiaryRules.loot_view(bt, kind, entry)
@@ -306,6 +309,64 @@ func _build_entry(kind: String) -> void:
 			% [int(gold[0]), int(gold[1])], 14, UITheme.INK_DIM)
 		g.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_body.add_child(g)
+
+
+## Afinidade de cada elemento: nome, régua (0 a 200% do dano, com a marca do neutro no meio) e o número;
+## verde = fraqueza (bom para o jogador), vermelho = resistência. Antes do estágio 2 tudo fica "?".
+const EL_COLORS := {"fisico": Color(0.55, 0.5, 0.45)}
+const C_WEAK := Color(0.12, 0.48, 0.14)
+const C_RESIST := Color(0.62, 0.14, 0.08)
+
+
+func _elements(bt: BalanceTables, kind: String, shown: bool) -> Control:
+	var g := GridContainer.new()
+	g.columns = 4
+	g.add_theme_constant_override("h_separation", 16)
+	g.add_theme_constant_override("v_separation", 6)
+	for el in BestiaryRules.ELEMENTS:
+		var cell := HBoxContainer.new()
+		cell.add_theme_constant_override("separation", 6)
+		cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var col: Color = EL_COLORS.get(el, EnchantFX.ELEMENTS.get(el, {}).get("color", UITheme.INK))
+		var dot := ColorRect.new()
+		dot.color = col.darkened(0.15)
+		dot.custom_minimum_size = Vector2(12, 12)
+		dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		cell.add_child(dot)
+		var name_l := UITheme.ink(BestiaryRules.ELEMENT_NAMES[el], 15, UITheme.INK)
+		name_l.custom_minimum_size.x = 62
+		cell.add_child(name_l)
+		var pct := BestiaryRules.element_pct(bt, kind, el)
+		var bar := UITheme.ink_bar(col.darkened(0.1), 0, 14)
+		bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		bar.custom_minimum_size.x = 70
+		bar.show_percentage = false
+		bar.max_value = 200
+		bar.value = pct if shown else 0
+		var mark := ColorRect.new()   # o neutro (100%)
+		mark.color = Color(UITheme.INK.r, UITheme.INK.g, UITheme.INK.b, 0.55)
+		mark.anchor_left = 0.5
+		mark.anchor_right = 0.5
+		mark.anchor_bottom = 1.0
+		mark.offset_left = -1
+		mark.offset_right = 1
+		bar.add_child(mark)
+		cell.add_child(bar)
+		var txt := "?"
+		var tc := UITheme.INK_DIM
+		if shown:
+			txt = "%d%%" % pct
+			tc = C_WEAK if pct > 100 else (C_RESIST if pct < 100 else UITheme.INK)
+			cell.tooltip_text = "%s: %s (recebe %d%% do dano)" % [BestiaryRules.ELEMENT_NAMES[el], BestiaryRules.element_word(pct), pct]
+		else:
+			cell.tooltip_text = "Revelado no estágio 2"
+		var v := UITheme.ink(txt, 15, tc, true)
+		v.custom_minimum_size.x = 46
+		v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		cell.add_child(v)
+		g.add_child(cell)
+	return g
 
 
 ## Régua de abates em 3 segmentos, um por estágio; cada um enche entre o alvo anterior e o dele.
@@ -401,7 +462,7 @@ func _abilities(bt: BalanceTables, kind: String, e: Dictionary) -> String:
 func _text_box(text: String, locked: String) -> Control:
 	var p := PanelContainer.new()
 	p.add_theme_stylebox_override("panel", UITheme.ink_inset(8))
-	p.custom_minimum_size.y = 84
+	p.custom_minimum_size.y = 72
 	var l := UITheme.ink(text if text != "" else "?  " + locked, 15, UITheme.INK if text != "" else UITheme.INK_DIM)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	p.add_child(l)
@@ -410,14 +471,14 @@ func _text_box(text: String, locked: String) -> Control:
 
 func _loot_slot(r: Dictionary) -> Control:
 	if r.shown:
-		var s := ItemSlot.new(52)
+		var s := ItemSlot.new(46)
 		s.paper = true
 		s.set_state(r.id, 0)
 		s.context = "reward"
 		s.tooltip = tooltip
 		return s
 	var q := PanelContainer.new()
-	q.custom_minimum_size = Vector2(52, 52)
+	q.custom_minimum_size = Vector2(46, 46)
 	q.add_theme_stylebox_override("panel", UITheme.ink_inset(2))
 	var lq := UITheme.ink("?", 24, UITheme.INK_DIM, true)
 	lq.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -430,7 +491,7 @@ func _loot_slot(r: Dictionary) -> Control:
 
 func _empty_slot() -> Control:
 	var q := Panel.new()
-	q.custom_minimum_size = Vector2(52, 52)
+	q.custom_minimum_size = Vector2(46, 46)
 	q.add_theme_stylebox_override("panel", UITheme.ink_inset(2))
 	q.modulate.a = 0.45
 	q.mouse_filter = Control.MOUSE_FILTER_IGNORE

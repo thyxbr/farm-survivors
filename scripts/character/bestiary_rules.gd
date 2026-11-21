@@ -128,6 +128,30 @@ static func loot_view(bt: BalanceTables, kind: String, entry: Dictionary) -> Arr
 	return out
 
 
+## Elementos de dano, na ordem da ficha: o físico e os seis dos encantamentos (enchant.json).
+const ELEMENTS := ["fisico", "fogo", "gelo", "raio", "veneno", "sagrado", "sombra"]
+const ELEMENT_NAMES := {"fisico": "Físico", "fogo": "Fogo", "gelo": "Gelo", "raio": "Raio", "veneno": "Veneno",
+	"sagrado": "Sagrado", "sombra": "Sombra"}
+
+
+## % do dano de `element` que o monstro recebe (enemies.json "elements"; sem entrada = 100, neutro).
+## < 100 resiste, > 100 é fraco, 0 é imune. O combate pode usar `element_pct / 100.0` como multiplicador.
+static func element_pct(bt: BalanceTables, kind: String, element: String) -> int:
+	var el = bt.get_table("enemies").get(kind, {}).get("elements", {})
+	return maxi(0, int(el.get(element, 100))) if el is Dictionary else 100
+
+
+## Texto curto da afinidade: "Imune", "Resiste", "Neutro" ou "Fraco".
+static func element_word(pct: int) -> String:
+	if pct <= 0:
+		return "Imune"
+	if pct < 100:
+		return "Resiste"
+	if pct > 100:
+		return "Fraco"
+	return "Neutro"
+
+
 ## Resumo: {"known", "complete", "total", "points"}.
 static func summary(bt: BalanceTables, bestiary: Dictionary) -> Dictionary:
 	var out := {"known": 0, "complete": 0, "total": 0, "points": 0}

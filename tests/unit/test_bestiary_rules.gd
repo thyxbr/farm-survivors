@@ -126,3 +126,19 @@ func test_loot_roll_keeps_table_ids() -> void:
 			for row in bt.get_table("enemies").esqueleto_cavaleiro.loot:
 				in_table = in_table or row[0] == id
 			T.ok(in_table, "rolled só tem ids da tabela (%s)" % id)
+
+
+func test_elements() -> void:
+	var bt := _tables()
+	T.eq(BestiaryRules.element_pct(bt, "esqueleto", "sagrado"), 150, "morto-vivo fraco a sagrado")
+	T.eq(BestiaryRules.element_pct(bt, "esqueleto", "sombra"), 0, "imune a sombra")
+	T.eq(BestiaryRules.element_pct(bt, "goblin", "gelo"), 100, "sem entrada = neutro")
+	T.eq(BestiaryRules.element_pct(bt, "nao_existe", "fogo"), 100, "tipo desconhecido = neutro")
+	T.eq(BestiaryRules.element_word(0), "Imune", "imune")
+	T.eq(BestiaryRules.element_word(75), "Resiste", "resiste")
+	T.eq(BestiaryRules.element_word(125), "Fraco", "fraco")
+	for k in BestiaryRules.all_kinds(bt):
+		var el: Dictionary = bt.get_table("enemies")[k].get("elements", {})
+		T.ok(not el.is_empty(), "%s tem afinidades" % k)
+		for e in el:
+			T.ok(e in BestiaryRules.ELEMENTS, "%s: elemento %s conhecido" % [k, e])
