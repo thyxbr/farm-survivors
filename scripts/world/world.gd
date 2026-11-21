@@ -747,6 +747,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_open_menu(3)
 	elif event.is_action_pressed("professions"):
 		_open_menu(4)
+	elif event.is_action_pressed("bestiary"):
+		_open_menu(5)
 	elif event.is_action_pressed("world_map") and survival == null:
 		open_world_map()
 	elif event.is_action_pressed("party"):
@@ -774,8 +776,8 @@ func open_world_map(tab := 0) -> void:
 	_open_modal(m)
 
 
-## Menu do herói: a aba 0 é o inventário (janela da direita); 1-4 são Personagem, Talentos, Missões e
-## Profissões, na janela da esquerda.
+## Menu do herói: a aba 0 é o inventário (janela da direita); 1-5 são Personagem, Talentos, Missões,
+## Profissões e Bestiário, na janela da esquerda.
 func _open_menu(tab: int) -> void:
 	var m := GAME_MENU.new()
 	m.mode = "inventory" if tab == 0 else "hero"

@@ -681,8 +681,12 @@ func server_enemy_killed(e: Enemy) -> void:
 				continue
 			var r: Dictionary = rewards[pid]
 			var group_level := int(group_levels.get(pid, 1))
+			# o loot sai antes do abate: o bestiário registra o espólio que caiu para este jogador
+			var drops := {}
+			if r.loot:
+				drops = Econ.server_drop_loot(pid, e.kind, pos, "world", e.level, e.elite, e.chief)
 			if r.kill:
-				Econ.server_kill(pid, e.kind, int(r.xp), e.level, group_level, e.area)
+				Econ.server_kill(pid, e.kind, int(r.xp), e.level, group_level, e.area, drops)
 			elif int(r.xp) > 0:
 				# quem está longe também leva o ajuste de nível (o abate perto o aplica em CharRules.kill)
 				var far_xp := int(r.xp)
@@ -692,7 +696,6 @@ func server_enemy_killed(e: Enemy) -> void:
 					[{"t": "notify", "text": "+%d XP do grupo (longe demais para contar na missão)" % far_xp,
 						"color": Color(0.7, 0.85, 1.0)}])
 			if r.loot:
-				Econ.server_drop_loot(pid, e.kind, pos, "world", e.level, e.elite, e.chief)
 				_kill_reward.rpc_id(pid, e.kind, int(r.xp), pos)
 	for pid in _enemy_peers(e):
 		_enemy_died.rpc_id(pid, e.net_id)

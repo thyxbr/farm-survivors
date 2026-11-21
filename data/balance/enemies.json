@@ -1,6 +1,7 @@
 {
 	"slime": {
 		"name": "Slime",
+		"elements": {"fisico": 90, "fogo": 125, "raio": 125, "veneno": 75},
 		"model": "slime",
 		"hp": 40,
 		"damage": 9,
@@ -46,6 +47,7 @@
 	},
 	"slime_grande": {
 		"name": "Slime Grande",
+		"elements": {"fisico": 80, "fogo": 125, "raio": 125, "veneno": 75},
 		"model": "slime",
 		"hp": 150,
 		"damage": 16,
@@ -88,6 +90,7 @@
 	},
 	"slime_veloz": {
 		"name": "Slime Veloz",
+		"elements": {"fogo": 125, "raio": 125, "veneno": 75},
 		"model": "slime",
 		"hp": 24,
 		"damage": 7,
@@ -133,6 +136,7 @@
 	},
 	"goblin": {
 		"name": "Goblin Batedor",
+		"elements": {"fogo": 110, "veneno": 110},
 		"model": "goblin",
 		"gear": [
 			"Club"
@@ -186,6 +190,7 @@
 	},
 	"slime_explosivo": {
 		"name": "Slime Explosivo",
+		"elements": {"fogo": 0, "gelo": 150, "veneno": 75},
 		"model": "slime",
 		"hp": 30,
 		"damage": 24,
@@ -229,6 +234,7 @@
 	},
 	"slime_mae": {
 		"name": "Slime Mãe",
+		"elements": {"fogo": 125, "raio": 125, "veneno": 50},
 		"model": "slime",
 		"hp": 120,
 		"damage": 13,
@@ -274,6 +280,7 @@
 	},
 	"goblin_arqueiro": {
 		"name": "Goblin Arqueiro",
+		"elements": {"fisico": 110, "fogo": 110, "veneno": 110},
 		"model": "goblin",
 		"gear": [
 			"Bow",
@@ -319,6 +326,7 @@
 	},
 	"goblin_xama": {
 		"name": "Goblin Xamã",
+		"elements": {"raio": 50, "veneno": 110, "sombra": 125},
 		"model": "goblin",
 		"gear": [
 			"Staff",
@@ -370,6 +378,7 @@
 	},
 	"goblin_dourado": {
 		"name": "Goblin Dourado",
+		"elements": {"fisico": 110, "sagrado": 50, "sombra": 125},
 		"model": "goblin",
 		"gear": [
 			"Sack"
@@ -419,6 +428,7 @@
 	},
 	"goblin_campeao": {
 		"name": "Campeão Goblin",
+		"elements": {"fisico": 75, "fogo": 90, "raio": 110},
 		"model": "goblin",
 		"gear": [
 			"Axe",
@@ -470,6 +480,7 @@
 	},
 	"goblin_bruto": {
 		"name": "Goblin Bruto",
+		"elements": {"fisico": 80, "raio": 115, "veneno": 110},
 		"model": "goblin",
 		"gear": [
 			"BigClub",
@@ -516,6 +527,7 @@
 	},
 	"goblin_king": {
 		"name": "Rei Goblin",
+		"elements": {"fisico": 80, "sagrado": 90, "sombra": 115},
 		"model": "goblin",
 		"gear": [
 			"Club",
@@ -592,6 +604,7 @@
 	},
 	"esqueleto": {
 		"name": "Esqueleto Guerreiro",
+		"elements": {"fisico": 90, "gelo": 75, "veneno": 0, "sagrado": 150, "sombra": 0},
 		"model": "skeleton",
 		"gear": [
 			"Sword",
@@ -638,6 +651,7 @@
 	},
 	"esqueleto_arqueiro": {
 		"name": "Esqueleto Arqueiro",
+		"elements": {"fisico": 90, "gelo": 75, "veneno": 0, "sagrado": 150, "sombra": 0},
 		"model": "skeleton",
 		"gear": [
 			"Bow",
@@ -677,6 +691,7 @@
 	},
 	"esqueleto_mago": {
 		"name": "Esqueleto Mago",
+		"elements": {"fisico": 110, "raio": 75, "veneno": 0, "sagrado": 150, "sombra": 0},
 		"model": "skeleton",
 		"gear": [
 			"Staff",
@@ -721,6 +736,7 @@
 	},
 	"esqueleto_cavaleiro": {
 		"name": "Cavaleiro Esqueleto",
+		"elements": {"fisico": 75, "gelo": 75, "veneno": 0, "sagrado": 125, "sombra": 0},
 		"model": "skeleton",
 		"gear": [
 			"Greatsword",
@@ -790,6 +806,7 @@
 	},
 	"goblin_bombardeiro": {
 		"name": "Goblin Bombardeiro",
+		"elements": {"fogo": 50, "gelo": 125},
 		"model": "goblin",
 		"gear": [
 			"Barrel",
@@ -833,6 +850,7 @@
 	},
 	"slime_gelo": {
 		"name": "Slime de Gelo",
+		"elements": {"gelo": 0, "fogo": 150, "raio": 125},
 		"model": "slime",
 		"hp": 70,
 		"damage": 10,
@@ -879,6 +897,7 @@
 	},
 	"slime_rainha": {
 		"name": "Slime Rainha",
+		"elements": {"fisico": 80, "fogo": 115, "veneno": 50, "sagrado": 75},
 		"model": "slime",
 		"hp": 700,
 		"damage": 24,
@@ -958,6 +977,7 @@
 	},
 	"espinheira": {
 		"name": "Espinheira, a Guardiã-Raiz",
+		"elements": {"fisico": 90, "fogo": 150, "gelo": 110, "veneno": 50},
 		"model": "thorn_tree",
 		"ai": "thorn",
 		"boss": true,
@@ -1068,6 +1088,7 @@
 	},
 	"forjador_runico": {
 		"name": "Forjador Rúnico",
+		"elements": {"fisico": 70, "fogo": 0, "gelo": 150, "raio": 110},
 		"model": "forge_golem",
 		"ai": "forge",
 		"boss": true,
@@ -1166,6 +1187,7 @@
 	},
 	"sentinela_nevasca": {
 		"name": "Sentinela da Nevasca",
+		"elements": {"fisico": 80, "fogo": 150, "gelo": 0, "raio": 110},
 		"model": "sentinel",
 		"ai": "blizzard",
 		"hp": 2400,
@@ -1282,6 +1304,7 @@
 	},
 	"lich": {
 		"name": "Morgrath, o Lich",
+		"elements": {"fisico": 80, "gelo": 50, "veneno": 0, "sagrado": 125, "sombra": 0},
 		"model": "skeleton",
 		"gear": [
 			"Staff",
@@ -1402,6 +1425,7 @@
 	},
 	"arauto_abismo": {
 		"name": "Arauto do Abismo",
+		"elements": {"fisico": 80, "raio": 90, "sagrado": 150, "sombra": 0},
 		"model": "void_herald",
 		"ai": "herald",
 		"boss": true,
@@ -1549,6 +1573,7 @@
 	},
 	"raptor_capim": {
 		"name": "Raptor-capim",
+		"elements": {"gelo": 125, "veneno": 110},
 		"model": "raptor",
 		"ai": "pack",
 		"hp": 70,
@@ -1591,6 +1616,7 @@
 	},
 	"tecela": {
 		"name": "Tecelã",
+		"elements": {"fogo": 150, "veneno": 50},
 		"model": "spider",
 		"ai": "weaver",
 		"hp": 85,
@@ -1640,6 +1666,7 @@
 	},
 	"flor_faminta": {
 		"name": "Flor-faminta",
+		"elements": {"fogo": 150, "gelo": 125, "raio": 75, "veneno": 50},
 		"model": "plant",
 		"ai": "plant",
 		"hp": 60,
@@ -1691,6 +1718,7 @@
 	},
 	"bocarrao": {
 		"name": "Bocarrão",
+		"elements": {"fogo": 90, "gelo": 125, "raio": 125, "veneno": 75},
 		"model": "frog",
 		"ai": "frog",
 		"hp": 170,
@@ -1735,6 +1763,7 @@
 	},
 	"asa_couro": {
 		"name": "Asa-couro",
+		"elements": {"raio": 125, "sagrado": 125, "sombra": 50},
 		"model": "bat",
 		"ai": "flyer",
 		"hp": 50,
@@ -1777,6 +1806,7 @@
 	},
 	"kobold": {
 		"name": "Kobold Lanterneiro",
+		"elements": {"fogo": 50, "gelo": 125},
 		"model": "goblin",
 		"gear": [
 			"MinerHelmet",
@@ -1837,6 +1867,7 @@
 	},
 	"centopeia": {
 		"name": "Centopeia de Túnel",
+		"elements": {"fogo": 125, "gelo": 110, "veneno": 0},
 		"model": "centipede",
 		"hp": 60,
 		"damage": 12,
@@ -1877,6 +1908,7 @@
 	},
 	"golem_cristal": {
 		"name": "Golem de Cristal",
+		"elements": {"fisico": 60, "raio": 150, "veneno": 0, "sagrado": 75, "sombra": 75},
 		"model": "golem",
 		"hp": 300,
 		"damage": 20,
@@ -1922,6 +1954,7 @@
 	},
 	"toupeira": {
 		"name": "Toupeira-Broca",
+		"elements": {"fisico": 90, "raio": 50, "veneno": 110},
 		"model": "mole",
 		"ai": "burrow",
 		"hp": 150,
@@ -1966,6 +1999,7 @@
 	},
 	"mae_verme": {
 		"name": "Mãe-Verme das Profundezas",
+		"elements": {"fisico": 85, "fogo": 110, "gelo": 125, "veneno": 50},
 		"model": "worm",
 		"ai": "worm",
 		"boss": true,
@@ -2058,6 +2092,7 @@
 	},
 	"lobo_geada": {
 		"name": "Lobo da Geada",
+		"elements": {"fogo": 150, "gelo": 50},
 		"model": "wolf",
 		"ai": "pack",
 		"hp": 70,
@@ -2101,6 +2136,7 @@
 	},
 	"lobo_alfa": {
 		"name": "Alfa da Matilha",
+		"elements": {"fisico": 85, "fogo": 125, "gelo": 50},
 		"model": "wolf",
 		"ai": "pack",
 		"elite": true,
@@ -2171,6 +2207,7 @@
 	},
 	"gralha_cristal": {
 		"name": "Gralha-de-Cristal",
+		"elements": {"fogo": 150, "gelo": 25, "raio": 125},
 		"model": "crow",
 		"ai": "ranged",
 		"shot": "ice",
@@ -2216,6 +2253,7 @@
 	},
 	"ieti": {
 		"name": "Ieti Glacial",
+		"elements": {"fisico": 90, "fogo": 150, "gelo": 25},
 		"model": "yeti",
 		"hp": 320,
 		"damage": 21,

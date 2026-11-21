@@ -2291,8 +2291,9 @@ func _die() -> void:
 		Network.server_enemy_killed(self)
 	elif not horde:
 		# solo: XP, missão e o chefe derrotado (king_dead) ficam com as regras (Econ.kill)
-		Game.on_enemy_killed(kind, xp_reward(), level, area)
-		drop_loot(get_parent(), kind, global_position, true, level, elite, is_boss)
+		# o loot sai antes do abate: o bestiário registra o espólio que caiu
+		var drops := drop_loot(get_parent(), kind, global_position, true, level, elite, is_boss)
+		Game.on_enemy_killed(kind, xp_reward(), level, area, drops)
 	die_visual()
 
 
@@ -2353,13 +2354,15 @@ func _death_blast() -> void:
 				p.add_shake(0.3))
 
 
-## Solo: sorteio do loot (LootRules, o mesmo do servidor) em pickups no chão.
+## Solo: sorteio do loot (LootRules, o mesmo do servidor) em pickups no chão. Devolve o que saiu da tabela do
+## monstro (antes da troca por classe), para o bestiário.
 static func drop_loot(parent: Node, enemy_kind: String, pos: Vector3, with_gold := true, level := 0, elite := false,
-		boss := false) -> void:
+		boss := false) -> Dictionary:
 	boss = boss or TYPES.get(enemy_kind, {}).get("boss", false)
 	var extra := DungeonRules.extra_loot(Balance.tables, Regions.region_at(pos), boss)
 	var loot := LootRules.roll(Balance.tables, enemy_kind, _loot_rng(), Game.char_class, level, elite, extra)
 	_spawn_loot(parent, pos, int(loot.gold) if with_gold else 0, loot.items)
+	return loot.get("rolled", {})
 
 
 static func _spawn_loot(parent: Node, pos: Vector3, gold: int, items: Dictionary) -> void:
