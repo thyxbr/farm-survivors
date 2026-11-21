@@ -422,6 +422,48 @@ static func aegis_guard_key(s: float) -> Array:
 	return keys[0]
 
 
+## Martelo de Energia: o herói ergue a espada (KnightMoves.HAMMER_RAISE, medida no clipe "Sword And Shield Casting"
+## do Mixamo). `t` = s desde o começo da habilidade; `lower` 0..1 = voltando à locomoção depois do impacto. As duas
+## mãos vão por IK (_guard_ik) até os pontos do clipe; a espada fica de pé pelo pulso (HAMMER_WRIST).
+static func hammer_raise_pose(p: Dictionary, t: float, lower: float) -> void:
+	var k := hammer_raise_key(t)
+	var w := smoothstep(0.0, KnightMoves.HAMMER_LEAD, t) * (1.0 - smoothstep(0.0, 1.0, lower))
+	if w <= 0.001:
+		return
+	for j in ["leg_l", "knee_l", "leg_r", "knee_r"]:
+		p[j] = lerpf(p[j], float(KnightMoves.HAMMER_STANCE[j]), w)
+	p.body_y = lerpf(p.body_y, float(KnightMoves.HAMMER_STANCE.body_y) + float(k[7]), w)
+	p.body_x = lerpf(p.body_x, float(k[5]), w)
+	p.twist = lerpf(p.twist, float(k[6]), w)
+	# a cabeça olha para cima, para o círculo, e desfaz o giro dos ombros
+	var up := smoothstep(0.05, KnightMoves.HAMMER_RAISE_TIME, t)
+	p.head_x = lerpf(p.head_x, -float(k[5]) * 0.6 - 0.32 * up, w)
+	p.head_y = lerpf(p.head_y, -float(k[6]) * 0.85, w)
+	# a lâmina vai ficando de pé conforme o braço sobe (hold_weapon_upright orienta o suporte)
+	p["blade_up"] = w * smoothstep(0.05, 0.3, t)
+	p["guard"] = {"w": w, "hand_r": k[3], "elbow_r": k[4], "hand_l": k[1], "elbow_l": k[2]}
+	for j in ["body_x", "body_y", "twist", "head_x", "head_y"]:
+		if not (j in p.snap):
+			p.snap.append(j)
+
+
+## Chave da subida da espada `t` s depois do começo (misturando as vizinhas); depois do fim, a última.
+static func hammer_raise_key(t: float) -> Array:
+	var keys: Array = KnightMoves.HAMMER_RAISE
+	if t <= 0.0:
+		return keys[0]
+	for i in range(1, keys.size()):
+		var b: Array = keys[i]
+		if t <= float(b[0]):
+			var a: Array = keys[i - 1]
+			var u := ease_curve((t - float(a[0])) / maxf(float(b[0]) - float(a[0]), 0.0001), "io")
+			var out := [t]
+			for j in range(1, a.size()):
+				out.append(lerp(a[j], b[j], u))
+			return out
+	return keys[keys.size() - 1]
+
+
 static func rest_pose() -> Dictionary:
 	return {"leg_l": 0.0, "leg_r": 0.0, "side_l": 0.0, "side_r": 0.0, "knee_l": 0.0, "knee_r": 0.0, "foot_l": 0.0, "foot_r": 0.0, "lift": 0.0,
 		"body_x": 0.0, "body_y": 0.0,
@@ -1299,7 +1341,7 @@ static func _guard_ik(r: Dictionary, p: Dictionary) -> void:
 	if w <= 0.001:
 		return
 	var model: Node3D = r.model
-	for side in ["r"]:
+	for side in ["r", "l"]:   # a Égide só passa a direita (o escudo é da defesa); o Martelo passa as duas
 		if not g.has("hand_" + side):
 			continue
 		var arm: Node3D = r["Arm" + side.to_upper()]
@@ -1786,6 +1828,7 @@ static func apply(r: Dictionary, p: Dictionary, k: float) -> void:
 	_tool_ik(r, p, f.call("arm_r"))
 	_guard_ik(r, p)
 	r["two_hand"] = lerpf(float(r.get("two_hand", 0.0)), float(p.get("two_hand", 0.0)), f.call("arm_l"))
+	r["blade_up"] = lerpf(float(r.get("blade_up", 0.0)), float(p.get("blade_up", 0.0)), f.call("arm_r"))
 	# ferramenta de coleta: quanto a mão direita está subida no cabo, na direção da cabeça (m; ver hold_weapon_upright)
 	r["tool_slide"] = lerpf(float(r.get("tool_slide", 0.0)), float(p.get("tool_slide", 0.0)), f.call("arm_r"))
 	# pulsos: o modelo não tem pivô; o suporte da arma gira com este valor (hold_weapon_upright)
@@ -1861,6 +1904,24 @@ static func hold_weapon_upright(look: Dictionary, r: Dictionary) -> void:
 		holder.rotation.x += to * tuck
 	if float(r.get("two_hand", 0.0)) > 0.01 and look.get("class", "") == "staff":
 		_staff_left_hand(holder, r)
+	# Martelo de Energia: espada erguida para o céu (KnightMoves.HAMMER_BLADE_DIR), o fio para os lados
+	var bu: float = r.get("blade_up", 0.0)
+	# o resto do código só mexe no rotation.x do suporte: guarda o y/z de repouso para devolver no fim
+	if bu > 0.001 and not r.has("blade_rest"):
+		r["blade_rest"] = Vector2(holder.rotation.y, holder.rotation.z)
+	elif bu <= 0.001 and r.has("blade_rest"):
+		var rest: Vector2 = r.blade_rest
+		holder.rotation = Vector3(holder.rotation.x, rest.x, rest.y)
+		r.erase("blade_rest")
+	if bu > 0.001 and not look.get("tool", false) and not look.get("great", false):
+		var dir := KnightMoves.HAMMER_BLADE_DIR.normalized()
+		var edge := Vector3(0.0, 0.0, 1.0)
+		edge = (edge - dir * edge.dot(dir)).normalized()
+		var gx := (-edge).cross(dir).normalized()
+		var want := Basis(gx, dir.cross(gx).normalized(), dir).orthonormalized()
+		var parent_xf := KnightLook._chain(holder.get_parent(), r.model)
+		var b := (parent_xf.basis.orthonormalized().inverse() * want).orthonormalized()
+		holder.basis = Basis(Quaternion(holder.basis.orthonormalized()).slerp(Quaternion(b), clampf(bu, 0.0, 1.0)))
 	var tw: float = r.get("tool_w", 0.0)
 	var great: bool = look.get("great", false)   # montante: segue a trajetória como as ferramentas
 	if great:

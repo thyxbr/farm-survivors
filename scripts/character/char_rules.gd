@@ -309,10 +309,21 @@ static func _add_xp(s: CharState, bt: BalanceTables, amount: int, ev: Array) -> 
 		# com classe também vem 1 ponto de talento (calculado: level - 1 - gastos), aberto na aba Talentos (K)
 		var talent_txt := " e 1 de talento (K)" if s.char_class != "" else ""
 		ev.append(_notify("Nível %d! +%d pontos de atributo (C)%s" % [s.level, pts, talent_txt], Color(1.0, 0.85, 0.3)))
-		# o kit em ItemDB.ABILITIES é a fonte do que libera em cada nível (só da classe da arma equipada e já pronta)
+		# o kit em ItemDB.ABILITIES é a fonte do que libera em cada nível (só da classe da arma equipada e já pronta);
+		# com espada e escudo o kit troca habilidades (Égide, Martelo de Energia): só as que estão nas mãos agora
+		var off_id := str(s.equipment.get("offhand", ""))
+		var off_kind := "shield" if weapon_cls == "sword" and off_id != "" and str(_item(bt, off_id).get("needs", "")) == "sword" else ""
+		# (mesma troca de ItemDB.kit, refeita aqui só com a constante: o kit é estático do autoload)
+		var alt_slots := {}
 		for id in ItemDB.ABILITIES:
 			var ab: Dictionary = ItemDB.ABILITIES[id]
-			if ab["class"] == weapon_cls and int(ab.level) == s.level and ab.ready:
+			if ab["class"] == weapon_cls and off_kind != "" and str(ab.get("offhand", "")) == off_kind:
+				alt_slots[int(ab.slot)] = true
+		for id in ItemDB.ABILITIES:
+			var ab: Dictionary = ItemDB.ABILITIES[id]
+			var need := str(ab.get("offhand", ""))
+			var in_kit := need == off_kind if need != "" else not alt_slots.has(int(ab.slot))
+			if ab["class"] == weapon_cls and in_kit and int(ab.level) == s.level and ab.ready:
 				ev.append(_notify("Nova habilidade: %s [%d]" % [ab.name, ab.slot], Color(0.75, 0.55, 1.0)))
 		ev.append({"t": "level_up", "level": s.level})
 	if s.level >= ProgressionRules.max_level(bt):

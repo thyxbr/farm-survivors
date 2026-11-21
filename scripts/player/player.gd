@@ -132,6 +132,9 @@ var shake := 0.0
 ## Quanto a câmera recua (m) além da distância normal: a habilidade pede, _process aproxima suave.
 var cam_back := 0.0
 var _cam_back_now := 0.0
+## Quanto a câmera inclina para cima (rad), pedido por habilidade (Martelo de Energia: o círculo fica no alto).
+var cam_tilt := 0.0
+var _cam_tilt_now := 0.0
 ## Distância base atual (persegue Game.settings.cam_zoom) e altura extra por causa das asas.
 var _cam_dist := 4.0
 var _cam_up := 0.0
@@ -337,6 +340,9 @@ func _process(delta: float) -> void:
 	var back := lerpf(_cam_back_now, cam_back - AIM_CAM_CLOSER * _aim_zoom, 1.0 - exp(-6.0 * delta))
 	_cam_back_now = back
 	spring.spring_length = maxf(_cam_dist + back, 1.2)
+	_cam_tilt_now = lerpf(_cam_tilt_now, cam_tilt, 1.0 - exp(-6.0 * delta))
+	if camera:
+		camera.rotation.x = _cam_tilt_now
 
 
 ## Zoom da rodinha (suave) e altura extra quando há asas nas costas.
@@ -1227,7 +1233,7 @@ func cast(id: String) -> void:
 			Game.fury = 0.0
 		if sp.cost > 0:
 			Game.mp -= sp.cost
-		cooldowns[id] = Game.ability_cooldown(id, sp.cooldown, cd_mult)
+		cooldowns[id] = Game.ability_cooldown(id, ItemDB.cooldown_of(id), cd_mult)
 		Game.stats_changed.emit()
 		return
 	_cancel_draw()
@@ -1476,6 +1482,8 @@ func _ab_module(id: String) -> Object:
 		return GatherAction
 	if id.begins_with(ShieldAbilities.ID):   # a Égide (e os eventos dela) é da espada, mas tem módulo próprio
 		return ShieldAbilities
+	if id.begins_with(HammerAbilities.ID):   # o Martelo de Energia (e o cancelamento) também tem módulo próprio
+		return HammerAbilities
 	var cls := ""
 	if ItemDB.ABILITIES.has(id):
 		cls = ItemDB.ABILITIES[id]["class"]
@@ -1545,6 +1553,7 @@ func end_ability() -> void:
 		velocity.z = 0.0
 		Engine.time_scale = 1.0
 		cam_back = 0.0
+		cam_tilt = 0.0
 	ability = ""
 	ability_t = 0.0
 	ability_slot = 0

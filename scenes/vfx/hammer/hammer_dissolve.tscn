@@ -1,0 +1,42 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/hammer/hammer_dissolve.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/hammer/hammer_sheet_bill.tscn" id="2"]
+
+[sub_resource type="QuadMesh" id="Quad_mote"]
+size = Vector2(0.16, 0.16)
+
+[sub_resource type="Gradient" id="Gradient_mote"]
+offsets = PackedFloat32Array(0, 0.15, 0.55, 1)
+colors = PackedColorArray(1, 1, 1, 1, 0.55, 0.8, 1, 1, 1, 0.75, 0.35, 0.7, 0.3, 0.5, 1, 0)
+
+[sub_resource type="Curve" id="Curve_mote"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.2), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[node name="HammerDissolve" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Motes" type="CPUParticles3D" parent="."]
+emitting = false
+amount = 110
+lifetime = 1.4
+local_coords = false
+mesh = SubResource("Quad_mote")
+emission_shape = 3
+emission_box_extents = Vector3(0.8, 0.08, 0.45)
+direction = Vector3(0, 1, 0)
+spread = 35.0
+gravity = Vector3(0, 1.8, 0)
+initial_velocity_min = 0.6
+initial_velocity_max = 2.2
+tangential_accel_min = 0.8
+tangential_accel_max = 2.0
+damping_min = 0.6
+damping_max = 1.2
+scale_amount_min = 0.5
+scale_amount_max = 1.4
+scale_amount_curve = SubResource("Curve_mote")
+color_ramp = SubResource("Gradient_mote")
+
+[node name="Sparkle" parent="." instance=ExtResource("2")]

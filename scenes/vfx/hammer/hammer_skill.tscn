@@ -1,0 +1,26 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/hammer/hammer_skill.gd" id="1"]
+[ext_resource type="Resource" path="res://assets/vfx/hammer/hammer_config.tres" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/hammer/magic_circle.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/hammer/energy_hammer.tscn" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/hammer/hammer_sheet_axis.tscn" id="5"]
+
+[node name="HammerSkill" type="Node3D"]
+script = ExtResource("1")
+config = ExtResource("2")
+
+[node name="Circle" parent="." instance=ExtResource("3")]
+
+[node name="Hammer" parent="." instance=ExtResource("4")]
+
+[node name="Beam" parent="." instance=ExtResource("5")]
+
+[node name="Trail" parent="." instance=ExtResource("5")]
+
+[node name="DamageArea" type="Area3D" parent="."]
+collision_layer = 0
+collision_mask = 4
+monitorable = false
+
+[node name="Shape" type="CollisionShape3D" parent="DamageArea"]
