@@ -10,7 +10,8 @@ extends Node3D
 ##             o martelo sobe um pouco, tomando impulso
 ##   FALL      queda vertical acelerada (HammerRules.fall_distance), a cabeça para baixo, com rastro de energia
 ##   impacto   no instante em que toca o chão: o dano (sinal `landed` com os inimigos atingidos pela DamageArea),
-##             a explosão (HammerImpact) e as crateras (GroundCrater) em onda pela área
+##             a explosão (HammerImpact), o choque com o chão (HammerGroundShock: onda de choque da sprite sheet,
+##             rachaduras projetadas, detritos/brasas/fumaça e o tremor da câmera) e as crateras (GroundCrater)
 ##   LINGER    o martelo fica cravado, perdendo o brilho e rachando
 ##   DISSOLVE  desfaz da cabeça para o cabo, em partículas que sobem (HammerDissolve)
 ## O dano é só do dono (`deal_damage`); nas réplicas é só o visual. `cancel()` antes da queda desfaz tudo sem dano.
@@ -83,6 +84,8 @@ func _ready() -> void:
 	damage_shape.shape = cyl
 	damage_shape.position = Vector3(0, 1.5, 0)
 	damage_area.monitoring = deal_damage   # só o dono procura alvos
+	# texturas e materiais do choque prontos antes do impacto (sem engasgo no quadro do golpe)
+	HammerGroundShock.warm(config)
 	circle.materialize(config.circle_form_time)
 	Sfx.play_at("portal", global_position + Vector3.UP * config.circle_height, 0.05, -4.0)
 
@@ -237,7 +240,7 @@ func _process(delta: float) -> void:
 ## Restam efeitos desta ativação na cena (explosão, crateras, partículas)?
 func _effects_alive() -> bool:
 	for c in get_children():
-		if (c is HammerImpact or c is GroundCrater or c is HammerDissolve) and not c.is_queued_for_deletion():
+		if (c is HammerImpact or c is GroundCrater or c is HammerDissolve or c is HammerGroundShock) and not c.is_queued_for_deletion():
 			return true
 	return false
 
@@ -265,6 +268,11 @@ func _impact() -> void:
 	imp.setup(config, seed_value)
 	imp.position = Vector3(0, _ground_local, 0)
 	add_child(imp)
+	# o choque com o chão: onda de choque da sprite sheet, rachaduras projetadas, detritos/brasas/fumaça e tremor
+	var shock: HammerGroundShock = HammerGroundShock.new()
+	shock.setup(config, seed_value)
+	shock.position = Vector3(0, _ground_local, 0)
+	add_child(shock)
 	# crateras: distribuição circular com desvio, aparecendo na onda que corre pelo chão
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value * 31 + 7

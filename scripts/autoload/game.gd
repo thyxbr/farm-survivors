@@ -115,6 +115,9 @@ func _ready() -> void:
 	if "--tauntdemo" in OS.get_cmdline_user_args():
 		# demonstração do Círculo da Provocação Sombria (use com --weapon=iron_sword: personagem descartável)
 		get_tree().root.add_child.call_deferred(load("res://tools/taunt_demo.gd").new())
+	if "--hammerdemo" in OS.get_cmdline_user_args():
+		# demonstração do Martelo de Energia (use com --weapon=iron_sword: personagem descartável)
+		get_tree().root.add_child.call_deferred(load("res://tools/hammer_demo.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
 		# o Econ usa user://smoketest_solo.json, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())

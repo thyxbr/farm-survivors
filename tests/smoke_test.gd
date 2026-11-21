@@ -351,6 +351,12 @@ func _check_hammer(player: Node, world: Node) -> void:
 		"Martelo: monstros fora do raio não levam dano")
 	check(is_equal_approx(Game.hp, hp_player) or Game.hp >= hp_player, "Martelo: o próprio herói não leva dano")
 	check(count_fx.call("HammerImpact") == 1, "Martelo: explosão no impacto")
+	var shocks: Array = skill.find_children("*", "HammerGroundShock", false, false)
+	var gs: HammerGroundShock = shocks[0] if shocks.size() == 1 else null
+	check(gs != null and gs.has_node("Shock") and gs.find_children("*", "Decal", false, false).size() == 1 + HammerGroundShock.SIDE_DECALS
+		and gs.find_children("*", "GPUParticles3D", false, false).size() == 3,
+		"Martelo: choque no chão (onda de choque da sheet, %d rachaduras projetadas, detritos/brasas/fumaça)" % (1 + HammerGroundShock.SIDE_DECALS))
+	check(player.shake > 0.3, "Martelo: a câmera treme no impacto (%.2f)" % player.shake)
 	await wait(cfg.crater_max_distance / cfg.crater_wave_speed + 0.2)
 	var craters: Array = get_tree().current_scene.find_children("*", "GroundCrater", true, false)
 	var far := 0.0
@@ -371,7 +377,9 @@ func _check_hammer(player: Node, world: Node) -> void:
 	# o martelo some e tudo é liberado
 	await wait_until(func(): return not is_instance_valid(skill), cfg.linger_time + cfg.dissolve_time + cfg.crater_life + 3.0)
 	check(not is_instance_valid(skill) and count_fx.call("GroundCrater") == 0 and count_fx.call("HammerImpact") == 0
-		and count_fx.call("HammerDissolve") == 0, "Martelo: martelo, crateras e efeitos removidos no fim")
+		and count_fx.call("HammerDissolve") == 0 and count_fx.call("HammerGroundShock") == 0
+		and get_tree().current_scene.find_children("CrackDecal*", "Decal", true, false).is_empty(),
+		"Martelo: martelo, crateras, choque no chão e efeitos removidos no fim")
 	# esquiva antes da queda cancela: sem dano e tudo se desfaz
 	for e in mobs:
 		if is_instance_valid(e) and not e.dead:

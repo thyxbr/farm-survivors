@@ -129,7 +129,8 @@ static func _on_landed(center: Vector3, targets: Array, player_ref: WeakRef) -> 
 		any = true
 	if any:
 		Sfx.play("sword_hit_heavy", 0.1)
+	# o tremor da câmera é do HammerGroundShock (de todo mundo perto, também nas réplicas); o congelamento curto é
+	# só de quem bateu
 	var player = player_ref.get_ref()
-	if player != null and is_instance_valid(player):
-		player.add_shake(0.5 * CONFIG.explosion_intensity)
-	FXEpic.hit_stop(0.07)
+	if player != null and is_instance_valid(player) and CONFIG.hitstop_time > 0.0:
+		FXEpic.hit_stop(CONFIG.hitstop_time)
