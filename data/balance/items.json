@@ -3295,6 +3295,7 @@
 		},
 		"metal": true,
 		"glow": 0.4,
+		"style": "a_celestial",
 		"stats": {
 			"vit": 7,
 			"str": 3,
@@ -3318,12 +3319,12 @@
 			"$c": [0.95, 0.75, 0.3, 1.0]
 		},
 		"metal": true,
-		"style": "h_great",
+		"style": "h_celestial",
 		"stats": {
 			"vit": 5,
 			"hp": 25
 		},
-		"desc": "O visor brilha num violeta frio.",
+		"desc": "Uma coroa de raios de sol se abre atrás da cabeça.",
 		"craft": true
 	},
 	"astral_gauntlets": {
@@ -3338,6 +3339,7 @@
 			"$c": [0.75, 0.6, 1.0, 1.0]
 		},
 		"metal": true,
+		"style": "g_celestial",
 		"stats": {
 			"str": 5
 		},
@@ -3356,6 +3358,7 @@
 			"$c": [0.75, 0.6, 1.0, 1.0]
 		},
 		"metal": true,
+		"style": "f_celestial",
 		"stats": {
 			"vit": 2
 		},
