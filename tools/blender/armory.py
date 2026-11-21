@@ -851,6 +851,863 @@ def build_storm_bow():
     bow_export("bw_storm_bow", ny)
 
 
+def along(d):
+    """Rotação que leva +Z da peça para a direção d (peças torneadas e planas apontadas ao longo do braço)."""
+    return d.normalized().to_track_quat('Z', 'Y').to_euler()
+
+
+def limb_dir(pts, z):
+    """Direção do braço em z, sempre apontando para a ponta (para cima no de cima, para baixo no de baixo)."""
+    s = 1 if z >= 0 else -1
+    return limb_at(pts, z + 0.02 * s) - limb_at(pts, z - 0.02 * s)
+
+
+def build_twig_bow():
+    """Arco de Galho (nv 3): um galho torto de verdade, com nós, um broto com folhas e barbante no punho e nas pontas."""
+    m = vcf("bw_twig")
+    # o torto do galho fica de lado (X, visto de frente); no plano do arco (Y) quase não mexe, para a curva ler como arco
+    half, back, n = 0.53, 0.16, 80
+    pts = []
+    for i in range(n + 1):
+        t = -1 + 2 * i / n
+        pts.append((0.016 * math.sin(t * 4.1 + 0.7) + 0.005 * math.sin(t * 11.0),
+                    back * t * t - 0.02 + 0.0035 * math.sin(t * 7.3), t * half))
+    knots = ((0.36, 0.0065), (-0.52, 0.0055), (0.71, 0.004))
+
+    def rad(u):
+        t = 2 * u - 1
+        r = 0.009 + 0.012 * (1 - abs(t)) ** 0.6
+        return r + sum(a * math.exp(-((t - tk) / 0.045) ** 2) for tk, a in knots)
+    bark = grain("#80593a", "#5a3c24", freq=5.0, zf=3.0, amt=0.5)      # estrias ao comprido, como casca
+    tube("Limbs", pts, rad, m, bark, sides=12, flat=0.84)
+
+    twine, cut, leafc = H("#cdb47e"), H("#d2a874"), H("#7fae4a")
+    # punho: barbante enrolado por cima do galho
+    gp = limb_at(pts, 0.0)
+    # o barbante segue a curva do galho (um cilindro reto deixaria o galho furar o topo do punho)
+    gseg = [limb_at(pts, -0.075 + 0.15 * k / 90) for k in range(91)]
+    tube("Grip", gseg, lambda u: 0.0222 + 0.0022 * (0.5 + 0.5 * math.cos(2 * math.pi * 13 * u)), m, twine, sides=14)
+    # amarras do barbante nas pontas, onde a corda prende, com a sobra pendurada
+    for s in (1, -1):
+        z = 0.475 * s
+        p, d = limb_at(pts, z), limb_dir(pts, z)
+        put(wrap("Tie%d" % s, m, None, -0.016, 0.016, 0.0125, turns=3, seg=10), twine, p, along(d))
+        tail = [p + Vector((0.006, -0.004, 0)), p + Vector((0.016, -0.008, -0.02 * s)),
+                p + Vector((0.02, -0.006, -0.045 * s))]
+        tube("Tail%d" % s, spline(tail, 4), lambda u: 0.0028 * (1 - 0.5 * u), m, twine, sides=6)
+    # toco de galho cortado no braço de baixo (a ponta clara mostra o corte)
+    p = limb_at(pts, -0.3)
+    end = p + Vector((-0.042, -0.01, -0.02))
+    tube("Stub", spline([p, p + Vector((-0.028, -0.006, -0.012)), end], 3), lambda u: 0.0085 - 0.002 * u, m, bark,
+         sides=8)
+    lathe("StubCut", [(-0.002, 0.0), (-0.002, 0.0072), (0.002, 0.0068), (0.002, 0.0)], m, cut, seg=10,
+          loc=end, rot=along(end - p))
+    # broto com duas folhas no braço de cima: nasce de dentro do galho
+    p = limb_at(pts, 0.25)
+    tw = spline([p, p + Vector((-0.02, -0.004, 0.025)), p + Vector((-0.036, -0.01, 0.06)),
+                 p + Vector((-0.042, -0.012, 0.09))], 4)
+    tube("Twig", tw, lambda u: 0.0055 * (1 - 0.6 * u), m, bark, sides=8)
+    tipp, tipd = Vector(tw[-1]), Vector(tw[-1]) - Vector(tw[-3])
+    for k, (ang, L) in enumerate(((0.55, 0.065), (-0.7, 0.05))):
+        d = Matrix.Rotation(ang, 3, 'Y') @ tipd
+        lf = flat("Leaf%d" % k, leaf_outline(L, 0.017), m, th=0.003, bevel=0.003, step=0.008,
+                  bend=lambda c: Vector((c.x, c.y + 0.5 * c.x * c.x - 0.15 * c.z * c.z, c.z)))
+        put(lf, leafc, tipp - tipd.normalized() * 0.004, along(d))
+    top, bot = Vector(pts[-1]), Vector(pts[0])
+    _BOW_STRING[:] = [(top.x, top.y, top.z - 0.06), (bot.x, bot.y, bot.z + 0.06)]
+    bow_export("bw_twig_bow", top.y)
+
+
+def limb_wrap(name, pts, z0, z1, r_of_z, m, col, turns, pad=0.0016, ridge=0.0018, flat=1.0, k=60):
+    """Amarra que acompanha a curva do braço entre z0 e z1: raio = braço + folga, com sulcos de `turns` voltas.
+    Mesmo `flat` do braço: o quadro do tubo nasce igual (eixo X como referência), então achata para o mesmo lado."""
+    seg = [limb_at(pts, z0 + (z1 - z0) * i / k) for i in range(k + 1)]
+    return tube(name, seg, lambda u: r_of_z(z0 + (z1 - z0) * u) + pad + ridge * (0.5 + 0.5 * math.cos(2 * math.pi * turns * u)),
+                m, col, sides=14, flat=flat)
+
+
+def build_raptor_bow():
+    """Arco de Osso de Raptor (nv 6): duas costelas emendadas com tendão, garras em foice nas pontas, espinhos
+    vermelhos da crista nas costas do arco e punho de pele verde com um dente pendurado (cores do raptor do jogo)."""
+    m = vcf("bw_raptor")
+    half, back, fl = 0.56, 0.15, 0.62
+    pts = bow_curve(half, back, recurve=0.02, n=60)
+    joints = (0.3, -0.3)
+
+    def r_of_z(z):
+        t = z / half
+        r = 0.0095 + 0.0125 * (1 - abs(t)) ** 0.7
+        return r + sum(0.0045 * math.exp(-((z - j) / 0.022) ** 2) for j in joints)   # nó da emenda das costelas
+    bone_l, bone_d = H("#efe4c8"), H("#b8a47c")
+
+    def bone(co):   # marfim que escurece para o punho, com estrias ao comprido
+        g = 0.5 + 0.5 * math.sin(math.atan2(co.y, co.x) * 4 + co.z * 5)
+        return mix(bone_l, bone_d, 0.55 * (1 - min(abs(co.z) / half, 1)) ** 1.5 + 0.18 * smooth01((g - 0.6) / 0.4))
+    tube("Limbs", pts, lambda u: r_of_z(-half + 2 * half * u), m, bone, sides=14, flat=fl)
+
+    skin, sinew, crest, claw = H("#5f7a3e"), H("#7a3424"), H("#b8452a"), H("#3a302a")
+    # punho de pele verde, com tendão nas pontas da pele
+    limb_wrap("Grip", pts, -0.075, 0.075, r_of_z, m, skin, turns=5, pad=0.0026, ridge=0.0004, flat=fl)
+    for s in (1, -1):
+        limb_wrap("GripTie%d" % s, pts, 0.072 * s - 0.008, 0.072 * s + 0.008, r_of_z, m, sinew, turns=2, pad=0.0034,
+                  ridge=0.001, flat=fl)
+        j = joints[0] * s
+        limb_wrap("Joint%d" % s, pts, j - 0.03, j + 0.03, r_of_z, m, sinew, turns=6, pad=0.0014, flat=fl)
+        # garra em foice na ponta: nasce dentro do braço, segue a direção dele e faz o gancho para a frente (-Y)
+        tip, d = limb_at(pts, (half - 0.005) * s), limb_dir(pts, (half - 0.005) * s).normalized()
+        hook = [tip - d * 0.03, tip + d * 0.015, tip + d * 0.04 + Vector((0, -0.03, 0)),
+                tip + d * 0.045 + Vector((0, -0.07, 0)), tip + d * 0.025 + Vector((0, -0.098, 0))]
+        tube("Claw%d" % s, spline(hook, 5), lambda u: 0.0125 * (1 - u) ** 0.8 + 0.0006, m,
+             lambda co: claw, sides=10, flat=0.7)
+        limb_wrap("TipTie%d" % s, pts, (half - 0.075) * s - 0.012, (half - 0.075) * s + 0.012, r_of_z, m, sinew,
+                  turns=3, pad=0.0012, flat=fl)
+        # espinhos da crista nas costas do arco (lado -Y), deitados para a ponta como no dorso do raptor
+        for k, (z, L) in enumerate(((0.12, 0.042), (0.17, 0.036), (0.215, 0.028))):
+            p, dz = limb_at(pts, z * s), limb_dir(pts, z * s).normalized()
+            out = Vector((0, -1, 0))
+            sp = [p, p + out * L * 0.55 + dz * L * 0.15, p + out * L + dz * L * 0.6]
+            tube("Spike%d%d" % (s, k), spline(sp, 4), lambda u: 0.011 * (1 - u) ** 1.3 + 0.0005, m, crest, sides=8,
+                 flat=0.4)
+    # dente de raptor pendurado no tendão de baixo do punho
+    p = limb_at(pts, -0.075)
+    cord = [p + Vector((0.006, 0.0, 0.0)), p + Vector((0.024, -0.006, -0.03)), p + Vector((0.03, -0.008, -0.07))]
+    tube("Cord", spline(cord, 4), 0.0022, m, sinew, sides=6)
+    end = Vector(cord[-1])
+    lathe("Tooth", [(0.0, 0.0), (0.0, 0.0075), (0.012, 0.0072), (0.032, 0.0035), (0.046, 0.0)], m, H("#f2ead6"), seg=10,
+          loc=end + Vector((0, 0, 0.004)), rot=(math.pi + 0.25, 0, 0))
+    top, bot = Vector(pts[-1]), Vector(pts[0])
+    _BOW_STRING[:] = [(top.x, top.y, top.z - 0.075), (bot.x, bot.y, bot.z + 0.075)]
+    bow_export("bw_raptor_bow", limb_at(pts, half - 0.075).y)
+
+
+def build_warden_bow():
+    """Arco do Vigia (nv 9): recurvo dos guardas da vila. Madeira em camadas (escura por fora, faixa clara na face do
+    arqueiro), chapa de ferro rebitada no centro com o escudo da cruz carmesim da guarda, ponteiras de ferro e a fita
+    carmesim do tabardo amarrada no punho."""
+    m = vcf("bw_warden", metal=0.25)
+    half, back, fl = 0.57, 0.17, 0.7
+    pts = bow_curve(half, back, recurve=0.05, n=70)
+
+    def r_of_z(z):
+        t = min(abs(z) / half, 1.0)     # a tampa da ponta passa um pouco de half
+        return 0.0085 + 0.0115 * (1 - t) ** 0.65 + 0.0035 * smooth01((0.19 - abs(z)) / 0.05)   # centro mais grosso
+    dark, belly = H("#6b4327"), H("#c99a5e")
+
+    def wood(co):   # laminado: a face do arqueiro (+Y) mostra a faixa clara
+        c = limb_at(pts, co.z)
+        k = smooth01(((co.y - c.y) / max(r_of_z(co.z) * fl, 1e-4) - 0.35) / 0.3)
+        return mix(dark, belly, k)
+    tube("Limbs", pts, lambda u: r_of_z(-half + 2 * half * u), m, wood, sides=16, flat=fl)
+
+    iron, leather, crim, cream = H("#8d949e"), H("#4a2e1c"), H("#a32129"), H("#e6dcc4")
+    # chapas de ferro na frente do centro (-Y), acima e abaixo da mão, afinando nas pontas
+    for s in (1, -1):
+        seg = [limb_at(pts, s * (0.068 + 0.11 * i / 40)) for i in range(41)]
+        front = [Vector(p) + Vector((0, -r_of_z(p[2]) * fl * 0.72, 0)) for p in seg]
+        tube("Plate%d" % s, front, lambda u: 0.0175 * min(1.0, min(u, 1 - u) / 0.12) ** 0.5 + 0.0004, m, iron,
+             sides=14, flat=0.3)
+    for z in (-0.155, -0.088, 0.155):
+        p = limb_at(pts, z)
+        orb("Rivet%.2f" % z, m, H("#c4cad2"), (p.x, p.y - r_of_z(z) * fl * 0.72 - 0.0042, z), 0.0034, seg=8)
+    for s in (1, -1):
+        limb_wrap("Band%d" % s, pts, 0.183 * s - 0.009, 0.183 * s + 0.009, r_of_z, m, iron, turns=1, pad=0.0016,
+                  ridge=0.0006, flat=fl)
+        # ponteira de ferro com botão na ponta (a corda prende logo abaixo do botão)
+        limb_wrap("TipCap%d" % s, pts, (half - 0.05) * s if s > 0 else -half + 0.002, half - 0.002 if s > 0 else
+                  -(half - 0.05), r_of_z, m, iron, turns=2, pad=0.0012, ridge=0.0007, flat=fl)
+        tip = limb_at(pts, (half - 0.002) * s)
+        orb("TipKnob%d" % s, m, iron, (tip.x, tip.y, tip.z + 0.003 * s), 0.0058, seg=10)
+    # punho de couro
+    limb_wrap("Grip", pts, -0.065, 0.065, r_of_z, m, leather, turns=9, pad=0.0018, ridge=0.0009, flat=fl)
+    # escudo da guarda acima da mão: aro de ferro, esmalte creme e a cruz carmesim
+    p = limb_at(pts, 0.112)
+    face = p.y - r_of_z(0.112) * fl * 0.72 - 0.003
+    lathe("Badge", [(0.0, 0.0), (0.0, 0.0175), (0.004, 0.0175), (0.006, 0.015), (0.006, 0.0)], m, iron, seg=20,
+          loc=(p.x, face + 0.002, p.z), rot=(math.pi / 2, 0, 0))
+    lathe("Enamel", [(0.0, 0.0), (0.0, 0.0138), (0.0064, 0.0138), (0.0064, 0.0)], m, cream, seg=20,
+          loc=(p.x, face + 0.002, p.z), rot=(math.pi / 2, 0, 0))
+    a, b = 0.0105, 0.0032
+    cross = [(-b, -a), (b, -a), (b, -b), (a, -b), (a, b), (b, b), (b, a), (-b, a), (-b, b), (-a, b), (-a, -b), (-b, -b)]
+    flat("Cross", cross, m, crim, th=0.0016, bevel=0.0008, step=0.004, loc=(p.x, face - 0.0052, p.z))
+    # fita carmesim amarrada embaixo do punho, com as duas pontas caídas
+    limb_wrap("RibbonTie", pts, -0.08, -0.068, r_of_z, m, crim, turns=1, pad=0.0026, ridge=0.0005, flat=fl)
+    p = limb_at(pts, -0.074)
+    for k, (dx, L) in enumerate(((0.01, 0.13), (-0.006, 0.1))):
+        rib = [p + Vector((dx * 0.4, -0.01, 0)), p + Vector((dx, -0.02, -0.03)), p + Vector((dx * 1.6, -0.018, -0.07)),
+               p + Vector((dx * 1.2, -0.022, -L))]
+        tube("Ribbon%d" % k, spline(rib, 5), 0.0085, m, crim, sides=10, flat=0.18)
+    top, bot = Vector(pts[-1]), Vector(pts[0])
+    _BOW_STRING[:] = [(top.x, top.y, top.z - 0.035), (bot.x, bot.y, bot.z + 0.035)]
+    bow_export("bw_warden_bow", limb_at(pts, half - 0.035).y)
+
+
+
+def limb_helix(name, pts, z0, z1, r_of_z, turns, phase, m, col, fl, r=0.0013, k=120):
+    """Fio enrolado em espiral em volta do braço (encostado na superfície), de z0 a z1."""
+    seg = []
+    for i in range(k + 1):
+        z = z0 + (z1 - z0) * i / k
+        c, a = limb_at(pts, z), phase + 2 * math.pi * turns * i / k
+        rr = r_of_z(z) + r * 0.4
+        seg.append(c + Vector((math.cos(a) * rr, math.sin(a) * rr * fl, 0)))
+    return tube(name, seg, r, m, col, sides=6)
+
+
+def build_silk_bow():
+    """Arco de Seda Tecelã (nv 14): braços de quitina roxa em segmentos de pata de aranha, pontas de presa, seda
+    enrolada nos braços, punho de casulo com os seis olhos vermelhos (sem brilho: no tamanho do jogo são um pixel) e a marca em divisas da Tecelã do jogo, e duas
+    patinhas no centro com um leque de teia preso ao braço."""
+    m = vcf("bw_silk", metal=0.15)
+    half, back, fl = 0.56, 0.15, 0.78
+    pts = bow_curve(half, back, recurve=0.025, n=80)
+    joints = (0.2, 0.38, -0.2, -0.38)
+
+    def r_of_z(z):
+        t = min(abs(z) / half, 1.0)
+        r = 0.0075 + 0.0115 * (1 - t) ** 0.7
+        return r + sum(0.0032 * math.exp(-((z - j) / 0.014) ** 2) for j in joints)
+    chit, chit_l, chit_d = H("#3b2f3e"), H("#6a5672"), H("#2a212d")
+    silk, mark, fang = H("#f2eee6"), H("#c23b4a"), H("#efe6d0")
+
+    def chitin(co):   # segmento escuro que clareia nas juntas, com brilho ao comprido no dorso
+        j = max(math.exp(-((co.z - jz) / 0.02) ** 2) for jz in joints)
+        return mix(mix(chit_d, chit, 0.6 + 0.4 * smooth01((0.2 - abs(co.z) + 0.2) / 0.4)), chit_l, 0.85 * j)
+    tube("Limbs", pts, lambda u: r_of_z(-half + 2 * half * u), m, chitin, sides=14, flat=fl)
+
+    for s in (1, -1):
+        # presa de marfim na ponta, curvada para a frente
+        tip, d = limb_at(pts, (half - 0.004) * s), limb_dir(pts, (half - 0.004) * s).normalized()
+        hook = [tip - d * 0.02, tip + d * 0.02, tip + d * 0.045 + Vector((0, -0.012, 0)),
+                tip + d * 0.055 + Vector((0, -0.032, 0))]
+        tube("Fang%d" % s, spline(hook, 5), lambda u: 0.0085 * (1 - u) ** 0.9 + 0.0005, m, fang, sides=10, flat=0.8)
+        limb_wrap("TipSilk%d" % s, pts, (half - 0.014) * s - 0.011, (half - 0.014) * s + 0.011, r_of_z, m, silk,
+                  turns=4, pad=0.0008, ridge=0.0009, flat=fl)
+        # dois fios de seda cruzados em espiral no meio de cada braço
+        z0, z1 = sorted((0.08 * s, 0.5 * s))
+        for k, (tw, ph) in enumerate(((3.5, 0.0), (-3.5, 1.3))):
+            limb_helix("Silk%d%d" % (s, k), pts, z0, z1, r_of_z, tw, ph, m, silk, fl)
+        # patinha de aranha saindo da frente do centro, com um leque de teia preso ao braço
+        base = limb_at(pts, 0.15 * s)
+        out = Vector((0, -1, 0.55 * s)).normalized()
+        knee = base + out * 0.05 + Vector((0, 0, 0.012 * s))
+        foot = knee + Vector((0, -0.012, 0.055 * s))
+        tube("Leg%d" % s, spline([base, base + out * 0.03, knee, foot], 4), lambda u: 0.0062 * (1 - 0.6 * u), m,
+             chitin, sides=10)
+        orb("Knee%d" % s, m, chit_l, (knee.x, knee.y, knee.z), 0.0065, seg=10)
+        anchors = [limb_at(pts, s * z) for z in (0.215, 0.26, 0.305)]
+        for a_i, a in enumerate(anchors):
+            tube("Web%d%d" % (s, a_i), [Vector(foot) + (Vector(a) - Vector(foot)) * 0.02, Vector(a)], 0.0011, m, silk,
+                 sides=5)
+        for t_i, t in enumerate((0.35, 0.65)):
+            ring = [Vector(foot).lerp(Vector(a), t) for a in [knee] + anchors]
+            tube("WebArc%d%d" % (s, t_i), spline(ring, 3), 0.001, m, silk, sides=5)
+    # casulo de seda no punho (encaroçado, como fio enrolado sem capricho)
+    gseg = [limb_at(pts, -0.07 + 0.14 * i / 90) for i in range(91)]
+    tube("Cocoon", gseg, lambda u: r_of_z(-0.07 + 0.14 * u) + 0.0032 + 0.0013 * math.sin(u * 41) * math.sin(u * 13 + 1),
+         m, silk, sides=14, flat=fl)
+    # seis olhos vermelhos acima da mão: o par grande embaixo, dois pares menores em cima
+    p = limb_at(pts, 0.122)
+    face = p.y - r_of_z(0.122) * fl
+    for x, z, r in ((-0.0062, 0.114, 0.0046), (0.0062, 0.114, 0.0046), (-0.0088, 0.126, 0.0031),
+                    (0.0088, 0.126, 0.0031), (-0.0035, 0.132, 0.0027), (0.0035, 0.132, 0.0027)):
+        orb("Eye%.3f%.3f" % (x, z), m, H("#a8141f"), (p.x + x, face + r * 0.25, z), r, seg=10)
+    # marca vermelha em divisas abaixo da mão
+    for k, z in enumerate((-0.088, -0.104)):
+        q = limb_at(pts, z)
+        chev = [(-0.011, 0.004), (0.0, -0.004), (0.011, 0.004), (0.011, 0.0085), (0.0, 0.0005), (-0.011, 0.0085)]
+        flat("Chevron%d" % k, chev, m, mark, th=0.0018, bevel=0.0008, step=0.004,
+             loc=(q.x, q.y - r_of_z(z) * fl - 0.0002, z))
+    top, bot = Vector(pts[-1]), Vector(pts[0])
+    _BOW_STRING[:] = [(top.x, top.y, top.z - 0.014), (bot.x, bot.y, bot.z + 0.014)]
+    bow_export("bw_silk_bow", limb_at(pts, half - 0.014).y)
+
+
+
+def build_frostfang_bow():
+    """Uivo da Geada (nv 17): madeira azul-ardósia com a geada subindo para as pontas, presas do Alfa nas pontas,
+    cristais de gelo nas costas dos braços (como no dorso do lobo do jogo), punho de pele de lobo com tufos e a cabeça
+    de lobo na frente do centro, com olhos de gelo."""
+    m = vcf("bw_frostfang", metal=0.1)
+    ice = vcf("bw_frostfang_ice", emit="#3cc8ff", strength=0.7)   # só os olhos da cabeça uivando
+    half, back, fl = 0.57, 0.16, 0.74
+    pts = bow_curve(half, back, recurve=0.03, n=80)
+
+    def r_of_z(z):
+        t = min(abs(z) / half, 1.0)
+        return 0.009 + 0.012 * (1 - t) ** 0.65 + 0.003 * smooth01((0.15 - abs(z)) / 0.05)
+    wood_c, wood_d, frost = H("#4f6378"), H("#33414f"), H("#d6e6f2")
+
+    def wood(co):   # ardósia com estrias; a geada clareia do meio do braço até a ponta
+        g = 0.5 + 0.5 * math.sin(math.atan2(co.y, co.x) * 5 + co.z * 4)
+        base = mix(wood_c, wood_d, 0.45 * smooth01((g - 0.5) / 0.5))
+        return mix(base, frost, 0.8 * smooth01((abs(co.z) - 0.33) / 0.22))
+    tube("Limbs", pts, lambda u: r_of_z(-half + 2 * half * u), m, wood, sides=16, flat=fl)
+
+    fang, leather, fur, fur_l = H("#f2f4f6"), H("#2c3440"), H("#7c93a8"), H("#dce7ef")
+    for s in (1, -1):
+        # presa do Alfa: cone curvo e grosso, apontando para a frente, amarrado com couro escuro
+        tip, d = limb_at(pts, (half - 0.004) * s), limb_dir(pts, (half - 0.004) * s).normalized()
+        hook = [tip - d * 0.025, tip + d * 0.025, tip + d * 0.055 + Vector((0, -0.02, 0)),
+                tip + d * 0.065 + Vector((0, -0.048, 0))]
+        tube("Fang%d" % s, spline(hook, 6), lambda u: 0.0145 * (1 - u) ** 0.75 + 0.0006, m,
+             lambda co: fang, sides=12, flat=0.85)
+        limb_wrap("FangTie%d" % s, pts, (half - 0.016) * s - 0.013, (half - 0.016) * s + 0.013, r_of_z, m, leather,
+                  turns=4, pad=0.0016, ridge=0.0009, flat=fl)
+        # tufos de lascas de gelo nas costas do braço (-Y), em leque e inclinados para a ponta. Sem brilho: no toon
+        # do jogo a emissão estoura para branco e o gelo vira espinho; azul pintado lê como gelo
+        for k, (z, n_c, size) in enumerate(((0.235, 5, 1.35), (0.37, 4, 1.05))):
+            p, dz = limb_at(pts, z * s), limb_dir(pts, z * s).normalized()
+            face = p + Vector((0, -r_of_z(z) * fl * 0.55, 0))
+            for c in range(n_c):
+                f = (c - (n_c - 1) / 2) / max((n_c - 1) / 2, 1)          # -1..1 através do leque
+                tilt = Vector((0.75 * f, -1, 0)).normalized().lerp(dz, 0.28 + 0.12 * abs(f)).normalized()
+                h = 0.04 * size * (1 - 0.38 * abs(f))
+                ob = crystal("Ice%d%d%d" % (s, k, c), m, None, (0, 0, 0), 0.0068 * size * (1 - 0.25 * abs(f)), h, 0.012,
+                             seg=5, phase=0.5 * c)
+                put(ob, H("#5ab8e6") if c % 2 else H("#8fd6f4"), face + Vector((0.006 * f, 0, 0.004 * f * s)),
+                    along(tilt))
+    # punho de pele de lobo, com a gola de tufos claros nas duas pontas
+    gseg = [limb_at(pts, -0.07 + 0.14 * i / 90) for i in range(91)]
+    tube("Pelt", gseg, lambda u: r_of_z(-0.07 + 0.14 * u) + 0.0036,
+         m, fur, sides=14, flat=fl)   # liso: relevo pequeno vira blocos no sombreado de 3 tons
+    for s in (1, -1):
+        z = 0.072 * s
+        p, dz = limb_at(pts, z), limb_dir(pts, z).normalized() * s
+        for k in range(12):
+            a = 2 * math.pi * k / 12 + 0.2 * s
+            out = Vector((math.cos(a), math.sin(a) * fl, 0))
+            tuft = [p + out * r_of_z(z) * 0.7, p + out * (r_of_z(z) + 0.0045) + dz * 0.006 * s,
+                    p + out * (r_of_z(z) + 0.006) + dz * 0.017 * s]
+            tube("Tuft%d%d" % (s, k), spline(tuft, 3), lambda u: 0.0042 * (1 - u) ** 0.7 + 0.0004, m, H("#9db0c2"), sides=6,
+                 flat=0.55)
+    # cabeça de lobo uivando, de perfil, dos dois lados do centro (é o lado que o jogo mostra): focinho para o alto,
+    # virado para a frente (-Y); placa de prata com olho de gelo
+    zc, sc = 0.122, 1.3
+    p = limb_at(pts, zc)
+    howl = [(x * 0.01, z * 0.01) for x, z in (
+        (-1.2, -1.4), (-1.4, 0.4), (-1.0, 1.6), (-1.1, 2.0), (-1.9, 3.4), (-0.3, 2.3), (0.3, 2.8), (1.2, 4.0),
+        (1.9, 4.9), (2.25, 4.65), (1.7, 3.9), (2.25, 3.65), (1.4, 3.05), (0.9, 1.6), (0.8, -0.2), (0.7, -1.4))]
+    rw = r_of_z(zc)
+    for s in (1, -1):
+        ob = flat("Howl%d" % s, [(x * sc, z * sc) for x, z in howl], m, H("#55697f"), th=0.0045, bevel=0.002,
+                  step=0.004)
+        put(ob, H("#55697f"), (p.x + s * (rw * 0.92), p.y - 0.002, zc), (0, 0, -math.pi / 2))
+        orb("HowlEye%d" % s, ice, H("#3fb6ea"), (p.x + s * (rw * 0.92 + 0.0035), p.y - 0.002 - 0.006 * sc,
+                                                 zc + 0.028 * sc),
+            0.0026, seg=8)
+    top, bot = Vector(pts[-1]), Vector(pts[0])
+    _BOW_STRING[:] = [(top.x, top.y, top.z - 0.016), (bot.x, bot.y, bot.z + 0.016)]
+    bow_export("bw_frostfang_bow", limb_at(pts, half - 0.016).y)
+
+
+
+def build_lantern_bow():
+    """Arco Lanterna (nv 20): arco dos kobolds das minas. Madeira escura de escora com cintas de latão rebitadas,
+    lanterna de latão acesa na frente do centro, duas dinamites com pavio amarradas no braço de baixo e ponteiras de
+    latão com bico de picareta."""
+    m = vcf("bw_lantern", metal=0.3)
+    glow = vcf("bw_lantern_glow", emit="#ffb347", strength=2.2)
+    half, back, fl = 0.56, 0.15, 0.72
+    pts = bow_curve(half, back, recurve=0.02, n=80)
+
+    def r_of_z(z):
+        t = min(abs(z) / half, 1.0)
+        return 0.0095 + 0.0125 * (1 - t) ** 0.65 + 0.003 * smooth01((0.2 - abs(z)) / 0.05)
+    wood = grain("#5c4232", "#3c2a1e", freq=4.0, zf=3.5, amt=0.55)
+    tube("Limbs", pts, lambda u: r_of_z(-half + 2 * half * u), m, wood, sides=16, flat=fl)
+
+    brass, brass_d, iron, rope = H("#c8963c"), H("#8a6224"), H("#5e5a56"), H("#b89a62")
+    for s in (1, -1):
+        for z in (0.21, 0.33):
+            zz = z * s
+            limb_wrap("Strap%d%.2f" % (s, z), pts, zz - 0.011, zz + 0.011, r_of_z, m, brass, turns=1, pad=0.0016,
+                      ridge=0.0005, flat=fl)
+            p = limb_at(pts, zz)
+            orb("Rivet%d%.2f" % (s, z), m, H("#e8c070"), (p.x, p.y - r_of_z(zz) * fl - 0.0028, zz), 0.0028, seg=8)
+        # ponteira de latão com o bico de picareta para a frente (-Y)
+        limb_wrap("TipCap%d" % s, pts, (half - 0.04) * s if s > 0 else -half + 0.002,
+                  half - 0.002 if s > 0 else -(half - 0.04), r_of_z, m, brass, turns=2, pad=0.0014, ridge=0.0006,
+                  flat=fl)
+        tip = limb_at(pts, (half - 0.016) * s)
+        d = limb_dir(pts, (half - 0.016) * s).normalized()
+        pick = [tip + Vector((0, 0.004, 0)), tip + Vector((0, -0.018, 0)) + d * 0.004,
+                tip + Vector((0, -0.04, 0)) + d * 0.014]
+        tube("Pick%d" % s, spline(pick, 4), lambda u: 0.0072 * (1 - u) ** 0.85 + 0.0005, m, iron, sides=8, flat=0.7)
+    # punho de corda
+    limb_wrap("Grip", pts, -0.07, 0.07, r_of_z, m, rope, turns=14, pad=0.0022, ridge=0.0006, flat=fl)
+
+    # lanterna na frente, acima da mão: base e telhado de latão, vidro aceso, quatro hastes e a argola em cima
+    zl, zh = 0.112, 0.172
+    pa = limb_at(pts, (zl + zh) / 2)
+    cx, cy = pa.x, pa.y - r_of_z((zl + zh) / 2) * fl - 0.026
+    lathe("LampBase", [(0.0, 0.0), (0.0, 0.017), (0.004, 0.018), (0.008, 0.015), (0.008, 0.0)], m, brass, seg=16,
+          loc=(cx, cy, zl))
+    lathe("LampGlass", [(0.0, 0.0), (0.0, 0.0115), (0.022, 0.013), (0.044, 0.0115), (0.044, 0.0)], glow,
+          H("#ffc25a"), seg=16, loc=(cx, cy, zl + 0.006))
+    for k in range(4):
+        a = math.pi / 4 + k * math.pi / 2
+        bx, by = cx + 0.0142 * math.cos(a), cy + 0.0142 * math.sin(a)
+        tube("LampBar%d" % k, [(bx, by, zl + 0.006), (bx, by, zl + 0.05)], 0.0019, m, brass_d, sides=6)
+    lathe("LampRoof", [(0.0, 0.0), (0.0, 0.0185), (0.004, 0.0185), (0.016, 0.006), (0.019, 0.0)], m, brass, seg=16,
+          loc=(cx, cy, zl + 0.048))
+    tube("LampRing", [(cx + 0.006 * math.cos(a), cy, zl + 0.071 + 0.006 * math.sin(a)) for a in
+                      [2 * math.pi * i / 16 for i in range(17)]], 0.0016, m, brass_d, sides=6)
+    # dois braços de latão prendem a lanterna no arco
+    for z in (zl + 0.008, zl + 0.05):
+        p = limb_at(pts, z)
+        tube("LampArm%.3f" % z, [(p.x, p.y, z), (cx, cy + 0.008, z)], 0.0028, m, brass_d, sides=8)
+
+    # duas dinamites amarradas na frente do braço de baixo, com os pavios enrolados
+    sr, zt, zb = 0.0078, -0.12, -0.2
+    pm = limb_at(pts, (zt + zb) / 2)
+    rl = r_of_z((zt + zb) / 2)
+    y_st = pm.y - rl * fl - sr + 0.001
+    red, red_d = H("#b8382a"), H("#7a2418")
+    for k, x in enumerate((-sr, sr)):
+        lathe("Dyn%d" % k, [(zb, 0.0), (zb, sr), (zt, sr), (zt, 0.0)], m,
+              lambda co: red_d if co.z > zt - 0.006 or co.z < zb + 0.006 else red, seg=12, loc=(pm.x + x, y_st, 0))
+        fuse = [(pm.x + x, y_st, zt - 0.004), (pm.x + x * 1.4, y_st - 0.004, zt + 0.012),
+                (pm.x + x * 2.2, y_st - 0.012, zt + 0.02), (pm.x + x * 2.6, y_st - 0.02, zt + 0.012)]
+        tube("Fuse%d" % k, spline(fuse, 4), 0.0015, m, H("#2a2420"), sides=5)
+    for k, z in enumerate((zt - 0.017, zb + 0.017)):
+        p = limb_at(pts, z)
+        rz = r_of_z(z)
+        front, backy = p.y - rz * fl - 2 * sr, p.y + rz * fl
+        ym, ry, rx = (front + backy) / 2, (backy - front) / 2 + 0.0016, max(rz, 2 * sr) + 0.0016
+        loop = [(p.x + rx * math.cos(a), ym + ry * math.sin(a), z) for a in [2 * math.pi * i / 24 for i in range(25)]]
+        tube("DynStrap%d" % k, loop, 0.0028, m, H("#5a3a20"), sides=6)
+    top, bot = Vector(pts[-1]), Vector(pts[0])
+    _BOW_STRING[:] = [(top.x, top.y, top.z - 0.03), (bot.x, bot.y, bot.z + 0.03)]
+    bow_export("bw_lantern_bow", limb_at(pts, half - 0.03).y)
+
+
+
+def build_crystal_bow():
+    """Arco de Cristal Cantante (nv 26): centro de pedra do Golem de Cristal (cores do golem do jogo), braços de cristal
+    facetado que clareiam até a ponta, tufos de cristal nascendo da pedra, um cristal grande cravado na frente e as
+    pontas abertas em duas hastes, como um diapasão (a corda que canta)."""
+    m = vcf("bw_crystal", metal=0.05)
+    half, back, fl = 0.57, 0.15, 0.8
+    pts = bow_curve(half, back, recurve=0.02, n=80)
+    stone_z = 0.165
+
+    def r_of_z(z):
+        t = min(abs(z) / half, 1.0)
+        return 0.008 + 0.0115 * (1 - t) ** 0.7
+    deep, mid, pale = H("#1b78b8"), H("#3fd2f2"), H("#bdf2ff")
+
+    def crys(co):   # azul fundo na raiz, ciano no meio, quase branco na ponta
+        t = min(abs(co.z) / half, 1.0)
+        return ramp([(0.25, deep), (0.6, mid), (1.0, pale)], t)
+    # braços de cristal: seis faces sem suavizar (faceta de cristal); de cada lado nascem de dentro da pedra
+    for s in (1, -1):
+        seg = [p for p in pts if p[2] * s > stone_z - 0.04]
+        if s < 0:
+            seg = seg[::-1]
+        tube("Limb%d" % s, seg, lambda u, s=s, seg=seg: r_of_z(seg[0][2] + (seg[-1][2] - seg[0][2]) * u), m, crys,
+             sides=6, flat=fl, smooth=False, phase=0.5)
+    # centro de pedra do golem, encaroçado e facetado
+    rock, rock_d, rock_l = H("#5e5a58"), H("#3a3634"), H("#86807a")
+    cseg = [limb_at(pts, -stone_z + 2 * stone_z * i / 60) for i in range(61)]
+    tube("Stone", cseg, lambda u: 0.0235 + 0.0035 * math.sin(u * 23 + 1) * math.sin(u * 7) -
+         0.006 * smooth01((abs(u - 0.5) - 0.42) / 0.08), m,
+         lambda co: mix(rock, rock_l, 0.5 + 0.5 * math.sin(co.z * 40 + co.x * 90)), sides=9, flat=0.9, smooth=False)
+    limb_wrap("Grip", pts, -0.062, 0.062, lambda z: 0.0235, m, H("#2e2a2a"), turns=8, pad=0.0035, ridge=0.0008,
+              flat=0.9)
+    # cristal grande cravado na frente, acima da mão, num aro de pedra
+    zc = 0.112
+    p = limb_at(pts, zc)
+    fy = p.y - 0.022
+    lathe("GemSeat", [(0.0, 0.0), (0.0, 0.016), (0.006, 0.015), (0.01, 0.011), (0.01, 0.0)], m, rock_d, seg=8,
+          loc=(p.x, p.y - 0.012, zc), rot=(math.pi / 2, 0, 0))
+    ob = crystal("Gem", m, None, (0, 0, 0), 0.0105, 0.024, 0.008, seg=6, mid=0.006)
+    put(ob, mid, (p.x, fy, zc), (math.pi / 2, 0, 0))
+    # tufos de cristal nascendo da pedra nas duas pontas do centro, abertos para fora e para a frente
+    for s in (1, -1):
+        base = limb_at(pts, (stone_z - 0.02) * s)
+        d = limb_dir(pts, (stone_z - 0.02) * s).normalized()
+        for k, (ax, ay, h, r) in enumerate(((0.9, -0.5, 0.05, 0.0075), (-0.8, -0.6, 0.04, 0.0065), (0.2, -1.0, 0.058, 0.008),
+                                             (-0.3, 0.5, 0.032, 0.006))):
+            dirv = (Vector((ax, ay, 0)).normalized() * 0.75 + d * 0.55).normalized()
+            h, r = h * 1.4, r * 1.35
+            ob = crystal("Shard%d%d" % (s, k), m, None, (0, 0, 0), r, h, 0.014, seg=6, mid=h * 0.18, phase=0.4 * k)
+            put(ob, deep if k % 2 else mid, base + Vector((ax, ay, 0)).normalized() * 0.01, along(dirv))
+        # diapasão: a ponta se abre em duas hastes no plano do arco (frente e trás), presas por um colar de pedra
+        tip = limb_at(pts, (half - 0.03) * s)
+        dt = limb_dir(pts, (half - 0.03) * s).normalized()
+        side = Vector((0, 1, 0)) - dt * dt.y
+        side.normalize()
+        for k, sg in enumerate((1, -1)):
+            prong = [tip - dt * 0.01, tip + side * sg * 0.004 + dt * 0.012, tip + side * sg * 0.0085 + dt * 0.03,
+                     tip + side * sg * 0.009 + dt * 0.062]
+            tube("Prong%d%d" % (s, k), spline(prong, 4), lambda u: 0.0052 * (1 - 0.45 * u), m, pale, sides=6,
+                 smooth=False)
+        limb_wrap("Collar%d" % s, pts, (half - 0.03) * s - 0.009, (half - 0.03) * s + 0.009, r_of_z, m, rock_d,
+                  turns=1, pad=0.0022, ridge=0.0004, flat=fl)
+    top_t, bot_t = limb_at(pts, half - 0.03), limb_at(pts, -(half - 0.03))
+    _BOW_STRING[:] = [(top_t.x, top_t.y, top_t.z), (bot_t.x, bot_t.y, bot_t.z)]
+    bow_export("bw_crystal_bow", top_t.y)
+
+
+
+def build_ossuary_bow():
+    """Arco Ossário (nv 29, épico): a espinha de um Cavaleiro Esqueleto, vértebra por vértebra sobre um cordão escuro,
+    com o crânio de olhos verdes na frente do centro, pares de costelas curvadas para a frente nas pontas do centro,
+    punho de couro com placas de aço enferrujado, estandarte vermelho rasgado e ganchos de costela nas pontas
+    (cores do esqueleto do jogo)."""
+    m = vcf("bw_ossuary", metal=0.2)
+    half, back, fl = 0.57, 0.16, 0.85
+    pts = bow_curve(half, back, recurve=0.03, n=90)
+    bone, bone_d, bone_l = H("#e2d9bc"), H("#a99e7e"), H("#f5efdc")
+    dark, steel, rust, red, red_d = H("#2e2838"), H("#6c707a"), H("#6a5648"), H("#6e211c"), H("#431411")
+    green = H("#45f094")
+
+    def core_r(z):
+        t = min(abs(z) / half, 1.0)
+        return 0.0058 + 0.0065 * (1 - t)
+    # cordão escuro que liga as vértebras (a espinha não fica solta)
+    tube("Cord", pts, lambda u: core_r(-half + 2 * half * u), m, dark, sides=10, flat=fl)
+
+    # vértebras: corpo torneado, processo espinhoso para trás do arco (-Y) e dois transversos para os lados
+    for s in (1, -1):
+        z = 0.185
+        k = 0
+        while z < half - 0.05:
+            t = z / half
+            rv, hv = 0.0165 * (1 - 0.55 * t), 0.022 * (1 - 0.45 * t)
+            p, d = limb_at(pts, z * s), limb_dir(pts, z * s).normalized()
+            body = lathe("Vert%d%d" % (s, k), [(-hv / 2, 0.0), (-hv / 2, rv * 0.8), (-hv / 2 + hv * 0.2, rv),
+                                              (hv / 2 - hv * 0.2, rv), (hv / 2, rv * 0.8), (hv / 2, 0.0)], m, None, seg=12)
+            put(body, lambda co: mix(bone_d, bone, 0.5 + 0.5 * math.cos(co.z * 900)), p, along(d))
+            back_v = Vector((0, -1, 0)) - d * d.y
+            back_v.normalize()
+            spine = [p + back_v * rv * 0.5, p + back_v * (rv + 0.012 * (1 - 0.4 * t)) + d * 0.004,
+                     p + back_v * (rv + 0.02 * (1 - 0.4 * t)) + d * 0.012]
+            tube("Spinous%d%d" % (s, k), spline(spine, 3), lambda u: 0.0052 * (1 - u) ** 0.8 + 0.0006, m, bone_l,
+                 sides=6, flat=0.45)
+            for sx in (1, -1):
+                side = Vector((sx, 0, 0))
+                tr = [p + side * rv * 0.6, p + side * (rv + 0.006) + back_v * 0.002, p + side * (rv + 0.01) + back_v * 0.004]
+                tube("Trans%d%d%d" % (s, k, sx), spline(tr, 3), lambda u: 0.0038 * (1 - 0.5 * u), m, bone, sides=6)
+            z += hv + 0.0075
+            k += 1
+        # gancho de costela na ponta, curvado para a frente, com anel de aço
+        tip, d = limb_at(pts, (half - 0.035) * s), limb_dir(pts, (half - 0.035) * s).normalized()
+        hook = [tip - d * 0.015, tip + d * 0.025, tip + d * 0.05 + Vector((0, -0.02, 0)),
+                tip + d * 0.055 + Vector((0, -0.05, 0)), tip + d * 0.042 + Vector((0, -0.07, 0))]
+        tube("Hook%d" % s, spline(hook, 5), lambda u: 0.0095 * (1 - u) ** 0.8 + 0.0006, m, bone, sides=10, flat=0.75)
+        limb_wrap("HookRing%d" % s, pts, (half - 0.035) * s - 0.009, (half - 0.035) * s + 0.009, core_r, m, steel,
+                  turns=1, pad=0.0045, ridge=0.0006, flat=fl)
+        # costelas que abraçam o centro: saem dos lados e curvam para a frente
+        base = limb_at(pts, 0.17 * s)
+        for sx in (1, -1):
+            rib = [base + Vector((sx * 0.006, 0, 0)), base + Vector((sx * 0.026, -0.004, 0.006 * s)),
+                   base + Vector((sx * 0.034, -0.026, 0.016 * s)), base + Vector((sx * 0.02, -0.046, 0.026 * s))]
+            tube("Rib%d%d" % (s, sx), spline(rib, 5), lambda u: 0.0058 * (1 - 0.55 * u), m, bone, sides=8, flat=0.6)
+
+    # centro: núcleo de aço com placas rebitadas e punho de couro
+    def riser_r(z):
+        return 0.0205
+    rseg = [limb_at(pts, -0.19 + 0.38 * i / 60) for i in range(61)]
+    tube("Riser", rseg, lambda u: 0.0175 + 0.004 * smooth01((0.19 - abs(-0.19 + 0.38 * u)) / 0.04), m,
+         lambda co: mix(rust, steel, 0.5 + 0.5 * math.sin(co.z * 70 + co.x * 140)), sides=14, flat=fl)
+    limb_wrap("Grip", pts, -0.065, 0.065, riser_r, m, H("#3a2a20"), turns=10, pad=0.0012, ridge=0.0009, flat=fl)
+    for s in (1, -1):
+        limb_wrap("GripBand%d" % s, pts, 0.072 * s - 0.006, 0.072 * s + 0.006, riser_r, m, steel, turns=1,
+                  pad=0.003, ridge=0.0005, flat=fl)
+        p = limb_at(pts, 0.16 * s)
+        for sx in (1, -1):
+            orb("Rivet%d%d" % (s, sx), m, H("#cfd3da"), (p.x + sx * 0.012, p.y - 0.016, p.z), 0.0028, seg=8)
+
+    # crânio na frente, acima da mão, olhando para o alvo
+    zc = 0.118
+    p = limb_at(pts, zc)
+    cy = p.y - 0.026
+    orb("Cranium", m, bone, (p.x, cy + 0.004, zc + 0.004), 0.0185, seg=14, sq=1.05)
+    lathe("Muzzle", [(0.0, 0.0), (0.0, 0.0125), (0.011, 0.0115), (0.02, 0.0085), (0.024, 0.0)], m, bone_d, seg=12,
+          loc=(p.x, cy - 0.006, zc - 0.008), rot=(math.pi / 2 + 0.35, 0, 0))
+    for sx in (1, -1):
+        orb("Socket%d" % sx, m, H("#15110e"), (p.x + sx * 0.0072, cy - 0.0125, zc + 0.002), 0.0062, seg=10)
+        orb("EyeGlow%d" % sx, m, green, (p.x + sx * 0.0072, cy - 0.0158, zc + 0.002), 0.0032, seg=8)
+    orb("Nose", m, H("#15110e"), (p.x, cy - 0.0135, zc - 0.006), 0.0032, seg=8)
+    for k in range(5):   # dentes de cima na borda do focinho
+        x = (k - 2) * 0.0036
+        orb("Tooth%d" % k, m, bone_l, (p.x + x, cy - 0.0158, zc - 0.0155), 0.0019, seg=6)
+    # estandarte vermelho rasgado, preso no anel de baixo do punho
+    p = limb_at(pts, -0.075)
+    flag = [(-0.016, 0.0), (0.016, 0.0), (0.018, -0.07), (0.009, -0.058), (0.004, -0.085), (-0.004, -0.064),
+            (-0.012, -0.09), (-0.017, -0.06)]
+    ob = flat("Banner", flag, m, None, th=0.0028, bevel=0.0012, step=0.006,
+              bend=lambda c: Vector((c.x, c.y - 0.12 * c.z * c.z - 0.004 * math.sin(c.x * 200), c.z)))
+    put(ob, lambda co: red if (co.z - p.z) > -0.07 else red_d, (p.x, p.y - 0.021, p.z))
+    top_t, bot_t = limb_at(pts, half - 0.035), limb_at(pts, -(half - 0.035))
+    _BOW_STRING[:] = [(top_t.x, top_t.y, top_t.z), (bot_t.x, bot_t.y, bot_t.z)]
+    bow_export("bw_ossuary_bow", top_t.y)
+
+
+
+def build_chitin_bow():
+    """Quitina da Mãe-Verme (nv 32, épico): braços de anéis de carapaça encaixados como os segmentos do verme, com
+    cristais ciano cravados; boca de verme com anel de dentes nas pontas; colares de pedra com runas ciano, punho de
+    pele do verme, fileira de dentes nas costas e o frasco de ácido verde pingando na frente (cores da Mãe-Verme do
+    jogo e do ácido que ela cospe)."""
+    m = vcf("bw_chitin", metal=0.1)
+    half, back, fl = 0.57, 0.16, 0.85
+    pts = bow_curve(half, back, recurve=0.025, n=90)
+    plate, plate_d, rim = H("#6e5a4c"), H("#43322a"), H("#b07a6a")
+    tooth, gum, stone, stone_l = H("#efe6d0"), H("#7a2630"), H("#5e5a58"), H("#86807a")
+    cyan, acid, acid_l = H("#3fd2f2"), H("#58b81c"), H("#9cf04a")
+    riser_z = 0.17
+
+    def core_r(z):
+        t = min(abs(z) / half, 1.0)
+        return 0.0068 + 0.0075 * (1 - t)
+    tube("Core", pts, lambda u: core_r(-half + 2 * half * u), m, plate_d, sides=10, flat=fl)
+
+    for s in (1, -1):
+        # anéis de carapaça: cada um abre para a ponta e o seguinte nasce dentro da borda dele
+        z, k = riser_z - 0.004, 0
+        while z < half - 0.05:
+            t = z / half
+            L, rb = 0.036 * (1 - 0.35 * t), 0.0185 * (1 - 0.5 * t)
+            p, d = limb_at(pts, z * s), limb_dir(pts, z * s).normalized()
+            ob = lathe("Seg%d%d" % (s, k), [(0.0, 0.0), (0.0, rb * 0.72), (L * 0.55, rb * 0.9), (L * 0.9, rb),
+                                           (L, rb * 0.94), (L, 0.0)], m, None, seg=14)
+            # pinta depois de posicionar (a luz pintada fica igual nos dois braços), medindo ao longo do anel
+            put(ob, lambda co, L=L, p=p, d=d: mix(plate_d, plate, smooth01((co - p).dot(d) / (L * 0.7)))
+                if (co - p).dot(d) < L * 0.86 else rim, p, along(d))
+            if k % 2 == 1:   # cristal ciano cravado nas costas (-Y) do anel
+                back_v = (Vector((0, -1, 0)) - d * d.y).normalized()
+                c = p + d * L * 0.5 + back_v * rb * 0.8
+                ob = crystal("SegGem%d%d" % (s, k), m, None, (0, 0, 0), 0.0045 * (1 - 0.4 * t), 0.012, 0.004, seg=6)
+                put(ob, cyan, c, along(back_v.lerp(d, 0.3)))
+            z += L * 0.93
+            k += 1
+        # boca de verme na ponta: funil de lábio, garganta vermelha e um anel de dentes virados para dentro
+        zt = (half - 0.05) * s
+        p, d = limb_at(pts, zt), limb_dir(pts, zt).normalized()
+        ob = lathe("Mouth%d" % s, [(0.0, 0.0), (0.0, 0.0095), (0.02, 0.0125), (0.034, 0.0135), (0.038, 0.011),
+                                   (0.036, 0.0075), (0.026, 0.0)], m, None, seg=16)
+        put(ob, lambda co, p=p, d=d: rim if (co - p).dot(d) < 0.03 else gum, p, along(d))
+        mouth_c = p + d * 0.034
+        for k in range(8):
+            a = 2 * math.pi * k / 8
+            out = Vector((math.cos(a), math.sin(a), 0))
+            q = along(d).to_matrix() @ out
+            tt = [mouth_c + q * 0.0118, mouth_c + q * 0.0105 + d * 0.006, mouth_c + q * 0.006 + d * 0.0095]
+            tube("MouthTooth%d%d" % (s, k), spline(tt, 3), lambda u: 0.0026 * (1 - u) ** 0.8 + 0.0003, m, tooth,
+                 sides=6)
+        # fileira de dentes nas costas, logo depois do centro
+        for k, zz in enumerate((0.19, 0.215, 0.24)):
+            q, dq = limb_at(pts, zz * s), limb_dir(pts, zz * s).normalized()
+            bv = (Vector((0, -1, 0)) - dq * dq.y).normalized()
+            tt = [q + bv * 0.012, q + bv * 0.022 + dq * 0.004, q + bv * 0.03 + dq * 0.012]
+            tube("BackTooth%d%d" % (s, k), spline(tt, 3), lambda u: 0.0042 * (1 - u) ** 0.9 + 0.0004, m, tooth,
+                 sides=8, flat=0.6)
+
+    # centro: pele do verme com colares de pedra e runas ciano
+    def riser_r(z):
+        return 0.019
+    rseg = [limb_at(pts, -riser_z + 2 * riser_z * i / 60) for i in range(61)]
+    tube("Riser", rseg, lambda u: 0.017 + 0.0035 * smooth01((riser_z - abs(-riser_z + 2 * riser_z * u)) / 0.04), m,
+         H("#7a5e4c"), sides=14, flat=fl)
+    limb_wrap("Grip", pts, -0.062, 0.062, riser_r, m, rim, turns=7, pad=0.0012, ridge=0.0012, flat=fl)
+    for s in (1, -1):
+        for zz in (0.075, 0.165):
+            limb_wrap("Collar%d%.3f" % (s, zz), pts, zz * s - 0.011, zz * s + 0.011, riser_r, m, stone, turns=1,
+                      pad=0.0035, ridge=0.0008, flat=fl)
+            limb_wrap("Rune%d%.3f" % (s, zz), pts, zz * s - 0.0025, zz * s + 0.0025, riser_r, m, cyan, turns=0,
+                      pad=0.0047, ridge=0.0, flat=fl)
+    # frasco de ácido na frente, acima da mão: berço de pedra, vidro com ácido verde e gotas penduradas
+    zc = 0.12
+    p = limb_at(pts, zc)
+    cy = p.y - 0.03
+    lathe("VialSeat", [(0.0, 0.0), (0.0, 0.012), (0.006, 0.0125), (0.012, 0.009), (0.012, 0.0)], m, stone_l, seg=12,
+          loc=(p.x, p.y - 0.014, zc), rot=(math.pi / 2, 0, 0))
+    orb("Vial", m, acid, (p.x, cy, zc), 0.0145, seg=14, sq=1.15)
+    orb("VialShine", m, acid_l, (p.x - 0.006, cy - 0.009, zc + 0.006), 0.0045, seg=8)
+    lathe("VialCap", [(0.0, 0.0), (0.0, 0.006), (0.006, 0.0065), (0.009, 0.004), (0.009, 0.0)], m, stone, seg=10,
+          loc=(p.x, cy, zc + 0.0145))
+    drip = [(p.x, cy, zc - 0.012), (p.x + 0.001, cy - 0.001, zc - 0.022), (p.x + 0.0015, cy - 0.002, zc - 0.03)]
+    tube("Drip", spline(drip, 3), lambda u: 0.0032 * (1 - 0.5 * u), m, acid, sides=8)
+    orb("DripDrop", m, acid, (p.x + 0.0015, cy - 0.002, zc - 0.033), 0.0038, seg=10, sq=1.2)
+    top_t, bot_t = limb_at(pts, half - 0.045), limb_at(pts, -(half - 0.045))
+    _BOW_STRING[:] = [(top_t.x, top_t.y, top_t.z), (bot_t.x, bot_t.y, bot_t.z)]
+    bow_export("bw_chitin_bow", top_t.y)
+
+
+
+def build_ashen_bow():
+    """Arco das Cinzas (nv 35, épico): freixo carbonizado da Encosta de Cinzas, com rachaduras de brasa viva correndo
+    pelos braços; braseiro de ferro negro na frente do centro com carvão aceso e chamas; ponteiras de ferro com
+    remate de chama; punho de pano cinza e anéis de ferro."""
+    m = vcf("bw_ashen", metal=0.15)
+    half, back, fl = 0.57, 0.165, 0.76
+    pts = bow_curve(half, back, recurve=0.035, n=100)
+
+    def r_of_z(z):
+        t = min(abs(z) / half, 1.0)
+        return 0.009 + 0.0125 * (1 - t) ** 0.65 + 0.003 * smooth01((0.2 - abs(z)) / 0.05)
+    char, char_l, hot, hot_l = H("#2a2220"), H("#4a3c36"), H("#e8561a"), H("#ffb03a")
+
+    def charred(co):   # carvão com veios de casca
+        a = math.atan2(co.y, co.x)
+        return mix(char, char_l, 0.3 + 0.3 * math.sin(a * 5 + co.z * 4))
+    tube("Limbs", pts, lambda u: r_of_z(-half + 2 * half * u), m, charred, sides=18, flat=fl)
+    # rachaduras de brasa: veios finos cravados na superfície, serpenteando ao comprido, com ramos curtos
+    for s in (1, -1):
+        for k, (a0, z0, z1) in enumerate(((0.3, 0.09, 0.5), (2.4, 0.12, 0.44), (4.3, 0.1, 0.53))):
+            seg = []
+            for i in range(61):
+                z = (z0 + (z1 - z0) * i / 60) * s
+                c, a = limb_at(pts, z), a0 + 0.7 * math.sin(z * 17 + k) + 0.25 * math.sin(z * 53)
+                rr = r_of_z(z) * 0.985
+                seg.append(c + Vector((math.cos(a) * rr, math.sin(a) * rr * fl, 0)))
+            tube("Crack%d%d" % (s, k), seg, lambda u: 0.0019 * (0.4 + 0.6 * math.sin(math.pi * u) ** 0.5), m,
+                 lambda co: hot, sides=6)
+            for b in (0.3, 0.65):   # ramos
+                p0 = Vector(seg[int(b * 60)])
+                zb = p0.z
+                ab = a0 + 0.7 * math.sin(zb * 17 + k) + 0.25 * math.sin(zb * 53) + 0.9
+                rb = r_of_z(zb) * 0.985
+                c = limb_at(pts, zb + 0.03 * s)
+                p1 = c + Vector((math.cos(ab) * rb, math.sin(ab) * rb * fl, 0))
+                tube("CrackB%d%d%.1f" % (s, k, b), [p0, p0.lerp(p1, 0.5), p1], lambda u: 0.0014 * (1 - 0.7 * u), m,
+                     hot_l, sides=5)
+
+    iron, iron_l, cloth = H("#26242a"), H("#4e4a52"), H("#6a625e")
+    flame = [(0.0, 0.0), (0.009, 0.006), (0.012, 0.02), (0.006, 0.032), (0.009, 0.045), (0.0, 0.062),
+             (-0.004, 0.044), (-0.011, 0.034), (-0.008, 0.016), (-0.009, 0.005)]
+    for s in (1, -1):
+        # ponteira de ferro com remate de chama (plano do arco, para ler de lado)
+        limb_wrap("TipCap%d" % s, pts, (half - 0.045) * s if s > 0 else -half + 0.002,
+                  half - 0.002 if s > 0 else -(half - 0.045), r_of_z, m, iron, turns=2, pad=0.0014, ridge=0.0007,
+                  flat=fl)
+        tip, d = limb_at(pts, (half - 0.004) * s), limb_dir(pts, (half - 0.004) * s).normalized()
+        rot = d.to_track_quat('Z', 'X').to_euler()
+        for k, (sc, col, off) in enumerate(((1.0, hot, 0.0), (0.6, hot_l, 0.0026))):   # laranja por fora, amarela dentro
+            ob = flat("TipFlame%d%d" % (s, k), [(x * sc, z * sc) for x, z in flame], m, None, th=0.004 + off,
+                      bevel=0.002, step=0.004)
+            put(ob, col, tip - d * 0.006, rot)
+        # anéis de ferro no braço
+        for z in (0.24, 0.36):
+            limb_wrap("Ring%d%.2f" % (s, z), pts, z * s - 0.007, z * s + 0.007, r_of_z, m, iron_l, turns=1,
+                      pad=0.0015, ridge=0.0004, flat=fl)
+        limb_wrap("RiserBand%d" % s, pts, 0.072 * s - 0.008, 0.072 * s + 0.008, r_of_z, m, iron, turns=1, pad=0.0022,
+                  ridge=0.0005, flat=fl)
+    limb_wrap("Grip", pts, -0.064, 0.064, r_of_z, m, cloth, turns=11, pad=0.0016, ridge=0.0008, flat=fl)
+
+    # braseiro na frente, acima da mão: taça de ferro presa por dois braços, carvão aceso e três chamas
+    zb = 0.118
+    p = limb_at(pts, zb)
+    cx, cy = p.x, p.y - r_of_z(zb) * fl - 0.022
+    lathe("Brazier", [(0.0, 0.0), (0.0, 0.006), (0.004, 0.0075), (0.012, 0.0145), (0.016, 0.0165), (0.017, 0.0145),
+                      (0.017, 0.0)], m, iron, seg=16, loc=(cx, cy, zb - 0.012))
+    for k in range(6):
+        a = 2 * math.pi * k / 6
+        orb("BrazierStud%d" % k, m, iron_l, (cx + 0.0158 * math.cos(a), cy + 0.0158 * math.sin(a), zb + 0.001), 0.0022,
+            seg=6)
+    for z in (zb - 0.008, zb + 0.002):
+        q = limb_at(pts, z)
+        tube("BrazierArm%.3f" % z, [(q.x, q.y, z), (cx, cy + 0.012, z)], 0.0026, m, iron, sides=8)
+    for k, (dx, dy, r) in enumerate(((0.0, 0.0, 0.0085), (0.007, 0.004, 0.0062), (-0.0065, -0.003, 0.0058))):
+        orb("Coal%d" % k, m, H("#e8561a") if k else H("#ff9a2a"), (cx + dx, cy + dy, zb + 0.004), r, seg=10, sq=0.8)
+    for k, (dx, sc, ang) in enumerate(((0.0, 1.0, 0.0), (0.007, 0.7, 0.35), (-0.0065, 0.65, -0.3))):
+        for kk, (f2, col, off) in enumerate(((1.0, hot, 0.0), (0.58, hot_l, 0.0024))):
+            ob = flat("BrazierFlame%d%d" % (k, kk), [(x * sc * f2, z * sc * f2) for x, z in flame], m, None,
+                      th=0.0035 + off, bevel=0.0017, step=0.004)
+            put(ob, col, (cx + dx, cy, zb + 0.006), (0, ang, math.pi / 2))
+    top_t, bot_t = limb_at(pts, half - 0.022), limb_at(pts, -(half - 0.022))
+    _BOW_STRING[:] = [(top_t.x, top_t.y, top_t.z), (bot_t.x, bot_t.y, bot_t.z)]
+    bow_export("bw_ashen_bow", top_t.y)
+
+
+
+def build_yeti_bow():
+    """Arco do Ieti (nv 40, épico): dois chifres do Ieti Glacial, grossos e anelados, do azul fundo da base ao gelo
+    claro da ponta; garras azul-marinho agarrando a raiz dos chifres; golas de pelo branco; punho de pele azul; tufos de
+    gelo nas costas dos chifres; pingentes de gelo sob o centro e presas brancas nas pontas (cores do Ieti do jogo).
+    Sem emissão: no toon do jogo o gelo brilhando vira branco."""
+    m = vcf("bw_yeti", metal=0.1)
+    half, back, fl = 0.57, 0.175, 0.82
+    pts = bow_curve(half, back, recurve=0.045, n=100)
+    root = 0.13
+
+    def horn_r(z):
+        t = min(max((abs(z) - root) / (half - root), 0.0), 1.0)
+        return 0.0115 + 0.0175 * (1 - t) ** 0.8      # chifre grosso: o arco é pesado
+    deep, skin, pale = H("#46698c"), H("#6e97bc"), H("#d6f2ff")
+
+    def horn(co):
+        t = min(max((abs(co.z) - root) / (half - root), 0.0), 1.0)
+        c = ramp([(0.0, deep), (0.45, skin), (1.0, pale)], t)
+        ring = smooth01((math.sin(abs(co.z) * 190) - 0.72) / 0.2) * (1 - 0.5 * t)   # anéis de crescimento pintados
+        return mix(c, deep, 0.55 * ring)
+    for s in (1, -1):
+        seg = [p for p in pts if p[2] * s > root - 0.05]
+        if s < 0:
+            seg = seg[::-1]
+        tube("Horn%d" % s, seg, lambda u, seg=seg: horn_r(seg[0][2] + (seg[-1][2] - seg[0][2]) * u), m, horn,
+             sides=16, flat=fl)
+
+    fur, fur_d, claw, fang = H("#e6eef4"), H("#afc0ce"), H("#2c3a4c"), H("#f4f6f8")
+    ice, ice_d = H("#8fe6ff"), H("#3aa0d8")
+
+    def riser_r(z):
+        return 0.0235
+    rseg = [limb_at(pts, -root + 2 * root * i / 60) for i in range(61)]
+    tube("Riser", rseg, lambda u: 0.022, m, claw, sides=14, flat=fl)
+    limb_wrap("Grip", pts, -0.064, 0.064, riser_r, m, skin, turns=9, pad=0.0008, ridge=0.0009, flat=fl)
+    for s in (1, -1):
+        # gola de pelo branco na raiz do chifre: tufos deitados para a ponta
+        z = (root - 0.012) * s
+        p, dz = limb_at(pts, z), limb_dir(pts, z).normalized()
+        for row, (zo, rr) in enumerate(((0.0, 0.0), (0.012, 0.004))):   # duas fileiras encavaladas
+            for k in range(22):
+                a = 2 * math.pi * (k + 0.5 * row) / 22 + 0.3 * s
+                out = Vector((math.cos(a), math.sin(a) * fl, 0))
+                L = 0.02 + 0.006 * math.sin(k * 2.3 + row)
+                q = p - dz * zo
+                tuft = [q + out * 0.014, q + out * (0.026 + rr) + dz * L * 0.25, q + out * (0.031 + rr) + dz * L]
+                tube("Fur%d%d%d" % (s, row, k), spline(tuft, 3), lambda u: 0.0085 * (1 - u) ** 0.55 + 0.0012, m,
+                     fur if (k + row) % 3 else fur_d, sides=7, flat=0.6)
+        # garras azul-marinho saindo do centro e agarrando a raiz do chifre (três de cada lado, por fora)
+        base = limb_at(pts, (root - 0.035) * s)
+        for k, ax in enumerate((-1.0, 0.0, 1.0)):
+            side = Vector((ax * 0.9, -0.55 if ax == 0 else -0.2, 0)).normalized()
+            c = [base + side * 0.012, base + side * 0.027 + dz * 0.012, base + side * 0.028 + dz * 0.04,
+                 base + side * 0.019 + dz * 0.062]
+            tube("Claw%d%d" % (s, k), spline(c, 5), lambda u: 0.0072 * (1 - u) ** 0.7 + 0.0006, m, claw, sides=10,
+                 flat=0.8)
+        # tufos de gelo nas costas do chifre (-Y), em leque, deitados para a ponta
+        for k, (zz, n_c, size) in enumerate(((0.22, 5, 1.4), (0.33, 4, 1.1))):
+            q, dq = limb_at(pts, zz * s), limb_dir(pts, zz * s).normalized()
+            face = q + Vector((0, -horn_r(zz) * fl * 0.55, 0))
+            for c in range(n_c):
+                f = (c - (n_c - 1) / 2) / max((n_c - 1) / 2, 1)
+                tilt = Vector((0.75 * f, -1, 0)).normalized().lerp(dq, 0.3 + 0.12 * abs(f)).normalized()
+                h = 0.042 * size * (1 - 0.38 * abs(f))
+                ob = crystal("Ice%d%d%d" % (s, k, c), m, None, (0, 0, 0), 0.0068 * size * (1 - 0.25 * abs(f)), h,
+                             0.012, seg=5, phase=0.5 * c)
+                put(ob, ice_d if c % 2 else ice, face + Vector((0.006 * f, 0, 0.004 * f * s)), along(tilt))
+        # presa branca na ponta, curvada para a frente
+        tip, d = limb_at(pts, (half - 0.004) * s), limb_dir(pts, (half - 0.004) * s).normalized()
+        hook = [tip - d * 0.025, tip + d * 0.022, tip + d * 0.05 + Vector((0, -0.018, 0)),
+                tip + d * 0.058 + Vector((0, -0.045, 0))]
+        tube("Fang%d" % s, spline(hook, 6), lambda u: 0.0135 * (1 - u) ** 0.75 + 0.0006, m, lambda co: fang,
+             sides=12, flat=0.85)
+        limb_wrap("FangTie%d" % s, pts, (half - 0.016) * s - 0.012, (half - 0.016) * s + 0.012, horn_r, m, claw,
+                  turns=3, pad=0.0014, ridge=0.0008, flat=fl)
+    # pingentes de gelo pendurados sob o centro, na frente da gola de baixo
+    p = limb_at(pts, -root + 0.005)
+    for k, (dx, L) in enumerate(((-0.012, 0.05), (0.0, 0.07), (0.012, 0.045))):
+        ob = crystal("Icicle%d" % k, m, None, (0, 0, 0), 0.0055, L, 0.006, seg=6, phase=0.4 * k)
+        put(ob, ice if k != 1 else ice_d, (p.x + dx, p.y - 0.017, p.z - 0.004), (math.pi, 0, 0))
+    top_t, bot_t = limb_at(pts, half - 0.016), limb_at(pts, -(half - 0.016))
+    _BOW_STRING[:] = [(top_t.x, top_t.y, top_t.z), (bot_t.x, bot_t.y, bot_t.z)]
+    bow_export("bw_yeti_bow", top_t.y)
+
+
 def build_arrow():
     m = vcf("bw_arrow", metal=0.3)
     tube("Shaft", [(0, 0, -0.07), (0, 0, 0.69)], 0.0055, m, H("#b08850"), sides=6)
@@ -866,7 +1723,13 @@ def build_arrow():
 
 
 ARMORY += [("bw_short_bow", build_short_bow), ("bw_hunter_bow", build_hunter_bow), ("bw_elven_bow", build_elven_bow),
-           ("bw_goblin_warbow", build_goblin_warbow), ("bw_storm_bow", build_storm_bow), ("bw_arrow", build_arrow)]
+           ("bw_goblin_warbow", build_goblin_warbow), ("bw_storm_bow", build_storm_bow), ("bw_twig_bow", build_twig_bow),
+           ("bw_raptor_bow", build_raptor_bow), ("bw_warden_bow", build_warden_bow),
+           ("bw_silk_bow", build_silk_bow), ("bw_frostfang_bow", build_frostfang_bow),
+           ("bw_lantern_bow", build_lantern_bow), ("bw_crystal_bow", build_crystal_bow),
+           ("bw_ossuary_bow", build_ossuary_bow), ("bw_chitin_bow", build_chitin_bow),
+           ("bw_ashen_bow", build_ashen_bow), ("bw_yeti_bow", build_yeti_bow),
+           ("bw_arrow", build_arrow)]
 
 
 # ------------------------------------------------------------------ espadas clássicas

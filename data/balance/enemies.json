@@ -780,6 +780,10 @@
 			[
 				"scroll_pale_crescent",
 				0.04
+			],
+			[
+				"scroll_ossuary_bow",
+				0.04
 			]
 		],
 		"ref_level": 6
@@ -1061,6 +1065,104 @@
 		],
 		"loot": [],
 		"ref_level": 6
+	},
+	"forjador_runico": {
+		"name": "Forjador Rúnico",
+		"model": "forge_golem",
+		"ai": "forge",
+		"boss": true,
+		"hp": 1800,
+		"damage": 32,
+		"speed": 2.2,
+		"xp": 450,
+		"gold": [
+			90,
+			130
+		],
+		"aggro": 22.0,
+		"reach": 4.5,
+		"cooldown": 1.7,
+		"radius": 1.3,
+		"height": 4.2,
+		"scale": 0.9,
+		"color": {
+			"$c": [
+				0.95,
+				0.5,
+				0.15,
+				1.0
+			]
+		},
+		"bld": 2.5,
+		"loot": [
+			[
+				"iron_zweihander",
+				0.08
+			],
+			[
+				"goblin_crown",
+				1.0
+			],
+			[
+				"health_potion",
+				1.0
+			],
+			[
+				"seed_pumpkin",
+				1.0
+			],
+			[
+				"seed_mint",
+				1.0
+			],
+			[
+				"goblin_cleaver",
+				0.25
+			],
+			[
+				"scroll_wind_ring",
+				0.3
+			],
+			[
+				"scroll_bone_staff",
+				0.3
+			],
+			[
+				"scroll_reinforced_boots",
+				0.3
+			]
+		],
+		"ref_level": 12
+	},
+	"runa_forjador": {
+		"name": "Runa do Escudo",
+		"model": "forge_rune",
+		"ai": "plant",
+		"rune": true,
+		"hp": 220,
+		"damage": 0,
+		"speed": 0.0,
+		"xp": 0,
+		"gold": [
+			0,
+			0
+		],
+		"aggro": 0.0,
+		"reach": 0.0,
+		"cooldown": 9.0,
+		"radius": 0.5,
+		"height": 1.9,
+		"scale": 1.0,
+		"color": {
+			"$c": [
+				1.0,
+				0.68,
+				0.2,
+				1.0
+			]
+		},
+		"loot": [],
+		"ref_level": 12
 	},
 	"lich": {
 		"name": "Morgrath, o Lich",
@@ -1671,6 +1773,10 @@
 			],
 			[
 				"scroll_sc_halo_scepter",
+				0.25
+			],
+			[
+				"scroll_chitin_bow",
 				0.25
 			]
 		],

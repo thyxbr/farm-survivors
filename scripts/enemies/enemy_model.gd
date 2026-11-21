@@ -22,6 +22,8 @@ const MODELS := {
 	"worm": preload("res://assets/models/worm.glb"),
 	"plant": preload("res://assets/models/plant.glb"),
 	"thorn_tree": preload("res://assets/models/thorn_tree.glb"),
+	"forge_golem": preload("res://assets/models/forge_golem.glb"),
+	"forge_rune": preload("res://assets/models/forge_rune.glb"),
 	"frog": preload("res://assets/models/frog.glb"),
 	"bat": preload("res://assets/models/bat.glb"),
 	"wolf": preload("res://assets/models/wolf.glb"),
