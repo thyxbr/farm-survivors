@@ -1462,6 +1462,7 @@ func _ready() -> void:
 	await _test_bocarrao_tongue()
 	await _test_flor_rooted()
 	await _test_espinheira()
+	await _test_arauto()
 	await _test_enemy_detour()
 	await _test_river()
 	await _test_archer_pose()
@@ -4600,5 +4601,141 @@ func _test_espinheira() -> void:
 	Game.hp = Game.max_hp()
 	player.web_t = 0.0
 	player.chill_t = 0.0
+	player.global_position = back
+	await wait(0.1)
+
+
+## Arauto do Abismo (chefe final): Rajada e Garra acertam, as Zonas de Vazio nascem e crescem, abaixo de 65% vem a
+## Miragem (cópias que se desfazem sem levar dano; acertar o verdadeiro desfaz todas) e abaixo de 30% o Colapso
+## (puxa para o centro, o miolo estoura e o vão entre os anéis é seguro).
+func _test_arauto() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 40)
+	player.global_position = spot
+	Game.hp = Game.max_hp()
+	var e := Enemy.new()
+	e.kind = "arauto_abismo"
+	world.add_child(e)
+	e.global_position = spot + Vector3(0, 0, -9)
+	e.home = e.global_position
+	await wait(0.2)
+	check(e.is_boss and e.parts.get("Halo") != null and e.parts.get("Core") != null and e.parts.get("ElbowL") != null
+		and e.parts.get("HandR") != null and e.parts.get("Wisp3") != null,
+		"Arauto: chefe, com halo, núcleo, cotovelos, mãos e fiapos no modelo")
+	# Rajada: o jogador está a 9 m (fora da garra), na linha do projétil do meio
+	var hp0: float = Game.hp
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "volley", "Arauto: longe, ataca com a Rajada de Sombras (%s)" % e.attack_kind)
+	await wait_until(func(): return Game.hp < hp0, 3.0)
+	check(Game.hp < hp0, "Arauto: a Rajada acerta (%.0f -> %.0f)" % [hp0, Game.hp])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	# Garra: o jogador a 3 m, na frente
+	Game.hp = Game.max_hp()
+	hp0 = Game.hp
+	player.global_position = e.global_position + Vector3(0, 0, 3)
+	e._abyss_n = 0
+	e.attack_cd = 0.0
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "swing", "Arauto: perto, ataca com a Garra (%s)" % e.attack_kind)
+	await wait_until(func(): return Game.hp < hp0, 2.5)
+	check(Game.hp < hp0, "Arauto: a Garra em arco acerta quem está na frente (%.0f -> %.0f)" % [hp0, Game.hp])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	# Zonas de Vazio: o 4º golpe do ciclo; nascem, crescem e ferem quem fica dentro (uma nasce sob o jogador)
+	Game.hp = Game.max_hp()
+	e._abyss_n = 3
+	e.attack_cd = 0.0
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "voids", "Arauto: o 4º golpe são as Zonas de Vazio (%s)" % e.attack_kind)
+	await wait_until(func(): return get_tree().get_nodes_in_group("void_zones").size() > AbyssRules.VOIDS, 3.0)
+	var zones := get_tree().get_nodes_in_group("void_zones")
+	check(zones.size() == AbyssRules.VOIDS + 1, "Arauto: as Zonas nascem, uma sob o jogador (%d)" % zones.size())
+	var r0: float = zones[0].radius() if not zones.is_empty() else 0.0
+	hp0 = Game.hp
+	await wait(1.6)
+	var r1: float = zones[0].radius() if not zones.is_empty() and is_instance_valid(zones[0]) else 0.0
+	check(r1 > r0 + 0.1, "Arauto: as Zonas crescem com o tempo (%.2f -> %.2f m)" % [r0, r1])
+	check(Game.hp < hp0, "Arauto: quem fica na Zona leva dano (%.0f -> %.0f)" % [hp0, Game.hp])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	for z in get_tree().get_nodes_in_group("void_zones"):
+		z.queue_free()
+	# Fase 2: abaixo de 65% abre com a Miragem (duas cópias, ele muda de lugar)
+	Game.hp = Game.max_hp()
+	player.global_position = e.global_position + Vector3(0, 0, 9)
+	var was := e.global_position
+	e.hp = e.max_hp * 0.6
+	e.attack_cd = 0.0
+	await wait_until(func(): return e._abyss_phase == 2, 1.0)
+	check(e._abyss_phase == 2 and e.enraged, "Arauto: abaixo de 65% entra na fase 2")
+	await wait_until(func(): return e.state == "attack", 2.5)
+	check(e.attack_kind == "mirage", "Arauto: a fase 2 abre com a Miragem (%s)" % e.attack_kind)
+	await wait_until(func(): return e._abyss_echoes().size() >= 2, 3.0)
+	var echoes: Array = e._abyss_echoes()
+	check(echoes.size() == 2, "Arauto: a Miragem cria duas cópias (%d)" % echoes.size())
+	check(e.global_position.distance_to(was) > 2.0, "Arauto: ele reaparece em outro ponto (%.1f m)"
+		% e.global_position.distance_to(was))
+	if echoes.size() == 2:
+		var echo: Enemy = echoes[0]
+		check(echo.display_name == e.display_name and not echo.is_boss and e._rig.has("shadow")
+			and not echo._rig.has("shadow"), "Arauto: a cópia tem o mesmo nome e só o verdadeiro tem a sombra no chão")
+		# acertar uma cópia a desfaz, sem dano em ninguém
+		var boss_hp: float = e.hp
+		echo.take_damage(80.0, player.global_position, false)
+		await wait(0.1)
+		check(not is_instance_valid(echo) or echo.dead, "Arauto: acertar uma cópia a desfaz")
+		check(is_equal_approx(e.hp, boss_hp) and e._abyss_echoes().size() == 1,
+			"Arauto: o golpe na cópia não fere o verdadeiro e a outra cópia continua")
+		# acertar o verdadeiro fere de verdade e desfaz as cópias que restam
+		e.take_damage(80.0, player.global_position, false)
+		await wait(0.1)
+		check(e.hp < boss_hp and e._abyss_echoes().is_empty(),
+			"Arauto: só o verdadeiro leva dano (%.0f -> %.0f) e o golpe nele desfaz a Miragem" % [boss_hp, e.hp])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	# Fase 3: abaixo de 30% abre com o Colapso: vai para o centro (a casa dele, fora de sala) e puxa o jogador
+	Game.hp = Game.max_hp()
+	e.hp = e.max_hp * 0.25
+	e.attack_cd = 0.0
+	await wait_until(func(): return e._abyss_phase == 3, 1.0)
+	check(e._abyss_phase == 3, "Arauto: abaixo de 30% entra na fase 3")
+	player.global_position = e.home + Vector3(0, 0.3, 10)
+	await wait_until(func(): return e.state == "attack", 2.5)
+	check(e.attack_kind == "collapse", "Arauto: a fase 3 abre com o Colapso (%s)" % e.attack_kind)
+	check(Vector2(e.global_position.x - e.home.x, e.global_position.z - e.home.z).length() < 0.5,
+		"Arauto: no Colapso ele vai para o centro")
+	var flat := func() -> float:
+		return Vector2(player.global_position.x - e.global_position.x, player.global_position.z - e.global_position.z).length()
+	await wait_until(func(): return e.attack_timer >= AbyssRules.PULL_T, 3.0)
+	check(flat.call() <= AbyssRules.PULL_STOP + 0.5, "Arauto: o Colapso puxa o jogador para o centro (10 m -> %.1f m)"
+		% flat.call())
+	# quem fica no centro leva o miolo
+	hp0 = Game.hp
+	await wait_until(func(): return Game.hp < hp0, 2.5)
+	check(Game.hp < hp0 and e.attack_timer >= float(AbyssRules.collapse_ring(0).t),
+		"Arauto: o miolo da explosão pega quem ficou no centro (%.0f -> %.0f)" % [hp0, Game.hp])
+	# no vão entre o miolo e o primeiro anel a onda passa sem acertar
+	# (o golpe do miolo empurra o jogador para fora: o teste o segura no vão até a explosão acabar)
+	var gap := e.global_position + Vector3(0, 0.3, AbyssRules.COLLAPSE_DISC + AbyssRules.COLLAPSE_GAP * 0.5)
+	player.global_position = gap
+	hp0 = Game.hp
+	var guard := 0
+	while e.state == "attack" and guard < 400:
+		guard += 1
+		player.global_position = Vector3(gap.x, player.global_position.y, gap.z)
+		player.velocity = Vector3.ZERO
+		await get_tree().physics_frame
+	check(Game.hp >= hp0 - 0.5, "Arauto: no vão entre os anéis a explosão não acerta (%.0f -> %.0f)"
+		% [hp0, Game.hp])
+	# fim da luta: sem ele, as cópias que houver se desfazem
+	e.queue_free()
+	await wait(1.2)
+	var left := 0
+	for x in get_tree().get_nodes_in_group("enemies"):
+		if x is Enemy and x.kind == Enemy.ECHO_KIND and not x.dead:
+			left += 1
+	check(left == 0, "Arauto: sem ele, as cópias se desfazem (%d sobraram)" % left)
+	for z in get_tree().get_nodes_in_group("void_zones"):
+		z.queue_free()
+	Game.hp = Game.max_hp()
 	player.global_position = back
 	await wait(0.1)

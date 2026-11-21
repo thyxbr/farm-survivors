@@ -255,10 +255,9 @@ count = 2
 radius = 1.5
 respawn = 150.0
 
-[node name="chefe lich" type="Node3D" parent="Monstros"]
+[node name="chefe arauto" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -38)
 script = ExtResource("7_dg")
-kind = "lich"
+kind = "arauto_abismo"
 respawn = 600.0
-elite = true
 chief = true

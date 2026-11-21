@@ -164,6 +164,14 @@ var _root_hit := {}
 var _spore_pts: Array = []
 var _thorn_t := 0.0
 var _leash_t := 0.0
+## Arauto do Abismo (ai "herald"): a fase, golpes dados nela, de onde e para onde vai o golpe da vez, os pontos
+## das Zonas de Vazio ou da Miragem e, na cópia, os segundos de vida.
+var _abyss_phase := 1
+var _abyss_n := 0
+var _abyss_origin := Vector3.ZERO
+var _abyss_dir := Vector3.FORWARD
+var _abyss_pts: Array = []
+var _abyss_t := 0.0
 ## Mãe-Verme, habilidades de chefe (BossRules): especiais já feitos, mergulhos de fúria pendentes, semente do
 ## Desmoronamento (vai no snapshot), pontos das pedras e das Poças de Ácido do golpe atual, a entrada já mostrada
 ## a este jogador, o visual da fúria (cristais vermelhos) e a aura de partículas.
@@ -310,6 +318,7 @@ func _ready() -> void:
 		_make_boss_aura()
 		if not puppet:
 			_set_state("burrow")   # a Mãe-Verme começa enterrada: a entrada da luta é ela saindo do chão
+	_abyss_setup()   # Arauto do Abismo e as cópias (não faz nada nos outros)
 	if Network.is_server():
 		Network.server_register_enemy(self)
 
@@ -564,6 +573,8 @@ static func _bar_mat(c: Color, priority: int) -> StandardMaterial3D:
 func _physics_process(delta: float) -> void:
 	if not dead and (ai() == "thorn" or data.get("sprout", false)):
 		_thorn_process(delta)
+	if not dead and ai() == "herald":
+		_abyss_process(delta)
 	if _plates != null:
 		_occ_t -= delta
 		if _occ_t <= 0.0:
@@ -697,6 +708,8 @@ func _physics_process(delta: float) -> void:
 				face = r[1]
 			elif ai() == "thorn" and attack_cd <= 0 and dist <= ThornRules.ROOT_LEN:
 				_begin_attack(dist)   # Espinheira: garra perto, raízes longe
+			elif ai() == "herald" and attack_cd <= 0 and dist <= AbyssRules.VOLLEY_RANGE:
+				_begin_attack(dist)   # Arauto: garra perto, rajada longe, e os golpes de cada fase
 			elif ai() == "burrow" and BurrowRules.should_dig(dist, surface_t, data):
 				_set_state("burrow")   # Toupeira: afunda e vai por baixo da terra até o alvo
 				dig_t = 0.0
@@ -1202,6 +1215,9 @@ func _begin_attack(dist := 0.0) -> void:
 		"thorn":
 			_thorn_begin(dist)
 			return
+		"herald":
+			_abyss_begin(dist)
+			return
 		"worm":
 			attack_kind = BossRules.worm_attack(worm_hits, _specials, dist, float(data.reach))
 			worm_hits += 1
@@ -1282,6 +1298,8 @@ func _attack_duration() -> float:
 			return 2.2
 	if ai() == "thorn":
 		return 1.6   # garra: a árvore é lenta para armar e para voltar
+	if ai() == "herald":
+		return AbyssRules.duration(attack_kind)
 	return 0.95 if not is_boss else 1.1
 
 
@@ -1321,6 +1339,8 @@ func _hit_time() -> float:
 			return 1.4
 	if ai() == "thorn":
 		return 0.9
+	if ai() == "herald":
+		return AbyssRules.hit_time(attack_kind)
 	return 0.5 if not is_boss else 0.6
 
 
@@ -1362,6 +1382,8 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 			_spore_hit(false)
 		elif attack_kind == "swing" and ai() == "thorn":
 			_thorn_claw(false)
+		elif ai() == "herald":
+			_abyss_hit(false)
 		elif attack_kind == "slam":
 			var sr := _slam_radius()
 			Sfx.play_at("slam", global_position, 0.0)
@@ -1775,6 +1797,8 @@ func _boss_tick(visual: bool, t0: float, t1: float) -> void:
 							p.take_damage(vs(level, p, data.damage * dmg_mult * 1.1), c)
 	elif attack_kind == "roots":
 		_roots_tick(visual, t0, t1)
+	elif ai() == "herald":
+		_abyss_tick(visual, t0, t1)
 	elif attack_kind == "rockfall":
 		var drop := _hit_time() - 0.55
 		if t0 < drop and drop <= t1:
@@ -1906,6 +1930,8 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun
 		# o servidor decide; os números de dano chegam de volta em show_hit()
 		Network.client_hit_enemy(net_id, amount, from_pos, crit, slow, stun, pull)
 		return
+	if ai() == "herald" and _abyss_struck():
+		return   # era uma cópia da Miragem: desfaz-se sem levar dano
 	amount = incoming(amount)
 	if last_hitter != 0:
 		contributors[last_hitter] = true
@@ -2164,6 +2190,8 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 			elif attack_kind in ["quake", "rockfall", "acid_rain", "roots", "spores", "sprouts"] \
 					or (attack_kind == "swing" and ai() == "thorn"):
 				_replica_boss_start(flags, atk_t)
+			elif ai() == "herald":
+				_replica_abyss_start(flags, atk_t)
 		elif atk_t < attack_timer - 0.3:
 			# um novo ataque começou entre dois snapshots
 			attack_kind = atk_kind
@@ -2174,6 +2202,8 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 			elif attack_kind in ["quake", "rockfall", "acid_rain", "roots", "spores", "sprouts"] \
 					or (attack_kind == "swing" and ai() == "thorn"):
 				_replica_boss_start(flags, atk_t)
+			elif ai() == "herald":
+				_replica_abyss_start(flags, atk_t)
 	if new_state != state:
 		_set_state(new_state)
 	if ai() in ["burrow", "worm"]:
@@ -2250,6 +2280,8 @@ func _puppet_process(delta: float) -> void:
 				_spore_hit(true)
 			elif attack_kind == "swing" and ai() == "thorn":
 				_thorn_claw(true)
+			elif ai() == "herald":
+				_abyss_hit(true)
 			elif attack_kind == "swing":
 				Sfx.play_at("swing", global_position, 0.15, -4.0)
 	var hspeed := Vector2(global_position.x - prev.x, global_position.z - prev.z).length() / maxf(delta, 0.0001)
@@ -2311,6 +2343,9 @@ func _animate(delta: float, hspeed: float) -> void:
 		return
 	if data.model == "thorn_tree":
 		_animate_thorn(hspeed, s, k)
+		return
+	if data.model == "void_herald":
+		_animate_herald(delta, hspeed, k)
 		return
 	var amp: float = clamp(hspeed / 4.0, 0.0, 1.0) * 0.8
 	var at := attack_timer
@@ -3490,3 +3525,777 @@ func _thorn_step(knee: String) -> void:
 	var lp := _local_player()
 	if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(global_position) < 14.0:
 		lp.add_shake(0.08)
+
+
+# ------------------------------------------------------------ Arauto do Abismo (chefe final, dungeon do Abismo)
+## Regras em AbyssRules. Três fases pela vida. Fase 1: Rajada de Sombras em leque (longe), Garra em arco (perto) e
+## Zonas de Vazio que ficam no chão e crescem. Fase 2 (abaixo de 65%): Miragem, ele some e reaparece em roda com
+## cópias (monstros "sombra_arauto", que o servidor anuncia como qualquer monstro); todos atacam, acertar uma cópia
+## a desfaz e acertar o verdadeiro desfaz todas. A PISTA: só o verdadeiro tem a sombra no chão e a fenda da máscara
+## acesa (vem do tipo do monstro, então toda tela vê igual). Fase 3 (abaixo de 30%): Colapso, ele vai para o
+## centro da sala, puxa todos e solta a explosão em anéis de dentro para fora, com vãos seguros.
+## O servidor (ou o solo) decide e dá o dano; a réplica refaz o desenho pela direção/semente do snapshot. O puxão
+## é aplicado em cada tela no jogador dela (o cliente é dono da própria posição).
+const ECHO_KIND := "sombra_arauto"
+const HERALD_PARTS := ["ElbowL", "ElbowR", "HandL", "HandR", "Halo", "Core", "Cape", "Sash", "Charm0", "Charm1",
+	"SleeveL", "SleeveR", "Tatter0", "Tatter1", "Tatter2", "Tatter3", "Tatter4", "Tatter5", "Wisp0", "Wisp1", "Wisp2",
+	"Wisp3"]
+## Ângulo (graus, no chão) de cada tira da barra e de cada fiapo, para abrirem para fora (ver bosses.py).
+const HERALD_TATTER_DEG := [15.0, 75.0, 135.0, 195.0, 255.0, 315.0]
+const HERALD_WISP_DEG := [60.0, 150.0, 240.0, 330.0]
+
+
+## Cópia de sombra da Miragem.
+func is_echo() -> bool:
+	return bool(data.get("echo", false))
+
+
+## No _ready do Arauto e das cópias: os pivôs do modelo, a sombra no chão (só o verdadeiro) e, na cópia, tudo o
+## que a deixa igual ao chefe por fora (mesma luz, mesma placa, sem barra de vida) menos a pista.
+func _abyss_setup() -> void:
+	if ai() != "herald":
+		return
+	summoned = true   # sem lacaios na metade da vida: as fases dele são outras
+	for n in HERALD_PARTS:
+		parts[n] = model.find_child(n, true, false)
+	# luz própria, fria, à frente e acima dele: a sala do Abismo é escura e vermelha, e sem ela o manto vira silhueta
+	var fill := OmniLight3D.new()
+	fill.light_color = Color(0.8, 0.72, 1.0)
+	fill.light_energy = 2.6
+	fill.omni_range = 7.5
+	fill.shadow_enabled = false
+	fill.position = Vector3(0, 3.4, 2.6)
+	model.add_child(fill)
+	if not is_echo():
+		_rig["shadow"] = AbyssFX.ground_shadow(self, 1.7 * float(data.scale) * size_mult)
+		return
+	if bar_root != null:
+		bar_root.queue_free()
+		bar_root = null
+		bar_fg = null
+	var aura := OmniLight3D.new()
+	aura.light_color = Color(1, 0.3, 0.1)
+	aura.light_energy = 1.5
+	aura.omni_range = 6.0
+	aura.position.y = 2.0
+	add_child(aura)
+	if name_tag != null:
+		name_tag.pixel_size = 0.001
+		name_tag.position.y = float(data.height) * float(data.scale) * size_mult + 0.5
+		name_tag.visibility_range_end = NAME_RANGE * 2.0
+		name_tag.modulate = Color(1.0, 0.45, 0.25)
+		if Game.leveled_up.is_connected(_update_plate_color):
+			Game.leveled_up.disconnect(_update_plate_color)
+	attack_cd = randf_range(1.5, 2.6)
+	if not puppet:
+		state = "chase"
+	if puppet_headless():
+		return
+	for mi in meshes:
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# a fenda da máscara apagada (o halo, que é filho da cabeça, continua aceso)
+	var head: Node3D = parts.get("Head")
+	var halo: Node3D = parts.get("Halo")
+	if head == null:
+		return
+	for mi: MeshInstance3D in head.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null or mi.is_in_group(ToonLook.OUTLINE_GROUP) or (halo != null and halo.is_ancestor_of(mi)):
+			continue
+		for si in mi.mesh.get_surface_count():
+			var src := mi.mesh.surface_get_material(si)
+			if src == null or not _glows(src):
+				continue
+			var off: Material = src.duplicate()
+			if off is ShaderMaterial:
+				(off as ShaderMaterial).set_shader_parameter("albedo", Color(0.05, 0.03, 0.07))
+				(off as ShaderMaterial).set_shader_parameter("emission", Color(0, 0, 0))
+			elif off is StandardMaterial3D:
+				(off as StandardMaterial3D).albedo_color = Color(0.05, 0.03, 0.07)
+				(off as StandardMaterial3D).emission_enabled = false
+			mi.set_surface_override_material(si, off)
+
+
+## A sala do chefe (x, z do mundo). O servidor e o solo já têm (`arena`); a réplica acha a sala do mapa onde está.
+func _abyss_room() -> Rect2:
+	if arena.has_area():
+		return arena
+	if _rig.has("room"):
+		return _rig.room
+	var w := get_tree().current_scene
+	var maps = w.get("maps") if w != null else null
+	if maps is Dictionary:
+		for root in (maps as Dictionary).values():
+			if root is MapRoot:
+				var r := MapLoader.boss_arena(root, _net_pos if puppet else global_position)
+				if r.has_area():
+					_rig["room"] = r
+					return r
+	return Rect2()
+
+
+## O centro da sala na altura dele (sem sala: a casa dele; na réplica sem sala, onde ele está).
+func _abyss_center() -> Vector3:
+	var p := _net_pos if puppet else global_position
+	var room := _abyss_room()
+	if room.has_area():
+		var c := room.get_center()
+		return Vector3(c.x, p.y, c.y)
+	return p if puppet else Vector3(home.x, p.y, home.z)
+
+
+## Cópias vivas por perto.
+func _abyss_echoes() -> Array:
+	var out := []
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e is Enemy and e.kind == ECHO_KIND and not e.dead and e.global_position.distance_to(global_position) < 45.0:
+			out.append(e)
+	return out
+
+
+## O Arauto verdadeiro em luta por perto (null = a luta acabou: as cópias se desfazem).
+func _abyss_master() -> Enemy:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e is Enemy and e.ai() == "herald" and not e.is_echo() and not e.dead and e.state in ["chase", "attack"] \
+				and e.global_position.distance_to(global_position) < 45.0:
+			return e
+	return null
+
+
+## Jogadores na luta, iguais no servidor e na réplica: vivos, perto dele e dentro da sala (sem sala, só perto).
+func _abyss_players(center: Vector3) -> Array:
+	var room := _abyss_room()
+	var out := []
+	for p in get_tree().get_nodes_in_group("players"):
+		if p.dead or p.global_position.distance_to(center) > 30.0:
+			continue
+		if room.has_area() and not room.has_point(Vector2(p.global_position.x, p.global_position.z)):
+			continue
+		out.append(p)
+	return out
+
+
+## Todo passo de física, em toda tela: a cópia envelhece e some quando a luta acaba; o verdadeiro troca de fase
+## pela vida (o servidor/solo manda; a réplica acompanha para o desenho) e, no Colapso, puxa o jogador desta tela.
+func _abyss_process(delta: float) -> void:
+	if is_echo():
+		if not puppet:
+			_abyss_t += delta
+			if _abyss_t >= AbyssRules.ECHO_LIFE or (_abyss_t > 0.5 and _abyss_master() == null):
+				echo_pop()
+		return
+	if state == "attack" and attack_kind == "collapse" and attack_timer < AbyssRules.PULL_T:
+		_abyss_pull(delta)
+	if not puppet and state in ["chase", "attack"] and hp > max_hp * _herald_debug_hp():
+		hp = max_hp * _herald_debug_hp()   # capturas: --heraldhp=0.6 leva a luta direto para a fase 2
+		health_changed.emit(self)
+	var ph := AbyssRules.phase(hp / maxf(max_hp, 1.0))
+	if puppet:
+		if ph == 3 and _abyss_phase < 3:
+			Game.notify.emit("O Abismo desaba em volta do Arauto!", Color(1, 0.3, 0.45))
+		_abyss_phase = ph
+		# Miragem: a réplica pula para onde ele reapareceu (deslizando até lá, entregaria quem é o verdadeiro)
+		if state == "attack" and attack_kind == "mirage" and attack_timer >= _hit_time():
+			global_position = _net_pos
+		return
+	if ph == _abyss_phase:
+		return
+	var rising := ph > _abyss_phase
+	_abyss_phase = ph
+	_abyss_n = 0
+	enraged = ph >= 2
+	if rising:
+		attack_cd = minf(attack_cd, 0.8)
+		Game.notify.emit("O Arauto do Abismo se desfaz em sombras!" if ph == 2 else "O Abismo desaba em volta do Arauto!",
+			Color(1, 0.3, 0.45))
+	else:   # voltou para casa e se curou: a luta recomeça do início
+		for e in _abyss_echoes():
+			e.echo_pop()
+
+
+static var _herald_hp := -1.0
+
+
+## Depuração (capturas de tela): `--heraldhp=<fração>` na linha de comando limita a vida do Arauto em luta, para
+## fotografar as fases 2 e 3 sem precisar bater nele. Sem a opção, 1 (não muda nada).
+static func _herald_debug_hp() -> float:
+	if _herald_hp < 0.0:
+		_herald_hp = 1.0
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--heraldhp="):
+				_herald_hp = clampf(float(a.substr(11)), 0.05, 1.0)
+	return _herald_hp
+
+
+## O puxão do Colapso no jogador desta tela (solo e cliente; o servidor dedicado não tem jogador local).
+func _abyss_pull(delta: float) -> void:
+	var lp := _local_player()
+	if lp == null or not (lp is CharacterBody3D) or lp.get("dead") == true:
+		return
+	var c := _net_pos if puppet else global_position
+	if lp.global_position.distance_to(c) > 30.0:
+		return
+	var room := _abyss_room()
+	if room.has_area() and not room.grow(1.0).has_point(Vector2(lp.global_position.x, lp.global_position.z)):
+		return
+	var step := AbyssRules.pull_step(lp.global_position, c, delta) - lp.global_position
+	# anda rente ao chão: onde bate (rampa, degrau, pilar), o resto do passo escorrega pela superfície
+	var body := lp as CharacterBody3D
+	for i in 3:
+		if step.length() < 0.0001:
+			break
+		var col := body.move_and_collide(step)
+		if col == null:
+			break
+		step = col.get_remainder().slide(col.get_normal())
+
+
+func _abyss_begin(dist: float) -> void:
+	if is_echo():
+		attack_kind = AbyssRules.echo_attack(dist, float(data.reach))
+	else:
+		attack_kind = AbyssRules.attack(_abyss_n, _abyss_phase, dist, float(data.reach), _abyss_echoes().size())
+		_abyss_n += 1
+	stagger = AbyssRules.hit_time(attack_kind)   # parado enquanto arma: o aviso no chão não sai do lugar
+	_abyss_origin = global_position
+	match attack_kind:
+		"swing", "volley":
+			var aim: Vector3 = _tgt.global_position if _tgt != null and is_instance_valid(_tgt) \
+				else global_position + model_forward() * 8.0
+			var to := Vector3(aim.x - global_position.x, 0.0, aim.z - global_position.z)
+			_abyss_dir = to.normalized() if to.length() > 0.01 else model_forward()
+			model.rotation.y = atan2(_abyss_dir.x, _abyss_dir.z)
+			throw_point = global_position + _abyss_dir * 4.0   # a direção vai no snapshot
+		"voids":
+			boss_seed = randi() & 0xFFFF
+			_abyss_pts = _void_targets(global_position)
+		"mirage":
+			boss_seed = randi() & 0xFFFF
+			_abyss_pts = AbyssRules.mirage_points(boss_seed, _abyss_center(), _abyss_room(),
+				AbyssRules.echo_count(_abyss_phase))
+		"collapse":
+			var c := _abyss_center()
+			AbyssFX.vanish(global_position, float(data.height))
+			global_position = Vector3(c.x, global_position.y, c.z)
+			velocity = Vector3.ZERO
+			_abyss_origin = global_position
+			AbyssFX.vanish(global_position, float(data.height))
+	_abyss_warn(0.0)
+
+
+## Dano base dos golpes: o do tipo com o multiplicador de nível; a cópia é um monstro comum nos dados (fica
+## abaixo dos campeões nas tabelas) e bate com "echo_power" vezes isso, perto da metade do verdadeiro.
+func _abyss_dmg() -> float:
+	return data.damage * dmg_mult * float(data.get("echo_power", 1.0))
+
+
+## Quantos projéteis a Rajada deste tem: a cópia atira menos.
+func _abyss_shots() -> int:
+	return 3 if is_echo() else AbyssRules.volley_shots(AbyssRules.phase(hp / maxf(max_hp, 1.0)))
+
+
+## Pontos das Zonas de Vazio: sorteados pela semente em volta dele (dentro da sala) e um sob cada jogador na luta.
+func _void_targets(center: Vector3) -> Array:
+	var pts := AbyssRules.void_points(boss_seed, center, _abyss_room())
+	for p in _abyss_players(center):
+		pts.append(Vector3(p.global_position.x, center.y, p.global_position.z))
+	return pts
+
+
+## O aviso no chão do golpe da vez (`elapsed` = quanto do golpe já passou; a réplica entra no meio).
+func _abyss_warn(elapsed: float) -> void:
+	var c := _abyss_origin
+	var left := maxf(0.2, _hit_time() - elapsed)
+	match attack_kind:
+		"swing":
+			AbyssFX.arc_warning(c, _abyss_dir, AbyssRules.CLAW_R, AbyssRules.CLAW_HALF, left)
+		"volley":
+			for d in AbyssRules.volley_dirs(_abyss_dir, _abyss_shots()):
+				AbyssFX.line_warning(c + d * 1.4, c + d * 15.0, 0.4, left)
+			Sfx.play_at("heal", c, 0.3, -8.0)
+		"voids":
+			for pt in _abyss_pts:
+				FX.telegraph(pt, AbyssRules.VOID_R0, left)
+			Sfx.play_at("slime", c, 0.0, -2.0)
+		"mirage":
+			for pt in _abyss_pts:
+				FXToon.rune_circle(pt, 1.5, 0.3, left)
+			Sfx.play_at("heal", c, 0.5, -6.0)
+		"collapse":
+			for i in AbyssRules.COLLAPSE_RINGS:
+				var q := AbyssRules.collapse_ring(i)
+				var t := float(q.t) - elapsed
+				if t <= 0.0:
+					continue
+				if i == 0:
+					FX.telegraph(c, float(q.r1), t)
+				else:
+					BossFX.ring_warning(c, (float(q.r0) + float(q.r1)) / 2.0, float(q.r1) - float(q.r0), t)
+			Sfx.play_at("slam", c, 0.0, 2.0)
+			var lp := _local_player()
+			if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(c) < 30.0:
+				lp.add_shake(0.7)
+
+
+## A hora do golpe: a Garra, a Rajada, as Zonas e a Miragem (as faixas do Colapso estouram em _abyss_tick).
+func _abyss_hit(visual: bool) -> void:
+	match attack_kind:
+		"swing":
+			_abyss_claw(visual)
+		"volley":
+			_abyss_volley(visual)
+		"voids":
+			_abyss_voids(visual)
+		"mirage":
+			_abyss_mirage(visual)
+
+
+## A Garra varre o arco avisado: rasgos de sombra em leque; pega todos dentro do setor.
+func _abyss_claw(visual: bool) -> void:
+	var c := _abyss_origin
+	Sfx.play_at("swing", c, 0.0, 0.0)
+	Sfx.play_at("slam", c, 0.2, -6.0)
+	for i in 5:
+		var d := _abyss_dir.rotated(Vector3.UP, deg_to_rad(AbyssRules.CLAW_HALF * (i - 2) / 2.4))
+		FXToon.streak(c + d * 1.2 + Vector3.UP * 0.1, c + d * AbyssRules.CLAW_R + Vector3.UP * 0.1, 0.3, AbyssFX.VOID,
+			{"sweep": 0.1, "hold": 0.12, "fade": 0.3, "delay": 0.02 * i})
+	FXToon.thorns(c + _abyss_dir * 2.8, Basis.IDENTITY, 0.6, 2.2, 7, 1.4, 0.2)
+	if visual:
+		return
+	for p in _boss_pool():
+		if p.dead or not AbyssRules.in_claw(c, _abyss_dir, p.global_position):
+			continue
+		p.take_damage(vs(level, p, _abyss_dmg() * randf_range(0.95, 1.1)), c)
+		if p is Player:
+			p.add_shake(0.35)
+
+
+## A Rajada sai: um orbe de sombra por direção do leque (a réplica desenha os mesmos, sem dano).
+func _abyss_volley(visual: bool) -> void:
+	var c := _abyss_origin
+	Sfx.play_at("bow_shot", c, 0.3, -3.0)
+	var y := clampf(float(data.height) * float(data.scale) * 0.3, 0.8, 1.4)
+	for d in AbyssRules.volley_dirs(_abyss_dir, _abyss_shots()):
+		var orb := ENEMY_ARROW.new()
+		orb.magic = true
+		orb.direction = d
+		orb.damage = 0.0 if visual else _abyss_dmg() * 0.6
+		orb.level = level
+		orb.source = get_parent()
+		get_parent().add_child(orb)
+		orb.global_position = c + Vector3.UP * y + (d as Vector3) * 1.3
+	FXToon.puff(c + Vector3.UP * y + _abyss_dir * 1.2, 2.2, AbyssFX.VOID, {"vel": _abyss_dir * 3.0, "grow": 0.1, "hold": 0.1,
+		"fade": 0.35})
+
+
+## As Zonas de Vazio nascem: um estouro de sombra em cada ponto e a zona que fica crescendo.
+func _abyss_voids(visual: bool) -> void:
+	for pt in _abyss_pts:
+		FXToon.puff(pt + Vector3.UP * 0.5, 2.4, AbyssFX.VOID, {"grow": 0.15, "hold": 0.2, "fade": 0.5})
+		var zone := VoidZone.new()
+		zone.dmg = data.damage * dmg_mult * 0.12
+		zone.level = level
+		zone.deal = not visual
+		get_parent().add_child(zone)
+		zone.global_position = pt
+	Sfx.play_at("slam", _abyss_origin, 0.3, -4.0)
+
+
+## A Miragem acontece: fumaça onde ele estava e em cada ponto da roda; quem manda nele (servidor/solo) o leva
+## para o primeiro ponto e cria uma cópia em cada um dos outros, todos virados para o centro.
+func _abyss_mirage(visual: bool) -> void:
+	var h := float(data.height) * float(data.scale)
+	AbyssFX.vanish(_abyss_origin, h)
+	Sfx.play_at("slam", _abyss_origin, 0.4, -4.0)
+	for pt in _abyss_pts:
+		AbyssFX.vanish(pt, h)
+	if visual or _abyss_pts.is_empty():
+		return
+	var c := _abyss_center()
+	var p0: Vector3 = _abyss_pts[0]
+	global_position = Vector3(p0.x, global_position.y, p0.z)
+	velocity = Vector3.ZERO
+	model.rotation.y = atan2(c.x - p0.x, c.z - p0.z)
+	var parent := get_parent()
+	for i in range(1, _abyss_pts.size()):
+		var pt: Vector3 = _abyss_pts[i]
+		var e: Enemy = (get_script() as GDScript).new()
+		e.kind = ECHO_KIND
+		e.level = level
+		e.area = area
+		e.arena = arena
+		e.position = Vector3(pt.x, global_position.y + 0.1, pt.z)
+		parent.add_child(e)
+		e.model.rotation.y = atan2(c.x - pt.x, c.z - pt.z)
+
+
+## A cada quadro do Colapso entre t0 e t1 (s desde o início): riscos do puxão e as faixas que estouram agora.
+func _abyss_tick(visual: bool, t0: float, t1: float) -> void:
+	if attack_kind != "collapse":
+		return
+	var c := _net_pos if puppet else global_position
+	if t1 < AbyssRules.PULL_T and int(t0 / 0.1) != int(t1 / 0.1):
+		AbyssFX.pull_streaks(c, 13.0, 3)
+	for i in AbyssRules.COLLAPSE_RINGS:
+		var q := AbyssRules.collapse_ring(i)
+		if not (t0 < float(q.t) and float(q.t) <= t1):
+			continue
+		AbyssFX.ring_blast(c, float(q.r0), float(q.r1))
+		Sfx.play_at("explode", c, 0.1 * i, -1.0)
+		var lp := _local_player()
+		if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(c) < 30.0:
+			lp.add_shake(0.5)
+		if visual:
+			continue
+		for p in _abyss_players(c):
+			var d := Vector2(p.global_position.x - c.x, p.global_position.z - c.z).length()
+			if AbyssRules.in_collapse_ring(d, i):
+				p.take_damage(vs(level, p, data.damage * dmg_mult * 1.25), c)
+
+
+## Réplica: começa a desenhar um golpe do Arauto que o snapshot acabou de trazer (`atk_t` s já passados).
+func _replica_abyss_start(flags: int, atk_t: float) -> void:
+	_abyss_origin = _net_pos
+	match attack_kind:
+		"swing", "volley":
+			var off := ThrowRules.unpack_offset(flags)
+			_abyss_dir = off.normalized() if off.length() > 0.01 else model_forward()
+		"voids":
+			boss_seed = BossRules.unpack_seed(flags)
+			_abyss_pts = _void_targets(_net_pos)
+		"mirage":
+			boss_seed = BossRules.unpack_seed(flags)
+			_abyss_pts = AbyssRules.mirage_points(boss_seed, _abyss_center(), _abyss_room(),
+				AbyssRules.echo_count(AbyssRules.phase(hp / maxf(max_hp, 1.0))))
+		"collapse":
+			AbyssFX.vanish(global_position, float(data.height))
+			global_position = _net_pos
+			AbyssFX.vanish(global_position, float(data.height))
+	if atk_t < _hit_time() or attack_kind == "collapse":
+		_abyss_warn(atk_t)
+
+
+## Levou um golpe. true = o golpe não conta (era uma cópia, que se desfaz). No verdadeiro, com cópias vivas, o
+## golpe desfaz todas e corta o que ele estava fazendo (menos o Colapso).
+func _abyss_struck() -> bool:
+	if is_echo():
+		echo_pop()
+		return true
+	var echoes := _abyss_echoes()
+	if echoes.is_empty():
+		return false
+	for e in echoes:
+		e.echo_pop()
+	attack_cd = maxf(attack_cd, AbyssRules.ECHO_BREAK)
+	if state == "attack" and attack_kind != "collapse":
+		_set_state("chase")
+	FX.damage_number(global_position + Vector3.UP * (float(data.height) * float(data.scale) + 0.8), "Miragem desfeita!",
+		Color(1.0, 0.5, 0.65), 44)
+	return false
+
+
+## A cópia se desfaz em fumaça, sem morrer e sem recompensa.
+func echo_pop() -> void:
+	if dead or puppet:
+		return
+	if Network.is_server():
+		Network.server_enemy_despawn(self)
+	gone_fx()
+	dead = true
+	queue_free()
+
+
+## O desenho de um monstro que some sem morrer (a réplica chama quando o servidor avisa): a cópia vira fumaça.
+func gone_fx() -> void:
+	if is_echo() and is_inside_tree():
+		AbyssFX.vanish(global_position, float(data.height) * float(data.scale))
+		Sfx.play_at("slime", global_position, 0.4, -6.0)
+
+
+## Arauto: flutua (o corpo sobe e desce devagar e inclina para a frente quando anda), os braços compridos pendem e
+## balançam com atraso, as mãos de garra abrem e fecham, a cabeça pende de lado, o halo gira no próprio eixo (mais
+## rápido a cada fase), o núcleo pulsa, e a capa, o tabardo, os amuletos, as tiras da barra, as tiras das mangas
+## e os fiapos de sombra ficam para trás, cada um no seu tempo. Fiapos caem do manto e brasas sobem do halo.
+## Golpes: todos armam com o corpo indo para trás e para baixo. Garra: o braço direito abre para o lado de mão
+## aberta e varre cruzando a frente. Rajada: os braços fecham no peito (o núcleo incha) e se jogam para a frente.
+## Zonas: sobe com os braços abertos para o alto e desce batendo. Miragem: encolhe com os braços cruzados sobre a
+## máscara até sumir, e reaparece abrindo. Colapso: braços para o alto enquanto puxa (núcleo enorme, halo
+## disparado), comprime no peito e solta de braços abertos e peito para fora.
+## Rotação x positiva: topo para a frente, braço para trás, mão fecha; z positiva abre o braço esquerdo.
+func _animate_herald(delta: float, hspeed: float, k: float) -> void:
+	var body: Node3D = parts.Body
+	if not _rig.has("body_rest"):
+		_rig["body_rest"] = body.position
+		_rig["spin"] = 0.0
+		_rig["hit"] = false
+		if not puppet_headless():
+			_rig["shreds"] = AbyssFX.shreds(body, 0.55, -0.95)
+			if parts.get("Halo") != null:
+				_rig["embers"] = AbyssFX.halo_embers(parts.Halo, 0.86)
+	var amp := clampf(hspeed / 2.4, 0.0, 1.0)
+	var idle := 1.0 - amp
+	var lt := _life_t
+	var ph := AbyssRules.phase(hp / maxf(max_hp, 1.0))
+	var off := Vector3(0.0, sin(lt * 1.5) * 0.09, 0.0)
+	var body_x := 0.04 + 0.15 * amp + sin(lt * 0.6) * 0.02
+	var body_y := sin(lt * 0.4) * 0.05 * idle
+	var body_z := sin(lt * 0.75) * 0.025
+	var scale_b := 1.0
+	var arm_lx := 0.08 + 0.3 * amp + sin(lt * 0.8) * 0.05
+	var arm_rx := 0.08 + 0.3 * amp + sin(lt * 0.8 + 1.4) * 0.05
+	var arm_lz := 0.04 + sin(lt * 0.6) * 0.04
+	var arm_rz := -0.04 - sin(lt * 0.6 + 0.8) * 0.04
+	var elb_l := -0.18 - sin(lt * 0.7) * 0.08 - 0.2 * amp
+	var elb_r := -0.18 - sin(lt * 0.7 + 1.1) * 0.08 - 0.2 * amp
+	var hand_l := 0.1 + sin(lt * 1.1) * 0.2
+	var hand_r := 0.1 + sin(lt * 1.1 + 2.0) * 0.2
+	var head_x := sin(lt * 0.5 + 0.6) * 0.04 - 0.06 * amp
+	var head_y := sin(lt * 0.3) * 0.1 * idle
+	var head_z := sin(lt * 0.37 + 1.0) * 0.07
+	var cape_x := 0.03 + 0.24 * amp + sin(lt * 0.9 - 0.6) * 0.035
+	var sash_x := 0.26 * amp + sin(lt * 1.0 - 0.9) * 0.04
+	var trail := 0.3 * amp      # tiras e fiapos ficam para trás quando ele anda
+	var flare := 0.0            # e abrem para fora nos golpes
+	var core_s := 1.0 + sin(lt * 3.0) * 0.07
+	var spin: float = [0.4, 1.0, 2.2][ph - 1]
+	var shake := 0.0
+	if state == "attack":
+		var t := attack_timer
+		var ht := _hit_time()
+		var dur := _attack_duration()
+		var u := clampf(t / ht, 0.0, 1.0)
+		var e := u * u * (3.0 - 2.0 * u)
+		match attack_kind:
+			"swing":
+				if t < ht:   # arma: recua e afunda, torce o tronco, o braço direito abre para o lado de mão aberta
+					off = Vector3(0.0, -0.22 * e, -0.38 * e)
+					body_y = 0.5 * e
+					body_x = -0.04
+					arm_rz = -1.45 * e
+					arm_rx = 0.35 * e
+					elb_r = -0.5 * e
+					hand_r = -0.6 * e
+					arm_lx = -0.5 * e
+					elb_l = -0.9 * e
+					hand_l = 0.5 * e
+					head_y = -0.3 * e
+					spin = 3.0
+				elif t < ht + 0.4:   # varre: o corpo vai para a frente e o braço cruza o peito, mão em gancho
+					off = Vector3(0.0, -0.1, 0.42)
+					body_y = -0.6
+					body_x = 0.3
+					arm_rz = 0.55
+					arm_rx = -1.25
+					elb_r = -0.25
+					hand_r = 0.6
+					arm_lx = 0.5
+					arm_lz = 0.3
+					head_y = 0.25
+					flare = 0.8
+					cape_x = 0.5
+			"volley":
+				if t < ht:   # recua, os braços fecham no peito e o núcleo incha
+					off = Vector3(0.0, -0.16 * e, -0.3 * e)
+					body_x = -0.12 * e
+					arm_lx = -0.75 * e
+					arm_rx = -0.75 * e
+					arm_lz = -0.42 * e
+					arm_rz = 0.42 * e
+					elb_l = -1.5 * e
+					elb_r = -1.5 * e
+					hand_l = 0.6 * e
+					hand_r = 0.6 * e
+					head_x = 0.12 * e
+					core_s = 1.0 + 0.7 * e + sin(lt * 16.0) * 0.06
+					spin = 4.0
+					shake = 0.5 * e
+				elif t < ht + 0.45:   # joga os braços para a frente, mãos abertas
+					off = Vector3(0.0, -0.05, 0.3)
+					body_x = 0.3
+					arm_lx = -1.5
+					arm_rx = -1.5
+					arm_lz = 0.25
+					arm_rz = -0.25
+					elb_l = -0.1
+					elb_r = -0.1
+					hand_l = -0.7
+					hand_r = -0.7
+					core_s = 0.7
+					cape_x = 0.55
+					flare = 0.6
+			"voids":
+				if t < ht:   # sobe com os braços abertos para o alto, a cabeça para trás
+					off = Vector3(0.0, 0.4 * e, -0.15 * e)
+					body_x = -0.14 * e
+					arm_lx = -0.7 * e
+					arm_rx = -0.7 * e
+					arm_lz = 1.5 * e
+					arm_rz = -1.5 * e
+					elb_l = -0.5 * e
+					elb_r = -0.5 * e
+					hand_l = -0.6 * e
+					hand_r = -0.6 * e
+					head_x = -0.25 * e
+					spin = 3.0
+					flare = 0.4 * e
+				elif t < ht + 0.5:   # desce batendo as mãos para baixo
+					off = Vector3(0.0, -0.3, 0.12)
+					body_x = 0.36
+					arm_lx = -0.5
+					arm_rx = -0.5
+					arm_lz = 0.2
+					arm_rz = -0.2
+					elb_l = -0.1
+					elb_r = -0.1
+					hand_l = 0.5
+					hand_r = 0.5
+					head_x = 0.15
+					flare = 1.0
+					cape_x = -0.2
+			"mirage":
+				if t < ht:   # encolhe, os braços cruzam sobre a máscara, e some
+					off = Vector3(0.0, -0.2 * e, -0.12 * e)
+					body_x = 0.3 * e
+					arm_lx = -1.2 * e
+					arm_rx = -1.2 * e
+					arm_lz = -0.5 * e
+					arm_rz = 0.5 * e
+					elb_l = -1.7 * e
+					elb_r = -1.7 * e
+					hand_l = 0.4 * e
+					hand_r = 0.4 * e
+					head_x = 0.2 * e
+					spin = 6.0
+					shake = e
+					scale_b = 1.0 - smoothstep(ht - 0.3, ht, t)
+				else:   # reaparece abrindo os braços
+					scale_b = smoothstep(ht + 0.05, ht + 0.4, t)
+					if t < ht + 0.6:
+						arm_lz = 0.9
+						arm_rz = -0.9
+						hand_l = -0.5
+						hand_r = -0.5
+						flare = 0.8
+			"collapse":
+				if t < AbyssRules.PULL_T:   # puxa: braços para o alto, o núcleo enorme, o halo disparado
+					var w := clampf(t / 0.6, 0.0, 1.0)
+					w = w * w * (3.0 - 2.0 * w)
+					off = Vector3(0.0, 0.45 * w, -0.1 * w)
+					body_x = -0.1 * w
+					arm_lx = -2.7 * w
+					arm_rx = -2.7 * w
+					arm_lz = 0.3 * w
+					arm_rz = -0.3 * w
+					elb_l = -0.3
+					elb_r = -0.3
+					hand_l = -0.6 * w
+					hand_r = -0.6 * w
+					head_x = -0.28 * w
+					core_s = 1.0 + 0.9 * w + sin(lt * 15.0) * 0.08
+					spin = 8.0
+					shake = 0.6
+					cape_x = -0.25 * w
+					flare = -0.5 * w
+				elif t < ht:   # comprime: desce fechando os braços no peito
+					var c := clampf((t - AbyssRules.PULL_T) / (ht - AbyssRules.PULL_T), 0.0, 1.0)
+					off = Vector3(0.0, 0.45 - 0.8 * c, -0.25 * c)
+					body_x = 0.42 * c
+					arm_lx = lerpf(-2.7, -0.9, c)
+					arm_rx = lerpf(-2.7, -0.9, c)
+					arm_lz = -0.5 * c
+					arm_rz = 0.5 * c
+					elb_l = -1.7 * c
+					elb_r = -1.7 * c
+					hand_l = 0.6
+					hand_r = 0.6
+					head_x = 0.2 * c
+					core_s = 1.9 - 0.6 * c + sin(lt * 20.0) * 0.1
+					spin = 11.0
+					shake = 1.0
+				elif t < dur - 0.5:   # solta: braços abertos, peito para fora, cabeça para trás
+					off = Vector3(0.0, 0.3, 0.1)
+					body_x = -0.26
+					arm_lx = -0.4
+					arm_rx = -0.4
+					arm_lz = 1.5
+					arm_rz = -1.5
+					elb_l = -0.2
+					elb_r = -0.2
+					hand_l = -0.7
+					hand_r = -0.7
+					head_x = -0.32
+					core_s = 0.6
+					cape_x = 0.6
+					flare = 1.0
+					spin = 3.0
+	if is_echo():
+		scale_b *= smoothstep(0.0, 0.35, lt)   # a cópia nasce abrindo, como ele ao reaparecer
+	if _flash_t > 0.0:
+		shake = maxf(shake, 0.7)   # pancada: o manto estremece
+	var sh := shake * sin(lt * 33.0)
+	var sh2 := shake * sin(lt * 27.0 + 1.0)
+	var hit_now := state == "attack" and attack_timer >= _hit_time() and attack_timer < _hit_time() + 0.15
+	var kf := 1.0 - exp(-34.0 * delta) if hit_now else k
+	var ks := 1.0 - exp(-5.0 * delta)   # peças penduradas: seguem devagar
+	body.rotation.x = lerp(body.rotation.x, body_x + sh2 * 0.015, kf)
+	body.rotation.y = lerp(body.rotation.y, body_y, kf)
+	body.rotation.z = lerp(body.rotation.z, body_z + sh * 0.02, kf)
+	body.position = body.position.lerp(_rig.body_rest + off, kf)
+	body.scale = Vector3.ONE * maxf(scale_b, 0.02)
+	parts.ArmL.rotation.x = lerp(parts.ArmL.rotation.x, arm_lx, kf)
+	parts.ArmL.rotation.z = lerp(parts.ArmL.rotation.z, arm_lz, kf)
+	parts.ArmR.rotation.x = lerp(parts.ArmR.rotation.x, arm_rx, kf)
+	parts.ArmR.rotation.z = lerp(parts.ArmR.rotation.z, arm_rz, kf)
+	for pair in [["ElbowL", elb_l], ["ElbowR", elb_r], ["HandL", hand_l], ["HandR", hand_r]]:
+		var j: Node3D = parts.get(pair[0])
+		if j:
+			j.rotation.x = lerp(j.rotation.x, float(pair[1]), kf)
+	if parts.Head:
+		parts.Head.rotation.x = lerp(parts.Head.rotation.x, head_x, k)
+		parts.Head.rotation.y = lerp(parts.Head.rotation.y, head_y, k)
+		parts.Head.rotation.z = lerp(parts.Head.rotation.z, head_z, k)
+	var halo: Node3D = parts.get("Halo")
+	if halo:
+		_rig.spin = lerpf(float(_rig.spin), spin, 1.0 - exp(-3.0 * delta))
+		halo.rotation.z = wrapf(halo.rotation.z + float(_rig.spin) * delta, -PI, PI)
+	var core: Node3D = parts.get("Core")
+	if core:
+		core.scale = core.scale.lerp(Vector3.ONE * core_s, k)
+		core.rotation.z = wrapf(core.rotation.z + delta * (1.5 + spin), -PI, PI)
+	var cape: Node3D = parts.get("Cape")
+	if cape:
+		cape.rotation.x = lerp(cape.rotation.x, cape_x + sh * 0.03, ks)
+		cape.rotation.z = lerp(cape.rotation.z, sin(lt * 0.7 - 1.2) * 0.03 - body_z * 1.5, ks)
+	var sash: Node3D = parts.get("Sash")
+	if sash:
+		sash.rotation.x = lerp(sash.rotation.x, sash_x - body_x * 0.8 + sh2 * 0.1, ks)
+		sash.rotation.z = lerp(sash.rotation.z, sin(lt * 1.2 - 0.5) * 0.05, ks)
+	for i in 2:
+		var ch: Node3D = parts.get("Charm%d" % i)
+		if ch:
+			ch.rotation.x = lerp(ch.rotation.x, sin(lt * 1.5 + i * 2.0) * 0.12 + trail * 1.2 - body_x, ks)
+			ch.rotation.z = lerp(ch.rotation.z, sin(lt * 1.25 + i) * 0.1 + sh * 0.2, ks)
+	for pair in [["SleeveL", arm_lx, arm_lz], ["SleeveR", arm_rx, arm_rz]]:
+		var sl: Node3D = parts.get(pair[0])
+		if sl:   # as tiras da manga pendem para baixo qualquer que seja o braço
+			sl.rotation.x = lerp(sl.rotation.x, -float(pair[1]) * 0.7 + sin(lt * 1.3) * 0.08, ks)
+			sl.rotation.z = lerp(sl.rotation.z, -float(pair[2]) * 0.7 + sh * 0.15, ks)
+	# tiras da barra e fiapos de sombra: pêndulos, cada um com o seu tempo; abrem para fora nos golpes
+	for i in HERALD_TATTER_DEG.size():
+		var tn: Node3D = parts.get("Tatter%d" % i)
+		if tn:
+			var a := deg_to_rad(HERALD_TATTER_DEG[i])
+			var open := flare * 0.5 + sin(lt * 1.3 + i * 1.7) * 0.07
+			tn.rotation.x = lerp(tn.rotation.x, -open * sin(a) + trail + sh * 0.15, ks)
+			tn.rotation.z = lerp(tn.rotation.z, open * cos(a) + sin(lt * 1.05 + i * 2.3) * 0.06 + sh2 * 0.15, ks)
+	for i in HERALD_WISP_DEG.size():
+		var wn: Node3D = parts.get("Wisp%d" % i)
+		if wn:
+			var a := deg_to_rad(HERALD_WISP_DEG[i])
+			var open := flare * 0.6 + 0.12 + sin(lt * 1.7 + i * 1.3) * 0.14
+			wn.rotation.x = lerp(wn.rotation.x, -open * sin(a) + trail * 1.6, ks)
+			wn.rotation.z = lerp(wn.rotation.z, open * cos(a) + sin(lt * 1.4 + i * 2.1) * 0.1, ks)
+			wn.rotation.y = sin(lt * 0.9 + i * 1.9) * 0.35
+	# os fiapos caem mais a cada fase
+	var shreds: CPUParticles3D = _rig.get("shreds")
+	if shreds != null:
+		shreds.speed_scale = [1.0, 1.5, 2.2][ph - 1]
