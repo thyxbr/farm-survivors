@@ -2762,7 +2762,7 @@ func _test_guild_travel() -> void:
 		if e.kind == "slime_rainha" and not e.dead:
 			queen = true
 	check(queen, "Slime Rainha nasceu no bosque")
-	check(MusicRules.area(player.global_position) == "wild", "música do bosque")
+	check(MusicRules.area(player.global_position) == "swamp", "música do bosque (pântano)")
 	world.travel_to("vila")
 	await wait(1.6)
 	check(Regions.region_at(player.global_position) == "vila", "carruagem traz de volta à vila")
