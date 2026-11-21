@@ -42,6 +42,7 @@ var gather_bar: ProgressBar
 var gather_info: Label
 var slots := {}
 var _slot_ids: Array[String] = ["", "", "", "", ""]   # id da habilidade em cada slot 1..ItemDB.SLOT_COUNT
+var _fury_ring: Control   # anel de fúria em volta do slot 4 (escondido quando ali não há ultimate)
 var _kit_class := ""
 var boss_panel: VBoxContainer
 var boss_bar: GhostBar
@@ -337,6 +338,7 @@ func _build_dock() -> void:
 	ring.offset_right = 4
 	ring.offset_bottom = 4
 	slots["slot_4"].add_child(ring)
+	_fury_ring = ring
 	_refresh_kit()
 	_gap(bar)
 	slots["health_potion"] = _action(bar, "R")
@@ -601,6 +603,10 @@ func _refresh_kit() -> void:
 		s.cooldown_text = ""
 		s.info_text = ""
 		s.queue_redraw()
+	# o anel de fúria só em volta de uma ultimate (com escudo o slot 4 é o Martelo de Energia, com recarga)
+	if _fury_ring != null:
+		var u4: String = _slot_ids[3]
+		_fury_ring.visible = u4 == "" or bool(ItemDB.ABILITIES[u4].ultimate)
 
 
 func _refresh_static() -> void:

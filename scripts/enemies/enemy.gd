@@ -8,6 +8,10 @@ signal health_changed(enemy: Enemy)
 const PICKUP := preload("res://scripts/world/pickup.gd")
 const ENEMY_ARROW := preload("res://scripts/enemies/enemy_arrow.gd")
 const PROVOKE_TIME := 4.0   # ver `provoked`
+## Bit do snapshot de rede: provocado (olhos vermelhos nas réplicas). Acima dos bits que ThrowRules e BossRules
+## usam (2..17); o snapshot é float32, exato até 2^24.
+const TAUNT_FLAG := 1 << 20
+const TAUNT_INDICATOR := preload("res://scenes/vfx/dark_taunt/taunt_indicator.tscn")
 ## Até onde (m) o monstro olha à frente antes de dar um passo: se o passo cai na zona da guarda, ele para.
 const WARD_LOOKAHEAD := 1.5
 ## Tipos de inimigo: vêm de data/balance/enemies.json (autoload Balance). "ai" muda o comportamento,
@@ -91,6 +95,15 @@ var stagger := 0.0
 ## Sem isso, um acerto de longe (ou, no servidor, antes de chegar a posição nova do jogador)
 ## fazia o inimigo desistir na hora, voltar para casa e curar a vida toda, apagando o dano.
 var provoked := 0.0
+## Círculo da Provocação Sombria (DarkTauntAbilities): enquanto taunt_t > 0 o único alvo é `taunt_by` (o herói que
+## provocou): _nearest_player() devolve ele, então a perseguição, a mira e os golpes de sempre vão para ele. Enquanto
+## held_t > 0 as mãos sombrias seguram: não anda nem começa golpe. Estado do dono do inimigo (servidor ou solo); as
+## réplicas pedem por apply_taunt e só mostram os olhos (bit TAUNT_FLAG do snapshot).
+var taunt_t := 0.0
+var taunt_by: Node3D = null
+var held_t := 0.0
+## Olhos vermelhos sobre a cabeça enquanto provocado (TauntIndicator; criado na primeira vez, sem servidor dedicado).
+var taunt_eyes: Node3D = null
 ## Segundos que o monstro está dentro da zona da guarda (VillageWard); passou de DOOM, a guarda abate.
 var ward_t := 0.0
 var home := Vector3.ZERO
@@ -636,6 +649,7 @@ func _physics_process(delta: float) -> void:
 		_worm_leash(delta)
 	stagger = max(0.0, stagger - delta)
 	provoked = maxf(0.0, provoked - delta)
+	_taunt_tick(delta)
 	_update_flash(delta)
 	if not horde and _ward_doom(delta):
 		return
@@ -787,8 +801,8 @@ func _physics_process(delta: float) -> void:
 					and dist < data.reach * 1.8 and ai() != "plant":
 				move = to_player.normalized() * spd * 0.45
 
-	if stagger > 0:
-		move = Vector3.ZERO
+	if stagger > 0 or held_t > 0.0:
+		move = Vector3.ZERO   # atordoado ou preso pelas mãos sombrias
 	elif state in ["chase", "wander", "return"]:
 		move = _steer(move, delta)
 	# a guarda da vila: nenhum passo para dentro da zona protegida (o bando para na cerca)
@@ -888,6 +902,9 @@ func _player_within(r: float) -> bool:
 ## Jogador vivo mais próximo (no multiplayer, o servidor tem réplicas de todos).
 ## A horda só persegue quem está no desafio (get_parent() é o modo sobrevivência).
 func _nearest_player() -> Player:
+	var tb := _taunter()
+	if tb != null:
+		return tb   # provocado (Círculo da Provocação Sombria): só existe quem provocou
 	var best: Player = null
 	var best_d := INF
 	var pool: Array = get_parent().targets() if horde and get_parent().has_method("targets") 		else get_tree().get_nodes_in_group("players")
@@ -2040,6 +2057,89 @@ func apply_stun(t: float) -> void:
 		_set_state("chase")
 
 
+## Círculo da Provocação Sombria: as mãos seguram por `hold` s (sem andar nem golpear, o golpe em andamento se
+## perde; chefes não ficam presos) e o inimigo fica provocado por `taunt` s depois disso: o alvo dele passa a ser
+## `by` (o herói), seja quem for que ele perseguia antes (ver _nearest_player). Não empilha nem renova numa
+## mesma ativação (DarkTauntSkill já filtra quem foi agarrado); outra ativação substitui. Réplica: pede ao servidor.
+func apply_taunt(by: Node3D, hold: float, taunt: float) -> void:
+	if puppet:
+		Network.client_taunt_enemy(net_id, hold, taunt)
+		return
+	if dead or by == null or BurrowRules.hidden(state, attack_kind, hit_done):
+		return
+	var tt := DarkTauntRules.taunt_times(hold, taunt, is_boss)
+	asleep = false
+	_sleep_t = SLEEP_CHECK
+	if tt.x > 0.0:
+		held_t = maxf(held_t, tt.x)
+		attack_cd = maxf(attack_cd, tt.x)   # preso: nenhum golpe novo
+		if state == "attack" and attack_kind != "emerge":
+			_set_state("chase")   # o golpe em andamento se perde
+		velocity.x = 0.0
+		velocity.z = 0.0
+	if tt.y > 0.0:
+		taunt_by = by
+		taunt_t = tt.y
+		provoked = maxf(provoked, tt.y)   # não desiste da perseguição por distância enquanto provocado
+		if state in ["idle", "wander", "return"]:
+			_set_state("chase")
+		_set_taunt_look(true)
+
+
+## Quem provocou, enquanto a provocação vale (vivo, no mesmo mundo, fora da vila, na sala do chefe). Quando deixa
+## de valer (morreu, saiu do jogo, entrou na vila), a provocação acaba ali: volta a IA de sempre.
+func _taunter() -> Player:
+	if taunt_t <= 0.0:
+		return null
+	var p := taunt_by as Player
+	var ok := p != null and is_instance_valid(p) and p.is_inside_tree() and DarkTauntRules.taunter_ok(not p.dead,
+		p.get_world_3d() == get_world_3d(), not horde and VillageWard.inside(p.global_position), in_arena(p.global_position))
+	if not ok:
+		_clear_taunt()
+		return null
+	return p
+
+
+func _taunt_tick(delta: float) -> void:
+	held_t = maxf(0.0, held_t - delta)
+	if taunt_t > 0.0:
+		taunt_t = maxf(0.0, taunt_t - delta)
+		if taunt_t <= 0.0:
+			_clear_taunt()
+		else:
+			_taunter()   # confere se o herói ainda vale (senão já encerra)
+
+
+## Fim da provocação (tempo, morte do herói ou do inimigo): solta as mãos e apaga os olhos.
+func _clear_taunt() -> void:
+	taunt_t = 0.0
+	taunt_by = null
+	held_t = 0.0
+	_set_taunt_look(false)
+
+
+## Liga/desliga os olhos vermelhos (TauntIndicator). Sem cena visual (servidor dedicado) não cria nada.
+func _set_taunt_look(on: bool) -> void:
+	var showing := taunt_eyes != null and is_instance_valid(taunt_eyes) and bool(taunt_eyes.get("active"))
+	if on == showing:
+		return
+	if on:
+		if dead or FX._scene() == null:
+			return
+		if taunt_eyes == null or not is_instance_valid(taunt_eyes) or taunt_eyes.is_queued_for_deletion():
+			taunt_eyes = TAUNT_INDICATOR.instantiate()
+			add_child(taunt_eyes)
+			taunt_eyes.attach(self)
+		taunt_eyes.show_eyes()
+	elif taunt_eyes != null and is_instance_valid(taunt_eyes):
+		taunt_eyes.hide_eyes()
+
+
+## Topo do inimigo (m acima da origem), o mesmo da barra de vida.
+func head_top() -> float:
+	return float(data.height) * float(data.scale) * (size_mult if level > 0 else 1.0)
+
+
 ## Dano que este inimigo leva de um acerto de `amount` (maior se estiver com a marca tóxica, menor se estiver
 ## bem acima do nível de quem bateu: placa vermelha).
 func incoming(amount: float) -> float:
@@ -2131,6 +2231,10 @@ func die_visual() -> void:
 	collision_layer = 0
 	collision_mask = 1
 	_set_overlay(null)
+	_clear_taunt()
+	if taunt_eyes != null and is_instance_valid(taunt_eyes):
+		taunt_eyes.queue_free()   # morreu: o indicador sai junto, sem esperar o apagar
+		taunt_eyes = null
 	if bar_root:
 		bar_root.visible = false
 	if name_tag:
@@ -2213,6 +2317,7 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 		hp = new_hp
 		health_changed.emit(self)
 	slow_timer = 0.25 if flags & 1 else 0.0
+	_set_taunt_look(flags & TAUNT_FLAG != 0)
 	var now_enraged := flags & 2 != 0
 	if now_enraged and not enraged and (not horde or get_tree().current_scene.get("survival") != null):
 		Game.notify.emit("%s está enfurecido!" % data.name, Color(1, 0.4, 0.3))

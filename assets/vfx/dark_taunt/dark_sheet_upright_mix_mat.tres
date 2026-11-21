@@ -1,0 +1,10 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/dark_taunt/dark_sheet_mix.gdshader" id="1"]
+[ext_resource type="Texture2D" path="res://assets/vfx/dark_taunt/dark_taunt_sheet.webp" id="2"]
+
+[resource]
+render_priority = 3
+shader = ExtResource("1")
+shader_parameter/sheet = ExtResource("2")
+shader_parameter/mode = 2
