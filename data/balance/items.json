@@ -3313,6 +3313,216 @@
 		"model": "bw_storm_bow",
 		"craft": true
 	},
+	"twig_bow": {
+		"name": "Arco de Galho",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "common",
+		"level": 3,
+		"damage": 10,
+		"price": 25,
+		"color": {
+			"$c": [0.55, 0.4, 0.24, 1.0]
+		},
+		"desc": "Um galho torto e um barbante. Funciona melhor do que parece.",
+		"model": "bw_twig_bow"
+	},
+	"raptor_bow": {
+		"name": "Arco de Osso de Raptor",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "common",
+		"level": 6,
+		"damage": 12,
+		"price": 55,
+		"color": {
+			"$c": [0.86, 0.8, 0.64, 1.0]
+		},
+		"stats": {
+			"agi": 1
+		},
+		"desc": "Costela de raptor amarrada com tendão. Ainda tem cheiro de capim.",
+		"model": "bw_raptor_bow"
+	},
+	"warden_bow": {
+		"name": "Arco do Vigia",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "common",
+		"level": 9,
+		"damage": 14,
+		"price": 70,
+		"color": {
+			"$c": [0.5, 0.36, 0.22, 1.0]
+		},
+		"stats": {
+			"agi": 1,
+			"vit": 1
+		},
+		"desc": "O recurvo dos guardas da vila, com reforço de ferro no punho.",
+		"model": "bw_warden_bow"
+	},
+	"silk_bow": {
+		"name": "Arco de Seda Tecelã",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "uncommon",
+		"level": 14,
+		"damage": 17,
+		"price": 115,
+		"color": {
+			"$c": [0.92, 0.9, 0.86, 1.0]
+		},
+		"glow": 0.2,
+		"fx": "slow",
+		"stats": {
+			"agi": 2
+		},
+		"desc": "Corda de seda de tecelã. As flechas deixam fios que grudam e deixam o alvo lento.",
+		"model": "bw_silk_bow"
+	},
+	"frostfang_bow": {
+		"name": "Uivo da Geada",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "rare",
+		"level": 17,
+		"damage": 20,
+		"price": 170,
+		"color": {
+			"$c": [0.75, 0.88, 1.0, 1.0]
+		},
+		"glow": 0.5,
+		"fx": "slow",
+		"stats": {
+			"agi": 3,
+			"crit": 0.04
+		},
+		"desc": "Presas do Alfa da Matilha nas pontas. Cada flecha uiva e gela.",
+		"model": "bw_frostfang_bow"
+	},
+	"lantern_bow": {
+		"name": "Arco Lanterna",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "rare",
+		"level": 20,
+		"damage": 22,
+		"price": 210,
+		"color": {
+			"$c": [0.95, 0.7, 0.3, 1.0]
+		},
+		"glow": 0.8,
+		"fx": "splash",
+		"stats": {
+			"agi": 3,
+			"speed": 0.04
+		},
+		"desc": "Dos kobolds das minas: uma lanterna no punho e pavio nas flechas, que estouram ao acertar.",
+		"model": "bw_lantern_bow"
+	},
+	"crystal_bow": {
+		"name": "Arco de Cristal Cantante",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "rare",
+		"level": 26,
+		"damage": 26,
+		"price": 290,
+		"color": {
+			"$c": [0.7, 0.85, 1.0, 1.0]
+		},
+		"glow": 0.9,
+		"fx": "pierce",
+		"stats": {
+			"agi": 3,
+			"crit": 0.05
+		},
+		"desc": "Lascas de um Golem de Cristal. A corda canta e a flecha atravessa como estilhaço.",
+		"model": "bw_crystal_bow"
+	},
+	"ossuary_bow": {
+		"name": "Arco Ossário",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "epic",
+		"level": 29,
+		"damage": 30,
+		"price": 370,
+		"color": {
+			"$c": [0.9, 0.86, 0.74, 1.0]
+		},
+		"glow": 0.4,
+		"fx": "pierce",
+		"stats": {
+			"agi": 3,
+			"str": 2,
+			"crit": 0.06
+		},
+		"desc": "Uma espinha inteira de Cavaleiro Esqueleto, vértebra por vértebra. Toda flecha perfura.",
+		"model": "bw_ossuary_bow"
+	},
+	"chitin_bow": {
+		"name": "Quitina da Mãe-Verme",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "epic",
+		"level": 32,
+		"damage": 32,
+		"price": 400,
+		"color": {
+			"$c": [0.62, 0.8, 0.95, 1.0]
+		},
+		"glow": 0.5,
+		"fx": "splash",
+		"stats": {
+			"agi": 4,
+			"vit": 2
+		},
+		"desc": "Placas da carapaça da Mãe-Verme. As flechas espirram ácido em volta do alvo.",
+		"model": "bw_chitin_bow"
+	},
+	"ashen_bow": {
+		"name": "Arco das Cinzas",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "epic",
+		"level": 35,
+		"damage": 34,
+		"price": 420,
+		"color": {
+			"$c": [0.45, 0.3, 0.26, 1.0]
+		},
+		"glow": 1.0,
+		"fx": "splash",
+		"stats": {
+			"agi": 4,
+			"crit": 0.06
+		},
+		"desc": "Freixo carbonizado da Encosta de Cinzas, com brasas vivas nas rachaduras. As flechas explodem em fagulhas.",
+		"model": "bw_ashen_bow"
+	},
+	"yeti_bow": {
+		"name": "Arco do Ieti",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "epic",
+		"level": 40,
+		"damage": 40,
+		"price": 520,
+		"color": {
+			"$c": [0.82, 0.92, 1.0, 1.0]
+		},
+		"glow": 0.6,
+		"fx": "slow",
+		"stats": {
+			"agi": 4,
+			"str": 3,
+			"hp": 25
+		},
+		"desc": "Chifre de Ieti Glacial curvado no frio. Pesado, gelado e implacável.",
+		"model": "bw_yeti_bow"
+	},
 	"soulwood_staff": {
 		"name": "Cajado de Madeira-de-alma",
 		"type": "weapon",
@@ -3554,6 +3764,26 @@
 		"recipe": "mithril_longbow",
 		"art": "recipe_scroll",
 		"desc": "Use para aprender a receita de Arco Longo de Mithril."
+	},
+	"scroll_ossuary_bow": {
+		"name": "Pergaminho: Arco Ossário",
+		"type": "scroll",
+		"rarity": "epic",
+		"price": 136,
+		"stack": true,
+		"recipe": "ossuary_bow",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Arco Ossário."
+	},
+	"scroll_chitin_bow": {
+		"name": "Pergaminho: Quitina da Mãe-Verme",
+		"type": "scroll",
+		"rarity": "epic",
+		"price": 148,
+		"stack": true,
+		"recipe": "chitin_bow",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Quitina da Mãe-Verme."
 	},
 	"scroll_mithril_gauntlets": {
 		"name": "Pergaminho: Manoplas de Mithril",
