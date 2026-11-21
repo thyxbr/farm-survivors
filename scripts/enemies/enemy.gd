@@ -127,6 +127,10 @@ var _net_pos := Vector3.ZERO
 var _net_yaw := 0.0
 ## Recarga do ataque especial (segundos), à parte da do golpe: teia da Tecelã, língua do Bocarrão.
 var web_cd := 0.0
+## Alfa da Matilha: segundos de pressa que o uivo deu a este lobo (anda HOWL_HASTE vezes mais rápido).
+var haste_t := 0.0
+const HOWL_HASTE := 1.35
+const WOLF_LEGS := ["LegFL", "LegFR", "LegBL", "LegBR"]
 ## Toupeira-Broca (ai "burrow"): segundos debaixo da terra, segundos na superfície desde que saiu, o monte de
 ## terra que anda por cima dela e a camada de colisão normal (zerada enquanto está enterrada).
 var dig_t := 0.0
@@ -208,7 +212,9 @@ func _ready() -> void:
 	add_child(model)
 	if elite:
 		_make_elite_glow()
-	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head", "Tail", "Jaw", "Drill"]:   # Tail e Jaw: raptor; Drill: toupeira
+	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head", "Tail", "Jaw", "Drill"]:   # Tail e Jaw: raptor e lobo; Drill: toupeira
+		parts[n] = model.find_child(n, true, false)
+	for n in WOLF_LEGS:   # Lobo da Geada: quatro patas
 		parts[n] = model.find_child(n, true, false)
 	if data.model == "worm":   # Mãe-Verme: o segundo osso do corpo
 		parts["Neck"] = model.find_child("Neck", true, false)
@@ -548,7 +554,9 @@ func _physics_process(delta: float) -> void:
 
 	_track_target(player, delta)
 
-	var spd: float = data.speed * speed_mult * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0)
+	haste_t = maxf(0.0, haste_t - delta)
+	var spd: float = data.speed * speed_mult * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0) \
+			* (HOWL_HASTE if haste_t > 0.0 else 1.0)
 	var move := Vector3.ZERO
 	var face := Vector3.ZERO
 
@@ -879,6 +887,8 @@ func _web_ready(dist: float) -> bool:
 		return false
 	if data.has("throw_range"):   # Kobold: dinamite de meia distância (colado, vai de picareta)
 		return dist > data.reach * 1.6 and dist < float(data.throw_range)
+	if data.has("howl_cd"):   # Alfa da Matilha: uiva chegando, antes de morder
+		return dist < float(data.aggro)
 	match ai():
 		"weaver":
 			return dist > data.reach * 1.6 and dist < float(data.get("web_range", 10.0))
@@ -1082,7 +1092,11 @@ func _begin_attack(dist := 0.0) -> void:
 			FX.telegraph(global_position, data.blast, _hit_time())
 			return
 		"pack":
-			attack_kind = "lunge"   # bote com mordida (o salto para a frente fica no estado "attack")
+			if data.has("howl_cd") and _web_ready(dist):
+				attack_kind = "howl"   # Alfa: para, uiva e acelera os lobos em volta
+				web_cd = float(data.howl_cd) * randf_range(0.85, 1.15)
+			else:
+				attack_kind = "lunge"   # bote com mordida (o salto para a frente fica no estado "attack")
 			return
 		"weaver":
 			if _web_ready(dist):
@@ -1165,6 +1179,8 @@ func _attack_duration() -> float:
 			return 1.2
 		"throw":
 			return 1.3
+		"howl":
+			return 1.3
 		"emerge":
 			return 1.7
 		"quake":
@@ -1194,6 +1210,8 @@ func _hit_time() -> float:
 			return 0.5
 		"throw":
 			return 1.0
+		"howl":
+			return 0.55
 		"emerge":
 			return 1.0
 		"quake":
@@ -1225,6 +1243,8 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 			return
 		elif attack_kind == "throw":
 			_dynamite_blast(false)
+		elif attack_kind == "howl":
+			_howl(false)
 		elif attack_kind == "emerge":
 			_emerge_hit(false)
 		elif attack_kind == "quake":
@@ -1237,8 +1257,12 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 			var sr := _slam_radius()
 			Sfx.play_at("slam", global_position, 0.0)
 			FXToon.slam(global_position, sr)
+			if data.has("chill"):   # Ieti: o soco no chão levanta gelo em volta
+				FXToon.frost_nova(global_position, sr * 0.8)
 			if player and dist <= sr:
 				player.take_damage(vs(level, player, data.damage * dmg_mult * 1.4), global_position)
+				if data.has("chill") and player.has_method("apply_chill"):
+					player.apply_chill(float(data.chill) * 1.5)
 			if player is Player:
 				player.add_shake(0.4)
 		elif player and dist <= data.reach * 1.3 + 0.3:
@@ -1247,7 +1271,7 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 				player.take_damage(vs(level, player, data.damage * dmg_mult * randf_range(0.9, 1.1)), global_position)
 				if data.has("chill") and player.has_method("apply_chill"):
 					player.apply_chill(float(data.chill), data.get("chill_venom", false))
-		if attack_kind == "swing" or (attack_kind == "lunge" and data.model in ["raptor", "spider", "centipede", "frog", "bat"]):
+		if attack_kind == "swing" or (attack_kind == "lunge" and data.model in ["raptor", "spider", "centipede", "frog", "bat", "wolf"]):
 			Sfx.play_at("swing", global_position, 0.15, -4.0)
 	if attack_timer >= _attack_duration():
 		attack_cd = data.cooldown * (0.7 if enraged else 1.0) * randf_range(0.8, 1.2)
@@ -1272,7 +1296,9 @@ func _shoot(visual: bool) -> void:
 	arrow.damage = 0.0 if visual else data.damage * dmg_mult
 	arrow.level = level
 	arrow.source = get_parent()
-	arrow.magic = bolt or arrow.acid
+	arrow.ice = data.get("shot", "") == "ice"   # Gralha-de-Cristal: estilhaço de gelo que deixa lento
+	arrow.chill = float(data.get("chill", 0.0)) if arrow.ice else 0.0
+	arrow.magic = bolt or arrow.acid or arrow.ice
 	get_parent().add_child(arrow)
 	arrow.global_position = origin
 
@@ -1769,7 +1795,7 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun
 	if bar_root:
 		bar_root.visible = true
 	if not is_boss and ai() != "plant":   # a Flor-faminta tem raiz: não recua
-		var heavy: bool = data.get("elite", false) or elite or data.model == "golem"   # campeões, elites e o Golem quase não recuam
+		var heavy: bool = data.get("elite", false) or elite or data.model in ["golem", "yeti"]   # campeões, elites, o Golem e o Ieti quase não recuam
 		var kb := global_position - from_pos
 		kb.y = 0
 		if kb.length() > 0.01:
@@ -2062,6 +2088,8 @@ func _puppet_process(delta: float) -> void:
 			if attack_kind == "slam":
 				Sfx.play_at("slam", global_position, 0.0)
 				FXToon.slam(global_position, _slam_radius())
+				if data.has("chill"):
+					FXToon.frost_nova(global_position, _slam_radius() * 0.8)
 			elif attack_kind == "shoot":
 				_shoot(true)
 			elif attack_kind == "web":
@@ -2074,6 +2102,8 @@ func _puppet_process(delta: float) -> void:
 				_explode(true)
 			elif attack_kind == "throw":
 				_dynamite_blast(true)
+			elif attack_kind == "howl":
+				_howl(true)
 			elif attack_kind == "emerge":
 				_emerge_hit(true)
 			elif attack_kind == "rockfall":
@@ -2117,10 +2147,13 @@ func _animate(delta: float, hspeed: float) -> void:
 	if data.model == "frog":
 		_animate_frog(hspeed, k)
 		return
-	if data.model == "bat":
+	if data.model in ["bat", "crow"]:
 		_animate_bat(hspeed, k)
 		return
-	if data.model == "golem":
+	if data.model == "wolf":
+		_animate_wolf(hspeed, s, k)
+		return
+	if data.model in ["golem", "yeti"]:
 		_animate_golem(hspeed, s, k)
 		return
 	if data.model == "mole":
@@ -2495,6 +2528,17 @@ func _animate_bat(hspeed: float, k: float) -> void:
 		else:
 			y = -0.3
 			body_x = -0.2
+	elif state == "attack" and attack_kind == "shoot":   # Gralha: empina, abre as asas e cospe o estilhaço
+		var t := attack_timer
+		var ht := _hit_time()
+		if t < ht:
+			var f := clampf(t / maxf(ht, 0.01), 0.0, 1.0)
+			body_x = -0.35 * f
+			flap = 0.7 * f
+			y = 0.15 * f
+		elif t < ht + 0.25:
+			body_x = 0.3
+			flap = -0.3
 	parts.Body.position.y = lerp(parts.Body.position.y, 1.5 + y, k)
 	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x, k)
 	if parts.WingL:
@@ -2503,3 +2547,81 @@ func _animate_bat(hspeed: float, k: float) -> void:
 		parts.WingR.rotation.z = -flap
 	if parts.Head:
 		parts.Head.rotation.x = lerp(parts.Head.rotation.x, -body_x * 0.5, k)
+
+
+## Alfa da Matilha: uivo que acelera os lobos por perto (servidor/solo); a réplica só mostra o anel e o som.
+func _howl(visual: bool) -> void:
+	Sfx.play_at("frost_cast", global_position, 0.05, 2.0)
+	var r := float(data.get("howl_radius", 14.0))
+	FXToon.ring_wave(global_position + Vector3.UP * 0.15, r * 0.5, 0.14, FXToon.MIST)
+	FXToon.ring_wave(global_position + Vector3.UP * 0.15, r, 0.1, FXToon.ICE, 0.2, 0.15)
+	if visual:
+		return
+	var kinds: Array = data.get("howl_kinds", [kind])
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.dead or e.horde != horde or not (e.kind in kinds):
+			continue
+		if e.global_position.distance_to(global_position) <= r:
+			e.haste_t = float(data.get("howl_secs", 6.0))
+
+
+## Lobo da Geada: trote em diagonal (pata dianteira de um lado com a traseira do outro), cauda que balança, cabeça
+## baixa caçando; no bote agacha nas traseiras, estica para a frente e fecha a boca no acerto. No uivo (Alfa) senta
+## nas traseiras e ergue a cabeça. Rotação x positiva leva a pata para trás e abaixa a frente (cabeça e mandíbula).
+func _animate_wolf(hspeed: float, s: float, k: float) -> void:
+	var amp: float = clamp(hspeed / 5.0, 0.0, 1.0) * 0.6
+	var fl := s * amp
+	var fr := -s * amp
+	var bl := -s * amp
+	var br := s * amp
+	var body_x := 0.0
+	var bob := absf(cos(anim_t)) * amp * 0.05
+	var head_x := 0.12 * amp + sin(anim_t * 0.35) * 0.04 * (1.0 - amp)
+	var jaw := 0.06 + maxf(0.0, sin(anim_t * 0.6)) * 0.18 * (1.0 - amp)   # parado, ofega de boca aberta
+	var tail_y := sin(anim_t * 0.8) * (0.15 + amp * 0.2)
+	var tail_x := -0.1 - amp * 0.15
+	if state == "attack" and attack_kind == "lunge":
+		var t := attack_timer
+		if t < 0.35:          # arma o bote: agacha nas traseiras, abre a boca
+			body_x = -0.18
+			head_x = -0.15
+			jaw = 0.7
+			fl = -0.3
+			fr = -0.3
+			bl = 0.35
+			br = 0.35
+			tail_x = 0.2
+		elif t < 0.6:         # salta esticado e morde na hora do acerto
+			body_x = 0.12
+			head_x = 0.25
+			jaw = 0.0 if t >= _hit_time() else 0.8
+			fl = -0.8
+			fr = -0.7
+			bl = 0.8
+			br = 0.7
+		else:
+			head_x = 0.1
+			jaw = 0.2
+	elif state == "attack" and attack_kind == "howl":
+		var u := clampf(attack_timer / 0.4, 0.0, 1.0)
+		body_x = -0.3 * u
+		head_x = -0.9 * u
+		jaw = 0.55 * u
+		bl = -0.35 * u
+		br = -0.35 * u
+		fl = 0.25 * u
+		fr = 0.25 * u
+		tail_x = 0.3 * u
+	var snap := 1.0 - exp(-40.0 * get_physics_process_delta_time())
+	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x, k)
+	parts.Body.position.y = lerp(parts.Body.position.y, 0.84 + bob, k)
+	parts.Head.rotation.x = lerp(parts.Head.rotation.x, head_x, k)
+	for pair in [["LegFL", fl], ["LegFR", fr], ["LegBL", bl], ["LegBR", br]]:
+		var leg: Node3D = parts.get(pair[0])
+		if leg:
+			leg.rotation.x = lerp(leg.rotation.x, float(pair[1]), k)
+	if parts.Jaw:
+		parts.Jaw.rotation.x = lerp(parts.Jaw.rotation.x, jaw, snap if jaw == 0.0 else k)
+	if parts.Tail:
+		parts.Tail.rotation.y = lerp(parts.Tail.rotation.y, tail_y, k)
+		parts.Tail.rotation.x = lerp(parts.Tail.rotation.x, tail_x, k)

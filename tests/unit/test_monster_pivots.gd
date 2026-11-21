@@ -8,6 +8,9 @@ const REQUIRED := {
 	"golem": ["LegL", "LegR", "Body", "Head", "ArmL", "ArmR"],
 	"worm": ["Body", "Neck", "Head", "Jaw"],
 	"mole": ["LegL", "LegR", "KneeL", "KneeR", "Body", "Head", "ArmL", "ArmR", "ElbowL", "ElbowR", "Drill"],
+	"wolf": ["Body", "Head", "Jaw", "Tail", "LegFL", "LegFR", "LegBL", "LegBR"],
+	"crow": ["Body", "Head", "WingL", "WingR"],
+	"yeti": ["LegL", "LegR", "Body", "Head", "ArmL", "ArmR"],
 }
 
 
