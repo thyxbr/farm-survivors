@@ -1705,4 +1705,160 @@ SHIELDS = [("sh_iron_buckler", build_sh_iron_buckler), ("sh_round_shield", build
 ARMORY += SHIELDS
 
 
+# ------------------------------------------------------------------ montantes (duas mãos)
+## Espada de duas mãos (item "two_handed"): mesma regra das espadas (lâmina em +Z, empunhadura na origem), mas a
+## origem é a mão de cima (a direita, junto da guarda) e o cabo desce até a mão de baixo: a esquerda pega em
+## z = -GS_LEFT (KnightMoves.GREAT_LEFT_GRIP). Proporção de zweihänder/claymore: cabo ~1/4 do comprimento, ricasso
+## sem fio com ganchos de aparo (parierhaken), guarda larga, lâmina de ~1,1 m.
+GS_LEFT = 0.15
+
+
+def gs_hilt(m, grip_col, z0=-0.27, z1=0.045, r=0.019, turns=11):
+    wrap("Grip", m, grip_col, z0, z1, r, turns=turns, seg=8)
+
+
+def gs_hooks(m, col, z, x0, reach=0.05, r=0.009):
+    """Ganchos de aparo saindo do ricasso (começam dentro da lâmina, curvam para fora e para baixo)."""
+    for s in (1, -1):
+        tube("Hook%d" % s, spline([(x0 * 0.6 * s, 0, z), (x0 * s + reach * 0.55 * s, 0, z + 0.012),
+                                   (x0 * s + reach * s, 0, z - 0.008), (x0 * s + reach * 0.85 * s, 0, z - 0.03)], 4),
+             lambda t: r * (1 - 0.6 * t), m, col, sides=6)
+
+
+def build_iron_zweihander():
+    m = vcf("w_zwei", metal=0.4)
+    rx = 0.021
+    ol = [(-rx, 0.05), (rx, 0.05), (rx, 0.25), (0.039, 0.28), (0.034, 1.12), (0.0, 1.33), (-0.034, 1.12),
+          (-0.039, 0.28), (-rx, 0.25)]
+    sword_blade("Blade", ol, m, metal("#eef2f6", "#a8b4c4", "#46505e", fuller=(0.32, 1.0, 0.006, "#7a8696")),
+                th=0.013, bevel=0.012)
+    iron = H("#6e7684")
+    gs_hooks(m, iron, 0.255, rx)
+    # couro no ricasso (a mão de cima pode subir até aqui na meia-espada)
+    lathe("Ricasso", [(0.075, 0.0), (0.075, 0.024), (0.085, 0.027), (0.2, 0.027), (0.21, 0.024), (0.21, 0.0)],
+          m, H("#5a3a22"), seg=8, scale=(1.0, 0.55, 1.0))
+    tube("Guard", spline([(-0.21, 0, 0.035), (-0.19, 0, 0.06), (-0.1, 0, 0.066), (0, 0, 0.066), (0.1, 0, 0.066),
+                          (0.19, 0, 0.06), (0.21, 0, 0.035)], 4), lambda t: 0.015 - 0.004 * abs(2 * t - 1), m, iron,
+         sides=6)
+    for s in (1, -1):
+        orb("GuardEnd%d" % s, m, iron, (0.212 * s, 0, 0.03), 0.017, seg=6)
+    crystal("Block", m, iron, (0, 0, 0.062), 0.03, 0.022, 0.02, seg=4, phase=math.pi / 4)
+    gs_hilt(m, H("#5a3a22"))
+    band("Band", m, iron, -0.11, 0.02, 0.022, seg=8)
+    lathe("Pommel", [(-0.37, 0.0), (-0.365, 0.02), (-0.34, 0.034), (-0.31, 0.03), (-0.285, 0.018), (-0.265, 0.0)],
+          m, iron, seg=8, smooth=False)
+    fin("w_iron_zweihander", 0.0, 1.33)
+
+
+def build_highland_claymore():
+    m = vcf("w_claymore", metal=0.4)
+    ol = [(-0.028, 0.06), (0.028, 0.06), (0.04, 0.11), (0.036, 1.08), (0.022, 1.2), (0.0, 1.29), (-0.022, 1.2),
+          (-0.036, 1.08), (-0.04, 0.11)]
+    sword_blade("Blade", ol, m, metal("#f2f6f8", "#b4c0c8", "#3e4a52", fuller=(0.16, 0.7, 0.007, "#7c8a94")),
+                th=0.013, bevel=0.012)
+    steel = H("#8a96a4")
+    flat("Langet", [(0.0, 0.05), (0.03, 0.08), (0.0, 0.17), (-0.03, 0.08)], m, steel, th=0.0145, bevel=0.004,
+         step=0.006, ridge=0.0)
+    # quillons inclinados para a lâmina, terminando em quadrifólio (quatro anéis)
+    for s in (1, -1):
+        tube("Quillon%d" % s, spline([(0.0, 0, 0.058), (0.08 * s, 0, 0.08), (0.15 * s, 0, 0.13),
+                                      (0.178 * s, 0, 0.168)], 5), lambda t: 0.015 - 0.005 * t, m, steel, sides=6)
+        c = (0.19 * s, 0.185)
+        for k in range(4):
+            a = math.pi / 4 + k * math.pi / 2
+            cel(torus("Foil%d_%d" % (s, k), (c[0] + math.cos(a) * 0.016, c[1] + math.sin(a) * 0.016), 0.012, 0.0045,
+                      m, seg=10, sides=5), steel)
+    crystal("Block", m, steel, (0, 0, 0.058), 0.028, 0.02, 0.022, seg=4, phase=math.pi / 4)
+    gs_hilt(m, H("#2f4a3a"), turns=10)
+    for z in (-0.2, -0.05):
+        band("Band%.2f" % z, m, steel, z, 0.016, 0.021, seg=8)
+    # pomo em roda (disco de pé, no plano da lâmina)
+    ob = w_lathe("Pommel", [(-0.012, 0.0), (-0.012, 0.022), (-0.006, 0.036), (0.006, 0.036), (0.012, 0.022),
+                            (0.012, 0.0)], m, seg=12, smooth=False)
+    put(ob, steel, (0, 0, -0.3), (math.pi / 2, 0, 0))
+    fin("w_highland_claymore", 0.0, 1.29)
+
+
+def build_ember_flamberge():
+    m = vcf("w_flamberge", metal=0.3)
+    g = vcf("w_flamberge_gem", emit="#ff7a2a", strength=1.3)
+    rx = 0.022
+    cx = lambda z: 0.0 if z < 0.3 else 0.011 * math.sin((z - 0.3) / 0.13 * 2 * math.pi) * min(1.0, (1.18 - z) / 0.12)
+    w = lambda z: 0.038 - 0.008 * max(0.0, (z - 0.3) / 0.85)
+    zs = [0.3 + 0.88 * i / 44 for i in range(45)]
+    right = [(rx, 0.05), (rx, 0.25), (0.04, 0.28)] + [(cx(z) + w(z), z) for z in zs]
+    left = [(-rx, 0.25), (-0.04, 0.28)] + [(cx(z) - w(z), z) for z in zs]
+    ol = [(-rx, 0.05)] + right + [(0.0, 1.32)] + list(reversed(left))
+
+    def ember(x, z, c):
+        edge = abs(x - cx(z)) / max(w(z), 1e-3)
+        heat = smooth01((edge - 0.55) / 0.45) * smooth01((z - 0.3) / 0.3)
+        c = mix(c, H("#ff8a3a"), 0.55 * heat)
+        return mix(c, H("#ffcf6a"), smooth01((z - 1.05) / 0.25) * 0.6)
+    sword_blade("Blade", ol, m, metal("#f4f0ee", "#b8aaa4", "#5a2a1e", cx=cx, extra=ember), th=0.013, bevel=0.012)
+    zc = [0.32 + 0.7 * i / 28 for i in range(29)]
+    core = [(cx(z) + 0.005 * math.sin(math.pi * (z - 0.32) / 0.7), z) for z in zc]
+    core += [(cx(z) - 0.005 * math.sin(math.pi * (z - 0.32) / 0.7), z) for z in reversed(zc[1:-1])]
+    flat("Core", core, g, H("#ffb060"), th=0.0142, bevel=0.002, step=0.005, ridge=0.0)   # veio de brasa, ondulado
+    iron = H("#3e3434")
+    gs_hooks(m, iron, 0.255, rx, reach=0.045)
+    # guarda escura com as pontas enroladas em espiral, como brasas
+    for s in (1, -1):
+        pts = [(0.0, 0, 0.062), (0.1 * s, 0, 0.066), (0.165 * s, 0, 0.055)]
+        cxs, czs = 0.165 * s, 0.085
+        for k in range(1, 10):
+            a = -math.pi / 2 - k * 0.75
+            rr = 0.03 * (1 - k / 12)
+            pts.append((cxs - math.cos(a) * rr * s, 0, czs + math.sin(a) * rr))
+        tube("Guard%d" % s, spline(pts, 3), lambda t: 0.015 * (1 - 0.55 * t), m, iron, sides=6)
+    crystal("Block", m, iron, (0, 0, 0.062), 0.03, 0.024, 0.022, seg=4, phase=math.pi / 4)
+    gs_hilt(m, H("#7a2218"))
+    lathe("PommelCup", [(-0.3, 0.0), (-0.3, 0.014), (-0.285, 0.024), (-0.27, 0.02), (-0.262, 0.0)], m, iron, seg=8,
+          smooth=False)
+    orb("PommelGem", g, H("#ff5a2a"), (0, 0, -0.32), 0.024, seg=8)
+    for k in range(4):
+        a = 2 * math.pi * k / 4 + 0.4
+        tube("Claw%d" % k, spline([(0.012 * math.cos(a), 0.012 * math.sin(a), -0.295),
+                                   (0.027 * math.cos(a), 0.027 * math.sin(a), -0.315),
+                                   (0.016 * math.cos(a), 0.016 * math.sin(a), -0.343)], 3),
+             lambda t: 0.006 * (1 - t) + 0.0015, m, iron, sides=5)
+    fin("w_ember_flamberge", 0.0, 1.32)
+
+
+def build_eclipse_greatsword():
+    m = vcf("w_eclipse", metal=0.3)
+    g = vcf("w_eclipse_gem", emit="#b47aff", strength=1.6)
+    ol = [(-0.03, 0.06), (0.03, 0.06), (0.056, 0.13), (0.05, 0.92), (0.06, 1.0), (0.036, 1.18), (0.0, 1.36),
+          (-0.036, 1.18), (-0.06, 1.0), (-0.05, 0.92), (-0.056, 0.13)]
+
+    def dusk(x, z, c):
+        return mix(c, H("#e8c070"), smooth01((abs(x) - 0.028) / 0.012) * 0.8)
+    sword_blade("Blade", ol, m, metal("#5a4a7a", "#2c2440", "#120c1c", extra=dusk), th=0.015, bevel=0.014)
+    # runas acesas descendo pelo meio da lâmina
+    for i, z in enumerate((0.25, 0.42, 0.59, 0.76, 0.93)):
+        flat("Rune%d" % i, [(0.0, z - 0.05), (0.01, z), (0.0, z + 0.05), (-0.01, z)], g, H("#d8b0ff"), th=0.0162,
+             bevel=0.002, step=0.004, ridge=0.0)
+    gold = H("#e8c060")
+    # guarda: duas luas crescentes douradas abraçando um eclipse (orbe escuro com anel de luz)
+    for s in (1, -1):
+        crescent = [(0.02 * s, 0.03), (0.11 * s, 0.05), (0.2 * s, 0.11), (0.23 * s, 0.17), (0.2 * s, 0.13),
+                    (0.12 * s, 0.085), (0.02 * s, 0.09)]
+        flat("Moon%d" % s, crescent, m, gold, th=0.012, bevel=0.009, step=0.008)
+    orb("Eclipse", m, H("#1c1428"), (0, 0, 0.06), 0.044, seg=12)
+    cel(torus("Corona", (0, 0.06), 0.048, 0.008, g, seg=16, sides=6), H("#e0c0ff"))
+    gs_hilt(m, H("#2a1e3e"), r=0.02)
+    for z in (-0.2, -0.06):
+        band("Band%.2f" % z, m, gold, z, 0.018, 0.023, seg=8)
+    # pomo: lua crescente de pé com uma gema
+    flat("PommelMoon", [(0.0, -0.26), (0.045, -0.29), (0.05, -0.34), (0.02, -0.38), (0.028, -0.34), (0.022, -0.305),
+                        (-0.022, -0.305), (-0.028, -0.34), (-0.02, -0.38), (-0.05, -0.34), (-0.045, -0.29)],
+         m, gold, th=0.012, bevel=0.009, step=0.008)
+    orb("PommelGem", g, H("#c890ff"), (0, -0.012, -0.288), 0.014, seg=8)
+    fin("w_eclipse_greatsword", 0.0, 1.36)
+
+
+ARMORY += [("w_iron_zweihander", build_iron_zweihander), ("w_highland_claymore", build_highland_claymore),
+           ("w_ember_flamberge", build_ember_flamberge), ("w_eclipse_greatsword", build_eclipse_greatsword)]
+
+
 WEAPONS.extend(ARMORY)   # ASSETS=weapons gera todas; ASSETS=staves / bows / classic geram só esse grupo

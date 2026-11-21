@@ -56,6 +56,99 @@ const SWORD := [
 const SPIN_START := 0.24        ## o giro começa logo depois da antecipação
 const SPIN_END := 0.78          ## e termina aqui (uma volta inteira)
 
+# ------------------------------------------------------------------ montante, duas mãos (0,62 s / 0,62 s / 0,9 s)
+## Espada de duas mãos (item "two_handed"): as mãos vão por IK até o cabo, como nas ferramentas de coleta
+## (KnightAnim._tool_ik). Trajetória no espaço do modelo (+Z = frente, +X = esquerda do personagem, Y = altura):
+## `end` = mão de baixo (a esquerda, perto do pomo), `dir` = lâmina (do pomo para a ponta), `edge` = para onde o
+## gume aponta (a largura da lâmina fica nessa direção), `left` = quanto a mão esquerda segura (0 = solta, balança).
+## A direita fica GREAT_GRIP m acima da esquerda no cabo, junto da guarda (a origem do suporte da arma).
+## Guardas de esgrima alemã de espada longa: parado em Pflug baixo (mãos na frente da barriga, ponta para a frente e
+## para cima), andando em Vom Tag no ombro (lâmina pousada no ombro direito, as duas mãos no cabo) e correndo com a
+## lâmina baixa, arrastada atrás na mão direita (GREAT_RUN).
+const GREAT_GRIP := 0.15
+const GREAT_LEFT_GRIP := Vector3(0.0, 0.0, -GREAT_GRIP)
+const GREAT_GUARD := {"end": Vector3(0.01, 0.95, 0.23), "dir": Vector3(-0.08, 0.6, 0.8), "edge": Vector3(0.0, 0.8, -0.6),
+	"slide": 0.0, "left": 1.0}
+const GREAT_SHOULDER := {"end": Vector3(-0.1, 1.2, 0.3), "dir": Vector3(-0.3, 0.8, -0.52), "edge": Vector3(0.0, 0.55, 0.85),
+	"slide": 0.0, "left": 1.0}
+## Correndo: a lâmina desce para a mão direita ao lado do quadril e vai arrastada atrás, apontando para trás e para
+## baixo, por fora da perna direita (a esquerda solta e balança). No ombro ela passava rente à cabeça na corrida.
+const GREAT_RUN := {"end": Vector3(-0.25, 1.0, 0.19), "dir": Vector3(-0.3, -0.3, -0.9), "edge": Vector3(0.0, -0.95, 0.3),
+	"slide": 0.0, "left": 0.0}
+## Correndo, o braço da arma balança com a passada como o braço livre (fração do balanço do braço da marcha, em volta do
+## ombro), e a lâmina gira só GREAT_RUN_BLADE desse ângulo. Antes a mão ficava quase parada e a lâmina balançava
+## inteira: a lâmina subia quando a perna direita ia à frente e o braço parecia ir junto com a perna.
+const GREAT_RUN_SWING := 1.0
+const GREAT_RUN_BLADE := 0.3
+## Correndo, o cotovelo direito aponta para trás e para fora (espaço do modelo) e esse peso vence o alinhamento do punho
+## com a lâmina na escolha do giro do braço (KnightAnim.grip_solve; nas ferramentas o peso é 0,12).
+const GREAT_RUN_POLE_R := Vector3(-0.35, -0.2, -1.0)
+const GREAT_RUN_POLE_W := 4.0
+## Postura parada com a montante: pés mais afastados, joelhos soltos, o ombro esquerdo um pouco à frente.
+const GREAT_STANCE := {"leg_l": -0.16, "knee_l": 0.2, "leg_r": 0.14, "knee_r": 0.24, "twist": -0.15}
+## Acerto de cada golpe (fração do golpe, ver player.gd): mais tarde que a espada, o preparo é maior.
+const GREAT_HIT := 0.5
+## Corpo de cada golpe (play_track); os braços saem de GREAT_TOOL.
+const GREAT := [
+	[  # 1: Zornhau, diagonal de cima do ombro direito até o joelho esquerdo
+		[0.3, {"twist": -0.75, "body_x": -0.12, "body_z": 0.05, "head_y": 0.3, "head_x": -0.05,
+			"leg_l": -0.12, "knee_l": 0.2, "leg_r": 0.22, "knee_r": 0.35}, "out"],
+		[0.5, {"twist": 0.55, "body_x": 0.32, "body_z": -0.06, "head_y": -0.2, "head_x": 0.1,
+			"leg_l": -0.55, "knee_l": 0.65, "leg_r": 0.38, "knee_r": 0.35}, "in"],
+		[0.66, {"twist": 0.62, "body_x": 0.3}, "out"],
+	],
+	[  # 2: varrida horizontal do lado esquerdo para o direito, na altura da cintura
+		[0.3, {"twist": 0.85, "body_x": 0.05, "head_y": -0.35,
+			"leg_l": -0.18, "knee_l": 0.35, "leg_r": 0.15, "knee_r": 0.3}, "out"],
+		[0.5, {"twist": -0.7, "body_x": 0.18, "head_y": 0.3,
+			"leg_l": -0.42, "knee_l": 0.5, "leg_r": 0.32, "knee_r": 0.35}, "in"],
+		[0.66, {"twist": -0.85, "body_x": 0.15, "head_y": 0.35}, "out"],
+	],
+	[  # 3: golpe de cima para baixo com tudo, a ponta crava no chão à frente
+		[0.32, {"twist": -0.1, "body_x": -0.22, "body_y": 0.02, "head_x": -0.2,
+			"leg_l": -0.2, "knee_l": 0.25, "leg_r": 0.15, "knee_r": 0.25}, "out"],
+		[0.5, {"twist": 0.08, "body_x": 0.6, "body_y": -0.1, "head_x": 0.05,
+			"leg_l": -0.7, "knee_l": 1.0, "leg_r": 0.5, "knee_r": 0.8}, "in"],
+		[0.7, {"twist": 0.08, "body_x": 0.58, "body_y": -0.1,
+			"leg_l": -0.68, "knee_l": 0.98, "leg_r": 0.48, "knee_r": 0.78}, "lin"],
+	],
+]
+## Trajetória da lâmina em cada golpe (mesmo formato de GREAT_GUARD). Começa e termina na pose de carregar. As posições
+## das mãos saem de `tools/weapon_pose_shot.tscn -- montante otimiza` (onde os dois punhos fecham no cabo com o tronco
+## daquela chave); a ponta de cada instante (`montante pontas`) dá os cortes de FXToon.GREAT_COMBO.
+const GREAT_TOOL := [
+	[
+		[0.3, {"end": Vector3(-0.36, 1.53, 0.29), "dir": Vector3(-0.35, 0.55, -0.76), "edge": Vector3(0.0, 0.8, 0.6),
+			"slide": 0.0, "left": 1.0}, "out"],
+		[0.43, {"end": Vector3(-0.16, 1.28, 0.49), "dir": Vector3(0.05, 0.96, 0.28), "edge": Vector3(0.3, -0.2, 0.93),
+			"slide": 0.0, "left": 1.0}, "in"],
+		[0.5, {"end": Vector3(0.04, 0.98, 0.34), "dir": Vector3(0.55, -0.32, 0.77), "edge": Vector3(0.55, -0.83, -0.05),
+			"slide": 0.0, "left": 1.0}, "in"],
+		[0.66, {"end": Vector3(-0.01, 0.94, 0.23), "dir": Vector3(0.84, -0.45, 0.3), "edge": Vector3(0.2, -0.3, -0.93),
+			"slide": 0.0, "left": 1.0}, "out"],
+	],
+	[
+		[0.3, {"end": Vector3(0.27, 1.09, 0.29), "dir": Vector3(0.75, 0.25, -0.6), "edge": Vector3(0.6, 0.0, 0.8),
+			"slide": 0.0, "left": 1.0}, "out"],
+		[0.44, {"end": Vector3(-0.01, 1.08, 0.34), "dir": Vector3(0.35, 0.1, 0.93), "edge": Vector3(-0.93, 0.0, 0.35),
+			"slide": 0.0, "left": 1.0}, "in"],
+		[0.5, {"end": Vector3(-0.02, 1.09, 0.3), "dir": Vector3(-0.72, 0.05, 0.69), "edge": Vector3(-0.69, 0.0, -0.72),
+			"slide": 0.0, "left": 1.0}, "in"],
+		[0.66, {"end": Vector3(-0.27, 1.01, 0.24), "dir": Vector3(-0.95, 0.0, -0.15), "edge": Vector3(0.15, 0.0, -0.98),
+			"slide": 0.0, "left": 1.0}, "out"],
+	],
+	[
+		[0.32, {"end": Vector3(0.02, 1.87, 0.21), "dir": Vector3(-0.05, 0.42, -0.9), "edge": Vector3(0.0, 0.9, 0.42),
+			"slide": 0.0, "left": 1.0}, "out"],
+		[0.43, {"end": Vector3(-0.19, 1.72, 0.32), "dir": Vector3(0.0, 0.96, 0.25), "edge": Vector3(0.0, -0.25, 0.96),
+			"slide": 0.0, "left": 1.0}, "in"],
+		[0.5, {"end": Vector3(-0.12, 0.78, 0.33), "dir": Vector3(0.0, -0.4, 0.92), "edge": Vector3(0.0, -0.92, -0.4),
+			"slide": 0.0, "left": 1.0}, "in"],
+		[0.7, {"end": Vector3(0.0, 0.84, 0.39), "dir": Vector3(0.0, -0.42, 0.91), "edge": Vector3(0.0, -0.91, -0.42),
+			"slide": 0.0, "left": 1.0}, "lin"],
+	],
+]
+
 # ------------------------------------------------------------------ soco, sem arma (0,3 s / 0,32 s / 0,5 s)
 ## Combo de boxe: jab de esquerda, direto de direita e uppercut de direita. Entre um e outro as mãos voltam
 ## à guarda, os punhos na frente do queixo. O acerto é em 0,42, como na espada.

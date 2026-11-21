@@ -122,6 +122,7 @@ func _ready() -> void:
 
 ## Depuração: `godot -- --shot=shot.png [--delay=4]` salva um screenshot e fecha.
 ## `--survival` (com ou sem --shot) começa direto no Desafio da Horda.
+## `--autoswing` (no jogador local) emenda golpes básicos sem parar, com fôlego cheio; com `--shots=` fotografa o combo.
 ## `--cam=graus,dist` gira a câmera em volta do jogador e muda a distância (ex.: `--cam=180,2.2`
 ## olha o personagem de frente, de perto) — útil para conferir luz e modelo.
 ## `--farmdemo`/`--geardemo`/`--weapon=` usam um personagem novo num arquivo à parte (user://demo_solo.json,
@@ -216,7 +217,7 @@ func _debug_screenshot() -> void:
 		var gear_ids := {}
 		for id in ["frost_brand", "ember_staff", "elven_bow", "storm_bow", "dragonfang", "knight_shield", "arcane_orb",
 				"hunter_quiver", "iron_helm", "mage_robe", "royal_plate", "iron_gauntlets", "swift_boots", "vampire_ring",
-				"sage_amulet", "sc_novice_scepter", "sc_dawn_scepter", "sc_blessed_scepter", "sc_seraph_scepter", "sc_halo_scepter", "goblin_cleaver", "guardian_greatsword", "royal_wings", "titan_cleaver", "rose_flame", "knight_helm", "chain_mail", "archer_bracers",
+				"sage_amulet", "sc_novice_scepter", "sc_dawn_scepter", "sc_blessed_scepter", "sc_seraph_scepter", "sc_halo_scepter", "goblin_cleaver", "guardian_greatsword", "iron_zweihander", "highland_claymore", "ember_flamberge", "eclipse_greatsword", "royal_wings", "titan_cleaver", "rose_flame", "knight_helm", "chain_mail", "archer_bracers",
 				"iron_greaves", "life_amulet", "strength_ring", "traveler_cape"]:
 			gear_ids[id] = 1
 		gear_ids["slime_gel"] = 7
@@ -318,6 +319,17 @@ func _debug_screenshot() -> void:
 				pl._cam_dist = float(c[1])
 		delay = 1.0
 	await get_tree().create_timer(delay, true).timeout
+	# `--shots=N[,intervalo]`: N capturas seguidas (shot_00.png, shot_01.png...), para ver um golpe quadro a quadro
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--shots="):
+			var sp := a.substr(8).split(",")
+			var gap := float(sp[1]) if sp.size() > 1 else 0.06
+			for i in int(sp[0]):
+				await RenderingServer.frame_post_draw
+				get_viewport().get_texture().get_image().save_png(path.get_basename() + "_%02d.png" % i)
+				await get_tree().create_timer(gap, true).timeout
+			get_tree().quit()
+			return
 	await RenderingServer.frame_post_draw
 	var err := get_viewport().get_texture().get_image().save_png(path)
 	if err != OK:
