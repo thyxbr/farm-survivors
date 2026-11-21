@@ -35,6 +35,13 @@ const AIM_FOV := 52.0         # campo de visão mirando com o arco (normal: 70)
 const CAM_SIDE := 0.45        # câmera um pouco à direita do jogador (m)
 const AIM_CAM_SIDE := 0.8     # mirando com o arco: sobre o ombro direito
 const AIM_CAM_CLOSER := 1.2   # e mais perto (m)
+## Distância da câmera escolhida na rodinha do mouse (m): perto o bastante para não perder o personagem de
+## vista, longe só um pouco além do padrão (4 m) para enxergar o alvo por cima de asas e capas grandes.
+const CAM_DIST_MIN := 2.4
+const CAM_DIST_MAX := 6.0
+const CAM_DIST_STEP := 0.4
+## Com asas nas costas a câmera sobe (m) e olha por cima delas: o alvo fica acima da envergadura.
+const CAM_WINGS_UP := 0.45
 ## Ganho da aproximação exponencial da velocidade (chão: andando, parando, invertendo; ar).
 const ACCEL_RUN := 14.0
 const ACCEL_STOP := 18.0
@@ -105,6 +112,14 @@ var shake := 0.0
 ## Quanto a câmera recua (m) além da distância normal: a habilidade pede, _process aproxima suave.
 var cam_back := 0.0
 var _cam_back_now := 0.0
+## Distância base atual (persegue Game.settings.cam_zoom) e altura extra por causa das asas.
+var _cam_dist := 4.0
+var _cam_up := 0.0
+var _has_wings := false
+var _wings_check := 0.0
+var _zoom_save_t := -1.0   # grava a distância escolhida pouco depois da última volta da rodinha
+## Distância fixa pedida por ferramenta (--cam=graus,dist das capturas); 0 = usa a da rodinha.
+var cam_dist_override := 0.0
 ## Habilidade de arma em execução (SwordAbilities): id ("" = nenhuma), tempo desde o início e
 ## rascunho dela ("nodes" são liberados e "mask" restaurada por end_ability()).
 var ability := ""
@@ -175,7 +190,8 @@ func _ready() -> void:
 	cam_pitch.rotation.x = -0.25
 	cam_yaw.add_child(cam_pitch)
 	spring = SpringArm3D.new()
-	spring.spring_length = 4.0
+	_cam_dist = clampf(float(Game.settings.get("cam_zoom", 4.0)), CAM_DIST_MIN, CAM_DIST_MAX)
+	spring.spring_length = _cam_dist
 	spring.collision_mask = 1
 	spring.margin = 0.2
 	spring.position.x = CAM_SIDE
@@ -286,7 +302,8 @@ func _process(delta: float) -> void:
 	var o := get_global_transform_interpolated().origin
 	_cam_y = lerpf(_cam_y, o.y, 1.0 - exp(-12.0 * delta))
 	_cam_y = clampf(_cam_y, o.y - 0.6, o.y + 0.6)
-	cam_yaw.global_position = Vector3(o.x, _cam_y + 1.55, o.z)
+	_update_cam_framing(delta)
+	cam_yaw.global_position = Vector3(o.x, _cam_y + 1.55 + _cam_up, o.z)
 	_vfx_sync()
 	# mirando com o arco a câmera fecha e vai para cima do ombro direito: o corpo fica de lado, à esquerda
 	# da mira, com o arco e a corda à vista (a Flecha do Vendaval mexe no FOV sozinha)
@@ -297,8 +314,25 @@ func _process(delta: float) -> void:
 	spring.position.x = lerpf(CAM_SIDE, AIM_CAM_SIDE, _aim_zoom)
 	# recuo pedido por habilidade (e a aproximação da mira): soma só a diferença, a distância base fica intacta
 	var back := lerpf(_cam_back_now, cam_back - AIM_CAM_CLOSER * _aim_zoom, 1.0 - exp(-6.0 * delta))
-	spring.spring_length += back - _cam_back_now
 	_cam_back_now = back
+	spring.spring_length = maxf(_cam_dist + back, 1.2)
+
+
+## Zoom da rodinha (suave) e altura extra quando há asas nas costas.
+func _update_cam_framing(delta: float) -> void:
+	var want := clampf(float(Game.settings.get("cam_zoom", 4.0)), CAM_DIST_MIN, CAM_DIST_MAX)
+	if cam_dist_override > 0.0:
+		want = cam_dist_override
+	_cam_dist = lerpf(_cam_dist, want, 1.0 - exp(-10.0 * delta))
+	_wings_check -= delta
+	if _wings_check <= 0.0:
+		_wings_check = 0.5   # o visual pode trocar a qualquer hora (equipar, trocar de corpo)
+		_has_wings = model != null and model.find_child("BackWings", true, false) != null
+	_cam_up = lerpf(_cam_up, CAM_WINGS_UP if _has_wings else 0.0, 1.0 - exp(-6.0 * delta))
+	if _zoom_save_t >= 0.0:
+		_zoom_save_t -= delta
+		if _zoom_save_t < 0.0:
+			Game.save_settings()
 
 
 func _ready_remote() -> void:
@@ -348,6 +382,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		var inv := -1.0 if Game.settings.invert_y else 1.0
 		cam_yaw.rotate_y(-event.relative.x * s)
 		cam_pitch.rotation.x = clamp(cam_pitch.rotation.x - event.relative.y * s * inv, -1.25, 0.6)
+	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED 			and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		var step := -CAM_DIST_STEP if event.button_index == MOUSE_BUTTON_WHEEL_UP else CAM_DIST_STEP
+		var cur := float(Game.settings.get("cam_zoom", 4.0))
+		Game.settings["cam_zoom"] = clampf(cur + step, CAM_DIST_MIN, CAM_DIST_MAX)
+		_zoom_save_t = 1.0
 	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 

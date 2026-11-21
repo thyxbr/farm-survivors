@@ -90,8 +90,9 @@ func test_rank_gates_main_and_side() -> void:
 func test_side_quests_repeat_and_skip_chain() -> void:
 	var bt := _tables()
 	var s := _blank()
-	# secundária de Rank D não depende da cadeia da história
-	T.ok(CharRules.start_quest(s, bt, "q_gelo").ok, "contrato sem história")
+	# contrato de Rank D: só exige o registro na Guilda, não o resto da cadeia
+	s.quests["registro"] = {"state": "done", "progress": 1}
+	T.ok(CharRules.start_quest(s, bt, "q_gelo").ok, "contrato depois do registro")
 	for i in 3:
 		CharRules.kill(s, bt, "slime_gelo", 0, 0, 0, "campos_norte")
 	T.eq(s.quests.q_gelo.state, "ready", "pronto com 3 slimes de gelo")
@@ -101,6 +102,40 @@ func test_side_quests_repeat_and_skip_chain() -> void:
 	CharRules.add_item(s, bt, "spicy_soup", 1)
 	T.ok(CharRules.start_quest(s, bt, "sopa").ok and CharRules.complete_quest(s, bt, "sopa").ok, "sopa do Rufus")
 	T.eq(CharRules.start_quest(s, bt, "sopa").err, "missao_indisponivel", "não repetível")
+
+
+func test_board_needs_registration() -> void:
+	var bt := _tables()
+	var qt := bt.get_table("quests")
+	var s := _blank()
+	# personagem recém-chegado: nenhum contrato do quadro, nem com rank sobrando
+	for id in qt:
+		if StoryRules.giver(qt, id) == "board":
+			T.eq(StoryRules.requirements(qt[id]), ["registro"], "%s exige o registro" % id)
+			T.eq(CharRules.start_quest(s, bt, id).err, "requisito", "%s travado sem registro" % id)
+	T.eq(StoryRules.side_offers_at(qt, s.quests, "board", "S"), [], "quadro vazio antes do registro")
+	var r := CharRules.start_quest(s, bt, "q_gelo")
+	T.ok(r.events.any(func(e: Dictionary) -> bool: return "registrados" in str(e.get("text", ""))), "explica o motivo")
+	s.quests["registro"] = {"state": "done", "progress": 1}
+	T.ok(CharRules.start_quest(s, bt, "q_gelo").ok, "registrado: contrato liberado")
+	# o modo admin passa por cima dos requisitos, igual ao rank
+	var adm := _blank()
+	AdminRules.set_on(adm, bt, true)
+	T.ok(CharRules.start_quest(adm, bt, "q_bombas").ok, "admin pega contrato sem registro")
+
+
+func test_npc_side_needs_meeting() -> void:
+	var bt := _tables()
+	var qt := bt.get_table("quests")
+	var s := _blank()
+	T.eq(CharRules.start_quest(s, bt, "minerio").err, "requisito", "Doran ainda é um estranho")
+	T.ok(not StoryRules.side_available(qt, s.quests, "minerio", "D"), "sem + sobre o Doran")
+	_story_until(s, "slimes")
+	T.ok(StoryRules.side_available(qt, s.quests, "minerio", "D"), "depois da forja, o minério aparece")
+	T.ok(CharRules.start_quest(s, bt, "minerio").ok, "minério liberado")
+	for id in qt:
+		for need in StoryRules.requirements(qt[id]):
+			T.ok(qt.has(need) and not StoryRules.is_side(qt, need), "%s exige missão da história %s" % [id, need])
 
 
 func test_boss_flags() -> void:
@@ -119,11 +154,14 @@ func test_story_rules_sides_and_ranks() -> void:
 	T.eq(StoryRules.after(qt, "cerimonia"), "", "a cerimônia fecha a história")
 	T.eq(StoryRules.after(qt, "q_gelo"), "", "secundária não tem próxima")
 	var q := {}
+	T.eq(StoryRules.marker(qt, q, "board", {}, "D"), "", "sem registro o quadro não oferece nada")
+	q["registro"] = {"state": "done", "progress": 1}
 	T.eq(StoryRules.marker(qt, q, "board", {}, "D").length() > 0, true, "quadro tem contratos para Rank D")
 	T.eq(StoryRules.marker(qt, q, "board", {}, "D"), "+", "contratos aparecem como +")
 	var board_d := StoryRules.side_offers_at(qt, q, "board", "D")
 	var board_c := StoryRules.side_offers_at(qt, q, "board", "C")
 	T.ok(board_c.size() > board_d.size(), "Rank C libera mais contratos (%d > %d)" % [board_c.size(), board_d.size()])
+	q = {}
 	for id in CharRules.main_chain(qt):
 		q[id] = {"state": "done", "progress": 1}
 		if id == "mina":

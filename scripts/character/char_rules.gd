@@ -727,6 +727,13 @@ static func start_quest(s: CharState, bt: BalanceTables, id: String) -> Dictiona
 		var i := order.find(id)
 		if i > 0 and quest_state(s, order[i - 1]) != "done":
 			return _fail("missao_indisponivel")
+	# requisitos ("requires"): contrato do quadro só depois do registro na Guilda, secundária de NPC só
+	# depois de conhecê-lo na história. O modo admin passa por cima, igual ao rank.
+	if not AdminRules.is_on(s):
+		var miss := StoryRules.missing_requirement(qt, s.quests, id)
+		if miss != "":
+			var hint := str(q.get("requires_hint", "Antes, conclua: %s." % qt.get(miss, {}).get("name", miss)))
+			return _fail("requisito", [_notify(hint, C_BAD)])
 	if not rank_at_least(s, bt, str(q.get("rank", "D"))):
 		return _fail("rank_insuficiente", [_notify("Exige Rank %s na Guilda." % q.get("rank", "D"), C_BAD)])
 	s.quests[id] = {"state": "active", "progress": 0}

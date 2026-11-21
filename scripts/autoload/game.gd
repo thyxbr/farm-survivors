@@ -27,7 +27,8 @@ const CHAR_CREATE_SCENE := "res://scenes/char_create.tscn"
 
 var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "music_volume": 0.45, "sfx_volume": 0.9,
 	"ambience_volume": 0.7, "fullscreen": false, "invert_y": false,
-	"player_name": "", "server_address": "", "keep_logged": true, "toon": true, "toon_outline": true}
+	"player_name": "", "server_address": "", "keep_logged": true, "toon": true, "toon_outline": true,
+	"cam_zoom": 4.0}
 
 # ---- espelho do personagem (escrito só por apply_state)
 var level := 1
@@ -133,7 +134,7 @@ func _debug_screenshot() -> void:
 			spawn_position = Vector3(float(v[0]), 0.5, float(v[1]))
 			spawn_yaw = float(v[2]) if v.size() > 2 else 0.0
 	var args := OS.get_cmdline_user_args()
-	var demo := "--farmdemo" in args or "--geardemo" in args or "--enchantdemo" in args
+	var demo := "--farmdemo" in args or "--geardemo" in args or "--enchantdemo" in args or "--introdemo" in args
 	for a in args:
 		demo = demo or a.begins_with("--weapon=")
 	if demo:
@@ -308,7 +309,8 @@ func _debug_screenshot() -> void:
 			var c := cam.split(",")
 			pl.cam_yaw.rotation.y += deg_to_rad(float(c[0]))
 			if c.size() > 1:
-				pl.spring.spring_length = float(c[1])
+				pl.cam_dist_override = float(c[1])
+				pl._cam_dist = float(c[1])
 		delay = 1.0
 	await get_tree().create_timer(delay, true).timeout
 	await RenderingServer.frame_post_draw
@@ -1205,7 +1207,7 @@ static func harness_class(args: PackedStringArray) -> Array:
 		elif a.begins_with("--weapon="):
 			weapon = a.substr(9)
 			harness = true
-		elif a in ["--smoketest", "--vilatest", "--farmdemo", "--geardemo", "--enchantdemo"] or a.begins_with("--nettest="):
+		elif a in ["--smoketest", "--vilatest", "--farmdemo", "--geardemo", "--enchantdemo", "--introdemo"] or a.begins_with("--nettest="):
 			harness = true
 	if cls == "" and weapon != "":
 		var wc := CharRules.weapon_class(Balance.tables, weapon)

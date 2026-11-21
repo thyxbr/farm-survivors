@@ -301,6 +301,16 @@ static func _locked(q: String) -> Array:
 
 ## O Quadro de Contratos: cada contrato disponível vira uma escolha que mostra o contrato e o aceite.
 static func _board(sides: Array, reminders: Array) -> Array:
+	# antes do registro na Guilda o quadro é só de olhar: o forasteiro ainda não é aventureiro
+	if Game.quest_state("registro") != "done" and not Game.admin_mode():
+		var locked: Array = [
+			narr("(Quadro de Contratos da Guilda de Valdoria. Dezenas de papéis, todos com o mesmo carimbo vermelho:)"),
+			narr("\"SOMENTE AVENTUREIROS REGISTRADOS. SEM CARTEIRINHA, SEM CONTRATO. — Lina, da Guilda\""),
+		]
+		locked.append_array(reminders)
+		locked.append(narr("(Você ainda não tem carteirinha. Por enquanto a vila tem trabalho de sobra para um herói" \
+			+ " sem papelada: siga a história e o registro chega na hora certa.)"))
+		return locked
 	var head := narr("(Quadro de Contratos da Guilda de Valdoria. Seu rank: %s, %d pontos de guilda.)" % [Game.rank(), Game.guild_points()])
 	if sides.is_empty():
 		var pages: Array = [head]
@@ -530,13 +540,16 @@ static func _open_enchant() -> void:
 
 
 # ================================================================ prólogo
-## Narração da chegada (personagem novo, primeira vez no mundo): o anime abre antes do Bram.
+## Narração logo depois da cena da chegada (ArrivalCutscene: o corpo do herói foi montado em luz, dos pés à cabeça, na estrada, na frente do Beto).
+## O tom é de anime isekai: alguém de outro mundo acorda num lugar que obviamente não é o dele.
 static func intro() -> Array:
 	return [
+		p("PELAS BARBAS DO MEU AVÔ! VOCÊ... VOCÊ FOI MONTADO DE LUZ, PEDACINHO POR PEDACINHO?!", NAMES.coach, "shout"),
+		narr("(O cocheiro larga as rédeas e sai correndo para a vila, gritando para quem quiser ouvir.)"),
+		narr("Você olha as próprias mãos. Ainda brilham um pouquinho. O céu é azul demais. O ar cheira a pão e a magia. Nada aqui parece o seu mundo.", ""),
 		narr("Valdoria. Uma vila pacata, com um poço, seis casas, uma ferraria barulhenta e um problema sério de slimes.", ""),
-		narr("Pela estrada do sul chega um aventureiro. Sem mapa. Sem dinheiro. Com uma fome considerável.", ""),
-		narr("Ele ainda não sabe, mas está prestes a virar o herói de uma profecia.", ""),
-		narr("(Principalmente porque o Ancião Bram acabou de decidir isso.)"),
+		narr("(Na praça, um velho de barba aponta para você com as duas mãos, tremendo de emoção.)"),
+		p("UM HERÓI FEITO DE LUZ! ESTÁ NA PROFECIA! ...EU ACHO! VENHA ATÉ O POÇO, FORASTEIRO!", NAMES.elder, "shout"),
 		narr("Siga a estrada até a vila e fale com o Ancião Bram (!) perto do poço da praça. Use E para interagir.", ""),
 	]
 
@@ -546,13 +559,14 @@ static func _offer(q: String) -> Array:
 	match q:
 		"chegada":
 			return [
-				p("AH! ESSAS BOTAS GASTAS! ESSE OLHAR PERDIDO! ESSA... FOME EVIDENTE!", null, "shout"),
-				_with_choices(p("Viajante, eu sou Bram, o ancião de Valdoria. E você... você é o HERÓI DA PROFECIA!"),
+				p("AH! AINDA SOLTANDO FAÍSCA AZUL! ESSE BRILHO NOS OLHOS! ESSE OLHAR DE QUEM NÃO FAZ IDEIA DE ONDE ESTÁ!", null, "shout"),
+				_with_choices(p("Forasteiro, eu sou Bram, o ancião de Valdoria. E você... você é o HERÓI DA PROFECIA!"),
 					flavor("Que profecia?", [
 						p("A antiga! Escrita há... (ele olha para a palma da própria mão) ...muitos anos."),
-						p("\"Quando a vila mais precisar, um forasteiro de botas chegará pela estrada.\" Você tem botas. Está provado."),
-					], "Eu só queria um lanche.", [
-						p("Todo herói começa com fome! Isso também está na profecia. Linha dois. Acabei de lembrar."),
+						p("\"Quando a vila mais precisar, um herói será montado da luz...\" (ele aperta os olhos) \"...na estrada do sul, de preferência na frente do Beto.\" O Beto viu tudo. Está provado."),
+					], "Eu vim de OUTRO MUNDO!", [
+						p("Outro mundo! CLARO! Isso também está na profecia. Linha dois. Acabei de lembrar."),
+						p("Lá no seu mundo também tem slime? Não? Que sorte. Aqui tem bastante."),
 					])),
 				p("Os slimes devoram nossas plantações, goblins rondam a floresta, e eu juro que ouvi algo mastigando nas ruínas. Valdoria precisa de você!"),
 				p("Primeiro, vá até a Mira, no empório a leste do poço. Ela vai te entregar o lendário KIT DO HERÓI!"),
