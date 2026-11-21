@@ -3523,6 +3523,137 @@
 		"desc": "Chifre de Ieti Glacial curvado no frio. Pesado, gelado e implacável.",
 		"model": "bw_yeti_bow"
 	},
+	"abyss_bow": {
+		"name": "Suspiro do Abismo",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "mythic",
+		"level": 50,
+		"named": true,
+		"damage": 58,
+		"price": 2000,
+		"color": {
+			"$c": [0.55, 0.32, 0.95, 1.0]
+		},
+		"glow": 1.4,
+		"fx": "vortex",
+		"stats": {
+			"agi": 8,
+			"str": 3,
+			"crit": 0.12
+		},
+		"desc": "Costelas de algo que dorme no fundo do Abismo. O tiro tensionado ao máximo abre uma fenda que puxa os inimigos e implode.",
+		"model": "bw_abyss_bow"
+	},
+	"dawn_bow": {
+		"name": "Alvorada, a Asa da Fênix",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "mythic",
+		"level": 49,
+		"named": true,
+		"damage": 55,
+		"price": 1900,
+		"color": {
+			"$c": [1.0, 0.72, 0.25, 1.0]
+		},
+		"glow": 1.6,
+		"fx": "solar",
+		"stats": {
+			"agi": 8,
+			"int": 4,
+			"crit": 0.1
+		},
+		"desc": "Penas da fênix que se abrem como asas ao puxar. Cada flecha marca o alvo; a terceira marca derruba uma coluna de sol.",
+		"model": "bw_dawn_bow"
+	},
+	"dragon_bow": {
+		"name": "Presa do Dragão Ancestral",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "mythic",
+		"level": 50,
+		"named": true,
+		"damage": 60,
+		"price": 2100,
+		"color": {
+			"$c": [0.95, 0.35, 0.15, 1.0]
+		},
+		"glow": 1.5,
+		"fx": "dragonfire",
+		"stats": {
+			"agi": 7,
+			"str": 5,
+			"crit": 0.1
+		},
+		"desc": "Feito com um troféu de cada grande caçada. O tiro tensionado ao máximo chama uma chuva de flechas de fogo sobre o alvo.",
+		"model": "bw_dragon_bow"
+	},
+	"wind_bow": {
+		"name": "Rei dos Ventos",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "mythic",
+		"level": 48,
+		"named": true,
+		"damage": 52,
+		"price": 1800,
+		"color": {
+			"$c": [0.6, 0.92, 1.0, 1.0]
+		},
+		"glow": 1.2,
+		"fx": "gale",
+		"stats": {
+			"agi": 9,
+			"speed": 0.1,
+			"crit": 0.08
+		},
+		"desc": "Toda flecha empurra. A tensionada ricocheteia de inimigo em inimigo e o vento joga o arqueiro para trás.",
+		"model": "bw_wind_bow"
+	},
+	"crescent_bow": {
+		"name": "Crescente Gêmeo",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "mythic",
+		"level": 49,
+		"named": true,
+		"damage": 54,
+		"price": 1900,
+		"color": {
+			"$c": [0.82, 0.86, 1.0, 1.0]
+		},
+		"glow": 1.3,
+		"fx": "crescent",
+		"stats": {
+			"agi": 8,
+			"crit": 0.18
+		},
+		"desc": "Forjado sob a lua. Solte no instante exato da tensão máxima: crítico garantido e uma flecha fantasma repete o tiro.",
+		"model": "bw_crescent_bow"
+	},
+	"root_bow": {
+		"name": "Raiz-Mãe",
+		"type": "weapon",
+		"class": "bow",
+		"rarity": "mythic",
+		"level": 50,
+		"named": true,
+		"damage": 54,
+		"price": 1900,
+		"color": {
+			"$c": [0.45, 0.85, 0.35, 1.0]
+		},
+		"glow": 1.2,
+		"fx": "bramble",
+		"stats": {
+			"agi": 7,
+			"vit": 5,
+			"hp": 60
+		},
+		"desc": "O Arco Élfico criou raízes e floresceu. As flechas viram espinheiros; cada abate faz nascer uma flor que cura quem estiver perto.",
+		"model": "bw_root_bow"
+	},
 	"soulwood_staff": {
 		"name": "Cajado de Madeira-de-alma",
 		"type": "weapon",
@@ -3764,6 +3895,46 @@
 		"recipe": "mithril_longbow",
 		"art": "recipe_scroll",
 		"desc": "Use para aprender a receita de Arco Longo de Mithril."
+	},
+	"scroll_dragon_bow": {
+		"name": "Pergaminho: Presa do Dragão Ancestral",
+		"type": "scroll",
+		"rarity": "mythic",
+		"price": 220,
+		"stack": true,
+		"recipe": "dragon_bow",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Presa do Dragão Ancestral."
+	},
+	"scroll_root_bow": {
+		"name": "Pergaminho: Raiz-Mãe",
+		"type": "scroll",
+		"rarity": "mythic",
+		"price": 220,
+		"stack": true,
+		"recipe": "root_bow",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Raiz-Mãe."
+	},
+	"scroll_dawn_bow": {
+		"name": "Pergaminho: Alvorada, a Asa da Fênix",
+		"type": "scroll",
+		"rarity": "mythic",
+		"price": 216,
+		"stack": true,
+		"recipe": "dawn_bow",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Alvorada, a Asa da Fênix."
+	},
+	"scroll_crescent_bow": {
+		"name": "Pergaminho: Crescente Gêmeo",
+		"type": "scroll",
+		"rarity": "mythic",
+		"price": 216,
+		"stack": true,
+		"recipe": "crescent_bow",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Crescente Gêmeo."
 	},
 	"scroll_ossuary_bow": {
 		"name": "Pergaminho: Arco Ossário",

@@ -19,10 +19,11 @@ static func use_vertex_color(root: Node) -> void:
 			var mat := m.surface_get_material(s) as BaseMaterial3D
 			if mat and (m.surface_get_format(s) & Mesh.ARRAY_FORMAT_COLOR) != 0:
 				mat.vertex_color_use_as_albedo = true
-			# gemas, runas e gumes das ferramentas de coleta (tl_*): a cor por vértice dessa superfície chega branca no
-			# GLB e a emissão 1,0 estoura para branco no ACES. A cor de brilho do nível vira o albedo e a emissão
-			# baixa, para o roxo do cristal e o ouro do astral aparecerem e ainda brilharem.
-			if mat and mat.resource_name.begins_with("tl_") and mat.resource_name.contains("_gem") and mat.emission_enabled:
+			# gemas, runas e gumes das ferramentas de coleta (tl_*) e dos arcos (bw_*_gem): a cor por vértice dessa
+			# superfície chega branca no GLB e a emissão 1,0 estoura para branco no ACES. A cor de brilho vira o albedo
+			# e a emissão baixa, para o roxo do cristal e o ouro do astral aparecerem e ainda brilharem.
+			var glow_part := mat != null and (mat.resource_name.begins_with("tl_") or mat.resource_name.begins_with("bw_"))
+			if glow_part and mat.resource_name.contains("_gem") and mat.emission_enabled:
 				mat.vertex_color_use_as_albedo = false
 				var c := mat.emission
 				mat.albedo_color = Color(minf(c.r * 1.7, 1.0), minf(c.g * 1.7, 1.0), minf(c.b * 1.7, 1.0))

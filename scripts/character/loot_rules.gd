@@ -13,6 +13,7 @@ extends RefCounted
 ## Com `char_class`, cada arma sorteada vira uma da classe (adapt_weapon), sorteada DEPOIS de todo o resto
 ## para não mudar a sequência do RNG de quem não passa classe.
 ## `extra`: linhas [item, chance] a mais (loot de dungeon: DungeonRules.extra_loot), sorteadas depois do resto.
+## Por último, os itens caçados de progression.json "chase_drops" (ver o fim da função).
 static func roll(bt: BalanceTables, kind: String, rng: RandomNumberGenerator, char_class := "",
 		level := 0, elite := false, extra: Array = []) -> Dictionary:
 	var out := {"gold": 0, "items": {}}
@@ -46,6 +47,18 @@ static func roll(bt: BalanceTables, kind: String, rng: RandomNumberGenerator, ch
 			var to := adapt_weapon(bt, id, char_class, rng, level)
 			adapted[to] = int(adapted.get(to, 0)) + int(out.items[id])
 		out.items = adapted
+	# itens caçados (progression.json "chase_drops": o Rei dos Ventos): só em monstro de Valdoria do nível pedido,
+	# elite ou chefe quando a linha pede; sorteados por último (não mexem na sequência de quem não se qualifica)
+	# e fora da troca por classe (cai como é, para qualquer um)
+	if level > 0:
+		for c in bt.get_table("progression").get("chase_drops", []):
+			if level < int(c.get("min_level", 0)):
+				continue
+			if bool(c.get("elite", false)) and not (elite or bool(t.get("boss", false)) or bool(t.get("elite", false))):
+				continue
+			if rng.randf() < float(c.get("chance", 0.0)):
+				var cid := str(c.get("item", ""))
+				out.items[cid] = int(out.items.get(cid, 0)) + 1
 	return out
 
 
