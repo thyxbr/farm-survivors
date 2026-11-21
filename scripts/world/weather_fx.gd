@@ -58,6 +58,7 @@ var _flies: GPUParticles3D
 var _cave: GPUParticles3D   # dungeon: poeira pairando devagar na luz das tochas
 var _hero_light: OmniLight3D   # dungeon: brilho fraco e curto em volta do herói (vê-se perto, o resto é escuro)
 
+const RAIN_SOUND := "res://assets/audio/ambience/rain.ogg"
 var _rain_audio: AudioStreamPlayer
 var _wind_audio: AudioStreamPlayer
 
@@ -698,32 +699,26 @@ func _set_level(p: GPUParticles3D, level: float) -> void:
 # ================================================================ som
 func _build_audio() -> void:
 	_rng.seed = 77
+	# chuva gravada em arquivo (estéreo, 14 s de loop com gotas, pingos e eco; tools/audio/gen_ambience.py):
+	# a versão sintetizada aqui era um chiado de 2 s em mono que repetia e soava como estática
 	_rain_audio = AudioStreamPlayer.new()
-	_rain_audio.stream = _loop(2.0, func(t: float) -> float:
-		var hiss := _noise(0.55) - _noise_slow(0.04)
-		var drop := 0.0
-		if _rng.randf() < 0.004:
-			drop = _rng.randf_range(0.4, 0.9)
-		return hiss * 0.7 + drop * sin(t * 2600.0))
+	var rain: AudioStream = load(RAIN_SOUND)
+	if rain is AudioStreamOggVorbis:
+		(rain as AudioStreamOggVorbis).loop = true
+	_rain_audio.stream = rain
+	_rain_audio.bus = &"Ambience"
 	_rain_audio.volume_db = -80.0
 	add_child(_rain_audio)
 	_wind_audio = AudioStreamPlayer.new()
+	_wind_audio.bus = &"Ambience"
 	_wind_audio.stream = _loop(3.0, func(_t: float) -> float: return _noise(0.018) * 9.0)
 	_wind_audio.volume_db = -80.0
 	add_child(_wind_audio)
 
 
-var _lp2 := 0.0
-
-
 func _noise(cut: float) -> float:
 	_lp += (_rng.randf_range(-1.0, 1.0) - _lp) * cut
 	return _lp
-
-
-func _noise_slow(cut: float) -> float:
-	_lp2 += (_rng.randf_range(-1.0, 1.0) - _lp2) * cut
-	return _lp2
 
 
 func _loop(dur: float, f: Callable) -> AudioStreamWAV:
@@ -759,7 +754,9 @@ func _set_volume(p: AudioStreamPlayer, level: float, max_db: float) -> void:
 		return
 	p.volume_db = max_db + linear_to_db(level)
 	if not p.playing:
-		p.play()
+		# começa num ponto qualquer do loop: cada chuva não abre sempre com as mesmas gotas
+		var dur := p.stream.get_length() if p.stream != null else 0.0
+		p.play(_rng.randf() * dur if dur > 0.0 else 0.0)
 
 
 # ================================================================ modelos (neve e umidade)
@@ -907,7 +904,7 @@ func _apply(delta: float) -> void:
 	_apply_light(s)
 	_update_particles(s, wind)
 	_update_overlay(s, delta)
-	_set_volume(_rain_audio, s.rain, -8.0)
+	_set_volume(_rain_audio, s.rain, -3.0)
 	var strong := clampf((wind - 0.25) / 0.9, 0.0, 1.0)
 	_set_volume(_wind_audio, strong, -6.0)
 	_wind_audio.pitch_scale = 0.8 + 0.45 * Weather.gust
