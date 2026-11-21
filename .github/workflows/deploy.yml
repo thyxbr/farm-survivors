@@ -1,3 +1,5 @@
+# Em todo PR para o main: só os testes (em paralelo, no GitHub), para não precisar rodar a suíte inteira
+# na máquina a cada alteração. PR que só mexe em docs, .claude, tools/blender ou protótipos não roda nada.
 # A cada push no main: roda os testes (unitários + gameplay + multiplayer) e, se passarem,
 # publica o cliente Windows no GitHub Releases (só quando a versão do project.godot é nova;
 # é de lá que o auto update do jogo baixa) e dispara o deploy do servidor no Easypanel.
@@ -7,11 +9,20 @@ name: Testes e deploy
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.claude/**'
+      - 'tools/blender/**'
+      - 'prototipo_asas/**'
   workflow_dispatch:
 
 # um deploy por vez; um push novo cancela o anterior que ainda estiver rodando
+# (em PR o grupo é o do PR: um push novo no PR cancela só os testes antigos daquele PR)
 concurrency:
-  group: deploy-main
+  group: deploy-${{ github.event_name == 'pull_request' && github.head_ref || 'main' }}
   cancel-in-progress: true
 
 env:
@@ -124,6 +135,7 @@ jobs:
   export:
     name: Exportar cliente Windows
     needs: test
+    if: github.event_name != 'pull_request'   # PR só testa; boot-check, release e verify pulam junto
     runs-on: ubuntu-24.04
     timeout-minutes: 90   # inclui a espera pela aprovação manual da assinatura
     env:
@@ -341,6 +353,7 @@ jobs:
   deploy:
     name: Deploy no Easypanel
     needs: [test, boot-check, release]
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

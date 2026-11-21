@@ -1,6 +1,6 @@
 ---
 name: smoke-check
-description: "Roda localmente os mesmos testes que o CI do Ecos de Valdoria roda antes do deploy (import, unitários, smoke test de gameplay, vila e multiplayer) e entrega um veredito PASSOU/FALHOU/NÃO RODOU por teste. Use antes de abrir PR, antes de merge no main, depois de mexer em gameplay ou rede, ou quando pedirem 'roda os testes'."
+description: "Roda localmente os testes do CI do Ecos de Valdoria (import, unitários, smoke test de gameplay, vila e multiplayer) e entrega um veredito PASSOU/FALHOU/NÃO RODOU por teste. Use só quando o usuário pedir 'roda os testes', ou para investigar uma falha do CI. NÃO use a cada alteração nem por padrão antes de PR: o CI já roda a suíte inteira em todo PR (seção 'Quando rodar')."
 argument-hint: "[tudo | rapido | unit | gameplay | vila | rede]"
 license: MIT
 metadata:
@@ -14,6 +14,34 @@ Um push no `main` roda `.github/workflows/deploy.yml`: se os testes passam, publ
 cliente Windows (auto update) e faz o deploy do servidor. **Um teste que falha no CI
 segura a release; um que passa sem ter rodado de verdade solta uma release quebrada.**
 Esta skill roda os mesmos passos na máquina antes disso.
+
+## Quando rodar (leia antes de qualquer teste)
+
+A suíte completa leva 10 a 15 min na máquina, em sequência. No GitHub ela roda em **todo
+PR para o main**, com os grupos em paralelo, sem prender a sessão. Então:
+
+- **Durante a implementação: nenhum teste.** Nem a cada edição, nem ao fim de cada etapa.
+  Para conferir visual (modelo, VFX, UI) use a captura/screenshot do próprio fluxo, não a suíte.
+- **Antes de abrir o PR: só o rápido e dirigido**, escolhido pelos arquivos alterados
+  (`git diff --name-only origin/main...HEAD`):
+
+  | Mudou | Rode localmente |
+  |---|---|
+  | só `docs/`, `*.md`, `.claude/`, `tools/blender/`, assets/modelos sem script | nada |
+  | `scripts/` de regras puras, `data/`, `tests/unit/` | import + unitários (segundos) |
+  | combate, inventário, missões, mundo (`scripts/` de gameplay) | import + unitários + `--smoketest` |
+  | vila, painéis, eventos | import + unitários + `--vilatest` |
+  | rede, servidor, contas (`net`, `server`, `auth`) | import + unitários + multiplayer |
+
+  Se a mudança for pequena e o CI do PR vai rodar de qualquer jeito, pode pular até isso e
+  só abrir o PR: o resultado aparece nas checagens do PR (`gh pr checks <n> --watch` em
+  segundo plano, sem prender a conversa).
+- **Suíte inteira local (`tudo`) só quando o usuário pedir**, ou para reproduzir uma falha
+  que o CI mostrou.
+- **Falhou no CI?** Rode localmente só a suíte que falhou. Lembre das falhas intermitentes
+  conhecidas (projéteis do smoke, `user://` compartilhado): rerun antes de investigar.
+- Nunca rode a mesma suíte duas vezes sem mudança de código no meio, a não ser para
+  confirmar um flake.
 
 ## Regras
 
@@ -45,7 +73,7 @@ grep -A1 "SCRIPT ERROR" "$TEMP/import.log"   # qualquer saída aqui = FALHOU
 
 ## Testes
 
-Escopo pelo argumento (padrão `tudo`): `rapido` = import + unitários + gameplay;
+Escopo pelo argumento (padrão: o que o quadro de "Quando rodar" indicar; `tudo` só se o usuário pedir): `rapido` = import + unitários + gameplay;
 `unit` = import + unitários; `gameplay` = import + gameplay; `vila` = import + vila;
 `rede` = import + multiplayer.
 
