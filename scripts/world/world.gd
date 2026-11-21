@@ -116,6 +116,8 @@ var region_grounds := {}
 var region_spawns: Array = []
 var _boss_scan := 0.0
 var _travel_fade: ColorRect
+## Destino da viagem paga esperando a confirmação do servidor/solo ("" = nenhuma).
+var _travel_pending := ""
 var spawns: Array = []
 ## Sorteio do nível de quem nasce nos pontos (à parte do `rng` fixo do cenário).
 var _spawn_rng := RandomNumberGenerator.new()
@@ -1213,9 +1215,54 @@ func _scatter_region_grass() -> void:
 			g.scatter_grass(root.grass_seed, density, keep_out, [], root.grass_plants)
 
 
+## Por que a viagem paga até `region` não pode sair agora ("" = pode). Dentro de dungeon não há viagem:
+## é preciso sair pela porta primeiro (vale para a carruagem e para o teleporte do mapa-mundi).
+func travel_block_reason(region: String, mode: String) -> String:
+	if player == null or player.dead:
+		return "Não dá para viajar agora."
+	if not Regions.ORDER.has(region):
+		return "Não há viagem para lá."
+	var here := Regions.region_at(player.global_position)
+	if Regions.is_dungeon(here):
+		return "Não dá para viajar de dentro de uma dungeon. Saia dela primeiro."
+	if here == region and mode == "coach":
+		return "Você já está em %s." % Regions.display_name(region)
+	if not Regions.unlocked(region, Game.access_rank()):
+		return "%s exige Rank %s na guilda." % [Regions.display_name(region), Regions.DATA[region].rank]
+	if _travel_pending != "":
+		return "Já há uma viagem a caminho."
+	var cost := Game.travel_cost(region, mode)
+	if Game.gold < cost:
+		return "%s até %s custa %d de ouro (você tem %d)." % ["A carruagem" if mode == "coach" else "O teleporte",
+			Regions.display_name(region), cost, Game.gold]
+	return ""
+
+
+## Viagem paga: o servidor/solo cobra (op pay_travel) e, confirmado, o jogador viaja (_on_travel_paid).
+## Devolve false (com aviso) quando nem pede.
+func request_travel(region: String, mode: String) -> bool:
+	var why := travel_block_reason(region, mode)
+	if why != "":
+		Game.notify.emit(why, Color(1, 0.6, 0.5))
+		return false
+	_travel_pending = region
+	if not Econ.done.is_connected(_on_travel_paid):
+		Econ.done.connect(_on_travel_paid)
+	Econ.request("pay_travel", [region, mode])
+	return true
+
+
+func _on_travel_paid(op: String, args: Array, ok: bool, _err: String, _events: Array) -> void:
+	if op != "pay_travel" or args.is_empty() or str(args[0]) != _travel_pending:
+		return
+	_travel_pending = ""
+	if ok:
+		travel_to(str(args[0]), str(args[1]) if args.size() > 1 else "coach")
+
+
 ## Viagem pela carruagem da guilda: escurece a tela, leva o jogador ao ponto de chegada do mapa e mostra
 ## o cartão com o nome do lugar.
-func travel_to(region: String) -> void:
+func travel_to(region: String, mode := "coach") -> void:
 	if player == null or player.dead or not Regions.DATA.has(region):
 		return
 	if not Regions.unlocked(region, Game.access_rank()):
@@ -1234,7 +1281,7 @@ func travel_to(region: String) -> void:
 	player.input_locked = true
 	var tw := create_tween()
 	tw.tween_property(_travel_fade, "color:a", 1.0, 0.4)
-	tw.tween_callback(_arrive.bind(region))
+	tw.tween_callback(_arrive.bind(region, mode))
 	tw.tween_interval(0.35)
 	tw.tween_property(_travel_fade, "color:a", 0.0, 0.5)
 	tw.tween_callback(func() -> void: player.input_locked = false)
@@ -1288,7 +1335,7 @@ func _teleport(to: Vector3, title: String, kicker: String) -> void:
 	tw.tween_callback(func() -> void: player.input_locked = false)
 
 
-func _arrive(region: String) -> void:
+func _arrive(region: String, mode := "coach") -> void:
 	var to: Vector3 = Regions.arrive_point(region)
 	player.global_position = to
 	player.velocity = Vector3.ZERO
@@ -1298,7 +1345,7 @@ func _arrive(region: String) -> void:
 		player.model.rotation.y = atan2(-d.x, -d.z)   # de costas para a carruagem, olhando para o mapa
 	Sfx.play("portal", -6.0)
 	if story_card:
-		story_card.enqueue("CARRUAGEM DA GUILDA", Regions.display_name(region))
+		story_card.enqueue("CARRUAGEM DA GUILDA" if mode == "coach" else "TELEPORTE", Regions.display_name(region))
 
 
 ## Chefes que nascem como monstros comuns (o Lich, a Slime Rainha não é chefe): a barra aparece quando o
