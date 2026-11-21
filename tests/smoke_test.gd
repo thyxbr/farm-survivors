@@ -1212,11 +1212,18 @@ func _ready() -> void:
 	player.use_slot(4)
 	check(player.ability == "sword_whirl", "Turbilhão de novo com a fúria cheia (nível antes %d, %s, esquiva %.2f, atacando %s)"
 		% [lvl_w2, player.ability, player.dodge_timer, player.attacking])
-	await wait_until(func(): return player.ability == "", SwordAbilities.WHIRL_TIME + 1.5)
+	# mede logo antes do golpe final: ele EMPURRA (_whirl_finale), e quanto o inimigo voa até a habilidade
+	# acabar depende dos quadros de física que cabem nos ~0,12 s seguintes (no CI chegava a 4,8 m, mais longe
+	# que o começo, e o teste falhava sem o puxão ter falhado)
+	await wait_until(func(): return player.ability != "sword_whirl" or player.ability_t >= SwordAbilities.WHIRL_IMPACT - 0.04,
+		SwordAbilities.WHIRL_TIME + 1.5)
 	var d_pull1: float = pl_s.global_position.distance_to(player.global_position)
+	await wait_until(func(): return player.ability == "", SwordAbilities.WHIRL_TIME + 1.5)
+	var d_end: float = pl_s.global_position.distance_to(player.global_position)
 	# o puxão por volta depende de quantos quadros de física cabem no giro: na máquina local leva ~1,7 m,
 	# no CI lento chegou a 0,98 m. 0,6 m ainda separa com folga o puxão de um inimigo parado.
-	check(d_pull0 - d_pull1 >= 0.6, "Turbilhão puxa o inimigo para perto (%.2f m -> %.2f m)" % [d_pull0, d_pull1])
+	check(d_pull0 - d_pull1 >= 0.6, "Turbilhão puxa o inimigo para perto (%.2f m -> %.2f m antes do golpe final; %.2f m depois)"
+		% [d_pull0, d_pull1, d_end])
 	player.global_position = pull_back
 	pl_s.max_hp = pl_max
 	pl_s.hp = pl_max
