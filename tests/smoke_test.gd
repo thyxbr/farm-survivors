@@ -168,9 +168,19 @@ func _ready() -> void:
 	check(nest_ok, "Ninho de Slimes: a mãe e as crias perto do ninho")
 	check(vale_total >= 110, "vale cheio: %d monstros (alvo ~120)" % vale_total)
 	for id in ["campos_norte", "ninho_slimes", "margem_lagoa", "toca_goblins", "capinzal_raptores", "teia_tecelas",
-			"cemiterio_velho", "ruinas_valdoria", "forte_brutos"]:
+			"cemiterio_velho", "ruinas_valdoria", "forte_brutos", "jardim_faminto", "fonte_gelada"]:
 		area_ok = area_ok and int(by_area.get(id, 0)) >= 5
 	check(area_ok, "cada região do vale com um bando (≥ 5): %s" % str(by_area))
+	# os quatro cantos do vale: um tipo de monstro em cada (sem misturar), e nenhum slime de gelo nos Campos
+	var corner := {"capinzal_raptores": "raptor_capim", "teia_tecelas": "tecela", "jardim_faminto": "flor_faminta",
+		"fonte_gelada": "slime_gelo"}
+	var corner_bad: Array = []
+	for en in get_tree().get_nodes_in_group("enemies"):
+		if corner.has(en.area) and en.kind != corner[en.area]:
+			corner_bad.append("%s@%s" % [en.kind, en.area])
+		elif en.kind in corner.values() and Regions.region_at(en.global_position) == "vila" and not corner.has(en.area):
+			corner_bad.append("%s fora do canto (%s)" % [en.kind, en.area])
+	check(corner_bad.is_empty(), "cantos do vale com um tipo de monstro cada %s" % str(corner_bad))
 	var lv_ok := true
 	for en in get_tree().get_nodes_in_group("enemies"):
 		if en.area != "" and en.level <= 0:
@@ -477,7 +487,7 @@ func _ready() -> void:
 	# o puxão se vê: um inimigo a 3 m termina bem mais perto depois do giro (com vida de sobra para não morrer).
 	# Num campo aberto: perto da ponte ou de uma cerca, a mureta entre os dois segurava o puxão.
 	var pull_back := player.global_position
-	player.global_position = Vector3(-105, 0.3, 80)
+	player.global_position = Vector3(60, 0.3, 70)
 	await wait(0.1)
 	var pl_max: float = pl_s.max_hp
 	pl_s.hp = 100000.0
@@ -2104,6 +2114,12 @@ func _test_gather() -> void:
 	await wait(0.8 + float(plan.swing) * 1.2)
 	check(node.alive and node.progress > 0.0 and Game.count_item("iron_ore") == iron0,
 		"primeiros golpes: barra sobe, veio de pé, nada ganho ainda (%.1f/%.1f)" % [node.progress, node.tough])
+	var r0 := GatherAction.bar_ratio(player)
+	await wait(float(plan.swing) * 0.3)
+	var r1 := GatherAction.bar_ratio(player)
+	check(r1 > r0 and r1 < 1.0, "barra da coleta sobe entre um golpe e outro (%.2f -> %.2f)" % [r0, r1])
+	check(world.hud.gather_bar.value > 0.0 and not world.hud.gather_info.text.contains("golpe"),
+		"HUD mostra a barra, sem contar golpes (%s)" % world.hud.gather_info.text)
 	await wait(float(plan.swing) * float(plan.strikes) + 1.0)
 	check(not node.alive, "um F só: bate sozinho até o veio ceder")
 	check(Game.prof_xp("mining") + Game.prof_level("mining") * 100000 > mxp0, "coleta dá XP de Mineração (maestria)")
@@ -2316,7 +2332,7 @@ func _obstacle(at: Vector3, shape: String, size: Vector3) -> StaticBody3D:
 ## empurrando o obstáculo para sempre).
 func _test_enemy_detour() -> void:
 	var back := player.global_position
-	var spot := Vector3(-105, 0.3, 80)
+	var spot := Vector3(56, 0.3, 66)   # longe dos cantos do vale (a Fonte Gelada fica no sudoeste)
 	player.global_position = spot
 	player.invuln = 99.0
 	for case in [["cyl", Vector3(0.6, 3.0, 0.6)], ["box", Vector3(4.0, 2.5, 0.8)]]:
@@ -2364,6 +2380,22 @@ func _test_river() -> void:
 			check(low > -0.2, "não afunda nem cai da ponte (y mínimo %.2f)" % low)
 		else:
 			check(z < -21.0 and z > -26.5, "a margem do rio segura o jogador fora da água (parou em z = %.1f)" % z)
+	# no meio da ponte, pulando para o lado (leste e oeste): a parede invisível da mureta segura
+	for side in [["move_right", 1.0], ["move_left", -1.0]]:
+		player.global_position = Vector3(0, 1.6, -31)
+		player.velocity = Vector3.ZERO
+		await wait(0.3)
+		Input.action_press(side[0])
+		for i in 12:
+			if player.is_on_floor():
+				Input.action_press("jump")
+			await wait(0.1)
+			Input.action_release("jump")
+		Input.action_release(side[0])
+		await wait(0.4)
+		var p: Vector3 = player.global_position
+		check(absf(p.x) < 2.6 and p.y > 0.5, "pulando para %s a ponte segura o jogador (x %.2f, y %.2f)"
+			% ["leste" if side[1] > 0 else "oeste", p.x, p.y])
 	player.cam_yaw.global_rotation.y = yaw0
 	player.invuln = 0.0
 	player.global_position = back
@@ -2374,7 +2406,7 @@ func _test_river() -> void:
 ## um muro no meio não atira (anda de lado até abrir a linha) e, livre, atira e acerta.
 func _test_archer_pose() -> void:
 	var back := player.global_position
-	var spot := Vector3(-105, 0.3, 100)
+	var spot := Vector3(64, 0.3, 62)
 	player.global_position = spot
 	player.invuln = 99.0
 	var arrows := preload("res://scripts/enemies/enemy_arrow.gd")
@@ -2424,7 +2456,7 @@ func _test_archer_pose() -> void:
 ## do ponto dele, volta rodeando em vez de sumir no mapa.
 func _test_gold_goblin_world() -> void:
 	var back := player.global_position
-	var spot := Vector3(-105, 0.3, 100)
+	var spot := Vector3(64, 0.3, 62)
 	player.global_position = spot
 	player.invuln = 99.0
 	var e := Enemy.new()
@@ -2520,7 +2552,7 @@ func _swap_element(el: String, lv: int) -> void:
 
 func _test_enchant_effects() -> void:
 	var back := player.global_position
-	var spot := Vector3(-100, 0.3, 100)
+	var spot := Vector3(52, 0.3, 58)
 	player.global_position = spot
 	await wait(0.2)
 	var lv: int = Game.weapon_enchant().lv

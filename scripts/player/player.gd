@@ -1477,6 +1477,10 @@ func end_ability() -> void:
 	if ability == GatherAction.ID and gather_tool != "":
 		gather_tool = ""   # guarda a ferramenta: a arma equipada volta para a mão
 		refresh_look.call_deferred()
+	if ability == GatherAction.ID and not remote:
+		var gn = ability_data.get("node")
+		if gn != null and is_instance_valid(gn):
+			Econ.release_node(int(gn.node_id))   # online: o nó fica livre para os outros
 	for n in ability_data.get("nodes", []):
 		if is_instance_valid(n):
 			n.queue_free()

@@ -33,8 +33,26 @@ func _spawns() -> Array:
 
 func test_new_monsters_have_points() -> void:
 	var s := _spawns()
-	for kind in ["kobold", "centopeia", "golem_cristal", "toupeira"]:
+	for kind in ["lobo_geada", "gralha_cristal", "ieti", "lobo_alfa", "golem_cristal"]:
 		T.ok(s.filter(func(p: Dictionary) -> bool: return p.kind == kind).size() >= 2, "%s tem pelo menos 2 pontos" % kind)
+
+
+## Bioma de gelo: os monstros da antiga mina saíram. Fica só um bando de Toupeiras (o teste de rede de cavar,
+## tests/net_test.gd, usa uma Toupeira na Geleira).
+func test_no_mine_monsters_left() -> void:
+	var s := _spawns()
+	for kind in ["kobold", "centopeia"]:
+		T.eq(s.filter(func(p: Dictionary) -> bool: return p.kind == kind).size(), 0, "sem %s na Geleira" % kind)
+	T.eq(s.filter(func(p: Dictionary) -> bool: return p.kind == "toupeira").size(), 1, "um bando de Toupeiras")
+
+
+## Cada Alfa da Matilha tem um bando de Lobos da Geada a poucos metros (o uivo acelera os lobos em volta).
+func test_alphas_lead_packs() -> void:
+	var s := _spawns()
+	for a in s.filter(func(p: Dictionary) -> bool: return p.kind == "lobo_alfa"):
+		var near := s.filter(func(p: Dictionary) -> bool:
+			return p.kind == "lobo_geada" and Vector2(p.x - a.x, p.z - a.z).length() < 12.0)
+		T.ok(not near.is_empty(), "Alfa em (%.0f, %.0f) com lobos perto" % [a.x, a.z])
 
 
 func test_one_worm_in_west_pit() -> void:
