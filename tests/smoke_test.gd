@@ -1349,6 +1349,7 @@ func _ready() -> void:
 	tt_s.slow_timer = 0.0
 	player.cooldowns.bow_frost = 0.0
 	await _test_bow_gale()
+	await _test_mythic_bows()
 	await _test_meteor_rain()
 	Game.level = lvl_bf
 	tt_s.hp = tt_max
@@ -4948,6 +4949,174 @@ func _test_espinheira() -> void:
 	player.global_position = back
 	await wait(0.1)
 
+
+## Arcos míticos (BowMythic): cada um equipado, uma flecha tensionada contra slimes parados e a mecânica conferida:
+## fenda que puxa e implode, marcas solares e coluna, chuva de fogo, empurrão e ricochete, flecha fantasma do
+## Crescente, espinheiro que deixa lento e flor de cura no abate. Partículas na mão (BowAura) em todos.
+func _test_mythic_bows() -> void:
+	var weapon0: String = Game.equipment.weapon
+	var pos0: Vector3 = player.global_position
+	var gs: Array = []
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.kind == "slime" and not e.dead and not e.is_boss:
+			gs.append(e)
+	gs.sort_custom(func(a, b): return a.global_position.distance_to(player.global_position) < b.global_position.distance_to(player.global_position))
+	gs = gs.slice(0, 3)
+	_targets(gs)
+	check(gs.size() == 3, "arcos míticos: 3 slimes para o teste (%d)" % gs.size())
+	if gs.size() < 3:
+		return
+	var saved: Array = []
+	for e in gs:
+		saved.append([e, e.max_hp, e.global_position])
+		e.max_hp = 100000.0
+	var base: Vector3 = gs[0].home
+	player.global_position = base + Vector3(0, 0.3, 0)
+	player.velocity = Vector3.ZERO
+	await wait_until(func(): return player.is_on_floor())
+	_calm_bystanders(gs, base, 40.0, 30.0)
+	var fwd := -player.global_basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized()
+	var side := fwd.cross(Vector3.UP).normalized()
+	# alvo a 8 m; os outros dois a 2,5 m e 5 m dele, para fenda, chuva, coluna, ricochete e espinheiro
+	var place := func() -> void:
+		var p0: Vector3 = player.global_position
+		var c: Vector3 = p0 + fwd * 8.0
+		var spots := [c, c + side * 2.5, c + side * 5.0]
+		for i in 3:
+			gs[i].global_position = spots[i] + Vector3.UP * 0.3
+			gs[i].velocity = Vector3.ZERO
+			gs[i].stagger = 4.0
+			gs[i].hp = gs[i].max_hp
+			gs[i].slow_timer = 0.0
+	var shoot := func(fx_full: bool, target: Node3D) -> Node:
+		var from: Vector3 = player.global_position + Vector3.UP * 1.4
+		var to: Vector3 = target.global_position + Vector3.UP * 0.4
+		var ar = player._spawn_projectile("arrow", from, (to - from).normalized(), 30.0, false, 0, 40.0)
+		ar.full = fx_full
+		ar.no_drop = true
+		if fx_full and player._weapon_fx() == "gale":
+			ar.bounces = int(BowMythicRules.GALE.bounces)
+		return ar
+	var count := func(cls) -> int:
+		var n := 0
+		for c in get_tree().current_scene.get_children():
+			if is_instance_of(c, cls):
+				n += 1
+		return n
+
+	for id in ["abyss_bow", "dawn_bow", "dragon_bow", "wind_bow", "crescent_bow", "root_bow"]:
+		Game.add_item(id)
+		equip_any(id)
+		await wait(0.2)
+		check(Game.equipment.weapon == id, "%s equipado" % id)
+		var holder: Node3D = player.look.get("holder")
+		var auras := holder.find_children("Aura_*", "Node3D", true, false) if holder else []
+		var emitters := 0
+		for a in auras:
+			for c in a.get_children():
+				if c is CPUParticles3D and c.emitting:
+					emitters += 1
+		check(auras.size() >= 3 and emitters >= 3, "%s: partículas na mão (%d pontos, %d emissores)" % [id, auras.size(), emitters])
+		place.call()
+		await wait(0.1)
+		var fx: String = player._weapon_fx()
+		match fx:
+			"vortex":
+				var d0: float = gs[1].global_position.distance_to(gs[0].global_position)
+				shoot.call(true, gs[0])
+				await wait(0.25)
+				check(count.call(BowMythic.Rift) == 1, "Suspiro do Abismo: a fenda abre onde a flecha acertou")
+				for e in gs:
+					e.stagger = 0.0
+				await wait(0.7)
+				var d1: float = gs[1].global_position.distance_to(gs[0].global_position)
+				check(d1 < d0 - 0.3, "Suspiro do Abismo: a fenda puxa quem está perto (%.2f m -> %.2f m)" % [d0, d1])
+				await wait(0.6)
+				check(gs[1].hp < gs[1].max_hp, "Suspiro do Abismo: fere em volta (%.0f / %.0f)" % [gs[1].hp, gs[1].max_hp])
+				await wait(0.4)
+				check(count.call(BowMythic.Rift) == 0, "Suspiro do Abismo: implode e some (%d)" % count.call(BowMythic.Rift))
+			"solar":
+				for k in 3:
+					shoot.call(false, gs[0])
+					await wait(0.35)
+					if k < 2:
+						check(gs[0].get_meta("solar_marks", []).size() == k + 1, "Alvorada: %dª marca no alvo" % (k + 1))
+				check(gs[0].get_meta("solar_marks", [1]).is_empty(), "Alvorada: a 3ª marca derruba a coluna de sol")
+				check(gs[1].hp < gs[1].max_hp, "Alvorada: a coluna fere quem está perto do alvo")
+			"dragonfire":
+				shoot.call(true, gs[0])
+				await wait(0.25)
+				var rain_at := Vector3.INF
+				for c in get_tree().current_scene.get_children():
+					if c is BowMythic.Rain:
+						rain_at = c.global_position
+				check(rain_at.distance_to(gs[0].global_position) < 2.0,
+					"Presa do Dragão: a chuva de fogo começa no alvo (%.2f m)" % rain_at.distance_to(gs[0].global_position))
+				await wait(1.6)
+				var hurt := 0
+				for e in gs:
+					if e.hp < e.max_hp:
+						hurt += 1
+				check(hurt >= 2, "Presa do Dragão: a chuva fere o alvo e quem está em volta (%d de 3; %s; alvo %s, vizinho %s)"
+					% [hurt, rain_at, gs[0].global_position, gs[1].global_position])
+				check(count.call(BowMythic.Rain) == 0, "Presa do Dragão: a chuva acaba (%d)" % count.call(BowMythic.Rain))
+			"gale":
+				var me0: Vector3 = player.global_position
+				gs[0].stagger = 0.0
+				shoot.call(true, gs[0])
+				player._gale_leap(fwd)
+				# afastamento a partir de onde a flecha acertou (o slime provocado já vem andando para o jogador antes
+				# do acerto); o maior em 1 s, porque depois do empurrão ele volta
+				var hp0: float = gs[0].hp
+				var hit_at := Vector3.INF
+				var pushed := 0.0
+				var t_end := Time.get_ticks_msec() + 1200
+				while Time.get_ticks_msec() < t_end:
+					if hit_at == Vector3.INF and gs[0].hp < hp0:
+						hit_at = gs[0].global_position
+					elif hit_at != Vector3.INF:
+						pushed = maxf(pushed, (gs[0].global_position - hit_at).dot(fwd))
+					await get_tree().physics_frame
+				check(pushed > 0.3, "Rei dos Ventos: a flecha empurra o alvo para longe (%.2f m; elite=%s estado=%s hp=%.0f/%.0f vel=%s)" % [pushed, gs[0].elite, gs[0].state, gs[0].hp, gs[0].max_hp, gs[0].velocity])
+				check(gs[1].hp < gs[1].max_hp, "Rei dos Ventos: a flecha tensionada ricocheteia no vizinho")
+				check((player.global_position - me0).dot(fwd) < -0.5, "Rei dos Ventos: o vento joga o arqueiro para trás")
+			"crescent":
+				var before: int = count.call(PROJECTILE_SCRIPT())
+				player._crescent_perfect(30.0, 40.0)
+				await wait(float(BowMythicRules.CRESCENT.ghost_delay) + 0.08)
+				check(count.call(PROJECTILE_SCRIPT()) > before, "Crescente Gêmeo: a soltura perfeita dispara a flecha fantasma")
+			"bramble":
+				shoot.call(true, gs[0])
+				await wait(0.8)
+				check(count.call(BowMythic.Bramble) == 1, "Raiz-Mãe: o espinheiro brota no alvo")
+				check(gs[1].slow_timer > 0.0 and gs[1].hp < gs[1].max_hp, "Raiz-Mãe: o espinheiro fere e deixa lento")
+				var fl0: int = count.call(BowMythic.Flower)
+				BowMythic.spawn_flower(gs[0], gs[0].global_position)
+				Game.hp = Game.max_hp() * 0.5
+				player.global_position = gs[0].global_position + Vector3.UP * 0.3
+				var hp0: float = Game.hp
+				await wait(1.2)
+				check(count.call(BowMythic.Flower) > fl0, "Raiz-Mãe: a flor nasce")
+				check(Game.hp > hp0, "Raiz-Mãe: a flor cura quem está perto (%.0f -> %.0f)" % [hp0, Game.hp])
+				player.global_position = base + Vector3(0, 0.3, 0)
+	for c in get_tree().current_scene.get_children():
+		if c is BowMythic.Rift or c is BowMythic.Rain or c is BowMythic.Bramble or c is BowMythic.Flower:
+			c.queue_free()
+	for s in saved:
+		s[0].max_hp = s[1]
+		s[0].hp = s[1]
+		s[0].global_position = s[2]
+	equip_any(weapon0)
+	Game.hp = Game.max_hp()
+	player.global_position = pos0
+	player.velocity = Vector3.ZERO
+	await wait(0.3)
+
+
+func PROJECTILE_SCRIPT() -> GDScript:
+	return load("res://scripts/player/projectile.gd")
 
 ## Arauto do Abismo (chefe final): Rajada e Garra acertam, as Zonas de Vazio nascem e crescem, abaixo de 65% vem a
 ## Miragem (cópias que se desfazem sem levar dano; acertar o verdadeiro desfaz todas) e abaixo de 30% o Colapso

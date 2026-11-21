@@ -131,7 +131,13 @@ const CLASS_HINT := {"sword": "Combo de 3 golpes · escala com Força",
 	"scepter": "Cura aliados e castiga inimigos com luz sagrada · escala com Inteligência"}
 const TWO_HAND_HINT := "Combo de 3 golpes lentos e largos com as duas mãos · escala com Força"
 const FX_NAMES := {"slow": "Golpes deixam o alvo lento", "splash": "Projéteis explodem em área",
-	"pierce": "Flechas perfuram inimigos", "multishot": "Disparo tensionado: 3 flechas"}
+	"pierce": "Flechas perfuram inimigos", "multishot": "Disparo tensionado: 3 flechas",
+	"vortex": "Disparo tensionado: fenda do Abismo que puxa e implode",
+	"solar": "A 3ª flecha no mesmo alvo derruba uma coluna de sol",
+	"dragonfire": "Disparo tensionado: chuva de flechas de fogo",
+	"gale": "Flechas empurram; o disparo tensionado ricocheteia e o vento te lança para trás",
+	"crescent": "Solte no instante da tensão máxima: crítico e flecha fantasma",
+	"bramble": "Disparo tensionado: espinheiro que fere e prende; abates fazem nascer flores que curam"}
 
 static var RARITY: Dictionary = {}
 ## Buffs (comida e habilidades): {id: {name, time, add, aura, icon, desc, color}}.

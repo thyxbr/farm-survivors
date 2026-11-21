@@ -2098,8 +2098,9 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun
 		var kb := global_position - from_pos
 		kb.y = 0
 		if kb.length() > 0.01:
-			# `pull` > 0: em vez de empurrar, puxa (m/s) em direção a quem bateu (Turbilhão)
-			kb = kb.normalized() * ((-pull) if pull > 0.0 else (6.0 if data.model == "slime" else 4.0)) * (0.3 if heavy else 1.0)
+			# `pull` > 0: em vez de empurrar, puxa (m/s) em direção a quem bateu (Turbilhão, fenda do Abismo);
+			# `pull` < 0: empurra com essa força em vez da padrão (Rei dos Ventos)
+			kb = kb.normalized() * ((-pull) if pull != 0.0 else (6.0 if data.model == "slime" else 4.0)) * (0.3 if heavy else 1.0)
 			velocity.x = kb.x
 			velocity.z = kb.z
 		if (state != "attack" and not heavy) or (crit and attack_kind != "fuse"):
