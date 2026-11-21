@@ -30,7 +30,7 @@
 	"dg_mina_trono": {"name": "Salão do Rei Caído", "level_min": 29, "level_max": 30, "density": 1.0, "show_on_map": true},
 	"dg_pico_entrada": {"name": "Átrio de Cinzas", "level_min": 36, "level_max": 37, "density": 1.0, "show_on_map": true},
 	"dg_pico_galeria": {"name": "Corredor dos Ossos", "level_min": 37, "level_max": 39, "density": 1.0, "show_on_map": true},
-	"dg_pico_trono": {"name": "Altar do Lich", "level_min": 39, "level_max": 40, "density": 1.0, "show_on_map": true},
+	"dg_pico_trono": {"name": "Câmara da Sentinela", "level_min": 39, "level_max": 40, "density": 1.0, "show_on_map": true},
 	"dg_final_entrada": {"name": "Borda do Abismo", "level_min": 45, "level_max": 46, "density": 1.0, "show_on_map": true},
 	"dg_final_galeria": {"name": "Ponte das Almas", "level_min": 46, "level_max": 48, "density": 1.0, "show_on_map": true},
 	"dg_final_trono": {"name": "Coração do Abismo", "level_min": 48, "level_max": 50, "density": 1.0, "show_on_map": true}

@@ -176,6 +176,34 @@ var _root_dirs: Array = []
 var _root_hit := {}
 var _spore_pts: Array = []
 var _thorn_t := 0.0
+## Sentinela da Nevasca (ai "blizzard"): a luta montada (sala, chão, pontos e nós dos braseiros, relógios de
+## reacender e os acesos), golpes e sopros já dados, o urro da nevasca pendente/dado, a nevasca soprando, a
+## exposição de cada jogador (e a do jogador desta tela, só para o desenho), os relógios, a entrada já mostrada, a
+## neve da sala, o sopro em curso (yaw inicial, sentido, o aviso no chão), os pontos das estacas e o da patada.
+var _blz_ready := false
+var _blz_room := Rect2()
+var _blz_floor := 0.0
+var _blz_pts: Array = []
+var _blz_braziers: Array = []
+var _blz_relight: Array = []
+var _blz_mask := BlizzardRules.MASK_ALL
+var _blz_n := 0
+var _blz_breaths := 0
+var _blz_roar := false
+var _blz_roared := false
+var _blz_storm := false
+var _blz_exposure := {}
+var _blz_local := 0.0
+var _blz_tick := 0.0
+var _blz_gust_t := 0.0
+var _blz_intro := false
+var _blz_snow: CPUParticles3D = null
+var _breath_start := 0.0
+var _breath_sign := 1.0
+var _breath_cone: BlizzardFX.ConeWarning = null
+var _breath_fx_t := 0.0
+var _spike_pts: Array = []
+var _paw_at := Vector3.ZERO
 var _leash_t := 0.0
 ## Arauto do Abismo (ai "herald"): a fase, golpes dados nela, de onde e para onde vai o golpe da vez, os pontos
 ## das Zonas de Vazio ou da Miragem e, na cópia, os segundos de vida.
@@ -294,6 +322,12 @@ func _ready() -> void:
 		for n in ["ElbowL", "ElbowR", "KneeL", "KneeR", "HandL", "HandR", "Hammer", "HammerChain", "Door", "Fire", "Lid",
 				"Tasset0", "Tasset1", "Tasset2", "Tasset3", "Chain0", "Chain1", "Stack0", "Stack1", "Stack2"]:
 			parts[n] = model.find_child(n, true, false)
+	if data.model == "sentinel":   # Sentinela: patas em três ossos (como o lobo), pescoço, cauda, juba, ombreiras
+		for sd in WOLF_SIDES:
+			for b in ["Leg", "Knee", "Paw", "Foot"]:
+				parts[b + sd] = model.find_child(b + sd, true, false)
+		for n in ["Neck", "Tail2", "Tail3", "Mane0", "Mane1", "Mane2", "Mane3", "PlateL", "PlateR", "Crest", "Muzzle"]:
+			parts[n] = model.find_child(n, true, false)
 	if data.model in ["spider", "centipede"]:   # Tecelã e Centopeia: abdômen e as pernas (Leg0L..Leg3R)
 		for n in SPIDER_PARTS:
 			parts[n] = model.find_child(n, true, false)
@@ -349,6 +383,8 @@ func _ready() -> void:
 	_abyss_setup()   # Arauto do Abismo e as cópias (não faz nada nos outros)
 	if data.get("ai", "") == "forge":
 		summoned = true   # o Forjador não chama lacaios ao enfurecer: a fase 2 dele é o superaquecimento
+	if data.get("ai", "") == "blizzard":
+		summoned = true   # a Sentinela não chama lacaios na fúria: a fase 2 dela é a nevasca
 	if Network.is_server():
 		Network.server_register_enemy(self)
 
@@ -603,6 +639,8 @@ static func _bar_mat(c: Color, priority: int) -> StandardMaterial3D:
 func _physics_process(delta: float) -> void:
 	if not dead and (ai() == "thorn" or data.get("sprout", false)):
 		_thorn_process(delta)
+	if ai() == "blizzard":
+		_blizzard_process(delta)
 	if not dead and ai() == "herald":
 		_abyss_process(delta)
 	if not dead and (ai() == "forge" or data.get("rune", false)):
@@ -741,6 +779,8 @@ func _physics_process(delta: float) -> void:
 				face = r[1]
 			elif ai() == "thorn" and attack_cd <= 0 and dist <= ThornRules.ROOT_LEN:
 				_begin_attack(dist)   # Espinheira: garra perto, raízes longe
+			elif ai() == "blizzard" and attack_cd <= 0 and dist <= BlizzardRules.CAST_RANGE:
+				_begin_attack(dist)   # Sentinela: patada perto, sopro e estacas de qualquer distância
 			elif ai() == "herald" and attack_cd <= 0 and dist <= AbyssRules.VOLLEY_RANGE:
 				_begin_attack(dist)   # Arauto: garra perto, rajada longe, e os golpes de cada fase
 			elif ai() == "forge" and attack_cd <= 0 and (dist <= ForgeRules.HAMMER_RANGE or _forge_wants_shield()):
@@ -1253,6 +1293,9 @@ func _begin_attack(dist := 0.0) -> void:
 		"thorn":
 			_thorn_begin(dist)
 			return
+		"blizzard":
+			_sentinel_begin(dist)
+			return
 		"herald":
 			_abyss_begin(dist)
 			return
@@ -1337,6 +1380,12 @@ func _attack_duration() -> float:
 			return 2.0
 		"spores":
 			return 2.2
+		"breath":
+			return BlizzardRules.BREATH_T0 + BlizzardRules.BREATH_TIME + 0.6
+		"icicles":
+			return 2.6
+		"blizzard":
+			return 3.0
 		"hammer":
 			return _forge_time(ForgeRules.HAMMER_DUR)
 		"vent":
@@ -1345,6 +1394,8 @@ func _attack_duration() -> float:
 			return ForgeRules.SHIELD_DUR
 	if ai() == "thorn":
 		return 1.6   # garra: a árvore é lenta para armar e para voltar
+	if ai() == "blizzard":
+		return 1.7   # patada
 	if ai() == "herald":
 		return AbyssRules.duration(attack_kind)
 	return 0.95 if not is_boss else 1.1
@@ -1384,6 +1435,12 @@ func _hit_time() -> float:
 			return 1.2
 		"spores":
 			return 1.4
+		"breath":
+			return BlizzardRules.BREATH_T0
+		"icicles":
+			return BlizzardRules.SPIKE_T
+		"blizzard":
+			return 1.2
 		"hammer":
 			return _forge_time(ForgeRules.HAMMER_T)
 		"vent":
@@ -1392,6 +1449,8 @@ func _hit_time() -> float:
 			return ForgeRules.SHIELD_T
 	if ai() == "thorn":
 		return 0.9
+	if ai() == "blizzard":
+		return 0.85
 	if ai() == "herald":
 		return AbyssRules.hit_time(attack_kind)
 	return 0.5 if not is_boss else 0.6
@@ -1435,6 +1494,14 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 			_spore_hit(false)
 		elif attack_kind == "swing" and ai() == "thorn":
 			_thorn_claw(false)
+		elif attack_kind == "breath":
+			pass   # o cone acerta a cada tique, em _boss_tick
+		elif attack_kind == "icicles":
+			_icicles_hit(false)
+		elif attack_kind == "blizzard":
+			_blizzard_roar(false)
+		elif attack_kind == "swing" and ai() == "blizzard":
+			_sentinel_paw(false)
 		elif ai() == "herald":
 			_abyss_hit(false)
 		elif attack_kind == "hammer":
@@ -1856,6 +1923,13 @@ func _boss_tick(visual: bool, t0: float, t1: float) -> void:
 							p.take_damage(vs(level, p, data.damage * dmg_mult * 1.1), c)
 	elif attack_kind == "roots":
 		_roots_tick(visual, t0, t1)
+	elif attack_kind == "breath":
+		_breath_tick(visual, t0, t1)
+	elif attack_kind == "icicles":
+		var fall := _hit_time() - BlizzardRules.SPIKE_FALL
+		if t0 < fall and fall <= t1:
+			for pt in _spike_pts:
+				BlizzardFX.falling_spike(pt, BlizzardRules.SPIKE_FALL)
 	elif ai() == "herald":
 		_abyss_tick(visual, t0, t1)
 	elif attack_kind == "rockfall":
@@ -1867,6 +1941,9 @@ func _boss_tick(visual: bool, t0: float, t1: float) -> void:
 
 ## Réplica: começa a desenhar um golpe de chefe que o snapshot acabou de trazer (`atk_t` s já passados).
 func _replica_boss_start(flags: int, atk_t: float) -> void:
+	if ai() == "blizzard":
+		_sentinel_replica_start(flags, atk_t)
+		return
 	match attack_kind:
 		"quake":
 			_quake_warn(atk_t)
@@ -2328,6 +2405,8 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 		_set_fury_look(enraged)
 		if new_state == "burrow" and new_hp >= max_hp:
 			_intro_shown = false   # voltou para casa cheia: a próxima luta tem entrada de novo
+	if ai() == "blizzard":
+		_blizzard_snapshot(flags)
 	if new_state == "attack":
 		if state != "attack":
 			attack_kind = atk_kind
@@ -2344,6 +2423,8 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 			elif attack_kind in ["quake", "rockfall", "acid_rain", "roots", "spores", "sprouts"] \
 					or (attack_kind == "swing" and ai() == "thorn"):
 				_replica_boss_start(flags, atk_t)
+			elif ai() == "blizzard":
+				_replica_boss_start(flags, atk_t)
 			elif ai() == "herald":
 				_replica_abyss_start(flags, atk_t)
 			elif attack_kind in ["hammer", "vent", "rune_shield"]:
@@ -2357,6 +2438,8 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 				_replica_throw(flags, atk_t)
 			elif attack_kind in ["quake", "rockfall", "acid_rain", "roots", "spores", "sprouts"] \
 					or (attack_kind == "swing" and ai() == "thorn"):
+				_replica_boss_start(flags, atk_t)
+			elif ai() == "blizzard":
 				_replica_boss_start(flags, atk_t)
 			elif ai() == "herald":
 				_replica_abyss_start(flags, atk_t)
@@ -2438,6 +2521,12 @@ func _puppet_process(delta: float) -> void:
 				_spore_hit(true)
 			elif attack_kind == "swing" and ai() == "thorn":
 				_thorn_claw(true)
+			elif attack_kind == "icicles":
+				_icicles_hit(true)
+			elif attack_kind == "blizzard":
+				_blizzard_roar(true)
+			elif attack_kind == "swing" and ai() == "blizzard":
+				_sentinel_paw(true)
 			elif ai() == "herald":
 				_abyss_hit(true)
 			elif attack_kind == "hammer":
@@ -2505,6 +2594,9 @@ func _animate(delta: float, hspeed: float) -> void:
 		return
 	if data.model == "thorn_tree":
 		_animate_thorn(hspeed, s, k)
+		return
+	if data.model == "sentinel":
+		_animate_sentinel(delta, hspeed)
 		return
 	if data.model == "void_herald":
 		_animate_herald(delta, hspeed, k)
@@ -4979,3 +5071,666 @@ func _forge_replica_start(flags: int, atk_t: float) -> void:
 			_vent_warn(atk_t)
 		"rune_shield":
 			_shield_warn(atk_t)
+
+
+# ------------------------------------------------------------ Sentinela da Nevasca (chefe do Pico)
+## Regras em BlizzardRules. Patada perto (pega todos na frente dela), Sopro Congelante em cone que gira (dano,
+## lentidão e apaga braseiros), Estacas de Gelo que caem do teto e ficam no chão soltando frio e, na fúria, a
+## Nevasca: quem fica longe de um braseiro aceso vai congelando. O servidor (ou o solo) decide e dá o dano; a
+## réplica refaz o desenho pela direção/semente do snapshot, e os braseiros acesos vêm nos bits altos de `flags`.
+const SENTINEL_GAIT := {"FL": 0.0, "BR": 0.25, "FR": 0.5, "BL": 0.75}
+const SENTINEL_STANCE := 0.68
+const PAW_RADIUS := 3.2
+
+
+## Monta a luta (uma vez, no primeiro quadro: a casa dela já está no lugar): a sala, os quatro braseiros e a neve.
+func _sentinel_setup() -> void:
+	_blz_ready = true
+	_blz_room = _sentinel_room()
+	_blz_floor = _sentinel_floor()
+	_blz_pts = BlizzardRules.brazier_points(_blz_room, _blz_floor)
+	_blz_relight = []
+	for pt in _blz_pts:
+		_blz_relight.append(0.0)
+		var b := BlizzardBrazier.new()
+		b.top_level = true
+		add_child(b)
+		b.global_position = pt
+		_blz_braziers.append(b)
+	_blz_snow = BlizzardFX.snowstorm(self, _blz_room, _blz_floor)
+
+
+## A sala da luta (x, z do mundo): a arena do chefe (servidor/solo), a sala de chefe do mapa onde ela está (réplica:
+## o portal de volta que o mapa monta em cada sala de chefe guarda o retângulo) ou, fora de sala, a sala padrão.
+func _sentinel_room() -> Rect2:
+	if arena.has_area():
+		return arena
+	var w := get_tree().current_scene
+	if w != null:
+		for c in w.get_children():
+			if str(c.name).begins_with("BossPortal_") and c.get("arena") is Rect2 \
+					and (c.get("arena") as Rect2).has_point(Vector2(home.x, home.z)):
+				return c.get("arena")
+	return BlizzardRules.default_room(home)
+
+
+## Altura do chão debaixo da casa dela.
+func _sentinel_floor() -> float:
+	var space := get_world_3d().direct_space_state if is_inside_tree() else null
+	if space != null:
+		var q := PhysicsRayQueryParameters3D.create(home + Vector3.UP * 2.0, home - Vector3.UP * 6.0, 1)
+		var hit := space.intersect_ray(q)
+		if not hit.is_empty():
+			return (hit.position as Vector3).y
+	return home.y
+
+
+func _in_sentinel_room(p: Vector3) -> bool:
+	return _blz_room.has_point(Vector2(p.x, p.z))
+
+
+## Braseiros acesos (bit i = braseiro i): vai no snapshot.
+func brazier_mask() -> int:
+	return BlizzardRules.lit_mask(_blz_relight) if _blz_ready else BlizzardRules.MASK_ALL
+
+
+## Acende/apaga os braseiros conforme `mask` (o servidor/solo pelos relógios, a réplica pelo snapshot).
+func _sentinel_braziers(mask: int) -> void:
+	if mask == _blz_mask:
+		return
+	_blz_mask = mask
+	for i in _blz_braziers.size():
+		(_blz_braziers[i] as BlizzardBrazier).set_lit(mask & (1 << i) != 0)
+
+
+## Réplica: os braseiros acesos que o snapshot trouxe.
+func _blizzard_snapshot(flags: int) -> void:
+	if not _blz_ready:
+		_sentinel_setup()
+	_sentinel_braziers(BlizzardRules.unpack_mask(flags))
+
+
+func _sentinel_storm(on: bool) -> void:
+	if on == _blz_storm:
+		return
+	_blz_storm = on
+	for b in _blz_braziers:
+		(b as BlizzardBrazier).set_storm(on)
+	if _blz_snow != null:
+		_blz_snow.emitting = on
+
+
+## A cada quadro: os relógios dos braseiros, a entrada da luta e a Nevasca (a exposição de cada jogador da sala, o
+## dano e a lentidão que crescem com ela; só o servidor/solo dá o dano, toda tela mostra a neve e a geada).
+func _blizzard_process(delta: float) -> void:
+	if not _blz_ready:
+		_sentinel_setup()
+	if dead:
+		_sentinel_storm(false)
+		if _breath_cone != null and is_instance_valid(_breath_cone):
+			_breath_cone.finish()
+		return
+	var fighting := state in ["chase", "attack"]
+	if puppet:
+		if not enraged:
+			_blz_roared = false
+		elif state == "attack" and attack_kind != "blizzard":
+			_blz_roared = true   # chegou com a luta andando: a nevasca já sopra
+	else:
+		if not fighting and hp >= max_hp and (enraged or _blz_n > 0):
+			# ninguém na sala e ela curada: a luta recomeça do zero
+			enraged = false
+			_blz_roar = false
+			_blz_roared = false
+			_blz_n = 0
+			_blz_breaths = 0
+			_blz_relight = BlizzardRules.relight_step(_blz_relight, 1000.0)
+		if enraged and not _blz_roared and not _blz_roar and not (state == "attack" and attack_kind == "blizzard"):
+			_blz_roar = true   # a fúria começou: o próximo golpe chama a nevasca
+		_blz_relight = BlizzardRules.relight_step(_blz_relight, delta)
+		_sentinel_braziers(BlizzardRules.lit_mask(_blz_relight))
+	if state != "attack" and _breath_cone != null and is_instance_valid(_breath_cone):
+		_breath_cone.finish()
+	if fighting and not _blz_intro:
+		_sentinel_intro()
+	elif not fighting and hp >= max_hp:
+		_blz_intro = false
+	var storm := enraged and fighting and _blz_roared
+	_sentinel_storm(storm)
+	if not storm:
+		_blz_exposure.clear()
+		_blz_local = 0.0
+		return
+	_blz_gust_t -= delta
+	if _blz_gust_t <= 0.0:
+		_blz_gust_t = 0.22
+		BlizzardFX.storm_gust(_blz_room, _blz_floor)
+	_blz_tick -= delta
+	if _blz_tick > 0.0:
+		return
+	_blz_tick = BlizzardRules.BLIZZARD_TICK
+	# a geada no jogador desta tela (só o desenho: cada tela faz a mesma conta com os mesmos braseiros)
+	var lp := _local_player()
+	if lp != null and not lp.get("dead") and _in_sentinel_room(lp.global_position):
+		_blz_local = BlizzardRules.exposure_step(_blz_local, BlizzardRules.BLIZZARD_TICK,
+			BlizzardRules.sheltered(lp.global_position, _blz_pts, _blz_mask))
+		if _blz_local > 0.12:
+			BlizzardFX.frostbite(lp.global_position, _blz_local)
+	else:
+		_blz_local = 0.0
+	if puppet:
+		return
+	var tick: float = data.damage * dmg_mult * 0.45
+	for p in _boss_pool():
+		var id: int = p.get_instance_id()
+		if p.dead or not _in_sentinel_room(p.global_position):
+			_blz_exposure.erase(id)
+			continue
+		var safe := BlizzardRules.sheltered(p.global_position, _blz_pts, _blz_mask)
+		var e := BlizzardRules.exposure_step(float(_blz_exposure.get(id, 0.0)), BlizzardRules.BLIZZARD_TICK, safe)
+		_blz_exposure[id] = e
+		if safe or e <= 0.0:
+			continue
+		p.take_damage(vs(level, p, BlizzardRules.blizzard_damage(tick, e)), p.global_position + Vector3.UP * 3.0)
+		var chill := BlizzardRules.blizzard_chill(e)
+		if chill > 0.0 and p.has_method("apply_chill"):
+			p.apply_chill(chill)
+
+
+## Entrada da luta: a primeira vez que ela parte para cima perto deste jogador, a tela treme e o nome aparece em
+## destaque (o letreiro das regiões). De novo só depois de um reset.
+func _sentinel_intro() -> void:
+	var lp := _local_player()
+	if lp == null or lp.global_position.distance_to(global_position) > 30.0:
+		return
+	_blz_intro = true
+	if lp.has_method("add_shake"):
+		lp.add_shake(0.7)
+	Sfx.play_at("frost", global_position, 0.0, 2.0)
+	var w := get_tree().current_scene
+	var hud = w.get("hud") if w != null else null
+	if hud != null and hud.get("region_banner") != null:
+		hud.region_banner.show_area(data.name, "Guardiã do Pico")
+
+
+func _sentinel_begin(dist: float) -> void:
+	if not _blz_ready:
+		_sentinel_setup()
+	attack_kind = BlizzardRules.attack(_blz_n, dist, float(data.reach), _blz_roar)
+	if attack_kind != "blizzard":
+		_blz_n += 1
+	match attack_kind:
+		"swing":
+			_paw_warn(0.0)
+		"breath":
+			var aim := model.rotation.y
+			if _tgt != null and is_instance_valid(_tgt):
+				var to: Vector3 = _tgt.global_position - global_position
+				if Vector2(to.x, to.z).length() > 0.05:
+					aim = BlizzardRules.yaw_of(to)
+			var sgn := BlizzardRules.sweep_sign(_blz_breaths)
+			_blz_breaths += 1
+			# a mesma conta que a réplica faz com o snapshot (a direção vai em 256 passos)
+			var off := BlizzardRules.breath_offset(BlizzardRules.breath_start(aim, sgn, enraged), sgn)
+			var got := BlizzardRules.breath_unpack(ThrowRules.unpack_offset(ThrowRules.pack_flags(0, off)))
+			_breath_start = got[0]
+			_breath_sign = got[1]
+			throw_point = global_position + BlizzardRules.breath_offset(_breath_start, _breath_sign)
+			model.rotation.y = _breath_start
+			_breath_warn(0.0)
+		"icicles":
+			boss_seed = randi() & 0xFFFF
+			_spike_pts = _spike_targets(global_position)
+			_spikes_warn(0.0)
+		"blizzard":
+			_blz_roar = false
+			_roar_warn(0.0)
+
+
+## Réplica: começa a desenhar um golpe dela que o snapshot acabou de trazer (`atk_t` s já passados).
+func _sentinel_replica_start(flags: int, atk_t: float) -> void:
+	if not _blz_ready:
+		_sentinel_setup()
+	match attack_kind:
+		"swing":
+			_paw_warn(atk_t)
+		"breath":
+			var got := BlizzardRules.breath_unpack(ThrowRules.unpack_offset(flags))
+			_breath_start = got[0]
+			_breath_sign = got[1]
+			_breath_warn(atk_t)
+		"icicles":
+			boss_seed = BossRules.unpack_seed(flags)
+			_spike_pts = _spike_targets(_net_pos)
+			_spikes_warn(atk_t)
+		"blizzard":
+			_roar_warn(atk_t)
+
+
+## Centro da patada: à frente dela (fica onde foi avisado, mesmo que ela dê um passo enquanto arma).
+func _paw_warn(elapsed: float) -> void:
+	var c := _net_pos if puppet else global_position
+	_paw_at = c + model_forward() * 3.4 * float(data.scale)
+	FX.telegraph(_paw_at, PAW_RADIUS, maxf(0.2, _hit_time() - elapsed))
+
+
+## A pata desce: o chão racha em gelo; pega todos dentro do círculo avisado e os deixa lentos.
+func _sentinel_paw(visual: bool) -> void:
+	var c := _paw_at
+	Sfx.play_at("slam", c, 0.1, -1.0)
+	FXToon.slam(c, PAW_RADIUS)
+	BlizzardFX.spike_impact(c, PAW_RADIUS * 0.8)
+	var lp := _local_player()
+	if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(c) < 16.0:
+		lp.add_shake(0.35)
+	if visual:
+		return
+	for p in _boss_pool():
+		if p.dead:
+			continue
+		if Vector2(p.global_position.x - c.x, p.global_position.z - c.z).length() <= PAW_RADIUS:
+			p.take_damage(vs(level, p, data.damage * dmg_mult * randf_range(1.0, 1.15)), global_position)
+			if p.has_method("apply_chill"):
+				p.apply_chill(1.5)
+
+
+## Aviso do Sopro: o cone no chão (enche até ela soltar o ar) e o arco que ele vai varrer, com setas no sentido
+## do giro. O desenho segue o cone até o fim do sopro.
+func _breath_warn(elapsed: float) -> void:
+	var c := _net_pos if puppet else global_position
+	if _breath_cone != null and is_instance_valid(_breath_cone):
+		_breath_cone.finish()
+	_breath_cone = BlizzardFX.cone_warning(Vector3(c.x, _blz_floor, c.z), BlizzardRules.BREATH_RANGE,
+		BlizzardRules.BREATH_HALF, self)
+	_breath_fx_t = 0.0
+	if elapsed < BlizzardRules.BREATH_T0:
+		Sfx.play_at("staff_wind", c, 0.0, 3.0)
+
+
+## O Sopro a cada quadro entre t0 e t1: gira o cone (e ela com ele), move o aviso, solta o jato de frio e, a cada
+## BREATH_TICK s, acerta quem está dentro (dano e lentidão) e apaga os braseiros no caminho.
+func _breath_tick(visual: bool, t0: float, t1: float) -> void:
+	var c := _net_pos if puppet else global_position
+	var ang := BlizzardRules.breath_angle(_breath_start, _breath_sign, t1, enraged)
+	if not puppet:
+		model.rotation.y = ang
+		throw_point = global_position + BlizzardRules.breath_offset(_breath_start, _breath_sign)
+	var t_end := BlizzardRules.BREATH_T0 + BlizzardRules.BREATH_TIME
+	if _breath_cone != null and is_instance_valid(_breath_cone):
+		_breath_cone.global_position = Vector3(c.x, _blz_floor + 0.07, c.z)
+		_breath_cone.yaw = ang
+		_breath_cone.ahead = BlizzardRules.breath_angle(_breath_start, _breath_sign, t_end, enraged) - ang
+		_breath_cone.reveal = clampf(t1 / BlizzardRules.BREATH_T0, 0.0, 1.0)
+		if t1 > t_end:
+			_breath_cone.finish()
+	if not BlizzardRules.breath_active(t1):
+		return
+	var first := t0 < BlizzardRules.BREATH_T0
+	if first:
+		Sfx.play_at("frost", c, 0.05, 2.0)
+		var lp := _local_player()
+		if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(c) < 30.0:
+			lp.add_shake(0.45)
+	_breath_fx_t -= t1 - t0
+	if _breath_fx_t <= 0.0 and not puppet_headless():
+		_breath_fx_t = 0.07
+		var mz: Node3D = parts.get("Muzzle")
+		var mouth: Vector3 = mz.global_position if mz != null else c + Vector3.UP * 2.0
+		BlizzardFX.breath_gust(mouth, _blz_floor, ang, BlizzardRules.BREATH_RANGE, BlizzardRules.BREATH_HALF)
+	if visual:
+		return
+	var k0 := floori((t0 - BlizzardRules.BREATH_T0) / BlizzardRules.BREATH_TICK)
+	var k1 := floori((t1 - BlizzardRules.BREATH_T0) / BlizzardRules.BREATH_TICK)
+	if not first and k1 == k0:
+		return
+	for p in _boss_pool():
+		if not p.dead and BlizzardRules.in_cone(c, ang, p.global_position):
+			p.take_damage(vs(level, p, data.damage * dmg_mult * 0.3), c)
+			if p.has_method("apply_chill"):
+				p.apply_chill(BlizzardRules.BREATH_CHILL)
+	var out := BlizzardRules.cone_braziers(c, ang, _blz_pts)
+	for i in _blz_relight.size():
+		if out & (1 << i) != 0 and float(_blz_relight[i]) <= 0.0:
+			_blz_relight[i] = BlizzardRules.RELIGHT
+	_sentinel_braziers(BlizzardRules.lit_mask(_blz_relight))
+
+
+## Pontos das Estacas: sorteados pela semente em volta dela (mais duas na fúria) e um sob cada jogador que esteja
+## na sala (servidor e réplica sabem sem trocar nada).
+func _spike_targets(center: Vector3) -> Array:
+	var at := Vector3(center.x, _blz_floor, center.z)
+	var pts := BlizzardRules.spike_points(boss_seed, at, _blz_room, BlizzardRules.SPIKES + (2 if enraged else 0))
+	for p in get_tree().get_nodes_in_group("players"):
+		if not p.dead and p.global_position.distance_to(center) < 25.0 and _in_sentinel_room(p.global_position):
+			pts.append(BlizzardRules.clamp_to_room(Vector3(p.global_position.x, _blz_floor, p.global_position.z), _blz_room, 0.5))
+	return pts
+
+
+func _spikes_warn(elapsed: float) -> void:
+	var left := maxf(0.2, _hit_time() - elapsed)
+	for pt in _spike_pts:
+		FX.telegraph(pt, BlizzardRules.SPIKE_R, left)
+	var lp := _local_player()
+	if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(global_position) < 30.0:
+		lp.add_shake(0.5)   # o urro que solta o gelo do teto
+	Sfx.play_at("slam", global_position, 0.0, 1.0)
+
+
+## As estacas cravam: estilhaços em cada ponto e a estaca que fica no chão soltando frio (só o servidor/solo dá o
+## dano, o da queda e o de quem encosta depois).
+func _icicles_hit(visual: bool) -> void:
+	for pt in _spike_pts:
+		BlizzardFX.spike_impact(pt, BlizzardRules.SPIKE_R)
+		var sp := IceSpike.new()
+		sp.dmg = data.damage * dmg_mult * 0.2
+		sp.level = level
+		sp.deal = not visual
+		get_parent().add_child(sp)
+		sp.global_position = pt
+	if not _spike_pts.is_empty():
+		Sfx.play_at("frost", _spike_pts[0], 0.1, 0.0)
+	if visual:
+		return
+	var dmg: float = data.damage * dmg_mult * 1.1
+	for p in _boss_pool():
+		if p.dead:
+			continue
+		for pt in _spike_pts:
+			if Vector2(p.global_position.x - pt.x, p.global_position.z - pt.z).length() <= BlizzardRules.SPIKE_R:
+				p.take_damage(vs(level, p, dmg), pt)
+				if p.has_method("apply_chill"):
+					p.apply_chill(2.0)
+				break
+
+
+func _roar_warn(elapsed: float) -> void:
+	if elapsed > 0.5:
+		return
+	var lp := _local_player()
+	if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(global_position) < 30.0:
+		lp.add_shake(0.8)
+	Sfx.play_at("frost", global_position, 0.0, 3.0)
+
+
+## O urro termina: a nevasca toma a sala (os braseiros passam a mostrar o abrigo).
+func _blizzard_roar(_visual: bool) -> void:
+	_blz_roared = true
+	var c := _net_pos if puppet else global_position
+	FXToon.ring_wave(c + Vector3.UP * 0.15, 9.0, 0.2, BlizzardFX.RIME, 0.3)
+	FXToon.ring_wave(c + Vector3.UP * 0.15, 16.0, 0.14, FXToon.MIST, 0.5, 0.12)
+	for i in 8:
+		var a := TAU * i / 8.0
+		FXToon.puff(c + Vector3(cos(a) * 2.5, 1.5, sin(a) * 2.5), randf_range(2.4, 3.2), BlizzardFX.RIME if i % 2 else FXToon.MIST,
+			{"vel": Vector3(cos(a) * 8.0, 0.5, sin(a) * 8.0), "grow": 0.15, "hold": 0.2, "fade": 0.6})
+	Sfx.play_at("staff_wind", c, 0.0, 4.0)
+	var lp := _local_player()
+	if lp != null and lp.global_position.distance_to(c) < 40.0:
+		Game.notify.emit("A nevasca começou! Fique perto de um braseiro aceso.", Color(0.6, 0.85, 1.0))
+
+
+## Pisada de uma pata: neve levantada, lascas de gelo e um tranco em quem está perto.
+func _sentinel_step(sd: String) -> void:
+	var ft: Node3D = parts.get("Foot" + sd)
+	if ft == null or not is_inside_tree() or puppet_headless():
+		return
+	var at := Vector3(ft.global_position.x, global_position.y + 0.1, ft.global_position.z)
+	FX.burst(at, Color(0.85, 0.93, 1.0), 6, 2.2, 0.1, 0.45)
+	if sd.begins_with("F"):
+		FXToon.puff(at + Vector3.UP * 0.2, 0.9, FXToon.MIST, {"vel": Vector3(0, 0.5, 0), "grow": 0.12, "hold": 0.1, "fade": 0.4})
+		var lp := _local_player()
+		if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(global_position) < 14.0:
+			lp.add_shake(0.07)
+
+
+## Sentinela da Nevasca: passo pesado em quatro tempos com as patas de verdade (três ossos, IK do Lobo da Geada:
+## o apoio fica no chão enquanto o corpo passa), o corpo balançando o peso de um lado para o outro, pescoço e
+## cabeça compensando, a cauda em três ossos ondulando com atraso, as mechas da juba e as ombreiras de gelo
+## respirando, lascas de geada caindo do corpo e o hálito frio saindo da boca.
+## Golpes: a patada recolhe o corpo para trás e para baixo e ergue a pata direita, depois o corpo avança e a pata
+## crava; o Sopro planta as patas, recua enchendo o peito com a cabeça no alto e as ombreiras abrindo, e solta o
+## ar de cabeça baixa e boca escancarada, tremendo; as Estacas empinam nas traseiras urrando para o teto e batem as
+## dianteiras no chão; a Nevasca é um urro longo de cabeça erguida, ombreiras abertas e cristais acesos.
+## Rotação x positiva: frente do corpo/cabeça para baixo, cauda para cima, mecha para trás, queixo abre.
+func _animate_sentinel(delta: float, hspeed: float) -> void:
+	if not _wolf_setup():
+		return
+	if not _rig.has("hit"):
+		_rig["hit"] = false
+		_rig["breath_t"] = randf_range(1.0, 3.0)
+		if parts.get("Crest") != null and not puppet_headless():
+			_rig["frost"] = BlizzardFX.frost_fall(parts.Crest, 1.5)
+	var sc: float = float(data.scale) * size_mult
+	var k := 1.0 - exp(-10.0 * delta)
+	var kf := 1.0 - exp(-22.0 * delta)
+	var ks := 1.0 - exp(-5.0 * delta)        # peças soltas: chegam atrasadas
+	_gait_amp = lerpf(_gait_amp, clampf(hspeed / 2.2, 0.0, 1.0), 1.0 - exp(-5.0 * delta))
+	var amp := _gait_amp
+	var idle := 1.0 - amp
+	var mspeed := hspeed / maxf(sc, 0.01)                    # velocidade nas medidas do modelo
+	var freq := 0.3 + mspeed * 0.36                          # passadas por segundo
+	var prev_ph := _gait_ph
+	_gait_ph = fmod(_gait_ph + delta * freq, 1.0)
+	var stride := clampf(mspeed * SENTINEL_STANCE / maxf(freq, 0.1), 0.0, 1.35)
+	var lift := (0.16 + 0.14 * amp) * smoothstep(0.0, 0.25, amp)
+	var ph := _gait_ph * TAU
+	var lt := _life_t
+	# corpo: afunda a cada apoio das dianteiras, o peso vai de um lado para o outro; parado, respira
+	var dy := -0.05 * amp + 0.05 * amp * cos(ph * 2.0) + 0.025 * sin(lt * 1.3) * idle
+	var pitch := 0.03 * amp * sin(ph * 2.0 + 0.5)
+	var roll := 0.05 * amp * sin(ph)
+	var sway := 0.04 * amp * sin(ph + 0.8)
+	var bz := 0.0
+	var neck_x := 0.1 * amp - pitch + 0.05 * amp * sin(ph * 2.0 + 1.0) + 0.04 * sin(lt * 0.5) * idle
+	var neck_y := sin(lt * 0.31) * 0.28 * idle + 0.06 * sin(ph) * amp
+	var head_x := -neck_x * 0.5 + 0.05 * sin(lt * 0.7 + 1.0) * idle
+	var head_y := neck_y * 0.6
+	var jaw := 0.03 + maxf(0.0, sin(lt * 1.3)) * 0.08 * idle + 0.04 * amp
+	var tail_x := -0.04 + 0.06 * sin(ph * 2.0 - 1.0) * amp
+	var tail_y := [sin(ph - 0.6) * 0.22 * amp + sin(lt * 0.8) * 0.18 * idle,
+		sin(ph - 1.6) * 0.32 * amp + sin(lt * 0.8 - 0.9) * 0.28 * idle,
+		sin(ph - 2.6) * 0.42 * amp + sin(lt * 0.8 - 1.8) * 0.38 * idle]
+	var tail_b := [0.0, 0.08 * sin(ph * 2.0 - 2.0) * amp + 0.05 * sin(lt * 0.6) * idle,
+		0.12 * sin(ph * 2.0 - 3.0) * amp + 0.08 * sin(lt * 0.6 - 1.0) * idle]
+	var mane_back := 0.14 * amp          # a juba fica para trás andando
+	var flare := 0.03 + 0.035 * sin(lt * 1.3) + 0.05 * amp * absf(sin(ph))   # ombreiras: respiram
+	var crest_s := 1.0 + 0.03 * sin(lt * 2.0)
+	var shake := 0.0
+	var feet := {}
+	for sd in WOLF_SIDES:
+		var off: float = SENTINEL_GAIT[sd]
+		var u := fmod(_gait_ph + off, 1.0)
+		var dz := 0.0
+		var upf := 0.0
+		var tilt := 0.0
+		if u < SENTINEL_STANCE:
+			dz = stride * (0.5 - u / SENTINEL_STANCE)
+		else:
+			var v := (u - SENTINEL_STANCE) / (1.0 - SENTINEL_STANCE)
+			var ee := v * v * (3.0 - 2.0 * v)
+			dz = stride * (-0.5 + ee)
+			upf = lift * sin(PI * v)
+			tilt = (0.7 if sd.begins_with("F") else -0.45) * sin(PI * v) * amp
+		feet[sd] = [dz, upf, tilt]
+		if amp > 0.35 and state != "attack" and fmod(prev_ph + off, 1.0) > u:
+			_sentinel_step(sd)   # a pata acabou de pousar
+	if state == "attack":
+		var t := attack_timer
+		var ht := _hit_time()
+		var e := smoothstep(0.0, 1.0, clampf(t / ht, 0.0, 1.0))
+		for sd in WOLF_SIDES:
+			feet[sd] = [0.0, 0.0, 0.0]
+		neck_y = 0.0
+		head_y = 0.0
+		match attack_kind:
+			"swing":
+				if t < ht:   # arma: corpo para trás e para baixo, pata direita no alto, cabeça baixa rosnando
+					bz = -0.5 * e
+					dy = -0.28 * e
+					pitch = -0.07 * e
+					roll = 0.1 * e
+					feet["FR"] = [0.1 * e, 1.0 * e, -0.9 * e]
+					feet["FL"] = [0.2 * e, 0.0, 0.0]
+					neck_x = 0.22 * e
+					neck_y = 0.22 * e
+					head_x = -0.1 * e
+					jaw = 0.3 * e
+					tail_x = 0.3 * e
+					flare = 0.25 * e
+					mane_back = -0.1 * e
+				elif t < ht + 0.4:   # crava: o corpo avança e a pata desce na frente
+					bz = 0.55
+					dy = -0.22
+					pitch = 0.15
+					roll = -0.12
+					feet["FR"] = [1.0, 0.0, 0.25]
+					feet["FL"] = [0.2, 0.0, 0.0]
+					neck_x = -0.08
+					neck_y = -0.2
+					jaw = 0.5
+					tail_x = -0.2
+					flare = 0.35
+					shake = 1.0
+					mane_back = 0.4
+			"breath":
+				var t0 := BlizzardRules.BREATH_T0
+				for sd in WOLF_SIDES:   # planta as patas: dianteiras à frente, traseiras para trás
+					feet[sd] = [0.3 * e if sd.begins_with("F") else -0.25 * e, 0.0, 0.0]
+				if t < t0:   # enche o peito: recua, cabeça no alto, ombreiras abrindo
+					bz = -0.38 * e
+					dy = -0.22 * e
+					pitch = -0.1 * e
+					neck_x = -0.55 * e
+					head_x = -0.15 * e
+					jaw = 0.08 * e
+					flare = 0.1 + 0.28 * e
+					crest_s = 1.0 + 0.16 * e
+					tail_x = 0.35 * e
+					shake = 0.3 * e
+					mane_back = -0.2 * e
+				elif t < t0 + BlizzardRules.BREATH_TIME:   # solta o ar: cabeça baixa e à frente, boca escancarada
+					bz = 0.22
+					dy = -0.3
+					pitch = 0.12
+					neck_x = 0.2 + 0.03 * sin(lt * 9.0)
+					head_x = 0.06
+					jaw = 0.78
+					flare = 0.55
+					crest_s = 1.22
+					tail_x = 0.22
+					tail_y = [0.0, 0.05 * sin(lt * 7.0), 0.1 * sin(lt * 7.0 - 1.0)]
+					shake = 1.0
+					mane_back = 0.5
+			"icicles":
+				if t < ht - 0.3:   # empina nas traseiras urrando para o teto
+					var w := smoothstep(0.0, 0.7, t)
+					pitch = -0.5 * w
+					dy = 0.1 * w
+					bz = -0.3 * w
+					for sd in ["FL", "FR"]:
+						feet[sd] = [0.2 * w, 1.0 * w, -0.5 * w]
+					neck_x = -0.55 * w
+					head_x = -0.2 * w
+					jaw = 0.75 * w
+					flare = 0.35 * w
+					crest_s = 1.0 + 0.2 * w
+					tail_x = -0.3 * w
+					shake = 0.8 * w
+					mane_back = -0.25 * w
+				elif t < ht + 0.5:   # bate as dianteiras no chão
+					pitch = 0.1
+					dy = -0.26
+					bz = 0.2
+					for sd in ["FL", "FR"]:
+						feet[sd] = [0.35, 0.0, 0.0]
+					neck_x = 0.2
+					jaw = 0.3
+					flare = 0.2
+					shake = 1.0
+					mane_back = 0.35
+			"blizzard":
+				var dur := _attack_duration()
+				var w := smoothstep(0.0, 0.6, t) * (1.0 - smoothstep(dur - 0.5, dur, t))
+				for sd in WOLF_SIDES:
+					feet[sd] = [0.25 * w if sd.begins_with("F") else -0.2 * w, 0.0, 0.0]
+				dy = -0.16 * w
+				pitch = -0.2 * w
+				neck_x = -0.85 * w
+				head_x = -0.22 * w
+				jaw = 0.85 * w
+				flare = 0.62 * w
+				crest_s = 1.0 + 0.3 * w
+				tail_x = 0.5 * w
+				shake = 1.5 * w
+				mane_back = -0.3 * w
+		# o golpe acerta: lascas de gelo arrancadas da couraça (uma vez por golpe)
+		if t >= ht and not _rig.hit:
+			_rig.hit = true
+			var crest: Node3D = parts.get("Crest")
+			if crest != null and is_inside_tree():
+				BlizzardFX.frost_burst(crest.global_position, 18, 1.4 * sc)
+		elif t < ht:
+			_rig.hit = false
+	else:
+		_rig.hit = false
+		# hálito frio: de tempos em tempos um tufo de névoa sai da boca
+		_rig.breath_t = float(_rig.breath_t) - delta
+		if float(_rig.breath_t) <= 0.0:
+			_rig.breath_t = randf_range(2.2, 3.6)
+			var mz: Node3D = parts.get("Muzzle")
+			if mz != null and is_inside_tree() and not puppet_headless():
+				FXToon.puff(mz.global_position, 0.8 * sc, FXToon.MIST,
+					{"vel": model_forward() * 1.6 + Vector3(0, -0.3, 0), "grow": 0.25, "hold": 0.2, "fade": 0.7})
+	if stagger > 0.0 or _flash_t > 0.0:
+		shake = maxf(shake, 0.6)   # pancada: a couraça estremece
+	var sh := shake * sin(lt * 37.0)
+	var sh2 := shake * sin(lt * 31.0 + 1.0)
+	var body: Node3D = parts.Body
+	body.position.y = lerpf(body.position.y, float(_wolf_rest.body_y) + dy, kf)
+	body.position.z = lerpf(body.position.z, float(_wolf_rest.body_z) + bz, kf)
+	body.rotation.x = lerpf(body.rotation.x, pitch, kf)
+	body.rotation.z = lerpf(body.rotation.z, roll + sh * 0.006, k)
+	body.rotation.y = lerpf(body.rotation.y, sway, k)
+	var bdy := body.position.y - float(_wolf_rest.body_y)
+	var bdz := body.position.z - float(_wolf_rest.body_z)
+	for sd in WOLF_SIDES:
+		var r: Dictionary = _wolf_rest[sd]
+		var fz: Array = feet[sd]
+		var f: Vector2 = r.f
+		var ang := _wolf_leg(sd, bdy, body.rotation.x, Vector2(f.x + float(fz[1]), f.y + float(fz[0])), float(fz[2]), bdz)
+		var leg: Node3D = parts["Leg" + sd]
+		leg.position.y = float((r.h as Vector2).x) + bdy - float((r.h as Vector2).y) * sin(body.rotation.x)
+		leg.position.z = float((r.h as Vector2).y) + bdz
+		leg.rotation.x = lerp_angle(leg.rotation.x, ang.x, kf)
+		(parts["Knee" + sd] as Node3D).rotation.x = lerp_angle((parts["Knee" + sd] as Node3D).rotation.x, ang.y, kf)
+		(parts["Paw" + sd] as Node3D).rotation.x = lerp_angle((parts["Paw" + sd] as Node3D).rotation.x, ang.z, kf)
+	var neck: Node3D = parts.get("Neck")
+	if neck:
+		neck.rotation.x = lerpf(neck.rotation.x, neck_x + sh2 * 0.012, k)
+		neck.rotation.y = lerpf(neck.rotation.y, neck_y, ks)
+	parts.Head.rotation.x = lerpf(parts.Head.rotation.x, head_x, k)
+	parts.Head.rotation.y = lerpf(parts.Head.rotation.y, head_y + sh * 0.012, ks)
+	if parts.Jaw:
+		parts.Jaw.rotation.x = lerpf(parts.Jaw.rotation.x, jaw + sh2 * 0.02, k)
+	for i in 3:
+		var tn: Node3D = parts.get(["Tail", "Tail2", "Tail3"][i])
+		if tn:
+			tn.rotation.y = lerpf(tn.rotation.y, float(tail_y[i]), ks)
+			tn.rotation.x = lerpf(tn.rotation.x, (tail_x if i == 0 else tail_x * 0.5) + float(tail_b[i]), ks)
+	# mechas da juba: pêndulos, cada grupo no seu tempo; andando ficam para trás, no golpe são jogadas
+	for i in 4:
+		var mn: Node3D = parts.get("Mane%d" % i)
+		if mn:
+			var p2 := i * 1.7
+			mn.rotation.x = lerpf(mn.rotation.x, mane_back + sin(ph * 2.0 - 1.0 - i * 0.7) * 0.1 * amp
+				+ sin(lt * 1.1 + p2) * 0.05 + sh * 0.05, ks)
+			mn.rotation.z = lerpf(mn.rotation.z, sin(ph - 0.8 - i) * 0.09 * amp + sin(lt * 0.9 + p2 * 1.3) * 0.04
+				- body.rotation.z * 1.5 + sh2 * 0.05, ks)
+	# ombreiras: abrem para fora (como guelras) e tremem
+	for pair in [["PlateL", 1.0], ["PlateR", -1.0]]:
+		var pn: Node3D = parts.get(pair[0])
+		if pn:
+			pn.rotation.z = lerpf(pn.rotation.z, (flare + sh * 0.04) * float(pair[1]), k)
+	var cr: Node3D = parts.get("Crest")
+	if cr:
+		cr.scale = cr.scale.lerp(Vector3.ONE * crest_s, k)
+		cr.rotation.z = sh2 * 0.02

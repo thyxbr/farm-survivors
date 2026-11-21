@@ -39,7 +39,8 @@ const STATES := ["idle", "wander", "chase", "return", "attack", "dead", "burrow"
 const ATTACK_KINDS := ["swing", "lunge", "slam", "shoot", "fuse", "cast", "web", "tongue", "throw", "emerge", "quake", "rockfall", "acid_rain",
 	"roots", "sprouts", "spores",   # Espinheira (no fim: os índices de antes não mudam)
 	"hammer", "vent", "rune_shield",   # Forjador Rúnico
-	"volley", "voids", "mirage", "collapse"]   # Arauto do Abismo (AbyssRules.KINDS)
+	"volley", "voids", "mirage", "collapse",   # Arauto do Abismo (AbyssRules.KINDS)
+	"breath", "icicles", "blizzard"]   # Sentinela da Nevasca
 const SNAP_STRIDE := 10   # id, x, y, z, yaw, hp, state, attack_timer, attack_kind, flags
 ## Tempo da fila do Desafio da Horda (cai para HORDE_LOBBY_ALL quando todos já responderam).
 const HORDE_LOBBY_TIME := 15.0
@@ -734,6 +735,12 @@ func _send_enemy_snapshot() -> void:
 			flags = ThrowRules.pack_flags(flags, e.throw_point - p)
 		if e.shielded:   # Forjador: Escudo Rúnico de pé (ForgeRules.SHIELD_FLAG)
 			flags |= ForgeRules.SHIELD_FLAG
+		if e.state == "attack" and e.attack_kind == "breath":   # Sentinela: direção inicial e sentido do sopro
+			flags = ThrowRules.pack_flags(flags, e.throw_point - p)
+		elif e.state == "attack" and e.attack_kind == "icicles":   # Sentinela: semente das estacas
+			flags = BossRules.pack_seed(flags, e.boss_seed)
+		if e.ai() == "blizzard":   # Sentinela: braseiros acesos nos bits altos
+			flags = BlizzardRules.pack_mask(flags, e.brazier_mask())
 		if e.taunt_t > 0.0:
 			flags |= Enemy.TAUNT_FLAG   # provocado: as réplicas mostram os olhos vermelhos (depois dos pacotes acima)
 		var row := [net_id, p.x, p.y, p.z, e.model.rotation.y, e.hp,

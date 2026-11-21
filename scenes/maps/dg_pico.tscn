@@ -65,7 +65,7 @@ script = ExtResource("10_dg")
 size = Vector2(14, 8)
 height = 8.0
 
-[node name="Altar do Lich" type="Node3D" parent="Dungeon/Salas"]
+[node name="Câmara da Sentinela" type="Node3D" parent="Dungeon/Salas"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -33)
 script = ExtResource("10_dg")
 size = Vector2(22, 18)
@@ -255,10 +255,9 @@ count = 2
 radius = 1.2
 respawn = 150.0
 
-[node name="chefe lich" type="Node3D" parent="Monstros"]
+[node name="chefe sentinela" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -36)
 script = ExtResource("7_dg")
-kind = "lich"
+kind = "sentinela_nevasca"
 respawn = 600.0
-elite = true
 chief = true
