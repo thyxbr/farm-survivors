@@ -1,6 +1,7 @@
 extends Control
 ## Mapa-mundi em tela cheia (M): só o mapa (AtlasView), com zoom e fichas ao passar o mouse. Em cima, o
-## título e os botões de zoom; embaixo, os atalhos e a legenda. M ou Esc fecha.
+## título e os botões de zoom; embaixo, os atalhos e a legenda. M ou Esc fecha. Clicar na carruagem de um
+## mapa abre a confirmação do teleporte pago (caro; pelo cocheiro sai mais em conta; nunca de dentro de dungeon).
 
 signal closed
 
@@ -8,6 +9,9 @@ var world: Node
 var capture: MapCapture
 var view: AtlasView
 var _age := 0.0
+## Janela de confirmação do teleporte aberta (null = nenhuma); `confirm_region` fica exposto para os testes.
+var _confirm: Control
+var confirm_region := ""
 
 
 func _ready() -> void:
@@ -18,6 +22,7 @@ func _ready() -> void:
 	view.world = world
 	view.capture = capture
 	view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	view.teleport_requested.connect(ask_teleport)
 	add_child(view)
 	add_child(_top_bar())
 	add_child(_bottom_bar())
@@ -60,7 +65,8 @@ func _bottom_bar() -> Control:
 	panel.add_child(v)
 	var keys := HBoxContainer.new()
 	keys.add_theme_constant_override("separation", 6)
-	for k in [["Roda", "zoom"], ["Arrastar", "mover"], ["Clique duplo", "aproximar na região"], ["Espaço", "você"]]:
+	for k in [["Roda", "zoom"], ["Arrastar", "mover"], ["Clique duplo", "aproximar na região"],
+			["Clique na carruagem", "teleporte"], ["Espaço", "você"]]:
 		keys.add_child(UITheme.keycap(k[0], 13))
 		keys.add_child(UITheme.label(k[1] + "   ", 14, UITheme.DIM))
 	v.add_child(keys)
@@ -94,9 +100,67 @@ func _process(delta: float) -> void:
 	_age += delta
 
 
+## Confirmação do teleporte até a carruagem de `region`: mostra o preço (e o do cocheiro, mais em conta) ou o
+## motivo de não poder (dungeon, rank, ouro).
+func ask_teleport(region: String) -> void:
+	_close_confirm()
+	confirm_region = region
+	var why: String = world.travel_block_reason(region, "map") if world and world.has_method("travel_block_reason") 		else "Não dá para viajar agora."
+	var cost := Game.travel_cost(region, "map")
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", UITheme.kit_panel(22))
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel.custom_minimum_size = Vector2(440, 0)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 12)
+	panel.add_child(v)
+	v.add_child(UITheme.outlined("Teleporte · " + Regions.display_name(region), 24, UITheme.GOLD, 6))
+	var text := UITheme.label("", 17)
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.custom_minimum_size = Vector2(400, 0)
+	if why == "":
+		text.text = "Ir até a carruagem da guilda em %s por %d de ouro?
+Pelo cocheiro, a mesma viagem custa só %d." % [
+			Regions.display_name(region), cost, Game.travel_cost(region, "coach")]
+	else:
+		text.text = why
+	v.add_child(text)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_END
+	row.add_theme_constant_override("separation", 8)
+	if why == "":
+		row.add_child(UITheme.button("Teleportar (%d de ouro)" % cost, _confirm_teleport, 44))
+		row.add_child(UITheme.button("Cancelar", _close_confirm, 44))
+	else:
+		row.add_child(UITheme.button("Ok", _close_confirm, 44))
+	v.add_child(row)
+	_confirm = panel
+	add_child(panel)
+
+
+func _confirm_teleport() -> void:
+	var region := confirm_region
+	_close_confirm()
+	if world and world.request_travel(region, "map"):
+		_close()
+
+
+func _close_confirm() -> void:
+	if is_instance_valid(_confirm):
+		_confirm.queue_free()
+	_confirm = null
+	confirm_region = ""
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if _age < 0.15:
 		return   # o mesmo M que abriu não fecha
+	if is_instance_valid(_confirm) and event.is_action_pressed("pause"):
+		get_viewport().set_input_as_handled()
+		_close_confirm()
+		return
 	if event.is_action_pressed("pause") or event.is_action_pressed("world_map"):
 		get_viewport().set_input_as_handled()
 		_close()

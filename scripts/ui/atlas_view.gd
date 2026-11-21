@@ -4,7 +4,11 @@ extends Control
 ## uma com a foto de cima (MapCapture) e o nome. A roda do mouse dá zoom em volta do cursor, arrastar move,
 ## clique duplo numa região aproxima nela. Passar o mouse sobre um NPC, a carruagem (com as saídas para os
 ## outros mapas), um lugar, o jogador ou um companheiro mostra uma ficha. Os nomes dos lugares aparecem com
-## o zoom; os de todos os NPCs, de perto.
+## o zoom; os de todos os NPCs, de perto. Clicar na carruagem de um mapa pede o teleporte pago até ela
+## (teleport_requested; quem abriu o mapa confirma e cobra).
+
+## Clique simples (sem arrastar) na carruagem do mapa `region`.
+signal teleport_requested(region: String)
 
 const C_SEA := Color(0.07, 0.085, 0.1)
 const C_PLAYER := MapView.C_PLAYER
@@ -144,6 +148,10 @@ func _gui_input(event: InputEvent) -> void:
 				var reg := region_under(mb.position)
 				if reg != "":
 					focus_region(reg)
+			elif not mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and _dragging and _drag_moved < 6.0:
+				var c := coach_under(mb.position)
+				if c != "":
+					teleport_requested.emit(c)
 			_dragging = mb.pressed
 			_drag_moved = 0.0
 		accept_event()
@@ -255,6 +263,14 @@ func _draw_region(id: String, open: bool) -> void:
 	draw_arc(c, rad, 0, TAU, 96, Color(UITheme.GOLD, 0.95 if hovered else 0.6), 3.0 if hovered else 2.0, true)
 
 
+## Mapa cuja carruagem está sob o ponto da tela ("" = nenhuma).
+func coach_under(screen: Vector2) -> String:
+	for id in Regions.ORDER:
+		if screen.distance_to(to_screen(MapRules.to_atlas(Regions.coach_point(id)))) <= 16.0:
+			return id
+	return ""
+
+
 ## Região cujas saídas aparecem: a da carruagem sob o mouse ou, sem ela, a do jogador.
 func _routes_from() -> String:
 	for id in Regions.ORDER:
@@ -336,7 +352,9 @@ func _draw_places(id: String, alpha: float, rank: String) -> void:
 					lines.append(["→  " + Regions.display_name(e[0]), UITheme.TEXT])
 				else:
 					lines.append(["→  %s  (Rank %s)" % [Regions.display_name(e[0]), Regions.DATA[e[0]].rank], C_LOCKED])
-			lines.append(["Fale com o cocheiro para viajar.", UITheme.DIM])
+			lines.append(["Cocheiro: %d de ouro até aqui." % Game.travel_cost(id, "coach"), UITheme.DIM])
+			if Regions.unlocked(id, rank):
+				lines.append(["Clique: teleporte por %d de ouro." % Game.travel_cost(id, "map"), C_ROUTE])
 			_hits.append({"at": at, "r": 14.0, "title": "Carruagem da Guilda", "lines": lines, "color": C_ROUTE})
 		elif pl[0] != Regions.display_name(id):   # o centro do mapa com o nome dele: a ficha é a da região
 			_hits.append({"at": at, "r": 10.0, "title": pl[0], "lines": [[Regions.display_name(id), UITheme.DIM]],
