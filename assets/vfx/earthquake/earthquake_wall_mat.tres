@@ -1,0 +1,11 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/earthquake/eq_wall.gdshader" id="1"]
+
+[resource]
+render_priority = 1
+shader = ExtResource("1")
+shader_parameter/intensity = 1.0
+shader_parameter/streaks = 70.0
+shader_parameter/base_color = Color(0.75, 0.9, 1, 1)
+shader_parameter/top_color = Color(0.1, 0.35, 1, 1)
