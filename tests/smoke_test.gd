@@ -257,7 +257,7 @@ func _check_hammer(player: Node, world: Node) -> void:
 	equip_any("wooden_shield")
 	await wait_until(func(): return Game.offhand_kind() == "shield" and Game.level >= 3)
 	var kit := Game.ability_kit()
-	check(kit.size() == 4 and kit[3] == "sword_hammer" and kit[1] == "sword_quake" and not ("sword_whirl" in kit),
+	check(kit.size() == 4 and kit[3] == "sword_hammer" and kit[1] == "sword_earthquake" and not ("sword_whirl" in kit),
 		"Martelo: espada + escudo troca a habilidade 4 (%s)" % [kit])
 	check(Game.knows_ability("sword_hammer"), "Martelo: liberado no nível %d" % ItemDB.ABILITIES.sword_hammer.level)
 	var count_fx := func(cls: String) -> int:
@@ -397,7 +397,7 @@ func _check_hammer(player: Node, world: Node) -> void:
 	for e in mobs:
 		if is_instance_valid(e):
 			e.queue_free()
-	# tira o escudo: o Golpe Sísmico volta
+	# tira o escudo: o Turbilhão volta
 	Game.unequip("offhand")
 	await wait_until(func(): return Game.offhand_kind() == "")
 	check(Game.ability_kit()[3] == "sword_whirl", "Martelo: sem escudo a habilidade 4 volta a ser o Turbilhão")
@@ -405,6 +405,149 @@ func _check_hammer(player: Node, world: Node) -> void:
 	player.global_position = back
 	player.velocity = Vector3.ZERO
 	player.cooldowns.sword_hammer = 0.0
+	player.invuln = 0.0
+	Game.hp = hp_player
+
+
+## Terremoto Devastador (espada + escudo, slot 2 / tecla 2, no lugar do Golpe Sísmico): kit, carga antes do impacto
+## (rachaduras pequenas, energia, pedrinhas), parado enquanto bate, impacto na hora certa e no ponto à frente do
+## herói (explosão e tremor), onda crescendo até o raio, rachaduras e placas acompanhando a onda, pedras lançadas,
+## dano sincronizado com a passagem da onda (o perto antes do longe), os de fora sem dano, uma vez só por inimigo,
+## o herói sem dano, recarga do EarthquakeConfig, limpeza de todos os nós e o cancelamento pela esquiva.
+func _check_earthquake(player: Node, world: Node) -> void:
+	var cfg: EarthquakeConfig = EarthquakeAbilities.CONFIG
+	var back: Vector3 = player.global_position
+	var lv0: int = Game.level
+	Econ.test_force_level(maxi(lv0, 3))
+	Game.add_item("wooden_shield")
+	equip_any("wooden_shield")
+	await wait_until(func(): return Game.offhand_kind() == "shield" and Game.level >= 3)
+	var kit := Game.ability_kit()
+	check(kit.size() == 4 and kit[1] == "sword_earthquake" and not ("sword_quake" in kit),
+		"Terremoto: espada + escudo troca a habilidade 2 (%s)" % [kit])
+	check(Game.knows_ability("sword_earthquake"), "Terremoto: liberado no nível %d" % ItemDB.ABILITIES.sword_earthquake.level)
+	var count_fx := func(cls: String) -> int:
+		var n := 0
+		for c in get_tree().current_scene.find_children("*", cls, true, false):
+			if not c.is_queued_for_deletion():
+				n += 1
+		return n
+	var spot := Vector3(-105, 0.3, 44)   # fora da vila (a guarda abate monstro lá dentro)
+	player.global_position = spot
+	player.velocity = Vector3.ZERO
+	player.model.rotation.y = 0.0     # olhando para +Z: o escudo bate em spot + (0, 0, forward_offset)
+	await wait(0.25)
+	await wait_until(func(): return player.ability == "" and not player.attacking and player.dodge_timer <= 0.0)
+	var center: Vector3 = EarthquakeAbilities.impact_point(player.global_position, 0.0)
+	# monstros parados: 3 dentro do raio (perto, no meio, longe) e 2 fora
+	var mobs: Array = []
+	for off in [Vector3(1.4, 0, 0.6), Vector3(-3.6, 0, 3.0), Vector3(0.4, 0, cfg.radius - 1.4),
+			Vector3(cfg.radius + 3.0, 0, 0), Vector3(-cfg.radius - 3.5, 0, 2.0)]:
+		var e := Enemy.new()
+		e.kind = "slime"
+		world.add_child(e)
+		e.global_position = center + off
+		e.home = e.global_position
+		mobs.append(e)
+	await wait(0.15)
+	for e in mobs:
+		e.set_physics_process(false)
+	var inside := mobs.slice(0, 3)
+	var outside := mobs.slice(3)
+	var hp0 := {}
+	for e in mobs:
+		hp0[e] = e.hp
+	var hp_player: float = Game.hp
+	player.cooldowns.sword_earthquake = 0.0
+	player.invuln = 99.0   # os monstros não interferem (o teste é do golpe)
+	player.cast("sword_earthquake")
+	check(player.ability == "sword_earthquake", "Terremoto: a habilidade começa na tecla 2")
+	var skill: EarthquakeSkill = player.ability_data.get("skill")
+	check(is_instance_valid(skill) and skill.get_parent() == get_tree().current_scene, "Terremoto: EarthquakeSkill na cena do mundo")
+	var cd: float = player.cooldowns.sword_earthquake
+	check(cd >= cfg.cooldown * Game.cooldown_mult() - 0.01, "Terremoto: recarga do EarthquakeConfig (%.1f s)" % cd)
+	var flat_c := Vector2(skill.global_position.x - center.x, skill.global_position.z - center.z).length()
+	check(flat_c < 0.05, "Terremoto: centro à frente do herói, onde o escudo bate (%.2f m)" % flat_c)
+	# carga: rachaduras pequenas sob o ponto, energia e pedrinhas tremendo; o herói fica parado
+	await wait(cfg.windup_time * 0.6)
+	check(skill.state == EarthquakeSkill.State.CHARGE and skill.impact_at < 0.0 and is_instance_valid(skill.charge_cracks)
+		and skill.charge_cracks.wave_r > 0.05 and skill.debris.count() > 0 and skill.vfx.has_node("ChargeSheet"),
+		"Terremoto: carga antes do impacto (rachaduras pequenas, energia, pedrinhas tremendo)")
+	var pos_w: Vector3 = player.global_position
+	Input.action_press("move_forward")
+	await wait(0.15)
+	Input.action_release("move_forward")
+	check(Vector2(player.global_position.x - pos_w.x, player.global_position.z - pos_w.z).length() < 0.05,
+		"Terremoto: parado enquanto bate")
+	await wait_until(func(): return skill.impact_at >= 0.0, 2.0)
+	check(skill.impact_at >= 0.0 and absf(skill.impact_at - cfg.impact_time()) < 0.1,
+		"Terremoto: o escudo toca o chão no fim da descida (%.2f s, esperado %.2f)" % [skill.impact_at, cfg.impact_time()])
+	check(skill.ground.is_done() and is_instance_valid(skill.ring) and is_instance_valid(skill.cracks),
+		"Terremoto: chão medido e a onda montada antes do impacto")
+	check(count_fx.call("GroundImpact") == 1 and player.shake > 0.3, "Terremoto: explosão no impacto e a câmera treme (%.2f)" % player.shake)
+	check(count_fx.call("EarthquakeDamage") == 1, "Terremoto: o dano começa no impacto (EarthquakeDamage separado do visual)")
+	var ic: Vector3 = skill.impact_center
+	check(absf(ic.y - spot.y) < 1.5, "Terremoto: impacto no chão (altura %.2f, herói %.2f)" % [ic.y, spot.y])
+	# a onda passa pelo de perto antes do de longe
+	await wait(0.25)
+	var near_hit: bool = not is_instance_valid(inside[0]) or inside[0].dead or inside[0].hp < float(hp0[inside[0]])
+	var far_hit: bool = not is_instance_valid(inside[2]) or inside[2].dead or inside[2].hp < float(hp0[inside[2]])
+	check(near_hit and not far_hit, "Terremoto: o dano acompanha a onda (o perto já levou, o longe ainda não; onda %.1f m)" % skill.wave_r)
+	check(skill.wave_r > 0.5 and skill.wave_r < cfg.radius and skill.cracks.wave_r == skill.wave_r
+		and skill.cracks.plates_up < skill.plate_spots.size(), "Terremoto: rachaduras e placas acompanham a onda (não aparecem de uma vez)")
+	await wait_until(func(): return skill.state == EarthquakeSkill.State.DISSIPATE, 3.0)
+	check(is_equal_approx(skill.wave_r, cfg.radius), "Terremoto: a onda para no raio máximo (%.1f m)" % skill.wave_r)
+	check(skill.cracks.plates_up > 0 and skill.debris.count() > 20 and skill.secondary_done == skill.secondary_spots.size(),
+		"Terremoto: placas levantadas (%d), pedras lançadas (%d) e explosões secundárias (%d)" % [skill.cracks.plates_up, skill.debris.count(), skill.secondary_done])
+	await wait(0.2)
+	var hp1 := {}
+	for e in mobs:
+		hp1[e] = e.hp if is_instance_valid(e) else -1.0
+	var hit_in := inside.filter(func(e): return not is_instance_valid(e) or e.dead or float(hp1[e]) < float(hp0[e]))
+	check(hit_in.size() == inside.size(), "Terremoto: todos os %d monstros dentro do raio levam dano (%d)" % [inside.size(), hit_in.size()])
+	check(outside.all(func(e): return is_instance_valid(e) and is_equal_approx(e.hp, float(hp0[e]))),
+		"Terremoto: monstros fora do raio não levam dano")
+	check(Game.hp >= hp_player, "Terremoto: o próprio herói não leva dano")
+	check(count_fx.call("EarthquakeDamage") == 0, "Terremoto: o dano termina com a onda")
+	await wait(0.5)
+	check(inside.all(func(e): return not is_instance_valid(e) or e.dead or is_equal_approx(e.hp, float(hp1[e]))),
+		"Terremoto: cada monstro leva dano uma vez por ativação")
+	await wait_until(func(): return player.ability == "", 2.0)
+	check(player.ability == "" and player.cam_back == 0.0, "Terremoto: o herói fica livre e a câmera volta ao normal")
+	await wait_until(func(): return skill.debris == null or not is_instance_valid(skill.debris) or skill.debris.landed > 0, 1.0)
+	check(not is_instance_valid(skill) or not is_instance_valid(skill.debris) or skill.debris.landed > 0, "Terremoto: as pedras caem de volta no chão")
+	# tudo se dissipa e é liberado
+	await wait_until(func(): return not is_instance_valid(skill), cfg.dissipation_time + 4.0)
+	var left := 0
+	for cls in ["EarthquakeSkill", "GroundImpact", "ShockwaveRing", "GroundCrack", "RockDebris", "EarthquakeDust", "EarthquakeVFX", "EarthquakeDamage", "EarthquakeSheet"]:
+		left += count_fx.call(cls)
+	check(not is_instance_valid(skill) and left == 0, "Terremoto: onda, rachaduras, placas, pedras, poeira e energia removidas no fim (%d sobrando)" % left)
+	# esquiva antes do impacto cancela: sem onda nem dano
+	for e in mobs:
+		if is_instance_valid(e) and not e.dead:
+			hp0[e] = e.hp
+	player.cooldowns.sword_earthquake = 0.0
+	player.cast("sword_earthquake")
+	var skill2: EarthquakeSkill = player.ability_data.get("skill")
+	await wait(cfg.windup_time * 0.4)
+	check(EarthquakeAbilities.can_dodge_cancel(player), "Terremoto: esquiva pode cancelar antes do escudo tocar o chão")
+	EarthquakeAbilities.dodge_cancel(player)
+	check(player.ability == "" and skill2.state == EarthquakeSkill.State.CANCELED, "Terremoto: cancelado pela esquiva")
+	await wait_until(func(): return not is_instance_valid(skill2), 3.0)
+	check(not is_instance_valid(skill2) and count_fx.call("EarthquakeDamage") == 0
+		and mobs.all(func(e): return not is_instance_valid(e) or e.dead or is_equal_approx(e.hp, float(hp0[e]))),
+		"Terremoto: cancelado não fere ninguém e se libera")
+	for e in mobs:
+		if is_instance_valid(e):
+			e.queue_free()
+	# tira o escudo: o Golpe Sísmico volta
+	Game.unequip("offhand")
+	await wait_until(func(): return Game.offhand_kind() == "")
+	check(Game.ability_kit()[1] == "sword_quake", "Terremoto: sem escudo a habilidade 2 volta a ser o Golpe Sísmico")
+	Econ.test_force_level(lv0)
+	player.global_position = back
+	player.velocity = Vector3.ZERO
+	player.cooldowns.sword_earthquake = 0.0
 	player.invuln = 0.0
 	Game.hp = hp_player
 
@@ -1105,6 +1248,7 @@ func _ready() -> void:
 	check(Game.level < 3 and not Game.knows_ability("frost_nova") and ItemDB.ABILITIES.frost_nova.level == 3, "Nova Gélida só no nível 3")
 	await _check_aegis(player, world)
 	await _check_hammer(player, world)
+	await _check_earthquake(player, world)
 	await _check_dark_taunt(player, world)
 	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
 	# quem testar; resta conferir que há recarga para cada habilidade

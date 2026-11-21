@@ -474,6 +474,56 @@ static func taunt_pose(p: Dictionary, clip_t: float) -> void:
 			p.snap.append(j)
 
 
+## Terremoto Devastador: ergue o escudo por cima da cabeça e bate com ele no chão (KnightMoves.EARTHQUAKE_SLAM).
+## `phase` = EarthquakeRules.pose_phase (0 começo, 1 escudo no alto, 2 contato, 3 fim do apoio, 4 de volta): a
+## aceleração da descida já vem na fase, então as chaves se misturam em linha reta (sem frear perto do chão). As duas
+## mãos vão por IK (_guard_ik); o escudo fica de pé e de frente pela orientação da guarda (p.shield,
+## _shield_orient), então sobe erguido e desce com a borda de baixo na frente. As pernas abrem e afundam na descida
+## (e ficam presas à pose nela, para o agachamento chegar junto com o escudo).
+static func earthquake_pose(p: Dictionary, phase: float) -> void:
+	var k := _linear_key(KnightMoves.EARTHQUAKE_SLAM, phase)
+	var w := smoothstep(0.0, KnightMoves.EARTHQUAKE_LEAD, phase) * (1.0 - smoothstep(3.6, 4.0, phase))
+	if w <= 0.001:
+		return
+	var crouch := smoothstep(1.15, 2.0, phase) * (1.0 - smoothstep(3.0, 3.9, phase))
+	for j in ["leg_l", "knee_l", "leg_r", "knee_r"]:
+		var want := lerpf(float(KnightMoves.EARTHQUAKE_STANCE_UP[j]), float(KnightMoves.EARTHQUAKE_STANCE_DOWN[j]), crouch)
+		p[j] = lerpf(p[j], want, w)
+	p.body_y = lerpf(p.body_y, float(k[7]), w)
+	p.body_x = lerpf(p.body_x, float(k[5]), w)
+	p.twist = lerpf(p.twist, float(k[6]), w)
+	# a cabeça acompanha o escudo: para cima enquanto ele sobe, para o chão no golpe
+	var up := smoothstep(0.3, 1.0, phase) * (1.0 - smoothstep(1.0, 1.6, phase))
+	p.head_x = lerpf(p.head_x, -float(k[5]) * 0.35 - 0.3 * up + 0.12 * crouch, w)
+	p.head_y = lerpf(p.head_y, -float(k[6]) * 0.85, w)
+	for j in ["hip_twist", "leg_yaw", "lift"]:
+		p[j] = lerpf(p[j], 0.0, w)
+	p["guard"] = {"w": w, "hand_r": k[3], "elbow_r": k[4], "hand_l": k[1], "elbow_l": k[2]}
+	p["shield"] = {"w": w, "jolt": 0.0}
+	var snap := ["body_x", "body_y", "twist", "head_x", "head_y"]
+	if phase >= 0.9 and phase <= 2.6:
+		snap.append_array(["leg_l", "knee_l", "leg_r", "knee_r"])
+	for j in snap:
+		if not (j in p.snap):
+			p.snap.append(j)
+
+
+## Chave de uma trilha [fase, ...valores] na fase `x`, em linha reta entre as vizinhas (sem suavizar).
+static func _linear_key(keys: Array, x: float) -> Array:
+	if x <= float(keys[0][0]):
+		return keys[0]
+	for i in range(1, keys.size()):
+		var b: Array = keys[i]
+		if x <= float(b[0]):
+			var a: Array = keys[i - 1]
+			var u := (x - float(a[0])) / maxf(float(b[0]) - float(a[0]), 0.0001)
+			var out := [x]
+			for j in range(1, a.size()):
+				out.append(lerp(a[j], b[j], u))
+			return out
+	return keys[keys.size() - 1]
+
+
 ## Chave de um clipe medido (formato [t, ...valores]) no instante `t`, misturando as vizinhas; depois do fim, a última.
 static func clip_key(keys: Array, t: float) -> Array:
 	if t <= 0.0:

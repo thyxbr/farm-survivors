@@ -280,13 +280,16 @@ func test_kill_levels_up() -> void:
 	var r3 := CharRules.kill(s3, bt, "slime", CharRules.xp_to_next(2, bt))
 	T.eq(s3.level, 3, "nível 3")
 	T.eq(r3.events[2].text, "Nova habilidade: Golpe Sísmico [2]", "habilidade nova do kit")
-	# espada + escudo: no nível 3 chegam o Golpe Sísmico (slot 2) e o Martelo de Energia (slot 4, no lugar do Turbilhão)
+	# espada + escudo: no nível 3 chegam o Terremoto Devastador (slot 2, no lugar do Golpe Sísmico) e o Martelo de
+	# Energia (slot 4, no lugar do Turbilhão)
 	var ss := _blank()
 	ss.level = 2
 	ss.equipment["offhand"] = "wooden_shield"
 	var rs := CharRules.kill(ss, bt, "slime", CharRules.xp_to_next(2, bt))
-	T.eq(rs.events[2].text, "Nova habilidade: Martelo de Energia [4]", "com escudo: o Martelo na tecla 4")
-	T.eq(rs.events[3].text, "Nova habilidade: Golpe Sísmico [2]", "com escudo o Golpe Sísmico continua no slot 2")
+	var got := [rs.events[2].text, rs.events[3].text]
+	got.sort()
+	T.eq(got, ["Nova habilidade: Martelo de Energia [4]", "Nova habilidade: Terremoto Devastador [2]"],
+		"com escudo: o Terremoto na tecla 2 e o Martelo na tecla 4")
 	T.eq(rs.events[4].t, "level_up", "um aviso por habilidade nova")
 	# cajado equipado: Nova Gélida (nível 3), não a Cura da tabela de magias
 	var sc := _blank()
