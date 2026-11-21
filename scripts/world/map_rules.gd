@@ -7,7 +7,7 @@ extends RefCounted
 ## Nome no mapa -> landmark da cena do mapa (MapData.landmark); "" = o centro do mapa. As regiões de monstros
 ## (Toca dos Goblins, Ruínas de Valdoria, Ninho de Slimes...) vêm à parte, de areas().
 const PLACES := {
-	"vila": [["Vila de Valdoria", ""], ["Horta", "farm"], ["Pomar", "orchard"], ["Portal da Horda", "portal"]],
+	"vila": [["Vila de Valdoria", ""], ["Horta", "farm"], ["Pomar", "orchard"]],
 	"bosque": [["Pântano Sussurrante", ""]],
 	"mina": [["Geleira de Cristal", ""]],
 	"pico": [["Vulcão das Cinzas", ""]],

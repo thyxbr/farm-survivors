@@ -2329,7 +2329,7 @@ def build_robe(style, A):
     join_objs("Skirt", list(sk_soft) + list(sk_orn))
     join_objs("Mantle", list(soft) + list(orn))
     g_galaxy_uv(style)
-    export("gear/" + style, export_vertex_color='ACTIVE')
+    g_export_skinned(style)          # no corpo feminino/anão deforma antes e exporta _f/_d (não sobrescreve o masculino)
 
 
 def build_a_archmage():
@@ -3044,6 +3044,10 @@ def g_export_skinned(style):
     if globals().get("g_export") is globals().get("_g_export_f", 0):
         fem_warp()                     # cascas, enfeites e ossos vão para o corpo feminino pelos pesos
         export("gear/" + style + "_f", export_vertex_color='ACTIVE')
+        return
+    if globals().get("g_export") is globals().get("_g_export_d", 0):
+        dwarf_warp()                   # o mesmo para o corpo do anão (dwarf.py)
+        export("gear/" + style + "_d", export_vertex_color='ACTIVE')
         return
     export("gear/" + style, export_vertex_color='ACTIVE')
 

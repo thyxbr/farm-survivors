@@ -219,7 +219,7 @@ func _build_rows() -> void:
 		var cl := UITheme.label(info.name, 15, info.color)
 		cl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		sub.add_child(cl)
-		var wl := UITheme.label("· %s · %s" % [ItemDB.CLASS_NAMES.get(wc, wc), "Feminino" if e.get("body") == "f" else "Masculino"],
+		var wl := UITheme.label("· %s · %s" % [ItemDB.CLASS_NAMES.get(wc, wc), {"f": "Feminino", "d": "Anão"}.get(e.get("body"), "Masculino")],
 			14, UITheme.DIM)
 		wl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		sub.add_child(wl)

@@ -1,6 +1,6 @@
 ---
 name: smoke-check
-description: "Roda localmente os mesmos testes que o CI do Ecos de Valdoria roda antes do deploy (import, unitários, smoke test de gameplay, vila e multiplayer da Horda) e entrega um veredito PASSOU/FALHOU/NÃO RODOU por teste. Use antes de abrir PR, antes de merge no main, depois de mexer em gameplay ou rede, ou quando pedirem 'roda os testes'."
+description: "Roda localmente os mesmos testes que o CI do Ecos de Valdoria roda antes do deploy (import, unitários, smoke test de gameplay, vila e multiplayer) e entrega um veredito PASSOU/FALHOU/NÃO RODOU por teste. Use antes de abrir PR, antes de merge no main, depois de mexer em gameplay ou rede, ou quando pedirem 'roda os testes'."
 argument-hint: "[tudo | rapido | unit | gameplay | vila | rede]"
 license: MIT
 metadata:
@@ -64,8 +64,9 @@ grep -E "FALHOU|FALHA|testes," "$TEMP/unit.log"
 ```
 
 **1. Gameplay** (`tests/smoke_test.gd`, ~1 a 3 min): diálogo e missões, combate,
-magia, inventário e loja, save/load, chefe, morte, horta e caldeirão, Desafio da Horda,
-aviso de atualização.
+magia, inventário e loja, save/load, chefe, morte, horta e caldeirão,
+aviso de atualização. O Desafio da Horda está desligado (`Game.HORDE_ENABLED = false`): o teste dele é
+pulado e `--smoke-part=horda` não roda nada.
 
 ```bash
 timeout 600 "$G" --headless --path . res://scenes/world.tscn -- --smoketest > "$TEMP/smoke.log" 2>&1; echo "exit=$?"
@@ -73,16 +74,15 @@ timeout 600 "$G" --headless --path . res://scenes/world.tscn -- --smoketest > "$
 
 **2. Vila** (`tests/vila_test.gd`, solo, banco próprio apagado a cada vez): casas variadas, o Mestre Orin e o
 quadro de recordes, Ecos do fim de partida, passiva, cada painel abre e fecha, Papai Noel e os quatro eventos de
-Natal, réplica com emotes, Horda pelo portal da vila (arena num mapa à parte, volta na frente do portal) e a tela
-de carregamento.
+Natal, réplica com emotes e a tela de carregamento (com a Horda desligada, só confere que ela não abre).
 
 ```bash
 timeout 300 "$G" --headless --path . res://scenes/world.tscn -- --vilatest > "$TEMP/vila.log" 2>&1; echo "exit=$?"
 ```
 
-**3. Multiplayer da Horda** (servidor + 2 clientes, `tests/net_test.gd`). Todos os modos começam na vila
-(réplica com o nome, emote, recordes, Ecos de teste, passiva); Beto (`--horde=join`) aceita o convite da
-Horda na vila. Rode em
+**3. Multiplayer** (servidor + 2 clientes, `tests/net_test.gd`). Todos os modos começam na vila
+(réplica com o nome, emote, recordes, Ecos de teste, passiva); `--horde=lead|join` só separa quem age nos
+testes (a parte da Horda é pulada enquanto ela está desligada). Rode em
 segundo plano ou com tempo de sobra; espere o servidor dizer `ouvindo em UDP`.
 O servidor precisa de **banco novo** (`--db=` num arquivo apagado antes), da **API HTTP** numa porta livre
 (`--http-port=`) e de `--test` (ouro e Ecos de teste do net_test). Os clientes criam conta e fazem login
@@ -91,10 +91,10 @@ por `--auth-url=http://127.0.0.1:<porta-http>` (senha fixa do teste):
 ```bash
 P=$((7800 + RANDOM % 150)); H=$((P + 1000))
 DB="$TEMP/nettest_$P.db"; rm -f "$DB"
-"$G" --headless --path . -- --server --port=$P --http-port=$H --db="$DB" --test --horde-round=8 --horde-pick=5 > "$TEMP/server.log" 2>&1 & S=$!
+"$G" --headless --path . -- --server --port=$P --http-port=$H --db="$DB" --test > "$TEMP/server.log" 2>&1 & S=$!
 for i in $(seq 1 30); do grep -q "ouvindo em UDP" "$TEMP/server.log" && break; sleep 1; done
-timeout 180 "$G" --headless --path . -- --nettest=127.0.0.1:$P --auth-url=http://127.0.0.1:$H --peers=2 --name=Ana --horde=lead --horde-pick=5 > "$TEMP/ana.log" 2>&1 & A=$!
-timeout 180 "$G" --headless --path . -- --nettest=127.0.0.1:$P --auth-url=http://127.0.0.1:$H --peers=2 --name=Beto --horde=join --horde-pick=5 > "$TEMP/beto.log" 2>&1 & B=$!
+timeout 180 "$G" --headless --path . -- --nettest=127.0.0.1:$P --auth-url=http://127.0.0.1:$H --peers=2 --name=Ana --horde=lead > "$TEMP/ana.log" 2>&1 & A=$!
+timeout 180 "$G" --headless --path . -- --nettest=127.0.0.1:$P --auth-url=http://127.0.0.1:$H --peers=2 --name=Beto --horde=join > "$TEMP/beto.log" 2>&1 & B=$!
 wait $A; RA=$?; wait $B; RB=$?; kill $S
 grep -hE "PASS|FAIL|NETTEST" "$TEMP/ana.log" "$TEMP/beto.log"; echo "exit=$(( RA | RB ))"
 ```
@@ -129,7 +129,7 @@ de `server.log`), não FALHOU.
 | Unitários | PASSOU | 96 testes, 0 falharam |
 | Gameplay (--smoketest) | PASSOU | 74 PASS, 0 FAIL |
 | Vila (--vilatest) | PASSOU | 84 PASS, 0 FAIL |
-| Multiplayer Horda | NÃO RODOU | porta ocupada |
+| Multiplayer | NÃO RODOU | porta ocupada |
 
 Avisos: [erros no log com saída 0, arquivos sem cobertura, versão não subiu]
 

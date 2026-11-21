@@ -263,7 +263,7 @@ static func _frost_fx(origin: Vector3, dir: Vector3) -> void:
 ## Direção do raio: o rumo da mira (do peito até onde a câmera aponta) no plano horizontal. A inclinação
 ## da câmera fica de fora: a mira padrão aponta para o chão a ~10 m e o raio pararia ali.
 static func _gale_dir(player: Node) -> Vector3:
-	var d: Vector3 = player.aim_dir(player.global_position + Vector3.UP * GALE_HEIGHT)
+	var d: Vector3 = player.aim_dir(player.global_position + Vector3.UP * KnightLook.body_y(player, GALE_HEIGHT))
 	d.y = 0.0
 	if d.length() < 0.01:
 		return player.facing()
@@ -382,7 +382,7 @@ static func _gale_origin(player: Node) -> Vector3:
 	var tip: Node3D = player.look.get("tip")
 	if tip and is_instance_valid(tip) and tip.is_inside_tree():
 		return tip.global_position
-	return player.global_position + Vector3.UP * GALE_HEIGHT + player.facing() * 0.6
+	return player.global_position + Vector3.UP * KnightLook.body_y(player, GALE_HEIGHT) + player.facing() * 0.6
 
 
 ## Disparo (dono e réplicas): guarda a linha, para o vento da tensão e cria os efeitos do tiro.

@@ -2447,6 +2447,20 @@
 		"stack": true,
 		"desc": "Curva como uma foice. Ainda corta."
 	},
+	"frost_pelt": {
+		"name": "Pele da Geada",
+		"type": "material",
+		"price": 12,
+		"stack": true,
+		"desc": "Pelo azul que guarda o frio. Cai dos Lobos e Ietis da Geleira."
+	},
+	"ice_feather": {
+		"name": "Pena de Cristal",
+		"type": "material",
+		"price": 11,
+		"stack": true,
+		"desc": "A ponta virou gelo e não derrete. Cai das Gralhas da Geleira."
+	},
 	"goblin_crown": {
 		"name": "Coroa do Rei Goblin",
 		"type": "material",

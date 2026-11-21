@@ -22,6 +22,11 @@ const DODGE_SPEED := 13.0
 const DODGE_TIME := 0.36
 const SWING_TIMES := [0.42, 0.42, 0.6]
 const SWING_MULT := [1.0, 1.1, 1.6]
+## Espada com escudo: combo de 4 golpes (KnightMovesShield: três do combo e o giro no fim), mais longos que os
+## da espada sozinha; o dano de cada um acompanha a duração (mesmo dano por segundo do combo da espada).
+const SHIELD_SWING_TIMES := [0.5, 0.5, 0.6, 0.75]
+const SHIELD_SWING_MULT := [1.2, 1.3, 1.5, 2.0]
+const SHIELD_SPIN_PUSH := 4.0   ## o giro avança mais que um golpe comum (m/s)
 const PUNCH_TIMES := [0.3, 0.32, 0.5]   # sem arma: jab, direto e uppercut, mais rápidos que a espada
 const STAFF_TIMES := [0.4, 0.4, 0.6]
 const BOW_FULL := 0.85        # segundos para tensionar o arco por completo
@@ -288,11 +293,11 @@ func _snap_visuals() -> void:
 	reset_physics_interpolation()
 	if cape:
 		cape.reset()
-	var back_cape = model.get_meta("back_cape", null) if model else null
+	var back_cape = model.get_meta("back_cape") if model and model.has_meta("back_cape") else null
 	if back_cape != null and is_instance_valid(back_cape):
 		back_cape.reset()
 	if cam_yaw:
-		cam_yaw.global_position = global_position + Vector3.UP * 1.55
+		cam_yaw.global_position = global_position + Vector3.UP * KnightLook.body_y(self, 1.55)
 
 
 func _check_teleport() -> void:
@@ -676,7 +681,7 @@ func _take_blocked(amount: float, from_pos: Vector3) -> void:
 	if amount >= 0.5:
 		var chip: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
 		Game.hp -= chip
-		FX.damage_number(global_position + Vector3.UP * 2.0, str(int(round(chip))), Color(0.75, 0.8, 0.9), 44)
+		FX.damage_number(global_position + Vector3.UP * KnightLook.body_y(self, 2.0), str(int(round(chip))), Color(0.75, 0.8, 0.9), 44)
 	Game.stats_changed.emit()
 	if Game.hp <= 0:
 		_die()
@@ -697,7 +702,7 @@ func _block_fx(from_pos: Vector3) -> void:
 	var to := from_pos - global_position
 	to.y = 0
 	var side := to.normalized() if to.length() > 0.01 else facing()
-	FX.burst(global_position + Vector3.UP * 1.05 + side * 0.45, Color(1.0, 0.85, 0.45), 14, 3.5, 0.08, 0.35)
+	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 1.05) + side * 0.45, Color(1.0, 0.85, 0.45), 14, 3.5, 0.08, 0.35)
 	Sfx.play("sword_hit", 0.12, -2.0)
 	add_shake(0.12 + 0.05 * minf(_block_chain, 4))
 
@@ -741,7 +746,8 @@ func _try_attack() -> void:
 	_start_swing()
 
 
-## Fôlego de um golpe básico (o combo 1-2-3 custa um pouco mais a cada golpe): espada 5/6/7, cajado 2,5/3/3,5.
+## Fôlego de um golpe básico (o combo custa um pouco mais a cada golpe): espada 5/6/7 (o giro do combo com
+## escudo, 4º golpe, 8), cajado 2,5/3/3,5.
 static func swing_stamina(staff: bool, hit: int) -> float:
 	return (2.0 + hit * 0.5) if staff else (4.0 + hit * 1.0)
 
@@ -750,8 +756,11 @@ func _start_swing() -> void:
 	if Game.stamina < SWING_STAMINA_MIN:
 		Game.notify.emit("Sem fôlego!", Color(1, 0.8, 0.5))
 		return
-	combo = (combo % 3) + 1 if combo_window > 0 else 1
+	combo = (combo % _combo_len()) + 1 if combo_window > 0 else 1
 	attacking = true
+	_recover_t = -1.0
+	if _shield_combo():
+		_swing_from = KnightAnim.capture_pose(parts)   # o golpe nasce da pose em que o corpo está
 	attack_timer = 0.0
 	hit_done = false
 	var staff: bool = look["class"] == "staff"
@@ -763,6 +772,8 @@ func _start_swing() -> void:
 	if is_on_floor():
 		var f := facing()
 		var push := 1.5 if _unarmed() else 3.0   # o soco é um passo curto, não uma estocada
+		if _shield_combo() and _finisher():
+			push = SHIELD_SPIN_PUSH
 		velocity.x += f.x * push
 		velocity.z += f.z * push
 	Sfx.play(_attack_sound(), 0.1, -3.0 if _unarmed() else 0.0)
@@ -791,16 +802,18 @@ func _update_attack(delta: float) -> void:
 		attacking = false
 		combo_window = 0.45
 		if not (look["class"] == "bow" and aiming):   # mirando o arco continua de lado: sem desgirar
-			KnightAnim.reset_twist(parts)
+			_end_swing_twist()
 		if buffered_attack:
 			buffered_attack = false
 			_start_swing()
 
 
 func _do_hit() -> void:
-	var mult: float = SWING_MULT[combo - 1]
+	var shield := _shield_combo()
+	var mult: float = (SHIELD_SWING_MULT if shield else SWING_MULT)[clampi(combo, 1, _combo_len()) - 1]
 	var fist := _unarmed()
-	var reach := (2.0 if combo < 3 else 2.2) if fist else (2.4 if combo < 3 else 2.9)
+	var fin := _finisher()
+	var reach := (2.2 if fin else 2.0) if fist else (2.9 if fin else 2.4)
 	var hit_any := false
 	var flesh := false   # acertou algo que não é slime: lâmina em carne; só slime: só a lâmina
 	var hit_enemy := false
@@ -813,7 +826,7 @@ func _do_hit() -> void:
 		var dist := to.length()
 		if dist > reach + e.radius:
 			continue
-		if (combo < 3 or fist) and dist > 0.6 and f.dot(to.normalized()) < 0.3:
+		if (not fin or fist) and dist > 0.6 and f.dot(to.normalized()) < 0.3:
 			continue
 		var crit: bool = randf() < Game.crit_chance()
 		var dmg: float = EnchantHit.scale(e, Game.melee_damage() * mult * randf_range(0.9, 1.1) * (1.8 if crit else 1.0))
@@ -828,7 +841,7 @@ func _do_hit() -> void:
 	elif hit_enemy:
 		Sfx.play(Sfx.sword_hit(flesh, Sfx.heavy_sword(_weapon_id())), 0.1)
 	if hit_any:
-		add_shake(0.12 if combo < 3 else 0.22)
+		add_shake(0.22 if fin else 0.12)
 
 
 func _swing_time(c: int) -> float:
@@ -837,7 +850,39 @@ func _swing_time(c: int) -> float:
 			return STAFF_TIMES[clampi(c, 1, 3) - 1]
 		"bow":
 			return BOW_RECOVER
+	if _shield_combo():
+		return SHIELD_SWING_TIMES[clampi(c, 1, SHIELD_SWING_TIMES.size()) - 1]
 	return (PUNCH_TIMES if _unarmed() else SWING_TIMES)[clampi(c, 1, 3) - 1]
+
+
+## Espada com escudo na outra mão (do jogo local ou, numa réplica, do último visual recebido): o golpe básico
+## é o combo de 4 golpes de KnightMovesShield.
+func _shield_combo() -> bool:
+	if look["class"] != "sword" or _unarmed():
+		return false
+	var off := str(_last_look.get("offhand", "")) if remote else str(Game.equipment.get("offhand", ""))
+	return off != "" and str(ItemDB.get_item(off).get("needs", "")) == "sword"
+
+
+## Golpes do combo básico: 4 com espada e escudo, 3 nos outros.
+func _combo_len() -> int:
+	return SHIELD_SWING_TIMES.size() if _shield_combo() else 3
+
+
+## O golpe atual é o último do combo (giro da espada, uppercut, leque do cajado): mais alcance e tranco.
+func _finisher() -> bool:
+	return combo >= _combo_len()
+
+
+## Fim do golpe: o giro do tronco volta. No combo com escudo as trilhas emendam pelo giro em -PI..PI
+## (KnightAnim.unwind_twist), sem pular a pose; nos outros o giro zera na hora.
+func _end_swing_twist() -> void:
+	if _shield_combo():
+		KnightAnim.unwind_twist(parts)
+		_swing_from = KnightAnim.capture_pose(parts)   # se nenhum golpe emendar, a volta sai daqui
+		_recover_t = 0.0
+	else:
+		KnightAnim.reset_twist(parts)
 
 
 ## Arma equipada: a do jogo local ou, numa réplica de outro jogador, a do último visual recebido.
@@ -893,14 +938,14 @@ func spell_origin() -> Vector3:
 	var hand := model.find_child("ArmL_Hand", true, false) as MeshInstance3D
 	if hand and hand.is_inside_tree():
 		return hand.global_transform * hand.get_aabb().get_center() + facing() * 0.25
-	return global_position + Vector3.UP * 1.3 + facing() * 0.6
+	return global_position + Vector3.UP * KnightLook.body_y(self, 1.3) + facing() * 0.6
 
 
 func weapon_tip() -> Vector3:
 	var tip: Node3D = look.get("tip")
 	if tip and is_instance_valid(tip) and tip.is_inside_tree():
 		return tip.global_position
-	return global_position + Vector3.UP * 1.3 + facing() * 0.6
+	return global_position + Vector3.UP * KnightLook.body_y(self, 1.3) + facing() * 0.6
 
 
 ## Cajado: faísca arcana; o 3º golpe do combo dispara um leque de 3 mais fortes.
@@ -983,7 +1028,7 @@ func _update_bow(delta: float) -> void:
 func _update_aim_pitch() -> void:
 	var pitch := 0.0
 	if not remote and camera and ability != "bow_gale":   # o Vendaval sai na horizontal: o braço também
-		var shoulder := global_position + Vector3.UP * 1.42
+		var shoulder := global_position + Vector3.UP * KnightLook.body_y(self, 1.42)
 		pitch = clampf(asin(clampf(aim_dir(shoulder).y, -1.0, 1.0)), -0.9, 0.9)
 	parts["aim_pitch"] = lerpf(float(parts.get("aim_pitch", 0.0)), pitch, 0.35)
 
@@ -1167,7 +1212,7 @@ func receive_heal(amount: float) -> void:
 	var gained := minf(amount, Game.max_hp() - Game.hp)
 	Game.hp = min(Game.max_hp(), Game.hp + amount)
 	_heal_fx()
-	FX.damage_number(global_position + Vector3.UP * 2.2, "+%d" % maxf(gained, 0.0), Color(0.4, 1.0, 0.5))
+	FX.damage_number(global_position + Vector3.UP * KnightLook.body_y(self, 2.2), "+%d" % maxf(gained, 0.0), Color(0.4, 1.0, 0.5))
 	Game.stats_changed.emit()
 
 
@@ -1243,12 +1288,12 @@ func _find_heal_target() -> Node3D:
 	for p in get_tree().get_nodes_in_group("players"):
 		if p == self or not p.remote or p.dead or not p.is_visible_in_tree():
 			continue
-		var chest: Vector3 = p.global_position + Vector3.UP * 1.0
+		var chest: Vector3 = p.global_position + Vector3.UP * KnightLook.body_y(p, 1.0)
 		if chest.distance_to(global_position) > HEAL_RANGE or camera.is_position_behind(chest):
 			continue
 		# a silhueta toda conta: peito, cabeça e pés
 		var d := camera.unproject_position(chest).distance_to(center)
-		d = minf(d, camera.unproject_position(p.global_position + Vector3.UP * 1.9).distance_to(center))
+		d = minf(d, camera.unproject_position(p.global_position + Vector3.UP * KnightLook.body_y(p, 1.9)).distance_to(center))
 		d = minf(d, camera.unproject_position(p.global_position + Vector3.UP * 0.25).distance_to(center))
 		if d < best_d and _sees(p, chest):
 			best = p
@@ -1487,7 +1532,7 @@ func _frost_fx(radius: float) -> void:
 
 
 func _heal_fx() -> void:
-	HolyFX.heal_burst(global_position)
+	HolyFX.heal_burst(global_position, false, self)
 	Sfx.play_at("heal", global_position, 0.0)
 
 
@@ -1507,10 +1552,10 @@ func _on_food_eaten(id: String) -> void:
 	var it := ItemDB.get_item(id)
 	var c: Color = it.get("color", ItemDB.CROPS[id].color if ItemDB.CROPS.has(id) else Color(0.6, 1, 0.5))
 	Sfx.play("eat", 0.1)
-	FX.burst(global_position + Vector3.UP * 1.5, c, 18, 2.2, 0.08, 0.6, -4.0)
+	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 1.5), c, 18, 2.2, 0.08, 0.6, -4.0)
 	if it.has("buff"):
 		FX.ring(global_position, Color(c.r, c.g, c.b, 0.85), 2.2, 0.5)
-		FX.burst(global_position + Vector3.UP * 0.3, c, 30, 3.5, 0.1, 1.0, 3.0)
+		FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 0.3), c, 30, 3.5, 0.1, 1.0, 3.0)
 		Sfx.play("heal", 0.0, -5.0)
 	match it.get("special", ""):
 		"fire_nova":
@@ -1523,8 +1568,8 @@ func _on_food_eaten(id: String) -> void:
 func _food_fire_nova() -> void:
 	var radius := 7.5
 	FX.ring(global_position, Color(1, 0.45, 0.1, 0.95), radius, 0.55)
-	FX.burst(global_position + Vector3.UP * 0.6, Color(1, 0.5, 0.1), 70, 10.0, 0.16, 0.8, -1.0)
-	FX.burst(global_position + Vector3.UP * 1.0, Color(1, 0.85, 0.3), 40, 6.0, 0.12, 0.6, 2.0)
+	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 0.6), Color(1, 0.5, 0.1), 70, 10.0, 0.16, 0.8, -1.0)
+	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 1.0), Color(1, 0.85, 0.3), 40, 6.0, 0.12, 0.6, 2.0)
 	Sfx.play("explode", 0.05)
 	add_shake(0.35)
 	var dmg := (40.0 + Game.level * 6.0 + Game.spell_power() * 2.0) * Game.damage_mult()
@@ -1580,7 +1625,7 @@ func apply_web(secs: float) -> void:
 	if web_t <= 0.0:
 		Game.notify.emit("Preso na teia! Mal consegue andar.", Color(0.9, 0.9, 0.95))
 	web_t = maxf(web_t, secs)
-	FX.burst(global_position + Vector3.UP * 0.8, Color(0.92, 0.92, 0.96), 18, 2.0, 0.12, 0.7)
+	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 0.8), Color(0.92, 0.92, 0.96), 18, 2.0, 0.12, 0.7)
 
 
 func take_damage(amount: float, from_pos: Vector3) -> void:
@@ -1618,7 +1663,7 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 			velocity.x = kb.x
 			velocity.z = kb.z
 		velocity.y = 3.0
-	FX.damage_number(global_position + Vector3.UP * 2.0, str(int(round(final_dmg))), Color(1, 0.3, 0.25), 56)
+	FX.damage_number(global_position + Vector3.UP * KnightLook.body_y(self, 2.0), str(int(round(final_dmg))), Color(1, 0.3, 0.25), 56)
 	FX.burst(global_position + Vector3.UP, Color(0.8, 0.05, 0.05), 12, 3.0)
 	Sfx.play("hurt")
 	add_shake(0.3)
@@ -1729,6 +1774,8 @@ var _slash_combo := 0       ## golpe do combo cujo corte já foi desenhado (ver 
 var _slash_t := 0.0
 var _slash_done := false
 var _slash_el := ""         ## elemento do encantamento da arma: dá a cor do corte
+var _swing_from := {}       ## pose do corpo quando o golpe do combo com escudo começou (KnightAnim.capture_pose)
+var _recover_t := -1.0      ## s desde que o combo com escudo parou (volta à locomoção); < 0 = fora da volta
 
 
 func _update_equipment_visual() -> void:
@@ -1766,7 +1813,7 @@ func apply_look(l: Dictionary) -> void:
 
 func _on_level_up(_lvl: int) -> void:
 	Sfx.play("levelup", 0.0)
-	FX.burst(global_position + Vector3.UP * 0.2, Color(1, 0.85, 0.3), 60, 6.0, 0.12, 1.2, 3.0)
+	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 0.2), Color(1, 0.85, 0.3), 60, 6.0, 0.12, 1.2, 3.0)
 	FX.ring(global_position, Color(1, 0.85, 0.3, 0.9), 3.0, 0.8)
 
 
@@ -1819,12 +1866,16 @@ func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int,
 	if flags & NF_ATTACK:
 		if not attacking or c != combo:
 			Sfx.play_at(_attack_sound(), global_position, 0.1, -6.0)
+		if attacking and c != combo:
+			_end_swing_twist()   # golpe seguinte do combo: a trilha nova começa com o giro em -PI..PI
+		if (not attacking or c != combo) and _shield_combo():
+			_swing_from = KnightAnim.capture_pose(parts)
 		attacking = true
-		combo = clampi(c, 1, 3)
+		combo = clampi(c, 1, _combo_len())
 		attack_timer = attack_t
 	elif attacking:
 		attacking = false
-		KnightAnim.reset_twist(parts)
+		_end_swing_twist()
 	# a habilidade da réplica termina sozinha pelo tempo; o estado sem a flag a encerra antes (esquiva,
 	# morte). Uma folga ignora estado atrasado que chegue depois do evento de início. Sem morte, o fim é o
 	# macio do módulo (o da esquiva): a Chuva de Meteoros deixa os meteoros no ar caírem, mesmo se o estado
@@ -2064,6 +2115,10 @@ func _animate(delta: float) -> void:
 	# golpes, arco e magias: trilhas de KnightMoves por cima da locomoção
 	var cls: String = look["class"]
 	_cast_t += delta
+	if attacking or _recover_t >= KnightAnim.SHIELD_RECOVER:
+		_recover_t = -1.0   # golpe em curso (a réplica emendou outro) ou a volta acabou
+	elif _recover_t >= 0.0:
+		_recover_t += delta
 	var arrow: Node3D = look.get("arrow")
 	if arrow and is_instance_valid(arrow):
 		arrow.visible = drawing or ((ability == "bow_triple" and ability_t < BowAbilities.TRIPLE_DRAW) or (ability == "bow_frost" and ability_t < BowAbilities.FROST_DRAW)
@@ -2080,6 +2135,11 @@ func _animate(delta: float) -> void:
 		KnightAnim.staff_pose(p, combo, attack_timer / _swing_time(combo), _amp)
 	elif attacking and cls == "sword" and _unarmed():
 		KnightAnim.punch_pose(p, combo, attack_timer / _swing_time(combo), _amp)
+	elif attacking and cls == "sword" and _shield_combo():
+		KnightAnim.shield_combo_pose(p, combo, attack_timer / _swing_time(combo), _amp, _swing_from)
+		_slash_fx()
+	elif _recover_t >= 0.0 and dodge_timer <= 0.0 and not dead and cls == "sword" and _shield_combo():
+		KnightAnim.shield_recover_pose(p, _swing_from, _recover_t / KnightAnim.SHIELD_RECOVER)
 	elif attacking and cls == "sword":
 		KnightAnim.sword_pose(p, combo, attack_timer / _swing_time(combo), _amp)
 		_slash_fx()
@@ -2245,15 +2305,20 @@ func _look_gear(l: Dictionary) -> Dictionary:
 ## Corte desenhado do golpe de espada em curso, uma vez por golpe. Chamado de _animate, por onde passam
 ## o jogador local e as réplicas (que recebem combo e attack_timer pelo estado de rede).
 func _slash_fx() -> void:
-	var c := clampi(combo, 1, 3)
+	var c := clampi(combo, 1, _combo_len())
 	if c != _slash_combo or attack_timer < _slash_t - 0.1:   # outro golpe do combo, ou o relógio voltou
 		_slash_done = false
 	_slash_combo = c
 	_slash_t = attack_timer
-	if _slash_done or attack_timer / SWING_TIMES[c - 1] < FXToon.SWORD_COMBO[c - 1].at:
+	var shield := _shield_combo()
+	var at: float = (KnightMovesShield.SLASH[c - 1].at if shield else FXToon.SWORD_COMBO[c - 1].at)
+	if _slash_done or attack_timer / _swing_time(c) < at:
 		return
 	_slash_done = true
-	FXToon.sword_slash(self, model.rotation.y, c, slash_color())
+	if shield:
+		FXToon.shield_combo_slash(self, model.rotation.y, c, _swing_time(c), slash_color())
+	else:
+		FXToon.sword_slash(self, model.rotation.y, c, slash_color())
 
 
 ## Cor dos efeitos desenhados dos golpes: a do elemento do encantamento da arma ou, sem ele, a da arma.

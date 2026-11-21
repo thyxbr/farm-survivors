@@ -44,8 +44,7 @@ func test_places_come_from_landmarks() -> void:
 	T.eq(at.get("Pomar"), Vector3(20, 0, 33), "pomar")
 	T.ok(not at.has("Acampamento Goblin") and not at.has("Ruínas") and not at.has("Ninho de Slimes"),
 		"acampamento, ruínas e ninho viraram regiões (MapRules.areas)")
-	T.eq(at.get("Portal da Horda"), MapData.landmark("vila", "portal"), "o portal da Horda pelo landmark portal")
-	T.eq(at.get("Portal da Horda"), Vector3(-28, 0, 54), "portal da Horda no Largo dos Ecos da vila")
+	T.ok(not at.has("Portal da Horda"), "Horda desligada: o portal não aparece no mapa")
 
 
 func test_coach_and_arrive_from_landmarks() -> void:

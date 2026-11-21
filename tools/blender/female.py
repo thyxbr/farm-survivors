@@ -150,9 +150,10 @@ def _pivot_region(W, ob):
     return "body"
 
 
-def fem_warp(objs=None):
-    """Deforma a cena inteira (ou objs) do corpo masculino para o feminino. Empties, ossos e malhas."""
-    W = FemWarp()
+def fem_warp(objs=None, W=None):
+    """Deforma a cena inteira (ou objs) do corpo masculino para o feminino. Empties, ossos e malhas.
+    W: outra deformação com a mesma interface (region/xf), como a do anão (dwarf.py)."""
+    W = W or FemWarp()
     objs = list(objs if objs is not None else coll.all_objects)
     empties = [o for o in objs if o.type == 'EMPTY']
     arms = [o for o in objs if o.type == 'ARMATURE']
