@@ -47,6 +47,8 @@ const M := {
 	"forge": preload("res://assets/models/forge.glb"),
 }
 const ENEMY := preload("res://scripts/enemies/enemy.gd")
+## Na dungeon o monstro larga o jogador a 24 m de casa (no mundo aberto são 45): corredor não junta trem.
+const DUNGEON_LEASH := 24.0
 const BLACKSMITH := preload("res://scripts/world/blacksmith.gd")
 const SIGNPOST := preload("res://scripts/world/signpost.gd")
 const ELDER := preload("res://scripts/world/elder.gd")
@@ -572,6 +574,8 @@ func _spawn(entry: Dictionary) -> void:
 	e.area = str(entry.get("area", ""))
 	e.chief = bool(entry.get("chief", false))
 	e.arena = entry.get("arena", Rect2())
+	if entry.has("dungeon") and not e.arena.has_area():
+		e.leash = DUNGEON_LEASH
 	e.level = ProgressionRules.spawn_level(Balance.tables, entry.get("level", 0), entry.get("level_max", 0), e.elite, _spawn_rng)
 	e.position = entry.pos + Vector3.UP * 0.2
 	add_child(e)

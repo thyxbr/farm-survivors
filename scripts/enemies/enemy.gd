@@ -75,6 +75,9 @@ var chief := false
 ## Sala do chefe de dungeon (x, z do mundo; vazio = sem arena): o chefe só enxerga quem está dentro dela, persegue
 ## qualquer um lá dentro e, quando todos saem, perde o agro, volta para casa e se cura.
 var arena := Rect2()
+## Até quantos metros de casa persegue antes de desistir e voltar (na dungeon é curto: andar pelos corredores não
+## junta um trem de monstros atrás do jogador).
+var leash := 45.0
 var state := "idle"
 var state_timer := 0.0
 var attack_cd := 0.0
@@ -771,7 +774,7 @@ func _physics_process(delta: float) -> void:
 					_begin_attack()
 				elif dist > data.reach * 0.8:
 					move = to_player.normalized() * spd
-			elif dist == INF or (not arena.has_area() and (global_position.distance_to(home) > 45.0
+			elif dist == INF or (not arena.has_area() and (global_position.distance_to(home) > leash
 					or (dist > data.aggro * 1.9 and provoked <= 0.0))):
 				_set_state("return")   # sem alvo (morreu ou entrou na vila, sob a guarda) também volta
 			elif ai() == "ranged" or ai() == "caster" or ai() == "flee":
