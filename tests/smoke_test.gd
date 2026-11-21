@@ -2362,7 +2362,7 @@ func _test_dungeons() -> void:
 		var hp0: float = Game.hp
 		player.global_position = o + Vector3(0, 0.3, -20.0)   # antecâmara, na frente do portão
 		await wait(1.0)
-		check(king.state in ["idle", "wander"], "chefe não ataca quem está fora da sala (estado %s)" % king.state)
+		check(king.state in ["idle", "wander", "return"], "chefe não ataca quem está fora da sala (estado %s)" % king.state)   # "return": o Forjador anda devagar e ainda pode estar voltando para casa
 		player.global_position = o + Vector3(14.0, 0.3, -26.0)   # dentro da sala, longe do alcance normal de agro
 		await wait(0.6)
 		check(king.state in ["chase", "attack"], "chefe persegue quem entra na sala (estado %s)" % king.state)
