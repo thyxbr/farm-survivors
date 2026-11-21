@@ -552,6 +552,10 @@
 		"bld": 2.5,
 		"loot": [
 			[
+				"iron_zweihander",
+				0.08
+			],
+			[
 				"goblin_crown",
 				1.0
 			],
@@ -749,6 +753,10 @@
 		"slam_every": 3,
 		"bld": 2.0,
 		"loot": [
+			[
+				"highland_claymore",
+				0.1
+			],
 			[
 				"bone_shard",
 				1.0
@@ -975,6 +983,10 @@
 		},
 		"bld": 2.5,
 		"loot": [
+			[
+				"eclipse_greatsword",
+				0.04
+			],
 			[
 				"arcane_crystal",
 				1.0
@@ -1520,6 +1532,10 @@
 		"emerge_radius": 3.5,
 		"loot": [
 			[
+				"ember_flamberge",
+				0.1
+			],
+			[
 				"arcane_crystal",
 				1.0
 			],
@@ -1651,6 +1667,10 @@
 			"lobo_alfa"
 		],
 		"loot": [
+			[
+				"highland_claymore",
+				0.1
+			],
 			[
 				"frost_pelt",
 				1.0

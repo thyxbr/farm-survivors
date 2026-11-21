@@ -151,6 +151,86 @@
 		"desc": "Esculpida do dente de um dragão ancião. Cada golpe bebe vida.",
 		"model": "w_dragonfang"
 	},
+	"iron_zweihander": {
+		"name": "Montante de Ferro",
+		"type": "weapon",
+		"class": "sword",
+		"two_handed": true,
+		"rarity": "common",
+		"level": 10,
+		"damage": 17,
+		"price": 90,
+		"color": {
+			"$c": [0.8, 0.82, 0.86, 1.0]
+		},
+		"shape": "great",
+		"desc": "Espada de duas mãos com ganchos de aparo. Lenta, mas cada golpe varre quem estiver na frente.",
+		"model": "w_iron_zweihander"
+	},
+	"highland_claymore": {
+		"name": "Claymore das Terras Altas",
+		"type": "weapon",
+		"class": "sword",
+		"two_handed": true,
+		"rarity": "uncommon",
+		"level": 18,
+		"damage": 27,
+		"price": 200,
+		"color": {
+			"$c": [0.7, 0.85, 0.78, 1.0]
+		},
+		"shape": "great",
+		"stats": {
+			"str": 3,
+			"vit": 2
+		},
+		"desc": "Guarda em V com quadrifólios, empunhadura de couro verde. Arma de quem segura a linha sozinho.",
+		"model": "w_highland_claymore"
+	},
+	"ember_flamberge": {
+		"name": "Flamberge Ardente",
+		"type": "weapon",
+		"class": "sword",
+		"two_handed": true,
+		"rarity": "rare",
+		"level": 26,
+		"damage": 36,
+		"price": 340,
+		"color": {
+			"$c": [1.0, 0.55, 0.25, 1.0]
+		},
+		"glow": 0.8,
+		"shape": "great",
+		"stats": {
+			"str": 4,
+			"crit": 0.05
+		},
+		"desc": "A lâmina ondulada rasga em vez de cortar, e o veio de brasa nunca esfria.",
+		"model": "w_ember_flamberge"
+	},
+	"eclipse_greatsword": {
+		"name": "Montante do Eclipse",
+		"type": "weapon",
+		"class": "sword",
+		"two_handed": true,
+		"rarity": "legendary",
+		"level": 44,
+		"named": true,
+		"damage": 58,
+		"price": 1100,
+		"color": {
+			"$c": [0.72, 0.5, 1.0, 1.0]
+		},
+		"glow": 1.2,
+		"shape": "great",
+		"stats": {
+			"str": 7,
+			"hp": 40,
+			"leech": 0.03
+		},
+		"desc": "Duas luas abraçam um sol apagado na guarda. As runas acendem a cada golpe que bebe vida.",
+		"model": "w_eclipse_greatsword"
+	},
 	"azure_edge": {
 		"name": "Gume Celeste",
 		"type": "weapon",
