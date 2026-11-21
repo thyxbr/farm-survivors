@@ -5,7 +5,7 @@ extends RefCounted
 ## recordes da Horda e da Cidade). O título escolhido fica em flags["title"] ("" = sem título).
 ## Regras puras (sem autoload): o servidor/solo valida o pedido e o cliente lista os liberados.
 
-## id -> {"name", "desc", "level"?, "rank"?, "horde"? (rodada), "city"? (noites)}. A ordem é a da lista.
+## id -> {"name", "desc", "level"?, "rank"?, "horde"? (rodada), "city"? (noites), "bestiary"? (família)}. A ordem é a da lista.
 const TITLES := {
 	"recem_chegado": {"name": "Recém-chegado", "desc": "Chegou a Valdoria."},
 	"aventureiro": {"name": "Aventureiro", "desc": "Alcance o nível 10.", "level": 10},
@@ -18,6 +18,15 @@ const TITLES := {
 	"sobrevivente": {"name": "Sobrevivente da Horda", "desc": "Passe da rodada 10 do Desafio da Horda.", "horde": 10},
 	"flagelo_horda": {"name": "Flagelo da Horda", "desc": "Passe da rodada 25 do Desafio da Horda.", "horde": 25},
 	"guardiao_noite": {"name": "Guardião da Noite", "desc": "Defenda a cidade por 10 noites.", "city": 10},
+	# bestiário (BestiaryRules grava flags["bst_<família>"] quando a família fica completa)
+	"flagelo_slimes": {"name": "Flagelo dos Slimes", "desc": "Complete os Slimes no Bestiário.", "bestiary": "slimes"},
+	"terror_goblins": {"name": "Terror dos Goblins", "desc": "Complete os Goblins no Bestiário.", "bestiary": "goblins"},
+	"exorcista": {"name": "Exorcista", "desc": "Complete os Mortos-vivos no Bestiário.", "bestiary": "mortos"},
+	"cacador_vale": {"name": "Caçador do Vale", "desc": "Complete as Feras do Vale no Bestiário.", "bestiary": "feras"},
+	"rato_caverna": {"name": "Rato de Caverna", "desc": "Complete as Cavernas no Bestiário.", "bestiary": "cavernas"},
+	"lobo_gelo": {"name": "Lobo do Gelo", "desc": "Complete as Terras Geladas no Bestiário.", "bestiary": "gelo"},
+	"matador_chefes": {"name": "Matador de Chefes", "desc": "Complete os Chefes no Bestiário.", "bestiary": "chefes"},
+	"mestre_bestiario": {"name": "Mestre do Bestiário", "desc": "Complete o Bestiário inteiro.", "bestiary": "all"},
 }
 
 const RANKS := ["D", "C", "B", "A", "S"]
@@ -35,6 +44,8 @@ static func is_unlocked(id: String, level: int, flags: Dictionary) -> bool:
 	if t.has("horde") and horde_round(flags) < int(t.horde):
 		return false
 	if t.has("city") and int(flags.get("city_best", 0)) < int(t.city):
+		return false
+	if t.has("bestiary") and not flags.get("bst_" + str(t.bestiary), false):
 		return false
 	return true
 

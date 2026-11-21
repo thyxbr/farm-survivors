@@ -329,14 +329,14 @@ func grant(gold: int, xp: int, items: Dictionary, source: String, silent := fals
 
 
 ## Abate (XP, contagem, progresso de missão, chefe). Só offline, como grant().
-func kill(kind: String, xp: int, enemy_level := 0, area := "") -> void:
+func kill(kind: String, xp: int, enemy_level := 0, area := "", drops := {}) -> void:
 	if Network.is_online():
 		client_grant_errors += 1
 		push_error("concessão no cliente online: abate de %s (xp %d)" % [kind, xp])
 		return
 	if not ensure_solo():
 		return
-	_deliver("kill", [kind, xp], _svc.kill(SOLO_ACCOUNT, kind, xp, enemy_level, 0, area))
+	_deliver("kill", [kind, xp], _svc.kill(SOLO_ACCOUNT, kind, xp, enemy_level, 0, area, drops))
 
 
 ## Começo de uma partida no solo: abre o registro (runs) e devolve o run_id. Online não faz nada (0): quem
@@ -688,11 +688,12 @@ func server_grant(peer: int, gold: int, xp: int, items: Dictionary, source: Stri
 
 
 ## Servidor: abate (XP, contagem, missões, chefe) no personagem do peer.
-func server_kill(peer: int, kind: String, xp: int, enemy_level := 0, group_level := 0, area := "") -> Dictionary:
+func server_kill(peer: int, kind: String, xp: int, enemy_level := 0, group_level := 0, area := "",
+		drops := {}) -> Dictionary:
 	var char_id := char_of(peer)
 	if char_id <= 0 or Network.characters == null:
 		return {"ok": false, "err": "sem_sessao", "events": [], "state": {}}
-	var r := Network.characters.kill(char_id, kind, xp, enemy_level, group_level, area)
+	var r := Network.characters.kill(char_id, kind, xp, enemy_level, group_level, area, drops)
 	server_push(peer, r)
 	return r
 
@@ -719,8 +720,9 @@ func server_spawn_pickup(peer: int, zone: String, pos: Vector3, gold: int, items
 
 
 ## Servidor: sorteio do loot de um inimigo (LootRules) para um jogador, em pickups (um sorteio por jogador).
+## Devolve o que saiu da tabela do monstro (antes da troca por classe), para o bestiário.
 func server_drop_loot(peer: int, kind: String, pos: Vector3, zone := "world", level := 0, elite := false,
-		chief := false) -> void:
+		chief := false) -> Dictionary:
 	var cls := ""
 	var char_id := char_of(peer)
 	if char_id > 0 and Network.characters != null:
@@ -732,6 +734,7 @@ func server_drop_loot(peer: int, kind: String, pos: Vector3, zone := "world", le
 		server_spawn_pickup(peer, zone, pos, int(loot.gold), {})
 	for id in loot.items:
 		server_spawn_pickup(peer, zone, pos, 0, {id: int(loot.items[id])})
+	return loot.get("rolled", {})
 
 
 func _sender_char() -> int:
