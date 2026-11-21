@@ -266,7 +266,8 @@ func _snap_visuals() -> void:
 	reset_physics_interpolation()
 	if cape:
 		cape.reset()
-	var back_cape = model.get_meta("back_cape", null) if model else null
+	# get_meta com padrão null ainda acusa erro se a chave falta: confere antes
+	var back_cape = model.get_meta("back_cape") if model and model.has_meta("back_cape") else null
 	if back_cape != null and is_instance_valid(back_cape):
 		back_cape.reset()
 	if cam_yaw:
@@ -1271,6 +1272,8 @@ func set_heal_highlight(on: bool) -> void:
 func _ab_module(id: String) -> Object:
 	if id == GatherAction.ID:
 		return GatherAction
+	if id.begins_with(ShieldAbilities.ID):   # a Égide (e os eventos dela) é da espada, mas tem módulo próprio
+		return ShieldAbilities
 	var cls := ""
 	if ItemDB.ABILITIES.has(id):
 		cls = ItemDB.ABILITIES[id]["class"]
@@ -1318,6 +1321,10 @@ func end_ability() -> void:
 	if ability == GatherAction.ID and gather_tool != "":
 		gather_tool = ""   # guarda a ferramenta: a arma equipada volta para a mão
 		refresh_look.call_deferred()
+	# fim próprio da habilidade (ex.: a Égide dissolve a barreira e começa a recarga), por qualquer caminho
+	var on_end: Callable = ability_data.get("on_end", Callable())
+	if on_end.is_valid():
+		on_end.call()
 	for n in ability_data.get("nodes", []):
 		if is_instance_valid(n):
 			n.queue_free()
@@ -1473,9 +1480,17 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 		return
 	if dead or invuln > 0 or Loading.covering:   # coberto pela tela de carregamento: imune
 		return
+	var final_dmg: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
+	# Égide Cristalina erguida: o escudo absorve primeiro (integridade própria); só o que sobra chega à vida
+	if ability == ShieldAbilities.ID:
+		final_dmg = ShieldAbilities.absorb(self, final_dmg, from_pos)
+		if final_dmg <= 0.0:
+			# imunidade curta: o escudo segura cada golpe, mas vários monstros batendo juntos o desgastam
+			invuln = ShieldAbilities.SHIELD_INVULN
+			add_shake(0.12)
+			return
 	if Game.admin_mode():
 		return
-	var final_dmg: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
 	Game.hp -= final_dmg
 	Game.add_fury(final_dmg / Game.max_hp() * 25.0)
 	invuln = 0.45

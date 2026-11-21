@@ -18,7 +18,7 @@ signal farm_changed
 signal item_looted(id: String, qty: int)
 ## O encanto da arma equipada mudou (encantou no ferreiro ou trocou de arma).
 signal enchant_changed
-signal kit_changed   # a classe da arma equipada mudou
+signal kit_changed   # a classe da arma equipada mudou (ou o escudo entrou/saiu: troca a habilidade 1 da espada)
 
 const SETTINGS_PATH := "user://settings.cfg"
 const WORLD_SCENE := "res://scenes/world.tscn"
@@ -708,7 +708,17 @@ func knows_ability(id: String) -> bool:
 
 ## Habilidades da arma equipada (slots 1..4, em ordem).
 func ability_kit() -> Array[String]:
-	return ItemDB.kit(CharRules.class_weapon(Balance.tables, char_class))
+	return ItemDB.kit(CharRules.class_weapon(Balance.tables, char_class), offhand_kind())
+
+
+## Tipo da mão secundária que muda o kit: "shield" com uma espada E um escudo nas mãos; senão "".
+func offhand_kind() -> String:
+	if equipment.get("weapon", "") == "" or weapon_class() != "sword":
+		return ""
+	var off: String = equipment.get("offhand", "")
+	if off != "" and ItemDB.get_item(off).get("needs", "") == "sword":
+		return "shield"
+	return ""
 
 
 # ---------------------------------------------------------------- modo admin
@@ -1257,6 +1267,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 	var old_hp := max_hp()
 	var old_mp := max_mp()
 	var old_class := weapon_class()
+	var old_off := offhand_kind()
 	var quests_before := quests
 	var farm_before := farm
 	var enchant_before := weapon_enchant()
@@ -1301,7 +1312,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 	inventory_changed.emit()
 	if weapon_enchant() != enchant_before:
 		enchant_changed.emit()
-	if weapon_class() != old_class:
+	if weapon_class() != old_class or offhand_kind() != old_off:
 		kit_changed.emit()
 	if quests != quests_before:
 		quests_changed.emit()

@@ -53,6 +53,202 @@ func equip_any(id: String, use := false) -> void:
 	Econ.test_force_level(lv0)
 
 
+## Égide Cristalina (espada + escudo, slot 1): kit, formação, absorção com rachaduras, quebra, dissipação,
+## limpeza dos nós e o fim por soltar a tecla. Volta sem escudo e com a vida de antes.
+func _check_aegis(player: Node, world: Node) -> void:
+	var cfg: AegisConfig = ShieldAbilities.CONFIG
+	Game.add_item("wooden_shield")
+	equip_any("wooden_shield")
+	await wait_until(func(): return Game.offhand_kind() == "shield")
+	check(Game.ability_kit()[0] == "sword_aegis" and Game.ability_kit().size() == 4,
+		"Égide: espada + escudo troca a habilidade 1 (%s)" % [Game.ability_kit()])
+	await wait_until(func(): return player.ability == "" and not player.attacking and player.dodge_timer <= 0.0)
+	var hp0: float = Game.hp
+	var count_fx := func(cls: String) -> int:
+		var n := 0
+		for c in get_tree().current_scene.find_children("*", cls, true, false):
+			if not c.is_queued_for_deletion():
+				n += 1
+		return n
+	player.cooldowns.sword_aegis = 0.0
+	player.cast("sword_aegis")   # slot 0 = fica erguido até release(), como a tecla segurada
+	check(player.ability == "sword_aegis", "Égide: a habilidade começa")
+	var bar: AegisBarrier = player.ability_data.get("barrier")
+	check(is_instance_valid(bar) and bar.get_parent() == player, "Égide: barreira nasce presa ao jogador")
+	var rings0: Vector2 = bar.rings.angles()
+	await wait(cfg.circle_form_time + 0.05)
+	var dr: Vector2 = bar.rings.angles() - rings0
+	check(bar.ground.formed() >= 1.0, "Égide: círculo mágico formado em %.2f s" % cfg.circle_form_time)
+	check(dr.x > 0.0 and dr.y < 0.0, "Égide: anéis giram em sentidos opostos (%.2f / %.2f rad)" % [dr.x, dr.y])
+	var early := bar.formed()
+	await wait(cfg.barrier_form_time + 0.2)
+	check(early < 0.9 and bar.formed() >= 0.99, "Égide: barreira cresce aos poucos (%.2f -> %.2f)" % [early, bar.formed()])
+	var low_first := bar.plates[0].h01 < bar.plates[bar.plates.size() - 1].h01
+	check(bar.plates.size() == AegisBarrier.layout(cfg.plate_count, cfg.shield_width, cfg.shield_height, cfg.plate_rows).size() and low_first, "Égide: %d placas em losango, de baixo para cima" % bar.plates.size())
+	check(player.model.visible and cfg.plate_fill < 0.5, "Égide: personagem visível dentro (preenchimento %.2f)" % cfg.plate_fill)
+	var pos0: Vector3 = player.global_position
+	await wait(0.3)
+	check(bar.global_position.distance_to(player.global_position) < 0.01, "Égide: círculo acompanha o jogador")
+	# golpes: o escudo absorve (a vida não cai) e as rachaduras crescem
+	var st: Dictionary = player.ability_data.aegis
+	var mx: float = st.max
+	var raw := func(final: float) -> float: return final * (50.0 + Game.defense() * 4.0) / 50.0
+	var src: Vector3 = player.global_position + Vector3(0, 1, 3)
+	var avg_crack := func() -> float:
+		var s := 0.0
+		for p in bar.plates:
+			s += p.damage()
+		return s / bar.plates.size()
+	player.invuln = 0.0
+	var hp_hit: float = Game.hp   # a vida regenera com o tempo: compara com a de logo antes do golpe
+	player.take_damage(raw.call(mx * 0.4), src)
+	var c1: float = avg_crack.call()
+	check(is_equal_approx(Game.hp, hp_hit) and absf(AegisRules.fraction(st) - 0.6) < 0.02,
+		"Égide: 40%% do escudo absorvido sem tocar na vida (integridade %.2f)" % AegisRules.fraction(st))
+	await wait(0.5)
+	player.invuln = 0.0
+	player.take_damage(raw.call(mx * 0.4), src)
+	var c2: float = avg_crack.call()
+	check(c1 > 0.0 and c2 > c1, "Égide: rachaduras crescem com o dano (%.2f -> %.2f)" % [c1, c2])
+	check(bar.plates.any(func(p): return p.crack.visible), "Égide: efeito de rachadura aparece nas placas")
+	await wait(0.5)
+	# quebra: o que passa da integridade vai para a vida, a guarda cai e a barreira estoura
+	player.invuln = 0.0
+	var hp_b: float = Game.hp
+	player.take_damage(raw.call(mx * 0.5), src)
+	check(player.ability == "" and st.broken, "Égide: integridade zero tira a proteção na hora")
+	check(absf((hp_b - Game.hp) - mx * 0.3) < 1.0, "Égide: só o excesso (%.1f) vai para a vida (perdeu %.1f)" % [mx * 0.3, hp_b - Game.hp])
+	check(bar.is_broken() and is_instance_valid(bar), "Égide: barreira entra na quebra (pulsação)")
+	check(player.cooldowns.sword_aegis >= ItemDB.ABILITIES.sword_aegis.cooldown, "Égide: recarga começa no fim (%.1f s)" % player.cooldowns.sword_aegis)
+	await wait(cfg.break_delay + 0.1)
+	check(count_fx.call("AegisShards") >= 1 and count_fx.call("AegisDissipate") >= 1, "Égide: fragmentos e partículas na quebra")
+	await wait(cfg.dissipate_time + 1.0)
+	check(not is_instance_valid(bar), "Égide: barreira liberada depois da dissipação")
+	check(count_fx.call("AegisShards") == 0 and count_fx.call("AegisDissipate") == 0, "Égide: fragmentos e partículas limpos")
+	# soltar a tecla: dissolve sem estouro e também se libera
+	player.cooldowns.sword_aegis = 0.0
+	player.invuln = 0.0
+	player.cast("sword_aegis")
+	var bar2: AegisBarrier = player.ability_data.get("barrier")
+	await wait(0.4)
+	ShieldAbilities.release(player)
+	check(player.ability == "" and bar2.state == AegisBarrier.State.DISSOLVING, "Égide: soltar a tecla dissolve o escudo")
+	await wait(cfg.dissipate_time)
+	check(not is_instance_valid(bar2) and count_fx.call("AegisDissipate") == 0, "Égide: dissolver também limpa tudo")
+	player.invuln = 0.0
+	var hp_c: float = Game.hp
+	player.take_damage(raw.call(5.0), src)
+	check(Game.hp < hp_c - 4.0, "Égide: sem escudo erguido o dano volta para a vida")
+	await _check_aegis_wall(player, world, cfg)
+	# tira o escudo: a Investida volta
+	Game.unequip("offhand")
+	await wait_until(func(): return Game.offhand_kind() == "")
+	check(Game.ability_kit()[0] == "sword_charge", "Égide: sem escudo a habilidade 1 volta a ser a Investida")
+	Game.hp = hp0
+	player.global_position = pos0
+	player.cooldowns.sword_aegis = 0.0
+	player.invuln = 0.0
+
+
+## Égide como parede: ao se formar empurra os monstros de perto; depois nenhum entra nem projétil atravessa (o
+## golpe vai para o escudo); quebrou ou soltou, a parede some.
+func _check_aegis_wall(player: Node, world: Node, cfg: AegisConfig) -> void:
+	var back: Vector3 = player.global_position
+	var spot := Vector3(-105, 0.3, 40)   # fora da vila (a guarda abate monstro lá dentro)
+	player.global_position = spot
+	player.velocity = Vector3.ZERO
+	await wait(0.2)
+	var mobs: Array = []
+	for off in [Vector3(1.0, 0, 0.3), Vector3(-1.2, 0, 0.8), Vector3(0.4, 0, -1.5), Vector3(5.5, 0, 0)]:
+		var e := Enemy.new()
+		e.kind = "slime"
+		world.add_child(e)
+		e.global_position = spot + off
+		e.home = e.global_position
+		mobs.append(e)
+	await wait(0.1)
+	var flat := func(e: Node3D) -> float:
+		return Vector2(e.global_position.x - player.global_position.x, e.global_position.z - player.global_position.z).length()
+	check(flat.call(mobs[0]) < 1.5 and flat.call(mobs[1]) < 1.5, "Égide parede: monstros começam colados no jogador")
+	player.cooldowns.sword_aegis = 0.0
+	player.invuln = 0.0
+	player.cast("sword_aegis")
+	var wall: Dictionary = player.ability_data.get("wall", {})
+	check(not wall.is_empty() and AegisWalls.walls.has(wall), "Égide parede: a parede entra no registro")
+	await wait(0.15)
+	var mid: float = flat.call(mobs[0])
+	await wait(cfg.circle_form_time + cfg.barrier_form_time)
+	var min_d := 99.0
+	for e in mobs:
+		if is_instance_valid(e) and not e.dead:
+			min_d = minf(min_d, flat.call(e) - e.radius)
+	check(mid > 1.0 and mid < cfg.shield_width, "Égide parede: o empurrão acompanha a formação (%.2f m no meio)" % mid)
+	check(min_d >= cfg.shield_width - 0.05, "Égide parede: todos empurrados para fora (mais perto: %.2f m, raio %.1f)" % [min_d, cfg.shield_width])
+	# os monstros perseguem o jogador por um tempo: nenhum entra
+	for e in mobs:
+		if is_instance_valid(e):
+			e._set_state("chase")
+			e.attack_cd = 0.0
+	var st_w: Dictionary = player.ability_data.aegis
+	var integ_w: float = st_w.integrity
+	var hp_w: float = Game.hp
+	# andar com a habilidade ativa: parado (a tecla de andar não move)
+	var pos_w: Vector3 = player.global_position
+	Input.action_press("move_forward")
+	var worst := 99.0
+	for _i in 25:
+		await wait(0.1)
+		for e in mobs:
+			if is_instance_valid(e) and not e.dead:
+				worst = minf(worst, flat.call(e) - e.radius)
+	Input.action_release("move_forward")
+	check(worst >= cfg.shield_width - 0.05, "Égide parede: perseguindo, nenhum entra (mais perto: %.2f m)" % worst)
+	var moved_w := Vector2(player.global_position.x - pos_w.x, player.global_position.z - pos_w.z).length()
+	check(moved_w < 0.05, "Égide: com a habilidade ativa o herói não anda (andou %.2f m segurando W)" % moved_w)
+	check(float(st_w.integrity) < integ_w and Game.hp >= hp_w,
+		"Égide parede: monstros corpo a corpo batem na barreira (integridade %.1f -> %.1f), vida intacta" % [integ_w, float(st_w.integrity)])
+	# projétil de fora: para na coroa e o golpe vai para o escudo (a vida não cai)
+	var st: Dictionary = player.ability_data.aegis
+	var integ0: float = st.integrity
+	var hp_a: float = Game.hp
+	player.invuln = 0.0
+	var arrow: Node3D = EnemyArrow_script().new()
+	arrow.direction = Vector3(-1, 0, 0)
+	arrow.damage = 6.0
+	arrow.source = world
+	world.add_child(arrow)
+	arrow.global_position = player.global_position + Vector3(6.0, 1.0, 0.0)
+	await wait(0.5)
+	check(not is_instance_valid(arrow), "Égide parede: a flecha some na coroa")
+	check(float(st.integrity) < integ0 and Game.hp >= hp_a,   # a vida pode regenerar na espera, nunca cair
+		"Égide parede: o golpe da flecha vai para o escudo (%.1f -> %.1f), vida intacta" % [integ0, float(st.integrity)])
+	# de dentro para fora passa: uma flecha (de monstro) saindo do centro não para na parede
+	var out_arrow: Node3D = EnemyArrow_script().new()
+	out_arrow.direction = Vector3(0, 0, 1)
+	out_arrow.damage = 0.0
+	world.add_child(out_arrow)
+	out_arrow.global_position = player.global_position + Vector3(0.0, 1.0, 0.5)
+	await wait(0.3)
+	check(is_instance_valid(out_arrow) and flat.call(out_arrow) > cfg.shield_width, "Égide parede: de dentro para fora passa")
+	if is_instance_valid(out_arrow):
+		out_arrow.queue_free()
+	# soltou: a parede sai do registro e os monstros podem chegar de novo
+	ShieldAbilities.release(player)
+	check(not AegisWalls.walls.has(wall), "Égide parede: soltou, a parede sai do registro")
+	for e in mobs:
+		if is_instance_valid(e):
+			e.queue_free()
+	await wait(0.1)
+	player.global_position = back
+	player.velocity = Vector3.ZERO
+	player.cooldowns.sword_aegis = 0.0
+	player.invuln = 0.0
+
+
+func EnemyArrow_script() -> GDScript:
+	return load("res://scripts/enemies/enemy_arrow.gd")
+
+
 func wait(sec: float) -> void:
 	await get_tree().create_timer(sec, true, true).timeout
 
@@ -524,6 +720,7 @@ func _ready() -> void:
 	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_fury", "sword_whirl"], "kit da espada (%s)" % [Game.ability_kit()])
 	check(not Game.knows_ability("sword_quake") and Game.knows_ability("sword_charge"), "liberação por nível")
 	check(Game.level < 3 and not Game.knows_ability("frost_nova") and ItemDB.ABILITIES.frost_nova.level == 3, "Nova Gélida só no nível 3")
+	await _check_aegis(player, world)
 	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
 	# quem testar; resta conferir que há recarga para cada habilidade
 	Game.add_item("short_bow")

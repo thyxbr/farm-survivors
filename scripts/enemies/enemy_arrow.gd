@@ -19,6 +19,8 @@ var magic := false
 ## Cuspe de ácido (Mãe-Verme): o orbe verde (com `magic`).
 var acid := false
 const ACID := {"core": Color(0.08, 0.14, 0.02), "mid": Color(0.3, 0.6, 0.05), "edge": Color(0.65, 1.0, 0.25)}
+## Faísca do projétil batendo na Égide Cristalina (azul e branco, como a barreira).
+const AEGIS_SPARK := {"core": Color(0.2, 0.35, 0.8), "mid": Color(0.45, 0.75, 1.0), "edge": Color(0.9, 0.97, 1.0)}
 ## Bola de teia (Tecelã): ao acertar, prende o jogador por web_secs (Player.apply_web).
 var web := false
 var web_secs := 0.0
@@ -142,9 +144,20 @@ func _physics_process(delta: float) -> void:
 	if _life <= 0.0:
 		queue_free()
 		return
+	var from := global_position
 	global_position += direction * SPEED * delta
 	if web:
 		rotate_y(9.0 * delta)
+	# Égide Cristalina erguida: o projétil para na coroa (réplica também, para o desenho bater) e o golpe vai
+	# para o escudo de quem ergueu (só quem decide aplica dano)
+	var wall := AegisWalls.crossing(from, global_position, self)
+	if not wall.is_empty():
+		var caster: Node = wall.caster
+		if damage > 0.0 and source != null and is_instance_valid(source) and not caster.dead:
+			caster.take_damage(Enemy.vs(level, caster, damage), wall.point - direction)
+		FXToon.spark_hit(wall.point, -direction, AEGIS_SPARK, 6, 0.9)
+		queue_free()
+		return
 	if damage <= 0.0 or source == null or not is_instance_valid(source):
 		return
 	for p in _targets():
