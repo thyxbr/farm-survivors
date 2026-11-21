@@ -535,62 +535,82 @@ def build_h_hood():
 
 
 def build_h_cap():
-    """Capuz de couro (touca de armas): cobre topo, nuca e laterais com abas nas orelhas e tira no queixo;
-    faixa de couro escuro com rebites na testa."""
+    """Capuz de Couro (touca de armas): copa baixa de quatro gomos com costuras salientes e botão no alto; rolo
+    acolchoado de couro escuro em volta da testa com tachas de latão; saia de couro que cobre as orelhas e a nuca,
+    mais funda nas orelhas e curta atrás, com borda escura e fivela; sem tira sob o queixo.
+    Copa rente à cabeça (folga medida em h_bare): couro, não um balão."""
     P, R = g_rig("h_cap")
     M = g_mats()
     head = R["Head"]
-    H = plain_head(R, M, hair=False)
+    plain_head(R, M, hair=False)
     lea = gm("t1_cap", "#7A4E26", 0.8)
-    lea_d = gm("t2_cap", "#3E2613", 0.85)
-    cap = head_shell_secs([(0.0, 0.108, 0.118), (0.06, 0.112, 0.124), (0.13, 0.112, 0.126),
-                           (0.18, 0.108, 0.124)], cy=0.012)
-    parts = [loft("Cap", cap, lea, head, sides=12, phase=0, fwd=(0, 1, 0), axis=ZUP, arc=4.2, thick=0.016)]
-    top = head_shell_secs([(0.17, 0.11, 0.124), (0.215, 0.098, 0.112), (0.25, 0.07, 0.08), (0.268, 0.025, 0.03)],
-                          cy=0.01)
-    parts.append(loft("CapTop", top, lea, head, sides=12, phase=0, axis=ZUP))
-    # costuras: gomos (4 cristas da testa à nuca)
-    for k, ang in enumerate((0.0, math.pi / 2, math.pi, -math.pi / 2)):
-        pts = []
-        for dz, rx, ry in ((0.172, 0.112, 0.126), (0.215, 0.1, 0.114), (0.25, 0.072, 0.082), (0.268, 0.0, 0.0)):
-            pts.append(Vector((math.sin(ang) * (rx + 0.002), 0.01 - math.cos(ang) * (ry + 0.002), HEAD_CHIN + dz)))
-        parts.append(loft("CapSeam%d" % k, [sec(p, 0.006, 0.004) for p in pts], lea_d, head, sides=4))
-    parts.append(band("CapBand", sec((0, 0.01, HEAD_CHIN + 0.15), 0.112, 0.126), ZUP, 0.03, lea_d, head, sides=12,
-                      phase=0, out=0.006, thick=0.008))
-    for k in range(7):                               # rebites na faixa
-        a = -1.2 + k * 0.4
-        p = Vector((math.sin(a) * 0.123, 0.01 - math.cos(a) * 0.137, HEAD_CHIN + 0.165))
-        parts.append(tbox("CapRivet%d" % k, p, (0.012, 0.012, 0.012), M["brass"], bevel=0.003, parent=head))
-    # abas das orelhas: placa de couro com borda escura caindo até a mandíbula
-    for sg, nm in ((1, "L"), (-1, "R")):
-        parts.append(tbox("CapFlap" + nm, (sg * 0.118, 0.006, HEAD_CHIN + 0.075), (0.016, 0.085, 0.11), lea,
-                          bottom=(1.0, 0.8), bevel=0.006, rot=(0, sg * 0.1, 0), parent=head))
-        parts.append(tbox("CapFlapEdge" + nm, (sg * 0.12, 0.006, HEAD_CHIN + 0.022), (0.02, 0.07, 0.014), lea_d,
-                          bevel=0.003, rot=(0, sg * 0.1, 0), parent=head))
-    # tira do queixo
-    parts.append(loft("CapStrap", [sec((0.1, 0.0, HEAD_CHIN + 0.05), 0.012, 0.004),
-                                   sec((0.06, -0.06, HEAD_CHIN - 0.005), 0.012, 0.004),
-                                   sec((0.0, -0.075, HEAD_CHIN - 0.012), 0.012, 0.004),
-                                   sec((-0.06, -0.06, HEAD_CHIN - 0.005), 0.012, 0.004),
-                                   sec((-0.1, 0.0, HEAD_CHIN + 0.05), 0.012, 0.004)], lea_d, head, sides=4,
-                      fwd=(0, 0, -1)))
-    join_objs("Cap", parts)
-    g_export("h_cap", P, R)
+    lea_d = gm("t1d_cap", "#3E2613", 0.85)
+    brass = gm("gw_cap_brass", "#B8822F", 0.4, 0.7)
+    C = Vector((0, 0.012, 1.722))
+    TOP = 0.118
 
+    def prof(z):
+        if z >= C.z:
+            d = min(1.0, (z - C.z) / TOP)
+            k = max(0.0, 1 - d ** 2.3) ** 0.5
+            return 0.101 * k, 0.12 * k, 0.118 * k, 2.4 + 0.3 * (1 - d)
+        return 0.101, 0.12, 0.118, 2.7
 
-def mail_coif(name, head, chain, open_face=True, bottom=1.36):
-    """Cota de malha da cabeça até os ombros (anéis em degrau imitam as fileiras de elos)."""
-    rows = [(0.2, 0.112, 0.126), (0.12, 0.118, 0.132), (0.04, 0.114, 0.13), (-0.03, 0.105, 0.12)]
-    secs = head_shell_secs(rows, cy=0.012)
-    chd = gm("g_chain_d", "#4A4F57", 0.8, 0.4)
-    co = loft(name, stepped(secs, (0.33, 0.66), drop=0.96, eps=0.008), chain, head, sides=12, phase=0, fwd=(0, 1, 0),
-              axis=(0, 0, -1), arc=4.3 if open_face else None, thick=0.014)
-    parts = [stripes(co, chd)]
-    parts.append(skirt(name + "Mantle", HEAD_CHIN - 0.02, bottom, 0.11, 0.122, 0.24, 0.19, [chain, chd], head,
-                       cols=14, rows=3, folds=0.006, thick=0.012, cy=0.012, lines=4, trim=gm("g_bronze", "#A8702E",
-                                                                                              0.5, 0.6),
-                       hem_band=0.016, hem=lambda a: 0.03 * math.cos(a) ** 2))
-    return parts
+    def hp(th, z, out=0.0):
+        a, bf, bb, n = prof(z)
+        s, c = math.sin(th), math.cos(th)
+        b = bf if c > 0 else bb
+        x = math.copysign(abs(s) ** (2 / n), s) * (a + out)
+        y = -math.copysign(abs(c) ** (2 / n), c) * (b + out)
+        return Vector((x, C.y + y, z))
+
+    def nrm(th):
+        return Vector((math.sin(th), -math.cos(th), 0))
+
+    parts = []
+    NP = 48
+    zs = [C.z - 0.012 + (TOP + 0.012) * (i / 16) ** 0.85 for i in range(17)]
+    parts.append(g_smooth_mesh("CapCrown", [[hp(2 * math.pi * j / NP, z) for j in range(NP)] for z in zs], lea, head,
+                               cap_end=True, outward=True))
+    # costuras dos gomos: da testa à nuca e de orelha a orelha, cruzando no botão do alto
+    for k, th in enumerate((0.0, math.pi / 2, math.pi, -math.pi / 2)):
+        seam = [hp(th, C.z + 0.014 + (TOP - 0.016) * (i / 10) ** 0.8, 0.0015) for i in range(11)]
+        parts.append(g_pipe("CapSeam%d" % k, seam, 0.0032, lea_d, head, sides=6))
+    parts.append(g_cap("CapButton", C + Vector((0, 0, TOP - 0.004)), (0, 0, 1), (1, 0, 0), 0.011, 0.011, 0.008,
+                       lea_d, head, sides=12))
+    # saia: cobre orelhas e nuca; funda nas orelhas, curta atrás, aberta no rosto
+    T0 = 1.0
+
+    def depth(th):
+        d = min(abs(th - math.pi / 2), abs(th - 3 * math.pi / 2))
+        ear = max(0.0, 1 - (d / 0.75) ** 2)
+        front = min(1.0, (th - T0) / 0.3, (2 * math.pi - T0 - th) / 0.3)
+        front = front * front * (3 - 2 * front)
+        return (0.118 - 0.012 * ear) * (0.35 + 0.65 * front)
+
+    ths = [T0 + (2 * math.pi - 2 * T0) * j / 44 for j in range(45)]
+
+    def sk(th, u, out=0.0):
+        return hp(th, C.z - 0.004 - depth(th) * u, 0.003 + 0.007 * u ** 1.5 + out)
+    skirt = [[sk(th, i / 8) for th in ths] for i in range(9)]
+    parts.append(g_smooth_mesh("CapSkirt", skirt, lea, head, cap_end=False, closed=False, thick=0.005, outward=True))
+    edge = [sk(T0, i / 8) for i in range(8)] + [sk(th, 1.0) for th in ths] + \
+           [sk(2 * math.pi - T0, i / 8) for i in range(7, -1, -1)]
+    parts.append(g_pipe("CapSkirtEdge", edge, 0.0034, lea_d, head, sides=6))
+    # pesponto: linha de couro escuro acompanhando a borda por dentro
+    parts.append(g_pipe("CapStitch", [sk(th, 0.8, 0.0015) for th in ths[2:-2]], 0.0016, lea_d, head, sides=5))
+    for sn, sg in (("L", 1), ("R", -1)):
+        th = sg * (math.pi / 2 + 0.15)
+        c = sk(th if th > 0 else th + 2 * math.pi, 0.72, 0.003)
+        parts.append(g_cap("CapBuckle" + sn, c, nrm(th), (0, 0, 1), 0.008, 0.01, 0.004, brass, head, sides=12))
+    # rolo acolchoado na testa, em volta da cabeça toda, com tachas de latão na frente
+    roll = [hp(2 * math.pi * j / NP, C.z + 0.002, 0.009) for j in range(NP)]
+    parts.append(g_pipe("CapRoll", roll, 0.0095, lea_d, head, sides=10, loop=True))
+    for k in range(7):
+        th = -0.9 + 0.3 * k
+        parts.append(g_cap("CapStud%d" % k, hp(th, C.z + 0.002, 0.018), nrm(th), (0, 0, 1), 0.004, 0.004, 0.0035,
+                           brass, head, sides=10))
+    g_head_done("h_cap", "Cap", parts, P, R)
 
 
 def build_h_kettle():
