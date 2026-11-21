@@ -62,6 +62,25 @@ extends Resource
 ## Quanto tempo cada cratera fica antes de sumir aos poucos (s).
 @export_range(0.5, 20.0, 0.1) var crater_life := 3.2
 
+@export_group("Choque no chão")
+## Tamanho da onda de choque da sprite sheet (hammer_shock_sheet.webp) em relação ao raio de dano: 1,8 = as
+## fissuras desenhadas chegam perto da borda do raio.
+@export_range(0.0, 4.0, 0.05) var shock_sheet_scale := 1.8
+## Tempo para tocar a onda de choque inteira (s): clarão, explosão, fumaça e as fissuras esfriando.
+@export_range(0.3, 4.0, 0.05) var shock_sheet_time := 1.7
+## Tamanho das rachaduras projetadas (Decal) em relação ao raio de dano.
+@export_range(0.2, 2.0, 0.05) var crack_decal_scale := 1.15
+## Quanto tempo as rachaduras projetadas ficam no chão antes de sumir de vez (s).
+@export_range(0.5, 20.0, 0.1) var crack_decal_life := 4.5
+## Detritos, brasas e fumaça (GPUParticles3D): multiplica a quantidade de cada um.
+@export_range(0.0, 3.0, 0.05) var debris_amount := 1.0
+## Tremor da câmera no centro do impacto (diminui com a distância até `shake_range`).
+@export_range(0.0, 2.0, 0.01) var shake_strength := 0.75
+## Até que distância do impacto a câmera de quem vê treme (m).
+@export_range(1.0, 80.0, 0.5) var shake_range := 28.0
+## Congelamento curto no impacto (s; só no herói que usou; 0 = nenhum).
+@export_range(0.0, 0.25, 0.005) var hitstop_time := 0.07
+
 @export_group("Câmera")
 ## Quanto a câmera recua durante a habilidade (m), para o círculo no alto caber na tela.
 @export_range(0.0, 10.0, 0.05) var camera_back := 5.0

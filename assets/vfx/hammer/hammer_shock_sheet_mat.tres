@@ -1,0 +1,14 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/hammer/hammer_shock_sheet.gdshader" id="1"]
+[ext_resource type="Texture2D" path="res://assets/vfx/hammer/hammer_shock_sheet.webp" id="2"]
+
+[resource]
+render_priority = 2
+shader = ExtResource("1")
+shader_parameter/sheet = ExtResource("2")
+shader_parameter/columns = 8.0
+shader_parameter/rows = 8.0
+shader_parameter/black_cut = 0.03
+shader_parameter/cam_push = 2.5
+shader_parameter/smoke_keep = 0.3
