@@ -408,6 +408,30 @@ const AEGIS_GUARD := [
 const AEGIS_STANCE := {"leg_l": -0.42, "knee_l": 0.55, "leg_r": 0.32, "knee_r": 0.5, "hip_twist": -0.3, "body_y": -0.07}
 const AEGIS_RAISE := 0.18      ## tempo para erguer o escudo (s)
 
+# ------------------------------------------------------------------ Martelo de Energia (espada + escudo, slot 2)
+## Só a parte em que o herói ergue a espada, medida no clipe "Sword And Shield Casting" do Mixamo
+## (assets/animations/mixamo/sword_shield_casting.fbx, 2,97 s; tools/hammer_probe.gd). O clipe começa virado de lado
+## (0..0,2 s: o giro até ficar de frente não entra, o cavaleiro já está de frente) e a espada sobe de 0,3 a 0,5 s:
+## a mão direita sai de perto do quadril e para acima e ao lado do ombro, a lâmina apontando para o céu; o braço do
+## escudo desce ao lado do corpo. De 0,5 a 1,3 s ele segura; o resto do clipe (ajoelhar e cravar a espada) não entra.
+## Mesmo formato do AEGIS_GUARD: [t (s, a partir de 0,3 s do clipe, esticado 1,5x: o cavaleiro ergue com mais peso), mão esq., cotovelo esq., mão dir., cotovelo dir.,
+## inclinação, giro, subida]; mãos e cotovelos a partir do ombro, em m do esqueleto do Mixamo (braço de
+## AEGIS_GUARD_ARM m). Giro pela metade do clipe (como na Égide); inclinação < 0 = tronco para trás (peito aberto).
+const HAMMER_RAISE := [
+	[0.0, Vector3(0.01, -0.17, 0.27), Vector3(0.13, -0.20, 0.09), Vector3(-0.37, -0.10, 0.12), Vector3(-0.24, -0.08, -0.05), 0.04, 0.0, 0.0],
+	[0.15, Vector3(0.24, -0.25, 0.14), Vector3(0.13, -0.21, -0.04), Vector3(-0.37, 0.23, 0.15), Vector3(-0.22, 0.12, 0.04), -0.02, 0.12, 0.015],
+	[0.30, Vector3(0.24, -0.27, 0.07), Vector3(0.09, -0.22, -0.08), Vector3(-0.36, 0.27, 0.12), Vector3(-0.20, 0.16, 0.05), -0.05, 0.19, 0.02],
+	[0.75, Vector3(0.25, -0.28, 0.09), Vector3(0.11, -0.22, -0.07), Vector3(-0.36, 0.29, 0.10), Vector3(-0.20, 0.16, 0.03), -0.06, 0.17, 0.02],
+]
+const HAMMER_RAISE_TIME := 0.75  ## fim das chaves: daí em diante segura a última (enquanto o martelo se forma)
+const HAMMER_LEAD := 0.15        ## a pose do corpo sai da locomoção até a primeira chave neste tempo (s)
+const HAMMER_LOWER := 0.35       ## depois do impacto, volta à locomoção neste tempo (s)
+## Base: esquerda à frente e direita atrás (o clipe abre bem mais; aqui a passada é menor, como na Égide).
+const HAMMER_STANCE := {"leg_l": -0.4, "knee_l": 0.42, "leg_r": 0.3, "knee_r": 0.4, "body_y": -0.03}
+## Direção da lâmina erguida (espaço do modelo: +Y céu, +Z frente, +X esquerda), do eixo do punho no clipe: quase
+## vertical, a ponta um pouco para dentro (sobre a cabeça) e para a frente. KnightAnim.hold_weapon_upright orienta o suporte.
+const HAMMER_BLADE_DIR := Vector3(0.18, 1.0, 0.12)
+
 # ------------------------------------------------------------------ coleta (GatherAction; um ciclo = um golpe)
 ## As duas mãos no cabo: a direita no suporte da arma, a esquerda por IK neste ponto do cabo (espaço do suporte:
 ## o cabo sobe em +Z, a esquerda pega abaixo da direita) com o cotovelo apontando para POLE.

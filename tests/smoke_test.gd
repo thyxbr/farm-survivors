@@ -245,6 +245,162 @@ func _check_aegis_wall(player: Node, world: Node, cfg: AegisConfig) -> void:
 	player.invuln = 0.0
 
 
+## Martelo de Energia (espada + escudo, slot 2 / tecla 2): kit, círculo acima da cabeça girando, martelo saindo
+## do círculo proporcional a ele (do tamanho do da Égide), câmera olhando para cima, círculo fechando antes da queda, queda no ponto certo, dano em área (os de
+## dentro uma vez só, os de fora nada), crateras pela área, recarga, limpeza de tudo e o cancelamento pela esquiva.
+func _check_hammer(player: Node, world: Node) -> void:
+	var cfg: HammerConfig = HammerAbilities.CONFIG
+	var back: Vector3 = player.global_position
+	var lv0: int = Game.level
+	Econ.test_force_level(maxi(lv0, 3))
+	Game.add_item("wooden_shield")
+	equip_any("wooden_shield")
+	await wait_until(func(): return Game.offhand_kind() == "shield" and Game.level >= 3)
+	var kit := Game.ability_kit()
+	check(kit.size() == 4 and kit[1] == "sword_hammer" and not ("sword_quake" in kit),
+		"Martelo: espada + escudo troca a habilidade 2 (%s)" % [kit])
+	check(Game.knows_ability("sword_hammer"), "Martelo: liberado no nível %d" % ItemDB.ABILITIES.sword_hammer.level)
+	var count_fx := func(cls: String) -> int:
+		var n := 0
+		for c in get_tree().current_scene.find_children("*", cls, true, false):
+			if not c.is_queued_for_deletion():
+				n += 1
+		return n
+	var spot := Vector3(-105, 0.3, 40)   # fora da vila (a guarda abate monstro lá dentro)
+	player.global_position = spot
+	player.velocity = Vector3.ZERO
+	player.model.rotation.y = 0.0     # olhando para +Z: o martelo cai em spot + (0, 0, forward_offset)
+	await wait(0.25)
+	await wait_until(func(): return player.ability == "" and not player.attacking and player.dodge_timer <= 0.0)
+	var center: Vector3 = player.global_position + Vector3(0, 0, cfg.forward_offset)
+	# monstros parados (sem física de movimento): 3 dentro do raio, 2 fora
+	var mobs: Array = []
+	for off in [Vector3(1.5, 0, 0.5), Vector3(-2.2, 0, 1.4), Vector3(0.4, 0, -3.3), Vector3(cfg.radius + 2.5, 0, 0), Vector3(-cfg.radius - 3.0, 0, 2.0)]:
+		var e := Enemy.new()
+		e.kind = "slime"
+		world.add_child(e)
+		e.global_position = center + off
+		e.home = e.global_position
+		mobs.append(e)
+	await wait(0.15)
+	for e in mobs:
+		e.set_physics_process(false)
+	var inside := mobs.slice(0, 3)
+	var outside := mobs.slice(3)
+	var hp0 := {}
+	for e in mobs:
+		hp0[e] = e.hp
+	var hp_player: float = Game.hp
+	player.cooldowns.sword_hammer = 0.0
+	player.invuln = 99.0   # os monstros não interferem (o teste é do golpe)
+	player.cast("sword_hammer")
+	check(player.ability == "sword_hammer", "Martelo: a habilidade começa na tecla 2")
+	var skill: HammerSkill = player.ability_data.get("skill")
+	check(is_instance_valid(skill) and skill.get_parent() == get_tree().current_scene, "Martelo: HammerSkill na cena do mundo")
+	var cd: float = player.cooldowns.sword_hammer
+	check(cd >= cfg.cooldown * Game.cooldown_mult() - 0.01, "Martelo: recarga do HammerConfig (%.1f s)" % cd)
+	# círculo acima da cabeça, girando
+	await wait(cfg.circle_form_time * 0.5)
+	var c_pos: Vector3 = skill.circle.global_position
+	var above: float = c_pos.y - player.global_position.y
+	var flat_c := Vector2(c_pos.x - center.x, c_pos.z - center.z).length()
+	check(skill.circle.visible and above > 2.2 and absf(above - cfg.circle_height) < 0.05 and flat_c < 0.05,
+		"Martelo: círculo aparece %.2f m acima do herói, sobre o ponto do golpe" % above)
+	var a0: float = skill.circle.spin_angle
+	await wait(0.2)
+	check(skill.circle.spin_angle > a0 + 0.05, "Martelo: círculo gira (%.2f -> %.2f rad)" % [a0, skill.circle.spin_angle])
+	check(skill.circle.formed() > 0.0, "Martelo: círculo se materializa aos poucos (%.2f)" % skill.circle.formed())
+	# o martelo sai de dentro do círculo: a cabeça abaixo do plano do círculo, o cabo ainda acima
+	await wait_until(func(): return skill.state == HammerSkill.State.FORM)
+	await wait(cfg.formation_time * 0.45)
+	var plane: float = skill.global_position.y + cfg.circle_height
+	check(skill.hammer.visible and skill.hammer.bottom_y() < plane - 0.3 and skill.hammer.top_y() > plane + 0.3,
+		"Martelo: sai de dentro do círculo, cabeça primeiro (base %.2f, topo %.2f, círculo %.2f)" % [skill.hammer.bottom_y(), skill.hammer.top_y(), plane])
+	check(absf(skill.hammer.length / cfg.circle_radius - 3.6 / 1.7) < 0.2 and is_equal_approx(cfg.circle_radius, ShieldAbilities.CONFIG.circle_radius),
+		"Martelo: círculo do tamanho do da Égide (%.2f m) e martelo proporcional (%.2f m)" % [cfg.circle_radius, skill.hammer.length])
+	check(player.cam_tilt > 0.1 and player.cam_back > 1.0, "Martelo: a câmera recua e olha para cima enquanto invoca (%.2f rad)" % player.cam_tilt)
+	# andar não move o herói enquanto invoca
+	var pos_w: Vector3 = player.global_position
+	Input.action_press("move_forward")
+	await wait(0.3)
+	Input.action_release("move_forward")
+	check(Vector2(player.global_position.x - pos_w.x, player.global_position.z - pos_w.z).length() < 0.05,
+		"Martelo: parado enquanto invoca")
+	# o círculo fecha antes da queda
+	await wait_until(func(): return skill.state >= HammerSkill.State.CLOSE, 3.0)
+	check(skill.state == HammerSkill.State.CLOSE and skill.circle.state == MagicCircle.State.CLOSING,
+		"Martelo: martelo pronto, o círculo começa a fechar")
+	await wait_until(func(): return skill.state >= HammerSkill.State.FALL, 3.0)
+	check(skill.circle.is_closed() and skill.hammer.visible, "Martelo: círculo fechado antes da queda, martelo continua visível")
+	var y_fall0: float = skill.hammer.bottom_y()
+	await wait(cfg.fall_time() * 0.5)
+	var y_mid: float = skill.hammer.bottom_y()
+	check(y_mid < y_fall0 or skill.impact_at >= 0.0, "Martelo: cai (%.2f -> %.2f)" % [y_fall0, y_mid])
+	await wait_until(func(): return skill.impact_at >= 0.0, 2.0)
+	var ic: Vector3 = skill.impact_center
+	check(Vector2(ic.x - center.x, ic.z - center.z).length() < 0.05 and absf(skill.hammer.bottom_y() - ic.y) < 0.3,
+		"Martelo: cai no ponto certo, à frente do herói (%.2f m do esperado)" % Vector2(ic.x - center.x, ic.z - center.z).length())
+	await wait(0.05)
+	var hp1 := {}
+	for e in mobs:
+		hp1[e] = e.hp if is_instance_valid(e) else -1.0
+	var hit_in := inside.filter(func(e): return not is_instance_valid(e) or e.dead or float(hp1[e]) < float(hp0[e]))
+	check(hit_in.size() == inside.size() and skill.hit_count == inside.size(),
+		"Martelo: todos os %d monstros dentro do raio levam dano (%d)" % [inside.size(), hit_in.size()])
+	check(outside.all(func(e): return is_instance_valid(e) and is_equal_approx(e.hp, float(hp0[e]))),
+		"Martelo: monstros fora do raio não levam dano")
+	check(is_equal_approx(Game.hp, hp_player) or Game.hp >= hp_player, "Martelo: o próprio herói não leva dano")
+	check(count_fx.call("HammerImpact") == 1, "Martelo: explosão no impacto")
+	await wait(cfg.crater_max_distance / cfg.crater_wave_speed + 0.2)
+	var craters: Array = get_tree().current_scene.find_children("*", "GroundCrater", true, false)
+	var far := 0.0
+	var spread := {}
+	for c in craters:
+		var d := Vector2(c.global_position.x - ic.x, c.global_position.z - ic.z)
+		far = maxf(far, d.length())
+		spread[int(floor((atan2(d.y, d.x) + PI) / (TAU / 4.0))) % 4] = true
+	check(craters.size() == cfg.crater_count and far <= cfg.radius and spread.size() == 4,
+		"Martelo: %d crateras espalhadas pela área (mais longe %.2f m, raio %.1f)" % [craters.size(), far, cfg.radius])
+	# cada um levou dano uma vez só
+	await wait(0.5)
+	check(inside.all(func(e): return not is_instance_valid(e) or e.dead or is_equal_approx(e.hp, float(hp1[e]))),
+		"Martelo: cada monstro leva dano uma vez por ativação")
+	await wait_until(func(): return player.ability == "", 2.0)
+	check(player.ability == "", "Martelo: o herói fica livre depois do impacto")
+	check(player.cam_tilt == 0.0, "Martelo: a câmera volta ao normal no fim")
+	# o martelo some e tudo é liberado
+	await wait_until(func(): return not is_instance_valid(skill), cfg.linger_time + cfg.dissolve_time + cfg.crater_life + 3.0)
+	check(not is_instance_valid(skill) and count_fx.call("GroundCrater") == 0 and count_fx.call("HammerImpact") == 0
+		and count_fx.call("HammerDissolve") == 0, "Martelo: martelo, crateras e efeitos removidos no fim")
+	# esquiva antes da queda cancela: sem dano e tudo se desfaz
+	for e in mobs:
+		if is_instance_valid(e) and not e.dead:
+			hp0[e] = e.hp
+	player.cooldowns.sword_hammer = 0.0
+	player.cast("sword_hammer")
+	var skill2: HammerSkill = player.ability_data.get("skill")
+	await wait(cfg.circle_form_time + 0.2)
+	check(HammerAbilities.can_dodge_cancel(player), "Martelo: esquiva pode cancelar antes da queda")
+	HammerAbilities.dodge_cancel(player)
+	check(player.ability == "" and skill2.state == HammerSkill.State.CANCELED, "Martelo: cancelado pela esquiva")
+	await wait_until(func(): return not is_instance_valid(skill2), 2.0)
+	check(not is_instance_valid(skill2) and mobs.all(func(e): return not is_instance_valid(e) or e.dead or is_equal_approx(e.hp, float(hp0[e]))),
+		"Martelo: cancelado não fere ninguém e se libera")
+	for e in mobs:
+		if is_instance_valid(e):
+			e.queue_free()
+	# tira o escudo: o Golpe Sísmico volta
+	Game.unequip("offhand")
+	await wait_until(func(): return Game.offhand_kind() == "")
+	check(Game.ability_kit()[1] == "sword_quake", "Martelo: sem escudo a habilidade 2 volta a ser o Golpe Sísmico")
+	Econ.test_force_level(lv0)
+	player.global_position = back
+	player.velocity = Vector3.ZERO
+	player.cooldowns.sword_hammer = 0.0
+	player.invuln = 0.0
+	Game.hp = hp_player
+
+
 func EnemyArrow_script() -> GDScript:
 	return load("res://scripts/enemies/enemy_arrow.gd")
 
@@ -736,6 +892,7 @@ func _ready() -> void:
 	check(not Game.knows_ability("sword_quake") and Game.knows_ability("sword_charge"), "liberação por nível")
 	check(Game.level < 3 and not Game.knows_ability("frost_nova") and ItemDB.ABILITIES.frost_nova.level == 3, "Nova Gélida só no nível 3")
 	await _check_aegis(player, world)
+	await _check_hammer(player, world)
 	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
 	# quem testar; resta conferir que há recarga para cada habilidade
 	Game.add_item("short_bow")

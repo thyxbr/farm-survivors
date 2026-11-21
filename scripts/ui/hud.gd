@@ -569,7 +569,7 @@ func _update_actions() -> void:
 			s.info_text = "Nv %d" % sp.level
 		else:
 			s.dim = sp.cost > 0 and Game.mp < sp.cost
-			s.cooldown = clampf(cd / maxf(sp.cooldown * Game.cooldown_mult(), 0.01), 0.0, 1.0)
+			s.cooldown = clampf(cd / maxf(ItemDB.cooldown_of(id) * Game.cooldown_mult(), 0.01), 0.0, 1.0)
 			s.cooldown_text = ("%.1f" % cd) if cd > 0.0 else ""
 			s.info_text = "" if cd > 0.0 or sp.cost <= 0 else "%d" % sp.cost
 		_redraw(s)

@@ -1,0 +1,123 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/hammer/magic_circle.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/hammer/hammer_sheet_flat.tscn" id="2"]
+[ext_resource type="Material" path="res://assets/vfx/hammer/hammer_circle_mat.tres" id="3"]
+[ext_resource type="Resource" path="res://assets/vfx/hammer/hammer_config.tres" id="4"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_runes"]
+size = Vector2(2, 2)
+
+[sub_resource type="QuadMesh" id="QuadMesh_orbit"]
+size = Vector2(0.16, 0.16)
+
+[sub_resource type="QuadMesh" id="QuadMesh_fil"]
+size = Vector2(0.05, 0.7)
+
+[sub_resource type="QuadMesh" id="QuadMesh_burst"]
+size = Vector2(0.22, 0.22)
+
+[sub_resource type="Gradient" id="Gradient_orbit"]
+offsets = PackedFloat32Array(0, 0.2, 0.75, 1)
+colors = PackedColorArray(1, 0.85, 0.5, 0, 1, 0.8, 0.4, 1, 0.35, 0.65, 1, 0.8, 0.2, 0.45, 1, 0)
+
+[sub_resource type="Gradient" id="Gradient_fil"]
+offsets = PackedFloat32Array(0, 0.25, 1)
+colors = PackedColorArray(0.8, 0.92, 1, 0, 0.75, 0.9, 1, 1, 0.25, 0.55, 1, 0)
+
+[sub_resource type="Gradient" id="Gradient_burst"]
+offsets = PackedFloat32Array(0, 0.15, 0.6, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 0.82, 0.45, 1, 0.35, 0.6, 1, 0.7, 0.2, 0.4, 1, 0)
+
+[sub_resource type="Curve" id="Curve_shrink"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.15), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[node name="MagicCircle" type="Node3D"]
+script = ExtResource("1")
+config = ExtResource("4")
+
+[node name="Spin" type="Node3D" parent="."]
+
+[node name="Sheet" parent="Spin" instance=ExtResource("2")]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0)
+
+[node name="Runes" type="MeshInstance3D" parent="Spin"]
+cast_shadow = 0
+mesh = SubResource("PlaneMesh_runes")
+material_override = ExtResource("3")
+
+[node name="Orbit" type="CPUParticles3D" parent="."]
+cast_shadow = 0
+emitting = false
+amount = 70
+lifetime = 1.6
+mesh = SubResource("QuadMesh_orbit")
+emission_shape = 6
+emission_ring_axis = Vector3(0, 1, 0)
+emission_ring_height = 0.25
+emission_ring_radius = 1.8
+emission_ring_inner_radius = 1.5
+direction = Vector3(0, 1, 0)
+spread = 180.0
+gravity = Vector3(0, 0.35, 0)
+initial_velocity_min = 0.1
+initial_velocity_max = 0.45
+tangential_accel_min = 2.5
+tangential_accel_max = 5.0
+damping_min = 0.5
+damping_max = 1.0
+scale_amount_min = 0.5
+scale_amount_max = 1.3
+scale_amount_curve = SubResource("Curve_shrink")
+color_ramp = SubResource("Gradient_orbit")
+
+[node name="Filaments" type="CPUParticles3D" parent="."]
+cast_shadow = 0
+emitting = false
+amount = 36
+lifetime = 0.45
+mesh = SubResource("QuadMesh_fil")
+particle_flag_align_y = true
+emission_shape = 6
+emission_ring_axis = Vector3(0, 1, 0)
+emission_ring_height = 0.05
+emission_ring_radius = 1.7
+emission_ring_inner_radius = 1.6
+direction = Vector3(0, 1, 0)
+spread = 10.0
+gravity = Vector3(0, 0.6, 0)
+initial_velocity_min = 0.05
+initial_velocity_max = 0.2
+tangential_accel_min = 22.0
+tangential_accel_max = 34.0
+scale_amount_min = 0.4
+scale_amount_max = 0.75
+color_ramp = SubResource("Gradient_fil")
+
+[node name="Burst" type="CPUParticles3D" parent="."]
+cast_shadow = 0
+emitting = false
+amount = 56
+lifetime = 0.75
+one_shot = true
+explosiveness = 1.0
+mesh = SubResource("QuadMesh_burst")
+emission_shape = 1
+emission_sphere_radius = 0.4
+direction = Vector3(0, -0.3, 0)
+spread = 180.0
+gravity = Vector3(0, -2, 0)
+initial_velocity_min = 3.5
+initial_velocity_max = 8.0
+damping_min = 3.0
+damping_max = 5.0
+scale_amount_min = 0.6
+scale_amount_max = 1.5
+scale_amount_curve = SubResource("Curve_shrink")
+color_ramp = SubResource("Gradient_burst")
+
+[node name="Light" type="OmniLight3D" parent="."]
+light_color = Color(1, 0.78, 0.45, 1)
+light_energy = 0.0
+omni_range = 7.0

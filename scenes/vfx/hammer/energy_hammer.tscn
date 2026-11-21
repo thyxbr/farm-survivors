@@ -1,0 +1,212 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/hammer/energy_hammer.gd" id="1"]
+[ext_resource type="Material" path="res://assets/vfx/hammer/hammer_energy_mat.tres" id="2"]
+[ext_resource type="Material" path="res://assets/vfx/hammer/hammer_seal_mat.tres" id="3"]
+
+[sub_resource type="BoxMesh" id="Box_core"]
+size = Vector3(1.25, 0.86, 0.86)
+
+[sub_resource type="BoxMesh" id="Box_face"]
+size = Vector3(0.26, 1.08, 1.08)
+
+[sub_resource type="BoxMesh" id="Box_plate"]
+size = Vector3(0.06, 0.84, 0.84)
+
+[sub_resource type="BoxMesh" id="Box_band"]
+size = Vector3(0.32, 0.98, 0.98)
+
+[sub_resource type="PrismMesh" id="Prism_fin"]
+size = Vector3(0.42, 0.36, 0.5)
+
+[sub_resource type="SphereMesh" id="Sphere_crystal"]
+radius = 0.22
+height = 0.44
+radial_segments = 16
+rings = 8
+
+[sub_resource type="QuadMesh" id="Quad_seal"]
+size = Vector2(0.74, 0.74)
+
+[sub_resource type="CylinderMesh" id="Cyl_collar"]
+top_radius = 0.17
+bottom_radius = 0.28
+height = 0.3
+radial_segments = 16
+
+[sub_resource type="CylinderMesh" id="Cyl_handle"]
+top_radius = 0.1
+bottom_radius = 0.11
+height = 2.2
+radial_segments = 14
+rings = 6
+
+[sub_resource type="CylinderMesh" id="Cyl_ring"]
+top_radius = 0.145
+bottom_radius = 0.145
+height = 0.07
+radial_segments = 16
+
+[sub_resource type="SphereMesh" id="Sphere_pommel"]
+radius = 0.17
+height = 0.3
+radial_segments = 16
+rings = 8
+
+[sub_resource type="PrismMesh" id="Prism_tip"]
+size = Vector3(0.18, 0.2, 0.18)
+
+[node name="EnergyHammer" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Body" type="Node3D" parent="."]
+
+[node name="HeadCore" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.56, 0)
+cast_shadow = 0
+mesh = SubResource("Box_core")
+material_override = ExtResource("2")
+instance_shader_parameters/runes = 1.0
+
+[node name="FaceL" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.72, 0.56, 0)
+cast_shadow = 0
+mesh = SubResource("Box_face")
+material_override = ExtResource("2")
+instance_shader_parameters/accent = 1.0
+instance_shader_parameters/runes = 0.0
+
+[node name="FaceR" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.72, 0.56, 0)
+cast_shadow = 0
+mesh = SubResource("Box_face")
+material_override = ExtResource("2")
+instance_shader_parameters/accent = 1.0
+instance_shader_parameters/runes = 0.0
+
+[node name="PlateL" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.87, 0.56, 0)
+cast_shadow = 0
+mesh = SubResource("Box_plate")
+material_override = ExtResource("2")
+instance_shader_parameters/core = 0.0
+instance_shader_parameters/runes = 1.0
+
+[node name="PlateR" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.87, 0.56, 0)
+cast_shadow = 0
+mesh = SubResource("Box_plate")
+material_override = ExtResource("2")
+instance_shader_parameters/core = 0.0
+instance_shader_parameters/runes = 1.0
+
+[node name="Band" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.56, 0)
+cast_shadow = 0
+mesh = SubResource("Box_band")
+material_override = ExtResource("2")
+instance_shader_parameters/accent = 1.0
+instance_shader_parameters/runes = 1.0
+
+[node name="FinL" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.42, 1.16, 0)
+cast_shadow = 0
+mesh = SubResource("Prism_fin")
+material_override = ExtResource("2")
+instance_shader_parameters/accent = 1.0
+instance_shader_parameters/runes = 0.0
+
+[node name="FinR" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 1.16, 0)
+cast_shadow = 0
+mesh = SubResource("Prism_fin")
+material_override = ExtResource("2")
+instance_shader_parameters/accent = 1.0
+instance_shader_parameters/runes = 0.0
+
+[node name="Crystal" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.56, 0)
+cast_shadow = 0
+mesh = SubResource("Sphere_crystal")
+material_override = ExtResource("2")
+instance_shader_parameters/core = 1.0
+instance_shader_parameters/runes = 0.0
+
+[node name="SealF" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.56, 0.44)
+cast_shadow = 0
+mesh = SubResource("Quad_seal")
+material_override = ExtResource("3")
+
+[node name="SealB" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.56, -0.44)
+cast_shadow = 0
+mesh = SubResource("Quad_seal")
+material_override = ExtResource("3")
+
+[node name="Collar" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.13, 0)
+cast_shadow = 0
+mesh = SubResource("Cyl_collar")
+material_override = ExtResource("2")
+instance_shader_parameters/accent = 1.0
+instance_shader_parameters/runes = 0.0
+
+[node name="Handle" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.3, 0)
+cast_shadow = 0
+mesh = SubResource("Cyl_handle")
+material_override = ExtResource("2")
+instance_shader_parameters/runes = 1.0
+
+[node name="Ring1" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.75, 0)
+cast_shadow = 0
+mesh = SubResource("Cyl_ring")
+material_override = ExtResource("2")
+instance_shader_parameters/accent = 1.0
+instance_shader_parameters/runes = 0.0
+
+[node name="Ring2" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)
+cast_shadow = 0
+mesh = SubResource("Cyl_ring")
+material_override = ExtResource("2")
+instance_shader_parameters/accent = 1.0
+instance_shader_parameters/runes = 0.0
+
+[node name="Ring3" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.05, 0)
+cast_shadow = 0
+mesh = SubResource("Cyl_ring")
+material_override = ExtResource("2")
+instance_shader_parameters/accent = 1.0
+instance_shader_parameters/runes = 0.0
+
+[node name="Pommel" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.43, 0)
+cast_shadow = 0
+mesh = SubResource("Sphere_pommel")
+material_override = ExtResource("2")
+instance_shader_parameters/accent = 1.0
+instance_shader_parameters/runes = 0.0
+
+[node name="PommelTip" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.62, 0)
+cast_shadow = 0
+mesh = SubResource("Prism_tip")
+material_override = ExtResource("2")
+instance_shader_parameters/core = 1.0
+instance_shader_parameters/runes = 0.0
+
+[node name="TrailL" type="Node3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0.8, 0.56, 0)
+
+[node name="TrailR" type="Node3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, -0.8, 0.56, 0)
+
+[node name="Light" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.56, 0)
+light_color = Color(0.45, 0.72, 1, 1)
+light_energy = 3.0
+omni_range = 7.0
