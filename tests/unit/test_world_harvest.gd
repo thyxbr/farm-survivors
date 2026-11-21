@@ -135,3 +135,34 @@ func test_scenery_trees() -> void:
 	var h := WorldHarvest.new()
 	T.ok(h.gather(bt, 2, first, pos + Vector3(1.0, 0, 0), 50.0).ok, "corta uma árvore do cenário")
 	T.eq(h.gather(bt, 3, first, pos, 51.0).err, "esgotado", "e ela some para os outros")
+
+
+## Reserva do nó: quem começa a bater primeiro coleta; os outros esperam ele largar ou a reserva vencer.
+func test_claim_lock() -> void:
+	var bt := _tables()
+	var h := WorldHarvest.new()
+	var pos: Vector3 = WorldHarvest.node_def(bt, 0).pos
+	T.ok(h.claim(bt, 0, 7, 100.0), "primeiro jogador reserva o nó")
+	T.ok(h.claim(bt, 0, 7, 101.0), "o dono renova")
+	T.ok(not h.claim(bt, 0, 8, 101.5), "outro jogador não pega o mesmo nó")
+	T.eq(h.holder(0, 102.0), 7, "a reserva é do primeiro")
+	T.eq(h.gather(bt, 2, 0, pos, 102.0, 8).err, "ocupado", "o outro não coleta o nó reservado")
+	T.ok(not h.release(0, 8), "só o dono larga")
+	T.ok(h.release(0, 7), "o dono larga")
+	T.ok(h.claim(bt, 0, 8, 103.0), "livre, o outro reserva")
+	# sem renovar, a reserva vence
+	T.eq(h.expire_claims(103.0 + WorldHarvest.CLAIM_TTL - 0.1), [], "ainda vale")
+	T.eq(h.expire_claims(103.0 + WorldHarvest.CLAIM_TTL + 0.1), [0], "venceu sem renovar")
+	T.ok(h.claim(bt, 0, 7, 110.0), "depois de vencer, qualquer um reserva")
+	T.eq(h.release_owner(7), [0], "sair do jogo larga as reservas")
+	T.eq(h.claims(110.0), {}, "nenhuma reserva sobrando")
+	# o dono coleta e a reserva acaba junto; nó esgotado não se reserva
+	h.claim(bt, 0, 7, 120.0)
+	T.ok(h.gather(bt, 1, 0, pos, 120.5, 7).ok, "o dono coleta")
+	T.eq(h.holder(0, 120.6), 0, "coletou: a reserva acabou")
+	T.ok(not h.claim(bt, 0, 8, 121.0), "esgotado não se reserva")
+	T.ok(not h.claim(bt, "x", 8, 121.0), "id inválido não se reserva")
+	# solo (owner 0) ignora reservas
+	var s := WorldHarvest.new()
+	s.claim(bt, 1, 9, 0.0)
+	T.ok(s.gather(bt, 1, 1, WorldHarvest.node_def(bt, 1).pos, 0.5).ok, "sem dono (solo) não confere reserva")

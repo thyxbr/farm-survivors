@@ -143,6 +143,9 @@ func gather_plan() -> Dictionary:
 	var out := {"ok": false, "msg": "", "tool": "", "power": 0.0, "swing": 1.0, "strikes": 0, "kind": ""}
 	var kind_t := GatherRules.tool_kind(prof)
 	out.kind = kind_t
+	if Econ.node_busy(node_id):
+		out.msg = Econ.BUSY_TEXT   # outro jogador já está batendo neste nó
+		return out
 	if prof != "" and Game.prof_level(prof) < level:
 		out.msg = "Precisa de %s nível %d." % [Game.prof_name(prof), level]
 		return out
@@ -246,7 +249,7 @@ func _burst_color() -> Color:
 		return Color(0.55, 0.45, 1.0)
 	if kind.begins_with("tree_"):
 		return Color(0.45, 0.3, 0.15)
-	return tint
+	return ore_color()
 
 
 # ================================================================ visual (fora do headless)
@@ -259,7 +262,7 @@ func _build_visual() -> void:
 		if tint != Color(0.55, 0.3, 0.2):
 			_tint(_visual, tint)
 		return
-	_visual = Node3D.new() if kind == "crystal" else ROCK.instantiate()
+	_visual = Node3D.new()
 	_visual.rotation.y = yaw
 	_visual.scale = Vector3.ONE * size
 	add_child(_visual)
@@ -268,16 +271,84 @@ func _build_visual() -> void:
 	if kind == "crystal":
 		_build_crystal(r)
 		return
-	_tint(_visual, Color(0.55, 0.3, 0.2) if kind == "iron" else Color(0.42, 0.4, 0.38))
-	for i in 6:
+	_build_ore(r)
+
+
+## Cor do minério de um veio: a da tabela ("ore") ou o cinza-aço do ferro.
+func ore_color() -> Color:
+	return Color(0.52, 0.54, 0.6) if kind == "iron" else tint
+
+
+## Veio de minério: uma pedra baixa e escura com o minério saindo dela em lascas grandes (prismas de 6 faces que
+## nascem de dentro da pedra e apontam para fora) e pepitas no chão em volta. O minério é a maior parte do que se vê,
+## para dar para reconhecer o tipo de longe. Os comuns (nível 1: cobre, ferro) saem em blocos curtos e grossos, como
+## pepitas de metal; os raros em cristais pontudos que brilham de leve (nível 2) ou com luz própria (nível 3).
+func _build_ore(r: RandomNumberGenerator) -> void:
+	var rock := ROCK.instantiate() as Node3D
+	rock.scale = Vector3(0.78, 0.62, 0.78)
+	_visual.add_child(rock)
+	_tint(rock, Color(0.3, 0.28, 0.27) if tier >= 2 else Color(0.38, 0.36, 0.34))
+	var color := ore_color()
+	var glow := 0.0 if tier <= 1 else (0.45 if tier == 2 else 1.1)
+	var mats := [_ore_mat(color, glow), _ore_mat(color.lightened(0.25), glow), _ore_mat(color.darkened(0.2), glow)]
+	if kind == "iron":
+		mats[2] = _ore_mat(Color(0.66, 0.36, 0.22), 0.0)   # ferrugem entre o aço
+	var chunky := tier <= 1
+	# lascas: espalhadas por cima e pelos lados da pedra, a maior no topo
+	var n := r.randi_range(7, 9)
+	for i in n:
+		var up := 1.0 if i == 0 else r.randf_range(0.25, 0.85)       # 1 = de pé no topo; 0 = deitada para o lado
+		var a := TAU * float(i) / float(n) + r.randf_range(-0.3, 0.3)
+		var out := Vector3(cos(a) * sqrt(1.0 - up * up), up, sin(a) * sqrt(1.0 - up * up)).normalized()
+		var big := 1.25 if i == 0 else r.randf_range(0.75, 1.1)
+		var m := CylinderMesh.new()
+		m.radial_segments = 6
+		m.rings = 1
+		m.bottom_radius = (0.19 if chunky else 0.15) * big
+		m.top_radius = m.bottom_radius * (r.randf_range(0.7, 0.9) if chunky else r.randf_range(0.35, 0.6))
+		m.height = (r.randf_range(0.34, 0.46) if chunky else r.randf_range(0.5, 0.7)) * big
+		var mi := MeshInstance3D.new()
+		mi.mesh = m
+		mi.material_override = mats[i % mats.size()]
+		# a base fica enterrada na pedra (centro em 0,3 m de altura) e mais da metade sai para fora
+		var base := Vector3(0, 0.3, 0) + out * 0.28
+		mi.basis = Basis(Quaternion(Vector3.UP, out)).rotated(out, r.randf() * TAU)
+		mi.position = base + out * m.height * 0.42
+		_visual.add_child(mi)
+	# pepitas soltas no chão, como se tivessem lascado da pedra
+	for i in r.randi_range(3, 4):
 		var a := r.randf() * TAU
 		var mi := MeshInstance3D.new()
-		mi.mesh = SphereMesh.new()
-		mi.material_override = _mat(Color(0.12, 0.1, 0.1), 0.0) if kind == "iron" else _mat(tint, 0.4)
-		mi.position = Vector3(cos(a) * 0.45, r.randf_range(0.25, 0.65), sin(a) * 0.45)
-		mi.rotation = Vector3(r.randf_range(-0.6, 0.6), r.randf() * TAU, r.randf_range(-0.6, 0.6))
-		mi.scale = Vector3.ONE * 0.12 * r.randf_range(0.8, 1.3)
+		var sm := SphereMesh.new()
+		sm.radial_segments = 6
+		sm.rings = 3
+		mi.mesh = sm
+		mi.material_override = mats[(i + 1) % mats.size()]
+		var d := r.randf_range(0.62, 0.8)
+		mi.position = Vector3(cos(a) * d, 0.04, sin(a) * d)
+		mi.rotation = Vector3(r.randf_range(-0.5, 0.5), r.randf() * TAU, r.randf_range(-0.5, 0.5))
+		mi.scale = Vector3(1.0, 0.6, 0.8) * r.randf_range(0.14, 0.2)
 		_visual.add_child(mi)
+	if tier >= 3:
+		var light := OmniLight3D.new()
+		light.light_color = color
+		light.light_energy = 0.7
+		light.omni_range = 4.0
+		light.position.y = 0.9
+		_visual.add_child(light)
+
+
+## Material das lascas: metálico e liso, para pegar reflexo; os raros com brilho próprio (`glow`).
+func _ore_mat(color: Color, glow: float) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = color
+	m.metallic = 0.45
+	m.roughness = 0.35
+	if glow > 0.0:
+		m.emission_enabled = true
+		m.emission = color
+		m.emission_energy_multiplier = glow
+	return m
 
 
 func _build_crystal(r: RandomNumberGenerator) -> void:
