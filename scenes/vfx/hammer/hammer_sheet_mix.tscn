@@ -1,0 +1,13 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/hammer/hammer_sheet.gd" id="1"]
+[ext_resource type="Material" path="res://assets/vfx/hammer/hammer_sheet_mix_mat.tres" id="2"]
+
+[sub_resource type="QuadMesh" id="QuadMesh_sheet"]
+size = Vector2(1, 1)
+
+[node name="HammerSheet" type="MeshInstance3D"]
+cast_shadow = 0
+mesh = SubResource("QuadMesh_sheet")
+material_override = ExtResource("2")
+script = ExtResource("1")

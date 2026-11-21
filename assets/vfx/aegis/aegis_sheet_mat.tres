@@ -1,0 +1,12 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/aegis/aegis_flipbook.gdshader" id="1"]
+[ext_resource type="Texture2D" path="res://assets/vfx/aegis/aegis_sheet.webp" id="2"]
+
+[resource]
+render_priority = 1
+shader = ExtResource("1")
+shader_parameter/sheet = ExtResource("2")
+shader_parameter/columns = 8.0
+shader_parameter/rows = 8.0
+shader_parameter/black_cut = 0.06

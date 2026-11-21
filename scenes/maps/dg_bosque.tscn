@@ -192,62 +192,61 @@ size = Vector2(88, 28)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -31, 0.0, 22)
 script = ExtResource("7_dg")
 kind = "slime_veloz"
-count = 4
+count = 3
 radius = 4.0
-respawn = 40.0
+respawn = 150.0
 
 [node name="bando 2 slime_gelo" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0.0, 2)
 script = ExtResource("7_dg")
 kind = "slime_gelo"
-count = 4
+count = 3
 radius = 4.0
-respawn = 40.0
+respawn = 150.0
 
 [node name="bando 3 goblin_xama" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13, 0.0, -3)
 script = ExtResource("7_dg")
 kind = "goblin_xama"
-count = 3
+count = 2
 radius = 4.0
-respawn = 40.0
+respawn = 150.0
 
 [node name="bando 4 goblin_arqueiro" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 0.0, 0)
 script = ExtResource("7_dg")
 kind = "goblin_arqueiro"
-count = 4
+count = 3
 radius = 4.0
-respawn = 40.0
+respawn = 150.0
 
 [node name="bando 5 slime_explosivo" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0.0, 15)
 script = ExtResource("7_dg")
 kind = "slime_explosivo"
-count = 4
+count = 3
 radius = 2.5
-respawn = 40.0
+respawn = 150.0
 
 [node name="bando 6 slime_gelo" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 0.0, -6)
 script = ExtResource("7_dg")
 kind = "slime_gelo"
-count = 3
+count = 2
 radius = 1.2
-respawn = 40.0
+respawn = 150.0
 
 [node name="bando 7 slime_veloz" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.0, -12)
 script = ExtResource("7_dg")
 kind = "slime_veloz"
-count = 3
+count = 2
 radius = 1.2
-respawn = 40.0
+respawn = 150.0
 
-[node name="chefe slime_rainha" type="Node3D" parent="Monstros"]
+[node name="chefe espinheira" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -38)
 script = ExtResource("7_dg")
-kind = "slime_rainha"
+kind = "espinheira"
 respawn = 600.0
-elite = true
 chief = true

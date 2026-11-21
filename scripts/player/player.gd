@@ -26,6 +26,15 @@ const SWING_MULT := [1.0, 1.1, 1.6]
 ## da espada sozinha; o dano de cada um acompanha a duração (mesmo dano por segundo do combo da espada).
 const SHIELD_SWING_TIMES := [0.5, 0.5, 0.6, 0.75]
 const SHIELD_SWING_MULT := [1.2, 1.3, 1.5, 2.0]
+## Montante (espada de duas mãos, item "two_handed"): golpes mais lentos e largos (KnightMoves.GREAT), alcance maior,
+## varrem um arco mais aberto e o terceiro crava a lâmina no chão (dano em área à frente). O dano da arma já é
+## maior; por segundo fica um pouco abaixo da espada, em troca de pegar vários de uma vez.
+const GREAT_SWING_TIMES := [0.62, 0.62, 0.9]
+const GREAT_SWING_MULT := [1.0, 1.1, 1.7]
+const GREAT_REACH := 3.0          ## alcance dos dois primeiros golpes (m; a espada tem 2,4)
+const GREAT_ARC := -0.1           ## cosseno do arco atingido (a espada usa 0,3: ~145° contra ~110°)
+const GREAT_SLAM_AHEAD := 1.5     ## o golpe final acerta em volta deste ponto à frente (m)
+const GREAT_SLAM_RADIUS := 1.9
 const SHIELD_SPIN_PUSH := 4.0   ## o giro avança mais que um golpe comum (m/s)
 const PUNCH_TIMES := [0.3, 0.32, 0.5]   # sem arma: jab, direto e uppercut, mais rápidos que a espada
 const STAFF_TIMES := [0.4, 0.4, 0.6]
@@ -123,6 +132,9 @@ var shake := 0.0
 ## Quanto a câmera recua (m) além da distância normal: a habilidade pede, _process aproxima suave.
 var cam_back := 0.0
 var _cam_back_now := 0.0
+## Quanto a câmera inclina para cima (rad), pedido por habilidade (Martelo de Energia: o círculo fica no alto).
+var cam_tilt := 0.0
+var _cam_tilt_now := 0.0
 ## Distância base atual (persegue Game.settings.cam_zoom) e altura extra por causa das asas.
 var _cam_dist := 4.0
 var _cam_up := 0.0
@@ -160,6 +172,7 @@ var horde_frozen := false
 var chat_typing := false
 ## Emote em andamento (KnightEmotes.KINDS) ou "". Andar, pular ou abrir o chat cancela.
 var emote := ""
+var _autoswing := "--autoswing" in OS.get_cmdline_user_args()
 var _emote_t := 0.0
 var name_tag: Label3D
 var title_tag: Label3D
@@ -327,6 +340,9 @@ func _process(delta: float) -> void:
 	var back := lerpf(_cam_back_now, cam_back - AIM_CAM_CLOSER * _aim_zoom, 1.0 - exp(-6.0 * delta))
 	_cam_back_now = back
 	spring.spring_length = maxf(_cam_dist + back, 1.2)
+	_cam_tilt_now = lerpf(_cam_tilt_now, cam_tilt, 1.0 - exp(-6.0 * delta))
+	if camera:
+		camera.rotation.x = _cam_tilt_now
 
 
 ## Zoom da rodinha (suave) e altura extra quando há asas nas costas.
@@ -422,6 +438,9 @@ func _physics_process(delta: float) -> void:
 func _local_process(delta: float) -> void:
 	if Network.is_client():
 		_net_send(delta)
+	if _autoswing:   # depuração (--autoswing, ver Game._debug_screenshot): golpeia sem parar
+		Game.stamina = Game.max_stamina()
+		_try_attack()
 	if not is_on_floor():
 		velocity.y -= GRAVITY * delta
 	if dead:
@@ -764,14 +783,16 @@ func _start_swing() -> void:
 	attack_timer = 0.0
 	hit_done = false
 	var staff: bool = look["class"] == "staff"
-	Game.stamina = maxf(0.0, Game.stamina - swing_stamina(staff, combo))
+	Game.stamina = maxf(0.0, Game.stamina - swing_stamina(staff, combo) * (1.4 if _great() else 1.0))
 	stamina_delay = 0.4
 	if staff:
 		Sfx.play("staff_wind", 0.15, -8.0)
 		return
 	if is_on_floor():
 		var f := facing()
-		var push := 1.5 if _unarmed() else 3.0   # o soco é um passo curto, não uma estocada
+		var push := 1.5 if _unarmed() else (2.2 if _great() else 3.0)   # o soco é um passo curto, não uma estocada
+		if _great() and _finisher():
+			push = 3.4   # o golpe final da montante salta à frente
 		if _shield_combo() and _finisher():
 			push = SHIELD_SPIN_PUSH
 		velocity.x += f.x * push
@@ -786,7 +807,7 @@ func _update_attack(delta: float) -> void:
 	attack_timer += delta
 	var dur := _swing_time(combo)
 	var t := attack_timer / dur
-	if t >= (0.35 if look["class"] == "staff" else 0.42) and not hit_done:
+	if t >= (0.35 if look["class"] == "staff" else (KnightMoves.GREAT_HIT if _great() else 0.42)) and not hit_done:
 		hit_done = true
 		match look["class"]:
 			"staff":
@@ -810,10 +831,13 @@ func _update_attack(delta: float) -> void:
 
 func _do_hit() -> void:
 	var shield := _shield_combo()
-	var mult: float = (SHIELD_SWING_MULT if shield else SWING_MULT)[clampi(combo, 1, _combo_len()) - 1]
+	var great := _great()
+	var mult: float = (SHIELD_SWING_MULT if shield else (GREAT_SWING_MULT if great else SWING_MULT))[clampi(combo, 1, _combo_len()) - 1]
 	var fist := _unarmed()
 	var fin := _finisher()
 	var reach := (2.2 if fin else 2.0) if fist else (2.9 if fin else 2.4)
+	if great:
+		reach = GREAT_SLAM_AHEAD + GREAT_SLAM_RADIUS if fin else GREAT_REACH
 	var hit_any := false
 	var flesh := false   # acertou algo que não é slime: lâmina em carne; só slime: só a lâmina
 	var hit_enemy := false
@@ -826,7 +850,14 @@ func _do_hit() -> void:
 		var dist := to.length()
 		if dist > reach + e.radius:
 			continue
-		if (not fin or fist) and dist > 0.6 and f.dot(to.normalized()) < 0.3:
+		if great and fin:
+			var c: Vector3 = global_position + f * GREAT_SLAM_AHEAD
+			if Vector2(e.global_position.x - c.x, e.global_position.z - c.z).length() > GREAT_SLAM_RADIUS + e.radius:
+				continue
+		elif great:
+			if dist > 0.6 and f.dot(to.normalized()) < GREAT_ARC:
+				continue
+		elif (not fin or fist) and dist > 0.6 and f.dot(to.normalized()) < 0.3:
 			continue
 		var crit: bool = randf() < Game.crit_chance()
 		var dmg: float = EnchantHit.scale(e, Game.melee_damage() * mult * randf_range(0.9, 1.1) * (1.8 if crit else 1.0))
@@ -840,6 +871,8 @@ func _do_hit() -> void:
 		Sfx.play("punch_hit", 0.12)
 	elif hit_enemy:
 		Sfx.play(Sfx.sword_hit(flesh, Sfx.heavy_sword(_weapon_id())), 0.1)
+	if great and fin:
+		_great_slam_fx()
 	if hit_any:
 		add_shake(0.22 if fin else 0.12)
 
@@ -852,6 +885,8 @@ func _swing_time(c: int) -> float:
 			return BOW_RECOVER
 	if _shield_combo():
 		return SHIELD_SWING_TIMES[clampi(c, 1, SHIELD_SWING_TIMES.size()) - 1]
+	if _great():
+		return GREAT_SWING_TIMES[clampi(c, 1, 3) - 1]
 	return (PUNCH_TIMES if _unarmed() else SWING_TIMES)[clampi(c, 1, 3) - 1]
 
 
@@ -862,6 +897,21 @@ func _shield_combo() -> bool:
 		return false
 	var off := str(_last_look.get("offhand", "")) if remote else str(Game.equipment.get("offhand", ""))
 	return off != "" and str(ItemDB.get_item(off).get("needs", "")) == "sword"
+
+
+## Montante na mão (do jogo local ou, numa réplica, do último visual recebido): golpes de duas mãos.
+func _great() -> bool:
+	return look["class"] == "sword" and ItemDB.is_two_handed(_weapon_id())
+
+
+## Golpe final da montante: a ponta crava no chão à frente (o acerto em área é em _do_hit). Poeira, um anel no chão
+## e um tranco na câmera, acertando alguém ou não.
+func _great_slam_fx() -> void:
+	var at := global_position + facing() * GREAT_SLAM_AHEAD + Vector3.UP * 0.05
+	FX.ring(at, slash_color(), GREAT_SLAM_RADIUS, 0.35)
+	FXToon.puff(at, 1.1, FXToon.DUST)
+	Sfx.play("slam", 0.1, -6.0)
+	add_shake(0.3)
 
 
 ## Golpes do combo básico: 4 com espada e escudo, 3 nos outros.
@@ -1183,7 +1233,7 @@ func cast(id: String) -> void:
 			Game.fury = 0.0
 		if sp.cost > 0:
 			Game.mp -= sp.cost
-		cooldowns[id] = Game.ability_cooldown(id, sp.cooldown, cd_mult)
+		cooldowns[id] = Game.ability_cooldown(id, ItemDB.cooldown_of(id), cd_mult)
 		Game.stats_changed.emit()
 		return
 	_cancel_draw()
@@ -1430,6 +1480,10 @@ func set_heal_highlight(on: bool) -> void:
 func _ab_module(id: String) -> Object:
 	if id == GatherAction.ID:
 		return GatherAction
+	if id.begins_with(ShieldAbilities.ID):   # a Égide (e os eventos dela) é da espada, mas tem módulo próprio
+		return ShieldAbilities
+	if id.begins_with(HammerAbilities.ID):   # o Martelo de Energia (e o cancelamento) também tem módulo próprio
+		return HammerAbilities
 	var cls := ""
 	if ItemDB.ABILITIES.has(id):
 		cls = ItemDB.ABILITIES[id]["class"]
@@ -1477,6 +1531,10 @@ func end_ability() -> void:
 	if ability == GatherAction.ID and gather_tool != "":
 		gather_tool = ""   # guarda a ferramenta: a arma equipada volta para a mão
 		refresh_look.call_deferred()
+	# fim próprio da habilidade (ex.: a Égide dissolve a barreira e começa a recarga), por qualquer caminho
+	var on_end: Callable = ability_data.get("on_end", Callable())
+	if on_end.is_valid():
+		on_end.call()
 	if ability == GatherAction.ID and not remote:
 		var gn = ability_data.get("node")
 		if gn != null and is_instance_valid(gn):
@@ -1495,6 +1553,7 @@ func end_ability() -> void:
 		velocity.z = 0.0
 		Engine.time_scale = 1.0
 		cam_back = 0.0
+		cam_tilt = 0.0
 	ability = ""
 	ability_t = 0.0
 	ability_slot = 0
@@ -1615,15 +1674,16 @@ func apply_chill(secs: float, venom := false) -> void:
 
 
 ## Teia da Tecelã: quase parado por `secs`. Não acumula, só renova.
-func apply_web(secs: float) -> void:
+func apply_web(secs: float, roots := false) -> void:
 	if remote:
 		if Network.is_server() and not dead:
-			Network.server_web_player(peer_id, secs)
+			Network.server_web_player(peer_id, secs, roots)
 		return
 	if dead or secs <= 0.0:
 		return
 	if web_t <= 0.0:
-		Game.notify.emit("Preso na teia! Mal consegue andar.", Color(0.9, 0.9, 0.95))
+		Game.notify.emit("Preso pelas raízes! Mal consegue andar." if roots else "Preso na teia! Mal consegue andar.",
+			Color(0.85, 0.5, 0.6) if roots else Color(0.9, 0.9, 0.95))
 	web_t = maxf(web_t, secs)
 	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 0.8), Color(0.92, 0.92, 0.96), 18, 2.0, 0.12, 0.7)
 
@@ -1636,6 +1696,15 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 		return
 	if dead or invuln > 0 or Loading.covering:   # coberto pela tela de carregamento: imune
 		return
+	var final_dmg: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
+	# Égide Cristalina erguida: o escudo absorve primeiro (integridade própria); só o que sobra chega à vida
+	if ability == ShieldAbilities.ID:
+		final_dmg = ShieldAbilities.absorb(self, final_dmg, from_pos)
+		if final_dmg <= 0.0:
+			# imunidade curta: o escudo segura cada golpe, mas vários monstros batendo juntos o desgastam
+			invuln = ShieldAbilities.SHIELD_INVULN
+			add_shake(0.12)
+			return
 	if Game.admin_mode():
 		return
 	if blocking and ShieldRules.in_front(global_position, facing(), from_pos):
@@ -1649,7 +1718,6 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 		else:
 			_take_blocked(res.damage, from_pos)
 			return
-	var final_dmg: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
 	Game.hp -= final_dmg
 	Game.add_fury(final_dmg / Game.max_hp() * 25.0)
 	invuln = 0.45
@@ -2085,6 +2153,9 @@ func _animate(delta: float) -> void:
 	# pose: parado -> andar/correr -> ar, misturados pelos pesos suavizados
 	var p := KnightAnim.blend(KnightAnim.idle_pose(idle_t), KnightAnim.locomotion_pose(parts, anim_t, _amp, _run), _amp)
 	KnightAnim.weapon_carry(p, look["class"], _amp, _run)   # cajado firme, arco pendurado
+	var great := _great() and not dead
+	if great:
+		KnightAnim.great_carry(p, _amp, _run)   # montante: guarda parado, no ombro andando
 	if _air > 0.001:
 		p = KnightAnim.blend(p, KnightAnim.air_pose(clampf(velocity.y / JUMP_VELOCITY, -1.0, 1.0)), _air)
 	KnightAnim.add_landing(p, land)
@@ -2125,6 +2196,9 @@ func _animate(delta: float) -> void:
 			or (ability == "bow_gale" and not ability_data.get("fired", false)))
 	if cls == "bow" and (drawing or attacking or ability.begins_with("bow_")):
 		_update_aim_pitch()
+	if great and (ability != "" or dodge_timer > 0 or emote != ""):
+		p.erase("tool")         # habilidades, esquiva e emotes têm braços próprios: a esquerda só acompanha o cabo
+		p["two_hand"] = 1.0 if ability != "" else 0.0
 	if ability != "":
 		_ab_module(ability).pose(self, p)
 	elif cls == "bow" and drawing:
@@ -2140,6 +2214,9 @@ func _animate(delta: float) -> void:
 		_slash_fx()
 	elif _recover_t >= 0.0 and dodge_timer <= 0.0 and not dead and cls == "sword" and _shield_combo():
 		KnightAnim.shield_recover_pose(p, _swing_from, _recover_t / KnightAnim.SHIELD_RECOVER)
+	elif attacking and cls == "sword" and great:
+		KnightAnim.great_pose(p, combo, attack_timer / _swing_time(combo), _amp)
+		_slash_fx()
 	elif attacking and cls == "sword":
 		KnightAnim.sword_pose(p, combo, attack_timer / _swing_time(combo), _amp)
 		_slash_fx()
@@ -2197,10 +2274,11 @@ func _vfx_setup() -> void:
 
 ## `--rundemo[=sprint]`: anda (ou corre) em linha reta sozinho e imprime a inclinação do tronco no mundo, para
 ## conferir a marcha no jogo de verdade. Com `--runshots=<arquivo.png>` salva uma tira de 8 quadros de uma
-## passada, recortados em volta do personagem na câmera do jogo, e fecha.
+## passada, recortados em volta do personagem na câmera do jogo, e fecha. Com `--runside`, de lado.
 func _run_demo(sprint: bool) -> void:
 	await get_tree().create_timer(1.0).timeout
-	Input.action_press("move_forward")
+	# `--runside`: corre para a direita da câmera (a tira mostra o personagem de lado)
+	Input.action_press("move_right" if "--runside" in OS.get_cmdline_user_args() else "move_forward")
 	if sprint:
 		Input.action_press("sprint")
 	var out := ""
@@ -2311,12 +2389,15 @@ func _slash_fx() -> void:
 	_slash_combo = c
 	_slash_t = attack_timer
 	var shield := _shield_combo()
-	var at: float = (KnightMovesShield.SLASH[c - 1].at if shield else FXToon.SWORD_COMBO[c - 1].at)
+	var great := _great()
+	var at: float = (KnightMovesShield.SLASH[c - 1].at if shield else (FXToon.GREAT_COMBO[c - 1].at if great else FXToon.SWORD_COMBO[c - 1].at))
 	if _slash_done or attack_timer / _swing_time(c) < at:
 		return
 	_slash_done = true
 	if shield:
 		FXToon.shield_combo_slash(self, model.rotation.y, c, _swing_time(c), slash_color())
+	elif great:
+		FXToon.great_slash(self, model.rotation.y, c, _swing_time(c), slash_color())
 	else:
 		FXToon.sword_slash(self, model.rotation.y, c, slash_color())
 

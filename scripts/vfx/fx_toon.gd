@@ -33,6 +33,21 @@ const SWORD_COMBO := [
 		"linear": true, "lead": 0.03, "trail": 0.6},
 ]
 
+## Montante (KnightMoves.GREAT_TOOL): os três cortes medidos da ponta da lâmina com tools/weapon_pose_shot.tscn --
+## montante (TIP de cada instante, em relação a `center`). `at` = fração do golpe em que a lâmina começa a descer,
+## `sweep_frac` = fração do golpe que o corte leva para correr (great_slash converte em segundos).
+const GREAT_COMBO := [
+	{   # 1: diagonal do ombro direito ao joelho esquerdo (ponta de 0,42 a 0,54 do golpe)
+		"center": Vector3(0, 1.3, 0.2), "from": Vector3(-0.31, 1.51, 0.53), "to": Vector3(1.03, -1.18, 0.83),
+		"pre": 15.0, "post": 15.0, "radius": 1.75, "at": 0.42, "sweep_frac": 0.12},
+	{   # 2: varrida da esquerda para a direita, pela frente (0,4 a 0,56)
+		"center": Vector3(0, 1.1, 0.1), "from": Vector3(1.6, 0.2, 0.45), "to": Vector3(-1.68, -0.24, 0.4),
+		"pre": 10.0, "post": 15.0, "radius": 1.75, "at": 0.4, "sweep_frac": 0.15},
+	{   # 3: de cima para baixo, a ponta no chão à frente (0,42 a 0,5)
+		"center": Vector3(0, 1.2, 0.4), "from": Vector3(-0.16, 2.07, -0.03), "to": Vector3(-0.13, -1.2, 1.1),
+		"pre": 10.0, "post": 0.0, "radius": 1.85, "at": 0.42, "sweep_frac": 0.08},
+]
+
 ## Poeira levantada pelos pés (paleta fixa: não depende da arma).
 const DUST := {"core": Color(0.93, 0.88, 0.78), "mid": Color(0.72, 0.63, 0.5), "edge": Color(0.36, 0.29, 0.22)}
 
@@ -1110,6 +1125,15 @@ static func charge_cut(parent: Node3D, dir: Vector3, color: Color) -> void:
 ## Corte do golpe `combo` (1..3) da espada, preso a `parent` (o nó do jogador) e virado por `yaw`.
 static func sword_slash(parent: Node3D, yaw: float, combo: int, color: Color) -> void:
 	slash(parent, yaw, SWORD_COMBO[clampi(combo, 1, 3) - 1], palette(color))
+
+
+## Corte da montante (GREAT_COMBO); `dur` = duração do golpe.
+static func great_slash(parent: Node3D, yaw: float, combo: int, dur: float, color: Color) -> void:
+	var o: Dictionary = (GREAT_COMBO[clampi(combo, 1, GREAT_COMBO.size()) - 1] as Dictionary).duplicate()
+	o["sweep"] = maxf(0.04, float(o.sweep_frac) * dur)
+	o["hold"] = 0.05
+	o["fade"] = 0.24
+	slash(parent, yaw, o, palette(color))
 
 
 ## Corte do combo de espada com escudo (KnightMovesShield.SLASH, medido da ponta da lâmina pelo retarget);

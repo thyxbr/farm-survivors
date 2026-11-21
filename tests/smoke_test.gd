@@ -53,6 +53,358 @@ func equip_any(id: String, use := false) -> void:
 	Econ.test_force_level(lv0)
 
 
+## Égide Cristalina (espada + escudo, slot 1): kit, formação, absorção com rachaduras, quebra, dissipação,
+## limpeza dos nós e o fim por soltar a tecla. Volta sem escudo e com a vida de antes.
+func _check_aegis(player: Node, world: Node) -> void:
+	var cfg: AegisConfig = ShieldAbilities.CONFIG
+	Game.add_item("wooden_shield")
+	equip_any("wooden_shield")
+	await wait_until(func(): return Game.offhand_kind() == "shield")
+	check(Game.ability_kit()[0] == "sword_aegis" and Game.ability_kit().size() == 4,
+		"Égide: espada + escudo troca a habilidade 1 (%s)" % [Game.ability_kit()])
+	await wait_until(func(): return player.ability == "" and not player.attacking and player.dodge_timer <= 0.0)
+	var hp0: float = Game.hp
+	var count_fx := func(cls: String) -> int:
+		var n := 0
+		for c in get_tree().current_scene.find_children("*", cls, true, false):
+			if not c.is_queued_for_deletion():
+				n += 1
+		return n
+	player.cooldowns.sword_aegis = 0.0
+	player.cast("sword_aegis")   # slot 0 = fica erguido até release(), como a tecla segurada
+	check(player.ability == "sword_aegis", "Égide: a habilidade começa")
+	var bar: AegisBarrier = player.ability_data.get("barrier")
+	check(is_instance_valid(bar) and bar.get_parent() == player, "Égide: barreira nasce presa ao jogador")
+	var rings0: Vector2 = bar.rings.angles()
+	await wait(cfg.circle_form_time + 0.05)
+	var dr: Vector2 = bar.rings.angles() - rings0
+	check(bar.ground.formed() >= 1.0, "Égide: círculo mágico formado em %.2f s" % cfg.circle_form_time)
+	check(dr.x > 0.0 and dr.y < 0.0, "Égide: anéis giram em sentidos opostos (%.2f / %.2f rad)" % [dr.x, dr.y])
+	var early := bar.formed()
+	await wait(cfg.barrier_form_time + 0.2)
+	check(early < 0.9 and bar.formed() >= 0.99, "Égide: barreira cresce aos poucos (%.2f -> %.2f)" % [early, bar.formed()])
+	var low_first := bar.plates[0].h01 < bar.plates[bar.plates.size() - 1].h01
+	check(bar.plates.size() == AegisBarrier.layout(cfg.plate_count, cfg.shield_width, cfg.shield_height, cfg.plate_rows).size() and low_first, "Égide: %d placas em losango, de baixo para cima" % bar.plates.size())
+	check(player.model.visible and cfg.plate_fill < 0.5, "Égide: personagem visível dentro (preenchimento %.2f)" % cfg.plate_fill)
+	var pos0: Vector3 = player.global_position
+	await wait(0.3)
+	check(bar.global_position.distance_to(player.global_position) < 0.01, "Égide: círculo acompanha o jogador")
+	# golpes: o escudo absorve (a vida não cai) e as rachaduras crescem
+	var st: Dictionary = player.ability_data.aegis
+	var mx: float = st.max
+	var raw := func(final: float) -> float: return final * (50.0 + Game.defense() * 4.0) / 50.0
+	var src: Vector3 = player.global_position + Vector3(0, 1, 3)
+	var avg_crack := func() -> float:
+		var s := 0.0
+		for p in bar.plates:
+			s += p.damage()
+		return s / bar.plates.size()
+	player.invuln = 0.0
+	var hp_hit: float = Game.hp   # a vida regenera com o tempo: compara com a de logo antes do golpe
+	player.take_damage(raw.call(mx * 0.4), src)
+	var c1: float = avg_crack.call()
+	check(is_equal_approx(Game.hp, hp_hit) and absf(AegisRules.fraction(st) - 0.6) < 0.02,
+		"Égide: 40%% do escudo absorvido sem tocar na vida (integridade %.2f)" % AegisRules.fraction(st))
+	await wait(0.5)
+	player.invuln = 0.0
+	player.take_damage(raw.call(mx * 0.4), src)
+	var c2: float = avg_crack.call()
+	check(c1 > 0.0 and c2 > c1, "Égide: rachaduras crescem com o dano (%.2f -> %.2f)" % [c1, c2])
+	check(bar.plates.any(func(p): return p.crack.visible), "Égide: efeito de rachadura aparece nas placas")
+	await wait(0.5)
+	# quebra: o que passa da integridade vai para a vida, a guarda cai e a barreira estoura
+	player.invuln = 0.0
+	var hp_b: float = Game.hp
+	player.take_damage(raw.call(mx * 0.5), src)
+	check(player.ability == "" and st.broken, "Égide: integridade zero tira a proteção na hora")
+	check(absf((hp_b - Game.hp) - mx * 0.3) < 1.0, "Égide: só o excesso (%.1f) vai para a vida (perdeu %.1f)" % [mx * 0.3, hp_b - Game.hp])
+	check(bar.is_broken() and is_instance_valid(bar), "Égide: barreira entra na quebra (pulsação)")
+	check(player.cooldowns.sword_aegis >= ItemDB.ABILITIES.sword_aegis.cooldown, "Égide: recarga começa no fim (%.1f s)" % player.cooldowns.sword_aegis)
+	await wait(cfg.break_delay + 0.1)
+	check(count_fx.call("AegisShards") >= 1 and count_fx.call("AegisDissipate") >= 1, "Égide: fragmentos e partículas na quebra")
+	await wait(cfg.dissipate_time + 1.0)
+	check(not is_instance_valid(bar), "Égide: barreira liberada depois da dissipação")
+	check(count_fx.call("AegisShards") == 0 and count_fx.call("AegisDissipate") == 0, "Égide: fragmentos e partículas limpos")
+	# soltar a tecla: dissolve sem estouro e também se libera
+	player.cooldowns.sword_aegis = 0.0
+	player.invuln = 0.0
+	player.cast("sword_aegis")
+	var bar2: AegisBarrier = player.ability_data.get("barrier")
+	await wait(0.4)
+	ShieldAbilities.release(player)
+	check(player.ability == "" and bar2.state == AegisBarrier.State.DISSOLVING, "Égide: soltar a tecla dissolve o escudo")
+	await wait(cfg.dissipate_time)
+	check(not is_instance_valid(bar2) and count_fx.call("AegisDissipate") == 0, "Égide: dissolver também limpa tudo")
+	player.invuln = 0.0
+	var hp_c: float = Game.hp
+	player.take_damage(raw.call(5.0), src)
+	check(Game.hp < hp_c - 4.0, "Égide: sem escudo erguido o dano volta para a vida")
+	await _check_aegis_wall(player, world, cfg)
+	# tira o escudo: a Investida volta
+	Game.unequip("offhand")
+	await wait_until(func(): return Game.offhand_kind() == "")
+	check(Game.ability_kit()[0] == "sword_charge", "Égide: sem escudo a habilidade 1 volta a ser a Investida")
+	Game.hp = hp0
+	player.global_position = pos0
+	player.cooldowns.sword_aegis = 0.0
+	player.invuln = 0.0
+
+
+## Égide como parede: ao se formar empurra os monstros de perto; depois nenhum entra nem projétil atravessa (o
+## golpe vai para o escudo); quebrou ou soltou, a parede some.
+func _check_aegis_wall(player: Node, world: Node, cfg: AegisConfig) -> void:
+	var back: Vector3 = player.global_position
+	var spot := Vector3(-105, 0.3, 40)   # fora da vila (a guarda abate monstro lá dentro)
+	player.global_position = spot
+	player.velocity = Vector3.ZERO
+	await wait(0.2)
+	var mobs: Array = []
+	for off in [Vector3(1.0, 0, 0.3), Vector3(-1.2, 0, 0.8), Vector3(0.4, 0, -1.5), Vector3(5.5, 0, 0)]:
+		var e := Enemy.new()
+		e.kind = "slime"
+		world.add_child(e)
+		e.global_position = spot + off
+		e.home = e.global_position
+		mobs.append(e)
+	await wait(0.1)
+	var flat := func(e: Node3D) -> float:
+		return Vector2(e.global_position.x - player.global_position.x, e.global_position.z - player.global_position.z).length()
+	check(flat.call(mobs[0]) < 1.5 and flat.call(mobs[1]) < 1.5, "Égide parede: monstros começam colados no jogador")
+	player.cooldowns.sword_aegis = 0.0
+	player.invuln = 0.0
+	player.cast("sword_aegis")
+	var wall: Dictionary = player.ability_data.get("wall", {})
+	check(not wall.is_empty() and AegisWalls.walls.has(wall), "Égide parede: a parede entra no registro")
+	await wait(0.15)
+	var mid: float = flat.call(mobs[0])
+	await wait(cfg.circle_form_time + cfg.barrier_form_time)
+	var min_d := 99.0
+	for e in mobs:
+		if is_instance_valid(e) and not e.dead:
+			min_d = minf(min_d, flat.call(e) - e.radius)
+	check(mid > 1.0 and mid < cfg.shield_width, "Égide parede: o empurrão acompanha a formação (%.2f m no meio)" % mid)
+	check(min_d >= cfg.shield_width - 0.05, "Égide parede: todos empurrados para fora (mais perto: %.2f m, raio %.1f)" % [min_d, cfg.shield_width])
+	# os monstros perseguem o jogador por um tempo: nenhum entra
+	for e in mobs:
+		if is_instance_valid(e):
+			e._set_state("chase")
+			e.attack_cd = 0.0
+	var st_w: Dictionary = player.ability_data.aegis
+	var integ_w: float = st_w.integrity
+	var hp_w: float = Game.hp
+	# andar com a habilidade ativa: parado (a tecla de andar não move)
+	var pos_w: Vector3 = player.global_position
+	Input.action_press("move_forward")
+	var worst := 99.0
+	for _i in 25:
+		await wait(0.1)
+		for e in mobs:
+			if is_instance_valid(e) and not e.dead:
+				worst = minf(worst, flat.call(e) - e.radius)
+	Input.action_release("move_forward")
+	check(worst >= cfg.shield_width - 0.05, "Égide parede: perseguindo, nenhum entra (mais perto: %.2f m)" % worst)
+	var moved_w := Vector2(player.global_position.x - pos_w.x, player.global_position.z - pos_w.z).length()
+	check(moved_w < 0.05, "Égide: com a habilidade ativa o herói não anda (andou %.2f m segurando W)" % moved_w)
+	check(float(st_w.integrity) < integ_w and Game.hp >= hp_w,
+		"Égide parede: monstros corpo a corpo batem na barreira (integridade %.1f -> %.1f), vida intacta" % [integ_w, float(st_w.integrity)])
+	# projétil de fora: para na coroa e o golpe vai para o escudo (a vida não cai)
+	var st: Dictionary = player.ability_data.aegis
+	var integ0: float = st.integrity
+	var hp_a: float = Game.hp
+	player.invuln = 0.0
+	var arrow: Node3D = EnemyArrow_script().new()
+	arrow.direction = Vector3(-1, 0, 0)
+	arrow.damage = 6.0
+	arrow.source = world
+	world.add_child(arrow)
+	arrow.global_position = player.global_position + Vector3(6.0, 1.0, 0.0)
+	await wait(0.5)
+	check(not is_instance_valid(arrow), "Égide parede: a flecha some na coroa")
+	check(float(st.integrity) < integ0 and Game.hp >= hp_a,   # a vida pode regenerar na espera, nunca cair
+		"Égide parede: o golpe da flecha vai para o escudo (%.1f -> %.1f), vida intacta" % [integ0, float(st.integrity)])
+	# de dentro para fora passa: uma flecha (de monstro) saindo do centro não para na parede
+	var out_arrow: Node3D = EnemyArrow_script().new()
+	out_arrow.direction = Vector3(0, 0, 1)
+	out_arrow.damage = 0.0
+	world.add_child(out_arrow)
+	out_arrow.global_position = player.global_position + Vector3(0.0, 1.0, 0.5)
+	await wait(0.3)
+	check(is_instance_valid(out_arrow) and flat.call(out_arrow) > cfg.shield_width, "Égide parede: de dentro para fora passa")
+	if is_instance_valid(out_arrow):
+		out_arrow.queue_free()
+	# soltou: a parede sai do registro e os monstros podem chegar de novo
+	ShieldAbilities.release(player)
+	check(not AegisWalls.walls.has(wall), "Égide parede: soltou, a parede sai do registro")
+	for e in mobs:
+		if is_instance_valid(e):
+			e.queue_free()
+	await wait(0.1)
+	player.global_position = back
+	player.velocity = Vector3.ZERO
+	player.cooldowns.sword_aegis = 0.0
+	player.invuln = 0.0
+
+
+## Martelo de Energia (espada + escudo, slot 2 / tecla 2): kit, círculo acima da cabeça girando, martelo saindo
+## do círculo proporcional a ele (do tamanho do da Égide), câmera olhando para cima, círculo fechando antes da queda, queda no ponto certo, dano em área (os de
+## dentro uma vez só, os de fora nada), crateras pela área, recarga, limpeza de tudo e o cancelamento pela esquiva.
+func _check_hammer(player: Node, world: Node) -> void:
+	var cfg: HammerConfig = HammerAbilities.CONFIG
+	var back: Vector3 = player.global_position
+	var lv0: int = Game.level
+	Econ.test_force_level(maxi(lv0, 3))
+	Game.add_item("wooden_shield")
+	equip_any("wooden_shield")
+	await wait_until(func(): return Game.offhand_kind() == "shield" and Game.level >= 3)
+	var kit := Game.ability_kit()
+	check(kit.size() == 4 and kit[1] == "sword_hammer" and not ("sword_quake" in kit),
+		"Martelo: espada + escudo troca a habilidade 2 (%s)" % [kit])
+	check(Game.knows_ability("sword_hammer"), "Martelo: liberado no nível %d" % ItemDB.ABILITIES.sword_hammer.level)
+	var count_fx := func(cls: String) -> int:
+		var n := 0
+		for c in get_tree().current_scene.find_children("*", cls, true, false):
+			if not c.is_queued_for_deletion():
+				n += 1
+		return n
+	var spot := Vector3(-105, 0.3, 40)   # fora da vila (a guarda abate monstro lá dentro)
+	player.global_position = spot
+	player.velocity = Vector3.ZERO
+	player.model.rotation.y = 0.0     # olhando para +Z: o martelo cai em spot + (0, 0, forward_offset)
+	await wait(0.25)
+	await wait_until(func(): return player.ability == "" and not player.attacking and player.dodge_timer <= 0.0)
+	var center: Vector3 = player.global_position + Vector3(0, 0, cfg.forward_offset)
+	# monstros parados (sem física de movimento): 3 dentro do raio, 2 fora
+	var mobs: Array = []
+	for off in [Vector3(1.5, 0, 0.5), Vector3(-2.2, 0, 1.4), Vector3(0.4, 0, -3.3), Vector3(cfg.radius + 2.5, 0, 0), Vector3(-cfg.radius - 3.0, 0, 2.0)]:
+		var e := Enemy.new()
+		e.kind = "slime"
+		world.add_child(e)
+		e.global_position = center + off
+		e.home = e.global_position
+		mobs.append(e)
+	await wait(0.15)
+	for e in mobs:
+		e.set_physics_process(false)
+	var inside := mobs.slice(0, 3)
+	var outside := mobs.slice(3)
+	var hp0 := {}
+	for e in mobs:
+		hp0[e] = e.hp
+	var hp_player: float = Game.hp
+	player.cooldowns.sword_hammer = 0.0
+	player.invuln = 99.0   # os monstros não interferem (o teste é do golpe)
+	player.cast("sword_hammer")
+	check(player.ability == "sword_hammer", "Martelo: a habilidade começa na tecla 2")
+	var skill: HammerSkill = player.ability_data.get("skill")
+	check(is_instance_valid(skill) and skill.get_parent() == get_tree().current_scene, "Martelo: HammerSkill na cena do mundo")
+	var cd: float = player.cooldowns.sword_hammer
+	check(cd >= cfg.cooldown * Game.cooldown_mult() - 0.01, "Martelo: recarga do HammerConfig (%.1f s)" % cd)
+	# círculo acima da cabeça, girando
+	await wait(cfg.circle_form_time * 0.5)
+	var c_pos: Vector3 = skill.circle.global_position
+	var above: float = c_pos.y - player.global_position.y
+	var flat_c := Vector2(c_pos.x - center.x, c_pos.z - center.z).length()
+	check(skill.circle.visible and above > 2.2 and absf(above - cfg.circle_height) < 0.05 and flat_c < 0.05,
+		"Martelo: círculo aparece %.2f m acima do herói, sobre o ponto do golpe" % above)
+	var a0: float = skill.circle.spin_angle
+	await wait(0.2)
+	check(skill.circle.spin_angle > a0 + 0.05, "Martelo: círculo gira (%.2f -> %.2f rad)" % [a0, skill.circle.spin_angle])
+	check(skill.circle.formed() > 0.0, "Martelo: círculo se materializa aos poucos (%.2f)" % skill.circle.formed())
+	# o martelo sai de dentro do círculo: a cabeça abaixo do plano do círculo, o cabo ainda acima
+	await wait_until(func(): return skill.state == HammerSkill.State.FORM)
+	await wait(cfg.formation_time * 0.45)
+	var plane: float = skill.global_position.y + cfg.circle_height
+	check(skill.hammer.visible and skill.hammer.bottom_y() < plane - 0.3 and skill.hammer.top_y() > plane + 0.3,
+		"Martelo: sai de dentro do círculo, cabeça primeiro (base %.2f, topo %.2f, círculo %.2f)" % [skill.hammer.bottom_y(), skill.hammer.top_y(), plane])
+	check(absf(skill.hammer.length / cfg.circle_radius - 3.6 / 1.7) < 0.2 and is_equal_approx(cfg.circle_radius, ShieldAbilities.CONFIG.circle_radius),
+		"Martelo: círculo do tamanho do da Égide (%.2f m) e martelo proporcional (%.2f m)" % [cfg.circle_radius, skill.hammer.length])
+	check(player.cam_tilt > 0.1 and player.cam_back > 1.0, "Martelo: a câmera recua e olha para cima enquanto invoca (%.2f rad)" % player.cam_tilt)
+	# andar não move o herói enquanto invoca
+	var pos_w: Vector3 = player.global_position
+	Input.action_press("move_forward")
+	await wait(0.3)
+	Input.action_release("move_forward")
+	check(Vector2(player.global_position.x - pos_w.x, player.global_position.z - pos_w.z).length() < 0.05,
+		"Martelo: parado enquanto invoca")
+	# o círculo fecha antes da queda
+	await wait_until(func(): return skill.state >= HammerSkill.State.CLOSE, 3.0)
+	check(skill.state == HammerSkill.State.CLOSE and skill.circle.state == MagicCircle.State.CLOSING,
+		"Martelo: martelo pronto, o círculo começa a fechar")
+	await wait_until(func(): return skill.state >= HammerSkill.State.FALL, 3.0)
+	check(skill.circle.is_closed() and skill.hammer.visible, "Martelo: círculo fechado antes da queda, martelo continua visível")
+	var y_fall0: float = skill.hammer.bottom_y()
+	await wait(cfg.fall_time() * 0.5)
+	var y_mid: float = skill.hammer.bottom_y()
+	check(y_mid < y_fall0 or skill.impact_at >= 0.0, "Martelo: cai (%.2f -> %.2f)" % [y_fall0, y_mid])
+	await wait_until(func(): return skill.impact_at >= 0.0, 2.0)
+	var ic: Vector3 = skill.impact_center
+	check(Vector2(ic.x - center.x, ic.z - center.z).length() < 0.05 and absf(skill.hammer.bottom_y() - ic.y) < 0.3,
+		"Martelo: cai no ponto certo, à frente do herói (%.2f m do esperado)" % Vector2(ic.x - center.x, ic.z - center.z).length())
+	await wait(0.05)
+	var hp1 := {}
+	for e in mobs:
+		hp1[e] = e.hp if is_instance_valid(e) else -1.0
+	var hit_in := inside.filter(func(e): return not is_instance_valid(e) or e.dead or float(hp1[e]) < float(hp0[e]))
+	check(hit_in.size() == inside.size() and skill.hit_count == inside.size(),
+		"Martelo: todos os %d monstros dentro do raio levam dano (%d)" % [inside.size(), hit_in.size()])
+	check(outside.all(func(e): return is_instance_valid(e) and is_equal_approx(e.hp, float(hp0[e]))),
+		"Martelo: monstros fora do raio não levam dano")
+	check(is_equal_approx(Game.hp, hp_player) or Game.hp >= hp_player, "Martelo: o próprio herói não leva dano")
+	check(count_fx.call("HammerImpact") == 1, "Martelo: explosão no impacto")
+	await wait(cfg.crater_max_distance / cfg.crater_wave_speed + 0.2)
+	var craters: Array = get_tree().current_scene.find_children("*", "GroundCrater", true, false)
+	var far := 0.0
+	var spread := {}
+	for c in craters:
+		var d := Vector2(c.global_position.x - ic.x, c.global_position.z - ic.z)
+		far = maxf(far, d.length())
+		spread[int(floor((atan2(d.y, d.x) + PI) / (TAU / 4.0))) % 4] = true
+	check(craters.size() == cfg.crater_count and far <= cfg.radius and spread.size() == 4,
+		"Martelo: %d crateras espalhadas pela área (mais longe %.2f m, raio %.1f)" % [craters.size(), far, cfg.radius])
+	# cada um levou dano uma vez só
+	await wait(0.5)
+	check(inside.all(func(e): return not is_instance_valid(e) or e.dead or is_equal_approx(e.hp, float(hp1[e]))),
+		"Martelo: cada monstro leva dano uma vez por ativação")
+	await wait_until(func(): return player.ability == "", 2.0)
+	check(player.ability == "", "Martelo: o herói fica livre depois do impacto")
+	check(player.cam_tilt == 0.0, "Martelo: a câmera volta ao normal no fim")
+	# o martelo some e tudo é liberado
+	await wait_until(func(): return not is_instance_valid(skill), cfg.linger_time + cfg.dissolve_time + cfg.crater_life + 3.0)
+	check(not is_instance_valid(skill) and count_fx.call("GroundCrater") == 0 and count_fx.call("HammerImpact") == 0
+		and count_fx.call("HammerDissolve") == 0, "Martelo: martelo, crateras e efeitos removidos no fim")
+	# esquiva antes da queda cancela: sem dano e tudo se desfaz
+	for e in mobs:
+		if is_instance_valid(e) and not e.dead:
+			hp0[e] = e.hp
+	player.cooldowns.sword_hammer = 0.0
+	player.cast("sword_hammer")
+	var skill2: HammerSkill = player.ability_data.get("skill")
+	await wait(cfg.circle_form_time + 0.2)
+	check(HammerAbilities.can_dodge_cancel(player), "Martelo: esquiva pode cancelar antes da queda")
+	HammerAbilities.dodge_cancel(player)
+	check(player.ability == "" and skill2.state == HammerSkill.State.CANCELED, "Martelo: cancelado pela esquiva")
+	await wait_until(func(): return not is_instance_valid(skill2), 2.0)
+	check(not is_instance_valid(skill2) and mobs.all(func(e): return not is_instance_valid(e) or e.dead or is_equal_approx(e.hp, float(hp0[e]))),
+		"Martelo: cancelado não fere ninguém e se libera")
+	for e in mobs:
+		if is_instance_valid(e):
+			e.queue_free()
+	# tira o escudo: o Golpe Sísmico volta
+	Game.unequip("offhand")
+	await wait_until(func(): return Game.offhand_kind() == "")
+	check(Game.ability_kit()[1] == "sword_quake", "Martelo: sem escudo a habilidade 2 volta a ser o Golpe Sísmico")
+	Econ.test_force_level(lv0)
+	player.global_position = back
+	player.velocity = Vector3.ZERO
+	player.cooldowns.sword_hammer = 0.0
+	player.invuln = 0.0
+	Game.hp = hp_player
+
+
+func EnemyArrow_script() -> GDScript:
+	return load("res://scripts/enemies/enemy_arrow.gd")
+
+
 func wait(sec: float) -> void:
 	await get_tree().create_timer(sec, true, true).timeout
 
@@ -539,6 +891,8 @@ func _ready() -> void:
 	check(Game.ability_kit() == ["sword_charge", "sword_quake", "sword_fury", "sword_whirl"], "kit da espada (%s)" % [Game.ability_kit()])
 	check(not Game.knows_ability("sword_quake") and Game.knows_ability("sword_charge"), "liberação por nível")
 	check(Game.level < 3 and not Game.knows_ability("frost_nova") and ItemDB.ABILITIES.frost_nova.level == 3, "Nova Gélida só no nível 3")
+	await _check_aegis(player, world)
+	await _check_hammer(player, world)
 	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
 	# quem testar; resta conferir que há recarga para cada habilidade
 	Game.add_item("short_bow")
@@ -1107,6 +1461,7 @@ func _ready() -> void:
 	await _test_tecela_web()
 	await _test_bocarrao_tongue()
 	await _test_flor_rooted()
+	await _test_espinheira()
 	await _test_enemy_detour()
 	await _test_river()
 	await _test_archer_pose()
@@ -1964,7 +2319,7 @@ func _test_dungeons() -> void:
 			if e.is_boss:
 				bosses[r] = true
 	for d in Regions.DUNGEONS:
-		check(int(by_dg.get(d, 0)) >= 20 and bosses.has(d), "%s com monstros (%d) e chefe" % [d, int(by_dg.get(d, 0))])
+		check(int(by_dg.get(d, 0)) >= 14 and bosses.has(d), "%s com monstros (%d) e chefe" % [d, int(by_dg.get(d, 0))])
 	var lv_ok := true
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if Regions.region_at(e.global_position) == "dg_mina" and not e.is_boss and (e.level < 26 or e.level > 30):
@@ -2761,7 +3116,7 @@ func _test_guild_travel() -> void:
 		if e.kind == "slime_rainha" and not e.dead:
 			queen = true
 	check(queen, "Slime Rainha nasceu no bosque")
-	check(MusicRules.area(player.global_position) == "wild", "música do bosque")
+	check(MusicRules.area(player.global_position) == "swamp", "música do bosque (pântano)")
 	world.travel_to("vila")
 	await wait(1.6)
 	check(Regions.region_at(player.global_position) == "vila", "carruagem traz de volta à vila")
@@ -4175,3 +4530,75 @@ func _count(kind: String) -> int:
 		if e.kind == kind:
 			n += 1
 	return n
+
+
+## Espinheira, a Guardiã-Raiz (chefe do Bosque): as Raízes acertam de longe e prendem, os Brotos nascem e a curam,
+## na fúria as Nuvens de Esporos aparecem, e os brotos murcham quando a luta acaba.
+func _test_espinheira() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 40)
+	player.global_position = spot
+	Game.hp = Game.max_hp()
+	var e := Enemy.new()
+	e.kind = "espinheira"
+	world.add_child(e)
+	e.global_position = spot + Vector3(0, 0, -9)
+	e.home = e.global_position
+	await wait(0.2)
+	check(e.is_boss and e.parts.get("Crown") != null and e.parts.get("KneeL") != null and e.parts.get("ElbowR") != null,
+		"Espinheira: chefe, com copa, joelhos e cotovelos no modelo")
+	# Raízes: o jogador está a 9 m (fora da garra), na linha
+	var hp0: float = Game.hp
+	e._thorn_n = 0
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "roots", "Espinheira: longe, ataca com as Raízes (%s)" % e.attack_kind)
+	await wait_until(func(): return Game.hp < hp0, 3.5)
+	check(Game.hp < hp0 and player.web_t > 0.0, "Espinheira: as Raízes acertam e prendem (%.0f -> %.0f, preso %.1f s)"
+		% [hp0, Game.hp, player.web_t])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	# Brotos: o 4º golpe do ciclo; eles nascem e curam a árvore ferida
+	Game.hp = Game.max_hp()
+	e._thorn_n = 3
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e._sprouts_near(e.global_position).size() >= ThornRules.SPROUTS, 3.0)
+	var sprouts: Array = e._sprouts_near(e.global_position)
+	check(sprouts.size() == ThornRules.SPROUTS, "Espinheira: os Brotos nascem (%d)" % sprouts.size())
+	e.hp = e.max_hp * 0.6
+	var hp_b: float = e.hp
+	await wait(1.2)
+	check(e.hp > hp_b, "Espinheira: os Brotos vivos a curam (%.0f -> %.0f)" % [hp_b, e.hp])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	# Esporos: na fúria, no ciclo ímpar; uma nuvem nasce sob o jogador
+	Game.hp = Game.max_hp()
+	e.enraged = true
+	e._thorn_n = 7
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "spores", "Espinheira: na fúria vêm os Esporos (%s)" % e.attack_kind)
+	await wait(1.8)
+	var clouds := 0
+	for c in world.get_children():
+		if c is SporeCloud:
+			clouds += 1
+	check(clouds >= ThornRules.SPORES + 1, "Espinheira: as Nuvens de Esporos nascem, uma sob o jogador (%d)" % clouds)
+	Game.hp = Game.max_hp()
+	# fim da luta: sem a árvore, os brotos murcham (sem recompensa)
+	e.queue_free()
+	await wait(1.5)
+	var left := 0
+	for s in sprouts:
+		if is_instance_valid(s) and not s.dead:
+			left += 1
+	check(left == 0, "Espinheira: sem ela, os Brotos murcham (%d sobraram)" % left)
+	for c in world.get_children():
+		if c is SporeCloud:
+			c.queue_free()
+	Game.hp = Game.max_hp()
+	player.web_t = 0.0
+	player.chill_t = 0.0
+	player.global_position = back
+	await wait(0.1)

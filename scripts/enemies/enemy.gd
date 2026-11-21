@@ -43,6 +43,12 @@ const FAR_HIDE := 110.0
 const FAR_MARGIN := 10.0
 var still := false
 var _far_t := 0.0
+## Nome, ícone de missão e barra de vida ficam juntos neste nó; some quando a câmera não vê o monstro (parede
+## ou morro no meio), já que as placas desenham por cima de tudo (no_depth_test).
+var _plates: Node3D
+var _occ_t := 0.0
+const OCCLUDE_CHECK := 0.2
+const OCCLUDE_MASK := 1   # camada "world"
 var _sleep_t := 0.0
 const SLEEP_CHECK := 0.5
 ## Tamanho do modelo além de data.scale (elite e camada de nível).
@@ -149,6 +155,14 @@ var _layer := 4
 var _dust_t := 0.0
 ## Mãe-Verme (ai "worm"): ataques feitos desde que saiu do chão e o relógio da conferência do fosso.
 var worm_hits := 0
+## Espinheira (ai "thorn"): golpes dados na luta, a origem e as direções das Raízes da vez, quem elas já pegaram,
+## os pontos das Nuvens de Esporos e o relógio da cura dos Brotos (e do galho que liga cada broto a ela).
+var _thorn_n := 0
+var _root_origin := Vector3.ZERO
+var _root_dirs: Array = []
+var _root_hit := {}
+var _spore_pts: Array = []
+var _thorn_t := 0.0
 var _leash_t := 0.0
 ## Mãe-Verme, habilidades de chefe (BossRules): especiais já feitos, mergulhos de fúria pendentes, semente do
 ## Desmoronamento (vai no snapshot), pontos das pedras e das Poças de Ácido do golpe atual, a entrada já mostrada
@@ -177,6 +191,7 @@ func _ready() -> void:
 		sleep_radius = float(Balance.tables.get_table("rules").get("enemy_sleep_radius", 0.0))
 		_sleep_t = randf() * SLEEP_CHECK   # espalha as conferências pelos quadros
 	_far_t = randf() * SLEEP_CHECK
+	_occ_t = randf() * OCCLUDE_CHECK
 	display_name = data.name
 	if elite:
 		display_name += " de Elite"
@@ -238,6 +253,10 @@ func _ready() -> void:
 		parts["Neck"] = model.find_child("Neck", true, false)
 	if data.model == "mole":   # Toupeira: o segundo osso de cada membro (cotovelo e joelho)
 		for n in ["ElbowL", "ElbowR", "KneeL", "KneeR"]:
+			parts[n] = model.find_child(n, true, false)
+	if data.model == "thorn_tree":   # Espinheira: cotovelos, joelhos, mãos, a copa, os galhos dos lados e os cipós
+		for n in ["ElbowL", "ElbowR", "KneeL", "KneeR", "HandL", "HandR", "Crown", "BoughL", "BoughR", "Hang0", "Hang1",
+				"Hang2", "Hang3"]:
 			parts[n] = model.find_child(n, true, false)
 	if data.model in ["spider", "centipede"]:   # Tecelã e Centopeia: abdômen e as pernas (Leg0L..Leg3R)
 		for n in SPIDER_PARTS:
@@ -391,10 +410,34 @@ func _horde_frozen() -> bool:
 	return sv != null and is_instance_valid(sv) and sv.get("frozen") == true
 
 
+func _plate_parent() -> Node3D:
+	if _plates == null:
+		_plates = Node3D.new()
+		_plates.name = "Plates"
+		add_child(_plates)
+	return _plates
+
+
+## Esconde as placas quando há chão ou parede (camada world) entre a câmera e a cabeça do monstro: dentro das
+## dungeons os nomes não aparecem mais através das paredes.
+func _update_occlusion() -> void:
+	if _plates == null or not visible:
+		return
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var head: Vector3 = global_position + Vector3.UP * (float(data.height) * float(data.scale) * size_mult * 0.8)
+	var from := cam.global_position
+	if from.distance_to(head) > NAME_RANGE * 2.0:
+		return   # longe demais: o visibility_range já tira o nome
+	var q := PhysicsRayQueryParameters3D.create(from, head, OCCLUDE_MASK)
+	_plates.visible = get_world_3d().direct_space_state.intersect_ray(q).is_empty()
+
+
 func _make_health_bar() -> void:
 	bar_root = Node3D.new()
 	bar_root.position.y = data.height * data.scale * (size_mult if level > 0 else 1.0) + 0.45
-	add_child(bar_root)
+	_plate_parent().add_child(bar_root)
 	if _bar_meshes.is_empty():      # as duas malhas (e os materiais) servem para todas as barras
 		for spec in [[Vector2(1.0, 0.12), Color(0, 0, 0, 0.7), 0], [Vector2(0.96, 0.08), Color(0.85, 0.15, 0.1), 1]]:
 			var q := QuadMesh.new()
@@ -428,7 +471,7 @@ func _make_name_tag() -> void:
 		Game.leveled_up.connect(_update_plate_color)
 	name_tag.position.y = top + (0.75 if not is_boss else 0.5)
 	name_tag.visibility_range_end = NAME_RANGE * (2.0 if is_boss else 1.0)
-	add_child(name_tag)
+	_plate_parent().add_child(name_tag)
 	quest_icon = Sprite3D.new()
 	quest_icon.texture = _quest_texture()
 	quest_icon.pixel_size = 0.0024
@@ -440,7 +483,7 @@ func _make_name_tag() -> void:
 	quest_icon.position.y = name_tag.position.y
 	quest_icon.offset.y = 18.0     # em pixels do ícone: fica logo acima do nome a qualquer distância
 	quest_icon.visibility_range_end = name_tag.visibility_range_end
-	add_child(quest_icon)
+	_plate_parent().add_child(quest_icon)
 	Game.quests_changed.connect(_update_quest_icon)
 	_update_quest_icon()
 
@@ -519,6 +562,13 @@ static func _bar_mat(c: Color, priority: int) -> StandardMaterial3D:
 
 
 func _physics_process(delta: float) -> void:
+	if not dead and (ai() == "thorn" or data.get("sprout", false)):
+		_thorn_process(delta)
+	if _plates != null:
+		_occ_t -= delta
+		if _occ_t <= 0.0:
+			_occ_t = OCCLUDE_CHECK
+			_update_occlusion()
 	if not horde and not is_boss:
 		_far_t -= delta
 		if _far_t <= 0.0:
@@ -571,6 +621,16 @@ func _physics_process(delta: float) -> void:
 		dist = to_player.length()
 
 	_track_target(player, delta)
+	# Égide Cristalina: com o alvo atrás da coroa (ele dentro, este monstro fora), o alvo vira a própria parede:
+	# a distância é até a coroa e o golpe vai para o escudo de quem ergueu (AegisWalls.blocking)
+	var strike: Node = player
+	if dist < INF and ai() != "worm":
+		var wall := AegisWalls.blocking(self, player)
+		if not wall.is_empty():
+			var c := AegisWalls.center(wall)
+			to_player = Vector3(c.x - global_position.x, 0.0, c.z - global_position.z)
+			dist = maxf(to_player.length() - AegisWalls.radius_now(wall), 0.05)
+			strike = wall.caster
 
 	haste_t = maxf(0.0, haste_t - delta)
 	var spd: float = data.speed * speed_mult * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0) \
@@ -635,6 +695,8 @@ func _physics_process(delta: float) -> void:
 				var r := _ranged_move(to_player, dist, spd)
 				move = r[0]
 				face = r[1]
+			elif ai() == "thorn" and attack_cd <= 0 and dist <= ThornRules.ROOT_LEN:
+				_begin_attack(dist)   # Espinheira: garra perto, raízes longe
 			elif ai() == "burrow" and BurrowRules.should_dig(dist, surface_t, data):
 				_set_state("burrow")   # Toupeira: afunda e vai por baixo da terra até o alvo
 				dig_t = 0.0
@@ -680,7 +742,7 @@ func _physics_process(delta: float) -> void:
 			elif BurrowRules.should_emerge(global_position, tgt, dig_t, data):
 				_begin_emerge()
 		"attack":
-			_update_attack(delta, player, to_player, dist)
+			_update_attack(delta, strike, to_player, dist)
 			if attack_kind == "lunge" and attack_timer > 0.35 and attack_timer < 0.6:
 				move = model_forward() * spd * (2.0 if ai() in ["pack", "weaver", "flyer"] else 3.2)
 			elif dist < INF and (attack_timer < 0.35 or ((attack_kind in ["shoot", "web", "tongue", "cast"])
@@ -713,6 +775,8 @@ func _physics_process(delta: float) -> void:
 		velocity.x = 0.0
 		velocity.z = 0.0
 	move_and_slide()
+	if ai() != "worm":
+		AegisWalls.keep_out(self, radius)   # Égide erguida por perto: não entra (e é empurrado enquanto ela se forma)
 	_check_stuck(move, delta)
 	_animate(delta, Vector2(velocity.x, velocity.z).length())
 	if bar_root and bar_root.visible:
@@ -1135,6 +1199,9 @@ func _begin_attack(dist := 0.0) -> void:
 		"flyer":
 			attack_kind = "lunge"   # rasante
 			return
+		"thorn":
+			_thorn_begin(dist)
+			return
 		"worm":
 			attack_kind = BossRules.worm_attack(worm_hits, _specials, dist, float(data.reach))
 			worm_hits += 1
@@ -1207,6 +1274,14 @@ func _attack_duration() -> float:
 			return 2.4
 		"acid_rain":
 			return 1.6
+		"roots":
+			return ThornRules.root_time(ThornRules.ROOT_SEGS - 1) + 0.7
+		"sprouts":
+			return 2.0
+		"spores":
+			return 2.2
+	if ai() == "thorn":
+		return 1.6   # garra: a árvore é lenta para armar e para voltar
 	return 0.95 if not is_boss else 1.1
 
 
@@ -1238,6 +1313,14 @@ func _hit_time() -> float:
 			return 1.8
 		"acid_rain":
 			return 1.1
+		"roots":
+			return ThornRules.root_time(0)
+		"sprouts":
+			return 1.2
+		"spores":
+			return 1.4
+	if ai() == "thorn":
+		return 0.9
 	return 0.5 if not is_boss else 0.6
 
 
@@ -1271,6 +1354,14 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 			_rockfall_hit(false)
 		elif attack_kind == "acid_rain":
 			_acid_hit(false)
+		elif attack_kind == "roots":
+			pass   # cada trecho acerta na sua hora, em _boss_tick
+		elif attack_kind == "sprouts":
+			_thorn_sprouts()
+		elif attack_kind == "spores":
+			_spore_hit(false)
+		elif attack_kind == "swing" and ai() == "thorn":
+			_thorn_claw(false)
 		elif attack_kind == "slam":
 			var sr := _slam_radius()
 			Sfx.play_at("slam", global_position, 0.0)
@@ -1682,6 +1773,8 @@ func _boss_tick(visual: bool, t0: float, t1: float) -> void:
 						var d := Vector2(p.global_position.x - c.x, p.global_position.z - c.z).length()
 						if not p.dead and BossRules.in_quake_ring(d, i):
 							p.take_damage(vs(level, p, data.damage * dmg_mult * 1.1), c)
+	elif attack_kind == "roots":
+		_roots_tick(visual, t0, t1)
 	elif attack_kind == "rockfall":
 		var drop := _hit_time() - 0.55
 		if t0 < drop and drop <= t1:
@@ -1702,6 +1795,18 @@ func _replica_boss_start(flags: int, atk_t: float) -> void:
 			throw_point = _net_pos + ThrowRules.unpack_offset(flags)
 			_acid_pts = BossRules.acid_points(_net_pos, throw_point)
 			_acid_warn(atk_t)
+		"roots":
+			_root_origin = _net_pos
+			_root_dirs = ThornRules.root_dirs(ThrowRules.unpack_offset(flags), flags & 2 != 0)
+			_roots_warn(atk_t)
+		"spores":
+			boss_seed = BossRules.unpack_seed(flags)
+			_spore_pts = _spore_targets(_net_pos)
+			_spores_warn(atk_t)
+		"sprouts":
+			_sprouts_warn(_net_pos, atk_t)
+		"swing":
+			_claw_warn(atk_t)
 
 
 ## Enterrada: some o modelo, a barra e a colisão (não pode ser alvo); aparece o monte de terra que anda.
@@ -1745,10 +1850,19 @@ func _dynamite_blast(visual: bool) -> void:
 	if visual:
 		return
 	var pool: Array = get_parent().targets() if get_parent().has_method("targets") else get_tree().get_nodes_in_group("players")
+	var walls_hit := {}   # Égide: a explosão do lado de fora bate na coroa (uma vez por escudo), não em quem está dentro
 	for p in pool:
 		if not p.dead and p.global_position.distance_to(throw_point) <= r:
+			var ws := AegisWalls.shielded(p.global_position, throw_point, self)
+			if not ws.is_empty():
+				for w in ws:
+					walls_hit[w.caster] = true
+				continue
 			p.take_damage(vs(level, p, data.damage * dmg_mult * 1.2), throw_point)
 			p.add_shake(0.3)
+	for caster in walls_hit:
+		if is_instance_valid(caster) and not caster.dead:
+			caster.take_damage(vs(level, caster, data.damage * dmg_mult * 1.2), throw_point)
 
 
 ## A banana de dinamite voando em arco da mão até throw_point (só visual; some fora do arremesso).
@@ -2047,7 +2161,8 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 				_replica_throw(flags, atk_t)
 			elif attack_kind == "emerge":
 				FX.telegraph(_net_pos, float(data.emerge_radius), maxf(0.2, _hit_time() - atk_t))
-			elif attack_kind in ["quake", "rockfall", "acid_rain"]:
+			elif attack_kind in ["quake", "rockfall", "acid_rain", "roots", "spores", "sprouts"] \
+					or (attack_kind == "swing" and ai() == "thorn"):
 				_replica_boss_start(flags, atk_t)
 		elif atk_t < attack_timer - 0.3:
 			# um novo ataque começou entre dois snapshots
@@ -2056,7 +2171,8 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 			hit_done = atk_t >= _hit_time()
 			if attack_kind == "throw":
 				_replica_throw(flags, atk_t)
-			elif attack_kind in ["quake", "rockfall", "acid_rain"]:
+			elif attack_kind in ["quake", "rockfall", "acid_rain", "roots", "spores", "sprouts"] \
+					or (attack_kind == "swing" and ai() == "thorn"):
 				_replica_boss_start(flags, atk_t)
 	if new_state != state:
 		_set_state(new_state)
@@ -2080,6 +2196,8 @@ func show_hit(amount: float, crit: bool) -> void:
 		Color(1, 0.85, 0.2) if crit else Color.WHITE, 64 if crit else 48)
 	FXToon.hit_splat(global_position + Vector3.UP * data.height * data.scale * 0.5, data.color, 5)
 	_flash_t = 0.1
+	if data.model == "thorn_tree":
+		_thorn_leaves(8 if crit else 4)   # cada pancada arranca folhas da copa
 	if bar_root:
 		bar_root.visible = true
 
@@ -2128,6 +2246,10 @@ func _puppet_process(delta: float) -> void:
 				_rockfall_hit(true)
 			elif attack_kind == "acid_rain":
 				_acid_hit(true)
+			elif attack_kind == "spores":
+				_spore_hit(true)
+			elif attack_kind == "swing" and ai() == "thorn":
+				_thorn_claw(true)
 			elif attack_kind == "swing":
 				Sfx.play_at("swing", global_position, 0.15, -4.0)
 	var hspeed := Vector2(global_position.x - prev.x, global_position.z - prev.z).length() / maxf(delta, 0.0001)
@@ -2186,6 +2308,9 @@ func _animate(delta: float, hspeed: float) -> void:
 		return
 	if data.model == "worm":
 		_animate_worm(k)
+		return
+	if data.model == "thorn_tree":
+		_animate_thorn(hspeed, s, k)
 		return
 	var amp: float = clamp(hspeed / 4.0, 0.0, 1.0) * 0.8
 	var at := attack_timer
@@ -2939,3 +3064,429 @@ func _animate_yeti(delta: float, hspeed: float, k: float) -> void:
 	if not body.has_meta("rest_y"):
 		body.set_meta("rest_y", body.position.y)
 	body.position.y = lerpf(body.position.y, float(body.get_meta("rest_y")) + lift, kf)
+
+
+# ------------------------------------------------------------ Espinheira, a Guardiã-Raiz (chefe do Bosque)
+## Regras em ThornRules. Garra perto (varre a frente, pega todos ali), Raízes em linha até quem está mais longe
+## (três em leque na fúria), Brotos que a curam enquanto vivem e, na fúria, Nuvens de Esporos que crescem.
+## O servidor (ou o solo) decide e dá o dano; a réplica no cliente refaz o desenho pela direção/semente do snapshot.
+const SPROUT_KIND := "broto_espinheiro"
+const THORN_TICK := 0.5
+
+
+func _thorn_begin(dist: float) -> void:
+	attack_kind = ThornRules.attack(_thorn_n, enraged, dist, float(data.reach), _sprouts_near(global_position).size())
+	_thorn_n += 1
+	match attack_kind:
+		"swing":
+			_claw_warn(0.0)
+		"roots":
+			var tgt = _thorn_far_target()
+			var aim: Vector3 = tgt.global_position if tgt != null else global_position + model_forward() * 10.0
+			var to := Vector3(aim.x - global_position.x, 0.0, aim.z - global_position.z)
+			if to.length() > 0.01:
+				model.rotation.y = atan2(to.x, to.z)
+			_root_origin = global_position
+			_root_dirs = ThornRules.root_dirs(to, enraged)
+			throw_point = global_position + (_root_dirs[_root_dirs.size() / 2] as Vector3) * ThornRules.ROOT_LEN
+			_root_hit = {}
+			_roots_warn(0.0)
+		"sprouts":
+			_sprouts_warn(global_position, 0.0)
+		"spores":
+			boss_seed = randi() & 0xFFFF
+			_spore_pts = _spore_targets(global_position)
+			_spores_warn(0.0)
+
+
+## Quem está mais longe dela entre os que estão na luta: as Raízes punem quem fica atacando de longe.
+func _thorn_far_target() -> Player:
+	var best: Player = null
+	var best_d := -1.0
+	for p in _boss_pool():
+		if p.dead or not (p is Player):
+			continue
+		var d := Vector2(p.global_position.x - global_position.x, p.global_position.z - global_position.z).length()
+		if d <= ThornRules.ROOT_LEN and d > best_d:
+			best_d = d
+			best = p
+	return best if best != null else (_tgt if _tgt is Player else null)
+
+
+## Centro da varrida da garra: um pouco à frente dela.
+func _claw_center() -> Vector3:
+	var c := _net_pos if puppet else global_position
+	return c + model_forward() * 2.0
+
+
+func _claw_warn(elapsed: float) -> void:
+	FX.telegraph(_claw_center(), 2.8, maxf(0.2, _hit_time() - elapsed))
+
+
+## A garra desce: rasgos e espinhos no chão à frente; pega todos dentro do círculo avisado.
+func _thorn_claw(visual: bool) -> void:
+	var c := _claw_center()
+	Sfx.play_at("slam", c, 0.1, -2.0)
+	FXToon.slam(c, 2.8)
+	if visual:
+		return
+	for p in _boss_pool():
+		if p.dead:
+			continue
+		if Vector2(p.global_position.x - c.x, p.global_position.z - c.z).length() <= 2.8:
+			p.take_damage(vs(level, p, data.damage * dmg_mult * randf_range(0.95, 1.1)), global_position)
+			if p is Player:
+				p.add_shake(0.35)
+
+
+## Aviso das Raízes: uma faixa de pontos vermelhos em cada linha, cada um cheio até a hora do seu trecho.
+func _roots_warn(elapsed: float) -> void:
+	for d in _root_dirs:
+		for i in ThornRules.ROOT_SEGS:
+			var left := ThornRules.root_time(i) - elapsed
+			if left > 0.0:
+				FX.telegraph(ThornRules.root_point(_root_origin, d, i), ThornRules.ROOT_HALF, left)
+	Sfx.play_at("slam", _root_origin, 0.2, -6.0)
+
+
+## Trechos das Raízes que irrompem entre t0 e t1: espinhos saindo do chão e, no servidor/solo, o golpe e a prisão
+## em quem está no trecho (cada jogador leva uma vez por golpe, mesmo onde as linhas do leque se cruzam).
+func _roots_tick(visual: bool, t0: float, t1: float) -> void:
+	for i in ThornRules.ROOT_SEGS:
+		var ti := ThornRules.root_time(i)
+		if not (t0 < ti and ti <= t1):
+			continue
+		for d in _root_dirs:
+			var at := ThornRules.root_point(_root_origin, d, i)
+			FXToon.thorns(at, Basis.IDENTITY, 0.0, ThornRules.ROOT_HALF * 0.8, 4, 1.5 + 0.06 * i, 0.35)
+			FX.burst(at + Vector3.UP * 0.2, Color(0.32, 0.22, 0.14), 6, 3.0, 0.12, 0.5)
+		if i % 3 == 0:
+			Sfx.play_at("slam", ThornRules.root_point(_root_origin, _root_dirs[0], i), 0.2, -8.0)
+		if visual:
+			continue
+		for p in _boss_pool():
+			if p.dead or _root_hit.has(p.get_instance_id()):
+				continue
+			for d in _root_dirs:
+				if ThornRules.root_segment(_root_origin, d, p.global_position) == i:
+					_root_hit[p.get_instance_id()] = true
+					p.take_damage(vs(level, p, data.damage * dmg_mult * 1.2), ThornRules.root_point(_root_origin, d, i))
+					if p.has_method("apply_web"):
+						p.apply_web(ThornRules.ROOT_SNARE, true)
+					break
+
+
+## Aviso dos Brotos: um círculo de runas em cada ponto onde um vai nascer.
+func _sprouts_warn(center: Vector3, elapsed: float) -> void:
+	var left := maxf(0.2, 1.2 - elapsed)
+	for pt in ThornRules.sprout_points(center, model_forward()):
+		FXToon.rune_circle(pt, 1.3, 0.3, left)
+	Sfx.play_at("slam", center, 0.4, -4.0)
+
+
+## Os Brotos nascem (só quem manda nela: o servidor anuncia cada um aos clientes como um monstro comum).
+func _thorn_sprouts() -> void:
+	if puppet:
+		return
+	var parent := get_parent()
+	for pt in ThornRules.sprout_points(global_position, model_forward()):
+		var e: Enemy = (get_script() as GDScript).new()
+		e.kind = SPROUT_KIND
+		e.level = level
+		e.area = area
+		e.arena = arena
+		e.position = pt + Vector3.UP * 0.3
+		parent.add_child(e)
+		FX.burst(e.position + Vector3.UP * 0.5, Color(0.35, 0.6, 0.2), 18, 4.0)
+
+
+## Brotos vivos perto de `center` (os que ligam a ela e a curam).
+func _sprouts_near(center: Vector3) -> Array:
+	var out := []
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e is Enemy and e.kind == SPROUT_KIND and not e.dead and e.global_position.distance_to(center) < 30.0:
+			out.append(e)
+	return out
+
+
+## Pontos das Nuvens de Esporos: sorteados pela semente em volta dela e um sob cada jogador por perto que esteja na
+## mesma sala (a mesma região do mapa: servidor e réplica sabem sem trocar nada; fora de sala, basta estar perto).
+func _spore_targets(center: Vector3) -> Array:
+	var pts := ThornRules.spore_points(boss_seed, center)
+	var room := Regions.area_at(center)
+	for p in get_tree().get_nodes_in_group("players"):
+		if not p.dead and p.global_position.distance_to(center) < 25.0 \
+				and (room == "" or Regions.area_at(p.global_position) == room):
+			pts.append(Vector3(p.global_position.x, center.y, p.global_position.z))
+	return pts
+
+
+func _spores_warn(elapsed: float) -> void:
+	var left := maxf(0.2, _hit_time() - elapsed)
+	for pt in _spore_pts:
+		FX.telegraph(pt, ThornRules.SPORE_R0, left)
+	var lp := _local_player()
+	if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(global_position) < 30.0:
+		lp.add_shake(0.4)
+	Sfx.play_at("slime", global_position, 0.0, 0.0)
+
+
+## As nuvens nascem: um estouro de fumaça em cada ponto e a nuvem que fica crescendo (só o servidor/solo dá dano).
+func _spore_hit(visual: bool) -> void:
+	for pt in _spore_pts:
+		FXToon.puff(pt + Vector3.UP * 0.5, 2.2, FXToon.BLIGHT, {"grow": 0.2, "hold": 0.3, "fade": 0.6})
+		var cloud := SporeCloud.new()
+		cloud.dmg = data.damage * dmg_mult * 0.22
+		cloud.level = level
+		cloud.deal = not visual
+		get_parent().add_child(cloud)
+		cloud.global_position = pt
+
+
+## A cada THORN_TICK s: a Espinheira recebe a cura dos brotos vivos (servidor/solo) e, em toda tela, um galho
+## carmim pulsa de cada broto até ela. O broto sem árvore em luta por perto murcha (some sem recompensa).
+func _thorn_process(delta: float) -> void:
+	_thorn_t -= delta
+	if _thorn_t > 0.0:
+		return
+	_thorn_t = THORN_TICK
+	if data.get("sprout", false):
+		if puppet:
+			return
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if e is Enemy and e.ai() == "thorn" and not e.dead and e.state in ["chase", "attack"] \
+					and e.global_position.distance_to(global_position) < 30.0:
+				return
+		wither()
+		return
+	var sprouts := _sprouts_near(global_position)
+	if sprouts.is_empty():
+		return
+	var heart := global_position + Vector3.UP * 2.2
+	for sp in sprouts:
+		FXToon.streak(sp.global_position + Vector3.UP * 0.8, heart, 0.07, FXToon.BLIGHT,
+			{"billboard": true, "shadow": false, "sweep": 0.12, "hold": 0.2, "fade": 0.25, "peak": 0.6})
+	if puppet or hp >= max_hp or state == "idle":
+		return
+	hp = minf(max_hp, hp + ThornRules.sprout_heal(max_hp, sprouts.size(), THORN_TICK))
+	health_changed.emit(self)
+	FXToon.heal_touch(heart, 2, 0.6)
+
+
+## Some sem morrer e sem recompensa (broto da Espinheira quando a luta acabou).
+func wither() -> void:
+	if dead or puppet:
+		return
+	if Network.is_server():
+		Network.server_enemy_despawn(self)
+	FX.burst(global_position + Vector3.UP * 0.6, Color(0.3, 0.22, 0.14), 12, 2.5, 0.12, 0.6)
+	dead = true
+	queue_free()
+
+
+## Espinheira: passada pesada de raiz (joelho dobra quando a perna volta; cada pisada levanta terra e derruba
+## folhas), braços compridos balançando com atraso e as mãos de garra abrindo e fechando, a copa ondulando com os
+## galhos dos lados e os cipós pendurados cada um no seu tempo, o queixo respirando e folhas caindo o tempo todo.
+## Golpes: a garra arma com o corpo indo para trás e para baixo e o braço direito subindo de mão aberta, depois
+## varre para a frente; as Raízes erguem os dois braços e cravam as garras no chão (ficam lá enquanto as raízes
+## correm); os Brotos são um rugido com os braços abertos e a copa tremendo; os Esporos curvam o tronco e a copa
+## bombeia. Rotação x positiva: topo para a frente, perna/braço para trás, queixo abre, mão fecha.
+func _animate_thorn(hspeed: float, s: float, k: float) -> void:
+	var body: Node3D = parts.Body
+	if not _rig.has("body_rest"):
+		_rig["body_rest"] = body.position
+		_rig["step"] = 0.0
+		_rig["hit"] = false
+		if parts.get("Crown") != null and not puppet_headless():
+			_rig["leaves"] = BossFX.leaf_fall(parts.Crown, 1.7, 1.2)
+	var amp := clampf(hspeed / 2.6, 0.0, 1.0)
+	var idle := 1.0 - amp
+	var c := cos(anim_t)
+	var lt := _life_t
+	var leg := s * 0.38 * amp
+	var knee_l := maxf(0.0, c) * 0.7 * amp + 0.06
+	var knee_r := maxf(0.0, -c) * 0.7 * amp + 0.06
+	var arm_l := -s * 0.3 * amp - 0.06 + sin(lt * 0.7) * 0.035 * idle
+	var arm_r := s * 0.3 * amp - 0.06 + sin(lt * 0.7 + 1.3) * 0.035 * idle
+	var elb_l := -0.2 - c * 0.2 * amp - sin(lt * 0.6) * 0.06 * idle
+	var elb_r := -0.2 + c * 0.2 * amp - sin(lt * 0.6 + 1.0) * 0.06 * idle
+	# mãos: soltas, abrem e fecham devagar; andando seguem o braço com atraso
+	var hand_l := 0.12 + sin(lt * 0.9 + 0.5) * 0.14 * idle + sin(anim_t - 0.9) * 0.2 * amp
+	var hand_r := 0.12 + sin(lt * 0.9 + 2.1) * 0.14 * idle - sin(anim_t - 0.9) * 0.2 * amp
+	var body_x := 0.07 + sin(lt * 0.55) * 0.025 * idle
+	var body_y := s * 0.07 * amp + sin(lt * 0.33) * 0.03 * idle
+	var body_z := sin(anim_t) * 0.05 * amp   # o peso passa de uma raiz para a outra
+	var off := Vector3(0.0, -absf(s) * 0.07 * amp + sin(lt * 1.1) * 0.02 * idle, 0.0)
+	var head_x := sin(lt * 0.45 + 0.7) * 0.025 * idle
+	var crown_x := sin(lt * 0.5) * 0.04 - body_x * 0.3 - absf(s) * 0.05 * amp
+	var crown_z := sin(lt * 0.7 + 0.4) * 0.05 - body_z * 1.3
+	var crown_s := 1.0
+	var bough := sin(lt * 0.8 - 0.9) * 0.05 + sin(anim_t - 1.1) * 0.07 * amp   # galhos dos lados: atrasados
+	var shake := 0.0   # tremor da copa (galhos e cipós chacoalham junto)
+	var jaw := 0.04 + sin(lt * 1.2) * 0.03
+	if state == "attack":
+		var t := attack_timer
+		var ht := _hit_time()
+		var u := clampf(t / ht, 0.0, 1.0)
+		var e := u * u * (3.0 - 2.0 * u)
+		match attack_kind:
+			"swing":
+				if t < ht:   # arma: recua e afunda, gira o tronco, braço direito sobe por trás de mão aberta
+					off = Vector3(0.0, -0.18 * e, -0.32 * e)
+					body_y = 0.42 * e
+					body_x = 0.02
+					arm_r = -2.3 * e
+					elb_r = -0.9 * e
+					hand_r = -0.5 * e
+					arm_l = -0.5 * e
+					hand_l = 0.4 * e
+					jaw = 0.25 * e
+					head_x = -0.04 * e
+				elif t < ht + 0.35:   # varre: o corpo vai para a frente e o braço desce cruzando, mão em gancho
+					off = Vector3(0.0, -0.1, 0.34)
+					body_y = -0.48
+					body_x = 0.34
+					arm_r = -0.45
+					elb_r = -0.1
+					hand_r = 0.55
+					arm_l = 0.3
+					jaw = 0.38
+					shake = 1.0
+			"roots":
+				var dur := _attack_duration()
+				if t < ht - 0.25:   # os dois braços sobem de mãos abertas, o tronco recua
+					var w := clampf(t / (ht - 0.25), 0.0, 1.0)
+					w = w * w * (3.0 - 2.0 * w)
+					off = Vector3(0.0, -0.08 * w, -0.25 * w)
+					arm_l = -2.6 * w
+					arm_r = -2.6 * w
+					elb_l = -0.5 * w
+					elb_r = -0.5 * w
+					hand_l = -0.5 * w
+					hand_r = -0.5 * w
+					body_x = -0.04
+					jaw = 0.3 * w
+				elif t < dur - 0.35:   # crava as garras no chão e segura enquanto as raízes correm
+					off = Vector3(0.0, -0.32, 0.22)
+					body_x = 0.5
+					arm_l = -0.2
+					arm_r = -0.2
+					elb_l = -0.15
+					elb_r = -0.15
+					hand_l = 0.35
+					hand_r = 0.35
+					knee_l = 0.45
+					knee_r = 0.45
+					leg = -0.2
+					jaw = 0.4
+					shake = 0.6
+			"sprouts":
+				if t < ht + 0.5:   # rugido: braços abertos com as garras para cima, copa tremendo
+					arm_l = -1.4 * e
+					arm_r = -1.4 * e
+					elb_l = -1.1 * e
+					elb_r = -1.1 * e
+					hand_l = -0.6 * e
+					hand_r = -0.6 * e
+					body_x = -0.1 * e
+					off = Vector3(0.0, 0.05 * e, -0.1 * e)
+					jaw = 0.5 * e
+					head_x = -0.05 * e
+					shake = 1.4 * e
+			"spores":
+				if t < ht + 0.4:   # curva o tronco, braços para trás, a copa incha e solta
+					body_x = 0.38 * e
+					off = Vector3(0.0, -0.18 * e, 0.06 * e)
+					arm_l = 0.45 * e
+					arm_r = 0.45 * e
+					elb_l = -0.3
+					elb_r = -0.3
+					hand_l = 0.5 * e
+					hand_r = 0.5 * e
+					jaw = 0.45 * e
+					crown_s = 1.0 + 0.1 * e
+					crown_x = 0.25 * e
+					shake = 1.0 if t < ht else 0.3
+		# o golpe acerta: folhas arrancadas da copa (uma vez por golpe)
+		if t >= ht and not _rig.hit:
+			_rig.hit = true
+			_thorn_leaves(14 if attack_kind in ["sprouts", "spores"] else 9)
+		elif t < ht:
+			_rig.hit = false
+	else:
+		_rig.hit = false
+	if stagger > 0.0 or _flash_t > 0.0:
+		shake = maxf(shake, 0.8)   # pancada: a copa estremece
+	var sh := shake * sin(lt * 31.0)
+	var sh2 := shake * sin(lt * 27.0 + 1.0)
+	crown_z += sh * 0.05
+	crown_x += sh2 * 0.035
+	# pisada: quando uma raiz bate no chão, terra espirra, folhas caem e quem está perto sente o tranco
+	if amp > 0.35 and state != "attack":
+		var step := signf(s)
+		if step != 0.0 and step != float(_rig.step):
+			_rig.step = step
+			_thorn_step("KneeL" if step > 0.0 else "KneeR")
+	var roots_pose := state == "attack" and attack_kind == "roots"
+	parts.LegL.rotation.x = lerp(parts.LegL.rotation.x, leg, k)
+	parts.LegR.rotation.x = lerp(parts.LegR.rotation.x, leg if roots_pose else -leg, k)
+	parts.ArmL.rotation.x = lerp(parts.ArmL.rotation.x, arm_l, k)
+	parts.ArmR.rotation.x = lerp(parts.ArmR.rotation.x, arm_r, k)
+	for pair in [["KneeL", knee_l], ["KneeR", knee_r], ["ElbowL", elb_l], ["ElbowR", elb_r], ["HandL", hand_l],
+			["HandR", hand_r]]:
+		var j: Node3D = parts.get(pair[0])
+		if j:
+			j.rotation.x = lerp(j.rotation.x, float(pair[1]), k)
+	body.rotation.x = lerp(body.rotation.x, body_x, k)
+	body.rotation.y = lerp(body.rotation.y, body_y, k)
+	body.rotation.z = lerp(body.rotation.z, body_z, k)
+	body.position = body.position.lerp(_rig.body_rest + off, k)
+	if parts.Head:
+		parts.Head.rotation.x = lerp(parts.Head.rotation.x, head_x, k)
+	var crown: Node3D = parts.get("Crown")
+	if crown:
+		crown.rotation.x = lerp(crown.rotation.x, crown_x, k)
+		crown.rotation.z = lerp(crown.rotation.z, crown_z, k)
+		crown.scale = crown.scale.lerp(Vector3.ONE * crown_s, k)
+	# galhos mestres dos lados: seguem a copa com atraso (um sobe quando o outro desce) e tremem com ela
+	for pair in [["BoughL", 1.0], ["BoughR", -1.0]]:
+		var bn: Node3D = parts.get(pair[0])
+		if bn:
+			var sd: float = pair[1]
+			bn.rotation.z = lerp(bn.rotation.z, bough * sd + sh2 * 0.05, k)
+			bn.rotation.x = lerp(bn.rotation.x, sin(lt * 0.6 + sd) * 0.03 + sh * 0.04 * sd, k)
+	# cipós pendurados: pêndulos, cada um com o seu tempo; andando ficam para trás
+	for i in 4:
+		var hn: Node3D = parts.get("Hang%d" % i)
+		if hn:
+			var ph := i * 1.7
+			hn.rotation.x = lerp(hn.rotation.x, sin(lt * 1.3 + ph) * 0.1 + sin(anim_t - 1.4 + ph) * 0.22 * amp
+				- 0.18 * amp + sh * 0.25, k)
+			hn.rotation.z = lerp(hn.rotation.z, sin(lt * 1.05 + ph * 1.3) * 0.12 - crown_z * 0.8 + sh2 * 0.25, k)
+	if parts.Jaw:
+		parts.Jaw.rotation.x = lerp(parts.Jaw.rotation.x, jaw, k)
+
+
+## Sem tela (servidor dedicado, testes headless): nada de partículas.
+func puppet_headless() -> bool:
+	return DisplayServer.get_name() == "headless"
+
+
+## Folhas arrancadas da copa.
+func _thorn_leaves(n: int) -> void:
+	var crown: Node3D = parts.get("Crown")
+	if crown != null and is_inside_tree():
+		BossFX.leaf_burst(crown.global_position + Vector3.UP * 1.2 * float(data.scale), n, 1.6)
+
+
+## Pisada de uma raiz: terra, algumas folhas e um tranco em quem está perto.
+func _thorn_step(knee: String) -> void:
+	var kn: Node3D = parts.get(knee)
+	if kn == null or not is_inside_tree() or puppet_headless():
+		return
+	var at := Vector3(kn.global_position.x, global_position.y + 0.1, kn.global_position.z)
+	FX.burst(at, Color(0.34, 0.25, 0.16), 7, 2.4, 0.12, 0.5)
+	_thorn_leaves(3)
+	var lp := _local_player()
+	if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(global_position) < 14.0:
+		lp.add_shake(0.08)

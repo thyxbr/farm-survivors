@@ -190,12 +190,16 @@ static func build_text(id: String, context := "bag", paper := false) -> String:
 	var slot := ItemDB.slot_of(id)
 	if slot != "":
 		var kind: String = ItemDB.CLASS_NAMES[ItemDB.weapon_class(id)] if slot == "weapon" else ItemDB.SLOT_NAMES[slot]
+		if ItemDB.is_two_handed(id):
+			kind = "Montante"
 		t += "[color=#%s]%s · %s[/color]\n" % [rc, rar.name, kind]
 		var need := int(it.get("level", 1))
 		t += "[color=#%s]Nível %d[/color]\n" % [good if Game.level >= need else bad, need]
 		if it.has("damage"):
 			t += "[font_size=26]%d[/font_size] [color=#%s]Dano[/color]\n" % [it.damage, dim]
-			t += "[color=#%s]%s[/color]\n" % [dim, ItemDB.CLASS_HINT[ItemDB.weapon_class(id)]]
+			t += "[color=#%s]%s[/color]\n" % [dim, ItemDB.TWO_HAND_HINT if ItemDB.is_two_handed(id) else ItemDB.CLASS_HINT[ItemDB.weapon_class(id)]]
+			if ItemDB.is_two_handed(id):
+				t += "[color=#%s]Duas mãos: a mão secundária fica vazia[/color]\n" % _hex(pal.fx)
 			if not Game.can_wield(id):
 				t += "[color=#%s]Arma de %s: sua classe não equipa.[/color]\n" % [bad, Game.weapon_owner(id)]
 			var ench := Game.enchant_of(id)

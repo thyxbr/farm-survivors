@@ -10,6 +10,10 @@ const STAFF_POSES := ["parado", "cajado 1 preparo", "cajado 1 meio", "cajado 1 m
 const BOW_POSES := ["parado", "andando A", "andando B", "mirando", "puxando", "tenso", "andando tenso", "soltou"]
 const GATHER_POSES := ["picareta 0.0", "picareta 0.38", "picareta 0.5", "machado 0.0", "machado 0.36", "machado 0.44",
 	"machado 0.47", "machado 0.5"]
+## `montante`: espada de duas mãos (KnightAnim.great_carry / great_pose); `pontas` imprime o caminho da ponta da
+## lâmina de cada golpe (para FXToon.GREAT_COMBO).
+const GREAT_POSES := ["parado", "andando A", "correndo", "g1 0.3", "g1 0.43", "g1 0.5", "g2 0.3", "g2 0.5", "g3 0.32",
+	"g3 0.5"]
 const GAP := 1.35
 const ROW_H := 450
 const VIEWS := [35.0, 90.0, 180.0]
@@ -19,6 +23,8 @@ var _out := ""
 var _names: Array = []
 var _bow := false
 var _gather := false
+var _great := false
+var _weapon := "eclipse_greatsword"
 
 
 func _ready() -> void:
@@ -26,18 +32,32 @@ func _ready() -> void:
 	_out = args[0] if args.size() > 0 else "user://weapon_pose_shot.png"
 	_bow = "arco" in args
 	_gather = "coleta" in args
-	_names = BOW_POSES if _bow else (GATHER_POSES if _gather else STAFF_POSES)
+	_great = "montante" in args
+	for x in args:
+		if x.begins_with("arma="):
+			_weapon = x.substr(5)
+	_names = BOW_POSES if _bow else (GATHER_POSES if _gather else (GREAT_POSES if _great else STAFF_POSES))
+	if _great and "passada" in args:   # 8 quadros de uma passada correndo (ou andando, com `andar`)
+		_names = []
+		for i in 8:
+			_names.append(("anda %d" if "andar" in args else "corre %d") % i)
 	var plate := not ("roupa" in args)
 	WorldLighting.build(self)
-	if "otimiza" in args:
+	if "otimiza" in args and not _great:
 		_optimize()
+	if _great and "pontas" in args:
+		_tips()
+	if _great and "passada" in args:
+		_stride()
+	if _great and "otimiza" in args:
+		_optimize_great()
 	for row in VIEWS.size():
 		for i in _names.size():
 			var m := KNIGHT.instantiate() as Node3D
 			add_child(m)
 			m.position = Vector3(i * _gap() + row * 100.0, 0, 0)
 			m.rotation.y = deg_to_rad(VIEWS[row])
-			var look := {"weapon": "hunter_bow" if _bow else "apprentice_staff"}
+			var look := {"weapon": "hunter_bow" if _bow else (_weapon if _great else "apprentice_staff")}
 			for x in args:   # arma=<id do item>: troca a arma mostrada (ex.: arma=twig_bow)
 				if x.begins_with("arma="):
 					look.weapon = x.substr(5)
@@ -71,7 +91,7 @@ func _ready() -> void:
 		cam.size = 2.6
 		cam.keep_aspect = Camera3D.KEEP_HEIGHT
 		cam.position = Vector3((_names.size() - 1) * _gap() / 2.0 + row * 100.0, 1.1, 8.0)
-		if _gather:
+		if _gather or _great:
 			cam.size = 2.6 * _gap() / GAP
 		for a in args:   # c=<coluna>: aproxima a câmera dessa coluna (e das vizinhas)
 			if a.begins_with("c="):
@@ -152,7 +172,126 @@ func _grip_cost(r: Dictionary, end: Vector3, dir: Vector3, slide: float, design:
 
 
 func _gap() -> float:
-	return 2.2 if _gather else GAP   # coleta: espaço para o alvo à frente de cada um
+	return 2.2 if (_gather or _great) else GAP
+
+
+## `montante otimiza`: como _optimize, para as chaves da montante (KnightMoves.GREAT_TOOL e as poses de carregar):
+## procura perto do `end` desenhado onde as duas mãos fecham melhor no cabo, com a distância fixa GREAT_GRIP entre elas.
+func _optimize_great() -> void:
+	var m := KNIGHT.instantiate() as Node3D
+	add_child(m)
+	m.position = Vector3(-60, 0, 0)
+	KnightLook.apply(m, {"weapon": _weapon})
+	var r := KnightAnim.rig(m)
+	var keys: Array = [["guarda", 0, 0.0, KnightMoves.GREAT_GUARD], ["ombro", 0, 0.0, KnightMoves.GREAT_SHOULDER]]
+	for c in 3:
+		for k in KnightMoves.GREAT_TOOL[c]:
+			keys.append(["g%d" % (c + 1), c + 1, float(k[0]), k[1]])
+	for key in keys:
+		var p := KnightAnim.idle_pose(0.0)
+		KnightAnim.great_carry(p, 0.0, 0.0)
+		if int(key[1]) > 0:
+			KnightAnim.great_pose(p, int(key[1]), float(key[2]), 0.0)
+		p.erase("tool")   # só o corpo
+		KnightAnim.hips_follow(p)
+		for _i in 3:
+			KnightAnim.apply(r, p, 1.0)
+		var d: Dictionary = key[3]
+		var dir: Vector3 = (d.dir as Vector3).normalized()
+		var best_end: Vector3 = d.end
+		var best := _great_cost(r, best_end, dir, d.end)
+		var step := 0.08
+		for _pass in 5:
+			var improved := true
+			while improved:
+				improved = false
+				for off in [Vector3(step, 0, 0), Vector3(-step, 0, 0), Vector3(0, step, 0), Vector3(0, -step, 0),
+						Vector3(0, 0, step), Vector3(0, 0, -step)]:
+					var cc := _great_cost(r, best_end + off, dir, d.end)
+					if cc < best - 0.0005:
+						best = cc
+						best_end += off
+						improved = true
+			step *= 0.5
+		var g := KnightMoves.GREAT_GRIP
+		var gl := KnightAnim.grip_solve(r, "l", best_end, dir, KnightMoves.TOOL_POLE_L)
+		var gr := KnightAnim.grip_solve(r, "r", best_end + dir * g, dir, KnightMoves.TOOL_POLE_R)
+		print("OPTG %s %.2f  end Vector3(%.2f, %.2f, %.2f)  giro esq %d dir %d  falta esq %.2f dir %.2f  (antes %.2f, depois %.2f)" % [
+			key[0], key[2], best_end.x, best_end.y, best_end.z, roundi(rad_to_deg(gl.turn)), roundi(rad_to_deg(gr.turn)),
+			gl.miss, gr.miss, _great_cost(r, d.end, dir, d.end), best])
+	m.queue_free()
+
+
+func _great_cost(r: Dictionary, end: Vector3, dir: Vector3, design: Vector3) -> float:
+	var hr := end + dir * KnightMoves.GREAT_GRIP
+	var gl := KnightAnim.grip_solve(r, "l", end, dir, KnightMoves.TOOL_POLE_L)
+	var gr := KnightAnim.grip_solve(r, "r", hr, dir, KnightMoves.TOOL_POLE_R)
+	var body := 0.0
+	for h in [end, hr]:
+		if h.y < 1.6:
+			body += maxf(0.0, 0.2 - h.z)
+	return float(gl.turn) + float(gr.turn) + 12.0 * (float(gl.miss) + float(gr.miss)) + 2.0 * end.distance_to(design) \
+		+ 15.0 * body
+
+
+## `montante passada`: correndo e andando, a cada oitavo da passada, quanto cada pé e cada mão estão à frente (z no
+## espaço do modelo): o braço tem de ir contra a perna do mesmo lado.
+func _stride() -> void:
+	for wpn in [_weapon, ""]:
+		var m := KNIGHT.instantiate() as Node3D
+		add_child(m)
+		m.position = Vector3(-70, 0, 0)
+		var lk := KnightLook.apply(m, {"weapon": wpn})
+		var r := KnightAnim.rig(m)
+		for run in [0.0, 1.0]:
+			for i in 8:
+				var ph := TAU * i / 8.0
+				var p := KnightAnim.locomotion_pose(r, ph, 1.0, run)
+				KnightAnim.weapon_carry(p, "sword", 1.0, run)
+				if wpn != "":
+					KnightAnim.great_carry(p, 1.0, run)
+				for _i in 3:
+					KnightAnim.apply(r, p, 1.0)
+				KnightAnim.hold_weapon_upright(lk, r)
+				var inv := m.global_transform.affine_inverse()
+				var fl: Vector3 = inv * (r.AnkleL as Node3D).global_position
+				var fr: Vector3 = inv * (r.AnkleR as Node3D).global_position
+				var hl: Vector3 = inv * ((r.ElbowL as Node3D).global_transform * (r.hand_l as Vector3))
+				var hr: Vector3 = inv * ((r.ElbowR as Node3D).global_transform * (r.hand_r as Vector3))
+				# cotovelo direito à frente (> 0) ou atrás (< 0) do meio da linha ombro-mão
+				var so: Vector3 = inv * (r.ArmR as Node3D).global_position
+				var el: Vector3 = inv * (r.ElbowR as Node3D).global_position
+				print("STRIDE %-8s run %.0f fase %d  pé esq %.2f dir %.2f | mão esq %.2f dir %.2f | cotovelo dir %+.2f" % [
+					"montante" if wpn != "" else "sem arma", run, i, fl.z, fr.z, hl.z, hr.z, el.z - (so.z + hr.z) * 0.5])
+		m.queue_free()
+
+
+## Caminho da ponta da lâmina em cada golpe da montante (espaço do modelo), de 0,02 em 0,02 do golpe.
+func _tips() -> void:
+	var m := KNIGHT.instantiate() as Node3D
+	add_child(m)
+	m.position = Vector3(-50, 0, 0)
+	var lk := KnightLook.apply(m, {"weapon": _weapon})
+	var r := KnightAnim.rig(m)
+	for c in [1, 2, 3]:
+		var line := "TIPS g%d" % c
+		for i in 51:
+			var u := i / 50.0
+			var p := KnightAnim.idle_pose(0.0)
+			KnightAnim.great_carry(p, 0.0, 0.0)
+			KnightAnim.great_pose(p, c, u, 0.0)
+			KnightAnim.hips_follow(p)
+			for _i in 3:
+				KnightAnim.apply(r, p, 1.0)
+			KnightAnim.hold_weapon_upright(lk, r)
+			var tip: Vector3 = m.global_transform.affine_inverse() * (lk.tip as Node3D).global_position
+			var hb: Vector3 = (m.global_transform.affine_inverse().basis * (lk.holder as Node3D).global_basis).z.normalized()
+			var want: Vector3 = (p.tool.dir as Vector3).normalized()
+			var hl: Vector3 = m.global_transform.affine_inverse() * ((r.ElbowL as Node3D).global_transform * (r.hand_l as Vector3))
+			line += "\n  %.2f  (%.2f, %.2f, %.2f)  desvio %d°  mão esq longe %.2f" % [u, tip.x, tip.y, tip.z,
+				roundi(rad_to_deg(hb.angle_to(want))), hl.distance_to(p.tool.end)]
+		print(line)
+	m.queue_free()   # coleta: espaço para o alvo à frente de cada um
 
 
 ## Alvo da coleta na frente do modelo (+Z): pedra baixa a ~1,2 m ou tronco de árvore a ~1 m.
@@ -179,15 +318,27 @@ func _target(m: Node3D, rock: bool) -> void:
 
 
 func _pose(r: Dictionary, lk: Dictionary, kind: String) -> void:
-	var cls := "bow" if _bow else ("sword" if _gather else "staff")
+	var cls := "bow" if _bow else ("sword" if (_gather or _great) else "staff")
 	var p := KnightAnim.idle_pose(0.0)
 	var move := 0.0
 	match kind:
+		_ when kind.begins_with("corre ") or kind.begins_with("anda "):
+			move = 1.0
+			var rn := 1.0 if kind.begins_with("corre") else 0.0
+			p = KnightAnim.locomotion_pose(r, TAU * int(kind.get_slice(" ", 1)) / 8.0, move, rn)
+			KnightAnim.weapon_carry(p, cls, move, rn)
+			KnightAnim.great_carry(p, move, rn)
+			for _i in 3:
+				KnightAnim.apply(r, p, 1.0)
+			KnightAnim.hold_weapon_upright(lk, r)
+			return
 		"andando A", "andando B", "andando tenso", "correndo":
 			move = 1.0
 			var ph := 0.0 if kind != "andando B" else PI * 0.5
 			p = KnightAnim.locomotion_pose(r, ph, move, 1.0 if kind == "correndo" else 0.0)
 	KnightAnim.weapon_carry(p, cls, move, 1.0 if kind == "correndo" else 0.0)
+	if _great:
+		KnightAnim.great_carry(p, move, 1.0 if kind == "correndo" else 0.0)
 	var atk := true
 	match kind:
 		"cajado 1 preparo":
@@ -216,20 +367,22 @@ func _pose(r: Dictionary, lk: Dictionary, kind: String) -> void:
 			KnightAnim.bow_draw_pose(p, 1.0, move)
 		"soltou":
 			KnightAnim.bow_release_pose(p, 0.2, 0.0)
+		_ when _great and kind.begins_with("g"):
+			KnightAnim.great_pose(p, int(kind.substr(1, 1)), float(kind.get_slice(" ", 1)), 0.0)
 		_ when kind.begins_with("picareta") or kind.begins_with("machado"):
 			GatherAction.pose_cycle(p, kind.begins_with("machado"), float(kind.get_slice(" ", 1)), 1.0)
 		_:
 			atk = false
 	if atk:
 		KnightAnim.hips_follow(p)
-	for _i in 2:   # a segunda vez: a altura do modelo usa as rotações já aplicadas
+	for _i in (3 if _great else 2):   # a segunda vez: a altura do modelo usa as rotações já aplicadas
 		KnightAnim.apply(r, p, 1.0)
 	KnightAnim.hold_weapon_upright(lk, r)
 	if OS.get_environment("POSE_DEBUG") != "" and lk.get("holder") and m_row(r) == 0:
 		var h: Node3D = lk.holder
 		var inv := (r.model as Node3D).global_transform.affine_inverse()
 		print("POSE %-16s mão %s  ponta de baixo %s" % [kind, inv * h.global_position, inv * (h.global_transform * Vector3(0, -0.85, 0))])
-	if _gather and lk.get("holder") and m_row(r) == 0:
+	if (_gather or _great) and lk.get("holder") and m_row(r) == 0:
 		# distância de cada mão até a linha do cabo (cm): 0 = segurando
 		var h: Node3D = lk.holder
 		var a0 := h.global_transform * Vector3(0, 0, -0.2)
@@ -242,7 +395,7 @@ func _pose(r: Dictionary, lk: Dictionary, kind: String) -> void:
 			hl.distance_to(cl) * 100.0, hr.distance_to(cr) * 100.0,
 			roundi(rad_to_deg(float(r.get("wrist_dev_L", 0.0)))), roundi(rad_to_deg(float(r.get("wrist_dev_R", 0.0)))),
 			roundi(rad_to_deg(float(r.get("wrist_turn_L", 0.0)))), roundi(rad_to_deg(float(r.get("wrist_turn_R", 0.0))))])
-	if _gather and lk.get("tip") and m_row(r) == 0:
+	if (_gather or _great) and lk.get("tip") and m_row(r) == 0:
 		var inv2 := (r.model as Node3D).global_transform.affine_inverse()
 		print("TIP %-14s %s  ombroR %s  maoR %s  maoL %s" % [kind, inv2 * (lk.tip as Node3D).global_position,
 			inv2 * (r.ArmR as Node3D).global_position, inv2 * (lk.holder as Node3D).global_position,

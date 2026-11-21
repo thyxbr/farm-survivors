@@ -275,6 +275,13 @@ static func draw(ci: CanvasItem, kind: String, col: Color, r: Rect2, ghost := fa
 			if not ghost:
 				_bar(ci, P, Vector2(0.5, 0.28), Vector2(0.5, 0.68), 0.09, Color(0.95, 0.98, 1.0), ol, lw * 0.5)
 				_bar(ci, P, Vector2(0.34, 0.44), Vector2(0.66, 0.44), 0.09, Color(0.95, 0.98, 1.0), ol, lw * 0.5)
+		"hammer":   # martelo de energia azul caindo, cabeça dourada para baixo
+			_bar(ci, P, Vector2(0.5, 0.12), Vector2(0.5, 0.6), 0.08, Color(0.55, 0.8, 1.0), ol, lw)
+			_poly(ci, P, [Vector2(0.2, 0.58), Vector2(0.8, 0.58), Vector2(0.8, 0.86), Vector2(0.2, 0.86)], Color(0.35, 0.62, 1.0), ol, lw)
+			if not ghost:
+				_bar(ci, P, Vector2(0.24, 0.6), Vector2(0.24, 0.84), 0.07, Color(1.0, 0.8, 0.35), ol, lw * 0.5)
+				_bar(ci, P, Vector2(0.76, 0.6), Vector2(0.76, 0.84), 0.07, Color(1.0, 0.8, 0.35), ol, lw * 0.5)
+				ci.draw_circle(P.call(0.5, 0.72), S * 0.07, Color(0.95, 0.98, 1.0))
 		"radiant":   # sol: disco dourado com raios
 			for i in 8:
 				var a := i * PI / 4.0

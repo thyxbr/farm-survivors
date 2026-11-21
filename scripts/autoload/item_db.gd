@@ -4,6 +4,7 @@ extends Node
 ## e são preenchidas pelo autoload Balance antes de qualquer _ready; aqui só ficam as `static var`.
 ## Campos de item (items.json): "class" sword (combo corpo a corpo, escala com FOR) · staff (projéteis
 ## mágicos, escala com INT) · bow (botão direito mira e puxa, esquerdo atira; escala com AGI); "shape" muda o modelo 3D;
+## "two_handed" (espada) = montante: segura com as duas mãos, golpes lentos e largos, e a mão secundária fica vazia;
 ## "stats" = bônus do item (ver STAT_NAMES); "fx" = efeito ao acertar (slow, splash, pierce, multishot).
 
 static var ITEMS: Dictionary = {}
@@ -44,6 +45,12 @@ const ABILITIES := {
 		"ready": true, "ultimate": true, "icon": "fireball", "desc": "Ultimate: segure para canalizar uma chuva de meteoros sobre a área mirada."},
 	"sword_charge": {"name": "Investida", "class": "sword", "slot": 1, "level": 1, "cooldown": 6.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "saber", "desc": "Avança sobre os inimigos à frente, causando dano."},
+	# "offhand": só entra no kit com essa mão secundária, no lugar da habilidade do mesmo slot (ver kit())
+	"sword_aegis": {"name": "Égide Cristalina", "class": "sword", "offhand": "shield", "slot": 1, "level": 1, "cooldown": 8.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "ward", "desc": "Com escudo: segure a tecla para fincar o escudo no chão (parado) e erguer uma coroa de placas de cristal em volta (cabe o grupo). Ao se formar ela empurra os monstros; até se partir nenhum monstro nem projétil entra, e os golpes nela gastam a integridade (70 + 9 por nível + 4 por defesa). Soltar a tecla desfaz a barreira. A recarga conta depois que ela acaba (mais longa se quebrar)."},
+	# recarga: a do HammerConfig manda (cooldown_of); esta é só o valor padrão dela
+	"sword_hammer": {"name": "Martelo de Energia", "class": "sword", "offhand": "shield", "slot": 2, "level": 3, "cooldown": 12.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "hammer", "desc": "Com escudo: ergue a espada e invoca um círculo mágico acima da cabeça; dele sai um martelo gigante de energia que cai à frente, causando dano em área (2,6x o dano corpo a corpo, raio de 7 m), atordoando e abrindo crateras pelo chão. Parado enquanto invoca; a esquiva antes da queda cancela."},
 	"sword_quake": {"name": "Golpe Sísmico", "class": "sword", "slot": 2, "level": 3, "cooldown": 9.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "greatsword", "desc": "Golpe no chão: dano em área e atordoamento."},
 	"sword_fury": {"name": "Fúria Picante", "class": "sword", "slot": 3, "level": 5, "cooldown": 28.0, "cost": 0,
@@ -61,12 +68,34 @@ const ABILITIES := {
 }
 
 
-## Ids das habilidades de uma classe de arma, ordenados por slot.
-static func kit(cls: String) -> Array[String]:
+## Recarga base (s) de uma habilidade, antes dos bônus. O Martelo de Energia lê a do HammerConfig (editável no
+## Inspector); as outras, a da tabela acima.
+static func cooldown_of(id: String) -> float:
+	if id == "sword_hammer":
+		var cfg: Resource = load("res://assets/vfx/hammer/hammer_config.tres")
+		if cfg != null:
+			return float(cfg.get("cooldown"))
+	return float(ABILITIES[id].cooldown) if ABILITIES.has(id) else 0.0
+
+
+## Ids das habilidades de uma classe de arma, ordenados por slot. `offhand` = tipo da mão secundária
+## ("shield", ou "" sem): uma habilidade com "offhand" igual troca a do mesmo slot (espada + escudo: a Égide
+## Cristalina no lugar da Investida); sem a mão secundária certa ela fica de fora.
+static func kit(cls: String, offhand := "") -> Array[String]:
 	var ids: Array[String] = []
+	var alt := {}
 	for id in ABILITIES:
-		if ABILITIES[id]["class"] == cls:
+		if ABILITIES[id]["class"] != cls:
+			continue
+		var need: String = ABILITIES[id].get("offhand", "")
+		if need == "":
 			ids.append(id)
+		elif need == offhand:
+			alt[int(ABILITIES[id].slot)] = id
+	for i in ids.size():
+		var s := int(ABILITIES[ids[i]].slot)
+		if alt.has(s):
+			ids[i] = alt[s]
 	ids.sort_custom(func(a: String, b: String) -> bool: return ABILITIES[a].slot < ABILITIES[b].slot)
 	return ids
 
@@ -91,6 +120,7 @@ const CLASS_HINT := {"sword": "Combo de 3 golpes · escala com Força",
 	"staff": "Projéteis arcanos · escala com Inteligência",
 	"bow": "Segure para tensionar, solte para atirar · escala com Agilidade",
 	"scepter": "Cura aliados e castiga inimigos com luz sagrada · escala com Inteligência"}
+const TWO_HAND_HINT := "Combo de 3 golpes lentos e largos com as duas mãos · escala com Força"
 const FX_NAMES := {"slow": "Golpes deixam o alvo lento", "splash": "Projéteis explodem em área",
 	"pierce": "Flechas perfuram inimigos", "multishot": "Disparo tensionado: 3 flechas"}
 
@@ -137,6 +167,11 @@ func is_equippable(id: String) -> bool:
 
 func weapon_class(id: String) -> String:
 	return get_item(id).get("class", "sword") if id != "" else "sword"
+
+
+## Arma de duas mãos (montante): ocupa a mão secundária também.
+func is_two_handed(id: String) -> bool:
+	return id != "" and bool(get_item(id).get("two_handed", false))
 
 
 func rarity_of(id: String) -> String:
@@ -201,7 +236,7 @@ func item_summary(id: String) -> String:
 	var lines: Array[String] = [it.name]
 	match it.type:
 		"weapon":
-			lines.append("%s — Dano %d" % [CLASS_NAMES[weapon_class(id)], it.damage])
+			lines.append("%s — Dano %d" % ["Montante (duas mãos)" if is_two_handed(id) else CLASS_NAMES[weapon_class(id)], it.damage])
 		"armor", "gear":
 			lines.append("%s — Defesa %d" % [SLOT_NAMES[slot_of(id)], it.get("defense", 0)])
 		"consumable":

@@ -1,0 +1,39 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/aegis/aegis_dissipate.gd" id="1"]
+[ext_resource type="Material" path="res://assets/vfx/aegis/aegis_spark_mat.tres" id="2"]
+
+[sub_resource type="QuadMesh" id="QuadMesh_spark"]
+material = ExtResource("2")
+size = Vector2(0.07, 0.07)
+
+[sub_resource type="Gradient" id="Gradient_life"]
+offsets = PackedFloat32Array(0, 0.1, 0.6, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0.6, 1, 1, 1, 0)
+
+[sub_resource type="Gradient" id="Gradient_hue"]
+offsets = PackedFloat32Array(0, 0.4, 0.75, 1)
+colors = PackedColorArray(0.3, 0.5, 1, 1, 0.5, 0.88, 1, 1, 0.8, 0.95, 1, 1, 1, 1, 1, 1)
+
+[node name="AegisDissipate" type="CPUParticles3D"]
+emitting = false
+amount = 170
+lifetime = 1.3
+one_shot = true
+explosiveness = 0.8
+randomness = 0.4
+mesh = SubResource("QuadMesh_spark")
+emission_shape = 3
+emission_box_extents = Vector3(1.2, 1.1, 1.2)
+direction = Vector3(0, 1, 0)
+spread = 180.0
+gravity = Vector3(0, 0.9, 0)
+initial_velocity_min = 0.4
+initial_velocity_max = 2.0
+damping_min = 0.6
+damping_max = 1.4
+scale_amount_min = 0.4
+scale_amount_max = 1.4
+color_ramp = SubResource("Gradient_life")
+color_initial_ramp = SubResource("Gradient_hue")
+script = ExtResource("1")

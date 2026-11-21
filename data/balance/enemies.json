@@ -552,6 +552,10 @@
 		"bld": 2.5,
 		"loot": [
 			[
+				"iron_zweihander",
+				0.08
+			],
+			[
 				"goblin_crown",
 				1.0
 			],
@@ -749,6 +753,10 @@
 		"slam_every": 3,
 		"bld": 2.0,
 		"loot": [
+			[
+				"highland_claymore",
+				0.1
+			],
 			[
 				"bone_shard",
 				1.0
@@ -948,6 +956,116 @@
 		"slam_every": 3,
 		"ref_level": 6
 	},
+	"espinheira": {
+		"name": "Espinheira, a Guardiã-Raiz",
+		"model": "thorn_tree",
+		"ai": "thorn",
+		"boss": true,
+		"hp": 1500,
+		"damage": 30,
+		"speed": 1.9,
+		"xp": 600,
+		"gold": [
+			80,
+			130
+		],
+		"aggro": 18.0,
+		"reach": 4.0,
+		"cooldown": 1.6,
+		"radius": 1.1,
+		"height": 5.3,
+		"scale": 1.0,
+		"color": {
+			"$c": [
+				0.55,
+				0.2,
+				0.35,
+				1.0
+			]
+		},
+		"bld": 2.5,
+		"summon": "broto_espinheiro",
+		"loot": [
+			[
+				"slime_gel",
+				1.0
+			],
+			[
+				"golden_dust",
+				1.0
+			],
+			[
+				"health_potion",
+				1.0
+			],
+			[
+				"swift_boots",
+				0.15
+			],
+			[
+				"sage_amulet",
+				0.1
+			],
+			[
+				"royal_jelly",
+				1.0
+			],
+			[
+				"scroll_rose_flame",
+				0.3
+			],
+			[
+				"scroll_mage_robe",
+				0.3
+			],
+			[
+				"scroll_storm_staff",
+				0.3
+			]
+		],
+		"ref_level": 6
+	},
+	"broto_espinheiro": {
+		"name": "Broto Espinheiro",
+		"model": "plant",
+		"ai": "plant",
+		"sprout": true,
+		"hp": 90,
+		"damage": 12,
+		"speed": 0.0,
+		"xp": 8,
+		"gold": [
+			0,
+			0
+		],
+		"aggro": 7.0,
+		"reach": 2.6,
+		"cooldown": 1.9,
+		"radius": 0.4,
+		"height": 1.4,
+		"scale": 0.85,
+		"color": {
+			"$c": [
+				0.55,
+				0.2,
+				0.35,
+				1.0
+			]
+		},
+		"tint": [
+			{
+				"$c": [
+					0.62,
+					0.22,
+					0.4,
+					1.0
+				]
+			},
+			0.45
+		],
+		"loot": [],
+		"ref_level": 6
+	},
 	"lich": {
 		"name": "Morgrath, o Lich",
 		"model": "skeleton",
@@ -979,6 +1097,10 @@
 		},
 		"bld": 2.5,
 		"loot": [
+			[
+				"eclipse_greatsword",
+				0.04
+			],
 			[
 				"arcane_crystal",
 				1.0
@@ -1524,6 +1646,10 @@
 		"emerge_radius": 3.5,
 		"loot": [
 			[
+				"ember_flamberge",
+				0.1
+			],
+			[
 				"arcane_crystal",
 				1.0
 			],
@@ -1659,6 +1785,10 @@
 			"lobo_alfa"
 		],
 		"loot": [
+			[
+				"highland_claymore",
+				0.1
+			],
 			[
 				"frost_pelt",
 				1.0

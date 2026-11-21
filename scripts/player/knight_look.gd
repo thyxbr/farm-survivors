@@ -33,7 +33,7 @@ const KNIGHT_SCENE := {"m": "res://assets/models/knight.glb", "f": "res://assets
 const HEAD_HAIR := {
 	"h_hood": "tight", "h_wizard": "tight", "h_archmage": "tight", "h_sage": "tight", "h_void": "tight",
 	"h_oracle": "tight", "h_ember": "tight", "h_lich": "tight", "h_reaper": "tight", "h_raven": "tight",
-	"h_cap": "none", "h_kettle": "none", "h_nasal": "none", "h_great": "none", "h_dragon": "none", "h_emberscale": "none", PLATE: "none",
+	"h_cap": "none", "h_kettle": "none", "h_nasal": "none", "h_great": "none", "h_dragon": "none", "h_emberscale": "none", "h_celestial": "none", PLATE: "none",
 }
 ## Materiais copiados e tingidos, por material de origem + cor (evita duplicar a cada troca de equipamento).
 static var _tint_cache := {}
@@ -243,7 +243,8 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 		if mi:
 			mi.visible = false
 	var res := {"class": cls, "holder": null, "tip": null, "arrow": null, "arm": null, "elbow": null,
-		"counter": COUNTER[cls], "tool": str(ItemDB.get_item(wid).get("type", "")) == "tool"}
+		"counter": COUNTER[cls], "tool": str(ItemDB.get_item(wid).get("type", "")) == "tool",
+		"great": cls == "sword" and ItemDB.is_two_handed(wid)}   # montante: duas mãos pela trajetória (KnightAnim.great_carry)
 	if wid != "" and arm_r and arm_l:
 		var holder := Node3D.new()
 		holder.name = "WeaponHolder"
@@ -269,6 +270,9 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 				res.arrow = _build_bow(holder, tip, wid)
 			_:
 				_build_sword(holder, tip, wid)
+				if res.great:
+					holder.set_meta("grip0", holder.position)
+					holder.set_meta("great", true)
 				if res.tool:
 					holder.set_meta("grip0", holder.position)   # a mão desliza pelo cabo a partir daqui
 					if str(ItemDB.get_item(wid).get("tool", "")) == "axe":
@@ -278,7 +282,7 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 	# Direita: fechada com qualquer arma. Esquerda: fechada com escudo, arco (segura o arco) e cajado (pega a vara
 	# nos golpes de duas mãos).
 	_pick_hand(model, "R", wid == "")
-	_pick_hand(model, "L", not (shield_on or (wid != "" and cls in ["bow", "staff"]) or res.tool))   # ferramenta: as duas mãos
+	_pick_hand(model, "L", not (shield_on or (wid != "" and cls in ["bow", "staff"]) or res.tool or res.great))   # ferramenta: as duas mãos
 	model.set_meta("look_nodes", made)
 	var chest := KnightAnim.ensure_chest(model)   # peças novas da parte de cima do tronco vão para o pivô do peito
 	_attach_back(model, look.get("back", ""), chest)

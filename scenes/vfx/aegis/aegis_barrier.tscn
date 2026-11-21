@@ -1,0 +1,25 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/aegis/aegis_barrier.gd" id="1"]
+[ext_resource type="Resource" path="res://assets/vfx/aegis/aegis_config.tres" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/aegis/aegis_ground_circle.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/aegis/aegis_rings.tscn" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/aegis/aegis_flipbook.tscn" id="5"]
+
+[node name="AegisBarrier" type="Node3D"]
+script = ExtResource("1")
+config = ExtResource("2")
+
+[node name="GroundCircle" parent="." instance=ExtResource("3")]
+
+[node name="Rings" parent="." instance=ExtResource("4")]
+
+[node name="Plates" type="Node3D" parent="."]
+
+[node name="Sheet" parent="." instance=ExtResource("5")]
+
+[node name="Light" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, 0)
+light_color = Color(0.5, 0.75, 1, 1)
+light_energy = 0.0
+omni_range = 7.5

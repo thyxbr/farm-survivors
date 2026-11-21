@@ -81,6 +81,11 @@ static func weapon_class(bt: BalanceTables, id: String) -> String:
 	return _item(bt, id).get("class", "sword") if id != "" else "sword"
 
 
+## Arma de duas mãos (montante, campo "two_handed" do items.json): com ela a mão secundária fica vazia.
+static func two_handed(bt: BalanceTables, id: String) -> bool:
+	return id != "" and bool(_item(bt, id).get("two_handed", false))
+
+
 ## Tipo de arma de uma classe de personagem ("" se a classe não existe).
 static func class_weapon(bt: BalanceTables, cls: String) -> String:
 	var c: Dictionary = bt.get_table("classes").get(cls, {})
@@ -304,10 +309,21 @@ static func _add_xp(s: CharState, bt: BalanceTables, amount: int, ev: Array) -> 
 		# com classe também vem 1 ponto de talento (calculado: level - 1 - gastos), aberto na aba Talentos (K)
 		var talent_txt := " e 1 de talento (K)" if s.char_class != "" else ""
 		ev.append(_notify("Nível %d! +%d pontos de atributo (C)%s" % [s.level, pts, talent_txt], Color(1.0, 0.85, 0.3)))
-		# o kit em ItemDB.ABILITIES é a fonte do que libera em cada nível (só da classe da arma equipada e já pronta)
+		# o kit em ItemDB.ABILITIES é a fonte do que libera em cada nível (só da classe da arma equipada e já pronta);
+		# com espada e escudo o kit troca habilidades (Égide, Martelo de Energia): só as que estão nas mãos agora
+		var off_id := str(s.equipment.get("offhand", ""))
+		var off_kind := "shield" if weapon_cls == "sword" and off_id != "" and str(_item(bt, off_id).get("needs", "")) == "sword" else ""
+		# (mesma troca de ItemDB.kit, refeita aqui só com a constante: o kit é estático do autoload)
+		var alt_slots := {}
 		for id in ItemDB.ABILITIES:
 			var ab: Dictionary = ItemDB.ABILITIES[id]
-			if ab["class"] == weapon_cls and int(ab.level) == s.level and ab.ready:
+			if ab["class"] == weapon_cls and off_kind != "" and str(ab.get("offhand", "")) == off_kind:
+				alt_slots[int(ab.slot)] = true
+		for id in ItemDB.ABILITIES:
+			var ab: Dictionary = ItemDB.ABILITIES[id]
+			var need := str(ab.get("offhand", ""))
+			var in_kit := need == off_kind if need != "" else not alt_slots.has(int(ab.slot))
+			if ab["class"] == weapon_cls and in_kit and int(ab.level) == s.level and ab.ready:
 				ev.append(_notify("Nova habilidade: %s [%d]" % [ab.name, ab.slot], Color(0.75, 0.55, 1.0)))
 		ev.append({"t": "level_up", "level": s.level})
 	if s.level >= ProgressionRules.max_level(bt):
@@ -458,6 +474,10 @@ static func equip(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	if slot_name == "weapon" and weapon_class(bt, id) != class_weapon(bt, s.char_class):
 		return _fail("exige_classe", [_notify("%s é arma de %s." % [it.name, class_of_weapon_name(bt, weapon_class(bt, id))],
 			Color(1, 0.6, 0.5))])
+	# arma de duas mãos ocupa as duas: nada na mão secundária
+	if slot_name == "offhand" and two_handed(bt, str(s.equipment.get("weapon", ""))):
+		return _fail("duas_maos", [_notify("%s usa as duas mãos: não dá para equipar %s." % [
+			_item(bt, s.equipment.weapon).name, it.name], Color(1, 0.6, 0.5))])
 	# mão secundária precisa combinar com a classe da arma (escudo-espada, orbe-cajado, aljava-arco)
 	if slot_name == "offhand" and it.has("needs") and it.needs != weapon_class(bt, s.equipment.weapon):
 		return _fail("exige_classe", [_notify("%s exige %s." % [it.name, str(CLASS_NAMES.get(it.needs, it.needs)).to_lower()],
@@ -470,10 +490,14 @@ static func equip(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	if s.equipment[slot_name] != "":
 		add_item(s, bt, s.equipment[slot_name], 1)
 	s.equipment[slot_name] = id
-	# trocou de classe de arma: a mão secundária incompatível volta para a mochila
+	# trocou de classe de arma (ou pegou uma de duas mãos): a mão secundária incompatível volta para a mochila
 	if slot_name == "weapon" and s.equipment.offhand != "":
 		var off := _item(bt, s.equipment.offhand)
-		if off.has("needs") and off.needs != weapon_class(bt, s.equipment.weapon):
+		if two_handed(bt, id):
+			add_item(s, bt, s.equipment.offhand, 1)
+			ev.append(_notify("%s guardado (%s usa as duas mãos)." % [off.name, it.name], Color(0.85, 0.8, 0.65)))
+			s.equipment.offhand = ""
+		elif off.has("needs") and off.needs != weapon_class(bt, s.equipment.weapon):
 			add_item(s, bt, s.equipment.offhand, 1)
 			ev.append(_notify("%s guardado (exige %s)." % [off.name, str(CLASS_NAMES.get(off.needs, off.needs)).to_lower()],
 				Color(0.85, 0.8, 0.65)))
@@ -531,7 +555,7 @@ static func choose_class(s: CharState, bt: BalanceTables, cls: String, body: Str
 		s.equipment.weapon = pick
 	# mão secundária incompatível com a nova arma volta para a mochila
 	var off: String = s.equipment.get("offhand", "")
-	if off != "" and _item(bt, off).has("needs") and _item(bt, off).needs != wclass:
+	if off != "" and (two_handed(bt, str(s.equipment.get("weapon", ""))) or (_item(bt, off).has("needs") and _item(bt, off).needs != wclass)):
 		add_item(s, bt, off, 1)
 		s.equipment.offhand = ""
 	return _ok([{"t": "class", "class": cls, "body": body, "hair": s.hair},
