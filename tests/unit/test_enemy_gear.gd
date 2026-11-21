@@ -89,7 +89,7 @@ func test_new_kinds_present() -> void:
 		T.ok(mole.has(key), "toupeira tem %s" % key)
 	var worm: Dictionary = enemies.get("mae_verme", {})
 	T.ok(worm.get("boss", false) and worm.get("ai", "") == "worm", "mãe-verme é chefe com ia de verme")
-	T.eq(worm.get("summon", ""), "centopeia", "mãe-verme chama centopeias")
+	T.eq(worm.get("summon", ""), "lobo_geada", "mãe-verme da Geleira chama Lobos da Geada")
 	T.eq(worm.get("shot", ""), "acid", "mãe-verme cospe ácido")
 	T.eq(worm.get("leash", []).size(), 2, "mãe-verme presa ao fosso (meio-tamanho x, z)")
 	var golem: Dictionary = enemies.get("golem_cristal", {})
