@@ -118,6 +118,9 @@ func _ready() -> void:
 	if "--hammerdemo" in OS.get_cmdline_user_args():
 		# demonstração do Martelo de Energia (use com --weapon=iron_sword: personagem descartável)
 		get_tree().root.add_child.call_deferred(load("res://tools/hammer_demo.gd").new())
+	if "--earthquakedemo" in OS.get_cmdline_user_args():
+		# demonstração do Terremoto Devastador (use com --weapon=iron_sword: personagem descartável)
+		get_tree().root.add_child.call_deferred(load("res://tools/earthquake_demo.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
 		# o Econ usa user://smoketest_solo.json, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())
