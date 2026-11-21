@@ -1537,6 +1537,8 @@ func _ab_module(id: String) -> Object:
 		return HammerAbilities
 	if id.begins_with(DarkTauntAbilities.ID):   # o Círculo da Provocação Sombria (e o cancelamento) também
 		return DarkTauntAbilities
+	if id.begins_with(EarthquakeAbilities.ID):  # o Terremoto Devastador (e o cancelamento) também
+		return EarthquakeAbilities
 	var cls := ""
 	if ItemDB.ABILITIES.has(id):
 		cls = ItemDB.ABILITIES[id]["class"]

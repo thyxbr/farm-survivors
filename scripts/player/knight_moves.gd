@@ -459,6 +459,30 @@ const TAUNT_RETURN := 0.55    ## depois que as mãos agarram, volta à guarda ne
 ## Base: esquerda à frente e direita atrás, firme no chão (o clipe abre os pés na largura dos ombros).
 const TAUNT_STANCE := {"leg_l": -0.32, "knee_l": 0.38, "leg_r": 0.26, "knee_r": 0.36, "body_y": -0.03}
 
+# ------------------------------------------------------------------ Terremoto Devastador (espada + escudo, slot 2)
+## Erguer o escudo e bater com ele no chão. Não há clipe do Mixamo com esse golpe no projeto (os três de espada e
+## escudo são guarda/impacto, invocação e explosão de energia): as chaves foram compostas no mesmo formato e na mesma
+## escala dos clipes medidos (HAMMER_RAISE/TAUNT_CAST), partindo da pose de começo do TAUNT_CAST. O braço do escudo
+## sobe por cima da cabeça (o escudo de pé, de frente, pela orientação da guarda: KnightAnim._shield_orient), o peito
+## abre para trás, e o escudo desce com tudo até a borda tocar o chão à frente, com o tronco caindo junto e as pernas
+## abrindo numa base baixa; segura cravado e volta.
+## Cada chave: [fase, mão esq., cotovelo esq., mão dir., cotovelo dir., inclinação, giro, subida], com a fase de
+## EarthquakeRules.pose_phase (0 começo, 1 escudo no alto, 2 contato com o chão, 3 fim do apoio, 4 de volta).
+## Mãos e cotovelos a partir do ombro, em m do esqueleto do Mixamo (braço de AEGIS_GUARD_ARM m), +Z frente, +X esquerda.
+const EARTHQUAKE_SLAM := [
+	[0.0, Vector3(0.08, -0.23, 0.22), Vector3(0.15, -0.21, 0.02), Vector3(-0.21, -0.29, 0.11), Vector3(-0.14, -0.20, -0.08), 0.0, 0.0, 0.0],
+	[0.5, Vector3(0.04, 0.10, 0.30), Vector3(0.21, -0.05, 0.13), Vector3(-0.24, -0.31, -0.04), Vector3(-0.15, -0.20, -0.08), -0.08, -0.16, 0.015],
+	[1.0, Vector3(0.00, 0.40, 0.19), Vector3(0.21, 0.20, 0.06), Vector3(-0.26, -0.30, -0.13), Vector3(-0.16, -0.18, -0.10), -0.22, -0.32, 0.03],
+	[1.45, Vector3(0.02, 0.02, 0.38), Vector3(0.21, -0.03, 0.18), Vector3(-0.28, -0.28, -0.15), Vector3(-0.17, -0.17, -0.10), 0.35, -0.26, -0.03],
+	[2.0, Vector3(0.03, -0.47, 0.15), Vector3(0.20, -0.22, 0.10), Vector3(-0.30, -0.25, -0.18), Vector3(-0.17, -0.15, -0.10), 0.92, -0.22, -0.12],
+	[3.0, Vector3(0.03, -0.46, 0.16), Vector3(0.20, -0.22, 0.10), Vector3(-0.29, -0.26, -0.16), Vector3(-0.17, -0.16, -0.10), 0.86, -0.2, -0.11],
+	[4.0, Vector3(0.08, -0.23, 0.22), Vector3(0.15, -0.21, 0.02), Vector3(-0.21, -0.29, 0.11), Vector3(-0.14, -0.20, -0.08), 0.0, 0.0, 0.0],
+]
+## Base no alto (de leve, quase em pé) e no impacto (passada larga e funda: esquerda à frente, joelhos bem dobrados).
+const EARTHQUAKE_STANCE_UP := {"leg_l": -0.3, "knee_l": 0.3, "leg_r": 0.22, "knee_r": 0.25}
+const EARTHQUAKE_STANCE_DOWN := {"leg_l": -1.05, "knee_l": 1.45, "leg_r": 0.6, "knee_r": 1.0}
+const EARTHQUAKE_LEAD := 0.12   ## em fase: o peso sai da locomoção até aqui (e volta a ela de 3,6 a 4)
+
 # ------------------------------------------------------------------ coleta (GatherAction; um ciclo = um golpe)
 ## As duas mãos no cabo: a direita no suporte da arma, a esquerda por IK neste ponto do cabo (espaço do suporte:
 ## o cabo sobe em +Z, a esquerda pega abaixo da direita) com o cotovelo apontando para POLE.

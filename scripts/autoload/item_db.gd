@@ -53,6 +53,9 @@ const ABILITIES := {
 		"ready": true, "ultimate": false, "icon": "hammer", "desc": "Com escudo: ergue a espada e invoca um círculo mágico acima da cabeça; dele sai um martelo gigante de energia que cai à frente, causando dano em área (2,6x o dano corpo a corpo, raio de 7 m), atordoando e abrindo crateras pelo chão. Parado enquanto invoca; a esquiva antes da queda cancela."},
 	"sword_quake": {"name": "Golpe Sísmico", "class": "sword", "slot": 2, "level": 3, "cooldown": 9.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "greatsword", "desc": "Golpe no chão: dano em área e atordoamento."},
+	# recarga: a do EarthquakeConfig manda (cooldown_of); esta é só o valor padrão dela
+	"sword_earthquake": {"name": "Terremoto Devastador", "class": "sword", "offhand": "shield", "slot": 2, "level": 3, "cooldown": 10.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "earthquake", "desc": "Com escudo: ergue o escudo e o bate com tudo no chão. Uma onda de choque circular corre pelo terreno até 9 m, rachando o chão, levantando placas de pedra e arremessando fragmentos; cada inimigo leva o golpe (2,2x o dano corpo a corpo) e fica atordoado quando a onda chega nele. Parado enquanto bate; a esquiva antes do escudo tocar o chão cancela."},
 	# recarga: a do DarkTauntConfig manda (cooldown_of); esta é só o valor padrão dela
 	"sword_taunt": {"name": "Círculo da Provocação Sombria", "class": "sword", "offhand": "shield", "slot": 3, "level": 5, "cooldown": 18.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "taunt", "desc": "Com escudo: o herói solta uma onda de energia sombria e um círculo mágico se desenha no chão em volta dele (raio de 6 m). Mãos sombrias saem do chão e agarram cada inimigo dentro dele, prendendo-os por 1,6 s; depois todos ficam provocados por 6 s, com olhos vermelhos sobre a cabeça: só perseguem e atacam você. Parado enquanto invoca; a esquiva antes das mãos agarrarem cancela."},
@@ -71,11 +74,12 @@ const ABILITIES := {
 }
 
 
-## Recarga base (s) de uma habilidade, antes dos bônus. O Martelo de Energia e o Círculo da Provocação Sombria
-## leem a do recurso de configuração deles (editável no Inspector); as outras, a da tabela acima.
+## Recarga base (s) de uma habilidade, antes dos bônus. O Martelo de Energia, o Círculo da Provocação Sombria e o
+## Terremoto Devastador leem a do recurso de configuração deles (editável no Inspector); as outras, a da tabela acima.
 const COOLDOWN_CONFIGS := {
 	"sword_hammer": "res://assets/vfx/hammer/hammer_config.tres",
 	"sword_taunt": "res://assets/vfx/dark_taunt/dark_taunt_config.tres",
+	"sword_earthquake": "res://assets/vfx/earthquake/earthquake_config.tres",
 }
 
 
