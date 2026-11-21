@@ -1,0 +1,21 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/dark_taunt/dark_taunt_skill.gd" id="1"]
+[ext_resource type="Resource" path="res://assets/vfx/dark_taunt/dark_taunt_config.tres" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/dark_taunt/dark_magic_circle.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/dark_taunt/dark_taunt_vfx.tscn" id="4"]
+
+[node name="DarkTauntSkill" type="Node3D"]
+script = ExtResource("1")
+config = ExtResource("2")
+
+[node name="Circle" parent="." instance=ExtResource("3")]
+
+[node name="VFX" parent="." instance=ExtResource("4")]
+
+[node name="DetectArea" type="Area3D" parent="."]
+collision_layer = 0
+collision_mask = 4
+monitorable = false
+
+[node name="Shape" type="CollisionShape3D" parent="DetectArea"]

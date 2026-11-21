@@ -1,6 +1,6 @@
 extends RefCounted
 ## HammerRules: contas puras do Martelo de Energia (queda com aceleração, crateras em volta do impacto, quem está
-## no raio e o golpe único por inimigo). O kit (Martelo no slot 2 com escudo) fica no teste de fumaça (precisa do ItemDB).
+## no raio e o golpe único por inimigo). O kit (Martelo no slot 4 com escudo) fica no teste de fumaça (precisa do ItemDB).
 
 
 func _cfg() -> HammerConfig:

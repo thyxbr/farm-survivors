@@ -136,6 +136,9 @@ func test_mask_survives_the_snapshot_with_the_attack() -> void:
 	T.eq(BossRules.unpack_seed(flags), 0xBEEF, "a semente das estacas fica")
 	T.eq(flags & 3, 3, "lento e enfurecido ficam")
 	T.ok(flags < (1 << 24), "cabe no float32 do snapshot")
+	T.eq(flags & ((1 << 18) | (1 << 20)), 0, "não pisa no escudo do Forjador (bit 18) nem no provocado (bit 20)")
+	T.eq(BlizzardRules.unpack_mask(BlizzardRules.pack_mask(flags | (1 << 20), 0b0101)), 0b0101, "com o provocado ligado")
+	T.eq(BlizzardRules.pack_mask(flags, BlizzardRules.MASK_ALL) < (1 << 24), true, "todos acesos ainda cabem")
 	T.eq(int(float(flags)), flags, "ida e volta pelo float")
 
 

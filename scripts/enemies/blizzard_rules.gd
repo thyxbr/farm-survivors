@@ -49,9 +49,10 @@ const BLIZZARD_CHILL_AT := 0.2
 const BLIZZARD_CHILL_MAX := 2.5
 ## Sala padrão quando ela não está numa sala de chefe (testes, laboratório): largura e profundidade (m).
 const ROOM := Vector2(22.0, 18.0)
-## Braseiros acesos nos bits 18..21 de `flags` do snapshot (0 e 1 são lento e enfurecido; 2..17, o golpe). Tudo
-## abaixo de 2^24, então sobrevive ao float32 do snapshot.
-const MASK_SHIFT := 18
+## Braseiros acesos nos bits altos de `flags` do snapshot: o braseiro 0 no bit 19 e os outros nos bits 21..23 (0 e 1
+## são lento e enfurecido; 2..17, o golpe; 18, o escudo do Forjador; 20, o provocado). Tudo abaixo de 2^24, então
+## sobrevive ao float32 do snapshot.
+const MASK_BITS := [19, 21, 22, 23]
 const MASK_ALL := (1 << BRAZIERS) - 1
 
 
@@ -215,8 +216,15 @@ static func blizzard_chill(e: float) -> float:
 
 
 static func pack_mask(flags: int, mask: int) -> int:
-	return (flags & ((1 << MASK_SHIFT) - 1)) | ((mask & MASK_ALL) << MASK_SHIFT)
+	for i in MASK_BITS.size():
+		var bit: int = 1 << int(MASK_BITS[i])
+		flags = (flags | bit) if mask & (1 << i) != 0 else (flags & ~bit)
+	return flags
 
 
 static func unpack_mask(flags: int) -> int:
-	return (flags >> MASK_SHIFT) & MASK_ALL
+	var m := 0
+	for i in MASK_BITS.size():
+		if flags & (1 << int(MASK_BITS[i])) != 0:
+			m |= 1 << i
+	return m

@@ -49,10 +49,13 @@ const ABILITIES := {
 	"sword_aegis": {"name": "Égide Cristalina", "class": "sword", "offhand": "shield", "slot": 1, "level": 1, "cooldown": 8.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "ward", "desc": "Com escudo: segure a tecla para fincar o escudo no chão (parado) e erguer uma coroa de placas de cristal em volta (cabe o grupo). Ao se formar ela empurra os monstros; até se partir nenhum monstro nem projétil entra, e os golpes nela gastam a integridade (70 + 9 por nível + 4 por defesa). Soltar a tecla desfaz a barreira. A recarga conta depois que ela acaba (mais longa se quebrar)."},
 	# recarga: a do HammerConfig manda (cooldown_of); esta é só o valor padrão dela
-	"sword_hammer": {"name": "Martelo de Energia", "class": "sword", "offhand": "shield", "slot": 2, "level": 3, "cooldown": 12.0, "cost": 0,
+	"sword_hammer": {"name": "Martelo de Energia", "class": "sword", "offhand": "shield", "slot": 4, "level": 3, "cooldown": 12.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "hammer", "desc": "Com escudo: ergue a espada e invoca um círculo mágico acima da cabeça; dele sai um martelo gigante de energia que cai à frente, causando dano em área (2,6x o dano corpo a corpo, raio de 7 m), atordoando e abrindo crateras pelo chão. Parado enquanto invoca; a esquiva antes da queda cancela."},
 	"sword_quake": {"name": "Golpe Sísmico", "class": "sword", "slot": 2, "level": 3, "cooldown": 9.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "greatsword", "desc": "Golpe no chão: dano em área e atordoamento."},
+	# recarga: a do DarkTauntConfig manda (cooldown_of); esta é só o valor padrão dela
+	"sword_taunt": {"name": "Círculo da Provocação Sombria", "class": "sword", "offhand": "shield", "slot": 3, "level": 5, "cooldown": 18.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "taunt", "desc": "Com escudo: o herói solta uma onda de energia sombria e um círculo mágico se desenha no chão em volta dele (raio de 6 m). Mãos sombrias saem do chão e agarram cada inimigo dentro dele, prendendo-os por 1,6 s; depois todos ficam provocados por 6 s, com olhos vermelhos sobre a cabeça: só perseguem e atacam você. Parado enquanto invoca; a esquiva antes das mãos agarrarem cancela."},
 	"sword_fury": {"name": "Fúria Picante", "class": "sword", "slot": 3, "level": 5, "cooldown": 28.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "fury", "desc": "Por 10 s: +30% de dano e cada abate cura 2."},
 	"sword_whirl": {"name": "Turbilhão", "class": "sword", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
@@ -68,11 +71,17 @@ const ABILITIES := {
 }
 
 
-## Recarga base (s) de uma habilidade, antes dos bônus. O Martelo de Energia lê a do HammerConfig (editável no
-## Inspector); as outras, a da tabela acima.
+## Recarga base (s) de uma habilidade, antes dos bônus. O Martelo de Energia e o Círculo da Provocação Sombria
+## leem a do recurso de configuração deles (editável no Inspector); as outras, a da tabela acima.
+const COOLDOWN_CONFIGS := {
+	"sword_hammer": "res://assets/vfx/hammer/hammer_config.tres",
+	"sword_taunt": "res://assets/vfx/dark_taunt/dark_taunt_config.tres",
+}
+
+
 static func cooldown_of(id: String) -> float:
-	if id == "sword_hammer":
-		var cfg: Resource = load("res://assets/vfx/hammer/hammer_config.tres")
+	if COOLDOWN_CONFIGS.has(id):
+		var cfg: Resource = load(COOLDOWN_CONFIGS[id])
 		if cfg != null:
 			return float(cfg.get("cooldown"))
 	return float(ABILITIES[id].cooldown) if ABILITIES.has(id) else 0.0

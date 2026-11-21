@@ -245,7 +245,7 @@ func _check_aegis_wall(player: Node, world: Node, cfg: AegisConfig) -> void:
 	player.invuln = 0.0
 
 
-## Martelo de Energia (espada + escudo, slot 2 / tecla 2): kit, círculo acima da cabeça girando, martelo saindo
+## Martelo de Energia (espada + escudo, slot 4 / tecla 4, no lugar do Turbilhão): kit, círculo acima da cabeça girando, martelo saindo
 ## do círculo proporcional a ele (do tamanho do da Égide), câmera olhando para cima, círculo fechando antes da queda, queda no ponto certo, dano em área (os de
 ## dentro uma vez só, os de fora nada), crateras pela área, recarga, limpeza de tudo e o cancelamento pela esquiva.
 func _check_hammer(player: Node, world: Node) -> void:
@@ -257,8 +257,8 @@ func _check_hammer(player: Node, world: Node) -> void:
 	equip_any("wooden_shield")
 	await wait_until(func(): return Game.offhand_kind() == "shield" and Game.level >= 3)
 	var kit := Game.ability_kit()
-	check(kit.size() == 4 and kit[1] == "sword_hammer" and not ("sword_quake" in kit),
-		"Martelo: espada + escudo troca a habilidade 2 (%s)" % [kit])
+	check(kit.size() == 4 and kit[3] == "sword_hammer" and kit[1] == "sword_quake" and not ("sword_whirl" in kit),
+		"Martelo: espada + escudo troca a habilidade 4 (%s)" % [kit])
 	check(Game.knows_ability("sword_hammer"), "Martelo: liberado no nível %d" % ItemDB.ABILITIES.sword_hammer.level)
 	var count_fx := func(cls: String) -> int:
 		var n := 0
@@ -294,7 +294,7 @@ func _check_hammer(player: Node, world: Node) -> void:
 	player.cooldowns.sword_hammer = 0.0
 	player.invuln = 99.0   # os monstros não interferem (o teste é do golpe)
 	player.cast("sword_hammer")
-	check(player.ability == "sword_hammer", "Martelo: a habilidade começa na tecla 2")
+	check(player.ability == "sword_hammer", "Martelo: a habilidade começa na tecla 4")
 	var skill: HammerSkill = player.ability_data.get("skill")
 	check(is_instance_valid(skill) and skill.get_parent() == get_tree().current_scene, "Martelo: HammerSkill na cena do mundo")
 	var cd: float = player.cooldowns.sword_hammer
@@ -392,13 +392,217 @@ func _check_hammer(player: Node, world: Node) -> void:
 	# tira o escudo: o Golpe Sísmico volta
 	Game.unequip("offhand")
 	await wait_until(func(): return Game.offhand_kind() == "")
-	check(Game.ability_kit()[1] == "sword_quake", "Martelo: sem escudo a habilidade 2 volta a ser o Golpe Sísmico")
+	check(Game.ability_kit()[3] == "sword_whirl", "Martelo: sem escudo a habilidade 4 volta a ser o Turbilhão")
 	Econ.test_force_level(lv0)
 	player.global_position = back
 	player.velocity = Vector3.ZERO
 	player.cooldowns.sword_hammer = 0.0
 	player.invuln = 0.0
 	Game.hp = hp_player
+
+
+## Círculo da Provocação Sombria (espada + escudo, slot 3 / tecla 3): kit, círculo no chão sob o herói girando, mãos
+## em pontos diferentes, captura só de quem está dentro (uma vez), imobilização, a IA trocando o alvo (um aliado
+## mais perto) pelo herói e indo atacá-lo, olhos vermelhos por inimigo seguindo a cabeça, morte no meio, fim da
+## provocação (olhos somem e a IA volta), herói que provocou morrendo, limpeza e o cancelamento pela esquiva.
+func _check_dark_taunt(player: Node, world: Node) -> void:
+	var cfg: DarkTauntConfig = DarkTauntAbilities.CONFIG
+	var back: Vector3 = player.global_position
+	var lv0: int = Game.level
+	Econ.test_force_level(maxi(lv0, 5))
+	Game.add_item("wooden_shield")
+	equip_any("wooden_shield")
+	await wait_until(func(): return Game.offhand_kind() == "shield" and Game.level >= 5)
+	var kit := Game.ability_kit()
+	check(kit.size() == 4 and kit[2] == "sword_taunt" and not ("sword_fury" in kit),
+		"Provocação: espada + escudo troca a habilidade 3 (%s)" % [kit])
+	check(Game.knows_ability("sword_taunt"), "Provocação: liberada no nível %d" % ItemDB.ABILITIES.sword_taunt.level)
+	var count_fx := func(cls: String) -> int:
+		var n := 0
+		for c in get_tree().current_scene.find_children("*", cls, true, false):
+			if not c.is_queued_for_deletion():
+				n += 1
+		return n
+	var spot := Vector3(-105, 0.3, 40)   # fora da vila (a guarda abate monstro lá dentro)
+	player.global_position = spot
+	player.velocity = Vector3.ZERO
+	player.model.rotation.y = 0.0
+	await wait(0.25)
+	await wait_until(func(): return player.ability == "" and not player.attacking and player.dodge_timer <= 0.0)
+	var hero_pos: Vector3 = player.global_position
+	# um aliado (réplica de outro jogador) mais perto dos monstros: sem a provocação, é ele o alvo
+	var ally := Player.new()
+	ally.remote = true
+	world.add_child(ally)
+	ally.global_position = hero_pos + Vector3(4.6, 0, 0)
+	ally._net_pos = ally.global_position
+	# 4 monstros dentro do raio (mais perto do aliado que do herói), 2 fora
+	var mobs: Array = []
+	for off in [Vector3(3.6, 0, 1.2), Vector3(4.2, 0, -1.4), Vector3(2.9, 0, 2.6), Vector3(-1.5, 0, 4.4),
+			Vector3(cfg.radius + 4.0, 0, 0.5), Vector3(-cfg.radius - 4.0, 0, -2.0)]:
+		var e := Enemy.new()
+		e.kind = "goblin"
+		world.add_child(e)
+		e.global_position = hero_pos + off
+		e.home = e.global_position
+		mobs.append(e)
+	var inside := mobs.slice(0, 4)
+	var outside := mobs.slice(4)
+	await wait(0.2)
+	# os de fora ficam parados: andando, eles entram no círculo antes de ele terminar (e aí são agarrados, certo)
+	for e in outside:
+		e.set_physics_process(false)
+	check(inside[0]._nearest_player() == ally, "Provocação: antes, o alvo do monstro é o aliado mais perto")
+	player.cooldowns.sword_taunt = 0.0
+	player.invuln = 99.0
+	player.cast("sword_taunt")
+	check(player.ability == "sword_taunt", "Provocação: a habilidade começa na tecla 3")
+	var skill: DarkTauntSkill = player.ability_data.get("skill")
+	check(is_instance_valid(skill) and skill.get_parent() == get_tree().current_scene, "Provocação: DarkTauntSkill na cena do mundo")
+	var cd: float = player.cooldowns.sword_taunt
+	check(cd >= cfg.cooldown * Game.cooldown_mult() - 0.01, "Provocação: recarga do DarkTauntConfig (%.1f s)" % cd)
+	# o círculo se desenha no chão, sob o herói, girando
+	await wait(DarkTauntConfig.CAST_LEAD + cfg.circle_form_time * 0.5)
+	var cp: Vector3 = skill.circle.global_position
+	check(skill.circle.visible and Vector2(cp.x - hero_pos.x, cp.z - hero_pos.z).length() < 0.05 and absf(cp.y - hero_pos.y) < 0.6,
+		"Provocação: círculo no chão, centrado sob o herói (%.2f m de altura relativa)" % (cp.y - hero_pos.y))
+	var f0 := skill.circle.formed()
+	var a0: float = skill.circle.spin_angle
+	await wait(0.15)
+	check(f0 > 0.0 and f0 < 1.0 and skill.circle.formed() > f0, "Provocação: círculo aparece aos poucos (%.2f -> %.2f)" % [f0, skill.circle.formed()])
+	check(skill.circle.spin_angle > a0, "Provocação: os anéis giram")
+	# parado enquanto invoca
+	var pos_w: Vector3 = player.global_position
+	Input.action_press("move_forward")
+	await wait(0.25)
+	Input.action_release("move_forward")
+	check(Vector2(player.global_position.x - pos_w.x, player.global_position.z - pos_w.z).length() < 0.05, "Provocação: parado enquanto invoca")
+	check(player.cam_back > 0.5, "Provocação: a câmera recua para o círculo caber")
+	# as mãos sobem: uma por alvo dentro do raio, em pontos diferentes
+	await wait_until(func(): return skill.state >= DarkTauntSkill.State.RISE, 3.0)
+	check(skill.targets.size() == inside.size() and inside.all(func(e): return e in skill.targets)
+		and outside.all(func(e): return not (e in skill.targets)), "Provocação: só os %d de dentro são alvos (%d)" % [inside.size(), skill.targets.size()])
+	check(skill.hands.size() == maxi(cfg.hand_count, inside.size()), "Provocação: %d mãos sombrias" % skill.hands.size())
+	var min_gap := INF
+	for i in skill.hands.size():
+		for j in range(i + 1, skill.hands.size()):
+			var pa: Vector3 = skill.hands[i].global_position
+			var pb: Vector3 = skill.hands[j].global_position
+			min_gap = minf(min_gap, Vector2(pa.x - pb.x, pa.z - pb.z).length())
+	check(min_gap > 0.4 and inside.all(func(e): return skill.hands.any(func(h): return h.target == e)),
+		"Provocação: cada alvo tem a sua mão, saindo de pontos diferentes (menor distância %.2f m)" % min_gap)
+	# fecham: cada um capturado uma vez, preso e provocado; os de fora nada
+	await wait_until(func(): return skill.captured_count >= inside.size(), 3.0)
+	check(skill.captured_count == inside.size(), "Provocação: os %d monstros de dentro são agarrados (%d)" % [inside.size(), skill.captured_count])
+	var grabbing := skill.hands.filter(func(h): return h.held)
+	check(grabbing.size() == inside.size() and grabbing.all(func(h): return h.grip >= 0.99), "Provocação: as mãos fecham os dedos nos alvos")
+	await wait(0.05)
+	check(inside.all(func(e): return e.held_t > 0.0 and e.taunt_t > 0.0 and e.taunt_by == player),
+		"Provocação: os agarrados ficam presos e provocados pelo herói")
+	check(outside.all(func(e): return e.taunt_t <= 0.0 and e.held_t <= 0.0), "Provocação: os de fora não são afetados")
+	check(not (player in skill.targets) and not (ally in skill.targets), "Provocação: o herói e o aliado nunca são agarrados")
+	check(inside.all(func(e): return e.taunt_eyes != null and e.taunt_eyes.active and e.taunt_eyes.visible)
+		and outside.all(func(e): return e.taunt_eyes == null), "Provocação: cada provocado tem o seu par de olhos vermelhos")
+	var flat := func(a: Vector3, b: Vector3) -> float: return Vector2(a.x - b.x, a.z - b.z).length()
+	var eyes_ok := true
+	for e in inside:
+		if e.taunt_eyes == null:
+			eyes_ok = false
+			continue
+		var ep: Vector3 = e.taunt_eyes.global_position
+		eyes_ok = eyes_ok and ep.y > e.global_position.y + e.head_top() and flat.call(ep, e.global_position) < 0.6
+	check(eyes_ok, "Provocação: os olhos ficam acima da cabeça de cada um")
+	var held_pos := {}
+	for e in inside:
+		held_pos[e] = e.global_position
+	await wait(0.5)
+	var still_ok := true
+	for e in inside:
+		still_ok = still_ok and flat.call(e.global_position, held_pos[e]) < 0.15 and e.state != "attack"
+	check(still_ok, "Provocação: presos pelas mãos não andam nem atacam")
+	check(inside.all(func(e): return e._nearest_player() == player) and outside[0]._nearest_player() == ally,
+		"Provocação: o alvo dos provocados passa a ser o herói (o de fora segue no aliado)")
+	await wait_until(func(): return player.ability == "", 3.0)
+	check(player.ability == "", "Provocação: o herói fica livre depois que as mãos agarram")
+	# as mãos soltam: os provocados vêm atrás do herói (e não do aliado, que está mais perto)
+	await wait_until(func(): return inside.all(func(e): return e.held_t <= 0.0), cfg.hold_time + 1.0)
+	var d0 := {}
+	for e in inside:
+		d0[e] = Vector2(e.global_position.x - hero_pos.x, e.global_position.z - hero_pos.z).length()
+	await wait(1.0)
+	var closer := []
+	for e in inside:
+		if flat.call(e.global_position, hero_pos) < float(d0[e]) - 0.3 or e.state == "attack":
+			closer.append(e)
+	check(closer.size() >= inside.size() - 1 and inside.all(func(e): return e._tgt == player),
+		"Provocação: soltos, perseguem o herói (%d de %d se aproximaram)" % [closer.size(), inside.size()])
+	check(inside.all(func(e): return e.taunt_eyes != null and Vector2(e.taunt_eyes.global_position.x - e.global_position.x, e.taunt_eyes.global_position.z - e.global_position.z).length() < 0.6),
+		"Provocação: os olhos acompanham o monstro andando")
+	# um provocado morre no meio: o indicador sai junto
+	var victim: Enemy = inside[3]
+	victim.take_damage(99999.0, hero_pos, false)
+	await wait(0.05)
+	check(victim.dead and victim.taunt_t <= 0.0 and (victim.taunt_eyes == null or not is_instance_valid(victim.taunt_eyes)),
+		"Provocação: monstro morto perde a provocação e os olhos")
+	# fim da provocação: os olhos se apagam aos poucos e a IA volta a escolher o mais perto
+	var rest := inside.slice(0, 3)
+	for e in rest:
+		e.taunt_t = 0.05
+	await wait(0.15)
+	check(rest.all(func(e): return e.taunt_t <= 0.0 and e.taunt_by == null and e.taunt_eyes != null and not e.taunt_eyes.active),
+		"Provocação: acabou o tempo, a provocação termina")
+	check(rest.all(func(e): return e.taunt_eyes != null and e.taunt_eyes.visible), "Provocação: os olhos não somem de uma vez (apagando)")
+	await wait(cfg.eye_fade_time + 0.2)
+	check(rest.all(func(e): return e.taunt_eyes != null and not e.taunt_eyes.visible), "Provocação: os olhos somem no fim")
+	var near_ally: Enemy = rest[0]
+	near_ally.global_position = ally.global_position + Vector3(1.2, 0, 0)
+	await wait(0.1)
+	check(near_ally._nearest_player() == ally, "Provocação: depois do fim, a IA volta a escolher o alvo mais perto")
+	# o herói que provocou morre (aqui: o aliado como provocador): a provocação acaba na hora
+	var e2: Enemy = rest[1]
+	e2.apply_taunt(ally, 0.0, 5.0)
+	await wait(0.05)
+	check(e2.taunt_t > 0.0 and e2._nearest_player() == ally, "Provocação: apply_taunt direto vale")
+	ally.dead = true
+	await wait(0.1)
+	check(e2.taunt_t <= 0.0 and e2.taunt_by == null, "Provocação: quem provocou morreu, a provocação acaba")
+	ally.dead = false
+	# tudo sai da cena no fim (mãos, círculo, efeitos)
+	await wait_until(func(): return not is_instance_valid(skill), cfg.dissipate_time + cfg.circle_linger + 4.0)
+	check(not is_instance_valid(skill) and count_fx.call("ShadowHand") == 0 and count_fx.call("DarkMagicCircle") == 0
+		and count_fx.call("DarkTauntVFX") == 0, "Provocação: mãos, círculo e efeitos removidos no fim")
+	# esquiva antes das mãos fecharem: cancela sem provocar ninguém
+	var fresh := Enemy.new()
+	fresh.kind = "goblin"
+	world.add_child(fresh)
+	fresh.global_position = hero_pos + Vector3(2.0, 0, -2.0)
+	fresh.home = fresh.global_position
+	mobs.append(fresh)
+	await wait(0.1)
+	player.global_position = hero_pos
+	player.cooldowns.sword_taunt = 0.0
+	player.cast("sword_taunt")
+	var skill2: DarkTauntSkill = player.ability_data.get("skill")
+	await wait(DarkTauntConfig.CAST_LEAD + 0.2)
+	check(DarkTauntAbilities.can_dodge_cancel(player), "Provocação: esquiva pode cancelar antes das mãos fecharem")
+	DarkTauntAbilities.dodge_cancel(player)
+	check(player.ability == "" and skill2.state == DarkTauntSkill.State.CANCELED, "Provocação: cancelada pela esquiva")
+	await wait_until(func(): return not is_instance_valid(skill2), 4.0)
+	check(not is_instance_valid(skill2) and fresh.taunt_t <= 0.0 and fresh.taunt_eyes == null,
+		"Provocação: cancelada não provoca ninguém e se libera")
+	for e in mobs:
+		if is_instance_valid(e):
+			e.queue_free()
+	ally.queue_free()
+	# tira o escudo: a Fúria Picante volta
+	Game.unequip("offhand")
+	await wait_until(func(): return Game.offhand_kind() == "")
+	check(Game.ability_kit()[2] == "sword_fury", "Provocação: sem escudo a habilidade 3 volta a ser a Fúria Picante")
+	Econ.test_force_level(lv0)
+	player.global_position = back
+	player.velocity = Vector3.ZERO
+	player.cooldowns.sword_taunt = 0.0
+	player.invuln = 0.0
 
 
 func EnemyArrow_script() -> GDScript:
@@ -893,6 +1097,7 @@ func _ready() -> void:
 	check(Game.level < 3 and not Game.knows_ability("frost_nova") and ItemDB.ABILITIES.frost_nova.level == 3, "Nova Gélida só no nível 3")
 	await _check_aegis(player, world)
 	await _check_hammer(player, world)
+	await _check_dark_taunt(player, world)
 	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
 	# quem testar; resta conferir que há recarga para cada habilidade
 	Game.add_item("short_bow")
@@ -1463,6 +1668,8 @@ func _ready() -> void:
 	await _test_flor_rooted()
 	await _test_espinheira()
 	await _test_sentinela()
+	await _test_arauto()
+	await _test_forjador()
 	await _test_enemy_detour()
 	await _test_river()
 	await _test_archer_pose()
@@ -2362,7 +2569,7 @@ func _test_dungeons() -> void:
 		var hp0: float = Game.hp
 		player.global_position = o + Vector3(0, 0.3, -20.0)   # antecâmara, na frente do portão
 		await wait(1.0)
-		check(king.state in ["idle", "wander"], "chefe não ataca quem está fora da sala (estado %s)" % king.state)
+		check(king.state in ["idle", "wander", "return"], "chefe não ataca quem está fora da sala (estado %s)" % king.state)   # "return": o Forjador anda devagar e ainda pode estar voltando para casa
 		player.global_position = o + Vector3(14.0, 0.3, -26.0)   # dentro da sala, longe do alcance normal de agro
 		await wait(0.6)
 		check(king.state in ["chase", "attack"], "chefe persegue quem entra na sala (estado %s)" % king.state)
@@ -4533,6 +4740,143 @@ func _count(kind: String) -> int:
 	return n
 
 
+## Forjador Rúnico (chefe das Galerias Profundas): a Martelada acerta quem está no cone e deixa as faixas de metal
+## derretido (que queimam quem pisa), o Respiro da Fornalha queima quem está colado, o Escudo Rúnico deixa ele
+## imune e só cai com as 3 runas quebradas (e ele segue atacando), e abaixo de metade da vida ele superaquece:
+## golpes mais rápidos, mais faixas e mais dano recebido.
+func _test_forjador() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 40)
+	player.global_position = spot
+	Game.hp = Game.max_hp()
+	var e := Enemy.new()
+	e.kind = "forjador_runico"
+	world.add_child(e)
+	e.global_position = spot + Vector3(0, 0, -5)
+	e.home = e.global_position
+	await wait(0.2)
+	check(e.is_boss and e.parts.get("Hammer") != null and e.parts.get("KneeL") != null and e.parts.get("ElbowR") != null
+		and e.parts.get("Door") != null, "Forjador: chefe, com martelo, joelhos, cotovelos e a porta da fornalha no modelo")
+	# Martelada: o jogador está a 5 m, na frente
+	var hp0: float = Game.hp
+	e._forge_n = 0
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "hammer", "Forjador: ataca com a Martelada (%s)" % e.attack_kind)
+	check(ForgeRules.in_cone(e._forge_origin, e._forge_dir, player.global_position), "Forjador: o cone aponta para o alvo")
+	await wait_until(func(): return Game.hp < hp0, 3.0)
+	check(Game.hp < hp0, "Forjador: a Martelada acerta quem está no cone (%.0f -> %.0f)" % [hp0, Game.hp])
+	var trails := _forge_trails()
+	check(trails.size() == ForgeRules.TRAILS, "Forjador: a Martelada deixa as faixas de metal derretido (%d)" % trails.size())
+	# a faixa do meio passa debaixo do jogador: queima enquanto ele fica em cima
+	Game.hp = Game.max_hp()
+	var hp1: float = Game.hp
+	await wait_until(func(): return Game.hp < hp1, 2.5)
+	check(Game.hp < hp1, "Forjador: o metal derretido queima quem pisa (%.0f -> %.0f)" % [hp1, Game.hp])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	for tr in _forge_trails():
+		tr.queue_free()
+	# Respiro da Fornalha: o 3º golpe, com o alvo colado nele
+	player.global_position = e.global_position + Vector3(0, 0, 3.0)
+	Game.hp = Game.max_hp()
+	var hp2: float = Game.hp
+	e._forge_n = 2
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "vent", "Forjador: com o alvo colado vem o Respiro da Fornalha (%s)" % e.attack_kind)
+	await wait_until(func(): return Game.hp < hp2, 3.0)
+	check(Game.hp < hp2, "Forjador: o Respiro queima quem está em volta (%.0f -> %.0f)" % [hp2, Game.hp])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	# Escudo Rúnico: a vida cai a 80%, ele crava o punho e as 3 runas nascem
+	Game.hp = Game.max_hp()
+	e.hp = e.max_hp * 0.7
+	e._forge_n = 0
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "rune_shield", "Forjador: ferido, ergue o Escudo Rúnico (%s)" % e.attack_kind)
+	await wait_until(func(): return e.shielded, 3.0)
+	var runes: Array = e._runes_near()
+	check(e.shielded and runes.size() == ForgeRules.RUNES, "Forjador: o escudo sobe e as runas nascem (%d)" % runes.size())
+	var hp_s: float = e.hp
+	e.take_damage(500.0, player.global_position, false)
+	check(is_equal_approx(e.hp, hp_s), "Forjador: com o escudo de pé ele é imune (%.0f -> %.0f)" % [hp_s, e.hp])
+	# com o escudo de pé ele continua atacando
+	await wait_until(func(): return e.state != "attack", 3.0)
+	Game.hp = Game.max_hp()
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack", 2.5)
+	check(e.state == "attack" and e.attack_kind in ["hammer", "vent"] and e.shielded,
+		"Forjador: de escudo erguido ele continua atacando (%s)" % e.attack_kind)
+	# duas runas quebradas: o escudo fica; a terceira: cai
+	for i in 2:
+		runes[i].take_damage(999999.0, player.global_position, false)
+	await wait(1.2)
+	check(e.shielded and e._runes_near().size() == 1, "Forjador: com uma runa viva o escudo continua de pé")
+	runes[2].take_damage(999999.0, player.global_position, false)
+	await wait_until(func(): return not e.shielded, 2.0)
+	check(not e.shielded, "Forjador: o escudo só cai com as 3 runas quebradas")
+	hp_s = e.hp
+	e.take_damage(50.0, player.global_position, false)
+	check(e.hp < hp_s, "Forjador: sem o escudo volta a levar dano (%.0f -> %.0f)" % [hp_s, e.hp])
+	check(not e._forge_wants_shield(), "Forjador: o próximo escudo espera a recarga")
+	await wait_until(func(): return e.state != "attack", 3.0)
+	for tr in _forge_trails():
+		tr.queue_free()
+	# fase 2: abaixo de metade da vida, superaquecido
+	var slow: float = e._forge_time(1.0)
+	e.hp = e.max_hp * 0.52
+	e.take_damage(e.max_hp * 0.05, player.global_position, false)
+	check(e.enraged, "Forjador: abaixo de metade da vida ele superaquece")
+	check(e._forge_time(1.0) < slow, "Forjador: superaquecido ataca mais rápido (%.2f -> %.2f)" % [slow, e._forge_time(1.0)])
+	hp_s = e.hp
+	e.take_damage(100.0, player.global_position, false)
+	var took: float = hp_s - e.hp
+	var plain: float = e.incoming(100.0)
+	check(took > plain * 1.2, "Forjador: superaquecido leva mais dano (%.0f em vez de %.0f)" % [took, plain])
+	player.global_position = e.global_position + Vector3(0, 0, 5.0)
+	Game.hp = Game.max_hp()
+	e._forge_n = 0
+	e._forge_since = 0.0
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack" and e.hit_done, 4.0)
+	check(e.attack_kind == "hammer" and _forge_trails().size() == ForgeRules.TRAILS_HOT,
+		"Forjador: superaquecido a Martelada deixa mais faixas (%d)" % _forge_trails().size())
+	# fim da luta: sem ele de escudo erguido, as runas se desfazem (sem recompensa)
+	e._forge_since = ForgeRules.SHIELD_CD
+	await wait_until(func(): return e.state != "attack", 3.0)
+	Game.hp = Game.max_hp()
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.shielded, 5.0)
+	var last: Array = e._runes_near()
+	check(e.shielded and last.size() == ForgeRules.RUNES, "Forjador: depois da recarga o escudo sobe de novo (%d runas)" % last.size())
+	e.queue_free()
+	await wait(1.5)
+	var left := 0
+	for r in last:
+		if is_instance_valid(r) and not r.dead:
+			left += 1
+	check(left == 0, "Forjador: sem ele, as runas se desfazem (%d sobraram)" % left)
+	for tr in _forge_trails():
+		tr.queue_free()
+	Game.hp = Game.max_hp()
+	player.global_position = back
+	await wait(0.1)
+
+
+func _forge_trails() -> Array:
+	var out := []
+	for c in world.get_children():
+		if c is MoltenTrail and not c.is_queued_for_deletion():
+			out.append(c)
+	return out
+
+
 ## Espinheira, a Guardiã-Raiz (chefe do Bosque): as Raízes acertam de longe e prendem, os Brotos nascem e a curam,
 ## na fúria as Nuvens de Esporos aparecem, e os brotos murcham quando a luta acaba.
 func _test_espinheira() -> void:
@@ -4601,6 +4945,142 @@ func _test_espinheira() -> void:
 	Game.hp = Game.max_hp()
 	player.web_t = 0.0
 	player.chill_t = 0.0
+	player.global_position = back
+	await wait(0.1)
+
+
+## Arauto do Abismo (chefe final): Rajada e Garra acertam, as Zonas de Vazio nascem e crescem, abaixo de 65% vem a
+## Miragem (cópias que se desfazem sem levar dano; acertar o verdadeiro desfaz todas) e abaixo de 30% o Colapso
+## (puxa para o centro, o miolo estoura e o vão entre os anéis é seguro).
+func _test_arauto() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 40)
+	player.global_position = spot
+	Game.hp = Game.max_hp()
+	var e := Enemy.new()
+	e.kind = "arauto_abismo"
+	world.add_child(e)
+	e.global_position = spot + Vector3(0, 0, -9)
+	e.home = e.global_position
+	await wait(0.2)
+	check(e.is_boss and e.parts.get("Halo") != null and e.parts.get("Core") != null and e.parts.get("ElbowL") != null
+		and e.parts.get("HandR") != null and e.parts.get("Wisp3") != null,
+		"Arauto: chefe, com halo, núcleo, cotovelos, mãos e fiapos no modelo")
+	# Rajada: o jogador está a 9 m (fora da garra), na linha do projétil do meio
+	var hp0: float = Game.hp
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "volley", "Arauto: longe, ataca com a Rajada de Sombras (%s)" % e.attack_kind)
+	await wait_until(func(): return Game.hp < hp0, 3.0)
+	check(Game.hp < hp0, "Arauto: a Rajada acerta (%.0f -> %.0f)" % [hp0, Game.hp])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	# Garra: o jogador a 3 m, na frente
+	Game.hp = Game.max_hp()
+	hp0 = Game.hp
+	player.global_position = e.global_position + Vector3(0, 0, 3)
+	e._abyss_n = 0
+	e.attack_cd = 0.0
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "swing", "Arauto: perto, ataca com a Garra (%s)" % e.attack_kind)
+	await wait_until(func(): return Game.hp < hp0, 2.5)
+	check(Game.hp < hp0, "Arauto: a Garra em arco acerta quem está na frente (%.0f -> %.0f)" % [hp0, Game.hp])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	# Zonas de Vazio: o 4º golpe do ciclo; nascem, crescem e ferem quem fica dentro (uma nasce sob o jogador)
+	Game.hp = Game.max_hp()
+	e._abyss_n = 3
+	e.attack_cd = 0.0
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "voids", "Arauto: o 4º golpe são as Zonas de Vazio (%s)" % e.attack_kind)
+	await wait_until(func(): return get_tree().get_nodes_in_group("void_zones").size() > AbyssRules.VOIDS, 3.0)
+	var zones := get_tree().get_nodes_in_group("void_zones")
+	check(zones.size() == AbyssRules.VOIDS + 1, "Arauto: as Zonas nascem, uma sob o jogador (%d)" % zones.size())
+	var r0: float = zones[0].radius() if not zones.is_empty() else 0.0
+	hp0 = Game.hp
+	await wait(1.6)
+	var r1: float = zones[0].radius() if not zones.is_empty() and is_instance_valid(zones[0]) else 0.0
+	check(r1 > r0 + 0.1, "Arauto: as Zonas crescem com o tempo (%.2f -> %.2f m)" % [r0, r1])
+	check(Game.hp < hp0, "Arauto: quem fica na Zona leva dano (%.0f -> %.0f)" % [hp0, Game.hp])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	for z in get_tree().get_nodes_in_group("void_zones"):
+		z.queue_free()
+	# Fase 2: abaixo de 65% abre com a Miragem (duas cópias, ele muda de lugar)
+	Game.hp = Game.max_hp()
+	player.global_position = e.global_position + Vector3(0, 0, 9)
+	var was := e.global_position
+	e.hp = e.max_hp * 0.6
+	e.attack_cd = 0.0
+	await wait_until(func(): return e._abyss_phase == 2, 1.0)
+	check(e._abyss_phase == 2 and e.enraged, "Arauto: abaixo de 65% entra na fase 2")
+	await wait_until(func(): return e.state == "attack", 2.5)
+	check(e.attack_kind == "mirage", "Arauto: a fase 2 abre com a Miragem (%s)" % e.attack_kind)
+	await wait_until(func(): return e._abyss_echoes().size() >= 2, 3.0)
+	var echoes: Array = e._abyss_echoes()
+	check(echoes.size() == 2, "Arauto: a Miragem cria duas cópias (%d)" % echoes.size())
+	check(e.global_position.distance_to(was) > 2.0, "Arauto: ele reaparece em outro ponto (%.1f m)"
+		% e.global_position.distance_to(was))
+	if echoes.size() == 2:
+		var echo: Enemy = echoes[0]
+		check(echo.display_name == e.display_name and not echo.is_boss and e._rig.has("shadow")
+			and not echo._rig.has("shadow"), "Arauto: a cópia tem o mesmo nome e só o verdadeiro tem a sombra no chão")
+		# acertar uma cópia a desfaz, sem dano em ninguém
+		var boss_hp: float = e.hp
+		echo.take_damage(80.0, player.global_position, false)
+		await wait(0.1)
+		check(not is_instance_valid(echo) or echo.dead, "Arauto: acertar uma cópia a desfaz")
+		check(is_equal_approx(e.hp, boss_hp) and e._abyss_echoes().size() == 1,
+			"Arauto: o golpe na cópia não fere o verdadeiro e a outra cópia continua")
+		# acertar o verdadeiro fere de verdade e desfaz as cópias que restam
+		e.take_damage(80.0, player.global_position, false)
+		await wait(0.1)
+		check(e.hp < boss_hp and e._abyss_echoes().is_empty(),
+			"Arauto: só o verdadeiro leva dano (%.0f -> %.0f) e o golpe nele desfaz a Miragem" % [boss_hp, e.hp])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	# Fase 3: abaixo de 30% abre com o Colapso: vai para o centro (a casa dele, fora de sala) e puxa o jogador
+	Game.hp = Game.max_hp()
+	e.hp = e.max_hp * 0.25
+	e.attack_cd = 0.0
+	await wait_until(func(): return e._abyss_phase == 3, 1.0)
+	check(e._abyss_phase == 3, "Arauto: abaixo de 30% entra na fase 3")
+	player.global_position = e.home + Vector3(0, 0.3, 10)
+	await wait_until(func(): return e.state == "attack", 2.5)
+	check(e.attack_kind == "collapse", "Arauto: a fase 3 abre com o Colapso (%s)" % e.attack_kind)
+	check(Vector2(e.global_position.x - e.home.x, e.global_position.z - e.home.z).length() < 0.5,
+		"Arauto: no Colapso ele vai para o centro")
+	var flat := func() -> float:
+		return Vector2(player.global_position.x - e.global_position.x, player.global_position.z - e.global_position.z).length()
+	await wait_until(func(): return e.attack_timer >= AbyssRules.PULL_T, 3.0)
+	check(flat.call() <= AbyssRules.PULL_STOP + 0.5, "Arauto: o Colapso puxa o jogador para o centro (10 m -> %.1f m)"
+		% flat.call())
+	# quem fica no centro leva o miolo
+	hp0 = Game.hp
+	await wait_until(func(): return Game.hp < hp0, 2.5)
+	check(Game.hp < hp0 and e.attack_timer >= float(AbyssRules.collapse_ring(0).t),
+		"Arauto: o miolo da explosão pega quem ficou no centro (%.0f -> %.0f)" % [hp0, Game.hp])
+	# no vão entre o miolo e o primeiro anel a onda passa sem acertar
+	# (o golpe do miolo empurra o jogador para fora: o teste o segura no vão até a explosão acabar)
+	var gap := e.global_position + Vector3(0, 0.3, AbyssRules.COLLAPSE_DISC + AbyssRules.COLLAPSE_GAP * 0.5)
+	player.global_position = gap
+	hp0 = Game.hp
+	var guard := 0
+	while e.state == "attack" and guard < 400:
+		guard += 1
+		player.global_position = Vector3(gap.x, player.global_position.y, gap.z)
+		player.velocity = Vector3.ZERO
+		await get_tree().physics_frame
+	check(Game.hp >= hp0 - 0.5, "Arauto: no vão entre os anéis a explosão não acerta (%.0f -> %.0f)"
+		% [hp0, Game.hp])
+	# fim da luta: sem ele, as cópias que houver se desfazem
+	e.queue_free()
+	await wait(1.2)
+	var left := 0
+	for x in get_tree().get_nodes_in_group("enemies"):
+		if x is Enemy and x.kind == Enemy.ECHO_KIND and not x.dead:
+			left += 1
+	check(left == 0, "Arauto: sem ele, as cópias se desfazem (%d sobraram)" % left)
+	for z in get_tree().get_nodes_in_group("void_zones"):
+		z.queue_free()
+	Game.hp = Game.max_hp()
 	player.global_position = back
 	await wait(0.1)
 

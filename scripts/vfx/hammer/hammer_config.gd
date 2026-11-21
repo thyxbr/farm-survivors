@@ -1,6 +1,6 @@
 class_name HammerConfig
 extends Resource
-## Configuração do Martelo de Energia (habilidade 2 da espada com escudo). Um só recurso para o dano e a recarga
+## Configuração do Martelo de Energia (habilidade 4 da espada com escudo). Um só recurso para o dano e a recarga
 ## (HammerAbilities, ItemDB.cooldown_of) e para o visual (HammerSkill e as peças dele): edite
 ## assets/vfx/hammer/hammer_config.tres no Inspector, sem mexer no código.
 

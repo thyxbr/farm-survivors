@@ -1,7 +1,7 @@
 class_name HammerAbilities
 extends RefCounted
-## Martelo de Energia: habilidade 2 da espada quando há um escudo na mão secundária (ItemDB: "sword_hammer",
-## "offhand": "shield", troca o Golpe Sísmico no kit; tecla 2). O herói ergue a espada (pose medida no clipe
+## Martelo de Energia: habilidade 4 da espada quando há um escudo na mão secundária (ItemDB: "sword_hammer",
+## "offhand": "shield", troca o Turbilhão no kit; tecla 4, com recarga em vez de fúria). O herói ergue a espada (pose medida no clipe
 ## "Sword And Shield Casting" do Mixamo, KnightAnim.hammer_raise_pose) e fica parado enquanto um círculo mágico
 ## se forma acima da cabeça, um martelo gigante de energia sai dele, o círculo fecha e o martelo cai à frente,
 ## ferindo todos os inimigos no raio (uma vez cada) e abrindo crateras em volta.
