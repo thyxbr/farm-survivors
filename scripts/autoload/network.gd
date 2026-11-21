@@ -38,7 +38,8 @@ const UPG := preload("res://scripts/survival/upgrades.gd")
 const STATES := ["idle", "wander", "chase", "return", "attack", "dead", "burrow"]
 const ATTACK_KINDS := ["swing", "lunge", "slam", "shoot", "fuse", "cast", "web", "tongue", "throw", "emerge", "quake", "rockfall", "acid_rain",
 	"roots", "sprouts", "spores",   # Espinheira (no fim: os índices de antes não mudam)
-	"hammer", "vent", "rune_shield"]   # Forjador Rúnico
+	"hammer", "vent", "rune_shield",   # Forjador Rúnico
+	"volley", "voids", "mirage", "collapse"]   # Arauto do Abismo (AbyssRules.KINDS)
 const SNAP_STRIDE := 10   # id, x, y, z, yaw, hp, state, attack_timer, attack_kind, flags
 ## Tempo da fila do Desafio da Horda (cai para HORDE_LOBBY_ALL quando todos já responderam).
 const HORDE_LOBBY_TIME := 15.0
@@ -724,6 +725,10 @@ func _send_enemy_snapshot() -> void:
 		if e.state == "attack" and e.attack_kind in ["throw", "acid_rain", "roots"]:   # Kobold e Mãe-Verme: onde cai
 			flags = ThrowRules.pack_flags(flags, e.throw_point - p)
 		elif e.state == "attack" and e.attack_kind in ["rockfall", "spores"]:   # Mãe-Verme: semente das pedras (BossRules)
+			flags = BossRules.pack_seed(flags, e.boss_seed)
+		elif e.state == "attack" and e.ai() == "herald" and e.attack_kind in ["swing", "volley"]:   # Arauto: a direção
+			flags = ThrowRules.pack_flags(flags, e.throw_point - p)
+		elif e.state == "attack" and e.attack_kind in ["voids", "mirage"]:   # Arauto: semente das zonas e da roda
 			flags = BossRules.pack_seed(flags, e.boss_seed)
 		if e.state == "attack" and e.attack_kind == "hammer":   # Forjador: para onde aponta o cone da Martelada
 			flags = ThrowRules.pack_flags(flags, e.throw_point - p)
@@ -1472,6 +1477,7 @@ func _enemy_gone(net_id: int) -> void:
 	var e: Enemy = enemies.get(net_id)
 	enemies.erase(net_id)
 	if e and is_instance_valid(e):
+		e.gone_fx()   # a cópia do Arauto vira fumaça
 		e.queue_free()
 
 

@@ -470,6 +470,507 @@ def build_thorn_tree():
 BOSS_BUILDERS = {"thorn_tree": build_thorn_tree}
 
 
+# ================================================================== ARAUTO DO ABISMO (chefe final, dungeon do Abismo)
+# Entidade do vazio (~4,5 m com o halo), alta, encapuzada e meio flutuante: não tem pernas, o manto afina e acaba
+# em fiapos de sombra que não tocam o chão. Capuz fundo com uma máscara de osso sem rosto (só uma fenda vertical
+# acesa), coroa de pontas quebrada na testa e um halo partido atrás da cabeça, preso por raios a um cubo na nuca.
+# No peito, costelas-garra abertas em volta do núcleo de vazio (esfera preta com um anel aceso). Capa rasgada nas
+# costas, gola alta de lâminas, ombreiras de placas com espinhos, cinto de placas com um tabardo e amuletos
+# pendurados. Braços compridos em três ossos que saem de dentro do tronco: manga rasgada, antebraço nu de quitina
+# com bracelete e a mão de garras longas. Frente = -Y.
+# Pivôs animados por scripts/enemies/enemy.gd (_animate_herald): Body (no quadril) > Head (capuz e máscara) > Halo
+# (gira no próprio eixo), Core (o núcleo, pulsa e gira), Cape (a capa das costas), Sash (tabardo), Charm0/Charm1
+# (amuletos), Tatter0..Tatter5 (tiras da barra), Wisp0..Wisp3 (fiapos de sombra), ArmL/ArmR (no ombro, DENTRO do
+# tronco) > ElbowL/ElbowR > HandL/HandR, e SleeveL/SleeveR (tiras da manga, dentro de ArmL/ArmR).
+HERALD_HIP = 1.7
+
+
+def _vh_blade(name, pts, widths, out, material, parent, thick=0.028, mats=(), matf=None, n=None):
+    """Tira chata de pano (ou lâmina) por uma linha de pontos: larga de lado, fina na direção `out`; `widths` dá
+    a meia largura em cada ponto (irregular = rasgada)."""
+    secs = [sec(p, w, thick) for p, w in zip(pts, widths)]
+    if n:
+        secs = fera_dense(secs, n, cut=1)
+    return sloft(name, secs, material, parent, sides=8, fwd=out, mats=mats, matf=matf, sharp=70.0)
+
+
+def _vh_sheet(name, grid, thick, material, parent, mats=(), matf=None):
+    """Pano com espessura a partir de uma grade grid[i][j] (linhas de cima para baixo). matf(i, j) -> material."""
+    ni, nj = len(grid), len(grid[0])
+    G = [[Vector(p) for p in row] for row in grid]
+
+    def nrm(i, j):
+        a = G[min(i + 1, ni - 1)][j] - G[max(i - 1, 0)][j]
+        b = G[i][min(j + 1, nj - 1)] - G[i][max(j - 1, 0)]
+        nn = a.cross(b)
+        return nn.normalized() if nn.length > 1e-6 else Vector((0, 0, 1))
+
+    bm = bmesh.new()
+    top = [[bm.verts.new(G[i][j]) for j in range(nj)] for i in range(ni)]
+    bot = [[bm.verts.new(G[i][j] - nrm(i, j) * thick) for j in range(nj)] for i in range(ni)]
+    for i in range(ni - 1):
+        for j in range(nj - 1):
+            m = matf(i, j) if matf else 0
+            bm.faces.new((top[i][j], top[i + 1][j], top[i + 1][j + 1], top[i][j + 1])).material_index = m
+            bm.faces.new((bot[i][j + 1], bot[i + 1][j + 1], bot[i + 1][j], bot[i][j])).material_index = m
+    rim = ([(i, 0) for i in range(ni)] + [(ni - 1, j) for j in range(1, nj)]
+           + [(i, nj - 1) for i in range(ni - 2, -1, -1)] + [(0, j) for j in range(nj - 2, 0, -1)])
+    for k in range(len(rim)):
+        (i0, j0), (i1, j1) = rim[k], rim[(k + 1) % len(rim)]
+        f = bm.faces.new((top[i0][j0], bot[i0][j0], bot[i1][j1], top[i1][j1]))
+        f.material_index = matf(min(i0, i1, ni - 2), min(j0, j1, nj - 2)) if matf else 0
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    print("PART", name, "sheet", flush=True)
+    bmesh.ops.translate(bm, vec=-_wloc(parent), verts=bm.verts)
+    ob = _finish(name, bm, material, parent, smooth=True)
+    for m in mats:
+        ob.data.materials.append(m)
+    smooth_sharp(ob, 50.0)
+    return ob
+
+
+def _vh_loop(name, c, r, tube, axis_u, axis_v, material, parent, a0=0.0, a1=math.tau, n=24, sides=6):
+    """Arco (ou anel) de tubo no plano (axis_u, axis_v) em volta de `c`, do ângulo a0 ao a1."""
+    u = Vector(axis_u).normalized()
+    v = Vector(axis_v)
+    v = (v - u * v.dot(u)).normalized()
+    c = Vector(c)
+    pts = [c + (u * math.cos(a0 + (a1 - a0) * i / n) + v * math.sin(a0 + (a1 - a0) * i / n)) * r for i in range(n + 1)]
+    return sloft(name, [sec(p, tube, tube) for p in pts], material, parent, sides=sides, fwd=u.cross(v), sharp=80.0)
+
+
+def _vh_remap(ob, g, old_w, new_w):
+    """Passa todos os descendentes de `ob` pela função g(ponto no mundo) -> ponto no mundo: vértices das malhas e
+    posição dos pivôs (a hierarquia só tem translações)."""
+    for ch in ob.children:
+        co = old_w + Vector(ch.location)
+        cn = g(co)
+        if ch.type == "MESH":
+            for v in ch.data.vertices:
+                v.co = g(co + v.co) - cn
+        ch.location = cn - new_w
+        if "wloc" in ch:
+            ch["wloc"] = list(cn)
+        _vh_remap(ch, g, co, cn)
+
+
+HERALD_HEAD = 1.22      # a cabeça (capuz, máscara, coroa, halo) é modelada menor e ampliada no fim
+HERALD_STRETCH = 0.45   # a saia do manto (z 0.7..1.7) é esticada este tanto: figura mais alta e esguia
+HERALD_SCALE = 0.9      # e o conjunto encolhe para a altura total não mudar
+
+
+def build_void_herald():
+    robe = mat("vh_robe", hexc("#3B2C58"), 0.9)
+    robe_d = mat("vh_robe_d", hexc("#211834"), 0.9)
+    robe_l = mat("vh_robe_l", hexc("#5C4688"), 0.9)
+    lining = mat("vh_lining", hexc("#8E1B45"), 0.85)            # forro carmim da capa e do tabardo
+    lining_d = mat("vh_lining_d", hexc("#450B24"), 0.85)
+    shadow = mat("vh_shadow", hexc("#08060E"), 1.0)             # fiapos de sombra
+    shadow_l = mat("vh_shadow_l", hexc("#2B1747"), 1.0)
+    gold = mat("vh_gold", hexc("#B08A45"), 0.45, 0.6)           # ouro velho da coroa, do halo e das placas
+    gold_d = mat("vh_gold_d", hexc("#6B5127"), 0.5, 0.6)
+    iron = mat("vh_iron", hexc("#4A4658"), 0.55, 0.5)
+    bone = mat("vh_bone", hexc("#D9D2C2"), 0.6)                 # a máscara
+    bone_d = mat("vh_bone_d", hexc("#9A917F"), 0.65)
+    chitin = mat("vh_chitin", hexc("#43355E"), 0.5)             # antebraço e mão
+    chitin_l = mat("vh_chitin_l", hexc("#6A5490"), 0.5)
+    claw = mat("vh_claw", hexc("#C9C0D8"), 0.35)
+    void = mat("vh_void_flat", hexc("#030207"), 1.0)            # o escuro do capuz, do oco do peito e do núcleo
+    eye = mat("vh_eye_flat", hexc("#E3123F"), 0.2, 0.0, emit=(0.9, 0.04, 0.2), strength=1.5)
+    glow = mat("vh_glow_flat", hexc("#8A2BE2"), 0.3, 0.0, emit=(0.45, 0.1, 0.9), strength=1.5)
+    vein = mat("vh_vein", hexc("#B0143F"), 0.4, 0.0, emit=(0.7, 0.03, 0.18), strength=1.2)
+    HIP = HERALD_HIP
+    up = Vector((0, 0, 1))
+    rnd = random.Random(11)
+
+    root = empty("Herald", (0, 0, 0))
+    body = empty("Body", (0, 0, HIP), root)
+
+    # ---------------- tronco: manto em sino (barra larga, cintura fina, peito e ombros largos), curvado para a frente
+    trunk = fera_dense([sec((0, 0.07, 0.56), 0.2, 0.18), sec((0, 0.07, 0.64), 0.62, 0.56), sec((0, 0.05, 1.1), 0.5, 0.44),
+                        sec((0, 0.03, 1.55), 0.36, 0.31), sec((0, 0.0, 1.8), 0.3, 0.26), sec((0, -0.04, 2.1), 0.38, 0.3),
+                        sec((0, -0.1, 2.4), 0.45, 0.35), sec((0, -0.14, 2.68), 0.47, 0.37), sec((0, -0.13, 2.86), 0.38, 0.32),
+                        sec((0, -0.1, 3.0), 0.2, 0.2)], 30, cut=2)
+    sloft("Robe", trunk, robe, body, sides=28, phase=0.0, mats=(robe_d, robe_l),
+          matf=lambda i, j: 1 if j % 4 == 1 else (2 if j % 4 == 3 and i < 14 else 0), sharp=80.0)
+
+    def surf(z, deg, out=0.0):
+        return _vsurf(trunk, z, deg, out)
+
+    def radial(deg):
+        return Vector((math.cos(math.radians(deg)), -math.sin(math.radians(deg)), 0))
+
+    # dobras do manto em relevo: gomos que descem da cintura até a barra, abrindo
+    for k in range(12):
+        deg = k * 30 + rnd.uniform(-7, 7)
+        pts = [surf(z, deg + math.sin(z * 3.0 + k) * 4.0, -0.03) for z in (1.72, 1.4, 1.1, 0.85, 0.66)]
+        fera_curve("Fold%d" % k, pts, 0.05, 0.11, robe_l if k % 3 == 0 else robe_d, body, sides=6)
+    # barra do manto: debrum carmim gasto
+    hem = [surf(0.69, a, 0.01) for a in range(0, 361, 15)]
+    sloft("Hem", [sec(p, 0.045, 0.045) for p in hem], lining_d, body, sides=6, fwd=(0, 0, 1), sharp=80.0)
+
+    # tiras rasgadas da barra: doze, as seis dos pivôs (Tatter0..5) mais compridas; cada uma nasce dentro do manto
+    for k in range(12):
+        deg = k * 30 + 15 + rnd.uniform(-6, 6)
+        o = radial(deg)
+        top = surf(0.82, deg, -0.05)
+        ln = rnd.uniform(0.5, 0.72) if k % 2 == 0 else rnd.uniform(0.3, 0.45)
+        w = rnd.uniform(0.13, 0.19)
+        pts = [top, top + o * 0.06 - up * ln * 0.35, top + o * 0.12 - up * ln * 0.7 + o.cross(up) * 0.04,
+               top + o * 0.1 - up * ln]
+        par = empty("Tatter%d" % (k // 2), top, body) if k % 2 == 0 else body
+        _vh_blade("TatterCloth%d" % k, pts, [w, w * 0.95, w * rnd.uniform(0.45, 0.7), 0.012], o,
+                  robe if k % 4 else robe_d, par, mats=(lining_d,), matf=lambda i, j: 1 if i >= 7 else 0, n=10)
+        if k % 2 == 0:   # um fiapo a mais ao lado, mais curto
+            sd = o.cross(up) * (0.11 if k % 4 else -0.11)
+            _vh_blade("TatterShred%d" % k, [top + sd, top + sd + o * 0.05 - up * ln * 0.45,
+                                            top + sd * 1.3 + o * 0.12 - up * ln * 0.8],
+                      [0.06, 0.05, 0.008], o, robe_d, par, n=6)
+
+    # ---------------- fiapos de sombra: saem de dentro da barra e descem torcidos sem tocar o chão (Wisp0..3 nos
+    # pivôs; os outros quatro, mais curtos, são fixos)
+    for k, (deg, ln, r0) in enumerate(((60, 0.6, 0.17), (150, 0.64, 0.18), (240, 0.66, 0.2), (330, 0.6, 0.17),
+                                       (0, 0.46, 0.13), (195, 0.44, 0.13), (105, 0.42, 0.12), (285, 0.47, 0.13))):
+        o = radial(deg)
+        s0 = Vector((0, 0.07, 0.8)) + o * 0.28
+        tw = o.cross(up)
+        pts = [s0, s0 + o * 0.1 - up * ln * 0.3 + tw * 0.07, s0 + o * 0.04 - up * ln * 0.6 - tw * 0.08,
+               s0 + o * 0.13 - up * ln * 0.85 + tw * 0.05, s0 + o * 0.06 - up * ln]
+        par = empty("Wisp%d" % k, s0, body) if k < 4 else body
+        secs = fera_dense([sec(p, r, r) for p, r in zip(pts, (r0, r0 * 0.9, r0 * 0.6, r0 * 0.34, 0.012))], 14, cut=2)
+        sloft("WispMesh%d" % k, secs, shadow, par, sides=8, fwd=(0, 0, 1), mats=(shadow_l,),
+              matf=lambda i, j: 1 if (i + j) % 4 == 0 else 0, sharp=80.0)
+    # a cauda: o manto por dentro continua num cone torcido de sombra
+    tail = [Vector((0, 0.07, 0.82)), Vector((0.05, 0.1, 0.6)), Vector((-0.06, 0.16, 0.4)), Vector((0.03, 0.24, 0.24)),
+            Vector((0.0, 0.34, 0.12))]
+    sloft("Tail", fera_dense([sec(p, r, r) for p, r in zip(tail, (0.4, 0.3, 0.2, 0.11, 0.015))], 16, cut=2), shadow, body,
+          sides=10, fwd=(0, 0, 1), mats=(shadow_l,), matf=lambda i, j: 1 if (i + j * 2) % 5 == 0 else 0, sharp=80.0)
+
+    # ---------------- cinto de placas, tabardo e amuletos
+    belt_z = 1.78
+    sloft("Belt", [sec(surf(belt_z, a, 0.012), 0.05, 0.075) for a in range(0, 361, 12)], iron, body, sides=6,
+          fwd=(0, 0, 1), sharp=60.0)
+    for k in range(9):
+        deg = 90 + (k - 4) * 34
+        c = surf(belt_z, deg, 0.035)
+        o = radial(deg)
+        w = 0.1 if k != 4 else 0.15
+        _vh_blade("BeltPlate%d" % k, [c + up * w * 1.1, c + o * 0.03 + up * w * 0.3, c + o * 0.03 - up * w * 0.5, c - up * w * 1.7],
+                  [0.01, w * 0.85, w * 0.7, 0.008], o, gold if k % 2 == 0 else gold_d, body, thick=0.035, mats=(iron,),
+                  matf=lambda i, j: 1 if j in (0, 4) else 0)
+    fera_tip("BeltFang", surf(belt_z - 0.1, 90, 0.03), surf(belt_z - 0.34, 90, 0.1), 0.06, gold, body)
+    sash = empty("Sash", surf(belt_z - 0.06, 90, -0.04), body)
+    st = surf(belt_z - 0.02, 90, -0.03)
+    f = Vector((0, -1, 0))
+    spts = [st, st + f * 0.14 - up * 0.3, st + f * 0.22 - up * 0.62, st + f * 0.26 - up * 0.92, st + f * 0.24 - up * 1.18]
+    _vh_blade("SashCloth", spts, [0.2, 0.2, 0.19, 0.17, 0.02], f, lining, sash, thick=0.03, mats=(gold_d, lining_d),
+              matf=lambda i, j: 1 if i in (8, 9) else (2 if j in (1, 2, 5, 6) and i < 8 else 0), n=14)
+    # runa do tabardo: losango de ouro com um traço aceso
+    rc = st + f * 0.235 - up * 0.52
+    _rock("SashSigil", rc, 0.1, gold, sash, squash=(1.0, 0.3, 1.5), sides=4)
+    fera_curve("SashRune", [rc + f * 0.035 + up * 0.12, rc + f * 0.045, rc + f * 0.035 - up * 0.12], 0.018, 0.018, eye, sash, sides=4)
+    for k, deg in enumerate((28, 152)):
+        at = surf(belt_z - 0.04, deg, 0.02)
+        o = radial(deg)
+        ch = empty("Charm%d" % k, at, body)
+        ln = 0.62 + 0.14 * k
+        fera_curve("CharmCord%d" % k, [at - o * 0.05, at + o * 0.05 - up * ln * 0.5, at + o * 0.06 - up * ln], 0.016, 0.014,
+                   gold_d, ch, sides=5)
+        e = at + o * 0.06 - up * ln
+        sloft("CharmShard%d" % k, [sec(e + up * 0.06, 0.012, 0.012), sec(e - up * 0.03, 0.07, 0.05),
+                                   sec(e - up * 0.16, 0.055, 0.04), sec(e - up * 0.34, 0.006, 0.006)],
+              glow, ch, sides=5, fwd=(0, -1, 0), mats=(shadow_l,), matf=lambda i, j: 1 if j % 2 else 0, sharp=30.0)
+
+    # ---------------- peito: costelas-garra abertas em volta do oco, e o núcleo de vazio lá dentro
+    hc = surf(2.36, 90, -0.05)
+    sloft("Hollow", [sec(hc + Vector((0, 0.16, 0)), 0.2, 0.25), sec(hc + Vector((0, -0.005, 0)), 0.25, 0.31),
+                     sec(hc + Vector((0, -0.03, 0)), 0.21, 0.27)], void, body, sides=16, fwd=(0, 0, 1), axis=(0, -1, 0))
+    for s in (1, -1):
+        for k in range(4):
+            z = 2.62 - k * 0.17
+            a = surf(z, 90 - s * (46 + 3 * k), -0.03)
+            m = Vector((s * (0.24 - 0.02 * k), hc.y - 0.11, z - 0.02))
+            e = Vector((s * 0.07, hc.y - 0.06, z - 0.05 + (0.04 if k == 0 else 0.0)))
+            secs = fera_dense([sec(a, 0.06, 0.06), sec(m, 0.05, 0.05), sec(e, 0.012, 0.012)], 9, cut=2)
+            sloft("Rib%s%d" % ("L" if s > 0 else "R", k), secs, bone if k % 2 == 0 else bone_d, body, sides=7,
+                  fwd=(0, 0, 1), sharp=80.0)
+    # esterno: placa de ouro em cima do oco, com um espinho para baixo
+    sc = surf(2.72, 90, 0.0)
+    _rock("Sternum", sc, 0.13, gold, body, squash=(1.3, 0.5, 1.0), sides=6)
+    fera_tip("SternumFang", sc - up * 0.06, hc + Vector((0, -0.07, 0.2)), 0.05, gold_d, body)
+    core = empty("Core", hc, body)
+    cc = hc + Vector((0, 0.01, 0.0))
+    _blob("CoreVoid", cc, 0.15, 0.15, 0.15, void, core, sides=14, rings=10)
+    _vh_loop("CoreRing", cc, 0.165, 0.028, (1, 0, 0.25), (0, 0.5, 1), eye, core, n=22, sides=5)
+    _vh_loop("CoreRing2", cc, 0.158, 0.02, (1, 0, -0.5), (0, -0.4, 1), glow, core, n=20, sides=5)
+    # veios acesos saindo do oco pelo manto
+    for k, pts in enumerate((((2.05, 96), (1.92, 104), (1.82, 99)), ((2.08, 78), (1.95, 66), (1.84, 72)),
+                             ((2.5, 128), (2.6, 146), (2.7, 160)), ((2.5, 52), (2.6, 36), (2.72, 22)),
+                             ((2.2, 132), (2.1, 152), (1.96, 166), (1.86, 184)), ((2.2, 48), (2.1, 30), (1.98, 12)))):
+        fera_curve("Vein%d" % k, [surf(z, d, 0.012) for z, d in pts], 0.026, 0.008, vein, body, sides=5)
+
+    # ---------------- gola alta de lâminas atrás da cabeça e ombreiras de placas com espinhos
+    for k in range(7):
+        deg = 270 + (k - 3) * 27
+        o = radial(deg)
+        b = surf(2.78, deg, -0.08)
+        h = 0.5 - 0.07 * abs(k - 3) + (0.06 if k % 2 else 0.0)
+        pts = [b, b + o * 0.16 + up * h * 0.5, b + o * 0.28 + up * h]
+        _vh_blade("Collar%d" % k, pts, [0.15, 0.12, 0.012], o, robe_d if k % 2 else iron, body, thick=0.035,
+                  mats=(gold_d,), matf=lambda i, j: 1 if j in (0, 4) else 0, n=8)
+    for s in (1, -1):
+        nm = "L" if s > 0 else "R"
+        for k in range(3):   # três placas sobrepostas, a de cima maior
+            c = Vector((s * (0.42 + 0.1 * k), -0.14, 2.86 - 0.1 * k))
+            _rock("Pauldron%s%d" % (nm, k), c, 0.22 - 0.03 * k, iron if k != 1 else gold_d, body,
+                  squash=(1.2, 1.15, 0.5), sides=6, prof=((-1.0, 0.8), (-0.5, 1.0), (0.2, 0.9), (0.7, 0.55), (1.0, 0.1)))
+            _vh_blade("PauldronCrest%s%d" % (nm, k), [c + Vector((0, -0.21 + 0.03 * k, -0.02)), c + Vector((s * 0.03, 0, 0.14 - 0.02 * k)),
+                                                       c + Vector((0, 0.21 - 0.03 * k, -0.02))], [0.02, 0.05, 0.02], (s, 0, 0.3),
+                      gold if k != 1 else iron, body, thick=0.05)
+            fera_tip("PauldronSpike%s%d" % (nm, k), c + Vector((s * 0.1, 0, 0.05)),
+                     c + Vector((s * (0.24 + 0.06 * k), 0.04, 0.3 - 0.08 * k)), 0.055, bone_d if k == 0 else iron, body)
+        fera_tip("PauldronHorn" + nm, Vector((s * 0.38, -0.02, 2.9)), Vector((s * 0.5, 0.3, 3.36)), 0.075, bone_d, body)
+        _vh_loop("PauldronRim" + nm, Vector((s * 0.46, -0.14, 2.8)), 0.25, 0.028, (1, 0, 0), (0, 1, 0), gold, body, n=18, sides=5)
+
+    # ---------------- capa das costas (Cape): pano dos ombros até quase a barra, aberto na frente, com a borda de
+    # baixo em pontas rasgadas e o forro carmim nas faixas de baixo
+    cape = empty("Cape", (0, 0.18, 2.78), body)
+    rows, cols = 9, 15
+    grid = []
+    for i in range(rows):
+        t = i / (rows - 1)
+        row = []
+        for j in range(cols):
+            deg = 168 + 204 * j / (cols - 1)        # de um lado ao outro, passando pelas costas (270)
+            o = radial(deg)
+            r = 0.5 + 0.2 * t + 0.07 * math.sin(j * 2.6 + t * 2.0) * t
+            drop = 2.05 + ((0.34 if j % 2 == 0 else -0.16) if i == rows - 1 else 0.0)
+            row.append(Vector((o.x * r * 0.96, o.y * r * 0.86 + 0.16 * t, 2.84 - t * drop)))
+        grid.append(row)
+    _vh_sheet("CapeCloth", grid, 0.03, robe, cape, mats=(robe_d, lining),
+              matf=lambda i, j: 2 if i >= rows - 3 and j % 2 == 0 else (1 if j % 3 == 0 else 0))
+
+    def cape_pt(t, u, out=0.02):
+        x, y = t * (rows - 1), u * (cols - 1)
+        i, j = min(int(x), rows - 2), min(int(y), cols - 2)
+        a, b = grid[i][j].lerp(grid[i][j + 1], y - j), grid[i + 1][j].lerp(grid[i + 1][j + 1], y - j)
+        p = a.lerp(b, x - i)
+        return p + Vector((p.x, p.y - 0.1, 0)).normalized() * out
+
+    # dobras em relevo descendo a capa e a costura de ouro no alto
+    for k, u in enumerate((0.12, 0.26, 0.4, 0.6, 0.74, 0.88)):
+        fera_curve("CapeFold%d" % k, [cape_pt(t, u + 0.012 * math.sin(t * 7 + k), 0.0) for t in (0.08, 0.3, 0.52, 0.74, 0.93)],
+                   0.035, 0.075, robe_l if k % 2 else robe_d, cape, sides=6)
+    fera_curve("CapeSeam", [cape_pt(0.035, u, 0.01) for u in (0.04, 0.2, 0.36, 0.5, 0.64, 0.8, 0.96)], 0.035, 0.035, gold_d,
+               cape, sides=5)
+    # emblema nas costas: o halo partido bordado em ouro (dois arcos), raios e a fenda acesa no meio
+    et, eu = 0.4, 0.5
+    for k, (a0, a1) in enumerate(((0.5, 2.9), (3.6, 5.9))):
+        pts = [cape_pt(et - math.sin(a0 + (a1 - a0) * i / 12) * 0.13, eu + math.cos(a0 + (a1 - a0) * i / 12) * 0.105, 0.012)
+               for i in range(13)]
+        sloft("CapeSigil%d" % k, [sec(p, 0.028, 0.028) for p in pts], gold, cape, sides=5, fwd=(0, 1, 0), sharp=80.0)
+    for k in range(7):
+        a = 0.45 + k * 0.9
+        fera_curve("CapeSigilRay%d" % k, [cape_pt(et - math.sin(a) * 0.15, eu + math.cos(a) * 0.12, 0.012),
+                                          cape_pt(et - math.sin(a) * (0.2 + 0.03 * (k % 2)), eu + math.cos(a) * (0.16 + 0.025 * (k % 2)), 0.012)],
+                   0.022, 0.006, gold_d, cape, sides=4)
+    fera_curve("CapeSigilEye", [cape_pt(et - 0.09, eu, 0.014), cape_pt(et, eu, 0.02), cape_pt(et + 0.1, eu, 0.014)], 0.012,
+               0.012, eye, cape, sides=4)
+    sloft("CapeSigilSlit", [sec(cape_pt(et - 0.085, eu, 0.015), 0.006, 0.01), sec(cape_pt(et - 0.02, eu, 0.02), 0.03, 0.014),
+                            sec(cape_pt(et + 0.03, eu, 0.02), 0.026, 0.014), sec(cape_pt(et + 0.1, eu, 0.015), 0.005, 0.01)],
+          eye, cape, sides=6, fwd=(0, 1, 0), sharp=80.0)
+    for j in (1, 4, 7, 10, 13):   # farrapos soltos pendurados da borda da capa
+        p = grid[rows - 1][j]
+        o = Vector((p.x, p.y, 0)).normalized()
+        _vh_blade("CapeShred%d" % j, [p + up * 0.12, p + o * 0.05 - up * 0.2, p + o * 0.02 - up * 0.46],
+                  [0.07, 0.055, 0.008], o, robe_d, cape, n=6)
+    # presilhas: a capa sai de baixo das ombreiras
+    for s in (1, -1):
+        _rock("CapeClasp" + ("L" if s > 0 else "R"), Vector((s * 0.4, -0.05, 2.84)), 0.1, gold, cape,
+              squash=(1.0, 1.0, 0.7), sides=6)
+
+    # ---------------- cabeça: capuz fundo com a ponta caída para trás, o escuro lá dentro, a máscara de osso sem
+    # rosto com a fenda acesa, a coroa quebrada e o halo partido
+    head = empty("Head", (0, -0.1, 2.98), body)
+    hood = fera_dense([sec((0, -0.1, 2.9), 0.24, 0.24), sec((0, -0.14, 3.08), 0.36, 0.38), sec((0, -0.16, 3.36), 0.4, 0.43),
+                       sec((0, -0.12, 3.6), 0.34, 0.38), sec((0, 0.02, 3.8), 0.2, 0.24), sec((0, 0.22, 3.9), 0.08, 0.1),
+                       sec((0, 0.4, 3.84), 0.012, 0.012)], 20, cut=2)
+    sloft("Hood", hood, robe, head, sides=20, phase=0.0, mats=(robe_d,), matf=lambda i, j: 1 if j % 5 == 0 else 0,
+          sharp=80.0)
+    fc = Vector((0, -0.5, 3.3))
+    sloft("HoodDark", [sec(fc + Vector((0, 0.2, 0)), 0.24, 0.3), sec(fc + Vector((0, -0.045, 0)), 0.27, 0.35),
+                       sec(fc + Vector((0, -0.07, 0)), 0.22, 0.3)], void, head, sides=16, fwd=(0, 0, 1), axis=(0, -1, 0))
+    # a beira do capuz: rolo grosso de pano em volta da abertura
+    rimp = []
+    for i in range(25):
+        a = math.tau * i / 24
+        rimp.append(fc + Vector((math.cos(a) * 0.3, -0.05 + 0.05 * abs(math.cos(a)), math.sin(a) * 0.39)))
+    sloft("HoodRim", [sec(p, 0.07, 0.07) for p in rimp], robe_l, head, sides=7, fwd=(0, -1, 0), sharp=80.0)
+    # máscara: escudo comprido de osso, liso, que afina num queixo em ponta abaixo do capuz
+    mk = [Vector((0, -0.6, 3.66)), Vector((0, -0.67, 3.52)), Vector((0, -0.7, 3.3)), Vector((0, -0.69, 3.08)),
+          Vector((0, -0.65, 2.9)), Vector((0, -0.6, 2.76))]
+    sloft("Mask", fera_dense([sec(p, w, 0.07, fr=1.0, bk=0.5) for p, w in
+                              zip(mk, (0.06, 0.2, 0.23, 0.2, 0.12, 0.012))], 16, cut=2), bone, head, sides=12,
+          fwd=(0, -1, 0), mats=(bone_d,), matf=lambda i, j: 1 if j in (0, 5, 6, 11) else 0, sharp=80.0)
+    # a fenda: um corte vertical aceso, comprido, mais largo no meio
+    sloft("EyeSocket", [sec(Vector((0, -0.745, 3.52)), 0.012, 0.01), sec(Vector((0, -0.772, 3.33)), 0.075, 0.012),
+                        sec(Vector((0, -0.768, 3.14)), 0.066, 0.012), sec(Vector((0, -0.735, 2.92)), 0.01, 0.01)], void, head,
+          sides=8, fwd=(0, -1, 0), sharp=80.0)
+    sloft("Eye", [sec(Vector((0, -0.755, 3.48)), 0.008, 0.012), sec(Vector((0, -0.782, 3.32)), 0.045, 0.02),
+                  sec(Vector((0, -0.778, 3.15)), 0.04, 0.02), sec(Vector((0, -0.745, 2.96)), 0.006, 0.012)], eye, head,
+          sides=6, fwd=(0, -1, 0), sharp=80.0)
+    # testeira de ouro no alto da máscara e os sulcos entalhados que descem pelas faces até o queixo
+    fera_curve("MaskBrow", [Vector((-0.18, -0.7, 3.47)), Vector((-0.09, -0.745, 3.54)), Vector((0, -0.755, 3.58)),
+                            Vector((0.09, -0.745, 3.54)), Vector((0.18, -0.7, 3.47))], 0.03, 0.03, gold, head, sides=5)
+    fera_tip("MaskBrowFang", Vector((0, -0.75, 3.57)), Vector((0, -0.79, 3.44)), 0.035, gold_d, head)
+    for sx in (1, -1):
+        fera_curve("MaskGroove" + ("L" if sx > 0 else "R"),
+                   [Vector((sx * 0.13, -0.762, 3.42)), Vector((sx * 0.15, -0.752, 3.2)), Vector((sx * 0.1, -0.732, 2.98)),
+                    Vector((sx * 0.03, -0.71, 2.88))], 0.016, 0.007, bone_d, head, sides=4)
+    # rachaduras e o fio carmim que escorre da fenda
+    for k, pts in enumerate((((0.1, -0.752, 3.46), (0.07, -0.768, 3.38), (0.11, -0.755, 3.3)),
+                             ((-0.14, -0.735, 3.22), (-0.08, -0.765, 3.14), (-0.1, -0.75, 3.02)))):
+        fera_curve("MaskCrack%d" % k, [Vector(p) for p in pts], 0.012, 0.004, iron, head, sides=4)
+    fera_curve("MaskTear", [Vector((0, -0.75, 2.98)), Vector((0.005, -0.73, 2.92)), Vector((0.0, -0.705, 2.86))], 0.014,
+               0.004, vein, head, sides=4)
+    # coroa quebrada: aro na testa do capuz e pontas de alturas diferentes (três partidas, de topo reto)
+    cz = 3.62
+
+    def crown_r(deg, out=0.0):
+        return _vsurf(hood, cz, deg, out)
+
+    sloft("CrownBand", [sec(crown_r(a, 0.015), 0.035, 0.06) for a in range(0, 361, 12)], gold, head, sides=6,
+          fwd=(0, 0, 1), sharp=60.0)
+    for k, (deg, h, broken) in enumerate(((90, 0.72, False), (62, 0.52, False), (118, 0.56, False), (34, 0.3, True),
+                                          (146, 0.42, False), (6, 0.2, True), (174, 0.34, False))):
+        b = crown_r(deg, 0.0)
+        o = radial(deg)
+        t = b + o * 0.16 + up * h
+        if broken:
+            sloft("CrownSpike%d" % k, [sec(b - up * 0.04, 0.075, 0.035), sec(b.lerp(t, 0.6), 0.055, 0.028),
+                                       sec(b.lerp(t, 0.66), 0.03, 0.02)], gold_d, head, sides=6, fwd=o, sharp=50.0)
+        else:
+            _vh_blade("CrownSpike%d" % k, [b - up * 0.04, b.lerp(t, 0.5), t], [0.075, 0.055, 0.006], o, gold, head,
+                      thick=0.035, mats=(gold_d,), matf=lambda i, j: 1 if j in (0, 4) else 0)
+    _rock("CrownGem", crown_r(90, 0.04), 0.06, eye, head, squash=(0.8, 0.6, 1.3), sides=6)
+    # halo partido: cubo na nuca preso ao capuz por uma haste; do cubo saem os raios até os arcos do anel
+    hub_c = Vector((0, 0.42, 3.5))
+    fera_curve("HaloStem", [Vector((0, 0.1, 3.42)), Vector((0, 0.3, 3.47)), hub_c + Vector((0, 0.02, 0))], 0.07, 0.06, iron,
+               head, sides=6)
+    halo = empty("Halo", hub_c, head)
+    _rock("HaloHub", hub_c, 0.1, gold, halo, squash=(1.0, 0.6, 1.0), sides=8)
+    _rock("HaloEye", hub_c + Vector((0, -0.06, 0)), 0.06, eye, halo, squash=(1.0, 0.6, 1.0), sides=6)
+    HR = 0.74
+    for k, (a0, a1) in enumerate(((-0.25, 1.3), (1.78, 3.4), (4.0, 5.2))):
+        _vh_loop("HaloArc%d" % k, hub_c, HR, 0.05, (1, 0, 0), (0, 0, 1), gold if k != 2 else gold_d, halo, a0, a1,
+                 n=max(6, int((a1 - a0) * 9)), sides=6)
+        _vh_loop("HaloGlow%d" % k, hub_c + Vector((0, -0.035, 0)), HR, 0.022, (1, 0, 0), (0, 0, 1), eye, halo,
+                 a0 + 0.06, a1 - 0.06, n=max(6, int((a1 - a0) * 9)), sides=4)
+        # raios: um ou dois por arco, do cubo até o anel
+        for j, t in enumerate((0.5,)):
+            a = a0 + (a1 - a0) * t
+            d = Vector((math.cos(a), 0, math.sin(a)))
+            _vh_blade("HaloSpoke%d_%d" % (k, j), [hub_c + d * 0.08, hub_c + d * HR * 0.55, hub_c + d * (HR + 0.02)],
+                      [0.03, 0.014, 0.02], (0, -1, 0), iron, halo, thick=0.016)
+        # pontas de sol para fora do arco (as do arco gasto estão quebradas)
+        m = max(2, int((a1 - a0) * 2.3))
+        for j in range(m):
+            a = a0 + (a1 - a0) * (j + 0.5) / m
+            d = Vector((math.cos(a), 0, math.sin(a)))
+            ln = (0.38 if j % 2 == 0 else 0.2) * (0.5 if k == 2 else 1.0)
+            _vh_blade("HaloRay%d_%d" % (k, j), [hub_c + d * (HR - 0.03), hub_c + d * (HR + ln * 0.5), hub_c + d * (HR + ln)],
+                      [0.05, 0.035, 0.005], (0, -1, 0), gold, halo, thick=0.022)
+
+    # ---------------- braços em três ossos, continuação do tronco: o ombro nasce DENTRO do manto, a manga larga
+    # cobre o braço até o cotovelo e acaba em tiras; o antebraço é quitina nua com bracelete; a mão tem quatro
+    # garras compridas e um polegar
+    for side, s in (("ArmL", 1), ("ArmR", -1)):
+        nm = side[-1]
+        sh = Vector((s * 0.29, -0.13, 2.72))
+        arm = empty(side, sh, body)
+        elbow = Vector((s * 0.76, -0.1, 1.84))
+        up_pts = [Vector((s * 0.18, -0.13, 2.76)), Vector((s * 0.48, -0.13, 2.62)), Vector((s * 0.69, -0.12, 2.26)), elbow]
+        up_r = (0.26, 0.18, 0.155, 0.2)
+        sloft(side + "_Sleeve", fera_dense([sec(p, r, r * 0.92) for p, r in zip(up_pts, up_r)], 16, cut=2),
+              robe, arm, sides=14, fwd=(0, -1, 0), mats=(robe_d, robe_l),
+              matf=lambda i, j: 1 if j % 4 == 0 else (2 if j % 4 == 2 else 0), sharp=80.0)
+        ud = (elbow - up_pts[2]).normalized()
+        cu = ud.cross(Vector((0, 1, 0))).normalized()
+        # boca da manga: debrum e as tiras rasgadas (SleeveL/R balançam)
+        _vh_loop(side + "_Cuff", elbow - ud * 0.02, 0.196, 0.04, cu, (0, 1, 0), lining_d, arm, n=16, sides=5)
+        for k in range(6):   # dobras do pano descendo a manga
+            a = math.tau * k / 6 + 0.3
+            o = (cu * math.cos(a) + Vector((0, 1, 0)) * math.sin(a)).normalized()
+            fera_curve("%s_Fold%d" % (side, k), [p + o * r * 0.86 for p, r in zip(up_pts[1:], up_r[1:])], 0.035, 0.07,
+                       robe_l if k % 2 else robe_d, arm, sides=5)
+        slv = empty("Sleeve" + nm, elbow, arm)
+        for k in range(5):
+            a = math.tau * k / 5 + 0.4
+            o = (cu * math.cos(a) + Vector((0, 1, 0)) * math.sin(a)).normalized()
+            b = elbow - ud * 0.1 + o * 0.165
+            ln = 0.4 + 0.22 * ((k * 3) % 4) / 3.0
+            _vh_blade("%s_Shred%d" % (side, k), [b, b + ud * 0.1 - up * ln * 0.5 + o * 0.03, b + ud * 0.06 - up * ln],
+                      [0.11, 0.085, 0.01], o, robe_d if k % 2 else robe, slv, mats=(lining_d,),
+                      matf=lambda i, j: 1 if i >= 5 else 0, n=8)
+        el = empty("Elbow" + nm, elbow, arm)
+        wrist = Vector((s * 0.82, -0.5, 1.0))
+        fd = (wrist - elbow).normalized()
+        sloft(side + "_ElbowKnot", [sec(elbow - fd * 0.34 + Vector((0, 0.02, 0.1)), 0.07, 0.07), sec(elbow - fd * 0.12, 0.15, 0.14),
+                                    sec(elbow + fd * 0.1, 0.14, 0.13), sec(elbow + fd * 0.3, 0.1, 0.1)], chitin, el,
+              sides=10, fwd=(0, -1, 0), sharp=80.0)
+        fera_tip(side + "_ElbowSpur", elbow + Vector((s * 0.06, 0.08, 0.02)), elbow + Vector((s * 0.2, 0.36, 0.2)), 0.06,
+                 bone_d, el)
+        fore = [elbow - fd * 0.06, elbow.lerp(wrist, 0.35) + Vector((s * 0.03, 0, 0)), elbow.lerp(wrist, 0.7), wrist]
+        sloft(side + "_Fore", fera_dense([sec(p, r, r) for p, r in zip(fore, (0.1, 0.11, 0.09, 0.078))], 12, cut=2),
+              chitin, el, sides=10, fwd=(0, -1, 0), mats=(chitin_l,), matf=lambda i, j: 1 if j % 3 == 0 else 0, sharp=80.0)
+        # cristas no antebraço e um veio aceso
+        for k, t in enumerate((0.25, 0.42, 0.58)):
+            c = elbow.lerp(wrist, t)
+            fera_tip("%s_ForeFin%d" % (side, k), c + Vector((s * 0.06, 0.05, 0)), c + Vector((s * 0.2, 0.2, 0.12 - 0.02 * k)),
+                     0.05, chitin_l, el)
+        fera_curve(side + "_Vein", [elbow.lerp(wrist, t) + Vector((0, -0.1 + 0.01 * i, 0.02)) for i, t in
+                                    enumerate((0.1, 0.35, 0.6, 0.85))], 0.02, 0.008, vein, el, sides=4)
+        # bracelete de ouro com espinho
+        bc = elbow.lerp(wrist, 0.8)
+        bu = fd.cross(Vector((0, 0, 1))).normalized()
+        _vh_loop(side + "_Bracer", bc, 0.105, 0.035, bu, fd.cross(bu), gold, el, n=14, sides=6)
+        fera_tip(side + "_BracerSpike", bc + Vector((s * 0.08, 0, 0)), bc + Vector((s * 0.26, 0.04, 0.1)), 0.04, gold_d, el)
+        # mão
+        hand = empty("Hand" + nm, wrist, el)
+        knuckle = wrist + fd * 0.24
+        sloft(side + "_Palm", fera_dense([sec(wrist - fd * 0.1, 0.085, 0.08), sec(wrist + fd * 0.1, 0.16, 0.07),
+                                          sec(knuckle, 0.17, 0.06), sec(knuckle + fd * 0.07, 0.1, 0.04)], 9), chitin, hand,
+              sides=10, fwd=(0, -1, 0), mats=(chitin_l,), matf=lambda i, j: 1 if j % 3 == 0 else 0, sharp=80.0)
+        for k, dx in enumerate((s * 0.15, s * 0.055, -s * 0.045, -s * 0.14)):
+            a = knuckle + Vector((dx, 0.0, 0.01))
+            gd = (fd + Vector((dx * 1.1, -0.22, 0))).normalized()
+            ln = 0.5 - 0.06 * abs(k - 1.5)
+            pts = [a - gd * 0.05, a + gd * ln * 0.4 + Vector((0, -0.07, 0)), a + gd * ln * 0.75 + Vector((0, -0.07, -0.04)),
+                   a + gd * ln + Vector((0, 0.06, -0.12))]
+            secs = fera_dense([sec(p, r, r) for p, r in zip(pts, (0.045, 0.04, 0.03, 0.006))], 10, cut=2)
+            sloft("%s_Claw%d" % (side, k), secs, chitin, hand, sides=7, fwd=(0, -1, 0), mats=(claw,),
+                  matf=lambda i, j: 1 if i >= 5 else 0, sharp=80.0)
+        a = wrist + fd * 0.06 + Vector((-s * 0.14, -0.03, 0))
+        secs = fera_dense([sec(p, r, r) for p, r in zip(
+            [a + Vector((s * 0.05, 0, 0)), a + Vector((-s * 0.14, -0.14, -0.1)), a + Vector((-s * 0.15, -0.26, -0.3))],
+            (0.045, 0.036, 0.006))], 8, cut=2)
+        sloft(side + "_Thumb", secs, chitin, hand, sides=7, fwd=(0, -1, 0), mats=(claw,),
+              matf=lambda i, j: 1 if i >= 4 else 0, sharp=80.0)
+
+    # cabeça maior (em volta do pivô do pescoço), depois a saia esticada e o conjunto reduzido
+    hp = _wloc(head)
+    _vh_remap(head, lambda q: hp + (q - hp) * HERALD_HEAD, hp, hp)
+
+    def tall(q):
+        z = q.z + HERALD_STRETCH * min(1.0, max(0.0, q.z - 0.7))
+        return Vector((q.x, q.y, z)) * HERALD_SCALE
+
+    _vh_remap(root, tall, Vector((0, 0, 0)), Vector((0, 0, 0)))
+    loose_parts("void_herald")
+    export("void_herald")
+
+
+BOSS_BUILDERS["void_herald"] = build_void_herald
 # ================================================================== FORJADOR RÚNICO (chefe das Galerias Profundas)
 # Golem antigo de alvenaria e ferro forjado (~4,6 m com as chaminés): tronco de blocos de pedra talhada assentados
 # em fiadas (a argamassa escura e as frestas em brasa aparecem entre eles), cintas de ferro rebitadas, uma
