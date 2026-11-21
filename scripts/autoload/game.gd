@@ -1419,8 +1419,17 @@ func _open_debug_ui(w: Node, ui_name: String, args: PackedStringArray) -> void:
 			w._open_menu(2)
 		"quests":
 			w._open_menu(3)
-		"bestiary":
+		"bestiary":   # `--bestiary-sel=<tipo>` abre a ficha da criatura; `--bestiary-page=<n>`, a página da grade
 			w._open_menu(5)
+			await get_tree().process_frame
+			var bp: BestiaryPanel = w.modal.bestiary_panel if w.modal and w.modal.get("bestiary_panel") else null
+			for a in args:
+				if bp != null and a.begins_with("--bestiary-sel="):
+					bp._sel = a.substr(15)
+					bp.refresh()
+				elif bp != null and a.begins_with("--bestiary-page="):
+					bp._page = int(a.substr(16))
+					bp.refresh()
 		"tools":
 			w._open_menu(0)
 			await get_tree().process_frame
