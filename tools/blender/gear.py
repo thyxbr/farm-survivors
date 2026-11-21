@@ -2871,6 +2871,10 @@ def g_export_skinned(style):
         fem_warp()                     # cascas, enfeites e ossos vão para o corpo feminino pelos pesos
         export("gear/" + style + "_f", export_vertex_color='ACTIVE')
         return
+    if globals().get("g_export") is globals().get("_g_export_d", 0):
+        dwarf_warp()                   # o mesmo para o corpo do anão (dwarf.py)
+        export("gear/" + style + "_d", export_vertex_color='ACTIVE')
+        return
     export("gear/" + style, export_vertex_color='ACTIVE')
 
 

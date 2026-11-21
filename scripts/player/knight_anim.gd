@@ -39,6 +39,10 @@ const RUN_DUTY := 0.31            ## correndo
 const JOG_STYLE := 0.72           ## quanto o andar normal já se parece com a corrida (0 caminhada, 1 corrida)
 const WALK_AMP := 0.64            ## abertura da coxa na velocidade normal (rad); define o tamanho da passada
 const RUN_AMP := 0.8              ## na corrida
+## Perna de referência (quadril ao tornozelo do knight.glb, m). Corpos de perna mais curta (anão) andam com
+## passos mais curtos e mais rápidos, e o balanço e o voo do tronco, que são em metros, encolhem com a perna.
+const REF_LEG := 0.862
+const SHORT_STRIDE := 0.45        ## quanto a abertura da coxa encolhe com a perna (0 = nada; 1 = proporcional)
 const STRIDE_POW := 0.4           ## devagar a passada encolhe menos que a velocidade (evita pezinhos rápidos)
 ## Joelho (rad, > 0 dobra) ao longo do ciclo. Chaves [x, valor]: no apoio x = 0..1 do apoio (0 = pé toca
 ## o chão), no balanço x = 0..1 do balanço (0 = ponta do pé sai do chão). Valores de biomecânica:
@@ -211,6 +215,8 @@ static func rig(model: Node3D) -> Dictionary:
 	else:
 		r["thigh"] = hip_y * 0.5
 		r["shin"] = hip_y * 0.5
+	# escala da passada pela perna (1 no corpo de referência; o anão fica em ~0,6)
+	r["gait_k"] = clampf(leg_length(r) / REF_LEG, 0.3, 1.0)
 	# mãos: centro de cada mão no espaço do antebraço (alvo do IK dos braços) e o alcance do braço esticado
 	for side in ["l", "r"]:
 		var elbow: Node3D = r["Elbow" + side.to_upper()]
@@ -468,7 +474,7 @@ static func locomotion_pose(r: Dictionary, phase: float, move: float, run: float
 	# voo: entre a saída de um pé e a chegada do outro o corpo sobe
 	var x := fposmod(phase / TAU, 0.5)
 	if duty < 0.5 and x > duty:
-		p.lift = lerpf(FLIGHT_LIFT_JOG, FLIGHT_LIFT_RUN, run) * sin(PI * (x - duty) / (0.5 - duty)) * amt * st
+		p.lift = lerpf(FLIGHT_LIFT_JOG, FLIGHT_LIFT_RUN, run) * float(r.get("gait_k", 1.0)) * sin(PI * (x - duty) / (0.5 - duty)) * amt * st
 	# braços ao contrário das pernas do mesmo lado (sl = +1 com a perna esquerda atrás), um pouco atrasados
 	var arm_amp := lerpf(ARM_SWING_WALK, ARM_SWING_RUN, run) * move
 	var elbow := lerpf(lerpf(-0.3, ELBOW_WALK, minf(st / JOG_STYLE, 1.0)), ELBOW_RUN, run)
@@ -485,7 +491,7 @@ static func locomotion_pose(r: Dictionary, phase: float, move: float, run: float
 	p.arm_l.z -= cross * maxf(sl, 0.0)
 	p.arm_r.z += cross * maxf(-sl, 0.0)
 	# o tronco amortece no meio de cada apoio (além do que a altura das pernas já dá)
-	p.body_y = -lerpf(BODY_BOUNCE_WALK, BODY_BOUNCE_RUN, run) * move * bounce
+	p.body_y = -lerpf(BODY_BOUNCE_WALK, BODY_BOUNCE_RUN, run) * float(r.get("gait_k", 1.0)) * move * bounce
 	var shoulders := lerpf(TORSO_TWIST_WALK, TORSO_TWIST_RUN, run) * move * cos(phase - TORSO_LAG)   # giro dos ombros
 	# o quadril gira contra os ombros e as pernas desfazem esse giro (continuam balançando para a frente)
 	p.hip_twist = -lerpf(PELVIS_TWIST_WALK, PELVIS_TWIST_RUN, run) * move * cos(phase)
@@ -620,7 +626,8 @@ static func _curve(keys: Array, x: float) -> float:
 
 ## Meio passo (m): quanto o tornozelo vai à frente/atrás do quadril.
 static func half_stride(r: Dictionary, move: float, run: float) -> float:
-	return leg_length(r) * sin(lerpf(WALK_AMP, RUN_AMP, run) * pow(clampf(move, 0.0, 1.0), STRIDE_POW))
+	var amp := lerpf(WALK_AMP, RUN_AMP, run) * lerpf(1.0, float(r.get("gait_k", 1.0)), SHORT_STRIDE)
+	return leg_length(r) * sin(amp * pow(clampf(move, 0.0, 1.0), STRIDE_POW))
 
 
 ## Ângulo da coxa que põe o tornozelo `d` metros atrás do quadril com o joelho dobrado `knee`.

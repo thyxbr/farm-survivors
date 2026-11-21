@@ -25,7 +25,8 @@ const DEFAULT_STYLE := {"head": "h_bare", "armor": "a_shirt", "hands": "g_bare",
 const PLATE := "plate"
 ## Modelo do herói por corpo ("m"/"f"): o feminino tem os mesmos pivôs e nomes. As roupas, cabeças e penteados
 ## de equipamento também têm versão feminina: gear/<estilo>_f.glb.
-const KNIGHT_SCENE := {"m": "res://assets/models/knight.glb", "f": "res://assets/models/knight_f.glb"}
+const KNIGHT_SCENE := {"m": "res://assets/models/knight.glb", "f": "res://assets/models/knight_f.glb",
+	"d": "res://assets/models/knight_d.glb"}
 ## Como o penteado (gear/hair_<id>.glb, HairStyles) entra com cada estilo de cabeça: "tight" = a variante rente
 ## ao crânio (hair_<id>_tight.glb), que cabe sob capuz e chapéu; "none" = sem cabelo (elmo fechado, gorro e
 ## coifas justos, que o cabelo atravessaria). Estilo fora da tabela (cabeça nua, coroas, tiaras) = inteiro.
@@ -53,9 +54,10 @@ const BOW_FULL_DRAW := 0.5
 const BOW_ARROW_REST := Vector3(0.0, 0.04, 0.03)
 
 
-## Corpo normalizado: "f" ou "m" (vazio ou desconhecido = masculino).
+## Corpo normalizado: "f", "d" (anão, protótipo) ou "m" (vazio ou desconhecido = masculino).
 static func body_key(body) -> String:
-	return "f" if str(body) == "f" else "m"
+	var b := str(body)
+	return b if b == "f" or b == "d" else "m"
 
 
 ## Novo modelo do herói para o corpo `body` (marca o corpo no meta "body", que apply() usa nas roupas).
@@ -74,8 +76,9 @@ static func body_of(model: Node3D) -> String:
 ## GLB de equipamento do estilo para o corpo: a versão _f no feminino (cai na masculina se faltar).
 static func gear_path(style: String, body: String) -> String:
 	var path := "res://assets/models/gear/%s.glb" % style
-	if body_key(body) == "f":
-		var fem := "res://assets/models/gear/%s_f.glb" % style
+	var k := body_key(body)
+	if k != "m":
+		var fem := "res://assets/models/gear/%s_%s.glb" % [style, k]
 		if ResourceLoader.exists(fem):
 			return fem
 	return path
