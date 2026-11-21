@@ -445,6 +445,8 @@ func _forge_fire(pos: Vector3) -> void:
 # ================================================================ ruínas (chefe)
 # ================================================================ Arena do Desafio (mapa da Horda)
 func start_survival() -> void:
+	if not Game.HORDE_ENABLED:
+		return
 	if survival != null or player == null or player.dead:
 		return
 	if Network.is_online():
@@ -1147,6 +1149,8 @@ func make_entity(e: MapEntity) -> Node3D:
 			st.station = e.ref
 			n = st
 		"portal":
+			if not Game.HORDE_ENABLED:
+				return null   # Horda desligada: sem portal na vila
 			n = PORTAL.new()
 		"guard":
 			n = VillageGuard.new()

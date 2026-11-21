@@ -21,6 +21,9 @@ signal enchant_changed
 signal kit_changed   # a classe da arma equipada mudou
 
 const SETTINGS_PATH := "user://settings.cfg"
+## Desafio da Horda ligado? Desligado por enquanto: sem portal na vila, o servidor recusa a fila e os testes
+## da Horda (smoke --smoke-part=horda, _test_horde do net_test, portal no teste da vila) são pulados.
+const HORDE_ENABLED := false
 const WORLD_SCENE := "res://scenes/world.tscn"
 const MENU_SCENE := "res://scenes/main_menu.tscn"
 const CHAR_CREATE_SCENE := "res://scenes/char_create.tscn"

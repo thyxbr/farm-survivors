@@ -1546,6 +1546,9 @@ static func _clean_build(b: Dictionary) -> Dictionary:
 
 
 func _server_horde_request(id: int) -> void:
+	if not Game.HORDE_ENABLED:
+		_horde_notice.rpc_id(id, "O Desafio da Horda está fechado por enquanto.")
+		return
 	if horde_run != null and is_instance_valid(horde_run):
 		var names: Array[String] = []
 		for pid in horde_run.team:
