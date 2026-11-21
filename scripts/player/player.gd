@@ -863,7 +863,7 @@ func _do_hit() -> void:
 			continue
 		var crit: bool = randf() < Game.crit_chance()
 		var dmg: float = EnchantHit.scale(e, Game.melee_damage() * mult * randf_range(0.9, 1.1) * (1.8 if crit else 1.0))
-		e.take_damage(dmg, global_position, crit, 2.5 if _weapon_fx() == "slow" else 0.0)
+		e.take_damage(dmg, global_position, crit, 2.5 if _weapon_fx() == "slow" else 0.0, 0.0, 0.0, EnchantHit.mix())
 		Game.on_damage_dealt(dmg, e.max_hp)
 		EnchantHit.on_hit(e, dmg)   # efeito do elemento da arma encantada
 		hit_any = true
@@ -1636,7 +1636,7 @@ func _cast_frost_nova() -> void:
 			continue
 		if e.global_position.distance_to(global_position) <= radius + e.radius:
 			var nova_dmg := (15.0 + Game.spell_power() * 2.0) * Game.damage_mult()
-			e.take_damage(nova_dmg, global_position, false, 4.0, float(Game.talent_mods.get("nova_stun", 0.0)))
+			e.take_damage(nova_dmg, global_position, false, 4.0, float(Game.talent_mods.get("nova_stun", 0.0)), 0.0, "gelo")
 			Game.add_fury_from_damage(nova_dmg, e.max_hp)
 
 
@@ -1691,7 +1691,7 @@ func _food_fire_nova() -> void:
 		if e.dead:
 			continue
 		if e.global_position.distance_to(global_position) <= radius + e.radius:
-			e.take_damage(dmg, global_position, false)
+			e.take_damage(dmg, global_position, false, 0.0, 0.0, 0.0, "fogo")
 			Game.add_fury_from_damage(dmg, e.max_hp)
 
 
@@ -1706,7 +1706,7 @@ func _food_frost_nova() -> void:
 			continue
 		if e.global_position.distance_to(global_position) <= radius + e.radius:
 			var food_dmg := (12.0 + Game.level * 3.0) * Game.damage_mult()
-			e.take_damage(food_dmg, global_position, false, 6.0)
+			e.take_damage(food_dmg, global_position, false, 6.0, 0.0, 0.0, "gelo")
 			Game.add_fury_from_damage(food_dmg, e.max_hp)
 
 

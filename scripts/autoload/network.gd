@@ -816,7 +816,7 @@ func _mark_enemy(net_id: int, amp: float, secs: float) -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow: float, stun := 0.0, pull := 0.0) -> void:
+func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow: float, stun := 0.0, pull := 0.0, element = "fisico") -> void:
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id):
 		return
@@ -829,10 +829,13 @@ func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow:
 	if not HitGuard.accepts(amount, last_pos.get(id, Vector3.INF), e.global_position):
 		return
 	if amount > 0.0:
+		# o elemento vem do cliente, mas o % é o da tabela do servidor (ElementRules.mix_of joga fora o desconhecido)
+		var mix := ElementRules.mix_of(element)
+		var em := e.element_mult(mix)
 		e.last_hitter = id   # antes do número: incoming() usa o nível de quem bateu (monstro bem acima resiste)
 		for pid in _enemy_peers(e):
-			_enemy_hit_fx.rpc_id(pid, net_id, e.incoming(amount), crit)   # o número já com a marca tóxica
-		e.take_damage(amount, from_pos, crit, 0.0, 0.0, clampf(pull, 0.0, 6.0))
+			_enemy_hit_fx.rpc_id(pid, net_id, e.incoming(amount) * em, crit, em)   # o número já com a marca tóxica e o elemento
+		e.take_damage(amount, from_pos, crit, 0.0, 0.0, clampf(pull, 0.0, 6.0), mix)
 		e.last_hitter = 0
 	if slow > 0.0 and not e.dead:
 		e.apply_slow(minf(slow, 10.0))
@@ -1259,9 +1262,9 @@ func send_event(kind: String, a := Vector3.ZERO, b := Vector3.ZERO) -> void:
 		_player_event.rpc_id(1, kind, a, b)
 
 
-func client_hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun := 0.0, pull := 0.0) -> void:
+func client_hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun := 0.0, pull := 0.0, element = "fisico") -> void:
 	if is_client():
-		_hit_enemy.rpc_id(1, net_id, amount, from_pos, crit, slow, stun, pull)
+		_hit_enemy.rpc_id(1, net_id, amount, from_pos, crit, slow, stun, pull, element)
 
 
 ## Círculo da Provocação Sombria (ver Enemy.apply_taunt): quem aplica é o servidor, com a réplica deste jogador
@@ -1476,10 +1479,10 @@ func _enemy_snapshot(snap: PackedFloat32Array) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _enemy_hit_fx(net_id: int, amount: float, crit: bool) -> void:
+func _enemy_hit_fx(net_id: int, amount: float, crit: bool, em := 1.0) -> void:
 	var e: Enemy = enemies.get(net_id)
 	if e and is_instance_valid(e):
-		e.show_hit(amount, crit)
+		e.show_hit(amount, crit, em)
 
 
 @rpc("authority", "call_remote", "reliable")

@@ -75,6 +75,13 @@ func test_roundtrip_matches_consts() -> void:
 			cur.erase("mythic")
 			T.ok(cur == BalanceTables.decode(snap[n]), "tabela rarity igual ao snapshot (sem o Mítico)")
 			continue
+		elif n == "horde":
+			# o elemento de cada combo (afinidades elementais no combate) nasceu depois do snapshot
+			cur = cur.duplicate(true)
+			for id in cur.get("combos", {}):
+				(cur.combos[id] as Dictionary).erase("element")
+			T.ok(cur == BalanceTables.decode(snap[n]), "tabela horde igual ao snapshot das const (sem o elemento dos combos)")
+			continue
 		elif n == "classes":
 			# a ficha da tela de criação (história, papel, perfil, emblema) é apresentação, não balanceamento
 			cur = cur.duplicate(true)
