@@ -1462,6 +1462,7 @@ func _ready() -> void:
 	await _test_bocarrao_tongue()
 	await _test_flor_rooted()
 	await _test_espinheira()
+	await _test_sentinela()
 	await _test_enemy_detour()
 	await _test_river()
 	await _test_archer_pose()
@@ -4599,6 +4600,119 @@ func _test_espinheira() -> void:
 			c.queue_free()
 	Game.hp = Game.max_hp()
 	player.web_t = 0.0
+	player.chill_t = 0.0
+	player.global_position = back
+	await wait(0.1)
+
+
+## Sentinela da Nevasca (chefe do Pico): a patada acerta e congela, o Sopro em cone acerta, deixa lento e apaga o
+## braseiro no caminho, as Estacas caem (uma sob o jogador) e ficam no chão, e na fúria a Nevasca fere quem está
+## longe de um braseiro aceso e poupa quem está perto de um.
+func _test_sentinela() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 40)
+	Game.hp = Game.max_hp()
+	var e := Enemy.new()
+	e.kind = "sentinela_nevasca"
+	world.add_child(e)
+	e.global_position = spot
+	e.home = e.global_position
+	player.global_position = spot + Vector3(0, 0, 4.0)
+	await wait(0.3)
+	check(e.is_boss and e.parts.get("KneeFL") != null and e.parts.get("Tail3") != null and e.parts.get("PlateL") != null
+		and e.parts.get("Mane0") != null, "Sentinela: chefe, com patas em três ossos, cauda, ombreiras e juba no modelo")
+	check(e._blz_braziers.size() == BlizzardRules.BRAZIERS and e.brazier_mask() == BlizzardRules.MASK_ALL,
+		"Sentinela: os braseiros da sala nascem acesos (%d)" % e._blz_braziers.size())
+	var pts: Array = e._blz_pts
+	var begin := func(n: int) -> void:
+		Game.hp = Game.max_hp()
+		player.chill_t = 0.0
+		player.invuln = 0.0
+		e._blz_n = n
+		e.attack_cd = 0.0
+		e._set_state("chase")
+	# patada: o jogador está a 4 m, na frente
+	e.model.rotation.y = 0.0
+	begin.call(0)
+	var hp0: float = Game.hp
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "swing", "Sentinela: perto, ataca com a patada (%s)" % e.attack_kind)
+	await wait_until(func(): return Game.hp < hp0, 2.0)
+	check(Game.hp < hp0 and player.chill_t > 0.0, "Sentinela: a patada acerta e congela (%.0f -> %.0f, lento %.1f s)"
+		% [hp0, Game.hp, player.chill_t])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	# sopro: o jogador fica ao lado do braseiro do leste; o cone passa por ele e apaga o braseiro
+	player.global_position = (pts[1] as Vector3) + Vector3(-1.2, 0.4, 0.0)
+	begin.call(1)
+	hp0 = Game.hp
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "breath", "Sentinela: o 2º golpe é o Sopro (%s)" % e.attack_kind)
+	await wait_until(func(): return Game.hp < hp0, BlizzardRules.BREATH_T0 + BlizzardRules.BREATH_TIME)
+	check(Game.hp < hp0 and player.chill_t > 0.0, "Sentinela: o Sopro acerta e deixa lento (%.0f -> %.0f, lento %.1f s)"
+		% [hp0, Game.hp, player.chill_t])
+	check(e.brazier_mask() & 2 == 0, "Sentinela: o Sopro apaga o braseiro no caminho (acesos %d)" % e.brazier_mask())
+	check(not (e._blz_braziers[1] as BlizzardBrazier).lit, "Sentinela: o braseiro apagado mostra o gelo")
+	Game.hp = Game.max_hp()
+	await wait_until(func(): return e.state != "attack", 7.0)
+	# estacas: caem nos pontos avisados, uma sob o jogador, e ficam no chão
+	player.global_position = spot + Vector3(0, 0.4, 8.0)
+	begin.call(3)
+	hp0 = Game.hp
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "icicles", "Sentinela: o 4º golpe são as Estacas (%s)" % e.attack_kind)
+	await wait_until(func(): return Game.hp < hp0, BlizzardRules.SPIKE_T + 1.0)
+	var spikes := 0
+	for c in world.get_children():
+		if c is IceSpike:
+			spikes += 1
+	check(Game.hp < hp0, "Sentinela: a Estaca que cai no jogador acerta (%.0f -> %.0f)" % [hp0, Game.hp])
+	check(spikes >= BlizzardRules.SPIKES + 1, "Sentinela: as Estacas ficam no chão, uma sob o jogador (%d)" % spikes)
+	await wait_until(func(): return e.state != "attack", 4.0)
+	for c in world.get_children():
+		if c is IceSpike:
+			c.queue_free()
+	# fase 2: abaixo de metade da vida ela urra e a nevasca começa
+	e.hp = e.max_hp * 0.6
+	e.take_damage(e.max_hp * 0.15, player.global_position, false)
+	check(e.enraged and not e._blz_storm, "Sentinela: abaixo de 50% entra em fúria (a nevasca ainda não sopra)")
+	begin.call(0)
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "blizzard", "Sentinela: o primeiro golpe da fúria chama a Nevasca (%s)" % e.attack_kind)
+	await wait_until(func(): return e._blz_storm, 3.0)
+	check(e._blz_storm, "Sentinela: a Nevasca toma a sala")
+	await wait_until(func(): return e.state != "attack", 4.0)
+	# daqui em diante ela fica parada: só a nevasca age
+	e.attack_cd = 999.0
+	e.speed_mult = 0.0
+	e._blz_relight = [0.0, 0.0, 0.0, 0.0]
+	# longe dos braseiros: congela (dano e lentidão que crescem)
+	player.global_position = spot + Vector3(-9.0, 0.4, -7.0)
+	Game.hp = Game.max_hp()
+	player.chill_t = 0.0
+	hp0 = Game.hp
+	await wait(BlizzardRules.EXPOSE_RAMP * 0.5)
+	var exp_far: float = e._blz_exposure.get(player.get_instance_id(), 0.0)
+	check(Game.hp < hp0 and player.chill_t > 0.0 and exp_far > 0.3,
+		"Sentinela: longe dos braseiros a Nevasca congela (%.0f -> %.0f, lento %.1f s, exposição %.2f)"
+		% [hp0, Game.hp, player.chill_t, exp_far])
+	# ao lado de um braseiro aceso: abrigado
+	player.global_position = (pts[0] as Vector3) + Vector3(1.0, 0.4, 0.0)
+	await wait(BlizzardRules.THAW + 1.0)
+	Game.hp = Game.max_hp()
+	player.invuln = 0.0
+	hp0 = Game.hp
+	await wait(2.0)
+	check(Game.hp >= hp0 and float(e._blz_exposure.get(player.get_instance_id(), 0.0)) <= 0.0,
+		"Sentinela: perto de um braseiro aceso a Nevasca não fere (%.0f -> %.0f)" % [hp0, Game.hp])
+	# o braseiro apaga: o abrigo acaba; depois ele reacende sozinho
+	e._blz_relight[0] = 3.0
+	await wait(2.4)
+	check(Game.hp < hp0, "Sentinela: com o braseiro apagado o abrigo acaba (%.0f -> %.0f)" % [hp0, Game.hp])
+	await wait(1.2)
+	check(e.brazier_mask() & 1 == 1 and (e._blz_braziers[0] as BlizzardBrazier).lit, "Sentinela: o braseiro reacende sozinho")
+	e.queue_free()
+	await wait(0.2)
+	Game.hp = Game.max_hp()
 	player.chill_t = 0.0
 	player.global_position = back
 	await wait(0.1)
