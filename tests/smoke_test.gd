@@ -92,7 +92,7 @@ func _check_aegis(player: Node, world: Node) -> void:
 	# golpes: o escudo absorve (a vida não cai) e as rachaduras crescem
 	var st: Dictionary = player.ability_data.aegis
 	var mx: float = st.max
-	var raw := func(final: float) -> float: return final * (50.0 + Game.defense() * 4.0) / 50.0
+	var raw := func(final: float) -> float: return final / Game.damage_taken_mult()
 	var src: Vector3 = player.global_position + Vector3(0, 1, 3)
 	var avg_crack := func() -> float:
 		var s := 0.0
@@ -1651,7 +1651,7 @@ func _ready() -> void:
 	Game.fury = 0.0
 	player.invuln = 0.0
 	player.take_damage(Game.max_hp() * 0.4, player.global_position + Vector3(0, 0, 5))
-	check(is_equal_approx(Game.fury, (Game.max_hp() * 0.4 * 50.0 / (50.0 + Game.defense() * 4.0)) / Game.max_hp() * 25.0), "fúria sobe ao receber dano (%.2f)" % Game.fury)
+	check(is_equal_approx(Game.fury, (Game.max_hp() * 0.4 * Game.damage_taken_mult()) / Game.max_hp() * 25.0), "fúria sobe ao receber dano (%.2f)" % Game.fury)
 	Game.hp = hp_f
 	player.invuln = 0.0
 	Game.add_fury(500.0)

@@ -608,7 +608,7 @@ func max_mp() -> float:
 
 
 func max_stamina() -> float:
-	return 70.0 + attr("agi") * 5.0
+	return 70.0 + attr("agi") * 2.5
 
 
 ## Dano do ataque básico conforme a classe da arma (espada FOR, cajado INT, arco AGI): CharRules.basic_damage.
@@ -628,8 +628,27 @@ func heal_amount() -> float:
 	return CharRules.heal_for(spell_power(), Balance.tables, str(equipment.weapon)) * (1.0 + float(talent_mods.get("heal_power", 0.0)))
 
 
+## Escala dos atributos: o que vem da AGI tem retorno decrescente (soft_bonus) e o total de pontos +
+## equipamento tem teto. Bônus temporários e de talento (mod) somam por cima do teto.
+const AGI_SPEED_CAP := 0.40    # bônus máximo de velocidade vindo da AGI
+const AGI_SPEED_HALF := 50.0   # pontos de AGI acima de 5 que dão metade desse bônus
+const SPEED_MAX := 1.45        # teto de velocidade de pontos + equipamento
+const AGI_CRIT_CAP := 0.25     # crítico máximo vindo da AGI
+const AGI_CRIT_HALF := 60.0
+const CRIT_MAX := 0.60         # teto de crítico de pontos + equipamento
+const DAMAGE_REDUCTION_MAX := 0.80   # a defesa nunca corta mais que isso do dano recebido
+const DEFENSE_K_BASE := 10.0   # K da redução de dano = isto + nível (ver damage_taken_mult)
+
+
+## Bônus com retorno decrescente: 0 em x = 0, metade de `cap` em x = `half`, tende a `cap`.
+static func soft_bonus(x: float, cap: float, half: float) -> float:
+	x = maxf(x, 0.0)
+	return cap * x / (x + half)
+
+
 func crit_chance() -> float:
-	return 0.08 + attr("agi") * 0.004 + gear("crit") + mod("crit")
+	var base := minf(CRIT_MAX, 0.08 + soft_bonus(attr("agi") - 5, AGI_CRIT_CAP, AGI_CRIT_HALF) + gear("crit"))
+	return clampf(base + mod("crit"), 0.0, 1.0)
 
 
 func cooldown_mult() -> float:
@@ -665,11 +684,31 @@ func buff_duration(buff_id: String) -> float:
 
 
 func defense() -> float:
-	return armor_defense() + attr("vit") * 0.4 + mod("defense")
+	return armor_defense() + attr("vit") * 0.25 + mod("defense")
+
+
+## Fração do dano que passa pela defesa: redução = defesa / (defesa + K), K = DEFENSE_K_BASE + nível do
+## personagem, com teto de redução. O K cresce com o nível para a defesa não saturar no fim do jogo (com
+## 50 / (50 + 4 x defesa) fixo, o equipamento lendário sozinho já cortava 79% do golpe do chefe final).
+## Usa o nível do jogador e não o do atacante: o dano chega sem o atacante, e as áreas têm o nível de quem caça nelas.
+func damage_taken_mult() -> float:
+	var d := maxf(defense(), 0.0)
+	var k := DEFENSE_K_BASE + float(maxi(level, 1))
+	return maxf(1.0 - DAMAGE_REDUCTION_MAX, k / (k + d))
+
+
+## Vida e mana recuperadas por segundo fora dos bônus de talento/horda.
+func hp_regen() -> float:
+	return 0.3 + attr("vit") * 0.02 + mod("regen")
+
+
+func mp_regen() -> float:
+	return (0.8 + attr("int") * 0.06) * (1.0 + float(talent_mods.get("mp_regen", 0.0)))
 
 
 func speed_multiplier() -> float:
-	return (1.0 + (attr("agi") - 5) * 0.015 + gear("speed")) * mod("speed")
+	var base := minf(SPEED_MAX, 1.0 + soft_bonus(attr("agi") - 5, AGI_SPEED_CAP, AGI_SPEED_HALF) + gear("speed"))
+	return base * mod("speed")
 
 
 ## Números principais do personagem (para a tela de personagem e comparações).

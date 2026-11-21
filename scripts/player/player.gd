@@ -657,8 +657,8 @@ func _regen(delta: float) -> void:
 		Game.stamina = Game.max_stamina()
 		Game.fury = Game.FURY_MAX
 		return
-	Game.mp = min(Game.max_mp(), Game.mp + (0.8 + Game.attr("int") * 0.15) * (1.0 + float(Game.talent_mods.get("mp_regen", 0.0))) * delta)
-	Game.hp = min(Game.max_hp(), Game.hp + (0.3 + Game.attr("vit") * 0.05 + Game.mod("regen")) * delta)
+	Game.mp = min(Game.max_mp(), Game.mp + Game.mp_regen() * delta)
+	Game.hp = min(Game.max_hp(), Game.hp + Game.hp_regen() * delta)
 	if stamina_delay <= 0:
 		var regen := 32.0 * (ShieldRules.REGEN_MULT if blocking else 1.0)   # escudo erguido recupera devagar
 		Game.stamina = min(Game.max_stamina(), Game.stamina + regen * delta)
@@ -700,7 +700,7 @@ func _take_blocked(amount: float, from_pos: Vector3) -> void:
 	invuln = 0.3
 	Game.add_fury(amount / Game.max_hp() * 15.0)
 	if amount >= 0.5:
-		var chip: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
+		var chip: float = max(1.0, amount * Game.damage_taken_mult())
 		Game.hp -= chip
 		FX.damage_number(global_position + Vector3.UP * KnightLook.body_y(self, 2.0), str(int(round(chip))), Color(0.75, 0.8, 0.9), 44)
 	Game.stats_changed.emit()
@@ -1751,7 +1751,7 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 		return
 	if dead or invuln > 0 or Loading.covering:   # coberto pela tela de carregamento: imune
 		return
-	var final_dmg: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
+	var final_dmg: float = max(1.0, amount * Game.damage_taken_mult())
 	# Égide Cristalina erguida: o escudo absorve primeiro (integridade própria); só o que sobra chega à vida
 	if ability == ShieldAbilities.ID:
 		final_dmg = ShieldAbilities.absorb(self, final_dmg, from_pos)
