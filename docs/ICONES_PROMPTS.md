@@ -339,6 +339,7 @@ parts`. Com mais de 4 o Gemini costuma misturar as peças de um item no outro.
 | `guard_surcoat` | Sobreveste da Guarda | Chain mail under a tabard with the guard's cross. |
 | `dragon_plate` | Couraça de Escamas de Dragão | Dark dragon-scale armor with glowing red ember between the scales and a flame gem on the chest. |
 | `mithril_plate` | Placa de Mithril | Fitted elven plate armor of bluish silver mithril with a tall gorget, a V-shaped bib, waist lames and inlaid pale blue leaves growing up the chest like a tree, front view. |
+| `astral_plate` | Placas Astrais | Golden celestial knight plate armor with a high gorget, a sun dial on the chest that sinks like a funnel into a small black hole, curved grooves meeting at the waist, and a deep blue cape lined like a starry night sky, front view. |
 
 ## E. Acessórios e peças (25) — anexar referência
 
@@ -369,6 +370,9 @@ parts`. Com mais de 4 o Gemini costuma misturar as peças de um item no outro.
 | `ranger_gloves` | Luvas do Patrulheiro | Pair of archer gloves: one brown leather glove, the other dark leather wrapped in blue cloth with a red strap. |
 | `mithril_greaves` | Grevas de Mithril | Pair of bluish silver elven greaves with a domed knee cop fanned with inlaid pale blue leaves, a V plate with a shield-shaped leaf and long pointed sabatons. |
 | `mithril_gauntlets` | Manoplas de Mithril | Pair of bluish silver plate gauntlets with a knuckle ridge and three inlaid pale blue leaves on the back of each hand. |
+| `astral_helm` | Elmo Astral | Golden armet-style helm with a light gold brow band carrying a small sun, a narrow vertical faceplate with open eye windows on both sides, a blue horsehair crest and a fan of sun rays around a black hole behind the head. |
+| `astral_greaves` | Grevas Astrais | Pair of golden greaves with a domed knee cop and pointed side wing, a smooth shin plate flaring over the ankle and long, thin pointed sabatons. |
+| `astral_gauntlets` | Manoplas Astrais | Pair of golden plate gauntlets with a knuckle ridge and a bell-shaped cuff rising to a point on the outer side. |
 | `wooden_shield` | Escudo de Madeira | Wooden plank shield with nails, front view. |
 | `knight_shield` | Escudo do Cavaleiro | Shield with the Valdoria guard crest, front view. |
 | `arcane_orb` | Orbe Arcano | Floating glowing arcane orb. |
