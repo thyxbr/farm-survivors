@@ -1098,7 +1098,7 @@ func _test_econ() -> void:
 			if is_instance_valid(e) and Regions.region_at(e.global_position) == "dg_bosque":
 				n += 1
 				chief = chief or e.chief
-		return n >= 20 and chief, 5.0), "monstros e chefe da dungeon vêm do servidor")
+		return n >= 14 and chief, 5.0), "monstros e chefe da dungeon vêm do servidor")
 	w.use_dungeon_door("out")
 	check(await _wait_until(func() -> bool: return w.player.global_position.distance_to(Regions.door_point("dg_bosque")) < 3.0, 4.0),
 		"saiu pela porta")

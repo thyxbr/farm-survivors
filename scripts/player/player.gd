@@ -1659,15 +1659,16 @@ func apply_chill(secs: float, venom := false) -> void:
 
 
 ## Teia da Tecelã: quase parado por `secs`. Não acumula, só renova.
-func apply_web(secs: float) -> void:
+func apply_web(secs: float, roots := false) -> void:
 	if remote:
 		if Network.is_server() and not dead:
-			Network.server_web_player(peer_id, secs)
+			Network.server_web_player(peer_id, secs, roots)
 		return
 	if dead or secs <= 0.0:
 		return
 	if web_t <= 0.0:
-		Game.notify.emit("Preso na teia! Mal consegue andar.", Color(0.9, 0.9, 0.95))
+		Game.notify.emit("Preso pelas raízes! Mal consegue andar." if roots else "Preso na teia! Mal consegue andar.",
+			Color(0.85, 0.5, 0.6) if roots else Color(0.9, 0.9, 0.95))
 	web_t = maxf(web_t, secs)
 	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 0.8), Color(0.92, 0.92, 0.96), 18, 2.0, 0.12, 0.7)
 
