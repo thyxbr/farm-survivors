@@ -828,6 +828,11 @@ func talent_points() -> int:
 
 
 ## Ouro para redistribuir os talentos agora (espelho de CharRules.reset_cost).
+## Ouro para viajar até o mapa `region`: "coach" (cocheiro, em conta) ou "map" (mapa-mundi, caro). -1 = inválido.
+func travel_cost(region: String, mode: String) -> int:
+	return CharRules.travel_cost(Balance.tables, region, mode)
+
+
 func talent_reset_cost() -> int:
 	return 0 if level <= 5 else 50 * level
 

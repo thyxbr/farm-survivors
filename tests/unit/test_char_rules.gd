@@ -1156,6 +1156,31 @@ func test_talent_reset() -> void:
 	T.eq(p.gold, 20, "cobrou 500")
 
 
+func test_travel_cost_and_pay() -> void:
+	var bt := _tables()
+	# cocheiro = 10 + 4 x nível do mapa; mapa-mundi = 5 x o cocheiro
+	T.eq(CharRules.travel_cost(bt, "vila", "coach"), 14, "cocheiro até a vila")
+	T.eq(CharRules.travel_cost(bt, "pico", "coach"), 130, "cocheiro até o vulcão")
+	T.eq(CharRules.travel_cost(bt, "bosque", "map"), 5 * CharRules.travel_cost(bt, "bosque", "coach"), "mapa = 5x cocheiro")
+	var prev := 0
+	for r in Regions.ORDER:
+		var c := CharRules.travel_cost(bt, r, "map")
+		T.ok(c > prev, "mais caro quanto maior o nível do mapa (%s: %d)" % [r, c])
+		T.ok(c > CharRules.travel_cost(bt, r, "coach"), "mapa mais caro que o cocheiro (%s)" % r)
+		prev = c
+	T.eq(CharRules.travel_cost(bt, "dg_bosque", "coach"), -1, "dungeon não tem viagem")
+	T.eq(CharRules.travel_cost(bt, "bosque", "voo"), -1, "modo inválido")
+	var s := CharState.new_character(bt)
+	s.gold = 57
+	T.eq(CharRules.pay_travel(s, bt, "bosque", "coach").err, "sem_ouro", "sem ouro")
+	T.eq(s.gold, 57, "não cobra sem ouro")
+	s.gold = 300
+	var r := CharRules.pay_travel(s, bt, "bosque", "map")
+	T.ok(r.ok, "paga o teleporte")
+	T.eq(s.gold, 10, "cobrou 290")
+	T.eq(CharRules.pay_travel(s, bt, "dg_mina", "map").err, "destino_invalido", "dungeon recusada")
+
+
 func test_talent_level_up_notice() -> void:
 	var bt := _tables()
 	var s := _talent_char(1)

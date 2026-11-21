@@ -11,5 +11,11 @@
 		"water_mult": 2,
 		"bonus_chance": 0.12,
 		"seed_back": 0.35
+	},
+	"travel": {
+		"levels": {"vila": 1, "bosque": 12, "mina": 20, "pico": 30},
+		"coach_base": 10,
+		"coach_per_level": 4,
+		"map_mult": 5
 	}
 }

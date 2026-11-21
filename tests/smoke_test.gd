@@ -1976,6 +1976,10 @@ func _test_dungeons() -> void:
 	await wait(1.4)
 	check(Regions.region_at(player.global_position) == "dg_bosque", "com Rank C entra no Covil das Raízes")
 	check(Regions.exit_point("dg_bosque").distance_to(player.global_position) < 3.0, "chega na porta de saída")
+	# dentro da dungeon não há viagem paga (nem cocheiro nem mapa-mundi): é preciso sair primeiro
+	var g_in := Game.gold
+	check(world.travel_block_reason("vila", "map").contains("dungeon"), "teleporte do mapa recusado dentro da dungeon")
+	check(not world.request_travel("vila", "map") and Game.gold == g_in, "dentro da dungeon não cobra nem viaja")
 	world.use_dungeon_door("out")
 	await wait(1.4)
 	check(player.global_position.distance_to(Regions.door_point("dg_bosque")) < 3.0, "a saída leva de volta à porta no Bosque")
@@ -2734,9 +2738,17 @@ func _test_guild_travel() -> void:
 	var dests: Array = []
 	for ch in pages[0].get("choices", []):
 		dests.append(str(ch.text))
-	check("Pântano Sussurrante" in dests and "Geleira de Cristal (Rank B)" in dests, "carruagem: bosque liberado, mina travada (%s)" % [dests])
-	world.travel_to("bosque")
+	var bosque_label := "Pântano Sussurrante (%d de ouro)" % Game.travel_cost("bosque", "coach")
+	check(bosque_label in dests and "Geleira de Cristal (Rank B)" in dests, "carruagem: bosque liberado com preço, mina travada (%s)" % [dests])
+	# viagem paga: sem ouro não vai; com ouro, o cocheiro cobra e leva
+	var coach_cost := Game.travel_cost("bosque", "coach")
+	check(coach_cost > 0 and Game.travel_cost("bosque", "map") > coach_cost, "teleporte do mapa mais caro que o cocheiro")
+	if Game.gold < coach_cost:
+		Game.add_gold(coach_cost - Game.gold)
+	var gold_before := Game.gold
+	check(world.request_travel("bosque", "coach"), "pede a viagem paga ao cocheiro")
 	await wait(1.6)
+	check(Game.gold == gold_before - coach_cost, "cocheiro cobrou %d de ouro (%d -> %d)" % [coach_cost, gold_before, Game.gold])
 	check(Regions.region_at(player.global_position) == "bosque", "viagem leva ao Pântano Sussurrante (%s)" % player.global_position)
 	check(_interactable("sylvi") != null and _interactable("coach_bosque") != null, "Sylvi e a carruagem no bosque")
 	var queen := false
