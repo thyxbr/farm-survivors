@@ -3498,9 +3498,64 @@ func _test_gear() -> void:
 	Game.hp = Game.max_hp()
 	Game.stamina = Game.max_stamina()
 	await get_tree().physics_frame
+	# combo com escudo (KnightMovesShield): 3 golpes do combo e o giro no fim, emendados segurando o clique
+	check(player._shield_combo() and player._combo_len() == 4 and is_equal_approx(player._swing_time(4), 0.75),
+		"espada com escudo: combo de 4 golpes, o último é o giro")
+	player.attacking = false
+	player.combo_window = 0.0
+	player.dodge_timer = 0.0
+	player.invuln = 6.0
+	var spin_back := player.global_position   # os golpes empurram o jogador: volta aqui no fim
+	var seen := []
+	player._start_swing()
+	var until := Time.get_ticks_msec() + 5000
+	while Time.get_ticks_msec() < until:
+		if player.attacking:
+			if not (player.combo in seen):
+				seen.append(player.combo)
+			player.buffered_attack = player.combo < 4
+			Game.stamina = Game.max_stamina()
+		elif seen.size() >= 4 or seen.is_empty():
+			break
+		await get_tree().process_frame
+	check(seen == [1, 2, 3, 4], "os 4 golpes do combo com escudo emendam (%s)" % [seen])
+	check(not player.attacking and player._recover_t >= 0.0 and absf(float(player.parts.twist)) <= PI + 0.001,
+		"no fim do combo o corpo volta suave à pose de parado (giro desenrolado: %.2f)" % float(player.parts.twist))
+	await wait(0.5)
+	check(player._recover_t < 0.0 and absf(float(player.parts.twist)) < 0.3,
+		"volta do combo com escudo termina (giro %.2f)" % float(player.parts.twist))
+	# o giro (4º) acerta em volta, até quem está atrás (um slime do teste, com vida de sobra, longe dos outros)
+
+	var spin_spot := Vector3(-105, 0.3, 46)
+	player.global_position = spin_spot
+	player.model.rotation.y = 0.0   # olhando para +Z: o slime fica atrás
+	var behind := Enemy.new()
+	behind.kind = "slime"
+	world.add_child(behind)
+	behind.global_position = spin_spot + Vector3(0, 0, -1.3)
+	behind.home = behind.global_position
+	await wait(0.15)
+	behind.max_hp = 9999.0
+	behind.hp = 9999.0
+	player.combo = 3
+	player.combo_window = 0.3
+	player.attacking = false
+	Game.stamina = Game.max_stamina()
+	player._start_swing()
+	check(player.combo == 4, "4º golpe do combo com escudo é o giro")
+	await wait(0.8)
+	check(is_instance_valid(behind) and behind.hp < 9999.0,
+		"giro do combo com escudo acerta quem está atrás (%.0f)" % (behind.hp if is_instance_valid(behind) else -1.0))
+	if is_instance_valid(behind):
+		behind.queue_free()
+	player.global_position = spin_back
+	player.invuln = 0.0
+	Game.hp = Game.max_hp()
+	Game.stamina = Game.max_stamina()
 	equip_any("apprentice_staff")
 	check(Game.equipment.offhand == "" and Game.count_item("wooden_shield") == shields0, "trocar para cajado guarda o escudo")
 	equip_any("iron_sword")
+	check(not player._shield_combo() and player._combo_len() == 3, "sem escudo, o combo da espada volta a 3 golpes")
 	check(is_equal_approx(Game.melee_damage(), dmg_sword), "dano da espada volta ao trocar de volta")
 
 	# armaduras: defesa e bônus somam

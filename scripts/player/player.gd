@@ -22,6 +22,11 @@ const DODGE_SPEED := 13.0
 const DODGE_TIME := 0.36
 const SWING_TIMES := [0.42, 0.42, 0.6]
 const SWING_MULT := [1.0, 1.1, 1.6]
+## Espada com escudo: combo de 4 golpes (KnightMovesShield: três do combo e o giro no fim), mais longos que os
+## da espada sozinha; o dano de cada um acompanha a duração (mesmo dano por segundo do combo da espada).
+const SHIELD_SWING_TIMES := [0.5, 0.5, 0.6, 0.75]
+const SHIELD_SWING_MULT := [1.2, 1.3, 1.5, 2.0]
+const SHIELD_SPIN_PUSH := 4.0   ## o giro avança mais que um golpe comum (m/s)
 const PUNCH_TIMES := [0.3, 0.32, 0.5]   # sem arma: jab, direto e uppercut, mais rápidos que a espada
 const STAFF_TIMES := [0.4, 0.4, 0.6]
 const BOW_FULL := 0.85        # segundos para tensionar o arco por completo
@@ -741,7 +746,8 @@ func _try_attack() -> void:
 	_start_swing()
 
 
-## Fôlego de um golpe básico (o combo 1-2-3 custa um pouco mais a cada golpe): espada 5/6/7, cajado 2,5/3/3,5.
+## Fôlego de um golpe básico (o combo custa um pouco mais a cada golpe): espada 5/6/7 (o giro do combo com
+## escudo, 4º golpe, 8), cajado 2,5/3/3,5.
 static func swing_stamina(staff: bool, hit: int) -> float:
 	return (2.0 + hit * 0.5) if staff else (4.0 + hit * 1.0)
 
@@ -750,8 +756,11 @@ func _start_swing() -> void:
 	if Game.stamina < SWING_STAMINA_MIN:
 		Game.notify.emit("Sem fôlego!", Color(1, 0.8, 0.5))
 		return
-	combo = (combo % 3) + 1 if combo_window > 0 else 1
+	combo = (combo % _combo_len()) + 1 if combo_window > 0 else 1
 	attacking = true
+	_recover_t = -1.0
+	if _shield_combo():
+		_swing_from = KnightAnim.capture_pose(parts)   # o golpe nasce da pose em que o corpo está
 	attack_timer = 0.0
 	hit_done = false
 	var staff: bool = look["class"] == "staff"
@@ -763,6 +772,8 @@ func _start_swing() -> void:
 	if is_on_floor():
 		var f := facing()
 		var push := 1.5 if _unarmed() else 3.0   # o soco é um passo curto, não uma estocada
+		if _shield_combo() and _finisher():
+			push = SHIELD_SPIN_PUSH
 		velocity.x += f.x * push
 		velocity.z += f.z * push
 	Sfx.play(_attack_sound(), 0.1, -3.0 if _unarmed() else 0.0)
@@ -791,16 +802,18 @@ func _update_attack(delta: float) -> void:
 		attacking = false
 		combo_window = 0.45
 		if not (look["class"] == "bow" and aiming):   # mirando o arco continua de lado: sem desgirar
-			KnightAnim.reset_twist(parts)
+			_end_swing_twist()
 		if buffered_attack:
 			buffered_attack = false
 			_start_swing()
 
 
 func _do_hit() -> void:
-	var mult: float = SWING_MULT[combo - 1]
+	var shield := _shield_combo()
+	var mult: float = (SHIELD_SWING_MULT if shield else SWING_MULT)[clampi(combo, 1, _combo_len()) - 1]
 	var fist := _unarmed()
-	var reach := (2.0 if combo < 3 else 2.2) if fist else (2.4 if combo < 3 else 2.9)
+	var fin := _finisher()
+	var reach := (2.2 if fin else 2.0) if fist else (2.9 if fin else 2.4)
 	var hit_any := false
 	var flesh := false   # acertou algo que não é slime: lâmina em carne; só slime: só a lâmina
 	var hit_enemy := false
@@ -813,7 +826,7 @@ func _do_hit() -> void:
 		var dist := to.length()
 		if dist > reach + e.radius:
 			continue
-		if (combo < 3 or fist) and dist > 0.6 and f.dot(to.normalized()) < 0.3:
+		if (not fin or fist) and dist > 0.6 and f.dot(to.normalized()) < 0.3:
 			continue
 		var crit: bool = randf() < Game.crit_chance()
 		var dmg: float = EnchantHit.scale(e, Game.melee_damage() * mult * randf_range(0.9, 1.1) * (1.8 if crit else 1.0))
@@ -828,7 +841,7 @@ func _do_hit() -> void:
 	elif hit_enemy:
 		Sfx.play(Sfx.sword_hit(flesh, Sfx.heavy_sword(_weapon_id())), 0.1)
 	if hit_any:
-		add_shake(0.12 if combo < 3 else 0.22)
+		add_shake(0.22 if fin else 0.12)
 
 
 func _swing_time(c: int) -> float:
@@ -837,7 +850,39 @@ func _swing_time(c: int) -> float:
 			return STAFF_TIMES[clampi(c, 1, 3) - 1]
 		"bow":
 			return BOW_RECOVER
+	if _shield_combo():
+		return SHIELD_SWING_TIMES[clampi(c, 1, SHIELD_SWING_TIMES.size()) - 1]
 	return (PUNCH_TIMES if _unarmed() else SWING_TIMES)[clampi(c, 1, 3) - 1]
+
+
+## Espada com escudo na outra mão (do jogo local ou, numa réplica, do último visual recebido): o golpe básico
+## é o combo de 4 golpes de KnightMovesShield.
+func _shield_combo() -> bool:
+	if look["class"] != "sword" or _unarmed():
+		return false
+	var off := str(_last_look.get("offhand", "")) if remote else str(Game.equipment.get("offhand", ""))
+	return off != "" and str(ItemDB.get_item(off).get("needs", "")) == "sword"
+
+
+## Golpes do combo básico: 4 com espada e escudo, 3 nos outros.
+func _combo_len() -> int:
+	return SHIELD_SWING_TIMES.size() if _shield_combo() else 3
+
+
+## O golpe atual é o último do combo (giro da espada, uppercut, leque do cajado): mais alcance e tranco.
+func _finisher() -> bool:
+	return combo >= _combo_len()
+
+
+## Fim do golpe: o giro do tronco volta. No combo com escudo as trilhas emendam pelo giro em -PI..PI
+## (KnightAnim.unwind_twist), sem pular a pose; nos outros o giro zera na hora.
+func _end_swing_twist() -> void:
+	if _shield_combo():
+		KnightAnim.unwind_twist(parts)
+		_swing_from = KnightAnim.capture_pose(parts)   # se nenhum golpe emendar, a volta sai daqui
+		_recover_t = 0.0
+	else:
+		KnightAnim.reset_twist(parts)
 
 
 ## Arma equipada: a do jogo local ou, numa réplica de outro jogador, a do último visual recebido.
@@ -1725,6 +1770,8 @@ var _slash_combo := 0       ## golpe do combo cujo corte já foi desenhado (ver 
 var _slash_t := 0.0
 var _slash_done := false
 var _slash_el := ""         ## elemento do encantamento da arma: dá a cor do corte
+var _swing_from := {}       ## pose do corpo quando o golpe do combo com escudo começou (KnightAnim.capture_pose)
+var _recover_t := -1.0      ## s desde que o combo com escudo parou (volta à locomoção); < 0 = fora da volta
 
 
 func _update_equipment_visual() -> void:
@@ -1815,12 +1862,16 @@ func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int,
 	if flags & NF_ATTACK:
 		if not attacking or c != combo:
 			Sfx.play_at(_attack_sound(), global_position, 0.1, -6.0)
+		if attacking and c != combo:
+			_end_swing_twist()   # golpe seguinte do combo: a trilha nova começa com o giro em -PI..PI
+		if (not attacking or c != combo) and _shield_combo():
+			_swing_from = KnightAnim.capture_pose(parts)
 		attacking = true
-		combo = clampi(c, 1, 3)
+		combo = clampi(c, 1, _combo_len())
 		attack_timer = attack_t
 	elif attacking:
 		attacking = false
-		KnightAnim.reset_twist(parts)
+		_end_swing_twist()
 	# a habilidade da réplica termina sozinha pelo tempo; o estado sem a flag a encerra antes (esquiva,
 	# morte). Uma folga ignora estado atrasado que chegue depois do evento de início. Sem morte, o fim é o
 	# macio do módulo (o da esquiva): a Chuva de Meteoros deixa os meteoros no ar caírem, mesmo se o estado
@@ -2060,6 +2111,10 @@ func _animate(delta: float) -> void:
 	# golpes, arco e magias: trilhas de KnightMoves por cima da locomoção
 	var cls: String = look["class"]
 	_cast_t += delta
+	if attacking or _recover_t >= KnightAnim.SHIELD_RECOVER:
+		_recover_t = -1.0   # golpe em curso (a réplica emendou outro) ou a volta acabou
+	elif _recover_t >= 0.0:
+		_recover_t += delta
 	var arrow: Node3D = look.get("arrow")
 	if arrow and is_instance_valid(arrow):
 		arrow.visible = drawing or ((ability == "bow_triple" and ability_t < BowAbilities.TRIPLE_DRAW) or (ability == "bow_frost" and ability_t < BowAbilities.FROST_DRAW)
@@ -2076,6 +2131,11 @@ func _animate(delta: float) -> void:
 		KnightAnim.staff_pose(p, combo, attack_timer / _swing_time(combo), _amp)
 	elif attacking and cls == "sword" and _unarmed():
 		KnightAnim.punch_pose(p, combo, attack_timer / _swing_time(combo), _amp)
+	elif attacking and cls == "sword" and _shield_combo():
+		KnightAnim.shield_combo_pose(p, combo, attack_timer / _swing_time(combo), _amp, _swing_from)
+		_slash_fx()
+	elif _recover_t >= 0.0 and dodge_timer <= 0.0 and not dead and cls == "sword" and _shield_combo():
+		KnightAnim.shield_recover_pose(p, _swing_from, _recover_t / KnightAnim.SHIELD_RECOVER)
 	elif attacking and cls == "sword":
 		KnightAnim.sword_pose(p, combo, attack_timer / _swing_time(combo), _amp)
 		_slash_fx()
@@ -2241,15 +2301,20 @@ func _look_gear(l: Dictionary) -> Dictionary:
 ## Corte desenhado do golpe de espada em curso, uma vez por golpe. Chamado de _animate, por onde passam
 ## o jogador local e as réplicas (que recebem combo e attack_timer pelo estado de rede).
 func _slash_fx() -> void:
-	var c := clampi(combo, 1, 3)
+	var c := clampi(combo, 1, _combo_len())
 	if c != _slash_combo or attack_timer < _slash_t - 0.1:   # outro golpe do combo, ou o relógio voltou
 		_slash_done = false
 	_slash_combo = c
 	_slash_t = attack_timer
-	if _slash_done or attack_timer / SWING_TIMES[c - 1] < FXToon.SWORD_COMBO[c - 1].at:
+	var shield := _shield_combo()
+	var at: float = (KnightMovesShield.SLASH[c - 1].at if shield else FXToon.SWORD_COMBO[c - 1].at)
+	if _slash_done or attack_timer / _swing_time(c) < at:
 		return
 	_slash_done = true
-	FXToon.sword_slash(self, model.rotation.y, c, slash_color())
+	if shield:
+		FXToon.shield_combo_slash(self, model.rotation.y, c, _swing_time(c), slash_color())
+	else:
+		FXToon.sword_slash(self, model.rotation.y, c, slash_color())
 
 
 ## Cor dos efeitos desenhados dos golpes: a do elemento do encantamento da arma ou, sem ele, a da arma.
