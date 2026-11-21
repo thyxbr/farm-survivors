@@ -338,6 +338,7 @@ parts`. Com mais de 4 o Gemini costuma misturar as peças de um item no outro.
 | `traveler_tunic` | Túnica de Viajante | Two-color wool tunic with bandolier and pouch. |
 | `guard_surcoat` | Sobreveste da Guarda | Chain mail under a tabard with the guard's cross. |
 | `dragon_plate` | Couraça de Escamas de Dragão | Dark dragon-scale armor with glowing red ember between the scales and a flame gem on the chest. |
+| `mithril_plate` | Placa de Mithril | Fitted elven plate armor of bluish silver mithril with a tall gorget, a V-shaped bib, waist lames and inlaid pale blue leaves growing up the chest like a tree, front view. |
 
 ## E. Acessórios e peças (25) — anexar referência
 
@@ -366,6 +367,8 @@ parts`. Com mais de 4 o Gemini costuma misturar as peças de um item no outro.
 | `ember_greaves` | Grevas de Escamas de Dragão | Pair of black scale greaves with clawed feet and ember between the scales. |
 | `ranger_boots` | Botas do Patrulheiro | Pair of tall dark leather boots wrapped in stacked leather bands, a turned-down cuff and pointed shoes with a buckled ankle strap. |
 | `ranger_gloves` | Luvas do Patrulheiro | Pair of archer gloves: one brown leather glove, the other dark leather wrapped in blue cloth with a red strap. |
+| `mithril_greaves` | Grevas de Mithril | Pair of bluish silver elven greaves with a domed knee cop fanned with inlaid pale blue leaves, a V plate with a shield-shaped leaf and long pointed sabatons. |
+| `mithril_gauntlets` | Manoplas de Mithril | Pair of bluish silver plate gauntlets with a knuckle ridge and three inlaid pale blue leaves on the back of each hand. |
 | `wooden_shield` | Escudo de Madeira | Wooden plank shield with nails, front view. |
 | `knight_shield` | Escudo do Cavaleiro | Shield with the Valdoria guard crest, front view. |
 | `arcane_orb` | Orbe Arcano | Floating glowing arcane orb. |

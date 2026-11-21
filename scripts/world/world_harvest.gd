@@ -9,6 +9,13 @@ extends RefCounted
 ## só se guarda quando cada nó volta (em memória; reiniciar o servidor devolve todos).
 
 var _ready_at := {}   # nó -> instante (unix s) em que volta a poder ser coletado
+## Quem está batendo em cada nó agora: nó -> {"owner": quem (o peer, no servidor), "until": instante em que a reserva
+## vence se não for renovada}. Enquanto vale, só o dono coleta o nó (os outros são recusados com "ocupado").
+var _claims := {}
+
+## Segundos que uma reserva dura sem ser renovada (o cliente renova a cada golpe, ver GatherAction; o golpe mais
+## lento é de GatherRules.SWING_BASE = 1 s e a ida até a pedra leva até GatherAction.APPROACH_MAX = 2 s).
+const CLAIM_TTL := 5.0
 
 
 static func _table(bt: BalanceTables) -> Dictionary:
@@ -76,8 +83,9 @@ func depleted(now: float) -> Dictionary:
 
 
 ## A conta `account`, na posição `from`, coleta o nó `id` (some para todos até voltar). {"ok", "err", "items": {item: quantidade}}.
-## Recusas: "no_invalido", "longe" (HitGuard.accepts_harvest), "esgotado" (ainda não voltou).
-func gather(bt: BalanceTables, account: int, id, from: Vector3, now: float) -> Dictionary:
+## Recusas: "no_invalido", "longe" (HitGuard.accepts_harvest), "esgotado" (ainda não voltou), "ocupado" (outro
+## `owner` tem a reserva do nó; owner 0 = sem reservas, como no solo).
+func gather(bt: BalanceTables, account: int, id, from: Vector3, now: float, owner := 0) -> Dictionary:
 	var d := node_def(bt, id)
 	if d.is_empty() or d.item == "":
 		return {"ok": false, "err": "no_invalido", "items": {}}
@@ -85,9 +93,74 @@ func gather(bt: BalanceTables, account: int, id, from: Vector3, now: float) -> D
 		return {"ok": false, "err": "longe", "items": {}}
 	if ready_in(account, id, now) > 0.0:
 		return {"ok": false, "err": "esgotado", "items": {}}
+	if owner != 0 and holder(id, now) not in [0, owner]:
+		return {"ok": false, "err": "ocupado", "items": {}}
 	_ready_at[id] = now + float(d.respawn)
+	_claims.erase(id)   # o nó caiu: a reserva acabou junto
 	return {"ok": true, "err": "", "items": {d.item: int(d.amount)}, "prof": d.prof, "level": d.level, "xp": d.xp,
 		"tier": d.tier}
+
+
+## `owner` começa ou renova a reserva do nó `id` (começou a bater nele). false se outro já está batendo nele, ou se o
+## nó não existe ou está esgotado.
+func claim(bt: BalanceTables, id, owner: int, now: float) -> bool:
+	if node_def(bt, id).is_empty() or ready_in(0, id, now) > 0.0:
+		return false
+	var h := holder(id, now)
+	if h != 0 and h != owner:
+		return false
+	_claims[id] = {"owner": owner, "until": now + CLAIM_TTL}
+	return true
+
+
+## Quem tem a reserva do nó `id` agora (0 = ninguém).
+func holder(id, now: float) -> int:
+	var c = _claims.get(id)
+	if c == null:
+		return 0
+	if float(c.until) <= now:
+		_claims.erase(id)
+		return 0
+	return int(c.owner)
+
+
+## `owner` largou o nó `id` (parou de bater). true se a reserva era dele e saiu.
+func release(id, owner: int) -> bool:
+	var c = _claims.get(id)
+	if c == null or int(c.owner) != owner:
+		return false
+	_claims.erase(id)
+	return true
+
+
+## Larga todas as reservas de `owner` (saiu do jogo ou da zona). Devolve os nós liberados.
+func release_owner(owner: int) -> Array:
+	var out: Array = []
+	for id in _claims.keys():
+		if int(_claims[id].owner) == owner:
+			_claims.erase(id)
+			out.append(id)
+	return out
+
+
+## Tira as reservas vencidas (o dono parou de renovar sem avisar). Devolve os nós liberados.
+func expire_claims(now: float) -> Array:
+	var out: Array = []
+	for id in _claims.keys():
+		if float(_claims[id].until) <= now:
+			_claims.erase(id)
+			out.append(id)
+	return out
+
+
+## Nós reservados agora: {id: dono}.
+func claims(now: float) -> Dictionary:
+	var out := {}
+	for id in _claims.keys():
+		var h := holder(id, now)
+		if h != 0:
+			out[id] = h
+	return out
 
 
 ## Desfaz a marca de coletado (a concessão falhou depois do gather).

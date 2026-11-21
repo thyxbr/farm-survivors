@@ -3137,6 +3137,7 @@
 	"mithril_gauntlets": {
 		"name": "Manoplas de Mithril",
 		"type": "gear",
+		"style": "g_mithril",
 		"slot": "hands",
 		"rarity": "epic",
 		"level": 37,
@@ -3155,6 +3156,7 @@
 	"mithril_greaves": {
 		"name": "Grevas de Mithril",
 		"type": "gear",
+		"style": "f_mithril",
 		"slot": "feet",
 		"rarity": "epic",
 		"level": 36,
@@ -3168,6 +3170,25 @@
 			"vit": 2
 		},
 		"desc": "Passos firmes nas encostas do Pico.",
+		"craft": true
+	},
+	"mithril_plate": {
+		"name": "Placa de Mithril",
+		"type": "armor",
+		"rarity": "epic",
+		"level": 36,
+		"defense": 15,
+		"price": 320,
+		"color": {
+			"$c": [0.6, 0.85, 0.9, 1.0]
+		},
+		"metal": true,
+		"style": "a_mithril",
+		"stats": {
+			"vit": 4,
+			"agi": 3
+		},
+		"desc": "Placa élfica justa ao corpo, com folhas de mithril incrustadas.",
 		"craft": true
 	},
 	"astral_blade": {
