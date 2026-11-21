@@ -296,6 +296,14 @@ func _gear_only(slot: String, id: String) -> Node3D:
 	WeaponModel.use_vertex_color(model)
 	for mi: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
 		mi.visible = false
+	if slot == "offhand" and ItemDB.get_item(id).has("model"):
+		# escudo com modelo próprio (sh_<id>.glb): a peça sozinha, face (+Z do GLB) para a câmera
+		var spath := "res://assets/models/%s.glb" % ItemDB.get_item(id).get("model", "")
+		if ResourceLoader.exists(spath):
+			model.free()
+			var sh := (load(spath) as PackedScene).instantiate() as Node3D
+			WeaponModel.use_vertex_color(sh)
+			return sh
 	if slot == "offhand":
 		for pn in KnightLook.SHIELD_PARTS:
 			var mi := model.find_child(pn, true, false) as MeshInstance3D

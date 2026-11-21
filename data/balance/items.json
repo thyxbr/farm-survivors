@@ -2117,6 +2117,8 @@
 		"level": 1,
 		"defense": 2,
 		"price": 30,
+		"block": 0.5,
+		"guard": 0.0,
 		"color": {
 			"$c": [0.5, 0.34, 0.18, 1.0]
 		},
@@ -2131,6 +2133,8 @@
 		"level": 21,
 		"defense": 5,
 		"price": 190,
+		"block": 0.75,
+		"guard": 0.2,
 		"color": {
 			"$c": [0.64, 0.13, 0.16, 1.0]
 		},
@@ -2138,6 +2142,129 @@
 			"vit": 2
 		},
 		"desc": "O brasão da guarda de Valdoria."
+	},
+	"iron_buckler": {
+		"name": "Broquel de Ferro",
+		"type": "gear",
+		"slot": "offhand",
+		"needs": "sword",
+		"model": "sh_iron_buckler",
+		"rarity": "common",
+		"level": 6,
+		"defense": 2,
+		"price": 55,
+		"block": 0.55,
+		"guard": 0.15,
+		"color": {
+			"$c": [0.66, 0.7, 0.78, 1.0]
+		},
+		"stats": {
+			"agi": 1
+		},
+		"desc": "Pequeno e todo de ferro: defende rápido e cansa pouco, mas deixa passar mais."
+	},
+	"round_shield": {
+		"name": "Escudo Redondo Nórdico",
+		"type": "gear",
+		"slot": "offhand",
+		"needs": "sword",
+		"model": "sh_round_shield",
+		"rarity": "uncommon",
+		"level": 11,
+		"defense": 3,
+		"price": 120,
+		"block": 0.65,
+		"guard": 0.1,
+		"color": {
+			"$c": [0.23, 0.42, 0.66, 1.0]
+		},
+		"stats": {
+			"vit": 1
+		},
+		"desc": "Tábuas de tília, umbo de ferro e borda de couro cru costurada."
+	},
+	"kite_shield": {
+		"name": "Escudo Pipa",
+		"type": "gear",
+		"slot": "offhand",
+		"needs": "sword",
+		"model": "sh_kite_shield",
+		"rarity": "uncommon",
+		"level": 16,
+		"defense": 4,
+		"price": 170,
+		"block": 0.7,
+		"guard": 0.15,
+		"color": {
+			"$c": [0.18, 0.54, 0.39, 1.0]
+		},
+		"stats": {
+			"vit": 1,
+			"str": 1
+		},
+		"desc": "Comprido como uma gota: cobre do ombro à canela."
+	},
+	"tower_shield": {
+		"name": "Pavês de Torre",
+		"type": "gear",
+		"slot": "offhand",
+		"needs": "sword",
+		"model": "sh_tower_shield",
+		"rarity": "rare",
+		"level": 27,
+		"defense": 7,
+		"price": 310,
+		"block": 0.85,
+		"guard": 0.1,
+		"color": {
+			"$c": [0.61, 0.38, 0.21, 1.0]
+		},
+		"stats": {
+			"vit": 3
+		},
+		"desc": "Uma parede com alça. Segura quase tudo, mas pesa no braço."
+	},
+	"lion_shield": {
+		"name": "Escudo do Leão Dourado",
+		"type": "gear",
+		"slot": "offhand",
+		"needs": "sword",
+		"model": "sh_lion_shield",
+		"rarity": "epic",
+		"level": 33,
+		"defense": 8,
+		"price": 480,
+		"block": 0.8,
+		"guard": 0.3,
+		"color": {
+			"$c": [0.17, 0.34, 0.69, 1.0]
+		},
+		"stats": {
+			"vit": 3,
+			"str": 1
+		},
+		"desc": "Aço azul-real e o leão de ouro dos campeões do torneio."
+	},
+	"dragon_aegis": {
+		"name": "Égide do Dragão",
+		"type": "gear",
+		"slot": "offhand",
+		"needs": "sword",
+		"model": "sh_dragon_aegis",
+		"rarity": "legendary",
+		"level": 44,
+		"defense": 11,
+		"price": 950,
+		"block": 0.9,
+		"guard": 0.4,
+		"color": {
+			"$c": [0.6, 0.09, 0.15, 1.0]
+		},
+		"stats": {
+			"vit": 5,
+			"str": 2
+		},
+		"desc": "Escamas de um dragão carmim; o olho no centro ainda queima."
 	},
 	"arcane_orb": {
 		"name": "Orbe Arcano",
