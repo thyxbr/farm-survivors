@@ -8,7 +8,8 @@
 # Lobo magro de pelo azul-gelo (~0,85 m na cernelha), barriga clara, cauda espessa com a ponta branca, colar de pelo
 # eriçado no pescoço e uma crista de cristais de gelo da nuca até o meio das costas; olhos gelados acesos.
 # Pivôs animados por scripts/enemies/enemy.gd (_animate_wolf): Body (tronco), Head (dentro de Body), Jaw (dentro de
-# Head), Tail (dentro de Body) e LegFL, LegFR, LegBL, LegBR (na raiz; o ombro/quadril é uma massa enterrada no tronco).
+# Head), Tail (dentro de Body) e as patas LegFL, LegFR, LegBL, LegBR (na raiz; o ombro/quadril é uma massa enterrada no
+# tronco), cada uma com Knee<lado> (cotovelo/joelho) > Paw<lado> (punho/jarrete) e o marcador Foot<lado> no apoio.
 def build_wolf():
     fur = mat("w_fur", hexc("#7C93A8"), 0.9)
     fur_d = mat("w_fur_d", hexc("#4A5E74"), 0.9)
@@ -163,13 +164,23 @@ def build_wolf():
             j2 = Vector((x + s * 0.01, 0.5, 0.24))     # jarrete (para trás)
             ft = Vector((x + s * 0.01, 0.45, 0.05))
             secs = [(0.095, 0.17), (0.085, 0.14), (0.058, 0.07), (0.045, 0.06), (0.042, 0.05), (0.046, 0.05)]
+        # três ossos: Leg (ombro/quadril, dentro do tronco) > Knee (cotovelo/joelho) > Paw (punho/jarrete, leva a pata);
+        # cada junta tem uma bola do raio da perna no osso de baixo, que tapa a dobra quando ela gira
+        nm = side[3:]
         leg = empty(side, top, root)
+        knee = empty("Knee" + nm, j1, leg)
+        pawp = empty("Paw" + nm, j2, knee)
+        empty("Foot" + nm, ft, pawp)          # marcador do apoio no chão (o IK do enemy.gd mira aqui)
         _blob(side + "_Joint", top + Vector((0, 0, 0.03)), 0.08, 0.1, 0.11, fur, leg, sides=14, rings=8)
-        pts = [top, top.lerp(j1, 0.5), j1, j1.lerp(j2, 0.5), j2, ft]
-        lsecs = dense([sec(p, rx, ry) for p, (rx, ry) in zip(pts, secs)], 16)
-        sloft(side + "_Mesh", lsecs, fur, leg, sides=12, fwd=(0, -1, 0), mats=(fur_d,),
-              matf=lambda i, j: 1 if i >= 11 else 0, sharp=80.0)
-        paw(side + "_Paw", ft, leg, s)
+        r = secs
+        sloft(side + "_Upper", dense([sec(top, *r[0]), sec(top.lerp(j1, 0.5), *r[1]), sec(j1, *r[2])], 10), fur, leg,
+              sides=12, fwd=(0, -1, 0), sharp=80.0)
+        _blob(side + "_KneeBall", j1, r[2][0] * 1.02, r[2][1] * 1.02, r[2][0] * 1.05, fur, knee, sides=12, rings=8)
+        sloft(side + "_Lower", dense([sec(j1, *r[2]), sec(j1.lerp(j2, 0.5), *r[3]), sec(j2, *r[4])], 10), fur, knee,
+              sides=12, fwd=(0, -1, 0), sharp=80.0)
+        _blob(side + "_AnkleBall", j2, r[4][0] * 1.05, r[4][1] * 1.05, r[4][0] * 1.08, fur_d, pawp, sides=12, rings=8)
+        sloft(side + "_Foot", dense([sec(j2, *r[4]), sec(ft, *r[5])], 6), fur_d, pawp, sides=12, fwd=(0, -1, 0), sharp=80.0)
+        paw(side + "_Paw", ft, pawp, s)
 
     for ob in coll.all_objects:
         if ob.type == 'MESH' and "Spine" not in ob.name:
@@ -181,8 +192,8 @@ def build_wolf():
 # ================================================================== GRALHA-DE-CRISTAL
 # Ave escura do tamanho de um cão (~1,9 m de asa a asa) que voa em volta e atira estilhaços de gelo: penas azul-noite,
 # peito cinza-gelo, bico de gelo, olhos acesos e as pontas das penas grandes viradas em lascas de cristal.
-# Mesmos pivôs do morcego (scripts/enemies/enemy.gd, _animate_bat): Body (a 1,5 m, sobe e desce no voo), Head (dentro
-# de Body) e WingL/WingR (no ombro, dentro do tronco; giram no eixo da frente para bater).
+# Pivôs animados por scripts/enemies/enemy.gd (_animate_crow): Body (a 1,5 m, sobe e desce no voo), Head e Tail (dentro
+# de Body) e as asas em três ossos, WingL > WingL2 > WingL3 (ombro, cotovelo, punho; o mesmo à direita).
 def _feather(name, p0, p1, w, material, parent, mats=(), tipmat=None, thick=0.018, lift=0.0):
     """Pena chata e horizontal de p0 a p1, larga no meio e fechada na ponta; tipmat pinta o último terço."""
     p0, p1 = Vector(p0), Vector(p1)
@@ -233,33 +244,42 @@ def build_crow():
         base = fera_surf(hsecs, y, 90, -0.03)
         fera_tip("Crest%d" % k, base, base + Vector((0, lean, h)), 0.03, plum_d if k else crys_d, head, flat=0.4)
 
-    # ---------------- asas: braço coberto de penas e cinco penas grandes em leque, pontas de cristal
+    # ---------------- asas em três ossos: Wing<L/R> (ombro, dentro do tronco) > Wing<L/R>2 (cotovelo) > Wing<L/R>3
+    # (punho, com as penas grandes). Cada junta tem uma bola de penas no osso de fora, que tapa a dobra.
     for s, nm in ((1, "L"), (-1, "R")):
         sh = Vector((s * 0.1, -0.06, Z + 0.06))
-        wing = empty("Wing" + nm, sh, body)
-        _blob(nm + "Shoulder", sh + Vector((s * 0.03, 0, 0)), 0.08, 0.1, 0.07, plum, wing, sides=12, rings=8)
         el = Vector((s * 0.42, -0.04, Z + 0.14))
         wr = Vector((s * 0.74, -0.1, Z + 0.14))
-        sloft(nm + "Arm", fera_dense([sec(sh, 0.12, 0.05), sec(el, 0.17, 0.04), sec(wr, 0.09, 0.03)], 10), plum, wing,
-              sides=10, fwd=up, axis=None, sharp=80.0)
-        # cobertura: penas médias atrás do braço
+        wing = empty("Wing" + nm, sh, body)
+        fore = empty("Wing" + nm + "2", el, wing)
+        hand = empty("Wing" + nm + "3", wr, fore)
+        _blob(nm + "Shoulder", sh + Vector((s * 0.03, 0, 0)), 0.08, 0.1, 0.07, plum, wing, sides=12, rings=8)
+        sloft(nm + "Arm", fera_dense([sec(sh, 0.12, 0.05), sec(sh.lerp(el, 0.5), 0.15, 0.045), sec(el, 0.17, 0.04)], 8),
+              plum, wing, sides=10, fwd=up, sharp=80.0)
+        _blob(nm + "ElbowBall", el, 0.06, 0.16, 0.045, plum, fore, sides=12, rings=6)
+        sloft(nm + "Forearm", fera_dense([sec(el, 0.17, 0.04), sec(el.lerp(wr, 0.5), 0.13, 0.035), sec(wr, 0.09, 0.03)], 8),
+              plum, fore, sides=10, fwd=up, sharp=80.0)
+        _blob(nm + "WristBall", wr, 0.05, 0.09, 0.035, plum, hand, sides=12, rings=6)
+        # cobertura: penas médias atrás do braço (as de dentro no braço, as de fora no antebraço)
         for k in range(6):
-            a = sh.lerp(wr, 0.12 + k * 0.16)
+            u = 0.12 + k * 0.16
+            a = sh.lerp(wr, u)
             _feather("%sCovert%d" % (nm, k), a, a + Vector((s * (0.03 + k * 0.03), 0.36 - k * 0.025, -0.03)), 0.085,
-                     plum_d if k % 2 else plum, wing)
+                     plum_d if k % 2 else plum, wing if u < 0.5 else fore)
         # primárias em leque a partir do punho
         for k, (ang, ln) in enumerate(((-28, 0.5), (-10, 0.56), (8, 0.54), (26, 0.48), (44, 0.42))):
             a = math.radians(ang)
             d = Vector((s * math.cos(a), math.sin(a), -0.03))
-            _feather("%sPrimary%d" % (nm, k), wr - d * 0.06, wr + d * ln, 0.072, plum, wing, tipmat=crys, lift=0.01)
-        _crystal(nm + "WristIce", wr + Vector((0, 0, 0.02)), (s * 0.4, -0.6, 0.6), 0.14, 0.03, (crys, crys_d), wing)
+            _feather("%sPrimary%d" % (nm, k), wr - d * 0.06, wr + d * ln, 0.072, plum, hand, tipmat=crys, lift=0.01)
+        _crystal(nm + "WristIce", wr + Vector((0, 0, 0.02)), (s * 0.4, -0.6, 0.6), 0.14, 0.03, (crys, crys_d), hand)
 
     # ---------------- cauda em leque e pés recolhidos com garras
+    tail = empty("Tail", (0, 0.24, Z - 0.01), body)
     for k, ang in enumerate((-22, -11, 0, 11, 22)):
         a = math.radians(ang)
-        p0 = Vector((0, 0.24, Z - 0.01))
+        p0 = Vector((0, 0.2, Z - 0.01))
         d = Vector((math.sin(a), math.cos(a), -0.12))
-        _feather("Tail%d" % k, p0, p0 + d * (0.42 - abs(ang) * 0.004), 0.055, plum_d if k % 2 else plum, body,
+        _feather("Tail%d" % k, p0, p0 + d * (0.42 - abs(ang) * 0.004), 0.055, plum_d if k % 2 else plum, tail,
                  tipmat=crys if k == 2 else None)
     for s, nm in ((1, "L"), (-1, "R")):
         hp = Vector((s * 0.06, 0.08, Z - 0.1))
@@ -280,8 +300,9 @@ def build_crow():
 # ================================================================== IETI GLACIAL
 # Fera grande dos fossos (~2,4 m), curvada como um gorila: pelo branco-azulado, rosto, mãos e pés de pele azul,
 # chifres de gelo curvos, ombros e antebraços cobertos de cristais (o gelo que ele bate no chão).
-# Mesmos pivôs do Golem (scripts/enemies/enemy.gd, _animate_golem): LegL, LegR (no quadril), Body, Head (dentro de
-# Body) e ArmL/ArmR (no ombro, DENTRO do tronco: a massa de pelo do ombro fica enterrada no corpo ao girar).
+# Pivôs animados por scripts/enemies/enemy.gd (_animate_yeti): LegL, LegR (no quadril), Body, Head (dentro de Body),
+# ArmL/ArmR (no ombro, DENTRO do tronco: a massa de pelo do ombro fica enterrada no corpo ao girar) e ElbowL/ElbowR
+# (o cotovelo, dentro do braço: antebraço, mão e manopla de gelo).
 def build_yeti():
     fur = mat("y_fur", hexc("#E6EEF4"), 0.95)
     fur_d = mat("y_fur_d", hexc("#AFC0CE"), 0.95)
@@ -367,20 +388,22 @@ def build_yeti():
         _blob(side + "_Shoulder", (x - s * 0.04, -0.04, 1.72), 0.3, 0.3, 0.28, fur, arm, sides=16, rings=10)
         elbow = Vector((x + s * 0.12, -0.06, 1.16))
         wrist = Vector((x + s * 0.14, -0.16, 0.6))
+        fore = empty("Elbow" + side[3:], elbow, arm)      # antebraço, mão e manopla de gelo dobram no cotovelo
+        _blob(side + "_ElbowBall", elbow, 0.18, 0.18, 0.18, fur_d, fore, sides=14, rings=8)
         sloft(side + "_Upper", fera_dense([sec((x, -0.04, 1.66), 0.2, 0.2), sec(elbow + Vector((0, 0, 0.1)), 0.17, 0.17),
                                            sec(elbow, 0.17, 0.17)], 8), fur, arm, sides=12, phase=0.0, sharp=80.0)
         sloft(side + "_Fore", fera_dense([sec(elbow, 0.18, 0.18), sec(elbow.lerp(wrist, 0.5), 0.22, 0.22),
-                                          sec(wrist, 0.17, 0.17)], 8), fur_d, arm, sides=12, phase=0.0, sharp=80.0)
+                                          sec(wrist, 0.17, 0.17)], 8), fur_d, fore, sides=12, phase=0.0, sharp=80.0)
         hand = Vector((x + s * 0.15, -0.2, 0.44))
-        _blob(side + "_Hand", hand, 0.2, 0.22, 0.19, skin, arm, sides=16, rings=10)
+        _blob(side + "_Hand", hand, 0.2, 0.22, 0.19, skin, fore, sides=16, rings=10)
         for k, dx in enumerate((-0.11, 0.0, 0.11)):
             c0 = hand + Vector((dx, -0.18, -0.08))
             fera_curve(side + "_Claw%d" % k, [c0, c0 + Vector((0, -0.07, -0.02)), c0 + Vector((0, -0.1, -0.1))],
-                       0.04, 0.004, claw, arm, sides=8)
+                       0.04, 0.004, claw, fore, sides=8)
         # manopla de gelo: cristais nascendo do antebraço para fora e para trás
         for k, (u, d, ln, rr) in enumerate(((0.3, (s * 0.9, 0.2, 0.3), 0.3, 0.07), (0.55, (s * 0.8, -0.3, 0.1), 0.26, 0.065),
                                             (0.75, (s * 0.7, 0.4, -0.1), 0.22, 0.055), (0.45, (s * 0.2, 0.9, 0.2), 0.2, 0.05))):
-            _crystal("%s_Ice%d" % (side, k), elbow.lerp(wrist, u), d, ln, rr, (crys, crys_d), arm)
+            _crystal("%s_Ice%d" % (side, k), elbow.lerp(wrist, u), d, ln, rr, (crys, crys_d), fore)
         # gelo no ombro
         for k, (d, ln, rr) in enumerate((((s * 0.4, 0.1, 1.0), 0.42, 0.085), ((s * 0.8, 0.3, 0.6), 0.32, 0.07),
                                          ((s * 0.6, -0.4, 0.7), 0.28, 0.06))):

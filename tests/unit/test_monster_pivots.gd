@@ -8,9 +8,10 @@ const REQUIRED := {
 	"golem": ["LegL", "LegR", "Body", "Head", "ArmL", "ArmR"],
 	"worm": ["Body", "Neck", "Head", "Jaw"],
 	"mole": ["LegL", "LegR", "KneeL", "KneeR", "Body", "Head", "ArmL", "ArmR", "ElbowL", "ElbowR", "Drill"],
-	"wolf": ["Body", "Head", "Jaw", "Tail", "LegFL", "LegFR", "LegBL", "LegBR"],
-	"crow": ["Body", "Head", "WingL", "WingR"],
-	"yeti": ["LegL", "LegR", "Body", "Head", "ArmL", "ArmR"],
+	"wolf": ["Body", "Head", "Jaw", "Tail", "LegFL", "LegFR", "LegBL", "LegBR", "KneeFL", "KneeFR", "KneeBL", "KneeBR",
+		"PawFL", "PawFR", "PawBL", "PawBR", "FootFL", "FootFR", "FootBL", "FootBR"],
+	"crow": ["Body", "Head", "Tail", "WingL", "WingL2", "WingL3", "WingR", "WingR2", "WingR3"],
+	"yeti": ["LegL", "LegR", "Body", "Head", "ArmL", "ArmR", "ElbowL", "ElbowR"],
 }
 
 

@@ -130,7 +130,13 @@ var web_cd := 0.0
 ## Alfa da Matilha: segundos de pressa que o uivo deu a este lobo (anda HOWL_HASTE vezes mais rápido).
 var haste_t := 0.0
 const HOWL_HASTE := 1.35
-const WOLF_LEGS := ["LegFL", "LegFR", "LegBL", "LegBR"]
+const WOLF_SIDES := ["FL", "FR", "BL", "BR"]
+## Lobo: o repouso de cada pata no espaço do modelo (quadril, joelho, tornozelo e apoio, no plano y/z) e o ciclo
+## do trote; Gralha: o ciclo da batida de asa. Ver _animate_wolf e _animate_crow.
+var _wolf_rest := {}
+var _gait_ph := 0.0
+var _gait_amp := 0.0
+var _crow_ph := 0.0
 ## Toupeira-Broca (ai "burrow"): segundos debaixo da terra, segundos na superfície desde que saiu, o monte de
 ## terra que anda por cima dela e a camada de colisão normal (zerada enquanto está enterrada).
 var dig_t := 0.0
@@ -214,8 +220,16 @@ func _ready() -> void:
 		_make_elite_glow()
 	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head", "Tail", "Jaw", "Drill"]:   # Tail e Jaw: raptor e lobo; Drill: toupeira
 		parts[n] = model.find_child(n, true, false)
-	for n in WOLF_LEGS:   # Lobo da Geada: quatro patas
-		parts[n] = model.find_child(n, true, false)
+	if data.model == "wolf":   # Lobo da Geada: quatro patas em três ossos (Leg > Knee > Paw) e o apoio (Foot)
+		for sd in WOLF_SIDES:
+			for b in ["Leg", "Knee", "Paw", "Foot"]:
+				parts[b + sd] = model.find_child(b + sd, true, false)
+	if data.model == "crow":   # Gralha: asa em três ossos (ombro, cotovelo, punho) e a cauda
+		for n in ["WingL2", "WingL3", "WingR2", "WingR3"]:
+			parts[n] = model.find_child(n, true, false)
+	if data.model == "yeti":   # Ieti: cotovelos
+		for n in ["ElbowL", "ElbowR"]:
+			parts[n] = model.find_child(n, true, false)
 	if data.model == "worm":   # Mãe-Verme: o segundo osso do corpo
 		parts["Neck"] = model.find_child("Neck", true, false)
 	if data.model == "mole":   # Toupeira: o segundo osso de cada membro (cotovelo e joelho)
@@ -2147,13 +2161,19 @@ func _animate(delta: float, hspeed: float) -> void:
 	if data.model == "frog":
 		_animate_frog(hspeed, k)
 		return
-	if data.model in ["bat", "crow"]:
+	if data.model == "bat":
 		_animate_bat(hspeed, k)
 		return
-	if data.model == "wolf":
-		_animate_wolf(hspeed, s, k)
+	if data.model == "crow":
+		_animate_crow(delta, hspeed, k)
 		return
-	if data.model in ["golem", "yeti"]:
+	if data.model == "wolf":
+		_animate_wolf(delta, hspeed)
+		return
+	if data.model == "yeti":
+		_animate_yeti(delta, hspeed, k)
+		return
+	if data.model == "golem":
 		_animate_golem(hspeed, s, k)
 		return
 	if data.model == "mole":
@@ -2565,63 +2585,310 @@ func _howl(visual: bool) -> void:
 			e.haste_t = float(data.get("howl_secs", 6.0))
 
 
-## Lobo da Geada: trote em diagonal (pata dianteira de um lado com a traseira do outro), cauda que balança, cabeça
-## baixa caçando; no bote agacha nas traseiras, estica para a frente e fecha a boca no acerto. No uivo (Alfa) senta
-## nas traseiras e ergue a cabeça. Rotação x positiva leva a pata para trás e abaixa a frente (cabeça e mandíbula).
-func _animate_wolf(hspeed: float, s: float, k: float) -> void:
-	var amp: float = clamp(hspeed / 5.0, 0.0, 1.0) * 0.6
-	var fl := s * amp
-	var fr := -s * amp
-	var bl := -s * amp
-	var br := s * amp
-	var body_x := 0.0
-	var bob := absf(cos(anim_t)) * amp * 0.05
-	var head_x := 0.12 * amp + sin(anim_t * 0.35) * 0.04 * (1.0 - amp)
-	var jaw := 0.06 + maxf(0.0, sin(anim_t * 0.6)) * 0.18 * (1.0 - amp)   # parado, ofega de boca aberta
-	var tail_y := sin(anim_t * 0.8) * (0.15 + amp * 0.2)
-	var tail_x := -0.1 - amp * 0.15
+## Ponto do plano da pata: (y, z) do modelo; o ângulo cresce no mesmo sentido da rotação x (positiva leva para trás
+## o que pende para baixo).
+static func _pl(v: Vector3) -> Vector2:
+	return Vector2(v.y, v.z)
+
+
+static func _ang(v: Vector2) -> float:
+	return atan2(v.y, v.x)
+
+
+static func _rot(v: Vector2, a: float) -> Vector2:
+	return v.rotated(a)
+
+
+## Repouso das patas do lobo, lido dos pivôs do modelo (quadril = Leg, joelho = Knee, tornozelo = Paw, apoio = Foot).
+func _wolf_setup() -> bool:
+	if not _wolf_rest.is_empty():
+		return true
+	for sd in WOLF_SIDES:
+		var leg: Node3D = parts.get("Leg" + sd)
+		var knee: Node3D = parts.get("Knee" + sd)
+		var paw: Node3D = parts.get("Paw" + sd)
+		var foot: Node3D = parts.get("Foot" + sd)
+		if leg == null or knee == null or paw == null or foot == null:
+			return false
+		var h := _pl(leg.position)
+		var kn := h + _pl(knee.position)
+		var a := kn + _pl(paw.position)
+		var f := a + _pl(foot.position)
+		var up := _ang(kn - h)
+		var lo := _ang(a - kn)
+		var bend := signf(wrapf(up - _ang(a - h), -PI, PI))
+		_wolf_rest[sd] = {"h": h, "k": kn, "a": a, "f": f, "l1": (kn - h).length(), "l2": (a - kn).length(),
+			"up": up, "lo": lo, "ft": _ang(f - a), "d": f - a, "bend": bend if bend != 0.0 else 1.0}
+	_wolf_rest["body_y"] = (parts.Body as Node3D).position.y
+	return true
+
+
+## IK de uma pata: o quadril desce/sobe com o corpo (dy, pitch), o apoio vai para `foot` (plano y/z do modelo) e o
+## último osso fica inclinado `tilt` em relação ao repouso. Devolve as rotações x de Leg, Knee e Paw.
+func _wolf_leg(sd: String, dy: float, pitch: float, foot: Vector2, tilt: float) -> Vector3:
+	var r: Dictionary = _wolf_rest[sd]
+	var h: Vector2 = r.h
+	h = Vector2(h.x + dy - h.y * sin(pitch), h.y)   # o corpo gira em volta do próprio pivô (z = 0)
+	var a_t: Vector2 = foot - _rot(r.d, tilt)
+	var d := a_t - h
+	var l1: float = r.l1
+	var l2: float = r.l2
+	var dist := clampf(d.length(), absf(l1 - l2) + 0.01, l1 + l2 - 0.005)
+	var ca := clampf((l1 * l1 + dist * dist - l2 * l2) / (2.0 * l1 * dist), -1.0, 1.0)
+	var up := _ang(d) + float(r.bend) * acos(ca)
+	var kn := h + Vector2(cos(up), sin(up)) * l1
+	var lo := _ang(a_t - kn)
+	var rl := wrapf(up - float(r.up), -PI, PI)
+	var rk := wrapf(lo - float(r.lo), -PI, PI) - rl
+	var rp := tilt - rl - rk
+	return Vector3(rl, rk, rp)
+
+
+## Lobo da Geada: trote em diagonal com as patas de verdade (três ossos, IK: o apoio fica no chão enquanto o corpo
+## passa e a pata dobra no joelho e no punho para voltar à frente), corpo quicando duas vezes por passada, cabeça
+## compensando e cauda atrasada. Bote: agacha (joelhos dobram, peito baixo, olhando o alvo), salta esticado com as
+## dianteiras à frente e morde no acerto, aterrissa e volta. Uivo (Alfa): senta nas traseiras e ergue a cabeça.
+func _animate_wolf(delta: float, hspeed: float) -> void:
+	if not _wolf_setup():
+		return
+	var k := 1.0 - exp(-14.0 * delta)
+	var kf := 1.0 - exp(-30.0 * delta)
+	_gait_amp = lerpf(_gait_amp, clampf(hspeed / 5.0, 0.0, 1.0), 1.0 - exp(-6.0 * delta))
+	var amp := _gait_amp
+	var freq := 0.6 + hspeed * 0.4                        # passadas por segundo
+	_gait_ph = fmod(_gait_ph + delta * freq, 1.0)
+	var stride := clampf(hspeed / maxf(freq, 0.1) * 0.55, 0.0, 0.8)
+	var lift := 0.06 + 0.1 * amp
+	var ph := _gait_ph * TAU
+	var tt := Time.get_ticks_msec() / 1000.0 + float(_uid() % 13)
+	# corpo: quica duas vezes por passada, balança um pouco o nariz; parado respira
+	var dy := -0.02 * amp + 0.03 * amp * cos(ph * 2.0) + 0.008 * sin(tt * 1.6) * (1.0 - amp)
+	var pitch := 0.035 * amp * sin(ph)
+	var head_x := 0.14 * amp - pitch * 0.8 + 0.05 * amp * sin(ph * 2.0 + 0.6) + 0.03 * sin(tt * 0.5) * (1.0 - amp)
+	var head_y := sin(tt * 0.37) * 0.22 * (1.0 - amp)
+	var jaw := 0.06 + maxf(0.0, sin(tt * 4.0)) * 0.16 * (1.0 - amp) + 0.1 * amp
+	var tail_y := sin(ph - 0.8) * 0.25 * amp + sin(tt * 1.3) * 0.18 * (1.0 - amp)
+	var tail_x := -0.05 - 0.15 * amp + 0.06 * sin(ph * 2.0 - 1.0) * amp
+	# apoios: deslocamento (dz para a frente, dyf para cima) e inclinação do último osso por pata
+	var feet := {}
+	for sd in WOLF_SIDES:
+		var off := 0.0 if sd in ["FL", "BR"] else 0.5
+		var u := fmod(_gait_ph + off, 1.0)
+		var dz := 0.0
+		var up := 0.0
+		var tilt := 0.0
+		if u < 0.6:   # apoio: a pata fica no chão e vai para trás
+			dz = stride * (0.5 - u / 0.6)
+		else:         # no ar: volta para a frente subindo, punho/jarrete dobrados
+			var v := (u - 0.6) / 0.4
+			var e := v * v * (3.0 - 2.0 * v)
+			dz = stride * (-0.5 + e)
+			up = lift * sin(PI * v)
+			tilt = (1.1 if sd.begins_with("F") else -0.6) * sin(PI * v) * amp
+		feet[sd] = [dz, up, tilt]
+
 	if state == "attack" and attack_kind == "lunge":
 		var t := attack_timer
-		if t < 0.35:          # arma o bote: agacha nas traseiras, abre a boca
-			body_x = -0.18
-			head_x = -0.15
-			jaw = 0.7
-			fl = -0.3
-			fr = -0.3
-			bl = 0.35
-			br = 0.35
-			tail_x = 0.2
-		elif t < 0.6:         # salta esticado e morde na hora do acerto
-			body_x = 0.12
-			head_x = 0.25
+		var crouch := smoothstep(0.0, 0.33, t)
+		var leap := clampf((t - 0.35) / 0.25, 0.0, 1.0)
+		var back := smoothstep(0.6, 1.0, t)
+		head_y = 0.0
+		tail_y = 0.0
+		if t < 0.35:          # agacha: peito e quadril descem com as patas no chão, cabeça baixa mirando, boca abre
+			dy = -0.15 * crouch
+			pitch = 0.05 * crouch
+			head_x = 0.18 * crouch
+			jaw = 0.65 * crouch
+			tail_x = 0.15 * crouch
+			for sd in WOLF_SIDES:
+				feet[sd] = [0.0, 0.0, 0.0]
+		elif t < 0.6:         # salta esticado: dianteiras à frente, traseiras empurrando para trás, morde no acerto
+			dy = lerpf(-0.15, 0.04, leap) + 0.16 * sin(PI * leap)
+			pitch = lerpf(0.0, 0.12, leap)
+			head_x = 0.22
 			jaw = 0.0 if t >= _hit_time() else 0.8
-			fl = -0.8
-			fr = -0.7
-			bl = 0.8
-			br = 0.7
-		else:
-			head_x = 0.1
-			jaw = 0.2
+			tail_x = -0.25
+			for sd in WOLF_SIDES:
+				if sd.begins_with("F"):
+					feet[sd] = [0.5 * leap, 0.28 * sin(PI * leap), -0.6 * sin(PI * leap)]
+				else:
+					feet[sd] = [-0.3 * leap, 0.08 * leap, 0.4 * leap]
+		else:                 # aterrissa e volta ao repouso
+			dy = lerpf(0.04, 0.0, back)
+			pitch = lerpf(0.12, 0.0, back)
+			head_x = lerpf(0.22, 0.05, back)
+			jaw = lerpf(0.0, 0.15, back)
+			tail_x = lerpf(-0.25, -0.05, back)
+			for sd in WOLF_SIDES:
+				var f0: Array = [0.5, 0.0, 0.0] if sd.begins_with("F") else [-0.3, 0.08, 0.4]
+				feet[sd] = [lerpf(f0[0], 0.0, back), lerpf(f0[1], 0.0, back), lerpf(f0[2], 0.0, back)]
 	elif state == "attack" and attack_kind == "howl":
-		var u := clampf(attack_timer / 0.4, 0.0, 1.0)
-		body_x = -0.3 * u
-		head_x = -0.9 * u
-		jaw = 0.55 * u
-		bl = -0.35 * u
-		br = -0.35 * u
-		fl = 0.25 * u
-		fr = 0.25 * u
-		tail_x = 0.3 * u
-	var snap := 1.0 - exp(-40.0 * get_physics_process_delta_time())
-	parts.Body.rotation.x = lerp(parts.Body.rotation.x, body_x, k)
-	parts.Body.position.y = lerp(parts.Body.position.y, 0.84 + bob, k)
-	parts.Head.rotation.x = lerp(parts.Head.rotation.x, head_x, k)
-	for pair in [["LegFL", fl], ["LegFR", fr], ["LegBL", bl], ["LegBR", br]]:
-		var leg: Node3D = parts.get(pair[0])
-		if leg:
-			leg.rotation.x = lerp(leg.rotation.x, float(pair[1]), k)
+		var u := smoothstep(0.0, 0.4, attack_timer) * (1.0 - smoothstep(1.0, 1.3, attack_timer))
+		dy = -0.08 * u
+		pitch = -0.3 * u          # senta nas traseiras: o peito sobe, o quadril desce
+		head_x = -0.75 * u
+		head_y = 0.0
+		jaw = 0.6 * u
+		tail_x = 0.25 * u
+		for sd in WOLF_SIDES:
+			feet[sd] = [0.0, 0.0, 0.0]
+
+	var body: Node3D = parts.Body
+	body.position.y = lerpf(body.position.y, float(_wolf_rest.body_y) + dy, kf)
+	body.rotation.x = lerpf(body.rotation.x, pitch, kf)
+	var bdy := body.position.y - float(_wolf_rest.body_y)
+	for sd in WOLF_SIDES:
+		var r: Dictionary = _wolf_rest[sd]
+		var fz: Array = feet[sd]
+		var f: Vector2 = r.f
+		var ang := _wolf_leg(sd, bdy, body.rotation.x, Vector2(f.x + float(fz[1]), f.y + float(fz[0])), float(fz[2]))
+		var leg: Node3D = parts["Leg" + sd]
+		leg.position.y = float((r.h as Vector2).x) + bdy - float((r.h as Vector2).y) * sin(body.rotation.x)
+		leg.rotation.x = lerp_angle(leg.rotation.x, ang.x, kf)
+		(parts["Knee" + sd] as Node3D).rotation.x = lerp_angle((parts["Knee" + sd] as Node3D).rotation.x, ang.y, kf)
+		(parts["Paw" + sd] as Node3D).rotation.x = lerp_angle((parts["Paw" + sd] as Node3D).rotation.x, ang.z, kf)
+	parts.Head.rotation.x = lerpf(parts.Head.rotation.x, head_x, k)
+	parts.Head.rotation.y = lerpf(parts.Head.rotation.y, head_y, k)
 	if parts.Jaw:
-		parts.Jaw.rotation.x = lerp(parts.Jaw.rotation.x, jaw, snap if jaw == 0.0 else k)
+		parts.Jaw.rotation.x = lerpf(parts.Jaw.rotation.x, jaw, kf if jaw < parts.Jaw.rotation.x else k)
 	if parts.Tail:
-		parts.Tail.rotation.y = lerp(parts.Tail.rotation.y, tail_y, k)
-		parts.Tail.rotation.x = lerp(parts.Tail.rotation.x, tail_x, k)
+		parts.Tail.rotation.y = lerpf(parts.Tail.rotation.y, tail_y, k)
+		parts.Tail.rotation.x = lerpf(parts.Tail.rotation.x, tail_x, k)
+
+
+## Gralha-de-Cristal: batida de asa em onda (o ombro puxa, o cotovelo e o punho vêm atrasados), dobrando a asa para
+## trás na subida e abrindo na descida; de tempos em tempos plana com as asas abertas. O corpo sobe na descida da
+## asa, a cabeça compensa e a cauda abre e fecha. Tiro: empina com as asas no alto e, no disparo, dá uma batida forte
+## para baixo esticando a cabeça para a frente.
+func _animate_crow(delta: float, hspeed: float, k: float) -> void:
+	var tt := Time.get_ticks_msec() / 1000.0 + float(_uid() % 11)
+	var glide := smoothstep(0.55, 0.9, sin(tt * 0.45)) * (1.0 - clampf(hspeed / 6.0, 0.0, 0.6))
+	var freq := 2.3 + clampf(hspeed / 5.0, 0.0, 1.0) * 0.6
+	_crow_ph = fmod(_crow_ph + delta * freq * TAU * (1.0 - 0.7 * glide), TAU)
+	var ph := _crow_ph
+	var beat := 1.0 - glide
+	var sh := 0.1 + 0.55 * sin(ph) * beat + 0.05 * sin(tt * 2.0) * glide
+	var el := 0.22 * sin(ph - 0.7) * beat
+	var wr := 0.3 * sin(ph - 1.3) * beat
+	var fold := maxf(0.0, cos(ph)) * 0.55 * beat         # na subida (o ombro subindo) a asa recolhe para trás
+	var twist := 0.18 * sin(ph - 0.4) * beat
+	var y := -0.08 * sin(ph + 0.5) * beat + 0.05 * sin(tt * 0.9) * glide
+	var body_x := 0.05 * sin(ph) * beat + 0.06 * clampf(hspeed / 5.0, 0.0, 1.0)
+	var head_x := -body_x * 0.7 + 0.06 * sin(ph + 1.0) * beat
+	var tail_x := 0.12 * sin(ph - 1.2) * beat - 0.05 * glide
+	if state == "attack" and attack_kind == "shoot":
+		var t := attack_timer
+		var ht := _hit_time()
+		var u := smoothstep(0.0, ht, t)
+		var back := smoothstep(ht + 0.1, ht + 0.45, t)
+		if t < ht:                  # empina e abre as asas no alto
+			sh = lerpf(sh, 0.9, u)
+			el = lerpf(el, 0.2, u)
+			wr = lerpf(wr, 0.3, u)
+			fold = lerpf(fold, 0.0, u)
+			body_x = lerpf(body_x, -0.3, u)
+			head_x = lerpf(head_x, -0.25, u)
+			y = lerpf(y, 0.12, u)
+		else:                       # batida forte para baixo, cabeça para a frente (o estilhaço sai do bico)
+			var w := 1.0 - back
+			sh = lerpf(sh, -0.55, w)
+			el = lerpf(el, -0.25, w)
+			wr = lerpf(wr, -0.35, w)
+			fold = lerpf(fold, 0.0, w)
+			body_x = lerpf(body_x, 0.25, w)
+			head_x = lerpf(head_x, 0.35, w)
+			y = lerpf(y, -0.1, w)
+	var kf := 1.0 - exp(-30.0 * delta)
+	parts.Body.position.y = lerpf(parts.Body.position.y, 1.5 + y, kf)
+	parts.Body.rotation.x = lerpf(parts.Body.rotation.x, body_x, k)
+	if parts.Head:
+		parts.Head.rotation.x = lerpf(parts.Head.rotation.x, head_x, k)
+	if parts.Tail:
+		parts.Tail.rotation.x = lerpf(parts.Tail.rotation.x, tail_x, k)
+	for sd in [["L", 1.0], ["R", -1.0]]:
+		var sg: float = sd[1]
+		var w1: Node3D = parts.get("Wing" + sd[0])
+		var w2: Node3D = parts.get("Wing" + sd[0] + "2")
+		var w3: Node3D = parts.get("Wing" + sd[0] + "3")
+		if w1:
+			w1.rotation.z = lerpf(w1.rotation.z, sh * sg, kf)
+		if w2:
+			w2.rotation.z = lerpf(w2.rotation.z, el * sg, kf)
+			w2.rotation.y = lerpf(w2.rotation.y, fold * sg, kf)
+		if w3:
+			w3.rotation.z = lerpf(w3.rotation.z, wr * sg, kf)
+			w3.rotation.y = lerpf(w3.rotation.y, fold * 1.3 * sg, kf)
+			w3.rotation.x = lerpf(w3.rotation.x, twist, kf)
+
+
+## Ieti Glacial: andar pesado, o corpo rolando para o lado da perna de apoio e quicando, braços balançando contra as
+## pernas com o cotovelo atrasado (sempre um pouco dobrado); parado respira com os ombros. Pancada no chão: ergue os
+## dois braços acima da cabeça com os cotovelos dobrados para trás e desce de uma vez curvando o tronco. Golpe comum:
+## puxa o braço direito para trás girando o tronco e solta num gancho.
+func _animate_yeti(delta: float, hspeed: float, k: float) -> void:
+	var kf := 1.0 - exp(-30.0 * delta)
+	var amp := clampf(hspeed / 2.6, 0.0, 1.0)
+	var ph := anim_t
+	var tt := Time.get_ticks_msec() / 1000.0 + float(_uid() % 7)
+	var leg := 0.42 * sin(ph) * amp
+	var roll := 0.07 * sin(ph) * amp
+	var bob := 0.04 * absf(cos(ph)) * amp
+	var breathe := sin(tt * 1.4) * (1.0 - amp)
+	var body_x := 0.1 + 0.05 * amp + 0.025 * breathe
+	var body_y := 0.0
+	var arm_l := -0.32 * sin(ph) * amp + 0.04 * breathe
+	var arm_r := 0.32 * sin(ph) * amp + 0.04 * breathe
+	var elb_l := -0.3 - 0.25 * maxf(0.0, sin(ph - 0.7)) * amp
+	var elb_r := -0.3 - 0.25 * maxf(0.0, -sin(ph - 0.7)) * amp
+	var head_x := -0.05 + 0.04 * sin(ph * 2.0) * amp
+	var lift := bob
+	if state == "attack":
+		var t := attack_timer
+		var ht := _hit_time()
+		if attack_kind == "slam":
+			var up := smoothstep(0.0, ht * 0.8, t)
+			var down := smoothstep(ht * 0.8, ht, t)
+			var back := smoothstep(ht + 0.3, _attack_duration(), t)
+			var arms := lerpf(lerpf(0.0, -2.7, up), -0.45, down)
+			var elb := lerpf(lerpf(-0.3, -1.1, up), -0.15, down)
+			body_x = lerpf(lerpf(0.1, -0.12, up), 0.45, down)
+			lift = lerpf(lerpf(0.0, 0.06, up), -0.12, down)
+			head_x = lerpf(lerpf(-0.05, -0.3, up), 0.2, down)
+			arm_l = lerpf(arms, arm_l, back)
+			arm_r = arm_l
+			elb_l = lerpf(elb, elb_l, back)
+			elb_r = elb_l
+			body_x = lerpf(body_x, 0.12, back)
+			lift = lerpf(lift, 0.0, back)
+			roll = 0.0
+			leg = 0.0
+		elif attack_kind == "swing":
+			var wind := smoothstep(0.0, ht * 0.85, t)
+			var hit := smoothstep(ht * 0.85, ht, t)
+			var back := smoothstep(ht + 0.15, _attack_duration(), t)
+			arm_r = lerpf(lerpf(arm_r, 0.75, wind), -1.6, hit)
+			elb_r = lerpf(lerpf(elb_r, -1.0, wind), -0.25, hit)
+			body_y = lerpf(lerpf(0.0, 0.35, wind), -0.4, hit)
+			body_x = lerpf(body_x, 0.25, hit)
+			arm_r = lerpf(arm_r, -0.1, back)
+			elb_r = lerpf(elb_r, -0.3, back)
+			body_y = lerpf(body_y, 0.0, back)
+	var body: Node3D = parts.Body
+	body.rotation.x = lerpf(body.rotation.x, body_x, kf)
+	body.rotation.y = lerpf(body.rotation.y, body_y, kf)
+	body.rotation.z = lerpf(body.rotation.z, roll, k)
+	parts.LegL.rotation.x = lerpf(parts.LegL.rotation.x, leg, k)
+	parts.LegR.rotation.x = lerpf(parts.LegR.rotation.x, -leg, k)
+	parts.ArmL.rotation.x = lerpf(parts.ArmL.rotation.x, arm_l, kf)
+	parts.ArmR.rotation.x = lerpf(parts.ArmR.rotation.x, arm_r, kf)
+	parts.ArmL.rotation.z = lerpf(parts.ArmL.rotation.z, 0.06 + 0.03 * breathe, k)
+	parts.ArmR.rotation.z = lerpf(parts.ArmR.rotation.z, -0.06 - 0.03 * breathe, k)
+	if parts.get("ElbowL"):
+		parts.ElbowL.rotation.x = lerpf(parts.ElbowL.rotation.x, elb_l, kf)
+	if parts.get("ElbowR"):
+		parts.ElbowR.rotation.x = lerpf(parts.ElbowR.rotation.x, elb_r, kf)
+	parts.Head.rotation.x = lerpf(parts.Head.rotation.x, head_x, k)
+	parts.Head.rotation.z = lerpf(parts.Head.rotation.z, -roll * 0.6, k)
+	if not body.has_meta("rest_y"):
+		body.set_meta("rest_y", body.position.y)
+	body.position.y = lerpf(body.position.y, float(body.get_meta("rest_y")) + lift, kf)
