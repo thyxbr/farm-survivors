@@ -71,7 +71,7 @@ pillars = true
 
 [node name="Corredor 1" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.4
+width = 6.4
 height = 5.2
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Corredor 1"]
@@ -92,7 +92,7 @@ script = ExtResource("12_dg")
 
 [node name="Corredor 2" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.0
+width = 6.0
 height = 4.8
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Corredor 2"]
@@ -105,7 +105,7 @@ script = ExtResource("12_dg")
 
 [node name="Corredor 3" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.4
+width = 6.4
 height = 5.2
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Corredor 3"]
@@ -122,7 +122,7 @@ script = ExtResource("12_dg")
 
 [node name="Corredor 4" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.0
+width = 6.0
 height = 4.8
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Corredor 4"]
@@ -135,7 +135,7 @@ script = ExtResource("12_dg")
 
 [node name="Corredor 5" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.4
+width = 6.4
 height = 5.2
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Corredor 5"]
@@ -221,7 +221,7 @@ radius = 4.0
 respawn = 40.0
 
 [node name="bando 5 slime_explosivo" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0.0, 34)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0.0, 15)
 script = ExtResource("7_dg")
 kind = "slime_explosivo"
 count = 4

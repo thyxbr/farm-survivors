@@ -62,6 +62,9 @@ var dead := false
 var is_boss := false
 ## Chefe de dungeon (EnemySpawn.chief): conta como chefe mesmo sendo de um tipo comum (a Slime Rainha).
 var chief := false
+## Sala do chefe de dungeon (x, z do mundo; vazio = sem arena): o chefe só enxerga quem está dentro dela, persegue
+## qualquer um lá dentro e, quando todos saem, perde o agro, volta para casa e se cura.
+var arena := Rect2()
 var state := "idle"
 var state_timer := 0.0
 var attack_cd := 0.0
@@ -552,7 +555,9 @@ func _physics_process(delta: float) -> void:
 	match state:
 		"idle":
 			state_timer -= delta
-			if dist < data.aggro or (horde and dist < INF):
+			if arena.has_area() and dist == INF and hp < max_hp:
+				_heal_home()   # ninguém na sala: quem bateu de fora não deixa o chefe ferido
+			if dist < data.aggro or (horde and dist < INF) or (arena.has_area() and dist < INF):
 				_set_state("chase")
 			elif state_timer <= 0:
 				wander_target = home + Vector3(randf_range(-6, 6), 0, randf_range(-6, 6))
@@ -560,7 +565,7 @@ func _physics_process(delta: float) -> void:
 		"wander":
 			var to := wander_target - global_position
 			to.y = 0
-			if dist < data.aggro:
+			if dist < data.aggro or (arena.has_area() and dist < INF):
 				_set_state("chase")
 			elif to.length() < 0.6 or state_timer > 6.0 or _stuck_t > 0.4:
 				state_timer = randf_range(2.0, 4.5)
@@ -595,8 +600,8 @@ func _physics_process(delta: float) -> void:
 					_begin_attack()
 				elif dist > data.reach * 0.8:
 					move = to_player.normalized() * spd
-			elif global_position.distance_to(home) > 45.0 or dist == INF \
-					or (dist > data.aggro * 1.9 and provoked <= 0.0):
+			elif dist == INF or (not arena.has_area() and (global_position.distance_to(home) > 45.0
+					or (dist > data.aggro * 1.9 and provoked <= 0.0))):
 				_set_state("return")   # sem alvo (morreu ou entrou na vila, sob a guarda) também volta
 			elif ai() == "ranged" or ai() == "caster" or ai() == "flee":
 				# arqueiro e mago no mundo: guardam distância, rodeiam e só atiram com o caminho livre;
@@ -623,12 +628,10 @@ func _physics_process(delta: float) -> void:
 				_worm_dive()
 			var to := home - global_position
 			to.y = 0
-			if dist < data.aggro * 0.7:
+			if dist < data.aggro * 0.7 or (arena.has_area() and dist < INF):
 				_set_state("chase")
 			elif to.length() < 1.0:
-				hp = max_hp
-				contributors.clear()   # curou tudo em casa: quem tinha acertado antes não leva XP, loot nem abate depois
-				health_changed.emit(self)
+				_heal_home()
 				_set_state("idle")
 			else:
 				move = to.normalized() * spd
@@ -770,11 +773,25 @@ func _nearest_player() -> Player:
 			continue
 		if not horde and VillageWard.inside(p.global_position):
 			continue   # quem está na vila (ou na Horta) está sob a proteção da guarda: o monstro não persegue
-		var d := global_position.distance_squared_to(p.global_position)
+		if not in_arena(p.global_position):
+			continue   # chefe de dungeon: quem está fora da sala dele não existe
+		var d :=global_position.distance_squared_to(p.global_position)
 		if d < best_d:
 			best_d = d
 			best = p
 	return best
+
+
+## Volta à vida cheia: quem tinha acertado antes não leva XP, loot nem abate depois.
+func _heal_home() -> void:
+	hp = max_hp
+	contributors.clear()
+	health_changed.emit(self)
+
+
+## Se o ponto fica dentro da arena (sempre, para quem não tem arena).
+func in_arena(p: Vector3) -> bool:
+	return not arena.has_area() or arena.has_point(Vector2(p.x, p.z))
 
 
 func model_forward() -> Vector3:

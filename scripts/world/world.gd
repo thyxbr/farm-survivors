@@ -567,6 +567,7 @@ func _spawn(entry: Dictionary) -> void:
 	e.elite = entry.get("elite", false)
 	e.area = str(entry.get("area", ""))
 	e.chief = bool(entry.get("chief", false))
+	e.arena = entry.get("arena", Rect2())
 	e.level = ProgressionRules.spawn_level(Balance.tables, entry.get("level", 0), entry.get("level_max", 0), e.elite, _spawn_rng)
 	e.position = entry.pos + Vector3.UP * 0.2
 	add_child(e)
@@ -1242,6 +1243,11 @@ func use_dungeon_door(target: String) -> void:
 	if target == "out":
 		var here := Regions.region_at(player.global_position)
 		_teleport(Regions.door_point(here), Regions.display_name(Regions.parent_of(here)), "SAINDO DA DUNGEON")
+		return
+	if target == "entrance":   # portal da sala do chefe, depois que ele cai
+		var dg := Regions.region_at(player.global_position)
+		if Regions.is_dungeon(dg):
+			_teleport(Regions.arrive_point(dg), Regions.display_name(dg), "ENTRADA DA DUNGEON")
 		return
 	if not Regions.is_dungeon(target):
 		return
