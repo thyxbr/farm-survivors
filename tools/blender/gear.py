@@ -7440,6 +7440,37 @@ def kx_frost(X):
         X["soft"].append(g_smooth_mesh("HemFur%d" % h, fur, E["fur"], X["body"]))
 
 
+def kx_void(X):
+    """Fendas de energia (ref. "Celestial Knight", Natam Antony): faixas finas que descem pelo casaco do peito
+    até perto da barra, mais largas no meio e em ponta nas duas pontas, ondulando um pouco de lado. Ficam por
+    cima do pano (2 mm) e com os pesos do casaco; o brilho vem do shader gear_energy (GearFx, rb_void_slit)."""
+    outer, rows, NC = X["outer"], X["rows"], X["NC"]
+    slit = gm("rb_void_slit", "#2F7BFF", 0.9)
+
+    def on_coat(i, jf):
+        j0 = int(jf)
+        f = jf - j0
+        q = outer[i][j0] * (1 - f) + outer[i][min(j0 + 1, NC)] * f
+        return q + kx_nr(q) * 0.002
+    # (coluna em fração da volta, fiada de cima, fiada de baixo, meia largura, fase da ondulação)
+    for k, (u, i0, i1, w, ph) in enumerate(((0.034, 0, 12, 0.013, 0.0), (0.16, 1, 11, 0.013, 1.7),
+                                            (0.32, 0, 12, 0.013, 3.1))):
+        for side, uu in (("L", u), ("R", 1.0 - u)):
+            n = 16
+            path, radii = [], []
+            for q in range(n + 1):
+                t = q / n
+                i = i0 + (i1 - i0) * t
+                jf = uu * NC + 1.1 * math.sin(math.pi * t * 1.3 + ph) * (1 if side == "L" else -1)
+                ia = int(min(i, rows - 1))
+                path.append(on_coat(ia, jf).lerp(on_coat(ia + 1, jf), i - ia))
+                radii.append((w * max(0.08, math.sin(math.pi * min(1.0, 0.04 + t * 0.96)) ** 0.6), 0.0016))
+            p0 = path[0]
+            tang = Vector((-p0.y, p0.x, 0)).normalized()          # largura em volta do casaco, face no pano
+            X["soft"].append(g_smooth_mesh("VoidSlit%s%d" % (side, k), g_curved_tube(path, radii, sides=10, side0=tang),
+                                           slit, X["body"]))
+
+
 for _k, _fn, _o in (("lich", kx_lich, dict(coat_tatter=0.08, coat_tatter_n=9, coat_n=128, hem_pts=4, tabard=False,
                                            coat_diamonds=False)),
                     ("hierophant", kx_hiero, dict(open=0.3, hem_pts=0, coat_stars=False, coat_diamonds=False)),
@@ -7448,7 +7479,8 @@ for _k, _fn, _o in (("lich", kx_lich, dict(coat_tatter=0.08, coat_tatter_n=9, co
                     ("raven", kx_raven, dict(tabard=False, coat_stars=False, coat_diamonds=False, hem_pts=0)),
                     ("dragon", kx_dragon, dict(coat_hem=0.3, hem_pts=2, coat_stars=False, coat_diamonds=False)),
                     ("astral", kx_astral, dict(hem_pts=5)),
-                    ("frost", kx_frost, dict(tabard=False, hem_pts=0, coat_diamonds=False))):
+                    ("frost", kx_frost, dict(tabard=False, hem_pts=0, coat_diamonds=False)),
+                    ("void", kx_void, dict())):
     ROBES[_k]["o"].update(_o, skirt_extra=_fn)
 
 
