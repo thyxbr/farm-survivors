@@ -390,3 +390,20 @@ const WHIRL := [
 		"body_x": 0.5, "arm_l": Vector3(-0.8, -0.1, 0.25), "elbow_l": -0.2,
 		"leg_l": -0.6, "knee_l": 0.85, "leg_r": 0.4, "knee_r": 0.65}, "lin"],
 ]
+
+
+## Escudo levantado (botão direito com escudo), como na guarda de escudo com enarmes: o braço vai à frente
+## com o cotovelo dobrado, o antebraço atravessa a frente do peito quase na horizontal e o escudo fica na
+## frente dele, de pé e de frente, com a borda de cima na altura do queixo. O braço vai por IK (mão em
+## `hand`, cotovelo para `pole`, espaço do modelo, que olha para +Z) e o escudo gira no antebraço para ficar
+## de frente (KnightAnim._shield_orient): `out` = quanto a tábua fica à frente do antebraço, `rise` = quanto
+## o centro do escudo sobe acima do antebraço, `tilt` = borda de cima um pouco para a frente (rad).
+## O tronco gira um pouco para o ombro do escudo ir à frente, os joelhos dobram e o corpo inclina para
+## dentro do escudo. `jolt` = tranco de um golpe defendido: a mão cede `jolt_back` para trás e volta.
+## Pernas da guarda (KnightAnim._guard_legs): joelho dobrado (rad, pouco para não ficar de cócoras), meia
+## distância entre os pés (m), quanto cada pé vai e volta no passo (m), quanto o joelho do pé que avança
+## dobra a mais (rad), quanto o quadril passa de lado (m) e quanto o corpo desce a cada passo (m).
+const SHIELD_STEP := {"knee": 0.55, "width": 0.14, "reach": 0.11, "lift": 0.35, "shift": 0.03, "bob": 0.015}
+const SHIELD_GUARD := {"hand": Vector3(0.02, 1.25, 0.29), "pole": Vector3(0.7, -0.55, 0.6), "out": 0.075,
+	"rise": 0.04, "tilt": 0.12, "twist": -0.22, "body_x": 0.12, "head_x": -0.06, "jolt_back": 0.09,
+	"speed": 2.5}

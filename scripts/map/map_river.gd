@@ -204,6 +204,7 @@ func _build(holder: Node3D, visual: bool, walls: bool) -> void:
 		_decor(holder, pts, nrm, bridges())
 	if walls:
 		holder.add_child(_walls(pts, nrm, bridges()))
+		holder.add_child(_bridge_guards(bridges()))
 
 
 static func _normals(pts: PackedVector2Array) -> PackedVector2Array:
@@ -426,8 +427,33 @@ func _walls(pts: PackedVector2Array, nrm: PackedVector2Array, bridges_list: Arra
 	return body
 
 
+## Altura das paredes invisíveis por cima das muretas da ponte (m acima do chão): o pulo (1,2 m) a partir do
+## meio do tabuleiro (1,2 m) passava por cima da mureta de 0,74 m e o jogador caía no rio, preso entre as paredes.
+const BRIDGE_GUARD_TOP := 6.0
+
+
+## Paredes invisíveis (camada WALL_LAYER) sobre as duas muretas de cada ponte, de ponta a ponta: segura o
+## pulo para fora da ponte. Ficam num corpo à parte das paredes da margem.
+static func _bridge_guards(bridges_list: Array) -> StaticBody3D:
+	var body := StaticBody3D.new()
+	body.name = "BridgeGuards"
+	body.collision_layer = WALL_LAYER
+	body.collision_mask = 0
+	for b in bridges_list:
+		var along: Vector2 = b.along
+		var across := Vector2(-along.y, along.x)
+		var hx: float = b.half.x
+		var hy: float = b.half.y
+		for side in [-1.0, 1.0]:
+			# no meio da mureta (0,42 m de espessura na escala 1): o tabuleiro de dentro fica livre
+			var c: Vector2 = b.center + across * side * (hx - 0.21 * hx / 2.8)
+			_wall_box(body, c - along * hy, c + along * hy, true, BRIDGE_GUARD_TOP + 1.0, BRIDGE_GUARD_TOP / 2.0 - 0.5, 0.36)
+	return body
+
+
 ## Caixa de parede de `a` a `b`; `tight` = encosta na ponte (sem a sobra que fecha as emendas da curva).
-static func _wall_box(body: StaticBody3D, a: Vector2, b: Vector2, tight: bool) -> void:
+static func _wall_box(body: StaticBody3D, a: Vector2, b: Vector2, tight: bool, h := 3.0, y := 1.0,
+		thick := 0.5) -> void:
 	var len := a.distance_to(b)
 	if len < 0.01:
 		return
@@ -436,7 +462,7 @@ static func _wall_box(body: StaticBody3D, a: Vector2, b: Vector2, tight: bool) -
 	var mid := (a + b) / 2.0
 	var cs := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(len + pad * 2.0, 3.0, 0.5)
+	box.size = Vector3(len + pad * 2.0, h, thick)
 	cs.shape = box
-	cs.transform = Transform3D(Basis(Vector3.UP, -atan2(dir.y, dir.x)), Vector3(mid.x, 1.0, mid.y))
+	cs.transform = Transform3D(Basis(Vector3.UP, -atan2(dir.y, dir.x)), Vector3(mid.x, y, mid.y))
 	body.add_child(cs)

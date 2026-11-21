@@ -89,7 +89,7 @@ func paint_data() -> Array:
 		var xf := local_xform(p)
 		var ax := xf.basis.x
 		out.append({"center": xf.origin, "disc": p.disc, "size": p.size, "radius": p.radius,
-			"color": p.color, "soft": p.soft, "grass": p.grass, "angle": snappedf(-atan2(ax.z, ax.x), 0.0001)})
+			"color": p.color, "soft": p.soft, "grass": p.ground_mix(), "angle": snappedf(-atan2(ax.z, ax.x), 0.0001)})
 	return out
 
 
