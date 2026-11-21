@@ -37,3 +37,18 @@ func test_every_track_file_exists() -> void:
 			T.ok(ResourceLoader.exists("res://assets/audio/music/%s.ogg" % f), "música %s/%s existe" % [id, f])
 	for id in MusicRules.AMBIENCES:
 		T.ok(ResourceLoader.exists("res://assets/audio/ambience/%s.ogg" % MusicRules.AMBIENCES[id]), "ambiente %s existe" % id)
+
+
+func test_map_ambiences_and_dungeons() -> void:
+	var swamp := {"scene": "world", "pos": Regions.origin("bosque")}
+	T.eq(MusicRules.ambience(swamp), "swamp", "pântano com sapos e insetos")
+	T.eq(MusicRules.ambience({"scene": "world", "pos": Regions.origin("mina")}), "ice", "geleira com vento frio")
+	T.eq(MusicRules.ambience({"scene": "world", "pos": Regions.origin("pico")}), "lava", "vulcão com magma")
+	for dg in Regions.DUNGEONS:
+		var ctx := {"scene": "world", "pos": Regions.origin(dg)}
+		T.eq(MusicRules.ambience(ctx), "cave", "dungeon %s soa como caverna" % dg)
+		T.eq(MusicRules.track(ctx), "ruins", "dungeon %s toca a música de caverna" % dg)
+	T.eq(MusicRules.track(swamp), "swamp", "pântano tem música própria (não a da mata do vale)")
+	T.eq(MusicRules.track({"scene": "world", "pos": Regions.origin("pico")}), "volcano", "vulcão tem música própria")
+	# region vindo pronto no ctx vale mais que a posição
+	T.eq(MusicRules.ambience({"scene": "world", "region": "pico", "pos": Vector3.ZERO}), "lava", "region do ctx")

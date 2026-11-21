@@ -203,4 +203,4 @@ func test_regions() -> void:
 	for id in Regions.ORDER:
 		T.eq(Regions.region_at(Regions.arrive_point(id)), id, "chegada em %s fica no próprio mapa" % id)
 		T.eq(Regions.region_at(Regions.coach_point(id)), id, "carruagem de %s fica no próprio mapa" % id)
-	T.eq(MusicRules.area(Vector3(800, 0, 800)), "ruins", "música do pico")
+	T.eq(MusicRules.area(Vector3(800, 0, 800)), "volcano", "música do pico")
