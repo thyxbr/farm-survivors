@@ -2046,7 +2046,9 @@ func _animate(delta: float) -> void:
 	var up := blocking and ability == "" and not attacking and dodge_timer <= 0 and not dead
 	_block_w = move_toward(_block_w, 1.0 if up else 0.0, delta * (8.0 if up else 5.0))
 	if _block_w > 0.001:
-		KnightAnim.shield_block_pose(p, _block_w, maxf(0.0, 1.0 - _block_since / 0.25), _amp)
+		var hv_m := model.global_basis.inverse() * Vector3(velocity.x, 0.0, velocity.z)
+		var guard_mv := Vector2(hv_m.x, hv_m.z) / (WALK_SPEED * ShieldRules.MOVE_SPEED)
+		KnightAnim.shield_block_pose(p, _block_w, maxf(0.0, 1.0 - _block_since / 0.25), parts, anim_t, guard_mv)
 	if ability != "" or drawing or attacking or _cast_t < KnightMoves.CAST_TIME:
 		KnightAnim.hips_follow(p)
 	KnightAnim.apply(parts, p, k)

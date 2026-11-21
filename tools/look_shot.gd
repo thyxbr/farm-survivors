@@ -75,7 +75,16 @@ func _ready() -> void:
 		if "block" in args:    # escudo levantado (KnightAnim.shield_block_pose)
 			var rb := KnightAnim.rig(m)
 			var pb := KnightAnim.rest_pose()
-			KnightAnim.shield_block_pose(pb, 1.0, 0.0, 0.0)
+			# block_walk=<x>,<y>: andando com o escudo (x = de lado, y = frente) na fase `phase=<rad>`
+			var mv := Vector2.ZERO
+			var ph := 0.0
+			for a in args:
+				if a.begins_with("block_walk="):
+					var v := a.substr(11).split(",")
+					mv = Vector2(float(v[0]), float(v[1]))
+				elif a.begins_with("phase="):
+					ph = float(a.substr(6))
+			KnightAnim.shield_block_pose(pb, 1.0, 0.0, rb, ph, mv)
 			KnightAnim.apply(rb, pb, 1.0)
 		if "run" in args:      # meio da passada de corrida: confere saias e mangas com as pernas abertas
 			var r := KnightAnim.rig(m)

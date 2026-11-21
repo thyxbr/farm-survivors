@@ -400,6 +400,10 @@ const WHIRL := [
 ## o centro do escudo sobe acima do antebraço, `tilt` = borda de cima um pouco para a frente (rad).
 ## O tronco gira um pouco para o ombro do escudo ir à frente, os joelhos dobram e o corpo inclina para
 ## dentro do escudo. `jolt` = tranco de um golpe defendido: a mão cede `jolt_back` para trás e volta.
+## Pernas da guarda (KnightAnim._guard_legs): joelho dobrado (rad, pouco para não ficar de cócoras), meia
+## distância entre os pés (m), quanto cada pé vai e volta no passo (m), quanto o joelho do pé que avança
+## dobra a mais (rad), quanto o quadril passa de lado (m) e quanto o corpo desce a cada passo (m).
+const SHIELD_STEP := {"knee": 0.38, "width": 0.14, "reach": 0.11, "lift": 0.35, "shift": 0.03, "bob": 0.015}
 const SHIELD_GUARD := {"hand": Vector3(0.02, 1.25, 0.29), "pole": Vector3(0.7, -0.55, 0.6), "out": 0.075,
-	"rise": 0.04, "tilt": 0.12, "twist": -0.22, "body_x": 0.1, "knee": 0.22, "head_x": -0.05, "jolt_back": 0.09,
+	"rise": 0.04, "tilt": 0.12, "twist": -0.22, "body_x": 0.12, "head_x": -0.06, "jolt_back": 0.09,
 	"speed": 2.5}
