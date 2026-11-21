@@ -408,7 +408,7 @@ const AEGIS_GUARD := [
 const AEGIS_STANCE := {"leg_l": -0.42, "knee_l": 0.55, "leg_r": 0.32, "knee_r": 0.5, "hip_twist": -0.3, "body_y": -0.07}
 const AEGIS_RAISE := 0.18      ## tempo para erguer o escudo (s)
 
-# ------------------------------------------------------------------ Martelo de Energia (espada + escudo, slot 2)
+# ------------------------------------------------------------------ Martelo de Energia (espada + escudo, slot 4)
 ## Só a parte em que o herói ergue a espada, medida no clipe "Sword And Shield Casting" do Mixamo
 ## (assets/animations/mixamo/sword_shield_casting.fbx, 2,97 s; tools/hammer_probe.gd). O clipe começa virado de lado
 ## (0..0,2 s: o giro até ficar de frente não entra, o cavaleiro já está de frente) e a espada sobe de 0,3 a 0,5 s:
@@ -431,6 +431,33 @@ const HAMMER_STANCE := {"leg_l": -0.4, "knee_l": 0.42, "leg_r": 0.3, "knee_r": 0
 ## Direção da lâmina erguida (espaço do modelo: +Y céu, +Z frente, +X esquerda), do eixo do punho no clipe: quase
 ## vertical, a ponta um pouco para dentro (sobre a cabeça) e para a frente. KnightAnim.hold_weapon_upright orienta o suporte.
 const HAMMER_BLADE_DIR := Vector3(0.18, 1.0, 0.12)
+
+# ------------------------------------------------------------------ Círculo da Provocação Sombria (espada + escudo, slot 3)
+## Clipe "Sword And Shield Power Up" do Mixamo (assets/animations/mixamo/sword_shield_power_up.fbx, 2,37 s), medido
+## por tools/taunt_probe.gd já no referencial do quadril (o clipe começa virado de lado). 0..0,45 s: recolhe os dois
+## braços junto ao peito, agachando de leve (junta a energia); 0,45..0,65 s: explode, os braços lançados para baixo
+## e para fora, o peito aberto para cima (inclinação < 0) e o corpo subindo (TAUNT_BURST: o círculo nasce aí);
+## segura até 1,6 s; 1,6..2,36 s volta à guarda. Mesmo formato do HAMMER_RAISE: [t (s do clipe), mão esq.,
+## cotovelo esq., mão dir., cotovelo dir., inclinação, giro, subida]. DarkTauntRules.clip_time leva o tempo da
+## habilidade para o do clipe (segura a pose enquanto as mãos sombrias sobem).
+const TAUNT_CAST := [
+	[0.0, Vector3(0.08, -0.23, 0.22), Vector3(0.15, -0.21, 0.02), Vector3(-0.21, -0.29, 0.11), Vector3(-0.14, -0.20, -0.08), 0.0, 0.0, 0.0],
+	[0.20, Vector3(0.17, -0.06, 0.25), Vector3(0.19, -0.16, 0.06), Vector3(0.01, -0.13, 0.38), Vector3(-0.10, -0.13, 0.19), 0.04, 0.03, -0.01],
+	[0.35, Vector3(0.15, 0.11, 0.19), Vector3(0.24, -0.05, 0.08), Vector3(0.01, 0.10, 0.40), Vector3(-0.11, 0.03, 0.23), 0.08, 0.03, -0.03],
+	[0.45, Vector3(0.18, 0.00, 0.21), Vector3(0.21, -0.14, 0.05), Vector3(-0.21, -0.03, 0.34), Vector3(-0.21, -0.07, 0.12), -0.06, 0.01, -0.013],
+	[0.55, Vector3(0.32, -0.28, 0.18), Vector3(0.16, -0.19, 0.07), Vector3(-0.27, -0.37, 0.11), Vector3(-0.15, -0.21, 0.03), -0.20, -0.04, 0.04],
+	[0.65, Vector3(0.29, -0.34, 0.11), Vector3(0.12, -0.22, 0.04), Vector3(-0.15, -0.44, -0.06), Vector3(-0.08, -0.24, -0.05), -0.25, -0.06, 0.049],
+	[0.80, Vector3(0.28, -0.32, 0.18), Vector3(0.12, -0.21, 0.09), Vector3(-0.17, -0.43, -0.05), Vector3(-0.08, -0.24, -0.04), -0.27, -0.08, 0.048],
+	[1.60, Vector3(0.30, -0.30, 0.17), Vector3(0.13, -0.20, 0.09), Vector3(-0.19, -0.43, -0.01), Vector3(-0.09, -0.24, -0.02), -0.30, -0.08, 0.051],
+	[1.80, Vector3(0.29, -0.14, 0.27), Vector3(0.15, -0.17, 0.11), Vector3(-0.29, -0.33, 0.15), Vector3(-0.15, -0.20, 0.06), -0.26, -0.08, 0.055],
+	[2.00, Vector3(0.18, -0.06, 0.34), Vector3(0.19, -0.11, 0.13), Vector3(-0.23, -0.19, 0.27), Vector3(-0.18, -0.17, 0.06), -0.10, -0.04, 0.002],
+	[2.36, Vector3(0.09, -0.23, 0.22), Vector3(0.15, -0.21, 0.01), Vector3(-0.21, -0.29, 0.11), Vector3(-0.14, -0.20, -0.08), 0.0, 0.0, 0.0],
+]
+const TAUNT_BURST := 0.55     ## instante da explosão no clipe (s): o círculo começa a se desenhar
+const TAUNT_LEAD := 0.12      ## a pose do corpo sai da locomoção até a primeira chave neste tempo (s)
+const TAUNT_RETURN := 0.55    ## depois que as mãos agarram, volta à guarda neste tempo (s; o clipe leva 0,76)
+## Base: esquerda à frente e direita atrás, firme no chão (o clipe abre os pés na largura dos ombros).
+const TAUNT_STANCE := {"leg_l": -0.32, "knee_l": 0.38, "leg_r": 0.26, "knee_r": 0.36, "body_y": -0.03}
 
 # ------------------------------------------------------------------ coleta (GatherAction; um ciclo = um golpe)
 ## As duas mãos no cabo: a direita no suporte da arma, a esquerda por IK neste ponto do cabo (espaço do suporte:

@@ -8,6 +8,10 @@ signal health_changed(enemy: Enemy)
 const PICKUP := preload("res://scripts/world/pickup.gd")
 const ENEMY_ARROW := preload("res://scripts/enemies/enemy_arrow.gd")
 const PROVOKE_TIME := 4.0   # ver `provoked`
+## Bit do snapshot de rede: provocado (olhos vermelhos nas réplicas). Acima dos bits que ThrowRules e BossRules
+## usam (2..17); o snapshot é float32, exato até 2^24.
+const TAUNT_FLAG := 1 << 20
+const TAUNT_INDICATOR := preload("res://scenes/vfx/dark_taunt/taunt_indicator.tscn")
 ## Até onde (m) o monstro olha à frente antes de dar um passo: se o passo cai na zona da guarda, ele para.
 const WARD_LOOKAHEAD := 1.5
 ## Tipos de inimigo: vêm de data/balance/enemies.json (autoload Balance). "ai" muda o comportamento,
@@ -91,6 +95,15 @@ var stagger := 0.0
 ## Sem isso, um acerto de longe (ou, no servidor, antes de chegar a posição nova do jogador)
 ## fazia o inimigo desistir na hora, voltar para casa e curar a vida toda, apagando o dano.
 var provoked := 0.0
+## Círculo da Provocação Sombria (DarkTauntAbilities): enquanto taunt_t > 0 o único alvo é `taunt_by` (o herói que
+## provocou): _nearest_player() devolve ele, então a perseguição, a mira e os golpes de sempre vão para ele. Enquanto
+## held_t > 0 as mãos sombrias seguram: não anda nem começa golpe. Estado do dono do inimigo (servidor ou solo); as
+## réplicas pedem por apply_taunt e só mostram os olhos (bit TAUNT_FLAG do snapshot).
+var taunt_t := 0.0
+var taunt_by: Node3D = null
+var held_t := 0.0
+## Olhos vermelhos sobre a cabeça enquanto provocado (TauntIndicator; criado na primeira vez, sem servidor dedicado).
+var taunt_eyes: Node3D = null
 ## Segundos que o monstro está dentro da zona da guarda (VillageWard); passou de DOOM, a guarda abate.
 var ward_t := 0.0
 var home := Vector3.ZERO
@@ -164,6 +177,17 @@ var _root_hit := {}
 var _spore_pts: Array = []
 var _thorn_t := 0.0
 var _leash_t := 0.0
+## Forjador Rúnico (ai "forge"): golpes dados na luta, a origem e a direção da Martelada da vez, o Escudo Rúnico
+## (de pé, quantos já ergueu, há quanto tempo o último caiu, o desenho dele) e os relógios.
+var _forge_n := 0
+var _forge_origin := Vector3.ZERO
+var _forge_dir := Vector3.BACK
+var shielded := false
+var _forge_shields := 0
+var _forge_since := 0.0
+var _forge_ward: Node3D = null
+var _forge_t := 0.0
+var _forge_immune_t := 0.0
 ## Mãe-Verme, habilidades de chefe (BossRules): especiais já feitos, mergulhos de fúria pendentes, semente do
 ## Desmoronamento (vai no snapshot), pontos das pedras e das Poças de Ácido do golpe atual, a entrada já mostrada
 ## a este jogador, o visual da fúria (cristais vermelhos) e a aura de partículas.
@@ -258,6 +282,10 @@ func _ready() -> void:
 		for n in ["ElbowL", "ElbowR", "KneeL", "KneeR", "HandL", "HandR", "Crown", "BoughL", "BoughR", "Hang0", "Hang1",
 				"Hang2", "Hang3"]:
 			parts[n] = model.find_child(n, true, false)
+	if data.model == "forge_golem":   # Forjador: cotovelos, joelhos, mãos, o martelo, a fornalha e o que balança
+		for n in ["ElbowL", "ElbowR", "KneeL", "KneeR", "HandL", "HandR", "Hammer", "HammerChain", "Door", "Fire", "Lid",
+				"Tasset0", "Tasset1", "Tasset2", "Tasset3", "Chain0", "Chain1", "Stack0", "Stack1", "Stack2"]:
+			parts[n] = model.find_child(n, true, false)
 	if data.model in ["spider", "centipede"]:   # Tecelã e Centopeia: abdômen e as pernas (Leg0L..Leg3R)
 		for n in SPIDER_PARTS:
 			parts[n] = model.find_child(n, true, false)
@@ -310,6 +338,8 @@ func _ready() -> void:
 		_make_boss_aura()
 		if not puppet:
 			_set_state("burrow")   # a Mãe-Verme começa enterrada: a entrada da luta é ela saindo do chão
+	if data.get("ai", "") == "forge":
+		summoned = true   # o Forjador não chama lacaios ao enfurecer: a fase 2 dele é o superaquecimento
 	if Network.is_server():
 		Network.server_register_enemy(self)
 
@@ -564,6 +594,8 @@ static func _bar_mat(c: Color, priority: int) -> StandardMaterial3D:
 func _physics_process(delta: float) -> void:
 	if not dead and (ai() == "thorn" or data.get("sprout", false)):
 		_thorn_process(delta)
+	if not dead and (ai() == "forge" or data.get("rune", false)):
+		_forge_process(delta)
 	if _plates != null:
 		_occ_t -= delta
 		if _occ_t <= 0.0:
@@ -606,6 +638,7 @@ func _physics_process(delta: float) -> void:
 		_worm_leash(delta)
 	stagger = max(0.0, stagger - delta)
 	provoked = maxf(0.0, provoked - delta)
+	_taunt_tick(delta)
 	_update_flash(delta)
 	if not horde and _ward_doom(delta):
 		return
@@ -697,6 +730,8 @@ func _physics_process(delta: float) -> void:
 				face = r[1]
 			elif ai() == "thorn" and attack_cd <= 0 and dist <= ThornRules.ROOT_LEN:
 				_begin_attack(dist)   # Espinheira: garra perto, raízes longe
+			elif ai() == "forge" and attack_cd <= 0 and (dist <= ForgeRules.HAMMER_RANGE or _forge_wants_shield()):
+				_begin_attack(dist)   # Forjador: martela de longe (o cone tem 9 m); o escudo sobe de onde ele estiver
 			elif ai() == "burrow" and BurrowRules.should_dig(dist, surface_t, data):
 				_set_state("burrow")   # Toupeira: afunda e vai por baixo da terra até o alvo
 				dig_t = 0.0
@@ -753,8 +788,8 @@ func _physics_process(delta: float) -> void:
 					and dist < data.reach * 1.8 and ai() != "plant":
 				move = to_player.normalized() * spd * 0.45
 
-	if stagger > 0:
-		move = Vector3.ZERO
+	if stagger > 0 or held_t > 0.0:
+		move = Vector3.ZERO   # atordoado ou preso pelas mãos sombrias
 	elif state in ["chase", "wander", "return"]:
 		move = _steer(move, delta)
 	# a guarda da vila: nenhum passo para dentro da zona protegida (o bando para na cerca)
@@ -854,6 +889,9 @@ func _player_within(r: float) -> bool:
 ## Jogador vivo mais próximo (no multiplayer, o servidor tem réplicas de todos).
 ## A horda só persegue quem está no desafio (get_parent() é o modo sobrevivência).
 func _nearest_player() -> Player:
+	var tb := _taunter()
+	if tb != null:
+		return tb   # provocado (Círculo da Provocação Sombria): só existe quem provocou
 	var best: Player = null
 	var best_d := INF
 	var pool: Array = get_parent().targets() if horde and get_parent().has_method("targets") 		else get_tree().get_nodes_in_group("players")
@@ -1202,6 +1240,9 @@ func _begin_attack(dist := 0.0) -> void:
 		"thorn":
 			_thorn_begin(dist)
 			return
+		"forge":
+			_forge_begin(dist)
+			return
 		"worm":
 			attack_kind = BossRules.worm_attack(worm_hits, _specials, dist, float(data.reach))
 			worm_hits += 1
@@ -1280,6 +1321,12 @@ func _attack_duration() -> float:
 			return 2.0
 		"spores":
 			return 2.2
+		"hammer":
+			return _forge_time(ForgeRules.HAMMER_DUR)
+		"vent":
+			return _forge_time(ForgeRules.VENT_DUR)
+		"rune_shield":
+			return ForgeRules.SHIELD_DUR
 	if ai() == "thorn":
 		return 1.6   # garra: a árvore é lenta para armar e para voltar
 	return 0.95 if not is_boss else 1.1
@@ -1319,6 +1366,12 @@ func _hit_time() -> float:
 			return 1.2
 		"spores":
 			return 1.4
+		"hammer":
+			return _forge_time(ForgeRules.HAMMER_T)
+		"vent":
+			return _forge_time(ForgeRules.VENT_T)
+		"rune_shield":
+			return ForgeRules.SHIELD_T
 	if ai() == "thorn":
 		return 0.9
 	return 0.5 if not is_boss else 0.6
@@ -1362,6 +1415,12 @@ func _update_attack(delta: float, player, to_player: Vector3, dist: float) -> vo
 			_spore_hit(false)
 		elif attack_kind == "swing" and ai() == "thorn":
 			_thorn_claw(false)
+		elif attack_kind == "hammer":
+			_forge_hammer(false)
+		elif attack_kind == "vent":
+			_forge_vent(false)
+		elif attack_kind == "rune_shield":
+			_forge_shield_up()
 		elif attack_kind == "slam":
 			var sr := _slam_radius()
 			Sfx.play_at("slam", global_position, 0.0)
@@ -1902,11 +1961,16 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun
 		return
 	asleep = false
 	_sleep_t = SLEEP_CHECK
+	if shielded:
+		_forge_immune(from_pos)   # Escudo Rúnico de pé: nada entra (nem vai ao servidor)
+		return
 	if puppet:
 		# o servidor decide; os números de dano chegam de volta em show_hit()
 		Network.client_hit_enemy(net_id, amount, from_pos, crit, slow, stun, pull)
 		return
 	amount = incoming(amount)
+	if ai() == "forge":
+		amount = ForgeRules.taken(amount, false, enraged)   # superaquecido leva mais dano
 	if last_hitter != 0:
 		contributors[last_hitter] = true
 	if slow > 0.0:
@@ -1966,6 +2030,89 @@ func apply_stun(t: float) -> void:
 	attack_cd = max(attack_cd, t)   # sem golpe novo durante o atordoamento (o stagger de um golpe comum fica como está)
 	if state == "attack":
 		_set_state("chase")
+
+
+## Círculo da Provocação Sombria: as mãos seguram por `hold` s (sem andar nem golpear, o golpe em andamento se
+## perde; chefes não ficam presos) e o inimigo fica provocado por `taunt` s depois disso: o alvo dele passa a ser
+## `by` (o herói), seja quem for que ele perseguia antes (ver _nearest_player). Não empilha nem renova numa
+## mesma ativação (DarkTauntSkill já filtra quem foi agarrado); outra ativação substitui. Réplica: pede ao servidor.
+func apply_taunt(by: Node3D, hold: float, taunt: float) -> void:
+	if puppet:
+		Network.client_taunt_enemy(net_id, hold, taunt)
+		return
+	if dead or by == null or BurrowRules.hidden(state, attack_kind, hit_done):
+		return
+	var tt := DarkTauntRules.taunt_times(hold, taunt, is_boss)
+	asleep = false
+	_sleep_t = SLEEP_CHECK
+	if tt.x > 0.0:
+		held_t = maxf(held_t, tt.x)
+		attack_cd = maxf(attack_cd, tt.x)   # preso: nenhum golpe novo
+		if state == "attack" and attack_kind != "emerge":
+			_set_state("chase")   # o golpe em andamento se perde
+		velocity.x = 0.0
+		velocity.z = 0.0
+	if tt.y > 0.0:
+		taunt_by = by
+		taunt_t = tt.y
+		provoked = maxf(provoked, tt.y)   # não desiste da perseguição por distância enquanto provocado
+		if state in ["idle", "wander", "return"]:
+			_set_state("chase")
+		_set_taunt_look(true)
+
+
+## Quem provocou, enquanto a provocação vale (vivo, no mesmo mundo, fora da vila, na sala do chefe). Quando deixa
+## de valer (morreu, saiu do jogo, entrou na vila), a provocação acaba ali: volta a IA de sempre.
+func _taunter() -> Player:
+	if taunt_t <= 0.0:
+		return null
+	var p := taunt_by as Player
+	var ok := p != null and is_instance_valid(p) and p.is_inside_tree() and DarkTauntRules.taunter_ok(not p.dead,
+		p.get_world_3d() == get_world_3d(), not horde and VillageWard.inside(p.global_position), in_arena(p.global_position))
+	if not ok:
+		_clear_taunt()
+		return null
+	return p
+
+
+func _taunt_tick(delta: float) -> void:
+	held_t = maxf(0.0, held_t - delta)
+	if taunt_t > 0.0:
+		taunt_t = maxf(0.0, taunt_t - delta)
+		if taunt_t <= 0.0:
+			_clear_taunt()
+		else:
+			_taunter()   # confere se o herói ainda vale (senão já encerra)
+
+
+## Fim da provocação (tempo, morte do herói ou do inimigo): solta as mãos e apaga os olhos.
+func _clear_taunt() -> void:
+	taunt_t = 0.0
+	taunt_by = null
+	held_t = 0.0
+	_set_taunt_look(false)
+
+
+## Liga/desliga os olhos vermelhos (TauntIndicator). Sem cena visual (servidor dedicado) não cria nada.
+func _set_taunt_look(on: bool) -> void:
+	var showing := taunt_eyes != null and is_instance_valid(taunt_eyes) and bool(taunt_eyes.get("active"))
+	if on == showing:
+		return
+	if on:
+		if dead or FX._scene() == null:
+			return
+		if taunt_eyes == null or not is_instance_valid(taunt_eyes) or taunt_eyes.is_queued_for_deletion():
+			taunt_eyes = TAUNT_INDICATOR.instantiate()
+			add_child(taunt_eyes)
+			taunt_eyes.attach(self)
+		taunt_eyes.show_eyes()
+	elif taunt_eyes != null and is_instance_valid(taunt_eyes):
+		taunt_eyes.hide_eyes()
+
+
+## Topo do inimigo (m acima da origem), o mesmo da barra de vida.
+func head_top() -> float:
+	return float(data.height) * float(data.scale) * (size_mult if level > 0 else 1.0)
 
 
 ## Dano que este inimigo leva de um acerto de `amount` (maior se estiver com a marca tóxica, menor se estiver
@@ -2059,6 +2206,10 @@ func die_visual() -> void:
 	collision_layer = 0
 	collision_mask = 1
 	_set_overlay(null)
+	_clear_taunt()
+	if taunt_eyes != null and is_instance_valid(taunt_eyes):
+		taunt_eyes.queue_free()   # morreu: o indicador sai junto, sem esperar o apagar
+		taunt_eyes = null
 	if bar_root:
 		bar_root.visible = false
 	if name_tag:
@@ -2141,10 +2292,13 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 		hp = new_hp
 		health_changed.emit(self)
 	slow_timer = 0.25 if flags & 1 else 0.0
+	_set_taunt_look(flags & TAUNT_FLAG != 0)
 	var now_enraged := flags & 2 != 0
 	if now_enraged and not enraged and (not horde or get_tree().current_scene.get("survival") != null):
 		Game.notify.emit("%s está enfurecido!" % data.name, Color(1, 0.4, 0.3))
 	enraged = now_enraged
+	if ai() == "forge":
+		_forge_set_shield(flags & ForgeRules.SHIELD_FLAG != 0)
 	if ai() == "worm":
 		_set_fury_look(enraged)
 		if new_state == "burrow" and new_hp >= max_hp:
@@ -2165,6 +2319,8 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 			elif attack_kind in ["quake", "rockfall", "acid_rain", "roots", "spores", "sprouts"] \
 					or (attack_kind == "swing" and ai() == "thorn"):
 				_replica_boss_start(flags, atk_t)
+			elif attack_kind in ["hammer", "vent", "rune_shield"]:
+				_forge_replica_start(flags, atk_t)
 		elif atk_t < attack_timer - 0.3:
 			# um novo ataque começou entre dois snapshots
 			attack_kind = atk_kind
@@ -2175,6 +2331,8 @@ func apply_snapshot(pos: Vector3, yaw: float, new_hp: float, new_state: String, 
 			elif attack_kind in ["quake", "rockfall", "acid_rain", "roots", "spores", "sprouts"] \
 					or (attack_kind == "swing" and ai() == "thorn"):
 				_replica_boss_start(flags, atk_t)
+			elif attack_kind in ["hammer", "vent", "rune_shield"]:
+				_forge_replica_start(flags, atk_t)
 	if new_state != state:
 		_set_state(new_state)
 	if ai() in ["burrow", "worm"]:
@@ -2251,6 +2409,10 @@ func _puppet_process(delta: float) -> void:
 				_spore_hit(true)
 			elif attack_kind == "swing" and ai() == "thorn":
 				_thorn_claw(true)
+			elif attack_kind == "hammer":
+				_forge_hammer(true)
+			elif attack_kind == "vent":
+				_forge_vent(true)
 			elif attack_kind == "swing":
 				Sfx.play_at("swing", global_position, 0.15, -4.0)
 	var hspeed := Vector2(global_position.x - prev.x, global_position.z - prev.z).length() / maxf(delta, 0.0001)
@@ -2312,6 +2474,12 @@ func _animate(delta: float, hspeed: float) -> void:
 		return
 	if data.model == "thorn_tree":
 		_animate_thorn(hspeed, s, k)
+		return
+	if data.model == "forge_golem":
+		_animate_forge(hspeed, s, k)
+		return
+	if data.model == "forge_rune":
+		_animate_rune(k)
 		return
 	var amp: float = clamp(hspeed / 4.0, 0.0, 1.0) * 0.8
 	var at := attack_timer
@@ -3491,3 +3659,515 @@ func _thorn_step(knee: String) -> void:
 	var lp := _local_player()
 	if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(global_position) < 14.0:
 		lp.add_shake(0.08)
+
+
+# ------------------------------------------------------------ Forjador Rúnico (chefe das Galerias Profundas)
+## Regras em ForgeRules. Martelada em cone à frente (pega todos no cone e deixa faixas de metal derretido), Respiro
+## da Fornalha em volta dele (para quem fica colado nas costas), Escudo Rúnico (imune até o grupo quebrar as 3
+## runas que nascem na sala; ele continua atacando) e, abaixo de metade da vida, superaquecido: golpes mais
+## rápidos, mais faixas, e leva mais dano. O servidor (ou o solo) decide e dá o dano; a réplica no cliente refaz
+## o desenho pela direção do snapshot e sabe do escudo por um bit de `flags`.
+const RUNE_KIND := "runa_forjador"
+const FORGE_TICK := 0.5
+const FORGE_WARD_R := 3.3
+const FORGE_WARD_H := 5.4
+## Onde a cabeça do martelo bate, em metros à frente dele.
+const FORGE_REACH := 5.6
+
+
+func _forge_begin(dist: float) -> void:
+	attack_kind = ForgeRules.attack(_forge_n, dist, _forge_wants_shield())
+	if attack_kind != "rune_shield":
+		_forge_n += 1
+	match attack_kind:
+		"hammer":
+			var to := Vector3.ZERO
+			if _tgt != null and is_instance_valid(_tgt):
+				to = _tgt.global_position - global_position
+			to.y = 0.0
+			if to.length() < 0.01:
+				to = model_forward()
+			model.rotation.y = atan2(to.x, to.z)
+			_forge_origin = global_position
+			_forge_dir = to.normalized()
+			throw_point = global_position + _forge_dir * ForgeRules.CONE_LEN
+			_hammer_warn(0.0)
+		"vent":
+			_vent_warn(0.0)
+		"rune_shield":
+			boss_seed = randi() & 0xFFFF
+			_shield_warn(0.0)
+
+
+func _forge_wants_shield() -> bool:
+	return ForgeRules.should_shield(hp / maxf(max_hp, 1.0), _forge_shields, _forge_since, shielded)
+
+
+## Tempo dos golpes dele (aviso e duração): mais curtos quando superaquecido.
+func _forge_time(base: float) -> float:
+	return base * ForgeRules.time_scale(enraged)
+
+
+func _hammer_warn(elapsed: float) -> void:
+	ForgeFX.cone_warning(_forge_origin, _forge_dir, ForgeRules.CONE_LEN, ForgeRules.CONE_HALF,
+		maxf(0.2, _hit_time() - elapsed))
+	Sfx.play_at("anvil", _forge_origin, 0.1, -5.0)
+
+
+## O martelo bate: pancada no chão à frente, a onda corre pelo cone e as faixas de metal derretido ficam. Pega
+## todos dentro do cone avisado (só o servidor/solo dá o dano).
+func _forge_hammer(visual: bool) -> void:
+	var at := _forge_origin + _forge_dir * FORGE_REACH * float(data.scale)
+	Sfx.play_at("slam", at, 0.05, 2.0)
+	Sfx.play_at("anvil", at, 0.1, 0.0)
+	ForgeFX.hammer_impact(at, _forge_origin, _forge_dir, ForgeRules.CONE_LEN, ForgeRules.CONE_HALF)
+	var lp := _local_player()
+	if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(_forge_origin) < 30.0:
+		lp.add_shake(0.55)
+	for d in ForgeRules.trail_dirs(_forge_dir, enraged):
+		var tr := MoltenTrail.new()
+		tr.origin = _forge_origin
+		tr.dir = d
+		tr.life = ForgeRules.trail_life(enraged)
+		tr.dmg = data.damage * dmg_mult * ForgeRules.TRAIL_DMG
+		tr.level = level
+		tr.deal = not visual
+		get_parent().add_child(tr)
+	if visual:
+		return
+	for p in _boss_pool():
+		if p.dead:
+			continue
+		if ForgeRules.in_cone(_forge_origin, _forge_dir, p.global_position):
+			p.take_damage(vs(level, p, data.damage * dmg_mult * 1.5), _forge_origin)
+
+
+func _vent_warn(elapsed: float) -> void:
+	var c := _net_pos if puppet else global_position
+	FX.telegraph(c, ForgeRules.VENT_R, maxf(0.2, _hit_time() - elapsed))
+	Sfx.play_at("fire", c, 0.1, -2.0)
+
+
+## Respiro da Fornalha: labaredas saem pelas frestas e queimam todos em volta dele.
+func _forge_vent(visual: bool) -> void:
+	var c := _net_pos if puppet else global_position
+	Sfx.play_at("explode", c, 0.1, -3.0)
+	ForgeFX.vent_burst(c, ForgeRules.VENT_R)
+	if visual:
+		return
+	for p in _boss_pool():
+		if p.dead:
+			continue
+		if Vector2(p.global_position.x - c.x, p.global_position.z - c.z).length() <= ForgeRules.VENT_R:
+			p.take_damage(vs(level, p, data.damage * dmg_mult * 1.2), c)
+
+
+func _shield_warn(elapsed: float) -> void:
+	var c := _net_pos if puppet else global_position
+	FXToon.rune_circle(c, FORGE_WARD_R * 1.3, 0.3, maxf(0.2, _hit_time() - elapsed))
+	Sfx.play_at("arcane_cast", c, 0.0, 0.0)
+
+
+## O punho bate no chão e o Escudo Rúnico sobe: as runas nascem espalhadas pela sala (só quem manda nele: o
+## servidor anuncia cada uma aos clientes como um monstro comum, e o escudo vai no snapshot).
+func _forge_shield_up() -> void:
+	if puppet:
+		return
+	_forge_shields += 1
+	_forge_set_shield(true)
+	var facing := model_forward()
+	if _tgt != null and is_instance_valid(_tgt):
+		var to := Vector3(_tgt.global_position.x - home.x, 0.0, _tgt.global_position.z - home.z)
+		if to.length() > 2.0:
+			facing = to
+	var parent := get_parent()
+	for pt in ForgeRules.rune_points(boss_seed, home, facing):
+		var at := Vector3(pt.x, global_position.y + 0.3, pt.z)
+		if arena.has_area():   # nunca fora da sala dele
+			at.x = clampf(at.x, arena.position.x + 2.0, arena.end.x - 2.0)
+			at.z = clampf(at.z, arena.position.y + 2.0, arena.end.y - 2.0)
+		var e: Enemy = (get_script() as GDScript).new()
+		e.kind = RUNE_KIND
+		e.level = level
+		e.area = area
+		e.arena = arena
+		e.position = at
+		parent.add_child(e)
+		ForgeFX.rune_pop(at, false)
+
+
+## Runas vivas do escudo por perto.
+func _runes_near() -> Array:
+	var out := []
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e is Enemy and e.kind == RUNE_KIND and not e.dead and e.global_position.distance_to(global_position) < 70.0:
+			out.append(e)
+	return out
+
+
+## Liga/desliga o escudo (servidor/solo: pela regra; réplica: pelo bit do snapshot): a torre de luz em volta dele,
+## o aviso na tela de quem está na luta e o som.
+func _forge_set_shield(on: bool, quiet := false) -> void:
+	if on == shielded:
+		return
+	shielded = on
+	var c := _net_pos if puppet else global_position
+	var lp := _local_player()
+	var near: bool = lp != null and lp.global_position.distance_to(c) < 45.0
+	if on:
+		_forge_ward = ForgeFX.ward(self, FORGE_WARD_R, FORGE_WARD_H)
+		Sfx.play_at("anvil", c, 0.0, 2.0)
+		if near and not quiet:
+			Game.notify.emit("Escudo Rúnico! Quebrem as %d runas da sala." % ForgeRules.RUNES, Color(1.0, 0.75, 0.3))
+	else:
+		ForgeFX.ward_drop(_forge_ward, c, FORGE_WARD_R, FORGE_WARD_H)
+		_forge_ward = null
+		_forge_since = 0.0
+		if not quiet:
+			Sfx.play_at("explode", c, 0.1, -2.0)
+			if near:
+				Game.notify.emit("O Escudo Rúnico caiu!", Color(1.0, 0.9, 0.5))
+				if lp.has_method("add_shake"):
+					lp.add_shake(0.4)
+
+
+## Golpe que bate no escudo: nada entra; um "Imune" e faíscas (no máximo um a cada 0,4 s).
+func _forge_immune(from_pos: Vector3) -> void:
+	if _forge_immune_t > 0.0:
+		return
+	_forge_immune_t = 0.4
+	var top: Vector3 = global_position + Vector3.UP * (data.height * data.scale + 0.2)
+	FX.damage_number(top, "Imune", ForgeFX.AMBER, 44)
+	Sfx.play_at("anvil", global_position, 0.25, -9.0)
+	var out := Vector3(from_pos.x - global_position.x, 0.0, from_pos.z - global_position.z)
+	if out.length() > 0.1 and DisplayServer.get_name() != "headless":
+		out = out.normalized()
+		FXToon.impact_sparks(global_position + out * FORGE_WARD_R + Vector3.UP * 1.6, out, 4, 60.0, ForgeFX.RUNE)
+
+
+## Entrada de chefe: a primeira vez que ele parte para cima perto deste jogador, o chão treme e o nome aparece
+## em destaque. De novo só depois de um reset.
+func _forge_intro() -> void:
+	if _intro_shown:
+		return
+	var lp := _local_player()
+	if lp == null or lp.global_position.distance_to(global_position) > 32.0:
+		return
+	_intro_shown = true
+	if lp.has_method("add_shake"):
+		lp.add_shake(0.7)
+	Sfx.play_at("anvil", global_position, 0.0, 3.0)
+	Sfx.play_at("slam", global_position, 0.0)
+	var w := get_tree().current_scene
+	var hud = w.get("hud") if w != null else null
+	if hud != null and hud.get("region_banner") != null:
+		hud.region_banner.show_area(data.name, "Chefe das Galerias Profundas")
+
+
+## Todo quadro de física: o relógio do escudo e da próxima vez, a cor de brasa da fase 2 e, a cada FORGE_TICK s,
+## as correntes de luz das runas até ele, a queda do escudo quando não sobra runa e o reset da luta. A runa sem
+## Forjador de escudo erguido por perto se desfaz (some sem recompensa).
+func _forge_process(delta: float) -> void:
+	_forge_immune_t = maxf(0.0, _forge_immune_t - delta)
+	if data.get("rune", false):
+		_forge_t -= delta
+		if _forge_t > 0.0:
+			return
+		_forge_t = FORGE_TICK
+		if puppet:
+			return
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if e is Enemy and e.ai() == "forge" and not e.dead and e.shielded \
+					and e.global_position.distance_to(global_position) < 70.0:
+				return
+		wither()
+		return
+	if not puppet and not shielded and state in ["chase", "attack"]:
+		_forge_since += delta
+	if state in ["chase", "attack"]:
+		_forge_intro()
+	if enraged != _fury_look:
+		_set_fury_look(enraged)   # superaquecido: fornalha, runas e frestas em brasa
+	_forge_t -= delta
+	if _forge_t > 0.0:
+		return
+	_forge_t = FORGE_TICK
+	var runes := _runes_near()
+	if shielded:
+		var heart := global_position + Vector3.UP * 2.3 * float(data.scale)
+		for r in runes:
+			ForgeFX.rune_link(r.global_position + Vector3.UP * 1.3, heart)
+	if puppet:
+		return
+	if shielded and ForgeRules.shield_down(runes.size()):
+		_forge_set_shield(false)
+	# a luta acabou (voltou para casa e se curou): escudo, runas, fase e contadores voltam ao começo
+	if state in ["idle", "wander"] and hp >= max_hp and (shielded or enraged or _forge_shields > 0 or _forge_n > 0):
+		_forge_set_shield(false, true)
+		for r in runes:
+			r.wither()
+		_forge_shields = 0
+		_forge_n = 0
+		_forge_since = 0.0
+		enraged = false
+		_intro_shown = false
+
+
+## Forjador: passada pesada de pedra (o joelho dobra quando a perna volta; cada pisada levanta poeira e fagulhas
+## e treme a tela), braço esquerdo balançando com atraso, o martelo em pé na mão direita oscilando no próprio
+## tempo com a corrente pendurada, escarcelas que abrem com as pernas, correntes do cinto em pêndulo, a tampa da
+## chaminé batendo, as labaredas tremendo e o tronco respirando como um fole; as chaminés soltam fuligem.
+## Golpes: a Martelada arma com o corpo indo para trás e para baixo e o martelo subindo por cima do ombro, depois
+## desce em arco e fica cravado no chão; o Respiro recua, escancara a porta da fornalha e estufa o peito; o
+## Escudo ergue o punho esquerdo e o crava no chão. Superaquecido: porta entreaberta, tampa batendo sem parar,
+## tremor. Rotação x positiva: topo para a frente, perna/braço para trás, queixo abre.
+func _animate_forge(hspeed: float, s: float, k: float) -> void:
+	var body: Node3D = parts.Body
+	if not _rig.has("body_rest"):
+		_rig["body_rest"] = body.position
+		_rig["step"] = 0.0
+		_rig["puff"] = 0.0
+		_rig["hot"] = false
+		_rig["sparks"] = ForgeFX.sparks(parts.Fire) if parts.get("Fire") != null and not puppet_headless() else null
+	var hot := enraged
+	var amp := clampf(hspeed / 2.0, 0.0, 1.0)
+	var idle := 1.0 - amp
+	var c := cos(anim_t)
+	var lt := _life_t
+	var kf := 1.0 - pow(1.0 - k, 3.0)   # golpes: mais firme que o balanço
+	var leg := s * 0.4 * amp
+	var knee_l := maxf(0.0, c) * 0.65 * amp + 0.04
+	var knee_r := maxf(0.0, -c) * 0.65 * amp + 0.04
+	var arm_l := -s * 0.26 * amp - 0.05 + sin(lt * 0.7) * 0.03 * idle
+	var arm_r := 0.04 + sin(lt * 0.7 + 1.3) * 0.02 * idle + s * 0.05 * amp   # o braço do martelo quase não balança
+	var arm_lz := 0.0
+	var arm_rz := 0.0
+	var elb_l := -0.22 - c * 0.16 * amp - sin(lt * 0.6) * 0.05 * idle
+	var elb_r := -0.3
+	var hand_l := 0.1 + sin(lt * 0.9) * 0.1 * idle
+	# ângulo do cabo do martelo no mundo (0 = em pé, positivo = tomba para a frente): apoiado um pouco para trás
+	var ham := -0.14 + sin(lt * 0.5) * 0.035 * idle + sin(anim_t - 1.0) * 0.08 * amp
+	var body_x := 0.05 + sin(lt * 0.5) * 0.02 * idle
+	var body_y := s * 0.06 * amp
+	var body_z := s * 0.045 * amp
+	var off := Vector3(0.0, -absf(s) * 0.09 * amp + sin(lt * 1.0) * 0.03 * idle, 0.0)
+	var head_x := sin(lt * 0.45 + 0.7) * 0.03 * idle
+	var head_y := sin(lt * 0.3) * 0.14 * idle
+	var jaw := 0.02 + maxf(0.0, sin(lt * 1.1)) * 0.05
+	var door := 0.45 if hot else 0.0
+	var fire := 1.0 + sin(lt * 9.0) * 0.12 + sin(lt * 14.3) * 0.08 + (0.45 if hot else 0.0)
+	var lid := maxf(0.0, sin(lt * (6.0 if hot else 2.2))) * (0.55 if hot else 0.16)
+	var shake := 0.3 if hot else 0.0
+	if state == "attack":
+		var t := attack_timer
+		var ht := _hit_time()
+		var u := clampf(t / ht, 0.0, 1.0)
+		var e := u * u * (3.0 - 2.0 * u)
+		k = kf
+		match attack_kind:
+			"hammer":
+				var arm_t := ht * 0.78
+				if t < arm_t:   # arma: recua e afunda, o tronco vira para o lado do martelo e ele sobe por cima do ombro
+					var w := clampf(t / arm_t, 0.0, 1.0)
+					w = w * w * (3.0 - 2.0 * w)
+					off = Vector3(0.0, -0.24 * w, -0.42 * w)
+					body_x = -0.2 * w
+					body_y = -0.3 * w
+					arm_r = -2.1 * w
+					elb_r = -0.3 - 0.5 * w
+					ham = -0.14 - 0.95 * w
+					arm_l = 0.45 * w
+					elb_l = -0.5 * w
+					knee_l = 0.3 * w
+					knee_r = 0.3 * w
+					leg = 0.12 * w
+					jaw = 0.3 * w
+					head_x = -0.12 * w
+					lid = 0.5 * w
+				elif t < ht + 0.75:   # desce em arco e fica cravado no chão à frente
+					var w := clampf((t - arm_t) / maxf(ht - arm_t, 0.01), 0.0, 1.0)
+					w = w * w
+					off = Vector3(0.0, -0.24, -0.42).lerp(Vector3(0.0, -0.26, 0.5), w)
+					body_x = lerpf(-0.2, 0.34, w)
+					body_y = lerpf(-0.3, 0.12, w)
+					arm_r = lerpf(-2.1, -1.0, w)
+					elb_r = lerpf(-0.8, -0.1, w)
+					ham = lerpf(-1.09, 1.78, w)
+					arm_l = 0.5
+					elb_l = -0.3
+					knee_l = 0.35
+					knee_r = 0.35
+					jaw = 0.42
+					head_x = 0.1
+					shake = maxf(shake, 1.0 if t >= ht and t < ht + 0.25 else 0.0)
+					k = 1.0 - pow(1.0 - k, 2.0)
+			"vent":
+				if t < ht:   # recua, braços abrem, a porta escancara e o fogo cresce
+					off = Vector3(0.0, -0.14 * e, -0.3 * e)
+					body_x = -0.26 * e
+					arm_lz = 0.5 * e
+					arm_rz = -0.3 * e
+					arm_l = 0.2 * e
+					elb_l = -0.6 * e
+					door = 1.9 * e
+					fire = 1.0 + 1.7 * e
+					jaw = 0.5 * e
+					head_x = -0.2 * e
+					shake = maxf(shake, e)
+					lid = 0.6
+				elif t < ht + 0.55:   # estufa o peito para a frente e solta as labaredas
+					off = Vector3(0.0, 0.06, 0.3)
+					body_x = 0.3
+					arm_lz = 0.7
+					arm_rz = -0.35
+					elb_l = -0.2
+					door = 2.1
+					fire = 2.8
+					jaw = 0.6
+					shake = 1.0
+			"rune_shield":
+				var up_t := ht * 0.72
+				if t < up_t:   # ergue o punho esquerdo, o tronco recua
+					var w := clampf(t / up_t, 0.0, 1.0)
+					w = w * w * (3.0 - 2.0 * w)
+					off = Vector3(0.0, -0.1 * w, -0.25 * w)
+					body_x = -0.18 * w
+					body_y = 0.25 * w
+					arm_l = -2.7 * w
+					elb_l = -0.3 * w
+					hand_l = 0.7 * w
+					head_x = -0.18 * w
+					jaw = 0.3 * w
+				elif t < ht + 0.6:   # crava o punho no chão: o círculo de runas se fecha e o escudo sobe
+					var w := clampf((t - up_t) / maxf(ht - up_t, 0.01), 0.0, 1.0)
+					w = w * w
+					off = Vector3(0.0, -0.1, -0.25).lerp(Vector3(0.0, -0.42, 0.34), w)
+					body_x = lerpf(-0.18, 0.62, w)
+					body_y = lerpf(0.25, -0.1, w)
+					arm_l = lerpf(-2.7, -0.75, w)
+					elb_l = -0.15
+					hand_l = 0.7
+					knee_l = 0.45
+					knee_r = 0.45
+					jaw = 0.45
+					shake = maxf(shake, 1.0 if t >= ht and t < ht + 0.25 else 0.0)
+					k = 1.0 - pow(1.0 - k, 2.0)
+	if stagger > 0.0 or _flash_t > 0.0:
+		shake = maxf(shake, 0.6)
+	var sh := shake * sin(lt * 37.0)
+	var sh2 := shake * sin(lt * 29.0 + 1.0)
+	body_z += sh * 0.012
+	# pisada: poeira, fagulhas e o tranco em quem está perto
+	if amp > 0.35 and state != "attack":
+		var step := signf(s)
+		if step != 0.0 and step != float(_rig.step):
+			_rig.step = step
+			_forge_step("KneeL" if step > 0.0 else "KneeR")
+	# chaminés: fuligem de tempos em tempos (sem parar e com fogo quando superaquecido)
+	if lt - float(_rig.puff) > (0.16 if hot else 0.5) and is_inside_tree() and not puppet_headless():
+		_rig.puff = lt
+		var st: Node3D = parts.get("Stack%d" % (randi() % 3))
+		if st != null:
+			ForgeFX.stack_puff(st.global_position, hot)
+	if hot != bool(_rig.hot):
+		_rig.hot = hot
+		var sp: CPUParticles3D = _rig.sparks
+		if sp != null:
+			sp.amount = 44 if hot else 18
+	parts.LegL.rotation.x = lerp(parts.LegL.rotation.x, leg, k)
+	parts.LegR.rotation.x = lerp(parts.LegR.rotation.x, -leg if state != "attack" else leg, k)
+	parts.ArmL.rotation.x = lerp(parts.ArmL.rotation.x, arm_l, k)
+	parts.ArmR.rotation.x = lerp(parts.ArmR.rotation.x, arm_r, k)
+	parts.ArmL.rotation.z = lerp(parts.ArmL.rotation.z, arm_lz, k)
+	parts.ArmR.rotation.z = lerp(parts.ArmR.rotation.z, arm_rz, k)
+	# o cabo: o punho dobra o que der e o resto gira o martelo dentro da mão
+	var hand_r := clampf(ham - body_x - arm_r - elb_r, -0.7, 0.7)
+	var ham_x := ham - body_x - arm_r - elb_r - hand_r
+	for pair in [["KneeL", knee_l], ["KneeR", knee_r], ["ElbowL", elb_l], ["ElbowR", elb_r], ["HandL", hand_l],
+			["HandR", hand_r], ["Hammer", ham_x]]:
+		var j: Node3D = parts.get(pair[0])
+		if j:
+			j.rotation.x = lerp_angle(j.rotation.x, float(pair[1]), k)
+	body.rotation.x = lerp(body.rotation.x, body_x, k)
+	body.rotation.y = lerp(body.rotation.y, body_y, k)
+	body.rotation.z = lerp(body.rotation.z, body_z, k)
+	body.position = body.position.lerp(_rig.body_rest + off, k)
+	if parts.Head:
+		parts.Head.rotation.x = lerp(parts.Head.rotation.x, head_x + sh2 * 0.02, k)
+		parts.Head.rotation.y = lerp(parts.Head.rotation.y, head_y, k)
+	if parts.Jaw:
+		parts.Jaw.rotation.x = lerp(parts.Jaw.rotation.x, jaw + absf(sh) * 0.08, k)
+	var dn: Node3D = parts.get("Door")
+	if dn:
+		dn.rotation.y = lerp(dn.rotation.y, door + sh * 0.06, k)
+	var fn: Node3D = parts.get("Fire")
+	if fn:
+		fn.scale = fn.scale.lerp(Vector3(1.0 + (fire - 1.0) * 0.3, fire, 1.0 + (fire - 1.0) * 0.3), k)
+	var ln: Node3D = parts.get("Lid")
+	if ln:
+		ln.rotation.x = lerp(ln.rotation.x, lid + absf(sh2) * 0.2, k)
+	# escarcelas: as da frente abrem quando a perna de baixo vem para a frente, as de trás quando ela volta
+	var leg_l: float = parts.LegL.rotation.x
+	var leg_r: float = parts.LegR.rotation.x
+	for i in 4:
+		var tn: Node3D = parts.get("Tasset%d" % i)
+		if tn:
+			var lr := leg_l if i in [0, 3] else leg_r
+			var push := minf(0.0, lr) * 0.9 if i < 2 else maxf(0.0, lr) * 0.9
+			tn.rotation.x = lerp(tn.rotation.x, push + sin(anim_t - 1.2 + i) * 0.07 * amp + sin(lt * 1.3 + i * 1.7) * 0.02
+				- body_x * 0.6 + sh * 0.05, k)
+	# correntes do cinto e a do martelo: pêndulos que ficam para trás e voltam, cada uma no seu tempo
+	for i in 2:
+		var cn: Node3D = parts.get("Chain%d" % i)
+		if cn:
+			var ph := i * 2.1
+			cn.rotation.x = lerp(cn.rotation.x, sin(lt * 1.4 + ph) * 0.06 + sin(anim_t - 1.5 + ph) * 0.3 * amp - body_x * 0.8
+				+ sh * 0.2, k)
+			cn.rotation.z = lerp(cn.rotation.z, sin(lt * 1.1 + ph) * 0.05 - body_z * 1.2 + sh2 * 0.15, k)
+	var hc: Node3D = parts.get("HammerChain")
+	if hc:
+		hc.rotation.x = lerp_angle(hc.rotation.x, clampf(-ham, -2.2, 1.3) + sin(lt * 1.7) * 0.08 + sin(anim_t - 1.8) * 0.2 * amp, k * 0.6)
+		hc.rotation.z = lerp(hc.rotation.z, sin(lt * 1.2 + 0.6) * 0.07 + sh * 0.2, k)
+
+
+## Pisada: poeira de pedra, fagulhas do ferro no chão, o som e um tranco em quem está perto.
+func _forge_step(knee: String) -> void:
+	var kn: Node3D = parts.get(knee)
+	if kn == null or not is_inside_tree() or puppet_headless():
+		return
+	var at := Vector3(kn.global_position.x, global_position.y + 0.1, kn.global_position.z) + model_forward() * 0.3
+	FX.burst(at, Color(0.4, 0.36, 0.33), 8, 2.6, 0.13, 0.5)
+	FX.burst(at, Color(1.0, 0.6, 0.2), 4, 3.2, 0.06, 0.4)
+	Sfx.play_at("chop_stone", at, 0.2, -10.0)
+	var lp := _local_player()
+	if lp != null and lp.has_method("add_shake") and lp.global_position.distance_to(global_position) < 14.0:
+		lp.add_shake(0.1)
+
+
+## Runa do escudo: brota do chão, pulsa e balança devagar; treme quando leva pancada.
+func _animate_rune(k: float) -> void:
+	var body: Node3D = parts.Body
+	if body == null:
+		return
+	var lt := _life_t
+	var rise := clampf(lt / 0.45, 0.0, 1.0)
+	rise = 1.0 - (1.0 - rise) * (1.0 - rise)
+	var hit := 1.0 if _flash_t > 0.0 else 0.0
+	body.position.y = lerpf(-1.7, 0.0, rise)
+	body.rotation.z = lerp(body.rotation.z, sin(lt * 1.3) * 0.025 + hit * sin(lt * 41.0) * 0.07, k)
+	body.rotation.x = lerp(body.rotation.x, sin(lt * 1.1 + 0.8) * 0.02 + hit * sin(lt * 33.0) * 0.06, k)
+	body.scale = Vector3.ONE * (1.0 + sin(lt * 3.2) * 0.02)
+
+
+## Réplica: começa a desenhar um golpe do Forjador que o snapshot acabou de trazer (`atk_t` s já passados).
+func _forge_replica_start(flags: int, atk_t: float) -> void:
+	match attack_kind:
+		"hammer":
+			_forge_origin = _net_pos
+			var off := ThrowRules.unpack_offset(flags)
+			_forge_dir = off.normalized() if off.length() > 0.01 else Vector3(sin(_net_yaw), 0.0, cos(_net_yaw))
+			_hammer_warn(atk_t)
+		"vent":
+			_vent_warn(atk_t)
+		"rune_shield":
+			_shield_warn(atk_t)

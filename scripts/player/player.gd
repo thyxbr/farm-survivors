@@ -1535,6 +1535,8 @@ func _ab_module(id: String) -> Object:
 		return ShieldAbilities
 	if id.begins_with(HammerAbilities.ID):   # o Martelo de Energia (e o cancelamento) também tem módulo próprio
 		return HammerAbilities
+	if id.begins_with(DarkTauntAbilities.ID):   # o Círculo da Provocação Sombria (e o cancelamento) também
+		return DarkTauntAbilities
 	var cls := ""
 	if ItemDB.ABILITIES.has(id):
 		cls = ItemDB.ABILITIES[id]["class"]

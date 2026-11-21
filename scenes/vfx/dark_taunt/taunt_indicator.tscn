@@ -1,0 +1,13 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/dark_taunt/taunt_indicator.gd" id="1"]
+[ext_resource type="Material" path="res://assets/vfx/dark_taunt/taunt_eyes_mat.tres" id="2"]
+
+[sub_resource type="QuadMesh" id="QuadMesh_eyes"]
+size = Vector2(1, 1)
+
+[node name="TauntIndicator" type="MeshInstance3D"]
+cast_shadow = 0
+mesh = SubResource("QuadMesh_eyes")
+material_override = ExtResource("2")
+script = ExtResource("1")
