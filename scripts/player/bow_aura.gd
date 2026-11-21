@@ -15,15 +15,21 @@ const KINDS := {
 }
 
 
+const SHEEN := preload("res://shaders/mythic_sheen.gdshader")
+
+
 ## Liga as partículas a todos os empties "Aura_*" do modelo do arco. Devolve quantos emissores criou.
 static func attach(model: Node3D) -> int:
 	if model == null:
 		return 0
 	var n := 0
+	var first := ""
 	for e in model.find_children("Aura_*", "Node3D", true, false):
 		var kind := kind_of(e.name)
 		if not KINDS.has(kind):
 			continue
+		if first == "":
+			first = kind
 		var k: Dictionary = KINDS[kind]
 		var p := FXEpic.stream(e, "glow", k.color, int(k.amount), float(k.life), float(k.size))
 		if p == null:   # servidor ou sem cena
@@ -36,7 +42,18 @@ static func attach(model: Node3D) -> int:
 		p.initial_velocity_min = float(k.vel) * 0.5
 		p.initial_velocity_max = float(k.vel)
 		n += 1
+	if first != "":
+		add_sheen(model, KINDS[first].color)
 	return n
+
+
+## Brilho de metal encantado por cima do arco inteiro (borda, reflexo que corre, cintilas): só nos míticos.
+static func add_sheen(model: Node3D, color: Color) -> void:
+	var sm := ShaderMaterial.new()
+	sm.shader = SHEEN
+	sm.set_shader_parameter("glow_color", color)
+	for mi: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
+		mi.material_overlay = sm
 
 
 ## "Aura_fire_3" -> "fire".

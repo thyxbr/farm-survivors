@@ -1745,468 +1745,706 @@ def plane_yz(ob):
     return ob
 
 
+def limb_frame(pts, z):
+    """Centro, direção (para a ponta) e normal das costas (-Y) do braço em z, no plano do arco (YZ)."""
+    c = limb_at(pts, z)
+    d = limb_dir(pts, z)
+    d = Vector((0, d.y, d.z)).normalized()
+    n = Vector((0, -d.z, d.y))
+    if n.y > 0:
+        n = -n
+    return c, d, n
+
+
+def _fin_off(pts, z0, z1, u, width, root, side):
+    z = z0 + (z1 - z0) * u
+    c, d, n = limb_frame(pts, z)
+    if side > 0:
+        n = -n
+    r0 = root(u) if callable(root) else root
+    return c, n, r0, max(width(u), 0.0008)
+
+
+def limb_fin(name, pts, z0, z1, width, m, col, side=-1, th=0.008, root=0.0, k=80, edge=0.28):
+    """Lâmina plana que nasce do braço no plano do arco (lida de lado, como a silhueta do arco), de z0 a z1, para as
+    costas (side=-1, lado do alvo) ou para a barriga (+1). width(u) e root(u) (recuo: começa dentro do braço) em
+    metros; th = espessura em X (afina no gume)."""
+    bm = bmesh.new()
+    rings = []
+    for i in range(k + 1):
+        c, n, r0, w = _fin_off(pts, z0, z1, i / k, width, root, side)
+        t = th(i / k) if callable(th) else th
+        sec = [(-t / 2, r0), (-t * edge, r0 + w * 0.8), (0.0, r0 + w), (t * edge, r0 + w * 0.8), (t / 2, r0)]
+        rings.append([bm.verts.new(c + Vector((x, 0, 0)) + n * o) for x, o in sec])
+    for A, B in zip(rings, rings[1:]):
+        for j in range(5):
+            j2 = (j + 1) % 5
+            bm.faces.new([A[j], A[j2], B[j2], B[j]])
+    bm.faces.new(rings[0][::-1])
+    bm.faces.new(rings[-1])
+    ob = _mk(name, bm, m, False)
+    return cel(ob, col) if col else ob
+
+
+def fin_line(pts, z0, z1, width, frac, side=-1, root=0.0, u0=0.0, u1=1.0, k=60, x=0.0):
+    """Pontos sobre a lâmina, a `frac` da largura (1 = gume), entre u0 e u1, deslocados x em X."""
+    out = []
+    for i in range(k + 1):
+        u = u0 + (u1 - u0) * i / k
+        c, n, r0, w = _fin_off(pts, z0, z1, u, width, root, side)
+        out.append(c + Vector((x, 0, 0)) + n * (r0 + w * frac))
+    return out
+
+
+def fin_face_x(th, frac, edge=0.28):
+    """Meia espessura da lâmina na fração `frac` da largura (a face onde runas e filigranas se apoiam)."""
+    f = min(frac / 0.8, 1.0)
+    return th / 2 - (th / 2 - th * edge) * f
+
+
+def rune_strokes(name, pts, z0, z1, width, frac, th, m, col, side=-1, root=0.0, u0=0.1, u1=0.9, n=6, r=0.0017):
+    """Runas gravadas nas duas faces da lâmina: traços ao longo da lâmina com um risco atravessado em cada um."""
+    x = fin_face_x(th, frac) + r * 0.35
+    for sx in (1, -1):
+        for j in range(n):
+            a = u0 + (u1 - u0) * j / n
+            b = a + (u1 - u0) / n * 0.72
+            seg = fin_line(pts, z0, z1, width, frac, side, root, a, b, 8, sx * x)
+            tube("%s%d_%d" % (name, sx, j), seg, r, m, col, sides=5)
+            mid = seg[4]
+            tick = fin_line(pts, z0, z1, width, frac + 0.22 * (1 if j % 2 else -1), side, root, (a + b) / 2,
+                            (a + b) / 2 + 0.001, 1, sx * x)[0]
+            tube("%sT%d_%d" % (name, sx, j), [mid, mid.lerp(tick, 0.5), tick], r * 0.85, m, col, sides=5)
+
+
+def filigree_curl(name, c, R, turns, a0, m, col, r=0.0019, flip=1, k=40):
+    """Espiral de filigrana no plano do arco (YZ), centrada em c (na face X do enfeite), abrindo de dentro para fora."""
+    seg = []
+    for i in range(k + 1):
+        u = i / k
+        a = a0 + flip * 2 * math.pi * turns * u
+        rr = R * (0.18 + 0.82 * u)
+        seg.append(c + Vector((0, math.cos(a) * rr, math.sin(a) * rr)))
+    return tube(name, seg, lambda u: r * (0.6 + 0.4 * u), m, col, sides=6)
+
+
+def disc_x(name, prof, m, col, c, sx, seg=16):
+    """Peça torneada (perfil (z, r)) virada para ±X (de frente para quem vê o arco de lado)."""
+    ob = w_lathe(name, prof, m, seg=seg, smooth=True)
+    return put(ob, col, c, (0, sx * math.pi / 2, 0))
+
+
 def build_abyss_bow():
-    """Suspiro do Abismo (Mítico): cada braço é um par de costelas negras que se juntam na ponta e no punho, presas
-    por fios do vazio; esporas de osso nas costas; o olho do Abismo acima da mão, com pálpebras e íris violeta acesa;
-    cristais do vazio nas pontas do centro e garras negras nas pontas."""
+    """Suspiro do Abismo (Mítico): braços de obsidiana com veios violeta, cada um com uma lâmina serrilhada nas costas
+    (gume de prata, runas acesas que correm para as pontas) e uma lâmina menor na barriga. Acima da mão, um lobo largo
+    com o olho do Abismo aberto nas duas faces, cercado de filigranas; abaixo, o coração do vazio num engaste de
+    prata com pingentes de cristal. Garras de obsidiana com gume de prata nas pontas."""
     m = vcf("bw_abyss", metal=0.2)
     g = vcf("bw_abyss_gem", emit="#9a4dff", strength=1.0)
-    half, back, fl = 0.6, 0.18, 0.8
-    pts = bow_curve(half, back, recurve=0.05, n=110)
-    rz = 0.15
-    black, black_l, violet, bone = H("#1c1424"), H("#3c2c52"), H("#7b3fd6"), H("#d8cce6")
+    rn = vcf("bw_abyss_rune", emit="#a15cff", strength=1.0)
+    half, back, fl = 0.62, 0.17, 0.8
+    pts = bow_curve(half, back, recurve=0.06, n=120)
+    black, black_l, violet, silver, silver_d = H("#130e17"), H("#3a2a52"), H("#8a48ff"), H("#d6d8ec"), H("#8e8aa8")
 
-    def rib_col(co):
-        t = min(abs(co.z) / half, 1.0)
-        return mix(black, black_l, 0.25 + 0.5 * smooth01((math.sin(co.z * 70) + 1) / 2) * (1 - t))
+    def obsidian(co):
+        a = math.atan2(co.y, co.x)
+        v = abs(math.sin(co.z * 23 + a * 1.3 + math.sin(co.z * 9) * 1.6 + co.y * 40))
+        return mix(mix(black, black_l, 0.35 + 0.3 * math.sin(co.z * 5)), H("#6a3ab8"), 0.8 * smooth01((v - 0.965) / 0.03))
+
+    def r_of_z(z):
+        t = min(abs(z) / half, 1.0)
+        return 0.0085 + 0.0105 * (1 - t) ** 0.7
+    tube("Limbs", pts, lambda u: r_of_z(-half + 2 * half * u), m, obsidian, sides=14, flat=fl)
+
+    z0, z1, th = 0.082, half - 0.035, 0.009
+
+    def wback(u):   # lobo largo do olho/coração, pescoço, lâmina serrilhada e ponta fina
+        lobe = 0.078 * math.exp(-((u - 0.13) / 0.105) ** 2)
+        saw = 0.72 + 0.28 * ((u * 7.0) % 1.0) if u > 0.33 else 1.0
+        blade = 0.052 * math.exp(-((u - 0.6) / 0.21) ** 2) * saw
+        return lobe + blade + 0.006 * (1 - u)
+
+    def wbelly(u):
+        return 0.024 * math.sin(math.pi * u) ** 0.8
+
+    def root(u):
+        return r_of_z(z0 + (z1 - z0) * u) * 0.5
+
+    def broot(u):
+        return r_of_z(0.3) * 0.5
     for s in (1, -1):
-        for k, sx in enumerate((1, -1)):
-            seg = []
-            for i in range(61):
-                z = s * (rz - 0.02 + (half - rz) * i / 60)
-                u = i / 60
-                spread = 0.017 * math.sin(math.pi * min(u * 1.15, 1.0)) ** 0.8   # abre no meio, junta nas pontas
-                seg.append(limb_at(pts, z) + Vector((sx * spread, 0.004 * math.sin(u * 9), 0)))
-            tube("Rib%d%d" % (s, k), seg, lambda u: 0.0105 * (1 - 0.55 * u) + 0.0018, m, rib_col, sides=12, flat=0.85)
-        # fios do vazio entre as duas costelas
-        for j, zz in enumerate((0.24, 0.3, 0.36, 0.42, 0.48)):
-            u = (zz - rz + 0.02) / (half - rz)
-            spread = 0.017 * math.sin(math.pi * min(u * 1.15, 1.0)) ** 0.8
-            c = limb_at(pts, zz * s)
-            tube("Sinew%d%d" % (s, j), [c + Vector((-spread, 0, 0)), c + Vector((0, -0.003, 0)), c + Vector((spread, 0, 0))],
-                 0.0026, g, violet, sides=6)
-        # esporas de osso nas costas, deitadas para a ponta
-        for j, (zz, L) in enumerate(((0.2, 0.05), (0.27, 0.042), (0.34, 0.036), (0.41, 0.03))):
-            p, d = limb_at(pts, zz * s), limb_dir(pts, zz * s).normalized()
-            bv = (Vector((0, -1, 0)) - d * d.y).normalized()
-            tube("Spur%d%d" % (s, j), spline([p + bv * 0.004, p + bv * L * 0.6 + d * L * 0.25, p + bv * L + d * L * 0.7], 4),
-                 lambda u: 0.0075 * (1 - u) ** 0.9 + 0.0005, m, bone, sides=8, flat=0.5)
-        # garra negra na ponta, curvada para a frente, com gema na base
+        a, b = z0 * s, z1 * s
+        limb_fin("Fin%d" % s, pts, a, b, wback, m, black, -1, th, root, k=160)
+        edge = fin_line(pts, a, b, wback, 0.985, -1, root, 0.0, 1.0, 160)
+        tube("FinEdge%d" % s, edge, 0.0024, m, silver, sides=6)
+        rune_strokes("Rune%d" % s, pts, a, b, wback, 0.42, th, rn, violet, -1, root, 0.36, 0.9, 6)
+        bz0, bz1 = 0.2 * s, 0.47 * s
+        limb_fin("Belly%d" % s, pts, bz0, bz1, wbelly, m, black, 1, 0.007, broot, k=60)
+        tube("BellyEdge%d" % s, fin_line(pts, bz0, bz1, wbelly, 0.98, 1, broot, 0.02, 0.98, 60), 0.0019, m, silver,
+             sides=6)
+        # veio aceso pelas laterais do braço, da lâmina até a garra
+        for sx in (1, -1):
+            seg = [limb_at(pts, z) + Vector((sx * r_of_z(z) * 0.97, 0, 0)) for z in
+                   (s * (0.2 + 0.39 * i / 40) for i in range(41))]
+            tube("Vein%d%d" % (s, sx), seg, 0.0016, rn, violet, sides=5)
+        # gola de prata entre o lobo e o punho
+        limb_wrap("Collar%d" % s, pts, 0.072 * s - 0.009, 0.072 * s + 0.009, r_of_z, m, silver, turns=2, pad=0.002,
+                  ridge=0.0012, flat=fl)
+        # lobo: filigranas de prata nas duas faces em volta do olho / coração
+        lc, ld, ln = limb_frame(pts, (z0 + (z1 - z0) * 0.13) * s)
+        center = lc + ln * (root(0.13) + 0.036)
+        fx = fin_face_x(th, 0.45)
+        for sx in (1, -1):
+            face = Vector((sx * (fx + 0.0012), 0, 0))
+            for j, (a0, R, f2) in enumerate(((0.5, 0.017, 1), (math.pi - 0.5, 0.017, -1), (-math.pi / 2, 0.014, 1))):
+                cc = center + face + Vector((0, math.cos(a0), math.sin(a0) * s)) * 0.034
+                filigree_curl("Curl%d%d%d" % (s, sx, j), cc, R, 1.1, a0 + math.pi, m, silver, flip=f2 * s)
+            ring = torus("Socket%d%d" % (s, sx), (0, 0), 0.0215, 0.003, m, seg=24, sides=6)
+            plane_yz(ring)
+            put(ring, silver, center + face)
+            if s > 0:   # o olho do Abismo: íris violeta acesa, pupila em fenda e pálpebras de prata escura
+                disc_x("Iris%d" % sx, [(0.0, 0.0), (0.0, 0.0185), (0.004, 0.015), (0.0065, 0.0)], g, H("#a35cff"),
+                       center + Vector((sx * fx, 0, 0)), sx, seg=20)
+                slit = [(-0.0022, -0.013), (0.0022, -0.013), (0.0038, 0.0), (0.0022, 0.013), (-0.0022, 0.013),
+                        (-0.0038, 0.0)]
+                pup = flat("Pupil%d" % sx, slit, m, None, th=0.002, bevel=0.0007, step=0.003)
+                plane_yz(pup)
+                put(pup, H("#0a0610"), center + Vector((sx * (fx + 0.0062), 0, 0)))
+                for k2, sz in enumerate((1, -1)):
+                    lid = [(-0.026, 0.0), (-0.014, 0.0095 * sz), (0.0, 0.013 * sz), (0.014, 0.0095 * sz),
+                           (0.026, 0.0), (0.014, 0.0055 * sz), (0.0, 0.0075 * sz), (-0.014, 0.0055 * sz)]
+                    ob = flat("Lid%d%d" % (sx, k2), lid, m, None, th=0.004, bevel=0.0015, step=0.003)
+                    plane_yz(ob)
+                    put(ob, silver_d, center + Vector((sx * (fx + 0.003), 0, 0.009 * sz)))
+            else:       # o coração do vazio, facetado, no engaste
+                ob = crystal("Heart%d" % sx, g, None, (0, 0, 0), 0.016, 0.009, 0.004, seg=8)
+                put(ob, H("#b07cff"), center + Vector((sx * fx, 0, 0)), (0, sx * math.pi / 2, 0))
+        aura("void", center)
+        # esporões de prata no alto do lobo, deitados para a ponta
+        for j, (uu, L) in enumerate(((0.06, 0.035), (0.13, 0.05), (0.2, 0.035))):
+            p = fin_line(pts, a, b, wback, 0.9, -1, root, uu, uu + 0.001, 1)[0]
+            c2, d2, n2 = limb_frame(pts, (z0 + (z1 - z0) * uu) * s)
+            tip = p + n2 * L * 0.8 + d2 * L * 0.7
+            tube("Spike%d%d" % (s, j), spline([p - n2 * 0.006, p + n2 * L * 0.45 + d2 * L * 0.15, tip], 4),
+                 lambda u: 0.0062 * (1 - u) ** 0.8 + 0.0004, m, silver, sides=8, flat=0.55)
+        # garra na ponta: obsidiana com gume de prata e gema
         tip, d = limb_at(pts, (half - 0.004) * s), limb_dir(pts, (half - 0.004) * s).normalized()
-        hook = [tip - d * 0.03, tip + d * 0.02, tip + d * 0.055 + Vector((0, -0.025, 0)), tip + d * 0.06 + Vector((0, -0.065, 0)),
-                tip + d * 0.04 + Vector((0, -0.09, 0))]
-        tube("Claw%d" % s, spline(hook, 6), lambda u: 0.012 * (1 - u) ** 0.8 + 0.0006, m, black, sides=12, flat=0.8)
-        orb("ClawGem%d" % s, g, violet, tip - d * 0.012 + Vector((0, -0.009, 0)), 0.0075, seg=10)
-        aura("void", tip + d * 0.03 + Vector((0, -0.04, 0)))
-        # cristais do vazio nascendo nas pontas do centro
-        base = limb_at(pts, rz * s)
-        for j, (ax, ay, h, r) in enumerate(((0.9, -0.4, 0.06, 0.009), (-0.85, -0.5, 0.05, 0.008), (0.1, -1.0, 0.07, 0.01),
-                                             (0.5, 0.6, 0.04, 0.007), (-0.5, 0.6, 0.035, 0.006))):
-            dirv = (Vector((ax, ay, 0)).normalized() * 0.7 + limb_dir(pts, rz * s).normalized() * 0.6).normalized()
-            ob = crystal("Void%d%d" % (s, j), g, None, (0, 0, 0), r, h, 0.014, seg=6, mid=h * 0.15, phase=0.4 * j)
-            put(ob, violet if j % 2 else H("#b98cff"), base + Vector((ax, ay, 0)).normalized() * 0.012, along(dirv))
-        aura("void", base + Vector((0, -0.05, 0.03 * s)))
+        hook = [tip - d * 0.035, tip + d * 0.02, tip + d * 0.06 + Vector((0, -0.03, 0)),
+                tip + d * 0.065 + Vector((0, -0.075, 0)), tip + d * 0.04 + Vector((0, -0.105, 0))]
+        tube("Claw%d" % s, spline(hook, 8), lambda u: 0.0135 * (1 - u) ** 0.8 + 0.0006, m, black, sides=12, flat=0.7)
+        hook2 = [h + Vector((0, 0.004, 0)) - d * 0.004 for h in hook[1:]]
+        tube("ClawEdge%d" % s, spline(hook2, 8), lambda u: 0.0055 * (1 - u) ** 0.8 + 0.0005, m, silver, sides=8)
+        orb("ClawGem%d" % s, g, violet, tip - d * 0.014 + Vector((0, -0.01, 0)), 0.0085, seg=12)
+        limb_wrap("ClawRing%d" % s, pts, (half - 0.05) * s - 0.006, (half - 0.05) * s + 0.006, r_of_z, m, silver,
+                  turns=1, pad=0.0015, ridge=0.001, flat=fl)
+        aura("void", tip + d * 0.03 + Vector((0, -0.05, 0)))
 
-    # centro: núcleo negro com anéis violeta e punho de couro escuro
-    def rr(z):
-        return 0.0215
-    rseg = [limb_at(pts, -rz + 2 * rz * i / 60) for i in range(61)]
-    tube("Riser", rseg, lambda u: 0.019 + 0.004 * smooth01((rz - abs(-rz + 2 * rz * u)) / 0.04), m, black, sides=14, flat=fl)
-    limb_wrap("Grip", pts, -0.062, 0.062, rr, m, H("#2a2030"), turns=10, pad=0.0008, ridge=0.0009, flat=fl)
+    # pingentes do coração: correntinhas de prata com cristais do vazio
+    for j, (u, L) in enumerate(((0.2, 0.06), (0.26, 0.085))):
+        p = fin_line(pts, -z0, -z1, wback, 0.75, -1, root, u, u + 0.001, 1)[0]
+        q = p + Vector((0, -0.006, -L))
+        tube("Chain%d" % j, [p + Vector((0, 0, 0.004)), p.lerp(q, 0.5) + Vector((0, -0.006, 0)), q], 0.0018, m, silver,
+             sides=5)
+        ob = crystal("Drop%d" % j, g, None, (0, 0, 0), 0.0075, 0.012, 0.026, seg=6)
+        put(ob, violet, q + Vector((0, 0, -0.008)))
+    # punho: couro escuro, faixas com runa acesa
+    limb_wrap("Grip", pts, -0.062, 0.062, r_of_z, m, H("#2a2030"), turns=10, pad=0.001, ridge=0.0009, flat=fl)
     for s in (1, -1):
-        limb_wrap("Band%d" % s, pts, 0.07 * s - 0.005, 0.07 * s + 0.005, rr, g, violet, turns=0, pad=0.0026, ridge=0.0,
-                  flat=fl)
-    # o olho do Abismo: órbita de osso, íris violeta acesa, pupila em fenda e duas pálpebras
-    zc = 0.108
-    p = limb_at(pts, zc)
-    fy = p.y - 0.02
-    lathe("EyeSocket", [(0.0, 0.0), (0.0, 0.021), (0.006, 0.022), (0.012, 0.017), (0.012, 0.0)], m, bone, seg=20,
-          loc=(p.x, p.y - 0.008, zc), rot=(math.pi / 2, 0, 0))
-    orb("Iris", g, H("#a35cff"), (p.x, fy, zc), 0.0135, seg=16, sq=0.7)
-    slit = [(-0.0018, -0.011), (0.0018, -0.011), (0.0032, 0.0), (0.0018, 0.011), (-0.0018, 0.011), (-0.0032, 0.0)]
-    flat("Pupil", slit, m, H("#0a0610"), th=0.0016, bevel=0.0006, step=0.003, loc=(p.x, fy - 0.0095, zc))
-    for k, sz in enumerate((1, -1)):
-        lid = [(-0.022, 0.0), (-0.012, 0.008 * sz), (0.0, 0.011 * sz), (0.012, 0.008 * sz), (0.022, 0.0),
-               (0.012, 0.0045 * sz), (0.0, 0.006 * sz), (-0.012, 0.0045 * sz)]
-        ob = flat("Lid%d" % k, lid, m, None, th=0.005, bevel=0.002, step=0.003)
-        put(ob, black_l, (p.x, fy - 0.004, zc + 0.008 * sz))
-    for sx in (1, -1):   # cílios de osso
-        for j in range(3):
-            q = Vector((p.x + sx * (0.012 + 0.005 * j), fy - 0.003, zc + 0.012 - 0.004 * j))
-            tube("Lash%d%d" % (sx, j), [q, q + Vector((sx * 0.01, -0.004, 0.012))], lambda u: 0.002 * (1 - u) + 0.0003, m,
-                 bone, sides=5)
-    aura("void", (p.x, fy - 0.02, zc))
+        limb_wrap("Band%d" % s, pts, 0.062 * s - 0.004, 0.062 * s + 0.004, r_of_z, rn, violet, turns=0, pad=0.0028,
+                  ridge=0.0, flat=fl)
     top_t, bot_t = limb_at(pts, half - 0.03), limb_at(pts, -(half - 0.03))
     _BOW_STRING[:] = [(top_t.x, top_t.y, top_t.z), (bot_t.x, bot_t.y, bot_t.z)]
     bow_export("bw_abyss_bow", top_t.y)
 
 
+def yz_put(ob, col, loc, dirv):
+    """Peça plana (feita no plano XZ, base em z=0 apontando para +Z) deitada no plano do arco com +Z para dirv."""
+    plane_yz(ob)
+    place(ob, (0, 0, 0), (math.atan2(-dirv.y, dirv.z), 0, 0))
+    place(ob, loc)
+    return cel(ob, col) if col else ob
+
+
+def fin_pt(pts, z0, z1, width, root, u, frac, side=-1, x=0.0):
+    return fin_line(pts, z0, z1, width, frac, side, root, u, u + 0.001, 1, x)[0]
+
+
+def lobe_center(pts, z0, z1, root, u, off, s):
+    c, d, n = limb_frame(pts, (z0 + (z1 - z0) * u) * s)
+    return c + n * (root(u) + off)
+
+
+def star_outline(R, r, n, a0=0.0):
+    return [((R if i % 2 == 0 else r) * math.cos(a0 + math.pi * i / n),
+             (R if i % 2 == 0 else r) * math.sin(a0 + math.pi * i / n)) for i in range(2 * n)]
+
+
+def fire_paint(L, dark=0.004):
+    red, orange, yellow, deep = H("#c8321c"), H("#f07a1e"), H("#ffd24a"), H("#7a1a10")
+
+    def fn(x, z, d):
+        base = ramp([(0.0, yellow), (0.45, orange), (1.0, red)], z / L)
+        return mix(mix(base, deep, 0.5), base, smooth01(d / dark))
+    return fn
+
+
+FLAME = [(0.0, 0.0), (0.012, 0.01), (0.016, 0.03), (0.008, 0.05), (0.014, 0.062), (0.004, 0.078), (0.0, 0.1),
+         (-0.006, 0.072), (-0.014, 0.056), (-0.009, 0.04), (-0.016, 0.024), (-0.011, 0.008)]
+
+
 def build_dawn_bow():
-    """Alvorada, a Asa da Fênix (Mítico): arco de ouro com aresta clara; penas de fênix em leque nas costas dos dois
-    braços, como asas abertas (vermelho na base, laranja, amarelo na ponta); disco solar com raios e gema acesa acima da
-    mão; remates de chama nas pontas."""
+    """Alvorada, a Asa da Fênix (Mítico): braços de ouro com uma placa dourada nas costas de onde se abre uma asa de
+    penas de fogo em duas camadas; acima da mão um sol de doze raios com a gema solar, abaixo o sol poente; runas
+    de brasa correndo pela placa e chamas de ouro nas pontas."""
     m = vcf("bw_dawn", metal=0.45)
     g = vcf("bw_dawn_gem", emit="#ffb030", strength=1.0)
-    half, back, fl = 0.6, 0.17, 0.72
-    pts = bow_curve(half, back, recurve=0.05, n=110)
-    gold, gold_l, gold_d = H("#e0a83a"), H("#fff0b0"), H("#9a6a1c")
+    rn = vcf("bw_dawn_rune", emit="#ff8a1a", strength=1.0)
+    half, back, fl = 0.62, 0.17, 0.75
+    pts = bow_curve(half, back, recurve=0.06, n=120)
+    gold, gold_l, gold_d, crimson = H("#e0a83a"), H("#fff0b0"), H("#9a6a1c"), H("#8a1c14")
 
     def r_of_z(z):
-        t = min(abs(z) / half, 1.0)
-        return 0.0095 + 0.0125 * (1 - t) ** 0.7 + 0.003 * smooth01((0.17 - abs(z)) / 0.05)
+        return 0.008 + 0.0105 * (1 - min(abs(z) / half, 1.0)) ** 0.7
+    tube("Limbs", pts, lambda u: r_of_z(-half + 2 * half * u), m,
+         lambda co: mix(gold, gold_l, 0.2 + 0.25 * smooth01(math.sin(co.z * 38) * 0.5 + 0.5)), sides=14, flat=fl)
+    z0, z1, th = 0.082, half - 0.04, 0.008
 
-    def goldc(co):
-        c = limb_at(pts, co.z)
-        k = (c.y - co.y) / max(r_of_z(co.z) * fl, 1e-4)      # aresta clara nas costas
-        return mix(mix(gold_d, gold, 0.75), gold_l, smooth01((k - 0.55) / 0.3))
-    tube("Limbs", pts, lambda u: r_of_z(-half + 2 * half * u), m, goldc, sides=16, flat=fl)
-    red, orange, yellow = H("#c8321c"), H("#f07a1e"), H("#ffd24a")
+    def wback(u):
+        return 0.068 * math.exp(-((u - 0.12) / 0.1) ** 2) + 0.024 * (1 - u) ** 0.5 + 0.004
+
+    def root(u):
+        return r_of_z(z0 + (z1 - z0) * u) * 0.5
     for s in (1, -1):
-        # penas da asa: nascem nas costas do braço e abrem para trás e para a ponta (plano do arco)
-        for j in range(7):
-            zz = 0.17 + j * 0.05
-            p, d = limb_at(pts, zz * s), limb_dir(pts, zz * s).normalized()
-            L = 0.07 + 0.11 * math.sin(math.pi * (j + 0.6) / 7.6)
-            ang = math.radians(78 - j * 7)                 # as de perto do punho saem mais para trás
-            bv = (Vector((0, -1, 0)) - d * d.y).normalized()
-            dirv = (bv * math.sin(ang) + d * math.cos(ang)).normalized()
-            ob = flat("Feather%d%d" % (s, j), feather_outline(L, 0.028), m, None, th=0.004, bevel=0.002, step=0.006,
-                      bend=lambda c, L=L: Vector((c.x, c.y + 0.25 * (c.z / L) ** 2 * 0.03, c.z)))
+        a, b = z0 * s, z1 * s
+        limb_fin("Plate%d" % s, pts, a, b, wback, m, gold_d, -1, th, root, k=140)
+        tube("PlateEdge%d" % s, fin_line(pts, a, b, wback, 0.985, -1, root, 0.0, 1.0, 140), 0.0023, m, gold_l, sides=6)
+        rune_strokes("Rune%d" % s, pts, a, b, wback, 0.4, th, rn, H("#ff9a2a"), -1, root, 0.3, 0.88, 6)
+        # a asa: penas compridas por trás e uma camada mais curta e clara por cima
+        for layer, (n, u0, du, L0, W, xo) in enumerate(((9, 0.27, 0.075, 0.13, 0.034, -0.0035), (8, 0.3, 0.075, 0.085, 0.028, 0.0035))):
+            for j in range(n):
+                u = u0 + du * j
+                if u > 0.97:
+                    continue
+                c, d, nv = limb_frame(pts, (z0 + (z1 - z0) * u) * s)
+                dirv = (nv * (0.8 - 0.04 * j) + d * (0.6 + 0.05 * j)).normalized()
+                L = L0 * (1 - 0.055 * j)
+                ob = flat("Feather%d%d%d" % (s, layer, j), feather_outline(L, W), m, None, th=0.0035, bevel=0.002,
+                          step=0.005, paint2d=fire_paint(L) if layer == 0 else
+                          (lambda x, z, d, L=L: mix(H("#ffe27a"), H("#ff9a2a"), z / L)))
+                yz_put(ob, None, fin_pt(pts, a, b, wback, root, u, 0.7, -1, xo + (0.0012 if j % 2 else -0.0012)), dirv)
+                if layer == 0 and j in (2, 6):
+                    aura("fire", fin_pt(pts, a, b, wback, root, u, 0.7) + dirv * L * 0.95)
+        # sol no lobo (de cima: o sol nascente; de baixo: o poente, vermelho)
+        center = lobe_center(pts, z0, z1, root, 0.12, 0.034, s)
+        fx = fin_face_x(th, 0.45)
+        for sx in (1, -1):
+            face = Vector((sx * (fx + 0.001), 0, 0))
+            ob = flat("Sun%d%d" % (s, sx), star_outline(0.037, 0.024, 12, 0.13), m, None, th=0.003, bevel=0.0012, step=0.004)
             plane_yz(ob)
-            place(ob, (0, 0, 0), along(dirv))
-            place(ob, p + bv * r_of_z(zz) * fl * 0.5)
-            cel(ob, lambda co, p=p, dirv=dirv, L=L: ramp([(0.0, red), (0.45, orange), (1.0, yellow)],
-                                                         (co - p).dot(dirv) / L))
-            if j in (2, 4, 6):
-                aura("fire", p + dirv * L * 0.95)
-        # remate de chama de ouro na ponta
-        tip, d = limb_at(pts, (half - 0.004) * s), limb_dir(pts, (half - 0.004) * s).normalized()
-        flame = [(0.0, 0.0), (0.011, 0.008), (0.014, 0.026), (0.007, 0.04), (0.011, 0.056), (0.0, 0.078),
-                 (-0.005, 0.055), (-0.013, 0.042), (-0.009, 0.02), (-0.011, 0.006)]
-        for k, (sc, col, th) in enumerate(((1.0, gold, 0.006), (0.6, yellow, 0.0085))):
-            ob = flat("TipFlame%d%d" % (s, k), [(x * sc, z * sc) for x, z in flame], m if k == 0 else g, None, th=th,
-                      bevel=0.002, step=0.005)
-            put(ob, col, tip - d * 0.01, d.to_track_quat('Z', 'X').to_euler())
-        aura("sun", tip + d * 0.06)
-    limb_wrap("Grip", pts, -0.064, 0.064, r_of_z, m, H("#7a2418"), turns=11, pad=0.0014, ridge=0.0008, flat=fl)
+            put(ob, gold_l, center + face)
+            ring = torus("SunRing%d%d" % (s, sx), (0, 0), 0.0205, 0.0028, m, seg=24, sides=6)
+            plane_yz(ring)
+            put(ring, gold_d, center + face + Vector((sx * 0.0016, 0, 0)))
+            disc_x("SunGem%d%d" % (s, sx), [(0.0, 0.0), (0.0, 0.017), (0.004, 0.014), (0.007, 0.0)], g,
+                   H("#ffb030") if s > 0 else H("#ff5a2a"), center + Vector((sx * (fx + 0.002), 0, 0)), sx, seg=20)
+            for j, a0 in enumerate((0.9, 2.25)):
+                cc = center + face + Vector((0, math.cos(a0), math.sin(a0) * s)) * 0.046
+                filigree_curl("Curl%d%d%d" % (s, sx, j), cc, 0.012, 1.0, a0, m, gold_l, flip=s)
+        aura("sun", center)
+        limb_wrap("Collar%d" % s, pts, 0.072 * s - 0.009, 0.072 * s + 0.009, r_of_z, m, gold_l, turns=2, pad=0.002,
+                  ridge=0.0012, flat=fl)
+        # ponta: chama de ouro e fogo
+        tip, d = limb_at(pts, (half - 0.03) * s), limb_dir(pts, (half - 0.03) * s).normalized()
+        limb_wrap("TipCup%d" % s, pts, (half - 0.045) * s - 0.008, (half - 0.045) * s + 0.008, r_of_z, m, gold_l,
+                  turns=1, pad=0.0018, ridge=0.001, flat=fl)
+        for k, (sc, ang) in enumerate(((1.0, 0.0), (0.6, 0.55), (0.6, -0.55))):
+            ob = flat("Flame%d%d" % (s, k), [(x * sc, z * sc) for x, z in FLAME], m, None, th=0.004, bevel=0.002,
+                      step=0.004, paint2d=fire_paint(0.1 * sc))
+            dv = (d * math.cos(ang) + Vector((0, -1, 0)) * math.sin(ang)).normalized()
+            yz_put(ob, None, tip - d * 0.004 + Vector((0.0015 * (k - 1), 0, 0)), dv)
+        aura("fire", tip + d * 0.07)
+    limb_wrap("Grip", pts, -0.062, 0.062, r_of_z, m, crimson, turns=11, pad=0.0012, ridge=0.0008, flat=fl)
     for s in (1, -1):
-        limb_wrap("Band%d" % s, pts, 0.072 * s - 0.007, 0.072 * s + 0.007, r_of_z, m, gold_l, turns=1, pad=0.0026,
-                  ridge=0.0005, flat=fl)
-    # disco solar: raios de ouro em estrela, aro e a gema acesa no centro
-    zc = 0.115
-    p = limb_at(pts, zc)
-    fy = p.y - r_of_z(zc) * fl - 0.006
-    rays = []
-    for i in range(24):
-        a = 2 * math.pi * i / 24
-        r = 0.04 if i % 2 == 0 else 0.022
-        rays.append((math.cos(a) * r, math.sin(a) * r))
-    flat("SunRays", rays, m, gold, th=0.004, bevel=0.0018, step=0.004, loc=(p.x, fy + 0.002, zc))
-    lathe("SunRing", [(0.0, 0.0), (0.0, 0.019), (0.004, 0.0195), (0.007, 0.016), (0.007, 0.0)], m, gold_l, seg=24,
-          loc=(p.x, fy, zc), rot=(math.pi / 2, 0, 0))
-    orb("SunGem", g, H("#ffb030"), (p.x, fy - 0.006, zc), 0.0135, seg=16, sq=0.6)
-    aura("sun", (p.x, fy - 0.02, zc))
-    top_t, bot_t = limb_at(pts, half - 0.022), limb_at(pts, -(half - 0.022))
+        limb_wrap("Band%d" % s, pts, 0.062 * s - 0.004, 0.062 * s + 0.004, r_of_z, rn, H("#ff9a2a"), turns=0,
+                  pad=0.0028, ridge=0.0, flat=fl)
+    top_t, bot_t = limb_at(pts, half - 0.03), limb_at(pts, -(half - 0.03))
     _BOW_STRING[:] = [(top_t.x, top_t.y, top_t.z), (bot_t.x, bot_t.y, bot_t.z)]
     bow_export("bw_dawn_bow", top_t.y)
 
 
 def build_dragon_bow():
-    """Presa do Dragão Ancestral (Mítico): braços de chifre escamado carmim, crista de espinhos de osso nas costas,
-    membranas de asa saindo do centro, quatro garras segurando a gema de brasa acima da mão e pontas de chifre marfim."""
+    """Presa do Dragão Ancestral (Mítico): braços de escama vermelha; nas costas, uma asa de membrana com dedos de
+    osso e garras, veias de lava acesas; na barriga, uma crista serrilhada de osso. Acima e abaixo da mão, gemas de
+    brasa presas por garras e chifres enormes varrendo para trás; presas de osso com anel de ouro nas pontas."""
     m = vcf("bw_dragon", metal=0.15)
     g = vcf("bw_dragon_gem", emit="#ff5a14", strength=1.0)
-    half, back, fl = 0.61, 0.19, 0.8
-    pts = bow_curve(half, back, recurve=0.06, n=110)
+    rn = vcf("bw_dragon_rune", emit="#ff6a1a", strength=1.0)
+    half, back, fl = 0.62, 0.19, 0.8
+    pts = bow_curve(half, back, recurve=0.06, n=120)
     scale_d, scale_c, scale_l = H("#3a0e0c"), H("#7a1e16"), H("#b8402a")
-    bone, gold = H("#ead8b0"), H("#c89436")
+    bone, bone_d, gold, membrane = H("#ead8b0"), H("#b8a47c"), H("#c89436"), H("#5a1610")
+
+    def scales(co):
+        a = math.atan2(co.y, co.x)
+        v = (math.sin(co.z * 110 + 3 * math.sin(a * 3)) * 0.5 + 0.5)
+        return mix(scale_d, mix(scale_c, scale_l, 0.4 * smooth01((math.sin(a * 2) + 0.3))), smooth01((v - 0.3) / 0.4))
 
     def r_of_z(z):
-        t = min(abs(z) / half, 1.0)
-        return 0.011 + 0.014 * (1 - t) ** 0.7 + 0.003 * smooth01((0.17 - abs(z)) / 0.05)
+        return 0.0085 + 0.011 * (1 - min(abs(z) / half, 1.0)) ** 0.7
+    tube("Limbs", pts, lambda u: r_of_z(-half + 2 * half * u), m, scales, sides=14, flat=fl)
+    z0, z1, th = 0.082, half - 0.04, 0.007
+    peaks = (0.3, 0.52, 0.74, 0.93)
 
-    def scales(co):   # escamas em losango: borda clara em cima de cada escama
-        a = math.atan2(co.x, co.y - limb_at(pts, co.z).y)
-        u, v = a * 3.2 + co.z * 40, a * 3.2 - co.z * 40
-        f = abs(math.sin(u)) * abs(math.sin(v))
-        t = min(abs(co.z) / half, 1.0)
-        base = mix(scale_d, scale_c, 0.4 + 0.6 * f)
-        return mix(base, mix(scale_l, bone, smooth01((t - 0.75) / 0.25)), smooth01((f - 0.75) / 0.2))
-    tube("Limbs", pts, lambda u: r_of_z(-half + 2 * half * u), m, scales, sides=18, flat=fl)
+    def wback(u):
+        lobe = 0.06 * math.exp(-((u - 0.11) / 0.09) ** 2)
+        wing = 0.07 * math.sin(math.pi * min(max(u - 0.15, 0) / 0.85, 1.0)) ** 0.6
+        sc = 0.55 + 0.45 * max(math.exp(-((u - p) / 0.05) ** 2) for p in peaks)
+        return lobe + wing * sc + 0.005
+
+    def root(u):
+        return r_of_z(z0 + (z1 - z0) * u) * 0.5
+
+    def wbelly(u):
+        return 0.02 * math.sin(math.pi * u) ** 0.7 * (0.55 + 0.45 * ((u * 9.0) % 1.0))
     for s in (1, -1):
-        # crista de espinhos nas costas, do centro quase até a ponta
-        for j in range(9):
-            zz = 0.17 + j * 0.042
-            p, d = limb_at(pts, zz * s), limb_dir(pts, zz * s).normalized()
-            bv = (Vector((0, -1, 0)) - d * d.y).normalized()
-            L = 0.045 * (1 - 0.6 * j / 9) + 0.012
-            tube("Crest%d%d" % (s, j), spline([p + bv * r_of_z(zz) * 0.5, p + bv * (r_of_z(zz) + L * 0.6) + d * L * 0.25,
-                                                p + bv * (r_of_z(zz) + L) + d * L * 0.75], 4),
-                 lambda u: 0.0085 * (1 - u) ** 0.9 + 0.0006, m, bone, sides=8, flat=0.45)
-        # ponta de chifre marfim curvada para a frente, com anel de ouro
+        a, b = z0 * s, z1 * s
+        limb_fin("Wing%d" % s, pts, a, b, wback, m, membrane, -1, th, root, k=160)
+        tube("WingEdge%d" % s, fin_line(pts, a, b, wback, 0.985, -1, root, 0.0, 1.0, 160), 0.0018, m, scale_l, sides=5)
+        # dedos de osso da asa, com garra na ponta, e veias de lava entre eles
+        fx = fin_face_x(th, 0.5)
+        for j, p in enumerate(peaks):
+            q0 = fin_pt(pts, a, b, wback, root, max(p - 0.12, 0.05), 0.05)
+            q1 = fin_pt(pts, a, b, wback, root, p, 1.02)
+            c, d, nv = limb_frame(pts, (z0 + (z1 - z0) * p) * s)
+            tube("Finger%d%d" % (s, j), spline([q0, q0.lerp(q1, 0.5) + nv * 0.004, q1], 5),
+                 lambda u: 0.0042 * (1 - 0.6 * u) + 0.0012, m, bone, sides=8, flat=0.8)
+            tube("Talon%d%d" % (s, j), spline([q1 - (q1 - q0).normalized() * 0.004, q1 + nv * 0.012 + d * 0.004,
+                                               q1 + nv * 0.016 + d * 0.016], 4),
+                 lambda u: 0.0032 * (1 - u) + 0.0004, m, bone_d, sides=6)
+            for sx in (1, -1):
+                for k, f in enumerate((0.3, 0.62)):
+                    v0 = fin_pt(pts, a, b, wback, root, max(p - 0.16, 0.12), 0.12, -1, sx * (fin_face_x(th, 0.12) + 0.0004))
+                    v1 = fin_pt(pts, a, b, wback, root, p - 0.06 + 0.04 * k, 0.8, -1, sx * (fin_face_x(th, 0.8) + 0.0004))
+                    mid = v0.lerp(v1, 0.5)
+                    tube("Lava%d%d%d%d" % (s, j, sx, k), spline([v0, mid + Vector((0, 0.003, 0.004 * s)), v1], 4),
+                         0.0014, rn, H("#ff7a20"), sides=5)
+        limb_fin("Crest%d" % s, pts, 0.18 * s, 0.5 * s, wbelly, m, bone, 1, 0.006, lambda u: r_of_z(0.3) * 0.5, k=90)
+        # gema de brasa presa por garras, nas duas faces do lobo, e chifres para trás
+        center = lobe_center(pts, z0, z1, root, 0.11, 0.03, s)
+        fxl = fin_face_x(th, 0.45)
+        for sx in (1, -1):
+            ring = torus("Setting%d%d" % (s, sx), (0, 0), 0.0185, 0.003, m, seg=24, sides=6)
+            plane_yz(ring)
+            put(ring, gold, center + Vector((sx * (fxl + 0.001), 0, 0)))
+            disc_x("Ember%d%d" % (s, sx), [(0.0, 0.0), (0.0, 0.016), (0.005, 0.013), (0.009, 0.0)], g, H("#ff6a1a"),
+                   center + Vector((sx * fxl, 0, 0)), sx, seg=20)
+            for k in range(4):
+                an = math.pi / 4 + k * math.pi / 2
+                e = Vector((0, math.cos(an), math.sin(an))) * 0.019
+                base = center + Vector((sx * (fxl + 0.001), 0, 0)) + e
+                tube("Grasp%d%d%d" % (s, sx, k), spline([base, base + Vector((sx * 0.007, 0, 0)) - e * 0.15,
+                                                         base + Vector((sx * 0.01, 0, 0)) - e * 0.5], 4),
+                     lambda u: 0.0028 * (1 - u) + 0.0005, m, bone, sides=6)
+        aura("fire", center)
+        c, d, nv = limb_frame(pts, (z0 + (z1 - z0) * 0.11) * s)
+        h0 = fin_pt(pts, a, b, wback, root, 0.06, 0.85)
+        horn = [h0 - nv * 0.008, h0 + nv * 0.03 - d * 0.005, h0 + nv * 0.065 + d * 0.02, h0 + nv * 0.08 + d * 0.065,
+                h0 + nv * 0.07 + d * 0.1]
+        for sx in (1, -1):
+            hh = [p + Vector((sx * 0.006 * (i / 4), 0, 0)) for i, p in enumerate(horn)]
+            tube("Horn%d%d" % (s, sx), spline(hh, 6), lambda u: 0.0085 * (1 - u) ** 0.8 + 0.0006, m,
+                 lambda co: bone, sides=10)
+        limb_wrap("Collar%d" % s, pts, 0.072 * s - 0.009, 0.072 * s + 0.009, r_of_z, m, gold, turns=2, pad=0.002,
+                  ridge=0.0012, flat=fl)
+        # presa de osso na ponta, anel de ouro
         tip, d = limb_at(pts, (half - 0.004) * s), limb_dir(pts, (half - 0.004) * s).normalized()
-        hook = [tip - d * 0.03, tip + d * 0.03, tip + d * 0.065 + Vector((0, -0.025, 0)), tip + d * 0.07 + Vector((0, -0.06, 0))]
-        tube("Horn%d" % s, spline(hook, 6), lambda u: 0.0145 * (1 - u) ** 0.75 + 0.0006, m,
-             lambda co, tip=tip: mix(bone, H("#fff6e0"), 0.4), sides=12, flat=0.85)
-        limb_wrap("HornRing%d" % s, pts, (half - 0.02) * s - 0.01, (half - 0.02) * s + 0.01, r_of_z, m, gold, turns=2,
-                  pad=0.0016, ridge=0.0007, flat=fl)
-        aura("fire", tip + d * 0.05 + Vector((0, -0.05, 0)))
-        # membrana de asa saindo do centro para trás, com três dedos de osso
-        root = limb_at(pts, 0.14 * s)
-        fingers = []
-        for k, (zz, out) in enumerate(((0.21, 0.1), (0.29, 0.13), (0.37, 0.085))):
-            q = limb_at(pts, zz * s) + Vector((0, -r_of_z(zz) * fl - out, 0))
-            fingers.append(q)
-            tube("WingBone%d%d" % (s, k), spline([root, root.lerp(q, 0.5) + Vector((0, -0.01, 0)), q], 4),
-                 lambda u: 0.0042 * (1 - 0.5 * u), m, bone, sides=6)
-        memb = []
-        for k in range(len(fingers)):
-            memb.append(fingers[k])
-            if k + 1 < len(fingers):
-                memb.append(fingers[k].lerp(fingers[k + 1], 0.5) + Vector((0, 0.022, 0)))   # recorte entre os dedos
-        last = limb_at(pts, 0.4 * s)
-        outline = [root] + memb + [last]
-        # membrana: leque de triângulos (malha plana fina) no plano do arco
-        bmm = bmesh.new()
-        vs = [bmm.verts.new(v) for v in outline]
-        faces = []
-        for k in range(1, len(vs) - 1):
-            try:
-                faces.append(bmm.faces.new((vs[0], vs[k], vs[k + 1])))
-            except ValueError:
-                pass
-        bmesh.ops.solidify(bmm, geom=faces, thickness=0.0025)
-        me = bpy.data.meshes.new("Membrane%d" % s)
-        bmm.to_mesh(me)
-        bmm.free()
-        ob = bpy.data.objects.new("Membrane%d" % s, me)
-        coll.objects.link(ob)
-        ob.data.materials.append(m)
-        cel(ob, H("#8a2a1e"))
-    limb_wrap("Grip", pts, -0.064, 0.064, r_of_z, m, H("#3a1a12"), turns=10, pad=0.0014, ridge=0.0009, flat=fl)
+        hook = [tip - d * 0.035, tip + d * 0.02, tip + d * 0.06 + Vector((0, -0.028, 0)),
+                tip + d * 0.066 + Vector((0, -0.07, 0)), tip + d * 0.045 + Vector((0, -0.1, 0))]
+        tube("Fang%d" % s, spline(hook, 8), lambda u: 0.0135 * (1 - u) ** 0.8 + 0.0006, m, bone, sides=12, flat=0.8)
+        limb_wrap("FangRing%d" % s, pts, (half - 0.03) * s - 0.007, (half - 0.03) * s + 0.007, r_of_z, m, gold,
+                  turns=1, pad=0.003, ridge=0.001, flat=fl)
+        aura("fire", tip + d * 0.04 + Vector((0, -0.06, 0)))
+    limb_wrap("Grip", pts, -0.062, 0.062, r_of_z, m, H("#3a1a12"), turns=10, pad=0.0012, ridge=0.0009, flat=fl)
     for s in (1, -1):
-        limb_wrap("Band%d" % s, pts, 0.072 * s - 0.007, 0.072 * s + 0.007, r_of_z, m, gold, turns=1, pad=0.0026,
-                  ridge=0.0005, flat=fl)
-    # gema de brasa segura por quatro garras de ouro, acima da mão
-    zc = 0.118
-    p = limb_at(pts, zc)
-    cy = p.y - r_of_z(zc) * fl - 0.016
-    orb("EmberGem", g, H("#ff6a1a"), (p.x, cy, zc), 0.0155, seg=16, sq=1.15)
-    for k in range(4):
-        a = math.pi / 4 + k * math.pi / 2
-        o = Vector((math.cos(a), 0, math.sin(a)))
-        base = Vector((p.x, p.y - r_of_z(zc) * fl * 0.6, zc)) + o * 0.012
-        tipc = Vector((p.x, cy - 0.009, zc)) + o * 0.009
-        tube("Talon%d" % k, spline([base, Vector((p.x, cy + 0.006, zc)) + o * 0.02, tipc], 4),
-             lambda u: 0.0038 * (1 - 0.6 * u) + 0.0005, m, gold, sides=8)
-    aura("fire", (p.x, cy - 0.02, zc))
-    top_t, bot_t = limb_at(pts, half - 0.02), limb_at(pts, -(half - 0.02))
+        limb_wrap("Band%d" % s, pts, 0.062 * s - 0.004, 0.062 * s + 0.004, r_of_z, rn, H("#ff7a20"), turns=0,
+                  pad=0.0028, ridge=0.0, flat=fl)
+    top_t, bot_t = limb_at(pts, half - 0.03), limb_at(pts, -(half - 0.03))
     _BOW_STRING[:] = [(top_t.x, top_t.y, top_t.z), (bot_t.x, bot_t.y, bot_t.z)]
     bow_export("bw_dragon_bow", top_t.y)
 
 
 def build_wind_bow():
-    """Rei dos Ventos (Mítico): arco longo e fino de prata e marfim, canal de vento ciano em espiral nos braços, penas
-    brancas e fitas longas esvoaçando nas pontas, gema ciano num redemoinho de prata acima da mão."""
+    """Rei dos Ventos (Mítico): arco longo de prata com lâminas finas nas costas e na barriga; três penas de asa de
+    falcão varrendo para as pontas a partir do selo do vento (anel com espiral e gema celeste) acima e abaixo da mão;
+    espiral de vento acesa enrolada nos braços e fitas soltas nas pontas."""
     m = vcf("bw_wind", metal=0.4)
     g = vcf("bw_wind_gem", emit="#5ae0ff", strength=1.0)
-    half, back, fl = 0.66, 0.15, 0.7
-    pts = bow_curve(half, back, recurve=0.07, n=120)
-    silver, silver_l, ivory, cyan = H("#b8c4d0"), H("#eef4fa"), H("#f2ecdc"), H("#5ae0ff")
+    rn = vcf("bw_wind_rune", emit="#5ae0ff", strength=1.0)
+    half, back, fl = 0.66, 0.15, 0.72
+    pts = bow_curve(half, back, recurve=0.07, n=130)
+    silver, silver_l, silver_d, ivory, cyan, navy = (H("#b8c4d0"), H("#eef4fa"), H("#6a7a90"), H("#f2ecdc"),
+                                                     H("#5ae0ff"), H("#2c4a66"))
 
     def r_of_z(z):
-        t = min(abs(z) / half, 1.0)
-        return 0.0075 + 0.0105 * (1 - t) ** 0.7 + 0.003 * smooth01((0.16 - abs(z)) / 0.05)
+        return 0.0075 + 0.0095 * (1 - min(abs(z) / half, 1.0)) ** 0.7
     tube("Limbs", pts, lambda u: r_of_z(-half + 2 * half * u), m,
-         lambda co: mix(silver, silver_l, 0.5 + 0.5 * math.sin(co.z * 30)), sides=16, flat=fl)
+         lambda co: mix(silver, silver_l, 0.3 + 0.3 * math.sin(co.z * 30)), sides=14, flat=fl)
+    z0, z1, th = 0.082, half - 0.04, 0.007
+
+    def wback(u):
+        return 0.05 * math.exp(-((u - 0.1) / 0.085) ** 2) + 0.026 * math.sin(math.pi * u) ** 0.6 + 0.003
+
+    def wbelly(u):
+        return 0.016 * math.sin(math.pi * u) ** 0.7
+
+    def root(u):
+        return r_of_z(z0 + (z1 - z0) * u) * 0.5
     for s in (1, -1):
-        z0, z1 = sorted((0.16 * s, (half - 0.06) * s))
-        limb_helix("Wind%d" % s, pts, z0, z1, r_of_z, 4.0, 0.0, g, cyan, fl, r=0.0016, k=160)
-        tip, d = limb_at(pts, (half - 0.004) * s), limb_dir(pts, (half - 0.004) * s).normalized()
-        limb_wrap("TipCap%d" % s, pts, (half - 0.035) * s - 0.012, (half - 0.035) * s + 0.012, r_of_z, m, silver_l,
-                  turns=2, pad=0.0014, ridge=0.0007, flat=fl)
-        # ponta em lâmina curva para a frente
-        hook = [tip - d * 0.02, tip + d * 0.02, tip + d * 0.045 + Vector((0, -0.02, 0)), tip + d * 0.045 + Vector((0, -0.045, 0))]
-        tube("Blade%d" % s, spline(hook, 5), lambda u: 0.009 * (1 - u) ** 0.8 + 0.0005, m, silver_l, sides=8, flat=0.4)
-        # duas penas brancas e duas fitas longas presas no anel da ponta, esvoaçando para trás (+Y, lado do arqueiro)
-        ring = limb_at(pts, (half - 0.035) * s)
-        for k, (ang, L) in enumerate(((0.35, 0.1), (0.8, 0.085))):
-            dirv = (d * math.cos(ang) + Vector((0, 1, 0)) * math.sin(ang)).normalized()
-            ob = flat("Plume%d%d" % (s, k), feather_outline(L, 0.022), m, None, th=0.003, bevel=0.0015, step=0.006)
-            plane_yz(ob)
-            put(ob, lambda co, ring=ring, dirv=dirv, L=L: mix(ivory, H("#a8d8ea"), smooth01((co - ring).dot(dirv) / L - 0.6)),
-                ring + Vector((0, r_of_z(half - 0.035) * fl * 0.5, 0)), along(dirv))
-        for k, (sx, L) in enumerate(((1, 0.22), (-1, 0.18))):
-            rib = []
-            for i in range(25):
-                u = i / 24
-                rib.append(ring + Vector((sx * 0.006, 0.01 + L * u * 0.85, -s * L * u * 0.35 + 0.012 * math.sin(u * 7 + k))))
-            tube("Ribbon%d%d" % (s, k), rib, lambda u: 0.013 * (1 - 0.3 * u), m,
-                 lambda co, k=k: cyan if k == 0 else silver_l, sides=10, flat=0.22)
-            aura("wind", rib[-1])
-        aura("wind", tip + d * 0.03)
-    limb_wrap("Grip", pts, -0.064, 0.064, r_of_z, m, H("#2c4a66"), turns=12, pad=0.0014, ridge=0.0008, flat=fl)
+        a, b = z0 * s, z1 * s
+        limb_fin("Blade%d" % s, pts, a, b, wback, m, silver, -1, th, root, k=150)
+        tube("BladeEdge%d" % s, fin_line(pts, a, b, wback, 0.985, -1, root, 0.0, 1.0, 150), 0.002, m, silver_l, sides=6)
+        rune_strokes("Rune%d" % s, pts, a, b, wback, 0.4, th, rn, cyan, -1, root, 0.3, 0.9, 7, r=0.0015)
+        bz0, bz1 = 0.16 * s, 0.56 * s
+        broot = lambda u: r_of_z(0.3) * 0.5
+        limb_fin("Belly%d" % s, pts, bz0, bz1, wbelly, m, silver, 1, 0.006, broot, k=80)
+        tube("BellyEdge%d" % s, fin_line(pts, bz0, bz1, wbelly, 0.98, 1, broot, 0.02, 0.98, 80), 0.0017, m, silver_l,
+             sides=6)
+        # espiral de vento acesa
+        for k in range(2):
+            limb_helix("Spiral%d%d" % (s, k), pts, 0.24 * s, 0.6 * s, r_of_z, 3.5, math.pi * k, rn, cyan, fl, r=0.0016)
+        # penas de asa varrendo para a ponta
+        for j, (u, L, W, ang) in enumerate(((0.08, 0.23, 0.032, 0.62), (0.12, 0.21, 0.03, 0.78), (0.16, 0.18, 0.028, 0.92),
+                                             (0.2, 0.15, 0.026, 1.05), (0.24, 0.12, 0.024, 1.15))):
+            c, d, nv = limb_frame(pts, (z0 + (z1 - z0) * u) * s)
+            dirv = (nv * math.cos(ang) + d * math.sin(ang)).normalized()
+            ob = flat("Pinion%d%d" % (s, j), feather_outline(L, W), m, None, th=0.0035, bevel=0.002, step=0.005,
+                      paint2d=lambda x, z, dd, L=L: mix(mix(ivory, H("#a8e4f4"), smooth01(z / L - 0.45)),
+                                                        silver_d, 0.5 * (1 - smooth01(dd / 0.003))))
+            yz_put(ob, None, fin_pt(pts, a, b, wback, root, u, 0.6, -1, (-0.006 + 0.003 * j)), dirv)
+            if j == 0:
+                aura("wind", fin_pt(pts, a, b, wback, root, u, 0.6) + dirv * L)
+        # selo do vento
+        center = lobe_center(pts, z0, z1, root, 0.1, 0.026, s)
+        fx = fin_face_x(th, 0.45)
+        for sx in (1, -1):
+            face = Vector((sx * (fx + 0.001), 0, 0))
+            ring = torus("Sigil%d%d" % (s, sx), (0, 0), 0.022, 0.0028, m, seg=26, sides=6)
+            plane_yz(ring)
+            put(ring, silver_l, center + face)
+            for k in range(3):
+                a0 = k * 2 * math.pi / 3
+                filigree_curl("Swirl%d%d%d" % (s, sx, k), center + face + Vector((0, math.cos(a0), math.sin(a0))) * 0.011,
+                              0.009, 0.9, a0, m, silver_l, r=0.0015, flip=s)
+            disc_x("WindGem%d%d" % (s, sx), [(0.0, 0.0), (0.0, 0.0085), (0.003, 0.007), (0.005, 0.0)], g, cyan,
+                   center + Vector((sx * fx, 0, 0)), sx, seg=16)
+        aura("wind", center)
+        limb_wrap("Collar%d" % s, pts, 0.072 * s - 0.009, 0.072 * s + 0.009, r_of_z, m, silver_l, turns=2, pad=0.002,
+                  ridge=0.0012, flat=fl)
+        # ponta: bico de prata e duas fitas ao vento
+        tip, d = limb_at(pts, (half - 0.006) * s), limb_dir(pts, (half - 0.006) * s).normalized()
+        tube("Beak%d" % s, spline([tip - d * 0.03, tip + d * 0.02, tip + d * 0.045 + Vector((0, -0.02, 0))], 6),
+             lambda u: 0.0095 * (1 - u) ** 0.7 + 0.0006, m, silver_l, sides=10)
+        for k, (ph, L) in enumerate(((0.0, 0.17), (1.6, 0.13))):
+            p0 = limb_at(pts, (half - 0.045) * s) + Vector((0, -r_of_z(half - 0.045) * 0.5, 0))
+            rib = [p0 + Vector((0.004 * math.sin(i * 1.3 + ph), -0.012 * i / 10 - 0.008 * math.sin(i * 0.9 + ph),
+                                -s * L * i / 10)) for i in range(11)]
+            tube("Ribbon%d%d" % (s, k), spline(rib, 3), lambda u: 0.006 * (1 - 0.5 * u) + 0.0012, m,
+                 cyan if k == 0 else ivory, sides=6, flat=0.18)
+            if k == 0:
+                aura("wind", rib[-1])
+        limb_wrap("RibbonTie%d" % s, pts, (half - 0.045) * s - 0.006, (half - 0.045) * s + 0.006, r_of_z, m, navy,
+                  turns=2, pad=0.0016, ridge=0.001, flat=fl)
+    limb_wrap("Grip", pts, -0.062, 0.062, r_of_z, m, navy, turns=12, pad=0.0012, ridge=0.0008, flat=fl)
     for s in (1, -1):
-        limb_wrap("Band%d" % s, pts, 0.072 * s - 0.006, 0.072 * s + 0.006, r_of_z, m, silver_l, turns=1, pad=0.0026,
-                  ridge=0.0005, flat=fl)
-    # gema ciano num redemoinho de prata (três braços curvos em volta)
-    zc = 0.112
-    p = limb_at(pts, zc)
-    cy = p.y - r_of_z(zc) * fl - 0.012
-    orb("WindGem", g, cyan, (p.x, cy, zc), 0.012, seg=16, sq=1.0)
-    for k in range(3):
-        a0 = 2 * math.pi * k / 3
-        sw = []
-        for i in range(13):
-            u = i / 12
-            a = a0 + u * 2.4
-            r = 0.016 + 0.012 * u
-            sw.append(Vector((p.x + math.cos(a) * r, cy + 0.006 * (1 - u), zc + math.sin(a) * r)))
-        tube("Swirl%d" % k, sw, lambda u: 0.0042 * (1 - 0.7 * u) + 0.0005, m, silver_l, sides=8)
-    lathe("GemSeat", [(0.0, 0.0), (0.0, 0.014), (0.005, 0.0145), (0.012, 0.011), (0.012, 0.0)], m, silver, seg=16,
-          loc=(p.x, p.y - r_of_z(zc) * fl * 0.5, zc), rot=(math.pi / 2, 0, 0))
-    aura("wind", (p.x, cy - 0.02, zc))
-    top_t, bot_t = limb_at(pts, half - 0.035), limb_at(pts, -(half - 0.035))
+        limb_wrap("Band%d" % s, pts, 0.062 * s - 0.004, 0.062 * s + 0.004, r_of_z, rn, cyan, turns=0, pad=0.0028,
+                  ridge=0.0, flat=fl)
+    top_t, bot_t = limb_at(pts, half - 0.03), limb_at(pts, -(half - 0.03))
     _BOW_STRING[:] = [(top_t.x, top_t.y, top_t.z), (bot_t.x, bot_t.y, bot_t.z)]
     bow_export("bw_wind_bow", top_t.y)
 
 
 def build_crescent_bow():
-    """Crescente Gêmeo (Mítico): o arco é uma lua crescente de prata, larga no meio e afiada nas pontas; por dentro corre
-    a lua gêmea, fina e acesa em azul-claro, presa por pontes de estrela; lua cheia acesa num aro de prata acima da
-    mão."""
+    """Crescente Gêmeo (Mítico): cada braço carrega duas luas crescentes de prata, uma grande nas costas e a gêmea
+    menor na barriga, com runas de luar; acima da mão a lua cheia com crateras, abaixo a lua nova em crescente acesa;
+    estrelas de quatro pontas presas em fios de prata e pontas em crescente."""
     m = vcf("bw_crescent", metal=0.5)
     g = vcf("bw_crescent_gem", emit="#bcd0ff", strength=1.0)
-    half, back, fl = 0.6, 0.2, 0.5
+    rn = vcf("bw_crescent_rune", emit="#9ec0ff", strength=1.0)
+    half, back, fl = 0.6, 0.2, 0.7
     pts = bow_curve(half, back, recurve=0.0, n=120)
-    silver, silver_l, silver_d, moon = H("#c4ccdc"), H("#f4f8ff"), H("#7a86a0"), H("#bcd0ff")
+    silver, silver_l, silver_d, moon, night = H("#c4ccdc"), H("#f4f8ff"), H("#7a86a0"), H("#bcd0ff"), H("#3a4468")
 
-    def r_of_z(z):   # crescente: largo no meio, afina até a ponta afiada
-        t = min(abs(z) / half, 1.0)
-        return 0.0035 + 0.024 * (1 - t ** 1.6) ** 0.9
+    def r_of_z(z):
+        return 0.0075 + 0.0095 * (1 - min(abs(z) / half, 1.0)) ** 0.7
+    tube("Limbs", pts, lambda u: r_of_z(-half + 2 * half * u), m, silver, sides=14, flat=fl)
+    z0, z1, th = 0.082, half - 0.03, 0.008
 
-    def silverc(co):
-        c = limb_at(pts, co.z)
-        k = (c.y - co.y) / max(r_of_z(co.z) * fl, 1e-4)
-        return mix(mix(silver_d, silver, 0.7), silver_l, smooth01((k - 0.4) / 0.4))
-    tube("Moon", pts, lambda u: r_of_z(-half + 2 * half * u), m, silverc, sides=18, flat=fl)
-    # a lua gêmea: arco fino por dentro (lado do arqueiro, +Y), das pontes de estrela
-    inner = []
-    for i in range(91):
-        z = -0.52 + 1.04 * i / 90
-        inner.append(limb_at(pts, z) + Vector((0, r_of_z(z) * fl + 0.018 * (1 - (abs(z) / 0.52) ** 2) + 0.004, 0)))
-    tube("Twin", inner, lambda u: 0.0028 + 0.003 * math.sin(math.pi * u), g, moon, sides=10)
-    for j, z in enumerate((-0.48, -0.32, -0.17, 0.17, 0.32, 0.48)):
-        a = limb_at(pts, z) + Vector((0, r_of_z(z) * fl * 0.6, 0))
-        b = Vector(inner[int((z + 0.52) / 1.04 * 90)])
-        tube("Bridge%d" % j, [a, b], 0.0022, m, silver_l, sides=6)
-        star = []
-        for i in range(10):
-            ang = 2 * math.pi * i / 10
-            r = 0.011 if i % 2 == 0 else 0.0045
-            star.append((math.cos(ang) * r, math.sin(ang) * r))
-        ob = flat("Star%d" % j, star, m, None, th=0.003, bevel=0.0012, step=0.003)
-        plane_yz(ob)
-        put(ob, silver_l, a.lerp(b, 0.5))
-        if abs(z) > 0.4:
-            aura("moon", a.lerp(b, 0.5))
+    def wback(u):
+        return 0.042 * math.exp(-((u - 0.09) / 0.08) ** 2) + 0.07 * math.sin(math.pi * min(max(u - 0.12, 0) / 0.88, 1)) ** 1.1 + 0.003
+
+    def wbelly(u):
+        return 0.03 * math.sin(math.pi * u) ** 1.1 + 0.001
+
+    def root(u):
+        return r_of_z(z0 + (z1 - z0) * u) * 0.5
     for s in (1, -1):
-        tip = limb_at(pts, (half - 0.005) * s)
-        aura("moon", tip)
-        limb_wrap("Notch%d" % s, pts, (half - 0.06) * s - 0.006, (half - 0.06) * s + 0.006, r_of_z, m, silver_l, turns=1,
-                  pad=0.0012, ridge=0.0004, flat=fl)
+        a, b = z0 * s, z1 * s
+        limb_fin("Moon%d" % s, pts, a, b, wback, m, night, -1, th, root, k=150)
+        tube("MoonEdge%d" % s, fin_line(pts, a, b, wback, 0.985, -1, root, 0.0, 1.0, 150), 0.0026, m, silver_l, sides=6)
+        tube("MoonInner%d" % s, fin_line(pts, a, b, wback, 0.7, -1, root, 0.2, 0.97, 100, fin_face_x(th, 0.7) + 0.0006),
+             0.0014, m, silver, sides=5)
+        tube("MoonInnerB%d" % s, fin_line(pts, a, b, wback, 0.7, -1, root, 0.2, 0.97, 100, -fin_face_x(th, 0.7) - 0.0006),
+             0.0014, m, silver, sides=5)
+        rune_strokes("Rune%d" % s, pts, a, b, wback, 0.38, th, rn, moon, -1, root, 0.28, 0.9, 6)
+        bz0, bz1 = 0.18 * s, 0.56 * s
+        broot = lambda u: r_of_z(0.3) * 0.5
+        limb_fin("Twin%d" % s, pts, bz0, bz1, wbelly, m, night, 1, 0.006, broot, k=90)
+        tube("TwinEdge%d" % s, fin_line(pts, bz0, bz1, wbelly, 0.98, 1, broot, 0.0, 1.0, 90), 0.002, m, silver_l, sides=6)
+        # estrelas em fios de prata para fora do gume
+        for j, (u, L, R) in enumerate(((0.36, 0.034, 0.02), (0.58, 0.05, 0.028), (0.8, 0.03, 0.017))):
+            c, d, nv = limb_frame(pts, (z0 + (z1 - z0) * u) * s)
+            p0 = fin_pt(pts, a, b, wback, root, u, 0.95)
+            p1 = p0 + nv * L + d * L * 0.2
+            tube("Thread%d%d" % (s, j), [p0, p1], 0.0011, m, silver_l, sides=4)
+            ob = flat("Star%d%d" % (s, j), star_outline(R, R * 0.32, 4, math.pi / 2), g, None, th=0.003, bevel=0.0012,
+                      step=0.003)
+            plane_yz(ob)
+            put(ob, moon, p1)
+            if j == 1:
+                aura("moon", p1)
+        # lua cheia (em cima) e crescente acesa (embaixo), nas duas faces
+        center = lobe_center(pts, z0, z1, root, 0.09, 0.022, s)
+        fx = fin_face_x(th, 0.45)
+        for sx in (1, -1):
+            face = Vector((sx * (fx + 0.001), 0, 0))
+            ring = torus("Halo%d%d" % (s, sx), (0, 0), 0.021, 0.0024, m, seg=26, sides=6)
+            plane_yz(ring)
+            put(ring, silver_l, center + face)
+            if s > 0:
+                disc_x("FullMoon%d" % sx, [(0.0, 0.0), (0.0, 0.0175), (0.004, 0.015), (0.0065, 0.0)], g, moon,
+                       center + Vector((sx * fx, 0, 0)), sx, seg=22)
+                for k, (dy, dz, rr) in enumerate(((0.005, 0.006, 0.004), (-0.006, -0.002, 0.003), (0.002, -0.008, 0.0025))):
+                    cr = torus("Crater%d%d" % (sx, k), (0, 0), rr, 0.0009, m, seg=10, sides=4)
+                    plane_yz(cr)
+                    put(cr, H("#8a9ac8"), center + Vector((sx * (fx + 0.0058), dy, dz)))
+            else:
+                ob = flat("NewMoon%d" % sx, _crescent((0.0, 0.0), 0.017, (0.0, 0.007), 0.014), g, None, th=0.005,
+                          bevel=0.002, step=0.004)
+                plane_yz(ob)
+                place(ob, (0, 0, 0), (math.pi, 0, 0))
+                put(ob, moon, center + Vector((sx * (fx + 0.001), 0, 0.001)))
+            filigree_curl("Curl%d%d" % (s, sx), center + face + Vector((0, -0.028, 0.012 * s)), 0.011, 1.0, 0.0, m,
+                          silver_l, r=0.0016, flip=s)
+        aura("moon", center)
+        limb_wrap("Collar%d" % s, pts, 0.072 * s - 0.009, 0.072 * s + 0.009, r_of_z, m, silver_l, turns=2, pad=0.002,
+                  ridge=0.0012, flat=fl)
+        # ponta: crescente de prata
+        tip, d = limb_at(pts, (half - 0.02) * s), limb_dir(pts, (half - 0.02) * s).normalized()
+        ob = flat("TipMoon%d" % s, _crescent((0.0, 0.0), 0.03, (0.0, 0.012), 0.025), m, None, th=0.005, bevel=0.002,
+                  step=0.004)
+        yz_put(ob, silver_l, tip + d * 0.012, d)
+        aura("moon", tip + d * 0.03)
     limb_wrap("Grip", pts, -0.06, 0.06, r_of_z, m, H("#263052"), turns=12, pad=0.0012, ridge=0.0008, flat=fl)
-    # lua cheia acesa num aro de prata, acima da mão, com raios finos
-    zc = 0.115
-    p = limb_at(pts, zc)
-    fy = p.y - r_of_z(zc) * fl - 0.004
-    lathe("MoonRing", [(0.0, 0.0), (0.0, 0.019), (0.004, 0.0195), (0.007, 0.0165), (0.007, 0.0)], m, silver_l, seg=24,
-          loc=(p.x, fy + 0.003, zc), rot=(math.pi / 2, 0, 0))
-    orb("FullMoon", g, moon, (p.x, fy - 0.004, zc), 0.0145, seg=16, sq=0.55)
-    rays = []
-    for i in range(16):
-        a = 2 * math.pi * i / 16
-        r = 0.032 if i % 2 == 0 else 0.02
-        rays.append((math.cos(a) * r, math.sin(a) * r))
-    flat("MoonRays", rays, m, silver, th=0.0025, bevel=0.001, step=0.004, loc=(p.x, fy + 0.006, zc))
-    aura("moon", (p.x, fy - 0.02, zc))
-    top_t, bot_t = limb_at(pts, half - 0.06), limb_at(pts, -(half - 0.06))
+    for s in (1, -1):
+        limb_wrap("Band%d" % s, pts, 0.06 * s - 0.004, 0.06 * s + 0.004, r_of_z, rn, moon, turns=0, pad=0.0028,
+                  ridge=0.0, flat=fl)
+    top_t, bot_t = limb_at(pts, half - 0.03), limb_at(pts, -(half - 0.03))
     _BOW_STRING[:] = [(top_t.x, top_t.y, top_t.z), (bot_t.x, bot_t.y, bot_t.z)]
     bow_export("bw_crescent_bow", top_t.y)
 
 
 def build_root_bow():
-    """Raiz-Mãe (Mítico): três raízes trançadas formam cada braço, com musgo; folhas e flores rosadas brotam ao longo;
-    cipós pendem das pontas; a semente acesa num ninho de raízes acima da mão; tufos de folhas nas pontas."""
+    """Raiz-Mãe (Mítico): braços de madeira viva com raízes trançadas em volta; nas costas, uma asa de casca de borda
+    irregular com veios de seiva acesos; folhas brotando pelo gume; acima da mão a semente acesa num berço de raízes
+    enroladas, abaixo uma flor aberta; gavinhas enroladas e brotos nas pontas."""
     m = vcf("bw_root", metal=0.0)
     g = vcf("bw_root_gem", emit="#8aff5a", strength=1.0)
-    half, back, fl = 0.6, 0.18, 0.8
-    pts = bow_curve(half, back, recurve=0.04, n=110)
-    bark, bark_d, moss, leafc = H("#6a4a2e"), H("#3e2a1a"), H("#5f8a2e"), H("#6cbf3c")
+    rn = vcf("bw_root_rune", emit="#7aff4a", strength=1.0)
+    half, back, fl = 0.61, 0.18, 0.8
+    pts = bow_curve(half, back, recurve=0.04, n=120)
+    bark, bark_d, moss, leafc, leafd = H("#6a4a2e"), H("#3e2a1a"), H("#5f8a2e"), H("#6cbf3c"), H("#3f7a24")
     pink, pink_l, seed = H("#e86aa0"), H("#ffd0e4"), H("#8aff5a")
 
     def r_of_z(z):
-        t = min(abs(z) / half, 1.0)
-        return 0.0105 + 0.0135 * (1 - t) ** 0.7
+        return 0.009 + 0.011 * (1 - min(abs(z) / half, 1.0)) ** 0.7
+    wood = grain("#6a4a2e", "#3e2a1a", freq=5.0, zf=4.0, amt=0.55)
+    tube("Limbs", pts, lambda u: r_of_z(-half + 2 * half * u), m, wood, sides=14, flat=fl)
+    z0, z1, th = 0.082, half - 0.04, 0.009
 
-    def barkc(co):
-        g2 = 0.5 + 0.5 * math.sin(math.atan2(co.y, co.x) * 5 + co.z * 6)
-        mossy = smooth01((math.sin(co.z * 23 + co.x * 300) - 0.55) / 0.3) * (1 - min(abs(co.z) / half, 1.0))
-        return mix(mix(bark_d, bark, g2), moss, 0.85 * mossy)
-    # três raízes trançadas em volta da linha do braço (cada uma também afina)
-    for k in range(3):
-        seg = []
-        for i in range(181):
-            z = -half + 2 * half * i / 180
-            c = limb_at(pts, z)
-            a = 2 * math.pi * k / 3 + z * 26
-            rr = r_of_z(z) * 0.55
-            seg.append(c + Vector((math.cos(a) * rr, math.sin(a) * rr * fl, 0)))
-        tube("Root%d" % k, seg, lambda u: r_of_z(-half + 2 * half * u) * 0.58 + 0.001, m, barkc, sides=10)
-    tube("Heart", pts, lambda u: r_of_z(-half + 2 * half * u) * 0.5, m, bark_d, sides=8)
-    leaves = []
+    def wback(u):
+        lobe = 0.064 * math.exp(-((u - 0.12) / 0.1) ** 2)
+        body = 0.04 * math.sin(math.pi * min(u * 1.05, 1)) ** 0.7 * (0.72 + 0.28 * math.sin(u * 41) * math.sin(u * 17))
+        return lobe + body + 0.004
+
+    def root(u):
+        return r_of_z(z0 + (z1 - z0) * u) * 0.5
     for s in (1, -1):
-        # folhas e flores ao longo do braço, nascendo na superfície
-        for j, zz in enumerate((0.2, 0.26, 0.31, 0.37, 0.43, 0.49)):
-            p, d = limb_at(pts, zz * s), limb_dir(pts, zz * s).normalized()
-            side = Vector((math.cos(zz * 40 + s), -abs(math.sin(zz * 40 + s)) - 0.3, 0)).normalized()
-            base = p + side * r_of_z(zz) * 0.85
-            if j % 2 == 0:
-                dirv = (side * 0.7 + d * 0.7).normalized()
-                L = 0.045 + 0.01 * (j % 3)
-                lf = flat("Leaf%d%d" % (s, j), leaf_outline(L, 0.016), m, None, th=0.003, bevel=0.002, step=0.007,
-                          bend=lambda c, L=L: Vector((c.x, c.y + 0.4 * c.x * c.x, c.z)))
-                put(lf, leafc, base, along(dirv))
-                leaves.append(base + dirv * L)
-            else:
-                stem = base + side * 0.012
-                tube("Stem%d%d" % (s, j), [p + side * r_of_z(zz) * 0.5, stem], 0.0022, m, moss, sides=6)
-                for q in range(5):
-                    a = 2 * math.pi * q / 5
-                    pe = stem + Vector((math.cos(a) * 0.008, -0.002, math.sin(a) * 0.008))
-                    orb("Petal%d%d%d" % (s, j, q), m, pink if q % 2 else pink_l, pe, 0.0065, seg=8, sq=0.55)
-                orb("Pistil%d%d" % (s, j), g, H("#ffe066"), stem + Vector((0, -0.004, 0)), 0.004, seg=8)
-                aura("leaf", stem + Vector((0, -0.01, 0)))
-        # tufo de folhas na ponta e cipó pendendo
-        tip, d = limb_at(pts, (half - 0.004) * s), limb_dir(pts, (half - 0.004) * s).normalized()
-        for k in range(5):
-            a = 2 * math.pi * k / 5
-            dirv = (d * 0.75 + Vector((math.cos(a), math.sin(a) * 0.8, 0)) * 0.55).normalized()
-            lf = flat("TipLeaf%d%d" % (s, k), leaf_outline(0.05, 0.016), m, None, th=0.003, bevel=0.002, step=0.007,
-                      bend=lambda c: Vector((c.x, c.y + 0.4 * c.x * c.x, c.z)))
-            put(lf, leafc if k % 2 else moss, tip - d * 0.008, along(dirv))
-        aura("leaf", tip + d * 0.03)
-        v0 = limb_at(pts, (half - 0.06) * s)
-        vine = [v0 + Vector((0.006, -0.004, 0)), v0 + Vector((0.016, -0.014, -0.03 * s)), v0 + Vector((0.012, -0.02, -0.07 * s)),
-                v0 + Vector((0.018, -0.016, -0.11 * s))]
-        tube("Vine%d" % s, spline(vine, 5), 0.0024, m, moss, sides=6)
+        a, b = z0 * s, z1 * s
+        limb_fin("Bark%d" % s, pts, a, b, wback, m, bark_d, -1, th, root, k=160)
+        tube("BarkEdge%d" % s, fin_line(pts, a, b, wback, 0.985, -1, root, 0.0, 1.0, 160), 0.0026, m, moss, sides=6)
+        # veios de seiva: galhos acesos nas duas faces
+        for sx in (1, -1):
+            x = sx * (fin_face_x(th, 0.35) + 0.0006)
+            tube("Sap%d%d" % (s, sx), fin_line(pts, a, b, wback, 0.35, -1, root, 0.25, 0.95, 60, x), 0.0016, rn, seed,
+                 sides=5)
+            for j, u in enumerate((0.35, 0.5, 0.65, 0.8)):
+                p0 = fin_pt(pts, a, b, wback, root, u, 0.35, -1, x)
+                p1 = fin_pt(pts, a, b, wback, root, u + 0.05, 0.75, -1, sx * (fin_face_x(th, 0.75) + 0.0006))
+                tube("SapB%d%d%d" % (s, sx, j), [p0, p0.lerp(p1, 0.5), p1], 0.0012, rn, seed, sides=5)
+        # raízes trançadas em volta do braço
         for k in range(3):
-            q = Vector(spline(vine, 5)[4 + k * 4])
-            lf = flat("VineLeaf%d%d" % (s, k), leaf_outline(0.022, 0.01), m, None, th=0.0025, bevel=0.0015, step=0.006)
-            put(lf, leafc, q, (0.4 * k, 0, 1.2 * (k - 1)))
-    limb_wrap("Grip", pts, -0.064, 0.064, r_of_z, m, H("#4a3622"), turns=9, pad=0.0016, ridge=0.0012, flat=fl)
-    # ninho de raízes com a semente acesa, acima da mão
-    zc = 0.115
-    p = limb_at(pts, zc)
-    cy = p.y - r_of_z(zc) * fl - 0.014
-    orb("Seed", g, seed, (p.x, cy, zc), 0.0125, seg=16, sq=1.25)
-    for k in range(6):
-        a = 2 * math.pi * k / 6
-        o = Vector((math.cos(a), 0, math.sin(a)))
-        tube("Nest%d" % k, spline([Vector((p.x, p.y - r_of_z(zc) * fl * 0.5, zc)) + o * 0.008,
-                                    Vector((p.x, cy + 0.004, zc)) + o * 0.019, Vector((p.x, cy - 0.01, zc)) + o * 0.011], 4),
-             lambda u: 0.0034 * (1 - 0.5 * u) + 0.0005, m, bark, sides=6)
-    aura("leaf", (p.x, cy - 0.02, zc))
+            limb_helix("Braid%d%d" % (s, k), pts, 0.08 * s, 0.5 * s, r_of_z, 2.5, 2 * math.pi * k / 3, m,
+                       bark, fl, r=0.0042)
+        # folhas pelo gume
+        for j, u in enumerate((0.3, 0.42, 0.55, 0.68, 0.8, 0.9)):
+            c, d, nv = limb_frame(pts, (z0 + (z1 - z0) * u) * s)
+            dirv = (nv * 0.75 + d * (0.65 if j % 2 else 0.3)).normalized()
+            L = 0.05 - 0.003 * j
+            ob = flat("Leaf%d%d" % (s, j), leaf_outline(L, L * 0.38), m, None, th=0.003, bevel=0.0015, step=0.004,
+                      paint2d=lambda x, z, dd, L=L: mix(leafd, leafc, smooth01(dd / 0.004) * (0.6 + 0.4 * z / L)))
+            yz_put(ob, None, fin_pt(pts, a, b, wback, root, u, 0.92, -1, 0.002 * (1 if j % 2 else -1)), dirv)
+        aura("leaf", fin_pt(pts, a, b, wback, root, 0.55, 1.0))
+        center = lobe_center(pts, z0, z1, root, 0.12, 0.032, s)
+        fx = fin_face_x(th, 0.45)
+        for sx in (1, -1):
+            face = Vector((sx * (fx + 0.001), 0, 0))
+            if s > 0:   # semente acesa num berço de raízes
+                disc_x("Seed%d" % sx, [(0.0, 0.0), (0.0, 0.0155), (0.005, 0.012), (0.009, 0.0)], g, seed,
+                       center + Vector((sx * fx, 0, 0)), sx, seg=18)
+                for k in range(4):
+                    a0 = k * math.pi / 2 + 0.4
+                    filigree_curl("Cradle%d%d" % (sx, k), center + face + Vector((0, math.cos(a0), math.sin(a0))) * 0.026,
+                                  0.012, 1.0, a0 + math.pi, m, bark, r=0.0026, flip=1)
+            else:       # flor aberta
+                petal = [(-0.004, 0.0), (0.004, 0.0), (0.011, 0.012), (0.013, 0.024), (0.008, 0.033), (0.0, 0.036),
+                         (-0.008, 0.033), (-0.013, 0.024), (-0.011, 0.012)]
+                for k in range(6):
+                    an = k * math.pi / 3
+                    ob = flat("Petal%d%d" % (sx, k), petal, m, None, th=0.003, bevel=0.0015, step=0.003,
+                              paint2d=lambda x, z, dd: mix(pink, pink_l, smooth01(z / 0.036 - 0.2)))
+                    plane_yz(ob)
+                    place(ob, (0, 0, 0), (an, 0, 0))
+                    place(ob, center + face + Vector((sx * 0.0008 * (k % 2), 0, 0)))
+                orb("Pistil%d" % sx, g, H("#ffe066"), center + Vector((sx * (fx + 0.004), 0, 0)), 0.006, seg=10)
+        aura("leaf", center)
+        limb_wrap("Collar%d" % s, pts, 0.072 * s - 0.01, 0.072 * s + 0.01, r_of_z, m, moss, turns=3, pad=0.002,
+                  ridge=0.0016, flat=fl)
+        # ponta: gavinha enrolada e broto
+        tip, d = limb_at(pts, (half - 0.006) * s), limb_dir(pts, (half - 0.006) * s).normalized()
+        curl = [tip - d * 0.03, tip + d * 0.02]
+        for i in range(14):
+            an = i / 13 * 1.8 * math.pi
+            rr = 0.03 * (1 - i / 16)
+            curl.append(tip + d * (0.04 + math.sin(an) * rr) + Vector((0, -rr + math.cos(an) * rr, 0)))
+        tube("Tendril%d" % s, spline(curl, 3), lambda u: 0.009 * (1 - u) ** 0.8 + 0.0008, m, bark, sides=10)
+        ob = flat("Bud%d" % s, leaf_outline(0.035, 0.012), m, None, th=0.003, bevel=0.0015, step=0.004,
+                  paint2d=lambda x, z, dd: mix(leafd, leafc, smooth01(dd / 0.003)))
+        yz_put(ob, None, tip + d * 0.012, (d + Vector((0, 0.6, 0))).normalized())
+        aura("leaf", tip + d * 0.04)
+    limb_wrap("Grip", pts, -0.062, 0.062, r_of_z, m, H("#4a3622"), turns=9, pad=0.0016, ridge=0.0012, flat=fl)
+    for s in (1, -1):
+        limb_wrap("Band%d" % s, pts, 0.062 * s - 0.004, 0.062 * s + 0.004, r_of_z, rn, seed, turns=0, pad=0.003,
+                  ridge=0.0, flat=fl)
     top_t, bot_t = limb_at(pts, half - 0.03), limb_at(pts, -(half - 0.03))
     _BOW_STRING[:] = [(top_t.x, top_t.y, top_t.z), (bot_t.x, bot_t.y, bot_t.z)]
     bow_export("bw_root_bow", top_t.y)
