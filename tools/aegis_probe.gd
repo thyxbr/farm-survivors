@@ -1,7 +1,7 @@
 extends SceneTree
 ## Mede o clipe "Sword And Shield Impact" do Mixamo (assets/animations/mixamo/sword_shield_impact.fbx): posição de
 ## cada osso no espaço do esqueleto (+Z à frente, +X à esquerda) em alguns instantes, compondo as trilhas de
-## rotação com o repouso. Os números viraram KnightMoves.SHIELD_GUARD (mão/cotovelo menos ombro, giro do peito).
+## rotação com o repouso. Os números viraram KnightMoves.AEGIS_GUARD (mão/cotovelo menos ombro, giro do peito).
 ##   godot --headless --path . --script res://tools/aegis_probe.gd
 func _init() -> void:
 	var sc: PackedScene = load("res://assets/animations/mixamo/sword_shield_impact.fbx")

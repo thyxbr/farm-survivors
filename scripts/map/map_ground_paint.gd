@@ -29,6 +29,17 @@ extends Node3D
 @export_range(0.0, 1.0, 0.01) var soft := 0.8
 ## Quanto capim cresce em cima (0 = nenhum).
 @export_range(0.0, 1.0, 0.01) var grass := 0.0
+## Superfície: chão (a cor, terra/trilha), gelo (placa lisa com rachaduras e brilho) ou rocha nua. Gelo e rocha
+## nua ficam à mostra mesmo com o chão coberto de neve (a Geleira neva sempre) e não têm capim.
+@export_enum("Chão", "Gelo", "Rocha nua") var surface := 0:
+	set(v):
+		surface = v
+		_refresh()
+
+
+## Valor que o chão recebe no lugar do capim: > 0 capim, 0 terra, -1 gelo, -2 rocha nua.
+func ground_mix() -> float:
+	return -float(surface) if surface > 0 else grass
 
 
 func _ready() -> void:

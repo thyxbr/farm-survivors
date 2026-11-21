@@ -219,7 +219,7 @@ func _build_rows() -> void:
 		var cl := UITheme.label(info.name, 15, info.color)
 		cl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		sub.add_child(cl)
-		var wl := UITheme.label("· %s · %s" % [ItemDB.CLASS_NAMES.get(wc, wc), "Feminino" if e.get("body") == "f" else "Masculino"],
+		var wl := UITheme.label("· %s · %s" % [ItemDB.CLASS_NAMES.get(wc, wc), {"f": "Feminino", "d": "Anão"}.get(e.get("body"), "Masculino")],
 			14, UITheme.DIM)
 		wl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		sub.add_child(wl)
@@ -706,6 +706,8 @@ func _process(delta: float) -> void:
 		pose.body_x += 0.12 * reach
 		pose.head_x += 0.25 * reach
 		_seat_arms(st, pose, pr)
+		if pr >= GRAB_AT:   # de pé com a montante: as duas mãos no cabo
+			KnightAnim.carry(st.look, pose, 0.0, 0.0, w)
 		KnightAnim.apply(rig, pose, k)
 		var mover: Node3D = st.mover
 		mover.position.z = lerpf(SIT_Z, STAND_Z, w)

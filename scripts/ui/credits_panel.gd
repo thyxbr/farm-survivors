@@ -14,6 +14,7 @@ const AUDIO := [
 		"\"Greenland Theme\" e \"Battle Theme 3\" — Alexandr Zhelanov (CC-BY 4.0)",
 		"Dark Cavern Ambient — Paul Wortmann (CC0)",
 		"\"Blackmoor Colossus\" (Colossal Boss Battle Theme) — Matthew Pablo, www.matthewpablo.com (CC-BY 3.0)",
+		"Temas do Pântano e do Vulcão — compostos para o jogo; banco de sons MuseScore General (MIT): FluidR3 © Frank Wen, FluidR3Mono © Michael Cowgill, adaptação © S. Christian Collins",
 	]],
 	["Efeitos sonoros", [
 		"Fantasy SFX Pack Vol 1 — JC Sounds (CC-BY 4.0)",

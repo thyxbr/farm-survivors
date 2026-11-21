@@ -52,6 +52,25 @@ func test_walls_open_only_at_the_bridge() -> void:
 	root.free()
 
 
+## Pular da ponte: paredes invisíveis altas nas duas muretas, de ponta a ponta, sem fechar o tabuleiro.
+func test_bridge_guards_block_jumping_off() -> void:
+	var root := _river_with_bridge()
+	var r: MapRiver = root.get_node("Rio")
+	r.build_game()
+	var body: StaticBody3D = r.get_node("Built/BridgeGuards")
+	T.eq(body.collision_layer, MapRiver.WALL_LAYER, "camada das paredes do rio (a câmera passa)")
+	T.eq(body.get_child_count(), 2, "uma parede em cada mureta")
+	for cs: CollisionShape3D in body.get_children():
+		var box := cs.shape as BoxShape3D
+		var top := cs.position.y + box.size.y / 2.0
+		T.ok(top >= 1.2 + 1.3 + 2.0, "bem acima do pulo no meio da ponte (topo %.1f m)" % top)
+		T.ok(box.size.x >= 15.0, "cobre a ponte toda (%.1f m)" % box.size.x)
+		var inner := absf(cs.position.x) - box.size.z / 2.0
+		T.ok(inner >= 2.35 and absf(cs.position.x) + box.size.z / 2.0 <= 2.85,
+			"em cima da mureta, sem fechar a passagem (%.2f m do meio)" % inner)
+	root.free()
+
+
 func test_vale_has_river_and_bridge() -> void:
 	var root := (load(MapData.SCENES["vila"]) as PackedScene).instantiate() as MapRoot
 	var rivers := root.pieces(MapRiver)

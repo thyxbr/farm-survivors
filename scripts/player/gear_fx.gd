@@ -8,6 +8,7 @@ extends RefCounted
 const GALAXY := preload("res://assets/shaders/gear_galaxy.gdshader")
 const GLOW := preload("res://assets/shaders/gear_glow.gdshader")
 const SHEEN := preload("res://assets/shaders/gear_sheen.gdshader")
+const STARSKY := preload("res://assets/shaders/gear_starsky.gdshader")
 
 ## nome do material no GLB -> {"shader", "params"}. Em "params", cores como Color e o resto como no shader.
 const SURFACES := {
@@ -19,6 +20,13 @@ const SURFACES := {
 	"eg_reaper_glow_gem_flat": {"shader": GLOW, "params": {
 		"flow_freq": 3.2, "flow_speed": 2.6, "flow_sharp": 4.0, "low": 0.5, "hot": Color(1.0, 0.92, 1.0)}},
 	"rb_reaper_gem_flat": {"shader": GLOW, "params": {"pulse": 0.35, "pulse_speed": 1.8, "hot": Color(1.0, 0.92, 1.0)}},
+	# ---- Placas Astrais (cavaleiro celeste): céu estrelado vivo na capa
+	"cs_sky": {"shader": STARSKY, "lit": true, "params": {}},
+	# buraco negro do peito: disco de acreção dourado girando em volta do miolo escuro
+	"cs_void_flat": {"shader": GALAXY, "lit": true, "params": {
+		"center": Vector2(0.0, 1.322), "radius": 0.022, "star_reach": 0.0, "spin": 0.7, "core_gain": -0.8,
+		"energy": 1.4, "space_col": Color(0.01, 0.008, 0.02), "haze_col": Color(0.2, 0.11, 0.03),
+		"arm_col": Color(0.92, 0.62, 0.2), "hot_col": Color(1.0, 0.9, 0.6)}},
 	# ---- Lich Soberano: fogo-fátuo verde tremulando em olhos e gemas, reflexo espectral varrendo os ossos
 	"eg_lich_glow_gem_flat": {"shader": GLOW, "params": {"flicker": 1.0, "hot": Color(0.9, 1.0, 0.85)}},
 	"rb_lich_gem_flat": {"shader": GLOW, "params": {"flicker": 0.8, "pulse": 0.25, "hot": Color(0.9, 1.0, 0.85)}},
@@ -87,6 +95,8 @@ const PARTICLES := {
 		"size": 0.024, "spread": 60.0, "band": 1.4},
 	"a_emberscale": {"color": Color(1.0, 0.3, 0.1), "amount": 18, "life": 1.8, "height": 0.5, "ring": 0.34, "rise": 0.7,
 		"size": 0.024, "spread": 16.0, "band": 1.0},
+	"a_celestial": {"color": Color(1.0, 0.9, 0.62), "amount": 14, "life": 3.0, "height": 1.1, "ring": 0.36,
+		"rise": -0.18, "size": 0.026, "spread": 40.0, "band": 1.0},
 	"a_frost": {"color": Color(0.8, 0.93, 1.0), "amount": 14, "life": 2.6, "height": 1.2, "ring": 0.38, "rise": -0.26,
 		"size": 0.03, "spread": 14.0, "band": 0.7},
 }

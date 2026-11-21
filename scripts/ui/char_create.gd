@@ -99,12 +99,12 @@ func _ready() -> void:
 	for id in CharRules.CLASS_IDS:
 		if wc != "" and CharRules.class_weapon(Balance.tables, id) == wc:
 			start_cls = id
-	var start_body := Game.body if Game.body in ["m", "f"] else "m"
+	var start_body := Game.body if Game.body in ["m", "f", "d"] else "m"
 	# capturas: `res://scenes/char_create.tscn -- --class=healer --body=f --hair=f_marias --shot=x.png`
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--class=") and a.substr(8) in CharRules.CLASS_IDS:
 			start_cls = a.substr(8)
-		elif a.begins_with("--body=") and a.substr(7) in ["m", "f"]:
+		elif a.begins_with("--body=") and a.substr(7) in ["m", "f", "d"]:
 			start_body = a.substr(7)
 	var start_hair := ""
 	for a in OS.get_cmdline_user_args():
@@ -202,7 +202,7 @@ func _build_stage() -> Control:
 	sex.add_theme_constant_override("separation", 6)
 	look.add_child(sex)
 	var bg := ButtonGroup.new()
-	for b in [["m", "Masculino"], ["f", "Feminino"]]:
+	for b in [["m", "Masculino"], ["f", "Feminino"], ["d", "Anão"]]:
 		var btn := UITheme.button(b[1], _on_body_button.bind(b[0]))
 		btn.toggle_mode = true
 		btn.button_group = bg

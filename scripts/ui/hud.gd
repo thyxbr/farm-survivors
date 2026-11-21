@@ -387,7 +387,7 @@ func _build_dock() -> void:
 	gather_title = UITheme.outlined("", 16, Color(1, 0.95, 0.78), 5)
 	gather_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	gather_box.add_child(gather_title)
-	gather_bar = UITheme.bar(Color(0.95, 0.75, 0.3), 280, 12)
+	gather_bar = UITheme.bar(Color(0.95, 0.75, 0.3), 300, 16)
 	gather_bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	gather_box.add_child(gather_bar)
 	gather_info = UITheme.outlined("", 13, Color(0.85, 0.85, 0.8), 4)
@@ -418,13 +418,11 @@ func _update_gather() -> void:
 	if node == null or not is_instance_valid(node):
 		return
 	gather_title.text = "%s %s" % ["Cortando" if node.is_tree() else "Minerando", node.item_name()]
-	var want: float = (1.0 if d.has("done_t") else node.ratio()) * gather_bar.max_value
-	gather_bar.value = lerpf(gather_bar.value, want, 0.3)   # sobe deslizando a cada golpe
+	# barra contínua: sobe junto com o golpe em andamento (sem número de golpes)
+	gather_bar.value = lerpf(gather_bar.value, GatherAction.bar_ratio(player) * gather_bar.max_value, 0.5)
 	var prof: String = node.prof
-	var left := GatherRules.strikes(node.tough - node.progress, float(d.power))
-	gather_info.text = "%s · Maestria %d (+%d%%) · %s" % [ItemDB.get_item(str(d.tool)).get("name", ""),
-		Game.prof_level(prof), roundi((GatherRules.mastery_mult(Game.prof_level(prof)) - 1.0) * 100.0),
-		"pronto!" if d.has("done_t") else ("%d golpe%s" % [left, "" if left == 1 else "s"])]
+	gather_info.text = "%s · Maestria %d (+%d%%)" % [ItemDB.get_item(str(d.tool)).get("name", ""),
+		Game.prof_level(prof), roundi((GatherRules.mastery_mult(Game.prof_level(prof)) - 1.0) * 100.0)]
 
 
 func _action(parent: Control, key: String) -> ItemSlot:
@@ -531,8 +529,12 @@ func _process(delta: float) -> void:
 	season_badge.visible = not horde
 	boss_panel.offset_top = 76.0 if horde else boss_top
 	boss_panel.offset_bottom = boss_panel.offset_top + 40.0
-	if boss and is_instance_valid(boss) and not boss.dead and boss.state != "idle" and boss.state != "wander" and player \
-			and player.global_position.distance_to(boss.global_position) < 40.0:
+	# chefe de dungeon: a barra aparece ao entrar na sala, mesmo antes de ele notar o jogador
+	var boss_d := INF
+	if boss and is_instance_valid(boss) and player:
+		boss_d = player.global_position.distance_to(boss.global_position)
+	if boss_d < 40.0 and not boss.dead \
+			and ((boss.state != "idle" and boss.state != "wander") or (boss.chief and boss_d < 25.0)):
 		boss_panel.visible = true
 		boss_bar.set_values(boss.hp, boss.max_hp)
 		boss_bar.fill = Color(0.75, 0.1, 0.06) if not boss.enraged else Color(0.75, 0.1, 0.06).lerp(Color(1, 0.35, 0.1), 0.5 + 0.5 * sin(_t * 8.0))

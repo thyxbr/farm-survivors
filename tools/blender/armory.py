@@ -1406,4 +1406,459 @@ for _tier in TOOL_TIERS:
                ("tl_axe_" + _tier, (lambda tt=_tier: build_tool_axe(tt)))]
 
 
+# ------------------------------------------------------------------ escudos (sh_<id>.glb)
+## Escudo preso no antebraço esquerdo (KnightLook._build_shield). Convenção do GLB:
+##   face da frente em -Y, altura em Z, largura em X; origem = centro das costas do escudo, onde o antebraço
+##   encosta (o jogo põe a origem no lugar do escudo antigo do knight.glb). Atrás vão as alças de couro
+##   (enarmes: uma presa ao antebraço, outra na mão), encostadas na tábua.
+## Referências: broquel (escudo de mão pequeno, todo de metal), escudo redondo nórdico (tábuas, umbo de ferro,
+## borda de couro cru costurada), escudo pipa normando (gota alongada, cobre do ombro à canela), pavês
+## (retangular alto, quilha central), heater (o "ferro de passar" do séc. XIII, brasão) e um escudo de dragão
+## de fantasia para o fim do nivelamento.
+
+def sh_bend(cx=0.0, cz=0.0):
+    """Curvatura da tábua: as bordas recuam (+Y) — cx curva de lado a lado, cz de cima a baixo (domo: os dois)."""
+    def fn(co):
+        co.y += cx * co.x * co.x + cz * co.z * co.z
+        return co
+    return fn
+
+
+def sh_y(x, z, cx, cz, th):
+    """Y da face da frente da tábua no ponto (x, z), um tico para dentro (peças por cima encostam)."""
+    return cx * x * x + cz * z * z - 2.0 * th + 0.002
+
+
+def sh_face(L, B, S, E, size, contour=0.012, extra=None):
+    """Pintura anime da face: luz no alto à esquerda, base no meio, sombra embaixo à direita (bandas duras),
+    contorno escuro na borda. extra(x, z, cor) -> cor pinta desenhos por cima."""
+    L, B, S, E = H(L), H(B), H(S), H(E)
+
+    def fn(x, z, d):
+        k = (-x * 0.55 + z * 0.8) / size
+        c = mix(S, B, smooth01((k + 0.42) / 0.03))
+        c = mix(c, L, smooth01((k - 0.3) / 0.03))
+        if extra:
+            c = extra(x, z, c)
+        return mix(E, c, smooth01((d - 0.001) / contour))
+    return fn
+
+
+def sh_tint(col, base, ref):
+    """Troca a cor de `col` (já com luz/sombra da face) por `base`, mantendo o quanto `col` é mais claro ou
+    escuro que `ref` (a base da face): desenho pintado com a mesma luz anime."""
+    lum = lambda c: 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2]
+    k = lum(col) / max(lum(ref), 1e-4)
+    return tuple(min(1.0, b * k) for b in base)
+
+
+def sh_board(outline, m, paint2d, th, cx, cz):
+    return flat("Board", outline, m, th=th, bevel=th * 0.9, step=0.008, paint2d=paint2d, bend=sh_bend(cx, cz),
+                loc=(0, -th, 0), ridge=0.1)
+
+
+def sh_rim(outline, m, col, r, cx, cz, th, per=3):
+    """Aro de metal (ou couro) por todo o contorno, no meio da espessura da tábua."""
+    pts = spline(list(outline) + [outline[0], outline[1]], per)[: -per]
+    pts = [(x, cx * x * x + cz * z * z - th, z) for x, z in pts]
+    pts.append(pts[0])
+    return tube("Rim", pts, r, m, col, sides=6, flat=0.8)
+
+
+def sh_boss(m, col, x, z, cx, cz, th, r=0.06, h=0.045, name="Boss"):
+    """Umbo: domo de metal saindo da face."""
+    prof = [(-0.012, r * 1.18), (0.004, r * 1.18), (0.006, r),   # a base afunda na tábua curva
+            (h * 0.55, r * 0.78), (h * 0.85, r * 0.45), (h, 0.0)]
+    return lathe(name, prof, m, col, seg=14, loc=(x, sh_y(x, z, cx, cz, th), z), rot=(math.pi / 2, 0, 0))
+
+
+def sh_rivet(m, col, x, z, cx, cz, th, r=0.009, name="Rivet"):
+    return orb("%s_%.3f_%.3f" % (name, x, z), m, col, (x, sh_y(x, z, cx, cz, th) - r * 0.3, z), r, seg=6)
+
+
+def sh_straps(m, col=None, w=0.05, zs=(0.07, -0.08)):
+    """Enarmes: duas alças de couro em U atrás da tábua (antebraço na de cima, mão na de baixo)."""
+    col = col or H("#6a4428")
+    for k, z in enumerate(zs):
+        pts = [(-w, -0.004, z), (-w * 0.95, 0.04, z), (0.0, 0.075, z), (w * 0.95, 0.04, z), (w, -0.004, z)]
+        tube("Strap%d" % k, spline(pts, 3), 0.008, m, col, sides=5, flat=0.45)
+    tube("Guige", spline([(-w * 1.6, -0.004, zs[0] + 0.1), (0.0, 0.03, zs[0] + 0.13), (w * 1.6, -0.004, zs[0] + 0.1)], 3),
+         0.006, m, col, sides=5, flat=0.5)   # alça longa (guige) de pendurar no ombro
+
+
+def sh_circle(R, n=40):
+    return [(R * math.cos(2 * math.pi * i / n), R * math.sin(2 * math.pi * i / n)) for i in range(n)]
+
+
+def sh_heater(w, top, bot, n=12, arch=0.03):
+    """Heater: topo levemente arqueado, laterais retas que curvam até a ponta embaixo."""
+    out = []
+    for i in range(n + 1):   # topo da esquerda para a direita
+        x = -w + 2 * w * i / n
+        out.append((x, top + arch * (1 - (x / w) ** 2)))
+    side = []
+    for i in range(1, n + 1):   # lado direito descendo: reto no começo e curvando para a ponta
+        t = i / n
+        z = top - (top - bot) * t
+        x = w * math.cos(t * t * math.pi / 2) if t < 1 else 0.0
+        side.append((x, z))
+    out += side
+    out += [(-x, z) for x, z in reversed(side[:-1])]
+    return out
+
+
+def sh_kite(w, top, bot, n=14):
+    """Pipa: topo redondo, a maior largura alto e a ponta comprida embaixo."""
+    out = []
+    zc = top - w
+    for i in range(n + 1):   # meia-lua de cima
+        a = math.pi * i / n
+        out.append((-w * math.cos(a), zc + w * math.sin(a)))
+    for i in range(1, n + 1):   # lado direito descendo até a ponta
+        t = i / n
+        out.append((w * (1 - t) ** 1.35, zc - (zc - bot) * t))
+    out += [(-x, z) for x, z in reversed(out[n + 1:-1])]
+    return out
+
+
+# ---- 1. Broquel de Ferro: pequeno, todo de metal, domo raso e umbo grande (escudo de mão)
+def build_sh_iron_buckler():
+    m = vcf("sh_buckler", metal=0.45)
+    R, th, c = 0.15, 0.012, 0.9
+    ol = sh_circle(R)
+
+    def rings(x, z, col):
+        r = math.hypot(x, z)
+        return mix(col, H("#5c6676"), 0.7 if abs(r - 0.105) < 0.004 else 0.0)   # sulco circular batido
+    sh_board(ol, m, sh_face("#e4eaf2", "#a7b2c2", "#6e7a8e", "#353c48", R, extra=rings), th, c, c)
+    sh_rim(ol, m, H("#5e6878"), 0.011, c, c, th, per=2)
+    sh_boss(m, H("#c8d0dc"), 0, 0, c, c, th, r=0.06, h=0.05)
+    for k in range(8):
+        a = 2 * math.pi * k / 8 + math.pi / 8
+        sh_rivet(m, H("#e6ecf4"), 0.083 * math.cos(a), 0.083 * math.sin(a), c, c, th, r=0.0075)
+    sh_straps(m, w=0.04, zs=(0.035, -0.045))
+    fin("sh_iron_buckler", 0.0, 0.0)
+
+
+# ---- 2. Escudo Redondo Nórdico: tábuas, metades pintadas, umbo de ferro e borda de couro costurada
+def build_sh_round_shield():
+    m = vcf("sh_round", metal=0.1)
+    R, th, c = 0.27, 0.011, 0.35
+    ol = sh_circle(R, 48)
+    blue, cream = H("#3a6aa8"), H("#efe2c2")
+
+    def paint(x, z, col):
+        a = math.atan2(z, x) + 0.35 * math.hypot(x, z) / R * math.pi   # quartos girando (redemoinho)
+        q = int(((a % (2 * math.pi)) / (math.pi / 2))) % 2
+        col = sh_tint(col, blue if q == 0 else cream, H("#b98a52"))
+        p = (x + R) / 0.075                                            # tábuas verticais e frestas
+        if abs(p - round(p)) < 0.035:
+            col = mix(col, H("#3a2a1c"), 0.6)
+        return col
+    sh_board(ol, m, sh_face("#f0d8a8", "#b98a52", "#7a5634", "#2e2014", R, extra=paint), th, c, c)
+    sh_rim(ol, m, H("#8a6a44"), 0.013, c, c, th, per=2)
+    for k in range(24):   # pontos da costura do couro cru na borda
+        a = 2 * math.pi * k / 24
+        x, z = (R - 0.022) * math.cos(a), (R - 0.022) * math.sin(a)
+        sh_rivet(m, H("#d8c8a0"), x, z, c, c, th, r=0.0045, name="Stitch")
+    sh_boss(m, H("#8a929e"), 0, 0, c, c, th, r=0.07, h=0.055)
+    for k in range(6):
+        a = 2 * math.pi * k / 6
+        sh_rivet(m, H("#c4ccd6"), 0.087 * math.cos(a), 0.087 * math.sin(a), c, c, th, r=0.007)
+    sh_straps(m)
+    fin("sh_round_shield", 0.0, 0.0)
+
+
+# ---- 3. Escudo Pipa: gota normanda, campo verde, divisa dourada, aro e umbo de ferro
+def build_sh_kite_shield():
+    m = vcf("sh_kite", metal=0.2)
+    w, top, bot, th, cx = 0.2, 0.25, -0.43, 0.012, 1.3
+    ol = sh_kite(w, top, bot)
+
+    def chevron(x, z, col):
+        v = z + 0.05 - abs(x) * 0.9              # divisa em V aberto para baixo
+        a = smooth01((v + 0.045) / 0.006) * (1.0 - smooth01(v / 0.006))
+        return mix(col, sh_tint(col, H("#f2c84a"), H("#2f8a64")), a)
+    sh_board(ol, m, sh_face("#7ed0a0", "#2f8a64", "#1c5a48", "#10261e", 0.3, extra=chevron), th, cx, 0.0)
+    sh_rim(ol, m, H("#6a7282"), 0.012, cx, 0.0, th, per=2)
+    sh_boss(m, H("#b8c2d0"), 0, 0.06, cx, 0.0, th, r=0.05, h=0.04)
+    for x, z in ((-0.13, 0.12), (0.13, 0.12), (-0.07, -0.18), (0.07, -0.18), (0.0, -0.33)):
+        sh_rivet(m, H("#dfe5ee"), x, z, cx, 0.0, th)
+    sh_straps(m)
+    fin("sh_kite_shield", 0.0, 0.0)
+
+
+# ---- 4. Pavês de Torre: retangular alto, quilha central, cintas de ferro e rebites (o escudo de quem segura a linha)
+def build_sh_tower_shield():
+    m = vcf("sh_tower", metal=0.3)
+    wt, wb, top, bot, th, cx = 0.23, 0.2, 0.36, -0.42, 0.014, 1.1
+    ol = [(-wt, top - 0.03), (-wt + 0.03, top), (0.0, top + 0.035), (wt - 0.03, top), (wt, top - 0.03),
+          (wb, bot + 0.04), (wb - 0.04, bot), (-wb + 0.04, bot), (-wb, bot + 0.04)]
+
+    def bands(x, z, col):
+        for zb in (0.22, -0.02, -0.28):
+            if abs(z - zb) < 0.022:
+                return mix(H("#5a6272"), H("#8a94a4"), 1.0 if z > zb else 0.0)
+        if abs(x) < 0.03:      # quilha: luz de um lado, sombra do outro
+            return mix(col, H("#f4e6c4") if x < 0 else H("#4a2e1a"), 0.55)
+        return col
+    sh_board(ol, m, sh_face("#e0b070", "#9c6236", "#62381e", "#24140c", 0.4, extra=bands), th, cx, 0.0)
+    sh_rim(ol, m, H("#5a6272"), 0.014, cx, 0.0, th, per=2)
+    tube("Keel", [(0.0, sh_y(0, z, cx, 0.0, th) - 0.004, z) for z in (bot + 0.03, 0.0, top + 0.01)],
+         lambda t: 0.014, m, H("#8a6a48"), sides=4, flat=0.7)
+    for zb in (0.22, -0.02, -0.28):
+        for x in (-0.17, -0.06, 0.06, 0.17):
+            sh_rivet(m, H("#d8dee8"), x, zb, cx, 0.0, th, r=0.0085)
+    sh_boss(m, H("#9aa4b4"), 0, 0.1, cx, 0.0, th, r=0.045, h=0.035)
+    sh_straps(m, w=0.055)
+    fin("sh_tower_shield", 0.0, 0.0)
+
+
+# ---- 5. Escudo do Leão Dourado: heater de aço azul-real, aro dourado e cabeça de leão em relevo (épico)
+def build_sh_lion_shield():
+    m = vcf("sh_lion", metal=0.45)
+    w, top, bot, th, cx = 0.21, 0.25, -0.31, 0.012, 1.0
+    ol = sh_heater(w, top, bot)
+    gold = H("#e8b440")
+
+    def field(x, z, col):
+        r = math.hypot(x, z - 0.0)
+        if abs(r - 0.135) < 0.006:   # anel gravado em volta do leão
+            return mix(col, gold, 0.85)
+        if z > 0.17 and abs(x) < 0.16 and int((x + 0.2) / 0.04) % 2 == 0:   # chefe listrado no alto
+            return mix(col, H("#f4e0a0"), 0.35)
+        return col
+    sh_board(ol, m, sh_face("#7aa8f0", "#2c56b0", "#1a2e74", "#0e1636", 0.3, extra=field), th, cx, 0.0)
+    sh_rim(ol, m, gold, 0.014, cx, 0.0, th, per=2)
+    yf = sh_y(0, 0, cx, 0.0, th)
+    # juba: duas voltas de mechas em volta da cara; cara; focinho com nariz; orelhas; olhos
+    for ring, (n, L, off, tone) in enumerate(((14, 0.085, 0.045, 0.45), (14, 0.065, 0.04, 0.0))):
+        for k in range(n):
+            a = 2 * math.pi * (k + 0.5 * ring) / n
+            ob = flat("Mane%d_%d" % (ring, k), [(-0.024, 0.0), (-0.01, L * 0.7), (0.0, L), (0.024, 0.0), (0.0, -0.01)],
+                      m, th=0.008, bevel=0.007, step=0.008)
+            place(ob, (0, 0, off), (0, -a + math.pi / 2, 0))
+            place(ob, (0, yf - 0.004 - 0.006 * ring, 0.0))
+            cel(ob, mix(gold, H("#b86a18"), tone if k % 2 else tone * 0.4))
+    orb("Face", m, H("#f0c860"), (0, yf - 0.016, -0.004), 0.058, seg=12, sq=1.1)
+    orb("Muzzle", m, H("#fae2a0"), (0, yf - 0.062, -0.03), 0.026, seg=8)
+    orb("Nose", m, H("#6a3010"), (0, yf - 0.086, -0.016), 0.009, seg=6)
+    for s_ in (1, -1):
+        orb("Ear%d" % s_, m, gold, (0.045 * s_, yf - 0.024, 0.052), 0.018, seg=6)
+        orb("Eye%d" % s_, m, H("#3a1a08"), (0.022 * s_, yf - 0.066, 0.012), 0.0075, seg=6)
+    for x, z in ((-0.15, 0.2), (0.15, 0.2), (-0.12, -0.13), (0.12, -0.13), (0.0, -0.25)):
+        sh_rivet(m, H("#fff0b0"), x, z, cx, 0.0, th, r=0.01)
+    sh_straps(m)
+    fin("sh_lion_shield", 0.0, 0.0)
+
+
+# ---- 6. Égide do Dragão: escamas carmim, chifres no alto, aro de ouro velho e olho de dragão aceso (lendário)
+def build_sh_dragon_aegis():
+    m = vcf("sh_dragon", metal=0.3)
+    g = vcf("sh_dragon_eye", emit="#ff6a2a", strength=1.6)
+    w, top, bot, th, cx = 0.23, 0.27, -0.36, 0.013, 1.0
+    ol = sh_heater(w, top, bot, arch=-0.04)   # topo cavado entre os chifres
+    gold = H("#d8a03a")
+
+    def scales(x, z, col):
+        row = math.floor((z + 1.0) / 0.045)
+        xo = x + (0.0225 if row % 2 else 0.0)
+        u = (xo / 0.045) - math.floor(xo / 0.045) - 0.5
+        v = (z + 1.0) / 0.045 - row
+        edge = (u * u) * 1.6 + (1 - v) * 0.0
+        if v < 0.22 + edge:          # contorno escuro embaixo de cada escama (escamas separadas)
+            return mix(col, H("#2a0608"), 0.75)
+        if v > 0.75 and abs(u) < 0.25:
+            return mix(col, H("#ff9a7a"), 0.35)     # brilho no alto da escama
+        return col
+    sh_board(ol, m, sh_face("#e0485a", "#9a1626", "#5a0a1a", "#16040a", 0.32, extra=scales), th, cx, 0.0)
+    sh_rim(ol, m, gold, 0.016, cx, 0.0, th, per=2)
+    for s in (1, -1):   # chifres saindo dos cantos de cima, curvando para fora e para trás
+        x0, z0 = w * s * 0.96, top - 0.02
+        pts = spline([(x0, cx * x0 * x0 - th, z0), (x0 + 0.04 * s, cx * x0 * x0 - th + 0.01, z0 + 0.08),
+                      (x0 + 0.1 * s, cx * x0 * x0 - th + 0.04, z0 + 0.13), (x0 + 0.16 * s, cx * x0 * x0 - th + 0.07, z0 + 0.12)], 4)
+        tube("Horn%d" % s, pts, lambda t: 0.024 * (1 - t) ** 0.8 + 0.003, m, H("#2c1a1a"), sides=6)
+        for k, z in enumerate((0.05, -0.12)):   # garras douradas agarrando a borda
+            x = w * s * (0.98 if z > 0 else 0.86)
+            yb = cx * x * x - th
+            tube("Claw%d_%d" % (s, k), spline([(x + 0.015 * s, yb, z + 0.03), (x - 0.01 * s, yb - 0.025, z),
+                                               (x - 0.035 * s, yb - 0.03, z - 0.03)], 3),
+                 lambda t: 0.009 * (1 - t) + 0.002, m, gold, sides=5)
+    yf = sh_y(0, 0.02, cx, 0.0, th)
+    # olho: placa de ouro em amêndoa, íris acesa e pupila em fenda
+    eye = [(-0.085, 0.02), (-0.04, 0.06), (0.0, 0.072), (0.04, 0.06), (0.085, 0.02), (0.04, -0.02), (0.0, -0.032),
+           (-0.04, -0.02)]
+    cel(flat("EyePlate", eye, m, th=0.008, bevel=0.007, step=0.008, loc=(0, yf - 0.004, 0.0)), gold)
+    orb("Iris", g, H("#ff8a2a"), (0, yf - 0.012, 0.02), 0.032, seg=12, sq=0.85)
+    cel(flat("Pupil", [(-0.006, -0.02), (0.006, -0.02), (0.006, 0.02), (-0.006, 0.02)], m, th=0.004, bevel=0.004,
+             step=0.004, loc=(0, yf - 0.04, 0.02)), H("#1a0404"))
+    for z in (-0.12, -0.2, -0.27):   # crista de espinhos descendo do olho
+        crystal("Spine%.2f" % z, m, gold, (0, sh_y(0, z, cx, 0.0, th) - 0.004, z), 0.014, 0.03, 0.004, seg=4,
+                rot=(math.pi / 2, 0, 0))
+    sh_straps(m)
+    fin("sh_dragon_aegis", 0.0, 0.0)
+
+
+SHIELDS = [("sh_iron_buckler", build_sh_iron_buckler), ("sh_round_shield", build_sh_round_shield),
+           ("sh_kite_shield", build_sh_kite_shield), ("sh_tower_shield", build_sh_tower_shield),
+           ("sh_lion_shield", build_sh_lion_shield), ("sh_dragon_aegis", build_sh_dragon_aegis)]
+ARMORY += SHIELDS
+
+
+# ------------------------------------------------------------------ montantes (duas mãos)
+## Espada de duas mãos (item "two_handed"): mesma regra das espadas (lâmina em +Z, empunhadura na origem), mas a
+## origem é a mão de cima (a direita, junto da guarda) e o cabo desce até a mão de baixo: a esquerda pega em
+## z = -GS_LEFT (KnightMoves.GREAT_LEFT_GRIP). Proporção de zweihänder/claymore: cabo ~1/4 do comprimento, ricasso
+## sem fio com ganchos de aparo (parierhaken), guarda larga, lâmina de ~1,1 m.
+GS_LEFT = 0.15
+
+
+def gs_hilt(m, grip_col, z0=-0.27, z1=0.045, r=0.019, turns=11):
+    wrap("Grip", m, grip_col, z0, z1, r, turns=turns, seg=8)
+
+
+def gs_hooks(m, col, z, x0, reach=0.05, r=0.009):
+    """Ganchos de aparo saindo do ricasso (começam dentro da lâmina, curvam para fora e para baixo)."""
+    for s in (1, -1):
+        tube("Hook%d" % s, spline([(x0 * 0.6 * s, 0, z), (x0 * s + reach * 0.55 * s, 0, z + 0.012),
+                                   (x0 * s + reach * s, 0, z - 0.008), (x0 * s + reach * 0.85 * s, 0, z - 0.03)], 4),
+             lambda t: r * (1 - 0.6 * t), m, col, sides=6)
+
+
+def build_iron_zweihander():
+    m = vcf("w_zwei", metal=0.4)
+    rx = 0.021
+    ol = [(-rx, 0.05), (rx, 0.05), (rx, 0.25), (0.039, 0.28), (0.034, 1.12), (0.0, 1.33), (-0.034, 1.12),
+          (-0.039, 0.28), (-rx, 0.25)]
+    sword_blade("Blade", ol, m, metal("#eef2f6", "#a8b4c4", "#46505e", fuller=(0.32, 1.0, 0.006, "#7a8696")),
+                th=0.013, bevel=0.012)
+    iron = H("#6e7684")
+    gs_hooks(m, iron, 0.255, rx)
+    # couro no ricasso (a mão de cima pode subir até aqui na meia-espada)
+    lathe("Ricasso", [(0.075, 0.0), (0.075, 0.024), (0.085, 0.027), (0.2, 0.027), (0.21, 0.024), (0.21, 0.0)],
+          m, H("#5a3a22"), seg=8, scale=(1.0, 0.55, 1.0))
+    tube("Guard", spline([(-0.21, 0, 0.035), (-0.19, 0, 0.06), (-0.1, 0, 0.066), (0, 0, 0.066), (0.1, 0, 0.066),
+                          (0.19, 0, 0.06), (0.21, 0, 0.035)], 4), lambda t: 0.015 - 0.004 * abs(2 * t - 1), m, iron,
+         sides=6)
+    for s in (1, -1):
+        orb("GuardEnd%d" % s, m, iron, (0.212 * s, 0, 0.03), 0.017, seg=6)
+    crystal("Block", m, iron, (0, 0, 0.062), 0.03, 0.022, 0.02, seg=4, phase=math.pi / 4)
+    gs_hilt(m, H("#5a3a22"))
+    band("Band", m, iron, -0.11, 0.02, 0.022, seg=8)
+    lathe("Pommel", [(-0.37, 0.0), (-0.365, 0.02), (-0.34, 0.034), (-0.31, 0.03), (-0.285, 0.018), (-0.265, 0.0)],
+          m, iron, seg=8, smooth=False)
+    fin("w_iron_zweihander", 0.0, 1.33)
+
+
+def build_highland_claymore():
+    m = vcf("w_claymore", metal=0.4)
+    ol = [(-0.028, 0.06), (0.028, 0.06), (0.04, 0.11), (0.036, 1.08), (0.022, 1.2), (0.0, 1.29), (-0.022, 1.2),
+          (-0.036, 1.08), (-0.04, 0.11)]
+    sword_blade("Blade", ol, m, metal("#f2f6f8", "#b4c0c8", "#3e4a52", fuller=(0.16, 0.7, 0.007, "#7c8a94")),
+                th=0.013, bevel=0.012)
+    steel = H("#8a96a4")
+    flat("Langet", [(0.0, 0.05), (0.03, 0.08), (0.0, 0.17), (-0.03, 0.08)], m, steel, th=0.0145, bevel=0.004,
+         step=0.006, ridge=0.0)
+    # quillons inclinados para a lâmina, terminando em quadrifólio (quatro anéis)
+    for s in (1, -1):
+        tube("Quillon%d" % s, spline([(0.0, 0, 0.058), (0.08 * s, 0, 0.08), (0.15 * s, 0, 0.13),
+                                      (0.178 * s, 0, 0.168)], 5), lambda t: 0.015 - 0.005 * t, m, steel, sides=6)
+        c = (0.19 * s, 0.185)
+        for k in range(4):
+            a = math.pi / 4 + k * math.pi / 2
+            cel(torus("Foil%d_%d" % (s, k), (c[0] + math.cos(a) * 0.016, c[1] + math.sin(a) * 0.016), 0.012, 0.0045,
+                      m, seg=10, sides=5), steel)
+    crystal("Block", m, steel, (0, 0, 0.058), 0.028, 0.02, 0.022, seg=4, phase=math.pi / 4)
+    gs_hilt(m, H("#2f4a3a"), turns=10)
+    for z in (-0.2, -0.05):
+        band("Band%.2f" % z, m, steel, z, 0.016, 0.021, seg=8)
+    # pomo em roda (disco de pé, no plano da lâmina)
+    ob = w_lathe("Pommel", [(-0.012, 0.0), (-0.012, 0.022), (-0.006, 0.036), (0.006, 0.036), (0.012, 0.022),
+                            (0.012, 0.0)], m, seg=12, smooth=False)
+    put(ob, steel, (0, 0, -0.3), (math.pi / 2, 0, 0))
+    fin("w_highland_claymore", 0.0, 1.29)
+
+
+def build_ember_flamberge():
+    m = vcf("w_flamberge", metal=0.3)
+    g = vcf("w_flamberge_gem", emit="#ff7a2a", strength=1.3)
+    rx = 0.022
+    cx = lambda z: 0.0 if z < 0.3 else 0.011 * math.sin((z - 0.3) / 0.13 * 2 * math.pi) * min(1.0, (1.18 - z) / 0.12)
+    w = lambda z: 0.038 - 0.008 * max(0.0, (z - 0.3) / 0.85)
+    zs = [0.3 + 0.88 * i / 44 for i in range(45)]
+    right = [(rx, 0.05), (rx, 0.25), (0.04, 0.28)] + [(cx(z) + w(z), z) for z in zs]
+    left = [(-rx, 0.25), (-0.04, 0.28)] + [(cx(z) - w(z), z) for z in zs]
+    ol = [(-rx, 0.05)] + right + [(0.0, 1.32)] + list(reversed(left))
+
+    def ember(x, z, c):
+        edge = abs(x - cx(z)) / max(w(z), 1e-3)
+        heat = smooth01((edge - 0.55) / 0.45) * smooth01((z - 0.3) / 0.3)
+        c = mix(c, H("#ff8a3a"), 0.55 * heat)
+        return mix(c, H("#ffcf6a"), smooth01((z - 1.05) / 0.25) * 0.6)
+    sword_blade("Blade", ol, m, metal("#f4f0ee", "#b8aaa4", "#5a2a1e", cx=cx, extra=ember), th=0.013, bevel=0.012)
+    zc = [0.32 + 0.7 * i / 28 for i in range(29)]
+    core = [(cx(z) + 0.005 * math.sin(math.pi * (z - 0.32) / 0.7), z) for z in zc]
+    core += [(cx(z) - 0.005 * math.sin(math.pi * (z - 0.32) / 0.7), z) for z in reversed(zc[1:-1])]
+    flat("Core", core, g, H("#ffb060"), th=0.0142, bevel=0.002, step=0.005, ridge=0.0)   # veio de brasa, ondulado
+    iron = H("#3e3434")
+    gs_hooks(m, iron, 0.255, rx, reach=0.045)
+    # guarda escura com as pontas enroladas em espiral, como brasas
+    for s in (1, -1):
+        pts = [(0.0, 0, 0.062), (0.1 * s, 0, 0.066), (0.165 * s, 0, 0.055)]
+        cxs, czs = 0.165 * s, 0.085
+        for k in range(1, 10):
+            a = -math.pi / 2 - k * 0.75
+            rr = 0.03 * (1 - k / 12)
+            pts.append((cxs - math.cos(a) * rr * s, 0, czs + math.sin(a) * rr))
+        tube("Guard%d" % s, spline(pts, 3), lambda t: 0.015 * (1 - 0.55 * t), m, iron, sides=6)
+    crystal("Block", m, iron, (0, 0, 0.062), 0.03, 0.024, 0.022, seg=4, phase=math.pi / 4)
+    gs_hilt(m, H("#7a2218"))
+    lathe("PommelCup", [(-0.3, 0.0), (-0.3, 0.014), (-0.285, 0.024), (-0.27, 0.02), (-0.262, 0.0)], m, iron, seg=8,
+          smooth=False)
+    orb("PommelGem", g, H("#ff5a2a"), (0, 0, -0.32), 0.024, seg=8)
+    for k in range(4):
+        a = 2 * math.pi * k / 4 + 0.4
+        tube("Claw%d" % k, spline([(0.012 * math.cos(a), 0.012 * math.sin(a), -0.295),
+                                   (0.027 * math.cos(a), 0.027 * math.sin(a), -0.315),
+                                   (0.016 * math.cos(a), 0.016 * math.sin(a), -0.343)], 3),
+             lambda t: 0.006 * (1 - t) + 0.0015, m, iron, sides=5)
+    fin("w_ember_flamberge", 0.0, 1.32)
+
+
+def build_eclipse_greatsword():
+    m = vcf("w_eclipse", metal=0.3)
+    g = vcf("w_eclipse_gem", emit="#b47aff", strength=1.6)
+    ol = [(-0.03, 0.06), (0.03, 0.06), (0.056, 0.13), (0.05, 0.92), (0.06, 1.0), (0.036, 1.18), (0.0, 1.36),
+          (-0.036, 1.18), (-0.06, 1.0), (-0.05, 0.92), (-0.056, 0.13)]
+
+    def dusk(x, z, c):
+        return mix(c, H("#e8c070"), smooth01((abs(x) - 0.028) / 0.012) * 0.8)
+    sword_blade("Blade", ol, m, metal("#5a4a7a", "#2c2440", "#120c1c", extra=dusk), th=0.015, bevel=0.014)
+    # runas acesas descendo pelo meio da lâmina
+    for i, z in enumerate((0.25, 0.42, 0.59, 0.76, 0.93)):
+        flat("Rune%d" % i, [(0.0, z - 0.05), (0.01, z), (0.0, z + 0.05), (-0.01, z)], g, H("#d8b0ff"), th=0.0162,
+             bevel=0.002, step=0.004, ridge=0.0)
+    gold = H("#e8c060")
+    # guarda: duas luas crescentes douradas abraçando um eclipse (orbe escuro com anel de luz)
+    for s in (1, -1):
+        crescent = [(0.02 * s, 0.03), (0.11 * s, 0.05), (0.2 * s, 0.11), (0.23 * s, 0.17), (0.2 * s, 0.13),
+                    (0.12 * s, 0.085), (0.02 * s, 0.09)]
+        flat("Moon%d" % s, crescent, m, gold, th=0.012, bevel=0.009, step=0.008)
+    orb("Eclipse", m, H("#1c1428"), (0, 0, 0.06), 0.044, seg=12)
+    cel(torus("Corona", (0, 0.06), 0.048, 0.008, g, seg=16, sides=6), H("#e0c0ff"))
+    gs_hilt(m, H("#2a1e3e"), r=0.02)
+    for z in (-0.2, -0.06):
+        band("Band%.2f" % z, m, gold, z, 0.018, 0.023, seg=8)
+    # pomo: lua crescente de pé com uma gema
+    flat("PommelMoon", [(0.0, -0.26), (0.045, -0.29), (0.05, -0.34), (0.02, -0.38), (0.028, -0.34), (0.022, -0.305),
+                        (-0.022, -0.305), (-0.028, -0.34), (-0.02, -0.38), (-0.05, -0.34), (-0.045, -0.29)],
+         m, gold, th=0.012, bevel=0.009, step=0.008)
+    orb("PommelGem", g, H("#c890ff"), (0, -0.012, -0.288), 0.014, seg=8)
+    fin("w_eclipse_greatsword", 0.0, 1.36)
+
+
+ARMORY += [("w_iron_zweihander", build_iron_zweihander), ("w_highland_claymore", build_highland_claymore),
+           ("w_ember_flamberge", build_ember_flamberge), ("w_eclipse_greatsword", build_eclipse_greatsword)]
+
+
 WEAPONS.extend(ARMORY)   # ASSETS=weapons gera todas; ASSETS=staves / bows / classic geram só esse grupo

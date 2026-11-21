@@ -21,13 +21,17 @@ signal enchant_changed
 signal kit_changed   # a classe da arma equipada mudou (ou o escudo entrou/saiu: troca a habilidade 1 da espada)
 
 const SETTINGS_PATH := "user://settings.cfg"
+## Desafio da Horda ligado? Desligado por enquanto: sem portal na vila, o servidor recusa a fila e os testes
+## da Horda (smoke --smoke-part=horda, _test_horde do net_test, portal no teste da vila) são pulados.
+const HORDE_ENABLED := false
 const WORLD_SCENE := "res://scenes/world.tscn"
 const MENU_SCENE := "res://scenes/main_menu.tscn"
 const CHAR_CREATE_SCENE := "res://scenes/char_create.tscn"
 
 var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "music_volume": 0.45, "sfx_volume": 0.9,
 	"ambience_volume": 0.7, "fullscreen": false, "invert_y": false,
-	"player_name": "", "server_address": "", "keep_logged": true, "toon": true, "toon_outline": true}
+	"player_name": "", "server_address": "", "keep_logged": true, "toon": true, "toon_outline": true,
+	"cam_zoom": 4.0}
 
 # ---- espelho do personagem (escrito só por apply_state)
 var level := 1
@@ -106,6 +110,8 @@ func _ready() -> void:
 			get_tree().root.add_child.call_deferred(load("res://tests/net_test.gd").new())
 		elif a.begins_with("--atlasshot="):
 			get_tree().root.add_child.call_deferred(load("res://tools/atlas_shot.gd").new())
+		elif a.begins_with("--teleportshot="):
+			get_tree().root.add_child.call_deferred(load("res://tools/teleport_shot.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
 		# o Econ usa user://smoketest_solo.json, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())
@@ -116,6 +122,7 @@ func _ready() -> void:
 
 ## Depuração: `godot -- --shot=shot.png [--delay=4]` salva um screenshot e fecha.
 ## `--survival` (com ou sem --shot) começa direto no Desafio da Horda.
+## `--autoswing` (no jogador local) emenda golpes básicos sem parar, com fôlego cheio; com `--shots=` fotografa o combo.
 ## `--cam=graus,dist` gira a câmera em volta do jogador e muda a distância (ex.: `--cam=180,2.2`
 ## olha o personagem de frente, de perto) — útil para conferir luz e modelo.
 ## `--farmdemo`/`--geardemo`/`--weapon=` usam um personagem novo num arquivo à parte (user://demo_solo.json,
@@ -210,7 +217,7 @@ func _debug_screenshot() -> void:
 		var gear_ids := {}
 		for id in ["frost_brand", "ember_staff", "elven_bow", "storm_bow", "dragonfang", "knight_shield", "arcane_orb",
 				"hunter_quiver", "iron_helm", "mage_robe", "royal_plate", "iron_gauntlets", "swift_boots", "vampire_ring",
-				"sage_amulet", "sc_novice_scepter", "sc_dawn_scepter", "sc_blessed_scepter", "sc_seraph_scepter", "sc_halo_scepter", "goblin_cleaver", "guardian_greatsword", "royal_wings", "titan_cleaver", "rose_flame", "knight_helm", "chain_mail", "archer_bracers",
+				"sage_amulet", "sc_novice_scepter", "sc_dawn_scepter", "sc_blessed_scepter", "sc_seraph_scepter", "sc_halo_scepter", "goblin_cleaver", "guardian_greatsword", "iron_zweihander", "highland_claymore", "ember_flamberge", "eclipse_greatsword", "royal_wings", "titan_cleaver", "rose_flame", "knight_helm", "chain_mail", "archer_bracers",
 				"iron_greaves", "life_amulet", "strength_ring", "traveler_cape"]:
 			gear_ids[id] = 1
 		gear_ids["slime_gel"] = 7
@@ -308,9 +315,21 @@ func _debug_screenshot() -> void:
 			var c := cam.split(",")
 			pl.cam_yaw.rotation.y += deg_to_rad(float(c[0]))
 			if c.size() > 1:
-				pl.spring.spring_length = float(c[1])
+				pl.cam_dist_override = float(c[1])
+				pl._cam_dist = float(c[1])
 		delay = 1.0
 	await get_tree().create_timer(delay, true).timeout
+	# `--shots=N[,intervalo]`: N capturas seguidas (shot_00.png, shot_01.png...), para ver um golpe quadro a quadro
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--shots="):
+			var sp := a.substr(8).split(",")
+			var gap := float(sp[1]) if sp.size() > 1 else 0.06
+			for i in int(sp[0]):
+				await RenderingServer.frame_post_draw
+				get_viewport().get_texture().get_image().save_png(path.get_basename() + "_%02d.png" % i)
+				await get_tree().create_timer(gap, true).timeout
+			get_tree().quit()
+			return
 	await RenderingServer.frame_post_draw
 	var err := get_viewport().get_texture().get_image().save_png(path)
 	if err != OK:
@@ -836,6 +855,11 @@ func talent_points() -> int:
 
 
 ## Ouro para redistribuir os talentos agora (espelho de CharRules.reset_cost).
+## Ouro para viajar até o mapa `region`: "coach" (cocheiro, em conta) ou "map" (mapa-mundi, caro). -1 = inválido.
+func travel_cost(region: String, mode: String) -> int:
+	return CharRules.travel_cost(Balance.tables, region, mode)
+
+
 func talent_reset_cost() -> int:
 	return 0 if level <= 5 else 50 * level
 

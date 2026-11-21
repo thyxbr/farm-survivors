@@ -61,9 +61,9 @@ func test_roundtrip_matches_consts() -> void:
 			(cur["goblin_cleaver"] as Dictionary).erase("damage")
 			(snap_items["goblin_cleaver"] as Dictionary).erase("damage")
 			# visual e texto (modelo 3D, capa, cor da calça, nome e descrição; roupas refeitas trocam isso), não
-			# balanceamento: sem eles dos dois lados
+			# balanceamento: sem eles dos dois lados. A defesa com escudo (block, guard) nasceu depois do snapshot.
 			for id in cur:
-				for k in ["style", "cape", "pants", "name", "desc"]:
+				for k in ["style", "cape", "pants", "name", "desc", "model", "block", "guard"]:
 					(cur[id] as Dictionary).erase(k)
 					(snap_items[id] as Dictionary).erase(k)
 			T.ok(cur == snap_items, "tabela items igual ao snapshot (sem level, visual e o dano do Cutelo)")
@@ -133,7 +133,9 @@ func test_roundtrip_matches_consts() -> void:
 			snap_rules.erase("xp_curve")
 			# o raio do sono dos monstros (regiões cheias, parte 2) nasceu depois do snapshot
 			cur.erase("enemy_sleep_radius")
-			T.ok(cur == snap_rules, "tabela rules igual ao snapshot (sem xp_curve e enemy_sleep_radius)")
+			# a viagem paga (carruagem e mapa-mundi) também
+			cur.erase("travel")
+			T.ok(cur == snap_rules, "tabela rules igual ao snapshot (sem xp_curve, enemy_sleep_radius e travel)")
 			continue
 		T.ok(cur == BalanceTables.decode(snap[n]), "tabela %s igual ao snapshot das const" % n)
 

@@ -424,9 +424,10 @@ func _ready() -> void:
 		await _test_heal(w)
 		await _test_party(w)
 		await _test_social(w)
+		await _test_gather_lock(w)
 		await _test_burrow(w)
 
-	if horde_role != "":
+	if horde_role != "" and Game.HORDE_ENABLED:   # --horde=lead|join também separa quem age nos outros testes
 		await _test_horde(w)
 
 	# fica um pouco para os outros testes verem este jogador
@@ -436,6 +437,44 @@ func _ready() -> void:
 	if relogin:
 		await _test_second_login_kicks_first()
 	_finish()
+
+
+# ---------------------------------------------------------------- trava da coleta
+var _holding := false
+
+
+## Veio da trava (2: os veios 0 e 1 já foram coletados antes neste teste e estão esgotados).
+const LOCK_NODE := 2
+
+
+## Trava da coleta: enquanto Ana bate no veio 2 (reserva renovada a cada golpe), Beto vê o veio ocupado e o aviso de
+## F recusa; quando Ana larga, o veio fica livre para ele. O servidor recusa a reserva de Beto no meio.
+func _test_gather_lock(w: Node) -> void:
+	await _sync("trava")
+	if my_name == "Ana":
+		_holding = true
+		_keep_claim(LOCK_NODE)
+	else:
+		check(await _wait_until(func() -> bool: return Econ.node_busy(LOCK_NODE), 6.0), "veio em que Ana bate aparece ocupado")
+		var n = w.resource_by_id.get(LOCK_NODE)
+		check(n != null and not n.gather_plan().ok and n.gather_plan().msg == Econ.BUSY_TEXT,
+			"F no veio ocupado avisa que outro jogador está coletando")
+		Econ.claim_node(LOCK_NODE)   # o servidor recusa: a reserva continua de Ana
+		await wait(0.5)
+	await _sync("trava_vista")
+	if my_name == "Ana":
+		check(not Econ.node_busy(LOCK_NODE), "a reserva de Beto no meio foi recusada (o veio segue com Ana)")
+		_holding = false
+		Econ.release_node(LOCK_NODE)
+	else:
+		check(await _wait_until(func() -> bool: return not Econ.node_busy(LOCK_NODE), 6.0), "Ana largou: o veio fica livre")
+	await _sync("trava_solta")
+
+
+func _keep_claim(id: int) -> void:
+	while _holding:
+		Econ.claim_node(id)
+		await wait(1.0)
 
 
 # ---------------------------------------------------------------- Toupeira-Broca na Mina
@@ -1059,7 +1098,7 @@ func _test_econ() -> void:
 			if is_instance_valid(e) and Regions.region_at(e.global_position) == "dg_bosque":
 				n += 1
 				chief = chief or e.chief
-		return n >= 20 and chief, 5.0), "monstros e chefe da dungeon vêm do servidor")
+		return n >= 14 and chief, 5.0), "monstros e chefe da dungeon vêm do servidor")
 	w.use_dungeon_door("out")
 	check(await _wait_until(func() -> bool: return w.player.global_position.distance_to(Regions.door_point("dg_bosque")) < 3.0, 4.0),
 		"saiu pela porta")

@@ -44,8 +44,7 @@ func test_places_come_from_landmarks() -> void:
 	T.eq(at.get("Pomar"), Vector3(20, 0, 33), "pomar")
 	T.ok(not at.has("Acampamento Goblin") and not at.has("Ruínas") and not at.has("Ninho de Slimes"),
 		"acampamento, ruínas e ninho viraram regiões (MapRules.areas)")
-	T.eq(at.get("Portal da Horda"), MapData.landmark("vila", "portal"), "o portal da Horda pelo landmark portal")
-	T.eq(at.get("Portal da Horda"), Vector3(-28, 0, 54), "portal da Horda no Largo dos Ecos da vila")
+	T.ok(not at.has("Portal da Horda"), "Horda desligada: o portal não aparece no mapa")
 
 
 func test_coach_and_arrive_from_landmarks() -> void:
@@ -107,8 +106,10 @@ func test_areas_on_map() -> void:
 		at[a[0]] = a
 	T.ok(at.has("Toca dos Goblins · Nv 5–9"), "a toca no mapa do vale com a faixa")
 	T.ok((at["Toca dos Goblins · Nv 5–9"][1] as Vector3).distance_to(Vector3(86, 0, 0)) < 1.0, "no acampamento")
-	T.eq((at["Capinzal dos Raptores · Nv 6–9"][2] as Array).size(), 4, "o capinzal tem 4 manchas e um rótulo só")
-	T.eq(at.size(), 9, "9 regiões no vale (com o Forte dos Brutos)")
+	T.eq((at["Capinzal dos Raptores · Nv 6–9"][2] as Array).size(), 1, "o capinzal é uma área só, no canto noroeste")
+	T.ok((at["Capinzal dos Raptores · Nv 6–9"][1] as Vector3).distance_to(Vector3(-90, 0, -88)) < 1.0, "no canto noroeste")
+	T.ok(at.has("Jardim Faminto · Nv 5–9") and at.has("Fonte Gelada · Nv 6–9"), "os cantos do sul com área própria")
+	T.eq(at.size(), 11, "11 regiões no vale (com o Forte dos Brutos e os 4 cantos)")
 	t.toca_goblins.show_on_map = false
 	var names: Array = MapRules.areas("vila", t).map(func(a: Array) -> String: return a[0])
 	T.ok(not "Toca dos Goblins · Nv 5–9" in names, "show_on_map: false some do mapa")

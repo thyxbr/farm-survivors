@@ -90,7 +90,7 @@ func _pose_knight(r: Dictionary, lk: Dictionary, guard: bool, impact: float, k :
 	var p := KnightAnim.idle_pose(_t)
 	KnightAnim.weapon_carry(p, "sword", 0.0, 0.0)
 	if guard:
-		KnightAnim.shield_guard_pose(p, 1.0, impact, 0.0)
+		KnightAnim.aegis_guard_pose(p, 1.0, impact, 0.0)
 		KnightAnim.hips_follow(p)
 	KnightAnim.apply(r, p, k)
 	KnightAnim.hold_weapon_upright(lk, r)

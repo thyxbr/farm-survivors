@@ -116,6 +116,8 @@ var region_grounds := {}
 var region_spawns: Array = []
 var _boss_scan := 0.0
 var _travel_fade: ColorRect
+## Destino da viagem paga esperando a confirmação do servidor/solo ("" = nenhuma).
+var _travel_pending := ""
 var spawns: Array = []
 ## Sorteio do nível de quem nasce nos pontos (à parte do `rng` fixo do cenário).
 var _spawn_rng := RandomNumberGenerator.new()
@@ -443,6 +445,8 @@ func _forge_fire(pos: Vector3) -> void:
 # ================================================================ ruínas (chefe)
 # ================================================================ Arena do Desafio (mapa da Horda)
 func start_survival() -> void:
+	if not Game.HORDE_ENABLED:
+		return
 	if survival != null or player == null or player.dead:
 		return
 	if Network.is_online():
@@ -567,6 +571,7 @@ func _spawn(entry: Dictionary) -> void:
 	e.elite = entry.get("elite", false)
 	e.area = str(entry.get("area", ""))
 	e.chief = bool(entry.get("chief", false))
+	e.arena = entry.get("arena", Rect2())
 	e.level = ProgressionRules.spawn_level(Balance.tables, entry.get("level", 0), entry.get("level_max", 0), e.elite, _spawn_rng)
 	e.position = entry.pos + Vector3.UP * 0.2
 	add_child(e)
@@ -1144,6 +1149,8 @@ func make_entity(e: MapEntity) -> Node3D:
 			st.station = e.ref
 			n = st
 		"portal":
+			if not Game.HORDE_ENABLED:
+				return null   # Horda desligada: sem portal na vila
 			n = PORTAL.new()
 		"guard":
 			n = VillageGuard.new()
@@ -1208,9 +1215,54 @@ func _scatter_region_grass() -> void:
 			g.scatter_grass(root.grass_seed, density, keep_out, [], root.grass_plants)
 
 
+## Por que a viagem paga até `region` não pode sair agora ("" = pode). Dentro de dungeon não há viagem:
+## é preciso sair pela porta primeiro (vale para a carruagem e para o teleporte do mapa-mundi).
+func travel_block_reason(region: String, mode: String) -> String:
+	if player == null or player.dead:
+		return "Não dá para viajar agora."
+	if not Regions.ORDER.has(region):
+		return "Não há viagem para lá."
+	var here := Regions.region_at(player.global_position)
+	if Regions.is_dungeon(here):
+		return "Não dá para viajar de dentro de uma dungeon. Saia dela primeiro."
+	if here == region and mode == "coach":
+		return "Você já está em %s." % Regions.display_name(region)
+	if not Regions.unlocked(region, Game.access_rank()):
+		return "%s exige Rank %s na guilda." % [Regions.display_name(region), Regions.DATA[region].rank]
+	if _travel_pending != "":
+		return "Já há uma viagem a caminho."
+	var cost := Game.travel_cost(region, mode)
+	if Game.gold < cost:
+		return "%s até %s custa %d de ouro (você tem %d)." % ["A carruagem" if mode == "coach" else "O teleporte",
+			Regions.display_name(region), cost, Game.gold]
+	return ""
+
+
+## Viagem paga: o servidor/solo cobra (op pay_travel) e, confirmado, o jogador viaja (_on_travel_paid).
+## Devolve false (com aviso) quando nem pede.
+func request_travel(region: String, mode: String) -> bool:
+	var why := travel_block_reason(region, mode)
+	if why != "":
+		Game.notify.emit(why, Color(1, 0.6, 0.5))
+		return false
+	_travel_pending = region
+	if not Econ.done.is_connected(_on_travel_paid):
+		Econ.done.connect(_on_travel_paid)
+	Econ.request("pay_travel", [region, mode])
+	return true
+
+
+func _on_travel_paid(op: String, args: Array, ok: bool, _err: String, _events: Array) -> void:
+	if op != "pay_travel" or args.is_empty() or str(args[0]) != _travel_pending:
+		return
+	_travel_pending = ""
+	if ok:
+		travel_to(str(args[0]), str(args[1]) if args.size() > 1 else "coach")
+
+
 ## Viagem pela carruagem da guilda: escurece a tela, leva o jogador ao ponto de chegada do mapa e mostra
 ## o cartão com o nome do lugar.
-func travel_to(region: String) -> void:
+func travel_to(region: String, mode := "coach") -> void:
 	if player == null or player.dead or not Regions.DATA.has(region):
 		return
 	if not Regions.unlocked(region, Game.access_rank()):
@@ -1229,7 +1281,11 @@ func travel_to(region: String) -> void:
 	player.input_locked = true
 	var tw := create_tween()
 	tw.tween_property(_travel_fade, "color:a", 1.0, 0.4)
-	tw.tween_callback(_arrive.bind(region))
+	if mode == "map" and _rebuild_on_teleport():
+		# teleporte do mapa-mundi: o corpo é remontado em luz na chegada (versão curta da abertura)
+		tw.tween_callback(_arrive_rebuilt.bind(region))
+		return
+	tw.tween_callback(_arrive.bind(region, mode))
 	tw.tween_interval(0.35)
 	tw.tween_property(_travel_fade, "color:a", 0.0, 0.5)
 	tw.tween_callback(func() -> void: player.input_locked = false)
@@ -1242,6 +1298,11 @@ func use_dungeon_door(target: String) -> void:
 	if target == "out":
 		var here := Regions.region_at(player.global_position)
 		_teleport(Regions.door_point(here), Regions.display_name(Regions.parent_of(here)), "SAINDO DA DUNGEON")
+		return
+	if target == "entrance":   # portal da sala do chefe, depois que ele cai
+		var dg := Regions.region_at(player.global_position)
+		if Regions.is_dungeon(dg):
+			_teleport(Regions.arrive_point(dg), Regions.display_name(dg), "ENTRADA DA DUNGEON")
 		return
 	if not Regions.is_dungeon(target):
 		return
@@ -1278,7 +1339,30 @@ func _teleport(to: Vector3, title: String, kicker: String) -> void:
 	tw.tween_callback(func() -> void: player.input_locked = false)
 
 
-func _arrive(region: String) -> void:
+## A cena da reconstrução precisa de janela (não roda headless nem nos testes automáticos).
+func _rebuild_on_teleport() -> bool:
+	var args := OS.get_cmdline_user_args()
+	return DisplayServer.get_name() != "headless" and not "--smoketest" in args 		and not Array(args).any(func(a: String) -> bool: return a.begins_with("--nettest"))
+
+
+## Chegada do teleporte do mapa-mundi: põe o herói no ponto de chegada e toca a reconstrução curta
+## (ArrivalCutscene.quick), que devolve a câmera e os controles; o cartão com o nome vem depois.
+func _arrive_rebuilt(region: String) -> void:
+	_arrive(region, "map", false)
+	var cut := ArrivalCutscene.new()
+	cut.world = self
+	cut.player = player
+	cut.quick = true
+	var d := Regions.arrive_point(region) - Regions.coach_point(region)
+	cut.face = d if region != "vila" else Vector3.ZERO
+	add_child(cut)
+	_travel_fade.color.a = 0.0   # a cena tem a própria tela preta, que abre no céu
+	await cut.finished
+	if story_card:
+		story_card.enqueue("TELEPORTE", Regions.display_name(region))
+
+
+func _arrive(region: String, mode := "coach", card := true) -> void:
 	var to: Vector3 = Regions.arrive_point(region)
 	player.global_position = to
 	player.velocity = Vector3.ZERO
@@ -1287,16 +1371,25 @@ func _arrive(region: String) -> void:
 	if region != "vila":
 		player.model.rotation.y = atan2(-d.x, -d.z)   # de costas para a carruagem, olhando para o mapa
 	Sfx.play("portal", -6.0)
-	if story_card:
-		story_card.enqueue("CARRUAGEM DA GUILDA", Regions.display_name(region))
+	if story_card and card:
+		story_card.enqueue("CARRUAGEM DA GUILDA" if mode == "coach" else "TELEPORTE", Regions.display_name(region))
 
 
 ## Chefes que nascem como monstros comuns (o Lich, a Slime Rainha não é chefe): a barra aparece quando o
 ## jogador chega perto, como a do Rei Goblin.
+## O chefe guardado só fica se ainda estiver perto: o servidor anuncia todo chefe que nasce (o de outra dungeon
+## ou o Rei Goblin do mapa), e antes isso prendia a barra num chefe distante e a do chefe da sala não aparecia.
 func _scan_boss() -> void:
-	if hud.boss != null and is_instance_valid(hud.boss) and not hud.boss.dead:
+	var cur = hud.boss
+	if cur != null and is_instance_valid(cur) and not cur.dead and cur.global_position.distance_to(player.global_position) < 40.0:
 		return
+	var best: Enemy = null
+	var best_d := 40.0
 	for e in get_tree().get_nodes_in_group("enemies"):
-		if e is Enemy and e.is_boss and not e.dead and e.global_position.distance_to(player.global_position) < 40.0:
-			hud.boss = e
-			return
+		if e is Enemy and e.is_boss and not e.dead and not e.horde:
+			var d: float = e.global_position.distance_to(player.global_position)
+			if d < best_d:
+				best_d = d
+				best = e
+	if best != null:
+		hud.boss = best

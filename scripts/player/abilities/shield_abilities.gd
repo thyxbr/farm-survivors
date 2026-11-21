@@ -2,7 +2,7 @@ class_name ShieldAbilities
 extends RefCounted
 ## Égide Cristalina: habilidade 1 da espada quando há um escudo na mão secundária (ItemDB: "sword_aegis",
 ## "offhand": "shield", troca a Investida no kit). Segurando a tecla, o herói ergue o escudo (guarda medida no
-## clipe "Sword And Shield Impact" do Mixamo, KnightMoves.SHIELD_GUARD) e uma barreira de placas em losango
+## clipe "Sword And Shield Impact" do Mixamo, KnightMoves.AEGIS_GUARD) e uma barreira de placas em losango
 ## (AegisBarrier) se forma em volta dele. A barreira absorve o dano até a integridade acabar:
 ##   - Defesa (aqui + AegisRules): integridade própria em ability_data.aegis; Player.take_damage passa cada
 ##     golpe por absorb() antes da vida (Game.hp) e só o que sobra vira dano. Nada de segunda vida: a
@@ -105,10 +105,10 @@ static func dodge_cancel(player: Node) -> void:
 ## Guarda com o escudo; o tranco do golpe toca por cima (hit_at = ability_t do último golpe).
 static func pose(player: Node, p: Dictionary) -> void:
 	var d: Dictionary = player.ability_data
-	var raise := clampf(float(player.ability_t) / KnightMoves.SHIELD_RAISE, 0.0, 1.0)
+	var raise := clampf(float(player.ability_t) / KnightMoves.AEGIS_RAISE, 0.0, 1.0)
 	raise = raise * raise * (3.0 - 2.0 * raise)
 	var since := float(player.ability_t) - float(d.get("hit_at", -10.0))
-	KnightAnim.shield_guard_pose(p, raise, since, float(player.get("_amp")))
+	KnightAnim.aegis_guard_pose(p, raise, since, float(player.get("_amp")))
 
 
 ## Réplica: começa a guarda, mostra golpes e a quebra (o dono já decidiu tudo).

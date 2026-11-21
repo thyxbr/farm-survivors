@@ -181,6 +181,28 @@ func test_weapon_change_returns_offhand() -> void:
 	T.eq(_count(s2, "knight_shield"), 1, "escudo na mochila")
 
 
+func test_two_handed_frees_offhand() -> void:
+	var bt := _tables()
+	var s := _blank()
+	CharRules.choose_class(s, bt, "warrior", "m")
+	s.level = 50
+	s.inventory = [{"id": "knight_shield", "qty": 1}, {"id": "iron_zweihander", "qty": 1}]
+	T.ok(CharRules.two_handed(bt, "iron_zweihander"), "montante é de duas mãos")
+	T.ok(not CharRules.two_handed(bt, "iron_sword"), "espada comum não é")
+	CharRules.equip(s, bt, "knight_shield")
+	T.eq(s.equipment.offhand, "knight_shield", "escudo equipado")
+	var r := CharRules.equip(s, bt, "iron_zweihander")
+	T.ok(r.ok, "equipa a montante")
+	T.eq(s.equipment.offhand, "", "o escudo sai da mão")
+	T.eq(_count(s, "knight_shield"), 1, "o escudo volta para a mochila")
+	T.eq(CharRules.equip(s, bt, "knight_shield").err, "duas_maos", "com a montante não entra escudo")
+	T.eq(s.equipment.offhand, "", "mão secundária continua vazia")
+	T.eq(_count(s, "knight_shield"), 1, "escudo continua na mochila")
+	CharRules.add_item(s, bt, "iron_sword", 1)
+	CharRules.equip(s, bt, "iron_sword")
+	T.ok(CharRules.equip(s, bt, "knight_shield").ok, "de volta à espada comum, o escudo entra")
+
+
 # ---------------------------------------------------------------- consumo e cozinha
 func test_consume() -> void:
 	var bt := _tables()
@@ -1154,6 +1176,31 @@ func test_talent_reset() -> void:
 	p.gold = 520
 	T.ok(CharRules.reset_talents(p, bt).ok, "paga")
 	T.eq(p.gold, 20, "cobrou 500")
+
+
+func test_travel_cost_and_pay() -> void:
+	var bt := _tables()
+	# cocheiro = 10 + 4 x nível do mapa; mapa-mundi = 5 x o cocheiro
+	T.eq(CharRules.travel_cost(bt, "vila", "coach"), 14, "cocheiro até a vila")
+	T.eq(CharRules.travel_cost(bt, "pico", "coach"), 130, "cocheiro até o vulcão")
+	T.eq(CharRules.travel_cost(bt, "bosque", "map"), 5 * CharRules.travel_cost(bt, "bosque", "coach"), "mapa = 5x cocheiro")
+	var prev := 0
+	for r in Regions.ORDER:
+		var c := CharRules.travel_cost(bt, r, "map")
+		T.ok(c > prev, "mais caro quanto maior o nível do mapa (%s: %d)" % [r, c])
+		T.ok(c > CharRules.travel_cost(bt, r, "coach"), "mapa mais caro que o cocheiro (%s)" % r)
+		prev = c
+	T.eq(CharRules.travel_cost(bt, "dg_bosque", "coach"), -1, "dungeon não tem viagem")
+	T.eq(CharRules.travel_cost(bt, "bosque", "voo"), -1, "modo inválido")
+	var s := CharState.new_character(bt)
+	s.gold = 57
+	T.eq(CharRules.pay_travel(s, bt, "bosque", "coach").err, "sem_ouro", "sem ouro")
+	T.eq(s.gold, 57, "não cobra sem ouro")
+	s.gold = 300
+	var r := CharRules.pay_travel(s, bt, "bosque", "map")
+	T.ok(r.ok, "paga o teleporte")
+	T.eq(s.gold, 10, "cobrou 290")
+	T.eq(CharRules.pay_travel(s, bt, "dg_mina", "map").err, "destino_invalido", "dungeon recusada")
 
 
 func test_talent_level_up_notice() -> void:

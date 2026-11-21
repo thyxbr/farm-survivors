@@ -314,6 +314,10 @@ func _ready() -> void:
 	# o kit das três armas, dado como concessão, para os testes de combate de cada classe de arma
 	Econ.grant(0, 0, {"apprentice_staff": 1, "short_bow": 1, "leather_cap": 1}, "test", true)
 	check(Game.count_item("apprentice_staff") == 1 and Game.count_item("short_bow") == 1, "kit de teste tem cajado e arco")
+	if _part() == "horda" and not Game.HORDE_ENABLED:
+		print("[smoke] Horda desligada (Game.HORDE_ENABLED): parte horda pulada")
+		_finish()
+		return
 	if _part() == "horda":
 		# o chili do dragão comido na rodada vem do teste da horta, que esta parte não roda
 		Econ.grant(0, 0, {"dragon_chili": 1}, "test", true)
@@ -364,9 +368,19 @@ func _ready() -> void:
 	check(nest_ok, "Ninho de Slimes: a mãe e as crias perto do ninho")
 	check(vale_total >= 110, "vale cheio: %d monstros (alvo ~120)" % vale_total)
 	for id in ["campos_norte", "ninho_slimes", "margem_lagoa", "toca_goblins", "capinzal_raptores", "teia_tecelas",
-			"cemiterio_velho", "ruinas_valdoria", "forte_brutos"]:
+			"cemiterio_velho", "ruinas_valdoria", "forte_brutos", "jardim_faminto", "fonte_gelada"]:
 		area_ok = area_ok and int(by_area.get(id, 0)) >= 5
 	check(area_ok, "cada região do vale com um bando (≥ 5): %s" % str(by_area))
+	# os quatro cantos do vale: um tipo de monstro em cada (sem misturar), e nenhum slime de gelo nos Campos
+	var corner := {"capinzal_raptores": "raptor_capim", "teia_tecelas": "tecela", "jardim_faminto": "flor_faminta",
+		"fonte_gelada": "slime_gelo"}
+	var corner_bad: Array = []
+	for en in get_tree().get_nodes_in_group("enemies"):
+		if corner.has(en.area) and en.kind != corner[en.area]:
+			corner_bad.append("%s@%s" % [en.kind, en.area])
+		elif en.kind in corner.values() and Regions.region_at(en.global_position) == "vila" and not corner.has(en.area):
+			corner_bad.append("%s fora do canto (%s)" % [en.kind, en.area])
+	check(corner_bad.is_empty(), "cantos do vale com um tipo de monstro cada %s" % str(corner_bad))
 	var lv_ok := true
 	for en in get_tree().get_nodes_in_group("enemies"):
 		if en.area != "" and en.level <= 0:
@@ -398,7 +412,8 @@ func _ready() -> void:
 	var n_inter := get_tree().get_nodes_in_group("interactable").size()
 	var n_guards := get_tree().get_nodes_in_group("npc").filter(func(n: Node) -> bool: return n is VillageGuard).size()
 	# a feira e as oficinas da vila do sul: 3 feirantes + o artesão, 4 moradores que passeiam e a mesa de alquimia
-	check(n_inter == 7 + 9 + 7 + 1 + world.points.size() + Game.FARM_PLOTS + 1 + 1 + 8 + n_guards + 4 + 4 + 1,
+	var n_portal := 1 if Game.HORDE_ENABLED else 0   # o portal da Horda só existe com ela ligada
+	check(n_inter == 6 + n_portal + 9 + 7 + 1 + world.points.size() + Game.FARM_PLOTS + 1 + 1 + 8 + n_guards + 4 + 4 + 1,
 		"interagíveis do vale, da guilda e dos mapas + %d canteiros + caldeirão + bancadas de couraria e alquimia + feirantes, artesão e moradores + 8 portas de dungeon + %d guardas (%d)" % [Game.FARM_PLOTS, n_guards, n_inter])
 	check(not ResourceLoader.exists("res://scenes/colony.tscn"), "sem a Defesa da Cidade")
 
@@ -673,7 +688,7 @@ func _ready() -> void:
 	# o puxão se vê: um inimigo a 3 m termina bem mais perto depois do giro (com vida de sobra para não morrer).
 	# Num campo aberto: perto da ponte ou de uma cerca, a mureta entre os dois segurava o puxão.
 	var pull_back := player.global_position
-	player.global_position = Vector3(-105, 0.3, 80)
+	player.global_position = Vector3(60, 0.3, 70)
 	await wait(0.1)
 	var pl_max: float = pl_s.max_hp
 	pl_s.hp = 100000.0
@@ -1289,11 +1304,12 @@ func _ready() -> void:
 	await _test_tecela_web()
 	await _test_bocarrao_tongue()
 	await _test_flor_rooted()
+	await _test_espinheira()
 	await _test_enemy_detour()
 	await _test_river()
 	await _test_archer_pose()
 	await _test_gold_goblin_world()
-	if _part() != "mundo":
+	if _part() != "mundo" and Game.HORDE_ENABLED:
 		await _test_survival()
 	await _test_update()
 	await _test_char_create()   # por último: troca o personagem solo por um novo, sem classe
@@ -2146,7 +2162,7 @@ func _test_dungeons() -> void:
 			if e.is_boss:
 				bosses[r] = true
 	for d in Regions.DUNGEONS:
-		check(int(by_dg.get(d, 0)) >= 20 and bosses.has(d), "%s com monstros (%d) e chefe" % [d, int(by_dg.get(d, 0))])
+		check(int(by_dg.get(d, 0)) >= 14 and bosses.has(d), "%s com monstros (%d) e chefe" % [d, int(by_dg.get(d, 0))])
 	var lv_ok := true
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if Regions.region_at(e.global_position) == "dg_mina" and not e.is_boss and (e.level < 26 or e.level > 30):
@@ -2163,6 +2179,10 @@ func _test_dungeons() -> void:
 	await wait(1.4)
 	check(Regions.region_at(player.global_position) == "dg_bosque", "com Rank C entra no Covil das Raízes")
 	check(Regions.exit_point("dg_bosque").distance_to(player.global_position) < 3.0, "chega na porta de saída")
+	# dentro da dungeon não há viagem paga (nem cocheiro nem mapa-mundi): é preciso sair primeiro
+	var g_in := Game.gold
+	check(world.travel_block_reason("vila", "map").contains("dungeon"), "teleporte do mapa recusado dentro da dungeon")
+	check(not world.request_travel("vila", "map") and Game.gold == g_in, "dentro da dungeon não cobra nem viaja")
 	world.use_dungeon_door("out")
 	await wait(1.4)
 	check(player.global_position.distance_to(Regions.door_point("dg_bosque")) < 3.0, "a saída leva de volta à porta no Bosque")
@@ -2172,6 +2192,43 @@ func _test_dungeons() -> void:
 	world._respawn()
 	await wait(0.2)
 	check(player.global_position.distance_to(Regions.door_point("dg_mina")) < 3.0, "quem morre na dungeon volta na porta dela")
+	# chefe da dungeon: só luta dentro da sala dele (arena) e perde o agro quando o jogador sai
+	var king: Enemy = null
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.is_boss and Regions.region_at(e.global_position) == "dg_mina":
+			king = e
+	check(king != null and king.arena.size.x >= 30.0 and king.arena.size.y >= 24.0,
+		"Rei Caído tem a sala grande como arena (%s)" % (str(king.arena) if king else "sem chefe"))
+	if king != null:
+		var o := Regions.DATA["dg_mina"].origin as Vector3
+		var hp0: float = Game.hp
+		player.global_position = o + Vector3(0, 0.3, -20.0)   # antecâmara, na frente do portão
+		await wait(1.0)
+		check(king.state in ["idle", "wander"], "chefe não ataca quem está fora da sala (estado %s)" % king.state)
+		player.global_position = o + Vector3(14.0, 0.3, -26.0)   # dentro da sala, longe do alcance normal de agro
+		await wait(0.6)
+		check(king.state in ["chase", "attack"], "chefe persegue quem entra na sala (estado %s)" % king.state)
+		player.global_position = o + Vector3(0, 0.3, -20.0)
+		await wait(0.8)
+		check(king.state in ["return", "idle", "wander"], "chefe perde o agro quando o jogador sai da sala (estado %s)" % king.state)
+		Game.hp = hp0
+		# só um chefe na sala, e o portal de volta só abre depois que ele cai
+		var portal: Node = world.get_node_or_null("BossPortal_dg_mina")
+		var n_boss := 0
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if e.is_boss and king.arena.grow(2.0).has_point(Vector2(e.global_position.x, e.global_position.z)):
+				n_boss += 1
+		check(n_boss == 1, "um chefe só na sala (%d)" % n_boss)
+		check(portal != null and not portal.is_open(), "portal de volta fechado com o chefe vivo")
+		king.take_damage(999999, king.global_position + Vector3.FORWARD, false)
+		await wait(2.2)
+		check(portal != null and portal.is_open() and portal.visible, "chefe morto: o portal de volta abre na sala")
+		if portal != null:
+			player.global_position = portal.global_position + Vector3(0, 0.3, 1.5)
+			portal.interact(player)
+			await wait(1.6)
+			check(player.global_position.distance_to(Regions.arrive_point("dg_mina")) < 3.0,
+				"o portal leva de volta à entrada da dungeon")
 	Game.flags["rank"] = rank0
 	player.global_position = back
 	await wait(0.2)
@@ -2264,6 +2321,12 @@ func _test_gather() -> void:
 	await wait(0.8 + float(plan.swing) * 1.2)
 	check(node.alive and node.progress > 0.0 and Game.count_item("iron_ore") == iron0,
 		"primeiros golpes: barra sobe, veio de pé, nada ganho ainda (%.1f/%.1f)" % [node.progress, node.tough])
+	var r0 := GatherAction.bar_ratio(player)
+	await wait(float(plan.swing) * 0.3)
+	var r1 := GatherAction.bar_ratio(player)
+	check(r1 > r0 and r1 < 1.0, "barra da coleta sobe entre um golpe e outro (%.2f -> %.2f)" % [r0, r1])
+	check(world.hud.gather_bar.value > 0.0 and not world.hud.gather_info.text.contains("golpe"),
+		"HUD mostra a barra, sem contar golpes (%s)" % world.hud.gather_info.text)
 	await wait(float(plan.swing) * float(plan.strikes) + 1.0)
 	check(not node.alive, "um F só: bate sozinho até o veio ceder")
 	check(Game.prof_xp("mining") + Game.prof_level("mining") * 100000 > mxp0, "coleta dá XP de Mineração (maestria)")
@@ -2476,7 +2539,7 @@ func _obstacle(at: Vector3, shape: String, size: Vector3) -> StaticBody3D:
 ## empurrando o obstáculo para sempre).
 func _test_enemy_detour() -> void:
 	var back := player.global_position
-	var spot := Vector3(-105, 0.3, 80)
+	var spot := Vector3(56, 0.3, 66)   # longe dos cantos do vale (a Fonte Gelada fica no sudoeste)
 	player.global_position = spot
 	player.invuln = 99.0
 	for case in [["cyl", Vector3(0.6, 3.0, 0.6)], ["box", Vector3(4.0, 2.5, 0.8)]]:
@@ -2524,6 +2587,22 @@ func _test_river() -> void:
 			check(low > -0.2, "não afunda nem cai da ponte (y mínimo %.2f)" % low)
 		else:
 			check(z < -21.0 and z > -26.5, "a margem do rio segura o jogador fora da água (parou em z = %.1f)" % z)
+	# no meio da ponte, pulando para o lado (leste e oeste): a parede invisível da mureta segura
+	for side in [["move_right", 1.0], ["move_left", -1.0]]:
+		player.global_position = Vector3(0, 1.6, -31)
+		player.velocity = Vector3.ZERO
+		await wait(0.3)
+		Input.action_press(side[0])
+		for i in 12:
+			if player.is_on_floor():
+				Input.action_press("jump")
+			await wait(0.1)
+			Input.action_release("jump")
+		Input.action_release(side[0])
+		await wait(0.4)
+		var p: Vector3 = player.global_position
+		check(absf(p.x) < 2.6 and p.y > 0.5, "pulando para %s a ponte segura o jogador (x %.2f, y %.2f)"
+			% ["leste" if side[1] > 0 else "oeste", p.x, p.y])
 	player.cam_yaw.global_rotation.y = yaw0
 	player.invuln = 0.0
 	player.global_position = back
@@ -2534,7 +2613,7 @@ func _test_river() -> void:
 ## um muro no meio não atira (anda de lado até abrir a linha) e, livre, atira e acerta.
 func _test_archer_pose() -> void:
 	var back := player.global_position
-	var spot := Vector3(-105, 0.3, 100)
+	var spot := Vector3(64, 0.3, 62)
 	player.global_position = spot
 	player.invuln = 99.0
 	var arrows := preload("res://scripts/enemies/enemy_arrow.gd")
@@ -2584,7 +2663,7 @@ func _test_archer_pose() -> void:
 ## do ponto dele, volta rodeando em vez de sumir no mapa.
 func _test_gold_goblin_world() -> void:
 	var back := player.global_position
-	var spot := Vector3(-105, 0.3, 100)
+	var spot := Vector3(64, 0.3, 62)
 	player.global_position = spot
 	player.invuln = 99.0
 	var e := Enemy.new()
@@ -2680,7 +2759,7 @@ func _swap_element(el: String, lv: int) -> void:
 
 func _test_enchant_effects() -> void:
 	var back := player.global_position
-	var spot := Vector3(-100, 0.3, 100)
+	var spot := Vector3(52, 0.3, 58)
 	player.global_position = spot
 	await wait(0.2)
 	var lv: int = Game.weapon_enchant().lv
@@ -2862,9 +2941,17 @@ func _test_guild_travel() -> void:
 	var dests: Array = []
 	for ch in pages[0].get("choices", []):
 		dests.append(str(ch.text))
-	check("Pântano Sussurrante" in dests and "Geleira de Cristal (Rank B)" in dests, "carruagem: bosque liberado, mina travada (%s)" % [dests])
-	world.travel_to("bosque")
+	var bosque_label := "Pântano Sussurrante (%d de ouro)" % Game.travel_cost("bosque", "coach")
+	check(bosque_label in dests and "Geleira de Cristal (Rank B)" in dests, "carruagem: bosque liberado com preço, mina travada (%s)" % [dests])
+	# viagem paga: sem ouro não vai; com ouro, o cocheiro cobra e leva
+	var coach_cost := Game.travel_cost("bosque", "coach")
+	check(coach_cost > 0 and Game.travel_cost("bosque", "map") > coach_cost, "teleporte do mapa mais caro que o cocheiro")
+	if Game.gold < coach_cost:
+		Game.add_gold(coach_cost - Game.gold)
+	var gold_before := Game.gold
+	check(world.request_travel("bosque", "coach"), "pede a viagem paga ao cocheiro")
 	await wait(1.6)
+	check(Game.gold == gold_before - coach_cost, "cocheiro cobrou %d de ouro (%d -> %d)" % [coach_cost, gold_before, Game.gold])
 	check(Regions.region_at(player.global_position) == "bosque", "viagem leva ao Pântano Sussurrante (%s)" % player.global_position)
 	check(_interactable("sylvi") != null and _interactable("coach_bosque") != null, "Sylvi e a carruagem no bosque")
 	var queen := false
@@ -2872,7 +2959,7 @@ func _test_guild_travel() -> void:
 		if e.kind == "slime_rainha" and not e.dead:
 			queen = true
 	check(queen, "Slime Rainha nasceu no bosque")
-	check(MusicRules.area(player.global_position) == "wild", "música do bosque")
+	check(MusicRules.area(player.global_position) == "swamp", "música do bosque (pântano)")
 	world.travel_to("vila")
 	await wait(1.6)
 	check(Regions.region_at(player.global_position) == "vila", "carruagem traz de volta à vila")
@@ -3623,9 +3710,99 @@ func _test_gear() -> void:
 	check(Game.equipment.offhand == "wooden_shield", "escudo equipado com espada")
 	var shield_mesh := player.model.find_child("Shield", true, false) as MeshInstance3D
 	check(shield_mesh == null or shield_mesh.visible, "escudo aparece no modelo")
+	# defesa com escudo: botão direito segurado levanta; golpe de frente custa fôlego (mais a cada golpe) e
+	# passa só parte do dano; pelas costas entra cheio; sem fôlego a guarda quebra
+	Input.action_press("aim")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(player.blocking, "botão direito com escudo levanta o escudo")
+	check(player.dodge_timer <= 0.0, "levantar o escudo não esquiva")
+	var front := player.global_position + player.facing() * 2.0
+	Game.stamina = Game.max_stamina()
+	Game.hp = Game.max_hp()
+	player.invuln = 0.0
+	var hp_b := Game.hp
+	var st_b := Game.stamina
+	player.take_damage(20.0, front)
+	var lost1 := hp_b - Game.hp
+	var cost1 := st_b - Game.stamina
+	check(cost1 > 0.0 and lost1 < 20.0 * 0.6, "golpe defendido gasta fôlego (%.1f) e segura dano (passou %.1f)" % [cost1, lost1])
+	player.invuln = 0.0
+	st_b = Game.stamina
+	player.take_damage(20.0, front)
+	check(st_b - Game.stamina > cost1 + 0.1, "2º golpe seguido custa mais fôlego (%.1f > %.1f)" % [st_b - Game.stamina, cost1])
+	player.invuln = 0.0
+	hp_b = Game.hp
+	st_b = Game.stamina
+	player.take_damage(20.0, player.global_position - player.facing() * 2.0)
+	check(Game.stamina == st_b and hp_b - Game.hp > lost1, "golpe pelas costas não é defendido")
+	player.invuln = 0.0
+	Game.stamina = 1.0
+	player.take_damage(20.0, front)
+	check(player.guard_break_t > 0.0 and not player.blocking, "sem fôlego a guarda quebra")
+	Input.action_release("aim")
+	player.guard_break_t = 0.0
+	Game.hp = Game.max_hp()
+	Game.stamina = Game.max_stamina()
+	await get_tree().physics_frame
+	# combo com escudo (KnightMovesShield): 3 golpes do combo e o giro no fim, emendados segurando o clique
+	check(player._shield_combo() and player._combo_len() == 4 and is_equal_approx(player._swing_time(4), 0.75),
+		"espada com escudo: combo de 4 golpes, o último é o giro")
+	player.attacking = false
+	player.combo_window = 0.0
+	player.dodge_timer = 0.0
+	player.invuln = 6.0
+	var spin_back := player.global_position   # os golpes empurram o jogador: volta aqui no fim
+	var seen := []
+	player._start_swing()
+	var until := Time.get_ticks_msec() + 5000
+	while Time.get_ticks_msec() < until:
+		if player.attacking:
+			if not (player.combo in seen):
+				seen.append(player.combo)
+			player.buffered_attack = player.combo < 4
+			Game.stamina = Game.max_stamina()
+		elif seen.size() >= 4 or seen.is_empty():
+			break
+		await get_tree().process_frame
+	check(seen == [1, 2, 3, 4], "os 4 golpes do combo com escudo emendam (%s)" % [seen])
+	check(not player.attacking and player._recover_t >= 0.0 and absf(float(player.parts.twist)) <= PI + 0.001,
+		"no fim do combo o corpo volta suave à pose de parado (giro desenrolado: %.2f)" % float(player.parts.twist))
+	await wait(0.5)
+	check(player._recover_t < 0.0 and absf(float(player.parts.twist)) < 0.3,
+		"volta do combo com escudo termina (giro %.2f)" % float(player.parts.twist))
+	# o giro (4º) acerta em volta, até quem está atrás (um slime do teste, com vida de sobra, longe dos outros)
+
+	var spin_spot := Vector3(-105, 0.3, 46)
+	player.global_position = spin_spot
+	player.model.rotation.y = 0.0   # olhando para +Z: o slime fica atrás
+	var behind := Enemy.new()
+	behind.kind = "slime"
+	world.add_child(behind)
+	behind.global_position = spin_spot + Vector3(0, 0, -1.3)
+	behind.home = behind.global_position
+	await wait(0.15)
+	behind.max_hp = 9999.0
+	behind.hp = 9999.0
+	player.combo = 3
+	player.combo_window = 0.3
+	player.attacking = false
+	Game.stamina = Game.max_stamina()
+	player._start_swing()
+	check(player.combo == 4, "4º golpe do combo com escudo é o giro")
+	await wait(0.8)
+	check(is_instance_valid(behind) and behind.hp < 9999.0,
+		"giro do combo com escudo acerta quem está atrás (%.0f)" % (behind.hp if is_instance_valid(behind) else -1.0))
+	if is_instance_valid(behind):
+		behind.queue_free()
+	player.global_position = spin_back
+	player.invuln = 0.0
+	Game.hp = Game.max_hp()
+	Game.stamina = Game.max_stamina()
 	equip_any("apprentice_staff")
 	check(Game.equipment.offhand == "" and Game.count_item("wooden_shield") == shields0, "trocar para cajado guarda o escudo")
 	equip_any("iron_sword")
+	check(not player._shield_combo() and player._combo_len() == 3, "sem escudo, o combo da espada volta a 3 golpes")
 	check(is_equal_approx(Game.melee_damage(), dmg_sword), "dano da espada volta ao trocar de volta")
 
 	# armaduras: defesa e bônus somam
@@ -4196,3 +4373,75 @@ func _count(kind: String) -> int:
 		if e.kind == kind:
 			n += 1
 	return n
+
+
+## Espinheira, a Guardiã-Raiz (chefe do Bosque): as Raízes acertam de longe e prendem, os Brotos nascem e a curam,
+## na fúria as Nuvens de Esporos aparecem, e os brotos murcham quando a luta acaba.
+func _test_espinheira() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 40)
+	player.global_position = spot
+	Game.hp = Game.max_hp()
+	var e := Enemy.new()
+	e.kind = "espinheira"
+	world.add_child(e)
+	e.global_position = spot + Vector3(0, 0, -9)
+	e.home = e.global_position
+	await wait(0.2)
+	check(e.is_boss and e.parts.get("Crown") != null and e.parts.get("KneeL") != null and e.parts.get("ElbowR") != null,
+		"Espinheira: chefe, com copa, joelhos e cotovelos no modelo")
+	# Raízes: o jogador está a 9 m (fora da garra), na linha
+	var hp0: float = Game.hp
+	e._thorn_n = 0
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "roots", "Espinheira: longe, ataca com as Raízes (%s)" % e.attack_kind)
+	await wait_until(func(): return Game.hp < hp0, 3.5)
+	check(Game.hp < hp0 and player.web_t > 0.0, "Espinheira: as Raízes acertam e prendem (%.0f -> %.0f, preso %.1f s)"
+		% [hp0, Game.hp, player.web_t])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	# Brotos: o 4º golpe do ciclo; eles nascem e curam a árvore ferida
+	Game.hp = Game.max_hp()
+	e._thorn_n = 3
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e._sprouts_near(e.global_position).size() >= ThornRules.SPROUTS, 3.0)
+	var sprouts: Array = e._sprouts_near(e.global_position)
+	check(sprouts.size() == ThornRules.SPROUTS, "Espinheira: os Brotos nascem (%d)" % sprouts.size())
+	e.hp = e.max_hp * 0.6
+	var hp_b: float = e.hp
+	await wait(1.2)
+	check(e.hp > hp_b, "Espinheira: os Brotos vivos a curam (%.0f -> %.0f)" % [hp_b, e.hp])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	# Esporos: na fúria, no ciclo ímpar; uma nuvem nasce sob o jogador
+	Game.hp = Game.max_hp()
+	e.enraged = true
+	e._thorn_n = 7
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "spores", "Espinheira: na fúria vêm os Esporos (%s)" % e.attack_kind)
+	await wait(1.8)
+	var clouds := 0
+	for c in world.get_children():
+		if c is SporeCloud:
+			clouds += 1
+	check(clouds >= ThornRules.SPORES + 1, "Espinheira: as Nuvens de Esporos nascem, uma sob o jogador (%d)" % clouds)
+	Game.hp = Game.max_hp()
+	# fim da luta: sem a árvore, os brotos murcham (sem recompensa)
+	e.queue_free()
+	await wait(1.5)
+	var left := 0
+	for s in sprouts:
+		if is_instance_valid(s) and not s.dead:
+			left += 1
+	check(left == 0, "Espinheira: sem ela, os Brotos murcham (%d sobraram)" % left)
+	for c in world.get_children():
+		if c is SporeCloud:
+			c.queue_free()
+	Game.hp = Game.max_hp()
+	player.web_t = 0.0
+	player.chill_t = 0.0
+	player.global_position = back
+	await wait(0.1)

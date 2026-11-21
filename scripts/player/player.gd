@@ -22,6 +22,20 @@ const DODGE_SPEED := 13.0
 const DODGE_TIME := 0.36
 const SWING_TIMES := [0.42, 0.42, 0.6]
 const SWING_MULT := [1.0, 1.1, 1.6]
+## Espada com escudo: combo de 4 golpes (KnightMovesShield: três do combo e o giro no fim), mais longos que os
+## da espada sozinha; o dano de cada um acompanha a duração (mesmo dano por segundo do combo da espada).
+const SHIELD_SWING_TIMES := [0.5, 0.5, 0.6, 0.75]
+const SHIELD_SWING_MULT := [1.2, 1.3, 1.5, 2.0]
+## Montante (espada de duas mãos, item "two_handed"): golpes mais lentos e largos (KnightMoves.GREAT), alcance maior,
+## varrem um arco mais aberto e o terceiro crava a lâmina no chão (dano em área à frente). O dano da arma já é
+## maior; por segundo fica um pouco abaixo da espada, em troca de pegar vários de uma vez.
+const GREAT_SWING_TIMES := [0.62, 0.62, 0.9]
+const GREAT_SWING_MULT := [1.0, 1.1, 1.7]
+const GREAT_REACH := 3.0          ## alcance dos dois primeiros golpes (m; a espada tem 2,4)
+const GREAT_ARC := -0.1           ## cosseno do arco atingido (a espada usa 0,3: ~145° contra ~110°)
+const GREAT_SLAM_AHEAD := 1.5     ## o golpe final acerta em volta deste ponto à frente (m)
+const GREAT_SLAM_RADIUS := 1.9
+const SHIELD_SPIN_PUSH := 4.0   ## o giro avança mais que um golpe comum (m/s)
 const PUNCH_TIMES := [0.3, 0.32, 0.5]   # sem arma: jab, direto e uppercut, mais rápidos que a espada
 const STAFF_TIMES := [0.4, 0.4, 0.6]
 const BOW_FULL := 0.85        # segundos para tensionar o arco por completo
@@ -35,6 +49,13 @@ const AIM_FOV := 52.0         # campo de visão mirando com o arco (normal: 70)
 const CAM_SIDE := 0.45        # câmera um pouco à direita do jogador (m)
 const AIM_CAM_SIDE := 0.8     # mirando com o arco: sobre o ombro direito
 const AIM_CAM_CLOSER := 1.2   # e mais perto (m)
+## Distância da câmera escolhida na rodinha do mouse (m): perto o bastante para não perder o personagem de
+## vista, longe só um pouco além do padrão (4 m) para enxergar o alvo por cima de asas e capas grandes.
+const CAM_DIST_MIN := 2.4
+const CAM_DIST_MAX := 6.0
+const CAM_DIST_STEP := 0.4
+## Com asas nas costas a câmera sobe (m) e olha por cima delas: o alvo fica acima da envergadura.
+const CAM_WINGS_UP := 0.45
 ## Ganho da aproximação exponencial da velocidade (chão: andando, parando, invertendo; ar).
 const ACCEL_RUN := 14.0
 const ACCEL_STOP := 18.0
@@ -101,10 +122,24 @@ const CHILL_SPEED := 0.6
 const WEB_SPEED := 0.3
 var cast_timer := 0.0
 var stamina_delay := 0.0
+## Escudo levantado (botão direito segurado com escudo na mão secundária; regras em ShieldRules).
+var blocking := false
+var _block_w := 0.0          ## 0..1: quanto o braço do escudo já subiu (suavizado, anima a pose)
+var _block_chain := 0        ## golpes defendidos em sequência (cada um custa mais fôlego)
+var _block_since := 99.0     ## segundos desde o último golpe defendido (zera a sequência)
+var guard_break_t := 0.0     ## guarda quebrada: segundos sem poder levantar o escudo
 var shake := 0.0
 ## Quanto a câmera recua (m) além da distância normal: a habilidade pede, _process aproxima suave.
 var cam_back := 0.0
 var _cam_back_now := 0.0
+## Distância base atual (persegue Game.settings.cam_zoom) e altura extra por causa das asas.
+var _cam_dist := 4.0
+var _cam_up := 0.0
+var _has_wings := false
+var _wings_check := 0.0
+var _zoom_save_t := -1.0   # grava a distância escolhida pouco depois da última volta da rodinha
+## Distância fixa pedida por ferramenta (--cam=graus,dist das capturas); 0 = usa a da rodinha.
+var cam_dist_override := 0.0
 ## Habilidade de arma em execução (SwordAbilities): id ("" = nenhuma), tempo desde o início e
 ## rascunho dela ("nodes" são liberados e "mask" restaurada por end_ability()).
 var ability := ""
@@ -134,6 +169,7 @@ var horde_frozen := false
 var chat_typing := false
 ## Emote em andamento (KnightEmotes.KINDS) ou "". Andar, pular ou abrir o chat cancela.
 var emote := ""
+var _autoswing := "--autoswing" in OS.get_cmdline_user_args()
 var _emote_t := 0.0
 var name_tag: Label3D
 var title_tag: Label3D
@@ -175,7 +211,8 @@ func _ready() -> void:
 	cam_pitch.rotation.x = -0.25
 	cam_yaw.add_child(cam_pitch)
 	spring = SpringArm3D.new()
-	spring.spring_length = 4.0
+	_cam_dist = clampf(float(Game.settings.get("cam_zoom", 4.0)), CAM_DIST_MIN, CAM_DIST_MAX)
+	spring.spring_length = _cam_dist
 	spring.collision_mask = 1
 	spring.margin = 0.2
 	spring.position.x = CAM_SIDE
@@ -266,12 +303,11 @@ func _snap_visuals() -> void:
 	reset_physics_interpolation()
 	if cape:
 		cape.reset()
-	# get_meta com padrão null ainda acusa erro se a chave falta: confere antes
 	var back_cape = model.get_meta("back_cape") if model and model.has_meta("back_cape") else null
 	if back_cape != null and is_instance_valid(back_cape):
 		back_cape.reset()
 	if cam_yaw:
-		cam_yaw.global_position = global_position + Vector3.UP * 1.55
+		cam_yaw.global_position = global_position + Vector3.UP * KnightLook.body_y(self, 1.55)
 
 
 func _check_teleport() -> void:
@@ -287,7 +323,8 @@ func _process(delta: float) -> void:
 	var o := get_global_transform_interpolated().origin
 	_cam_y = lerpf(_cam_y, o.y, 1.0 - exp(-12.0 * delta))
 	_cam_y = clampf(_cam_y, o.y - 0.6, o.y + 0.6)
-	cam_yaw.global_position = Vector3(o.x, _cam_y + 1.55, o.z)
+	_update_cam_framing(delta)
+	cam_yaw.global_position = Vector3(o.x, _cam_y + 1.55 + _cam_up, o.z)
 	_vfx_sync()
 	# mirando com o arco a câmera fecha e vai para cima do ombro direito: o corpo fica de lado, à esquerda
 	# da mira, com o arco e a corda à vista (a Flecha do Vendaval mexe no FOV sozinha)
@@ -298,8 +335,25 @@ func _process(delta: float) -> void:
 	spring.position.x = lerpf(CAM_SIDE, AIM_CAM_SIDE, _aim_zoom)
 	# recuo pedido por habilidade (e a aproximação da mira): soma só a diferença, a distância base fica intacta
 	var back := lerpf(_cam_back_now, cam_back - AIM_CAM_CLOSER * _aim_zoom, 1.0 - exp(-6.0 * delta))
-	spring.spring_length += back - _cam_back_now
 	_cam_back_now = back
+	spring.spring_length = maxf(_cam_dist + back, 1.2)
+
+
+## Zoom da rodinha (suave) e altura extra quando há asas nas costas.
+func _update_cam_framing(delta: float) -> void:
+	var want := clampf(float(Game.settings.get("cam_zoom", 4.0)), CAM_DIST_MIN, CAM_DIST_MAX)
+	if cam_dist_override > 0.0:
+		want = cam_dist_override
+	_cam_dist = lerpf(_cam_dist, want, 1.0 - exp(-10.0 * delta))
+	_wings_check -= delta
+	if _wings_check <= 0.0:
+		_wings_check = 0.5   # o visual pode trocar a qualquer hora (equipar, trocar de corpo)
+		_has_wings = model != null and model.find_child("BackWings", true, false) != null
+	_cam_up = lerpf(_cam_up, CAM_WINGS_UP if _has_wings else 0.0, 1.0 - exp(-6.0 * delta))
+	if _zoom_save_t >= 0.0:
+		_zoom_save_t -= delta
+		if _zoom_save_t < 0.0:
+			Game.save_settings()
 
 
 func _ready_remote() -> void:
@@ -349,6 +403,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		var inv := -1.0 if Game.settings.invert_y else 1.0
 		cam_yaw.rotate_y(-event.relative.x * s)
 		cam_pitch.rotation.x = clamp(cam_pitch.rotation.x - event.relative.y * s * inv, -1.25, 0.6)
+	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED 			and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		var step := -CAM_DIST_STEP if event.button_index == MOUSE_BUTTON_WHEEL_UP else CAM_DIST_STEP
+		var cur := float(Game.settings.get("cam_zoom", 4.0))
+		Game.settings["cam_zoom"] = clampf(cur + step, CAM_DIST_MIN, CAM_DIST_MAX)
+		_zoom_save_t = 1.0
 	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -373,6 +432,9 @@ func _physics_process(delta: float) -> void:
 func _local_process(delta: float) -> void:
 	if Network.is_client():
 		_net_send(delta)
+	if _autoswing:   # depuração (--autoswing, ver Game._debug_screenshot): golpeia sem parar
+		Game.stamina = Game.max_stamina()
+		_try_attack()
 	if not is_on_floor():
 		velocity.y -= GRAVITY * delta
 	if dead:
@@ -411,8 +473,9 @@ func _local_process(delta: float) -> void:
 		dir = dir.normalized()
 
 	var busy := ability != ""
+	_update_block(delta, busy)
 	var sprinting := Input.is_action_pressed("sprint") and dir.length() > 0.1 and Game.stamina > 1.0 and not attacking and not drawing \
-		and not busy
+		and not busy and not blocking
 	if sprinting:
 		Game.stamina = max(0.0, Game.stamina - 20.0 * delta)
 		stamina_delay = 0.6
@@ -429,6 +492,10 @@ func _local_process(delta: float) -> void:
 		speed *= 0.45
 	elif cast_timer > 0:
 		speed *= 0.6
+	if blocking:
+		speed *= ShieldRules.MOVE_SPEED
+	elif guard_break_t > 0.0:
+		speed *= 0.35   # cambaleando depois da guarda quebrada
 
 	if busy:
 		# controla a velocidade horizontal (e pode terminar); recebe a direção pedida pelo jogador
@@ -460,6 +527,9 @@ func _local_process(delta: float) -> void:
 		velocity.y = JUMP_VELOCITY
 	# com arco o botão direito mira: o mesmo clique não esquiva (a esquiva fica no Ctrl/Alt)
 	var aim_click: bool = look["class"] == "bow" and Input.is_action_just_pressed("aim")
+	# com escudo o botão direito levanta o escudo (_update_block): o mesmo clique também não esquiva
+	if has_shield() and Input.is_action_just_pressed("aim"):
+		aim_click = true
 	# habilidade preparada: o clique esquerdo confirma em vez de dar o ataque básico
 	var armed_click := false
 	if heal_armed:
@@ -536,7 +606,7 @@ func _local_process(delta: float) -> void:
 
 	# orientação do modelo: mira para frente da câmera ao atacar/conjurar, senão para onde anda
 	var face := Vector3.ZERO
-	if attacking or cast_timer > 0 or drawing or aiming:
+	if attacking or cast_timer > 0 or drawing or aiming or blocking:
 		face = fwd
 	elif dodge_timer > 0:
 		face = dodge_dir
@@ -582,11 +652,72 @@ func _regen(delta: float) -> void:
 	Game.mp = min(Game.max_mp(), Game.mp + (0.8 + Game.attr("int") * 0.15) * (1.0 + float(Game.talent_mods.get("mp_regen", 0.0))) * delta)
 	Game.hp = min(Game.max_hp(), Game.hp + (0.3 + Game.attr("vit") * 0.05 + Game.mod("regen")) * delta)
 	if stamina_delay <= 0:
-		Game.stamina = min(Game.max_stamina(), Game.stamina + 32.0 * delta)
+		var regen := 32.0 * (ShieldRules.REGEN_MULT if blocking else 1.0)   # escudo erguido recupera devagar
+		Game.stamina = min(Game.max_stamina(), Game.stamina + regen * delta)
 
 
 func facing() -> Vector3:
 	return Vector3(sin(model.rotation.y), 0, cos(model.rotation.y))
+
+
+# ------------------------------------------------------------ escudo
+## Escudo na mão secundária (o item pede espada): o botão direito segurado defende (ShieldRules).
+func has_shield() -> bool:
+	if remote or look.get("class", "") != "sword" or _unarmed():
+		return false
+	var off: String = Game.equipment.get("offhand", "")
+	return off != "" and str(ItemDB.get_item(off).get("needs", "")) == "sword"
+
+
+## Botão direito segurado com escudo: levanta (com fôlego, sem guarda quebrada, sem golpe/esquiva/habilidade).
+func _update_block(delta: float, busy: bool) -> void:
+	_block_since += delta
+	if _block_since > ShieldRules.CHAIN_RESET:
+		_block_chain = 0
+	guard_break_t = maxf(0.0, guard_break_t - delta)
+	var want := has_shield() and Input.is_action_pressed("aim") and not heal_armed and area_armed == ""
+	blocking = want and not busy and not attacking and dodge_timer <= 0 and guard_break_t <= 0.0 \
+		and Game.stamina > 0.5 and not dead
+
+
+## Golpe segurado pelo escudo: só passa `amount` (o que o escudo não segurou), empurra um pouco e faísca.
+func _take_blocked(amount: float, from_pos: Vector3) -> void:
+	_block_fx(from_pos)
+	var push := global_position - from_pos
+	push.y = 0
+	if push.length() > 0.01:
+		push = push.normalized() * (1.5 + 0.6 * minf(_block_chain, 4))   # cada golpe seguido empurra mais
+		velocity.x = push.x
+		velocity.z = push.z
+	invuln = 0.3
+	Game.add_fury(amount / Game.max_hp() * 15.0)
+	if amount >= 0.5:
+		var chip: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
+		Game.hp -= chip
+		FX.damage_number(global_position + Vector3.UP * KnightLook.body_y(self, 2.0), str(int(round(chip))), Color(0.75, 0.8, 0.9), 44)
+	Game.stats_changed.emit()
+	if Game.hp <= 0:
+		_die()
+
+
+## Fôlego acabou com o escudo erguido: o braço cai, cambaleia e fica um tempo sem defender.
+func _guard_break() -> void:
+	blocking = false
+	guard_break_t = ShieldRules.BREAK_TIME
+	_block_chain = 0
+	Game.notify.emit("Guarda quebrada!", Color(1, 0.55, 0.35))
+	Sfx.play("slam", 0.1, -4.0)
+	add_shake(0.45)
+
+
+## Faíscas e som de metal no escudo, do lado de onde veio o golpe.
+func _block_fx(from_pos: Vector3) -> void:
+	var to := from_pos - global_position
+	to.y = 0
+	var side := to.normalized() if to.length() > 0.01 else facing()
+	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 1.05) + side * 0.45, Color(1.0, 0.85, 0.45), 14, 3.5, 0.08, 0.35)
+	Sfx.play("sword_hit", 0.12, -2.0)
+	add_shake(0.12 + 0.05 * minf(_block_chain, 4))
 
 
 # ------------------------------------------------------------ esquiva
@@ -628,7 +759,8 @@ func _try_attack() -> void:
 	_start_swing()
 
 
-## Fôlego de um golpe básico (o combo 1-2-3 custa um pouco mais a cada golpe): espada 5/6/7, cajado 2,5/3/3,5.
+## Fôlego de um golpe básico (o combo custa um pouco mais a cada golpe): espada 5/6/7 (o giro do combo com
+## escudo, 4º golpe, 8), cajado 2,5/3/3,5.
 static func swing_stamina(staff: bool, hit: int) -> float:
 	return (2.0 + hit * 0.5) if staff else (4.0 + hit * 1.0)
 
@@ -637,19 +769,26 @@ func _start_swing() -> void:
 	if Game.stamina < SWING_STAMINA_MIN:
 		Game.notify.emit("Sem fôlego!", Color(1, 0.8, 0.5))
 		return
-	combo = (combo % 3) + 1 if combo_window > 0 else 1
+	combo = (combo % _combo_len()) + 1 if combo_window > 0 else 1
 	attacking = true
+	_recover_t = -1.0
+	if _shield_combo():
+		_swing_from = KnightAnim.capture_pose(parts)   # o golpe nasce da pose em que o corpo está
 	attack_timer = 0.0
 	hit_done = false
 	var staff: bool = look["class"] == "staff"
-	Game.stamina = maxf(0.0, Game.stamina - swing_stamina(staff, combo))
+	Game.stamina = maxf(0.0, Game.stamina - swing_stamina(staff, combo) * (1.4 if _great() else 1.0))
 	stamina_delay = 0.4
 	if staff:
 		Sfx.play("staff_wind", 0.15, -8.0)
 		return
 	if is_on_floor():
 		var f := facing()
-		var push := 1.5 if _unarmed() else 3.0   # o soco é um passo curto, não uma estocada
+		var push := 1.5 if _unarmed() else (2.2 if _great() else 3.0)   # o soco é um passo curto, não uma estocada
+		if _great() and _finisher():
+			push = 3.4   # o golpe final da montante salta à frente
+		if _shield_combo() and _finisher():
+			push = SHIELD_SPIN_PUSH
 		velocity.x += f.x * push
 		velocity.z += f.z * push
 	Sfx.play(_attack_sound(), 0.1, -3.0 if _unarmed() else 0.0)
@@ -662,7 +801,7 @@ func _update_attack(delta: float) -> void:
 	attack_timer += delta
 	var dur := _swing_time(combo)
 	var t := attack_timer / dur
-	if t >= (0.35 if look["class"] == "staff" else 0.42) and not hit_done:
+	if t >= (0.35 if look["class"] == "staff" else (KnightMoves.GREAT_HIT if _great() else 0.42)) and not hit_done:
 		hit_done = true
 		match look["class"]:
 			"staff":
@@ -678,16 +817,21 @@ func _update_attack(delta: float) -> void:
 		attacking = false
 		combo_window = 0.45
 		if not (look["class"] == "bow" and aiming):   # mirando o arco continua de lado: sem desgirar
-			KnightAnim.reset_twist(parts)
+			_end_swing_twist()
 		if buffered_attack:
 			buffered_attack = false
 			_start_swing()
 
 
 func _do_hit() -> void:
-	var mult: float = SWING_MULT[combo - 1]
+	var shield := _shield_combo()
+	var great := _great()
+	var mult: float = (SHIELD_SWING_MULT if shield else (GREAT_SWING_MULT if great else SWING_MULT))[clampi(combo, 1, _combo_len()) - 1]
 	var fist := _unarmed()
-	var reach := (2.0 if combo < 3 else 2.2) if fist else (2.4 if combo < 3 else 2.9)
+	var fin := _finisher()
+	var reach := (2.2 if fin else 2.0) if fist else (2.9 if fin else 2.4)
+	if great:
+		reach = GREAT_SLAM_AHEAD + GREAT_SLAM_RADIUS if fin else GREAT_REACH
 	var hit_any := false
 	var flesh := false   # acertou algo que não é slime: lâmina em carne; só slime: só a lâmina
 	var hit_enemy := false
@@ -700,7 +844,14 @@ func _do_hit() -> void:
 		var dist := to.length()
 		if dist > reach + e.radius:
 			continue
-		if (combo < 3 or fist) and dist > 0.6 and f.dot(to.normalized()) < 0.3:
+		if great and fin:
+			var c: Vector3 = global_position + f * GREAT_SLAM_AHEAD
+			if Vector2(e.global_position.x - c.x, e.global_position.z - c.z).length() > GREAT_SLAM_RADIUS + e.radius:
+				continue
+		elif great:
+			if dist > 0.6 and f.dot(to.normalized()) < GREAT_ARC:
+				continue
+		elif (not fin or fist) and dist > 0.6 and f.dot(to.normalized()) < 0.3:
 			continue
 		var crit: bool = randf() < Game.crit_chance()
 		var dmg: float = EnchantHit.scale(e, Game.melee_damage() * mult * randf_range(0.9, 1.1) * (1.8 if crit else 1.0))
@@ -714,8 +865,10 @@ func _do_hit() -> void:
 		Sfx.play("punch_hit", 0.12)
 	elif hit_enemy:
 		Sfx.play(Sfx.sword_hit(flesh, Sfx.heavy_sword(_weapon_id())), 0.1)
+	if great and fin:
+		_great_slam_fx()
 	if hit_any:
-		add_shake(0.12 if combo < 3 else 0.22)
+		add_shake(0.22 if fin else 0.12)
 
 
 func _swing_time(c: int) -> float:
@@ -724,7 +877,56 @@ func _swing_time(c: int) -> float:
 			return STAFF_TIMES[clampi(c, 1, 3) - 1]
 		"bow":
 			return BOW_RECOVER
+	if _shield_combo():
+		return SHIELD_SWING_TIMES[clampi(c, 1, SHIELD_SWING_TIMES.size()) - 1]
+	if _great():
+		return GREAT_SWING_TIMES[clampi(c, 1, 3) - 1]
 	return (PUNCH_TIMES if _unarmed() else SWING_TIMES)[clampi(c, 1, 3) - 1]
+
+
+## Espada com escudo na outra mão (do jogo local ou, numa réplica, do último visual recebido): o golpe básico
+## é o combo de 4 golpes de KnightMovesShield.
+func _shield_combo() -> bool:
+	if look["class"] != "sword" or _unarmed():
+		return false
+	var off := str(_last_look.get("offhand", "")) if remote else str(Game.equipment.get("offhand", ""))
+	return off != "" and str(ItemDB.get_item(off).get("needs", "")) == "sword"
+
+
+## Montante na mão (do jogo local ou, numa réplica, do último visual recebido): golpes de duas mãos.
+func _great() -> bool:
+	return look["class"] == "sword" and ItemDB.is_two_handed(_weapon_id())
+
+
+## Golpe final da montante: a ponta crava no chão à frente (o acerto em área é em _do_hit). Poeira, um anel no chão
+## e um tranco na câmera, acertando alguém ou não.
+func _great_slam_fx() -> void:
+	var at := global_position + facing() * GREAT_SLAM_AHEAD + Vector3.UP * 0.05
+	FX.ring(at, slash_color(), GREAT_SLAM_RADIUS, 0.35)
+	FXToon.puff(at, 1.1, FXToon.DUST)
+	Sfx.play("slam", 0.1, -6.0)
+	add_shake(0.3)
+
+
+## Golpes do combo básico: 4 com espada e escudo, 3 nos outros.
+func _combo_len() -> int:
+	return SHIELD_SWING_TIMES.size() if _shield_combo() else 3
+
+
+## O golpe atual é o último do combo (giro da espada, uppercut, leque do cajado): mais alcance e tranco.
+func _finisher() -> bool:
+	return combo >= _combo_len()
+
+
+## Fim do golpe: o giro do tronco volta. No combo com escudo as trilhas emendam pelo giro em -PI..PI
+## (KnightAnim.unwind_twist), sem pular a pose; nos outros o giro zera na hora.
+func _end_swing_twist() -> void:
+	if _shield_combo():
+		KnightAnim.unwind_twist(parts)
+		_swing_from = KnightAnim.capture_pose(parts)   # se nenhum golpe emendar, a volta sai daqui
+		_recover_t = 0.0
+	else:
+		KnightAnim.reset_twist(parts)
 
 
 ## Arma equipada: a do jogo local ou, numa réplica de outro jogador, a do último visual recebido.
@@ -780,14 +982,14 @@ func spell_origin() -> Vector3:
 	var hand := model.find_child("ArmL_Hand", true, false) as MeshInstance3D
 	if hand and hand.is_inside_tree():
 		return hand.global_transform * hand.get_aabb().get_center() + facing() * 0.25
-	return global_position + Vector3.UP * 1.3 + facing() * 0.6
+	return global_position + Vector3.UP * KnightLook.body_y(self, 1.3) + facing() * 0.6
 
 
 func weapon_tip() -> Vector3:
 	var tip: Node3D = look.get("tip")
 	if tip and is_instance_valid(tip) and tip.is_inside_tree():
 		return tip.global_position
-	return global_position + Vector3.UP * 1.3 + facing() * 0.6
+	return global_position + Vector3.UP * KnightLook.body_y(self, 1.3) + facing() * 0.6
 
 
 ## Cajado: faísca arcana; o 3º golpe do combo dispara um leque de 3 mais fortes.
@@ -870,7 +1072,7 @@ func _update_bow(delta: float) -> void:
 func _update_aim_pitch() -> void:
 	var pitch := 0.0
 	if not remote and camera and ability != "bow_gale":   # o Vendaval sai na horizontal: o braço também
-		var shoulder := global_position + Vector3.UP * 1.42
+		var shoulder := global_position + Vector3.UP * KnightLook.body_y(self, 1.42)
 		pitch = clampf(asin(clampf(aim_dir(shoulder).y, -1.0, 1.0)), -0.9, 0.9)
 	parts["aim_pitch"] = lerpf(float(parts.get("aim_pitch", 0.0)), pitch, 0.35)
 
@@ -1054,7 +1256,7 @@ func receive_heal(amount: float) -> void:
 	var gained := minf(amount, Game.max_hp() - Game.hp)
 	Game.hp = min(Game.max_hp(), Game.hp + amount)
 	_heal_fx()
-	FX.damage_number(global_position + Vector3.UP * 2.2, "+%d" % maxf(gained, 0.0), Color(0.4, 1.0, 0.5))
+	FX.damage_number(global_position + Vector3.UP * KnightLook.body_y(self, 2.2), "+%d" % maxf(gained, 0.0), Color(0.4, 1.0, 0.5))
 	Game.stats_changed.emit()
 
 
@@ -1130,12 +1332,12 @@ func _find_heal_target() -> Node3D:
 	for p in get_tree().get_nodes_in_group("players"):
 		if p == self or not p.remote or p.dead or not p.is_visible_in_tree():
 			continue
-		var chest: Vector3 = p.global_position + Vector3.UP * 1.0
+		var chest: Vector3 = p.global_position + Vector3.UP * KnightLook.body_y(p, 1.0)
 		if chest.distance_to(global_position) > HEAL_RANGE or camera.is_position_behind(chest):
 			continue
 		# a silhueta toda conta: peito, cabeça e pés
 		var d := camera.unproject_position(chest).distance_to(center)
-		d = minf(d, camera.unproject_position(p.global_position + Vector3.UP * 1.9).distance_to(center))
+		d = minf(d, camera.unproject_position(p.global_position + Vector3.UP * KnightLook.body_y(p, 1.9)).distance_to(center))
 		d = minf(d, camera.unproject_position(p.global_position + Vector3.UP * 0.25).distance_to(center))
 		if d < best_d and _sees(p, chest):
 			best = p
@@ -1325,6 +1527,10 @@ func end_ability() -> void:
 	var on_end: Callable = ability_data.get("on_end", Callable())
 	if on_end.is_valid():
 		on_end.call()
+	if ability == GatherAction.ID and not remote:
+		var gn = ability_data.get("node")
+		if gn != null and is_instance_valid(gn):
+			Econ.release_node(int(gn.node_id))   # online: o nó fica livre para os outros
 	for n in ability_data.get("nodes", []):
 		if is_instance_valid(n):
 			n.queue_free()
@@ -1376,7 +1582,7 @@ func _frost_fx(radius: float) -> void:
 
 
 func _heal_fx() -> void:
-	HolyFX.heal_burst(global_position)
+	HolyFX.heal_burst(global_position, false, self)
 	Sfx.play_at("heal", global_position, 0.0)
 
 
@@ -1396,10 +1602,10 @@ func _on_food_eaten(id: String) -> void:
 	var it := ItemDB.get_item(id)
 	var c: Color = it.get("color", ItemDB.CROPS[id].color if ItemDB.CROPS.has(id) else Color(0.6, 1, 0.5))
 	Sfx.play("eat", 0.1)
-	FX.burst(global_position + Vector3.UP * 1.5, c, 18, 2.2, 0.08, 0.6, -4.0)
+	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 1.5), c, 18, 2.2, 0.08, 0.6, -4.0)
 	if it.has("buff"):
 		FX.ring(global_position, Color(c.r, c.g, c.b, 0.85), 2.2, 0.5)
-		FX.burst(global_position + Vector3.UP * 0.3, c, 30, 3.5, 0.1, 1.0, 3.0)
+		FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 0.3), c, 30, 3.5, 0.1, 1.0, 3.0)
 		Sfx.play("heal", 0.0, -5.0)
 	match it.get("special", ""):
 		"fire_nova":
@@ -1412,8 +1618,8 @@ func _on_food_eaten(id: String) -> void:
 func _food_fire_nova() -> void:
 	var radius := 7.5
 	FX.ring(global_position, Color(1, 0.45, 0.1, 0.95), radius, 0.55)
-	FX.burst(global_position + Vector3.UP * 0.6, Color(1, 0.5, 0.1), 70, 10.0, 0.16, 0.8, -1.0)
-	FX.burst(global_position + Vector3.UP * 1.0, Color(1, 0.85, 0.3), 40, 6.0, 0.12, 0.6, 2.0)
+	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 0.6), Color(1, 0.5, 0.1), 70, 10.0, 0.16, 0.8, -1.0)
+	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 1.0), Color(1, 0.85, 0.3), 40, 6.0, 0.12, 0.6, 2.0)
 	Sfx.play("explode", 0.05)
 	add_shake(0.35)
 	var dmg := (40.0 + Game.level * 6.0 + Game.spell_power() * 2.0) * Game.damage_mult()
@@ -1459,17 +1665,18 @@ func apply_chill(secs: float, venom := false) -> void:
 
 
 ## Teia da Tecelã: quase parado por `secs`. Não acumula, só renova.
-func apply_web(secs: float) -> void:
+func apply_web(secs: float, roots := false) -> void:
 	if remote:
 		if Network.is_server() and not dead:
-			Network.server_web_player(peer_id, secs)
+			Network.server_web_player(peer_id, secs, roots)
 		return
 	if dead or secs <= 0.0:
 		return
 	if web_t <= 0.0:
-		Game.notify.emit("Preso na teia! Mal consegue andar.", Color(0.9, 0.9, 0.95))
+		Game.notify.emit("Preso pelas raízes! Mal consegue andar." if roots else "Preso na teia! Mal consegue andar.",
+			Color(0.85, 0.5, 0.6) if roots else Color(0.9, 0.9, 0.95))
 	web_t = maxf(web_t, secs)
-	FX.burst(global_position + Vector3.UP * 0.8, Color(0.92, 0.92, 0.96), 18, 2.0, 0.12, 0.7)
+	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 0.8), Color(0.92, 0.92, 0.96), 18, 2.0, 0.12, 0.7)
 
 
 func take_damage(amount: float, from_pos: Vector3) -> void:
@@ -1491,6 +1698,17 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 			return
 	if Game.admin_mode():
 		return
+	if blocking and ShieldRules.in_front(global_position, facing(), from_pos):
+		var res := ShieldRules.resolve(amount, Game.stamina, _block_chain, ItemDB.get_item(Game.equipment.get("offhand", "")))
+		Game.stamina = res.stamina
+		stamina_delay = 0.8
+		_block_since = 0.0
+		_block_chain += 1
+		if res.broke:
+			_guard_break()   # sem fôlego: o golpe entra cheio (segue abaixo)
+		else:
+			_take_blocked(res.damage, from_pos)
+			return
 	Game.hp -= final_dmg
 	Game.add_fury(final_dmg / Game.max_hp() * 25.0)
 	invuln = 0.45
@@ -1504,7 +1722,7 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 			velocity.x = kb.x
 			velocity.z = kb.z
 		velocity.y = 3.0
-	FX.damage_number(global_position + Vector3.UP * 2.0, str(int(round(final_dmg))), Color(1, 0.3, 0.25), 56)
+	FX.damage_number(global_position + Vector3.UP * KnightLook.body_y(self, 2.0), str(int(round(final_dmg))), Color(1, 0.3, 0.25), 56)
 	FX.burst(global_position + Vector3.UP, Color(0.8, 0.05, 0.05), 12, 3.0)
 	Sfx.play("hurt")
 	add_shake(0.3)
@@ -1615,6 +1833,8 @@ var _slash_combo := 0       ## golpe do combo cujo corte já foi desenhado (ver 
 var _slash_t := 0.0
 var _slash_done := false
 var _slash_el := ""         ## elemento do encantamento da arma: dá a cor do corte
+var _swing_from := {}       ## pose do corpo quando o golpe do combo com escudo começou (KnightAnim.capture_pose)
+var _recover_t := -1.0      ## s desde que o combo com escudo parou (volta à locomoção); < 0 = fora da volta
 
 
 func _update_equipment_visual() -> void:
@@ -1652,7 +1872,7 @@ func apply_look(l: Dictionary) -> void:
 
 func _on_level_up(_lvl: int) -> void:
 	Sfx.play("levelup", 0.0)
-	FX.burst(global_position + Vector3.UP * 0.2, Color(1, 0.85, 0.3), 60, 6.0, 0.12, 1.2, 3.0)
+	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 0.2), Color(1, 0.85, 0.3), 60, 6.0, 0.12, 1.2, 3.0)
 	FX.ring(global_position, Color(1, 0.85, 0.3, 0.9), 3.0, 0.8)
 
 
@@ -1672,6 +1892,7 @@ const NF_CAST := 8
 const NF_DEAD := 16
 const NF_DRAW := 32
 const NF_ABILITY := 64   ## habilidade de arma em execução (qual: pelo evento SwordAbilities.play_remote)
+const NF_BLOCK := 128    ## escudo levantado
 
 
 func _net_send(delta: float) -> void:
@@ -1681,7 +1902,7 @@ func _net_send(delta: float) -> void:
 	_net_send_t = maxf(_net_send_t + 1.0 / Network.SEND_RATE, 0.0)
 	var flags := (NF_FLOOR if is_on_floor() else 0) | (NF_ATTACK if attacking else 0) \
 		| (NF_DODGE if dodge_timer > 0 else 0) | (NF_CAST if cast_timer > 0 else 0) | (NF_DEAD if dead else 0) | (NF_DRAW if drawing else 0) \
-		| (NF_ABILITY if ability != "" else 0)
+		| (NF_ABILITY if ability != "" else 0) | (NF_BLOCK if blocking else 0)
 	Network.send_player_state(global_position, model.rotation.y, velocity, flags, combo, attack_timer)
 
 
@@ -1693,6 +1914,7 @@ func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int,
 	_net_age = 0.0
 	_net_floor = flags & NF_FLOOR != 0
 	dodge_timer = 0.12 if flags & NF_DODGE else 0.0
+	blocking = flags & NF_BLOCK != 0
 	cast_timer = 0.15 if flags & NF_CAST else 0.0
 	if flags & NF_DRAW:
 		if not drawing:
@@ -1703,12 +1925,16 @@ func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int,
 	if flags & NF_ATTACK:
 		if not attacking or c != combo:
 			Sfx.play_at(_attack_sound(), global_position, 0.1, -6.0)
+		if attacking and c != combo:
+			_end_swing_twist()   # golpe seguinte do combo: a trilha nova começa com o giro em -PI..PI
+		if (not attacking or c != combo) and _shield_combo():
+			_swing_from = KnightAnim.capture_pose(parts)
 		attacking = true
-		combo = clampi(c, 1, 3)
+		combo = clampi(c, 1, _combo_len())
 		attack_timer = attack_t
 	elif attacking:
 		attacking = false
-		KnightAnim.reset_twist(parts)
+		_end_swing_twist()
 	# a habilidade da réplica termina sozinha pelo tempo; o estado sem a flag a encerra antes (esquiva,
 	# morte). Uma folga ignora estado atrasado que chegue depois do evento de início. Sem morte, o fim é o
 	# macio do módulo (o da esquiva): a Chuva de Meteoros deixa os meteoros no ar caírem, mesmo se o estado
@@ -1918,6 +2144,9 @@ func _animate(delta: float) -> void:
 	# pose: parado -> andar/correr -> ar, misturados pelos pesos suavizados
 	var p := KnightAnim.blend(KnightAnim.idle_pose(idle_t), KnightAnim.locomotion_pose(parts, anim_t, _amp, _run), _amp)
 	KnightAnim.weapon_carry(p, look["class"], _amp, _run)   # cajado firme, arco pendurado
+	var great := _great() and not dead
+	if great:
+		KnightAnim.great_carry(p, _amp, _run)   # montante: guarda parado, no ombro andando
 	if _air > 0.001:
 		p = KnightAnim.blend(p, KnightAnim.air_pose(clampf(velocity.y / JUMP_VELOCITY, -1.0, 1.0)), _air)
 	KnightAnim.add_landing(p, land)
@@ -1948,12 +2177,19 @@ func _animate(delta: float) -> void:
 	# golpes, arco e magias: trilhas de KnightMoves por cima da locomoção
 	var cls: String = look["class"]
 	_cast_t += delta
+	if attacking or _recover_t >= KnightAnim.SHIELD_RECOVER:
+		_recover_t = -1.0   # golpe em curso (a réplica emendou outro) ou a volta acabou
+	elif _recover_t >= 0.0:
+		_recover_t += delta
 	var arrow: Node3D = look.get("arrow")
 	if arrow and is_instance_valid(arrow):
 		arrow.visible = drawing or ((ability == "bow_triple" and ability_t < BowAbilities.TRIPLE_DRAW) or (ability == "bow_frost" and ability_t < BowAbilities.FROST_DRAW)
 			or (ability == "bow_gale" and not ability_data.get("fired", false)))
 	if cls == "bow" and (drawing or attacking or ability.begins_with("bow_")):
 		_update_aim_pitch()
+	if great and (ability != "" or dodge_timer > 0 or emote != ""):
+		p.erase("tool")         # habilidades, esquiva e emotes têm braços próprios: a esquerda só acompanha o cabo
+		p["two_hand"] = 1.0 if ability != "" else 0.0
 	if ability != "":
 		_ab_module(ability).pose(self, p)
 	elif cls == "bow" and drawing:
@@ -1964,11 +2200,26 @@ func _animate(delta: float) -> void:
 		KnightAnim.staff_pose(p, combo, attack_timer / _swing_time(combo), _amp)
 	elif attacking and cls == "sword" and _unarmed():
 		KnightAnim.punch_pose(p, combo, attack_timer / _swing_time(combo), _amp)
+	elif attacking and cls == "sword" and _shield_combo():
+		KnightAnim.shield_combo_pose(p, combo, attack_timer / _swing_time(combo), _amp, _swing_from)
+		_slash_fx()
+	elif _recover_t >= 0.0 and dodge_timer <= 0.0 and not dead and cls == "sword" and _shield_combo():
+		KnightAnim.shield_recover_pose(p, _swing_from, _recover_t / KnightAnim.SHIELD_RECOVER)
+	elif attacking and cls == "sword" and great:
+		KnightAnim.great_pose(p, combo, attack_timer / _swing_time(combo), _amp)
+		_slash_fx()
 	elif attacking and cls == "sword":
 		KnightAnim.sword_pose(p, combo, attack_timer / _swing_time(combo), _amp)
 		_slash_fx()
 	elif _cast_t < KnightMoves.CAST_TIME:
 		KnightAnim.cast_pose(p, _cast_kind, _cast_t / KnightMoves.CAST_TIME, _amp, cls == "staff")
+	# escudo: sobe rápido (~0,12 s) e desce um pouco mais devagar; o golpe defendido dá um tranco no braço
+	var up := blocking and ability == "" and not attacking and dodge_timer <= 0 and not dead
+	_block_w = move_toward(_block_w, 1.0 if up else 0.0, delta * (8.0 if up else 5.0))
+	if _block_w > 0.001:
+		var hv_m := model.global_basis.inverse() * Vector3(velocity.x, 0.0, velocity.z)
+		var guard_mv := Vector2(hv_m.x, hv_m.z) / (WALK_SPEED * ShieldRules.MOVE_SPEED)
+		KnightAnim.shield_block_pose(p, _block_w, maxf(0.0, 1.0 - _block_since / 0.25), parts, anim_t, guard_mv)
 	if ability != "" or drawing or attacking or _cast_t < KnightMoves.CAST_TIME:
 		KnightAnim.hips_follow(p)
 	KnightAnim.apply(parts, p, k)
@@ -2014,10 +2265,11 @@ func _vfx_setup() -> void:
 
 ## `--rundemo[=sprint]`: anda (ou corre) em linha reta sozinho e imprime a inclinação do tronco no mundo, para
 ## conferir a marcha no jogo de verdade. Com `--runshots=<arquivo.png>` salva uma tira de 8 quadros de uma
-## passada, recortados em volta do personagem na câmera do jogo, e fecha.
+## passada, recortados em volta do personagem na câmera do jogo, e fecha. Com `--runside`, de lado.
 func _run_demo(sprint: bool) -> void:
 	await get_tree().create_timer(1.0).timeout
-	Input.action_press("move_forward")
+	# `--runside`: corre para a direita da câmera (a tira mostra o personagem de lado)
+	Input.action_press("move_right" if "--runside" in OS.get_cmdline_user_args() else "move_forward")
 	if sprint:
 		Input.action_press("sprint")
 	var out := ""
@@ -2122,15 +2374,23 @@ func _look_gear(l: Dictionary) -> Dictionary:
 ## Corte desenhado do golpe de espada em curso, uma vez por golpe. Chamado de _animate, por onde passam
 ## o jogador local e as réplicas (que recebem combo e attack_timer pelo estado de rede).
 func _slash_fx() -> void:
-	var c := clampi(combo, 1, 3)
+	var c := clampi(combo, 1, _combo_len())
 	if c != _slash_combo or attack_timer < _slash_t - 0.1:   # outro golpe do combo, ou o relógio voltou
 		_slash_done = false
 	_slash_combo = c
 	_slash_t = attack_timer
-	if _slash_done or attack_timer / SWING_TIMES[c - 1] < FXToon.SWORD_COMBO[c - 1].at:
+	var shield := _shield_combo()
+	var great := _great()
+	var at: float = (KnightMovesShield.SLASH[c - 1].at if shield else (FXToon.GREAT_COMBO[c - 1].at if great else FXToon.SWORD_COMBO[c - 1].at))
+	if _slash_done or attack_timer / _swing_time(c) < at:
 		return
 	_slash_done = true
-	FXToon.sword_slash(self, model.rotation.y, c, slash_color())
+	if shield:
+		FXToon.shield_combo_slash(self, model.rotation.y, c, _swing_time(c), slash_color())
+	elif great:
+		FXToon.great_slash(self, model.rotation.y, c, _swing_time(c), slash_color())
+	else:
+		FXToon.sword_slash(self, model.rotation.y, c, slash_color())
 
 
 ## Cor dos efeitos desenhados dos golpes: a do elemento do encantamento da arma ou, sem ele, a da arma.

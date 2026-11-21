@@ -25,14 +25,15 @@ const DEFAULT_STYLE := {"head": "h_bare", "armor": "a_shirt", "hands": "g_bare",
 const PLATE := "plate"
 ## Modelo do herói por corpo ("m"/"f"): o feminino tem os mesmos pivôs e nomes. As roupas, cabeças e penteados
 ## de equipamento também têm versão feminina: gear/<estilo>_f.glb.
-const KNIGHT_SCENE := {"m": "res://assets/models/knight.glb", "f": "res://assets/models/knight_f.glb"}
+const KNIGHT_SCENE := {"m": "res://assets/models/knight.glb", "f": "res://assets/models/knight_f.glb",
+	"d": "res://assets/models/knight_d.glb"}
 ## Como o penteado (gear/hair_<id>.glb, HairStyles) entra com cada estilo de cabeça: "tight" = a variante rente
 ## ao crânio (hair_<id>_tight.glb), que cabe sob capuz e chapéu; "none" = sem cabelo (elmo fechado, gorro e
 ## coifas justos, que o cabelo atravessaria). Estilo fora da tabela (cabeça nua, coroas, tiaras) = inteiro.
 const HEAD_HAIR := {
 	"h_hood": "tight", "h_wizard": "tight", "h_archmage": "tight", "h_sage": "tight", "h_void": "tight",
 	"h_oracle": "tight", "h_ember": "tight", "h_lich": "tight", "h_reaper": "tight", "h_raven": "tight",
-	"h_cap": "none", "h_kettle": "none", "h_nasal": "none", "h_great": "none", "h_dragon": "none", "h_emberscale": "none", PLATE: "none",
+	"h_cap": "none", "h_kettle": "none", "h_nasal": "none", "h_great": "none", "h_dragon": "none", "h_emberscale": "none", "h_celestial": "none", PLATE: "none",
 }
 ## Materiais copiados e tingidos, por material de origem + cor (evita duplicar a cada troca de equipamento).
 static var _tint_cache := {}
@@ -53,9 +54,49 @@ const BOW_FULL_DRAW := 0.5
 const BOW_ARROW_REST := Vector3(0.0, 0.04, 0.03)
 
 
-## Corpo normalizado: "f" ou "m" (vazio ou desconhecido = masculino).
+## Quanto os efeitos presos ao corpo (cortes da espada) descem em cada corpo (m): o ombro do anão fica ~0,4 m
+## abaixo do masculino. Medido com tools/vfx_lab.tscn -- --vfxpage=10..12 --vfxtip --body=d (centro dos arcos
+## da ponta da lâmina ~0,38 m mais baixo; o raio quase não muda, a espada é a mesma).
+const FX_DROP := {"d": 0.38}
+
+
+## Corpo do personagem de `node` (o jogador, ou um nó com o modelo como filho); "m" sem modelo.
+static func body_of_node(node: Node) -> String:
+	if node == null or not is_instance_valid(node):
+		return "m"
+	var b = node.get("model_body")
+	if b == null:
+		for c in node.get_children():
+			if c.has_meta("body"):
+				b = c.get_meta("body")
+				break
+	return body_key(b) if b != null else "m"
+
+
+## Descida dos efeitos para o personagem de `node` (o jogador, ou um nó com o modelo como filho).
+static func fx_drop(node: Node) -> float:
+	return float(FX_DROP.get(body_of_node(node), 0.0))
+
+
+## Anão (tools/blender/dwarf.py): o quadril desce de 0,95 m para 0,61 m (pernas a 0,64) e o tronco encolhe 0,84.
+const DWARF_HIP := Vector2(0.95, 0.61)
+const DWARF_TORSO := 0.84
+
+
+## Altura `y` (m acima dos pés, medida no corpo masculino: peito, ombro, cabeça) no corpo de `node`.
+## Serve para mira, alvos e efeitos presos ao corpo, que no anão ficam mais baixos.
+static func body_y(node: Node, y: float) -> float:
+	if body_of_node(node) != "d":
+		return y
+	if y <= DWARF_HIP.x:
+		return y * DWARF_HIP.y / DWARF_HIP.x
+	return DWARF_HIP.y + (y - DWARF_HIP.x) * DWARF_TORSO
+
+
+## Corpo normalizado: "f", "d" (anão, protótipo) ou "m" (vazio ou desconhecido = masculino).
 static func body_key(body) -> String:
-	return "f" if str(body) == "f" else "m"
+	var b := str(body)
+	return b if b == "f" or b == "d" else "m"
 
 
 ## Novo modelo do herói para o corpo `body` (marca o corpo no meta "body", que apply() usa nas roupas).
@@ -74,8 +115,9 @@ static func body_of(model: Node3D) -> String:
 ## GLB de equipamento do estilo para o corpo: a versão _f no feminino (cai na masculina se faltar).
 static func gear_path(style: String, body: String) -> String:
 	var path := "res://assets/models/gear/%s.glb" % style
-	if body_key(body) == "f":
-		var fem := "res://assets/models/gear/%s_f.glb" % style
+	var k := body_key(body)
+	if k != "m":
+		var fem := "res://assets/models/gear/%s_%s.glb" % [style, k]
 		if ResourceLoader.exists(fem):
 			return fem
 	return path
@@ -145,6 +187,7 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 
 	# ---- mão secundária
 	var off: String = look.get("offhand", "")
+	_reset_shield(model)
 	var shield_on: bool = off != "" and ItemDB.get_item(off).get("needs", "") == "sword"
 	var shield_mat: Material = null
 	if shield_on and off != "knight_shield":
@@ -166,6 +209,8 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 	if fore_r == null:
 		fore_r = arm_r
 	var hand_l := _point_in(model, fore_l, "ArmL_Hand")
+	if shield_on and fore_l:
+		_build_shield(model, fore_l, off, made)
 	if off != "" and not shield_on and fore_l:
 		var it := ItemDB.get_item(off)
 		if it.get("needs", "") == "staff":   # orbe flutuando sobre a mão esquerda
@@ -198,7 +243,8 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 		if mi:
 			mi.visible = false
 	var res := {"class": cls, "holder": null, "tip": null, "arrow": null, "arm": null, "elbow": null,
-		"counter": COUNTER[cls], "tool": str(ItemDB.get_item(wid).get("type", "")) == "tool"}
+		"counter": COUNTER[cls], "tool": str(ItemDB.get_item(wid).get("type", "")) == "tool",
+		"great": cls == "sword" and ItemDB.is_two_handed(wid)}   # montante: duas mãos pela trajetória (KnightAnim.great_carry)
 	if wid != "" and arm_r and arm_l:
 		var holder := Node3D.new()
 		holder.name = "WeaponHolder"
@@ -224,6 +270,9 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 				res.arrow = _build_bow(holder, tip, wid)
 			_:
 				_build_sword(holder, tip, wid)
+				if res.great:
+					holder.set_meta("grip0", holder.position)
+					holder.set_meta("great", true)
 				if res.tool:
 					holder.set_meta("grip0", holder.position)   # a mão desliza pelo cabo a partir daqui
 					if str(ItemDB.get_item(wid).get("tool", "")) == "axe":
@@ -233,7 +282,7 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 	# Direita: fechada com qualquer arma. Esquerda: fechada com escudo, arco (segura o arco) e cajado (pega a vara
 	# nos golpes de duas mãos).
 	_pick_hand(model, "R", wid == "")
-	_pick_hand(model, "L", not (shield_on or (wid != "" and cls in ["bow", "staff"]) or res.tool))   # ferramenta: as duas mãos
+	_pick_hand(model, "L", not (shield_on or (wid != "" and cls in ["bow", "staff"]) or res.tool or res.great))   # ferramenta: as duas mãos
 	model.set_meta("look_nodes", made)
 	var chest := KnightAnim.ensure_chest(model)   # peças novas da parte de cima do tronco vão para o pivô do peito
 	_attach_back(model, look.get("back", ""), chest)
@@ -537,6 +586,55 @@ static func _tool_fx(h: Node3D, id: String) -> void:
 	quad.material = m
 	p.mesh = quad
 	h.add_child(p)
+
+
+## Escudo com modelo próprio (item "model" -> assets/models/sh_<id>.glb, tools/blender/armory.py): entra no lugar
+## da tábua do knight.glb (que some com o aro), preso ao antebraço esquerdo. O GLB tem a face em +Z, a altura
+## em +Y e a origem no meio das costas; aqui a face vai para +X do antebraço (para fora, como a tábua antiga)
+## e a origem para o centro das costas da tábua antiga.
+const SHIELD_BASIS := Basis(Vector3(0, 0, -1), Vector3(0, 1, 0), Vector3(1, 0, 0))
+
+
+static func _build_shield(model: Node3D, fore_l: Node3D, id: String, made: Array) -> void:
+	var board := model.find_child("Shield", true, false) as MeshInstance3D
+	if board == null:
+		return
+	var box := board.mesh.get_aabb()
+	var at := _chain(board, fore_l) * Vector3(box.position.x, box.get_center().y, box.get_center().z)   # costas da tábua
+	var rest := Transform3D(SHIELD_BASIS, at)
+	var parts: Array = []
+	var path := "res://assets/models/%s.glb" % str(ItemDB.get_item(id).get("model", ""))
+	if ItemDB.get_item(id).has("model") and ResourceLoader.exists(path):
+		for pn in SHIELD_PARTS:
+			var mi := model.find_child(pn, true, false) as MeshInstance3D
+			if mi:
+				mi.visible = false
+		var h := Node3D.new()
+		h.name = "ShieldHolder"
+		h.transform = rest
+		fore_l.add_child(h)
+		made.append(h)
+		var w := (load(path) as PackedScene).instantiate() as Node3D
+		WeaponModel.use_vertex_color(w)
+		h.add_child(w)
+		parts.append([h, rest])
+	else:
+		# tábua e aro do knight.glb: giram juntos em volta da mesma âncora (KnightAnim._shield_orient)
+		for pn in SHIELD_PARTS:
+			var mi := model.find_child(pn, true, false) as MeshInstance3D
+			if mi and mi.get_parent() == fore_l:
+				parts.append([mi, mi.transform])
+	model.set_meta("shield_rig", {"rest": rest, "parts": parts})
+
+
+## Desfaz o giro da guarda nas peças do knight.glb e esquece o escudo (antes de vestir de novo).
+static func _reset_shield(model: Node3D) -> void:
+	var rig: Dictionary = model.get_meta("shield_rig", {})
+	for part in rig.get("parts", []):
+		if is_instance_valid(part[0]):
+			(part[0] as Node3D).transform = part[1]
+	if model.has_meta("shield_rig"):
+		model.remove_meta("shield_rig")
 
 
 ## Arma modelada no Blender (assets/models/<model>.glb): cabo na origem, lâmina em +Y do GLB, largura em X.

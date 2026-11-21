@@ -284,7 +284,7 @@ def anime_mats(pre, skin_c, iris_c, brow_c, lash_c, mouth_c):
         "mouth": mat(pre + "_mouth_flat", mouth_c, 0.5), "line": mat(pre + "_line_flat", sc(skin_c, 0.62), 0.5)}
 
 
-def build_knight(female=False):
+def build_knight(female=False, dwarf=False):
     """female=True: o mesmo cavaleiro deformado para o corpo feminino, com rabo de cavalo (female.py) ->
     knight_f.glb, com os mesmos nós e pivôs."""
     band = _knight_band
@@ -531,7 +531,7 @@ def build_knight(female=False):
            tbox("ShieldCrossH", (sxp + 0.024, 0, sz + 0.1), (0.01, 0.26, 0.045), trim, parent=el_l),
            shell("ShieldBoss", (sxp + 0.03, 0, sz + 0.1), (0.07, 0.07, 0.07), trim, cut=-0.2, rot=(0, PI / 2, 0),
                  parent=el_l)]
-    if female:   # alças de couro (enarmes) do antebraço ao escudo: o braço fino deixaria o escudo solto
+    if female or dwarf:   # alças de couro (enarmes) do antebraço ao escudo: o braço fino deixaria o escudo solto
         E, Wl = mirror(P["elbow"], 1), mirror(P["wrist"], 1)
         for k, z in enumerate((sz - 0.04, sz + 0.06)):
             f = E.lerp(Wl, (E.z - z) / (E.z - Wl.z))
@@ -544,9 +544,11 @@ def build_knight(female=False):
     # sombra assada nas dobras (gear.py): mesma leitura das roupas modulares
     if female:
         knight_f_finish(R)
+    elif dwarf:
+        knight_d_finish(R)
     g_smooth([o for o in scn.objects if o.type == 'MESH'])       # placas lisas, como o corpo e as roupas (gear.py)
     bake_ao([o for o in scn.objects if o.type == 'MESH'], [])
-    export("knight_f" if female else "knight", export_vertex_color='ACTIVE')
+    export("knight_f" if female else "knight_d" if dwarf else "knight", export_vertex_color='ACTIVE')
 
 
 # ================================================================== ANCIÃO (NPC)

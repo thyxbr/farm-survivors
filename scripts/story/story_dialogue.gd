@@ -407,7 +407,7 @@ static func _coach(id: String) -> Array:
 		var need: String = Regions.DATA[r].rank
 		var label := Regions.display_name(r) if r != "vila" else "Voltar para Valdoria"
 		if Regions.unlocked(r, Game.access_rank()):
-			choices.append({"text": label, "action": _travel.bind(r)})
+			choices.append({"text": "%s (%d de ouro)" % [label, Game.travel_cost(r, "coach")], "action": _travel.bind(r)})
 		else:
 			choices.append({"text": "%s (Rank %s)" % [label, need], "pages": [
 				p("Esse caminho é só para Rank %s, chefe. Regra da guilda, não minha." % need)]})
@@ -418,8 +418,8 @@ static func _coach(id: String) -> Array:
 
 static func _travel(region: String) -> void:
 	var w: Node = (Engine.get_main_loop() as SceneTree).current_scene
-	if w and w.has_method("travel_to"):
-		w.travel_to(region)
+	if w and w.has_method("request_travel"):
+		w.request_travel(region, "coach")
 
 
 static func _counts(qt: Dictionary) -> Dictionary:

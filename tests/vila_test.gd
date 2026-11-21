@@ -176,7 +176,10 @@ func _ready() -> void:
 	# --- portal da vila → Horda → de volta à vila, sem trocar de cena
 	var ecos_before := Game.ecos
 	w.start_survival()
-	check(w.survival != null, "portal da vila abre o Desafio da Horda")
+	if not Game.HORDE_ENABLED:
+		check(w.survival == null, "Horda desligada: start_survival não abre a arena")
+	else:
+		check(w.survival != null, "portal da vila abre o Desafio da Horda")
 	if w.survival != null:
 		var sv = w.survival
 		await wait(1.5)

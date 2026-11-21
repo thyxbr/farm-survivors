@@ -81,6 +81,11 @@ static func weapon_class(bt: BalanceTables, id: String) -> String:
 	return _item(bt, id).get("class", "sword") if id != "" else "sword"
 
 
+## Arma de duas mãos (montante, campo "two_handed" do items.json): com ela a mão secundária fica vazia.
+static func two_handed(bt: BalanceTables, id: String) -> bool:
+	return id != "" and bool(_item(bt, id).get("two_handed", false))
+
+
 ## Tipo de arma de uma classe de personagem ("" se a classe não existe).
 static func class_weapon(bt: BalanceTables, cls: String) -> String:
 	var c: Dictionary = bt.get_table("classes").get(cls, {})
@@ -458,6 +463,10 @@ static func equip(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	if slot_name == "weapon" and weapon_class(bt, id) != class_weapon(bt, s.char_class):
 		return _fail("exige_classe", [_notify("%s é arma de %s." % [it.name, class_of_weapon_name(bt, weapon_class(bt, id))],
 			Color(1, 0.6, 0.5))])
+	# arma de duas mãos ocupa as duas: nada na mão secundária
+	if slot_name == "offhand" and two_handed(bt, str(s.equipment.get("weapon", ""))):
+		return _fail("duas_maos", [_notify("%s usa as duas mãos: não dá para equipar %s." % [
+			_item(bt, s.equipment.weapon).name, it.name], Color(1, 0.6, 0.5))])
 	# mão secundária precisa combinar com a classe da arma (escudo-espada, orbe-cajado, aljava-arco)
 	if slot_name == "offhand" and it.has("needs") and it.needs != weapon_class(bt, s.equipment.weapon):
 		return _fail("exige_classe", [_notify("%s exige %s." % [it.name, str(CLASS_NAMES.get(it.needs, it.needs)).to_lower()],
@@ -470,10 +479,14 @@ static func equip(s: CharState, bt: BalanceTables, id: String) -> Dictionary:
 	if s.equipment[slot_name] != "":
 		add_item(s, bt, s.equipment[slot_name], 1)
 	s.equipment[slot_name] = id
-	# trocou de classe de arma: a mão secundária incompatível volta para a mochila
+	# trocou de classe de arma (ou pegou uma de duas mãos): a mão secundária incompatível volta para a mochila
 	if slot_name == "weapon" and s.equipment.offhand != "":
 		var off := _item(bt, s.equipment.offhand)
-		if off.has("needs") and off.needs != weapon_class(bt, s.equipment.weapon):
+		if two_handed(bt, id):
+			add_item(s, bt, s.equipment.offhand, 1)
+			ev.append(_notify("%s guardado (%s usa as duas mãos)." % [off.name, it.name], Color(0.85, 0.8, 0.65)))
+			s.equipment.offhand = ""
+		elif off.has("needs") and off.needs != weapon_class(bt, s.equipment.weapon):
 			add_item(s, bt, s.equipment.offhand, 1)
 			ev.append(_notify("%s guardado (exige %s)." % [off.name, str(CLASS_NAMES.get(off.needs, off.needs)).to_lower()],
 				Color(0.85, 0.8, 0.65)))
@@ -503,14 +516,14 @@ static func best_weapon_of(s: CharState, bt: BalanceTables, wclass: String) -> S
 	return best
 
 
-## Escolha única da classe, do corpo ("m"/"f") e do penteado (HairStyles; "" = padrão do corpo) na criação.
+## Escolha única da classe, do corpo ("m"/"f"/"d" = anão) e do penteado (HairStyles; "" = padrão do corpo) na criação.
 ## A arma passa a ser do tipo da classe: fica a que já serve, senão a melhor que o personagem tem, senão a arma
 ## inicial da classe.
 static func choose_class(s: CharState, bt: BalanceTables, cls: String, body: String, hair := "") -> Dictionary:
 	if s.char_class != "":
 		return _fail("ja_tem_classe")
 	var def: Dictionary = bt.get_table("classes").get(cls, {})
-	if not (cls in CLASS_IDS) or def.is_empty() or not (body in ["m", "f"]):
+	if not (cls in CLASS_IDS) or def.is_empty() or not (body in ["m", "f", "d"]):
 		return _fail("classe_invalida")
 	if hair != "" and not HairStyles.valid(body, hair):
 		return _fail("penteado_invalido")
@@ -531,7 +544,7 @@ static func choose_class(s: CharState, bt: BalanceTables, cls: String, body: Str
 		s.equipment.weapon = pick
 	# mão secundária incompatível com a nova arma volta para a mochila
 	var off: String = s.equipment.get("offhand", "")
-	if off != "" and _item(bt, off).has("needs") and _item(bt, off).needs != wclass:
+	if off != "" and (two_handed(bt, str(s.equipment.get("weapon", ""))) or (_item(bt, off).has("needs") and _item(bt, off).needs != wclass)):
 		add_item(s, bt, off, 1)
 		s.equipment.offhand = ""
 	return _ok([{"t": "class", "class": cls, "body": body, "hair": s.hair},
@@ -1185,6 +1198,38 @@ static func reset_talents(s: CharState, _bt: BalanceTables) -> Dictionary:
 	var paid := "-%d de ouro" % cost if cost > 0 else "grátis até o nível 5"
 	var txt := "Talentos redistribuídos: %d %s de volta (%s)." % [back, "ponto" if back == 1 else "pontos", paid]
 	return _ok([_notify(txt, C_GUILD), {"t": "talents_reset", "cost": cost}])
+
+
+# ================================================================ viagem (carruagem e mapa-mundi)
+## Modos de viagem paga: "coach" = falar com o cocheiro (em conta); "map" = teleporte pelo mapa-mundi (caro).
+const TRAVEL_MODES := ["coach", "map"]
+
+
+## Custo em ouro de viajar até o mapa `region` (rules.travel): carruagem = base + por_nível x nível do mapa;
+## mapa-mundi = carruagem x map_mult. Quanto maior o nível do destino, mais caro. -1 = destino/modo inválido.
+static func travel_cost(bt: BalanceTables, region: String, mode: String) -> int:
+	var t: Dictionary = _rules(bt).get("travel", {})
+	var levels: Dictionary = t.get("levels", {})
+	if not levels.has(region) or not mode in TRAVEL_MODES:
+		return -1
+	var cost := int(t.get("coach_base", 10)) + int(t.get("coach_per_level", 4)) * int(levels[region])
+	if mode == "map":
+		cost *= int(t.get("map_mult", 5))
+	return cost
+
+
+## Paga a viagem (a viagem em si, a troca de posição, é do cliente, como o resto da posição).
+## Erros: destino_invalido, sem_ouro.
+static func pay_travel(s: CharState, bt: BalanceTables, region: String, mode: String) -> Dictionary:
+	var cost := travel_cost(bt, region, mode)
+	if cost < 0:
+		return _fail("destino_invalido")
+	if s.gold < cost:
+		var what := "A carruagem" if mode == "coach" else "O teleporte"
+		return _fail("sem_ouro", [_notify("%s até lá custa %d de ouro." % [what, cost], C_BAD)])
+	s.gold -= cost
+	return _ok([_notify("-%d de ouro (viagem)" % cost, C_GOLD), {"t": "travel_paid", "region": region,
+		"mode": mode, "cost": cost}])
 
 
 ## Bônus dos talentos: chave de stat -> soma de (add x nível). Só conta talento da classe do personagem.

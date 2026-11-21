@@ -171,7 +171,9 @@ func _process(delta: float) -> void:
 		pivot.rotation.y = _base + sin(_idle * 0.7) * 0.45
 	# mesma pose de parado do jogador (respiração e troca de peso entre as pernas)
 	if not _rig.is_empty():
-		KnightAnim.apply(_rig, KnightAnim.idle_pose(_idle), 1.0 - exp(-14.0 * delta))
+		var p := KnightAnim.idle_pose(_idle)
+		KnightAnim.carry(_look, p)   # montante: as duas mãos no cabo, como no jogo
+		KnightAnim.apply(_rig, p, 1.0 - exp(-14.0 * delta))
 		KnightAnim.hold_weapon_upright(_look, _rig)
 		KnightAnim.sway_ponytail(_rig, delta)
 
