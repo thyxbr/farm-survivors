@@ -651,52 +651,131 @@ def build_h_nasal():
 
 
 def build_h_great():
-    """Elmo fechado (balde): topo achatado, fenda dos olhos em degrau, respiros e cruz dourada na frente."""
+    """Elmo fechado da guarda (armet): crânio baixo e justo com crista do nariz à nuca; faixa dourada saliente na
+    testa fazendo sombra sobre a fenda dos olhos; viseira em bico com respiros; bochecheiras e guarda-nuca que
+    abrem para baixo, com aro dourado; penacho vermelho saindo do alto da crista para trás.
+    Seções em superelipse (lados quase retos), não elipsoide: o elmo não pode virar um balão na cabeça."""
     P, R = g_rig("h_great")
-    M = g_mats()
     head = R["Head"]
-    st = gm("t1_great", "#8D95A2", 0.5, 0.6)
-    y0 = 0.01
-    body_s = [sec((0, y0, 1.5), 0.112, 0.12), sec((0, y0, 1.56), 0.128, 0.14, fr=1.08, keel=0.08),
-              sec((0, y0, 1.67), 0.13, 0.142, fr=1.08, keel=0.1), sec((0, y0, 1.76), 0.128, 0.14, fr=1.05, keel=0.06),
-              sec((0, y0, 1.8), 0.124, 0.134)]
-    parts = [loft("Great", body_s, st, head, sides=12, phase=0, axis=ZUP, chamfer=(0.0, 0.0))]
-    parts.append(loft("GreatTop", [sec((0, y0, 1.8), 0.124, 0.134), sec((0, y0, 1.83), 0.108, 0.118),
-                                   sec((0, y0, 1.845), 0.07, 0.08)], st, head, sides=12, phase=0, axis=ZUP))
-    # fenda dos olhos: faixa escura afundada, com a testa saliente por cima
-    parts.append(loft("GreatSlit", [sec((0, y0, 1.668), 0.129, 0.141, fr=1.08, keel=0.1),
-                                    sec((0, y0, 1.69), 0.129, 0.141, fr=1.08, keel=0.1)], M["slit"], head, sides=12,
-                      phase=0, axis=ZUP, arc=2.4, thick=0.006))
-    parts.append(loft("GreatBrow", [sec((0, y0, 1.69), 0.136, 0.149, fr=1.08, keel=0.1),
-                                    sec((0, y0, 1.715), 0.135, 0.148, fr=1.07, keel=0.09)], st, head, sides=12,
-                      phase=0, axis=ZUP, arc=2.6, thick=0.012))
-    for i in range(3):                          # respiros em grade nas duas faces, abaixo da fenda
-        for j in range(4):
-            for sg in (1, -1):
-                a = sg * (0.36 + 0.13 * i)
-                z = 1.635 - j * 0.03
-                p = Vector((math.sin(a) * 0.132 * 1.0, y0 - math.cos(a) * 0.142 * 1.1, z))
-                parts.append(tbox("GreatBreath%d%d%s" % (i, j, "L" if sg > 0 else "R"), p, (0.013, 0.008, 0.013),
-                                  M["slit"], rot=(0, 0, a), parent=head))
-    # saia do elmo assentando nos ombros (placa em degrau)
-    parts.append(loft("GreatSkirt", [sec((0, y0, 1.515), 0.114, 0.122), sec((0, y0, 1.47), 0.16, 0.15),
-                                     sec((0, y0 + 0.004, 1.44), 0.19, 0.165)], st, head, sides=12, phase=0,
-                      axis=ZUP, chamfer=(0.006, 0.0)))
-    parts.append(rivets("GreatRivet", [Vector((math.sin(a) * 0.127, y0 - math.cos(a) * 0.137, 1.79))
-                                       for a in [k * math.pi / 6 + math.pi / 12 for k in range(12)]],
-                        M["brass"], head, r=0.009))
-    gold = gm("t2_great", "#E6B544", 0.35, 0.8)
-    fy = y0 - 0.142 * 1.08 * 1.1 - 0.004
-    parts.append(loft("GreatCrossV", [sec((0, fy + 0.012, 1.545), 0.013, 0.006), sec((0, fy, 1.6), 0.014, 0.006),
-                                      sec((0, fy + 0.002, 1.665), 0.014, 0.006)], gold, head, sides=4))
-    parts.append(loft("GreatCrossT", [sec((0, fy + 0.006, 1.72), 0.014, 0.006), sec((0, fy + 0.004, 1.79), 0.014, 0.006)],
-                      gold, head, sides=4))
-    parts.append(band("GreatBrowTrim", sec((0, y0, 1.712), 0.135, 0.148, fr=1.07, keel=0.09), ZUP, 0.012, gold, head,
-                      sides=12, phase=0, arc=2.6, out=0.002))
-    parts.append(band("GreatRimTrim", sec((0, y0, 1.44), 0.19, 0.165), ZUP, 0.014, gold, head, sides=12, phase=0,
-                      out=0.003))
-    join_objs("Great", parts)
-    g_export("h_great", P, R)
+    st = gm("t1_great", "#9AA3B1", 0.42, 0.65)
+    st_d = gm("t1d_great", "#5C6472", 0.5, 0.6)
+    gold = gm("t2_great", "#D9A93E", 0.35, 0.8)
+    slit = gm("gw_great_slit", "#141419", 0.95)
+    plume = gm("gw_great_plume", "#A8282C", 0.9)
+    C = Vector((0, 0.012, 1.69))
+    TOP = 0.145
+    # Folga medida sobre a cabeça lisa (h_bare): meia largura 0,093 e nuca a y 0,11 na altura dos olhos, topo
+    # a 1,817. O elmo fica a ~0,015 dos lados, ~0,02 atrás e ~0,018 em cima; a frente guarda o espaço do bico.
+
+    def prof(z):
+        """meia largura, profundidade da frente, profundidade de trás e expoente da superelipse na altura z."""
+        if z >= C.z:
+            d = min(1.0, (z - C.z) / TOP)
+            k = max(0.0, 1 - d ** 2.4) ** (1 / 2.4)             # topo achatado, quina arredondada
+            return 0.108 * k, 0.133 * k - 0.016 * d ** 1.5, 0.118 * k + 0.004 * d ** 1.5, 2.3 + 0.5 * (1 - d)
+        t = min(1.0, (C.z - z) / 0.2)
+        fl = 0.03 * max(0.0, (1.575 - z) / 0.085) ** 1.6       # bochecheiras e nuca abrem para baixo
+        u = min(1.0, (C.z - z) / 0.12)
+        tuck = 0.04 * u * u * (3 - 2 * u)                       # de lado, a nuca desce em diagonal até o pescoço
+        return (0.108 * (1 - 0.06 * t) + fl, 0.133 * (1 - 0.05 * t) + fl * 0.8 + 0.01 * t,
+                0.118 - tuck + fl * 0.5, 2.8)
+
+    def hp(th, z, out=0.0, beak=True):
+        """Ponto da casca no ângulo th (0 = frente, + = esquerda do boneco) e altura z, afastado out."""
+        a, bf, bb, n = prof(z)
+        back = 0.0
+        s, c = math.sin(th), math.cos(th)
+        b = bf if c > 0 else bb
+        x = math.copysign(abs(s) ** (2 / n), s) * (a + out)
+        y = -math.copysign(abs(c) ** (2 / n), c) * (b + out)
+        face = max(0.0, c)
+        keel = 0.01 * face ** 10 * (1.0 if z < 1.83 else max(0.0, (1.86 - z) / 0.03))
+        bk = 0.0
+        if beak:                                                # bico da viseira, mais saliente embaixo do nariz
+            bk = 0.034 * face ** 6 * max(0.0, 1 - ((z - 1.6) / 0.06) ** 2)
+        return Vector((x, C.y + back + y - keel - bk, z))
+
+    def patch(name, th0, th1, z0, z1, out, mat, nt=40, nz=8, thick=0.005, beak=True, closed=False, cap=False):
+        rows = [[hp(th0 + (th1 - th0) * j / (nt if closed else nt), z0 + (z1 - z0) * i / nz, out, beak)
+                 for j in range(nt if closed else nt + 1)] for i in range(nz + 1)]
+        return g_smooth_mesh(name, rows, mat, head, cap_end=cap, closed=closed, thick=thick, outward=True), rows
+
+    parts = []
+    # forro escuro atrás da fenda dos olhos (só aparece pela fenda)
+    p, _ = patch("GreatLining", -1.25, 1.25, 1.635, 1.71, -0.004, slit, nz=4, thick=0.003)
+    parts.append(p)
+    # crânio: do alto da fenda até o topo, fechado
+    NP = 48
+    zs = [1.686 + (C.z + TOP - 1.686) * (i / 14) ** 0.8 for i in range(15)]
+    skull = [[hp(2 * math.pi * j / NP, z) for j in range(NP)] for z in zs]
+    parts.append(g_smooth_mesh("GreatSkull", skull, st, head, cap_end=True, outward=True))
+    # bochecheiras e nuca: dos lados e atrás, do aro até a testa (a frente fica para a viseira)
+    p, low = patch("GreatCheeks", 0.95, 2 * math.pi - 0.95, 1.49, 1.7, 0.0, st, nt=40, nz=10, thick=0.006)
+    parts.append(p)
+    # viseira em bico, por cima das bochecheiras, da borda de baixo até a fenda
+    p, vis = patch("GreatVisor", -1.22, 1.22, 1.495, 1.652, 0.006, st, nt=36, nz=10, thick=0.006)
+    parts.append(p)
+    # faixa da testa: saliente, a borda de baixo mais para fora, fazendo aba sobre a fenda
+    brow = [[hp(-1.7 + 3.4 * j / 40, 1.686 + 0.03 * i / 3, 0.014 - 0.011 * i / 3) for j in range(41)] for i in range(4)]
+    parts.append(g_smooth_mesh("GreatBrow", brow, gold, head, cap_end=False, closed=False, thick=0.006, outward=True))
+    parts.append(g_pipe("GreatBrowLip", brow[0], 0.004, gold, head, sides=8))
+    # aro dourado em toda a borda de baixo (viseira e bochecheiras)
+    parts.append(g_pipe("GreatRimV", [hp(-1.22 + 2.44 * j / 36, 1.497, 0.012) for j in range(37)], 0.0055, gold, head))
+    parts.append(g_pipe("GreatRimC", [hp(0.95 + (2 * math.pi - 1.9) * j / 40, 1.492, 0.007) for j in range(41)], 0.0055,
+                        gold, head))
+    # borda de cima da viseira, logo abaixo da fenda, e a quina do bico
+    parts.append(g_pipe("GreatVisorEdge", [hp(-1.2 + 2.4 * j / 36, 1.651, 0.01) for j in range(37)], 0.0035, st_d, head))
+    parts.append(g_pipe("GreatBeak", [hp(0.0, z, 0.009) for z in (1.505, 1.54, 1.575, 1.61, 1.635, 1.65)], 0.004,
+                        st_d, head))
+    # respiros: fendas curtas nos dois lados do bico
+    for sn, sg in (("L", 1), ("R", -1)):
+        for i in range(3):
+            for k in range(2):
+                th = sg * (0.42 + 0.14 * i)
+                z = 1.6 - 0.028 * k
+                q = hp(th, z, 0.009)
+                nrm = Vector((math.sin(th), -math.cos(th), 0))
+                tu = Vector((math.cos(th), math.sin(th), 0))
+                parts.append(g_plate("GreatBreath%s%d%d" % (sn, i, k), [(-0.004, -0.0025), (0.004, -0.0025),
+                                                                        (0.004, 0.0025), (-0.004, 0.0025)],
+                                     q, tu, (0, 0, 1), 0.008, slit, head))
+        # pino da viseira: rebite dourado onde a viseira gira, na têmpora
+        c = hp(sg * 1.2, 1.645, 0.012)
+        nb = Vector((math.sin(sg * 1.2), -math.cos(sg * 1.2), 0))
+        parts.append(g_cap("GreatPivot" + sn, c, nb, (0, 0, 1), 0.012, 0.012, 0.006, gold, head, sides=14))
+    # crista: lâmina no plano do meio, da testa até a nuca, com fio dourado por cima
+    crest, ridge = [], []
+    for i in range(25):
+        b = 0.25 + (math.pi * 0.98 - 0.25) * i / 24        # ângulo na vista de lado: 0 frente, pi/2 topo
+        z = C.z + TOP * math.sin(b) * 0.995
+        yb = hp(0.0 if b < math.pi / 2 else math.pi, z).y
+        nrm = Vector((0, -math.cos(b), math.sin(b)))
+        hgt = 0.006 + 0.028 * math.sin(math.pi * min(1.0, i / 22)) ** 0.6
+        base = Vector((0, yb, z)) - nrm * 0.004
+        crest.append([base + Vector((-0.007, 0, 0)), base + nrm * hgt, base + Vector((0.007, 0, 0))])
+        ridge.append(base + nrm * (hgt + 0.002))
+    parts.append(g_smooth_mesh("GreatCrest", crest, st, head, cap_end=False, closed=False, thick=0.004, outward=True))
+    parts.append(g_pipe("GreatCrestGold", ridge[1:-1], 0.0045, gold, head, sides=8))
+    # rebites dourados na faixa da testa
+    for k, th in enumerate((-1.45, -0.95, -0.5, 0.5, 0.95, 1.45)):
+        c = hp(th, 1.7, 0.018)
+        nb = Vector((math.sin(th), -math.cos(th), 0))
+        parts.append(g_cap("GreatRivet%d" % k, c, nb, (0, 0, 1), 0.0055, 0.0055, 0.0035, gold, head, sides=10))
+    # penacho: tufo de crina vermelha saindo do alto da crista, caindo para trás
+    i0 = 15
+    root = ridge[i0] - Vector((0, 0, 0.004))
+    parts.append(g_cap("GreatPlumeSeat", root, Vector((0, 0.35, 1)), (1, 0, 0), 0.016, 0.02, 0.012, gold, head,
+                       sides=14))
+    # mechas grossas e juntas: de longe leem como um tufo só, não como fios soltos
+    for q, (dx, ln, lift) in enumerate(((0.0, 1.0, 1.0), (0.009, 0.93, 0.85), (-0.009, 0.93, 0.85),
+                                       (0.016, 0.82, 0.6), (-0.016, 0.82, 0.6), (0.005, 0.8, 1.25),
+                                       (-0.005, 0.8, 1.25), (0.0, 0.66, 1.45), (0.021, 0.7, 0.35), (-0.021, 0.7, 0.35))):
+        b0 = root + Vector((dx * 0.4, 0, 0.004))
+        parts.append(g_cone("GreatPlume%d" % q, [b0, b0 + Vector((dx, 0.04 * ln, 0.06 * lift)),
+                                                  b0 + Vector((dx * 2.0, 0.13 * ln, 0.05 * lift)),
+                                                  b0 + Vector((dx * 2.6, 0.2 * ln, -0.03 * lift))],
+                            0.019, plume, head, sides=10, n=14, r1=0.003, pw=2.2))
+    g_head_done("h_great", "Great", parts, P, R)
 
 
 def build_h_wizard():
