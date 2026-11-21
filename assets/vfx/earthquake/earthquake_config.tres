@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="EarthquakeConfig" format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/earthquake/earthquake_config.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+damage_mult = 2.2
+radius = 9.0
+expansion_speed = 16.0
+stun_time = 0.8
+cooldown = 10.0
+windup_time = 0.55
+slam_time = 0.13
+hold_time = 0.3
+recover_time = 0.35
+forward_offset = 0.75
+impact_intensity = 1.0
+shake_strength = 0.85
+shake_range = 30.0
+hitstop_time = 0.075
+crack_count = 14
+crack_length = 0.92
+crack_branching = 0.45
+crack_width = 0.34
+plate_count = 22
+plate_size = 0.85
+secondary_count = 6
+debris_count = 140
+debris_height = 4.5
+dust_intensity = 1.0
+dissipation_time = 3.2
+camera_back = 2.5

@@ -1,0 +1,15 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/earthquake/eq_crack.gdshader" id="1"]
+[ext_resource type="Material" path="res://assets/vfx/earthquake/earthquake_crack_glow_mat.tres" id="2"]
+
+[resource]
+render_priority = 0
+next_pass = ExtResource("2")
+shader = ExtResource("1")
+shader_parameter/wave_r = 0.0
+shader_parameter/open_time = 0.9
+shader_parameter/alpha_mul = 1.0
+shader_parameter/deep_color = Color(0.015, 0.02, 0.035, 1)
+shader_parameter/lip_color = Color(0.16, 0.15, 0.15, 1)
+shader_parameter/cam_push = 0.05

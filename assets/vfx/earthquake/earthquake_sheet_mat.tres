@@ -1,0 +1,19 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/earthquake/eq_sheet.gdshader" id="1"]
+[ext_resource type="Texture2D" path="res://assets/vfx/earthquake/earthquake_sheet.webp" id="2"]
+
+[resource]
+render_priority = 2
+shader = ExtResource("1")
+shader_parameter/sheet = ExtResource("2")
+shader_parameter/columns = 8.0
+shader_parameter/rows = 8.0
+shader_parameter/black_cut = 0.035
+shader_parameter/cam_push = 2.0
+shader_parameter/smoke_keep = 0.22
+shader_parameter/mask_inner = 0.55
+shader_parameter/mask_outer = 0.98
+shader_parameter/tint = Color(1, 1, 1, 1)
+shader_parameter/boost = 1.35
+shader_parameter/soft_depth = 2.5
