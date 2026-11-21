@@ -192,6 +192,7 @@ def join_all(name):
 
 exec(open(OUT.replace("assets/models/", "tools/blender/characters.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/monsters.py"), encoding="utf-8").read(), globals())
+exec(open(OUT.replace("assets/models/", "tools/blender/frost_monsters.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/props.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/buildings.py"), encoding="utf-8").read(), globals())
 exec(open(OUT.replace("assets/models/", "tools/blender/village.py"), encoding="utf-8").read(), globals())
@@ -222,6 +223,7 @@ for _n in VILLAGER_LOOKS:   # aldeões da Defesa da Cidade (villager_<n>); ASSET
     BUILDERS["villager_%d" % _n] = (lambda n=_n: build_villager(n))
 if "villagers" in _only:
     _only += ["villager_%d" % _n for _n in VILLAGER_LOOKS]
+BUILDERS.update(FROST_BUILDERS)   # monstros da Geleira (frost_monsters.py)
 BUILDERS.update(PROP_BUILDERS)
 BUILDERS.update(VILLAGE_BUILDERS)   # casas e lojas da vila (village.py); ASSETS=village gera todas
 if "village" in _only:

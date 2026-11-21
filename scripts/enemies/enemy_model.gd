@@ -23,6 +23,9 @@ const MODELS := {
 	"plant": preload("res://assets/models/plant.glb"),
 	"frog": preload("res://assets/models/frog.glb"),
 	"bat": preload("res://assets/models/bat.glb"),
+	"wolf": preload("res://assets/models/wolf.glb"),
+	"crow": preload("res://assets/models/crow.glb"),
+	"yeti": preload("res://assets/models/yeti.glb"),
 }
 const MERGED := "Merged"
 

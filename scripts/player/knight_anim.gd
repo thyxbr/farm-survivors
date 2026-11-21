@@ -1152,10 +1152,20 @@ static func _arm_to_grip(r: Dictionary, p: Dictionary, side: String, target_m: V
 		return
 	var sol: Array = g.sol
 	var cur: Vector3 = p["arm_" + side]
-	var e: Vector3 = sol[0]
-	e = Vector3(cur.x + wrapf(e.x - cur.x, -PI, PI), cur.y + wrapf(e.y - cur.y, -PI, PI), cur.z + wrapf(e.z - cur.z, -PI, PI))
-	p["arm_" + side] = cur.lerp(e, w)
+	# a suavização (apply) interpola os ângulos do ombro: o alvo vem na forma equivalente mais perto de onde o braço
+	# está agora, senão ele dá a volta por dentro do corpo para chegar à mesma orientação
+	var e := euler_near(sol[0], (r["Arm" + side.to_upper()] as Node3D).rotation)
+	p["arm_" + side] = euler_near(cur, e).lerp(e, w)
 	p["elbow_" + side] = lerpf(p["elbow_" + side], sol[1], w)
+
+
+## Os ângulos de Euler (ordem YXZ, a dos ossos) de `e` na forma mais perto de `ref`: (x, y, z) e (π - x, y + π, z + π)
+## são a mesma orientação, e cada ângulo pode somar voltas inteiras.
+static func euler_near(e: Vector3, ref: Vector3) -> Vector3:
+	var a := Vector3(ref.x + wrapf(e.x - ref.x, -PI, PI), ref.y + wrapf(e.y - ref.y, -PI, PI), ref.z + wrapf(e.z - ref.z, -PI, PI))
+	var f := Vector3(PI - e.x, e.y + PI, e.z + PI)
+	var b := Vector3(ref.x + wrapf(f.x - ref.x, -PI, PI), ref.y + wrapf(f.y - ref.y, -PI, PI), ref.z + wrapf(f.z - ref.z, -PI, PI))
+	return a if (a - ref).length_squared() <= (b - ref).length_squared() else b
 
 
 ## A melhor pose do braço `side` para segurar o cabo em `target_m` com o punho em `axis_m` (ver _arm_to_grip), pela

@@ -4,7 +4,7 @@ extends RefCounted
 ## (rocha, mata, neve e as árvores da encosta), o céu, a névoa, o sol e o clima. O Vale é o padrão; os mapas de
 ## viagem trocam tudo para ficarem com cara própria:
 ##   bosque = Pântano Sussurrante: lama e capim escuro, juncos e cogumelos, névoa verde e água no chão;
-##   mina   = Geleira de Cristal: neve cobrindo tudo, nevando sempre, céu claro e frio;
+##   mina   = Geleira de Cristal: neve cobrindo tudo, nevando sempre, céu claro e frio, pinheiros congelados;
 ##   pico   = Vulcão das Cinzas: chão de cinza e basalto, sem capim, cinza caindo, céu vermelho e névoa escura.
 ## As dungeons usam o bioma do mapa de onde se entra.
 ##
@@ -54,7 +54,7 @@ const DATA := {
 		"ring_rock": [Color(0.44, 0.5, 0.58), Color(0.32, 0.37, 0.46)],
 		"ring_snow": [Color(0.93, 0.95, 0.99), Color(0.8, 0.86, 0.95)],
 		"snow_line": 0.25,
-		"ring_trees": {"tree_fir": 1.0},
+		"ring_trees": {"tree_frost": 0.6, "tree_fir": 0.4},
 		"ring_tint": Color(1, 1, 1, 0),
 		"sky_top": Color(0.42, 0.6, 0.86), "sky_hz": Color(0.86, 0.92, 0.98), "ground_hz": Color(0.82, 0.88, 0.95),
 		"fog": Color(0.82, 0.88, 0.96), "fog_density": 0.004,
