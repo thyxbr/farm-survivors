@@ -1453,3 +1453,36 @@ func test_old_village_position_moves_once() -> void:
 	T.eq(s.world_pos, Vector3(3.0, 0.5, 6.0), "na planta nova os Campos do Norte ficam onde estavam")
 	s = CharState.from_dict({"world_pos": [86.0, 0.5, 0.0], "flags": {}})
 	T.eq(s.world_pos, Vector3(86.0, 0.5, 0.0), "save antigo fora da vila antiga fica onde estava")
+
+
+# ---------------------------------------------------------------- itens caçados (chase_drops)
+## Cópia das tabelas com a chance do Rei dos Ventos trocada (1.0 = sempre que a linha se aplica).
+func _tables_chase(chance: float) -> BalanceTables:
+	var bt := BalanceTables.from_dict(_tables().to_dict())
+	var prog: Dictionary = bt.get_table("progression").duplicate(true)
+	prog["chase_drops"] = [{"item": "wind_bow", "chance": chance, "min_level": 48, "elite": true}]
+	prog["gear_drop"]["chance"] = 0.0
+	bt.set_table("progression", prog)
+	return bt
+
+
+func test_chase_drop_needs_level_and_elite() -> void:
+	var bt := _tables_chase(1.0)
+	T.ok(LootRules.roll(bt, "goblin", _rng(3), "", 50, true).items.has("wind_bow"), "elite nv 50 deixa o Rei dos Ventos")
+	T.ok(LootRules.roll(bt, "goblin_king", _rng(3), "", 48).items.has("wind_bow"), "chefe nv 48 também")
+	T.ok(not LootRules.roll(bt, "goblin", _rng(3), "", 50, false).items.has("wind_bow"), "monstro comum não deixa")
+	T.ok(not LootRules.roll(bt, "goblin", _rng(3), "", 47, true).items.has("wind_bow"), "abaixo do nível mínimo não deixa")
+	T.ok(not LootRules.roll(bt, "goblin_king", _rng(3)).items.has("wind_bow"), "sem nível (fora de Valdoria) não deixa")
+
+
+func test_chase_drop_is_not_adapted_to_class() -> void:
+	var loot := LootRules.roll(_tables_chase(1.0), "goblin", _rng(5), "sword", 50, true)
+	T.ok(loot.items.has("wind_bow"), "o arco caçado cai como arco até para o guerreiro")
+
+
+func test_chase_drop_real_chance_is_rare() -> void:
+	var bt := _tables()
+	var line: Dictionary = bt.get_table("progression").chase_drops[0]
+	T.eq(str(line.item), "wind_bow", "o item caçado é o Rei dos Ventos")
+	T.ok(float(line.chance) <= 0.01, "chance de item caçado (no máximo 1%)")
+	T.eq(str(bt.get_table("items")["wind_bow"].rarity), "mythic", "o Rei dos Ventos é Mítico")

@@ -78,6 +78,8 @@ var look := {"class": "sword", "holder": null, "tip": null, "arrow": null, "arm"
 var aiming := false
 var drawing := false
 var draw_t := 0.0
+## Quando (s, relógio do jogo) a tensão chegou ao máximo neste tiro; -1 = ainda não. Crescente Gêmeo: soltura perfeita.
+var _bow_full_at := -1.0
 var _bow_snap := false
 var _shot_queued := false
 var _aim_zoom := 0.0
@@ -1044,6 +1046,7 @@ func _update_bow(delta: float) -> void:
 			return
 		drawing = true
 		draw_t = 0.0
+		_bow_full_at = -1.0
 		_bow_snap = not aiming
 		_shot_queued = aiming and (_shot_queued or shoot)
 		Sfx.play("bow_draw", 0.05, -4.0)
@@ -1064,6 +1067,9 @@ func _update_bow(delta: float) -> void:
 	draw_t = min(draw_t + delta, BOW_FULL)
 	if was < BOW_FULL and draw_t >= BOW_FULL:
 		Sfx.play("bow_full", 0.05, -6.0)
+		_bow_full_at = Time.get_ticks_msec() / 1000.0
+		if _weapon_fx() == "crescent":   # o instante da soltura perfeita: a lua acende na ponta do arco
+			HolyFX.star(weapon_tip(), BowMythic.MOON, 0.45)
 	if not aiming:
 		_cancel_draw()   # baixou o arco sem atirar
 		return
@@ -1117,6 +1123,10 @@ func release_arrow() -> void:
 	var full := charge >= 0.99
 	var fx := _weapon_fx()
 	var crit: bool = randf() < Game.crit_chance() + (0.1 if full else 0.0)
+	# Crescente Gêmeo: soltar logo depois da tensão máxima = crítico garantido e a flecha fantasma
+	var perfect := fx == "crescent" and full and BowMythicRules.perfect_release(_bow_full_at, Time.get_ticks_msec() / 1000.0)
+	if perfect:
+		crit = true
 	var dmg := Game.melee_damage() * lerpf(0.45, 1.5, charge) * (1.8 if crit else 1.0)
 	_bow_snap = false
 	_shot_queued = false
@@ -1129,7 +1139,16 @@ func release_arrow() -> void:
 	for d in dirs:
 		var ar = _spawn_projectile("arrow", origin, d, dmg, crit, pierce, spd)
 		ar.vis_offset = launch[2]
-		Network.send_event("arrow", origin, d)
+		ar.full = full
+		if fx == "gale" and full:
+			ar.bounces = int(BowMythicRules.GALE.bounces)
+		Network.send_event("arrow", origin, BowMythicRules.encode_dir(d, full))
+	if BowMythicRules.is_mythic_fx(fx) and full:
+		FXToon.muzzle(weapon_tip(), dir, BowMythic.trail_palette(fx), 8, 1.3)
+	if fx == "gale" and full:
+		_gale_leap(dir)
+	if perfect:
+		_crescent_perfect(dmg, spd)
 	attacking = true
 	combo = 1
 	attack_timer = 0.0
@@ -1139,9 +1158,41 @@ func release_arrow() -> void:
 		add_shake(0.06)
 
 
+## Rei dos Ventos: o tiro tensionado joga o arqueiro para trás (a esquiva do jogo, na direção oposta à mira).
+func _gale_leap(dir: Vector3) -> void:
+	var back := Vector3(-dir.x, 0.0, -dir.z)
+	if back.length() < 0.1:
+		return
+	dodge_dir = back.normalized()
+	dodge_timer = float(BowMythicRules.GALE.dash)
+	invuln = maxf(invuln, dodge_timer + 0.05)
+	FXToon.ground_gust(global_position, 2.2, FXToon.WIND, 0.4)
+
+
+## Crescente Gêmeo: soltura perfeita. A lua estoura na ponta do arco e uma flecha fantasma repete o tiro.
+func _crescent_perfect(dmg: float, spd: float) -> void:
+	HolyFX.star(weapon_tip(), BowMythic.MOON, 0.8)
+	HolyFX.sparkles(weapon_tip(), BowMythic.MOON, 12, 0.4, 2.5, 0.3, 0.2)
+	Sfx.play("bow_full", 0.05, -2.0)
+	get_tree().create_timer(float(BowMythicRules.CRESCENT.ghost_delay)).timeout.connect(
+		_crescent_ghost.bind(dmg * float(BowMythicRules.CRESCENT.ghost_dmg), spd))
+
+
+func _crescent_ghost(dmg: float, spd: float) -> void:
+	if dead or not is_inside_tree():
+		return
+	var launch := arrow_launch(spd)
+	var ar = _spawn_projectile("arrow", launch[0], launch[1], dmg, true, 2, spd, "", BowMythic.MOON.core)
+	ar.vis_offset = launch[2]
+	ar.trail = BowMythic.MOON
+	Network.send_event("arrow", launch[0], launch[1])
+	HolyFX.star(weapon_tip(), BowMythic.MOON, 0.5)
+
+
 func _cancel_draw() -> void:
 	drawing = false
 	draw_t = 0.0
+	_bow_full_at = -1.0
 	_bow_snap = false
 	_shot_queued = false
 
@@ -2062,8 +2113,13 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 		"bolt", "arrow", "light_orb":
 			var p := PROJECTILE.new()
 			p.kind = kind
-			p.direction = b
+			p.direction = b.normalized()
 			p.visual_only = true
+			if kind == "arrow":   # arco mítico: a réplica mostra fenda, chuva e espinheiro (o dano é do dono)
+				var rfx := str(ItemDB.get_item(_last_look.get("weapon", "")).get("fx", ""))
+				if BowMythicRules.is_mythic_fx(rfx):
+					p.fx = rfx
+					p.full = BowMythicRules.decode_full(b)
 			p.color = LIGHT_ORB_COLOR if kind == "light_orb" else ItemDB.get_item(_last_look.get("weapon", "")).get("color", Color(0.6, 0.8, 1.0))
 			p.element = Sfx.staff_element(_weapon_id())
 			if kind != "arrow":

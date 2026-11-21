@@ -1,7 +1,8 @@
 extends Area3D
 ## Projétil do ataque básico: "bolt" (cajado, faísca arcana), "light_orb" (cetro, esfera de luz curta) ou "arrow" (arco, com leve queda).
 ## "holy_lance" = Lança de Luz do cetro (ScepterAbilities; visual em HolyFX).
-## fx: "slow" deixa o alvo lento, "splash" explode em área, "pierce" atravessa inimigos.
+## fx: "slow" deixa o alvo lento, "splash" explode em área, "pierce" atravessa inimigos; os efeitos dos arcos
+## míticos (BowMythicRules.FX) chamam BowMythic no acerto e no fim do voo.
 
 var kind := "bolt"
 var direction := Vector3.FORWARD
@@ -14,6 +15,16 @@ var element := "arcane"
 var crit := false
 var pierce := 0
 var life := 1.6
+## Arco mítico: o tiro saiu com a tensão máxima (abre fenda, chuva, espinheiro, ricochete).
+var full := false
+## Rei dos Ventos: quantos ricochetes ainda restam.
+var bounces := 0
+## Paleta do rastro ({core, mid, edge}); vazia = a da arma (ou a do efeito mítico).
+var trail: Dictionary = {}
+## Voa reto, sem a queda da flecha (ricochete do Rei dos Ventos).
+var no_drop := false
+## Inimigos que esta flecha ignora (ricochete: os já atingidos pela flecha anterior).
+var skip_ids: Dictionary = {}
 ## Multiplayer: projétil de outro jogador — só o visual, sem dano.
 var visual_only := false
 ## Flecha: queda (m/s²). player.arrow_launch compensa na mira.
@@ -38,6 +49,7 @@ func _ready() -> void:
 	col.shape = sh
 	add_child(col)
 	_vel = direction.normalized() * speed
+	_hit = skip_ids.duplicate()
 	_vis = Node3D.new()
 	add_child(_vis)
 	if kind == "arrow":
@@ -93,8 +105,19 @@ func _build_arrow() -> void:
 	_vis.add_child(head)
 	# rastro desenhado atrás da flecha (lê `direction`, que acompanha a queda): fino e claro; a Flecha
 	# Glacial leva um rastro de gelo mais gordo
-	if fx == "glacial":
+	var mythic := BowMythic.trail_palette(fx)
+	if not trail.is_empty():
+		FXToon.comet(self, trail, 2.2, 0.1, false, _vis)
+	elif fx == "glacial":
 		FXToon.comet(self, FXToon.ICE, 2.6, 0.17, false, _vis)
+	elif not mythic.is_empty():
+		# flecha de arco mítico: rastro desenhado na cor do efeito, mais gordo no tiro tensionado, e faíscas
+		FXToon.comet(self, mythic, 3.0 if full else 2.2, 0.16 if full else 0.08, false, _vis)
+		var sparks := FXEpic.stream(_vis, "glow", BowMythic.particle_color(fx), 24 if full else 10, 0.45, 0.07)
+		if sparks:
+			sparks.gravity = Vector3.ZERO
+			sparks.initial_velocity_min = 0.2
+			sparks.initial_velocity_max = 0.8
 	else:
 		FXToon.comet(self, FXToon.light_palette(color), 1.7, 0.05, false, _vis)
 
@@ -108,7 +131,7 @@ func _orient() -> void:
 func _physics_process(delta: float) -> void:
 	if _done:
 		return
-	if kind == "arrow":
+	if kind == "arrow" and not no_drop:
 		_vel.y -= ARROW_DROP * delta
 		direction = _vel.normalized()      # o rastro desenhado segue a queda
 	global_position += _vel * delta
@@ -135,6 +158,8 @@ func _on_body(body: Node) -> void:
 			Sfx.play_at(_hit_sound(), global_position, 0.1, -2.0)
 		if not visual_only:
 			_damage(body, damage)
+		if BowMythicRules.is_mythic_fx(fx):
+			BowMythic.on_enemy_hit(self, body)
 		if fx == "splash":
 			_finish(true)
 		elif pierce > 0:
@@ -164,7 +189,9 @@ func _damage(e: Node, amount: float) -> void:
 		e.take_damage(dmg, global_position - _vel.normalized(), crit, 3.0, 1.5)
 		_ice_fx(e)
 	else:
-		e.take_damage(dmg, global_position - _vel.normalized(), crit, 2.5 if fx == "slow" else 0.0)
+		# Rei dos Ventos: `pull` negativo empurra para longe (Enemy.take_damage)
+		var push := -float(BowMythicRules.GALE.push) if fx == "gale" else 0.0
+		e.take_damage(dmg, global_position - _vel.normalized(), crit, 2.5 if fx == "slow" else 0.0, 0.0, push)
 	Game.on_damage_dealt(dmg, e.max_hp)
 	EnchantHit.on_hit(e, dmg)   # efeito do elemento da arma encantada
 
@@ -175,11 +202,18 @@ func _ice_fx(e: Node) -> void:
 	Sfx.play_at("frost_hit", e.global_position + Vector3.UP * 0.6, 0.1, -4.0)
 
 
+## Inimigos que esta flecha já atingiu (id -> true), para o ricochete não voltar neles.
+func hit_ids() -> Dictionary:
+	return _hit
+
+
 func _finish(impact: bool) -> void:
 	if _done:
 		return
 	_done = true
 	set_deferred("monitoring", false)
+	if BowMythicRules.is_mythic_fx(fx):   # alvo, chão ou fim do voo: fenda, chuva e espinheiro nascem ali
+		BowMythic.on_impact(self, global_position)
 	if fx == "splash" and impact:
 		if kind == "bolt" and element == "fire":
 			FXToon.fire_burst(global_position, 0.85)

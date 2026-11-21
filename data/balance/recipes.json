@@ -121,5 +121,9 @@
 	"axe_iron": {"station": "forge", "prof": "smithing", "level": 1, "ingredients": {"iron_ore": 4, "pine_log": 5}, "gold": 20, "out": "axe_iron", "qty": 1, "xp": 15, "learn": "npc"},
 	"axe_mithril": {"station": "forge", "prof": "smithing", "level": 15, "ingredients": {"mithril_ore": 4, "oak_log": 5}, "gold": 80, "out": "axe_mithril", "qty": 1, "xp": 60, "learn": "npc"},
 	"axe_crystal": {"station": "forge", "prof": "smithing", "level": 25, "ingredients": {"arcane_crystal": 3, "silver_ore": 2, "silverbirch_log": 5}, "gold": 200, "out": "axe_crystal", "qty": 1, "xp": 95, "learn": "npc"},
-	"axe_astral": {"station": "forge", "prof": "smithing", "level": 35, "ingredients": {"astralite_ore": 4, "arcane_crystal": 2, "ashwood_log": 5}, "gold": 400, "out": "axe_astral", "qty": 1, "xp": 125, "learn": "npc"}
+	"axe_astral": {"station": "forge", "prof": "smithing", "level": 35, "ingredients": {"astralite_ore": 4, "arcane_crystal": 2, "ashwood_log": 5}, "gold": 400, "out": "axe_astral", "qty": 1, "xp": 125, "learn": "npc"},
+	"dawn_bow": {"station": "leather", "prof": "leatherwork", "level": 49, "ingredients": {"hide_t5": 6, "soulwood_log": 3, "essence_t5": 3, "phoenix_staff": 1, "abyss_core": 1}, "gold": 245, "out": "dawn_bow", "qty": 1, "xp": 157, "learn": "scroll"},
+	"crescent_bow": {"station": "leather", "prof": "leatherwork", "level": 49, "ingredients": {"hide_t5": 6, "soulwood_log": 3, "essence_t5": 3, "mithril_ore": 8, "lich_phylactery": 2}, "gold": 245, "out": "crescent_bow", "qty": 1, "xp": 157, "learn": "scroll"},
+	"dragon_bow": {"station": "leather", "prof": "leatherwork", "level": 50, "ingredients": {"hide_t5": 6, "soulwood_log": 3, "essence_t5": 3, "goblin_crown": 1, "royal_jelly": 1, "knight_sigil": 1, "lich_phylactery": 1, "abyss_core": 1}, "gold": 250, "out": "dragon_bow", "qty": 1, "xp": 160, "learn": "scroll"},
+	"root_bow": {"station": "leather", "prof": "leatherwork", "level": 50, "ingredients": {"elven_bow": 1, "soulwood_log": 4, "essence_t5": 3, "pumpkin": 10, "mint": 10, "wheat": 10, "carrot": 10, "abyss_core": 1}, "gold": 250, "out": "root_bow", "qty": 1, "xp": 160, "learn": "scroll"}
 }

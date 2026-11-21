@@ -707,6 +707,7 @@ static func _build_bow(h: Node3D, tip: Node3D, id: String) -> Node3D:
 	if it.has("model"):
 		var w := _build_model(h, tip, it.model, Basis.IDENTITY)
 		if w != null:
+			BowAura.attach(w)   # arcos míticos: partículas nos empties "Aura_*" do GLB
 			return _model_bow_string(h, w, _model_arrow(h, w))
 	var wood := _bow_mat(id)
 	var half := 0.62 if it.rarity in ["rare", "epic", "legendary"] else 0.55

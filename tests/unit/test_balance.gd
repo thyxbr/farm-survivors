@@ -68,6 +68,12 @@ func test_roundtrip_matches_consts() -> void:
 					(snap_items[id] as Dictionary).erase(k)
 			T.ok(cur == snap_items, "tabela items igual ao snapshot (sem level, visual e o dano do Cutelo)")
 			continue
+		elif n == "rarity":
+			# a raridade Mítico (arcos de endgame) nasceu depois do snapshot: compara as de antes
+			cur = cur.duplicate(true)
+			cur.erase("mythic")
+			T.ok(cur == BalanceTables.decode(snap[n]), "tabela rarity igual ao snapshot (sem o Mítico)")
+			continue
 		elif n == "classes":
 			# a ficha da tela de criação (história, papel, perfil, emblema) é apresentação, não balanceamento
 			cur = cur.duplicate(true)
