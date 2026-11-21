@@ -621,6 +621,16 @@ func _physics_process(delta: float) -> void:
 		dist = to_player.length()
 
 	_track_target(player, delta)
+	# Égide Cristalina: com o alvo atrás da coroa (ele dentro, este monstro fora), o alvo vira a própria parede:
+	# a distância é até a coroa e o golpe vai para o escudo de quem ergueu (AegisWalls.blocking)
+	var strike: Node = player
+	if dist < INF and ai() != "worm":
+		var wall := AegisWalls.blocking(self, player)
+		if not wall.is_empty():
+			var c := AegisWalls.center(wall)
+			to_player = Vector3(c.x - global_position.x, 0.0, c.z - global_position.z)
+			dist = maxf(to_player.length() - AegisWalls.radius_now(wall), 0.05)
+			strike = wall.caster
 
 	haste_t = maxf(0.0, haste_t - delta)
 	var spd: float = data.speed * speed_mult * (0.45 if slow_timer > 0 else 1.0) * (1.3 if enraged else 1.0) \
@@ -732,7 +742,7 @@ func _physics_process(delta: float) -> void:
 			elif BurrowRules.should_emerge(global_position, tgt, dig_t, data):
 				_begin_emerge()
 		"attack":
-			_update_attack(delta, player, to_player, dist)
+			_update_attack(delta, strike, to_player, dist)
 			if attack_kind == "lunge" and attack_timer > 0.35 and attack_timer < 0.6:
 				move = model_forward() * spd * (2.0 if ai() in ["pack", "weaver", "flyer"] else 3.2)
 			elif dist < INF and (attack_timer < 0.35 or ((attack_kind in ["shoot", "web", "tongue", "cast"])
@@ -765,6 +775,8 @@ func _physics_process(delta: float) -> void:
 		velocity.x = 0.0
 		velocity.z = 0.0
 	move_and_slide()
+	if ai() != "worm":
+		AegisWalls.keep_out(self, radius)   # Égide erguida por perto: não entra (e é empurrado enquanto ela se forma)
 	_check_stuck(move, delta)
 	_animate(delta, Vector2(velocity.x, velocity.z).length())
 	if bar_root and bar_root.visible:
@@ -1838,10 +1850,19 @@ func _dynamite_blast(visual: bool) -> void:
 	if visual:
 		return
 	var pool: Array = get_parent().targets() if get_parent().has_method("targets") else get_tree().get_nodes_in_group("players")
+	var walls_hit := {}   # Égide: a explosão do lado de fora bate na coroa (uma vez por escudo), não em quem está dentro
 	for p in pool:
 		if not p.dead and p.global_position.distance_to(throw_point) <= r:
+			var ws := AegisWalls.shielded(p.global_position, throw_point, self)
+			if not ws.is_empty():
+				for w in ws:
+					walls_hit[w.caster] = true
+				continue
 			p.take_damage(vs(level, p, data.damage * dmg_mult * 1.2), throw_point)
 			p.add_shake(0.3)
+	for caster in walls_hit:
+		if is_instance_valid(caster) and not caster.dead:
+			caster.take_damage(vs(level, caster, data.damage * dmg_mult * 1.2), throw_point)
 
 
 ## A banana de dinamite voando em arco da mão até throw_point (só visual; some fora do arremesso).

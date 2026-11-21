@@ -381,6 +381,33 @@ const QUAKE := [
 		"leg_l": -0.55, "knee_l": 0.75, "leg_r": 0.35, "knee_r": 0.55}, "lin"],
 ]
 
+# ------------------------------------------------------------------ Égide Cristalina (espada + escudo, slot 1)
+## Guarda de escudo e tranco do golpe medidos no clipe "Sword And Shield Impact" do Mixamo (0,77 s; posições
+## dos ossos tiradas quadro a quadro por tools/aegis_probe.gd). O braço do escudo fica à frente, na altura do
+## ombro, com o antebraço atravessado na frente do peito (o escudo cobre o tronco); a espada fica baixa e para
+## trás. No golpe o escudo cede para baixo (0,1 s), o tronco recua e se abre (0,23 s) e volta à guarda.
+## Cada chave: [t (s do clipe), mão esq., cotovelo esq., mão dir., cotovelo dir., inclinação, giro, subida].
+## Mãos e cotovelos = deslocamento a partir do ombro, no espaço do modelo (+Z à frente, +X à esquerda), em m do
+## esqueleto do Mixamo (braço de AEGIS_GUARD_ARM m): KnightAnim escala pelo alcance do braço do cavaleiro e
+## põe as mãos por IK. Inclinação = tronco para a frente (rad, já reduzida para o cavaleiro), giro = ombros
+## (< 0: ombro esquerdo à frente; o clipe gira o dobro, aqui fica pela metade) e subida = quadril (m).
+const AEGIS_GUARD_ARM := 0.48
+const AEGIS_IMPACT_TIME := 0.77
+const AEGIS_GUARD := [
+	[0.0, Vector3(-0.23, -0.04, 0.26), Vector3(-0.01, -0.04, 0.26), Vector3(-0.05, -0.32, -0.34), Vector3(-0.01, -0.16, -0.20), 0.15, -0.6, 0.0],
+	[0.10, Vector3(-0.18, -0.23, 0.09), Vector3(0.03, -0.21, 0.14), Vector3(-0.08, -0.38, -0.27), Vector3(-0.03, -0.20, -0.16), 0.06, -0.42, 0.01],
+	[0.17, Vector3(-0.11, -0.20, 0.23), Vector3(0.09, -0.18, 0.15), Vector3(-0.12, -0.39, -0.22), Vector3(-0.05, -0.21, -0.14), -0.02, -0.36, 0.03],
+	[0.23, Vector3(-0.09, -0.10, 0.27), Vector3(0.11, -0.13, 0.20), Vector3(-0.15, -0.40, -0.19), Vector3(-0.06, -0.21, -0.13), -0.06, -0.33, 0.04],
+	[0.30, Vector3(-0.11, -0.05, 0.30), Vector3(0.09, -0.07, 0.22), Vector3(-0.14, -0.40, -0.19), Vector3(-0.05, -0.21, -0.13), -0.04, -0.37, 0.04],
+	[0.40, Vector3(-0.15, -0.05, 0.32), Vector3(0.05, -0.06, 0.24), Vector3(-0.12, -0.37, -0.25), Vector3(-0.03, -0.20, -0.16), 0.02, -0.44, 0.03],
+	[0.50, Vector3(-0.20, -0.05, 0.30), Vector3(0.01, -0.06, 0.25), Vector3(-0.09, -0.33, -0.31), Vector3(-0.01, -0.17, -0.19), 0.11, -0.52, 0.02],
+	[0.60, Vector3(-0.23, -0.05, 0.28), Vector3(-0.01, -0.06, 0.25), Vector3(-0.06, -0.31, -0.34), Vector3(0.0, -0.16, -0.20), 0.15, -0.57, 0.01],
+	[0.77, Vector3(-0.23, -0.04, 0.26), Vector3(-0.01, -0.04, 0.26), Vector3(-0.05, -0.32, -0.34), Vector3(-0.01, -0.16, -0.20), 0.15, -0.6, 0.0],
+]
+## Base da guarda: pernas afastadas (esquerda à frente, joelhos dobrados), quadril meio de lado e mais baixo.
+const AEGIS_STANCE := {"leg_l": -0.42, "knee_l": 0.55, "leg_r": 0.32, "knee_r": 0.5, "hip_twist": -0.3, "body_y": -0.07}
+const AEGIS_RAISE := 0.18      ## tempo para erguer o escudo (s)
+
 # ------------------------------------------------------------------ coleta (GatherAction; um ciclo = um golpe)
 ## As duas mãos no cabo: a direita no suporte da arma, a esquerda por IK neste ponto do cabo (espaço do suporte:
 ## o cabo sobe em +Z, a esquerda pega abaixo da direita) com o cotovelo apontando para POLE.

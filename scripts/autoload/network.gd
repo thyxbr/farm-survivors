@@ -1011,6 +1011,11 @@ func _player_event(kind: String, a: Vector3, b: Vector3) -> void:
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id):
 		return
+	# a Égide também vale no servidor (é quem move os monstros e os projéteis): a réplica registra a parede
+	if kind.begins_with(ShieldAbilities.ID):
+		var srp: Player = remote_players.get(id)
+		if srp and is_instance_valid(srp):
+			srp.play_remote_event(kind, a, b)
 	for pid in zone_peers(zone_of(id)):
 		if pid != id:
 			_player_event_relay.rpc_id(pid, id, kind, a, b)

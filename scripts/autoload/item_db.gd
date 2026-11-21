@@ -45,6 +45,9 @@ const ABILITIES := {
 		"ready": true, "ultimate": true, "icon": "fireball", "desc": "Ultimate: segure para canalizar uma chuva de meteoros sobre a área mirada."},
 	"sword_charge": {"name": "Investida", "class": "sword", "slot": 1, "level": 1, "cooldown": 6.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "saber", "desc": "Avança sobre os inimigos à frente, causando dano."},
+	# "offhand": só entra no kit com essa mão secundária, no lugar da habilidade do mesmo slot (ver kit())
+	"sword_aegis": {"name": "Égide Cristalina", "class": "sword", "offhand": "shield", "slot": 1, "level": 1, "cooldown": 8.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "ward", "desc": "Com escudo: segure a tecla para fincar o escudo no chão (parado) e erguer uma coroa de placas de cristal em volta (cabe o grupo). Ao se formar ela empurra os monstros; até se partir nenhum monstro nem projétil entra, e os golpes nela gastam a integridade (70 + 9 por nível + 4 por defesa). Soltar a tecla desfaz a barreira. A recarga conta depois que ela acaba (mais longa se quebrar)."},
 	"sword_quake": {"name": "Golpe Sísmico", "class": "sword", "slot": 2, "level": 3, "cooldown": 9.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "greatsword", "desc": "Golpe no chão: dano em área e atordoamento."},
 	"sword_fury": {"name": "Fúria Picante", "class": "sword", "slot": 3, "level": 5, "cooldown": 28.0, "cost": 0,
@@ -62,12 +65,24 @@ const ABILITIES := {
 }
 
 
-## Ids das habilidades de uma classe de arma, ordenados por slot.
-static func kit(cls: String) -> Array[String]:
+## Ids das habilidades de uma classe de arma, ordenados por slot. `offhand` = tipo da mão secundária
+## ("shield", ou "" sem): uma habilidade com "offhand" igual troca a do mesmo slot (espada + escudo: a Égide
+## Cristalina no lugar da Investida); sem a mão secundária certa ela fica de fora.
+static func kit(cls: String, offhand := "") -> Array[String]:
 	var ids: Array[String] = []
+	var alt := {}
 	for id in ABILITIES:
-		if ABILITIES[id]["class"] == cls:
+		if ABILITIES[id]["class"] != cls:
+			continue
+		var need: String = ABILITIES[id].get("offhand", "")
+		if need == "":
 			ids.append(id)
+		elif need == offhand:
+			alt[int(ABILITIES[id].slot)] = id
+	for i in ids.size():
+		var s := int(ABILITIES[ids[i]].slot)
+		if alt.has(s):
+			ids[i] = alt[s]
 	ids.sort_custom(func(a: String, b: String) -> bool: return ABILITIES[a].slot < ABILITIES[b].slot)
 	return ids
 
