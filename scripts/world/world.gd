@@ -13,6 +13,11 @@ const M := {
 	"shop_smithy": preload("res://assets/models/shop_smithy.glb"),
 	"shop_alchemist": preload("res://assets/models/shop_alchemist.glb"),
 	"shop_merchant": preload("res://assets/models/shop_merchant.glb"),
+	"shop_workshop": preload("res://assets/models/shop_workshop.glb"),
+	"shop_alchemy_lab": preload("res://assets/models/shop_alchemy_lab.glb"),
+	"stall_cloth": preload("res://assets/models/stall_cloth.glb"),
+	"stall_farm": preload("res://assets/models/stall_farm.glb"),
+	"stall_goods": preload("res://assets/models/stall_goods.glb"),
 	"tree_pine": preload("res://assets/models/tree_pine.glb"),
 	"tree_oak": preload("res://assets/models/tree_oak.glb"),
 	"tree_fir": preload("res://assets/models/tree_fir.glb"),
@@ -78,26 +83,27 @@ const MAP_HALF := 125.0
 ## Lugares com nome dos mapas: vêm dos landmarks das cenas (MapLandmark: village_spawn, ruins, camp, portal,
 ## horde_return, farm, nest, orchard, pond no vale) e da raiz da Arena quando os mapas são montados; os valores
 ## abaixo só valem antes disso.
-var VILLAGE_SPAWN := Vector3(0, 0.3, 6)
+var VILLAGE_SPAWN := Vector3(0, 0.3, 116)
 var RUINS := Vector3(0, 0, -100)
 var CAMP := Vector3(86, 0, 0)
 ## Arena do Desafio da Horda: mapa próprio (scenes/maps/arena.tscn), longe ao norte, fora de Valdoria.
 var ARENA := Vector3(0, 0, -1000)
 ## Metade do lado do chão da arena (MapRoot.half da cena da Arena).
 var ARENA_HALF := 70.0
-var PORTAL_POS := Vector3(-8, 0, -9.5)
+var PORTAL_POS := Vector3(-28, 0, 54)
 ## Onde o jogador volta ao fim do Desafio: na frente do portal da vila.
-var HORDE_RETURN := Vector3(-8, 0.5, -6.5)
-var FARM := Vector3(0, 0, 33)          # Horta da Vila (saída sul)
-var NEST := Vector3(-36, 0, 36)        # Ninho de Slimes (sudoeste da vila)
+var HORDE_RETURN := Vector3(-28, 0.5, 57.5)
+var FARM := Vector3(-18, 0, 33)        # Horta da Vila (saída norte)
+var NEST := Vector3(-60, 0, 46)        # Ninho de Slimes (noroeste da vila)
 ## Lagoa do oeste, casa dos Bocarrões.
 var POND := Vector3(-80, 0, 15)
-var ORCHARD := Vector3(20, 0, 33)      # pomar a leste da Horta
+var ORCHARD := Vector3(20, 0, 33)      # pomar do outro lado da estrada, na frente da Horta
 
 var player: Player
 var hud
 var ui_layer: CanvasLayer
 var modal: Control = null
+var dock: WindowDock
 var boss: Enemy = null
 var survival: Node3D = null
 var chat: CanvasLayer = null
@@ -182,6 +188,8 @@ func _ready() -> void:
 
 	_setup_resource_nodes()
 	player = PLAYER.new()
+	# personagem novo (ou sem lugar salvo) chega pela estrada do sul, olhando para a vila
+	player.spawn_point = VILLAGE_SPAWN + Vector3(0, 0.2, 0)
 	add_child(player)
 	player.died.connect(_on_player_died)
 
@@ -199,6 +207,9 @@ func _ready() -> void:
 	ui_layer.layer = 10
 	ui_layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(ui_layer)
+	dock = WindowDock.new()
+	dock.world = self
+	ui_layer.add_child(dock)
 
 	Game.quests_changed.connect(_check_boss)
 	_check_boss()
@@ -330,7 +341,7 @@ func _build_buildings() -> void:
 		var xf := VillageLayout.xform(b)
 		if model == "well":
 			prop("well", b.pos, b.yaw, 1.0, "cyl", Vector3(0.95, 1.2, 0))
-		elif model.begins_with("shop_"):
+		elif VillageLayout.is_shop(model):
 			var sh: Array = VillageLayout.SHOP_SHAPES[model]
 			_shop(model, b.pos, b.yaw, sh[0], sh[1], sh[2])
 			_shop_keeper(model, xf)
@@ -362,21 +373,11 @@ func _house(b: Dictionary, xf: Transform3D, i: int) -> void:
 			prop(kind, fp, rng.randf() * TAU, rng.randf_range(0.9, 1.2))
 
 
-## O dono de cada loja na frente dela: a Mira no balcão do empório, a Pip na porta da botica e o ferreiro na
-## ferraria (a origem da ferraria é o lugar dele; a bigorna e a forja ficam em volta).
+## O ferreiro na ferraria (a origem da ferraria é o lugar dele; a bigorna e a forja ficam em volta). A Mira e a
+## Pip são nós próprios na cena (MapEntity merchant/alchemist), que se movem à parte da loja.
 func _shop_keeper(model: String, xf: Transform3D) -> void:
 	var yaw := xf.basis.get_euler().y
 	match model:
-		"shop_merchant":
-			var merchant := MERCHANT.new()
-			merchant.position = xf * VillageLayout.MERCHANT_SPOT
-			merchant.rotation.y = yaw
-			add_child(merchant)
-		"shop_alchemist":
-			var pip := ALCHEMIST.new()
-			pip.position = xf * VillageLayout.ALCHEMIST_SPOT
-			pip.rotation.y = yaw
-			add_child(pip)
 		"shop_smithy":
 			var smith := BLACKSMITH.new()
 			smith.position = xf.origin
@@ -460,9 +461,7 @@ func start_survival() -> void:
 func start_survival_net(team: Dictionary, slot: int, round_time: float) -> void:
 	if survival != null or player == null:
 		return
-	if modal != null:
-		modal.queue_free()
-		_on_modal_closed()
+	close_ui()
 	if player.dead:
 		player.revive(ARENA)
 	survival = SURVIVAL.new()
@@ -568,6 +567,7 @@ func _spawn(entry: Dictionary) -> void:
 	e.elite = entry.get("elite", false)
 	e.area = str(entry.get("area", ""))
 	e.chief = bool(entry.get("chief", false))
+	e.arena = entry.get("arena", Rect2())
 	e.level = ProgressionRules.spawn_level(Balance.tables, entry.get("level", 0), entry.get("level_max", 0), e.elite, _spawn_rng)
 	e.position = entry.pos + Vector3.UP * 0.2
 	add_child(e)
@@ -770,20 +770,74 @@ func open_world_map(tab := 0) -> void:
 	_open_modal(m)
 
 
+## Menu do herói: a aba 0 é o inventário (janela da direita); 1-4 são Personagem, Talentos, Missões e
+## Profissões, na janela da esquerda.
 func _open_menu(tab: int) -> void:
 	var m := GAME_MENU.new()
-	m.start_tab = tab
+	m.mode = "inventory" if tab == 0 else "hero"
+	m.start_tab = maxi(0, tab - 1)
 	_open_modal(m)
 
 
-## Narração de abertura da história (personagem novo, primeira vez no mundo). Não roda nos testes.
+## Atalho apertado com janelas abertas (WindowDock): abre a janela; se ela já está aberta na mesma aba, fecha.
+func toggle_window(action: String) -> void:
+	var spec: Array = WindowDock.HOTKEYS[action]
+	var cur: Control = dock.at(spec[0])
+	var tab: int = spec[1]
+	if cur != null and cur.get_script() == GAME_MENU and tab >= 0:
+		var want := "inventory" if tab == 0 else "hero"
+		if cur.mode == want:
+			if tab == 0 or cur.book.current_page() == tab - 1:
+				WindowDock.close_window(cur)
+			else:
+				cur._show_tab(tab - 1)
+			return
+	if cur != null and cur.get_script() == WORLD_MAP_UI and tab < 0:
+		var page: int = cur.book.page_for_action(action)
+		if cur.book.current_page() == page:
+			WindowDock.close_window(cur)
+		else:
+			cur.book.show_page(page)
+		return
+	if tab >= 0:
+		_open_menu(tab)
+	elif action == "party":
+		open_world_map(WORLD_MAP_UI.TAB_PARTY)
+	else:
+		open_world_map(WORLD_MAP_UI.TAB_FRIENDS)
+
+
+## Fecha tudo que está na tela: janelas laterais e a janela modal.
+func close_ui() -> void:
+	dock.close_all()
+	if modal != null:
+		modal.queue_free()
+		_on_modal_closed()
+
+
+## Abertura da história (personagem novo, primeira vez no mundo): a cena da chegada (ArrivalCutscene: o
+## corpo do herói é montado em luz, dos pés à cabeça) e depois a narração. Não roda nos testes.
+## `-- --introdemo` força a abertura num personagem novo descartável (para capturas).
 func _play_intro() -> void:
 	var args := OS.get_cmdline_user_args()
 	if DisplayServer.get_name() == "headless" or "--smoketest" in args or "--nointro" in args \
 			or Array(args).any(func(a: String) -> bool: return a.begins_with("--nettest")):
 		return
-	await get_tree().create_timer(1.5).timeout
-	if is_inside_tree() and modal == null and not Loading.covering and survival == null:
+	await get_tree().create_timer(0.3).timeout
+	# espera a tela de carregamento sair (a cena começa em preto, então nada do mapa aparece antes)
+	var waited := 0.0
+	while is_inside_tree() and Loading.covering and waited < 30.0:
+		await get_tree().process_frame
+		waited += get_process_delta_time()
+	if not is_inside_tree() or modal != null or survival != null or player == null:
+		return
+	var cut := ArrivalCutscene.new()
+	cut.world = self
+	cut.player = player
+	add_child(cut)
+	await cut.finished
+	await get_tree().create_timer(0.4).timeout
+	if is_inside_tree() and modal == null and survival == null:
 		open_dialogue("", StoryDialogue.intro())
 
 
@@ -878,8 +932,11 @@ func _finish_closeup() -> void:
 		closeup_cam = null
 
 
-func open_shop() -> void:
-	_open_modal(SHOP.new())
+## Loja: `stall` = a barraca de quem abriu (ShopUI.STALLS); "" = o estoque inteiro.
+func open_shop(stall := "") -> void:
+	var ui := SHOP.new()
+	ui.stall = stall
+	_open_modal(ui)
 
 
 ## Painel de encantamento do ferreiro. `smith` = quem abriu (bate na bigorna quando o encanto sai).
@@ -924,15 +981,65 @@ func open_modal(c: Control) -> void:
 	_open_modal(c)
 
 
+## Janela com `dock_side` ("left"/"right") encaixa ao lado das outras (WindowDock); o resto (diálogo,
+## pausa, mapa, cartas da Horda) é modal: uma por vez, e fecha as janelas laterais ao abrir.
+## `modal` aponta para a última janela aberta; fica null quando nada está na tela.
 func _open_modal(c: Control) -> void:
-	if modal != null:
+	var side = c.get("dock_side")
+	if side is String and side != "":
+		_open_docked(c, side)
 		return
+	if modal != null:
+		if not dock.has(modal):
+			return
+		dock.close_all()
 	modal = c
 	ui_layer.add_child(c)
 	c.closed.connect(_on_modal_closed)
+	_ui_shown()
+
+
+func _open_docked(c: Control, side: String, opener: Control = null) -> void:
+	if modal != null and not dock.has(modal):
+		return   # diálogo, pausa etc. na frente
+	var first := not dock.is_open()
+	dock.put(c, side, opener)
+	ui_layer.add_child(c)
+	c.closed.connect(_on_docked_closed.bind(c))
+	modal = c
+	if first:
+		_ui_shown()
+	# estação que mexe com a mochila abre o inventário do outro lado (e ele fecha junto com ela)
+	if opener == null and c.get("wants_inventory") == true and dock.at("right") == null:
+		var inv := GAME_MENU.new()
+		inv.mode = "inventory"
+		_open_docked(inv, "right", c)
+		modal = c
+	_link_trade()
+	dock.settle(c)
+
+
+func _ui_shown() -> void:
 	_set_paused(true)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	hud.visible = false
+
+
+func _on_docked_closed(c: Control) -> void:
+	dock.forget(c)
+	if modal == c:
+		modal = dock.find(func(_w: Control) -> bool: return true)
+	_link_trade()
+	if not dock.is_open():
+		_on_modal_closed()
+
+
+## Inventário aberto ao lado de uma loja: clique direito na mochila vende (a loja recebe o item).
+func _link_trade() -> void:
+	var inv: Control = dock.at("right")
+	if inv != null and inv.get_script() == GAME_MENU:
+		var left: Control = dock.at("left")
+		inv.set_trade(left if left != null and left.has_method("trade_item") else null)
 
 
 ## No multiplayer o mundo não para: só o controle do jogador fica travado.
@@ -959,6 +1066,7 @@ func _on_player_died() -> void:
 		survival.on_player_died()
 		return
 	await get_tree().create_timer(1.8).timeout
+	dock.close_all()
 	if modal != null:
 		modal.queue_free()
 		modal = null
@@ -998,10 +1106,21 @@ func make_entity(e: MapEntity) -> Node3D:
 			n = ELDER.new()
 		"rival":
 			n = RIVAL.new()
+		"merchant":
+			n = MERCHANT.new()
+		"alchemist":
+			n = ALCHEMIST.new()
 		"npc":
 			n = RegionBuilder.npc(e.ref, e.global_position, yaw)
 			if e.params.has("npc_id"):
 				n.set("npc_id", e.params.npc_id)
+		"walker":
+			var path: Array = e.walk_path()
+			n = RegionBuilder.walker(e.ref, path)
+			if path.size() >= 2:   # nasce no primeiro ponto do caminho (o _ready assenta no chão)
+				var p0: Array = path[0]
+				n.position = Vector3(float(p0[0]), e.global_position.y, float(p0[1]))
+				return n
 		"story_point":
 			n = RegionBuilder.point(e.ref, e.global_position, yaw)
 		"hub_point":
@@ -1124,6 +1243,11 @@ func use_dungeon_door(target: String) -> void:
 	if target == "out":
 		var here := Regions.region_at(player.global_position)
 		_teleport(Regions.door_point(here), Regions.display_name(Regions.parent_of(here)), "SAINDO DA DUNGEON")
+		return
+	if target == "entrance":   # portal da sala do chefe, depois que ele cai
+		var dg := Regions.region_at(player.global_position)
+		if Regions.is_dungeon(dg):
+			_teleport(Regions.arrive_point(dg), Regions.display_name(dg), "ENTRADA DA DUNGEON")
 		return
 	if not Regions.is_dungeon(target):
 		return

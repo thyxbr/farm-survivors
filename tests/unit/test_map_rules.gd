@@ -35,22 +35,22 @@ func test_heading_north_is_zero() -> void:
 
 
 ## Os lugares do mapa e a carruagem vêm dos landmarks da cena do mapa (MapLandmark): mover o nó no editor muda o
-## minimapa e a viagem. Os valores abaixo são os de antes da conversão para cenas.
+## minimapa e a viagem. Os valores abaixo são os da vila no sul do vale (0.61.0).
 func test_places_come_from_landmarks() -> void:
 	var at := {}
 	for p in MapRules.places("vila"):
 		at[p[0]] = p[1]
-	T.eq(at.get("Horta"), Vector3(0, 0, 33), "Horta")
+	T.eq(at.get("Horta"), Vector3(-18, 0, 33), "Horta, logo ao norte da vila, a oeste da estrada")
 	T.eq(at.get("Pomar"), Vector3(20, 0, 33), "pomar")
 	T.ok(not at.has("Acampamento Goblin") and not at.has("Ruínas") and not at.has("Ninho de Slimes"),
 		"acampamento, ruínas e ninho viraram regiões (MapRules.areas)")
 	T.eq(at.get("Portal da Horda"), MapData.landmark("vila", "portal"), "o portal da Horda pelo landmark portal")
-	T.eq(at.get("Portal da Horda"), Vector3(-8, 0, -9.5), "portal da Horda na frente da vila")
+	T.eq(at.get("Portal da Horda"), Vector3(-28, 0, 54), "portal da Horda no Largo dos Ecos da vila")
 
 
 func test_coach_and_arrive_from_landmarks() -> void:
 	T.eq(Regions.coach_point("vila"), MapData.landmark("vila", "coach"), "carruagem do vale pelo landmark")
-	T.eq(Regions.coach_point("vila"), Vector3(-7.5, 0, -18.0), "carruagem do vale no lugar de sempre")
+	T.eq(Regions.coach_point("vila"), Vector3(7.6, 0, 42.0), "carruagem do vale fora do portão norte")
 	T.eq(Regions.arrive_point("mina"), Vector3(800, 0.3, 52.0), "chegada na Mina no lugar de sempre")
 	T.ok(not Regions.DATA.vila.has("coach") and not Regions.DATA.mina.has("arrive"),
 		"carruagem e chegada saíram do Regions.DATA (só a cena manda)")

@@ -54,9 +54,12 @@ static func build(w: Node3D, map_id: String) -> MapRoot:
 				# nascem com mais jogadores dentro. O chefe volta em minutos (progression.json "dungeons").
 				var dungeon := Regions.is_dungeon(map_id)
 				var base := count
-				if dungeon:
-					count = DungeonRules.max_population(Balance.tables, base)
 				var boss_kind: bool = Balance.tables.get_table("enemies").get(n.kind, {}).get("boss", false) or n.chief
+				if dungeon and boss_kind:
+					count = 1   # um chefe só na sala, com qualquer número de jogadores
+					base = 1
+				elif dungeon:
+					count = DungeonRules.max_population(Balance.tables, base)
 				var pts: Array[Vector3] = EnemySpawn.spread(n.global_position, count, n.radius)
 				if n.follow_ground and ground != null:
 					# cada um no chão de onde cai (o centro já foi assentado: a distância salva é y - chão)
@@ -72,6 +75,8 @@ static func build(w: Node3D, map_id: String) -> MapRoot:
 							"level": lv.x, "level_max": lv.y, "elite": n.elite, "area": area}
 					if dungeon:
 						entry.merge({"dungeon": map_id, "slot": i, "base": base, "boss": boss_kind, "chief": n.chief})
+						if boss_kind:
+							entry["arena"] = boss_arena(root, n.global_position)
 					if n.night_only:
 						entry["night"] = true   # bicho da noite (o mundo segura de dia)
 					list.append(entry)
@@ -82,8 +87,40 @@ static func build(w: Node3D, map_id: String) -> MapRoot:
 		elif n is MapGrassArea:
 			var c: Vector3 = n.global_position
 			(sparse if n.sparse else keep).append([Vector2(c.x, c.z), n.radius])
+		elif n is MapDungeon:
+			(n as MapDungeon).build_game()
+			_boss_portals(w, root)
+		elif n is MapRiver:
+			(n as MapRiver).build_game()
+			keep.append_array((n as MapRiver).grass_discs(Vector2(o.x, o.z)))
 	w.grass_areas[map_id] = {"keep_out": keep, "sparse": sparse}
 	return root
+
+
+## Portal de volta à entrada no meio de cada sala do chefe (abre quando o chefe cai; DungeonDoor "entrance").
+static func _boss_portals(w: Node3D, root: MapRoot) -> void:
+	for r: MapDungeonRoom in root.pieces(MapDungeonRoom):
+		if not r.boss:
+			continue
+		var door: Node3D = load("res://scripts/world/dungeon_door.gd").new()
+		door.target = "entrance"
+		var c := r.global_position
+		door.arena = Rect2(Vector2(c.x, c.z) - r.size / 2.0, r.size)
+		door.name = "BossPortal_" + root.map_id
+		w.add_child(door)
+		door.global_position = Vector3(c.x, 0.0, c.z)
+
+
+## Sala do chefe (MapDungeonRoom com `boss`) onde fica o ponto, em x, z do mundo (vazio se não estiver numa).
+static func boss_arena(root: MapRoot, pos: Vector3) -> Rect2:
+	for r: MapDungeonRoom in root.pieces(MapDungeonRoom):
+		if not r.boss:
+			continue
+		var c := r.global_position
+		var rect := Rect2(Vector2(c.x, c.z) - r.size / 2.0, r.size)
+		if rect.has_point(Vector2(pos.x, pos.z)):
+			return rect
+	return Rect2()
 
 
 ## Assenta no relevo as peças de topo com follow_ground (as que estão dentro de outra peça vão junto com ela):

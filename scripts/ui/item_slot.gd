@@ -210,7 +210,7 @@ func _draw() -> void:
 		IconPainter.draw(self, ghost_kind, Color(0.2, 0.125, 0.065, 0.28) if paper else Color(1, 1, 1, 0.1), ir, true)
 	if dim:
 		# sobre papel o ícone desbota para a cor da página em vez de escurecer
-		draw_rect(r.grow(-2), Color(UITheme.PAGE, 0.62) if paper else Color(0, 0, 0, 0.55))
+		draw_rect(r.grow(-3), Color(UITheme.PAGE, 0.45) if paper else Color(0, 0, 0, 0.55))
 	# recarga radial (fatia escura que diminui no sentido horário)
 	if cooldown > 0.0:
 		var c := r.get_center()
@@ -272,24 +272,46 @@ func _text(font: Font, t: String, pos: Vector2, fs: int, col: Color, align: Hori
 	draw_string(font, p, t, align, w, fs, col)
 
 
+## Espaço sobre o pergaminho: um poço com aro de bronze em bisel (luz em cima/esquerda) e fundo em degradê,
+## tingido pela raridade do item; o aro interno também fica na cor da raridade.
 func _draw_paper(r: Rect2, has_item: bool, rc: Color) -> void:
-	var box := StyleBoxFlat.new()
-	box.set_corner_radius_all(4)
-	box.set_border_width_all(2)
-	box.bg_color = Color(0.2, 0.125, 0.065, 0.1)
-	box.border_color = Color(0.2, 0.125, 0.065, 0.45)
+	var rank := 0
 	if has_item:
-		# papel tingido de leve pela raridade, com a borda na cor dela
-		var rank: int = ItemDB.RARITY[ItemDB.rarity_of(item_id)].rank
-		var w := 0.1 + rank * 0.05
-		box.bg_color = Color(rc.r * 0.7, rc.g * 0.7, rc.b * 0.7, w) if rank > 0 else box.bg_color
-		box.border_color = rc.darkened(0.35) if rank > 0 else Color(0.2, 0.125, 0.065, 0.7)
+		rank = int(ItemDB.RARITY[ItemDB.rarity_of(item_id)].rank)
+	# aro externo de bronze em bisel
+	var outer := StyleBoxFlat.new()
+	outer.set_corner_radius_all(5)
+	outer.bg_color = Color(0.43, 0.3, 0.16)
+	outer.border_color = Color(0.13, 0.08, 0.04)
+	outer.set_border_width_all(1)
+	draw_style_box(outer, r)
+	draw_line(r.position + Vector2(3, 1.5), Vector2(r.end.x - 3, r.position.y + 1.5), Color(0.86, 0.7, 0.44), 1.0)
+	draw_line(r.position + Vector2(1.5, 3), Vector2(r.position.x + 1.5, r.end.y - 3), Color(0.76, 0.6, 0.36), 1.0)
+	# fundo: degradê de cima (claro) para baixo, puxado para a cor da raridade
+	var top := Color(0.84, 0.76, 0.6)
+	var bottom := Color(0.62, 0.52, 0.38)
+	if rank > 0:
+		top = top.lerp(rc, 0.28 + rank * 0.04)
+		bottom = bottom.lerp(rc.darkened(0.35), 0.4 + rank * 0.05)
+	var w := r.grow(-3)
+	draw_polygon(PackedVector2Array([w.position, Vector2(w.end.x, w.position.y), w.end, Vector2(w.position.x, w.end.y)]),
+		PackedColorArray([top, top, bottom, bottom]))
+	# sombra interna no alto (o poço é fundo)
+	for k in 4:
+		draw_line(w.position + Vector2(0, k + 0.5), Vector2(w.end.x, w.position.y + k + 0.5), Color(0.15, 0.08, 0.02, 0.22 * (1.0 - k / 4.0)), 1.0)
+	# aro interno: raridade, seleção, alvo de soltar ou mouse por cima
+	var ring := Color(0.2, 0.13, 0.07, 0.55)
+	var rw := 1.0
+	if rank > 0:
+		ring = rc.darkened(0.15)
+		rw = 2.0
 	if selected:
-		box.border_color = UITheme.INK_RED
-		box.set_border_width_all(3)
+		ring = UITheme.INK_RED
+		rw = 3.0
 	elif drop_hint:
-		box.border_color = Color(0.1, 0.45, 0.12)
-		box.set_border_width_all(3)
+		ring = Color(0.1, 0.45, 0.12)
+		rw = 3.0
 	elif _hover:
-		box.border_color = UITheme.INK
-	draw_style_box(box, r)
+		ring = Color(1.0, 0.86, 0.5)
+		rw = 2.0
+	draw_rect(w.grow(-rw * 0.5), ring, false, rw)

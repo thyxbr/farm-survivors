@@ -1,7 +1,7 @@
 class_name TalentPanel
 extends HBoxContainer
-## Aba Talentos do menu do herói (abertura do livro): página esquerda com os pontos livres, como a árvore
-## abre, os bônus em vigor e onde redistribuir (Lina, na Guilda); página direita com os 3 ramos da classe
+## Aba Talentos do menu do herói: à esquerda os pontos livres, onde redistribuir (Lina, na Guilda) e as
+## habilidades da classe; à direita os 3 ramos da classe
 ## em colunas, cada talento um cartão com ícone na cor do ramo, nível x/3 e o botão "+".
 ## O pedido vai por Game.learn_talent (Econ: no solo o serviço local, online o servidor decide); a aba só
 ## redesenha quando o estado volta (refresh). Regras: CharRules (talentos) + data/balance/talents.json.
@@ -37,7 +37,7 @@ var _right: VBoxContainer
 
 
 func _init() -> void:
-	add_theme_constant_override("separation", int(BookLayout.SPINE))
+	add_theme_constant_override("separation", int(BookLayout.COL_GAP))
 	for i in 2:
 		var v := VBoxContainer.new()
 		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -45,6 +45,7 @@ func _init() -> void:
 		add_child(v)
 		if i == 0:
 			_left = v
+			v.size_flags_stretch_ratio = 0.62   # habilidades numa coluna mais estreita que a árvore
 		else:
 			_right = v
 
@@ -87,47 +88,54 @@ func _build_left() -> void:
 	pv.add_child(UITheme.ink("%d gastos · 1 ponto por nível a partir do 2" % spent, 14, UITheme.INK_DIM))
 	ch.add_child(pv)
 	lv.add_child(chip)
+	var cost := Game.talent_reset_cost()
+	var price := "grátis até o nível 5" if cost == 0 else "%d de ouro" % cost
+	reset_label = UITheme.ink("Redistribuir: fale com a Lina, na Guilda (%s)." % price, 14, UITheme.INK_DIM)
+	reset_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lv.add_child(reset_label)
 	if Game.char_class == "":
 		var none := UITheme.ink("Escolha uma classe para abrir a árvore de talentos.", 16, UITheme.INK_DIM)
 		none.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lv.add_child(none)
-	lv.add_child(_gap(2))
-	lv.add_child(UITheme.ink_section("Como funciona", 20))
-	var how := UITheme.ink("Três ramos, três linhas cada. A linha 2 abre com 3 pontos gastos no ramo; a linha 3, com 6. "
-		+ "Cada talento vai até 3/3 e vale na hora.", 15)
-	how.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lv.add_child(how)
-	lv.add_child(_gap(2))
-	lv.add_child(UITheme.ink_section("Em vigor", 20))
-	var any := false
-	for d in CharRules.talent_defs(Balance.tables, Game.char_class):
-		var lvl := int(Game.talents.get(d.id, 0))
-		if lvl <= 0:
-			continue
-		any = true
+		return
+	lv.add_child(_gap(4))
+	_abilities(lv)
+
+
+## Habilidades da classe (ícone com a tecla, custo e recarga, descrição; as que ainda não sabe dizem o nível).
+func _abilities(lv: VBoxContainer) -> void:
+	lv.add_child(UITheme.ink_section("Habilidades", 20))
+	for id in Game.ability_kit():
+		var sp: Dictionary = ItemDB.ABILITIES[id]
+		var known := Game.knows_ability(id)
+		var card := PanelContainer.new()
+		card.add_theme_stylebox_override("panel", UITheme.ink_inset(8))
 		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 8)
-		var strip := ColorRect.new()
-		strip.color = BRANCH_COLORS.get(d.branch, UITheme.INK)
-		strip.custom_minimum_size = Vector2(4, 0)
-		row.add_child(strip)
-		row.add_child(UITheme.ink("%s %d/%d" % [d.name, lvl, int(d.max)], 15, UITheme.INK, true))
-		var dl := UITheme.ink(str(d.desc), 13, UITheme.INK_DIM)
-		dl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		dl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		dl.clip_text = true
-		dl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		row.add_child(dl)
-		lv.add_child(row)
-	if not any:
-		lv.add_child(UITheme.ink("Nenhum talento aprendido ainda.", 15, UITheme.INK_DIM))
-	lv.add_child(_gap(2))
-	lv.add_child(UITheme.ink_section("Redistribuir", 20))
-	var cost := Game.talent_reset_cost()
-	var price := "grátis até o nível 5" if cost == 0 else "%d de ouro (50 × nível)" % cost
-	reset_label = UITheme.ink("Fale com a Lina, na Guilda, para devolver todos os pontos e escolher de novo. Custo agora: %s." % price, 15)
-	reset_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lv.add_child(reset_label)
+		row.add_theme_constant_override("separation", 10)
+		card.add_child(row)
+		var s := ItemSlot.new(48)
+		s.paper = true
+		s.icon_kind = sp.icon
+		s.icon_tex = ItemSlot.skill_art(id)
+		s.key_text = str(sp.slot)
+		s.dim = not known
+		s.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		s.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		row.add_child(s)
+		var tv := VBoxContainer.new()
+		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tv.add_theme_constant_override("separation", 0)
+		tv.add_child(UITheme.ink(sp.name, 17, UITheme.INK if known else UITheme.INK_DIM, true))
+		var meta := "%s · %s" % [("%d MP" % sp.cost) if sp.cost > 0 else "sem custo",
+			"ultimate (fúria)" if sp.ultimate else "recarga %.1fs" % (sp.cooldown * Game.cooldown_mult())]
+		tv.add_child(UITheme.ink(meta, 13, UITheme.INK_DIM))
+		var d := UITheme.ink(sp.desc, 14, UITheme.INK if known else UITheme.INK_DIM)
+		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		tv.add_child(d)
+		if not known:
+			tv.add_child(UITheme.ink("Aprende no nível %d" % sp.level, 13, UITheme.INK_RED))
+		row.add_child(tv)
+		lv.add_child(card)
 
 
 # ================================================================ página direita
@@ -155,13 +163,33 @@ func _branch_column(b: Dictionary) -> Control:
 	var pl := UITheme.ink("%d %s no ramo" % [in_branch, "ponto" if in_branch == 1 else "pontos"], 13, UITheme.INK_DIM)
 	pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(pl)
-	var line := ColorRect.new()
-	line.color = Color(color, 0.7)
-	line.custom_minimum_size = Vector2(0, 2)
-	v.add_child(line)
+	# barra do ramo: pontos gastos até abrir a última linha
+	var top_need := CharRules.row_requirement(3)
+	var bar := UITheme.ink_bar(color, 0, 6)
+	bar.max_value = maxi(top_need, 1)
+	bar.value = mini(in_branch, top_need)
+	bar.tooltip_text = "%d de %d pontos para abrir a última linha do ramo" % [mini(in_branch, top_need), top_need]
+	v.add_child(bar)
+	var first := true
 	for t in b.get("talents", []):
+		if not first:
+			v.add_child(_connector(color, in_branch >= CharRules.row_requirement(int(t.row))))
+		first = false
 		v.add_child(_talent_card(t, color, in_branch))
 	return v
+
+
+## Traço vertical entre dois talentos do ramo (a árvore): cheio na cor do ramo quando a linha de baixo já
+## abriu, apagado quando ainda falta ponto.
+func _connector(color: Color, open: bool) -> Control:
+	var c := CenterContainer.new()
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var line := ColorRect.new()
+	line.color = Color(color, 0.85) if open else Color(UITheme.INK, 0.2)
+	line.custom_minimum_size = Vector2(4, 10)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.add_child(line)
+	return c
 
 
 func _talent_card(t: Dictionary, color: Color, in_branch: int) -> Control:

@@ -201,8 +201,9 @@ func _ready() -> void:
 	# + os guardas da vila (VillageGuard, também conversam)
 	var n_inter := get_tree().get_nodes_in_group("interactable").size()
 	var n_guards := get_tree().get_nodes_in_group("npc").filter(func(n: Node) -> bool: return n is VillageGuard).size()
-	check(n_inter == 7 + 9 + 7 + 1 + world.points.size() + Game.FARM_PLOTS + 1 + 1 + 8 + n_guards,
-		"interagíveis do vale, da guilda e dos mapas + %d canteiros + caldeirão + bancada de couraria + 8 portas de dungeon + %d guardas (%d)" % [Game.FARM_PLOTS, n_guards, n_inter])
+	# a feira e as oficinas da vila do sul: 3 feirantes + o artesão, 4 moradores que passeiam e a mesa de alquimia
+	check(n_inter == 7 + 9 + 7 + 1 + world.points.size() + Game.FARM_PLOTS + 1 + 1 + 8 + n_guards + 4 + 4 + 1,
+		"interagíveis do vale, da guilda e dos mapas + %d canteiros + caldeirão + bancadas de couraria e alquimia + feirantes, artesão e moradores + 8 portas de dungeon + %d guardas (%d)" % [Game.FARM_PLOTS, n_guards, n_inter])
 	check(not ResourceLoader.exists("res://scenes/colony.tscn"), "sem a Defesa da Cidade")
 
 	# --- diálogo e missão
@@ -232,8 +233,8 @@ func _ready() -> void:
 	await _test_elder(elder as Elder)
 	await _test_merchant()
 
-	# --- combate corpo a corpo
-	var slime := _nearest("slime")
+	# --- combate corpo a corpo (um slime dos Campos do Norte: a missão dos slimes conta só os de lá)
+	var slime := _nearest("slime", "campos_norte")
 	var xp0 := Game.xp
 	var lvl0 := Game.level
 	var gold0 := Game.gold
@@ -473,7 +474,11 @@ func _ready() -> void:
 	Game.fury = 100.0
 	player.invuln = 0.0
 	player.model.rotation.y = 0.5
-	# o puxão se vê: um inimigo a 3 m termina bem mais perto depois do giro (com vida de sobra para não morrer)
+	# o puxão se vê: um inimigo a 3 m termina bem mais perto depois do giro (com vida de sobra para não morrer).
+	# Num campo aberto: perto da ponte ou de uma cerca, a mureta entre os dois segurava o puxão.
+	var pull_back := player.global_position
+	player.global_position = Vector3(-105, 0.3, 80)
+	await wait(0.1)
 	var pl_max: float = pl_s.max_hp
 	pl_s.hp = 100000.0
 	pl_s.max_hp = 100000.0
@@ -490,6 +495,7 @@ func _ready() -> void:
 	# o puxão por volta depende de quantos quadros de física cabem no giro: na máquina local leva ~1,7 m,
 	# no CI lento chegou a 0,98 m. 0,6 m ainda separa com folga o puxão de um inimigo parado.
 	check(d_pull0 - d_pull1 >= 0.6, "Turbilhão puxa o inimigo para perto (%.2f m -> %.2f m)" % [d_pull0, d_pull1])
+	player.global_position = pull_back
 	pl_s.max_hp = pl_max
 	pl_s.hp = pl_max
 	check(player.ability == "" and is_equal_approx(Engine.time_scale, 1.0), "Turbilhão termina sozinho (%s)" % player.ability)
@@ -1087,6 +1093,7 @@ func _ready() -> void:
 	await _test_bocarrao_tongue()
 	await _test_flor_rooted()
 	await _test_enemy_detour()
+	await _test_river()
 	await _test_archer_pose()
 	await _test_gold_goblin_world()
 	if _part() != "mundo":
@@ -1968,6 +1975,43 @@ func _test_dungeons() -> void:
 	world._respawn()
 	await wait(0.2)
 	check(player.global_position.distance_to(Regions.door_point("dg_mina")) < 3.0, "quem morre na dungeon volta na porta dela")
+	# chefe da dungeon: só luta dentro da sala dele (arena) e perde o agro quando o jogador sai
+	var king: Enemy = null
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.is_boss and Regions.region_at(e.global_position) == "dg_mina":
+			king = e
+	check(king != null and king.arena.size.x >= 30.0 and king.arena.size.y >= 24.0,
+		"Rei Caído tem a sala grande como arena (%s)" % (str(king.arena) if king else "sem chefe"))
+	if king != null:
+		var o := Regions.DATA["dg_mina"].origin as Vector3
+		var hp0: float = Game.hp
+		player.global_position = o + Vector3(0, 0.3, -20.0)   # antecâmara, na frente do portão
+		await wait(1.0)
+		check(king.state in ["idle", "wander"], "chefe não ataca quem está fora da sala (estado %s)" % king.state)
+		player.global_position = o + Vector3(14.0, 0.3, -26.0)   # dentro da sala, longe do alcance normal de agro
+		await wait(0.6)
+		check(king.state in ["chase", "attack"], "chefe persegue quem entra na sala (estado %s)" % king.state)
+		player.global_position = o + Vector3(0, 0.3, -20.0)
+		await wait(0.8)
+		check(king.state in ["return", "idle", "wander"], "chefe perde o agro quando o jogador sai da sala (estado %s)" % king.state)
+		Game.hp = hp0
+		# só um chefe na sala, e o portal de volta só abre depois que ele cai
+		var portal: Node = world.get_node_or_null("BossPortal_dg_mina")
+		var n_boss := 0
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if e.is_boss and king.arena.grow(2.0).has_point(Vector2(e.global_position.x, e.global_position.z)):
+				n_boss += 1
+		check(n_boss == 1, "um chefe só na sala (%d)" % n_boss)
+		check(portal != null and not portal.is_open(), "portal de volta fechado com o chefe vivo")
+		king.take_damage(999999, king.global_position + Vector3.FORWARD, false)
+		await wait(2.2)
+		check(portal != null and portal.is_open() and portal.visible, "chefe morto: o portal de volta abre na sala")
+		if portal != null:
+			player.global_position = portal.global_position + Vector3(0, 0.3, 1.5)
+			portal.interact(player)
+			await wait(1.6)
+			check(player.global_position.distance_to(Regions.arrive_point("dg_mina")) < 3.0,
+				"o portal leva de volta à entrada da dungeon")
 	Game.flags["rank"] = rank0
 	player.global_position = back
 	await wait(0.2)
@@ -2050,6 +2094,9 @@ func _test_gather() -> void:
 	check(int(plan.strikes) >= 2, "picareta de pedra pede vários golpes (%d)" % int(plan.strikes))
 	var iron0 := Game.count_item("iron_ore")
 	var mxp0 := Game.prof_xp("mining") + Game.prof_level("mining") * 100000
+	# o veio 0 fica no Acampamento Goblin: goblins que já foram alvo de outra parte do teste não entram na calmaria
+	# (_physics_process) e um golpe deles interrompe a coleta. Aqui todo monstro perto fica atordoado até o fim.
+	_hush_around(node.global_position, 25.0, 3.0 + float(plan.swing) * (float(plan.strikes) + 3.0))
 	player.start_gather(node)
 	check(player.ability == GatherAction.ID, "F começa a coleta")
 	await wait(0.3)
@@ -2290,6 +2337,35 @@ func _test_enemy_detour() -> void:
 		await wait(0.1)
 	player.invuln = 0.0
 	Game.hp = Game.max_hp()
+	player.global_position = back
+	await wait(0.1)
+
+
+## Rio do Vale: andando para o norte fora da ponte, a parede da margem segura o jogador antes da água; pela
+## Estrada do Norte ele sobe na ponte e chega do outro lado sem cair.
+func _test_river() -> void:
+	var back := player.global_position
+	player.invuln = 99.0
+	var yaw0: float = player.cam_yaw.global_rotation.y
+	player.cam_yaw.global_rotation.y = 0.0   # câmera olhando para -Z: "frente" é o norte
+	for case in [[Vector3(20, 0.3, -17), false], [Vector3(0, 0.3, -17), true]]:
+		player.global_position = case[0]
+		player.velocity = Vector3.ZERO
+		await wait(0.2)
+		var low := 99.0
+		Input.action_press("move_forward")
+		for i in 50:
+			await wait(0.1)
+			low = minf(low, player.global_position.y)
+		Input.action_release("move_forward")
+		var z: float = player.global_position.z
+		if case[1]:
+			check(z < -40.0, "atravessa o rio pela ponte (chegou a z = %.1f)" % z)
+			check(low > -0.2, "não afunda nem cai da ponte (y mínimo %.2f)" % low)
+		else:
+			check(z < -21.0 and z > -26.5, "a margem do rio segura o jogador fora da água (parou em z = %.1f)" % z)
+	player.cam_yaw.global_rotation.y = yaw0
+	player.invuln = 0.0
 	player.global_position = back
 	await wait(0.1)
 
@@ -2582,7 +2658,7 @@ func _test_story_talk() -> void:
 
 
 ## Guilda e mapas: registro (Rank D), contrato do quadro, promoção pela Lina (Rank C), carruagem para o
-## Bosque Sussurrante (monstros e NPCs de lá) e volta para a vila.
+## Pântano Sussurrante (monstros e NPCs de lá) e volta para a vila.
 func _test_guild_travel() -> void:
 	_story_to("registro")
 	Game.start_quest("registro")
@@ -2626,10 +2702,10 @@ func _test_guild_travel() -> void:
 	var dests: Array = []
 	for ch in pages[0].get("choices", []):
 		dests.append(str(ch.text))
-	check("Bosque Sussurrante" in dests and "Mina de Cristal (Rank B)" in dests, "carruagem: bosque liberado, mina travada (%s)" % [dests])
+	check("Pântano Sussurrante" in dests and "Geleira de Cristal (Rank B)" in dests, "carruagem: bosque liberado, mina travada (%s)" % [dests])
 	world.travel_to("bosque")
 	await wait(1.6)
-	check(Regions.region_at(player.global_position) == "bosque", "viagem leva ao Bosque Sussurrante (%s)" % player.global_position)
+	check(Regions.region_at(player.global_position) == "bosque", "viagem leva ao Pântano Sussurrante (%s)" % player.global_position)
 	check(_interactable("sylvi") != null and _interactable("coach_bosque") != null, "Sylvi e a carruagem no bosque")
 	var queen := false
 	for e in get_tree().get_nodes_in_group("enemies"):
@@ -2680,8 +2756,16 @@ func _test_farm() -> void:
 	await wait(0.1)
 	check(world.modal != null and world.modal.get("plot_index") == 0, "menu de plantio abre")
 	var seeds0 := Game.count_item("seed_carrot")
-	world.modal.seed_list.select(ItemDB.CROP_ORDER.find("carrot"))
+	world.modal.select_crop("carrot")
 	world.modal._plant_here()
+	await wait(0.05)
+	var confirm: ActionModal = null
+	for n in world.modal.get_children():
+		if n is ActionModal:
+			confirm = n
+	check(confirm != null and Game.plot_state(0) == "empty", "plantar pergunta antes (janelinha de confirmação)")
+	if confirm:
+		confirm._confirm()
 	await wait(0.1)
 	check(world.modal == null and Game.plot_state(0) == "growing" and Game.farm.plots[0].crop == "carrot", "cenoura plantada")
 	check(Game.count_item("seed_carrot") == seeds0 - 1, "semente consumida")
@@ -2711,8 +2795,8 @@ func _test_farm() -> void:
 	Econ.grant(200, 0, {}, "teste")
 	plot.interact(player)
 	await wait(0.1)
-	world.modal.seed_list.select(ItemDB.CROP_ORDER.find("tomato"))
-	world.modal._plant_all()
+	world.modal.select_crop("tomato")
+	world.modal.plant_all_now()
 	await wait(0.1)
 	var growing := 0
 	for i in Game.FARM_PLOTS:
@@ -2735,7 +2819,7 @@ func _test_farm() -> void:
 	kitchen.interact(player)
 	await wait(0.1)
 	check(world.modal != null and world.modal.has_method("_cook"), "menu do caldeirão abre")
-	world.modal.list.select(ItemDB.RECIPE_ORDER.find("spicy_soup"))
+	world.modal.select_recipe("spicy_soup")
 	world.modal._cook(99)
 	check(Game.count_item("spicy_soup") == 3, "cozinhou 3 sopas picantes (%d)" % Game.count_item("spicy_soup"))
 	world.modal._close()
@@ -3404,7 +3488,7 @@ func _test_gear() -> void:
 	world._open_menu(0)
 	await wait(0.15)
 	var m = world.modal
-	check(m != null and m.equip_slots.size() == 9 and m.bag_slots.size() >= 54, "inventário com boneco (9 espaços) e grade")
+	check(m != null and m.equip_slots.size() == 9 and m.bag_slots.size() >= 48, "inventário com boneco (9 espaços) e grade")
 	check(m.tool_slots.size() == 2 and m.tool_slots.pickaxe.item_id == Game.equipment.get("pickaxe", ""),
 		"aba Ferramentas da página do herói com os espaços da picareta e do machado")
 	check(m.gear_view.visible and not m.tools_view.visible, "Inventário abre na aba Equipamento")
@@ -3416,21 +3500,54 @@ func _test_gear() -> void:
 	m._set_side_tab("equip")
 	check(m.equip_slots.head.item_id == "leather_cap", "boneco mostra o capuz equipado")
 	var book: BookWindow = m.book
-	check(book != null and book.current_page() == 0, "menu do herói abre no livro, na aba Inventário")
-	for i in m.pages.size():
-		m._show_tab(i)
+	check(book != null and book.side == "right" and m.pages.size() == 1 and world.dock.at("right") == m,
+		"inventário abre na janela da direita")
+	await wait(0.1)
+	var inv_page: Rect2 = m.pages[0].get_global_rect()
+	check(book.content_rect().grow(1.0).encloses(inv_page),
+		"inventário cabe inteiro na janela, sem rolar (%s em %s)" % [inv_page, book.content_rect()])
+	# janela do herói (C) abre à esquerda sem fechar o inventário, e as duas não se sobrepõem
+	world._open_menu(1)
+	await wait(0.15)
+	var h = world.modal
+	check(h != m and h.mode == "hero" and world.dock.at("left") == h and world.dock.at("right") == m and is_instance_valid(m),
+		"janela do herói abre à esquerda com o inventário aberto à direita")
+	check(not h.book._frame.get_global_rect().intersects(m.book._frame.get_global_rect()),
+		"janelas do herói e do inventário não se sobrepõem (%s | %s)" % [h.book._frame.get_global_rect(), m.book._frame.get_global_rect()])
+	# arrastar: a janela do herói solta por cima do inventário encosta ao lado dele, e reabre onde ficou
+	var hf: Control = h.book.frame()
+	var mf: Control = m.book.frame()
+	hf.set_meta("_user_pos", mf.position - Vector2(200, 0))
+	h.book._layout()
+	check(hf.get_global_rect().intersects(mf.get_global_rect()), "janela arrastada por cima do inventário (antes de soltar)")
+	world.dock.resolve(hf)
+	await wait(0.05)
+	check(not hf.get_global_rect().grow(-1.0).intersects(mf.get_global_rect())
+		and Rect2(Vector2.ZERO, hf.get_viewport_rect().size).encloses(hf.get_global_rect()),
+		"ao soltar, a janela encosta ao lado da outra sem sair da tela (%s | %s)" % [hf.get_global_rect(), mf.get_global_rect()])
+	hf.remove_meta("_user_pos")
+	h.book._layout()
+	for i in h.pages.size():
+		h._show_tab(i)
 		await wait(0.1)
-		var area := book.content_rect().grow(1.0)
-		var page_rect: Rect2 = m.pages[i].get_global_rect()
-		check(book.current_page() == i and area.encloses(page_rect), "aba %d fica dentro das páginas do livro" % i)
-		# as duas metades de cada aba respeitam a página e deixam a lombada livre
-		var halves: Array = m.pages[i].get_children()
-		var lr: Rect2 = halves[0].get_global_rect()
-		var rr: Rect2 = halves[1].get_global_rect()
-		var room := BookLayout.page_room().x * book.content_rect().size.x / BookLayout.content_room().x
-		check(halves.size() == 2 and lr.size.x <= room + 1.0 and rr.size.x <= room + 1.0 and lr.end.x <= rr.position.x,
-			"aba %d: duas páginas com a lombada livre (%.0f | %.0f)" % [i, lr.size.x, rr.size.x])
-	check(book.overflow_warnings == 0, "nenhuma aba pede mais espaço do que o livro tem")
+		var area: Rect2 = h.book.content_rect().grow(1.0)
+		var pr: Rect2 = h.pages[i].get_global_rect()
+		check(area.position.x <= pr.position.x and pr.end.x <= area.end.x and h.book.page_width == h.TAB_WIDTHS[i],
+			"aba %d dentro da janela, na largura dela (%.0f de %.0f)" % [i, pr.size.x, h.book.page_width])
+		if h.pages[i] is HBoxContainer:   # abas em duas colunas: uma não invade a outra
+			var halves: Array = h.pages[i].get_children()
+			var lr: Rect2 = halves[0].get_global_rect()
+			var rr: Rect2 = halves[1].get_global_rect()
+			check(lr.end.x <= rr.position.x, "aba %d: colunas lado a lado sem se cruzar" % i)
+	check(h.book.overflow_warnings == 0 and book.overflow_warnings == 0, "nenhuma aba pede mais largura do que a janela tem")
+	# o atalho da aba aberta fecha a janela; o inventário fica
+	world.toggle_window("character")
+	world.toggle_window("character")
+	await wait(0.05)
+	check(world.dock.at("left") == null and world.dock.at("right") == m and world.modal == m, "C de novo fecha só a janela do herói")
+	world._open_menu(1)
+	await wait(0.1)
+	h = world.modal
 	var plain_tip := ItemTooltip.new()
 	check(m.tooltip.paper and not plain_tip.paper, "dica de item: papel no livro, escura por padrão")
 	plain_tip.free()
@@ -3438,13 +3555,17 @@ func _test_gear() -> void:
 	var tip_dark := ItemTooltip.build_text("leather_cap", "bag")
 	check(tip_paper != tip_dark and not tip_paper.contains(UITheme.GOOD.to_html(false))
 		and not tip_paper.contains(UITheme.DIM.to_html(false)), "dica de papel não usa as cores claras do tema escuro")
-	# Personagem e Missões a tinta: nenhum painel escuro nem texto claro
-	for i in [1, 2, 3]:
-		m._show_tab(i)
+	await _test_compare(m)
+	# Personagem, Missões e Profissões a tinta: nenhum painel escuro nem texto claro
+	for i in [0, 2, 3]:
+		h._show_tab(i)
 		await wait(0.1)
-		check(_light_text(m.pages[i]) == "", "aba %d sem texto claro nem painel escuro%s" % [i, _light_text(m.pages[i])])
+		check(_light_text(h.pages[i]) == "", "aba %d sem texto claro nem painel escuro%s" % [i, _light_text(h.pages[i])])
+	m._close()
+	await wait(0.05)
+	m = h
 	# gastar um ponto de atributo pelo botão "+" da aba Personagem
-	m._show_tab(1)
+	m._show_tab(0)
 	if Game.stat_points <= 0:
 		Game.add_xp(Game.xp_to_next())   # sobe um nível para ter ponto a gastar
 	await wait(0.1)
@@ -3458,7 +3579,7 @@ func _test_gear() -> void:
 	check(m.attr_values["str"].text == str(Game.attr("str")), "aba Personagem mostra o novo valor de Força")
 	check(m.attr_buttons["str"].disabled == (Game.stat_points <= 0), "botão + desliga quando os pontos acabam")
 	# selecionar uma missão troca os detalhes
-	m._show_tab(3)
+	m._show_tab(2)
 	var fake_quest := not Game.quests.has("goblins")
 	if fake_quest:   # segunda missão só no espelho da tela (o estado de verdade fica no Econ)
 		Game.quests["goblins"] = {"state": "active", "progress": 1}
@@ -3488,18 +3609,23 @@ func _test_gear() -> void:
 	world.open_shop()
 	await wait(0.1)
 	check(world.modal != null and world.modal.buy_grid.get_child_count() > 10, "loja mostra a grade de mercadorias")
+	var shop_inv = world.dock.at("right")
+	check(shop_inv != null and shop_inv.trade == world.modal and shop_inv.bag_slots[0].context == "sell",
+		"loja abre o inventário ao lado, e nele o clique direito vende")
 	world.modal._close()
 	await wait(0.05)
+	check(world.modal == null and (not is_instance_valid(shop_inv) or shop_inv.is_queued_for_deletion()),
+		"fechar a loja fecha o inventário que ela abriu")
 
 
 ## Aba Talentos (Guerreiro): aprende pelo botão e vê x/3, linha bloqueada apagada; a Lina redistribui e
 ## devolve os pontos (cobra 50 x nível acima do 5).
 func _test_talent_tab(m) -> void:
-	check(m.TAB_NAMES[2] == "Talentos" and m.TAB_ACTIONS[2] == "talents", "aba Talentos ao lado de Personagem (K)")
+	check(m.TAB_NAMES[1] == "Talentos" and m.TAB_ACTIONS[1] == "talents", "aba Talentos ao lado de Personagem (K)")
 	check(InputMap.has_action("talents"), "atalho K da aba Talentos")
 	while Game.talent_points() < 2:
 		Game.add_xp(Game.xp_to_next())
-	m._show_tab(2)
+	m._show_tab(1)
 	await wait(0.15)
 	var tp = m.talent_panel
 	check(tp != null and tp.buttons.size() == 9, "aba Talentos mostra os 9 talentos da classe")
@@ -3517,8 +3643,8 @@ func _test_talent_tab(m) -> void:
 	check(tp.level_labels["w_edge"].text == "1/3", "aba mostra 1/3 (%s)" % tp.level_labels["w_edge"].text)
 	check(is_equal_approx(float(Game.talent_mods.get("damage", 0.0)), 0.04), "talento já vale: dano +4%")
 	check(tp.reset_label.text.contains("Lina"), "aba diz onde redistribuir (%s)" % tp.reset_label.text)
-	check(m.book.overflow_warnings == 0, "aba Talentos cabe no livro")
-	check(_light_text(m.pages[2]) == "", "aba Talentos a tinta%s" % _light_text(m.pages[2]))
+	check(m.book.overflow_warnings == 0, "aba Talentos cabe na janela")
+	check(_light_text(m.pages[1]) == "", "aba Talentos a tinta%s" % _light_text(m.pages[1]))
 	# redistribuir pela Lina: a opção está nos serviços dela e cobra 50 x nível (grátis até o 5)
 	var cost := Game.talent_reset_cost()
 	if Game.gold < cost:
@@ -3543,6 +3669,34 @@ func _test_talent_tab(m) -> void:
 
 ## Procura, numa página do livro, texto claro (ilegível sobre papel) ou painel de fundo escuro.
 ## Devolve "" se estiver tudo a tinta, ou a descrição do primeiro problema.
+## Shift sobre um item equipável abre ao lado a ficha do item equipado naquele espaço.
+func _test_compare(m) -> void:
+	var worn := str(Game.equipment.get("weapon", ""))
+	var slot: ItemSlot = null
+	for s in m.bag_slots:
+		if s.item_id != "" and s.item_id != worn and ItemDB.slot_of(s.item_id) == "weapon":
+			slot = s
+			break
+	check(worn != "" and slot != null, "há arma equipada e outra na mochila para comparar")
+	if slot == null:
+		return
+	check(ItemTooltip.compare_target(slot.item_id, "bag") == worn and ItemTooltip.compare_target(worn, "equip") == ""
+		and ItemTooltip.compare_target("health_potion", "bag") == "", "comparar: só item equipável contra o equipado no mesmo espaço")
+	var tip: ItemTooltip = m.tooltip
+	tip.show_for(slot)
+	tip.set_process(false)   # sem Shift de verdade, o próximo quadro fecharia a ficha
+	tip._update_compare(true)
+	await wait(0.05)
+	check(tip._cmp.visible and tip._cmp_text.text.contains(ItemDB.get_item(worn).name)
+		and not tip._cmp.get_global_rect().intersects(tip.get_global_rect()),
+		"com Shift a ficha do equipado abre ao lado da dica, sem cobrir (%s, %s | %s)" % [tip._cmp.visible,
+			tip._cmp.get_global_rect(), tip.get_global_rect()])
+	tip._update_compare(false)
+	check(not tip._cmp.visible, "soltar Shift fecha a ficha do equipado")
+	tip.hide_for(slot)
+	tip.set_process(true)
+
+
 func _light_text(node: Node) -> String:
 	if node is Label and node.is_visible_in_tree() and node.text != "":
 		var c: Color = node.get_theme_color("font_color")
@@ -3787,7 +3941,7 @@ func _test_village_guard() -> void:
 	var pickups0 := _count_pickups()
 	player.global_position = Vector3(2, 0.3, 6)
 	intruder.take_damage(1.0, player.global_position, false)   # o jogador acertou antes: mesmo assim não leva nada
-	intruder.global_position = Vector3(4, 0.5, 4)
+	intruder.global_position = Vector3(4, 0.5, 76)   # na praça da feira
 	await wait_until(func() -> bool: return intruder.dead, VillageWard.DOOM + 2.0)
 	check(intruder.dead, "goblin que entra na vila é abatido pela guarda")
 	await wait(0.3)
@@ -3796,8 +3950,8 @@ func _test_village_guard() -> void:
 	check(JSON.stringify(Game.quests) == prog0, "abate da guarda não conta em missão")
 	# monstro do lado de fora não entra atrás do jogador: para na cerca
 	var chaser := _today(_nearest("slime"))
-	player.global_position = Vector3(0, 0.3, -12)
-	chaser.global_position = Vector3(0, 0.5, -27)
+	player.global_position = Vector3(0, 0.3, 40)   # na estrada entre a Horta e o portão norte
+	chaser.global_position = Vector3(0, 0.5, 8)
 	chaser._set_state("chase")
 	await wait(2.0)
 	check(not chaser.dead and not VillageWard.inside(chaser.global_position, VillageWard.KILL_MARGIN),
@@ -3855,6 +4009,13 @@ func _nearest_clear_lane(kind: String) -> Enemy:
 				bd = d
 				best = e
 	return _target(best) if best != null else _nearest(kind)
+
+
+## Atordoa por `secs` todo monstro vivo a até `radius` m de `at`, alvo do teste ou não.
+func _hush_around(at: Vector3, radius: float, secs: float) -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not e.dead and e.global_position.distance_to(at) < radius:
+			e.apply_stun(secs)
 
 
 func _nearest(kind: String, area := "") -> Enemy:

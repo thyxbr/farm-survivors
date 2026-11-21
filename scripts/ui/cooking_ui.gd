@@ -1,134 +1,129 @@
 extends Control
-## Menu do Caldeirão: receitas com ingredientes, efeitos e botões de cozinhar.
+## Caldeirão da Horta, no formato da forja (StationKit): à esquerda os pratos (ícone, efeito curto, quantos
+## dá para fazer); à direita o escolhido, com o efeito, quantos já tenho e os ingredientes tenho/preciso.
+## Comidas dão bônus temporários; come-se com Q (troca com T), inclusive no meio da Horda.
 
 signal closed
 
+## Janela lateral da esquerda (WindowDock), com o inventário aberto ao lado.
+var dock_side := "left"
+var wants_inventory := true
+
 var kitchen: Node = null
-var list: ItemList
-var title_l: Label
-var ing_l: Label
-var eff_l: Label
-var pantry_l: Label
 var cook_btn: Button
 var max_btn: Button
+var tooltip: ItemTooltip
+var _rows := {}           # receita -> linha (StationKit.row)
+var _sel := ""
+var _head: Dictionary
+var _chips: HBoxContainer
+var _mats: GridContainer
+var _pantry: Label
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var p := UITheme.centered_panel(self, 0.45)
+	var p := UITheme.dock_panel(self)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
 	p.add_child(v)
-	v.add_child(UITheme.label("Caldeirão da Horta", 28, UITheme.GOLD))
-	v.add_child(UITheme.label("Comidas dão bônus temporários. Coma com [Q] (troque com [T]) — inclusive no meio da Horda!", 16, UITheme.DIM))
-
+	v.add_child(StationKit.header("Caldeirão da Horta"))
+	v.add_child(UITheme.label("Comidas dão bônus temporários. Coma com Q (troque com T), inclusive no meio da Horda.", 15, UITheme.DIM))
 	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 20)
+	h.add_theme_constant_override("separation", 16)
 	v.add_child(h)
-	list = ItemList.new()
-	list.custom_minimum_size = Vector2(400, 360)
-	list.item_selected.connect(func(_i: int) -> void: _update_info())
-	list.item_activated.connect(func(_i: int) -> void: _cook(1))
-	h.add_child(list)
-
-	var right := VBoxContainer.new()
-	right.custom_minimum_size = Vector2(440, 0)
-	right.add_theme_constant_override("separation", 10)
-	h.add_child(right)
-	title_l = UITheme.label("", 24, UITheme.GOLD)
-	right.add_child(title_l)
-	ing_l = UITheme.label("", 18)
-	right.add_child(ing_l)
-	right.add_child(HSeparator.new())
-	eff_l = UITheme.label("", 16)
-	eff_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	eff_l.custom_minimum_size = Vector2(420, 120)
-	right.add_child(eff_l)
-
-	pantry_l = UITheme.label("", 15, UITheme.DIM)
-	pantry_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	pantry_l.custom_minimum_size = Vector2(860, 0)
-	v.add_child(pantry_l)
-
-	var btns := HBoxContainer.new()
-	btns.add_theme_constant_override("separation", 12)
-	cook_btn = UITheme.button("Cozinhar", func() -> void: _cook(1), 200)
-	max_btn = UITheme.button("Cozinhar tudo", func() -> void: _cook(99), 220)
-	btns.add_child(cook_btn)
-	btns.add_child(max_btn)
-	btns.add_child(UITheme.button("Sair", _close, 120))
-	v.add_child(btns)
-
+	var list := StationKit.list_panel("Pratos", null, Vector2(380, 400))
+	h.add_child(list.panel)
+	for r in ItemDB.RECIPE_ORDER:
+		var row := StationKit.row(r, ItemDB.get_item(r).name, _short_effect(r), select_recipe.bind(r), func() -> void: _cook(1))
+		list.rows.add_child(row.btn)
+		_rows[r] = row
+	var det := StationKit.detail_panel(460)
+	h.add_child(det.panel)
+	tooltip = ItemTooltip.new()
+	tooltip.paper = true
+	_head = StationKit.detail_head(det.box, tooltip, 112)
+	_chips = HBoxContainer.new()
+	_chips.add_theme_constant_override("separation", 8)
+	det.box.add_child(_chips)
+	det.box.add_child(UITheme.section("Ingredientes", 18))
+	_mats = StationKit.materials_grid()
+	det.box.add_child(_mats)
+	det.box.add_child(UITheme.spacer())
+	_pantry = UITheme.label("", 14, UITheme.DIM)
+	_pantry.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_pantry.custom_minimum_size.x = 420
+	det.box.add_child(_pantry)
+	cook_btn = UITheme.primary(UITheme.button("Cozinhar", func() -> void: _cook(1)))
+	max_btn = UITheme.button("Cozinhar tudo", func() -> void: _cook(99))
+	v.add_child(UITheme.footer(UITheme.label("Duplo clique no prato cozinha um", 14, UITheme.DIM),
+		[max_btn, cook_btn, UITheme.button("Sair", _close)]))
+	add_child(tooltip)
 	Game.inventory_changed.connect(_refresh)
 	Econ.done.connect(_on_econ_done)
-	_refresh()
-	var pick := 0
-	for i in ItemDB.RECIPE_ORDER.size():
-		if Game.can_cook(ItemDB.RECIPE_ORDER[i]) > 0:
-			pick = i
+	_sel = ItemDB.RECIPE_ORDER[0]
+	for r in ItemDB.RECIPE_ORDER:
+		if Game.can_cook(r) > 0:
+			_sel = r
 			break
-	list.select(pick)
-	list.grab_focus.call_deferred()
-	_update_info()
+	_refresh()
 
 
-func _selected() -> String:
-	var sel := list.get_selected_items()
-	return ItemDB.RECIPE_ORDER[sel[0]] if not sel.is_empty() else ""
+## Efeito em uma linha curta, para a lista (o detalhe mostra o texto inteiro).
+static func _short_effect(r: String) -> String:
+	var t := ItemDB.food_effect_text(r).split("\n")[0]
+	return t if t.length() <= 46 else t.substr(0, 44) + "…"
+
+
+## Escolhe o prato (os testes usam; as linhas chamam a mesma coisa).
+func select_recipe(r: String) -> void:
+	_sel = r
+	_refresh()
 
 
 func _refresh() -> void:
-	var sel := list.get_selected_items()
-	list.clear()
-	for r in ItemDB.RECIPE_ORDER:
-		var it := ItemDB.get_item(r)
+	if not is_inside_tree():
+		return
+	for r in _rows:
 		var n := Game.can_cook(r)
-		var have := Game.count_item(r)
-		var txt: String = it.name
-		if have > 0:
-			txt += "   (tem %d)" % have
-		list.add_item(txt)
-		var idx := list.item_count - 1
-		list.set_item_tooltip_enabled(idx, false)
-		list.set_item_custom_fg_color(idx, it.get("color", UITheme.TEXT) if n > 0 else Color(0.5, 0.48, 0.44))
-	if not sel.is_empty():
-		list.select(sel[0])
-	var pantry: Array[String] = []
-	for crop in ItemDB.CROP_ORDER:
-		var n := Game.count_item(crop)
-		if n > 0:
-			pantry.append("%s x%d" % [ItemDB.CROPS[crop].name, n])
-	pantry_l.text = "Despensa: " + (", ".join(pantry) if not pantry.is_empty() else "vazia — plante e colha na horta!")
+		StationKit.set_row(_rows[r], r == _sel, n > 0, ItemDB.get_item(r).get("color", UITheme.TEXT),
+			("x%d" % n) if n > 0 else "")
 	_update_info()
 
 
 func _update_info() -> void:
-	var r := _selected()
-	if r == "":
+	StationKit.clear(_chips)
+	StationKit.clear(_mats)
+	if _sel == "":
 		return
-	var it := ItemDB.get_item(r)
-	title_l.text = it.name
-	title_l.add_theme_color_override("font_color", it.get("color", UITheme.GOLD))
-	var lines: Array[String] = []
-	var ing: Dictionary = ItemDB.RECIPES[r]
+	var it := ItemDB.get_item(_sel)
+	var have := Game.count_item(_sel)
+	var n := Game.can_cook(_sel)
+	(_head.slot as ItemSlot).set_state(_sel, have)
+	_head.title.text = it.name
+	_head.title.add_theme_color_override("font_color", it.get("color", UITheme.GOLD))
+	_head.sub.text = it.desc
+	_head.stats.text = ItemDB.food_effect_text(_sel)
+	_chips.add_child(StationKit.chip("x%d" % n, "Dá para fazer", UITheme.GOOD, n > 0))
+	_chips.add_child(StationKit.chip("x%d" % have, "Na mochila", UITheme.GOLD, have > 0))
+	var ing: Dictionary = ItemDB.RECIPES[_sel]
 	for id in ing:
-		var have := Game.count_item(id)
-		var need: int = ing[id]
-		lines.append("%s  %d/%d%s" % [ItemDB.get_item(id).name, min(have, need), need, "" if have >= need else "   (falta %d)" % (need - have)])
-	ing_l.text = "\n".join(lines)
-	eff_l.text = ItemDB.food_effect_text(r) + "\n" + it.desc
-	var n := Game.can_cook(r)
+		_mats.add_child(StationKit.material(id, ItemDB.get_item(id).name, Game.count_item(id), int(ing[id]), tooltip))
+	var pantry: Array[String] = []
+	for crop in ItemDB.CROP_ORDER:
+		var k := Game.count_item(crop)
+		if k > 0:
+			pantry.append("%s x%d" % [ItemDB.CROPS[crop].name, k])
+	_pantry.text = "Despensa: " + (", ".join(pantry) if not pantry.is_empty() else "vazia — plante e colha na horta!")
 	cook_btn.disabled = n <= 0
 	max_btn.disabled = n <= 1
 	max_btn.text = "Cozinhar tudo (%d)" % n if n > 1 else "Cozinhar tudo"
 
 
 func _cook(times: int) -> void:
-	var r := _selected()
-	if r == "":
-		return
-	Game.cook(r, times)
+	if _sel != "":
+		Game.cook(_sel, times)
 
 
 ## O Econ confirmou: quantas saíram vem no evento "looted" da receita.

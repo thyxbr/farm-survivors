@@ -2,6 +2,8 @@ class_name ItemTooltip
 extends PanelContainer
 ## Dica flutuante de item: nome na cor da raridade, atributos, efeito e comparação já calculada
 ## com o que está equipado (verde = melhora, vermelho = piora), como nos ARPGs.
+## Segurando Shift sobre um item equipável, a ficha do item equipado naquele espaço abre ao lado
+## (`_cmp`), para ler os dois inteiros lado a lado.
 
 const STAT_LABELS := {"dmg": ["Dano do ataque", false], "def": ["Defesa", false], "hp": ["Vida máxima", false],
 	"mp": ["Mana máxima", false], "spell": ["Poder mágico", false], "crit": ["Crítico", true],
@@ -13,6 +15,10 @@ var paper := false
 
 var _owner_slot: ItemSlot
 var _text: RichTextLabel
+## Ficha do item equipado (Shift), filha que não entra no layout do painel (top_level).
+var _cmp: PanelContainer
+var _cmp_text: RichTextLabel
+var _cmp_id := ""
 
 
 func _ready() -> void:
@@ -22,30 +28,42 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sb: StyleBox = UITheme.kit_panel(14)
 	if paper:
-		var page := UITheme.frame_box(UITheme.PAGE, UITheme.INK, 14)
-		page.shadow_color = Color(0, 0, 0, 0.4)
-		sb = page
+		sb = UITheme.small_frame(6)
 	add_theme_stylebox_override("panel", sb)
-	_text = RichTextLabel.new()
-	_text.bbcode_enabled = true
-	_text.fit_content = true
-	_text.scroll_active = false
-	_text.custom_minimum_size.x = 330
-	_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_text.add_theme_font_size_override("normal_font_size", 16)
-	_text.add_theme_font_size_override("bold_font_size", 16)
-	_text.add_theme_font_override("bold_font", UITheme.serif())
+	_text = _make_text()
+	add_child(_text)
+	_cmp = PanelContainer.new()
+	_cmp.top_level = true
+	_cmp.visible = false
+	_cmp.z_index = 100
+	_cmp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_cmp.add_theme_stylebox_override("panel", sb.duplicate())
+	_cmp_text = _make_text()
+	_cmp.add_child(_cmp_text)
+	add_child(_cmp)
+
+
+func _make_text() -> RichTextLabel:
+	var t := RichTextLabel.new()
+	t.bbcode_enabled = true
+	t.fit_content = true
+	t.scroll_active = false
+	t.custom_minimum_size.x = 330
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	t.add_theme_font_size_override("normal_font_size", 16)
+	t.add_theme_font_size_override("bold_font_size", 16)
+	t.add_theme_font_override("bold_font", UITheme.serif())
 	if paper:
 		# a Garamond é menor: 2 px a mais, como em UITheme.ink()
-		_text.add_theme_font_size_override("normal_font_size", 18)
-		_text.add_theme_font_size_override("italics_font_size", 18)
-		_text.add_theme_font_override("normal_font", UITheme.body())
+		t.add_theme_font_size_override("normal_font_size", 18)
+		t.add_theme_font_size_override("italics_font_size", 18)
+		t.add_theme_font_override("normal_font", UITheme.body())
 		var slanted := FontVariation.new()   # a Garamond embutida não tem itálico: inclina a normal
 		slanted.base_font = UITheme.body()
 		slanted.variation_transform = Transform2D(Vector2(1, 0), Vector2(0.2, 1), Vector2.ZERO)
-		_text.add_theme_font_override("italics_font", slanted)
-		_text.add_theme_color_override("default_color", UITheme.INK)
-	add_child(_text)
+		t.add_theme_font_override("italics_font", slanted)
+		t.add_theme_color_override("default_color", UITheme.INK)
+	return t
 
 
 func show_for(slot: ItemSlot) -> void:
@@ -55,7 +73,9 @@ func show_for(slot: ItemSlot) -> void:
 	var border := rc.darkened(0.15) if ItemDB.is_equippable(id) else UITheme.GOLD_DIM
 	if paper:
 		border = _rarity_ink(id) if ItemDB.is_equippable(id) else UITheme.INK
-	(get_theme_stylebox("panel") as StyleBoxFlat).border_color = border
+	var box := get_theme_stylebox("panel") as StyleBoxFlat
+	if box:
+		box.border_color = border
 	_text.text = build_text(id, slot.context, paper)
 	_text.size = Vector2.ZERO
 	reset_size()
@@ -75,6 +95,51 @@ func _process(_d: float) -> void:
 			visible = false
 			return
 		_follow()
+	_update_compare(Input.is_key_pressed(KEY_SHIFT))
+
+
+## Item equipado no espaço do item da dica, quando vale comparar (vazio se não há o que comparar).
+static func compare_target(id: String, context: String) -> String:
+	var slot := ItemDB.slot_of(id)
+	if slot == "" or context == "equip":
+		return ""
+	var cur := str(Game.equipment.get(slot, ""))
+	return cur if cur != id else ""
+
+
+## Com Shift, abre ao lado a ficha do item equipado; sem Shift (ou sem dica), fecha.
+func _update_compare(shift: bool) -> void:
+	var want := ""
+	if shift and visible and _owner_slot != null and is_instance_valid(_owner_slot):
+		want = compare_target(_owner_slot.item_id, _owner_slot.context)
+	if want == "":
+		_cmp.visible = false
+		_cmp_id = ""
+		return
+	if want != _cmp_id:
+		_cmp_id = want
+		var border := _rarity_ink(want) if paper else ItemDB.rarity_color(want).darkened(0.15)
+		var box := _cmp.get_theme_stylebox("panel") as StyleBoxFlat
+		if box:
+			box.border_color = border
+		var head := "[color=#%s]EQUIPADO[/color]\n" % _hex(_palette(paper).dim)
+		_cmp_text.text = head + build_text(want, "worn", paper)
+		_cmp_text.size = Vector2.ZERO
+		_cmp.reset_size()
+	_cmp.visible = true
+	_place_compare()
+
+
+## A ficha do equipado fica do lado de fora da dica (esquerda se couber, senão direita), alinhada no topo.
+func _place_compare() -> void:
+	var vp := get_viewport_rect().size
+	var s := _cmp.get_combined_minimum_size()
+	var me := Rect2(global_position, size.max(get_combined_minimum_size()))
+	var x := me.position.x - s.x - 8
+	if x < 8:
+		x = me.end.x + 8
+	var y := clampf(me.position.y, 8, maxf(8, vp.y - s.y - 8))
+	_cmp.global_position = Vector2(x, y)
 
 
 func _follow() -> void:
@@ -158,8 +223,8 @@ static func build_text(id: String, context := "bag", paper := false) -> String:
 			t += "%s\n" % lines[i]
 	t += "[i][color=#%s]%s[/color][/i]\n" % [_hex(pal.desc), it.desc]
 
-	# comparação calculada com o equipado
-	if slot != "" and context != "equip" and Game.can_wield(id):
+	# comparação calculada com o equipado ("worn" é a própria ficha do equipado, aberta com Shift)
+	if slot != "" and context not in ["equip", "worn"] and Game.can_wield(id):
 		var cur: String = Game.equipment.get(slot, "")
 		t += "[color=#%s]━━━━━━━━━━━━━━━━━━━━[/color]\n" % _hex(pal.rule)
 		if cur == id:
@@ -180,6 +245,8 @@ static func build_text(id: String, context := "bag", paper := false) -> String:
 				t += "  [color=#%s]Nenhuma mudança nos números.[/color]\n" % dim
 			if slot == "weapon" and ItemDB.weapon_class(id) != Game.weapon_class():
 				t += "  [color=#%s]Muda o ataque para %s[/color]\n" % [gold, ItemDB.CLASS_NAMES[ItemDB.weapon_class(id)].to_lower()]
+			if cur != "":
+				t += "[color=#%s]Segure Shift para ver o equipado ao lado[/color]\n" % dim
 
 	# preço e dicas
 	var price: int = it.price
@@ -193,6 +260,8 @@ static func build_text(id: String, context := "bag", paper := false) -> String:
 		"equip":
 			t += "[color=#%s]Valor: %d ◆[/color]\n" % [dim, price]
 			t += "[color=#%s]Clique direito: remover · arraste para a mochila[/color]" % dim
+		"worn":
+			t += "[color=#%s]Valor: %d ◆[/color]" % [dim, price]
 		"admin":
 			t += "[color=#%s]id: %s[/color]
 " % [dim, id]

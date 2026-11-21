@@ -14,7 +14,7 @@ extends RefCounted
 ## 30 m em volta da praça, que passava da cerca norte e seguia tocando até os campos das slimes.
 const VILLAGE_MARGIN := 4.0
 const FARM_CENTER := Vector2(0, 33)
-const FARM_RADIUS := 16.0
+const FARM_RADIUS := 24.0
 const RUINS_CENTER := Vector2(0, -100)
 const RUINS_RADIUS := 38.0
 

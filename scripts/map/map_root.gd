@@ -20,6 +20,10 @@ const PLAN := "Planta"
 @export var half := 125.0
 ## Altura da serra em volta do mapa (0 = sem serra).
 @export var border_height := 58.0
+## Passagem na serra do sul (a estrada por onde o aventureiro chega): x do meio e meia largura do fundo (m);
+## 0 = sem passagem. O vale da passagem vai sumindo numa curva uns 30 m depois da borda.
+@export var south_pass_x := 0.0
+@export var south_pass_width := 0.0
 ## Densidade do capim (0..1) e das plantinhas no meio dele.
 @export_range(0.0, 1.0, 0.01) var grass_density := 0.6
 @export_range(0.0, 2.0, 0.05) var grass_plants := 1.0
@@ -77,12 +81,15 @@ func local_xform(n: Node3D) -> Transform3D:
 	return MapData.local_xform(self, n)
 
 
-## Formas pintadas no chão, em coordenadas do mapa (retângulos sempre alinhados aos eixos).
+## Formas pintadas no chão, em coordenadas do mapa. `angle` = giro do retângulo em Y (o do nó, somado ao dos
+## grupos acima dele), para ruas na diagonal.
 func paint_data() -> Array:
 	var out: Array = []
 	for p: MapGroundPaint in pieces(MapGroundPaint):
-		out.append({"center": local_xform(p).origin, "disc": p.disc, "size": p.size, "radius": p.radius,
-			"color": p.color, "soft": p.soft, "grass": p.grass})
+		var xf := local_xform(p)
+		var ax := xf.basis.x
+		out.append({"center": xf.origin, "disc": p.disc, "size": p.size, "radius": p.radius,
+			"color": p.color, "soft": p.soft, "grass": p.grass, "angle": snappedf(-atan2(ax.z, ax.x), 0.0001)})
 	return out
 
 
@@ -107,6 +114,8 @@ func grass_lists() -> Dictionary:
 		if p.no_grass and p.shape != 0:
 			var c := local_xform(p).origin
 			keep.append([Vector2(c.x, c.z), p.footprint() + 0.15])
+	for r: MapRiver in pieces(MapRiver):
+		keep.append_array(r.grass_discs())
 	return {"keep_out": keep, "sparse": sparse}
 
 
@@ -116,15 +125,19 @@ func make_ground(world_offset := Vector2.ZERO) -> Node3D:
 	var g: Node3D = load(GROUND).new()
 	g.name = "Ground_" + map_id
 	g.world_offset = world_offset
+	g.biome = BiomeRules.of(map_id)
 	g.setup(half)
 	for p in paint_data():
 		if p.disc:
 			g.add_disc(p.center, p.radius, p.color, p.soft, p.grass)
 		else:
-			g.add_rect(p.center, p.size, p.color, p.soft, p.grass)
+			g.add_rect(p.center, p.size, p.color, p.soft, p.grass, p.angle)
 	for m: Vector4 in mountain_data():
 		g.add_mountain(Vector3(m.x, 0, m.y), m.z, m.w)
+	for r: MapRiver in pieces(MapRiver):
+		g.add_river(r.samples(), r.half_total())
 	g.border_mountains(border_height)
+	g.border_pass(south_pass_x, south_pass_width)
 	return g
 
 

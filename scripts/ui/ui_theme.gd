@@ -334,10 +334,19 @@ static func _tex_box(name: String, ml: int, mt: int, cx: int, cy: int, expand :=
 
 
 # ================================================================ grimório (páginas de pergaminho)
-const INK := Color(0.2, 0.125, 0.065)
-const INK_DIM := Color(0.42, 0.31, 0.19)
+const INK := Color(0.2, 0.12, 0.06)
+const INK_DIM := Color(0.42, 0.31, 0.2)
 const INK_RED := Color(0.55, 0.11, 0.07)
-const PAGE := Color(0.86, 0.76, 0.56)
+const INK_GOLD := Color(0.45, 0.27, 0.02)
+## Pergaminho das janelas laterais (assets/ui/kit/win_frame.png) e a madeira da moldura.
+const PAGE := Color(0.914, 0.839, 0.675)
+const PAGE_EDGE := Color(0.24, 0.16, 0.1)
+const BRONZE := Color(0.69, 0.53, 0.28)
+## Texto sobre botão ligado (couro escuro).
+const ON_LEATHER := Color(0.97, 0.9, 0.74)
+## Espaço de item das janelas: aço azulado escuro, como uma moldura de metal sobre o papel.
+const SLOT_BG := Color(0.2, 0.23, 0.27)
+const SLOT_EDGE := Color(0.46, 0.51, 0.57)
 static var _paper: Theme
 
 
@@ -366,39 +375,41 @@ static func paper_theme() -> Theme:
 	var t: Theme = get_theme().duplicate()
 	t.default_font = body()
 	t.default_font_size = 20      # a Garamond é menor que a fonte padrão no mesmo tamanho
-	t.set_stylebox("normal", "Button", _ink_box(0.06, 0.55))
-	t.set_stylebox("hover", "Button", _ink_box(0.16, 0.8))
-	t.set_stylebox("pressed", "Button", _ink_box(0.78, 0.9))
-	t.set_stylebox("hover_pressed", "Button", _ink_box(0.85, 1.0))
-	t.set_stylebox("disabled", "Button", _ink_box(0.0, 0.2))
+	# botões de pergaminho com bisel; ligado (aba, filtro) é couro escuro com texto claro
+	t.set_stylebox("normal", "Button", win_btn("win_btn", _ink_box(0.06, 0.55)))
+	t.set_stylebox("hover", "Button", win_btn("win_btn_hover", _ink_box(0.16, 0.8)))
+	t.set_stylebox("pressed", "Button", win_btn("win_btn_on", _ink_box(0.78, 0.9)))
+	t.set_stylebox("hover_pressed", "Button", win_btn("win_btn_on", _ink_box(0.85, 1.0)))
+	t.set_stylebox("disabled", "Button", win_btn("win_btn_off", _ink_box(0.0, 0.2)))
 	t.set_stylebox("focus", "Button", StyleBoxEmpty.new())
 	t.set_color("font_color", "Button", INK)
 	t.set_color("font_hover_color", "Button", INK)
-	t.set_color("font_pressed_color", "Button", PAGE)
-	t.set_color("font_hover_pressed_color", "Button", PAGE)
-	t.set_color("font_disabled_color", "Button", Color(INK.r, INK.g, INK.b, 0.35))
+	t.set_color("font_pressed_color", "Button", ON_LEATHER)
+	t.set_color("font_hover_pressed_color", "Button", ON_LEATHER)
+	t.set_color("font_disabled_color", "Button", Color(INK.r, INK.g, INK.b, 0.4))
 	t.set_color("font_color", "Label", INK)
-	t.set_stylebox("separator", "HSeparator", _line(Color(INK.r, INK.g, INK.b, 0.45)))
-	t.set_stylebox("separator", "VSeparator", _line(Color(INK.r, INK.g, INK.b, 0.45)))
+	t.set_stylebox("separator", "HSeparator", _line(Color(0.45, 0.31, 0.15, 0.7)))
+	t.set_stylebox("separator", "VSeparator", _line(Color(0.45, 0.31, 0.15, 0.7)))
 	t.set_stylebox("grabber", "VScrollBar", _box(Color(INK.r, INK.g, INK.b, 0.5), Color(0, 0, 0, 0), 0, 3))
 	t.set_stylebox("grabber_highlight", "VScrollBar", _box(Color(INK.r, INK.g, INK.b, 0.7), Color(0, 0, 0, 0), 0, 3))
 	t.set_stylebox("grabber_pressed", "VScrollBar", _box(INK, Color(0, 0, 0, 0), 0, 3))
 	t.set_stylebox("scroll", "VScrollBar", _box(Color(INK.r, INK.g, INK.b, 0.1), Color(0, 0, 0, 0), 0, 3, 4, 0))
-	# listas e abas: selecionado é tinta cheia com texto cor de papel
-	t.set_stylebox("panel", "ItemList", _ink_box(0.05, 0.4))
-	t.set_stylebox("selected", "ItemList", _ink_box(0.78, 0.9))
-	t.set_stylebox("selected_focus", "ItemList", _ink_box(0.78, 0.9))
+	# abas: selecionada é tinta cheia com texto cor de papel; linha de lista selecionada é só um realce
+	# (as linhas têm cor própria — pronta, sem estoque — que sumiria na tinta cheia)
+	t.set_stylebox("panel", "ItemList", win_inset(10, _ink_box(0.05, 0.4)))
+	t.set_stylebox("selected", "ItemList", _ink_box(0.16, 0.85, 2))
+	t.set_stylebox("selected_focus", "ItemList", _ink_box(0.16, 0.85, 2))
 	t.set_stylebox("hovered", "ItemList", _ink_box(0.14, 0.0, 0))
 	t.set_stylebox("focus", "ItemList", StyleBoxEmpty.new())
 	t.set_color("font_color", "ItemList", INK)
 	t.set_color("font_hovered_color", "ItemList", INK)
-	t.set_color("font_selected_color", "ItemList", PAGE)
-	t.set_stylebox("panel", "TabContainer", _ink_box(0.04, 0.45))
-	t.set_stylebox("tab_selected", "TabContainer", _ink_box(0.78, 0.9))
-	t.set_stylebox("tab_unselected", "TabContainer", _ink_box(0.06, 0.4))
-	t.set_stylebox("tab_hovered", "TabContainer", _ink_box(0.16, 0.7))
+	t.set_color("font_selected_color", "ItemList", INK)
+	t.set_stylebox("panel", "TabContainer", win_inset(10, _ink_box(0.04, 0.45)))
+	t.set_stylebox("tab_selected", "TabContainer", win_btn("win_btn_on", _ink_box(0.78, 0.9)))
+	t.set_stylebox("tab_unselected", "TabContainer", win_btn("win_btn", _ink_box(0.06, 0.4)))
+	t.set_stylebox("tab_hovered", "TabContainer", win_btn("win_btn_hover", _ink_box(0.16, 0.7)))
 	t.set_stylebox("tab_focus", "TabContainer", StyleBoxEmpty.new())
-	t.set_color("font_selected_color", "TabContainer", PAGE)
+	t.set_color("font_selected_color", "TabContainer", ON_LEATHER)
 	t.set_color("font_unselected_color", "TabContainer", INK)
 	t.set_color("font_hovered_color", "TabContainer", INK)
 	# barras e deslizadores
@@ -408,7 +419,7 @@ static func paper_theme() -> Theme:
 	t.set_stylebox("grabber_area_highlight", "HSlider", _box(INK_RED.lightened(0.15), Color(0, 0, 0, 0), 0, 3, 0, 3))
 	# campo de texto, caixa de marcar e seletor
 	var focus := _ink_box(0.04, 1.0, 2)
-	t.set_stylebox("normal", "LineEdit", _ink_box(0.05, 0.55))
+	t.set_stylebox("normal", "LineEdit", win_inset(10, _ink_box(0.05, 0.55)))
 	t.set_stylebox("focus", "LineEdit", focus)
 	t.set_stylebox("read_only", "LineEdit", _ink_box(0.0, 0.25))
 	t.set_color("font_color", "LineEdit", INK)
@@ -416,16 +427,16 @@ static func paper_theme() -> Theme:
 	t.set_color("caret_color", "LineEdit", INK)
 	t.set_color("selection_color", "LineEdit", Color(INK_RED.r, INK_RED.g, INK_RED.b, 0.3))
 	for type in ["CheckBox", "OptionButton"]:
-		t.set_stylebox("normal", type, _ink_box(0.06, 0.55))
-		t.set_stylebox("hover", type, _ink_box(0.16, 0.8))
-		t.set_stylebox("pressed", type, _ink_box(0.16, 0.8))
+		t.set_stylebox("normal", type, win_btn("win_btn", _ink_box(0.06, 0.55)))
+		t.set_stylebox("hover", type, win_btn("win_btn_hover", _ink_box(0.16, 0.8)))
+		t.set_stylebox("pressed", type, win_btn("win_btn_hover", _ink_box(0.16, 0.8)))
 		t.set_stylebox("focus", type, focus)
 		t.set_color("font_color", type, INK)
 		t.set_color("font_hover_color", type, INK)
 		t.set_color("font_pressed_color", type, INK)
 		t.set_color("font_focus_color", type, INK)
 	# menus suspensos e dicas: um pedaço de papel por cima da página
-	var sheet := _box(PAGE, INK, 1, 3, 10, 6)
+	var sheet := _box(PAGE, PAGE_EDGE, 2, 3, 10, 6)
 	sheet.shadow_color = Color(0, 0, 0, 0.35)
 	sheet.shadow_size = 6
 	t.set_stylebox("panel", "PopupMenu", sheet)
@@ -459,6 +470,178 @@ static func ink_bar(color: Color, w: float, h: float) -> ProgressBar:
 	return b
 
 
-## Quadro a tinta para subdividir uma página (o par de `inset_box()`).
-static func ink_inset(margin := 12) -> StyleBoxFlat:
-	return _box(Color(INK.r, INK.g, INK.b, 0.05), Color(INK.r, INK.g, INK.b, 0.4), 1, 4, margin, margin - 2)
+## Quadro rebaixado para subdividir uma página (o par de `inset_box()`).
+static func ink_inset(margin := 12) -> StyleBox:
+	return win_inset(margin, _box(Color(INK.r, INK.g, INK.b, 0.05), Color(INK.r, INK.g, INK.b, 0.4), 1, 4, margin, margin - 2))
+
+
+# ================================================================ janelas laterais (WindowDock)
+## Distância das janelas até a borda da tela.
+const DOCK_MARGIN := 16.0
+
+
+## Fundo de uma janela lateral: moldura de madeira com friso de bronze e cantoneiras, pergaminho dentro
+## (assets/ui/kit/win_frame.png, gerado por tools/ui_kit/make_window_kit.py). `margin` é o respiro entre o
+## friso e o conteúdo.
+static func parch_box(margin := 16) -> StyleBox:
+	var fb := _box(PAGE, PAGE_EDGE, 3, 8, margin + 12, margin + 10)
+	return _win_tex("win_frame_" + frame_style(), 30, 13 + margin, 12 + margin, fb)
+
+
+## Moldura pequena (dica de item): o mesmo material com friso fino.
+static func small_frame(margin := 6) -> StyleBox:
+	var fb := _box(PAGE, PAGE_EDGE, 2, 4, margin + 6, margin + 5)
+	return _win_tex("win_frame_small_" + frame_style(), 16, 8 + margin, 7 + margin, fb)
+
+
+## Material da moldura das janelas (tools/ui_kit/frame_styles.py). Comparadas A (madeira e bronze),
+## B (ferro forjado) e C (couro costurado) em 20/11/2026; o dono do projeto escolheu a B.
+static func frame_style() -> String:
+	return "b"
+
+
+## Botão de pergaminho do kit das janelas (`name` = win_btn, win_btn_hover, win_btn_on, win_btn_off, win_btn_red).
+static func win_btn(name: String, fallback: StyleBox) -> StyleBox:
+	return _win_tex(name, 7, 12, 5, fallback)
+
+
+## Quadro rebaixado no papel (seções, listas, campos).
+static func win_inset(margin: int, fallback: StyleBox) -> StyleBox:
+	return _win_tex("win_inset", 8, margin, margin - 2, fallback)
+
+
+static func _win_tex(name: String, tm: int, cx: int, cy: int, fallback: StyleBox) -> StyleBox:
+	var path := KIT + name + ".png"
+	if not ResourceLoader.exists(path):
+		return fallback
+	var s := StyleBoxTexture.new()
+	s.texture = load(path)
+	s.set_texture_margin_all(tm)
+	s.content_margin_left = cx
+	s.content_margin_right = cx
+	s.content_margin_top = cy
+	s.content_margin_bottom = cy
+	return s
+
+
+## Botão da ação principal da janela (Comprar, Fabricar, Plantar): vermelho com texto claro.
+static func primary(b: Button) -> Button:
+	b.add_theme_stylebox_override("normal", win_btn("win_btn_red", _box(Color(0.59, 0.16, 0.11), Color(0.27, 0.06, 0.04), 2, 4, 12, 5)))
+	var hov := win_btn("win_btn_red", _box(Color(0.68, 0.2, 0.14), Color(0.27, 0.06, 0.04), 2, 4, 12, 5))
+	if hov is StyleBoxTexture:
+		(hov as StyleBoxTexture).modulate_color = Color(1.15, 1.1, 1.1)
+	b.add_theme_stylebox_override("hover", hov)
+	var down := win_btn("win_btn_red", _box(Color(0.45, 0.1, 0.07), Color(0.27, 0.06, 0.04), 2, 4, 12, 5))
+	if down is StyleBoxTexture:
+		(down as StyleBoxTexture).modulate_color = Color(0.82, 0.8, 0.8)
+	b.add_theme_stylebox_override("pressed", down)
+	b.add_theme_stylebox_override("disabled", win_btn("win_btn_off", _box(PAGE.darkened(0.1), INK_DIM, 1, 4, 12, 5)))
+	for k in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
+		b.add_theme_color_override(k, ON_LEATHER)
+	b.set_meta("_primary", true)
+	return b
+
+
+## Rodapé das janelas: a dica numa linha própria (quebra linha, nunca é espremida pelos botões) e, embaixo,
+## os botões alinhados à direita, todos da mesma altura e com largura pelo texto. Ordem: secundários, a ação
+## principal (vermelha) e por último "Sair". Sem selo de tecla: Esc fecha qualquer janela.
+static func footer(hint: Label, buttons: Array) -> VBoxContainer:
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	if hint != null:
+		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hint.custom_minimum_size.x = 120
+		v.add_child(hint)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.alignment = BoxContainer.ALIGNMENT_END
+	for b: Button in buttons:
+		b.custom_minimum_size = Vector2(110, 36)
+		b.size_flags_horizontal = Control.SIZE_SHRINK_END
+		b.add_theme_font_size_override("font_size", 16)
+		row.add_child(b)
+	v.add_child(row)
+	return v
+
+
+## Ornamento de bronze (linha com losango) para separar o título do conteúdo.
+static func ornament() -> Control:
+	var path := KIT + "win_divider.png"
+	if not ResourceLoader.exists(path):
+		return HSeparator.new()
+	var r := TextureRect.new()
+	r.texture = load(path)
+	r.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	r.custom_minimum_size.y = 14
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return r
+
+
+## Janela de estação (loja, bancada, horta...) encaixada num lado da tela, sem escurecer o mundo: devolve o
+## painel de pergaminho onde a tela monta o conteúdo. O resto da tela não bloqueia o mouse, então outra
+## janela (o inventário, do outro lado) continua clicável. As cores do tema escuro viram tinta (PaperInk).
+static func dock_panel(parent: Control, side := "left") -> PanelContainer:
+	parent.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var root := Control.new()
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.theme = paper_theme()
+	parent.add_child(root)
+	var p := PanelContainer.new()
+	p.add_theme_stylebox_override("panel", parch_box())
+	root.add_child(p)
+	var place := func() -> void:
+		var sz := p.get_combined_minimum_size()
+		if p.size != sz:
+			p.size = sz   # encolhe junto quando o conteúdo diminui (o Control sozinho só cresce)
+		var x := DOCK_MARGIN if side == "left" else root.size.x - sz.x - DOCK_MARGIN
+		p.position = frame_pos(p, Vector2(x, DOCK_MARGIN), root.size)
+	parent.set_meta("_dock_frame", p)
+	make_draggable(p, place)
+	root.resized.connect(place)
+	p.resized.connect(place)
+	p.minimum_size_changed.connect(place)
+	place.call_deferred()
+	var ink := PaperInk.new()
+	ink.target = p
+	p.add_child(ink)
+	return p
+
+
+## Janela arrastável: segurando o botão esquerdo em qualquer parte vazia do painel (título, papel, moldura)
+## ela acompanha o mouse; `relayout` reposiciona (lendo `frame_pos`). Ao soltar, o WindowDock desencavala:
+## se ficou por cima de outra janela, encosta ao lado dela.
+static func make_draggable(frame: Control, relayout: Callable) -> void:
+	frame.mouse_filter = Control.MOUSE_FILTER_STOP
+	frame.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT:
+			if e.pressed:
+				frame.set_meta("_drag", frame.get_global_mouse_position() - frame.global_position)
+			elif frame.has_meta("_drag"):
+				frame.remove_meta("_drag")
+				frame.get_tree().call_group("window_dock", "resolve", frame)
+		elif e is InputEventMouseMotion and frame.has_meta("_drag"):
+			var parent_pos := (frame.get_parent() as Control).global_position
+			frame.set_meta("_user_pos", frame.get_global_mouse_position() - frame.get_meta("_drag") - parent_pos)
+			relayout.call())
+
+
+## Posição da janela: a que o jogador escolheu arrastando (ou o WindowDock, ao desencavalar) ou `default`;
+## sempre inteira dentro de `area`.
+static func frame_pos(frame: Control, default: Vector2, area: Vector2) -> Vector2:
+	var p: Vector2 = frame.get_meta("_user_pos") if frame.has_meta("_user_pos") else default
+	return p.clamp(Vector2.ZERO, (area - frame.size).max(Vector2.ZERO)).round()
+
+
+## Cor clara do tema escuro convertida para tinta sobre o pergaminho: branco/creme vira tinta, cinza vira
+## tinta apagada, dourado vira ouro escuro e as cores vivas (raridade, bônus) escurecem (`on_paper`).
+static func paper_color(c: Color) -> Color:
+	var lum := c.get_luminance()
+	if lum < 0.33:
+		return c
+	if c.s < 0.28:
+		return INK if lum > 0.68 else INK_DIM
+	if c.h > 0.07 and c.h < 0.16 and c.s > 0.35:
+		return INK_GOLD
+	return Color(on_paper(c), c.a)

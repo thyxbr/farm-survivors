@@ -12,13 +12,17 @@ var attributes := {"str": 5, "int": 5, "vit": 5, "agi": 5}
 var inventory: Array = []   # [{"id": String, "qty": int}]
 var equipment := {}         # espaço -> id ("" = vazio), ver CharRules.SLOTS
 var quests := {}            # id -> {"state": "active"|"ready"|"done", "progress": int[, "got": [int]]}
-var flags := {}
+var flags := {"map_v": MAP_V}   # personagem novo já nasce na planta atual do vale
 ## {"unlocked": int, "plots": [{"crop", "growth" 0..1, "t" unix s, "watered", "fert"}]}
 var farm := {}
 var hp := 0.0
 var mp := 0.0
 ## null = ponto de nascimento padrão do mundo.
 var world_pos: Variant = null
+## Versão da planta do vale que o world_pos já conhece (flags.map_v) e a área da vila antiga (x0, z0, largura,
+## profundidade), de antes de ela ir para o sul: ver from_dict.
+const MAP_V := 1
+const OLD_VILLAGE := Rect2(-36, -18, 75, 45)
 var world_yaw := 0.0
 var kills := 0
 ## Fúria 0..FURY_MAX: do combate (cliente), vai ao serviço junto com vida e mana.
@@ -53,6 +57,7 @@ static func new_character(bt: BalanceTables) -> CharState:
 	s.farm = CharRules.default_farm(bt)
 	s.flags["prog_v"] = CharRules.PROG_VERSION   # já nasce na progressão por nível: nada a migrar
 	s.flags["tools_v"] = CharRules.TOOLS_VERSION   # e com a picareta e o machado de pedra equipados
+	s.flags["map_v"] = MAP_V   # e na vila do sul do vale
 	s.equipment.pickaxe = "pickaxe_stone"
 	s.equipment.axe = "axe_stone"
 	for e in [["health_potion", 3], ["mana_potion", 1], ["seed_carrot", 4], ["seed_wheat", 4], ["bread", 1]]:
@@ -154,6 +159,12 @@ static func from_dict(d, bt: BalanceTables = null) -> CharState:
 	elif p is Vector3 and p.is_finite():
 		s.world_pos = p
 	s.world_yaw = _float(d.get("world_yaw"), 0.0)
+	# a vila foi para o sul do vale (flags.map_v 1): quem salvou dentro da vila antiga (o miolo do vale, onde hoje
+	# ficam os Campos do Norte) volta uma vez para a entrada da vila nova
+	var map_v := _int(s.flags.get("map_v", 0), 0)   # vem do JSON como float
+	if map_v < MAP_V and s.world_pos is Vector3 and OLD_VILLAGE.has_point(Vector2(s.world_pos.x, s.world_pos.z)):
+		s.world_pos = null
+	s.flags["map_v"] = maxi(map_v, MAP_V)
 	s.ecos = maxi(0, _int(d.get("ecos"), 0))
 	var ps = d.get("passives")
 	if ps is Dictionary:

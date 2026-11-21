@@ -3,7 +3,7 @@ extends RefCounted
 ## Confere uma cena de mapa contra o que o jogo aceita (sem autoload; usado pelo teste
 ## tests/unit/test_map_validation.gd, rode depois de editar um mapa). Cada problema vem com o caminho do nó.
 
-const MAX_PAINTS := 40
+const MAX_PAINTS := 64
 const MARGIN := 30.0   # além da meia largura (a serra e a floresta da borda ficam um pouco para fora)
 const WORLD_NODES := "res://data/balance/world_nodes.json"
 const REGIONS := "res://data/balance/regions.json"
@@ -11,6 +11,8 @@ const REGIONS := "res://data/balance/regions.json"
 const REQUIRED := {"vila": ["camp", "ruins", "farm", "nest", "orchard", "village_spawn", "portal", "horde_return",
 	"pond", "coach", "arrive"], "arena": []}
 const REQUIRED_REGION := ["coach", "arrive"]
+## NPCs que o vale precisa ter uma vez (MapEntity com esse kind): a Mira e a Pip.
+const UNIQUE_NPCS := ["merchant", "alchemist"]
 ## Índices que o vale precisa ter completos: tipo -> quantidade (canteiros da Horta, presentes do Natal).
 const INDEXED := {"farm_plot": 12, "xmas_gift": 8}
 
@@ -68,8 +70,12 @@ static func check(root: MapRoot) -> PackedStringArray:
 			out.append("precisa de exatamente 1 porta para a dungeon '%s' (dungeon_door ref \"%s\")" % [d, d])
 	var veins: Dictionary = _vein_kinds()
 	var seen := {}
+	var npcs := {}
 	for e: MapEntity in root.pieces(MapEntity):
 		var at := str(root.get_path_to(e))
+		npcs[e.kind] = int(npcs.get(e.kind, 0)) + 1
+		if e.kind == "walker" and e.walk_path().size() < 2:
+			out.append("%s: morador que passeia precisa de 2 pontos de caminho ou mais (filhos MapWaypoint)" % at)
 		if e.kind == "resource_node":
 			if e.node_id < 0:
 				out.append("%s: nó de coleta sem node_id" % at)
@@ -80,16 +86,49 @@ static func check(root: MapRoot) -> PackedStringArray:
 				seen[e.kind] = []
 			seen[e.kind].append(e.index)
 	if root.map_id == "vila":
+		for k in UNIQUE_NPCS:
+			if int(npcs.get(k, 0)) != 1:
+				out.append("NPC '%s' aparece %d vez(es); precisa de exatamente 1" % [k, int(npcs.get(k, 0))])
 		for k in INDEXED:
 			var got: Array = seen.get(k, [])
 			got.sort()
 			if got != range(INDEXED[k]):
 				out.append("%s: os índices precisam ser 0..%d, um de cada (veio %s)" % [k, INDEXED[k] - 1, str(got)])
+	out.append_array(_river_problems(root))
 	var lim := root.half + MARGIN
 	for n in root.all_pieces():
 		var p := root.local_xform(n).origin
 		if absf(p.x) > lim or absf(p.z) > lim:
 			out.append("%s: fora do mapa (%.0f, %.0f; limite %.0f)" % [str(root.get_path_to(n)), p.x, p.z, lim])
+	return out
+
+
+## Rios: precisam de 2 pontos ou mais, e nada do jogo pode ficar dentro do leito (fica do outro lado da parede ou
+## debaixo d'água). Só a ponte pode.
+static func _river_problems(root: MapRoot) -> PackedStringArray:
+	var out := PackedStringArray()
+	var rivers := root.pieces(MapRiver)
+	for r: MapRiver in rivers:
+		if r.control_points().size() < 2:
+			out.append("%s: rio precisa de 2 pontos de caminho ou mais (filhos MapWaypoint)" % root.get_path_to(r))
+	if rivers.is_empty():
+		return out
+	for n in root.all_pieces():
+		if n is MapRiver or n is MapGroundPaint or n is MapRegion or n is MapGrassArea or n is MapMountain:
+			continue
+		if n is MapProp and MapRiver.BRIDGE_HALF.has((n as MapProp).model):
+			continue
+		var p := root.local_xform(n).origin
+		var reach := 0.0
+		if n is MapProp:
+			reach = (n as MapProp).footprint()
+		elif n is EnemySpawn:
+			reach = (n as EnemySpawn).radius
+		for r: MapRiver in rivers:
+			var d := MapRiver.distance_to(r.samples(), Vector2(p.x, p.z))
+			if d - reach < r.half_total():
+				out.append("%s: dentro do rio %s (a %.1f m do meio; o leito vai até %.1f m)"
+					% [root.get_path_to(n), r.name, d, r.half_total()])
 	return out
 
 

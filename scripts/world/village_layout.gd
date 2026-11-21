@@ -10,7 +10,8 @@ extends RefCounted
 
 ## Área da vila (x0, z0, largura, profundidade), a mesma da cerca do vale.tscn: a música da vila
 ## (MusicRules) toca aqui dentro. Se mudar a cerca de lugar no editor, ajuste aqui também.
-const BOUNDS := Rect2(-36, -18, 75, 45)
+## A vila fica no sul do vale: quem chega pela estrada do sul passa pela Rua da Chegada até a praça da feira.
+const BOUNDS := Rect2(-40, 46, 80, 55)
 
 ## Colisão (largura, altura, profundidade) de cada modelo de casa.
 const HOUSE_SIZE := {
@@ -21,7 +22,8 @@ const HOUSE_SIZE := {
 ## Pegada (largura, profundidade) das construções que não são casa, para os testes da planta.
 const FOOTPRINT := {
 	"shop_merchant": Vector2(5.2, 3.6), "shop_alchemist": Vector2(4.4, 3.8), "shop_smithy": Vector2(4.6, 4.6),
-	"well": Vector2(1.9, 1.9),
+	"well": Vector2(1.9, 1.9), "shop_workshop": Vector2(7.4, 4.6), "shop_alchemy_lab": Vector2(4.4, 3.6),
+	"stall_cloth": Vector2(4.0, 2.4), "stall_farm": Vector2(4.0, 2.4), "stall_goods": Vector2(4.0, 2.4),
 }
 
 ## Colisões das lojas no espaço delas: [boxes [[centro local, tamanho]], cyls [[centro local, raio]],
@@ -32,10 +34,34 @@ const SHOP_SHAPES := {
 		[[Vector3(-2.05, 0, -1.8), 0.95], [Vector3(-1.05, 0, 2.85), 0.45]], 3.6],
 	"shop_smithy": [[[Vector3(0, 0, -2.6), Vector3(4.0, 3.0, 0.5)], [Vector3(-1.8, 0, -0.7), Vector3(0.4, 1.1, 3.4)]],
 		[[Vector3(1.4, 0, -0.4), 0.5]], 2.8],
+	# oficina aberta na frente: parede do fundo, meias-paredes, bancada do fundo, cavalete, tear e o que fica
+	# do lado de fora (tábuas e toras à direita, barril e caixotes à esquerda)
+	"shop_workshop": [[[Vector3(0, 0, -2.4), Vector3(5.6, 2.7, 0.3)], [Vector3(-2.8, 0, -0.8), Vector3(0.25, 1.1, 3.2)],
+		[Vector3(2.8, 0, -0.8), Vector3(0.25, 1.1, 3.2)], [Vector3(0, 0, -1.55), Vector3(2.6, 1.0, 0.8)],
+		[Vector3(-2.2, 0, 0), Vector3(0.2, 1.9, 1.3)], [Vector3(2.05, 0, -0.2), Vector3(0.8, 1.4, 1.1)],
+		[Vector3(3.4, 0, -0.1), Vector3(0.8, 0.7, 3.4)], [Vector3(-3.3, 0, 0.45), Vector3(0.8, 1.0, 2.0)]], [], 4.2],
+	# laboratório aberto: parede do fundo, alambique e o caldeirão no fogareiro (a mesa é a CraftingStation)
+	"shop_alchemy_lab": [[[Vector3(0, 0, -1.9), Vector3(4.0, 2.6, 0.4)], [Vector3(1.4, 0, -0.75), Vector3(0.8, 1.4, 0.7)]],
+		[[Vector3(-1.35, 0, -0.55), 0.6], [Vector3(0.85, 0, -0.25), 0.2], [Vector3(-1.9, 0, 1.75), 0.25],
+		[Vector3(1.9, 0, 1.75), 0.25]], 3.0],
+	# barracas da feira: o miolo (balcão, esteios, fundo de pano) e o que fica dos lados
+	"stall_cloth": [[[Vector3(0, 0, -0.05), Vector3(3.2, 2.6, 2.2)]], [[Vector3(-1.95, 0, 0.2), 0.45]], 2.4],
+	"stall_farm": [[[Vector3(0, 0, -0.05), Vector3(3.2, 2.6, 2.2)]], [[Vector3(-1.85, 0, 0.6), 0.35],
+		[Vector3(1.95, 0, 0.3), 0.55]], 2.4],
+	"stall_goods": [[[Vector3(0, 0, -0.05), Vector3(3.2, 2.6, 2.2)]], [[Vector3(-1.95, 0, -0.4), 0.38],
+		[Vector3(1.95, 0, 0.1), 0.6]], 2.4],
 }
-## Onde o dono fica, no espaço da loja (a Mira atrás do balcão do empório, a Pip na porta da botica).
-const MERCHANT_SPOT := Vector3(-0.7, 0, 2.4)
-const ALCHEMIST_SPOT := Vector3(0.3, 0, 3.0)
+## Onde o feirante fica atrás do balcão da barraca, onde o artesão fica na oficina (a Bancada de Couraria na
+## frente dele) e onde vai a mesa de alquimia no laboratório, no espaço de cada construção.
+const STALL_SPOT := Vector3(0, 0, -0.25)
+const WORKSHOP_SPOT := Vector3(0, 0, -0.75)
+const WORKSHOP_BENCH := Vector3(0, 0, 0.45)
+const LAB_TABLE := Vector3(0, 0, 0.0)
+
+
+## A construção é loja ou barraca (modelo + colisões de SHOP_SHAPES), não casa nem poço.
+static func is_shop(model: String) -> bool:
+	return model.begins_with("shop_") or model.begins_with("stall_")
 
 ## As construções (casas, lojas e o poço) ficam na cena do vale (scenes/maps/vale.tscn), que se edita no 3D do Godot
 ## (VillageBuilding). O jogo lê a cena uma vez e guarda: buildings() devolve os dados de cada uma.

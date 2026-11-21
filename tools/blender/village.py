@@ -9,6 +9,9 @@
 #   shop_smithy.glb     ferraria aberta na frente; a origem é o lugar do ferreiro (forja e bigorna são props à parte)
 #   shop_alchemist.glb  botica do alquimista: torrinha redonda, vitrine de frascos, caldeirão na porta
 #   shop_merchant.glb   empório do mercador: balcão na frente sob toldo listrado, mercadorias
+#   shop_workshop.glb   oficina aberta do artesão (couraria, tear, ferramentas); a origem é o lugar dele
+#   shop_alchemy_lab.glb  laboratório aberto de alquimia ao lado da botica (alambique, caldeirão, frascos)
+#   stall_cloth/farm/goods.glb  barracas da feira: couro e tecido, sementes e ferramentas, provisões
 # Convenções: frente (porta) em -Y, chão em Z=0. As casas têm paredes de 5 x 4 m centradas na origem
 # (colisão 5,2 x 4,2 no jogo), igual à casa antiga, então posições na vila, na praça e na cidade não mudam.
 
@@ -970,13 +973,369 @@ def build_house_f():
     _vexport(bag, "HouseF", "house_f")
 
 
+# ================================================================ BARRACAS DA FEIRA (3,2 x 2,2)
+# Barraca de tábua com toldo listrado, balcão na frente (-Y) e o vendedor atrás dele (origem; ver
+# VillageLayout.STALL_SPOT). Cada uma tem a mercadoria do que vende e a cor do toldo dela.
+STALL_KINDS = {
+    "stall_cloth": (b_blue, b_cloth_w),     # Couro & Tecido: armaduras, capuzes, botas
+    "stall_farm": (b_cloth_y, v_green),     # Sementes & Ferramentas
+    "stall_goods": (v_red, b_cloth_y),      # Provisões: poções, pão, minério e toras
+}
+
+
+def build_stall(kind):
+    rnd = random.Random(sum(map(ord, kind)))
+    bag = Bag()
+    a = bag.add
+    X, YF, YB = 1.5, -0.75, 1.0          # meia largura, linha do balcão (frente), fundo
+    c1, c2 = STALL_KINDS[kind]
+    # estrado de tábuas e os quatro esteios (os da frente mais baixos: o toldo cai para a frente)
+    a(bx("Deck", (0, 0.1, 0.05), (2 * X + 0.3, YB - YF + 0.7, 0.1), p_wood_dk, bev=0.02))
+    for i in range(7):
+        a(bx(bag.nm("DeckPlank"), (-X + 0.05 + i * (2 * X - 0.1) / 6, 0.1, 0.105), (0.4, YB - YF + 0.6, 0.02),
+             p_wood if i % 2 else p_wood_lt, bev=0.005))
+    for x in (-X, X):
+        a(beam(bag.nm("PostF"), (x, YF - 0.2, 0.1), (x, YF - 0.2, 2.4), 0.07, v_timber, seg=6))
+        a(beam(bag.nm("PostB"), (x, YB, 0.1), (x, YB, 2.85), 0.07, v_timber, seg=6))
+        a(beam(bag.nm("SideRail"), (x, YF - 0.2, 2.35), (x, YB, 2.8), 0.05, v_timber, seg=5))
+    # balcão com tampo grosso e frente de tábuas com uma faixa na cor da barraca
+    a(bx("Counter", (0, YF, 0.55), (2 * X - 0.1, 0.5, 0.9), p_wood, bev=0.03))
+    for i in range(6):
+        a(bx(bag.nm("CounterPlank"), (-X + 0.3 + i * 0.48, YF - 0.27, 0.55), (0.44, 0.04, 0.84),
+             p_wood_lt if i % 2 else p_wood, bev=0.01))
+    a(bx("CounterBand", (0, YF - 0.3, 0.86), (2 * X - 0.05, 0.03, 0.12), c1, bev=0.005))
+    a(bx("CounterTop", (0, YF, 1.03), (2 * X + 0.12, 0.64, 0.08), p_wood_dk, bev=0.02))
+    # fundo de pano e prateleiras
+    a(bx("BackCloth", (0, YB + 0.03, 1.45), (2 * X, 0.04, 2.1), p_canvas_dk, bev=0.0))
+    a(bx("Shelf", (0, YB - 0.18, 1.25), (2 * X - 0.1, 0.36, 0.05), p_wood, bev=0.01))
+    a(bx("Shelf2", (0, YB - 0.18, 1.8), (2 * X - 0.1, 0.36, 0.05), p_wood, bev=0.01))
+    # toldo listrado em duas cores, com babado de pontas na frente
+    n = 7
+    w = (2 * X + 0.4) / n
+    run = YB - YF + 0.2
+    th = math.atan2(2.85 - 2.4, run)
+    L = math.hypot(run + 0.5, 0.55)
+    for i in range(n):
+        x = -X - 0.2 + (i + 0.5) * w
+        m = c1 if i % 2 == 0 else c2
+        a(bx(bag.nm("Awning"), (x, (YF - 0.2 + YB) / 2 - 0.25, 2.64), (w, L, 0.05), m, rot=(-th, 0, 0), bev=0.0))
+        ey, ez = YF - 0.68, 2.42
+        a(hull(bag.nm("Flap"), [(x - w / 2, ey, ez), (x + w / 2, ey, ez), (x, ey, ez - 0.24),
+                                (x - w / 2, ey + 0.04, ez), (x + w / 2, ey + 0.04, ez), (x, ey + 0.04, ez - 0.24)], m))
+    # placa pendurada no esteio da direita
+    a(beam("SignArm", (X, YF - 0.2, 2.15), (X + 0.6, YF - 0.2, 2.15), 0.025, p_iron, seg=4))
+    for s in (-1, 1):
+        a(beam(bag.nm("SignChain"), (X + 0.38 + s * 0.17, YF - 0.2, 2.15), (X + 0.38 + s * 0.17, YF - 0.2, 2.05), 0.01, p_iron, seg=3))
+    a(bx("Sign", (X + 0.38, YF - 0.2, 1.85), (0.5, 0.05, 0.42), p_wood, bev=0.02))
+    ty = YF
+    if kind == "stall_cloth":
+        # placa: túnica
+        a(hull("SignTunic", [(X + 0.26, YF - 0.24, 1.98), (X + 0.5, YF - 0.24, 1.98), (X + 0.28, YF - 0.24, 1.72),
+                             (X + 0.48, YF - 0.24, 1.72), (X + 0.26, YF - 0.22, 1.98), (X + 0.5, YF - 0.22, 1.98),
+                             (X + 0.28, YF - 0.22, 1.72), (X + 0.48, YF - 0.22, 1.72)], b_blue))
+        # rolos de pano, peças dobradas, capuz e botas no balcão; túnicas penduradas atrás
+        for gx, m in ((-1.05, b_blue), (-0.75, b_red), (-0.45, b_cloth_y)):
+            a(part(bag.nm("Roll"), "cyl", (gx, ty, 1.2), (0.2, 0.2, 0.55), m, rot=(PI / 2, 0, 0), seg=8))
+        for k in range(3):
+            a(bx(bag.nm("Folded"), (0.2, ty, 1.11 + k * 0.07), (0.5, 0.4, 0.07), (p_canvas, v_green, p_canvas_dk)[k], bev=0.02))
+        a(part("Hood", "sphere", (0.8, ty, 1.2), (0.3, 0.3, 0.24), v_green, seg=8))
+        for s in (-1, 1):   # par de botas
+            a(bx(bag.nm("Boot"), (1.18 + s * 0.12, ty + 0.06, 1.25), (0.11, 0.16, 0.34), p_wood_dk, bev=0.03))
+            a(bx(bag.nm("BootToe"), (1.18 + s * 0.12, ty - 0.06, 1.12), (0.11, 0.2, 0.1), p_wood_dk, bev=0.03))
+        a(beam("HangBar", (-X, YB - 0.1, 2.3), (X, YB - 0.1, 2.3), 0.025, p_wood_dk, seg=5))
+        for gx, m in ((-0.95, b_red), (-0.15, p_canvas), (0.65, b_blue)):
+            a(hull(bag.nm("Tunic"), [(gx - 0.3, YB - 0.14, 2.28), (gx + 0.3, YB - 0.14, 2.28), (gx - 0.24, YB - 0.14, 1.5),
+                                     (gx + 0.24, YB - 0.14, 1.5), (gx - 0.3, YB - 0.08, 2.28), (gx + 0.3, YB - 0.08, 2.28),
+                                     (gx - 0.24, YB - 0.08, 1.5), (gx + 0.24, YB - 0.08, 1.5)], m))
+            a(bx(bag.nm("Belt"), (gx, YB - 0.15, 1.8), (0.5, 0.03, 0.06), p_wood_dk, bev=0.0))
+        # couro esticado num cavalete do lado esquerdo
+        for y in (-0.7, 0.3):
+            a(beam(bag.nm("RackLeg"), (-X - 0.42, y, 0.0), (-X - 0.42, y, 1.55), 0.035, p_wood_dk, seg=5))
+        a(beam("RackTop", (-X - 0.42, -0.7, 1.5), (-X - 0.42, 0.3, 1.5), 0.03, p_wood_dk, seg=5))
+        a(hull("Hide", [(-X - 0.44, -0.6, 0.35), (-X - 0.44, 0.22, 0.4), (-X - 0.44, 0.18, 1.45), (-X - 0.44, -0.55, 1.42),
+                        (-X - 0.4, -0.6, 0.35), (-X - 0.4, 0.22, 0.4), (-X - 0.4, 0.18, 1.45), (-X - 0.4, -0.55, 1.42)], p_canvas))
+    elif kind == "stall_farm":
+        # placa: espiga
+        a(part("SignWheat", "cone", (X + 0.38, YF - 0.25, 1.85), (0.12, 0.12, 0.32), c_wheat, seg=6))
+        # sacos de sementes abertos, mudas em vasinhos, ferramentas encostadas e abóboras
+        for k, (gx, m) in enumerate(((-1.05, c_wheat), (-0.5, b_apple), (0.05, c_mint_leaf), (0.6, c_carrot))):
+            a(boulder(bag.nm("SeedSack"), (gx, ty, 1.07), (0.42, 0.36, 0.34), p_canvas, n=12, seed=40 + k))
+            a(part(bag.nm("Seeds"), "cyl", (gx, ty, 1.25), (0.28, 0.24, 0.04), m, seg=8))
+        for k in range(3):
+            gx = 1.0 + (k % 2) * 0.25
+            a(lathe(bag.nm("Pot"), [(0.07, 1.07), (0.1, 1.22)], p_roof, seg=8, loc=(gx, ty - 0.12 + k * 0.12, 0), cap_top=False))
+            a(part(bag.nm("Sprout"), "ico", (gx, ty - 0.12 + k * 0.12, 1.3), (0.16, 0.16, 0.14), v_leaf, sub=1))
+        for k, gx in enumerate((-0.9, -0.2, 0.5)):
+            a(boulder(bag.nm("ShelfSack"), (gx, YB - 0.18, 1.42), (0.38, 0.3, 0.32), (p_canvas, p_canvas_dk, p_canvas)[k], n=10, seed=60 + k))
+        # pá, enxada e picareta encostadas no esteio esquerdo
+        for k, tip in enumerate(("spade", "hoe", "pick")):
+            x0, y0 = -X - 0.25 - k * 0.12, YF - 0.3 + k * 0.15
+            a(beam(bag.nm("Handle"), (x0, y0, 0.12), (x0 + 0.14, y0 + 0.05, 1.45), 0.025, p_wood_lt, seg=5))
+            if tip == "spade":
+                a(bx(bag.nm("Blade"), (x0 - 0.01, y0, 0.2), (0.2, 0.03, 0.28), p_iron_lt, bev=0.01))
+            elif tip == "hoe":
+                a(bx(bag.nm("HoeHead"), (x0 + 0.16, y0 + 0.05, 1.42), (0.22, 0.04, 0.12), p_iron_lt, bev=0.01))
+            else:
+                a(bx(bag.nm("PickHead"), (x0 + 0.14, y0 + 0.05, 1.45), (0.5, 0.05, 0.06), p_iron, rot=(0, 0.2, 0), bev=0.01))
+        for k in range(4):
+            a(part(bag.nm("Pumpkin"), "sphere", (X + 0.35 + (k % 2) * 0.32, -0.8 + (k // 2) * 0.4, 0.14),
+                   (0.34, 0.34, 0.26), c_pumpkin if k % 3 else c_pumpkin_dk, seg=8))
+        a(bx("Crate", (X + 0.45, 0.5, 0.28), (0.55, 0.5, 0.5), p_wood_lt, bev=0.03, rot=(0, 0, 0.15)))
+        for j in range(6):
+            a(part(bag.nm("Carrot"), "cone", (X + 0.32 + (j % 3) * 0.13, 0.42 + (j // 3) * 0.15, 0.58), (0.06, 0.06, 0.2),
+                   c_carrot, rot=(PI / 2, 0, j * 0.7), seg=5))
+    else:   # stall_goods
+        # placa: frasco vermelho
+        a(lathe("SignFlask", [(0.0, 0.0), (0.12, 0.04), (0.13, 0.13), (0.05, 0.22), (0.04, 0.28)], v_potion_r, seg=8,
+                loc=(X + 0.38, YF - 0.26, 1.72)))
+        # frascos de poção na frente, pães num cesto, balança; mais frascos nas prateleiras
+        for k in range(8):
+            m = (v_potion_r, v_potion_b, v_potion_r, v_potion_g)[k % 4]
+            bottle(bag, -1.15 + (k % 4) * 0.22, ty - 0.12 + (k // 4) * 0.2, 1.07, m, kind=k % 2)
+        a(bx("BreadBasket", (0.3, ty, 1.14), (0.6, 0.42, 0.16), p_wood_lt, bev=0.03, taper=(1.1, 1.1)))
+        for j in range(4):
+            a(part(bag.nm("Bread"), "sphere", (0.15 + (j % 2) * 0.3, ty - 0.08 + (j // 2) * 0.16, 1.26), (0.26, 0.15, 0.12),
+                   b_cloth_y, rot=(0, 0, 0.3 * j), seg=7))
+        a(bx("ScaleFoot", (1.05, ty, 1.1), (0.22, 0.16, 0.06), p_gold, bev=0.01))
+        a(beam("ScalePost", (1.05, ty, 1.12), (1.05, ty, 1.45), 0.015, p_gold, seg=4))
+        a(bx("ScaleBeam", (1.05, ty, 1.45), (0.42, 0.02, 0.02), p_gold, bev=0.0))
+        for s in (-1, 1):
+            a(lathe(bag.nm("ScalePan"), [(0.0, 1.3), (0.08, 1.32), (0.09, 1.35)], p_gold, seg=8, loc=(1.05 + s * 0.2, ty, 0), cap_top=False))
+            a(beam(bag.nm("ScaleCord"), (1.05 + s * 0.2, ty, 1.45), (1.05 + s * 0.2, ty, 1.33), 0.005, p_gold, seg=3))
+        for k in range(10):
+            m = (v_potion_p, v_potion_g, v_potion_b, v_potion_r, p_roof)[k % 5]
+            bottle(bag, -1.3 + (k // 2) * 0.62 + (k % 2) * 0.2, YB - 0.18, 1.28 if k % 2 else 1.83, m, kind=k % 3)
+        for i in range(6):   # minério de cobre num caixote
+            a(boulder(bag.nm("Ore"), (X + 0.4 + rnd.uniform(-0.15, 0.15), 0.45 + rnd.uniform(-0.15, 0.15), 0.52),
+                      (0.22, 0.2, 0.16), v_copper, n=9, seed=300 + i))
+        a(bx("OreCrate", (X + 0.4, 0.45, 0.24), (0.6, 0.55, 0.45), p_wood, bev=0.03))
+        for k in range(3):   # toras deitadas
+            z = 0.14 if k < 2 else 0.38
+            x = X + 0.25 + (k % 2) * 0.27 if k < 2 else X + 0.38
+            a(beam(bag.nm("Log"), (x, -1.0, z), (x, -0.2, z), 0.13, p_wood, seg=7, end_mat=p_wood_end))
+        a(lathe("Barrel", [(0.26, 0.0), (0.3, 0.3), (0.32, 0.5), (0.3, 0.7), (0.26, 0.9)], p_wood, seg=10, loc=(-X - 0.45, 0.4, 0)))
+        for z in (0.2, 0.7):
+            a(lathe(bag.nm("Hoop"), [(0.31, z - 0.03), (0.31, z + 0.03)], p_iron, seg=10, loc=(-X - 0.45, 0.4, 0),
+                    cap_top=False, cap_bot=False))
+    lantern(bag, -X, YF - 0.2, 2.05)
+    _vexport(bag, "Stall", kind)
+
+
+# ================================================================ OFICINA DO ARTESÃO (6,0 x 4,6)
+def build_shop_workshop():
+    """Galpão aberto na frente como a ferraria, com telhado de sapê: bancada grande no fundo, cavalete com couro
+    esticado, tear, parede de ferramentas, tábuas e toras empilhadas. A origem é o lugar do artesão
+    (VillageLayout.WORKSHOP_SPOT); a Bancada de Couraria do jogo (crafting_station.gd) fica na frente dele."""
+    rnd = random.Random(211)
+    bag = Bag()
+    a = bag.add
+    X, YF, YB = 2.8, -1.4, 2.4
+    ZT = 2.7
+    a(bx("Floor", (0, (YF + YB) / 2 - 0.2, 0.03), (2 * X + 0.4, YB - YF + 0.8, 0.06), b_soil_lt, bev=0.02))
+    for i in range(10):   # assoalho de tábuas
+        a(bx(bag.nm("Board"), (-X + 0.3 + i * 0.58, (YF + YB) / 2, 0.075), (0.54, YB - YF - 0.4, 0.04),
+             p_wood if i % 2 else p_wood_lt, bev=0.005))
+    # parede de tábuas no fundo e meias-paredes nos lados
+    n = int(2 * X / 0.3)
+    for i in range(n):
+        x = -X + (i + 0.5) * 2 * X / n
+        a(bx(bag.nm("BackBoard"), (x, YB, ZT / 2), (2 * X / n - 0.02, 0.12, ZT), p_wood if (i * 5) % 3 else p_wood_lt, bev=0.005))
+    for s in (-1, 1):
+        a(bx(bag.nm("SideWall"), (s * X, (YF + 0.6 + YB) / 2, 0.55), (0.14, YB - YF - 0.6, 1.1), p_wood, bev=0.01))
+        a(bx(bag.nm("SideCap"), (s * X, (YF + 0.6 + YB) / 2, 1.12), (0.22, YB - YF - 0.5, 0.08), p_wood_dk, bev=0.01))
+    # esteios, vigas e mãos-francesas
+    for x in (-X, X):
+        a(beam(bag.nm("Post"), (x, YF, 0.0), (x, YF, ZT), 0.11, v_timber, seg=6))
+        a(bx(bag.nm("PostBase"), (x, YF, 0.1), (0.32, 0.32, 0.2), b_stone_lt, bev=0.03))
+        a(beam(bag.nm("BackPost"), (x, YB - 0.1, 0.0), (x, YB - 0.1, ZT), 0.1, v_timber, seg=6))
+        a(bx(bag.nm("SideBeam"), (x, (YF + YB) / 2, ZT - 0.08), (0.2, YB - YF + 0.2, 0.22), v_timber, bev=0.02))
+    a(bx("FrontBeam", (0, YF, ZT - 0.1), (2 * X + 0.3, 0.24, 0.3), v_timber, bev=0.02))
+    for s in (-1, 1):
+        a(beam(bag.nm("Brace"), (s * X, YF, ZT - 0.75), (s * (X - 0.7), YF, ZT - 0.12), 0.05, v_timber, seg=4))
+    cy, hd = (YF + YB) / 2, (YB - YF) / 2
+    thatch_roof(bag, 0, cy, X, hd, ZT, math.radians(38), over_x=0.35, over_y=0.55, layers=5, rnd=rnd)
+    gt = ZT + hd * math.tan(math.radians(38)) - 0.05
+    for s in (-1, 1):   # empenas de tábua nos lados
+        g = s * X
+        a(hull(bag.nm("Gable"), [(g, YF, ZT), (g, YB, ZT), (g, cy, gt), (g - s * 0.1, YF, ZT), (g - s * 0.1, YB, ZT),
+                                 (g - s * 0.1, cy, gt)], p_wood_dk))
+    # bancada grande no fundo: tampo grosso, prateleira, couro cortado e ferramentas em cima
+    by = 1.55
+    a(bx("BenchTop", (0, by, 0.92), (2.6, 0.8, 0.1), p_wood_lt, bev=0.02))
+    for x in (-1.15, 1.15):
+        for y in (by - 0.3, by + 0.3):
+            a(bx(bag.nm("BenchLeg"), (x, y, 0.45), (0.12, 0.12, 0.9), p_wood_dk, bev=0.01))
+    a(bx("BenchShelf", (0, by, 0.25), (2.4, 0.7, 0.05), p_wood, bev=0.01))
+    for k in range(3):
+        a(part(bag.nm("ShelfRoll"), "cyl", (-0.8 + k * 0.7, by, 0.38), (0.2, 0.2, 0.55), (p_canvas, p_canvas_dk, p_patch)[k],
+               rot=(0, PI / 2, 0), seg=8))
+    a(bx("Leather", (-0.5, by - 0.05, 0.985), (0.9, 0.55, 0.02), p_canvas, rot=(0, 0, 0.1), bev=0.0))
+    a(bx("LeatherDk", (0.45, by + 0.1, 0.99), (0.6, 0.42, 0.02), p_canvas_dk, rot=(0, 0, -0.2), bev=0.0))
+    a(bx("Knife", (0.1, by - 0.2, 1.0), (0.3, 0.04, 0.015), p_iron_lt, rot=(0, 0, 0.4), bev=0.0))
+    a(beam("Mallet", (0.85, by - 0.15, 1.0), (1.05, by - 0.3, 1.0), 0.03, p_wood_lt, seg=5))
+    a(bx("MalletHead", (0.85, by - 0.15, 1.04), (0.14, 0.1, 0.1), p_wood_dk, rot=(0, 0, 0.6), bev=0.01))
+    for k in range(3):
+        a(part(bag.nm("Spool"), "cyl", (-1.0 + k * 0.15, by + 0.25, 1.02), (0.09, 0.09, 0.12), (b_red, b_blue, b_cloth_y)[k], seg=8))
+    # cavalete de couro esticado à esquerda (moldura com cordas)
+    fx, fy = -X + 0.6, 0.0
+    for y in (fy - 0.6, fy + 0.6):
+        a(beam(bag.nm("FrameLeg"), (fx, y, 0.08), (fx, y, 1.9), 0.04, p_wood_dk, seg=5))
+    a(beam("FrameTop", (fx, fy - 0.6, 1.85), (fx, fy + 0.6, 1.85), 0.035, p_wood_dk, seg=5))
+    a(beam("FrameBot", (fx, fy - 0.6, 0.5), (fx, fy + 0.6, 0.5), 0.035, p_wood_dk, seg=5))
+    a(hull("StretchedHide", [(fx - 0.02, fy - 0.45, 0.62), (fx - 0.02, fy + 0.48, 0.65), (fx - 0.02, fy + 0.42, 1.75),
+                             (fx - 0.02, fy - 0.4, 1.72), (fx + 0.02, fy - 0.45, 0.62), (fx + 0.02, fy + 0.48, 0.65),
+                             (fx + 0.02, fy + 0.42, 1.75), (fx + 0.02, fy - 0.4, 1.72)], p_canvas))
+    for k in range(4):
+        z = 0.7 + k * 0.33
+        a(beam(bag.nm("Lace"), (fx, fy - 0.6, z), (fx, fy - 0.43, z + 0.02), 0.008, p_rope, seg=3))
+        a(beam(bag.nm("Lace"), (fx, fy + 0.6, z), (fx, fy + 0.45, z + 0.02), 0.008, p_rope, seg=3))
+    # tear à direita, com pano listrado saindo
+    tx, ty0 = X - 0.75, 0.2
+    for y in (ty0 - 0.5, ty0 + 0.5):
+        a(bx(bag.nm("LoomSide"), (tx, y, 0.75), (0.7, 0.08, 0.08), p_wood, bev=0.01))
+        a(beam(bag.nm("LoomLeg"), (tx - 0.3, y, 0.0), (tx - 0.3, y, 1.4), 0.035, p_wood_dk, seg=5))
+        a(beam(bag.nm("LoomLeg"), (tx + 0.3, y, 0.0), (tx + 0.3, y, 0.8), 0.035, p_wood_dk, seg=5))
+    a(beam("LoomTop", (tx - 0.3, ty0 - 0.5, 1.35), (tx - 0.3, ty0 + 0.5, 1.35), 0.04, p_wood_dk, seg=5))
+    a(beam("ClothBeam", (tx + 0.3, ty0 - 0.45, 0.78), (tx + 0.3, ty0 + 0.45, 0.78), 0.06, p_wood_lt, seg=6))
+    for k in range(5):
+        a(bx(bag.nm("Weave"), (tx, ty0 - 0.36 + k * 0.18, 0.79), (0.6, 0.16, 0.015), (b_red, b_cloth_w)[k % 2], bev=0.0))
+    for k in range(9):   # fios do tear
+        a(beam(bag.nm("Warp"), (tx - 0.3, ty0 - 0.4 + k * 0.1, 1.33), (tx + 0.28, ty0 - 0.4 + k * 0.1, 0.8), 0.006, b_cloth_w, seg=3))
+    # parede de ferramentas e prateleira de couros no fundo
+    a(bx("ToolBoard", (-1.0, YB - 0.1, 1.85), (1.6, 0.04, 0.9), p_wood_lt, bev=0.01))
+    for k in range(6):
+        x = -1.65 + k * 0.26
+        a(bx(bag.nm("Peg"), (x, YB - 0.14, 2.15), (0.03, 0.06, 0.03), p_wood_dk, bev=0.0))
+        a(bx(bag.nm("Tool"), (x, YB - 0.15, 1.92), (0.04, 0.03, 0.42), (p_iron_lt, p_wood_lt)[k % 2], bev=0.0))
+    a(bx("BackShelf", (1.3, YB - 0.25, 1.6), (1.5, 0.36, 0.05), p_wood, bev=0.01))
+    for k in range(3):
+        a(part(bag.nm("HideRoll"), "cyl", (0.85 + k * 0.45, YB - 0.25, 1.74), (0.22, 0.22, 0.32),
+               (p_canvas, p_canvas_dk, p_patch)[k], rot=(PI / 2, 0, 0), seg=8))
+    # tábuas e toras do lado de fora, à direita; barril e caixotes à esquerda
+    for k in range(5):
+        a(bx(bag.nm("Plank"), (X + 0.6, 0.6, 0.06 + k * 0.07), (0.45, 2.4, 0.06), p_wood_lt if k % 2 else p_wood, bev=0.01))
+    _log_pile(bag, rnd, X + 0.6, -0.9, 3, 2, 1.1, r=0.14)
+    barrel(bag, -X - 0.45, -0.9, top=p_wood_lt)
+    crate(bag, -X - 0.5, 0.0, 0.0, 0.55, 0.3)
+    crate(bag, -X - 0.45, 0.05, 0.55, 0.4, -0.2, p_wood_lt)
+    # placa: tesoura
+    a(bx("SignBoard", (X + 0.15, YF, ZT - 0.78), (0.55, 0.06, 0.5), p_wood, bev=0.02))
+    for s in (-1, 1):
+        a(beam(bag.nm("SignChain"), (X + 0.15 + s * 0.2, YF, ZT - 0.25), (X + 0.15 + s * 0.2, YF, ZT - 0.55), 0.01, p_iron, seg=4))
+        a(bx(bag.nm("SignBlade"), (X + 0.15 + s * 0.06, YF - 0.04, ZT - 0.72), (0.04, 0.03, 0.3), p_iron_lt,
+             rot=(0, s * 0.5, 0), bev=0.0))
+        a(lathe(bag.nm("SignRing"), [(0.06, -0.01), (0.06, 0.01), (0.04, 0.01), (0.04, -0.01)], p_iron, seg=8,
+                loc=(X + 0.15 - s * 0.07, YF - 0.05, ZT - 0.93), rot=(PI / 2, 0, 0)))
+    lantern(bag, -X + 0.1, YF, 2.1)
+    _vexport(bag, "Workshop", "shop_workshop")
+
+
+# ================================================================ LABORATÓRIO DE ALQUIMIA (4,4 x 3,6)
+def build_shop_alchemy_lab():
+    """Alpendre aberto ao lado da botica da Pip: telhado verde-azulado, prateleiras de frascos que brilham,
+    alambique de cobre, ervas secando e um caldeirão no fogareiro. A Bancada da Pip (a mesa de alquimia do
+    jogo, crafting_station.gd) fica no meio, na frente da parede do fundo."""
+    rnd = random.Random(241)
+    bag = Bag()
+    a = bag.add
+    X, YF, YB = 2.0, -1.3, 1.9
+    ZT = 2.55
+    a(bx("Floor", (0, (YF + YB) / 2 - 0.15, 0.04), (2 * X + 0.3, YB - YF + 0.6, 0.08), b_stone_dk, bev=0.02))
+    for i in range(16):
+        x, y = rnd.uniform(-X, X), rnd.uniform(YF - 0.2, YB - 0.2)
+        a(bx(bag.nm("Flag"), (x, y, 0.085), (rnd.uniform(0.35, 0.55), rnd.uniform(0.3, 0.45), 0.04),
+             _pick(rnd, b_mage_st, b_stone_lt, b_mage_st_dk), rot=(0, 0, rnd.uniform(0, PI)), bev=0.015))
+    # parede de pedra no fundo e esteios na frente
+    courses(bag, rnd, -X, X, YB, 0.35, 0.0, ZT, (b_mage_st, b_stone, b_mage_st_dk))
+    for x in (-X, X):
+        a(beam(bag.nm("Post"), (x, YF, 0.0), (x, YF, ZT), 0.1, v_timber, seg=6))
+        a(beam(bag.nm("BackPost"), (x, YB - 0.1, 0.0), (x, YB - 0.1, ZT), 0.1, v_timber, seg=6))
+        a(bx(bag.nm("PostBase"), (x, YF, 0.1), (0.3, 0.3, 0.2), b_stone_lt, bev=0.03))
+        a(bx(bag.nm("SideBeam"), (x, (YF + YB) / 2, ZT - 0.08), (0.2, YB - YF + 0.2, 0.2), v_timber, bev=0.02))
+    a(bx("FrontBeam", (0, YF, ZT - 0.1), (2 * X + 0.3, 0.22, 0.28), v_timber, bev=0.02))
+    for s in (-1, 1):
+        a(beam(bag.nm("Brace"), (s * X, YF, ZT - 0.65), (s * (X - 0.55), YF, ZT - 0.12), 0.05, v_timber, seg=4))
+    cy, hd = (YF + YB) / 2, (YB - YF) / 2
+    top = gable_roof(bag, 0, cy, X, hd, ZT, math.radians(34), v_teal, v_teal_dk, rows=5, over_x=0.25, over_y=0.45,
+                     gable=v_plaster, trim=v_timber)
+    chimney(bag, rnd, -X + 0.65, YB - 0.2, ZT - 0.2, top + 0.4, w=0.45)
+    # prateleiras de frascos no fundo
+    for k, z in enumerate((1.05, 1.55, 2.05)):
+        a(bx(bag.nm("Shelf"), (0.2, YB - 0.32, z), (2 * X - 1.2, 0.3, 0.05), p_wood, bev=0.01))
+        for j in range(7):
+            m = (v_potion_g, v_potion_p, v_potion_b, v_potion_r, v_copper, p_roof)[(j + k * 2) % 6]
+            bottle(bag, -X + 0.95 + j * 0.4, YB - 0.32, z + 0.025, m, h=0.18 + (j % 3) * 0.05, kind=(j + k) % 3)
+    # alambique de cobre à direita: caldeira, cúpula, serpentina e frasco coletor
+    ax, ay = X - 0.6, 0.75
+    a(bx("StillBase", (ax, ay, 0.35), (0.7, 0.6, 0.7), b_stone_dk, bev=0.04))
+    a(bx("StillFire", (ax, ay - 0.31, 0.25), (0.3, 0.02, 0.2), p_ember, bev=0.0))
+    a(lathe("StillPot", [(0.0, 0.7), (0.26, 0.72), (0.3, 0.9), (0.24, 1.08), (0.08, 1.2), (0.05, 1.4)], v_copper, seg=10, loc=(ax, ay, 0)))
+    a(beam("StillPipe", (ax, ay, 1.38), (ax - 0.5, ay - 0.45, 1.15), 0.025, v_copper, seg=5))
+    a(beam("StillPipe2", (ax - 0.5, ay - 0.45, 1.15), (ax - 0.55, ay - 0.5, 0.92), 0.025, v_copper, seg=5))
+    a(bx("FlaskStand", (ax - 0.55, ay - 0.5, 0.31), (0.3, 0.3, 0.62), p_wood_dk, bev=0.02))
+    a(lathe("StillFlask", [(0.0, 0.0), (0.12, 0.05), (0.13, 0.15), (0.05, 0.27), (0.04, 0.33)], v_potion_g, seg=8,
+            loc=(ax - 0.55, ay - 0.5, 0.62)))
+    # caldeirão no fogareiro à esquerda, borbulhando
+    kx, ky = -X + 0.65, 0.55
+    for i in range(6):
+        ang = i * PI / 3
+        a(boulder(bag.nm("FireStone"), (kx + 0.42 * math.cos(ang), ky + 0.42 * math.sin(ang), 0.12), (0.2, 0.18, 0.16),
+                  b_stone_lt, n=8, seed=500 + i))
+    a(part("Embers", "cyl", (kx, ky, 0.1), (0.5, 0.5, 0.06), p_ember, seg=8))
+    a(lathe("Cauldron", [(0.18, 0.14), (0.38, 0.22), (0.43, 0.42), (0.4, 0.62), (0.36, 0.66)], p_iron, seg=12,
+            loc=(kx, ky, 0), cap_top=False))
+    a(part("Brew", "cyl", (kx, ky, 0.6), (0.68, 0.68, 0.03), v_brew, seg=12))
+    for k in range(3):
+        a(part(bag.nm("Bubble"), "sphere", (kx - 0.12 + k * 0.12, ky + (k % 2) * 0.1, 0.64), (0.08, 0.08, 0.06), v_brew, seg=6))
+    a(beam("Ladle", (kx + 0.1, ky, 0.6), (kx + 0.4, ky - 0.2, 1.05), 0.02, p_wood_lt, seg=4))
+    # ervas e cogumelos secando na viga da frente
+    for k in range(7):
+        x = -X + 0.4 + k * 0.53
+        a(beam(bag.nm("HerbCord"), (x, YF + 0.05, ZT - 0.22), (x, YF + 0.05, ZT - 0.42), 0.006, p_rope, seg=3))
+        a(part(bag.nm("Herb"), "cone", (x, YF + 0.05, ZT - 0.55), (0.16, 0.16, 0.26), (v_herb, v_leaf, v_mush)[k % 3],
+               rot=(PI, 0, 0), seg=6))
+    # placa: frasco roxo
+    a(beam("SignArm", (-X, YF, 2.15), (-X - 0.6, YF, 2.15), 0.025, p_iron, seg=4))
+    for s in (-1, 1):
+        a(beam(bag.nm("SignChain"), (-X - 0.38 + s * 0.17, YF, 2.15), (-X - 0.38 + s * 0.17, YF, 2.05), 0.01, p_iron, seg=3))
+    a(bx("SignBoard", (-X - 0.38, YF, 1.85), (0.5, 0.05, 0.42), p_wood, bev=0.02))
+    a(lathe("SignFlask", [(0.0, 0.0), (0.12, 0.04), (0.13, 0.13), (0.05, 0.22), (0.04, 0.28)], v_potion_p, seg=8,
+            loc=(-X - 0.38, YF - 0.06, 1.72)))
+    # vasos de ervas na frente
+    for k, x in enumerate((-X + 0.1, X - 0.1)):
+        a(lathe(bag.nm("HerbPot"), [(0.16, 0.0), (0.22, 0.38)], p_roof, seg=8, loc=(x, YF - 0.45, 0), cap_top=False))
+        a(part(bag.nm("HerbBush"), "ico", (x, YF - 0.45, 0.5), (0.42, 0.42, 0.34), (v_herb, v_leaf)[k], sub=1))
+    lantern(bag, 0.0, YF, 2.15)
+    _vexport(bag, "AlchemyLab", "shop_alchemy_lab")
+
+
 def _vexport(bag, name, fname):
     join(bag.items, name)
     export(fname)
+
+
+# armory.py (carregado depois) redefine lathe() com outra assinatura no mesmo globals: as construções da vila
+# rodam com o lathe de props.py de volta no lugar.
+_V_LATHE = lathe
+
+
+def _props_lathe(fn):
+    def run():
+        saved = globals()["lathe"]
+        globals()["lathe"] = _V_LATHE
+        try:
+            fn()
+        finally:
+            globals()["lathe"] = saved
+    return run
 
 
 VILLAGE_BUILDERS = {
     "house": build_house_a, "house_b": build_house_b, "house_c": build_house_c,
     "house_d": build_house_d, "house_e": build_house_e, "house_f": build_house_f,
     "shop_smithy": build_shop_smithy, "shop_alchemist": build_shop_alchemist, "shop_merchant": build_shop_merchant,
+    "shop_workshop": build_shop_workshop, "shop_alchemy_lab": build_shop_alchemy_lab,
+    "stall_cloth": lambda: build_stall("stall_cloth"), "stall_farm": lambda: build_stall("stall_farm"),
+    "stall_goods": lambda: build_stall("stall_goods"),
 }
+VILLAGE_BUILDERS = {k: _props_lathe(f) for k, f in VILLAGE_BUILDERS.items()}

@@ -4,6 +4,9 @@ extends Control
 
 signal closed
 
+## Janela lateral da esquerda (WindowDock).
+var dock_side := "left"
+
 var body: VBoxContainer
 
 
@@ -11,7 +14,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = UITheme.get_theme()
-	var p := UITheme.centered_panel(self, 0.55)
+	var p := UITheme.dock_panel(self)
 	p.custom_minimum_size = Vector2(640, 0)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 10)
@@ -21,12 +24,7 @@ func _ready() -> void:
 	body = VBoxContainer.new()
 	body.add_theme_constant_override("separation", 8)
 	v.add_child(body)
-	var foot := HBoxContainer.new()
-	foot.add_theme_constant_override("separation", 10)
-	foot.add_child(UITheme.spacer())
-	foot.add_child(UITheme.keycap("E", 13))
-	foot.add_child(UITheme.button("Sair", _close, 140))
-	v.add_child(foot)
+	v.add_child(UITheme.footer(null, [UITheme.button("Sair", _close)]))
 	Hub.changed.connect(_refresh)
 	_refresh()
 

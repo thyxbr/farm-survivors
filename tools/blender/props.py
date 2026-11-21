@@ -1597,3 +1597,165 @@ def build_watchtower():
 
 PROP_BUILDERS.update({"tombstone": build_tombstone, "crypt": build_crypt, "palisade": build_palisade,
                       "watchtower": build_watchtower})
+
+
+# ======================================================== PONTE DE PEDRA (rio do Vale)
+# Ponte em arco: atravessa ao longo de Y (no Godot, Z), 15,2 m de ponta a ponta e 5,6 m de largura (4,7 m de
+# passagem entre as muretas). O tabuleiro sobe de 0,04 m nas pontas a ~1,2 m no meio; o arco nasce abaixo da
+# água do rio (y = -0,45 no Godot). "BridgeCol-colonly" é a colisão (tabuleiro e muretas), sem malha visível.
+BR_L, BR_W, BR_A = 7.6, 5.6, 3.9     # meio comprimento, largura, meio vão do arco
+BR_PAR = 0.42                        # espessura da mureta
+
+
+def _br_deck(y):
+    t = min(1.0, abs(y) / BR_L)
+    return 0.04 + 1.12 * (1.0 - t * t)
+
+
+def _br_arch(y):
+    """Intradorso do arco (z da face de baixo); fora do vão, a base enterrada."""
+    if abs(y) >= BR_A:
+        return -1.4
+    return -0.95 + 1.5 * math.sqrt(max(0.0, 1.0 - (y / BR_A) ** 2))
+
+
+def _br_strip(name, x0, x1, top, bot, ys, material):
+    """Corpo de seção variável: para cada y, de bot(y) a top(y), entre x0 e x1 (malha fechada)."""
+    bm = bmesh.new()
+    cols = []
+    for y in ys:
+        zt, zb = top(y), bot(y)
+        cols.append([bm.verts.new((x0, y, zb)), bm.verts.new((x1, y, zb)), bm.verts.new((x1, y, zt)),
+                     bm.verts.new((x0, y, zt))])
+    for i in range(len(cols) - 1):
+        a, b = cols[i], cols[i + 1]
+        for k in range(4):
+            k2 = (k + 1) % 4
+            bm.faces.new((a[k], a[k2], b[k2], b[k]))
+    bm.faces.new(list(reversed(cols[0])))
+    bm.faces.new(cols[-1])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return _mesh_obj(name, bm, material)
+
+
+def _br_seg(name, x, y0, y1, z_of, h, d, material, lift=0.0, bev=0.03, rnd=None):
+    """Bloco que acompanha a curva do tabuleiro entre y0 e y1 (inclinado pela rampa)."""
+    za, zb = z_of(y0) + lift, z_of(y1) + lift
+    ang = math.atan2(zb - za, y1 - y0)
+    L = math.hypot(y1 - y0, zb - za)
+    j = rnd.uniform(-0.01, 0.01) if rnd else 0.0
+    return bx(name, (x + j, (y0 + y1) / 2, (za + zb) / 2 + h / 2), (d, L + 0.01, h), material, rot=(ang, 0, 0), bev=bev)
+
+
+def build_bridge_stone():
+    rnd = random.Random(77)
+    bag = Bag()
+    a = bag.add
+    hw = BR_W / 2
+    ys = [-BR_L + 2 * BR_L * i / 48 for i in range(49)]
+    # núcleo: corpo da ponte com o arco por baixo
+    a(_br_strip("Core", -hw + 0.04, hw - 0.04, _br_deck, _br_arch, ys, p_stone_dk))
+    # aduelas: anel de pedras do arco nas duas faces, com fecho maior no meio
+    n = 15
+    for sx in (-1, 1):
+        for i in range(n):
+            t0, t1 = PI * i / n, PI * (i + 1) / n
+            pts = []
+            for t in (t0 + 0.012, t1 - 0.012):
+                y = -math.cos(t) * BR_A
+                zi = -0.95 + 1.5 * math.sin(t)
+                ny, nz = -math.cos(t) / BR_A, math.sin(t) / 1.5
+                ln = math.hypot(ny, nz)
+                ny, nz = ny / ln, nz / ln
+                ring = 0.62 if i == n // 2 else 0.48
+                for x in (sx * (hw - 0.1), sx * (hw + 0.07)):
+                    pts += [(x, y, zi - 0.02), (x, y + ny * ring, zi + nz * ring)]
+            mat_v = p_stone_lt if (i % 2 == 0 or i == n // 2) else p_stone
+            a(hull(bag.nm("Voussoir"), pts, mat_v))
+    # cantaria nos tímpanos (entre o arco e a cornija), blocos em fiadas desencontradas
+    for sx in (-1, 1):
+        z = -0.75
+        row = 0
+        while z < 1.0:
+            hgt = rnd.uniform(0.3, 0.4)
+            y = -BR_L - (0.0 if row % 2 == 0 else 0.35)
+            while y < BR_L:
+                w = rnd.uniform(0.55, 0.95)
+                y0, y1 = max(y, -BR_L + 0.05), min(y + w, BR_L - 0.05)
+                if y1 - y0 > 0.25:
+                    ok = True
+                    for yy in (y0, (y0 + y1) / 2, y1):
+                        if abs(yy) < BR_A + 0.5:
+                            t = math.sqrt(max(0.0, 1.0 - (min(abs(yy), BR_A) / BR_A) ** 2))
+                            if z < -0.95 + 1.5 * t + 0.55:
+                                ok = False
+                        if z + hgt > _br_deck(yy) - 0.2:
+                            ok = False
+                    if ok:
+                        a(bx(bag.nm("Ashlar"), (sx * (hw + 0.005), (y0 + y1) / 2, z + hgt / 2),
+                             (0.08, y1 - y0 - 0.04, hgt - 0.04), _stone_pick(rnd), bev=0.02))
+                y += w
+            z += hgt
+            row += 1
+    # cornija: faixa clara que acompanha o tabuleiro nas duas faces
+    for sx in (-1, 1):
+        for i in range(24):
+            y0, y1 = -BR_L + 2 * BR_L * i / 24, -BR_L + 2 * BR_L * (i + 1) / 24
+            a(_br_seg(bag.nm("Cornice"), sx * (hw + 0.02), y0, y1, _br_deck, 0.18, 0.2, p_stone_lt, lift=-0.2, bev=0.02))
+    # calçamento: lajes em fileiras, tons alternados
+    py = -BR_L
+    while py < BR_L - 0.05:
+        L = min(rnd.uniform(0.5, 0.7), BR_L - py)
+        x = -hw + BR_PAR
+        while x < hw - BR_PAR - 0.05:
+            w = min(rnd.uniform(0.8, 1.3), hw - BR_PAR - x)
+            a(_br_seg(bag.nm("Slab"), x + w / 2, py + 0.02, py + L - 0.02, _br_deck, 0.07, w - 0.05,
+                      p_stone_lt if rnd.random() < 0.35 else p_stone, lift=-0.01, bev=0.02, rnd=rnd))
+            x += w
+        py += L
+    # muretas: blocos seguindo a curva, com capa clara por cima
+    for sx in (-1, 1):
+        xc = sx * (hw - BR_PAR / 2)
+        y = -BR_L + 0.7
+        while y < BR_L - 0.7:
+            w = min(rnd.uniform(0.75, 1.05), BR_L - 0.7 - y)
+            a(_br_seg(bag.nm("Parapet"), xc, y + 0.015, y + w - 0.015, _br_deck, 0.62, BR_PAR, _stone_pick(rnd), bev=0.035))
+            a(_br_seg(bag.nm("Cap"), xc, y, y + w, _br_deck, 0.12, BR_PAR + 0.1, p_stone_lt, lift=0.62, bev=0.03))
+            y += w
+    # pilares nas quatro pontas, com coroa em pirâmide
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            px, py2 = sx * (hw - 0.36), sy * (BR_L - 0.36)
+            zb = _br_deck(py2) - 0.3
+            a(bx(bag.nm("Post"), (px, py2, zb + 0.75), (0.72, 0.72, 1.5), p_stone, bev=0.04))
+            a(bx(bag.nm("PostBand"), (px, py2, zb + 1.5), (0.84, 0.84, 0.14), p_stone_lt, bev=0.03))
+            a(hull(bag.nm("PostCap"), [(px + dx, py2 + dy, zb + 1.57) for dx in (-0.4, 0.4) for dy in (-0.4, 0.4)]
+                   + [(px, py2, zb + 1.95)], p_stone_dk))
+    # musgo: na linha da água junto ao arco e escorrendo dos tímpanos
+    for sx in (-1, 1):
+        for i, sy in enumerate((-1, 1)):
+            a(boulder(bag.nm("MossFoot"), (sx * (hw - 0.05), sy * (BR_A + 0.25), -0.62), (0.5, 1.3, 0.45), p_moss,
+                      n=11, seed=90 + i + (2 if sx > 0 else 0), flat_bottom=False))
+        a(boulder(bag.nm("MossDrip"), (sx * (hw + 0.04), -sx * 2.6, 0.35), (0.12, 0.7, 0.6), p_moss_lt, n=9,
+                  seed=95 + (1 if sx > 0 else 0), flat_bottom=False))
+    for i, (sx, sy) in enumerate(((-1, -1), (1, 1))):
+        a(boulder(bag.nm("MossCap"), (sx * (hw - 0.36), sy * (BR_L - 0.36), _br_deck(sy * (BR_L - 0.36)) + 1.28),
+                  (0.8, 0.8, 0.14), p_moss, n=10, seed=97 + i, flat_bottom=False))
+    join(bag.items, "BridgeStone")
+    # colisão: tabuleiro (por cima das lajes) e muretas
+    inner = hw - BR_PAR
+    cb = Bag()
+    # o tabuleiro da colisão passa 0,8 m das pontas descendo até o chão: o jogador sobe sem degrau
+    def col_top(y):
+        if abs(y) <= BR_L:
+            return _br_deck(y) + 0.06
+        return 0.1 * (BR_L + 0.8 - abs(y)) / 0.8 - 0.01
+    ys_col = [-BR_L - 0.8] + ys + [BR_L + 0.8]
+    cb.add(_br_strip("ColDeck", -inner, inner, col_top, lambda y: col_top(y) - 0.5, ys_col, p_stone))
+    cb.add(_br_strip("ColWallL", -hw, -inner, lambda y: _br_deck(y) + 0.74, lambda y: _br_deck(y) - 0.5, ys, p_stone))
+    cb.add(_br_strip("ColWallR", inner, hw, lambda y: _br_deck(y) + 0.74, lambda y: _br_deck(y) - 0.5, ys, p_stone))
+    join(cb.items, "BridgeCol-colonly")
+    export("bridge_stone")
+
+
+PROP_BUILDERS["bridge_stone"] = build_bridge_stone

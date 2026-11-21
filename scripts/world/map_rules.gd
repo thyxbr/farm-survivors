@@ -8,9 +8,9 @@ extends RefCounted
 ## (Toca dos Goblins, Ruínas de Valdoria, Ninho de Slimes...) vêm à parte, de areas().
 const PLACES := {
 	"vila": [["Vila de Valdoria", ""], ["Horta", "farm"], ["Pomar", "orchard"], ["Portal da Horda", "portal"]],
-	"bosque": [["Bosque Sussurrante", ""]],
-	"mina": [["Mina de Cristal", ""]],
-	"pico": [["Pico das Cinzas", ""]],
+	"bosque": [["Pântano Sussurrante", ""]],
+	"mina": [["Geleira de Cristal", ""]],
+	"pico": [["Vulcão das Cinzas", ""]],
 }
 ## Raio (m) do pedaço do mapa que o minimapa mostra em volta do jogador.
 const MINI_RADIUS := 42.0

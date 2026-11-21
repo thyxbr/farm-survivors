@@ -6,7 +6,8 @@ extends Node3D
 
 const GROUND_SHADER := preload("res://assets/shaders/ground.gdshader")
 const GRASS_SHADER := preload("res://assets/shaders/grass.gdshader")
-const MAX_SHAPES := 40
+const MAX_SHAPES := 64
+const MAX_RIVER := 192
 const CHUNK := 20.0
 ## Capim: candidatos por m² = density * GRASS_MUL; um ruído de touceiras decide quantos ficam
 ## (campo cheio onde ele sobe, ralo onde desce).
@@ -39,6 +40,10 @@ var world_offset := Vector2.ZERO
 var _shapes := PackedVector4Array()
 var _cols := PackedVector4Array()
 var _mix := PackedFloat32Array()
+var _angs := PackedFloat32Array()   # giro em Y de cada retângulo (0 nos discos)
+## Bioma do mapa (BiomeRules.of): cores do chão, do capim e da serra, plantas e árvores da encosta. Pôr antes do setup.
+var biome: Dictionary = BiomeRules.VALE
+var _river := PackedVector4Array()   # rios (MapRiver): (x, z, meia largura sem chão, 1 = começa um rio novo)
 var _mat: ShaderMaterial
 var _noise_tex: NoiseTexture2D
 
@@ -59,6 +64,7 @@ func setup(map_half: float) -> void:
 	_mat.shader = GROUND_SHADER
 	_mat.set_shader_parameter("noise_tex", _noise_tex)
 	_mat.set_shader_parameter("toon", ToonLook.enabled())
+	_grass_colors(_mat)
 	var ground := MeshInstance3D.new()
 	ground.name = "Ground"
 	var plane := PlaneMesh.new()
@@ -82,18 +88,26 @@ func setup(map_half: float) -> void:
 	_push()
 
 
-## Trilha/área retangular (alinhada aos eixos). soft = largura da borda irregular em metros.
+## Cores do capim do bioma no material do chão ou dos tufos (os dois usam ground_common.gdshaderinc).
+func _grass_colors(m: ShaderMaterial) -> void:
+	var g: Array = biome.grass
+	for i in 4:
+		m.set_shader_parameter(["grass_dark", "grass_light", "grass_lush", "grass_dry"][i], g[i])
+
+
+## Trilha/área retangular, girada `angle` radianos em Y (como o rotation.y de um nó: 0 = alinhada aos eixos).
+## soft = largura da borda irregular em metros.
 ## grass = 0 pinta terra/pedra lisa; > 0 deixa a grama aparecer por baixo (grama baixa, pisada),
 ## manchada com a cor da forma, e nasce capim baixo e ralo dentro (densidade ~ grass).
-func add_rect(center: Vector3, size: Vector2, c: Color, soft := 0.7, grass := 0.0) -> void:
-	_add(Vector4(center.x, center.z, size.x / 2.0, size.y / 2.0), c, soft, grass)
+func add_rect(center: Vector3, size: Vector2, c: Color, soft := 0.7, grass := 0.0, angle := 0.0) -> void:
+	_add(Vector4(center.x, center.z, size.x / 2.0, size.y / 2.0), c, soft, grass, angle)
 
 
 func add_disc(center: Vector3, r: float, c: Color, soft := 0.7, grass := 0.0) -> void:
 	_add(Vector4(center.x, center.z, r, -1.0), c, soft, grass)
 
 
-func _add(s: Vector4, c: Color, soft: float, grass: float) -> void:
+func _add(s: Vector4, c: Color, soft: float, grass: float, angle := 0.0) -> void:
 	if _shapes.size() >= MAX_SHAPES:
 		push_warning("ground: limite de %d formas" % MAX_SHAPES)
 		return
@@ -101,23 +115,48 @@ func _add(s: Vector4, c: Color, soft: float, grass: float) -> void:
 	_shapes.append(s)
 	_cols.append(Vector4(lc.r, lc.g, lc.b, soft))
 	_mix.append(clampf(grass, 0.0, 1.0))
+	_angs.append(angle if s.w >= 0.0 else 0.0)
+	_push()
+
+
+## Rio: o chão some na faixa de meia largura `half_w` em volta do caminho `pts` (x, z do mapa); a margem e a
+## água são do MapRiver.
+func add_river(pts: PackedVector2Array, half_w: float) -> void:
+	for i in pts.size():
+		if _river.size() >= MAX_RIVER:
+			push_warning("ground: limite de %d pontos de rio" % MAX_RIVER)
+			break
+		_river.append(Vector4(pts[i].x, pts[i].y, half_w, 1.0 if i == 0 else 0.0))
 	_push()
 
 
 func _push() -> void:
 	if _mat == null:
 		return
+	var rv := PackedVector4Array()
+	var box := Vector4(INF, INF, -INF, -INF)
+	for r in _river:
+		var q := Vector4(r.x + world_offset.x, r.y + world_offset.y, r.z, r.w)
+		rv.append(q)
+		box = Vector4(minf(box.x, q.x - q.z), minf(box.y, q.y - q.z), maxf(box.z, q.x + q.z), maxf(box.w, q.y + q.z))
+	rv.resize(MAX_RIVER)
+	_mat.set_shader_parameter("river", rv)
+	_mat.set_shader_parameter("river_count", _river.size())
+	_mat.set_shader_parameter("river_box", box if not _river.is_empty() else Vector4.ZERO)
 	var s := PackedVector4Array()
 	for sh in _shapes:
 		s.append(Vector4(sh.x + world_offset.x, sh.y + world_offset.y, sh.z, sh.w))
 	var c := _cols.duplicate()
 	var m := _mix.duplicate()
+	var a := _angs.duplicate()
 	s.resize(MAX_SHAPES)
+	a.resize(MAX_SHAPES)
 	c.resize(MAX_SHAPES)
 	m.resize(MAX_SHAPES)
 	_mat.set_shader_parameter("shapes", s)
 	_mat.set_shader_parameter("shape_cols", c)
 	_mat.set_shader_parameter("shape_grass", m)
+	_mat.set_shader_parameter("shape_ang", a)
 	_mat.set_shader_parameter("shape_count", _shapes.size())
 
 
@@ -149,6 +188,50 @@ func add_mountain(center: Vector3, radius: float, height: float) -> void:
 ## Serra em volta do mapa, a partir da borda (altura típica dos picos).
 func border_mountains(height: float) -> void:
 	_ring_height = height
+
+
+## Passagem na serra do sul: um vale de fundo plano (meia largura `width`) em volta de x = `x`, por onde a
+## estrada sai do mapa. Reto até o fim do chão plano (PASS_BEND m além da borda), depois faz uma curva para o
+## leste (PASS_SHIFT m) e some atrás do morro; o vale fecha PASS_LEN m depois da borda. width 0 = sem passagem.
+## O fundo do vale além do chão plano é a malha da serra, com a estrada pintada nela (_terrain_tri).
+const PASS_BEND := 34.0
+const PASS_LEN := 70.0
+const PASS_SHIFT := 24.0
+var _pass_x := 0.0
+var _pass_w := 0.0
+
+
+func border_pass(x: float, width: float) -> void:
+	_pass_x = x
+	_pass_w = width
+
+
+## x do meio da estrada da passagem a `out` metros além da borda.
+func _pass_center(out: float) -> float:
+	return _pass_x + smoothstep(PASS_BEND, PASS_LEN - 8.0, out) * PASS_SHIFT
+
+
+## Quanto da serra fica em (x, z) por causa da passagem: 0 no fundo do vale, 1 fora dele.
+func _pass_k(x: float, z: float, out: float) -> float:
+	if _pass_w <= 0.0 or z < absf(x):
+		return 1.0
+	var open := 1.0 - smoothstep(PASS_LEN, PASS_LEN + 24.0, out)
+	var k := smoothstep(_pass_w, _pass_w * 3.4, absf(x - _pass_center(out)))
+	return lerpf(1.0, k, open)
+
+
+## Altura do fundo da passagem: 0 em cima do chão plano; depois dele sobe devagar (a malha da serra aparece
+## por cima do fim do plano, sem buraco).
+func _pass_floor(out: float) -> float:
+	return smoothstep(PASS_BEND - 6.0, PASS_BEND + 2.0, out) * 0.35 + maxf(0.0, out - PASS_BEND - 2.0) * 0.05
+
+
+## (x, z) está na estrada pintada da passagem, na malha da serra?
+func _on_pass_road(x: float, z: float) -> bool:
+	if _pass_w <= 0.0 or z < absf(x):
+		return false
+	var out := z - (half + 1.0)
+	return out > PASS_BEND - 8.0 and out < PASS_LEN + 6.0 and absf(x - _pass_center(out)) < 3.2
 
 
 ## Altura do terreno em (x, z); 0 no chão plano.
@@ -203,7 +286,11 @@ func _ring_h(x: float, z: float) -> float:
 	var big := n.get_noise_2d(x * 0.35 + 900.0, z * 0.35 - 400.0)        # picos e vales da serra
 	var ridge := 1.0 - absf(n.get_noise_2d(x * 1.1, z * 1.1 + 300.0))      # cristas
 	var rise := smoothstep(0.0, 75.0, out)
-	return _ring_height * rise * maxf(0.15, 0.62 + 0.5 * big + 0.3 * ridge) + out * 0.04
+	var h := _ring_height * rise * maxf(0.15, 0.62 + 0.5 * big + 0.3 * ridge) + out * 0.04
+	var k := _pass_k(x, z, out)
+	if k >= 1.0:
+		return h
+	return maxf(h * k, _pass_floor(out))
 
 
 ## Monta a malha (cliente) e a colisão (sempre, também no servidor) do relevo. Chamar depois de
@@ -309,19 +396,24 @@ func _terrain_tri(verts: PackedVector3Array, norms: PackedVector3Array, cols: Pa
 		jit = 1.0
 	# grama (a mesma do chão na base), mata mais escura nas encostas baixas da serra, rocha nas
 	# faces íngremes e no alto, neve nos topos da serra
-	var grass := Color(0.27, 0.45, 0.16).lerp(Color(0.2, 0.37, 0.13), v)
+	var rg: Array = biome.ring_grass
+	var rr: Array = biome.ring_rock
+	var grass: Color = (rg[0] as Color).lerp(rg[1], v)
 	if ring:
 		var t_wood := smoothstep(4.0, 20.0, h)
-		grass = grass.lerp(Color(0.16, 0.3, 0.14), (roundf(t_wood) if toon else t_wood) * 0.7)
-	var rock := Color(0.47, 0.44, 0.4).lerp(Color(0.33, 0.31, 0.3), v)
+		grass = grass.lerp(biome.ring_wood, (roundf(t_wood) if toon else t_wood) * 0.7)
+	var rock: Color = (rr[0] as Color).lerp(rr[1], v)
 	var t_rock := clampf(smoothstep(0.24, 0.42, slope) + smoothstep(14.0, 32.0, h) * 0.5, 0.0, 1.0)
 	if toon:
 		t_rock = roundf(t_rock)
 	var col := grass.lerp(rock, t_rock)
-	if ring:
-		var line := _ring_height * 0.62 + n.get_noise_2d(cen.x * 0.8, cen.z * 0.8) * 10.0
+	var rs: Array = biome.ring_snow
+	if not rs.is_empty() and (ring or float(biome.snow_line) < 0.5):
+		var line := _ring_height * float(biome.snow_line) + n.get_noise_2d(cen.x * 0.8, cen.z * 0.8) * 10.0
 		if h > line and slope < 0.62:
-			col = Color(0.9, 0.92, 0.96).lerp(Color(0.78, 0.82, 0.9), v)
+			col = (rs[0] as Color).lerp(rs[1], v)
+	if ring and _on_pass_road(cen.x, cen.z):
+		col = Color(0.5, 0.46, 0.38)   # a estrada do sul continuando pela passagem (a mesma cor da pintura)
 	col = Color(col.r * jit, col.g * jit, col.b * jit)
 	verts.append(a)
 	verts.append(b)
@@ -335,10 +427,14 @@ func _terrain_tri(verts: PackedVector3Array, norms: PackedVector3Array, cols: Pa
 func _ring_forest() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 991
-	var fir := _glb_mesh(load("res://assets/models/tree_fir.glb"))
-	var pine := _glb_mesh(load("res://assets/models/tree_pine.glb"))
-	var firs: Array[Transform3D] = []
-	var pines: Array[Transform3D] = []
+	# árvores da encosta pelo bioma: {modelo: fração}
+	var kinds: Array = (biome.ring_trees as Dictionary).keys()
+	var meshes: Array = []
+	var lists: Array = []
+	for k in kinds:
+		meshes.append(_glb_mesh(load("res://assets/models/%s.glb" % k)))
+		var arr: Array[Transform3D] = []
+		lists.append(arr)
 	var n := _mtn_noise()
 	var ext := half + 70.0
 	for i in 2600:
@@ -349,31 +445,46 @@ func _ring_forest() -> void:
 		var h := _ring_h(p.x, p.y)
 		if h > _ring_height * 0.5 or slope_at(p.x, p.y) > 0.4:
 			continue
+		if _pass_k(p.x, p.y, out) < 0.35:
+			continue   # o fundo da passagem do sul fica livre (a estrada passa por ali)
 		if n.get_noise_2d(p.x * 1.5 + 77.0, p.y * 1.5) < -0.15 + smoothstep(5.0, 30.0, h) * 0.4:
 			continue   # bosques com clareiras, mais ralo para cima
 		var s := rng.randf_range(1.0, 1.9)
 		var xf := Transform3D(Basis().rotated(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.9, 1.2), s)),
 				Vector3(p.x, h - MTN_SINK - 0.1, p.y))
-		if rng.randf() < 0.65:
-			firs.append(xf)
-		else:
-			pines.append(xf)
-	_chunk(fir, firs, [], Vector3.ZERO, 0.0, false, true)
-	_chunk(pine, pines, [], Vector3.ZERO, 0.0, false, true)
+		var pick := rng.randf()
+		for k in kinds.size():
+			pick -= float(biome.ring_trees[kinds[k]])
+			if pick < 0.0 or k == kinds.size() - 1:
+				lists[k].append(xf)
+				break
+	for i in kinds.size():
+		_chunk(meshes[i], lists[i], [], Vector3.ZERO, 0.0, false, true)
 
 
-## Distância (aprox.) até a forma pintada mais próxima; negativa = dentro.
+## Distância (aprox.) até a forma pintada mais próxima; negativa = dentro. `shapes` = [[Vector4, giro], ...]
+## (como o scatter_grass separa por bloco); vazio = todas as formas.
 func shape_distance(p: Vector2, shapes: Array = []) -> float:
 	var best := INF
-	for s in (shapes if not shapes.is_empty() else Array(_shapes)):
-		best = min(best, _sd(s, p))
+	if shapes.is_empty():
+		for k in _shapes.size():
+			best = min(best, _sd(_shapes[k], p, _angs[k]))
+		return best
+	for e in shapes:
+		best = min(best, _sd(e[0], p, e[1]))
 	return best
 
 
-static func _sd(s: Vector4, p: Vector2) -> float:
+## Distância com sinal até uma forma (disco ou retângulo girado `ang` em Y, mesma conta do shader).
+static func _sd(s: Vector4, p: Vector2, ang := 0.0) -> float:
 	if s.w < 0.0:
 		return p.distance_to(Vector2(s.x, s.y)) - s.z
-	var q := (p - Vector2(s.x, s.y)).abs() - Vector2(s.z, s.w)
+	var d := p - Vector2(s.x, s.y)
+	if ang != 0.0:
+		var ca := cos(ang)
+		var sa := sin(ang)
+		d = Vector2(d.x * ca - d.y * sa, d.x * sa + d.y * ca)
+	var q := d.abs() - Vector2(s.z, s.w)
 	return Vector2(max(q.x, 0.0), max(q.y, 0.0)).length() + min(max(q.x, q.y), 0.0)
 
 
@@ -396,6 +507,7 @@ func scatter_grass(seed_value: int, density := 0.55, keep_out: Array = [], spars
 	gmat.shader = GRASS_SHADER
 	gmat.set_shader_parameter("noise_tex", _noise_tex)
 	gmat.set_shader_parameter("toon", ToonLook.enabled())
+	_grass_colors(gmat)
 	tuft.surface_set_material(0, gmat)
 	tuft_far.surface_set_material(0, gmat)
 	tuft_low.surface_set_material(0, gmat)
@@ -403,12 +515,15 @@ func scatter_grass(seed_value: int, density := 0.55, keep_out: Array = [], spars
 	clump.seed = seed_value
 	clump.frequency = 0.045
 	clump.fractal_octaves = 2
+	# o que nasce no meio do capim troca com o bioma (pântano: juncos, samambaias e cogumelos; neve e cinza: nada)
 	var plant_meshes := {}
-	for k in PLANT_MODELS:
-		plant_meshes[k] = _glb_mesh(PLANT_MODELS[k])
+	var pm: Dictionary = biome.plants
+	for k in pm:
+		plant_meshes[k] = _glb_mesh(load("res://assets/models/%s.glb" % pm[k]))
 	var flower_meshes := {}
-	for k in FLOWER_MODELS:
-		flower_meshes[k] = _glb_mesh(FLOWER_MODELS[k])
+	if biome.flowers:
+		for k in FLOWER_MODELS:
+			flower_meshes[k] = _glb_mesh(FLOWER_MODELS[k])
 	var n := int(ceil(half * 2.0 / CHUNK))
 	for cx in n:
 		for cz in n:
@@ -421,11 +536,14 @@ func scatter_grass(seed_value: int, density := 0.55, keep_out: Array = [], spars
 			for k in _shapes.size():
 				var s := _shapes[k]
 				var r := Rect2(s.x - s.z, s.y - (s.z if s.w < 0.0 else s.w), s.z * 2.0, (s.z if s.w < 0.0 else s.w) * 2.0)
+				if _angs[k] != 0.0:   # retângulo girado: o quadrado que cabe ele em qualquer giro
+					var rr := Vector2(s.z, s.w).length()
+					r = Rect2(s.x - rr, s.y - rr, rr * 2.0, rr * 2.0)
 				if box.grow(1.0).intersects(r):
 					if _mix[k] > 0.0:
-						grassy.append([s, _mix[k]])
+						grassy.append([s, _mix[k], _angs[k]])
 					else:
-						shapes.append(s)
+						shapes.append([s, _angs[k]])
 			var outs := _near(keep_out, box)
 			var few := _near(sparse, box)
 			var tufts: Array[Transform3D] = []
@@ -523,6 +641,8 @@ func _scatter_plants(rng: RandomNumberGenerator, clump: FastNoiseLite, meshes: D
 			bushes.append(xf)
 		else:
 			berries.append(xf)
+	if meshes.is_empty():
+		return
 	_chunk(meshes["fern"], ferns, [], center, 70.0, false)
 	_chunk(meshes["bush"], bushes, [], center, 110.0, false, true)
 	_chunk(meshes["bush_berry"], berries, [], center, 110.0, false, true)
@@ -533,6 +653,8 @@ func _scatter_plants(rng: RandomNumberGenerator, clump: FastNoiseLite, meshes: D
 func _scatter_flowers(rng: RandomNumberGenerator, clump: FastNoiseLite, meshes: Dictionary, box: Rect2,
 		amount: float, shapes: Array, grassy: Array, outs: Array, few: Array, center: Vector3) -> void:
 	var kinds: Array = meshes.keys()
+	if kinds.is_empty():
+		return
 	var by_kind := {}
 	for k in kinds:
 		var arr: Array[Transform3D] = []
@@ -594,7 +716,7 @@ func _inside_grown(p: Vector2, areas: Array, extra: float) -> bool:
 static func _grassy_at(p: Vector2, grassy: Array) -> float:
 	var best := -1.0
 	for e in grassy:
-		if _sd(e[0], p) < 0.0:
+		if _sd(e[0], p, e[2]) < 0.0:
 			best = maxf(best, e[1])
 	return best
 

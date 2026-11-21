@@ -9,6 +9,8 @@
 [ext_resource type="Script" path="res://scripts/map/map_region.gd" id="90_regiao"]
 [ext_resource type="Script" path="res://scripts/map/enemy_spawn.gd" id="7_pea20"]
 [ext_resource type="Script" path="res://scripts/map/map_landmark.gd" id="8_qljvo"]
+[ext_resource type="Script" path="res://scripts/map/map_river.gd" id="91_rio"]
+[ext_resource type="Script" path="res://scripts/map/map_waypoint.gd" id="92_ponto"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_qk0k1"]
 size = Vector3(144, 20, 2)
@@ -27,8 +29,8 @@ script = ExtResource("1_8aiqe")
 map_id = "bosque"
 half = 70.0
 border_height = 26.0
-grass_density = 0.45
-grass_plants = 0.6
+grass_density = 0.55
+grass_plants = 1.2
 grass_seed = 20261144
 
 [node name="Chão" type="Node3D" parent="." unique_id=720896320]
@@ -37,14 +39,14 @@ grass_seed = 20261144
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 30)
 script = ExtResource("2_p7pj5")
 size = Vector2(4, 56)
-color = Color(0.36, 0.28, 0.17, 1)
+color = Color(0.25, 0.21, 0.14, 1)
 soft = 0.7
 
 [node name="Área 2" type="Node3D" parent="Chão" unique_id=94814183]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 0, -6)
 script = ExtResource("2_p7pj5")
 size = Vector2(30, 3.5)
-color = Color(0.36, 0.28, 0.17, 1)
+color = Color(0.25, 0.21, 0.14, 1)
 soft = 0.7
 
 [node name="Disco" type="Node3D" parent="Chão" unique_id=1400926154]
@@ -52,7 +54,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 30)
 script = ExtResource("2_p7pj5")
 disc = true
 radius = 7.0
-color = Color(0.42, 0.34, 0.22, 1)
+color = Color(0.3, 0.25, 0.16, 1)
 soft = 0.7
 
 [node name="Disco 2" type="Node3D" parent="Chão" unique_id=1627332265]
@@ -78,7 +80,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 0, 8)
 script = ExtResource("2_p7pj5")
 disc = true
 radius = 7.0
-color = Color(0.4, 0.3, 0.2, 1)
+color = Color(0.28, 0.22, 0.14, 1)
 soft = 0.7
 
 [node name="Colisões" type="Node3D" parent="." unique_id=966453321]
@@ -112,7 +114,7 @@ shape = SubResource("BoxShape3D_acq2q")
 [node name="tree_oak" type="Node3D" parent="Árvores" unique_id=1276857853]
 transform = Transform3D(0.8237548, 0, -0.40787235, 0, 0.91920173, 0, 0.40787235, 0, 0.8237548, 29.878014, 0, 25.38153)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 2.9999998, 0)
 
@@ -123,24 +125,17 @@ model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_pine 2" type="Node3D" parent="Árvores" unique_id=1224795668]
-transform = Transform3D(-0.27601966, 0, -1.2088344, 0, 1.2399466, 0, 1.2088344, 0, -0.27601966, -42.35844, 0, 44.923767)
-script = ExtResource("3_jcfso")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
-
 [node name="tree_oak 2" type="Node3D" parent="Árvores" unique_id=1584486404]
 transform = Transform3D(-0.0322455, 0, -1.3372358, 0, 1.3376245, 0, 1.3372358, 0, -0.0322455, 45.66938, 0, 12.483276)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.40000004, 3, 0)
 
 [node name="tree_maple" type="Node3D" parent="Árvores" unique_id=1441385138]
 transform = Transform3D(0.7626733, 0, 0.7524226, 0, 1.071359, 0, -0.7524226, 0, 0.7626733, 53.107216, 0, -2.331543)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -151,17 +146,10 @@ model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_oak 3" type="Node3D" parent="Árvores" unique_id=977601264]
-transform = Transform3D(0.15303367, 0, -1.113757, 0, 1.1242216, 0, 1.113757, 0, 0.15303367, 64.513885, 0, 49.27649)
-script = ExtResource("3_jcfso")
-model = "tree_oak"
-shape = 2
-shape_size = Vector3(0.4, 3, 0)
-
 [node name="tree_maple 2" type="Node3D" parent="Árvores" unique_id=1560172208]
 transform = Transform3D(-0.84329325, 0, -0.86933845, 0, 1.2111535, 0, 0.86933845, 0, -0.84329325, 29.491829, 0, 14.840942)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -175,14 +163,14 @@ shape_size = Vector3(0.32, 3, 0)
 [node name="tree_oak 4" type="Node3D" parent="Árvores" unique_id=956725861]
 transform = Transform3D(0.52411306, 0, 1.1173286, 0, 1.2341466, 0, -1.1173286, 0, 0.52411306, 52.434616, 0, -40.673767)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 5" type="Node3D" parent="Árvores" unique_id=1449174939]
 transform = Transform3D(-1.0657496, 0, -0.48957828, 0, 1.172821, 0, 0.48957828, 0, -1.0657496, -52.348316, 0, -34.523438)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -203,35 +191,28 @@ shape_size = Vector3(0.25, 3, 0)
 [node name="tree_oak 6" type="Node3D" parent="Árvores" unique_id=1513509243]
 transform = Transform3D(0.97281337, 0, -0.4888393, 0, 1.0887284, 0, 0.4888393, 0, 0.97281337, 9.356773, 0, -15.2752075)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 3" type="Node3D" parent="Árvores" unique_id=1317587001]
 transform = Transform3D(0.6738869, 0, 1.2048042, 0, 1.3804624, 0, -1.2048042, 0, 0.6738869, 16.781914, 0, -40.199646)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.40000004, 2.9999998, 0)
-
-[node name="tree_pine 5" type="Node3D" parent="Árvores" unique_id=686655620]
-transform = Transform3D(-0.916732, 0, 0.03723144, 0, 0.91748774, 0, -0.03723144, 0, -0.916732, 48.11302, 0, -15.292969)
-script = ExtResource("3_jcfso")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3.0000002, 0)
 
 [node name="tree_maple 4" type="Node3D" parent="Árvores" unique_id=887644880]
 transform = Transform3D(-0.28593796, 0, -0.96535677, 0, 1.0068139, 0, 0.96535677, 0, -0.28593796, -11.19125, 0, 22.481201)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 5" type="Node3D" parent="Árvores" unique_id=1445149040]
 transform = Transform3D(-0.39356214, 0, 1.324327, 0, 1.3815691, 0, -1.324327, 0, -0.39356214, -15.903015, 0, 0.18395996)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3.0000002, 0)
 
@@ -252,7 +233,7 @@ shape_size = Vector3(0.32, 3, 0)
 [node name="tree_oak 7" type="Node3D" parent="Árvores" unique_id=1166931238]
 transform = Transform3D(0.8821893, 0, -0.6138726, 0, 1.0747546, 0, 0.6138726, 0, 0.8821893, -25.207642, 0, -8.343018)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -266,21 +247,21 @@ shape_size = Vector3(0.35000002, 3, 0)
 [node name="tree_oak 8" type="Node3D" parent="Árvores" unique_id=2082378946]
 transform = Transform3D(1.2062448, 0, 0.62335324, 0, 1.3577907, 0, -0.62335324, 0, 1.2062448, -53.35115, 0, 31.042603)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 2.9999998, 0)
 
 [node name="tree_maple 6" type="Node3D" parent="Árvores" unique_id=944550]
 transform = Transform3D(0.71205145, 0, -0.85274124, 0, 1.1109388, 0, 0.85274124, 0, 0.71205145, 27.2956, 0, 0.5463867)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 7" type="Node3D" parent="Árvores" unique_id=1687813039]
 transform = Transform3D(-1.1622561, 0, -0.11853972, 0, 1.1682855, 0, 0.11853972, 0, -1.1622561, -37.000015, 0, -12.0685425)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -308,42 +289,42 @@ shape_size = Vector3(0.25, 3, 0)
 [node name="tree_oak 9" type="Node3D" parent="Árvores" unique_id=1803257587]
 transform = Transform3D(-0.74385464, 0, -0.88463116, 0, 1.155808, 0, 0.88463116, 0, -0.74385464, -62.5225, 0, 29.580383)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 10" type="Node3D" parent="Árvores" unique_id=417071155]
 transform = Transform3D(-0.404647, 0, 0.97271144, 0, 1.0535212, 0, -0.97271144, 0, -0.404647, 8.00367, 0, 61.625366)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 8" type="Node3D" parent="Árvores" unique_id=230836641]
 transform = Transform3D(-0.881298, 0, -0.4457919, 0, 0.9876318, 0, 0.4457919, 0, -0.881298, -13.043648, 0, -57.3869)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 11" type="Node3D" parent="Árvores" unique_id=1774194176]
 transform = Transform3D(1.3541089, 0, 0.34157473, 0, 1.3965259, 0, -0.34157473, 0, 1.3541089, -9.404018, 0, -22.936157)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.40000004, 3, 0)
 
 [node name="tree_maple 9" type="Node3D" parent="Árvores" unique_id=1808091289]
 transform = Transform3D(0.727602, 0, -0.793188, 0, 1.0763605, 0, 0.793188, 0, 0.727602, -34.86122, 0, 12.697571)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 12" type="Node3D" parent="Árvores" unique_id=500175220]
 transform = Transform3D(0.86868083, 0, 0.9304332, 0, 1.2729149, 0, -0.9304332, 0, 0.86868083, -12.2996025, 0, -7.5360107)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.39999998, 3, 0)
 
@@ -364,14 +345,14 @@ shape_size = Vector3(0.35000002, 3, 0)
 [node name="tree_oak 13" type="Node3D" parent="Árvores" unique_id=818029324]
 transform = Transform3D(-0.38711485, 0, -1.0204896, 0, 1.0914471, 0, 1.0204896, 0, -0.38711485, -11.024818, 0, -8.057434)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 14" type="Node3D" parent="Árvores" unique_id=249875162]
 transform = Transform3D(1.0727551, 0, 0.8103467, 0, 1.3444201, 0, -0.8103467, 0, 1.0727551, 22.972595, 0, 63.141174)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.40000004, 3, 0)
 
@@ -392,14 +373,14 @@ shape_size = Vector3(0.25, 3, 0)
 [node name="tree_maple 10" type="Node3D" parent="Árvores" unique_id=1839662021]
 transform = Transform3D(-0.6882108, 0, 0.9525109, 0, 1.1751218, 0, -0.9525109, 0, -0.6882108, -55.760162, 0, -55.691223)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 11" type="Node3D" parent="Árvores" unique_id=989112869]
 transform = Transform3D(-1.0876278, 0, 0.8007558, 0, 1.3506088, 0, -0.8007558, 0, -1.0876278, 65.0656, 0, -35.29419)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.40000004, 3, 0)
 
@@ -417,13 +398,6 @@ model = "tree_birch"
 shape = 2
 shape_size = Vector3(0.25, 3, 0)
 
-[node name="tree_oak 15" type="Node3D" parent="Árvores" unique_id=1673866625]
-transform = Transform3D(1.138963, 0, 0.62449783, 0, 1.2989359, 0, -0.62449783, 0, 1.138963, 15.157646, 0, 38.36139)
-script = ExtResource("3_jcfso")
-model = "tree_oak"
-shape = 2
-shape_size = Vector3(0.39999998, 3, 0)
-
 [node name="tree_birch 6" type="Node3D" parent="Árvores" unique_id=1476884969]
 transform = Transform3D(1.2719989, 0, 0.10206203, 0, 1.2760869, 0, -0.10206203, 0, 1.2719989, 38.175224, 0, 59.31488)
 script = ExtResource("3_jcfso")
@@ -434,14 +408,14 @@ shape_size = Vector3(0.25, 3, 0)
 [node name="tree_maple 12" type="Node3D" parent="Árvores" unique_id=1668026761]
 transform = Transform3D(0.65486884, 0, -1.1665202, 0, 1.3377677, 0, 1.1665202, 0, 0.65486884, 31.70671, 0, -53.807312)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 13" type="Node3D" parent="Árvores" unique_id=635740266]
 transform = Transform3D(-0.82923454, 0, 0.38421416, 0, 0.91392034, 0, -0.38421416, 0, -0.82923454, 41.45681, 0, -21.572998)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -455,7 +429,7 @@ shape_size = Vector3(0.25, 3, 0)
 [node name="tree_maple 14" type="Node3D" parent="Árvores" unique_id=1764648080]
 transform = Transform3D(0.8323261, 0, 0.6320594, 0, 1.0451152, 0, -0.6320594, 0, 0.8323261, 5.0766068, 0, -19.016052)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -469,44 +443,37 @@ shape_size = Vector3(0.25, 3, 0)
 [node name="tree_oak 16" type="Node3D" parent="Árvores" unique_id=798928591]
 transform = Transform3D(1.1314008, 0, 0.54628015, 0, 1.2563797, 0, -0.54628015, 0, 1.1314008, 47.56121, 0, 13.261719)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 15" type="Node3D" parent="Árvores" unique_id=1847922171]
 transform = Transform3D(-1.2762784, 0, -0.315291, 0, 1.3146464, 0, 0.315291, 0, -1.2762784, -6.803341, 0, -34.476685)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.40000004, 3, 0)
 
 [node name="tree_oak 17" type="Node3D" parent="Árvores" unique_id=1212874312]
 transform = Transform3D(1.1509409, 0, 0.10768181, 0, 1.1559672, 0, -0.10768181, 0, 1.1509409, 41.61342, 0, -18.705627)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 16" type="Node3D" parent="Árvores" unique_id=1314826659]
 transform = Transform3D(-0.31429756, 0, -1.3213948, 0, 1.3582588, 0, 1.3213948, 0, -0.31429756, 8.333054, 0, -46.921997)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 17" type="Node3D" parent="Árvores" unique_id=908734032]
 transform = Transform3D(-1.0418442, 0, 0.30591205, 0, 1.0858276, 0, -0.30591205, 0, -1.0418442, -39.632774, 0, 22.095642)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
-
-[node name="tree_birch 9" type="Node3D" parent="Árvores" unique_id=2013285583]
-transform = Transform3D(-0.9314602, 0, -0.56598246, 0, 1.0899332, 0, 0.56598246, 0, -0.9314602, 15.509811, 0, 48.405212)
-script = ExtResource("3_jcfso")
-model = "tree_birch"
-shape = 2
-shape_size = Vector3(0.25, 3, 0)
 
 [node name="tree_fir 5" type="Node3D" parent="Árvores" unique_id=1852496022]
 transform = Transform3D(-0.9350389, 0, 0.36297217, 0, 1.0030187, 0, -0.36297217, 0, -0.9350389, 0.555336, 0, -31.707825)
@@ -518,7 +485,7 @@ shape_size = Vector3(0.32, 3, 0)
 [node name="tree_maple 18" type="Node3D" parent="Árvores" unique_id=294369931]
 transform = Transform3D(-0.24209192, 0, -0.9179393, 0, 0.94932663, 0, 0.9179393, 0, -0.24209192, -39.12933, 0, -62.863525)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3.0000002, 0)
 
@@ -532,21 +499,21 @@ shape_size = Vector3(0.35, 3, 0)
 [node name="tree_maple 19" type="Node3D" parent="Árvores" unique_id=1975564906]
 transform = Transform3D(-0.52023697, 0, 1.1982378, 0, 1.3063002, 0, -1.1982378, 0, -0.52023697, 16.910728, 0, 21.094604)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 18" type="Node3D" parent="Árvores" unique_id=90579435]
 transform = Transform3D(-0.99051857, 0, -0.079841666, 0, 0.9937312, 0, 0.079841666, 0, -0.99051857, -48.37278, 0, -45.308167)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 19" type="Node3D" parent="Árvores" unique_id=663042902]
 transform = Transform3D(0.8786779, 0, -0.9610022, 0, 1.302152, 0, 0.9610022, 0, 0.8786779, -44.961227, 0, -1.9541016)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.40000004, 3, 0)
 
@@ -560,35 +527,35 @@ shape_size = Vector3(0.25, 3, 0)
 [node name="tree_oak 20" type="Node3D" parent="Árvores" unique_id=807228954]
 transform = Transform3D(-0.69518596, 0, 0.7957469, 0, 1.0566441, 0, -0.7957469, 0, -0.69518596, 11.79554, 0, -53.663086)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 21" type="Node3D" parent="Árvores" unique_id=476692910]
 transform = Transform3D(-0.67017764, 0, 1.2107769, 0, 1.3838782, 0, -1.2107769, 0, -0.67017764, -3.437786, 0, -47.22119)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 22" type="Node3D" parent="Árvores" unique_id=1246589190]
 transform = Transform3D(-0.4653673, 0, 0.82890826, 0, 0.950608, 0, -0.82890826, 0, -0.4653673, -51.167286, 0, -0.8015137)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 20" type="Node3D" parent="Árvores" unique_id=132349075]
 transform = Transform3D(1.1301395, 0, -0.08165757, 0, 1.1330857, 0, 0.08165757, 0, 1.1301395, 56.09771, 0, -2.6773071)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 23" type="Node3D" parent="Árvores" unique_id=1572732766]
 transform = Transform3D(1.2215409, 0, 0.2659214, 0, 1.2501506, 0, -0.2659214, 0, 1.2215409, -58.473354, 0, -27.511292)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.40000004, 3, 0)
 
@@ -602,7 +569,7 @@ shape_size = Vector3(0.32, 3, 0)
 [node name="tree_maple 21" type="Node3D" parent="Árvores" unique_id=525129171]
 transform = Transform3D(-0.72600746, 0, -0.5473399, 0, 0.9092127, 0, 0.5473399, 0, -0.72600746, 47.22764, 0, -1.0888062)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3.0000002, 0)
 
@@ -612,13 +579,6 @@ script = ExtResource("3_jcfso")
 model = "tree_birch"
 shape = 2
 shape_size = Vector3(0.25, 3, 0)
-
-[node name="tree_maple 22" type="Node3D" parent="Árvores" unique_id=47216912]
-transform = Transform3D(-0.8349043, 0, -0.8403138, 0, 1.1845642, 0, 0.8403138, 0, -0.8349043, 55.832306, 0, 38.839478)
-script = ExtResource("3_jcfso")
-model = "tree_maple"
-shape = 2
-shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_pine 12" type="Node3D" parent="Árvores" unique_id=2132630103]
 transform = Transform3D(0.65677506, 0, -0.80525404, 0, 1.0391283, 0, 0.80525404, 0, 0.65677506, -29.33665, 0, 21.853882)
@@ -630,7 +590,7 @@ shape_size = Vector3(0.35, 3, 0)
 [node name="tree_maple 23" type="Node3D" parent="Árvores" unique_id=1037398587]
 transform = Transform3D(-0.69766504, 0, -0.99809736, 0, 1.2177582, 0, 0.99809736, 0, -0.69766504, -28.984436, 0, 21.075623)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -651,21 +611,21 @@ shape_size = Vector3(0.32, 3, 0)
 [node name="tree_oak 24" type="Node3D" parent="Árvores" unique_id=131048275]
 transform = Transform3D(-0.61973953, 0, -0.85904485, 0, 1.0592616, 0, 0.85904485, 0, -0.61973953, -24.064766, 0, -10.275024)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 24" type="Node3D" parent="Árvores" unique_id=499425480]
 transform = Transform3D(-0.853234, 0, -0.39614967, 0, 0.940714, 0, 0.39614967, 0, -0.853234, 52.869133, 0, -36.566345)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3.0000002, 0)
 
 [node name="tree_maple 25" type="Node3D" parent="Árvores" unique_id=257368938]
 transform = Transform3D(-0.048946057, 0, -1.2410837, 0, 1.2420485, 0, 1.2410837, 0, -0.048946057, -51.407158, 0, -65.96173)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -679,23 +639,16 @@ shape_size = Vector3(0.32, 3, 0)
 [node name="tree_oak 25" type="Node3D" parent="Árvores" unique_id=1571761625]
 transform = Transform3D(0.32784173, 0, 1.3288112, 0, 1.368656, 0, -1.3288112, 0, 0.32784173, -9.094852, 0, -22.254639)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 26" type="Node3D" parent="Árvores" unique_id=1323916315]
 transform = Transform3D(1.0131463, 0, -0.022355305, 0, 1.0133929, 0, 0.022355305, 0, 1.0131463, 17.075684, 0, 12.932861)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
-
-[node name="tree_fir 10" type="Node3D" parent="Árvores" unique_id=1028000820]
-transform = Transform3D(0.6968025, 0, 0.7439353, 0, 1.0193005, 0, -0.7439353, 0, 0.6968025, 45.413567, 0, -16.146729)
-script = ExtResource("3_jcfso")
-model = "tree_fir"
-shape = 2
-shape_size = Vector3(0.32, 3, 0)
 
 [node name="tree_pine 13" type="Node3D" parent="Árvores" unique_id=2017562756]
 transform = Transform3D(0.8262762, 0, 0.6682131, 0, 1.0626576, 0, -0.6682131, 0, 0.8262762, 42.23465, 0, 31.52832)
@@ -707,35 +660,35 @@ shape_size = Vector3(0.35, 3, 0)
 [node name="tree_maple 27" type="Node3D" parent="Árvores" unique_id=1715144667]
 transform = Transform3D(0.018652583, 0, 1.0957808, 0, 1.0959396, 0, -1.0957808, 0, 0.018652583, -56.98994, 0, 57.15985)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 26" type="Node3D" parent="Árvores" unique_id=1829053560]
 transform = Transform3D(0.2561137, 0, 1.1117132, 0, 1.1408331, 0, -1.1117132, 0, 0.2561137, 17.029305, 0, -51.54657)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 27" type="Node3D" parent="Árvores" unique_id=147084598]
 transform = Transform3D(-0.07446127, 0, -0.9058083, 0, 0.9088637, 0, 0.9058083, 0, -0.07446127, 20.868446, 0, -51.970093)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 28" type="Node3D" parent="Árvores" unique_id=647258178]
 transform = Transform3D(-0.9456517, 0, 0.6145915, 0, 1.1278208, 0, -0.6145915, 0, -0.9456517, -34.033875, 0, -52.686157)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 29" type="Node3D" parent="Árvores" unique_id=1260455602]
 transform = Transform3D(-0.3291235, 0, 0.92971927, 0, 0.9862556, 0, -0.92971927, 0, -0.3291235, 39.069824, 0, 60.08087)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -749,14 +702,14 @@ shape_size = Vector3(0.32, 3, 0)
 [node name="tree_maple 28" type="Node3D" parent="Árvores" unique_id=379285163]
 transform = Transform3D(-0.0715435, 0, 1.1897523, 0, 1.1919014, 0, -1.1897523, 0, -0.0715435, -16.477077, 0, -64.22809)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 29" type="Node3D" parent="Árvores" unique_id=1575494035]
 transform = Transform3D(0.83427626, 0, -0.7935399, 0, 1.1514002, 0, 0.7935399, 0, 0.83427626, -5.042713, 0, -65.26941)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -777,14 +730,14 @@ shape_size = Vector3(0.35, 3, 0)
 [node name="tree_oak 30" type="Node3D" parent="Árvores" unique_id=475404731]
 transform = Transform3D(-1.1034065, 0, 0.19259667, 0, 1.120089, 0, -0.19259667, 0, -1.1034065, 60.9489, 0, 19.765015)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 31" type="Node3D" parent="Árvores" unique_id=803939833]
 transform = Transform3D(-0.14693211, 0, 1.3884953, 0, 1.396248, 0, -1.3884953, 0, -0.14693211, -32.36798, 0, 65.29132)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -798,7 +751,7 @@ shape_size = Vector3(0.25, 3, 0)
 [node name="tree_oak 32" type="Node3D" parent="Árvores" unique_id=465720816]
 transform = Transform3D(0.16894302, 0, -1.1200851, 0, 1.1327543, 0, 1.1200851, 0, 0.16894302, -59.81743, 0, 3.0863037)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -812,35 +765,35 @@ shape_size = Vector3(0.25, 3, 0)
 [node name="tree_oak 33" type="Node3D" parent="Árvores" unique_id=834999926]
 transform = Transform3D(0.8182394, 0, -0.38532403, 0, 0.9044282, 0, 0.38532403, 0, 0.8182394, -10.06786, 0, 64.13855)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 30" type="Node3D" parent="Árvores" unique_id=1466721224]
 transform = Transform3D(0.868575, 0, -0.8709035, 0, 1.2299981, 0, 0.8709035, 0, 0.868575, -26.280216, 0, 49.90686)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 34" type="Node3D" parent="Árvores" unique_id=1269708033]
 transform = Transform3D(0.42029947, 0, -1.2857001, 0, 1.3526553, 0, 1.2857001, 0, 0.42029947, -11.059345, 0, -0.5348511)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 31" type="Node3D" parent="Árvores" unique_id=1649835994]
 transform = Transform3D(1.0631725, 0, 0.5059868, 0, 1.1774372, 0, -0.5059868, 0, 1.0631725, -37.058014, 0, 40.93396)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 32" type="Node3D" parent="Árvores" unique_id=816869211]
 transform = Transform3D(-0.8950775, 0, 0.3732099, 0, 0.9697677, 0, -0.3732099, 0, -0.8950775, -63.51072, 0, -33.458313)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3.0000002, 0)
 
@@ -854,28 +807,21 @@ shape_size = Vector3(0.32, 2.9999998, 0)
 [node name="tree_oak 35" type="Node3D" parent="Árvores" unique_id=409010012]
 transform = Transform3D(0.4780793, 0, 1.25143, 0, 1.3396406, 0, -1.25143, 0, 0.4780793, -31.27335, 0, 29.447632)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 36" type="Node3D" parent="Árvores" unique_id=132072088]
 transform = Transform3D(0.25395912, 0, 1.3743238, 0, 1.3975912, 0, -1.3743238, 0, 0.25395912, -6.1542816, 0, 36.61615)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
-
-[node name="tree_pine 15" type="Node3D" parent="Árvores" unique_id=1079933504]
-transform = Transform3D(1.1097332, 0, -0.6440721, 0, 1.2830966, 0, 0.6440721, 0, 1.1097332, 13.987442, 0, 42.7464)
-script = ExtResource("3_jcfso")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
 
 [node name="tree_oak 37" type="Node3D" parent="Árvores" unique_id=1716607307]
 transform = Transform3D(-1.1127286, 0, -0.3384205, 0, 1.1630535, 0, 0.3384205, 0, -1.1127286, 3.4421997, 0, -55.94745)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -896,7 +842,7 @@ shape_size = Vector3(0.35000002, 3, 0)
 [node name="tree_maple 33" type="Node3D" parent="Árvores" unique_id=1896779885]
 transform = Transform3D(0.5969159, 0, 0.9794238, 0, 1.1469872, 0, -0.9794238, 0, 0.5969159, -33.62114, 0, -50.915955)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -910,42 +856,28 @@ shape_size = Vector3(0.32, 3, 0)
 [node name="tree_oak 38" type="Node3D" parent="Árvores" unique_id=596848198]
 transform = Transform3D(0.58929914, 0, 1.1125122, 0, 1.2589507, 0, -1.1125122, 0, 0.58929914, -56.35554, 0, -52.041992)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.39999998, 3, 0)
 
 [node name="tree_oak 39" type="Node3D" parent="Árvores" unique_id=1799666045]
 transform = Transform3D(-0.17681016, 0, -1.2329913, 0, 1.245604, 0, 1.2329913, 0, -0.17681016, -45.975452, 0, 57.8031)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
-
-[node name="tree_pine 17" type="Node3D" parent="Árvores" unique_id=1532223801]
-transform = Transform3D(-0.76674795, 0, 0.8831312, 0, 1.1695397, 0, -0.8831312, 0, -0.76674795, 58.29914, 0, -16.408142)
-script = ExtResource("3_jcfso")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
 
 [node name="tree_maple 34" type="Node3D" parent="Árvores" unique_id=1419826999]
 transform = Transform3D(-0.7490472, 0, -0.68082505, 0, 1.0122225, 0, 0.68082505, 0, -0.7490472, -56.837936, 0, 33.937805)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 40" type="Node3D" parent="Árvores" unique_id=1704034621]
 transform = Transform3D(-0.66869885, 0, 0.72416776, 0, 0.9856861, 0, -0.72416776, 0, -0.66869885, -31.16224, 0, -62.455017)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
-shape = 2
-shape_size = Vector3(0.4, 3, 0)
-
-[node name="tree_oak 41" type="Node3D" parent="Árvores" unique_id=1464117411]
-transform = Transform3D(-0.9571443, 0, -0.6596367, 0, 1.162431, 0, 0.6596367, 0, -0.9571443, -43.24884, 0, 42.550903)
-script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -973,7 +905,7 @@ shape_size = Vector3(0.35, 3, 0)
 [node name="tree_oak 42" type="Node3D" parent="Árvores" unique_id=1023836546]
 transform = Transform3D(0.10505931, 0, 1.3609648, 0, 1.3650138, 0, -1.3609648, 0, 0.10505931, 48.954094, 0, -44.73291)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 2.9999998, 0)
 
@@ -987,7 +919,7 @@ shape_size = Vector3(0.25, 3, 0)
 [node name="tree_oak 43" type="Node3D" parent="Árvores" unique_id=1590708055]
 transform = Transform3D(0.568302, 0, -0.8294587, 0, 1.0054694, 0, 0.8294587, 0, 0.568302, -42.82164, 0, 17.284058)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -1001,7 +933,7 @@ shape_size = Vector3(0.25, 3, 0)
 [node name="tree_oak 44" type="Node3D" parent="Árvores" unique_id=442930089]
 transform = Transform3D(-0.15014492, 0, 1.2556869, 0, 1.2646316, 0, -1.2556869, 0, -0.15014492, 52.827995, 0, -42.055725)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.39999998, 3, 0)
 
@@ -1022,77 +954,77 @@ shape_size = Vector3(0.25, 3, 0)
 [node name="tree_maple 35" type="Node3D" parent="Árvores" unique_id=86049327]
 transform = Transform3D(0.5267814, 0, -0.9315577, 0, 1.0701861, 0, 0.9315577, 0, 0.5267814, -56.525414, 0, 52.555603)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 45" type="Node3D" parent="Árvores" unique_id=956706728]
 transform = Transform3D(-1.0114719, 0, 0.28043514, 0, 1.0496281, 0, -0.28043514, 0, -1.0114719, -44.31919, 0, -62.248413)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 46" type="Node3D" parent="Árvores" unique_id=348730566]
 transform = Transform3D(0.98111, 0, 0.2730008, 0, 1.0183841, 0, -0.2730008, 0, 0.98111, 48.24787, 0, 45.40857)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 36" type="Node3D" parent="Árvores" unique_id=1219715032]
 transform = Transform3D(-1.2085755, 0, -0.27202436, 0, 1.2388108, 0, 0.27202436, 0, -1.2085755, -39.56664, 0, -43.207947)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 37" type="Node3D" parent="Árvores" unique_id=643752224]
 transform = Transform3D(-0.8155654, 0, 0.9564692, 0, 1.2569727, 0, -0.9564692, 0, -0.8155654, 45.48059, 0, 39.21527)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 47" type="Node3D" parent="Árvores" unique_id=658880113]
 transform = Transform3D(0.9399896, 0, 0.09234822, 0, 0.94451505, 0, -0.09234822, 0, 0.9399896, 39.80117, 0, -44.668945)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 38" type="Node3D" parent="Árvores" unique_id=1360776213]
 transform = Transform3D(-0.28406745, 0, -1.0281574, 0, 1.0666779, 0, 1.0281574, 0, -0.28406745, 50.999275, 0, 4.739624)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_oak 48" type="Node3D" parent="Árvores" unique_id=551721923]
 transform = Transform3D(-0.014395957, 0, 0.940658, 0, 0.9407681, 0, -0.940658, 0, -0.014395957, 61.01779, 0, 10.531799)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 2.9999998, 0)
 
 [node name="tree_maple 39" type="Node3D" parent="Árvores" unique_id=1143300444]
 transform = Transform3D(0.68062127, 0, -1.0864882, 0, 1.2820694, 0, 1.0864882, 0, 0.68062127, 33.12758, 0, 60.229004)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.40000004, 3, 0)
 
 [node name="tree_oak 49" type="Node3D" parent="Árvores" unique_id=1830944476]
 transform = Transform3D(-0.7043772, 0, 0.7126358, 0, 1.0019965, 0, -0.7126358, 0, -0.7043772, -61.719315, 0, 8.895081)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 40" type="Node3D" parent="Árvores" unique_id=969253973]
 transform = Transform3D(-0.08572393, 0, 1.0799136, 0, 1.0833106, 0, -1.0799136, 0, -0.08572393, -56.976124, 0, 9.620972)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -1110,33 +1042,12 @@ model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_maple 41" type="Node3D" parent="Árvores" unique_id=690264121]
-transform = Transform3D(-0.044106904, 0, -0.99780595, 0, 0.9987803, 0, 0.99780595, 0, -0.044106904, 58.991234, 0, 42.404114)
-script = ExtResource("3_jcfso")
-model = "tree_maple"
-shape = 2
-shape_size = Vector3(0.4, 3, 0)
-
 [node name="tree_pine 22" type="Node3D" parent="Árvores" unique_id=1728289127]
 transform = Transform3D(0.33472115, 0, -1.1556128, 0, 1.2031124, 0, 1.1556128, 0, 0.33472115, -59.75592, 0, 46.057068)
 script = ExtResource("3_jcfso")
 model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
-
-[node name="tree_oak 50" type="Node3D" parent="Árvores" unique_id=1559513667]
-transform = Transform3D(0.45244113, 0, 0.9957405, 0, 1.0937102, 0, -0.9957405, 0, 0.45244113, 48.043427, 0, 30.936462)
-script = ExtResource("3_jcfso")
-model = "tree_oak"
-shape = 2
-shape_size = Vector3(0.4, 3, 0)
-
-[node name="tree_birch 21" type="Node3D" parent="Árvores" unique_id=1336793723]
-transform = Transform3D(0.15621692, 0, 1.3285532, 0, 1.337706, 0, -1.3285532, 0, 0.15621692, 24.748177, 0, 44.888184)
-script = ExtResource("3_jcfso")
-model = "tree_birch"
-shape = 2
-shape_size = Vector3(0.25, 3, 0)
 
 [node name="tree_pine 23" type="Node3D" parent="Árvores" unique_id=1683627445]
 transform = Transform3D(-0.70166296, 0, -1.0349919, 0, 1.2504156, 0, 1.0349919, 0, -0.70166296, -26.211597, 0, 42.24652)
@@ -1155,23 +1066,16 @@ shape_size = Vector3(0.25, 3, 0)
 [node name="tree_oak 51" type="Node3D" parent="Árvores" unique_id=1578469115]
 transform = Transform3D(-0.48734576, 0, 0.8768597, 0, 1.0031893, 0, -0.8768597, 0, -0.48734576, -45.063377, 0, -9.533081)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 42" type="Node3D" parent="Árvores" unique_id=1608798562]
 transform = Transform3D(-0.79374903, 0, -1.0769272, 0, 1.3378377, 0, 1.0769272, 0, -0.79374903, -31.092674, 0, 41.61615)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
-
-[node name="tree_birch 23" type="Node3D" parent="Árvores" unique_id=977898665]
-transform = Transform3D(0.28514805, 0, -1.2236588, 0, 1.2564435, 0, 1.2236588, 0, 0.28514805, -31.72361, 0, 56.61151)
-script = ExtResource("3_jcfso")
-model = "tree_birch"
-shape = 2
-shape_size = Vector3(0.25, 3, 0)
 
 [node name="tree_pine 24" type="Node3D" parent="Árvores" unique_id=602796104]
 transform = Transform3D(-1.2687534, 0, -0.3256724, 0, 1.3098845, 0, 0.3256724, 0, -1.2687534, 24.912476, 0, 65.92554)
@@ -1183,14 +1087,14 @@ shape_size = Vector3(0.35, 3, 0)
 [node name="tree_oak 52" type="Node3D" parent="Árvores" unique_id=864342123]
 transform = Transform3D(-0.8797039, 0, 0.8936097, 0, 1.2539606, 0, -0.8936097, 0, -0.8797039, 48.23152, 0, 65.65216)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.39999998, 3, 0)
 
 [node name="tree_oak 53" type="Node3D" parent="Árvores" unique_id=1294269354]
 transform = Transform3D(-0.8597132, 0, 0.5205252, 0, 1.0050141, 0, -0.5205252, 0, -0.8597132, 61.286316, 0, 19.947632)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -1204,7 +1108,7 @@ shape_size = Vector3(0.35, 3, 0)
 [node name="tree_oak 54" type="Node3D" parent="Árvores" unique_id=1442173392]
 transform = Transform3D(-0.5883099, 0, 0.9415698, 0, 1.1102532, 0, -0.9415698, 0, -0.5883099, 33.769394, 0, 40.569214)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -1218,7 +1122,7 @@ shape_size = Vector3(0.32, 3, 0)
 [node name="tree_oak 55" type="Node3D" parent="Árvores" unique_id=271665009]
 transform = Transform3D(-0.83675724, 0, 0.35754558, 0, 0.9099459, 0, -0.35754558, 0, -0.83675724, -29.78292, 0, 12.085632)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -1232,14 +1136,14 @@ shape_size = Vector3(0.35, 3, 0)
 [node name="tree_oak 56" type="Node3D" parent="Árvores" unique_id=1011507871]
 transform = Transform3D(-0.90117604, 0, 0.81575406, 0, 1.2155546, 0, -0.81575406, 0, -0.90117604, -62.487347, 0, 27.45813)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 43" type="Node3D" parent="Árvores" unique_id=857442045]
 transform = Transform3D(-0.053154238, 0, -1.2288553, 0, 1.2300043, 0, 1.2288553, 0, -0.053154238, -53.767075, 0, 16.702454)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -1253,7 +1157,7 @@ shape_size = Vector3(0.35, 3, 0)
 [node name="tree_maple 44" type="Node3D" parent="Árvores" unique_id=185196644]
 transform = Transform3D(0.8684353, 0, 0.7582735, 0, 1.1528914, 0, -0.7582735, 0, 0.8684353, -51.14956, 0, -29.885315)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -1267,7 +1171,7 @@ shape_size = Vector3(0.25, 3, 0)
 [node name="tree_oak 57" type="Node3D" parent="Árvores" unique_id=703315353]
 transform = Transform3D(-1.0691404, 0, 0.7855601, 0, 1.3267125, 0, -0.7855601, 0, -1.0691404, -29.192265, 0, 0.3770752)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -1288,7 +1192,7 @@ shape_size = Vector3(0.25, 3, 0)
 [node name="tree_maple 45" type="Node3D" parent="Árvores" unique_id=1052453310]
 transform = Transform3D(0.44397202, 0, -0.94923156, 0, 1.0479274, 0, 0.94923156, 0, 0.44397202, 10.532066, 0, 16.04657)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -1302,7 +1206,7 @@ shape_size = Vector3(0.25, 3, 0)
 [node name="tree_maple 46" type="Node3D" parent="Árvores" unique_id=637472794]
 transform = Transform3D(0.5875148, 0, 0.75647247, 0, 0.9578227, 0, -0.75647247, 0, 0.5875148, 49.75379, 0, -65.62897)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 2.9999998, 0)
 
@@ -1316,21 +1220,14 @@ shape_size = Vector3(0.32, 3.0000002, 0)
 [node name="tree_oak 58" type="Node3D" parent="Árvores" unique_id=1438116278]
 transform = Transform3D(-0.31909326, 0, 0.9196052, 0, 0.97339314, 0, -0.9196052, 0, -0.31909326, -53.791595, 0, -43.446045)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
-
-[node name="tree_pine 29" type="Node3D" parent="Árvores" unique_id=1842460649]
-transform = Transform3D(1.3113389, 0, -0.018046927, 0, 1.3114631, 0, 0.018046927, 0, 1.3113389, 58.083076, 0, 30.75055)
-script = ExtResource("3_jcfso")
-model = "tree_pine"
-shape = 2
-shape_size = Vector3(0.35, 3, 0)
 
 [node name="tree_oak 59" type="Node3D" parent="Árvores" unique_id=665704119]
 transform = Transform3D(0.038726922, 0, -1.1891425, 0, 1.189773, 0, 1.1891425, 0, 0.038726922, -25.9334, 0, 0.15368652)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -1340,20 +1237,6 @@ script = ExtResource("3_jcfso")
 model = "tree_birch"
 shape = 2
 shape_size = Vector3(0.25, 3, 0)
-
-[node name="tree_fir 16" type="Node3D" parent="Árvores" unique_id=57329103]
-transform = Transform3D(0.2468155, 0, 0.98313296, 0, 1.0136411, 0, -0.98313296, 0, 0.2468155, -48.26191, 0, 48.279297)
-script = ExtResource("3_jcfso")
-model = "tree_fir"
-shape = 2
-shape_size = Vector3(0.32, 3, 0)
-
-[node name="tree_maple 47" type="Node3D" parent="Árvores" unique_id=946614423]
-transform = Transform3D(1.2419828, 0, -0.60626376, 0, 1.3820554, 0, 0.60626376, 0, 1.2419828, 54.281815, 0, -15.5373535)
-script = ExtResource("3_jcfso")
-model = "tree_maple"
-shape = 2
-shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_birch 28" type="Node3D" parent="Árvores" unique_id=566592926]
 transform = Transform3D(-1.0480403, 0, 0.4099937, 0, 1.1253814, 0, -0.4099937, 0, -1.0480403, -52.81758, 0, 54.974976)
@@ -1365,7 +1248,7 @@ shape_size = Vector3(0.25, 3, 0)
 [node name="tree_oak 60" type="Node3D" parent="Árvores" unique_id=560803291]
 transform = Transform3D(-0.96357274, 0, -0.31706068, 0, 1.0143963, 0, 0.31706068, 0, -0.96357274, -41.622864, 0, -52.084167)
 script = ExtResource("3_jcfso")
-model = "tree_oak"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -1376,17 +1259,10 @@ model = "tree_pine"
 shape = 2
 shape_size = Vector3(0.35, 3, 0)
 
-[node name="tree_oak 61" type="Node3D" parent="Árvores" unique_id=1860550068]
-transform = Transform3D(-1.0586022, 0, -0.90381116, 0, 1.3919458, 0, 0.90381116, 0, -1.0586022, 19.5876, 0, 44.183655)
-script = ExtResource("3_jcfso")
-model = "tree_oak"
-shape = 2
-shape_size = Vector3(0.40000004, 3, 0)
-
 [node name="tree_maple 48" type="Node3D" parent="Árvores" unique_id=182818022]
 transform = Transform3D(1.0409963, 0, -0.47991073, 0, 1.146293, 0, 0.47991073, 0, 1.0409963, -58.87037, 0, 55.78308)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -1400,14 +1276,14 @@ shape_size = Vector3(0.35, 3, 0)
 [node name="tree_maple 49" type="Node3D" parent="Árvores" unique_id=1997225786]
 transform = Transform3D(0.96260136, 0, -0.31168705, 0, 1.0118054, 0, 0.31168705, 0, 0.96260136, 50.899246, 0, 44.089478)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
 [node name="tree_maple 50" type="Node3D" parent="Árvores" unique_id=363910464]
 transform = Transform3D(-0.26234588, 0, -0.88708353, 0, 0.92506355, 0, 0.88708353, 0, -0.26234588, 60.011078, 0, 57.036926)
 script = ExtResource("3_jcfso")
-model = "tree_maple"
+model = "tree_swamp"
 shape = 2
 shape_size = Vector3(0.4, 3, 0)
 
@@ -1960,3 +1836,303 @@ transform = Transform3D(1, 0, -0, 0, 1, 0, 0, 0, 1, 0, 0.3, -59)
 script = ExtResource("8_qljvo")
 id = "dg:dg_bosque"
 follow_ground = false
+
+[node name="Bioma" type="Node3D" parent="."]
+
+[node name="Charco 1" type="Node3D" parent="Bioma"]
+script = ExtResource("91_rio")
+width = 7.0
+bank = 1.6
+water_y = -0.35
+flow = 0.08
+deep_color = Color(0.12, 0.17, 0.09, 1)
+shallow_color = Color(0.25, 0.3, 0.14, 1)
+foam_color = Color(0.45, 0.5, 0.3, 1)
+bank_top = Color(0.2, 0.24, 0.11, 1)
+bank_mid = Color(0.24, 0.2, 0.13, 1)
+bank_wet = Color(0.13, 0.11, 0.08, 1)
+bank_plant = "reeds"
+decor_seed = 21
+
+[node name="Ponto0" type="Node3D" parent="Bioma/Charco 1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 0, 40)
+script = ExtResource("92_ponto")
+
+[node name="Ponto1" type="Node3D" parent="Bioma/Charco 1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 0, 46)
+script = ExtResource("92_ponto")
+
+[node name="Ponto2" type="Node3D" parent="Bioma/Charco 1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0, 52)
+script = ExtResource("92_ponto")
+
+[node name="Charco 2" type="Node3D" parent="Bioma"]
+script = ExtResource("91_rio")
+width = 7.0
+bank = 1.6
+water_y = -0.35
+flow = 0.08
+deep_color = Color(0.12, 0.17, 0.09, 1)
+shallow_color = Color(0.25, 0.3, 0.14, 1)
+foam_color = Color(0.45, 0.5, 0.3, 1)
+bank_top = Color(0.2, 0.24, 0.11, 1)
+bank_mid = Color(0.24, 0.2, 0.13, 1)
+bank_wet = Color(0.13, 0.11, 0.08, 1)
+bank_plant = "reeds"
+decor_seed = 22
+
+[node name="Ponto0" type="Node3D" parent="Bioma/Charco 2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 42, 0, -12)
+script = ExtResource("92_ponto")
+
+[node name="Ponto1" type="Node3D" parent="Bioma/Charco 2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 52, 0, -16)
+script = ExtResource("92_ponto")
+
+[node name="Ponto2" type="Node3D" parent="Bioma/Charco 2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60, 0, -10)
+script = ExtResource("92_ponto")
+
+[node name="Charco 3" type="Node3D" parent="Bioma"]
+script = ExtResource("91_rio")
+width = 7.0
+bank = 1.6
+water_y = -0.35
+flow = 0.08
+deep_color = Color(0.12, 0.17, 0.09, 1)
+shallow_color = Color(0.25, 0.3, 0.14, 1)
+foam_color = Color(0.45, 0.5, 0.3, 1)
+bank_top = Color(0.2, 0.24, 0.11, 1)
+bank_mid = Color(0.24, 0.2, 0.13, 1)
+bank_wet = Color(0.13, 0.11, 0.08, 1)
+bank_plant = "reeds"
+decor_seed = 23
+
+[node name="Ponto0" type="Node3D" parent="Bioma/Charco 3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -52, 0, 42)
+script = ExtResource("92_ponto")
+
+[node name="Ponto1" type="Node3D" parent="Bioma/Charco 3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -44, 0, 50)
+script = ExtResource("92_ponto")
+
+[node name="Ponto2" type="Node3D" parent="Bioma/Charco 3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -34, 0, 54)
+script = ExtResource("92_ponto")
+
+[node name="Charco 4" type="Node3D" parent="Bioma"]
+script = ExtResource("91_rio")
+width = 7.0
+bank = 1.6
+water_y = -0.35
+flow = 0.08
+deep_color = Color(0.12, 0.17, 0.09, 1)
+shallow_color = Color(0.25, 0.3, 0.14, 1)
+foam_color = Color(0.45, 0.5, 0.3, 1)
+bank_top = Color(0.2, 0.24, 0.11, 1)
+bank_mid = Color(0.24, 0.2, 0.13, 1)
+bank_wet = Color(0.13, 0.11, 0.08, 1)
+bank_plant = "reeds"
+decor_seed = 24
+
+[node name="Ponto0" type="Node3D" parent="Bioma/Charco 4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 54, 0, 32)
+script = ExtResource("92_ponto")
+
+[node name="Ponto1" type="Node3D" parent="Bioma/Charco 4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 58, 0, 40)
+script = ExtResource("92_ponto")
+
+[node name="Ponto2" type="Node3D" parent="Bioma/Charco 4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 62, 0, 50)
+script = ExtResource("92_ponto")
+
+[node name="Cogumelos 1" type="Node3D" parent="Bioma"]
+transform = Transform3D(-0.89188, 0, -0.49812, 0, 1.0216, 0, 0.49812, 0, -0.89188, -30.368, 0, -63.476)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 2" type="Node3D" parent="Bioma"]
+transform = Transform3D(-0.40529, 0, 1.0326, 0, 1.1093, 0, -1.0326, 0, -0.40529, 8.492, 0, 57.997)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 3" type="Node3D" parent="Bioma"]
+transform = Transform3D(1.2634, 0, -0.44582, 0, 1.3397, 0, 0.44582, 0, 1.2634, 15.052, 0, 22.554)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 4" type="Node3D" parent="Bioma"]
+transform = Transform3D(0.84365, 0, -0.37994, 0, 0.92526, 0, 0.37994, 0, 0.84365, 17.189, 0, -56.032)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 5" type="Node3D" parent="Bioma"]
+transform = Transform3D(0.75688, 0, -0.25953, 0, 0.80014, 0, 0.25953, 0, 0.75688, -43.225, 0, -20.473)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 6" type="Node3D" parent="Bioma"]
+transform = Transform3D(-0.53376, 0, -0.61629, 0, 0.8153, 0, 0.61629, 0, -0.53376, -44.638, 0, -51.013)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 7" type="Node3D" parent="Bioma"]
+transform = Transform3D(0.5662, 0, -0.76452, 0, 0.95135, 0, 0.76452, 0, 0.5662, 47.915, 0, 14.601)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 8" type="Node3D" parent="Bioma"]
+transform = Transform3D(0.93835, 0, -0.9132, 0, 1.3094, 0, 0.9132, 0, 0.93835, -19.534, 0, -17.387)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 9" type="Node3D" parent="Bioma"]
+transform = Transform3D(-0.12005, 0, -1.2917, 0, 1.2973, 0, 1.2917, 0, -0.12005, -50.920, 0, -20.143)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 10" type="Node3D" parent="Bioma"]
+transform = Transform3D(1.0643, 0, 0.33876, 0, 1.117, 0, -0.33876, 0, 1.0643, -43.336, 0, -61.044)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 11" type="Node3D" parent="Bioma"]
+transform = Transform3D(1.1008, 0, -0.18885, 0, 1.1169, 0, 0.18885, 0, 1.1008, -45.235, 0, 5.526)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 12" type="Node3D" parent="Bioma"]
+transform = Transform3D(0.181, 0, 0.98124, 0, 0.9978, 0, -0.98124, 0, 0.181, 34.808, 0, 4.172)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 13" type="Node3D" parent="Bioma"]
+transform = Transform3D(1.3057, 0, 0.12428, 0, 1.3116, 0, -0.12428, 0, 1.3057, -35.451, 0, 39.873)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 14" type="Node3D" parent="Bioma"]
+transform = Transform3D(-0.059648, 0, 0.93414, 0, 0.93604, 0, -0.93414, 0, -0.059648, 39.178, 0, 40.747)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 15" type="Node3D" parent="Bioma"]
+transform = Transform3D(-0.17556, 0, -0.93924, 0, 0.9555, 0, 0.93924, 0, -0.17556, -60.291, 0, -60.424)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 16" type="Node3D" parent="Bioma"]
+transform = Transform3D(-1.288, 0, -0.44356, 0, 1.3622, 0, 0.44356, 0, -1.288, 24.643, 0, 58.434)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 17" type="Node3D" parent="Bioma"]
+transform = Transform3D(-0.61488, 0, -0.70076, 0, 0.93228, 0, 0.70076, 0, -0.61488, 62.469, 0, 58.240)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 18" type="Node3D" parent="Bioma"]
+transform = Transform3D(1.0565, 0, 0.76476, 0, 1.3043, 0, -0.76476, 0, 1.0565, -37.840, 0, 15.880)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 19" type="Node3D" parent="Bioma"]
+transform = Transform3D(-0.7171, 0, 1.1389, 0, 1.3459, 0, -1.1389, 0, -0.7171, 38.354, 0, -53.148)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 20" type="Node3D" parent="Bioma"]
+transform = Transform3D(-0.89848, 0, -0.12489, 0, 0.90711, 0, 0.12489, 0, -0.89848, 36.135, 0, 32.018)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 21" type="Node3D" parent="Bioma"]
+transform = Transform3D(0.43397, 0, 1.3131, 0, 1.383, 0, -1.3131, 0, 0.43397, 37.009, 0, -21.438)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Cogumelos 22" type="Node3D" parent="Bioma"]
+transform = Transform3D(1.1665, 0, 0.40536, 0, 1.2349, 0, -0.40536, 0, 1.1665, -13.333, 0, -12.622)
+script = ExtResource("3_jcfso")
+model = "mushrooms"
+
+[node name="Tronco morto 1" type="Node3D" parent="Bioma"]
+transform = Transform3D(0.68172, 0, -0.95266, 0, 1.1715, 0, 0.95266, 0, 0.68172, -42.240, 0, -47.739)
+script = ExtResource("3_jcfso")
+model = "tree_dead"
+shape = 2
+shape_size = Vector3(0.32, 3, 0)
+tint = Color(0.3, 0.27, 0.22, 1)
+
+[node name="Tronco morto 2" type="Node3D" parent="Bioma"]
+transform = Transform3D(0.55202, 0, 1.0588, 0, 1.1941, 0, -1.0588, 0, 0.55202, 39.232, 0, -45.290)
+script = ExtResource("3_jcfso")
+model = "tree_dead"
+shape = 2
+shape_size = Vector3(0.32, 3, 0)
+tint = Color(0.3, 0.27, 0.22, 1)
+
+[node name="Tronco morto 3" type="Node3D" parent="Bioma"]
+transform = Transform3D(-0.89576, 0, 0.28264, 0, 0.9393, 0, -0.28264, 0, -0.89576, 20.130, 0, -19.148)
+script = ExtResource("3_jcfso")
+model = "tree_dead"
+shape = 2
+shape_size = Vector3(0.32, 3, 0)
+tint = Color(0.3, 0.27, 0.22, 1)
+
+[node name="Tronco morto 4" type="Node3D" parent="Bioma"]
+transform = Transform3D(-0.62371, 0, 0.85457, 0, 1.058, 0, -0.85457, 0, -0.62371, -62.177, 0, 60.274)
+script = ExtResource("3_jcfso")
+model = "tree_dead"
+shape = 2
+shape_size = Vector3(0.32, 3, 0)
+tint = Color(0.3, 0.27, 0.22, 1)
+
+[node name="Tronco morto 5" type="Node3D" parent="Bioma"]
+transform = Transform3D(0.23645, 0, -0.94646, 0, 0.97555, 0, 0.94646, 0, 0.23645, 47.583, 0, 41.748)
+script = ExtResource("3_jcfso")
+model = "tree_dead"
+shape = 2
+shape_size = Vector3(0.32, 3, 0)
+tint = Color(0.3, 0.27, 0.22, 1)
+
+[node name="Tronco morto 6" type="Node3D" parent="Bioma"]
+transform = Transform3D(-0.82028, 0, -0.45768, 0, 0.93932, 0, 0.45768, 0, -0.82028, 11.064, 0, -30.801)
+script = ExtResource("3_jcfso")
+model = "tree_dead"
+shape = 2
+shape_size = Vector3(0.32, 3, 0)
+tint = Color(0.3, 0.27, 0.22, 1)
+
+[node name="Tronco morto 7" type="Node3D" parent="Bioma"]
+transform = Transform3D(-1.036, 0, 0.20986, 0, 1.0571, 0, -0.20986, 0, -1.036, 53.468, 0, 0.211)
+script = ExtResource("3_jcfso")
+model = "tree_dead"
+shape = 2
+shape_size = Vector3(0.32, 3, 0)
+tint = Color(0.3, 0.27, 0.22, 1)
+
+[node name="Tronco morto 8" type="Node3D" parent="Bioma"]
+transform = Transform3D(0.36774, 0, -0.82274, 0, 0.90118, 0, 0.82274, 0, 0.36774, -61.606, 0, -7.664)
+script = ExtResource("3_jcfso")
+model = "tree_dead"
+shape = 2
+shape_size = Vector3(0.32, 3, 0)
+tint = Color(0.3, 0.27, 0.22, 1)
+
+[node name="Tronco morto 9" type="Node3D" parent="Bioma"]
+transform = Transform3D(-1.0596, 0, 0.1226, 0, 1.0666, 0, -0.1226, 0, -1.0596, 7.229, 0, -22.274)
+script = ExtResource("3_jcfso")
+model = "tree_dead"
+shape = 2
+shape_size = Vector3(0.32, 3, 0)
+tint = Color(0.3, 0.27, 0.22, 1)
+
+[node name="Tronco morto 10" type="Node3D" parent="Bioma"]
+transform = Transform3D(-1.0673, 0, 0.051669, 0, 1.0685, 0, -0.051669, 0, -1.0673, -28.555, 0, 34.849)
+script = ExtResource("3_jcfso")
+model = "tree_dead"
+shape = 2
+shape_size = Vector3(0.32, 3, 0)
+tint = Color(0.3, 0.27, 0.22, 1)

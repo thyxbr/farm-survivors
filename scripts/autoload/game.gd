@@ -27,7 +27,8 @@ const CHAR_CREATE_SCENE := "res://scenes/char_create.tscn"
 
 var settings := {"mouse_sensitivity": 0.25, "master_volume": 0.8, "music_volume": 0.45, "sfx_volume": 0.9,
 	"ambience_volume": 0.7, "fullscreen": false, "invert_y": false,
-	"player_name": "", "server_address": "", "keep_logged": true, "toon": true, "toon_outline": true}
+	"player_name": "", "server_address": "", "keep_logged": true, "toon": true, "toon_outline": true,
+	"cam_zoom": 4.0}
 
 # ---- espelho do personagem (escrito só por apply_state)
 var level := 1
@@ -133,7 +134,7 @@ func _debug_screenshot() -> void:
 			spawn_position = Vector3(float(v[0]), 0.5, float(v[1]))
 			spawn_yaw = float(v[2]) if v.size() > 2 else 0.0
 	var args := OS.get_cmdline_user_args()
-	var demo := "--farmdemo" in args or "--geardemo" in args or "--enchantdemo" in args
+	var demo := "--farmdemo" in args or "--geardemo" in args or "--enchantdemo" in args or "--introdemo" in args
 	for a in args:
 		demo = demo or a.begins_with("--weapon=")
 	if demo:
@@ -265,44 +266,25 @@ func _debug_screenshot() -> void:
 			if a.begins_with("--ui="):
 				await get_tree().create_timer(1.0).timeout
 				var w = get_tree().current_scene
-				match a.substr(5):
-					"inv":
-						w._open_menu(0)
-					"char":
-						w._open_menu(1)
-					"talents":
-						w._open_menu(2)
-					"quests":
-						w._open_menu(3)
-					"tools":
-						w._open_menu(0)
-						await get_tree().process_frame
-						if w.modal:
-							w.modal._set_side_tab("tools")
-					"shop":
-						w.open_shop()
-					"map":
-						w.open_world_map()
-					"party":
-						w.open_world_map(1)
-					"friends":
-						w.open_world_map(2)
-					"enchant":
-						for n in get_tree().get_nodes_in_group("interactable"):
-							if n.get("npc_id") == "blacksmith":
-								w.open_enchant(n)
-					"craft", "craft:forge", "craft:leather", "craft:alchemy":
-						_craft_demo(w, a.substr(5).get_slice(":", 1) if ":" in a else "forge", args)
-				# `--tip=<n>` (com --ui=inv): abre a dica do espaço n da mochila, presa ao lado dele, para a captura
+				# várias janelas de uma vez: --ui=char,inv
+				for ui_name in a.substr(5).split(",", false):
+					await _open_debug_ui(w, ui_name, args)
+				# `--tip=<n>` (com o inventário aberto): abre a dica do espaço n da mochila, presa ao lado dele,
+				# para a captura; `--shift` abre também a ficha do equipado ao lado (como segurar Shift)
+				var inv: Control = w.dock.at("right") if w.get("dock") else null
 				for t in args:
-					if t.begins_with("--tip=") and w.modal and w.modal.get("bag_slots") != null:
+					if t.begins_with("--tip=") and inv != null and inv.get("bag_slots") != null:
 						await get_tree().create_timer(0.5).timeout
-						var slot: ItemSlot = w.modal.bag_slots[clampi(int(t.substr(6)), 0, w.modal.bag_slots.size() - 1)]
+						var slot: ItemSlot = inv.bag_slots[clampi(int(t.substr(6)), 0, inv.bag_slots.size() - 1)]
 						if slot.item_id != "":
-							var tip: ItemTooltip = w.modal.tooltip
+							var tip: ItemTooltip = inv.tooltip
 							tip.show_for(slot)
 							tip.set_process(false)   # não segue o ponteiro (que pode nem estar na janela)
-							tip.global_position = slot.get_global_rect().end + Vector2(8, 8)
+							var r := slot.get_global_rect()
+							tip.global_position = Vector2(r.position.x - tip.get_combined_minimum_size().x - 8, r.position.y)
+							if "--shift" in args:
+								tip._update_compare(true)
+
 	# `--survival` começa direto no Desafio da Horda (com ou sem screenshot)
 	if "--survival" in OS.get_cmdline_user_args():
 		await get_tree().create_timer(0.3).timeout
@@ -327,7 +309,8 @@ func _debug_screenshot() -> void:
 			var c := cam.split(",")
 			pl.cam_yaw.rotation.y += deg_to_rad(float(c[0]))
 			if c.size() > 1:
-				pl.spring.spring_length = float(c[1])
+				pl.cam_dist_override = float(c[1])
+				pl._cam_dist = float(c[1])
 		delay = 1.0
 	await get_tree().create_timer(delay, true).timeout
 	await RenderingServer.frame_post_draw
@@ -1224,7 +1207,7 @@ static func harness_class(args: PackedStringArray) -> Array:
 		elif a.begins_with("--weapon="):
 			weapon = a.substr(9)
 			harness = true
-		elif a in ["--smoketest", "--vilatest", "--farmdemo", "--geardemo", "--enchantdemo"] or a.begins_with("--nettest="):
+		elif a in ["--smoketest", "--vilatest", "--farmdemo", "--geardemo", "--enchantdemo", "--introdemo"] or a.begins_with("--nettest="):
 			harness = true
 	if cls == "" and weapon != "":
 		var wc := CharRules.weapon_class(Balance.tables, weapon)
@@ -1369,3 +1352,48 @@ func after_op(op: String, args: Array, ok: bool, _events: Array) -> void:
 		"cook":
 			if ok and selected_food == "" and not args.is_empty():
 				selected_food = str(args[0])
+
+
+## Abre a tela `ui_name` de `--ui=` (para capturas).
+func _open_debug_ui(w: Node, ui_name: String, args: PackedStringArray) -> void:
+	match ui_name:
+		"inv":
+			w._open_menu(0)
+		"char":
+			w._open_menu(1)
+		"talents":
+			w._open_menu(2)
+		"quests":
+			w._open_menu(3)
+		"tools":
+			w._open_menu(0)
+			await get_tree().process_frame
+			if w.modal:
+				w.modal._set_side_tab("tools")
+		"shop":
+			w.open_shop()
+		"plant":
+			w.open_plant_menu(0)
+		"plant_ok":   # a janelinha de confirmação de plantar
+			w.open_plant_menu(0)
+			await get_tree().process_frame
+			if w.modal and w.modal.has_method("_plant_here"):
+				w.modal._plant_here()
+		"cook":
+			w.open_cooking()
+		"prof":
+			w._open_menu(4)
+		"orin":
+			w.open_modal(load("res://scripts/ui/passive_master_ui.gd").new())
+		"map":
+			w.open_world_map()
+		"party":
+			w.open_world_map(1)
+		"friends":
+			w.open_world_map(2)
+		"enchant":
+			for n in get_tree().get_nodes_in_group("interactable"):
+				if n.get("npc_id") == "blacksmith":
+					w.open_enchant(n)
+		"craft", "craft:forge", "craft:leather", "craft:alchemy":
+			_craft_demo(w, ui_name.get_slice(":", 1) if ":" in ui_name else "forge", args)

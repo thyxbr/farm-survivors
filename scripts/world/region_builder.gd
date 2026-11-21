@@ -13,6 +13,16 @@ const NPCS := {
 	"tonico": {"villager": 2, "scale": 1.0},
 	"coach": {"villager": 1, "scale": 1.05},
 	"tico": {"villager": 3, "scale": 0.6},
+	# feirantes e o artesão da praça
+	"tereza": {"villager": 3, "scale": 0.93},
+	"bento": {"villager": 2, "scale": 1.02},
+	"cida": {"villager": 1, "scale": 0.92},
+	"aurelio": {"villager": 2, "scale": 1.06, "idle": 0.85},
+	# moradores que passeiam pela vila (VillageWalker; "speed" escala o passo)
+	"marta": {"villager": 1, "scale": 0.95},
+	"joca": {"villager": 3, "scale": 0.62, "speed": 1.35},
+	"lauro": {"villager": 2, "scale": 0.97, "idle": 0.7, "speed": 0.7},
+	"bia": {"villager": 3, "scale": 0.94, "speed": 1.1},
 	"rufus": {"knight": {"weapon": "iron_sword", "armor": "guard_surcoat", "head": "kettle_hat", "hands": "iron_gauntlets",
 		"feet": "iron_greaves", "offhand": "wooden_shield"}, "scale": 1.05},
 	"osvaldo": {"knight": {"weapon": "knight_blade", "armor": "royal_plate", "head": "knight_helm", "hands": "iron_gauntlets",
@@ -24,6 +34,19 @@ const NPCS := {
 	"bolgar": {"knight": {"weapon": "", "armor": "leather_armor", "head": "iron_helm", "hands": "iron_gauntlets",
 		"feet": "reinforced_boots"}, "scale": 0.78},
 }
+
+
+## Morador que passeia pela vila (VillageWalker) pelo caminho `path` ([[x, z, espera?], ...], no mundo).
+static func walker(id: String, path: Array) -> Node3D:
+	var d: Dictionary = NPCS.get(id, {"villager": 1})
+	var v := VillageWalker.new()
+	v.npc_id = id
+	v.look_index = int(d.get("villager", 1))
+	v.model_scale = float(d.get("scale", 1.0))
+	v.idle_speed = float(d.get("idle", 1.0))
+	v.speed_scale = float(d.get("speed", 1.0))
+	v.path = path
+	return v
 
 
 ## Cria um NPC da história (sem adicionar à árvore): Kael do pico, aldeões e os de armadura.
@@ -123,6 +146,6 @@ static func _box(parent: Node3D, size: Vector3, m: Material, pos: Vector3) -> Me
 
 
 # ================================================================ mapas
-# ---------------------------------------------------------------- Bosque Sussurrante
-# ---------------------------------------------------------------- Mina de Cristal
-# ---------------------------------------------------------------- Pico das Cinzas
+# ---------------------------------------------------------------- Pântano Sussurrante
+# ---------------------------------------------------------------- Geleira de Cristal
+# ---------------------------------------------------------------- Vulcão das Cinzas

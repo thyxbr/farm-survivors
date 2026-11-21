@@ -105,7 +105,8 @@ func is_tree() -> bool:
 
 ## Raio do tronco de cada modelo de árvore (m, sem a escala; medido nos GLBs na altura do golpe). Pinheiro e abeto
 ## têm galhos até o chão: o tronco por dentro tem uns 0,22.
-const TRUNK := {"tree_pine": 0.22, "tree_fir": 0.22, "tree_oak": 0.3, "tree_birch": 0.16, "tree_maple": 0.28}
+const TRUNK := {"tree_pine": 0.22, "tree_fir": 0.22, "tree_oak": 0.3, "tree_birch": 0.16, "tree_maple": 0.28,
+		"tree_swamp": 0.3, "tree_dead": 0.26}
 
 
 ## Distância do centro do nó em que o jogador para para bater: árvore = a ponta do machado no impacto

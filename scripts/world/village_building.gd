@@ -1,7 +1,7 @@
 @tool
 class_name VillageBuilding
 extends Node3D
-## Uma construção da vila na cena scenes/maps/vale.tscn (casa, loja ou o poço). No editor ela mostra o modelo
+## Uma construção da vila na cena scenes/maps/vale.tscn (casa, loja, barraca da feira ou o poço). No editor ela mostra o modelo
 ## (com as cores da paleta), então dá para arrastar, girar e duplicar (Ctrl+D) as casas no 3D. No jogo o
 ## world.gd não põe esta cena na árvore: ele lê a posição, o giro e as opções de cada uma
 ## (VillageLayout.buildings()) e monta o modelo, a colisão, as luzes, os enfeites e as flores.
@@ -10,11 +10,15 @@ extends Node3D
 ## (a porta) é o +Z do nó: a seta azul do gizmo local aponta para a rua.
 
 const MODELS := ["house", "house_b", "house_c", "house_d", "house_e", "house_f",
-	"shop_merchant", "shop_alchemist", "shop_smithy", "well"]
+	"shop_merchant", "shop_alchemist", "shop_smithy", "well", "shop_workshop", "shop_alchemy_lab",
+	"stall_cloth", "stall_farm", "stall_goods"]
 
-## Modelo: as seis casas, as três lojas (com a Mira, a Pip e o ferreiro na frente) ou o poço.
+## Modelo: as seis casas, as lojas (empório da Mira, botica da Pip, ferraria, oficina do artesão e o laboratório
+## de alquimia), as barracas da feira ou o poço. O dono da loja (Mira, Pip, ferreiro) vem junto; o artesão,
+## os feirantes e as bancadas de craft são MapEntity à parte, na frente de cada uma.
 @export_enum("house", "house_b", "house_c", "house_d", "house_e", "house_f",
-	"shop_merchant", "shop_alchemist", "shop_smithy", "well") var model := "house":
+	"shop_merchant", "shop_alchemist", "shop_smithy", "well", "shop_workshop", "shop_alchemy_lab",
+	"stall_cloth", "stall_farm", "stall_goods") var model := "house":
 	set(v):
 		model = v
 		_refresh()
@@ -88,13 +92,9 @@ func _house_extras(v: Node3D) -> void:
 		v.add_child(f)
 
 
-## O dono na frente da loja (boneco com o nome); na ferraria, a bigorna e a forja do ferreiro.
+## Na ferraria, o ferreiro, a bigorna e a forja. A Mira e a Pip são MapEntity próprias (merchant/alchemist).
 func _shop_extras(v: Node3D) -> void:
 	match model:
-		"shop_merchant":
-			_keeper(v, VillageLayout.MERCHANT_SPOT, "Mira")
-		"shop_alchemist":
-			_keeper(v, VillageLayout.ALCHEMIST_SPOT, "Pip")
 		"shop_smithy":
 			_keeper(v, Vector3.ZERO, "Ferreiro")
 			var bs: GDScript = load("res://scripts/world/blacksmith.gd")

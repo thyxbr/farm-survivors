@@ -47,6 +47,16 @@ var _lines_pm: ShaderMaterial
 var _dust: GPUParticles3D
 var _dust_pm: ParticleProcessMaterial
 var _collision: GPUParticlesCollisionHeightField3D
+# bioma (BiomeRules): o mapa onde a câmera está troca céu, névoa, sol e clima; cinza e brasas no vulcão,
+# vaga-lumes no pântano
+var _region := ""
+var _bio := {}
+var _ash: GPUParticles3D
+var _ash_pm: ParticleProcessMaterial
+var _embers: GPUParticles3D
+var _flies: GPUParticles3D
+var _cave: GPUParticles3D   # dungeon: poeira pairando devagar na luz das tochas
+var _hero_light: OmniLight3D   # dungeon: brilho fraco e curto em volta do herói (vê-se perto, o resto é escuro)
 
 var _rain_audio: AudioStreamPlayer
 var _wind_audio: AudioStreamPlayer
@@ -128,7 +138,29 @@ func _find_lighting() -> void:
 		_base.rim = _rim.light_energy
 
 
+## Base da luz com o bioma do mapa atual por cima (o Vale e a Arena: a base de sempre).
+func _eff_base() -> Dictionary:
+	if _bio.is_empty() or not _bio.has("sky_top"):
+		return _base
+	var b := _base.duplicate()
+	b.fog_color = _bio.fog
+	b.fog_density = float(_bio.fog_density) * (0.6 if ToonLook.enabled() else 1.0)
+	b.sky_top = _bio.sky_top
+	b.sky_hz = _bio.sky_hz
+	b.ground_hz = _bio.ground_hz
+	if b.has("sun"):
+		b.sun = float(_base.sun) * float(_bio.sun)
+		b.sun_color = _bio.sun_color
+	if b.has("ambient"):
+		b.ambient = float(_base.ambient) * float(_bio.ambient)
+		b.saturation = float(_base.saturation) * float(_bio.saturation)
+	if b.has("rim"):
+		b.rim = float(_base.rim) * float(_bio.get("rim", 1.0))
+	return b
+
+
 func _apply_light(s: Dictionary) -> void:
+	var b := _eff_base()   # a base já com o bioma do mapa atual
 	var cloud: float = s.cloud
 	var snow: float = maxf(s.snow, s.cover * 0.5)
 	var rain: float = s.rain
@@ -143,29 +175,29 @@ func _apply_light(s: Dictionary) -> void:
 	var amb_gain := 0.5 if toon else 1.0
 	var sat_loss := 0.15 if toon else 0.25
 	# outono: sol mais baixo e dourado, névoa morna
-	var autumn := Weather.autumn * (1.0 - snow)
+	var autumn := (Weather.autumn if _bio.get("autumn", true) else 0.0) * (1.0 - snow)
 	if _sun != null:
-		_sun.light_energy = _base.sun * (1.0 - sun_loss * cloud)
-		_sun.light_color = (_base.sun_color as Color).lerp(Color(1.0, 0.84, 0.62), autumn * 0.35 * (1.0 - cloud)) 				.lerp(Color(0.86, 0.9, 1.0), cloud * 0.8)
+		_sun.light_energy = b.sun * (1.0 - sun_loss * cloud)
+		_sun.light_color = (b.sun_color as Color).lerp(Color(1.0, 0.84, 0.62), autumn * 0.35 * (1.0 - cloud)) 				.lerp(Color(0.86, 0.9, 1.0), cloud * 0.8)
 		_sun.shadow_opacity = 1.0 - shadow_loss * cloud
 	if _rim != null:
-		_rim.light_energy = _base.rim * (1.0 - 0.5 * cloud)
+		_rim.light_energy = b.rim * (1.0 - 0.5 * cloud)
 	if _env == null:
 		return
 	var grey := Color(0.6, 0.63, 0.67)
 	var white := Color(0.84, 0.87, 0.92)
 	var dusty := Color(0.8, 0.76, 0.66)
-	var fog: Color = (_base.fog_color as Color).lerp(Color(0.88, 0.74, 0.55), autumn * 0.3).lerp(grey, cloud).lerp(white, snow * 0.8).lerp(dusty, dust * 0.6)
+	var fog: Color = (b.fog_color as Color).lerp(Color(0.88, 0.74, 0.55), autumn * 0.3).lerp(grey, cloud).lerp(white, snow * 0.8).lerp(dusty, dust * 0.6)
 	_env.fog_light_color = fog
-	_env.fog_density = _base.fog_density + (0.009 * rain + 0.009 * s.snow + 0.004 * dust) * fog_gain
-	_env.ambient_light_energy = _base.ambient * (1.0 + (0.12 * cloud + 0.15 * snow) * amb_gain)
-	_env.adjustment_saturation = _base.saturation - sat_loss * cloud
+	_env.fog_density = b.fog_density + (0.009 * rain + 0.009 * s.snow + 0.004 * dust) * fog_gain
+	_env.ambient_light_energy = b.ambient * (1.0 + (0.12 * cloud + 0.15 * snow) * amb_gain)
+	_env.adjustment_saturation = b.saturation - sat_loss * cloud
 	if _sky != null:
-		_sky.sky_top_color = (_base.sky_top as Color).lerp(Color(0.45, 0.5, 0.56), cloud).lerp(Color(0.7, 0.74, 0.8), snow * cloud * 0.6)
-		var hz: Color = (_base.sky_hz as Color).lerp(Color(0.62, 0.65, 0.69), cloud).lerp(white, snow * 0.6).lerp(dusty, dust * 0.4)
+		_sky.sky_top_color = (b.sky_top as Color).lerp(Color(0.45, 0.5, 0.56), cloud).lerp(Color(0.7, 0.74, 0.8), snow * cloud * 0.6)
+		var hz: Color = (b.sky_hz as Color).lerp(Color(0.62, 0.65, 0.69), cloud).lerp(white, snow * 0.6).lerp(dusty, dust * 0.4)
 		_sky.sky_horizon_color = hz
-		_sky.ground_horizon_color = (_base.ground_hz as Color).lerp(hz, maxf(cloud, dust))
-		_sky.energy_multiplier = _base.sky_energy * (1.0 - 0.25 * cloud * (1.0 - snow))
+		_sky.ground_horizon_color = (b.ground_hz as Color).lerp(hz, maxf(cloud, dust))
+		_sky.energy_multiplier = b.sky_energy * (1.0 - 0.25 * cloud * (1.0 - snow))
 
 
 # ================================================================ partículas
@@ -244,6 +276,95 @@ func _build_particles() -> void:
 	_snow.process_material = _snow_pm
 	_snow.draw_pass_1 = _dot_mesh(0.1, Color(1, 1, 1, 0.95))
 	_add_particles(_snow)
+
+	# vulcão: cinza caindo devagar (flocos escuros) e brasas subindo do chão
+	_ash = GPUParticles3D.new()
+	_ash.amount = 1800
+	_ash.lifetime = 10.0
+	_ash.preprocess = 6.0
+	_ash.local_coords = false
+	_ash_pm = ParticleProcessMaterial.new()
+	_ash_pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	_ash_pm.emission_box_extents = Vector3(22, 1, 22)
+	_ash_pm.direction = Vector3.DOWN
+	_ash_pm.spread = 30.0
+	_ash_pm.initial_velocity_min = 0.5
+	_ash_pm.initial_velocity_max = 1.1
+	_ash_pm.scale_min = 0.6
+	_ash_pm.scale_max = 1.3
+	_ash_pm.turbulence_enabled = true
+	_ash_pm.turbulence_noise_strength = 1.2
+	_ash_pm.turbulence_noise_scale = 5.0
+	_ash_pm.turbulence_influence_min = 0.05
+	_ash_pm.turbulence_influence_max = 0.14
+	_ash.process_material = _ash_pm
+	_ash.draw_pass_1 = _dot_mesh(0.085, Color(0.24, 0.22, 0.22, 0.9))
+	_add_particles(_ash)
+	_embers = GPUParticles3D.new()
+	_embers.amount = 160
+	_embers.lifetime = 4.0
+	_embers.local_coords = false
+	var epm := ParticleProcessMaterial.new()
+	epm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	epm.emission_box_extents = Vector3(16, 0.5, 16)
+	epm.direction = Vector3.UP
+	epm.spread = 25.0
+	epm.initial_velocity_min = 0.8
+	epm.initial_velocity_max = 2.0
+	epm.gravity = Vector3(0, 0.25, 0)
+	epm.scale_min = 0.5
+	epm.scale_max = 1.2
+	epm.turbulence_enabled = true
+	epm.turbulence_noise_strength = 2.0
+	epm.turbulence_influence_min = 0.1
+	epm.turbulence_influence_max = 0.25
+	epm.color_ramp = _fade_ramp(0.1, 0.6)
+	_embers.process_material = epm
+	_embers.draw_pass_1 = _dot_mesh(0.07, Color(1.0, 0.55, 0.15, 1.0) * 3.0)
+	_add_particles(_embers)
+	# pântano: vaga-lumes pairando baixo, piscando devagar
+	_flies = GPUParticles3D.new()
+	_flies.amount = 90
+	_flies.lifetime = 6.0
+	_flies.preprocess = 4.0
+	_flies.local_coords = false
+	var fpm := ParticleProcessMaterial.new()
+	fpm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	fpm.emission_box_extents = Vector3(16, 1.2, 16)
+	fpm.spread = 180.0
+	fpm.initial_velocity_min = 0.1
+	fpm.initial_velocity_max = 0.4
+	fpm.gravity = Vector3.ZERO
+	fpm.turbulence_enabled = true
+	fpm.turbulence_noise_strength = 1.0
+	fpm.turbulence_noise_scale = 3.0
+	fpm.turbulence_influence_min = 0.05
+	fpm.turbulence_influence_max = 0.15
+	fpm.color_ramp = _fade_ramp(0.3, 0.6)
+	_flies.process_material = fpm
+	_flies.draw_pass_1 = _dot_mesh(0.09, Color(0.75, 1.0, 0.45, 1.0) * 2.5)
+	_add_particles(_flies)
+	_cave = GPUParticles3D.new()
+	_cave.amount = 260
+	_cave.lifetime = 8.0
+	_cave.preprocess = 5.0
+	_cave.local_coords = false
+	var cpm := ParticleProcessMaterial.new()
+	cpm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	cpm.emission_box_extents = Vector3(10, 2.5, 10)
+	cpm.spread = 180.0
+	cpm.initial_velocity_min = 0.02
+	cpm.initial_velocity_max = 0.15
+	cpm.gravity = Vector3(0, -0.02, 0)
+	cpm.turbulence_enabled = true
+	cpm.turbulence_noise_strength = 0.6
+	cpm.turbulence_noise_scale = 4.0
+	cpm.turbulence_influence_min = 0.02
+	cpm.turbulence_influence_max = 0.06
+	cpm.color_ramp = _fade_ramp(0.25, 0.7)
+	_cave.process_material = cpm
+	_cave.draw_pass_1 = _dot_mesh(0.035, Color(0.75, 0.7, 0.62, 0.55))
+	_add_particles(_cave)
 
 	# vento forte: folhas rodopiando e riscos de ar passando rápido
 	_leaves = GPUParticles3D.new()
@@ -527,7 +648,7 @@ func _update_particles(s: Dictionary, wind: float) -> void:
 	_set_level(_leaves, strong * (0.5 + 0.5 * Weather.gust) * (1.0 - s.snow) * (1.0 - s.rain * 0.6))
 	_fall_pm.gravity = Vector3(0, -0.7, 0) + wd * (0.3 + wind * 2.0)
 	_fall.global_position = c + Vector3(0, 9, 0) - wd * (2.0 + wind * 8.0)
-	_set_level(_fall, Weather.autumn * (1.0 - s.snow) * (1.0 - s.rain * 0.5))
+	_set_level(_fall, (Weather.autumn if _bio.get("autumn", true) else 0.0) * (1.0 - s.snow) * (1.0 - s.rain * 0.5))
 	_streaks_pm.direction = (wd + Vector3(0, 0.02, 0)).normalized()
 	_streaks.global_position = c + Vector3(0, 2.0, 0) - wd * 13.0
 	_set_level(_streaks, strong * (0.35 + 0.65 * Weather.gust))
@@ -540,6 +661,31 @@ func _update_particles(s: Dictionary, wind: float) -> void:
 	_dust_pm.direction = (wd + Vector3(0, 0.05, 0)).normalized()
 	_dust.global_position = Vector3(c.x, maxf(0.6, c.y - 2.0), c.z) - wd * 12.0
 	_set_level(_dust, strong * (0.4 + 0.6 * Weather.gust) * (1.0 - s.rain) * (1.0 - s.cover) * (1.0 - s.wet))
+	var motes := str(_bio.get("motes", ""))
+	_ash_pm.gravity = Vector3(0, -0.35, 0) + wd * wind * 1.5
+	_ash.global_position = c + Vector3(0, 9, 0)
+	_set_level(_ash, 0.75 if motes == "ash" else 0.0)
+	_embers.global_position = Vector3(c.x, maxf(0.3, c.y - 3.0), c.z)
+	_set_level(_embers, 0.6 if motes == "ash" else 0.0)
+	_flies.global_position = Vector3(c.x, maxf(0.8, c.y - 2.0), c.z)
+	_set_level(_flies, 1.0 if motes == "fireflies" else 0.0)
+	_cave.global_position = c + Vector3(0, -1.5, 0)
+	_set_level(_cave, 1.0 if motes == "dust" else 0.0)
+	var w := get_tree().current_scene
+	var hero: Node3D = w.get("player") if w != null else null
+	if _hero_light == null:
+		_hero_light = OmniLight3D.new()
+		_hero_light.top_level = true
+		_hero_light.light_color = Color(1.0, 0.82, 0.62)
+		_hero_light.omni_range = 7.0
+		_hero_light.omni_attenuation = 1.8
+		_hero_light.shadow_enabled = false
+		add_child(_hero_light)
+	var under := motes == "dust" and hero != null
+	_hero_light.visible = under
+	if under:
+		_hero_light.global_position = hero.global_position + Vector3(0, 2.6, 0)
+		_hero_light.light_energy = 0.9
 
 
 func _set_level(p: GPUParticles3D, level: float) -> void:
@@ -743,15 +889,21 @@ func _apply(delta: float) -> void:
 	if not _trees_done:
 		_trees_done = true
 		_setup_trees(get_parent(), {})
-	var s: Dictionary = Weather.state
-	var wind := Weather.wind_now()
+	var cam := get_viewport().get_camera_3d()
+	var region := Regions.region_at(cam.global_position) if cam != null else "vila"
+	if region != _region:
+		_region = region
+		_bio = BiomeRules.atmo(region)
+	var s: Dictionary = BiomeRules.weather(region, Weather.state)
+	var wind := 0.0 if Regions.is_dungeon(region) else Weather.wind_now()
 	RenderingServer.global_shader_parameter_set("weather_wet", s.wet)
 	RenderingServer.global_shader_parameter_set("weather_snow", s.cover)
 	RenderingServer.global_shader_parameter_set("weather_rain", s.rain)
 	RenderingServer.global_shader_parameter_set("weather_wind", clampf(wind, 0.0, 1.3))
 	RenderingServer.global_shader_parameter_set("weather_wind_dir", Weather.wind_dir)
 	RenderingServer.global_shader_parameter_set("weather_phase", Weather.phase)
-	RenderingServer.global_shader_parameter_set("season_autumn", Weather.autumn)
+	var autumn := Weather.autumn if _bio.get("autumn", true) else 0.0
+	RenderingServer.global_shader_parameter_set("season_autumn", autumn)
 	_apply_light(s)
 	_update_particles(s, wind)
 	_update_overlay(s, delta)

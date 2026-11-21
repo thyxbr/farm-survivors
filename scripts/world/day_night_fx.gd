@@ -146,6 +146,10 @@ func _apply(delta: float) -> void:
 		_sky.ground_bottom_color = (_base.ground_bottom as Color).lerp(Color(0.03, 0.04, 0.07), n)
 		_sky.energy_multiplier = sky_e * (1.0 - 0.3 * n)
 		_sky.sky_cover_modulate = Color(1, 1, 1, n * (1.0 - cloud * 0.9))
+		var cam := get_viewport().get_camera_3d()
+		if cam != null and Regions.is_dungeon(Regions.region_at(cam.global_position)):
+			_sky.ground_bottom_color = Color(0.01, 0.01, 0.012)   # debaixo da terra: o vazio fora da rocha é preto
+			_sky.sky_cover_modulate = Color(1, 1, 1, 0)
 	# ---- luzes da cidade
 	for l in get_tree().get_nodes_in_group(GROUP):
 		var k := DayNightRules.lamp_on(n, l.get_meta("night_offset", 0.0))

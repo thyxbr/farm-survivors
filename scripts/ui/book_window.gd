@@ -1,16 +1,27 @@
 class_name BookWindow
 extends Control
-## Janela em forma de livro aberto (docs/INTERFACE_GRIMORIO.md): fundo escurecido, o livro centralizado,
-## abas de marcador saindo do topo da página direita e um botão de fechar. Quem usa só entrega as páginas
-## com `add_page`; o conteúdo vive dentro das margens de `BookLayout` e, se for maior, rola.
+## Janela lateral com abas (docs/INTERFACE_GRIMORIO.md, "Janelas laterais"): um painel de pergaminho
+## encaixado à esquerda ou à direita da tela, com o título e o fechar no cabeçalho e as abas logo abaixo.
+## Não escurece o mundo e não bloqueia o mouse fora do painel: outra janela, do outro lado, continua
+## clicável (WindowDock). Quem usa só entrega as páginas com `add_page`; página maior que o painel rola.
+## (O nome vem do livro aberto que esta janela substituiu.)
 
 signal closed
 signal page_shown(index: int)
 
-## Quantas vezes uma página pediu mais espaço do que o livro tem (os testes conferem que fica em 0).
+## Lado da tela: "left" ou "right". Escolher antes de entrar na árvore.
+var side := "left"
+## Largura da área das páginas (sem a moldura).
+var page_width := 560.0
+## Altura do conteúdo (sem sobrar papel vazio embaixo); desligado, a janela ocupa a altura toda da tela
+## (o inventário, cuja mochila rola).
+var fit_height := true
+
+## Quantas vezes uma página pediu mais largura do que a janela tem (os testes conferem que fica em 0).
 var overflow_warnings := 0
 
-var _holder: Control
+var _frame: PanelContainer
+var _title: Label
 var _stack: PanelContainer
 var _tabs: HBoxContainer
 var _group := ButtonGroup.new()
@@ -20,68 +31,100 @@ var _contents: Array[Control] = []
 var _titles: Array[String] = []
 var _actions: Array[String] = []
 var _current := -1
-var _close_tab: Button
-## Largura de cada marcador de aba e a folga mínima até a borda direita do livro.
-const TAB_W := 178.0
-const TAB_EDGE := 24.0
+var _relayout_queued := false
 
 
 func _init() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	theme = UITheme.get_theme()
-	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.62)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(dim)
-	# tamanho fixo; `_layout` centraliza e encolhe o conjunto quando a janela é menor que o livro
-	_holder = Control.new()
-	_holder.size = BookLayout.SIZE
-	add_child(_holder)
-	var book := TextureRect.new()
-	book.texture = UITheme.tex("book")
-	book.size = BookLayout.SIZE
-	book.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_holder.add_child(book)
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	theme = UITheme.paper_theme()
+	_frame = PanelContainer.new()
+	_frame.add_theme_stylebox_override("panel", UITheme.parch_box())
+	add_child(_frame)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	_frame.add_child(v)
+	# cabeçalho: título à esquerda, fechar redondo à direita, ornamento de bronze embaixo
+	var head := HBoxContainer.new()
+	_title = UITheme.ink("", 24, UITheme.INK, true)
+	_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(_title)
+	head.add_child(close_button(close))
+	v.add_child(head)
+	v.add_child(UITheme.ornament())
 	_tabs = HBoxContainer.new()
-	_tabs.add_theme_constant_override("separation", 4)
-	_tabs.position = Vector2(BookLayout.SIZE.x * 0.5 + 36, -16)
-	_holder.add_child(_tabs)
-	var margin := MarginContainer.new()
-	margin.position = Vector2(BookLayout.SIDE, BookLayout.TOP)
-	margin.size = BookLayout.content_room()
-	_holder.add_child(margin)
+	_tabs.add_theme_constant_override("separation", 3)
+	_tabs.visible = false
+	v.add_child(_tabs)
 	_stack = PanelContainer.new()
 	_stack.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-	margin.add_child(_stack)
-	# fechar: um marcador curto no fim da fila de abas, fora da página (não encosta na vinheta do canto
-	# nem em texto nenhum, e não depende do que cada página põe no canto)
-	_close_tab = Button.new()
-	_close_tab.text = "✕"
-	_close_tab.tooltip_text = "Fechar (Esc)"
-	_close_tab.custom_minimum_size = Vector2(46, 52)
-	_close_tab.add_theme_font_size_override("font_size", 20)
-	_close_tab.add_theme_stylebox_override("normal", _tab_box("tab_off", Color(0.9, 0.9, 0.9)))
-	_close_tab.add_theme_stylebox_override("hover", _tab_box("tab_off", Color(1.3, 1.2, 1.2)))
-	_close_tab.add_theme_stylebox_override("pressed", _tab_box("tab_off", Color(0.75, 0.75, 0.75)))
-	_close_tab.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	_close_tab.add_theme_color_override("font_color", Color(0.93, 0.84, 0.66))
-	_close_tab.add_theme_color_override("font_hover_color", Color(1, 0.96, 0.85))
-	_close_tab.add_theme_color_override("font_pressed_color", Color(1, 0.96, 0.85))
-	_close_tab.pressed.connect(close)
-	_tabs.add_child(_close_tab)
+	_stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(_stack)
 	resized.connect(_layout)
+	UITheme.make_draggable(_frame, _layout)
+
+
+## Painel da janela (o que se arrasta e o que não pode cobrir outra janela).
+func frame() -> Control:
+	return _frame
+
+
+## Botão redondo de fechar do cabeçalho das janelas (também usado pelas telas de estação).
+static func close_button(cb: Callable) -> Button:
+	var b := Button.new()
+	b.text = "✕"
+	b.tooltip_text = "Fechar (Esc)"
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(34, 34)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	b.add_theme_font_size_override("font_size", 15)
+	for st in [["normal", "win_close", 0.0], ["hover", "win_close_hover", 0.25], ["pressed", "win_close_hover", 0.4],
+			["hover_pressed", "win_close_hover", 0.4]]:
+		var s := StyleBoxFlat.new()
+		s.bg_color = UITheme.PAGE_EDGE.lightened(st[2])
+		s.border_color = UITheme.BRONZE
+		s.set_border_width_all(2)
+		s.set_corner_radius_all(17)
+		var path := UITheme.KIT + str(st[1]) + ".png"
+		if ResourceLoader.exists(path):
+			var t := StyleBoxTexture.new()
+			t.texture = load(path)
+			b.add_theme_stylebox_override(st[0], t)
+		else:
+			b.add_theme_stylebox_override(st[0], s)
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	for k in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
+		b.add_theme_color_override(k, UITheme.ON_LEATHER)
+	b.pressed.connect(cb)
+	return b
 
 
 func _ready() -> void:
-	_fit_tabs()
 	_layout()
 
 
+## Encostada no lado escolhido, a partir do topo: da altura do conteúdo (`fit_height`) ou da tela toda.
 func _layout() -> void:
-	var k := BookLayout.scale_for(size)
-	_holder.scale = Vector2(k, k)
-	_holder.position = ((size - BookLayout.SIZE * k) * 0.5).round()
+	var w := screen_width() - UITheme.DOCK_MARGIN
+	var m := UITheme.DOCK_MARGIN
+	var h := size.y - m * 2.0
+	if fit_height and _current >= 0 and _current < _contents.size():
+		# moldura, cabeçalho e abas (o mínimo do painel, com a rolagem valendo zero) + a página inteira
+		h = minf(h, _frame.get_combined_minimum_size().y + _contents[_current].get_combined_minimum_size().y)
+	_frame.size = Vector2(w, h)
+	_frame.position = UITheme.frame_pos(_frame, Vector2(m if side == "left" else size.x - w - m, m), size)
+
+
+## Largura que a janela ocupa na tela, com a moldura e a margem até a borda.
+func screen_width() -> float:
+	var sb := _frame.get_theme_stylebox("panel")
+	return page_width + sb.get_margin(SIDE_LEFT) + sb.get_margin(SIDE_RIGHT) + UITheme.DOCK_MARGIN
+
+
+func set_page_width(w: float) -> void:
+	page_width = w
+	_layout()
 
 
 ## `key` é a letra mostrada na aba; `action` é a ação de entrada que abre a aba ("" = nenhuma);
@@ -90,10 +133,12 @@ func add_page(title: String, key: String, action: String, page: Control, on_pape
 	var index := _contents.size()
 	var scroll := ScrollContainer.new()
 	scroll.visible = false
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	page.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	if on_paper:
 		page.theme = UITheme.paper_theme()
+	page.minimum_size_changed.connect(_relayout)
 	scroll.add_child(page)
 	_stack.add_child(scroll)
 	_scrolls.append(scroll)
@@ -101,51 +146,19 @@ func add_page(title: String, key: String, action: String, page: Control, on_pape
 	_titles.append(title)
 	_actions.append(action)
 	var b := Button.new()
-	b.text = title if key == "" else "%s  %s" % [title, key]
+	b.text = title if key == "" else "%s (%s)" % [title, key]
 	b.tooltip_text = "" if key == "" else "Atalho: %s" % key
 	b.toggle_mode = true
 	b.button_group = _group
-	b.custom_minimum_size = Vector2(178, 52)
+	b.focus_mode = Control.FOCUS_NONE
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.custom_minimum_size.y = 32
 	b.add_theme_font_override("font", UITheme.serif())
-	b.add_theme_font_size_override("font_size", 19)
-	var on := _tab_box("tab_on", Color.WHITE)
-	b.add_theme_stylebox_override("normal", _tab_box("tab_off", Color(0.9, 0.9, 0.9)))
-	b.add_theme_stylebox_override("hover", _tab_box("tab_off", Color(1.25, 1.2, 1.2)))
-	b.add_theme_stylebox_override("pressed", on)
-	b.add_theme_stylebox_override("hover_pressed", on)
-	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	b.add_theme_color_override("font_color", Color(0.93, 0.84, 0.66))
-	b.add_theme_color_override("font_hover_color", Color(1, 0.94, 0.78))
-	b.add_theme_color_override("font_pressed_color", UITheme.INK)
-	b.add_theme_color_override("font_hover_pressed_color", UITheme.INK)
+	b.add_theme_font_size_override("font_size", 14)
 	b.pressed.connect(show_page.bind(index))
 	_tabs.add_child(b)
-	_tabs.move_child(_close_tab, -1)   # o fechar fica sempre depois da última aba
 	_buttons.append(b)
-	_fit_tabs()
-
-
-## Marcadores começam sobre a página direita e não passam da borda do livro: com muitas abas eles
-## estreitam (até o tamanho do texto) e, se ainda faltar espaço, a fila recua para a esquerda.
-func _fit_tabs() -> void:
-	var start := BookLayout.SIZE.x * 0.5 + 36
-	var limit := BookLayout.SIZE.x - TAB_EDGE
-	var sep := _tabs.get_theme_constant("separation")
-	var room := limit - start - _close_tab.custom_minimum_size.x - sep * _buttons.size()
-	var w := minf(TAB_W, floorf(room / maxf(1.0, _buttons.size())))
-	for b in _buttons:
-		b.custom_minimum_size.x = w
-	_tabs.position.x = minf(start, limit - _tabs.get_combined_minimum_size().x)
-
-
-## Marcador de aba; as pontas arredondadas não esticam, então serve também para o marcador curto do fechar.
-func _tab_box(tex_name: String, tint: Color) -> StyleBoxTexture:
-	var sb := StyleBoxTexture.new()
-	sb.texture = UITheme.tex(tex_name)
-	sb.texture_margin_left = 18
-	sb.texture_margin_right = 18
-	sb.modulate_color = tint
-	return sb
+	_tabs.visible = _buttons.size() > 1   # uma página só: o título basta
 
 
 func show_page(index: int) -> void:
@@ -155,12 +168,28 @@ func show_page(index: int) -> void:
 	for i in _scrolls.size():
 		_scrolls[i].visible = i == index
 	_buttons[index].set_pressed_no_signal(true)
+	_title.text = _titles[index]
+	_relayout()
 	page_shown.emit(index)
 	_check_fit(index)
 
 
+## Refaz o tamanho no fim do quadro (a página muda de tamanho várias vezes enquanto é remontada).
+func _relayout() -> void:
+	if not _relayout_queued:
+		_relayout_queued = true
+		(func() -> void:
+			_relayout_queued = false
+			_layout()).call_deferred()
+
+
 func current_page() -> int:
 	return _current
+
+
+## Índice da aba ligada à ação de entrada `action` (-1 se nenhuma).
+func page_for_action(action: String) -> int:
+	return _actions.find(action)
 
 
 func close() -> void:
@@ -168,13 +197,12 @@ func close() -> void:
 	queue_free()
 
 
-## Retângulo global da área das páginas, já com a escala do livro.
+## Retângulo global da área das páginas.
 func content_rect() -> Rect2:
-	var k := _holder.scale.x
-	return Rect2(_holder.global_position + Vector2(BookLayout.SIDE, BookLayout.TOP) * k, BookLayout.content_room() * k)
+	return _stack.get_global_rect()
 
 
-## A página rola se for grande demais, então nada sai do livro; o aviso existe para a tela ser consertada.
+## A página rola na vertical se for comprida; largura a mais vazaria da moldura, então isso vira aviso.
 ## Mede dois quadros depois, quando a página visível já foi diagramada.
 func _check_fit(index: int) -> void:
 	if not is_inside_tree():
@@ -184,22 +212,13 @@ func _check_fit(index: int) -> void:
 	if not is_inside_tree() or _current != index:
 		return
 	var need := _contents[index].get_combined_minimum_size()
-	if not BookLayout.fits(need):
+	if need.x > page_width + 1.0:
 		overflow_warnings += 1
-		push_warning("Página \"%s\" não cabe no livro: precisa de %s, cabe %s" % [_titles[index], need,
-			BookLayout.content_room()])
+		push_warning("Página \"%s\" não cabe na janela: precisa de %.0f px de largura, cabe %.0f" % [
+			_titles[index], need.x, page_width])
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause"):
 		get_viewport().set_input_as_handled()
 		close()
-		return
-	for i in _actions.size():
-		if _actions[i] != "" and event.is_action_pressed(_actions[i]):
-			get_viewport().set_input_as_handled()
-			if i == _current:
-				close()
-			else:
-				show_page(i)
-			return

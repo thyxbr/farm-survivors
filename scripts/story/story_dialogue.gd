@@ -36,6 +36,14 @@ const NAMES := {
 	"coach_mina": "Beto, o Cocheiro",
 	"coach_pico": "Beto, o Cocheiro",
 	"santa": "Papai Noel",
+	"tereza": "Tereza, a Costureira",
+	"bento": "Seu Bento, o Lavrador",
+	"cida": "Dona Cida, a Quitandeira",
+	"aurelio": "Mestre Aurélio, o Artesão",
+	"marta": "Marta",
+	"joca": "Joca",
+	"lauro": "Seu Lauro",
+	"bia": "Bia",
 }
 ## Cor da plaquinha de nome de cada um (a caixa de diálogo pinta a borda e o nome com ela).
 const COLORS := {
@@ -64,6 +72,14 @@ const COLORS := {
 	"coach_mina": Color(0.75, 0.6, 0.45),
 	"coach_pico": Color(0.75, 0.6, 0.45),
 	"santa": Color(1.0, 0.35, 0.3),
+	"tereza": Color(0.55, 0.65, 1.0),
+	"bento": Color(0.95, 0.8, 0.35),
+	"cida": Color(1.0, 0.5, 0.45),
+	"aurelio": Color(0.85, 0.65, 0.4),
+	"marta": Color(0.9, 0.75, 0.6),
+	"joca": Color(1.0, 0.85, 0.4),
+	"lauro": Color(0.75, 0.75, 0.7),
+	"bia": Color(0.7, 0.85, 0.95),
 	"": Color(0.7, 0.72, 0.78),
 }
 const NARRATOR := ""
@@ -76,7 +92,7 @@ static func color_of(speaker: String) -> Color:
 	return COLORS[""]
 
 
-## Se o NPC (ou objeto) está no mapa agora: o Kael troca a vila pelo Pico das Cinzas enquanto está com o
+## Se o NPC (ou objeto) está no mapa agora: o Kael troca a vila pelo Vulcão das Cinzas enquanto está com o
 ## Lich; o Tico volta para casa depois da Slime Rainha; o gato some quando é achado.
 static func present(id: String) -> bool:
 	var q: Dictionary = Game.quests
@@ -285,6 +301,16 @@ static func _locked(q: String) -> Array:
 
 ## O Quadro de Contratos: cada contrato disponível vira uma escolha que mostra o contrato e o aceite.
 static func _board(sides: Array, reminders: Array) -> Array:
+	# antes do registro na Guilda o quadro é só de olhar: o forasteiro ainda não é aventureiro
+	if Game.quest_state("registro") != "done" and not Game.admin_mode():
+		var locked: Array = [
+			narr("(Quadro de Contratos da Guilda de Valdoria. Dezenas de papéis, todos com o mesmo carimbo vermelho:)"),
+			narr("\"SOMENTE AVENTUREIROS REGISTRADOS. SEM CARTEIRINHA, SEM CONTRATO. — Lina, da Guilda\""),
+		]
+		locked.append_array(reminders)
+		locked.append(narr("(Você ainda não tem carteirinha. Por enquanto a vila tem trabalho de sobra para um herói" \
+			+ " sem papelada: siga a história e o registro chega na hora certa.)"))
+		return locked
 	var head := narr("(Quadro de Contratos da Guilda de Valdoria. Seu rank: %s, %d pontos de guilda.)" % [Game.rank(), Game.guild_points()])
 	if sides.is_empty():
 		var pages: Array = [head]
@@ -475,18 +501,26 @@ static func _services(id: String) -> Array:
 		"lina":
 			return _lina_services()
 		"merchant":
-			return [{"text": "Ver mercadorias", "action": _open_shop}]
+			return [{"text": "Ver armas e escudos", "action": _open_shop.bind("arms")}]
 		"alchemist":
-			return [{"text": "Ver poções", "action": _open_shop}, {"text": "Alquimia", "action": _open_crafting.bind("alchemy")}]
+			return [{"text": "Ver poções", "action": _open_shop.bind("potions")}, {"text": "Alquimia", "action": _open_crafting.bind("alchemy")}]
+		"tereza":
+			return [{"text": "Ver couro e tecido", "action": _open_shop.bind("cloth")}]
+		"bento":
+			return [{"text": "Ver sementes e ferramentas", "action": _open_shop.bind("farm")}]
+		"cida":
+			return [{"text": "Ver provisões", "action": _open_shop.bind("goods")}]
+		"aurelio":
+			return [{"text": "Couraria", "action": _open_crafting.bind("leather")}]
 		"blacksmith":
 			return [{"text": "Encantar arma", "action": _open_enchant}, {"text": "Forjar", "action": _open_crafting.bind("forge")}]
 	return []
 
 
-static func _open_shop() -> void:
+static func _open_shop(stall := "") -> void:
 	var w: Node = (Engine.get_main_loop() as SceneTree).current_scene
 	if w and w.has_method("open_shop"):
-		w.open_shop()
+		w.open_shop(stall)
 
 
 static func _open_crafting(station: String) -> void:
@@ -506,14 +540,17 @@ static func _open_enchant() -> void:
 
 
 # ================================================================ prólogo
-## Narração da chegada (personagem novo, primeira vez no mundo): o anime abre antes do Bram.
+## Narração logo depois da cena da chegada (ArrivalCutscene: o corpo do herói foi montado em luz, dos pés à cabeça, na estrada, na frente do Beto).
+## O tom é de anime isekai: alguém de outro mundo acorda num lugar que obviamente não é o dele.
 static func intro() -> Array:
 	return [
+		p("PELAS BARBAS DO MEU AVÔ! VOCÊ... VOCÊ FOI MONTADO DE LUZ, PEDACINHO POR PEDACINHO?!", NAMES.coach, "shout"),
+		narr("(O cocheiro larga as rédeas e sai correndo para a vila, gritando para quem quiser ouvir.)"),
+		narr("Você olha as próprias mãos. Ainda brilham um pouquinho. O céu é azul demais. O ar cheira a pão e a magia. Nada aqui parece o seu mundo.", ""),
 		narr("Valdoria. Uma vila pacata, com um poço, seis casas, uma ferraria barulhenta e um problema sério de slimes.", ""),
-		narr("Pela estrada do sul chega um aventureiro. Sem mapa. Sem dinheiro. Com uma fome considerável.", ""),
-		narr("Ele ainda não sabe, mas está prestes a virar o herói de uma profecia.", ""),
-		narr("(Principalmente porque o Ancião Bram acabou de decidir isso.)"),
-		narr("Fale com o Ancião Bram (!) perto do poço. Use E para interagir.", ""),
+		narr("(Na praça, um velho de barba aponta para você com as duas mãos, tremendo de emoção.)"),
+		p("UM HERÓI FEITO DE LUZ! ESTÁ NA PROFECIA! ...EU ACHO! VENHA ATÉ O POÇO, FORASTEIRO!", NAMES.elder, "shout"),
+		narr("Siga a estrada até a vila e fale com o Ancião Bram (!) perto do poço da praça. Use E para interagir.", ""),
 	]
 
 
@@ -522,13 +559,14 @@ static func _offer(q: String) -> Array:
 	match q:
 		"chegada":
 			return [
-				p("AH! ESSAS BOTAS GASTAS! ESSE OLHAR PERDIDO! ESSA... FOME EVIDENTE!", null, "shout"),
-				_with_choices(p("Viajante, eu sou Bram, o ancião de Valdoria. E você... você é o HERÓI DA PROFECIA!"),
+				p("AH! AINDA SOLTANDO FAÍSCA AZUL! ESSE BRILHO NOS OLHOS! ESSE OLHAR DE QUEM NÃO FAZ IDEIA DE ONDE ESTÁ!", null, "shout"),
+				_with_choices(p("Forasteiro, eu sou Bram, o ancião de Valdoria. E você... você é o HERÓI DA PROFECIA!"),
 					flavor("Que profecia?", [
 						p("A antiga! Escrita há... (ele olha para a palma da própria mão) ...muitos anos."),
-						p("\"Quando a vila mais precisar, um forasteiro de botas chegará pela estrada.\" Você tem botas. Está provado."),
-					], "Eu só queria um lanche.", [
-						p("Todo herói começa com fome! Isso também está na profecia. Linha dois. Acabei de lembrar."),
+						p("\"Quando a vila mais precisar, um herói será montado da luz...\" (ele aperta os olhos) \"...na estrada do sul, de preferência na frente do Beto.\" O Beto viu tudo. Está provado."),
+					], "Eu vim de OUTRO MUNDO!", [
+						p("Outro mundo! CLARO! Isso também está na profecia. Linha dois. Acabei de lembrar."),
+						p("Lá no seu mundo também tem slime? Não? Que sorte. Aqui tem bastante."),
 					])),
 				p("Os slimes devoram nossas plantações, goblins rondam a floresta, e eu juro que ouvi algo mastigando nas ruínas. Valdoria precisa de você!"),
 				p("Primeiro, vá até a Mira, no empório a leste do poço. Ela vai te entregar o lendário KIT DO HERÓI!"),
@@ -589,7 +627,7 @@ static func _offer(q: String) -> Array:
 				p("Herói, a Torta de Abóbora de Valdoria é nosso maior tesouro. A receita é passada de ancião para ancião há gerações."),
 				p("...É abóbora e trigo. Não conte a ninguém.", null, "whisper"),
 				p("Tenho um plano GENIAL! Vamos assar uma torta e usar como isca! O Rei vai sair das ruínas só pelo cheiro!"),
-				p("Tome estas sementes. Plante na Horta, saindo pelo portão sul. Regue para crescer mais rápido, colha e cozinhe a torta no caldeirão da Horta."),
+				p("Tome estas sementes. Plante na Horta, saindo pelo portão norte. Regue para crescer mais rápido, colha e cozinhe a torta no caldeirão da Horta."),
 				_accept_page("E por favor... não coma a torta no caminho.", q, "Hora de cozinhar!"),
 			]
 		"ossos":
@@ -795,7 +833,7 @@ static func _reminder(q: String, at: String) -> Array:
 		["bilhete", "rival"]:
 			return [p("O bilhete está num caixote no lado oeste do acampamento goblin, perto do barril. Eu iria, mas... a espada. Polindo.")]
 		["torta", "elder"]:
-			return [p("Abóbora e trigo, na Horta ao sul! Plante, regue, colha e cozinhe no caldeirão. E NÃO coma a torta. Eu sei que é tentador.")]
+			return [p("Abóbora e trigo, na Horta ao norte da vila! Plante, regue, colha e cozinhe no caldeirão. E NÃO coma a torta. Eu sei que é tentador.")]
 		["ossos", "elder"]:
 			return [p("Os esqueletos ficam na trilha das ruínas, bem ao norte. (%s)" % n)]
 		["ossos", "blacksmith"]:
@@ -824,7 +862,8 @@ static func _idle(id: String) -> Array:
 				lines.append("Herói de Valdoria! As crianças já cantam canções sobre você. Desafinadas, mas cantam.")
 		"merchant":
 			lines = ["Olá, freguê... ah, é você. Seu saldo no caderninho continua negativo, viu?",
-				"Poções, lâminas e armaduras. Preço justo. Para você, preço justo mais juros.",
+				"Lâminas, cajados, arcos e escudos. Preço justo. Para você, preço justo mais juros.",
+				"Armadura? Com a Tereza, ali na barraca azul. Poção é com a Cida. Eu cuido do que corta.",
 				"Também compro o que você trouxer da mata. Gosma inclusa. Não pergunte para quê."]
 		"blacksmith":
 			lines = ["Mais um golpe e essa lâmina fica pronta. Ferro bom vem das minas do norte, mas o carvão... cada vez mais caro.",
@@ -847,6 +886,38 @@ static func _idle(id: String) -> Array:
 				"As renas adoraram as cenouras da Horta. A Rodolfa comeu doze. Doze!",
 				"Já fiz a lista de quem foi bonzinho este ano. Você está nela. Em letra grande.",
 				"Ho, ho... ho? Alguém viu meu gorro reserva? Ah, está na cabeça. Ho, ho, ho!"]
+		"tereza":
+			lines = ["Gibão de couro, capuz de lã, luva e bota. Tudo costurado aqui mesmo, ponto por ponto.",
+				"O couro vem da oficina do Mestre Aurélio. Ele curte, eu costuro. Casamento perfeito. Só de trabalho!",
+				"Volta com a roupa rasgada que eu faço preço de amiga. Rasgada, não em pedaços."]
+		"bento":
+			lines = ["Semente boa é a que vira torta! Leva um punhado e planta lá na Horta, saindo pelo norte.",
+				"Picareta de pedra quebra pedra. Machado de pedra corta pinho. Simples assim, sô.",
+				"Quarenta anos de roça e nunca vi um slime com tanta fome quanto os deste ano."]
+		"cida":
+			lines = ["Poção vermelha cura, poção azul enche a mana. Não troca as duas, meu bem, que dá dor de barriga.",
+				"Pão fresquinho, cobre da mina e tora de pinho. Quitanda de aventureiro tem de tudo.",
+				"Você chegou pela estrada do sul, né? Tá com cara de quem andou três dias. Senta um pouco."]
+		"aurelio":
+			lines = ["Couro bom pede paciência: curte, estica, corta e costura. Pressa só serve para rasgar.",
+				"A bancada é sua, aventureiro. Traga couro da mata e linha que o resto a gente resolve.",
+				"O Doran bate ferro, a Pip mexe caldeirão, eu corto couro. Juntos, vestimos um herói inteiro."]
+		"marta":
+			lines = ["Bom dia! Levando o pão para a Dona Cida. Ela diz que o meu é o mais macio da vila.",
+				"Cuidado com os slimes da Horta. Comeram metade das minhas cenouras!",
+				"Já passou na feira? A Tereza recebeu tecido novo do outro lado da serra."]
+		"joca":
+			lines = ["Você é o herói? De verdade? Mostra a espada! ...Só um pouquinho!",
+				"Eu e o Tico apostamos corrida até o poço. Eu ganhei. Ele diz que não. Ganhei sim!",
+				"Quando eu crescer vou ser ferreiro igual o Doran. Ou herói. Ou os dois!"]
+		"lauro":
+			lines = ["No meu tempo a estrada do sul era só uma trilha de cabra. Agora vem gente de todo canto.",
+				"Ando pela vila toda manhã. Joelho bom é joelho que mexe.",
+				"O Bram vive falando de profecia. Ele inventou umas cinco desde a primavera."]
+		"bia":
+			lines = ["Caixa de linho para a Tereza, caixa de frasco para a Pip... a vila não para!",
+				"O Mestre Aurélio me ensinou a curtir couro. Cheira mal, mas dá dinheiro.",
+				"Se for para o norte, passa na Horta. A torta da Horta é famosa. Eu acho."]
 		"camp_note":
 			if StoryRules.state(Game.quests, "bilhete") == "done":
 				return [narr("(Só restou a faca de manteiga presa no caixote. Ainda cheira a cebola.)")]

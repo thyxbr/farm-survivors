@@ -1,10 +1,14 @@
 extends Control
-## Doran, o ferreiro: encantar a arma equipada. Um painel só: a arma (com o brilho do nível que vem),
-## os seis elementos, o custo e o que o jogador já tem. O pedido vai por Econ.request("enchant"):
+## Doran, o ferreiro: encantar a arma equipada, no formato da forja (StationKit): à esquerda os seis
+## elementos (o atual com o nível); à direita a arma, o que o próximo nível faz e o custo tenho/preciso. O pedido vai por Econ.request("enchant"):
 ## online o servidor decide, no solo o serviço local; o painel só redesenha quando o estado muda.
 ## Regras e números: EnchantRules + data/balance/enchant.json.
 
 signal closed
+
+## Janela lateral da esquerda (WindowDock), com o inventário aberto ao lado.
+var dock_side := "left"
+var wants_inventory := true
 
 ## Erros do serviço -> aviso para o jogador.
 const ERRORS := {
@@ -24,14 +28,23 @@ var enchant_button: Button
 ## Ferreiro que abriu o painel (bate na bigorna quando o encanto sai); pode ser null.
 var smith: Node = null
 
+## Desenho de cada elemento na lista (IconPainter).
+const ELEMENT_ICONS := {"fogo": "fireball", "gelo": "frost", "raio": "orb", "veneno": "potion", "sagrado": "radiant",
+	"sombra": "orb"}
+
+var tooltip: ItemTooltip
 var _title: Label
 var _next: Label
-var _elements: HBoxContainer
-var _costs: VBoxContainer
+var _rows_box: VBoxContainer
+var _el_rows := {}        # elemento -> linha (StationKit.row)
+var _head: Dictionary
+var _chips: HBoxContainer
+var _costs: GridContainer
 var _missing: Label
 var _notice: Label
-var _preview: CharPreview
 var _pending := false
+## O herói segurando a arma com o brilho do nível que vem (no lugar do ícone da arma).
+var _preview: CharPreview
 var _weapon := ""
 var _rows: Array = []
 
@@ -40,47 +53,46 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = UITheme.get_theme()
-	var p := UITheme.centered_panel(self, 0.55)
-	p.custom_minimum_size = Vector2(860, 0)
+	var p := UITheme.dock_panel(self)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 10)
+	v.add_theme_constant_override("separation", 12)
 	p.add_child(v)
-	_title = UITheme.heading("", 28)
-	v.add_child(_title)
+	var head := StationKit.header("")
+	_title = head.get_child(0)
+	v.add_child(head)
 	v.add_child(UITheme.label("\"Traga o que a mata dá e eu ponho na lâmina.\"", 15, UITheme.DIM))
-	v.add_child(HSeparator.new())
-	var body := HBoxContainer.new()
-	body.add_theme_constant_override("separation", 18)
-	v.add_child(body)
-	_preview = CharPreview.new(Vector2(240, 320))
-	body.add_child(_preview)
-	var right := VBoxContainer.new()
-	right.add_theme_constant_override("separation", 8)
-	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body.add_child(right)
-	right.add_child(UITheme.label("Elemento", 15, UITheme.DIM))
-	_elements = HBoxContainer.new()
-	_elements.add_theme_constant_override("separation", 6)
-	right.add_child(_elements)
-	_next = UITheme.label("", 17, UITheme.TEXT)
-	_next.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	right.add_child(_next)
-	_costs = VBoxContainer.new()
-	_costs.add_theme_constant_override("separation", 3)
-	right.add_child(_costs)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 16)
+	v.add_child(h)
+	var list := StationKit.list_panel("Elementos", null, Vector2(340, 380))
+	h.add_child(list.panel)
+	_rows_box = list.rows
+	var det := StationKit.detail_panel(460)
+	h.add_child(det.panel)
+	tooltip = ItemTooltip.new()
+	tooltip.paper = true
+	_head = StationKit.detail_head(det.box, tooltip, 112)
+	_next = _head.stats
+	var top: Control = (_head.slot as ItemSlot).get_parent()
+	(_head.slot as ItemSlot).visible = false
+	_preview = CharPreview.new(Vector2(170, 220))
+	top.add_child(_preview)
+	top.move_child(_preview, 0)
+	_chips = HBoxContainer.new()
+	_chips.add_theme_constant_override("separation", 8)
+	det.box.add_child(_chips)
+	det.box.add_child(UITheme.section("Custo", 18))
+	_costs = StationKit.materials_grid()
+	det.box.add_child(_costs)
+	det.box.add_child(UITheme.spacer())
 	_missing = UITheme.label("", 15, UITheme.BAD)
 	_missing.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	right.add_child(_missing)
-	var foot := HBoxContainer.new()
-	foot.add_theme_constant_override("separation", 10)
+	_missing.custom_minimum_size.x = 420
+	det.box.add_child(_missing)
 	_notice = UITheme.label("", 15, UITheme.DIM)
-	_notice.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	foot.add_child(_notice)
-	enchant_button = UITheme.button("Encantar", _on_enchant, 160)
-	foot.add_child(enchant_button)
-	foot.add_child(UITheme.keycap("E", 13))
-	foot.add_child(UITheme.button("Fechar", _close, 120))
-	v.add_child(foot)
+	enchant_button = UITheme.primary(UITheme.button("Encantar", _on_enchant))
+	v.add_child(UITheme.footer(_notice, [enchant_button, UITheme.button("Sair", _close)]))
+	add_child(tooltip)
 	Econ.result.connect(_on_result)
 	Game.enchant_changed.connect(_refresh)
 	Game.inventory_changed.connect(_refresh)
@@ -132,12 +144,13 @@ func _refresh() -> void:
 	if selected == "" or not elements.has(selected):
 		selected = cur.el if elements.has(cur.el) else (str(elements.keys()[0]) if not elements.is_empty() else "")
 	_rows = []
-	for c in _elements.get_children():
-		c.queue_free()
-	for c in _costs.get_children():
-		c.queue_free()
+	StationKit.clear(_chips)
+	StationKit.clear(_costs)
 	_missing.text = ""
 	_next.text = ""
+	(_head.slot as ItemSlot).set_state(wid)
+	_head.title.text = ""
+	_head.sub.text = ""
 	var wname: String = ItemDB.get_item(wid).get("name", "") if wid != "" else ""
 	_title.text = "Encantar"
 	if wname != "":
@@ -150,8 +163,7 @@ func _refresh() -> void:
 	if wid == "":
 		_block(ERRORS["sem_arma"])
 		return
-	for el in elements:
-		_element_button(str(el), elements[el], cur)
+	_build_rows(elements, cur)
 	var c := EnchantRules.cost(_mirror(), Balance.tables, selected)
 	var sel_name: String = elements[selected].get("name", selected)
 	var show_lv: int = cur.lv
@@ -160,18 +172,21 @@ func _refresh() -> void:
 		enchant_button.text = "Nível máximo" if c.err == "nivel_maximo" else "Encantar"
 		enchant_button.disabled = true
 	else:
-		show_lv = int(c.to)
 		var dmg: Array = t.get("damage", [])
 		var effect: String = EnchantRules.effect_text(Balance.tables, selected, int(c.to))
 		if effect == "":
 			effect = elements[selected].get("effect", "")
+		show_lv = int(c.to)
+		var col: Color = EnchantFX.ELEMENTS.get(selected, {}).get("color", UITheme.GOLD)
+		_head.title.text = "%s +%d" % [sel_name, int(c.to)]
+		_head.title.add_theme_color_override("font_color", col)
+		_head.sub.text = effect
 		if c.kind == "swap":
 			_next.text = "Trocar para %s (mantém +%d)" % [sel_name, cur.lv]
 		else:
-			_next.text = "Próximo nível: %s +%d   ·   Dano +%d%% → +%d%%" % [sel_name, c.to,
-				_pct(dmg, cur.lv), _pct(dmg, int(c.to))]
-		if effect != "":
-			_next.text += "\nEfeito: %s" % effect
+			_next.text = "Próximo nível: %s +%d" % [sel_name, c.to]
+		_chips.add_child(StationKit.chip("+%d%%" % _pct(dmg, int(c.to)), "Dano (hoje +%d%%)" % _pct(dmg, cur.lv), col))
+		_chips.add_child(StationKit.chip("+%d" % int(c.to), "Nível", UITheme.GOLD))
 		_build_costs(c, t)
 		var can := true
 		for r in _rows:
@@ -195,16 +210,22 @@ func _block(text: String) -> void:
 	_preview.show_enchant("", 0)
 
 
-func _element_button(el: String, def: Dictionary, cur: Dictionary) -> void:
-	var color: Color = EnchantFX.ELEMENTS.get(el, {}).get("color", UITheme.GOLD)
-	var b := UITheme.button(str(def.get("name", el)), func() -> void: select(el), 92)
-	b.add_theme_color_override("font_color", color)
-	b.add_theme_color_override("font_hover_color", color.lightened(0.3))
-	if el == selected:
-		b.add_theme_stylebox_override("normal", UITheme.frame_box(Color(color.r, color.g, color.b, 0.22), color, 6))
-	if el == cur.el and cur.lv > 0:
-		b.text = "%s +%d" % [def.get("name", el), cur.lv]
-	_elements.add_child(b)
+## Uma linha por elemento (desenho na cor dele); o elemento atual da arma mostra o nível.
+func _build_rows(elements: Dictionary, cur: Dictionary) -> void:
+	if _el_rows.is_empty() or _el_rows.size() != elements.size():
+		StationKit.clear(_rows_box)
+		_el_rows.clear()
+		for el in elements:
+			var col: Color = EnchantFX.ELEMENTS.get(el, {}).get("color", UITheme.GOLD)
+			var def: Dictionary = elements[el]
+			var r := StationKit.row("", str(def.get("name", el)), str(def.get("effect", "")), select.bind(str(el)),
+				Callable(), ELEMENT_ICONS.get(el, "orb"), col)
+			_rows_box.add_child(r.btn)
+			_el_rows[el] = r
+	for el in _el_rows:
+		var col: Color = EnchantFX.ELEMENTS.get(el, {}).get("color", UITheme.GOLD)
+		var lv: int = cur.lv if el == cur.el else 0
+		StationKit.set_row(_el_rows[el], el == selected, true, col, "+%d" % lv if lv > 0 else "", col)
 
 
 func _build_costs(c: Dictionary, t: Dictionary) -> void:
@@ -215,25 +236,10 @@ func _build_costs(c: Dictionary, t: Dictionary) -> void:
 		var have := Game.count_item(id)
 		_rows.append({"id": id, "name": ItemDB.get_item(id).get("name", id), "need": int(c.items[id]), "have": have,
 			"ok": have >= int(c.items[id])})
-	var head := HBoxContainer.new()
-	head.add_child(_cell("Custo", 230, UITheme.DIM))
-	head.add_child(_cell("Precisa", 80, UITheme.DIM))
-	head.add_child(_cell("Você tem", 90, UITheme.DIM))
-	_costs.add_child(head)
 	var sources: Dictionary = t.get("sources", {})
 	var lacking: Array[String] = []
 	for r in _rows:
-		var h := HBoxContainer.new()
-		var col: Color = UITheme.TEXT
-		if r.id == "":
-			col = UITheme.GOLD
-		elif r.id == "$ecos":
-			col = ECOS_COLOR
-		h.add_child(_cell(r.name, 230, col))
-		h.add_child(_cell(str(r.need), 80, UITheme.TEXT))
-		h.add_child(_cell(str(r.have), 90, UITheme.GOOD if r.ok else UITheme.BAD))
-		h.add_child(_cell("✓" if r.ok else "✗", 30, UITheme.GOOD if r.ok else UITheme.BAD))
-		_costs.add_child(h)
+		_costs.add_child(StationKit.material(r.id, r.name, r.have, r.need, tooltip))
 		if not r.ok:
 			var line := "Falta: %d %s" % [r.need - r.have, r.name]
 			if sources.has(r.id):
@@ -242,12 +248,6 @@ func _build_costs(c: Dictionary, t: Dictionary) -> void:
 				line += " (vêm do fim das partidas da Horda e da Defesa)"
 			lacking.append(line)
 	_missing.text = "\n".join(lacking)
-
-
-func _cell(text: String, w: float, color: Color) -> Label:
-	var l := UITheme.label(text, 16, color)
-	l.custom_minimum_size.x = w
-	return l
 
 
 func _on_enchant() -> void:

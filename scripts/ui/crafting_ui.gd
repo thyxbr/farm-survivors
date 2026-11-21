@@ -8,6 +8,10 @@ extends Control
 
 signal closed
 
+## Janela lateral da esquerda (WindowDock), com o inventário aberto ao lado.
+var dock_side := "left"
+var wants_inventory := true
+
 const ROW_H := 58.0
 const C_LOCK := Color(0.45, 0.42, 0.38)
 const C_MISSING := Color(0.62, 0.58, 0.52)
@@ -41,7 +45,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var st: Dictionary = Balance.tables.get_table("professions").get("stations", {}).get(station, {})
-	var p := UITheme.centered_panel(self, 0.5)
+	var p := UITheme.dock_panel(self)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
 	p.add_child(v)
@@ -84,7 +88,7 @@ func _ready() -> void:
 	lv.add_child(lh)
 	scroll = ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.custom_minimum_size = Vector2(400, 500)
+	scroll.custom_minimum_size = Vector2(400, 420)
 	lv.add_child(scroll)
 	rows_box = VBoxContainer.new()
 	rows_box.add_theme_constant_override("separation", 4)
@@ -101,6 +105,7 @@ func _ready() -> void:
 	top.add_theme_constant_override("separation", 16)
 	rv.add_child(top)
 	tooltip = ItemTooltip.new()
+	tooltip.paper = true
 	out_slot = ItemSlot.new(132)
 	out_slot.model_icon = true
 	out_slot.tooltip = tooltip
@@ -139,17 +144,10 @@ func _ready() -> void:
 	note_l.custom_minimum_size.x = 500
 	rv.add_child(note_l)
 	# ---- rodapé
-	var foot := HBoxContainer.new()
-	foot.add_theme_constant_override("separation", 12)
-	var hint := UITheme.label("↑ ↓ escolhe · Enter fabrica", 14, UITheme.DIM)
-	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	foot.add_child(hint)
-	craft_btn = UITheme.button("Fabricar", func() -> void: _craft(1), 200)
-	max_btn = UITheme.button("Fabricar tudo", func() -> void: _craft(CharRules.MAX_COUNT), 220)
-	foot.add_child(craft_btn)
-	foot.add_child(max_btn)
-	foot.add_child(UITheme.button("Sair", _close, 120))
-	v.add_child(foot)
+	var hint := UITheme.label("↑ ↓ escolhe · Enter fabrica · duplo clique na receita fabrica uma", 14, UITheme.DIM)
+	craft_btn = UITheme.primary(UITheme.button("Fabricar", func() -> void: _craft(1)))
+	max_btn = UITheme.button("Fabricar tudo", func() -> void: _craft(CharRules.MAX_COUNT))
+	v.add_child(UITheme.footer(hint, [max_btn, craft_btn, UITheme.button("Sair", _close)]))
 	add_child(tooltip)
 	anim = CraftAnim.new()
 	add_child(anim)

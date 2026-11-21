@@ -1156,7 +1156,7 @@ func autosave() -> void:
 		return
 	var p: Player = world.player
 	if is_instance_valid(p):
-		Econ.report_vitals(p.global_position if not p.dead else Vector3(0, 0.5, 6), p.model.rotation.y)
+		Econ.report_vitals(p.global_position if not p.dead else Vector3(0, 0.5, 116), p.model.rotation.y)
 
 
 func _notification(what: int) -> void:

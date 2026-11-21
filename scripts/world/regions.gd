@@ -8,14 +8,14 @@ extends RefCounted
 
 const DATA := {
 	"vila": {"name": "Vale de Valdoria", "origin": Vector3(0, 0, 0), "half": 125.0, "rank": "D"},
-	"bosque": {"name": "Bosque Sussurrante", "origin": Vector3(0, 0, 800), "half": 70.0, "rank": "C"},
-	"mina": {"name": "Mina de Cristal", "origin": Vector3(800, 0, 0), "half": 70.0, "rank": "B"},
-	"pico": {"name": "Pico das Cinzas", "origin": Vector3(800, 0, 800), "half": 62.0, "rank": "A"},
+	"bosque": {"name": "Pântano Sussurrante", "origin": Vector3(0, 0, 800), "half": 70.0, "rank": "C"},
+	"mina": {"name": "Geleira de Cristal", "origin": Vector3(800, 0, 0), "half": 70.0, "rank": "B"},
+	"pico": {"name": "Vulcão das Cinzas", "origin": Vector3(800, 0, 800), "half": 62.0, "rank": "A"},
 	# dungeons (parte 4): áreas compartilhadas com entrada por uma porta no mapa de fora (`parent`). Não estão
 	# na carruagem nem no atlas; o rank é o da porta. A faixa de nível das salas fica no regions.json.
 	"dg_bosque": {"name": "Covil das Raízes", "origin": Vector3(-800, 0, 800), "half": 45.0, "rank": "C",
 		"dungeon": true, "parent": "bosque"},
-	"dg_mina": {"name": "Galerias Profundas", "origin": Vector3(-800, 0, 0), "half": 45.0, "rank": "B",
+	"dg_mina": {"name": "Galerias Profundas", "origin": Vector3(-800, 0, 0), "half": 55.0, "rank": "B",
 		"dungeon": true, "parent": "mina"},
 	"dg_pico": {"name": "Cripta de Cinzas", "origin": Vector3(-800, 0, -800), "half": 45.0, "rank": "A",
 		"dungeon": true, "parent": "pico"},

@@ -14,6 +14,8 @@ const TAB_PARTY := 1
 const TAB_FRIENDS := 2
 
 var world: Node
+## Janela lateral da esquerda (WindowDock).
+var dock_side := "left"
 ## Aba aberta primeiro (TAB_PARTY ou TAB_FRIENDS).
 var start_tab := TAB_PARTY
 var book: BookWindow
@@ -36,8 +38,10 @@ var _confirm_remove := 0
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	theme = UITheme.get_theme()
 	book = BookWindow.new()
+	book.page_width = 1000.0
 	add_child(book)
 	book.add_page("Grupo", "P", "party", _build_party())
 	book.add_page("Amigos", "O", "friends", _build_friends())
@@ -55,7 +59,7 @@ func _ready() -> void:
 
 func _spread() -> Array:
 	var spread := HBoxContainer.new()
-	spread.add_theme_constant_override("separation", int(BookLayout.SPINE))
+	spread.add_theme_constant_override("separation", int(BookLayout.COL_GAP))
 	var out: Array = [spread]
 	for i in 2:
 		var v := VBoxContainer.new()
@@ -348,7 +352,7 @@ func _friend_row(f: Dictionary) -> Control:
 	return p
 
 
-## "Bosque Sussurrante", "carregando", "visto há 3 dia(s)"...
+## "Pântano Sussurrante", "carregando", "visto há 3 dia(s)"...
 func _friend_status(f: Dictionary) -> String:
 	if bool(f.get("online", false)):
 		if str(f.get("zone", "")) == "loading":
