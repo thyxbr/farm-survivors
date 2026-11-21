@@ -920,10 +920,7 @@ static func weapon_carry(p: Dictionary, cls: String, move: float, run: float) ->
 static func shield_block_pose(p: Dictionary, w: float, jolt: float, move: float) -> void:
 	var g: Dictionary = KnightMoves.SHIELD_GUARD
 	var e := w * w * (3.0 - 2.0 * w)
-	var arm: Vector3 = g.arm_l
-	arm.x += float(g.jolt_arm) * jolt
-	p.arm_l = (p.arm_l as Vector3).lerp(arm, e)
-	p.elbow_l = lerpf(p.elbow_l, float(g.elbow_l) + float(g.jolt_elbow) * jolt, e)
+	p["shield"] = {"w": e, "jolt": jolt}   # o braço e o giro do escudo vêm em apply (_shield_ik, _shield_orient)
 	p.wrist_l = lerpf(p.wrist_l, 0.0, e)
 	p.twist = lerpf(p.twist, float(g.twist), e)
 	p.body_x += float(g.body_x) * e
@@ -935,6 +932,43 @@ static func shield_block_pose(p: Dictionary, w: float, jolt: float, move: float)
 	p.leg_r = minf(p.leg_r, -float(g.knee) * 0.5 * still)
 	for j in ["arm_l", "elbow_l", "twist"]:
 		p.speed[j] = float(g.speed)
+
+
+## Guarda do escudo: mão esquerda na frente do peito por IK, cotovelo dobrado à frente (chamado em apply).
+static func _shield_ik(r: Dictionary, p: Dictionary, k: float) -> void:
+	var sh: Dictionary = p.get("shield", {})
+	var w: float = sh.get("w", 0.0)
+	r["shield_w"] = lerpf(float(r.get("shield_w", 0.0)), w, minf(1.0, k * float(KnightMoves.SHIELD_GUARD.speed)))
+	if w <= 0.001:
+		return
+	var g: Dictionary = KnightMoves.SHIELD_GUARD
+	var hand: Vector3 = g.hand - Vector3(0, 0, float(g.jolt_back) * float(sh.get("jolt", 0.0)))
+	arm_ik_pose(r, p, "l", hand, g.pole, w)
+
+
+## Gira o escudo no antebraço: parado ele pende de lado no braço (como saiu do KnightLook); na guarda fica de
+## frente, de pé, logo à frente do antebraço. Mistura as duas pelo peso da guarda (r.shield_w).
+static func _shield_orient(r: Dictionary) -> void:
+	var model: Node3D = r.model
+	var rig: Dictionary = model.get_meta("shield_rig", {})
+	if rig.is_empty():
+		return
+	var w: float = r.get("shield_w", 0.0)
+	var rest: Transform3D = rig.rest
+	var t := rest
+	var elbow: Node3D = r.ElbowL
+	if w > 0.001 and elbow and r.get("hand_l") != null:
+		var g: Dictionary = KnightMoves.SHIELD_GUARD
+		var e := KnightLook._chain(elbow, model)
+		var mid := e.origin.lerp(e * (r.hand_l as Vector3), 0.55)
+		var b := Basis.from_euler(Vector3(-float(g.tilt), 0.0, 0.0))   # face +Z, borda de cima à frente
+		var at := mid + b.z * float(g.out) + b.y * float(g.rise)
+		t = rest.interpolate_with(e.affine_inverse() * Transform3D(b, at), w)
+	var delta := t * rest.affine_inverse()
+	for part in rig.parts:
+		var n: Node3D = part[0]
+		if is_instance_valid(n):
+			n.transform = delta * (part[1] as Transform3D)
 
 
 ## IK de dois ossos do braço: ombro (ArmX, giro livre, ordem YXZ) e cotovelo (ElbowX, dobra só em X).
@@ -1407,6 +1441,7 @@ static func apply(r: Dictionary, p: Dictionary, k: float) -> void:
 	r.LegR.rotation.y = lerpf(r.LegR.rotation.y, leg_yaw, f.call("leg_yaw"))
 	# arco: com tronco e cabeça no lugar, as mãos vão por IK até o arco e a corda
 	_bow_ik(r, p, f.call("arm_l"))
+	_shield_ik(r, p, k)
 	_tool_ik(r, p, f.call("arm_r"))
 	r["two_hand"] = lerpf(float(r.get("two_hand", 0.0)), float(p.get("two_hand", 0.0)), f.call("arm_l"))
 	# ferramenta de coleta: quanto a mão direita está subida no cabo, na direção da cabeça (m; ver hold_weapon_upright)
@@ -1419,6 +1454,7 @@ static func apply(r: Dictionary, p: Dictionary, k: float) -> void:
 	if r.ElbowL:
 		r.ElbowL.rotation.x = lerpf(r.ElbowL.rotation.x, p.elbow_l, f.call("elbow_l"))
 		r.ElbowR.rotation.x = lerpf(r.ElbowR.rotation.x, p.elbow_r, f.call("elbow_r"))
+	_shield_orient(r)
 	# pé de apoio no chão: o modelo desce o quanto a perna mais comprida (a de apoio) encolheu
 	var model: Node3D = r.model
 	r["lift"] = lerpf(float(r.get("lift", 0.0)), p.lift, f.call("lift"))

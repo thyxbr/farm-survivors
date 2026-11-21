@@ -392,10 +392,14 @@ const WHIRL := [
 ]
 
 
-## Escudo levantado (botão direito com escudo): braço esquerdo dobrado na frente do peito, face do escudo
-## para a frente, de pé, a borda de cima na altura do queixo. Giro do ombro e cotovelo medidos com
-## tools/shield_pose_probe.tscn (procura a face do escudo em +Z do modelo). O tronco gira um pouco para o
-## ombro do escudo ir à frente, os joelhos dobram e o corpo inclina para dentro do escudo (guarda de pé
-## firme). `jolt` = tranco de um golpe defendido: o braço cede para trás e volta.
-const SHIELD_GUARD := {"arm_l": Vector3(0.866, -1.656, 0.421), "elbow_l": -1.1, "twist": -0.18, "body_x": 0.1,
-	"knee": 0.22, "head_x": -0.05, "jolt_arm": 0.22, "jolt_elbow": -0.25, "speed": 2.5}
+## Escudo levantado (botão direito com escudo), como na guarda de escudo com enarmes: o braço vai à frente
+## com o cotovelo dobrado, o antebraço atravessa a frente do peito quase na horizontal e o escudo fica na
+## frente dele, de pé e de frente, com a borda de cima na altura do queixo. O braço vai por IK (mão em
+## `hand`, cotovelo para `pole`, espaço do modelo, que olha para +Z) e o escudo gira no antebraço para ficar
+## de frente (KnightAnim._shield_orient): `out` = quanto a tábua fica à frente do antebraço, `rise` = quanto
+## o centro do escudo sobe acima do antebraço, `tilt` = borda de cima um pouco para a frente (rad).
+## O tronco gira um pouco para o ombro do escudo ir à frente, os joelhos dobram e o corpo inclina para
+## dentro do escudo. `jolt` = tranco de um golpe defendido: a mão cede `jolt_back` para trás e volta.
+const SHIELD_GUARD := {"hand": Vector3(0.02, 1.25, 0.29), "pole": Vector3(0.7, -0.55, 0.6), "out": 0.075,
+	"rise": 0.04, "tilt": 0.12, "twist": -0.22, "body_x": 0.1, "knee": 0.22, "head_x": -0.05, "jolt_back": 0.09,
+	"speed": 2.5}

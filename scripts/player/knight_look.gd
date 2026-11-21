@@ -145,6 +145,7 @@ static func apply(model: Node3D, look: Dictionary) -> Dictionary:
 
 	# ---- mão secundária
 	var off: String = look.get("offhand", "")
+	_reset_shield(model)
 	var shield_on: bool = off != "" and ItemDB.get_item(off).get("needs", "") == "sword"
 	var shield_mat: Material = null
 	if shield_on and off != "knight_shield":
@@ -549,25 +550,45 @@ const SHIELD_BASIS := Basis(Vector3(0, 0, -1), Vector3(0, 1, 0), Vector3(1, 0, 0
 
 
 static func _build_shield(model: Node3D, fore_l: Node3D, id: String, made: Array) -> void:
-	var path := "res://assets/models/%s.glb" % str(ItemDB.get_item(id).get("model", ""))
 	var board := model.find_child("Shield", true, false) as MeshInstance3D
-	if not ItemDB.get_item(id).has("model") or not ResourceLoader.exists(path) or board == null:
+	if board == null:
 		return
-	for pn in SHIELD_PARTS:
-		var mi := model.find_child(pn, true, false) as MeshInstance3D
-		if mi:
-			mi.visible = false
 	var box := board.mesh.get_aabb()
-	var t := _chain(board, fore_l)
-	var at := t * Vector3(box.position.x, box.get_center().y, box.get_center().z)   # costas da tábua (lado do braço)
-	var h := Node3D.new()
-	h.name = "ShieldHolder"
-	h.transform = Transform3D(SHIELD_BASIS, at)
-	fore_l.add_child(h)
-	made.append(h)
-	var w := (load(path) as PackedScene).instantiate() as Node3D
-	WeaponModel.use_vertex_color(w)
-	h.add_child(w)
+	var at := _chain(board, fore_l) * Vector3(box.position.x, box.get_center().y, box.get_center().z)   # costas da tábua
+	var rest := Transform3D(SHIELD_BASIS, at)
+	var parts: Array = []
+	var path := "res://assets/models/%s.glb" % str(ItemDB.get_item(id).get("model", ""))
+	if ItemDB.get_item(id).has("model") and ResourceLoader.exists(path):
+		for pn in SHIELD_PARTS:
+			var mi := model.find_child(pn, true, false) as MeshInstance3D
+			if mi:
+				mi.visible = false
+		var h := Node3D.new()
+		h.name = "ShieldHolder"
+		h.transform = rest
+		fore_l.add_child(h)
+		made.append(h)
+		var w := (load(path) as PackedScene).instantiate() as Node3D
+		WeaponModel.use_vertex_color(w)
+		h.add_child(w)
+		parts.append([h, rest])
+	else:
+		# tábua e aro do knight.glb: giram juntos em volta da mesma âncora (KnightAnim._shield_orient)
+		for pn in SHIELD_PARTS:
+			var mi := model.find_child(pn, true, false) as MeshInstance3D
+			if mi and mi.get_parent() == fore_l:
+				parts.append([mi, mi.transform])
+	model.set_meta("shield_rig", {"rest": rest, "parts": parts})
+
+
+## Desfaz o giro da guarda nas peças do knight.glb e esquece o escudo (antes de vestir de novo).
+static func _reset_shield(model: Node3D) -> void:
+	var rig: Dictionary = model.get_meta("shield_rig", {})
+	for part in rig.get("parts", []):
+		if is_instance_valid(part[0]):
+			(part[0] as Node3D).transform = part[1]
+	if model.has_meta("shield_rig"):
+		model.remove_meta("shield_rig")
 
 
 ## Arma modelada no Blender (assets/models/<model>.glb): cabo na origem, lâmina em +Y do GLB, largura em X.
