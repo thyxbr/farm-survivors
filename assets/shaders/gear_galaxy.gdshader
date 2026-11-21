@@ -16,6 +16,7 @@ uniform float tilt = 0.0;                    // giro do eixo da elipse, rad
 uniform float star_reach = 3.0;              // até onde vão as estrelas soltas, em raios
 uniform float spin = 0.22;                   // voltas dos braços, rad/s
 uniform float energy = 1.25;
+uniform float core_gain = 1.1;              // miolo aceso (negativo = buraco negro no meio)
 uniform vec3 space_col : source_color = vec3(0.07, 0.04, 0.19);
 uniform vec3 haze_col : source_color = vec3(0.23, 0.12, 0.5);
 uniform vec3 arm_col : source_color = vec3(0.54, 0.29, 0.91);
@@ -91,7 +92,7 @@ void fragment() {
 		float fall = 1.0 - smoothstep(0.35, 1.25, r);
 		float v = arms * arms * fall * (0.5 + 0.8 * dust) + 0.3 * fall * dust;
 		float core = exp(-r * r * 30.0) * (1.0 + 0.12 * sin(t * 1.7));
-		v += core * 1.1;
+		v += core * core_gain;
 		vec3 c = space_col;
 		c = mix(c, haze_col, smoothstep(0.2, 0.25, v));
 		c = mix(c, arm_col, smoothstep(0.42, 0.47, v));
