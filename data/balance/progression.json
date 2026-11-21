@@ -23,7 +23,7 @@
 	"gear_drop": {"chance": 0.02, "boss_chance": 1.0, "window": [-3, 1],
 		"rarity_weight": {"common": 60, "uncommon": 28, "rare": 10, "epic": 2, "legendary": 0}},
 	"dungeons": {
-		"per_player": 0.5, "max_mult": 2.5, "respawn_per_player": 0.3, "boss_respawn": 10,
+		"per_player": 0.3, "max_mult": 1.8, "respawn_per_player": 0.15, "boss_respawn": 10,
 		"loot": {
 			"dg_bosque": {"monster": [["hide_t2", 0.15], ["essence_t2", 0.05]],
 				"boss": [["royal_jelly", 1.0], ["oak_log", 1.0], ["scroll_rose_flame", 0.35], ["scroll_mage_robe", 0.35], ["scroll_storm_staff", 0.35]]},

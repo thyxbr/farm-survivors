@@ -208,57 +208,57 @@ size = Vector2(88, 38)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -31, 0.0, 26)
 script = ExtResource("7_dg")
 kind = "esqueleto"
-count = 4
+count = 3
 radius = 4.0
-respawn = 40.0
+respawn = 150.0
 
 [node name="bando 2 goblin_bruto" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17, 0.0, 4)
 script = ExtResource("7_dg")
 kind = "goblin_bruto"
-count = 3
+count = 2
 radius = 4.0
-respawn = 40.0
+respawn = 150.0
 
 [node name="bando 3 esqueleto_arqueiro" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0.0, 0)
 script = ExtResource("7_dg")
 kind = "esqueleto_arqueiro"
-count = 4
+count = 3
 radius = 4.0
-respawn = 40.0
+respawn = 150.0
 
 [node name="bando 4 goblin_bruto" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 31, 0.0, -2)
 script = ExtResource("7_dg")
 kind = "goblin_bruto"
-count = 4
+count = 3
 radius = 4.0
-respawn = 40.0
+respawn = 150.0
 
 [node name="bando 5 esqueleto_mago" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.0, 20)
 script = ExtResource("7_dg")
 kind = "esqueleto_mago"
-count = 3
+count = 2
 radius = 1.2
-respawn = 40.0
+respawn = 150.0
 
 [node name="bando 6 goblin_bruto" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.0, -10)
 script = ExtResource("7_dg")
 kind = "goblin_bruto"
-count = 3
+count = 2
 radius = 1.2
-respawn = 40.0
+respawn = 150.0
 
 [node name="bando 7 esqueleto" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0.0, 17)
 script = ExtResource("7_dg")
 kind = "esqueleto"
-count = 3
+count = 2
 radius = 1.2
-respawn = 40.0
+respawn = 150.0
 
 [node name="chefe goblin_king" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -44)
