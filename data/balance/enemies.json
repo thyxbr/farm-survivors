@@ -772,6 +772,10 @@
 			[
 				"scroll_pale_crescent",
 				0.04
+			],
+			[
+				"scroll_ossuary_bow",
+				0.04
 			]
 		],
 		"ref_level": 6
@@ -1545,6 +1549,10 @@
 			],
 			[
 				"scroll_sc_halo_scepter",
+				0.25
+			],
+			[
+				"scroll_chitin_bow",
 				0.25
 			]
 		],

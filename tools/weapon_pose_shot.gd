@@ -2,7 +2,7 @@ extends Node3D
 ## Folha de contato das poses com cajado e arco: parado, andando (dois instantes do passo), golpes do cajado,
 ## mira do arco, tensão cheia e soltura. Três fileiras: frente em 3/4, de lado e de trás (visão da câmera do
 ## jogo, por cima do ombro). Precisa de janela (sem --headless) e do --import feito antes:
-##   godot --path . --resolution 1900x1350 res://tools/weapon_pose_shot.tscn -- <saida.png> [cajado|arco|coleta] [roupa] [c=<coluna>]
+##   godot --path . --resolution 1900x1350 res://tools/weapon_pose_shot.tscn -- <saida.png> [cajado|arco|coleta] [roupa] [c=<coluna>] [arma=<item>]
 ## `coleta`: ciclos da picareta (KnightMoves.MINE) e do machado (CHOP), com uma pedra e um tronco no lugar do alvo.
 
 const KNIGHT := preload("res://assets/models/knight.glb")
@@ -38,6 +38,9 @@ func _ready() -> void:
 			m.position = Vector3(i * _gap() + row * 100.0, 0, 0)
 			m.rotation.y = deg_to_rad(VIEWS[row])
 			var look := {"weapon": "hunter_bow" if _bow else "apprentice_staff"}
+			for x in args:   # arma=<id do item>: troca a arma mostrada (ex.: arma=twig_bow)
+				if x.begins_with("arma="):
+					look.weapon = x.substr(5)
 			if _gather:
 				var tier := "iron"   # nivel=<pedra..astral em inglês: stone|iron|mithril|crystal|astral>
 				for x in args:
