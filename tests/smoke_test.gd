@@ -2104,6 +2104,12 @@ func _test_gather() -> void:
 	await wait(0.8 + float(plan.swing) * 1.2)
 	check(node.alive and node.progress > 0.0 and Game.count_item("iron_ore") == iron0,
 		"primeiros golpes: barra sobe, veio de pé, nada ganho ainda (%.1f/%.1f)" % [node.progress, node.tough])
+	var r0 := GatherAction.bar_ratio(player)
+	await wait(float(plan.swing) * 0.3)
+	var r1 := GatherAction.bar_ratio(player)
+	check(r1 > r0 and r1 < 1.0, "barra da coleta sobe entre um golpe e outro (%.2f -> %.2f)" % [r0, r1])
+	check(world.hud.gather_bar.value > 0.0 and not world.hud.gather_info.text.contains("golpe"),
+		"HUD mostra a barra, sem contar golpes (%s)" % world.hud.gather_info.text)
 	await wait(float(plan.swing) * float(plan.strikes) + 1.0)
 	check(not node.alive, "um F só: bate sozinho até o veio ceder")
 	check(Game.prof_xp("mining") + Game.prof_level("mining") * 100000 > mxp0, "coleta dá XP de Mineração (maestria)")
