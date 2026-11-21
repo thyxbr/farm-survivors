@@ -14,7 +14,7 @@
 script = ExtResource("1_dg")
 map_id = "dg_mina"
 has_ground = false
-half = 45
+half = 55
 border_height = 0.0
 grass_density = 0.0
 grass_plants = 0.0
@@ -23,6 +23,8 @@ grass_plants = 0.0
 script = ExtResource("9_dg")
 theme = "mina"
 seed = 5
+torch_step = 5.5
+dead_torches = 0.1
 
 [node name="Salas" type="Node3D" parent="Dungeon"]
 
@@ -52,16 +54,16 @@ size = Vector2(10, 10)
 height = 5.0
 
 [node name="Antecâmara" type="Node3D" parent="Dungeon/Salas"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -22)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -21)
 script = ExtResource("10_dg")
-size = Vector2(14, 8)
+size = Vector2(14, 6)
 height = 7.0
 
 [node name="Salão do Rei Caído" type="Node3D" parent="Dungeon/Salas"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -35)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -38)
 script = ExtResource("10_dg")
-size = Vector2(22, 18)
-height = 10.0
+size = Vector2(36, 28)
+height = 11.0
 boss = true
 pillars = true
 
@@ -69,7 +71,7 @@ pillars = true
 
 [node name="Túnel 1" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.4
+width = 6.4
 height = 5.0
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Túnel 1"]
@@ -98,7 +100,7 @@ script = ExtResource("12_dg")
 
 [node name="Túnel 2" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.0
+width = 6.0
 height = 4.8
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Túnel 2"]
@@ -111,7 +113,7 @@ script = ExtResource("12_dg")
 
 [node name="Túnel 3" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.4
+width = 6.4
 height = 5.0
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Túnel 3"]
@@ -132,7 +134,7 @@ script = ExtResource("12_dg")
 
 [node name="Túnel 4" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.0
+width = 6.0
 height = 4.8
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Túnel 4"]
@@ -145,7 +147,7 @@ script = ExtResource("12_dg")
 
 [node name="Túnel 5" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.4
+width = 6.4
 height = 5.0
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Túnel 5"]
@@ -195,10 +197,10 @@ region_id = "dg_mina_galeria"
 size = Vector2(88, 31)
 
 [node name="dg_mina_trono" type="Node3D" parent="Regiões"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -31)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -36)
 script = ExtResource("6_dg")
 region_id = "dg_mina_trono"
-size = Vector2(88, 28)
+size = Vector2(88, 38)
 
 [node name="Monstros" type="Node3D" parent="."]
 
@@ -235,7 +237,7 @@ radius = 4.0
 respawn = 40.0
 
 [node name="bando 5 esqueleto_mago" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0.0, 20)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.0, 20)
 script = ExtResource("7_dg")
 kind = "esqueleto_mago"
 count = 3
@@ -259,7 +261,7 @@ radius = 1.2
 respawn = 40.0
 
 [node name="chefe goblin_king" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -38)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -44)
 script = ExtResource("7_dg")
 kind = "goblin_king"
 respawn = 600.0

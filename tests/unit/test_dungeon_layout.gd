@@ -3,6 +3,10 @@ extends RefCounted
 ## caminho da entrada até a sala do chefe, portão na entrada da sala e o chefe lá dentro.
 
 
+## Distância mínima (m) de qualquer monstro até a chegada.
+const SAFE_ARRIVE := 22.0
+
+
 func _root(id: String) -> MapRoot:
 	return (load(MapData.SCENES[id]) as PackedScene).instantiate() as MapRoot
 
@@ -55,11 +59,16 @@ func test_every_dungeon_is_underground_and_complete() -> void:
 			var c := root.local_xform(s).origin
 			for p in EnemySpawn.spread(c, maxi(s.count, 1), s.radius):
 				T.ok(d.walkable(_xz(p)), "%s: %s nasce no chão (%.1f, %.1f)" % [id, s.name, p.x, p.z])
+				# ninguém nasce na sala de chegada nem colado nela: quem entra não cai no meio de um bando
+				T.ok(_xz(p).distance_to(_xz(arrive)) >= SAFE_ARRIVE, "%s: %s longe da chegada (%.1f m)"
+					% [id, s.name, _xz(p).distance_to(_xz(arrive))])
 			if s.chief:
 				chiefs += 1
 				var center: Vector2 = g.get("center", Vector2.INF)
 				T.ok(_xz(c).distance_to(center) < 8.0, "%s: o chefe espera na sala dele" % id)
-		T.ok(chiefs >= 1, "%s tem chefe" % id)
+		T.eq(chiefs, 1, "%s tem um chefe só" % id)
+		for pth: MapDungeonPath in root.pieces(MapDungeonPath):
+			T.ok(pth.width >= 6.0, "%s: %s é largo (%.1f m)" % [id, pth.name, pth.width])
 		root.free()
 
 

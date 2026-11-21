@@ -71,7 +71,7 @@ pillars = true
 
 [node name="Fissura 1" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.4
+width = 6.4
 height = 5.2
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Fissura 1"]
@@ -100,7 +100,7 @@ script = ExtResource("12_dg")
 
 [node name="Fissura 2" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.0
+width = 6.0
 height = 5.0
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Fissura 2"]
@@ -113,7 +113,7 @@ script = ExtResource("12_dg")
 
 [node name="Fissura 3" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.4
+width = 6.4
 height = 5.2
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Fissura 3"]
@@ -146,7 +146,7 @@ script = ExtResource("12_dg")
 
 [node name="Fissura 4" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
-width = 4.0
+width = 6.0
 height = 5.0
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Fissura 4"]
@@ -232,7 +232,7 @@ radius = 4.0
 respawn = 40.0
 
 [node name="bando 5 goblin_bruto" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0.0, 24)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.0, 30)
 script = ExtResource("7_dg")
 kind = "goblin_bruto"
 count = 4
@@ -248,7 +248,7 @@ radius = 1.2
 respawn = 40.0
 
 [node name="bando 7 esqueleto_mago" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -32, 0.0, 33)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0.0, 20)
 script = ExtResource("7_dg")
 kind = "esqueleto_mago"
 count = 3
@@ -256,17 +256,9 @@ radius = 2.5
 respawn = 40.0
 
 [node name="chefe lich" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.0, -38)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -38)
 script = ExtResource("7_dg")
 kind = "lich"
-respawn = 600.0
-elite = true
-chief = true
-
-[node name="chefe goblin_king" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.0, -38)
-script = ExtResource("7_dg")
-kind = "goblin_king"
 respawn = 600.0
 elite = true
 chief = true

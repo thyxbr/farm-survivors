@@ -53,6 +53,8 @@ const THEMES := {
 		_changed()
 ## Distância entre as tochas (m).
 @export var torch_step := 9.0
+## Fração das tochas que ficam apagadas (só o toco queimado).
+@export_range(0.0, 1.0) var dead_torches := 0.3
 
 var _cells := {}        # Vector2i -> altura do teto
 var _boss_cells := {}   # Vector2i -> true
@@ -482,7 +484,7 @@ func _torches(holder: Node3D, fx: Node, th: Dictionary) -> void:
 		t.position = p + inward * 0.25 + Vector3(0, 2.4, 0)
 		t.basis = Basis.looking_at(-inward, Vector3.UP)
 		holder.add_child(t)
-		var dead := rng.randf() < 0.3   # tocha apagada: só o toco queimado (o escuro fica maior)
+		var dead := rng.randf() < dead_torches   # tocha apagada: só o toco queimado (o escuro fica maior)
 		_torch_mesh(t, tc, dead)
 		if dead:
 			continue
@@ -859,12 +861,14 @@ func _boss_gate(holder: Node3D, fx: Node, th: Dictionary) -> void:
 	var ring: Array = []
 	var center: Vector2 = g.center
 	var rad := 0.0
+	var ext := Vector2.ZERO   # meia largura e meia profundidade da sala: o anel é uma elipse dentro das paredes
 	for k: Vector2i in _boss_cells:
 		rad = maxf(rad, _center(k).distance_to(center))
+		ext = ext.max((_center(k) - center).abs())
 	var n := 8
 	for i in n:
 		var a := TAU * (float(i) + 0.5) / n
-		var q := center + Vector2(cos(a), sin(a)) * (rad - 2.2)
+		var q := center + Vector2(cos(a) * (ext.x - 2.2), sin(a) * (ext.y - 2.2))
 		ring.append(_brazier(holder, Vector3(q.x, 0, q.y), th, false))
 	# ossos dos que tentaram antes, espalhados na frente do portão
 	var brng := RandomNumberGenerator.new()
