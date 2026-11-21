@@ -21,6 +21,9 @@ signal enchant_changed
 signal kit_changed   # a classe da arma equipada mudou
 
 const SETTINGS_PATH := "user://settings.cfg"
+## Desafio da Horda ligado? Desligado por enquanto: sem portal na vila, o servidor recusa a fila e os testes
+## da Horda (smoke --smoke-part=horda, _test_horde do net_test, portal no teste da vila) são pulados.
+const HORDE_ENABLED := false
 const WORLD_SCENE := "res://scenes/world.tscn"
 const MENU_SCENE := "res://scenes/main_menu.tscn"
 const CHAR_CREATE_SCENE := "res://scenes/char_create.tscn"
@@ -107,6 +110,8 @@ func _ready() -> void:
 			get_tree().root.add_child.call_deferred(load("res://tests/net_test.gd").new())
 		elif a.begins_with("--atlasshot="):
 			get_tree().root.add_child.call_deferred(load("res://tools/atlas_shot.gd").new())
+		elif a.begins_with("--teleportshot="):
+			get_tree().root.add_child.call_deferred(load("res://tools/teleport_shot.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
 		# o Econ usa user://smoketest_solo.json, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())
@@ -828,6 +833,11 @@ func talent_points() -> int:
 
 
 ## Ouro para redistribuir os talentos agora (espelho de CharRules.reset_cost).
+## Ouro para viajar até o mapa `region`: "coach" (cocheiro, em conta) ou "map" (mapa-mundi, caro). -1 = inválido.
+func travel_cost(region: String, mode: String) -> int:
+	return CharRules.travel_cost(Balance.tables, region, mode)
+
+
 func talent_reset_cost() -> int:
 	return 0 if level <= 5 else 50 * level
 

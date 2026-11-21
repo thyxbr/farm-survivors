@@ -427,7 +427,7 @@ func _ready() -> void:
 		await _test_gather_lock(w)
 		await _test_burrow(w)
 
-	if horde_role != "":
+	if horde_role != "" and Game.HORDE_ENABLED:   # --horde=lead|join também separa quem age nos outros testes
 		await _test_horde(w)
 
 	# fica um pouco para os outros testes verem este jogador

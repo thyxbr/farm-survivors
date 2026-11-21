@@ -9,6 +9,7 @@ extends RefCounted
 ##   boss_near: bool         chefe vivo perto do jogador
 ##   horde: bool             Desafio da Horda em andamento
 ##   pos: Vector3            posição do jogador (no mundo aberto)
+##   region: String          mapa em que o jogador está (Regions; "" = deduz de pos)
 
 ## A música da vila vai até VILLAGE_MARGIN m além da cerca (VillageLayout.BOUNDS). Antes era um círculo de
 ## 30 m em volta da praça, que passava da cerca norte e seguia tocando até os campos das slimes.
@@ -26,6 +27,9 @@ const TRACKS := {
 	# "village_morning_frost" (Morning Frost & Cheerful Christmas Time).
 	"village": ["village_deck_the_halls"],
 	"wild": ["wild_greenland_theme"],
+	# compostas para o jogo (tools/audio/gen_music.py)
+	"swamp": ["swamp_whispering_marsh"],
+	"volcano": ["volcano_ash_crown"],
 	"ruins": ["ruins_dark_cavern"],
 	"boss": ["boss_blackmoor_colossus"],
 	"horde": ["combat_battle_theme_3"],
@@ -37,7 +41,13 @@ const ONE_SHOT: Array[String] = []
 const AMBIENCES := {
 	"day": "birds_wind",
 	"night": "crickets_night",
+	"swamp": "swamp",
+	"ice": "ice",
+	"lava": "lava",
+	"cave": "cave",
 }
+## Ambiente de cada mapa (Regions); o que não está aqui usa "day". Dungeons ficam na caverna.
+const MAP_AMBIENCE := {"bosque": "swamp", "mina": "ice", "pico": "lava"}
 
 
 static func track(ctx: Dictionary) -> String:
@@ -54,16 +64,23 @@ static func track(ctx: Dictionary) -> String:
 		"world":
 			if ctx.get("horde", false):
 				return "horde"
-			return area(ctx.get("pos", Vector3.ZERO))
+			return area(ctx.get("pos", Vector3.ZERO), ctx.get("region", ""))
 	return ""
 
 
-## Trecho do mundo aberto em que o jogador está: vila (com a horta), ruínas do Rei Goblin ou mata.
-static func area(pos: Vector3) -> String:
-	match Regions.region_at(pos):
+## Trecho em que o jogador está: vila (com a horta), ruínas do Rei Goblin, mata, um dos mapas da carruagem
+## (pântano, geleira, vulcão) ou dungeon.
+static func area(pos: Vector3, region := "") -> String:
+	if region == "":
+		region = Regions.region_at(pos)
+	if Regions.is_dungeon(region):
+		return "ruins"
+	match region:
 		"bosque":
-			return "wild"
-		"mina", "pico":
+			return "swamp"
+		"pico":
+			return "volcano"
+		"mina":
 			return "ruins"
 	var p := Vector2(pos.x, pos.z)
 	if VillageLayout.BOUNDS.grow(VILLAGE_MARGIN).has_point(p) or p.distance_to(FARM_CENTER) < FARM_RADIUS:
@@ -74,7 +91,11 @@ static func area(pos: Vector3) -> String:
 
 
 static func ambience(ctx: Dictionary) -> String:
-	match ctx.get("scene", ""):
-		"world":
-			return "" if ctx.get("horde", false) else "day"
-	return ""
+	if ctx.get("scene", "") != "world" or ctx.get("horde", false):
+		return ""
+	var region: String = ctx.get("region", "")
+	if region == "":
+		region = Regions.region_at(ctx.get("pos", Vector3.ZERO))
+	if Regions.is_dungeon(region):
+		return "cave"
+	return MAP_AMBIENCE.get(region, "day")

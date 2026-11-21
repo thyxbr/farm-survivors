@@ -1112,6 +1112,20 @@ static func sword_slash(parent: Node3D, yaw: float, combo: int, color: Color) ->
 	slash(parent, yaw, SWORD_COMBO[clampi(combo, 1, 3) - 1], palette(color))
 
 
+## Corte do combo de espada com escudo (KnightMovesShield.SLASH, medido da ponta da lâmina pelo retarget);
+## `dur` = duração do golpe, que converte o tempo do arco (fração do golpe) em segundos. O giro (último)
+## corre por igual, como o giro da espada.
+static func shield_combo_slash(parent: Node3D, yaw: float, combo: int, dur: float, color: Color) -> void:
+	var n: int = KnightMovesShield.SLASH.size()
+	var o: Dictionary = (KnightMovesShield.SLASH[clampi(combo, 1, n) - 1] as Dictionary).duplicate()
+	o["sweep"] = maxf(0.04, float(o.sweep_frac) * dur)
+	o["hold"] = 0.04
+	o["fade"] = 0.22
+	if combo == n:
+		o.merge({"linear": true, "lead": 0.03, "trail": 0.6, "hold": 0.02})
+	slash(parent, yaw, o, palette(color))
+
+
 ## Base da pincelada da receita `o`: Z aponta para onde ela começa, Y é o eixo do giro (a malha de
 ## arc_mesh corre de +Z para +X). Devolve também quantos graus ela cobre.
 static func slash_frame(o: Dictionary) -> Dictionary:
@@ -1137,6 +1151,7 @@ static func slash(parent: Node3D, yaw: float, o: Dictionary, pal: Dictionary) ->
 		return
 	var fr := slash_frame(o)
 	var b: Basis = Basis(Vector3.UP, yaw) * (fr.basis as Basis)
+	var center: Vector3 = o.get("center", Vector3(0, 1.2, 0)) - Vector3(0, KnightLook.fx_drop(parent), 0)   # corpo mais baixo (anão)
 	var seed0 := randf() * 20.0
 	for layer in 2:
 		if layer == 0 and not o.get("shadow", true):
@@ -1172,7 +1187,7 @@ static func slash(parent: Node3D, yaw: float, o: Dictionary, pal: Dictionary) ->
 		s.set_instance_shader_parameter("peak", o.get("peak", 0.5))
 		s.radius = r
 		s.base = b
-		s.transform = Transform3D(b.scaled_local(Vector3.ONE * r), Basis(Vector3.UP, yaw) * (o.get("center", Vector3(0, 1.2, 0)) as Vector3))
+		s.transform = Transform3D(b.scaled_local(Vector3.ONE * r), Basis(Vector3.UP, yaw) * center)
 		parent.add_child(s)
 
 

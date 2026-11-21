@@ -6,6 +6,7 @@ class_name HairStyles
 const STYLES := {
 	"m": ["m_curto", "m_penteado", "m_franja", "m_raspado"],
 	"f": ["f_longo", "f_chanel", "f_curto", "f_marias"],
+	"d": ["m_curto", "m_penteado", "m_franja", "m_raspado"],   # anão (protótipo): os penteados masculinos, com barba
 }
 
 ## Nome mostrado na tela de criação.

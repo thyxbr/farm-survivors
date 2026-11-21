@@ -503,14 +503,14 @@ static func best_weapon_of(s: CharState, bt: BalanceTables, wclass: String) -> S
 	return best
 
 
-## Escolha única da classe, do corpo ("m"/"f") e do penteado (HairStyles; "" = padrão do corpo) na criação.
+## Escolha única da classe, do corpo ("m"/"f"/"d" = anão) e do penteado (HairStyles; "" = padrão do corpo) na criação.
 ## A arma passa a ser do tipo da classe: fica a que já serve, senão a melhor que o personagem tem, senão a arma
 ## inicial da classe.
 static func choose_class(s: CharState, bt: BalanceTables, cls: String, body: String, hair := "") -> Dictionary:
 	if s.char_class != "":
 		return _fail("ja_tem_classe")
 	var def: Dictionary = bt.get_table("classes").get(cls, {})
-	if not (cls in CLASS_IDS) or def.is_empty() or not (body in ["m", "f"]):
+	if not (cls in CLASS_IDS) or def.is_empty() or not (body in ["m", "f", "d"]):
 		return _fail("classe_invalida")
 	if hair != "" and not HairStyles.valid(body, hair):
 		return _fail("penteado_invalido")
@@ -1185,6 +1185,38 @@ static func reset_talents(s: CharState, _bt: BalanceTables) -> Dictionary:
 	var paid := "-%d de ouro" % cost if cost > 0 else "grátis até o nível 5"
 	var txt := "Talentos redistribuídos: %d %s de volta (%s)." % [back, "ponto" if back == 1 else "pontos", paid]
 	return _ok([_notify(txt, C_GUILD), {"t": "talents_reset", "cost": cost}])
+
+
+# ================================================================ viagem (carruagem e mapa-mundi)
+## Modos de viagem paga: "coach" = falar com o cocheiro (em conta); "map" = teleporte pelo mapa-mundi (caro).
+const TRAVEL_MODES := ["coach", "map"]
+
+
+## Custo em ouro de viajar até o mapa `region` (rules.travel): carruagem = base + por_nível x nível do mapa;
+## mapa-mundi = carruagem x map_mult. Quanto maior o nível do destino, mais caro. -1 = destino/modo inválido.
+static func travel_cost(bt: BalanceTables, region: String, mode: String) -> int:
+	var t: Dictionary = _rules(bt).get("travel", {})
+	var levels: Dictionary = t.get("levels", {})
+	if not levels.has(region) or not mode in TRAVEL_MODES:
+		return -1
+	var cost := int(t.get("coach_base", 10)) + int(t.get("coach_per_level", 4)) * int(levels[region])
+	if mode == "map":
+		cost *= int(t.get("map_mult", 5))
+	return cost
+
+
+## Paga a viagem (a viagem em si, a troca de posição, é do cliente, como o resto da posição).
+## Erros: destino_invalido, sem_ouro.
+static func pay_travel(s: CharState, bt: BalanceTables, region: String, mode: String) -> Dictionary:
+	var cost := travel_cost(bt, region, mode)
+	if cost < 0:
+		return _fail("destino_invalido")
+	if s.gold < cost:
+		var what := "A carruagem" if mode == "coach" else "O teleporte"
+		return _fail("sem_ouro", [_notify("%s até lá custa %d de ouro." % [what, cost], C_BAD)])
+	s.gold -= cost
+	return _ok([_notify("-%d de ouro (viagem)" % cost, C_GOLD), {"t": "travel_paid", "region": region,
+		"mode": mode, "cost": cost}])
 
 
 ## Bônus dos talentos: chave de stat -> soma de (add x nível). Só conta talento da classe do personagem.

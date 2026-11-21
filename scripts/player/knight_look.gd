@@ -25,7 +25,8 @@ const DEFAULT_STYLE := {"head": "h_bare", "armor": "a_shirt", "hands": "g_bare",
 const PLATE := "plate"
 ## Modelo do herói por corpo ("m"/"f"): o feminino tem os mesmos pivôs e nomes. As roupas, cabeças e penteados
 ## de equipamento também têm versão feminina: gear/<estilo>_f.glb.
-const KNIGHT_SCENE := {"m": "res://assets/models/knight.glb", "f": "res://assets/models/knight_f.glb"}
+const KNIGHT_SCENE := {"m": "res://assets/models/knight.glb", "f": "res://assets/models/knight_f.glb",
+	"d": "res://assets/models/knight_d.glb"}
 ## Como o penteado (gear/hair_<id>.glb, HairStyles) entra com cada estilo de cabeça: "tight" = a variante rente
 ## ao crânio (hair_<id>_tight.glb), que cabe sob capuz e chapéu; "none" = sem cabelo (elmo fechado, gorro e
 ## coifas justos, que o cabelo atravessaria). Estilo fora da tabela (cabeça nua, coroas, tiaras) = inteiro.
@@ -53,9 +54,49 @@ const BOW_FULL_DRAW := 0.5
 const BOW_ARROW_REST := Vector3(0.0, 0.04, 0.03)
 
 
-## Corpo normalizado: "f" ou "m" (vazio ou desconhecido = masculino).
+## Quanto os efeitos presos ao corpo (cortes da espada) descem em cada corpo (m): o ombro do anão fica ~0,4 m
+## abaixo do masculino. Medido com tools/vfx_lab.tscn -- --vfxpage=10..12 --vfxtip --body=d (centro dos arcos
+## da ponta da lâmina ~0,38 m mais baixo; o raio quase não muda, a espada é a mesma).
+const FX_DROP := {"d": 0.38}
+
+
+## Corpo do personagem de `node` (o jogador, ou um nó com o modelo como filho); "m" sem modelo.
+static func body_of_node(node: Node) -> String:
+	if node == null or not is_instance_valid(node):
+		return "m"
+	var b = node.get("model_body")
+	if b == null:
+		for c in node.get_children():
+			if c.has_meta("body"):
+				b = c.get_meta("body")
+				break
+	return body_key(b) if b != null else "m"
+
+
+## Descida dos efeitos para o personagem de `node` (o jogador, ou um nó com o modelo como filho).
+static func fx_drop(node: Node) -> float:
+	return float(FX_DROP.get(body_of_node(node), 0.0))
+
+
+## Anão (tools/blender/dwarf.py): o quadril desce de 0,95 m para 0,61 m (pernas a 0,64) e o tronco encolhe 0,84.
+const DWARF_HIP := Vector2(0.95, 0.61)
+const DWARF_TORSO := 0.84
+
+
+## Altura `y` (m acima dos pés, medida no corpo masculino: peito, ombro, cabeça) no corpo de `node`.
+## Serve para mira, alvos e efeitos presos ao corpo, que no anão ficam mais baixos.
+static func body_y(node: Node, y: float) -> float:
+	if body_of_node(node) != "d":
+		return y
+	if y <= DWARF_HIP.x:
+		return y * DWARF_HIP.y / DWARF_HIP.x
+	return DWARF_HIP.y + (y - DWARF_HIP.x) * DWARF_TORSO
+
+
+## Corpo normalizado: "f", "d" (anão, protótipo) ou "m" (vazio ou desconhecido = masculino).
 static func body_key(body) -> String:
-	return "f" if str(body) == "f" else "m"
+	var b := str(body)
+	return b if b == "f" or b == "d" else "m"
 
 
 ## Novo modelo do herói para o corpo `body` (marca o corpo no meta "body", que apply() usa nas roupas).
@@ -74,8 +115,9 @@ static func body_of(model: Node3D) -> String:
 ## GLB de equipamento do estilo para o corpo: a versão _f no feminino (cai na masculina se faltar).
 static func gear_path(style: String, body: String) -> String:
 	var path := "res://assets/models/gear/%s.glb" % style
-	if body_key(body) == "f":
-		var fem := "res://assets/models/gear/%s_f.glb" % style
+	var k := body_key(body)
+	if k != "m":
+		var fem := "res://assets/models/gear/%s_%s.glb" % [style, k]
 		if ResourceLoader.exists(fem):
 			return fem
 	return path
