@@ -4,6 +4,7 @@ extends Node
 ## e são preenchidas pelo autoload Balance antes de qualquer _ready; aqui só ficam as `static var`.
 ## Campos de item (items.json): "class" sword (combo corpo a corpo, escala com FOR) · staff (projéteis
 ## mágicos, escala com INT) · bow (botão direito mira e puxa, esquerdo atira; escala com AGI); "shape" muda o modelo 3D;
+## "two_handed" (espada) = montante: segura com as duas mãos, golpes lentos e largos, e a mão secundária fica vazia;
 ## "stats" = bônus do item (ver STAT_NAMES); "fx" = efeito ao acertar (slow, splash, pierce, multishot).
 
 static var ITEMS: Dictionary = {}
@@ -91,6 +92,7 @@ const CLASS_HINT := {"sword": "Combo de 3 golpes · escala com Força",
 	"staff": "Projéteis arcanos · escala com Inteligência",
 	"bow": "Segure para tensionar, solte para atirar · escala com Agilidade",
 	"scepter": "Cura aliados e castiga inimigos com luz sagrada · escala com Inteligência"}
+const TWO_HAND_HINT := "Combo de 3 golpes lentos e largos com as duas mãos · escala com Força"
 const FX_NAMES := {"slow": "Golpes deixam o alvo lento", "splash": "Projéteis explodem em área",
 	"pierce": "Flechas perfuram inimigos", "multishot": "Disparo tensionado: 3 flechas"}
 
@@ -137,6 +139,11 @@ func is_equippable(id: String) -> bool:
 
 func weapon_class(id: String) -> String:
 	return get_item(id).get("class", "sword") if id != "" else "sword"
+
+
+## Arma de duas mãos (montante): ocupa a mão secundária também.
+func is_two_handed(id: String) -> bool:
+	return id != "" and bool(get_item(id).get("two_handed", false))
 
 
 func rarity_of(id: String) -> String:
@@ -201,7 +208,7 @@ func item_summary(id: String) -> String:
 	var lines: Array[String] = [it.name]
 	match it.type:
 		"weapon":
-			lines.append("%s — Dano %d" % [CLASS_NAMES[weapon_class(id)], it.damage])
+			lines.append("%s — Dano %d" % ["Montante (duas mãos)" if is_two_handed(id) else CLASS_NAMES[weapon_class(id)], it.damage])
 		"armor", "gear":
 			lines.append("%s — Defesa %d" % [SLOT_NAMES[slot_of(id)], it.get("defense", 0)])
 		"consumable":

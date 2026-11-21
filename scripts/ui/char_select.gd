@@ -706,6 +706,8 @@ func _process(delta: float) -> void:
 		pose.body_x += 0.12 * reach
 		pose.head_x += 0.25 * reach
 		_seat_arms(st, pose, pr)
+		if pr >= GRAB_AT:   # de pé com a montante: as duas mãos no cabo
+			KnightAnim.carry(st.look, pose, 0.0, 0.0, w)
 		KnightAnim.apply(rig, pose, k)
 		var mover: Node3D = st.mover
 		mover.position.z = lerpf(SIT_Z, STAND_Z, w)
