@@ -21,6 +21,12 @@ extends Node3D
 	set(v):
 		boss = v
 		_changed()
+## Salão de pedra lavrada (o da frente do portão do chefe): paredes retas de cantaria e chão de lajes, sem a
+## rocha irregular nem os enfeites de caverna.
+@export var hall := false:
+	set(v):
+		hall = v
+		_changed()
 ## Pilares de pedra dentro da sala (salas grandes).
 @export var pillars := false:
 	set(v):
