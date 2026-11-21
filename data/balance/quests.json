@@ -765,8 +765,8 @@
 		"count": 3,
 		"repeat": true,
 		"where": [
-			0,
-			-50
+			-90,
+			88
 		],
 		"talk": {
 			"offer": [

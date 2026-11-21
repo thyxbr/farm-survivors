@@ -97,8 +97,9 @@ func _grass_colors(m: ShaderMaterial) -> void:
 
 ## Trilha/área retangular, girada `angle` radianos em Y (como o rotation.y de um nó: 0 = alinhada aos eixos).
 ## soft = largura da borda irregular em metros.
-## grass = 0 pinta terra/pedra lisa; > 0 deixa a grama aparecer por baixo (grama baixa, pisada),
-## manchada com a cor da forma, e nasce capim baixo e ralo dentro (densidade ~ grass).
+## grass = 0 pinta terra/pedra lisa; > 0 deixa a grama aparecer por baixo (grama baixa, pisada), manchada
+## com a cor da forma, e nasce capim baixo e ralo dentro (densidade ~ grass); -1 pinta gelo e -2 rocha nua (sem
+## capim; a neve acumulada não cobre).
 func add_rect(center: Vector3, size: Vector2, c: Color, soft := 0.7, grass := 0.0, angle := 0.0) -> void:
 	_add(Vector4(center.x, center.z, size.x / 2.0, size.y / 2.0), c, soft, grass, angle)
 
@@ -114,7 +115,7 @@ func _add(s: Vector4, c: Color, soft: float, grass: float, angle := 0.0) -> void
 	var lc := c.srgb_to_linear()
 	_shapes.append(s)
 	_cols.append(Vector4(lc.r, lc.g, lc.b, soft))
-	_mix.append(clampf(grass, 0.0, 1.0))
+	_mix.append(clampf(grass, -2.0, 1.0))   # -1 gelo, -2 rocha nua (a neve não cobre)
 	_angs.append(angle if s.w >= 0.0 else 0.0)
 	_push()
 

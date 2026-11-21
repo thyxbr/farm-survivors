@@ -22,8 +22,11 @@ O editor já mostra o chão e a serra do bioma; céu, névoa e clima só jogando
 
 - **Pântano Sussurrante** (`bosque`): lama e capim escuro, juncos, samambaias e cogumelos que brilham, árvores do
   pântano (`tree_swamp`), charcos (MapRiver de água parada, em Bioma), névoa verde, sempre úmido, vaga-lumes.
-- **Geleira de Cristal** (`mina`): neve cobrindo o chão e as peças, nevando sempre, cristais de gelo
-  (`ice_crystal`), céu claro e frio.
+- **Geleira de Cristal** (`mina`): neve cobrindo o chão e as peças, nevando sempre, céu claro e frio. Pinheiros
+  congelados com pingentes (`tree_frost`, também na serra), cristais (`ice_crystal`) e pináculos de gelo
+  (`ice_spire`) nos veios; lagos congelados andáveis (áreas pintadas de gelo) na entrada, fendas de gelo (MapRiver
+  de água escura e funda) separando os fossos, fossos de rocha nua com árvores mortas geladas, a Estrada dos Reis e
+  o Salão do Cavaleiro em ruínas com piso de gelo, e o acampamento do Bolgar no sul.
 - **Vulcão das Cinzas** (`pico`): chão de cinza sem capim, árvores mortas queimadas (`tree_dead`), espinhos de
   obsidiana (`ice_crystal` com `tint` escuro), rios de lava (MapRiver com `glow`), céu vermelho, cinza e brasas.
 
@@ -51,12 +54,15 @@ Todos ficam em `scripts/map/` e aparecem no Inspector com as opções abaixo.
   lado, `flow` = correnteza, cores da água e da margem; `glow` acende a água em lava; `bank_plant` e `bank_rocks` = o que
   nasce na beira). As duas pontas são arredondadas: um rio curto vira charco ou poça de lava. Paredes invisíveis na beira seguram jogador e monstros
   fora da água; só abrem onde há uma ponte: um Objeto com `model = bridge_stone` atravessado no rio (a ponte
-  cruza ao longo da seta azul, +Z). A validação dos mapas acusa qualquer peça (árvore, NPC, ponto de monstro,
+  cruza ao longo da seta azul, +Z); em cima das muretas da ponte sobe uma parede invisível alta, para ninguém pular
+  da ponte para dentro do rio. A validação dos mapas acusa qualquer peça (árvore, NPC, ponto de monstro,
   landmark) dentro do leito. O rio do Vale passa ao norte dos Campos do Norte; a Ponte do Norte fica na Estrada do
   Norte.
 - **Área pintada no chão (MapGroundPaint)**: retângulo ou disco com cor e borda suave (ruas, trilhas, praça,
   lotes). O retângulo gira com o nó (gire em Y para fazer uma rua na diagonal; o contorno da prévia mostra o
-  resultado). Mover, girar ou mudar o tamanho já redesenha o chão no editor. No máximo 64 por mapa.
+  resultado). Mover, girar ou mudar o tamanho já redesenha o chão no editor. No máximo 64 por mapa. `surface`:
+  Chão (a cor de sempre), Gelo (placa lisa e brilhante com rachaduras; anda-se por cima) ou Rocha nua; gelo e
+  rocha nua ficam à mostra mesmo com a neve cobrindo o chão (Geleira) e não têm capim.
 - **Morro (MapMountain)**: raio e altura. Ao mover um morro, o chão e tudo que segue o relevo acompanham.
 - **Área do capim (MapGrassArea)**: disco sem capim ou com capim ralo.
 - **Luz (MapLight)**: `mode` normal, noite (acende ao escurecer) ou piscando (fogo).
@@ -108,8 +114,9 @@ Todos ficam em `scripts/map/` e aparecem no Inspector com as opções abaixo.
 - **Região com nome (MapRegion)**, no grupo Regiões de cada mapa: `region_id` (chave no
   `data/balance/regions.json`, que guarda nome, faixa de nível, densidade e se aparece no mapa), `shape`
   (Retângulo, que gira com o nó, ou Disco), `size` (largura × profundidade do retângulo) ou `radius` (disco). A
-  prévia mostra a mancha laranja e "Nome · Nv a–b". Vários nós com o mesmo `region_id` são uma região só (o
-  Capinzal dos Raptores tem 4 manchas). Regiões que se sobrepõem: vale a menor (o Cume Maldito dentro das Ameias
+  prévia mostra a mancha laranja e "Nome · Nv a–b". Vários nós com o mesmo `region_id` são uma região só (os
+  Fossos dos Brutos da Geleira são 2 manchas). No Vale cada canto é a área de um tipo só de monstro: Capinzal dos
+  Raptores (noroeste), Teia das Tecelãs (nordeste), Jardim Faminto (sudeste) e Fonte Gelada (sudoeste). Regiões que se sobrepõem: vale a menor (o Cume Maldito dentro das Ameias
   do Lich). Para criar uma região nova, ponha a chave no regions.json **e** um nó na cena; o teste
   `test_regions_areas` confere que os dois lados batem.
 - **Lugar com nome (MapLandmark)**: acampamento, ruínas, Horta, ninho, pomar, lagoa (`pond`), portal da Horda,

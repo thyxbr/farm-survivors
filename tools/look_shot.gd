@@ -2,7 +2,7 @@ extends Node3D
 ## Foto de vários cavaleiros lado a lado, cada um vestido com um conjunto de equipamento (KnightLook),
 ## com a luz do jogo. Serve para conferir roupas e armaduras (assets/models/gear/*.glb) sem abrir o jogo.
 ## Precisa de janela (sem --headless) e do --import feito antes:
-##   godot --path . --resolution 1800x900 res://tools/look_shot.tscn -- <saida.png> [conjunto] [3q|back|side|close|wide|head|bust|waist|torso|legs|hands] [run|arms] [fem] [wait=<s>]
+##   godot --path . --resolution 1800x900 res://tools/look_shot.tscn -- <saida.png> [conjunto] [3q|back|side|close|wide|head|bust|waist|torso|legs|hands] [run|arms|block] [fem] [wait=<s>]
 ## run = pose de corrida no meio da passada; fem = corpo feminino; wait = segundos antes da foto (efeitos animados).
 ## conjunto: "leves", "pesados", "todos" (padrão) ou ids separados por vírgula num só personagem;
 ## "cada:id1,id2,..." põe um personagem por id (para comparar armas lado a lado); "id1+id2" veste as duas
@@ -72,6 +72,20 @@ func _ready() -> void:
 				var arm := m.find_child(side[0], true, false) as Node3D
 				if arm:
 					arm.rotation_degrees.z = 75.0 * side[1]
+		if "block" in args:    # escudo levantado (KnightAnim.shield_block_pose)
+			var rb := KnightAnim.rig(m)
+			var pb := KnightAnim.rest_pose()
+			# block_walk=<x>,<y>: andando com o escudo (x = de lado, y = frente) na fase `phase=<rad>`
+			var mv := Vector2.ZERO
+			var ph := 0.0
+			for a in args:
+				if a.begins_with("block_walk="):
+					var v := a.substr(11).split(",")
+					mv = Vector2(float(v[0]), float(v[1]))
+				elif a.begins_with("phase="):
+					ph = float(a.substr(6))
+			KnightAnim.shield_block_pose(pb, 1.0, 0.0, rb, ph, mv)
+			KnightAnim.apply(rb, pb, 1.0)
 		if "run" in args:      # meio da passada de corrida: confere saias e mangas com as pernas abertas
 			var r := KnightAnim.rig(m)
 			KnightAnim.apply(r, KnightAnim.locomotion_pose(r, 0.25, 1.0, 1.0), 1.0)
