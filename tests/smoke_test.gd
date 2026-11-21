@@ -5062,14 +5062,23 @@ func _test_mythic_bows() -> void:
 					% [hurt, rain_at, gs[0].global_position, gs[1].global_position])
 				check(count.call(BowMythic.Rain) == 0, "Presa do Dragão: a chuva acaba (%d)" % count.call(BowMythic.Rain))
 			"gale":
-				var p0: Vector3 = gs[0].global_position
 				var me0: Vector3 = player.global_position
 				gs[0].stagger = 0.0
 				shoot.call(true, gs[0])
 				player._gale_leap(fwd)
-				await wait(0.4)
-				var pushed: float = (gs[0].global_position - p0).dot(fwd)
-				check(pushed > 0.3, "Rei dos Ventos: a flecha empurra o alvo para longe (%.2f m)" % pushed)
+				# afastamento a partir de onde a flecha acertou (o slime provocado já vem andando para o jogador antes
+				# do acerto); o maior em 1 s, porque depois do empurrão ele volta
+				var hp0: float = gs[0].hp
+				var hit_at := Vector3.INF
+				var pushed := 0.0
+				var t_end := Time.get_ticks_msec() + 1200
+				while Time.get_ticks_msec() < t_end:
+					if hit_at == Vector3.INF and gs[0].hp < hp0:
+						hit_at = gs[0].global_position
+					elif hit_at != Vector3.INF:
+						pushed = maxf(pushed, (gs[0].global_position - hit_at).dot(fwd))
+					await get_tree().physics_frame
+				check(pushed > 0.3, "Rei dos Ventos: a flecha empurra o alvo para longe (%.2f m; elite=%s estado=%s hp=%.0f/%.0f vel=%s)" % [pushed, gs[0].elite, gs[0].state, gs[0].hp, gs[0].max_hp, gs[0].velocity])
 				check(gs[1].hp < gs[1].max_hp, "Rei dos Ventos: a flecha tensionada ricocheteia no vizinho")
 				check((player.global_position - me0).dot(fwd) < -0.5, "Rei dos Ventos: o vento joga o arqueiro para trás")
 			"crescent":
