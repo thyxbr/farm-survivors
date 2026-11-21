@@ -1,7 +1,7 @@
 extends Node
 ## Fotos do mapa-mundi (M) no jogo de verdade: abre o atlas e salva a vista inicial, o mundo inteiro, o zoom
 ## na vila com a ficha de um NPC, a ficha da carruagem (as saídas), a borda (arrastar para fora não sai do
-## mapa) e, antes de abrir, o minimapa do HUD. Precisa de janela:
+## mapa), a confirmação do teleporte pago e, antes de abrir, o minimapa do HUD. Precisa de janela:
 ##   godot --path . --resolution 1600x900 res://scenes/world.tscn -- --geardemo --atlasshot=<pasta>
 
 var _out := ""
@@ -59,6 +59,16 @@ func _run() -> void:
 	view.queue_redraw()
 	await _wait(0.3)
 	_shot("carruagem")
+	# clique na carruagem: confirmação do teleporte (com ouro e sem ouro)
+	Game.add_gold(maxi(0, 400 - Game.gold))
+	w.modal.ask_teleport("vila")
+	await _wait(0.4)
+	_shot("teleporte")
+	w.modal._close_confirm()
+	w.modal.ask_teleport("pico")
+	await _wait(0.4)
+	_shot("teleporte_bloqueado")
+	w.modal._close_confirm()
 	# arrastar para longe (oeste do vale): o centro para na borda do mapa
 	view._goal_center = Vector2(-2000, 0)
 	view._clamp_center()

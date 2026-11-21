@@ -1976,6 +1976,10 @@ func _test_dungeons() -> void:
 	await wait(1.4)
 	check(Regions.region_at(player.global_position) == "dg_bosque", "com Rank C entra no Covil das Raízes")
 	check(Regions.exit_point("dg_bosque").distance_to(player.global_position) < 3.0, "chega na porta de saída")
+	# dentro da dungeon não há viagem paga (nem cocheiro nem mapa-mundi): é preciso sair primeiro
+	var g_in := Game.gold
+	check(world.travel_block_reason("vila", "map").contains("dungeon"), "teleporte do mapa recusado dentro da dungeon")
+	check(not world.request_travel("vila", "map") and Game.gold == g_in, "dentro da dungeon não cobra nem viaja")
 	world.use_dungeon_door("out")
 	await wait(1.4)
 	check(player.global_position.distance_to(Regions.door_point("dg_bosque")) < 3.0, "a saída leva de volta à porta no Bosque")
@@ -2734,9 +2738,17 @@ func _test_guild_travel() -> void:
 	var dests: Array = []
 	for ch in pages[0].get("choices", []):
 		dests.append(str(ch.text))
-	check("Pântano Sussurrante" in dests and "Geleira de Cristal (Rank B)" in dests, "carruagem: bosque liberado, mina travada (%s)" % [dests])
-	world.travel_to("bosque")
+	var bosque_label := "Pântano Sussurrante (%d de ouro)" % Game.travel_cost("bosque", "coach")
+	check(bosque_label in dests and "Geleira de Cristal (Rank B)" in dests, "carruagem: bosque liberado com preço, mina travada (%s)" % [dests])
+	# viagem paga: sem ouro não vai; com ouro, o cocheiro cobra e leva
+	var coach_cost := Game.travel_cost("bosque", "coach")
+	check(coach_cost > 0 and Game.travel_cost("bosque", "map") > coach_cost, "teleporte do mapa mais caro que o cocheiro")
+	if Game.gold < coach_cost:
+		Game.add_gold(coach_cost - Game.gold)
+	var gold_before := Game.gold
+	check(world.request_travel("bosque", "coach"), "pede a viagem paga ao cocheiro")
 	await wait(1.6)
+	check(Game.gold == gold_before - coach_cost, "cocheiro cobrou %d de ouro (%d -> %d)" % [coach_cost, gold_before, Game.gold])
 	check(Regions.region_at(player.global_position) == "bosque", "viagem leva ao Pântano Sussurrante (%s)" % player.global_position)
 	check(_interactable("sylvi") != null and _interactable("coach_bosque") != null, "Sylvi e a carruagem no bosque")
 	var queen := false
@@ -3530,9 +3542,64 @@ func _test_gear() -> void:
 	Game.hp = Game.max_hp()
 	Game.stamina = Game.max_stamina()
 	await get_tree().physics_frame
+	# combo com escudo (KnightMovesShield): 3 golpes do combo e o giro no fim, emendados segurando o clique
+	check(player._shield_combo() and player._combo_len() == 4 and is_equal_approx(player._swing_time(4), 0.75),
+		"espada com escudo: combo de 4 golpes, o último é o giro")
+	player.attacking = false
+	player.combo_window = 0.0
+	player.dodge_timer = 0.0
+	player.invuln = 6.0
+	var spin_back := player.global_position   # os golpes empurram o jogador: volta aqui no fim
+	var seen := []
+	player._start_swing()
+	var until := Time.get_ticks_msec() + 5000
+	while Time.get_ticks_msec() < until:
+		if player.attacking:
+			if not (player.combo in seen):
+				seen.append(player.combo)
+			player.buffered_attack = player.combo < 4
+			Game.stamina = Game.max_stamina()
+		elif seen.size() >= 4 or seen.is_empty():
+			break
+		await get_tree().process_frame
+	check(seen == [1, 2, 3, 4], "os 4 golpes do combo com escudo emendam (%s)" % [seen])
+	check(not player.attacking and player._recover_t >= 0.0 and absf(float(player.parts.twist)) <= PI + 0.001,
+		"no fim do combo o corpo volta suave à pose de parado (giro desenrolado: %.2f)" % float(player.parts.twist))
+	await wait(0.5)
+	check(player._recover_t < 0.0 and absf(float(player.parts.twist)) < 0.3,
+		"volta do combo com escudo termina (giro %.2f)" % float(player.parts.twist))
+	# o giro (4º) acerta em volta, até quem está atrás (um slime do teste, com vida de sobra, longe dos outros)
+
+	var spin_spot := Vector3(-105, 0.3, 46)
+	player.global_position = spin_spot
+	player.model.rotation.y = 0.0   # olhando para +Z: o slime fica atrás
+	var behind := Enemy.new()
+	behind.kind = "slime"
+	world.add_child(behind)
+	behind.global_position = spin_spot + Vector3(0, 0, -1.3)
+	behind.home = behind.global_position
+	await wait(0.15)
+	behind.max_hp = 9999.0
+	behind.hp = 9999.0
+	player.combo = 3
+	player.combo_window = 0.3
+	player.attacking = false
+	Game.stamina = Game.max_stamina()
+	player._start_swing()
+	check(player.combo == 4, "4º golpe do combo com escudo é o giro")
+	await wait(0.8)
+	check(is_instance_valid(behind) and behind.hp < 9999.0,
+		"giro do combo com escudo acerta quem está atrás (%.0f)" % (behind.hp if is_instance_valid(behind) else -1.0))
+	if is_instance_valid(behind):
+		behind.queue_free()
+	player.global_position = spin_back
+	player.invuln = 0.0
+	Game.hp = Game.max_hp()
+	Game.stamina = Game.max_stamina()
 	equip_any("apprentice_staff")
 	check(Game.equipment.offhand == "" and Game.count_item("wooden_shield") == shields0, "trocar para cajado guarda o escudo")
 	equip_any("iron_sword")
+	check(not player._shield_combo() and player._combo_len() == 3, "sem escudo, o combo da espada volta a 3 golpes")
 	check(is_equal_approx(Game.melee_damage(), dmg_sword), "dano da espada volta ao trocar de volta")
 
 	# armaduras: defesa e bônus somam

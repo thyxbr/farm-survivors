@@ -133,7 +133,9 @@ func test_roundtrip_matches_consts() -> void:
 			snap_rules.erase("xp_curve")
 			# o raio do sono dos monstros (regiões cheias, parte 2) nasceu depois do snapshot
 			cur.erase("enemy_sleep_radius")
-			T.ok(cur == snap_rules, "tabela rules igual ao snapshot (sem xp_curve e enemy_sleep_radius)")
+			# a viagem paga (carruagem e mapa-mundi) também
+			cur.erase("travel")
+			T.ok(cur == snap_rules, "tabela rules igual ao snapshot (sem xp_curve, enemy_sleep_radius e travel)")
 			continue
 		T.ok(cur == BalanceTables.decode(snap[n]), "tabela %s igual ao snapshot das const" % n)
 
