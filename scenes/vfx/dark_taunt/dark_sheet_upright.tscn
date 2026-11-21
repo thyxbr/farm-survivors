@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/dark_taunt/dark_sheet.gd" id="1"]
+[ext_resource type="Material" path="res://assets/vfx/dark_taunt/dark_sheet_upright_mix_mat.tres" id="2"]
+
+[sub_resource type="QuadMesh" id="QuadMesh_sheet"]
+size = Vector2(1, 1)
+center_offset = Vector3(0, 0.5, 0)
+
+[node name="DarkSheet" type="MeshInstance3D"]
+cast_shadow = 0
+mesh = SubResource("QuadMesh_sheet")
+material_override = ExtResource("2")
+script = ExtResource("1")
