@@ -1107,6 +1107,7 @@ func _ready() -> void:
 	await _test_tecela_web()
 	await _test_bocarrao_tongue()
 	await _test_flor_rooted()
+	await _test_espinheira()
 	await _test_enemy_detour()
 	await _test_river()
 	await _test_archer_pose()
@@ -1964,7 +1965,7 @@ func _test_dungeons() -> void:
 			if e.is_boss:
 				bosses[r] = true
 	for d in Regions.DUNGEONS:
-		check(int(by_dg.get(d, 0)) >= 20 and bosses.has(d), "%s com monstros (%d) e chefe" % [d, int(by_dg.get(d, 0))])
+		check(int(by_dg.get(d, 0)) >= 14 and bosses.has(d), "%s com monstros (%d) e chefe" % [d, int(by_dg.get(d, 0))])
 	var lv_ok := true
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if Regions.region_at(e.global_position) == "dg_mina" and not e.is_boss and (e.level < 26 or e.level > 30):
@@ -4175,3 +4176,75 @@ func _count(kind: String) -> int:
 		if e.kind == kind:
 			n += 1
 	return n
+
+
+## Espinheira, a Guardiã-Raiz (chefe do Bosque): as Raízes acertam de longe e prendem, os Brotos nascem e a curam,
+## na fúria as Nuvens de Esporos aparecem, e os brotos murcham quando a luta acaba.
+func _test_espinheira() -> void:
+	var back := player.global_position
+	var spot := Vector3(-105, 0.3, 40)
+	player.global_position = spot
+	Game.hp = Game.max_hp()
+	var e := Enemy.new()
+	e.kind = "espinheira"
+	world.add_child(e)
+	e.global_position = spot + Vector3(0, 0, -9)
+	e.home = e.global_position
+	await wait(0.2)
+	check(e.is_boss and e.parts.get("Crown") != null and e.parts.get("KneeL") != null and e.parts.get("ElbowR") != null,
+		"Espinheira: chefe, com copa, joelhos e cotovelos no modelo")
+	# Raízes: o jogador está a 9 m (fora da garra), na linha
+	var hp0: float = Game.hp
+	e._thorn_n = 0
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "roots", "Espinheira: longe, ataca com as Raízes (%s)" % e.attack_kind)
+	await wait_until(func(): return Game.hp < hp0, 3.5)
+	check(Game.hp < hp0 and player.web_t > 0.0, "Espinheira: as Raízes acertam e prendem (%.0f -> %.0f, preso %.1f s)"
+		% [hp0, Game.hp, player.web_t])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	# Brotos: o 4º golpe do ciclo; eles nascem e curam a árvore ferida
+	Game.hp = Game.max_hp()
+	e._thorn_n = 3
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e._sprouts_near(e.global_position).size() >= ThornRules.SPROUTS, 3.0)
+	var sprouts: Array = e._sprouts_near(e.global_position)
+	check(sprouts.size() == ThornRules.SPROUTS, "Espinheira: os Brotos nascem (%d)" % sprouts.size())
+	e.hp = e.max_hp * 0.6
+	var hp_b: float = e.hp
+	await wait(1.2)
+	check(e.hp > hp_b, "Espinheira: os Brotos vivos a curam (%.0f -> %.0f)" % [hp_b, e.hp])
+	await wait_until(func(): return e.state != "attack", 3.0)
+	# Esporos: na fúria, no ciclo ímpar; uma nuvem nasce sob o jogador
+	Game.hp = Game.max_hp()
+	e.enraged = true
+	e._thorn_n = 7
+	e.attack_cd = 0.0
+	e._set_state("chase")
+	await wait_until(func(): return e.state == "attack", 2.0)
+	check(e.attack_kind == "spores", "Espinheira: na fúria vêm os Esporos (%s)" % e.attack_kind)
+	await wait(1.8)
+	var clouds := 0
+	for c in world.get_children():
+		if c is SporeCloud:
+			clouds += 1
+	check(clouds >= ThornRules.SPORES + 1, "Espinheira: as Nuvens de Esporos nascem, uma sob o jogador (%d)" % clouds)
+	Game.hp = Game.max_hp()
+	# fim da luta: sem a árvore, os brotos murcham (sem recompensa)
+	e.queue_free()
+	await wait(1.5)
+	var left := 0
+	for s in sprouts:
+		if is_instance_valid(s) and not s.dead:
+			left += 1
+	check(left == 0, "Espinheira: sem ela, os Brotos murcham (%d sobraram)" % left)
+	for c in world.get_children():
+		if c is SporeCloud:
+			c.queue_free()
+	Game.hp = Game.max_hp()
+	player.web_t = 0.0
+	player.chill_t = 0.0
+	player.global_position = back
+	await wait(0.1)

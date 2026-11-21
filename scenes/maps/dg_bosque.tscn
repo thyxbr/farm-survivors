@@ -244,10 +244,9 @@ count = 2
 radius = 1.2
 respawn = 150.0
 
-[node name="chefe slime_rainha" type="Node3D" parent="Monstros"]
+[node name="chefe espinheira" type="Node3D" parent="Monstros"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -38)
 script = ExtResource("7_dg")
-kind = "slime_rainha"
+kind = "espinheira"
 respawn = 600.0
-elite = true
 chief = true
