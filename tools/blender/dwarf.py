@@ -13,19 +13,19 @@
 from mathutils import Vector, Matrix
 
 D_KT = 0.84                        # tronco: altura (do quadril para cima)
-D_LEG = (0.60, 1.30)               # perna: ao longo do eixo, na seção
+D_LEG = (0.60, 1.15)               # perna: ao longo do eixo, na seção
 D_FOOT = 1.0                       # pé (abaixo do tornozelo): altura; a seção segue a da perna
 D_TOE, D_TOE_R = 1.08, 0.05       # bico do pé: escala do avanço à frente de D_TOE_R (m) do eixo da perna
-D_ARM = (0.78, 1.25)               # braço: ao longo do eixo, na seção
+D_ARM = (0.78, 1.12)               # braço: ao longo do eixo, na seção
 D_HAND = 1.0                       # mão (além do punho): comprimento; a seção segue a do braço
-D_ABDUCT = math.radians(7.0)       # braço mais aberto: passa por fora da barriga e do quadril largo
-D_NECK = 1.2                       # pescoço grosso
+D_ABDUCT = math.radians(5.0)       # braço mais aberto: passa por fora da barriga e do quadril largo
+D_NECK = 1.1                       # pescoço grosso
 # largura (x) e profundidade (y) do tronco por altura (z do corpo masculino)
-D_SX = [(0.0, 1.30), (0.95, 1.30), (1.05, 1.34), (1.20, 1.36), (1.32, 1.33), (1.43, 1.30), (1.50, 1.20),
-        (3.0, 1.15)]
-D_SY = [(0.0, 1.18), (0.95, 1.18), (1.10, 1.24), (1.30, 1.24), (1.45, 1.18), (3.0, 1.12)]
+D_SX = [(0.0, 1.12), (0.95, 1.12), (1.05, 1.15), (1.20, 1.17), (1.32, 1.16), (1.43, 1.14), (1.50, 1.08),
+        (3.0, 1.05)]
+D_SY = [(0.0, 1.08), (0.95, 1.08), (1.10, 1.12), (1.30, 1.12), (1.45, 1.08), (3.0, 1.05)]
 # barriga: centro (z masculino), queda para baixo/para cima e projeção para a frente (m)
-BELLY_Z, BELLY_LO, BELLY_HI, BELLY_A = 1.10, 0.10, 0.14, 0.035
+BELLY_Z, BELLY_LO, BELLY_HI, BELLY_A = 1.10, 0.10, 0.14, 0.025
 # parâmetros da barba do anão (anime_beard): mais comprida e cheia que a do herói
 D_BEARD = {"length": 9.0, "full": 1.4}
 
@@ -176,4 +176,4 @@ def dwarf_gear(style, fn):
     return run
 
 
-DWARF_GEAR = [(n + "_d", dwarf_gear(n, f)) for n, f in GEAR if n in DWARF_STYLES]
+DWARF_GEAR = [(n + "_d", dwarf_gear(n, f)) for n, f in GEAR]          # todos os estilos (DWARF_STYLES = amostra)

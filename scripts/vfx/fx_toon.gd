@@ -1137,6 +1137,7 @@ static func slash(parent: Node3D, yaw: float, o: Dictionary, pal: Dictionary) ->
 		return
 	var fr := slash_frame(o)
 	var b: Basis = Basis(Vector3.UP, yaw) * (fr.basis as Basis)
+	var center: Vector3 = o.get("center", Vector3(0, 1.2, 0)) - Vector3(0, KnightLook.fx_drop(parent), 0)   # corpo mais baixo (anão)
 	var seed0 := randf() * 20.0
 	for layer in 2:
 		if layer == 0 and not o.get("shadow", true):
@@ -1172,7 +1173,7 @@ static func slash(parent: Node3D, yaw: float, o: Dictionary, pal: Dictionary) ->
 		s.set_instance_shader_parameter("peak", o.get("peak", 0.5))
 		s.radius = r
 		s.base = b
-		s.transform = Transform3D(b.scaled_local(Vector3.ONE * r), Basis(Vector3.UP, yaw) * (o.get("center", Vector3(0, 1.2, 0)) as Vector3))
+		s.transform = Transform3D(b.scaled_local(Vector3.ONE * r), Basis(Vector3.UP, yaw) * center)
 		parent.add_child(s)
 
 

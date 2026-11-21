@@ -42,7 +42,11 @@ const RUN_AMP := 0.8              ## na corrida
 ## Perna de referência (quadril ao tornozelo do knight.glb, m). Corpos de perna mais curta (anão) andam com
 ## passos mais curtos e mais rápidos, e o balanço e o voo do tronco, que são em metros, encolhem com a perna.
 const REF_LEG := 0.862
-const SHORT_STRIDE := 0.45        ## quanto a abertura da coxa encolhe com a perna (0 = nada; 1 = proporcional)
+const SHORT_STRIDE := 0.0         ## quanto a abertura da coxa encolhe com a perna (0 = nada; 1 = proporcional)
+## A velocidade no mundo é a mesma para todo corpo, então a perna curta pediria passos ~1,8x mais rápidos para
+## o pé não deslizar (fica frenético). A cadência cai por gait_k^SHORT_CADENCE: o anão fica ~1,1x mais rápido
+## que o humano e o pé desliza (~30%) no chão.
+const SHORT_CADENCE := 0.75
 const STRIDE_POW := 0.4           ## devagar a passada encolhe menos que a velocidade (evita pezinhos rápidos)
 ## Joelho (rad, > 0 dobra) ao longo do ciclo. Chaves [x, valor]: no apoio x = 0..1 do apoio (0 = pé toca
 ## o chão), no balanço x = 0..1 do balanço (0 = ponta do pé sai do chão). Valores de biomecânica:
@@ -643,7 +647,8 @@ static func thigh_for(r: Dictionary, d: float, knee: float) -> float:
 ## percorre a passada inteira (2 * half_stride) enquanto o corpo anda o mesmo tanto.
 static func cadence(r: Dictionary, hspeed: float, move: float, run: float) -> float:
 	var reach := maxf(half_stride(r, move, run), MIN_STRIDE)
-	return minf(hspeed * PI * gait_duty(move, run) / reach, MAX_CADENCE)
+	var k := pow(float(r.get("gait_k", 1.0)), SHORT_CADENCE)
+	return minf(hspeed * PI * gait_duty(move, run) / reach * k, MAX_CADENCE)
 
 
 ## Andando, as articulações do ciclo seguem a pose sem o atraso da suavização. `w` 0..1.

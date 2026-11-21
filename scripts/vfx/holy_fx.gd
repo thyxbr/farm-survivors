@@ -275,15 +275,16 @@ static func _flash(pos: Vector3, color: Color, energy: float, range_m: float, ti
 # ------------------------------------------------------------------ cura
 ## Cura recebida em `pos` (pés do personagem): coluna de feixes verdes, selo com a cruz no chão e
 ## brilhos subindo. `big` = Banquete do Herói.
-static func heal_burst(pos: Vector3, big := false) -> void:
+static func heal_burst(pos: Vector3, big := false, who: Node = null) -> void:
 	if FX._scene() == null:
 		return
 	# coluna suave: translúcida, pouco branco e mais vazada (opaca e cheia virava uma faixa de luz forte demais)
 	pillar(pos, PAL_LIFE, 0.8 if big else 0.52, 4.0 if big else 2.7, 0.9 if big else 0.75, {"alpha": 0.45, "core": 0.3, "dense": 0.8})
 	seal(pos, PAL_LIFE, 1.9 if big else 1.4, 1.0, {"glyph": true, "ticks": 12})
-	sparkles(pos + Vector3.UP * 0.4, PAL_LIFE, 8 if big else 6, 0.7, 2.6, 1.0, 0.32)
-	sparkles(pos + Vector3.UP * 0.9, PAL_GOLD, 3, 0.5, 2.0, 1.0, 0.24)
-	_flash(pos + Vector3.UP * 1.2, LIFE, 1.0, 4.0, 0.4)
+	# brilhos e clarão na altura do corpo de quem foi curado (`who`; o anão é mais baixo)
+	sparkles(pos + Vector3.UP * KnightLook.body_y(who, 0.4), PAL_LIFE, 8 if big else 6, 0.7, 2.6, 1.0, 0.32)
+	sparkles(pos + Vector3.UP * KnightLook.body_y(who, 0.9), PAL_GOLD, 3, 0.5, 2.0, 1.0, 0.24)
+	_flash(pos + Vector3.UP * KnightLook.body_y(who, 1.2), LIFE, 1.0, 4.0, 0.4)
 
 
 ## Pincelada de luz em arco de `from` até `target`, com um brilho na ponta; a cura estoura ao chegar.
@@ -293,7 +294,7 @@ static func heal_beam(from: Vector3, target: Node3D, burst := true) -> void:
 	var root := FX._scene()
 	if root == null or target == null or not is_instance_valid(target):
 		return
-	var end := target.global_position + Vector3.UP * 1.1
+	var end := target.global_position + Vector3.UP * KnightLook.body_y(target, 1.1)
 	var dist := from.distance_to(end)
 	var dur := clampf(dist / 20.0, 0.2, 0.6)
 	var mid := from.lerp(end, 0.5) + Vector3.UP * clampf(dist * 0.22, 0.6, 3.0)
@@ -324,9 +325,10 @@ static func heal_beam(from: Vector3, target: Node3D, burst := true) -> void:
 		_put(s, Vector3.ZERO)
 	star(from, PAL_LIFE, 0.5, {"hold": 0.05, "fade": 0.2})
 	root.get_tree().create_timer(dur).timeout.connect(func() -> void:
-		var at := (target.global_position + Vector3.UP * 1.1) if is_instance_valid(target) else end
+		var ok := is_instance_valid(target)
+		var at := (target.global_position + Vector3.UP * KnightLook.body_y(target, 1.1)) if ok else end
 		if burst:
-			heal_burst(at - Vector3.UP * 1.1)
+			heal_burst(target.global_position if ok else end - Vector3.UP * 1.1, false, target if ok else null)
 		else:
 			star(at, PAL_LIFE, 0.9, {"hold": 0.06, "fade": 0.25, "shadow": true}))
 

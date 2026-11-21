@@ -54,6 +54,45 @@ const BOW_FULL_DRAW := 0.5
 const BOW_ARROW_REST := Vector3(0.0, 0.04, 0.03)
 
 
+## Quanto os efeitos presos ao corpo (cortes da espada) descem em cada corpo (m): o ombro do anão fica ~0,4 m
+## abaixo do masculino. Medido com tools/vfx_lab.tscn -- --vfxpage=10..12 --vfxtip --body=d (centro dos arcos
+## da ponta da lâmina ~0,38 m mais baixo; o raio quase não muda, a espada é a mesma).
+const FX_DROP := {"d": 0.38}
+
+
+## Corpo do personagem de `node` (o jogador, ou um nó com o modelo como filho); "m" sem modelo.
+static func body_of_node(node: Node) -> String:
+	if node == null or not is_instance_valid(node):
+		return "m"
+	var b = node.get("model_body")
+	if b == null:
+		for c in node.get_children():
+			if c.has_meta("body"):
+				b = c.get_meta("body")
+				break
+	return body_key(b) if b != null else "m"
+
+
+## Descida dos efeitos para o personagem de `node` (o jogador, ou um nó com o modelo como filho).
+static func fx_drop(node: Node) -> float:
+	return float(FX_DROP.get(body_of_node(node), 0.0))
+
+
+## Anão (tools/blender/dwarf.py): o quadril desce de 0,95 m para 0,61 m (pernas a 0,64) e o tronco encolhe 0,84.
+const DWARF_HIP := Vector2(0.95, 0.61)
+const DWARF_TORSO := 0.84
+
+
+## Altura `y` (m acima dos pés, medida no corpo masculino: peito, ombro, cabeça) no corpo de `node`.
+## Serve para mira, alvos e efeitos presos ao corpo, que no anão ficam mais baixos.
+static func body_y(node: Node, y: float) -> float:
+	if body_of_node(node) != "d":
+		return y
+	if y <= DWARF_HIP.x:
+		return y * DWARF_HIP.y / DWARF_HIP.x
+	return DWARF_HIP.y + (y - DWARF_HIP.x) * DWARF_TORSO
+
+
 ## Corpo normalizado: "f", "d" (anão, protótipo) ou "m" (vazio ou desconhecido = masculino).
 static func body_key(body) -> String:
 	var b := str(body)

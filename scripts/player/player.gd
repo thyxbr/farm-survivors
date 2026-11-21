@@ -292,7 +292,7 @@ func _snap_visuals() -> void:
 	if back_cape != null and is_instance_valid(back_cape):
 		back_cape.reset()
 	if cam_yaw:
-		cam_yaw.global_position = global_position + Vector3.UP * 1.55
+		cam_yaw.global_position = global_position + Vector3.UP * KnightLook.body_y(self, 1.55)
 
 
 func _check_teleport() -> void:
@@ -676,7 +676,7 @@ func _take_blocked(amount: float, from_pos: Vector3) -> void:
 	if amount >= 0.5:
 		var chip: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
 		Game.hp -= chip
-		FX.damage_number(global_position + Vector3.UP * 2.0, str(int(round(chip))), Color(0.75, 0.8, 0.9), 44)
+		FX.damage_number(global_position + Vector3.UP * KnightLook.body_y(self, 2.0), str(int(round(chip))), Color(0.75, 0.8, 0.9), 44)
 	Game.stats_changed.emit()
 	if Game.hp <= 0:
 		_die()
@@ -697,7 +697,7 @@ func _block_fx(from_pos: Vector3) -> void:
 	var to := from_pos - global_position
 	to.y = 0
 	var side := to.normalized() if to.length() > 0.01 else facing()
-	FX.burst(global_position + Vector3.UP * 1.05 + side * 0.45, Color(1.0, 0.85, 0.45), 14, 3.5, 0.08, 0.35)
+	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 1.05) + side * 0.45, Color(1.0, 0.85, 0.45), 14, 3.5, 0.08, 0.35)
 	Sfx.play("sword_hit", 0.12, -2.0)
 	add_shake(0.12 + 0.05 * minf(_block_chain, 4))
 
@@ -893,14 +893,14 @@ func spell_origin() -> Vector3:
 	var hand := model.find_child("ArmL_Hand", true, false) as MeshInstance3D
 	if hand and hand.is_inside_tree():
 		return hand.global_transform * hand.get_aabb().get_center() + facing() * 0.25
-	return global_position + Vector3.UP * 1.3 + facing() * 0.6
+	return global_position + Vector3.UP * KnightLook.body_y(self, 1.3) + facing() * 0.6
 
 
 func weapon_tip() -> Vector3:
 	var tip: Node3D = look.get("tip")
 	if tip and is_instance_valid(tip) and tip.is_inside_tree():
 		return tip.global_position
-	return global_position + Vector3.UP * 1.3 + facing() * 0.6
+	return global_position + Vector3.UP * KnightLook.body_y(self, 1.3) + facing() * 0.6
 
 
 ## Cajado: faísca arcana; o 3º golpe do combo dispara um leque de 3 mais fortes.
@@ -983,7 +983,7 @@ func _update_bow(delta: float) -> void:
 func _update_aim_pitch() -> void:
 	var pitch := 0.0
 	if not remote and camera and ability != "bow_gale":   # o Vendaval sai na horizontal: o braço também
-		var shoulder := global_position + Vector3.UP * 1.42
+		var shoulder := global_position + Vector3.UP * KnightLook.body_y(self, 1.42)
 		pitch = clampf(asin(clampf(aim_dir(shoulder).y, -1.0, 1.0)), -0.9, 0.9)
 	parts["aim_pitch"] = lerpf(float(parts.get("aim_pitch", 0.0)), pitch, 0.35)
 
@@ -1167,7 +1167,7 @@ func receive_heal(amount: float) -> void:
 	var gained := minf(amount, Game.max_hp() - Game.hp)
 	Game.hp = min(Game.max_hp(), Game.hp + amount)
 	_heal_fx()
-	FX.damage_number(global_position + Vector3.UP * 2.2, "+%d" % maxf(gained, 0.0), Color(0.4, 1.0, 0.5))
+	FX.damage_number(global_position + Vector3.UP * KnightLook.body_y(self, 2.2), "+%d" % maxf(gained, 0.0), Color(0.4, 1.0, 0.5))
 	Game.stats_changed.emit()
 
 
@@ -1243,12 +1243,12 @@ func _find_heal_target() -> Node3D:
 	for p in get_tree().get_nodes_in_group("players"):
 		if p == self or not p.remote or p.dead or not p.is_visible_in_tree():
 			continue
-		var chest: Vector3 = p.global_position + Vector3.UP * 1.0
+		var chest: Vector3 = p.global_position + Vector3.UP * KnightLook.body_y(p, 1.0)
 		if chest.distance_to(global_position) > HEAL_RANGE or camera.is_position_behind(chest):
 			continue
 		# a silhueta toda conta: peito, cabeça e pés
 		var d := camera.unproject_position(chest).distance_to(center)
-		d = minf(d, camera.unproject_position(p.global_position + Vector3.UP * 1.9).distance_to(center))
+		d = minf(d, camera.unproject_position(p.global_position + Vector3.UP * KnightLook.body_y(p, 1.9)).distance_to(center))
 		d = minf(d, camera.unproject_position(p.global_position + Vector3.UP * 0.25).distance_to(center))
 		if d < best_d and _sees(p, chest):
 			best = p
@@ -1483,7 +1483,7 @@ func _frost_fx(radius: float) -> void:
 
 
 func _heal_fx() -> void:
-	HolyFX.heal_burst(global_position)
+	HolyFX.heal_burst(global_position, false, self)
 	Sfx.play_at("heal", global_position, 0.0)
 
 
@@ -1503,10 +1503,10 @@ func _on_food_eaten(id: String) -> void:
 	var it := ItemDB.get_item(id)
 	var c: Color = it.get("color", ItemDB.CROPS[id].color if ItemDB.CROPS.has(id) else Color(0.6, 1, 0.5))
 	Sfx.play("eat", 0.1)
-	FX.burst(global_position + Vector3.UP * 1.5, c, 18, 2.2, 0.08, 0.6, -4.0)
+	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 1.5), c, 18, 2.2, 0.08, 0.6, -4.0)
 	if it.has("buff"):
 		FX.ring(global_position, Color(c.r, c.g, c.b, 0.85), 2.2, 0.5)
-		FX.burst(global_position + Vector3.UP * 0.3, c, 30, 3.5, 0.1, 1.0, 3.0)
+		FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 0.3), c, 30, 3.5, 0.1, 1.0, 3.0)
 		Sfx.play("heal", 0.0, -5.0)
 	match it.get("special", ""):
 		"fire_nova":
@@ -1519,8 +1519,8 @@ func _on_food_eaten(id: String) -> void:
 func _food_fire_nova() -> void:
 	var radius := 7.5
 	FX.ring(global_position, Color(1, 0.45, 0.1, 0.95), radius, 0.55)
-	FX.burst(global_position + Vector3.UP * 0.6, Color(1, 0.5, 0.1), 70, 10.0, 0.16, 0.8, -1.0)
-	FX.burst(global_position + Vector3.UP * 1.0, Color(1, 0.85, 0.3), 40, 6.0, 0.12, 0.6, 2.0)
+	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 0.6), Color(1, 0.5, 0.1), 70, 10.0, 0.16, 0.8, -1.0)
+	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 1.0), Color(1, 0.85, 0.3), 40, 6.0, 0.12, 0.6, 2.0)
 	Sfx.play("explode", 0.05)
 	add_shake(0.35)
 	var dmg := (40.0 + Game.level * 6.0 + Game.spell_power() * 2.0) * Game.damage_mult()
@@ -1576,7 +1576,7 @@ func apply_web(secs: float) -> void:
 	if web_t <= 0.0:
 		Game.notify.emit("Preso na teia! Mal consegue andar.", Color(0.9, 0.9, 0.95))
 	web_t = maxf(web_t, secs)
-	FX.burst(global_position + Vector3.UP * 0.8, Color(0.92, 0.92, 0.96), 18, 2.0, 0.12, 0.7)
+	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 0.8), Color(0.92, 0.92, 0.96), 18, 2.0, 0.12, 0.7)
 
 
 func take_damage(amount: float, from_pos: Vector3) -> void:
@@ -1614,7 +1614,7 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 			velocity.x = kb.x
 			velocity.z = kb.z
 		velocity.y = 3.0
-	FX.damage_number(global_position + Vector3.UP * 2.0, str(int(round(final_dmg))), Color(1, 0.3, 0.25), 56)
+	FX.damage_number(global_position + Vector3.UP * KnightLook.body_y(self, 2.0), str(int(round(final_dmg))), Color(1, 0.3, 0.25), 56)
 	FX.burst(global_position + Vector3.UP, Color(0.8, 0.05, 0.05), 12, 3.0)
 	Sfx.play("hurt")
 	add_shake(0.3)
@@ -1762,7 +1762,7 @@ func apply_look(l: Dictionary) -> void:
 
 func _on_level_up(_lvl: int) -> void:
 	Sfx.play("levelup", 0.0)
-	FX.burst(global_position + Vector3.UP * 0.2, Color(1, 0.85, 0.3), 60, 6.0, 0.12, 1.2, 3.0)
+	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 0.2), Color(1, 0.85, 0.3), 60, 6.0, 0.12, 1.2, 3.0)
 	FX.ring(global_position, Color(1, 0.85, 0.3, 0.9), 3.0, 0.8)
 
 

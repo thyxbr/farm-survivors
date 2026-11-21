@@ -90,6 +90,10 @@ func _knight(i: int, n: int, look: Dictionary, caption: String) -> Dictionary:
 	add_child(pivot)
 	pivot.position = Vector3((i - (n - 1) / 2.0) * SPACING, 0, 0)
 	var m := KNIGHT.instantiate() as Node3D
+	for a in OS.get_cmdline_user_args():     # `--body=f|d`: mede no corpo feminino / do anão
+		if a.begins_with("--body="):
+			m.free()
+			m = KnightLook.instance(a.substr(7))
 	pivot.add_child(m)
 	var lk := KnightLook.apply(m, look)
 	var lbl := Label3D.new()

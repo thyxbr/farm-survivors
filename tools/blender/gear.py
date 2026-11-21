@@ -2155,7 +2155,7 @@ def build_robe(style, A):
     join_objs("Skirt", list(sk_soft) + list(sk_orn))
     join_objs("Mantle", list(soft) + list(orn))
     g_galaxy_uv(style)
-    export("gear/" + style, export_vertex_color='ACTIVE')
+    g_export_skinned(style)          # no corpo feminino/anão deforma antes e exporta _f/_d (não sobrescreve o masculino)
 
 
 def build_a_archmage():

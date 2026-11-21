@@ -503,14 +503,14 @@ static func best_weapon_of(s: CharState, bt: BalanceTables, wclass: String) -> S
 	return best
 
 
-## Escolha única da classe, do corpo ("m"/"f") e do penteado (HairStyles; "" = padrão do corpo) na criação.
+## Escolha única da classe, do corpo ("m"/"f"/"d" = anão) e do penteado (HairStyles; "" = padrão do corpo) na criação.
 ## A arma passa a ser do tipo da classe: fica a que já serve, senão a melhor que o personagem tem, senão a arma
 ## inicial da classe.
 static func choose_class(s: CharState, bt: BalanceTables, cls: String, body: String, hair := "") -> Dictionary:
 	if s.char_class != "":
 		return _fail("ja_tem_classe")
 	var def: Dictionary = bt.get_table("classes").get(cls, {})
-	if not (cls in CLASS_IDS) or def.is_empty() or not (body in ["m", "f"]):
+	if not (cls in CLASS_IDS) or def.is_empty() or not (body in ["m", "f", "d"]):
 		return _fail("classe_invalida")
 	if hair != "" and not HairStyles.valid(body, hair):
 		return _fail("penteado_invalido")
