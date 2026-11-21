@@ -30,10 +30,10 @@ void fragment() {
 		discard;
 	}
 	float flow = noise(vec2(UV.x * 3.0 + seed, along * 1.2 - TIME * 0.7));
-	float core = smoothstep(0.12, 0.5, body + flow * 0.22 - 0.1);
+	float core = smoothstep(0.2, 0.6, body + flow * 0.22 - 0.1);
 	vec3 crust = vec3(0.1, 0.012, 0.03);
 	vec3 rim = vec3(0.86, 0.1, 0.16);
-	vec3 hot = mix(vec3(0.8, 0.12, 0.05), mix(vec3(1.0, 0.5, 0.1), vec3(1.0, 0.86, 0.45), flow), heat);
+	vec3 hot = mix(vec3(0.62, 0.08, 0.05), mix(vec3(0.95, 0.3, 0.04), vec3(1.0, 0.6, 0.12), flow), heat);
 	vec3 col = mix(crust, rim, smoothstep(0.02, 0.14, body));
 	col = mix(col, hot, core);
 	ALBEDO = col;
