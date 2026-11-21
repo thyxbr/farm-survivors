@@ -137,6 +137,9 @@ var _wolf_rest := {}
 var _gait_ph := 0.0
 var _gait_amp := 0.0
 var _crow_ph := 0.0
+## Relógio da animação (soma o delta de _animate): o ciclo parado (respirar, abanar a cauda) segue o mesmo tempo
+## no jogo e no laboratório (tools/monster_lab.tscn).
+var _life_t := 0.0
 ## Toupeira-Broca (ai "burrow"): segundos debaixo da terra, segundos na superfície desde que saiu, o monte de
 ## terra que anda por cima dela e a camada de colisão normal (zerada enquanto está enterrada).
 var dig_t := 0.0
@@ -224,6 +227,7 @@ func _ready() -> void:
 		for sd in WOLF_SIDES:
 			for b in ["Leg", "Knee", "Paw", "Foot"]:
 				parts[b + sd] = model.find_child(b + sd, true, false)
+		parts["Tail2"] = model.find_child("Tail2", true, false)
 	if data.model == "crow":   # Gralha: asa em três ossos (ombro, cotovelo, punho) e a cauda
 		for n in ["WingL2", "WingL3", "WingR2", "WingR3"]:
 			parts[n] = model.find_child(n, true, false)
@@ -2134,6 +2138,7 @@ func _puppet_process(delta: float) -> void:
 
 # ------------------------------------------------------------ animação procedural
 func _animate(delta: float, hspeed: float) -> void:
+	_life_t += delta
 	anim_t += delta * (3.0 + hspeed * 2.0)
 	var s := sin(anim_t)
 	var k := 1.0 - exp(-12.0 * delta)
@@ -2655,20 +2660,24 @@ func _animate_wolf(delta: float, hspeed: float) -> void:
 	var kf := 1.0 - exp(-30.0 * delta)
 	_gait_amp = lerpf(_gait_amp, clampf(hspeed / 5.0, 0.0, 1.0), 1.0 - exp(-6.0 * delta))
 	var amp := _gait_amp
-	var freq := 0.6 + hspeed * 0.4                        # passadas por segundo
+	var freq := 0.45 + hspeed * 0.2                       # passadas por segundo (1,6 no trote de caça)
 	_gait_ph = fmod(_gait_ph + delta * freq, 1.0)
-	var stride := clampf(hspeed / maxf(freq, 0.1) * 0.55, 0.0, 0.8)
+	var stride := clampf(hspeed / maxf(freq, 0.1) * 0.55, 0.0, 1.0)
 	var lift := 0.06 + 0.1 * amp
 	var ph := _gait_ph * TAU
-	var tt := Time.get_ticks_msec() / 1000.0 + float(_uid() % 13)
+	var tt := _life_t + float(_uid() % 13)
 	# corpo: quica duas vezes por passada, balança um pouco o nariz; parado respira
 	var dy := -0.02 * amp + 0.03 * amp * cos(ph * 2.0) + 0.008 * sin(tt * 1.6) * (1.0 - amp)
 	var pitch := 0.035 * amp * sin(ph)
 	var head_x := 0.14 * amp - pitch * 0.8 + 0.05 * amp * sin(ph * 2.0 + 0.6) + 0.03 * sin(tt * 0.5) * (1.0 - amp)
 	var head_y := sin(tt * 0.37) * 0.22 * (1.0 - amp)
-	var jaw := 0.06 + maxf(0.0, sin(tt * 4.0)) * 0.16 * (1.0 - amp) + 0.1 * amp
-	var tail_y := sin(ph - 0.8) * 0.25 * amp + sin(tt * 1.3) * 0.18 * (1.0 - amp)
-	var tail_x := -0.05 - 0.15 * amp + 0.06 * sin(ph * 2.0 - 1.0) * amp
+	var jaw := 0.02 + maxf(0.0, sin(tt * 4.0)) * 0.07 * (1.0 - amp) + 0.05 * amp
+	# cauda: a base balança com a passada (parado, abana devagar) e a ponta vem atrasada e mais aberta
+	var wag := 1.15
+	var tail_y := sin(ph - 0.8) * 0.35 * amp + sin(tt * wag) * 0.3 * (1.0 - amp)
+	var tail2_y := sin(ph - 1.9) * 0.5 * amp + sin(tt * wag - 1.0) * 0.45 * (1.0 - amp)
+	var tail_x := -0.05 - 0.2 * amp + 0.08 * sin(ph * 2.0 - 1.0) * amp
+	var tail2_x := 0.1 * sin(ph * 2.0 - 2.0) * amp + 0.05 * sin(tt * 0.7) * (1.0 - amp)
 	# apoios: deslocamento (dz para a frente, dyf para cima) e inclinação do último osso por pata
 	var feet := {}
 	for sd in WOLF_SIDES:
@@ -2694,11 +2703,13 @@ func _animate_wolf(delta: float, hspeed: float) -> void:
 		var back := smoothstep(0.6, 1.0, t)
 		head_y = 0.0
 		tail_y = 0.0
+		tail2_y = 0.0
+		tail2_x = -0.15
 		if t < 0.35:          # agacha: peito e quadril descem com as patas no chão, cabeça baixa mirando, boca abre
 			dy = -0.15 * crouch
 			pitch = 0.05 * crouch
 			head_x = 0.18 * crouch
-			jaw = 0.65 * crouch
+			jaw = 0.38 * crouch
 			tail_x = 0.15 * crouch
 			for sd in WOLF_SIDES:
 				feet[sd] = [0.0, 0.0, 0.0]
@@ -2706,7 +2717,7 @@ func _animate_wolf(delta: float, hspeed: float) -> void:
 			dy = lerpf(-0.15, 0.04, leap) + 0.16 * sin(PI * leap)
 			pitch = lerpf(0.0, 0.12, leap)
 			head_x = 0.22
-			jaw = 0.0 if t >= _hit_time() else 0.8
+			jaw = 0.0 if t >= _hit_time() else 0.45
 			tail_x = -0.25
 			for sd in WOLF_SIDES:
 				if sd.begins_with("F"):
@@ -2717,7 +2728,7 @@ func _animate_wolf(delta: float, hspeed: float) -> void:
 			dy = lerpf(0.04, 0.0, back)
 			pitch = lerpf(0.12, 0.0, back)
 			head_x = lerpf(0.22, 0.05, back)
-			jaw = lerpf(0.0, 0.15, back)
+			jaw = lerpf(0.0, 0.06, back)
 			tail_x = lerpf(-0.25, -0.05, back)
 			for sd in WOLF_SIDES:
 				var f0: Array = [0.5, 0.0, 0.0] if sd.begins_with("F") else [-0.3, 0.08, 0.4]
@@ -2728,8 +2739,11 @@ func _animate_wolf(delta: float, hspeed: float) -> void:
 		pitch = -0.3 * u          # senta nas traseiras: o peito sobe, o quadril desce
 		head_x = -0.75 * u
 		head_y = 0.0
-		jaw = 0.6 * u
+		jaw = 0.4 * u
 		tail_x = 0.25 * u
+		tail2_x = 0.2 * u
+		tail_y *= 1.0 - u
+		tail2_y *= 1.0 - u
 		for sd in WOLF_SIDES:
 			feet[sd] = [0.0, 0.0, 0.0]
 
@@ -2754,6 +2768,10 @@ func _animate_wolf(delta: float, hspeed: float) -> void:
 	if parts.Tail:
 		parts.Tail.rotation.y = lerpf(parts.Tail.rotation.y, tail_y, k)
 		parts.Tail.rotation.x = lerpf(parts.Tail.rotation.x, tail_x, k)
+	var tail2: Node3D = parts.get("Tail2")
+	if tail2:
+		tail2.rotation.y = lerpf(tail2.rotation.y, tail2_y, k)
+		tail2.rotation.x = lerpf(tail2.rotation.x, tail2_x, k)
 
 
 ## Gralha-de-Cristal: batida de asa em onda (o ombro puxa, o cotovelo e o punho vêm atrasados), dobrando a asa para
@@ -2761,7 +2779,7 @@ func _animate_wolf(delta: float, hspeed: float) -> void:
 ## asa, a cabeça compensa e a cauda abre e fecha. Tiro: empina com as asas no alto e, no disparo, dá uma batida forte
 ## para baixo esticando a cabeça para a frente.
 func _animate_crow(delta: float, hspeed: float, k: float) -> void:
-	var tt := Time.get_ticks_msec() / 1000.0 + float(_uid() % 11)
+	var tt := _life_t + float(_uid() % 11)
 	var glide := smoothstep(0.55, 0.9, sin(tt * 0.45)) * (1.0 - clampf(hspeed / 6.0, 0.0, 0.6))
 	var freq := 2.3 + clampf(hspeed / 5.0, 0.0, 1.0) * 0.6
 	_crow_ph = fmod(_crow_ph + delta * freq * TAU * (1.0 - 0.7 * glide), TAU)
@@ -2829,7 +2847,7 @@ func _animate_yeti(delta: float, hspeed: float, k: float) -> void:
 	var kf := 1.0 - exp(-30.0 * delta)
 	var amp := clampf(hspeed / 2.6, 0.0, 1.0)
 	var ph := anim_t
-	var tt := Time.get_ticks_msec() / 1000.0 + float(_uid() % 7)
+	var tt := _life_t + float(_uid() % 7)
 	var leg := 0.42 * sin(ph) * amp
 	var roll := 0.07 * sin(ph) * amp
 	var bob := 0.04 * absf(cos(ph)) * amp

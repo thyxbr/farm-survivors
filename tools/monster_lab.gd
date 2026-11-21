@@ -2,6 +2,7 @@ extends Node3D
 ## Laboratório de animação dos monstros: monta um Enemy de verdade (mesmo modelo e mesmo _animate do jogo), desliga
 ## a IA e roda a animação de um modo, salvando uma folha de quadros vista de lado e de 3/4.
 ##   godot --path . res://tools/monster_lab.tscn -- --kind=lobo_geada --mode=walk --out=lab.png [--frames=8] [--span=1.0]
+##   [--focus=Head --zoom=0.9]   (close de um pivô; zoom = altura da vista em metros)
 ## Modos: idle, walk (anda na velocidade do tipo), run (1,5x), attack (o ataque comum do tipo: lunge, swing, slam,
 ## shoot ou howl com --attack=<tipo>); span = segundos cobertos pela folha (para o ataque, a duração dele).
 
@@ -14,6 +15,8 @@ var out := "lab.png"
 var frames := 8
 var span := 1.0
 var attack := ""
+var focus := ""
+var zoom := 1.0
 var e: Enemy
 var cams: Array[Camera3D] = []
 
@@ -32,6 +35,10 @@ func _ready() -> void:
 			span = float(a.substr(7))
 		elif a.begins_with("--attack="):
 			attack = a.substr(9)
+		elif a.begins_with("--focus="):     # close de um pivô (ex.: Head), com --zoom=<tamanho da vista em m>
+			focus = a.substr(8)
+		elif a.begins_with("--zoom="):
+			zoom = float(a.substr(7))
 	get_window().size = Vector2i(W, H)
 	var env := WorldEnvironment.new()
 	env.environment = Environment.new()
@@ -69,9 +76,14 @@ func _ready() -> void:
 		first = false
 	var hgt := box.get_center().y * 2.0
 	var size := maxf(box.size.length() * 1.05, 2.6)
+	var aim := Vector3(0, hgt * 0.5, 0)
+	if focus != "" and e.model.find_child(focus, true, false):
+		aim = (e.model.find_child(focus, true, false) as Node3D).global_position
+		size = zoom
+		hgt = aim.y * 2.0
 	# câmeras: de lado (olhando para -X, frente à direita), de 3/4 por cima (como a do jogo) e de frente
-	for spec in [[Vector3(10, hgt * 0.5, 0), Vector3(0, hgt * 0.5, 0)], [Vector3(6, 7, 6), Vector3(0, hgt * 0.4, 0)],
-			[Vector3(0, hgt * 0.5, 10), Vector3(0, hgt * 0.5, 0)]]:
+	for spec in [[aim + Vector3(10, 0, 0), aim], [aim + Vector3(6, 7, 6), aim - Vector3(0, hgt * 0.1, 0)],
+			[aim + Vector3(0, 0, 10), aim]]:
 		var cam := Camera3D.new()
 		cam.projection = Camera3D.PROJECTION_ORTHOGONAL
 		cam.size = size

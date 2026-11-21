@@ -8,7 +8,7 @@
 # Lobo magro de pelo azul-gelo (~0,85 m na cernelha), barriga clara, cauda espessa com a ponta branca, colar de pelo
 # eriçado no pescoço e uma crista de cristais de gelo da nuca até o meio das costas; olhos gelados acesos.
 # Pivôs animados por scripts/enemies/enemy.gd (_animate_wolf): Body (tronco), Head (dentro de Body), Jaw (dentro de
-# Head), Tail (dentro de Body) e as patas LegFL, LegFR, LegBL, LegBR (na raiz; o ombro/quadril é uma massa enterrada no
+# Head), Tail > Tail2 (a cauda em dois ossos, dentro de Body) e as patas LegFL, LegFR, LegBL, LegBR (na raiz; o ombro/quadril é uma massa enterrada no
 # tronco), cada uma com Knee<lado> (cotovelo/joelho) > Paw<lado> (punho/jarrete) e o marcador Foot<lado> no apoio.
 def build_wolf():
     fur = mat("w_fur", hexc("#7C93A8"), 0.9)
@@ -63,13 +63,20 @@ def build_wolf():
         _crystal("Spine%d" % k, base, (dx * 6.0, lean, 1.0), ln, rr, (crys, crys_d), body)
 
     # ---------------- cauda grossa e peluda, pendurada em curva, mais cheia no meio e com a ponta clara
-    tail = empty("Tail", (0, 0.58, 0.82), body)
-    tsecs = dense([sec((0, 0.5, 0.82), 0.06, 0.06), sec((0, 0.64, 0.83), 0.07, 0.07),
-                   sec((0, 0.78, 0.78), 0.1, 0.1), sec((0, 0.9, 0.66), 0.115, 0.11),
-                   sec((0, 0.97, 0.52), 0.1, 0.095), sec((0, 1.0, 0.4), 0.06, 0.06),
-                   sec((0, 1.0, 0.33), 0.012, 0.012)], 22)
-    sloft("TailMesh", tsecs, fur, tail, sides=14, fwd=(0, 0, 1), mats=(fur_d, belly),
-          matf=lambda i, j: 2 if i >= 17 else (1 if j in (2, 3, 4, 5) and i < 15 else 0), sharp=80.0)
+    # dois ossos: Tail (na garupa, dentro do tronco) e Tail2 (no meio, leva a metade de baixo e a ponta), com uma bola
+    # de pelo na junta; a ponta balança atrasada em relação à base
+    tail = empty("Tail", (0, 0.56, 0.82), body)
+    mid = Vector((0, 0.86, 0.72))
+    tail2 = empty("Tail2", mid, tail)
+    sloft("TailMesh", dense([sec((0, 0.5, 0.82), 0.06, 0.06), sec((0, 0.64, 0.83), 0.07, 0.07),
+                             sec((0, 0.78, 0.79), 0.1, 0.1), sec(mid, 0.11, 0.105),
+                             sec(mid + Vector((0, 0.03, -0.04)), 0.1, 0.095)], 14), fur, tail, sides=14, fwd=(0, 0, 1),
+          mats=(fur_d,), matf=lambda i, j: 1 if j in (2, 3, 4, 5) else 0, sharp=80.0)
+    _blob("TailBall", mid, 0.104, 0.1, 0.104, fur, tail2, sides=14, rings=8)
+    t2 = dense([sec(mid + Vector((0, -0.02, 0.03)), 0.1, 0.095), sec(mid, 0.11, 0.105), sec((0, 0.95, 0.58), 0.11, 0.1),
+                sec((0, 0.99, 0.46), 0.08, 0.075), sec((0, 1.0, 0.38), 0.045, 0.045), sec((0, 1.0, 0.33), 0.01, 0.01)], 16)
+    sloft("TailTip", t2, fur, tail2, sides=14, fwd=(0, 0, 1), mats=(fur_d, belly),
+          matf=lambda i, j: 2 if i >= 9 else (1 if j in (2, 3, 4, 5) else 0), sharp=80.0)
 
     # ---------------- cabeça: crânio largo com bochechas, testa marcada, focinho afinando, nariz, orelhas grandes
     head = empty("Head", (0, -0.56, 1.1), body)
@@ -82,23 +89,18 @@ def build_wolf():
                    sec((0, -1.01, 1.11), 0.04, 0.042, bk=0.85),
                    sec((0, -1.03, 1.11), 0.01, 0.01)], 22, cut=2)
     in_mouth = lambda i: skull[min(i, len(skull) - 1)]["c"].y < -0.8
-    sloft("Skull", skull, fur, head, sides=SIDES, fwd=up, mats=(fur_d, belly),
-          matf=lambda i, j: 2 if (j in BELLY and skull[min(i, len(skull) - 1)]["c"].y < -0.62) else
-          1 if (j in TOP and skull[min(i, len(skull) - 1)]["c"].y > -0.9) else 0, sharp=80.0)
-    # lábio escuro: a linha da boca é a borda de baixo do focinho, curta, e some nas bochechas
-    for s, nm in ((1, "L"), (-1, "R")):
-        lip = [surf(skull, y, -38, -0.004) for y in (-0.8, -0.88, -0.96, -1.0)]
-        for p in lip:
-            p.x *= s
-        curve("Lip" + nm, lip, 0.007, 0.004, mouth, head, sides=6)
+    # embaixo do focinho, o céu da boca é escuro (aparece com a boca aberta); os lados de baixo e a garganta, claros
+    def skmat(i, j):
+        y = skull[min(i, len(skull) - 1)]["c"].y
+        if j in (14, 15, 16) and y < -0.78:
+            return 3
+        if j in BELLY and y < -0.62:
+            return 2
+        if j in TOP and y > -0.9:
+            return 1
+        return 0
+    sloft("Skull", skull, fur, head, sides=SIDES, fwd=up, mats=(fur_d, belly, mouth), matf=skmat, sharp=80.0)
     _blob("Nose", surf(skull, -1.0, 35, -0.004), 0.034, 0.03, 0.026, nose, head, sides=14, rings=8)
-    # bochechas de pelo claro abrindo para trás e para baixo (cara de lobo)
-    for s, nm in ((1, "L"), (-1, "R")):
-        p0 = surf(skull, -0.68, -20, -0.035)
-        p0.x *= s
-        p1 = p0 + Vector((s * 0.03, 0.11, -0.035))
-        sloft("Cheek" + nm, dense([sec(p0, 0.045, 0.035), sec(p0.lerp(p1, 0.55) + Vector((s * 0.008, 0, 0)), 0.035, 0.026),
-                                   sec(p1, 0.006, 0.006)], 10), belly, head, sides=12, fwd=up, sharp=80.0)
     # orelhas grandes em ponta, de base larga e funda, viradas para a frente; dentro claro
     for s, nm in ((1, "L"), (-1, "R")):
         b0 = surf(skull, -0.6, 90 - s * 42, -0.03)
@@ -123,20 +125,27 @@ def build_wolf():
             p = surf(skull, y, -50, -0.006)
             p.x *= s
             tip("Fang%s%d" % (nm, k), p, p + Vector((0, -0.004, -ln)), 0.011, fang, head)
-    # mandíbula estreita sob o focinho, clara por fora, boca escura por dentro
-    jaw = empty("Jaw", (0, -0.76, 1.08), head)
+    # mandíbula: dobradiça atrás do canto da boca (dentro da cabeça), corpo grosso afinando até o queixo; encaixa sob
+    # o focinho com a boca fechada. Por fora pelo (lados) e claro (embaixo); por cima, a boca escura com a língua.
+    jaw = empty("Jaw", (0, -0.66, 1.075), head)
     jraw = []
-    for y, w, h in ((-0.74, 0.7, 0.032), (-0.82, 0.68, 0.03), (-0.9, 0.64, 0.026), (-0.96, 0.6, 0.02),
-                    (-0.995, 0.42, 0.012)):
+    # o topo da mandíbula sobe por dentro do focinho (metade da altura dela fica escondida): fechada, não abre fresta
+    # nos lados, onde o focinho é redondo
+    for y, w, h in ((-0.6, 0.8, 0.062), (-0.68, 0.86, 0.058), (-0.78, 0.86, 0.05), (-0.88, 0.84, 0.042),
+                    (-0.95, 0.8, 0.033), (-0.99, 0.66, 0.022), (-1.005, 0.35, 0.01)):
         bot = surf(skull, y, -90).z
-        jraw.append(sec((0, y, bot - h * 0.5), surf(skull, y, 0).x * w, h, bk=1.2))
-    jsecs = dense(jraw, 12, cut=1)
-    sloft("JawMesh", jsecs, belly, jaw, sides=12, fwd=up, mats=(mouth,),
-          matf=lambda i, j: 1 if (j in (1, 2, 3, 4) and 1 <= i <= 10) else 0, sharp=80.0)
+        jraw.append(sec((0, y, bot - h * 0.45), surf(skull, y, 0).x * w, h))
+    jsecs = dense(jraw, 16, cut=1)
+    sloft("JawMesh", jsecs, fur, jaw, sides=16, fwd=up, mats=(belly, mouth),
+          matf=lambda i, j: 2 if (j in (3, 4, 5) and i <= 13) else 1 if j in (10, 11, 12, 13, 14) else 0, sharp=80.0)
+    tg = [surf(jsecs, y, 90, -0.012) for y in (-0.66, -0.78, -0.9, -0.96)]
+    sloft("Tongue", dense([sec(tg[0], 0.04, 0.012), sec(tg[1], 0.038, 0.012), sec(tg[2], 0.03, 0.01),
+                           sec(tg[3], 0.012, 0.006)], 10), mouth, jaw, sides=10, fwd=up, sharp=80.0)
     for s in (1, -1):
-        p = surf(jsecs, -0.93, 60, -0.004)
-        p.x *= s
-        tip("LowFang%d" % (0 if s > 0 else 1), p, p + Vector((0, 0.002, 0.028)), 0.009, fang, jaw)
+        for k, (y, ln) in enumerate(((-0.95, 0.03), (-0.86, 0.016))):
+            p = surf(jsecs, y, 65, -0.004)
+            p.x *= s
+            tip("LowFang%d%d" % (0 if s > 0 else 1, k), p, p + Vector((0, 0.002, ln)), 0.009, fang, jaw)
 
     # ---------------- patas em três ossos: Leg (ombro/quadril, a massa enterrada no tronco) > Knee (cotovelo/joelho) >
     # Paw (punho/jarrete, com a pata). Cada osso é um tubo liso só; na junta, o osso de baixo começa com uma bola do
