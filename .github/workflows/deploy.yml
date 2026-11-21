@@ -21,29 +21,21 @@ jobs:
   # Os testes rodam em paralelo, um job por grupo (cada um baixa o Godot do cache e importa os assets, ~30 s):
   # o tempo total é o do grupo mais lento (o smoke test do mundo) e não a soma. Os jobs seguintes têm
   # `needs: test`, que espera todos os grupos.
-  # A Horda do smoke test roda à parte e não segura o deploy (continue-on-error): o conteúdo está parado e
-  # as checagens dela ainda falham de vez em quando. O job fica vermelho na lista para a falha aparecer.
+  # O Desafio da Horda está desligado (Game.HORDE_ENABLED): a parte horda do smoke test não roda.
   test:
     name: Testes (${{ matrix.name }})
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    continue-on-error: ${{ matrix.optional }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - suite: rapidos
             name: unitários, modelos e vila
-            optional: false
           - suite: mundo
             name: smoke test do mundo
-            optional: false
-          - suite: horda
-            name: smoke test da Horda, não bloqueia
-            optional: true
           - suite: multiplayer
             name: multiplayer
-            optional: false
     steps:
       - uses: actions/checkout@v4
 
@@ -84,14 +76,10 @@ jobs:
         if: matrix.suite == 'rapidos'
         run: timeout 300 godot --headless --path . -s tests/unit/run.gd
 
-      # o smoke test em duas partes (tests/smoke_test.gd, --smoke-part): o mundo e o Desafio da Horda
+      # o smoke test, parte do mundo (tests/smoke_test.gd, --smoke-part); a parte horda fica de fora enquanto a Horda está desligada
       - name: Teste de gameplay (smoke test, mundo)
         if: matrix.suite == 'mundo'
         run: timeout 600 godot --headless --path . res://scenes/world.tscn -- --smoketest --smoke-part=mundo
-
-      - name: Teste de gameplay (smoke test, Horda)
-        if: matrix.suite == 'horda'
-        run: timeout 300 godot --headless --path . res://scenes/world.tscn -- --smoketest --smoke-part=horda
 
       - name: Teste do modelo do ferreiro (esqueleto e clipes)
         if: matrix.suite == 'rapidos'
@@ -106,7 +94,7 @@ jobs:
         run: timeout 120 godot --headless --path . res://tests/gait_test.tscn
 
       # a vila no solo: bairros, Mestre Orin e quadro de recordes, Ecos, passiva, Papai Noel e os quatro
-      # eventos de Natal, Horda pelo portal da vila e a tela de carregamento
+      # eventos de Natal e a tela de carregamento
       - name: Teste da vila (solo)
         if: matrix.suite == 'rapidos'
         run: timeout 300 godot --headless --path . res://scenes/world.tscn -- --vilatest
@@ -117,10 +105,10 @@ jobs:
         if: matrix.suite == 'multiplayer'
         run: |
           db=$(mktemp --suffix=.db); rm -f "$db"
-          godot --headless --path . -- --server --port=7790 --http-port=8790 --db="$db" --test --horde-round=8 --horde-pick=5 --clock-offset=2500 > server.log 2>&1 &
+          godot --headless --path . -- --server --port=7790 --http-port=8790 --db="$db" --test --clock-offset=2500 > server.log 2>&1 &
           for i in $(seq 1 30); do grep -q "ouvindo em UDP" server.log && break; sleep 1; done
-          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7790 --auth-url=http://127.0.0.1:8790 --peers=2 --name=Ana --horde=lead --horde-pick=5 --expect-clock-offset=2500 > ana.log 2>&1 & A=$!
-          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7790 --auth-url=http://127.0.0.1:8790 --peers=2 --name=Beto --horde=join --horde-pick=5 --expect-clock-offset=2500 > beto.log 2>&1 & B=$!
+          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7790 --auth-url=http://127.0.0.1:8790 --peers=2 --name=Ana --horde=lead --expect-clock-offset=2500 > ana.log 2>&1 & A=$!
+          timeout 180 godot --headless --path . -- --nettest=127.0.0.1:7790 --auth-url=http://127.0.0.1:8790 --peers=2 --name=Beto --horde=join --expect-clock-offset=2500 > beto.log 2>&1 & B=$!
           wait $A; RA=$?
           wait $B; RB=$?
           grep -hE "PASS|FAIL|NETTEST" ana.log beto.log
