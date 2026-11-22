@@ -2,7 +2,8 @@ extends Node
 ## Teste de fumaça do gameplay. Rode com:
 ##   godot --headless --path . res://scenes/world.tscn -- --smoketest
 ## Imprime PASS/FAIL para cada verificação e encerra com código 0 (ok) ou 1 (falhas).
-## No CI roda em duas partes, em paralelo (cada uma num job): `--smoke-part=mundo` (tudo menos a Horda) e
+## No CI roda em partes, em paralelo (cada uma num job): `--smoke-part=mundo` (história, combate e classes),
+## `--smoke-part=sistemas` (_test_sistemas: horta, coleta, masmorras, encantos, chefes, rio...) e
 ## `--smoke-part=horda` (só o Desafio da Horda). Sem o argumento roda tudo, como antes.
 
 const UPG := preload("res://scripts/survival/upgrades.gd")
@@ -1031,6 +1032,10 @@ func _ready() -> void:
 		await _test_survival()
 		_finish()
 		return
+	if _part() == "sistemas":
+		await _test_sistemas()
+		_finish()
+		return
 
 	# --- som posicional: combate longe do jogador não deve ser ouvido
 	check(Sfx.distance_gain(0.0) == 1.0 and Sfx.distance_gain(15.0) < 0.5 and Sfx.distance_gain(Sfx.FAR_DIST + 1.0) == 0.0,
@@ -2014,6 +2019,16 @@ func _ready() -> void:
 	check(not player.dead and not get_tree().paused and Game.hp == Game.max_hp(), "renasce na vila")
 	check(Game.gold == gold_dead - int(gold_dead * 0.1), "renascer custa 10%% do ouro (%d -> %d)" % [gold_dead, Game.gold])
 
+	if _part() == "mundo":
+		_finish()   # o resto (_test_sistemas) roda em outro job, na parte "sistemas"
+		return
+	await _test_sistemas()
+	_finish()
+
+
+## Segunda metade do mundo: cada teste monta o próprio cenário, então roda logo depois do kit (parte
+## "sistemas", em paralelo com a parte "mundo" no CI) ou depois da primeira metade (teste inteiro).
+func _test_sistemas() -> void:
 	await _test_fx_epic()
 	await _test_farm()
 	await _test_gather()
@@ -2031,14 +2046,13 @@ func _ready() -> void:
 	await _test_river()
 	await _test_archer_pose()
 	await _test_gold_goblin_world()
-	if _part() != "mundo" and Game.HORDE_ENABLED:
+	if _part() == "" and Game.HORDE_ENABLED:
 		await _test_survival()
 	await _test_update()
 	await _test_char_create()   # por último: troca o personagem solo por um novo, sem classe
-	_finish()
 
 
-## Parte pedida com --smoke-part=<mundo|horda>; "" = o teste inteiro.
+## Parte pedida com --smoke-part=<mundo|sistemas|horda>; "" = o teste inteiro.
 func _part() -> String:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--smoke-part="):
@@ -2600,15 +2614,31 @@ func _test_meteor_rain() -> void:
 	var m0: Vector4 = world.maps["vila"].mountain_data()[0]   # o primeiro morro da cena do vale
 	var pk := Vector3(m0.x, 0.0, m0.y)
 	var out := Vector3(-pk.x, 0.0, -pk.z).normalized()   # do pico para o meio do mapa
+	# o ponto de maior desnível, mas só onde dá para ficar de pé: num trecho íngreme demais (acima do
+	# floor_max_angle do jogador) ele escorrega encosta abaixo antes da checagem (já caiu de 12,6 para 6,9 m)
+	var floor_up := func(x: float, z: float) -> float:
+		var q := PhysicsRayQueryParameters3D.create(Vector3(x, 300.0, z), Vector3(x, -100.0, z), StaffAbilities.METEOR_GROUND_MASK)
+		var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(q)
+		return hit.normal.y if not hit.is_empty() else 0.0
+	var min_up := cos(player.floor_max_angle) + 0.1   # folga: a normal varia de um triângulo para o outro
 	var best_r := 0.0
 	var best_drop := -1.0
 	for r in range(4, 36):
 		var a: Vector3 = pk + out * float(r)
+		if top_ground.call(a.x, a.z) < 11.0:
+			continue
+		var steep := false
+		for d: Vector3 in [Vector3.ZERO, Vector3(0.4, 0, 0), Vector3(-0.4, 0, 0), Vector3(0, 0, 0.4), Vector3(0, 0, -0.4)]:
+			if floor_up.call(a.x + d.x, a.z + d.z) < min_up:
+				steep = true
+		if steep:
+			continue
 		var b2: Vector3 = a + out * StaffAbilities.METEOR_RANGE
 		var drop: float = top_ground.call(a.x, a.z) - top_ground.call(b2.x, b2.z)
 		if drop > best_drop:
 			best_drop = drop
 			best_r = float(r)
+	check(best_drop > 0.0, "Meteoros: achou um ponto da encosta firme para ficar de pé (r %.0f, desnível %.1f)" % [best_r, best_drop])
 	var flank: Vector3 = pk + out * best_r
 	player.global_position = Vector3(flank.x, top_ground.call(flank.x, flank.z) + 0.5, flank.z)
 	player.velocity = Vector3.ZERO
@@ -2678,7 +2708,9 @@ func _test_fx_epic() -> void:
 	FXEpic.hit_stop(0.05)
 	FXEpic.hit_stop(0.05)
 	check(Engine.time_scale >= 0.05 and Engine.time_scale < 1.0, "hit stop ativo (%.2f)" % Engine.time_scale)
-	await get_tree().create_timer(0.3, true, false, true).timeout
+	# espera pela condição, não 0,3 s fixos: na parte "sistemas" este é o primeiro teste depois de carregar
+	# o mundo e o quadro dos efeitos novos (shaders compilando) passa de 0,3 s
+	await wait_until(func() -> bool: return is_equal_approx(Engine.time_scale, 1.0), 2.0)
 	check(is_equal_approx(Engine.time_scale, 1.0), "hit stop volta para 1.0")
 	# perder o guarda no meio do hit stop também restaura o tempo
 	FXEpic.hit_stop(5.0)
@@ -2686,7 +2718,7 @@ func _test_fx_epic() -> void:
 	FXEpic._hs_guard.free()
 	check(is_equal_approx(Engine.time_scale, 1.0), "guarda liberado cedo restaura o tempo")
 	FXEpic.hit_stop(0.05)
-	await get_tree().create_timer(0.3, true, false, true).timeout
+	await wait_until(func() -> bool: return is_equal_approx(Engine.time_scale, 1.0), 2.0)
 	check(is_equal_approx(Engine.time_scale, 1.0), "hit stop volta para 1.0 de novo")
 	await wait(2.0)
 	check(get_tree().current_scene.get_child_count() <= n0 + 1, "efeitos épicos se liberam")
