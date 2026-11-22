@@ -47,15 +47,15 @@ func _ready() -> void:
 	wall.mesh = _wall_mesh
 	var R := config.radius
 	disc.mesh = build_disc(ground, R * 1.1, R, RINGS, SLICES, LIFT)
-	_disc_mat.set_shader_parameter("ring_width", RING_WIDTH_M / R)
-	_disc_mat.set_shader_parameter("trail", TRAIL_M / R)
+	_disc_mat.set_shader_parameter("ring_width", RING_WIDTH_M * config.size_k() / R)
+	_disc_mat.set_shader_parameter("trail", TRAIL_M * config.size_k() / R)
 	var aabb := AABB(Vector3(-R * 1.2, -4.0, -R * 1.2), Vector3(R * 2.4, 8.0, R * 2.4))
 	disc.custom_aabb = aabb
 	wall.custom_aabb = aabb
 	_center = SHEET.instantiate()
 	_center.name = "Center"
 	add_child(_center)
-	_center.place(ground.local_at(Vector2.ZERO), minf(R * 0.6, 6.0) * clampf(config.impact_intensity, 0.6, 1.4))
+	_center.place(ground.local_at(Vector2.ZERO), maxf(minf(R * 0.6, 6.0), 2.6) * clampf(config.impact_intensity, 0.6, 1.4))
 	_center.play(EarthquakeSheet.WAVE, config.expansion_time() + 0.5)
 	_center.intensity = 0.6
 	set_wave(0.0)
@@ -68,7 +68,7 @@ func set_wave(r: float) -> void:
 	_disc_mat.set_shader_parameter("intensity", intensity * config.impact_intensity)
 	# a parede é mais alta no começo e baixa conforme a onda perde força
 	var k := 1.0 - 0.55 * clampf(r / config.radius, 0.0, 1.0)
-	_rebuild_wall(r, WALL_HEIGHT * k * _wall_k * sqrt(maxf(config.impact_intensity, 0.1)))
+	_rebuild_wall(r, WALL_HEIGHT * k * _wall_k * sqrt(maxf(config.impact_intensity, 0.1)) * sqrt(config.size_k()))
 
 
 ## A onda parou no raio máximo: a parede baixa primeiro, depois o anel apaga e o miolo da sheet some.

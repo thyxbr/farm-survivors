@@ -96,7 +96,7 @@ func _check_aegis(player: Node, world: Node) -> void:
 	# golpes: o escudo absorve (a vida não cai) e as rachaduras crescem
 	var st: Dictionary = player.ability_data.aegis
 	var mx: float = st.max
-	var raw := func(final: float) -> float: return final * (50.0 + Game.defense() * 4.0) / 50.0
+	var raw := func(final: float) -> float: return final / Game.damage_taken_mult()
 	var src: Vector3 = player.global_position + Vector3(0, 1, 3)
 	var avg_crack := func() -> float:
 		var s := 0.0
@@ -105,10 +105,13 @@ func _check_aegis(player: Node, world: Node) -> void:
 		return s / bar.plates.size()
 	player.invuln = 0.0
 	var hp_hit: float = Game.hp   # a vida regenera com o tempo: compara com a de logo antes do golpe
+	# compara com a integridade de logo antes do golpe (no mesmo quadro): um monstro solto que tenha batido na
+	# barreira antes (no CI, às vezes) não muda a conta deste golpe
+	var f_hit := AegisRules.fraction(st)
 	player.take_damage(raw.call(mx * 0.4), src)
 	var c1: float = avg_crack.call()
-	check(is_equal_approx(Game.hp, hp_hit) and absf(AegisRules.fraction(st) - 0.6) < 0.02,
-		"Égide: 40%% do escudo absorvido sem tocar na vida (integridade %.2f)" % AegisRules.fraction(st))
+	check(is_equal_approx(Game.hp, hp_hit) and absf((f_hit - AegisRules.fraction(st)) - 0.4) < 0.02,
+		"Égide: 40%% do escudo absorvido sem tocar na vida (integridade %.2f -> %.2f)" % [f_hit, AegisRules.fraction(st)])
 	await wait(0.5)
 	player.invuln = 0.0
 	player.take_damage(raw.call(mx * 0.4), src)
@@ -119,9 +122,10 @@ func _check_aegis(player: Node, world: Node) -> void:
 	# quebra: o que passa da integridade vai para a vida, a guarda cai e a barreira estoura
 	player.invuln = 0.0
 	var hp_b: float = Game.hp
+	var excess: float = mx * 0.5 - float(st.integrity)   # o que passa do que restava logo antes do golpe
 	player.take_damage(raw.call(mx * 0.5), src)
 	check(player.ability == "" and st.broken, "Égide: integridade zero tira a proteção na hora")
-	check(absf((hp_b - Game.hp) - mx * 0.3) < 1.0, "Égide: só o excesso (%.1f) vai para a vida (perdeu %.1f)" % [mx * 0.3, hp_b - Game.hp])
+	check(absf((hp_b - Game.hp) - excess) < 1.0, "Égide: só o excesso (%.1f) vai para a vida (perdeu %.1f)" % [excess, hp_b - Game.hp])
 	check(bar.is_broken() and is_instance_valid(bar), "Égide: barreira entra na quebra (pulsação)")
 	check(player.cooldowns.sword_aegis >= ItemDB.ABILITIES.sword_aegis.cooldown, "Égide: recarga começa no fim (%.1f s)" % player.cooldowns.sword_aegis)
 	await wait(cfg.break_delay + 0.1)
@@ -445,7 +449,7 @@ func _check_earthquake(player: Node, world: Node) -> void:
 	var center: Vector3 = EarthquakeAbilities.impact_point(player.global_position, 0.0)
 	# monstros parados: 3 dentro do raio (perto, no meio, longe) e 2 fora
 	var mobs: Array = []
-	for off in [Vector3(1.4, 0, 0.6), Vector3(-3.6, 0, 3.0), Vector3(0.4, 0, cfg.radius - 1.4),
+	for off in [Vector3(0.9, 0, 0.4), Vector3(-1.2, 0, 1.0), Vector3(0.2, 0, cfg.radius - 0.2),
 			Vector3(cfg.radius + 3.0, 0, 0), Vector3(-cfg.radius - 3.5, 0, 2.0)]:
 		var e := Enemy.new()
 		e.kind = "slime"
@@ -493,7 +497,8 @@ func _check_earthquake(player: Node, world: Node) -> void:
 	var ic: Vector3 = skill.impact_center
 	check(absf(ic.y - spot.y) < 1.5, "Terremoto: impacto no chão (altura %.2f, herói %.2f)" % [ic.y, spot.y])
 	# a onda passa pelo de perto antes do de longe
-	await wait(0.25)
+	await wait_until(func(): return skill.wave_r >= 1.3, 1.0)
+	await wait(0.05)   # um passo de física para o dano alcançar o relógio da onda
 	var near_hit: bool = not is_instance_valid(inside[0]) or inside[0].dead or inside[0].hp < float(hp0[inside[0]])
 	var far_hit: bool = not is_instance_valid(inside[2]) or inside[2].dead or inside[2].hp < float(hp0[inside[2]])
 	check(near_hit and not far_hit, "Terremoto: o dano acompanha a onda (o perto já levou, o longe ainda não; onda %.1f m)" % skill.wave_r)
@@ -1870,7 +1875,7 @@ func _ready() -> void:
 	Game.fury = 0.0
 	player.invuln = 0.0
 	player.take_damage(Game.max_hp() * 0.4, player.global_position + Vector3(0, 0, 5))
-	check(is_equal_approx(Game.fury, (Game.max_hp() * 0.4 * 50.0 / (50.0 + Game.defense() * 4.0)) / Game.max_hp() * 25.0), "fúria sobe ao receber dano (%.2f)" % Game.fury)
+	check(is_equal_approx(Game.fury, (Game.max_hp() * 0.4 * Game.damage_taken_mult()) / Game.max_hp() * 25.0), "fúria sobe ao receber dano (%.2f)" % Game.fury)
 	Game.hp = hp_f
 	player.invuln = 0.0
 	Game.add_fury(500.0)

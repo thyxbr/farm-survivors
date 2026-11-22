@@ -527,7 +527,7 @@ func _refresh_character() -> void:
 	var rv := char_right
 	rv.add_child(UITheme.ink_section("Estatísticas", 20))
 	var st := Game.stat_snapshot()
-	var red := 1.0 - 50.0 / (50.0 + Game.defense() * 4.0)
+	var red := 1.0 - Game.damage_taken_mult()
 	var pct := func(v: float) -> String: return "%d%%" % int(round(v * 100))
 	var groups := HBoxContainer.new()
 	groups.add_theme_constant_override("separation", 10)
