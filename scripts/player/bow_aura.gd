@@ -1,6 +1,6 @@
 class_name BowAura
 extends RefCounted
-## Partículas dos arcos míticos na mão. O GLB do arco (tools/blender/armory.py) traz empties "Aura_<tipo>_<n>"
+## Partículas dos arcos míticos e das montantes de nível 50 na mão. O GLB do arco (tools/blender/armory.py) traz empties "Aura_<tipo>_<n>"
 ## nos pontos onde o efeito sai (pontas, gemas, braseiro...); cada um ganha um emissor contínuo (FXEpic.stream)
 ## no estilo do tipo. As partículas ficam no mundo: o arco em movimento deixa um rastro delas.
 
@@ -12,6 +12,13 @@ const KINDS := {
 	"wind": {"color": Color(0.72, 0.95, 1.0), "amount": 10, "life": 0.8, "size": 0.045, "grav": 0.0, "vel": 0.45, "r": 0.04},
 	"moon": {"color": Color(0.82, 0.88, 1.0), "amount": 10, "life": 1.4, "size": 0.045, "grav": 0.12, "vel": 0.08, "r": 0.04},
 	"leaf": {"color": Color(0.55, 0.92, 0.38), "amount": 8, "life": 1.6, "size": 0.05, "grav": -0.35, "vel": 0.1, "r": 0.04},
+	# montantes de nível 50 (armory.py, build_gsia): dez pontos (guarda, ponta e as duas bordas da lâmina)
+	"arcane": {"color": Color(0.3, 0.85, 1.0), "amount": 10, "life": 1.2, "size": 0.07, "grav": 0.25, "vel": 0.1, "r": 0.06},
+	"storm": {"color": Color(0.35, 0.72, 1.0), "amount": 12, "life": 0.45, "size": 0.06, "grav": 0.0, "vel": 0.5, "r": 0.06},
+	"crimson": {"color": Color(1.0, 0.2, 0.28), "amount": 10, "life": 1.0, "size": 0.07, "grav": 0.45, "vel": 0.1, "r": 0.06},
+	"frost": {"color": Color(0.7, 0.92, 1.0), "amount": 10, "life": 1.5, "size": 0.07, "grav": -0.2, "vel": 0.08, "r": 0.06},
+	"abyss": {"color": Color(0.66, 0.3, 1.0), "amount": 10, "life": 1.1, "size": 0.07, "grav": 0.35, "vel": 0.12, "r": 0.06},
+	"radiant": {"color": Color(1.0, 0.82, 0.35), "amount": 10, "life": 0.9, "size": 0.07, "grav": 0.7, "vel": 0.15, "r": 0.06},
 }
 
 

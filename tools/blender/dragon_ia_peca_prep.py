@@ -30,12 +30,150 @@ PECAS = {   # base, objeto, giro em Z (graus), espelhar em x antes do giro, cort
     "canela": ("dragon_ia_greave_base.blend", "GreaveTex", 0, False, None, 9000, False),
     "peito": ("dragon_ia_chest_base.blend", "ChestTex", 0, False, None, 16000, False),
 }
+# montantes de nível 50 (armory.py, build_gsia): a vista de frente já tem a lâmina de pé, ponta em +Z
+for _gs in ("abismo", "arcano", "aurora", "tempestade", "carmesim", "inverno"):
+    PECAS["gs_" + _gs] = ("gsia_%s_base.blend" % _gs, "Gs%sTex" % _gs.capitalize(), 0, False, None, 10000, False)
 ARQ, NOME, GIRO, ESPELHO, CORTE, FACES, CHIFRE = PECAS[PECA]
 # manchas que a pintura da IA deixou: caixas (x0, x1, z0, z1, lado em y) na peça normalizada, repintadas com o
 # vermelho mais forte em volta. Peitoral: o emblema da frente vazou para o meio das costas, acima do cinto.
 LIMPA = {"peito": [(-0.14, 0.14, -0.09, 0.13, 1)]}.get(PECA, [])
 BASE = os.path.join(AQUI, "base", ARQ)
 TEX = 1024                          # lado da textura no jogo
+# montantes: decalque das linhas acesas do conceito (cores alvo) nas faces de frente e de costas. A pintura da IA
+# perde traços finos (circuitos, raio, orbes); a lâmina é plana e a malha saiu destas mesmas vistas, então a
+# vista de frente cai certa nela. Só as linhas na cor alvo: o resto continua a pintura da IA (regra 1 do
+# docs/EQUIPAMENTO_POR_IA.md: projetar o conceito inteiro numa peça curva deu manchas).
+DECAL = {"gs_abismo": ["#b04cff"], "gs_arcano": ["#3ee0ff", "#9a6cff"], "gs_tempestade": ["#38b8ff", "#2c3e66"]}.get(PECA, [])
+# branco que a pintura deixou onde o conceito é energia (Abismo: corrente de orbes da fenda e cristal do pomo; a
+# lâmina é negra, então todo texel claro e sem cor é dessa energia): vira a cor alvo, com o brilho que tinha
+TINGE = {"gs_abismo": "#b04cff"}.get(PECA)
+# fenda vazada: faces de frente/costas que caem no fundo do conceito nas duas vistas saem (o gerador fechou o vão)
+FURO = PECA in ("gs_tempestade",)
+VISTAS = os.path.join(os.environ.get("IA3D", "D:/ia3d"), "vistas", PECA)
+
+
+def _vista(nome):
+    """(pixels float 0..1, caixa da peça (x0, y0, x1, y1), cor do fundo) de uma vista do conceito."""
+    import numpy as np
+    im = bpy.data.images.load(os.path.join(VISTAS, nome))
+    im.colorspace_settings.name = "Non-Color"      # valores do arquivo como estão (a textura da IA também é sRGB crua)
+    W, Hh = im.size
+    px = np.array(im.pixels[:], dtype=np.float32).reshape(Hh, W, 4)[::-1, :, :3].copy()   # linha 0 = topo
+    bpy.data.images.remove(im)
+    fundo = px[3, 3]
+    cheio = np.abs(px - fundo).sum(2) > 40 / 255.0
+    ys, xs = np.where(cheio)
+    return px, (xs.min(), ys.min(), xs.max() + 1, ys.max() + 1), fundo, cheio
+
+
+def _alvo_mask(px, cores):
+    """Pixels saturados no tom de uma das cores alvo e com brilho perto do dela (0..1): o ciano aceso pede pixel
+    claro; o azul-marinho das penas, pixel escuro (contorno preto e prata ficam de fora)."""
+    import numpy as np
+    mx, mn = px.max(2), px.min(2)
+    sat = (mx - mn) / np.maximum(mx, 1e-4)
+    pn = px / np.maximum(mx[:, :, None], 1e-4)
+    m = np.zeros(mx.shape, np.float32)
+    for c in cores:
+        c = np.array([int(c[i:i + 2], 16) / 255.0 for i in (1, 3, 5)], np.float32)
+        cm = c.max()
+        escuro = cm < 0.6    # azul-ardósia das penas: pouco saturado, aceita tom mais solto
+        perto = 1.0 - np.clip(np.abs(pn - c / cm).sum(2) / (0.85 if escuro else 0.55), 0.0, 1.0)
+        luz = np.clip((mx - 0.6 * cm) / (0.25 * cm), 0, 1) * np.clip((min(1.0, 1.6 * cm) + 0.1 - mx) / 0.1, 0, 1)
+        cor = np.clip((sat - (0.12 if escuro else 0.3)) / 0.15, 0, 1)
+        m = np.maximum(m, perto * luz * cor)
+    return m
+
+
+def _projetor(me):
+    """Função (x, z, frente?) -> (linha, coluna) do pixel na vista, pela caixa da malha e da peça no conceito."""
+    xs, zs = [v.co.x for v in me.vertices], [v.co.z for v in me.vertices]
+    x0, x1, z0, z1 = min(xs), max(xs), min(zs), max(zs)
+
+    def proj(x, z, caixa, frente):
+        bx0, by0, bx1, by1 = caixa
+        u = (x - x0) / (x1 - x0) if frente else (x1 - x) / (x1 - x0)   # costas: vista de trás, esquerda e direita trocadas
+        v = (z1 - z) / (z1 - z0)
+        return by0 + v * (by1 - by0 - 1), bx0 + u * (bx1 - bx0 - 1)
+    return proj
+
+
+def fura_fenda(me):
+    import bmesh
+    import numpy as np
+    vf, vc = _vista("frente.png"), _vista("costas.png")
+    proj = _projetor(me)
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bm.normal_update()
+    sai = []
+    for f in bm.faces:
+        if abs(f.normal.y) < 0.6:
+            continue
+        c = f.calc_center_median()
+        fundo_nas_duas = True
+        for (px, caixa, fundo, cheio), frente in ((vf, True), (vc, False)):
+            r, k = proj(c.x, c.z, caixa, frente)
+            r, k = int(round(r)), int(round(k))
+            if 0 <= r < cheio.shape[0] and 0 <= k < cheio.shape[1] and cheio[max(0, r - 1):r + 2, max(0, k - 1):k + 2].any():
+                fundo_nas_duas = False
+        if fundo_nas_duas:
+            sai.append(f)
+    bmesh.ops.delete(bm, geom=sai, context="FACES")
+    soltos = [v for v in bm.verts if not v.link_faces]
+    bmesh.ops.delete(bm, geom=soltos, context="VERTS")
+    print("FURO %d faces tiradas (fenda vazada)" % len(sai))
+    bm.to_mesh(me)
+    bm.free()
+
+
+def decalca(me, img, cores):
+    """Pinta na textura, texel a texel, as linhas do conceito na cor alvo (frente nas faces -Y, costas nas +Y)."""
+    import numpy as np
+    W, Hh = img.size
+    tex = np.array(img.pixels[:], dtype=np.float32).reshape(Hh, W, 4)
+    vistas = []
+    for nome, frente in (("frente.png", True), ("costas.png", False)):
+        px, caixa, _, _ = _vista(nome)
+        vistas.append((px, caixa, _alvo_mask(px, cores), frente))
+    proj = _projetor(me)
+    me.calc_loop_triangles()
+    uvl = me.uv_layers.active.data
+    feitos = 0
+    for t in me.loop_triangles:
+        ny = t.normal.y
+        if abs(ny) < 0.5:
+            continue
+        px, caixa, mask, frente = vistas[0] if ny < 0 else vistas[1]
+        P = np.array([me.vertices[i].co[:] for i in t.vertices])
+        U = np.array([uvl[l].uv[:] for l in t.loops]) * (W, Hh)
+        lo, hi = np.floor(U.min(0)).astype(int), np.ceil(U.max(0)).astype(int) + 1
+        gx, gy = np.meshgrid(np.arange(max(lo[0], 0), min(hi[0], W)), np.arange(max(lo[1], 0), min(hi[1], Hh)))
+        if gx.size == 0:
+            continue
+        q = np.stack([gx.ravel() + 0.5, gy.ravel() + 0.5], 1)
+        a, b, c = U
+        den = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+        if abs(den) < 1e-9:
+            continue
+        w0 = ((b[1] - c[1]) * (q[:, 0] - c[0]) + (c[0] - b[0]) * (q[:, 1] - c[1])) / den
+        w1 = ((c[1] - a[1]) * (q[:, 0] - c[0]) + (a[0] - c[0]) * (q[:, 1] - c[1])) / den
+        w2 = 1 - w0 - w1
+        dentro = (w0 >= -0.02) & (w1 >= -0.02) & (w2 >= -0.02)
+        if not dentro.any():
+            continue
+        X = w0[dentro] * P[0, 0] + w1[dentro] * P[1, 0] + w2[dentro] * P[2, 0]
+        Z = w0[dentro] * P[0, 2] + w1[dentro] * P[1, 2] + w2[dentro] * P[2, 2]
+        r, k = proj(X, Z, caixa, frente)
+        r = np.clip(np.round(r).astype(int), 0, mask.shape[0] - 1)
+        k = np.clip(np.round(k).astype(int), 0, mask.shape[1] - 1)
+        m = mask[r, k][:, None]
+        tx, ty = q[dentro, 0].astype(int), q[dentro, 1].astype(int)
+        # a textura do Blender é sRGB guardada como está nos pixels: a cor do conceito entra direto
+        tex[ty, tx, :3] = tex[ty, tx, :3] * (1 - m) + px[r, k] * m
+        feitos += int((m > 0.3).sum())
+    img.pixels[:] = tex.ravel()
+    print("DECALQUE %d texels nas cores %s" % (feitos, cores))
 
 
 RAIO_RAIZ = 0.08                    # unidades da malha normalizada (altura 1)
@@ -195,6 +333,8 @@ if ESPELHO or CORTE is not None:
     c2 = Vector(((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2, (min(zs) + max(zs)) / 2))
     me.transform(Matrix.Scale(1.0 / (max(zs) - min(zs)), 4) @ Matrix.Translation(-c2))
 
+if FURO:
+    fura_fenda(me)
 bpy.ops.object.mode_set(mode='EDIT')
 bpy.ops.mesh.select_all(action='SELECT')
 bpy.ops.mesh.remove_doubles(threshold=1e-6)
@@ -220,6 +360,25 @@ else:
     if LIMPA:
         limpa_caixas(me, img, LIMPA)
     img.scale(TEX, TEX)
+    if TINGE:
+        import numpy as np
+        t = np.array(img.pixels[:], dtype=np.float32).reshape(-1, 4)
+        mx, mn = t[:, :3].max(1), t[:, :3].min(1)
+        claro = np.clip((mx - 0.5) / 0.2, 0, 1) * np.clip((0.35 - (mx - mn) / np.maximum(mx, 1e-4)) / 0.15, 0, 1)
+        alvo = np.array([int(TINGE[i:i + 2], 16) / 255.0 for i in (1, 3, 5)], np.float32)
+        cor = np.minimum(1.0, alvo[None, :] * (0.6 + 0.6 * mx[:, None]))
+        t[:, :3] = t[:, :3] * (1 - claro[:, None]) + cor * claro[:, None]
+        img.pixels[:] = t.ravel()
+        print("TINGE %d texels claros -> %s" % (int((claro > 0.5).sum()), TINGE))
+    if DECAL:
+        decalca(me, img, DECAL)
+    if PECA.startswith("gs_"):
+        # a imagem veio empacotada no GLB: save()/pack() gravam os bytes originais (2048 px, sem decalque nem
+        # tinta). Uma imagem nova com os pixels editados é o que vai para a base.
+        nova = bpy.data.images.new("tmp", TEX, TEX)
+        nova.pixels[:] = img.pixels[:]
+        bpy.data.images.remove(img)
+        img = nova
     img.name = ARQ.replace("_base.blend", "_albedo")
     img.filepath_raw = os.path.join(os.path.dirname(BASE), img.name + ".png")
     img.file_format = 'PNG'
