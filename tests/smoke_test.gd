@@ -71,6 +71,9 @@ func _check_aegis(player: Node, world: Node) -> void:
 			if not c.is_queued_for_deletion():
 				n += 1
 		return n
+	# nenhum monstro em volta bate no escudo durante a checagem: os alvos de checagens anteriores ficam fora do
+	# atordoamento periódico e um golpe deles (~7) enquanto a barreira se forma tirava a integridade dos 60% esperados
+	_calm_bystanders([], player.global_position, 40.0, 3.5)   # cobre até o terceiro golpe (~2,9 s)
 	player.cooldowns.sword_aegis = 0.0
 	player.cast("sword_aegis")   # slot 0 = fica erguido até release(), como a tecla segurada
 	check(player.ability == "sword_aegis", "Égide: a habilidade começa")

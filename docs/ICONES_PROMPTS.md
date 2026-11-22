@@ -340,6 +340,7 @@ parts`. Com mais de 4 o Gemini costuma misturar as peças de um item no outro.
 | `dragon_plate` | Couraça de Escamas de Dragão | Dark dragon-scale armor with glowing red ember between the scales and a flame gem on the chest. |
 | `mithril_plate` | Placa de Mithril | Fitted elven plate armor of bluish silver mithril with a tall gorget, a V-shaped bib, waist lames and inlaid pale blue leaves growing up the chest like a tree, front view. |
 | `astral_plate` | Placas Astrais | Golden celestial knight plate armor with a high gorget, a sun dial on the chest that sinks like a funnel into a small black hole, curved grooves meeting at the waist, and a deep blue cape lined like a starry night sky, front view. |
+| `blackdragon_plate` | Placas do Dragão Negro | Dark gunmetal dragon plate armor: a split breastplate with claw-shaped ridges and a dark green leather channel down the middle, a glowing golden dragon eye with a slit pupil set in a ring under the gorget, huge rounded pauldrons covered in overlapping dragon scales with gold trim and a sickle fin, forearm guards with a curved fin blade and gold bands, scale-patterned tassets and long pale grey cloth panels hanging at the front and sides, front view. |
 
 ## E. Acessórios e peças (25) — anexar referência
 
@@ -373,6 +374,9 @@ parts`. Com mais de 4 o Gemini costuma misturar as peças de um item no outro.
 | `astral_helm` | Elmo Astral | Golden armet-style helm with a light gold brow band carrying a small sun, a narrow vertical faceplate with open eye windows on both sides, a blue horsehair crest and a fan of sun rays around a black hole behind the head. |
 | `astral_greaves` | Grevas Astrais | Pair of golden greaves with a domed knee cop and pointed side wing, a smooth shin plate flaring over the ankle and long, thin pointed sabatons. |
 | `astral_gauntlets` | Manoplas Astrais | Pair of golden plate gauntlets with a knuckle ridge and a bell-shaped cuff rising to a point on the outer side. |
+| `blackdragon_helm` | Elmo do Dragão Negro | Dark gunmetal dragon-skull helm: a mask narrowing to a pointed chin, a center ridge on the brow, angry almond eyes glowing gold under angled brow ridges, two pairs of horns (one rising and curving back, one sweeping out and down with the tips turning up), pointed side fins and a row of small spikes along the crest. |
+| `blackdragon_greaves` | Grevas do Dragão Negro | Pair of dark graphite greaves with a shield-shaped dark green knee cop framed in thick gold with a gold spike rising from a notch, a dark green fin behind the calf, a gold line at the ankle, a blade spur on the heel and claw-tipped sabatons. |
+| `blackdragon_gauntlets` | Manoplas do Dragão Negro | Pair of steel plate gauntlets with lames across the back of the hand, curved claws over the fingers and a short cuff. |
 | `wooden_shield` | Escudo de Madeira | Wooden plank shield with nails, front view. |
 | `knight_shield` | Escudo do Cavaleiro | Shield with the Valdoria guard crest, front view. |
 | `arcane_orb` | Orbe Arcano | Floating glowing arcane orb. |
