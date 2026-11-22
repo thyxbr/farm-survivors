@@ -6997,9 +6997,9 @@ def cosmic_pauldron(K, src, body, s):
     e uma tira de céu no meio da face. Devolve (copa+lâminas, chifre)."""
     sn = "L" if s > 0 else "R"
     G = K["gold"]
-    lames = [(0.05, 2.1, 2.35, 0.062, 0.022), (1.85, 2.65, 2.35, 0.05, 0.016), (2.4, 3.15, 2.35, 0.04, 0.012)]
+    lames = [(0.05, 2.3, 2.5, 0.088, 0.04), (2.05, 2.8, 2.5, 0.066, 0.022), (2.58, 3.3, 2.5, 0.05, 0.016)]
     cup = []
-    domes = _g_shoulder_dome(src, s, lames, phis=36, rows=10, pull=0.3, cap=0.008, taper=True)
+    domes = _g_shoulder_dome(src, s, lames, phis=36, rows=10, pull=0.42, cap=0.008, taper=True)
     for k, (rings, dirs, C) in enumerate(domes):
         n, nr = len(rings[0]), len(rings)
         cup.append(g_smooth_mesh("Pauldron%s%d" % (sn, k), rings, K["plate"], body, cap_end=False, closed=False,
@@ -7014,7 +7014,7 @@ def cosmic_pauldron(K, src, body, s):
         cup.append(cz_strip("PauldronBand%s%d" % (sn, k), loop, nl, 0.026 if k == 0 else 0.012,
                             0.009 if k == 0 else 0.005, G if k == 0 else K["plate"], body))
         if k == 0:                     # janela de céu larga na copa (de frente a costas), moldura de ouro
-            i0, i1, j0, j1 = 2, nr - 3, int(n * 0.18), int(n * 0.82)
+            i0, i1, j0, j1 = 2, nr - 4, int(n * 0.33), int(n * 0.67)
             grid = [[rings[i][j] + dirs[i][j] * 0.0045 for j in range(j0, j1 + 1)] for i in range(i0, i1 + 1)]
             cup.append(g_smooth_mesh("PauldronSky" + sn, grid, K["sky"], body, cap_end=False, closed=False,
                                      thick=0.0015, outward=True))
@@ -7026,7 +7026,7 @@ def cosmic_pauldron(K, src, body, s):
                                 0.012, 0.006, G, body, loop=True))
     # ---- chifre: lâmina larga de frente, grossa, saindo de dentro da copa e subindo para fora
     V = (lambda x, y, z: Vector((s * x, y, z)))
-    P0, P1, P2, P3 = V(0.185, 0.012, 1.475), V(0.25, 0.02, 1.56), V(0.32, 0.04, 1.635), V(0.395, 0.065, 1.725)
+    P0, P1, P2, P3 = V(0.2, 0.012, 1.5), V(0.27, 0.02, 1.59), V(0.345, 0.04, 1.665), V(0.425, 0.065, 1.76)
 
     def spine(t):
         return P0 * (1 - t) ** 3 + P1 * 3 * t * (1 - t) ** 2 + P2 * 3 * t * t * (1 - t) + P3 * t ** 3
