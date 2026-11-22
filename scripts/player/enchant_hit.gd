@@ -11,6 +11,14 @@ extends RefCounted
 const BURN_TICKS := 3
 
 
+## Elemento do golpe da arma equipada (Enemy.take_damage): `base` (físico; faísca do cajado e esfera do cetro
+## têm o deles) com a fatia que o encantamento soma ao dano no elemento do encanto (ElementRules.weapon_mix).
+static func mix(base := "fisico"):
+	var e := Game.weapon_enchant()
+	return ElementRules.weapon_mix(base, str(e.get("el", "")), Game.enchant_damage(str(Game.equipment.weapon)),
+		Game.mod("damage"))
+
+
 ## Dano do golpe já com o bônus de Sagrado, se o alvo for chefe ou elite. Outros casos: `dmg`.
 static func scale(target: Node, dmg: float) -> float:
 	if not (target is Enemy):
@@ -64,7 +72,7 @@ static func _burn(e: Enemy, total: float, secs: float) -> void:
 		await tree.create_timer(secs / BURN_TICKS).timeout
 		if not is_instance_valid(e) or e.dead or not e.is_inside_tree():
 			return
-		e.take_damage(per, e.global_position, false)
+		e.take_damage(per, e.global_position, false, 0.0, 0.0, 0.0, "fogo")
 		FX.burst(e.global_position + Vector3.UP * 0.6, EnchantFX.ELEMENTS["fogo"].spark, 5, 2.0, 0.07, 0.4, 3.0)
 	if is_instance_valid(e):
 		e.remove_meta("enchant_burn")
@@ -85,7 +93,7 @@ static func chain(target: Enemy, dmg: float, fx: Dictionary) -> Enemy:
 	if best == null:
 		return null
 	_bolt(target.global_position + Vector3.UP * 0.8, best.global_position + Vector3.UP * 0.8)
-	best.take_damage(dmg * float(fx.get("mult", 0.5)), target.global_position, false)
+	best.take_damage(dmg * float(fx.get("mult", 0.5)), target.global_position, false, 0.0, 0.0, 0.0, "raio")
 	return best
 
 

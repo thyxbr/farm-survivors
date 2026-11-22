@@ -227,6 +227,9 @@ var _forge_since := 0.0
 var _forge_ward: Node3D = null
 var _forge_t := 0.0
 var _forge_immune_t := 0.0
+## Afinidade elemental: tempo até a próxima dica (Fraco!/Resistiu/Imune) sobre o número de dano.
+const HINT_GAP := 0.6
+var _hint_t := 0.0
 ## Mãe-Verme, habilidades de chefe (BossRules): especiais já feitos, mergulhos de fúria pendentes, semente do
 ## Desmoronamento (vai no snapshot), pontos das pedras e das Poças de Ácido do golpe atual, a entrada já mostrada
 ## a este jogador, o visual da fúria (cristais vermelhos) e a aura de partículas.
@@ -2060,7 +2063,9 @@ func _update_dynamite() -> void:
 
 
 # ------------------------------------------------------------ dano
-func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun := 0.0, pull := 0.0) -> void:
+## `element`: elemento do golpe, um nome ("fogo") ou uma mistura ({"fisico": 0.8, "fogo": 0.2}); ver ElementRules.
+## O % de cada elemento é o da ficha do Bestiário; imune (0%) não leva dano nem recua.
+func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun := 0.0, pull := 0.0, element = "fisico") -> void:
 	if dead or BurrowRules.hidden(state, attack_kind, hit_done):
 		return
 	asleep = false
@@ -2069,12 +2074,16 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun
 		_forge_immune(from_pos)   # Escudo Rúnico de pé: nada entra (nem vai ao servidor)
 		return
 	if puppet:
-		# o servidor decide; os números de dano chegam de volta em show_hit()
-		Network.client_hit_enemy(net_id, amount, from_pos, crit, slow, stun, pull)
+		# o servidor decide (inclusive o elemento); os números de dano chegam de volta em show_hit()
+		Network.client_hit_enemy(net_id, amount, from_pos, crit, slow, stun, pull, element)
 		return
 	if ai() == "herald" and _abyss_struck():
 		return   # era uma cópia da Miragem: desfaz-se sem levar dano
-	amount = incoming(amount)
+	var em := element_mult(element)
+	if em <= 0.0:
+		_element_immune()
+		return
+	amount = incoming(amount) * em
 	if ai() == "forge":
 		amount = ForgeRules.taken(amount, false, enraged)   # superaquecido leva mais dano
 	if last_hitter != 0:
@@ -2086,9 +2095,7 @@ func take_damage(amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun
 		get_parent().on_enemy_damaged(last_hitter, minf(amount, maxf(hp, 0.0)))
 	hp -= amount
 	health_changed.emit(self)
-	var top: Vector3 = global_position + Vector3.UP * (data.height * data.scale + 0.2)
-	FX.damage_number(top, ("%d!" if crit else "%d") % int(round(amount)),
-		Color(1, 0.85, 0.2) if crit else Color.WHITE, 64 if crit else 48)
+	_hit_number(amount, crit, em)
 	FXToon.hit_splat(global_position + Vector3.UP * data.height * data.scale * 0.5, data.color, 3 if horde else 5)
 	_flash_t = 0.1
 	provoked = PROVOKE_TIME
@@ -2233,6 +2240,36 @@ func incoming(amount: float) -> float:
 	return a
 
 
+## Multiplicador elemental de um golpe neste monstro (a régua da ficha do Bestiário; ElementRules.mult).
+func element_mult(element) -> float:
+	return ElementRules.mult(Balance.tables, kind, element)
+
+
+## Número de dano: crítico dourado e maior; fraco/resistente com a cor da afinidade e uma dica curta por cima
+## (no máximo uma a cada HINT_GAP s, para a rajada de golpes não virar uma parede de palavras).
+func _hit_number(amount: float, crit: bool, em: float) -> void:
+	var top: Vector3 = global_position + Vector3.UP * (data.height * data.scale + 0.2)
+	var base := Color(1, 0.85, 0.2) if crit else Color.WHITE
+	FX.damage_number(top, ("%d!" if crit else "%d") % int(round(amount)),
+		ElementRules.hint_color(em, base), 64 if crit else 48)
+	var word := ElementRules.hint(em)
+	if word != "" and _hint_t <= 0.0:
+		_hint_t = HINT_GAP
+		FX.damage_number(top + Vector3.UP * 0.45, word, ElementRules.hint_color(em, base), 34)
+
+
+## Golpe de um elemento a que o monstro é imune: só a palavra, sem dano nem recuo (mas ele percebe quem bateu).
+func _element_immune() -> void:
+	provoked = PROVOKE_TIME
+	if not puppet and state in ["idle", "wander", "return"]:
+		_set_state("chase")
+	if _hint_t > 0.0:
+		return
+	_hint_t = HINT_GAP
+	var top: Vector3 = global_position + Vector3.UP * (data.height * data.scale + 0.2)
+	FX.damage_number(top, "Imune", ElementRules.C_IMMUNE, 44)
+
+
 ## Nível de quem leva o golpe: o personagem do peer no servidor, o jogador local no solo. 0 = desconhecido.
 static func foe_level(p) -> int:
 	if not (p is Player):
@@ -2271,6 +2308,7 @@ func apply_slow(t: float) -> void:
 
 func _update_flash(delta: float) -> void:
 	_flash_t = max(0.0, _flash_t - delta)
+	_hint_t = maxf(0.0, _hint_t - delta)
 	var over: Material = _overlay_base
 	if _flash_t > 0:
 		over = _overlay_hit
@@ -2466,12 +2504,15 @@ func _replica_throw(flags: int, atk_t: float) -> void:
 		FX.telegraph(throw_point, data.blast, maxf(0.2, _hit_time() - atk_t))
 
 
-func show_hit(amount: float, crit: bool) -> void:
+## `em` = multiplicador elemental do golpe (o servidor manda junto): muda a cor e põe a dica (Fraco!/Resistiu);
+## 0 = imune, só a palavra.
+func show_hit(amount: float, crit: bool, em := 1.0) -> void:
 	if dead:
 		return
-	var top: Vector3 = global_position + Vector3.UP * (data.height * data.scale + 0.2)
-	FX.damage_number(top, ("%d!" if crit else "%d") % int(round(amount)),
-		Color(1, 0.85, 0.2) if crit else Color.WHITE, 64 if crit else 48)
+	if em <= 0.0:
+		_element_immune()
+		return
+	_hit_number(amount, crit, em)
 	FXToon.hit_splat(global_position + Vector3.UP * data.height * data.scale * 0.5, data.color, 5)
 	_flash_t = 0.1
 	if data.model == "thorn_tree":
