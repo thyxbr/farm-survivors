@@ -64,8 +64,10 @@ func _ready() -> void:
 	ground.measure_step(_space(), 3)
 	var R := config.radius
 	paths = EarthquakeRules.crack_paths(config.crack_count, R * config.crack_length, config.crack_branching, config.crack_width, seed_value)
-	plate_spots = EarthquakeRules.plate_spots(paths, config.plate_count, config.plate_size, seed_value)
-	secondary_spots = EarthquakeRules.secondary_spots(paths, config.secondary_count)
+	# só o que a onda alcança (ela para no raio): placas e explosões secundárias dentro da área
+	plate_spots = EarthquakeRules.plate_spots(paths, config.plate_count, config.plate_size, seed_value).filter(
+		func(p: Dictionary) -> bool: return float(p.dist) <= R * 0.97)
+	secondary_spots = EarthquakeRules.secondary_spots(paths, config.secondary_count, R * 0.95)
 	dust = DUST.instantiate()
 	dust.setup(config, ground)
 	add_child(dust)
@@ -82,7 +84,7 @@ func _ready() -> void:
 	var wt := config.impact_time()
 	vfx.charge(wt)
 	dust.charge(true)
-	debris.tremble(int(18 * clampf(config.dust_intensity, 0.3, 2.0)), 2.4)
+	debris.tremble(int(18 * clampf(config.dust_intensity, 0.3, 2.0)), minf(2.4, config.radius * 0.7))
 	_plan_bursts()
 
 
@@ -179,8 +181,8 @@ func _impact() -> void:
 	add_child(imp)
 	var k := clampf(config.impact_intensity, 0.0, 3.0)
 	var n := config.debris_count
-	debris.burst(Vector2.ZERO, int(n * 0.3 * k), config.debris_height, 5.5, Vector2(0.18, 0.5), Vector2.ZERO, 0.55)
-	debris.burst(Vector2.ZERO, int(n * 0.12 * k), config.debris_height * 1.2, 8.0, Vector2(0.05, 0.14), Vector2.ZERO, 0.8)
+	debris.burst(Vector2.ZERO, int(n * 0.3 * k), config.debris_height, 5.5 * config.size_k(), Vector2(0.18, 0.5) * sqrt(config.size_k()), Vector2.ZERO, 0.55)
+	debris.burst(Vector2.ZERO, int(n * 0.12 * k), config.debris_height * 1.2, 8.0 * config.size_k(), Vector2(0.05, 0.14), Vector2.ZERO, 0.8)
 	debris.launch_trembling(config.debris_height * 0.5)
 	dust.impact()
 	vfx.impact()
@@ -205,8 +207,9 @@ func _plan_bursts() -> void:
 	var chunks := _bursts.size()
 	for b in _bursts:
 		b.count = maxi(1, roundi(float(along * 4) / maxf(chunks, 1)))
-	for i in 10:
-		var a := TAU * (float(i) + _rng.randf_range(-0.3, 0.3)) / 10.0
+	var puffs := maxi(3, roundi(10.0 * config.size_k()))
+	for i in puffs:
+		var a := TAU * (float(i) + _rng.randf_range(-0.3, 0.3)) / puffs
 		var d := R * _rng.randf_range(0.35, 0.85)
 		_bursts.append({"at": Vector2.from_angle(a) * d, "dist": d, "kind": "puff"})
 	for p: Vector2 in secondary_spots:
@@ -220,13 +223,13 @@ func _burst(b: Dictionary) -> void:
 	var fall := 1.0 - 0.5 * clampf(at.length() / config.radius, 0.0, 1.0)   # a onda perde força
 	match String(b.kind):
 		"chunk":
-			debris.burst(at, int(b.count), config.debris_height * 0.55 * fall, 3.0, Vector2(0.08, 0.32) * clampf(fall + 0.3, 0.5, 1.0), at, 0.4)
+			debris.burst(at, int(b.count), config.debris_height * 0.55 * fall, 3.0 * config.size_k(), Vector2(0.08, 0.32) * clampf(fall + 0.3, 0.5, 1.0), at, 0.4)
 		"puff":
 			dust.puff(at, 1.0 + 0.6 * fall)
 		"secondary":
 			secondary_done += 1
 			vfx.secondary(at)
-			debris.burst(at, int(config.debris_count * 0.2 / maxf(config.secondary_count, 1) * k), config.debris_height * 0.8, 4.0, Vector2(0.1, 0.4), Vector2.ZERO, 0.55)
+			debris.burst(at, int(config.debris_count * 0.2 / maxf(config.secondary_count, 1) * k), config.debris_height * 0.8, 4.0 * config.size_k(), Vector2(0.1, 0.4) * sqrt(config.size_k()), Vector2.ZERO, 0.55)
 			dust.puff(at, 1.6)
 			if secondary_done <= 3:
 				Sfx.play_at("explode", global_position + Vector3(at.x, 0.0, at.y), 0.15, -8.0)

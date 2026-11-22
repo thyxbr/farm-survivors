@@ -757,7 +757,7 @@ func _meteor_impact(pos: Vector3) -> void:
 			t.take_damage(16.0 + 3.0 * round_num, pos)
 	for c in get_children():
 		if c is Enemy and not c.dead and not c.is_boss and c.global_position.distance_to(pos) <= METEOR_RADIUS:
-			c.take_damage(60.0 + 12.0 * round_num, pos, false)
+			c.take_damage(60.0 + 12.0 * round_num, pos, false, 0.0, 0.0, 0.0, "fogo")
 
 
 func _clear_meteors() -> void:

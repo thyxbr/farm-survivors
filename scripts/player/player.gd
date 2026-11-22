@@ -657,8 +657,8 @@ func _regen(delta: float) -> void:
 		Game.stamina = Game.max_stamina()
 		Game.fury = Game.FURY_MAX
 		return
-	Game.mp = min(Game.max_mp(), Game.mp + (0.8 + Game.attr("int") * 0.15) * (1.0 + float(Game.talent_mods.get("mp_regen", 0.0))) * delta)
-	Game.hp = min(Game.max_hp(), Game.hp + (0.3 + Game.attr("vit") * 0.05 + Game.mod("regen")) * delta)
+	Game.mp = min(Game.max_mp(), Game.mp + Game.mp_regen() * delta)
+	Game.hp = min(Game.max_hp(), Game.hp + Game.hp_regen() * delta)
 	if stamina_delay <= 0:
 		var regen := 32.0 * (ShieldRules.REGEN_MULT if blocking else 1.0)   # escudo erguido recupera devagar
 		Game.stamina = min(Game.max_stamina(), Game.stamina + regen * delta)
@@ -700,7 +700,7 @@ func _take_blocked(amount: float, from_pos: Vector3) -> void:
 	invuln = 0.3
 	Game.add_fury(amount / Game.max_hp() * 15.0)
 	if amount >= 0.5:
-		var chip: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
+		var chip: float = max(1.0, amount * Game.damage_taken_mult())
 		Game.hp -= chip
 		FX.damage_number(global_position + Vector3.UP * KnightLook.body_y(self, 2.0), str(int(round(chip))), Color(0.75, 0.8, 0.9), 44)
 	Game.stats_changed.emit()
@@ -863,7 +863,7 @@ func _do_hit() -> void:
 			continue
 		var crit: bool = randf() < Game.crit_chance()
 		var dmg: float = EnchantHit.scale(e, Game.melee_damage() * mult * randf_range(0.9, 1.1) * (1.8 if crit else 1.0))
-		e.take_damage(dmg, global_position, crit, 2.5 if _weapon_fx() == "slow" else 0.0)
+		e.take_damage(dmg, global_position, crit, 2.5 if _weapon_fx() == "slow" else 0.0, 0.0, 0.0, EnchantHit.mix())
 		Game.on_damage_dealt(dmg, e.max_hp)
 		EnchantHit.on_hit(e, dmg)   # efeito do elemento da arma encantada
 		hit_any = true
@@ -1638,7 +1638,7 @@ func _cast_frost_nova() -> void:
 			continue
 		if e.global_position.distance_to(global_position) <= radius + e.radius:
 			var nova_dmg := (15.0 + Game.spell_power() * 2.0) * Game.damage_mult()
-			e.take_damage(nova_dmg, global_position, false, 4.0, float(Game.talent_mods.get("nova_stun", 0.0)))
+			e.take_damage(nova_dmg, global_position, false, 4.0, float(Game.talent_mods.get("nova_stun", 0.0)), 0.0, "gelo")
 			Game.add_fury_from_damage(nova_dmg, e.max_hp)
 
 
@@ -1693,7 +1693,7 @@ func _food_fire_nova() -> void:
 		if e.dead:
 			continue
 		if e.global_position.distance_to(global_position) <= radius + e.radius:
-			e.take_damage(dmg, global_position, false)
+			e.take_damage(dmg, global_position, false, 0.0, 0.0, 0.0, "fogo")
 			Game.add_fury_from_damage(dmg, e.max_hp)
 
 
@@ -1708,7 +1708,7 @@ func _food_frost_nova() -> void:
 			continue
 		if e.global_position.distance_to(global_position) <= radius + e.radius:
 			var food_dmg := (12.0 + Game.level * 3.0) * Game.damage_mult()
-			e.take_damage(food_dmg, global_position, false, 6.0)
+			e.take_damage(food_dmg, global_position, false, 6.0, 0.0, 0.0, "gelo")
 			Game.add_fury_from_damage(food_dmg, e.max_hp)
 
 
@@ -1753,7 +1753,7 @@ func take_damage(amount: float, from_pos: Vector3) -> void:
 		return
 	if dead or invuln > 0 or Loading.covering:   # coberto pela tela de carregamento: imune
 		return
-	var final_dmg: float = max(1.0, amount * 50.0 / (50.0 + Game.defense() * 4.0))
+	var final_dmg: float = max(1.0, amount * Game.damage_taken_mult())
 	# Égide Cristalina erguida: o escudo absorve primeiro (integridade própria); só o que sobra chega à vida
 	if ability == ShieldAbilities.ID:
 		final_dmg = ShieldAbilities.absorb(self, final_dmg, from_pos)

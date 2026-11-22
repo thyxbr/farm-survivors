@@ -144,7 +144,7 @@ func secondary(at: Vector2) -> void:
 	var s: EarthquakeSheet = SHEET.instantiate()
 	s.name = "Secondary"
 	add_child(s)
-	s.place(p, _rng.randf_range(2.6, 3.6) * k)
+	s.place(p, _rng.randf_range(2.6, 3.6) * k * config.size_k())
 	s.intensity = 1.0
 	s.play(Vector2i(EarthquakeSheet.DEBRIS.x, EarthquakeSheet.LIGHTNING.y), _rng.randf_range(0.8, 1.0), false, true)
 	# faíscas espirrando

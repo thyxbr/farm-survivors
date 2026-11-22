@@ -496,7 +496,7 @@ static func _meteor_damage(caster: Node, pos: Vector3) -> void:
 		rel.y = 0.0
 		if rel.length() > METEOR_HIT_RADIUS + e.radius:
 			continue
-		e.take_damage(dmg, pos, false)   # o empurrão sai do impacto (em puppet o servidor aplica)
+		e.take_damage(dmg, pos, false, 0.0, 0.0, 0.0, "fogo")   # o empurrão sai do impacto (em puppet o servidor aplica)
 		Game.on_damage_dealt(dmg, e.max_hp, false)   # a ultimate não recarrega a própria fúria
 		any = true
 	if any:

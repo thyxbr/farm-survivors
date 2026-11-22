@@ -188,6 +188,7 @@
 	"combos": {
 		"choque": {
 			"name": "Choque Térmico",
+			"element": "fogo",
 			"a": "fogo",
 			"b": "aura",
 			"color": {
@@ -201,6 +202,7 @@
 		},
 		"plasma": {
 			"name": "Plasma",
+			"element": "raio",
 			"a": "fogo",
 			"b": "raio",
 			"color": {
@@ -215,6 +217,7 @@
 		},
 		"brasas": {
 			"name": "Ciclone de Brasas",
+			"element": "fogo",
 			"a": "fogo",
 			"b": "laminas",
 			"color": {
@@ -228,6 +231,7 @@
 		},
 		"tempestade": {
 			"name": "Tempestade Gélida",
+			"element": "gelo",
 			"a": "raio",
 			"b": "aura",
 			"color": {
@@ -242,6 +246,7 @@
 		},
 		"eletro": {
 			"name": "Lâminas Elétricas",
+			"element": "raio",
 			"a": "raio",
 			"b": "laminas",
 			"color": {
@@ -256,6 +261,7 @@
 		},
 		"nevasca": {
 			"name": "Nevasca Cortante",
+			"element": "gelo",
 			"a": "laminas",
 			"b": "aura",
 			"color": {

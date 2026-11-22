@@ -60,10 +60,10 @@ func _explode() -> void:
 		var d: float = e.global_position.distance_to(global_position)
 		if d <= 1.0 + e.radius + 0.6:
 			var dmg_full := damage * randf_range(0.9, 1.1)
-			e.take_damage(dmg_full, global_position - direction, false)
+			e.take_damage(dmg_full, global_position - direction, false, 0.0, 0.0, 0.0, "fogo")
 			Game.add_fury_from_damage(dmg_full, e.max_hp)
 		elif d <= 2.5 + e.radius:
-			e.take_damage(damage * 0.5, global_position - direction, false)
+			e.take_damage(damage * 0.5, global_position - direction, false, 0.0, 0.0, 0.0, "fogo")
 			Game.add_fury_from_damage(damage * 0.5, e.max_hp)
 	if on_explode.is_valid():
 		on_explode.call(global_position)

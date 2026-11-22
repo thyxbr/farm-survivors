@@ -124,7 +124,7 @@ static func _on_landed(center: Vector3, targets: Array, player_ref: WeakRef) -> 
 	for e in targets:
 		if not is_instance_valid(e) or e.dead:
 			continue
-		e.take_damage(dmg, center, false, 0.0, CONFIG.stun_time)
+		e.take_damage(dmg, center, false, 0.0, CONFIG.stun_time, 0.0, ElementRules.NEUTRAL)   # energia: sem afinidade
 		Game.on_damage_dealt(dmg, e.max_hp)
 		any = true
 	if any:
