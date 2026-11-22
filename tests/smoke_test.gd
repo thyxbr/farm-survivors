@@ -631,6 +631,118 @@ func _check_supreme(player: Node, world: Node) -> void:
 	Game.hp = hp_player
 
 
+## Ciclone de Aço (montante, slot 1 / tecla 1, no lugar da Investida): kit, recarga, herói preso no lugar enquanto gira, o
+## modelo girando e parando virado para onde começou, vários cortes (com intervalo por alvo) em quem está no alcance, os
+## de fora sem dano, limpeza da cena, o giro começando assim que aciona (a esquiva não interrompe) e o fim antecipado.
+func _check_spin(player: Node, world: Node) -> void:
+	var cfg: GreatswordSpinConfig = GreatswordSpinAbilities.CONFIG
+	var back: Vector3 = player.global_position
+	var lv0: int = Game.level
+	var weapon0: String = Game.equipment.get("weapon", "")
+	var fury0: float = Game.fury
+	Game.add_item("iron_zweihander")
+	Econ.test_force_level(maxi(Game.level, CharRules.item_level(Balance.tables, "iron_zweihander")))
+	equip_any("iron_zweihander")
+	await wait_until(func(): return Game.offhand_kind() == "two_handed")
+	var kit := Game.ability_kit()
+	check(kit.size() >= 1 and kit[0] == "sword_spin" and not ("sword_charge" in kit), "Ciclone de Aço: a montante troca a habilidade 1 (%s)" % [kit])
+	var spot := Vector3(-105, 0.3, 36)   # fora da vila
+	player.global_position = spot
+	player.velocity = Vector3.ZERO
+	player.model.rotation.y = 0.0
+	await wait(0.25)
+	await wait_until(func(): return player.ability == "" and not player.attacking and player.dodge_timer <= 0.0)
+	var origin: Vector3 = player.global_position
+	# monstros parados: 3 em volta (frente, lado e atrás: o giro corta em volta) e 1 fora do alcance
+	var mobs: Array = []
+	for p in [origin + Vector3(0, 0, 1.8), origin + Vector3(2.0, 0, 0.4), origin + Vector3(-0.6, 0, -2.2),
+			origin + Vector3(cfg.radius + 4.0, 0, 0)]:
+		var e := Enemy.new()
+		e.kind = "slime"
+		world.add_child(e)
+		e.global_position = p
+		e.home = p
+		mobs.append(e)
+	await wait(0.15)
+	for e in mobs:
+		e.set_physics_process(false)
+	var inside := mobs.slice(0, 3)
+	var outside := mobs.slice(3)
+	var hp0 := {}
+	for e in mobs:
+		hp0[e] = e.hp
+	var hp_player: float = Game.hp
+	player.invuln = 99.0
+	player.cooldowns["sword_spin"] = 0.0
+	player.use_slot(1)
+	check(player.ability == "sword_spin" and player.cooldowns["sword_spin"] > 0.0, "Ciclone de Aço: começa na tecla 1 e entra em recarga")
+	var skill: GreatswordSpinSlash = player.ability_data.get("skill")
+	check(is_instance_valid(skill) and skill.get_parent() == get_tree().current_scene, "Ciclone de Aço: a cena do giro na cena do mundo")
+	var yaw0: float = player.model.rotation.y
+	var d := GreatswordSpinAbilities.durations()
+	# no meio do giro: parado mesmo com a tecla de andar, o modelo virando e cortes saindo
+	await wait(d[0] + d[1] + d[2] * 0.3)
+	var pos_mid: Vector3 = player.global_position
+	var yaw_mid: float = player.model.rotation.y
+	Input.action_press("move_right")
+	await wait(0.3)
+	Input.action_release("move_right")
+	var moved := Vector2(player.global_position.x - pos_mid.x, player.global_position.z - pos_mid.z).length()
+	check(moved < 0.05, "Ciclone de Aço: o herói não anda enquanto gira (%.2f m com a tecla de andar)" % moved)
+	check(absf(wrapf(player.model.rotation.y - yaw_mid, -PI, PI)) > 0.05, "Ciclone de Aço: o herói gira no próprio eixo")
+	check(skill.phase == GreatswordSpinRules.Phase.SPIN and skill.ring.visible, "Ciclone de Aço: anel de lâmina aceso no giro")
+	check(not GreatswordSpinAbilities.can_dodge_cancel(player), "Ciclone de Aço: girando, a esquiva não cancela")
+	await wait_until(func(): return player.ability == "", GreatswordSpinAbilities.total_time() + 1.0)
+	check(player.ability == "" and player.cam_back == 0.0, "Ciclone de Aço: para e solta o herói")
+	check(absf(wrapf(player.model.rotation.y - yaw0, -PI, PI)) < 0.05, "Ciclone de Aço: termina virado para onde começou")
+	check(inside.all(func(e): return not is_instance_valid(e) or e.dead or e.hp < float(hp0[e])),
+		"Ciclone de Aço: corta quem está em volta (%d cortes)" % skill.hit_count)
+	check(outside.all(func(e): return is_instance_valid(e) and is_equal_approx(e.hp, float(hp0[e]))), "Ciclone de Aço: quem está fora não leva dano")
+	# cortes repetidos, mas com intervalo: nunca mais que o giro inteiro dividido pelo intervalo, por alvo
+	var span := d[1] + d[2] + d[3]
+	var max_hits := inside.size() * (int(span / cfg.hit_interval) + 1)
+	check(skill.hit_count > inside.size() and skill.hit_count <= max_hits,
+		"Ciclone de Aço: vários cortes com intervalo por alvo (%d, máx. %d)" % [skill.hit_count, max_hits])
+	check(Game.hp >= hp_player - 0.01, "Ciclone de Aço: o herói não se fere")
+	var skill_ref: WeakRef = weakref(skill)
+	await wait_until(func(): return skill_ref.get_ref() == null, cfg.fade_time + 2.0)
+	check(skill_ref.get_ref() == null, "Ciclone de Aço: anel, cortes e fagulhas removidos no fim")
+	# o giro começa assim que aciona (sem postura parada) e a esquiva não o interrompe
+	player.cooldowns["sword_spin"] = 0.0
+	Game.stamina = Game.max_stamina()
+	var yaw_start: float = player.model.rotation.y
+	player.use_slot(1)
+	var skill2: GreatswordSpinSlash = player.ability_data.get("skill")
+	check(not GreatswordSpinAbilities.can_dodge_cancel(player), "Ciclone de Aço: a esquiva não cancela desde o começo")
+	await wait(0.2)
+	check(absf(wrapf(player.model.rotation.y - yaw_start, -PI, PI)) > 0.1 and skill2.phase != GreatswordSpinRules.Phase.STANCE,
+		"Ciclone de Aço: já gira logo depois de acionar (%.2f rad em 0,2 s)" % absf(wrapf(player.model.rotation.y - yaw_start, -PI, PI)))
+	player._dodge_pressed(Vector3.BACK)
+	check(player.ability == "sword_spin" and player.dodge_timer <= 0.0, "Ciclone de Aço: a esquiva não interrompe o giro")
+	# interrompido de fora (morte, troca de arma): o visual se apaga depressa e se libera
+	player.end_ability()
+	check(player.ability == "" and is_instance_valid(skill2) and skill2.stopped, "Ciclone de Aço: interrompido apaga o visual")
+	var skill2_ref: WeakRef = weakref(skill2)
+	await wait_until(func(): return skill2_ref.get_ref() == null, 2.0)
+	check(skill2_ref.get_ref() == null, "Ciclone de Aço: interrompido se libera")
+	for e in mobs:
+		if is_instance_valid(e):
+			e.queue_free()
+	# volta para a espada de antes: a Investida volta
+	if weapon0 != "":
+		equip_any(weapon0)
+	await wait_until(func(): return Game.offhand_kind() == "")
+	check(Game.ability_kit()[0] == "sword_charge", "Ciclone de Aço: sem a montante a habilidade 1 volta a ser a Investida")
+	Econ.test_force_level(lv0)
+	await wait(0.6)   # a esquiva do cancelamento termina
+	player.global_position = back
+	player.velocity = Vector3.ZERO
+	player.invuln = 0.0
+	Game.fury = fury0   # os cortes enchem a fúria: as checagens seguintes contam com ela como estava
+	Game.stamina = Game.max_stamina()
+	Game.hp = hp_player
+
+
 ## Terremoto Devastador (espada + escudo, slot 2 / tecla 2, no lugar do Golpe Sísmico): kit, carga antes do impacto
 ## (rachaduras pequenas, energia, pedrinhas), parado enquanto bate, impacto na hora certa e no ponto à frente do
 ## herói (explosão e tremor), onda crescendo até o raio, rachaduras e placas acompanhando a onda, pedras lançadas,
@@ -1703,6 +1815,7 @@ func _ready() -> void:
 	await _check_party_shield(player, world)
 	await _check_supreme(player, world)
 	await _check_drag_slash(player, world)
+	await _check_spin(player, world)
 	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
 	# quem testar; resta conferir que há recarga para cada habilidade
 	Game.add_item("short_bow")

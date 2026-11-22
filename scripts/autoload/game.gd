@@ -136,6 +136,9 @@ func _ready() -> void:
 	if "--dragdemo" in OS.get_cmdline_user_args():
 		# demonstração do Corte do Abismo (use com --weapon=iron_zweihander: personagem descartável)
 		get_tree().root.add_child.call_deferred(load("res://tools/drag_slash_demo.gd").new())
+	if "--spindemo" in OS.get_cmdline_user_args():
+		# demonstração do Ciclone de Aço (use com --weapon=iron_zweihander: personagem descartável)
+		get_tree().root.add_child.call_deferred(load("res://tools/spin_demo.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
 		# o Econ usa user://smoketest_solo.json, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())
