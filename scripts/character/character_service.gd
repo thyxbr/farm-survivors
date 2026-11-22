@@ -273,11 +273,12 @@ func gather(char_id: int, g: Dictionary) -> Dictionary:
 	return _result(char_id, r)
 
 
-func kill(char_id: int, kind: String, xp: int, enemy_level := 0, group_level := 0, area := "") -> Dictionary:
+func kill(char_id: int, kind: String, xp: int, enemy_level := 0, group_level := 0, area := "",
+		drops := {}) -> Dictionary:
 	var s := load_or_create(char_id)
 	if xp >= 0:
 		xp = int(round(xp * CharRules.food_mult(s, _bt, "xp", _now())))
-	var r := CharRules.kill(s, _bt, kind, xp, enemy_level, group_level, area)
+	var r := CharRules.kill(s, _bt, kind, xp, enemy_level, group_level, area, drops)
 	if r.ok:
 		r = _persist(char_id, s, {}, "kill", "kill", r)
 	return _result(char_id, r)

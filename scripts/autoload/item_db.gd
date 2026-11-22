@@ -18,7 +18,7 @@ static var RECIPES: Dictionary = {}
 const RECIPE_ORDER := ["bread", "carrot_stew", "spicy_soup", "dragon_chili", "mint_tea", "garden_salad", "pumpkin_pie", "valdoria_feast"]
 
 ## Habilidades de todas as armas. `slot` 1..SLOT_COUNT (tecla de mesmo número); o slot 4 é a ultimate.
-## O slot 5 é opcional: só o cetro usa (Julgamento de Luz), e a barra só o mostra para quem tem.
+## O slot 5 é opcional: o cetro (Julgamento de Luz) e a espada com escudo (Grito do Bastião); a barra só o mostra para quem tem.
 const SLOT_COUNT := 5
 ## `ready` = a habilidade já está implementada (fonte única; senão "Em breve"). `cost` é mana (0 = só recarga). `icon` é o desenho do IconPainter.
 ## `aim: "ground"` = a tecla só prepara: mostra o círculo de raio `aim_radius` no chão, a até `aim_range` m, e o
@@ -53,9 +53,16 @@ const ABILITIES := {
 		"ready": true, "ultimate": false, "icon": "hammer", "desc": "Com escudo: ergue a espada e invoca um círculo mágico acima da cabeça; dele sai um martelo gigante de energia que cai à frente, causando dano em área (2,6x o dano corpo a corpo, raio de 7 m), atordoando e abrindo crateras pelo chão. Parado enquanto invoca; a esquiva antes da queda cancela."},
 	"sword_quake": {"name": "Golpe Sísmico", "class": "sword", "slot": 2, "level": 3, "cooldown": 9.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "greatsword", "desc": "Golpe no chão: dano em área e atordoamento."},
+	# recarga: a do EarthquakeConfig manda (cooldown_of); esta é só o valor padrão dela
+	"sword_earthquake": {"name": "Terremoto Devastador", "class": "sword", "offhand": "shield", "slot": 2, "level": 3, "cooldown": 10.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "earthquake", "desc": "Com escudo: ergue o escudo e o bate com tudo no chão. Uma onda de choque circular corre pelo terreno até 9 m, rachando o chão, levantando placas de pedra e arremessando fragmentos; cada inimigo leva o golpe (2,2x o dano corpo a corpo) e fica atordoado quando a onda chega nele. Parado enquanto bate; a esquiva antes do escudo tocar o chão cancela."},
 	# recarga: a do DarkTauntConfig manda (cooldown_of); esta é só o valor padrão dela
 	"sword_taunt": {"name": "Círculo da Provocação Sombria", "class": "sword", "offhand": "shield", "slot": 3, "level": 5, "cooldown": 18.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "taunt", "desc": "Com escudo: o herói solta uma onda de energia sombria e um círculo mágico se desenha no chão em volta dele (raio de 6 m). Mãos sombrias saem do chão e agarram cada inimigo dentro dele, prendendo-os por 1,6 s; depois todos ficam provocados por 6 s, com olhos vermelhos sobre a cabeça: só perseguem e atacam você. Parado enquanto invoca; a esquiva antes das mãos agarrarem cancela."},
+	# recarga: a do PartyShieldConfig manda (cooldown_of); esta é só o valor padrão dela. Slot 5: só com escudo (a
+	# espada sem escudo não tem habilidade na tecla 5, e o kit() a acrescenta em vez de trocar alguma)
+	"sword_rally": {"name": "Grito do Bastião", "class": "sword", "offhand": "shield", "slot": 5, "level": 6, "cooldown": 30.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "ward", "desc": "Com escudo: o herói reúne a energia numa aura azul e solta um grito de guerra. Ao terminar, todos do seu grupo por perto (até 30 m, você incluído) ganham o Bastião de Escudos por 15 s: pequenos escudos azuis giram em volta de cada um, dando +6 de defesa e +25% de defesa. Parado enquanto grita; a esquiva antes do grito terminar cancela."},
 	"sword_fury": {"name": "Fúria Picante", "class": "sword", "slot": 3, "level": 5, "cooldown": 28.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "fury", "desc": "Por 10 s: +30% de dano e cada abate cura 2."},
 	"sword_whirl": {"name": "Turbilhão", "class": "sword", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
@@ -71,11 +78,13 @@ const ABILITIES := {
 }
 
 
-## Recarga base (s) de uma habilidade, antes dos bônus. O Martelo de Energia e o Círculo da Provocação Sombria
-## leem a do recurso de configuração deles (editável no Inspector); as outras, a da tabela acima.
+## Recarga base (s) de uma habilidade, antes dos bônus. O Martelo de Energia, o Círculo da Provocação Sombria e o
+## Terremoto Devastador leem a do recurso de configuração deles (editável no Inspector); as outras, a da tabela acima.
 const COOLDOWN_CONFIGS := {
 	"sword_hammer": "res://assets/vfx/hammer/hammer_config.tres",
 	"sword_taunt": "res://assets/vfx/dark_taunt/dark_taunt_config.tres",
+	"sword_earthquake": "res://assets/vfx/earthquake/earthquake_config.tres",
+	"sword_rally": "res://assets/vfx/party_shield/party_shield_config.tres",
 }
 
 
@@ -89,7 +98,8 @@ static func cooldown_of(id: String) -> float:
 
 ## Ids das habilidades de uma classe de arma, ordenados por slot. `offhand` = tipo da mão secundária
 ## ("shield", ou "" sem): uma habilidade com "offhand" igual troca a do mesmo slot (espada + escudo: a Égide
-## Cristalina no lugar da Investida); sem a mão secundária certa ela fica de fora.
+## Cristalina no lugar da Investida) ou, num slot que a arma não usa, entra a mais (o Grito do Bastião na tecla 5);
+## sem a mão secundária certa ela fica de fora.
 static func kit(cls: String, offhand := "") -> Array[String]:
 	var ids: Array[String] = []
 	var alt := {}
@@ -105,6 +115,10 @@ static func kit(cls: String, offhand := "") -> Array[String]:
 		var s := int(ABILITIES[ids[i]].slot)
 		if alt.has(s):
 			ids[i] = alt[s]
+			alt.erase(s)
+	# as da mão secundária num slot que a arma não tem (o Grito do Bastião na tecla 5) entram a mais
+	for s in alt:
+		ids.append(alt[s])
 	ids.sort_custom(func(a: String, b: String) -> bool: return ABILITIES[a].slot < ABILITIES[b].slot)
 	return ids
 

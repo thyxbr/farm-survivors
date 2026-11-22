@@ -1,0 +1,13 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/earthquake/ground_crack.gd" id="1"]
+[ext_resource type="Material" path="res://assets/vfx/earthquake/earthquake_crack_mat.tres" id="2"]
+
+[node name="GroundCrack" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Cracks" type="MeshInstance3D" parent="."]
+cast_shadow = 0
+material_override = ExtResource("2")
+
+[node name="Plates" type="MultiMeshInstance3D" parent="."]

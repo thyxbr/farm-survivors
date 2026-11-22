@@ -1,0 +1,20 @@
+{
+	"_doc": "Bestiário (BestiaryRules). Classe de cada monstro: chefe (boss), elite (elite), forte (hp >= forte_hp) ou comum; 'bestiary_class' no enemies.json sobrepõe. steps = abates para os estágios 1, 2 e 3 (completo). loot_bands = [chance mínima, estágio que revela], do mais comum ao mais raro; abaixo da última faixa o item fica secreto até cair para o jogador. Só entram no bestiário os monstros listados em alguma família.",
+	"forte_hp": 120,
+	"classes": {
+		"comum": {"name": "Comum", "steps": [10, 50, 150], "points": 5},
+		"forte": {"name": "Forte", "steps": [5, 30, 80], "points": 15},
+		"elite": {"name": "Elite", "steps": [1, 5, 15], "points": 30},
+		"chefe": {"name": "Chefe", "steps": [1, 3, 10], "points": 50}
+	},
+	"loot_bands": [[0.3, 1], [0.1, 2], [0.05, 3]],
+	"families": {
+		"slimes": {"name": "Slimes", "kinds": ["slime", "slime_veloz", "slime_explosivo", "slime_gelo", "slime_grande", "slime_mae", "slime_rainha"]},
+		"goblins": {"name": "Goblins", "kinds": ["goblin", "goblin_arqueiro", "goblin_xama", "goblin_bombardeiro", "goblin_bruto", "goblin_dourado", "goblin_campeao"]},
+		"mortos": {"name": "Mortos-vivos", "kinds": ["esqueleto", "esqueleto_arqueiro", "esqueleto_mago", "esqueleto_cavaleiro"]},
+		"feras": {"name": "Feras do Vale", "kinds": ["raptor_capim", "tecela", "flor_faminta", "asa_couro", "bocarrao"]},
+		"cavernas": {"name": "Cavernas", "kinds": ["kobold", "centopeia", "toupeira", "golem_cristal"]},
+		"gelo": {"name": "Terras Geladas", "kinds": ["lobo_geada", "gralha_cristal", "ieti", "lobo_alfa"]},
+		"chefes": {"name": "Chefes", "kinds": ["goblin_king", "espinheira", "mae_verme", "forjador_runico", "sentinela_nevasca", "lich", "arauto_abismo"]}
+	}
+}

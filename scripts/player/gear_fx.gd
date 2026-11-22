@@ -9,6 +9,7 @@ const GALAXY := preload("res://assets/shaders/gear_galaxy.gdshader")
 const GLOW := preload("res://assets/shaders/gear_glow.gdshader")
 const SHEEN := preload("res://assets/shaders/gear_sheen.gdshader")
 const STARSKY := preload("res://assets/shaders/gear_starsky.gdshader")
+const ENERGY := preload("res://assets/shaders/gear_energy.gdshader")
 
 ## nome do material no GLB -> {"shader", "params"}. Em "params", cores como Color e o resto como no shader.
 const SURFACES := {
@@ -40,6 +41,14 @@ const SURFACES := {
 		"center": Vector2(0.0, 1.322), "radius": 0.022, "star_reach": 0.0, "spin": 0.7, "core_gain": -0.8,
 		"energy": 1.4, "space_col": Color(0.01, 0.008, 0.02), "haze_col": Color(0.2, 0.11, 0.03),
 		"arm_col": Color(0.92, 0.62, 0.2), "hot_col": Color(1.0, 0.9, 0.6)}},
+	# ---- Manto do Vazio (faixas de energia e runas, ref. Natam Antony): o forro azul vira energia líquida
+	#      escorrendo com bolhas de luz; as runas acendem em onda que desce pelo manto e cintilam
+	"rb_void_lining": {"shader": ENERGY, "params": {}},
+	"rb_void_slit": {"shader": ENERGY, "params": {"rim": 0.25}},
+	"rb_void_hatlining": {"shader": ENERGY, "params": {}},
+	"rb_void_gem_flat": {"shader": GLOW, "params": {
+		"flow_freq": 1.4, "flow_speed": 2.2, "flow_sharp": 6.0, "low": 0.35, "flow_dir": Vector3(0.0, -1.0, 0.0),
+		"twinkle": 0.35, "twinkle_cell": 0.05, "hot": Color(0.92, 0.98, 1.0)}},
 	# ---- Lich Soberano: fogo-fátuo verde tremulando em olhos e gemas, reflexo espectral varrendo os ossos
 	"eg_lich_glow_gem_flat": {"shader": GLOW, "params": {"flicker": 1.0, "hot": Color(0.9, 1.0, 0.85)}},
 	"rb_lich_gem_flat": {"shader": GLOW, "params": {"flicker": 0.8, "pulse": 0.25, "hot": Color(0.9, 1.0, 0.85)}},
@@ -96,6 +105,8 @@ const SURFACES := {
 const PARTICLES := {
 	"a_reaper": {"color": Color(0.66, 0.36, 1.0), "amount": 14, "life": 2.4, "height": 0.3, "ring": 0.3, "rise": 0.32,
 		"size": 0.034, "spread": 12.0},
+	"a_void": {"color": Color(0.35, 0.7, 1.0), "amount": 12, "life": 2.6, "height": 0.6, "ring": 0.34, "rise": 0.22,
+		"size": 0.022, "spread": 20.0, "band": 1.0},
 	"a_lich": {"color": Color(0.36, 1.0, 0.48), "amount": 12, "life": 2.8, "height": 0.5, "ring": 0.34, "rise": 0.42,
 		"size": 0.042, "spread": 8.0, "band": 0.6},
 	"a_hierophant": {"color": Color(1.0, 0.82, 0.4), "amount": 14, "life": 3.2, "height": 0.9, "ring": 0.42, "rise": 0.16,

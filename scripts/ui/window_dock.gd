@@ -9,7 +9,7 @@ extends Node
 
 ## Ações de entrada que abrem uma janela -> [lado, aba do menu do herói ou do social].
 const HOTKEYS := {"inventory": ["right", 0], "character": ["left", 1], "talents": ["left", 2],
-	"quest_log": ["left", 3], "professions": ["left", 4], "party": ["left", -1], "friends": ["left", -2]}
+	"quest_log": ["left", 3], "professions": ["left", 4], "bestiary": ["left", 5], "party": ["left", -1], "friends": ["left", -2]}
 
 var world: Node
 var windows := {}            # "left"/"right" -> Control
