@@ -23,16 +23,17 @@ const SURFACES := {
 	"rb_reaper_gem_flat": {"shader": GLOW, "params": {"pulse": 0.35, "pulse_speed": 1.8, "hot": Color(1.0, 0.92, 1.0)}},
 	# ---- Placas Astrais (cavaleiro celeste): céu estrelado vivo na capa
 	"cs_sky": {"shader": STARSKY, "lit": true, "params": {}},
-	# ---- Cavaleiro Cósmico: céu roxo e magenta com estrelas douradas nas janelas da placa (esterno, olhos)
+	# ---- Cavaleiro Cósmico: céu roxo e magenta com estrelas douradas nas janelas emolduradas em ouro (esterno,
+	#      ombreiras, antebraços, tabardo, grevas, olhos e forquilha do elmo)
 	"cz_sky": {"shader": STARSKY, "lit": true, "params": {
 		"cloth_z": 3.0, "top_z": 1.7, "bottom_z": 0.6, "drift": 0.035, "energy": 1.4,
 		"top_col": Color(0.14, 0.04, 0.28), "bottom_col": Color(0.34, 0.07, 0.38),
 		"neb_col": Color(0.85, 0.2, 0.45), "star_col": Color(1.0, 0.86, 0.5), "rings": 1.0, "star_scale": 0.6}},
-	# frisos de ouro: uma faixa de luz sobe correndo de tempos em tempos (só nos frisos: em placa inteira escurece)
+	# faixas de ouro: uma faixa de luz sobe correndo de tempos em tempos (só no ouro: em placa inteira escurece)
 	"cz_gold": {"shader": SHEEN, "lit": true, "params": {
 		"sheen_col": Color(1.0, 0.92, 0.66), "sheen_power": 1.4, "sheen_dir": Vector3(0.25, 1.0, 0.0), "sheen_freq": 0.06,
 		"sheen_speed": 0.3, "sheen_width": 0.05, "gloss": 0.0}},
-	# linhas de luz estelar: onda clara correndo pelos traços, de baixo para cima
+	# estrela acesa no olho esquerdo do elmo (a cruz dourada da referência)
 	"cz_star_flat": {"shader": GLOW, "params": {
 		"flow_freq": 2.2, "flow_speed": 0.9, "flow_sharp": 5.0, "low": 0.55, "flow_dir": Vector3(0.0, 1.0, 0.0),
 		"hot": Color(1.0, 1.0, 0.92), "energy": 2.4, "twinkle": 0.4, "twinkle_cell": 0.02}},
