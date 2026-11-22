@@ -417,6 +417,103 @@ func _check_hammer(player: Node, world: Node) -> void:
 	Game.hp = hp_player
 
 
+## Corte do Abismo (montante, slot 2 / tecla 2, no lugar do Golpe Sísmico): kit, a corrida arrastando a lâmina (avança,
+## fagulhas acesas, para perto do inimigo à frente), o corte que fere quem está à frente, as garras que ferem quem está em
+## cima delas (cada um uma vez em cada), quem está fora sem dano, limpeza de tudo e o cancelamento pela esquiva na corrida.
+func _check_drag_slash(player: Node, world: Node) -> void:
+	var cfg: DragSlashConfig = DragSlashAbilities.CONFIG
+	var back: Vector3 = player.global_position
+	var lv0: int = Game.level
+	var weapon0: String = Game.equipment.get("weapon", "")
+	Game.add_item("iron_zweihander")
+	equip_any("iron_zweihander")
+	Econ.test_force_level(maxi(Game.level, int(ItemDB.ABILITIES.sword_drag.level)))
+	await wait_until(func(): return Game.offhand_kind() == "two_handed" and Game.level >= 3)
+	var kit := Game.ability_kit()
+	check(kit.size() >= 2 and kit[1] == "sword_drag" and not ("sword_quake" in kit), "Corte do Abismo: a montante troca a habilidade 2 (%s)" % [kit])
+	player.global_position = Vector3(-105, 0.3, 40)   # fora da vila
+	player.velocity = Vector3.ZERO
+	player.model.rotation.y = 0.0     # olhando para +Z
+	await wait(0.25)
+	await wait_until(func(): return player.ability == "" and not player.attacking and player.dodge_timer <= 0.0)
+	player.cooldowns["sword_drag"] = 0.0
+	var origin: Vector3 = player.global_position
+	var f := Vector3(0, 0, 1)
+	# A no caminho (a corrida para nele: leva o corte e a primeira garra), B mais à frente (só uma garra), C de lado e D
+	# atrás (fora)
+	var mobs: Array = []
+	for p in [origin + f * 4.5, origin + f * 7.6 + Vector3(0.3, 0, 0), origin + f * 5.0 + Vector3(7.0, 0, 0), origin - f * 4.0]:
+		var e := Enemy.new()
+		e.kind = "slime"
+		world.add_child(e)
+		e.global_position = p
+		e.home = p
+		mobs.append(e)
+	await wait(0.15)
+	for e in mobs:
+		e.set_physics_process(false)
+	var hp0 := {}
+	for e in mobs:
+		hp0[e] = e.hp
+	var hp_player: float = Game.hp
+	player.invuln = 99.0
+	player.use_slot(2)
+	check(player.ability == "sword_drag", "Corte do Abismo: começa na tecla 2")
+	var skill: DragAndSlash = player.ability_data.get("skill")
+	check(is_instance_valid(skill) and skill.get_parent() == get_tree().current_scene, "Corte do Abismo: a cena do golpe na cena do mundo")
+	check(DragSlashAbilities.can_dodge_cancel(player), "Corte do Abismo: a esquiva cancela na corrida")
+	await wait_until(func(): return int(player.ability_data.get("phase", 0)) == DragSlashRules.DASH, 1.0)
+	await wait(0.12)
+	var spd := Vector2(player.velocity.x, player.velocity.z).length()
+	check(spd > 8.6 and Vector2(player.velocity.x, player.velocity.z).normalized().dot(Vector2(0, 1)) > 0.95,
+		"Corte do Abismo: dispara correndo para a frente (%.1f m/s)" % spd)
+	check(skill.sparks.emitting and skill._contact > 0.3, "Corte do Abismo: a ponta raspa o chão e solta fagulhas")
+	await wait_until(func(): return int(player.ability_data.get("phase", 0)) == DragSlashRules.SLASH, 2.0)
+	var ran := Vector2(player.global_position.x - origin.x, player.global_position.z - origin.z).length()
+	var gap := Vector2(mobs[0].global_position.x - player.global_position.x, mobs[0].global_position.z - player.global_position.z).length()
+	check(ran > 1.2 and gap < cfg.stop_distance + 1.4, "Corte do Abismo: corre e para perto do inimigo à frente (%.1f m corridos, %.1f m dele)" % [ran, gap])
+	check(not DragSlashAbilities.can_dodge_cancel(player), "Corte do Abismo: no corte a esquiva não cancela mais")
+	await wait_until(func(): return skill.hit_at >= 0.0, 2.0)
+	await wait(cfg.claw_stagger * cfg.claw_count + 0.25)
+	check(not is_instance_valid(mobs[0]) or mobs[0].dead or mobs[0].hp < float(hp0[mobs[0]]), "Corte do Abismo: o corte fere quem parou a corrida")
+	check(skill.hit_count == 1, "Corte do Abismo: o corte pega só quem está à frente (%d)" % skill.hit_count)
+	check(not is_instance_valid(mobs[1]) or mobs[1].dead or mobs[1].hp < float(hp0[mobs[1]]), "Corte do Abismo: as garras ferem quem está mais à frente")
+	check(skill.claw_hit_count == 2, "Corte do Abismo: cada um leva uma garra (%d)" % skill.claw_hit_count)
+	check(mobs.slice(2).all(func(e): return is_instance_valid(e) and is_equal_approx(e.hp, float(hp0[e]))), "Corte do Abismo: quem está fora não leva dano")
+	check(Game.hp >= hp_player - 0.01, "Corte do Abismo: o herói não se fere")
+	await wait_until(func(): return player.ability == "", cfg.slash_total() + 1.0)
+	check(player.ability == "", "Corte do Abismo: termina e solta o herói")
+	var skill_ref: WeakRef = weakref(skill)
+	await wait_until(func(): return skill_ref.get_ref() == null, cfg.claw_life + cfg.groove_life + 3.0)
+	check(skill_ref.get_ref() == null, "Corte do Abismo: fagulhas, rastro e garras removidos no fim")
+	# esquiva na corrida cancela: sem dano e tudo se desfaz
+	for e in mobs:
+		if is_instance_valid(e) and not e.dead:
+			hp0[e] = e.hp
+	await wait(0.3)
+	player.cooldowns["sword_drag"] = 0.0
+	player.model.rotation.y = PI   # para trás, longe dos monstros que sobraram
+	player.cast("sword_drag")
+	var skill2: DragAndSlash = player.ability_data.get("skill")
+	await wait(cfg.windup_time + 0.08)
+	player._dodge_pressed(Vector3.BACK)
+	check(player.ability == "" and is_instance_valid(skill2) and skill2.state == DragAndSlash.State.CANCELED, "Corte do Abismo: cancelado pela esquiva")
+	var skill2_ref: WeakRef = weakref(skill2)
+	await wait_until(func(): return skill2_ref.get_ref() == null, cfg.groove_life + 2.0)
+	check(skill2_ref.get_ref() == null and mobs.all(func(e): return not is_instance_valid(e) or e.dead or is_equal_approx(e.hp, float(hp0[e]))),
+		"Corte do Abismo: cancelado não fere ninguém e se libera")
+	for e in mobs:
+		if is_instance_valid(e):
+			e.queue_free()
+	if weapon0 != "":
+		equip_any(weapon0)
+	await wait_until(func(): return Game.offhand_kind() == "")
+	check(Game.ability_kit()[1] == "sword_quake", "Corte do Abismo: sem a montante a habilidade 2 volta a ser o Golpe Sísmico")
+	Econ.test_force_level(lv0)
+	await wait(0.6)
+	player.global_position = back
+
+
 ## Lâmina Suprema (montante, slot 4 / tecla 4, no lugar do Turbilhão, gasta a fúria): kit, herói parado do começo ao fim,
 ## espada de energia se formando até ~3x a altura dele durante a carga, impacto no ponto à frente na hora certa, a rachadura
 ## reta no chão, dano no ponto do golpe e no caminho do corte (uma vez só), os de fora sem dano, limpeza de tudo e o
@@ -1717,6 +1814,7 @@ func _ready() -> void:
 	await _check_dark_taunt(player, world)
 	await _check_party_shield(player, world)
 	await _check_supreme(player, world)
+	await _check_drag_slash(player, world)
 	await _check_spin(player, world)
 	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
 	# quem testar; resta conferir que há recarga para cada habilidade

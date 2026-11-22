@@ -1504,3 +1504,18 @@ func test_two_handed_level_up_announces_supreme() -> void:
 		if e.t == "notify" and str(e.text).begins_with("Nova habilidade"):
 			names.append(e.text)
 	T.eq(names, ["Nova habilidade: Lâmina Suprema [4]"], "com a montante: a Lâmina Suprema no lugar do Turbilhão")
+
+
+func test_two_handed_level_up_announces_drag_slash() -> void:
+	var bt := _tables()
+	# montante: no nível 3 o slot 2 é o Corte do Abismo (e só ele, não o Golpe Sísmico)
+	var s := _blank()
+	s.level = 2
+	s.equipment["weapon"] = "iron_zweihander"
+	var r := CharRules.kill(s, bt, "slime", CharRules.xp_to_next(2, bt))
+	T.eq(s.level, 3, "nível 3")
+	var names := []
+	for e in r.events:
+		if e.t == "notify" and str(e.text).begins_with("Nova habilidade"):
+			names.append(e.text)
+	T.eq(names, ["Nova habilidade: Corte do Abismo [2]"], "com a montante: o Corte do Abismo no lugar do Golpe Sísmico")
