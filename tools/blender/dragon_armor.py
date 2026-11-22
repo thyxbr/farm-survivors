@@ -199,8 +199,75 @@ def dragonknight_pauldron(K, src, body, s):
     return parts
 
 
+def dragonknight_arm(K, src, body, s):
+    """Braço do Cavaleiro Dragão: manga cinza-escura com uma correia de couro acima do cotovelo; braçal de
+    escamas vermelhas pelo lado de fora do antebraço (o de dentro fica na manga), com moldura de ouro grossa em
+    toda a volta, a borda de cima subindo numa ponta sobre o cotovelo, anel de ouro no punho, desenho de
+    escamas em losango e três espinhos cor de osso por fora, perto do cotovelo."""
+    from mathutils.bvhtree import BVHTree
+    sn = "L" if s > 0 else "R"
+    tmp = cb_piece(src, "ArmProbe" + sn, lambda c, b, n: (b.startswith("Arm") or b.startswith("Elbow")) and c.x * s > 0)
+    bvh = BVHTree.FromPolygons([v.co.copy() for v in tmp.data.vertices], [tuple(p.vertices) for p in tmp.data.polygons])
+    bpy.data.objects.remove(tmp, do_unlink=True)
+    L1, L2, at, coords, ring = _gb_arm_frame(s)
+    parts = []
+    # ---- correia de couro acima do cotovelo
+    sr, sd, _ = _mt_tube(bvh, at, s, 0.78 * L1, 0.87 * L1, NR=3, NP=32, add=lambda t: 0.0125)
+    parts.append(g_smooth_mesh("ArmStrap" + sn, sr, K["lea"], body, cap_end=False, thick=0.004, outward=True))
+    # ---- braçal
+    NR, NP, J = 16, 40, 12
+
+    def vadd(t):
+        return 0.013 + 0.012 * max(0.0, 1 - t / 0.3) ** 1.6 + 0.006 * max(0.0, (t - 0.8) / 0.2) ** 1.5
+    vr, vd, vc = _mt_tube(bvh, at, s, L1 + 0.04 * L2, L1 + 0.9 * L2, NR=NR, NP=NP, add=vadd)
+    c0, ax0 = at(L1 + 0.04 * L2)
+    for j in range(NP):                # borda de cima sobe numa ponta do lado de fora (sobre o cotovelo)
+        w = max(0.0, math.cos(2 * math.pi * j / NP)) ** 4
+        if w > 0.01:
+            vr[0][j] = vr[0][j] - ax0 * 0.05 * w + vd[0][j] * 0.006 * w
+            vr[1][j] = vr[1][j] - ax0 * 0.024 * w + vd[1][j] * 0.003 * w
+
+    def at_phi(i, ph, out=0.0):
+        x = (ph % (2 * math.pi)) / (2 * math.pi) * NP
+        j = int(x) % NP
+        k = (j + 1) % NP
+        f = x - int(x)
+        return vr[i][j].lerp(vr[i][k], f) + vd[i][j].lerp(vd[i][k], f) * out, vd[i][j].lerp(vd[i][k], f).normalized()
+    cols = list(range(-J, J + 1))
+    grid = [[vr[i][j % NP] for j in cols] for i in range(NR + 1)]
+    dgrid = [[vd[i][j % NP] for j in cols] for i in range(NR + 1)]
+    parts.append(g_smooth_mesh("Vambrace" + sn, grid, K["red"], body, cap_end=False, closed=False, thick=0.005,
+                               outward=True))
+    # moldura de ouro: as duas beiras compridas, a borda de cima e o anel do punho
+    for nm, c in (("A", 0), ("B", len(cols) - 1)):
+        parts.append(cz_strip("VambraceSide%s%s" % (sn, nm), [grid[i][c] + dgrid[i][c] * 0.001 for i in range(NR + 1)],
+                              [dgrid[i][c] for i in range(NR + 1)], 0.015, 0.006, K["gold"], body))
+    parts.append(cz_strip("VambraceTop" + sn, [q + d * 0.001 for q, d in zip(grid[0], dgrid[0])], dgrid[0], 0.017,
+                          0.007, K["gold"], body))
+    parts.append(cz_strip("VambraceCuff" + sn, [q + d * 0.001 for q, d in zip(vr[NR - 1], vd[NR - 1])], vd[NR - 1],
+                          0.022, 0.007, K["gold"], body, loop=True))
+    # desenho de escamas: duas famílias de traços em diagonal (losangos)
+    PH = 2 * math.pi * (J - 1.6) / NP
+    for fam, sl in (("a", 1), ("b", -1)):
+        for k in range(-4, 9):
+            line = []
+            for i in range(1, NR - 1):
+                ph = -PH + k * 0.95 + (i - 1) * 0.24 if sl > 0 else PH - k * 0.95 - (i - 1) * 0.24
+                if abs(ph) < PH:
+                    line.append(at_phi(i, ph, 0.0012)[0])
+            if len(line) >= 3:
+                parts.append(g_pipe("VambraceScale%s%s%d" % (sn, fam, k), line, 0.002, K["line"], body, sides=6))
+    # espinhos por fora, perto do cotovelo
+    for k, (i, ln) in enumerate(((2, 0.05), (6, 0.044), (10, 0.038))):
+        q, d = at_phi(i, -0.45 * s, 0.0)
+        dr = (d - ax0 * 0.3).normalized()
+        parts.append(g_cone("ArmSpike%s%d" % (sn, k), [q - dr * 0.006, q + dr * ln * 0.5 - ax0 * 0.004,
+                                                       q + dr * ln - ax0 * 0.012], 0.016, K["bone"], body, sides=10))
+    return parts
+
+
 def build_a_dragonknight():
-    """Placas do Cavaleiro Dragão (lendário nv 50). Rodadas 1-2: tronco e ombreiras; mangas e pernas na casca cinza-escura até
+    """Placas do Cavaleiro Dragão (lendário nv 50). Rodadas 1-3: tronco, ombreiras e braços; mangas e pernas na casca cinza-escura até
     as próximas peças."""
     style = "a_dragonknight"
     P, R = g_rig(style)
@@ -213,6 +280,7 @@ def build_a_dragonknight():
     g_skinned_pants(src, K["under"])
     under, parts = dragonknight_torso(K, src, body)
     shoulder = dragonknight_pauldron(K, src, body, 1) + dragonknight_pauldron(K, src, body, -1)
+    arms = dragonknight_arm(K, src, body, 1) + dragonknight_arm(K, src, body, -1)
     sleeves = cb_piece(src, "Sleeves", lambda c, b, n: (b.startswith("Arm") or b.startswith("Elbow"))
                        and (not b.startswith("Elbow") or _cb_fore_t(c) < 0.86), 0.01, K["under"])
     g_subdiv(sleeves)
@@ -223,7 +291,7 @@ def build_a_dragonknight():
     cel_paint(targets, skip=("g_skin", "drk_gem_flat"))
     horns = [o for o in shoulder if "Horn" in o.name]        # rígidos: peso por vértice esticava a ponta
     plates = [o for o in shoulder if o not in horns]
-    g_skin_finish(rig, src, [(plates, "vert", ("Body", "ArmL", "ArmR"), 1.0),
+    g_skin_finish(rig, src, [(arms, "vert", ("ArmL", "ArmR", "ElbowL", "ElbowR"), 1.0), (plates, "vert", ("Body", "ArmL", "ArmR"), 1.0),
                              (horns, "fn", lambda q: {"Body": 0.6, ("ArmL" if q.x > 0 else "ArmR"): 0.4}, 1.0)])
-    join_objs("DragonKnight", parts + shoulder)["fem_mode"] = "plate"
+    join_objs("DragonKnight", parts + shoulder + arms)["fem_mode"] = "plate"
     g_export_skinned(style)
