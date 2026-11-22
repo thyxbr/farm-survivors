@@ -10,6 +10,9 @@ const TEXT_GOLD := Color(1.0, 0.86, 0.3)
 const TEXT_EDGE := Color(0.42, 0.18, 0.02)
 const TEXT_Y := 2.55          ## altura do letreiro acima dos pés (humano; o anão usa body_y)
 const SPIRAL_TIME := 1.05
+## Anjo (imagem com fundo transparente, de frente). Sem o arquivo, o efeito toca sem ele.
+const ANGEL_PATH := "res://assets/vfx/level_up_angel.png"
+const ANGEL_HEIGHT := 1.6     ## altura do anjo no mundo (m)
 
 
 ## Toca o efeito inteiro em `who` (o personagem que subiu); `level` = nível novo.
@@ -18,26 +21,56 @@ static func play(who: Node3D, level: int) -> void:
 		return
 	var feet := who.global_position
 	var pal := HolyFX.PAL_GOLD
-	# chão e coluna: o selo abre e a coluna sobe num estalo, translúcida para não estourar no bloom
-	HolyFX.seal(feet, pal, 1.7, 1.3, {"ticks": 16, "glyph": false})
-	HolyFX.seal(feet, pal, 2.6, 1.0, {"inner": false, "thick": 0.04, "delay": 0.1})
-	HolyFX.pillar(feet, pal, 0.85, 5.0, 1.1, {"alpha": 0.3, "core": 0.2, "dense": 0.7})
-	HolyFX.pillar(feet, pal, 0.16, 7.0, 0.7, {"delay": 0.04, "alpha": 0.7, "core": 0.6, "dense": 0.6})
-	FXEpic.flash(feet + Vector3.UP * KnightLook.body_y(who, 1.4), HolyFX.GOLD, 2.2, 6.0, 0.6)
+	# chão e coluna: selo fino e coluna bem translúcida (forte demais escondia o personagem e cansava)
+	HolyFX.seal(feet, pal, 1.3, 1.2, {"ticks": 8, "thick": 0.07})
+	HolyFX.pillar(feet, pal, 0.6, 4.2, 1.0, {"alpha": 0.16, "core": 0.08, "dense": 0.5})
+	FXEpic.flash(feet + Vector3.UP * KnightLook.body_y(who, 1.4), HolyFX.GOLD, 0.8, 4.0, 0.5)
 	# espiral de brilhos subindo em volta do corpo
 	var sp := Spiral.new()
 	sp.top = KnightLook.body_y(who, 2.6)
 	who.add_child(sp)
+	# anjo subindo atrás do personagem (se a imagem existir)
+	_angel(who)
 	# letreiro
 	var y := KnightLook.body_y(who, TEXT_Y)
 	_banner(who, y, level)
-	# estrela grande atrás do letreiro, quando ele estala
-	HolyFX.star(feet + Vector3.UP * y, pal, 1.9, {"points": 12, "sharp": 2.2, "body": 0.24, "delay": 0.12,
-		"hold": 0.1, "fade": 0.35, "shadow": true})
+	# estrelinha atrás do letreiro, quando ele estala
+	HolyFX.star(feet + Vector3.UP * y, pal, 0.9, {"points": 8, "sharp": 2.6, "body": 0.18, "delay": 0.12,
+		"hold": 0.06, "fade": 0.25})
 	# brilhos caindo devagar depois, como poeira de luz
 	(who.get_tree().create_timer(0.7)).timeout.connect(func() -> void:
 		if is_instance_valid(who):
-			HolyFX.sparkles(who.global_position + Vector3.UP * KnightLook.body_y(who, 2.2), pal, 10, 1.1, 0.8, 0.0, 0.22))
+			HolyFX.sparkles(who.global_position + Vector3.UP * KnightLook.body_y(who, 2.2), pal, 6, 1.0, 0.7, 0.0, 0.18))
+
+
+## O anjo aparece atrás do personagem na altura do peito, sobe até acima do letreiro balançando de leve,
+## com as asas "batendo" (a imagem estica e encolhe na largura) e some no alto.
+static func _angel(who: Node3D) -> void:
+	if not ResourceLoader.exists(ANGEL_PATH):
+		return
+	var tex: Texture2D = load(ANGEL_PATH)
+	var a := Sprite3D.new()
+	a.texture = tex
+	a.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	a.shaded = false
+	a.alpha_cut = SpriteBase3D.ALPHA_CUT_DISABLED
+	a.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	a.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	a.pixel_size = ANGEL_HEIGHT / float(tex.get_height())
+	a.render_priority = 5
+	a.modulate = Color(1, 1, 1, 0)
+	var y0 := KnightLook.body_y(who, 1.3)
+	var y1 := KnightLook.body_y(who, TEXT_Y + 1.5)
+	a.position = Vector3(0, y0, 0)
+	who.add_child(a)
+	var tw := a.create_tween()
+	tw.tween_property(a, "modulate:a", 0.95, 0.35).set_delay(0.15)
+	tw.parallel().tween_property(a, "position:y", y1, 2.0).set_delay(0.15).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(a, "modulate:a", 0.0, 0.6).set_delay(1.55)
+	tw.tween_callback(a.queue_free)
+	var flap := a.create_tween().set_loops(5)
+	flap.tween_property(a, "scale", Vector3(0.9, 1.02, 1.0), 0.2).set_trans(Tween.TRANS_SINE)
+	flap.tween_property(a, "scale", Vector3(1.05, 0.98, 1.0), 0.2).set_trans(Tween.TRANS_SINE)
 
 
 ## "LEVEL UP!" e "Nível N" presos no personagem (acompanham se ele andar).
@@ -101,7 +134,7 @@ class Spiral extends Node3D:
 		_emit -= delta
 		if _emit > 0.0:
 			return
-		_emit = 0.028
+		_emit = 0.04
 		var k := _t / LevelUpFX.SPIRAL_TIME
 		var h := top * (1.0 - pow(1.0 - k, 1.6))
 		var r := lerpf(1.0, 0.45, k)
@@ -109,5 +142,5 @@ class Spiral extends Node3D:
 		for strand in 2:
 			var a := _t * 9.0 + PI * strand
 			var p := base + Vector3(cos(a) * r, h, sin(a) * r)
-			HolyFX.star(p, HolyFX.PAL_GOLD, randf_range(0.18, 0.28) * (1.0 - 0.4 * k),
+			HolyFX.star(p, HolyFX.PAL_GOLD, randf_range(0.13, 0.2) * (1.0 - 0.4 * k),
 				{"hold": 0.12, "fade": 0.3, "rise": Vector3.UP * 0.6})

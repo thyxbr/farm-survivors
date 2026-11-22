@@ -1957,7 +1957,7 @@ func apply_look(l: Dictionary) -> void:
 
 
 func _on_level_up(lvl: int) -> void:
-	Sfx.play("levelup", 0.0)
+	Sfx.play("level_up_fanfare", 0.0)
 	LevelUpFX.play(self, lvl)
 
 
