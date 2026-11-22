@@ -5488,8 +5488,7 @@ func _test_mythic_bows() -> void:
 				gs[1].global_position = gs[0].global_position + side * float(BowMythicRules.BRAMBLE.radius) * 0.5
 				gs[1].velocity = Vector3.ZERO
 				shoot.call(true, gs[0])
-				await wait_until(func(): return count.call(BowMythic.Bramble) == 1 and gs[1].slow_timer > 0.0
-					and gs[1].hp < gs[1].max_hp, 1.5)
+				await wait_until(func(): return count.call(BowMythic.Bramble) == 1 and gs[1].slow_timer > 0.0 and gs[1].hp < gs[1].max_hp, 1.5)
 				check(count.call(BowMythic.Bramble) == 1, "Raiz-Mãe: o espinheiro brota no alvo")
 				var d_b: float = gs[1].global_position.distance_to(gs[0].global_position)
 				check(gs[1].slow_timer > 0.0 and gs[1].hp < gs[1].max_hp,
