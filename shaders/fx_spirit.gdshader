@@ -1,16 +1,16 @@
 shader_type spatial;
 // Anjo-espírito da subida de nível (quad 1x1 com a imagem, sempre de frente para a câmera).
-// Translúcido e pálido: a cor da imagem é quase toda trocada por um branco azulado que segue o brilho
+// Translúcido e dourado: a cor da imagem é quase toda trocada por um dourado claro que segue o brilho
 // dela, com um halo suave em volta da silhueta, a borda tremulando como chama fria e os pés sumindo
 // num rastro. `fade` (por instância) acende e apaga.
 render_mode unshaded, cull_disabled, depth_draw_never, shadows_disabled, blend_mix;
 
 uniform sampler2D tex : source_color, filter_linear_mipmap, repeat_disable;
-uniform vec3 tint : source_color = vec3(0.78, 0.9, 1.0);   // branco azulado do espírito
-uniform vec3 glow_col : source_color = vec3(1.0, 0.93, 0.7); // halo dourado claro
-uniform float keep_color = 0.3;                              // quanto da cor original sobra
-uniform float body_alpha = 0.62;
-uniform float glow_radius = 0.025;
+uniform vec3 tint : source_color = vec3(1.0, 0.78, 0.18);  // dourado do espírito (mesmo tom da coluna)
+uniform vec3 glow_col : source_color = vec3(1.0, 0.88, 0.45); // halo dourado
+uniform float keep_color = 0.12;                             // quanto da cor original sobra
+uniform float body_alpha = 0.7;
+uniform float glow_radius = 0.035;
 instance uniform float fade = 1.0;
 
 void vertex() {
@@ -27,8 +27,8 @@ void fragment() {
 	uv.x += sin(uv.y * 22.0 - TIME * 7.0) * (0.002 + 0.01 * low);
 	vec4 c = texture(tex, uv);
 	float lum = dot(c.rgb, vec3(0.3, 0.59, 0.11));
-	vec3 ghost = mix(tint * (0.55 + 0.6 * lum), c.rgb, keep_color);
-	ghost = mix(ghost, vec3(1.0), 0.25);
+	vec3 ghost = mix(tint * (0.85 + 0.45 * lum), c.rgb, keep_color);
+	ghost = mix(ghost, vec3(1.0, 0.97, 0.85), 0.12 + 0.35 * lum * lum);   // miolo claro, quase branco
 	// halo: média do alfa em volta (silhueta borrada)
 	float halo = 0.0;
 	for (int i = 0; i < 12; i++) {
@@ -39,7 +39,7 @@ void fragment() {
 	halo = clamp(halo / 19.2, 0.0, 1.0);
 	float shimmer = 0.85 + 0.15 * sin(TIME * 5.0 + uv.y * 9.0);
 	float body = c.a * body_alpha * shimmer;
-	float glow = halo * (1.0 - c.a) * 0.45;
+	float glow = halo * (1.0 - c.a) * (0.6 + 0.15 * sin(TIME * 8.0));
 	// pés somem num rastro
 	float tail = 1.0 - smoothstep(0.72, 1.0, UV.y);
 	ALBEDO = mix(glow_col, ghost, c.a);

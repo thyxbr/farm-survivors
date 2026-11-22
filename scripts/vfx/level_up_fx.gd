@@ -46,7 +46,8 @@ static func play(who: Node3D, level: int) -> void:
 			HolyFX.sparkles(who.global_position + Vector3.UP * KnightLook.body_y(who, 2.2), pal, 6, 1.0, 0.7, 0.0, 0.18))
 
 
-## O anjo é um espírito (shaders/fx_spirit.gdshader: translúcido, branco azulado, halo e pés em rastro).
+## O anjo é um espírito (shaders/fx_spirit.gdshader: translúcido, dourado, halo e pés em rastro), soltando
+## brilhos enquanto sobe (AngelSparkle).
 ## Sai de dentro do personagem, sobe até acima do letreiro balançando de leve, com as asas "batendo"
 ## (o quad estica e encolhe na largura), e se desfaz no alto.
 static func _angel(who: Node3D) -> void:
@@ -80,6 +81,10 @@ static func _angel(who: Node3D) -> void:
 	var drift := a.create_tween().set_loops(3)
 	drift.tween_property(a, "position:x", 0.12, 0.4).set_trans(Tween.TRANS_SINE)
 	drift.tween_property(a, "position:x", -0.12, 0.4).set_trans(Tween.TRANS_SINE)
+	var sp := AngelSparkle.new()
+	sp.wing = q.size.x * 0.5
+	sp.life = 2.2
+	a.add_child(sp)
 	var flap := a.create_tween().set_loops(6)
 	flap.tween_property(a, "scale:x", 0.88, 0.18).set_trans(Tween.TRANS_SINE)
 	flap.tween_property(a, "scale:x", 1.04, 0.18).set_trans(Tween.TRANS_SINE)
@@ -156,3 +161,32 @@ class Spiral extends Node3D:
 			var p := base + Vector3(cos(a) * r, h, sin(a) * r)
 			HolyFX.star(p, HolyFX.PAL_GOLD, randf_range(0.13, 0.2) * (1.0 - 0.4 * k),
 				{"hold": 0.12, "fade": 0.3, "rise": Vector3.UP * 0.6})
+
+
+## Brilhos saindo do anjo enquanto ele sobe: estrelinhas de 4 pontas nas pontas das asas e em volta do
+## corpo, que ficam para trás e caem devagar (rastro de luz), e de vez em quando um brilho maior.
+class AngelSparkle extends Node3D:
+	var wing := 1.0
+	var life := 2.0
+	var _t := 0.0
+	var _emit := 0.0
+
+	func _process(delta: float) -> void:
+		_t += delta
+		if _t >= life:
+			queue_free()
+			return
+		_emit -= delta
+		if _emit > 0.0:
+			return
+		_emit = 0.06
+		var base := global_position
+		var s := (get_parent() as Node3D).scale.x if get_parent() is Node3D else 1.0
+		for i in 2:
+			var side := -1.0 if randf() < 0.5 else 1.0
+			var off := Vector3(side * wing * s * randf_range(0.3, 0.95), randf_range(-0.3, 0.4), 0.0)
+			HolyFX.star(base + off, HolyFX.PAL_GOLD, randf_range(0.1, 0.2),
+				{"hold": randf_range(0.1, 0.25), "fade": 0.35, "rise": Vector3(randf_range(-0.2, 0.2), -0.5, 0.0)})
+		if randf() < 0.25:
+			HolyFX.star(base + Vector3(randf_range(-0.3, 0.3), randf_range(0.0, 0.5), 0.0), HolyFX.PAL_GOLD, 0.38,
+				{"points": 4, "sharp": 6.0, "hold": 0.05, "fade": 0.2})
