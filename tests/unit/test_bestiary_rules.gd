@@ -67,7 +67,7 @@ func test_kill_records_and_notifies() -> void:
 func test_loot_revealed_by_stage_and_by_drop() -> void:
 	var bt := _tables()
 	var s := CharState.new_character(bt)
-	# slime: gel 0.4 (estágio 1), sementes/poções < 0.05 (secretas)
+	# slime: gel 0.25 (estágio 1, a partir de 0.2), sementes/poções < 0.05 (secretas)
 	_kill(s, "slime", 1)
 	var view := BestiaryRules.loot_view(bt, "slime", s.bestiary.slime)
 	T.ok(view.all(func(r): return not r.shown), "estágio 0: nada revelado")

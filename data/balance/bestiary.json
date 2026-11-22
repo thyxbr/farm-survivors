@@ -7,7 +7,7 @@
 		"elite": {"name": "Elite", "steps": [1, 5, 15], "points": 30},
 		"chefe": {"name": "Chefe", "steps": [1, 3, 10], "points": 50}
 	},
-	"loot_bands": [[0.3, 1], [0.1, 2], [0.05, 3]],
+	"loot_bands": [[0.2, 1], [0.1, 2], [0.05, 3]],
 	"families": {
 		"slimes": {"name": "Slimes", "kinds": ["slime", "slime_veloz", "slime_explosivo", "slime_gelo", "slime_grande", "slime_mae", "slime_rainha"]},
 		"goblins": {"name": "Goblins", "kinds": ["goblin", "goblin_arqueiro", "goblin_xama", "goblin_bombardeiro", "goblin_bruto", "goblin_dourado", "goblin_campeao"]},

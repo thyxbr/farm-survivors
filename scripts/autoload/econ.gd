@@ -719,7 +719,8 @@ func server_spawn_pickup(peer: int, zone: String, pos: Vector3, gold: int, items
 	return id
 
 
-## Servidor: sorteio do loot de um inimigo (LootRules) para um jogador, em pickups (um sorteio por jogador).
+## Servidor: sorteio do loot de um inimigo (LootRules) para um jogador (um sorteio por jogador). O ouro e os
+## itens entram direto no personagem (sem pickup no chão) e o cliente vê o espólio voando até ele (_loot_fx).
 ## Devolve o que saiu da tabela do monstro (antes da troca por classe), para o bestiário.
 func server_drop_loot(peer: int, kind: String, pos: Vector3, zone := "world", level := 0, elite := false,
 		chief := false) -> Dictionary:
@@ -730,10 +731,12 @@ func server_drop_loot(peer: int, kind: String, pos: Vector3, zone := "world", le
 	var boss: bool = Balance.tables.get_table("enemies").get(kind, {}).get("boss", false) or chief
 	var extra := DungeonRules.extra_loot(Balance.tables, Regions.region_at(pos), boss)
 	var loot := LootRules.roll(Balance.tables, kind, _loot_rng, cls, level, elite, extra)
-	if int(loot.gold) > 0:
-		server_spawn_pickup(peer, zone, pos, int(loot.gold), {})
-	for id in loot.items:
-		server_spawn_pickup(peer, zone, pos, 0, {id: int(loot.items[id])})
+	var gold := int(loot.gold)
+	var items: Dictionary = loot.items
+	if (gold > 0 or not items.is_empty()) and Network.players.has(peer):
+		var r := server_grant(peer, gold, 0, items, "horde_run" if zone == "horde" else "loot", char_id)
+		if r.ok:
+			_loot_fx.rpc_id(peer, pos, gold, items)
 	return loot.get("rolled", {})
 
 
@@ -974,6 +977,24 @@ func _econ_res(seq: int, ok: bool, err: String, events: Array, state: Dictionary
 	var req: Dictionary = _pending.get(seq, {"op": "", "args": []})
 	_pending.erase(seq)
 	_finish(str(req.op), req.args, ok, err, events, state)
+
+
+## Servidor → dono: o espólio de um abate, já no inventário: só o efeito (LootFx) e o aviso do ouro.
+@rpc("authority", "call_remote", "reliable")
+func _loot_fx(pos: Vector3, gold: int, items: Dictionary) -> void:
+	show_loot(pos, gold, items)
+
+
+## Cliente/solo: o espólio que acabou de entrar no inventário saltando de `pos` até o jogador, e o ouro no
+## HUD (os itens já avisam pelo evento "looted" da concessão).
+func show_loot(pos: Vector3, gold: int, items: Dictionary, parent: Node = null) -> void:
+	if gold > 0:
+		Game.gold_looted.emit(gold)
+	var w := parent
+	if w == null or not is_instance_valid(w):
+		w = Network.world if Network.world != null and is_instance_valid(Network.world) else get_tree().current_scene
+	if w != null and DisplayServer.get_name() != "headless":
+		LootFx.play(w, pos, gold, items)
 
 
 ## Servidor → dono: pickup novo no chão (ouro ou um item). O nó pede a coleta com request("claim_pickup").

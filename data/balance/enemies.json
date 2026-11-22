@@ -28,7 +28,7 @@
 		"loot": [
 			[
 				"slime_gel",
-				0.4
+				0.25
 			],
 			[
 				"health_potion",
@@ -125,11 +125,11 @@
 		"loot": [
 			[
 				"slime_gel",
-				0.4
+				0.25
 			],
 			[
 				"frost_drop",
-				0.5
+				0.35
 			]
 		],
 		"ref_level": 2
@@ -167,7 +167,7 @@
 		"loot": [
 			[
 				"goblin_ear",
-				0.55
+				0.25
 			],
 			[
 				"health_potion",
@@ -184,6 +184,10 @@
 			[
 				"seed_mint",
 				0.01
+			],
+			[
+				"iron_ore",
+				0.15
 			]
 		],
 		"ref_level": 2
@@ -227,7 +231,7 @@
 		"loot": [
 			[
 				"ember_core",
-				0.6
+				0.4
 			]
 		],
 		"ref_level": 2
@@ -321,7 +325,16 @@
 			0.45
 		],
 		"ai": "ranged",
-		"loot": [],
+		"loot": [
+			[
+				"goblin_ear",
+				0.2
+			],
+			[
+				"iron_ore",
+				0.1
+			]
+		],
 		"ref_level": 2
 	},
 	"goblin_xama": {
@@ -371,7 +384,7 @@
 		"loot": [
 			[
 				"thunder_totem",
-				0.7
+				0.6
 			]
 		],
 		"ref_level": 2
@@ -513,7 +526,7 @@
 		"loot": [
 			[
 				"goblin_ear",
-				0.55
+				0.25
 			],
 			[
 				"health_potion",
@@ -521,7 +534,11 @@
 			],
 			[
 				"shadow_fang",
-				0.8
+				0.5
+			],
+			[
+				"iron_ore",
+				0.25
 			]
 		],
 		"ref_level": 2
@@ -637,7 +654,7 @@
 		"loot": [
 			[
 				"bone_shard",
-				0.55
+				0.25
 			],
 			[
 				"health_potion",
@@ -646,6 +663,10 @@
 			[
 				"mana_potion",
 				0.02
+			],
+			[
+				"iron_ore",
+				0.12
 			]
 		],
 		"ref_level": 2
@@ -685,7 +706,7 @@
 		"loot": [
 			[
 				"bone_shard",
-				0.55
+				0.25
 			]
 		],
 		"ref_level": 2
@@ -726,11 +747,15 @@
 		"loot": [
 			[
 				"bone_shard",
-				0.55
+				0.25
 			],
 			[
 				"mana_potion",
 				0.08
+			],
+			[
+				"arcane_crystal",
+				0.12
 			]
 		],
 		"ref_level": 2
@@ -801,6 +826,14 @@
 			[
 				"scroll_ossuary_bow",
 				0.04
+			],
+			[
+				"iron_ore",
+				0.5
+			],
+			[
+				"arcane_crystal",
+				0.25
 			]
 		],
 		"ref_level": 6
@@ -840,11 +873,15 @@
 		"loot": [
 			[
 				"ember_core",
-				0.5
+				0.3
 			],
 			[
 				"goblin_ear",
-				0.55
+				0.25
+			],
+			[
+				"iron_ore",
+				0.08
 			]
 		],
 		"ref_level": 2
@@ -887,11 +924,11 @@
 		"loot": [
 			[
 				"frost_drop",
-				0.6
+				0.35
 			],
 			[
 				"slime_gel",
-				0.4
+				0.25
 			]
 		],
 		"ref_level": 2
@@ -1650,7 +1687,7 @@
 		"loot": [
 			[
 				"raptor_claw",
-				0.4
+				0.25
 			],
 			[
 				"health_potion",
@@ -1696,7 +1733,7 @@
 		"loot": [
 			[
 				"spider_silk",
-				0.45
+				0.25
 			],
 			[
 				"health_potion",
@@ -1797,7 +1834,7 @@
 		"loot": [
 			[
 				"frog_tongue",
-				0.45
+				0.25
 			],
 			[
 				"health_potion",
@@ -1840,7 +1877,7 @@
 		"loot": [
 			[
 				"bat_wing",
-				0.45
+				0.25
 			],
 			[
 				"mana_potion",

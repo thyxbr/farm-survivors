@@ -127,6 +127,7 @@ func _ready() -> void:
 
 	Game.notify.connect(_on_notify)
 	Game.item_looted.connect(_on_loot)
+	Game.gold_looted.connect(_on_gold)
 	Game.stats_changed.connect(_refresh_static)
 	Game.stats_changed.connect(_check_prog_notice)
 	Game.inventory_changed.connect(_refresh_static)
@@ -855,32 +856,103 @@ func _on_notify(text: String, color: Color) -> void:
 ## Aviso de saque com ícone e nome na cor da raridade (lado direito).
 func _on_loot(id: String, qty: int) -> void:
 	var it := ItemDB.get_item(id)
+	var gear := ItemDB.is_equippable(id)
+	var rank: int = ItemDB.RARITY[ItemDB.rarity_of(id)].rank if gear else 0
 	var p := PanelContainer.new()
-	var rc := ItemDB.rarity_color(id) if ItemDB.is_equippable(id) else Color(0.85, 1.0, 0.7)
-	var sb := UITheme._box(Color(0.03, 0.025, 0.02, 0.55), Color(0, 0, 0, 0), 0, 4, 6, 2)
-	sb.border_width_right = 3
+	var rc := ItemDB.rarity_color(id) if gear else Color(0.85, 1.0, 0.7)
+	var sb := UITheme._box(Color(0.03, 0.025, 0.02, 0.55 + 0.08 * rank), Color(0, 0, 0, 0), 0, 4, 6, 2)
+	sb.border_width_right = 3 + mini(rank, 3)
 	sb.border_color = rc
+	if gear and rank >= 2:
+		# raro ou melhor: fundo tingido da raridade, para o drop chamar atenção
+		sb.bg_color = Color(rc.r * 0.25, rc.g * 0.25, rc.b * 0.25, 0.8)
 	p.add_theme_stylebox_override("panel", sb)
 	p.size_flags_horizontal = Control.SIZE_SHRINK_END
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 6)
-	var l := UITheme.outlined(it.name + ("  x%d" % qty if qty > 1 else ""), 14, rc, 4)
-	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	hb.add_child(l)
-	var icon := ItemSlot.new(26)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", -2)
+	vb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var l := UITheme.outlined(it.name + ("  x%d" % qty if qty > 1 else ""), 15 if gear else 14, rc, 4)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	vb.add_child(l)
+	if gear:
+		var sub := UITheme.outlined(str(ItemDB.RARITY[ItemDB.rarity_of(id)].get("name", "")) + " · nível %d" % int(it.get("level", 1)),
+			11, Color(rc, 0.85), 3)
+		sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		vb.add_child(sub)
+	hb.add_child(vb)
+	var icon := ItemSlot.new(40 if gear else 32)
 	icon.item_id = id
 	hb.add_child(icon)
 	p.add_child(hb)
 	_ignore_all(p)
 	loot_box.add_child(p)
-	while loot_box.get_child_count() > 5:
+	while loot_box.get_child_count() > 6:
 		loot_box.get_child(0).free()
 	p.modulate.a = 0.0
 	var tw := p.create_tween()
 	tw.tween_property(p, "modulate:a", 1.0, 0.15)
-	_fade_out(p, 4.0)
-	if ItemDB.is_equippable(id) and ItemDB.RARITY[ItemDB.rarity_of(id)].rank >= 3:
+	if gear and rank >= 1:
+		# entra "batendo": cresce um pouco e assenta (pivô na direita, onde fica o ícone)
+		p.pivot_offset = Vector2(284, 22)
+		p.scale = Vector2(1.25, 1.25)
+		p.create_tween().tween_property(p, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_fade_out(p, 4.0 + rank)
+	if gear and rank >= 3:
 		Sfx.play("levelup", 0.0, -8.0)
+	elif gear and rank >= 1:
+		Sfx.play("gem", 0.05, -6.0)
+
+
+var _gold_row: PanelContainer
+var _gold_label: Label
+var _gold_sum := 0
+var _gold_t := 0
+
+
+## Ouro de abate: uma linha só que vai somando enquanto os abates vêm em sequência.
+func _on_gold(amount: int) -> void:
+	var now := Time.get_ticks_msec()
+	if _gold_row != null and is_instance_valid(_gold_row) and not _gold_row.is_queued_for_deletion() 			and now - _gold_t < 2500:
+		_gold_sum += amount
+		_gold_t = now
+		_gold_label.text = "+%d ouro" % _gold_sum
+		_gold_row.modulate.a = 1.0
+		_gold_row.scale = Vector2(1.12, 1.12)
+		var bump := _gold_row.create_tween()
+		bump.tween_property(_gold_row, "scale", Vector2.ONE, 0.2)
+		_restart_fade(_gold_row)
+		return
+	_gold_sum = amount
+	_gold_t = now
+	var p := PanelContainer.new()
+	var sb := UITheme._box(Color(0.03, 0.025, 0.02, 0.55), Color(0, 0, 0, 0), 0, 4, 6, 2)
+	sb.border_width_right = 3
+	sb.border_color = Color(1, 0.8, 0.25)
+	p.add_theme_stylebox_override("panel", sb)
+	p.size_flags_horizontal = Control.SIZE_SHRINK_END
+	p.pivot_offset = Vector2(120, 14)
+	_gold_label = UITheme.outlined("+%d ouro" % amount, 15, Color(1, 0.85, 0.3), 4)
+	p.add_child(_gold_label)
+	_ignore_all(p)
+	loot_box.add_child(p)
+	while loot_box.get_child_count() > 6:
+		loot_box.get_child(0).free()
+	_gold_row = p
+	_restart_fade(p)
+
+
+## Reinicia o sumiço de um aviso (o ouro que continua somando fica na tela).
+func _restart_fade(c: Control) -> void:
+	var old: Tween = c.get_meta("fade_tw", null)
+	if old != null and old.is_valid():
+		old.kill()
+	var tw := c.create_tween()
+	tw.tween_interval(3.0)
+	tw.tween_property(c, "modulate:a", 0.0, 0.8)
+	tw.tween_callback(c.queue_free)
+	c.set_meta("fade_tw", tw)
 
 
 func _fade_out(c: Control, after: float) -> void:

@@ -11,14 +11,17 @@ var item_id := "":
 	set(v):
 		item_id = v
 		# carrega aqui, não no _draw: textura carregada no meio do desenho sai branca nesse quadro
+		# arte pintada ou, sem ela, o ícone 3D assado no build (ItemIcons.baked): em todo espaço, HUD inclusive
 		_art = item_art(v)
+		if _art == null and v != "":
+			_art = ItemIcons.baked(v)
 		queue_redraw()
 ## Ícone sem item (magias do HUD) e ícone "fantasma" de espaço vazio.
 var icon_kind := ""
 var icon_color := Color.WHITE
 ## Arte pintada da habilidade (assets/ui/skills); quando existe, ocupa o espaço no lugar do icon_kind.
 var icon_tex: Texture2D
-var _art: Texture2D    # arte pintada de item_id (ItemSlot.item_art)
+var _art: Texture2D    # arte pintada de item_id (ItemSlot.item_art) ou o ícone assado (ItemIcons.baked)
 var ghost_kind := ""
 var qty := 0
 var key_text := ""
