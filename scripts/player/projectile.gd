@@ -184,14 +184,16 @@ func _hit_sound() -> String:
 
 func _damage(e: Node, amount: float) -> void:
 	var dmg := EnchantHit.scale(e, amount * randf_range(0.9, 1.1))
+	# flecha física, faísca no elemento do cajado, luz sagrada; com a fatia do encanto da arma por cima
+	var el = EnchantHit.mix(ElementRules.projectile_element(kind, element, fx))
 	if fx == "glacial":
 		# Flecha Glacial: prende 1,5 s e atrasa 3 s (chefes ignoram a prisão em apply_stun); gelo no alvo
-		e.take_damage(dmg, global_position - _vel.normalized(), crit, 3.0, 1.5)
+		e.take_damage(dmg, global_position - _vel.normalized(), crit, 3.0, 1.5, 0.0, el)
 		_ice_fx(e)
 	else:
 		# Rei dos Ventos: `pull` negativo empurra para longe (Enemy.take_damage)
 		var push := -float(BowMythicRules.GALE.push) if fx == "gale" else 0.0
-		e.take_damage(dmg, global_position - _vel.normalized(), crit, 2.5 if fx == "slow" else 0.0, 0.0, push)
+		e.take_damage(dmg, global_position - _vel.normalized(), crit, 2.5 if fx == "slow" else 0.0, 0.0, push, el)
 	Game.on_damage_dealt(dmg, e.max_hp)
 	EnchantHit.on_hit(e, dmg)   # efeito do elemento da arma encantada
 

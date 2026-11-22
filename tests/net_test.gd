@@ -229,11 +229,17 @@ func _ready() -> void:
 		check(not w.player.chat_typing, "fechar o chat devolve o controle")
 
 	# acerta um slime até morrer: o servidor aplica o dano e devolve XP/loot
+	# cada cliente num slime só dele (Ana o de menor net_id, Beto o seguinte): a conta do elemento compara duas
+	# perdas de vida seguidas, e um golpe do colega no mesmo slime no meio bagunçava a proporção
 	var target: Enemy = null
+	var slimes: Array = []
 	for e in Network.enemies.values():
 		if e.kind == "slime" and not e.dead:
-			target = e
-			break
+			slimes.append(e)
+	slimes.sort_custom(func(a, b) -> bool: return a.net_id < b.net_id)
+	var pick := 0 if my_name == "Ana" else 1
+	if slimes.size() > pick:
+		target = slimes[pick]
 	check(target != null, "achou um slime")
 	if target:
 		w.player.global_position = target.global_position + Vector3(0, 0.5, 3)
@@ -249,7 +255,17 @@ func _ready() -> void:
 		target.take_damage(10.0, w.player.global_position, false)
 		await wait(0.6)
 		check(target.hp < hp0, "dano chega ao servidor e volta no snapshot (%.0f → %.0f)" % [hp0, target.hp])
-		target.take_damage(9999.0, w.player.global_position, false)
+		# afinidade elemental (ElementRules): o servidor aplica o % da ficha; slime leva 90% de físico e 125% de fogo
+		# golpe de fogo pequeno (3 em vez de 10): com o nível do herói o slime não pode morrer antes da leitura
+		var hp1 := target.hp
+		target.take_damage(3.0, w.player.global_position, false, 0.0, 0.0, 0.0, "fogo")
+		await wait(0.6)
+		var hp2: float = target.hp if is_instance_valid(target) and not target.dead else 0.0
+		var ratio := ((hp1 - hp2) / 3.0) / maxf((hp0 - hp1) / 10.0, 0.001)
+		check(hp2 > 0.0 and absf(ratio - 1.25 / 0.9) < 0.05,
+			"fogo no slime pelo servidor: %.2fx o físico (esperado %.2f)" % [ratio, 1.25 / 0.9])
+		if is_instance_valid(target) and not target.dead:
+			target.take_damage(9999.0, w.player.global_position, false)
 		await wait(0.8)
 		check(not is_instance_valid(target) or target.dead, "slime morreu em todos")
 		# XP, abate e loot vêm do servidor: o espelho só muda pelo estado que ele manda (push do Econ)
@@ -409,7 +425,8 @@ func _ready() -> void:
 		var drop: float = vh - vt.hp if is_instance_valid(vt) else 0.0
 		# monstro bem acima do nível de quem bate leva menos (placa vermelha, ProgressionRules.danger_mults):
 		# os 12% da marca valem sobre o dano já reduzido
-		var taken := float(ProgressionRules.danger_mults(Balance.tables, mark_level, Game.level).taken)
+		# e a afinidade ao físico do monstro (ElementRules: dourado 110%, campeão 75%) também
+		var taken := float(ProgressionRules.danger_mults(Balance.tables, mark_level, Game.level).taken) 			* ElementRules.mult(Balance.tables, mark_kind, "fisico")
 		check(drop > 10.5 * taken and drop < 12.5 * taken,
 			"marca de veneno adulterada é limitada a 12%% (10 de dano tirou %.1f; nível %d contra %d leva x%.2f)" % [drop, mark_level, Game.level, taken])
 		w.player.global_position = before_mark
