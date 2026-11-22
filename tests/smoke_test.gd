@@ -2614,15 +2614,31 @@ func _test_meteor_rain() -> void:
 	var m0: Vector4 = world.maps["vila"].mountain_data()[0]   # o primeiro morro da cena do vale
 	var pk := Vector3(m0.x, 0.0, m0.y)
 	var out := Vector3(-pk.x, 0.0, -pk.z).normalized()   # do pico para o meio do mapa
+	# o ponto de maior desnível, mas só onde dá para ficar de pé: num trecho íngreme demais (acima do
+	# floor_max_angle do jogador) ele escorrega encosta abaixo antes da checagem (já caiu de 12,6 para 6,9 m)
+	var floor_up := func(x: float, z: float) -> float:
+		var q := PhysicsRayQueryParameters3D.create(Vector3(x, 300.0, z), Vector3(x, -100.0, z), StaffAbilities.METEOR_GROUND_MASK)
+		var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(q)
+		return hit.normal.y if not hit.is_empty() else 0.0
+	var min_up := cos(player.floor_max_angle) + 0.1   # folga: a normal varia de um triângulo para o outro
 	var best_r := 0.0
 	var best_drop := -1.0
 	for r in range(4, 36):
 		var a: Vector3 = pk + out * float(r)
+		if top_ground.call(a.x, a.z) < 11.0:
+			continue
+		var steep := false
+		for d: Vector3 in [Vector3.ZERO, Vector3(0.4, 0, 0), Vector3(-0.4, 0, 0), Vector3(0, 0, 0.4), Vector3(0, 0, -0.4)]:
+			if floor_up.call(a.x + d.x, a.z + d.z) < min_up:
+				steep = true
+		if steep:
+			continue
 		var b2: Vector3 = a + out * StaffAbilities.METEOR_RANGE
 		var drop: float = top_ground.call(a.x, a.z) - top_ground.call(b2.x, b2.z)
 		if drop > best_drop:
 			best_drop = drop
 			best_r = float(r)
+	check(best_drop > 0.0, "Meteoros: achou um ponto da encosta firme para ficar de pé (r %.0f, desnível %.1f)" % [best_r, best_drop])
 	var flank: Vector3 = pk + out * best_r
 	player.global_position = Vector3(flank.x, top_ground.call(flank.x, flank.z) + 0.5, flank.z)
 	player.velocity = Vector3.ZERO
