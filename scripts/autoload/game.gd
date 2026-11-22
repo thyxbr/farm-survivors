@@ -203,6 +203,12 @@ func _debug_screenshot() -> void:
 						if cur.el == want[0] and cur.lv >= int(want[1]):
 							break
 						Econ.request("enchant", [want[0]])
+	# `--levelupfx`: toca a subida de nível um pouco antes da captura (conferir o efeito)
+	if "--levelupfx" in args:
+		get_tree().create_timer(maxf(delay - 0.05, 0.1)).timeout.connect(func() -> void:
+			for p in get_tree().get_nodes_in_group("player"):
+				if p.has_method("_on_level_up") and not p.get("remote"):
+					p._on_level_up(level))
 	if "--enchantstrike" in args:
 		get_tree().create_timer(maxf(delay - 0.15, 0.1)).timeout.connect(func() -> void:
 			for n in get_tree().get_nodes_in_group("interactable"):
