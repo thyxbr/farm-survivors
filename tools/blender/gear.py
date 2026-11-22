@@ -7174,80 +7174,80 @@ def cosmic_arm(K, src, body, s):
 
 
 def cosmic_skirt(K, src, body):
-    """Cintura para baixo (referência: escarcelas enormes abrindo em sino sobre as coxas): em cada quadril a
-    escarcela grande, do cinto ao meio da coxa, abrindo para fora, com a barra ondulada (desce no meio da coxa)
-    e um traço de tinta paralelo à barra; por baixo dela uma lâmina mais curta, também ondulada; no meio da
-    frente uma língua de placa de ponta redonda; culote atrás; coxas fechadas em placa com dois frisos de tinta.
-    Devolve (escarcelas, culote, língua, coxas, debruns)."""
+    """Cintura para baixo em RPG estilizado: em cada quadril duas escarcelas separadas em escada (a de cima maior,
+    barra em ponta descendo para a frente-fora e faixa de ouro grossa; a de baixo com faixa de prata), deixando
+    vão na frente; no meio da frente o tabardo de céu do Marius (painel rígido estreito que desce do cinto até
+    acima do joelho e termina em ponta de âncora), com moldura de ouro; culote atrás; coxas em placa lisa com
+    debrum de prata. Devolve (escarcelas, culote, tabardo, coxas, debruns)."""
+    G = K["gold"]
     tas = []
-
-    def wave(v):                       # barra: mais baixa no meio da largura, subindo nas pontas
-        return math.sin(math.pi * v) ** 0.45
-
     for sn, s in (("L", 1), ("R", -1)):
-        for k, (zt, zb0, dz, off0, flare, a_in0) in enumerate(((0.968, 0.83, 0.08, 0.032, 0.026, 0.3),
-                                                               (0.83, 0.7, 0.06, 0.054, 0.018, 0.42))):
-            def plate(u, v, s=s, zt=zt, zb0=zb0, dz=dz, off0=off0, flare=flare, a_in0=a_in0):
-                a_in = a_in0 + 0.06 * u ** 1.3
-                a = (a_in + (3.08 - a_in) * v) * s
-                zb = zb0 - dz * wave(v)
+        for k, (zt, zb0, dz, off0, flare, a0, a1) in enumerate(((0.968, 0.8, 0.07, 0.034, 0.032, 0.4, 2.75),
+                                                                 (0.85, 0.7, 0.06, 0.05, 0.026, 0.48, 2.65))):
+            def plate(u, v, s=s, zt=zt, zb0=zb0, dz=dz, off0=off0, flare=flare, a0=a0, a1=a1):
+                a = (a0 + (a1 - a0) * v) * s
+                zb = zb0 - dz * math.sin(math.pi * min(1.0, v / 0.75) * 0.5) ** 1.5 * (1 - max(0.0, v - 0.75) / 0.25 * 0.6)
                 z = zt + (zb - zt) * u
                 return _wk_hip_pt(a, z, off0 + flare * u ** 1.2)
-            ob, rr = _wk_plate("Tasset%s%d" % (sn, k), plate, 12, 40, K["plate"], body, thick=0.006)
+            ob, rr = _wk_plate("Tasset%s%d" % (sn, k), plate, 12, 30, K["plate"], body, thick=0.007)
             tas.append(ob)
-            if k == 0:                 # janela de céu no meio da escarcela de cima
-                q = plate(0.48, 0.32)
-                dn = Vector((q.x, q.y, 0)).normalized()
-                tas += cosmic_window("TassetSky" + sn, K, body, _mt_bvh([ob]), q + dn * 0.02, 0.02, 0.042, d=dn)
-            edge = [r[0] for r in rr] + rr[-1][1:] + [r[-1] for r in rr][::-1][1:]
-            tas.append(g_pipe("TassetRim%s%d" % (sn, k), edge, 0.0055, K["plate_d"], body, sides=8))
             nb = (lambda q: Vector((q.x, q.y, 0)).normalized())
-            tas.append(g_pipe("TassetInk%s%d" % (sn, k), [plate(0.8, v) + nb(plate(0.8, v)) * 0.0016
-                                                          for v in [0.04 + 0.92 * j / 30 for j in range(31)]],
-                              0.0026, K["star"], body, sides=6))
-    culet = firstplate_culet(dict(K, lining=K["plate"]), body)
-    # ---- língua da frente, entre as escarcelas: placa de ponta redonda descendo do cinto
-    def tongue(u, v):
-        z = 0.966 - (0.966 - 0.79) * u
-        half = 0.47 * (1 - 0.12 * u) * math.sqrt(max(0.0, 1 - max(0.0, (u - 0.7) / 0.3) ** 2)) + 0.004
-        return _wk_hip_pt(-half + 2 * half * v, z, 0.028)
-    tm, tr = _wk_plate("Tongue", tongue, 12, 16, K["plate"], body, thick=0.005)
+            low = [q + nb(q) * 0.003 for q in rr[-1]]
+            tas.append(cz_strip("TassetBand%s%d" % (sn, k), low, [nb(q) for q in low], 0.022 if k == 0 else 0.012,
+                                0.008 if k == 0 else 0.005, G if k == 0 else K["plate"], body))
+            for sd in (0, -1):         # bordas laterais em prata
+                side = [r[sd] + nb(r[sd]) * 0.002 for r in rr[1:-1]]
+                tas.append(cz_strip("TassetSide%s%d%d" % (sn, k, -sd), side, [nb(q) for q in side], 0.01, 0.004,
+                                    K["plate"], body))
+    culet = []                         # culote: três lâminas atrás, cada uma por cima da de baixo, até as escarcelas
+    for k in range(3):
+        zt = 1.0 - 0.085 * k
+
+        def lame(u, v, zt=zt, k=k):
+            a = math.pi - 1.45 + 2.9 * v
+            return _pal_hip_pt(a, zt - 0.1 * u, 0.026 + 0.005 * k + 0.012 * u)
+        ob, rr = _wk_plate("Culet%d" % k, lame, 5, 26, K["plate"], body, thick=0.006)
+        culet.append(ob)
+        nb = (lambda q: Vector((q.x, q.y, 0)).normalized())
+        low = [q + nb(q) * 0.003 for q in rr[-1]]
+        culet.append(cz_strip("CuletBand%d" % k, low, [nb(q) for q in low], 0.012, 0.005,
+                              G if k == 2 else K["plate"], body))
+    # ---- tabardo de céu: do cinto até acima do joelho, estreitando, ponta de âncora embaixo
+    ZT, ZB = 0.962, 0.6
+
+    def half(u):                       # meia largura (rad); embaixo abre nas duas pontas da âncora
+        base = 0.3 - 0.12 * u
+        hook = 0.16 * max(0.0, (u - 0.82) / 0.18) ** 1.5
+        return base + hook
+
+    def zrow(u, v):                    # a barra sobe nas pontas (crescente) e desce no meio
+        w = abs(2 * v - 1)
+        return ZT + (ZB - ZT) * u + max(0.0, (u - 0.82) / 0.18) * 0.06 * w ** 2
+
+    def tab(u, v):
+        h = half(u)
+        return _wk_hip_pt(-h + 2 * h * v, zrow(u, v), 0.04 + 0.006 * u)
+    tm, tr = _wk_plate("Tabard", tab, 20, 12, K["sky"], body, thick=0.004)
     mid = [tm]
     outline = [r[0] for r in tr] + tr[-1][1:] + [r[-1] for r in tr][::-1][1:]
-    mid.append(g_pipe("TongueRim", outline, 0.0045, K["plate_d"], body, sides=8))
-    mid.append(g_pipe("TongueInk", [tongue(u, 0.5) + Vector((0, -0.0025, 0)) for u in (0.08, 0.35, 0.6, 0.85)],
-                      0.0024, K["ink"], body, sides=6))
-    # ---- coxas inteiras em placa, debrum embaixo e dois frisos de tinta
+    nb = (lambda q: Vector((q.x, q.y, 0)).normalized())
+    ol = [q + nb(q) * 0.0012 for q in outline]
+    mid.append(cz_strip("TabardFrame", ol, [nb(q) for q in ol], 0.014, 0.006, G, body))
+    # ---- coxas inteiras em placa, debrum de prata embaixo
     shells, trims = [], []
     knee_z = CB_J["knee"].z
-    from mathutils.bvhtree import BVHTree
     for sn, s in (("L", 1), ("R", -1)):
-        hip = cb_mirror(CB_J["hip"], s)
-
         def keep_g(c, b, n, s=s):
             return b.startswith("Leg") and c.x * s > 0 and knee_z + 0.02 < c.z < 0.8
         sh = cb_piece(src, "Cuisse" + sn, keep_g, 0.016, K["plate"])
         g_subdiv(sh, 2)
         shells.append(sh)
-        for rim in g_border_pipes(sh, "CuisseRim" + sn, 0.0055, K["plate_d"], body, smooth=6, step=0.01):
+        for rim in g_border_pipes(sh, "CuisseRim" + sn, 0.006, K["plate"], body, smooth=6, step=0.01):
             mz = sum((rim.matrix_world @ v.co).z for v in rim.data.vertices) / len(rim.data.vertices)
             if mz > 0.74:
                 bpy.data.objects.remove(rim, do_unlink=True)
             else:
                 trims.append(rim)
-        bvh = BVHTree.FromPolygons([v.co.copy() for v in sh.data.vertices], [tuple(p.vertices) for p in sh.data.polygons])
-        kn = cb_mirror(CB_J["knee"], s)
-        for k, z in enumerate((0.68, 0.63)):
-            c = hip.lerp(kn, (hip.z - z) / (hip.z - kn.z))
-            line = []
-            for j in range(17):
-                a = -0.4 + 2.9 * j / 16
-                d = Vector((math.sin(a) * s, -math.cos(a), 0))
-                h = bvh.ray_cast(Vector((c.x, c.y, z)) + d * 0.3, -d)[0]
-                if h is not None:
-                    line.append(h + d * 0.0015)
-            if len(line) > 2:
-                trims.append(g_pipe("CuisseInk%s%d" % (sn, k), line, 0.0024, K["ink"], body, sides=6))
     return tas, culet, mid, shells, trims
 
 
