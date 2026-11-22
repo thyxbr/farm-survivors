@@ -10,11 +10,20 @@
 DH_BASE = OUT.replace("assets/models/", "tools/blender/base/dragon_face_base.blend")
 
 
-def _dh_tint_dark(img):
-    """Versão sombria da textura do rosto: o vermelho vira preto, o ouro vira cobre, o osso
-    vira marfim cinzento e o laranja aceso (olhos, faíscas) fica brasa. Atua por faixa de matiz, sem tocar no .blend."""
+# Recolor do rosto por variante: cada faixa da textura (osso, ouro, brasa dos olhos, corpo vermelho) vira lum * mult + add.
+DH_TINTS = {
+    "dark": dict(bone=((0.82, 0.78, 0.70), (0, 0, 0)), gold=((1.0, 0.8, 0.5), (0.04, 0.03, 0)),
+                 ember=(0.95, 0.3, 0.06), body=(0.395, 0.38, 0.38),
+                 back=(0.03, 0.03, 0.032), back_gold=(0.4, 0.3, 0.15), eye=(1.0, 0.3, 0.1)),
+    "ice": dict(bone=((0.98, 1.0, 1.05), (0.06, 0.07, 0.08)), gold=((1.0, 1.05, 1.1), (0.14, 0.17, 0.2)),
+                ember=(0.4, 0.95, 1.0), body=(1.5, 1.9, 2.4),
+                back=(0.3, 0.45, 0.68), back_gold=(0.8, 0.88, 0.95), eye=(0.4, 0.9, 1.0)),
+}
+
+
+def _dh_tint(img, T):
+    """Recolore a textura do rosto por faixa de matiz (osso/claro, ouro, brasa dos olhos, corpo), sem tocar no .blend."""
     import numpy as np
-    import colorsys
     w, h = img.size
     px = np.empty(w * h * 4, np.float32)
     img.pixels.foreach_get(px)
@@ -31,19 +40,13 @@ def _dh_tint_dark(img):
     gold = (~bone) & (~ember) & (hue >= 28) & (hue < 70) & (sat > 0.35) & (v > 0.45)
     body = ~(bone | ember | gold)
     lum = 0.3 * r + 0.59 * g + 0.11 * b
-    out[bone, 0] = lum[bone] * 0.82
-    out[bone, 1] = lum[bone] * 0.78
-    out[bone, 2] = lum[bone] * 0.70
-    out[gold, 0] = lum[gold] * 1.0 + 0.04
-    out[gold, 1] = lum[gold] * 0.8 + 0.03
-    out[gold, 2] = lum[gold] * 0.5
-    out[ember, 0] = 0.95
-    out[ember, 1] = 0.22 + 0.1 * v[ember]
-    out[ember, 2] = 0.06
-    lb = lum[body] * 0.38
-    out[body, 0] = lb * 1.04
-    out[body, 1] = lb
-    out[body, 2] = lb
+    for key, sel in (("bone", bone), ("gold", gold)):
+        mul, add = T[key]
+        for c in range(3):
+            out[sel, c] = lum[sel] * mul[c] + add[c]
+    for c in range(3):
+        out[ember, c] = T["ember"][c] if c != 1 else np.minimum(1.0, T["ember"][1] + 0.1 * v[ember])
+        out[body, c] = np.clip(lum[body] * T["body"][c], 0, 1)
     img.pixels.foreach_set(out.reshape(-1))
     img.update()
 
@@ -55,23 +58,24 @@ def _build_h_dragonknight(style, variant):
         dst.objects = [n for n in src.objects if n == "DragonFace"]
     ob = dst.objects[0]
     coll.objects.link(ob)
-    if variant == "dark":
+    if variant:
+        T = DH_TINTS[variant]
         # por posição (face, costas, ouro das costas, olhos): o nome pode ganhar sufixo .00N se o mesmo .blend já foi carregado
         mf, mb, mg, me = [m.copy() for m in ob.data.materials[:4]]
         for i, m in enumerate((mf, mb, mg, me)):
-            m.name = "dh_dark_" + ("face", "back", "back_gold", "eye_flat")[i]
+            m.name = "dh_%s_%s" % (variant, ("face", "back", "back_gold", "eye_flat")[i])
             ob.data.materials[i] = m
         for n in mf.node_tree.nodes:
             if n.type == 'TEX_IMAGE' and n.image and "normal" not in n.image.name:
                 n.image = n.image.copy()
-                n.image.name = "face_albedo_dark.png"
-                _dh_tint_dark(n.image)
-        mb.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.03, 0.03, 0.032, 1)
-        mg.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.4, 0.3, 0.15, 1)
+                n.image.name = "face_albedo_%s.png" % variant
+                _dh_tint(n.image, T)
+        for m, key in ((mb, "back"), (mg, "back_gold")):
+            m.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = tuple(T[key]) + (1,)
         bsdf = me.node_tree.nodes["Principled BSDF"]
         for k in ("Base Color", "Emission Color"):
             if k in bsdf.inputs:
-                bsdf.inputs[k].default_value = (1.0, 0.3, 0.1, 1)
+                bsdf.inputs[k].default_value = tuple(T["eye"]) + (1,)
     ob.data.transform(Matrix.Translation(-_wloc(head)))
     ob.parent = head
     ob.location = (0, 0, 0)
@@ -85,3 +89,7 @@ def build_h_dragonknight():
 
 def build_h_dragonknight_dark():
     _build_h_dragonknight("h_dragonknight_dark", "dark")
+
+
+def build_h_dragonknight_ice():
+    _build_h_dragonknight("h_dragonknight_ice", "ice")

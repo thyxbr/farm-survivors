@@ -17,6 +17,9 @@ DRK_PALETTES = {
     # (contrasta com o preto), gemas de brasa; chifres e garras em marfim cinzento
     "dark": dict(red="#151517", red_d="#0C0C0E", gold="#A9875A", line="#A3121E", under="#121214", lea="#1E1612",
                  cloth="#1C0C10", bone="#A39A88", gem=("#E8301C", "#FF4A1A", 0.5), sole="#0E0D0E"),
+    # gelo: placas azul-glacial, bordas em prata-branca, traços das escamas em azul-marinho, gemas ciano
+    "ice": dict(red="#6F9CC4", red_d="#46688F", gold="#DCE8F2", line="#1B3A66", under="#34455E", lea="#46566E",
+                cloth="#2C5B94", bone="#EAF6FF", gem=("#5FE0FF", "#7FEAFF", 0.55), sole="#2B3A52"),
 }
 
 
@@ -779,6 +782,18 @@ def build_g_dragonknight():
 
 def build_f_dragonknight():
     _build_f_dragonknight("f_dragonknight", "")
+
+
+def build_a_dragonknight_ice():
+    _build_a_dragonknight("a_dragonknight_ice", "ice", cape=False)
+
+
+def build_g_dragonknight_ice():
+    _build_g_dragonknight("g_dragonknight_ice", "ice")
+
+
+def build_f_dragonknight_ice():
+    _build_f_dragonknight("f_dragonknight_ice", "ice")
 
 
 def build_a_dragonknight_dark():

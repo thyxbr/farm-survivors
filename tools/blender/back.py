@@ -981,13 +981,22 @@ def build_c_verdant():
     bk_finish("c_verdant", ("vd_pollen", "fx_nature"))
 
 
-def build_c_dragonknight_dark():
+# paletas da capa do Cavaleiro Dragão (pano, pano escuro, borda, painel, gema, brilho da gema)
+DKC_PAL = {
+    "dark": ("#1C0C10", "#0F0709", "#A9875A", "#4A0C14", "#E8301C", "#FF4A1A"),
+    "ice": ("#4A7DB5", "#2C5B94", "#E2EEF8", "#9FD2F0", "#5FE0FF", "#7FEAFF"),
+}
+
+
+def _build_c_dragonknight(variant):
     """Capa do Cavaleiro Dragão Sombrio (antes parte da armadura): pano preto-vinho caindo até a canela, painel
     central vermelho-sangue com filetes de cobre, barra com duas linhas onduladas de cobre e uma gema de brasa na gola."""
-    cloth_m, cloth_d = gm("dkc_cloth_flat", "#1C0C10", 0.9), gm("dkc_clothd_flat", "#0F0709", 0.9)
-    copper = gm("dkc_copper_flat", "#A9875A", 0.7)
-    blood = gm("dkc_blood_flat", "#4A0C14", 0.9)
-    gem = mat("dkc_gem", hexc("#E8301C"), 0.3, 0.0, emit=hexc("#FF4A1A"), strength=1.6)
+    pc = DKC_PAL[variant]
+    pre = "dkc_" + variant + "_"
+    cloth_m, cloth_d = gm(pre + "cloth_flat", pc[0], 0.9), gm(pre + "clothd_flat", pc[1], 0.9)
+    copper = gm(pre + "copper_flat", pc[2], 0.7)
+    blood = gm(pre + "blood_flat", pc[3], 0.9)
+    gem = mat(pre + "gem", hexc(pc[4]), 0.3, 0.0, emit=hexc(pc[5]), strength=1.6)
     back = empty("Back", (0, 0, 0))
     cloth = empty("Cloth", (0, 0, 0), back)
     fold = bk_fold()
@@ -1009,11 +1018,20 @@ def build_c_dragonknight_dark():
         g_pipe("HemLine%d" % k, pts, 0.0035, copper, cloth, sides=6)
     o, tu, tv = bk_on_cloth(P, 0.04, 0.5)
     g_cap("CapeGem", o, P(0.04, 0.5)[2], tu, 0.02, 0.026, 0.01, gem, cloth, rings=4, sides=10)
-    bk_finish("c_dragonknight_dark", ("dkc_gem",))
+    bk_finish("c_dragonknight_" + variant, (pre + "gem",))
+
+
+def build_c_dragonknight_dark():
+    _build_c_dragonknight("dark")
+
+
+def build_c_dragonknight_ice():
+    _build_c_dragonknight("ice")
 
 
 BACK = [("b_seraph", build_b_seraph), ("b_abyss", build_b_abyss), ("b_phoenix", build_b_phoenix),
         ("b_crystal", build_b_crystal), ("b_mech", build_b_mech), ("b_dragon", build_b_dragon), ("b_fairy", build_b_fairy),
         ("c_dragonking", build_c_dragonking), ("c_starry", build_c_starry), ("c_wanderer", build_c_wanderer),
         ("c_half", build_c_half), ("c_flame", build_c_flame), ("c_frost", build_c_frost), ("c_storm", build_c_storm),
-        ("c_verdant", build_c_verdant), ("c_dragonknight_dark", build_c_dragonknight_dark)]
+        ("c_verdant", build_c_verdant), ("c_dragonknight_dark", build_c_dragonknight_dark),
+        ("c_dragonknight_ice", build_c_dragonknight_ice)]
