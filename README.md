@@ -185,7 +185,7 @@ já existem no banco, mas semear e ler o balanceamento do banco (e editar pelo p
   Deixe o *Auto Deploy* do próprio Easypanel desligado, senão ele publica mesmo quando os testes falham. Depois do
   deploy, o job *Conferir servidor publicado* roda `--nettest=<domínio>:7777 --probe` até o servidor aceitar a versão
   do commit: `GET https://<domínio>/health` tem que responder a versão e uma conexão UDP na 7777 tem que conectar
-  (falha após ~15 min). Ele só distingue servidor velho de novo se a versão mudou: aumente a versão quando mexer no código.
+  (falha após ~15 min). A versão sobe sozinha no merge (veja *Versão* abaixo), então servidor velho e novo sempre se distinguem.
 - **Desligue o *Zero Downtime* do app no Easypanel.** A porta UDP é publicada em modo host: com ele ligado o
   container novo fica em *Pending* ("host-mode port already in use") e o antigo continua no ar sem atualizar.
   Para destravar na VPS: `docker service scale <serviço>=0` e depois `=1`.
@@ -198,11 +198,14 @@ já existem no banco, mas semear e ler o balanceamento do banco (e editar pelo p
   Valdoria**. A senha não fica salva no PC.
   Antes de exportar, coloque o IP/domínio do servidor em `DEFAULT_ADDRESS` (`scripts/autoload/network.gd`).
 - **Versão:** o servidor recusa clientes com `application/config/version` diferente (*Projeto → Configurações → Application → Config*).
-  Para lançar uma versão nova basta aumentar a versão e dar push no `main`: o CI publica o cliente e atualiza o servidor.
-  **Mudou o jogo, suba a versão:** se a versão já tem release e algo fora de docs/testes/CI mudou desde a tag,
-  o CI falha antes do deploy. Sem isso o servidor receberia o código novo e os jogadores ficariam com o antigo
-  na mesma versão (o servidor aceitaria a conexão e as RPCs sairiam dessincronizadas).
-- **Auto update (cliente Windows):** quando a versão do `project.godot` ainda não tem release, o job
+  **Ninguém sobe a versão à mão, nem no PR:** com duas pessoas abrindo PRs ao mesmo tempo, as duas escolhiam o
+  mesmo número. A cada push no `main`, se algo fora de docs/testes/CI/ferramentas mudou desde a tag da última
+  release, o job *Exportar cliente Windows* pega a última release, soma 1 no minor (`0.99.0` → `0.100.0`), grava
+  no `project.godot` e faz o commit `Versão X [skip ci]` no `main`; cliente, tag da release e servidor (o Easypanel
+  builda o `main`) saem desse commit, com a mesma versão. Para pular para um número escolhido (ex.: `1.0.0`),
+  ponha-o no `project.godot`: vale o maior entre ele e o calculado. Depois de um merge, `git pull` traz o commit
+  da versão.
+- **Auto update (cliente Windows):** quando o jogo mudou desde a última release, o job
   *Exportar cliente Windows* do CI exporta o jogo (um exe só, sem DLL), o job *Ligar o exe exportado* roda esse
   exe sem tela num Windows (`--headless --quit-after 300`; falha com `SCRIPT ERROR`, `Parse Error`, `GDExtension`
   ou saída diferente de 0) e só então *Publicar cliente* cria a release `v<versão>` no GitHub com o zip e um

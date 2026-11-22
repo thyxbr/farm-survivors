@@ -142,9 +142,8 @@ de `server.log`), não FALHOU.
 - Mudanças que nenhum teste cobre: compare `git diff --stat main...HEAD` com o que os
   testes exercitam e aponte os arquivos alterados sem cobertura (ex.: UI nova, sistema
   novo). Isso entra como aviso, não como falha.
-- Mudou algo que cliente e servidor compartilham (rede, regras da Horda,
-  itens)? Confira se `config/version` no `project.godot` subiu em relação ao `main`:
-  o CI recusa publicar código novo com a versão de uma release já existente.
+- Não suba `config/version` no PR: o CI numera a versão nova sozinho no merge
+  (commit "Versão X [skip ci]" no `main`).
 
 ## Relatório
 
