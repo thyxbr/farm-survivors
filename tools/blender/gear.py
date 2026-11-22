@@ -6990,80 +6990,83 @@ def _cz_bez(a, b, c, t):
 
 
 def cosmic_pauldron(K, src, body, s):
-    """Ombreira do cavaleiro cósmico (medida no ombro do corpo: topo 1,47 m, x 0,165): copa lisa no ombro; de
-    cima dela sobe a lâmina alta ao lado da cabeça (borda de dentro quase em pé até 1,72 m, borda de cima em
-    curva côncava descendo até a ponta de fora, que passa do ombro na horizontal), com borda escura e um traço
-    de tinta paralelo; na frente uma aba em ponta desce da copa sobre o peito. Devolve (copa+aba, lâmina)."""
+    """Ombreira do cavaleiro cósmico em RPG estilizado (a peça maior do conjunto): copa grande de prata com uma
+    janela de céu larga emoldurada em ouro e a barra em faixa de ouro grossa; duas lâminas por baixo descendo pelo
+    braço, cada uma com faixa de ouro mais fina; de cima da copa sai o chifre do Marius, uma lâmina larga e
+    grossa que sobe curvando para fora (a ponta passa bem ao lado da cabeça), com faixa de ouro na borda de fora
+    e uma tira de céu no meio da face. Devolve (copa+lâminas, chifre)."""
     sn = "L" if s > 0 else "R"
+    G = K["gold"]
+    lames = [(0.05, 2.1, 2.35, 0.062, 0.022), (1.85, 2.65, 2.35, 0.05, 0.016), (2.4, 3.15, 2.35, 0.04, 0.012)]
     cup = []
-    rings, dirs, C = _g_shoulder_dome(src, s, [(0.05, 2.1, 2.45, 0.042, 0.006)], phis=32, rows=9, pull=0.3,
-                                      cap=0.008, taper=True)[0]
-    cup.append(g_smooth_mesh("Pauldron" + sn, rings, K["plate"], body, cap_end=False, closed=False, thick=0.006,
-                             outward=True))
-    n = len(rings[0])
-    edge = [rings[-1][j] + dirs[-1][j] * 0.002 for j in range(n)]
-    ends = [[rings[i][sd] + dirs[i][sd] * 0.002 for i in range(2, len(rings))] for sd in (0, n - 1)]
-    cup.append(g_pipe("PauldronRim" + sn, ends[0][::-1] + edge[1:-1] + ends[1], 0.0055, K["plate_d"], body, sides=8))
-    fi = len(rings) - 3
-    cup.append(g_pipe("PauldronInk" + sn, [rings[fi][j] + dirs[fi][j] * 0.0014 for j in range(2, n - 2)], 0.0026,
-                      K["ink"], body, sides=6))
-    # ---- chifre: um volume em crescente por cima do ombro. Grosso no meio (cobre o ombro na largura da
-    #      armadura) e afinando para as duas pontas: a de fora sai do ombro na horizontal, a de dentro sobe em
-    #      chifre ao lado da cabeça. Seção oval achatada (mais funda de frente para trás que alta).
+    domes = _g_shoulder_dome(src, s, lames, phis=36, rows=10, pull=0.3, cap=0.008, taper=True)
+    for k, (rings, dirs, C) in enumerate(domes):
+        n, nr = len(rings[0]), len(rings)
+        cup.append(g_smooth_mesh("Pauldron%s%d" % (sn, k), rings, K["plate"], body, cap_end=False, closed=False,
+                                 thick=0.007, outward=True))
+        edge = [rings[-1][j] + dirs[-1][j] * 0.003 for j in range(n)]
+        if k == 0:                     # na copa as pontas da barra sobem até o topo: a faixa para antes
+            loop, nl = edge[3:-3], [dirs[-1][j] for j in range(3, n - 3)]
+        else:
+            ends = [[(r[sd] + d[sd] * 0.003, d[sd]) for r, d in zip(rings, dirs)] for sd in (0, n - 1)]
+            seq = ends[0][::-1] + [(edge[j], dirs[-1][j]) for j in range(1, n - 1)] + ends[1]
+            loop, nl = [p for p, _ in seq], [d for _, d in seq]
+        cup.append(cz_strip("PauldronBand%s%d" % (sn, k), loop, nl, 0.026 if k == 0 else 0.012,
+                            0.009 if k == 0 else 0.005, G if k == 0 else K["plate"], body))
+        if k == 0:                     # janela de céu larga na copa (de frente a costas), moldura de ouro
+            i0, i1, j0, j1 = 2, nr - 3, int(n * 0.18), int(n * 0.82)
+            grid = [[rings[i][j] + dirs[i][j] * 0.0045 for j in range(j0, j1 + 1)] for i in range(i0, i1 + 1)]
+            cup.append(g_smooth_mesh("PauldronSky" + sn, grid, K["sky"], body, cap_end=False, closed=False,
+                                     thick=0.0015, outward=True))
+            fr = ([(rings[i0][j], dirs[i0][j]) for j in range(j0, j1 + 1)] +
+                  [(rings[i][j1], dirs[i][j1]) for i in range(i0 + 1, i1 + 1)] +
+                  [(rings[i1][j], dirs[i1][j]) for j in range(j1 - 1, j0 - 1, -1)] +
+                  [(rings[i][j0], dirs[i][j0]) for i in range(i1 - 1, i0, -1)])
+            cup.append(cz_strip("PauldronSkyFrame" + sn, [p + d * 0.004 for p, d in fr], [d for _, d in fr],
+                                0.012, 0.006, G, body, loop=True))
+    # ---- chifre: lâmina larga de frente, grossa, saindo de dentro da copa e subindo para fora
     V = (lambda x, y, z: Vector((s * x, y, z)))
-    P0, P1, P2, P3 = V(0.375, -0.002, 1.405), V(0.22, -0.002, 1.47), V(0.13, 0.008, 1.47), V(0.168, 0.03, 1.765)
-    TM = 0.47                          # ponto mais grosso (sobre o ombro)
+    P0, P1, P2, P3 = V(0.185, 0.012, 1.475), V(0.25, 0.02, 1.56), V(0.32, 0.04, 1.635), V(0.395, 0.065, 1.725)
 
     def spine(t):
-        return (P0 * (1 - t) ** 3 + P1 * 3 * t * (1 - t) ** 2 + P2 * 3 * t * t * (1 - t) + P3 * t ** 3)
-
-    def shape(t):
-        if t < TM:
-            return math.sin(math.pi / 2 * t / TM) ** 0.75
-        return ((1 - t) / (1 - TM)) ** 0.85
-
-    NT, NA = 40, 28
-    rings, frames = [], []
+        return P0 * (1 - t) ** 3 + P1 * 3 * t * (1 - t) ** 2 + P2 * 3 * t * t * (1 - t) + P3 * t ** 3
+    NT, NA = 30, 20
+    frames, rings = [], []
     for i in range(NT + 1):
-        t = 0.004 + 0.992 * i / NT
+        t = i / NT
         c = spine(t)
         T = (spine(min(1.0, t + 0.01)) - spine(max(0.0, t - 0.01))).normalized()
-        N = Vector((0, 1, 0))
-        N = (N - T * N.dot(T)).normalized()
-        B = T.cross(N).normalized()
-        k = shape(t)
-        ry = 0.108 * k + 0.003            # fundo (frente-costas)
-        rb = (0.05 if t < 0.55 else 0.05 - 0.014 * (t - 0.55) / 0.45) * k + 0.003   # espessura
+        Y = Vector((0, 1, 0))
+        W = T.cross(Y).normalized()            # largura, no plano da frente
+        if W.x * s < 0:
+            W = -W                             # W aponta para fora (lado da borda de ouro)
+        D = W.cross(T).normalized()            # espessura (frente-costas)
+        if D.y > 0:
+            D = -D
+        w = 0.05 * (1 - t) ** 0.8 + 0.004     # meia largura
+        th = 0.016 * (1 - t) ** 0.6 + 0.003    # meia espessura
+        sh = 0.012 * math.sin(math.pi * t)     # a lâmina arqueia para fora (borda de fora mais cheia)
         row = []
         for j in range(NA):
             a = 2 * math.pi * j / NA
             ca, sa = math.cos(a), math.sin(a)
-            row.append(c + N * ry * math.copysign(abs(ca) ** 0.85, ca) + B * rb * math.copysign(abs(sa) ** 0.85, sa))
+            row.append(c + W * (w * ca + sh * max(0.0, ca)) + D * th * math.copysign(abs(sa) ** 0.7, sa))
         rings.append(row)
-        frames.append((c, N, B, ry, rb))
+        frames.append((c, W, D, w + sh, th))
     blade = [g_smooth_mesh("Horn" + sn, rings, K["plate"], body, cap_end=True, outward=True)]
-    # traço de tinta pela crista de cima (lado B de fora) e pela frente, do meio para as pontas
-    def hpt(i, ang, out):
-        c, N, B, ry, rb = frames[i]
-        ca, sa = math.cos(ang), math.sin(ang)
-        return (c + N * (ry + out) * math.copysign(abs(ca) ** 0.85, ca)
-                + B * (rb + out) * math.copysign(abs(sa) ** 0.85, sa))
-    i0, i1 = int(0.12 * NT), int(0.9 * NT)
-    band = [[hpt(i, math.pi + 0.34 * (2 * k / 6 - 1), 0.0009) for k in range(7)] for i in range(i0, i1 + 1)]
-    blade.append(g_smooth_mesh("HornSky" + sn, band, K["sky"], body, cap_end=False, closed=False, thick=0.0015,
+    i0, i1 = int(0.22 * NT), int(0.9 * NT)
+    edge = [frames[i][0] + frames[i][1] * (frames[i][3] + 0.001) for i in range(i0, NT - 1)]
+    blade.append(cz_strip("HornEdge" + sn, edge, [frames[i][1] for i in range(i0, NT - 1)],
+                          [frames[i][4] * 2.2 for i in range(i0, NT - 1)], 0.007, G, body))
+    face = [[frames[i][0] + frames[i][1] * (frames[i][3] * f) + frames[i][2] * (frames[i][4] + 0.0012)
+             for f in (-0.45, -0.15, 0.15, 0.45)] for i in range(i0, i1 + 1)]
+    blade.append(g_smooth_mesh("HornSky" + sn, face, K["sky"], body, cap_end=False, closed=False, thick=0.0015,
                                outward=True))
-    for sd in (-1, 1):
-        blade.append(g_pipe("HornSkyRim%s%d" % (sn, sd > 0), [hpt(i, math.pi + sd * 0.36, 0.0015)
-                                                               for i in range(i0, i1 + 1)], 0.0028, K["plate_d"], body,
-                            sides=6))
-    for nm, ang, t0, t1 in (("Crest", 0.5 * math.pi, 0.1, 0.94),):
-        line = []
-        for i in range(int(t0 * NT), int(t1 * NT) + 1):
-            c, N, B, ry, rb = frames[i]
-            ca, sa = math.cos(ang), math.sin(ang)
-            line.append(c + N * (ry + 0.0012) * math.copysign(abs(ca) ** 0.85, ca)
-                        + B * (rb + 0.0012) * math.copysign(abs(sa) ** 0.85, sa))
-        blade.append(g_pipe("HornInk%s%s" % (nm, sn), line, 0.0026, K["star"], body, sides=6))
+    Dn = [frames[i][2] for i in range(i0, i1 + 1)]
+    fr = ([(face[0][k], Dn[0]) for k in range(4)] + [(r[3], d) for r, d in zip(face[1:], Dn[1:])] +
+          [(face[-1][k], Dn[-1]) for k in (2, 1, 0)] + [(r[0], d) for r, d in zip(face[-2:0:-1], Dn[-2:0:-1])])
+    blade.append(cz_strip("HornSkyFrame" + sn, [q for q, _ in fr], [d for _, d in fr], 0.008, 0.004, G, body,
+                          loop=True))
     return cup, blade
 
 
