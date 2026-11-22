@@ -130,6 +130,9 @@ func _ready() -> void:
 	if "--earthquakedemo" in OS.get_cmdline_user_args():
 		# demonstração do Terremoto Devastador (use com --weapon=iron_sword: personagem descartável)
 		get_tree().root.add_child.call_deferred(load("res://tools/earthquake_demo.gd").new())
+	if "--supremedemo" in OS.get_cmdline_user_args():
+		# demonstração da Lâmina Suprema (use com --weapon=eclipse_greatsword: personagem descartável)
+		get_tree().root.add_child.call_deferred(load("res://tools/supreme_game_demo.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
 		# o Econ usa user://smoketest_solo.json, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())
@@ -798,10 +801,13 @@ func ability_kit() -> Array[String]:
 	return ItemDB.kit(CharRules.class_weapon(Balance.tables, char_class), offhand_kind())
 
 
-## Tipo da mão secundária que muda o kit: "shield" com uma espada E um escudo nas mãos; senão "".
+## Tipo da mão secundária que muda o kit: "shield" com uma espada E um escudo nas mãos; "two_handed" com a montante
+## (as duas mãos na espada: a Lâmina Suprema no lugar do Turbilhão); senão "".
 func offhand_kind() -> String:
 	if equipment.get("weapon", "") == "" or weapon_class() != "sword":
 		return ""
+	if ItemDB.is_two_handed(equipment.get("weapon", "")):
+		return "two_handed"
 	var off: String = equipment.get("offhand", "")
 	if off != "" and ItemDB.get_item(off).get("needs", "") == "sword":
 		return "shield"

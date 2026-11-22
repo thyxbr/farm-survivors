@@ -417,6 +417,123 @@ func _check_hammer(player: Node, world: Node) -> void:
 	Game.hp = hp_player
 
 
+## Lâmina Suprema (montante, slot 4 / tecla 4, no lugar do Turbilhão, gasta a fúria): kit, herói parado do começo ao fim,
+## espada de energia se formando até ~3x a altura dele durante a carga, impacto no ponto à frente na hora certa, a rachadura
+## reta no chão, dano no ponto do golpe e no caminho do corte (uma vez só), os de fora sem dano, limpeza de tudo e o
+## cancelamento pela esquiva durante a carga.
+func _check_supreme(player: Node, world: Node) -> void:
+	var cfg: GreatswordSupremeConfig = GreatswordSupremeAbilities.CONFIG
+	var back: Vector3 = player.global_position
+	var lv0: int = Game.level
+	var weapon0: String = Game.equipment.get("weapon", "")
+	Game.add_item("iron_zweihander")
+	equip_any("iron_zweihander")
+	Econ.test_force_level(maxi(Game.level, int(ItemDB.ABILITIES.sword_supreme.level)))
+	await wait_until(func(): return Game.offhand_kind() == "two_handed" and Game.level >= 8)
+	var kit := Game.ability_kit()
+	check(kit.size() == 4 and kit[3] == "sword_supreme" and not ("sword_whirl" in kit), "Lâmina Suprema: a montante troca a habilidade 4 (%s)" % [kit])
+	var spot := Vector3(-105, 0.3, 40)   # fora da vila
+	player.global_position = spot
+	player.velocity = Vector3.ZERO
+	player.model.rotation.y = 0.0     # olhando para +Z
+	await wait(0.25)
+	await wait_until(func(): return player.ability == "" and not player.attacking and player.dodge_timer <= 0.0)
+	var origin: Vector3 = player.global_position
+	var center: Vector3 = origin + Vector3(0, 0, cfg.impact_distance)
+	# monstros parados: 2 no ponto do golpe, 1 no caminho do corte, 2 fora (dos lados e atrás)
+	var mobs: Array = []
+	for p in [center + Vector3(1.5, 0, 0.5), center + Vector3(-1.0, 0, 1.8), origin + Vector3(0.4, 0, 1.0),
+			center + Vector3(cfg.impact_radius + 3.0, 0, 0), origin + Vector3(0, 0, -4.5)]:
+		var e := Enemy.new()
+		e.kind = "slime"
+		world.add_child(e)
+		e.global_position = p
+		e.home = p
+		mobs.append(e)
+	await wait(0.15)
+	for e in mobs:
+		e.set_physics_process(false)
+	var inside := mobs.slice(0, 3)
+	var outside := mobs.slice(3)
+	var hp0 := {}
+	for e in mobs:
+		hp0[e] = e.hp
+	var hp_player: float = Game.hp
+	player.invuln = 99.0
+	Game.fury = 0.0
+	player.cast("sword_supreme")
+	check(player.ability == "", "Lâmina Suprema: sem fúria cheia não começa")
+	Game.fury = 100.0
+	player.use_slot(4)
+	check(player.ability == "sword_supreme" and Game.fury == 0.0, "Lâmina Suprema: começa na tecla 4 e gasta a fúria")
+	var skill: GreatswordSupremeSlash = player.ability_data.get("skill")
+	check(is_instance_valid(skill) and skill.get_parent() == get_tree().current_scene, "Lâmina Suprema: a cena do golpe na cena do mundo")
+	# carga: parado (mesmo com a tecla de andar) e a espada pegando fogo da guarda para a ponta
+	await wait(cfg.raise_time + cfg.charge_time * 0.5)
+	var pos_mid: Vector3 = player.global_position
+	Input.action_press("move_right")
+	await wait(0.3)
+	Input.action_release("move_right")
+	var moved := Vector2(player.global_position.x - pos_mid.x, player.global_position.z - pos_mid.z).length()
+	check(moved < 0.05, "Lâmina Suprema: o herói não anda durante a habilidade (%.2f m com a tecla de andar)" % moved)
+	var g_mid := float(skill.energy_sword.get_instance_shader_parameter("heat"))
+	check(g_mid > 0.2 and g_mid < 0.95, "Lâmina Suprema: a espada pega fogo aos poucos (%.2f)" % g_mid)
+	check(player.cam_back > 1.0, "Lâmina Suprema: a câmera recua")
+	await wait_until(func(): return skill.state == GreatswordSupremeSlash.State.SLASH)
+	var len_full: float = skill.sword_pivot.global_basis.y.length()
+	check(len_full >= cfg.sword_length - 0.01 and len_full > 5.0 and skill.energy_sword.mesh != null,
+		"Lâmina Suprema: espada de energia formada ~3x a altura do herói (%.2f m)" % len_full)
+	check(not GreatswordSupremeAbilities.can_dodge_cancel(player), "Lâmina Suprema: no corte a esquiva não cancela mais")
+	await wait_until(func(): return skill.impact_at >= 0.0, 3.0)
+	check(absf(skill.impact_at - cfg.impact_time()) < 0.1, "Lâmina Suprema: impacto na hora (%.2f s)" % skill.impact_at)
+	var flat := Vector2(skill.impact_center.x - center.x, skill.impact_center.z - center.z).length()
+	check(flat < 0.1, "Lâmina Suprema: a espada bate à frente do herói (%.2f m do ponto)" % flat)
+	var crack_dir: Vector3 = skill.crack.global_basis.z.normalized()
+	check(skill.impact_root.visible and skill.crack.texture_albedo != null and is_equal_approx(skill.crack.size.z, cfg.crack_length())
+		and absf(crack_dir.dot(Vector3(0, 0, 1))) > 0.99, "Lâmina Suprema: rachadura reta no chão, na direção do golpe (%.1f m)" % skill.crack.size.z)
+	await wait(0.15)
+	check(inside.all(func(e): return not is_instance_valid(e) or e.dead or e.hp < float(hp0[e])),
+		"Lâmina Suprema: fere quem está no ponto do golpe e no caminho do corte (%d atingidos)" % skill.hit_count)
+	check(outside.all(func(e): return is_instance_valid(e) and is_equal_approx(e.hp, float(hp0[e]))), "Lâmina Suprema: quem está fora não leva dano")
+	check(skill.hit_count == 3, "Lâmina Suprema: cada um uma vez (%d)" % skill.hit_count)
+	check(Game.hp >= hp_player - 0.01, "Lâmina Suprema: o herói não se fere (%.1f -> %.1f)" % [hp_player, Game.hp])
+	await wait_until(func(): return player.ability == "", cfg.kneel_time + cfg.rise_time + 1.0)
+	check(player.ability == "" and player.cam_back == 0.0, "Lâmina Suprema: termina e solta o herói")
+	var skill_ref: WeakRef = weakref(skill)   # (a lambda não captura o nó: ele é liberado no meio da espera)
+	await wait_until(func(): return skill_ref.get_ref() == null, cfg.crack_hold + cfg.fade_time + 2.0)
+	check(skill_ref.get_ref() == null, "Lâmina Suprema: rachadura, partículas e espada removidas no fim")
+	# esquiva durante a carga cancela: sem dano e tudo se desfaz
+	for e in mobs:
+		if is_instance_valid(e) and not e.dead:
+			hp0[e] = e.hp
+	Game.fury = 100.0
+	player.cast("sword_supreme")
+	var skill2: GreatswordSupremeSlash = player.ability_data.get("skill")
+	await wait(cfg.raise_time + 0.3)
+	check(GreatswordSupremeAbilities.can_dodge_cancel(player), "Lâmina Suprema: a esquiva cancela durante a carga")
+	player._dodge_pressed(Vector3.BACK)
+	check(player.ability == "" and is_instance_valid(skill2) and skill2.state == GreatswordSupremeSlash.State.CANCELED, "Lâmina Suprema: cancelada pela esquiva")
+	var skill2_ref: WeakRef = weakref(skill2)
+	await wait_until(func(): return skill2_ref.get_ref() == null, 2.0)
+	check(skill2_ref.get_ref() == null and mobs.all(func(e): return not is_instance_valid(e) or e.dead or is_equal_approx(e.hp, float(hp0[e]))),
+		"Lâmina Suprema: cancelada não fere ninguém e se libera")
+	for e in mobs:
+		if is_instance_valid(e):
+			e.queue_free()
+	# volta para a espada de antes: o Turbilhão volta
+	if weapon0 != "":
+		equip_any(weapon0)
+	await wait_until(func(): return Game.offhand_kind() == "")
+	check(Game.ability_kit()[3] == "sword_whirl", "Lâmina Suprema: sem a montante a habilidade 4 volta a ser o Turbilhão")
+	Econ.test_force_level(lv0)
+	await wait(0.6)   # a esquiva do cancelamento termina
+	player.global_position = back
+	player.velocity = Vector3.ZERO
+	player.invuln = 0.0
+	Game.fury = 0.0
+	Game.hp = hp_player
+
+
 ## Terremoto Devastador (espada + escudo, slot 2 / tecla 2, no lugar do Golpe Sísmico): kit, carga antes do impacto
 ## (rachaduras pequenas, energia, pedrinhas), parado enquanto bate, impacto na hora certa e no ponto à frente do
 ## herói (explosão e tremor), onda crescendo até o raio, rachaduras e placas acompanhando a onda, pedras lançadas,
@@ -1487,6 +1604,7 @@ func _ready() -> void:
 	await _check_earthquake(player, world)
 	await _check_dark_taunt(player, world)
 	await _check_party_shield(player, world)
+	await _check_supreme(player, world)
 	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
 	# quem testar; resta conferir que há recarga para cada habilidade
 	Game.add_item("short_bow")

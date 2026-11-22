@@ -67,6 +67,9 @@ const ABILITIES := {
 		"ready": true, "ultimate": false, "icon": "fury", "desc": "Por 10 s: +30% de dano e cada abate cura 2."},
 	"sword_whirl": {"name": "Turbilhão", "class": "sword", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
 		"ready": true, "ultimate": true, "icon": "cleaver", "desc": "Ultimate: redemoinho de lâminas ao redor."},
+	# "offhand": "two_handed" = com a montante nas mãos (Game.offhand_kind): troca o Turbilhão na tecla 4
+	"sword_supreme": {"name": "Lâmina Suprema", "class": "sword", "offhand": "two_handed", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
+		"ready": true, "ultimate": true, "icon": "greatsword", "desc": "Ultimate da montante: ergue a espada e fica parado enquanto ela vira uma espada gigante em chamas (cerca de 3x a sua altura); então a crava no chão à frente. O chão se parte numa rachadura em linha reta, arremessando pedras e terra: 5x o dano corpo a corpo, atordoa e empurra quem está no ponto do golpe ou no caminho do corte. A esquiva durante a carga cancela."},
 	"bow_triple": {"name": "Tiro Triplo", "class": "bow", "slot": 1, "level": 1, "cooldown": 5.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "bow", "desc": "Três flechas em leque."},
 	"bow_frost": {"name": "Flecha Glacial", "class": "bow", "slot": 2, "level": 3, "cooldown": 8.0, "cost": 0,
