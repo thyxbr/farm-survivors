@@ -15,9 +15,6 @@ DH_TINTS = {
     "dark": dict(bone=((0.82, 0.78, 0.70), (0, 0, 0)), gold=((1.0, 0.8, 0.5), (0.04, 0.03, 0)),
                  ember=(0.95, 0.3, 0.06), body=(0.395, 0.38, 0.38),
                  back=(0.03, 0.03, 0.032), back_gold=(0.4, 0.3, 0.15), eye=(1.0, 0.3, 0.1)),
-    "ice": dict(bone=((0.98, 1.0, 1.05), (0.06, 0.07, 0.08)), gold=((1.0, 1.05, 1.1), (0.14, 0.17, 0.2)),
-                ember=(0.4, 0.95, 1.0), body=(1.5, 1.9, 2.4),
-                back=(0.3, 0.45, 0.68), back_gold=(0.8, 0.88, 0.95), eye=(0.4, 0.9, 1.0)),
 }
 
 
@@ -92,4 +89,39 @@ def build_h_dragonknight_dark():
 
 
 def build_h_dragonknight_ice():
-    _build_h_dragonknight("h_dragonknight_ice", "ice")
+    """Tiara de gelo do conjunto de gelo (o rosto de dragão fechado destoava do gelo): aro de prata baixo, cristais de
+    gelo de alturas diferentes (o do meio é o mais alto), gema ciano na testa e dois chifres curtos e brancos que
+    saem das têmporas e curvam para trás. O cabelo do herói aparece por baixo."""
+    style = "h_dragonknight_ice"
+    P, R, head = g_head(style)
+    K = dragonknight_mats("ice")
+    crystal = gm("drk_ice_crystal_flat", "#A8DCF5", 0.5)
+    zf = lambda th: 1.757 + 0.008 * math.cos(th)
+    band = [g_headring(lambda th, dz=dz: zf(th) + dz, out, 48) for dz, out in ((-0.014, 0.004), (0.0, 0.008),
+                                                                               (0.014, 0.004))]
+    parts = [g_smooth_mesh("TiaraBand", band, K["gold"], head, cap_end=False, thick=0.005)]
+    for i, dz in enumerate((-0.014, 0.014)):
+        parts.append(g_pipe("TiaraRim%d" % i, g_headring(lambda th, dz=dz: zf(th) + dz, 0.0055, 48), 0.004, K["gold"],
+                            head, loop=True))
+    up = Vector((0, 0, 1))
+    for k, (th, ln, r) in enumerate(((0.0, 0.17, 0.026), (0.42, 0.115, 0.02), (-0.42, 0.115, 0.02),
+                                     (0.85, 0.075, 0.015), (-0.85, 0.075, 0.015), (1.2, 0.045, 0.011),
+                                     (-1.2, 0.045, 0.011))):
+        b = g_skull(th, zf(th) + 0.004, 0.004)
+        od = Vector((math.sin(th), -math.cos(th), 0))
+        parts.append(g_shard("TiaraIce%d" % k, b - up * 0.012, b + up * ln + od * ln * 0.18, r, crystal, head,
+                             twist=k * 0.5))
+    parts.append(g_gem("TiaraGem", g_skull(0, zf(0) - 0.002, 0.012), 0.014, 0.02, 0.008, K["gem"], head))
+    for sd, sx in (("L", 1), ("R", -1)):
+        th = sx * 1.5
+        b = g_skull(th, zf(th) + 0.004, 0.006)
+        P0 = b
+        P1 = b + Vector((sx * 0.03, 0.035, 0.02))
+        P2 = b + Vector((sx * 0.052, 0.095, 0.055))
+        P3 = b + Vector((sx * 0.04, 0.15, 0.135))
+        NH = 14
+        path = [P0 * (1 - t) ** 3 + P1 * 3 * t * (1 - t) ** 2 + P2 * 3 * t * t * (1 - t) + P3 * t ** 3
+                for t in (i / NH for i in range(NH + 1))]
+        rad = [(0.016 * (1 - i / NH) ** 0.8 + 0.002,) * 2 for i in range(NH + 1)]
+        parts.append(g_smooth_mesh("TiaraHorn" + sd, g_curved_tube(path, rad, sides=12), K["bone"], head))
+    g_head_done(style, "DragonKnightTiara", parts, P, R)

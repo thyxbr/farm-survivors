@@ -3896,7 +3896,7 @@
 		"craft": true
 	},
 	"dragon_knight_ice_helm": {
-		"name": "Elmo do Cavaleiro Dragão de Gelo",
+		"name": "Tiara do Cavaleiro Dragão de Gelo",
 		"type": "gear",
 		"slot": "head",
 		"rarity": "legendary",
@@ -3909,7 +3909,7 @@
 			"str": 3,
 			"hp": 30
 		},
-		"desc": "A cabeça de um dragão de gelo, de chifres e presas, com olhos que soltam geada.",
+		"desc": "Cristais de gelo sobre um aro de prata e dois chifres curtos de dragão nas têmporas.",
 		"craft": true
 	},
 	"dragon_knight_ice_plate": {
