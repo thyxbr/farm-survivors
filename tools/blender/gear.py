@@ -7070,13 +7070,37 @@ def cosmic_pauldron(K, src, body, s):
     return cup, blade
 
 
+def cz_blade(name, P, Dh, w0, th0, material, parent, NT=24, NA=18):
+    """Lâmina grossa ao longo da curva de Bézier P (4 pontos), com a face virada para Dh: meia largura w0 e meia
+    espessura th0 na base, afinando para a ponta. Devolve (malha, quadros [(centro, W, D, meia largura, th)])."""
+    def sp(t):
+        return P[0] * (1 - t) ** 3 + P[1] * 3 * t * (1 - t) ** 2 + P[2] * 3 * t * t * (1 - t) + P[3] * t ** 3
+    rings, frames = [], []
+    for i in range(NT + 1):
+        t = i / NT
+        c = sp(t)
+        T = (sp(min(1.0, t + 0.01)) - sp(max(0.0, t - 0.01))).normalized()
+        W = Dh.cross(T).normalized()
+        D = T.cross(W).normalized()
+        if D.dot(Dh) < 0:
+            D = -D
+        w = w0 * (1 - t) ** 0.8 + 0.003
+        th = th0 * (1 - t) ** 0.6 + 0.0025
+        rings.append([c + W * (w * math.cos(2 * math.pi * j / NA))
+                      + D * th * math.copysign(abs(math.sin(2 * math.pi * j / NA)) ** 0.7, math.sin(2 * math.pi * j / NA))
+                      for j in range(NA)])
+        frames.append((c, W, D, w, th))
+    return g_smooth_mesh(name, rings, material, parent, cap_end=True, outward=True), frames
+
+
 def cosmic_arm(K, src, body, s):
-    """Braço do cavaleiro cósmico (referência: braçais grossos e lisos com contorno de tinta): braçal de cima
-    largo, com um painel desenhado em tinta do lado de fora (duas linhas descendo e o arco de cima); cotoveleira
-    em cúpula com uma janela pequena para o céu na ponta do cotovelo (o oval escuro da referência); braçal do
-    antebraço grosso, abrindo no cotovelo e no punho, com a costura de fora em tinta."""
+    """Braço do cavaleiro cósmico em RPG estilizado: braçal de cima liso com faixa de prata na boca; cotoveleira
+    grande em cúpula com faixa de ouro e uma aleta em leque subindo para trás do cotovelo (borda de ouro);
+    braçal do antebraço grosso, abrindo no punho em sino, com anel de ouro largo no punho, faixa de ouro em cima
+    e uma janela de céu em amêndoa no lado de fora, emoldurada em ouro."""
     from mathutils.bvhtree import BVHTree
     sn = "L" if s > 0 else "R"
+    G = K["gold"]
     tmp = cb_piece(src, "ArmProbe" + sn, lambda c, b, n: (b.startswith("Arm") or b.startswith("Elbow")) and c.x * s > 0)
     bvh = BVHTree.FromPolygons([v.co.copy() for v in tmp.data.vertices], [tuple(p.vertices) for p in tmp.data.polygons])
     bpy.data.objects.remove(tmp, do_unlink=True)
@@ -7089,35 +7113,31 @@ def cosmic_arm(K, src, body, s):
         j = int(x) % n
         k = (j + 1) % n
         return rings[i][j].lerp(rings[i][k], x - int(x)) + dirs[i][j].lerp(dirs[i][k], x - int(x)) * out
-    # ---- braçal de cima: grosso, a boca de baixo abrindo um pouco
+    # ---- braçal de cima (quase todo sob as lâminas da ombreira)
     NU = 12
-    ur, ud, _ = _mt_tube(bvh, at, s, 0.24 * L1, 0.95 * L1, NR=NU,
-                         add=lambda t: 0.017 + 0.005 * max(0.0, (t - 0.75) / 0.25) ** 1.5)
+    ur, ud, _ = _mt_tube(bvh, at, s, 0.3 * L1, 0.95 * L1, NR=NU,
+                         add=lambda t: 0.016 + 0.006 * max(0.0, (t - 0.7) / 0.3) ** 1.5)
     parts.append(g_smooth_mesh("Rerebrace" + sn, ur, K["plate"], body, cap_end=False, thick=0.006, outward=True))
-    for nm, i in (("Top", 0), ("Bot", NU)):
-        parts.append(g_pipe("RerebraceRim%s%s" % (sn, nm), [q + d * 0.002 for q, d in zip(ur[i], ud[i])], 0.0055,
-                            K["plate_d"], body, sides=8, loop=True))
-    # painel de tinta do lado de fora: duas linhas descendo e o arco de cima ligando as duas
-    P0, P1 = -0.85, 0.85
-    panel = [at_phi(ur, ud, i, P0, 0.0013) for i in range(NU - 1, 2, -1)]
-    panel += [at_phi(ur, ud, 2, P0 + (P1 - P0) * k / 12, 0.0013) for k in range(13)]
-    panel += [at_phi(ur, ud, i, P1, 0.0013) for i in range(3, NU)]
-    parts.append(g_pipe("RerebraceInk" + sn, panel, 0.0026, K["ink"], body, sides=6))
-    # ---- braçal do antebraço
+    parts.append(cz_strip("RerebraceBand" + sn, [q + d * 0.002 for q, d in zip(ur[NU], ud[NU])], ud[NU], 0.012,
+                          0.005, K["plate"], body, loop=True))
+    # ---- braçal do antebraço: grosso, abre em sino no punho
     NR = 16
 
     def vadd(t):
-        return 0.015 + 0.011 * max(0.0, 1 - t / 0.22) ** 2 + 0.01 * max(0.0, (t - 0.78) / 0.22) ** 1.5
-    vr, vd, _ = _mt_tube(bvh, at, s, L1 + 0.03 * L2, L1 + 0.93 * L2, NR=NR, add=vadd)
-    parts.append(g_smooth_mesh("Vambrace" + sn, vr, K["plate"], body, cap_end=False, thick=0.006, outward=True))
-    for nm, i in (("Top", 0), ("Cuff", NR)):
-        parts.append(g_pipe("VambraceRim%s%s" % (sn, nm), [q + d * 0.002 for q, d in zip(vr[i], vd[i])], 0.0055,
-                            K["plate_d"], body, sides=8, loop=True))
-    parts.append(g_pipe("VambraceSeam" + sn, [at_phi(vr, vd, i, 0.0, 0.0013) for i in range(2, NR - 1)], 0.0026,
-                        K["star"], body, sides=6))
-    parts.append(g_pipe("VambraceInk" + sn, [q + d * 0.0013 for q, d in zip(vr[NR - 3], vd[NR - 3])], 0.0022,
-                        K["ink"], body, sides=6, loop=True))
-    # ---- cotoveleira: cúpula atrás do cotovelo, com a janela do céu na ponta
+        return 0.017 + 0.01 * max(0.0, 1 - t / 0.2) ** 2 + 0.017 * max(0.0, (t - 0.72) / 0.28) ** 1.6
+    vr, vd, _ = _mt_tube(bvh, at, s, L1 + 0.04 * L2, L1 + 0.95 * L2, NR=NR, add=vadd)
+    vb = g_smooth_mesh("Vambrace" + sn, vr, K["plate"], body, cap_end=False, thick=0.007, outward=True)
+    parts.append(vb)
+    parts.append(cz_strip("VambraceTop" + sn, [q + d * 0.002 for q, d in zip(vr[1], vd[1])], vd[1], 0.016, 0.006, G,
+                          body, loop=True))
+    parts.append(cz_strip("VambraceCuff" + sn, [q + d * 0.002 for q, d in zip(vr[NR - 1], vd[NR - 1])], vd[NR - 1],
+                          0.028, 0.008, G, body, loop=True))
+    ph = s * 0.55                       # entre o lado de fora e a frente
+    q = at_phi(vr, vd, NR // 2 - 1, ph)
+    dn = (q - at_phi(vr, vd, NR // 2 - 1, ph, -0.03)).normalized()
+    parts += cosmic_window("VambraceSky" + sn, K, body, _mt_bvh([vb]), q + dn * 0.02, 0.014, 0.036, depth=0.003,
+                           d=dn, n=36, frame=0.009)
+    # ---- cotoveleira: cúpula grande atrás do cotovelo, faixa de ouro, aleta em leque
     el = cb_mirror(CB_J["elbow"], s)
     n0 = (Vector((0, 1, 0)) * 0.85 + Vector((s, 0, 0)) * 0.5).normalized()
     a1 = n0.cross(Vector((0, 0, 1))).normalized()
@@ -7127,38 +7147,29 @@ def cosmic_arm(K, src, body, s):
         h = bvh.ray_cast(el + d * 0.25, -d)
         return ((0.25 - h[3]) if h[0] is not None else 0.045) + extra
     cop, cdir = [], []
-    for i in range(1, 8):
-        al = 1.0 * i / 7
+    for i in range(1, 9):
+        al = 1.1 * i / 8
         row, drow = [], []
-        for j in range(24):
-            ph = 2 * math.pi * j / 24
-            d = (n0 * math.cos(al) + (a1 * math.cos(ph) + a2 * math.sin(ph)) * math.sin(al)).normalized()
-            row.append(el + d * rad_el(d, 0.04 - 0.008 * i / 7))
+        for j in range(28):
+            phj = 2 * math.pi * j / 28
+            d = (n0 * math.cos(al) + (a1 * math.cos(phj) + a2 * math.sin(phj)) * math.sin(al)).normalized()
+            row.append(el + d * rad_el(d, 0.04 - 0.01 * i / 8))
             drow.append(d)
         cop.append(row)
         cdir.append(drow)
     tip = el + n0 * rad_el(n0, 0.044)
-    cp = g_smooth_mesh("Couter" + sn, [[tip] * 24] + cop, K["plate"], body, cap_end=False, thick=0.006, outward=True)
-    parts.append(cp)
-    parts.append(g_pipe("CouterRim" + sn, [q + d * 0.002 for q, d in zip(cop[-1], cdir[-1])], 0.0055, K["plate_d"],
-                        body, sides=8, loop=True))
-    # janela: pontos da amêndoa (no plano da ponta) levados para a própria superfície da cúpula pela direção a
-    # partir do cotovelo, com o mesmo raio da cúpula (sem projeção em malha, que falhava na borda)
-    e2 = Vector((0, 0, 1))
-    e2 = (e2 - n0 * e2.dot(n0)).normalized()
-    e1 = n0.cross(e2).normalized()
-    A = _cz_almond(tip, e1, e2, 0.012, 0.026)
-    N = 32
-
-    def onc(q, out):
-        dd = (q - el).normalized()
-        al = n0.angle(dd)
-        extra = 0.044 - 0.004 * min(1.0, al / (1.0 / 7)) - 0.008 * al
-        return el + dd * (rad_el(dd, extra) + out)
-    ringw = (lambda f, out: [onc(A(2 * math.pi * j / N, f), out) for j in range(N)])
-    parts.append(g_smooth_mesh("CouterSky" + sn, [ringw(f, -0.0025 * (1 - f * f) + 0.0008) for f in (0.02, 0.45, 1.0)],
-                               K["sky"], body, cap_end=False, thick=0.002, outward=True))
-    parts.append(g_pipe("CouterSkyInk" + sn, ringw(1.0, 0.0012), 0.0028, K["ink"], body, sides=8, loop=True))
+    parts.append(g_smooth_mesh("Couter" + sn, [[tip] * 28] + cop, K["plate"], body, cap_end=False, thick=0.007,
+                               outward=True))
+    parts.append(cz_strip("CouterBand" + sn, [q + d * 0.003 for q, d in zip(cop[-1], cdir[-1])], cdir[-1], 0.016,
+                          0.006, G, body, loop=True))
+    up = -(cb_mirror(CB_J["wrist"], s) - el).normalized()
+    base = el + n0 * rad_el(n0, 0.03)
+    P = [base, base + n0 * 0.045 + up * 0.0, base + n0 * 0.08 + up * 0.04, base + n0 * 0.095 + up * 0.105]
+    fin, fr = cz_blade("CouterFin" + sn, P, a1, 0.032, 0.009, K["plate"], body, NT=20, NA=16)
+    parts.append(fin)
+    i0 = 5
+    parts.append(cz_strip("CouterFinEdge" + sn, [fr[i][0] + fr[i][1] * (fr[i][3] + 0.001) for i in range(i0, 19)],
+                          [fr[i][1] for i in range(i0, 19)], [fr[i][4] * 2.2 for i in range(i0, 19)], 0.006, G, body))
     return parts
 
 
