@@ -507,3 +507,81 @@ def build_a_dragonknight():
                              (horns, "fn", lambda q: {"Body": 0.6, ("ArmL" if q.x > 0 else "ArmR"): 0.4}, 1.0)])
     join_objs("DragonKnight", parts + shoulder + arms + belt + tas + rear + mid + cape)["fem_mode"] = "plate"
     g_export_skinned(style)
+
+
+def build_g_dragonknight():
+    """Manoplas do Cavaleiro Dragão: mão de placa vermelha (fechada e aberta) com traços escuros separando as
+    falanges, um losango cor de osso em cada nó dos dedos e garras cor de osso: na mão aberta continuam a ponta
+    de cada dedo e do polegar; na mão fechada (pontas dos dedos escondidas) saem dos nós. Punho curto de
+    placa com friso de ouro grosso na boca e anel de ouro no pulso."""
+    from mathutils.bvhtree import BVHTree
+    P, R = g_rig("g_dragonknight")
+    K = dragonknight_mats()
+    N = 24
+    for n, s in (("L", 1), ("R", -1)):
+        S = limb_sections(P, s)
+        elbow = R["Elbow" + n]
+        F = S["fore"]
+        hd, o, ay, up, pt = _hand_frame(P, s)
+        fist = soft_fist("Arm" + n, P, s, K["red"], elbow)
+        hand = relaxed_hand("Arm" + n, P, s, K["red"], elbow)
+        fp, op = [fist], [hand]
+        bpy.context.view_layer.update()
+        down = -up.normalized()
+        dia = [(0.0, 0.0085), (0.0055, 0.0), (0.0, -0.0085), (-0.0055, 0.0)]
+        for lst, ob, nm in ((fp, fist, "Fist"), (op, hand, "Open")):
+            vs = [ob.matrix_world @ v.co for v in ob.data.vertices]
+            bvh = BVHTree.FromPolygons(vs, [tuple(p.vertices) for p in ob.data.polygons])
+            zs = [v.z for v in vs]
+            zk = (max(zs) - min(zs))
+            rows = {}
+            for k, fz in enumerate((0.5, 0.22, -0.02, -0.24)):
+                line = []
+                for j in range(11):
+                    y = -0.035 + 0.07 * j / 10
+                    c = pt(0, y / hd, -(fz * zk) / hd)
+                    h = bvh.ray_cast(c + o * 0.2, -o)
+                    if h[0] is not None:
+                        line.append(h[0] + o * 0.0015)
+                if len(line) > 3:
+                    rows[k] = line
+                    if k > 0:
+                        lst.append(g_pipe("Arm%s_Seg%s%d" % (n, nm, k), line, 0.0022, K["line"], elbow, sides=6))
+            kn = rows.get(1 if nm == "Fist" else 0)
+            if kn and len(kn) > 6:     # losangos de osso: nos nós dos dedos (mão aberta) ou nas costas da mão (fechada)
+                for m in range(4):
+                    q = kn[int(round(1 + m * (len(kn) - 3) / 3))]
+                    lst.append(g_plate("Arm%s_Stud%s%d" % (n, nm, m), dia, q + o * 0.002, ay, up, 0.004, K["bone"],
+                                       elbow))
+            tip = rows.get(0)
+            if nm == "Fist" and tip and len(tip) > 6:      # mão fechada: as pontas dos dedos ficam dentro do punho,
+                for m in range(4):                         # então as garras saem dos nós, para fora e para baixo
+                    q = tip[int(round(1 + m * (len(tip) - 3) / 3))]
+                    path = [q - o * 0.004, q + o * 0.014 + down * 0.006, q + o * 0.021 + down * 0.026]
+                    claw = g_curved_tube(path, [(0.0068, 0.0058), (0.004, 0.0035), (0.0006, 0.0006)], sides=8)
+                    lst.append(g_smooth_mesh("Arm%s_Claw%s%d" % (n, nm, m), claw, K["bone"], elbow))
+        # garras da mão aberta: continuam a última falange de cada dedo (mesma conta de relaxed_hand)
+        for q, (y, sp, zb, f, w, cu) in enumerate(((-0.0325, -0.007, -0.086, 0.95, 1.0, 0), (-0.0108, -0.002, -0.089, 1.0, 1.04, 4),
+                                                   (0.0108, 0.003, -0.087, 0.93, 0.98, 9), (0.0315, 0.008, -0.081, 0.76, 0.86, 14))):
+            cur = (-0.006, zb)
+            for L, a in ((0.042, 14 + cu), (0.027, 36 + cu * 1.5), (0.023, 54 + cu * 2)):
+                t = math.radians(a)
+                d = (-math.sin(t), -math.cos(t))
+                cur = (cur[0] + d[0] * L * f, cur[1] + d[1] * L * f)
+            yy = y + sp
+            m = math.hypot(d[0] * 0.25, d[1] - 1.0)          # garra comprida, quase reta: aparece pelas costas da mão
+            e = (d[0] * 0.25 / m, (d[1] - 1.0) / m)
+            op.append(g_cone("Arm%s_Claw%d" % (n, q), [pt(cur[0] - d[0] * 0.007, yy, cur[1] - d[1] * 0.007),
+                                                      pt(cur[0] + e[0] * 0.02, yy, cur[1] + e[1] * 0.02),
+                                                      pt(cur[0] + e[0] * 0.047, yy, cur[1] + e[1] * 0.047)],
+                             0.0098 * hd * w, K["bone"], elbow, sides=8))
+        op.append(g_cone("Arm%s_ClawThumb" % n, [pt(-0.016, -0.0625, -0.088), pt(-0.02, -0.065, -0.105),
+                                                 pt(-0.028, -0.064, -0.122)], 0.0078 * hd, K["bone"], elbow, sides=8))
+        cuff = [_rg_ring(sample(F, t), 1.08, add, n=N) for t, add in ((0.8, 0.017), (0.88, 0.012), (1.0, 0.008))]
+        cp = [g_smooth_mesh("Arm%s_Cuff" % n, cuff, K["red"], elbow, cap_end=False, thick=0.004, outward=True),
+              g_pipe("Arm%s_CuffRim" % n, cuff[0], 0.0055, K["gold"], elbow, sides=8, loop=True),
+              g_pipe("Arm%s_CuffWrist" % n, cuff[-1], 0.0055, K["gold"], elbow, sides=8, loop=True)]
+        join_objs("Arm%s_Hand" % n, fp)
+        join_objs("Arm%s_HandOpen" % n, op)
+        join_objs("Arm%s_Gauntlet" % n, cp)
+    g_export("g_dragonknight", P, R)

@@ -3762,6 +3762,25 @@
 		"desc": "Placas vermelhas como as escamas do dragão, com o rosto dele em ouro no peito.",
 		"craft": true
 	},
+	"dragon_knight_gauntlets": {
+		"name": "Manoplas do Cavaleiro Dragão",
+		"type": "gear",
+		"slot": "hands",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 2,
+		"price": 300,
+		"color": {
+			"$c": [0.5, 0.17, 0.17, 1.0]
+		},
+		"metal": true,
+		"style": "g_dragonknight",
+		"stats": {
+			"str": 6
+		},
+		"desc": "Placas vermelhas até a ponta dos dedos, e na ponta de cada dedo uma garra.",
+		"craft": true
+	},
 	"astral_helm": {
 		"name": "Elmo Astral",
 		"type": "gear",
