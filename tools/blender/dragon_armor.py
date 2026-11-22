@@ -13,10 +13,10 @@
 DRK_PALETTES = {
     "": dict(red="#6C3232", red_d="#472022", gold="#B8924C", line="#2A1012", under="#3E4047", lea="#5E3D2B",
              cloth="#6B2226", bone="#D9CBA8", gem=("#C8401A", "#E0401A", 0.35), sole="#1E1A1A"),
-    # placas quase pretas, vermelho-sangue só nos traços das escamas, aço azulado fosco no lugar do ouro,
-    # gemas violeta, capa vinho escuro; chifres e garras em marfim cinzento
-    "dark": dict(red="#2D2529", red_d="#1B1517", gold="#555A68", line="#8E1420", under="#1E1F24", lea="#2A1E1B",
-                 cloth="#33111A", bone="#A39A88", gem=("#7B2CE0", "#9B4DFF", 0.5), sole="#121012"),
+    # placas pretas (sem tom de cor), vermelho-sangue só nos traços das escamas, bordas em bronze envelhecido no lugar do ouro
+    # (contrasta com o preto), gemas de brasa; chifres e garras em marfim cinzento
+    "dark": dict(red="#151517", red_d="#0C0C0E", gold="#A9875A", line="#A3121E", under="#121214", lea="#1E1612",
+                 cloth="#1C0C10", bone="#A39A88", gem=("#E8301C", "#FF4A1A", 0.5), sole="#0E0D0E"),
 }
 
 
@@ -544,7 +544,7 @@ def dragonknight_cape(K, body):
     return parts
 
 
-def _build_a_dragonknight(style, variant):
+def _build_a_dragonknight(style, variant, cape=True):
     """Placas do Cavaleiro Dragão (lendário nv 50). Tronco com emblema, ombreiras, braços, cintura e capa; mangas e pernas na casca cinza-escura até
     as próximas peças."""
     P, R = g_rig(style)
@@ -559,7 +559,7 @@ def _build_a_dragonknight(style, variant):
     shoulder = dragonknight_pauldron(K, src, body, 1) + dragonknight_pauldron(K, src, body, -1)
     arms = dragonknight_arm(K, src, body, 1) + dragonknight_arm(K, src, body, -1)
     belt, tas, rear, mid = dragonknight_skirt(K, src, body)
-    cape = dragonknight_cape(K, body)
+    cape = dragonknight_cape(K, body) if cape else []
     sleeves = cb_piece(src, "Sleeves", lambda c, b, n: (b.startswith("Arm") or b.startswith("Elbow"))
                        and (not b.startswith("Elbow") or _cb_fore_t(c) < 0.86), 0.01, K["under"])
     g_subdiv(sleeves)
@@ -571,7 +571,7 @@ def _build_a_dragonknight(style, variant):
     horns = [o for o in shoulder if "Horn" in o.name]        # rígidos: peso por vértice esticava a ponta
     plates = [o for o in shoulder if o not in horns]
     g_skin_finish(rig, src, [(tas, "fn", _cs_tasset_w, 1.0), (mid, "fn", _wk_cloth_w, 1.0),
-                             (cape, "fn", _drk_cape_w, 1.0),
+                             ] + ([(cape, "fn", _drk_cape_w, 1.0)] if cape else []) + [
                              (rear, "fn", _gb_skirt_w, 1.0), (arms, "vert", ("ArmL", "ArmR", "ElbowL", "ElbowR"), 1.0), (plates, "vert", ("Body", "ArmL", "ArmR"), 1.0),
                              (horns, "fn", lambda q: {"Body": 0.6, ("ArmL" if q.x > 0 else "ArmR"): 0.4}, 1.0)])
     join_objs("DragonKnight", parts + shoulder + arms + belt + tas + rear + mid + cape)["fem_mode"] = "plate"
@@ -782,7 +782,7 @@ def build_f_dragonknight():
 
 
 def build_a_dragonknight_dark():
-    _build_a_dragonknight("a_dragonknight_dark", "dark")
+    _build_a_dragonknight("a_dragonknight_dark", "dark", cape=False)    # a capa é um item das costas (c_dragonknight_dark)
 
 
 def build_g_dragonknight_dark():

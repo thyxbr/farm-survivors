@@ -3814,7 +3814,7 @@
 			"str": 3,
 			"hp": 30
 		},
-		"desc": "A cabeça de um dragão de cinzas, de chifres e presas, com olhos violeta que não piscam.",
+		"desc": "A cabeça de um dragão de cinzas, de chifres e presas, com olhos de brasa que não piscam.",
 		"craft": true
 	},
 	"dragon_knight_dark_plate": {
@@ -3825,7 +3825,7 @@
 		"defense": 18,
 		"price": 1850,
 		"color": {
-			"$c": [0.16, 0.14, 0.17, 1.0]
+			"$c": [0.08, 0.08, 0.09, 1.0]
 		},
 		"metal": true,
 		"style": "a_dragonknight_dark",
@@ -3834,7 +3834,7 @@
 			"str": 4,
 			"hp": 64
 		},
-		"desc": "Placas negras com escamas riscadas de sangue, e o rosto do dragão em aço no peito.",
+		"desc": "Placas negras com escamas riscadas de sangue, e o rosto do dragão em bronze no peito.",
 		"craft": true
 	},
 	"dragon_knight_dark_gauntlets": {
@@ -3846,7 +3846,7 @@
 		"defense": 2,
 		"price": 300,
 		"color": {
-			"$c": [0.16, 0.14, 0.17, 1.0]
+			"$c": [0.08, 0.08, 0.09, 1.0]
 		},
 		"metal": true,
 		"style": "g_dragonknight_dark",
@@ -3865,7 +3865,7 @@
 		"defense": 5,
 		"price": 290,
 		"color": {
-			"$c": [0.16, 0.14, 0.17, 1.0]
+			"$c": [0.08, 0.08, 0.09, 1.0]
 		},
 		"metal": true,
 		"style": "f_dragonknight_dark",
@@ -3873,6 +3873,26 @@
 			"vit": 3
 		},
 		"desc": "Em cada joelho, a cabeça de um dragão negro olha para a frente.",
+		"craft": true
+	},
+	"dragon_knight_dark_cape": {
+		"name": "Capa do Cavaleiro Dragão Sombrio",
+		"type": "gear",
+		"slot": "back",
+		"back": "cape",
+		"style": "c_dragonknight_dark",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 4,
+		"price": 420,
+		"color": {
+			"$c": [0.11, 0.05, 0.06, 1.0]
+		},
+		"stats": {
+			"vit": 3,
+			"hp": 20
+		},
+		"desc": "Pano preto-vinho até a canela, com um painel cor de sangue e filetes de bronze na barra.",
 		"craft": true
 	},
 	"astral_helm": {

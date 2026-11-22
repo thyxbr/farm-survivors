@@ -136,6 +136,9 @@ const PARTICLES := {
 	# fumaça escura subindo devagar em volta do corpo
 	"a_blackdragon": {"color": Color(0.05, 0.05, 0.06, 0.7), "amount": 22, "life": 3.6, "height": 0.55, "ring": 0.28,
 		"rise": 0.2, "size": 0.42, "spread": 18.0, "band": 1.3, "dark": true, "soft": true},
+	# aura negra mais densa que a do Dragão Negro: fumaça grossa subindo do corpo inteiro
+	"a_dragonknight_dark": {"color": Color(0.02, 0.02, 0.025, 0.85), "amount": 34, "life": 3.2, "height": 0.9, "ring": 0.32,
+		"rise": 0.35, "size": 0.5, "spread": 22.0, "band": 1.8, "dark": true, "soft": true},
 }
 
 static var _mats := {}       # nome do material + cor por vértice -> ShaderMaterial
