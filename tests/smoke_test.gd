@@ -4769,6 +4769,8 @@ func _watch_spawns() -> Array:
 			seen.append(n.kind)
 		elif n is Area3D and n.get_script() == preload("res://scripts/player/fireball.gd"):
 			seen.append("fireball")
+		elif n is FireballProjectile:
+			seen.append("staff_fireball")
 	world.child_entered_tree.connect(cb)
 	return [seen, cb]
 
@@ -4799,7 +4801,7 @@ func _test_gear() -> void:
 				bad.append("saque:" + entry[0])
 	check(bad.is_empty(), "itens novos consistentes (%d itens) %s" % [ItemDB.ITEMS.size(), bad])
 
-	# cajado: ataque básico dispara projétil arcano
+	# cajado: ataque básico = Bola de Fogo (clique: bola normal; segurar: cresce na gema e explode em área)
 	var dmg_sword := Game.melee_damage()
 	equip_any("apprentice_staff")
 	check(Game.equipment.weapon == "apprentice_staff", "equipou cajado")
@@ -4809,11 +4811,24 @@ func _test_gear() -> void:
 	player.attacking = false
 	player.combo_window = 0.0
 	Game.stamina = Game.max_stamina()
-	var bolt_watch := _watch_spawns()
+	var fb_watch := _watch_spawns()
+	player._start_swing()   # sem o botão segurado: solta no passo seguinte como clique
+	await wait_until(func(): return not player.attacking, 2.0)
+	_stop_spawn_watch(fb_watch)
+	check("staff_fireball" in fb_watch[0], "cajado dispara a Bola de Fogo no clique")
+	check(player.fireball_orb == null, "clique não deixa bola presa na gema")
+	await wait(0.3)
+	# segurar: a bola nasce na gema e cresce; soltar dispara a carregada
+	Game.stamina = Game.max_stamina()
+	Input.action_press("attack")
 	player._start_swing()
-	await wait_until(func(): return "bolt" in bolt_watch[0], 2.0)
-	_stop_spawn_watch(bolt_watch)
-	check("bolt" in bolt_watch[0], "cajado dispara faísca arcana")
+	await wait(0.25 + MageStaffAttack.CHARGE_TIME * 0.6)
+	var orb: FireballProjectile = player.fireball_orb
+	check(orb != null and is_instance_valid(orb) and orb.size > 1.5, "segurar: a bola cresce na gema (%s)" % [orb.size if orb else -1.0])
+	Input.action_release("attack")
+	await wait(0.05)
+	check(orb != null and is_instance_valid(orb) and orb.is_charged and orb._state == FireballProjectile.FLYING, "soltar dispara a bola carregada")
+	check(orb != null and is_instance_valid(orb) and orb.aoe_radius > MageStaffAttack.AOE_MIN, "carga maior, explosão maior")
 	await wait(0.5)
 	check(not ("heal" in ItemDB.kit("staff")) and ItemDB.kit("scepter")[0] == "heal", "Cura é do cetro, não do cajado")
 
