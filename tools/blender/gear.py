@@ -9474,13 +9474,15 @@ def build_f_celestial():
 
 
 def build_f_cosmic():
-    """Grevas Cósmicas (referência: Marius Sebastian): aço escuro fechando a volta do joelho, joelheira redonda
-    em bola com aro de tinta; placa de cima da canela com um painel em U desenhado em tinta; greva de baixo por
-    cima dela, abrindo em sino no tornozelo, com a borda de cima recortada (cantos altos e um entalhe no meio
-    da frente) e traço de tinta paralelo; faixa de tinta no tornozelo; sapato de placa largo de bico redondo com
-    três lâminas em V desenhadas em tinta."""
+    """Grevas Cósmicas em RPG estilizado: junta do joelho em aço escuro; joelheira grande e redonda de prata com
+    faixa de ouro grossa, estrela de ouro de quatro pontas no meio e uma aleta subindo para trás do lado de fora
+    (a mesma das cotoveleiras); placa de cima da canela com faixa de prata; greva de baixo por cima, com quilha,
+    a borda de cima em ponta no meio da frente, abrindo em sino no tornozelo, faixas de ouro em cima e embaixo
+    e janela de céu grande em amêndoa na frente, emoldurada em ouro; sapato de placa de bico pontudo com três
+    lâminas em faixa de prata."""
     P, R = g_rig("f_cosmic")
     K = cosmic_mats()
+    G = K["gold"]
     sole = gm("cz_sole", "#1E1C26", 0.9)
     N = 32
     for n, s in (("L", 1), ("R", -1)):
@@ -9493,71 +9495,79 @@ def build_f_cosmic():
         parts.append(g_smooth_mesh("Leg%s_KneeJoint" % n, [_rg_ring(x, n=N) for x in kn], K["plate"], knee,
                                    cap_end=False))
 
-        def gp(t, a, add, keel=0.05):
+        def gp(t, a, add, keel=0.08):
             q = sample(sh, t)
             rx, ry = q["rx"] * 1.06 + add, q["ry"] * 1.06 + add
             x, y = cb_spt(a, rx, ry, q.get("fr", 1.0), q.get("bk", 1.0), keel=keel)
             return Vector((q["c"].x + x, q["c"].y + y, q["c"].z))
         ang = [2 * math.pi * j / N for j in range(N)]
         sgn = (lambda a: math.atan2(math.sin(a), math.cos(a)))
+
+        def ring_strip(nm, pts, fn_in, w, h, m):
+            nr = [(q - fn_in(i)).normalized() for i, q in enumerate(pts)]
+            return cz_strip(nm, pts, nr, w, h, m, knee, loop=True)
         # ---- placa de cima da canela
         ts = [0.12 + 0.4 * i / 8 for i in range(9)]
         up = [[gp(t, a, 0.012) for a in ang] for t in ts]
-        parts.append(g_smooth_mesh("Leg%s_Shin" % n, up, K["plate"], knee, cap_end=False, thick=0.005, outward=True))
-        parts.append(g_pipe("Leg%s_ShinRim" % n, up[0], 0.005, K["plate_d"], knee, sides=8, loop=True))
-        U = [gp(0.2, -0.55 + 1.1 * k / 10, 0.0135) for k in range(11)]
-        pan = [gp(t, -0.55, 0.0135) for t in (0.45, 0.36, 0.27)] + U + [gp(t, 0.55, 0.0135) for t in (0.27, 0.36, 0.45)]
-        parts.append(g_pipe("Leg%s_ShinInk" % n, pan, 0.0024, K["ink"], knee, sides=6))
-        # ---- greva de baixo, por cima, abrindo em sino; borda de cima com cantos altos e entalhe na frente
+        parts.append(g_smooth_mesh("Leg%s_Shin" % n, up, K["plate"], knee, cap_end=False, thick=0.006, outward=True))
+        parts.append(ring_strip("Leg%s_ShinBand" % n, [gp(ts[0], a, 0.014) for a in ang],
+                                lambda i: gp(ts[0], ang[i], 0.0), 0.01, 0.004, K["plate"]))
+        # ---- greva de baixo, por cima, em sino; borda de cima em ponta no meio da frente
         def top_t(a):
             x = sgn(a)
-            return 0.39 + 0.1 * math.exp(-(x / 0.55) ** 2) + 0.03 * (abs(x) / math.pi) ** 2
+            return 0.42 - 0.08 * math.exp(-(x / 0.45) ** 2) + 0.03 * (abs(x) / math.pi) ** 2
 
         def lg(i, a, out=0.0):
             u = i / 12
             t0 = top_t(a)
-            t = t0 + (0.99 - t0) * u
-            fl = 0.022 * max(0.0, (t - 0.78) / 0.21) ** 1.6
-            return gp(t, a, 0.02 + fl + out)
+            t = t0 + (0.97 - t0) * u
+            fl = 0.03 * max(0.0, (t - 0.74) / 0.23) ** 1.6
+            return gp(t, a, 0.022 + fl + out)
         low = [[lg(i, a) for a in ang] for i in range(13)]
-        parts.append(g_smooth_mesh("Leg%s_Greave" % n, low, K["plate"], knee, cap_end=False, thick=0.005, outward=True))
-        for nm, rr in (("Top", low[0]), ("Bot", low[-1])):
-            parts.append(g_pipe("Leg%s_GreaveRim%s" % (n, nm), [q for q in rr], 0.0055, K["plate_d"], knee, sides=8,
-                                loop=True))
-        parts.append(g_pipe("Leg%s_GreaveInk" % n, [lg(1.4, a, 0.0015) for a in ang], 0.0024, K["star"], knee,
-                            sides=6, loop=True))
-        # janela de céu na frente da greva, em amêndoa, calculada na própria fórmula da greva (sem projeção)
+        parts.append(g_smooth_mesh("Leg%s_Greave" % n, low, K["plate"], knee, cap_end=False, thick=0.006, outward=True))
+        parts.append(ring_strip("Leg%s_GreaveTop" % n, [lg(0.25, a, 0.002) for a in ang],
+                                lambda i: lg(0.25, ang[i], -0.02), 0.014, 0.006, G))
+        parts.append(ring_strip("Leg%s_GreaveCuff" % n, [lg(11.6, a, 0.002) for a in ang],
+                                lambda i: lg(11.6, ang[i], -0.02), 0.024, 0.008, G))
+        # janela de céu na frente da greva, em amêndoa, na própria fórmula da greva (sem projeção)
         def gw(t, f, out):
-            return lg(5.6 + 3.0 * f * math.cos(t), 0.3 * f * math.sin(t) * abs(math.sin(t)), out)
-        NW = 28
-        parts.append(g_smooth_mesh("Leg%s_GreaveSky" % n, [[gw(2 * math.pi * j / NW, f, 0.0009) for j in range(NW)]
-                                                          for f in (0.02, 0.5, 1.0)], K["sky"], knee, cap_end=False,
-                                   thick=0.0012, outward=True))
-        parts.append(g_pipe("Leg%s_GreaveSkyInk" % n, [gw(2 * math.pi * j / NW, 1.0, 0.0016) for j in range(NW)],
-                            0.0028, K["ink"], knee, sides=6, loop=True))
-        parts.append(g_pipe("Leg%s_GreaveSkyGold" % n, [gw(2 * math.pi * j / NW, 1.25, 0.0016) for j in range(NW)],
-                            0.0026, K["plate_d"], knee, sides=6, loop=True))
-        parts.append(g_pipe("Leg%s_AnkleInk" % n, [gp(0.9, a, 0.02 + 0.022 * (0.12 / 0.21) ** 1.6 + 0.0015)
-                                                   for a in ang], 0.0028, K["ink"], knee, sides=6, loop=True))
-        # ---- joelheira em bola
+            return lg(5.4 + 3.4 * f * math.cos(t), 0.36 * f * math.sin(t) * abs(math.sin(t)), out)
+        NW = 32
+        parts.append(g_smooth_mesh("Leg%s_GreaveSky" % n, [[gw(2 * math.pi * j / NW, f, 0.0015) for j in range(NW)]
+                                                          for f in (1.1, 1.0, 0.6, 0.25)], K["sky"], knee,
+                                   cap_end=True, thick=0.0015))
+        fp = [gw(2 * math.pi * j / NW, 1.12, 0.0015) for j in range(NW)]
+        parts.append(ring_strip("Leg%s_GreaveSkyFrame" % n, fp,
+                                lambda i: gw(2 * math.pi * i / NW, 1.12, -0.02), 0.011, 0.006, G))
+        # ---- joelheira grande e redonda, faixa de ouro, estrela e aleta
         kc = Vector((KJ.x, KJ.y - 0.022, KJ.z - 0.002))
         fwd = Vector((0, -1, 0.1)).normalized()
         u_ = Vector((1, 0, 0))
         v_ = fwd.cross(u_).normalized()
-        RAD = 0.072
-        cap = []
+        RAD = 0.078
+        cap, cdir = [], []
         for i in range(1, 10):
-            al = 1.6 * i / 9
-            cap.append([kc + (fwd * math.cos(al) + (u_ * math.cos(a) * 1.04 + v_ * math.sin(a)) * math.sin(al)) * RAD
-                        for a in ang])
+            al = 1.32 * i / 9
+            row = [(fwd * math.cos(al) + (u_ * math.cos(a) * 0.9 + v_ * math.sin(a) * 1.08) * math.sin(al)) for a in ang]
+            cap.append([kc + d * RAD for d in row])
+            cdir.append([d.normalized() for d in row])
         tip = kc + fwd * RAD
-        parts.append(g_smooth_mesh("Leg%s_Poleyn" % n, [[tip] * N] + cap, K["plate"], knee, cap_end=False, thick=0.005,
+        parts.append(g_smooth_mesh("Leg%s_Poleyn" % n, [[tip] * N] + cap, K["plate"], knee, cap_end=False, thick=0.006,
                                    outward=True))
-        parts.append(g_pipe("Leg%s_PoleynRim" % n, cap[-1], 0.0055, K["plate_d"], knee, sides=8, loop=True))
-        parts.append(g_pipe("Leg%s_PoleynInk" % n, [q + (q - kc).normalized() * 0.0012 for q in cap[6]], 0.0024,
-                            K["ink"], knee, sides=6, loop=True))
+        parts.append(cz_strip("Leg%s_PoleynBand" % n, [q + d * 0.002 for q, d in zip(cap[-1], cdir[-1])], cdir[-1],
+                              0.018, 0.007, G, knee, loop=True))
+        parts.append(cz_star4("Leg%s_PoleynStar" % n, tip + fwd * 0.0015, fwd, Vector((0, 0, 1)), 0.03, G, knee))
+        b = kc + Vector((s * 0.06, 0.012, 0.0))
+        Pf = [b, b + Vector((s * 0.022, 0.012, 0.03)), b + Vector((s * 0.03, 0.026, 0.07)),
+              b + Vector((s * 0.032, 0.045, 0.11))]
+        fin, fr = cz_blade("Leg%s_PoleynFin" % n, Pf, Vector((s * 0.7, -0.7, 0)).normalized(), 0.024, 0.008,
+                           K["plate"], knee, NT=18, NA=16)
+        parts.append(fin)
+        parts.append(cz_strip("Leg%s_PoleynFinEdge" % n, [fr[i][0] + fr[i][1] * (fr[i][3] + 0.001) for i in range(4, 17)],
+                              [fr[i][1] for i in range(4, 17)], [fr[i][4] * 2.2 for i in range(4, 17)], 0.006, G,
+                              knee))
         join_objs("Leg%s_Boot" % n, parts)
-        # ---- sapato de placa largo de bico redondo
+        # ---- sapato de placa de bico pontudo
         f = P["ft"]
         ft = _foot_secs(P, s, 1.1, 0.008)
         zmin = 0.02 * f
@@ -9570,21 +9580,24 @@ def build_f_cosmic():
         frs = [fring(hc, 0.02), fring(dict(h0, c=h0["c"] + Vector((0, 0.011 * f, 0.004))), 0.5), fring(h0, 0.9)]
         frs += [fring(x) for x in ft]
         tp = ft[-1]
-        frs += [fring(dict(tp, c=tp["c"] + Vector((0, -0.012 * f, 0))), 0.8),
-                fring(dict(tp, c=tp["c"] + Vector((0, -0.02 * f, -0.001))), 0.45),
-                fring(dict(tp, c=tp["c"] + Vector((0, -0.023 * f, -0.002))), 0.05)]
+        frs += [fring(dict(tp, c=tp["c"] + Vector((0, -0.014 * f, 0))), 0.72),
+                fring(dict(tp, c=tp["c"] + Vector((0, -0.028 * f, -0.001))), 0.36),
+                fring(dict(tp, c=tp["c"] + Vector((0, -0.038 * f, -0.002))), 0.04)]
         shoe = g_smooth_mesh("Leg%s_Foot" % n, frs, K["plate"], ankle)
         foot = [shoe, foot_sole("Leg%s_Sole" % n, ft, sole, ankle, f, heel=0.01 * f)]
         for k, i in enumerate((1, 2, 3)):
             if i >= len(ft) - 1:
                 break
-            b = ft[i]
-            arc = []
+            bb = ft[i]
+            arc, nrm = [], []
             for m in range(17):
                 t = -1.75 + 3.5 * m / 16
-                arc.append(b["c"] + Vector((math.sin(t) * (b["rx"] + 0.0035), -0.012 * f * (1 - abs(t) / 1.75),
-                                            max(zmin - b["c"].z + 0.004, math.cos(t) * (b["ry"] * 0.86 + 0.0035)))))
-            foot.append(g_pipe("Leg%s_SabatonInk%d" % (n, k), arc, 0.0028, K["ink"], ankle, sides=6))
+                d = Vector((math.sin(t) * (bb["rx"] + 0.003), -0.012 * f * (1 - abs(t) / 1.75),
+                            max(zmin - bb["c"].z + 0.004, math.cos(t) * (bb["ry"] * 0.86 + 0.003))))
+                arc.append(bb["c"] + d)
+                nrm.append(Vector((math.sin(t), -0.3, math.cos(t))).normalized())
+            foot.append(cz_strip("Leg%s_SabatonBand%d" % (n, k), arc, nrm, 0.01, 0.004,
+                                 G if k == 0 else K["plate"], ankle))
         join_objs("Leg%s_BootFoot" % n, foot)
     g_loose_world("f_cosmic")
     g_galaxy_uv("f_cosmic")
