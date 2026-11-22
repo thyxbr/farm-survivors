@@ -108,6 +108,7 @@
 	"yeti_bow": {"station": "leather", "prof": "leatherwork", "level": 40, "ingredients": {"hide_t4": 5, "ashwood_log": 2, "essence_t4": 2, "frost_pelt": 4}, "gold": 200, "out": "yeti_bow", "qty": 1, "xp": 130, "learn": "npc"},
 	"astral_gauntlets": {"station": "forge", "prof": "smithing", "level": 45, "ingredients": {"astralite_ore": 4, "essence_t5": 1}, "gold": 225, "out": "astral_gauntlets", "qty": 1, "xp": 145, "learn": "scroll"},
 	"astral_greaves": {"station": "forge", "prof": "smithing", "level": 45, "ingredients": {"astralite_ore": 4, "essence_t5": 1}, "gold": 225, "out": "astral_greaves", "qty": 1, "xp": 145, "learn": "scroll"},
+	"dragon_knight_helm": {"station": "forge", "prof": "smithing", "level": 50, "ingredients": {"astralite_ore": 5, "essence_t5": 2}, "gold": 250, "out": "dragon_knight_helm", "qty": 1, "xp": 160, "learn": "npc"},
 	"astral_helm": {"station": "forge", "prof": "smithing", "level": 45, "ingredients": {"astralite_ore": 4, "essence_t5": 1}, "gold": 225, "out": "astral_helm", "qty": 1, "xp": 145, "learn": "scroll"},
 	"astral_blade": {"station": "forge", "prof": "smithing", "level": 46, "ingredients": {"astralite_ore": 6, "soulwood_log": 1, "essence_t5": 2}, "gold": 230, "out": "astral_blade", "qty": 1, "xp": 148, "learn": "scroll"},
 	"astral_bow": {"station": "leather", "prof": "leatherwork", "level": 46, "ingredients": {"hide_t5": 5, "soulwood_log": 3, "essence_t5": 2, "abyss_core": 1}, "gold": 230, "out": "astral_bow", "qty": 1, "xp": 148, "learn": "scroll"},

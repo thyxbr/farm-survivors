@@ -3725,6 +3725,23 @@
 		"desc": "Forjada com o metal que caiu do céu.",
 		"craft": true
 	},
+	"dragon_knight_helm": {
+		"name": "Elmo do Cavaleiro Dragão",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 9,
+		"price": 760,
+		"style": "h_dragonknight",
+		"stats": {
+			"vit": 6,
+			"str": 3,
+			"hp": 30
+		},
+		"desc": "A cabeça de um dragão vermelho, de chifres e presas, sobre a de quem o venceu.",
+		"craft": true
+	},
 	"astral_helm": {
 		"name": "Elmo Astral",
 		"type": "gear",
