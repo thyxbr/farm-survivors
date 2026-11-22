@@ -1420,10 +1420,15 @@ func _ready() -> void:
 	player.global_position = Vector3(60, 0.3, 70)
 	await wait(0.1)
 	var pl_max: float = pl_s.max_hp
+	var pl_home: Vector3 = pl_s.home
 	pl_s.hp = 100000.0
 	pl_s.max_hp = 100000.0
 	pl_s.global_position = player.global_position + Vector3(3.0, 0.0, 0.0)
 	pl_s.velocity = Vector3.ZERO
+	# só o puxão mexe no slime: preso (não anda nem ataca; o empurrão dos golpes ainda vale) e com a casa aqui (longe
+	# de casa ele alternava entre perseguir e voltar). Solto, a IA andava entre as voltas e o puxão media 2,5 m no CI.
+	pl_s.home = pl_s.global_position
+	pl_s.held_t = SwordAbilities.WHIRL_TIME + 2.0
 	var d_pull0: float = pl_s.global_position.distance_to(player.global_position)
 	var lvl_w2: int = Game.level
 	Game.level = 8   # morrer e reviver passa pelo Econ, cuja resposta devolve Game.level ao nível real
@@ -1433,9 +1438,13 @@ func _ready() -> void:
 	# mede logo antes do golpe final: ele EMPURRA (_whirl_finale), e quanto o inimigo voa até a habilidade
 	# acabar depende dos quadros de física que cabem nos ~0,12 s seguintes (no CI chegava a 4,8 m, mais longe
 	# que o começo, e o teste falhava sem o puxão ter falhado)
-	await wait_until(func(): return player.ability != "sword_whirl" or player.ability_t >= SwordAbilities.WHIRL_IMPACT - 0.04,
-		SwordAbilities.WHIRL_TIME + 1.5)
-	var d_pull1: float = pl_s.global_position.distance_to(player.global_position)
+	# mede a cada quadro de física até o golpe final (antes conferia a cada 0,05 s numa janela de 0,04 s: às vezes
+	# passava do golpe e media o inimigo já empurrado, 4,5-4,9 m)
+	var d_pull1: float = d_pull0
+	var pull_t0 := Time.get_ticks_msec()
+	while player.ability == "sword_whirl" and player.ability_t < SwordAbilities.WHIRL_IMPACT 			and Time.get_ticks_msec() - pull_t0 < int((SwordAbilities.WHIRL_TIME + 1.5) * 1000.0):
+		d_pull1 = pl_s.global_position.distance_to(player.global_position)
+		await get_tree().physics_frame
 	await wait_until(func(): return player.ability == "", SwordAbilities.WHIRL_TIME + 1.5)
 	var d_end: float = pl_s.global_position.distance_to(player.global_position)
 	# o puxão por volta depende de quantos quadros de física cabem no giro: na máquina local leva ~1,7 m,
@@ -1445,6 +1454,8 @@ func _ready() -> void:
 	player.global_position = pull_back
 	pl_s.max_hp = pl_max
 	pl_s.hp = pl_max
+	pl_s.home = pl_home
+	pl_s.held_t = 0.0
 	check(player.ability == "" and is_equal_approx(Engine.time_scale, 1.0), "Turbilhão termina sozinho (%s)" % player.ability)
 	check(absf(wrapf(player.model.rotation.y - 0.5, -PI, PI)) < 0.05, "giro volta à direção inicial (%.2f)" % player.model.rotation.y)
 	Game.level = lvl_w
@@ -1732,6 +1743,7 @@ func _ready() -> void:
 	Game.level = lvl_bf
 	tt_s.hp = tt_max
 	tt_s.max_hp = tt_max
+	tt_s.held_t = 0.0
 	tt_s.global_position = tt_s.home
 	player.global_position = tt_pos
 	player.velocity = Vector3.ZERO
@@ -5081,6 +5093,11 @@ func _on_aim_line(e: Enemy) -> void:
 	var t: float = (cam.y - mid) / maxf(-f.y, 0.05)
 	var at: Vector3 = cam + f * t
 	e.global_position = Vector3(at.x, e.home.y, at.z)
+	# segura o alvo no ponto da mira (as mãos sombrias: não anda nem ataca, mas leva dano, empurrão e efeitos): o
+	# slime anda 2,8 m/s, e na tensão do arco (~0,4 s) chegava ~1 m mais perto; a mira, que desce da câmera, passava
+	# por cima da cabeça dele e o Tiro Triplo e a Flecha Glacial falhavam no CI de vez em quando (vida intacta)
+	e.velocity = Vector3.ZERO
+	e.held_t = 3.0
 
 
 ## Corredor da Investida livre de cenário (camadas 1 e 8, as que param o jogador além dos monstros): de 9 m ao sul a 3 m ao norte do ponto do monstro (o teste investe
