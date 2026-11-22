@@ -823,6 +823,7 @@ func _test_party(w: Node) -> void:
 		check(await _wait_until(func() -> bool: return w.hud.party_frames._bars[other].chips.has("food_warm"), 3.0),
 			"ícone do buff do colega no quadro do grupo")
 	await _shot_hud(w, "buff")
+	await _test_party_rally()
 	# livro do grupo (P): o colega aparece com a vida e a aba cabe nas páginas
 	w.open_world_map(1)
 	var bk: Node = w.modal
@@ -924,6 +925,50 @@ func _test_party(w: Node) -> void:
 		Party.request_leave()
 	check(await _wait_until(func() -> bool: return not Party.in_party(), 5.0), "grupo desfeito quando Ana sai")
 	await _sync("party_out")
+
+
+## Grito do Bastião pelo servidor (dentro do grupo, os dois perto): Ana ainda de cajado pede e o servidor recusa;
+## com espada e escudo, o buff Bastião de Escudos chega a ela e ao Beto (membro do grupo), com a defesa maior. No fim
+## Ana volta ao cajado e os buffs são limpos (a defesa volta ao que era).
+func _test_party_rally() -> void:
+	# a barreira antes de mexer nos buffs: o outro cliente ainda pode estar conferindo os buffs deste (food_warm)
+	await _sync("rally_in")
+	var saved: Dictionary = Game.buffs.duplicate()
+	Game.clear_buffs(true)
+	var def0 := Game.defense()
+	await _sync("rally_cleared")
+	if my_name == "Ana":
+		Network.request_party_buff(PartyShieldRules.ID)   # de cajado: o servidor recusa
+		await wait(1.2)
+		check(not Game.has_buff(PartyShieldRules.BUFF), "Grito do Bastião sem espada e escudo: o servidor recusa")
+		await _pick_class("warrior", "iron_sword")
+		if Game.count_item("wooden_shield") == 0:
+			Econ.request_test_items({"wooden_shield": 1})
+			await _wait_until(func() -> bool: return Game.count_item("wooden_shield") > 0, 3.0)
+		Game.equip("wooden_shield")
+		check(await _wait_until(func() -> bool: return Game.offhand_kind() == "shield", 3.0), "Ana de espada e escudo")
+		await wait(0.6)   # o servidor gravou o equipamento
+		def0 = Game.defense()
+		Network.request_party_buff(PartyShieldRules.ID)
+		check(await _wait_until(func() -> bool: return Game.has_buff(PartyShieldRules.BUFF), 3.0),
+			"Ana recebe o próprio Bastião de Escudos")
+	else:
+		check(await _wait_until(func() -> bool: return Game.has_buff(PartyShieldRules.BUFF), 15.0),
+			"Beto (do grupo, perto) recebe o Bastião de Escudos de Ana")
+	if Game.has_buff(PartyShieldRules.BUFF):
+		var secs: float = Game.buffs[PartyShieldRules.BUFF]
+		check(secs > 10.0 and secs <= float(ItemDB.BUFFS[PartyShieldRules.BUFF].time) + 0.01,
+			"o buff vem com o tempo da tabela (%.1f s)" % secs)
+		check(Game.defense() > def0 + 5.0, "defesa maior com o buff (%.1f -> %.1f)" % [def0, Game.defense()])
+	await _sync("rally_got")
+	Game.clear_buffs(true)
+	check(absf(Game.defense() - def0) < 0.01, "limpos os buffs, a defesa volta (%.1f)" % Game.defense())
+	if my_name == "Ana":
+		Game.unequip("offhand")
+		await _pick_class("mage", "apprentice_staff")
+	for bid in saved:   # os buffs de antes (a sopa do Beto) voltam como estavam
+		Game.add_buff(bid, float(saved[bid]))
+	await _sync("rally_out")
 
 
 ## Logo depois de conectar, todos na vila: os outros jogadores com o nome em cima, o emote chegando à

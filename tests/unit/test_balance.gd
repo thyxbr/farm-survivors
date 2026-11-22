@@ -151,6 +151,16 @@ func test_roundtrip_matches_consts() -> void:
 			cur.erase("travel")
 			T.ok(cur == snap_rules, "tabela rules igual ao snapshot (sem xp_curve, enemy_sleep_radius e travel)")
 			continue
+		elif n == "buffs":
+			# buffs de habilidades novas (o Bastião de Escudos do Grito do Bastião) nasceram depois do snapshot:
+			# os de antes continuam iguais
+			cur = cur.duplicate(true)
+			var snap_buffs: Dictionary = BalanceTables.decode(snap[n])
+			for id in cur.keys():
+				if not snap_buffs.has(id):
+					cur.erase(id)
+			T.ok(cur == snap_buffs, "tabela buffs igual ao snapshot (sem os buffs novos)")
+			continue
 		T.ok(cur == BalanceTables.decode(snap[n]), "tabela %s igual ao snapshot das const" % n)
 
 
