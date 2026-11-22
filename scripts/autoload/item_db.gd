@@ -46,6 +46,9 @@ const ABILITIES := {
 	"sword_charge": {"name": "Investida", "class": "sword", "slot": 1, "level": 1, "cooldown": 6.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "saber", "desc": "Avança sobre os inimigos à frente, causando dano."},
 	# "offhand": só entra no kit com essa mão secundária, no lugar da habilidade do mesmo slot (ver kit())
+	# "offhand": "two_handed" = com a montante nas mãos (Game.offhand_kind): troca a Investida na tecla 1
+	"sword_spin": {"name": "Ciclone de Aço", "class": "sword", "offhand": "two_handed", "slot": 1, "level": 1, "cooldown": 9.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "cleaver", "desc": "Com a montante: aponta a espada para a frente, junta os pés e gira no próprio eixo, ganhando velocidade. Cortes de lâmina varrem tudo em volta (3,1 m): cada inimigo no alcance leva 0,35x o dano corpo a corpo a cada 0,35 s (cerca de 2x no giro todo) e é puxado para dentro dele. Depois o giro perde velocidade aos poucos até parar. Começa a girar assim que é acionada; parado enquanto gira e a esquiva não cancela."},
 	"sword_aegis": {"name": "Égide Cristalina", "class": "sword", "offhand": "shield", "slot": 1, "level": 1, "cooldown": 8.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "ward", "desc": "Com escudo: segure a tecla para fincar o escudo no chão (parado) e erguer uma coroa de placas de cristal em volta (cabe o grupo). Ao se formar ela empurra os monstros; até se partir nenhum monstro nem projétil entra, e os golpes nela gastam a integridade (70 + 9 por nível + 4 por defesa). Soltar a tecla desfaz a barreira. A recarga conta depois que ela acaba (mais longa se quebrar)."},
 	# recarga: a do HammerConfig manda (cooldown_of); esta é só o valor padrão dela
