@@ -1,0 +1,3 @@
+# cópias de segurança do Blender e as texturas soltas (ficam embutidas no .blend)
+*.blend1
+*.png
