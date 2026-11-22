@@ -351,9 +351,10 @@ static func grant(s: CharState, bt: BalanceTables, gold: int, xp: int, items: Di
 
 ## Abate: XP, contagem de abates e progresso de missão. Com `enemy_level` > 0 o XP é ajustado pela diferença
 ## para o maior nível entre o personagem e o grupo (`group_level`); sem nível, sem ajuste. `area` = região com
-## nome onde o monstro nasceu (missões com "region" só contam abates de lá).
+## nome onde o monstro nasceu (missões com "region" só contam abates de lá). `drops` = espólio sorteado para
+## este jogador ({id: qtd}, ids da tabela do monstro): o bestiário revela o que já caiu.
 static func kill(s: CharState, bt: BalanceTables, kind: String, xp: int, enemy_level := 0, group_level := 0,
-		area := "") -> Dictionary:
+		area := "", drops := {}) -> Dictionary:
 	if xp < 0:
 		return _fail("valor_invalido")
 	if enemy_level > 0:
@@ -367,6 +368,7 @@ static func kill(s: CharState, bt: BalanceTables, kind: String, xp: int, enemy_l
 			s.flags["king_dead"] = true
 		s.flags["boss_" + kind] = true
 	_add_xp(s, bt, xp, ev)
+	BestiaryRules.record(s, bt, kind, area, drops, ev)
 	var qt := bt.get_table("quests")
 	var changed := false
 	for id in s.quests:

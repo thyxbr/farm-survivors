@@ -47,6 +47,8 @@ const M := {
 	"forge": preload("res://assets/models/forge.glb"),
 }
 const ENEMY := preload("res://scripts/enemies/enemy.gd")
+## Na dungeon o monstro larga o jogador a 24 m de casa (no mundo aberto são 45): corredor não junta trem.
+const DUNGEON_LEASH := 24.0
 const BLACKSMITH := preload("res://scripts/world/blacksmith.gd")
 const SIGNPOST := preload("res://scripts/world/signpost.gd")
 const ELDER := preload("res://scripts/world/elder.gd")
@@ -572,6 +574,8 @@ func _spawn(entry: Dictionary) -> void:
 	e.area = str(entry.get("area", ""))
 	e.chief = bool(entry.get("chief", false))
 	e.arena = entry.get("arena", Rect2())
+	if entry.has("dungeon") and not e.arena.has_area():
+		e.leash = DUNGEON_LEASH
 	e.level = ProgressionRules.spawn_level(Balance.tables, entry.get("level", 0), entry.get("level_max", 0), e.elite, _spawn_rng)
 	e.position = entry.pos + Vector3.UP * 0.2
 	add_child(e)
@@ -747,6 +751,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_open_menu(3)
 	elif event.is_action_pressed("professions"):
 		_open_menu(4)
+	elif event.is_action_pressed("bestiary"):
+		_open_menu(5)
 	elif event.is_action_pressed("world_map") and survival == null:
 		open_world_map()
 	elif event.is_action_pressed("party"):
@@ -774,8 +780,8 @@ func open_world_map(tab := 0) -> void:
 	_open_modal(m)
 
 
-## Menu do herói: a aba 0 é o inventário (janela da direita); 1-4 são Personagem, Talentos, Missões e
-## Profissões, na janela da esquerda.
+## Menu do herói: a aba 0 é o inventário (janela da direita); 1-5 são Personagem, Talentos, Missões,
+## Profissões e Bestiário, na janela da esquerda.
 func _open_menu(tab: int) -> void:
 	var m := GAME_MENU.new()
 	m.mode = "inventory" if tab == 0 else "hero"

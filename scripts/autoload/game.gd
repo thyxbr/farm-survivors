@@ -10,6 +10,7 @@ extends Node
 signal stats_changed
 signal inventory_changed
 signal quests_changed
+signal bestiary_changed
 signal ranked_up(rank: String)   # promoção na guilda (cartão "PROMOÇÃO")
 signal notify(text: String, color: Color)
 signal leveled_up(new_level: int)
@@ -46,6 +47,8 @@ var equipment := empty_equipment()
 var quests := {}            # id -> {"state": "active"|"ready"|"done", "progress": int}
 var flags := {}
 var kills := 0
+## Bestiário (BestiaryRules): kind -> {"n", "a", "d"}.
+var bestiary := {}
 ## Ecos (moeda permanente das partidas) e passivas permanentes {id: nível}.
 var ecos := 0
 var passives := {}
@@ -275,6 +278,14 @@ func _debug_screenshot() -> void:
 			for lv in range(1, clampi(int(a.substr(8)), 1, 60)):
 				xp_lv += CharRules.xp_to_next(lv, Balance.tables)
 			Econ.grant(0, xp_lv, {}, "demo", true)
+		# `--bestiary=tipo:abates[:item],...` preenche o espelho do bestiário (só a tela, para capturas da aba B;
+		# `item` = espólio secreto que já caiu)
+		elif a.begins_with("--bestiary=") and demo:
+			for part in a.substr(11).split(",", false):
+				var bits := part.split(":")
+				bestiary[bits[0]] = {"n": int(bits[1]) if bits.size() > 1 else 1, "a": ["campos_norte", "toca_goblins"],
+					"d": [bits[2]] if bits.size() > 2 else []}
+			bestiary_changed.emit()
 		elif a.begins_with("--talents="):
 			var xp_need := 0
 			for lv in range(1, 6):
@@ -360,7 +371,7 @@ func _setup_input() -> void:
 		"jump": [KEY_SPACE], "sprint": [KEY_SHIFT], "dodge": [KEY_CTRL, KEY_ALT],
 		"interact": [KEY_E], "spell_1": [KEY_1], "spell_2": [KEY_2], "spell_3": [KEY_3], "spell_4": [KEY_4], "spell_5": [KEY_5],
 		"potion": [KEY_R], "mana_potion": [KEY_F], "gather": [KEY_F], "inventory": [KEY_I, KEY_TAB], "character": [KEY_C],
-		"talents": [KEY_K], "quest_log": [KEY_J], "professions": [KEY_L], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
+		"talents": [KEY_K], "quest_log": [KEY_J], "professions": [KEY_L], "bestiary": [KEY_B], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
 		"eat": [KEY_Q], "food_next": [KEY_T], "world_map": [KEY_M], "party": [KEY_P], "friends": [KEY_O],
 		# emotes (acenar, comemorar, sentar): eram as teclas 1–3 da praça; na vila 1–4 são magias
 		"emote_1": [KEY_7], "emote_2": [KEY_8], "emote_3": [KEY_9],
@@ -898,9 +909,9 @@ func guild_points() -> int:
 
 
 ## Abate: a cura da comida (roubo de vida) é do combate, do cliente; XP e missão são do Econ.
-func on_enemy_killed(kind: String, xp_reward: int, enemy_level := 0, area := "") -> void:
+func on_enemy_killed(kind: String, xp_reward: int, enemy_level := 0, area := "", drops := {}) -> void:
 	kill_lifesteal()
-	Econ.kill(kind, xp_reward, enemy_level, area)
+	Econ.kill(kind, xp_reward, enemy_level, area, drops)
 
 
 ## Roubo de vida da comida ao abater (combate é do cliente; online o abate em si é do servidor).
@@ -1312,6 +1323,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 	var old_class := weapon_class()
 	var old_off := offhand_kind()
 	var quests_before := quests
+	var bestiary_before := bestiary
 	var farm_before := farm
 	var enchant_before := weapon_enchant()
 	level = s.level
@@ -1324,6 +1336,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 	quests = s.quests
 	flags = s.flags
 	kills = s.kills
+	bestiary = s.bestiary
 	farm = s.farm
 	ecos = s.ecos
 	passives = s.passives
@@ -1361,6 +1374,8 @@ func apply_state(d: Dictionary, full := false) -> void:
 		quests_changed.emit()
 	if farm != farm_before:
 		farm_changed.emit()
+	if bestiary != bestiary_before:
+		bestiary_changed.emit()
 
 
 ## Eventos das regras: avisos, nível, itens ganhos (os sinais que a UI já escuta).
@@ -1417,6 +1432,17 @@ func _open_debug_ui(w: Node, ui_name: String, args: PackedStringArray) -> void:
 			w._open_menu(2)
 		"quests":
 			w._open_menu(3)
+		"bestiary":   # `--bestiary-sel=<tipo>` abre a ficha da criatura; `--bestiary-page=<n>`, a página da grade
+			w._open_menu(5)
+			await get_tree().process_frame
+			var bp: BestiaryPanel = w.modal.bestiary_panel if w.modal and w.modal.get("bestiary_panel") else null
+			for a in args:
+				if bp != null and a.begins_with("--bestiary-sel="):
+					bp._sel = a.substr(15)
+					bp.refresh()
+				elif bp != null and a.begins_with("--bestiary-page="):
+					bp._page = int(a.substr(16))
+					bp.refresh()
 		"tools":
 			w._open_menu(0)
 			await get_tree().process_frame

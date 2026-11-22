@@ -14,7 +14,7 @@
 script = ExtResource("1_dg")
 map_id = "dg_pico"
 has_ground = false
-half = 45
+half = 70
 border_height = 0.0
 grass_density = 0.0
 grass_plants = 0.0
@@ -27,144 +27,181 @@ seed = 7
 [node name="Salas" type="Node3D" parent="Dungeon"]
 
 [node name="Átrio" type="Node3D" parent="Dungeon/Salas"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, 35)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 58)
 script = ExtResource("10_dg")
-size = Vector2(10, 8)
-height = 6.0
+size = Vector2(12, 10)
+height = 6
 
 [node name="Nave" type="Node3D" parent="Dungeon/Salas"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, 18)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 36)
 script = ExtResource("10_dg")
-size = Vector2(8, 12)
-height = 6.5
+size = Vector2(10, 22)
+height = 8
 
 [node name="Ossuário Oeste" type="Node3D" parent="Dungeon/Salas"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24, 0.0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -32, 0, 30)
 script = ExtResource("10_dg")
-size = Vector2(12, 10)
-height = 6.0
-pillars = true
-
-[node name="Corredor dos Ossos" type="Node3D" parent="Dungeon/Salas"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, 0)
-script = ExtResource("10_dg")
-size = Vector2(14, 10)
-height = 7.0
-pillars = true
+size = Vector2(14, 12)
+height = 6
 
 [node name="Ossuário Leste" type="Node3D" parent="Dungeon/Salas"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 0.0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 0, 30)
 script = ExtResource("10_dg")
-size = Vector2(12, 10)
-height = 6.0
-pillars = true
+size = Vector2(14, 12)
+height = 6
 
-[node name="Antecâmara" type="Node3D" parent="Dungeon/Salas"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -20)
+[node name="Tumba Selada" type="Node3D" parent="Dungeon/Salas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 57, 0, 30)
 script = ExtResource("10_dg")
-size = Vector2(14, 8)
-height = 8.0
+size = Vector2(10, 10)
+height = 6
+
+[node name="Corredor dos Ossos" type="Node3D" parent="Dungeon/Salas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+script = ExtResource("10_dg")
+size = Vector2(30, 10)
+height = 7
+
+[node name="Salão do Portão" type="Node3D" parent="Dungeon/Salas"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -22)
+script = ExtResource("10_dg")
+size = Vector2(22, 12)
+height = 12
+hall = true
 
 [node name="Câmara da Sentinela" type="Node3D" parent="Dungeon/Salas"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -33)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -46)
 script = ExtResource("10_dg")
-size = Vector2(22, 18)
-height = 11.0
+size = Vector2(44, 36)
+height = 14
 boss = true
-pillars = true
 
 [node name="Corredores" type="Node3D" parent="Dungeon"]
 
 [node name="Passagem 1" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
 width = 6.4
-height = 5.4
+height = 5.2
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Passagem 1"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, 31)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 53)
 script = ExtResource("12_dg")
 
 [node name="Ponto1" type="Node3D" parent="Dungeon/Corredores/Passagem 1"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, 24)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 47)
 script = ExtResource("12_dg")
 
 [node name="Passagem 2" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
 width = 6.2
-height = 5.2
+height = 5
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Passagem 2"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.0, 18)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, 40)
 script = ExtResource("12_dg")
 
 [node name="Ponto1" type="Node3D" parent="Dungeon/Corredores/Passagem 2"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0.0, 18)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -32, 0, 40)
 script = ExtResource("12_dg")
 
 [node name="Ponto2" type="Node3D" parent="Dungeon/Corredores/Passagem 2"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0.0, 5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -32, 0, 35)
 script = ExtResource("12_dg")
 
 [node name="Passagem 3" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
 width = 6.2
-height = 5.2
+height = 5
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Passagem 3"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0.0, 18)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 40)
 script = ExtResource("12_dg")
 
 [node name="Ponto1" type="Node3D" parent="Dungeon/Corredores/Passagem 3"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0.0, 18)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 0, 40)
 script = ExtResource("12_dg")
 
 [node name="Ponto2" type="Node3D" parent="Dungeon/Corredores/Passagem 3"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0.0, 5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 0, 35)
 script = ExtResource("12_dg")
 
 [node name="Passagem 4" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
 width = 6.2
-height = 5.2
+height = 5
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Passagem 4"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0.0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -32, 0, 24)
 script = ExtResource("12_dg")
 
 [node name="Ponto1" type="Node3D" parent="Dungeon/Corredores/Passagem 4"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -32, 0, 0)
+script = ExtResource("12_dg")
+
+[node name="Ponto2" type="Node3D" parent="Dungeon/Corredores/Passagem 4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0, 0)
 script = ExtResource("12_dg")
 
 [node name="Passagem 5" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
 width = 6.2
-height = 5.2
+height = 5
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Passagem 5"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 0.0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 0, 24)
 script = ExtResource("12_dg")
 
 [node name="Ponto1" type="Node3D" parent="Dungeon/Corredores/Passagem 5"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 0.0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 0, 0)
+script = ExtResource("12_dg")
+
+[node name="Ponto2" type="Node3D" parent="Dungeon/Corredores/Passagem 5"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0, 0)
 script = ExtResource("12_dg")
 
 [node name="Passagem 6" type="Node3D" parent="Dungeon/Corredores"]
 script = ExtResource("11_dg")
 width = 6.4
-height = 5.6
+height = 5.2
 
 [node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Passagem 6"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 25)
 script = ExtResource("12_dg")
 
 [node name="Ponto1" type="Node3D" parent="Dungeon/Corredores/Passagem 6"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -16)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 5)
+script = ExtResource("12_dg")
+
+[node name="Passagem 7" type="Node3D" parent="Dungeon/Corredores"]
+script = ExtResource("11_dg")
+width = 6.2
+height = 5
+
+[node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Passagem 7"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 39, 0, 30)
+script = ExtResource("12_dg")
+
+[node name="Ponto1" type="Node3D" parent="Dungeon/Corredores/Passagem 7"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 53, 0, 30)
+script = ExtResource("12_dg")
+
+[node name="Passagem 8" type="Node3D" parent="Dungeon/Corredores"]
+script = ExtResource("11_dg")
+width = 6.4
+height = 5.2
+
+[node name="Ponto0" type="Node3D" parent="Dungeon/Corredores/Passagem 8"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -5)
+script = ExtResource("12_dg")
+
+[node name="Ponto1" type="Node3D" parent="Dungeon/Corredores/Passagem 8"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -17)
 script = ExtResource("12_dg")
 
 [node name="Lugares" type="Node3D" parent="."]
 
 [node name="arrive" type="Node3D" parent="Lugares"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 35.8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 59.8)
 script = ExtResource("8_dg")
 id = "arrive"
 follow_ground = false
@@ -172,7 +209,7 @@ follow_ground = false
 [node name="NPCs e pontos" type="Node3D" parent="."]
 
 [node name="saída" type="Node3D" parent="NPCs e pontos"]
-transform = Transform3D(-1, 0, -1.22465e-16, 0, 1, 0, 1.22465e-16, 0, -1, 0, 0.0, 38.1)
+transform = Transform3D(-1, 0, -1.22465e-16, 0, 1, 0, 1.22465e-16, 0, -1, 0, 0.0, 62.1)
 script = ExtResource("5_dg")
 kind = "dungeon_door"
 ref = "out"
@@ -180,84 +217,76 @@ ref = "out"
 [node name="Regiões" type="Node3D" parent="."]
 
 [node name="dg_pico_entrada" type="Node3D" parent="Regiões"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, 34)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 47)
 script = ExtResource("6_dg")
 region_id = "dg_pico_entrada"
-size = Vector2(88, 20)
+size = Vector2(138, 46)
 
 [node name="dg_pico_galeria" type="Node3D" parent="Regiões"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, 4.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -2)
 script = ExtResource("6_dg")
 region_id = "dg_pico_galeria"
-size = Vector2(88, 39)
+size = Vector2(138, 52)
 
 [node name="dg_pico_trono" type="Node3D" parent="Regiões"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -30)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -49)
 script = ExtResource("6_dg")
 region_id = "dg_pico_trono"
-size = Vector2(88, 30)
+size = Vector2(138, 42)
 
 [node name="Monstros" type="Node3D" parent="."]
 
 [node name="bando 1 esqueleto" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0.0, 11)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 30)
 script = ExtResource("7_dg")
 kind = "esqueleto"
-count = 3
-radius = 1.2
-respawn = 150.0
+count = 2
+radius = 2
+respawn = 150
 
 [node name="bando 2 esqueleto_arqueiro" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24, 0.0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -32, 0, 30)
 script = ExtResource("7_dg")
 kind = "esqueleto_arqueiro"
-count = 2
-radius = 4.0
-respawn = 150.0
+count = 3
+radius = 3
+respawn = 150
 
 [node name="bando 3 esqueleto_cavaleiro" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 0.0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 0, 30)
 script = ExtResource("7_dg")
 kind = "esqueleto_cavaleiro"
 count = 2
-radius = 4.0
-respawn = 150.0
+radius = 2.5
+respawn = 150
 
 [node name="bando 4 esqueleto_mago" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.0, 1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, 0)
 script = ExtResource("7_dg")
 kind = "esqueleto_mago"
 count = 2
-radius = 3.0
-respawn = 150.0
+radius = 2
+respawn = 150
 
 [node name="bando 5 esqueleto" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0.0, -1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 0)
 script = ExtResource("7_dg")
 kind = "esqueleto"
 count = 3
-radius = 3.0
-respawn = 150.0
+radius = 2.5
+respawn = 150
 
 [node name="bando 6 esqueleto_cavaleiro" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0.0, 11)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 57, 0, 30)
 script = ExtResource("7_dg")
 kind = "esqueleto_cavaleiro"
 count = 2
-radius = 1.2
-respawn = 150.0
+radius = 2
+respawn = 150
 
-[node name="bando 7 esqueleto_mago" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0.0, 11)
-script = ExtResource("7_dg")
-kind = "esqueleto_mago"
-count = 2
-radius = 1.2
-respawn = 150.0
-
-[node name="chefe sentinela" type="Node3D" parent="Monstros"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0, -36)
+[node name="chefe sentinela_nevasca" type="Node3D" parent="Monstros"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -48)
 script = ExtResource("7_dg")
 kind = "sentinela_nevasca"
-respawn = 600.0
+respawn = 600
 chief = true
