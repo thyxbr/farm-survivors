@@ -10,7 +10,7 @@ extends SceneTree
 ## Uso (na raiz do projeto):
 ##   godot --headless --path . -s tools/progression_sim.gd
 ## Guia dos números: docs/BALANCEAMENTO.md. O teste tests/unit/test_progression_pacing.gd falha se os golpes
-## saírem de 3-5 (healer até 7) ou as horas por faixa saírem mais de 20% do alvo.
+## saírem de 5-8 (healer até 10) ou as horas por faixa saírem mais de 20% do alvo.
 
 const CLASSES := ["warrior", "archer", "mage", "healer"]
 const SHORT := {"warrior": "guer", "archer": "arq", "mage": "mago", "healer": "heal"}
@@ -79,7 +79,7 @@ func _init() -> void:
 		var e: Dictionary = enemies[kind]
 		line = "%-20s %4d" % [kind, ProgressionRules.enemy_level(bt, kind, 0)]
 		for l in MONSTER_LEVELS:
-			var hp := float(e.get("hp", 0.0)) * float(ProgressionRules.enemy_mults(bt, kind, l).hp)
+			var hp := float(e.get("hp", 0.0)) * float(ProgressionRules.enemy_mults(bt, kind, l).hp) 				* float(ProgressionRules.rank_mults(bt, kind).hp)
 			var dmg := float(ProgressionRules.sim_best_weapon(bt, "warrior", l).damage)
 			line += " %12s" % ("%d/%d" % [roundi(hp), ceili(hp / maxf(dmg, 1.0) - 0.000001)])
 		var tag := " (chefe)" if e.get("boss", false) else (" (elite)" if e.get("elite", false) else "")

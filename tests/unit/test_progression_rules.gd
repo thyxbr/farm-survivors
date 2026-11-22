@@ -109,7 +109,9 @@ func test_rank_order_at_same_level() -> void:
 					var b := _at(bt, strong, level, en[strong].has("rank"))
 					T.ok(b.hp > a.hp, "Nv %d: vida de %s > %s" % [level, strong, weak])
 					T.ok(b.dmg > a.dmg, "Nv %d: dano de %s > %s" % [level, strong, weak])
-	T.eq(ProgressionRules.rank_mults(bt, "goblin", false), {"hp": 1.0, "dmg": 1.0}, "comum sem bônus de categoria")
+	var common: Dictionary = bt.get_table("progression").rank.common
+	T.eq(ProgressionRules.rank_mults(bt, "goblin", false), {"hp": float(common.hp), "dmg": float(common.dmg)},
+		"comum usa o bloco rank.common")
 
 
 ## O Rei Goblin da missão (no mundo, no ref_level) é o primeiro chefe: mais forte que um comum, mas abaixo
