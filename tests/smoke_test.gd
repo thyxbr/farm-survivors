@@ -993,12 +993,19 @@ func _targets(list: Array) -> void:
 		_target(e)
 
 
+## Posição em que o teste segura o jogador (encosta íngreme demais para ficar de pé); null = solto.
+var _pin: Variant = null
+
+
 ## Monstros de fora: o vale nasce cheio, em bandos de 3 a 5 com nível (slimes de gelo nv 9 e esqueletos nv 11
 ## ao lado dos slimes do teste). Quem não é alvo vinha atrás do jogador, empurrava no meio de uma habilidade,
 ## enchia a fúria e às vezes matava (a tela de morte pausa o jogo e derruba tudo o que vem depois). A cada
 ## CALM_EVERY s, os monstros dos pontos do mapa que não são alvo e estão a até CALM_RADIUS do jogador levam um
 ## atordoamento curto: nem andam nem golpeiam.
 func _physics_process(delta: float) -> void:
+	if _pin != null and player != null:
+		player.global_position = _pin
+		player.velocity = Vector3.ZERO
 	_calm_t -= delta
 	if _calm_t > 0.0 or player == null or world == null:
 		return
@@ -2617,36 +2624,23 @@ func _test_meteor_rain() -> void:
 	var m0: Vector4 = world.maps["vila"].mountain_data()[0]   # o primeiro morro da cena do vale
 	var pk := Vector3(m0.x, 0.0, m0.y)
 	var out := Vector3(-pk.x, 0.0, -pk.z).normalized()   # do pico para o meio do mapa
-	# o ponto de maior desnível, mas só onde dá para ficar de pé: num trecho íngreme demais (acima do
-	# floor_max_angle do jogador) ele escorrega encosta abaixo antes da checagem (já caiu de 12,6 para 6,9 m)
-	var floor_up := func(x: float, z: float) -> float:
-		var q := PhysicsRayQueryParameters3D.create(Vector3(x, 300.0, z), Vector3(x, -100.0, z), StaffAbilities.METEOR_GROUND_MASK)
-		var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(q)
-		return hit.normal.y if not hit.is_empty() else 0.0
-	var min_up := cos(player.floor_max_angle) + 0.1   # folga: a normal varia de um triângulo para o outro
 	var best_r := 0.0
 	var best_drop := -1.0
 	for r in range(4, 36):
 		var a: Vector3 = pk + out * float(r)
-		if top_ground.call(a.x, a.z) < 11.0:
-			continue
-		var steep := false
-		for d: Vector3 in [Vector3.ZERO, Vector3(0.4, 0, 0), Vector3(-0.4, 0, 0), Vector3(0, 0, 0.4), Vector3(0, 0, -0.4)]:
-			if floor_up.call(a.x + d.x, a.z + d.z) < min_up:
-				steep = true
-		if steep:
-			continue
 		var b2: Vector3 = a + out * StaffAbilities.METEOR_RANGE
 		var drop: float = top_ground.call(a.x, a.z) - top_ground.call(b2.x, b2.z)
 		if drop > best_drop:
 			best_drop = drop
 			best_r = float(r)
-	check(best_drop > 0.0, "Meteoros: achou um ponto da encosta firme para ficar de pé (r %.0f, desnível %.1f)" % [best_r, best_drop])
 	var flank: Vector3 = pk + out * best_r
-	player.global_position = Vector3(flank.x, top_ground.call(flank.x, flank.z) + 0.5, flank.z)
+	# o flanco inteiro acima de 10 m passa de 45° (o floor_max_angle do jogador): ali is_on_floor() nunca
+	# fica verdadeiro e o jogador escorrega encosta abaixo (já caiu de 12,6 para 6,9 m antes da checagem).
+	# O teste prende o jogador no ponto (_pin, ver _physics_process) até o fim desta parte.
+	_pin = Vector3(flank.x, top_ground.call(flank.x, flank.z) + 0.05, flank.z)
+	player.global_position = _pin
 	player.velocity = Vector3.ZERO
 	player._snap_visuals()
-	await wait_until(grounded)
 	await wait(0.2)
 	player.cam_yaw.rotation.y = atan2(-out.x, -out.z)   # frente da câmera (-Z) para fora do pico
 	var pf: Vector3 = player.global_position
@@ -2676,6 +2670,7 @@ func _test_meteor_rain() -> void:
 	player.end_ability()
 	player.cooldowns.meteor_rain = 0.0
 
+	_pin = null
 	# restaura
 	for s in saved:
 		var e = s[0]
