@@ -44,6 +44,8 @@ var talents := {}
 var professions := {}
 ## Receitas aprendidas por pergaminho (as de NPC todos conhecem).
 var recipes: Array = []
+## Bestiário (BestiaryRules): kind -> {"n": abates, "a": [regiões], "d": [espólio já visto]}.
+var bestiary := {}
 ## Bônus de comida ativos: buff_id -> expira_em (relógio do serviço). Só da sessão: não vai ao save.
 var food_buffs := {}
 
@@ -80,6 +82,7 @@ func to_dict() -> Dictionary:
 		"enchants": enchants.duplicate(true),
 		"char_class": char_class, "body": body, "hair": hair, "talents": talents.duplicate(true),
 		"professions": professions.duplicate(true), "recipes": recipes.duplicate(),
+		"bestiary": bestiary.duplicate(true),
 	}
 
 
@@ -193,6 +196,7 @@ static func from_dict(d, bt: BalanceTables = null) -> CharState:
 		for r in rs:
 			if r is String and not r in s.recipes and (bt == null or rt.has(r)):
 				s.recipes.append(r)
+	s.bestiary = BestiaryRules.parse(d.get("bestiary"), bt)
 	return s
 
 

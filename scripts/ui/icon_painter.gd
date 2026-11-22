@@ -282,6 +282,14 @@ static func draw(ci: CanvasItem, kind: String, col: Color, r: Rect2, ghost := fa
 				_bar(ci, P, Vector2(0.24, 0.6), Vector2(0.24, 0.84), 0.07, Color(1.0, 0.8, 0.35), ol, lw * 0.5)
 				_bar(ci, P, Vector2(0.76, 0.6), Vector2(0.76, 0.84), 0.07, Color(1.0, 0.8, 0.35), ol, lw * 0.5)
 				ci.draw_circle(P.call(0.5, 0.72), S * 0.07, Color(0.95, 0.98, 1.0))
+		"earthquake":   # escudo batendo no chão rachado, com o anel de energia azul saindo dele
+			_poly(ci, P, [Vector2(0.08, 0.74), Vector2(0.5, 0.6), Vector2(0.92, 0.74), Vector2(0.5, 0.92)], Color(0.35, 0.6, 1.0), ol, lw)
+			_poly(ci, P, [Vector2(0.5, 0.12), Vector2(0.76, 0.22), Vector2(0.72, 0.5), Vector2(0.5, 0.72),
+				Vector2(0.28, 0.5), Vector2(0.24, 0.22)], Color(0.75, 0.62, 0.4), ol, lw)
+			if not ghost:
+				ci.draw_line(P.call(0.5, 0.76), P.call(0.24, 0.84), Color(0.85, 0.95, 1.0), maxf(2.0, S * 0.04), true)
+				ci.draw_line(P.call(0.5, 0.76), P.call(0.8, 0.82), Color(0.85, 0.95, 1.0), maxf(2.0, S * 0.04), true)
+				ci.draw_circle(P.call(0.5, 0.42), S * 0.07, Color(0.55, 0.8, 1.0))
 		"taunt":   # círculo roxo no chão e dois olhos vermelhos com raiva acima
 			_poly(ci, P, [Vector2(0.12, 0.72), Vector2(0.5, 0.6), Vector2(0.88, 0.72), Vector2(0.5, 0.9)], Color(0.45, 0.2, 0.75), ol, lw)
 			if not ghost:
