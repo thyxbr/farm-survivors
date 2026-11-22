@@ -249,6 +249,12 @@ func _ready() -> void:
 		target.take_damage(10.0, w.player.global_position, false)
 		await wait(0.6)
 		check(target.hp < hp0, "dano chega ao servidor e volta no snapshot (%.0f → %.0f)" % [hp0, target.hp])
+		# afinidade elemental (ElementRules): o servidor aplica o % da ficha; slime leva 90% de físico e 125% de fogo
+		var hp1 := target.hp
+		target.take_damage(10.0, w.player.global_position, false, 0.0, 0.0, 0.0, "fogo")
+		await wait(0.6)
+		var ratio := (hp1 - target.hp) / maxf(hp0 - hp1, 0.001)
+		check(absf(ratio - 1.25 / 0.9) < 0.05, "fogo no slime pelo servidor: %.2fx o físico (esperado %.2f)" % [ratio, 1.25 / 0.9])
 		target.take_damage(9999.0, w.player.global_position, false)
 		await wait(0.8)
 		check(not is_instance_valid(target) or target.dead, "slime morreu em todos")
@@ -409,7 +415,8 @@ func _ready() -> void:
 		var drop: float = vh - vt.hp if is_instance_valid(vt) else 0.0
 		# monstro bem acima do nível de quem bate leva menos (placa vermelha, ProgressionRules.danger_mults):
 		# os 12% da marca valem sobre o dano já reduzido
-		var taken := float(ProgressionRules.danger_mults(Balance.tables, mark_level, Game.level).taken)
+		# e a afinidade ao físico do monstro (ElementRules: dourado 110%, campeão 75%) também
+		var taken := float(ProgressionRules.danger_mults(Balance.tables, mark_level, Game.level).taken) 			* ElementRules.mult(Balance.tables, mark_kind, "fisico")
 		check(drop > 10.5 * taken and drop < 12.5 * taken,
 			"marca de veneno adulterada é limitada a 12%% (10 de dano tirou %.1f; nível %d contra %d leva x%.2f)" % [drop, mark_level, Game.level, taken])
 		w.player.global_position = before_mark
