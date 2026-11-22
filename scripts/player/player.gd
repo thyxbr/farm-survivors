@@ -114,6 +114,8 @@ var combo := 0
 var combo_window := 0.0
 var buffered_attack := false
 var hit_done := false
+## Bola de Fogo do cajado crescendo na gema (MageStaffAttack.tick_orb); null fora da carga.
+var fireball_orb: Node3D = null
 var dodge_timer := 0.0
 var dodge_dir := Vector3.ZERO
 var _dodge_age := 0.0   ## há quanto tempo a esquiva atual começou (anima o rolamento; réplicas também)
@@ -260,6 +262,7 @@ func _ready() -> void:
 	FXEpic.prewarm_instances.call_deferred(self)   # e os pipelines de desenho de cada tipo de efeito
 	StaffAbilities.prewarm()   # rocha, halo e céu da Chuva de Meteoros (malhas e materiais compartilhados)
 	StaffAbilities.prewarm_instances.call_deferred(self)
+	FireballProjectile.prewarm_instances.call_deferred(self)   # Bola de Fogo do ataque básico do cajado
 	GreatswordSupremeAbilities.prewarm_instances.call_deferred(self)   # espada de energia, rachadura e partículas da Lâmina Suprema
 	DragSlashAbilities.prewarm_instances.call_deferred(self)   # fagulhas, rastro e garras do Corte do Abismo
 	GreatswordSpinAbilities.prewarm_instances.call_deferred(self)   # anel, cortes e fagulhas do Ciclone de Aço
@@ -433,6 +436,9 @@ func _unhandled_input(event: InputEvent) -> void:
 func _exit_tree() -> void:
 	if ability != "":
 		end_ability()
+	if fireball_orb and is_instance_valid(fireball_orb):
+		fireball_orb.queue_free()
+	fireball_orb = null
 
 
 func _physics_process(delta: float) -> void:
@@ -455,6 +461,7 @@ func _local_process(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, 0, 20 * delta)
 		velocity.z = move_toward(velocity.z, 0, 20 * delta)
 		move_and_slide()
+		MageStaffAttack.tick_orb(self)   # morto: a bola da carga some
 		return
 
 	_tick_timers(delta)
@@ -767,6 +774,10 @@ func _try_attack() -> void:
 	if dodge_timer > 0:
 		return
 	if attacking:
+		if MageStaffAttack.active(self):
+			if combo == MageStaffAttack.RECOVER:
+				buffered_attack = true   # clicou na volta do cajado: a próxima carga começa logo em seguida
+			return
 		if attack_timer > _swing_time(combo) * 0.35:
 			buffered_attack = true
 		return
@@ -782,6 +793,9 @@ static func swing_stamina(staff: bool, hit: int) -> float:
 func _start_swing() -> void:
 	if Game.stamina < SWING_STAMINA_MIN:
 		Game.notify.emit("Sem fôlego!", Color(1, 0.8, 0.5))
+		return
+	if MageStaffAttack.active(self):
+		MageStaffAttack.begin(self)   # cajado: Bola de Fogo (clique ou segurar)
 		return
 	combo = (combo % _combo_len()) + 1 if combo_window > 0 else 1
 	attacking = true
@@ -812,6 +826,12 @@ func _update_attack(delta: float) -> void:
 	if not attacking:
 		combo_window = max(0.0, combo_window - delta)
 		return
+	if MageStaffAttack.active(self):
+		if input_locked or horde_frozen or chat_typing or Loading.covering:
+			MageStaffAttack.cancel(self)
+			return
+		MageStaffAttack.update(self, delta, Input.is_action_pressed("attack"))
+		return
 	attack_timer += delta
 	var dur := _swing_time(combo)
 	var t := attack_timer / dur
@@ -819,10 +839,7 @@ func _update_attack(delta: float) -> void:
 		hit_done = true
 		match look["class"]:
 			"staff":
-				if _is_scepter():
-					_scepter_shot()
-				else:
-					_staff_shot()
+				_scepter_shot()   # o cajado (Bola de Fogo) sai antes, por MageStaffAttack
 			"bow":
 				pass   # o disparo do arco acontece ao soltar o botão
 			_:
@@ -888,6 +905,8 @@ func _do_hit() -> void:
 func _swing_time(c: int) -> float:
 	match look["class"]:
 		"staff":
+			if not _is_scepter():
+				return MageStaffAttack.phase_time(c)
 			return STAFF_TIMES[clampi(c, 1, 3) - 1]
 		"bow":
 			return BOW_RECOVER
@@ -1000,19 +1019,6 @@ func weapon_tip() -> Vector3:
 	if tip and is_instance_valid(tip) and tip.is_inside_tree():
 		return tip.global_position
 	return global_position + Vector3.UP * KnightLook.body_y(self, 1.3) + facing() * 0.6
-
-
-## Cajado: faísca arcana; o 3º golpe do combo dispara um leque de 3 mais fortes.
-func _staff_shot() -> void:
-	var origin := weapon_tip()
-	var dir := aim_dir(origin)
-	var spread := [0.0] if combo < 3 else [-0.14, 0.0, 0.14]
-	for a in spread:
-		var crit: bool = randf() < Game.crit_chance()
-		var d: Vector3 = dir.rotated(Vector3.UP, a)
-		_spawn_projectile("bolt", origin, d, Game.melee_damage() * (1.25 if combo == 3 else 1.0) * (1.8 if crit else 1.0), crit, 0)
-		Network.send_event("bolt", origin, d)
-	Sfx.play(Sfx.staff_element(_weapon_id()) + "_cast", 0.12, -4.0)
 
 
 ## O cetro usa o visual e a animação do cajado (look["class"] == "staff"); só o ataque e o kit mudam.
@@ -2103,6 +2109,8 @@ func play_remote_event(kind: String, a: Vector3, b: Vector3) -> void:
 		_ab_module(kind).play_remote(self, kind, a, b)
 		return
 	match kind:
+		"staff_fireball":
+			MageStaffAttack.play_remote(self, a, b)
 		"fireball":
 			_start_cast_pose(kind)
 			_cast_t = KnightMoves.CAST_RELEASE * KnightMoves.CAST_TIME   # o evento chega no disparo
@@ -2277,6 +2285,8 @@ func _animate(delta: float) -> void:
 		KnightAnim.bow_draw_pose(p, bow_charge(), _amp)
 	elif cls == "bow" and attacking:
 		KnightAnim.bow_release_pose(p, attack_timer / BOW_RECOVER, _amp, aiming)
+	elif attacking and cls == "staff" and MageStaffAttack.active(self):
+		MageStaffAttack.pose(self, p, _amp)
 	elif attacking and cls == "staff":
 		KnightAnim.staff_pose(p, combo, attack_timer / _swing_time(combo), _amp)
 	elif attacking and cls == "sword" and _unarmed():
@@ -2308,6 +2318,7 @@ func _animate(delta: float) -> void:
 	KnightAnim.apply(parts, p, k)
 
 	KnightAnim.hold_weapon_upright(look, parts)
+	MageStaffAttack.tick_orb(self)   # Bola de Fogo na gema durante a carga (depois da pose: a gema já está no lugar)
 	KnightAnim.sway_ponytail(parts, delta)
 	if cls == "bow":
 		KnightAnim.bow_string(look, parts)   # corda nos dedos, arco envergando, flecha na linha

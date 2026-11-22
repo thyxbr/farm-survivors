@@ -184,6 +184,25 @@ const STAFF := [
 	],
 ]
 
+## Bola de Fogo do cajado (MageStaffAttack): ergue o cajado e tomba um pouco a gema para a frente (menos que
+## STAFF_AIM) e segura assim enquanto carrega; cheia, a vara sobe mais um pouco.
+const STAFF_FB_AIM := {"arm_r": Vector3(-1.15, 0.05, -0.2), "elbow_r": -0.45, "wrist_r": 0.8,
+	"twist": 0.1, "body_x": 0.1, "head_y": -0.1,
+	"arm_l": Vector3(-0.95, -0.15, 0.3), "elbow_l": -1.0}
+const STAFF_FB_HOLD := {"arm_r": Vector3(-1.45, 0.05, -0.2), "elbow_r": -0.3, "wrist_r": 0.7, "body_x": 0.04}
+const STAFF_FB_RAISE := [   # t 0..1 em MageStaffAttack.RAISE_TIME
+	[0.45, [STAFF_WINDUP]],
+	[1.0, [STAFF_FB_AIM, STAFF_AIM_LEGS]],
+]
+const STAFF_FB_CHARGE := [  # t = carga 0..1
+	[0.0, [STAFF_FB_AIM]],
+	[1.0, [STAFF_FB_AIM, STAFF_FB_HOLD]],
+]
+const STAFF_FB_RELEASE := [ # t 0..1 em MageStaffAttack.RECOVER_TIME: coice e volta à locomoção
+	[0.0, [STAFF_FB_AIM]],
+	[0.35, [STAFF_RECOIL], "out"],
+]
+
 # ------------------------------------------------------------------ magias
 const CAST_TIME := 0.45         ## duração da pose de magia (s)
 ## Fração de CAST_TIME em que a bola de fogo sai (da gema do cajado, ou da mão esquerda sem
