@@ -149,13 +149,16 @@ func test_pose_phase_timeline() -> void:
 	T.ok(c.forward_offset > 0.2 and c.forward_offset < 1.5, "o escudo bate logo à frente dos pés (%.2f m)" % c.forward_offset)
 
 
-func test_area_matches_aegis_circle() -> void:
+func test_area_size() -> void:
 	var c := _cfg()
+	T.ok(is_equal_approx(c.radius, 4.5), "área do Terremoto com 4,5 m de raio (%.2f m)" % c.radius)
 	var aegis: AegisConfig = load("res://assets/vfx/aegis/aegis_config.tres")
-	T.ok(is_equal_approx(c.radius, aegis.circle_radius), "área do Terremoto do tamanho do círculo da Égide (%.2f m)" % c.radius)
+	var taunt: DarkTauntConfig = load("res://assets/vfx/dark_taunt/dark_taunt_config.tres")
+	T.ok(c.radius > aegis.circle_radius and c.radius < taunt.radius,
+		"entre a Égide (%.2f m) e a Provocação (%.2f m)" % [aegis.circle_radius, taunt.radius])
 	T.ok(c.crack_length * c.radius <= c.radius, "rachaduras dentro da área")
 	var t := c.expansion_time()
-	T.ok(t > 0.5 and t < 1.2, "a onda pequena ainda leva um tempo visível até a borda (%.2f s)" % t)
+	T.ok(t > 0.5 and t < 1.2, "a onda ainda leva um tempo visível até a borda (%.2f s)" % t)
 
 
 func test_secondary_spots_stay_inside_area() -> void:

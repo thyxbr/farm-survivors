@@ -3803,6 +3803,85 @@
 		"desc": "Não deixam pegadas.",
 		"craft": true
 	},
+	"blackdragon_plate": {
+		"name": "Placas do Dragão Negro",
+		"type": "armor",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 18,
+		"price": 1850,
+		"color": {
+			"$c": [0.22, 0.22, 0.25, 1.0]
+		},
+		"metal": true,
+		"style": "a_blackdragon",
+		"stats": {
+			"vit": 8,
+			"str": 4,
+			"hp": 64
+		},
+		"desc": "Aço negro moldado como o peito de um dragão, com frisos de ouro.",
+		"craft": true
+	},
+	"blackdragon_helm": {
+		"name": "Elmo do Dragão Negro",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 9,
+		"price": 740,
+		"color": {
+			"$c": [0.22, 0.22, 0.25, 1.0]
+		},
+		"metal": true,
+		"style": "h_blackdragon",
+		"stats": {
+			"vit": 5,
+			"str": 2,
+			"hp": 28
+		},
+		"desc": "Dois chifres curvos e um focinho de aço sobre os olhos.",
+		"craft": true
+	},
+	"blackdragon_gauntlets": {
+		"name": "Manoplas do Dragão Negro",
+		"type": "gear",
+		"slot": "hands",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 2,
+		"price": 300,
+		"color": {
+			"$c": [0.22, 0.22, 0.25, 1.0]
+		},
+		"metal": true,
+		"style": "g_blackdragon",
+		"stats": {
+			"str": 6
+		},
+		"desc": "Os dedos terminam em garras.",
+		"craft": true
+	},
+	"blackdragon_greaves": {
+		"name": "Grevas do Dragão Negro",
+		"type": "gear",
+		"slot": "feet",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 5,
+		"price": 290,
+		"color": {
+			"$c": [0.22, 0.22, 0.25, 1.0]
+		},
+		"metal": true,
+		"style": "f_blackdragon",
+		"stats": {
+			"vit": 3
+		},
+		"desc": "Cada passo soa como uma garra na pedra.",
+		"craft": true
+	},
 	"scroll_wind_ring": {
 		"name": "Pergaminho: Anel do Vento",
 		"type": "scroll",
@@ -4062,6 +4141,46 @@
 		"recipe": "astral_plate",
 		"art": "recipe_scroll",
 		"desc": "Use para aprender a receita de Placas Astrais."
+	},
+	"scroll_blackdragon_plate": {
+		"name": "Pergaminho: Placas do Dragão Negro",
+		"type": "scroll",
+		"rarity": "legendary",
+		"price": 216,
+		"stack": true,
+		"recipe": "blackdragon_plate",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Placas do Dragão Negro."
+	},
+	"scroll_blackdragon_helm": {
+		"name": "Pergaminho: Elmo do Dragão Negro",
+		"type": "scroll",
+		"rarity": "legendary",
+		"price": 205,
+		"stack": true,
+		"recipe": "blackdragon_helm",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Elmo do Dragão Negro."
+	},
+	"scroll_blackdragon_gauntlets": {
+		"name": "Pergaminho: Manoplas do Dragão Negro",
+		"type": "scroll",
+		"rarity": "legendary",
+		"price": 205,
+		"stack": true,
+		"recipe": "blackdragon_gauntlets",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Manoplas do Dragão Negro."
+	},
+	"scroll_blackdragon_greaves": {
+		"name": "Pergaminho: Grevas do Dragão Negro",
+		"type": "scroll",
+		"rarity": "legendary",
+		"price": 205,
+		"stack": true,
+		"recipe": "blackdragon_greaves",
+		"art": "recipe_scroll",
+		"desc": "Use para aprender a receita de Grevas do Dragão Negro."
 	},
 	"pickaxe_stone": {
 		"name": "Picareta de Pedra",

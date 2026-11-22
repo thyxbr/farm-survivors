@@ -983,16 +983,26 @@ static func sword_pose(p: Dictionary, combo: int, t: float, move: float) -> void
 ## golpe já é o começo do próximo e a mistura não muda nada. A trilha é densa: as articulações vão direto a ela
 ## (snap). O quadril gira o que o do Mixamo gira (spin, sem a parte do tronco de hips_follow).
 static func shield_combo_pose(p: Dictionary, combo: int, t: float, move: float, from: Dictionary = {}) -> void:
-	drop_gait_comp(p)
 	var tr: Dictionary = KnightMovesShield.TRACKS[clampi(combo, 1, KnightMovesShield.TRACKS.size()) - 1]
+	_dense_track(p, tr, KnightMovesShield.N, t, move, from)
+
+
+## Trilha densa `tr` (`n` quadros uniformes: KnightMovesShield, KnightMovesGreat) no instante `t`, misturada a partir de
+## `from` nos primeiros SHIELD_BLEND do golpe (ver shield_combo_pose). As chaves da arma da montante (GREAT_TOOL_KEYS)
+## ficam de fora: great_pose cuida delas.
+const GREAT_TOOL_KEYS := ["end", "dir", "edge"]
+static func _dense_track(p: Dictionary, tr: Dictionary, n: int, t: float, move: float, from: Dictionary) -> void:
+	drop_gait_comp(p)
 	t = clampf(t, 0.0, 1.0)
-	var x := t * float(KnightMovesShield.N - 1)
-	var i := mini(int(x), KnightMovesShield.N - 2)
+	var x := t * float(n - 1)
+	var i := mini(int(x), n - 2)
 	var u := x - float(i)
 	var legs_w := lerpf(1.0, ATK_LEGS_WHILE_MOVING, move)
 	var w := smoothstep(0.0, SHIELD_BLEND, t)
 	var snap: Array = p.snap
 	for j in tr:
+		if j in GREAT_TOOL_KEYS:
+			continue
 		var base = p.get(j, 0.0)
 		var v = _sample_rot(tr[j], i, u) if j in ["arm_l", "arm_r"] else _catmull(tr[j], i, u)
 		if w < 1.0 and from.has(j):
@@ -1012,6 +1022,8 @@ static func shield_recover_pose(p: Dictionary, from: Dictionary, t: float) -> vo
 	var w := smoothstep(0.0, 1.0, t)
 	var snap: Array = p.snap
 	for j in from:
+		if j == "tool":
+			continue   # a arma da montante: great_recover_pose
 		var key: String = "hip_twist" if j == "spin" else j   # fora do golpe o quadril é hip_twist
 		var b = p.get(key, 0.0)
 		p[key] = _mix_joint(j, from[j], b, w, b)
@@ -1033,6 +1045,8 @@ static func capture_pose(r: Dictionary) -> Dictionary:
 		var kn: Node3D = r.get("Knee" + s.to_upper())
 		c["elbow_" + s] = el.rotation.x if el else IDLE_ELBOW
 		c["knee_" + s] = kn.rotation.x if kn else 0.0
+	if r.has("tool_last") and float(r.get("tool_w", 0.0)) > 0.5:
+		c["tool"] = r.tool_last   # montante: a arma (great_pose mistura a trajetória a partir dela)
 	return c
 
 
@@ -1070,6 +1084,8 @@ static func _near(ref: Quaternion, q: Quaternion) -> Quaternion:
 ## Valor na posição `i + u` de uma lista de quadros uniformes (Catmull-Rom).
 static func _catmull(a: Array, i: int, u: float):
 	var n := a.size()
+	if a[i] is Vector3:   # a arma da montante (KnightMovesGreat)
+		return (a[i] as Vector3).cubic_interpolate(a[mini(i + 1, n - 1)], a[maxi(i - 1, 0)], a[mini(i + 2, n - 1)], u)
 	return cubic_interpolate(a[i], a[mini(i + 1, n - 1)], a[maxi(i - 1, 0)], a[mini(i + 2, n - 1)], u)
 
 
@@ -1232,33 +1248,119 @@ static func carry(look: Dictionary, p: Dictionary, move := 0.0, run := 0.0, weig
 		great_carry(p, move, run, weight)
 
 
-## Golpe `combo` (1..3) da montante no instante `t` (0..1) por cima da pose de carregar (great_carry já chamado):
-## o corpo toca KnightMoves.GREAT e a lâmina segue GREAT_TOOL, saindo da pose de carregar e voltando a ela.
-static func great_pose(p: Dictionary, combo: int, t: float, move: float) -> void:
-	var c := clampi(combo, 1, 3) - 1
-	var ready: Dictionary = p.get("tool", KnightMoves.GREAT_GUARD)
-	play_track(p, KnightMoves.GREAT[c], t, move)
-	var tl := great_sample(KnightMoves.GREAT_TOOL[c], ready, t)
+## Golpe `combo` (1..3) da montante no instante `t` (0..1) por cima da pose de carregar (great_carry já chamado): o
+## combo do Mixamo retargetado (KnightMovesGreat, gerado por tools/retarget_great_combo.gd), como o combo com escudo:
+## o corpo toca a trilha densa e a arma segue a trajetória dela (as duas mãos vão por IK até o cabo). `from` = a pose
+## em que o corpo e a arma estavam quando o golpe começou (capture_pose): nos primeiros SHIELD_BLEND do golpe a pose
+## sai dela; sem a arma em `from`, a arma sai da pose de carregar. A arma não vai direto de `from` à trilha: a trilha
+## corre desde o começo com a diferença entre `from` e o primeiro quadro dela sumindo aos poucos (a lâmina acompanha o
+## preparo do golpe, girando pelo caminho de cima, blade_turn), senão ela cortaria caminho pela frente e por baixo.
+static func great_pose(p: Dictionary, combo: int, t: float, move: float, from: Dictionary = {}) -> void:
+	var tr: Dictionary = KnightMovesGreat.TRACKS[clampi(combo, 1, KnightMovesGreat.TRACKS.size()) - 1]
+	var ready: Dictionary = from.get("tool", p.get("tool", KnightMoves.GREAT_GUARD))
+	_dense_track(p, tr, KnightMovesGreat.N, t, move, from)
+	t = clampf(t, 0.0, 1.0)
+	var x := t * float(KnightMovesGreat.N - 1)
+	var i := mini(int(x), KnightMovesGreat.N - 2)
+	var u := x - float(i)
+	var tl := {"end": _catmull(tr.end, i, u), "dir": (_catmull(tr.dir, i, u) as Vector3).normalized(),
+		"edge": (_catmull(tr.edge, i, u) as Vector3).normalized(), "slide": 0.0, "left": 1.0}
+	var s := 1.0 - smoothstep(0.0, SHIELD_BLEND, t)
+	if s > 0.0:
+		# no referencial do tronco: a diferença é medida com o giro de cada um (`from` e o primeiro quadro) e somada no
+		# giro que o tronco tem agora (o corpo também está saindo de `from`); em linha reta no espaço do modelo as mãos
+		# atravessariam o corpo quando o golpe começa virado
+		var y0: float = tr.twist[0]
+		var yf := y0 + wrapf(float(from.get("twist", y0)) - y0, -PI, PI)   # o mesmo caminho de _mix_joint
+		var r0 := Basis(Vector3.UP, -y0)
+		var rf := Basis(Vector3.UP, -yf)
+		var rt := Basis(Vector3.UP, -float(_catmull(tr.twist, i, u)))
+		var back := Basis(Vector3.UP, float(p.get("twist", y0)))
+		var d0: Vector3 = r0 * (tr.dir[0] as Vector3)
+		var df: Vector3 = rf * (ready.dir as Vector3).normalized()
+		var roll := _edge_roll(blade_turn(d0, df, 1.0) * (r0 * (tr.edge[0] as Vector3)), rf * (ready.edge as Vector3), df)
+		var q := blade_turn(d0, df, s)
+		var dir: Vector3 = q * (rt * (tl.dir as Vector3))
+		tl.dir = back * dir
+		tl.edge = back * (Quaternion(dir, roll * s) * (q * (rt * (tl.edge as Vector3))))
+		tl.end = back * (rt * (tl.end as Vector3) + (rf * (ready.end as Vector3) - r0 * (tr.end[0] as Vector3)) * s)
 	tl["w"] = 1.0
 	tl["grip"] = KnightMoves.GREAT_GRIP
 	p["tool"] = tl
-	p["hip_share"] = 0.5
 	var snap: Array = p.snap
 	for j in ["arm_l", "arm_r", "elbow_l", "elbow_r"]:
 		snap.append(j)   # os braços saem do IK da trajetória, que já é suave: sem o atraso da suavização
 
 
-## A trajetória da montante no instante `u` (chaves [u, {end, dir, edge, slide, left}, curva] entre `ready` nas pontas).
-static func great_sample(track: Array, ready: Dictionary, u: float) -> Dictionary:
-	var u0 := 0.0
-	var a := ready
-	for key in track:
-		var u1: float = key[0]
-		if u <= u1:
-			return great_mix(a, key[1], ease_curve((u - u0) / maxf(u1 - u0, 0.0001), key[2]))
-		u0 = u1
-		a = key[1]
-	return great_mix(a, ready, ease_curve((u - u0) / maxf(1.0 - u0, 0.0001), "io"))
+## Volta do combo da montante para a pose de carregar `p` (great_carry já chamado) quando nenhum golpe emenda: o corpo
+## como em shield_recover_pose e a arma da trajetória do fim do golpe (`from.tool`) para a de carregar. A arma vai no
+## referencial do tronco, que desgira junto (no fim do golpe ele pode estar virado mais de 90°): em linha reta no espaço
+## do modelo as mãos passariam por dentro do corpo.
+static func great_recover_pose(p: Dictionary, from: Dictionary, t: float) -> void:
+	var yb := float(p.get("twist", 0.0))
+	shield_recover_pose(p, from, t)
+	if not (from.has("tool") and p.has("tool")):
+		return
+	var carry: Dictionary = p.tool
+	var k_mix := smoothstep(0.0, 1.0, t)
+	var ya := yb + wrapf(float(from.get("twist", yb)) - yb, -PI, PI)   # o mesmo caminho do giro em shield_recover_pose
+	var ra := Basis(Vector3.UP, -ya)
+	var rb := Basis(Vector3.UP, -yb)
+	var a := {"end": ra * (from.tool.end as Vector3), "dir": ra * (from.tool.dir as Vector3).normalized(),
+		"edge": ra * (from.tool.edge as Vector3), "slide": float(from.tool.get("slide", 0.0)),
+		"left": float(from.tool.get("left", 1.0))}
+	var b := {"end": rb * (carry.end as Vector3), "dir": rb * (carry.dir as Vector3).normalized(),
+		"edge": rb * (carry.edge as Vector3), "slide": float(carry.get("slide", 0.0)), "left": float(carry.get("left", 1.0))}
+	var da: Vector3 = a.dir
+	var db: Vector3 = b.dir
+	var roll := _edge_roll(blade_turn(da, db, 1.0) * (a.edge as Vector3), b.edge as Vector3, db)
+	var q := blade_turn(da, db, k_mix)
+	var dir: Vector3 = q * da
+	var tl := great_mix(a, b, k_mix)
+	var turn := Basis(Vector3.UP, lerpf(ya, yb, k_mix))
+	tl.end = turn * (tl.end as Vector3)
+	tl.dir = turn * dir
+	tl.edge = turn * (Quaternion(dir, roll * k_mix) * (q * (a.edge as Vector3)))
+	for k in ["w", "grip", "pole_r", "pole_w"]:
+		if carry.has(k):
+			tl[k] = carry[k]
+	p["tool"] = tl
+	var snap: Array = p.snap
+	for j in ["arm_l", "arm_r", "elbow_l", "elbow_r"]:
+		snap.append(j)
+
+
+## Giro da lâmina da direção `a` para `b` com peso `k` (0..1), pelo caminho que passa por cima: num giro grande (mais
+## de 90°), o caminho curto ou o longo, o que mantiver a ponta mais alta em média (a montante vai da guarda à frente
+## para trás das costas por cima da cabeça, não passando a ponta pelo chão).
+static func blade_turn(a: Vector3, b: Vector3, k: float) -> Quaternion:
+	a = a.normalized()
+	b = b.normalized()
+	var ax := a.cross(b)
+	if ax.length() < 0.0001:
+		ax = a.cross(Vector3.UP) if absf(a.y) < 0.99 else Vector3.RIGHT
+	ax = ax.normalized()
+	var ang := a.angle_to(b)
+	if ang > PI * 0.5:
+		var h_short := 0.0
+		var h_long := 0.0
+		for i in 7:
+			var f := (i + 1) / 8.0
+			h_short += (Quaternion(ax, ang * f) * a).y
+			h_long += (Quaternion(ax, (ang - TAU) * f) * a).y
+		if h_long > h_short:
+			ang -= TAU
+	return Quaternion(ax, ang * k)
+
+
+## Quanto o gume `e` (já girado com a lâmina para `dir`) tem de girar em volta da lâmina para chegar ao gume `target`.
+static func _edge_roll(e: Vector3, target: Vector3, dir: Vector3) -> float:
+	var d := dir.normalized()
+	var a := e - d * e.dot(d)
+	var b := target - d * target.dot(d)
+	if a.length() < 0.0001 or b.length() < 0.0001:
+		return 0.0
+	return a.signed_angle_to(b, d)
 
 
 static func great_mix(a: Dictionary, b: Dictionary, k: float) -> Dictionary:
@@ -1493,6 +1595,8 @@ static func _tool_ik(r: Dictionary, p: Dictionary, k: float) -> void:
 	var w: float = t.get("w", 0.0)
 	r["tool_w"] = lerpf(float(r.get("tool_w", 0.0)), w, k)
 	if w <= 0.001:
+		r.erase("grip_pole_l")
+		r.erase("grip_pole_r")
 		return
 	var dir: Vector3 = (t.dir as Vector3).normalized()
 	var edge: Vector3 = t.edge as Vector3
@@ -1505,10 +1609,14 @@ static func _tool_ik(r: Dictionary, p: Dictionary, k: float) -> void:
 	var left := float(t.get("left", 1.0))
 	r["tool_left"] = lerpf(float(r.get("tool_left", 1.0)), left, k)
 	var hand_r: Vector3 = end_m + dir * (float(t.slide) + grip)
-	_arm_to_grip(r, p, "l", end_m, dir, KnightMoves.TOOL_POLE_L, w * left)
+	r["tool_last"] = {"end": end_m, "dir": dir, "edge": edge, "slide": float(t.slide), "left": left}
+	# montante (tem `grip`): o giro do cotovelo segue o do quadro anterior (GRIP_KEEP_WEIGHT). Nos golpes do Mixamo a
+	# lâmina passa por trás da nuca e o melhor giro trocava de lado de um quadro para o outro: o braço estalava
+	var keep := GRIP_KEEP_WEIGHT if t.has("grip") else 0.0
+	_arm_to_grip(r, p, "l", end_m, dir, KnightMoves.TOOL_POLE_L, w * left, GRIP_POLE_WEIGHT, keep)
 	# `pole_r`/`pole_w` (montante correndo): o cotovelo direito manda mais que o alinhamento do punho
 	var pole_r: Vector3 = t.get("pole_r", KnightMoves.TOOL_POLE_R)
-	_arm_to_grip(r, p, "r", hand_r, dir, pole_r, w, float(t.get("pole_w", GRIP_POLE_WEIGHT)))
+	_arm_to_grip(r, p, "r", hand_r, dir, pole_r, w, float(t.get("pole_w", GRIP_POLE_WEIGHT)), keep)
 
 
 ## Suporte da arma conduzido pela trajetória (_tool_ik): cabo (ou lâmina) em `r.tool_dir` e gume em `r.tool_edge`,
@@ -1532,13 +1640,15 @@ static func _orient_by_path(holder: Node3D, r: Dictionary, w: float) -> void:
 ## (_tool_wrists) tira o pouco que sobrar girando a malha da mão. Tudo no espaço do modelo.
 const GRIP_SWIVEL_STEPS := 20
 const GRIP_POLE_WEIGHT := 0.12   ## peso do cotovelo natural contra o alinhamento do punho
+const GRIP_KEEP_WEIGHT := 0.5    ## montante: peso do giro do cotovelo do quadro anterior (grip_solve `keep_w`)
 static func _arm_to_grip(r: Dictionary, p: Dictionary, side: String, target_m: Vector3, axis_m: Vector3,
-		pole_m: Vector3, w: float, pole_w := GRIP_POLE_WEIGHT) -> void:
+		pole_m: Vector3, w: float, pole_w := GRIP_POLE_WEIGHT, keep_w := 0.0) -> void:
 	if w <= 0.0:
 		return
-	var g := grip_solve(r, side, target_m, axis_m, pole_m, pole_w)
+	var g := grip_solve(r, side, target_m, axis_m, pole_m, pole_w, r.get("grip_pole_" + side, Vector3.ZERO), keep_w)
 	if g.is_empty():
 		return
+	r["grip_pole_" + side] = g.pole
 	var sol: Array = g.sol
 	var cur: Vector3 = p["arm_" + side]
 	# a suavização (apply) interpola os ângulos do ombro: o alvo vem na forma equivalente mais perto de onde o braço
@@ -1561,8 +1671,10 @@ static func euler_near(e: Vector3, ref: Vector3) -> Vector3:
 ## pose atual do tronco: {"sol": [rotação do ombro, dobra do cotovelo], "turn": giro que ainda sobra para o pulso (rad),
 ## "miss": quanto a mão fica longe do alvo por falta de alcance (m)}. {} se o modelo não tem cotovelo.
 ## tools/weapon_pose_shot.tscn -- coleta otimiza usa isto para achar onde as mãos fecham certo em cada pose-chave.
+## `prev_pole` (espaço do pai do ombro, o "pole" de uma chamada anterior) e `keep_w`: puxa o giro do cotovelo para o de
+## antes, para ele não trocar de lado de um quadro para o outro quando dois giros custam quase o mesmo.
 static func grip_solve(r: Dictionary, side: String, target_m: Vector3, axis_m: Vector3, pole_m: Vector3,
-		pole_w := GRIP_POLE_WEIGHT) -> Dictionary:
+		pole_w := GRIP_POLE_WEIGHT, prev_pole := Vector3.ZERO, keep_w := 0.0) -> Dictionary:
 	var arm: Node3D = r["Arm" + side.to_upper()]
 	var elbow: Node3D = r["Elbow" + side.to_upper()]
 	if arm == null or elbow == null or r.get("hand_" + side) == null:
@@ -1584,7 +1696,10 @@ static func grip_solve(r: Dictionary, side: String, target_m: Vector3, axis_m: V
 		var fore := Basis.from_euler(s[0], EULER_ORDER_YXZ) * Basis(Vector3.RIGHT, s[1])
 		# o punho (eixo Z do antebraço, polegar em +Z) o mais alinhado possível com o cabo: é o giro que o pulso
 		# ainda teria de fazer. Só a perpendicularidade não basta: deixava a mão virada ao contrário (palma para fora)
-		return fore.z.angle_to(axis) + pole_w * pole.angle_to(pref)
+		var c := fore.z.angle_to(axis) + pole_w * pole.angle_to(pref)
+		if keep_w > 0.0 and prev_pole != Vector3.ZERO:
+			c += keep_w * pole.angle_to(prev_pole)
+		return c
 	var best := 0.0
 	var best_c := INF
 	for i in GRIP_SWIVEL_STEPS:
@@ -1605,7 +1720,7 @@ static func grip_solve(r: Dictionary, side: String, target_m: Vector3, axis_m: V
 	var ab := Basis.from_euler(sol[0], EULER_ORDER_YXZ)
 	var fore := ab * Basis(Vector3.RIGHT, sol[1])
 	var reached: Vector3 = arm.position + ab * (elbow.position + Basis(Vector3.RIGHT, sol[1]) * hand)
-	return {"sol": sol, "turn": fore.z.angle_to(axis), "miss": reached.distance_to(tgt)}
+	return {"sol": sol, "turn": fore.z.angle_to(axis), "miss": reached.distance_to(tgt), "pole": a * cos(best) + b * sin(best)}
 
 
 ## Pulsos da ferramenta com as duas mãos: gira a malha de cada mão em volta do centro dela para o punho fechar no

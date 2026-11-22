@@ -26,11 +26,13 @@ const SWING_MULT := [1.0, 1.1, 1.6]
 ## da espada sozinha; o dano de cada um acompanha a duração (mesmo dano por segundo do combo da espada).
 const SHIELD_SWING_TIMES := [0.5, 0.5, 0.6, 0.75]
 const SHIELD_SWING_MULT := [1.2, 1.3, 1.5, 2.0]
-## Montante (espada de duas mãos, item "two_handed"): golpes mais lentos e largos (KnightMoves.GREAT), alcance maior,
-## varrem um arco mais aberto e o terceiro crava a lâmina no chão (dano em área à frente). O dano da arma já é
-## maior; por segundo fica um pouco abaixo da espada, em troca de pegar vários de uma vez.
-const GREAT_SWING_TIMES := [0.62, 0.62, 0.9]
-const GREAT_SWING_MULT := [1.0, 1.1, 1.7]
+## Montante (espada de duas mãos, item "two_handed"): o combo do Mixamo "Two Hand Club Combo" (KnightMovesGreat), no
+## ritmo dos três primeiros golpes da espada com escudo; alcance maior, varrem um arco mais aberto e o terceiro (a
+## varrida na horizontal) acerta em área à frente. O dano da arma já é maior; por segundo fica um pouco abaixo da
+## espada, em troca de pegar vários de uma vez (o mesmo de quando os golpes duravam 0,62 / 0,62 / 0,9 s com
+## multiplicadores 1,0 / 1,1 / 1,7: o dano de cada golpe acompanha a duração).
+const GREAT_SWING_TIMES := [0.5, 0.5, 0.6]
+const GREAT_SWING_MULT := [0.81, 0.89, 1.13]
 const GREAT_REACH := 3.0          ## alcance dos dois primeiros golpes (m; a espada tem 2,4)
 const GREAT_ARC := -0.1           ## cosseno do arco atingido (a espada usa 0,3: ~145° contra ~110°)
 const GREAT_SLAM_AHEAD := 1.5     ## o golpe final acerta em volta deste ponto à frente (m)
@@ -780,7 +782,7 @@ func _start_swing() -> void:
 	combo = (combo % _combo_len()) + 1 if combo_window > 0 else 1
 	attacking = true
 	_recover_t = -1.0
-	if _shield_combo():
+	if _dense_combo():
 		_swing_from = KnightAnim.capture_pose(parts)   # o golpe nasce da pose em que o corpo está
 	attack_timer = 0.0
 	hit_done = false
@@ -809,7 +811,7 @@ func _update_attack(delta: float) -> void:
 	attack_timer += delta
 	var dur := _swing_time(combo)
 	var t := attack_timer / dur
-	if t >= (0.35 if look["class"] == "staff" else (KnightMoves.GREAT_HIT if _great() else 0.42)) and not hit_done:
+	if t >= (0.35 if look["class"] == "staff" else (KnightMovesGreat.HIT_AT if _great() else 0.42)) and not hit_done:
 		hit_done = true
 		match look["class"]:
 			"staff":
@@ -863,7 +865,7 @@ func _do_hit() -> void:
 			continue
 		var crit: bool = randf() < Game.crit_chance()
 		var dmg: float = EnchantHit.scale(e, Game.melee_damage() * mult * randf_range(0.9, 1.1) * (1.8 if crit else 1.0))
-		e.take_damage(dmg, global_position, crit, 2.5 if _weapon_fx() == "slow" else 0.0)
+		e.take_damage(dmg, global_position, crit, 2.5 if _weapon_fx() == "slow" else 0.0, 0.0, 0.0, EnchantHit.mix())
 		Game.on_damage_dealt(dmg, e.max_hp)
 		EnchantHit.on_hit(e, dmg)   # efeito do elemento da arma encantada
 		hit_any = true
@@ -906,13 +908,11 @@ func _great() -> bool:
 	return look["class"] == "sword" and ItemDB.is_two_handed(_weapon_id())
 
 
-## Golpe final da montante: a ponta crava no chão à frente (o acerto em área é em _do_hit). Poeira, um anel no chão
-## e um tranco na câmera, acertando alguém ou não.
+## Golpe final da montante: a varrida na horizontal (o acerto em área é em _do_hit). Um anel no chão marca a área e a
+## câmera dá um tranco, acertando alguém ou não. A lâmina não toca o chão: sem a poeira nem o som de pancada.
 func _great_slam_fx() -> void:
 	var at := global_position + facing() * GREAT_SLAM_AHEAD + Vector3.UP * 0.05
 	FX.ring(at, slash_color(), GREAT_SLAM_RADIUS, 0.35)
-	FXToon.puff(at, 1.1, FXToon.DUST)
-	Sfx.play("slam", 0.1, -6.0)
 	add_shake(0.3)
 
 
@@ -926,10 +926,16 @@ func _finisher() -> bool:
 	return combo >= _combo_len()
 
 
-## Fim do golpe: o giro do tronco volta. No combo com escudo as trilhas emendam pelo giro em -PI..PI
+## Combo tirado do Mixamo (espada com escudo, montante): trilhas densas que emendam umas nas outras e nascem da pose
+## em que o corpo está (KnightAnim.capture_pose).
+func _dense_combo() -> bool:
+	return _shield_combo() or _great()
+
+
+## Fim do golpe: o giro do tronco volta. Nos combos do Mixamo (_dense_combo) as trilhas emendam pelo giro em -PI..PI
 ## (KnightAnim.unwind_twist), sem pular a pose; nos outros o giro zera na hora.
 func _end_swing_twist() -> void:
-	if _shield_combo():
+	if _dense_combo():
 		KnightAnim.unwind_twist(parts)
 		_swing_from = KnightAnim.capture_pose(parts)   # se nenhum golpe emendar, a volta sai daqui
 		_recover_t = 0.0
@@ -1638,7 +1644,7 @@ func _cast_frost_nova() -> void:
 			continue
 		if e.global_position.distance_to(global_position) <= radius + e.radius:
 			var nova_dmg := (15.0 + Game.spell_power() * 2.0) * Game.damage_mult()
-			e.take_damage(nova_dmg, global_position, false, 4.0, float(Game.talent_mods.get("nova_stun", 0.0)))
+			e.take_damage(nova_dmg, global_position, false, 4.0, float(Game.talent_mods.get("nova_stun", 0.0)), 0.0, "gelo")
 			Game.add_fury_from_damage(nova_dmg, e.max_hp)
 
 
@@ -1693,7 +1699,7 @@ func _food_fire_nova() -> void:
 		if e.dead:
 			continue
 		if e.global_position.distance_to(global_position) <= radius + e.radius:
-			e.take_damage(dmg, global_position, false)
+			e.take_damage(dmg, global_position, false, 0.0, 0.0, 0.0, "fogo")
 			Game.add_fury_from_damage(dmg, e.max_hp)
 
 
@@ -1708,7 +1714,7 @@ func _food_frost_nova() -> void:
 			continue
 		if e.global_position.distance_to(global_position) <= radius + e.radius:
 			var food_dmg := (12.0 + Game.level * 3.0) * Game.damage_mult()
-			e.take_damage(food_dmg, global_position, false, 6.0)
+			e.take_damage(food_dmg, global_position, false, 6.0, 0.0, 0.0, "gelo")
 			Game.add_fury_from_damage(food_dmg, e.max_hp)
 
 
@@ -1993,7 +1999,7 @@ func apply_net_state(pos: Vector3, yaw: float, vel: Vector3, flags: int, c: int,
 			Sfx.play_at(_attack_sound(), global_position, 0.1, -6.0)
 		if attacking and c != combo:
 			_end_swing_twist()   # golpe seguinte do combo: a trilha nova começa com o giro em -PI..PI
-		if (not attacking or c != combo) and _shield_combo():
+		if (not attacking or c != combo) and _dense_combo():
 			_swing_from = KnightAnim.capture_pose(parts)
 		attacking = true
 		combo = clampi(c, 1, _combo_len())
@@ -2277,8 +2283,10 @@ func _animate(delta: float) -> void:
 	elif _recover_t >= 0.0 and dodge_timer <= 0.0 and not dead and cls == "sword" and _shield_combo():
 		KnightAnim.shield_recover_pose(p, _swing_from, _recover_t / KnightAnim.SHIELD_RECOVER)
 	elif attacking and cls == "sword" and great:
-		KnightAnim.great_pose(p, combo, attack_timer / _swing_time(combo), _amp)
+		KnightAnim.great_pose(p, combo, attack_timer / _swing_time(combo), _amp, _swing_from)
 		_slash_fx()
+	elif _recover_t >= 0.0 and dodge_timer <= 0.0 and not dead and great:
+		KnightAnim.great_recover_pose(p, _swing_from, _recover_t / KnightAnim.SHIELD_RECOVER)
 	elif attacking and cls == "sword":
 		KnightAnim.sword_pose(p, combo, attack_timer / _swing_time(combo), _amp)
 		_slash_fx()
@@ -2452,7 +2460,7 @@ func _slash_fx() -> void:
 	_slash_t = attack_timer
 	var shield := _shield_combo()
 	var great := _great()
-	var at: float = (KnightMovesShield.SLASH[c - 1].at if shield else (FXToon.GREAT_COMBO[c - 1].at if great else FXToon.SWORD_COMBO[c - 1].at))
+	var at: float = (KnightMovesShield.SLASH[c - 1].at if shield else (KnightMovesGreat.SLASH[c - 1].at if great else FXToon.SWORD_COMBO[c - 1].at))
 	if _slash_done or attack_timer / _swing_time(c) < at:
 		return
 	_slash_done = true

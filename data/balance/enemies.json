@@ -1297,6 +1297,22 @@
 			[
 				"scroll_astral_plate",
 				0.08
+			],
+			[
+				"scroll_blackdragon_plate",
+				0.06
+			],
+			[
+				"scroll_blackdragon_helm",
+				0.06
+			],
+			[
+				"scroll_blackdragon_gauntlets",
+				0.06
+			],
+			[
+				"scroll_blackdragon_greaves",
+				0.06
 			]
 		],
 		"boss": true,
@@ -1417,6 +1433,22 @@
 			[
 				"scroll_astral_plate",
 				0.08
+			],
+			[
+				"scroll_blackdragon_plate",
+				0.06
+			],
+			[
+				"scroll_blackdragon_helm",
+				0.06
+			],
+			[
+				"scroll_blackdragon_gauntlets",
+				0.06
+			],
+			[
+				"scroll_blackdragon_greaves",
+				0.06
 			]
 		],
 		"boss": true,
@@ -1536,6 +1568,22 @@
 			[
 				"scroll_astral_plate",
 				0.08
+			],
+			[
+				"scroll_blackdragon_plate",
+				0.06
+			],
+			[
+				"scroll_blackdragon_helm",
+				0.06
+			],
+			[
+				"scroll_blackdragon_gauntlets",
+				0.06
+			],
+			[
+				"scroll_blackdragon_greaves",
+				0.06
 			]
 		],
 		"ref_level": 10
