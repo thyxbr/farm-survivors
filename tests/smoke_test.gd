@@ -2,7 +2,8 @@ extends Node
 ## Teste de fumaça do gameplay. Rode com:
 ##   godot --headless --path . res://scenes/world.tscn -- --smoketest
 ## Imprime PASS/FAIL para cada verificação e encerra com código 0 (ok) ou 1 (falhas).
-## No CI roda em duas partes, em paralelo (cada uma num job): `--smoke-part=mundo` (tudo menos a Horda) e
+## No CI roda em partes, em paralelo (cada uma num job): `--smoke-part=mundo` (história, combate e classes),
+## `--smoke-part=sistemas` (_test_sistemas: horta, coleta, masmorras, encantos, chefes, rio...) e
 ## `--smoke-part=horda` (só o Desafio da Horda). Sem o argumento roda tudo, como antes.
 
 const UPG := preload("res://scripts/survival/upgrades.gd")
@@ -92,7 +93,7 @@ func _check_aegis(player: Node, world: Node) -> void:
 	# golpes: o escudo absorve (a vida não cai) e as rachaduras crescem
 	var st: Dictionary = player.ability_data.aegis
 	var mx: float = st.max
-	var raw := func(final: float) -> float: return final * (50.0 + Game.defense() * 4.0) / 50.0
+	var raw := func(final: float) -> float: return final / Game.damage_taken_mult()
 	var src: Vector3 = player.global_position + Vector3(0, 1, 3)
 	var avg_crack := func() -> float:
 		var s := 0.0
@@ -101,10 +102,13 @@ func _check_aegis(player: Node, world: Node) -> void:
 		return s / bar.plates.size()
 	player.invuln = 0.0
 	var hp_hit: float = Game.hp   # a vida regenera com o tempo: compara com a de logo antes do golpe
+	# compara com a integridade de logo antes do golpe (no mesmo quadro): um monstro solto que tenha batido na
+	# barreira antes (no CI, às vezes) não muda a conta deste golpe
+	var f_hit := AegisRules.fraction(st)
 	player.take_damage(raw.call(mx * 0.4), src)
 	var c1: float = avg_crack.call()
-	check(is_equal_approx(Game.hp, hp_hit) and absf(AegisRules.fraction(st) - 0.6) < 0.02,
-		"Égide: 40%% do escudo absorvido sem tocar na vida (integridade %.2f)" % AegisRules.fraction(st))
+	check(is_equal_approx(Game.hp, hp_hit) and absf((f_hit - AegisRules.fraction(st)) - 0.4) < 0.02,
+		"Égide: 40%% do escudo absorvido sem tocar na vida (integridade %.2f -> %.2f)" % [f_hit, AegisRules.fraction(st)])
 	await wait(0.5)
 	player.invuln = 0.0
 	player.take_damage(raw.call(mx * 0.4), src)
@@ -115,9 +119,10 @@ func _check_aegis(player: Node, world: Node) -> void:
 	# quebra: o que passa da integridade vai para a vida, a guarda cai e a barreira estoura
 	player.invuln = 0.0
 	var hp_b: float = Game.hp
+	var excess: float = mx * 0.5 - float(st.integrity)   # o que passa do que restava logo antes do golpe
 	player.take_damage(raw.call(mx * 0.5), src)
 	check(player.ability == "" and st.broken, "Égide: integridade zero tira a proteção na hora")
-	check(absf((hp_b - Game.hp) - mx * 0.3) < 1.0, "Égide: só o excesso (%.1f) vai para a vida (perdeu %.1f)" % [mx * 0.3, hp_b - Game.hp])
+	check(absf((hp_b - Game.hp) - excess) < 1.0, "Égide: só o excesso (%.1f) vai para a vida (perdeu %.1f)" % [excess, hp_b - Game.hp])
 	check(bar.is_broken() and is_instance_valid(bar), "Égide: barreira entra na quebra (pulsação)")
 	check(player.cooldowns.sword_aegis >= ItemDB.ABILITIES.sword_aegis.cooldown, "Égide: recarga começa no fim (%.1f s)" % player.cooldowns.sword_aegis)
 	await wait(cfg.break_delay + 0.1)
@@ -441,7 +446,7 @@ func _check_earthquake(player: Node, world: Node) -> void:
 	var center: Vector3 = EarthquakeAbilities.impact_point(player.global_position, 0.0)
 	# monstros parados: 3 dentro do raio (perto, no meio, longe) e 2 fora
 	var mobs: Array = []
-	for off in [Vector3(1.4, 0, 0.6), Vector3(-3.6, 0, 3.0), Vector3(0.4, 0, cfg.radius - 1.4),
+	for off in [Vector3(0.9, 0, 0.4), Vector3(-1.2, 0, 1.0), Vector3(0.2, 0, cfg.radius - 0.2),
 			Vector3(cfg.radius + 3.0, 0, 0), Vector3(-cfg.radius - 3.5, 0, 2.0)]:
 		var e := Enemy.new()
 		e.kind = "slime"
@@ -489,7 +494,8 @@ func _check_earthquake(player: Node, world: Node) -> void:
 	var ic: Vector3 = skill.impact_center
 	check(absf(ic.y - spot.y) < 1.5, "Terremoto: impacto no chão (altura %.2f, herói %.2f)" % [ic.y, spot.y])
 	# a onda passa pelo de perto antes do de longe
-	await wait(0.25)
+	await wait_until(func(): return skill.wave_r >= 1.3, 1.0)
+	await wait(0.05)   # um passo de física para o dano alcançar o relógio da onda
 	var near_hit: bool = not is_instance_valid(inside[0]) or inside[0].dead or inside[0].hp < float(hp0[inside[0]])
 	var far_hit: bool = not is_instance_valid(inside[2]) or inside[2].dead or inside[2].hp < float(hp0[inside[2]])
 	check(near_hit and not far_hit, "Terremoto: o dano acompanha a onda (o perto já levou, o longe ainda não; onda %.1f m)" % skill.wave_r)
@@ -989,12 +995,19 @@ func _targets(list: Array) -> void:
 		_target(e)
 
 
+## Posição em que o teste segura o jogador (encosta íngreme demais para ficar de pé); null = solto.
+var _pin: Variant = null
+
+
 ## Monstros de fora: o vale nasce cheio, em bandos de 3 a 5 com nível (slimes de gelo nv 9 e esqueletos nv 11
 ## ao lado dos slimes do teste). Quem não é alvo vinha atrás do jogador, empurrava no meio de uma habilidade,
 ## enchia a fúria e às vezes matava (a tela de morte pausa o jogo e derruba tudo o que vem depois). A cada
 ## CALM_EVERY s, os monstros dos pontos do mapa que não são alvo e estão a até CALM_RADIUS do jogador levam um
 ## atordoamento curto: nem andam nem golpeiam.
 func _physics_process(delta: float) -> void:
+	if _pin != null and player != null:
+		player.global_position = _pin
+		player.velocity = Vector3.ZERO
 	_calm_t -= delta
 	if _calm_t > 0.0 or player == null or world == null:
 		return
@@ -1029,6 +1042,10 @@ func _ready() -> void:
 		# o chili do dragão comido na rodada vem do teste da horta, que esta parte não roda
 		Econ.grant(0, 0, {"dragon_chili": 1}, "test", true)
 		await _test_survival()
+		_finish()
+		return
+	if _part() == "sistemas":
+		await _test_sistemas()
 		_finish()
 		return
 
@@ -1857,7 +1874,7 @@ func _ready() -> void:
 	Game.fury = 0.0
 	player.invuln = 0.0
 	player.take_damage(Game.max_hp() * 0.4, player.global_position + Vector3(0, 0, 5))
-	check(is_equal_approx(Game.fury, (Game.max_hp() * 0.4 * 50.0 / (50.0 + Game.defense() * 4.0)) / Game.max_hp() * 25.0), "fúria sobe ao receber dano (%.2f)" % Game.fury)
+	check(is_equal_approx(Game.fury, (Game.max_hp() * 0.4 * Game.damage_taken_mult()) / Game.max_hp() * 25.0), "fúria sobe ao receber dano (%.2f)" % Game.fury)
 	Game.hp = hp_f
 	player.invuln = 0.0
 	Game.add_fury(500.0)
@@ -2017,6 +2034,16 @@ func _ready() -> void:
 	check(not player.dead and not get_tree().paused and Game.hp == Game.max_hp(), "renasce na vila")
 	check(Game.gold == gold_dead - int(gold_dead * 0.1), "renascer custa 10%% do ouro (%d -> %d)" % [gold_dead, Game.gold])
 
+	if _part() == "mundo":
+		_finish()   # o resto (_test_sistemas) roda em outro job, na parte "sistemas"
+		return
+	await _test_sistemas()
+	_finish()
+
+
+## Segunda metade do mundo: cada teste monta o próprio cenário, então roda logo depois do kit (parte
+## "sistemas", em paralelo com a parte "mundo" no CI) ou depois da primeira metade (teste inteiro).
+func _test_sistemas() -> void:
 	await _test_fx_epic()
 	await _test_farm()
 	await _test_gather()
@@ -2034,14 +2061,13 @@ func _ready() -> void:
 	await _test_river()
 	await _test_archer_pose()
 	await _test_gold_goblin_world()
-	if _part() != "mundo" and Game.HORDE_ENABLED:
+	if _part() == "" and Game.HORDE_ENABLED:
 		await _test_survival()
 	await _test_update()
 	await _test_char_create()   # por último: troca o personagem solo por um novo, sem classe
-	_finish()
 
 
-## Parte pedida com --smoke-part=<mundo|horda>; "" = o teste inteiro.
+## Parte pedida com --smoke-part=<mundo|sistemas|horda>; "" = o teste inteiro.
 func _part() -> String:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--smoke-part="):
@@ -2613,10 +2639,13 @@ func _test_meteor_rain() -> void:
 			best_drop = drop
 			best_r = float(r)
 	var flank: Vector3 = pk + out * best_r
-	player.global_position = Vector3(flank.x, top_ground.call(flank.x, flank.z) + 0.5, flank.z)
+	# o flanco inteiro acima de 10 m passa de 45° (o floor_max_angle do jogador): ali is_on_floor() nunca
+	# fica verdadeiro e o jogador escorrega encosta abaixo (já caiu de 12,6 para 6,9 m antes da checagem).
+	# O teste prende o jogador no ponto (_pin, ver _physics_process) até o fim desta parte.
+	_pin = Vector3(flank.x, top_ground.call(flank.x, flank.z) + 0.05, flank.z)
+	player.global_position = _pin
 	player.velocity = Vector3.ZERO
 	player._snap_visuals()
-	await wait_until(grounded)
 	await wait(0.2)
 	player.cam_yaw.rotation.y = atan2(-out.x, -out.z)   # frente da câmera (-Z) para fora do pico
 	var pf: Vector3 = player.global_position
@@ -2646,6 +2675,7 @@ func _test_meteor_rain() -> void:
 	player.end_ability()
 	player.cooldowns.meteor_rain = 0.0
 
+	_pin = null
 	# restaura
 	for s in saved:
 		var e = s[0]
@@ -2681,7 +2711,9 @@ func _test_fx_epic() -> void:
 	FXEpic.hit_stop(0.05)
 	FXEpic.hit_stop(0.05)
 	check(Engine.time_scale >= 0.05 and Engine.time_scale < 1.0, "hit stop ativo (%.2f)" % Engine.time_scale)
-	await get_tree().create_timer(0.3, true, false, true).timeout
+	# espera pela condição, não 0,3 s fixos: na parte "sistemas" este é o primeiro teste depois de carregar
+	# o mundo e o quadro dos efeitos novos (shaders compilando) passa de 0,3 s
+	await wait_until(func() -> bool: return is_equal_approx(Engine.time_scale, 1.0), 2.0)
 	check(is_equal_approx(Engine.time_scale, 1.0), "hit stop volta para 1.0")
 	# perder o guarda no meio do hit stop também restaura o tempo
 	FXEpic.hit_stop(5.0)
@@ -2689,7 +2721,7 @@ func _test_fx_epic() -> void:
 	FXEpic._hs_guard.free()
 	check(is_equal_approx(Engine.time_scale, 1.0), "guarda liberado cedo restaura o tempo")
 	FXEpic.hit_stop(0.05)
-	await get_tree().create_timer(0.3, true, false, true).timeout
+	await wait_until(func() -> bool: return is_equal_approx(Engine.time_scale, 1.0), 2.0)
 	check(is_equal_approx(Engine.time_scale, 1.0), "hit stop volta para 1.0 de novo")
 	await wait(2.0)
 	check(get_tree().current_scene.get_child_count() <= n0 + 1, "efeitos épicos se liberam")

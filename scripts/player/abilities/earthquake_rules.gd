@@ -172,13 +172,15 @@ static func plate_spots(paths: Array, count: int, size: float, seed: int) -> Arr
 
 
 ## Pontas das rachaduras principais mais compridas: onde as explosões secundárias acontecem. Até `count`
+## (uma ponta além de `max_d` m é puxada para dentro: a onda para no raio e nunca chegaria lá).
 ## pontos (Vector2), espalhados em volta (pega as mais longas e alterna). Em ordem de distância.
-static func secondary_spots(paths: Array, count: int) -> Array:
+static func secondary_spots(paths: Array, count: int, max_d := INF) -> Array:
 	var tips := []
 	for c in paths:
 		if bool(c.main):
 			var pts: PackedVector2Array = c.points
-			tips.append(pts[pts.size() - 1])
+			var tip := pts[pts.size() - 1]
+			tips.append(tip.limit_length(max_d))
 	tips.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.length() > b.length())
 	var out := tips.slice(0, mini(count, tips.size()))
 	out.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.length() < b.length())

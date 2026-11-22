@@ -48,7 +48,7 @@ func _ready() -> void:
 	core_mesh.position = c + Vector3.UP * 0.5
 	light.position = c + Vector3.UP * 1.0
 	light.omni_range = config.radius * 1.3
-	sheet.place(c, 4.2 * clampf(_k, 0.5, 1.6))
+	sheet.place(c, 4.2 * clampf(_k, 0.5, 1.6) * sqrt(config.size_k()))
 	sheet.intensity = 1.25 * clampf(_k, 0.3, 1.6)
 	sheet.play(EarthquakeSheet.BURST, 0.5)
 	var ft := sheet.create_tween()
@@ -57,7 +57,8 @@ func _ready() -> void:
 	# anel inicial: rápido e pequeno
 	_ring_mat = (init_ring.material_override as ShaderMaterial).duplicate()
 	init_ring.material_override = _ring_mat
-	init_ring.mesh = ShockwaveRing.build_disc(ground, INIT_RING_RADIUS * 1.12, INIT_RING_RADIUS, 16, 64, 0.07)
+	var ir := minf(INIT_RING_RADIUS, config.radius * 0.5)   # a onda inicial fica dentro da área
+	init_ring.mesh = ShockwaveRing.build_disc(ground, ir * 1.12, ir, 16, 64, 0.07)
 	_ring_mat.set_shader_parameter("ring_width", 0.09)
 	_ring_mat.set_shader_parameter("trail", 0.35)
 	_ring_mat.set_shader_parameter("residual", 0.0)

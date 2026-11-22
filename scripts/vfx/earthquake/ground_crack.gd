@@ -131,7 +131,7 @@ func _flash(p: Vector2) -> void:
 	var s: EarthquakeSheet = SHEET.instantiate()
 	s.name = "CrackFlash"
 	add_child(s)
-	var size := _rng.randf_range(2.4, 3.6) * clampf(config.impact_intensity, 0.6, 1.4)
+	var size := _rng.randf_range(2.4, 3.6) * clampf(config.impact_intensity, 0.6, 1.4) * config.size_k()
 	s.place(ground.local_at(p), size)
 	s.intensity = 1.1
 	s.play(EarthquakeSheet.LIGHTNING, _rng.randf_range(0.35, 0.5), false, true)

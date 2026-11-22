@@ -114,9 +114,8 @@ trava, loop de ouro sem saída) › **ATENÇÃO** (outliers ajustáveis) › **N
 Pergunte ao usuário:
 - **Corrigir o problema mais prioritário agora**: ajuste o valor no `.gd`, rode de
   novo o dump e a análise para ver se não criou outro outlier, e rode o smoke test do
-  modo afetado (skill `smoke-check`). Mudou um valor que o servidor também usa? Lembre
-  que cliente e servidor precisam da mesma versão, então isso pede bump de
-  `config/version` no `project.godot` antes do merge.
+  modo afetado (skill `smoke-check`). A versão nova (cliente e servidor juntos) o CI
+  numera sozinho no merge; não suba `config/version` no PR.
 - **Salvar o relatório** em `docs/balanceamento/<dominio>-<AAAA-MM-DD>.md`.
 - **Parar aqui.**
 
