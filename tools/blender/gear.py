@@ -1251,21 +1251,42 @@ def build_h_cosmic():
             br.append(front(x, z, 0.004))
         parts.append(cz_strip("CzHelmBrow" + sn, [p for p, _ in br], [q for _, q in br],
                               [0.016 - 0.01 * (k / 14) ** 2 for k in range(15)], 0.01, K["plate"], head))
-        # mandíbula: linha em V do canto de baixo do olho até perto do queixo
-        jw = []
-        for k in range(12):
-            u = k / 11
-            jw.append(front(sg * (0.085 - 0.07 * u), 1.655 - 0.135 * u ** 0.9, 0.002))
-        parts.append(cz_strip("CzHelmJaw" + sn, [p for p, _ in jw], [q for _, q in jw], 0.011, 0.006, K["plate"],
+        # boca: placa de mandíbula de cada lado (por cima da cara), do pé do olho até o queixo em ponta, com a
+        # borda de fora em faixa de prata; entre as duas fica o sulco escuro do meio
+        def xo(z):
+            t = max(0.0, min(1.0, (z - 1.498) / 0.15))
+            return 0.012 + 0.074 * t ** 0.85
+
+        def mand(u, v, sg=sg):
+            z = 1.648 - 0.15 * u
+            xi = 0.0095 + 0.002 * u
+            x = xi + (max(xi + 0.001, xo(z)) - xi) * v
+            return front(sg * x, z - 0.004 * v * (1 - u), 0.006 + 0.003 * v * (1 - u))[0]
+        g = [[mand(i / 14, k / 8) for k in range(9)] for i in range(15)]
+        if sg < 0:
+            g = [r[::-1] for r in g]
+        parts.append(g_smooth_mesh("CzHelmMandible" + sn, g, K["plate"], head, cap_end=False, closed=False,
+                                   thick=0.006, outward=True))
+        jw = [front(sg * (xo(z) + 0.002), z - 0.004 * (1 - (1.648 - z) / 0.15), 0.011) for z in
+              [1.648 - 0.15 * k / 13 for k in range(14)]]
+        parts.append(cz_strip("CzHelmJaw" + sn, [p for p, _ in jw], [q for _, q in jw], 0.009, 0.005, K["plate"],
                               head))
+        for k, z in enumerate((1.618, 1.592, 1.566)):          # três respiros curtos na mandíbula
+            vs = [front(sg * x, z - 0.006 * (x - 0.03) / 0.03, 0.0125) for x in
+                  [0.03 + (xo(z) - 0.03 - 0.016) * m / 5 for m in range(6)]]
+            parts.append(cz_strip("CzHelmVent%s%d" % (sn, k), [p for p, _ in vs], [q for _, q in vs], 0.005, 0.0015,
+                                  K["steel"], head))
     # estrela acesa no olho esquerdo (a cruz dourada da referência)
     ep, en = front(0.05, 1.677, 0.004)
     parts.append(cz_star4("CzHelmEyeStar", ep, en, Vector((0, 0, 1)), 0.02, K["star"], head, thick=0.002, inner=0.18))
     # quilha do nariz: do queixo até a base da forquilha, mais alta e larga em cima
-    kz = [1.495 + (1.74 - 1.495) * k / 16 for k in range(17)]
+    kz = [1.632 + (1.74 - 1.632) * k / 12 for k in range(13)]
     kp = [front(0.0, z, 0.002) for z in kz]
     parts.append(cz_strip("CzHelmNose", [p for p, _ in kp], [q for _, q in kp],
-                          [0.012 + 0.012 * (k / 16) for k in range(17)], 0.011, K["plate"], head))
+                          [0.006 + 0.018 * (k / 12) ** 0.6 for k in range(13)], 0.011, K["plate"], head))
+    gz = [1.5 + (1.64 - 1.5) * k / 10 for k in range(11)]
+    gp_ = [front(0.0, z, 0.001) for z in gz]
+    parts.append(cz_strip("CzHelmGroove", [p for p, _ in gp_], [q for _, q in gp_], 0.017, 0.003, K["steel"], head))
     # ---- forquilha em U de ouro: o U nasce do alto da quilha, duas pontas largas subindo e inclinando para trás
     ub = []
     for k in range(13):                # o U: arco por baixo ligando as duas pontas
