@@ -945,9 +945,10 @@ func _on_gold(amount: int) -> void:
 
 ## Reinicia o sumiço de um aviso (o ouro que continua somando fica na tela).
 func _restart_fade(c: Control) -> void:
-	var old: Tween = c.get_meta("fade_tw", null)
-	if old != null and old.is_valid():
-		old.kill()
+	if c.has_meta("fade_tw"):
+		var old: Tween = c.get_meta("fade_tw")
+		if old != null and old.is_valid():
+			old.kill()
 	var tw := c.create_tween()
 	tw.tween_interval(3.0)
 	tw.tween_property(c, "modulate:a", 0.0, 0.8)
