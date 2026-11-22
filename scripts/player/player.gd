@@ -172,6 +172,8 @@ var display_name := ""
 var display_title := ""
 ## Bloqueia o controle sem pausar a árvore (menus abertos no multiplayer).
 var input_locked := false
+## A tecla E que fechou o diálogo/janela não pode reabrir a conversa: só volta a valer depois de soltar.
+var interact_wait_release := false
 ## Desafio da Horda em grupo: parado enquanto o grupo escolhe as cartas de nível.
 var horde_frozen := false
 ## Digitando no chat: as teclas vão para a caixa de texto, não para o personagem.
@@ -622,7 +624,9 @@ func _local_process(delta: float) -> void:
 			return
 
 	_find_interact_target()
-	if Input.is_action_just_pressed("interact") and interact_target:
+	if interact_wait_release and not Input.is_action_pressed("interact"):
+		interact_wait_release = false
+	if Input.is_action_just_pressed("interact") and interact_target and not interact_wait_release:
 		interact_target.interact(self)
 
 	# orientação do modelo: mira para frente da câmera ao atacar/conjurar, senão para onde anda
