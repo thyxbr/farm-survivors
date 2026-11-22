@@ -250,12 +250,16 @@ func _ready() -> void:
 		await wait(0.6)
 		check(target.hp < hp0, "dano chega ao servidor e volta no snapshot (%.0f → %.0f)" % [hp0, target.hp])
 		# afinidade elemental (ElementRules): o servidor aplica o % da ficha; slime leva 90% de físico e 125% de fogo
+		# golpe de fogo pequeno (3 em vez de 10): com o nível do herói o slime não pode morrer antes da leitura
 		var hp1 := target.hp
-		target.take_damage(10.0, w.player.global_position, false, 0.0, 0.0, 0.0, "fogo")
+		target.take_damage(3.0, w.player.global_position, false, 0.0, 0.0, 0.0, "fogo")
 		await wait(0.6)
-		var ratio := (hp1 - target.hp) / maxf(hp0 - hp1, 0.001)
-		check(absf(ratio - 1.25 / 0.9) < 0.05, "fogo no slime pelo servidor: %.2fx o físico (esperado %.2f)" % [ratio, 1.25 / 0.9])
-		target.take_damage(9999.0, w.player.global_position, false)
+		var hp2: float = target.hp if is_instance_valid(target) and not target.dead else 0.0
+		var ratio := ((hp1 - hp2) / 3.0) / maxf((hp0 - hp1) / 10.0, 0.001)
+		check(hp2 > 0.0 and absf(ratio - 1.25 / 0.9) < 0.05,
+			"fogo no slime pelo servidor: %.2fx o físico (esperado %.2f)" % [ratio, 1.25 / 0.9])
+		if is_instance_valid(target) and not target.dead:
+			target.take_damage(9999.0, w.player.global_position, false)
 		await wait(0.8)
 		check(not is_instance_valid(target) or target.dead, "slime morreu em todos")
 		# XP, abate e loot vêm do servidor: o espelho só muda pelo estado que ele manda (push do Econ)
