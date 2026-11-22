@@ -22,6 +22,7 @@ efeitos e renomeação para o uso no jogo.
 | `music/combat_battle_theme_3` | "Battle Theme 3", de [Battle themes](https://opengameart.org/node/76534) | Alexandr Zhelanov | CC-BY 4.0 |
 | `music/swamp_whispering_marsh` | Tema do Pântano Sussurrante, composto para o jogo e tocado com o banco MuseScore General (`tools/audio/gen_music.py`) | Ecos de Valdoria | própria |
 | `music/volcano_ash_crown` | Tema do Vulcão das Cinzas, composto para o jogo e tocado com o banco MuseScore General (`tools/audio/gen_music.py`) | Ecos de Valdoria | própria |
+| `sfx/level_up_fanfare` | Fanfarra da subida de nível, composta para o jogo e tocada com o banco MuseScore General (`tools/audio/gen_levelup.py`) | Ecos de Valdoria | própria |
 | `music/boss_blackmoor_colossus` | "Blackmoor Colossus" (loop sem vocais), de [Colossal Boss Battle Theme](https://opengameart.org/content/colossal-boss-battle-theme) | Matthew Pablo — www.matthewpablo.com | CC-BY 3.0 |
 
 ## Efeitos
