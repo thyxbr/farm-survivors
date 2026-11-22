@@ -13,9 +13,9 @@ def dragonknight_mats():
         red=gm("drk_red", "#6C3232", 0.85), red_d=gm("drk_red_d", "#472022", 0.85),
         gold=gm("drk_gold", "#B8924C", 0.7), line=gm("drk_line", "#2A1012", 0.9),
         under=gm("drk_under", "#3E4047", 0.9),
-        lea=gm("drk_leather", "#5E3D2B", 0.9), cloth=gm("drk_cloth", "#86282B", 0.9),
+        lea=gm("drk_leather", "#5E3D2B", 0.9), cloth=gm("drk_cloth", "#6B2226", 0.9),
         bone=gm("drk_bone", "#D9CBA8", 0.8),
-        gem=mat("drk_gem_flat", hexc("#E0531E"), 0.3, 0.0, emit=hexc("#FF6A20"), strength=1.2),
+        gem=mat("drk_gem_flat", hexc("#C8401A"), 0.3, 0.0, emit=hexc("#E0401A"), strength=0.35),
     )
 
 
@@ -266,8 +266,132 @@ def dragonknight_arm(K, src, body, s):
     return parts
 
 
+def dragonknight_skirt(K, src, body):
+    """Cintura do Cavaleiro Dragão: cinto de couro com passadores de ouro e, na frente, gema laranja oval
+    engastada em ouro; escarcela de escamas vermelhas em cada quadril, em ponta para baixo, com moldura de ouro
+    grossa; placa de escamas atrás; pano vermelho comprido no meio da frente, com a barra em ponta, debrum de
+    ouro, um painel em ponta desenhado no alto e chamas de ouro desenhadas junto da barra.
+    Devolve (cinto, escarcelas, placa de trás, pano)."""
+    from mathutils.bvhtree import BVHTree
+    belt = []
+    NB = 72
+    rings = [[wk_plate_pt(2 * math.pi * j / NB, z, 0.027) for j in range(NB)] for z in (1.012, 0.995, 0.972, 0.955)]
+    belt.append(g_smooth_mesh("Belt", rings, K["lea"], body, cap_end=False, thick=0.006, outward=True))
+    for k, a in enumerate((-0.62, 0.62, math.pi - 0.7, math.pi + 0.7)):
+        col = [wk_plate_pt(a, z, 0.0285) for z in (1.018, 1.0, 0.983, 0.966, 0.949)]
+        belt.append(cz_strip("BeltLoop%d" % k, col, [_cz_rad(q) for q in col], 0.013, 0.005, K["gold"], body))
+    C = wk_plate_pt(0.0, 0.983, 0.03)
+    n0 = Vector((0, -1, 0))
+    belt.append(g_cap("BeltBezel", C, n0, (1, 0, 0), 0.04, 0.05, 0.012, K["gold"], body, rings=4, sides=24))
+    belt.append(g_cap("BeltGem", C + n0 * 0.006, n0, (1, 0, 0), 0.027, 0.036, 0.013, K["gem"], body, rings=5,
+                      sides=20))
+    # ---- escarcelas de escamas
+    tas = []
+    for sn, s in (("L", 1), ("R", -1)):
+        def plate(u, v, s=s):
+            a_in = 0.44 + 0.1 * u
+            a = (a_in + (2.05 - a_in) * v) * s
+            zb = 0.6 + 0.2 * abs(v - 0.5) ** 1.15
+            z = 0.962 + (zb - 0.962) * u
+            return _wk_hip_pt(a, z, 0.036 + 0.02 * u)
+        ob, rr = _wk_plate("Tasset" + sn, plate, 16, 36, K["red"], body, thick=0.005)
+        tas.append(ob)
+        edge = [r[0] for r in rr] + rr[-1][1:] + [r[-1] for r in rr][::-1][1:]
+        edge = [q + _cz_rad(q) * 0.001 for q in edge]
+        tas.append(cz_strip("TassetTrim" + sn, edge, [_cz_rad(q) for q in edge], 0.02, 0.007, K["gold"], body))
+        # escamas: fileiras de arcos em U, desencontradas
+        for r in range(6):
+            u0 = 0.06 + 0.135 * r
+            for c in range(-1, 5):
+                v0 = 0.1 + 0.2 * (c + 0.5 * (r % 2))
+                line = []
+                for f in (i / 8 for i in range(9)):
+                    v, u = v0 + 0.2 * f, u0 + 0.12 * math.sin(math.pi * f) ** 0.7
+                    if 0.09 < v < 0.91 and u < 0.9:
+                        q = plate(u, v)
+                        line.append(q + _cz_rad(q) * 0.0015)
+                if len(line) >= 3:
+                    tas.append(g_pipe("TassetScale%s%d_%d" % (sn, r, c), line, 0.0021, K["line"], body, sides=6))
+
+    # ---- placa de escamas atrás
+    def rear(u, v):
+        a = 2.05 + (2 * math.pi - 4.1) * v
+        zb = 0.72 - 0.05 * math.sin(math.pi * v)
+        return _pal_hip_pt(a, 0.962 + (zb - 0.962) * u, 0.034 + 0.016 * u)
+    rb, rrr = _wk_plate("RearPlate", rear, 10, 44, K["red"], body, thick=0.005)
+    back = [rb]
+    edge = [q + _cz_rad(q) * 0.001 for q in rrr[-1]]
+    back.append(cz_strip("RearTrim", edge, [_cz_rad(q) for q in edge], 0.018, 0.007, K["gold"], body))
+    for r in range(4):
+        u0 = 0.08 + 0.2 * r
+        for c in range(-1, 9):
+            v0 = 0.02 + 0.11 * (c + 0.5 * (r % 2))
+            line = []
+            for f in (i / 8 for i in range(9)):
+                v, u = v0 + 0.11 * f, u0 + 0.17 * math.sin(math.pi * f) ** 0.7
+                if 0.02 < v < 0.98 and u < 0.9:
+                    q = rear(u, v)
+                    line.append(q + _cz_rad(q) * 0.0015)
+            if len(line) >= 3:
+                back.append(g_pipe("RearScale%d_%d" % (r, c), line, 0.0021, K["line"], body, sides=6))
+    # ---- pano do meio da frente
+    probe = cb_piece(src, "LegProbe", lambda c, b, n: (b.startswith("Leg") or b.startswith("Knee")
+                                                         or b == "Body") and c.z < 1.0)
+    pb = BVHTree.FromPolygons([probe.matrix_world @ v.co for v in probe.data.vertices],
+                              [tuple(p.vertices) for p in probe.data.polygons])
+    bpy.data.objects.remove(probe, do_unlink=True)
+    pb_plates = _mt_bvh(tas)
+    NZ, NX, HW, ZT, ZB = 26, 16, 0.082, 0.95, 0.4
+    cols = []
+    for j in range(NX + 1):
+        x = -HW + 2 * HW * j / NX
+        zend = ZB + 0.085 * abs(x) / HW
+        col, yp = [], None
+        for i in range(NZ + 1):
+            z = ZT - (ZT - zend) * (i / NZ)
+            y = -0.08
+            for bv in (pb, pb_plates):
+                h = bv.ray_cast(Vector((x, -0.6, z)), Vector((0, 1, 0)))
+                if h[0] is not None:
+                    y = min(y, h[0].y - 0.014)
+            yp = y if yp is None else min(yp, y)
+            fold = 0.006 * math.cos(math.pi * x / HW) * min(1.0, i / 6)
+            col.append(Vector((x, yp - fold, z)))
+        cols.append(col)
+    grid = [[cols[j][i] for j in range(NX + 1)] for i in range(NZ + 1)]
+    mid = [g_smooth_mesh("FrontCloth", grid, K["cloth"], body, cap_end=False, closed=False, thick=0.003,
+                         outward=True)]
+
+    def on(xf, t, out=0.0035):          # ponto do pano: xf em -1..1 (largura), t em 0..1 (cinto -> barra)
+        x = (xf + 1) / 2 * NX
+        j = min(NX - 1, int(x))
+        y = t * NZ
+        i = min(NZ - 1, int(y))
+        a = grid[i][j].lerp(grid[i][j + 1], x - j)
+        b = grid[i + 1][j].lerp(grid[i + 1][j + 1], x - j)
+        return a.lerp(b, y - i) + Vector((0, -out, 0))
+    yn = [Vector((0, -1, 0))]
+    # debrum de ouro pelos lados e pela barra em ponta
+    hem = ([on(-0.86, t) for t in (0.04, 0.2, 0.4, 0.6, 0.8, 0.93)]
+           + [on(xf, 0.95) for xf in (-0.86, -0.6, -0.3, 0.0, 0.3, 0.6, 0.86)]
+           + [on(0.86, t) for t in (0.93, 0.8, 0.6, 0.4, 0.2, 0.04)])
+    mid.append(cz_strip("ClothHem", hem, yn * len(hem), 0.008, 0.003, K["gold"], body))
+    # painel em ponta desenhado no alto
+    pan = [on(-0.55, 0.03), on(-0.55, 0.3), on(0.0, 0.42), on(0.55, 0.3), on(0.55, 0.03)]
+    mid.append(g_pipe("ClothPanel", pan, 0.003, K["gold"], body, sides=6))
+    # chamas de ouro junto da barra: de cada lado, duas línguas subindo da barra
+    for sd in (-1, 1):
+        for k, (x0, h, lean) in enumerate(((0.58, 0.26, -0.1), (0.24, 0.17, 0.06))):
+            t0 = 0.9 - 0.035 * k
+            pts = [on(sd * (x0 + 0.13), t0), on(sd * (x0 + lean * 0.4 + 0.1), t0 - h * 0.5),
+                   on(sd * (x0 + lean), t0 - h), on(sd * (x0 + lean * 0.4 - 0.1), t0 - h * 0.45),
+                   on(sd * (x0 - 0.13), t0)]
+            mid.append(g_pipe("ClothFlame%d_%d" % (sd, k), pts, 0.0034, K["gold"], body, sides=6))
+    return belt, tas, back, mid
+
+
 def build_a_dragonknight():
-    """Placas do Cavaleiro Dragão (lendário nv 50). Rodadas 1-3: tronco, ombreiras e braços; mangas e pernas na casca cinza-escura até
+    """Placas do Cavaleiro Dragão (lendário nv 50). Rodadas 1-4: tronco, ombreiras, braços e cintura; mangas e pernas na casca cinza-escura até
     as próximas peças."""
     style = "a_dragonknight"
     P, R = g_rig(style)
@@ -281,6 +405,7 @@ def build_a_dragonknight():
     under, parts = dragonknight_torso(K, src, body)
     shoulder = dragonknight_pauldron(K, src, body, 1) + dragonknight_pauldron(K, src, body, -1)
     arms = dragonknight_arm(K, src, body, 1) + dragonknight_arm(K, src, body, -1)
+    belt, tas, rear, mid = dragonknight_skirt(K, src, body)
     sleeves = cb_piece(src, "Sleeves", lambda c, b, n: (b.startswith("Arm") or b.startswith("Elbow"))
                        and (not b.startswith("Elbow") or _cb_fore_t(c) < 0.86), 0.01, K["under"])
     g_subdiv(sleeves)
@@ -291,7 +416,8 @@ def build_a_dragonknight():
     cel_paint(targets, skip=("g_skin", "drk_gem_flat"))
     horns = [o for o in shoulder if "Horn" in o.name]        # rígidos: peso por vértice esticava a ponta
     plates = [o for o in shoulder if o not in horns]
-    g_skin_finish(rig, src, [(arms, "vert", ("ArmL", "ArmR", "ElbowL", "ElbowR"), 1.0), (plates, "vert", ("Body", "ArmL", "ArmR"), 1.0),
+    g_skin_finish(rig, src, [(tas, "fn", _cs_tasset_w, 1.0), (mid, "fn", _wk_cloth_w, 1.0),
+                             (rear, "fn", _gb_skirt_w, 1.0), (arms, "vert", ("ArmL", "ArmR", "ElbowL", "ElbowR"), 1.0), (plates, "vert", ("Body", "ArmL", "ArmR"), 1.0),
                              (horns, "fn", lambda q: {"Body": 0.6, ("ArmL" if q.x > 0 else "ArmR"): 0.4}, 1.0)])
-    join_objs("DragonKnight", parts + shoulder + arms)["fem_mode"] = "plate"
+    join_objs("DragonKnight", parts + shoulder + arms + belt + tas + rear + mid)["fem_mode"] = "plate"
     g_export_skinned(style)
