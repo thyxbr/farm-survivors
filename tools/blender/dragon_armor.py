@@ -19,6 +19,50 @@ def dragonknight_mats():
     )
 
 
+def _drk_knee_head(K, gold=False):
+    """Cabeça de dragão da joelheira: o rosto esculpido do elmo (dragon_face_base.blend), reduzido a poucos
+    polígonos e sem textura. As cores vêm da cor por vértice que o preparo do elmo guardou: claro e pouco
+    saturado vira osso (chifres, dentes), amarelo vivo vira ouro (olhos), o resto é o vermelho das placas.
+    Com gold=True é o emblema do peito: tudo em ouro, com os olhos na cor da gema.
+    Devolve a malha em coordenadas do elmo (cabeça do jogo), ainda sem dono."""
+    import numpy as np
+    with bpy.data.libraries.load(DH_BASE) as (src, dst):
+        dst.objects = [n for n in src.objects if n == "DragonFace"]
+    ob = dst.objects[0]
+    coll.objects.link(ob)
+    mod = ob.modifiers.new("Dec", 'DECIMATE')
+    mod.ratio = 3200 / max(1, len(ob.data.polygons))
+    with bpy.context.temp_override(active_object=ob, object=ob, selected_objects=[ob], selected_editable_objects=[ob]):
+        bpy.ops.object.modifier_apply(modifier="Dec")
+    me = ob.data
+    ca = me.color_attributes["Col"]
+    c = np.empty(len(ca.data) * 4, np.float32)
+    ca.data.foreach_get("color", c)
+    c = c.reshape(-1, 4)[:, :3]
+    me.materials.clear()
+    for m in ((K["gold"], K["gold"], K["gem"], K["gold"]) if gold else (K["red"], K["bone"], K["gold"], K["red_d"])):
+        me.materials.append(m)
+    cnt = [0, 0, 0, 0]
+    for pl in me.polygons:
+        r, g, b = c[list(pl.loop_indices)].mean(0)
+        v = max(r, g, b)
+        sat = (v - min(r, g, b)) / max(v, 1e-4)
+        if v > 0.42 and sat < 0.5:
+            k = 1
+        elif r > 0.55 and g > 0.3 and b < 0.3:
+            k = 2
+        else:
+            k = 0
+        pl.material_index = k
+        pl.use_smooth = True
+        cnt[k] += 1
+    for a in list(me.color_attributes):
+        me.color_attributes.remove(a)
+    while me.uv_layers:
+        me.uv_layers.remove(me.uv_layers[0])
+    return ob
+
+
 def dragonknight_torso(K, src, body):
     """Tronco do Cavaleiro Dragão: casca cinza-escura (aparece nos flancos da barriga); peitoral vermelho liso
     do ombro até abaixo do peito, com a barra em bico para cima no meio (onde assenta o emblema) e friso de
@@ -127,6 +171,17 @@ def dragonknight_torso(K, src, body):
     seat = [[Vector((math.sin(2 * math.pi * j / NG) * r * 1.07, 0.012 - math.cos(2 * math.pi * j / NG) * r, 1.5))
              for j in range(NG)] for r in (0.04, 0.075, 0.106)]
     parts.append(g_smooth_mesh("CollarSeat", seat, K["red_d"], body, cap_end=False, thick=0.004))
+    # ---- emblema: o rosto do dragão em ouro no meio do peito, em relevo (o mesmo rosto do elmo, achatado)
+    em = _drk_knee_head(K, gold=True)
+    ec = wk_plate_pt(0.0, 1.335, OFF, fr_max=1.03)
+    ES = 0.3
+    em.data.transform(Matrix.Translation(Vector((0, ec.y - 0.012, 1.335)) - _wloc(body))
+                      @ Matrix.Diagonal((ES, ES * 0.3, ES, 1.0)) @ Matrix.Translation(Vector((0, -0.06, -1.7))))
+    em.parent = body
+    em.location = (0, 0, 0)
+    em["wloc"] = list(_wloc(body))
+    em.name = "ChestEmblem"
+    parts.append(em)
     rim = yoke[0]
     rim_n = [Vector((q.x, q.y - 0.012, 0)).normalized() for q in rim]
     parts.append(cz_strip("CollarRim", [q + Vector((0, 0, -0.004)) for q in rim], rim_n, 0.014, 0.006, K["gold"],
@@ -475,7 +530,7 @@ def dragonknight_cape(K, body):
 
 
 def build_a_dragonknight():
-    """Placas do Cavaleiro Dragão (lendário nv 50). Rodadas 1-5: tronco, ombreiras, braços, cintura e capa; mangas e pernas na casca cinza-escura até
+    """Placas do Cavaleiro Dragão (lendário nv 50). Tronco com emblema, ombreiras, braços, cintura e capa; mangas e pernas na casca cinza-escura até
     as próximas peças."""
     style = "a_dragonknight"
     P, R = g_rig(style)
@@ -585,49 +640,6 @@ def build_g_dragonknight():
         join_objs("Arm%s_HandOpen" % n, op)
         join_objs("Arm%s_Gauntlet" % n, cp)
     g_export("g_dragonknight", P, R)
-
-
-def _drk_knee_head(K):
-    """Cabeça de dragão da joelheira: o rosto esculpido do elmo (dragon_face_base.blend), reduzido a poucos
-    polígonos e sem textura. As cores vêm da cor por vértice que o preparo do elmo guardou: claro e pouco
-    saturado vira osso (chifres, dentes), amarelo vivo vira ouro (olhos), o resto é o vermelho das placas.
-    Devolve a malha em coordenadas do elmo (cabeça do jogo), ainda sem dono."""
-    import numpy as np
-    with bpy.data.libraries.load(DH_BASE) as (src, dst):
-        dst.objects = [n for n in src.objects if n == "DragonFace"]
-    ob = dst.objects[0]
-    coll.objects.link(ob)
-    mod = ob.modifiers.new("Dec", 'DECIMATE')
-    mod.ratio = 3200 / max(1, len(ob.data.polygons))
-    with bpy.context.temp_override(active_object=ob, object=ob, selected_objects=[ob], selected_editable_objects=[ob]):
-        bpy.ops.object.modifier_apply(modifier="Dec")
-    me = ob.data
-    ca = me.color_attributes["Col"]
-    c = np.empty(len(ca.data) * 4, np.float32)
-    ca.data.foreach_get("color", c)
-    c = c.reshape(-1, 4)[:, :3]
-    me.materials.clear()
-    for m in (K["red"], K["bone"], K["gold"], K["red_d"]):
-        me.materials.append(m)
-    cnt = [0, 0, 0, 0]
-    for pl in me.polygons:
-        r, g, b = c[list(pl.loop_indices)].mean(0)
-        v = max(r, g, b)
-        sat = (v - min(r, g, b)) / max(v, 1e-4)
-        if v > 0.42 and sat < 0.5:
-            k = 1
-        elif r > 0.55 and g > 0.3 and b < 0.3:
-            k = 2
-        else:
-            k = 0
-        pl.material_index = k
-        pl.use_smooth = True
-        cnt[k] += 1
-    for a in list(me.color_attributes):
-        me.color_attributes.remove(a)
-    while me.uv_layers:
-        me.uv_layers.remove(me.uv_layers[0])
-    return ob
 
 
 def build_f_dragonknight():
