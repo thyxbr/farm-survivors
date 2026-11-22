@@ -12,14 +12,16 @@ const SH_SWIRL := preload("res://shaders/aura_swirl.gdshader")
 const SH_GROUND := preload("res://shaders/aura_ground.gdshader")
 const SH_SHIELD := preload("res://shaders/aura_shield.gdshader")
 const SH_RIM := preload("res://shaders/aura_rim.gdshader")
+const PARTY_SHIELD := preload("res://scenes/vfx/party_shield/party_shield_buff.tscn")
 
 ## Cor principal de cada estilo (marca no chão e contorno do corpo).
 const COLORS := {
 	"cura": Color(0.35, 1.0, 0.45), "escudo": Color(0.35, 0.65, 1.0), "furia": Color(1.0, 0.22, 0.08),
 	"dragao": Color(1.0, 0.5, 0.08), "vento": Color(0.6, 0.95, 1.0), "sorte": Color(1.0, 0.85, 0.3),
 	"heroi": Color(1.0, 0.8, 0.3), "luz": Color(0.55, 0.8, 1.0), "sagrado": Color(1.0, 0.87, 0.4),
+	"bastiao": Color(0.4, 0.72, 1.0),
 }
-const STYLES := ["cura", "escudo", "furia", "dragao", "vento", "sorte", "heroi", "luz", "sagrado"]
+const STYLES := ["cura", "escudo", "furia", "dragao", "vento", "sorte", "heroi", "luz", "sagrado", "bastiao"]
 ## Estilos "desenhados" (os buffs do healer): mesmas formas das habilidades dele (HolyFX), em paleta de
 ## três tons: selo de pincel no chão, feixes suaves em volta do corpo e brilhos de 4 pontas.
 const DRAWN := {"luz": HolyFX.PAL_WARD, "sagrado": HolyFX.PAL_GOLD}
@@ -32,6 +34,8 @@ const GROUND := {
 	"dragao": [10.0, 0.5, 0.6], "vento": [0.0, 0.0, 0.2], "sorte": [8.0, -0.2, 0.12],
 	"heroi": [14.0, 0.3, 0.45], "luz": [0.0, 0.0, 0.0], "sagrado": [0.0, 0.0, 0.0],
 }
+## Estilos sem marca no chão nem contorno no corpo: o Bastião de Escudos é só os escudos girando (PartyShieldBuff).
+const BARE := ["bastiao"]
 const RING_RADIUS := 0.64      # anel da primeira aura
 const RING_STEP := 0.2         # cada aura a mais ganha um anel maior, por fora
 const FLOOR_MASK := 1          # camada de colisão do cenário
@@ -67,7 +71,11 @@ func set_buffs(ids: Array) -> void:
 func set_styles(styles: Array) -> void:
 	for s in _active.keys():
 		if not styles.has(s):
-			_active[s].queue_free()
+			# o Bastião de Escudos se desfaz em partículas antes de sumir (e se libera sozinho)
+			if _active[s].has_method("dissipate"):
+				_active[s].dissipate()
+			else:
+				_active[s].queue_free()
 			_active.erase(s)
 	for s in styles:
 		if not _active.has(s):
@@ -88,7 +96,12 @@ func styles() -> Array:
 
 
 func _rim_key() -> String:
-	return ",".join(styles().slice(0, 2))
+	return ",".join(_body_styles().slice(0, 2))
+
+
+## Estilos que pintam o corpo e o chão (contorno e anel): todos menos os de BARE (só o efeito próprio).
+func _body_styles() -> Array:
+	return styles().filter(func(s: String) -> bool: return not (s in BARE))
 
 
 # ------------------------------------------------------------------ marcas no chão
@@ -102,7 +115,7 @@ func _layout_grounds() -> void:
 		_first = true
 	for c in _ground_root.get_children():
 		c.queue_free()
-	var act := styles()
+	var act := _body_styles()
 	for i in act.size():
 		var g: Array = GROUND[act[i]]
 		if DRAWN.has(act[i]):
@@ -197,6 +210,10 @@ func _set_overlay(n: Node, mat: Material) -> void:
 
 # ------------------------------------------------------------------ estilos
 func _build(style: String) -> Node3D:
+	if style == "bastiao":   # Bastião de Escudos (Grito do Bastião): escudos azuis girando, cena própria
+		var b: Node3D = PARTY_SHIELD.instantiate()
+		b.name = style
+		return b
 	var root := Node3D.new()
 	root.name = style
 	var c: Color = COLORS[style]
