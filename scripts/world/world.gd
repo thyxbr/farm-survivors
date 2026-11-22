@@ -1064,6 +1064,8 @@ func _set_paused(on: bool) -> void:
 func _on_modal_closed() -> void:
 	modal = null
 	_set_paused(false)
+	if player:
+		player.interact_wait_release = true   # o E que fechou a conversa não reabre o mesmo NPC
 	hud.visible = true
 	_end_closeup()
 	if player and not player.dead:
