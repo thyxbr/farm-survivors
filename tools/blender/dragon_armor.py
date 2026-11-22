@@ -175,12 +175,15 @@ def dragonknight_pauldron(K, src, body, s):
     rings, dirs = top
     n, nr = len(rings[0]), len(rings)
     # ---- gema na frente, junto do peito (frente = φ·s > 0)
-    jg = (n - 1) * (0.5 + s * 0.34)
-    q, d = _dk_grid_at(rings, dirs, nr - 2.6, jg)
     up = Vector((0, 0, 1))
-    t1 = (up - d * up.dot(d)).normalized()
-    parts.append(g_cap("PauldronBezel" + sn, q - d * 0.002, d, t1, 0.037, 0.037, 0.011, K["gold"], body, rings=4, sides=20))
-    parts.append(g_cap("PauldronGem" + sn, q + d * 0.004, d, t1, 0.026, 0.026, 0.012, K["gem"], body, rings=5, sides=18))
+    for gn, sg in (("", 1), ("Back", -1)):          # a vista de costas da ficha mostra a mesma gema atrás
+        jg = (n - 1) * (0.5 + s * sg * 0.34)
+        q, d = _dk_grid_at(rings, dirs, nr - 2.6, jg)
+        t1 = (up - d * up.dot(d)).normalized()
+        parts.append(g_cap("PauldronBezel%s%s" % (gn, sn), q - d * 0.002, d, t1, 0.037, 0.037, 0.011, K["gold"], body,
+                           rings=4, sides=20))
+        parts.append(g_cap("PauldronGem%s%s" % (gn, sn), q + d * 0.004, d, t1, 0.026, 0.026, 0.012, K["gem"], body,
+                           rings=5, sides=18))
     # ---- chifre: nasce no alto da copa, sobe e curva para a cabeça
     q, d = _dk_grid_at(rings, dirs, nr * 0.72, (n - 1) * (0.5 - s * 0.06))
     inw = Vector((-s, 0, 0))
@@ -390,8 +393,89 @@ def dragonknight_skirt(K, src, body):
     return belt, tas, back, mid
 
 
+def _drk_cape_w(p):
+    """Capa: no alto com o tronco; da cintura para baixo vai em boa parte com a coxa do seu lado, para o pé de
+    trás na passada não atravessar o pano."""
+    leg = max(0.0, min(1.0, (0.98 - p.z) / 0.4)) * 0.72
+    left = max(0.0, min(1.0, 0.5 + p.x / 0.2))
+    return {"Body": 1.0 - leg, "LegL": leg * left, "LegR": leg * (1 - left)}
+
+
+def dragonknight_cape(K, body):
+    """Capa do Cavaleiro Dragão: pano vermelho preso no alto das costas entre as ombreiras, com uma dobra caída
+    em U sob a gola; desce abrindo até a canela em poucas pregas largas, com os cantos da barra mais baixos;
+    na barra, duas linhas de ouro onduladas, duas chamas no meio e um risco em gancho em cada canto."""
+    rows, NC = 22, 34
+    ZT, ZB = 1.47, 0.3
+    WRAP = 1.0
+
+    def need(a, z):                    # ponto mínimo por fora do costal, da placa de trás e das escarcelas
+        if z > 1.0:
+            return wk_plate_pt(a, z, 0.044)
+        return _pal_hip_pt(a, min(z, 0.99), 0.066 + 0.02 * (1.0 - z))
+
+    def center_need(z):
+        return max(q.y + WRAP * q.x ** 2 for q in (need(math.pi + 0.07 * k, z) for k in range(-9, 10)))
+    zs = [ZT - (ZT - ZB) * i / 24 for i in range(25)]
+    nd = [center_need(z) for z in zs]
+    for k in range(81):                # a reta mais em pé que passa por fora de tudo
+        slope = 0.005 * k
+        yt = max(n - slope * (ZT - z) for n, z in zip(nd, zs))
+        if yt - nd[0] <= 0.03:
+            break
+
+    def cpt(u, v, out=0.0):            # u: 0 em cima -> 1 embaixo; v: 0 -> 1 de um lado ao outro
+        w = 2 * v - 1
+        zb = ZB - 0.035 * abs(w) ** 2.2
+        z = ZT - (ZT - zb) * u
+        x = (0.165 + 0.15 * u ** 0.85) * w
+        fold = 0.02 * math.sin(2 * math.pi * v * 3.5 + 0.5) * u ** 0.9
+        y = yt + slope * (ZT - z) - WRAP * x * x * (1 - 0.45 * u) + fold + out
+        return Vector((x, y, z))
+    grid = [[cpt(i / rows, j / NC) for j in range(NC + 1)] for i in range(rows + 1)]
+    parts = [g_smooth_mesh("Cape", grid, K["cloth"], body, cap_end=False, closed=False, thick=0.004, outward=True)]
+    for sd in (-1, 1):                 # fechos de ouro: prendem os cantos de cima da capa no costal
+        q = cpt(0.02, 0.5 + sd * 0.42)
+        a = math.atan2(q.x, 0.0) if False else math.pi - sd * 0.75
+        t = wk_plate_pt(a, q.z - 0.01, 0.02)
+        parts.append(g_pipe("CapeClasp%d" % sd, [q + Vector((0, 0.003, 0)), q.lerp(t, 0.5) + Vector((0, 0, 0.004)), t],
+                            0.008, K["gold"], body, sides=8))
+    # dobra caída em U sob a gola
+    NU, NV = 8, 20
+    cowl = []
+    for i in range(NU + 1):
+        u = i / NU
+        row = []
+        for j in range(NV + 1):
+            v = j / NV
+            w = 2 * v - 1
+            sag = math.sin(math.pi * v) ** 0.8
+            q = cpt(0.0, 0.5 + 0.48 * w)
+            row.append(Vector((q.x, q.y + 0.012 + 0.03 * math.sin(math.pi * u) * sag,
+                               ZT + 0.012 - (0.02 + 0.12 * sag) * u)))
+        cowl.append(row)
+    parts.append(g_smooth_mesh("CapeCowl", cowl, K["cloth"], body, cap_end=False, closed=False, thick=0.006,
+                               outward=True))
+    parts.append(g_pipe("CapeCowlFold", [q + Vector((0, 0.004, -0.002)) for q in cowl[-1]], 0.005, K["red_d"], body,
+                        sides=8))
+    # desenho de ouro na barra
+    O = 0.004
+    for k, (u0, amp, ph) in enumerate(((0.925, 0.012, 0.0), (0.955, 0.008, 1.2))):
+        line = [cpt(u0 - amp * math.sin(2 * math.pi * 2 * v + ph), v, O) for v in (0.04 + 0.92 * j / 40 for j in range(41))]
+        parts.append(g_pipe("CapeLine%d" % k, line, 0.0032, K["gold"], body, sides=6))
+    for sd in (-1, 1):                 # chamas em crescente no meio
+        pts = [cpt(0.925 - 0.085 * f, 0.5 + sd * (0.03 + 0.035 * math.sin(math.pi * f) + 0.012 * f), O)
+               for f in (i / 8 for i in range(9))]
+        rad = [(0.0055 * (1 - i / 8) ** 0.8 + 0.001,) * 2 for i in range(9)]
+        parts.append(g_smooth_mesh("CapeFlame%d" % sd, g_curved_tube(pts, rad, sides=8), K["gold"], body))
+        hook = [cpt(0.93, 0.5 + sd * 0.34, O), cpt(0.9, 0.5 + sd * 0.4, O), cpt(0.875, 0.5 + sd * 0.43, O),
+                cpt(0.895, 0.5 + sd * 0.455, O)]
+        parts.append(g_pipe("CapeHook%d" % sd, hook, 0.003, K["gold"], body, sides=6))
+    return parts
+
+
 def build_a_dragonknight():
-    """Placas do Cavaleiro Dragão (lendário nv 50). Rodadas 1-4: tronco, ombreiras, braços e cintura; mangas e pernas na casca cinza-escura até
+    """Placas do Cavaleiro Dragão (lendário nv 50). Rodadas 1-5: tronco, ombreiras, braços, cintura e capa; mangas e pernas na casca cinza-escura até
     as próximas peças."""
     style = "a_dragonknight"
     P, R = g_rig(style)
@@ -406,6 +490,7 @@ def build_a_dragonknight():
     shoulder = dragonknight_pauldron(K, src, body, 1) + dragonknight_pauldron(K, src, body, -1)
     arms = dragonknight_arm(K, src, body, 1) + dragonknight_arm(K, src, body, -1)
     belt, tas, rear, mid = dragonknight_skirt(K, src, body)
+    cape = dragonknight_cape(K, body)
     sleeves = cb_piece(src, "Sleeves", lambda c, b, n: (b.startswith("Arm") or b.startswith("Elbow"))
                        and (not b.startswith("Elbow") or _cb_fore_t(c) < 0.86), 0.01, K["under"])
     g_subdiv(sleeves)
@@ -417,7 +502,8 @@ def build_a_dragonknight():
     horns = [o for o in shoulder if "Horn" in o.name]        # rígidos: peso por vértice esticava a ponta
     plates = [o for o in shoulder if o not in horns]
     g_skin_finish(rig, src, [(tas, "fn", _cs_tasset_w, 1.0), (mid, "fn", _wk_cloth_w, 1.0),
+                             (cape, "fn", _drk_cape_w, 1.0),
                              (rear, "fn", _gb_skirt_w, 1.0), (arms, "vert", ("ArmL", "ArmR", "ElbowL", "ElbowR"), 1.0), (plates, "vert", ("Body", "ArmL", "ArmR"), 1.0),
                              (horns, "fn", lambda q: {"Body": 0.6, ("ArmL" if q.x > 0 else "ArmR"): 0.4}, 1.0)])
-    join_objs("DragonKnight", parts + shoulder + arms + belt + tas + rear + mid)["fem_mode"] = "plate"
+    join_objs("DragonKnight", parts + shoulder + arms + belt + tas + rear + mid + cape)["fem_mode"] = "plate"
     g_export_skinned(style)
