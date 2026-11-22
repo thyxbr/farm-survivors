@@ -2,7 +2,7 @@ extends RefCounted
 ## GearFx: a tabela de texturas animadas tem que bater com os GLBs (o efeito é escolhido pelo nome do
 ## material; um material renomeado no Blender deixaria a peça sem efeito, em silêncio).
 
-const ENDGAME := ["lich", "hierophant", "reaper", "raven", "dragon", "astral", "frost", "celestial"]
+const ENDGAME := ["lich", "hierophant", "reaper", "raven", "dragon", "astral", "frost", "celestial", "blackdragon"]
 ## armaduras com efeito só no material, sem partículas nem cabeça própria (o brilho do ouro do paladino)
 const FX_ONLY := ["a_paladin", "a_emberscale"]
 const DIR := "res://assets/models/gear/"
