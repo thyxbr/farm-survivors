@@ -479,6 +479,7 @@
 		"ref_level": 6
 	},
 	"goblin_bruto": {
+		"rank": {"hp": 1.25, "dmg": 2.3},
 		"name": "Goblin Bruto",
 		"elements": {"fisico": 80, "raio": 115, "veneno": 110},
 		"model": "goblin",
@@ -559,7 +560,7 @@
 		"boss": true,
 		"rank": {
 			"hp": 1.8,
-			"dmg": 1.6
+			"dmg": 3.68
 		},
 		"bld": 2.5,
 		"loot": [
@@ -1955,6 +1956,7 @@
 		"chill_venom": true
 	},
 	"golem_cristal": {
+		"rank": {"hp": 1.25, "dmg": 2.3},
 		"name": "Golem de Cristal",
 		"elements": {"fisico": 60, "raio": 150, "veneno": 0, "sagrado": 75, "sombra": 75},
 		"model": "golem",
@@ -2300,6 +2302,7 @@
 		"ref_level": 2
 	},
 	"ieti": {
+		"rank": {"hp": 1.25, "dmg": 2.3},
 		"name": "Ieti Glacial",
 		"elements": {"fisico": 90, "fogo": 150, "gelo": 25},
 		"model": "yeti",

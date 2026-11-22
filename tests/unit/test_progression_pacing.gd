@@ -18,9 +18,9 @@ func test_hits_same_level() -> void:
 	for level in [5, 10, 20, 30, 40, 50]:
 		for cls in ["warrior", "archer", "mage"]:
 			var h := ProgressionRules.sim_hits(bt, cls, level)
-			T.ok(h >= 3 and h <= 5, "%s nível %d: %d golpes (meta 3-5)" % [cls, level, h])
+			T.ok(h >= 5 and h <= 8, "%s nível %d: %d golpes (meta 5-8)" % [cls, level, h])
 		var hh := ProgressionRules.sim_hits(bt, "healer", level)
-		T.ok(hh >= 1 and hh <= 7, "healer nível %d: %d golpes (meta até 7)" % [level, hh])
+		T.ok(hh >= 1 and hh <= 10, "healer nível %d: %d golpes (meta até 10)" % [level, hh])
 
 
 func test_hours_per_band() -> void:
@@ -29,15 +29,16 @@ func test_hours_per_band() -> void:
 	var targets: Dictionary = bt.get_table("progression").sim.target_hours
 	T.eq(targets.size(), 5, "sim.target_hours tem as 5 faixas do design")
 	# o alvo é o do design: mexer nele não pode fazer o teste passar
-	var design := {"1-10": 2.0, "10-20": 5.0, "20-35": 10.0, "35-45": 7.0, "45-50": 6.0}
+	# (35 h até o 50 desde o ajuste de dificuldade: comum com vida × 2 e XP igual, cada abate demora mais)
+	var design := {"1-10": 2.5, "10-20": 5.5, "20-35": 11.5, "35-45": 8.0, "45-50": 7.0}
 	for band in design:
 		T.ok(targets.has(band) and is_equal_approx(float(targets[band]), design[band]),
-			"alvo da faixa %s = %.0f h (design)" % [band, design[band]])
+			"alvo da faixa %s = %.1f h (design)" % [band, design[band]])
 	for band in targets:
 		T.ok(hours.has(band), "faixa %s no resultado" % band)
 		var h := float(hours.get(band, 0.0))
 		var t := float(targets[band])
-		T.ok(h >= t * 0.8 and h <= t * 1.2, "faixa %s: %.2f h (alvo %.0f h ±20%%)" % [band, h, t])
+		T.ok(h >= t * 0.8 and h <= t * 1.2, "faixa %s: %.2f h (alvo %.1f h ±20%%)" % [band, h, t])
 
 
 func test_basic_damage_matches_old_formula() -> void:

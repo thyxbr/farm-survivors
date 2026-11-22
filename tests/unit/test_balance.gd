@@ -41,6 +41,9 @@ func test_roundtrip_matches_consts() -> void:
 			for kind in cur:
 				(cur[kind] as Dictionary).erase("loot")
 				(snap_enemies[kind] as Dictionary).erase("loot")
+				# "rank" é número de progressão (dificuldade por categoria), ajustado depois do snapshot
+				(cur[kind] as Dictionary).erase("rank")
+				(snap_enemies[kind] as Dictionary).erase("rank")
 				(snap_enemies[kind] as Dictionary).erase("ref_level")   # snapshot regravado já traz o campo
 			T.ok(cur == snap_enemies, "tabela enemies igual ao snapshot das const (sem loot)")
 			continue

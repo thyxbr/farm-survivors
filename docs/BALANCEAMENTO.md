@@ -8,15 +8,19 @@ Depois de mexer em qualquer número, **rode o simulador** e os testes (seção "
 
 ## Metas que os números perseguem
 
-- **30 horas até o nível 50**: 1–10 ~2 h, 10–20 ~5 h, 20–35 ~10 h, 35–45 ~7 h, 45–50 ~6 h.
+- **35 horas até o nível 50**: 1–10 ~2,5 h, 10–20 ~5,5 h, 20–35 ~11,5 h, 35–45 ~8 h, 45–50 ~7 h (eram 30 h antes do
+  ajuste de dificuldade: a XP ficou igual e cada abate demora mais).
   O mundo aberto vai até o nível ~45 (Pico 30–45, Cume Maldito 42–45); a faixa 45–50 é a dungeon final (Abismo
   de Valdoria, 45–50) e as camadas 5 do craft.
-- **Monstro comum do mesmo nível morre em 3 a 5 golpes** do ataque básico (guerreiro, arqueiro, mago; healer até
-  7), com todos os pontos no atributo da classe e a melhor arma que o nível deixa usar.
+- **Monstro comum do mesmo nível morre em 5 a 8 golpes** do ataque básico (guerreiro, arqueiro, mago; healer até
+  10), com todos os pontos no atributo da classe e a melhor arma que o nível deixa usar. O goblin leva 6–8, o slime
+  3–4, o esqueleto 7–10.
+- **O jogador morre em 5 a 6 golpes de um goblin do mesmo nível** sem pontos em VIT e com a armadura do nível
+  (~10 de um slime). Dois ou três monstros juntos pedem esquiva, bloqueio ou cura.
 - **0,5 a 0,8 item por monstro comum**, quase tudo material.
 
 O teste `tests/unit/test_progression_pacing.gd` falha se as horas saírem mais de 20% do alvo, se os golpes saírem
-de 3–5 ou se os itens por morte saírem de 0,5–0,8 (slime, goblin, esqueleto, raptor-capim).
+de 5–8 ou se os itens por morte saírem de 0,5–0,8 (slime, goblin, esqueleto, raptor-capim).
 
 ## `data/balance/progression.json`
 
@@ -51,13 +55,13 @@ Para cada atributo, `curva(L) = (1 + rate × (L − 1))^exp`, e o monstro no ní
 
 | Atributo | Hoje (`rate`, `exp`) | O que conferir no simulador | Faixa segura |
 |---|---|---|---|
-| `hp` | 0.24, 1.05 | colunas `g.*` (golpes): têm de ficar entre 3 e 5 | rate 0.20–0.30, exp 1.0–1.1 |
-| `dmg` | 0.08, 1.0 | (o simulador não mede) quantos golpes o jogador aguenta; hoje ~8 de um goblin do mesmo nível em qualquer nível, sem pontos em VIT | rate 0.05–0.12 |
+| `hp` | 0.24, 1.05 | colunas `g.*` (golpes): têm de ficar entre 5 e 8 | rate 0.20–0.30, exp 1.0–1.1 |
+| `dmg` | 0.08, 1.0 | (o simulador não mede) quantos golpes o jogador aguenta; hoje 5–6 de um goblin do mesmo nível em qualquer nível, sem pontos em VIT (já com `rank.common.dmg`) | rate 0.05–0.12 |
 | `xp` | 0.28, 2.4 | coluna `xp mob` e as horas por faixa | exp perto de `xp_curve.exp` |
 | `gold` | 0.04, 1.0 | ouro por abate (não entra no simulador). Cresce com o nível: goblin nv 6 ~8,7 (hoje ~7,5), goblin nv 30 ~15,6, esqueleto nv 25 ~13, Lich nv 42 ~580. Como cada abate leva mais golpes que hoje, o ouro por hora cai um pouco | rate 0.03–0.05 |
 
 O dano do jogador cresce quase em linha reta com o nível (3 pontos por nível × 1,4–1,6 de dano por ponto), por
-isso a vida usa expoente perto de 1. Vida subindo mais rápido que isso faz os golpes passarem de 5 no fim.
+isso a vida usa expoente perto de 1. Vida subindo mais rápido que isso faz os golpes passarem de 8 no fim.
 
 ### `tier_size`, `tiers` — camadas de 10 níveis
 A cada `tier_size` níveis o monstro muda de camada: `tint` (cor multiplicada) e `scale` (tamanho). Só visual.
@@ -67,10 +71,20 @@ A camada também é usada pelo loot. Seguro: `scale` 1.0–1.3.
 Vale para pontos com `elite` ligado no Inspector: `level_bonus` (níveis a mais, hoje 2), `hp` (vida × 2),
 `dmg` (dano × 1,3), `scale` (tamanho × 1,25), `gear_chance` (chance de equipamento, 5%).
 
-### `rank` — campeões e chefes mais fortes que os comuns
-Multiplica vida e dano dos monstros **com nível** por categoria, por cima da curva: `elite` (tipos com
-`elite: true` no enemies.json: Campeão Goblin, Cavaleiro Esqueleto, Slime Rainha) hoje vida × 2 e dano × 1,5;
-`boss` (tipos com `boss: true` **e** chefes de dungeon, mesmo de um tipo elite) hoje vida × 3 e dano × 2,1.
+### `rank` — dificuldade por categoria (comuns, campeões, chefes)
+Multiplica vida e dano dos monstros **com nível** por categoria, por cima da curva. **`common` é o botão da
+dificuldade geral do mundo** (a Horda não muda): hoje vida × 2 e dano × 2,3 — antes de existir (× 1 e × 1) o
+goblin morria em 4 golpes, o slime em 2, e o jogador aguentava ~13 golpes. `elite` (tipos com
+`elite: true` no enemies.json: Campeão Goblin, Cavaleiro Esqueleto, Slime Rainha) hoje vida × 2 e dano × 3,45;
+`boss` (tipos com `boss: true` **e** chefes de dungeon, mesmo de um tipo elite) hoje vida × 3 e dano × 4,83.
+Os blocos **não se multiplicam entre si**: o dano de `elite` e `boss` já traz os × 2,3 dos comuns embutidos
+(1,5 × 2,3 e 2,1 × 2,3), e a vida deles ficou como era. Ao mexer em `common.dmg`, mexa nos outros dois na mesma
+proporção, senão um comum passa a bater mais que um campeão.
+
+Um tipo pode ter o próprio bloco `"rank": {"hp", "dmg"}` no enemies.json, que vale no lugar do da categoria
+(menos quando ele é chefe de dungeon): o Rei Goblin da missão (vida × 1,8, dano × 3,68) e os comuns
+"parrudos" — Goblin Bruto, Golem de Cristal e Ieti, com vida × 1,25 em vez de × 2, porque já levavam 13–14
+golpes e com × 2 passariam dos campeões.
 Existe porque a curva divide pelo `ref_level`: sem isto, um chefe de ref 12 no nível 21 ganhava menos por nível
 que um comum de ref 2 (o Goblin Bruto comum batia mais que o Campeão, e o Rei Goblin menos que o Cavaleiro).
 O teste `test_rank_order_at_same_level` cobra, nos níveis 8, 21 e 40: todo campeão com mais vida e dano que
@@ -113,7 +127,7 @@ nível 10 deem 20%–45% da XP dos níveis 1–9. Se mudar, rode o `set_quest_le
 | `ref_enemy` | goblin | o monstro comum de referência |
 | `ref_class` | warrior | a classe que "caça" na conta das horas |
 | `bands` | [1,10] … [45,50] | as faixas somadas (de, até: soma os níveis de..até−1) |
-| `target_hours` | 2, 5, 10, 7, 6 | horas alvo por faixa: o simulador mostra ao lado e o teste cobra ±20% |
+| `target_hours` | 2,5, 5,5, 11,5, 8, 7 | horas alvo por faixa: o simulador mostra ao lado e o teste cobra ±20% |
 
 O simulador não conta os pontos de atributo dos ranks da guilda, comida, buffs, críticos nem as habilidades: é a
 build pura com o ataque básico. Por isso o jogo de verdade é um pouco mais rápido que a tabela.
@@ -179,7 +193,7 @@ Nos mapas (`scenes/maps/*.tscn`, grupo Monstros), cada ponto tem:
 - `elite`: monstros de elite (bloco `elite` do progression.json): +2 níveis, vida × 2, 25% maiores, 5% de chance
   de equipamento.
 
-Um monstro do mesmo nível do jogador morre em ~4 golpes; 5 níveis acima já pede ~5–6 e dá 125% de XP; 8 abaixo dá
+Um monstro do mesmo nível do jogador morre em ~7 golpes; 5 níveis acima já pede ~10–12 e dá 125% de XP; 8 abaixo dá
 5% de XP. Para uma área mais difícil, suba a faixa, não a vida no enemies.json.
 
 ## `data/balance/regions.json` — regiões com nome
@@ -311,6 +325,11 @@ Receitas rápidas:
 
 - *Tudo está rápido demais (ou lento)*: `xp_curve.base` (ex.: 250 → 290 deixa todas as faixas ~16% mais longas).
 - *O fim (45–50) está curto*: suba os `late`.
-- *Monstros morrem em 2–3 golpes*: suba `enemy_curves.hp.rate` (0.24 → 0.28). Em 6 ou mais: desça.
+- *O mundo todo está fácil (ou difícil) demais*: `rank.common` — `hp` muda os golpes para matar (2,0 = goblin em
+  ~7; 1,5 = ~6; 1,0 = ~4), `dmg` os golpes que o jogador aguenta (2,3 = 5–6 de um goblin; 1,7 = ~8; 1,0 = ~13).
+  Leve `rank.elite.dmg` e `rank.boss.dmg` na mesma proporção.
+- *Só os chefes batem forte demais*: baixe `rank.boss.dmg` (4,83 → 3,5, por exemplo).
+- *Os golpes saem da meta só nos níveis altos (ou só nos baixos)*: `enemy_curves.hp.rate` (0.24 → 0.28 sobe mais
+  no fim).
 - *Só uma classe destoa*: confira a arma escolhida na última coluna e o `level` das armas daquela classe.
 - *Caem itens demais*: baixe a chance de poção/semente no `loot` do monstro, ou `gear_drop.chance`.

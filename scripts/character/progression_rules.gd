@@ -78,15 +78,16 @@ static func spawn_level(bt: BalanceTables, level: int, level_max: int, elite: bo
 ## Força extra da categoria para monstros com nível: tipos "elite" do enemies.json (campeões) e chefes
 ## ("boss" ou chefe de dungeon, que usa o bloco do chefe mesmo sendo de um tipo elite). A curva de nível
 ## divide pelo ref_level do tipo, então sem isto um chefe de ref 12 no nível 21 ficava com vida e dano
-## por nível iguais aos de um monstro comum. {"hp","dmg"}; comuns = 1.0.
+## por nível iguais aos de um monstro comum. {"hp","dmg"}; os comuns usam o bloco "common" (a dificuldade
+## geral do mundo: quantos golpes um comum aguenta e quanto ele bate), sem bloco = 1.0.
 static func rank_mults(bt: BalanceTables, kind: String, chief := false) -> Dictionary:
 	var t: Dictionary = bt.get_table("enemies").get(kind, {})
-	var key := ""
+	var key := "common"
 	if bool(t.get("boss", false)) or chief:
 		key = "boss"
 	elif bool(t.get("elite", false)):
 		key = "elite"
-	var m: Dictionary = _prog(bt).get("rank", {}).get(key, {}) if key != "" else {}
+	var m: Dictionary = _prog(bt).get("rank", {}).get(key, {})
 	# tipo com "rank" próprio no enemies.json (Rei Goblin da missão, no mundo): vale quando ele não é
 	# o chefe de uma dungeon, que continua com o bloco do chefe
 	if not chief and t.get("rank") is Dictionary:
@@ -127,7 +128,7 @@ static func _sim(bt: BalanceTables) -> Dictionary:
 static func sim_enemy_hp(bt: BalanceTables, level: int) -> float:
 	var kind := str(_sim(bt).get("ref_enemy", "goblin"))
 	var t: Dictionary = bt.get_table("enemies").get(kind, {})
-	return float(t.get("hp", 0.0)) * float(enemy_mults(bt, kind, level).hp)
+	return float(t.get("hp", 0.0)) * float(enemy_mults(bt, kind, level).hp) * float(rank_mults(bt, kind).hp)
 
 
 ## XP que o monstro de referência dá no nível `level` (mesma conta de Enemy.xp_reward).
