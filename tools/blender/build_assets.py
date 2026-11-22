@@ -253,11 +253,15 @@ BUILDERS["knight_f"] = build_knight_f
 BUILDERS.update(dict(FEM_GEAR))
 if "female" in _only or "gear_f" in _only:
     _only += [n for n, _ in FEM_GEAR] + (["knight_f"] if "female" in _only else [])
-# corpo do anão (dwarf.py): knight_d e gear/<estilo>_d; ASSETS=dwarf gera tudo, ASSETS=gear_d só as roupas
-BUILDERS["knight_d"] = build_knight_d
-BUILDERS.update(dict(DWARF_GEAR))
-if "dwarf" in _only or "gear_d" in _only:
-    _only += [n for n, _ in DWARF_GEAR] + (["knight_d"] if "dwarf" in _only else [])
+# corpo do anão (dwarf.py): knight_d e gear/<estilo>_d; ASSETS=dwarf gera tudo, ASSETS=gear_d só as roupas.
+# EM PAUSA desde 2026-11-22, até o usuário decidir sobre o anão: a geração completa (sem ASSETS) não monta mais as
+# versões _d, e peças novas não ganham versão de anão (no corpo do anão o jogo usa a masculina, KnightLook.gear_path).
+# Os GLBs _d que já existem continuam no projeto. Só gera pedindo: ASSETS=dwarf, ASSETS=gear_d ou <estilo>_d.
+if "dwarf" in _only or "gear_d" in _only or any(n.endswith("_d") for n in _only):
+    BUILDERS["knight_d"] = build_knight_d
+    BUILDERS.update(dict(DWARF_GEAR))
+    if "dwarf" in _only or "gear_d" in _only:
+        _only += [n for n, _ in DWARF_GEAR] + (["knight_d"] if "dwarf" in _only else [])
 BUILDERS.update(dict(HAIR_BUILDERS))    # penteados do herói (hair.py); ASSETS=hair gera todos
 if "hair" in _only or "gear" in _only or "female" in _only:
     _only += [n for n, _ in HAIR_BUILDERS]

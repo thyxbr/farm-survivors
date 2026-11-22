@@ -4171,6 +4171,79 @@
 		"desc": "Dois chifres curvos e um focinho de aço sobre os olhos.",
 		"craft": true
 	},
+	"dragonia_plate": {
+		"name": "Armadura do Dragão Vermelho",
+		"type": "armor",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 19,
+		"price": 1200,
+		"color": {
+			"$c": [0.56, 0.25, 0.23, 1.0]
+		},
+		"style": "a_dragonia",
+		"stats": {
+			"vit": 6,
+			"str": 3,
+			"hp": 44
+		},
+		"desc": "Escamas de dragão vermelho em camadas, com frisos de ouro e chifres de osso nos ombros."
+	},
+	"dragonia_gauntlets": {
+		"name": "Braçadeiras do Dragão Vermelho",
+		"type": "gear",
+		"slot": "hands",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 3,
+		"price": 320,
+		"color": {
+			"$c": [0.56, 0.25, 0.23, 1.0]
+		},
+		"style": "g_dragonia",
+		"stats": {
+			"str": 5,
+			"vit": 1
+		},
+		"desc": "Lâminas de escama vermelha com um chifre de osso no cotovelo."
+	},
+	"dragonia_greaves": {
+		"name": "Grevas do Dragão Vermelho",
+		"type": "gear",
+		"slot": "feet",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 5,
+		"price": 310,
+		"color": {
+			"$c": [0.56, 0.25, 0.23, 1.0]
+		},
+		"style": "f_dragonia",
+		"stats": {
+			"vit": 3,
+			"str": 1
+		},
+		"desc": "Escama vermelha até o joelho e biqueira de ouro."
+	},
+	"dragonhead_helm": {
+		"name": "Elmo Cabeça de Dragão",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 9,
+		"price": 740,
+		"color": {
+			"$c": [0.56, 0.25, 0.23, 1.0]
+		},
+		"style": "h_dragonhead",
+		"stats": {
+			"vit": 5,
+			"str": 2,
+			"hp": 28
+		},
+		"desc": "A cabeça de um dragão vermelho, com presas, chifres de osso e olhos em brasa."
+	},
 	"blackdragon_gauntlets": {
 		"name": "Manoplas do Dragão Negro",
 		"type": "gear",

@@ -3613,17 +3613,18 @@ def g_skinned_pants(src, material):
     return pants
 
 
-def g_export_skinned(style):
-    """Exporta uma roupa de casca: rodando como <style>_f (female.py), deforma para o corpo feminino antes."""
+def g_export_skinned(style, **extra):
+    """Exporta uma roupa de casca: rodando como <style>_f (female.py), deforma para o corpo feminino antes.
+    extra vai para o exportador (ex.: textura em JPEG nas peças pintadas por IA)."""
     if globals().get("g_export") is globals().get("_g_export_f", 0):
         fem_warp()                     # cascas, enfeites e ossos vão para o corpo feminino pelos pesos
-        export("gear/" + style + "_f", export_vertex_color='ACTIVE')
+        export("gear/" + style + "_f", export_vertex_color='ACTIVE', **extra)
         return
     if globals().get("g_export") is globals().get("_g_export_d", 0):
         dwarf_warp()                   # o mesmo para o corpo do anão (dwarf.py)
-        export("gear/" + style + "_d", export_vertex_color='ACTIVE')
+        export("gear/" + style + "_d", export_vertex_color='ACTIVE', **extra)
         return
-    export("gear/" + style, export_vertex_color='ACTIVE')
+    export("gear/" + style, export_vertex_color='ACTIVE', **extra)
 
 
 # ------------------------------------------------------------------ cavaleiro branco (tier III, malha lisa)
@@ -9312,6 +9313,317 @@ def build_h_dragon():
     g_head_done("h_dragon", "DragonHelm", parts, P, R)
 
 
+# ------------------------------------------------------------------ Cabeça de Dragão (malha e pintura geradas por IA)
+# Forma e pintura vêm de IA local a partir das vistas do conceito (Hunyuan3D-2: malha por D:\ia3d\gerar.py, textura
+# por D:\ia3d\pintar.py); tools/blender/dragon_ia_tex_prep.py reduz a malha, baixa a textura e põe a peça na altura
+# da cabeça. O passo a passo está em tools/ia3d/LEIAME.md. Aqui a base só é carregada, presa à cabeça e exportada.
+# Sem AO nem cel_paint: a luz e a sombra já estão pintadas na textura.
+DGT_BASE = OUT.replace("assets/models/", "tools/blender/base/dragon_ia_tex_base.blend")
+
+
+def build_h_dragonhead():
+    """Elmo fechado em forma de cabeça de dragão: focinho com presas, olhos acesos sob a sobrancelha, dois
+    chifres de osso, crista de espinhos e guarda-nuca de lâminas com frisos dourados em V."""
+    P, R = g_rig("h_dragonhead")
+    head = R["Head"]
+    with bpy.data.libraries.load(DGT_BASE) as (src, dst):
+        dst.objects = [n for n in src.objects if n == "DragonTex"]
+    ob = dst.objects[0]
+    coll.objects.link(ob)
+    ob.data.transform(Matrix.Translation(-_wloc(head)))
+    ob.parent = head
+    ob.location = (0, 0, 0)
+    ob.name = ob.data.name = "DragonHead"
+    _dgia_export("h_dragonhead")
+
+
+def _dgia_export(style):
+    """Exporta uma peça rígida pintada por IA (sem AO nem cel_paint: a luz já vem pintada). Montada como versão
+    feminina (female.py troca g_export por _g_export_f), deforma antes para aquele corpo, como g_export_skinned.
+    JPEG: a textura da IA tem degradês e ruído fino, e em PNG o GLB do elmo passava de 3,5 MB (os outros têm ~0,4)."""
+    os.makedirs(OUT + "gear", exist_ok=True)
+    targets = [o for o in scn.objects if o.type == 'MESH']
+    suf = ""
+    if globals().get("g_export") is globals().get("_g_export_f", 0):
+        fem_warp()
+        suf = "_f"
+    elif globals().get("g_export") is globals().get("_g_export_d", 0):
+        dwarf_warp()
+        suf = "_d"
+    drop_head(style, targets)
+    export("gear/" + style + suf, export_image_format='JPEG', export_jpeg_quality=88)
+
+
+# ------------------------------------------------------------------ Armadura do Dragão por IA
+# Peças rígidas geradas por IA (vistas do conceito -> D:\ia3d\gerar.py -> pintar.py); dragon_ia_peca_prep.py deixa
+# cada uma normalizada (altura 1, centro na origem) e virada para o lado ESQUERDO do corpo. Aqui ganham escala e
+# lugar, presas a um pivô (giram inteiras com ele), e o lado direito é o espelho. Passo a passo: tools/ia3d/LEIAME.md.
+DGIA_BASE = OUT.replace("assets/models/", "tools/blender/base/")
+DGIA_LEATHER = "#36373B"   # couro das costas da greva (textura da IA): camada que aparece nas aberturas de trás
+DGP_S = 0.285                                  # altura da ombreira (m)
+DGP_OFF = Vector((0.035, 0.0, -0.045))         # centro da ombreira a partir da articulação do ombro (lado L)
+DGP_TILT = 12.0                                # graus: a copa inclina para dentro, a barra se abre para fora
+
+
+def _dgia_pair(arq, nome):
+    """Carrega a base <arq> e devolve (esquerda, direita): duas cópias independentes, ainda na origem."""
+    with bpy.data.libraries.load(DGIA_BASE + arq) as (src, dst):
+        dst.objects = [n for n in src.objects if n == nome]
+    base = dst.objects[0]
+    copia = base.copy()
+    copia.data = base.data.copy()
+    for o in (base, copia):
+        coll.objects.link(o)
+    return base, copia
+
+
+def _dgia_place(ob, m, s, pivot, name):
+    """Aplica m (feita para o lado esquerdo) na malha; no lado direito espelha em x e vira as faces de volta para
+    fora. Depois prende ao pivô sem mudar a posição no mundo."""
+    import bmesh
+    me = ob.data
+    if s < 0:
+        m = Matrix.Scale(-1, 4, (1, 0, 0)) @ m
+    me.transform(m)
+    if s < 0:
+        bm = bmesh.new()
+        bm.from_mesh(me)
+        bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
+        bm.to_mesh(me)
+        bm.free()
+    me.transform(Matrix.Translation(-_wloc(pivot)))
+    ob.parent = pivot
+    ob.location = (0, 0, 0)
+    ob.name = me.name = name
+    return ob
+
+
+def _dgia_limb(a, b, t0, t1, wx, wy, off=(0, 0, 0), c=(0.0, 0.0)):
+    """Matriz que leva a peça normalizada (z de +0,5 a -0,5) para o trecho do membro de a.lerp(b, t0) a
+    a.lerp(b, t1), com escala wx em x e wy em y; c = centro (x, y) da peça que fica no eixo do membro; off
+    desloca no mundo."""
+    p0, p1 = a.lerp(b, t0), a.lerp(b, t1)
+    d = p0 - p1
+    rot = Vector((0, 0, 1)).rotation_difference(d.normalized()).to_matrix().to_4x4()
+    sc = Matrix.Diagonal((wx, wy, d.length, 1.0))
+    return Matrix.Translation((p0 + p1) / 2 + Vector(off)) @ rot @ sc @ Matrix.Translation((-c[0], -c[1], 0))
+
+
+def _dgia_extent(ob, band=(-0.5, 0.5), lo=0.04, hi=0.96):
+    """Largura em x e y e centro (x, y) da peça normalizada na faixa de altura band, sem as pontas (chifres,
+    biqueira): entre os percentis lo e hi. A greva medida inteira tinha o pé na profundidade e ficava rasa."""
+    pts = [v.co for v in ob.data.vertices if band[0] <= v.co.z <= band[1]]
+    xs, ys = sorted(c.x for c in pts), sorted(c.y for c in pts)
+    q = lambda v, t: v[int(t * (len(v) - 1))]
+    return (q(xs, hi) - q(xs, lo), q(ys, hi) - q(ys, lo),
+            (q(xs, hi) + q(xs, lo)) / 2, (q(ys, hi) + q(ys, lo)) / 2)
+
+
+def _dgia_cavity(ob, zs):
+    """Vão de dentro de uma peça em tubo (greva, braçadeira) na peça normalizada: centro (x, y) e raios em x e y,
+    médios nas alturas zs. O centro é achado andando para o meio dos pontos em que 12 raios horizontais batem
+    (o centro da caixa fica na frente do vão, puxado pela placa da frente)."""
+    from mathutils.bvhtree import BVHTree
+    me = ob.data
+    bvh = BVHTree.FromPolygons([v.co for v in me.vertices], [tuple(p.vertices) for p in me.polygons])
+    dirs = [Vector((math.cos(2 * math.pi * i / 12), math.sin(2 * math.pi * i / 12), 0)) for i in range(12)]
+    acc = []
+    for z in zs:
+        pts = [v.co for v in me.vertices if abs(v.co.z - z) < 0.02]
+        c = Vector((sum(p.x for p in pts) / len(pts), sum(p.y for p in pts) / len(pts), z))
+        for _ in range(8):
+            hits = [bvh.ray_cast(c, d) for d in dirs]
+            hits = [h[0] for h in hits if h[0] is not None]
+            if len(hits) < 8:
+                break
+            c = Vector((sum(h.x for h in hits) / len(hits), sum(h.y for h in hits) / len(hits), z))
+        rx = [abs(h.x - c.x) for h in hits if abs(h.y - c.y) < abs(h.x - c.x)]
+        ry = [abs(h.y - c.y) for h in hits if abs(h.y - c.y) >= abs(h.x - c.x)]
+        acc.append((c.x, c.y, sum(rx) / max(1, len(rx)), sum(ry) / max(1, len(ry))))
+    n = len(acc)
+    return tuple(sum(a[i] for a in acc) / n for i in range(4))
+
+
+def _dgia_enclose(ob, m, secs, ts, add, c=(0.0, 0.0), kmax=1.8):
+    """Quanto a escala em x e y de m tem de crescer para a peça cobrir a casca do membro (seções secs, nas frações
+    ts, add metros por fora). A greva e a braçadeira são tubos: o membro fica no vão de dentro. Um ponto da casca
+    está coberto quando raios em 12 direções em volta do eixo, saindo dele, batem todos na peça; a escala cresce
+    3% por vez até sobrar no máximo 2% de pontos descobertos."""
+    from mathutils.bvhtree import BVHTree
+    me = ob.data
+    bvh = BVHTree.FromPolygons([v.co for v in me.vertices], [tuple(p.vertices) for p in me.polygons])
+    pts = []
+    for t in ts:
+        q = sample(secs, t)
+        for j in range(24):
+            a = 2 * math.pi * j / 24
+            ry = q["ry"] * (q.get("fr", 1.0) if math.cos(a) > 0 else q.get("bk", 1.0))
+            pts.append(q["c"] + Vector((math.sin(a) * (q["rx"] + add), -math.cos(a) * (ry + add), 0)))
+    dirs = [Vector((math.cos(2 * math.pi * i / 12), math.sin(2 * math.pi * i / 12), 0)) for i in range(12)]
+    def grown(k):                  # cresce em volta do centro do vão (c), não da origem da peça
+        return m @ Matrix.Translation((c[0], c[1], 0)) @ Matrix.Diagonal((k, k, 1.0, 1.0)) @             Matrix.Translation((-c[0], -c[1], 0))
+    k, fora0 = 1.0, None
+    while True:
+        mk = grown(k)
+        inv = mk.inverted()
+        fora = 0
+        for p in pts:
+            pl = inv @ p
+            # na peça normalizada o eixo do membro é z: as direções horizontais dão a volta nele
+            if any(bvh.ray_cast(pl, d)[0] is None for d in dirs):
+                fora += 1
+        fora0 = fora if fora0 is None else fora0
+        if fora <= len(pts) * 0.02 or k >= kmax:
+            break
+        k += 0.03
+    print("ENVOLVE %s: escala x%.2f (descobertos %d -> %d de %d)" % (ob.name, k, fora0, fora, len(pts)), flush=True)
+    return grown(k)
+
+
+def _dgia_cut(ob, z, keep_low):
+    """Corta a malha (já no mundo) no plano horizontal z e fica com a parte de baixo ou a de cima."""
+    import bmesh
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(0, 0, z), plane_no=(0, 0, 1))
+    fora = [f for f in bm.faces if (f.calc_center_median().z < z) != keep_low]
+    bmesh.ops.delete(bm, geom=fora, context='FACES')
+    bm.to_mesh(ob.data)
+    bm.free()
+
+
+DGC_Z = (0.70, 1.55)       # peitoral: da ponta das escamas da saia ao alto da gola (m)
+DGC_BAND = (1.30, 1.38)    # faixa (m) onde a largura do peitoral é medida: axila
+DGC_W = (0.40, 0.31)       # largura e profundidade do peitoral nessa faixa (m)
+DGC_Y = 0.004              # deslocamento do peitoral para trás (m)
+DGT_T = (0.06, 1.08)       # coxote: de logo abaixo do quadril até passar o joelho, em fração da coxa
+DGT_W = (1.1, 1.15)        # largura e profundidade / diâmetro da coxa no alto
+DGT_OFF = (0.006, -0.016, 0.0)
+
+
+def _dgia_chest(ob):
+    """Põe o peitoral normalizado no tronco: altura DGC_Z, largura e profundidade medidas na axila."""
+    z0, z1 = DGC_Z
+    zc, hz = (z0 + z1) / 2, z1 - z0
+    lo, hi = ((z - zc) / hz for z in DGC_BAND)
+    band = [v.co for v in ob.data.vertices if lo <= v.co.z <= hi]
+    xs, ys = sorted(c.x for c in band), sorted(c.y for c in band)
+    q = lambda v, t: v[int(t * (len(v) - 1))]
+    ex, ey = q(xs, 0.98) - q(xs, 0.02), q(ys, 0.98) - q(ys, 0.02)
+    yc = (q(ys, 0.98) + q(ys, 0.02)) / 2
+    m = Matrix.Translation((0, DGC_Y, zc)) @ Matrix.Diagonal((DGC_W[0] / ex, DGC_W[1] / ey, hz, 1.0)) @         Matrix.Translation((0, -yc, 0))
+    ob.data.transform(m)
+
+
+def build_a_dragonia():
+    """Armadura do Dragão (IA): peitoral de escama vermelha com frisos dourados, cabeça de dragão de ouro no
+    peito, cinto com gema e saia de escamas; ombreiras de lâminas em V com chifre de osso; coxotes de escama com
+    joelheira de chifre. Camada de baixo em pano escuro (lados, mangas, calça)."""
+    style = "a_dragonia"
+    P, R = g_rig(style)
+    M = g_mats()
+    under = gm("dgia_under", "#2B2628", 0.85)
+    rig, src = _cb_start(M)
+    neck(R, M["skin"])
+    hips(R, under)
+    g_skinned_pants(src, gm("dgia_leather", DGIA_LEATHER, 0.75))   # coxas por trás: couro, não calça
+    sleeves = cb_piece(src, "Sleeves", lambda c, b, n: b.startswith("Arm") or b.startswith("Elbow"), 0.006, under)
+    g_subdiv(sleeves)
+    peito = _dgia_pair("dragon_ia_chest_base.blend", "ChestTex")
+    bpy.data.objects.remove(peito[1], do_unlink=True)
+    peito = peito[0]
+    peito.name = peito.data.name = "DragonChest"
+    _dgia_chest(peito)
+    for n, s, ob in zip("LR", (1, -1), _dgia_pair("dragon_ia_pauldron_base.blend", "PauldronTex")):
+        J = mirror(P["shoulder"], 1)
+        m = (Matrix.Translation(J + DGP_OFF) @ Matrix.Rotation(math.radians(-DGP_TILT), 4, 'Y')
+             @ Matrix.Scale(DGP_S, 4))
+        _dgia_place(ob, m, s, R["Arm" + n], "Arm%s_DragonPauldron" % n)
+    th = limb_sections(P, 1)["thigh"]
+    for n, s, ob in zip("LR", (1, -1), _dgia_pair("dragon_ia_cuisse_base.blend", "CuisseTex")):
+        ex, ey, cx, cy = _dgia_extent(ob, (0.05, 0.45))
+        d = 2 * th[1]["rx"]
+        m = _dgia_limb(P["hip"], P["knee"], DGT_T[0], DGT_T[1], d * DGT_W[0] / ex, d * DGT_W[1] / ey, DGT_OFF,
+                       (cx, cy))
+        _dgia_place(ob, m, s, R["Leg" + n], "Leg%s_DragonCuisse" % n)
+    os.makedirs(OUT + "gear", exist_ok=True)
+    g_loose_world(style)
+    # pesos: o peitoral vai com o tronco e a saia de escamas passa para as coxas (como a saia do gibão); ombreiras
+    # e coxotes ficam inteiros no osso do pivô (rígidos)
+    g_skin_finish(rig, src, [([peito], "fn", _gb_skirt_w, 1.0)])
+    g_export_skinned(style, export_image_format='JPEG', export_jpeg_quality=88)
+
+
+DGV_T = (-0.04, 1.0)       # braçadeira: do cotovelo (um pouco acima) ao pulso, em fração do antebraço
+DGV_W = (1.12, 1.12)       # raio do vão da braçadeira / raio do antebraço (antes de envolver)
+
+
+def build_g_dragonia():
+    """Braçadeiras do Dragão (IA): lâminas de escama vermelha com frisos dourados e chifre de osso no cotovelo,
+    luva de couro escuro (mão fechada e aberta feitas aqui: a IA não faz as duas poses)."""
+    P, R = g_rig("g_dragonia")
+    glove = gm("dgia_glove", "#2B2628", 0.8)
+    F = limb_sections(P, 1)["fore"]
+    for n, s, ob in zip("LR", (1, -1), _dgia_pair("dragon_ia_vambrace_base.blend", "VambraceTex")):
+        elbow = R["Elbow" + n]
+        soft_fist("Arm" + n, P, s, glove, elbow)
+        relaxed_hand("Arm" + n, P, s, glove, elbow)
+        cx, cy, rx, ry = _dgia_cavity(ob, (0.05, -0.1, -0.25))
+        q = sample(F, 0.5)
+        m = _dgia_limb(P["elbow"], P["wrist"], DGV_T[0], DGV_T[1], q["rx"] * DGV_W[0] / rx, q["ry"] * DGV_W[1] / ry,
+                       c=(cx, cy))
+        # confere só do meio ao pulso: perto do cotovelo a braçadeira é aberta de um lado (como no conceito)
+        m = _dgia_enclose(ob, m, F, [0.46 + 0.44 * i / 4 for i in range(5)], 0.006, (cx, cy))
+        _dgia_place(ob, m, s, elbow, "Arm%s_Gauntlet" % n)
+    g_loose_world("g_dragonia")
+    _dgia_export("g_dragonia")
+
+
+DGG_Z = (0.035, -0.004)    # greva com bota: do alto (m acima do joelho) à sola (z do chão)
+DGG_W = (1.12, 1.12)       # raio do vão da greva / raio da canela (antes de envolver)
+DGG_OFF = (0.0, 0.0, 0.0)
+
+
+def build_f_dragonia():
+    """Grevas do Dragão (IA): greva de escama vermelha com frisos dourados e bota de couro com biqueira de ouro.
+    A peça da IA é uma só; corta no tornozelo: a canela vai no joelho, o pé no tornozelo (dobra com ele)."""
+    P, R = g_rig("f_dragonia")
+    M = g_mats()
+    sh = limb_sections(P, 1)["shin"]
+    for n, s, ob in zip("LR", (1, -1), _dgia_pair("dragon_ia_greave_base.blend", "GreaveTex")):
+        knee, ankle = R["Knee" + n], R["Ankle" + n]
+        # couro só no alto da canela e na volta do joelho, onde a greva é aberta atrás (embaixo ela fecha, e uma
+        # calça inteira furava a frente da greva perto do tornozelo)
+        lea = gm("dgia_leather", DGIA_LEATHER, 0.75)
+        th = limb_sections(P, s)["thigh"]
+        shn = limb_sections(P, s)["shin"]
+        kn = grow(span(th, 0.86, 1.0), 1.02, 0.004) + grow(span(shn, 0.0, 0.34), 1.04, 0.004)[1:]
+        loft("Leg%s_KneeWrap" % n, kn, lea, knee, sides=24)
+        cx, cy, rx, ry = _dgia_cavity(ob, (0.3, 0.15, 0.0, -0.15))
+        q = sample(sh, 0.3)
+        kz, az = P["knee"].z, P["ankle"].z
+        t0, t1 = -DGG_Z[0] / (kz - az), (kz - DGG_Z[1]) / (kz - az)
+        m = _dgia_limb(P["knee"], P["ankle"], t0, t1, q["rx"] * DGG_W[0] / rx, q["ry"] * DGG_W[1] / ry, DGG_OFF,
+                       (cx, cy))
+        # envolve a calça da canela (_shin_hose: 1,05 x canela + 4 mm), do joelho ao tornozelo
+        # confere a faixa fechada da canela: no alto, atrás, o couro é mais baixo que a placa da frente (conceito)
+        m = _dgia_enclose(ob, m, sh, [0.26 + 0.34 * i / 4 for i in range(5)] + [0.9], 0.007, (cx, cy))
+        pe = ob.copy()
+        pe.data = ob.data.copy()
+        coll.objects.link(pe)
+        # corte no tornozelo com sobreposição: a canela desce 1,5 cm abaixo do corte e o pé sobe 2 cm acima, para
+        # o pé dobrar sem abrir fresta entre as duas partes
+        cut = P["ankle"].z + 0.01
+        for o, low, z in ((ob, False, cut - 0.015), (pe, True, cut + 0.02)):
+            o.data.transform(m)
+            _dgia_cut(o, z, low)
+            o.data.transform(m.inverted())
+        _dgia_place(ob, m, s, knee, "Leg%s_Greave" % n)
+        _dgia_place(pe, m, s, ankle, "Leg%s_BootFoot" % n)
+    g_loose_world("f_dragonia")
+    _dgia_export("f_dragonia")
+
+
 # ------------------------------------------------------------------ 6. Astrônomo Celeste
 def build_h_astral():
     """Diadema dourado com estrela alta na testa e asas nas têmporas; atrás da cabeça, uma esfera armilar:
@@ -10843,8 +11155,8 @@ exec(open(OUT.replace("assets/models/", "tools/blender/dragon_armor.py"), encodi
 
 GEAR = [(n, _gear_builder(globals()["build_" + n])) for n in (
     "h_bare", "h_hood", "h_cap", "h_kettle", "h_nasal", "h_great", "h_wizard", "h_archmage", "h_sage", "h_void", "h_oracle", "h_ember",
-    "h_lich", "h_hierophant", "h_reaper", "h_raven", "h_dragon", "h_astral", "h_frost", "h_emberscale", "h_celestial", "h_blackdragon", "h_dragonknight", "h_dragonknight_dark", "h_dragonknight_ice", "h_cosmic",
+    "h_lich", "h_hierophant", "h_reaper", "h_raven", "h_dragon", "h_astral", "h_frost", "h_emberscale", "h_celestial", "h_blackdragon", "h_dragonknight", "h_dragonknight_dark", "h_dragonknight_ice", "h_cosmic", "h_dragonhead",
     "a_shirt", "a_tunic", "a_leather", "a_gambeson", "a_ranger", "a_mithril", "a_celestial", "a_blackdragon", "a_dragonknight", "a_dragonknight_dark", "a_dragonknight_ice", "a_cosmic", "a_whiteknight", "a_paladin", "a_firstplate", "a_emberscale", "a_mail", "a_surcoat", "a_robe", "a_archmage", "a_sage", "a_void", "a_oracle", "a_ember",
-    "a_lich", "a_hierophant", "a_reaper", "a_raven", "a_dragon", "a_astral", "a_frost",
+    "a_lich", "a_hierophant", "a_reaper", "a_raven", "a_dragon", "a_astral", "a_frost", "a_dragonia", "g_dragonia", "f_dragonia",
     "g_bare", "g_gloves", "g_bracers", "g_ironplate", "g_knightplate", "g_royalplate", "g_emberscale", "g_ranger", "g_mithril", "g_celestial", "g_blackdragon", "g_dragonknight", "g_dragonknight_dark", "g_dragonknight_ice", "g_cosmic",
     "f_shoes", "f_boots", "f_plated", "f_ironplate", "f_knightplate", "f_royalplate", "f_emberscale", "f_ranger", "f_mithril", "f_celestial", "f_blackdragon", "f_dragonknight", "f_dragonknight_dark", "f_dragonknight_ice", "f_cosmic")]
