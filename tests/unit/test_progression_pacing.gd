@@ -56,7 +56,8 @@ func test_items_per_kill() -> void:
 	var bt := _tables()
 	for kind in ["slime", "goblin", "esqueleto", "raptor_capim"]:
 		var avg := ProgressionRules.sim_items_per_kill(bt, kind, 4000, 1234)
-		T.ok(avg >= 0.5 and avg <= 0.8, "%s: %.2f itens por morte (meta 0,5-0,8)" % [kind, avg])
+		# menos itens por morte (vão direto para o inventário): material comum 0,25, couro 0,1, equipamento 0,04
+		T.ok(avg >= 0.35 and avg <= 0.65, "%s: %.2f itens por morte (meta 0,35-0,65)" % [kind, avg])
 
 
 ## Chefe: 1 material raro garantido + chance pequena de item nomeado. Equipamento por abate ~1-2

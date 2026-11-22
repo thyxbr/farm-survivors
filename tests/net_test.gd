@@ -253,9 +253,7 @@ func _ready() -> void:
 		var xp0 := Game.xp + Game.level * 100000
 		var kills0 := Game.kills
 		var gold0 := Game.gold
-		# as coletas contam desde antes do abate: o ímã pode pedir a coleta antes de o teste olhar o chão
 		var inv0 := _inv_total()
-		var from := econ_log.size()
 		# o servidor só aceita acerto perto da última posição recebida do jogador (HitGuard): espera ela chegar
 		await wait(0.3)
 		target.take_damage(10.0, w.player.global_position, false)
@@ -278,26 +276,14 @@ func _ready() -> void:
 		check(await _wait_until(func() -> bool: return Game.kills == kills0 + 1, 3.0)
 			and Game.xp + Game.level * 100000 > xp0, "servidor deu XP e abate (%d abates, push %d)" % [Game.kills, pushes])
 		check(pushes > 0, "estado novo chegou do servidor sem pedido (push)")
-		# o pickup é do servidor: aparece com net_id e, ao pegar (o ímã coleta, o jogador está ao lado),
-		# o servidor confere e concede
-		var seen := [0]
-		await _wait_until(func() -> bool:
-			for n in w.get_children():
-				if n.get_script() == PICKUP and int(n.net_id) > 0:
-					seen[0] = maxi(seen[0], int(n.net_id))
-			return seen[0] > 0 or _claims_ok(from) > 0, 3.0)
-		check(seen[0] > 0 or _claims_ok(from) > 0, "pickup do servidor apareceu (net_id %d)" % seen[0])
+		# o loot entra direto no personagem pelo servidor (sem pickup no chão): o ouro chega no estado
+		check(await _wait_until(func() -> bool: return Game.gold > gold0, 5.0),
+			"loot pessoal direto no inventário: servidor concede ouro (%d → %d, itens %d → %d)" % [gold0, Game.gold, inv0, _inv_total()])
+		var ground := 0
 		for n in w.get_children():
 			if n.get_script() == PICKUP and int(n.net_id) > 0:
-				n.global_position = w.player.global_position + Vector3.UP * 0.8   # garante a coleta
-		check(await _wait_until(func() -> bool: return _claims_ok(from) > 0 and Game.gold > gold0, 5.0),
-			"pegou o loot pessoal: servidor concede ouro (%d → %d, itens %d → %d)" % [gold0, Game.gold, inv0, _inv_total()])
-		await wait(0.5)
-		var pending := 0
-		for n in w.get_children():
-			if n.get_script() == PICKUP and int(n.net_id) > 0:
-				pending += 1
-		check(pending == 0 or _claims_ok(from) >= 1, "pickups coletados (%d no chão)" % pending)
+				ground += 1
+		check(ground == 0, "abate não deixa pickup no chão (%d)" % ground)
 
 	# flecha (projétil) acerta um inimigo réplica: o dano passa pelo servidor
 	var tgt: Enemy = null
@@ -1054,15 +1040,6 @@ func _chat_senders(text: String) -> Array:
 
 
 # ---------------------------------------------------------------- personagem no servidor (Econ)
-## Quantas coletas de pickup o servidor aceitou depois de econ_log[from].
-func _claims_ok(from: int) -> int:
-	var n := 0
-	for i in range(from, econ_log.size()):
-		if econ_log[i][0] == "claim_pickup" and econ_log[i][1]:
-			n += 1
-	return n
-
-
 func _seed_total() -> int:
 	var n := 0
 	for slot in Game.inventory:

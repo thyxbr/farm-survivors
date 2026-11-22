@@ -2397,23 +2397,19 @@ func _death_blast() -> void:
 				p.add_shake(0.3))
 
 
-## Solo: sorteio do loot (LootRules, o mesmo do servidor) em pickups no chão. Devolve o que saiu da tabela do
-## monstro (antes da troca por classe), para o bestiário.
+## Solo: sorteio do loot (LootRules, o mesmo do servidor). O ouro e os itens entram direto no inventário e o
+## espólio voa do monstro até o jogador (Econ.show_loot). Devolve o que saiu da tabela do monstro (antes da
+## troca por classe), para o bestiário.
 static func drop_loot(parent: Node, enemy_kind: String, pos: Vector3, with_gold := true, level := 0, elite := false,
 		boss := false) -> Dictionary:
 	boss = boss or TYPES.get(enemy_kind, {}).get("boss", false)
 	var extra := DungeonRules.extra_loot(Balance.tables, Regions.region_at(pos), boss)
 	var loot := LootRules.roll(Balance.tables, enemy_kind, _loot_rng(), Game.char_class, level, elite, extra)
-	_spawn_loot(parent, pos, int(loot.gold) if with_gold else 0, loot.items)
+	var gold := int(loot.gold) if with_gold else 0
+	if gold > 0 or not loot.items.is_empty():
+		if Econ.grant(gold, 0, loot.items, "loot"):
+			Econ.show_loot(pos, gold, loot.items, parent)
 	return loot.get("rolled", {})
-
-
-static func _spawn_loot(parent: Node, pos: Vector3, gold: int, items: Dictionary) -> void:
-	if gold > 0:
-		PICKUP.spawn(parent, "", gold, pos + Vector3.UP * 0.8)
-	for id in items:
-		for i in int(items[id]):
-			PICKUP.spawn(parent, id, 1, pos + Vector3.UP * 0.8)
 
 
 static var _rng: RandomNumberGenerator = null

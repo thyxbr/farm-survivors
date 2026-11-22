@@ -26,8 +26,8 @@
 		"sombra":  {"values": [0.01, 0.015, 0.02, 0.025, 0.03]}
 	},
 	"sources": {
-		"iron_ore": "veios de ferro em volta do Acampamento Goblin (leste da vila)",
-		"arcane_crystal": "cristais arcanos nas Ruínas (norte da vila)",
+		"iron_ore": "Goblins e Esqueletos (Acampamento Goblin, Forte dos Brutos, Cemitério) e os veios de ferro em volta do Acampamento Goblin (leste da vila)",
+		"arcane_crystal": "Esqueletos Magos e Cavaleiros nas Ruínas, e os cristais arcanos nas Ruínas (norte da vila)",
 		"ember_core": "Slimes Explosivos, no Ninho de Slimes (sudoeste da vila)",
 		"frost_drop": "Slimes Velozes, no Ninho de Slimes (sudoeste da vila)",
 		"thunder_totem": "o Goblin Xamã, no Acampamento Goblin (leste da vila)",

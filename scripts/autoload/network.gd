@@ -1556,7 +1556,7 @@ func _enemy_guarded(net_id: int) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func _kill_reward(_kind: String, _xp: int, _pos: Vector3) -> void:
-	# só o efeito no cliente: XP e abate chegam pelo Econ (estado do servidor) e o loot por _pickup_spawned
+	# só o efeito no cliente: XP, abate e loot chegam pelo Econ (estado do servidor; o espólio voa por Econ._loot_fx)
 	Game.kill_lifesteal()
 
 

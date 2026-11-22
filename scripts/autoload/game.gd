@@ -17,6 +17,8 @@ signal leveled_up(new_level: int)
 signal food_eaten(id: String)
 signal farm_changed
 signal item_looted(id: String, qty: int)
+## Ouro de um abate que entrou direto no inventário (o HUD mostra "+N ouro").
+signal gold_looted(amount: int)
 ## O encanto da arma equipada mudou (encantou no ferreiro ou trocou de arma).
 signal enchant_changed
 signal kit_changed   # a classe da arma equipada mudou (ou o escudo entrou/saiu: troca a habilidade 1 da espada)

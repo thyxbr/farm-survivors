@@ -6,13 +6,20 @@ extends Node
 ## que também aparece enquanto o ícone 3D não chega.
 ## Item que o cavaleiro não veste (poções, comida, colheitas, sementes, materiais, anéis, amuletos, orbe,
 ## aljava) usa o modelo da família, com a cor do item: a tabela está em ItemIconModels.
+##
+## No jogo os ícones já vêm prontos de fábrica: tools/bake_item_icons.tscn fotografa todos e grava em
+## assets/ui/item_icons/<id>.png (importados junto com o jogo; ver baked()). A foto em tempo de execução
+## só sobra para item novo que ainda não foi assado.
 
 const KNIGHT := preload("res://assets/models/knight.glb")
 const SIZE := 192
 const ROOT := "user://icons"
+## Ícone assado no build (tools/bake_item_icons.tscn).
+const BAKED_DIR := "res://assets/ui/item_icons/"
 
 static var _inst: ItemIcons
 static var _cache := {}        # id -> Texture2D (null = item sem modelo)
+static var _baked := {}        # id base -> Texture2D assada (null = não tem)
 var _queue: Array[String] = []
 var _waiting := {}             # id -> Array[Callable] (quem redesenhar quando ficar pronto)
 var _busy := false
@@ -20,6 +27,9 @@ var _busy := false
 
 ## Textura do item, ou null se ainda não ficou pronta (chama `on_ready` quando ficar) ou se não há modelo.
 static func icon(id: String, on_ready: Callable) -> Texture2D:
+	var b := baked(id)
+	if b != null:
+		return b
 	if not enabled():
 		return null
 	if _cache.has(id):
@@ -37,6 +47,18 @@ static func icon(id: String, on_ready: Callable) -> Texture2D:
 		(Engine.get_main_loop() as SceneTree).root.add_child.call_deferred(_inst)
 	_inst._request.call_deferred(id, on_ready)
 	return null
+
+
+## Ícone assado no build para o item (variantes de qualidade e de bônus usam o do item base), ou null.
+## Vale também sem janela: é só uma textura importada.
+static func baked(id: String) -> Texture2D:
+	var base := ItemQuality.base(id)
+	if _baked.has(base):
+		return _baked[base]
+	var path := BAKED_DIR + base + ".png"
+	var tex: Texture2D = load(path) if base != "" and ResourceLoader.exists(path) else null
+	_baked[base] = tex
+	return tex
 
 
 ## Sem janela não há o que fotografar: o espaço mostra o ícone pintado.
@@ -98,7 +120,8 @@ func _run() -> void:
 	_busy = false
 
 
-func _render(id: String) -> Texture2D:
+## Fotografa o item num SubViewport (precisa de janela). null = sem modelo. Usado também pelo assador.
+func render_image(id: String) -> Image:
 	var vp := SubViewport.new()
 	vp.own_world_3d = true
 	vp.transparent_bg = true
@@ -196,6 +219,13 @@ func _render(id: String) -> Texture2D:
 	await RenderingServer.frame_post_draw
 	var img := vp.get_texture().get_image()
 	vp.queue_free()
+	return img
+
+
+func _render(id: String) -> Texture2D:
+	var img := await render_image(id)
+	if img == null:
+		return null
 	IconCache.save_icon(ROOT, _version(), id, img)
 	return ImageTexture.create_from_image(img)
 
