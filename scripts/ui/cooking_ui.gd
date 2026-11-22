@@ -87,9 +87,18 @@ func _refresh() -> void:
 		return
 	for r in _rows:
 		var n := Game.can_cook(r)
-		StationKit.set_row(_rows[r], r == _sel, n > 0, ItemDB.get_item(r).get("color", UITheme.TEXT),
-			("x%d" % n) if n > 0 else "")
+		var tag := ("x%d" % n) if n > 0 else ("Nv %d" % _need(r) if not _level_ok(r) else "")
+		StationKit.set_row(_rows[r], r == _sel, n > 0, ItemDB.get_item(r).get("color", UITheme.TEXT), tag)
 	_update_info()
+
+
+## Nível de Culinária que o prato pede (recipes.json "level").
+static func _need(r: String) -> int:
+	return maxi(1, int(CraftRules.recipe(Balance.tables, r).get("level", 1)))
+
+
+static func _level_ok(r: String) -> bool:
+	return Game.prof_level("cooking") >= _need(r)
 
 
 func _update_info() -> void:
@@ -116,6 +125,10 @@ func _update_info() -> void:
 		if k > 0:
 			pantry.append("%s x%d" % [ItemDB.CROPS[crop].name, k])
 	_pantry.text = "Despensa: " + (", ".join(pantry) if not pantry.is_empty() else "vazia — plante e colha na horta!")
+	_pantry.remove_theme_color_override("font_color")
+	if not _level_ok(_sel):
+		_pantry.text = "Pede Culinária nível %d (você: %d).\n" % [_need(_sel), Game.prof_level("cooking")] + _pantry.text
+		_pantry.add_theme_color_override("font_color", UITheme.BAD)
 	cook_btn.disabled = n <= 0
 	max_btn.disabled = n <= 1
 	max_btn.text = "Cozinhar tudo (%d)" % n if n > 1 else "Cozinhar tudo"
