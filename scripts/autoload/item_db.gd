@@ -63,6 +63,9 @@ const ABILITIES := {
 	# espada sem escudo não tem habilidade na tecla 5, e o kit() a acrescenta em vez de trocar alguma)
 	"sword_rally": {"name": "Grito do Bastião", "class": "sword", "offhand": "shield", "slot": 5, "level": 6, "cooldown": 30.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "ward", "desc": "Com escudo: o herói reúne a energia numa aura azul e solta um grito de guerra. Ao terminar, todos do seu grupo por perto (até 30 m, você incluído) ganham o Bastião de Escudos por 15 s: pequenos escudos azuis giram em volta de cada um, dando +6 de defesa e +25% de defesa. Parado enquanto grita; a esquiva antes do grito terminar cancela."},
+	# "offhand": "two_handed" = com a montante nas mãos (Game.offhand_kind): troca o Golpe Sísmico na tecla 2
+	"sword_drag": {"name": "Corte do Abismo", "class": "sword", "offhand": "two_handed", "slot": 2, "level": 3, "cooldown": 9.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "greatsword", "desc": "Com a montante: solta a mão esquerda, desce a ponta da espada até o chão e dispara correndo, arrastando a lâmina atrás numa chuva de fagulhas, brasas e pedrinhas (até 7,5 m; para antes se chegar num inimigo ou numa parede). Então finca o pé e solta um corte violento de baixo para cima (1,6x o dano corpo a corpo no arco à frente, com empurrão), e três garras espectrais irrompem do chão em fila à frente (1,3x o dano corpo a corpo cada, atordoam). A esquiva durante a corrida cancela."},
 	"sword_fury": {"name": "Fúria Picante", "class": "sword", "slot": 3, "level": 5, "cooldown": 28.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "fury", "desc": "Por 10 s: +30% de dano e cada abate cura 2."},
 	"sword_whirl": {"name": "Turbilhão", "class": "sword", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,

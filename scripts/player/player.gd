@@ -261,6 +261,7 @@ func _ready() -> void:
 	StaffAbilities.prewarm()   # rocha, halo e céu da Chuva de Meteoros (malhas e materiais compartilhados)
 	StaffAbilities.prewarm_instances.call_deferred(self)
 	GreatswordSupremeAbilities.prewarm_instances.call_deferred(self)   # espada de energia, rachadura e partículas da Lâmina Suprema
+	DragSlashAbilities.prewarm_instances.call_deferred(self)   # fagulhas, rastro e garras do Corte do Abismo
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -1548,6 +1549,8 @@ func _ab_module(id: String) -> Object:
 		return EarthquakeAbilities
 	if id.begins_with(PartyShieldAbilities.ID):  # o Grito do Bastião (e o cancelamento) também
 		return PartyShieldAbilities
+	if id.begins_with(DragSlashAbilities.ID):   # o Corte do Abismo da montante (e o corte e o cancelamento) também
+		return DragSlashAbilities
 	if id.begins_with(GreatswordSupremeAbilities.ID):   # a Lâmina Suprema da montante (e o cancelamento) também
 		return GreatswordSupremeAbilities
 	var cls := ""
