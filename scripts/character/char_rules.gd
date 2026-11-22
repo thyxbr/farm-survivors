@@ -313,6 +313,9 @@ static func _add_xp(s: CharState, bt: BalanceTables, amount: int, ev: Array) -> 
 		# com espada e escudo o kit troca habilidades (Égide, Martelo de Energia): só as que estão nas mãos agora
 		var off_id := str(s.equipment.get("offhand", ""))
 		var off_kind := "shield" if weapon_cls == "sword" and off_id != "" and str(_item(bt, off_id).get("needs", "")) == "sword" else ""
+		# a montante (duas mãos) também troca: a Lâmina Suprema no lugar do Turbilhão (Game.offhand_kind)
+		if weapon_cls == "sword" and bool(_item(bt, str(s.equipment.get("weapon", ""))).get("two_handed", false)):
+			off_kind = "two_handed"
 		# (mesma troca de ItemDB.kit, refeita aqui só com a constante: o kit é estático do autoload)
 		var alt_slots := {}
 		for id in ItemDB.ABILITIES:

@@ -1,0 +1,399 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/greatsword_supreme/greatsword_supreme_slash.gd" id="1"]
+[ext_resource type="Shader" path="res://shaders/greatsword_supreme/supreme_blade.gdshader" id="3"]
+[ext_resource type="Material" path="res://assets/vfx/hammer/hammer_stone_mat.tres" id="5"]
+[ext_resource type="Resource" path="res://assets/vfx/greatsword_supreme/greatsword_supreme_config.tres" id="6"]
+[ext_resource type="Shader" path="res://shaders/greatsword_supreme/supreme_flame_sheet.gdshader" id="7"]
+[ext_resource type="Texture2D" path="res://assets/vfx/greatsword_supreme/flame_sword_sheet.webp" id="8"]
+
+[sub_resource type="FastNoiseLite" id="fire_noise"]
+noise_type = 3
+frequency = 0.012
+fractal_octaves = 4
+
+[sub_resource type="NoiseTexture2D" id="fire_noise_tex"]
+width = 256
+height = 256
+seamless = true
+generate_mipmaps = true
+noise = SubResource("fire_noise")
+
+[sub_resource type="ShaderMaterial" id="blade_mat"]
+render_priority = 1
+shader = ExtResource("3")
+shader_parameter/noise_tex = SubResource("fire_noise_tex")
+
+[sub_resource type="ShaderMaterial" id="flame_mat"]
+render_priority = 2
+shader = ExtResource("7")
+shader_parameter/sheet = ExtResource("8")
+
+[sub_resource type="QuadMesh" id="flame_quad"]
+center_offset = Vector3(0, 0.5, 0)
+
+[sub_resource type="Gradient" id="ember_grad"]
+offsets = PackedFloat32Array(0, 0.15, 0.6, 1)
+colors = PackedColorArray(1, 0.85, 0.5, 0, 1, 0.6, 0.18, 1, 1, 0.32, 0.06, 0.9, 0.6, 0.06, 0.02, 0)
+
+[sub_resource type="GradientTexture1D" id="ember_ramp"]
+gradient = SubResource("ember_grad")
+
+[sub_resource type="ParticleProcessMaterial" id="ember_ppm"]
+emission_shape = 3
+emission_box_extents = Vector3(0.25, 2.5, 0.1)
+direction = Vector3(0, 1, 0)
+spread = 40.0
+initial_velocity_min = 0.8
+initial_velocity_max = 2.6
+gravity = Vector3(0, 2.2, 0)
+scale_min = 0.5
+scale_max = 1.4
+color_ramp = SubResource("ember_ramp")
+turbulence_enabled = true
+turbulence_noise_strength = 2.0
+turbulence_noise_scale = 3.0
+
+[sub_resource type="QuadMesh" id="ember_quad"]
+size = Vector2(0.11, 0.11)
+
+[sub_resource type="ParticleProcessMaterial" id="blade_spark_ppm"]
+particle_flag_align_y = true
+emission_shape = 3
+emission_box_extents = Vector3(0.2, 2.5, 0.08)
+direction = Vector3(0, 1, 0)
+spread = 70.0
+initial_velocity_min = 2.5
+initial_velocity_max = 6.0
+gravity = Vector3(0, -3, 0)
+damping_min = 1.5
+damping_max = 3.0
+scale_min = 0.5
+scale_max = 1.2
+color_ramp = SubResource("ember_ramp")
+
+[sub_resource type="QuadMesh" id="blade_spark_quad"]
+size = Vector2(0.035, 0.26)
+
+[sub_resource type="Gradient" id="blade_smoke_grad"]
+offsets = PackedFloat32Array(0, 0.2, 1)
+colors = PackedColorArray(0.16, 0.13, 0.12, 0, 0.17, 0.15, 0.14, 0.5, 0.25, 0.24, 0.24, 0)
+
+[sub_resource type="GradientTexture1D" id="blade_smoke_ramp"]
+gradient = SubResource("blade_smoke_grad")
+
+[sub_resource type="Curve" id="blade_smoke_curve"]
+_data = [Vector2(0, 0.4), 0.0, 1.2, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="blade_smoke_scale"]
+curve = SubResource("blade_smoke_curve")
+
+[sub_resource type="ParticleProcessMaterial" id="blade_smoke_ppm"]
+emission_shape = 3
+emission_box_extents = Vector3(0.2, 2.5, 0.1)
+direction = Vector3(0, 1, 0)
+spread = 25.0
+initial_velocity_min = 0.6
+initial_velocity_max = 1.6
+gravity = Vector3(0, 1.0, 0)
+damping_min = 0.3
+damping_max = 0.8
+angle_min = -180.0
+angle_max = 180.0
+scale_min = 0.7
+scale_max = 1.3
+scale_curve = SubResource("blade_smoke_scale")
+color_ramp = SubResource("blade_smoke_ramp")
+
+[sub_resource type="QuadMesh" id="blade_smoke_quad"]
+size = Vector2(1.3, 1.3)
+
+[sub_resource type="Curve" id="rock_scale_curve"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.75, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="rock_scale"]
+curve = SubResource("rock_scale_curve")
+
+[sub_resource type="ParticleProcessMaterial" id="rock_ppm"]
+emission_shape = 3
+emission_box_extents = Vector3(0.5, 0.1, 4.0)
+direction = Vector3(0, 1, 0)
+spread = 70.0
+initial_velocity_min = 4.0
+initial_velocity_max = 10.0
+angular_velocity_min = -540.0
+angular_velocity_max = 540.0
+gravity = Vector3(0, -22, 0)
+scale_min = 0.45
+scale_max = 1.5
+scale_curve = SubResource("rock_scale")
+collision_mode = 1
+collision_friction = 0.7
+collision_bounce = 0.25
+collision_use_scale = true
+
+[sub_resource type="SphereMesh" id="rock_mesh"]
+material = ExtResource("5")
+radius = 0.16
+height = 0.24
+radial_segments = 6
+rings = 3
+
+[sub_resource type="StandardMaterial3D" id="dirt_mat"]
+albedo_color = Color(0.24, 0.18, 0.13, 1)
+roughness = 1.0
+
+[sub_resource type="BoxMesh" id="dirt_mesh"]
+material = SubResource("dirt_mat")
+size = Vector3(0.09, 0.07, 0.08)
+
+[sub_resource type="ParticleProcessMaterial" id="dirt_ppm"]
+emission_shape = 3
+emission_box_extents = Vector3(0.6, 0.1, 4.0)
+direction = Vector3(0, 1, 0)
+spread = 80.0
+initial_velocity_min = 3.0
+initial_velocity_max = 12.0
+angular_velocity_min = -720.0
+angular_velocity_max = 720.0
+gravity = Vector3(0, -24, 0)
+scale_min = 0.6
+scale_max = 1.6
+scale_curve = SubResource("rock_scale")
+collision_mode = 1
+collision_friction = 0.9
+collision_bounce = 0.1
+collision_use_scale = true
+
+[sub_resource type="Gradient" id="smoke_grad"]
+offsets = PackedFloat32Array(0, 0.12, 1)
+colors = PackedColorArray(0.4, 0.32, 0.26, 0, 0.36, 0.3, 0.26, 0.75, 0.3, 0.27, 0.25, 0)
+
+[sub_resource type="GradientTexture1D" id="smoke_ramp"]
+gradient = SubResource("smoke_grad")
+
+[sub_resource type="Curve" id="smoke_scale_curve"]
+_data = [Vector2(0, 0.35), 0.0, 1.4, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="smoke_scale"]
+curve = SubResource("smoke_scale_curve")
+
+[sub_resource type="ParticleProcessMaterial" id="smoke_ppm"]
+emission_shape = 3
+emission_box_extents = Vector3(0.5, 0.2, 4.0)
+direction = Vector3(1, 0.35, 0)
+spread = 180.0
+flatness = 0.8
+initial_velocity_min = 2.0
+initial_velocity_max = 5.5
+gravity = Vector3(0, 0.6, 0)
+damping_min = 2.5
+damping_max = 3.5
+angle_min = -180.0
+angle_max = 180.0
+scale_min = 0.8
+scale_max = 1.6
+scale_curve = SubResource("smoke_scale")
+color_ramp = SubResource("smoke_ramp")
+
+[sub_resource type="QuadMesh" id="smoke_quad"]
+size = Vector2(2.6, 2.6)
+
+[sub_resource type="Gradient" id="spark_grad"]
+offsets = PackedFloat32Array(0, 0.5, 1)
+colors = PackedColorArray(1, 0.9, 0.6, 1, 1, 0.5, 0.12, 1, 0.8, 0.12, 0.03, 0)
+
+[sub_resource type="GradientTexture1D" id="spark_ramp"]
+gradient = SubResource("spark_grad")
+
+[sub_resource type="ParticleProcessMaterial" id="spark_ppm"]
+particle_flag_align_y = true
+emission_shape = 3
+emission_box_extents = Vector3(0.3, 0.1, 4.0)
+direction = Vector3(0, 1, 0)
+spread = 85.0
+initial_velocity_min = 6.0
+initial_velocity_max = 17.0
+gravity = Vector3(0, -14, 0)
+damping_min = 1.0
+damping_max = 2.0
+scale_min = 0.6
+scale_max = 1.4
+color_ramp = SubResource("spark_ramp")
+
+[sub_resource type="QuadMesh" id="spark_quad"]
+size = Vector2(0.06, 0.4)
+
+[sub_resource type="Gradient" id="crack_fire_grad"]
+offsets = PackedFloat32Array(0, 0.12, 0.45, 0.8, 1)
+colors = PackedColorArray(1, 0.9, 0.6, 0, 1, 0.78, 0.4, 1, 1, 0.45, 0.1, 0.9, 0.75, 0.12, 0.03, 0.5, 0.3, 0.05, 0.02, 0)
+
+[sub_resource type="GradientTexture1D" id="crack_fire_ramp"]
+gradient = SubResource("crack_fire_grad")
+
+[sub_resource type="Curve" id="crack_fire_curve"]
+_data = [Vector2(0, 0.5), 0.0, 2.0, 0, 0, Vector2(0.35, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.2), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="crack_fire_scale"]
+curve = SubResource("crack_fire_curve")
+
+[sub_resource type="ParticleProcessMaterial" id="crack_fire_ppm"]
+emission_shape = 3
+emission_box_extents = Vector3(0.18, 0.02, 4.0)
+direction = Vector3(0, 1, 0)
+spread = 10.0
+initial_velocity_min = 0.8
+initial_velocity_max = 2.2
+gravity = Vector3(0, 1.5, 0)
+damping_min = 0.5
+damping_max = 1.0
+angle_min = -12.0
+angle_max = 12.0
+scale_min = 0.6
+scale_max = 1.5
+scale_curve = SubResource("crack_fire_scale")
+color_ramp = SubResource("crack_fire_ramp")
+turbulence_enabled = true
+turbulence_noise_strength = 0.6
+turbulence_noise_scale = 2.5
+
+[sub_resource type="QuadMesh" id="crack_fire_quad"]
+size = Vector2(0.55, 0.9)
+center_offset = Vector3(0, 0.35, 0)
+
+[node name="GreatswordSupremeSlash" type="Node3D"]
+script = ExtResource("1")
+config = ExtResource("6")
+
+[node name="SwordPivot" type="Node3D" parent="."]
+top_level = true
+
+[node name="EnergySword" type="MeshInstance3D" parent="SwordPivot"]
+cast_shadow = 0
+extra_cull_margin = 2.0
+material_override = SubResource("blade_mat")
+instance_shader_parameters/grow = 0.0
+instance_shader_parameters/intensity = 0.0
+instance_shader_parameters/dissolve = 0.0
+instance_shader_parameters/heat = 0.0
+
+[node name="FlameSheet" type="MeshInstance3D" parent="SwordPivot"]
+transform = Transform3D(0.72, 0, 0, 0, 1.335, 0, 0, 0, 1, 0, -0.22, 0)
+cast_shadow = 0
+extra_cull_margin = 3.0
+mesh = SubResource("flame_quad")
+material_override = SubResource("flame_mat")
+instance_shader_parameters/frame = 1.0
+instance_shader_parameters/intensity = 0.0
+
+[node name="Embers" type="GPUParticles3D" parent="SwordPivot"]
+top_level = true
+cast_shadow = 0
+emitting = false
+amount = 90
+lifetime = 1.1
+local_coords = false
+visibility_aabb = AABB(-5, -5, -5, 10, 12, 10)
+process_material = SubResource("ember_ppm")
+draw_pass_1 = SubResource("ember_quad")
+
+[node name="BladeSparks" type="GPUParticles3D" parent="SwordPivot"]
+top_level = true
+cast_shadow = 0
+emitting = false
+amount = 40
+lifetime = 0.6
+local_coords = false
+visibility_aabb = AABB(-5, -5, -5, 10, 12, 10)
+process_material = SubResource("blade_spark_ppm")
+draw_pass_1 = SubResource("blade_spark_quad")
+
+[node name="BladeSmoke" type="GPUParticles3D" parent="SwordPivot"]
+top_level = true
+cast_shadow = 0
+emitting = false
+amount = 28
+lifetime = 1.6
+local_coords = false
+visibility_aabb = AABB(-5, -5, -5, 10, 14, 10)
+process_material = SubResource("blade_smoke_ppm")
+draw_pass_1 = SubResource("blade_smoke_quad")
+
+[node name="Impact" type="Node3D" parent="."]
+top_level = true
+visible = false
+
+[node name="Rocks" type="GPUParticles3D" parent="Impact"]
+emitting = false
+amount = 44
+lifetime = 2.2
+one_shot = true
+explosiveness = 0.95
+collision_base_size = 0.25
+visibility_aabb = AABB(-12, -2, -12, 24, 10, 24)
+process_material = SubResource("rock_ppm")
+draw_pass_1 = SubResource("rock_mesh")
+
+[node name="Dirt" type="GPUParticles3D" parent="Impact"]
+emitting = false
+amount = 110
+lifetime = 1.8
+one_shot = true
+explosiveness = 0.9
+collision_base_size = 0.1
+visibility_aabb = AABB(-12, -2, -12, 24, 10, 24)
+process_material = SubResource("dirt_ppm")
+draw_pass_1 = SubResource("dirt_mesh")
+
+[node name="Smoke" type="GPUParticles3D" parent="Impact"]
+cast_shadow = 0
+emitting = false
+amount = 30
+lifetime = 2.8
+one_shot = true
+explosiveness = 0.85
+visibility_aabb = AABB(-12, -2, -12, 24, 10, 24)
+process_material = SubResource("smoke_ppm")
+draw_pass_1 = SubResource("smoke_quad")
+
+[node name="Sparks" type="GPUParticles3D" parent="Impact"]
+cast_shadow = 0
+emitting = false
+amount = 120
+lifetime = 1.0
+one_shot = true
+explosiveness = 1.0
+visibility_aabb = AABB(-12, -2, -12, 24, 10, 24)
+process_material = SubResource("spark_ppm")
+draw_pass_1 = SubResource("spark_quad")
+
+[node name="CrackFire" type="GPUParticles3D" parent="Impact"]
+cast_shadow = 0
+emitting = false
+amount = 220
+lifetime = 0.8
+visibility_aabb = AABB(-4, -1, -10, 8, 6, 20)
+process_material = SubResource("crack_fire_ppm")
+draw_pass_1 = SubResource("crack_fire_quad")
+
+[node name="Ground" type="GPUParticlesCollisionBox3D" parent="Impact"]
+size = Vector3(30, 1, 30)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="CrackDecal" type="Decal" parent="Impact"]
+size = Vector3(2.6, 4, 11)
+albedo_mix = 1.0
+emission_energy = 0.0
+upper_fade = 0.3
+lower_fade = 0.3
+
+[node name="ImpactLight" type="OmniLight3D" parent="Impact"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+light_color = Color(1, 0.55, 0.2, 1)
+light_energy = 0.0
+omni_range = 6.0
+shadow_enabled = false

@@ -991,14 +991,15 @@ static func shield_combo_pose(p: Dictionary, combo: int, t: float, move: float, 
 ## `from` nos primeiros SHIELD_BLEND do golpe (ver shield_combo_pose). As chaves da arma da montante (GREAT_TOOL_KEYS)
 ## ficam de fora: great_pose cuida delas.
 const GREAT_TOOL_KEYS := ["end", "dir", "edge"]
-static func _dense_track(p: Dictionary, tr: Dictionary, n: int, t: float, move: float, from: Dictionary) -> void:
+## `blend` >= 0 troca a mistura a partir de `from` por esse peso (0 = toda em `from`, 1 = toda na trilha).
+static func _dense_track(p: Dictionary, tr: Dictionary, n: int, t: float, move: float, from: Dictionary, blend := -1.0) -> void:
 	drop_gait_comp(p)
 	t = clampf(t, 0.0, 1.0)
 	var x := t * float(n - 1)
 	var i := mini(int(x), n - 2)
 	var u := x - float(i)
 	var legs_w := lerpf(1.0, ATK_LEGS_WHILE_MOVING, move)
-	var w := smoothstep(0.0, SHIELD_BLEND, t)
+	var w := smoothstep(0.0, SHIELD_BLEND, t) if blend < 0.0 else clampf(blend, 0.0, 1.0)
 	var snap: Array = p.snap
 	for j in tr:
 		if j in GREAT_TOOL_KEYS:
@@ -1257,15 +1258,53 @@ static func carry(look: Dictionary, p: Dictionary, move := 0.0, run := 0.0, weig
 ## preparo do golpe, girando pelo caminho de cima, blade_turn), senão ela cortaria caminho pela frente e por baixo.
 static func great_pose(p: Dictionary, combo: int, t: float, move: float, from: Dictionary = {}) -> void:
 	var tr: Dictionary = KnightMovesGreat.TRACKS[clampi(combo, 1, KnightMovesGreat.TRACKS.size()) - 1]
+	_great_track_pose(p, tr, KnightMovesGreat.N, t, move, from, smoothstep(0.0, SHIELD_BLEND, clampf(t, 0.0, 1.0)))
+
+
+## Lâmina Suprema (ultimate da montante): a fase `phase` (KnightMovesGreatCast.RAISE..RISE, gerada por
+## tools/retarget_great_casting.gd) no instante `t` (0..1 da fase), como great_pose. A primeira fase sai de `from` (a
+## pose quando a habilidade começou, capture_pose); as outras emendam na anterior. `back` 0..1 = quanto a pose já voltou
+## para a guarda de carregar (o fim da RISE), com a lâmina pelo caminho de cima como em great_recover_pose.
+static func great_cast_pose(p: Dictionary, phase: int, t: float, from: Dictionary = {}, back := 0.0) -> void:
+	var tracks: Array = KnightMovesGreatCast.TRACKS
+	var tr: Dictionary = tracks[clampi(phase, 0, tracks.size() - 1)]
+	var w := smoothstep(0.0, SHIELD_BLEND, clampf(t, 0.0, 1.0)) if phase == KnightMovesGreatCast.RAISE else 1.0
+	var base := p.duplicate(true) if back > 0.0 else {}
+	_great_track_pose(p, tr, KnightMovesGreatCast.N, t, 0.0, from, w)
+	if back <= 0.0:
+		return
+	var k := smoothstep(0.0, 1.0, clampf(back, 0.0, 1.0))
+	for j in tr:
+		if j in GREAT_TOOL_KEYS or not base.has(j if j != "spin" else "hip_twist"):
+			continue
+		var key: String = "hip_twist" if j == "spin" else j
+		p[key] = _mix_joint(j, p.get(key, 0.0), base[key], k, base[key])
+	var g: Dictionary = KnightMoves.GREAT_GUARD
+	var a: Dictionary = p.tool
+	var q := blade_turn(a.dir, g.dir, k)
+	var roll := _edge_roll(blade_turn(a.dir, g.dir, 1.0) * (a.edge as Vector3), g.edge as Vector3, (g.dir as Vector3).normalized())
+	var dir: Vector3 = q * (a.dir as Vector3).normalized()
+	var tl := great_mix(a, g, k)
+	tl.dir = dir
+	tl.edge = Quaternion(dir, roll * k) * (q * (a.edge as Vector3))
+	tl.end = (tl.end as Vector3) + Vector3(0.0, float(p.get("body_y", 0.0)) * k, 0.0)
+	tl["w"] = 1.0
+	tl["grip"] = KnightMoves.GREAT_GRIP
+	p["tool"] = tl
+
+
+## Pose da trilha densa da montante `tr` (`n` quadros) no instante `t`: o corpo por _dense_track e a arma pela
+## trajetória (great_pose). `w` = quanto já saiu de `from` (0 = toda em `from`, 1 = toda na trilha).
+static func _great_track_pose(p: Dictionary, tr: Dictionary, n: int, t: float, move: float, from: Dictionary, w: float) -> void:
 	var ready: Dictionary = from.get("tool", p.get("tool", KnightMoves.GREAT_GUARD))
-	_dense_track(p, tr, KnightMovesGreat.N, t, move, from)
+	_dense_track(p, tr, n, t, move, from, w)
 	t = clampf(t, 0.0, 1.0)
-	var x := t * float(KnightMovesGreat.N - 1)
-	var i := mini(int(x), KnightMovesGreat.N - 2)
+	var x := t * float(n - 1)
+	var i := mini(int(x), n - 2)
 	var u := x - float(i)
 	var tl := {"end": _catmull(tr.end, i, u), "dir": (_catmull(tr.dir, i, u) as Vector3).normalized(),
 		"edge": (_catmull(tr.edge, i, u) as Vector3).normalized(), "slide": 0.0, "left": 1.0}
-	var s := 1.0 - smoothstep(0.0, SHIELD_BLEND, t)
+	var s := 1.0 - w
 	if s > 0.0:
 		# no referencial do tronco: a diferença é medida com o giro de cada um (`from` e o primeiro quadro) e somada no
 		# giro que o tronco tem agora (o corpo também está saindo de `from`); em linha reta no espaço do modelo as mãos
