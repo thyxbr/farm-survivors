@@ -109,7 +109,11 @@ func _ready() -> void:
 	if "--dbg" in OS.get_cmdline_user_args():
 		get_tree().root.add_child.call_deferred(load("res://tests/debug_dialogue.gd").new())
 	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--nettest="):
+		if a.begins_with("--monster-glb="):
+			# `--monster-glb=wolf:wolf_ia`: troca o GLB de um modelo de monstro (ex.: o lobo gerado por IA, mesmos pivôs)
+			var mg := a.substr(14).split(":")
+			EnemyModel.swap[mg[0]] = "res://assets/models/%s.glb" % mg[1]
+		elif a.begins_with("--nettest="):
 			get_tree().root.add_child.call_deferred(load("res://tests/net_test.gd").new())
 		elif a.begins_with("--groupdemo="):
 			# demonstração do Grito do Bastião em grupo, com servidor local (tools/party_group_demo.gd)
@@ -139,9 +143,9 @@ func _ready() -> void:
 	if "--spindemo" in OS.get_cmdline_user_args():
 		# demonstração do Ciclone de Aço (use com --weapon=iron_zweihander: personagem descartável)
 		get_tree().root.add_child.call_deferred(load("res://tools/spin_demo.gd").new())
-	if "--spikesdemo" in OS.get_cmdline_user_args():
-		# demonstração das Estacas Sísmicas (use com --weapon=iron_zweihander: personagem descartável)
-		get_tree().root.add_child.call_deferred(load("res://tools/seismic_spikes_demo.gd").new())
+	if "--darkcombodemo" in OS.get_cmdline_user_args():
+		# demonstração da Dança do Abismo (use com --weapon=iron_zweihander: personagem descartável)
+		get_tree().root.add_child.call_deferred(load("res://tools/dark_combo_demo.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
 		# o Econ usa user://smoketest_solo.json, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())
@@ -203,6 +207,12 @@ func _debug_screenshot() -> void:
 						if cur.el == want[0] and cur.lv >= int(want[1]):
 							break
 						Econ.request("enchant", [want[0]])
+	# `--levelupfx`: toca a subida de nível um pouco antes da captura (conferir o efeito)
+	if "--levelupfx" in args:
+		get_tree().create_timer(maxf(delay - 0.05, 0.1)).timeout.connect(func() -> void:
+			for p in get_tree().get_nodes_in_group("player"):
+				if p.has_method("_on_level_up") and not p.get("remote"):
+					p._on_level_up(level))
 	if "--enchantstrike" in args:
 		get_tree().create_timer(maxf(delay - 0.15, 0.1)).timeout.connect(func() -> void:
 			for n in get_tree().get_nodes_in_group("interactable"):

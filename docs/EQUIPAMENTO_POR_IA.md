@@ -77,6 +77,48 @@ A malha da IA é rígida. Cada peça escolhe um de dois caminhos:
       usuário decidir (o build não gera `_d`).
 - [ ] No jogo de verdade: `godot --path . res://scenes/world.tscn -- --level=60 --weapon=<arma> --equip=<ids>`.
 
+## Monstros (piloto: Lobo da Geada, novembro de 2026)
+
+![Conceito x jogo](renders/lobo_ia/conceito_x_jogo.png) — andando: `renders/lobo_ia/lobo_ia_walk.gif`, bote:
+`renders/lobo_ia/lobo_ia_attack.gif`. **Caminho aprovado pelo usuário (2026-11-22)**: pele com os pivôs do monstro
+de código vale para os próximos monstros.
+
+O mesmo processo da armadura serve para monstros: folha com três vistas → `recortar_folha.py` → `lote.sh` (malha
+e pintura da IA em ~3 min) → um builder no Blender (`tools/blender/wolf_ia_build.py`) → `assets/models/wolf_ia.glb`.
+A diferença é a animação: o monstro dobra em várias juntas, então a malha vai **com pele**, não em peças rígidas.
+
+- **Vistas.** Pose neutra pedida no prompt: patas retas e afastadas do corpo e entre si, boca fechada, cauda erguida
+  e longe das patas. Saiu uma malha de uma peça só, sem lascas. No lado, a cabeça para a esquerda da imagem.
+  Três imagens soltas viram uma folha de uma linha colando lado a lado (fundo igual).
+- **Pele, não peças.** O pelo do ombro e da coxa nasce de dentro do tronco: cortado em partes rígidas, a emenda
+  apareceria em toda dobra. O GLB traz os **mesmos pivôs** do monstro feito por código (nomes e hierarquia), mais
+  um esqueleto com um osso por pivô (a cabeça do osso no pivô). No jogo o `PivotSkin` faz cada osso seguir o seu
+  pivô, então o código de animação (`enemy.gd`) não muda.
+- **Ossos `<pivô>_skin`.** Com pivôs e ossos de mesmo nome no mesmo GLB, o importador do Godot renomeia os ossos
+  para `Body_2`, `Head_2`... e o `PivotSkin` não acha os pivôs (o modelo fica parado). O sufixo `_skin` é tirado
+  pelo `PivotSkin`.
+- **Pivôs medidos na malha.** Fatias horizontais de cada pata (centro em y e z a cada 5 cm) dão ombro/quadril,
+  cotovelo/joelho, punho/jarrete e apoio. A malha da IA não é simétrica (patas ~2 cm diferentes em x): cada pata
+  tem o seu x. O IK do jogo (`_wolf_setup`) lê os comprimentos dos pivôs, então as proporções novas valem sozinhas.
+- **Pesos por regra, não automáticos.** Região do corpo (pata abaixo da barriga, cabeça na frente do pescoço,
+  cauda atrás da garupa) e, dentro da pata, o segmento mais perto com mistura de 5 cm na junta; da barriga até o
+  topo do pivô a pata passa para o `Body`. Os cristais das costas ficam 100% no `Body` (não entortam).
+- **Boca.** A IA entrega a boca fechada numa casca só. O builder corta na linha da boca pintada (plano pelo canto
+  e pela frente do lábio), separa os lábios, põe a parte de baixo 100% na mandíbula (`Jaw`, dobradiça atrás do
+  canto) e um saco escuro por dentro, metade na cabeça e metade na mandíbula, que tapa o vão quando abre. A mandíbula
+  da IA é fina (1,5 cm na frente): o saco sobe para dentro do focinho e acaba antes da frente, senão fura o queixo.
+- **Ver no jogo.** `godot --path . res://tools/monster_lab.tscn -- --kind=lobo_geada --mode=walk|attack --glb=wolf_ia`
+  troca só o GLB (`EnemyModel.swap`); `Enemy` liga o `PivotSkin` sozinho quando o modelo tem esqueleto.
+
+No jogo (`--monster-glb=wolf:wolf_ia`, na Mina perto de x 785, z 34) o usuário achou "bem melhor que o atual", mas o
+movimento das **patas de trás** ficou estranho. Causa: só a parte de baixo da coxa ia na perna (`LegB*`), o resto
+ficava no `Body`; a coxa ficava parada e a canela girava embaixo dela. Correção (aprovada,
+`renders/lobo_ia/patas_tras_r2.gif`): a coxa inteira segue a perna, pela distância ao eixo quadril-joelho no perfil,
+até perto do pivô do quadril; só a face de dentro, junto da barriga, fica no `Body`. Para conferir pesos, pinte cada
+vértice com a cor do osso dominante e marque os pivôs numa vista de lado.
+Em aberto: olhos e cristais sem brilho (a pintura da IA é fosca; o conceito tem olhos e
+cristais acesos), trocar o `wolf.glb` de vez, custo de 14 mil faces com pele numa horda cheia (`/perf-profile`).
+
 ## Armas
 
 Primeiro uso: as seis montantes de nível 50 (novembro de 2026, `build_gsia` em `tools/blender/armory.py`).

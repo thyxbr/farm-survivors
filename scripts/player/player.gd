@@ -267,8 +267,8 @@ func _ready() -> void:
 	FireballProjectile.prewarm_instances.call_deferred(self)   # Bola de Fogo do ataque básico do cajado
 	GreatswordSupremeAbilities.prewarm_instances.call_deferred(self)   # espada de energia, rachadura e partículas da Lâmina Suprema
 	DragSlashAbilities.prewarm_instances.call_deferred(self)   # fagulhas, rastro e garras do Corte do Abismo
-	GreatswordSpinAbilities.prewarm_instances.call_deferred(self)   # anel, cortes e fagulhas do Ciclone de Aço
-	SeismicSpikesAbilities.prewarm_instances.call_deferred(self)    # sheets de rachaduras e estacas das Estacas Sísmicas
+	GreatswordSpinAbilities.prewarm_instances.call_deferred(self)   # rastro sombrio e partículas do Ciclone de Aço
+	GreatswordDarkComboAbilities.prewarm_instances.call_deferred(self)   # rastro sombrio, explosões e garras da Dança do Abismo
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -1559,8 +1559,8 @@ func _ab_module(id: String) -> Object:
 		return GreatswordSupremeAbilities
 	if id.begins_with(GreatswordSpinAbilities.ID):   # o Ciclone de Aço da montante (e o cancelamento) também
 		return GreatswordSpinAbilities
-	if id.begins_with(SeismicSpikesAbilities.ID):   # as Estacas Sísmicas da montante (e o cancelamento) também
-		return SeismicSpikesAbilities
+	if id.begins_with(GreatswordDarkComboAbilities.ID):   # a Dança do Abismo da montante (e o cancelamento) também
+		return GreatswordDarkComboAbilities
 	var cls := ""
 	if ItemDB.ABILITIES.has(id):
 		cls = ItemDB.ABILITIES[id]["class"]
@@ -1956,10 +1956,9 @@ func apply_look(l: Dictionary) -> void:
 		KnightAnim.reset_twist(parts)
 
 
-func _on_level_up(_lvl: int) -> void:
-	Sfx.play("levelup", 0.0)
-	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 0.2), Color(1, 0.85, 0.3), 60, 6.0, 0.12, 1.2, 3.0)
-	FX.ring(global_position, Color(1, 0.85, 0.3, 0.9), 3.0, 0.8)
+func _on_level_up(lvl: int) -> void:
+	Sfx.play("level_up_fanfare", 0.0)
+	LevelUpFX.play(self, lvl)
 
 
 func add_shake(amount: float) -> void:

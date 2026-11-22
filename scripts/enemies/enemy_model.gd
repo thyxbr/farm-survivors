@@ -35,6 +35,9 @@ const MODELS := {
 const MERGED := "Merged"
 
 static var _scenes := {}        # tipo + estilo -> PackedScene do modelo pronto
+## Troca o GLB de um modelo (ferramentas de teste: o lobo gerado por IA no monster_lab, --glb=wolf_ia). Os pivôs têm
+## os mesmos nomes, então a animação não muda; o modelo com esqueleto segue os pivôs pelo PivotSkin.
+static var swap := {}
 
 
 ## Uma cópia do modelo de `kind` (chave de Enemy.TYPES, com os dados dele), já com tintura, toon e contorno.
@@ -43,11 +46,14 @@ static var _scenes := {}        # tipo + estilo -> PackedScene do modelo pronto
 static func instance(kind: String, data: Dictionary, shade := Color.WHITE) -> Node3D:
 	var toon := ToonLook.enabled()
 	var key := "%s|%d|%d" % [kind, int(toon), int(toon and ToonLook.outline_enabled())]
+	if swap.has(data.model):
+		key += "|" + str(swap[data.model])
 	if shade != Color.WHITE:
 		key += "|" + shade.to_html()
 	var ps: PackedScene = _scenes.get(key)
 	if ps == null:
-		var src: Node3D = MODELS[data.model].instantiate()
+		var glb: PackedScene = load(swap[data.model]) if swap.has(data.model) else MODELS[data.model]
+		var src: Node3D = glb.instantiate()
 		# só o equipamento da variante (Opt_<Nome>) entra no modelo pronto; o resto sai antes de juntar
 		var no_gear := EnemyGear.apply(src, data.get("gear", []))
 		if not no_gear.is_empty():

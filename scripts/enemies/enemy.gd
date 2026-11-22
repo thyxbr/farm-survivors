@@ -300,6 +300,8 @@ func _ready() -> void:
 	model = EnemyModel.instance(kind, data, shade)  # tintura, toon e peças juntadas: montado uma vez por tipo
 	model.scale = Vector3.ONE * data.scale * size_mult
 	add_child(model)
+	if not model.find_children("*", "Skeleton3D", true, false).is_empty():
+		PivotSkin.ensure(model)    # malha com pele (monstro gerado por IA): os ossos seguem os pivôs animados
 	if elite:
 		_make_elite_glow()
 	for n in ["LegL", "LegR", "ArmL", "ArmR", "Body", "Head", "Tail", "Jaw", "Drill"]:   # Tail e Jaw: raptor e lobo; Drill: toupeira

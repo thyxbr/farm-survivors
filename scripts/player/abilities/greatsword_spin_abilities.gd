@@ -4,15 +4,16 @@ extends RefCounted
 ## "two_handed": com a montante nas mãos ela troca a Investida (Game.offhand_kind / ItemDB.kit).
 ##   1. Assim que aciona: o herói ergue a montante com as duas mãos, os braços esticados para a frente, junta os pés e
 ##      já começa a girar (sem postura parada antes do giro).
-##   2. Giro: gira no próprio eixo (Y), ganhando velocidade, e inclina o corpo para trás (contrapeso da lâmina); cortes
-##      de lâmina da sprite sheet 8x8 (aditiva) varrem em volta dele em vários ângulos e cada inimigo no alcance leva
-##      um corte a cada `hit_interval`.
-##   3. Desaceleração: o giro perde velocidade aos poucos, os cortes param de surgir e se dissipam (Tween) e o herói
+##   2. Giro: gira no próprio eixo (Y), ganhando velocidade, e inclina o corpo para trás (contrapeso da lâmina); uma
+##      energia sombria (violeta e carmesim, a das garras do Corte do Abismo) segue o corte da espada enquanto o giro
+##      durar, e cada inimigo no alcance leva um corte a cada `hit_interval`.
+##   3. Desaceleração: o giro perde velocidade aos poucos, a energia encolhe e se dissipa (Tween) e o herói
 ##      para virado para onde começou, com o corpo voltando ao normal, e volta à guarda.
 ## Ritmo, dano e visual em GreatswordSpinConfig (assets/vfx/greatsword_spin/greatsword_spin_config.tres, no Inspector);
 ## as contas (fase, velocidade, ângulo, quem leva corte) em GreatswordSpinRules; o visual e a detecção em
 ## GreatswordSpinSlash (cena própria na cena do mundo, se libera sozinha).
-## Movimento: preso do começo ao fim (tick zera a velocidade e gira o modelo); a esquiva não cancela (o giro
+## Movimento: dá para andar para qualquer lado enquanto gira (tick segue a direção pedida, a `move_speed` da
+## configuração; o modelo continua girando no próprio eixo); a esquiva não cancela (o giro
 ## começa na hora; só com `stance_time` > 0 na configuração a esquiva cancela nessa postura parada).
 ## Rede: o dono manda "sword_spin" (a = posição, b = (yaw, 0, 0)): as réplicas tocam a mesma pose e o mesmo visual, sem
 ## dano. Cancelado: "sword_spin_cancel".
@@ -59,6 +60,9 @@ static func _begin(player: Node, yaw: float) -> void:
 		skill.config = CONFIG
 		skill.follow = player
 		skill.model = player.model
+		var lk: Dictionary = player.look
+		skill.blade_base = lk.get("holder")
+		skill.blade_tip = lk.get("tip")
 		skill.deal_damage = not player.remote
 		root.add_child(skill)
 		if not player.remote:
@@ -82,7 +86,7 @@ static func cancel_window() -> float:
 	return durations()[GreatswordSpinRules.Phase.STANCE]
 
 
-static func tick(player: Node, delta: float, _move_dir := Vector3.ZERO, _move_speed := 0.0) -> void:
+static func tick(player: Node, delta: float, move_dir := Vector3.ZERO, move_speed := 0.0) -> void:
 	player.ability_t += delta
 	var d: Dictionary = player.ability_data
 	var t: float = player.ability_t
@@ -90,9 +94,12 @@ static func tick(player: Node, delta: float, _move_dir := Vector3.ZERO, _move_sp
 	# end_ability devolver o herói virado para onde começou, mesmo se ela acabar no meio do giro.
 	player.model.rotation.y = wrapf(float(d.get("yaw0", 0.0)) + GreatswordSpinRules.angle(t, durations(), CONFIG.turns), -PI, PI)
 	if not player.remote:
-		# preso do começo ao fim: a tecla de andar não move
-		player.velocity.x = move_toward(player.velocity.x, 0.0, 40.0 * delta)
-		player.velocity.z = move_toward(player.velocity.z, 0.0, 40.0 * delta)
+		# anda girando: para onde a tecla de andar mandar (relativo à câmera), mais devagar que andando normal
+		var cfg: GreatswordSpinConfig = CONFIG
+		var want := move_dir * move_speed * cfg.move_speed
+		var k := 1.0 - exp(-cfg.move_accel * delta)
+		player.velocity.x = lerpf(player.velocity.x, want.x, k)
+		player.velocity.z = lerpf(player.velocity.z, want.z, k)
 		# a câmera recua enquanto gira (o player suaviza a ida e a volta)
 		var ph := int(GreatswordSpinRules.phase_at(t, durations()).x)
 		var spinning := ph >= GreatswordSpinRules.Phase.ACCEL and ph <= GreatswordSpinRules.Phase.DECEL
@@ -206,7 +213,7 @@ static func _on_hit(targets: Array, player_ref: WeakRef) -> void:
 			var to: Vector3 = e.global_position - base
 			to.y = 0.0
 			var along := Vector3.UP.cross(to).normalized() if to.length() > 0.01 else Vector3.UP
-			FXEpic.sparks(e.global_position + Vector3.UP * 0.6, along + Vector3.UP * 0.3, Color(1.0, 0.7, 0.35), 8, 7.0, 0.25)
+			FXEpic.sparks(e.global_position + Vector3.UP * 0.6, along + Vector3.UP * 0.3, Color(0.5, 0.1, 0.9), 8, 7.0, 0.25)
 		n += 1
 	if n > 0:
 		Sfx.play_at("sword_hit_flesh", base, 0.1, -3.0)

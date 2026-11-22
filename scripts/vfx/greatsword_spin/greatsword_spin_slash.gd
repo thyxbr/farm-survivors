@@ -3,21 +3,18 @@ extends Node3D
 ## Ciclone de Aço (montante, tecla 1): o visual e a detecção do giro, em cena própria
 ## (scenes/vfx/greatsword_spin/greatsword_spin_slash.tscn). GreatswordSpinAbilities cria uma por ativação, na cena do
 ## mundo; ela segue o herói, vive um pouco mais que a habilidade (o apagar) e se libera sozinha (queue_free).
-##   (raiz)        na posição do herói a cada quadro
-##     Pivot       gira com o modelo do herói (a lâmina): o anel acompanha a espada
-##       Ring      o corte principal: PlaneMesh deitado na altura da lâmina, do tamanho do alcance, com a sprite sheet
-##                 8x8 em modo aditivo (spin_slash_flipbook.gdshader): o começo da sheet na aceleração, o laço dos
-##                 redemoinhos no giro (mais rápido quanto mais rápido gira) e o apagar na desaceleração
-##       RingTrail o mesmo corte um pouco atrás e mais fraco: o borrão do giro
-##     Slashes     GPUParticles3D (coordenadas locais) de cortes soltos da sheet em vários ângulos em volta do herói
-##                 (spin_slash_particles.gdshader); a emissão acompanha a velocidade do giro e cai com Tween ao desacelerar
-##     Sparks      fagulhas laranja lançadas da lâmina (no mundo: ficam para trás se o herói se mexer)
-##     Light       luz quente do giro
+## Visual de energia sombria (a paleta das garras do Corte do Abismo, DarkEnergy):
+##   Trail       DarkBladeTrail: a energia que segue o corte da espada, do cabo até além da ponta, montada das posições
+##               da lâmina de verdade (blade_base, blade_tip) nos últimos `trail_time` s. Acende com a velocidade do
+##               giro e fica enquanto ele durar; some aos poucos na desaceleração
+##   Wisps       fiapos de fumaça escura soltos ao longo da lâmina (ficam para trás no giro: o borrão escuro)
+##   Motes       faíscas violeta, Sparks lascas carmesim lançadas pela lâmina
+##   Light       luz violeta do giro
 ## Fases (GreatswordSpinRules, os tempos do GreatswordSpinConfig, os mesmos da pose do herói):
 ##   STANCE  postura parada (só com `stance_time` > 0; o padrão é girar na hora)
-##   ACCEL   o giro acelera: anel, cortes, fagulhas e luz crescem com a velocidade
+##   ACCEL   o giro acelera: rastro, fiapos e luz crescem com a velocidade
 ##   SPIN    velocidade máxima; dano (sinal `hit`) a cada `hit_interval` em cada inimigo no alcance
-##   DECEL   os cortes param de surgir e o anel se dissipa (Tween); o dano segue até a lâmina ficar lenta
+##   DECEL   o rastro encolhe com a velocidade e as partículas param de surgir (Tween); o dano segue até a lâmina ficar lenta
 ##   RECOVER herói voltando à guarda; o que sobrou se apaga (Tween) e a cena se libera
 ## O dano é só do dono (`deal_damage`): uma consulta de forma (PhysicsShapeQueryParameters3D) na camada dos inimigos
 ## filtrada por GreatswordSpinRules.pick_targets (alcance + intervalo por alvo). Nas réplicas é só o visual.
@@ -28,46 +25,37 @@ signal hit(targets: Array)
 
 const ENEMY_MASK := 4      ## camada 3 ("enemies")
 const STOP_FADE := 0.2     ## apagar rápido do stop() (s)
-const TRAIL_LAG := 0.5     ## o borrão fica este tanto atrás do anel (rad)
-const TRAIL_FRAMES := 2.0  ## e este tanto de quadros atrás
 
 @export var config: GreatswordSpinConfig
 
-## O herói (posição) e o modelo dele (para onde a lâmina aponta).
+## O herói (posição), o modelo dele (para onde a lâmina aponta) e as pontas da montante (KnightLook: holder, tip).
 var follow: Node3D
 var model: Node3D
+var blade_base: Node3D
+var blade_tip: Node3D
 var deal_damage := false
 ## Só aquece os pipelines (GreatswordSpinAbilities.prewarm_instances): desenha cada efeito uma vez e se libera.
 var warm_only := false
 
-@onready var pivot: Node3D = $Pivot
-@onready var ring: MeshInstance3D = $Pivot/Ring
-@onready var ring_trail: MeshInstance3D = $Pivot/RingTrail
-@onready var slashes: GPUParticles3D = $Slashes
-@onready var sparks: GPUParticles3D = $Sparks
+@onready var trail: DarkBladeTrail = $Trail
 @onready var light: OmniLight3D = $Light
+var wisps: GPUParticles3D
+var motes: GPUParticles3D
+var sparks: GPUParticles3D
 
 ## Tempo desde o começo (s), a fase atual e quantos cortes o giro já deu (testes).
 var t := 0.0
 var phase := GreatswordSpinRules.Phase.STANCE
 var hit_count := 0
 var stopped := false
-## Quanto nasce de cortes soltos e fagulhas (0..1).
-var emission: float:
-	get:
-		return _emission
-	set(v):
-		_set_emission_ratio(v)
+## Quanto da energia está acesa (0..1): acompanha a velocidade do giro; o Tween da desaceleração e do fim o derruba.
+var level := 0.0
 
 var _durs: Array[float] = []
-var _loop_f := 0.0
 var _turns_heard := 0
 var _last_hit := {}
 var _decel_started := false
 var _fade_started := false
-var _ring_level := 0.0
-var _frame := 0.0
-var _emission := 0.0
 var _tween: Tween
 
 
@@ -75,48 +63,36 @@ func _ready() -> void:
 	if config == null:
 		config = load("res://assets/vfx/greatsword_spin/greatsword_spin_config.tres")
 	_durs = config.durations()
-	var d := config.radius * 2.0 * config.ring_scale
-	ring.scale = Vector3(d, 1.0, d)
-	ring_trail.scale = ring.scale * 0.96
-	ring.position.y = config.slash_height
-	ring_trail.position.y = config.slash_height - 0.04
-	for m: MeshInstance3D in [ring, ring_trail]:
-		var mat := (m.get_surface_override_material(0) as ShaderMaterial)
-		if mat != null:
-			mat.set_shader_parameter("flip_x", config.ring_flip)
-	# cortes soltos: um material de processo por ativação (o tamanho e a inclinação vêm da configuração)
-	var pm := (slashes.process_material as ShaderMaterial).duplicate() as ShaderMaterial
-	pm.set_shader_parameter("size_min", d * 0.85)
-	pm.set_shader_parameter("size_max", d * 1.15)
-	pm.set_shader_parameter("height", config.slash_height)
-	pm.set_shader_parameter("tilt_max", deg_to_rad(config.slash_tilt))
-	slashes.process_material = pm
-	slashes.amount = maxi(2, int(ceil(config.slashes_per_second * slashes.lifetime)) + 1)
-	sparks.material_override = FXEpic._particle_mat(FXEpic._glow_tex(), true, true)
-	var spm := (sparks.process_material as ParticleProcessMaterial).duplicate() as ParticleProcessMaterial
-	spm.emission_ring_radius = config.radius * 0.85
-	spm.emission_ring_inner_radius = config.radius * 0.45
-	sparks.process_material = spm
-	sparks.position.y = config.slash_height
+	trail.base_node = blade_base
+	trail.tip_node = blade_tip
+	trail.lifetime = config.trail_time
+	trail.reach = config.trail_reach
+	trail.strength_override = 0.0
+	trail.intensity = config.trail_intensity
 	light.position.y = config.slash_height
+	wisps = DarkEnergy.wisps(maxi(8, int(config.wisps_per_second * 0.9)), 0.9, 0.75)
+	motes = DarkEnergy.motes(maxi(8, int(config.motes_per_second * 0.8)), 0.8, 0.09)
+	sparks = DarkEnergy.sparks(maxi(8, int(config.sparks_per_second * 0.5)), 0.5, 0.32)
+	for p: GPUParticles3D in [wisps, motes, sparks]:
+		add_child(p)
+		p.top_level = true
+	# as lascas saem para fora do giro (a lâmina as lança na direção em que corre)
+	var spm := sparks.process_material as ParticleProcessMaterial
+	spm.direction = Vector3(1, 0.25, 0)
+	spm.spread = 35.0
 	if warm_only:
 		_warm_pipelines()
 		return
-	_set_ring(config.frames_start.x, 0.0)
-	slashes.emitting = true
-	sparks.emitting = true
-	_set_emission(0.0)
-	light.light_energy = 0.0
+	_set_level(0.0)
 	_follow_now()
 
 
 func _warm_pipelines() -> void:
 	set_process(false)
 	set_physics_process(false)
-	_set_ring(20.0, 0.01)
-	emission = 1.0
-	slashes.restart()
-	sparks.restart()
+	for p: GPUParticles3D in [wisps, motes, sparks]:
+		p.global_position = global_position
+		p.restart()
 	get_tree().create_timer(0.6).timeout.connect(queue_free)
 
 
@@ -126,30 +102,16 @@ func _process(delta: float) -> void:
 	var ph := GreatswordSpinRules.phase_at(t, _durs)
 	phase = int(ph.x) as GreatswordSpinRules.Phase
 	var spd := GreatswordSpinRules.speed_frac(t, _durs)
-	if _fade_started:
-		# apagando (fim do giro ou stop()): o quadro fica, o brilho vem do Tween
-		_set_ring(_frame, _ring_level)
-		return
-	match phase:
-		GreatswordSpinRules.Phase.STANCE, GreatswordSpinRules.Phase.ACCEL:
-			# o primeiro crescente da sheet acende na postura e cresce com a aceleração
-			var u := clampf(t / (_durs[0] + _durs[1]), 0.0, 1.0)
-			_ring_level = config.ring_intensity * (0.25 * smoothstep(0.0, 1.0, u) + 0.75 * spd)
-			_set_ring(lerpf(config.frames_start.x, config.frames_start.y, u), _ring_level)
-			_set_emission(spd)
-			light.light_energy = 1.8 * spd
-		GreatswordSpinRules.Phase.SPIN:
-			_loop_f += delta * config.loop_fps * maxf(spd, 0.2)
-			_set_ring(_loop_frame(), config.ring_intensity)
-			_set_emission(1.0)
-			light.light_energy = 1.8 + 0.4 * sin(t * 22.0)
-		GreatswordSpinRules.Phase.DECEL:
-			_begin_decel()
-			# o redemoinho da sheet se desfaz enquanto o giro perde velocidade (o brilho cai pelo Tween)
-			_set_ring(lerpf(config.frames_end.x, config.frames_end.y, smoothstep(0.0, 1.0, ph.y)), _ring_level)
-		GreatswordSpinRules.Phase.RECOVER:
-			_set_ring(config.frames_end.y, _ring_level)
-			_begin_fade(config.fade_time)
+	if not _fade_started:
+		match phase:
+			GreatswordSpinRules.Phase.STANCE, GreatswordSpinRules.Phase.ACCEL, GreatswordSpinRules.Phase.SPIN:
+				level = spd
+			GreatswordSpinRules.Phase.DECEL:
+				_begin_decel()
+			GreatswordSpinRules.Phase.RECOVER:
+				_begin_fade(config.fade_time)
+	_set_level(level)
+	light.light_energy = level * (2.2 + 0.5 * sin(t * 19.0))
 	_turn_sounds()
 
 
@@ -167,72 +129,65 @@ func _physics_process(_delta: float) -> void:
 	hit.emit(targets)
 
 
+func _valid(n: Node3D) -> bool:
+	return n != null and is_instance_valid(n) and n.is_inside_tree()
+
+
 func _follow_now() -> void:
-	if follow != null and is_instance_valid(follow):
+	if _valid(follow):
 		global_position = follow.global_position
-	if model != null and is_instance_valid(model):
-		pivot.global_rotation = Vector3(0.0, model.global_rotation.y + deg_to_rad(config.ring_yaw_offset), 0.0)
-		ring_trail.rotation.y = -TRAIL_LAG
+	# as partículas saem ao longo da lâmina (sem a arma: um anel em volta do herói, na altura dela)
+	var b: Vector3
+	var tip: Vector3
+	if _valid(blade_base) and _valid(blade_tip):
+		b = blade_base.global_position
+		tip = blade_tip.global_position
+	else:
+		var yaw := model.global_rotation.y if _valid(model) else 0.0
+		var f := Vector3(sin(yaw), 0.0, cos(yaw))
+		b = global_position + Vector3.UP * config.slash_height + f * 0.5
+		tip = b + f * 1.6
+	for p: GPUParticles3D in [wisps, motes, sparks]:
+		DarkEnergy.along_blade(p, b, tip, config.trail_reach * 0.8, 0.1)
 
 
-func _loop_frame() -> float:
-	var span := maxf(config.frames_loop.y - config.frames_loop.x, 1.0)
-	return config.frames_loop.x + fposmod(_loop_f, span)
+## Liga a energia toda num nível só (0..1): rastro e quanto nasce de partículas.
+func _set_level(k: float) -> void:
+	k = clampf(k, 0.0, 1.0)
+	trail.strength_override = k
+	wisps.amount_ratio = k
+	motes.amount_ratio = k
+	sparks.amount_ratio = k * k
+	var on := k > 0.05 and not _fade_started
+	for p: GPUParticles3D in [wisps, motes, sparks]:
+		if p.emitting != on:
+			p.emitting = on
 
 
-func _set_ring(frame: float, level: float) -> void:
-	_frame = frame
-	ring.set_instance_shader_parameter("frame", frame)
-	ring.set_instance_shader_parameter("intensity", level)
-	ring_trail.set_instance_shader_parameter("frame", maxf(frame - TRAIL_FRAMES, 0.0))
-	ring_trail.set_instance_shader_parameter("intensity", level * 0.45)
-	ring.visible = level > 0.001
-	ring_trail.visible = ring.visible
-
-
-func _set_emission(k: float) -> void:
-	emission = k
-	slashes.set_instance_shader_parameter("intensity", config.slash_intensity)
-
-
-## Quanto nasce de cortes soltos e fagulhas (0..1, acompanha a velocidade do giro; o Tween da desaceleração o derruba).
-func _set_emission_ratio(k: float) -> void:
-	_emission = clampf(k, 0.0, 1.0)
-	if slashes == null:   # antes do @onready
-		return
-	(slashes.process_material as ShaderMaterial).set_shader_parameter("emit_ratio", _emission)
-	sparks.amount_ratio = _emission * 0.8
-	if not _fade_started:
-		sparks.emitting = _emission > 0.05
-
-
-## Desaceleração: os cortes param de surgir e o anel e a luz se dissipam aos poucos (Tween, o tempo da fase).
+## Desaceleração: a energia cai com a velocidade do giro (Tween, o tempo da fase).
 func _begin_decel() -> void:
 	if _decel_started:
 		return
 	_decel_started = true
 	var dur := _durs[GreatswordSpinRules.Phase.DECEL]
-	_tween = create_tween().set_parallel()
-	_tween.tween_property(self, "emission", 0.0, dur * 0.7).set_ease(Tween.EASE_OUT)
-	_tween.tween_property(light, "light_energy", 0.4, dur).set_ease(Tween.EASE_IN_OUT)
-	_tween.tween_property(self, "_ring_level", config.ring_intensity * 0.3, dur).set_trans(Tween.TRANS_SINE)
+	_tween = create_tween()
+	_tween.tween_property(self, "level", 0.25, dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
-## Apaga o que sobrou (anel, luz e os cortes ainda no ar) e libera a cena quando o último some.
+## Apaga o que sobrou (rastro, luz e as partículas no ar) e libera a cena quando o último some.
 func _begin_fade(dur: float) -> void:
 	if _fade_started:
 		return
 	_fade_started = true
 	if _tween != null and _tween.is_valid():
 		_tween.kill()
-	slashes.emitting = false
-	sparks.emitting = false
+	for p: GPUParticles3D in [wisps, motes, sparks]:
+		p.emitting = false
+	trail.emitting = false
 	_tween = create_tween().set_parallel()
-	_tween.tween_property(self, "_ring_level", 0.0, dur).set_ease(Tween.EASE_IN)
-	_tween.tween_property(light, "light_energy", 0.0, dur)
-	_tween.tween_method(func(v: float) -> void: slashes.set_instance_shader_parameter("intensity", v),
-		config.slash_intensity, 0.0, dur)
-	_tween.chain().tween_interval(maxf(slashes.lifetime, sparks.lifetime))
+	_tween.tween_property(self, "level", 0.0, dur).set_ease(Tween.EASE_IN)
+	_tween.tween_property(trail, "intensity", 0.0, dur)
+	_tween.chain().tween_interval(maxf(wisps.lifetime, trail.lifetime))
 	_tween.chain().tween_callback(queue_free)
 	set_physics_process(false)
 
