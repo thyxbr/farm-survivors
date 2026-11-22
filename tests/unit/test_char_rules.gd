@@ -1489,3 +1489,33 @@ func test_chase_drop_real_chance_is_rare() -> void:
 	T.eq(str(line.item), "wind_bow", "o item caçado é o Rei dos Ventos")
 	T.ok(float(line.chance) <= 0.01, "chance de item caçado (no máximo 1%)")
 	T.eq(str(bt.get_table("items")["wind_bow"].rarity), "mythic", "o Rei dos Ventos é Mítico")
+
+
+func test_two_handed_level_up_announces_supreme() -> void:
+	var bt := _tables()
+	# montante: no nível 8 o slot 4 é a Lâmina Suprema (e só ela, não o Turbilhão)
+	var s := _blank()
+	s.level = 7
+	s.equipment["weapon"] = "iron_zweihander"
+	var r := CharRules.kill(s, bt, "slime", CharRules.xp_to_next(7, bt))
+	T.eq(s.level, 8, "nível 8")
+	var names := []
+	for e in r.events:
+		if e.t == "notify" and str(e.text).begins_with("Nova habilidade"):
+			names.append(e.text)
+	T.eq(names, ["Nova habilidade: Lâmina Suprema [4]"], "com a montante: a Lâmina Suprema no lugar do Turbilhão")
+
+
+func test_two_handed_level_up_announces_drag_slash() -> void:
+	var bt := _tables()
+	# montante: no nível 3 o slot 2 é o Corte do Abismo (e só ele, não o Golpe Sísmico)
+	var s := _blank()
+	s.level = 2
+	s.equipment["weapon"] = "iron_zweihander"
+	var r := CharRules.kill(s, bt, "slime", CharRules.xp_to_next(2, bt))
+	T.eq(s.level, 3, "nível 3")
+	var names := []
+	for e in r.events:
+		if e.t == "notify" and str(e.text).begins_with("Nova habilidade"):
+			names.append(e.text)
+	T.eq(names, ["Nova habilidade: Corte do Abismo [2]"], "com a montante: o Corte do Abismo no lugar do Golpe Sísmico")

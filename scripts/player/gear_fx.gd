@@ -23,6 +23,20 @@ const SURFACES := {
 	"rb_reaper_gem_flat": {"shader": GLOW, "params": {"pulse": 0.35, "pulse_speed": 1.8, "hot": Color(1.0, 0.92, 1.0)}},
 	# ---- Placas Astrais (cavaleiro celeste): céu estrelado vivo na capa
 	"cs_sky": {"shader": STARSKY, "lit": true, "params": {}},
+	# ---- Cavaleiro Cósmico: céu roxo e magenta com estrelas douradas nas janelas emolduradas em ouro (esterno,
+	#      ombreiras, antebraços, tabardo, grevas, olhos e forquilha do elmo)
+	"cz_sky": {"shader": STARSKY, "lit": true, "params": {
+		"cloth_z": 3.0, "top_z": 1.7, "bottom_z": 0.6, "drift": 0.035, "energy": 1.4,
+		"top_col": Color(0.14, 0.04, 0.28), "bottom_col": Color(0.34, 0.07, 0.38),
+		"neb_col": Color(0.85, 0.2, 0.45), "star_col": Color(1.0, 0.86, 0.5), "rings": 1.0, "star_scale": 0.6}},
+	# faixas de ouro: uma faixa de luz sobe correndo de tempos em tempos (só no ouro: em placa inteira escurece)
+	"cz_gold": {"shader": SHEEN, "lit": true, "params": {
+		"sheen_col": Color(1.0, 0.92, 0.66), "sheen_power": 1.4, "sheen_dir": Vector3(0.25, 1.0, 0.0), "sheen_freq": 0.06,
+		"sheen_speed": 0.3, "sheen_width": 0.05, "gloss": 0.0}},
+	# estrela acesa no olho esquerdo do elmo (a cruz dourada da referência)
+	"cz_star_flat": {"shader": GLOW, "params": {
+		"flow_freq": 2.2, "flow_speed": 0.9, "flow_sharp": 5.0, "low": 0.55, "flow_dir": Vector3(0.0, 1.0, 0.0),
+		"hot": Color(1.0, 1.0, 0.92), "energy": 2.4, "twinkle": 0.4, "twinkle_cell": 0.02}},
 	# buraco negro do peito: disco de acreção dourado girando em volta do miolo escuro
 	"cs_void_flat": {"shader": GALAXY, "lit": true, "params": {
 		"center": Vector2(0.0, 1.322), "radius": 0.022, "star_reach": 0.0, "spin": 0.7, "core_gain": -0.8,
@@ -113,11 +127,21 @@ const PARTICLES := {
 		"size": 0.024, "spread": 16.0, "band": 1.0},
 	"a_celestial": {"color": Color(1.0, 0.9, 0.62), "amount": 14, "life": 3.0, "height": 1.1, "ring": 0.36,
 		"rise": -0.18, "size": 0.026, "spread": 40.0, "band": 1.0},
+	"a_cosmic": {"color": Color(1.0, 0.84, 0.5), "amount": 18, "life": 3.4, "height": 1.25, "ring": 0.4,
+		"rise": -0.14, "size": 0.024, "spread": 45.0, "band": 1.3},
+	"h_cosmic": {"color": Color(0.78, 0.5, 1.0), "amount": 8, "life": 2.2, "height": 1.72, "ring": 0.2,
+		"rise": 0.18, "size": 0.02, "spread": 25.0, "band": 0.3},
 	"a_frost": {"color": Color(0.8, 0.93, 1.0), "amount": 14, "life": 2.6, "height": 1.2, "ring": 0.38, "rise": -0.26,
 		"size": 0.03, "spread": 14.0, "band": 0.7},
 	# fumaça escura subindo devagar em volta do corpo
 	"a_blackdragon": {"color": Color(0.05, 0.05, 0.06, 0.7), "amount": 22, "life": 3.6, "height": 0.55, "ring": 0.28,
 		"rise": 0.2, "size": 0.42, "spread": 18.0, "band": 1.3, "dark": true, "soft": true},
+	# aura negra mais densa que a do Dragão Negro: fumaça grossa subindo do corpo inteiro
+	"a_dragonknight_dark": {"color": Color(0.02, 0.02, 0.025, 0.85), "amount": 34, "life": 3.2, "height": 0.9, "ring": 0.32,
+		"rise": 0.35, "size": 0.5, "spread": 22.0, "band": 1.8, "dark": true, "soft": true},
+	# geada: cristais claros caindo devagar em volta do corpo
+	"a_dragonknight_ice": {"color": Color(0.75, 0.93, 1.0), "amount": 20, "life": 2.8, "height": 1.3, "ring": 0.4,
+		"rise": -0.24, "size": 0.032, "spread": 14.0, "band": 0.8},
 }
 
 static var _mats := {}       # nome do material + cor por vértice -> ShaderMaterial

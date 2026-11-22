@@ -1,0 +1,475 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/longsword_drag/drag_and_slash.gd" id="1"]
+[ext_resource type="Resource" path="res://assets/vfx/longsword_drag/drag_slash_config.tres" id="2"]
+[ext_resource type="Shader" path="res://shaders/longsword_drag/additive_sheet.gdshader" id="3"]
+[ext_resource type="Shader" path="res://shaders/longsword_drag/ember_ribbon.gdshader" id="4"]
+[ext_resource type="Texture2D" path="res://assets/vfx/longsword_drag/drag_sparks_sheet.webp" id="5"]
+[ext_resource type="Texture2D" path="res://assets/vfx/longsword_drag/rising_claws_sheet.webp" id="6"]
+[ext_resource type="Material" path="res://assets/vfx/hammer/hammer_stone_mat.tres" id="7"]
+[ext_resource type="Shader" path="res://shaders/longsword_drag/abyss_talon.gdshader" id="8"]
+
+[sub_resource type="ShaderMaterial" id="spark_sheet_mat"]
+render_priority = 2
+shader = ExtResource("3")
+shader_parameter/sheet = ExtResource("5")
+shader_parameter/columns = 4
+shader_parameter/rows = 8
+shader_parameter/inset = Vector2(0.004, 0.008)
+shader_parameter/billboard = 2
+shader_parameter/black_cut = 0.04
+shader_parameter/key_grey = 1.0
+shader_parameter/sat_lo = 0.25
+shader_parameter/sat_hi = 0.55
+shader_parameter/bright_lo = 0.72
+shader_parameter/hdr = 1.5
+shader_parameter/tint = Vector3(1, 0.88, 0.75)
+shader_parameter/edge_fade = Vector4(0.05, 0.14, 0.1, 0.03)
+
+[sub_resource type="QuadMesh" id="spark_sheet_quad"]
+center_offset = Vector3(0.3, 0.25, 0)
+
+[sub_resource type="Gradient" id="spark_grad"]
+offsets = PackedFloat32Array(0, 0.2, 0.6, 1)
+colors = PackedColorArray(3, 2.5, 1.6, 1, 2.6, 1.15, 0.3, 1, 1.3, 0.3, 0.05, 0.85, 0.5, 0.06, 0.01, 0)
+
+[sub_resource type="GradientTexture1D" id="spark_ramp"]
+gradient = SubResource("spark_grad")
+
+[sub_resource type="Curve" id="shrink_curve"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.25), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="shrink"]
+curve = SubResource("shrink_curve")
+
+[sub_resource type="ParticleProcessMaterial" id="drag_spark_ppm"]
+particle_flag_align_y = true
+emission_shape = 1
+emission_sphere_radius = 0.07
+direction = Vector3(0, 0.5, 1)
+spread = 32.0
+initial_velocity_min = 4.0
+initial_velocity_max = 11.0
+gravity = Vector3(0, -14, 0)
+damping_min = 0.5
+damping_max = 2.0
+scale_min = 0.14
+scale_max = 0.32
+scale_curve = SubResource("shrink")
+color_ramp = SubResource("spark_ramp")
+collision_mode = 1
+collision_friction = 0.25
+collision_bounce = 0.35
+
+[sub_resource type="Gradient" id="ember_grad"]
+offsets = PackedFloat32Array(0, 0.15, 0.6, 1)
+colors = PackedColorArray(1, 0.85, 0.5, 0, 1, 0.6, 0.18, 1, 1, 0.32, 0.06, 0.9, 0.6, 0.06, 0.02, 0)
+
+[sub_resource type="GradientTexture1D" id="ember_ramp"]
+gradient = SubResource("ember_grad")
+
+[sub_resource type="ParticleProcessMaterial" id="drag_ember_ppm"]
+emission_shape = 1
+emission_sphere_radius = 0.15
+direction = Vector3(0, 1, 0.6)
+spread = 50.0
+initial_velocity_min = 0.8
+initial_velocity_max = 2.6
+gravity = Vector3(0, 1.4, 0)
+damping_min = 0.5
+damping_max = 1.0
+scale_min = 0.5
+scale_max = 1.2
+color_ramp = SubResource("ember_ramp")
+turbulence_enabled = true
+turbulence_noise_strength = 1.6
+turbulence_noise_scale = 2.5
+
+[sub_resource type="QuadMesh" id="ember_quad"]
+size = Vector2(0.08, 0.08)
+
+[sub_resource type="ParticleProcessMaterial" id="pebble_ppm"]
+emission_shape = 1
+emission_sphere_radius = 0.1
+direction = Vector3(0, 0.75, 1)
+spread = 35.0
+initial_velocity_min = 2.5
+initial_velocity_max = 6.0
+angular_velocity_min = -720.0
+angular_velocity_max = 720.0
+gravity = Vector3(0, -20, 0)
+scale_min = 0.6
+scale_max = 1.6
+scale_curve = SubResource("shrink")
+collision_mode = 1
+collision_friction = 0.6
+collision_bounce = 0.3
+collision_use_scale = true
+
+[sub_resource type="SphereMesh" id="pebble_mesh"]
+material = ExtResource("7")
+radius = 0.035
+height = 0.05
+radial_segments = 6
+rings = 3
+
+[sub_resource type="Gradient" id="dust_grad"]
+offsets = PackedFloat32Array(0, 0.2, 1)
+colors = PackedColorArray(0.3, 0.26, 0.22, 0, 0.3, 0.27, 0.24, 0.38, 0.36, 0.34, 0.32, 0)
+
+[sub_resource type="GradientTexture1D" id="dust_ramp"]
+gradient = SubResource("dust_grad")
+
+[sub_resource type="Curve" id="grow_curve"]
+_data = [Vector2(0, 0.4), 0.0, 1.2, 0, 0, Vector2(1, 1.4), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="grow"]
+curve = SubResource("grow_curve")
+
+[sub_resource type="ParticleProcessMaterial" id="dust_ppm"]
+emission_shape = 1
+emission_sphere_radius = 0.2
+direction = Vector3(0, 0.45, 1)
+spread = 40.0
+initial_velocity_min = 0.6
+initial_velocity_max = 1.8
+gravity = Vector3(0, 0.5, 0)
+damping_min = 0.8
+damping_max = 1.5
+angle_min = -180.0
+angle_max = 180.0
+scale_min = 0.6
+scale_max = 1.1
+scale_curve = SubResource("grow")
+color_ramp = SubResource("dust_ramp")
+
+[sub_resource type="QuadMesh" id="dust_quad"]
+size = Vector2(1, 1)
+
+[sub_resource type="FastNoiseLite" id="ribbon_noise"]
+frequency = 0.02
+fractal_octaves = 3
+
+[sub_resource type="NoiseTexture2D" id="ribbon_noise_tex"]
+width = 256
+height = 64
+seamless = true
+generate_mipmaps = true
+noise = SubResource("ribbon_noise")
+
+[sub_resource type="ShaderMaterial" id="groove_mat"]
+render_priority = 1
+shader = ExtResource("4")
+shader_parameter/noise_tex = SubResource("ribbon_noise_tex")
+shader_parameter/hot = Vector3(1, 0.85, 0.55)
+shader_parameter/mid = Vector3(1, 0.36, 0.06)
+shader_parameter/cold = Vector3(0.45, 0.05, 0.01)
+shader_parameter/hdr = 2.2
+shader_parameter/mode = 1
+shader_parameter/streak_scale = 6.0
+shader_parameter/flicker = 0.6
+
+[sub_resource type="ShaderMaterial" id="trail_mat"]
+render_priority = 3
+shader = ExtResource("4")
+shader_parameter/noise_tex = SubResource("ribbon_noise_tex")
+shader_parameter/hot = Vector3(1, 0.82, 0.55)
+shader_parameter/mid = Vector3(1, 0.42, 0.08)
+shader_parameter/cold = Vector3(0.55, 0.06, 0.02)
+shader_parameter/hdr = 1.7
+shader_parameter/mode = 0
+shader_parameter/streak_scale = 2.5
+shader_parameter/flicker = 0.0
+
+[sub_resource type="ShaderMaterial" id="arc_mat"]
+render_priority = 4
+shader = ExtResource("3")
+shader_parameter/sheet = ExtResource("6")
+shader_parameter/columns = 6
+shader_parameter/rows = 6
+shader_parameter/inset = Vector2(0.016, 0.016)
+shader_parameter/billboard = 1
+shader_parameter/black_cut = 0.04
+shader_parameter/key_grey = 1.0
+shader_parameter/sat_lo = 0.2
+shader_parameter/sat_hi = 0.5
+shader_parameter/bright_lo = 0.74
+shader_parameter/hdr = 1.8
+shader_parameter/tint = Vector3(1, 0.92, 0.85)
+shader_parameter/edge_fade = Vector4(0.06, 0.06, 0.05, 0.03)
+
+[sub_resource type="ShaderMaterial" id="claw_mat"]
+render_priority = 4
+shader = ExtResource("3")
+shader_parameter/sheet = ExtResource("6")
+shader_parameter/columns = 6
+shader_parameter/rows = 6
+shader_parameter/inset = Vector2(0.016, 0.016)
+shader_parameter/billboard = 1
+shader_parameter/black_cut = 0.035
+shader_parameter/key_grey = 1.0
+shader_parameter/sat_lo = 0.16
+shader_parameter/sat_hi = 0.42
+shader_parameter/bright_lo = 0.74
+shader_parameter/hdr = 2.0
+shader_parameter/tint = Vector3(1, 1, 1)
+shader_parameter/edge_fade = Vector4(0.06, 0.06, 0.04, 0.0)
+
+[sub_resource type="ShaderMaterial" id="talon_mat"]
+render_priority = 1
+shader = ExtResource("8")
+shader_parameter/noise_tex = SubResource("ribbon_noise_tex")
+
+[sub_resource type="PlaneMesh" id="ring_plane"]
+size = Vector2(1, 1)
+
+[sub_resource type="QuadMesh" id="stand_quad"]
+center_offset = Vector3(0, 0.5, 0)
+
+[sub_resource type="ParticleProcessMaterial" id="slash_spark_ppm"]
+particle_flag_align_y = true
+emission_shape = 3
+emission_box_extents = Vector3(0.5, 0.5, 0.3)
+direction = Vector3(0, 1, 0.55)
+spread = 55.0
+initial_velocity_min = 4.0
+initial_velocity_max = 12.0
+gravity = Vector3(0, -12, 0)
+damping_min = 0.5
+damping_max = 1.5
+scale_min = 0.16
+scale_max = 0.36
+scale_curve = SubResource("shrink")
+color_ramp = SubResource("spark_ramp")
+collision_mode = 1
+collision_friction = 0.25
+collision_bounce = 0.3
+
+[sub_resource type="PlaneMesh" id="glow_plane"]
+size = Vector2(3.6, 3.6)
+
+[sub_resource type="Gradient" id="mote_grad"]
+offsets = PackedFloat32Array(0, 0.15, 0.6, 1)
+colors = PackedColorArray(1.6, 1.2, 2.2, 0, 1.4, 0.45, 2.0, 1, 1.2, 0.12, 0.45, 0.8, 0.4, 0.02, 0.3, 0)
+
+[sub_resource type="GradientTexture1D" id="mote_ramp"]
+gradient = SubResource("mote_grad")
+
+[sub_resource type="ParticleProcessMaterial" id="mote_ppm"]
+emission_shape = 3
+emission_box_extents = Vector3(0.55, 0.15, 0.55)
+direction = Vector3(0, 1, 0)
+spread = 22.0
+initial_velocity_min = 1.5
+initial_velocity_max = 5.0
+gravity = Vector3(0, 0.8, 0)
+damping_min = 1.5
+damping_max = 3.0
+scale_min = 0.5
+scale_max = 1.3
+color_ramp = SubResource("mote_ramp")
+turbulence_enabled = true
+turbulence_noise_strength = 2.2
+turbulence_noise_scale = 2.0
+
+[sub_resource type="QuadMesh" id="mote_quad"]
+size = Vector2(0.09, 0.09)
+
+[sub_resource type="ParticleProcessMaterial" id="shard_ppm"]
+emission_shape = 1
+emission_sphere_radius = 0.45
+direction = Vector3(0, 1, 0)
+spread = 38.0
+initial_velocity_min = 3.0
+initial_velocity_max = 7.0
+angular_velocity_min = -720.0
+angular_velocity_max = 720.0
+gravity = Vector3(0, -20, 0)
+scale_min = 0.6
+scale_max = 1.5
+scale_curve = SubResource("shrink")
+collision_mode = 1
+collision_friction = 0.6
+collision_bounce = 0.25
+collision_use_scale = true
+
+[sub_resource type="SphereMesh" id="shard_mesh"]
+material = ExtResource("7")
+radius = 0.06
+height = 0.08
+radial_segments = 5
+rings = 2
+
+[node name="DragAndSlash" type="Node3D"]
+script = ExtResource("1")
+config = ExtResource("2")
+
+[node name="Drag" type="Node3D" parent="."]
+top_level = true
+
+[node name="SparkSheet" type="MeshInstance3D" parent="Drag"]
+cast_shadow = 0
+mesh = SubResource("spark_sheet_quad")
+material_override = SubResource("spark_sheet_mat")
+custom_aabb = AABB(-4, -2, -4, 8, 4, 8)
+
+[node name="Sparks" type="GPUParticles3D" parent="Drag"]
+cast_shadow = 0
+emitting = false
+amount = 170
+lifetime = 0.6
+visibility_aabb = AABB(-8, -2, -8, 16, 6, 16)
+local_coords = false
+process_material = SubResource("drag_spark_ppm")
+
+[node name="Embers" type="GPUParticles3D" parent="Drag"]
+cast_shadow = 0
+emitting = false
+amount = 44
+lifetime = 1.1
+visibility_aabb = AABB(-8, -2, -8, 16, 6, 16)
+local_coords = false
+process_material = SubResource("drag_ember_ppm")
+draw_pass_1 = SubResource("ember_quad")
+
+[node name="Pebbles" type="GPUParticles3D" parent="Drag"]
+emitting = false
+amount = 26
+lifetime = 0.9
+visibility_aabb = AABB(-8, -2, -8, 16, 6, 16)
+local_coords = false
+process_material = SubResource("pebble_ppm")
+draw_pass_1 = SubResource("pebble_mesh")
+
+[node name="Dust" type="GPUParticles3D" parent="Drag"]
+cast_shadow = 0
+emitting = false
+amount = 36
+lifetime = 1.2
+visibility_aabb = AABB(-8, -2, -8, 16, 6, 16)
+local_coords = false
+process_material = SubResource("dust_ppm")
+draw_pass_1 = SubResource("dust_quad")
+
+[node name="Ground" type="GPUParticlesCollisionBox3D" parent="Drag"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.52, 0)
+size = Vector3(30, 1, 30)
+
+[node name="TipLight" type="OmniLight3D" parent="Drag"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0.3)
+light_color = Color(1, 0.55, 0.2, 1)
+light_energy = 0.0
+omni_range = 3.5
+
+[node name="Groove" type="MeshInstance3D" parent="."]
+top_level = true
+cast_shadow = 0
+material_override = SubResource("groove_mat")
+custom_aabb = AABB(-200, -50, -200, 400, 100, 400)
+
+[node name="Slash" type="Node3D" parent="."]
+top_level = true
+
+[node name="Trail" type="MeshInstance3D" parent="Slash"]
+top_level = true
+cast_shadow = 0
+material_override = SubResource("trail_mat")
+custom_aabb = AABB(-200, -50, -200, 400, 100, 400)
+
+[node name="ArcSheet" type="MeshInstance3D" parent="Slash"]
+transform = Transform3D(3.3, 0, 0, 0, 3.3, 0, 0, 0, 1, 0, -0.25, 1.0)
+visible = false
+cast_shadow = 0
+mesh = SubResource("stand_quad")
+material_override = SubResource("arc_mat")
+custom_aabb = AABB(-4, -2, -4, 8, 8, 8)
+
+[node name="SlashSparks" type="GPUParticles3D" parent="Slash"]
+cast_shadow = 0
+emitting = false
+amount = 90
+lifetime = 0.7
+one_shot = true
+explosiveness = 0.9
+visibility_aabb = AABB(-8, -2, -8, 16, 8, 16)
+local_coords = false
+process_material = SubResource("slash_spark_ppm")
+
+[node name="SlashLight" type="OmniLight3D" parent="Slash"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3, 1.2)
+light_color = Color(1, 0.6, 0.25, 1)
+light_energy = 0.0
+omni_range = 7.0
+
+[node name="Ground" type="GPUParticlesCollisionBox3D" parent="Slash"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.52, 4)
+size = Vector3(30, 1, 30)
+
+[node name="Claws" type="Node3D" parent="."]
+top_level = true
+
+[node name="Claw" type="Node3D" parent="Claws"]
+
+[node name="Sheet" type="MeshInstance3D" parent="Claws/Claw"]
+transform = Transform3D(2.6, 0, 0, 0, 2.6, 0, 0, 0, 1, 0, 0, 0)
+cast_shadow = 0
+mesh = SubResource("stand_quad")
+material_override = SubResource("claw_mat")
+custom_aabb = AABB(-4, -4, -4, 8, 10, 8)
+
+[node name="Glow" type="MeshInstance3D" parent="Claws/Claw"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.04, 0)
+cast_shadow = 0
+transparency = 1.0
+mesh = SubResource("glow_plane")
+
+[node name="Motes" type="GPUParticles3D" parent="Claws/Claw"]
+cast_shadow = 0
+emitting = false
+amount = 50
+lifetime = 1.0
+one_shot = true
+explosiveness = 0.55
+visibility_aabb = AABB(-4, -1, -4, 8, 8, 8)
+local_coords = false
+process_material = SubResource("mote_ppm")
+draw_pass_1 = SubResource("mote_quad")
+
+[node name="Shards" type="GPUParticles3D" parent="Claws/Claw"]
+emitting = false
+amount = 14
+lifetime = 0.9
+one_shot = true
+explosiveness = 1.0
+visibility_aabb = AABB(-4, -1, -4, 8, 8, 8)
+local_coords = false
+process_material = SubResource("shard_ppm")
+draw_pass_1 = SubResource("shard_mesh")
+
+[node name="Light" type="OmniLight3D" parent="Claws/Claw"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, 0)
+light_color = Color(0.72, 0.28, 1, 1)
+light_energy = 0.0
+omni_range = 4.5
+
+[node name="Talons" type="Node3D" parent="Claws/Claw"]
+
+[node name="T0" type="MeshInstance3D" parent="Claws/Claw/Talons"]
+cast_shadow = 0
+material_override = SubResource("talon_mat")
+
+[node name="T1" type="MeshInstance3D" parent="Claws/Claw/Talons"]
+cast_shadow = 0
+material_override = SubResource("talon_mat")
+
+[node name="T2" type="MeshInstance3D" parent="Claws/Claw/Talons"]
+cast_shadow = 0
+material_override = SubResource("talon_mat")
+
+[node name="Ring" type="MeshInstance3D" parent="Claws/Claw"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06, 0)
+cast_shadow = 0
+transparency = 1.0
+mesh = SubResource("ring_plane")

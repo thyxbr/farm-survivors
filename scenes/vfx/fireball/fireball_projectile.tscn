@@ -1,0 +1,252 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/player/fireball_projectile.gd" id="1"]
+[ext_resource type="Shader" path="res://shaders/fireball/fireball_sheet.gdshader" id="2"]
+[ext_resource type="Texture2D" path="res://assets/vfx/fireball/fireball_sheet.webp" id="3"]
+
+[sub_resource type="SphereShape3D" id="hit_sphere"]
+radius = 0.22
+
+[sub_resource type="ShaderMaterial" id="sheet_mat"]
+render_priority = 2
+shader = ExtResource("2")
+shader_parameter/sheet = ExtResource("3")
+shader_parameter/columns = 8
+shader_parameter/rows = 8
+shader_parameter/inset = Vector2(0.006, 0.006)
+shader_parameter/black_cut = 0.03
+shader_parameter/key_grey = 1.0
+shader_parameter/sat_lo = 0.2
+shader_parameter/sat_hi = 0.5
+shader_parameter/bright_lo = 0.7
+shader_parameter/hdr = 1.8
+shader_parameter/tint = Vector3(1, 1, 1)
+shader_parameter/tail_lo = 0.25
+shader_parameter/tail_hi = 0.7
+shader_parameter/edge_fade = Vector4(0.04, 0.04, 0.04, 0.04)
+
+[sub_resource type="QuadMesh" id="sheet_quad"]
+
+[sub_resource type="Gradient" id="soft_dot_grad"]
+offsets = PackedFloat32Array(0, 0.35, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0.55, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="soft_dot"]
+gradient = SubResource("soft_dot_grad")
+width = 64
+height = 64
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 0.5)
+
+[sub_resource type="StandardMaterial3D" id="glow_mat"]
+transparency = 1
+blend_mode = 1
+cull_mode = 2
+depth_draw_mode = 2
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_texture = SubResource("soft_dot")
+disable_receive_shadows = true
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="glow_quad"]
+material = SubResource("glow_mat")
+size = Vector2(0.42, 0.42)
+
+[sub_resource type="StandardMaterial3D" id="smoke_mat"]
+transparency = 1
+cull_mode = 2
+depth_draw_mode = 2
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_texture = SubResource("soft_dot")
+disable_receive_shadows = true
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="smoke_quad"]
+material = SubResource("smoke_mat")
+size = Vector2(0.5, 0.5)
+
+[sub_resource type="QuadMesh" id="spark_quad"]
+material = SubResource("glow_mat")
+size = Vector2(0.07, 0.07)
+
+[sub_resource type="Curve" id="grow_fade_curve"]
+_data = [Vector2(0, 0.55), 0.0, 0.0, 0, 0, Vector2(0.25, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.15), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="grow_fade"]
+curve = SubResource("grow_fade_curve")
+
+[sub_resource type="Curve" id="smoke_grow_curve"]
+_data = [Vector2(0, 0.4), 0.0, 0.0, 0, 0, Vector2(1, 1.4), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="smoke_grow"]
+curve = SubResource("smoke_grow_curve")
+
+[sub_resource type="Curve" id="shrink_curve"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.2), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="shrink"]
+curve = SubResource("shrink_curve")
+
+[sub_resource type="Gradient" id="fire_grad"]
+offsets = PackedFloat32Array(0, 0.15, 0.5, 1)
+colors = PackedColorArray(3, 2.4, 1.4, 1, 2.6, 1.1, 0.25, 0.95, 1.2, 0.28, 0.04, 0.6, 0.35, 0.05, 0.01, 0)
+
+[sub_resource type="GradientTexture1D" id="fire_ramp"]
+gradient = SubResource("fire_grad")
+
+[sub_resource type="Gradient" id="smoke_grad"]
+offsets = PackedFloat32Array(0, 0.25, 1)
+colors = PackedColorArray(0.2, 0.13, 0.1, 0, 0.12, 0.1, 0.09, 0.45, 0.06, 0.06, 0.06, 0)
+
+[sub_resource type="GradientTexture1D" id="smoke_ramp"]
+gradient = SubResource("smoke_grad")
+
+[sub_resource type="Gradient" id="ember_grad"]
+offsets = PackedFloat32Array(0, 0.5, 1)
+colors = PackedColorArray(4, 3, 1.6, 1, 2.6, 0.9, 0.2, 1, 1, 0.2, 0.03, 0)
+
+[sub_resource type="GradientTexture1D" id="ember_ramp"]
+gradient = SubResource("ember_grad")
+
+[sub_resource type="Gradient" id="converge_grad"]
+offsets = PackedFloat32Array(0, 0.3, 1)
+colors = PackedColorArray(1.6, 0.5, 0.08, 0, 2.4, 1.2, 0.35, 1, 3.5, 2.8, 1.6, 1)
+
+[sub_resource type="GradientTexture1D" id="converge_ramp"]
+gradient = SubResource("converge_grad")
+
+[sub_resource type="ParticleProcessMaterial" id="trail_ppm"]
+emission_shape = 1
+emission_sphere_radius = 0.1
+spread = 180.0
+initial_velocity_min = 0.1
+initial_velocity_max = 0.6
+gravity = Vector3(0, 0.8, 0)
+damping_min = 1.0
+damping_max = 2.0
+scale_min = 0.7
+scale_max = 1.1
+scale_curve = SubResource("grow_fade")
+color_ramp = SubResource("fire_ramp")
+
+[sub_resource type="ParticleProcessMaterial" id="smoke_ppm"]
+emission_shape = 1
+emission_sphere_radius = 0.12
+spread = 180.0
+initial_velocity_min = 0.1
+initial_velocity_max = 0.4
+gravity = Vector3(0, 0.9, 0)
+damping_min = 0.5
+damping_max = 1.0
+scale_min = 0.8
+scale_max = 1.3
+scale_curve = SubResource("smoke_grow")
+color_ramp = SubResource("smoke_ramp")
+
+[sub_resource type="ParticleProcessMaterial" id="ember_ppm"]
+particle_flag_align_y = true
+emission_shape = 1
+emission_sphere_radius = 0.15
+spread = 180.0
+initial_velocity_min = 0.8
+initial_velocity_max = 2.6
+gravity = Vector3(0, -2.5, 0)
+damping_min = 0.5
+damping_max = 1.5
+scale_min = 0.6
+scale_max = 1.4
+scale_curve = SubResource("shrink")
+color_ramp = SubResource("ember_ramp")
+
+[sub_resource type="ParticleProcessMaterial" id="converge_ppm"]
+emission_shape = 2
+emission_sphere_radius = 0.75
+gravity = Vector3(0, 0, 0)
+radial_velocity_min = -2.4
+radial_velocity_max = -1.6
+radial_accel_min = -6.0
+radial_accel_max = -4.0
+scale_min = 0.8
+scale_max = 1.5
+scale_curve = SubResource("shrink")
+color_ramp = SubResource("converge_ramp")
+
+[node name="FireballProjectile" type="Area3D"]
+collision_layer = 0
+collision_mask = 5
+monitoring = false
+monitorable = false
+script = ExtResource("1")
+
+[node name="Hit" type="CollisionShape3D" parent="."]
+shape = SubResource("hit_sphere")
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Sheet" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1.1, 0, 0, 0, 1.1, 0, 0, 0, 1.1, 0, 0, 0)
+cast_shadow = 0
+extra_cull_margin = 2.0
+mesh = SubResource("sheet_quad")
+surface_material_override/0 = SubResource("sheet_mat")
+
+[node name="Trail" type="GPUParticles3D" parent="Visual"]
+cast_shadow = 0
+emitting = false
+amount = 64
+lifetime = 0.45
+local_coords = false
+visibility_aabb = AABB(-4, -4, -4, 8, 8, 8)
+process_material = SubResource("trail_ppm")
+draw_pass_1 = SubResource("glow_quad")
+
+[node name="Smoke" type="GPUParticles3D" parent="Visual"]
+cast_shadow = 0
+emitting = false
+amount = 24
+lifetime = 0.8
+local_coords = false
+draw_order = 1
+visibility_aabb = AABB(-4, -4, -4, 8, 8, 8)
+process_material = SubResource("smoke_ppm")
+draw_pass_1 = SubResource("smoke_quad")
+
+[node name="Embers" type="GPUParticles3D" parent="Visual"]
+cast_shadow = 0
+emitting = false
+amount = 20
+lifetime = 0.6
+local_coords = false
+visibility_aabb = AABB(-4, -4, -4, 8, 8, 8)
+process_material = SubResource("ember_ppm")
+draw_pass_1 = SubResource("spark_quad")
+
+[node name="Converge" type="GPUParticles3D" parent="Visual"]
+cast_shadow = 0
+emitting = false
+amount = 28
+lifetime = 0.35
+visibility_aabb = AABB(-2, -2, -2, 4, 4, 4)
+process_material = SubResource("converge_ppm")
+draw_pass_1 = SubResource("spark_quad")
+
+[node name="Light" type="OmniLight3D" parent="Visual"]
+light_color = Color(1, 0.55, 0.2, 1)
+light_energy = 2.0
+omni_range = 3.5
+shadow_enabled = false
+
+[node name="Impact" type="MeshInstance3D" parent="."]
+visible = false
+cast_shadow = 0
+extra_cull_margin = 4.0
+mesh = SubResource("sheet_quad")
+surface_material_override/0 = SubResource("sheet_mat")

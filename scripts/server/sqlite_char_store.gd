@@ -27,7 +27,8 @@ func load_char(char_id: int) -> Variant:
 	d["char_class"] = str(r["char_class"])
 	d["body"] = str(r["body"])
 	d["hair"] = str(r["hair"])
-	for k in ["attributes", "equipment", "quests", "flags", "farm", "world_pos", "enchants", "talents"]:
+	for k in ["attributes", "equipment", "quests", "flags", "farm", "world_pos", "enchants", "talents",
+			"bestiary", "professions", "recipes"]:
 		d[k] = JSON.parse_string(str(r[k]))   # world_pos nulo volta como null
 	var inv := []
 	for row in db.query("SELECT item_id, qty FROM inventory WHERE char_id = ? ORDER BY slot_index", [char_id]):
@@ -169,12 +170,13 @@ func _write(char_id: int, d: Dictionary, at: int) -> bool:
 			return false
 	var ok := db.exec("UPDATE characters SET level=?, xp=?, gold=?, ecos=?, stat_points=?, attributes=?, hp=?, mp=?,
 		equipment=?, quests=?, flags=?, farm=?, world_pos=?, world_yaw=?, kills=?, enchants=?, char_class=?, body=?,
-		hair=?, talents=?, updated_at=? WHERE id = ?",
+		hair=?, talents=?, bestiary=?, professions=?, recipes=?, updated_at=? WHERE id = ?",
 		[d["level"], d["xp"], d["gold"], int(d.get("ecos", 0)), d["stat_points"], JSON.stringify(d["attributes"]), d["hp"], d["mp"],
 		JSON.stringify(d["equipment"]), JSON.stringify(d["quests"]), JSON.stringify(d["flags"]),
 		JSON.stringify(d["farm"]), JSON.stringify(d["world_pos"]), d["world_yaw"], d["kills"],
 		JSON.stringify(d.get("enchants", {})), str(d.get("char_class", "")), str(d.get("body", "")), str(d.get("hair", "")),
-		JSON.stringify(d.get("talents", {})), at, char_id])
+		JSON.stringify(d.get("talents", {})), JSON.stringify(d.get("bestiary", {})), JSON.stringify(d.get("professions", {})),
+		JSON.stringify(d.get("recipes", [])), at, char_id])
 	if not ok or not db.exec("DELETE FROM inventory WHERE char_id = ?", [char_id]):
 		return false
 	var inv: Array = d["inventory"]

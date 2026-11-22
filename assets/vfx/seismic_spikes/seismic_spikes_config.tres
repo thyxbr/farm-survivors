@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="SeismicSpikesConfig" format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/seismic_spikes/seismic_spikes_config.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+damage_mult = 2.4
+radius = 4.5
+stun_time = 0.9
+cooldown = 12.0
+windup_time = 0.5
+plunge_time = 0.14
+pull_time = 0.5
+recover_time = 0.4
+forward_offset = 0.8
+plunge_depth = 0.25
+crack_time = 0.7
+crack_size = 9.6
+crack_opacity = 0.9
+dust_opacity = 0.55
+decal_opacity = 0.9
+decal_glow = 0.8
+quake_delay = 0.3
+quake_hold = 1.6
+quake_propagate = 0.35
+quake_shake = 0.16
+quake_pulse = 0.22
+quake_beat = 0.35
+ground_jitter = 0.045
+pebble_rate = 70
+dust_rate = 14
+shake_strength = 0.55
+shake_range = 18.0
+hitstop_time = 0.06
+camera_back = 1.2
+fade_time = 0.7

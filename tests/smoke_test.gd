@@ -417,6 +417,489 @@ func _check_hammer(player: Node, world: Node) -> void:
 	Game.hp = hp_player
 
 
+## Corte do Abismo (montante, slot 2 / tecla 2, no lugar do Golpe Sísmico): kit, a corrida arrastando a lâmina (avança,
+## fagulhas acesas, para perto do inimigo à frente), o corte que fere quem está à frente, as garras que ferem quem está em
+## cima delas (cada um uma vez em cada), quem está fora sem dano, limpeza de tudo e o cancelamento pela esquiva na corrida.
+func _check_drag_slash(player: Node, world: Node) -> void:
+	var cfg: DragSlashConfig = DragSlashAbilities.CONFIG
+	var back: Vector3 = player.global_position
+	var lv0: int = Game.level
+	var weapon0: String = Game.equipment.get("weapon", "")
+	Game.add_item("iron_zweihander")
+	equip_any("iron_zweihander")
+	Econ.test_force_level(maxi(Game.level, int(ItemDB.ABILITIES.sword_drag.level)))
+	await wait_until(func(): return Game.offhand_kind() == "two_handed" and Game.level >= 3)
+	var kit := Game.ability_kit()
+	check(kit.size() >= 2 and kit[1] == "sword_drag" and not ("sword_quake" in kit), "Corte do Abismo: a montante troca a habilidade 2 (%s)" % [kit])
+	player.global_position = Vector3(-105, 0.3, 40)   # fora da vila
+	player.velocity = Vector3.ZERO
+	player.model.rotation.y = 0.0     # olhando para +Z
+	await wait(0.25)
+	await wait_until(func(): return player.ability == "" and not player.attacking and player.dodge_timer <= 0.0)
+	player.cooldowns["sword_drag"] = 0.0
+	var origin: Vector3 = player.global_position
+	var f := Vector3(0, 0, 1)
+	# A no caminho (a corrida para nele: leva o corte e a primeira garra), B mais à frente (só uma garra), C de lado e D
+	# atrás (fora)
+	var mobs: Array = []
+	for p in [origin + f * 4.5, origin + f * 7.6 + Vector3(0.3, 0, 0), origin + f * 5.0 + Vector3(7.0, 0, 0), origin - f * 4.0]:
+		var e := Enemy.new()
+		e.kind = "slime"
+		world.add_child(e)
+		e.global_position = p
+		e.home = p
+		mobs.append(e)
+	await wait(0.15)
+	for e in mobs:
+		e.set_physics_process(false)
+	var hp0 := {}
+	for e in mobs:
+		hp0[e] = e.hp
+	var hp_player: float = Game.hp
+	player.invuln = 99.0
+	player.use_slot(2)
+	check(player.ability == "sword_drag", "Corte do Abismo: começa na tecla 2")
+	var skill: DragAndSlash = player.ability_data.get("skill")
+	check(is_instance_valid(skill) and skill.get_parent() == get_tree().current_scene, "Corte do Abismo: a cena do golpe na cena do mundo")
+	check(DragSlashAbilities.can_dodge_cancel(player), "Corte do Abismo: a esquiva cancela na corrida")
+	await wait_until(func(): return int(player.ability_data.get("phase", 0)) == DragSlashRules.DASH, 1.0)
+	await wait(0.12)
+	var spd := Vector2(player.velocity.x, player.velocity.z).length()
+	check(spd > 8.6 and Vector2(player.velocity.x, player.velocity.z).normalized().dot(Vector2(0, 1)) > 0.95,
+		"Corte do Abismo: dispara correndo para a frente (%.1f m/s)" % spd)
+	check(skill.sparks.emitting and skill._contact > 0.3, "Corte do Abismo: a ponta raspa o chão e solta fagulhas")
+	await wait_until(func(): return int(player.ability_data.get("phase", 0)) == DragSlashRules.SLASH, 2.0)
+	var ran := Vector2(player.global_position.x - origin.x, player.global_position.z - origin.z).length()
+	var gap := Vector2(mobs[0].global_position.x - player.global_position.x, mobs[0].global_position.z - player.global_position.z).length()
+	check(ran > 1.2 and gap < cfg.stop_distance + 1.4, "Corte do Abismo: corre e para perto do inimigo à frente (%.1f m corridos, %.1f m dele)" % [ran, gap])
+	check(not DragSlashAbilities.can_dodge_cancel(player), "Corte do Abismo: no corte a esquiva não cancela mais")
+	await wait_until(func(): return skill.hit_at >= 0.0, 2.0)
+	await wait(cfg.claw_stagger * cfg.claw_count + 0.25)
+	check(not is_instance_valid(mobs[0]) or mobs[0].dead or mobs[0].hp < float(hp0[mobs[0]]), "Corte do Abismo: o corte fere quem parou a corrida")
+	check(skill.hit_count == 1, "Corte do Abismo: o corte pega só quem está à frente (%d)" % skill.hit_count)
+	check(not is_instance_valid(mobs[1]) or mobs[1].dead or mobs[1].hp < float(hp0[mobs[1]]), "Corte do Abismo: as garras ferem quem está mais à frente")
+	check(skill.claw_hit_count == 2, "Corte do Abismo: cada um leva uma garra (%d)" % skill.claw_hit_count)
+	check(mobs.slice(2).all(func(e): return is_instance_valid(e) and is_equal_approx(e.hp, float(hp0[e]))), "Corte do Abismo: quem está fora não leva dano")
+	check(Game.hp >= hp_player - 0.01, "Corte do Abismo: o herói não se fere")
+	await wait_until(func(): return player.ability == "", cfg.slash_total() + 1.0)
+	check(player.ability == "", "Corte do Abismo: termina e solta o herói")
+	var skill_ref: WeakRef = weakref(skill)
+	await wait_until(func(): return skill_ref.get_ref() == null, cfg.claw_life + cfg.groove_life + 3.0)
+	check(skill_ref.get_ref() == null, "Corte do Abismo: fagulhas, rastro e garras removidos no fim")
+	# esquiva na corrida cancela: sem dano e tudo se desfaz
+	for e in mobs:
+		if is_instance_valid(e) and not e.dead:
+			hp0[e] = e.hp
+	await wait(0.3)
+	player.cooldowns["sword_drag"] = 0.0
+	player.model.rotation.y = PI   # para trás, longe dos monstros que sobraram
+	player.cast("sword_drag")
+	var skill2: DragAndSlash = player.ability_data.get("skill")
+	await wait(cfg.windup_time + 0.08)
+	player._dodge_pressed(Vector3.BACK)
+	check(player.ability == "" and is_instance_valid(skill2) and skill2.state == DragAndSlash.State.CANCELED, "Corte do Abismo: cancelado pela esquiva")
+	var skill2_ref: WeakRef = weakref(skill2)
+	await wait_until(func(): return skill2_ref.get_ref() == null, cfg.groove_life + 2.0)
+	check(skill2_ref.get_ref() == null and mobs.all(func(e): return not is_instance_valid(e) or e.dead or is_equal_approx(e.hp, float(hp0[e]))),
+		"Corte do Abismo: cancelado não fere ninguém e se libera")
+	for e in mobs:
+		if is_instance_valid(e):
+			e.queue_free()
+	if weapon0 != "":
+		equip_any(weapon0)
+	await wait_until(func(): return Game.offhand_kind() == "")
+	check(Game.ability_kit()[1] == "sword_quake", "Corte do Abismo: sem a montante a habilidade 2 volta a ser o Golpe Sísmico")
+	Econ.test_force_level(lv0)
+	await wait(0.6)
+	player.global_position = back
+
+
+## Lâmina Suprema (montante, slot 4 / tecla 4, no lugar do Turbilhão, gasta a fúria): kit, herói parado do começo ao fim,
+## espada de energia se formando até ~3x a altura dele durante a carga, impacto no ponto à frente na hora certa, a rachadura
+## reta no chão, dano no ponto do golpe e no caminho do corte (uma vez só), os de fora sem dano, limpeza de tudo e o
+## cancelamento pela esquiva durante a carga.
+func _check_supreme(player: Node, world: Node) -> void:
+	var cfg: GreatswordSupremeConfig = GreatswordSupremeAbilities.CONFIG
+	var back: Vector3 = player.global_position
+	var lv0: int = Game.level
+	var weapon0: String = Game.equipment.get("weapon", "")
+	Game.add_item("iron_zweihander")
+	equip_any("iron_zweihander")
+	Econ.test_force_level(maxi(Game.level, int(ItemDB.ABILITIES.sword_supreme.level)))
+	await wait_until(func(): return Game.offhand_kind() == "two_handed" and Game.level >= 8)
+	var kit := Game.ability_kit()
+	check(kit.size() == 5 and kit[3] == "sword_supreme" and not ("sword_whirl" in kit), "Lâmina Suprema: a montante troca a habilidade 4 (%s)" % [kit])
+	var spot := Vector3(-105, 0.3, 40)   # fora da vila
+	player.global_position = spot
+	player.velocity = Vector3.ZERO
+	player.model.rotation.y = 0.0     # olhando para +Z
+	await wait(0.25)
+	await wait_until(func(): return player.ability == "" and not player.attacking and player.dodge_timer <= 0.0)
+	var origin: Vector3 = player.global_position
+	var center: Vector3 = origin + Vector3(0, 0, cfg.impact_distance)
+	# monstros parados: 2 no ponto do golpe, 1 no caminho do corte, 2 fora (dos lados e atrás)
+	var mobs: Array = []
+	for p in [center + Vector3(1.5, 0, 0.5), center + Vector3(-1.0, 0, 1.8), origin + Vector3(0.4, 0, 1.0),
+			center + Vector3(cfg.impact_radius + 3.0, 0, 0), origin + Vector3(0, 0, -4.5)]:
+		var e := Enemy.new()
+		e.kind = "slime"
+		world.add_child(e)
+		e.global_position = p
+		e.home = p
+		mobs.append(e)
+	await wait(0.15)
+	for e in mobs:
+		e.set_physics_process(false)
+	var inside := mobs.slice(0, 3)
+	var outside := mobs.slice(3)
+	var hp0 := {}
+	for e in mobs:
+		hp0[e] = e.hp
+	var hp_player: float = Game.hp
+	player.invuln = 99.0
+	Game.fury = 0.0
+	player.cast("sword_supreme")
+	check(player.ability == "", "Lâmina Suprema: sem fúria cheia não começa")
+	Game.fury = 100.0
+	player.use_slot(4)
+	check(player.ability == "sword_supreme" and Game.fury == 0.0, "Lâmina Suprema: começa na tecla 4 e gasta a fúria")
+	var skill: GreatswordSupremeSlash = player.ability_data.get("skill")
+	check(is_instance_valid(skill) and skill.get_parent() == get_tree().current_scene, "Lâmina Suprema: a cena do golpe na cena do mundo")
+	# carga: parado (mesmo com a tecla de andar) e a espada pegando fogo da guarda para a ponta
+	await wait(cfg.raise_time + cfg.charge_time * 0.5)
+	var pos_mid: Vector3 = player.global_position
+	Input.action_press("move_right")
+	await wait(0.3)
+	Input.action_release("move_right")
+	var moved := Vector2(player.global_position.x - pos_mid.x, player.global_position.z - pos_mid.z).length()
+	check(moved < 0.05, "Lâmina Suprema: o herói não anda durante a habilidade (%.2f m com a tecla de andar)" % moved)
+	var g_mid := float(skill.energy_sword.get_instance_shader_parameter("heat"))
+	check(g_mid > 0.2 and g_mid < 0.95, "Lâmina Suprema: a espada pega fogo aos poucos (%.2f)" % g_mid)
+	check(player.cam_back > 1.0, "Lâmina Suprema: a câmera recua")
+	await wait_until(func(): return skill.state == GreatswordSupremeSlash.State.SLASH)
+	var len_full: float = skill.sword_pivot.global_basis.y.length()
+	check(len_full >= cfg.sword_length - 0.01 and len_full > 5.0 and skill.energy_sword.mesh != null,
+		"Lâmina Suprema: espada de energia formada ~3x a altura do herói (%.2f m)" % len_full)
+	check(not GreatswordSupremeAbilities.can_dodge_cancel(player), "Lâmina Suprema: no corte a esquiva não cancela mais")
+	await wait_until(func(): return skill.impact_at >= 0.0, 3.0)
+	check(absf(skill.impact_at - cfg.impact_time()) < 0.1, "Lâmina Suprema: impacto na hora (%.2f s)" % skill.impact_at)
+	var flat := Vector2(skill.impact_center.x - center.x, skill.impact_center.z - center.z).length()
+	check(flat < 0.1, "Lâmina Suprema: a espada bate à frente do herói (%.2f m do ponto)" % flat)
+	var crack_dir: Vector3 = skill.crack.global_basis.z.normalized()
+	check(skill.impact_root.visible and skill.crack.texture_albedo != null and is_equal_approx(skill.crack.size.z, cfg.crack_length())
+		and absf(crack_dir.dot(Vector3(0, 0, 1))) > 0.99, "Lâmina Suprema: rachadura reta no chão, na direção do golpe (%.1f m)" % skill.crack.size.z)
+	await wait(0.15)
+	check(inside.all(func(e): return not is_instance_valid(e) or e.dead or e.hp < float(hp0[e])),
+		"Lâmina Suprema: fere quem está no ponto do golpe e no caminho do corte (%d atingidos)" % skill.hit_count)
+	check(outside.all(func(e): return is_instance_valid(e) and is_equal_approx(e.hp, float(hp0[e]))), "Lâmina Suprema: quem está fora não leva dano")
+	check(skill.hit_count == 3, "Lâmina Suprema: cada um uma vez (%d)" % skill.hit_count)
+	check(Game.hp >= hp_player - 0.01, "Lâmina Suprema: o herói não se fere (%.1f -> %.1f)" % [hp_player, Game.hp])
+	await wait_until(func(): return player.ability == "", cfg.kneel_time + cfg.rise_time + 1.0)
+	check(player.ability == "" and player.cam_back == 0.0, "Lâmina Suprema: termina e solta o herói")
+	var skill_ref: WeakRef = weakref(skill)   # (a lambda não captura o nó: ele é liberado no meio da espera)
+	await wait_until(func(): return skill_ref.get_ref() == null, cfg.crack_hold + cfg.fade_time + 2.0)
+	check(skill_ref.get_ref() == null, "Lâmina Suprema: rachadura, partículas e espada removidas no fim")
+	# esquiva durante a carga cancela: sem dano e tudo se desfaz
+	for e in mobs:
+		if is_instance_valid(e) and not e.dead:
+			hp0[e] = e.hp
+	Game.fury = 100.0
+	player.cast("sword_supreme")
+	var skill2: GreatswordSupremeSlash = player.ability_data.get("skill")
+	await wait(cfg.raise_time + 0.3)
+	check(GreatswordSupremeAbilities.can_dodge_cancel(player), "Lâmina Suprema: a esquiva cancela durante a carga")
+	player._dodge_pressed(Vector3.BACK)
+	check(player.ability == "" and is_instance_valid(skill2) and skill2.state == GreatswordSupremeSlash.State.CANCELED, "Lâmina Suprema: cancelada pela esquiva")
+	var skill2_ref: WeakRef = weakref(skill2)
+	await wait_until(func(): return skill2_ref.get_ref() == null, 2.0)
+	check(skill2_ref.get_ref() == null and mobs.all(func(e): return not is_instance_valid(e) or e.dead or is_equal_approx(e.hp, float(hp0[e]))),
+		"Lâmina Suprema: cancelada não fere ninguém e se libera")
+	for e in mobs:
+		if is_instance_valid(e):
+			e.queue_free()
+	# volta para a espada de antes: o Turbilhão volta
+	if weapon0 != "":
+		equip_any(weapon0)
+	await wait_until(func(): return Game.offhand_kind() == "")
+	check(Game.ability_kit()[3] == "sword_whirl", "Lâmina Suprema: sem a montante a habilidade 4 volta a ser o Turbilhão")
+	Econ.test_force_level(lv0)
+	await wait(0.6)   # a esquiva do cancelamento termina
+	player.global_position = back
+	player.velocity = Vector3.ZERO
+	player.invuln = 0.0
+	Game.fury = 0.0
+	Game.hp = hp_player
+
+
+## Ciclone de Aço (montante, slot 1 / tecla 1, no lugar da Investida): kit, recarga, herói preso no lugar enquanto gira, o
+## modelo girando e parando virado para onde começou, vários cortes (com intervalo por alvo) em quem está no alcance, os
+## de fora sem dano, limpeza da cena, o giro começando assim que aciona (a esquiva não interrompe) e o fim antecipado.
+func _check_spin(player: Node, world: Node) -> void:
+	var cfg: GreatswordSpinConfig = GreatswordSpinAbilities.CONFIG
+	var back: Vector3 = player.global_position
+	var lv0: int = Game.level
+	var weapon0: String = Game.equipment.get("weapon", "")
+	var fury0: float = Game.fury
+	Game.add_item("iron_zweihander")
+	Econ.test_force_level(maxi(Game.level, CharRules.item_level(Balance.tables, "iron_zweihander")))
+	equip_any("iron_zweihander")
+	await wait_until(func(): return Game.offhand_kind() == "two_handed")
+	var kit := Game.ability_kit()
+	check(kit.size() >= 1 and kit[0] == "sword_spin" and not ("sword_charge" in kit), "Ciclone de Aço: a montante troca a habilidade 1 (%s)" % [kit])
+	var spot := Vector3(-105, 0.3, 36)   # fora da vila
+	player.global_position = spot
+	player.velocity = Vector3.ZERO
+	player.model.rotation.y = 0.0
+	await wait(0.25)
+	await wait_until(func(): return player.ability == "" and not player.attacking and player.dodge_timer <= 0.0)
+	var origin: Vector3 = player.global_position
+	# monstros parados: 3 em volta (frente, lado e atrás: o giro corta em volta) e 1 fora do alcance
+	var mobs: Array = []
+	for p in [origin + Vector3(0, 0, 1.8), origin + Vector3(2.0, 0, 0.4), origin + Vector3(-0.6, 0, -2.2),
+			origin + Vector3(cfg.radius + 4.0, 0, 0)]:
+		var e := Enemy.new()
+		e.kind = "slime"
+		world.add_child(e)
+		e.global_position = p
+		e.home = p
+		mobs.append(e)
+	await wait(0.15)
+	for e in mobs:
+		e.set_physics_process(false)
+	var inside := mobs.slice(0, 3)
+	var outside := mobs.slice(3)
+	var hp0 := {}
+	for e in mobs:
+		hp0[e] = e.hp
+	var hp_player: float = Game.hp
+	player.invuln = 99.0
+	player.cooldowns["sword_spin"] = 0.0
+	player.use_slot(1)
+	check(player.ability == "sword_spin" and player.cooldowns["sword_spin"] > 0.0, "Ciclone de Aço: começa na tecla 1 e entra em recarga")
+	var skill: GreatswordSpinSlash = player.ability_data.get("skill")
+	check(is_instance_valid(skill) and skill.get_parent() == get_tree().current_scene, "Ciclone de Aço: a cena do giro na cena do mundo")
+	var yaw0: float = player.model.rotation.y
+	var d := GreatswordSpinAbilities.durations()
+	# no meio do giro: parado mesmo com a tecla de andar, o modelo virando e cortes saindo
+	await wait(d[0] + d[1] + d[2] * 0.3)
+	var pos_mid: Vector3 = player.global_position
+	var yaw_mid: float = player.model.rotation.y
+	Input.action_press("move_right")
+	await wait(0.3)
+	Input.action_release("move_right")
+	var moved := Vector2(player.global_position.x - pos_mid.x, player.global_position.z - pos_mid.z).length()
+	check(moved < 0.05, "Ciclone de Aço: o herói não anda enquanto gira (%.2f m com a tecla de andar)" % moved)
+	check(absf(wrapf(player.model.rotation.y - yaw_mid, -PI, PI)) > 0.05, "Ciclone de Aço: o herói gira no próprio eixo")
+	check(skill.phase == GreatswordSpinRules.Phase.SPIN and skill.ring.visible, "Ciclone de Aço: anel de lâmina aceso no giro")
+	check(not GreatswordSpinAbilities.can_dodge_cancel(player), "Ciclone de Aço: girando, a esquiva não cancela")
+	await wait_until(func(): return player.ability == "", GreatswordSpinAbilities.total_time() + 1.0)
+	check(player.ability == "" and player.cam_back == 0.0, "Ciclone de Aço: para e solta o herói")
+	check(absf(wrapf(player.model.rotation.y - yaw0, -PI, PI)) < 0.05, "Ciclone de Aço: termina virado para onde começou")
+	check(inside.all(func(e): return not is_instance_valid(e) or e.dead or e.hp < float(hp0[e])),
+		"Ciclone de Aço: corta quem está em volta (%d cortes)" % skill.hit_count)
+	check(outside.all(func(e): return is_instance_valid(e) and is_equal_approx(e.hp, float(hp0[e]))), "Ciclone de Aço: quem está fora não leva dano")
+	# cortes repetidos, mas com intervalo: nunca mais que o giro inteiro dividido pelo intervalo, por alvo
+	var span := d[1] + d[2] + d[3]
+	var max_hits := inside.size() * (int(span / cfg.hit_interval) + 1)
+	check(skill.hit_count > inside.size() and skill.hit_count <= max_hits,
+		"Ciclone de Aço: vários cortes com intervalo por alvo (%d, máx. %d)" % [skill.hit_count, max_hits])
+	check(Game.hp >= hp_player - 0.01, "Ciclone de Aço: o herói não se fere")
+	var skill_ref: WeakRef = weakref(skill)
+	await wait_until(func(): return skill_ref.get_ref() == null, cfg.fade_time + 2.0)
+	check(skill_ref.get_ref() == null, "Ciclone de Aço: anel, cortes e fagulhas removidos no fim")
+	# o giro começa assim que aciona (sem postura parada) e a esquiva não o interrompe
+	player.cooldowns["sword_spin"] = 0.0
+	Game.stamina = Game.max_stamina()
+	var yaw_start: float = player.model.rotation.y
+	player.use_slot(1)
+	var skill2: GreatswordSpinSlash = player.ability_data.get("skill")
+	check(not GreatswordSpinAbilities.can_dodge_cancel(player), "Ciclone de Aço: a esquiva não cancela desde o começo")
+	await wait(0.2)
+	check(absf(wrapf(player.model.rotation.y - yaw_start, -PI, PI)) > 0.1 and skill2.phase != GreatswordSpinRules.Phase.STANCE,
+		"Ciclone de Aço: já gira logo depois de acionar (%.2f rad em 0,2 s)" % absf(wrapf(player.model.rotation.y - yaw_start, -PI, PI)))
+	player._dodge_pressed(Vector3.BACK)
+	check(player.ability == "sword_spin" and player.dodge_timer <= 0.0, "Ciclone de Aço: a esquiva não interrompe o giro")
+	# interrompido de fora (morte, troca de arma): o visual se apaga depressa e se libera
+	player.end_ability()
+	check(player.ability == "" and is_instance_valid(skill2) and skill2.stopped, "Ciclone de Aço: interrompido apaga o visual")
+	var skill2_ref: WeakRef = weakref(skill2)
+	await wait_until(func(): return skill2_ref.get_ref() == null, 2.0)
+	check(skill2_ref.get_ref() == null, "Ciclone de Aço: interrompido se libera")
+	for e in mobs:
+		if is_instance_valid(e):
+			e.queue_free()
+	# volta para a espada de antes: a Investida volta
+	if weapon0 != "":
+		equip_any(weapon0)
+	await wait_until(func(): return Game.offhand_kind() == "")
+	check(Game.ability_kit()[0] == "sword_charge", "Ciclone de Aço: sem a montante a habilidade 1 volta a ser a Investida")
+	Econ.test_force_level(lv0)
+	await wait(0.6)   # a esquiva do cancelamento termina
+	player.global_position = back
+	player.velocity = Vector3.ZERO
+	player.invuln = 0.0
+	Game.fury = fury0   # os cortes enchem a fúria: as checagens seguintes contam com ela como estava
+	Game.stamina = Game.max_stamina()
+	Game.hp = hp_player
+
+
+## Estacas Sísmicas (montante, tecla 3; a Fúria Picante vai para a tecla 5): kit e barra de ações com 5 teclas, parado
+## enquanto crava, impacto na hora certa e à frente do herói, rachaduras se espalhando antes do tremor, terremoto
+## (pedrinhas, poeira, câmera) até a espada sair, dano só dentro do raio e uma vez, o herói sem dano, a Fúria da
+## tecla 5 dando o mesmo buff, limpeza dos nós depois de arrancar a espada e o cancelamento pela esquiva.
+func _check_seismic_spikes(player: Node, world: Node) -> void:
+	var cfg: SeismicSpikesConfig = SeismicSpikesAbilities.CONFIG
+	var back: Vector3 = player.global_position
+	var lv0: int = Game.level
+	var weapon0: String = Game.equipment.get("weapon", "")
+	Game.add_item("iron_zweihander")
+	Econ.test_force_level(maxi(Game.level, int(ItemDB.ABILITIES.sword_spikes.level)))
+	equip_any("iron_zweihander")
+	await wait_until(func(): return Game.offhand_kind() == "two_handed" and Game.level >= 5)
+	var kit := Game.ability_kit()
+	check(kit.size() == 5 and kit[2] == "sword_spikes" and kit[4] == "sword_fury_great" and not ("sword_fury" in kit),
+		"Estacas Sísmicas: a montante põe as Estacas na tecla 3 e a Fúria na 5 (%s)" % [kit])
+	await wait(0.1)
+	var hud = world.hud
+	check(hud.slots["slot_5"].visible and hud._slot_ids[2] == "sword_spikes" and hud._slot_ids[4] == "sword_fury_great",
+		"Estacas Sísmicas: a barra da montante mostra a tecla 5 (%s)" % [hud._slot_ids])
+	check(ItemSlot.skill_art("sword_fury_great") != null and ItemSlot.skill_art("sword_spikes") != null,
+		"Estacas Sísmicas: arte das teclas 3 e 5")
+	var count_fx := func(cls: String) -> int:
+		var n := 0
+		for c in get_tree().current_scene.find_children("*", cls, true, false):
+			if not c.is_queued_for_deletion():
+				n += 1
+		return n
+	var spot := Vector3(-105, 0.3, 44)   # fora da vila
+	player.global_position = spot
+	player.velocity = Vector3.ZERO
+	player.model.rotation.y = 0.0     # olhando para +Z: a espada crava em spot + (0, 0, forward_offset)
+	await wait(0.25)
+	await wait_until(func(): return player.ability == "" and not player.attacking and player.dodge_timer <= 0.0)
+	var center: Vector3 = SeismicSpikesAbilities.impact_point(player.global_position, 0.0)
+	var mobs: Array = []
+	for off in [Vector3(0.9, 0, 0.4), Vector3(-1.4, 0, 1.2), Vector3(0.3, 0, cfg.radius - 0.3),
+			Vector3(cfg.radius + 3.0, 0, 0), Vector3(-cfg.radius - 3.5, 0, 2.0)]:
+		var e := Enemy.new()
+		e.kind = "slime"
+		world.add_child(e)
+		e.global_position = center + off
+		e.home = e.global_position
+		mobs.append(e)
+	await wait(0.15)
+	for e in mobs:
+		e.set_physics_process(false)
+	var inside := mobs.slice(0, 3)
+	var outside := mobs.slice(3)
+	var hp0 := {}
+	for e in mobs:
+		hp0[e] = e.hp
+	var hp_player: float = Game.hp
+	player.cooldowns.sword_spikes = 0.0
+	player.invuln = 99.0
+	player.use_slot(3)
+	check(player.ability == "sword_spikes" and player.ability_slot == 3, "Estacas Sísmicas: começa na tecla 3")
+	var skill: SeismicSpikesAoE = player.ability_data.get("skill")
+	check(is_instance_valid(skill) and skill.get_parent() == get_tree().current_scene, "Estacas Sísmicas: o visual na cena do mundo")
+	var cd: float = player.cooldowns.sword_spikes
+	check(cd >= cfg.cooldown * Game.cooldown_mult() - 0.01, "Estacas Sísmicas: recarga do SeismicSpikesConfig (%.1f s)" % cd)
+	var flat_c := Vector2(skill.global_position.x - center.x, skill.global_position.z - center.z).length()
+	check(flat_c < 0.05, "Estacas Sísmicas: centro à frente do herói, onde a ponta crava (%.2f m)" % flat_c)
+	var pos_w: Vector3 = player.global_position
+	Input.action_press("move_forward")
+	await wait(0.15)
+	Input.action_release("move_forward")
+	check(Vector2(player.global_position.x - pos_w.x, player.global_position.z - pos_w.z).length() < 0.05,
+		"Estacas Sísmicas: parado enquanto crava")
+	check(skill.state == SeismicSpikesAoE.State.CHARGE and SeismicSpikesAbilities.can_dodge_cancel(player),
+		"Estacas Sísmicas: antes de cravar a esquiva ainda cancela")
+	await wait_until(func(): return skill.impact_at >= 0.0, 2.0)
+	check(absf(skill.impact_at - cfg.impact_time()) < 0.1, "Estacas Sísmicas: a espada crava no fim da descida (%.2f s)" % skill.impact_at)
+	check(absf(skill.impact_center.y - spot.y) < 1.5, "Estacas Sísmicas: impacto no chão (altura %.2f)" % skill.impact_center.y)
+	check(not SeismicSpikesAbilities.can_dodge_cancel(player), "Estacas Sísmicas: cravada, a esquiva não cancela mais")
+	# fase 1: rachaduras crescendo, ainda sem tremor nem dano
+	await wait(cfg.crack_time * 0.4)
+	check(skill.state == SeismicSpikesAoE.State.CRACKS and skill.reveal > 0.05 and skill.reveal < 1.0
+		and skill.beats == 0 and count_fx.call("SeismicSpikesDamage") == 0,
+		"Estacas Sísmicas: rachaduras se espalhando antes do tremor (%.2f)" % skill.reveal)
+	check(inside.all(func(e): return is_equal_approx(e.hp, float(hp0[e]))), "Estacas Sísmicas: as rachaduras sozinhas não ferem")
+	# fase 2: a terra treme e o dano corre do centro para fora
+	await wait_until(func(): return skill.quake_at >= 0.0, 2.0)
+	check(absf(skill.quake_at - cfg.quake_time()) < 0.1 and is_equal_approx(skill.reveal, 1.0),
+		"Estacas Sísmicas: a terra treme um intervalo depois das rachaduras chegarem na borda (%.2f s)" % skill.quake_at)
+	check(skill.is_quaking() and count_fx.call("SeismicSpikesDamage") == 1, "Estacas Sísmicas: o tremor e o dano começam juntos")
+	await wait(cfg.quake_propagate + 0.3)
+	check(skill.is_quaking() and skill.beats >= 1 and skill.pebbles.emitting and skill.dust.emitting and player.shake > 0.05,
+		"Estacas Sísmicas: terremoto (abalos %d, pedrinhas, poeira, câmera tremendo %.2f)" % [skill.beats, player.shake])
+	var hp1 := {}
+	for e in mobs:
+		hp1[e] = e.hp if is_instance_valid(e) else -1.0
+	var hit_in := inside.filter(func(e): return not is_instance_valid(e) or e.dead or float(hp1[e]) < float(hp0[e]))
+	check(hit_in.size() == inside.size(), "Estacas Sísmicas: os %d monstros dentro do raio levam o tremor (%d)" % [inside.size(), hit_in.size()])
+	check(outside.all(func(e): return is_instance_valid(e) and is_equal_approx(e.hp, float(hp0[e]))),
+		"Estacas Sísmicas: monstros fora do raio não levam dano")
+	check(Game.hp >= hp_player, "Estacas Sísmicas: o próprio herói não leva dano")
+	await wait(0.4)
+	check(inside.all(func(e): return not is_instance_valid(e) or e.dead or is_equal_approx(e.hp, float(hp1[e]))),
+		"Estacas Sísmicas: cada monstro leva dano uma vez por ativação")
+	# treme até a espada sair do chão, e para aí
+	await wait_until(func(): return skill.t >= cfg.pull_start(), 4.0)
+	check(skill.is_quaking(), "Estacas Sísmicas: ainda treme enquanto a espada está cravada")
+	await wait_until(func(): return skill.t >= cfg.pull_end() + 0.05, 2.0)
+	check(not skill.is_quaking() and not skill.pebbles.emitting and not skill.dust.emitting,
+		"Estacas Sísmicas: o tremor para quando a espada sai do chão")
+	# finalização: o herói fica livre e tudo some
+	await wait_until(func(): return player.ability == "", 4.0)
+	check(player.ability == "" and player.cam_back == 0.0, "Estacas Sísmicas: o herói arranca a espada e fica livre")
+	await wait_until(func(): return not is_instance_valid(skill), cfg.fade_time + 3.0)
+	var left: int = count_fx.call("SeismicSpikesAoE") + count_fx.call("SeismicSpikesDamage")
+	check(not is_instance_valid(skill) and left == 0, "Estacas Sísmicas: rachaduras, pedrinhas e poeira removidas no fim (%d sobrando)" % left)
+	# esquiva antes de cravar cancela: sem rachadura nem dano
+	for e in mobs:
+		if is_instance_valid(e) and not e.dead:
+			hp0[e] = e.hp
+	player.cooldowns.sword_spikes = 0.0
+	player.cast("sword_spikes")
+	var skill2: SeismicSpikesAoE = player.ability_data.get("skill")
+	await wait(cfg.windup_time * 0.4)
+	check(SeismicSpikesAbilities.can_dodge_cancel(player), "Estacas Sísmicas: esquiva pode cancelar antes de cravar")
+	SeismicSpikesAbilities.dodge_cancel(player)
+	check(player.ability == "", "Estacas Sísmicas: cancelada pela esquiva")
+	await wait(0.2)
+	check(not is_instance_valid(skill2) and count_fx.call("SeismicSpikesDamage") == 0
+		and mobs.all(func(e): return not is_instance_valid(e) or e.dead or is_equal_approx(e.hp, float(hp0[e]))),
+		"Estacas Sísmicas: cancelada não fere ninguém e se libera")
+	for e in mobs:
+		if is_instance_valid(e):
+			e.queue_free()
+	# a Fúria Picante na tecla 5 da montante dá o mesmo buff
+	Game.buffs.erase("sword_fury")
+	player.cooldowns.sword_fury_great = 0.0
+	await wait_until(func(): return player.ability == "" and player.dodge_timer <= 0.0)
+	player.use_slot(5)
+	check(Game.buffs.has("sword_fury") and player.cooldowns.sword_fury_great >= Game.buff_duration("sword_fury") + 4.0 - 0.01,
+		"Fúria Picante na tecla 5 da montante: o buff da Fúria e a recarga dela")
+	await wait_until(func(): return player.ability == "", 2.0)
+	Game.buffs.erase("sword_fury")
+	Game.add_buff("sword_fury", 0.01)
+	# sem a montante: a Fúria volta para a tecla 3 e a tecla 5 some
+	if weapon0 != "":
+		equip_any(weapon0)
+	await wait_until(func(): return Game.offhand_kind() == "")
+	check(Game.ability_kit()[2] == "sword_fury" and not ("sword_spikes" in Game.ability_kit()) and not ("sword_fury_great" in Game.ability_kit()),
+		"Estacas Sísmicas: sem a montante a habilidade 3 volta a ser a Fúria Picante")
+	await wait(0.1)
+	check(not hud.slots["slot_5"].visible, "Estacas Sísmicas: sem a montante a tecla 5 some da barra")
+	Econ.test_force_level(lv0)
+	player.global_position = back
+	player.velocity = Vector3.ZERO
+	player.cooldowns.sword_spikes = 0.0
+	player.cooldowns.sword_fury_great = 0.0
+	player.invuln = 0.0
+	Game.hp = hp_player
+
+
 ## Terremoto Devastador (espada + escudo, slot 2 / tecla 2, no lugar do Golpe Sísmico): kit, carga antes do impacto
 ## (rachaduras pequenas, energia, pedrinhas), parado enquanto bate, impacto na hora certa e no ponto à frente do
 ## herói (explosão e tremor), onda crescendo até o raio, rachaduras e placas acompanhando a onda, pedras lançadas,
@@ -1487,6 +1970,10 @@ func _ready() -> void:
 	await _check_earthquake(player, world)
 	await _check_dark_taunt(player, world)
 	await _check_party_shield(player, world)
+	await _check_supreme(player, world)
+	await _check_drag_slash(player, world)
+	await _check_spin(player, world)
+	await _check_seismic_spikes(player, world)
 	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
 	# quem testar; resta conferir que há recarga para cada habilidade
 	Game.add_item("short_bow")
@@ -4282,6 +4769,8 @@ func _watch_spawns() -> Array:
 			seen.append(n.kind)
 		elif n is Area3D and n.get_script() == preload("res://scripts/player/fireball.gd"):
 			seen.append("fireball")
+		elif n is FireballProjectile:
+			seen.append("staff_fireball")
 	world.child_entered_tree.connect(cb)
 	return [seen, cb]
 
@@ -4312,7 +4801,7 @@ func _test_gear() -> void:
 				bad.append("saque:" + entry[0])
 	check(bad.is_empty(), "itens novos consistentes (%d itens) %s" % [ItemDB.ITEMS.size(), bad])
 
-	# cajado: ataque básico dispara projétil arcano
+	# cajado: ataque básico = Bola de Fogo (clique: bola normal; segurar: cresce na gema e explode em área)
 	var dmg_sword := Game.melee_damage()
 	equip_any("apprentice_staff")
 	check(Game.equipment.weapon == "apprentice_staff", "equipou cajado")
@@ -4322,11 +4811,24 @@ func _test_gear() -> void:
 	player.attacking = false
 	player.combo_window = 0.0
 	Game.stamina = Game.max_stamina()
-	var bolt_watch := _watch_spawns()
+	var fb_watch := _watch_spawns()
+	player._start_swing()   # sem o botão segurado: solta no passo seguinte como clique
+	await wait_until(func(): return not player.attacking, 2.0)
+	_stop_spawn_watch(fb_watch)
+	check("staff_fireball" in fb_watch[0], "cajado dispara a Bola de Fogo no clique")
+	check(player.fireball_orb == null, "clique não deixa bola presa na gema")
+	await wait(0.3)
+	# segurar: a bola nasce na gema e cresce; soltar dispara a carregada
+	Game.stamina = Game.max_stamina()
+	Input.action_press("attack")
 	player._start_swing()
-	await wait_until(func(): return "bolt" in bolt_watch[0], 2.0)
-	_stop_spawn_watch(bolt_watch)
-	check("bolt" in bolt_watch[0], "cajado dispara faísca arcana")
+	await wait(0.25 + MageStaffAttack.CHARGE_TIME * 0.6)
+	var orb: FireballProjectile = player.fireball_orb
+	check(orb != null and is_instance_valid(orb) and orb.size > 1.5, "segurar: a bola cresce na gema (%s)" % [orb.size if orb else -1.0])
+	Input.action_release("attack")
+	await wait(0.05)
+	check(orb != null and is_instance_valid(orb) and orb.is_charged and orb._state == FireballProjectile.FLYING, "soltar dispara a bola carregada")
+	check(orb != null and is_instance_valid(orb) and orb.aoe_radius > MageStaffAttack.AOE_MIN, "carga maior, explosão maior")
 	await wait(0.5)
 	check(not ("heal" in ItemDB.kit("staff")) and ItemDB.kit("scepter")[0] == "heal", "Cura é do cetro, não do cajado")
 

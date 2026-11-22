@@ -1,0 +1,24 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/seismic_spikes/seismic_rock.gdshader" id="1"]
+[ext_resource type="Texture2D" path="res://assets/vfx/seismic_spikes/seismic_cracks_sheet.webp" id="2"]
+
+[resource]
+render_priority = 1
+shader = ExtResource("1")
+shader_parameter/sheet = ExtResource("2")
+shader_parameter/columns = 8.0
+shader_parameter/rows = 8.0
+shader_parameter/key_lo = 0.03
+shader_parameter/key_hi = 0.12
+shader_parameter/key_spread = 2.0
+shader_parameter/frame_px = 128.0
+shader_parameter/opacity = 0.92
+shader_parameter/tint = Color(0.9, 0.86, 0.8, 1)
+shader_parameter/self_light = 0.12
+shader_parameter/ember_color = Color(1, 0.45, 0.12, 1)
+shader_parameter/ember_glow = 1.0
+shader_parameter/mask_inner = 0.72
+shader_parameter/mask_outer = 0.98
+shader_parameter/reveal_feather = 0.15
+shader_parameter/soft_depth = 0.02

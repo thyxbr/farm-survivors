@@ -148,6 +148,12 @@ func _ready() -> void:
 	Game.equip("leather_boots")
 	await wait(1.5)
 	var w: Node = Network.world
+	# O trecho do campo (slime, flecha, veio de ferro, marca) roda no meio dos monstros com nível, e nenhuma
+	# checagem dele usa a vida do jogador: imune desde a entrada (antes só a partir da marca de veneno; com os
+	# comuns batendo x2,3 a Ana, nível 1 e sem armadura, morria antes de chegar lá e o resto falhava em cascata).
+	# Ela vale até o fim de _test_burrow (a Horda, depois, precisa do dano).
+	w.player.invuln = 600.0
+	w.player.died.connect(func() -> void: print("[%s] NETTEST: o jogador morreu em %s" % [my_name, w.player.global_position]))
 	check(w.player.look["class"] == "bow", "arco equipado no personagem local")
 	check(Game.body == my_body() and KnightLook.body_of(w.player.model) == my_body(), "corpo local %s com o modelo dele" % my_body())
 	check(Network.enemies.size() >= 15, "inimigos replicados do servidor (%d)" % Network.enemies.size())
@@ -407,10 +413,9 @@ func _ready() -> void:
 			vt = en
 			break
 	check(vt != null, "achou um %s para a marca de veneno" % mark_kind)
-	# Daqui até a cura na vila os dois ficam no campo, parados, vendo um ao outro (marca, espada, arco e
-	# cajado): os monstros de lá têm nível e batem forte, e o Beto chegava morto ao teste da cura (o servidor
-	# não cura caído, e a tela de morte ficava no lugar do livro do grupo). Nenhuma checagem do trecho usa a
-	# vida do jogador; _test_heal tira a imunidade ao chegar na vila.
+	# Daqui até a vila os dois ficam no campo, parados, vendo um ao outro (marca, espada, arco e cajado): os
+	# monstros de lá têm nível e batem forte, e o Beto chegava morto ao teste da cura (o servidor não cura
+	# caído, e a tela de morte ficava no lugar do livro do grupo). Renova a imunidade da entrada.
 	w.player.invuln = 600.0
 	if vt != null:
 		var before_mark: Vector3 = w.player.global_position
@@ -542,6 +547,7 @@ func _test_burrow(w: Node) -> void:
 		await wait(1.0)
 		w.player.invuln = 0.0
 		check(not w.player.dead, "Ana volta viva da Mina")
+	w.player.invuln = 0.0   # Beto também: a imunidade do campo e da vila acaba aqui, antes da Horda
 	await _sync("burrow_done")
 
 
@@ -662,7 +668,10 @@ func _test_heal(w: Node) -> void:
 		await _pick_class("healer", "sc_novice_scepter")
 		check(Game.char_class == "healer", "Ana virou healer")
 	w.player.global_position = w.VILLAGE_SPAWN + Vector3(2.0 if actor else -2.0, 0, 0)
-	w.player.invuln = 0.0   # na vila (zona da guarda) não há monstro; a imunidade vinha do trecho do campo
+	# A imunidade do trecho do campo continua na vila: a vida fica em 10 de propósito e, com os comuns batendo
+	# x2,3, um golpe perdido (monstro que veio atrás, projétil no ar) mata; morto, o servidor recusa a cura e os
+	# buffs. Ela não bloqueia cura nem buff, e sai no fim de _test_burrow, antes da Horda.
+	w.player.invuln = 600.0
 	await wait(0.6)
 	Game.hp = 10.0
 	Game.mp = Game.max_mp()

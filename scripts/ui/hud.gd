@@ -588,7 +588,7 @@ func _redraw(s: ItemSlot) -> void:
 
 
 ## Monta os ícones dos slots a partir do kit da arma equipada. Os slots 1-4 aparecem sempre; o 5 (Julgamento de
-## Luz do cetro, Grito do Bastião da espada com escudo) só quando o kit tem habilidade nele.
+## Luz do cetro, Grito do Bastião da espada com escudo, Fúria Picante da montante) só quando o kit tem habilidade nele.
 func _refresh_kit() -> void:
 	_kit_class = Game.weapon_class()
 	_slot_ids = ["", "", "", "", ""]

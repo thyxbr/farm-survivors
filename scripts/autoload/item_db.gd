@@ -18,7 +18,8 @@ static var RECIPES: Dictionary = {}
 const RECIPE_ORDER := ["bread", "carrot_stew", "spicy_soup", "dragon_chili", "mint_tea", "garden_salad", "pumpkin_pie", "valdoria_feast"]
 
 ## Habilidades de todas as armas. `slot` 1..SLOT_COUNT (tecla de mesmo número); o slot 4 é a ultimate.
-## O slot 5 é opcional: o cetro (Julgamento de Luz) e a espada com escudo (Grito do Bastião); a barra só o mostra para quem tem.
+## O slot 5 é opcional: o cetro (Julgamento de Luz), a espada com escudo (Grito do Bastião) e a montante (Fúria Picante,
+## que sai da tecla 3 para as Estacas Sísmicas); a barra só o mostra para quem tem.
 const SLOT_COUNT := 5
 ## `ready` = a habilidade já está implementada (fonte única; senão "Em breve"). `cost` é mana (0 = só recarga). `icon` é o desenho do IconPainter.
 ## `aim: "ground"` = a tecla só prepara: mostra o círculo de raio `aim_radius` no chão, a até `aim_range` m, e o
@@ -46,6 +47,9 @@ const ABILITIES := {
 	"sword_charge": {"name": "Investida", "class": "sword", "slot": 1, "level": 1, "cooldown": 6.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "saber", "desc": "Avança sobre os inimigos à frente, causando dano."},
 	# "offhand": só entra no kit com essa mão secundária, no lugar da habilidade do mesmo slot (ver kit())
+	# "offhand": "two_handed" = com a montante nas mãos (Game.offhand_kind): troca a Investida na tecla 1
+	"sword_spin": {"name": "Ciclone de Aço", "class": "sword", "offhand": "two_handed", "slot": 1, "level": 1, "cooldown": 9.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "cleaver", "desc": "Com a montante: aponta a espada para a frente, junta os pés e gira no próprio eixo, ganhando velocidade. Cortes de lâmina varrem tudo em volta (3,1 m): cada inimigo no alcance leva 0,35x o dano corpo a corpo a cada 0,35 s (cerca de 2x no giro todo) e é puxado para dentro dele. Depois o giro perde velocidade aos poucos até parar. Começa a girar assim que é acionada; parado enquanto gira e a esquiva não cancela."},
 	"sword_aegis": {"name": "Égide Cristalina", "class": "sword", "offhand": "shield", "slot": 1, "level": 1, "cooldown": 8.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "ward", "desc": "Com escudo: segure a tecla para fincar o escudo no chão (parado) e erguer uma coroa de placas de cristal em volta (cabe o grupo). Ao se formar ela empurra os monstros; até se partir nenhum monstro nem projétil entra, e os golpes nela gastam a integridade (70 + 9 por nível + 4 por defesa). Soltar a tecla desfaz a barreira. A recarga conta depois que ela acaba (mais longa se quebrar)."},
 	# recarga: a do HammerConfig manda (cooldown_of); esta é só o valor padrão dela
@@ -63,10 +67,25 @@ const ABILITIES := {
 	# espada sem escudo não tem habilidade na tecla 5, e o kit() a acrescenta em vez de trocar alguma)
 	"sword_rally": {"name": "Grito do Bastião", "class": "sword", "offhand": "shield", "slot": 5, "level": 6, "cooldown": 30.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "ward", "desc": "Com escudo: o herói reúne a energia numa aura azul e solta um grito de guerra. Ao terminar, todos do seu grupo por perto (até 30 m, você incluído) ganham o Bastião de Escudos por 15 s: pequenos escudos azuis giram em volta de cada um, dando +6 de defesa e +25% de defesa. Parado enquanto grita; a esquiva antes do grito terminar cancela."},
+	# "offhand": "two_handed" = com a montante nas mãos (Game.offhand_kind): troca o Golpe Sísmico na tecla 2
+	"sword_drag": {"name": "Corte do Abismo", "class": "sword", "offhand": "two_handed", "slot": 2, "level": 3, "cooldown": 9.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "greatsword", "desc": "Com a montante: solta a mão esquerda, desce a ponta da espada até o chão e dispara correndo, arrastando a lâmina atrás numa chuva de fagulhas, brasas e pedrinhas (até 7,5 m; para antes se chegar num inimigo ou numa parede). Então finca o pé e solta um corte violento de baixo para cima (1,6x o dano corpo a corpo no arco à frente, com empurrão), e três garras espectrais irrompem do chão em fila à frente (1,3x o dano corpo a corpo cada, atordoam). A esquiva durante a corrida cancela."},
 	"sword_fury": {"name": "Fúria Picante", "class": "sword", "slot": 3, "level": 5, "cooldown": 28.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "fury", "desc": "Por 10 s: +30% de dano e cada abate cura 2."},
+	# recarga: a do SeismicSpikesConfig manda (cooldown_of); esta é só o valor padrão dela.
+	# "offhand": "two_handed" = com a montante nas mãos (Game.offhand_kind): troca a Fúria Picante na tecla 3 (a Fúria
+	# vai para a tecla 5, sword_fury_great)
+	"sword_spikes": {"name": "Estacas Sísmicas", "class": "sword", "offhand": "two_handed", "slot": 3, "level": 5, "cooldown": 12.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "earthquake", "desc": "Com a montante: vira a espada com a ponta para baixo e a crava no chão. O chão racha do golpe até 4,5 m; em seguida a terra treme como um terremoto (pedras pulando, poeira subindo) enquanto a espada fica cravada: o tremor corre do centro para a borda e cada inimigo na área leva 2,4x o dano corpo a corpo e fica atordoado. Quando o herói arranca a espada, o tremor para. Parado do começo ao fim; a esquiva antes da espada tocar o chão cancela."},
+	# a Fúria Picante na tecla 5 com a montante (a tecla 3 é das Estacas Sísmicas): o mesmo buff "sword_fury"
+	# (SwordAbilities.FURY_IDS), só muda a tecla. Sem a montante ela fica de fora (é "offhand").
+	"sword_fury_great": {"name": "Fúria Picante", "class": "sword", "offhand": "two_handed", "slot": 5, "level": 5, "cooldown": 28.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "fury", "desc": "Por 10 s: +30% de dano e cada abate cura 2."},
 	"sword_whirl": {"name": "Turbilhão", "class": "sword", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
 		"ready": true, "ultimate": true, "icon": "cleaver", "desc": "Ultimate: redemoinho de lâminas ao redor."},
+	# "offhand": "two_handed" = com a montante nas mãos (Game.offhand_kind): troca o Turbilhão na tecla 4
+	"sword_supreme": {"name": "Lâmina Suprema", "class": "sword", "offhand": "two_handed", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
+		"ready": true, "ultimate": true, "icon": "greatsword", "desc": "Ultimate da montante: ergue a espada e fica parado enquanto ela vira uma espada gigante em chamas (cerca de 3x a sua altura); então a crava no chão à frente. O chão se parte numa rachadura em linha reta, arremessando pedras e terra: 5x o dano corpo a corpo, atordoa e empurra quem está no ponto do golpe ou no caminho do corte. A esquiva durante a carga cancela."},
 	"bow_triple": {"name": "Tiro Triplo", "class": "bow", "slot": 1, "level": 1, "cooldown": 5.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "bow", "desc": "Três flechas em leque."},
 	"bow_frost": {"name": "Flecha Glacial", "class": "bow", "slot": 2, "level": 3, "cooldown": 8.0, "cost": 0,
@@ -85,6 +104,7 @@ const COOLDOWN_CONFIGS := {
 	"sword_taunt": "res://assets/vfx/dark_taunt/dark_taunt_config.tres",
 	"sword_earthquake": "res://assets/vfx/earthquake/earthquake_config.tres",
 	"sword_rally": "res://assets/vfx/party_shield/party_shield_config.tres",
+	"sword_spikes": "res://assets/vfx/seismic_spikes/seismic_spikes_config.tres",
 }
 
 
@@ -280,6 +300,8 @@ func item_summary(id: String) -> String:
 			var c: Dictionary = CROPS[it.crop]
 			lines.append("Semente — %ds para crescer (regada: %ds) · rende %d–%d" % [
 				int(c.time), int(c.time / 2.0), c.yield[0], c.yield[1]])
+			if int(c.get("level", 1)) > 1:
+				lines.append("Pede Fazenda nível %d para plantar" % int(c.level))
 		"crop":
 			lines.append("Colheita — ingrediente do caldeirão")
 			var uses: Array[String] = []

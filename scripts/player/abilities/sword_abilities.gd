@@ -6,8 +6,10 @@ extends RefCounted
 ## arco, e _physics_process chama tick() (local e réplicas; nas réplicas só o visual).
 ## A recarga é de player.cast(): use() só diz se a habilidade começou.
 
-## Habilidade de buff (slot 3): pose curta de braços erguidos; o efeito é o buff de mesmo id (Game.add_buff).
+## Habilidade de buff (slot 3; com a montante, slot 5): pose curta de braços erguidos; o efeito é o buff "sword_fury"
+## (Game.add_buff). "sword_fury_great" é a mesma Fúria Picante na tecla 5 da montante (ItemDB.ABILITIES).
 const BUFF_TIME := 0.5
+const FURY_BUFF := "sword_fury"
 const BUFF_COLOR := Color(1.0, 0.3, 0.15)
 
 # ------------------------------------------------------------------ Investida (slot 1)
@@ -71,9 +73,9 @@ static func use(player: Node, id: String) -> bool:
 			Network.send_event(id, player.global_position, player.facing())
 			Sfx.play("sword_swing_heavy", 0.1, -4.0)
 			return true
-		"sword_fury":
+		"sword_fury", "sword_fury_great":
 			player.begin_ability(id, {})
-			Game.add_buff(id, Game.buff_duration(id))
+			Game.add_buff(FURY_BUFF, Game.buff_duration(FURY_BUFF))
 			Network.send_event(id, player.global_position, Vector3.ZERO)
 			FX.ring(player.global_position + Vector3.UP * 0.1, BUFF_COLOR, 2.2, 0.4)
 			Sfx.play("sword_swing_heavy", 0.1, -4.0)
@@ -98,7 +100,7 @@ static func tick(player: Node, delta: float, move_dir := Vector3.ZERO, move_spee
 			_charge_tick(player, t0, player.ability_t, delta)
 		"sword_quake":
 			_quake_tick(player, t0, player.ability_t, delta)
-		"sword_fury":
+		"sword_fury", "sword_fury_great":
 			if player.ability_t >= BUFF_TIME:
 				player.end_ability()
 		"sword_whirl":
@@ -130,7 +132,7 @@ static func pose(player: Node, p: Dictionary) -> void:
 			KnightAnim.play_track(p, KnightMoves.CHARGE, clampf(player.ability_t / CHARGE_TIME, 0.0, 1.0), 0.0)
 		"sword_quake":
 			KnightAnim.play_track(p, KnightMoves.QUAKE, clampf(player.ability_t / QUAKE_TIME, 0.0, 1.0), 0.0)
-		"sword_fury":
+		"sword_fury", "sword_fury_great":
 			KnightAnim.play_track(p, KnightMoves.BUFF, clampf(player.ability_t / BUFF_TIME, 0.0, 1.0), 0.0)
 		"sword_whirl":
 			KnightAnim.play_track(p, KnightMoves.WHIRL, clampf(player.ability_t / WHIRL_TIME, 0.0, 1.0), 0.0)
@@ -154,7 +156,7 @@ static func play_remote(player: Node, kind: String, a: Vector3, b: Vector3) -> v
 		"sword_quake":
 			player.begin_ability(kind, {"dir": b, "origin": a})
 			Sfx.play_at("sword_swing_heavy", a, 0.1, -6.0)
-		"sword_fury":
+		"sword_fury", "sword_fury_great":
 			# a aura vem do buff no visual do dono (look.fx); aqui só a pose e o anel
 			player.begin_ability(kind, {})
 			FX.ring(a + Vector3.UP * 0.1, BUFF_COLOR, 2.2, 0.4)

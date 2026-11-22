@@ -33,7 +33,7 @@ const KNIGHT_SCENE := {"m": "res://assets/models/knight.glb", "f": "res://assets
 const HEAD_HAIR := {
 	"h_hood": "tight", "h_wizard": "tight", "h_archmage": "tight", "h_sage": "tight", "h_void": "tight",
 	"h_oracle": "tight", "h_ember": "tight", "h_lich": "tight", "h_reaper": "tight", "h_raven": "tight",
-	"h_cap": "none", "h_kettle": "none", "h_nasal": "none", "h_great": "none", "h_dragon": "none", "h_emberscale": "none", "h_celestial": "none", "h_blackdragon": "none", "h_dragonhead": "none", PLATE: "none",
+	"h_cap": "none", "h_kettle": "none", "h_nasal": "none", "h_great": "none", "h_dragon": "none", "h_emberscale": "none", "h_celestial": "none", "h_cosmic": "none", "h_blackdragon": "none", "h_dragonknight": "none", "h_dragonknight_dark": "none", "h_dragonhead": "none", PLATE: "none",
 }
 ## Materiais copiados e tingidos, por material de origem + cor (evita duplicar a cada troca de equipamento).
 static var _tint_cache := {}
@@ -309,14 +309,9 @@ static func _pick_hand(model: Node3D, side: String, open: bool) -> void:
 
 
 ## A capa tem esqueleto (CapeRig): o contorno toon dela fica ao lado (não é filho) e não some junto ao
-## esconder a capa. Copia a visibilidade da capa para as cascas que usam a mesma pele.
+## esconder a capa. A casca segue a visibilidade da capa (e a opção de contorno).
 static func _sync_skinned_outline(mi: Node3D) -> void:
-	var m := mi as MeshInstance3D
-	if m == null or m.skin == null or m.get_parent() == null:
-		return
-	for c in m.get_parent().get_children():
-		if c != m and c is MeshInstance3D and str(c.name).begins_with("ToonOutline") and (c as MeshInstance3D).skin == m.skin:
-			(c as MeshInstance3D).visible = m.visible
+	ToonLook.sync_outline_of(mi as MeshInstance3D)
 
 
 # ------------------------------------------------------------------ costas (asas)
