@@ -37,7 +37,9 @@ func refresh() -> void:
 		var e := {"skel": skel, "order": [], "pivot": {}, "rest": {}, "parent": {}, "shift": {}}
 		var depth := {}
 		for i in skel.get_bone_count():
-			var bone := skel.get_bone_name(i)
+			# osso "<pivô>_skin": GLB que traz os pivôs e o esqueleto juntos (monstro gerado por IA); com o mesmo
+			# nome, o importador do Godot renomearia o osso para "<pivô>_2"
+			var bone := skel.get_bone_name(i).trim_suffix("_skin")
 			var piv := _pivot(bone)
 			if piv == null:
 				continue

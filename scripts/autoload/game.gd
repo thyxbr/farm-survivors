@@ -109,7 +109,11 @@ func _ready() -> void:
 	if "--dbg" in OS.get_cmdline_user_args():
 		get_tree().root.add_child.call_deferred(load("res://tests/debug_dialogue.gd").new())
 	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--nettest="):
+		if a.begins_with("--monster-glb="):
+			# `--monster-glb=wolf:wolf_ia`: troca o GLB de um modelo de monstro (ex.: o lobo gerado por IA, mesmos pivôs)
+			var mg := a.substr(14).split(":")
+			EnemyModel.swap[mg[0]] = "res://assets/models/%s.glb" % mg[1]
+		elif a.begins_with("--nettest="):
 			get_tree().root.add_child.call_deferred(load("res://tests/net_test.gd").new())
 		elif a.begins_with("--groupdemo="):
 			# demonstração do Grito do Bastião em grupo, com servidor local (tools/party_group_demo.gd)
