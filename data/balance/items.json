@@ -3742,6 +3742,26 @@
 		"desc": "A cabeça de um dragão vermelho, de chifres e presas, sobre a de quem o venceu.",
 		"craft": true
 	},
+	"dragon_knight_plate": {
+		"name": "Placas do Cavaleiro Dragão",
+		"type": "armor",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 18,
+		"price": 1850,
+		"color": {
+			"$c": [0.5, 0.17, 0.17, 1.0]
+		},
+		"metal": true,
+		"style": "a_dragonknight",
+		"stats": {
+			"vit": 8,
+			"str": 4,
+			"hp": 64
+		},
+		"desc": "Placas vermelhas como as escamas do dragão, com o rosto dele em ouro no peito.",
+		"craft": true
+	},
 	"astral_helm": {
 		"name": "Elmo Astral",
 		"type": "gear",

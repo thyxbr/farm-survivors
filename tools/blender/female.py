@@ -129,6 +129,8 @@ def _outer(a):
 
 
 def _obj_mode(ob):
+    if ob.get("fem_mode"):          # peça fosca que é placa (materiais sem metal): o construtor diz o modo
+        return ob["fem_mode"]
     mats = [m for m in ob.data.materials if m is not None]
     if mats and all("skin" in m.name for m in mats):
         return "skin"
