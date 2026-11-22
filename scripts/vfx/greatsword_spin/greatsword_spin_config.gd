@@ -18,6 +18,13 @@ extends Resource
 ## Puxão para perto a cada corte (m/s; 0 = o empurrão padrão do golpe). Segura a horda dentro do giro.
 @export_range(0.0, 6.0, 0.1) var pull := 2.0
 
+@export_group("Movimento")
+## Velocidade de andar enquanto gira: multiplica a de andar normal (0 = preso no lugar). O herói vai para onde a tecla
+## de andar mandar (relativo à câmera); o giro do corpo continua o mesmo.
+@export_range(0.0, 1.5, 0.05) var move_speed := 0.75
+## Quão rápido ele pega e perde essa velocidade (1/s): alto = responde na hora, baixo = escorrega.
+@export_range(1.0, 40.0, 0.5) var move_accel := 10.0
+
 @export_group("Ritmo")
 ## Postura parada antes do giro (s). 0 = o giro começa assim que a habilidade é acionada (os braços vão à frente já
 ## girando). Com mais de 0 a esquiva cancela nessa postura.
@@ -25,41 +32,32 @@ extends Resource
 ## Aceleração: de parado até a velocidade máxima de giro (s).
 @export_range(0.05, 3.0, 0.01) var accel_time := 0.35
 ## Giro na velocidade máxima (s).
-@export_range(0.1, 6.0, 0.05) var spin_time := 1.4
+@export_range(0.1, 6.0, 0.05) var spin_time := 4.4
 ## Desaceleração suave até parar (s).
 @export_range(0.05, 4.0, 0.01) var decel_time := 0.9
 ## Volta à guarda normal depois de parar (s).
 @export_range(0.05, 2.0, 0.01) var recover_time := 0.35
 ## Voltas completas do giro inteiro: a velocidade máxima sai daqui, e o herói termina virado para onde começou.
-@export_range(1, 20) var turns := 5
+@export_range(1, 40) var turns := 12
 ## Inclinação do corpo para trás enquanto gira, contrapeso da espada esticada (rad): começa com o giro e volta ao
 ## normal no fim da animação (GreatswordSpinRules.lean_weight).
 @export_range(0.0, 0.6, 0.01) var lean := 0.24
 
-@export_group("Cortes (sprite sheet 8x8)")
-## Brilho do anel de lâmina principal, que gira com a espada.
-@export_range(0.0, 4.0, 0.05) var ring_intensity := 1.4
-## Tamanho do anel: multiplica o diâmetro do alcance (`radius` x 2).
-@export_range(0.3, 2.0, 0.01) var ring_scale := 1.0
-## Altura do anel e dos cortes (m acima dos pés): a altura da lâmina.
-@export_range(0.2, 2.5, 0.01) var slash_height := 1.0
-## Ajuste do ângulo do desenho do anel em relação à lâmina (graus).
-@export_range(-180.0, 180.0, 1.0) var ring_yaw_offset := 0.0
-## Espelha o desenho (se o redemoinho da sheet girar ao contrário do herói).
-@export var ring_flip := false
-## Quadros da sheet (0..63): o começo (a espada e o primeiro crescente), o laço do giro e o apagar.
-@export var frames_start := Vector2(0.0, 12.0)
-@export var frames_loop := Vector2(12.0, 40.0)
-@export var frames_end := Vector2(40.0, 63.0)
-## Quadros por segundo do laço no giro máximo.
-@export_range(1.0, 60.0, 0.5) var loop_fps := 24.0
-## Cortes soltos por segundo no giro máximo (GPUParticles3D, cada um uma passada da sheet).
-@export_range(0.0, 60.0, 0.5) var slashes_per_second := 14.0
-## Brilho dos cortes soltos.
-@export_range(0.0, 4.0, 0.05) var slash_intensity := 1.1
-## Inclinação máxima dos cortes soltos em relação ao chão (graus): cortes em vários ângulos.
-@export_range(0.0, 80.0, 1.0) var slash_tilt := 38.0
-## Tempo para os cortes e a luz sumirem depois de parar (Tween, s).
+@export_group("Energia sombria")
+## Quanto o rastro de energia que segue o corte da espada dura atrás dela (s): na velocidade máxima ~0,3 s cobre uns
+## 250° do giro.
+@export_range(0.05, 1.0, 0.01) var trail_time := 0.3
+## A energia passa da ponta da lâmina este tanto (m): chega perto do alcance do dano (`radius`).
+@export_range(0.0, 2.0, 0.05) var trail_reach := 0.8
+## Brilho do rastro (fumaça escura e bordas violeta).
+@export_range(0.0, 3.0, 0.05) var trail_intensity := 1.0
+## Fiapos de fumaça escura, faíscas violeta e lascas carmesim soltos pela lâmina por segundo, no giro máximo.
+@export_range(0.0, 200.0, 1.0) var wisps_per_second := 46.0
+@export_range(0.0, 200.0, 1.0) var motes_per_second := 70.0
+@export_range(0.0, 200.0, 1.0) var sparks_per_second := 40.0
+## Altura da luz violeta do giro (m acima dos pés): a altura da lâmina.
+@export_range(0.2, 2.5, 0.01) var slash_height := 1.1
+## Tempo para o rastro, os fiapos e a luz sumirem depois de parar (Tween, s).
 @export_range(0.05, 3.0, 0.05) var fade_time := 0.45
 
 @export_group("Câmera")

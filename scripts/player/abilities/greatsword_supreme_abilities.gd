@@ -3,11 +3,13 @@ extends RefCounted
 ## Lâmina Suprema: a ultimate da montante (espada de duas mãos). ItemDB "sword_supreme", "offhand": "two_handed": com
 ## a montante nas mãos ela troca o Turbilhão na tecla 4 e, como as outras ultimates, gasta a fúria cheia (Player.cast).
 ##   1. Carga: o herói ergue a montante acima da cabeça (clipe "Great Sword Casting" do Mixamo retargetado,
-##      KnightMovesGreatCast) e fica parado com ela no alto enquanto uma espada gigante de ferro se forma em volta
-##      dela (~3x a altura dele) e pega fogo da guarda até a ponta, com brasas, faíscas e fumaça.
+##      KnightMovesGreatCast) e fica parado com ela no alto enquanto uma energia sombria (violeta e carmesim, a das
+##      garras do Corte do Abismo) cobre a lâmina da guarda até a ponta e vai crescendo até ~3x a altura dele, com
+##      chamas escuras, fiapos de fumaça e faíscas sendo puxadas para ela.
 ##   2. Corte: gira a lâmina por trás, passa por cima da cabeça e crava a espada de energia no chão à frente.
-##   3. Impacto: o chão se parte numa rachadura reta, pedras, terra, poeira e fagulhas voam para os lados; quem está
-##      no ponto do golpe ou no caminho do corte leva dano (uma vez), atordoamento e empurrão. Depois tudo some aos poucos.
+##   3. Impacto: abre-se uma grande cratera em linha reta (3 m de largura) do herói para a frente, com as bordas de
+##      pedra partida saltando do chão, e almas saem voando de dentro dela, fugindo em várias direções; quem está na
+##      cratera ou no ponto do golpe leva dano (uma vez), atordoamento e empurrão. Depois a cratera fecha aos poucos.
 ## Sequência e visual: GreatswordSupremeSlash (cena própria na cena do mundo, se libera sozinha). Configuração em
 ## GreatswordSupremeConfig (assets/vfx/greatsword_supreme/greatsword_supreme_config.tres, editável no Inspector).
 ## Movimento: preso do começo ao fim (tick zera a velocidade e mantém o herói virado para o golpe); a esquiva só

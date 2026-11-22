@@ -1,0 +1,37 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/greatsword_dark/greatsword_dark_combo_fx.gd" id="1"]
+[ext_resource type="Resource" path="res://assets/vfx/greatsword_dark/greatsword_dark_combo_config.tres" id="2"]
+[ext_resource type="Script" path="res://scripts/vfx/greatsword_dark/dark_blade_trail.gd" id="3"]
+[ext_resource type="Material" path="res://assets/vfx/greatsword_dark/dark_vortex_mat.tres" id="4"]
+
+[sub_resource type="PlaneMesh" id="wave_plane"]
+size = Vector2(1, 1)
+
+[node name="GreatswordDarkComboFX" type="Node3D"]
+script = ExtResource("1")
+config = ExtResource("2")
+
+[node name="Trail" type="MeshInstance3D" parent="."]
+script = ExtResource("3")
+
+[node name="BladeLight" type="OmniLight3D" parent="."]
+top_level = true
+light_color = Color(0.48, 0.16, 1, 1)
+light_energy = 0.0
+omni_range = 4.5
+
+[node name="Wave" type="MeshInstance3D" parent="."]
+top_level = true
+visible = false
+cast_shadow = 0
+mesh = SubResource("wave_plane")
+surface_material_override/0 = ExtResource("4")
+instance_shader_parameters/intensity = 0.0
+instance_shader_parameters/spin = 0.0
+instance_shader_parameters/inner = 0.35
+instance_shader_parameters/ring = 1.0
+instance_shader_parameters/seed = 0.0
+
+[node name="Claws" type="Node3D" parent="."]
+top_level = true

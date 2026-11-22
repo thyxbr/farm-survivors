@@ -17,9 +17,11 @@ global uniform vec2 weather_wind_dir;
 global uniform float weather_phase;   // vento acumulado (s × força): acelera o balanço sem saltos
 global uniform float weather_snow;
 global uniform float weather_wet;
-// Efeito que achata o capim numa área (as Estacas Sísmicas rachando o chão, SeismicSpikesAoE): (x, z) do centro,
-// raio (m) e força 0..1 (0 = nenhum). O chão rachado fica à mostra em vez de escondido sob o capim.
+// Efeito que achata o capim numa área (a cratera da Lâmina Suprema, GreatswordSupremeSlash): (x, z) do ponto A, meia
+// largura (m) e força 0..1 (0 = nenhum). fx_flatten_to = (x, z) do ponto B e 1 no terceiro valor para uma faixa reta de
+// A até B (0 = só um círculo em volta de A). O chão rachado fica à mostra em vez de escondido sob o capim.
 global uniform vec4 fx_flatten;
+global uniform vec4 fx_flatten_to;
 
 varying vec3 base_col;
 varying float hgt;
@@ -47,7 +49,10 @@ void vertex() {
 	VERTEX.y *= 1.0 - weather_snow * 0.72;
 	// achatado por um efeito no chão (fx_flatten): some quase todo dentro do raio, a borda vai voltando
 	if (fx_flatten.w > 0.0) {
-		float fd = distance(origin.xz, fx_flatten.xy);
+		vec2 fa = fx_flatten.xy;
+		vec2 fab = fx_flatten_to.z > 0.5 ? fx_flatten_to.xy - fa : vec2(0.0);
+		float fu = clamp(dot(origin.xz - fa, fab) / max(dot(fab, fab), 0.0001), 0.0, 1.0);
+		float fd = distance(origin.xz, fa + fab * fu);
 		float fk = fx_flatten.w * (1.0 - smoothstep(fx_flatten.z * 0.8, fx_flatten.z, fd));
 		VERTEX *= vec3(1.0, 1.0 - 0.9 * fk, 1.0);
 	}

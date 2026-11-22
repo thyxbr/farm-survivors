@@ -3,7 +3,7 @@ extends Node3D
 ## (KnightAnim.great_cast_pose) e o visual (GreatswordSupremeSlash) como no jogo. Precisa de janela (sem --headless):
 ##   godot --path . --fixed-fps 30 --resolution 960x720 res://tools/supreme_shot.tscn -- <saida.png> [jogo|lado|perto]
 ## jogo: da câmera do jogo (atrás do herói, recuada como na habilidade). lado: de 3/4, de longe. perto: a espada de perto.
-## Bonecos em volta: vermelhos dentro da área do golpe (ponto do golpe ou caminho do corte), azuis fora.
+## Bonecos em volta: vermelhos dentro da área do golpe (a cratera ou o ponto do golpe), azuis fora.
 
 const KNIGHT := preload("res://assets/models/knight.glb")
 const SKILL := preload("res://scenes/vfx/greatsword_supreme/greatsword_supreme_slash.tscn")
@@ -64,7 +64,8 @@ func _ready() -> void:
 		cm.height = 1.4
 		d.mesh = cm
 		var dm := StandardMaterial3D.new()
-		var inside := GreatswordSupremeRules.in_area(Vector3.ZERO, center, center + off, _cfg.impact_radius, _cfg.cut_half_width, 0.35)
+		var inside := GreatswordSupremeRules.in_crater(Vector3.ZERO, center + Vector3(0, 0, _cfg.crack_beyond), center, center + off,
+			_cfg.impact_radius, _cfg.cut_half_width, 0.35)
 		dm.albedo_color = Color(0.55, 0.25, 0.25) if inside else Color(0.3, 0.3, 0.55)
 		d.material_override = dm
 		add_child(d)
@@ -102,10 +103,10 @@ func _ready() -> void:
 	var r := _cfg.raise_time
 	var ce := _cfg.charge_end()
 	var it := _cfg.impact_time()
-	_plan = [[r * 0.6, "erguendo"], [r + 0.3, "aura começando"], [r + _cfg.charge_time * 0.5, "aura na metade"],
-		[ce - 0.05, "aura formada"], [ce + _cfg.slash_time * 0.35, "corte: por trás"], [ce + _cfg.slash_time * 0.75, "corte: por cima"],
-		[it - 0.03, "crava no chão"], [it + 0.08, "impacto"], [it + 0.3, "rachadura e pedras"], [it + 0.7, "poeira"],
-		[it + 1.3, "ajoelhado / levantando"], [it + 2.2, "fogo diminuindo"], [it + _cfg.crack_hold + _cfg.fade_time * 0.5, "rachadura sumindo"]]
+	_plan = [[r * 0.6, "erguendo"], [r + _cfg.charge_time * 0.15, "energia cobrindo"], [r + _cfg.charge_time * 0.5, "energia crescendo"],
+		[ce - 0.05, "energia formada"], [ce + _cfg.slash_time * 0.35, "corte: por trás"], [ce + _cfg.slash_time * 0.75, "corte: por cima"],
+		[it - 0.03, "crava no chão"], [it + 0.08, "impacto"], [it + 0.3, "cratera abrindo"], [it + 0.7, "almas saindo"],
+		[it + 1.3, "almas fugindo"], [it + 2.2, "ajoelhado / levantando"], [it + _cfg.crack_hold + _cfg.fade_time * 0.5, "cratera fechando"]]
 
 
 func _carry_pose(k: float) -> Dictionary:

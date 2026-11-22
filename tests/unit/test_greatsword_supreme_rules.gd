@@ -31,12 +31,37 @@ func test_area_covers_hit_point_and_cut_path() -> void:
 	T.ok(not GreatswordSupremeRules.in_area(o, Vector3(0, 0, 8), Vector3(0.8, 0, 1.5), 2.0, 0.0), "sem corte, só o ponto do golpe")
 
 
+func test_crater_area_is_a_straight_band() -> void:
+	var a := Vector3.ZERO
+	var b := Vector3(0, 0, 10)
+	var c := Vector3(0, 0, 6)
+	T.ok(GreatswordSupremeRules.in_crater(a, b, c, Vector3(1.4, 0, 9.0), 2.0, 1.5), "dentro da cratera, além do ponto do golpe")
+	T.ok(not GreatswordSupremeRules.in_crater(a, b, c, Vector3(1.7, 0, 9.0), 2.0, 1.5), "fora dos 3 m de largura")
+	T.ok(GreatswordSupremeRules.in_crater(a, b, c, Vector3(1.9, 0, 6.5), 2.0, 1.5), "no raio do ponto do golpe")
+	T.ok(not GreatswordSupremeRules.in_crater(a, b, c, Vector3(0, 0, 11.6), 2.0, 1.5), "além da ponta da cratera não")
+	T.ok(GreatswordSupremeRules.in_crater(a, b, c, Vector3(1.7, 0, 9.0), 2.0, 1.5, 0.3), "o corpo do inimigo encosta na borda")
+
+
 func test_each_enemy_hit_once() -> void:
 	var hit := {}
-	var ts := [{"id": 1, "pos": Vector3(0, 0, 3)}, {"id": 2, "pos": Vector3(20, 0, 0)}, {"id": 3, "pos": Vector3(1, 0, 4), "radius": 0.5}]
-	var a := GreatswordSupremeRules.pick_targets(ts, Vector3.ZERO, Vector3(0, 0, 3.4), 4.0, 1.0, hit)
-	T.eq(a.map(func(x: Dictionary) -> int: return x.id), [1, 3], "só quem está na área")
-	T.eq(GreatswordSupremeRules.pick_targets(ts, Vector3.ZERO, Vector3(0, 0, 3.4), 4.0, 1.0, hit).size(), 0, "ninguém leva duas vezes")
+	var ts := [{"id": 1, "pos": Vector3(0, 0, 3)}, {"id": 2, "pos": Vector3(20, 0, 0)}, {"id": 3, "pos": Vector3(1, 0, 8), "radius": 0.5}]
+	var a := GreatswordSupremeRules.pick_targets(ts, Vector3.ZERO, Vector3(0, 0, 9), Vector3(0, 0, 5), 2.5, 1.5, hit)
+	T.eq(a.map(func(x: Dictionary) -> int: return x.id), [1, 3], "só quem está na cratera")
+	T.eq(GreatswordSupremeRules.pick_targets(ts, Vector3.ZERO, Vector3(0, 0, 9), Vector3(0, 0, 5), 2.5, 1.5, hit).size(), 0,
+		"ninguém leva duas vezes")
+
+
+func test_souls_spawn_in_the_crater_and_flee_outwards() -> void:
+	var a := Vector3.ZERO
+	var b := Vector3(0, 0, 10)
+	for k in 9:
+		var along := float(k) / 8.0
+		var p := GreatswordSupremeRules.soul_spawn(a, b, 1.5, along, float(k % 3) * 0.5)
+		T.ok(absf(p.x) <= 1.5 and p.z >= -0.01 and p.z <= 10.01, "a alma nasce dentro da cratera (%s)" % p)
+		var f := GreatswordSupremeRules.soul_flee_dir(a, b, p, float(k) / 8.0)
+		T.ok(is_equal_approx(f.length(), 1.0) and is_zero_approx(f.y), "foge pelo chão (normalizado)")
+		if absf(p.x) > 0.05:
+			T.ok(f.x * p.x > 0.0, "foge para o lado em que nasceu (%s de %s)" % [f, p])
 
 
 func test_back_weight() -> void:
@@ -52,7 +77,11 @@ func test_config_and_generated_animation() -> void:
 	T.ok(c.sword_length >= 5.0, "espada de energia ~3x a altura do herói (%.2f m)" % c.sword_length)
 	T.ok(absf(c.impact_distance - c.sword_length) < 1.0, "a ponta alcança o ponto do golpe sem encolher (%.2f m)" % c.impact_distance)
 	T.ok(c.crack_length() > c.impact_distance and absf(c.crack_center_offset()) < c.crack_length() * 0.5,
-		"a rachadura passa pelo ponto do golpe, do herói até além da ponta (%.1f m)" % c.crack_length())
+		"a cratera passa pelo ponto do golpe, do herói até além da ponta (%.1f m)" % c.crack_length())
+	T.ok(is_equal_approx(c.crack_width, 3.0) and is_equal_approx(c.cut_half_width * 2.0, c.crack_width),
+		"cratera de 3 m de largura, e o dano pega a largura toda")
+	T.ok(c.soul_count > 0 and c.soul_life > 0.5, "almas saem da cratera")
+	T.ok(c.crack_hold + c.fade_time >= c.soul_life, "a cratera dura enquanto as almas voam")
 	T.ok(c.impact_radius > 0.0 and c.impact_distance > 0.0, "o impacto é à frente e tem área")
 	T.eq(KnightMovesGreatCast.TRACKS.size(), GreatswordSupremeRules.PHASE_COUNT, "uma trilha por fase")
 	for tr in KnightMovesGreatCast.TRACKS:
