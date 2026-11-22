@@ -3781,6 +3781,25 @@
 		"desc": "Placas vermelhas até a ponta dos dedos, e na ponta de cada dedo uma garra.",
 		"craft": true
 	},
+	"dragon_knight_greaves": {
+		"name": "Grevas do Cavaleiro Dragão",
+		"type": "gear",
+		"slot": "feet",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 5,
+		"price": 290,
+		"color": {
+			"$c": [0.5, 0.17, 0.17, 1.0]
+		},
+		"metal": true,
+		"style": "f_dragonknight",
+		"stats": {
+			"vit": 3
+		},
+		"desc": "Em cada joelho, a cabeça de um dragão vermelho olha para a frente.",
+		"craft": true
+	},
 	"astral_helm": {
 		"name": "Elmo Astral",
 		"type": "gear",

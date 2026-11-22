@@ -585,3 +585,159 @@ def build_g_dragonknight():
         join_objs("Arm%s_HandOpen" % n, op)
         join_objs("Arm%s_Gauntlet" % n, cp)
     g_export("g_dragonknight", P, R)
+
+
+def _drk_knee_head(K):
+    """Cabeça de dragão da joelheira: o rosto esculpido do elmo (dragon_face_base.blend), reduzido a poucos
+    polígonos e sem textura. As cores vêm da cor por vértice que o preparo do elmo guardou: claro e pouco
+    saturado vira osso (chifres, dentes), amarelo vivo vira ouro (olhos), o resto é o vermelho das placas.
+    Devolve a malha em coordenadas do elmo (cabeça do jogo), ainda sem dono."""
+    import numpy as np
+    with bpy.data.libraries.load(DH_BASE) as (src, dst):
+        dst.objects = [n for n in src.objects if n == "DragonFace"]
+    ob = dst.objects[0]
+    coll.objects.link(ob)
+    mod = ob.modifiers.new("Dec", 'DECIMATE')
+    mod.ratio = 3200 / max(1, len(ob.data.polygons))
+    with bpy.context.temp_override(active_object=ob, object=ob, selected_objects=[ob], selected_editable_objects=[ob]):
+        bpy.ops.object.modifier_apply(modifier="Dec")
+    me = ob.data
+    ca = me.color_attributes["Col"]
+    c = np.empty(len(ca.data) * 4, np.float32)
+    ca.data.foreach_get("color", c)
+    c = c.reshape(-1, 4)[:, :3]
+    me.materials.clear()
+    for m in (K["red"], K["bone"], K["gold"], K["red_d"]):
+        me.materials.append(m)
+    cnt = [0, 0, 0, 0]
+    for pl in me.polygons:
+        r, g, b = c[list(pl.loop_indices)].mean(0)
+        v = max(r, g, b)
+        sat = (v - min(r, g, b)) / max(v, 1e-4)
+        if v > 0.42 and sat < 0.5:
+            k = 1
+        elif r > 0.55 and g > 0.3 and b < 0.3:
+            k = 2
+        else:
+            k = 0
+        pl.material_index = k
+        pl.use_smooth = True
+        cnt[k] += 1
+    for a in list(me.color_attributes):
+        me.color_attributes.remove(a)
+    while me.uv_layers:
+        me.uv_layers.remove(me.uv_layers[0])
+    return ob
+
+
+def build_f_dragonknight():
+    """Grevas do Cavaleiro Dragão: volta do joelho e canela em casca cinza-escura; greva de escamas vermelhas
+    pela frente e pelos lados da canela (desenho em losango), com a borda de cima em V e friso de ouro grosso
+    nela, e anel de ouro no tornozelo; joelheira em cabeça de dragão com chifres (o rosto do elmo, em miniatura);
+    bota de placa vermelha com lâminas no peito do pé e sola escura."""
+    P, R = g_rig("f_dragonknight")
+    K = dragonknight_mats()
+    sole = gm("drk_sole", "#1E1A1A", 0.9)
+    N = 32
+    A = 1.95
+    head0 = _drk_knee_head(K)
+    HS = 0.36                          # escala da cabeça (o focinho encurtado: a ficha tem cabeça curta no joelho)
+    for n, s in (("L", 1), ("R", -1)):
+        S = limb_sections(P, s)
+        sh, th = S["shin"], S["thigh"]
+        knee, ankle = R["Knee" + n], R["Ankle" + n]
+        KJ = mirror(P["knee"], s)
+        parts = []
+        kn = grow(span(th, 0.86, 1.0), 1.05, 0.006) + grow(span(sh, 0.0, 0.24), 1.05, 0.006)[1:]
+        parts.append(g_smooth_mesh("Leg%s_KneeJoint" % n, [_rg_ring(x, n=N) for x in kn], K["under"], knee,
+                                   cap_end=False))
+
+        def gp(t, a, add):
+            q = sample(sh, t)
+            rx, ry = q["rx"] * 1.06 + add, q["ry"] * 1.06 + add
+            x, y = cb_spt(a, rx, ry, q.get("fr", 1.0), q.get("bk", 1.0), keel=0.06)
+            return Vector((q["c"].x + x, q["c"].y + y, q["c"].z))
+
+        def gn(t, a):
+            q = gp(t, a, 0.0)
+            c = sample(sh, t)["c"]
+            return Vector((q.x - c.x, q.y - c.y, 0)).normalized()
+        # ---- casca cinza da canela inteira
+        ts = [0.13 + 0.86 * i / 15 for i in range(16)]
+        parts.append(g_smooth_mesh("Leg%s_Shin" % n, [[gp(t, 2 * math.pi * j / N, 0.007) for j in range(N)] for t in ts],
+                                   K["under"], knee, cap_end=False, thick=0.004, outward=True))
+
+        # ---- greva de escamas: frente e lados, borda de cima em V
+        def top_t(a):
+            return 0.15 + 0.1 * max(0.0, 1 - abs(a) / 1.3) ** 1.1
+
+        def plate(u, v):
+            a = -A + 2 * A * v
+            t = top_t(a) + (0.95 - top_t(a)) * u
+            fl = 0.014 * max(0.0, (t - 0.82) / 0.13) ** 1.6
+            return gp(t, a, 0.014 + fl)
+        NRW, NCL = 16, 30
+        grid = [[plate(i / NRW, j / NCL) for j in range(NCL + 1)] for i in range(NRW + 1)]
+        parts.append(g_smooth_mesh("Leg%s_Greave" % n, grid, K["red"], knee, cap_end=False, closed=False, thick=0.005,
+                                   outward=True))
+        top = [plate(0.0, j / NCL) for j in range(NCL + 1)]
+        topn = [gn(top_t(-A + 2 * A * j / NCL), -A + 2 * A * j / NCL) for j in range(NCL + 1)]
+        parts.append(cz_strip("Leg%s_GreaveTop" % n, [q + d * 0.001 for q, d in zip(top, topn)], topn, 0.022, 0.008,
+                              K["gold"], knee))
+        ank = [gp(0.93, 2 * math.pi * j / N, 0.017) for j in range(N)]
+        ankn = [gn(0.93, 2 * math.pi * j / N) for j in range(N)]
+        parts.append(cz_strip("Leg%s_GreaveAnkle" % n, ank, ankn, 0.026, 0.008, K["gold"], knee, loop=True))
+        # desenho de escamas em losango
+        for fam in (1, -1):
+            for k in range(-5, 9):
+                line = []
+                for i in range(1, 13):
+                    u = 0.1 + 0.8 * (i - 1) / 11
+                    a = (-A + 0.2 + k * 0.62 + (i - 1) * 0.2) * fam
+                    if abs(a) < A - 0.18:
+                        q = plate(u, (a + A) / (2 * A))
+                        line.append(q + gn(0.5, a) * 0.0013)
+                if len(line) >= 3:
+                    parts.append(g_pipe("Leg%s_Scale%d_%d" % (n, fam > 0, k), line, 0.002, K["line"], knee, sides=6))
+        # ---- joelheira: cabeça de dragão
+        hd = head0.copy()
+        hd.data = head0.data.copy()
+        coll.objects.link(hd)
+        kc = Vector((KJ.x, KJ.y - 0.058, KJ.z + 0.01))        # nuca da cabeça encostada na frente do joelho
+        T = (Matrix.Translation(kc - _wloc(knee)) @ Matrix.Diagonal((HS, HS * 0.68, HS, 1.0))
+             @ Matrix.Translation(Vector((0, -0.06, -1.7))))
+        hd.data.transform(T)
+        hd.parent = knee
+        hd.location = (0, 0, 0)
+        hd["wloc"] = list(_wloc(knee))
+        hd.name = "Leg%s_KneeHead" % n
+        parts.append(hd)
+        join_objs("Leg%s_Boot" % n, parts)
+        # ---- bota de placa
+        f = P["ft"]
+        ft = _foot_secs(P, s, 1.07, 0.006)
+        zmin = 0.02 * f
+
+        def fring(sc, k=1.0):
+            return [sc["c"] + Vector((math.sin(a) * sc["rx"] * k, 0, 0)) +
+                    Vector((0, 0, max(zmin - sc["c"].z, math.cos(a) * sc["ry"] * k * 0.86)))
+                    for a in (2 * math.pi * j / N for j in range(N))]
+        h0 = ft[0]
+        hc = dict(h0, c=h0["c"] + Vector((0, 0.014 * f, 0.006)))
+        frs = [fring(hc, 0.02), fring(dict(h0, c=h0["c"] + Vector((0, 0.011 * f, 0.004))), 0.5), fring(h0, 0.9)]
+        frs += [fring(x) for x in ft]
+        frs.append(fring(dict(ft[-1], c=ft[-1]["c"] + Vector((0, -0.02 * f, -0.002))), 0.1))
+        shoe = g_smooth_mesh("Leg%s_Foot" % n, frs, K["red"], ankle, outward=True)
+        foot = [shoe, foot_sole("Leg%s_Sole" % n, ft, sole, ankle, f, heel=0.01 * f)]
+        for k, i in enumerate((1, 2, 3, 4)):
+            if i >= len(ft) - 1:
+                break
+            b = ft[i]
+            arc = [b["c"] + Vector((math.sin(t) * (b["rx"] * 1.0 + 0.003), 0,
+                                    max(zmin - b["c"].z + 0.004, math.cos(t) * (b["ry"] * 0.86 + 0.003))))
+                   for t in (-1.7 + 3.4 * m / 14 for m in range(15))]
+            foot.append(g_pipe("Leg%s_SabatonLame%d" % (n, k), arc, 0.003, K["line"], ankle, sides=6))
+        join_objs("Leg%s_BootFoot" % n, foot)
+    bpy.data.objects.remove(head0, do_unlink=True)
+    g_loose_world("f_dragonknight")
+    g_export("f_dragonknight", P, R)
