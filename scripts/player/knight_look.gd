@@ -309,14 +309,9 @@ static func _pick_hand(model: Node3D, side: String, open: bool) -> void:
 
 
 ## A capa tem esqueleto (CapeRig): o contorno toon dela fica ao lado (não é filho) e não some junto ao
-## esconder a capa. Copia a visibilidade da capa para as cascas que usam a mesma pele.
+## esconder a capa. A casca segue a visibilidade da capa (e a opção de contorno).
 static func _sync_skinned_outline(mi: Node3D) -> void:
-	var m := mi as MeshInstance3D
-	if m == null or m.skin == null or m.get_parent() == null:
-		return
-	for c in m.get_parent().get_children():
-		if c != m and c is MeshInstance3D and str(c.name).begins_with("ToonOutline") and (c as MeshInstance3D).skin == m.skin:
-			(c as MeshInstance3D).visible = m.visible
+	ToonLook.sync_outline_of(mi as MeshInstance3D)
 
 
 # ------------------------------------------------------------------ costas (asas)
