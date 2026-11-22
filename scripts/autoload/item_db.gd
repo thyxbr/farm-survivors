@@ -18,7 +18,8 @@ static var RECIPES: Dictionary = {}
 const RECIPE_ORDER := ["bread", "carrot_stew", "spicy_soup", "dragon_chili", "mint_tea", "garden_salad", "pumpkin_pie", "valdoria_feast"]
 
 ## Habilidades de todas as armas. `slot` 1..SLOT_COUNT (tecla de mesmo número); o slot 4 é a ultimate.
-## O slot 5 é opcional: o cetro (Julgamento de Luz) e a espada com escudo (Grito do Bastião); a barra só o mostra para quem tem.
+## O slot 5 é opcional: o cetro (Julgamento de Luz), a espada com escudo (Grito do Bastião) e a montante (Fúria Picante,
+## que sai da tecla 3 para as Estacas Sísmicas); a barra só o mostra para quem tem.
 const SLOT_COUNT := 5
 ## `ready` = a habilidade já está implementada (fonte única; senão "Em breve"). `cost` é mana (0 = só recarga). `icon` é o desenho do IconPainter.
 ## `aim: "ground"` = a tecla só prepara: mostra o círculo de raio `aim_radius` no chão, a até `aim_range` m, e o
@@ -71,6 +72,15 @@ const ABILITIES := {
 		"ready": true, "ultimate": false, "icon": "greatsword", "desc": "Com a montante: solta a mão esquerda, desce a ponta da espada até o chão e dispara correndo, arrastando a lâmina atrás numa chuva de fagulhas, brasas e pedrinhas (até 7,5 m; para antes se chegar num inimigo ou numa parede). Então finca o pé e solta um corte violento de baixo para cima (1,6x o dano corpo a corpo no arco à frente, com empurrão), e três garras espectrais irrompem do chão em fila à frente (1,3x o dano corpo a corpo cada, atordoam). A esquiva durante a corrida cancela."},
 	"sword_fury": {"name": "Fúria Picante", "class": "sword", "slot": 3, "level": 5, "cooldown": 28.0, "cost": 0,
 		"ready": true, "ultimate": false, "icon": "fury", "desc": "Por 10 s: +30% de dano e cada abate cura 2."},
+	# recarga: a do SeismicSpikesConfig manda (cooldown_of); esta é só o valor padrão dela.
+	# "offhand": "two_handed" = com a montante nas mãos (Game.offhand_kind): troca a Fúria Picante na tecla 3 (a Fúria
+	# vai para a tecla 5, sword_fury_great)
+	"sword_spikes": {"name": "Estacas Sísmicas", "class": "sword", "offhand": "two_handed", "slot": 3, "level": 5, "cooldown": 12.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "earthquake", "desc": "Com a montante: vira a espada com a ponta para baixo e a crava no chão. O chão racha do golpe até 4,5 m; em seguida a terra treme como um terremoto (pedras pulando, poeira subindo) enquanto a espada fica cravada: o tremor corre do centro para a borda e cada inimigo na área leva 2,4x o dano corpo a corpo e fica atordoado. Quando o herói arranca a espada, o tremor para. Parado do começo ao fim; a esquiva antes da espada tocar o chão cancela."},
+	# a Fúria Picante na tecla 5 com a montante (a tecla 3 é das Estacas Sísmicas): o mesmo buff "sword_fury"
+	# (SwordAbilities.FURY_IDS), só muda a tecla. Sem a montante ela fica de fora (é "offhand").
+	"sword_fury_great": {"name": "Fúria Picante", "class": "sword", "offhand": "two_handed", "slot": 5, "level": 5, "cooldown": 28.0, "cost": 0,
+		"ready": true, "ultimate": false, "icon": "fury", "desc": "Por 10 s: +30% de dano e cada abate cura 2."},
 	"sword_whirl": {"name": "Turbilhão", "class": "sword", "slot": 4, "level": 8, "cooldown": 0.0, "cost": 0,
 		"ready": true, "ultimate": true, "icon": "cleaver", "desc": "Ultimate: redemoinho de lâminas ao redor."},
 	# "offhand": "two_handed" = com a montante nas mãos (Game.offhand_kind): troca o Turbilhão na tecla 4
@@ -94,6 +104,7 @@ const COOLDOWN_CONFIGS := {
 	"sword_taunt": "res://assets/vfx/dark_taunt/dark_taunt_config.tres",
 	"sword_earthquake": "res://assets/vfx/earthquake/earthquake_config.tres",
 	"sword_rally": "res://assets/vfx/party_shield/party_shield_config.tres",
+	"sword_spikes": "res://assets/vfx/seismic_spikes/seismic_spikes_config.tres",
 }
 
 

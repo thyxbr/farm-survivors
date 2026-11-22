@@ -528,7 +528,7 @@ func _check_supreme(player: Node, world: Node) -> void:
 	Econ.test_force_level(maxi(Game.level, int(ItemDB.ABILITIES.sword_supreme.level)))
 	await wait_until(func(): return Game.offhand_kind() == "two_handed" and Game.level >= 8)
 	var kit := Game.ability_kit()
-	check(kit.size() == 4 and kit[3] == "sword_supreme" and not ("sword_whirl" in kit), "Lâmina Suprema: a montante troca a habilidade 4 (%s)" % [kit])
+	check(kit.size() == 5 and kit[3] == "sword_supreme" and not ("sword_whirl" in kit), "Lâmina Suprema: a montante troca a habilidade 4 (%s)" % [kit])
 	var spot := Vector3(-105, 0.3, 40)   # fora da vila
 	player.global_position = spot
 	player.velocity = Vector3.ZERO
@@ -740,6 +740,163 @@ func _check_spin(player: Node, world: Node) -> void:
 	player.invuln = 0.0
 	Game.fury = fury0   # os cortes enchem a fúria: as checagens seguintes contam com ela como estava
 	Game.stamina = Game.max_stamina()
+	Game.hp = hp_player
+
+
+## Estacas Sísmicas (montante, tecla 3; a Fúria Picante vai para a tecla 5): kit e barra de ações com 5 teclas, parado
+## enquanto crava, impacto na hora certa e à frente do herói, rachaduras se espalhando antes do tremor, terremoto
+## (pedrinhas, poeira, câmera) até a espada sair, dano só dentro do raio e uma vez, o herói sem dano, a Fúria da
+## tecla 5 dando o mesmo buff, limpeza dos nós depois de arrancar a espada e o cancelamento pela esquiva.
+func _check_seismic_spikes(player: Node, world: Node) -> void:
+	var cfg: SeismicSpikesConfig = SeismicSpikesAbilities.CONFIG
+	var back: Vector3 = player.global_position
+	var lv0: int = Game.level
+	var weapon0: String = Game.equipment.get("weapon", "")
+	Game.add_item("iron_zweihander")
+	Econ.test_force_level(maxi(Game.level, int(ItemDB.ABILITIES.sword_spikes.level)))
+	equip_any("iron_zweihander")
+	await wait_until(func(): return Game.offhand_kind() == "two_handed" and Game.level >= 5)
+	var kit := Game.ability_kit()
+	check(kit.size() == 5 and kit[2] == "sword_spikes" and kit[4] == "sword_fury_great" and not ("sword_fury" in kit),
+		"Estacas Sísmicas: a montante põe as Estacas na tecla 3 e a Fúria na 5 (%s)" % [kit])
+	await wait(0.1)
+	var hud = world.hud
+	check(hud.slots["slot_5"].visible and hud._slot_ids[2] == "sword_spikes" and hud._slot_ids[4] == "sword_fury_great",
+		"Estacas Sísmicas: a barra da montante mostra a tecla 5 (%s)" % [hud._slot_ids])
+	check(ItemSlot.skill_art("sword_fury_great") != null and ItemSlot.skill_art("sword_spikes") != null,
+		"Estacas Sísmicas: arte das teclas 3 e 5")
+	var count_fx := func(cls: String) -> int:
+		var n := 0
+		for c in get_tree().current_scene.find_children("*", cls, true, false):
+			if not c.is_queued_for_deletion():
+				n += 1
+		return n
+	var spot := Vector3(-105, 0.3, 44)   # fora da vila
+	player.global_position = spot
+	player.velocity = Vector3.ZERO
+	player.model.rotation.y = 0.0     # olhando para +Z: a espada crava em spot + (0, 0, forward_offset)
+	await wait(0.25)
+	await wait_until(func(): return player.ability == "" and not player.attacking and player.dodge_timer <= 0.0)
+	var center: Vector3 = SeismicSpikesAbilities.impact_point(player.global_position, 0.0)
+	var mobs: Array = []
+	for off in [Vector3(0.9, 0, 0.4), Vector3(-1.4, 0, 1.2), Vector3(0.3, 0, cfg.radius - 0.3),
+			Vector3(cfg.radius + 3.0, 0, 0), Vector3(-cfg.radius - 3.5, 0, 2.0)]:
+		var e := Enemy.new()
+		e.kind = "slime"
+		world.add_child(e)
+		e.global_position = center + off
+		e.home = e.global_position
+		mobs.append(e)
+	await wait(0.15)
+	for e in mobs:
+		e.set_physics_process(false)
+	var inside := mobs.slice(0, 3)
+	var outside := mobs.slice(3)
+	var hp0 := {}
+	for e in mobs:
+		hp0[e] = e.hp
+	var hp_player: float = Game.hp
+	player.cooldowns.sword_spikes = 0.0
+	player.invuln = 99.0
+	player.use_slot(3)
+	check(player.ability == "sword_spikes" and player.ability_slot == 3, "Estacas Sísmicas: começa na tecla 3")
+	var skill: SeismicSpikesAoE = player.ability_data.get("skill")
+	check(is_instance_valid(skill) and skill.get_parent() == get_tree().current_scene, "Estacas Sísmicas: o visual na cena do mundo")
+	var cd: float = player.cooldowns.sword_spikes
+	check(cd >= cfg.cooldown * Game.cooldown_mult() - 0.01, "Estacas Sísmicas: recarga do SeismicSpikesConfig (%.1f s)" % cd)
+	var flat_c := Vector2(skill.global_position.x - center.x, skill.global_position.z - center.z).length()
+	check(flat_c < 0.05, "Estacas Sísmicas: centro à frente do herói, onde a ponta crava (%.2f m)" % flat_c)
+	var pos_w: Vector3 = player.global_position
+	Input.action_press("move_forward")
+	await wait(0.15)
+	Input.action_release("move_forward")
+	check(Vector2(player.global_position.x - pos_w.x, player.global_position.z - pos_w.z).length() < 0.05,
+		"Estacas Sísmicas: parado enquanto crava")
+	check(skill.state == SeismicSpikesAoE.State.CHARGE and SeismicSpikesAbilities.can_dodge_cancel(player),
+		"Estacas Sísmicas: antes de cravar a esquiva ainda cancela")
+	await wait_until(func(): return skill.impact_at >= 0.0, 2.0)
+	check(absf(skill.impact_at - cfg.impact_time()) < 0.1, "Estacas Sísmicas: a espada crava no fim da descida (%.2f s)" % skill.impact_at)
+	check(absf(skill.impact_center.y - spot.y) < 1.5, "Estacas Sísmicas: impacto no chão (altura %.2f)" % skill.impact_center.y)
+	check(not SeismicSpikesAbilities.can_dodge_cancel(player), "Estacas Sísmicas: cravada, a esquiva não cancela mais")
+	# fase 1: rachaduras crescendo, ainda sem tremor nem dano
+	await wait(cfg.crack_time * 0.4)
+	check(skill.state == SeismicSpikesAoE.State.CRACKS and skill.reveal > 0.05 and skill.reveal < 1.0
+		and skill.beats == 0 and count_fx.call("SeismicSpikesDamage") == 0,
+		"Estacas Sísmicas: rachaduras se espalhando antes do tremor (%.2f)" % skill.reveal)
+	check(inside.all(func(e): return is_equal_approx(e.hp, float(hp0[e]))), "Estacas Sísmicas: as rachaduras sozinhas não ferem")
+	# fase 2: a terra treme e o dano corre do centro para fora
+	await wait_until(func(): return skill.quake_at >= 0.0, 2.0)
+	check(absf(skill.quake_at - cfg.quake_time()) < 0.1 and is_equal_approx(skill.reveal, 1.0),
+		"Estacas Sísmicas: a terra treme um intervalo depois das rachaduras chegarem na borda (%.2f s)" % skill.quake_at)
+	check(skill.is_quaking() and count_fx.call("SeismicSpikesDamage") == 1, "Estacas Sísmicas: o tremor e o dano começam juntos")
+	await wait(cfg.quake_propagate + 0.3)
+	check(skill.is_quaking() and skill.beats >= 1 and skill.pebbles.emitting and skill.dust.emitting and player.shake > 0.05,
+		"Estacas Sísmicas: terremoto (abalos %d, pedrinhas, poeira, câmera tremendo %.2f)" % [skill.beats, player.shake])
+	var hp1 := {}
+	for e in mobs:
+		hp1[e] = e.hp if is_instance_valid(e) else -1.0
+	var hit_in := inside.filter(func(e): return not is_instance_valid(e) or e.dead or float(hp1[e]) < float(hp0[e]))
+	check(hit_in.size() == inside.size(), "Estacas Sísmicas: os %d monstros dentro do raio levam o tremor (%d)" % [inside.size(), hit_in.size()])
+	check(outside.all(func(e): return is_instance_valid(e) and is_equal_approx(e.hp, float(hp0[e]))),
+		"Estacas Sísmicas: monstros fora do raio não levam dano")
+	check(Game.hp >= hp_player, "Estacas Sísmicas: o próprio herói não leva dano")
+	await wait(0.4)
+	check(inside.all(func(e): return not is_instance_valid(e) or e.dead or is_equal_approx(e.hp, float(hp1[e]))),
+		"Estacas Sísmicas: cada monstro leva dano uma vez por ativação")
+	# treme até a espada sair do chão, e para aí
+	await wait_until(func(): return skill.t >= cfg.pull_start(), 4.0)
+	check(skill.is_quaking(), "Estacas Sísmicas: ainda treme enquanto a espada está cravada")
+	await wait_until(func(): return skill.t >= cfg.pull_end() + 0.05, 2.0)
+	check(not skill.is_quaking() and not skill.pebbles.emitting and not skill.dust.emitting,
+		"Estacas Sísmicas: o tremor para quando a espada sai do chão")
+	# finalização: o herói fica livre e tudo some
+	await wait_until(func(): return player.ability == "", 4.0)
+	check(player.ability == "" and player.cam_back == 0.0, "Estacas Sísmicas: o herói arranca a espada e fica livre")
+	await wait_until(func(): return not is_instance_valid(skill), cfg.fade_time + 3.0)
+	var left: int = count_fx.call("SeismicSpikesAoE") + count_fx.call("SeismicSpikesDamage")
+	check(not is_instance_valid(skill) and left == 0, "Estacas Sísmicas: rachaduras, pedrinhas e poeira removidas no fim (%d sobrando)" % left)
+	# esquiva antes de cravar cancela: sem rachadura nem dano
+	for e in mobs:
+		if is_instance_valid(e) and not e.dead:
+			hp0[e] = e.hp
+	player.cooldowns.sword_spikes = 0.0
+	player.cast("sword_spikes")
+	var skill2: SeismicSpikesAoE = player.ability_data.get("skill")
+	await wait(cfg.windup_time * 0.4)
+	check(SeismicSpikesAbilities.can_dodge_cancel(player), "Estacas Sísmicas: esquiva pode cancelar antes de cravar")
+	SeismicSpikesAbilities.dodge_cancel(player)
+	check(player.ability == "", "Estacas Sísmicas: cancelada pela esquiva")
+	await wait(0.2)
+	check(not is_instance_valid(skill2) and count_fx.call("SeismicSpikesDamage") == 0
+		and mobs.all(func(e): return not is_instance_valid(e) or e.dead or is_equal_approx(e.hp, float(hp0[e]))),
+		"Estacas Sísmicas: cancelada não fere ninguém e se libera")
+	for e in mobs:
+		if is_instance_valid(e):
+			e.queue_free()
+	# a Fúria Picante na tecla 5 da montante dá o mesmo buff
+	Game.buffs.erase("sword_fury")
+	player.cooldowns.sword_fury_great = 0.0
+	await wait_until(func(): return player.ability == "" and player.dodge_timer <= 0.0)
+	player.use_slot(5)
+	check(Game.buffs.has("sword_fury") and player.cooldowns.sword_fury_great >= Game.buff_duration("sword_fury") + 4.0 - 0.01,
+		"Fúria Picante na tecla 5 da montante: o buff da Fúria e a recarga dela")
+	await wait_until(func(): return player.ability == "", 2.0)
+	Game.buffs.erase("sword_fury")
+	Game.add_buff("sword_fury", 0.01)
+	# sem a montante: a Fúria volta para a tecla 3 e a tecla 5 some
+	if weapon0 != "":
+		equip_any(weapon0)
+	await wait_until(func(): return Game.offhand_kind() == "")
+	check(Game.ability_kit()[2] == "sword_fury" and not ("sword_spikes" in Game.ability_kit()) and not ("sword_fury_great" in Game.ability_kit()),
+		"Estacas Sísmicas: sem a montante a habilidade 3 volta a ser a Fúria Picante")
+	await wait(0.1)
+	check(not hud.slots["slot_5"].visible, "Estacas Sísmicas: sem a montante a tecla 5 some da barra")
+	Econ.test_force_level(lv0)
+	player.global_position = back
+	player.velocity = Vector3.ZERO
+	player.cooldowns.sword_spikes = 0.0
+	player.cooldowns.sword_fury_great = 0.0
+	player.invuln = 0.0
 	Game.hp = hp_player
 
 
@@ -1816,6 +1973,7 @@ func _ready() -> void:
 	await _check_supreme(player, world)
 	await _check_drag_slash(player, world)
 	await _check_spin(player, world)
+	await _check_seismic_spikes(player, world)
 	# todas as habilidades estão prontas (a Chuva de Meteoros foi a última): o caminho "Em breve" não tem mais
 	# quem testar; resta conferir que há recarga para cada habilidade
 	Game.add_item("short_bow")

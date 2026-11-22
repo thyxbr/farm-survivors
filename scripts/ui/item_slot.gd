@@ -49,6 +49,8 @@ var _hover := false
 
 ## Arte pintada da habilidade, ou null se ainda não há imagem para ela (fica o desenho do IconPainter).
 static func skill_art(ability_id: String) -> Texture2D:
+	if ability_id == "sword_fury_great":   # a Fúria Picante na tecla 5 da montante usa a arte da Fúria
+		ability_id = "sword_fury"
 	var path := "res://assets/ui/skills/%s.png" % ability_id
 	return load(path) if ability_id != "" and ResourceLoader.exists(path) else null
 

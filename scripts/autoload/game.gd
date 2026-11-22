@@ -139,6 +139,9 @@ func _ready() -> void:
 	if "--spindemo" in OS.get_cmdline_user_args():
 		# demonstração do Ciclone de Aço (use com --weapon=iron_zweihander: personagem descartável)
 		get_tree().root.add_child.call_deferred(load("res://tools/spin_demo.gd").new())
+	if "--spikesdemo" in OS.get_cmdline_user_args():
+		# demonstração das Estacas Sísmicas (use com --weapon=iron_zweihander: personagem descartável)
+		get_tree().root.add_child.call_deferred(load("res://tools/seismic_spikes_demo.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
 		# o Econ usa user://smoketest_solo.json, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())
@@ -676,6 +679,8 @@ func cooldown_mult() -> float:
 func ability_cooldown(ability_id: String, base: float, mult: float) -> float:
 	var cd := base * mult
 	var buff_id := "scepter_feast" if ability_id == "scepter_ult" else ability_id
+	if ability_id == "sword_fury_great":   # a Fúria Picante na tecla 5 da montante: o mesmo buff
+		buff_id = "sword_fury"
 	if ItemDB.BUFFS.has(buff_id) or ability_id == "scepter_ult":
 		cd = maxf(cd, buff_duration(buff_id) + 4.0)
 	return cd

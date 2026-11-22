@@ -263,6 +263,7 @@ func _ready() -> void:
 	GreatswordSupremeAbilities.prewarm_instances.call_deferred(self)   # espada de energia, rachadura e partículas da Lâmina Suprema
 	DragSlashAbilities.prewarm_instances.call_deferred(self)   # fagulhas, rastro e garras do Corte do Abismo
 	GreatswordSpinAbilities.prewarm_instances.call_deferred(self)   # anel, cortes e fagulhas do Ciclone de Aço
+	SeismicSpikesAbilities.prewarm_instances.call_deferred(self)    # sheets de rachaduras e estacas das Estacas Sísmicas
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -1548,6 +1549,8 @@ func _ab_module(id: String) -> Object:
 		return GreatswordSupremeAbilities
 	if id.begins_with(GreatswordSpinAbilities.ID):   # o Ciclone de Aço da montante (e o cancelamento) também
 		return GreatswordSpinAbilities
+	if id.begins_with(SeismicSpikesAbilities.ID):   # as Estacas Sísmicas da montante (e o cancelamento) também
+		return SeismicSpikesAbilities
 	var cls := ""
 	if ItemDB.ABILITIES.has(id):
 		cls = ItemDB.ABILITIES[id]["class"]
