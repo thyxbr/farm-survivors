@@ -5483,10 +5483,17 @@ func _test_mythic_bows() -> void:
 				await wait(float(BowMythicRules.CRESCENT.ghost_delay) + 0.08)
 				check(count.call(PROJECTILE_SCRIPT()) > before, "Crescente Gêmeo: a soltura perfeita dispara a flecha fantasma")
 			"bramble":
+				# o vizinho bem dentro do espinheiro (raio BRAMBLE.radius): a 2,5 m ele ficava na borda e, com o desnível
+				# do chão e o ponto onde a flecha acerta, às vezes fora (falhava de vez em quando no CI)
+				gs[1].global_position = gs[0].global_position + side * float(BowMythicRules.BRAMBLE.radius) * 0.5
+				gs[1].velocity = Vector3.ZERO
 				shoot.call(true, gs[0])
-				await wait(0.8)
+				await wait_until(func(): return count.call(BowMythic.Bramble) == 1 and gs[1].slow_timer > 0.0
+					and gs[1].hp < gs[1].max_hp, 1.5)
 				check(count.call(BowMythic.Bramble) == 1, "Raiz-Mãe: o espinheiro brota no alvo")
-				check(gs[1].slow_timer > 0.0 and gs[1].hp < gs[1].max_hp, "Raiz-Mãe: o espinheiro fere e deixa lento")
+				var d_b: float = gs[1].global_position.distance_to(gs[0].global_position)
+				check(gs[1].slow_timer > 0.0 and gs[1].hp < gs[1].max_hp,
+					"Raiz-Mãe: o espinheiro fere e deixa lento (vizinho a %.2f m, lento %.2f s)" % [d_b, gs[1].slow_timer])
 				var fl0: int = count.call(BowMythic.Flower)
 				BowMythic.spawn_flower(gs[0], gs[0].global_position)
 				Game.hp = Game.max_hp() * 0.5
