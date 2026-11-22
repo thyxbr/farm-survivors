@@ -11,9 +11,9 @@ const BOW_POSES := ["parado", "andando A", "andando B", "mirando", "puxando", "t
 const GATHER_POSES := ["picareta 0.0", "picareta 0.38", "picareta 0.5", "machado 0.0", "machado 0.36", "machado 0.44",
 	"machado 0.47", "machado 0.5"]
 ## `montante`: espada de duas mãos (KnightAnim.great_carry / great_pose); `pontas` imprime o caminho da ponta da
-## lâmina de cada golpe (para FXToon.GREAT_COMBO).
-const GREAT_POSES := ["parado", "andando A", "correndo", "g1 0.3", "g1 0.43", "g1 0.5", "g2 0.3", "g2 0.5", "g3 0.32",
-	"g3 0.5"]
+## lâmina de cada golpe (KnightMovesGreat, gerado por tools/retarget_great_combo.gd).
+const GREAT_POSES := ["parado", "andando A", "g1 0.15", "g1 0.42", "g1 0.6", "g2 0.15", "g2 0.42", "g2 0.6", "g3 0.15",
+	"g3 0.42", "g3 0.6"]
 const GAP := 1.35
 const ROW_H := 450
 const VIEWS := [35.0, 90.0, 180.0]
@@ -175,7 +175,7 @@ func _gap() -> float:
 	return 2.2 if (_gather or _great) else GAP
 
 
-## `montante otimiza`: como _optimize, para as chaves da montante (KnightMoves.GREAT_TOOL e as poses de carregar):
+## `montante otimiza`: como _optimize, para as poses de carregar da montante (os golpes vêm do retarget do Mixamo):
 ## procura perto do `end` desenhado onde as duas mãos fecham melhor no cabo, com a distância fixa GREAT_GRIP entre elas.
 func _optimize_great() -> void:
 	var m := KNIGHT.instantiate() as Node3D
@@ -184,9 +184,6 @@ func _optimize_great() -> void:
 	KnightLook.apply(m, {"weapon": _weapon})
 	var r := KnightAnim.rig(m)
 	var keys: Array = [["guarda", 0, 0.0, KnightMoves.GREAT_GUARD], ["ombro", 0, 0.0, KnightMoves.GREAT_SHOULDER]]
-	for c in 3:
-		for k in KnightMoves.GREAT_TOOL[c]:
-			keys.append(["g%d" % (c + 1), c + 1, float(k[0]), k[1]])
 	for key in keys:
 		var p := KnightAnim.idle_pose(0.0)
 		KnightAnim.great_carry(p, 0.0, 0.0)
