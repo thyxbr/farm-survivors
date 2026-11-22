@@ -42,6 +42,10 @@ const THEMES := {
 			["bones", 3.5, 0.8, 1.3, Color(1, 1, 1, 0)]], "stalactites": true, "blood": 0.8, "chains": true},
 }
 
+## Estátuas do salão do chefe por tema: [guardiões do portão, par do meio do salão] (modelos de assets/models).
+const STATUES := {"raizes": ["wolf", "knight_f"], "mina": ["golem", "forge_golem"], "cripta": ["sentinel", "knight_d"],
+	"abismo": ["void_herald", "raptor"]}
+
 @export_enum("raizes", "mina", "cripta", "abismo") var theme := "cripta":
 	set(v):
 		theme = v
@@ -58,6 +62,7 @@ const THEMES := {
 
 var _cells := {}        # Vector2i -> altura do teto
 var _boss_cells := {}   # Vector2i -> true
+var _hall_cells := {}   # Vector2i -> true (salão de pedra lavrada)
 var _noise: FastNoiseLite
 
 
@@ -78,6 +83,7 @@ func _root() -> Node:
 func layout() -> void:
 	_cells = {}
 	_boss_cells = {}
+	_hall_cells = {}
 	var root := _root()
 	if root == null:
 		return
@@ -92,6 +98,8 @@ func layout() -> void:
 					_cells[k] = maxf(float(_cells.get(k, 0.0)), r.height)
 					if r.boss:
 						_boss_cells[k] = true
+					if r.hall:
+						_hall_cells[k] = true
 	for p: MapDungeonPath in root.pieces(MapDungeonPath):
 		var pts := p.points(root)
 		var hw := p.width / 2.0
@@ -298,14 +306,18 @@ func _floor_mesh(th: Dictionary) -> MeshInstance3D:
 		else:
 			var v := _noise.get_noise_2d(x0 * 0.4, z0 * 0.4) * 0.5 + 0.5
 			col = (fc[0] as Color).lerp(fc[1], roundf(v)) * (0.94 + 0.12 * _hash(x0, z0))
-		# manchas: fuligem em placas e sangue seco perto das paredes (mais nas dungeons fundas)
-		var soot := _noise.get_noise_2d(x0 * 0.9 + 40.0, z0 * 0.9) * 0.5 + 0.5
-		if soot > 0.68:
-			col = col * 0.6
-		var blood: float = th.get("blood", 0.0)
-		var bn := _noise.get_noise_2d(x0 * 1.7 - 90.0, z0 * 1.7 + 13.0) * 0.5 + 0.5
-		if blood > 0.0 and bn > 1.0 - 0.18 * blood and _near_wall(k):
-			col = Color(0.22, 0.04, 0.03).lerp(col, 0.35)
+		if _hall_cells.has(k):   # salão: lajes de 2 m em dois tons da pedra do portão
+			var lt := absi((floori(x0 / 2.0) + floori(z0 / 2.0)) % 2)
+			col = _masonry(th) * (0.5 + 0.08 * lt) * (0.92 + 0.14 * _hash(floorf(x0 / 2.0), floorf(z0 / 2.0)))
+		else:
+			# manchas: fuligem em placas e sangue seco perto das paredes (mais nas dungeons fundas)
+			var soot := _noise.get_noise_2d(x0 * 0.9 + 40.0, z0 * 0.9) * 0.5 + 0.5
+			if soot > 0.68:
+				col = col * 0.6
+			var blood: float = th.get("blood", 0.0)
+			var bn := _noise.get_noise_2d(x0 * 1.7 - 90.0, z0 * 1.7 + 13.0) * 0.5 + 0.5
+			if blood > 0.0 and bn > 1.0 - 0.18 * blood and _near_wall(k):
+				col = Color(0.22, 0.04, 0.03).lerp(col, 0.35)
 		if _boss_cells.has(k):
 			col = col * 0.8
 		col.a = 1.0
@@ -326,6 +338,21 @@ func _floor_mesh(th: Dictionary) -> MeshInstance3D:
 	mi.mesh = st.commit()
 	mi.material_override = _mat()
 	return mi
+
+
+## Pedra lavrada do portão e do salão do chefe (cor sRGB).
+static func _masonry(th: Dictionary) -> Color:
+	return (th.wall[1] as Color).lerp(Color(0.5, 0.48, 0.45), 0.4)
+
+
+## Se um canto da grade (x, z inteiros) encosta numa célula do salão: ali a parede fica reta.
+func _hall_pt(p: Vector3) -> bool:
+	var ix := roundi(p.x / CELL)
+	var iz := roundi(p.z / CELL)
+	for d in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0)]:
+		if _hall_cells.has(Vector2i(ix, iz) + d):
+			return true
+	return false
 
 
 func _near_wall(k: Vector2i) -> bool:
@@ -364,26 +391,38 @@ func _wall_mesh(th: Dictionary) -> MeshInstance3D:
 		var b: Vector3 = e[1]
 		var out: Vector3 = e[2]
 		var h: float = e[3] + 0.4
-		var rows := maxi(2, ceili(h / 1.3))
+		var mid := (a + b) / 2.0
+		var hall := _hall_cells.has(Vector2i(floori(mid.x - out.x * 0.5), floori(mid.z - out.z * 0.5)))
+		var ra := 0.0 if _hall_pt(a) else rough   # canto do salão: reto (o mesmo para as duas paredes)
+		var rb := 0.0 if _hall_pt(b) else rough
+		var rows := maxi(2, ceili(h / (0.6 if hall else 1.3)))
 		for r in rows:
 			var y0 := -0.3 + (h + 0.3) * float(r) / rows
 			var y1 := -0.3 + (h + 0.3) * float(r + 1) / rows
-			var p0 := _disp(a + Vector3(0, y0, 0), rough)
-			var p1 := _disp(b + Vector3(0, y0, 0), rough)
-			var p2 := _disp(b + Vector3(0, y1, 0), rough)
-			var p3 := _disp(a + Vector3(0, y1, 0), rough)
+			var p0 := _disp(a + Vector3(0, y0, 0), ra)
+			var p1 := _disp(b + Vector3(0, y0, 0), rb)
+			var p2 := _disp(b + Vector3(0, y1, 0), rb)
+			var p3 := _disp(a + Vector3(0, y1, 0), ra)
 			# faixas: sujeira embaixo, pedra no meio com veios claros, escuro perto do teto
 			var t := float(r) / rows
 			var col: Color = wc[0]
-			if t < 0.2:
+			if hall:   # cantaria: fiadas de blocos de 1 m, rodapé e cornija escuros
+				var mc := _masonry(th)
+				col = mc * (0.8 + 0.24 * _hash(a.x * 1.3 + r * 3.7, a.z * 0.7 - r * 1.9))
+				if r == 0 or r == rows - 1:
+					col = mc * 0.55
+				elif r % 2 == 1:
+					col = col * 0.9
+			elif t < 0.2:
 				col = wc[2]
 			elif _hash(a.x + y0, a.z - y0) > 0.72:
 				col = wc[1]
 			elif t > 0.8:
 				col = (wc[0] as Color) * 0.75
-			if th.tiles and r % 2 == 1:   # cripta: fiadas de blocos
+			if not hall and th.tiles and r % 2 == 1:   # cripta: fiadas de blocos
 				col = col * 0.9
-			col = col * (0.93 + 0.14 * _hash(a.x * 3.1 + y0, a.z * 1.7))
+			if not hall:
+				col = col * (0.93 + 0.14 * _hash(a.x * 3.1 + y0, a.z * 1.7))
 			col.a = 1.0
 			var n := -(p1 - p0).cross(p3 - p0).normalized()
 			if n.dot(-out) < 0.0:
@@ -461,7 +500,7 @@ func _wall_spots(step: float, rng: RandomNumberGenerator, skip_boss := true) -> 
 		var mid := (a + b) / 2.0
 		var inward: Vector3 = -(e[2] as Vector3)
 		var cell := Vector2i(floori((mid.x + inward.x * 0.5) / CELL), floori((mid.z + inward.z * 0.5) / CELL))
-		if skip_boss and _boss_cells.has(cell):
+		if skip_boss and (_boss_cells.has(cell) or _hall_cells.has(cell)):
 			continue
 		var ok := true
 		for s in spots:
@@ -653,7 +692,7 @@ func _chains(holder: Node3D, rng: RandomNumberGenerator) -> void:
 		tries += 1
 		var k: Vector2i = keys[rng.randi() % keys.size()]
 		var h: float = _cells[k]
-		if h < 5.5 or _near_wall(k):
+		if h < 5.5 or _near_wall(k) or _hall_cells.has(k):
 			continue   # só em salas, longe das paredes
 		placed += 1
 		var c := _center(k)
@@ -690,7 +729,7 @@ func _stalactites(holder: Node3D, rng: RandomNumberGenerator, th: Dictionary) ->
 		var k: Vector2i = keys[rng.randi() % keys.size()]
 		var h: float = _cells[k]
 		var L := rng.randf_range(0.4, minf(1.6, h - 3.0))
-		if L < 0.3:
+		if L < 0.3 or _hall_cells.has(k):
 			continue
 		var mi := MeshInstance3D.new()
 		var cm := CylinderMesh.new()
@@ -715,7 +754,7 @@ func _roots(holder: Node3D, rng: RandomNumberGenerator) -> void:
 		var k: Vector2i = keys[rng.randi() % keys.size()]
 		var h: float = _cells[k]
 		var L := rng.randf_range(0.8, minf(2.2, h - 2.6))
-		if L <= 0.3:
+		if L <= 0.3 or _hall_cells.has(k):
 			continue
 		var mi := MeshInstance3D.new()
 		var cm := CylinderMesh.new()
@@ -776,7 +815,7 @@ func boss_entrance() -> Dictionary:
 
 
 ## Largura máxima do portão do chefe (o resto da abertura vira parede).
-const GATE_W := 6.0
+const GATE_W := 8.0
 
 
 ## Paredes que fecham a abertura da sala do chefe dos lados do portão: [centro, tamanho, giro] (colisão e malha).
@@ -785,7 +824,7 @@ func _gate_fill(g: Dictionary) -> Array:
 	var pos: Vector2 = g.pos
 	var dir: Vector2 = g.dir
 	var side := Vector2(-dir.y, dir.x)
-	var inner: float = float(g.width) / 2.0 + 1.2
+	var inner: float = float(g.width) / 2.0 + 1.7   # os contrafortes do portão vão até aqui
 	var outer: float = float(g.opening) / 2.0 + 0.6
 	if outer - inner < 0.2:
 		return out
@@ -796,6 +835,90 @@ func _gate_fill(g: Dictionary) -> Array:
 	return out
 
 
+## Portão gótico do chefe: arco ogival de cantaria (aduelas, fecho com o selo da dungeon), folhas escuras com
+## filigrana dourada (moldura, lanceta em Y, argolas) e a luz da sala vazando pela fresta do meio.
+## Medidas no espaço do portão: x para o lado, y para cima; -Z aponta para dentro da sala.
+const GATE_SPRING := 5.2   # altura onde o arco começa
+const GATE_ARCH := 0.66    # raio dos arcos / largura do vão (mais = mais pontudo)
+
+
+## Meia largura do vão na altura `y` (reto até GATE_SPRING, depois a curva do arco; 0 acima do topo).
+static func _arch_half(hw: float, y: float) -> float:
+	if y <= GATE_SPRING:
+		return hw
+	var R := GATE_ARCH * hw * 2.0
+	var dy := y - GATE_SPRING
+	if dy >= R:
+		return 0.0
+	return maxf(0.0, hw - R + sqrt(R * R - dy * dy))
+
+
+static func _arch_top(hw: float) -> float:
+	var R := GATE_ARCH * hw * 2.0
+	return GATE_SPRING + sqrt(R * R - (R - hw) * (R - hw))
+
+
+## Pontos da curva de um lado (`s` = ±1) de um arco ogival de meia largura `hw` que começa em `spring`, com o
+## trecho reto desde `y0`; `grow` afasta a curva para fora (aduelas) ou para dentro (negativo).
+static func _arch_pts(hw: float, s: float, y0: float, spring: float, n: int, grow := 0.0) -> PackedVector2Array:
+	var R := GATE_ARCH * hw * 2.0
+	var cx := hw - R
+	var th1 := acos(clampf((R - hw) / R, -1.0, 1.0))
+	var out := PackedVector2Array()
+	if spring > y0:
+		out.append(Vector2(s * (hw + grow), y0))
+	for i in n + 1:
+		var a := th1 * float(i) / n
+		out.append(Vector2(s * (cx + (R + grow) * cos(a)), spring + (R + grow) * sin(a)))
+	return out
+
+
+## Barra fina entre dois pontos (x, y) do plano, na profundidade z (filigrana e aduelas); `offset` = onde fica a
+## origem do `parent` nesse plano (a dobradiça da folha).
+static func _bar(parent: Node3D, a: Vector2, b: Vector2, thick: float, depth: float, z: float, m: Material,
+		offset := Vector2.ZERO) -> MeshInstance3D:
+	var d := b - a
+	var mi := _beam_box(parent, Vector3((a.x + b.x) / 2.0 - offset.x, (a.y + b.y) / 2.0 - offset.y, z),
+		Vector3(d.length() + thick * 0.6, thick, depth), m)
+	mi.rotation.z = atan2(d.y, d.x)
+	return mi
+
+
+## Fachos de luz caindo de cima do portão sobre o salão da frente (quads somados, mais fortes em cima).
+static func _light_shafts(gate: Node3D, w: float, top: float, c: Color) -> void:
+	var sh := Shader.new()
+	sh.code = """
+shader_type spatial;
+render_mode unshaded, blend_add, cull_disabled, depth_draw_never, shadows_disabled;
+uniform vec4 col : source_color;
+void fragment() {
+	float edge = smoothstep(0.0, 0.35, UV.x) * smoothstep(1.0, 0.65, UV.x);
+	ALBEDO = col.rgb;
+	ALPHA = edge * (1.0 - UV.y) * col.a;
+}
+"""
+	var m := ShaderMaterial.new()
+	m.shader = sh
+	m.set_shader_parameter("col", Color(c, 0.1))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 17
+	for i in 3:
+		var x := (float(i) - 1.0) * w * 0.32
+		var L := top + 2.5
+		for turn in [0.0, PI / 2.0]:   # dois quads cruzados: o facho tem volume de qualquer lado
+			var q := QuadMesh.new()
+			q.size = Vector2(rng.randf_range(0.9, 1.5), L)
+			var mi := MeshInstance3D.new()
+			mi.mesh = q
+			mi.material_override = m
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			var b := Basis(Vector3.UP, turn)
+			b = Basis(Vector3.RIGHT, -0.55) * b   # inclinado: desce de cima do portão para a frente
+			mi.basis = b
+			mi.position = Vector3(x, top + 1.0, 0.9) - b.y * L / 2.0   # ponta de cima logo acima do arco
+			gate.add_child(mi)
+
+
 func _boss_gate(holder: Node3D, fx: Node, th: Dictionary) -> void:
 	var g := boss_entrance()
 	if g.is_empty():
@@ -803,61 +926,212 @@ func _boss_gate(holder: Node3D, fx: Node, th: Dictionary) -> void:
 	var pos: Vector2 = g.pos
 	var dir: Vector2 = g.dir
 	var w: float = g.width
+	var hw := w / 2.0
 	var side := Vector2(-dir.y, dir.x)
+	var top := _arch_top(hw)
+	var ceil_h: float = float(g.height) + 0.5
 	var stone := StandardMaterial3D.new()
 	stone.albedo_color = (th.wall[1] as Color).lerp(Color(0.5, 0.48, 0.45), 0.4)
-	var dark := StandardMaterial3D.new()
-	dark.albedo_color = Color(0.12, 0.1, 0.1)
+	var stone_dk := StandardMaterial3D.new()
+	stone_dk.albedo_color = (stone.albedo_color as Color) * 0.72
 	var rc: Color = th.rune
+	var dark := StandardMaterial3D.new()
+	dark.albedo_color = Color(0.09, 0.09, 0.13).lerp(rc, 0.1)
+	dark.roughness = 0.8
+	var gold := StandardMaterial3D.new()
+	gold.albedo_color = Color(0.86, 0.64, 0.3)
+	gold.metallic = 0.75
+	gold.roughness = 0.35
+	gold.emission_enabled = true
+	gold.emission = Color(0.9, 0.62, 0.28)
+	gold.emission_energy_multiplier = 0.35
 	var rune := StandardMaterial3D.new()
 	rune.albedo_color = rc
 	rune.emission_enabled = true
 	rune.emission = rc
 	rune.emission_energy_multiplier = 3.0
 	rune.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var glow_c := Color(1.0, 0.8, 0.5).lerp(rc, 0.15)
+	var glow := StandardMaterial3D.new()
+	glow.albedo_color = glow_c
+	glow.emission_enabled = true
+	glow.emission = glow_c
+	glow.emission_energy_multiplier = 5.0
+	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	var gate := Node3D.new()
 	gate.name = "BossGate"
 	gate.position = Vector3(pos.x, 0, pos.y)
 	gate.basis = Basis.looking_at(Vector3(dir.x, 0, dir.y), Vector3.UP)   # -Z do portão aponta para dentro da sala
 	holder.add_child(gate)
-	var dh := 5.2
-	for f in _gate_fill(g):   # parede de cantaria dos lados do portão, até o teto
-		var wall := _beam_box(holder, f[0], f[1], stone)
-		wall.rotation.y = f[2]
-	# moldura: dois pilares largos e um lintel com o fecho e runas
+	var stone_mid := StandardMaterial3D.new()
+	stone_mid.albedo_color = (stone.albedo_color as Color) * 0.86
+	for f in _gate_fill(g):   # parede de cantaria dos lados do portão, até o teto, em fiadas de 0,6 m
+		var fc: Vector3 = f[0]
+		var fs: Vector3 = f[1]
+		var nc := ceili(fs.y / 0.6)
+		for i in nc:
+			var fy0 := fs.y * i / nc
+			var fy1 := fs.y * (i + 1) / nc
+			var wall := _beam_box(holder, Vector3(fc.x, (fy0 + fy1) / 2.0, fc.z), Vector3(fs.x, fy1 - fy0 + 0.01, fs.z),
+				stone_dk if i == 0 else (stone if i % 2 == 0 else stone_mid))
+			wall.rotation.y = f[2]
+	# contrafortes: base em degrau, fuste com faixa de runas, capitel
+	var pw := 1.7
 	for s in [-1.0, 1.0]:
-		var pil := _beam_box(gate, Vector3(s * (w / 2.0 + 0.6), dh / 2.0 + 0.4, 0), Vector3(1.2, dh + 0.8, 1.6), stone)
+		var px: float = s * (hw + pw / 2.0)
+		var pil := _beam_box(gate, Vector3(px, ceil_h / 2.0, 0), Vector3(pw, ceil_h, 1.8), stone)
 		pil.name = "Pillar"
-		_beam_box(gate, Vector3(s * (w / 2.0 + 0.6), dh + 1.0, 0), Vector3(1.6, 0.5, 1.9), stone)
-		_beam_box(gate, Vector3(s * (w / 2.0 + 0.6), 1.6, 0.81), Vector3(0.18, 2.2, 0.04), rune)
-	_beam_box(gate, Vector3(0, dh + 0.55, 0), Vector3(w + 2.4, 1.1, 1.7), stone)
-	_beam_box(gate, Vector3(0, dh + 0.55, 0.86), Vector3(0.9, 0.8, 0.06), rune)
+		_beam_box(gate, Vector3(px, 0.5, 0.1), Vector3(pw + 0.6, 1.0, 2.3), stone_dk)
+		_beam_box(gate, Vector3(px, 1.15, 0.05), Vector3(pw + 0.3, 0.3, 2.05), stone)
+		_beam_box(gate, Vector3(px, GATE_SPRING - 0.2, 0.05), Vector3(pw + 0.4, 0.45, 2.1), stone_dk)
+		_beam_box(gate, Vector3(px, 3.0, 0.91), Vector3(0.16, 2.6, 0.04), rune)
+		_beam_box(gate, Vector3(px, 1.75, 0.91), Vector3(0.5, 0.12, 0.04), rune)
+		_beam_box(gate, Vector3(px, 4.25, 0.91), Vector3(0.5, 0.12, 0.04), rune)
+	# tímpano: parede por cima do arco até o teto, em fatias que acompanham a curva
+	var y := GATE_SPRING
+	while y < ceil_h:
+		var y1 := minf(y + 0.25, ceil_h)
+		var half := maxf(_arch_half(hw, y), _arch_half(hw, y1))
+		var wid := hw - half
+		if wid > 0.01:
+			var course := stone if int((y - GATE_SPRING) / 0.5) % 2 == 0 else stone_mid
+			for s in [-1.0, 1.0]:
+				_beam_box(gate, Vector3(s * (half + wid / 2.0), (y + y1) / 2.0, 0), Vector3(wid + 0.02, y1 - y + 0.01, 1.4), course)
+		y = y1
+	# aduelas do arco (saltadas para a frente) e a moldura dourada por dentro
+	for s in [-1.0, 1.0]:
+		var outer := _arch_pts(hw, s, GATE_SPRING, GATE_SPRING, 9, 0.55)
+		for i in outer.size() - 1:
+			_bar(gate, outer[i], outer[i + 1], 1.0, 2.0, 0.0, stone if i % 2 == 0 else stone_dk)
+		var inner := _arch_pts(hw, s, 0.0, GATE_SPRING, 12, 0.06)
+		for i in inner.size() - 1:
+			_bar(gate, inner[i], inner[i + 1], 0.14, 0.12, 0.72, gold)
+	# fecho no topo com o selo da dungeon (anel e losango de runa)
+	_beam_box(gate, Vector3(0, top + 0.7, 0.15), Vector3(1.3, 1.5, 2.2), stone_dk)
+	var seal := MeshInstance3D.new()
+	var stm := TorusMesh.new()
+	stm.inner_radius = 0.42
+	stm.outer_radius = 0.55
+	stm.rings = 24
+	stm.ring_segments = 6
+	seal.mesh = stm
+	seal.material_override = rune
+	seal.rotation.x = PI / 2.0
+	seal.position = Vector3(0, top + 0.7, 1.27)
+	gate.add_child(seal)
+	var dia := _beam_box(gate, Vector3(0, top + 0.7, 1.27), Vector3(0.36, 0.36, 0.05), rune)
+	dia.rotation.z = PI / 4.0
+	# degraus na frente
+	_beam_box(gate, Vector3(0, 0.12, 1.6), Vector3(w + 2.0 * pw + 1.0, 0.24, 1.4), stone_dk)
+	_beam_box(gate, Vector3(0, 0.06, 2.8), Vector3(w + 2.0 * pw + 2.2, 0.12, 1.2), stone_dk)
 	# folhas da porta: giram para dentro da sala (DungeonFX abre)
 	var leaves: Array = []
 	for s in [-1.0, 1.0]:
 		var hinge := Node3D.new()
-		hinge.position = Vector3(s * w / 2.0, 0, -0.1)
+		hinge.position = Vector3(s * hw, 0, -0.1)
 		gate.add_child(hinge)
-		var leaf := _beam_box(hinge, Vector3(-s * w / 4.0, dh / 2.0, 0), Vector3(w / 2.0 - 0.04, dh, 0.35), dark)
+		var off := Vector2(s * hw, 0.0)   # do portão para a dobradiça
+		# corpo da folha; o alto em fatias que acompanham o arco
+		var leaf := _beam_box(hinge, Vector3(-s * hw / 2.0, GATE_SPRING / 2.0, 0), Vector3(hw - 0.03, GATE_SPRING, 0.35), dark)
 		leaf.name = "Leaf"
-		for y in [1.2, 2.6, 4.0]:
-			_beam_box(hinge, Vector3(-s * w / 4.0, y, 0.19), Vector3(w / 2.0 - 0.5, 0.12, 0.03), rune)
-		_beam_box(hinge, Vector3(-s * (w / 2.0 - 0.35), dh * 0.5, 0.2), Vector3(0.14, 0.5, 0.06), stone)
+		y = GATE_SPRING
+		while y < top:
+			var y1 := minf(y + 0.2, top)
+			var half := _arch_half(hw, (y + y1) / 2.0)
+			if half > 0.05:
+				_beam_box(hinge, Vector3(s * half / 2.0 - s * hw, (y + y1) / 2.0, 0), Vector3(half - 0.03, y1 - y + 0.01, 0.35), dark)
+			y = y1
+		var z := 0.2
+		# filigrana: montantes, travessas e a borda do arco
+		_bar(hinge, Vector2(s * (hw - 0.18), 0.1), Vector2(s * (hw - 0.18), GATE_SPRING), 0.16, 0.06, z, gold, off)
+		_bar(hinge, Vector2(s * 0.1, 0.1), Vector2(s * 0.1, top - 0.3), 0.14, 0.06, z, gold, off)
+		_bar(hinge, Vector2(s * 0.1, 0.25), Vector2(s * (hw - 0.18), 0.25), 0.16, 0.06, z, gold, off)
+		_bar(hinge, Vector2(s * 0.1, 1.45), Vector2(s * (hw - 0.18), 1.45), 0.12, 0.06, z, gold, off)
+		var edge := _arch_pts(hw, s, GATE_SPRING, GATE_SPRING, 10, -0.2)
+		for i in edge.size() - 1:
+			_bar(hinge, edge[i], edge[i + 1], 0.12, 0.06, z, gold, off)
+		# lanceta em Y no meio da folha
+		var lc: float = s * hw / 2.0
+		var lw := hw / 2.0 - 0.45
+		var lspring := GATE_SPRING - 1.2
+		for ls in [-1.0, 1.0]:
+			var pts := _arch_pts(lw, ls, 1.45, lspring, 8)
+			for i in pts.size() - 1:
+				_bar(hinge, pts[i] + Vector2(lc, 0), pts[i + 1] + Vector2(lc, 0), 0.1, 0.05, z, gold, off)
+		var lR := GATE_ARCH * lw * 2.0
+		var ltop := lspring + sqrt(lR * lR - (lR - lw) * (lR - lw))
+		var fork := Vector2(lc, lspring + 0.2)
+		_bar(hinge, Vector2(lc, 1.45), fork, 0.1, 0.05, z, gold, off)
+		_bar(hinge, fork, Vector2(lc - lw * 0.7, ltop - 0.5), 0.08, 0.05, z, gold, off)
+		_bar(hinge, fork, Vector2(lc + lw * 0.7, ltop - 0.5), 0.08, 0.05, z, gold, off)
+		# rodapé com losangos e a argola
+		for k in 3:
+			var cx: float = s * (0.45 + k * (hw - 0.7) / 2.0)
+			var lz := _beam_box(hinge, Vector3(cx - s * hw, 0.85, z), Vector3(0.32, 0.32, 0.05), gold)
+			lz.rotation.z = PI / 4.0
+		var ring := MeshInstance3D.new()
+		var rt := TorusMesh.new()
+		rt.inner_radius = 0.2
+		rt.outer_radius = 0.27
+		rt.rings = 16
+		rt.ring_segments = 6
+		ring.mesh = rt
+		ring.material_override = gold
+		ring.rotation.x = PI / 2.0
+		ring.position = Vector3(s * 0.55 - s * hw, 2.35, 0.24)
+		hinge.add_child(ring)
+		_beam_box(hinge, Vector3(s * 0.55 - s * hw, 2.62, 0.22), Vector3(0.22, 0.22, 0.06), gold)
+		if s > 0.0:   # luz da sala vazando pela fresta do meio (vai junto com a folha)
+			_beam_box(hinge, Vector3(-hw, top / 2.0, 0.05), Vector3(0.07, top - 0.4, 0.3), glow)
 		leaves.append([hinge, s])
-	# estátuas de guardiões dos dois lados, do lado de fora, olhando o corredor
+	_light_shafts(gate, w, top, glow_c)
+	# fachada: pilastras com tochas, rodapé e cornija de ponta a ponta; tocheiros no caminho até a porta
+	var face_hw: float = float(g.opening) / 2.0 + 0.6
 	for s in [-1.0, 1.0]:
-		var st := _model("knight", Color((th.wall[1] as Color).lerp(Color(0.42, 0.4, 0.38), 0.5), 1.0))
-		if st != null:
-			st.position = Vector3(s * (w / 2.0 + 2.2), 0.6, 2.2)
-			st.scale = Vector3.ONE * 1.9
-			st.rotation.y = -s * 0.35   # de frente para o corredor, um pouco voltada para o meio
-			gate.add_child(st)
-			_beam_box(gate, Vector3(s * (w / 2.0 + 2.2), 0.3, 2.2), Vector3(1.6, 0.6, 1.6), stone)
+		var plx: float = s * minf(hw + pw + 4.4, face_hw - 1.0)
+		_beam_box(gate, Vector3(plx, ceil_h / 2.0, 0.95), Vector3(1.0, ceil_h, 0.5), stone_mid)
+		_beam_box(gate, Vector3(plx, 0.45, 1.05), Vector3(1.3, 0.9, 0.75), stone_dk)
+		var sc := Node3D.new()
+		sc.position = Vector3(plx, 3.6, 1.75)
+		gate.add_child(sc)
+		_torch_mesh(sc, th.torch)
+		_torch_light(sc, th.torch, fx)
+		var high := Node3D.new()   # tocha alta no contraforte
+		high.position = Vector3(s * (hw + pw / 2.0), 7.2, 1.45)
+		gate.add_child(high)
+		_torch_mesh(high, th.torch)
+		var rest: float = face_hw - (hw + pw)
+		_beam_box(gate, Vector3(s * (hw + pw + rest / 2.0), 0.3, 0.95), Vector3(rest, 0.6, 0.45), stone_dk)
+		for st in [[5.6, 9.0], [4.4, 11.3]]:
+			_torch_stand(gate, Vector3(s * float(st[0]), 0, float(st[1])), th, fx)
+	_beam_box(gate, Vector3(0, ceil_h - 0.9, 1.0), Vector3(face_hw * 2.0, 0.5, 0.6), stone_dk)
+	_beam_box(gate, Vector3(0, ceil_h - 1.3, 0.9), Vector3(face_hw * 2.0, 0.3, 0.4), stone)
+	var al := OmniLight3D.new()
+	al.light_color = glow_c
+	al.light_energy = 2.0
+	al.omni_range = 12.0
+	al.position = Vector3(0, top + 0.5, 4.0)
+	gate.add_child(al)
+	# estátuas do tema: os guardiões do portão olhando o corredor e um par no meio do salão olhando o caminho
+	var names: Array = STATUES.get(theme, ["knight", "knight_d"])
+	var tint := Color((th.wall[1] as Color).lerp(Color(0.42, 0.4, 0.38), 0.5), 1.0)
+	for s in [-1.0, 1.0]:
+		for spot in [[names[0], hw + pw + 2.0, 2.4, -s * 0.35, 4.2], [names[1], minf(9.0, face_hw - 2.0), 6.8, -s * PI / 2.0, 3.4]]:
+			var sx: float = s * float(spot[1])
+			var sz: float = spot[2]
+			_beam_box(gate, Vector3(sx, 0.45, sz), Vector3(1.9, 0.9, 1.9), stone)
+			_beam_box(gate, Vector3(sx, 0.8, sz), Vector3(1.6, 0.12, 1.6), stone_dk)
+			_beam_box(gate, Vector3(sx, 0.1, sz), Vector3(2.2, 0.2, 2.2), stone_dk)
+			var stt := _statue(str(spot[0]), tint, float(spot[4]))
+			if stt != null:
+				stt.position += Vector3(sx, 0.9, sz)
+				stt.rotation.y = float(spot[3])
+				gate.add_child(stt)
 	# braseiros: dois na frente do portão (sempre acesos) e um anel na sala do chefe (acendem quando abre)
 	var front: Array = []
 	for s in [-1.0, 1.0]:
-		front.append(_brazier(holder, Vector3(pos.x, 0, pos.y) + Vector3(side.x, 0, side.y) * s * (w / 2.0 + 1.2)
-			- Vector3(dir.x, 0, dir.y) * 3.5, th, true))
+		front.append(_brazier(holder, Vector3(pos.x, 0, pos.y) + Vector3(side.x, 0, side.y) * s * (w / 2.0 + 1.0)
+			- Vector3(dir.x, 0, dir.y) * 5.0, th, true))
 	var ring: Array = []
 	var center: Vector2 = g.center
 	var rad := 0.0
@@ -892,9 +1166,10 @@ func _boss_gate(holder: Node3D, fx: Node, th: Dictionary) -> void:
 	# círculo de runas no meio da sala
 	var circle := MeshInstance3D.new()
 	var tm := TorusMesh.new()
-	tm.inner_radius = 3.6
-	tm.outer_radius = 4.0
-	tm.rings = 32
+	var cr := clampf(minf(ext.x, ext.y) * 0.32, 4.0, 7.0)
+	tm.inner_radius = cr - 0.4
+	tm.outer_radius = cr
+	tm.rings = 48
 	tm.ring_segments = 4
 	circle.mesh = tm
 	circle.scale = Vector3(1, 0.05, 1)
@@ -904,6 +1179,96 @@ func _boss_gate(holder: Node3D, fx: Node, th: Dictionary) -> void:
 	if fx != null:
 		fx.setup_gate(gate, leaves, ring, circle, Vector3(pos.x, 0, pos.y))
 		fx.set_dread(dread)
+
+
+## Modelo como estátua de pedra (`tint`) com `height` m de altura e os pés na origem.
+static func _statue(model: String, tint: Color, height: float) -> Node3D:
+	var inst := _model(model, tint)
+	if inst == null:
+		inst = _model("knight", tint)
+	if inst == null:
+		return null
+	var box := AABB()
+	var first := true
+	for mi: MeshInstance3D in inst.find_children("*", "MeshInstance3D", true, false):
+		var xf := Transform3D.IDENTITY
+		var n: Node = mi
+		while n != null and n != inst:
+			if n is Node3D:
+				xf = (n as Node3D).transform * xf
+			n = n.get_parent()
+		var bb := xf * mi.get_aabb()
+		box = bb if first else box.merge(bb)
+		first = false
+	var holder := Node3D.new()
+	holder.add_child(inst)
+	if not first and box.size.y > 0.01:
+		var k := height / box.size.y
+		inst.scale = Vector3.ONE * k
+		inst.position = Vector3(-(box.position.x + box.size.x / 2.0) * k, -box.position.y * k,
+			-(box.position.z + box.size.z / 2.0) * k)
+	return holder
+
+
+## Luz de uma tocha de parede (`t` montada com _torch_mesh), tremendo com o DungeonFX.
+static func _torch_light(t: Node3D, c: Color, fx: Node) -> void:
+	var l := OmniLight3D.new()
+	l.light_color = c
+	l.light_energy = 2.4
+	l.omni_range = 9.5
+	l.omni_attenuation = 1.6
+	l.position = Vector3(0, 0.35, -0.5)
+	t.add_child(l)
+	if fx != null:
+		fx.add_flicker(l)
+
+
+## Tocheiro de ferro de chão (haste alta com a chama em cima), aceso.
+func _torch_stand(parent: Node3D, pos: Vector3, th: Dictionary, fx: Node) -> void:
+	var b := Node3D.new()
+	b.position = pos
+	parent.add_child(b)
+	var iron := StandardMaterial3D.new()
+	iron.albedo_color = Color(0.13, 0.12, 0.12)
+	iron.metallic = 0.5
+	iron.roughness = 0.6
+	for part in [[0.32, 0.36, 0.14, 0.07], [0.06, 0.08, 2.6, 1.4], [0.3, 0.1, 0.3, 2.8], [0.12, 0.12, 0.08, 2.0]]:
+		var mi := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = part[0]
+		cm.bottom_radius = part[1]
+		cm.height = part[2]
+		cm.radial_segments = 8
+		mi.mesh = cm
+		mi.material_override = iron
+		mi.position.y = part[3]
+		b.add_child(mi)
+	var tc: Color = th.torch
+	var flame := MeshInstance3D.new()
+	var fm := SphereMesh.new()
+	fm.radius = 0.22
+	fm.height = 0.6
+	fm.radial_segments = 6
+	fm.rings = 3
+	flame.mesh = fm
+	var fmat := StandardMaterial3D.new()
+	fmat.albedo_color = tc
+	fmat.emission_enabled = true
+	fmat.emission = tc
+	fmat.emission_energy_multiplier = 4.0
+	fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	flame.material_override = fmat
+	flame.position.y = 3.15
+	flame.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	b.add_child(flame)
+	var l := OmniLight3D.new()
+	l.light_color = tc
+	l.light_energy = 2.0
+	l.omni_range = 9.0
+	l.position.y = 3.4
+	b.add_child(l)
+	if fx != null:
+		fx.add_flicker(l)
 
 
 func _brazier(holder: Node3D, pos: Vector3, th: Dictionary, lit: bool) -> Node3D:

@@ -244,5 +244,24 @@
 				1.0
 			]
 		}
+	},
+	"sword_rally": {
+		"name": "Bastião de Escudos",
+		"time": 15.0,
+		"add": {
+			"defense": 6.0,
+			"defense_pct": 0.25
+		},
+		"aura": "bastiao",
+		"icon": "",
+		"desc": "+6 de defesa e +25% de defesa",
+		"color": {
+			"$c": [
+				0.45,
+				0.75,
+				1.0,
+				1.0
+			]
+		}
 	}
 }
