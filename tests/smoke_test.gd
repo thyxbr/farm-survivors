@@ -441,7 +441,7 @@ func _check_earthquake(player: Node, world: Node) -> void:
 	var center: Vector3 = EarthquakeAbilities.impact_point(player.global_position, 0.0)
 	# monstros parados: 3 dentro do raio (perto, no meio, longe) e 2 fora
 	var mobs: Array = []
-	for off in [Vector3(1.4, 0, 0.6), Vector3(-3.6, 0, 3.0), Vector3(0.4, 0, cfg.radius - 1.4),
+	for off in [Vector3(0.9, 0, 0.4), Vector3(-1.2, 0, 1.0), Vector3(0.2, 0, cfg.radius - 0.2),
 			Vector3(cfg.radius + 3.0, 0, 0), Vector3(-cfg.radius - 3.5, 0, 2.0)]:
 		var e := Enemy.new()
 		e.kind = "slime"
@@ -489,7 +489,8 @@ func _check_earthquake(player: Node, world: Node) -> void:
 	var ic: Vector3 = skill.impact_center
 	check(absf(ic.y - spot.y) < 1.5, "Terremoto: impacto no chão (altura %.2f, herói %.2f)" % [ic.y, spot.y])
 	# a onda passa pelo de perto antes do de longe
-	await wait(0.25)
+	await wait_until(func(): return skill.wave_r >= 1.3, 1.0)
+	await wait(0.05)   # um passo de física para o dano alcançar o relógio da onda
 	var near_hit: bool = not is_instance_valid(inside[0]) or inside[0].dead or inside[0].hp < float(hp0[inside[0]])
 	var far_hit: bool = not is_instance_valid(inside[2]) or inside[2].dead or inside[2].hp < float(hp0[inside[2]])
 	check(near_hit and not far_hit, "Terremoto: o dano acompanha a onda (o perto já levou, o longe ainda não; onda %.1f m)" % skill.wave_r)

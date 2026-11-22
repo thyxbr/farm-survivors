@@ -7,12 +7,13 @@ extends Resource
 @export_group("Combate")
 ## Dano da habilidade: multiplica o dano corpo a corpo do herói (Game.melee_damage), como as outras da espada.
 @export_range(0.1, 10.0, 0.05) var damage_mult := 2.2
-## Raio máximo da onda de choque (m), em volta do ponto onde o escudo bate. Quem estiver dentro leva o golpe
+## Raio máximo da onda de choque (m), em volta do ponto onde o escudo bate: 3,25 = o mesmo do círculo da Égide
+## Cristalina (AegisConfig.circle_radius, habilidade 1). Quem estiver dentro leva o golpe
 ## quando a onda chega nele; quem estiver fora, nada.
-@export_range(2.0, 20.0, 0.1) var radius := 9.0
+@export_range(2.0, 20.0, 0.1) var radius := 3.25
 ## Velocidade de expansão da onda (m/s) no começo; ela desacelera perto do raio máximo
 ## (EarthquakeRules.wave_radius).
-@export_range(2.0, 60.0, 0.5) var expansion_speed := 16.0
+@export_range(2.0, 60.0, 0.5) var expansion_speed := 7.0
 ## Atordoamento de quem é atingido (s; 0 = nenhum).
 @export_range(0.0, 3.0, 0.05) var stun_time := 0.8
 ## Tempo de recarga (s). Conta a partir do uso, como as outras habilidades.
@@ -37,31 +38,31 @@ extends Resource
 ## Tremor da câmera no centro do impacto (diminui com a distância até `shake_range`).
 @export_range(0.0, 2.0, 0.01) var shake_strength := 0.85
 ## Até que distância do impacto a câmera de quem vê treme (m).
-@export_range(1.0, 80.0, 0.5) var shake_range := 30.0
+@export_range(1.0, 80.0, 0.5) var shake_range := 20.0
 ## Congelamento curto no impacto (s; só no herói que usou; 0 = nenhum).
 @export_range(0.0, 0.25, 0.005) var hitstop_time := 0.075
 
 @export_group("Rachaduras")
 ## Quantidade de rachaduras principais saindo do centro (cada uma ainda abre ramificações).
-@export_range(0, 40, 1) var crack_count := 14
+@export_range(0, 40, 1) var crack_count := 11
 ## Comprimento das rachaduras em relação ao raio (1 = até a borda da onda).
 @export_range(0.1, 1.2, 0.01) var crack_length := 0.92
 ## Chance de cada trecho abrir uma ramificação (0 = rachaduras retas, sem galhos).
 @export_range(0.0, 1.0, 0.01) var crack_branching := 0.45
 ## Largura das rachaduras principais junto ao centro (m); afinam até a ponta.
-@export_range(0.05, 1.0, 0.01) var crack_width := 0.34
+@export_range(0.05, 1.0, 0.01) var crack_width := 0.24
 ## Placas de pedra que se levantam ao redor das rachaduras.
-@export_range(0, 60, 1) var plate_count := 22
+@export_range(0, 60, 1) var plate_count := 10
 ## Tamanho médio das placas (m).
-@export_range(0.2, 2.5, 0.05) var plate_size := 0.85
+@export_range(0.2, 2.5, 0.05) var plate_size := 0.6
 ## Explosões secundárias nas pontas de algumas rachaduras.
-@export_range(0, 16, 1) var secondary_count := 6
+@export_range(0, 16, 1) var secondary_count := 3
 
 @export_group("Fragmentos e poeira")
 ## Quantidade de fragmentos de pedra lançados (somando o impacto, a onda e as explosões secundárias).
-@export_range(0, 400, 1) var debris_count := 140
+@export_range(0, 400, 1) var debris_count := 70
 ## Altura dos fragmentos (m): quanto as pedras maiores sobem no impacto (as outras sobem proporcionalmente).
-@export_range(0.2, 12.0, 0.1) var debris_height := 4.5
+@export_range(0.2, 12.0, 0.1) var debris_height := 3.2
 ## Intensidade da poeira (multiplica a quantidade e a densidade da poeira no chão e na frente da onda).
 @export_range(0.0, 3.0, 0.05) var dust_intensity := 1.0
 
@@ -72,7 +73,7 @@ extends Resource
 
 @export_group("Câmera")
 ## Quanto a câmera recua durante a habilidade (m), para a onda inteira caber na tela.
-@export_range(0.0, 10.0, 0.05) var camera_back := 2.5
+@export_range(0.0, 10.0, 0.05) var camera_back := 1.0
 
 
 ## Tempo do começo da habilidade até o escudo tocar o chão (s).
@@ -88,3 +89,9 @@ func total_time() -> float:
 ## Quanto a onda leva do impacto até o raio máximo (s).
 func expansion_time() -> float:
 	return EarthquakeRules.expansion_time(radius, expansion_speed)
+
+
+## Escala dos efeitos de tamanho fixo (explosões da sheet, alcance das pedras, largura do anel, parede) em relação
+## ao desenho original de 9 m: o efeito encolhe e cresce junto com `radius`, sem ficar apinhado num círculo pequeno.
+func size_k() -> float:
+	return clampf(radius / 9.0, 0.4, 1.6)
