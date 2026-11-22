@@ -14,6 +14,8 @@ const MIN_OUTLINE_SIZE := 0.07
 const OUTLINE_RANGE := 36.0          # metros da câmera; além disso a casca não é desenhada
 const OUTLINE_RANGE_MARGIN := 4.0    # folga para não piscar na fronteira
 const OUTLINE_GROUP := "toon_outline"
+## Meta da casca que fica ao lado da malha com esqueleto (não é filha dela): a malha dona.
+const OUTLINE_OF := "toon_outline_of"
 const SETTINGS_PATH := "user://settings.cfg"     # o mesmo arquivo de Game.settings
 const LIVE := &"toon_live"     # meta no material original: o toon exclusivo dele (ver sync)
 const SLIME_GOO := Color(0.25, 0.85, 0.3, 0.78)      # slime comum; as variantes trazem `goo` nos dados
@@ -84,7 +86,25 @@ static func reload_settings() -> void:
 	if tree != null:
 		var show := enabled() and outline_enabled()
 		for o in tree.get_nodes_in_group(OUTLINE_GROUP):
-			(o as Node3D).visible = show
+			(o as Node3D).visible = show and _owner_visible(o)
+
+
+## A casca de uma malha com esqueleto fica ao lado dela (não é filha) e não herda a visibilidade: sem
+## isto, religar os contornos (o zoom da câmera grava as opções) mostrava a casca da capa escondida como
+## uma capa escura nas costas.
+static func _owner_visible(o: Node) -> bool:
+	var src = o.get_meta(OUTLINE_OF) if o.has_meta(OUTLINE_OF) else null
+	return src == null or not is_instance_valid(src) or (src as Node3D).visible
+
+
+## Cascas ao lado da malha com esqueleto `mi`: seguem a visibilidade dela e a opção de contorno.
+static func sync_outline_of(mi: MeshInstance3D) -> void:
+	if mi == null or mi.get_parent() == null:
+		return
+	var show := enabled() and outline_enabled() and mi.visible
+	for c in mi.get_parent().get_children():
+		if c != mi and c.is_in_group(OUTLINE_GROUP) and c.get_meta(OUTLINE_OF, null) == mi:
+			(c as Node3D).visible = show
 
 
 ## Lê direto do arquivo de Game.settings (este script não pode depender de autoload).
@@ -300,6 +320,7 @@ static func _add_outline(mi: MeshInstance3D, mat: ShaderMaterial = null) -> void
 		# malha com esqueleto: a casca fica ao lado, presa ao mesmo esqueleto
 		o.skin = mi.skin
 		o.transform = mi.transform
+		o.set_meta(OUTLINE_OF, mi)
 		mi.get_parent().add_child(o)
 		o.skeleton = o.get_path_to(mi.get_node(mi.skeleton)) if mi.has_node(mi.skeleton) else mi.skeleton
 	else:
