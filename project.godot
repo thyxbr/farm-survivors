@@ -63,6 +63,10 @@ fx_flatten={
 "type": "vec4",
 "value": Vector4(0, 0, 0, 0)
 }
+fx_flatten_to={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
 
 weather_wet={
 "type": "float",

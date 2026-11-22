@@ -139,9 +139,9 @@ func _ready() -> void:
 	if "--spindemo" in OS.get_cmdline_user_args():
 		# demonstração do Ciclone de Aço (use com --weapon=iron_zweihander: personagem descartável)
 		get_tree().root.add_child.call_deferred(load("res://tools/spin_demo.gd").new())
-	if "--spikesdemo" in OS.get_cmdline_user_args():
-		# demonstração das Estacas Sísmicas (use com --weapon=iron_zweihander: personagem descartável)
-		get_tree().root.add_child.call_deferred(load("res://tools/seismic_spikes_demo.gd").new())
+	if "--darkcombodemo" in OS.get_cmdline_user_args():
+		# demonstração da Dança do Abismo (use com --weapon=iron_zweihander: personagem descartável)
+		get_tree().root.add_child.call_deferred(load("res://tools/dark_combo_demo.gd").new())
 	if "--smoketest" in OS.get_cmdline_user_args():
 		# o Econ usa user://smoketest_solo.json, apagado no início
 		get_tree().root.add_child.call_deferred(load("res://tests/smoke_test.gd").new())

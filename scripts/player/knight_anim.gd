@@ -1271,8 +1271,25 @@ static func great_cast_pose(p: Dictionary, phase: int, t: float, from: Dictionar
 	var w := smoothstep(0.0, SHIELD_BLEND, clampf(t, 0.0, 1.0)) if phase == KnightMovesGreatCast.RAISE else 1.0
 	var base := p.duplicate(true) if back > 0.0 else {}
 	_great_track_pose(p, tr, KnightMovesGreatCast.N, t, 0.0, from, w)
-	if back <= 0.0:
-		return
+	if back > 0.0:
+		_great_back(p, base, tr, back)
+
+
+## Dança do Abismo (tecla 3 da montante): o golpe `seg` de KnightMovesGreatDark no instante `t` (0..1 do clipe), saindo
+## de `from` com peso `w` (0 = toda em `from`: a emenda com o golpe anterior) e voltando para a pose de carregar com
+## `back` (0..1), como great_cast_pose.
+static func great_dark_pose(p: Dictionary, seg: int, t: float, from: Dictionary, w: float, back := 0.0) -> void:
+	var tracks: Array = KnightMovesGreatDark.TRACKS
+	var tr: Dictionary = tracks[clampi(seg, 0, tracks.size() - 1)]
+	var base := p.duplicate(true) if back > 0.0 else {}
+	_great_track_pose(p, tr, KnightMovesGreatDark.N, t, 0.0, from, w)
+	if back > 0.0:
+		_great_back(p, base, tr, back)
+
+
+## Leva a pose da trilha da montante `tr` (já em `p`) de volta para `base` (a pose de carregar, de antes da trilha) com
+## peso `back`: o corpo junta a junta e a lâmina pelo caminho de cima (blade_turn), o gume rolando até o da guarda.
+static func _great_back(p: Dictionary, base: Dictionary, tr: Dictionary, back: float) -> void:
 	var k := smoothstep(0.0, 1.0, clampf(back, 0.0, 1.0))
 	for j in tr:
 		if j in GREAT_TOOL_KEYS or not base.has(j if j != "spin" else "hip_twist"):

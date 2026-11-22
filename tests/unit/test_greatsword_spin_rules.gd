@@ -96,8 +96,10 @@ func test_config_defaults_are_coherent() -> void:
 	var d := c.durations()
 	T.eq(d.size(), GreatswordSpinRules.PHASE_COUNT, "uma duração por fase")
 	_near(c.total_time(), d[0] + d[1] + d[2] + d[3] + d[4], 0.0001, "tempo total = soma das fases")
-	T.ok(c.frames_start.y <= c.frames_loop.x and c.frames_loop.y <= c.frames_end.x and c.frames_end.y <= 63.0,
-		"quadros em ordem dentro da sheet 8x8")
+	# a energia sombria segue o corte: o rastro dura uma parte do giro (não vira um anel fechado) e passa da ponta
+	var arc := GreatswordSpinRules.max_speed(d, c.turns) * c.trail_time
+	T.ok(arc > PI * 0.5 and arc < TAU * 0.9, "rastro sombrio cobre parte da volta na velocidade máxima (%.0f°)" % rad_to_deg(arc))
+	T.ok(c.trail_reach > 0.0 and c.trail_reach < c.radius, "a energia passa da ponta sem passar do alcance")
 	T.ok(c.hit_interval >= 0.1, "intervalo por alvo impede dano a cada quadro")
 	var turns_s := GreatswordSpinRules.max_speed(d, c.turns) / TAU
 	T.ok(turns_s > 1.0 and turns_s < 5.0, "velocidade máxima de giro legível (%.1f voltas/s)" % turns_s)
