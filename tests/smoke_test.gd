@@ -5207,7 +5207,9 @@ func _test_gear() -> void:
 	if fake_quest:
 		Game.quests.erase("goblins")
 	await _test_talent_tab(m)
-	check(not ItemIcons.enabled() and ItemIcons.icon("leather_cap", Callable()) == null, "sem janela, os ícones 3D ficam desligados")
+	# sem janela não se fotografa nada, mas o ícone assado no build (assets/ui/item_icons) vale do mesmo jeito
+	check(not ItemIcons.enabled() and ItemIcons.icon("leather_cap", Callable()) == ItemIcons.baked("leather_cap")
+		and ItemIcons.baked("leather_cap") != null, "sem janela, o ícone assado do item aparece (sem foto ao vivo)")
 	check(ItemIcons.icon("health_potion", Callable()) == null, "sem janela, item de família também cai no ícone pintado")
 	var no_icon: Array[String] = []
 	for id: String in ItemDB.ITEMS:
