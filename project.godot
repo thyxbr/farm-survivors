@@ -59,6 +59,11 @@ anti_aliasing/quality/msaa_3d=2
 
 [shader_globals]
 
+fx_flatten={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+
 weather_wet={
 "type": "float",
 "value": 0.0

@@ -17,6 +17,9 @@ global uniform vec2 weather_wind_dir;
 global uniform float weather_phase;   // vento acumulado (s × força): acelera o balanço sem saltos
 global uniform float weather_snow;
 global uniform float weather_wet;
+// Efeito que achata o capim numa área (as Estacas Sísmicas rachando o chão, SeismicSpikesAoE): (x, z) do centro,
+// raio (m) e força 0..1 (0 = nenhum). O chão rachado fica à mostra em vez de escondido sob o capim.
+global uniform vec4 fx_flatten;
 
 varying vec3 base_col;
 varying float hgt;
@@ -42,6 +45,12 @@ void vertex() {
 	VERTEX += lean * w * w * 0.18 * h2 * (0.7 + 0.5 * gust);
 	// soterrado pela neve
 	VERTEX.y *= 1.0 - weather_snow * 0.72;
+	// achatado por um efeito no chão (fx_flatten): some quase todo dentro do raio, a borda vai voltando
+	if (fx_flatten.w > 0.0) {
+		float fd = distance(origin.xz, fx_flatten.xy);
+		float fk = fx_flatten.w * (1.0 - smoothstep(fx_flatten.z * 0.8, fx_flatten.z, fd));
+		VERTEX *= vec3(1.0, 1.0 - 0.9 * fk, 1.0);
+	}
 	NORMAL = (inverse(MODEL_MATRIX) * vec4(0.0, 1.0, 0.0, 0.0)).xyz;
 }
 

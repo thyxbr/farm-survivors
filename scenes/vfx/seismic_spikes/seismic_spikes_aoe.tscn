@@ -1,0 +1,236 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/seismic_spikes/seismic_spikes_aoe.gd" id="1"]
+[ext_resource type="Resource" path="res://assets/vfx/seismic_spikes/seismic_spikes_config.tres" id="2"]
+[ext_resource type="Material" path="res://assets/vfx/seismic_spikes/seismic_cracks_mat.tres" id="4"]
+[ext_resource type="Texture2D" path="res://assets/vfx/seismic_spikes/seismic_fissure_albedo.png" id="5"]
+[ext_resource type="Texture2D" path="res://assets/vfx/seismic_spikes/seismic_fissure_emission.png" id="6"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+size = Vector2(1, 1)
+
+[sub_resource type="Gradient" id="Gradient_ember"]
+offsets = PackedFloat32Array(0, 0.3, 1)
+colors = PackedColorArray(1, 0.75, 0.45, 1, 0.95, 0.42, 0.12, 1, 0.35, 0.1, 0.03, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_ember"]
+gradient = SubResource("Gradient_ember")
+
+[sub_resource type="Curve" id="Curve_ember"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.2), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_ember"]
+curve = SubResource("Curve_ember")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_impact"]
+emission_shape = 1
+emission_sphere_radius = 0.3
+direction = Vector3(0, 1, 0)
+spread = 65.0
+initial_velocity_min = 2.5
+initial_velocity_max = 6.0
+gravity = Vector3(0, -9, 0)
+damping_min = 0.5
+damping_max = 1.5
+scale_min = 0.6
+scale_max = 1.3
+scale_curve = SubResource("CurveTexture_ember")
+color_ramp = SubResource("GradientTexture1D_ember")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_quake"]
+resource_local_to_scene = true
+emission_shape = 6
+emission_ring_axis = Vector3(0, 1, 0)
+emission_ring_height = 0.05
+emission_ring_radius = 4.1
+emission_ring_inner_radius = 0.0
+direction = Vector3(0, 1, 0)
+spread = 25.0
+initial_velocity_min = 1.5
+initial_velocity_max = 4.0
+gravity = Vector3(0, -8, 0)
+damping_min = 0.3
+damping_max = 1.0
+scale_min = 0.5
+scale_max = 1.1
+scale_curve = SubResource("CurveTexture_ember")
+color_ramp = SubResource("GradientTexture1D_ember")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ember"]
+transparency = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+billboard_mode = 3
+billboard_keep_scale = true
+particles_anim_h_frames = 1
+particles_anim_v_frames = 1
+particles_anim_loop = false
+
+[sub_resource type="QuadMesh" id="QuadMesh_ember"]
+material = SubResource("StandardMaterial3D_ember")
+size = Vector2(0.07, 0.07)
+
+[sub_resource type="Gradient" id="Gradient_pebble"]
+offsets = PackedFloat32Array(0, 0.5, 1)
+colors = PackedColorArray(0.2, 0.18, 0.16, 1, 0.3, 0.28, 0.25, 1, 0.42, 0.39, 0.35, 1)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_pebble"]
+gradient = SubResource("Gradient_pebble")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_pebbles"]
+resource_local_to_scene = true
+emission_shape = 6
+emission_ring_axis = Vector3(0, 1, 0)
+emission_ring_height = 0.02
+emission_ring_radius = 4.1
+emission_ring_inner_radius = 0.0
+direction = Vector3(0, 1, 0)
+spread = 18.0
+initial_velocity_min = 1.0
+initial_velocity_max = 2.6
+angular_velocity_min = -720.0
+angular_velocity_max = 720.0
+gravity = Vector3(0, -14, 0)
+scale_min = 0.4
+scale_max = 1.3
+color_initial_ramp = SubResource("GradientTexture1D_pebble")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pebble"]
+vertex_color_use_as_albedo = true
+roughness = 1.0
+
+[sub_resource type="PrismMesh" id="PrismMesh_pebble"]
+material = SubResource("StandardMaterial3D_pebble")
+left_to_right = 0.3
+size = Vector3(0.16, 0.18, 0.12)
+
+[sub_resource type="Gradient" id="Gradient_dust"]
+offsets = PackedFloat32Array(0, 0.2, 0.7, 1)
+colors = PackedColorArray(0.55, 0.5, 0.43, 0, 0.55, 0.5, 0.43, 0.45, 0.6, 0.55, 0.48, 0.25, 0.62, 0.57, 0.5, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_dust"]
+gradient = SubResource("Gradient_dust")
+
+[sub_resource type="Curve" id="Curve_dust"]
+_data = [Vector2(0, 0.5), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_dust"]
+curve = SubResource("Curve_dust")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_dust"]
+resource_local_to_scene = true
+emission_shape = 6
+emission_ring_axis = Vector3(0, 1, 0)
+emission_ring_height = 0.05
+emission_ring_radius = 4.1
+emission_ring_inner_radius = 0.0
+direction = Vector3(0, 1, 0)
+spread = 30.0
+initial_velocity_min = 0.3
+initial_velocity_max = 0.9
+gravity = Vector3(0, 0, 0)
+damping_min = 0.2
+damping_max = 0.5
+scale_min = 0.9
+scale_max = 2.0
+scale_curve = SubResource("CurveTexture_dust")
+color_ramp = SubResource("GradientTexture1D_dust")
+
+[sub_resource type="Gradient" id="Gradient_puff"]
+offsets = PackedFloat32Array(0, 0.55, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0.45, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_puff"]
+gradient = SubResource("Gradient_puff")
+width = 64
+height = 64
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 0.5)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_dust"]
+transparency = 1
+cull_mode = 2
+vertex_color_use_as_albedo = true
+albedo_texture = SubResource("GradientTexture2D_puff")
+roughness = 1.0
+billboard_mode = 3
+billboard_keep_scale = true
+particles_anim_h_frames = 1
+particles_anim_v_frames = 1
+particles_anim_loop = false
+
+[sub_resource type="QuadMesh" id="QuadMesh_dust"]
+material = SubResource("StandardMaterial3D_dust")
+size = Vector2(1, 1)
+
+[node name="SeismicSpikesAoE" type="Node3D"]
+script = ExtResource("1")
+config = ExtResource("2")
+
+[node name="CrackGround" type="MeshInstance3D" parent="."]
+cast_shadow = 0
+extra_cull_margin = 2.0
+mesh = SubResource("PlaneMesh_ground")
+material_override = ExtResource("4")
+
+[node name="FissureDecal" type="Decal" parent="."]
+size = Vector3(9.6, 1.2, 9.6)
+texture_albedo = ExtResource("5")
+texture_emission = ExtResource("6")
+emission_energy = 0.8
+upper_fade = 0.2
+lower_fade = 0.2
+
+[node name="ImpactEmbers" type="GPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+cast_shadow = 0
+emitting = false
+amount = 32
+lifetime = 0.9
+one_shot = true
+explosiveness = 0.95
+visibility_aabb = AABB(-6, -1, -6, 12, 8, 12)
+process_material = SubResource("ParticleProcessMaterial_impact")
+draw_pass_1 = SubResource("QuadMesh_ember")
+
+[node name="QuakeEmbers" type="GPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 0)
+cast_shadow = 0
+emitting = false
+amount = 36
+lifetime = 1.0
+one_shot = true
+explosiveness = 0.8
+visibility_aabb = AABB(-7, -1, -7, 14, 8, 14)
+process_material = SubResource("ParticleProcessMaterial_quake")
+draw_pass_1 = SubResource("QuadMesh_ember")
+
+[node name="Pebbles" type="GPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
+cast_shadow = 0
+emitting = false
+amount = 42
+lifetime = 0.6
+visibility_aabb = AABB(-7, -1, -7, 14, 4, 14)
+process_material = SubResource("ParticleProcessMaterial_pebbles")
+draw_pass_1 = SubResource("PrismMesh_pebble")
+
+[node name="QuakeDust" type="GPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+cast_shadow = 0
+emitting = false
+amount = 22
+lifetime = 1.6
+visibility_aabb = AABB(-8, -1, -8, 16, 6, 16)
+process_material = SubResource("ParticleProcessMaterial_dust")
+draw_pass_1 = SubResource("QuadMesh_dust")
+
+[node name="ImpactLight" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+light_color = Color(1, 0.55, 0.2, 1)
+light_energy = 0.0
+shadow_enabled = false
+omni_range = 6.5
