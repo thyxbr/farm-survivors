@@ -171,7 +171,18 @@ func _refresh() -> void:
 		var price: int = ItemDB.get_item(id).price
 		s.info_text = "%d◆" % price
 		# arma de outra classe continua à venda (dá para revender), mas apagada: a dica diz de quem ela é
-		s.dim = price > Game.gold or not Game.can_wield(id)
+		# acima do nível do herói: apagada e com o nível no lugar do preço (a dica mostra os dois)
+		var need := CharRules.item_level(Balance.tables, id)
+		var locked := need > Game.level
+		if locked:
+			s.info_text = "Nv %d" % need
+		var it := ItemDB.get_item(id)
+		if str(it.get("type", "")) == "seed" and ItemDB.CROPS.has(str(it.get("crop", ""))):
+			var farm_need := int(ItemDB.CROPS[it.crop].get("level", 1))
+			if Game.prof_level("farming") < farm_need:
+				locked = true
+				s.info_text = "Faz %d" % farm_need
+		s.dim = price > Game.gold or not Game.can_wield(id) or locked
 		buy_grid.add_child(s)
 
 
