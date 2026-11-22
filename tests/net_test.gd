@@ -229,11 +229,17 @@ func _ready() -> void:
 		check(not w.player.chat_typing, "fechar o chat devolve o controle")
 
 	# acerta um slime até morrer: o servidor aplica o dano e devolve XP/loot
+	# cada cliente num slime só dele (Ana o de menor net_id, Beto o seguinte): a conta do elemento compara duas
+	# perdas de vida seguidas, e um golpe do colega no mesmo slime no meio bagunçava a proporção
 	var target: Enemy = null
+	var slimes: Array = []
 	for e in Network.enemies.values():
 		if e.kind == "slime" and not e.dead:
-			target = e
-			break
+			slimes.append(e)
+	slimes.sort_custom(func(a, b) -> bool: return a.net_id < b.net_id)
+	var pick := 0 if my_name == "Ana" else 1
+	if slimes.size() > pick:
+		target = slimes[pick]
 	check(target != null, "achou um slime")
 	if target:
 		w.player.global_position = target.global_position + Vector3(0, 0.5, 3)
