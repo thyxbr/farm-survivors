@@ -8976,20 +8976,20 @@ def build_g_celestial():
 
 
 def build_g_cosmic():
-    """Manoplas Cósmicas (referência: Marius Sebastian): mão de placa de prata (fechada e aberta) com as juntas
-    dos dedos desenhadas em tinta e um círculo de tinta nas costas da mão (o disco da referência), medidos por
-    raios na própria malha; punho curto e liso que abre um pouco para o braçal, com aro escuro e traço no pulso."""
+    """Manoplas Cósmicas em RPG estilizado: mão de placas de aço escuro (fechada e aberta) e, nas costas da mão, o
+    disco de céu da referência com moldura de ouro (medido por raios na própria malha); punho de prata em sino, com anel de ouro grosso na boca e faixa de prata no pulso."""
     from mathutils.bvhtree import BVHTree
     P, R = g_rig("g_cosmic")
     K = cosmic_mats()
+    G = K["gold"]
     N = 24
     for n, s in (("L", 1), ("R", -1)):
         S = limb_sections(P, s)
         elbow = R["Elbow" + n]
         F = S["fore"]
         hd, o, ay, up, pt = _hand_frame(P, s)
-        fist = soft_fist("Arm" + n, P, s, K["plate"], elbow)
-        hand = relaxed_hand("Arm" + n, P, s, K["plate"], elbow)
+        fist = soft_fist("Arm" + n, P, s, K["steel"], elbow)
+        hand = relaxed_hand("Arm" + n, P, s, K["steel"], elbow)
         fp, op = [fist], [hand]
         bpy.context.view_layer.update()
         for lst, ob, nm in ((fp, fist, "Fist"), (op, hand, "Open")):
@@ -8997,33 +8997,28 @@ def build_g_cosmic():
             bvh = BVHTree.FromPolygons(vs, [tuple(p.vertices) for p in ob.data.polygons])
             zs = [v.z for v in vs]
             zk = (max(zs) - min(zs))
-            for k, fz in enumerate((0.12, -0.05, -0.2)):
-                line = []
-                for j in range(11):
-                    y = -0.035 + 0.07 * j / 10
-                    c = pt(0, y / hd, -(fz * zk) / hd)
-                    h = bvh.ray_cast(c + o * 0.2, -o)
-                    if h[0] is not None:
-                        line.append(h[0] + o * 0.0015)
-                if len(line) > 3:
-                    lst.append(g_pipe("Arm%s_Ink%s%d" % (n, nm, k), line, 0.0022, K["ink"], elbow, sides=6))
             circ = []
-            for j in range(20):
-                t = 2 * math.pi * j / 20
-                c = pt(0, 0.012 * math.cos(t) / hd, -((0.36 * zk) + 0.012 * math.sin(t)) / hd)
+            for j in range(24):
+                t = 2 * math.pi * j / 24
+                c = pt(0, 0.016 * math.cos(t) / hd, -((0.36 * zk) + 0.016 * math.sin(t)) / hd)
                 h = bvh.ray_cast(c + o * 0.2, -o)
                 if h[0] is not None:
-                    circ.append(h[0] + o * 0.0015)
-            if len(circ) == 20:
-                cc = sum(circ, Vector()) / 20
-                lst.append(g_smooth_mesh("Arm%s_DiscSky%s" % (n, nm), [[cc + o * 0.0004] * 20, circ], K["sky"], elbow,
-                                         cap_end=False, thick=0.0012, outward=True))
-                lst.append(g_pipe("Arm%s_Disc%s" % (n, nm), circ, 0.0026, K["plate_d"], elbow, sides=6, loop=True))
-        cuff = [_rg_ring(sample(F, t), 1.08, add, n=N) for t, add in ((0.8, 0.013), (0.86, 0.01), (0.93, 0.008),
-                                                                       (1.0, 0.007))]
-        cp = [g_smooth_mesh("Arm%s_Cuff" % n, cuff, K["plate"], elbow, cap_end=False, thick=0.004, outward=True),
-              g_pipe("Arm%s_CuffRim" % n, cuff[0], 0.0038, K["plate_d"], elbow, sides=8, loop=True),
-              g_pipe("Arm%s_CuffWrist" % n, cuff[-1], 0.0028, K["ink"], elbow, sides=6, loop=True)]
+                    circ.append(h[0] + o * 0.0012)
+            if len(circ) == 24:
+                cc = sum(circ, Vector()) / 24
+                lst.append(g_smooth_mesh("Arm%s_DiscSky%s" % (n, nm), [circ, [cc.lerp(q, 0.5) + o * 0.0015
+                                                                             for q in circ]],
+                                         K["sky"], elbow, cap_end=True, thick=0.0012))
+                lst.append(cz_strip("Arm%s_Disc%s" % (n, nm), [cc.lerp(q, 1.15) for q in circ], [o] * 24, 0.007,
+                                    0.004, G, elbow, loop=True))
+        cuff = [_rg_ring(sample(F, t), 1.08, add, n=N) for t, add in ((0.78, 0.03), (0.82, 0.022), (0.88, 0.014),
+                                                                       (0.94, 0.009), (1.0, 0.007))]
+        cen = [sample(F, t)["c"] for t in (0.78, 0.82, 0.88, 0.94, 1.0)]
+        cp = [g_smooth_mesh("Arm%s_Cuff" % n, cuff, K["plate"], elbow, cap_end=False, thick=0.005, outward=True)]
+        for nm, i, w, h, m in (("Mouth", 0, 0.02, 0.008, G), ("Wrist", 4, 0.01, 0.004, K["plate"])):
+            pts = [cuff[i][j] + (cuff[i][j] - cen[i]).normalized() * 0.002 for j in range(N)]
+            cp.append(cz_strip("Arm%s_Cuff%s" % (n, nm), pts, [(q - cen[i]).normalized() for q in pts], w, h, m,
+                               elbow, loop=True))
         join_objs("Arm%s_Hand" % n, fp)
         join_objs("Arm%s_HandOpen" % n, op)
         join_objs("Arm%s_Gauntlet" % n, cp)
