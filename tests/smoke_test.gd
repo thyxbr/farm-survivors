@@ -100,6 +100,9 @@ func _check_aegis(player: Node, world: Node) -> void:
 		for p in bar.plates:
 			s += p.damage()
 		return s / bar.plates.size()
+	# nenhum monstro em volta bate no escudo no meio das contas (os alvos de checagens anteriores e os criados
+	# pelo teste ficam fora do atordoamento periódico e, conforme o sorteio do mundo, chegavam aqui)
+	_calm_bystanders([], player.global_position, 40.0, 4.0)
 	player.invuln = 0.0
 	var hp_hit: float = Game.hp   # a vida regenera com o tempo: compara com a de logo antes do golpe
 	player.take_damage(raw.call(mx * 0.4), src)
