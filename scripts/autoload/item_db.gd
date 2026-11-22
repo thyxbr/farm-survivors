@@ -300,6 +300,8 @@ func item_summary(id: String) -> String:
 			var c: Dictionary = CROPS[it.crop]
 			lines.append("Semente — %ds para crescer (regada: %ds) · rende %d–%d" % [
 				int(c.time), int(c.time / 2.0), c.yield[0], c.yield[1]])
+			if int(c.get("level", 1)) > 1:
+				lines.append("Pede Fazenda nível %d para plantar" % int(c.level))
 		"crop":
 			lines.append("Colheita — ingrediente do caldeirão")
 			var uses: Array[String] = []

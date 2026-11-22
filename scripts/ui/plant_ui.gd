@@ -73,7 +73,7 @@ func _ready() -> void:
 	# começa na semente que o jogador tem (ou na primeira)
 	_sel = ItemDB.CROP_ORDER[0]
 	for crop in ItemDB.CROP_ORDER:
-		if Game.count_item(ItemDB.CROPS[crop].seed) > 0:
+		if Game.count_item(ItemDB.CROPS[crop].seed) > 0 and can_plant_level(crop):
 			_sel = crop
 			break
 	_refresh()
@@ -85,6 +85,16 @@ func select_crop(crop: String) -> void:
 	_refresh()
 
 
+## Nível de Fazenda que a cultura pede (crops.json "level"; sem campo = 1).
+static func crop_level(crop: String) -> int:
+	return maxi(1, int(ItemDB.CROPS[crop].get("level", 1)))
+
+
+## true se o nível de Fazenda do jogador já deixa plantar a cultura.
+static func can_plant_level(crop: String) -> bool:
+	return Game.prof_level("farming") >= crop_level(crop)
+
+
 func _refresh() -> void:
 	if not is_inside_tree():
 		return
@@ -93,6 +103,9 @@ func _refresh() -> void:
 		var c: Dictionary = ItemDB.CROPS[crop]
 		var n := Game.count_item(c.seed)
 		var price: int = ItemDB.get_item(c.seed).price
+		if not can_plant_level(crop):
+			StationKit.set_row(_rows[crop], crop == _sel, false, c.color.lightened(0.35), "Nv %d" % crop_level(crop))
+			continue
 		var can := n > 0 or Game.gold >= price
 		StationKit.set_row(_rows[crop], crop == _sel, can, c.color.lightened(0.35),
 			("x%d" % n) if n > 0 else "%d◆" % price, UITheme.GOOD if n > 0 else UITheme.GOLD)
@@ -115,6 +128,10 @@ func _update_info() -> void:
 	_chips.add_child(StationKit.chip("%ds" % int(c.time), "Cresce (regada: %ds)" % int(c.time / 2.0), Color(0.55, 0.85, 1.0)))
 	_chips.add_child(StationKit.chip("%d–%d" % [c.yield[0], c.yield[1]], "Por colheita", Color(0.6, 1.0, 0.5)))
 	_chips.add_child(StationKit.chip("x%d" % n, "Sementes", UITheme.GOLD, n > 0))
+	var need := crop_level(_sel)
+	var lv_ok := can_plant_level(_sel)
+	_chips.add_child(StationKit.chip("Nv %d" % need, "Fazenda (você: %d)" % Game.prof_level("farming"),
+		UITheme.GOOD if lv_ok else UITheme.BAD))
 	var any := false
 	for r in ItemDB.RECIPE_ORDER:
 		if ItemDB.RECIPES[r].has(_sel):
@@ -125,10 +142,15 @@ func _update_info() -> void:
 	var price: int = seed_it.price
 	_note.text = "" if n > 0 else ("Sem sementes: plantar compra uma por %d ouro." % price if Game.gold >= price
 		else "Sem sementes e sem ouro para comprar (%d)." % price)
-	plant_btn.disabled = n <= 0 and Game.gold < price
+	_note.remove_theme_color_override("font_color")
+	if not lv_ok:
+		_note.text = "Pede Fazenda nível %d (você: %d). Plante e colha as outras sementes para subir." % [
+			need, Game.prof_level("farming")]
+		_note.add_theme_color_override("font_color", UITheme.BAD)
+	plant_btn.disabled = not lv_ok or (n <= 0 and Game.gold < price)
 	var empties := _empty_plots()
 	all_btn.text = "Plantar em todos (%d)" % empties.size()
-	all_btn.disabled = empties.size() <= 1
+	all_btn.disabled = not lv_ok or empties.size() <= 1
 
 
 func _empty_plots() -> Array[int]:
