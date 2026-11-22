@@ -147,3 +147,18 @@ func test_pose_phase_timeline() -> void:
 	T.ok(mid < 1.5, "a descida acelera: na metade do tempo ainda falta mais da metade (%.2f)" % mid)
 	T.eq(EarthquakeRules.pose_phase(c.total_time() + 1.0, w, s, c.hold_time, c.recover_time), 4.0, "de volta no fim")
 	T.ok(c.forward_offset > 0.2 and c.forward_offset < 1.5, "o escudo bate logo à frente dos pés (%.2f m)" % c.forward_offset)
+
+
+func test_area_matches_aegis_circle() -> void:
+	var c := _cfg()
+	var aegis: AegisConfig = load("res://assets/vfx/aegis/aegis_config.tres")
+	T.ok(is_equal_approx(c.radius, aegis.circle_radius), "área do Terremoto do tamanho do círculo da Égide (%.2f m)" % c.radius)
+	T.ok(c.crack_length * c.radius <= c.radius, "rachaduras dentro da área")
+	var t := c.expansion_time()
+	T.ok(t > 0.5 and t < 1.2, "a onda pequena ainda leva um tempo visível até a borda (%.2f s)" % t)
+
+
+func test_secondary_spots_stay_inside_area() -> void:
+	var paths := EarthquakeRules.crack_paths(11, 3.0, 0.45, 0.24, 4)
+	for p: Vector2 in EarthquakeRules.secondary_spots(paths, 3, 3.1):
+		T.ok(p.length() <= 3.1 + 0.001, "explosão secundária dentro do raio que a onda alcança (%.2f m)" % p.length())

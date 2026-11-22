@@ -10,7 +10,7 @@ extends Node3D
 ## Quantidade e densidade multiplicadas por EarthquakeConfig.dust_intensity. Se libera quando a última some.
 
 const SHEET := preload("res://scenes/vfx/earthquake/earthquake_sheet.tscn")
-const DUST_COLOR := Color(0.46, 0.42, 0.38)
+const DUST_COLOR := Color(0.55, 0.5, 0.45)
 
 ## Material da poeira (um só para todas as ativações): ILUMINADO, ao contrário das faíscas, para escurecer à
 ## noite e na sombra (poeira sem luz própria brilharia como neblina clara no escuro).
@@ -45,14 +45,14 @@ func _ready() -> void:
 	_charge = emitter("Charge", quad(1.2, smoke), int(26 * k), 1.1, cm, false)
 	_charge.explosiveness = 0.0
 	# frente da onda: o anel de emissão acompanha o raio
-	_front_mat = _mat(EMISSION_RING, 0.5, 0.4, Vector3.UP, 25.0, Vector2(0.2, 0.8), Vector2(1.5, 4.0), 0.08)
+	_front_mat = _mat(EMISSION_RING, 0.5, 0.4, Vector3.UP, 25.0, Vector2(0.2, 0.8), Vector2(1.5, 4.0) * config.size_k(), 0.08)
 	_front_mat.damping_min = 0.8
 	_front_mat.damping_max = 1.6
 	_front_mat.scale_min = 0.7
 	_front_mat.scale_max = 1.5
 	_front_mat.scale_curve = curve([Vector2(0.0, 0.5), Vector2(0.35, 1.0), Vector2(1.0, 1.6)])
 	_front_mat.color_ramp = ramp([_c(0.0), _c(0.45), _c(0.25), _c(0.0)], [0.0, 0.12, 0.6, 1.0])
-	_front = emitter("Front", quad(1.6, smoke), int(120 * k), 1.8, _front_mat, false)
+	_front = emitter("Front", quad(1.6 * sqrt(config.size_k()), smoke), int(120 * k * config.size_k()), 1.8, _front_mat, false)
 	_front.explosiveness = 0.0
 	var R := config.radius
 	for p: GPUParticles3D in [_charge, _front]:
@@ -71,14 +71,14 @@ func impact() -> void:
 	var k := config.dust_intensity * clampf(config.impact_intensity, 0.4, 2.0)
 	if k <= 0.0:
 		return
-	var m := _mat(EMISSION_RING, 1.2, 0.2, Vector3.UP, 30.0, Vector2(0.3, 1.6), Vector2(5.0, 11.0), 0.0)
+	var m := _mat(EMISSION_RING, 1.2 * config.size_k(), 0.2, Vector3.UP, 30.0, Vector2(0.3, 1.6), Vector2(5.0, 11.0) * config.size_k(), 0.0)
 	m.damping_min = 3.0
 	m.damping_max = 5.0
-	m.scale_min = 1.6
-	m.scale_max = 3.0
+	m.scale_min = 1.6 * sqrt(config.size_k())
+	m.scale_max = 3.0 * sqrt(config.size_k())
 	m.scale_curve = curve([Vector2(0.0, 0.4), Vector2(0.25, 1.0), Vector2(1.0, 1.5)])
 	m.color_ramp = ramp([_c(0.0), _c(0.85), _c(0.5), _c(0.0)], [0.0, 0.08, 0.55, 1.0])
-	var b := emitter("Burst", quad(2.2, dust_material()), int(36 * k), 2.6, m, true)
+	var b := emitter("Burst", quad(2.2 * sqrt(config.size_k()), dust_material()), int(36 * k * sqrt(config.size_k())), 2.6, m, true)
 	b.explosiveness = 0.95
 	b.visibility_aabb = AABB(Vector3(-14, -3, -14), Vector3(28, 10, 28))
 	if _front:
@@ -97,14 +97,14 @@ func puff(at: Vector2, size: float) -> void:
 	var k := config.dust_intensity
 	if k <= 0.0:
 		return
-	var m := _mat(EMISSION_SPHERE, size * 0.4, 0.0, Vector3.UP, 40.0, Vector2(1.0, 3.0) * sqrt(size), Vector2(0.5, 1.5), 0.25)
+	var m := _mat(EMISSION_SPHERE, size * 0.4, 0.0, Vector3.UP, 40.0, Vector2(0.6, 1.8) * sqrt(size), Vector2(0.5, 1.5), 0.1)
 	m.damping_min = 1.5
 	m.damping_max = 2.5
 	m.scale_min = 0.6 * size
 	m.scale_max = 1.2 * size
 	m.scale_curve = curve([Vector2(0.0, 0.5), Vector2(0.3, 1.0), Vector2(1.0, 1.4)])
 	m.color_ramp = ramp([_c(0.0), _c(0.7), _c(0.4), _c(0.0)], [0.0, 0.1, 0.55, 1.0])
-	var p := emitter("Puff", quad(1.8, dust_material()), int(14 * k * size), 1.7, m, true)
+	var p := emitter("Puff", quad(1.8 * sqrt(config.size_k()), dust_material()), int(14 * k * size), 1.7, m, true)
 	p.explosiveness = 0.85
 	p.position = ground.local_at(at, 0.2)
 
@@ -121,17 +121,17 @@ func dissipate(time: float) -> void:
 		var m := _mat(EMISSION_RING, R * 0.75, 0.0, Vector3.UP, 60.0, Vector2(0.1, 0.5), Vector2(0.3, 1.0), 0.12)
 		m.damping_min = 0.4
 		m.damping_max = 0.8
-		m.scale_min = 1.8
-		m.scale_max = 3.2
+		m.scale_min = 1.8 * sqrt(config.size_k())
+		m.scale_max = 3.2 * sqrt(config.size_k())
 		m.scale_curve = curve([Vector2(0.0, 0.6), Vector2(1.0, 1.4)])
 		m.color_ramp = ramp([_c(0.0), _c(0.3), _c(0.18), _c(0.0)], [0.0, 0.2, 0.6, 1.0])
-		var s := emitter("Settle", quad(2.0, dust_material()), int(22 * k), time * 0.85, m, true)
+		var s := emitter("Settle", quad(2.0 * sqrt(config.size_k()), dust_material()), int(22 * k * sqrt(config.size_k())), time * 0.85, m, true)
 		s.explosiveness = 0.7
 		s.visibility_aabb = AABB(Vector3(-R * 1.4, -3.0, -R * 1.4), Vector3(R * 2.8, 10.0, R * 2.8))
 		var sh: EarthquakeSheet = SHEET.instantiate()
 		sh.name = "Sheet"
 		add_child(sh)
-		sh.place(ground.local_at(Vector2.ZERO), minf(R * 0.75, 7.0))
+		sh.place(ground.local_at(Vector2.ZERO), clampf(R * 0.75, 2.6, 7.0))
 		sh.intensity = 0.5
 		sh.play(EarthquakeSheet.DUST, time * 0.7, false, true)
 	_life = _t + time + 0.3
@@ -244,5 +244,8 @@ static func dust_material() -> StandardMaterial3D:
 	m.roughness = 1.0
 	m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 	m.disable_receive_shadows = true
+	# onde o quad encosta no chão a poeira some aos poucos (sem a linha reta do corte)
+	m.proximity_fade_enabled = true
+	m.proximity_fade_distance = 0.8
 	_dust_mat = m
 	return m
