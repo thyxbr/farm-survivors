@@ -281,6 +281,8 @@ static func _toon_of(src: BaseMaterial3D) -> ShaderMaterial:
 		src.emission.to_html() if src.emission_enabled else "-", src.emission_energy_multiplier,
 		int(src.vertex_color_use_as_albedo), int(src.vertex_color_is_srgb), tex.get_instance_id() if tex else 0,
 		int(_is_flat(src))]
+	if src.emission_texture:
+		key += "|%d" % src.emission_texture.get_instance_id()
 	if _mats.has(key):
 		return _mats[key]
 	var m := ShaderMaterial.new()
@@ -307,6 +309,7 @@ static func _fill(m: ShaderMaterial, src: BaseMaterial3D) -> void:
 	m.set_shader_parameter("albedo_tex", src.albedo_texture)
 	m.set_shader_parameter("emission", src.emission if src.emission_enabled else Color.BLACK)
 	m.set_shader_parameter("emission_energy", src.emission_energy_multiplier if src.emission_enabled else 0.0)
+	m.set_shader_parameter("emission_tex", src.emission_texture if src.emission_enabled else null)
 
 
 static func _add_outline(mi: MeshInstance3D, mat: ShaderMaterial = null) -> void:

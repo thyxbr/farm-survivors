@@ -483,6 +483,7 @@ static func _build_sword(h: Node3D, tip: Node3D, id: String) -> void:
 				var roll := Transform3D(Basis.IDENTITY.rotated(Vector3.BACK, AXE_ROLL), Vector3.ZERO)
 				w.transform = roll * w.transform
 				tip.position = roll * tip.position
+			BowAura.attach(w)   # montantes de nível 50: aura nos empties "Aura_*" do GLB (as outras não têm)
 			return
 	var shape: String = it.get("shape", "")
 	var length := 0.86

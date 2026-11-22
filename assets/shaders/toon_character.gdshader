@@ -12,6 +12,8 @@ uniform bool vertex_color_srgb = false;
 uniform sampler2D albedo_tex : source_color, hint_default_white, filter_linear_mipmap;
 uniform vec3 emission : source_color = vec3(0.0);
 uniform float emission_energy = 0.0;
+// textura de emissão (montantes de nível 50 pintadas por IA: só os veios e as gemas acendem); branca = sem textura
+uniform sampler2D emission_tex : source_color, hint_default_white, filter_linear_mipmap;
 
 #include "res://assets/shaders/toon_light.gdshaderinc"
 
@@ -27,5 +29,5 @@ void fragment() {
 	ALBEDO = base;
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.0;
-	EMISSION = emission * emission_energy;
+	EMISSION = emission * emission_energy * texture(emission_tex, UV).rgb;
 }

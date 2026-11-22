@@ -119,16 +119,36 @@ vértice com a cor do osso dominante e marque os pivôs numa vista de lado.
 Em aberto: olhos e cristais sem brilho (a pintura da IA é fosca; o conceito tem olhos e
 cristais acesos), trocar o `wolf.glb` de vez, custo de 14 mil faces com pele numa horda cheia (`/perf-profile`).
 
-## Armas (próximo uso)
+## Armas
+
+Primeiro uso: as seis montantes de nível 50 (novembro de 2026, `build_gsia` em `tools/blender/armory.py`).
+
+![Montantes: conceito x jogo](renders/montantes_ia/conceito_x_jogo.png)
 
 Arma é uma peça rígida só, então não tem pele nem espelho, mas tem convenções próprias (`tools/blender/armory.py`):
 
 - Centro da empunhadura na origem, frente = -Y. Espada `w_*`: lâmina em +Z, largura em X. Cajado `st_*`: haste em
   +Z, mão em z = 0,3. Arco `bw_*`: braços em ±Z, corda fora do GLB. Um empty `Tip` marca a ponta (efeitos e rastro).
-- Vistas: frente (face larga da lâmina), lado (perfil, a ponta para cima), costas. Lâmina curva: o gume de dentro
-  do mesmo lado nas três.
-- Medir a escala pelo cabo (largura da mão) e pelo comprimento total das armas da mesma classe; conferir a pegada
-  com o personagem empunhando (`tools/weapon_shot.gd`) e no jogo, com a câmera do jogo.
-- O preparo e o build da arma ainda não existem: o primeiro uso cria a entrada em `PECAS` (giro para a lâmina
-  ficar em +Z, sem espelho) e um builder que carrega a base, centra a empunhadura, põe o `Tip` e exporta o
-  `<id>.glb` com a textura em JPEG (como `_dgia_export` faz para o equipamento, mas na pasta das armas).
+- **Vistas: só frente e costas.** O Gemini não desenha a vista de lado de uma espada (gira a guarda junto ou
+  desenha a mesma face mais estreita), e o Hunyuan3D-2mv acerta a espessura sem ela (lâmina de ~5 cm em 2 m).
+  Pedir a arma **deitada** (frente em cima, costas embaixo, ponta para a direita) aproveita a imagem larga;
+  `tools/ia3d/recortar_arma.py` põe de pé e espelha as costas (o Gemini desenha as costas como a arma girada no
+  próprio eixo; o gerador quer a vista de trás).
+- Escala: montante tem 2 m (passa da altura do herói, ~1,8 m). O cabo não é medido pelo trecho estreito (anéis
+  com espinhos e pomo fino quebram o trecho): a guarda é a faixa mais larga da metade de baixo e a pegada fica
+  `GSIA_HANDS` (25 cm) abaixo dela. Conferir com `tools/weapon_shot.gd` e no jogo (`--level=60 --weapon=<id>`,
+  `--autoswing --shots=3,0.25` para o golpe).
+- Preparo: `dragon_ia_peca_prep.py` com as peças `gs_*` (giro 0, sem espelho). Brilho: o builder tira da própria
+  pintura uma textura de emissão (pixels no tom da arma); aura: empties `Aura_<tipo>_<n>` na guarda, na ponta e
+  nas duas bordas da lâmina, que `BowAura` liga em partículas (tipos em `scripts/player/bow_aura.gd`).
+
+### Erros das montantes (e como evitar)
+
+| Erro | Causa | Como evitar |
+|---|---|---|
+| Espada inteira branca no jogo | o shader toon (`toon_character.gdshader`) usava a cor de emissão (branca) e ignorava a textura de emissão | o toon agora multiplica pela `emission_tex`; arma nova com emissão por textura já funciona |
+| Decalque, tinta e redução para 1024 px sumiam no jogo | a imagem vem empacotada no GLB: `save()`/`pack()` gravam os bytes originais | nas `gs_*` o preparo copia os pixels para uma imagem nova antes de salvar (os GLBs caíram de ~1 MB para ~0,5 MB) |
+| Traços finos perdidos (circuitos do Arcano, orbes do Abismo, penas da águia) | a pintura da IA borra o que tem poucos pixels | `DECAL` no preparo: só as linhas na cor alvo do conceito, nas faces de frente e de costas (lâmina plana, malha gerada das mesmas vistas). Não é a projeção inteira da regra 1 |
+| Fenda fechada / raio sem vão | o gerador fechou parte do vão | `FURO`: faces de frente/costas que caem no fundo do conceito nas duas vistas saem |
+| Guarda virou bloco | uma semente ruim e a pintura clara apagando as penas | gerar com outras sementes (`gerar.py --semente 7 --octree 512`), comparar em cinza e decalcar a cor escura (o filtro mede o brilho relativo à cor alvo) |
+| Máscara de brilho pegando o cristal inteiro (32%) | tolerância de tom larga demais | tolerância 0,55; conferir a linha `BRILHO ... % da textura` (0,5–15% é o normal) |

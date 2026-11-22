@@ -3468,4 +3468,104 @@ ARMORY += [("w_iron_zweihander", build_iron_zweihander), ("w_highland_claymore",
            ("w_ember_flamberge", build_ember_flamberge), ("w_eclipse_greatsword", build_eclipse_greatsword)]
 
 
+# ------------------------------------------------------------------ montantes de nível 50 geradas por IA
+# Conceito do Gemini (frente e costas, tools/ia3d/recortar_arma.py) -> tools/ia3d/lote.sh (malha Hunyuan3D-2mv +
+# pintura) -> dragon_ia_peca_prep.py (base normalizada: altura 1, ponta em +Z, frente -Y). Aqui ganham o tamanho
+# de montante de verdade (2 m: passa da altura do herói, ~1,8 m), o centro do cabo na origem, um brilho tirado da
+# própria pintura (veios e gemas da cor da arma) e os empties "Aura_<tipo>_<n>" que o jogo (BowAura) liga em
+# partículas da cor da arma. A pintura é a da IA: material "_flat", textura em JPEG.
+GSIA_BASE = OUT.replace("assets/models/", "tools/blender/base/")
+GSIA_LEN = 2.0
+GSIA = {   # asset: (peça, tipo da aura, cor do brilho)
+    "w_abyss_greatsword": ("abismo", "abyss", "#b04cff"),
+    "w_arcane_greatsword": ("arcano", "arcane", "#3ee0ff"),
+    "w_dawn_greatsword": ("aurora", "radiant", "#ffd870"),
+    "w_storm_greatsword": ("tempestade", "storm", "#38b8ff"),
+    "w_crimson_greatsword": ("carmesim", "crimson", "#ff2848"),
+    "w_winter_greatsword": ("inverno", "frost", "#9ae8ff"),
+}
+
+
+GSIA_HANDS = 0.25   # m do centro da guarda ao centro da pegada (as duas mãos juntas abaixo da guarda)
+
+
+def _gsia_guard(ob):
+    """z do centro da guarda: a faixa mais larga na metade de baixo da arma. (Medir o cabo pelo trecho estreito
+    falhou: os anéis com espinhos e o pomo fino cortam o trecho, e o centro caía no pomo.)"""
+    import numpy as np
+    co = np.array([v.co[:] for v in ob.data.vertices])
+    z0, z1 = co[:, 2].min(), co[:, 2].max()
+    n = 120
+    larg = np.zeros(n)
+    for i in range(int(n * 0.5)):
+        a, b = z0 + (z1 - z0) * i / n, z0 + (z1 - z0) * (i + 1) / n
+        s = co[(co[:, 2] >= a) & (co[:, 2] < b)]
+        if len(s):
+            larg[i] = s[:, 0].max() - s[:, 0].min()
+    return z0 + (z1 - z0) * (int(np.argmax(larg)) + 0.5) / n
+
+
+def _gsia_glow(img, cor, nome):
+    """Textura de emissão tirada da pintura: pixels saturados, claros e no tom da arma (veios, runas, gemas)."""
+    import numpy as np
+    W, Hh = img.size
+    px = np.array(img.pixels[:], dtype=np.float32).reshape(Hh, W, 4)[:, :, :3]
+    mx, mn = px.max(2), px.min(2)
+    sat = (mx - mn) / np.maximum(mx, 1e-4)
+    alvo = np.array(H(cor))
+    alvo_n = alvo / max(alvo.max(), 1e-4)
+    px_n = px / np.maximum(mx[:, :, None], 1e-4)
+    perto = 1.0 - np.clip(np.abs(px_n - alvo_n).sum(2) / 0.55, 0.0, 1.0)
+    m = np.clip((sat - 0.35) / 0.3, 0, 1) * np.clip((mx - 0.3) / 0.3, 0, 1) * perto
+    out = bpy.data.images.new(nome, W, Hh)
+    out.pixels[:] = np.concatenate([px * m[:, :, None], np.ones((Hh, W, 1), np.float32)], 2).ravel()
+    out.pack()
+    print("BRILHO %s: %.1f%% da textura" % (nome, 100.0 * (m > 0.3).mean()))
+    return out
+
+
+def build_gsia(asset):
+    peca, kind, cor = GSIA[asset]
+    nome = "Gs%sTex" % peca.capitalize()
+    with bpy.data.libraries.load(GSIA_BASE + "gsia_%s_base.blend" % peca) as (src, dst):
+        dst.objects = [n for n in src.objects if n == nome]
+    ob = dst.objects[0]
+    coll.objects.link(ob)
+    ob.name = "Weapon"
+    me = ob.data
+    me.transform(Matrix.Scale(GSIA_LEN, 4))
+    guarda = _gsia_guard(ob)
+    me.transform(Matrix.Translation((0, 0, GSIA_HANDS - guarda)))
+    xs, ys, zs = ([v.co[i] for v in me.vertices] for i in range(3))
+    top = max(zs)
+    print("GSIA %s: guarda z=%.2f, ponta z=%.2f, pomo z=%.2f, largura %.2f, espessura %.3f" % (
+        asset, GSIA_HANDS, top, min(zs), max(xs) - min(xs), max(ys) - min(ys)))
+    # material: pintura da IA + emissão nos veios e gemas da cor da arma
+    mt = me.materials[0]
+    mt.name = asset + "_paint_flat"
+    nt = mt.node_tree
+    bsdf = next(n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED')
+    tx = next(n for n in nt.nodes if n.type == 'TEX_IMAGE')
+    tx.image.name = asset + "_albedo"
+    em = nt.nodes.new("ShaderNodeTexImage")
+    em.image = _gsia_glow(tx.image, cor, asset + "_glow")
+    nt.links.new(em.outputs["Color"], bsdf.inputs["Emission Color"])
+    bsdf.inputs["Emission Strength"].default_value = 1.6
+    # aura: no centro da guarda e, pela lâmina, nas duas bordas (a lâmina é larga: só no eixo ela some atrás)
+    base = GSIA_HANDS
+    loose_parts(asset)
+    empty("Tip", (0, 0, top))
+    pts = [(0, 0, base), (0, 0, top - 0.04)]
+    for f in (0.18, 0.38, 0.58, 0.78):
+        z = base + (top - base) * f
+        borda = [x for x, z2 in zip(xs, zs) if abs(z2 - z) < 0.03]
+        pts += [(min(borda) * 0.85, 0, z), (max(borda) * 0.85, 0, z)]
+    for i, p in enumerate(pts):
+        empty("Aura_%s_%d" % (kind, i), p)
+    export(asset, export_image_format='JPEG', export_jpeg_quality=88)
+
+
+ARMORY += [(_a, (lambda _a=_a: build_gsia(_a))) for _a in GSIA]
+
+
 WEAPONS.extend(ARMORY)   # ASSETS=weapons gera todas; ASSETS=staves / bows / classic geram só esse grupo
