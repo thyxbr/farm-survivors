@@ -1170,7 +1170,6 @@ def build_h_cosmic():
     plain_head(R, g_mats(), hair=False)
     K = cosmic_mats()
     G = K["gold"]
-    slit = mat("cz_slit_flat", hexc("#120716"), 0.6, 0.0, emit=hexc("#9E2696"), strength=0.55)
     C = Vector((0, 0.012, 1.69))
     TOP = 0.14
 
@@ -1194,8 +1193,8 @@ def build_h_cosmic():
         y = -math.copysign(abs(c) ** (2 / n), c) * (b + out)
         face = max(0.0, c)
         keel = 0.014 * face ** 12 * (1.0 if z < 1.8 else max(0.0, (1.83 - z) / 0.03))
-        chin = 0.022 * face ** 4 * max(0.0, 1 - (z - 1.47) / 0.12) ** 2
-        narrow = 1 - 0.18 * face ** 2 * max(0.0, 1 - (z - 1.47) / 0.15)
+        chin = 0.03 * face ** 4 * max(0.0, 1 - (z - 1.47) / 0.13) ** 2
+        narrow = 1 - 0.3 * face ** 2 * max(0.0, 1 - (z - 1.47) / 0.19)
         return Vector((x * narrow, C.y + y - keel - chin, z))
 
     def nrm(th, z):
@@ -1215,20 +1214,9 @@ def build_h_cosmic():
     ths = [2 * math.pi * j / NP for j in range(NP)]
     rim = [hp(t, zbot(t) + 0.008, 0.002) for t in ths]
     parts.append(cz_strip("CzHelmRim", rim, [nrm(t, zbot(t) + 0.008) for t in ths], 0.016, 0.007, G, head, loop=True))
-    # ---- fenda dos olhos: faixa escura acesa na frente; aba de ouro grossa por cima, lábio de prata por baixo
-    TH = 1.05
-    ZE = 1.675
-    sl = [[hp(-TH + 2 * TH * k / 30, ZE + dz + 0.003 * (abs(k - 15) / 15) ** 2, 0.0015) for k in range(31)]
-          for dz in (-0.011, -0.004, 0.004, 0.011)]
-    parts.append(g_smooth_mesh("CzHelmSlit", sl, slit, head, cap_end=False, closed=False, thick=0.0015))
-    brow = [hp(-TH - 0.08 + 2 * (TH + 0.08) * k / 34, ZE + 0.024 + 0.004 * (abs(k - 17) / 17) ** 2, 0.003)
-            for k in range(35)]
-    parts.append(cz_strip("CzHelmBrow", brow, [nrm(-TH - 0.08 + 2 * (TH + 0.08) * k / 34, ZE + 0.024) for k in range(35)],
-                          0.02, 0.011, G, head))
-    lip = [hp(-TH + 2 * TH * k / 30, ZE - 0.019 + 0.003 * (abs(k - 15) / 15) ** 2, 0.002) for k in range(31)]
-    parts.append(cz_strip("CzHelmLip", lip, [nrm(-TH + 2 * TH * k / 30, ZE - 0.019) for k in range(31)], 0.01, 0.006,
-                          K["plate"], head))
-    # ---- forquilha em U de ouro: base na testa sobre a aba, duas pontas largas subindo e inclinando para trás
+    # ---- rosto (referência ampliada): quilha do nariz subindo do queixo até a forquilha; dois olhos grandes em
+    #      lasca inclinados (canto de fora mais alto) mostrando o céu, fundos (aro de aço escuro) e com o
+    #      sobrolho de prata em ponta por cima; linhas da mandíbula em V descendo dos olhos até o queixo
     def front(x, z, out):              # ponto na frente do crânio com largura x
         lo, hi = -1.5, 1.5
         for _ in range(30):
@@ -1238,6 +1226,47 @@ def build_h_cosmic():
             else:
                 hi = m
         return hp((lo + hi) / 2, z, out), nrm((lo + hi) / 2, z)
+    NE = 36
+    for sn, sg in (("L", 1), ("R", -1)):
+        def eye(t, f=1.0, sg=sg):      # lasca: ponta de dentro mais baixa e fina, de fora alta e larga
+            ca, sa = math.cos(t), math.sin(t)
+            u = 0.5 + 0.5 * ca                         # 0 dentro .. 1 fora
+            hh = (0.011 + 0.016 * math.sin(math.pi * u) ** 0.8) * f
+            x = 0.016 + 0.064 * u * (0.08 + 0.92 * f) + 0.006 * (1 - f)
+            z = 1.664 + 0.03 * u ** 1.3 + hh * sa
+            return sg * x, z
+        sky = []
+        for f in (1.08, 1.0, 0.7, 0.4):
+            sky.append([front(*eye(2 * math.pi * j / NE, f), 0.0015)[0] for j in range(NE)])
+        parts.append(g_smooth_mesh("CzHelmEye" + sn, sky, K["sky"], head, cap_end=True, thick=0.0015))
+        rimp = [front(*eye(2 * math.pi * j / NE, 1.12), 0.002) for j in range(NE)]
+        parts.append(cz_strip("CzHelmEyeRim" + sn, [p for p, _ in rimp], [q for _, q in rimp], 0.008, 0.006,
+                              K["steel"], head, loop=True))
+        # sobrolho: lâmina de prata por cima do olho, passando da ponta de fora em ponta
+        br = []
+        for k in range(15):
+            u = k / 14
+            x = sg * (0.012 + 0.09 * u)
+            z = 1.686 + 0.034 * u ** 1.25 + 0.004 * math.sin(math.pi * u)
+            br.append(front(x, z, 0.004))
+        parts.append(cz_strip("CzHelmBrow" + sn, [p for p, _ in br], [q for _, q in br],
+                              [0.016 - 0.01 * (k / 14) ** 2 for k in range(15)], 0.01, K["plate"], head))
+        # mandíbula: linha em V do canto de baixo do olho até perto do queixo
+        jw = []
+        for k in range(12):
+            u = k / 11
+            jw.append(front(sg * (0.085 - 0.07 * u), 1.655 - 0.135 * u ** 0.9, 0.002))
+        parts.append(cz_strip("CzHelmJaw" + sn, [p for p, _ in jw], [q for _, q in jw], 0.011, 0.006, K["plate"],
+                              head))
+    # estrela acesa no olho esquerdo (a cruz dourada da referência)
+    ep, en = front(0.05, 1.677, 0.004)
+    parts.append(cz_star4("CzHelmEyeStar", ep, en, Vector((0, 0, 1)), 0.02, K["star"], head, thick=0.002, inner=0.18))
+    # quilha do nariz: do queixo até a base da forquilha, mais alta e larga em cima
+    kz = [1.495 + (1.74 - 1.495) * k / 16 for k in range(17)]
+    kp = [front(0.0, z, 0.002) for z in kz]
+    parts.append(cz_strip("CzHelmNose", [p for p, _ in kp], [q for _, q in kp],
+                          [0.012 + 0.012 * (k / 16) for k in range(17)], 0.011, K["plate"], head))
+    # ---- forquilha em U de ouro: o U nasce do alto da quilha, duas pontas largas subindo e inclinando para trás
     ub = []
     for k in range(13):                # o U: arco por baixo ligando as duas pontas
         a = math.pi * k / 12
@@ -1255,11 +1284,6 @@ def build_h_cosmic():
                for i in range(3, 15)]
         parts.append(g_smooth_mesh("CzHelmForkSky" + sn, sky, K["sky"], head, cap_end=False, closed=False,
                                    thick=0.0012, outward=True))
-    kz = [1.5 + (1.652 - 1.5) * k / 10 for k in range(11)]
-    parts.append(cz_strip("CzHelmNose", [hp(0.0, z, 0.002) for z in kz], [nrm(0.0, z) for z in kz], 0.013, 0.006, G,
-                          head))
-    sp, sn_ = front(0.0, 1.745, 0.006)
-    parts.append(cz_star4("CzHelmStar", sp, sn_, Vector((0, 0, 1)), 0.022, G, head))
     # ---- crista curta e chata pelo meio do crânio (da testa até o alto de trás)
     ztop = C.z + TOP
     path = [(0.0, 1.795 + (ztop - 0.004 - 1.795) * k / 8) for k in range(9)] +            [(math.pi, ztop - 0.004 - (ztop - 0.004 - 1.76) * k / 8) for k in range(1, 9)]
