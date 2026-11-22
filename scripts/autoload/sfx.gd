@@ -53,6 +53,7 @@ const FILES := {
 	"coin": ["pickup_1", "pickup_2"],
 	"gem": ["gem_1", "gem_2", "gem_3", "gem_4"],
 	"levelup": ["levelup_1"],
+	"level_up_fanfare": ["level_up_fanfare"],   # composta em tools/audio/gen_levelup.py
 	"quest": ["quest_1"],
 	"click": ["click_1", "click_2", "click_3"],
 	"error": ["error_1"],

@@ -1956,10 +1956,9 @@ func apply_look(l: Dictionary) -> void:
 		KnightAnim.reset_twist(parts)
 
 
-func _on_level_up(_lvl: int) -> void:
-	Sfx.play("levelup", 0.0)
-	FX.burst(global_position + Vector3.UP * KnightLook.body_y(self, 0.2), Color(1, 0.85, 0.3), 60, 6.0, 0.12, 1.2, 3.0)
-	FX.ring(global_position, Color(1, 0.85, 0.3, 0.9), 3.0, 0.8)
+func _on_level_up(lvl: int) -> void:
+	Sfx.play("level_up_fanfare", 0.0)
+	LevelUpFX.play(self, lvl)
 
 
 func add_shake(amount: float) -> void:
