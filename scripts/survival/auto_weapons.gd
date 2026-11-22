@@ -154,7 +154,7 @@ func _lightning() -> void:
 		var d := _damage(dmg)
 		bolt_fx(get_tree().current_scene, e.global_position)
 		Network.send_event("zap", e.global_position)
-		e.take_damage(d[0], e.global_position, d[1])
+		e.take_damage(d[0], e.global_position, d[1], 0.0, 0.0, 0.0, "raio")
 	Sfx.play("zap", 0.15, -4.0)
 	_combo("raio", first)
 
@@ -306,7 +306,7 @@ func _update_aura(delta: float) -> void:
 		if not hit_any:
 			hit_any = true
 			_combo("aura", e.global_position)
-		e.take_damage(d[0], e.global_position, d[1], slow)   # dano e lentidão numa mensagem só
+		e.take_damage(d[0], e.global_position, d[1], slow, 0.0, 0.0, "gelo")   # dano e lentidão numa mensagem só
 
 
 # ------------------------------------------------------------ combos em grupo
@@ -336,12 +336,13 @@ func combo_strike(cid: String, pos: Vector3, total_lv: int) -> void:
 	combo_fx(root, cid, pos)
 	Network.send_event("combo", pos, Vector3(UPG.COMBOS.keys().find(cid), 0, 0))
 	var slow: float = c.slow
+	var el := str(c.get("element", "fisico"))   # horde.json "combos": elemento do combo
 	match c.shape:
 		"area":
 			for item in _enemies_near(pos, c.radius):
 				var e: Enemy = item[1]
 				var d := _damage(c.dmg * power)
-				e.take_damage(d[0], pos, d[1], slow)
+				e.take_damage(d[0], pos, d[1], slow, 0.0, 0.0, el)
 		"chain":
 			var from := pos
 			var hit := {}
@@ -359,7 +360,7 @@ func combo_strike(cid: String, pos: Vector3, total_lv: int) -> void:
 				var to := best.global_position
 				_arc_fx(root, from + Vector3.UP * 0.8, to + Vector3.UP * 0.8, c.color)
 				var d := _damage(c.dmg * power)
-				best.take_damage(d[0], from, d[1], slow)
+				best.take_damage(d[0], from, d[1], slow, 0.0, 0.0, el)
 				from = to
 		"strikes":
 			var near := _enemies_near(pos, c.radius)
@@ -368,7 +369,7 @@ func combo_strike(cid: String, pos: Vector3, total_lv: int) -> void:
 				var e: Enemy = near[i][1]
 				bolt_fx(root, e.global_position)
 				var d := _damage(c.dmg * power)
-				e.take_damage(d[0], e.global_position, d[1], slow)
+				e.take_damage(d[0], e.global_position, d[1], slow, 0.0, 0.0, el)
 
 
 func _enemies_near(pos: Vector3, max_dist: float) -> Array:

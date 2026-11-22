@@ -86,6 +86,11 @@ const SURFACES := {
 		"flow_freq": 3.0, "flow_speed": 1.6, "flow_sharp": 8.0, "low": 0.75, "flow_dir": Vector3(0.45, 1.0, 0.2),
 		"hot": Color(1.0, 1.0, 1.0), "energy": 1.3}},
 	"eg_frost_deep_gem_flat": {"shader": GLOW, "params": {"pulse": 0.4, "pulse_speed": 1.0, "hot": Color(1.0, 1.0, 1.0)}},
+	# ---- Dragão negro e ouro: olho de dragão no peito pulsando como brasa, a fenda do elmo acesa no mesmo ouro
+	"dk_eye_glow_flat": {"shader": GLOW, "params": {"pulse": 0.45, "pulse_speed": 0.9, "flicker": 0.25,
+		"hot": Color(1.0, 0.92, 0.55), "energy": 2.4}},
+	"dk_helm_glow_flat": {"shader": GLOW, "params": {"pulse": 0.45, "pulse_speed": 0.9, "flicker": 0.3,
+		"hot": Color(1.0, 0.9, 0.5), "energy": 2.0}},
 }
 
 ## estilo do equipamento -> partículas (ver _particles)
@@ -110,6 +115,9 @@ const PARTICLES := {
 		"rise": -0.18, "size": 0.026, "spread": 40.0, "band": 1.0},
 	"a_frost": {"color": Color(0.8, 0.93, 1.0), "amount": 14, "life": 2.6, "height": 1.2, "ring": 0.38, "rise": -0.26,
 		"size": 0.03, "spread": 14.0, "band": 0.7},
+	# fumaça escura subindo devagar em volta do corpo
+	"a_blackdragon": {"color": Color(0.05, 0.05, 0.06, 0.7), "amount": 22, "life": 3.6, "height": 0.55, "ring": 0.28,
+		"rise": 0.2, "size": 0.42, "spread": 18.0, "band": 1.3, "dark": true, "soft": true},
 }
 
 static var _mats := {}       # nome do material + cor por vértice -> ShaderMaterial
@@ -184,8 +192,8 @@ static func _particles(d: Dictionary) -> CPUParticles3D:
 	p.gravity = Vector3.ZERO
 	p.initial_velocity_min = absf(d.rise) * 0.6
 	p.initial_velocity_max = absf(d.rise)
-	p.angle_min = 45.0
-	p.angle_max = 45.0
+	p.angle_min = 0.0 if d.get("soft", false) else 45.0
+	p.angle_max = 360.0 if d.get("soft", false) else 45.0
 	p.scale_amount_min = 0.5
 	p.scale_amount_max = 1.0
 	var curve := Curve.new()
@@ -195,14 +203,14 @@ static func _particles(d: Dictionary) -> CPUParticles3D:
 	p.scale_amount_curve = curve
 	var q := QuadMesh.new()
 	q.size = Vector2.ONE * float(d.size)
-	q.material = _particle_mat(d.color, d.get("dark", false))
+	q.material = _particle_mat(d.color, d.get("dark", false), d.get("soft", false))
 	p.mesh = q
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return p
 
 
-static func _particle_mat(c: Color, dark := false) -> StandardMaterial3D:
-	var key := c.to_html() + str(dark)
+static func _particle_mat(c: Color, dark := false, soft := false) -> StandardMaterial3D:
+	var key := c.to_html() + str(dark) + str(soft)
 	if _part_mats.has(key):
 		return _part_mats[key]
 	var m := StandardMaterial3D.new()
@@ -211,5 +219,19 @@ static func _particle_mat(c: Color, dark := false) -> StandardMaterial3D:
 	m.billboard_keep_scale = true
 	# acima de 1 acende o brilho da tela; "dark" (penas do corvo) fica na cor, sem acender
 	m.albedo_color = c if dark else Color(c.r * 2.2, c.g * 2.2, c.b * 2.2)
+	if soft:                   # fumaça: mancha redonda de borda esfumaçada, transparente (alfa da cor)
+		var g := Gradient.new()
+		g.set_color(0, Color(1, 1, 1, 1))
+		g.set_color(1, Color(1, 1, 1, 0))
+		g.add_point(0.45, Color(1, 1, 1, 0.75))
+		var tex := GradientTexture2D.new()
+		tex.gradient = g
+		tex.fill = GradientTexture2D.FILL_RADIAL
+		tex.fill_from = Vector2(0.5, 0.5)
+		tex.fill_to = Vector2(1.0, 0.5)
+		tex.width = 64
+		tex.height = 64
+		m.albedo_texture = tex
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_part_mats[key] = m
 	return m

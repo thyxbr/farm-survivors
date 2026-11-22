@@ -94,9 +94,10 @@ static func _enemies_near(tree: SceneTree, pos: Vector3, radius: float) -> Array
 	return out
 
 
-static func _hurt(e: Node, amount: float, from: Vector3, crit := false, slow := 0.0, stun := 0.0, pull := 0.0) -> void:
+## `element`: Alvorada sagrado, Suspiro do Abismo sombra, Presa do Dragão fogo; espinheiro físico.
+static func _hurt(e: Node, amount: float, from: Vector3, crit := false, slow := 0.0, stun := 0.0, pull := 0.0, element := "fisico") -> void:
 	var dmg := amount * randf_range(0.9, 1.1)
-	e.take_damage(dmg, from, crit, slow, stun, pull)
+	e.take_damage(dmg, from, crit, slow, stun, pull, element)
 	Game.on_damage_dealt(dmg, e.max_hp)
 
 
@@ -117,7 +118,7 @@ static func _solar_mark(p: Node3D, e: Node) -> void:
 	Sfx.play_at("explode", at, 0.1, -4.0)
 	FXEpic.hit_stop(0.05, 0.1)
 	for t in _enemies_near(p.get_tree(), at, float(R.SOLAR.radius)):
-		_hurt(t, p.damage * float(R.SOLAR.dmg), at, true)
+		_hurt(t, p.damage * float(R.SOLAR.dmg), at, true, 0.0, 0.0, 0.0, "sagrado")
 
 
 # ------------------------------------------------------------------ Rei dos Ventos: ricochete
@@ -215,7 +216,7 @@ class Rift extends Node3D:
 			if not visual_only:
 				for e in BowMythic._enemies_near(get_tree(), global_position, float(R.VORTEX.radius)):
 					var d := Vector2(e.global_position.x - global_position.x, e.global_position.z - global_position.z).length()
-					BowMythic._hurt(e, damage * float(R.VORTEX.tick_dmg), global_position, false, 0.0, 0.0, R.vortex_pull(d))
+					BowMythic._hurt(e, damage * float(R.VORTEX.tick_dmg), global_position, false, 0.0, 0.0, R.vortex_pull(d), "sombra")
 		if _t >= float(R.VORTEX.time):
 			_implode()
 
@@ -228,7 +229,7 @@ class Rift extends Node3D:
 		if not visual_only:
 			FXEpic.hit_stop(0.06, 0.08)
 			for e in BowMythic._enemies_near(get_tree(), global_position, r):
-				BowMythic._hurt(e, damage * float(R.VORTEX.implode_dmg), global_position, crit, 0.0, float(R.VORTEX.stun))
+				BowMythic._hurt(e, damage * float(R.VORTEX.implode_dmg), global_position, crit, 0.0, float(R.VORTEX.stun), 0.0, "sombra")
 		FXEpic.stop_stream(_swirl)
 		set_process(false)
 		var tw := create_tween()
@@ -292,7 +293,7 @@ class Rain extends Node3D:
 		if visual_only or not is_inside_tree():
 			return
 		for e in BowMythic._enemies_near(get_tree(), at, float(R.RAIN.splash)):
-			BowMythic._hurt(e, damage * float(R.RAIN.dmg), at, crit)
+			BowMythic._hurt(e, damage * float(R.RAIN.dmg), at, crit, 0.0, 0.0, 0.0, "fogo")
 
 
 ## Espinheiro da Raiz-Mãe: espinhos verdes brotam em volta; dano e lentidão por BRAMBLE.time s.
