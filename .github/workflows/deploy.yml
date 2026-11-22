@@ -30,7 +30,7 @@ env:
 
 jobs:
   # Os testes rodam em paralelo, um job por grupo (cada um baixa o Godot do cache e importa os assets, ~30 s):
-  # o tempo total é o do grupo mais lento (o smoke test do mundo) e não a soma. Os jobs seguintes têm
+  # o tempo total é o do grupo mais lento (as duas metades do smoke test do mundo, ~3 min cada) e não a soma. Os jobs seguintes têm
   # `needs: test`, que espera todos os grupos.
   # O Desafio da Horda está desligado (Game.HORDE_ENABLED): a parte horda do smoke test não roda.
   test:
@@ -45,6 +45,8 @@ jobs:
             name: unitários, modelos e vila
           - suite: mundo
             name: smoke test do mundo
+          - suite: sistemas
+            name: smoke test dos sistemas
           - suite: multiplayer
             name: multiplayer
     steps:
@@ -88,9 +90,11 @@ jobs:
         run: timeout 300 godot --headless --path . -s tests/unit/run.gd
 
       # o smoke test, parte do mundo (tests/smoke_test.gd, --smoke-part); a parte horda fica de fora enquanto a Horda está desligada
-      - name: Teste de gameplay (smoke test, mundo)
-        if: matrix.suite == 'mundo'
-        run: timeout 600 godot --headless --path . res://scenes/world.tscn -- --smoketest --smoke-part=mundo
+      # o smoke test do mundo é o teste mais longo: dividido em duas partes (dois jobs) para o CI esperar
+      # a metade do tempo; a parte sistemas roda _test_sistemas logo depois do kit de teste
+      - name: Teste de gameplay (smoke test, ${{ matrix.suite }})
+        if: matrix.suite == 'mundo' || matrix.suite == 'sistemas'
+        run: timeout 600 godot --headless --path . res://scenes/world.tscn -- --smoketest --smoke-part=${{ matrix.suite }}
 
       - name: Teste do modelo do ferreiro (esqueleto e clipes)
         if: matrix.suite == 'rapidos'
