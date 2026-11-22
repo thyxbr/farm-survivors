@@ -33,7 +33,7 @@
 			"dg_pico": {"monster": [["hide_t4", 0.15], ["essence_t4", 0.05]],
 				"boss": [["lich_phylactery", 1.0], ["mithril_ore", 1.0], ["scroll_mithril_gauntlets", 0.35], ["scroll_sc_halo_scepter", 0.35], ["scroll_mithril_longbow", 0.35], ["scroll_crescent_bow", 0.12]]},
 			"dg_final": {"monster": [["hide_t5", 0.2], ["essence_t5", 0.05], ["astralite_ore", 0.1]],
-				"boss": [["abyss_core", 1.0], ["soulwood_log", 1.0], ["scroll_astral_blade", 0.2], ["scroll_astral_bow", 0.2], ["scroll_soulwood_staff", 0.2], ["scroll_sc_astral_scepter", 0.2], ["scroll_astral_plate", 0.2], ["scroll_astral_helm", 0.2], ["scroll_astral_gauntlets", 0.2], ["scroll_astral_greaves", 0.2], ["abyss_bow", 0.06], ["scroll_dawn_bow", 0.15], ["scroll_dragon_bow", 0.12]]}
+				"boss": [["abyss_core", 1.0], ["soulwood_log", 1.0], ["scroll_astral_blade", 0.2], ["scroll_astral_bow", 0.2], ["scroll_soulwood_staff", 0.2], ["scroll_sc_astral_scepter", 0.2], ["scroll_astral_plate", 0.2], ["scroll_astral_helm", 0.2], ["scroll_astral_gauntlets", 0.2], ["scroll_astral_greaves", 0.2], ["scroll_blackdragon_plate", 0.15], ["scroll_blackdragon_helm", 0.15], ["scroll_blackdragon_gauntlets", 0.15], ["scroll_blackdragon_greaves", 0.15], ["abyss_bow", 0.06], ["scroll_dawn_bow", 0.15], ["scroll_dragon_bow", 0.12]]}
 		}
 	},
 	"quest_xp_share": 0.3,

@@ -122,9 +122,8 @@ priorizar.
 
 ## 7. Entregar
 
-1. Suba o patch de `config/version` em `project.godot` (o jogo tem auto update; PRs de modelo sobem a versão).
+1. Não mexa em `config/version` no `project.godot`: o CI numera a versão nova sozinho no merge.
    No modo `arma`, versione também `tools/blender/traced/` (JSON e `tex/*.png` com os `.import`); `refs/` nunca.
-   Se outra branch aberta já subiu o mesmo número, suba de novo ao atualizar com o `main`.
 2. Commit com o que mudou e tris antes → depois; push; PR para `main`. **Sem merge** até o usuário pedir.
 3. Resposta final curta: o que mudou, tris/materiais antes → depois, veredito do smoke-check,
    link do PR e a sugestão do próximo passo (ex.: `/modelar knight fase 2`).

@@ -35,6 +35,7 @@ func test_roundtrip_matches_consts() -> void:
 			cur = cur.duplicate(true)
 			for kind in cur:
 				(cur[kind] as Dictionary).erase("ref_level")
+				(cur[kind] as Dictionary).erase("elements")   # afinidades elementais (bestiário) nasceram depois
 			# o loot foi enxugado (equipamento vem do sorteio por nível): compara o resto, dos dois lados
 			var snap_enemies: Dictionary = (BalanceTables.decode(snap[n]) as Dictionary).duplicate(true)
 			for kind in cur:
@@ -73,6 +74,13 @@ func test_roundtrip_matches_consts() -> void:
 			cur = cur.duplicate(true)
 			cur.erase("mythic")
 			T.ok(cur == BalanceTables.decode(snap[n]), "tabela rarity igual ao snapshot (sem o Mítico)")
+			continue
+		elif n == "horde":
+			# o elemento de cada combo (afinidades elementais no combate) nasceu depois do snapshot
+			cur = cur.duplicate(true)
+			for id in cur.get("combos", {}):
+				(cur.combos[id] as Dictionary).erase("element")
+			T.ok(cur == BalanceTables.decode(snap[n]), "tabela horde igual ao snapshot das const (sem o elemento dos combos)")
 			continue
 		elif n == "classes":
 			# a ficha da tela de criação (história, papel, perfil, emblema) é apresentação, não balanceamento
@@ -142,6 +150,16 @@ func test_roundtrip_matches_consts() -> void:
 			# a viagem paga (carruagem e mapa-mundi) também
 			cur.erase("travel")
 			T.ok(cur == snap_rules, "tabela rules igual ao snapshot (sem xp_curve, enemy_sleep_radius e travel)")
+			continue
+		elif n == "buffs":
+			# buffs de habilidades novas (o Bastião de Escudos do Grito do Bastião) nasceram depois do snapshot:
+			# os de antes continuam iguais
+			cur = cur.duplicate(true)
+			var snap_buffs: Dictionary = BalanceTables.decode(snap[n])
+			for id in cur.keys():
+				if not snap_buffs.has(id):
+					cur.erase(id)
+			T.ok(cur == snap_buffs, "tabela buffs igual ao snapshot (sem os buffs novos)")
 			continue
 		T.ok(cur == BalanceTables.decode(snap[n]), "tabela %s igual ao snapshot das const" % n)
 

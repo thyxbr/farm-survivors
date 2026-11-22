@@ -681,8 +681,12 @@ func server_enemy_killed(e: Enemy) -> void:
 				continue
 			var r: Dictionary = rewards[pid]
 			var group_level := int(group_levels.get(pid, 1))
+			# o loot sai antes do abate: o bestiário registra o espólio que caiu para este jogador
+			var drops := {}
+			if r.loot:
+				drops = Econ.server_drop_loot(pid, e.kind, pos, "world", e.level, e.elite, e.chief)
 			if r.kill:
-				Econ.server_kill(pid, e.kind, int(r.xp), e.level, group_level, e.area)
+				Econ.server_kill(pid, e.kind, int(r.xp), e.level, group_level, e.area, drops)
 			elif int(r.xp) > 0:
 				# quem está longe também leva o ajuste de nível (o abate perto o aplica em CharRules.kill)
 				var far_xp := int(r.xp)
@@ -692,7 +696,6 @@ func server_enemy_killed(e: Enemy) -> void:
 					[{"t": "notify", "text": "+%d XP do grupo (longe demais para contar na missão)" % far_xp,
 						"color": Color(0.7, 0.85, 1.0)}])
 			if r.loot:
-				Econ.server_drop_loot(pid, e.kind, pos, "world", e.level, e.elite, e.chief)
 				_kill_reward.rpc_id(pid, e.kind, int(r.xp), pos)
 	for pid in _enemy_peers(e):
 		_enemy_died.rpc_id(pid, e.net_id)
@@ -813,7 +816,7 @@ func _mark_enemy(net_id: int, amp: float, secs: float) -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow: float, stun := 0.0, pull := 0.0) -> void:
+func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow: float, stun := 0.0, pull := 0.0, element = "fisico") -> void:
 	var id := multiplayer.get_remote_sender_id()
 	if not is_server() or not players.has(id):
 		return
@@ -826,10 +829,13 @@ func _hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow:
 	if not HitGuard.accepts(amount, last_pos.get(id, Vector3.INF), e.global_position):
 		return
 	if amount > 0.0:
+		# o elemento vem do cliente, mas o % é o da tabela do servidor (ElementRules.mix_of joga fora o desconhecido)
+		var mix := ElementRules.mix_of(element)
+		var em := e.element_mult(mix)
 		e.last_hitter = id   # antes do número: incoming() usa o nível de quem bateu (monstro bem acima resiste)
 		for pid in _enemy_peers(e):
-			_enemy_hit_fx.rpc_id(pid, net_id, e.incoming(amount), crit)   # o número já com a marca tóxica
-		e.take_damage(amount, from_pos, crit, 0.0, 0.0, clampf(pull, 0.0, 6.0))
+			_enemy_hit_fx.rpc_id(pid, net_id, e.incoming(amount) * em, crit, em)   # o número já com a marca tóxica e o elemento
+		e.take_damage(amount, from_pos, crit, 0.0, 0.0, clampf(pull, 0.0, 6.0), mix)
 		e.last_hitter = 0
 	if slow > 0.0 and not e.dead:
 		e.apply_slow(minf(slow, 10.0))
@@ -896,6 +902,43 @@ func _request_ally_buff(ability_id: String) -> void:
 		_you_got_buff.rpc_id(pid, buff, secs)
 		if ability_id == "scepter_ult":
 			_you_were_healed.rpc_id(pid, HealRules.ULT_HEAL, id)
+
+
+## Servidor: Grito do Bastião (espada com escudo, PartyShieldAbilities). O cliente manda só o id da habilidade, quando
+## a animação termina; o buff e a duração vêm da tabela (buffs.json) e do talento gravado no servidor. Confere: espada
+## e escudo nas mãos do personagem gravado, nível, vivo e o intervalo mínimo (PartyShieldRules.min_interval). Recebem
+## o herói e cada membro do grupo dele na mesma zona, vivo e a até PartyShieldConfig.radius m (PartyShieldRules.targets).
+@rpc("any_peer", "call_remote", "reliable")
+func _request_party_buff(ability_id: String) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not is_server() or not players.has(id) or characters == null or ability_id != PartyShieldRules.ID:
+		return
+	var char_id := int(players[id].get("char", 0))
+	if char_id <= 0 or server_peer_dead(id):
+		return
+	var s := characters.load_or_create(char_id)
+	var bt: BalanceTables = Balance.tables
+	var off_needs := str(CharRules._item(bt, str(s.equipment.get("offhand", ""))).get("needs", ""))
+	if not PartyShieldRules.has_kit(CharRules.weapon_class(bt, str(s.equipment.get("weapon", ""))), off_needs):
+		return
+	# servidor em --test (allow_reclass): os personagens do net_test ficam no nível 1 (ver _request_ally_buff)
+	if not characters.allow_reclass and not HealRules.level_ok(s.level, int(ItemDB.ABILITIES[ability_id].level)):
+		return
+	var buff := PartyShieldRules.BUFF
+	var base_time := float(ItemDB.BUFFS[buff].time)
+	var now := Time.get_ticks_msec() / 1000.0
+	var mine: Dictionary = _last_ally.get(id, {})
+	if not PartyShieldRules.interval_ok(mine.get(ability_id, -INF), now, PartyShieldAbilities.CONFIG.cooldown, base_time):
+		return
+	mine[ability_id] = now
+	_last_ally[id] = mine
+	var tm := CharRules.talent_mods(bt, s)
+	var secs := HealRules.ally_buff_seconds(base_time, float(tm.get("ability_time:" + ability_id, 0.0)))
+	var party: Array = Party.book.members(id)
+	for pid in PartyShieldRules.targets(id, party, zone_peers(zone_of(id)), last_pos, PartyShieldAbilities.CONFIG.radius):
+		if server_peer_dead(pid):
+			continue
+		_you_got_buff.rpc_id(pid, buff, secs)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -1251,14 +1294,20 @@ func request_ally_buff(ability_id: String) -> void:
 		_request_ally_buff.rpc_id(1, ability_id)
 
 
+## Espada com escudo (cliente): o Grito do Bastião terminou; pede o buff para si e o grupo por perto.
+func request_party_buff(ability_id: String) -> void:
+	if is_client():
+		_request_party_buff.rpc_id(1, ability_id)
+
+
 func send_event(kind: String, a := Vector3.ZERO, b := Vector3.ZERO) -> void:
 	if is_client() and world:
 		_player_event.rpc_id(1, kind, a, b)
 
 
-func client_hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun := 0.0, pull := 0.0) -> void:
+func client_hit_enemy(net_id: int, amount: float, from_pos: Vector3, crit: bool, slow := 0.0, stun := 0.0, pull := 0.0, element = "fisico") -> void:
 	if is_client():
-		_hit_enemy.rpc_id(1, net_id, amount, from_pos, crit, slow, stun, pull)
+		_hit_enemy.rpc_id(1, net_id, amount, from_pos, crit, slow, stun, pull, element)
 
 
 ## Círculo da Provocação Sombria (ver Enemy.apply_taunt): quem aplica é o servidor, com a réplica deste jogador
@@ -1473,10 +1522,10 @@ func _enemy_snapshot(snap: PackedFloat32Array) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _enemy_hit_fx(net_id: int, amount: float, crit: bool) -> void:
+func _enemy_hit_fx(net_id: int, amount: float, crit: bool, em := 1.0) -> void:
 	var e: Enemy = enemies.get(net_id)
 	if e and is_instance_valid(e):
-		e.show_hit(amount, crit)
+		e.show_hit(amount, crit, em)
 
 
 @rpc("authority", "call_remote", "reliable")

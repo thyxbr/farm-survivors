@@ -327,8 +327,10 @@ func _build_dock() -> void:
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 7)
 	plate.add_child(bar)
+	# o ataque básico (clique esquerdo) continua igual, só não ocupa a barra: o espaço fica escondido (o resto do HUD
+	# ainda o atualiza) e a barra começa nas habilidades 1..5
 	slots["attack"] = _action(bar, "M1")
-	_gap(bar)
+	slots["attack"].visible = false
 	for n in range(1, ItemDB.SLOT_COUNT + 1):
 		slots["slot_%d" % n] = _action(bar, str(n))
 	var ring := FuryRing.new()   # anel de fúria em volta do slot da ultimate, um pouco para fora do slot
@@ -585,8 +587,8 @@ func _redraw(s: ItemSlot) -> void:
 		s.queue_redraw()
 
 
-## Monta os ícones dos slots a partir do kit da arma equipada. Os slots 1-4 aparecem sempre; os de
-## depois (o 5 do cetro) só quando o kit tem habilidade neles.
+## Monta os ícones dos slots a partir do kit da arma equipada. Os slots 1-4 aparecem sempre; o 5 (Julgamento de
+## Luz do cetro, Grito do Bastião da espada com escudo) só quando o kit tem habilidade nele.
 func _refresh_kit() -> void:
 	_kit_class = Game.weapon_class()
 	_slot_ids = ["", "", "", "", ""]
@@ -607,6 +609,17 @@ func _refresh_kit() -> void:
 	if _fury_ring != null:
 		var u4: String = _slot_ids[3]
 		_fury_ring.visible = u4 == "" or bool(ItemDB.ABILITIES[u4].ultimate)
+	# a tecla 5 aparece e some com o escudo (Grito do Bastião): a doca volta a ficar centrada na largura nova
+	if dock != null:
+		_center_dock.call_deferred()
+
+
+## Recentraliza a doca inferior na largura que ela tem agora (slots que aparecem ou somem mudam a largura).
+func _center_dock() -> void:
+	if dock == null or not is_instance_valid(dock):
+		return
+	var ms := dock.get_combined_minimum_size()
+	_anchor(dock, 0.5, 1, -ms.x / 2.0, -ms.y - 8, ms.x, ms.y)
 
 
 func _refresh_static() -> void:

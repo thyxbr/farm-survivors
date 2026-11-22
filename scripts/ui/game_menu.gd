@@ -10,9 +10,9 @@ extends Control
 signal closed
 
 ## Abas da janela do herói (o inventário é a outra janela).
-const TAB_KEYS := ["C", "K", "J", "L"]
-const TAB_NAMES := ["Personagem", "Talentos", "Missões", "Profissões"]
-const TAB_ACTIONS := ["character", "talents", "quest_log", "professions"]
+const TAB_KEYS := ["C", "K", "J", "L", "B"]
+const TAB_NAMES := ["Personagem", "Talentos", "Missões", "Profissões", "Bestiário"]
+const TAB_ACTIONS := ["character", "talents", "quest_log", "professions", "bestiary"]
 const BAG_COLS := 6
 const BAG_MIN := 48
 const SLOT := 64.0
@@ -23,7 +23,7 @@ const INV_WIDTH := 424.0
 const HERO_WIDTH := 1000.0
 ## Largura de cada aba da janela do herói: a janela acompanha o conteúdo (Personagem é uma coluna só,
 ## Talentos é a árvore com as habilidades ao lado; Missões e Profissões em duas colunas).
-const TAB_WIDTHS := [640.0, 900.0, 1000.0, 900.0]
+const TAB_WIDTHS := [640.0, 900.0, 1000.0, 900.0, 1000.0]
 
 ## "inventory" ou "hero"; escolher antes de entrar na árvore.
 var mode := "hero"
@@ -108,7 +108,7 @@ func _ready() -> void:
 		pages.append(inv)
 		book.add_page("Inventário", "I", "inventory", inv)
 	else:
-		var builders := [_build_character, _build_talents, _build_quests, _build_professions]
+		var builders := [_build_character, _build_talents, _build_quests, _build_professions, _build_bestiary]
 		for i in builders.size():
 			var page: Control = builders[i].call()
 			pages.append(page)
@@ -132,6 +132,7 @@ func _ready() -> void:
 	Game.inventory_changed.connect(_refresh)
 	Game.stats_changed.connect(_refresh)
 	Game.quests_changed.connect(_refresh)
+	Game.bestiary_changed.connect(_refresh)
 	_refresh()
 
 
@@ -526,7 +527,7 @@ func _refresh_character() -> void:
 	var rv := char_right
 	rv.add_child(UITheme.ink_section("Estatísticas", 20))
 	var st := Game.stat_snapshot()
-	var red := 1.0 - 50.0 / (50.0 + Game.defense() * 4.0)
+	var red := 1.0 - Game.damage_taken_mult()
 	var pct := func(v: float) -> String: return "%d%%" % int(round(v * 100))
 	var groups := HBoxContainer.new()
 	groups.add_theme_constant_override("separation", 10)
@@ -829,6 +830,21 @@ func _select_quest(id: String) -> void:
 	_refresh_quests.call_deferred()
 
 
+# ================================================================ bestiário
+var bestiary_panel: BestiaryPanel
+
+
+func _build_bestiary() -> Control:
+	bestiary_panel = BestiaryPanel.new()
+	return bestiary_panel
+
+
+func _refresh_bestiary() -> void:
+	if bestiary_panel != null:
+		bestiary_panel.tooltip = tooltip
+		bestiary_panel.refresh()
+
+
 # ================================================================ geral
 ## Uma abertura do livro: duas páginas lado a lado com a lombada livre no meio.
 ## Devolve [abertura, página esquerda, página direita].
@@ -1039,6 +1055,7 @@ func _refresh() -> void:
 	talent_panel.refresh()
 	_refresh_quests()
 	_refresh_professions()
+	_refresh_bestiary()
 
 
 func _close() -> void:

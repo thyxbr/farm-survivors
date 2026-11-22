@@ -10,6 +10,7 @@ extends Node
 signal stats_changed
 signal inventory_changed
 signal quests_changed
+signal bestiary_changed
 signal ranked_up(rank: String)   # promoção na guilda (cartão "PROMOÇÃO")
 signal notify(text: String, color: Color)
 signal leveled_up(new_level: int)
@@ -46,6 +47,8 @@ var equipment := empty_equipment()
 var quests := {}            # id -> {"state": "active"|"ready"|"done", "progress": int}
 var flags := {}
 var kills := 0
+## Bestiário (BestiaryRules): kind -> {"n", "a", "d"}.
+var bestiary := {}
 ## Ecos (moeda permanente das partidas) e passivas permanentes {id: nível}.
 var ecos := 0
 var passives := {}
@@ -108,6 +111,9 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--nettest="):
 			get_tree().root.add_child.call_deferred(load("res://tests/net_test.gd").new())
+		elif a.begins_with("--groupdemo="):
+			# demonstração do Grito do Bastião em grupo, com servidor local (tools/party_group_demo.gd)
+			get_tree().root.add_child.call_deferred(load("res://tools/party_group_demo.gd").new())
 		elif a.begins_with("--atlasshot="):
 			get_tree().root.add_child.call_deferred(load("res://tools/atlas_shot.gd").new())
 		elif a.begins_with("--teleportshot="):
@@ -118,6 +124,9 @@ func _ready() -> void:
 	if "--hammerdemo" in OS.get_cmdline_user_args():
 		# demonstração do Martelo de Energia (use com --weapon=iron_sword: personagem descartável)
 		get_tree().root.add_child.call_deferred(load("res://tools/hammer_demo.gd").new())
+	if "--rallydemo" in OS.get_cmdline_user_args():
+		# demonstração do Grito do Bastião (use com --weapon=iron_sword: personagem descartável)
+		get_tree().root.add_child.call_deferred(load("res://tools/party_shield_demo.gd").new())
 	if "--earthquakedemo" in OS.get_cmdline_user_args():
 		# demonstração do Terremoto Devastador (use com --weapon=iron_sword: personagem descartável)
 		get_tree().root.add_child.call_deferred(load("res://tools/earthquake_demo.gd").new())
@@ -269,6 +278,14 @@ func _debug_screenshot() -> void:
 			for lv in range(1, clampi(int(a.substr(8)), 1, 60)):
 				xp_lv += CharRules.xp_to_next(lv, Balance.tables)
 			Econ.grant(0, xp_lv, {}, "demo", true)
+		# `--bestiary=tipo:abates[:item],...` preenche o espelho do bestiário (só a tela, para capturas da aba B;
+		# `item` = espólio secreto que já caiu)
+		elif a.begins_with("--bestiary=") and demo:
+			for part in a.substr(11).split(",", false):
+				var bits := part.split(":")
+				bestiary[bits[0]] = {"n": int(bits[1]) if bits.size() > 1 else 1, "a": ["campos_norte", "toca_goblins"],
+					"d": [bits[2]] if bits.size() > 2 else []}
+			bestiary_changed.emit()
 		elif a.begins_with("--talents="):
 			var xp_need := 0
 			for lv in range(1, 6):
@@ -354,7 +371,7 @@ func _setup_input() -> void:
 		"jump": [KEY_SPACE], "sprint": [KEY_SHIFT], "dodge": [KEY_CTRL, KEY_ALT],
 		"interact": [KEY_E], "spell_1": [KEY_1], "spell_2": [KEY_2], "spell_3": [KEY_3], "spell_4": [KEY_4], "spell_5": [KEY_5],
 		"potion": [KEY_R], "mana_potion": [KEY_F], "gather": [KEY_F], "inventory": [KEY_I, KEY_TAB], "character": [KEY_C],
-		"talents": [KEY_K], "quest_log": [KEY_J], "professions": [KEY_L], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
+		"talents": [KEY_K], "quest_log": [KEY_J], "professions": [KEY_L], "bestiary": [KEY_B], "pause": [KEY_ESCAPE], "quicksave": [KEY_F5], "quickload": [KEY_F9],
 		"eat": [KEY_Q], "food_next": [KEY_T], "world_map": [KEY_M], "party": [KEY_P], "friends": [KEY_O],
 		# emotes (acenar, comemorar, sentar): eram as teclas 1–3 da praça; na vila 1–4 são magias
 		"emote_1": [KEY_7], "emote_2": [KEY_8], "emote_3": [KEY_9],
@@ -597,7 +614,7 @@ func max_mp() -> float:
 
 
 func max_stamina() -> float:
-	return 70.0 + attr("agi") * 5.0
+	return 70.0 + attr("agi") * 2.5
 
 
 ## Dano do ataque básico conforme a classe da arma (espada FOR, cajado INT, arco AGI): CharRules.basic_damage.
@@ -617,8 +634,27 @@ func heal_amount() -> float:
 	return CharRules.heal_for(spell_power(), Balance.tables, str(equipment.weapon)) * (1.0 + float(talent_mods.get("heal_power", 0.0)))
 
 
+## Escala dos atributos: o que vem da AGI tem retorno decrescente (soft_bonus) e o total de pontos +
+## equipamento tem teto. Bônus temporários e de talento (mod) somam por cima do teto.
+const AGI_SPEED_CAP := 0.40    # bônus máximo de velocidade vindo da AGI
+const AGI_SPEED_HALF := 50.0   # pontos de AGI acima de 5 que dão metade desse bônus
+const SPEED_MAX := 1.45        # teto de velocidade de pontos + equipamento
+const AGI_CRIT_CAP := 0.25     # crítico máximo vindo da AGI
+const AGI_CRIT_HALF := 60.0
+const CRIT_MAX := 0.60         # teto de crítico de pontos + equipamento
+const DAMAGE_REDUCTION_MAX := 0.80   # a defesa nunca corta mais que isso do dano recebido
+const DEFENSE_K_BASE := 10.0   # K da redução de dano = isto + nível (ver damage_taken_mult)
+
+
+## Bônus com retorno decrescente: 0 em x = 0, metade de `cap` em x = `half`, tende a `cap`.
+static func soft_bonus(x: float, cap: float, half: float) -> float:
+	x = maxf(x, 0.0)
+	return cap * x / (x + half)
+
+
 func crit_chance() -> float:
-	return 0.08 + attr("agi") * 0.004 + gear("crit") + mod("crit")
+	var base := minf(CRIT_MAX, 0.08 + soft_bonus(attr("agi") - 5, AGI_CRIT_CAP, AGI_CRIT_HALF) + gear("crit"))
+	return clampf(base + mod("crit"), 0.0, 1.0)
 
 
 func cooldown_mult() -> float:
@@ -653,12 +689,35 @@ func buff_duration(buff_id: String) -> float:
 	return float(ItemDB.BUFFS.get(buff_id, {}).get("time", 0.0)) + ability_time_bonus(ability_id)
 
 
+## Defesa total: a fixa (armadura, VIT e bônus "defense") vezes 1 + os bônus percentuais "defense_pct" (o Bastião de
+## Escudos dá os dois). Os buffs entram por mod(): buff_mods é refeito do zero a cada buff que entra ou sai
+## (_recalc_buff_mods), então o bônus nunca fica preso depois que o buff acaba, morre ou é limpo.
 func defense() -> float:
-	return armor_defense() + attr("vit") * 0.4 + mod("defense")
+	return PartyShieldRules.defense_with(armor_defense() + attr("vit") * 0.25 + mod("defense"), mod("defense_pct"))
+
+
+## Fração do dano que passa pela defesa: redução = defesa / (defesa + K), K = DEFENSE_K_BASE + nível do
+## personagem, com teto de redução. O K cresce com o nível para a defesa não saturar no fim do jogo (com
+## 50 / (50 + 4 x defesa) fixo, o equipamento lendário sozinho já cortava 79% do golpe do chefe final).
+## Usa o nível do jogador e não o do atacante: o dano chega sem o atacante, e as áreas têm o nível de quem caça nelas.
+func damage_taken_mult() -> float:
+	var d := maxf(defense(), 0.0)
+	var k := DEFENSE_K_BASE + float(maxi(level, 1))
+	return maxf(1.0 - DAMAGE_REDUCTION_MAX, k / (k + d))
+
+
+## Vida e mana recuperadas por segundo fora dos bônus de talento/horda.
+func hp_regen() -> float:
+	return 0.3 + attr("vit") * 0.02 + mod("regen")
+
+
+func mp_regen() -> float:
+	return (0.8 + attr("int") * 0.06) * (1.0 + float(talent_mods.get("mp_regen", 0.0)))
 
 
 func speed_multiplier() -> float:
-	return (1.0 + (attr("agi") - 5) * 0.015 + gear("speed")) * mod("speed")
+	var base := minf(SPEED_MAX, 1.0 + soft_bonus(attr("agi") - 5, AGI_SPEED_CAP, AGI_SPEED_HALF) + gear("speed"))
+	return base * mod("speed")
 
 
 ## Números principais do personagem (para a tela de personagem e comparações).
@@ -734,7 +793,7 @@ func knows_ability(id: String) -> bool:
 	return level >= ItemDB.ABILITIES[id].level
 
 
-## Habilidades da arma equipada (slots 1..4, em ordem).
+## Habilidades da arma equipada (slots 1..5, em ordem).
 func ability_kit() -> Array[String]:
 	return ItemDB.kit(CharRules.class_weapon(Balance.tables, char_class), offhand_kind())
 
@@ -889,9 +948,9 @@ func guild_points() -> int:
 
 
 ## Abate: a cura da comida (roubo de vida) é do combate, do cliente; XP e missão são do Econ.
-func on_enemy_killed(kind: String, xp_reward: int, enemy_level := 0, area := "") -> void:
+func on_enemy_killed(kind: String, xp_reward: int, enemy_level := 0, area := "", drops := {}) -> void:
 	kill_lifesteal()
-	Econ.kill(kind, xp_reward, enemy_level, area)
+	Econ.kill(kind, xp_reward, enemy_level, area, drops)
 
 
 ## Roubo de vida da comida ao abater (combate é do cliente; online o abate em si é do servidor).
@@ -1248,7 +1307,8 @@ static func harness_class(args: PackedStringArray) -> Array:
 		elif a.begins_with("--weapon="):
 			weapon = a.substr(9)
 			harness = true
-		elif a in ["--smoketest", "--vilatest", "--farmdemo", "--geardemo", "--enchantdemo", "--introdemo"] or a.begins_with("--nettest="):
+		elif a in ["--smoketest", "--vilatest", "--farmdemo", "--geardemo", "--enchantdemo", "--introdemo"] or a.begins_with("--nettest=") \
+				or a.begins_with("--groupdemo="):
 			harness = true
 	if cls == "" and weapon != "":
 		var wc := CharRules.weapon_class(Balance.tables, weapon)
@@ -1302,6 +1362,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 	var old_class := weapon_class()
 	var old_off := offhand_kind()
 	var quests_before := quests
+	var bestiary_before := bestiary
 	var farm_before := farm
 	var enchant_before := weapon_enchant()
 	level = s.level
@@ -1314,6 +1375,7 @@ func apply_state(d: Dictionary, full := false) -> void:
 	quests = s.quests
 	flags = s.flags
 	kills = s.kills
+	bestiary = s.bestiary
 	farm = s.farm
 	ecos = s.ecos
 	passives = s.passives
@@ -1351,6 +1413,8 @@ func apply_state(d: Dictionary, full := false) -> void:
 		quests_changed.emit()
 	if farm != farm_before:
 		farm_changed.emit()
+	if bestiary != bestiary_before:
+		bestiary_changed.emit()
 
 
 ## Eventos das regras: avisos, nível, itens ganhos (os sinais que a UI já escuta).
@@ -1407,6 +1471,17 @@ func _open_debug_ui(w: Node, ui_name: String, args: PackedStringArray) -> void:
 			w._open_menu(2)
 		"quests":
 			w._open_menu(3)
+		"bestiary":   # `--bestiary-sel=<tipo>` abre a ficha da criatura; `--bestiary-page=<n>`, a página da grade
+			w._open_menu(5)
+			await get_tree().process_frame
+			var bp: BestiaryPanel = w.modal.bestiary_panel if w.modal and w.modal.get("bestiary_panel") else null
+			for a in args:
+				if bp != null and a.begins_with("--bestiary-sel="):
+					bp._sel = a.substr(15)
+					bp.refresh()
+				elif bp != null and a.begins_with("--bestiary-page="):
+					bp._page = int(a.substr(16))
+					bp.refresh()
 		"tools":
 			w._open_menu(0)
 			await get_tree().process_frame

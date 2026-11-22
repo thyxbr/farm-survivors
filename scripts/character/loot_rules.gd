@@ -41,6 +41,8 @@ static func roll(bt: BalanceTables, kind: String, rng: RandomNumberGenerator, ch
 	for entry in extra:
 		if rng.randf() < float(entry[1]):
 			out.items[entry[0]] = int(out.items.get(entry[0], 0)) + 1
+	# o que saiu da tabela antes da troca por classe (o bestiário registra o item da tabela do monstro)
+	out["rolled"] = out.items.duplicate()
 	if char_class != "":
 		var adapted := {}
 		for id in out.items:

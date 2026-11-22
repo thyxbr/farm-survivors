@@ -1,0 +1,63 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/party_shield/party_shield_cast.gd" id="1"]
+[ext_resource type="Resource" path="res://assets/vfx/party_shield/party_shield_config.tres" id="2"]
+[ext_resource type="Material" path="res://assets/vfx/party_shield/party_shield_sheet_mat.tres" id="3"]
+[ext_resource type="Material" path="res://assets/vfx/party_shield/rally_aura_mat.tres" id="4"]
+[ext_resource type="Material" path="res://assets/vfx/party_shield/rally_ground_mat.tres" id="5"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_aura"]
+radius = 0.58
+height = 2.2
+radial_segments = 24
+rings = 6
+
+[sub_resource type="QuadMesh" id="QuadMesh_sheet"]
+size = Vector2(1, 1)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+size = Vector2(2, 2)
+
+[node name="PartyShieldCast" type="Node3D"]
+script = ExtResource("1")
+config = ExtResource("2")
+
+[node name="Aura" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.05, 0)
+cast_shadow = 0
+mesh = SubResource("CapsuleMesh_aura")
+material_override = ExtResource("4")
+
+[node name="SheetBack" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 0)
+cast_shadow = 0
+mesh = SubResource("QuadMesh_sheet")
+material_override = ExtResource("3")
+
+[node name="SheetFront" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 0)
+cast_shadow = 0
+mesh = SubResource("QuadMesh_sheet")
+material_override = ExtResource("3")
+
+[node name="Glow" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.6, 0, 0, 0, 1, 0, 0, 0, 1.6, 0, 0.05, 0)
+cast_shadow = 0
+mesh = SubResource("PlaneMesh_ground")
+material_override = ExtResource("5")
+
+[node name="Wave" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06, 0)
+cast_shadow = 0
+mesh = SubResource("PlaneMesh_ground")
+material_override = ExtResource("5")
+
+[node name="Light" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+light_energy = 0.0
+shadow_enabled = false
+omni_range = 4.5
+
+[node name="Motes" type="GPUParticles3D" parent="."]
+cast_shadow = 0
+emitting = false

@@ -81,7 +81,7 @@ static func _radiant_damage(player: Node, pos: Vector3) -> void:
 			continue
 		if e.global_position.distance_to(pos) <= NOVA_RADIUS + e.radius:
 			var d := dmg * randf_range(0.92, 1.08)
-			e.take_damage(d, pos, false, 0.0, NOVA_STUN)
+			e.take_damage(d, pos, false, 0.0, NOVA_STUN, 0.0, "sagrado")
 			Game.add_fury_from_damage(d, e.max_hp)
 			HolyFX.smite(e.global_position)
 
