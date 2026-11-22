@@ -12,7 +12,10 @@ const TEXT_Y := 2.55          ## altura do letreiro acima dos pés (humano; o an
 const SPIRAL_TIME := 1.05
 ## Anjo (imagem com fundo transparente, de frente). Sem o arquivo, o efeito toca sem ele.
 const ANGEL_PATH := "res://assets/vfx/level_up_angel.png"
-const ANGEL_HEIGHT := 1.6     ## altura do anjo no mundo (m)
+const ANGEL_HEIGHT := 1.5     ## altura do anjo no mundo (m)
+const SPIRIT_SHADER := preload("res://shaders/fx_spirit.gdshader")
+
+static var _spirit_mat: ShaderMaterial
 
 
 ## Toca o efeito inteiro em `who` (o personagem que subiu); `level` = nível novo.
@@ -43,34 +46,43 @@ static func play(who: Node3D, level: int) -> void:
 			HolyFX.sparkles(who.global_position + Vector3.UP * KnightLook.body_y(who, 2.2), pal, 6, 1.0, 0.7, 0.0, 0.18))
 
 
-## O anjo aparece atrás do personagem na altura do peito, sobe até acima do letreiro balançando de leve,
-## com as asas "batendo" (a imagem estica e encolhe na largura) e some no alto.
+## O anjo é um espírito (shaders/fx_spirit.gdshader: translúcido, branco azulado, halo e pés em rastro).
+## Sai de dentro do personagem, sobe até acima do letreiro balançando de leve, com as asas "batendo"
+## (o quad estica e encolhe na largura), e se desfaz no alto.
 static func _angel(who: Node3D) -> void:
 	if not ResourceLoader.exists(ANGEL_PATH):
 		return
 	var tex: Texture2D = load(ANGEL_PATH)
-	var a := Sprite3D.new()
-	a.texture = tex
-	a.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-	a.shaded = false
-	a.alpha_cut = SpriteBase3D.ALPHA_CUT_DISABLED
-	a.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	if _spirit_mat == null:
+		_spirit_mat = ShaderMaterial.new()
+		_spirit_mat.shader = SPIRIT_SHADER
+		_spirit_mat.set_shader_parameter("tex", tex)
+	var q := QuadMesh.new()
+	q.size = Vector2(ANGEL_HEIGHT * tex.get_width() / float(tex.get_height()), ANGEL_HEIGHT)
+	var a := MeshInstance3D.new()
+	a.mesh = q
+	a.material_override = _spirit_mat
 	a.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	a.pixel_size = ANGEL_HEIGHT / float(tex.get_height())
-	a.render_priority = 5
-	a.modulate = Color(1, 1, 1, 0)
-	var y0 := KnightLook.body_y(who, 1.3)
-	var y1 := KnightLook.body_y(who, TEXT_Y + 1.5)
+	a.sorting_offset = -0.5          # atrás do letreiro
+	a.set_instance_shader_parameter("fade", 0.0)
+	var y0 := KnightLook.body_y(who, 1.0)
+	var y1 := KnightLook.body_y(who, TEXT_Y + 1.7)
 	a.position = Vector3(0, y0, 0)
+	a.scale = Vector3.ONE * 0.6
 	who.add_child(a)
 	var tw := a.create_tween()
-	tw.tween_property(a, "modulate:a", 0.95, 0.35).set_delay(0.15)
-	tw.parallel().tween_property(a, "position:y", y1, 2.0).set_delay(0.15).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tw.parallel().tween_property(a, "modulate:a", 0.0, 0.6).set_delay(1.55)
+	tw.tween_method(func(v: float) -> void: a.set_instance_shader_parameter("fade", v), 0.0, 1.0, 0.4).set_delay(0.1)
+	tw.parallel().tween_property(a, "position:y", y1, 2.2).set_delay(0.1).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(a, "scale", Vector3.ONE, 0.6).set_delay(0.1).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_method(func(v: float) -> void: a.set_instance_shader_parameter("fade", v), 1.0, 0.0, 0.8).set_delay(1.5)
 	tw.tween_callback(a.queue_free)
-	var flap := a.create_tween().set_loops(5)
-	flap.tween_property(a, "scale", Vector3(0.9, 1.02, 1.0), 0.2).set_trans(Tween.TRANS_SINE)
-	flap.tween_property(a, "scale", Vector3(1.05, 0.98, 1.0), 0.2).set_trans(Tween.TRANS_SINE)
+	# deriva de lado, devagar, como fumaça
+	var drift := a.create_tween().set_loops(3)
+	drift.tween_property(a, "position:x", 0.12, 0.4).set_trans(Tween.TRANS_SINE)
+	drift.tween_property(a, "position:x", -0.12, 0.4).set_trans(Tween.TRANS_SINE)
+	var flap := a.create_tween().set_loops(6)
+	flap.tween_property(a, "scale:x", 0.88, 0.18).set_trans(Tween.TRANS_SINE)
+	flap.tween_property(a, "scale:x", 1.04, 0.18).set_trans(Tween.TRANS_SINE)
 
 
 ## "LEVEL UP!" e "Nível N" presos no personagem (acompanham se ele andar).
