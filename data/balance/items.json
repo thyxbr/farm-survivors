@@ -3786,6 +3786,85 @@
 		"desc": "Não deixam pegadas.",
 		"craft": true
 	},
+	"cosmic_plate": {
+		"name": "Armadura do Cavaleiro Cósmico",
+		"type": "armor",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 19,
+		"price": 1900,
+		"color": {
+			"$c": [0.62, 0.62, 0.74, 1.0]
+		},
+		"metal": true,
+		"glow": 0.4,
+		"style": "a_cosmic",
+		"stats": {
+			"vit": 8,
+			"str": 3,
+			"hp": 66
+		},
+		"desc": "Prata fria por fora; por dentro das frestas, o céu da meia-noite.",
+		"craft": true
+	},
+	"cosmic_helm": {
+		"name": "Elmo Cósmico",
+		"type": "gear",
+		"slot": "head",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 9,
+		"price": 760,
+		"color": {
+			"$c": [0.62, 0.62, 0.74, 1.0]
+		},
+		"metal": true,
+		"style": "h_cosmic",
+		"stats": {
+			"vit": 5,
+			"hp": 28
+		},
+		"desc": "Pelas fendas dos olhos se vê uma galáxia, não um rosto.",
+		"craft": true
+	},
+	"cosmic_gauntlets": {
+		"name": "Manoplas Cósmicas",
+		"type": "gear",
+		"slot": "hands",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 2,
+		"price": 310,
+		"color": {
+			"$c": [0.62, 0.62, 0.74, 1.0]
+		},
+		"metal": true,
+		"style": "g_cosmic",
+		"stats": {
+			"str": 6
+		},
+		"desc": "Fecham-se como se segurassem uma estrela.",
+		"craft": true
+	},
+	"cosmic_greaves": {
+		"name": "Grevas Cósmicas",
+		"type": "gear",
+		"slot": "feet",
+		"rarity": "legendary",
+		"level": 50,
+		"defense": 6,
+		"price": 295,
+		"color": {
+			"$c": [0.62, 0.62, 0.74, 1.0]
+		},
+		"metal": true,
+		"style": "f_cosmic",
+		"stats": {
+			"vit": 3
+		},
+		"desc": "Cada passo soa como um sino ao longe.",
+		"craft": true
+	},
 	"scroll_wind_ring": {
 		"name": "Pergaminho: Anel do Vento",
 		"type": "scroll",

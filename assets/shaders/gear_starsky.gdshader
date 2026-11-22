@@ -19,6 +19,8 @@ uniform vec3 top_col : source_color = vec3(0.02, 0.03, 0.13);
 uniform vec3 bottom_col : source_color = vec3(0.09, 0.22, 0.62);
 uniform vec3 neb_col : source_color = vec3(0.3, 0.46, 0.95);
 uniform vec3 star_col : source_color = vec3(1.0, 0.96, 0.86);
+uniform float rings = 0.0;                   // anéis dourados ("planetas" do Cavaleiro Cósmico), 0 = sem
+uniform float star_scale = 1.0;              // < 1 deixa as estrelas menores e mais juntas (janelas pequenas)
 
 #include "res://assets/shaders/toon_light.gdshaderinc"
 
@@ -37,6 +39,20 @@ float noise(vec2 p) {
 
 float fbm(vec2 p) {
 	return noise(p) * 0.6 + noise(p * 2.1 + 7.3) * 0.3 + noise(p * 4.3 + 1.7) * 0.1;
+}
+
+// anéis finos, um por célula, pulsando devagar
+float ring_cells(vec2 p, float cell, float density, float t) {
+	vec2 g = p / cell;
+	vec2 id = floor(g);
+	if (hash(id + 7.7) > density) {
+		return 0.0;
+	}
+	vec2 o = vec2(hash(id + 2.2), hash(id + 6.1)) * 0.5 + 0.25;
+	float r = 0.12 + 0.12 * hash(id + 4.4);
+	float d = abs(length(fract(g) - o) - r);
+	float tw = 0.6 + 0.4 * sin(t * (0.6 + hash(id + 8.8)) + hash(id) * 40.0);
+	return (1.0 - smoothstep(0.025, 0.05, d)) * tw;
 }
 
 // estrelas de quatro pontas, uma por célula, cada uma piscando no seu tempo
@@ -76,8 +92,9 @@ void fragment() {
 		float n = fbm(p * vec2(3.0, 2.2) + vec2(t * drift, -t * drift * 0.7));
 		c = mix(c, mix(bottom_col, neb_col, 0.5), smoothstep(0.55, 0.58, n) * (0.35 + 0.65 * g));
 		c = mix(c, neb_col, smoothstep(0.7, 0.73, n) * g);
-		float s1 = stars(p, 0.017, 0.55, t, 4.0);
-		float s2 = stars(p + 3.7, 0.075, 0.2, t * 0.8 + 4.0, 7.0);
+		float s1 = stars(p, 0.017 * star_scale, 0.55, t, 4.0);
+		float s2 = stars(p + 3.7, 0.075 * star_scale, 0.2, t * 0.8 + 4.0, 7.0);
+		s2 += rings * ring_cells(p + 1.3, 0.05 * star_scale, 0.3, t);
 		// emenda com o manto: o azul liso escurece em céu e as estrelas vão aparecendo
 		float sky = smoothstep(cloth_z, top_z, p.y);
 		c = mix(cloth_col, c, smoothstep(0.0, 0.85, sky));
