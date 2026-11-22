@@ -6771,14 +6771,55 @@ def build_a_celestial():
 # contornos escuros de desenho; o céu (roxo e magenta, anéis dourados) só aparece em janelas na placa (olhos do
 # elmo, esterno), como se a armadura fosse uma casca sobre o cosmos. As asas são um item de costas à parte.
 def cosmic_mats():
+    """Paleta do Cavaleiro Cósmico em RPG estilizado: prata fria azulada (placas grandes), aço escuro (camadas de
+    baixo: lâminas, juntas), ouro grosso em peças de verdade (gola, faixas, molduras), céu estrelado nas janelas."""
+    gold = gm("cz_gold", "#D2A24A", 0.32, 0.85)
     return dict(
-        plate=gm("cz_silver", "#A2A5BF", 0.3, 0.82),
-        # frisos de ouro (o brilho corre por eles: GearFx) e linhas de luz estelar acesas (cz_star_flat)
-        plate_d=gm("cz_gold", "#C9A04C", 0.28, 0.9),
-        ink=gm("cz_ink", "#17161F", 0.7, 0.2), joint=gm("cz_joint", "#2E2C3A", 0.5, 0.55),
+        plate=gm("cz_silver", "#959BBB", 0.5, 0.65),
+        steel=gm("cz_steel", "#6A6F92", 0.5, 0.65),
+        plate_d=gold, gold=gold,
+        ink=gm("cz_ink", "#17161F", 0.7, 0.2), joint=gm("cz_joint", "#2A2838", 0.5, 0.55),
         sky=gm("cz_sky", "#2A1640", 0.9),
         star=mat("cz_star_flat", hexc("#FFE6A8"), 0.3, 0.0, emit=hexc("#FFC860"), strength=3.0),
     )
+
+
+def cz_strip(name, pts, nrms, w, h, material, parent, loop=False):
+    """Faixa chata e grossa (ouro de verdade, não cordão): ao longo de pts, deitada na superfície de normal nrms,
+    largura w (número ou lista por ponto) e altura h para fora, com as quinas chanfradas. Pontas fechadas."""
+    pts, nrms = list(pts), list(nrms)
+    n = len(pts)
+    ws = list(w) if isinstance(w, (list, tuple)) else [w] * n
+    prof = [(-0.5, 0.0), (-0.5, 0.55), (-0.36, 1.0), (0.36, 1.0), (0.5, 0.55), (0.5, 0.0), (0.0, -0.25)]
+    rings = []
+    for i in range(n):
+        a, b = pts[(i - 1) % n if loop else max(0, i - 1)], pts[(i + 1) % n if loop else min(n - 1, i + 1)]
+        T = (b - a).normalized()
+        N = (nrms[i] - T * nrms[i].dot(T)).normalized()
+        U = N.cross(T).normalized()
+        rings.append([pts[i] + U * (ws[i] * x) + N * (h * y) for x, y in prof])
+    if loop:
+        rings.append(rings[0])
+        return g_smooth_mesh(name, rings, material, parent, cap_end=False)
+    c0 = sum(rings[0], Vector()) / len(rings[0])
+    return g_smooth_mesh(name, [[c0] * len(prof)] + rings, material, parent, cap_end=True)
+
+
+def _cz_rad(q):
+    """Normal para fora do tronco na altura de q (radial, sem inclinação)."""
+    y0 = _wk_torso_sec(q.z)[4]
+    return Vector((q.x, q.y - y0, 0)).normalized()
+
+
+def _cz_hit(bvh, p, d, out=0.0):
+    """Como _cs_on, mas devolve (ponto, normal)."""
+    h = bvh.ray_cast(p + d * 0.3, -d)
+    if h[0] is None:
+        return p, d
+    n = h[1].normalized()
+    if n.dot(d) < 0:
+        n = -n
+    return h[0] + n * out, n
 
 
 def _cz_almond(c, e1, e2, w, h):
@@ -6786,117 +6827,161 @@ def _cz_almond(c, e1, e2, w, h):
     return lambda t, f=1.0: c + e1 * (w * f * math.sin(t) * abs(math.sin(t))) + e2 * (h * f * math.cos(t))
 
 
-def cosmic_window(nm, K, body, bvh, c, w, h, depth=0.003, d=Vector((0, -1, 0)), n=40):
-    """Janela para o céu na placa: amêndoa afundada (cz_sky), com aro de tinta e lábio de prata por fora.
+def cz_star4(name, c, n, up, r, material, parent, thick=0.005, inner=0.3):
+    """Estrela de quatro pontas chata e grossa (ouro), deitada no plano de normal n, ponta comprida para up."""
+    up = (up - n * up.dot(n)).normalized()
+    side = n.cross(up).normalized()
+    out = []
+    for k in range(16):
+        a = 2 * math.pi * k / 16
+        rr = r * (1.0 if k % 4 == 0 else inner if k % 2 == 1 else 0.42)
+        if k == 0:
+            rr *= 1.35
+        out.append(c + up * (math.cos(a) * rr) + side * (math.sin(a) * rr))
+    mid = [c.lerp(q, 0.45) + n * thick for q in out]
+    return g_smooth_mesh(name, [out, mid], material, parent, cap_end=True, thick=thick * 0.6)
+
+
+def cosmic_window(nm, K, body, bvh, c, w, h, depth=0.004, d=Vector((0, -1, 0)), n=48, frame=0.016):
+    """Janela para o céu na placa: amêndoa afundada (cz_sky) com moldura de ouro grossa (faixa chanfrada).
     c/w/h no plano da frente; os pontos são projetados na placa (bvh) vindo de fora pela direção d."""
     e2 = Vector((0, 0, 1))
     e2 = (e2 - d * e2.dot(d)).normalized()
     e1 = d.cross(e2).normalized()
     A = _cz_almond(c, e1, e2, w, h)
     ring = (lambda f, out: [_cs_on(bvh, A(2 * math.pi * j / n, f), d=d, out=out) for j in range(n)])
-    sky = [ring(f, -depth * (1 - f * f) + 0.0008) for f in (0.02, 0.4, 0.75, 1.0)]
-    parts = [g_smooth_mesh(nm, sky, K["sky"], body, cap_end=False, thick=0.002, outward=True)]
-    parts.append(g_pipe(nm + "Ink", ring(1.0, 0.0012), 0.0032, K["ink"], body, sides=8, loop=True))
-    parts.append(g_pipe(nm + "Lip", ring(1.22, 0.0016), 0.0034, K["plate"], body, sides=8, loop=True))
+    sky = [ring(f, 0.0015 + 0.5 * depth * f * f) for f in (1.12, 1.0, 0.75, 0.45, 0.2)]
+    parts = [g_smooth_mesh(nm, sky, K["sky"], body, cap_end=True, thick=0.0015)]
+    fr = [_cz_hit(bvh, A(2 * math.pi * j / n, 1.0 + 0.5 * frame / max(w, 1e-3)), d) for j in range(n)]
+    parts.append(cz_strip(nm + "Frame", [p for p, _ in fr], [q for _, q in fr], frame, frame * 0.5, K["gold"],
+                          body, loop=True))
     return parts
 
 
 def cosmic_torso(K, src, body):
-    """Tronco do cavaleiro cósmico: casca de baixo em aço escuro, peitoral de prata liso e justo (sem volume de
-    peito), costal fechado, gorjal alto até sob o queixo com a frente em V; no esterno uma janela em amêndoa para
-    o céu, e dos lados dela traços de tinta varrendo para os ombros como penas; três lâminas em V na cintura com
-    contorno de tinta. Devolve (casca, peças)."""
+    """Tronco do cavaleiro cósmico, em RPG estilizado: casca de baixo em aço escuro; peitoral de prata liso (sem
+    volume de peito) com a borda de baixo em V e faixa de ouro grossa; gorjal alto de prata com gola de ouro;
+    no esterno a janela grande de céu em amêndoa (a ponta de cima encosta na barra do gorjal), moldura de ouro e duas penas
+    de ouro de cada lado subindo para os ombros; três lâminas de aço escuro em escada na barriga; cinto de ouro
+    largo com a fivela de planeta (disco de céu e anel de ouro inclinado). Devolve (casca, peças)."""
     def under_keep(c, b, n):
         return not (b.startswith("Arm") or b.startswith("Elbow") or b.startswith("Knee")) and 0.86 <= c.z < 1.52
     under = cb_piece(src, "Under", under_keep, 0.006, K["joint"])
     g_subdiv(under, 2)
     parts = []
-    # ---- peitoral: borda de cima em arco sob o gorjal, de baixo com ponta rasa no meio
-    A = 1.3
+    G = K["gold"]
+    # ---- peitoral: em cima em arco sob o gorjal; embaixo em V (ponta no meio, 1,19 m), subindo para os lados
+    A = 1.32
+
+    def bot_z(a):
+        return 1.19 + 0.075 * min(1.0, abs(a) / 1.15) ** 1.2
 
     def breast(u, v):
         a = -A + 2 * A * v
         top = 1.48 - 0.06 * (abs(a) / A) ** 4
-        bot = 1.105 + 0.03 * min(1.0, abs(a) / 1.1) ** 1.5
-        z = top + (bot - top) * u
-        return wk_plate_pt(a, z, 0.016, keel=0.01, fr_max=1.03)
-    bp, br = _wk_plate("Breastplate", breast, 16, 40, K["plate"], body)
+        z = top + (bot_z(a) - top) * u
+        return wk_plate_pt(a, z, 0.02, keel=0.06, fr_max=1.03)
+    bp, br = _wk_plate("Breastplate", breast, 16, 44, K["plate"], body, thick=0.007)
     parts.append(bp)
-    parts.append(g_pipe("BreastRim", br[-1], 0.0055, K["plate_d"], body, sides=8))
-    # ---- costal
-    B = math.pi - 1.25
+    bvh = _mt_bvh([bp])
+    # faixa de ouro na borda de baixo (sobe pelas cavas até sob o braço)
+    edge = [wk_plate_pt(-A + 2 * A * j / 44, bot_z(-A + 2 * A * j / 44) + 0.008, 0.027, keel=0.06, fr_max=1.03)
+            for j in range(45)]
+    parts.append(cz_strip("BreastBand", edge, [_cz_rad(q) for q in edge], 0.022, 0.008, G, body))
+    # ---- costal, com a faixa de ouro embaixo
+    B = math.pi - 1.28
 
     def back(u, v):
         a = math.pi - B + 2 * B * v
         zt = 1.48 - 0.07 * abs(2 * v - 1) ** 4
-        z = zt + (1.1 - zt) * u
-        return wk_plate_pt(a, z, 0.017)
-    bk, bkr = _wk_plate("Backplate", back, 12, 30, K["plate"], body)
+        z = zt + (1.235 - zt) * u
+        return wk_plate_pt(a, z, 0.02)
+    bk, _ = _wk_plate("Backplate", back, 12, 34, K["plate"], body, thick=0.007)
     parts.append(bk)
-    parts.append(g_pipe("BackRim", bkr[-1], 0.0055, K["plate_d"], body, sides=8))
-    parts.append(g_pipe("BackKeel", [back(u, 0.5) + Vector((0, 0.0015, 0)) for u in (0.08, 0.4, 0.7, 0.97)],
-                        0.0024, K["ink"], body, sides=6))
-    # ---- gorjal: colar alto até sob o queixo; a barra no peito desce em V no meio
+    bedge = [wk_plate_pt(math.pi - B + 2 * B * j / 34, 1.243, 0.027) for j in range(35)]
+    parts.append(cz_strip("BackBand", bedge, [_cz_rad(q) for q in bedge], 0.022, 0.008, G, body))
+    # ---- gorjal: colar alto até sob o queixo; o babador desce sobre o alto do peito em V raso
     NG = 48
 
     def gz_bot(a):
         x = min(1.0, abs(a) / 1.2)
-        return 1.4 + (1.452 - 1.4) * x ** 1.2 - 0.03 * abs(math.sin(a)) ** 6
+        return 1.405 + (1.455 - 1.405) * x ** 1.2 - 0.03 * abs(math.sin(a)) ** 6
 
     def gor_pt(j, u):
         a = math.atan2(math.sin(2 * math.pi * j / NG), math.cos(2 * math.pi * j / NG))
         if u <= 0.45:
             t = u / 0.45
-            z = 1.605 - (1.605 - 1.488) * t + 0.012 * max(0.0, math.cos(a)) ** 4 * (1 - t)
-            rx = 0.088 + (0.104 - 0.088) * t ** 1.6
-            ry = 0.082 + (0.098 - 0.082) * t ** 1.6
+            z = 1.6 - (1.6 - 1.488) * t + 0.012 * max(0.0, math.cos(a)) ** 4 * (1 - t)
+            rx = 0.09 + (0.106 - 0.09) * t ** 1.6
+            ry = 0.084 + (0.1 - 0.084) * t ** 1.6
             return Vector((math.sin(a) * rx, 0.012 - math.cos(a) * ry, z))
         t = (u - 0.45) / 0.55
         z = 1.472 + (gz_bot(a) - 1.472) * t
-        q = wk_plate_pt(a, z, 0.024 + 0.003 * (1 - t), keel=0.01, fr_max=1.03)
+        q = wk_plate_pt(a, z, 0.03 + 0.003 * (1 - t), keel=0.06, fr_max=1.03)
         if t < 0.34:
-            c = Vector((math.sin(a) * 0.104, 0.012 - math.cos(a) * 0.098, 1.488))
+            c = Vector((math.sin(a) * 0.106, 0.012 - math.cos(a) * 0.1, 1.488))
             q = c.lerp(q, 0.55 + 0.45 * (t / 0.34))
         return q
     US = [0.0, 0.12, 0.24, 0.36, 0.45, 0.52, 0.62, 0.74, 0.87, 1.0]
     gor = [[gor_pt(j, u) for j in range(NG)] for u in US]
-    parts.append(g_smooth_mesh("Gorget", gor, K["plate"], body, cap_end=False, thick=0.006, outward=True))
-    parts.append(g_pipe("GorgetRim", gor[0], 0.0045, K["plate_d"], body, sides=8, loop=True))
+    parts.append(g_smooth_mesh("Gorget", gor, K["plate"], body, cap_end=False, thick=0.007, outward=True))
+    # gola de ouro: faixa larga em volta da boca do colar, em pé
     nb = (lambda q: Vector((q.x, q.y - 0.012, 0)).normalized())
-    parts.append(g_pipe("GorgetHem", [q + nb(q) * 0.002 for q in gor[-1]], 0.0055, K["plate_d"], body, sides=8,
-                        loop=True))
-    parts.append(g_pipe("GorgetLine", [q + nb(q) * 0.0025 for q in gor[3]], 0.0022, K["ink"], body, sides=6,
-                        loop=True))
-    # ---- janela do esterno e traços de pena varrendo para os ombros
-    bvh = _mt_bvh([bp])
-    parts += cosmic_window("SternumSky", K, body, bvh, Vector((0.0, -0.3, 1.3)), 0.028, 0.066)
+    collar = [gor_pt(j, 0.06) + nb(gor_pt(j, 0.06)) * 0.004 for j in range(NG)]
+    parts.append(cz_strip("Collar", collar, [nb(q) for q in collar], 0.032, 0.007, G, body, loop=True))
+    hem = [q + nb(q) * 0.003 for q in gor[-1]]
+    parts.append(cz_strip("GorgetHem", hem, [nb(q) for q in hem], 0.016, 0.006, G, body, loop=True))
+    # ---- janela grande do esterno, estrela em cima e penas de ouro dos lados
+    WC, WW, WH = Vector((0.0, -0.3, 1.293)), 0.042, 0.078
+    parts += cosmic_window("SternumSky", K, body, bvh, WC, WW, WH, depth=0.005, frame=0.017)
     for s in (1, -1):
         sn = "L" if s > 0 else "R"
-        for k, (a0, z0, a1, z1, bend) in enumerate(((0.2, 1.33, 0.95, 1.452, 0.05),
-                                                     (0.24, 1.29, 1.02, 1.36, 0.035),
-                                                     (0.2, 1.245, 0.98, 1.24, 0.02))):
-            line = []
-            for i in range(16):
-                t = i / 15
+        for k, (a0, z0, a1, z1, w0) in enumerate(((0.22, 1.33, 0.98, 1.445, 0.026), (0.26, 1.272, 1.02, 1.335, 0.02))):
+            pts, nrm, ws = [], [], []
+            for i in range(14):
+                t = i / 13
                 a = a0 + (a1 - a0) * t
-                z = z0 + (z1 - z0) * t ** 1.4 + bend * math.sin(math.pi * t) * 0.3
-                line.append(_cs_on(bvh, wk_plate_pt(s * a, z, 0.016, keel=0.01, fr_max=1.03),
-                                   d=Vector((math.sin(s * a), -math.cos(a), 0)), out=0.0012))
-            parts.append(g_pipe("BreastInk%s%d" % (sn, k), line, 0.0032 - 0.0004 * k, K["star"], body, sides=6))
-    # ---- lâminas da cintura em V, com contorno de tinta
+                z = z0 + (z1 - z0) * t ** 1.3 + 0.012 * math.sin(math.pi * t)
+                q = wk_plate_pt(s * a, z, 0.02, keel=0.06, fr_max=1.03)
+                p, nn = _cz_hit(bvh, q, Vector((math.sin(s * a), -math.cos(a), 0)), 0.0)
+                pts.append(p)
+                nrm.append(nn)
+                ws.append(w0 * (1 - 0.75 * t ** 1.1) * min(1.0, 0.55 + t * 4))
+            parts.append(cz_strip("Feather%s%d" % (sn, k), pts, nrm, ws, 0.006, G, body))
+    # ---- três lâminas de aço escuro em escada (cada uma sai por baixo da de cima e abre um pouco)
     for k in range(3):
-        zt = 1.12 - 0.04 * k
+        zt = 1.205 - 0.062 * k
 
         def lame(u, v, zt=zt):
-            a = -math.pi + 2 * math.pi * v
-            dip = 0.026 * max(0.0, math.cos(a)) ** 3
-            z = zt - (0.05 + dip) * u
-            return wk_plate_pt(a, z, 0.015 + 0.006 * u)
-        lm, lr = _wk_plate("Lame%d" % k, lame, 4, 64, K["plate"], body)
+            a = -math.pi - 0.06 + (2 * math.pi + 0.12) * v
+            dip = 0.022 * max(0.0, math.cos(a)) ** 3
+            z = zt - (0.074 + dip) * u
+            return wk_plate_pt(a, z, 0.012 + 0.012 * u)
+        lm, lr = _wk_plate("Lame%d" % k, lame, 5, 64, K["steel"], body, thick=0.006)
         parts.append(lm)
-        parts.append(g_pipe("LameRim%d" % k, lr[-1], 0.0045, K["plate_d"], body, sides=8))
-        parts.append(g_pipe("LameInk%d" % k, [q + Vector((q.x, q.y, 0)).normalized() * 0.0016 for q in lr[-1]],
-                            0.0024, K["ink"], body, sides=6))
+        rim = [q + _cz_rad(q) * 0.004 for q in lr[-1]]
+        parts.append(cz_strip("LameRim%d" % k, rim, [_cz_rad(q) for q in rim], 0.009, 0.004, K["plate"], body))
+    # ---- cinto de ouro largo e a fivela de planeta
+    bz = 0.985
+    belt = [wk_plate_pt(-math.pi + 2 * math.pi * j / 64, bz, 0.03) for j in range(64)]
+    parts.append(cz_strip("Belt", belt, [_cz_rad(q) for q in belt], 0.042, 0.01, G, body, loop=True))
+    front = wk_plate_pt(0.0, bz, 0.04)
+    c = front + Vector((0, -0.012, 0))
+    disc = []
+    for i in range(9):                  # disco de céu abaulado (meia esfera achatada para fora)
+        al = math.pi / 2 * i / 8
+        disc.append([c + Vector((math.sin(al) * math.cos(2 * math.pi * j / 24) * 0.03,
+                                 -math.cos(al) * 0.016 + 0.012,
+                                 math.sin(al) * math.sin(2 * math.pi * j / 24) * 0.03)) for j in range(24)])
+    parts.append(g_smooth_mesh("BuckleSky", disc, K["sky"], body, cap_end=False, outward=True))
+    tilt = 0.38
+    ring = []
+    for j in range(40):
+        a = 2 * math.pi * j / 40
+        x, z = math.cos(a) * 0.05, math.sin(a) * 0.014
+        ring.append(c + Vector((x * math.cos(tilt) - z * math.sin(tilt), -0.002 - 0.012 * max(0.0, -math.sin(a)),
+                                x * math.sin(tilt) + z * math.cos(tilt))))
+    parts.append(cz_strip("BuckleRing", ring, [Vector((0, -1, 0))] * 40, 0.011, 0.005, G, body, loop=True))
     return under, parts
 
 
