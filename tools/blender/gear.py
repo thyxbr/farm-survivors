@@ -1160,31 +1160,31 @@ def _cz_loft(name, spine, ry0, rb0, mat_, parent, tm=0.0, nt=24, na=20, tip=0.00
 
 
 def build_h_cosmic():
-    """Elmo Cósmico (referência: Marius Sebastian), na receita do armet: crânio justo de lados quase retos,
-    fechado na frente com a viseira afinando para um queixo em ponta e a quina do nariz ao queixo; duas fendas em
-    amêndoa inclinadas nos olhos mostrando o céu (cz_sky); nuca descendo em diagonal até o aro. Silhueta: a
-    coroa de cristas em volume afinando para as pontas — a forquilha do meio subindo da testa e duas cristas de
-    cada lado varrendo para cima e para fora (a mesma forma do chifre da ombreira). Tinta: quina, V da testa e
-    contorno das fendas."""
+    """Elmo Cósmico em RPG estilizado, na receita do armet: crânio justo de lados quase retos, fechado na frente
+    com quilha no meio e queixo em ponta, nuca descendo em diagonal até o aro. Fenda dos olhos escura com brilho
+    magenta sob a aba de ouro grossa da testa (a aba faz a sombra), lábio de prata embaixo da fenda. Na testa a
+    forquilha do Marius em ouro grosso (U de duas pontas largas subindo e inclinando para trás) com a estrela de
+    quatro pontas no meio do U; crista curta e chata de prata pelo alto do crânio; aro de ouro na barra."""
     P, R = g_rig("h_cosmic")
     head = R["Head"]
     plain_head(R, g_mats(), hair=False)
     K = cosmic_mats()
-    st, st_d, ink = K["plate"], K["plate_d"], K["ink"]
+    G = K["gold"]
+    slit = mat("cz_slit_flat", hexc("#120716"), 0.6, 0.0, emit=hexc("#9E2696"), strength=0.55)
     C = Vector((0, 0.012, 1.69))
-    TOP = 0.145
+    TOP = 0.14
 
     def prof(z):
         if z >= C.z:
             d = min(1.0, (z - C.z) / TOP)
             k = max(0.0, 1 - d ** 2.4) ** (1 / 2.4)
-            return 0.108 * k, 0.133 * k - 0.016 * d ** 1.5, 0.118 * k + 0.004 * d ** 1.5, 2.3 + 0.5 * (1 - d)
+            return 0.11 * k, 0.133 * k - 0.016 * d ** 1.5, 0.118 * k + 0.004 * d ** 1.5, 2.4 + 0.5 * (1 - d)
         t = min(1.0, (C.z - z) / 0.2)
         fl = 0.022 * max(0.0, (1.575 - z) / 0.085) ** 1.6
         u = min(1.0, (C.z - z) / 0.12)
         tuck = 0.04 * u * u * (3 - 2 * u)
-        return (0.108 * (1 - 0.1 * t) + fl, 0.133 * (1 - 0.05 * t) + fl * 0.8 + 0.01 * t,
-                0.118 - tuck + fl * 0.5, 2.8)
+        return (0.11 * (1 - 0.08 * t) + fl, 0.133 * (1 - 0.05 * t) + fl * 0.8 + 0.01 * t,
+                0.118 - tuck + fl * 0.5, 2.9)
 
     def hp(th, z, out=0.0):
         a, bf, bb, n = prof(z)
@@ -1193,153 +1193,80 @@ def build_h_cosmic():
         x = math.copysign(abs(s_) ** (2 / n), s_) * (a + out)
         y = -math.copysign(abs(c) ** (2 / n), c) * (b + out)
         face = max(0.0, c)
-        keel = 0.012 * face ** 10 * (1.0 if z < 1.83 else max(0.0, (1.86 - z) / 0.03))
-        chin = 0.022 * face ** 4 * max(0.0, 1 - (z - 1.47) / 0.12) ** 2      # o queixo avança em ponta
-        narrow = 1 - 0.18 * face ** 2 * max(0.0, 1 - (z - 1.47) / 0.15)      # e afina embaixo na frente
+        keel = 0.014 * face ** 12 * (1.0 if z < 1.8 else max(0.0, (1.83 - z) / 0.03))
+        chin = 0.022 * face ** 4 * max(0.0, 1 - (z - 1.47) / 0.12) ** 2
+        narrow = 1 - 0.18 * face ** 2 * max(0.0, 1 - (z - 1.47) / 0.15)
         return Vector((x * narrow, C.y + y - keel - chin, z))
 
-    def zbot(th):                      # barra: desce em ponta no queixo
+    def nrm(th, z):
+        return (hp(th, z, 0.01) - hp(th, z, 0.0)).normalized()
+
+    def zbot(th):
         face = max(0.0, math.cos(th))
         return 1.492 - 0.03 * face ** 6
-    NP = 56
+    NP = 64
     parts = []
     rows = []
     for i in range(19):
         u = i / 18
-        row = []
-        for j in range(NP):
-            th = 2 * math.pi * j / NP
-            z0 = zbot(th)
-            z = z0 + (C.z + TOP - z0) * u ** 0.9
-            row.append(hp(th, z))
-        rows.append(row)
-    parts.append(g_smooth_mesh("CzHelmShell", rows, st, head, cap_end=True, outward=True))
-    rim = [hp(2 * math.pi * j / NP, zbot(2 * math.pi * j / NP), 0.003) for j in range(NP)]
-    parts.append(g_pipe("CzHelmRim", rim, 0.0055, st_d, head, sides=8, loop=True))
-    # ---- máscara: placa da frente que cobre o rosto do queixo em ponta até a testa e continua ACIMA do crânio
-    #      nas duas pontas largas da forquilha (o U da referência), medida na imagem: a forquilha tem a largura
-    #      do rosto, cada ponta ~5 cm, o U desce até 1,83 m e as pontas sobem até ~1,98 m. Fica 7 mm por fora do
-    #      crânio, 9 mm de espessura, contorno de tinta em volta (o desenho da referência).
-    def th_of(x, z):                   # ângulo da frente do crânio onde a largura é x, na altura z
+        rows.append([hp(2 * math.pi * j / NP, zbot(2 * math.pi * j / NP) + (C.z + TOP - zbot(2 * math.pi * j / NP))
+                        * u ** 0.9) for j in range(NP)])
+    parts.append(g_smooth_mesh("CzHelmShell", rows, K["plate"], head, cap_end=True, outward=True))
+    ths = [2 * math.pi * j / NP for j in range(NP)]
+    rim = [hp(t, zbot(t) + 0.008, 0.002) for t in ths]
+    parts.append(cz_strip("CzHelmRim", rim, [nrm(t, zbot(t) + 0.008) for t in ths], 0.016, 0.007, G, head, loop=True))
+    # ---- fenda dos olhos: faixa escura acesa na frente; aba de ouro grossa por cima, lábio de prata por baixo
+    TH = 1.05
+    ZE = 1.675
+    sl = [[hp(-TH + 2 * TH * k / 30, ZE + dz + 0.003 * (abs(k - 15) / 15) ** 2, 0.0015) for k in range(31)]
+          for dz in (-0.011, -0.004, 0.004, 0.011)]
+    parts.append(g_smooth_mesh("CzHelmSlit", sl, slit, head, cap_end=False, closed=False, thick=0.0015))
+    brow = [hp(-TH - 0.08 + 2 * (TH + 0.08) * k / 34, ZE + 0.024 + 0.004 * (abs(k - 17) / 17) ** 2, 0.003)
+            for k in range(35)]
+    parts.append(cz_strip("CzHelmBrow", brow, [nrm(-TH - 0.08 + 2 * (TH + 0.08) * k / 34, ZE + 0.024) for k in range(35)],
+                          0.02, 0.011, G, head))
+    lip = [hp(-TH + 2 * TH * k / 30, ZE - 0.019 + 0.003 * (abs(k - 15) / 15) ** 2, 0.002) for k in range(31)]
+    parts.append(cz_strip("CzHelmLip", lip, [nrm(-TH + 2 * TH * k / 30, ZE - 0.019) for k in range(31)], 0.01, 0.006,
+                          K["plate"], head))
+    # ---- forquilha em U de ouro: base na testa sobre a aba, duas pontas largas subindo e inclinando para trás
+    def front(x, z, out):              # ponto na frente do crânio com largura x
         lo, hi = -1.5, 1.5
-        for _ in range(32):
+        for _ in range(30):
             m = (lo + hi) / 2
             if hp(m, z).x < x:
                 lo = m
             else:
                 hi = m
-        return (lo + hi) / 2
-    ZS = 1.795
-
-    def flat(x, z, out):               # passou da largura do crânio: a placa segue reta para fora
-        xm = 0.9 * hp(math.pi / 2, z).x
-        if abs(x) <= xm:
-            return hp(th_of(x, z), z, out)
-        q = hp(th_of(math.copysign(xm, x), z), z, out)
-        return q + Vector((x - math.copysign(xm, x), 0.35 * (abs(x) - xm), 0))
-
-    def surf(x, z, out):
-        if z <= ZS:
-            return flat(x, z, out)
-        q = flat(x, ZS, out)
-        return q + Vector((0, 0.22 * (z - ZS), z - ZS))     # acima do crânio a placa sobe inclinada para trás
-    MO = 0.007
-
-    def W(z):                          # meia largura da máscara: ponta no queixo, larga nos olhos
-        if z < 1.62:
-            t = max(0.0, (z - 1.462) / 0.158)
-            return 0.01 + 0.093 * (t * t * (3 - 2 * t)) ** 0.8
-        return 0.103 - 0.006 * max(0.0, (z - 1.76) / 0.085)
-    ZB = [1.462 + (1.845 - 1.462) * i / 22 for i in range(23)]
-    mask = [[surf(-W(z) + 2 * W(z) * k / 24, z, MO) for k in range(25)] for z in ZB]
-    parts.append(g_smooth_mesh("CzHelmMask", mask, st, head, cap_end=False, closed=False, thick=0.009, outward=True))
-    ZT = 1.82
-
-    def prong(u, v, sg):               # u: 0 dentro .. 1 fora; v: 0 base .. 1 topo (topo inclinado, de dentro mais alto)
-        ztop = 1.985 - 0.04 * u
-        z = ZT + (ztop - ZT) * v
-        h = (z - ZT) / (ztop - ZT + 1e-6)
-        xi = 0.036 * min(1.0, max(0.0, (z - 1.826) / 0.03)) ** 0.5
-        xo = W(min(z, 1.845)) - 0.022 * h
-        lean = 0.02 * h ** 1.5
-        return surf(sg * (xi + (xo - xi) * u + lean), z, MO)
-    outline_pts = []
+        return hp((lo + hi) / 2, z, out), nrm((lo + hi) / 2, z)
+    ub = []
+    for k in range(13):                # o U: arco por baixo ligando as duas pontas
+        a = math.pi * k / 12
+        x, z = -0.052 * math.cos(a), 1.738 - 0.028 * math.sin(a)
+        ub.append(front(x, z, 0.004))
+    parts.append(cz_strip("CzHelmForkU", [p for p, _ in ub], [q for _, q in ub], 0.016, 0.008, G, head))
     for sn, sg in (("L", 1), ("R", -1)):
-        g = [[prong(k / 10, i / 16, sg) for k in range(11)] for i in range(17)]
-        if sg < 0:
-            g = [r[::-1] for r in g]
-        parts.append(g_smooth_mesh("CzHelmProng" + sn, g, st, head, cap_end=False, closed=False, thick=0.009,
-                                   outward=True))
-    for sn, sg in (("L", 1), ("R", -1)):     # faixa de céu pelo meio de cada ponta (a lâmina da espada)
-        g = [[prong(0.26 + 0.48 * k / 6, 0.1 + 0.8 * i / 12, sg) + Vector((0, -0.0185, -0.004)) for k in range(7)]
-             for i in range(13)]
-        if sg < 0:
-            g = [r[::-1] for r in g]
-        parts.append(g_smooth_mesh("CzHelmProngSky" + sn, g, K["sky"], head, cap_end=False, closed=False,
-                                   thick=0.0015, outward=True))
-        ring = [r[0] for r in g] + g[-1][1:] + [r[-1] for r in g][::-1][1:] + g[0][::-1][1:]
-        parts.append(g_pipe("CzHelmProngSkyRim" + sn, [q + Vector((0, -0.001, 0)) for q in ring], 0.003,
-                            K["plate_d"], head, sides=6))
-    sc = surf(0.0, 1.797, MO + 0.015)
-    pts8 = []
-    for k in range(8):
-        r_ = 0.026 if k % 2 == 0 else 0.008
-        t = math.pi / 2 + math.pi * k / 4
-        pts8.append((math.cos(t) * r_, math.sin(t) * r_))
-    parts.append(g_plate("CzHelmStar", pts8, sc, (1, 0, 0), (0, 0.22, 1), 0.008, K["star"], head))
-    parts.append(g_cap("CzHelmStarSeat", sc + Vector((0, 0.004, 0)), (0, -1, 0.2), (1, 0, 0), 0.012, 0.012, 0.006,
-                       K["plate_d"], head, sides=16))
-    # contorno de tinta: borda da máscara (lado esquerdo subindo, ponta esquerda, U, ponta direita, lado direito)
-    IO = MO + 0.0012
-    FO = MO + 0.003                    # detalhes por cima da face da máscara
-    left = [surf(W(z), z, IO) for z in ZB[::-1]][::-1]
-    pl = [prong(1.0, i / 16, 1) for i in range(17)] + [prong(1 - k / 10, 1.0, 1) for k in range(1, 11)] + \
-         [prong(0.0, 1 - i / 16, 1) for i in range(1, 17)]
-    pr = [prong(0.0, i / 16, -1) for i in range(17)] + [prong(k / 10, 1.0, -1) for k in range(1, 11)] + \
-         [prong(1.0, 1 - i / 16, -1) for i in range(1, 17)]
-    lift = (lambda q: q + Vector((0, -0.0012, 0)))
-    ink_line = left[:-2] + [lift(q) for q in pl] + [lift(q) for q in pr] + [surf(-W(z), z, IO) for z in ZB[::-1]][2:]
-    parts.append(g_pipe("CzHelmMaskInk", ink_line, 0.0032, ink, head, sides=6))
-    # friso de ouro por dentro do contorno da máscara (lados e queixo, até a base das pontas)
-    gl = [surf(W(z) - 0.008, z, FO) for z in ZB[::-1] if z > 1.5][::-1]
-    gr = [surf(-W(z) + 0.008, z, FO) for z in ZB[::-1] if z > 1.5]
-    parts.append(g_pipe("CzHelmMaskGold", gl[::-1][:-1] + [surf(0.0, 1.505, FO)] + gr[::-1][::-1][::-1], 0.0028,
-                        K["plate_d"], head, sides=6))
-    # quina do meio: do U descendo até o queixo, em tinta (a linha central da referência)
-    parts.append(g_pipe("CzHelmKeelInk", [surf(0.0, z, FO) for z in (1.47, 1.52, 1.58, 1.64, 1.72, 1.79, 1.826)],
-                        0.0028, K["star"], head, sides=6))
-    # ---- fendas dos olhos: amêndoas grandes inclinadas (canto de fora mais alto) sobre a máscara, com o céu
-    N = 32
-    for sn, sg in (("L", 1), ("R", -1)):
-        x0, z0, w, h, tilt = sg * 0.052, 1.676, 0.03, 0.052, sg * 0.85
-
-        def eye(t, f=1.0, out=0.0, x0=x0, tilt=tilt):
-            du = w * f * math.sin(t) * abs(math.sin(t))
-            dv = h * f * math.cos(t)
-            ca, sa = math.cos(tilt), math.sin(tilt)
-            return surf(x0 + du * ca + dv * sa, z0 - du * sa + dv * ca, MO + 0.0024 + out)
-        sky = [[eye(2 * math.pi * j / N, f, 0.0012 * (1 - f * f) + 0.0004) for j in range(N)]
-               for f in (0.02, 0.45, 0.8, 1.0)]
-        parts.append(g_smooth_mesh("CzHelmEye" + sn, sky, K["sky"], head, cap_end=False, thick=0.002, outward=True))
-        parts.append(g_pipe("CzHelmEyeInk" + sn, [eye(2 * math.pi * j / N, 1.0, 0.0012) for j in range(N)], 0.0032,
-                            ink, head, sides=8, loop=True))
-        # ---- lâminas dos lados: duas chapas grossas de contorno anguloso saindo da têmpora para cima e para
-        #      fora, a de cima maior; ponta cortada em diagonal, contorno de tinta
-        for k, (zb, L, Wd, ang) in enumerate(((1.785, 0.11, 0.034, 0.75), (1.725, 0.085, 0.03, 1.12))):
-            base = hp(sg * 1.05, zb, -0.004)
-            up = Vector((0, 0, 1))
-            o = Vector((sg, 0.3, 0)).normalized()             # para fora e um pouco para trás
-            dirv = (up * math.cos(ang) + o * math.sin(ang)).normalized()
-            nrm = up.cross(o).normalized()                     # normal da chapa (olha para a frente)
-            if nrm.y > 0:
-                nrm = -nrm
-            perp = dirv.cross(nrm).normalized()
-            if perp.x * sg < 0:
-                perp = -perp
-            outline = [(-Wd / 2, -0.01), (Wd / 2, -0.01), (Wd * 0.42, L * 0.7), (Wd * 0.05, L), (-Wd * 0.5, L * 0.82)]
-            parts.append(g_plate("CzHelmBlade%s%d" % (sn, k), outline, base, perp, dirv, 0.011, st, head))
-            ring = [base + perp * x + dirv * y + nrm * 0.0095 for x, y in outline]
-            parts.append(g_pipe("CzHelmBladeInk%s%d" % (sn, k), ring + ring[:1], 0.0028, K["plate_d"], head, sides=6))
+        b0, nb = front(sg * 0.052, 1.738, 0.0)
+        Pf = [b0 + nb * 0.002, b0 + Vector((sg * 0.03, 0.01, 0.035)), b0 + Vector((sg * 0.052, 0.035, 0.095)),
+              b0 + Vector((sg * 0.05, 0.07, 0.16))]
+        prong, fr = cz_blade("CzHelmFork" + sn, Pf, Vector((0, -1, 0.35)).normalized(), 0.02, 0.009, G, head,
+                             NT=20, NA=16)
+        parts.append(prong)
+        sky = [[fr[i][0] + fr[i][1] * fr[i][3] * f + fr[i][2] * (fr[i][4] + 0.001) for f in (-0.5, 0.0, 0.5)]
+               for i in range(3, 15)]
+        parts.append(g_smooth_mesh("CzHelmForkSky" + sn, sky, K["sky"], head, cap_end=False, closed=False,
+                                   thick=0.0012, outward=True))
+    kz = [1.5 + (1.652 - 1.5) * k / 10 for k in range(11)]
+    parts.append(cz_strip("CzHelmNose", [hp(0.0, z, 0.002) for z in kz], [nrm(0.0, z) for z in kz], 0.013, 0.006, G,
+                          head))
+    sp, sn_ = front(0.0, 1.745, 0.006)
+    parts.append(cz_star4("CzHelmStar", sp, sn_, Vector((0, 0, 1)), 0.022, G, head))
+    # ---- crista curta e chata pelo meio do crânio (da testa até o alto de trás)
+    ztop = C.z + TOP
+    path = [(0.0, 1.795 + (ztop - 0.004 - 1.795) * k / 8) for k in range(9)] +            [(math.pi, ztop - 0.004 - (ztop - 0.004 - 1.76) * k / 8) for k in range(1, 9)]
+    crest = [hp(t, z, 0.001) for t, z in path]
+    cn = [(nrm(t, z) if abs(z - ztop) > 0.01 else Vector((0, 0, 1))) for t, z in path]
+    hs = [0.008 + 0.018 * math.sin(math.pi * k / 16) ** 0.7 for k in range(17)]
+    parts.append(cz_strip("CzHelmCrest", crest, cn, [0.012] * 17, 0.024, K["plate"], head))
     g_galaxy_uv("h_cosmic")
     g_head_done("h_cosmic", "CosmicHelm", parts, P, R)
 
