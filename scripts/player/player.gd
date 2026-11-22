@@ -879,7 +879,7 @@ func _do_hit() -> void:
 	elif hit_enemy:
 		Sfx.play(Sfx.sword_hit(flesh, Sfx.heavy_sword(_weapon_id())), 0.1)
 	if great and fin:
-		_great_slam_fx()
+		add_shake(0.3)   # golpe final da montante: a câmera dá um tranco, acertando alguém ou não
 	if hit_any:
 		add_shake(0.22 if fin else 0.12)
 
@@ -909,14 +909,6 @@ func _shield_combo() -> bool:
 ## Montante na mão (do jogo local ou, numa réplica, do último visual recebido): golpes de duas mãos.
 func _great() -> bool:
 	return look["class"] == "sword" and ItemDB.is_two_handed(_weapon_id())
-
-
-## Golpe final da montante: a varrida na horizontal (o acerto em área é em _do_hit). Um anel no chão marca a área e a
-## câmera dá um tranco, acertando alguém ou não. A lâmina não toca o chão: sem a poeira nem o som de pancada.
-func _great_slam_fx() -> void:
-	var at := global_position + facing() * GREAT_SLAM_AHEAD + Vector3.UP * 0.05
-	FX.ring(at, slash_color(), GREAT_SLAM_RADIUS, 0.35)
-	add_shake(0.3)
 
 
 ## Golpes do combo básico: 4 com espada e escudo, 3 nos outros.
