@@ -2,7 +2,8 @@ extends Node
 ## Teste de fumaça do gameplay. Rode com:
 ##   godot --headless --path . res://scenes/world.tscn -- --smoketest
 ## Imprime PASS/FAIL para cada verificação e encerra com código 0 (ok) ou 1 (falhas).
-## No CI roda em duas partes, em paralelo (cada uma num job): `--smoke-part=mundo` (tudo menos a Horda) e
+## No CI roda em partes, em paralelo (cada uma num job): `--smoke-part=mundo` (história, combate e classes),
+## `--smoke-part=sistemas` (_test_sistemas: horta, coleta, masmorras, encantos, chefes, rio...) e
 ## `--smoke-part=horda` (só o Desafio da Horda). Sem o argumento roda tudo, como antes.
 
 const UPG := preload("res://scripts/survival/upgrades.gd")
@@ -1031,6 +1032,10 @@ func _ready() -> void:
 		await _test_survival()
 		_finish()
 		return
+	if _part() == "sistemas":
+		await _test_sistemas()
+		_finish()
+		return
 
 	# --- som posicional: combate longe do jogador não deve ser ouvido
 	check(Sfx.distance_gain(0.0) == 1.0 and Sfx.distance_gain(15.0) < 0.5 and Sfx.distance_gain(Sfx.FAR_DIST + 1.0) == 0.0,
@@ -2014,6 +2019,16 @@ func _ready() -> void:
 	check(not player.dead and not get_tree().paused and Game.hp == Game.max_hp(), "renasce na vila")
 	check(Game.gold == gold_dead - int(gold_dead * 0.1), "renascer custa 10%% do ouro (%d -> %d)" % [gold_dead, Game.gold])
 
+	if _part() == "mundo":
+		_finish()   # o resto (_test_sistemas) roda em outro job, na parte "sistemas"
+		return
+	await _test_sistemas()
+	_finish()
+
+
+## Segunda metade do mundo: cada teste monta o próprio cenário, então roda logo depois do kit (parte
+## "sistemas", em paralelo com a parte "mundo" no CI) ou depois da primeira metade (teste inteiro).
+func _test_sistemas() -> void:
 	await _test_fx_epic()
 	await _test_farm()
 	await _test_gather()
@@ -2031,14 +2046,13 @@ func _ready() -> void:
 	await _test_river()
 	await _test_archer_pose()
 	await _test_gold_goblin_world()
-	if _part() != "mundo" and Game.HORDE_ENABLED:
+	if _part() == "" and Game.HORDE_ENABLED:
 		await _test_survival()
 	await _test_update()
 	await _test_char_create()   # por último: troca o personagem solo por um novo, sem classe
-	_finish()
 
 
-## Parte pedida com --smoke-part=<mundo|horda>; "" = o teste inteiro.
+## Parte pedida com --smoke-part=<mundo|sistemas|horda>; "" = o teste inteiro.
 func _part() -> String:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--smoke-part="):
@@ -2678,7 +2692,9 @@ func _test_fx_epic() -> void:
 	FXEpic.hit_stop(0.05)
 	FXEpic.hit_stop(0.05)
 	check(Engine.time_scale >= 0.05 and Engine.time_scale < 1.0, "hit stop ativo (%.2f)" % Engine.time_scale)
-	await get_tree().create_timer(0.3, true, false, true).timeout
+	# espera pela condição, não 0,3 s fixos: na parte "sistemas" este é o primeiro teste depois de carregar
+	# o mundo e o quadro dos efeitos novos (shaders compilando) passa de 0,3 s
+	await wait_until(func() -> bool: return is_equal_approx(Engine.time_scale, 1.0), 2.0)
 	check(is_equal_approx(Engine.time_scale, 1.0), "hit stop volta para 1.0")
 	# perder o guarda no meio do hit stop também restaura o tempo
 	FXEpic.hit_stop(5.0)
@@ -2686,7 +2702,7 @@ func _test_fx_epic() -> void:
 	FXEpic._hs_guard.free()
 	check(is_equal_approx(Engine.time_scale, 1.0), "guarda liberado cedo restaura o tempo")
 	FXEpic.hit_stop(0.05)
-	await get_tree().create_timer(0.3, true, false, true).timeout
+	await wait_until(func() -> bool: return is_equal_approx(Engine.time_scale, 1.0), 2.0)
 	check(is_equal_approx(Engine.time_scale, 1.0), "hit stop volta para 1.0 de novo")
 	await wait(2.0)
 	check(get_tree().current_scene.get_child_count() <= n0 + 1, "efeitos épicos se liberam")
