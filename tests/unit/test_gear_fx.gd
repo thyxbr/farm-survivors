@@ -2,7 +2,7 @@ extends RefCounted
 ## GearFx: a tabela de texturas animadas tem que bater com os GLBs (o efeito é escolhido pelo nome do
 ## material; um material renomeado no Blender deixaria a peça sem efeito, em silêncio).
 
-const ENDGAME := ["lich", "hierophant", "reaper", "raven", "dragon", "astral", "frost", "celestial", "void", "blackdragon"]
+const ENDGAME := ["lich", "hierophant", "reaper", "raven", "dragon", "astral", "frost", "celestial", "void", "blackdragon", "cosmic"]
 ## armaduras com efeito só no material, sem partículas nem cabeça própria (o brilho do ouro do paladino)
 const FX_ONLY := ["a_paladin", "a_emberscale"]
 const DIR := "res://assets/models/gear/"
@@ -57,7 +57,7 @@ func test_tinted_and_shared_materials_stay_out() -> void:
 func test_galaxy_uv_is_baked_in_the_models() -> void:
 	# a galáxia é desenhada a partir do UV (tools/blender/gear.py, g_galaxy_uv): sem ele, não aparece
 	for pair in [["a_reaper", "rb_reaper_cloth"], ["h_reaper", "eg_reaper_space_gem_flat"],
-			["a_celestial", "cs_sky"], ["a_celestial", "cs_void_flat"]]:
+			["a_celestial", "cs_sky"], ["a_celestial", "cs_void_flat"], ["a_cosmic", "cz_sky"]]:
 		var root := (load(DIR + pair[0] + ".glb") as PackedScene).instantiate()
 		var with_uv := 0
 		for mi: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
